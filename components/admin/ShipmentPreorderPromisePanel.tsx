@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition, type FormEvent } from 'react';
 import {
-  changeShipmentPreorderDateAction, readShipmentPreorderPromiseAction, type ShipmentPreorderPromise,
+  changeShipmentPreorderDateAction, readShipmentPreorderPromiseAction, type ShipmentPreorderPromise, type ShipmentPromiseChange,
 } from '@/app/admin/preorder-shipment-actions';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -42,6 +42,16 @@ function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise;
   </form>;
 }
 
+/** 변경 이력 한 줄의 머리말. 일괄 변경으로 남은 행은 출처를 밝히고, 일정 그대로 안내만 한 행은 'A → A' 대신 안내만 했다는 뜻을 보인다. */
+export function PromiseChangeHeadline({ change }: { change: ShipmentPromiseChange }) {
+  if (change.noticeOnly) return <>
+    <span className="font-medium">고객 안내만(일정 그대로) · 예약 주문 일괄 변경</span>
+    <span className="ml-2 tabular-nums text-muted-foreground">{change.toDate}</span>
+  </>;
+  return <span className="tabular-nums">{change.fromDate} → {change.toDate}
+    {change.bulkChangeId ? <span className="text-muted-foreground"> · 예약 주문 일괄 변경</span> : null}</span>;
+}
+
 /** Staff-only server actions enforce access even when the component is invoked directly. */
 export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipmentId: string; orderId: string }) {
   const [refresh, setRefresh] = useState(0);
@@ -68,7 +78,7 @@ export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipment
           onSaved={(message) => { setNotice({ shipmentId, message }); reload(); }} /> : <small className="text-xs text-muted-foreground">발송 준비를 마친 배송 건은 변경 이력을 확인할 수 있습니다.</small>}
         {promise.changes.length ? <ol className="flex list-decimal flex-col gap-2.5 pl-5">
           {promise.changes.map((change) => <li key={change.id}>
-            <span className="tabular-nums">{change.fromDate} → {change.toDate}</span><p className="my-1 whitespace-pre-wrap wrap-anywhere">{change.reason}</p>
+            <PromiseChangeHeadline change={change} /><p className="my-1 whitespace-pre-wrap wrap-anywhere">{change.reason}</p>
             <small className="text-xs text-muted-foreground">{formatOrderDateTime(change.changedAt)} · {change.actorName ?? '운영자'}</small>
           </li>)}
         </ol> : <p className="text-muted-foreground">기록된 일정 변경이 없습니다.</p>}

@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { AdminMemberDetail } from './members';
 import { ADMIN_VOCABULARY } from './vocabulary';
 
@@ -18,7 +19,7 @@ export interface AdminCustomerDetail extends CustomerDetailFilters {
   counts: Record<Exclude<CustomerTab, 'overview'>, number>;
   pageSize: number; total: number; items: AdminCustomerRow[];
 }
-export const isCustomerId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+export const isCustomerId = (value: string) => isUuid(value);
 export function normalizeCustomerDetailFilters(params: Record<string, string | string[] | undefined>): CustomerDetailFilters {
   return {
     tab: CUSTOMER_TABS.includes(params.tab as CustomerTab) ? params.tab as CustomerTab : 'overview',

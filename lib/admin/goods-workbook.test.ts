@@ -1,9 +1,11 @@
 import ExcelJS from 'exceljs';
 import { findCountryName } from './country-names';
 import { describe, expect, it } from 'vitest';
-import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
+import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_LEGACY_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
 import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
 import { emptyGoodsCustomInputWorkbookRow, exportGoodsCustomInputWorkbookRows } from './goods-custom-input-workbook';
+import { GOOD_TYPE_PUBLISH_REQUIRED } from './catalog';
+import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
 import {
   emptyGoodsWorkbookRow,
   exportGoodsWorkbookRows,
@@ -13,8 +15,12 @@ import {
   GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER,
   GOODS_WORKBOOK_V3_VERSION,
   GOODS_WORKBOOK_V4_VERSION,
+  GOODS_WORKBOOK_V7_VERSION,
+  goodsWorkbookLayout,
   partitionGoodsExports,
   planGoodsWorkbookImport,
+  goodsWorkbookLiveDiscountError,
+  goodsWorkbookLiveDiscountOptionAddError,
   type GoodsImportExisting,
   type GoodsWorkbookContext,
   type GoodsWorkbookRow,
@@ -24,6 +30,7 @@ const existing: GoodsImportExisting = {
   fingerprint: 'sha',
   good: {
     id: 'existing-good',
+    product_no: 1042,
     code: 'GO-001',
     name: '기존 상품',
     search_keywords: ['  여름 굿즈  ', 'KUMA'],
@@ -85,25 +92,38 @@ const row = (
     ...emptyGoodsWorkbookRow(),
     name: '신규 상품',
     ipId: 'ip',
+    // 0901-015: 재고수량은 비울 수 없다 — 시험 행은 0을 직접 적는다.
+    stockQty: '0',
     ...values,
   },
 });
-/** 이전 2축 양식의 실제 열 순서로 만든다. v3는 갤러리 5~9도 빠져 있다. */
+/**
+ * 구형 양식의 실제 열 순서·열 이름으로 만든다. v3~v7은 상품번호가 없고 가격이 저장값 그대로(기준 판매가·소비자가·옵션 판매가)다.
+ * v4는 옵션 축 3이, v3는 갤러리 5~9도 빠져 있다.
+ */
 async function v3Workbook(rows: GoodsWorkbookRow[], version = GOODS_WORKBOOK_V3_VERSION) {
-  const keys = GOODS_WORKBOOK_KEYS.filter((key) => key !== 'axis3' && key !== 'value3' && (version !== GOODS_WORKBOOK_V3_VERSION || !/^gallery(Url|File)[4-8]$/.test(key)));
-  expect(keys).toHaveLength(GOODS_WORKBOOK_KEYS.length - (version === GOODS_WORKBOOK_V3_VERSION ? 12 : 2));
+  const columns = goodsWorkbookLayout(version)!.columns;
+  const keys = columns.map((column) => column.key);
+  expect(keys).not.toContain('productNo');
+  expect(keys).toHaveLength(GOODS_WORKBOOK_KEYS.length - 1 - (version === GOODS_WORKBOOK_V3_VERSION ? 12 : version === GOODS_WORKBOOK_V4_VERSION ? 2 : 0));
   if (version === GOODS_WORKBOOK_V3_VERSION) expect(keys.slice(keys.indexOf('galleryFile3'), keys.indexOf('galleryFile3') + 2)).toEqual(['galleryFile3', 'detailImageUrl']);
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('상품');
   sheet.getCell('A1').value = version;
-  sheet.getRow(4).values = keys.map((key) => GOODS_WORKBOOK_HEADERS[key]);
+  sheet.getRow(4).values = columns.map((column) => column.header);
   rows.forEach((values, index) => {
-    sheet.getRow(index + 5).values = keys.map((key) => values[key] || null);
+    // 판매가·즉시할인·옵션가(v8)를 구형 저장값 열로 되돌린다.
+    const discount = Number(values.instantDiscount || 0);
+    const price = Number(values.salePrice || 0) - discount;
+    const legacy: Record<string, string> = {
+      'legacy:price': String(price), 'legacy:compareAtPrice': discount ? values.salePrice : '', 'legacy:variantPrice': String(price + Number(values.optionPrice || 0)),
+    };
+    sheet.getRow(index + 5).values = keys.map((key) => (key.startsWith('legacy:') ? legacy[key] : values[key as keyof GoodsWorkbookRow]) || null);
   });
-  // v3 파일의 KC 검토 시트도 같은 v3 버전 표기를 쓴다.
+  // 구형 파일의 KC 검토 시트도 같은 버전 표기와 그때의 열 이름을 쓴다.
   const kc = book.addWorksheet(GOODS_KC_WORKBOOK_SHEET);
   kc.getCell('A1').value = version;
-  kc.getRow(4).values = Object.values(GOODS_KC_WORKBOOK_HEADERS);
+  kc.getRow(4).values = Object.values(GOODS_KC_WORKBOOK_LEGACY_HEADERS);
   return Buffer.from(await book.xlsx.writeBuffer());
 }
 describe('goods Excel planning', () => {
@@ -128,7 +148,7 @@ describe('goods Excel planning', () => {
     for (const version of [GOODS_WORKBOOK_V3_VERSION, GOODS_WORKBOOK_V4_VERSION]) {
       const old = await parseGoodsWorkbookWithKc(await v3Workbook(exported, version));
       const plan = planGoodsWorkbookImport(old.rows, ctx)[0];
-      expect(plan.kind).toBe('error'); expect(plan.target).toBeNull(); expect(plan.errors.join(' ')).toContain('최신 v7 양식');
+      expect(plan.kind).toBe('error'); expect(plan.target).toBeNull(); expect(plan.errors.join(' ')).toContain('최신 양식(v8)');
     }
   });
   it('상품열이 같아도 직접입력형만 변경하면 기존 writer payload로 계획하고 누락 시에는 보존한다', async () => {
@@ -235,7 +255,7 @@ describe('goods Excel planning', () => {
     const exported = exportGoodsWorkbookRows(record, ctx);
     expect(exported[0]).toMatchObject({ descriptionFormat: 'html', description });
     expect(planGoodsWorkbookImport([{ row: 5, values: exported[0] }], ctx)[0].kind).toBe('unchanged');
-    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '이름만 변경' } }], ctx)[0]).toMatchObject({ kind: 'update', target: { description, description_format: 'html', description_image_paths: [path] } });
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '이름만 변경', publish: '초안' } }], ctx)[0]).toMatchObject({ kind: 'update', target: { description, description_format: 'html', description_image_paths: [path] } });
   });
   /*
    * 리뷰 재현(T3B-RV-1): R17이 상세 HTML 상한을 200,000자로 올린 뒤, 엑셀 한 칸(32,767자)보다 긴 설명은 내보낸 파일을
@@ -254,7 +274,7 @@ describe('goods Excel planning', () => {
     expect(parsed.rows[0].values.description).toBe(GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER);
     expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged', target: null });
     /* 다른 항목을 고쳐도 설명은 표식이 아니라 저장된 원문으로 다시 저장한다. */
-    const edited = planGoodsWorkbookImport([{ row: 5, values: { ...parsed.rows[0].values, name: '이름만 변경' } }], ctx)[0];
+    const edited = planGoodsWorkbookImport([{ row: 5, values: { ...parsed.rows[0].values, name: '이름만 변경', publish: '초안' } }], ctx)[0];
     expect(edited).toMatchObject({ kind: 'update', errors: [], target: { name: '이름만 변경', description, description_format: 'html' } });
     expect(edited.target?.description).not.toContain('상품 편집에서만 수정');
   });
@@ -266,7 +286,7 @@ describe('goods Excel planning', () => {
     const plain = planGoodsWorkbookImport([{ row: 5, values: { ...exported, descriptionFormat: 'plain' } }], ctx)[0];
     expect(plain).toMatchObject({ kind: 'error', target: null });
     expect(plain.errors.join(' ')).toContain('상세 설명 형식');
-    const created = planGoodsWorkbookImport([row({ price: '1000', variantPrice: '1000', descriptionFormat: 'html', description: GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER })], ctx)[0];
+    const created = planGoodsWorkbookImport([row({ salePrice: '1000', optionPrice: '0', descriptionFormat: 'html', description: GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER })], ctx)[0];
     expect(created).toMatchObject({ kind: 'error', target: null });
     expect(created.errors.join(' ')).toContain('상품 편집');
   });
@@ -295,7 +315,7 @@ describe('goods Excel planning', () => {
     const exported = exportGoodsWorkbookRows(record, ctx);
     expect(exported[0]).toMatchObject({ erpCode: '0000123', erpName: 'ERP 아크릴', barcode: '00123456789',
       allowCardPayment: '아니오', orderQuantityLimitEnabled: '예', minOrderQty: '2', maxOrderQty: '4', memberLifetimeQtyLimit: '7' });
-    const plan = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '메타데이터 수정' } }], ctx)[0];
+    const plan = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '메타데이터 수정', publish: '초안' } }], ctx)[0];
     expect(plan).toMatchObject({ kind: 'update', target: { allow_card_payment: false, order_quantity_limit_enabled: true,
       min_order_qty: 2, max_order_qty: 4, member_purchase_limit_enabled: true, member_lifetime_qty_limit: 7,
       variants: [{ erpCode: '0000123', erpName: 'ERP 아크릴', barcode: '00123456789', externalUpdatedAt: '2026-09-10T00:00:00Z' }] } });
@@ -309,7 +329,7 @@ describe('goods Excel planning', () => {
     const exported = exportGoodsWorkbookRows(existing, context);
     expect(exported[0]).toMatchObject({ searchKeywords: '여름 굿즈\nKUMA', displayOrder: '7' });
     const group = planGoodsWorkbookImport(
-      [{ row: 5, values: { ...exported[0], name: '수정 상품' } }],
+      [{ row: 5, values: { ...exported[0], name: '수정 상품', publish: '초안' } }],
       context,
     )[0];
     expect(group).toMatchObject({
@@ -322,7 +342,7 @@ describe('goods Excel planning', () => {
     const stoppedContext = { ...context, existing: [stopped] };
     const exported = exportGoodsWorkbookRows(stopped, stoppedContext);
     expect(exported[0]).toMatchObject({ stockQty: '10', lowStockThreshold: '3', variantActive: '중지' });
-    const plan = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '상품명만 수정' } }], stoppedContext)[0];
+    const plan = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '상품명만 수정', publish: '초안' } }], stoppedContext)[0];
     expect(plan).toMatchObject({ kind: 'update', target: { variants: [{ id: variantId, stockQty: 10, lowStockThreshold: 3, isActive: false }] } });
   });
   it('영문 상품명을 내보내고 다른 상품 정보를 고쳐 가져와도 보존한다', () => {
@@ -330,7 +350,7 @@ describe('goods Excel planning', () => {
     const translatedContext = { ...context, existing: [translated] };
     const rows = exportGoodsWorkbookRows(translated, translatedContext);
     expect(rows[0].nameEn).toBe('Acrylic Keyring');
-    const result = planGoodsWorkbookImport([{ row: 5, values: { ...rows[0], name: '다른 한글 이름' } }], translatedContext)[0];
+    const result = planGoodsWorkbookImport([{ row: 5, values: { ...rows[0], name: '다른 한글 이름', publish: '초안' } }], translatedContext)[0];
     expect(result).toMatchObject({ kind: 'update', target: { name_en: 'Acrylic Keyring', name: '다른 한글 이름' } });
   });
   it('treats an untouched export as zero changes, including blanks and storage paths', () => {
@@ -352,8 +372,8 @@ describe('goods Excel planning', () => {
           variantName: '빨강',
           axis1: '색상',
           value1: '빨강',
-          price: '12000',
-          variantPrice: '14000',
+          salePrice: '12000',
+          optionPrice: '2000',
           stockQty: '8',
         }),
         row(
@@ -363,8 +383,8 @@ describe('goods Excel planning', () => {
             variantName: '파랑',
             axis1: '색상',
             value1: '파랑',
-            price: '12000',
-            variantPrice: '15000',
+            salePrice: '12000',
+            optionPrice: '3000',
             stockQty: '9',
           },
           6,
@@ -386,12 +406,189 @@ describe('goods Excel planning', () => {
       },
     });
   });
-  it('소비자가 오류는 편집기의 판매가·할인 대신 엑셀 열 이름(기준 판매가·소비자가)으로 알린다', () => {
-    const [equal] = planGoodsWorkbookImport([row({ code: 'price-eq', price: '12000', compareAtPrice: '12000' })], context);
-    expect(equal.errors).toEqual(['소비자가는 기준 판매가보다 커야 합니다.']);
-    const [text] = planGoodsWorkbookImport([row({ code: 'price-text', price: '12000', compareAtPrice: '12,000원' })], context);
-    expect(text.errors).toEqual(['소비자가는 0 이상의 정수여야 합니다.']);
-    for (const group of [equal, text]) expect(group.errors.join()).not.toMatch(/할인/);
+  it('판매가·즉시할인은 상품 수정 화면과 같은 뜻으로 저장값(할인가·할인 전 판매가)이 되고, 오류는 엑셀 열 이름으로 알린다(S36-012)', () => {
+    const [discounted] = planGoodsWorkbookImport([row({ code: 'price-ok', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' })], context);
+    expect(discounted).toMatchObject({ kind: 'new', target: { price: 10000, compare_at_price: 12000, variants: [{ extraPrice: 500 }] } });
+    for (const instantDiscount of ['', '0']) {
+      const [plain] = planGoodsWorkbookImport([row({ code: 'price-plain', salePrice: '12000', instantDiscount })], context);
+      expect(plain).toMatchObject({ kind: 'new', target: { price: 12000, compare_at_price: null } });
+    }
+    const [equal] = planGoodsWorkbookImport([row({ code: 'price-eq', salePrice: '12000', instantDiscount: '12000' })], context);
+    expect(equal.errors).toEqual(['즉시할인은 1원 이상, 판매가 12,000원보다 작은 원 단위 정수로 입력하거나 비워 주세요.']);
+    const [text] = planGoodsWorkbookImport([row({ code: 'price-text', salePrice: '12000', instantDiscount: '10%' })], context);
+    expect(text.errors).toEqual(['즉시할인은 1원 이상, 판매가 12,000원보다 작은 원 단위 정수로 입력하거나 비워 주세요.']);
+    const [regular] = planGoodsWorkbookImport([row({ code: 'price-bad', salePrice: '12,000원' })], context);
+    expect(regular.errors).toEqual(['판매가는 0~2,147,483,647 원 단위 정수입니다.']);
+    for (const group of [equal, text, regular]) expect(group.errors.join()).not.toMatch(/소비자가|기준 판매가/);
+  });
+  it('할인 중인 상품은 판매가(할인 전)·즉시할인(원)·옵션가(추가금액)로 내보내고 그대로 올리면 변경 없음이다', async () => {
+    const record = { ...existing, good: { ...existing.good, price: 10000, compare_at_price: 12000 },
+      variants: [{ ...existing.variants[0], price: 10500 }] };
+    const ctx = { ...context, existing: [record] };
+    const [exported] = exportGoodsWorkbookRows(record, ctx);
+    expect(exported).toMatchObject({ productNo: '1042', code: 'GO-001', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([exported]));
+    expect(parsed.rows[0].values).toMatchObject({ productNo: '1042', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' });
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0].kind).toBe('unchanged');
+    // 즉시할인만 비우면 할인을 끈다(판매가 12,000원, 옵션 12,500원).
+    const cleared = planGoodsWorkbookImport([{ ...parsed.rows[0], values: { ...parsed.rows[0].values, instantDiscount: '' } }], ctx)[0];
+    expect(cleared).toMatchObject({ kind: 'update', target: { price: 12000, compare_at_price: null, variants: [{ extraPrice: 500 }] } });
+    // 구형(v7) 파일의 같은 값도 그대로 올리면 변경 없음이다.
+    const old = await parseGoodsWorkbookWithKc(await v3Workbook([exported], GOODS_WORKBOOK_V7_VERSION));
+    expect(old.rows[0]).toMatchObject({ layout: 'v7', values: { productNo: '', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' } });
+    expect(planGoodsWorkbookImport(old.rows, ctx)[0].kind).toBe('unchanged');
+  });
+  /* TKT-033(ADR-0040): 엑셀에는 기간 할인 열이 없다. 진행·예정 기간 할인이 있는 상품의 판매가·즉시할인·옵션가 변경은 거절하고 이유를 보인다. */
+  it('진행·예정 기간 할인이 있는 상품은 판매가·즉시할인·옵션가를 바꾸는 행을 거절하고, 그대로 두거나 다른 열만 바꾸면 반영한다', async () => {
+    const live = { count: 2, minPrice: 9000, maxPrice: 9500, startsAt: '2026-11-30T15:00:00+00:00', endsAt: '2026-12-07T15:00:00+00:00' };
+    const record = { ...existing, livePriceDiscount: live };
+    const ctx = { ...context, existing: [record] };
+    const [exported] = exportGoodsWorkbookRows(record, ctx);
+    expect(exported.instantDiscount).toBe('');
+    const plan = (patch: Partial<typeof exported>) => planGoodsWorkbookImport([{ row: 5, values: { ...exported, ...patch } }], ctx)[0];
+    expect(plan({}).kind).toBe('unchanged');
+    expect(plan({ name: '이름만 바꿈', publish: '초안' }).kind).toBe('update');
+    for (const patch of [{ salePrice: String(Number(exported.salePrice) + 1000) }, { instantDiscount: '500' }, { optionPrice: String(Number(exported.optionPrice || 0) + 100) }]) {
+      const group = plan(patch);
+      expect({ patch, kind: group.kind, target: group.target }).toEqual({ patch, kind: 'error', target: null });
+      expect(group.errors.join()).toContain('진행 중이거나 예정된 기간 할인(2건, 2026. 12. 8. 00:00까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다');
+    }
+    expect(goodsWorkbookLiveDiscountError(live)).toContain('이 상품 행은 반영하지 않으니');
+    /* 기간 할인이 없는 상품은 지금처럼 바꾼다. */
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, salePrice: String(Number(exported.salePrice) + 1000) } }], { ...context, existing: [{ ...existing, livePriceDiscount: null }] })[0].kind).toBe('update');
+  });
+  it('기간 할인 행이 없는 옵션의 옵션가 변경은 반영하고, 행이 걸린 옵션은 거절하며, 옵션 추가·복원은 상품 단위로 거절한다', () => {
+    const live = { count: 1, minPrice: 9000, maxPrice: 9000, startsAt: '2026-11-30T15:00:00+00:00', endsAt: '2026-12-07T15:00:00+00:00' };
+    const bId = '00000000-0000-4000-8000-000000000002';
+    const withB = (archived: string | null = null): GoodsImportExisting => ({ ...existing, livePriceDiscount: live, livePriceVariantIds: [variantId],
+      variants: [existing.variants[0], { ...existing.variants[0], id: bId, code: 'GO-001-02', name: '빨강', attributes: { 색상: '빨강' }, is_default: false, sort_order: 1, archived_at: archived }] });
+    const record = withB();
+    const ctx = { ...context, existing: [record] };
+    type Rows = ReturnType<typeof exportGoodsWorkbookRows>;
+    const rows: Rows = exportGoodsWorkbookRows(record, ctx);
+    expect(rows).toHaveLength(2);
+    const plan = (edit: (rows: Rows) => Rows, c = ctx) => planGoodsWorkbookImport(edit(rows.map((values) => ({ ...values }))).map((values, index) => ({ row: 5 + index, values })), c)[0];
+    // 기간 행이 없는 옵션 B의 옵션가는 바꿀 수 있다(DB도 허용).
+    expect(plan((r) => { r[1].optionPrice = String(Number(r[1].optionPrice || 0) + 100); return r; }).kind).toBe('update');
+    // 기간 행이 걸린 옵션 A의 옵션가·상품 판매가는 거절한다.
+    expect(plan((r) => { r[0].optionPrice = String(Number(r[0].optionPrice || 0) + 100); return r; }).errors.join()).toContain('엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다');
+    expect(plan((r) => r.map((x) => ({ ...x, salePrice: String(Number(x.salePrice) + 100) }))).kind).toBe('error');
+    // 목록이 없으면(이전 응답) 모든 옵션을 막는다.
+    expect(plan((r) => { r[1].optionPrice = String(Number(r[1].optionPrice || 0) + 100); return r; }, { ...ctx, existing: [{ ...record, livePriceVariantIds: undefined }] }).kind).toBe('error');
+    // 옵션 추가: 새 코드의 옵션 행.
+    const added = plan((r) => [...r, { ...r[1], variantCode: 'GO-001-03', variantName: '파랑', axis1: '색상', value1: '파랑' }]);
+    expect(added.kind).toBe('error');
+    expect(added.errors.join()).toContain('엑셀로 옵션을 추가·복원할 수 없습니다');
+    // 옵션 복원: 보관된 옵션을 사용으로 되돌린다.
+    const archived = withB('2026-09-10T00:00:00Z');
+    const archivedCtx = { ...context, existing: [archived] };
+    // 보관된 옵션은 내보내지 않으니, 보관 전 행을 사용으로 다시 올리는 경우다.
+    const restore = planGoodsWorkbookImport(rows.map((values, index) => ({ row: 5 + index, values })), archivedCtx)[0];
+    expect(restore.kind).toBe('error');
+    expect(restore.errors.join()).toContain('엑셀로 옵션을 추가·복원할 수 없습니다');
+    expect(goodsWorkbookLiveDiscountOptionAddError(live)).toContain('상품 수정에서 바꿔 주세요');
+  });
+  it('QA2: 공개를 유지하는 행이 상품명·고시(KC 대상)를 바꾸면 적용 전에 원인을 알리고, 초안으로 바꾸는 행은 통과한다', () => {
+    const [values] = exportGoodsWorkbookRows(existing, context);
+    const renamed = planGoodsWorkbookImport([{ row: 5, values: { ...values, name: '다른 이름' } }], context)[0];
+    expect(renamed).toMatchObject({ kind: 'error', target: null });
+    expect(renamed.errors.join()).toContain('공개 상품의 상품명을 바꾸면 KC 재검토가 필요해 저장되지 않습니다');
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, noticeMaterial: '목재' } }], context)[0].errors.join()).toContain('공개 상품의 재질을');
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, name: '다른 이름', publish: '초안' } }], context)[0].kind).toBe('update');
+    expect(planGoodsWorkbookImport([{ row: 5, values }], context)[0].kind).toBe('unchanged');
+  });
+  it('상품번호 → 판매자상품코드 순서로 수정할 상품을 찾고, 서로 다른 상품을 가리키면 덮어쓰지 않는다(ADR-0038)', () => {
+    const [values] = exportGoodsWorkbookRows(existing, context);
+    expect(values.productNo).toBe('1042');
+    // 상품번호만 있어도 같은 상품이다(판매자상품코드를 채워 묶고 경고로 알린다).
+    const byNumber = planGoodsWorkbookImport([{ row: 5, values: { ...values, code: '', stockQty: '9' } }], context)[0];
+    expect(byNumber).toMatchObject({ kind: 'update', code: 'GO-001', target: { previous_id: 'existing-good', variants: [{ id: variantId, stockQty: 9 }] } });
+    expect(byNumber.warnings).toContain('판매자상품코드가 비어 있어 상품번호로 찾은 기존 상품을 수정합니다.');
+    // 판매자상품코드만 있으면 지금처럼 그 상품이고, 상품번호는 비교에서 채운다.
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '' } }], context)[0].kind).toBe('unchanged');
+    // 번호·코드가 모두 빈 행은 새 상품이다. 상품 URL로 기존 상품을 찾지 않고, 이미 쓰는 URL이면 덮지 않고 오류다.
+    const byUrl = planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '', code: '' } }], context)[0];
+    expect(byUrl).toMatchObject({ kind: 'error', target: null });
+    // 공개로 내보낸 행이라 새 상품의 공개 조건(SHEET-003: 상품 유형이 연결된 대표 카테고리)도 함께 알린다.
+    expect(byUrl.errors).toEqual([
+      '5행: 이미 쓰는 상품 URL입니다(existing-good). 기존 상품을 고치려면 상품번호나 판매자상품코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.',
+      GOOD_TYPE_PUBLISH_REQUIRED,
+    ]);
+    // 상품번호와 판매자상품코드가 어긋나거나, 없는 번호·숫자가 아닌 번호는 오류다.
+    const mismatch = planGoodsWorkbookImport([{ row: 5, values: { ...values, code: 'OTHER-CODE' } }], context)[0];
+    expect(mismatch).toMatchObject({ kind: 'error', target: null });
+    expect(mismatch.errors.join()).toContain('상품번호 1042와 판매자상품코드 OTHER-CODE이(가) 서로 다른 상품을 가리킵니다');
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '999999' } }], context)[0].errors.join())
+      .toContain('상품번호 999999인 상품을 찾을 수 없습니다');
+    for (const productNo of ['1,042', '0', 'abc', '-1'])
+      expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo } }], context)[0].errors.join())
+        .toContain('상품번호는 내려받은 숫자 그대로 두거나, 새 상품이면 비워 주세요.');
+    // 새 상품(번호·코드·URL이 기존과 다름)은 지금처럼 새로 만든다.
+    expect(planGoodsWorkbookImport([row({ code: 'NEW-9', id: 'brand-new' })], context)[0].kind).toBe('new');
+    expect(planGoodsWorkbookImport([row({ id: 'brand-new' })], context)[0].kind).toBe('new');
+    expect(planGoodsWorkbookImport([row()], context)[0].kind).toBe('new');
+    // QA2: 기존 행을 복사해 새 상품을 만들 때 관리코드가 남아 있으면 적용 전에 미리보기에서 막는다(적용 단계 실패는 상품번호를 쓴다).
+    const owned = { ...context, variantCodeOwners: { 'DUP-OPT-1': 'GO-001' } };
+    const copied = planGoodsWorkbookImport([row({ id: 'brand-new', variantCode: 'dup-opt-1' })], owned)[0];
+    expect(copied).toMatchObject({ kind: 'error', target: null });
+    expect(copied.errors.join()).toContain('관리코드 DUP-OPT-1은 다른 상품(GO-001)의 옵션이 이미 쓰고 있습니다');
+    // 같은 파일 안에서 관리코드가 겹쳐도(상품이 달라도) 미리보기에서 막는다.
+    const dup = planGoodsWorkbookImport([row({ id: 'a1', name: '가', variantCode: 'SAME-1' }), row({ id: 'a2', name: '나', variantCode: 'same-1' })], context);
+    expect(dup.map((group) => group.kind)).toEqual(['error', 'error']);
+    expect(dup[0].errors.join()).toContain('관리코드 SAME-1');
+    // 관리코드를 비운 새 행은 영향이 없다.
+    expect(planGoodsWorkbookImport([row({ id: 'brand-new', variantCode: '' })], owned)[0].kind).toBe('new');
+  });
+  /*
+   * 리뷰 재현(T17a-RV ①②): 내보낸 파일에서 기존 상품 행을 복사해 새 상품을 만들며 상품번호·판매자상품코드만 지우고
+   * 상품 URL을 남기면, 원래 상품의 이름·가격·옵션을 덮어쓰면 안 된다. v8 파일과 구형 v7 파일 모두 그 행은 오류이고 저장 대상이 없다.
+   */
+  it('기존 행을 복사해 상품번호·판매자상품코드만 지운 행은 v8·v7 파일 모두 원래 상품을 덮지 않고 오류다', async () => {
+    const [exported] = exportGoodsWorkbookRows(existing, context);
+    const copy = { ...exported, productNo: '', code: '', variantCode: '', name: '복사한 새 상품', salePrice: '9900', stockQty: '3' };
+    for (const [label, rows] of [
+      ['v8', (await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([copy]))).rows],
+      ['v7', (await parseGoodsWorkbookWithKc(await v3Workbook([copy], GOODS_WORKBOOK_V7_VERSION))).rows],
+    ] as const) {
+      const [group] = planGoodsWorkbookImport(rows, context);
+      expect({ label, kind: group.kind, target: group.target }).toEqual({ label, kind: 'error', target: null });
+      expect(group.errors.join()).toContain('이미 쓰는 상품 URL입니다(existing-good)');
+    }
+    // 같은 행에서 상품 URL도 지우고 초안으로 두면 새 상품 초안이 된다(원래 상품은 그대로).
+    const fresh = planGoodsWorkbookImport([{ row: 5, values: { ...copy, id: '', publish: '' } }], context)[0];
+    expect(fresh).toMatchObject({ kind: 'new', target: { name: '복사한 새 상품', price: 9900 } });
+    expect(fresh.target?.previous_id ?? null).toBeNull();
+  });
+  it('구형(v3~v7) 가격 열은 판매가·즉시할인·옵션가로 옮기고, 옮길 수 없는 값은 구형 열 이름으로 알린다', async () => {
+    const { goodsWorkbookPricesFromLegacy } = await import('./goods-workbook');
+    expect(goodsWorkbookPricesFromLegacy({ price: '10000', compareAtPrice: '12000', variantPrice: '10500' }))
+      .toEqual({ values: { salePrice: '12000', instantDiscount: '2000', optionPrice: '500' }, errors: [] });
+    expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '', variantPrice: '' }))
+      .toEqual({ values: { salePrice: '12000', instantDiscount: '', optionPrice: '' }, errors: [] });
+    expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '12000', variantPrice: '12000' }).errors).toEqual(['소비자가는 기준 판매가보다 커야 합니다.']);
+    expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '12,000원', variantPrice: '' }).errors).toEqual(['기준 판매가·소비자가는 0 이상의 정수입니다.']);
+    expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '', variantPrice: '11000' }).errors).toEqual(['옵션 판매가는 기준 판매가보다 낮게 입력할 수 없습니다.']);
+  });
+  it('재고수량 빈칸은 신규·수정 모두 그 행을 거절하고, 0을 직접 적으면 저장한다(0901-015)', () => {
+    const blank = '5행: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.';
+    const [fresh] = planGoodsWorkbookImport([row({ code: 'STOCK-NEW', stockQty: '' })], context);
+    expect(fresh).toMatchObject({ kind: 'error', target: null });
+    expect(fresh.errors).toContain(blank);
+    expect(planGoodsWorkbookImport([row({ code: 'STOCK-NEW', stockQty: '  ' })], context)[0].errors).toContain(blank);
+    expect(planGoodsWorkbookImport([row({ code: 'STOCK-NEW', stockQty: '0' })], context)[0])
+      .toMatchObject({ kind: 'new', target: { variants: [{ stockQty: 0 }] } });
+    // 기존 상품(재고 7) 행의 재고 칸을 지우면 0으로 덮지 않고 거절한다.
+    const [values] = exportGoodsWorkbookRows(existing, context);
+    expect(values.stockQty).toBe('7');
+    const cleared = planGoodsWorkbookImport([{ row: 5, values: { ...values, stockQty: '' } }], context)[0];
+    expect(cleared).toMatchObject({ kind: 'error', target: null });
+    expect(cleared.errors).toContain(blank);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, stockQty: '0' } }], context)[0])
+      .toMatchObject({ kind: 'update', target: { variants: [{ id: variantId, stockQty: 0, expectedStockQty: 7 }] } });
+    // 숫자가 아닌 재고는 지금처럼 정수 오류다(빈칸 오류와 겹치지 않는다).
+    const text = planGoodsWorkbookImport([row({ code: 'STOCK-TEXT', stockQty: '열 개' })], context)[0];
+    expect(text.errors).toContain('5행: 옵션가·재고수량은 0~2,147,483,647 정수입니다.');
+    expect(text.errors).not.toContain(blank);
   });
   it('keeps errors scoped to a complete product group and allows other products', () => {
     const groups = planGoodsWorkbookImport(
@@ -408,7 +605,7 @@ describe('goods Excel planning', () => {
   it('highlights live price and stock edits and carries optimistic inventory baselines', () => {
     const values = exportGoodsWorkbookRows(existing, context)[0];
     const group = planGoodsWorkbookImport(
-      [{ row: 5, values: { ...values, variantPrice: '13000', stockQty: '9' } }],
+      [{ row: 5, values: { ...values, optionPrice: '1000', stockQty: '9' } }],
       context,
     )[0];
     expect(group.kind).toBe('update');
@@ -441,12 +638,15 @@ describe('goods Excel planning', () => {
         },
       ],
       imageNames: ['cover.png'],
+      // SHEET-003: 새 상품을 공개하려면 대표 카테고리(또는 상위)에 상품 유형이 연결되어 있어야 한다.
+      categories: [{ id: '00000000-0000-4000-8000-000000160150', code: 'paper', archived_at: null, parent_id: null, good_type: '문구' }],
     };
     const group = planGoodsWorkbookImport(
       [
         row({
           publish: '공개',
           type: '문구',
+          categoryCode: 'paper',
           preset: '문구',
           originCode: 'gimpo',
           imageFile: 'cover.png',
@@ -454,6 +654,7 @@ describe('goods Excel planning', () => {
       ],
       next,
     )[0];
+    expect(group.errors).toEqual([]);
     expect(group.kind).toBe('new');
     expect(group.images).toEqual([
       { field: 'image_path', source: 'cover.png', kind: 'file' },
@@ -462,7 +663,7 @@ describe('goods Excel planning', () => {
   });
   it('preserves zero values, rejects formulas supplied as row errors and caps option rows', () => {
     expect(
-      planGoodsWorkbookImport([row({ price: '0', stockQty: '0' })], context)[0]
+      planGoodsWorkbookImport([row({ salePrice: '0', stockQty: '0' })], context)[0]
         .target,
     ).toMatchObject({ price: 0, variants: [{ stockQty: 0 }] });
     expect(
@@ -524,6 +725,70 @@ describe('goods Excel planning', () => {
   });
 });
 
+describe('상품 유형 열(SHEET-003·ADR-0037)', () => {
+  const root = '00000000-0000-4000-8000-000000160100';
+  const leaf = '00000000-0000-4000-8000-000000160101';
+  const doll = '00000000-0000-4000-8000-000000160102';
+  const none = '00000000-0000-4000-8000-000000160110';
+  const categories = [
+    { id: root, code: 'figure-root', archived_at: null, parent_id: null, good_type: '피규어' },
+    { id: leaf, code: 'figure-leaf', archived_at: null, parent_id: root, good_type: null },
+    { id: doll, code: 'doll-leaf', archived_at: null, parent_id: root, good_type: '인형' },
+    { id: none, code: 'no-type', archived_at: null, parent_id: null, good_type: null },
+  ];
+  const ctx: GoodsWorkbookContext = { ...context, categories };
+  it('반입은 유형 열을 무시하고 대표 카테고리(없으면 가까운 상위)의 연결값을 싣는다', () => {
+    const [group] = planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf', type: '문구' })], ctx);
+    expect(group).toMatchObject({ kind: 'new', target: { type: '피규어', category_id: leaf } });
+    expect(group.warnings).toContain('상품 유형 열(‘문구’)은 반영하지 않습니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값(‘피규어’)으로 정해집니다.');
+    // 같은 값이거나 비우면 안내하지 않는다.
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf', type: '피규어' })], ctx)[0].warnings.join()).not.toContain('상품 유형 열');
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf' })], ctx)[0].warnings.join()).not.toContain('상품 유형 열');
+  });
+  it('연결이 없는 새 상품은 공개할 수 없고, 초안은 저장된다', () => {
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'no-type', publish: '공개' })], ctx)[0].errors).toContain(GOOD_TYPE_PUBLISH_REQUIRED);
+    expect(planGoodsWorkbookImport([row({ publish: '공개' })], ctx)[0].errors).toContain(GOOD_TYPE_PUBLISH_REQUIRED);
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'no-type' })], ctx)[0]).toMatchObject({ kind: 'new', target: { type: '' } });
+  });
+  it('유형 열만 바꾼 내보내기 파일은 변경 없음이고, 공개 상품은 유형이 바뀌는 카테고리로 옮길 수 없다', () => {
+    const record: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '피규어', category_id: leaf } };
+    const withRecord: GoodsWorkbookContext = { ...ctx, existing: [record] };
+    const [exported] = exportGoodsWorkbookRows(record, withRecord);
+    expect(exported).toMatchObject({ type: '피규어', categoryCode: 'figure-leaf' });
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, type: '인형' } }], withRecord)[0].kind).toBe('unchanged');
+    // 같은 유형(피규어)을 물려받는 카테고리로는 옮기고, 다른 유형·연결 없음은 막는다.
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'figure-root' } }], withRecord)[0].errors).toEqual([]);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf' } }], withRecord)[0].errors).toContain(GOOD_TYPE_CATEGORY_MESSAGES.locked);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'no-type' } }], withRecord)[0].errors).toContain(GOOD_TYPE_CATEGORY_MESSAGES.required);
+    // 공개 상품은 연결값과 달라도 저장된 유형을 싣고(다른 칸 저장은 막지 않는다), 초안으로 되돌리면 유형이 바뀐다고 알린다.
+    const mismatched: GoodsImportExisting = { ...record, good: { ...record.good, category_id: doll } };
+    const mismatchCtx: GoodsWorkbookContext = { ...ctx, existing: [mismatched] };
+    const [stale] = exportGoodsWorkbookRows(mismatched, mismatchCtx);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...stale, stockQty: '9' } }], mismatchCtx)[0]).toMatchObject({ kind: 'update', target: { type: '피규어' } });
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...stale, publish: '초안' } }], mismatchCtx)[0].warnings)
+      .toContain('초안으로 바뀌며 상품 유형이 ‘인형’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.');
+    // 공개 상품이 초안으로 바뀌면서 유형이 다른 카테고리로 옮기는 행은 막지 않고 경고한다(DB는 먼저 초안으로 바꾼 뒤 이동을 허용한다).
+    const toDraft = planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf', publish: '초안' } }], withRecord)[0];
+    expect(toDraft.errors).toEqual([]);
+    expect(toDraft.warnings).toContain('초안으로 바뀌며 상품 유형이 ‘인형’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.');
+    // 공개를 유지하는 행은 여전히 막는다.
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf', publish: '공개' } }], withRecord)[0].errors)
+      .toContain(GOOD_TYPE_CATEGORY_MESSAGES.locked);
+  });
+  it('내보내기의 유형 열은 대표 카테고리에서 정해진 유형이다(공개 중이면 저장된 유형)', () => {
+    const draft: GoodsImportExisting = { ...existing, good: { ...existing.good, published_at: null, first_published_at: null, type: '문구', category_id: leaf } };
+    expect(exportGoodsWorkbookRows(draft, ctx)[0].type).toBe('피규어');
+    const unlinked: GoodsImportExisting = { ...draft, good: { ...draft.good, category_id: none } };
+    expect(exportGoodsWorkbookRows(unlinked, ctx)[0].type).toBe('문구');
+    const published: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '문구', category_id: leaf } };
+    expect(exportGoodsWorkbookRows(published, ctx)[0].type).toBe('문구');
+  });
+  it('같은 상품의 여러 옵션 행에서 유형 열이 달라도 오류로 보지 않는다', () => {
+    const rows = [row({ categoryCode: 'figure-leaf', variantName: 'A', variantCode: '', type: '문구' }), row({ categoryCode: 'figure-leaf', variantName: 'B', variantCode: '', type: '' }, 6)];
+    expect(planGoodsWorkbookImport(rows, ctx)[0].errors.join()).not.toContain('같은 상품의 상품 정보가 서로 다릅니다');
+  });
+});
+
 it('카테고리 코드와 배송 안내 버전을 같은 값으로 엑셀 왕복한다', () => {
   const categoryId = '00000000-0000-4000-8000-000000047401';
   const nextContext = { ...context, categories: [{ id: categoryId, code: 'stationery', archived_at: null }] };
@@ -533,7 +798,7 @@ it('카테고리 코드와 배송 안내 버전을 같은 값으로 엑셀 왕�
   const [row] = exportGoodsWorkbookRows(item, nextContext);
   expect(row.categoryCode).toBe('stationery');
   expect(row.shippingNoticeTemplateVersion).toBe('2');
-  row.name += ' 수정';
+  row.name += ' 수정'; row.publish = '초안';
   const [plan] = planGoodsWorkbookImport([{ row: 5, values: row }], nextContext);
   expect(plan.errors).toEqual([]);
   expect(plan.target).toMatchObject({ category_id: categoryId, shipping_notice_template_code: 'confirmed', shipping_notice_template_version: 2 });
@@ -553,7 +818,7 @@ it('매입단가 0원과 세금 구분은 관리자 엑셀에서만 왕복하고
   const adminContext = { ...context, existing: [item], canManageCosts: true };
   const [row] = exportGoodsWorkbookRows(item, adminContext);
   expect(row.purchaseCostKrw).toBe('0'); expect(row.purchaseTaxBasis).toBe('exempt');
-  row.name += ' 수정';
+  row.name += ' 수정'; row.publish = '초안';
   const [plan] = planGoodsWorkbookImport([{ row: 5, values: row }], adminContext);
   expect(plan.errors).toEqual([]);
   expect(plan.target?.variants).toEqual(expect.arrayContaining([expect.objectContaining({ purchaseCost: { unitCostKrw: 0, taxBasis: 'exempt', expectedRevision: 7 } })]));

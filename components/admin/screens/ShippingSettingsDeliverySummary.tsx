@@ -14,7 +14,7 @@ export function ShippingSettingsDeliverySummary({ effective }: { effective: Ship
         ? `${(quantity.firstLimit + 1).toLocaleString('ko-KR')}~${quantity.secondLimit.toLocaleString('ko-KR')}개 ${shippingSettingsMoney(quantity.baseFee + quantity.extra1)} / ${(quantity.secondLimit + 1).toLocaleString('ko-KR')}개 이상 ${shippingSettingsMoney(quantity.baseFee + quantity.extra2)}`
         : `${(quantity.firstLimit + 1).toLocaleString('ko-KR')}개 이상 ${shippingSettingsMoney(quantity.baseFee + quantity.extra1)}`}
     </p> : null}
-    {quantity ? <small className={FIELD_HINT}>기본 설정 ‘{shippingSettingsFeeLabel(effective)}’은 보관하며 현재 기본 운임 계산에는 사용하지 않습니다.</small> : null}
+    {quantity ? <small className={FIELD_HINT}>기본 설정 ‘{shippingSettingsFeeLabel(effective)}’은 보관하며 현재 기본 배송비 계산에는 사용하지 않습니다.</small> : null}
     {policy?.status === 'draft' ? <small className={FIELD_HINT}>확장 배송비는 초안으로 보관하며 계산에 적용하지 않습니다.</small> : null}
     {policy?.status === 'disabled' ? <small className={FIELD_HINT}>확장 배송비 사용 안 함 · 기본 배송비 설정으로 계산합니다.</small> : null}
   </div>;

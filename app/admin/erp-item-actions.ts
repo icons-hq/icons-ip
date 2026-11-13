@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
@@ -29,11 +30,25 @@ import {
   type ErpCategoryMappingEntry,
   type ErpItemMatch,
 } from '@/lib/admin/erp-items';
+import {
+  ERP_LINKED_GOODS_PREVIEW_LIMIT,
+  ERP_LINKED_GOODS_SCOPE_LIMIT,
+  erpLinkedGoodsErrorLabel,
+  erpLinkedGoodsReceiptMessage,
+  parseErpLinkedGoodsPreview,
+  parseErpLinkedGoodsReceipt,
+  type ErpLinkedGoodsPreview,
+  type ErpLinkedGoodsReceipt,
+} from '@/lib/admin/erp-linked-goods';
 import { hasAdminCapability } from '@/lib/admin/access';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { isUuid } from '@/lib/uuid';
 
 const STAFF_ONLY = 'ERP 품목은 운영자만 관리할 수 있습니다.';
+/* 1027T-016 MD 반입 권한: 읽기·반입·분류 연결은 상품 관리(catalog.manage), 품목 삭제는 요청 범위 밖이라 플랫폼 관리에 남는다. */
+const DELETE_ONLY = 'ERP 품목 삭제는 계정 주매니저·통합 매니저만 할 수 있습니다.';
 const MAPPING_FAILED = 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.';
 
 function rpcCode(error: { code?: unknown; message?: unknown }) {
@@ -56,7 +71,7 @@ export type ErpItemSearchResult = { ok: true; items: ErpItemMatch[] } | { ok: fa
 export async function searchErpItemsAction(queryValue: unknown): Promise<ErpItemSearchResult> {
   try {
     const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { ok: false, error: STAFF_ONLY };
+    if (!auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'catalog.manage')) return { ok: false, error: STAFF_ONLY };
     const query = typeof queryValue === 'string' ? normalizeErpText(queryValue, true).slice(0, ERP_ITEM_SEARCH_QUERY_MAX) : '';
     if (Array.from(query).length < ERP_ITEM_SEARCH_MIN_LENGTH) return { ok: true, items: [] };
     const supabase = await createClient();
@@ -177,7 +192,9 @@ const DELETE_FAILED = 'ERP 품목을 지우지 못했습니다. 다시 시도해
  */
 export async function deleteErpItemsAction(codesValue: unknown): Promise<ErpItemDeleteResult> {
   try {
-    if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
+    const access = await requireAdminActionAccess(ERP_ITEMS_PATH);
+    if (!access) return { ok: false, error: STAFF_ONLY };
+    if (!hasAdminCapability(access, 'platform.manage')) return { ok: false, error: DELETE_ONLY };
     const codes = Array.isArray(codesValue) ? [...new Set(codesValue)] : [];
     if (!codes.length || codes.length > ERP_ITEM_DELETE_LIMIT
       || codes.some((code) => typeof code !== 'string' || !code || code.length > ERP_ITEM_LIMITS.code)) {
@@ -187,7 +204,7 @@ export async function deleteErpItemsAction(codesValue: unknown): Promise<ErpItem
     const { data, error } = await supabase.rpc('admin_delete_erp_items', { p_codes: codes as string[] });
     if (error) {
       const { code, descriptor } = rpcCode(error);
-      return { ok: false, error: isPermissionError(code, descriptor) ? STAFF_ONLY : DELETE_FAILED };
+      return { ok: false, error: isPermissionError(code, descriptor) ? DELETE_ONLY : DELETE_FAILED };
     }
     revalidatePath(ERP_ITEMS_PATH);
     const result = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : {};
@@ -300,5 +317,80 @@ export async function setErpCategoryMappingsAction(entriesValue: unknown): Promi
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: MAPPING_FAILED };
+  }
+}
+
+export type ErpLinkedGoodsPreviewResult = { ok: true; preview: ErpLinkedGoodsPreview } | { ok: false; error: string };
+
+const PREVIEW_FAILED = '연결 상품과 비교하지 못했습니다. 다시 시도해주세요.';
+
+/**
+ * 연결 상품 반영 미리보기(1027T-X04). 반입한 ERP 판매가·바코드가 같은 ERP 코드를 넣은 상품 옵션과 다른 행을
+ * DB가 계산해 operation에 고정한다. codes가 없으면 반입한 전체 ERP 품목, 있으면 방금 반입한 품목만 비교한다.
+ * 상품은 바꾸지 않는다.
+ */
+export async function previewErpLinkedGoodsAction(codesValue: unknown): Promise<ErpLinkedGoodsPreviewResult> {
+  try {
+    if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
+    let codes: string[] | null = null;
+    if (codesValue !== null && codesValue !== undefined) {
+      if (!Array.isArray(codesValue) || codesValue.length === 0 || codesValue.length > ERP_LINKED_GOODS_SCOPE_LIMIT
+        || codesValue.some((code) => typeof code !== 'string' || !code || code.length > ERP_ITEM_LIMITS.code)) {
+        return { ok: false, error: `비교할 ERP 품목을 다시 확인해주세요. 한 번에 ${ERP_LINKED_GOODS_SCOPE_LIMIT.toLocaleString('ko-KR')}개까지 비교합니다.` };
+      }
+      codes = [...new Set(codesValue as string[])];
+    }
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('admin_preview_erp_linked_goods', { p_operation_id: randomUUID(), p_codes: codes });
+    if (error) {
+      const { code, descriptor } = rpcCode(error);
+      if (isPermissionError(code, descriptor)) return { ok: false, error: STAFF_ONLY };
+      return { ok: false, error: erpLinkedGoodsErrorLabel(descriptor) ?? PREVIEW_FAILED };
+    }
+    const preview = parseErpLinkedGoodsPreview(data);
+    return preview ? { ok: true, preview } : { ok: false, error: PREVIEW_FAILED };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: PREVIEW_FAILED };
+  }
+}
+
+export type ErpLinkedGoodsCommitResult =
+  | { ok: true; receipt: ErpLinkedGoodsReceipt; message: string }
+  | { ok: false; error: string };
+
+const COMMIT_FAILED = '반영 결과를 확인하지 못했습니다. 같은 미리보기에서 다시 반영하면 이미 반영한 행은 다시 바꾸지 않습니다.';
+const ROW_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(price|barcode)$/i;
+
+/**
+ * 미리보기에서 고른 행만 연결 상품에 반영한다. DB가 잠근 뒤 같은 계산을 다시 해 미리보기 뒤 값이 바뀌었으면
+ * 아무것도 바꾸지 않고, 같은 operation을 다시 보내면 남겨 둔 결과를 돌려준다(이중 반영 없음).
+ */
+export async function commitErpLinkedGoodsAction(input: { operationId: unknown; keys: unknown }): Promise<ErpLinkedGoodsCommitResult> {
+  try {
+    if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
+    const keys = Array.isArray(input?.keys) ? [...new Set(input.keys)] : [];
+    if (!isUuid(input?.operationId) || !keys.length || keys.length > ERP_LINKED_GOODS_PREVIEW_LIMIT
+      || keys.some((key) => typeof key !== 'string' || !ROW_KEY.test(key))) {
+      return { ok: false, error: '반영할 행을 다시 골라주세요.' };
+    }
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('admin_commit_erp_linked_goods', { p_operation_id: input.operationId, p_keys: keys as string[] });
+    if (error) {
+      const { code, descriptor } = rpcCode(error);
+      if (isPermissionError(code, descriptor) && !descriptor.includes('erp_goods_apply_unavailable')) return { ok: false, error: STAFF_ONLY };
+      const detail = typeof (error as { details?: unknown }).details === 'string' ? (error as { details: string }).details : null;
+      return { ok: false, error: erpLinkedGoodsErrorLabel(descriptor, detail) ?? COMMIT_FAILED };
+    }
+    const receipt = parseErpLinkedGoodsReceipt(data);
+    if (!receipt) return { ok: false, error: COMMIT_FAILED };
+    if (receipt.state === 'completed' && (receipt.applied.price || receipt.applied.barcode)) {
+      revalidatePath(ERP_ITEMS_PATH);
+      revalidateGoodsSurfaces();
+    }
+    return { ok: true, receipt, message: erpLinkedGoodsReceiptMessage(receipt) };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: COMMIT_FAILED };
   }
 }

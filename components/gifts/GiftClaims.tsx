@@ -6,22 +6,26 @@ import { OrderClaimFees } from '@/components/orders/ClaimFeePanel';
 import { useCallback, useState } from 'react';
 import { reloadGiftClaimAction, requestGiftClaimAction, setGiftRefundAccountAction, withdrawGiftClaimAction } from '@/app/gifts/claim-actions';
 import type { GiftClaimContext } from '@/lib/gift-claims';
+import { NO_RETURN_PICKUP, returnPickupCollectingNotice, type OrderReturnPickup } from '@/lib/orders/return-pickup';
 import { GiftRequestFeedback } from './GiftParts';
 import { useGiftRequest, useGiftUnsaved } from './useGiftRequest';
 const STAGES: Record<string, string> = { requested: '접수', in_review: '확인 중', collecting: '수거 중', collected: '입고 완료', on_hold: '보류', processing: '처리 중', needs_review: '확인 필요', completed: '완료', rejected: '반려', withdrawn: '철회' };
-export function GiftClaims({ actorId, orderId, initialContext }: { actorId: string; orderId?: string; initialContext: GiftClaimContext }) {
+export function GiftClaims({ actorId, orderId, initialContext, returnPickup = NO_RETURN_PICKUP }: { actorId: string; orderId?: string; initialContext: GiftClaimContext; returnPickup?: OrderReturnPickup }) {
   const [context, setContext] = useState(initialContext), [type, setType] = useState<'return' | 'exchange'>('return'), [reason, setReason] = useState<'change_of_mind' | 'defect'>('change_of_mind');
   const [bankName, setBankName] = useState(''), [accountNumber, setAccountNumber] = useState(''), [accountHolder, setAccountHolder] = useState(''), [notice, setNotice] = useState('');
-  const lost = useCallback(() => { setContext(previous => ({ ...previous, canRequest: false, claim: null, reshipmentHistory: [] })); setBankName(''); setAccountNumber(''); setAccountHolder(''); setNotice(''); }, []);
+  const lost = useCallback(() => { setContext(previous => ({ ...previous, canRequest: false, claim: null, reshipmentHistory: [], reshipmentParcels: [] })); setBankName(''); setAccountNumber(''); setAccountHolder(''); setNotice(''); }, []);
   const request = useGiftRequest(actorId, lost), claim = context.claim;
+  /* 교환 소포(배송 건마다 하나)는 소포 목록이 운송장을 보인다. 같은 클레임의 운송장을 클레임 줄에 한 번 더 싣지 않는다. */
+  const parcels = context.reshipmentParcels ?? [], claimParcelShown = claim !== null && parcels.some(parcel => parcel.claimId === claim.id);
   useGiftUnsaved(!request.blocked && Boolean(bankName || accountNumber || accountHolder || request.pending || request.failure?.uncertain));
   return <section><h2>교환·반품 요청</h2>{!request.blocked ? <>
     <p>선물 전체를 기준으로 요청할 수 있어요. 환불금과 사용한 결제 혜택은 보낸 사람에게 돌아가요.</p>
-    <OrderReshipmentHistory receipts={context.reshipmentHistory ?? []} />
+    <OrderReshipmentHistory receipts={context.reshipmentHistory ?? []} parcels={parcels} />
     {orderId ? <OrderClaimFees actorId={actorId} orderId={orderId} /> : null}
     {claim ? <div><p>{({ cancel: '취소', return: '반품', exchange: '교환' })[claim.type]} · {STAGES[claim.stage]}</p>
-      {claim.reshipTrackingNumber ? <p>교환 굿즈 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
-      {orderId && (claim.type === 'return' || claim.type === 'exchange') ? <><ClaimCollectionPlan actorId={actorId} claimId={claim.id} /><ClaimContactHistory key={claim.id} actorId={actorId} orderId={orderId} claimId={claim.id} /></> : null}
+      {claim.stage === 'collecting' && context.isRecipient && returnPickupCollectingNotice(returnPickup) ? <p data-gift-return-pickup-notice="">{returnPickupCollectingNotice(returnPickup)}</p> : null}
+      {claim.reshipTrackingNumber && !claimParcelShown ? <p>교환 굿즈 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
+      {orderId && (claim.type === 'return' || claim.type === 'exchange') ? <>{context.isRecipient ? <ClaimCollectionPlan actorId={actorId} claimId={claim.id} /> : null}<ClaimContactHistory key={claim.id} actorId={actorId} orderId={orderId} claimId={claim.id} /></> : null}
       {claim.canWithdraw ? <button type="button" disabled={request.locked} onClick={() => {
         if (!confirm('진행 중인 요청을 철회할까요? 주문은 유지돼요.')) return;
         const id = crypto.randomUUID(), revision = claim.revision, claimId = claim.id;

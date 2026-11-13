@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import NextImage from "next/image";
+import { SITE_FOOTER_HREF, jumpToSiteFooter } from "@/components/shell/site-footer-jump";
 import s from "./AouadSample.module.css";
 import c from "./CafeteriaCrash.module.css";   // 보상 진열은 급식실 모양 그대로 — 전 존 공통(PM 2026-09-09)
 import { SECTION_LEAD, ZONE_CALL } from "./aouad-copy";
@@ -429,7 +430,26 @@ function PhotoPicker({ photo, onPick, onSelectName, onProcessingChange }) {
   );
 }
 
+/* 오프닝 상자가 화면 안에 조금이라도 보이는가. 화면에 고정된 '스킵 →'은 상자(.opening clip-path) 밖에서는 보이지 않으니
+   그때는 포커스·보조기기 트리에서도 빼야 한다(페이지를 푸터까지 내린 뒤 Tab 이 안 보이는 버튼에 닿지 않게 — WCAG 2.4.7). */
+function useElementOnScreen(ref, nodeKey) {
+  const [onScreen, setOnScreen] = useState(true);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      const last = entries[entries.length - 1];
+      if (last) setOnScreen(last.isIntersecting);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref, nodeKey]);
+  return onScreen;
+}
+
 function Opening({ short, reduced, hasId, onDone, onReset }) {
+  const openingRef = useRef(null);
+  const openingOnScreen = useElementOnScreen(openingRef, reduced);
   // beat 0 = 타이틀 모션 오마주(입자 수렴→불씨 리빌). 재방문(short)·모션축소(reduced)는 건너뛴다.
   const [beat, setBeat] = useState(short ? 4 : 0);
   const [typed, setTyped] = useState([]); // 완성된 줄들 + 진행 중인 줄
@@ -557,8 +577,8 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
 
   if (reduced) {
     return (
-      <div className={s.opening} role="dialog" aria-label="생존 무전">
-        <button type="button" className={s.openingSkip} onClick={skip} disabled={pendingPhotos > 0} aria-label="오프닝 건너뛰기">{pendingPhotos > 0 ? "사진 처리 중…" : "스킵 →"}</button>
+      <div ref={openingRef} className={s.opening} role="dialog" aria-label="생존 무전">
+        <button type="button" inert={!openingOnScreen} className={s.openingSkip} onClick={skip} disabled={pendingPhotos > 0} aria-label="오프닝 건너뛰기">{pendingPhotos > 0 ? "사진 처리 중…" : "스킵 →"}</button>
         {onReset && <button type="button" className={s.openingReset} onClick={onReset} title="처음부터 다시 보기">↺ 첫 방문 상태로</button>}
         <div className={s.notice}>
           <span className={s.noticeTag}>{OPENING.noticeTitle}</span>
@@ -586,8 +606,8 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
   }
 
   return (
-    <div className={s.opening} role="dialog" aria-label="무전 수신">
-      <button type="button" className={s.openingSkip} onClick={skip} disabled={pendingPhotos > 0} aria-label="오프닝 건너뛰기">{pendingPhotos > 0 ? "사진 처리 중…" : "스킵 →"}</button>
+    <div ref={openingRef} className={s.opening} role="dialog" aria-label="무전 수신">
+      <button type="button" inert={!openingOnScreen} className={s.openingSkip} onClick={skip} disabled={pendingPhotos > 0} aria-label="오프닝 건너뛰기">{pendingPhotos > 0 ? "사진 처리 중…" : "스킵 →"}</button>
       {onReset && <button type="button" className={s.openingReset} onClick={onReset} title="처음부터 다시 보기">↺ 첫 방문 상태로</button>}
       <i className={s.bar} aria-hidden="true" />
       <i className={`${s.bar} ${s.barBottom}`} aria-hidden="true" />
@@ -3636,7 +3656,7 @@ export default function AouadSample() {
   return (
     <>
     <div className={s.stage} data-view={view} data-presentation="aouad" inert={hyosanOpen ? true : undefined}>
-      <div className={s.presentationUtility}><Link href="/ip" prefetch={false} aria-label="ICONS 온라인 팝업으로 돌아가기">ICONS<span> / </span>HYOSAN</Link><button type="button" onClick={() => { setMeOpen(false); setOverlay("intro"); }}>프레젠테이션</button></div>
+      <div className={s.presentationUtility}><Link href="/ip" prefetch={false} aria-label="ICONS 온라인 팝업으로 돌아가기">ICONS<span> / </span>HYOSAN</Link><span className={s.utilityActions}><a className={s.utilityFooterLink} href={SITE_FOOTER_HREF} onClick={jumpToSiteFooter}>사업자 정보·약관</a><button type="button" onClick={() => { setMeOpen(false); setOverlay("intro"); }}>프레젠테이션</button></span></div>
       {view === "opening" && <Opening key={resetNonce} short={st.op} reduced={reduced} hasId={st.temp !== null} onDone={finishOpening} onReset={resetDemo} />}
       {view !== "opening" && (
         <>

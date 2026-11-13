@@ -133,11 +133,27 @@ describe('submitOrderClaim', () => {
 });
 
 describe('claimStageNotice', () => {
+  it('선물 보낸 분에게는 보이지 않는 회수 정보 확인·반송을 안내하지 않는다(QA2b 기록 1)', () => {
+    const text = claimStageNotice(claim({ claimType: 'return', stage: 'collecting' }), null, { giftSender: true });
+    expect(text).toContain('받는 분의 주소와 회수 송장은 개인정보라');
+    expect(text).not.toContain('회수 정보 확인'); expect(text).not.toContain('반송해주세요');
+    expect(claimStageNotice(claim({ claimType: 'return', stage: 'collecting' }), null)).toContain('회수 정보 확인');
+  });
   /* status는 레거시 투영이라 수거 중인 반품도 requested로 보인다. 안내가 stage에서
      나오지 않으면 이미 반송한 구매자가 "아직 접수만 됐다"고 읽는다. */
   it('수거 중과 접수를 구분해 안내한다', () => {
     expect(claimStageNotice(claim({ stage: 'requested' }))).toContain('접수했습니다');
     expect(claimStageNotice(claim({ stage: 'collecting' }))).toContain('반송해주세요');
+  });
+
+  /* S36-040·QNA-031: 승인 뒤 회수 주소는 배송 묶음별이다. 회수 없이 다시 보낸 소포(ADR-0041)가 있으면 그 굿즈는 반송하지 않아도 된다. */
+  it('수거 중 안내는 배송 묶음별 회수 주소를 가리키고 회수 생략 소포를 함께 말한다', () => {
+    const plain = claimStageNotice(claim({ claimType: 'exchange', stage: 'collecting' }));
+    expect(plain).toBe('요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.');
+    expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'collecting' }), null, { collectionWaived: true }))
+      .toBe(`${plain} 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.`);
+    /* 다른 단계는 회수 생략과 무관하다. */
+    expect(claimStageNotice(claim({ stage: 'collected' }), null, { collectionWaived: true })).toBe(claimStageNotice(claim({ stage: 'collected' })));
   });
 
   it('입고 확인 뒤 안내가 유형에 따라 갈린다', () => {
@@ -177,4 +193,16 @@ describe('claimStageNotice', () => {
     expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'completed', reshipDeliveredAt: '2026-09-09T01:00:00Z' })))
       .toContain('교환품의 배송완료가 확인됐습니다');
   });
+});
+
+/* 웨이브 2 통합 5e: 주문 상세가 넘기는 T12a(접수 안내 정책)·T14a(회수 생략)·T13b(방문 회수)·T12b(부분 취소) 값이 함께 있어도
+   진행 중 요청의 단계 안내에 회수 접수·회수 생략 문장이 그대로 남는다. */
+it('회수 접수·회수 생략·반품배송비 정책·부분 취소를 함께 넘겨도 단계 안내가 둘 다 말한다', () => {
+  const html = renderToStaticMarkup(createElement(OrderClaimRequest, {
+    claim: claim({ claimType: 'exchange', stage: 'collecting', status: 'processing' }), collectionWaived: true,
+    returnPickup: { pickupBundles: 1, directBundles: 1 }, returnFeePolicy: { enabled: true, oneWayAmount: 3000 }, partiallyCanceled: true,
+    eligibility: { cancel: false, return: true, exchange: true }, orderId: ORDER_ID, status: 'delivered' }));
+  expect(html).toContain('택배 기사가 방문해 굿즈를 회수합니다.');
+  expect(html).toContain('회수 송장이 없는 묶음은 회수 정보의 회수 주소로 보내주세요.');
+  expect(html).toContain('회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.');
 });

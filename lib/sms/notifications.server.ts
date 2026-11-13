@@ -7,8 +7,8 @@ import { smsSenderFromEnvironment, type SmsSender } from './sender.server';
 /*
  * 회원 SMS 알림 seam(10/14 회의 1014-010 — 구매 전 회원에게 이메일 말고도 알릴 수단). 기본 OFF.
  *
- * 아직 이 seam을 부르는 기능은 없다. IP 소식·이벤트 알림 같은 생산자를 만들 때 이 함수 하나로 보내고, 그때 발송
- * 기록(누구에게·언제·무엇을, 본문 제외)과 재시도를 이메일 dispatcher처럼 함께 설계한다(런북 참고).
+ * 첫 생산자는 예약 일정 변경 안내 SMS(lib/orders/order-delay-sms.server.ts, QNA-040)다. IP 소식·이벤트 알림 같은 다른 생산자도
+ * 이 함수 하나로 보내고, 발송 기록(누구에게·언제·무엇을, 본문 제외)과 재시도를 이메일 dispatcher처럼 함께 설계한다(런북 참고).
  *
  * 법적 경계(정보통신망법 제50조, 시행령 제61조 — 런북에 근거 정리):
  *   · 광고성 정보(advertising)는 SMS 수신 동의가 있는 회원에게만 보낸다. 받는 사람은 DB(service_member_sms_recipient)가

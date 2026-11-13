@@ -2,13 +2,11 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
   mapAdminDrawTicketGrantError,
   normalizeAdminDrawTicketGrantForm,
 } from '@/lib/admin/draw-ticket-grants';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 /* 수동 뽑기권 발급 서버 액션(#185).
@@ -21,14 +19,8 @@ export interface AdminDrawTicketGrantActionState {
   nextOperationId?: string;
 }
 
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
-
 async function requireStaffAction(): Promise<AdminDrawTicketGrantActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!await requireAdminActionAccess('/admin', { capability: 'platform.manage' })) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 

@@ -18,6 +18,7 @@ import { CsReplyTemplateTools } from './CsReplyTemplateTools';
 import { CustomerServiceRecordNavigation, useCustomerServiceRecord } from './CustomerServiceRecordNavigation';
 import { CsEditorDraftNotice } from './CsEditorDraftNotice';
 import { ACTION_FEEDBACK_CLASS, DISCLOSURE_SUMMARY_CLASS, RECORD_CHANGED_CLASS, RECORD_META_CLASS, RECORD_META_ITEM_CLASS, RECORD_SECTION_CLASS, REPLY_FORM_CLASS } from './cs-kit-classes';
+import { confirmAdminSubmit } from '@/lib/admin/confirm';
 
 const EMPTY_STATE: AdminQnaActionState = {};
 const ANSWER_MAX_LENGTH = 2000;
@@ -54,7 +55,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
       <div className="flex min-w-0 flex-col gap-5 text-sm">
         <dl className={RECORD_META_CLASS}>
           <div className={RECORD_META_ITEM_CLASS}><dt>상품</dt><dd><Link className={RECORD_LINK_CLASS} href={goodQuestionsHref(question.goodId)}>{question.goodName}</Link></dd></div>
-          <div className={RECORD_META_ITEM_CLASS}><dt>상품번호</dt><dd className="tabular-nums">{question.goodId}</dd></div>
+          <div className={RECORD_META_ITEM_CLASS}><dt>상품 URL</dt><dd className="tabular-nums">{question.goodId}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성자</dt><dd>@{question.authorName}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성일</dt><dd className="tabular-nums">{formatAdminProductQuestionDateTime(question.createdAt)}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>노출 상태</dt><dd className="flex flex-wrap items-center gap-1.5"><AdminStatusBadge tone={statusTone('questionVisibility', hidden ? 'hidden' : 'visible')}>{hidden ? '비노출' : '공개'}</AdminStatusBadge>{question.secret ? <AdminStatusBadge data-secret-badge="" tone="neutral">비밀글</AdminStatusBadge> : null}</dd></div>
@@ -92,7 +93,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
           <summary className={DISCLOSURE_SUMMARY_CLASS}>문의 노출 관리{hidden ? ' · 비노출 상태' : ''}<ChevronDown aria-hidden="true" className="size-4 transition-transform group-open/visibility:rotate-180" /></summary>
           <form action={visibilityAction} className="mt-3 flex flex-col items-start gap-2" onSubmit={(event) => {
             const message = hidden ? '이 질문을 다시 공개할까요? 상품 상세 목록에 즉시 다시 나옵니다.' : '이 질문을 비노출 처리할까요? 상품 상세에서 즉시 빠지고 작성자에게는 계속 보입니다.';
-            if (!window.confirm(message)) event.preventDefault();
+            confirmAdminSubmit(event, message);
           }}>
             <input name="questionId" type="hidden" value={question.id} />
             <input name="hidden" type="hidden" value={hidden ? 'false' : 'true'} />

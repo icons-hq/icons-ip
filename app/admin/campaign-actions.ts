@@ -1,14 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
   normalizeAdminCampaignForm,
   normalizeAdminCoinExchangeOfferForm,
 } from '@/lib/admin/campaigns';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
-import { hasAdminCapability, type AdminCapability } from '@/lib/admin/access';
+import type { AdminCapability } from '@/lib/admin/access';
 
 /* 캠페인·카드팩 교환처 저장 액션 (S8 #330).
  *
@@ -27,9 +26,7 @@ const CAMPAIGN_SAVE_FAILED = '캠페인을 저장하지 못했습니다. 다시 
 const OFFER_SAVE_FAILED = '교환처를 저장하지 못했습니다. 다시 시도해주세요.';
 
 async function requireStaffAction(capability: AdminCapability): Promise<AdminCampaignActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(CAMPAIGNS_PATH)}`);
-  if (!auth.isStaff || !hasAdminCapability(auth, capability)) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!await requireAdminActionAccess(CAMPAIGNS_PATH, { capability })) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 
@@ -75,7 +72,7 @@ function campaignWriteFailure(
   /* 쿠폰 코드는 jsonb 안이라 FK 로 묶이지 않는다 — RPC 가 저장 시점에 실재를
      확인하고, 여기서는 "코드를 먼저 등록하라"는 다음 행동으로 옮긴다. */
   if (message.includes('unknown_coupon_code')) {
-    return { errors: { sections: '쿠폰 섹션의 코드가 쿠폰 관리에 등록되어 있지 않아요.' } };
+    return { errors: { sections: '쿠폰 섹션의 코드가 혜택으로 등록되어 있지 않아요.' } };
   }
   if (message.includes('invalid_campaign_id')) {
     return { errors: { id: 'ID는 소문자·숫자·하이픈 2~64자로 입력해주세요.' } };

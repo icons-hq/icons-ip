@@ -94,7 +94,7 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
   }
   return <section className="flex min-w-0 flex-col gap-4" aria-label={onSelect ? '상품 사진 선택' : '사진 보관함'} data-admin-screen="photo-library">
     {/* 머리(설명·업로드) → 안내 → 조회 카드([초기화][검색]) → 목록 카드(사진·페이지 이동). 상품 사진 선택 팝업은 머리·업로드 없이 쓴다. */}
-    {!onSelect ? <AdminPageHeader title="사진 보관함" description={`${GOODS_PHOTO_LIBRARY_PURPOSE} 스태프와 관리자가 함께 씁니다.`}
+    {!onSelect ? <AdminPageHeader title="사진 보관함" description={`${GOODS_PHOTO_LIBRARY_PURPOSE} 운영자가 함께 씁니다.`}
       actions={<label className={`${buttonVariants()} relative cursor-pointer focus-within:ring-3 focus-within:ring-ring/50 has-[input:disabled]:pointer-events-none has-[input:disabled]:opacity-50`} data-slot="button"><Upload aria-hidden="true" />사진 업로드<input className="absolute inset-0 size-full cursor-pointer opacity-0" aria-label="사진 업로드" type="file" accept={ADMIN_ARTWORK_ACCEPT} multiple disabled={busy} onChange={upload} /></label>} /> : null}
     <div className={CONSOLE_FILTER_CARD_CLASS}>
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>

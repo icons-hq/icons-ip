@@ -38,7 +38,7 @@ export function AdminSubscriptionsScreen({ data }: { data: AdminSubscriptionData
         <span className="flex flex-col items-start gap-0.5" key="state"><AdminStatusBadge tone={statusTone('subscription', row.state)}>{SUBSCRIPTION_PLAN_LABELS[row.state]}</AdminStatusBadge>{row.state === 'needs_confirmation' ? <Link className="text-xs underline-offset-4 hover:underline" href={`/admin/sales/subscriptions/${row.id}`}>상세에서 확인</Link> : null}</span>, <span className="block max-w-18 truncate" key="buyer" title={row.buyerName}>{row.buyerName}</span>, <span className="block min-w-48" key="goods">{row.goodsLabel}</span>, subscriptionScheduleLabel(row.schedule), row.nextRunAt ? formatOrderDateTime(row.nextRunAt) : '—',
         formatKrwExact(row.renewalOnlineTotal), formatKrwExact(row.renewalCollectTotal), row.paidCycleCount, formatKrwExact(row.paidOnlineTotal), formatOrderDateTime(row.updatedAt)] }))}>
       <div className="flex flex-wrap items-center gap-2" data-sales-results-heading=""><SalesResultsTitle total={data.total} />
-        <EncryptedWorkbookDownloadButton href={`/api/admin/subscriptions/export${query.size ? `?${query}` : ''}`} label="암호화 엑셀 다운로드" disabled={data.total > 10000} />
+        <EncryptedWorkbookDownloadButton href={`/api/admin/subscriptions/export${query.size ? `?${query}` : ''}`} label="엑셀 다운로드" disabled={data.total > 10000} />
       </div>
     </ConsoleGrid>
     <ConsolePagination label="정기구매 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => adminSubscriptionsHref(filters, page)} />

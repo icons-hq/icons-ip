@@ -2,7 +2,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Good } from '@/lib/data';
 import { krw } from '@/lib/format';
-import { shippingPolicyDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
+import { goodClaimAvailability } from '@/lib/goods-claim-policy';
+import { shippingPolicyDescription, shippingRegionFeeDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { goodsQuantityDeliveryLabel } from '@/lib/goods-transaction-presentation';
 import { BUSINESS_INFO, businessInfoRows, type BusinessInfo } from '@/lib/legal/business-info';
@@ -34,6 +35,10 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
   const preorders = goods.flatMap(good => (good.options ?? [])
     .filter(option => option.supply?.mode === 'preorder')
     .map(option => ({ id: option.id, label: `${good.name} · ${option.name}`, date: option.supply!.expectedShipDate })));
+  /* 지역별 추가 배송비(S36-038): 이 굿즈의 출고지·택배사에 지금 적용되는 지역 정책이 있을 때만 금액을 싣는다.
+     지역명·금액은 정책 지역표 그대로이고, 이 굿즈에 붙는지·부과 단위(배송 묶음당·굿즈당 1회)·면제는 DB가 주문서 견적 함수로 확인했다.
+     없거나 한 문장으로 말할 수 없으면 지금 문장을 둔다. */
+  const regionalFees = shippingRegionFeeDescription(policy?.regionFees);
   return (
     <div className="wc-pdp-guide">
       <ul className="wc-pdp-guide__list">
@@ -51,29 +56,48 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
           {preorders.map(option => <li key={option.id}>{option.label}: {goodsShipDateLabel(option.date)}</li>)}
           <li>일반 판매 옵션만 주문한 경우에는 기본 배송 정책을 따릅니다. 예약 공급 일정이 바뀌면 주문 상세에서 변경된 예정일을 확인할 수 있습니다.</li>
         </> : <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>}
-        <li>배송지에 따른 추가 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>
+        {regionalFees
+          ? <li>{regionalFees} 최종 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>
+          : <li>배송지에 따른 추가 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>}
+        {policy?.remoteAreaNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.remoteAreaNotice}</li>}
         <li>원화(KRW)로 결제하며 대한민국 주소로 배송합니다. 국내 배송대행지를 이용할 수 있고, 이후 해외 운송은 고객이 배송대행사에 별도로 신청합니다.</li>
       </ul>
     </div>
   );
 }
 
+/* 제한이 반품·교환 한쪽뿐이면 어느 쪽인지 밝힌다(가능한 쪽까지 제한으로 읽히지 않게). */
+const CLAIM_RESTRICTION_SCOPE = { both: null, return: '반품 제한 · 교환 가능', exchange: '교환 제한 · 반품 가능' } as const;
+
+/*
+ * 교환 · 반품 안내(S36-040·S36-044). 가능/제한 표시는 굿즈의 반품·교환 조건에서 파생하고(goodClaimAvailability) 신청을
+ * 막지 않는다. 교환·반품지는 굿즈가 고른 반품지, 없으면 출고지 반품 주소다(get_good_shipping_policy가 정한다).
+ */
 function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
   const terms = policy?.claimPolicy;
+  const availability = goodClaimAvailability(terms);
   return (
     <div className="wc-pdp-guide">
       <ul className="wc-pdp-guide__list">
-        {terms?.restrictionReason && <li style={{ whiteSpace: 'pre-wrap' }}>굿즈별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
+        {availability ? <li data-claim-availability={availability.restricted ? 'restricted' : 'available'} style={{ whiteSpace: 'pre-wrap' }}>
+          <strong>{availability.label}</strong>
+          {availability.restricted && CLAIM_RESTRICTION_SCOPE[availability.scope] ? ` · ${CLAIM_RESTRICTION_SCOPE[availability.scope]}` : null}
+        </li> : null}
+        {availability ? <li>{availability.restricted ? '제한된 굿즈도 주문 상세에서 교환·반품을 신청할 수 있고, 담당자가 개별 확인합니다. ' : ''}굿즈 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.</li> : null}
+        {terms?.restrictionReason && !availability?.restricted && <li style={{ whiteSpace: 'pre-wrap' }}>굿즈별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
         {terms && <>
           <li>고객 귀책 반품비(편도): {terms.returnFee === null ? '확인 후 안내' : krw(terms.returnFee)}</li>
           <li>최초 무료배송 후 반품비(왕복 합계): {terms.returnFreeShippingFee === null ? '확인 후 안내' : krw(terms.returnFreeShippingFee)}</li>
           <li>고객 귀책 교환비(왕복 합계): {terms.exchangeFee === null ? '확인 후 안내' : krw(terms.exchangeFee)}</li>
         </>}
         {policy?.returnExchangeNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.returnExchangeNotice}</li>}
-        {policy?.returnAddress && <li>회수 주소: {policy.returnAddress} · 먼저 고객센터에 접수한 뒤 안내에 따라 보내주세요.</li>}
+        {policy?.returnAddress && <li>교환·반품지: {policy.returnAddress} · 주문 상세에서 교환·반품을 신청하고 승인 안내를 받은 뒤 보내주세요.</li>}
         {policy?.cs && (policy.cs.name || policy.cs.phone || policy.cs.email) && <li>고객센터: {[policy.cs.name, policy.cs.phone, policy.cs.email].filter(Boolean).join(' · ')}</li>}
         <li>굿즈를 받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다.</li>
-        <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>
+        {/* 반품 자동 회수 접수(QNA-032)가 이 굿즈의 출고지에 켜져 있으면 착불 반송 대신 방문 회수를 안내한다(스위치에 묶음). */}
+        {policy?.returnPickup
+          ? <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담합니다. 교환·반품이 승인되면 택배 기사가 방문해 회수하니 굿즈를 포장해 두세요.</li>
+          : <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>}
         <li>굿즈가 파손·오배송된 경우에는 반송비를 ICONS가 부담합니다.</li>
         <li>사용·훼손해 재판매가 어려워진 굿즈는 청약철회가 제한될 수 있습니다.</li>
       </ul>

@@ -1,7 +1,7 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
-import { shipmentStatusLabel, type ShipmentRecord } from '@/lib/orders/shipments';
+import { shipmentStatusLabel, type ShipmentExtraTracking, type ShipmentRecord } from '@/lib/orders/shipments';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { DELIVERY_METHOD_LABELS, deliveryFeeRuleNote, deliveryStatusLabel } from '@/lib/shipment-delivery';
 import { ShipmentReceiptConfirmation } from './ShipmentReceiptConfirmation';
@@ -10,9 +10,20 @@ import { ShippingChargeDetailsDisplay } from './ShippingChargeDetailsDisplay';
 import { shipmentGroupLabel } from '@/lib/fulfillment';
 import { commerceReferenceLabel } from '@/lib/commerce-number';
 
+/** 나눠 보낸 상자의 추가 운송장(QNA-019). 주문 상세와 선물 받는 분 화면이 같은 부품을 쓴다. 상자마다 조회 링크를 둔다. */
+export function ShipmentExtraTrackings({ extraTrackings, admin = false }: { extraTrackings: readonly ShipmentExtraTracking[]; admin?: boolean }) {
+  return <div data-shipment-extra-trackings="">
+    <dt>추가 운송장</dt>
+    <dd className={admin ? 'flex flex-col items-start' : 'wc-shipment-extra-trackings'}>{extraTrackings.map(extra => extra.trackingUrl
+      ? <a aria-label={`${extra.carrierLabel} ${extra.trackingNumber} 배송조회`} href={extra.trackingUrl} key={extra.id} rel="noreferrer" target="_blank">{extra.carrierLabel} {extra.trackingNumber}</a>
+      : <span key={extra.id}>{extra.carrierLabel} {extra.trackingNumber}</span>)}
+      <small className={admin ? 'text-xs text-muted-foreground' : undefined}>나눠 보낸 상자{extraTrackings.some(extra => extra.trackingUrl) ? ' · 번호를 누르면 배송조회' : ''}</small></dd>
+  </div>;
+}
+
 export function ShipmentDetails({ shipments, items = [], admin = false, transactionShipping }: {
   shipments: readonly ShipmentRecord[];
-  items?: readonly { id: string; goodId?: string; name: string; qty: number; variantName?: string | null; supplySource?: 'stock' | 'preorder'; preorderExpectedShipDate?: string | null }[];
+  items?: readonly { id: string; goodId?: string; name: string; qty: number; canceledQty?: number; variantName?: string | null; supplySource?: 'stock' | 'preorder'; preorderExpectedShipDate?: string | null }[];
   admin?: boolean;
   transactionShipping?: readonly GoodsTransactionShippingGroup[];
 }) {
@@ -21,7 +32,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
      고객은 택배 배송 건의 택배사로 부르고, 택배사를 모르면 '배송 묶음 N'이다(R26).
      어드민은 출고지별로 처리하므로 이름을 그대로 본다. */
   const carriers = shipments.map(shipment => ({ carrierLabel: shipment.delivery === undefined || shipment.delivery?.method === 'parcel' ? shipment.carrierLabel : null }));
-  return <div aria-label="배송 건별 정보">{shipments.map((shipment, index) => {
+  return <div aria-label="배송 건별 정보" role="group">{shipments.map((shipment, index) => {
     const groupName = admin ? shipment.originName : shipmentGroupLabel(carriers, index);
     const candidates = transactionShipping?.filter(group => group.originId === shipment.originId) ?? [];
     const charge = candidates.length === 1 ? candidates[0] : candidates.find(group => group.components.every(component => items.some(item => item.goodId === component.goodId && shipment.orderItemIds.includes(item.id))));
@@ -48,6 +59,8 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
       {shipment.delivery === undefined || shipment.delivery?.method === 'parcel' ? <>
         <div><dt>택배사</dt><dd>{shipment.carrierLabel ?? (shipment.status === 'ready' ? '발송 준비 중' : '미등록')}</dd></div>
         <div><dt>운송장번호</dt><dd>{shipment.trackingNumber ?? '미등록'}</dd></div>
+        {/* 부피가 큰 상품을 여러 상자로 나눠 보내면 대표 운송장 말고 추가 운송장이 붙는다(QNA-019). 상자마다 조회 링크를 둔다. */}
+        {shipment.extraTrackings?.length ? <ShipmentExtraTrackings extraTrackings={shipment.extraTrackings} admin={admin} /> : null}
       </> : null}
       {shipment.shippedAt && shipment.delivery?.method !== 'digital' ? <div><dt>발송일시</dt><dd><time dateTime={shipment.shippedAt}>{formatOrderDateTime(shipment.shippedAt)}</time></dd></div> : null}
       {shipment.deliveredAt ? <div><dt>{shipment.delivery?.method === 'digital' ? '파일 제공 시작일시' : '배송 완료일시'}</dt><dd><time dateTime={shipment.deliveredAt}>{formatOrderDateTime(shipment.deliveredAt)}</time></dd></div> : null}
@@ -62,7 +75,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
       <small className="muted">{deliveryFeeRuleNote(shipment.delivery.policy, shipment.delivery.changedBy)}</small>
       {!admin && shipment.delivery.canIssueReceipt ? <ShipmentReceiptConfirmation key={`${shipment.id}:${shipment.delivery.policy.policyId}`} shipmentId={shipment.id} /> : null}
     </div> : null}
-    {items.some(item => shipment.orderItemIds.includes(item.id)) ? <ul>{items.filter(item => shipment.orderItemIds.includes(item.id)).map(item => <li key={item.id}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}
+    {items.some(item => shipment.orderItemIds.includes(item.id)) ? <ul>{items.filter(item => shipment.orderItemIds.includes(item.id)).map(item => <li key={item.id}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}{item.canceledQty ? ` (${item.canceledQty}개 취소됨)` : ''}
       {item.supplySource === 'preorder' ? ` · 예약판매 (${goodsShipDateLabel(item.preorderExpectedShipDate)})` : ''}</li>)}</ul> : null}
     {shipment.trackingUrl && (shipment.delivery === undefined || shipment.delivery?.method === 'parcel') ? <a className={admin ? 'admin-order-detail__link' : 'btn btn-ghost order-tracking-link'} href={shipment.trackingUrl} rel="noreferrer" target="_blank">{admin || shipments.length > 1 ? `${groupName} 배송조회` : '배송조회'}</a> : null}
   </section>; })}</div>;

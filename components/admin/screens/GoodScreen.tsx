@@ -12,6 +12,7 @@ import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { GoodSection } from '@/components/admin/sections/GoodSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import type { ReturnAddressOption } from '@/lib/admin/return-addresses';
 import type { GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -58,7 +59,7 @@ function GoodScreenForm({
   initialSelectedId,
   hideRecordList=false,
   listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], returnAddresses, noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canOpenIp=false, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
   onCreated,
 }: {
   /** 등록 화면에서 상품을 처음 저장했다. 주소를 바꾼 뒤에도 같은 화면을 유지하도록 GoodScreen이 key를 넘겨받는다. */
@@ -73,8 +74,8 @@ function GoodScreenForm({
   initialSelectedId?: string;
   hideRecordList?: boolean;
   listHref?: string;
-  accountId?: string; origins?: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
-  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
+  accountId?: string; origins?: GoodsFulfillmentOrigin[]; returnAddresses?: ReturnAddressOption[]; noticeDefaults?: GoodNoticeDefaults;
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canOpenIp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const noticeState = useMemo(() => adminGoodsNotice(state), [state]);
@@ -93,22 +94,23 @@ function GoodScreenForm({
   const selected=records.find((record)=>record.id===selectedId)??null;
   useEffect(()=>{
     if (!hideRecordList || !state.savedGoodId || initialSelectedId === state.savedGoodId) return;
-    // 등록 화면에서 KC를 함께 저장했으면 고시 프리셋의 KC 유형 틀을 저장된 KC 위에 다시 얹지 않는다.
-    if (state.workspaceKcSaved) discardKcTemplate(); else bindSavedGood(state.savedGoodId);
+    // TKT-006·TKT-086: 등록 화면은 고시 프리셋의 KC 유형 틀을 같은 화면 KC 입력에 미검토 모델로 바로 채워 함께 저장한다.
+    // 아직 반영되지 않은 대기 틀이 남았으면 버리지 않고 저장된 상품의 KC 정보로 넘긴다(새 미검토 모델로 추가된다).
+    bindSavedGood(state.savedGoodId);
     if (!initialSelectedId) onCreated?.(state.savedGoodId);
     const url=new URL(listHref,'https://admin.invalid');
     url.searchParams.delete('create');
     url.searchParams.set('goodId',state.savedGoodId);
     // 같은 자리에서 이어 입력하도록 KC로 점프하지 않고 스크롤을 유지한다(R13).
     router.replace(`${url.pathname}?${url.searchParams}`,{scroll:false});
-  },[hideRecordList,initialSelectedId,listHref,router,state.savedGoodId,state.workspaceKcSaved,bindSavedGood,discardKcTemplate,onCreated]);
+  },[hideRecordList,initialSelectedId,listHref,router,state.savedGoodId,bindSavedGood,onCreated]);
 
   return (
     <GoodSection
       ownership={ownership}
       readiness={readiness} regionSummaries={regionSummaries}
-      accountId={accountId} origins={origins} noticeDefaults={noticeDefaults}
-      categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} canReadOrders={canReadOrders} canManageSales={canManageSales} canSearchErp={canSearchErp} canManageMedia={canManageMedia} cloneOperationId={cloneOperationId}
+      accountId={accountId} origins={origins} returnAddresses={returnAddresses} noticeDefaults={noticeDefaults}
+      categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} canReadOrders={canReadOrders} canManageSales={canManageSales} canSearchErp={canSearchErp} canOpenIp={canOpenIp} canManageMedia={canManageMedia} cloneOperationId={cloneOperationId}
       action={action}
       adjustmentId={adjustmentId}
       catalogIps={catalogIps}

@@ -38,7 +38,8 @@ import {
   validateSabangnetTargets,
   type SabangnetTarget,
 } from '@/lib/admin/sabangnet-goods-format';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 
 async function requireStaff() {
   const auth = await requireAdminActionAccess(GOODS_IMPORT_PATH);
@@ -60,7 +61,7 @@ function safeError(error: unknown) {
 const SABANGNET_XLS_MESSAGE =
   'XLS(Excel 97-2003) 파일은 읽을 수 없습니다. 엑셀에서 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.';
 const SABANGNET_EXISTING_MESSAGE =
-  '이미 등록된 상품코드입니다. 사방넷 양식은 새 상품 초안만 만들어 이 행은 실패 행 파일에 넣지 않습니다. 기존 상품은 상품 목록에서 내보낸 엑셀로 수정해 주세요.';
+  '이미 등록된 판매자상품코드입니다. 사방넷 양식은 새 상품 초안만 만들어 이 행은 실패 행 파일에 넣지 않습니다. 기존 상품은 상품 목록에서 내보낸 엑셀로 수정해 주세요.';
 async function cleanupExpired() {
   const service = createServiceClient();
   const { data } = await service

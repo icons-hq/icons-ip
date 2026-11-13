@@ -14,6 +14,40 @@ type Props = {
   shipmentLabels?: Readonly<Record<string, string>>;
 };
 type Request = { shipmentId: string; revision: number; claimRevision: number; values: ClaimCollectionValues; operationId: string };
+/*
+ * 회수 주소(S36-040·QNA-031): 승인 뒤 배송 묶음마다 승인 때 고정한 회수 주소. 한 배송 묶음 안에서 굿즈마다 반품지가 다르면
+ * 반품지별로 나눠 보이고, 고객은 나눠 보낸다. 회수 생략 배송 건(하자·오배송 교환, ADR-0041)은 고객에게 주소 대신 반송이
+ * 필요 없다고 말한다. 선물 주문은 받는 분만 이 문서를 읽는다(read_my_claim_collection_plan).
+ * 반품 자동 회수 접수(QNA-032)로 택배사에 접수된 묶음은 방문 회수와 회수 송장을 함께 보인다(접수되지 않은 묶음은 지금과 같다).
+ */
+export function ClaimReturnBundles({ row, operator }: { row: ClaimCollectionRow; operator: boolean }) {
+  if (row.collectionWaived && !operator) return <p data-claim-collection-waived="">회수 없이 다시 보내드려요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.</p>;
+  const bundles = row.returnBundles ?? [];
+  return <>
+    {row.collectionWaived ? <p data-claim-collection-waived="">회수 생략으로 결정한 배송 건입니다.</p> : null}
+    {bundles.length > 1 ? <p>굿즈마다 보내는 곳이 달라 {bundles.length}곳으로 나눠 보내주세요.</p> : null}
+    {bundles.length ? <ul className="claim-collection-plan__bundles" aria-label="회수 주소">{bundles.map((bundle, index) => <li key={bundle.bundleId} data-claim-return-bundle="">
+      <small>{bundles.length > 1 ? `회수 주소 ${index + 1}/${bundles.length}` : '회수 주소'}{bundle.collectedAt ? ` · 입고 확인 ${formatOrderDateTime(bundle.collectedAt)}` : ''}</small>
+      <span>{bundle.returnName ? `${bundle.returnName} · ` : ''}{bundle.returnAddress || '판매자가 회수 주소를 따로 안내합니다.'}{bundle.returnPhone ? ` · ${bundle.returnPhone}` : ''}</span>
+      <small>{bundle.items.map(item => `${item.name} ${item.qty}개`).join(', ')}</small>
+      {bundle.pickup ? <small data-claim-return-pickup="">방문 회수 접수 · {bundle.pickup.carrierLabel ?? bundle.pickup.carrier} 회수 송장 {bundle.pickup.trackingNumber}</small> : null}
+    </li>)}</ul> : null}
+  </>;
+}
+/** 행 상태 문구. 자동 회수 접수(QNA-032)로 방문 회수가 접수된 묶음이 있으면 '접수 후 수거 협의' 대신 '방문 회수 접수됨'이다. */
+export function collectionRowMethodLabel(row: ClaimCollectionRow, history: ClaimCollectionDocument['history'] = []): string {
+  if (row.method === 'not_requested' && row.returnBundles?.some(bundle => bundle.pickup)) return '방문 회수 접수됨';
+  /* 요청 철회·거절 등으로 자동 회수가 취소되면 그 배송 건의 마지막 자동 기록이 취소다 — '접수 후 수거 협의'로 남지 않게 한다. */
+  const latest = history.filter(item => item.shipmentId === row.shipmentId).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+  if (!row.collectedAt && latest?.evidence.startsWith('자동 회수 취소') && row.method !== 'customer_sent') return '방문 회수 취소됨';
+  return COLLECTION_METHODS[row.method];
+}
+/** 정정 이력 줄 머리. 자동 회수가 남긴 기록은 '판매자 별도 수거 예정'이 아니라 자동 회수 접수·취소로 말한다. */
+export function collectionHistoryMethodLabel(item: ClaimCollectionDocument['history'][number]): string {
+  if (item.evidence.startsWith('자동 회수 취소')) return '방문 회수 취소됨';
+  if (item.evidence.startsWith('자동 회수 접수')) return '방문 회수 접수됨';
+  return COLLECTION_METHODS[item.method];
+}
 export function ClaimCollectionPlan(props: Props) {
   return <ClaimContactSession actorId={props.actorId}>{(identity, scope) => <CollectionPanel key={`${props.claimId}:${identity.sessionId}`} {...props} identity={identity} scope={scope} />}</ClaimContactSession>;
 }
@@ -55,15 +89,17 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
   }
   return <section className="claim-collection-plan" aria-label="회수 방법과 송장">
     <h3>회수 방법·택배사·송장</h3>
-    <p>{operator ? '택배사에 별도로 접수한 회수 정보와 정정 근거를 기록합니다. 이 저장만으로 수거 요청이나 입고 처리가 실행되지는 않습니다.' : '판매자가 안내한 회수 방법과 송장 정보를 확인할 수 있습니다.'}</p>
+    <p>{operator ? '택배사에 별도로 접수한 회수 정보와 정정 근거를 기록합니다. 이 저장만으로 수거 요청이나 입고 처리가 실행되지는 않습니다.' : '판매자가 안내한 회수 방법과 송장 정보를 확인할 수 있습니다. 요청이 승인되면 배송 묶음별 회수 주소도 함께 보입니다.'}</p>
     <button type="button" className="btn btn-sm btn-ghost" disabled={pending} onClick={() => { void read(); }}>회수 정보 확인</button>
     {/* 고객에게는 출고지 이름 대신 같은 화면 배송 건 머리의 이름(택배사·R26)으로 부른다(10/14 회의 S7 · m27 CUST-2).
         회수 문서에는 출고 택배사가 없어 주문 상세가 이름표를 넘긴다. 이름표가 없으면 '배송 묶음 N'이다. */}
     {document?.rows.map((row, index, rows) => <div className="claim-collection-plan__row" key={row.shipmentId}>
-      <strong>{operator ? row.originName : claimCollectionRowLabel(row.shipmentId, index, rows.length, shipmentLabels)}</strong><p>{COLLECTION_METHODS[row.method]} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
+      <strong>{operator ? row.originName : claimCollectionRowLabel(row.shipmentId, index, rows.length, shipmentLabels)}</strong><p>{collectionRowMethodLabel(row, operator ? document?.history : undefined)} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
       {row.carrier ? <p>{row.carrierLabel ?? carriers.find(c => c.code === row.carrier)?.label ?? row.carrier} · {row.trackingNumber}</p> : null}
+      <ClaimReturnBundles row={row} operator={operator} />
       {operator && row.evidence ? <p>{row.evidence}</p> : null}
-      {operator && document.editable ? <button className="btn btn-sm btn-ghost" disabled={pending || uncertain} type="button" onClick={() => edit(row)}>회수 정보 정정 · {row.originName}</button> : null}
+      {operator && document.editable && !row.reshipped ? <button className="btn btn-sm btn-ghost" disabled={pending || uncertain} type="button" onClick={() => edit(row)}>회수 정보 정정 · {row.originName}</button>
+        : operator && row.reshipped ? <p>이 출고지는 재출고해 회수 정보를 정정할 수 없습니다.</p> : null}
     </div>)}
     {operator && selected ? <form onSubmit={event => { event.preventDefault(); void save(); }}>
       <fieldset disabled={pending || uncertain}>
@@ -77,7 +113,7 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
       </fieldset>
       <button className="btn btn-sm" disabled={pending} type="submit">{uncertain ? '같은 요청으로 저장 결과 확인' : '회수 정보 정정 저장'}</button>
     </form> : null}
-    {operator && document?.history.length ? <details><summary>최근 정정 이력 {document.history.length}건</summary><ol>{document.history.map(item => <li key={item.id}>{formatOrderDateTime(item.createdAt)} · {COLLECTION_METHODS[item.method]} · {item.carrier} {item.trackingNumber}<br />{item.evidence}</li>)}</ol></details> : null}
+    {operator && document?.history.length ? <details><summary>최근 정정 이력 {document.history.length}건</summary><ol>{document.history.map(item => <li key={item.id}>{formatOrderDateTime(item.createdAt)} · {collectionHistoryMethodLabel(item)}{item.carrier || item.trackingNumber ? ` · ${[item.carrier ? carriers.find(c => c.code === item.carrier)?.label ?? item.carrier : null, item.trackingNumber].filter(Boolean).join(' ')}` : ''}<br />{item.evidence}</li>)}</ol></details> : null}
     {error ? <p role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}
   </section>;
 }

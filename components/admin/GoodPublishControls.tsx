@@ -1,9 +1,12 @@
 'use client';
 
-import { useActionState, type MouseEvent, type ReactNode } from 'react';
+import { useActionState, useState, useTransition, type MouseEvent, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { setAdminGoodPublishedAction } from '@/app/admin/goods-publish-actions';
-import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/admin/kit/ui/alert-dialog';
 import { goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor } from '@/lib/admin/good-workspace';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { AdminNotice } from './console/AdminKit';
@@ -30,6 +33,46 @@ function GoodReadinessStep({ title, reason, others, variant, note, children }: {
     </div>
     {others.length ? <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-sm"><span className="text-muted-foreground">그 밖에</span>{others.map((item) => { const target = goodReadinessReasonAnchor(item); return <a className="underline underline-offset-4" href={`#${target}`} key={item.code} onClick={moveToReason(target)} title={item.detail}>{item.label}</a>; })}</p> : null}
   </div>;
+}
+
+/** 초안 전환 확인창의 안내. 판매 준비 카드의 초안으로 되돌리기와 같은 영향을 말한다. */
+export const GOOD_DRAFT_SWITCH_NOTICE = '판매 중인 상품이 고객 화면에서 내려갑니다. 목록·검색·상품 상세에서 숨겨지고 새 주문을 받지 않습니다. 기존 주문과 결제·취소 처리는 유지됩니다. 잠긴 항목을 고친 뒤에는 KC를 다시 검토해야 공개할 수 있습니다.';
+
+/**
+ * TKT-009(11/11 결정): 공개 중 잠금 안내의 [초안으로 전환 후 수정] → 확인창 1회 → 바로 초안으로 전환해 잠금을 푼다.
+ * 서버 계약은 판매 준비 카드의 초안으로 되돌리기와 같다(setAdminGoodPublishedAction, confirmUnpublish=yes) — 확인창이 그 확인 체크를 대신한다.
+ * 전환되면 서버가 다시 그린 상품이 초안이라 편집기의 잠금이 풀린다. 폼 밖으로 열리는 확인창이라 상품 저장에 섞이지 않는다.
+ */
+export function GoodDraftSwitch({ id, disabled = false }: { id: string; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState('');
+  const [pending, start] = useTransition();
+  function convert() {
+    setError('');
+    const data = new FormData();
+    data.set('id', id); data.set('published', 'false'); data.set('confirmUnpublish', 'yes');
+    start(async () => {
+      const result = await setAdminGoodPublishedAction({}, data);
+      if (result.error) { setError(result.error); return; }
+      setOpen(false);
+    });
+  }
+  return <>
+    <Button type="button" variant="outline" size="sm" disabled={disabled} data-good-draft-switch="" onClick={() => { setError(''); setOpen(true); }}>초안으로 전환 후 수정</Button>
+    <AlertDialog open={open} onOpenChange={(next) => { if (!pending) setOpen(next); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>초안으로 전환할까요?</AlertDialogTitle>
+          <AlertDialogDescription>{GOOD_DRAFT_SWITCH_NOTICE}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>취소</AlertDialogCancel>
+          <AlertDialogAction type="button" variant="destructive" disabled={pending} onClick={convert}>{pending ? '전환 중…' : '초안으로 전환'}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>;
 }
 
 /*
@@ -80,11 +123,11 @@ export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, un
       <details className={`group/readiness-guide ${FOLD_CLASS}`} data-good-readiness-guide="">
         <summary className={`${FOLD_SUMMARY_CLASS} text-xs text-muted-foreground`}><ChevronRight aria-hidden="true" className={`${FOLD_CHEVRON_CLASS} group-open/readiness-guide:rotate-90`} />판매 준비 안내</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-2 rounded-lg border px-3 py-3 text-muted-foreground">
-          {!published && !archivedAt ? <p>공개하려면 상품 유형·대표 이미지·상품정보제공고시 7칸·출고지·옵션과 KC 검토 완료가 필요합니다. 연결 IP도 공개되어야 고객에게 보입니다.</p> : null}
+          {!published && !archivedAt ? <p>공개하려면 상품 유형이 연결된 대표 카테고리·대표 이미지·상품정보제공고시 7칸·출고지·옵션과 KC 검토 완료가 필요합니다. 연결 IP도 공개되어야 고객에게 보입니다.</p> : null}
           <p>게시·판매 설정·KC 검토는 별도 조건입니다. 준비 완료가 결제사 승인이나 실제 구매 성공을 보증하지는 않습니다.</p>
-          <p>게시 상태를 바꿔도 저장하지 않은 입력은 함께 저장되지 않고 화면에 그대로 남습니다.</p>
+          <p>공개·초안 전환은 저장된 내용의 게시 상태만 바꿉니다. 저장하지 않은 입력은 함께 저장되지 않고 화면에 그대로 남습니다.</p>
           <p>모델·옵션·고시정보를 수정하면 실제 상품과 검토 근거가 달라질 수 있어 초안 전환과 KC 재검토가 필요합니다. 수정 후 KC 검토를 완료하고 다시 공개해주세요.</p>
-          <p>해당 없음도 검토 생략을 뜻하지 않습니다. KC 영역에서 적용 제도와 판단 사유·근거·고객 안내·적용 옵션을 기록하고 현재 검토 절차를 진행합니다.</p>
+          <p>해당 없음도 확인 체크가 필요합니다. KC 정보에서 KC 인증 대상 여부를 고르고, 대상이면 인증 종류·번호와 모델·사업자·적용 옵션을 확인해 검토를 완료합니다. 내부 검토 근거는 선택입니다.</p>
           <p>기존 공개 · KC 미기록 상품은 자동 승인이나 자동 공개 중지로 처리하지 않습니다. 초안으로 전환한 뒤 재공개하려면 현재 KC 검토 요건을 충족해야 합니다.</p>
           {readiness ? <small className="text-xs">확인 시각 {readiness.checkedAt ? new Date(readiness.checkedAt).toLocaleString('ko-KR') : '확인 필요'} · 저장하지 않은 입력은 저장한 뒤 판정에 반영됩니다.</small> : null}
         </div>

@@ -32,7 +32,7 @@ export function StockDispatchWarning({ data, canReconcile = true }: { data: Stoc
         {data.warnings.slice(0, LIST_LIMIT).map((warning) => <li key={warning.variantId}>
           <span className="font-medium">{name(warning)}</span> <span className="font-mono text-xs">{warning.optionCode}</span>{' — '}
           {warning.kind === 'shortage'
-            ? `출고 대기 ${count(warning.pendingQty)}개 · 창고 예상 ${count(Math.max(0, warning.expectedQty))}개(부족 ${count(warning.shortageQty)})`
+            ? `출고 대기 ${count(warning.pendingQty)}개 · 창고 예상 ${warning.expectedQty < 0 ? '−' : ''}${count(Math.abs(warning.expectedQty))}개 · 부족 ${count(warning.shortageQty)}개`
             : `재고 파일과 차이 ${signed(warning.difference)}개`}
           <span className="text-muted-foreground"> · 파일 기준 {formatOrderDateTime(warning.asOf)}</span>
         </li>)}

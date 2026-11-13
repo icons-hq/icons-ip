@@ -58,7 +58,7 @@ function rpcErrorMessage(error: { code?: unknown; message?: unknown }): string {
   if (descriptor.includes('source_good_not_found') || descriptor.includes('goods_clone_source_not_found')) return adminGoodsCopy('복사할 굿즈를 찾을 수 없습니다.');
   if (descriptor.includes('source_good_archived') || descriptor.includes('goods_clone_source_archived')) return adminGoodsCopy('보관된 굿즈는 복사할 수 없습니다.');
   if (descriptor.includes('good_clone_id_taken') || descriptor.includes('catalog_id_taken') || descriptor.includes('goods_pkey')) return '이미 사용 중인 새 상품 URL입니다.';
-  if (descriptor.includes('good_clone_code_taken') || descriptor.includes('goods_code_key')) return '이미 사용 중인 새 상품코드입니다.';
+  if (descriptor.includes('good_clone_code_taken') || descriptor.includes('goods_code_key')) return '이미 사용 중인 새 판매자상품코드입니다.';
   if (descriptor.includes('goods_clone_operation_conflict') || descriptor.includes('operation_conflict')) return '같은 복사 요청 ID가 다른 내용으로 사용되었습니다. 새로고침 후 다시 시도해주세요.';
   if (descriptor.includes('goods_clone_source_changed') || descriptor.includes('goods_changed')) return adminGoodsCopy('원본 굿즈가 변경되었습니다. 최신 원본을 다시 확인해주세요.');
   if (descriptor.includes('goods_clone_source_busy')) return '같은 IP의 주문이나 상품 변경을 처리 중입니다. 입력값을 유지했으니 잠시 후 다시 복사해주세요.';

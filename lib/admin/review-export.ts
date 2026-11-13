@@ -113,7 +113,7 @@ export function reviewExportSheet(snapshot: ReviewExportSnapshot): ListExportWor
     .map(([key, value]) => [key, value === null ? null : String(value)]));
   return {
     screenLabel: '리뷰', title: '리뷰', recordCount: snapshot.total,
-    columns: [column('리뷰 ID', 'code', 40), column('상품번호', 'code', 28), column('상품명', 'text', 40), column('작성자 표시명'),
+    columns: [column('리뷰 ID', 'code', 40), column('상품 URL', 'code', 28), column('상품명', 'text', 40), column('작성자 표시명'),
       column('평점', 'count', 10), column('리뷰 내용', 'text', 70), column('사진 수', 'count', 12), column('리뷰도움수', 'count', 14),
       column('상태', 'text', 14), column('BEST 상태', 'text', 18), column('전체 신고 수', 'count', 16), column('미처리 신고 수', 'count', 18),
       column('답글 등록 여부', 'text', 18), column('답글 등록 시각', 'text', 18), column('작성 시각', 'text', 18), column('수정 시각', 'text', 18), column('리뷰 구분'), column('재구매 표시')],

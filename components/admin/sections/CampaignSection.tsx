@@ -144,6 +144,9 @@ function CampaignEditor({
   /* 굿즈 블록 선택기(1014-112)와 구성 코드 입력이 같은 값을 본다. 저장은 지금처럼 폼의 sections 한 칸이다. */
   const [sectionsText, setSectionsText] = useState(() => adminCampaignSectionsInput(selected?.sections));
   const sectionsInputId = useId();
+  /* 저장 뒤 폼을 다시 고치면 '저장했습니다' 결과는 지금 내용이 아니라 이전 저장의 것이다 — 고친 순간 감춘다(T22i·QA1b). */
+  const [editedAfter, setEditedAfter] = useState<AdminCampaignActionState | null>(null);
+  const shownState = editedAfter === state && state.message ? { ...state, message: undefined } : state;
   const filledImages = [selected?.heroImagePath, selected?.cardImagePath, selected?.bannerImagePath].filter(Boolean).length;
   const blockCount = selected?.sections.length ?? 0;
   /* 경로·코드 입력은 담당자 몫이라 접어 둔다. 값이 있거나 오류가 있으면 펴서 보인다. */
@@ -153,6 +156,7 @@ function CampaignEditor({
     <form
       action={action}
       className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5"
+      onChange={() => setEditedAfter(state)}
       onSubmit={(event) => {
         const raw = new FormData(event.currentTarget).get('sections');
         const parsed = parseAdminCampaignSections(typeof raw === 'string' ? raw : '');
@@ -234,7 +238,7 @@ function CampaignEditor({
         <Field
           defaultValue={adminCampaignDateTimeInput(selected?.startsAt)}
           error={state.errors?.startsAt}
-          label="시작 (한국 시각)"
+          label="시작 (KST)"
           name="startsAt"
           required
           type="datetime-local"
@@ -242,7 +246,7 @@ function CampaignEditor({
         <Field
           defaultValue={adminCampaignDateTimeInput(selected?.endsAt)}
           error={state.errors?.endsAt}
-          label="종료 (한국 시각)"
+          label="종료 (KST)"
           name="endsAt"
           required
           type="datetime-local"
@@ -250,7 +254,7 @@ function CampaignEditor({
       </AdminFormGrid>
       </SettingsFormGroup>
       <SettingsFormGroup description="본문 상품 묶음에 진열할 상품을 고르고, 저장된 기획전 상품에 할인을 겁니다." title="기획전 상품·할인">
-        <CampaignGoodsBlocks campaignId={selected?.id ?? null} disabled={pending} onSectionsTextChange={next => { setSectionsText(next); setSectionsError(null); }} sectionsText={sectionsText} />
+        <CampaignGoodsBlocks campaignId={selected?.id ?? null} disabled={pending} onSectionsTextChange={next => { setSectionsText(next); setSectionsError(null); setEditedAfter(state); }} sectionsText={sectionsText} />
       </SettingsFormGroup>
       <details className="group/advanced border-t pt-4" open={advancedOpen}>
       <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
@@ -317,14 +321,14 @@ function CampaignEditor({
             블록 {selected.sections.length}개 · 최근 수정 {formatOrderDateTime(selected.updatedAt)}
           </p>
         )}
-        <FormShell pending={pending} state={state} />
+        <FormShell pending={pending} state={shownState} />
       </div>
     </form>
   );
 }
 
 const LIST_COLUMNS: ConsoleGridColumn[] = [
-  { key: 'title', label: '캠페인' },
+  { key: 'title', label: '캠페인', minWidth: '240px' },
   { key: 'status', label: '상태', width: '150px' },
   { key: 'kind', label: '종류', width: '72px' },
   { key: 'period', label: '노출 기간', width: '330px' },

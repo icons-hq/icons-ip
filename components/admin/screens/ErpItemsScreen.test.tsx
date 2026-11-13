@@ -7,6 +7,7 @@ import { ErpItemsScreen } from './ErpItemsScreen';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/erp-item-actions', () => ({
   importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), searchErpItemsAction: vi.fn(), deleteErpItemsAction: vi.fn(),
+  previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn(),
 }));
 
 const node = (id: string, name: string, parentId: string | null, extra: Partial<AdminCategoryNode> = {}): AdminCategoryNode => ({
@@ -56,10 +57,18 @@ describe('ERP 품목 화면', () => {
 
   /* 2026-11-10 사람 눈 시험: 두 화면의 ERP 연결 이름이 비슷해 어디서 해야 하는지 헷갈렸다. */
   it('이 연결이 쓰이는 곳과 카테고리 관리에서 하는 일을 구분해 알려 준다', () => {
-    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} canManagePlatform />);
     expect(html).toContain('상품 옵션에서 ERP 품목을 고를 때 연결된 카테고리를 제안하는 데만 씁니다.');
     expect(html).toContain('href="/admin/catalog/categories#category-erp-mapping"');
     expect(html).toContain('카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도');
+  });
+
+  /* 카테고리 관리의 ERP 분류 매핑 카드는 플랫폼 관리 권한일 때만 그려진다(CategoryScreen). MD에게는 빈 곳으로 보내지 않는다. */
+  it('플랫폼 관리 권한이 없으면 카테고리 관리의 ERP 분류 매핑으로 보내지 않고 누가 하는지 알린다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    expect(html).not.toContain('#category-erp-mapping');
+    expect(html).toContain('href="/admin/catalog/categories"');
+    expect(html).toContain('카테고리마다 ERP 코드·품명을 적는 카테고리 관리의 ERP 분류 매핑과 CSV 내보내기는 계정 주매니저·통합 매니저가 합니다.');
   });
 
   it('품목 반입이 접혀 있으면 화면 머리의 주 행동 버튼이 펼치는 길이고, 펼쳐 있으면 외곽선으로 물러난다', () => {
@@ -114,7 +123,7 @@ describe('ERP 품목 화면', () => {
   });
 
   it('목록은 선행 0을 그대로 보이고, 연결된 고객 카테고리 경로·판매가·KST 반입일을 보여 준다', () => {
-    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} canManagePlatform />);
     expect(html).toContain('>000123<');
     expect(html).toContain('>0088012345678<');
     expect(html).toContain('12,000원');
@@ -141,7 +150,29 @@ describe('ERP 품목 화면', () => {
     // 찾는 품목이 없다고 반입 칸을 열지는 않는다.
     expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data({ filters: { query: '없는 품목', page: 1 }, page: { total: 0, items: [] } })} />))?.[0]).not.toContain('open=');
     // 삭제 버튼은 고른 뒤에 나타나므로 그 방법을 말한다.
-    expect(renderToStaticMarkup(<ErpItemsScreen data={data()} />)).toContain('체크하면 삭제 버튼이 나타납니다');
+    expect(renderToStaticMarkup(<ErpItemsScreen data={data()} canManagePlatform />)).toContain('체크하면 삭제 버튼이 나타납니다');
+  });
+
+  /* 1027T-016: MD(catalog.manage)는 읽기·반입·분류 연결을 하고, 품목 삭제(platform.manage)는 보지 않는다. */
+  it('삭제 권한이 없으면 목록의 선택 칸과 삭제 안내를 그리지 않고, 반입·분류 연결은 그대로 둔다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    expect(html).not.toContain('체크하면 삭제 버튼이 나타납니다');
+    expect(html).not.toContain('aria-label="000123 아크릴 키링 선택"');
+    expect(html).not.toContain('선택 삭제');
+    expect(html).toContain('id="erp-item-paste"');
+    expect(html).toContain('aria-label="문구 &gt; 포토카드 고객 카테고리"');
+  });
+
+  /* 1027T-X04: 반입한 ERP 판매가·바코드를 연결 상품과 비교해 확인한 행만 반영하는 구역을 반입 아래에 둔다. */
+  it('연결 상품 반영 구역은 반입 다음, 품목 목록 앞에 있고 무엇을 바꾸는지 먼저 알린다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    const order = ['id="erp-item-import"', 'id="erp-linked-goods"', 'id="erp-item-list"', 'id="erp-category-mapping"'].map((marker) => html.indexOf(marker));
+    expect(order.every((position) => position >= 0)).toBe(true);
+    expect([...order].sort((left, right) => left - right)).toEqual(order);
+    expect(html).toContain('연결 상품 반영');
+    expect(html).toContain('할인 중인 상품(기간 할인 진행·예정, 상품 할인가 설정)은 건너뜁니다.');
+    expect(html).toContain('ERP에 바코드가 없으면 상품 바코드를 지우지 않습니다.');
+    expect(html).toMatch(/<button[^>]*>전체 품목과 비교<\/button>/);
   });
 
   it('빈 목록과 분류 없음 상태를 안내한다', () => {

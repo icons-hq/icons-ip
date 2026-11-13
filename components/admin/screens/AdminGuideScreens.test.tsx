@@ -12,8 +12,8 @@ import { configuredOperatorAccessFixture } from '@/lib/admin/access.test-fixture
 describe('AdminGuideIndexScreen', () => {
   const html = renderToStaticMarkup(<AdminGuideIndexScreen />);
 
-  it('전체 주제 카드가 자기 주소로 연결되고 판매자 가이드로 표시된다', () => {
-    expect(html).toContain('판매자 가이드');
+  it('전체 주제 카드가 자기 주소로 연결되고 사용 가이드 주제 목록으로 표시된다', () => {
+    expect(html).toContain('주제별 안내');
     for (const slug of ADMIN_GUIDE_TOPIC_SLUGS) {
       expect(html).toContain(`href="${adminGuideTopicHref(slug)}"`);
       expect(html).toContain(ADMIN_GUIDE_TOPICS[slug].navLabel);

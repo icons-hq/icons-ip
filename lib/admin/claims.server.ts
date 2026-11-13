@@ -1,4 +1,5 @@
 import { loadAdminOrderTransactions } from '@/lib/order-transactions.server';
+import { parseAdminReturnPickup, type AdminReturnPickup } from '@/lib/admin/claim-return-pickup';
 import type { GoodsTransactionDisplay } from '@/lib/goods-transaction';
 import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
@@ -7,6 +8,13 @@ import 'server-only';
 import { readGoodsCustomInputSnapshot, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 
 import { createClient } from '@/lib/supabase/server';
+import {
+  AdminClaimDetailLoadError,
+  claimItemsMatchTransaction,
+  parseClaimPartialCancels,
+  parseClaimSnapshotItems,
+} from './claim-transaction-snapshot';
+import { parseReturnFeeDeduction, type ReturnFeeDeduction } from '@/lib/claims/return-fee-deduction';
 import {
   isOrderClaimReasonType,
   isOrderClaimRefundMethod,
@@ -51,6 +59,8 @@ interface ClaimQueueRow {
   order_total: number | string;
   requested_at: string;
   collected_at: string | null;
+  /** 회수 완료일(실제 입고일, KST 날짜). 2026-11-12 이전 기록은 null이다. */
+  collection_received_on?: string | null;
   completed_at: string | null;
   refund_method: string | null;
   handler_name: string | null;
@@ -100,6 +110,7 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
     orderTotal: toNumber(row.order_total),
     requestedAt: row.requested_at,
     collectedAt: row.collected_at,
+    collectionReceivedOn: row.collection_received_on ?? null,
     completedAt: row.completed_at,
     refundMethod: (isOrderClaimRefundMethod(row.refund_method)
       ? row.refund_method
@@ -212,6 +223,72 @@ export interface AdminClaimCollection {
   collectedBy: string | null;
   collectorName: string | null;
   evidence: string | null;
+  /** 운영자가 적은 실제 입고일(KST 날짜). 2026-11-12 이전 확인은 null이다. */
+  receivedOn?: string | null;
+  /** 회수 생략(ADR-0041)으로 이미 재출고한 배송 건. 늦게 도착한 입고 확인은 재고를 바꾸지 않는다. */
+  collectionWaived?: boolean;
+  /** 회수 묶음(배송 건 × 반품지, S36-040). 승인 때 상품 우선으로 고정한 회수 주소마다 입고를 따로 확인한다. */
+  bundles?: AdminClaimCollectionBundle[];
+}
+
+/** 회수 묶음 하나. returnAddressId가 null이면 출고지 반품 주소를 쓰는 묶음이다(이름·연락처 없음). */
+export interface AdminClaimCollectionBundle {
+  bundleId: string;
+  returnAddressId: string | null;
+  returnName: string;
+  returnAddress: string;
+  returnPhone: string;
+  items: { orderItemId: string; name: string; qty: number }[];
+  collectedAt: string | null;
+  collectorName: string | null;
+  evidence: string | null;
+  receivedOn: string | null;
+  /** 반품 자동 회수 접수(QNA-032). 스위치를 켠 뒤 접수 큐에 들어간 묶음에만 있다. */
+  pickup?: AdminReturnPickup | null;
+}
+
+/** 배송 건 하나의 회수 생략 결정(사유·근거 사진). 하자·오배송 교환인 동안에만 회수를 대신한다(QNA-039). */
+export interface AdminClaimCollectionWaiver {
+  reason: string;
+  waivedAt: string;
+  waivedByName: string | null;
+  evidence: { id: string; mimeType: string; size: number }[];
+}
+
+/** 교환 재출고 대상 배송 건(출고지). shipmentId가 null이면 배송 건 없는 옛 주문 전체다(TKT-166). */
+export interface AdminClaimReshipmentTarget {
+  shipmentId: string | null;
+  originName: string | null;
+  /** 출고지별 회수 확인을 쓰는 배송 건인지. 아니면 클레임 단계(입고완료)가 재출고 조건이다. */
+  collectionTracked: boolean;
+  collectedAt: string | null;
+  reshipped: boolean;
+  orderItemIds: string[];
+  /** 회수 생략을 먼저 결정한 배송 건(주문제작 상품). 결정이 없으면 null이다. */
+  waiver: AdminClaimCollectionWaiver | null;
+  /** 주문제작 상품이 있어 교환품을 새로 만들어야 하는 배송 건인지. */
+  productionRequired: boolean;
+  /** 교환품 제작이 아직 끝나지 않아 재출고를 기다리는지. */
+  productionPending: boolean;
+}
+
+/** 배송 건 하나의 재출고 기록. 회수 생략이면 사유와 근거 사진이 함께 남는다(QNA-039). */
+export interface AdminClaimReshipment {
+  id: string;
+  shipmentId: string | null;
+  originName: string | null;
+  carrier: string;
+  carrierLabel: string | null;
+  trackingNumber: string;
+  reshippedAt: string;
+  reshippedByName: string | null;
+  collectionWaived: boolean;
+  waiverReason: string | null;
+  waiverEvidence: { id: string; mimeType: string; size: number }[];
+  deliveredAt: string | null;
+  deliveredByName: string | null;
+  deliveryEvidence: string | null;
+  items: { orderItemId: string; name: string; variantName: string; variantCode: string; qty: number }[];
 }
 
 export interface AdminClaimDetail {
@@ -240,6 +317,8 @@ export interface AdminClaimDetail {
     decidedAt: string | null;
     collectingAt: string | null;
     collectedAt: string | null;
+    /** 회수 완료일(실제 입고일, KST 날짜). 환급 기한은 이 날부터 센다. 옛 기록은 null이라 collectedAt을 쓴다. */
+    collectionReceivedOn?: string | null;
     collectionPolicy: 'origin' | 'legacy' | null;
     collectionComplete: boolean;
     collections: AdminClaimCollection[];
@@ -252,6 +331,11 @@ export interface AdminClaimDetail {
     reshipDeliveredByName: string | null;
     reshipDeliveryEvidence: string | null;
     reshippedItems?: { orderItemId: string; goodId?: string; originalGoodId?: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
+    /** 배송 건별 재출고 대상과 기록. 이 표가 비어 있으면 옛 단일 열(reship*)이 기록이다. */
+    reshipmentTargets?: AdminClaimReshipmentTarget[];
+    reshipments?: AdminClaimReshipment[];
+    /** 하자·오배송 교환이고 출고지별 회수를 쓰면 회수 없이 재출고할 수 있다. */
+    collectionWaiverAllowed?: boolean;
     lastErrorCode: string | null;
     handlerName: string | null;
     updatedAt: string;
@@ -260,6 +344,8 @@ export interface AdminClaimDetail {
   order: AdminClaimDetailOrder | null;
   payment: AdminClaimDetailPayment | null;
   refund: AdminClaimDetailRefund | null;
+  /** 반품배송비 차감(ADR-0031) — 접수 전 판정 또는 접수 때 정한 결정. 스위치가 꺼져 있고 결정이 없으면 null. */
+  refundDeduction?: ReturnFeeDeduction | null;
   cardPacks: { issued: number; consumed: number; revoked: number };
   refundAccount: {
     maskedAccount: string;
@@ -283,6 +369,43 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+function evidenceFiles(value: unknown) {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((file) => ({
+    id: String(file.id ?? ''), mimeType: String(file.mimeType ?? ''), size: toNumber(file.size as number | string),
+  }));
+}
+
+function collectionWaiver(value: unknown): AdminClaimCollectionWaiver | null {
+  if (!isRecord(value) || !text(value.reason) || !text(value.waivedAt)) return null;
+  return { reason: String(value.reason), waivedAt: String(value.waivedAt), waivedByName: text(value.waivedByName), evidence: evidenceFiles(value.evidence) };
+}
+
+function reshipmentTargets(value: unknown): AdminClaimReshipmentTarget[] {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((target) => ({
+    shipmentId: text(target.shipmentId), originName: text(target.originName),
+    collectionTracked: target.collectionTracked === true, collectedAt: text(target.collectedAt), reshipped: target.reshipped === true,
+    orderItemIds: (Array.isArray(target.orderItemIds) ? target.orderItemIds : []).filter((id): id is string => typeof id === 'string'),
+    waiver: collectionWaiver(target.waiver),
+    productionRequired: target.productionRequired === true,
+    productionPending: target.productionPending === true,
+  }));
+}
+
+function reshipments(value: unknown): AdminClaimReshipment[] {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+    id: String(row.id ?? ''), shipmentId: text(row.shipmentId), originName: text(row.originName),
+    carrier: String(row.carrier ?? ''), carrierLabel: text(row.carrierLabel), trackingNumber: String(row.trackingNumber ?? ''),
+    reshippedAt: String(row.reshippedAt ?? ''), reshippedByName: text(row.reshippedByName),
+    collectionWaived: row.collectionWaived === true, waiverReason: text(row.waiverReason),
+    waiverEvidence: evidenceFiles(row.waiverEvidence),
+    deliveredAt: text(row.deliveredAt), deliveredByName: text(row.deliveredByName), deliveryEvidence: text(row.deliveryEvidence),
+    items: (Array.isArray(row.items) ? row.items : []).filter(isRecord).map((item) => ({
+      orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), variantName: String(item.variantName ?? ''),
+      variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
+    })),
+  }));
+}
+
 function nullableNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const parsed = toNumber(value as number | string);
@@ -297,7 +420,10 @@ export async function loadAdminClaimDetail(
     p_claim_id: claimId,
   });
 
-  if (error) throw new Error(`Failed to load claim: ${error.message}`);
+  if (error) {
+    const denied = /operator_capability_required|staff[ _]required|insufficient_privilege/i.test(error.message ?? '') || error.code === '42501';
+    throw new AdminClaimDetailLoadError(denied ? 'claim_access_denied' : 'claim_unavailable', `Failed to load claim: ${error.message}`);
+  }
   if (!isRecord(data)) return null;
 
   const claim = isRecord(data.claim) ? data.claim : null;
@@ -315,19 +441,28 @@ export async function loadAdminClaimDetail(
     const value = data.gift;
     if (!isRecord(value) || Object.keys(value).length !== 3 || typeof value.giftId !== 'string' || !isUuid(value.giftId)
       || (value.requesterRole !== 'payer' && value.requesterRole !== 'recipient') || typeof value.requesterName !== 'string'
-      || !value.requesterName.trim()) throw new Error('Failed to load gift claim requester');
+      || !value.requesterName.trim()) throw new AdminClaimDetailLoadError('gift_requester_invalid', 'Failed to load gift claim requester');
     gift = { giftId: value.giftId, requesterRole: value.requesterRole, requesterName: value.requesterName };
   }
-  const transaction = typeof order?.id === 'string' ? (await loadAdminOrderTransactions([order.id])).get(order.id)?.display : undefined;
-  if (transaction && (transaction.totals.onlineTotal !== toNumber(order?.total as number | string)
-    || !Array.isArray(order?.items) || transaction.lines.length !== order.items.length
-    || transaction.lines.some(line => !(order.items as unknown[]).some(item => isRecord(item) && item.id === line.lineId
-      && item.variantId === line.variantId && toNumber(item.qty as number | string) === line.qty && toNumber(item.unitPrice as number | string) === line.unitPrice)))) {
-    throw new Error('Failed to load claim transaction snapshot');
+  let transaction: GoodsTransactionDisplay | undefined;
+  try {
+    transaction = typeof order?.id === 'string' ? (await loadAdminOrderTransactions([order.id])).get(order.id)?.display : undefined;
+  } catch (cause) {
+    throw new AdminClaimDetailLoadError('transaction_receipt_unavailable', `Failed to load claim transaction receipt: ${cause instanceof Error ? cause.message : 'unknown'}`);
+  }
+  /* 버전 2 주문은 원 거래 영수증과 대조한다. 품목은 살아 있는 수량이라 영수증 줄을 '원 수량 − 적용된 부분 취소 수량'으로 맞춘다
+     (claim-transaction-snapshot.ts). 어긋나면 환불·재출고를 시작하지 않도록 멈춘다. 버전 1 주문은 영수증이 없어 지나간다. */
+  if (transaction) {
+    const items = parseClaimSnapshotItems(order?.items);
+    const partialCancels = parseClaimPartialCancels(order?.partialCancels);
+    if (!items || !partialCancels
+      || !claimItemsMatchTransaction(transaction, { total: toNumber(order?.total as number | string), items, partialCancels })) {
+      throw new AdminClaimDetailLoadError('transaction_snapshot_mismatch', 'Failed to load claim transaction snapshot');
+    }
   }
 
   const sellerIntake = data.sellerIntake == null ? null : parseSellerClaimReceipt(data.sellerIntake);
-  if (data.sellerIntake != null && !sellerIntake) throw new Error('Failed to load seller claim intake evidence');
+  if (data.sellerIntake != null && !sellerIntake) throw new AdminClaimDetailLoadError('seller_intake_invalid', 'Failed to load seller claim intake evidence');
 
   return {
     gift,
@@ -354,6 +489,7 @@ export async function loadAdminClaimDetail(
       decidedAt: text(claim.decidedAt),
       collectingAt: text(claim.collectingAt),
       collectedAt: text(claim.collectedAt),
+      collectionReceivedOn: text(claim.collectionReceivedOn),
       collectionPolicy: claim.collectionPolicy === 'origin' || claim.collectionPolicy === 'legacy' ? claim.collectionPolicy : null,
       collectionComplete: claim.collectionComplete === true,
       collections: (Array.isArray(claim.collections) ? claim.collections : []).filter(isRecord).map((collection) => ({
@@ -364,6 +500,16 @@ export async function loadAdminClaimDetail(
         })),
         collectedAt: text(collection.collectedAt), collectedBy: text(collection.collectedBy),
         collectorName: text(collection.collectorName), evidence: text(collection.evidence),
+        receivedOn: text(collection.receivedOn), collectionWaived: collection.collectionWaived === true,
+        bundles: (Array.isArray(collection.bundles) ? collection.bundles : []).filter(isRecord).map((bundle) => ({
+          bundleId: String(bundle.bundleId ?? ''), returnAddressId: text(bundle.returnAddressId),
+          returnName: String(bundle.returnName ?? ''), returnAddress: String(bundle.returnAddress ?? ''), returnPhone: String(bundle.returnPhone ?? ''),
+          items: (Array.isArray(bundle.items) ? bundle.items : []).filter(isRecord).map((item) => ({
+            orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), qty: toNumber(item.qty as number | string),
+          })),
+          collectedAt: text(bundle.collectedAt), collectorName: text(bundle.collectorName), evidence: text(bundle.evidence), receivedOn: text(bundle.receivedOn),
+          ...(bundle.pickup === undefined ? {} : { pickup: parseAdminReturnPickup(bundle.pickup) }),
+        })),
       })),
       completedAt: text(claim.completedAt),
       reshipCarrier: text(claim.reshipCarrier),
@@ -377,6 +523,9 @@ export async function loadAdminClaimDetail(
         orderItemId: String(item.orderItemId ?? ''), goodId: text(item.goodId) ?? undefined, originalGoodId: text(item.originalGoodId) ?? undefined, name: String(item.name ?? ''), variantId: String(item.variantId ?? ''),
         variantName: String(item.variantName ?? ''), variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
       })),
+      reshipmentTargets: reshipmentTargets(claim.reshipmentTargets),
+      reshipments: reshipments(claim.reshipments),
+      collectionWaiverAllowed: claim.collectionWaiverAllowed === true,
       lastErrorCode: text(claim.lastErrorCode),
       handlerName: text(claim.handlerName),
       updatedAt: String(claim.updatedAt ?? ''),
@@ -440,6 +589,7 @@ export async function loadAdminClaimDetail(
         handlerName: text(refund.handlerName),
       }
       : null,
+    refundDeduction: parseReturnFeeDeduction(data.refundDeduction),
     cardPacks: {
       issued: toNumber(packs?.issued as number | string),
       consumed: toNumber(packs?.consumed as number | string),

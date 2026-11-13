@@ -33,7 +33,7 @@ export function GoodsPhotoStickers({ size, recipe, selectedId, select, edit, mov
   }
   return <div className={PHOTO_PANEL_CLASS} data-photo-layer-controls="">
     <p className="text-sm">스티커를 선택해 사진에 추가하세요. ({layers.length}/{PHOTO_LAYER_LIMIT})</p>
-    <div className={PHOTO_PRESETS_CLASS} aria-label="스티커 목록" data-photo-presets="">{PHOTO_STICKERS.map(asset => <button className={PHOTO_PRESET_CLASS} key={asset.value} type="button" disabled={layers.length >= PHOTO_LAYER_LIMIT} onClick={() => add(asset.value)} aria-label={`${asset.label} 스티커 추가`}>
+    <div className={PHOTO_PRESETS_CLASS} role="group" aria-label="스티커 목록" data-photo-presets="">{PHOTO_STICKERS.map(asset => <button className={PHOTO_PRESET_CLASS} key={asset.value} type="button" disabled={layers.length >= PHOTO_LAYER_LIMIT} onClick={() => add(asset.value)} aria-label={`${asset.label} 스티커 추가`}>
       <GoodsPhotoDecorationPreview paths={photoStickerGeometry(asset.value)} /><span>{asset.label}</span>
     </button>)}</div>
     {layers.length > 0 && <label className={PHOTO_LABEL_CLASS}>편집할 스티커<select className={PHOTO_SELECT_CLASS} value={selected?.id ?? ''} onChange={event => select(event.target.value || null)}>

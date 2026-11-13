@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { PaymentAttempt, RefundOutcome } from '../payments/gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentRefundRequest, type RefundOutcome } from '../payments/gateway';
 import {
   providerCancelsAutomatically,
   type AutomatedCancelProvider,
@@ -85,6 +85,117 @@ export type ExpiredPreparedGoodsReconciliation =
 export type CancellationReconciliationPreflight = 'allowed' | 'completed' | 'not_allowed';
 
 /**
+ * 반품배송비 차감 결정(ADR-0031). 환불 접수 때 DB가 한 번 정한 값이고 금액은 바뀌지 않는다.
+ * planned면 결제사 부분 취소로 refundAmount만 돌려준다. provider_confirmed는 부분 취소를 이미 조회로 확인해 적은 상태,
+ * not_applied는 결제사가 부분 취소를 받지 않아 전액 환불로 돌린 상태다.
+ */
+export interface CancellationRefundDeduction {
+  paymentId: string;
+  state: 'planned' | 'provider_confirmed' | 'applied' | 'not_applied';
+  paymentAmount: number;
+  deductionAmount: number;
+  refundAmount: number;
+}
+
+/**
+ * 차감 결정의 읽기·확인 기록. 없으면(테스트·차감 없는 배포 전 경로) 결정이 없는 것과 같다 — 지금처럼 전액 취소다.
+ */
+export interface CancellationRefundDeductionDependencies {
+  load(requestId: string): Promise<CancellationRefundDeduction | null>;
+  /** 결제사 부분 취소를 조회로 확인한 결과를 적는다(멱등). */
+  recordPartialRefund(input: {
+    requestId: string;
+    actorId: CancellationActorId;
+    paymentId: string;
+    refundedAmount: number;
+    paymentKey: string;
+    transactionKey: string | null;
+  }): Promise<void>;
+  /** 결제사가 부분 취소를 받지 않는 결제다 — 돈이 움직이기 전에 전액 환불로 돌린다(멱등). */
+  fallbackToFullRefund(input: {
+    requestId: string;
+    actorId: CancellationActorId;
+    paymentId: string;
+  }): Promise<void>;
+}
+
+const DEDUCTION_STATES = new Set<CancellationRefundDeduction['state']>([
+  'planned',
+  'provider_confirmed',
+  'applied',
+  'not_applied',
+]);
+
+/** service RPC 응답을 좁힌다. 모양이 어긋나면 throw — 결제사 호출 전에 local_state_unavailable로 멈춘다. */
+export function parseCancellationRefundDeduction(value: unknown): CancellationRefundDeduction | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid refund deduction');
+  const row = value as Record<string, unknown>;
+  const amounts = [row.paymentAmount, row.deductionAmount, row.refundAmount];
+  if (
+    typeof row.paymentId !== 'string'
+    || typeof row.state !== 'string'
+    || !DEDUCTION_STATES.has(row.state as CancellationRefundDeduction['state'])
+    || !amounts.every((amount) => typeof amount === 'number' && Number.isSafeInteger(amount) && amount > 0)
+    || (row.paymentAmount as number) !== (row.deductionAmount as number) + (row.refundAmount as number)
+  ) {
+    throw new Error('invalid refund deduction');
+  }
+  return {
+    paymentId: row.paymentId,
+    state: row.state as CancellationRefundDeduction['state'],
+    paymentAmount: row.paymentAmount as number,
+    deductionAmount: row.deductionAmount as number,
+    refundAmount: row.refundAmount as number,
+  };
+}
+
+/** service_order_payment_partial_refunds 응답([{paymentId, refundedAmount}])을 좁힌다. 모양이 어긋나면 throw. */
+export function parsePaymentPartialRefunds(value: unknown): ReadonlyMap<string, number> {
+  const result = new Map<string, number>();
+  if (value === null || value === undefined) return result;
+  if (!Array.isArray(value)) throw new Error('invalid partial refunds');
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('invalid partial refunds');
+    const row = entry as Record<string, unknown>;
+    if (typeof row.paymentId !== 'string' || typeof row.refundedAmount !== 'number' || !Number.isSafeInteger(row.refundedAmount)
+      || row.refundedAmount <= 0 || result.has(row.paymentId)) {
+      throw new Error('invalid partial refunds');
+    }
+    result.set(row.paymentId, row.refundedAmount);
+  }
+  return result;
+}
+
+/**
+ * 결제사 취소 요청 조립(기본 의존성이 쓰는 순수 함수 — 시험이 같은 조립을 쓴다).
+ * 부분 취소는 취소마다 멱등키가 다르다 — 토스는 같은 키의 첫 응답을 15일간 재생하므로 전액 취소 키(`refund:{attemptId}`)를 쓰면
+ * 뒤의 전액 취소가 이 부분 취소의 응답을 받는다. 차감 결정은 요청당 하나(`deduction`), 부분 취소 뒤의 남은 잔액은 `remainder`다.
+ * 원장 결제 키로 조회·취소한다 — 토스는 paymentKey 조회가 주문서형 시크릿 키(gsk)에 명시된 조회이고(공식문서
+ * /reference/using-api/api-keys), 나이스페이는 TID 기준이다. 게이트웨이가 조회 응답의 키·주문(바인딩이 켜지면 MID까지)을 다시 대조한다.
+ */
+export function cancellationRefundRequest(attempt: PaymentAttempt, input: {
+  amount: number; reason: string; paymentKey: string;
+  partial?: { refundAmount: number; requestId: string; expectedBalanceBefore?: number; scope?: 'deduction' | 'remainder' };
+}): PaymentRefundRequest {
+  const { amount, reason, paymentKey, partial } = input;
+  if (partial) {
+    return {
+      attempt,
+      idempotencyKey: `refund:${attempt.id}:${partial.scope ?? 'deduction'}:${partial.requestId}`,
+      amount: partial.refundAmount,
+      reason,
+      providerPaymentKey: paymentKey,
+      partial: { expectedBalanceBefore: partial.expectedBalanceBefore ?? amount },
+    };
+  }
+  return { attempt, idempotencyKey: `refund:${attempt.id}`, amount, reason, providerPaymentKey: paymentKey };
+}
+
+/** 남은 잔액을 결제사 부분 취소로 돌려줄 때의 취소 사유(토스 cancelReason ≤200자). */
+export const PARTIAL_REMAINDER_REFUND_REASON = 'ICONS 주문 취소(부분 취소 뒤 남은 금액)';
+
+/**
  * 정합화를 실행하는 주체. 문자열은 staff/admin 사용자 id, null은 시스템(서버 자동
  * 발행)이다 — 고객이 연 자동 승인처럼 사람이 누르지 않은 취소를 서버가 바로 닫을 때만
  * 쓴다. DB는 null actor를 취소(claim_type='cancel') 요청에만 허용하고 감사 로그를
@@ -106,14 +217,22 @@ export interface CancellationReconciliationDependencies {
    * 취소 API가 있는 카드 provider(toss·nicepay) 유상 캡처의 전액 취소. 게이트웨이가
    * 취소 API 발행 후 조회로 전액 취소를 검증한 결과(5-outcome)를 그대로 돌려준다(#389).
    * paymentKey는 로컬 원장의 결제 식별자다 — TID 기준 provider(nicepay)가 취소 대상을
-   * 찾는 데 쓰고, 주문번호 조회가 진실원인 toss는 쓰지 않는다.
+   * 찾는 데 쓰고, toss는 이 키로 결제를 조회·취소한다(주문서형 시크릿 키에 명시된 조회).
    */
   refundProviderPayment(input: {
     paymentId: string;
     provider: AutomatedCancelProvider;
+    /** 결제 금액(원장 payments.amount). attempt 금액과 같아야 한다. */
     amount: number;
     reason: string;
+    /** 원장 `payments.payment_key` — 게이트웨이가 이 키로 조회·취소한다. */
     paymentKey: string;
+    /**
+     * 부분 취소(ADR-0031). 있으면 refundAmount만 취소하고(결제사 잔액 기대값 = expectedBalanceBefore, 없으면 결제 금액),
+     * 멱등키는 요청마다 따로다(`refund:{attemptId}:{scope}:{requestId}`, scope 기본 deduction). 없으면 지금 그대로 전액
+     * 취소(`refund:{attemptId}`)다. 재고 부족 부분 취소(ADR-0032)가 먼저 있었던 결제는 남은 잔액을 scope remainder로 취소한다.
+     */
+    partial?: { refundAmount: number; requestId: string; expectedBalanceBefore?: number; scope?: 'deduction' | 'remainder' };
   }): Promise<RefundOutcome>;
   completeRequest(input: {
     requestId: string;
@@ -125,6 +244,13 @@ export interface CancellationReconciliationDependencies {
     actorId: CancellationActorId;
     code: CancellationReconciliationCode;
   }): Promise<void>;
+  /** 반품배송비 차감 결정(ADR-0031). 없으면 차감 없이 지금처럼 전액 취소한다. */
+  refundDeduction?: CancellationRefundDeductionDependencies;
+  /**
+   * 재고 부족 부분 취소(ADR-0032)로 결제마다 이미 돌려준 금액. 없거나 비어 있으면 지금처럼 결제 금액 전액이 기준이다.
+   * 있으면 이 요청은 남은 잔액만 결제사 부분 취소로 돌려준다(잔액 기대값 = 남은 잔액).
+   */
+  partialRefunds?: { load(orderId: string): Promise<ReadonlyMap<string, number>> };
 }
 
 const REQUEST_STATUSES = new Set<CancellationRequestStatus>([
@@ -155,6 +281,8 @@ const PREFLIGHT_REJECTIONS = new Set([
  * 길이 밖 값은 DB가 거부해 needs_review 전이 자체가 실패하므로 대체 코드로 바꾼다.
  */
 const PROVIDER_REFUND_REVIEW_CODE = /^provider_[a-z0-9_]{1,55}$/;
+/** 반품배송비를 뺀 부분 취소의 취소 사유(토스 cancelReason ≤200자). */
+export const RETURN_FEE_DEDUCTION_REFUND_REASON = 'ICONS 반품 환불(반품배송비 차감)';
 
 /**
  * 완료로 닫지 못한 refund 결과의 needs_review 사유.
@@ -286,7 +414,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         payments,
       };
     },
-    async refundProviderPayment({ paymentId, provider, amount, reason, paymentKey }) {
+    async refundProviderPayment({ paymentId, provider, amount, reason, paymentKey, partial }) {
       const { data, error } = await service
         .from('payment_attempts')
         .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
@@ -324,13 +452,8 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         providerProductCode: row.provider_product_code,
         expiresAt: row.expires_at,
       };
-      return createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider)).refund({
-        attempt,
-        idempotencyKey: `refund:${attempt.id}`,
-        amount,
-        reason,
-        providerPaymentKey: paymentKey,
-      });
+      const gateway = createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider));
+      return gateway.refund(cancellationRefundRequest(attempt, { amount, reason, paymentKey, partial }));
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
       const { data, error } = await service.rpc(
@@ -364,6 +487,41 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         p_error_code: code,
       });
       if (error) throw new Error('cancellation review transition failed');
+    },
+    partialRefunds: {
+      async load(orderId) {
+        const { data, error } = await service.rpc('service_order_payment_partial_refunds', { p_order_id: orderId });
+        if (error) throw new Error('partial refund lookup failed');
+        return parsePaymentPartialRefunds(data);
+      },
+    },
+    refundDeduction: {
+      async load(requestId) {
+        const { data, error } = await service.rpc('service_order_claim_refund_deduction', {
+          p_request_id: requestId,
+        });
+        if (error) throw new Error('refund deduction lookup failed');
+        return parseCancellationRefundDeduction(data);
+      },
+      async recordPartialRefund({ requestId, actorId, paymentId, refundedAmount, paymentKey, transactionKey }) {
+        const { error } = await service.rpc('service_record_order_claim_partial_refund', {
+          p_request_id: requestId,
+          p_payment_id: paymentId,
+          p_refunded_amount: refundedAmount,
+          p_provider_payment_key: paymentKey,
+          p_provider_transaction_key: transactionKey,
+          p_actor_id: actorId,
+        });
+        if (error) throw new Error('partial refund evidence failed');
+      },
+      async fallbackToFullRefund({ requestId, actorId, paymentId }) {
+        const { error } = await service.rpc('service_fallback_order_claim_refund_deduction', {
+          p_request_id: requestId,
+          p_payment_id: paymentId,
+          p_actor_id: actorId,
+        });
+        if (error) throw new Error('refund deduction fallback failed');
+      },
     },
   };
 }
@@ -447,6 +605,38 @@ export async function reconcileOrderCancellation(
   // to processing before completion.
   if (context.status !== 'processing') return { ok: false, code: 'request_not_ready' };
 
+  /*
+   * 반품배송비 차감 결정(ADR-0031). 환불 접수 때 DB가 정한 값만 읽는다 — 금액을 여기서 계산하지 않는다.
+   * 결정이 없으면(스위치가 꺼져 있었거나 단순 변심 반품이 아니면) 아래는 지금과 같은 전액 취소다.
+   */
+  const deductionDependencies = dependencies.refundDeduction;
+  let deduction: CancellationRefundDeduction | null = null;
+  if (deductionDependencies) {
+    try {
+      deduction = await deductionDependencies.load(input.requestId);
+    } catch {
+      return { ok: false, code: 'local_state_unavailable' };
+    }
+  }
+  const pendingDeduction = deduction && (deduction.state === 'planned' || deduction.state === 'provider_confirmed')
+    ? deduction
+    : null;
+  /* 재고 부족 부분 취소(ADR-0032)로 이미 돌려준 금액. 없으면 빈 표 — 아래는 지금과 같은 전액 기준이다. */
+  let partialRefunds: ReadonlyMap<string, number> = new Map();
+  if (dependencies.partialRefunds) {
+    try {
+      partialRefunds = await dependencies.partialRefunds.load(context.orderId);
+    } catch {
+      return { ok: false, code: 'local_state_unavailable' };
+    }
+  }
+  if (pendingDeduction && !context.payments.some((payment) => (
+    payment.id === pendingDeduction.paymentId && payment.status !== 'failed'
+  ))) {
+    // 결정이 가리키는 결제가 이 주문의 살아 있는 결제가 아니다 — 어느 금액도 추측하지 않는다.
+    return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
+  }
+
   const verifiedPaymentKeys: string[] = [];
   for (const payment of context.payments) {
     if (payment.status === 'failed') continue;
@@ -475,20 +665,107 @@ export async function reconcileOrderCancellation(
     if (payment.bankTransferRefundFiled) {
       return markNeedsReview(dependencies, input, 'bank_transfer_refund_filed');
     }
+    /* 결제사에 남은 잔액. 부분 취소가 없었으면 결제 금액 그대로다. */
+    const alreadyRefunded = partialRefunds.get(payment.id) ?? 0;
+    const remaining = payment.amount - alreadyRefunded;
+    if (!Number.isSafeInteger(remaining) || remaining < 0) {
+      return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
+    }
+    if (remaining === 0 && alreadyRefunded > 0) {
+      // 앞선 재고 부족 부분 취소들이 결제사 잔액을 모두 돌려줬다(각각 조회로 확인해 적은 것). 더 취소할 돈이 없다 — 결제사를
+      // 부르지 않고 완료한다(finalizer의 확정 환불액은 0원). 반품배송비 차감은 판정 단계에서 fee_exceeds_payment로 빠진다.
+      if (pendingDeduction?.paymentId === payment.id) return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
+      verifiedPaymentKeys.push(payment.paymentKey);
+      continue;
+    }
+
+    if (pendingDeduction && deductionDependencies && pendingDeduction.paymentId === payment.id) {
+      // 차감 결정의 기준 금액은 결정 때의 잔액이다(부분 취소가 없었으면 결제 금액).
+      if (pendingDeduction.paymentAmount !== remaining) {
+        return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
+      }
+      if (pendingDeduction.state === 'provider_confirmed') {
+        // 앞선 시도가 결제사 부분 취소를 조회로 확인해 적었다(원장 결제 키와 대조 후). 다시 취소하지 않는다.
+        verifiedPaymentKeys.push(payment.paymentKey);
+        continue;
+      }
+      let partialRefund: RefundOutcome;
+      try {
+        partialRefund = await dependencies.refundProviderPayment({
+          paymentId: payment.id,
+          provider,
+          amount: payment.amount,
+          reason: RETURN_FEE_DEDUCTION_REFUND_REASON,
+          paymentKey: payment.paymentKey,
+          partial: alreadyRefunded > 0
+            ? { refundAmount: pendingDeduction.refundAmount, requestId: input.requestId, expectedBalanceBefore: remaining }
+            : { refundAmount: pendingDeduction.refundAmount, requestId: input.requestId },
+        });
+      } catch {
+        return markNeedsReview(dependencies, input, 'provider_unavailable');
+      }
+      if (partialRefund.outcome === 'approved' && partialRefund.refundedAmount === pendingDeduction.refundAmount) {
+        // 전액 취소와 같은 대조 — 결제사가 취소했다고 말한 결제가 원장의 그 결제여야 한다.
+        if (partialRefund.evidence?.providerPaymentKey !== payment.paymentKey) {
+          return markNeedsReview(dependencies, input, 'provider_mismatch');
+        }
+        try {
+          await deductionDependencies.recordPartialRefund({
+            requestId: input.requestId,
+            actorId: input.actorId,
+            paymentId: payment.id,
+            refundedAmount: pendingDeduction.refundAmount,
+            paymentKey: payment.paymentKey,
+            transactionKey: partialRefund.evidence?.providerTransactionId ?? null,
+          });
+        } catch {
+          // 부분 취소는 됐고 확인 기록만 실패했다. 다시 시도하면 결제사 조회가 이미 반영된 취소로 수렴한다.
+          return markNeedsReview(dependencies, input, 'local_finalize_failed');
+        }
+        verifiedPaymentKeys.push(payment.paymentKey);
+        continue;
+      }
+      if (partialRefund.outcome !== 'declined' || partialRefund.reasonCode !== PARTIAL_CANCEL_UNAVAILABLE_REASON) {
+        return markNeedsReview(dependencies, input, refundReviewCode(partialRefund));
+      }
+      /*
+       * 결제사가 이 결제의 부분 취소를 받지 않는다(카드 부분 취소 불가·가상계좌·과세 제외 금액 등). 돈은 움직이지 않았다.
+       * 차감하지 않고 전액 환불로 돌린 뒤(반품배송비는 배송비 청구 원장으로 따로 받는다) 아래 전액 취소로 간다.
+       */
+      try {
+        await deductionDependencies.fallbackToFullRefund({
+          requestId: input.requestId,
+          actorId: input.actorId,
+          paymentId: payment.id,
+        });
+      } catch {
+        return markNeedsReview(dependencies, input, 'local_finalize_failed');
+      }
+    }
 
     let refund: RefundOutcome;
     try {
-      refund = await dependencies.refundProviderPayment({
-        paymentId: payment.id,
-        provider,
-        amount: payment.amount,
-        reason: 'ICONS 주문 취소',
-        paymentKey: payment.paymentKey,
-      });
+      refund = await dependencies.refundProviderPayment(alreadyRefunded > 0
+        ? {
+          // 부분 취소 뒤의 전액 취소는 남은 잔액 전부를 부분 취소로 돌려준다(잔액 0·CANCELED가 성공).
+          paymentId: payment.id,
+          provider,
+          amount: payment.amount,
+          reason: PARTIAL_REMAINDER_REFUND_REASON,
+          paymentKey: payment.paymentKey,
+          partial: { refundAmount: remaining, requestId: input.requestId, expectedBalanceBefore: remaining, scope: 'remainder' },
+        }
+        : {
+          paymentId: payment.id,
+          provider,
+          amount: payment.amount,
+          reason: 'ICONS 주문 취소',
+          paymentKey: payment.paymentKey,
+        });
     } catch {
       return markNeedsReview(dependencies, input, 'provider_unavailable');
     }
-    if (refund.outcome === 'approved' && refund.refundedAmount === payment.amount) {
+    if (refund.outcome === 'approved' && refund.refundedAmount === remaining) {
       /*
        * provider가 취소를 검증해 준 결제와 로컬 원장의 결제가 같은 건인지 대조한다.
        *

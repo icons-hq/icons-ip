@@ -11,7 +11,11 @@ export interface AdminOrderItemRow {
   variantName: string | null; variantCode: string | null; customInputs: ReturnType<typeof readGoodsCustomInputSnapshot>;
   qty: number; unitPrice: number; itemAmount: number; shipmentId: string | null; shipmentStatus: string | null;
   originName: string | null; trackingNumber: string | null; carrierLabel: string | null;
+  /** 화면만: 배송 건의 추가(연결) 운송장 번호(QNA-019, 등록 순). 없으면 키가 없다. */
+  extraTrackingNumbers?: string[];
   claim: { id: string; type: OrderClaimType; stage: OrderClaimStage } | null;
+  /** 재고 부족 부분 취소(ADR-0032)로 취소된 수량·남은 금액. 부분 취소가 없으면 없다(qty·itemAmount는 주문 당시 값이다). */
+  partialCancel?: { canceledQty: number; activeQty: number; activeItemAmount: number; paidAmount: number };
   /** 주문 쿠폰·적립금·복수구매 할인을 품목에 나눈 값(`lib/admin/item-allocation`). 나눌 수 없으면 null. */
   allocation?: import('./item-allocation').OrderItemAllocation | null;
 }
@@ -50,8 +54,15 @@ export function parseAdminOrderItemData(value: unknown, filters: AdminOrderItemF
       || !count(row.qty) || row.qty < 1 || !count(row.unitPrice) || !count(row.itemAmount) || row.qty * row.unitPrice !== row.itemAmount
       || (row.shipmentId !== null && !isUuid(row.shipmentId)) || (row.shipmentStatus !== null && !['ready', 'shipping', 'delivered', 'canceled'].includes(String(row.shipmentStatus)))) return null;
     if (row.claim !== null && (!record(row.claim) || !isUuid(row.claim.id) || !isOrderClaimType(row.claim.type) || !isOrderClaimStage(row.claim.stage))) return null;
+    const { canceledQty, activeQty, activeItemAmount, partialCanceledPaidAmount, ...rest } = row;
+    let partialCancel: AdminOrderItemRow['partialCancel'];
+    if (canceledQty !== undefined) {
+      if (!count(canceledQty) || canceledQty < 1 || !count(activeQty) || canceledQty + activeQty !== row.qty || !count(activeItemAmount)
+        || activeQty * row.unitPrice !== activeItemAmount || !count(partialCanceledPaidAmount)) return null;
+      partialCancel = { canceledQty, activeQty, activeItemAmount, paidAmount: partialCanceledPaidAmount };
+    } else if (activeQty !== undefined || activeItemAmount !== undefined || partialCanceledPaidAmount !== undefined) return null;
     ids.add(row.id);
-    rows.push({ ...row, customInputs: readGoodsCustomInputSnapshot(row.customInputs) } as unknown as AdminOrderItemRow);
+    rows.push({ ...rest, ...(partialCancel ? { partialCancel } : {}), customInputs: readGoodsCustomInputSnapshot(row.customInputs) } as unknown as AdminOrderItemRow);
   }
   return { filters, rows, total: value.total, orderCount: value.orderCount, qty: value.qty, fingerprint: value.fingerprint, counts: value.counts as Record<AdminOrderStatus, number> };
 }

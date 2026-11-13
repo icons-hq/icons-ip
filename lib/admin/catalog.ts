@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { readGoodsClaimPolicy } from './goods-claim-policy';
 import type { GoodClaimPolicy } from '@/lib/goods-claim-policy';
@@ -11,6 +12,7 @@ import {
 import type { RarityKey } from '@/lib/rarity';
 import { readAdminGoodsSalePolicy, type AdminGoodsSalePolicyInput } from './goods-sale-policy';
 import { GOODS_HTML_IMAGE_MAX, GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription, type GoodsDescriptionFormat } from '@/lib/goods-description';
+import { IP_PUBLIC_SLUG_ERROR_MESSAGES, normalizeIpPublicSlug, validateIpPublicSlug } from '@/lib/ip-identity';
 
 export type AdminFieldErrors = Record<string, string>;
 
@@ -21,9 +23,17 @@ export interface AdminCatalogContext {
   verticalKeys: ReadonlySet<string>;
 }
 
-export interface AdminIpFormValue {
-  previousId: string | null;
-  id: string;
+/**
+ * IP 폼 값. 새 IP는 내부 ID 없이 공개 URL로 등록하고 내부 ID는 DB(`admin_create_ip`)가 공개 URL로 발급한다
+ * (S36-003 · ADR-0039). 기존 IP는 목록·상세에서 고른 내부 ID(`previousId`)의 기본 정보만 고친다 —
+ * 공개 URL은 IP 상세의 공개 URL 폼(`admin_update_ip_identity`)이 바꾼다.
+ */
+export type AdminIpFormValue = AdminIpFormFields & (
+  | { previousId: null; id: null; publicSlug: string }
+  | { previousId: string; id: string; publicSlug: null }
+);
+
+interface AdminIpFormFields {
   title: string;
   sub: string | null;
   verticalKey: string;
@@ -179,7 +189,6 @@ export type AdminFormResult<T> =
   | { ok: false; errors: AdminFieldErrors };
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INTEGER_PATTERN = /^-?\d+$/;
 const INT32_MIN = -2147483648;
 const INT32_MAX = 2147483647;
@@ -248,14 +257,14 @@ function readSlug(formData: FormData, key: string, errors: AdminFieldErrors, req
 
 function readUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
   const value = readString(formData, key).toLowerCase();
-  if (!UUID_PATTERN.test(value)) errors[key] = message;
+  if (!isUuid(value)) errors[key] = message;
   return value;
 }
 
 function readNullableUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
   const value = readString(formData, key).toLowerCase();
   if (!value) return null;
-  if (!UUID_PATTERN.test(value)) errors[key] = message;
+  if (!isUuid(value)) errors[key] = message;
   return value;
 }
 
@@ -440,17 +449,27 @@ export function gameContextFromRecords(records: {
 }
 
 /*
- * 초안 저장과 공개 저장의 검증 요건은 지금 같다(ID·이름·버티컬) — 초안이라고 이 셋을
- * 비울 수는 없다(DB 제약이기도 하다). 공개 전용 요건이 생기면 `publish` 가 true 일 때만
- * 여기서 더 검사한다.
+ * 초안 저장과 공개 저장의 검증 요건은 지금 같다(새 IP는 공개 URL, 기존 IP는 내부 ID·이름·버티컬) —
+ * 초안이라고 이 칸들을 비울 수는 없다(DB 제약이기도 하다). 공개 전용 요건이 생기면 `publish` 가
+ * true 일 때만 여기서 더 검사한다.
  */
 export function normalizeAdminIpForm(
   formData: FormData,
   context: AdminCatalogContext,
 ): AdminFormResult<AdminIpFormValue> {
   const errors: AdminFieldErrors = {};
-  const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
-  const previousId = readPreviousId(formData, id, errors);
+  let identity: { previousId: null; id: null; publicSlug: string } | { previousId: string; id: string; publicSlug: null };
+  if (readString(formData, 'previousId')) {
+    /* 기존 IP: 읽기 전용 내부 ID가 고른 레코드와 같아야 한다(#181 저장 의도). */
+    const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
+    identity = { previousId: readPreviousId(formData, id, errors) ?? id, id, publicSlug: null };
+  } else {
+    /* 새 IP: 사람은 공개 URL만 넣는다. 내부 ID는 처음 저장할 때 DB가 이 주소로 발급한다. */
+    const publicSlug = normalizeIpPublicSlug(formData.get('publicSlug'));
+    const slugError = validateIpPublicSlug(publicSlug);
+    if (slugError) errors.publicSlug = IP_PUBLIC_SLUG_ERROR_MESSAGES[slugError];
+    identity = { previousId: null, id: null, publicSlug };
+  }
   const title = readString(formData, 'title');
   const verticalKey = readString(formData, 'verticalKey');
   const publish = readString(formData, 'intent') === 'publish' ? true : null;
@@ -465,8 +484,7 @@ export function normalizeAdminIpForm(
   return {
     ok: true,
     value: {
-      previousId,
-      id,
+      ...identity,
       title,
       sub: nullableString(formData, 'sub'),
       verticalKey,
@@ -482,8 +500,8 @@ export function normalizeAdminIpForm(
 }
 
 /*
- * 정가(compareAtPrice) 검증은 상품 편집기와 상품 엑셀이 함께 쓴다. 편집기는 판매가(할인 전)·할인 칸을,
- * 엑셀은 기준 판매가·소비자가 열을 보여 주므로, 오류 문구도 운영자가 고칠 칸의 이름을 따른다.
+ * 정가(compareAtPrice) 검증은 상품 편집기와 상품 엑셀이 함께 쓴다. 엑셀 v8은 편집기와 같은 판매가·즉시할인 열이고
+ * goodsWorkbookStoredPrice가 먼저 열 이름으로 알린다. 아래 엑셀 문구는 그 뒤의 방어 검증이 같은 열 이름을 쓰게 한다(T17a·T20).
  */
 const COMPARE_AT_PRICE_COPY = {
   editor: {
@@ -491,11 +509,14 @@ const COMPARE_AT_PRICE_COPY = {
     notAbovePrice: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.',
   },
   workbook: {
-    invalid: '소비자가는 0 이상의 정수여야 합니다.',
-    notAbovePrice: '소비자가는 기준 판매가보다 커야 합니다.',
+    invalid: '판매가와 즉시할인은 0 이상의 원 단위 정수로 입력해주세요.',
+    notAbovePrice: '즉시할인은 1원 이상, 판매가보다 작아야 합니다.',
   },
 } as const;
 export type AdminGoodFormCopy = keyof typeof COMPARE_AT_PRICE_COPY;
+
+/** SHEET-003(ADR-0037): 공개하려는 상품의 대표 카테고리 경로에 상품 유형 연결이 없을 때의 안내(상품 편집·엑셀 공통). */
+export const GOOD_TYPE_PUBLISH_REQUIRED = '대표 카테고리(또는 상위 카테고리)에 상품 유형이 연결되어 있어야 공개할 수 있습니다. 카테고리 관리에서 상품 유형을 연결해주세요.';
 
 export function normalizeAdminGoodForm(
   formData: FormData,
@@ -512,7 +533,7 @@ export function normalizeAdminGoodForm(
   if (previousId && !SLUG_PATTERN.test(previousId)) errors.id='수정 대상을 확인할 수 없습니다. 목록에서 다시 선택해주세요.';
   const code=nullableString(formData,'code')?.toUpperCase() ?? null;
   const defaultVariantCode=nullableString(formData,'defaultVariantCode')?.toUpperCase() ?? null;
-  if (code && code.length>100) errors.code='상품코드는 100자 이내로 입력해주세요.';
+  if (code && code.length>100) errors.code='판매자상품코드는 100자 이내로 입력해주세요.';
   if (defaultVariantCode && defaultVariantCode.length>120) errors.defaultVariantCode='옵션코드는 120자 이내로 입력해주세요.';
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
@@ -561,7 +582,8 @@ export function normalizeAdminGoodForm(
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
 
   if (!name) errors.name = adminGoodsCopy('굿즈 이름을 입력해주세요.');
-  if (requiresCompleteNotice && !type) errors.type = '상품 유형을 선택해주세요.';
+  /* SHEET-003(ADR-0037): 상품 유형은 입력칸이 없고 대표 카테고리의 연결값이다(폼은 파생값을 싣는다). 서버·DB가 다시 정하고 공개를 판정한다. */
+  if (publish && !type) errors.categoryId = GOOD_TYPE_PUBLISH_REQUIRED;
   if (publish && !nullableString(formData, 'imagePath')) errors.imagePath = '대표 이미지를 업로드한 뒤 공개해주세요.';
   if (!STOCK_VALUES.has(stock)) errors.stock = '재고 상태를 선택해주세요.';
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid
@@ -619,10 +641,10 @@ export function normalizeAdminStockAdjustmentForm(
   const deltaRaw = readString(formData, 'delta');
   const reason = readString(formData, 'reason');
 
-  if (!UUID_PATTERN.test(adjustmentId)) {
+  if (!isUuid(adjustmentId)) {
     errors.adjustmentId = '유효한 재고 조정 요청이 아닙니다.';
   }
-  if (!UUID_PATTERN.test(variantId)) errors.variantId = '재고를 조정할 옵션을 선택해주세요.';
+  if (!isUuid(variantId)) errors.variantId = '재고를 조정할 옵션을 선택해주세요.';
 
   const expectedStockQty = Number(expectedStockQtyRaw);
   if (

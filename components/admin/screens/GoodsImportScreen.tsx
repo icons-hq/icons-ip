@@ -545,7 +545,7 @@ export function GoodsImportScreen({
             <p className="text-sm text-muted-foreground">
               .xlsx 또는 .csv · 2MB · 상품 최대 500개(옵션 조합을 펼쳐 500행까지). 위쪽 안내 행은 건너뛰고 열
               이름 행을 찾습니다. .xls 파일은 엑셀에서 .xlsx로 저장해 올려 주세요. 이미지 주소는 서버가 내려받아
-              확인하며, 한 번에 최대 {SABANGNET_IMAGE_LIMIT}장까지 가져옵니다. 이미 등록된 상품코드는 수정하지 않고 오류로 표시합니다.
+              확인하며, 한 번에 최대 {SABANGNET_IMAGE_LIMIT}장까지 가져옵니다. 이미 등록된 판매자상품코드는 수정하지 않고 오류로 표시합니다.
             </p>
             <AdminField label="사방넷 상품 파일" inputId="sabangnet-workbook">
               <Input
@@ -568,8 +568,9 @@ export function GoodsImportScreen({
           </>
         ) : (
           <>
-            <AdminNotice tone="warning" title="상품코드가 같으면 기존 상품을 수정합니다.">
-              옵션을 모두 포함해주세요. 직접입력형 옵션과 A/S·사이즈 안내는 별도 시트에서 고치고, 내려받은 시트에 이미 채워진 번호 칸(ID·버전)은 그대로 두세요.
+            <AdminNotice tone="warning" title="상품번호나 판매자상품코드가 같으면 기존 상품을 수정합니다.">
+              옵션을 모두 포함해주세요. 상품번호는 그대로 두고 새 상품은 비워 둡니다. 판매가·즉시할인·옵션가는 상품 수정 화면과 같은 뜻이며 v3~v7 양식도 올릴 수 있습니다.
+              직접입력형 옵션과 A/S·사이즈 안내는 별도 시트에서 고치고, 내려받은 시트에 이미 채워진 번호 칸(ID·버전)은 그대로 두세요.
               안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
             </AdminNotice>
             <p className="text-sm text-muted-foreground">XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB</p>
@@ -706,7 +707,7 @@ export function GoodsImportScreen({
           {view.format === 'sabangnet' ? (
             <p className="text-sm text-muted-foreground">
               이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행은 ICONS 양식으로 내려받으며, 이미 등록된
-              상품코드 행은 넣지 않습니다. 고친 뒤 ICONS 자체 양식으로 올려 주세요.
+              판매자상품코드 행은 넣지 않습니다. 고친 뒤 ICONS 자체 양식으로 올려 주세요.
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">

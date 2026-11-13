@@ -3,6 +3,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { imageUrlFromBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { loadAdminIpIdentity } from '@/lib/ip-identity.server';
+import { parseIpDeleteReadiness, type AdminIpDeleteReadiness } from './ip-delete';
 import {
   IP_INDEX_PAGE_SIZE, type AdminIpIndexData, type AdminIpSummary, type AdminIpWorkspaceData,
   type IpIndexFilters, type IpWorkspaceTab,
@@ -64,6 +65,9 @@ export async function loadAdminIpWorkspace(id: string, tab: IpWorkspaceTab): Pro
       featured: row.featured, fansCount: row.fans_count ?? 0 },
     tab, verticals: verticals.data ?? [], directory: [], related: [], relatedTotal: 0,
   };
+  if (tab === 'basic' && !row.archived_at && !row.published_at) {
+    data.deletion = await loadAdminIpDeleteReadiness(supabase, row.id);
+  }
   if (tab === 'exposure') {
     for (let offset = 0; ; offset += 1000) {
       const directory = await supabase.from('ips').select('id,title,vertical_key,archived_at,published_at,featured,sort_order')
@@ -89,4 +93,16 @@ export async function loadAdminIpWorkspace(id: string, tab: IpWorkspaceTab): Pro
     data.relatedTotal = result.count ?? 0;
   }
   return data;
+}
+
+/*
+ * 미사용 초안 삭제 패널의 근거(S36-004). 판정은 DB(admin_ip_delete_readiness)가 하고, 읽지 못하면 패널을 그리지 않는다 —
+ * 삭제는 되돌릴 수 없으니 근거 없이 버튼을 열지 않는다. 실제 삭제 RPC가 같은 판정을 행 잠금 아래에서 다시 한다.
+ */
+async function loadAdminIpDeleteReadiness(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+): Promise<AdminIpDeleteReadiness | null> {
+  const { data, error } = await supabase.rpc('admin_ip_delete_readiness', { target_id: id });
+  return error ? null : parseIpDeleteReadiness(data);
 }

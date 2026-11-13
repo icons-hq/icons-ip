@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import 'server-only';
 import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 
@@ -29,11 +30,10 @@ import {
   type OrderCancellationRequestStatus,
 } from './orders';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 const ORDER_STATUS_SET = new Set<string>(ADMIN_ORDER_STATUSES);
 const REQUEST_STATUS_SET = new Set<string>(ORDER_CANCELLATION_REQUEST_STATUSES);
 const ATTEMPT_STATE_SET = new Set<string>(GOODS_PAYMENT_ATTEMPT_STATES);
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface SearchRow {
   order_number?: string;
@@ -144,9 +144,9 @@ function requireAttemptState(value: string): GoodsPaymentAttemptState {
 }
 
 function normalizeManualRecoveryAttemptRow(value: ManualRecoveryAttemptRow) {
-  if (!UUID_PATTERN.test(value.order_id)
-    || !UUID_PATTERN.test(value.request_id)
-    || !UUID_PATTERN.test(value.attempt_id)
+  if (!isUuid(value.order_id)
+    || !isUuid(value.request_id)
+    || !isUuid(value.attempt_id)
     || typeof value.provider_order_id !== 'string'
     || value.provider_order_id !== value.provider_order_id.trim()
     || value.provider_order_id.length < 1

@@ -6,11 +6,8 @@ import {
   setGoodsOptionSaleModeAction,
   type GoodsOptionSaleModeActionState,
 } from '@/app/admin/goods-option-sale-mode-actions';
-import {
-  goodsOptionSaleModeErrorMessage,
-  type GoodsOptionSaleMode,
-  type GoodsOptionSaleModeState,
-} from '@/lib/goods-option-sale-mode';
+import { type GoodsOptionSaleMode, type GoodsOptionSaleModeState } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 /* 템플릿 룩(ADR-0028). 라디오·버튼·폼은 네이티브 그대로다 — 테스트가 이 컴포넌트를 함수로 불러 네이티브 요소를 찾는다. */

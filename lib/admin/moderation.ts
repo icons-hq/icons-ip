@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { CommunityReportStatus } from '@/lib/community';
 
 export type AdminModerationFieldErrors = Record<string, string>;
@@ -21,7 +22,6 @@ export type AdminModerationFormResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: AdminModerationFieldErrors };
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REPORT_STATUSES = new Set<CommunityReportStatus>(['open', 'reviewing', 'resolved', 'dismissed']);
 
 /** 신고 처리 상태의 운영자 표기. 값(open 등)은 DB 계약이고 화면은 이 이름을 보인다. */
@@ -34,7 +34,7 @@ function readString(formData: FormData, key: string) {
 
 function readUuid(formData: FormData, key: string) {
   const value = readString(formData, key);
-  return UUID_PATTERN.test(value) ? value : null;
+  return isUuid(value) ? value : null;
 }
 
 export function normalizeAdminReportStatusForm(

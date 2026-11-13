@@ -111,7 +111,7 @@ const ATTEMPT_STATE_LABELS: Record<string, string> = {
 };
 
 export function adminUnpaidAttemptStateLabel(state: string | null) {
-  if (!state) return '원장 없음';
+  if (!state) return '결제 기록 없음';
   return ATTEMPT_STATE_LABELS[state] ?? state;
 }
 

@@ -138,7 +138,7 @@ export function CampaignHub({ banners, campaigns }: CampaignHubProps) {
   const drops = campaigns.filter((campaign) => campaign.kind === 'drop');
 
   return (
-    <div className="wc-root wc-campaign-hub">
+    <main className="wc-root wc-campaign-hub">
       <div className="wc-container">
         {/* 보이는 제목·부제는 두지 않는다(R-06 §1.1, EV-01). 부제가 카드 리워드 게이트와
             무관하게 '카드팩'을 말하던 누수(CH-11)도 함께 사라진다. */}
@@ -187,6 +187,6 @@ export function CampaignHub({ banners, campaigns }: CampaignHubProps) {
           />
         )}
       </div>
-    </div>
+    </main>
   );
 }

@@ -36,6 +36,14 @@ export function AdminKitPortalHost({ children }: { children: ReactNode }) {
   return <AdminKitPortalContainer.Provider value={node}>{children}</AdminKitPortalContainer.Provider>;
 }
 
+/**
+ * 팝업을 다른 곳에 띄워야 할 때(예: 네이티브 모달 `<dialog>` 안). `showModal()`로 열린 dialog는 브라우저 top layer에 있어
+ * body에 붙은 팝업은 그 뒤에 가려지고 눌리지도 않는다. 그 dialog 안으로 포털을 옮긴다.
+ */
+export function AdminKitPortalContainerProvider({ container, children }: { container: HTMLElement | undefined; children: ReactNode }) {
+  return container ? <AdminKitPortalContainer.Provider value={container}>{children}</AdminKitPortalContainer.Provider> : <>{children}</>;
+}
+
 export function useAdminKitPortalContainer() {
   return useContext(AdminKitPortalContainer);
 }

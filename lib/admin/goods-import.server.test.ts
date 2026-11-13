@@ -41,6 +41,12 @@ describe('goods import current guidance snapshots', () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: 'actor' }, operatorAccess: access });
     expect((await loadGoodsWorkbookContext()).existing[0]).toMatchObject({ good: record().good, afterSales: null, sizeChart: null });
   });
+  /* SHEET-003(ADR-0037): 카테고리 상품 유형 규칙의 거절은 일반 카테고리 안내가 아니라 그 이유로 알린다. */
+  it('explains goods type category rejections', () => {
+    expect(goodsImportErrorMessage('goods_type_category_locked')).toContain('유형이 다른 카테고리로 옮길 수 없습니다');
+    expect(goodsImportErrorMessage('goods_type_category_required')).toContain('상품 유형이 연결되어 있어야 공개할 수 있습니다');
+    expect(goodsImportErrorMessage('goods_type_category_changed')).toContain('저장된 유형과 다릅니다');
+  });
   it('explains per-product rollback for stale or invalid guidance', () => {
     for (const error of ['goods_after_sales_changed', 'goods_size_chart_changed', 'invalid_import_guidance', 'goods_size_chart_cannot_clear'])
       expect(goodsImportErrorMessage(error)).toContain('저장하지 않았습니다');

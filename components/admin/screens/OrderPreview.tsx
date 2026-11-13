@@ -24,18 +24,20 @@ function OrderPreviewPendingHint() {
  * 주문번호 링크 — 같은 목록 위에 상세 팝업을 연다. 목록 스크롤을 유지하고 행마다 상세를 미리 읽지 않는다
  * (prefetch=false — 한 페이지 100행의 상세를 미리 부르지 않는다).
  */
-export function OrderPreviewLink({ href, label, children, className = 'font-medium tabular-nums underline-offset-4 hover:underline' }: {
+export function OrderPreviewLink({ href, label, children, className = 'font-medium tabular-nums underline-offset-4 hover:underline', tabStop = true }: {
   href: string; label: string; children: ReactNode; className?: string;
+  /** false면 Tab에서 뺀다(마우스·스크린리더 이름은 그대로). 같은 행에 같은 목적지의 대표 링크가 따로 있을 때 쓴다(ADM-016 #8). */
+  tabStop?: boolean;
 }) {
-  return <Link aria-label={label} className={`inline-flex items-baseline gap-1.5 ${className}`} data-order-preview-link="" href={href} prefetch={false} scroll={false}>
+  return <Link aria-label={label} className={`inline-flex items-baseline gap-1.5 ${className}`} data-order-preview-link="" href={href} prefetch={false} scroll={false} tabIndex={tabStop ? undefined : -1}>
     {children}<OrderPreviewPendingHint />
   </Link>;
 }
 
-/** 보조 링크: 전용 상세 화면을 새 탭으로 연다(기존 동작). */
+/** 보조 링크: 전용 상세 화면을 새 탭으로 연다(기존 동작). 같은 주문의 대표 링크(상세 팝업)가 있어 Tab에서는 뺀다 — 팝업 안에 새 탭 링크가 있다(ADM-016 #8). */
 export function OrderPreviewNewTabLink({ href, label }: { href: string; label: string }) {
   return <a aria-label={label} className="inline-flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-    href={href} rel="noopener noreferrer" target="_blank" title="새 탭으로 열기"><ExternalLink aria-hidden="true" className="size-3.5" /></a>;
+    href={href} rel="noopener noreferrer" tabIndex={-1} target="_blank" title="새 탭으로 열기"><ExternalLink aria-hidden="true" className="size-3.5" /></a>;
 }
 
 export function OrderPreviewDialog({ children, closeHref, detailHref, title }: { children: ReactNode; closeHref: string; detailHref: string; title: string }) {

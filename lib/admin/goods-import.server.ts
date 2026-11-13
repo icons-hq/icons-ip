@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { canAccessAdminScreen } from '@/lib/admin/access';
 import 'server-only';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -15,6 +16,7 @@ import {
 } from './goods-workbook';
 import { goodsConsoleFilterValues, type GoodsListFilters } from './goods-list';
 import { parseAdminGoodsKc } from './goods-kc';
+import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
 import { exportGoodsKcWorkbookRows } from './goods-kc-workbook';
 import { exportGoodsCustomInputWorkbookRows, goodsCustomInputWorkbookConfig } from './goods-custom-input-workbook';
 import { parseGoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
@@ -69,7 +71,7 @@ export async function loadGoodsImportBatch(
   id: string,
   actorId: string,
 ): Promise<GoodsImportBatch> {
-  if (!/^[0-9a-f-]{36}$/i.test(id))
+  if (!isUuid(id))
     throw new Error('업로드 작업을 찾을 수 없습니다.');
   const client = await createClient();
   const { data, error } = await client
@@ -98,10 +100,23 @@ export async function loadGoodsWorkbookContext(
   const names = [
     ...new Set(rows.map((row) => row.values.preset).filter(Boolean)),
   ];
+  // 반입 키(ADR-0038): 상품번호 → 판매자상품코드. 상품번호는 상품 URL로 바꿔 함께 읽는다. 번호·코드가 모두 빈 행(새 상품)의
+  // 상품 URL은 키가 아니라 '이미 쓰는 URL인지' 확인하려고 함께 읽는다. 판매자상품코드로 이미 읽는 상품은 다시 넣지 않는다(합쳐 500건 상한).
+  const numbers = [...new Set(rows.map((row) => row.values.productNo.trim()).filter((value) => /^[1-9]\d{0,15}$/.test(value)))];
+  const numbered = numbers.length
+    ? await client.from('goods').select('id,code').in('product_no', numbers)
+    : { data: [] as { id: string; code: string }[], error: null };
+  if (numbered.error) throw new Error('현재 상품·배송·고시정보를 읽지 못했습니다. 다시 시도해주세요.');
+  const codeSet = new Set(codes);
+  const targetIds = [...new Set([
+    ...ids,
+    ...(numbered.data ?? []).filter((row) => !codeSet.has(String(row.code).toUpperCase())).map((row) => String(row.id)),
+    ...rows.filter((row) => !row.values.code.trim() && !row.values.productNo.trim() && row.values.id.trim()).map((row) => row.values.id.trim()),
+  ])];
   const [records, origins, presets, auth] = await Promise.all([
     client.rpc('admin_goods_import_records', {
       target_codes: codes,
-      target_ids: ids,
+      target_ids: targetIds,
     }),
     client.from('fulfillment_origins').select('id,code,is_active'),
     names.length
@@ -120,7 +135,7 @@ export async function loadGoodsWorkbookContext(
     );
   const categories: NonNullable<GoodsWorkbookContext['categories']> = [];
   for (let start = 0; ; start += 1000) {
-    const result = await client.from('catalog_categories').select('id,code,archived_at').order('id').range(start, start + 999);
+    const result = await client.from('catalog_categories').select('id,code,archived_at,parent_id,good_type').order('id').range(start, start + 999);
     if (result.error) throw new Error('카테고리 코드를 읽지 못했습니다.');
     categories.push(...(result.data ?? []));
     if ((result.data?.length ?? 0) < 1000) break;
@@ -136,8 +151,20 @@ export async function loadGoodsWorkbookContext(
     ips.push(...(result.data ?? []));
     if ((result.data?.length ?? 0) < 1000) break;
   }
+  // 관리코드(옵션코드)는 전체에서 유일하다. 파일의 관리코드를 쓰는 상품을 미리 읽어 새 행·다른 상품의 중복을 미리보기에서 잡는다.
+  const variantCodes = [...new Set(rows.map((row) => row.values.variantCode.trim().toUpperCase()).filter(Boolean))];
+  const variantCodeOwners: Record<string, string> = {};
+  for (let start = 0; start < variantCodes.length; start += 100) {
+    const result = await client.from('goods_variants').select('code, goods!inner(code)').in('code', variantCodes.slice(start, start + 100));
+    if (result.error) throw new Error('현재 옵션 관리코드를 읽지 못했습니다. 다시 시도해주세요.');
+    for (const row of (result.data ?? []) as unknown as { code: string; goods: { code: string } | { code: string }[] }[]) {
+      const owner = Array.isArray(row.goods) ? row.goods[0] : row.goods;
+      if (owner) variantCodeOwners[String(row.code).toUpperCase()] = String(owner.code).toUpperCase();
+    }
+  }
   const canManageGuidance = canAccessAdminScreen(auth, null, { capability: 'catalog.manage' });
   return {
+    variantCodeOwners,
     existing: ((records.data ?? []) as GoodsImportExisting[]).map(record => {
       const kcReview = record.kcReview == null ? null : parseAdminGoodsKc(record.kcReview);
       if (record.kcReview != null && !kcReview) throw new Error('현재 KC 검토 정보를 읽지 못했습니다. 다시 시도해주세요.');
@@ -223,7 +250,11 @@ export async function loadGoodsExportWorkbook(
   if (!Number.isInteger(part) || part < 1 || part > parts.length)
     throw new Error('내보내기 페이지를 다시 선택해주세요.');
   const context = await loadGoodsWorkbookContext([], parts[part - 1]);
-  const rows = context.existing.flatMap((record) =>
+  // 파일 안에서는 상품번호 순서로 쓴다(번호가 없으면 맨 뒤).
+  const existing = [...context.existing].sort((a, b) =>
+    (Number(a.good.product_no) || Number.MAX_SAFE_INTEGER) - (Number(b.good.product_no) || Number.MAX_SAFE_INTEGER)
+    || String(a.good.id).localeCompare(String(b.good.id)));
+  const rows = existing.flatMap((record) =>
     exportGoodsWorkbookRows(record, context),
   );
   if (rows.length > 500)
@@ -232,13 +263,13 @@ export async function loadGoodsExportWorkbook(
     );
   return {
     rows,
-    kcRows: exportGoodsKcWorkbookRows(context.existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))),
-    customInputRows: exportGoodsCustomInputWorkbookRows(context.existing.map(record => ({
+    kcRows: exportGoodsKcWorkbookRows(existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))),
+    customInputRows: exportGoodsCustomInputWorkbookRows(existing.map(record => ({
       goodCode: String(record.good.code), config: goodsCustomInputWorkbookConfig(record.good),
     }))),
-    afterSalesRows: exportGoodsAfterSalesWorkbookRows(context.existing.flatMap(record => record.afterSales
+    afterSalesRows: exportGoodsAfterSalesWorkbookRows(existing.flatMap(record => record.afterSales
       ? [{ goodCode: String(record.good.code), snapshot: record.afterSales }] : [])),
-    sizeRows: exportGoodsSizeWorkbookRows(context.existing.flatMap(record => record.sizeChart
+    sizeRows: exportGoodsSizeWorkbookRows(existing.flatMap(record => record.sizeChart
       ? [{ goodCode: String(record.good.code), snapshot: record.sizeChart }] : [])),
   };
 }
@@ -247,6 +278,10 @@ export function goodsImportErrorMessage(error?: string) {
     return '미리보기 이후 A/S·사이즈 안내가 바뀌었습니다. 해당 상품은 저장하지 않았습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('guidance') || error?.includes('goods_after_sales') || error?.includes('goods_size_chart'))
     return 'A/S·사이즈 안내의 입력 내용과 버전을 확인하고 다시 검증해주세요. 해당 상품의 변경은 저장하지 않았습니다.';
+  /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이다. */
+  if (error?.includes('goods_type_category_locked')) return GOOD_TYPE_CATEGORY_MESSAGES.locked;
+  if (error?.includes('goods_type_category_required')) return GOOD_TYPE_CATEGORY_MESSAGES.required;
+  if (error?.includes('goods_type_category_changed')) return GOOD_TYPE_CATEGORY_MESSAGES.changed;
   if (error?.includes('category') || error?.includes('additional_categories'))
     return '대표·추가 카테고리의 코드와 활성 말단 상태를 확인하고 다시 검증해주세요.';
   if (error?.includes('stock_changed'))
@@ -254,7 +289,7 @@ export function goodsImportErrorMessage(error?: string) {
   if (error?.includes('changed') || error?.includes('conflict'))
     return '미리보기 이후 상품 정보가 바뀌었습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('duplicate') || error?.includes('code'))
-    return '상품코드·옵션코드가 이미 사용 중이거나 형식이 올바르지 않습니다.';
+    return '판매자상품코드·관리코드가 이미 사용 중이거나 형식이 올바르지 않습니다.';
   if (error?.includes('artwork') || error?.includes('images'))
     return '이미지를 저장하지 못했습니다. URL·ZIP 파일을 확인하고 다시 올려주세요.';
   if (error?.includes('publish') || error?.includes('origin'))

@@ -6,7 +6,7 @@ import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionCollapseNotice, goodsOptionRowKey,
   goodsOptionStockTotals, isSingleGoodsOption, parseGoodsOptionBulkEdit, predictGoodsOptionCodes, removeGoodsOptionRows, selectErpItemForGoodsOption,
-  GOODS_OPTION_AXIS_LIMIT, GOODS_OPTION_ROW_LIMIT,
+  emptyNewGoodsOptionStock, goodsOptionRowsForImport, shouldAutoFillErpSalePrice, GOODS_OPTION_AXIS_LIMIT, GOODS_OPTION_ROW_LIMIT, GOODS_OPTION_STOCK_REQUIRED,
   type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow, type GoodsOptionSavedCodes,
 } from '@/lib/admin/goods-option-editor';
 import { formatWon, planErpSalePrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
@@ -20,6 +20,7 @@ import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TA
 import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
 import { GoodWorkspaceDetails } from './GoodWorkspace';
 import type { GoodsOptionImportContext } from '@/lib/admin/goods-option-import';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 type GoodsOptionEditorProps = {
   rows: GoodsOptionRow[];
@@ -61,7 +62,7 @@ type OptionUsage = 'on' | 'off';
 
 const EMPTY_AXES: GoodsOptionAxis[] = Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, () => ({ name: '', values: '' }));
 const EMPTY_BULK: GoodsOptionBulkInput = { extraPrice: '', stockQty: '', isActive: '' };
-const STOCK_GUIDANCE = 'ICONS에서 판매할 수량이며 주문하면 차감됩니다. 안전재고는 부족 알림 기준입니다.';
+const STOCK_GUIDANCE = 'ICONS에서 판매할 수량이며 주문하면 차감됩니다. 비워 두면 저장되지 않으니 재고가 없으면 0을 입력합니다. 안전재고는 부족 알림 기준입니다.';
 const AUTO_CODE = '저장 시 자동 생성';
 
 /* 템플릿 룩(ADR-0028). 옵션 사용 라디오는 GoodChoiceOption과 같은 모양을 직접 그린다 — 불러오기 테스트가 이 컴포넌트의
@@ -75,6 +76,22 @@ const LOW_STOCK_CLASS = 'mt-1 block text-[11px] leading-normal text-[var(--wc-wa
 
 function wholeNumber(raw: string): number {
   return raw === '' ? 0 : Number(raw);
+}
+
+/**
+ * 재고수량 칸(0901-015, 11/11 결정 "비우면 저장 불가"). 빈 칸은 빈 값(NaN)으로 두고 0으로 바꾸지 않는다. 비어 있으면 상품 저장을
+ * 브라우저 검증으로 막고 안내 문구를 보인다(편집기가 재고수량·옵션 칸 오류로 붙인다). 0은 직접 입력하면 저장된다.
+ */
+function StockQtyInput({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; id?: string; 'aria-label'?: string; className?: string }) {
+  const empty = !Number.isFinite(value);
+  /* 저장을 눌러 검증에 걸린 빈 칸만 오류로 칠한다(처음부터 빨갛게 보이지 않게). 값을 넣으면 풀린다. */
+  const [rejected, setRejected] = useState(false);
+  const flagged = empty && rejected;
+  return <input {...props} data-slot="input" aria-describedby="goods-option-stock-guidance" value={empty ? '' : value} min={0} step={1} type="number" required placeholder="숫자 입력"
+    aria-invalid={flagged ? true : undefined} className={`${props.className ?? ''}${flagged ? ' border-destructive ring-1 ring-destructive/40' : ''}`}
+    ref={(input) => { input?.setCustomValidity(empty ? GOODS_OPTION_STOCK_REQUIRED : ''); }}
+    onInvalid={() => setRejected(true)}
+    onChange={(event) => { setRejected(false); onChange(event.target.value === '' ? Number.NaN : Number(event.target.value)); }} />;
 }
 
 function OptionDetailTable({ rows, single, predictedCodes, update, erpRows, onErpChange, onErpSelect, onErpPrice, notice, canSearchErp, structureLocked }: {
@@ -157,7 +174,7 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {
   const extraAxisShown = extraAxisOpen || axes.slice(2).some((axis) => axis.name.trim() || axis.values.trim());
   return <section className={GOOD_SUBPANEL_CLASS} aria-labelledby="goods-option-inputs-title" data-good-option-inputs="" hidden={hidden}>
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h5 id="goods-option-inputs-title" className="text-sm leading-snug font-medium text-foreground">옵션 입력</h5>
+      <h3 id="goods-option-inputs-title" className="text-sm leading-snug font-medium text-foreground">옵션 입력</h3>
       <span className="text-xs text-muted-foreground">옵션명 최대 {GOODS_OPTION_AXIS_LIMIT}개 · 옵션 최대 {GOODS_OPTION_ROW_LIMIT}개</span>
     </div>
     {axes.map((axis, index) => <div className="grid min-w-0 gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" hidden={index >= 2 && !extraAxisShown} key={index}>
@@ -215,7 +232,7 @@ function OptionList({ rows, basePrice, update, setRows }: {
   const bulkTone = bulkMessage?.failed ? 'warning' : 'success';
   return <section className={GOOD_SUBPANEL_CLASS} aria-labelledby="goods-option-list-title">
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h5 id="goods-option-list-title" className="text-sm leading-snug font-medium text-foreground">옵션목록 (총 {rows.length.toLocaleString('ko-KR')}개)</h5>
+      <h3 id="goods-option-list-title" className="text-sm leading-snug font-medium text-foreground">옵션목록 (총 {rows.length.toLocaleString('ko-KR')}개)</h3>
       <span className="text-xs text-muted-foreground">옵션가는 판매가(할인하면 할인가)에 더하는 금액입니다.</span>
     </div>
     <div className="flex min-w-0 flex-wrap items-end gap-x-3 gap-y-2 rounded-lg bg-muted/50 p-3" role="group" aria-label="선택목록 일괄수정">
@@ -263,7 +280,7 @@ function OptionList({ rows, basePrice, update, setRows }: {
               <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 옵션가`} value={row.extraPrice} min={0} step={1} type="number" onChange={(event) => update(key, { extraPrice: wholeNumber(event.target.value) })} />
               <small className="mt-1 block text-[11px] text-muted-foreground tabular-nums">판매 {formatWon(basePrice + (Number.isFinite(row.extraPrice) ? row.extraPrice : 0))}</small>
             </TableCell>
-            <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 재고수량`} aria-describedby="goods-option-stock-guidance" value={row.stockQty} min={0} step={1} type="number" onChange={(event) => update(key, { stockQty: wholeNumber(event.target.value) })} /></TableCell>
+            <TableCell className={TABLE_CELL_CLASS}><StockQtyInput className={GOOD_NUMBER_INPUT_CLASS} aria-label={`옵션 ${index + 1} 재고수량`} value={row.stockQty} onChange={(stockQty) => update(key, { stockQty })} /></TableCell>
             <TableCell className={TABLE_CELL_CLASS}><NativeSelect className="w-full" aria-label={`옵션 ${index + 1} 사용여부`} value={row.isActive === false ? 'stopped' : 'active'} onChange={(event) => update(key, { isActive: event.target.value === 'active' })}>
               <option value="active">사용</option><option value="stopped">중지</option>
             </NativeSelect></TableCell>
@@ -293,7 +310,7 @@ function SingleStock({ row, basePrice, update, structureLocked }: {
   return <div className="grid min-w-0 items-start gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
     <AdminField inputId="goods-single-stock" label="재고수량 (필수)">
       <GoodAmountField unit="개">
-        <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-single-stock" aria-describedby="goods-option-stock-guidance" value={row.stockQty} min={0} step={1} type="number" onChange={(event) => update(key, { stockQty: wholeNumber(event.target.value) })} />
+        <StockQtyInput className={GOOD_NUMBER_INPUT_CLASS} id="goods-single-stock" value={row.stockQty} onChange={(stockQty) => update(key, { stockQty })} />
       </GoodAmountField>
     </AdminField>
     {(extraVisible || row.extraPrice !== 0) && <AdminField inputId="goods-single-extra-price" label="기본 옵션 옵션가" hint="판매가(할인하면 할인가)에 더하는 금액입니다. 0원이면 판매가 그대로 판매합니다.">
@@ -336,9 +353,9 @@ export function GoodsOptionEditor({
   function update(key: string, changes: Partial<GoodsOptionRow>) {
     setRows((current) => current.map((row) => goodsOptionRowKey(row) === key ? { ...row, ...changes } : row));
   }
-  function changeOptionUsage(next: OptionUsage) {
+  async function changeOptionUsage(next: OptionUsage) {
     if (next === 'off' && !single) {
-      if (!window.confirm(goodsOptionCollapseNotice(rows))) return;
+      if (!await adminConfirm(goodsOptionCollapseNotice(rows))) return;
       setRows((current) => collapseGoodsOptionRows(current));
       setAxes(EMPTY_AXES);
     }
@@ -355,6 +372,17 @@ export function GoodsOptionEditor({
       return;
     }
     setRows((current) => current.map((row) => goodsOptionRowKey(row) === key ? applyErpItemToGoodsOption(row, item) : row));
+    const row = rows.find((candidate) => goodsOptionRowKey(candidate) === key);
+    /* 1007-045: 판매가 칸이 비어 있으면 ERP 판매가를 바로 넣는다(값이 있으면 아래 적용 버튼만 둔다). 결과 금액 안내는 버튼과 같다. */
+    if (priceDraft && onRegularPriceApply && shouldAutoFillErpSalePrice({ salePrice: item.salePrice, regularPrice: priceDraft.regularPrice, single, extraPrice: row?.extraPrice ?? 0 })) {
+      const plan = planErpSalePrice({ salePrice: item.salePrice!, mode: 'single', price: priceDraft, extraPrice: single ? row?.extraPrice : undefined });
+      if (plan.ok && plan.target === 'regularPrice') {
+        onRegularPriceApply(plan.value);
+        setErpRows((current) => ({ ...current, [key]: { item, message: `판매가가 비어 있어 ${plan.message.replace(/^판매가에 /, '')}`, warning: plan.attention } }));
+        onErpItemSelect?.(item);
+        return;
+      }
+    }
     setErpRows((current) => ({ ...current, [key]: { item } }));
     onErpItemSelect?.(item);
   }
@@ -400,11 +428,12 @@ export function GoodsOptionEditor({
       {optionImport.blockedReason && <p className="text-sm text-muted-foreground">{optionImport.blockedReason}</p>}
       {importMessage && <p className="text-sm text-foreground" role="status">{importMessage}</p>}
     </div>}
-    {importOpen && optionImport && <GoodsOptionImportPicker context={optionImport} categories={optionImport.categories} currentRows={rows} basePrice={basePrice} fingerprint={importFingerprint}
+    {importOpen && optionImport && <GoodsOptionImportPicker context={optionImport} categories={optionImport.categories} currentRows={goodsOptionRowsForImport(rows)} basePrice={basePrice} fingerprint={importFingerprint}
       onClose={() => setImportOpen(false)} onApply={(plan, expected) => {
         if (optionImport.pending || optionImport.blockedReason || expected !== importFingerprint) return false;
-        setRows(plan.rows); setAxes(Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, (_, index) => plan.axes[index] ?? { name: '', values: '' }));
-        setOptionUsage('on'); setErpRows({}); setImportMessage(`옵션 초안을 적용했습니다. 새 옵션 ${plan.added}개는 재고 0이며 상품을 저장해야 반영됩니다.`);
+        setRows(emptyNewGoodsOptionStock(plan.rows, rows)); setAxes(Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, (_, index) => plan.axes[index] ?? { name: '', values: '' }));
+        setOptionUsage('on'); setErpRows({});
+        setImportMessage(plan.added ? `옵션 초안을 적용했습니다. 새 옵션 ${plan.added}개는 재고수량을 입력한 뒤 상품을 저장해야 반영됩니다.` : '옵션 초안을 적용했습니다. 상품을 저장해야 반영됩니다.');
         optionImport.onApplied(); return true;
       }} />}
 

@@ -1,6 +1,6 @@
 const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-import {prepareOrderDelayNoticeAction,requestOrderDelayNoticeAction,retryOrderDelayNoticeAction} from './order-delay-actions';
+import {listOrderDelayNoticesAction,prepareOrderDelayNoticeAction,readOrderDelayNoticeAction,requestOrderDelayNoticeAction,retryOrderDelayNoticeAction} from './order-delay-actions';
 const mocks=vi.hoisted(()=>({auth:vi.fn(),rpc:vi.fn(),dispatcher:vi.fn(),refresh:vi.fn()}));
 vi.mock('@/lib/auth/admin',()=>({getCurrentAdminAuthState:mocks.auth}));
 vi.mock('@/lib/supabase/server',()=>({createClient:async()=>({rpc:mocks.rpc})}));
@@ -40,6 +40,15 @@ describe('지연 안내 서버 액션',()=>{
   expect(await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id],title:'안내',body:'내용',expectedShipDate:null})).toHaveProperty('error');
   mocks.rpc.mockResolvedValueOnce({data:null,error:{message:'delay_notice_stale'}});
   expect(await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id],title:'안내',body:'내용',expectedShipDate:null})).toMatchObject({error:expect.stringContaining('미리보기 이후')});
+ });
+ it('예약 일정 일괄 변경 안내는 대상 전원 이메일이 실린 이 읽기로 열지 않고 이력에 종류·일괄 변경 ID를 싣는다',async()=>{
+  mocks.rpc.mockResolvedValueOnce({data:{...notice,kind:'preorder_schedule'},error:null});
+  expect(await readOrderDelayNoticeAction(id)).toEqual({error:'예약 일정 일괄 변경 안내는 이력의 일괄 결과에서 확인합니다.'});
+  const row={id,title:'예약 주문 발송 일정 변경 안내',createdAt:'2026-11-25T01:00:00Z',requestedAt:'2026-11-25T01:00:00Z',kind:'preorder_schedule',scheduleChangeId:id};
+  mocks.rpc.mockResolvedValueOnce({data:[row],error:null});
+  expect(await listOrderDelayNoticesAction()).toEqual({notices:[row]});
+  mocks.rpc.mockResolvedValueOnce({data:[{...row,scheduleChangeId:'nope'}],error:null});
+  expect(await listOrderDelayNoticesAction()).toHaveProperty('error');
  });
  it.each(['2026-02-30','not-a-date'])('잘못된 예정일 %s는 저장 전에 거절한다',async date=>{
   expect(await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id],title:'안내',body:'내용',expectedShipDate:date})).toHaveProperty('error');

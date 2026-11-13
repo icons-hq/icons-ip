@@ -92,6 +92,8 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
       setList({ owner, data: 'data' in result ? result.data : null, busy: false, error: 'error' in result ? result.error : '' });
     } catch { if (lane.isAlive() && request === sequence.current) setList({ owner, data: null, busy: false, error: '묶음그룹을 불러오지 못했습니다. 같은 출고지로 다시 조회해주세요.' }); }
   }
+  /* 같은 그룹이라도 저장해 둔 버전이 최신과 다르면(충돌 뒤) 다시 고를 수 있어야 요약과 저장 기준이 최신 버전으로 바뀐다. */
+  const current = (group: ShippingChargeGroup) => value === group.id && selected !== undefined && selected !== null && selected.revision === group.revision;
   const options = list.data?.groups.filter(group => group.originId === originId && group.enabled && !group.archived) ?? [];
   return <div className="flex min-w-0 flex-col gap-2.5 text-sm" data-shipping-charge-group-field="">
     {name ? <input type="hidden" name={name} value={value ?? ''} /> : null}
@@ -114,7 +116,7 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
       <ul className="m-0 flex min-w-0 list-none flex-col gap-2 p-0">{options.map(group => <li key={group.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border p-3">
         <div className="min-w-0"><strong className="flex flex-wrap items-center gap-2 font-medium wrap-anywhere">{group.name} {group.isDefault ? <Badge variant="secondary">기본</Badge> : null}</strong>
           <small className="mt-1 block text-xs text-muted-foreground wrap-anywhere">{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 무료 우선 · {group.regional.mode === 'inherit' ? '출고지 지역 정책 상속' : '그룹 지역표 1회'} · 버전 {group.revision}</small></div>
-        <button className={buttonVariants({ variant: value === group.id ? 'secondary' : 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || value === group.id} onClick={() => { if (!locked && group.originId === originId && group.enabled && !group.archived) { onChange(group.id, group); setPicker({ owner, open: false, query: '' }); } }}>{value === group.id ? '선택됨' : '선택'}</button>
+        <button className={buttonVariants({ variant: value === group.id ? 'secondary' : 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || current(group)} onClick={() => { if (!locked && group.originId === originId && group.enabled && !group.archived) { onChange(group.id, group); setPicker({ owner, open: false, query: '' }); } }}>{current(group) ? '선택됨' : value === group.id ? '최신 버전으로 다시 선택' : '선택'}</button>
       </li>)}</ul>
       {!list.busy && list.data && !options.length ? <p className="text-muted-foreground">선택할 수 있는 그룹이 없습니다. 기존 선택이나 미지정 상태는 자동으로 바뀌지 않습니다.</p> : null}
       <ConsolePagination className="print:hidden" label="배송비 묶음그룹 선택 페이지" page={list.data?.page ?? 1} pageSize={list.data?.pageSize ?? 20} total={list.data?.total ?? 0} unit="개" disabled={locked || !list.data} onPageChange={page => { void search(page); }} />

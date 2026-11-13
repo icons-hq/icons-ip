@@ -1,10 +1,7 @@
 'use server';
 
-import { hasAdminCapability } from '@/lib/admin/access';
-
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { isOrderDetailId, MAX_ORDER_NOTE_LENGTH } from '@/lib/admin/order-detail';
 import { createClient } from '@/lib/supabase/server';
 
@@ -13,9 +10,7 @@ const FAILED = '메모를 저장하지 못했습니다. 입력한 메모는 유�
 
 export async function addOrderNoteAction(_state: AdminOrderNoteState, formData: FormData): Promise<AdminOrderNoteState> {
   const orderId = String(formData.get('orderId') ?? '');
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(isOrderDetailId(orderId) ? `/admin/sales/orders/${orderId}` : '/admin/sales/orders')}`);
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return { error: '운영자 권한이 필요합니다.' };
+  if (!await requireAdminActionAccess(isOrderDetailId(orderId) ? `/admin/sales/orders/${orderId}` : '/admin/sales/orders', { capability: 'sales.manage' })) return { error: '운영자 권한이 필요합니다.' };
   const operationId = String(formData.get('operationId') ?? '');
   const body = String(formData.get('body') ?? '').trim();
   if (!isOrderDetailId(orderId) || !isOrderDetailId(operationId)) return { error: '주문 화면을 새로 열어 다시 시도해주세요.' };

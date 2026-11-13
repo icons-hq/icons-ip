@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CouponFilters } from '@/components/admin/coupons/CouponFilters';
 import { CouponRowActions } from '@/components/admin/coupons/CouponRowActions';
 import { CouponScheduleFields } from '@/components/admin/coupons/CouponScheduleFields';
@@ -21,9 +21,8 @@ import {
 } from '@/lib/admin/coupons';
 import { statusTone } from '@/lib/admin/status-tone';
 import { formatOrderDateTime } from '@/lib/orders';
-import {
-  GRADE_BENEFIT_CADENCE_LABELS, LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel, type GradeBenefitCadence,
-} from '@/lib/loyalty';
+import { GRADE_BENEFIT_CADENCE_LABELS, LOYALTY_GRADES, isLoyaltyGrade, loyaltyGradeLabel, type GradeBenefitCadence } from '@/lib/loyalty';
+import { loyaltyBasisSummary } from '@/lib/admin/loyalty-basis';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
 import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
@@ -94,7 +93,7 @@ function GradeBenefitFields({ grade, cadence, errors }: { grade: string; cadence
       </SelectField>
       <ul className="flex list-disc flex-col gap-1 pl-5 text-xs leading-relaxed text-muted-foreground [grid-column:1/-1]" data-grade-cadence-help="">
         <li>승급 시 1회: 이 등급에 오를 때(건너뛰어 오를 때 포함) 한 번 발급하고, 이미 받은 회원에게는 다시 발급하지 않습니다.</li>
-        <li>매월 1일: 매월 1일 0시(한국 시간)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다. 지난달 몫은 소급하지 않으며, 이번 달 지급이 끝난 뒤 바꾸면 다음 달 1일부터 발급합니다. 발급 한도는 모든 달을 합친 장수입니다.</li>
+        <li>매월 1일: 매월 1일 0시(KST)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다. 지난달 몫은 소급하지 않으며, 이번 달 지급이 끝난 뒤 바꾸면 다음 달 1일부터 발급합니다. 발급 한도는 모든 달을 합친 장수입니다.</li>
       </ul>
     </> : null}
   </>;
@@ -138,7 +137,8 @@ function CouponEditor({
   function next() {
     if (pending || !form.current) return;
     const name = form.current.elements.namedItem('name') as HTMLInputElement | null;
-    if (!name?.reportValidity()) return;
+    if (!name) return;
+    /* 브라우저 기본 검증 말풍선 대신 화면 안내로 묻는다. */
     if (!name.value.trim()) { setStepError('혜택 이름을 입력해주세요.'); name.focus(); return; }
     const values = new FormData(form.current);
     if (values.get('goodsScope') === 'selected_goods' && values.get('targetGoodIds') === '[]') {
@@ -153,6 +153,7 @@ function CouponEditor({
     setStepError(''); setStep(2);
     requestAnimationFrame(() => form.current?.querySelector<HTMLInputElement>('[name="code"]')?.focus());
   }
+  function toTargets() { setStep(1); form.current?.scrollIntoView({ block: 'start' }); }
 
   return (
     <form
@@ -160,16 +161,19 @@ function CouponEditor({
       action={action}
       className="flex min-w-0 flex-col rounded-xl border bg-card text-sm text-card-foreground"
       key={adminFormRemountKey(state, selected)}
-      noValidate={step === 1}
+      noValidate
       onSubmit={event => { if (step === 1) { event.preventDefault(); next(); } }}
     >
       <input name="previousCode" type="hidden" value={defaults?.code ?? ''} />
       <input name="expectedRevision" type="hidden" value={value('expectedRevision', selected?.termsRevision)} />
       <fieldset disabled={pending} className="flex min-w-0 flex-col">
         <legend className="sr-only">쿠폰 정보</legend>
-      {!selected ? <ol aria-label="혜택 등록 단계" className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-3 text-sm sm:px-6" data-coupon-steps="">
-        {['대상 설정', '할인·발급 조건'].map((label, index) => <li aria-current={step === index + 1 ? 'step' : undefined} className="group/step flex items-center gap-2 text-muted-foreground aria-[current=step]:font-semibold aria-[current=step]:text-primary-soft-foreground" key={label}>
-          <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-muted text-xs tabular-nums group-aria-[current=step]/step:bg-primary group-aria-[current=step]/step:text-primary-foreground">{index + 1}</span>{label}
+      {/* 1027T-027: 단계 표시는 누르면 그 단계로 간다. '할인·발급 조건'은 [다음]과 같은 확인을 거쳐 펼치고, '대상 설정'은 [대상 설정으로]와 같다. */}
+      {!selected ? <ol aria-label="혜택 등록 단계" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-2.5 py-2 text-sm sm:px-4.5" data-coupon-steps="">
+        {['대상 설정', '할인·발급 조건'].map((label, index) => <li aria-current={step === index + 1 ? 'step' : undefined} className="group/step flex" key={label}>
+          <Button className="h-auto gap-2 px-1.5 py-1 font-normal text-muted-foreground group-aria-[current=step]/step:font-semibold group-aria-[current=step]/step:text-primary-soft-foreground" onClick={index === 0 ? toTargets : next} size="sm" variant="ghost">
+            <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-muted text-xs tabular-nums group-aria-[current=step]/step:bg-primary group-aria-[current=step]/step:text-primary-foreground">{index + 1}</span>{label}
+          </Button>
         </li>)}
       </ol> : null}
       <div className="p-4 sm:p-6"><div className="max-w-xl"><AdminFormGrid>
@@ -294,11 +298,18 @@ function CouponEditor({
         <Button type="button" disabled={pending} onClick={next}>다음: 할인·발급 조건<ArrowRight aria-hidden="true" /></Button>
         <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>취소</Button>
       </div> : <div className="flex flex-wrap items-start justify-center gap-3 border-t p-4 sm:p-5">
-        {!selected ? <Button type="button" variant="outline" disabled={pending} onClick={() => { setStep(1); form.current?.scrollIntoView({ block: 'start' }); }}><ArrowLeft aria-hidden="true" />대상 설정으로</Button> : null}
+        {!selected ? <Button type="button" variant="outline" disabled={pending} onClick={toTargets}><ArrowLeft aria-hidden="true" />대상 설정으로</Button> : null}
         <FormShell pending={pending} state={state} />
       </div>}
     </form>
   );
+}
+
+/** ①(1027T-026): 목록 위 결과 자리. 새 결과(key)마다 화면에 보이게 옮기고 포커스를 둔다 — 확인 창이 닫히며 포커스가 사라지지 않게. */
+function CouponStatusResult({ message }: { message: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest' }); ref.current?.focus({ preventScroll: true }); }, []);
+  return <div className="outline-none" data-coupon-status-result="" ref={ref} tabIndex={-1}><AdminNotice role="status" tone="success">{message}</AdminNotice></div>;
 }
 
 export function CouponSection({
@@ -315,6 +326,9 @@ export function CouponSection({
   mode = 'list',
   copySource,
   initialGrade,
+  savedCode = null,
+  statusResult = null,
+  onStatusResult,
 }: {
   action: (formData: FormData) => void;
   draft: Record<string, string> | null;
@@ -329,11 +343,17 @@ export function CouponSection({
   mode?: 'list' | 'create';
   copySource?: AdminCouponRecord | null;
   initialGrade?: ConfigurableGrade;
+  /** 등록 화면에서 처음 저장하고 옮겨 온 혜택 코드. 다음 저장 결과가 생기기 전까지 맨 위에 저장 결과를 보인다. */
+  savedCode?: string | null;
+  /** 목록 줄에서 바꾼 중지·재개 결과(①). id는 같은 문장이 다시 와도 다시 보이게 하는 순번이다. */
+  statusResult?: { id: number; message: string } | null;
+  onStatusResult?: (message: string) => void;
 }) {
   /* 취소·목록으로는 링크가 아니라 router.replace로 떠나 공용 경고가 클릭을 가로채지 못한다. 같은 확인을 직접 거친다. */
-  const leaveEditor = () => { if (confirmAdminLeave()) onSelect(null); };
+  const leaveEditor = () => { void confirmAdminLeave().then((leave) => { if (leave) onSelect(null); }); };
   if (selected || mode === 'create') return <section className="flex min-w-0 flex-col gap-3">
     {selected || copySource ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 sm:px-6"><h2 className="text-lg font-semibold tracking-tight">{copySource ? '복사한 혜택 설정' : '혜택 정보'}</h2><Button type="button" variant="outline" onClick={leaveEditor}>목록으로</Button></div> : null}
+    {savedCode ? <AdminNotice role="status" tone="success">{savedCode} 쿠폰을 저장했습니다.</AdminNotice> : null}
     <CouponEditor action={action} draft={draft} pending={pending} selected={selected} copySource={copySource} initialGrade={initialGrade} state={state} onCancel={leaveEditor} />
     {selected ? <Link className={buttonVariants({ variant: 'outline', className: 'self-start' })} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(selected.code)}`}>지정 고객·세그먼트 발급</Link> : null}
   </section>;
@@ -342,6 +362,7 @@ export function CouponSection({
     <CouponFilters key={href} filters={filters} />
     {filters.inputError ? <AdminNotice role="alert" tone="danger">{filters.inputError}</AdminNotice> : null}
     {filters.selectedCode ? <AdminNotice role="alert" tone="danger">선택한 쿠폰을 찾을 수 없습니다.</AdminNotice> : null}
+    {statusResult ? <CouponStatusResult key={statusResult.id} message={statusResult.message} /> : null}
     <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
       <div className="flex min-w-0 flex-col gap-3 p-4">
         <ConsoleGrid caption="혜택 목록" preferencesKey="coupons" columns={[
@@ -353,7 +374,7 @@ export function CouponSection({
           coupon.name,
           <CouponPhaseBadge coupon={coupon} key="phase" />,
           coupon.code,
-          <CouponRowActions key={`${coupon.code}-${coupon.termsRevision}-${coupon.status}`} copyHref={`${ADMIN_COUPON_LIST_PATH}/new?copy=${encodeURIComponent(coupon.code)}`} coupon={coupon} issueHref={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(coupon.code)}`} onEdit={() => onSelect(coupon)} />,
+          <CouponRowActions key={`${coupon.code}-${coupon.termsRevision}-${coupon.status}`} copyHref={`${ADMIN_COUPON_LIST_PATH}/new?copy=${encodeURIComponent(coupon.code)}`} coupon={coupon} issueHref={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(coupon.code)}`} onEdit={() => onSelect(coupon)} onStatusChanged={onStatusResult} />,
           coupon.issuanceMode === 'targeted' ? '지정 고객' : coupon.gradeBenefit ? <span key="target">{loyaltyGradeLabel(isLoyaltyGrade(coupon.gradeBenefit) ? coupon.gradeBenefit : 'welcome')} 등급<small className="block text-xs text-muted-foreground">{GRADE_BENEFIT_CADENCE_LABELS[coupon.gradeBenefitCadence ?? 'upgrade']}</small></span> : coupon.recipientSegment === 'first_purchase' ? '첫구매 고객' : coupon.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객',
           <span key="discount">{coupon.benefitKind === 'shipping' ? '배송비 ' : '상품 '}{coupon.discountValue.toLocaleString('ko-KR')}{coupon.discountType === 'percent' ? '%' : '원'}{coupon.maxDiscountAmount ? <small className="block text-xs text-muted-foreground">최대 {coupon.maxDiscountAmount.toLocaleString('ko-KR')}원</small> : null}</span>,
           <CouponPeriod from={coupon.issueStartsAt ?? coupon.startsAt} key="issuePeriod" to={couponIssueEndsAt(coupon)} />,

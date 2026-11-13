@@ -37,15 +37,16 @@ const root: AdminCategoryNode = { id: 'root', code: 'root', name: '문구', pare
 const categories = [root, leaf('a', '가방'), leaf('b', '노트'), leaf('c', '다이어리')];
 const onPrimaryChange = vi.fn();
 let primary = '';
+let categoryList: Parameters<typeof GoodCategoryField>[0]['categories'] = categories;
 
-function render() { hooks.stateIndex = 0; hooks.refIndex = 0; hooks.layoutIndex = 0; return all(GoodCategoryField({ categories, primary, onPrimaryChange })); }
+function render() { hooks.stateIndex = 0; hooks.refIndex = 0; hooks.layoutIndex = 0; return all(GoodCategoryField({ categories: categoryList, primary, onPrimaryChange })); }
 const input = () => render().find((item) => item.props.id === 'good-category-search')!;
 const options = () => render().filter((item) => item.props.role === 'option');
 const listbox = () => render().find((item) => item.props.role === 'listbox');
 const key = (name: string, extra: Record<string, unknown> = {}) => { const preventDefault = vi.fn(); input().props.onKeyDown!({ key: name, preventDefault, keyCode: 0, nativeEvent: { isComposing: false }, ...extra }); return preventDefault; };
 const activeOption = () => options().find((item) => item.props['aria-selected'])?.props.id;
 
-beforeEach(() => { hooks.state = []; hooks.refs = []; hooks.layout = []; onPrimaryChange.mockReset(); primary = ''; });
+beforeEach(() => { hooks.state = []; hooks.refs = []; hooks.layout = []; onPrimaryChange.mockReset(); primary = ''; categoryList = categories; });
 
 /* 사람 눈 시험(2026-11-10): 칸을 누르기만 해도 목록이 폼 사이에 펼쳐져 아래 폼이 316px 밀렸고, ↓/Enter로 고를 수 없었다. */
 describe('대표 카테고리 찾기(combobox)', () => {
@@ -156,6 +157,33 @@ describe('대표 카테고리 찾기(combobox)', () => {
     expect(listbox()).toBeUndefined();
     key('Enter');
     expect(onPrimaryChange).not.toHaveBeenCalled();
+  });
+});
+
+/* 1027T-016(T18): 상품 등록의 카테고리 찾기도 연결된 ERP 분류명으로 찾고, 그렇게 찾은 줄에 근거를 붙인다(CategoryAssignmentField와 같다). */
+describe('대표 카테고리 찾기의 ERP 분류명', () => {
+  const texts = (node: ReactNode): string[] => Array.isArray(node) ? node.flatMap(texts)
+    : typeof node === 'string' || typeof node === 'number' ? [String(node)]
+      : isValidElement<Props>(node) ? texts(node.props.children) : [];
+  const optionText = (index: number) => texts(options()[index]).join('');
+
+  it('연결된 ERP 분류가 있으면 ERP 분류명으로도 찾는다고 알리고, 없으면 예전 안내를 둔다', () => {
+    expect(input().props).toMatchObject({ placeholder: '카테고리명 또는 코드로 찾기' });
+    categoryList = [root, { ...leaf('a', '가방'), erpNames: ['문구>키링'] }, leaf('b', '노트')];
+    expect(input().props).toMatchObject({ placeholder: '카테고리명·코드·ERP 분류명으로 찾기' });
+  });
+
+  it('ERP 분류명으로 찾은 줄에만 근거를 붙인다', () => {
+    categoryList = [root, { ...leaf('a', '가방'), erpNames: ['문구>키링'] }, leaf('b', '노트')];
+    input().props.onChange!({ target: { value: '문구>키링' } });
+    expect(options()).toHaveLength(1);
+    expect(optionText(0)).toContain('code-a'); expect(optionText(0)).toContain(' · ERP 분류 문구>키링');
+    input().props.onChange!({ target: { value: '가방' } });
+    expect(options()).toHaveLength(1);
+    expect(optionText(0)).not.toContain('ERP 분류');
+    input().props.onChange!({ target: { value: '' } });
+    input().props.onClick!();
+    expect(options().map((_, index) => optionText(index)).join('|')).not.toContain('ERP 분류');
   });
 });
 

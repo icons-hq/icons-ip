@@ -30,6 +30,20 @@ describe('상품 공지 관리자 읽기', () => {
       await expect(loadGoodsAnnouncement(ID)).rejects.toThrow('응답');
     }
   });
+  it('목록·상세의 노출 위치를 읽고 위치가 없던 응답은 상단으로 본다', async () => {
+    const row = { id: ID, reference: 1, title: '공지', category: 'general', device: 'all', enabled: true, important: false, allGoods: true,
+      state: 'shown', startsAt: null, endsAt: null, createdAt: '2026-10-12T00:00:00Z', updatedAt: '2026-10-12T00:00:00Z', revision: 1, goodCount: 0 };
+    mocks.rpc.mockResolvedValueOnce({ data: { total: 2, rows: [{ ...row, placement: 'bottom' }, row] }, error: null });
+    expect((await loadGoodsAnnouncements(normalizeGoodsAnnouncementFilters({}))).rows.map(item => item.placement)).toEqual(['bottom', 'top']);
+    mocks.rpc.mockResolvedValueOnce({ data: { total: 1, rows: [{ ...row, placement: 'middle' }] }, error: null });
+    await expect(loadGoodsAnnouncements(normalizeGoodsAnnouncementFilters({}))).rejects.toThrow('불러오지 못했습니다');
+    mocks.rpc.mockResolvedValueOnce({ data: { announcement: { ...blankGoodsAnnouncement(ID), reference: 1, revision: 2, placement: 'bottom' }, popup: blankGoodsAnnouncement(ID).popup }, error: null });
+    expect(await loadGoodsAnnouncement(ID)).toMatchObject({ placement: 'bottom' });
+    const { placement: _omitted, ...withoutPlacement } = { ...blankGoodsAnnouncement(ID), reference: 1, revision: 2 };
+    void _omitted;
+    mocks.rpc.mockResolvedValueOnce({ data: { announcement: withoutPlacement, popup: blankGoodsAnnouncement(ID).popup }, error: null });
+    expect(await loadGoodsAnnouncement(ID)).toMatchObject({ placement: 'top' });
+  });
   it('상품찾기 빈 결과와 잘못된 응답을 구별한다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { total: 0, rows: [], page: 1, pageSize: 20 }, error: null });
     expect(await searchGoodsForAnnouncement('없음', 1)).toEqual({ total: 0, rows: [], page: 1, pageSize: 20 });

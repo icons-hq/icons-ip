@@ -35,6 +35,15 @@ export function goodsSaleUnavailableLabel(period: GoodsSalePeriod | undefined | 
  * 주문서 품목 가운데 판매기간 밖인 굿즈의 안내(QA1 S-D2-11). 공통 '재고 변경' 안내 대신 어떤 굿즈가 왜 주문에서 빠져야 하는지
  * 말한다. 카탈로그 판정(state)과, 화면을 연 뒤 지난 종료 시각(endsAt ≤ now)을 함께 본다. 해당 굿즈가 없으면 null.
  */
+/** 굿즈 하나의 판매기간 판정(끝남·시작 전). 주문서 요약 줄에 '주문할 수 없다'는 상태를 붙일 때 쓴다. */
+export function goodsSalePeriodBlock(good: { salePeriod?: GoodsSalePeriod | null }, now: number = Date.now()): 'ended' | 'scheduled' | null {
+  const period = good.salePeriod;
+  if (!period) return null;
+  const endsAt = period.endsAt ? Date.parse(period.endsAt) : NaN;
+  if (period.state === 'ended' || Number.isFinite(endsAt) && endsAt <= now) return 'ended';
+  return period.state === 'scheduled' ? 'scheduled' : null;
+}
+
 export function goodsSalePeriodOrderNotice(
   goods: readonly { name: string; salePeriod?: GoodsSalePeriod | null }[],
   scope: 'cart' | 'direct',

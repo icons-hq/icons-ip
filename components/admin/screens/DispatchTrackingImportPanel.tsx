@@ -54,6 +54,8 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         const [path, query] = shippingHref.split('?');
         const params = new URLSearchParams(query);
         params.set('registered', String(result.report.succeeded.length));
+        // 분리배송 추가 운송장을 함께 저장했다는 안내가 이동 뒤 화면까지 이어지게 한다(QA2 물류).
+        if (result.report.extraTrackings) params.set('extra', String(result.report.extraTrackings));
         router.push(`${path}?${params}`);
       }
       return result;
@@ -223,14 +225,15 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
             <li>
               <strong className={STRONG}>남양주(서원) 송장양식</strong> — 내려받은 송장양식 오른쪽에 &lsquo;송장번호&rsquo; 열을 두고 번호를 채운 파일입니다.
               서원은 주문번호를 돌려주지 않아 받는분전화번호·주소·품목명·수량으로 배송 건을 찾으므로 이 칸들은 바꾸지 마세요.
-              한 배송 건의 줄은 빠짐없이 같은 송장번호로 채워주세요.
+              한 배송 건의 품목 줄은 빠짐없이 올리고, 줄마다 그 품목이 실린 송장번호를 채워주세요. 부피가 커 나눠 보내 줄마다 송장번호가 다르면
+              가장 앞 줄의 번호가 대표 운송장, 나머지가 추가 운송장으로 함께 등록됩니다(대표 포함 20개까지).
             </li>
           </ul>
           <p className={NOTE}>
             이미 발송된 배송 건의 운송장은 덮어쓰지 않습니다. 같은 회신을 다시 올리면 그대로 두고, 번호가 다르면 실패로 알려드립니다.
             정정은 주문 통합검색의 운송장 수정에서 합니다.
           </p>
-          <p className={NOTE}>합포장은 한 배송 건의 송장을 등록해도 묶음 전체에 적용됩니다. 같은 합포장에 서로 다른 송장이나 오류 행이 있으면 먼저 파일을 수정해주세요. 남양주 원형 회신은 합포장에 포함된 모든 배송 건의 품목 줄을 빠짐없이 올려야 합니다.</p>
+          <p className={NOTE}>합포장은 한 배송 건의 운송장을 등록해도 묶음 전체에 적용됩니다. 같은 합포장에 서로 다른 운송장이나 오류 행이 있으면 먼저 파일을 수정해주세요. 남양주 원형 회신은 합포장에 포함된 모든 배송 건의 품목 줄을 빠짐없이 올려야 합니다.</p>
           {/* WMS 이중 입력 주의(#177). 어드민을 운송장 진실원으로 선언하지 않는다. */}
           <p className={NOTE}>
             창고 WMS가 발행한 운송장을 옮겨 적는 운영 기록입니다. 값이 어긋나면 WMS가 기준입니다.

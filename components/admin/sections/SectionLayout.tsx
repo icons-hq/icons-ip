@@ -40,7 +40,7 @@ export function SectionHeading({ action, description, id, title }: {
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
       <div className="flex min-w-0 flex-col gap-1">
-        <h3 className="text-base leading-snug font-semibold text-foreground" id={id}>{title}</h3>
+        <h2 className="text-base leading-snug font-semibold text-foreground" id={id}>{title}</h2>
         {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {action}
@@ -93,7 +93,7 @@ export function RecordDetailPane({ children, hint, open, prompt }: {
 export function FormGroup({ bare = false, children, hint, title }: { bare?: boolean; children: ReactNode; hint?: string; title: string }) {
   return <section aria-label={title} className={`flex min-w-0 flex-col gap-3${bare ? '' : ' border-t pt-4 first-of-type:border-t-0 first-of-type:pt-0'}`} data-record-form="group">
     <header className="flex flex-col gap-0.5">
-      <h4 className="text-sm leading-snug font-semibold text-foreground">{title}</h4>
+      <h3 className="text-sm leading-snug font-semibold text-foreground">{title}</h3>
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </header>
     {children}

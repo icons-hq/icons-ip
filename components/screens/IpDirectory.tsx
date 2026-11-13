@@ -36,7 +36,7 @@ export function IpDirectory({
   const featured = sorted.filter((ip) => ip.featured).slice(0, FEATURED_LIMIT);
 
   return (
-    <div className="wc-root wc-ipdir">
+    <main className="wc-root wc-ipdir">
       <div className="wc-container">
         <SectionHeading
           as="h1"
@@ -113,6 +113,6 @@ export function IpDirectory({
           </>
         )}
       </div>
-    </div>
+    </main>
   );
 }

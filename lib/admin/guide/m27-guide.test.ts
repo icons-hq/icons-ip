@@ -52,9 +52,9 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(text).not.toContain('사이드바 메뉴 옆 배지');
   });
 
-  it('새 1:1 문의 PC 알림을 켜고 끄는 법이 업무 도구의 실제 버튼 이름과 같다(R2)', () => {
+  it('새 1:1 문의·상품 문의 PC 알림을 켜고 끄는 법이 업무 도구의 실제 버튼 이름과 같다(R2·1027T-002)', () => {
     const notifier = repoFile('components/admin/AdminInquiryNotifier.tsx');
-    for (const label of ['새 1:1 문의 PC 알림', '문의 알림 받기', '문의 알림 끄기']) {
+    for (const label of ['새 1:1 문의·상품 문의 PC 알림', '문의 알림 받기', '문의 알림 끄기']) {
       expect(notifier).toContain(label);
       expect(text).toContain(label);
     }
@@ -156,13 +156,15 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
   const text = guide('goods-sales');
   const section = (id: string) => ADMIN_GUIDE_TOPICS['goods-sales'].sections.find((item) => item.id === id);
 
-  it('등록 화면 한 번에 저장과 저장 뒤 이어서 설정 목록을 안내한다(R13·D6②)', () => {
+  it('등록 화면 한 번에 저장과 저장 뒤 항목(상태를 바꾸는 4개)을 안내한다(R13·D6②·T15b 1027T-024)', () => {
     const editor = repoFile('components/admin/GoodEditor.tsx');
-    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매 입력을 한 번에 저장합니다.');
-    /* 저장 전 운영 항목은 비활성 카드 18장이 아니라 이름 목록 한 장이다(자리표시 카드 제거). */
-    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('저장하면 이어서 설정할 수 있어요');
-    expect(text).toContain('KC·예약판매 입력을 한 번에 저장');
-    expect(text).toContain('저장하면 이어서 설정할 수 있어요');
+    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정');
+    /* T15b: 저장 전에도 나머지 설정을 입력해 함께 저장한다. 저장 뒤에만 하는 것은 재고 조정·옵션 사용·복사·보관이다. */
+    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('상품과 함께 저장할 설정');
+    expect(text).toContain('상품과 함께 저장할 설정 카드의 입력');
+    expect(text).toContain('재고 조정·옵션 사용·복사·보관만 저장한 뒤 같은 자리에서 합니다.');
+    expect(text).toContain('저장 막대에 저장 후 공개가 나오고');
+    expect(text).not.toContain('저장하면 이어서 설정할 수 있어요');
     expect(text).not.toContain('자리표시');
     expect(text).not.toContain('초안 저장 → KC 검토 → 공개');
     expect(text).not.toContain('고정 저장 영역은 기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다.');
@@ -178,9 +180,12 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     for (const label of ['title="구매 제한"', 'legend="최소/최대 구매수량"', 'legend="1인 최대 구매수량"', '<legend>옵션별 구매 제한 (선택)</legend>', '최대 구매수량(주문당)']) {
       expect(fields).toContain(label);
     }
-    for (const label of ['구매 제한 줄', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
+    /* 11/11 ADM-011·1027T-021 결정 "펼친 채로": 구매 제한은 접힌 줄이 아니라 판매기간·예약판매 아래 펼친 소항목이다. */
+    for (const label of ['펼쳐진 구매 제한', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
       expect(text).toContain(label);
     }
+    expect(text).not.toContain('구매 제한 줄');
+    expect(fields).not.toContain('<GoodFoldedRow title="구매 제한"');
     expect(text).not.toContain('판매 조건의 주문당 수량 제한');
     expect(text).toContain(`'옵션명'은 한 번에 N개까지 주문할 수 있습니다.`);
     /* 고객 화면 문구는 옵션명 끝 받침에 맞춰 은/는을 고른다(m27 QA-1). 가이드의 '옵션명'은 받침이 있어 '은'이다. */
@@ -243,7 +248,8 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.every((screen) => screen.navHidden)).toBe(true);
     expect(text).toContain('선택 해제');
-    expect(text).toContain('상품번호를 누르면');
+    expect(text).toContain('상품 URL을 누르면');
+    expect(text).toContain('상품번호나 상품명을 누르면 상품 수정이 열립니다');
     expect(text).toContain('판매대기(시작 전)');
     expect(text).toContain('사이드바에서 숨겼습니다');
   });
@@ -257,8 +263,14 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
   });
 
-  it('품절·소량 재고 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다', () => {
-    expect(text).toContain('재고 조건과 페이지를 제외한 같은 검색 조건으로 계산');
+  it('판매대기·품절·소량 재고·판매중지·판매종료 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다(SHEET-036)', () => {
+    const basis = '품절·소량 재고·판매중지는 판매상태 조건과 페이지를, 판매대기·판매종료는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산';
+    expect(text).toContain(basis);
+    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain(basis.replace('품절·소량 재고·판매중지는', '품절·소량 재고·판매중지 건수는').replace('판매대기·판매종료는', '판매대기·판매종료 건수는'));
+    for (const label of ['판매대기 보기', '판매중지 보기', '판매종료 보기']) {
+      expect(text).toContain(label);
+      expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain(`label: '${label}'`);
+    }
     expect(text).toContain('수량으로 자동 분류하지 않습니다');
     expect(text).toContain('소량 재고 건수에는 들어가지 않습니다');
     expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain('수량으로 자동 분류하지 않습니다');
@@ -288,7 +300,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
 describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R27)', () => {
   it('시작하기의 메뉴 목록이 커머스 콘솔 사이드바 대분류와 같다(R21)', () => {
     const labels = ADMIN_NAV_GROUPS
-      .filter((group) => (group.consoles ?? ['commerce']).includes('commerce') && !['home', 'help'].includes(group.id))
+      .filter((group) => (group.consoles ?? ['shopping']).includes('shopping') && !['home', 'help'].includes(group.id))
       .map((group) => group.label);
     expect(labels).toEqual(expect.arrayContaining(['상품관리', '배송관리', '템플릿 관리']));
     expect(guide('getting-started')).toContain(`메뉴는 ${labels.join(', ')}로 나뉩니다.`);

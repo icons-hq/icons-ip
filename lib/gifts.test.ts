@@ -21,6 +21,30 @@ describe('gift privacy and durable mutation DTO', () => {
   });
 });
 
+/* QNA-019: 나눠 보낸 상자의 추가 운송장은 상자를 받는 수령인 화면에만 온다. 보내는 분 화면에 오면 응답 전체를 버린다. */
+describe('선물 수령인 화면의 추가 운송장', () => {
+  const shipment = { id: '93942000-0000-4000-8000-000000000050', status: 'shipping', shippedAt: '2026-10-15T00:00:00Z', deliveredAt: null, expectedShipDate: null,
+    carrier: 'hanjin', trackingNumber: '123456789012' };
+  const received = { ...gift, party: 'recipient', isRecipient: true, state: 'ordered',
+    order: { id: '93942000-0000-4000-8000-000000000040', status: 'shipping', createdAt: gift.createdAt, expiresAt: null, total: null, paymentMethod: null } };
+  const extras = [{ carrier: 'hanjin', trackingNumber: '223456789012' }, { carrier: 'hanjin', trackingNumber: '323456789012' }];
+  it('수령인은 대표 운송장과 함께 추가 운송장을 받는다(없는 배송 건은 종전 모양 그대로)', () => {
+    expect(parseGiftDetail({ ...received, shipments: [{ ...shipment, extraTrackings: extras }] })?.shipments[0].extraTrackings).toEqual(extras);
+    const plain = parseGiftDetail({ ...received, shipments: [shipment] });
+    expect(plain?.shipments[0]).toEqual(shipment);
+    expect(plain?.shipments[0]).not.toHaveProperty('extraTrackings');
+  });
+  it('보내는 분 화면에 추가 운송장이 오거나 모양이 틀리면 버린다', () => {
+    const sent = { ...received, party: 'sender', isRecipient: false, order: { ...received.order, total: 1000, paymentMethod: 'card' } };
+    expect(parseGiftDetail({ ...sent, shipments: [{ ...shipment, carrier: null, trackingNumber: null }] })).not.toBeNull();
+    expect(parseGiftDetail({ ...sent, shipments: [{ ...shipment, carrier: null, trackingNumber: null, extraTrackings: extras }] })).toBeNull();
+    for (const bad of [[], [{ carrier: 'hanjin' }], [{ ...extras[0], phone: '01000001234' }], [{ carrier: 'hanjin', trackingNumber: '' }],
+      Array.from({ length: 20 }, (_, index) => ({ carrier: 'hanjin', trackingNumber: `9${index}`.padEnd(12, '0') }))]) {
+      expect(parseGiftDetail({ ...received, shipments: [{ ...shipment, extraTrackings: bad }] })).toBeNull();
+    }
+  });
+});
+
 /* m27 CUST-1: 선물은 랜덤 판매 굿즈를 받지 않는다(ADR-0027). */
 describe('랜덤 판매 굿즈와 선물', () => {
   it('DB의 랜덤 판매 거절을 확정 문구로 옮긴다(접미 굿즈 id가 붙어도 같다)', () => {

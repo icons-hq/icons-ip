@@ -8,7 +8,9 @@ import {SEOWON_REPLY_REASONS} from '@/lib/admin/seowon-exchange';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), enqueue: vi.fn(), carriers: vi.fn(), refresh: vi.fn(), origins: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc,
-  from: () => ({ select: () => ({ eq: (_column: string, template: string) => ({ eq: async () => mocks.origins(template) }) }) }) }) }));
+  from: (table: string) => table === 'order_items' || table === 'order_shipment_items'
+    ? (() => { throw new Error(`사용자 세션으로 ${table}를 직접 읽으면 물류 계정은 RLS에 막힌다`); })()
+    : ({ select: () => ({ eq: (_column: string, template: string) => ({ eq: async () => mocks.origins(template) }) }) }) }) }));
 vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: mocks.carriers }));
 vi.mock('@/lib/email/transactional.server',()=>({sendOrderShippedEmail:vi.fn(),sendOrderConfirmationEmail:vi.fn()}));
 vi.mock('@/lib/email/order-shipment-jobs.server', () => ({ enqueueOrderShippedEmails: mocks.enqueue }));
@@ -219,6 +221,32 @@ describe('bulk tracking action', () => {
       expect(result.report?.failed).toEqual([]);
       expect(result.report?.skipped).toBe(1);
     });
+    it('같은 배송 건에 빈 줄이 있어 거절된 채운 줄은 운송장 형식이 아니라 그 이유를 말한다(T22i)',async()=>{
+      mocks.rpc.mockResolvedValue({error:null,data:[
+        {line:2,reference:item,ok:false,error:'invalid_tracking_input'},
+        {line:3,reference:second,ok:false,error:'invalid_tracking_input'},
+      ]});
+      const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
+      expect(result.report?.failed).toEqual([{line:2,reference:item,reason:expect.stringContaining('같은 배송 건에 운송장이 빈 줄이 있어 등록하지 않았습니다')}]);
+      expect(result.report?.failed[0].reason).not.toContain('형식');
+    });
+    it('미리보기는 같은 배송 건에 빈 줄이 있는 채운 줄을 등록할 줄에서 빼 결과와 건수를 맞춘다 — 물류 계정과 주매니저 모두(T22i·QA2)',async()=>{
+      const linkRpc=(shipments:[string,string])=>mocks.rpc.mockImplementation(async(name:string)=>name==='admin_tracking_reply_shipment_links'
+        ?{error:null,data:[{reference:item.toLowerCase(),shipmentId:shipments[0]},{reference:second.toLowerCase(),shipmentId:shipments[1]}]}
+        :{error:{message:'unexpected'},data:null});
+      for(const role of ['logistics','primary'] as const){
+        mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: role }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture(role) });
+        linkRpc(['s1','s1']);
+        const result=await previewAdminOrderTrackingImportAction(csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
+        expect(result.preview).toMatchObject({format:'ICONS 표준 양식',ready:0,skipped:1,issueCount:1});
+        expect(result.preview?.issues[0]).toMatchObject({line:2,reason:expect.stringContaining('같은 배송 건에 운송장이 빈 줄')});
+        expect(mocks.rpc).toHaveBeenCalledWith('admin_tracking_reply_shipment_links',{p_references:expect.arrayContaining([item,second])});
+        // 다른 배송 건이면 그대로 등록할 줄이다.
+        linkRpc(['s1','s2']);
+        const apart=await previewAdminOrderTrackingImportAction(csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
+        expect(apart.preview).toMatchObject({ready:1,skipped:1,issueCount:0});
+      }
+    });
     it('표준 양식 CSV는 256KB를 넘어도 받고, 일반 세 칸 CSV는 종전 한도를 유지하며 그대로 처리한다',async()=>{
       const padding='합성 메시지 '.repeat(50);
       const rows=Array.from({length:300},(_,index)=>`${String(2026102120000000+index+1)},"${padding}",한진택배,123456789012`).join('\r\n');
@@ -277,6 +305,20 @@ describe('bulk tracking action', () => {
     ] });
     expect(result.report?.succeeded).toEqual(['000000A1']);
     expect(result.report?.failed).toEqual([{ line: 4, reference: '전화 끝 5678 · 없는 상품', reason: SEOWON_REPLY_REASONS.notFound }]);
+    expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: seowonOrder, shipmentId: seowonShipment }]);
+  });
+  it('서원 회신의 같은 배송 건 다른 송장번호는 거절하지 않고 대표 + 추가 운송장으로 보낸다(QNA-019)', async () => {
+    mocks.rpc.mockImplementation(async (name: string, args: { target_rows?: { line: number; reference: string; extraTrackingNumbers?: string[] }[] }) => name === 'admin_origin_tracking_candidates'
+      ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [seowonCandidate()], usedTracking: [] } }
+      : { error: null, data: args.target_rows!.map(row => ({ ...row, ok: true, dispatched: true, orderId: seowonOrder, shipmentId: seowonShipment, extraTrackingsAdded: row.extraTrackingNumbers?.length ?? 0 })) });
+    const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([
+      seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, '6012345678902'),
+    ]));
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_import_seowon_tracking_batch', { target_origin_id: seowonOrigin, target_rows: [
+      { line: 2, reference: seowonShipment, carrier: 'epost', trackingNumber: '6012345678901', extraTrackingNumbers: ['6012345678902'] },
+    ] });
+    expect(result.report).toEqual({ succeeded: ['000000A1'], failed: [], extraTrackings: 1 });
+    expect(result.message).toBe('1건의 운송장을 등록했습니다. 분리배송 추가 운송장 1개를 함께 저장했습니다.');
     expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: seowonOrder, shipmentId: seowonShipment }]);
   });
   it('서원 회신에 남은 배송건번호로 배송 건을 정확히 찾고 결과를 배송건번호로 적는다', async () => {

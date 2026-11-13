@@ -30,7 +30,7 @@ export async function verifyInquiryFileAction(id: string): Promise<InquiryFileRe
 }
 export async function loadInquiryFileLibraryAction(): Promise<{ files: InquiryFile[] } | { error: string }> {
   try {
-    if (!await access()) return { error: '상담 권한이 필요합니다.' };
+    if (!await requireAdminActionAccess('/admin/cs/chat', { capability: 'cs.manage', onUnauthenticated: 'error' })) return { error: '상담 권한이 필요합니다. 세션이 끝났다면 다시 로그인해주세요.' };
     const { data, error } = await (await createClient()).rpc('admin_inquiry_file_library');
     if (error || !Array.isArray(data)) return { error: '파일 보관함을 불러오지 못했습니다. 다시 시도해주세요.' };
     const files = data.map(parseInquiryFile);

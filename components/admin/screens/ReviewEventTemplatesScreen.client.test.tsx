@@ -1,5 +1,6 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0, effects: [] as (() => void | (() => void))[] }));
 const mocks = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn() }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
@@ -129,13 +130,13 @@ describe('ReviewEventTemplateEditor (SHEET-017)', () => {
   it('deletes only after confirmation, with the revision it read', async () => {
     const onDeleted = vi.fn();
     const confirm = vi.fn(() => false);
-    vi.stubGlobal('window', { confirm });
+    setAdminConfirmHandler(async (request) => (confirm as unknown as (message: string) => boolean)(request.message));
     mocks.remove.mockResolvedValue({ ok: true, value: { id: template.id } });
-    button(render({ template, onDeleted }), '삭제')!.props.onClick?.();
+    await button(render({ template, onDeleted }), '삭제')!.props.onClick?.();
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('이미 불러와 저장한 이벤트 문구는 바뀌지 않습니다'));
     expect(mocks.remove).not.toHaveBeenCalled();
     confirm.mockReturnValue(true);
-    button(render({ template, onDeleted }), '삭제')!.props.onClick?.(); await settle();
+    await button(render({ template, onDeleted }), '삭제')!.props.onClick?.(); await settle();
     expect(mocks.remove).toHaveBeenCalledExactlyOnceWith(template.id, template.revision, expect.any(String));
     expect(onDeleted).toHaveBeenCalledWith(template.id);
   });
@@ -151,3 +152,5 @@ describe('ReviewEventTemplateEditor (SHEET-017)', () => {
     expect(onReload).toHaveBeenCalled();
   });
 });
+
+afterEach(() => { setAdminConfirmHandler(null); });

@@ -16,6 +16,7 @@ import { publicMediaUrl } from '@/lib/media';
 import { buildGoodPreview } from './good-preview';
 import type { Ip } from '@/lib/data';
 import type { GoodsFulfillmentOrigin } from './fulfillment-origins';
+import type { ReturnAddressOption } from './return-addresses';
 import type { GoodShippingPolicy, ShippingNoticeSnapshot } from '@/lib/fulfillment';
 import { readGoodsClaimPolicy } from './goods-claim-policy';
 import { readAdminGoodsCustomInputs } from './goods-custom-inputs';
@@ -52,6 +53,7 @@ export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminF
     claimReturnFee: selected?.claimPolicy?.returnFee == null ? '' : String(selected.claimPolicy.returnFee),
     claimReturnFreeShippingFee: selected?.claimPolicy?.returnFreeShippingFee == null ? '' : String(selected.claimPolicy.returnFreeShippingFee),
     claimExchangeFee: selected?.claimPolicy?.exchangeFee == null ? '' : String(selected.claimPolicy.exchangeFee),
+    claimReturnAddressId: selected?.returnAddressId ?? '',
     categoryId: selected?.categoryId ?? '',
     additionalCategoryIds: JSON.stringify(selected?.additionalCategoryIds ?? []),
     shippingNoticeTemplate: selected?.shippingNoticeSnapshot ? `${selected.shippingNoticeSnapshot.code}@${selected.shippingNoticeSnapshot.version}` : '',
@@ -104,9 +106,11 @@ export function goodEditorFingerprint(data: FormData): string {
 }
 
 /** All public projections use the same unsaved values, including delivery and comparison price. */
-export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps, origins, shippingNoticeOptions }: {
+export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps, origins, returnAddresses = [], shippingNoticeOptions }: {
   values: Record<string, string>; imageUrls: Record<string, string | null>; selected: AdminGoodRecord | null;
   catalogIps: Ip[]; origins: GoodsFulfillmentOrigin[]; shippingNoticeOptions: Omit<ShippingNoticeSnapshot, 'templateId'>[];
+  /** 반품/교환지 주소록(S36-040). 고른 반품지가 있으면 공개 상세처럼 그 주소를 회수 주소로 보인다. */
+  returnAddresses?: readonly ReturnAddressOption[];
 }) {
   const origin = origins.find(origin => origin.id === values.originId);
   const savedNotice = selected?.shippingNoticeSnapshot;
@@ -117,13 +121,20 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
   const shippingPolicy: GoodShippingPolicy | null = origin ? {
     originId: origin.id, originName: origin.name, baseFee: origin.baseFee, freeThreshold: origin.freeThreshold,
     feeType: (['policy', 'free', 'individual'].includes(values.shippingFeeType) ? values.shippingFeeType : 'policy') as GoodShippingPolicy['feeType'],
-    individualFee: Number(values.individualFee) || 0, returnAddress: origin.returnAddress,
+    individualFee: Number(values.individualFee) || 0,
+    returnAddress: returnAddresses.find(entry => entry.id === values.claimReturnAddressId)?.address ?? origin.returnAddress,
     claimPolicy: readGoodsClaimPolicy(form).value ?? null,
     ...(notice ? { shippingNotice: notice.shippingNotice, returnExchangeNotice: notice.returnExchangeNotice,
+      /* 배송 안내 템플릿의 선택 칸 '도서산간 안내'(T19)도 공개 상세처럼 미리보기에 싣는다. */
+      ...(notice.remoteAreaNotice ? { remoteAreaNotice: notice.remoteAreaNotice } : {}),
       cs: { name: notice.csName, phone: notice.csPhone, email: notice.csEmail } } : {}),
   } : null;
   const ip = catalogIps.find(ip => ip.id === values.ipId) ?? null;
-  const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values, kcDisclosures:selected?.kcDisclosures });
+  /* S36-051: 랜덤 판매 상품은 공개 상세처럼 옵션을 '랜덤' 한 줄로 접고 랜덤 안내를 보인다. 판매 방식은 저장된 값이다(별도 저장 패널). */
+  const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values, kcDisclosures:selected?.kcDisclosures,
+    /* 기타 인증(SHEET-014)도 고객 상세처럼 저장된 공개 사본을 싣는다(KC 고지와 같은 규칙 — 저장 전 입력은 싣지 않는다). */
+    otherCertifications: selected?.otherCertifications,
+    optionSaleMode: selected?.optionSaleMode === 'random' ? 'random' : 'select' });
   const basePrice = preview.good.catalogPrice ?? preview.good.price;
   const compare = Number(values.compareAtPrice);
   const compareAtPrice = Number.isInteger(compare) && compare > basePrice ? compare : null;

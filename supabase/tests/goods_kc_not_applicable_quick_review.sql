@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 -- 2026-10-07 MD 피드백 ①: 상품 전체 KC 해당 없음은 제품군·제도·전 옵션 연결만으로 검토 완료·공개된다.
--- KC 대상 제도의 필수 항목, 옵션 커버리지, 해당 없음의 번호 거절은 그대로다.
+-- KC 대상 제도의 고객 게시 항목, 옵션 커버리지, 해당 없음의 번호 거절은 그대로다.
+-- 2026-11-11 1007-034(ADR-0036): KC 대상은 자가 신고 — 게시 항목과 인증·신고번호만으로 완료·공개되고 내부 검토 근거는 선택이다.
 begin;
 select set_config('request.jwt.claim.sub','',true);
 create function pg_temp.kc_na_expect_error(statement text,expected_message text,expected_code text default null)
@@ -11,6 +12,13 @@ returns void language plpgsql as $$ begin
     return;
   end;
   raise exception 'Expected rejection: %',expected_message;
+end $$;
+-- 거절 메시지와 상세(검토 문제 목록)를 함께 돌려준다. 거절되지 않으면 null.
+create function pg_temp.kc_na_rejection(statement text) returns text language plpgsql as $$
+declare detail text; begin
+  begin execute statement;
+  exception when others then get stacked diagnostics detail = pg_exception_detail; return sqlerrm||'|'||coalesce(detail,''); end;
+  return null;
 end $$;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('00000000-0000-4000-8000-000000100701','authenticated','authenticated','kc-na-staff@example.test',now(),'{}','{}',now(),now());
@@ -29,6 +37,9 @@ insert into public.goods_variants(id,good_id,name,attributes,price,is_default) v
  ('00000000-0000-4000-8000-000000100711','kc-na-good','합성 파랑','{"색상":"파랑"}',1000,false),
  ('00000000-0000-4000-8000-000000100712','kc-na-good','합성 중지','{"색상":"중지"}',1000,false);
 update public.goods_variants set archived_at=now() where id='00000000-0000-4000-8000-000000100712';
+-- SHEET-003(ADR-0037): 공개는 대표 카테고리의 상품 유형 연결을 본다. KC 판정을 보려고 같은 유형이 연결된 합성 카테고리에 붙인다(유형은 그대로).
+select pg_temp.link_goods_type_category_fixture('kc-na-good');
+select pg_temp.link_goods_type_category_fixture('kc-na-other-good');
 select id as na_default from public.goods_variants where good_id='kc-na-good' and is_default \gset
 select id as na_other from public.goods_variants where good_id='kc-na-other-good' and is_default \gset
 
@@ -41,7 +52,7 @@ select jsonb_build_object('family','other','scheme','not_applicable','productCat
  'variantIds',jsonb_build_array(:'na_default','00000000-0000-4000-8000-000000100711'),'basis','',
  'evidence',jsonb_build_object('applicability','','certificate','','testReport','','declaration','')) as na_model \gset
 
--- 같은 최소 입력이라도 KC 대상 제도는 검토 완료를 거절한다.
+-- 같은 최소 입력이라도 KC 대상 제도는 검토 완료를 거절한다(품목·모델·사업자는 고객 게시 항목이라 필수로 남는다).
 select pg_temp.kc_na_expect_error(format('select public.admin_save_goods_kc(%L,%L::jsonb,%L,null,%L,true)','kc-na-good',
  jsonb_build_array(:'na_model'::jsonb||jsonb_build_object('family','living','scheme',scheme))::text,'reviewed',
  :'na_unset'::jsonb->>'contextFingerprint'),'goods_kc_review_incomplete','23514')
@@ -123,4 +134,52 @@ select 1/case when not has_function_privilege('authenticated','private.goods_kc_
  and not has_function_privilege('service_role','private.goods_kc_review_problems(text,jsonb)','execute')
  and has_function_privilege('postgres','private.goods_kc_review_problems(text,jsonb)','execute')
  then 1 else 0 end as assert_review_problems_stays_private;
+
+-- 1007-034(ADR-0036) KC 대상 자가 신고: 제품군·제도·품목·모델·사업자와 인증·신고번호, 사용 옵션 연결만으로
+-- 확인 체크와 함께 검토 완료·공개된다. 내부 검토 근거(판단 사유·근거 참조)는 비워도 된다.
+-- 합성 이미지 경로는 시스템 입력으로 넣는다(로그인 운영자 입력이면 사진 소유 확인을 요구한다).
+select set_config('request.jwt.claim.sub','',true);
+insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
+ notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
+ ('kc-sd-good','kc-na-tests','합성 자가 신고 상품','문구',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
+ '합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000');
+select id as sd_default from public.goods_variants where good_id='kc-sd-good' and is_default \gset
+select pg_temp.link_goods_type_category_fixture('kc-sd-good');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000100701',true);
+select public.admin_read_goods_kc('kc-sd-good') as sd_unset \gset
+select jsonb_build_object('family','living','scheme','safety_confirmation','productCategory','합성 생활용품 분류',
+ 'modelName','TEST-ONLY 자가 신고 모델','businessRole','importer','businessName','합성 수입자','identifier','','publicNote','',
+ 'variantIds',jsonb_build_array(:'sd_default'),'basis','',
+ 'evidence',jsonb_build_object('applicability','','certificate','','testReport','','declaration','')) as sd_model \gset
+-- 대상인데 인증·신고번호가 없으면 검토 완료를 거절하고, 상세에 이유가 남는다.
+select 1/case when pg_temp.kc_na_rejection(format('select public.admin_save_goods_kc(%L,%L::jsonb,%L,null,%L,true)','kc-sd-good',
+   jsonb_build_array(:'sd_model'::jsonb)::text,'reviewed',:'sd_unset'::jsonb->>'contextFingerprint'))
+   like 'goods_kc_review_incomplete|%인증·신고번호가 필요합니다.%' then 1 else 0 end as assert_subject_without_number_rejected_with_reason;
+-- 게시 항목(사업자명)이 비어도 번호가 있든 없든 거절한다.
+select 1/case when pg_temp.kc_na_rejection(format('select public.admin_save_goods_kc(%L,%L::jsonb,%L,null,%L,true)','kc-sd-good',
+   jsonb_build_array(:'sd_model'::jsonb||'{"identifier":"TEST-ONLY-SD-1","businessName":""}'::jsonb)::text,'reviewed',
+   :'sd_unset'::jsonb->>'contextFingerprint'))
+   like 'goods_kc_review_incomplete|%제품군·제도·품목·모델·사업자를 입력해주세요.%' then 1 else 0 end as assert_posting_fields_stay_required;
+-- 번호 없이 미검토로 저장하면 공개가 막히고, 판매 준비에 KC 사유가 남는다.
+select public.admin_save_goods_kc('kc-sd-good',jsonb_build_array(:'sd_model'::jsonb),'unreviewed',null,
+ :'sd_unset'::jsonb->>'contextFingerprint',false) as sd_draft \gset
+select pg_temp.kc_na_expect_error($sql$select public.admin_set_good_published('kc-sd-good',true)$sql$,'goods_kc_review_required','23514');
+select 1/case when public.admin_read_goods_readiness('kc-sd-good')->'reasonCodes' ? 'kc_required'
+ and public.admin_read_goods_readiness('kc-sd-good')->>'publicReview'='required' then 1 else 0 end as assert_draft_without_number_blocks_publish;
+-- 번호만 더하면(근거는 그대로 비움) 확인 체크와 함께 검토 완료되고 공개된다.
+select public.admin_save_goods_kc('kc-sd-good',jsonb_build_array(:'sd_model'::jsonb||'{"identifier":"TEST-ONLY-SD-1"}'::jsonb),'reviewed',
+ (:'sd_draft'::jsonb#>>'{configuration,revision}')::integer,:'sd_draft'::jsonb#>>'{configuration,contextFingerprint}',true) as sd_reviewed \gset
+select 1/case when :'sd_reviewed'::jsonb#>>'{configuration,status}'='reviewed'
+ and public.admin_read_goods_readiness('kc-sd-good')->>'publicReview'='current' then 1 else 0 end as assert_number_without_evidence_reviews;
+select public.admin_set_good_published('kc-sd-good',true);
+select 1/case when (select published_at is not null and jsonb_array_length(kc_disclosures)=1
+   and kc_disclosures#>>'{0,identifier}'='TEST-ONLY-SD-1' and kc_disclosures#>>'{0,businessName}'='합성 수입자'
+   and not (kc_disclosures->0 ? 'basis') and not (kc_disclosures->0 ? 'evidence')
+   from public.goods where id='kc-sd-good') then 1 else 0 end as assert_self_declared_subject_publishes;
+-- 공개 중 KC 잠금은 자가 신고에도 그대로다.
+select public.admin_read_goods_kc('kc-sd-good') as sd_published \gset
+select pg_temp.kc_na_expect_error(format('select public.admin_save_goods_kc(%L,%L::jsonb,%L,%s,%L,false)','kc-sd-good',
+ jsonb_build_array(:'sd_model'::jsonb)::text,'unreviewed',:'sd_published'::jsonb->>'revision',:'sd_published'::jsonb->>'contextFingerprint'),
+ 'goods_kc_published_edit_requires_draft','23514');
 rollback;

@@ -1,14 +1,11 @@
 'use server';
 
-import { hasAdminCapability } from '@/lib/admin/access';
-
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
   normalizeAdminUnpaidReason,
   normalizeAdminUnpaidReasonForm,
 } from '@/lib/admin/unpaid';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -99,11 +96,7 @@ async function recoverConfirmationEmailOnReplay(
 }
 
 async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) {
-    redirect(`/login?next=${encodeURIComponent('/admin/sales/unpaid')}`);
-  }
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return { error: '관리자 권한이 필요합니다.' };
+  if (!await requireAdminActionAccess('/admin/sales/unpaid', { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
   return null;
 }
 

@@ -34,7 +34,7 @@ export function AdminSectionCard({ title, children, id, summary, requirement, st
   >
     <header className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-base leading-snug font-semibold text-foreground">{title}</h3>
+        <h2 className="text-base leading-snug font-semibold text-foreground">{title}</h2>
         {requirement ? <span className="text-xs text-muted-foreground">{requirement}</span> : null}
         {status ? <AdminStatusBadge tone={errorCount ? 'danger' : 'neutral'}>{errorCount ? `오류 ${errorCount}개` : status}</AdminStatusBadge> : null}
       </div>

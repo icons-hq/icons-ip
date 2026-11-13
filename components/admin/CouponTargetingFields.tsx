@@ -20,6 +20,8 @@ const TARGETS = [
   { value: 'targeted', label: '고객지정', Icon: UserCheck },
 ] as const;
 const ROW = 'flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-xs';
+/** 선택한 상품 상한(서버 정규화와 같은 값). 상한에 닿으면 검색 결과의 [선택]이 잠기고 그 이유를 결과 줄에 적는다. */
+const GOODS_LIMIT = 1000;
 
 export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds, targetGoods, errors, showBenefitType = false, issuanceMode = 'code', modeLocked = false, categoryIds = '[]', targetCategories = [], ipIds = '[]', targetIps = [] }: {
   recipientSegment: string; goodsScope: string; targetIds: string; targetGoods: CouponTargetGood[]; errors?: Record<string, string | undefined>;
@@ -42,9 +44,9 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
     <AdminFormGrid>
       <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">타겟팅 대상</legend><div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
         {TARGETS.map(option => <label className="relative flex min-h-[90px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-muted has-[:disabled]:cursor-default has-[:disabled]:opacity-55 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-selected:border-primary data-selected:bg-primary-soft data-selected:text-primary-soft-foreground data-selected:ring-1 data-selected:ring-primary sm:w-[116px] forced-colors:data-selected:outline-2" key={option.value} data-selected={segment === option.value || undefined}>
-          <input className="sr-only" name="couponTargetChoice" type="radio" value={option.value} checked={segment === option.value} disabled={modeLocked && (option.value === 'targeted') !== (issuanceMode === 'targeted')} onChange={() => setSegment(option.value)} /><option.Icon aria-hidden="true" className="size-7" /><span>{option.label}</span>
+          <input aria-describedby={modeLocked ? 'coupon-target-locked' : undefined} className="sr-only" name="couponTargetChoice" type="radio" value={option.value} checked={segment === option.value} disabled={modeLocked && (option.value === 'targeted') !== (issuanceMode === 'targeted')} onChange={() => setSegment(option.value)} /><option.Icon aria-hidden="true" className="size-7" /><span>{option.label}</span>
         </label>)}
-      </div>{errors?.recipientSegment || errors?.issuanceMode ? <p className="mt-2 text-sm text-destructive" role="alert">{errors.recipientSegment || errors.issuanceMode}</p> : null}</fieldset>
+      </div>{modeLocked ? <p className="mt-2 text-xs leading-relaxed text-muted-foreground" id="coupon-target-locked">{issuanceMode === 'targeted' ? '이미 발급한 고객지정 혜택이라 다른 타겟팅 대상으로 바꿀 수 없습니다.' : '이미 발급한 혜택이라 고객지정으로 바꿀 수 없습니다. 고객지정 혜택은 새로 등록해주세요.'}</p> : null}{errors?.recipientSegment || errors?.issuanceMode ? <p className="mt-2 text-sm text-destructive" role="alert">{errors.recipientSegment || errors.issuanceMode}</p> : null}</fieldset>
       <input name="recipientSegment" type="hidden" value={segment === 'targeted' ? 'all' : segment} />
       <input name="issuanceMode" type="hidden" value={segment === 'targeted' ? 'targeted' : 'code'} />
       {showBenefitType ? <div className="flex flex-col gap-2 text-sm"><span className="font-medium">혜택종류</span><span>쿠폰</span></div> : null}
@@ -56,15 +58,15 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
     {segment === 'targeted' ? <AdminNotice tone="info">저장 후 고객이나 세그먼트를 선택하고 발급 대상을 확인합니다. 직접 발급된 고객만 사용할 수 있으며, 코드 입력으로 새로 받을 수 없습니다.</AdminNotice> : null}
     <p className="text-xs leading-relaxed text-muted-foreground">{adminGoodsCopy("첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 스토어 정책과 각 쿠폰의 중복 사용 조건을 따릅니다.")}</p>
     {scope === 'selected_goods' ? <>
-      <AdminField inputId="coupon-goods-query" label="대상 상품명·상품코드 검색" error={errors?.targetGoodIds}>
+      <AdminField inputId="coupon-goods-query" label="대상 상품명·판매자상품코드 검색" error={errors?.targetGoodIds}>
         <Input id="coupon-goods-query" type="search" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} />
       </AdminField>
       <Button className="self-start" type="button" variant="outline" disabled={pending} onClick={() => search()}>상품 찾기</Button>
       <p className="text-xs leading-relaxed text-muted-foreground">선택 {selected.length}개 · 이 상품들의 기간 할인 후 소계에만 최소금액과 할인을 적용합니다.</p>
       {selected.length ? <ul className="grid gap-2">{selected.map(good => <li className={ROW} key={good.id}><span className="min-w-0 [overflow-wrap:anywhere]">{good.code} · {good.name}{good.archivedAt ? ' (보관 상품)' : ''}</span> <Button className="shrink-0" type="button" size="xs" variant="outline" onClick={() => setSelected(items => items.filter(item => item.id !== good.id))}>제외</Button></li>)}</ul> : null}
       {result?.ok ? <>
-        <p className="text-xs text-muted-foreground" role="status">검색 결과 전체 {result.total}개 · {result.page}페이지</p>
-        <ul className="grid gap-2">{result.items.map(good => <li className={ROW} key={good.id}><span className="min-w-0 [overflow-wrap:anywhere]">{good.code} · {good.name}</span> <Button className="shrink-0" type="button" size="xs" variant="outline" disabled={selected.some(item => item.id === good.id) || selected.length >= 1000} onClick={() => setSelected(items => [...items, good])}>선택</Button></li>)}</ul>
+        <p className="text-xs text-muted-foreground" role="status">검색 결과 전체 {result.total}개 · {result.page}페이지{selected.length >= GOODS_LIMIT ? ` · 상품은 ${GOODS_LIMIT.toLocaleString('ko-KR')}개까지 고를 수 있습니다.` : ''}</p>
+        <ul className="grid gap-2">{result.items.map(good => { const picked = selected.some(item => item.id === good.id); return <li className={ROW} key={good.id}><span className="min-w-0 [overflow-wrap:anywhere]">{good.code} · {good.name}</span> <Button className="shrink-0" type="button" size="xs" variant="outline" disabled={picked || selected.length >= GOODS_LIMIT} onClick={() => setSelected(items => [...items, good])}>{picked ? '선택됨' : '선택'}</Button></li>; })}</ul>
         <ConsolePagination label="상품 검색 결과 페이지" page={result.page} pageSize={result.pageSize} total={result.total} unit="개" disabled={pending} onPageChange={search} />
       </> : result ? <p className="text-sm text-destructive" role="alert">{result.error}</p> : null}
     </> : null}

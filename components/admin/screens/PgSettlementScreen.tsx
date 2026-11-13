@@ -50,7 +50,7 @@ const TOTAL_COLUMNS: ConsoleGridColumn[] = [
   { key: 'amount', label: '거래금액', align: 'end' }, { key: 'fee', label: '수수료', align: 'end' }, { key: 'payout', label: '지급액', align: 'end' },
 ];
 function TransactionDetails({ row }: { row: PgSettlementTransaction }) {
-  return <details className="min-w-50 text-xs"><summary className="cursor-pointer underline-offset-4 hover:underline">상세 보기</summary><dl className="mt-3 grid gap-2">
+  return <details className="min-w-50 text-xs"><summary className="cursor-pointer underline-offset-4 hover:underline">상세</summary><dl className="mt-3 grid gap-2">
     <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>승인 시각</dt><dd className={DETAIL_VALUE}>{formatOrderDateTime(row.approvedAt)}</dd></div>
     {row.canceledAt ? <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>취소 시각</dt><dd className={DETAIL_VALUE}>{formatOrderDateTime(row.canceledAt)}</dd></div> : null}
     {row.cancelAmount !== null ? <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>취소금액</dt><dd className={DETAIL_VALUE}>{AMOUNT(row.cancelAmount)}</dd></div> : null}
@@ -94,7 +94,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           options={[{ value: '', label: '계정을 선택해주세요' }, ...accounts.filter(account => account.mode === filters.mode).map(account => ({ value: settlementAccountKey(account), label: account.label }))]} /></SalesFilterField>
         <SalesFilterField label="조회기간" htmlFor="pg-settlement-date-field">
           <SalesSelect id="pg-settlement-date-field" name="dateField" value={filters.dateType} options={[{ value: 'paidOutDate', label: '정산 지급일' }, { value: 'soldDate', label: '정산 매출일' }]} />
-          <div className="flex items-center gap-1.5"><Input className="w-36" type="date" name="from" aria-label="조회 시작일" defaultValue={filters.startDate} required /><span aria-hidden="true" className="text-muted-foreground">~</span><Input className="w-36" type="date" name="to" aria-label="조회 종료일" defaultValue={filters.endDate} required /></div>
+          <div className="flex flex-wrap items-center gap-1.5"><Input className="w-36" type="date" name="from" aria-label="조회 시작일" defaultValue={filters.startDate} required /><span aria-hidden="true" className="text-muted-foreground">~</span><Input className="w-36" type="date" name="to" aria-label="조회 종료일" defaultValue={filters.endDate} required /></div>
           <span className={NOTE}>최대 31일</span>
         </SalesFilterField>
         <SalesFilterField label="상세조건" htmlFor="pg-settlement-query">
@@ -104,7 +104,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
         </SalesFilterField>
         <SalesFilterField label="자료 구분" htmlFor="pg-settlement-mode">
           <SalesSelect id="pg-settlement-mode" name="mode" value={filters.mode} options={[{ value: 'live', label: '실거래 자료' }, { value: 'test', label: '테스트 자료' }]} />
-          <label className="flex items-center gap-2">통화<Input className="w-20" name="currency" aria-label="통화 코드" maxLength={3} pattern="[A-Z]{3}|" defaultValue={filters.currency} placeholder="전체" /></label>
+          <label className="flex items-center gap-2">통화<Input className="w-28" name="currency" aria-label="통화 코드" maxLength={3} pattern="[A-Z]{3}|" defaultValue={filters.currency} placeholder="전체" /></label>
           <SalesSelect name="pageSize" label="목록 수" value={String(filters.pageSize)} options={[20, 50, 100].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} />
         </SalesFilterField>
         {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}

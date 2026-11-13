@@ -1,5 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import type { AdminCategoryNode } from '@/lib/admin/category';
 
 const hooks = vi.hoisted(() => ({
@@ -11,6 +13,7 @@ const hooks = vi.hoisted(() => ({
   save: vi.fn(),
   saveMany: vi.fn(),
   leaveGuard: vi.fn(),
+  workspace: null as null | { registerUnlinked: (handler: (() => void) | null) => void },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -23,6 +26,9 @@ vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
+    /* 화면 연결(ErpItemsWorkspace)은 시험이 hooks.workspace로 줄 때만 있고, 그때 등록 효과를 바로 실행한다. */
+    useContext: () => hooks.workspace,
+    useEffect: (effect: () => unknown) => { if (hooks.workspace) effect(); },
     useMemo: (factory: () => unknown) => factory(),
     useRef: (current: unknown) => ({ current }),
     useState: (initial: unknown) => {
@@ -93,6 +99,8 @@ beforeEach(() => {
   hooks.save.mockReset();
   hooks.saveMany.mockReset();
   hooks.leaveGuard.mockReset();
+  hooks.workspace = null;
+  setAdminConfirmHandler(null);
   vi.unstubAllGlobals();
 });
 
@@ -169,6 +177,30 @@ describe('ERP 분류 연결 표', () => {
     expect(text(panel)).toContain('연결 필요만');
     const tree = await renderRow({ rows: pathRows });
     expect(text(tree)).toContain('같은 경로의 ‘문구 > 키링’ 카테고리에 자동으로 연결됩니다. 다른 카테고리를 쓰려면 골라 저장해주세요.');
+  });
+
+  /* 1027T-016: 반입 결과의 '미연결 분류 N건 — 연결하기'가 이 표를 연결 필요만 보이게 열고 그 자리로 옮긴다. */
+  it('반입 결과의 연결하기는 검색어를 비우고 연결 필요만 보이게 표를 연다', () => {
+    const handlers: (() => void)[] = [];
+    hooks.workspace = { registerUnlinked: (handler) => { if (handler) handlers.push(handler); } };
+    const scrolled = vi.fn();
+    const focused = vi.fn();
+    vi.stubGlobal('document', { getElementById: (id: string) => id === 'erp-category-mapping' ? { scrollIntoView: scrolled, focus: focused } : null });
+    const pathRows: Row[] = [
+      { erpCategory: '문구>키링', itemCount: 2, categoryId: null, updatedAt: null, fallbackCategoryId: KEYRING },
+      { erpCategory: '문구>스티커', itemCount: 1, categoryId: null, updatedAt: null, fallbackCategoryId: null },
+    ];
+    const render = () => { hooks.stateIndex = 0; return ErpCategoryMappingPanel({ rows: pathRows, categories, categoryErpMappings: [] }); };
+    const filter = (panel: ReactNode) => find(panel, (element) => (element.props as { id?: string }).id === 'erp-category-filter')[0].props as unknown as { value: string; onChange: (event: { target: { value: string } }) => void };
+    filter(render()).onChange({ target: { value: '키링' } });
+    expect(find(render(), (element) => Boolean(element.props.row)).map((element) => element.props.row?.erpCategory)).toEqual(['문구>키링']);
+    expect(handlers.length).toBeGreaterThan(0);
+    handlers.at(-1)?.();
+    const panel = render();
+    expect(filter(panel).value).toBe('');
+    expect(find(panel, (element) => Boolean(element.props.row)).map((element) => element.props.row?.erpCategory)).toEqual(['문구>스티커']);
+    expect(scrolled).toHaveBeenCalledWith({ block: 'start' });
+    expect(focused).toHaveBeenCalledWith({ preventScroll: true });
   });
 
   it('고른 말단의 정본 ERP 분류 매핑이 이 ERP 분류와 다르면 저장 전에 경고한다', async () => {
@@ -383,11 +415,11 @@ describe('ERP 분류 일괄 연결', () => {
   };
   const box = (tree: ReactNode) => find(tree, (element) => element.type === 'input' && (element.props as { type?: string }).type === 'checkbox')[0];
   const submit = async (panel: ReactNode, name: 'link' | 'unlink') => {
-    bulkForm(panel).props.onSubmit({ preventDefault: () => undefined, nativeEvent: { submitter: { name } } });
+    await bulkForm(panel).props.onSubmit({ preventDefault: () => undefined, nativeEvent: { submitter: { name } } });
     await Promise.all(hooks.pending.splice(0));
   };
   const statusLine = (panel: ReactNode) => text(find(panel, (element) => (element.props as { role?: string }).role === 'status' && element.type === 'p')[0]);
-  const stubConfirm = (answer: boolean) => { const confirm = vi.fn<(message: string) => boolean>(() => answer); vi.stubGlobal('window', { confirm }); return confirm; };
+  const stubConfirm = (answer: boolean) => stubAdminConfirm(answer);
   const okResult = (changed: number, message = '저장했습니다.') => ({ ok: true, changed, unchanged: 0, rejected: [], message });
 
   it('체크한 행을 고른 카테고리로 한 번에 연결하고 표에 바로 반영한다', async () => {
@@ -657,17 +689,17 @@ describe('ERP 분류 일괄 연결', () => {
     expect(button(panel, '제안대로 2건 연결')).toBeDefined();
     rowOf(panel, '문구 > 키링').onDraftChange('문구 > 키링', PHOTO);
     panel = render(rowsWithSuggestion);
-    button(panel, '제안대로 1건 연결').props.onClick?.();
+    await button(panel, '제안대로 1건 연결').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(confirm.mock.calls[0][0]).toContain('ERP 분류 1건을 연결할까요?');
     expect(hooks.saveMany).toHaveBeenCalledWith([{ erpCategory: '문구 > 포토카드', categoryId: PHOTO }]);
     expect(find(render(rowsWithSuggestion), (element) => isButton(element) && text(element).includes('제안대로'))).toHaveLength(0);
   });
 
-  it('제안 일괄 저장을 취소하면 보내지 않는다', () => {
+  it('제안 일괄 저장을 취소하면 보내지 않는다', async () => {
     stubConfirm(false);
     const panel = render([needLink('문구 > 포토카드')]);
-    button(panel, '제안대로 1건 연결').props.onClick?.();
+    await button(panel, '제안대로 1건 연결').props.onClick?.();
     expect(hooks.saveMany).not.toHaveBeenCalled();
   });
 
@@ -701,7 +733,7 @@ describe('ERP 분류 일괄 연결', () => {
       return (element.type as (props: Props) => ReactNode)(element.props);
     };
     stubConfirm(true);
-    button(draw(), '제안대로 1건 연결').props.onClick?.();
+    await button(draw(), '제안대로 1건 연결').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(hooks.saveMany).toHaveBeenCalledWith([{ erpCategory: 'zz 분류1', categoryId: KEYRING }]);
     expect(find(drawRow(), (element) => isSelect(element))[0].props.value).toBe(KEYRING);

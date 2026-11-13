@@ -159,6 +159,19 @@ describe('GoodDetail', () => {
     expect(embedded).not.toContain('review-highlight-marker');
   });
 
+  /* 1027T-005: '상세 하단' 공지는 상세정보 탭의 상세설명(설명·상세 이미지) 바로 아래, 상단 공지는 지금처럼 탭 위다. */
+  it('상세 하단 공지 슬롯은 상세설명 바로 아래에 두고 상단 공지 자리는 그대로다', () => {
+    const html = renderToStaticMarkup(<GoodDetail detail={{ ...detail, description: '상세설명-본문-표식', detailImageUrl: 'https://example.test/detail.jpg' }}
+      announcements={<p>top-announcement-marker</p>} bottomAnnouncements={<p>bottom-announcement-marker</p>} />);
+    const tabs = html.indexOf('class="wc-pdp-tabs"');
+    expect(html.indexOf('top-announcement-marker')).toBeLessThan(tabs);
+    expect(html.indexOf('bottom-announcement-marker')).toBeGreaterThan(tabs);
+    expect(html.indexOf('상세설명-본문-표식')).toBeLessThan(html.indexOf('bottom-announcement-marker'));
+    expect(html.indexOf('detail.jpg')).toBeLessThan(html.indexOf('bottom-announcement-marker'));
+    expect(html.indexOf('bottom-announcement-marker')).toBeLessThan(html.indexOf('pdp-inquiry-heading'));
+    expect(html.match(/bottom-announcement-marker/g)).toHaveLength(1);
+  });
+
   it('HTML 설명은 문서 요소를 표시하고 실행 코드와 유해 링크를 제거한다', () => {
     const html = render({ descriptionFormat: 'html', description: '<h2>구성품</h2><p>키링 <strong>2개</strong></p><ul><li>보관 안내</li></ul><table><tbody><tr><th>소재</th><td>아크릴</td></tr></tbody></table><script>window.attacked=1</script><a href="javascript:alert(1)" onclick="alert(2)">위험 링크</a><a href="https://iconsip.com/legal/shipping">배송 안내</a>' });
     expect(html).toContain('<h2>구성품</h2>');

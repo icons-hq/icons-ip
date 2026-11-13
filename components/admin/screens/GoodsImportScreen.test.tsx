@@ -104,7 +104,7 @@ describe('goods workbook confirmation screen', () => {
 describe('상품 일괄등록 순서와 주의', () => {
   it('덮어쓰기 주의는 주의 상자로, 몇 단계 중 어디인지는 순서 표시로 보이고 양식 내려받기는 첫 단계 안에 있다', () => {
     const html = renderToStaticMarkup(<GoodsImportScreen />);
-    expect(html).toMatch(/data-admin-notice="warning"[\s\S]*?상품코드가 같으면 기존 상품을 수정합니다/);
+    expect(html).toMatch(/data-admin-notice="warning"[\s\S]*?상품번호나 판매자상품코드가 같으면 기존 상품을 수정합니다/);
     expect(html).toMatch(/<ol aria-label="진행 순서"[\s\S]*?<li aria-current="step"[\s\S]*?파일 올리기[\s\S]*?검증 결과 확인·적용[\s\S]*?<\/ol>/);
     expect(html.indexOf('mode=template')).toBeGreaterThan(html.indexOf('1. 파일 올리기'));
     const done = renderToStaticMarkup(<GoodsImportScreen initialView={view} />);
@@ -130,7 +130,7 @@ describe('사방넷 상품 양식 화면', () => {
     expect(html).toContain('사방넷 상품 파일');
     expect(html).toContain('열 확인');
     expect(html).toContain('실패 행은 ICONS 양식으로 내려받으며');
-    expect(html).toContain('이미 등록된 상품코드 행은 넣지 않습니다');
+    expect(html).toContain('이미 등록된 판매자상품코드 행은 넣지 않습니다');
     expect(html).not.toContain('상품 XLSX');
   });
 

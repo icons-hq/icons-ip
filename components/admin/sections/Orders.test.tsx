@@ -21,6 +21,8 @@ const orderActions = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/admin/order-actions', () => orderActions);
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('@/app/admin/shipment-tracking-actions', () => ({ addShipmentExtraTrackingAction: vi.fn(), removeShipmentExtraTrackingAction: vi.fn() }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const SHIPMENT_ID = '00000000-0000-4000-8000-000000044701';
@@ -299,7 +301,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('aria-label="검색 유형"');
     expect(html).toContain('name="field"');
-    expect(html).toContain('<option value="recipient">수취인</option>');
+    expect(html).toContain('<option value="recipient">수령인</option>');
     expect(html).toContain('<option value="tracking" selected="">운송장번호</option>');
     expect(html).toContain('placeholder="검색어를 입력하세요"');
   });
@@ -612,7 +614,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('data-order-row-reason');
-    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 청약철회 상품 하자·오배송"`);
+    expect(html).toContain(`aria-label="처리 주문 ${ORDER_ID.slice(0, 8)} · 청약철회 상품 하자·오배송"`);
     expect(html).toContain('상품 하자·오배송');
     expect(html).toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 3개월');
@@ -646,7 +648,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
     expect(html).toContain('data-order-reason="staff"');
-    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 운영자 전액 취소 · 품절·출고 불가"`);
+    expect(html).toContain(`aria-label="처리 주문 ${ORDER_ID.slice(0, 8)} · 운영자 전액 취소 · 품절·출고 불가"`);
     expect(html).not.toContain('단순 변심');
     expect(html).not.toContain('공급받은 날부터 7일');
     expect(html).toContain('운영자가 시작한 발송 전 전액 취소');
@@ -710,7 +712,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).not.toContain('data-order-row-reason');
-    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)}"`);
+    expect(html).toContain(`aria-label="처리 주문 ${ORDER_ID.slice(0, 8)}"`);
     // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
     expect(html).toContain('data-order-reason="defect"');
   });
@@ -734,14 +736,27 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('123456789012');
     expect(html).toContain('운송장 수정');
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 수정</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 저장</);
+    expect(html).toMatch(/<details[^>]*data-tracking-edit=""><summary[^>]*>운송장 수정<svg/);
     expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
+  });
+
+  it('운송장 수정 아래에서 배송 건의 추가 운송장을 보고 고친다(QNA-019)', () => {
+    const none = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture()] })} />);
+    expect(none).toMatch(/<details class="group rounded-lg border px-3 py-2"><summary[^>]*>추가 운송장<svg/);
+    expect(none).toContain('붙은 추가 운송장이 없습니다.');
+    const extra = { id: '00000000-0000-4000-8000-0000000000e1', carrier: 'hanjin', carrierLabel: '한진택배', trackingNumber: '223456789012', trackingUrl: 'https://carrier.example.test/track?no=223456789012' };
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture({ extraTrackings: [extra] })] })} />);
+    expect(html).toMatch(/<details class="group rounded-lg border px-3 py-2" open=""><summary[^>]*>추가 운송장 1개<svg/);
+    expect(html).toContain('223456789012');
+    expect(html).toContain('추가 운송장 저장');
   });
 
   it('배송 전 주문에는 운송장 수정 폼을 노출하지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
     expect(html).not.toContain('운송장 수정');
+    expect(html).not.toContain('추가 운송장');
   });
   it('퀵·방문수령은 운송장을 요구하지 않고 필터를 보존한 주문 상세 인계 확인으로 연결한다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture({
@@ -880,11 +895,11 @@ describe('OrdersSection', () => {
 describe('주문 통합검색 목록 엑셀 다운로드', () => {
   it('적용된 검색 조건 그대로의 다운로드 주소를 필터 옆에 둔다', () => {
     const data = orderData();
-    data.filters = { ...data.filters, field: 'recipient', query: '배송 수취인', status: 'paid', from: '2026-10-01', page: 3 };
+    data.filters = { ...data.filters, field: 'recipient', query: '배송 수령인', status: 'paid', from: '2026-10-01', page: 3 };
     data.total = 57;
     const html = renderToStaticMarkup(<OrdersSection data={data} />);
     expect(html).toContain('목록 엑셀 다운로드');
-    expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EC%B7%A8%EC%9D%B8&amp;field=recipient"');
+    expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EB%A0%B9%EC%9D%B8&amp;field=recipient"');
     expect(html).toContain('전체 57건을 받습니다');
     expect(html.indexOf('data-sales-filters')).toBeGreaterThan(-1);
     expect(html.indexOf('data-sales-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
@@ -893,7 +908,7 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
 
 it('query-only mode offers order search without any processing controls', () => {
   const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'paid' })} canManage={false} />);
-  expect(html).toContain('상세 보기');
+  expect(html).toContain('상세');
   for (const text of ['선택 주문 발주확인', '배송 건별 운송장 등록', '판매자 직접 반품·교환 접수', '결제·환불', 'href="/admin/sales/dispatch"']) expect(html).not.toContain(text);
 });
 
@@ -1085,7 +1100,7 @@ describe('운영자 전액 취소 제출 순서', () => {
     const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
     const confirm = vi.fn(() => true);
 
-    const plan = planOrderCancellationSubmit(
+    const plan = await planOrderCancellationSubmit(
       staffForm({ reasonCode: 'other', note: '짧음' }),
       confirmation,
       confirm,
@@ -1100,7 +1115,7 @@ describe('운영자 전액 취소 제출 순서', () => {
     const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
     const confirm = vi.fn(() => true);
 
-    const plan = planOrderCancellationSubmit(
+    const plan = await planOrderCancellationSubmit(
       staffForm({ reasonCode: 'out_of_stock', note: '' }),
       confirmation,
       confirm,
@@ -1118,17 +1133,17 @@ describe('운영자 전액 취소 제출 순서', () => {
     const form = staffForm({ reasonCode: 'test_payment_cleanup', warehouseStopConfirmed: 'confirmed' });
 
     const accepted = vi.fn(() => true);
-    expect(planOrderCancellationSubmit(form, confirmation, accepted, validate)).toEqual({ kind: 'dispatch' });
+    expect(await planOrderCancellationSubmit(form, confirmation, accepted, validate)).toEqual({ kind: 'dispatch' });
     expect(accepted).toHaveBeenCalledWith(confirmation);
 
     const declined = vi.fn(() => false);
-    expect(planOrderCancellationSubmit(form, confirmation, declined, validate)).toEqual({ kind: 'dismissed' });
+    expect(await planOrderCancellationSubmit(form, confirmation, declined, validate)).toEqual({ kind: 'dismissed' });
   });
 
   it('검사기가 없는 양식은 확인 창만 거친다', async () => {
     const { planOrderCancellationSubmit } = await import('./Orders');
     const confirm = vi.fn(() => true);
-    expect(planOrderCancellationSubmit(new FormData(), confirmation, confirm)).toEqual({ kind: 'dispatch' });
+    expect(await planOrderCancellationSubmit(new FormData(), confirmation, confirm)).toEqual({ kind: 'dispatch' });
     expect(confirm).toHaveBeenCalledOnce();
   });
 

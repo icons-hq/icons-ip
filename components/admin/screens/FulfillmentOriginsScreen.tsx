@@ -74,7 +74,7 @@ export function GoodsOriginSummaryScreen({ origins }: { origins: GoodsFulfillmen
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2"><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 배송비</dt><dd className="tabular-nums">{origin.baseFee.toLocaleString('ko-KR')}원</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">무료배송 기준</dt><dd className="tabular-nums">{origin.freeThreshold === null ? '미설정' : `${origin.freeThreshold.toLocaleString('ko-KR')}원 이상`}</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 택배사</dt><dd>{origin.defaultCarrier ?? '미설정'}</dd></div><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">반품 주소</dt><dd className="[overflow-wrap:anywhere]">{origin.returnAddress || '미설정'}</dd></div></dl>
-      {origin.returnAddress ? null : <AdminNotice tone="warning">반품 주소가 없으면 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice>}
+      {origin.returnAddress ? null : <AdminNotice tone="warning">반품 주소가 없으면 반품/교환지를 고르지 않은 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice>}
     </AdminSectionCard>)}
   </div>;
 }

@@ -23,9 +23,9 @@ export const SALES_ORDER_SEARCH_FIELDS = [
   { value: 'order', label: '주문번호' },
   { value: 'nickname', label: '구매자명' },
   { value: 'email', label: '이메일' },
-  { value: 'recipient', label: '수취인' },
+  { value: 'recipient', label: '수령인' },
   { value: 'tracking', label: '운송장번호' },
-  { value: 'phone', label: '수취인 연락처' },
+  { value: 'phone', label: '수령인 연락처' },
   { value: 'product', label: '상품명 · 옵션' },
 ] as const;
 export type SalesOrderSearchField = (typeof SALES_ORDER_SEARCH_FIELDS)[number]['value'];
@@ -41,7 +41,7 @@ export function salesPage(value: string | string[] | undefined, pageSize: number
 }
 export function normalizeSalesListOptions(
   params: SearchParams,
-  defaultPageSize = 20,
+  defaultPageSize = 50,
   defaultSort: SalesListSort = 'newest',
   pageSizes: readonly number[] = SALES_PAGE_SIZES,
 ): SalesListOptions {

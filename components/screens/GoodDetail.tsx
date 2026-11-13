@@ -145,6 +145,8 @@ export interface GoodDetailViewProps {
   detail: GoodDetailContent;
   shippingPolicy?: GoodShippingPolicy | null;
   announcements?: ReactNode;
+  /** 상품공지사항 중 '상세 하단' 위치 — 상세정보 탭의 상세설명(설명·상세 이미지) 바로 아래에 둔다(1027T-005). */
+  bottomAnnouncements?: ReactNode;
   promotionBanner?: ReactNode;
   reviewEventBanner?: ReactNode;
   reviewHighlights?: ReactNode;
@@ -185,6 +187,7 @@ export function GoodDetailView({
   detail,
   shippingPolicy,
   announcements,
+  bottomAnnouncements,
   promotionBanner,
   reviewEventBanner,
   reviewHighlights,
@@ -336,8 +339,9 @@ export function GoodDetailView({
             /* eslint-disable-next-line @next/next/no-img-element */
             <img alt={`${good.name} 상세 이미지`} className="wc-pdp-panel__image" src={detail.detailImageUrl} />
           ) : null}
+          {bottomAnnouncements}
           {ip ? <GoodIpStory ip={ip} /> : null}
-          <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} />
+          <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} otherCertifications={detail.otherCertifications ?? []} />
           <InquiryEntry goodId={good.id} />
           {reviewEventBanner}
           {ip ? <GoodIpCard className="wc-pdp-ipcard--panel" ip={ip} /> : null}

@@ -19,7 +19,7 @@ export function SalesDateRange({ id, from, to, now }: { id: string; from: string
         aria-pressed={isConsoleDateRangeActive(preset.range, range)}
         onClick={() => setRange(preset.range)}>{preset.label}</button>)}
     </div>
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       {/* 말풍선 대신 아래 빨간 문구 하나로 알린다. 제약이 남아 있어 잘못된 기간은 제출되지 않는다. */}
       <Input className="w-32" aria-label="시작일" aria-invalid={invalid || undefined} aria-describedby={invalid ? errorId : undefined}
         id={`${id}-from`} name="from" type="date" max={range.to || undefined} value={range.from} onChange={event => setRange({ ...range, from: event.target.value })} onInvalid={event => event.preventDefault()} />

@@ -33,7 +33,7 @@ export async function readDeliveryPoliciesAction(originId: unknown): Promise<{ o
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '배송 방식 정책을 불러오지 못했습니다.' }; }
 }
 export async function saveDeliveryPolicyAction(form: FormData): Promise<Saved | Failure> {
-  if (!await requireAdminActionAccess('/admin/settings/origins', { adminOnly: true, capability: 'platform.manage' })) return { ok: false, error: '배송 방식 정책은 관리자만 저장할 수 있습니다.' };
+  if (!await requireAdminActionAccess('/admin/settings/origins', { adminOnly: true, capability: 'platform.manage' })) return { ok: false, error: '배송 방식 정책은 최고 관리자만 저장할 수 있습니다.' };
   const originId = form.get('originId'); const policyId = nullableUuid(form.get('policyId'));
   const expectedRevision = revision(form.get('revision')); const method = form.get('method');
   const delegate = form.get('allowDelegate');

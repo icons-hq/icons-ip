@@ -141,14 +141,14 @@ describe('Orders', () => {
       );
       expect(html).toContain('장바구니는 그대로 있으니');
       /* 그 주문의 결제 화면에서 그 주문의 줄로만 주문서 초안을 만든다 — 초안 없는 /checkout(장바구니 전체)이 아니다(ADR-0030). */
-      expect(html).toContain(`href="/checkout/${orderId}"`);
+      expect(html).toContain(`href="/checkout/${orderId}?retry=1"`);
       expect(html).not.toContain('href="/checkout"');
       expect(html).not.toContain('주문 정리하고 다시 주문하기');
       /* QA1 S-D2-15: 취소된 장바구니 주문도 모든 줄이 체크된 장바구니가 아니라 그 주문의 결제 화면('다시 결제하기')으로 간다. */
       const canceled = renderToStaticMarkup(
         <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'canceled', cartRetained: true }} />,
       );
-      expect(canceled).toContain(`href="/checkout/${orderId}">다시 결제하기</a>`);
+      expect(canceled).toContain(`href="/checkout/${orderId}?retry=1">다시 결제하기</a>`);
       expect(canceled).not.toContain('href="/cart"');
       expect(canceled).not.toContain('같은 굿즈 다시 담기');
     });
@@ -309,7 +309,7 @@ describe('Orders 다시 결제 진입', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'pending',
       retry: { source: 'cart', awaitingPayment: true, paymentUnresolved: false, baseGoodId: null, retryOrderId: null } })]} />);
     expect(html).toContain('>결제 대기</span>');
-    expect(html).toContain(`<a class="btn btn-holo btn-sm" href="/checkout/${id}">다시 결제하기</a>`);
+    expect(html).toContain(`<a class="btn btn-holo btn-sm" href="/checkout/${id}?retry=1">다시 결제하기</a>`);
     expect(html).toContain(`<a class="btn btn-ghost btn-sm" href="/orders/${id}#order-cancellation">주문 취소</a>`);
   });
 
@@ -344,6 +344,13 @@ describe('Orders 다시 결제 진입', () => {
       retry: { source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: '22222222-2222-4222-8222-222222222222' } })]} />);
     expect(reordered).toContain('href="/orders/22222222-2222-4222-8222-222222222222">다시 주문한 주문 보기</a>');
     expect(reordered).not.toContain('다시 구매하기');
+  });
+
+  it('이미 다시 결제한 장바구니 취소 주문은 다시 결제하기 대신 그 주문으로 잇는다(T22i)', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'canceled',
+      retry: { source: 'cart', awaitingPayment: false, paymentUnresolved: false, baseGoodId: null, retryOrderId: '22222222-2222-4222-8222-222222222222' } })]} />);
+    expect(html).toContain('href="/orders/22222222-2222-4222-8222-222222222222">다시 주문한 주문 보기</a>');
+    expect(html).not.toContain('다시 결제하기');
   });
 
   it('다시 결제 진입이 없는 주문은 그대로다', () => {

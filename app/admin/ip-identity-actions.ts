@@ -9,7 +9,7 @@ import {
   type AdminFormValuesState,
 } from '@/lib/admin/form-state';
 import { ipWorkspaceHref } from '@/lib/admin/ip-workspace';
-import { normalizeIpPublicSlug, validateIpPublicSlug } from '@/lib/ip-identity';
+import { IP_PUBLIC_SLUG_ERROR_MESSAGES, normalizeIpPublicSlug, validateIpPublicSlug } from '@/lib/ip-identity';
 import { createClient } from '@/lib/supabase/server';
 import { NOTICE_STRIP_CACHE_TAG } from '@/lib/notice-strip.server';
 
@@ -45,9 +45,7 @@ function normalizeIdentityForm(formData: FormData):
 
   if (!INTERNAL_ID_PATTERN.test(id)) errors.id = '올바른 내부 IP ID가 필요합니다.';
   const slugError = validateIpPublicSlug(publicSlug);
-  if (slugError === 'required') errors.publicSlug = '공개 URL을 입력해주세요.';
-  if (slugError === 'format') errors.publicSlug = '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.';
-  if (slugError === 'reserved') errors.publicSlug = '이 공개 URL은 시스템 경로로 예약되어 있습니다.';
+  if (slugError) errors.publicSlug = IP_PUBLIC_SLUG_ERROR_MESSAGES[slugError];
   /* expectedPublicSlug is a concurrency token, not a newly chosen slug. Keep
      legacy values (long, trailing-hyphen, or now-reserved) usable so an old
      IP can still be renamed to a valid current slug. */
@@ -64,7 +62,7 @@ function identityRpcError(error: { code?: unknown; message?: unknown }) {
   const descriptor = `${code} ${message}`;
 
   if (descriptor.includes('ip_public_slug_taken') || descriptor.includes('public_slug_taken')) {
-    return '이미 사용 중인 공개 URL입니다. 다른 슬러그를 입력해주세요.';
+    return '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.';
   }
   if (descriptor.includes('ip_public_slug_conflict') || descriptor.includes('public_slug_conflict')) return STALE_ERROR;
   if (descriptor.includes('catalog_not_found') || descriptor.includes('ip_not_found')) {

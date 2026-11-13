@@ -106,7 +106,7 @@ export function StatsSection({ title, titleId, actions, children, className = ''
 }) {
   return <section aria-labelledby={rest['aria-label'] ? undefined : titleId} className={`flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground ${className}`} data-console-list="" {...rest}>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-base leading-snug font-medium" id={titleId}>{title}</h3>
+      <h2 className="text-base leading-snug font-medium" id={titleId}>{title}</h2>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
     {children}

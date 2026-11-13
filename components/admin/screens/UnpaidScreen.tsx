@@ -96,7 +96,7 @@ export function UnpaidScreen({
       </SalesGuide>
       <SalesFilterPanel currentHref={currentHref} id="sales-unpaid" search={{ value: filters.query, name: 'q', placeholder: '입금확인코드 · 주문번호 · 구매자' }}>
         <SalesFilterField label="결제상태" htmlFor="sales-unpaid-state"><SalesSelect id="sales-unpaid-state" name="state" value={filters.state ?? ''}
-          options={[{value:'',label:'전체'},{value:'prepared',label:'입금 대기'},{value:'confirming',label:'확정 처리중'},{value:'needs_review',label:'정합화 필요'},{value:'unknown',label:'결과 불명'},{value:'missing',label:'원장 없음'}]} /></SalesFilterField>
+          options={[{value:'',label:'전체'},{value:'prepared',label:'입금 대기'},{value:'confirming',label:'확정 처리중'},{value:'needs_review',label:'결제 확인 필요'},{value:'unknown',label:'결제 확인 필요(결과 미확인)'},{value:'missing',label:'결제 기록 없음'}]} /></SalesFilterField>
       </SalesFilterPanel>
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
       <SalesResultsHeader currentHref={currentHref} total={total} pageSize={pageSize} sort={filters.sort ?? 'oldest'}

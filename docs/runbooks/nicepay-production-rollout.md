@@ -124,7 +124,10 @@ AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint�
     콜백이 실어 온 TID가 다른 주문의 것일 수 있어서다.
   - TID가 여럿이면 `needs_review`(`provider_reference_ambiguous`).
 - **환불**(`refund`): 취소 오케스트레이터가 원장 `payment_key`(TID)를 넘긴다. 전액 취소만
-  보낸다(`PartialCancelCode=0`). 취소 전 조회 → 취소 → 취소 후 조회를 함께 보고, 취소
+  보낸다(`PartialCancelCode=0`). 부분 취소 요청(반품배송비 차감, [ADR-0031](../adr/0031-return-fee-deduction-partial-refund.md))은
+  부분 취소 계약 전이고 거래조회가 잔액을 주지 않아 호출 없이 `provider_partial_cancel_unavailable`로 돌려준다 —
+  나이스페이 결제의 단순 변심 반품은 차감하지 않고 전액 환불한다. 부분 취소를 켜려면 계약 확인 뒤 잔액 검증
+  방법(거래 내역 조회 등)을 정해 어댑터를 따로 고친다. 취소 전 조회 → 취소 → 취소 후 조회를 함께 보고, 취소
   응답(`2001`·`2211` + 서명 일치, 또는 `2013`·`2015`·`2219` 이미 취소)과 사후 조회 `Status=1`이
   맞을 때만 승인한다. 취소 거절 코드는 `needs_review`(`provider_cancel_rejected`)다. 한글
   취소 사유는 EUC-KR 인코딩을 피하려고 `ICONS order cancellation`으로 바꿔 보낸다.

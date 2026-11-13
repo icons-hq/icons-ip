@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { customerServicePageSize } from './customer-service-list';
 import { REVIEW_BEST_LABELS, REVIEW_BEST_STATES, type ReviewBestState, type ReviewBestStatus } from '../review-best';
@@ -20,7 +21,7 @@ import {
  * 값으로 좁히는 일뿐이다 — 그대로 RPC에 넘기면 어드민 화면이 임의 입력의 통로가 된다.
  */
 
-export const ADMIN_REVIEW_PAGE_SIZE = 20;
+export const ADMIN_REVIEW_PAGE_SIZE = 50;
 
 export type AdminReviewStatusFilter = ReviewStatus | 'all';
 export type AdminReviewRatingFilter = 'all' | '1' | '2' | '3' | '4' | '5';
@@ -152,7 +153,6 @@ export const EMPTY_ADMIN_REVIEW_COUNTS: AdminReviewCounts = {
 type SearchParamValue = string | string[] | undefined;
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUS_FILTERS = new Set<string>(['all', ...REVIEW_STATUSES]);
 const RATING_FILTERS = new Set<string>(['all', ...REVIEW_RATINGS.map(String)]);
 const TERNARY_FILTERS = new Set<string>(['all', 'with', 'without']);
@@ -216,7 +216,7 @@ export function normalizeAdminReviewFilters(
     query: rawQuery.length <= 100 ? rawQuery : '',
     field: SEARCH_FIELDS.has(rawField) ? rawField as AdminReviewSearchField : 'all',
     sort: SORTS.has(rawSort) ? rawSort as AdminReviewSort : 'recent',
-    reviewId: UUID_PATTERN.test(rawReviewId) ? rawReviewId : null,
+    reviewId: isUuid(rawReviewId) ? rawReviewId : null,
     page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
     pageSize: customerServicePageSize(searchParams.pageSize),
   };

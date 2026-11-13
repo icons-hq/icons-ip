@@ -11,7 +11,7 @@ import {
   type AdminGoodsPurchaseCost, type PurchaseCostChange,
 } from '@/lib/admin/goods-purchase-costs';
 
-const ADMIN_REQUIRED = '매입단가는 관리자 계정에서만 조회·수정할 수 있습니다.';
+const ADMIN_REQUIRED = '공급가(매입단가)는 관리자 계정에서만 조회·수정할 수 있습니다.';
 type Failure = { ok: false; error: string };
 function goodId(value: unknown) {
   const id = typeof value === 'string' ? value.trim() : '';
@@ -28,10 +28,10 @@ export async function listGoodsPurchaseCostsAction(goodIdValue: unknown): Promis
     const client = await createClient();
     const { data, error } = await client.rpc('admin_list_goods_variant_purchase_costs', { p_good_id: id });
     const costs = error ? null : parseAdminPurchaseCosts(data);
-    return costs ? { ok: true, costs } : { ok: false, error: '매입단가를 불러오지 못했습니다. 다시 시도해주세요.' };
+    return costs ? { ok: true, costs } : { ok: false, error: '공급가(매입단가)를 불러오지 못했습니다. 다시 시도해주세요.' };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: '매입단가를 불러오지 못했습니다. 다시 시도해주세요.' };
+    return { ok: false, error: '공급가(매입단가)를 불러오지 못했습니다. 다시 시도해주세요.' };
   }
 }
 
@@ -51,10 +51,10 @@ export async function listGoodsPurchaseCostHistoryAction(goodIdValue: unknown, v
     });
     const history = error ? null : parsePurchaseCostHistory(data);
     return history ? { ok: true, history, hasMore: history.length === 50 && (history.at(-1)?.revision ?? 0) > 1 }
-      : { ok: false, error: '매입단가 변경 이력을 불러오지 못했습니다.' };
+      : { ok: false, error: '공급가(매입단가) 변경 이력을 불러오지 못했습니다.' };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: '매입단가 변경 이력을 불러오지 못했습니다. 다시 시도해주세요.' };
+    return { ok: false, error: '공급가(매입단가) 변경 이력을 불러오지 못했습니다. 다시 시도해주세요.' };
   }
 }
 
@@ -67,7 +67,7 @@ export async function saveGoodsPurchaseCostAction(formData: FormData): Promise<{
   const cost = parsePurchaseCostInput({ unitCostKrw: formData.get('unitCostKrw'), taxBasis: formData.get('taxBasis') });
   if (!id || !isUuid(variantId) || !cost || (rawRevision && (!/^[1-9]\d*$/.test(rawRevision)
     || !Number.isSafeInteger(revision) || revision! > 2147483647))) {
-    return { ok: false, error: '매입단가(원 단위 정수)와 세금 구분을 함께 입력해주세요. 해제하려면 두 값을 모두 비워주세요.' };
+    return { ok: false, error: '공급가(매입단가) 금액(원 단위 정수)과 세금 구분을 함께 입력해주세요. 해제하려면 두 값을 모두 비워주세요.' };
   }
   try {
     const client = await createClient();
@@ -77,15 +77,15 @@ export async function saveGoodsPurchaseCostAction(formData: FormData): Promise<{
     });
     if (error) {
       return { ok: false, error: error.message.includes('goods_purchase_cost_changed')
-        ? '매입단가 정보가 변경되었습니다. 목록을 새로고침하고 다시 확인해주세요.'
+        ? '공급가(매입단가) 정보가 변경되었습니다. 목록을 새로고침하고 다시 확인해주세요.'
         : error.message.includes('purchase_cost_admin_required') ? ADMIN_REQUIRED
-          : '매입단가를 저장하지 못했습니다. 금액과 세금 구분을 확인해주세요.' };
+          : '공급가(매입단가)를 저장하지 못했습니다. 금액과 세금 구분을 확인해주세요.' };
     }
     if (!data || typeof data.changed !== 'boolean') return { ok: false, error: '저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.' };
     revalidatePath('/admin/catalog/goods');
-    return { ok: true, message: cost.unitCostKrw === null ? '매입단가를 미설정 상태로 저장했습니다.' : '매입단가와 세금 구분을 저장했습니다.' };
+    return { ok: true, message: cost.unitCostKrw === null ? '공급가(매입단가)를 미설정 상태로 저장했습니다.' : '공급가(매입단가)와 세금 구분을 저장했습니다.' };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: '매입단가를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.' };
+    return { ok: false, error: '공급가(매입단가)를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.' };
   }
 }

@@ -24,7 +24,8 @@ import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { GOODS_LINE_UNAVAILABLE_MESSAGE, goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
-import { goodsSalePeriodOrderNotice } from '@/lib/goods-sale-period';
+import { goodsSalePeriodBlock, goodsSalePeriodOrderNotice } from '@/lib/goods-sale-period';
+import { QuoteUnavailableRefresh } from '@/components/shop/QuoteUnavailableRefresh';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
@@ -106,6 +107,7 @@ const DRAFT_RETURN_ERRORS = new Set<string>(['cart_changed', 'checkout_draft_exp
   'empty_cart', 'out_of_stock', 'goods_sale_not_open', 'preorder_sale_not_open', 'preorder_capacity_exceeded', 'option_order_limit_exceeded',
   'option_member_limit_exceeded', 'random_option_unavailable', 'random_option_limit_exceeded', 'member_purchase_limit_exceeded',
   'order_quantity_above_maximum', 'order_quantity_below_minimum', 'adult_verification_required']);
+const SALE_PERIOD_REJECTIONS = new Set<string>(['goods_sale_not_open']);
 const STOCK_CHANGED_COPY = '재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.';
 
 interface CheckoutProps {
@@ -218,6 +220,8 @@ export function Checkout({
   /* 쿠폰 칸의 변경 액션이 진행 중이면 결제를 잠근다(R25) — 끝나기 전의 주문은 이전 쿠폰으로 나가 거절된다. */
   const [couponPending, setCouponPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  /* 접수 거절 코드. 판매기간 거절이면 굿즈 이름을 말하는 한 줄 안내(salePeriodNotice)가 일반 문구를 대신한다(T22i·QA1c S-D2-11). */
+  const [submitErrorCode, setSubmitErrorCode] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState(false);
   /* 초안 주문이 장바구니 변경·초안 만료로 거절되면 고른 화면(장바구니·상품 상세)으로 돌아가는 링크를 붙인다. */
   const [draftReturnNeeded, setDraftReturnNeeded] = useState(false);
@@ -288,6 +292,10 @@ export function Checkout({
   ));
   /* 판매기간이 끝났거나 시작 전인 굿즈는 공통 '재고 변경' 안내 대신 그 굿즈와 이유를 말한다(QA1 S-D2-11). 주문은 지금처럼 잠긴다. */
   const salePeriodNotice = goodsSalePeriodOrderNotice(lines.flatMap(({ good }) => (good ? [good] : [])), direct ? 'direct' : 'cart');
+  /* 주문서가 스스로 재견적해 줄이 주문 불가가 됐는데 카탈로그의 판매기간은 옛 값이면(운영자가 종료 시각을 앞당긴 경우 등) 서버 속성을 한 번 다시 읽어
+     위 안내를 띄운다. 일반 '재고 변경' 문구는 그 안내가 없을 때만 남는다(QA2 S-W1m-02). */
+  const quoteUnavailableSignature = salePeriodNotice ? null
+    : [...new Set((shipping.sales?.lines ?? []).filter((line) => !line.available).map((line) => line.goodId))].sort().join(',') || null;
   /* 결제 대기 주문 해소 안내(ADR-0030)의 원인 조건 — 그 굿즈(옵션)를 담은 주문(재고·회원 누적 한도), 그 쿠폰을 쓴 주문(쿠폰 사용),
      첫구매 예약만 모든 결제 대기 주문(견적 사유·주문 생성의 첫구매 거절). 재고가 모자란 굿즈는 본인 결제 대기 주문이 잡고 있을 수 있다. */
   const stockGoodIds = [...new Set([
@@ -383,6 +391,7 @@ export function Checkout({
 
     setSubmitting(true);
     setSubmitError(null);
+    setSubmitErrorCode(null);
     setPendingOrder(false);
     setDraftReturnNeeded(false);
     checkoutKey.current ??= crypto.randomUUID();
@@ -397,6 +406,9 @@ export function Checkout({
     }
     if (!result.ok) {
       if(result.error==='cart_changed') await refresh();
+      setSubmitErrorCode(result.error);
+      /* 주문서를 연 뒤 판매기간이 바뀌었으면 카탈로그를 다시 읽어 그 굿즈 이름을 알린다. */
+      if (SALE_PERIOD_REJECTIONS.has(result.error)) router.refresh();
       setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.'
         : draft?.source === 'selection' && result.error === 'cart_changed' ? SELECTION_CART_CHANGED_COPY
           : direct && result.error === 'checkout_draft_expired' ? DIRECT_DRAFT_EXPIRED_COPY
@@ -468,6 +480,7 @@ export function Checkout({
     <main className="wc-root wc-receipt checkout-page">
       {/* 주문서를 연 채 판매기간이 끝나거나 시작되면 카탈로그를 다시 읽어 그 굿즈를 바로 알린다(QA1 S-D2-11, 장바구니와 같은 경계). */}
       <GoodsSalePeriodRefresh goods={lines.flatMap((line) => (line.good ? [line.good] : []))} />
+      <QuoteUnavailableRefresh signature={quoteUnavailableSignature} />
       <header className="wc-receipt__head">
         <div className="wrap">
           <h1 className="wc-receipt__title">배송지와 결제 금액을 확인해주세요</h1>
@@ -488,13 +501,18 @@ export function Checkout({
             <div>
               <h2 id="shipping-title">배송지</h2>
               <p>{prefillNotice ?? '수령에 필요한 정보만 주문에 안전하게 저장합니다.'}</p>
-              <p>원화(KRW) 결제·국내 배송만 제공합니다. 국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.</p>
+              {/* 1014-020 '너무 정보가 많아요' — 법정 고지가 아닌 설명은 한 줄 요약만 보이고 펼쳐 읽는다. */}
+              <details className="checkout-note">
+                <summary>국내 배송·원화 결제만 제공해요</summary>
+                <p>원화(KRW) 결제·국내 배송만 제공합니다. 국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.</p>
+              </details>
             </div>
           </div>
 
           <CheckoutAddressBook address={address} book={addressPrefill.book} disabled={submitting} onAddressErrors={setFieldErrors} onPick={pickAddressBookEntry} />
 
-          <div className="checkout-fields">
+          {/* 문의 런처가 입력칸 오른쪽 끝을 가리지 않게, 이 칸들과 겹치는 동안은 런처를 비켜 둔다(QA2b minor 5). */}
+          <div className="checkout-fields" data-inquiry-avoid="">
             <label>
               <span>받는 분</span>
               <input id="checkout-recipientName" required autoComplete="name" maxLength={50} aria-invalid={Boolean(fieldErrors.recipientName)} aria-describedby={fieldErrors.recipientName ? 'checkout-recipientName-error' : undefined} value={address.recipientName} onChange={(event) => setField('recipientName', event.target.value)} />
@@ -529,14 +547,16 @@ export function Checkout({
           </div>
         </section>
 
-        <aside className="checkout-summary card" aria-label="최종 주문 요약">
+        <aside className="checkout-summary card" aria-label="최종 주문 요약" data-inquiry-avoid="">
           <div className="checkout-section-heading checkout-section-heading--compact">
             <span className="checkout-step mono">02</span>
             <h2>주문 확인</h2>
           </div>
           <div className="checkout-items">
-            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply,customInputs, optionLimitMessage }) => (
-              <div className="checkout-item" key={cartItemKey(goodId, variantId,customInputs)}>
+            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply,customInputs, optionLimitMessage }) => {
+              const saleBlock = good ? goodsSalePeriodBlock(good) : null;
+              return (
+              <div className="checkout-item" data-sale-period-block={saleBlock ?? undefined} key={cartItemKey(goodId, variantId,customInputs)}>
                 <div>
                   <span>{ip?.title ?? 'ICONS'} · {good?.type ?? '판매 종료'}</span>
                   <strong>{good?.name ?? goodId}</strong>
@@ -545,10 +565,12 @@ export function Checkout({
                   {good && goodsCustomInputProblem(good.customInputs,customInputs) && <span>{goodsCustomInputProblem(good.customInputs,customInputs)}</span>}
                   {supply?.mode === 'preorder' ? <span>예약판매 · {goodsShipDateLabel(supply.expectedShipDate)}</span> : null}
                   {optionLimitMessage ? <span>{optionLimitMessage}</span> : null}
+                  {saleBlock ? <span role="status"><strong>{saleBlock === 'ended' ? '판매기간이 끝나 지금은 주문할 수 없어요' : '아직 판매 전이라 지금은 주문할 수 없어요'}</strong></span> : null}
                 </div>
                 <span className="mono">{qty} × {krw(good?.price ?? 0)}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
           <dl className="checkout-totals">
             <div><dt>굿즈 금액</dt><dd>{krw(subtotal)}</dd></div>
@@ -556,7 +578,7 @@ export function Checkout({
             <div><dt>{couponLabel}</dt><dd>−{krw(couponDiscount)}</dd></div>
             {usedStoreCredits > 0 && <div><dt>적립금 사용</dt><dd>−{krw(usedStoreCredits)}</dd></div>}
             <div><dt>배송비</dt><dd>{shippingReady ? shippingFeeLabel(shippingFee) : shipping.quote ? '배송지 확인 후 확정' : '확인 중'}</dd></div>
-            <div className="checkout-total"><dt>결제 금액</dt><dd>{shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
+            <div className="checkout-total"><dt>결제 금액</dt><dd>{salePeriodNotice ? '주문할 수 없는 굿즈를 뺀 뒤 표시' : shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
           </dl>
 
           {direct ? (
@@ -588,7 +610,10 @@ export function Checkout({
               ? !shippingReady ? `보유 ${krw(credits.quote.available)} · 사용 한도는 배송지 확인 후 안내합니다.`
                 : `보유 ${krw(credits.quote.available)} · 이 주문에서 최대 ${krw(credits.quote.maxUse)} 사용 가능${credits.quote.minUse ? ` · 최소 ${krw(credits.quote.minUse)}` : ''}`
               : '현재 적립금 사용을 준비 중입니다.'}</p> : <p className="checkout-credit__note" id="checkout-credit-note">적립금 잔액과 이 주문의 사용 조건을 확인합니다.</p>}
-            <p className="money-caption">1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.</p>
+            <details className="checkout-note">
+              <summary>적립금 사용 기준</summary>
+              <p>1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.</p>
+            </details>
             {credits.loading ? <p role="status">적립금 사용 조건을 확인하고 있어요.</p> : null}
             {credits.error ? <p role="alert">{credits.error} <button type="button" onClick={credits.refresh}>다시 조회</button></p> : null}
             {creditProblem ? <p className="checkout-error" role="alert">{creditProblem}</p> : null}
@@ -644,14 +669,16 @@ export function Checkout({
               </span>
             </label>
           </fieldset>
-          <p className="money-caption" id="checkout-method-note">
-            결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.
-          </p>
+          {/* 결제수단 칸(aria-describedby)은 접힌 안내도 설명으로 읽는다. 펼쳐 볼 수 있게 접기만 한다(1014-020). */}
+          <details className="checkout-note">
+            <summary>결제수단 변경 안내</summary>
+            <p id="checkout-method-note">결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.</p>
+          </details>
 
           {(unavailable || salePeriodNotice) && <p className="checkout-error" role="alert">{salePeriodNotice ?? copyFor(STOCK_CHANGED_COPY)}
             {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
-          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
+          {submitError && !(salePeriodNotice && submitErrorCode && SALE_PERIOD_REJECTIONS.has(submitErrorCode)) && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
             {blockingOrderId ? <> <Link href={`/orders/${encodeURIComponent(blockingOrderId)}`}>주문 보기</Link></> : null}
             {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {/* 결제 대기 주문(다른 탭의 바로구매·장바구니 주문)이 쿠폰·구매 한도·재고를 잡고 있을 수 있다 — 주문서를 열기만 해서는 그

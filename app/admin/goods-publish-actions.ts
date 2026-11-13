@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
+import { GOOD_TYPE_CATEGORY_MESSAGES } from '@/lib/admin/good-workspace';
 
 export type GoodPublishActionState = { message?: string; error?: string };
 export async function setAdminGoodPublishedAction(_previous: GoodPublishActionState, data: FormData): Promise<GoodPublishActionState> {
@@ -19,6 +20,8 @@ export async function setAdminGoodPublishedAction(_previous: GoodPublishActionSt
     const { error } = await client.rpc('admin_set_good_published', { target_id: id, target_published: target === 'true' });
     if (error) return { error: error.message.includes('goods_kc_')
       ? "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다."
+      : error.message.includes('goods_type_category_required') ? GOOD_TYPE_CATEGORY_MESSAGES.required
+      : error.message.includes('goods_type_category_changed') ? GOOD_TYPE_CATEGORY_MESSAGES.changed
       : error.message.includes('goods_publish_incomplete')
       ? '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.'
       : error.message.includes('catalog_item_archived') ? '보관된 상품은 복원한 뒤 공개해주세요.' : '게시 상태를 변경하지 못했습니다. 최신 상품을 확인해주세요.' };

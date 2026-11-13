@@ -220,9 +220,10 @@ function stockAdjustmentForm() {
   return formData;
 }
 
+/* 새 IP 등록 폼(S36-003): 사람은 이름·공개 URL만 넣고 내부 ID는 DB가 발급한다. */
 function ipForm() {
   const formData = new FormData();
-  formData.set('id', 'hwasan');
+  formData.set('publicSlug', 'hwasan');
   formData.set('title', '화산강림');
   formData.set('sub', '리디 · 로판');
   formData.set('verticalKey', 'rofan');
@@ -231,6 +232,15 @@ function ipForm() {
   formData.set('glyph', '화산');
   formData.set('featured', 'on');
   formData.set('fansCount', '42');
+  return formData;
+}
+
+/* 기존 IP 기본 정보 수정 폼: 고른 내부 ID(previousId)와 읽기 전용 내부 ID를 보낸다. */
+function ipEditForm() {
+  const formData = ipForm();
+  formData.delete('publicSlug');
+  formData.set('previousId', 'hwasan');
+  formData.set('id', 'hwasan');
   return formData;
 }
 
@@ -474,8 +484,54 @@ describe('admin catalog actions', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('calls the admin IP RPC without overwriting the fan count cache', async () => {
+  /* S36-003 · ADR-0039 — 새 IP는 내부 ID를 보내지 않고, DB가 공개 URL로 발급한 ID를 돌려받는다. */
+  it('creates a new IP by public URL and returns the system-issued internal ID', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'hwasan-2', error: null });
     await expect(upsertAdminIpAction({}, ipForm())).resolves.toEqual({
+      message: 'IP를 등록했습니다.',
+      savedIpId: 'hwasan-2',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_create_ip', {
+      target_public_slug: 'hwasan',
+      target_title: '화산강림',
+      target_sub: '리디 · 로판',
+      target_vertical_key: 'rofan',
+      target_tagline: '매화는 다시 핀다',
+      target_synopsis: '화산파의 부활',
+      target_glyph: '화산',
+      target_bg: null,
+      target_image_path: null,
+      target_publish: null,
+    });
+    const paths = mocks.revalidatePath.mock.calls.map(([path]) => path);
+    expect(paths).toEqual(expect.arrayContaining(['/ip/hwasan-2', '/ip/hwasan', '/admin/catalog/ips', '/admin/catalog/ips/hwasan-2']));
+  });
+
+  it('does not report a new IP as saved when the issued ID is missing', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(upsertAdminIpAction({}, ipForm())).resolves.toEqual({
+      errors: { form: 'IP를 등록했지만 결과를 확인하지 못했습니다. IP 목록에서 확인해주세요.' },
+    });
+  });
+
+  it.each([
+    ['ip_public_slug_taken', { publicSlug: '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.' }],
+    ['invalid_ip_public_slug', { publicSlug: '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.' }],
+    ['invalid_ip_title', { title: 'IP 이름을 입력해주세요.' }],
+    ['invalid_ip_vertical', { verticalKey: '등록된 IP 분류를 선택해주세요.' }],
+    ['ip_directory_conflict', { form: '다른 운영자가 IP 노출 순서를 저장하는 중입니다. 잠시 후 다시 저장해주세요.' }],
+  ])('puts the %s create rejection next to its field and keeps the input', async (message, errors) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    const formData = ipForm();
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+      errors, values: collectFormValues(formData), attempt: 1,
+    });
+  });
+
+  it('edits an existing IP through the save-intent RPC without overwriting the fan count cache', async () => {
+    await expect(upsertAdminIpAction({}, ipEditForm())).resolves.toEqual({
       message: 'IP를 저장했습니다.',
     });
 
@@ -490,40 +546,48 @@ describe('admin catalog actions', () => {
       target_bg: null,
       target_image_path: null,
       target_featured: null,
-      target_previous_id: null,
+      target_previous_id: 'hwasan',
       target_publish: null,
     });
   });
 
   /* 게시 상태(20260907130000) — "저장 후 공개"만 true 를 보내고, 나머지는 상태를 건드리지 않는다. */
   it('publishes an IP in the same RPC call when the form asks for it', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'hwasan', error: null });
     const formData = ipForm();
     formData.set('intent', 'publish');
 
     await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
-      message: 'IP를 저장하고 공개했습니다.',
+      message: 'IP를 등록하고 공개했습니다.',
+      savedIpId: 'hwasan',
     });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({
-      target_id: 'hwasan',
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_create_ip', expect.objectContaining({
+      target_public_slug: 'hwasan',
       target_publish: true,
     }));
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/search');
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/ip/hwasan');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/ips');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/ips/hwasan');
+
+    const editing = ipEditForm();
+    editing.set('intent', 'publish');
+    await expect(upsertAdminIpAction({}, editing)).resolves.toEqual({ message: 'IP를 저장하고 공개했습니다.' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_ip', expect.objectContaining({ target_id: 'hwasan', target_publish: true }));
   });
 
   it('keeps the publish state out of a plain draft save', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'hwasan', error: null });
     const formData = ipForm();
     formData.set('intent', 'draft');
 
-    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({ message: 'IP를 저장했습니다.' });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({ target_publish: null }));
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({ message: 'IP를 등록했습니다.', savedIpId: 'hwasan' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_create_ip', expect.objectContaining({ target_publish: null }));
   });
 
   it('explains that an archived IP has to be restored before it can be published', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_item_archived' } });
-    const formData = ipForm();
+    const formData = ipEditForm();
     formData.set('intent', 'publish');
 
     await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
@@ -589,6 +653,33 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/best');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
   });
+  /* TKT-033(ADR-0040): 즉시할인 기간 지시는 그대로 저장 RPC에 싣고, 지시가 없으면 지금처럼 저장한다. 모양이 다르면 보내지 않는다. */
+  it('즉시할인 기간 지시를 instant_discount_period로 싣고, 없으면 싣지 않으며, 잘못된 지시는 저장하지 않는다', async () => {
+    const period = { mode: 'period', amount: 1200, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z', expectedFingerprint: 'none' };
+    const form = goodForm();
+    form.set('instantDiscountPeriod', JSON.stringify(period));
+    await upsertAdminGoodAction({}, form);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_good', { target_good: expect.objectContaining({ instant_discount_period: period }) });
+    await upsertAdminGoodAction({}, goodForm());
+    expect(mocks.rpc.mock.lastCall?.[1].target_good).not.toHaveProperty('instant_discount_period');
+    mocks.rpc.mockClear();
+    const broken = goodForm();
+    broken.set('instantDiscountPeriod', '{"mode":"period","amount":0}');
+    expect(await upsertAdminGoodAction({}, broken)).toMatchObject({ errors: { discountPeriod: expect.stringContaining('즉시할인 기간을 확인하지 못했습니다') } });
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good', expect.anything());
+  });
+  it.each([
+    ['instant_discount_period_changed', 'discountPeriod', '다른 곳에서 이 상품의 할인을 걸거나 멈췄습니다'],
+    ['instant_discount_period_managed', 'discountPeriod', '할인 프로모션이나 기간 할인에서 관리하는 할인'],
+    ['instant_discount_period_conflict', 'discountValue', '기간 없는 즉시할인을 함께 걸 수 없습니다'],
+    ['instant_discount_period_ended', 'discountPeriod', '종료 시각이 이미 지났습니다'],
+    ['instant_discount_period_price_invalid', 'discountValue', '가장 낮은 옵션 판매 금액보다 작아야'],
+    ['price_period_overlap', 'discountPeriod', '다른 기간 할인(끝난 할인 포함)과 겹칩니다'],
+    ['active_price_period_requires_reset', 'price', '할인 프로모션 포함'],
+  ])('즉시할인 기간 저장 거절 %s를 %s 칸에 안내한다', async (message, field, text) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    expect(await upsertAdminGoodAction({}, goodForm())).toMatchObject({ errors: { [field]: expect.stringContaining(text) } });
+  });
   it.each(['category_not_leaf', 'category_archived', 'category_not_found', 'invalid_additional_categories'])('분류 경합 %s를 안내하고 추가 분류 입력을 보존한다', async (message) => {
     const form = goodForm();
     const ids = '["00000000-0000-4000-8000-000000051121"]';
@@ -597,6 +688,19 @@ describe('admin catalog actions', () => {
     expect(await upsertAdminGoodAction({}, form)).toMatchObject({
       errors: { form: expect.stringContaining('카테고리') }, values: { additionalCategoryIds: ids },
     });
+  });
+
+  /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리의 연결값이다. 저장·공개가 이 규칙으로 막히면 카테고리 칸에 이유를 보이고 입력을 남긴다. */
+  it.each([
+    ['goods_type_category_locked', '유형이 다른 카테고리로 옮길 수 없습니다'],
+    ['goods_type_category_required', '상품 유형이 연결되어 있어야 공개할 수 있습니다'],
+    ['goods_type_category_changed', '카테고리에 연결된 상품 유형이 저장된 유형과 다릅니다'],
+  ])('상품 유형 규칙 %s를 카테고리 칸에 안내한다', async (message, text) => {
+    const form = goodForm();
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    const result = await upsertAdminGoodAction({}, form);
+    expect(result.errors?.categoryId).toContain(text);
+    expect(result.errors?.categoryId).toContain('입력값은 유지됩니다.');
   });
 
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 막지만, 운영자에게는
@@ -857,7 +961,6 @@ describe('admin catalog actions', () => {
 
   /* #181 — RPC가 막은 덮어쓰기를 운영자가 이해할 수 있는 문구로 옮긴다. */
   it.each([
-    ['IP', upsertAdminIpAction, ipForm],
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
@@ -872,7 +975,7 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['IP', upsertAdminIpAction, ipForm],
+    ['IP', upsertAdminIpAction, ipEditForm],
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
@@ -969,7 +1072,7 @@ describe('admin catalog actions', () => {
       await expect(upsertAdminIpAction({ attempt: 2 }, formData)).resolves.toEqual({
         errors: { title: 'IP 이름을 입력해주세요.' },
         values: {
-          id: 'hwasan',
+          publicSlug: 'hwasan',
           title: '',
           sub: '리디 · 로판',
           verticalKey: 'rofan',
@@ -1013,7 +1116,12 @@ describe('admin catalog actions', () => {
     });
 
     it('does not carry values or an attempt on success', async () => {
+      mocks.rpc.mockResolvedValue({ data: 'hwasan', error: null });
       await expect(upsertAdminIpAction({ values: { id: 'stale' }, attempt: 3 }, ipForm())).resolves.toEqual({
+        message: 'IP를 등록했습니다.',
+        savedIpId: 'hwasan',
+      });
+      await expect(upsertAdminIpAction({ values: { id: 'stale' }, attempt: 3 }, ipEditForm())).resolves.toEqual({
         message: 'IP를 저장했습니다.',
       });
     });
@@ -1068,7 +1176,7 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['duplicate key violates goods_code_key','code','이미 사용 중인 상품코드입니다.'],
+    ['duplicate key violates goods_code_key','code','이미 사용 중인 판매자상품코드입니다.'],
     ['duplicate key violates goods_variants_code_key','defaultVariantCode','이미 사용 중인 옵션코드입니다.'],
     ['goods_slug_locked','id','한 번 공개한 상품의 URL은 변경할 수 없습니다.'],
   ])('maps identifier rejection %s to its form field',async(message,field,copy)=>{
@@ -1677,7 +1785,7 @@ describe('admin catalog actions', () => {
 
     it('blocks staff users — role management is admin-only', async () => {
       await expect(setAdminUserRoleAction({}, roleForm())).resolves.toEqual({
-        errors: { form: '최고 관리자(admin) 권한이 필요합니다.' },
+        errors: { form: '최고 관리자 권한이 필요합니다.' },
       });
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
@@ -1691,7 +1799,7 @@ describe('admin catalog actions', () => {
       };
 
       await expect(setAdminUserRoleAction({}, roleForm())).resolves.toEqual({
-        errors: { form: '최고 관리자(admin) 권한이 필요합니다.' },
+        errors: { form: '최고 관리자 권한이 필요합니다.' },
       });
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
@@ -1926,20 +2034,38 @@ describe('상품 등록 원자 저장', () => {
     await expect(upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).resolves.toMatchObject({ savedGoodId: 'g100', message: expect.stringContaining('이미 상품으로 등록한 임시저장') });
   });
 
-  it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID·공개 요청은 저장하지 않는다', async () => {
+  it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID는 저장하지 않는다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_compare_at_price_invalid' } });
     expect((await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).errors?.form).toContain('할인은 0원보다 크고');
     const bad = workspaceForm({ kc: null, preorders: [] }); bad.set('workspaceOperationId', 'not-a-uuid');
     expect((await upsertAdminGoodAction({}, bad)).errors?.form).toContain('새로고침');
-    const publish = workspaceForm({ kc: null, preorders: [] }); publish.set('intent', 'publish');
-    publish.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
-    expect((await upsertAdminGoodAction({}, publish)).errors?.form).toContain('게시 상태에서 공개');
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  /* T15b(0901-008): 새 상품의 저장 후 공개는 래퍼 한 번으로 저장한 뒤 공개를 시도하고, 거절되면 저장만 했다고 이유와 함께 알린다. */
+  it('새 상품 저장 후 공개는 같은 요청에 공개를 싣고, 거절되면 저장 성공과 공개 보류 이유를 함께 알린다', async () => {
+    const publish = () => { const form = workspaceForm({ kc: null, preorders: [] }); form.set('intent', 'publish');
+      form.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp'); return form; };
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: true, error: null } }, error: null });
+    const published = await upsertAdminGoodAction({}, publish());
+    expect(mocks.rpc.mock.calls.at(-1)?.[0]).toBe('admin_save_good_workspace');
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_request.good.publish).toBe(true);
+    expect(published).toMatchObject({ savedGoodId: 'new-good', message: expect.stringContaining('공개했습니다') });
+    expect(published).not.toHaveProperty('publishBlocked');
+
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: false, error: 'goods_publish_incomplete', code: '23514' } }, error: null });
+    const incomplete = await upsertAdminGoodAction({}, publish());
+    expect(incomplete).toMatchObject({ savedGoodId: 'new-good', publishBlocked: true, message: expect.stringContaining('저장했지만 공개하지 않았습니다') });
+    expect(incomplete.message).toContain('대표 이미지');
+    expect(incomplete.errors).toBeUndefined();
+
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: false, error: 'goods_kc_review_required', code: '23514' } }, error: null });
+    expect(await upsertAdminGoodAction({}, publish())).toMatchObject({ savedGoodId: 'new-good', kcPublishBlocked: true, message: expect.stringContaining('KC 검토') });
   });
 });
 
 describe('일반 상품 판매기간 제출', () => {
-  it('한국시간과 CAS 리비전을 기존 상품 트랜잭션에 보내고 구버전 폼은 생략한다', async () => {
+  it('KST과 CAS 리비전을 기존 상품 트랜잭션에 보내고 구버전 폼은 생략한다', async () => {
     const form = goodForm();
     await upsertAdminGoodAction({}, form);
     expect(mocks.rpc.mock.calls.at(-1)?.[1].target_good).not.toHaveProperty('sale_period');

@@ -267,3 +267,20 @@ describe('ConsoleGrid 선택', () => {
     expect(html.indexOf('일괄 액션 슬롯')).toBeLessThan(html.indexOf('<table'));
   });
 });
+
+describe('ConsoleGrid 첫 칸 링크의 Tab 정지 (ADM-016 #8)', () => {
+  const render = (hrefTabStop?: boolean) => renderToStaticMarkup(
+    <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={[{ ...ROWS[0], hrefTabStop }]} />,
+  );
+
+  it('기본은 Tab으로 닿는다', () => {
+    expect(render()).not.toContain('tabindex="-1"');
+  });
+
+  it('같은 행에 대표 링크가 따로 있어 hrefTabStop=false면 Tab에서 빠지고 링크는 그대로다', () => {
+    const html = render(false);
+    const link = /<a [^>]*>2026081800001<\/a>/.exec(html)?.[0] ?? '';
+    expect(link).toContain('href="/admin/orders/o1"');
+    expect(link).toContain('tabindex="-1"');
+  });
+});

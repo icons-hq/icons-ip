@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { startTransition, useEffect, useRef, useState } from 'react';
 import { loadGoodsSizeChartAction, saveGoodsSizeChartAction, type GoodsSizeResult } from '@/app/admin/goods-size-chart-actions';
-import { GOODS_SIZE_TEMPLATES_PATH, emptyGoodsSizeChartValues, goodsSizeChartError, parseGoodsSizeChart, parseGoodsSizeChartValues, type GoodsSizeChartSnapshot, type GoodsSizeChartValues } from '@/lib/goods-size-chart';
+import { GOODS_SIZE_TEMPLATES_PATH, emptyGoodsSizeChartValues, parseGoodsSizeChart, parseGoodsSizeChartValues, type GoodsSizeChartSnapshot, type GoodsSizeChartValues } from '@/lib/goods-size-chart';
+import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
 import { parseGoodsSizeDraft, type GoodsSizeSaveRequest } from '@/lib/admin/goods-size-chart-draft';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';

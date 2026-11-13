@@ -45,6 +45,8 @@ const operators = [
   sql('readable_order_numbers'),
   sql('order_number_time'),
   sql('erp_read'),
+  // MD(catalog.manage) ERP 품목 반입 권한과 연결 상품 판매가·바코드 반영(1027T-016·1027T-X04).
+  sql('erp_linked_goods_apply', { kc: true }),
   run(
     'erp_read_concurrency.py',
     `ERP_READ_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=${databaseContainer} PGDATABASE=postgres python3 supabase/tests/erp_read_concurrency.py`,
@@ -55,6 +57,10 @@ const operators = [
   ),
   sql('smartstore_shipment_workbook'),
   sql('warehouse_reply_order_numbers'),
+  // QNA-019 배송 건 추가 운송장(서원 회신 대표+추가, 운영자 추가·삭제)과 QNA-028 택배 추적 자동 배송완료(스위치 기본 꺼짐).
+  sql('order_shipment_extra_trackings'),
+  sql('delivery_tracking_auto_complete'),
+  script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
@@ -71,6 +77,26 @@ const operators = [
   script('order_claim_hold_operations_concurrency.sh', 'CLAIM_HOLD_TEST_SCOPE'),
   sql('order_claim_reason_changes', { admin: true }),
   script('order_claim_reason_changes_concurrency.sh', 'CLAIM_REASON_TEST_SCOPE'),
+  sql('order_claim_reshipments_per_origin', { admin: true }),
+  sql('order_claim_collection_received_on', { admin: true }),
+  // 재고 파일 대조 흐름을 배송 건(출고지)별 회수·회수 생략 재출고로 센다(T07 × T11a·T11b 통합).
+  sql('stock_reconcile_claim_shipments', { admin: true }),
+  // 반품배송비 차감(QNA-033·ADR-0031): 스위치 OFF 불변, 접수 때 결정, 카드 부분 취소 확인 뒤 확정 환불액, 무통장 송금액.
+  sql('claim_refund_deduction'),
+  // 상품별 반품/교환지·회수 묶음(배송 건 × 반품지)·고객 회수 주소(S36-040·S36-044·QNA-031).
+  sql('goods_return_addresses', { admin: true, kc: true }),
+  script('goods_return_address_concurrency.sh', 'RETURN_ADDRESS_TEST_SCOPE'),
+  // 반품 불량 재고 분리(QNA-035): 불량 품목은 복원 제외·원장 기록·재고 대조 흐름 제외, 같은 클레임 동시 기록 멱등.
+  sql('claim_defective_stock'),
+  script('claim_defective_stock_concurrency.sh', 'CLAIM_DEFECTIVE_TEST_SCOPE'),
+  // 반품 자동 회수 접수(QNA-032)·반품입고 파일 반영(QNA-034·ADR-0034): 스위치 OFF 불변, 회수 묶음별 접수 큐·재시도·취소, 파일 매칭·확정.
+  sql('claim_return_pickup', { admin: true }),
+  sql('claim_return_intake_import', { admin: true }),
+  // 재고 부족 품목·수량 부분 취소(QNA-020·ADR-0032): 스위치 OFF 불변, 결제사 확인 뒤 적용, 다회 잔액 누적, 무통장 송금 대기, 출고 경합.
+  sql('order_partial_cancellation'),
+  // 버전 1 주문의 부분 취소(ADR-0032 보완): 첫 부분 취소 때 얼리는 파생 배분 원장, 합계 보존·결정성·막힘·기존 경로 불변. 경합은 아래 스크립트가 함께 본다.
+  sql('order_partial_cancellation_v1'),
+  script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
@@ -94,10 +120,16 @@ const catalog = [
   sql('category_display_tree', { admin: true, kc: true }),
   sql('category_display_menu', { admin: true, kc: true }),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),
+  // 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값(SHEET-003·ADR-0037). 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
+  sql('goods_type_from_category', { kc: true }),
   sql('admin_body_templates', { admin: true }),
   script('admin_body_templates_concurrency.sh', 'BODY_TEMPLATE_TEST_SCOPE'),
   script('review_best_concurrency.sh', 'REVIEW_BEST_TEST_SCOPE'),
   sql('shipment_delay_notice_filter', { admin: true }),
+  // 상품 단위 예약 일정 일괄 변경·안내(QNA-040) — 같은 지연 안내 원장·지연 탭 안내 결과 요약 뒤.
+  sql('goods_preorder_schedule_bulk'),
+  // 접수 중 예약 조건 교체와 주문 접수의 잠금 순서(일회용 복제 DB 두 세션).
+  script('goods_preorder_schedule_concurrency.sh', 'PREORDER_SCHEDULE_TEST_SCOPE'),
   sql('admin_review_sorting', { admin: true }),
   run(
     'review_helpful_regression.py',
@@ -113,6 +145,8 @@ const catalog = [
   script('goods_after_sales_content_concurrency.sh', 'GOODS_AFTER_SALES_TEST_SCOPE'),
   sql('goods_size_charts', { admin: true, kc: true }),
   script('goods_size_charts_concurrency.sh', 'GOODS_SIZE_CHART_TEST_SCOPE'),
+  // 기타 인증(SHEET-014·ADR-0036). KC 고지 회귀(goods_kc_*)는 legacy 샤드의 smoke 묶음에서 돈다.
+  sql('goods_other_certifications', { kc: true }),
   // 예전 story/marketing 단계 후반부의 관리자 리포트다.
   sql('admin_customer_purchase_report', { admin: true }),
   sql('admin_sales_goods_page'),
@@ -123,6 +157,16 @@ const catalog = [
   sql('goods_custom_input_workbook', { admin: true }),
   // 할인 프로모션 묶음(기간할인 원장 출처·중지 범위)과 전시 상품 여러 줄 조회(1014-109·112).
   sql('discount_promotions', { admin: true }),
+  // IP 내부 ID 자동 발급·미사용 초안 삭제(ADR-0039)다. 경합 검사는 쿠폰 대상 IP 저장과의 직렬화를 고정한다.
+  sql('ip_draft_delete'),
+  script('ip_draft_delete_coupon_concurrency.sh', 'IP_DRAFT_DELETE_TEST_SCOPE'),
+  // 시스템 순번 상품번호(불변·재사용 없음)와 상품 조회/수정의 번호 검색·정렬·판매대기/판매중지/판매종료 건수(S36-009·SHEET-036).
+  sql('goods_product_numbers', { admin: true }),
+  // 상품 목록 바로 수정이 차례로 부르는 기존 RPC: 할인 중지 → 판매가 변경·프로모션 원장 관계·옵션별 재고 기대값(1014-106·107·1027T-025).
+  sql('goods_list_inline_discount_stop_price', { admin: true }),
+  // 즉시할인 기간(TKT-033·ADR-0040): 기간 즉시할인을 기간 할인 원장에 쓰고 기간 경계·고객 가격·체크아웃 견적·주문이 같고,
+  // 할인 프로모션·일괄 즉시할인·목록 할인 중지(기간 없는 즉시할인 포함)와 서로 덮지 않는다.
+  sql('goods_instant_discount_period', { kc: true }),
 ];
 
 const storefront = [
@@ -134,14 +178,21 @@ const storefront = [
   sql('store_profile_image', { admin: true }),
   sql('goods_announcement_period_popup', { admin: true, kc: true }),
   script('goods_announcement_period_popup_concurrency.sh', 'GOODS_ANNOUNCEMENT_POPUP_TEST_SCOPE'),
+  sql('goods_detail_bottom_notice_region_fees', { admin: true, kc: true }),
   sql('cs_single_reply_cas', { admin: true }),
   sql('cs_reply_read_transaction_mode', { admin: true }),
   script('cs_single_reply_concurrency.sh', 'CS_SINGLE_REPLY_TEST_SCOPE'),
   sql('product_question_secret'),
+  sql('faq_widget_topics'),
   run(
     'inquiry_satisfaction_regression.py',
     `python3 -B supabase/tests/inquiry_satisfaction_regression.py --container ${databaseContainer} --scope ci --output-dir output/inquiry-satisfaction-regression`,
   ),
+  // 1014-103 상담 중 고객 구매이력(그 문의 고객 범위·열람 감사)과 1014-105 처리 이력·운영자별 처리 이력(매니저 관리 권한·열람 감사).
+  // 상담하기 목록·읽음·태그와 그 대화 고객의 구매이력 권한은 legacy helper 없이 명시적 매니저 역할로 확인한다.
+  sql('inquiry_chat_console'),
+  sql('inquiry_purchase_history_scope'),
+  sql('operator_inquiry_history'),
   sql('admin_sales_read_contract_gaps', { admin: true }),
   script('admin_sales_read_contract_gaps_concurrency.sh', 'SALES_READ_GAP_TEST_SCOPE'),
   sql('admin_claim_detail_search', { admin: true }),

@@ -4,6 +4,13 @@ import { loadGoodsListingColorsAction, saveGoodsListingColorsAction, type GoodsL
 import { parseGoodsColorChips, type GoodsColorChip } from '@/lib/store-presentation';
 import { buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
+/** 목록 색상칩 입력(저장된 상품 패널과 등록 화면의 '상품과 함께 저장'이 같이 쓴다 — T15b). 저장은 부르는 쪽이 한다. */
+export function GoodsListingColorFields({ colors, onChange }: { colors: GoodsColorChip[]; onChange: (update: (current: GoodsColorChip[]) => GoodsColorChip[]) => void }) {
+  return <>
+    {colors.map((chip, index) => <div key={index} className="flex flex-wrap items-end gap-3"><label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">색상 이름 {index + 1}<Input className="w-48" value={chip.label} maxLength={30} onChange={event => { const label = event.target.value; onChange(current => current.map((value, i) => i === index ? { ...value, label } : value)); }} /></label><label className="flex flex-col gap-1.5 text-sm font-medium">색상값 {index + 1}<input className="h-8 w-16 cursor-pointer rounded-lg border border-input bg-transparent p-1 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-0" data-slot="input" type="color" value={chip.hex} onChange={event => { const hex = event.target.value; onChange(current => current.map((value, i) => i === index ? { ...value, hex } : value)); }} /></label><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => onChange(current => current.filter((_, i) => i !== index))}>삭제</button></div>)}
+    <button className={`${buttonVariants({ size: 'sm', variant: 'outline' })} self-start`} data-slot="button" type="button" disabled={colors.length >= 20} onClick={() => onChange(current => [...current, { label: '', hex: '#000000' }])}>색상 추가 ({colors.length}/20)</button>
+  </>;
+}
 export function GoodsListingColorsPanel({ goodId }: { goodId: string }) {
   const [colors, setColors] = useState<GoodsColorChip[]>([]), [revision, setRevision] = useState<number | null>(null);
   const [message, setMessage] = useState(''), [error, setError] = useState(false), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false);
@@ -30,8 +37,7 @@ export function GoodsListingColorsPanel({ goodId }: { goodId: string }) {
   return <div className="flex min-w-0 flex-col gap-3" data-goods-listing-colors="">
     <p className="text-sm text-muted-foreground">실제 상품에 제공하는 색만 등록하세요. 표시 여부는 스토어 전시 설정에서 정하며, 옵션·재고는 바뀌지 않습니다.</p>
     <fieldset className="flex min-w-0 flex-col gap-3" disabled={pending || uncertain || revision === null}><legend className="sr-only">상품 색상칩</legend>
-      {colors.map((chip, index) => <div key={index} className="flex flex-wrap items-end gap-3"><label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">색상 이름 {index + 1}<Input className="w-48" value={chip.label} maxLength={30} onChange={event => setColors(current => current.map((value, i) => i === index ? { ...value, label: event.target.value } : value))} /></label><label className="flex flex-col gap-1.5 text-sm font-medium">색상값 {index + 1}<input className="h-8 w-16 cursor-pointer rounded-lg border border-input bg-transparent p-1 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-0" data-slot="input" type="color" value={chip.hex} onChange={event => setColors(current => current.map((value, i) => i === index ? { ...value, hex: event.target.value } : value))} /></label><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setColors(current => current.filter((_, i) => i !== index))}>삭제</button></div>)}
-      <button className={`${buttonVariants({ size: 'sm', variant: 'outline' })} self-start`} data-slot="button" type="button" disabled={colors.length >= 20} onClick={() => setColors(current => [...current, { label: '', hex: '#000000' }])}>색상 추가 ({colors.length}/20)</button>
+      <GoodsListingColorFields colors={colors} onChange={setColors} />
     </fieldset>
     {message ? <p className={`text-sm${error ? ' text-destructive' : ' text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<button className={`${buttonVariants()} self-start`} data-slot="button" type="button" disabled={pending || revision === null} onClick={() => void save()}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '색상칩 저장'}</button>
   </div>;

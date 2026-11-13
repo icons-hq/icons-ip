@@ -11,6 +11,18 @@ const rows: GoodsOptionRow[] = [
 const summary = (html: string) => html.match(/data-good-section-summary="">(.*?)<\/span>/)?.[1] ?? '';
 
 describe('구매 제한 카드', () => {
+  /* ADM-011·1027T-021(11/11 결정 "펼친 채로" — 10/27 R12 원안): 접힌 줄이 아니라 입력칸이 바로 보이는 소항목이다. */
+  it('접지 않고 제목·현재 값 한 줄과 입력칸을 바로 보인다', () => {
+    const html = renderToStaticMarkup(<GoodsPurchaseLimitFields values={{ orderQuantityLimitEnabled: 'false', memberPurchaseLimitEnabled: 'false' }} rows={rows} onRowsChange={() => {}} />);
+    expect(html).not.toContain('<details');
+    expect(html).not.toContain('<summary');
+    expect(html).toMatch(/^<section aria-labelledby="good-section-limits-title"[^>]*id="good-section-limits"/);
+    expect(html).toContain('<h2 class="text-sm font-medium text-foreground" data-good-section-title="" id="good-section-limits-title">구매 제한</h2>');
+    expect(summary(html)).toBe('최소/최대 구매수량 설정안함 · 1인 최대 구매수량 설정안함');
+    for (const name of ['orderQuantityLimitEnabled', 'memberPurchaseLimitEnabled']) expect(html).toContain(`name="${name}"`);
+    expect(html).toContain('aria-label="빨강 최대 구매수량(주문당)"');
+  });
+
   /* 리뷰 T3a-5 — 수량 입력은 비제어라 마운트 때 값으로 요약하면 편집 중 입력이 '?'로 남는다. 편집기의 현재 입력값으로 요약한다. */
   it('섹션 요약은 마운트 때 값이 아니라 편집 중인 현재 입력값으로 수량을 보인다', () => {
     const initial = { orderQuantityLimitEnabled: 'true', minOrderQty: '', maxOrderQty: '', memberPurchaseLimitEnabled: 'true', memberLifetimeQtyLimit: '' };

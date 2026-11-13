@@ -12,7 +12,7 @@ export interface ConsoleBulkAction {
   variant?: ConsoleBulkActionVariant;
   /**
    * 확인 문구. 이 컴포넌트는 대화상자를 직접 띄우지 않고 `data-confirm` 속성으로만 노출한다.
-   * 감싼 form이 `onSubmit`에서 읽어 `window.confirm`을 띄우는 것이 이 저장소 관용구다
+   * 감싼 form이 `onSubmit`에서 읽어 `confirmAdminSubmit`(`lib/admin/confirm.ts`)으로 확인창(AlertDialog)을 띄우는 것이 이 저장소 관용구다
    * (`components/admin/sections/Orders.tsx`의 `confirmAction`).
    */
   confirmLabel?: string;

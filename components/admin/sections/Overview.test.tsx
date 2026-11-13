@@ -26,7 +26,7 @@ describe('OverviewSection', () => {
 
     expect(html).toContain('30일 매출');
     expect(html).toContain('30일 신규 가입');
-    expect(html).toContain('href="/admin/guide">판매자센터 운영 가이드');
+    expect(html).toContain('href="/admin/guide">사용 가이드');
     expect(html).not.toContain('업무 집계');
   });
 
@@ -82,7 +82,7 @@ describe('OverviewSection', () => {
     expect(html).not.toContain('오늘정산');
     expect(html).toContain('aria-label="발송 대기 7건"');
     expect(html).toContain('aria-label="발송 지연 2건"');
-    expect(html).toContain('aria-label="미응답 문의 4건"');
+    expect(html).toContain('aria-label="미답변 문의 4건"');
     expect(html).toContain('aria-label="상품 검토 대기 확인 필요"');
     expect(html).toContain('href="/admin/sales/dispatch?tab=delayed');
     expect(html).toContain('href="/admin/cs/inquiries?status=open');
@@ -139,7 +139,7 @@ describe('OverviewSection', () => {
     expect(html).toMatch(/낮은 평점 리뷰<\/span><strong[^>]*bg-danger-soft[^>]*>1<\/strong>/);
     expect(html).toMatch(/발송 대기<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">2<\/strong>/);
     expect(html).toMatch(/상품 검토 대기<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">4<\/strong>/);
-    expect(html).toMatch(/미답변 리뷰<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">4<\/strong>/);
+    expect(html).toMatch(/미답글 리뷰<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">4<\/strong>/);
   });
 
   it('매출이 없는 기간에는 임의의 숫자 축 대신 빈 상태를 표시한다', () => {

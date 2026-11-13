@@ -25,6 +25,13 @@ beforeEach(() => {
 });
 
 describe('shipment action boundaries', () => {
+  it('부분 취소·취소 요청이 진행 중인 주문의 출고지시 거절은 그 이유를 말한다 (QA2 물류)', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'order cancellation in progress' } });
+    const result = await exportShipmentsAction([ID], 'xlsx', 'warehouse');
+    expect(result).toEqual({ error: expect.stringContaining('재고 부족 부분 취소') });
+    expect((result as { error: string }).error).not.toContain('발송 대기 상태와 취소 요청을 확인해주세요');
+  });
   it('물류출고관리는 출고지시를 내려받고 배송완료하며, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)', async () => {
     mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
     expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ message: '1건의 출고지시를 내려받았습니다.' });
@@ -90,9 +97,15 @@ describe('shipment action boundaries', () => {
     mocks.rpc.mockResolvedValue({data:[{id:ID,ok:true,affectedIds:[ID,SECOND]}],error:null});
     expect(await completeShipmentsAction([ID])).toEqual({message:'2건을 배송완료로 변경했습니다.',failed:[]});
   });
-  it.each([null, { isConfigured: true, user: { id: 'buyer' }, isStaff: false }])('requires staff before reading export data', async (auth) => {
-    mocks.auth.mockResolvedValue(auth ?? { isConfigured: true, user: null, isStaff: false });
+  it('requires staff before reading export data', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
     expect(await exportShipmentsAction([ID], 'xlsx')).toMatchObject({ error: '직원 권한이 필요합니다.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.build).not.toHaveBeenCalled();
+  });
+  it('sends a signed-out caller to login before reading export data', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: null, isStaff: false });
+    await expect(exportShipmentsAction([ID], 'xlsx')).rejects.toMatchObject({ digest: expect.stringContaining('NEXT_REDIRECT') });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.build).not.toHaveBeenCalled();
   });

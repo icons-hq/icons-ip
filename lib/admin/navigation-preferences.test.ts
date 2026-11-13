@@ -348,10 +348,11 @@ describe('메뉴 검색', () => {
     expect(filterAdminNavGroups(groups, adminMenuQuery('없는메뉴ㅋ'))).toEqual([]);
   });
 
-  /* 다른 담당이 메뉴 이름을 고쳐도 검색어가 과하게 늘지 않게 묶어 둔다 */
+  /* 다른 담당이 메뉴 이름을 고쳐도 검색어가 과하게 늘지 않게 묶어 둔다.
+     웨이브 2에서 반품/교환지 관리(T14a)와 불량 재고(T14b)가 각각 키워드를 더해 9개가 됐다(통합 5c-1). */
   it('키워드는 일부 화면에만 몇 개씩 둔다', () => {
     const keyworded = groups.flatMap((group) => group.screens).filter((screen) => screen.keywords?.length);
-    expect(keyworded.length).toBeLessThanOrEqual(8);
+    expect(keyworded.length).toBeLessThanOrEqual(9);
     for (const screen of keyworded) expect(screen.keywords!.length).toBeLessThanOrEqual(3);
   });
 });

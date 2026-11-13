@@ -21,6 +21,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/order-delay-sms",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/marketing-messages",
       "schedule": "* * * * *"
     },
@@ -51,6 +55,14 @@
     {
       "path": "/api/cron/stock-safety-digest",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/delivery-tracking",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/return-pickups",
+      "schedule": "*/5 * * * *"
     }
   ],
   "git": {

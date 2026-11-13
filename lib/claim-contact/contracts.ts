@@ -122,15 +122,24 @@ export type ReshipmentItem = {
   variantId: Uuid;
 };
 
+/** 회수 생략 재출고(하자·오배송 교환). 근거 사진은 claim-evidence-private에 먼저 등록한 파일 id다. */
+export type CollectionWaiver = {
+  reason: string;
+  evidenceFileIds: Array<Uuid>;
+};
+
+/** 배송 건(출고지) 하나의 재출고. 배송 건이 없는 옛 주문은 shipmentId가 null이다. */
 export type ReshipmentRequest = {
   requestId: Uuid;
   orderId: Uuid;
   claimId: Uuid;
   operationId: Uuid;
   signedContext: SignedContext;
+  shipmentId: Uuid | null;
   carrier: string;
   trackingNumber: string;
   items: Array<ReshipmentItem>;
+  collectionWaiver: CollectionWaiver | null;
   destinationConfirmed: true;
   dispatchConfirmed: true;
 };
@@ -509,6 +518,7 @@ export interface ClaimContactContracts {
   ContextRequest: ContextRequest;
   ChangeRequest: ChangeRequest;
   ReshipmentItem: ReshipmentItem;
+  CollectionWaiver: CollectionWaiver;
   ReshipmentRequest: ReshipmentRequest;
   OperationRequest: OperationRequest;
   OperationReceipt: OperationReceipt;
@@ -575,7 +585,8 @@ const SCHEMAS: Record<keyof ClaimContactContracts, Schema> = {
   ContextRequest: {"type":"object","additionalProperties":false,"properties":{"requestId":{"$ref":"#/$defs/Uuid"},"orderId":{"$ref":"#/$defs/Uuid"},"claimId":{"$ref":"#/$defs/Uuid"},"target":{"$ref":"#/$defs/Target"},"command":{"$ref":"#/$defs/Command"}},"required":["requestId","orderId","claimId","target","command"],"allOf":[{"if":{"properties":{"command":{"const":"reshipment"}},"required":["command"]},"then":{"properties":{"target":{"const":"reshipment"}}}}]},
   ChangeRequest: {"type":"object","additionalProperties":false,"properties":{"requestId":{"$ref":"#/$defs/Uuid"},"orderId":{"$ref":"#/$defs/Uuid"},"claimId":{"$ref":"#/$defs/Uuid"},"target":{"$ref":"#/$defs/Target"},"operationId":{"$ref":"#/$defs/Uuid"},"signedContext":{"$ref":"#/$defs/SignedContext"},"contact":{"$ref":"#/$defs/ContactEdit"},"agreement":{"type":"string","minLength":2,"maxLength":500},"customerConfirmed":{"const":true},"handoffNotStartedConfirmed":{"const":true}},"required":["requestId","orderId","claimId","target","operationId","signedContext","contact","agreement","customerConfirmed","handoffNotStartedConfirmed"]},
   ReshipmentItem: {"type":"object","additionalProperties":false,"properties":{"orderItemId":{"$ref":"#/$defs/Uuid"},"variantId":{"$ref":"#/$defs/Uuid"}},"required":["orderItemId","variantId"]},
-  ReshipmentRequest: {"type":"object","additionalProperties":false,"properties":{"requestId":{"$ref":"#/$defs/Uuid"},"orderId":{"$ref":"#/$defs/Uuid"},"claimId":{"$ref":"#/$defs/Uuid"},"operationId":{"$ref":"#/$defs/Uuid"},"signedContext":{"$ref":"#/$defs/SignedContext"},"carrier":{"type":"string","minLength":1,"maxLength":40},"trackingNumber":{"type":"string","minLength":8,"maxLength":30,"pattern":"^[A-Z0-9]+$"},"items":{"type":"array","items":{"$ref":"#/$defs/ReshipmentItem"},"maxItems":1000,"uniqueItems":true},"destinationConfirmed":{"const":true},"dispatchConfirmed":{"const":true}},"required":["requestId","orderId","claimId","operationId","signedContext","carrier","trackingNumber","items","destinationConfirmed","dispatchConfirmed"]},
+  CollectionWaiver: {"type":"object","additionalProperties":false,"properties":{"reason":{"type":"string","minLength":10,"maxLength":500},"evidenceFileIds":{"type":"array","items":{"$ref":"#/$defs/Uuid"},"minItems":1,"maxItems":5,"uniqueItems":true}},"required":["reason","evidenceFileIds"]},
+  ReshipmentRequest: {"type":"object","additionalProperties":false,"properties":{"requestId":{"$ref":"#/$defs/Uuid"},"orderId":{"$ref":"#/$defs/Uuid"},"claimId":{"$ref":"#/$defs/Uuid"},"operationId":{"$ref":"#/$defs/Uuid"},"signedContext":{"$ref":"#/$defs/SignedContext"},"shipmentId":{"anyOf":[{"$ref":"#/$defs/Uuid"},{"type":"null"}]},"carrier":{"type":"string","minLength":1,"maxLength":40},"trackingNumber":{"type":"string","minLength":8,"maxLength":30,"pattern":"^[A-Z0-9]+$"},"items":{"type":"array","items":{"$ref":"#/$defs/ReshipmentItem"},"maxItems":1000,"uniqueItems":true},"collectionWaiver":{"anyOf":[{"$ref":"#/$defs/CollectionWaiver"},{"type":"null"}]},"destinationConfirmed":{"const":true},"dispatchConfirmed":{"const":true}},"required":["requestId","orderId","claimId","operationId","signedContext","shipmentId","carrier","trackingNumber","items","collectionWaiver","destinationConfirmed","dispatchConfirmed"]},
   OperationRequest: {"type":"object","additionalProperties":false,"properties":{"requestId":{"$ref":"#/$defs/Uuid"},"orderId":{"$ref":"#/$defs/Uuid"},"claimId":{"$ref":"#/$defs/Uuid"},"operationId":{"$ref":"#/$defs/Uuid"},"command":{"$ref":"#/$defs/Command"},"target":{"$ref":"#/$defs/Target"},"expectedClaimType":{"$ref":"#/$defs/ClaimType"},"expectedClaimRevision":{"$ref":"#/$defs/ClaimRevision"},"sealIfAbsent":{"type":"boolean"}},"required":["requestId","orderId","claimId","operationId","command","target","expectedClaimType","expectedClaimRevision","sealIfAbsent"],"allOf":[{"if":{"properties":{"command":{"const":"reshipment"}},"required":["command"]},"then":{"properties":{"target":{"const":"reshipment"},"expectedClaimType":{"const":"exchange"}}}}]},
   OperationReceipt: {"type":"object","additionalProperties":false,"properties":{"operationId":{"$ref":"#/$defs/Uuid"},"command":{"$ref":"#/$defs/Command"},"orderId":{"$ref":"#/$defs/Uuid"},"claimId":{"$ref":"#/$defs/Uuid"},"target":{"$ref":"#/$defs/Target"},"actorId":{"$ref":"#/$defs/Uuid"},"sessionId":{"$ref":"#/$defs/Uuid"},"expectedClaimType":{"$ref":"#/$defs/ClaimType"},"expectedClaimRevision":{"$ref":"#/$defs/ClaimRevision"},"resultClaimRevision":{"anyOf":[{"$ref":"#/$defs/ClaimRevision"},{"type":"null"}]},"state":{"enum":["saved","noop","sealed"]},"changedFields":{"type":"array","items":{"$ref":"#/$defs/ChangedField"},"maxItems":5,"uniqueItems":true},"recordedAt":{"$ref":"#/$defs/Instant"},"piiState":{"enum":["retained","purged","not_stored"]}},"required":["operationId","command","orderId","claimId","target","actorId","sessionId","expectedClaimType","expectedClaimRevision","resultClaimRevision","state","changedFields","recordedAt","piiState"],"allOf":[{"if":{"properties":{"state":{"const":"sealed"}},"required":["state"]},"then":{"properties":{"resultClaimRevision":{"type":"null"},"changedFields":{"maxItems":0},"piiState":{"const":"not_stored"}}}},{"if":{"properties":{"state":{"const":"noop"}},"required":["state"]},"then":{"properties":{"resultClaimRevision":{"$ref":"#/$defs/ClaimRevision"},"changedFields":{"maxItems":0},"piiState":{"enum":["not_stored","purged"]}}}},{"if":{"properties":{"state":{"const":"saved"}},"required":["state"]},"then":{"properties":{"resultClaimRevision":{"$ref":"#/$defs/ClaimRevision"}}}},{"if":{"properties":{"command":{"const":"reshipment"}},"required":["command"]},"then":{"properties":{"target":{"const":"reshipment"},"expectedClaimType":{"const":"exchange"},"changedFields":{"maxItems":0}}}}]},
   ContextResponse: {"type":"object","additionalProperties":false,"properties":{"requestId":{"$ref":"#/$defs/Uuid"},"actorId":{"$ref":"#/$defs/Uuid"},"sessionId":{"$ref":"#/$defs/Uuid"},"orderId":{"$ref":"#/$defs/Uuid"},"claimId":{"$ref":"#/$defs/Uuid"},"target":{"$ref":"#/$defs/Target"},"claimType":{"$ref":"#/$defs/ClaimType"},"claimRevision":{"$ref":"#/$defs/ClaimRevision"},"allowed":{"type":"boolean"},"blocker":{"anyOf":[{"type":"string","minLength":1,"maxLength":100},{"type":"null"}]},"sourceKind":{"anyOf":[{"enum":["seller_intake","order_delivery","contact_plan"]},{"type":"null"}]},"referenceOnly":{"type":"boolean"},"piiState":{"enum":["available","purged","restricted","unavailable","not_applicable"]},"address":{"anyOf":[{"$ref":"#/$defs/Address"},{"type":"null"}]},"signedContext":{"anyOf":[{"$ref":"#/$defs/SignedContext"},{"type":"null"}]},"expiresAt":{"anyOf":[{"$ref":"#/$defs/Instant"},{"type":"null"}]},"command":{"$ref":"#/$defs/Command"},"unavailableReason":{"anyOf":[{"enum":["retention_due","source_unavailable","crypto_unavailable"]},{"type":"null"}]}},"required":["requestId","actorId","sessionId","orderId","claimId","target","claimType","claimRevision","allowed","blocker","sourceKind","referenceOnly","piiState","address","signedContext","expiresAt","command","unavailableReason"],"allOf":[{"if":{"properties":{"allowed":{"const":true}},"required":["allowed"]},"then":{"properties":{"blocker":{"type":"null"},"piiState":{"const":"available"},"address":{"$ref":"#/$defs/Address"},"signedContext":{"$ref":"#/$defs/SignedContext"},"expiresAt":{"$ref":"#/$defs/Instant"}}}},{"if":{"properties":{"allowed":{"const":false}},"required":["allowed"]},"then":{"properties":{"blocker":{"type":"string","minLength":1,"maxLength":100},"signedContext":{"type":"null"},"expiresAt":{"type":"null"}}}},{"if":{"properties":{"piiState":{"const":"unavailable"}},"required":["piiState"]},"then":{"properties":{"unavailableReason":{"enum":["retention_due","source_unavailable","crypto_unavailable"]}}},"else":{"properties":{"unavailableReason":{"type":"null"}}}}]},
@@ -744,6 +755,7 @@ function invariants(name: keyof ClaimContactContracts, value: unknown): boolean 
         && (v.address1 === undefined || v.address1 === v.address1.trim());
     }
     case 'ChangeRequest': return (value as ChangeRequest).agreement === (value as ChangeRequest).agreement.trim();
+    case 'CollectionWaiver': return (value as CollectionWaiver).reason === (value as CollectionWaiver).reason.trim();
     case 'ReshipmentRequest': {
       const v = value as ReshipmentRequest;
       return v.carrier === v.carrier.trim() && new Set(v.items.map(item => item.orderItemId)).size === v.items.length;
@@ -925,10 +937,20 @@ export function normalizeClaimContactChangeRequest(input: unknown): ChangeReques
   return contact ? parseClaimContactContract('ChangeRequest', { ...input, contact, agreement: input.agreement.trim() }) : null;
 }
 
+/** 회수 생략 사유는 한 줄로 저장한다(줄바꿈은 공백으로 접는다). 그 밖의 제어 문자는 거절한다. */
+function normalizeWaiver(input: unknown): CollectionWaiver | null | undefined {
+  if (input === null) return null;
+  if (!record(input) || !exactKeys(input, SCHEMAS.CollectionWaiver.required!) || typeof input.reason !== 'string') return undefined;
+  const reason = input.reason.replace(/\s*[\r\n]+\s*/gu, ' ').trim();
+  return isClaimContactText(reason) ? { reason, evidenceFileIds: input.evidenceFileIds as Uuid[] } : undefined;
+}
+
 export function normalizeClaimContactReshipmentRequest(input: unknown): ReshipmentRequest | null {
   if (!record(input) || !exactKeys(input, SCHEMAS.ReshipmentRequest.required!) || !isClaimContactText(input.carrier)
     || !isClaimContactText(input.trackingNumber) || !/^[A-Za-z0-9]*$/u.test(input.trackingNumber.trim())) return null;
-  return parseClaimContactContract('ReshipmentRequest', { ...input, carrier: input.carrier.trim(), trackingNumber: input.trackingNumber.trim().toUpperCase() });
+  const collectionWaiver = normalizeWaiver(input.collectionWaiver);
+  if (collectionWaiver === undefined) return null;
+  return parseClaimContactContract('ReshipmentRequest', { ...input, carrier: input.carrier.trim(), trackingNumber: input.trackingNumber.trim().toUpperCase(), collectionWaiver });
 }
 
 /** The only persisted recovery payload. No raw input, signing token, digest or envelopes. */
@@ -963,6 +985,19 @@ export const CLAIM_CONTACT_ERRORS = {
   claim_contact_crypto_unavailable: errorDefinition(503, '연락처 정보를 안전하게 처리할 수 없습니다. 저장 결과를 확인해주세요.', null, { recoveryOnly: true }),
   claim_contact_outcome_unknown: errorDefinition(503, '처리 결과를 확인하지 못했습니다. 같은 요청번호로 저장 결과를 확인해주세요.', null, { uncertain: true, recoveryOnly: true }),
   claim_contact_retention_due: errorDefinition(410, '연락처 보관기간이 지나 내용을 열거나 변경할 수 없습니다. 처리 내역만 확인할 수 있습니다.', 'PT410', { recoveryOnly: true }),
+  // 배송 건 재출고(TKT-166·QNA-039). DB가 거절해 아무것도 저장되지 않은 경우만 확정 오류로 보인다.
+  reshipment_shipment_required: errorDefinition(400, '재출고할 배송 건을 골라 다시 확인해주세요.', '22023'),
+  reshipment_shipment_not_found: errorDefinition(409, '이 교환의 재출고 대상 배송 건이 아닙니다. 최신 정보를 다시 확인해주세요.', '23514', { conflict: true }),
+  reshipment_conflict: errorDefinition(409, '이 배송 건은 이미 다른 운송장이나 굿즈로 재출고했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
+  claim_collections_incomplete: errorDefinition(409, '이 배송 건의 회수 확인이 먼저 필요합니다. 하자·오배송 교환은 회수 없이 재출고할 수 있습니다.', '23514'),
+  collection_waiver_not_allowed: errorDefinition(409, '회수 없이 재출고는 하자·오배송 교환에서만 쓸 수 있습니다.', '23514'),
+  collection_waiver_not_needed: errorDefinition(409, '이미 회수를 확인한 배송 건입니다. 회수 생략 없이 재출고해주세요.', '23514'),
+  collection_waiver_partially_received: errorDefinition(409, '이 배송 건은 일부 반품지에서 이미 입고가 확인되어 회수 없이 재출고할 수 없습니다. 남은 반품지의 입고를 확인한 뒤 재출고해주세요.', '23514'),
+  collection_waiver_unavailable: errorDefinition(409, '출고지별 회수를 쓰지 않는 교환은 회수 없이 재출고할 수 없습니다.', '23514'),
+  collection_waiver_evidence_required: errorDefinition(400, '회수 생략 근거 사진을 1~5장 올려주세요.', '23514'),
+  invalid_collection_waiver_reason: errorDefinition(400, '회수 생략 사유를 10~500자로 적어주세요.', '23514'),
+  collection_waiver_conflict: errorDefinition(409, '이 배송 건은 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
+  production_incomplete: errorDefinition(409, '주문제작 굿즈의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.', '23514'),
 } as const;
 export type ClaimContactErrorCode = keyof typeof CLAIM_CONTACT_ERRORS;
 function errorCode(code: unknown): ClaimContactErrorCode {

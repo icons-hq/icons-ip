@@ -3447,6 +3447,51 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   color: var(--wc-ink-tertiary);
 }
 
+/* 주문서 보조 안내 접기(1014-020 '너무 정보가 많아요') — 국내 배송·적립금 기준·결제수단 변경 같은 설명만 한 줄 요약으로
+   접고, 주문 내용·결제 금액·결제 버튼 안내·오류는 접지 않는다. 요약 줄은 money-caption 과 같은 글자에 밑줄·삼각형만 더한다. */
+.wc-receipt .checkout-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-note > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  list-style: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-receipt .checkout-note > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wc-receipt .checkout-note > summary::after {
+  content: '';
+  flex: none;
+  border-top: 4px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  transition: transform var(--wc-duration-default);
+}
+
+.wc-receipt .checkout-note[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.wc-receipt .checkout-note > p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
 .wc-receipt .checkout-submit {
   width: 100%;
   margin-top: 14px;
@@ -6303,6 +6348,10 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 .wc-receipt .wc-shipment-details .order-payment-summary dt { flex: 0 0 96px; }
 .wc-receipt .wc-shipment-details .order-payment-summary dd { min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .wc-receipt .wc-shipment-details ul { margin: 12px 0; padding-left: 20px; font-size: 13px; }
+/* QNA-019: 나눠 보낸 상자의 추가 운송장. 번호마다 배송조회 링크(본문 링크 문법 — 밑줄)이고, 아래 한 줄 도움말을 둔다. */
+.wc-receipt .wc-shipment-details .wc-shipment-extra-trackings { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.wc-receipt .wc-shipment-details .wc-shipment-extra-trackings a { display: inline-flex; align-items: center; min-height: 24px; color: var(--wc-ink-sub); text-decoration: underline; text-underline-offset: 3px; }
+.wc-receipt .wc-shipment-details .wc-shipment-extra-trackings small { color: var(--wc-ink-tertiary); font-size: 12px; }
 
 /* Coupon issuance has its own period and can precede the first usable day. */
 .wc-coupon-claim { margin: 0 0 24px; padding: 20px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }

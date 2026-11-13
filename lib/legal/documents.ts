@@ -7,6 +7,13 @@ import {
 } from './links';
 import { socialLoginWords } from './social-login';
 import { DEMOGRAPHIC_NOTICE } from '../customer-demographics';
+import { kstToday } from './privacy-address-book-revision';
+import {
+  SHIPPING_BUNDLE_WORDING_REVISION,
+  type ShippingBundleWordingRevision,
+  shippingBundleWordingRevisionAnnounced,
+  shippingBundleWordingRevisionInEffect,
+} from './shipping-bundle-wording-revision';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -45,7 +52,10 @@ const EMAIL_PROCESSOR_LABEL = 'Resend';
  *
  * 오픈 뒤의 변경부터는 약관 제3조·방침 제13조대로 시행 7일(이용자에게 불리한 약관 변경은 30일) 전에 사전 공지하고
  * (pendingRevision), 시행일부터 직전 본문을 이전 판으로 보존한다(previousVersion·revisionChanges). 그때 한 문서만
- * 개정해도 나머지 시행일이 따라 바뀌지 않도록 시행일을 문서별로 둔다. */
+ * 개정해도 나머지 시행일이 따라 바뀌지 않도록 시행일을 문서별로 둔다.
+ *
+ * 아래 값은 지금 효력이 있는 본문의 시행일이다. 예약 개정(SHIPPING_BUNDLE_WORDING_REVISION — 이용약관·배송·반품 정책의
+ * '출고지' 표기)은 createLegalDocuments 가 날짜(KST)로 골라 시행일부터 문서 시행일을 그 개정의 시행일로 바꾼다. */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
   terms: '2026-11-06',
   privacy: '2026-11-06',
@@ -89,7 +99,92 @@ export interface LegalDocument {
   articles: LegalArticle[];
 }
 
-export function createLegalDocuments(businessInfo:BusinessInfo=BUSINESS_INFO) {
+/* 2026-11 예약 개정(이용약관·배송·반품 정책) — '출고지' 표기를 고객 화면과 같은 '배송 묶음'으로 고쳐 쓴다(1027T-010).
+ * 공지일부터 시행일 전까지는 현행 본문에 사전 공지만 붙이고, 시행일부터 직전 본문을 이전 판으로 보존한 뒤 아래 표대로만
+ * 바꾼다(lib/legal/shipping-bundle-wording-revision.ts). 배송비 계산 기준과 반품·교환 절차의 내용은 그대로다 — 표기만 바뀐다.
+ * 각 `from`은 그 문서 본문에 정확히 한 번 나와야 한다(앵커가 바뀌면 시행일 상태를 만드는 순간 실패한다 — 테스트가 그 상태를 만든다). */
+const SHIPPING_BUNDLE_WORDING_EDITS: ReadonlyArray<{ slug: 'terms' | 'shipping'; from: string; to: string }> = [
+  { slug: 'terms', from: '환급·재배송은 출고지별 실물 회수를', to: '환급·재배송은 배송 묶음별 실물 회수를' },
+  { slug: 'shipping', from: '출고지별 지정 택배사', to: '배송 묶음별 지정 택배사' },
+  {
+    slug: 'shipping',
+    from: '표시된 출고지별 배송 정책에 따릅니다. 출고지가 다르면 배송비를 각각 더합니다.',
+    to: '표시된 배송 묶음별 배송 정책에 따릅니다. 배송 묶음이 다르면 배송비를 각각 더합니다.',
+  },
+  { slug: 'shipping', from: '같은 출고지의 정책 적용 굿즈', to: '같은 배송 묶음의 정책 적용 굿즈' },
+  { slug: 'shipping', from: '출고지별 반송 주소와 회수 방법을', to: '배송 묶음별 반송 주소와 회수 방법을' },
+  { slug: 'shipping', from: '출고지별 반송 대상 굿즈와 수량의', to: '배송 묶음별 반송 대상 굿즈와 수량의' },
+];
+
+const SHIPPING_BUNDLE_WORDING_REASON =
+  "개정 사유 — 굿즈 상세·장바구니·주문 화면은 물류 거점(출고지) 이름 대신 '배송 묶음'으로 배송 단위를 안내합니다. 법정 문서의 표기도 같게 맞춥니다.";
+
+const SHIPPING_BUNDLE_WORDING_CHANGES: Record<'terms' | 'shipping', string[]> = {
+  terms: [
+    SHIPPING_BUNDLE_WORDING_REASON,
+    "제16조의2(반품과 교환)의 '출고지별 실물 회수'를 '배송 묶음별 실물 회수'로 고쳐 씁니다. 반품·교환 절차와 환급·재배송 시점은 바뀌지 않습니다.",
+  ],
+  shipping: [
+    SHIPPING_BUNDLE_WORDING_REASON,
+    "1. 배송 안내의 배송 방법·기본 배송비·무료 배송 조건과 6. 취소·반품·교환 절차의 반송 주소 안내·입고 확인에서 '출고지'를 '배송 묶음'으로 고쳐 씁니다. 배송비 계산 기준과 반품·교환 절차는 바뀌지 않습니다.",
+  ],
+};
+
+/** 조문 본문(문단·목록·표·마무리)에서 `from`을 `to`로 바꾼 사본과 바꾼 횟수. 조문 제목은 건드리지 않는다. */
+function replaceInArticles(articles: LegalArticle[], from: string, to: string): { articles: LegalArticle[]; count: number } {
+  let count = 0;
+  const swap = (text: string) => {
+    const parts = text.split(from);
+    count += parts.length - 1;
+    return parts.join(to);
+  };
+  return {
+    articles: articles.map((article) => ({
+      ...article,
+      ...(article.paragraphs ? { paragraphs: article.paragraphs.map(swap) } : {}),
+      ...(article.list ? { list: article.list.map(swap) } : {}),
+      ...(article.table ? { table: { columns: article.table.columns.map(swap), rows: article.table.rows.map((row) => row.map(swap)) } } : {}),
+      ...(article.closing ? { closing: article.closing.map(swap) } : {}),
+    })),
+    count,
+  };
+}
+
+/** 예약 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
+function applyShippingBundleWordingRevision(
+  document: LegalDocument,
+  slug: 'terms' | 'shipping',
+  today: string,
+  revision: ShippingBundleWordingRevision | null,
+): void {
+  if (revision && shippingBundleWordingRevisionInEffect(today, revision)) {
+    let articles = document.articles;
+    for (const edit of SHIPPING_BUNDLE_WORDING_EDITS) {
+      if (edit.slug !== slug) continue;
+      const result = replaceInArticles(articles, edit.from, edit.to);
+      if (result.count !== 1) throw new Error(`shipping_bundle_wording_anchor_changed:${slug}:${edit.from}`);
+      articles = result.articles;
+    }
+    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
+    document.articles = articles;
+    document.effectiveDate = revision.effectiveDate;
+    document.revisionChanges = SHIPPING_BUNDLE_WORDING_CHANGES[slug];
+  } else if (revision && shippingBundleWordingRevisionAnnounced(today, revision)) {
+    document.pendingRevision = {
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
+      heading: '배송 단위 표기(배송 묶음) 통일에 따른 개정 예정 안내',
+      changes: SHIPPING_BUNDLE_WORDING_CHANGES[slug],
+    };
+  }
+}
+
+/** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
+export function createLegalDocuments(
+  businessInfo:BusinessInfo=BUSINESS_INFO,
+  today: string = kstToday(),
+  shippingBundleRevision: ShippingBundleWordingRevision | null = SHIPPING_BUNDLE_WORDING_REVISION,
+) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
  * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
@@ -745,6 +840,9 @@ const shipping: LegalDocument = {
     },
   ],
 };
+
+applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
+applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 
 return {terms,privacy,shipping};
 }

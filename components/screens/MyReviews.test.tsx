@@ -103,8 +103,46 @@ describe('MyReviews', () => {
     expect(html).toContain('작성 기한이 지났습니다');
   });
 
-  it('일반 작성과 이벤트 선정 혜택을 구분한다', () => {
-    expect(render([])).toContain('리뷰 작성만으로 혜택이 지급되지는 않으며');
-    expect(render([])).toContain('리뷰이벤트의 선정 혜택');
+  /* 미확정 주문의 리뷰 등록은 구매확정(적립금 지급)을 겸한다. '혜택 없음'만 말하면 사실과 어긋나므로
+     리뷰 작성 자체의 혜택, 구매확정 적립금, 리뷰이벤트 선정 혜택을 나눠 말한다. */
+  it('리뷰 작성 자체의 혜택·구매확정 적립금·이벤트 선정 혜택을 구분한다', () => {
+    const html = render([]);
+    expect(html).toContain('아직 구매확정하지 않은 주문은 리뷰를 등록하면 함께 구매확정됩니다.');
+    expect(html).toContain('리뷰 작성 자체에 대한 혜택은 없습니다. 구매확정 적립금은 리뷰 없이 [구매확정]이나 자동 구매확정으로도 똑같이 지급됩니다.');
+    expect(html).toContain('리뷰이벤트의 선정 혜택');
+    expect(html).not.toContain('리뷰 작성만으로 혜택이 지급되지는 않으며');
+  });
+
+  /* 리뷰 등록은 구매확정을 겸한다(1014-079). 쓰기 전에 그 사실을 목록에서도 알린다. */
+  it('미확정 주문의 작성 카드는 등록하면 구매확정된다고 알린다', () => {
+    const html = render([target({ purchaseConfirmation: { required: true, block: null, holdReason: null } })]);
+
+    expect(html).toContain('작성할 수 있는 리뷰 1건');
+    expect(html).toContain('리뷰를 등록하면 이 주문이 함께 구매확정됩니다.');
+  });
+
+  it('이미 구매확정된 주문의 작성 카드는 확정 안내를 붙이지 않는다', () => {
+    const html = render([target({ purchaseConfirmation: { required: false, block: null, holdReason: null } })]);
+
+    expect(html).not.toContain('리뷰를 등록하면 이 주문이 함께 구매확정됩니다.');
+  });
+
+  /* 구매확정할 수 없는 주문은 리뷰도 막힌다. 남은 기한 대신 막힌 이유를 적는다. */
+  it('구매확정할 수 없어 막힌 굿즈는 기한 대신 막힌 이유를 보인다', () => {
+    const html = render([target({ writable: false, purchaseConfirmation: { required: true, block: 'claim_in_progress', holdReason: null } })]);
+
+    expect(html).toContain('현재 작성할 수 없는 리뷰 1건');
+    expect(html).toContain('취소·반품·교환 신청이 진행 중');
+    expect(html).not.toContain('작성 기한 82일 남음');
+  });
+
+  it('작성 기한이 지났으면 막힌 이유보다 기한 안내가 먼저다', () => {
+    const html = render([target({
+      deliveredAt: '2026-01-01T00:00:00.000Z', deadlineAt: '2026-04-01T00:00:00.000Z', writable: false,
+      purchaseConfirmation: { required: true, block: 'held', holdReason: '사진 확인 중' },
+    })]);
+
+    expect(html).toContain('작성 기한이 지났습니다');
+    expect(html).not.toContain('보류');
   });
 });

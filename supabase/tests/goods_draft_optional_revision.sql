@@ -47,6 +47,12 @@ select 1/case when public.admin_get_goods_draft('a5d01700-0000-4000-8000-0000000
   (select value||'{"customInputsExpectedRevision":"0","saleEndsAt":"2027-01-01T18:00"}'::jsonb from draft_period_input)
  then 1 else 0 end as explicit_zero_preserves_updated_period_and_custom_inputs;
 
+-- QA2: 반품/교환지 id(claimReturnAddressId)는 화면 입력 기록과 같이 서버 임시저장에도 실린다(UUID 또는 빈 문자열만).
+select public.admin_save_goods_draft('a5d01700-0000-4000-8000-000000000011','{"name":"명시한 영","customInputsExpectedRevision":"0","claimReturnAddressId":"a5d01700-0000-4000-8000-0000000000a1"}',1);
+select 1/case when public.admin_get_goods_draft('a5d01700-0000-4000-8000-000000000011')#>>'{values,claimReturnAddressId}'='a5d01700-0000-4000-8000-0000000000a1'
+ then 1 else 0 end as draft_keeps_return_address_id;
+select public.admin_save_goods_draft('a5d01700-0000-4000-8000-000000000011','{"name":"명시한 영","claimReturnAddressId":""}',2);
+select pg_temp.expect_draft_optional_error($q$select public.admin_save_goods_draft('a5d01700-0000-4000-8000-000000000011','{"name":"x","claimReturnAddressId":"not-a-uuid"}',3)$q$,'invalid_goods_draft');
 select pg_temp.expect_draft_optional_error($q$select public.admin_save_goods_draft('a5d01700-0000-4000-8000-000000000012','{"name":"오래된 버전"}',0)$q$,'goods_draft_changed');
 select pg_temp.expect_draft_optional_error($q$select public.admin_save_goods_draft('a5d01700-0000-4000-8000-000000000013','{"name":"기존 상품 revision 차단","customInputsExpectedRevision":"1"}',0)$q$,'invalid_goods_draft');
 select pg_temp.expect_draft_optional_error($q$select public.admin_save_goods_draft('a5d01700-0000-4000-8000-000000000013','{"name":"숫자 타입 차단","customInputsExpectedRevision":0}',0)$q$,'invalid_goods_draft');
@@ -58,7 +64,7 @@ select set_config('request.jwt.claim.sub','a5d01700-0000-4000-8000-000000000003'
 select pg_temp.expect_draft_optional_error($q$select public.admin_save_goods_draft('a5d01700-0000-4000-8000-000000000013','{"name":"권한 없는 신규 저장"}',0)$q$,'operator_capability_required');
 reset role;
 select 1/case when (select count(*) from public.admin_goods_drafts where id::text like 'a5d01700-%')=3
- and (select count(*) from public.audit_log where action='admin.goods.draft.saved' and target like 'goods_draft:a5d01700-%')=4
+ and (select count(*) from public.audit_log where action='admin.goods.draft.saved' and target like 'goods_draft:a5d01700-%')=6
  and not exists(select 1 from public.admin_goods_drafts where id='a5d01700-0000-4000-8000-000000000013')
  and not has_function_privilege('anon','public.admin_save_goods_draft(uuid,jsonb,integer)','execute')
  and not has_function_privilege('service_role','public.admin_save_goods_draft(uuid,jsonb,integer)','execute')

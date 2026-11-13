@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   row: null as Record<string, unknown> | null,
   selects: [] as Array<[string, string]>,
+  rpc: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -17,6 +18,7 @@ vi.mock('@/app/admin/archive-actions', () => ({ archiveAdminCatalogRecordAction:
 vi.mock('@/lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 vi.mock('@/app/admin/ip-publish-actions', () => ({ publishAdminIpAction: vi.fn(), unpublishAdminIpAction: vi.fn() }));
 vi.mock('@/app/admin/ip-banner-actions', () => ({ saveAdminIpHallBannerAction: vi.fn() }));
+vi.mock('@/app/admin/ip-delete-actions', () => ({ deleteAdminDraftIpAction: vi.fn() }));
 vi.mock('@/lib/ip-identity.server', () => ({ loadAdminIpIdentity: vi.fn(async () => null) }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
@@ -30,6 +32,7 @@ vi.mock('@/lib/supabase/server', () => ({
       return api;
     },
     storage: { from: (bucket: string) => ({ getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.test/${bucket}/${path}` } }) }) },
+    rpc: mocks.rpc,
   }),
 }));
 
@@ -51,6 +54,7 @@ function ipRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   mocks.row = ipRow();
   mocks.selects = [];
+  mocks.rpc.mockReset().mockResolvedValue({ data: null, error: null });
 });
 
 describe('loadAdminIpWorkspace', () => {
@@ -89,5 +93,28 @@ describe('loadAdminIpWorkspace', () => {
     const removeButtons = banners.match(/<button[^>]*data-artwork-remove=""[^>]*>이미지 제거<\/button>/g) ?? [];
     expect(removeButtons).toHaveLength(2);
     expect(removeButtons.filter((tag) => /\sdisabled=""/.test(tag))).toEqual([]);
+  });
+
+  /* S36-004 — 기본정보 탭의 초안만 미사용 초안 삭제 근거를 DB에서 읽는다. */
+  it('reads the delete readiness only for a draft on the basic tab', async () => {
+    const zero = { goods: 0, cards: 0, card_pools: 0, reward_policies: 0, events: 0, home_curations: 0, coupons: 0, order_items: 0, ip_follows: 0, posts: 0, other: 0 };
+    mocks.rpc.mockResolvedValue({ data: { id: 'maplestory', title: '메이플스토리', publicSlug: 'maplestory', state: 'draft', publicHistory: false,
+      aliases: [], references: zero, referenceTotal: 0, deletable: true }, error: null });
+
+    expect((await loadAdminIpWorkspace('maplestory', 'basic'))?.deletion).toBeUndefined();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.row = ipRow({ published_at: null });
+    expect((await loadAdminIpWorkspace('maplestory', 'basic'))?.deletion).toMatchObject({ id: 'maplestory', deletable: true });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_ip_delete_readiness', { target_id: 'maplestory' });
+
+    mocks.row = ipRow({ published_at: null, archived_at: '2026-10-01T00:00:00Z' });
+    await loadAdminIpWorkspace('maplestory', 'basic');
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+
+    /* 근거를 읽지 못하면 삭제 패널을 열지 않는다. */
+    mocks.row = ipRow({ published_at: null });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'operator_capability_required' } });
+    expect((await loadAdminIpWorkspace('maplestory', 'basic'))?.deletion).toBeNull();
   });
 });

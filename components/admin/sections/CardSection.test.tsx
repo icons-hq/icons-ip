@@ -127,8 +127,8 @@ describe('CardSection', () => {
   });
 
   it('입력 묶음 맨 위 제목이 새 등록과 수정을 가른다', () => {
-    expect(renderCard(null)).toContain('>새 카드 등록</h3>');
-    expect(renderCard()).toContain('>청명 홀로 카드 수정</h3>');
+    expect(renderCard(null)).toContain('>새 카드 등록</h2>');
+    expect(renderCard()).toContain('>청명 홀로 카드 수정</h2>');
   });
 
   it('목록은 번호 순서로 등급·카드풀 연결을 보이고, 카드풀이 없는 카드는 건수 칩과 줄의 주의 배지로 표시한다', () => {

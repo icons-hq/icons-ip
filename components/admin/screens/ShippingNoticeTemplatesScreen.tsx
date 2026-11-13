@@ -12,6 +12,7 @@ import {
   SHIPPING_NOTICE_TEMPLATE_NAME_MAX,
   SHIPPING_NOTICE_TEMPLATE_PAGE_SIZE,
   SHIPPING_NOTICE_TEMPLATES_PATH,
+  shippingNoticeTemplateAnchor,
   shippingNoticeTemplateHref,
   type ShippingNoticeTemplatePageData,
 } from '@/lib/admin/shipping-notice-templates';
@@ -25,8 +26,9 @@ import {
 const DETAILS = 'group min-w-0 border-b last:border-b-0 open:bg-muted/20';
 const DETAILS_SUMMARY = 'flex min-h-12 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden';
 
-export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTemplatePageData }) {
+export function ShippingNoticeTemplatesScreen({ data, focusId }: { data: ShippingNoticeTemplatePageData; focusId?: string }) {
   const { templates, impactGoods, filters, total } = data;
+  const focused = focusId ? templates.find((template) => template.id === focusId) : undefined;
   /* 템플릿 화면군 공통 골격: 머리(설명·등록) → 조회 카드 → 목록 카드(항목·페이지 이동). 등록은 머리 오른쪽 버튼의 팝업이다. */
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-notices">
     <AdminPageHeader
@@ -37,6 +39,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
     <AdminNotice tone="info">
       <strong className="font-semibold">활성 템플릿은 고칠 수 없으니, 바꾸려면 새 버전으로 등록해주세요.</strong> 필수 안내와 확인 근거를 채우면 활성화할 수 있습니다. 배송비·출고지·반품 조건은 <Link className="font-medium underline underline-offset-4" href="/admin/settings/shipping-templates">배송정보 템플릿 관리</Link>에서 정합니다.
     </AdminNotice>
+    {focused ? <AdminNotice role="status" tone={focused.status === 'draft' ? 'success' : 'info'} title={`'${focused.name}' 초안을 저장했습니다`}>{focused.status === 'draft' ? '아래에서 열어 두었습니다. 확인 근거를 입력하고 [활성화]를 눌러주세요.' : '아래에서 열어 두었습니다.'}</AdminNotice> : null}
     <form action={SHIPPING_NOTICE_TEMPLATES_PATH} className={CONSOLE_FILTER_CARD_CLASS}>
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>
         <ConsoleFilterField className="min-w-[min(100%,15rem)] flex-1" htmlFor="shipping-notice-template-query" label="템플릿 이름 검색">
@@ -55,7 +58,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
     {templates.length ? <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border" data-shipping-notice-entries="">
       {templates.map((template) => {
         const assigned = impactGoods.filter((good) => good.templateId === template.id);
-        return <details key={template.id} className={DETAILS}>
+        return <details key={template.id} id={shippingNoticeTemplateAnchor(template.id)} className={`${DETAILS} scroll-mt-24${template.id === focusId ? ' bg-muted/20 ring-2 ring-primary/40 ring-inset' : ''}`} open={template.id === focusId || undefined} data-focused={template.id === focusId || undefined}>
           <summary className={DETAILS_SUMMARY}>
             {/* 이름 길이와 상관없이 상태가 세로로 맞도록 이름이 남는 폭을 다 쓴다. */}
             <strong className="min-w-0 flex-1 font-medium">{template.name}</strong>
@@ -69,6 +72,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
             <AdminSectionCard title="고객 공개 미리보기">
               <dl className="grid gap-3">
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">배송 안내</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{template.shippingNotice || '아직 입력되지 않았습니다.'}</dd></div>
+                <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">도서산간 안내</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{template.remoteAreaNotice || '입력하지 않았습니다(선택).'}</dd></div>
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">교환·반품 안내</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{template.returnExchangeNotice || '아직 입력되지 않았습니다.'}</dd></div>
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">고객센터</dt><dd>{[template.csName, template.csPhone, template.csEmail].filter(Boolean).join(' · ') || '아직 입력되지 않았습니다.'}</dd></div>
               </dl>

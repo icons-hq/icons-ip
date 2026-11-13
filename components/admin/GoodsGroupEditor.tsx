@@ -13,6 +13,7 @@ import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /* 셸의 콘솔 전환과 같은 탭 모양(템플릿 룩, ADR-0028). */
 const TAB = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
@@ -110,9 +111,9 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, titl
     const metadata = { ...identity, version: 1 as const, command: 'archive' as const, groupId: stored.id, expectedRevision: stored.revision, operationId: crypto.randomUUID() };
     operation.execute(metadata, () => archiveGoodsGroupAction(metadata));
   }
-  function reload() {
+  async function reload() {
     if (!stored || !identity || operation.locked || session.blocked || pending || !session.current()) return;
-    if (JSON.stringify(values) !== JSON.stringify(valuesOf(stored)) && !window.confirm('현재 입력을 두고 최신 저장본을 불러올까요?')) return;
+    if (JSON.stringify(values) !== JSON.stringify(valuesOf(stored)) && !await adminConfirm('현재 입력을 두고 최신 저장본을 불러올까요?')) return;
     startTransition(async () => {
       try { const result = await readGoodsGroupAction(stored.id, identity); if (!session.current()) return;
         if ('error' in result) { setError(result.error); if (result.authChanged) session.deny(); }
@@ -160,7 +161,7 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, titl
       {comparison ? <AdminSectionCard title="저장 전 확인"><p className="text-sm">{comparison.name} · {comparison.members.length}개 판매옵션</p><ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
         <li>이름은 그룹상품명과 옵션값을 합쳐 저장합니다. 구성 상품 전체가 미공개로 바뀌고 KC 재검토가 필요합니다.</li>
         <li>제외할 상품 {removed.length}개는 개별 상품으로 남습니다. 상품을 합치거나 재고를 옮기지 않습니다.</li><li>공통 상품정보가 서로 같은 상품만 연결할 수 있습니다.</li><li>기존 합산 할인·배송비·구매한도는 그대로 적용됩니다.</li></ul>
-        <GroupTable label="저장할 판매옵션"><TableHeader><TableRow><TableHead>상품번호</TableHead><TableHead>저장할 상품명</TableHead></TableRow></TableHeader><TableBody>{comparison.members.map(row => <TableRow key={row.goodId}><TableCell>{row.goodId}</TableCell><TableCell className="whitespace-normal">{comparison.name} {row.values.join(' / ')}</TableCell></TableRow>)}</TableBody></GroupTable>
+        <GroupTable label="저장할 판매옵션"><TableHeader><TableRow><TableHead>상품 URL</TableHead><TableHead>저장할 상품명</TableHead></TableRow></TableHeader><TableBody>{comparison.members.map(row => <TableRow key={row.goodId}><TableCell>{row.goodId}</TableCell><TableCell className="whitespace-normal">{comparison.name} {row.values.join(' / ')}</TableCell></TableRow>)}</TableBody></GroupTable>
         <label className={CHECK}><input type="checkbox" checked={approved} disabled={locked} onChange={event => setApproved(event.target.checked)} /> 변경 내용과 미공개·KC 재검토를 확인했습니다.</label>
         <Button className="self-start" type="button" disabled={locked || !approved} onClick={save}>이 구성으로 저장</Button></AdminSectionCard> : null}
       {stored && !stored.archivedAt ? <AdminSectionCard title="그룹 연결 해제"><p className="text-sm">그룹 연결을 모두 해제합니다. 개별 상품의 번호·가격·재고와 기존 합산 조건은 유지됩니다.</p>

@@ -8,6 +8,7 @@ import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
 import { createClient } from '@/lib/supabase/server';
 import { customerServicePageSize } from './customer-service-list';
 import { parseAdminInquirySatisfactionDetail, parseInquirySatisfactionSummary, type AdminInquirySatisfactionDetail, type InquirySatisfactionValue } from '@/lib/inquiry-satisfaction';
+import { parseInquiryProcessingHistory, type InquiryProcessingHistory } from './inquiry-processing-history';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
@@ -224,6 +225,8 @@ export interface AdminInquiryDetail {
   staffOptions: AdminInquiryStaffOption[];
   notes: AdminInquiryInternalNote[];
   satisfaction?: { ok: true; value: AdminInquirySatisfactionDetail } | { ok: false };
+  /** 처리 이력(담당 지정·변경·답변·완료 — 누가·언제, 1014-105). 읽기 실패는 빈 이력이 아니라 { ok: false }다. */
+  history?: { ok: true; value: InquiryProcessingHistory } | { ok: false };
 }
 
 export interface AdminInquiryStaffOption {
@@ -294,7 +297,7 @@ export async function loadAdminInquiryDetail(
   if (threadError) throw new Error(`Failed to load inquiry: ${threadError.message}`);
   if (!threadData) return null;
 
-  const [messageResult, contextResult, workspaceResult, goodResult, authorNames, satisfaction] = await Promise.all([
+  const [messageResult, contextResult, workspaceResult, goodResult, authorNames, satisfaction, history] = await Promise.all([
     supabase
       .from('inquiry_messages')
       .select('id,author,body,image_paths,file_ids,created_at')
@@ -312,6 +315,13 @@ export async function loadAdminInquiryDetail(
         const { data, error } = await supabase.rpc('admin_inquiry_satisfaction_detail', { p_inquiry_id: inquiryId });
         const parsed = !error && parseAdminInquirySatisfactionDetail(data);
         return parsed && parsed.current.inquiryId === inquiryId ? { ok: true as const, value: parsed } : { ok: false as const };
+      } catch { return { ok: false as const }; }
+    })(),
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('admin_inquiry_processing_history', { target_inquiry_id: inquiryId });
+        const parsed = !error && parseInquiryProcessingHistory(data);
+        return parsed && parsed.inquiryId === inquiryId ? { ok: true as const, value: parsed } : { ok: false as const };
       } catch { return { ok: false as const }; }
     })(),
   ]);
@@ -389,5 +399,6 @@ export async function loadAdminInquiryDetail(
     staffOptions: workspace.staffOptions,
     notes: workspace.notes,
     satisfaction,
+    history,
   };
 }

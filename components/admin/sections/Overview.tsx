@@ -164,7 +164,7 @@ export function OverviewSection({
 
       {/* 가이드는 매일 보는 숫자의 자리를 차지하지 않게 맨 아래 작은 링크로 둔다. */}
       <aside aria-label="판매자센터 안내" className="flex justify-end px-1 text-xs text-muted-foreground">
-        <Link className="underline-offset-4 hover:text-foreground hover:underline" href="/admin/guide">판매자센터 운영 가이드</Link>
+        <Link className="underline-offset-4 hover:text-foreground hover:underline" href="/admin/guide">사용 가이드</Link>
       </aside>
     </div>
   );

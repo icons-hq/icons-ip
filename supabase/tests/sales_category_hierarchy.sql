@@ -201,9 +201,9 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000047472
 select pg_temp.expect_error($sql$select public.admin_upsert_category('00000000-0000-4000-8000-000000047420',null,'buyer-category-0474','불허',null,1,null)$sql$, 'forbidden', '42501');
 select pg_temp.expect_error($sql$insert into public.catalog_categories(code,name) values ('direct-write-0474','직접 쓰기')$sql$, 'permission denied', '42501');
 select pg_temp.expect_error($sql$select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047435', '["불허>경로"]'::jsonb)$sql$, 'forbidden', '42501');
-select 1 / case when not has_function_privilege('anon', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz)', 'execute')
-  and not has_function_privilege('service_role', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz)', 'execute')
+select 1 / case when not has_function_privilege('anon', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz,text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz,text)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz,text)', 'execute')
   and not has_table_privilege('authenticated', 'public.catalog_categories', 'insert')
   and not has_function_privilege('anon', 'public.admin_bulk_create_categories(uuid,jsonb)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_bulk_create_categories(uuid,jsonb)', 'execute')

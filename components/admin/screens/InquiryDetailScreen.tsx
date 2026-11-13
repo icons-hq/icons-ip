@@ -23,6 +23,8 @@ import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWork
 import { InquiryReplyPanel } from './InquiryReplyPanel';
 import { InquiryPreviewBackLink } from './CustomerServiceDialog';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
+import { InquiryPurchaseHistoryPanel } from './InquiryPurchaseHistoryPanel';
+import { InquiryProcessingHistoryList } from './InquiryProcessingHistory';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquirySatisfactionContext } from './InquirySatisfactionContext';
 import { INQUIRY_LIVE_CLASS, INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
@@ -255,7 +257,7 @@ export function InquiryDetailScreen({
           {inquiry.goodId ? (
             <ContextCard title={adminGoodsCopy('연결 굿즈')}>
               <ContextRow label="상품" value={inquiry.goodName ?? inquiry.goodId} />
-              <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/shop/${inquiry.goodId}`}>{adminGoodsCopy(' 굿즈 상세 보기 ')}</Link>
+              <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/shop/${inquiry.goodId}`}>{adminGoodsCopy(' 굿즈 상세 ')}</Link>
             </ContextCard>
           ) : null}
 
@@ -271,12 +273,16 @@ export function InquiryDetailScreen({
               <AdminNotice role="alert" tone="danger">정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).</AdminNotice>
             ) : null}
             {canViewCustomer ? <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/admin/customers/${buyer.id}`}>
-              고객 상세 열기
+              고객 상세
             </Link> : null}
           </ContextCard>
           <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
+          {/* 처리 이력(1014-105): 이 문의를 여는 운영자 누구나 담당 지정·변경·답변·완료를 누가 언제 했는지 본다. */}
+          {detail.history ? <ContextCard title="처리 이력"><InquiryProcessingHistoryList result={detail.history} /></ContextCard> : null}
           <InquirySatisfactionContext result={detail.satisfaction} />
-          {canReadOrders ? <CustomerHistoryPanel key={buyer.id} userId={buyer.id} canReadClaims={canManageSales} /> : null}
+          {/* 주문 조회 권한이 없는 상담 역할(부매니저·대행사)도 이 문의 고객의 구매이력(금액·상태)을 본다(1014-103). 열람은 DB가 감사한다. */}
+          {canReadOrders ? <CustomerHistoryPanel key={buyer.id} userId={buyer.id} canReadClaims={canManageSales} />
+            : <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground"><InquiryPurchaseHistoryPanel key={inquiry.id} inquiryId={inquiry.id} canOpenOrders={false} title="구매이력" showLinkedOrder /></div>}
         </aside>
       </div>
     </div>

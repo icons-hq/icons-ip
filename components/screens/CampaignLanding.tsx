@@ -223,7 +223,7 @@ export function CampaignLanding({
   };
 
   return (
-    <div className="wc-root wc-campaign">
+    <main className="wc-root wc-campaign">
       <GoodsSalePeriodRefresh goods={campaign.resolvedSections.flatMap(section => section.type === 'goods' ? section.goods : [])} />
       <CampaignAnchorNav
         anchors={anchors}
@@ -279,6 +279,6 @@ export function CampaignLanding({
           />
         )}
       </div>
-    </div>
+    </main>
   );
 }

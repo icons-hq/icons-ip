@@ -21,6 +21,8 @@ export interface ShippingNoticeTemplateActionState extends AdminFormValuesState 
   errors?: Record<string, string>;
   message?: string;
   updatedAt?: string;
+  /** 새 초안을 만든 저장일 때만: 목록에서 바로 찾아 활성화할 수 있게 id·이름을 돌려준다. */
+  created?: { id: string; name: string };
 }
 
 const SAVE_FAILED = '배송 안내 템플릿을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
@@ -58,7 +60,7 @@ function rpcErrors(error: { code?: string; message: string }, fallback: string):
 
 function saveValues(data: FormData): Record<string, string> {
   return Object.fromEntries([
-    'id', 'code', 'version', 'name', 'shippingNotice', 'returnExchangeNotice',
+    'id', 'code', 'version', 'name', 'shippingNotice', 'returnExchangeNotice', 'remoteAreaNotice',
     'csName', 'csPhone', 'csEmail', 'updatedAt',
   ].map((key) => [key, stringValue(data, key)]));
 }
@@ -79,13 +81,14 @@ export async function saveShippingNoticeTemplateAction(
   if (!parsed.ok) return fail(parsed.errors);
   try {
     const supabase = await createClient();
-    const { data: saved, error } = await supabase.rpc('admin_save_shipping_notice_template', {
+    const { data: saved, error } = await supabase.rpc('admin_save_shipping_notice_template_v2', {
       target_id: values.id || null,
       target_code: parsed.value.code,
       target_version: parsed.value.version,
       target_name: parsed.value.name,
       target_shipping_notice: parsed.value.shipping_notice,
       target_return_exchange_notice: parsed.value.return_exchange_notice,
+      target_remote_area_notice: parsed.value.remote_area_notice,
       target_cs_name: parsed.value.cs_name,
       target_cs_phone: parsed.value.cs_phone,
       target_cs_email: parsed.value.cs_email,
@@ -98,6 +101,7 @@ export async function saveShippingNoticeTemplateAction(
       attempt,
       message: '배송 안내 템플릿을 저장했습니다. 필수 안내와 확인 근거를 확인한 뒤 활성화해주세요.',
       updatedAt: typeof saved?.updatedAt === 'string' ? saved.updatedAt : undefined,
+      ...(!values.id && typeof saved?.id === 'string' && isUuid(saved.id) ? { created: { id: saved.id, name: parsed.value.name } } : {}),
     };
   } catch {
     return fail({ form: SAVE_FAILED });

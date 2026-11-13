@@ -71,8 +71,14 @@ const STATUS_TONES = {
   delayNotice: { sent: 'success', partial_failed: 'warning', pending: 'info', unknown: 'warning', not_sent: 'neutral' },
   /** 지연 안내 채널별 결과 — lib/admin/order-delay-notices */
   delayNoticeChannel: { prepared: 'neutral', queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
+  /** 예약 일정 변경 안내의 SMS 결과 — lib/admin/preorder-schedule-change. 수신 동의 없음 같은 제외는 조용히 둔다 */
+  delayNoticeSms: { queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', skipped: 'neutral' },
   /** 배송 안내 메일 작업 */
   shipmentEmail: { pending: 'info', processing: 'info', completed: 'success', review: 'danger' },
+  /** 배송완료 근거 — lib/admin/shipment-tracking(QNA-028). 택배 추적 스위치가 켜진 때만 보인다. 수동 처리는 평상 상태라 조용히 둔다 */
+  shipmentDeliveredBy: { tracking: 'success', manual: 'neutral' },
+  /** 택배 추적 최근 상태 — lib/fulfillment/tracking TRACKING_EVENT_STATUSES. 반송·배송 이상만 확인을 부른다 */
+  trackingEvent: { accepted: 'info', in_transit: 'info', out_for_delivery: 'info', delivered: 'success', exception: 'danger', returned: 'danger', unknown: 'neutral' },
   /** 착불 배송비 수납 — lib/admin/shipping-collect-events */
   shippingCollect: { planned: 'info', collected: 'success', void: 'neutral', refund_review: 'warning', refunded: 'neutral', mismatch: 'danger' },
   /** 주문제작 — lib/order-production */
@@ -81,6 +87,13 @@ const STATUS_TONES = {
   pgSettlementKind: { approval: 'neutral', cancel: 'danger' },
   /** PG 정산 수집 시점 대조 — lib/settlements/report */
   pgSettlementMatch: { matched: 'success', unlinked: 'warning', mismatch: 'danger' },
+  /** 교환 재출고 배송 건(출고지)별 — lib/admin/claim-reshipments. 회수 생략은 회수품 재고 복원이 없어 확인할 일로 띄우고,
+   *  주문제작 교환품 제작 대기는 재출고 전에 끝낼 일이라 같은 경고 색이다 */
+  claimReshipment: { pending: 'neutral', production: 'warning', reshipped: 'info', delivered: 'success', waived: 'warning' },
+  /** 반품 자동 회수 접수(QNA-032) — lib/admin/claim-return-pickup. 자동 수거 실패·취소 실패만 확인을 부른다 */
+  claimReturnPickup: { pending: 'info', failed: 'danger', requested: 'info', collected: 'success', cancel_pending: 'info', cancel_failed: 'danger', canceled: 'neutral' },
+  /** 재고 부족 부분 취소 — lib/orders/partial-cancellation(ADR-0032). 결제확인필요는 출고를 막고 있어 위험색, 송금 대기는 우리가 보낼 돈이다 */
+  partialCancellation: { processing: 'info', needs_review: 'danger', rejected: 'neutral', completed: 'success', awaiting_transfer: 'warning' },
   // [cs]
   /** 상담하기 대화 상태 — lib/admin/inquiry-chat CHAT_STATUS_OPTIONS. 답변 뒤 대화가 이어지는 '진행중'은 진행 색이고, 고객문의의 '답변 완료'와 뜻이 달라 별도 줄이다 */
   inquiryChat: { open: 'warning', answered: 'info', closed: 'neutral' },
@@ -142,6 +155,10 @@ const STATUS_TONES = {
    *  notVisible은 담았거나 담을 상품이 고객 화면에 보이지 않음(비공개·보관됨·찾을 수 없음)이다 — 운영자가 숨긴 리뷰·문의(hidden)와 달리
    *  담기는 막지 않지만 그 전시에서 빠지므로 전시 목록·결과 줄에서 확인을 부른다(components/admin/DisplayGoodVisibility) */
   goodReference: { ready: 'success', blocked: 'neutral', missing: 'warning', overLimit: 'warning', notVisible: 'warning' },
+  /** ERP 연결 상품 반영 미리보기 행 — components/admin/ErpLinkedGoodsPanel. 이미 있던 바코드가 바뀌는 행은 출고 대조 확인을 부른다 */
+  erpLinkedGoods: { apply: 'info', barcode_changed: 'warning', skip: 'neutral', failed: 'danger' },
+  /** 상품 목록 옵션별 재고 창의 옵션별 저장 결과 — components/admin/GoodsOptionStockDialog. 저장하지 못했거나 결과를 모르는 옵션은 다시 확인을 부른다 */
+  optionStockEdit: { saved: 'success', recheck: 'warning', uncertain: 'warning' },
   // [ops]
   /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
   couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },
@@ -150,7 +167,7 @@ const STATUS_TONES = {
   /** 설정 항목(출고지·배송비 묶음그룹·템플릿 등)의 사용 상태 */
   setting: { active: 'success', inactive: 'neutral', archived: 'neutral' },
   /** 지역 추가 배송비 정책 버전. 중단은 신규 주문 차단과 이어져 확인이 필요하다(초안과 다른 색이다). */
-  regionPolicy: { draft: 'neutral', active: 'success', retired: 'warning' },
+  regionPolicy: { draft: 'neutral', scheduled: 'info', active: 'success', retired: 'warning' },
   /** 적립금 일괄 지급 작업 */
   creditBatch: { prepared: 'warning', invalid: 'warning', completed: 'success', failed: 'danger' },
 } as const satisfies Record<string, Record<string, AdminTone>>;

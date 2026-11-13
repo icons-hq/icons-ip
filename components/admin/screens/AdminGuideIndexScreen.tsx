@@ -46,7 +46,7 @@ export function AdminGuideIndexScreen() {
     <div className="flex min-w-0 flex-col gap-4" data-guide="index">
       <Card className="min-w-0">
         <CardHeader>
-          <h2 className="text-lg leading-tight font-semibold tracking-tight">판매자 가이드</h2>
+          <h2 className="text-lg leading-tight font-semibold tracking-tight">주제별 안내</h2>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-sm leading-relaxed">
           <p>

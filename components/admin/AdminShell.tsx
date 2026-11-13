@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, type CSSProperties, type ReactNode } from 'react';
-import { ADMIN_CONSOLES, adminConsoleHomeHref, adminDetailTitleForPath, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
+import { ADMIN_CONSOLES, adminConsoleForPath, adminConsoleHomeHref, adminConsoleWindowName, adminDetailTitleForPath, adminGroupConsoles, adminGroupForPath, adminScreenForPath } from '@/lib/admin/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/admin/kit/ui/sidebar';
 import { TooltipProvider } from '@/components/admin/kit/ui/tooltip';
 import { AdminSidebar } from './AdminSidebar';
@@ -16,6 +16,7 @@ import { AdminKitPortalHost } from './kit/portal-container';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
 import { AdminNumberWheelGuard } from './AdminNumberWheelGuard';
+import { AdminConfirmHost } from './AdminConfirmHost';
 import { hasAdminCapability, NO_OPERATOR_ACCESS, type OperatorAccess } from '@/lib/admin/access';
 import { adminNavigationAccountId, type SavedAdminNavigation } from '@/lib/admin/navigation-preferences';
 
@@ -27,14 +28,11 @@ import { adminNavigationAccountId, type SavedAdminNavigation } from '@/lib/admin
 export function AdminShell({
   admin,
   children,
-  console: consoleId = 'commerce',
   initialNavigation,
   sidebarDefaultOpen = true,
 }: {
   admin: { id: string; email: string | null; role: string; operatorAccess?: OperatorAccess };
   children: ReactNode;
-  /** 이 셸을 그리는 route group의 콘솔. 사이드바 메뉴와 상단 전환 상태를 정한다. */
-  console?: AdminConsoleId;
   /** 지난번 열린 메뉴 그룹·즐겨찾기(계정별 쿠키). 첫 HTML부터 같은 모양으로 그린다. */
   initialNavigation?: SavedAdminNavigation | null;
   /** 지난번 사이드바 접힘 상태(`sidebar_state` 쿠키). */
@@ -44,19 +42,25 @@ export function AdminShell({
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const currentPath = search ? `${pathname}?${search}` : pathname;
+  /* 칸(쇼핑·카드·게임)은 경로가 정한다. route group(`(shell)`·`(content)`)은 레이아웃 묶음일 뿐이라 IP·이벤트·티켓 회차도 쇼핑 칸이다. */
+  const consoleId = adminConsoleForPath(pathname);
+  const consoleInfo = ADMIN_CONSOLES.find((item) => item.id === consoleId) ?? ADMIN_CONSOLES[0];
   const screen = adminScreenForPath(currentPath);
   const group = adminGroupForPath(currentPath);
   const isChat = screen?.id === 'inquiry-chat';
   const isHome = pathname === '/admin';
   const access = admin.operatorAccess ?? NO_OPERATOR_ACCESS;
-  /* R2(D2①): 새 1:1 문의 PC 알림은 커머스 콘솔의 문의 담당(cs.manage)에게만. 켜고 끄기는 업무 도구 '알림'에 둔다. */
-  const inquiryNotifications = consoleId === 'commerce' && Boolean(admin.id) && hasAdminCapability(access, 'cs.manage');
+  /* R2(D2①): 새 1:1 문의·상품 문의 PC 알림은 쇼핑 칸의 문의 담당(cs.manage)에게만. 켜고 끄기는 업무 도구 '알림'에 둔다. */
+  const inquiryNotifications = consoleId === 'shopping' && Boolean(admin.id) && hasAdminCapability(access, 'cs.manage');
   /* 전환 링크는 그 콘솔에서 볼 수 있는 화면이 있을 때만 만든다. */
   const consoles = ADMIN_CONSOLES.map((item) => ({ ...item, href: adminConsoleHomeHref(item.id, admin.role, access) }))
     .filter((item): item is typeof item & { href: string } => Boolean(item.href));
-  const consoleLinks = consoles.length > 1 ? consoles.map((item) => ({ ...item, current: item.id === consoleId })) : [];
-  /* 콘텐츠 콘솔은 경로 첫 칸이 콘솔 이름이라, 그 콘솔 전용 메뉴 그룹(IP·콘텐츠 운영)을 다시 적지 않는다. */
-  const groupLabel = group && consoleId !== 'commerce' && adminGroupConsoles(group).every((id) => id === consoleId) ? undefined : group?.label;
+  /* 쇼핑 밖 칸으로 가는 링크는 이름 붙은 새 창으로 연다. 같은 칸을 다시 누르면 열려 있는 그 창을 다시 쓴다. */
+  const consoleLinks = consoles.length > 1
+    ? consoles.map((item) => ({ ...item, current: item.id === consoleId, target: item.newWindow && item.id !== consoleId ? adminConsoleWindowName(item.id) : undefined }))
+    : [];
+  /* 쇼핑 밖 칸은 경로 첫 칸이 칸 이름이라, 그 칸 전용 메뉴 그룹 이름(카드 운영·게임 운영)을 다시 적지 않는다. */
+  const groupLabel = group && consoleId !== 'shopping' && adminGroupConsoles(group).every((id) => id === consoleId) ? undefined : group?.label;
   const title = pathname === '/admin/catalog/goods' && searchParams.get('create') !== '1' && searchParams.get('goodId')
     ? '상품 수정'
     : pathname === '/admin/catalog/ips' && searchParams.get('create') === '1' ? 'IP 등록'
@@ -89,7 +93,7 @@ export function AdminShell({
             consoles={consoleLinks}
             groupLabel={groupLabel}
             next={currentPath}
-            root={consoleId === 'content' ? { label: '콘텐츠 운영', href: consoles.find((item) => item.id === 'content')?.href ?? '/admin' } : undefined}
+            root={consoleId === 'shopping' ? undefined : { label: consoleInfo.title, href: consoles.find((item) => item.id === consoleId)?.href ?? '/admin' }}
             title={title}
             tools={<OperationsDock accountId={admin.id} access={admin.operatorAccess} inquiryNotifications={inquiryNotifications} />}
           />
@@ -118,6 +122,8 @@ export function AdminShell({
       {inquiryNotifications ? <AdminInquiryNotifier accountId={admin.id} /> : null}
       {/* R18: 포커스된 어드민 number 입력 위의 휠은 값을 바꾸지 않고 페이지만 스크롤한다(셸에 한 번). */}
       <AdminNumberWheelGuard />
+      {/* 확인창(되돌릴 수 없는 작업·이탈 경고)의 공용 호스트. 어드민에는 브라우저 기본 confirm이 없다. */}
+      <AdminConfirmHost />
     </div>
     </AdminNavigationPendingProvider>
     </TooltipProvider>

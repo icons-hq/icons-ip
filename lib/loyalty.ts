@@ -35,9 +35,3 @@ export const GRADE_BENEFIT_CADENCE_LABELS: Record<GradeBenefitCadence, string> =
   monthly: '매월 1일',
 };
 
-/** 구체적인 조건은 고객등급 관리에서 조회한다. 고정 임계값을 안내하지 않는다. */
-export function loyaltyBasisSummary(): string {
-  return `산정 기준: 최근 ${LOYALTY_WINDOW_DAYS}일 결제 확정(취소 제외) 주문의 총 청구액 또는 상품 주문 항목 수를 고객등급 관리에 설정된 조건과 비교합니다. `
-    + '재산정은 결제 확정·취소 시점, 매월 1일 등급 쿠폰 지급 직전(지급 대상 회원)과 수동 재산정에서 일어나며, '
-    + '창 안의 최신 수동 보정 등급은 재산정의 하한으로 유지됩니다. 정책 저장만으로 기존 회원을 일괄 재산정하지 않습니다.';
-}

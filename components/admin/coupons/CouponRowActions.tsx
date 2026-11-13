@@ -12,9 +12,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
  * 빨간 중지가 줄마다 반복되면 표에서 제일 튀고 수정 옆이라 잘못 누르기 쉽다. 위험 표시는 메뉴와 확인 창에서 한다.
  * 중지·재개 확인은 네이티브 dialog(showModal)가 포커스·Esc를 맡고, 모양만 kit Dialog와 같다.
  */
-export function CouponRowActions({ coupon, onEdit, copyHref, issueHref }: { coupon: AdminCouponRecord; onEdit: () => void; copyHref: string; issueHref: string }) {
+export function CouponRowActions({ coupon, onEdit, copyHref, issueHref, onStatusChanged }: {
+  coupon: AdminCouponRecord; onEdit: () => void; copyHref: string; issueHref: string;
+  /** 중지·재개가 저장되면 목록 위 결과 자리에 알린다. 상태가 바뀐 줄은 새로 그려져 이 확인 창이 함께 닫힌다(1027T-026 ①). */
+  onStatusChanged?: (message: string) => void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [state, action, pending] = useActionState(setAdminCouponStatusAction, {} as AdminCouponActionState);
+  const [state, action, pending] = useActionState(async (previous: AdminCouponActionState, formData: FormData) => {
+    const result = await setAdminCouponStatusAction(previous, formData);
+    /* 모달 확인 창이 열려 있으면 바깥이 잠겨(inert) 결과 문장으로 포커스를 옮길 수 없다 — 먼저 닫고 알린다. */
+    if (result.message) { dialog.current?.close(); onStatusChanged?.(`${coupon.name}(${coupon.code}) ${result.message}`); }
+    return result;
+  }, {} as AdminCouponActionState);
   const stopped = coupon.status === 'archived';
   return <div className="flex items-center gap-1 print:hidden">
     <Button onClick={onEdit} size="xs" type="button" variant="outline">수정</Button>

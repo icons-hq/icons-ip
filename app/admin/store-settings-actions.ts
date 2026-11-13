@@ -8,6 +8,8 @@ import { INQUIRY_CATEGORIES } from '@/lib/inquiries';
 import { BANK_ACCOUNT_LABELS, CARRIER_SETTINGS_PATH, STORE_SETTINGS_CACHE_TAG, STORE_SETTINGS_PATH, parseCarrierInput, parseStoreSettingsInput } from '@/lib/admin/store-settings';
 
 export type StoreSettingsActionState={message?:string;errors?:Record<string,string>;values?:Record<string,string>;updatedAt?:string;attempt?:number};
+/** 스토어 관리 권한이 없는 계정의 문의 자동 안내 저장 거절 문구. 이 섹션은 최고 관리자 전용이 아니다. */
+const INQUIRY_AUTO_REPLY_FORBIDDEN='문의 자동 안내를 저장할 권한이 없습니다. 스토어 관리 권한이 있는 매니저에게 요청해주세요.';
 function value(data:FormData,key:string) { const raw=data.get(key);return typeof raw==='string'?raw:''; }
 function validStamp(stamp:string) {return Boolean(stamp) && !Number.isNaN(Date.parse(stamp));}
 function errorMessage(error:{message?:string}) {
@@ -25,7 +27,8 @@ export async function saveInquiryAutoRepliesAction(previous:StoreSettingsActionS
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'store.manage' })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    /* 문의 자동 안내 탭을 여는 모든 운영자(store.manage)가 저장한다 — 호환 단계의 기존 운영자 포함(TKT-019·099). DB가 같은 판정을 다시 한다. */
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { capability: 'store.manage' })) return fail({form:INQUIRY_AUTO_REPLY_FORBIDDEN});
     const stamp=value(data,'updatedAt');
     if (!validStamp(stamp)) return fail({form:'최신 설정을 다시 열어주세요.'});
     const targetValues=Object.fromEntries(INQUIRY_CATEGORIES.map(({id})=>[id,{
@@ -51,7 +54,7 @@ export async function saveStoreSettingsAction(previous:StoreSettingsActionState,
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'seller.manage' })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'seller.manage' })) return fail({form:'설정 변경은 최고 관리자만 할 수 있습니다.'});
     if (section!=='business' && section!=='bank_transfer') return fail({form:'설정 항목을 확인해주세요.'});
     const parsed=parseStoreSettingsInput(section,values);
     if (!parsed.ok) return fail(parsed.errors);
@@ -69,7 +72,7 @@ export async function saveShippingCarrierAction(previous:StoreSettingsActionStat
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireAdminActionAccess(CARRIER_SETTINGS_PATH, { adminOnly: true, capability: 'platform.manage' })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(CARRIER_SETTINGS_PATH, { adminOnly: true, capability: 'platform.manage' })) return fail({form:'설정 변경은 최고 관리자만 할 수 있습니다.'});
     const parsed=parseCarrierInput({code:values.code,label:values.label,trackingUrlTemplate:values.trackingUrlTemplate,active:values.active==='true'});
     if (!parsed.ok) return fail(parsed.errors);
     if (values.updatedAt && !validStamp(values.updatedAt)) return fail({form:'최신 택배사 설정을 다시 열어주세요.'});

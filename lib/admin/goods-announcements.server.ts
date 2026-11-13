@@ -1,7 +1,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-import { blankGoodsAnnouncement, GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_STATES,
+import { blankGoodsAnnouncement, GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_STATES, goodsAnnouncementPlacement,
   type GoodsAnnouncement, type GoodsAnnouncementCandidates, type GoodsAnnouncementFilters, type GoodsAnnouncementGood,
   type GoodsAnnouncementListData, type GoodsAnnouncementListRow } from './goods-announcements';
 
@@ -11,6 +11,7 @@ const nonnegative = (value: unknown) => Number.isSafeInteger(value) && Number(va
 function validBase(value: Record<string, unknown>) {
   return isUuid(value.id) && Number.isSafeInteger(value.reference) && Number(value.reference) > 0 && typeof value.title === 'string'
     && GOODS_ANNOUNCEMENT_CATEGORIES.some(item => item.value === value.category) && GOODS_ANNOUNCEMENT_DEVICES.some(item => item.value === value.device)
+    && goodsAnnouncementPlacement(value.placement) !== null
     && ['enabled', 'important', 'allGoods'].every(key => typeof value[key] === 'boolean')
     && ['startsAt', 'endsAt', 'createdAt', 'updatedAt'].every(key => instant(value[key]))
     && !(typeof value.startsAt === 'string' && typeof value.endsAt === 'string' && Date.parse(value.startsAt) >= Date.parse(value.endsAt))
@@ -25,7 +26,7 @@ export function parseGoodsAnnouncement(value: unknown): GoodsAnnouncement | null
   if (!object(value) || !validBase(value) || typeof value.body !== 'string' || !['plain', 'html'].includes(String(value.format))) return null;
   if (!validRange(value.importantStartsAt, value.importantEndsAt) || !parsePopupSelection(value.popup)) return null;
   const goods = parseAnnouncementGoods(value.goods);
-  return goods ? { ...value, goods } as unknown as GoodsAnnouncement : null;
+  return goods ? { ...value, placement: goodsAnnouncementPlacement(value.placement), goods } as unknown as GoodsAnnouncement : null;
 }
 function validRange(start: unknown, end: unknown) {
   return (start === null && end === null) || (typeof start === 'string' && typeof end === 'string' && instant(start) && instant(end) && Date.parse(start) < Date.parse(end));
@@ -44,7 +45,8 @@ export async function loadGoodsAnnouncements(filters: GoodsAnnouncementFilters):
     || !nonnegative(row.goodCount) || !GOODS_ANNOUNCEMENT_STATES.some(item => item.value === row.state))) throw new Error('상품 공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   const lastPage = Math.max(1, Math.ceil(Number(data.total) / filters.pageSize));
   if (filters.page > lastPage) return loadGoodsAnnouncements({ ...filters, page: lastPage });
-  return { rows: data.rows as GoodsAnnouncementListRow[], total: Number(data.total), filters };
+  return { rows: (data.rows as Record<string, unknown>[]).map(row => ({ ...row, placement: goodsAnnouncementPlacement(row.placement) }) as unknown as GoodsAnnouncementListRow),
+    total: Number(data.total), filters };
 }
 export async function loadGoodsAnnouncement(id: string, allowNew = false): Promise<GoodsAnnouncement | null> {
   const client = await createClient(); const { data, error } = await client.rpc('admin_get_goods_announcement_editor_context', { p_id: id });

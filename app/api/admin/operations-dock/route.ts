@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { adminAlertCategory, adminAlertFilterState } from '@/lib/admin/operations-dock';
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
     if (section !== 'alerts') return Response.json({ error: '지원하지 않는 업무 도구입니다.' }, { status: 400, headers });
     const before = params.get('before') || undefined;
     const beforeId = params.get('beforeId') || undefined;
-    if (Boolean(before) !== Boolean(beforeId) || (before && !Number.isFinite(Date.parse(before))) || (beforeId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(beforeId))) return Response.json({ error: '알림 조회 위치를 확인해주세요.' }, { status: 400, headers });
+    if (Boolean(before) !== Boolean(beforeId) || (before && !Number.isFinite(Date.parse(before))) || (beforeId && !isUuid(beforeId))) return Response.json({ error: '알림 조회 위치를 확인해주세요.' }, { status: 400, headers });
     return Response.json(await getAdminOperationAlerts(adminAlertCategory(params.get('category')), adminAlertFilterState(params.get('state')), before, beforeId), { headers });
   } catch (error) {
     unstable_rethrow(error);

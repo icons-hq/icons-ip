@@ -15,13 +15,33 @@ const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
 /** 찾기 방식 전환(구분 선택). 누른 값은 aria-pressed로 알린다. */
 const METHOD_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm';
 
-export function searchAssignableCategories(categories: AdminCategoryNode[], query: string) {
-  const words = query.normalize('NFKC').trim().toLocaleLowerCase('ko-KR').split(/\s+/).filter(Boolean);
+/** 카테고리 찾기 대상. 상품·그룹 편집 로더(loadGoodsCategoryOptions)는 연결된 ERP 분류 이름(`erpNames`)을 함께 싣는다(SHEET-042). */
+export type CategorySearchNode = AdminCategoryNode & { erpNames?: readonly string[] };
+
+const searchText = (value: string) => value.normalize('NFKC').toLocaleLowerCase('ko-KR');
+/* 검색어는 공백과 경로 구분자 `>`로 나눈다. ERP 분류는 `문구>키링`처럼 붙여 쓰므로 `문구 > 키링` 경로와 같은 낱말이 된다. */
+const searchWords = (query: string) => searchText(query).trim().split(/[\s>]+/).filter(Boolean);
+
+/**
+ * 카테고리 찾기 검색. 카테고리 경로·코드에 더해 연결된 ERP 분류 이름으로도 찾는다(SHEET-042).
+ * 검색어의 낱말이 모두 경로·코드·ERP 분류 이름 어딘가에 있어야 한다.
+ */
+export function searchAssignableCategories(categories: CategorySearchNode[], query: string) {
+  const words = searchWords(query);
   if (!words.length) return [];
   return categories.filter(category => usableTemplateCategory(categories, category.id)).filter(category => {
-    const label = `${categoryPath(categories, category.id).join(' ')} ${category.code}`.normalize('NFKC').toLocaleLowerCase('ko-KR');
+    const label = searchText(`${categoryPath(categories, category.id).join(' ')} ${category.code} ${(category.erpNames ?? []).join(' ')}`);
     return words.every(word => label.includes(word));
   });
+}
+
+/** 카테고리 경로·코드만으로는 찾지 못하고 ERP 분류 이름으로 찾은 결과면 그 이름을 돌려준다(검색 결과에 근거로 보인다). */
+export function categoryErpMatch(categories: CategorySearchNode[], category: CategorySearchNode, query: string): string | null {
+  const words = searchWords(query);
+  if (!words.length || !category.erpNames?.length) return null;
+  const own = searchText(`${categoryPath(categories, category.id).join(' ')} ${category.code}`);
+  if (words.every(word => own.includes(word))) return null;
+  return category.erpNames.find(name => words.some(word => searchText(name).includes(word))) ?? null;
 }
 
 /**
@@ -59,7 +79,7 @@ export function CategoryAssignmentField({
   onPrimaryChange,
   emptyGuide = 'link',
 }: {
-  categories: AdminCategoryNode[];
+  categories: CategorySearchNode[];
   /** 비제어 모드의 초기 대표 카테고리 */
   value?: string;
   error?: string;
@@ -93,6 +113,8 @@ export function CategoryAssignmentField({
   });
   const activeLeaves = categories.filter((category) => usableTemplateCategory(categories, category.id));
   const matches = useMemo(() => searchAssignableCategories(categories, query), [categories, query]);
+  /* 로더가 ERP 분류 이름을 실어 준 경우(상품·그룹 편집)에만 ERP 분류명으로도 찾는다고 알린다. */
+  const erpSearch = useMemo(() => categories.some(category => category.erpNames?.length), [categories]);
   const selectedArchived = primary
     ? categories.find((category) => category.id === primary && !usableTemplateCategory(categories, category.id) && category.childCount === 0)
     : undefined;
@@ -113,12 +135,12 @@ export function CategoryAssignmentField({
         ? '등록된 카테고리가 없습니다. 위 카테고리 일괄 등록이나 새 카테고리에서 먼저 등록하세요.'
         : <>등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요. <Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH} target="_blank" rel="noreferrer">카테고리 관리</Link></>}</p> : null}
       {mode === 'search' ? <div className="flex min-w-0 max-w-2xl flex-col gap-2">
-        <input className={GOOD_INPUT_CLASS} data-slot="input" id="category-assignment-search" type="search" aria-label="카테고리명 또는 코드" aria-describedby="category-assignment-hint" value={query} maxLength={120} placeholder="카테고리명 또는 코드 입력"
+        <input className={GOOD_INPUT_CLASS} data-slot="input" id="category-assignment-search" type="search" aria-label={erpSearch ? '카테고리명·코드 또는 ERP 분류명' : '카테고리명 또는 코드'} aria-describedby="category-assignment-hint" value={query} maxLength={120} placeholder={erpSearch ? '카테고리명·코드 또는 ERP 분류명 입력' : '카테고리명 또는 코드 입력'}
           onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} />
         {query.trim() ? <><p className="text-xs text-muted-foreground tabular-nums" role="status">검색 결과 {matches.length.toLocaleString('ko-KR')}개{matches.length > 50 ? ' · 앞의 50개를 표시합니다. 검색어를 더 입력해주세요.' : ''}</p>
-          {matches.length ? <ul className="m-0 flex max-h-72 list-none flex-col overflow-y-auto rounded-lg border p-0" aria-label="카테고리 검색 결과">{matches.slice(0, 50).map(category => <li className="border-b last:border-b-0" key={category.id}><button type="button" className="flex min-h-11 w-full flex-col items-start justify-center gap-0.5 px-3 py-2 text-left text-sm wrap-anywhere text-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset aria-pressed:bg-primary-soft aria-pressed:font-medium aria-pressed:text-primary-soft-foreground" aria-pressed={primary === category.id} onClick={() => choose(category.id)}>
-            <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code}</small>
-          </button></li>)}</ul> : <p className="text-sm text-muted-foreground">일치하는 사용 가능한 마지막 단계 카테고리가 없습니다.</p>}</> : <p className="text-sm text-muted-foreground">카테고리명이나 코드를 입력하거나 카테고리명 선택을 이용해주세요.</p>}
+          {matches.length ? <ul className="m-0 flex max-h-72 list-none flex-col overflow-y-auto rounded-lg border p-0" aria-label="카테고리 검색 결과">{matches.slice(0, 50).map(category => ({ category, erp: categoryErpMatch(categories, category, query) })).map(({ category, erp }) => <li className="border-b last:border-b-0" key={category.id}><button type="button" className="flex min-h-11 w-full flex-col items-start justify-center gap-0.5 px-3 py-2 text-left text-sm wrap-anywhere text-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset aria-pressed:bg-primary-soft aria-pressed:font-medium aria-pressed:text-primary-soft-foreground" aria-pressed={primary === category.id} onClick={() => choose(category.id)}>
+            <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code}{erp ? ` · ERP 분류 ${erp}` : ''}</small>
+          </button></li>)}</ul> : <p className="text-sm text-muted-foreground">일치하는 사용 가능한 마지막 단계 카테고리가 없습니다.</p>}</> : <p className="text-sm text-muted-foreground">{erpSearch ? '카테고리명·코드나 연결된 ERP 분류명을' : '카테고리명이나 코드를'} 입력하거나 카테고리명 선택을 이용해주세요.</p>}
         {primary ? <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm"><span className="min-w-0 wrap-anywhere">{selectedArchived ? '보관됨 · ' : ''}{categoryPath(categories, primary).join(' > ') || primary}</span><button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} shrink-0`} data-slot="button" onClick={() => choose('')}>선택 해제</button></div> : null}
       </div> : null}
       {/* 검색 방식에서도 대표 카테고리 값(name="categoryId")은 이 select가 제출한다. 숨길 때는 select와 감싼 칸을 함께 숨긴다. */}
@@ -136,7 +158,7 @@ export function CategoryAssignmentField({
         choose(template.categoryId); setTemplatePicker(false);
       }} /> : null}
       <span className="text-xs text-muted-foreground" id="category-assignment-hint">
-        마지막 단계 카테고리 하나를 대표로 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 비워도 기존 유형과 전체 상품 판매는 유지됩니다.
+        마지막 단계 카테고리 하나를 대표로 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이라, 비우거나 연결 없는 카테고리면 새로 공개할 수 없고 공개 중인 상품은 유형이 같은 카테고리로만 옮깁니다.
       </span>
       {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
       {additionalValue !== undefined && <details className="group/additional min-w-0 rounded-lg border" data-good-category-additional="" open={Boolean(additionalError) || additional.length > 0}><summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/additional:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/additional:rotate-90 motion-reduce:transition-none" />추가 카테고리 (선택)</summary><div className="flex min-w-0 flex-col gap-3 border-t px-3 py-4">

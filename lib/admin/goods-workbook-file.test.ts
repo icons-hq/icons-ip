@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { buildGoodsWorkbook, parseGoodsWorkbook, parseGoodsWorkbookWithKc, readSabangnetGoodsSheet } from './goods-workbook-file';
-import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
+import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_LEGACY_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
 import { emptyGoodsCustomInputWorkbookRow, GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET } from './goods-custom-input-workbook';
 import {
   emptyGoodsWorkbookRow,
@@ -11,6 +11,7 @@ import {
   GOODS_WORKBOOK_V3_VERSION,
   GOODS_WORKBOOK_V5_VERSION,
   GOODS_WORKBOOK_VERSION,
+  goodsWorkbookLayout,
   planGoodsWorkbookImport,
 } from './goods-workbook';
 import { convertSabangnetRows, suggestSabangnetTargets } from './sabangnet-goods-format';
@@ -20,12 +21,22 @@ const values = {
   code: '00001',
   name: '상품',
   ipId: 'ip',
-  price: '0',
-  variantPrice: '12000',
+  salePrice: '0',
+  optionPrice: '12000',
   stockQty: '0',
   noticeMadeOn: '2026-09',
   description: '두 줄\n설명',
 };
+/** 현재 양식 파일을 구형(v3~v7) 열 구성으로 바꾼다: 상품번호 열을 빼고 그 버전의 열 이름을 쓴다(가격 칸 값은 이 테스트 값에서 같다). */
+function toLegacyLayout(book: ExcelJS.Workbook, version: string) {
+  const sheet = book.getWorksheet('상품')!;
+  sheet.spliceColumns(1, 1);
+  sheet.getCell('A1').value = version;
+  sheet.getRow(4).values = goodsWorkbookLayout(version)!.columns.map((column) => column.header);
+  const kc = book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!;
+  kc.getCell('A1').value = version;
+  kc.getRow(4).values = Object.values(GOODS_KC_WORKBOOK_LEGACY_HEADERS);
+}
 describe('real xlsx boundary', () => {
   it('상세 HTML 형식과 30,000자 문서 원문을 실제 XLSX 파일에서 손실 없이 왕복한다', async () => {
     const description = `<h2>상세</h2><p>${'가'.repeat(29980)}</p>`;
@@ -58,18 +69,31 @@ describe('real xlsx boundary', () => {
     ]);
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(bytes as never);
-    expect(book.getWorksheet('상품')?.getCell('A5').value).toBe('00001');
-    expect(book.getWorksheet('상품')?.getCell('G5').value).toBe(0);
+    expect(book.getWorksheet('상품')?.getCell('B5').value).toBe('00001');
+    expect(book.getWorksheet('상품')?.getCell('H5').value).toBe(0);
     expect(book.getWorksheet('상품')?.views[0]).toMatchObject({
       state: 'frozen',
-      xSplit: 2,
+      xSplit: 3,
       ySplit: 4,
     });
+  });
+  it('상품번호는 첫 열의 쉼표 없는 숫자 칸으로 쓰고, 숫자·텍스트 칸 모두 같은 번호로 읽는다(S36-009)', async () => {
+    const bytes = await buildGoodsWorkbook([{ ...values, productNo: '1042' }]);
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(bytes as never);
+    const sheet = book.getWorksheet('상품')!;
+    expect(sheet.getCell('A4').value).toBe('상품번호');
+    expect(sheet.getCell('A5').value).toBe(1042);
+    expect(sheet.getColumn(1).numFmt).toBe('0');
+    expect((await parseGoodsWorkbook(bytes))[0].values.productNo).toBe('1042');
+    sheet.getCell('A5').value = '1042';
+    expect((await parseGoodsWorkbook(Buffer.from(await book.xlsx.writeBuffer())))[0]).toMatchObject({ values: { productNo: '1042' }, errors: [] });
+    expect((await parseGoodsWorkbook(await buildGoodsWorkbook([values])))[0].values.productNo).toBe('');
   });
   it('reports formulas by original row without evaluating them', async () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
-    book.getWorksheet('상품')!.getCell('G5').value = {
+    book.getWorksheet('상품')!.getCell('H5').value = {
       formula: '1+1',
       result: 2,
     };
@@ -99,14 +123,19 @@ describe('real xlsx boundary', () => {
     );
     expect((await parseGoodsWorkbook(bytes))[0].values).toEqual(values);
   });
-  it('v7 양식은 세 번째 옵션 축과 갤러리 1~9 열을 유지하고, 버전과 열 구성이 어긋나면 받지 않는다', async () => {
+  it('v8 양식은 세 번째 옵션 축과 갤러리 1~9 열을 유지하고, 버전과 열 구성이 어긋나면 받지 않는다', async () => {
     const bytes = await buildGoodsWorkbook([values]);
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(bytes as never);
     const sheet = book.getWorksheet('상품')!;
     expect(sheet.getCell('A1').text).toBe(GOODS_WORKBOOK_VERSION);
-    expect(GOODS_WORKBOOK_VERSION).toBe('ICONS 상품 일괄 등록 v7');
+    expect(GOODS_WORKBOOK_VERSION).toBe('ICONS 상품 일괄 등록 v8');
     const headers = (sheet.getRow(4).values as unknown[]).slice(1).map(String);
+    // 열 이름은 상품 수정 화면과 같다(S36-X02·S36-012·S36-013).
+    expect(headers.slice(0, 9)).toEqual(['상품번호', '판매자상품코드', '상품명', 'IP ID', '상품 URL', '게시 상태', '상품 유형', '판매가', '즉시할인']);
+    for (const header of ['관리코드', '옵션가', '재고수량', '판매상태', '상품 표시문구', '공급가(매입단가) (관리자 전용)', '공급가(매입단가) 세금 구분 (관리자 전용)'])
+      expect(headers).toContain(header);
+    for (const header of ['상품코드', '옵션코드', '기준 판매가', '소비자가', '옵션 판매가', '옵션 재고', '매입단가 (관리자 전용)']) expect(headers).not.toContain(header);
     expect(headers.slice(headers.indexOf('옵션 축 1'), headers.indexOf('옵션 축 1') + 6)).toEqual(['옵션 축 1', '옵션 값 1', '옵션 축 2', '옵션 값 2', '옵션 축 3', '옵션 값 3']);
     const start = headers.indexOf('갤러리 1 URL');
     expect(headers.slice(start, start + 19)).toEqual([
@@ -136,12 +165,11 @@ describe('real xlsx boundary', () => {
     const parsed = await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()));
     expect(parsed.customInputRows?.[0].errors?.join()).toContain('수식');
     sheet.getCell('A5').value = 1;
-    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('같은 상품코드');
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('같은 판매자상품코드');
   });
   it('시트 누락과 기존 v5 파일은 보존하고, 구버전에 새 시트를 붙이거나 열·버전을 바꾸면 거절한다', async () => {
     const book = new ExcelJS.Workbook(); await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
-    book.getWorksheet('상품')!.getCell('A1').value = GOODS_WORKBOOK_V5_VERSION;
-    book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!.getCell('A1').value = GOODS_WORKBOOK_V5_VERSION;
+    toLegacyLayout(book, GOODS_WORKBOOK_V5_VERSION);
     await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('v6');
     book.removeWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET);
     book.removeWorksheet(GOODS_AFTER_SALES_WORKBOOK_SHEET);
@@ -160,7 +188,7 @@ describe('real xlsx boundary', () => {
     book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!.getCell('A5').value = 123;
     book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!.getCell('D5').value = 42;
     expect((await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).customInputRows?.[0].errors).toEqual([
-      '상품코드: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.', '항목 ID: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.',
+      '판매자상품코드: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.', '항목 ID: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.',
     ]);
     await expect(buildGoodsWorkbook([product], undefined, [], Array.from({ length: 5001 }, () => custom))).rejects.toThrow('5,000');
   });
@@ -171,6 +199,14 @@ describe('real xlsx boundary', () => {
     const image = rows.find((row) => row[1] === '이미지');
     expect(image?.[2]).toContain('대표·갤러리 9칸(추가 이미지 1~9)·상세 이미지마다');
     expect(image?.[2]).toContain('갤러리 4칸짜리 v3 양식도 그대로 올릴 수 있으며, 이때 기존 상품의 갤러리 5~9는 저장된 이미지를 유지합니다.');
+  });
+  it('작성 안내 시트는 재고수량 빈칸을 0으로 바꾸지 않고 0을 직접 입력하라고 안내한다(0901-015)', async () => {
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
+    const rows = book.getWorksheet('작성 안내')!.getSheetValues().filter(Boolean) as unknown[][];
+    const blanks = String(rows.find((row) => row[1] === '빈칸과 숫자 0')?.[2] ?? '');
+    expect(blanks).toContain('재고수량은 비워 둘 수 없습니다. 재고가 없으면 0을 입력합니다');
+    expect(blanks).not.toMatch(/재고수량[^.]*빈칸은 0/);
   });
   it('작성 안내 시트는 상세 HTML의 https 호스팅 이미지가 그대로 표시된다고 안내한다', async () => {
     const book = new ExcelJS.Workbook();

@@ -8,6 +8,7 @@ import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import type { ReturnAddressOption } from '@/lib/admin/return-addresses';
 import type { GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import type { AdminCategoryNode } from '@/lib/admin/category';
@@ -25,8 +26,13 @@ import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { GoodsListingColorsPanel } from '../GoodsListingColorsPanel';
-import { GOOD_OPERATION_PLACEHOLDER_COPY, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationGroup, GoodOperationSection, GoodWorkspaceProvider } from '../GoodWorkspace';
-import { GoodWorkspaceKcCard, GoodWorkspacePreorderRow } from '../GoodWorkspaceSections';
+import { GOOD_OPERATION_PLACEHOLDER_COPY, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationGroup, GoodOperationSection, GoodWorkspaceProvider, focusGoodWorkspaceTarget } from '../GoodWorkspace';
+import { GoodSavedPreorderSection, GoodWorkspaceKcCard, GoodWorkspacePreorderRow } from '../GoodWorkspaceSections';
+import {
+  GoodWorkspaceAdditionalSection, GoodWorkspaceAfterSalesSection, GoodWorkspaceBenefitsSection, GoodWorkspaceFulfillmentSection, GoodWorkspaceListingColorsSection,
+  GoodWorkspacePricePeriodsSection, GoodWorkspaceProductionSection, GoodWorkspacePurchaseCostsSection, GoodWorkspaceSaleModeSection, GoodWorkspaceShippingChargeGroupSection,
+  GoodWorkspaceSizeChartSection, GoodWorkspaceSubscriptionSection, GoodWorkspaceTransactionTermsSection,
+} from '../GoodWorkspaceExtraSections';
 import { VariantStockAdjustmentForm } from '../VariantStockAdjustmentForm';
 import { GoodVariantsPanel } from '../GoodVariantsPanel';
 import { GoodPublishControls } from '../GoodPublishControls';
@@ -40,6 +46,7 @@ import { GoodsPricePeriodsPanel } from '../GoodsPricePeriodsPanel';
 import { GoodsPreordersPanel } from '../GoodsPreordersPanel';
 import { GoodsBenefitsPanel } from '../GoodsBenefitsPanel';
 import { GoodsAfterSalesPanel } from '../GoodsAfterSalesPanel';
+import { GoodsAfterSalesPhoneSuggestion, afterSalesPhoneSuggestion } from '../GoodsAfterSalesFields';
 import { GoodSizeChartPanel } from '../GoodSizeChartPanel';
 import { GoodsTransactionTermsPanel } from '../GoodsTransactionTermsPanel';
 import { GoodsFulfillmentPanel } from '../GoodsFulfillmentPanel';
@@ -53,8 +60,8 @@ const OPERATION = {
   stock: ['재고 조정', '대상 옵션·변경 수량·사유를 확인해 재고 조정만 즉시 반영합니다.'],
   publish: ['게시 상태 · 공개·초안 전환', '저장된 내용으로 게시 상태만 전환합니다.'],
   variants: ['옵션 사용·보관', '옵션 사용 상태만 별도로 반영합니다.'],
-  kc: ['KC 자료·검토', 'KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토하고, KC 대상이면 모델·근거·적용 옵션을 검토합니다. KC만 저장합니다.'],
-  costs: ['매입단가', '권한이 있는 관리자만 매입단가를 저장합니다.'],
+  kc: ['KC 자료·검토', 'KC 인증 대상 여부를 고릅니다. 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토하고, 대상이면 인증 종류·번호와 모델·사업자·적용 옵션을 확인합니다(내부 근거는 선택). KC와 기타 인증을 각각 따로 저장합니다.'],
+  costs: ['공급가(매입단가)', '권한이 있는 관리자만 공급가(매입단가)를 저장합니다.'],
   'listing-colors': ['목록 색상칩', '상품목록에 표시할 실제 색상을 별도로 저장합니다.'],
   additional: [adminGoodsCopy('추가 구성 상품'), '추가 구성 연결만 저장합니다.'],
   benefits: ['사은품·이벤트 안내', '사은품 설명·사진과 이벤트 문구를 별도로 저장합니다.'],
@@ -99,7 +106,7 @@ export function GoodSection({
   initialIpId,
   initialQuery='',
   hideRecordList=false, listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], returnAddresses, noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canOpenIp=false, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string; ownership?: GoodsEditorOwnership | null;
@@ -114,8 +121,8 @@ export function GoodSection({
   initialIpId?: string;
   initialQuery?: string;
   hideRecordList?: boolean; listHref?: string;
-  accountId?: string; origins?: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
-  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
+  accountId?: string; origins?: GoodsFulfillmentOrigin[]; returnAddresses?: ReturnAddressOption[]; noticeDefaults?: GoodNoticeDefaults;
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canOpenIp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
     selected?.archivedAt ? 'archived' : 'active',
@@ -165,7 +172,8 @@ export function GoodSection({
       additional: <GoodOperationSection key="additional" id="additional" title={OPERATION.additional[0]} description={OPERATION.additional[1]}><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>,
       benefits: <GoodOperationSection key="benefits" id="benefits" title={OPERATION.benefits[0]} description={OPERATION.benefits[1]}><GoodsBenefitsPanel goodId={selected.id} key={`benefits-${accountId}-${selected.id}`} /></GoodOperationSection>,
       ...(ownership?.group ? {} : {
-        'after-sales': <GoodOperationSection key="after-sales" id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection>,
+        /* ADM-004(복잡도 표 387행): 비어 있는 A/S 전화번호는 이 상품의 고시 A/S 연락처(저장값)로 미리 채운다. 저장은 안내 저장으로 따로 한다. */
+        'after-sales': <GoodsAfterSalesPhoneSuggestion.Provider key="after-sales" value={selected.notice?.asContact ?? ''}><GoodOperationSection id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection></GoodsAfterSalesPhoneSuggestion.Provider>,
         'size-chart': <GoodOperationSection key="size-chart" id="size-chart" title={OPERATION['size-chart'][0]} description={OPERATION['size-chart'][1]}><GoodSizeChartPanel goodId={selected.id} accountId={accountId} key={`size-chart-${accountId}-${selected.id}`} /></GoodOperationSection>,
       }),
       prices: <GoodOperationSection key="prices" id="prices" title={OPERATION.prices[0]} description={OPERATION.prices[1]}><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>,
@@ -179,14 +187,51 @@ export function GoodSection({
       /* D5② 판매 방식(랜덤 판매): 옵션·가격 저장과 낙관 잠금(goods.updated_at)을 나눠 쓰므로 기본 입력이 잠기면 함께 잠그고,
          상품을 저장해 수정 시각이 바뀌면 다시 읽는다. */
       'option-sale-mode': <GoodOperationSection key="option-sale-mode" notice={policyNotice} id="option-sale-mode" title={OPERATION['option-sale-mode'][0]} description={OPERATION['option-sale-mode'][1]}><GoodsOptionSaleModePanel key={`option-sale-mode-${selected.id}`} goodId={selected.id} revision={`${selected.updatedAt ?? ''}:${state.attempt ?? 0}`} disabled={Boolean(policyDisabled)} /></GoodOperationSection>,
-      preorders: <GoodOperationSection key="preorders" id="preorders" title={OPERATION.preorders[0]} description={OPERATION.preorders[1]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} randomSale={selected.optionSaleMode === 'random'} key={`preorders-${selected.id}`} /></GoodOperationSection>,
+      /* 1027T-023: 예약판매 패널은 판매 정보 카드의 판매기간 바로 뒤로 옮겼다. 옛 자리에는 그 위치로 가는 링크만 남긴다(판매 방식 바로 뒤 — D5②). */
+      preorders: <div key="preorders" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 text-sm" data-good-operation-moved="preorders">
+        <span className="font-medium text-foreground">{OPERATION.preorders[0]}</span>
+        <span className="min-w-0 flex-1 text-muted-foreground">판매 정보 카드의 판매기간 아래에서 설정합니다.</span>
+        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="#good-operation-preorders" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-preorders'); }}>예약판매로 이동</a>
+      </div>,
       ...(cloneOperationId ? { clone: <GoodOperationSection key="clone" id="clone" title={OPERATION.clone[0]} description={OPERATION.clone[1]}><GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} categoryId={selected.categoryId ?? null} key={`clone-${selected.id}`} /></GoodOperationSection> } : {}),
     }),
     archive: <GoodOperationSection key="archive" id="archive" title={OPERATION.archive[0]} description={OPERATION.archive[1]}><CatalogArchiveControl archivedAt={selected.archivedAt} id={selected.id} key={`${selected.id}:${selected.archivedAt ?? 'active'}`} kind="good" /></GoodOperationSection>,
   };
-  /* 저장 전 목록: 이 계정·상품에서 저장 뒤 실제로 보일 항목만, 같은 묶음·같은 순서로. 게시 상태는 판매 운영 맨 앞, 예약판매는 입력 줄이 따로 있다. */
-  const pendingOperations: Partial<Record<OperationId, boolean>> = { stock: true, publish: true, variants: !ownership?.group, costs: canManageCosts, 'listing-colors': true, additional: true, benefits: true, 'after-sales': !ownership?.group, 'size-chart': !ownership?.group, prices: true, 'transaction-terms': true, 'shipping-charge-group': true, 'subscription-policy': true, fulfillment: Boolean(accountId), production: Boolean(accountId), 'option-sale-mode': true, clone: Boolean(cloneOperationId), archive: true };
-  const pendingOperationGroups = OPERATION_GROUPS.map((group) => ({ ...group, operations: (group.id === 'sales' ? ['stock', 'publish', 'variants', 'option-sale-mode'] as const : group.operations).filter((id) => pendingOperations[id]) })).filter((group) => group.operations.length);
+  /*
+   * 판매 정보 카드의 예약판매(1027T-023, 판매기간 바로 뒤). 등록 화면은 상품과 함께 저장하는 입력이고, 저장된 상품은 같은 자리(같은 id)의
+   * 별도 저장 패널이다 — "등록 화면을 떠나지 않고 같은 자리에서"(10/27 R13). 보관된 상품은 예약판매를 다루지 않는다.
+   */
+  const preorderSlot: ReactNode = !selected
+    ? <GoodWorkspacePreorderRow title={OPERATION.preorders[0]} canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
+    : selected.archivedAt ? null
+    : <GoodSavedPreorderSection title={OPERATION.preorders[0]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} randomSale={selected.optionSaleMode === 'random'} key={`preorders-${selected.id}`} /></GoodSavedPreorderSection>;
+  /*
+   * T15b(11/11 묶음 10 1027T-024 "저장 전 전부 입력"): 등록 화면은 상태를 바꾸는 항목(재고 조정·옵션 사용·복사·보관)만 저장 뒤에 두고,
+   * 나머지 설정은 저장된 상품과 같은 묶음·같은 순서·같은 자리(같은 id)에서 입력해 기본 입력과 함께 한 번에 저장한다. 게시 상태는 저장 막대의
+   * '저장 후 공개'가 맡는다(0901-008). 보이는 항목은 저장된 상품과 같은 조건(계정 권한·그룹 소속)을 따른다.
+   */
+  const inline = (id: OperationId, body: ReactNode) => <GoodOperationSection key={id} id={id} title={OPERATION[id][0]} mode="inline">{body}</GoodOperationSection>;
+  const draftPanels: Partial<Record<OperationId, ReactNode>> = selected ? {} : {
+    'option-sale-mode': inline('option-sale-mode', <GoodWorkspaceSaleModeSection serverError={state.errors?.workspaceOptionSaleMode} />),
+    prices: inline('prices', <GoodWorkspacePricePeriodsSection serverError={state.errors?.workspacePrices} />),
+    additional: inline('additional', <GoodWorkspaceAdditionalSection serverError={state.errors?.workspaceAdditional} />),
+    benefits: inline('benefits', <GoodWorkspaceBenefitsSection serverError={state.errors?.workspaceBenefits} />),
+    'transaction-terms': inline('transaction-terms', <GoodWorkspaceTransactionTermsSection serverError={state.errors?.workspaceTransactionTerms} />),
+    ...(accountId ? { 'shipping-charge-group': inline('shipping-charge-group', <GoodWorkspaceShippingChargeGroupSection accountId={accountId} serverError={state.errors?.workspaceShippingChargeGroup} />) } : {}),
+    'subscription-policy': inline('subscription-policy', <GoodWorkspaceSubscriptionSection serverError={state.errors?.workspaceSubscriptionPolicy} />),
+    ...(accountId ? {
+      fulfillment: inline('fulfillment', <GoodWorkspaceFulfillmentSection accountId={accountId} serverError={state.errors?.workspaceFulfillment} />),
+      production: inline('production', <GoodWorkspaceProductionSection serverError={state.errors?.workspaceProduction} />),
+    } : {}),
+    'listing-colors': inline('listing-colors', <GoodWorkspaceListingColorsSection serverError={state.errors?.workspaceListingColors} />),
+    ...(ownership?.group ? {} : {
+      'after-sales': inline('after-sales', <GoodWorkspaceAfterSalesSection phoneDefault={afterSalesPhoneSuggestion(noticeDefaults?.asContact)} serverError={state.errors?.workspaceAfterSales} />),
+      'size-chart': inline('size-chart', <GoodWorkspaceSizeChartSection serverError={state.errors?.workspaceSizeChart} />),
+    }),
+    ...(canManageCosts ? { costs: inline('costs', <GoodWorkspacePurchaseCostsSection serverError={state.errors?.workspaceCosts} />) } : {}),
+  };
+  /* 저장 뒤에만 하는 항목: 이 계정·상품에서 저장 뒤 실제로 보일 것만, 저장된 상품과 같은 순서로. */
+  const afterSaveOperations = (['stock', 'variants', 'clone', 'archive'] as const).filter((id) => id === 'variants' ? !ownership?.group : id === 'clone' ? Boolean(cloneOperationId) : true);
 
   return (
     <GoodWorkspaceProvider completedKey={completedKey}>
@@ -251,9 +296,10 @@ export function GoodSection({
           onPublishOnSaveChange={setPublishOnSave}
           listHref={listHref}
           canSearchErp={canSearchErp}
+          canOpenIp={canOpenIp}
           canActivatePreorders={canManageCosts}
           onApplyKcTemplate={kcTemplate.apply}
-          regionSummaries={regionSummaries} origins={origins} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} accountId={accountId}
+          regionSummaries={regionSummaries} origins={origins} returnAddresses={returnAddresses} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} accountId={accountId}
           variants={variants.filter((variant) => variant.goodId === selected?.id)}
           action={action}
           catalogIps={catalogIps}
@@ -264,6 +310,7 @@ export function GoodSection({
           initialIpId={initialIpId}
           readiness={readiness}
           kcSlot={kcSlot}
+          preorderSlot={preorderSlot}
         />
         </fieldset>
         {selected ? <section aria-labelledby="good-operation-hub-title" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-operation-hub="saved">
@@ -277,17 +324,19 @@ export function GoodSection({
           })}
         </section> : <section aria-labelledby="good-operation-hub-title" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-operation-hub="pending">
           <div className="flex flex-col gap-1">
-            <h3 className="text-base leading-snug font-medium" id="good-operation-hub-title">저장하면 이어서 설정할 수 있어요</h3>
+            <h3 className="text-base leading-snug font-medium" id="good-operation-hub-title">상품과 함께 저장할 설정</h3>
+            <p className="text-muted-foreground">필요한 설정만 입력하면 상품을 저장할 때 한 번에 함께 저장합니다. 하나라도 저장하지 못하면 아무것도 저장되지 않고 입력은 유지됩니다.</p>
+          </div>
+          {OPERATION_GROUPS.map((group) => {
+            const visible = group.operations.filter((id) => draftPanels[id]);
+            return visible.length ? <GoodOperationGroup defaultOpen id={group.id} key={group.id} title={group.title} names={visible.map((id) => OPERATION[id][0]).join(' · ')}>{visible.map((id) => draftPanels[id])}</GoodOperationGroup> : null;
+          })}
+          {/* 저장 뒤에만 하는 항목(재고 조정·옵션 사용·복사·보관)은 이름만 보인다. 입력은 저장 뒤 이 자리에서 한다. */}
+          <div className="flex min-w-0 flex-col gap-1.5 border-t pt-3" data-good-operation-after-save="">
+            <p className="font-medium text-foreground">저장한 뒤</p>
+            <ul className="m-0 flex list-none flex-wrap gap-x-1 p-0" data-good-operation-names="">{afterSaveOperations.map((id, index) => <li id={`good-operation-${id}`} key={id} data-good-operation-name={id}>{OPERATION[id][0]}{index < afterSaveOperations.length - 1 ? <span aria-hidden="true" className="text-muted-foreground"> · </span> : null}</li>)}</ul>
             <p className="text-muted-foreground" role="note">{GOOD_OPERATION_PLACEHOLDER_COPY}</p>
           </div>
-          {/* 저장 전 18개 운영 항목은 이름만 저장 뒤와 같은 묶음·같은 순서로 보인다(D6·R13). 입력은 저장 뒤 이 자리에서 한다. */}
-          <dl className="m-0 grid min-w-0 gap-x-4 gap-y-1.5 sm:grid-cols-[6rem_minmax(0,1fr)]">
-            {pendingOperationGroups.map((group) => <div className="contents" key={group.id}>
-              <dt className="text-muted-foreground">{group.title}</dt>
-              <dd className="m-0 min-w-0"><ul className="m-0 flex list-none flex-wrap gap-x-1 p-0" data-good-operation-names="">{group.operations.map((id, index) => <li id={`good-operation-${id}`} key={id} data-good-operation-name={id}>{OPERATION[id][0]}{index < group.operations.length - 1 ? <span aria-hidden="true" className="text-muted-foreground"> · </span> : null}</li>)}</ul></dd>
-            </div>)}
-          </dl>
-          <GoodWorkspacePreorderRow title={OPERATION.preorders[0]} canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
         </section>}
       </div>
     </div>

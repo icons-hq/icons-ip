@@ -96,7 +96,7 @@ export function GoodsPhotoLayers({ kind, size, recipe, selection, select, edit, 
       {kind === 'mosaic' ? <><button className={PHOTO_BUTTON_CLASS} data-slot="button" type="button" disabled={layers.length >= PHOTO_LAYER_LIMIT} onClick={() => add('rectangle')}>사각 모자이크 추가</button><button className={PHOTO_BUTTON_CLASS} data-slot="button" type="button" disabled={layers.length >= PHOTO_LAYER_LIMIT} onClick={() => add('circle')}>원 모자이크 추가</button></>
         : <button className={PHOTO_BUTTON_CLASS} data-slot="button" type="button" disabled={layers.length >= PHOTO_LAYER_LIMIT} onClick={() => add('rectangle', textMode === 'bubble' ? 'bubble-round' : textMode === 'signature' ? 'signature-rule' : 'plain')}>{textMode === 'plain' ? '텍스트 추가' : textMode === 'bubble' ? '새 말풍선 추가' : '새 텍스트 서명 추가'}</button>}
     </div>
-    {kind === 'text' && textMode !== 'plain' && <div className={PHOTO_PRESETS_CLASS} aria-label={textMode === 'bubble' ? '말풍선 스타일' : '텍스트 서명 템플릿'}>
+    {kind === 'text' && textMode !== 'plain' && <div className={PHOTO_PRESETS_CLASS} role="group" aria-label={textMode === 'bubble' ? '말풍선 스타일' : '텍스트 서명 템플릿'}>
       {PHOTO_TEXT_STYLES.filter(item => item.kind === textMode).map(item => {
         const geometry = photoTextGeometry(item.value as Exclude<PhotoTextStyle, 'plain'>);
         return <button className={PHOTO_PRESET_CLASS} key={item.value} type="button" aria-pressed={selectedText?.style === item.value} disabled={!selectedText && layers.length >= PHOTO_LAYER_LIMIT} onClick={() => chooseStyle(item.value)}>

@@ -1,11 +1,10 @@
 'use server';
 
+import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { ADMIN_PRODUCT_QUESTIONS_PATH } from '@/lib/admin/product-questions';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { saveCsReplyRequest } from '@/lib/admin/cs-reply-mutations.server';
 import type { CsReplyOutcome } from '@/lib/admin/cs-reply-mutations';
@@ -32,7 +31,6 @@ export interface AdminQnaActionState {
 const VISIBILITY_FAILED = '노출 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
 const ANSWER_MAX_LENGTH = 2000;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function readString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -41,15 +39,11 @@ function readString(formData: FormData, name: string) {
 
 function readUuid(formData: FormData, name: string) {
   const value = readString(formData, name).toLowerCase();
-  return UUID_PATTERN.test(value) ? value : null;
+  return isUuid(value) ? value : null;
 }
 
 async function requireStaffAction(): Promise<AdminQnaActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) {
-    redirect(`/login?next=${encodeURIComponent(ADMIN_PRODUCT_QUESTIONS_PATH)}`);
-  }
-  if (!auth.isStaff || !hasAdminCapability(auth, 'cs.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!await requireAdminActionAccess(ADMIN_PRODUCT_QUESTIONS_PATH, { capability: 'cs.manage' })) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 

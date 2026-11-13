@@ -60,6 +60,7 @@ function tossPayload() {
     provider: 'toss',
     clientKey: CLIENT_KEY,
     customerKey: 'ANONYMOUS',
+    variantKey: 'ICONS',
     orderId: 'O0123456789abcdef0123456789abcdef',
     orderName: 'ICONS 굿즈 주문',
     amount: 42_000,
@@ -69,9 +70,26 @@ function tossPayload() {
   } as const;
 }
 
+/** 결제 UI 바인딩이 꺼진 서버(지금 동작)의 payload — variantKey 키 자체가 없다. */
+function unboundTossPayload() {
+  const { variantKey: _variantKey, ...payload } = tossPayload();
+  void _variantKey;
+  return payload;
+}
+
 describe('parseTossCheckoutPayload', () => {
   it('서버 prepare가 만든 payload를 그대로 통과시킨다', () => {
     expect(parseTossCheckoutPayload(tossPayload())).toEqual(tossPayload());
+  });
+
+  it('바인딩이 꺼진 서버의 payload(variantKey 없음)도 그대로 통과시킨다 — 지금 동작', () => {
+    const parsed = parseTossCheckoutPayload(unboundTossPayload());
+    expect(parsed).toEqual(unboundTossPayload());
+    expect(parsed).not.toHaveProperty('variantKey');
+  });
+
+  it('서버 env가 정한 다른 결제 UI 이름도 형식 안이면 받는다', () => {
+    expect(parseTossCheckoutPayload({ ...tossPayload(), variantKey: 'ICONS-2' })?.variantKey).toBe('ICONS-2');
   });
 
   it('로컬 개발용 http 콜백 주소는 허용한다', () => {
@@ -97,6 +115,13 @@ describe('parseTossCheckoutPayload', () => {
     ['javascript failUrl', { ...tossPayload(), failUrl: 'javascript:alert(1)' }],
     ['다른 통화', { ...tossPayload(), currency: 'USD' }],
     ['회원 customerKey', { ...tossPayload(), customerKey: 'user-42' }],
+    // variantKey가 실렸다면 서버가 보낼 수 있는 값이어야 한다 — DEFAULT(다른 서비스와 공유하는
+    // MID)나 형식 밖 값은 조용히 넘기지 않고 payload 자체를 거부한다.
+    ['DEFAULT variantKey', { ...tossPayload(), variantKey: 'DEFAULT' }],
+    ['공백 낀 variantKey', { ...tossPayload(), variantKey: ' ICONS' }],
+    ['빈 variantKey', { ...tossPayload(), variantKey: '' }],
+    ['키만 있고 값 없는 variantKey', { ...tossPayload(), variantKey: undefined }],
+    ['문자열 아닌 variantKey', { ...tossPayload(), variantKey: 1 }],
     ['다른 provider', { ...tossPayload(), provider: 'korpay' }],
     ['제어문자 orderName', { ...tossPayload(), orderName: 'ICONS\u0000 주문' }],
     ['빈 orderName', { ...tossPayload(), orderName: '' }],
@@ -124,10 +149,59 @@ describe('mountTossPaymentWidgets', () => {
     // setAmount가 결제 UI 렌더보다 먼저여야 한다(NotSetupAmountError).
     expect(sdk.setAmount.mock.invocationCallOrder[0])
       .toBeLessThan(sdk.renderPaymentMethods.mock.invocationCallOrder[0]);
-    expect(sdk.renderPaymentMethods).toHaveBeenCalledWith({ selector: TOSS_PAYMENT_METHODS_SELECTOR });
+    // 결제의 MID를 정하는 ICONS 전용 결제 UI를 명시한다(기본값 DEFAULT 금지).
+    expect(sdk.renderPaymentMethods).toHaveBeenCalledWith({
+      selector: TOSS_PAYMENT_METHODS_SELECTOR,
+      variantKey: 'ICONS',
+    });
+    // 약관 UI의 variantKey는 결제 UI와 독립이다(/guides/v2/payment-widget/admin 약관 설정).
     expect(sdk.renderAgreement).toHaveBeenCalledWith({ selector: TOSS_AGREEMENT_SELECTOR });
     expect(TOSS_PAYMENT_METHODS_SELECTOR).toBe('#toss-payment-methods');
     expect(TOSS_AGREEMENT_SELECTOR).toBe('#toss-agreement');
+  });
+
+  /*
+   * 결제 UI 바인딩 꺼짐(서버 env TOSS_WIDGET_VARIANT_KEY 없음) = 지금 동작. variantKey 없이
+   * 그려 SDK 기본 DEFAULT 결제 UI가 뜬다 — 렌더 인자가 지금과 한 글자도 다르지 않다.
+   */
+  it('바인딩이 꺼진 payload는 variantKey 없이 지금과 같은 인자로 그린다', async () => {
+    await mountTossPaymentWidgets(unboundTossPayload());
+
+    expect(sdk.renderPaymentMethods).toHaveBeenCalledOnce();
+    expect(sdk.renderPaymentMethods.mock.calls[0]).toEqual([{ selector: TOSS_PAYMENT_METHODS_SELECTOR }]);
+    expect(sdk.renderAgreement.mock.calls[0]).toEqual([{ selector: TOSS_AGREEMENT_SELECTOR }]);
+    expect(sdk.setAmount).toHaveBeenCalledWith({ currency: 'KRW', value: 42_000 });
+  });
+
+  /*
+   * 결제 어드민에 ICONS 결제 UI가 없으면 SDK가 renderPaymentMethods를 InvalidVariantKeyError로
+   * 거부한다(@tosspayments/tosspayments-sdk 2.8.1 타입의 @throws). 그때 DEFAULT로 다시
+   * 그리지 않고 실패로 끝내며, 먼저 그려진 약관 UI도 걷어낸다.
+   */
+  it('결제 UI 렌더가 거부되면 DEFAULT로 재시도하지 않고 실패로 끝내며 약관 UI를 정리한다', async () => {
+    const invalidVariant = Object.assign(new Error('variantKey 가 유효하지 않습니다.'), {
+      name: 'InvalidVariantKeyError',
+    });
+    sdk.renderPaymentMethods.mockRejectedValueOnce(invalidVariant);
+
+    await expect(mountTossPaymentWidgets(tossPayload())).rejects.toBe(invalidVariant);
+
+    expect(sdk.renderPaymentMethods).toHaveBeenCalledOnce();
+    expect(sdk.renderPaymentMethods).toHaveBeenCalledWith({
+      selector: TOSS_PAYMENT_METHODS_SELECTOR,
+      variantKey: 'ICONS',
+    });
+    expect(sdk.agreementDestroy).toHaveBeenCalledOnce();
+    expect(sdk.requestPayment).not.toHaveBeenCalled();
+  });
+
+  it('약관 UI 렌더가 거부되면 그려진 결제 UI를 정리하고 실패로 끝낸다', async () => {
+    const failure = new Error('agreement render failed');
+    sdk.renderAgreement.mockRejectedValueOnce(failure);
+
+    await expect(mountTossPaymentWidgets(tossPayload())).rejects.toBe(failure);
+
+    expect(sdk.paymentMethodsDestroy).toHaveBeenCalledOnce();
   });
 
   it('deps로 주입한 loader만 쓰고 모듈 기본 loader는 건드리지 않는다', async () => {
@@ -208,10 +282,22 @@ describe('TossWidgetCheckout', () => {
     expect(sdk.loadTossPayments).not.toHaveBeenCalled();
   });
 
+  it('바인딩이 꺼진 payload(variantKey 없음)도 지금과 같은 마크업으로 렌더링한다', () => {
+    const bound = renderToStaticMarkup(<TossWidgetCheckout payload={tossPayload()} />);
+    const unbound = renderToStaticMarkup(<TossWidgetCheckout payload={unboundTossPayload()} />);
+
+    // variantKey는 SDK 호출 인자일 뿐 마크업에 나오지 않는다 — 화면은 바인딩과 무관하게 같다.
+    expect(unbound).toBe(bound);
+    expect(unbound).not.toContain('ICONS"');
+    expect(unbound).toContain('id="toss-payment-methods"');
+    expect(unbound).toContain('결제하기');
+  });
+
   it.each([
     ['allowlist 밖 키', { ...tossPayload(), privateProviderShape: true }],
     ['시크릿 형식 clientKey', { ...tossPayload(), clientKey: 'test_gsk_iconsdocs00000000000001' }],
     ['provider 원문', { privateProviderShape: 'provider-secret' }],
+    ['DEFAULT variantKey', { ...tossPayload(), variantKey: 'DEFAULT' }],
   ])('%s payload는 위젯을 렌더링하지 않는다', (_label, payload) => {
     const html = renderToStaticMarkup(<TossWidgetCheckout payload={payload} />);
 

@@ -7,6 +7,7 @@ vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn()}),usePathname:()
 vi.mock('@/app/admin/order-actions',()=>({bulkConfirmAdminOrdersAction:vi.fn(),bulkRegisterAdminOrderTrackingAction:vi.fn(),saveAdminOrderDispatchDelayAction:vi.fn()}));
 vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exportShipmentsAction:vi.fn(),exportPendingOriginShipmentsAction:vi.fn()}));
 vi.mock('@/app/admin/dispatch-delivery-actions',()=>({readDispatchShipmentDeliveryAction:vi.fn(),recordDispatchShipmentDeliveryAction:vi.fn()}));
+vi.mock('@/app/admin/shipment-tracking-actions',()=>({addShipmentExtraTrackingAction:vi.fn(),removeShipmentExtraTrackingAction:vi.fn()}));
 const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포',template:'wms_csv',active:true},{id:'two',name:'남양주',template:'seowon_xlsx',active:true},{id:'three',name:'중지된 창고',template:'standard',active:false}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
@@ -22,7 +23,7 @@ describe('배송 건 콘솔',()=>{
    const html=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,surface,filters:{...base.filters,tab:'ready'},rows}}/>);
    expect(html).not.toContain('구매자명');expect(html).not.toContain('/admin/sales/orders/');expect(html).not.toContain('name="paymentMethod"');
    expect(html).not.toContain('주문금액 높은순');expect(html).not.toContain('>결제일<');expect(html).not.toContain('value="buyer"');
-   expect(html).toContain('받는 분');expect(html).toContain('상품 · 파랑');expect(html).toContain('배송건번호 · 주문번호 · 수취인');
+   expect(html).toContain('받는 분');expect(html).toContain('상품 · 파랑');expect(html).toContain('배송건번호 · 주문번호 · 수령인');
   }
   const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows}}/>);
   expect(dispatch).toMatch(/aria-haspopup="dialog"[^>]*>퀵 인계·수령 확인<\/button>/);expect(dispatch).toContain('<span>주문제작 1/1건 완료</span>');
@@ -55,15 +56,15 @@ describe('배송 건 콘솔',()=>{
   for(const method of ['parcel','quick','pickup','direct','freight','none','digital']) expect(html).toContain(`value="${method}"`);
   expect(html).toContain('디지털 파일 제공 이력');expect(html).not.toContain('디지털 파일 다운로드 인계·수령 확인');
  });
- it.each(['dispatch','shipping'] as const)('구매자와 수취인을 각각 기본 열로 보여준다: %s',surface=>{
+ it.each(['dispatch','shipping'] as const)('구매자와 수령인을 각각 기본 열로 보여준다: %s',surface=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'delivered'},
-   rows:[{...row,buyerName:'서로 다른 구매자',recipientName:'별도 수취인'}]}}/>);
-  expect(html).toContain('구매자명');expect(html).toContain('서로 다른 구매자');expect(html).toContain('별도 수취인');
+   rows:[{...row,buyerName:'서로 다른 구매자',recipientName:'별도 수령인'}]}}/>);
+  expect(html).toContain('구매자명');expect(html).toContain('서로 다른 구매자');expect(html).toContain('별도 수령인');
   expect(html).toContain('조회항목 설정');
   const missing=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'delivered'},
    rows:[{...row,buyerName:'구매자만 확인',recipientName:null}]}}/>);
   expect(missing).toContain('미기록');
-  /* 수취인 칸이 구매자명으로 채워지지 않는다. 긴 이름을 자르는 title에도 같은 값이 있으므로 보이는 글자 칸만 센다. */
+  /* 수령인 칸이 구매자명으로 채워지지 않는다. 긴 이름을 자르는 title에도 같은 값이 있으므로 보이는 글자 칸만 센다. */
   expect((missing.match(/>구매자만 확인</g)??[])).toHaveLength(1);
  });
  it('원본 안내여부 필터를 실제 채널 결과로 구분하고 검색 폼의 중복 hidden 값을 만들지 않는다',()=>{
@@ -121,6 +122,14 @@ describe('배송 건 콘솔',()=>{
   expect(transit).toContain('퀵 배송 중');expect(transit).toContain('퀵 인계·수령 확인');
   expect(transit).not.toContain('운송장 확인 필요');
   expect(transit).not.toContain('선택 배송완료');
+ });
+ it('재고 부족 부분 취소가 진행 중인 배송 건은 발송 대기 행에 표시하고 선택을 막되 주문 확인은 유지한다(QA2)',()=>{
+  const held={...row,partialCancelInProgress:true};
+  const ready=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[held]}}/>);
+  expect(ready).toContain('부분 취소 진행 중');expect(ready).toContain('부분 취소 처리가 끝난 뒤');expect(ready).not.toContain('예약 재고 할당·제작 완료 뒤');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>)).not.toContain('부분 취소 진행 중');
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[held]}}/>);
+  expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
  });
  it('실재고가 미할당된 예약 배송 건은 출고 파일 선택을 막고 주문 확인은 유지한다',()=>{
   const held={...row,preorderReady:false};
@@ -186,7 +195,7 @@ describe('배송 건 콘솔',()=>{
   /* 같은 날 안에서는 23시간이 지나도 오늘이다. */
   expect(renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-09-14T14:30:00Z')} data={{...base,filters:{...base.filters,tab:'new'},rows:[{...row,createdAt:'2026-09-13T15:10:00Z',confirmedAt:null}]}}/>)).toContain('>오늘 주문<');
  });
- it('긴 구매자·수취인 이름은 한 줄로 자르고 전체 값을 title에 둔다',()=>{
+ it('긴 구매자·수령인 이름은 한 줄로 자르고 전체 값을 title에 둔다',()=>{
   const name='메이플20년차모험가_민지';
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,buyerName:name,recipientName:name}]}}/>);
   expect(html.match(new RegExp(`class="block truncate [^"]*" title="${name}"`,'g'))).toHaveLength(2);
@@ -312,17 +321,17 @@ describe('리뷰 반영: 주문번호 글자 팝업·택배 외 필터 안내',(
 });
 describe('QA 라운드 1 물류: 1440 화면 열 구성·변경 표시·안내',()=>{
  const header=(html:string)=>html.slice(html.indexOf('<thead'),html.indexOf('</thead>'));
- it('구매자는 수취인 칸 아래 줄에 두고, 발송 상태와 운송장 입력을 한 칸에 모아 열 수를 줄인다',()=>{
+ it('구매자는 수령인 칸 아래 줄에 두고, 발송 상태와 운송장 입력을 한 칸에 모아 열 수를 줄인다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
   const heads=[...header(html).matchAll(/<th[^>]*data-slot="table-head"[^>]*>(?:<label[\s\S]*?<\/label>)?([^<]*)/g)].map(match=>match[1]).filter(Boolean);
-  expect(heads).toEqual(['배송건번호 / 주문번호','상품 · 옵션','출고지','수취인 / 구매자','주문 / 발주확인','발송 · 운송장','배송 방식']);
+  expect(heads).toEqual(['배송건번호 / 주문번호','상품 · 옵션','출고지','수령인 / 구매자','주문 / 발주확인','발송 · 운송장','배송 방식']);
   expect(html).toContain('aria-label="구매자 구매자"');
   // 발송 상태 배지와 운송장 입력이 같은 칸이다.
   const cell=html.slice(html.indexOf('내보내기 전'),html.indexOf('data-shipment-row-tracking'));
   expect(cell).not.toContain('</td>');
   // 출고 전용 운영자는 구매자 줄도 머리글도 없다.
   const logistics=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows:[row]}}/>);
-  expect(header(logistics)).toContain('>수취인<');expect(logistics).not.toContain('aria-label="구매자 ');
+  expect(header(logistics)).toContain('>수령인<');expect(logistics).not.toContain('aria-label="구매자 ');
  });
  it('고객이 고른 방식과 다르게 바뀐 배송 건에 변경 표시를 둔다 (m3)',()=>{
   const changed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'quick',customerMethod:'parcel',changedBy:'store'})}]}}/>);
@@ -374,4 +383,39 @@ describe('물류 출고 권한 화면 숨김 (T05 통합용 props)',()=>{
   expect(html).toMatch(/aria-haspopup="dialog"[^>]*>방문수령 인계·수령 확인<\/button>/);expect(html).toContain('주문제작 0/1건 완료');
   expect(html).toContain('디지털 파일 제공 이력은 주문 상세에서 합니다.');
  });
+
+});
+describe('배송현황 추가 운송장·택배 추적 표시 (QNA-019·QNA-028)',()=>{
+  const shipped={...row,status:'shipping' as const,carrier:'hanjin',trackingNumber:'123456789012',shippedAt:'2026-11-10T00:00:00Z',delivery:{method:'parcel' as const,providerName:null,canIssueReceipt:false,policy:null}};
+  const delivered={...shipped,id:'60000000-0000-4000-8000-000000000002',status:'delivered' as const,deliveredAt:'2026-11-11T00:00:00Z'};
+  const extra={id:'00000000-0000-4000-8000-0000000000e1',carrier:'hanjin',trackingNumber:'223456789012',source:'warehouse_reply' as const,createdAt:'2026-11-10T01:00:00Z'};
+  const shipping=(rows:ShipmentConsoleData['rows'],autoDelivery?:boolean,tab:'transit'|'delivered'='transit')=>renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-11-12T00:00:00Z')}
+   data={{...base,surface:'shipping',filters:{...base.filters,tab},rows,...(autoDelivery===undefined?{}:{autoDelivery})}}/>);
+  const TRACKING_COPY=['자동 확인','수동 처리','택배 추적','자동 배송완료 보류','도착 '];
+  it('추가 운송장은 조회 링크로 대표 운송장 아래에 보이고 관리 팝업 입구가 생긴다',()=>{
+   const html=shipping([{...shipped,trackingSummary:{extraTrackings:[extra],deliveredBy:null,tracking:null}}],false);
+   expect(html).toMatch(/href="https:\/\/example.test\/223456789012"[^>]*>추가 한진택배 223456789012<\/a>/);
+   expect(html).toMatch(/aria-haspopup="dialog"[^>]*>추가 운송장 1개 관리<\/button>/);
+   expect(shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}}],false)).toMatch(/>추가 운송장 더하기<\/button>/);
+  });
+  it('스위치가 꺼져 있으면 자동·수동 구분과 추적 진행을 하나도 그리지 않는다',()=>{
+   const off=shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}},{...delivered,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}}],false);
+   for(const copy of TRACKING_COPY)expect(off).not.toContain(copy);
+   // 추적 표시는 스위치를 따른다 — 값이 실려 와도 꺼져 있으면 그리지 않는다.
+   const leaked=shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:'manual',tracking:{total:1,delivered:0,latestStatus:'in_transit',latestAt:null,held:true}}}],false);
+   expect(leaked).toBe(shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}}],false));
+   // 추가 운송장 요약이 없던 행(발주·발송 목록·옛 응답)은 이 칸이 종전 그대로다(일괄 등록 안내의 서원 회신 설명은 행 밖이다).
+   const plain=shipping([shipped]).replace(/<section[^>]*aria-label="엑셀 일괄 운송장 등록"[\s\S]*?<\/section>/,'');
+   for(const copy of [...TRACKING_COPY,'추가 운송장'])expect(plain).not.toContain(copy);
+  });
+  it('켜져 있으면 배송완료 건에 자동 확인·수동 처리를, 배송 중 건에 추적 진행과 보류를 보인다',()=>{
+   const transit=shipping([{...shipped,trackingSummary:{extraTrackings:[extra],deliveredBy:null,tracking:{total:2,delivered:1,latestStatus:'out_for_delivery',latestAt:'2026-11-11T03:00:00Z',held:true}}}],true);
+   expect(transit).toContain('택배 추적 배송 출발 · 도착 1/2');expect(transit).toContain('자동 배송완료 보류');expect(transit).toContain('택배 추적이 켜져 있습니다');
+   const done=shipping([{...delivered,trackingSummary:{extraTrackings:[],deliveredBy:'tracking',tracking:null}},{...delivered,id:'60000000-0000-4000-8000-000000000003',trackingSummary:{extraTrackings:[],deliveredBy:'manual',tracking:null}}],true,'delivered');
+   expect(done).toContain('자동 확인 · 택배 추적');expect(done).toContain('수동 처리');
+  });
+  it('도착하지 않은 운송장이 있으면 최근 이벤트가 배달 완료여도 이동 중으로 보인다(QA2)',()=>{
+   const html=shipping([{...shipped,trackingSummary:{extraTrackings:[extra],deliveredBy:null,tracking:{total:2,delivered:1,latestStatus:'delivered',latestAt:'2026-11-11T03:00:00Z',held:false}}}],true);
+   expect(html).toContain('택배 추적 이동 중 · 도착 1/2');expect(html).not.toContain('배달 완료 · 도착 1/2');
+  });
 });

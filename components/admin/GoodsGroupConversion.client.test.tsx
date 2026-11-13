@@ -1,5 +1,9 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+let leaveConfirm: ReturnType<typeof stubAdminConfirm>;
+let lastLink: { click: ReturnType<typeof vi.fn> } | null = null;
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
 const mocks = vi.hoisted(() => ({ preview: vi.fn(), confirm: vi.fn(), read: vi.fn(), save: vi.fn(), archive: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
@@ -36,6 +40,7 @@ let mode: 'convert' | 'editor' | 'list' = 'convert'; const storage = new Map<str
 const storageApi = { get length() { return storage.size; }, key: (index: number) => [...storage.keys()][index] ?? null,
   getItem: vi.fn((key: string) => storage.get(key) ?? null), setItem: vi.fn((key: string, value: string) => { storage.set(key, value); }), removeItem: vi.fn((key: string) => { storage.delete(key); }) };
 class LinkTarget {
+  click = vi.fn();
   constructor(readonly href: string, readonly target = '', readonly download = false) {}
   closest() { return this; }
   hasAttribute(name: string) { return name === 'download' && this.download; }
@@ -50,7 +55,8 @@ function navigate(href = '/admin', options: { target?: string; download?: boolea
   const event = new Event('click', { cancelable: true });
   const { target, download, ...mouse } = options;
   Object.assign(event, { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }, mouse);
-  Object.defineProperty(event, 'target', { value: new LinkTarget(new URL(href, window.location.href).href, target, download) });
+  const link = new LinkTarget(new URL(href, window.location.href).href, target, download); lastLink = link;
+  Object.defineProperty(event, 'target', { value: link });
   document.dispatchEvent(event); return event;
 }
 function render() {
@@ -70,14 +76,15 @@ function authenticate(actorId = identity.actorId, sessionId = identity.sessionId
 function saved() { return JSON.parse([...storage.values()][0]) as GoodsGroupRecovery; }
 async function ready() { submit(); await flush(); check('비교 내용과 미공개'); render(); }
 beforeEach(async () => {
+  leaveConfirm = stubAdminConfirm(true); lastLink = null;
   mode = 'convert'; hooks.values = []; hooks.effects.clear(); hooks.jobs = []; hooks.pending = false; storage.clear(); vi.clearAllMocks();
   storageApi.getItem.mockImplementation(key => storage.get(key) ?? null); storageApi.setItem.mockImplementation((key, value) => { storage.set(key, value); });
-  vi.stubGlobal('window', Object.assign(new EventTarget(), { localStorage: storageApi, location: new URL('https://admin.test/admin/catalog/groups?id=test'), confirm: vi.fn(() => true) }));
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { localStorage: storageApi, location: new URL('https://admin.test/admin/catalog/groups?id=test') }));
   vi.stubGlobal('document', new DocumentTarget()); vi.stubGlobal('Element', LinkTarget);
   mocks.preview.mockResolvedValue({ value: preview }); mocks.confirm.mockResolvedValue({ error: '응답 유실', uncertain: true }); mocks.read.mockResolvedValue({ error: '조회 실패', uncertain: true });
   render(); authenticate(); await flush();
 });
-afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); vi.unstubAllGlobals(); });
+afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); setAdminConfirmHandler(null); vi.unstubAllGlobals(); });
 
 describe('그룹 전환 화면 복구', () => {
   it('첫 상품번호 유지와 변경사항 비교 후 확인해야 한 번만 확정한다', async () => {
@@ -90,23 +97,23 @@ describe('그룹 전환 화면 복구', () => {
     const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
   });
   it('입력을 고친 뒤에만 이동을 묻고, 취소하면 입력을 유지하며, 되돌리면 묻지 않는다', async () => {
-    vi.mocked(window.confirm).mockReturnValue(false);
+    leaveConfirm.mockReturnValue(false);
     const nameInput = () => render().find(node => node.props.id === 'conversion-group-name')!;
-    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    expect(navigate().defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
     (nameInput().props.onChange as (event: unknown) => void)({ target: { value: '미저장 전환명' } }); render();
-    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).toHaveBeenCalledOnce();
+    expect(navigate().defaultPrevented).toBe(true); expect(leaveConfirm).toHaveBeenCalledOnce();
     expect(nameInput().props.value).toBe('미저장 전환명');
     const unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true);
-    (nameInput().props.onChange as (event: unknown) => void)({ target: { value: source.name } }); render(); vi.mocked(window.confirm).mockClear();
-    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    (nameInput().props.onChange as (event: unknown) => void)({ target: { value: source.name } }); render(); leaveConfirm.mockClear();
+    expect(navigate().defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
   });
   it('전환 요청이 끝나기 전에는 묻지 않고 막고, 완료되면 입력이 있어도 묻지 않는다', async () => {
     let complete!: (value: unknown) => void; mocks.confirm.mockReturnValue(new Promise(resolve => { complete = resolve; }));
     (render().find(node => node.props.id === 'conversion-group-name')!.props.onChange as (event: unknown) => void)({ target: { value: '미저장 전환명' } });
-    await ready(); click('이 내용으로 그룹 전환'); await flush(); const metadata = saved(); vi.mocked(window.confirm).mockClear();
-    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).not.toHaveBeenCalled();
+    await ready(); click('이 내용으로 그룹 전환'); await flush(); const metadata = saved(); leaveConfirm.mockClear();
+    expect(navigate().defaultPrevented).toBe(true); expect(leaveConfirm).not.toHaveBeenCalled();
     complete({ value: { ...receipt, operationId: metadata.operationId } }); await flush();
-    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    expect(navigate().defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
   });
   it('변환 전 비교 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)', () => {
     expect(render().find(node => isButton(node) && text(node) === '변환 전 변경사항 비교')?.props.type).toBe('submit');
@@ -143,10 +150,10 @@ describe('그룹 전환 화면 복구', () => {
 });
 describe('그룹 구성 화면', () => {
   it('그룹상품명 수정 후 공통 사이드바 이동을 취소하면 현재 입력을 유지한다', async () => {
-    mode = 'editor'; remount(); await flush(); vi.mocked(window.confirm).mockReturnValue(false);
+    mode = 'editor'; remount(); await flush(); leaveConfirm.mockReturnValue(false);
     const input = render().find(node => node.props.id === 'group-name')!;
     (input.props.onChange as (event: unknown) => void)({ target: { value: '미저장 그룹상품명' } }); render();
-    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).toHaveBeenCalledOnce();
+    expect(navigate().defaultPrevented).toBe(true); expect(leaveConfirm).toHaveBeenCalledOnce();
     expect(render().find(node => node.props.id === 'group-name')!.props.value).toBe('미저장 그룹상품명'); expect(mocks.save).not.toHaveBeenCalled();
     const unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true);
   });
@@ -155,16 +162,18 @@ describe('그룹 구성 화면', () => {
     const input = render().find(node => node.props.id === 'group-name')!;
     (input.props.onChange as (event: unknown) => void)({ target: { value: '미저장 그룹상품명' } });
     const cancel = render().find(node => node.props.onNavigate && text(node) === '취소')!;
-    expect(navigate(String(cancel.props.href)).defaultPrevented).toBe(false);
+    /* 확인창은 클릭을 먼저 멈춘 뒤 한 번만 묻고, 승인하면 같은 링크를 다시 눌러 이동을 잇는다. */
+    expect(navigate(String(cancel.props.href)).defaultPrevented).toBe(true); await flush();
+    expect(lastLink!.click).toHaveBeenCalledOnce();
     const preventDefault = vi.fn(); (cancel.props.onNavigate as (event: unknown) => void)({ preventDefault });
-    expect(preventDefault).not.toHaveBeenCalled(); expect(window.confirm).toHaveBeenCalledOnce();
-    (input.props.onChange as (event: unknown) => void)({ target: { value: group.name } }); render(); vi.mocked(window.confirm).mockClear();
-    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled(); expect(leaveConfirm).toHaveBeenCalledOnce();
+    (input.props.onChange as (event: unknown) => void)({ target: { value: group.name } }); render(); leaveConfirm.mockClear();
+    expect(navigate().defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
   });
   it('미저장 그룹에서도 새 탭·다운로드·수정키·중간 클릭·같은 문서 앵커를 허용한다', async () => {
     mode = 'editor'; remount(); await flush(); click('TEST 그룹 파랑 제외'); render();
     for (const options of [{ target: '_blank' }, { download: true }, { metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) expect(navigate('/admin', options).defaultPrevented).toBe(false);
-    expect(navigate(`${window.location.href}#details`).defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    expect(navigate(`${window.location.href}#details`).defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
   });
   it('목록에서 개별 상품을 펼치고 계정 변경 시 상세 링크를 감춘다', async () => {
     mode = 'list'; remount(); await flush();

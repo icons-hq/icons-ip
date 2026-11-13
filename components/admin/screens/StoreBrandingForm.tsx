@@ -102,6 +102,6 @@ export function StoreBrandingForm({ settings, canEdit, operationId }: { settings
     </section>
     {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
     {state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}
-    {canEdit ? <Button className="self-start" type="submit" disabled={pending}>{pending ? '저장 중…' : '브랜드·SNS 저장'}</Button> : <p className="text-sm text-muted-foreground">직원(staff)은 조회할 수 있습니다. 변경은 관리자(admin)에게 요청해주세요.</p>}
+    {canEdit ? <Button className="self-start" type="submit" disabled={pending}>{pending ? '저장 중…' : '브랜드·SNS 저장'}</Button> : <p className="text-sm text-muted-foreground">직원(staff)은 조회할 수 있습니다. 변경은 최고 관리자에게 요청해주세요.</p>}
   </form>;
 }

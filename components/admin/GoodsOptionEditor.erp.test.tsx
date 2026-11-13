@@ -94,6 +94,42 @@ describe('옵션 상세 정보의 ERP 품목 선택', () => {
   });
 });
 
+/* 1007-045(11/11 결정 "빈 칸 자동"): 판매가 칸이 비어 있을 때만 고른 품목의 ERP 판매가를 바로 넣는다. 0원 입력은 값으로 본다. */
+describe('ERP 판매가 빈 칸 자동 입력', () => {
+  const applyRegular = vi.fn();
+  function tableWith(regularPrice: string) {
+    hooks.stateIndex = 0;
+    const tree = GoodsOptionEditor({ rows, baseline: [], basePrice: 0, onRowsChange: setRows, onErpItemSelect, onRegularPriceApply: applyRegular,
+      priceDraft: { regularPrice, discountEnabled: false, discountValue: '', discountUnit: 'won' } });
+    return find(tree, (element) => typeof element.props.onErpSelect === 'function')[0];
+  }
+  function chooseWith(regularPrice: string, key: string) {
+    const table = tableWith(regularPrice);
+    table.props.onErpChange?.(key, item.name);
+    table.props.onErpSelect?.(key, item);
+  }
+  const single = 'new:[]';
+  beforeEach(() => { applyRegular.mockClear(); rows = [{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 1, erpCode: null, erpName: null, barcode: null }]; });
+
+  it('판매가가 비어 있으면 고른 품목의 ERP 판매가를 바로 넣고 버튼 적용과 같은 안내를 보인다', () => {
+    chooseWith('', single);
+    expect(applyRegular).toHaveBeenCalledWith(12000);
+    expect(rows[0]).toMatchObject({ erpCode: '000123', erpName: '아크릴 키링' });
+    expect(onErpItemSelect).toHaveBeenCalledWith(item);
+    expect(tableWith('').props.erpRows?.[single]).toEqual({ item, message: '판매가가 비어 있어 ERP 판매가 12,000원을 넣었습니다.', warning: false });
+  });
+
+  it('0원을 포함해 판매가에 값이 있으면 넣지 않고 지금처럼 적용 버튼만 둔다', () => {
+    for (const regularPrice of ['0', '9900']) {
+      hooks.state = []; applyRegular.mockClear();
+      rows = [{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 1, erpCode: null, erpName: null, barcode: null }];
+      chooseWith(regularPrice, single);
+      expect(applyRegular).not.toHaveBeenCalled();
+      expect(tableWith(regularPrice).props.erpRows?.[single]).toEqual({ item });
+    }
+  });
+});
+
 /*
  * 2026-10-07 3차 리뷰: 표 안 재고 부족 경고 규칙이 ERP 안내까지 덮어 성공 안내도 경고색 11px로 보였다. 템플릿 룩(ADR-0028)에서는
  * 안내마다 자기 색·크기 유틸리티를 갖는다 — 그 칸의 실제 요소를 그려 확인한다.

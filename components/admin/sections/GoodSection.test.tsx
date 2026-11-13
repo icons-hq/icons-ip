@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import type { AdminCategoryNode } from '@/lib/admin/category';
 import { GOODS_READINESS_REASONS, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from '@/lib/admin/goods-readiness';
 import type { Ip } from '@/lib/data';
 import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
@@ -72,8 +73,15 @@ const hwasan: Ip = {
   synopsis: '화산강림 세계관',
 };
 
+/* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이다. 시험 상품은 '아크릴'이 연결된 카테고리에 있다. */
+const acrylicCategory: AdminCategoryNode = { id: '33333333-3333-4333-8333-333333333333', code: 'acrylic', name: '아크릴 굿즈', parentId: null, depth: 1,
+  sortOrder: 0, archivedAt: null, updatedAt: '', childCount: 0, assignedGoodCount: 1, goodType: '아크릴' };
+const unlinkedCategory: AdminCategoryNode = { ...acrylicCategory, id: '33333333-3333-4333-8333-333333333334', code: 'unlinked', name: '연결 없는 분류', goodType: null };
+const dollCategory: AdminCategoryNode = { ...acrylicCategory, id: '33333333-3333-4333-8333-333333333335', code: 'doll', name: '인형 분류', goodType: '인형' };
+
 const good: AdminGoodRecord = {
   id: 'g100',
+  categoryId: acrylicCategory.id,
   code: 'HW-0100',
   publishedAt: '2026-09-08',
   firstPublishedAt: '2026-09-08T00:00:00Z',
@@ -109,7 +117,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'canOpenIp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'|'categories'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -124,6 +132,7 @@ function renderGoodSection(
       selected={selected}
       variants={selected ? [{ id: '11111111-1111-4111-8111-111111111111', goodId: selected.id, name: '기본 옵션', code: 'HW-0100-01', price: selected.price, stockQty: selected.stockQty, isDefault: true, archivedAt: null }] : []}
       state={state}
+      categories={[acrylicCategory, unlinkedCategory, dollCategory]}
       {...options}
     /></GoodsKcTemplateProvider>,
   );
@@ -146,20 +155,39 @@ describe('GoodSection', () => {
   });
 
   it('플랫폼 관리 권한이 없는 상품 매니저에게 IP 운영 화면 링크를 노출하지 않는다', () => {
-    expect(renderGoodSection(good)).toContain('/admin/catalog/ips/hwasan');
-    const html = renderGoodSection(good, {}, { canSearchErp: false });
-    expect(html).not.toContain('/admin/catalog/ips/hwasan');
-    expect(html).toContain('name="ipId"');
+    expect(renderGoodSection(good, {}, { canOpenIp: true })).toContain('/admin/catalog/ips/hwasan');
+    for (const html of [renderGoodSection(good), renderGoodSection(good, {}, { canSearchErp: false })]) {
+      expect(html).not.toContain('/admin/catalog/ips/hwasan');
+      expect(html).toContain('name="ipId"');
+    }
   });
+
+  /* 1027T-016(T18): 옵션 ERP 품명 제안은 상품 관리 권한(catalog.manage)으로 열고, IP 운영 화면(platform.manage) 링크는 따로 게이트한다. */
+  it('ERP 품명 제안과 IP 운영 화면 링크를 서로 다른 권한으로 연다', () => {
+    const md = renderGoodSection(good, {}, { canSearchErp: true, canOpenIp: false });
+    expect(md).toContain('data-erp-item-combobox=""');
+    expect(md).not.toContain('/admin/catalog/ips/hwasan');
+    const platformOnly = renderGoodSection(good, {}, { canSearchErp: false, canOpenIp: true });
+    expect(platformOnly).not.toContain('data-erp-item-combobox=""');
+    expect(platformOnly).toContain('aria-label="옵션 1 ERP 품명"');
+    expect(platformOnly).toContain('/admin/catalog/ips/hwasan');
+  });
+  /*
+   * TKT-073(#506 완료 기준 1) — 입력 순서는 현행 유지(11/11 S36-007·TKT-001 결정 "현행 유지(회의 결정)")이고, 섹션 순서·오류 요약 순서와
+   * 이미지·판매기간·KC·예약판매 위치까지 렌더로 고정한다. 등록 화면과 저장된 상품의 편집기는 같은 순서다.
+   */
   it('keeps the task order and error links in the same authoring sequence', () => {
-    const html = renderGoodSection(null, { errors: { maxOrderQty: '수량 오류', originId: '배송 오류', noticeMaker: '고시 오류', variants: '옵션 오류', price: '가격 오류', name: '이름 오류' } });
-    /* 판매가 → 재고수량·옵션 순서는 불변이고 구매 제한은 옵션 뒤의 접힌 줄이다. */
-    const sections = ['basic', 'price', 'variants', 'limits', 'notice', 'shipping'];
-    const positions = sections.map((key) => html.indexOf(`id="good-section-${key}"`));
-    expect(positions.every((position) => position >= 0)).toBe(true);
-    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    const html = renderGoodSection(null, { errors: { maxOrderQty: '수량 오류', originId: '배송 오류', noticeMaker: '고시 오류', variants: '옵션 오류', price: '가격 오류', name: '이름 오류', saleStartsAt: '기간 오류', workspacePreorders: '예약 오류' } });
+    const anchors = ['good-section-basic', 'good-section-price', 'good-section-variants', 'good-section-period', 'good-operation-preorders', 'good-section-limits',
+      'good-section-images', 'good-section-description', 'good-section-notice', 'good-operation-kc', 'good-section-delivery', 'good-section-shipping', 'good-section-information'];
+    for (const markup of [html, renderGoodSection({ ...good, publishedAt: null })]) {
+      const positions = anchors.map((id) => markup.indexOf(`id="${id}"`));
+      expect(positions.every((position) => position >= 0), anchors.filter((_, index) => positions[index] < 0).join()).toBe(true);
+      expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    }
     const summary = html.slice(html.indexOf('aria-label="저장 오류 요약"')).split('</section>')[0];
-    expect([...summary.matchAll(/href="#good-section-([a-z]+)"/g)].map((match) => match[1])).toEqual(sections);
+    expect([...summary.matchAll(/href="#(good-(?:section|operation)-[a-z]+)"/g)].map((match) => match[1]))
+      .toEqual(['good-section-basic', 'good-section-price', 'good-section-variants', 'good-section-period', 'good-operation-preorders', 'good-section-limits', 'good-section-notice', 'good-section-shipping']);
   });
 
   it('shows all seven published identity locks without omitting their submitted values', () => {
@@ -167,10 +195,12 @@ describe('GoodSection', () => {
     for (const name of ['name', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize']) {
       expect(html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0]).toContain('readOnly');
     }
-    for (const name of ['ipId', 'type']) {
-      expect(html.match(new RegExp(`<select[^>]*name="${name}"[^>]*>`))?.[0]).toContain('disabled');
-      expect(html).toMatch(new RegExp(`<input[^>]*type="hidden"[^>]*name="${name}"`));
-    }
+    expect(html.match(/<select[^>]*name="ipId"[^>]*>/)?.[0]).toContain('disabled');
+    expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="ipId"/);
+    /* 상품 유형은 입력칸이 없고(SHEET-003), 공개 중에는 저장된 유형을 그대로 제출한다. */
+    expect(html).not.toMatch(/<select[^>]*name="type"/);
+    expect(html).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    expect(html).toMatch(/data-good-type-derived="published"[^>]*>[^]*?아크릴 · 공개 중 잠금/);
     expect(html).toContain('초안으로 전환 후 수정');
   });
 
@@ -195,26 +225,49 @@ describe('GoodSection', () => {
     expect(html).toContain('value="public-media/catalog/good/failed.webp"');
     expect(html).toContain('value="보존 옵션"');
     expect(html).toContain('value="-1"');
-    /* 대표·추가 이미지는 한 그리드(자리별 hidden input)이고, 상세 HTML 이미지·긴 상세 이미지만 별도 업로드 칸이다. */
-    expect(html.match(/data-auto-upload="true"/g)).toHaveLength(2);
-    expect(html.match(/<li class="[^"]*" data-artwork-upload-field=""/g)).toHaveLength(2);
+    /* 대표·추가 이미지는 한 그리드(자리별 hidden input)이고, 상세 HTML 이미지·긴 상세 이미지만 별도 업로드 칸이다(함께 저장할 설정의 사은품 사진 칸은 기본 폼 밖이다). */
+    const editor = html.slice(0, html.indexOf('data-good-operation-hub='));
+    expect(editor.match(/data-auto-upload="true"/g)).toHaveLength(2);
+    expect(editor.match(/<li class="[^"]*" data-artwork-upload-field=""/g)).toHaveLength(2);
     expect(html).toContain('최근 저장된 상품에서 복사');
     expect(html).toContain('템플릿에서 가져오기');
   });
-  it('초안 저장 영역은 KC 검토 전에 KC 맥락을 먼저 채우는 순서와 재검토 조건을 안내한다', () => {
-    const order = '1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
+  /*
+   * ADM-004(복잡도 표 25·27행) — 저장 안내의 순서 문장은 등록 화면에서 한 문장이고, 저장된 초안의 "초안 저장 → KC 검토 → 공개" 순서는 판매 준비 카드
+   * (다음 할 일 · KC 검토 필요, 판매 준비 안내의 KC 재검토 문장)가 말하므로 저장 안내에서 되풀이하지 않는다.
+   */
+  it('저장 안내는 등록 화면의 KC 포함 저장·공개 순서를 한 문장으로 말하고, 저장된 초안의 순서는 판매 준비 카드에 맡긴다', () => {
     const draft = { ...good, publishedAt: null };
     const save = (html: string) => html.slice(html.indexOf('aria-label="기본 상품 저장"'));
-    expect(save(renderGoodSection(draft))).toContain(order);
-    expect(save(renderGoodSection(draft))).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
-    expect(renderGoodSection(good)).not.toContain(order);
-    /* R13·D6② — 등록 화면은 KC를 기본 입력과 함께 저장하므로 순서 안내가 둘로 줄어든다. */
+    const draftHtml = renderGoodSection(draft);
+    expect(save(draftHtml)).not.toContain('초안 저장 → 2. KC 검토 → 3. 공개');
+    expect(save(draftHtml)).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
+    expect(draftHtml).toContain('모델·옵션·고시정보를 수정하면 실제 상품과 검토 근거가 달라질 수 있어 초안 전환과 KC 재검토가 필요합니다.');
+    /* R13·D6②·T15b — 등록 화면은 KC와 나머지 설정을 기본 입력과 함께 저장하고, 저장 후 공개로 바로 공개한다. 순서·재검토 조건은 한 문장이다. */
     const create = save(renderGoodSection(null));
-    expect(create).toContain('1. 기본 정보·유형·고시정보·옵션과 KC까지 입력해 저장 → 2. 판매 준비에서 공개');
-    expect(create).toContain('KC·예약판매 입력을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.');
-    /* 저장 안내를 열지 않아도 다음 단계가 보인다. */
-    expect(create).toContain('data-good-next-step="">다음 단계: 저장하면 화면 맨 위에 판매 준비가 열리고, 거기서 공개합니다.');
-    expect(create).not.toContain(order);
+    const sentence = '공개 조건과 KC까지 채우면 저장 후 공개로 저장과 함께 공개하고(막히면 저장만 하고 판매 준비에서 공개), KC를 검토 완료로 저장했더라도 그 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
+    expect(create).toContain(sentence);
+    expect(sentence.match(/다\./g)).toHaveLength(1);
+    expect(create).toContain('함께 저장할 설정(판매 방식·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·할인·배송비·묶음그룹·정기배송·수령 방식·제작·공급가)을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 재고 조정·옵션 사용·복사·보관만 저장 뒤 같은 자리에서 합니다.');
+    /* 저장 안내를 열지 않아도 다음 단계가 보인다. 필수 입력 전에는 저장 후 공개 버튼이 없고 무엇을 채우면 되는지 말한다. */
+    expect(create).toContain('data-good-next-step="">다음 단계: 필수 입력과 KC를 마치면 저장 후 공개로 저장과 함께 공개할 수 있습니다. 저장만 하면 화면 맨 위 판매 준비에서 공개합니다.');
+    expect(create).not.toContain('value="publish"');
+    expect(create).not.toContain('→ 2.');
+  });
+
+  /*
+   * 11/11 묶음 10 결정 "둘 다 펼친 채로 … 남은 등록 화면 정리(ADM-004)도 이 원칙" — 입력 섹션인 상세설명 카드는 펼친 채로 두고 요약 한 줄만 머리에
+   * 보인다(복잡도 표 168행의 '카드 기본 접힘' 처리안은 채택하지 않음). 용어 도움말(190행)은 입력칸이 아닌 안내 문구라 고르는 동안만 보인다.
+   */
+  it('상세설명 카드는 등록·수정 화면 모두 펼쳐져 있고 요약 한 줄을 머리에 두며, 연결 IP·유형 도움말은 고르는 동안만 보인다', () => {
+    const create = renderGoodSection(null);
+    const saved = renderGoodSection({ ...good, publishedAt: null });
+    for (const markup of [create, saved]) expect(markup.match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
+    expect(create).toMatch(/<textarea[^>]*name="description"/);
+    expect(create).toMatch(/data-good-section-summary="">입력 안 함<\/span>/);
+    expect(saved).toMatch(/data-good-section-summary="">일반 텍스트 · \d+자<\/span>/);
+    expect(create).toContain('data-good-identity-help=""');
+    expect(saved).not.toContain('data-good-identity-help=""');
   });
   it('저장 후 공개가 KC에 막혀 초안으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
     const draft = { ...good, publishedAt: null };
@@ -296,12 +349,14 @@ describe('GoodSection', () => {
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
     expect(html).not.toContain('name="reason"');
-    /* 저장 전에는 이름만 보이고 입력·폼은 없다(R13). */
-    const hub = html.slice(html.indexOf('data-good-operation-hub="pending"'));
-    const names = hub.slice(0, hub.indexOf('</dl>'));
+    /* 저장 뒤에만 하는 항목(재고 조정·옵션 사용·복사·보관)은 이름만 보이고 입력·폼은 없다(T15b). */
+    const after = html.slice(html.indexOf('data-good-operation-after-save'));
+    const names = after.slice(0, after.indexOf('</ul>'));
     expect(names).toContain('재고 조정');
     expect(names).not.toMatch(/<input|<select|<textarea|<button/);
-    expect(html.match(/<form/g)).toHaveLength(1);
+    /* 기본 폼 하나 + 함께 저장할 설정의 추가 구성 검색(기본 폼 밖, 상품 저장에 섞이지 않는다). */
+    expect(html.match(/<form/g)).toHaveLength(2);
+    expect(html.indexOf('</form>')).toBeLessThan(html.indexOf('data-good-operation-hub="pending"'));
   });
 
   /*
@@ -314,32 +369,56 @@ describe('GoodSection', () => {
     const create = renderGoodSection(null, {}, props);
     const hubIds = (html: string) => [...html.slice(html.indexOf('data-good-operation-hub=')).matchAll(/<details id="good-operation-([a-z-]+)"/g)].map((match) => match[1]);
     const names = [...create.matchAll(/data-good-operation-name="([a-z-]+)"/g)].map((match) => match[1]);
-    /* 18개 = 게시 상태 포함, KC·예약판매 제외. */
-    expect(names).toHaveLength(18);
-    expect(names.filter((id) => id !== 'publish')).toEqual(hubIds(saved).filter((id) => id !== 'preorders'));
-    expect(names).toEqual(expect.arrayContaining(['prices', 'transaction-terms', 'benefits', 'stock', 'publish']));
+    /*
+     * T15b(11/11 묶음 10 1027T-024 "저장 전 전부 입력"): 저장 뒤에만 하는 것은 상태를 바꾸는 4개(재고 조정·옵션 사용·복사·보관)뿐이다.
+     * 나머지는 저장된 상품의 이어서 설정과 같은 묶음·같은 순서·같은 id로, 등록 화면에서 상품과 함께 저장하는 입력이다.
+     */
+    const afterSave = ['stock', 'variants', 'clone', 'archive'];
+    expect(names).toEqual(afterSave);
+    expect(hubIds(create)).toEqual(hubIds(saved).filter((id) => !afterSave.includes(id)));
+    expect(hubIds(create)).toEqual(expect.arrayContaining(['option-sale-mode', 'prices', 'additional', 'benefits', 'transaction-terms', 'shipping-charge-group',
+      'subscription-policy', 'fulfillment', 'production', 'listing-colors', 'after-sales', 'size-chart', 'costs']));
+    expect(hubIds(create)).toHaveLength(13);
+    const pending = create.slice(create.indexOf('data-good-operation-hub="pending"'));
+    for (const id of hubIds(create)) expect(pending).toMatch(new RegExp(`<details id="good-operation-${id}"[^>]*data-good-operation="inline"`));
     for (const id of names) expect(create).toMatch(new RegExp(`<li id="good-operation-${id}"`));
-    expect(create.split('상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.')).toHaveLength(2);
-    expect(create).toContain('저장하면 이어서 설정할 수 있어요');
+    expect(create).not.toContain('data-good-operation-name="publish"');
+    expect(create.split('재고 조정·옵션 사용·복사·보관은 상품의 상태를 바꾸는 일이라, 상품을 저장한 뒤 이 자리에서 합니다.')).toHaveLength(2);
+    expect(create).toContain('상품과 함께 저장할 설정');
+    expect(create).not.toContain('저장하면 이어서 설정할 수 있어요');
     expect(create).not.toContain('data-good-operation="placeholder"');
     expect(create.slice(create.indexOf('data-good-operation-hub="pending"'))).not.toContain('aria-disabled="true"');
     const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start + 1); return html.slice(start, next < 0 ? undefined : next); };
     expect(card(create, 'kc')).toContain('상품과 함께 저장');
     expect(card(create, 'kc')).toContain('상품 전체 KC 해당 없음');
-    expect(card(create, 'kc')).toContain('KC 모델 추가');
+    /* 1007-034·SHEET-014: KC 대상 여부를 먼저 고르고(고르기 전에는 모델 입력을 열지 않는다), 기타 인증도 같은 카드에서 함께 저장한다. */
+    expect(card(create, 'kc')).toContain('<legend>KC 인증 대상 여부</legend>');
+    expect(card(create, 'kc')).toContain('대상 · 인증 종류와 번호 입력');
+    expect(card(create, 'kc')).not.toContain('KC 모델 추가');
+    expect(card(create, 'kc')).toContain('기타 인증 추가');
     expect(card(create, 'preorders')).toContain('예약 조건 추가');
     expect(create).toMatch(/<details id="good-operation-kc"[^>]*open=""/);
-    /* 예약판매는 조건이 없으면 접힌 줄이다. */
-    expect(create).not.toMatch(/<details id="good-operation-preorders"[^>]*open=""/);
-    expect(create.indexOf('data-good-operation-hub="pending"')).toBeLessThan(create.indexOf('id="good-operation-preorders"'));
+    /* 1027T-023(11/11 "펼친 채로"): 예약판매는 접힌 줄이 아니라 판매 정보 카드의 판매기간 바로 뒤에 펼친 소항목이고, 이어서 설정 카드에는 없다. */
+    expect(create).not.toMatch(/<details[^>]*id="good-operation-preorders"/);
+    expect(create).toMatch(/<section aria-labelledby="good-operation-preorders-title"[^>]*id="good-operation-preorders"/);
+    expect(create.indexOf('id="good-section-period"')).toBeLessThan(create.indexOf('id="good-operation-preorders"'));
+    expect(create.indexOf('id="good-operation-preorders"')).toBeLessThan(create.indexOf('id="good-section-limits"'));
+    expect(create.indexOf('id="good-operation-preorders"')).toBeLessThan(create.indexOf('data-good-operation-hub="pending"'));
+    expect(create.slice(create.indexOf('data-good-operation-hub="pending"'))).not.toContain('예약 조건 추가');
+    /* 예약 입력은 소속 폼을 떼어 상품 저장의 브라우저 검증·Enter 제출에 섞이지 않는다. */
+    const preorderInputs = card(create, 'preorders').slice(0, card(create, 'preorders').indexOf('id="good-section-limits"'));
+    expect(preorderInputs).toMatch(/<button[^>]*form="good-detached-controls"[^>]*>예약 조건 추가<\/button>/);
     /* KC는 고시 입력 바로 아래, 배송 카드 앞에 있다. */
     expect(create.indexOf('name="noticeAsContact"')).toBeLessThan(create.indexOf('id="good-operation-kc"'));
     expect(create.indexOf('id="good-operation-kc"')).toBeLessThan(create.indexOf('id="good-section-delivery"'));
     const form = create.slice(create.indexOf('<form'), create.indexOf('</form>'));
     expect(form).toContain('type="hidden" name="workspaceOperationId"');
     expect(form).toContain('type="hidden" name="workspaceSections"');
-    /* KC 입력은 폼 안에 있어도 name이 없어 제출·자동복구·임시저장에 실리지 않는다(DQ3). */
-    expect(card(create, 'kc').slice(0, card(create, 'kc').indexOf('id="good-section-delivery"'))).not.toMatch(/<(input|select|textarea)\b[^>]*\sname=/);
+    /* KC 입력은 폼 안에 있어도 name이 없어 제출·자동복구·임시저장에 실리지 않는다(DQ3). 'KC 인증 대상 여부' 라디오만 묶음 이름이 있고,
+       소속 폼을 떼어(form="good-detached-controls") 상품 폼의 FormData·자동복구에 들어가지 않는다. */
+    const kcCard = card(create, 'kc').slice(0, card(create, 'kc').indexOf('id="good-section-delivery"'));
+    expect(kcCard).not.toMatch(/<(input|select|textarea)\b(?![^>]*form="good-detached-controls")[^>]*\sname=/);
+    expect(kcCard.match(/<input[^>]*\sname=/g)?.every((input) => input.includes('type="radio"') && input.includes('form="good-detached-controls"'))).toBe(true);
     expect(saved).not.toContain('name="workspaceOperationId"');
     expect(card(saved, 'kc')).toContain('별도 저장');
     /* 저장 뒤 KC는 고시 카드, 게시 상태는 판매 준비 카드에 있다. */
@@ -491,21 +570,46 @@ describe('GoodSection', () => {
     expect(hub.indexOf('id="good-operation-stock"')).toBeLessThan(hub.indexOf('data-good-operation-group="benefits"'));
   });
 
+  /* T15b 리뷰: 등록 화면은 묶음 5개를 펼쳐 두되 그 안 섹션은 접고, 저장된 상품의 이어서 설정은 모두 접힌 채로 둔다. */
+  it('등록 화면은 상품과 함께 저장할 설정 묶음을 펼치고 섹션은 접어 둔다', () => {
+    const create = renderGoodSection(null, {}, { accountId: 'operator-1' });
+    const hub = create.slice(create.indexOf('data-good-operation-hub="pending"'));
+    const groups = [...hub.matchAll(/<details[^>]*data-good-operation-group="([a-z]+)"[^>]*>/g)];
+    expect(groups).toHaveLength(4); /* 관리 묶음은 저장 뒤 항목뿐이라 등록 화면에는 4개다. */
+    for (const group of groups) expect(group[0]).toContain('open=""');
+    const sections = [...hub.matchAll(/<details id="good-operation-[a-z-]+"[^>]*data-good-operation="inline"[^>]*>/g)];
+    expect(sections.length).toBeGreaterThan(0);
+    for (const section of sections) expect(section[0]).not.toContain('open=""');
+  });
+
   /* 10/27 회의 D5② — 판매 방식(랜덤 판매) 패널은 예약판매 바로 앞에 둔다. 등록 화면에는 이름만 있다. */
   it('판매 방식 패널을 예약판매 바로 앞에 두고, 기본 입력 잠금 규칙을 다른 운영 패널과 같이 따른다', () => {
     const props = { accountId: 'operator-1' };
     const ids = (html: string) => [...html.matchAll(/<details id="good-operation-([a-z-]+)"/g)].map((match) => match[1]);
     const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start); return html.slice(start, next < 0 ? undefined : next); };
     const saved = renderGoodSection({ ...good, publishedAt: null }, {}, props);
-    expect(ids(saved).slice(ids(saved).indexOf('option-sale-mode'), ids(saved).indexOf('option-sale-mode') + 2)).toEqual(['option-sale-mode', 'preorders']);
+    /* 1027T-023: 예약판매 패널은 판매 정보 카드로 옮겼고, 판매 방식 바로 뒤 옛 자리에는 그 위치로 가는 링크가 남는다. */
+    const sale = saved.indexOf('<details id="good-operation-option-sale-mode"');
+    const moved = saved.indexOf('data-good-operation-moved="preorders"');
+    expect(sale).toBeGreaterThan(0);
+    expect(moved).toBeGreaterThan(sale);
+    expect(saved.slice(sale + 1, moved)).not.toContain('<details id="good-operation-');
+    expect(saved.slice(moved)).toMatch(/href="#good-operation-preorders"[^>]*>예약판매로 이동<\/a>/);
+    expect(saved.indexOf('id="good-operation-preorders"')).toBeLessThan(saved.indexOf('id="good-section-limits"'));
+    expect(saved.indexOf('id="good-section-period"')).toBeLessThan(saved.indexOf('id="good-operation-preorders"'));
+    expect(ids(saved)).not.toContain('preorders');
     expect(card(saved, 'option-sale-mode')).toMatch(/<summary[^>]*>[^]*?data-good-operation-title="">판매 방식<\/span>[^]*?<\/summary>/);
     expect(card(saved, 'option-sale-mode')).toContain('aria-label="판매 방식"');
     /* 서버 렌더는 기본 입력 상태를 확인하는 중이라 잠긴다 — 다른 잠금 패널과 같은 공통 안내를 패널 맨 위에 보인다. */
     expect(card(saved, 'option-sale-mode')).toMatch(/data-good-operation-notice="" role="status"><p[^>]*>기본 상품의 입력 상태를 확인하고 있습니다.<\/p>/);
 
     const create = renderGoodSection(null, {}, props);
-    expect(create).toContain('data-good-operation-name="option-sale-mode"');
-    expect(create).not.toContain('<details id="good-operation-option-sale-mode"');
+    /* T15b: 등록 화면도 같은 자리(판매 운영 묶음)에서 판매 방식을 고르고, 상품과 함께 저장한다(서버 저장 버튼·잠금 안내 없음). */
+    expect(create).toMatch(/<details id="good-operation-option-sale-mode"[^>]*data-good-operation="inline"/);
+    expect(card(create, 'option-sale-mode')).toContain('상품과 함께 저장');
+    expect(card(create, 'option-sale-mode')).toContain('랜덤 판매');
+    expect(card(create, 'option-sale-mode')).not.toContain('판매 방식 저장');
+    expect(card(create, 'option-sale-mode')).not.toContain('data-good-operation-notice');
     expect(renderGoodSection({ ...good, archivedAt: '2026-10-01T00:00:00Z' })).not.toContain('id="good-operation-option-sale-mode"');
   });
 
@@ -530,19 +634,23 @@ describe('GoodSection', () => {
   });
 
   /*
-   * 10/27 회의 R12·D7② — 구매 제한은 판매 정보 카드 안 판매기간 바로 아래에 있다. 펼친 카드 대신 현재 값 한 줄 + 변경으로 줄였다
-   * (MD 확인 필요). 라벨·입력·제출 값은 그대로이고 설정돼 있으면 요약에 값이 보인다.
+   * 10/27 회의 R12·D7②, 11/11 ADM-011·1027T-021·1027T-023 결정 "둘 다 펼친 채로" — 판매 정보 카드에 판매가 → 재고 → 판매기간 → 예약판매 →
+   * 구매 제한이 모두 펼쳐져 입력칸이 바로 보인다(#637의 접힌 줄을 되돌림). 라벨·입력·제출 값은 그대로이고 설정돼 있으면 제목 옆 요약에 값이 보인다.
    */
-  it('구매 제한은 판매 정보 카드의 판매기간 바로 아래 접힌 줄이고 입력·라벨은 그대로 DOM에 있다', () => {
+  it('구매 제한은 판매 정보 카드의 판매기간·예약판매 바로 아래에 펼쳐져 있고 입력·라벨은 그대로다', () => {
     const html = renderGoodSection({ ...good, orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 3 } as typeof good);
     const period = html.indexOf('id="good-section-period"');
+    const preorders = html.indexOf('id="good-operation-preorders"');
     const limits = html.indexOf('id="good-section-limits"');
     const variants = html.indexOf('id="good-section-variants"');
     expect(variants).toBeGreaterThan(0);
     expect(period).toBeGreaterThan(variants);
-    expect(limits).toBeGreaterThan(period);
-    const card = html.slice(html.lastIndexOf('<details', limits), html.indexOf('id="good-section-images"'));
-    expect(card.slice(0, card.indexOf('>'))).not.toContain('open=""');
+    expect(preorders).toBeGreaterThan(period);
+    expect(limits).toBeGreaterThan(preorders);
+    /* 판매기간·구매 제한·예약판매는 접힘(details)이 아니고, 판매 정보 카드 자체는 열려 있다. */
+    for (const id of ['good-section-period', 'good-operation-preorders', 'good-section-limits']) expect(html).not.toMatch(new RegExp(`<details[^>]*id="${id}"`));
+    expect(html).toMatch(/<details id="good-section-price"[^>]*open=""/);
+    const card = html.slice(limits, html.indexOf('id="good-section-images"'));
     expect(card).toContain('최소 1·최대 3개');
     for (const text of ['구매 제한', '최소/최대 구매수량', '최소 구매수량', '최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한']) expect(card).toContain(text);
     expect(card).toContain('최소·최대 구매수량을 모두 입력');
@@ -580,7 +688,9 @@ describe('GoodSection', () => {
     const start = html.indexOf('data-good-optional-title="">긴 상세 이미지 (선택)<');
     expect(start).toBeGreaterThan(0);
     expect(html.slice(html.lastIndexOf('<details', start), start)).toContain('data-known-open=');
-    for (const row of ['period', 'limits', 'shipping', 'claims', 'sale']) expect(opening(new RegExp(`<details[^>]*id="good-section-${row}"[^>]*>`))).toContain('data-known-open=');
+    for (const row of ['shipping', 'claims', 'sale']) expect(opening(new RegExp(`<details[^>]*id="good-section-${row}"[^>]*>`))).toContain('data-known-open=');
+    /* 판매기간·구매 제한은 접지 않는 소항목이다(ADM-011·1027T-021). */
+    for (const row of ['period', 'limits']) expect(html).toMatch(new RegExp(`<section aria-labelledby="good-section-${row}-title"[^>]*id="good-section-${row}"`));
     /* 오류가 있는 추가 설정 카드는 강제로 연다. */
     expect(opening(/<details[^>]*id="good-section-information"[^>]*>/)).toContain('open=""');
     expect(renderGoodSection(good).match(/<details[^>]*id="good-section-information"[^>]*>/)?.[0]).not.toContain('open=""');
@@ -620,6 +730,13 @@ describe('GoodSection', () => {
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
     expect(html.match(/<form/g)).toHaveLength(3);
+    /* T15a 리뷰: 보관 상품의 대표 이미지는 공개 중 문구가 아니라 보관 상태 문구다(편집기가 게시 상태를 그리드에 넘긴다). */
+    const withImage = renderGoodSection({ ...archived, imagePath: 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp', imageUrl: 'https://cdn.example/main.webp' });
+    expect(withImage).toContain('data-good-main-image-note="archived">보관 상품 · 복원 뒤 수정<');
+    expect(withImage).not.toContain('공개 중 교체만');
+    const publishedWithImage = renderGoodSection({ ...good, imagePath: 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp', imageUrl: 'https://cdn.example/main.webp' });
+    expect(publishedWithImage).toContain('data-good-main-image-note="published">공개 필수 · 공개 중 교체만<');
+    expect(renderGoodSection({ ...good, publishedAt: null })).toContain('data-good-main-image-note="draft">공개 필수<');
   });
 
   /* #171 — 고시정보는 라벨 붙은 고정 입력이다. 자유 텍스트 한 칸이 아니다. */
@@ -650,7 +767,9 @@ describe('GoodSection', () => {
   /* #172 — 설명·추가 이미지 9칸(2026-10-07 4칸에서 확대)·상세 이미지가 같은 업로드 칸을 재사용한다. */
   /* 2026-10-07 MD 요청 — 대표 이미지·추가 이미지를 한 썸네일 그리드로, "슬롯"·잘림 예시 없이. */
   it('offers one image grid for the main and additional images, a description, and one detail image', () => {
-    const html = renderGoodSection(null);
+    /* 기본 폼만 본다 — 함께 저장할 설정(사은품 사진 3칸)은 기본 폼 밖의 별도 입력이다. */
+    const page = renderGoodSection(null);
+    const html = page.slice(0, page.indexOf('data-good-operation-hub='));
 
     expect(html).toMatch(/<textarea[^>]*name="description"/);
     expect(html).toContain('상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 9장');
@@ -703,6 +822,8 @@ describe('GoodSection', () => {
     expect(textarea).not.toContain('maxLength');
     expect(html).toContain(`상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)`);
     expect(html).toContain(`원문이 ${description.length.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다.`);
+    /* 상세설명 카드는 펼친 채로라 저장 전 확인 안내가 바로 보인다(묶음 10 "펼친 채로"). */
+    expect(html.match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
     expect(renderGoodSection(good).match(/<textarea[^>]*name="description"[^>]*>/)?.[0]).toContain('maxLength="2000"');
   });
 
@@ -781,7 +902,7 @@ describe('GoodSection', () => {
     const create = renderGoodSection(null);
     expect(create).not.toContain('aria-label="필수"');
     expect(create).not.toContain('필수항목');
-    for (const label of ['상품명 (필수)', '연결 IP (필수)', '상품 유형 (필수)', '판매가 (필수)', '재고수량 (필수)', '대표이미지 (필수)', '출고지 (필수)', ...GOODS_NOTICE_FIELDS.map((field) => `${field.label} (필수)`)]) expect(create).toContain(label);
+    for (const label of ['상품명 (필수)', '연결 IP (필수)', '판매가 (필수)', '재고수량 (필수)', '대표이미지 (필수)', '출고지 (필수)', ...GOODS_NOTICE_FIELDS.map((field) => `${field.label} (필수)`)]) expect(create).toContain(label);
   });
 
   /* 10/27 회의 R21(D9①) — 그룹상품 등록은 메뉴·탭에서 숨기고 라우트만 유지한다. */
@@ -818,7 +939,7 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).toContain('공개 화면 미리보기');
-    expect(html).toContain('굿즈샵 목록 카드');
+    expect(html).toContain('고객 화면 목록 카드');
     expect(html).toContain('상품 상세페이지');
     /* wc 토큰은 .wc-root 스코프 안에서만 산다 — 어드민 캔버스를 밝게 바꾸지 않는다. */
     expect(html).toContain('wc-root');
@@ -853,9 +974,10 @@ describe('GoodSection', () => {
     expect(card).toMatch(/할인가 <strong[^>]*>22,000원<\/strong> \(4,000원, 15% 할인\)/);
     expect(card).toContain('<input type="hidden" name="price" value="22000"/>');
     expect(card).toContain('<input type="hidden" name="compareAtPrice" value="26000"/>');
-    /* 할인율 표시는 기간 할인에도 쓰여 추가 설정으로 옮겼다. */
-    expect(card).not.toContain('고객 화면에 할인율 표시');
-    expect(html.slice(html.indexOf('id="good-section-information"'))).toContain('name="showDiscountRate"');
+    /* TKT-033: 할인율 표시는 즉시할인 블록 안(판매 정보 카드)으로 옮겼다 — '할인율 노출 여부·할인 기간'을 한 자리에서. */
+    expect(card).toContain('고객 화면에 할인율 표시');
+    expect(card).toContain('name="showDiscountRate"');
+    expect(html.slice(html.indexOf('id="good-section-information"'))).not.toContain('name="showDiscountRate"');
     for (const legacy of ['기준 판매가', '소비자가', '옵션 판매가', '추가금액']) expect(card).not.toContain(legacy);
   });
 
@@ -884,7 +1006,7 @@ describe('GoodSection', () => {
   it('재고수량·옵션 카드는 옵션 없는 상품의 재고수량을 먼저 보여준다', () => {
     const html = renderGoodSection(good);
     const card = html.slice(html.indexOf('id="good-section-variants"'), html.indexOf('id="good-section-notice"'));
-    expect(card).toContain('재고수량 / 옵션</h4>');
+    expect(card).toContain('재고수량 / 옵션</h2>');
     expect(card).toContain('옵션 없음 · 재고수량 12개');
     expect(card.indexOf('for="goods-single-stock">재고수량')).toBeLessThan(card.indexOf('>옵션</legend>'));
     /* 섹션 이동 띠는 14개 링크에서 카드 7개로 줄었다. */
@@ -893,14 +1015,46 @@ describe('GoodSection', () => {
     expect(nav.match(/<a /g)).toHaveLength(7);
   });
 
-  /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */
-  it('offers the standard type and badge options plus a compare-at price field', () => {
+  /* #326 — 배지는 자유 입력이 아니라 표준 값 select 다. 상품 유형(SHEET-003)은 입력칸 없이 대표 카테고리의 연결값을 읽기 전용으로 보인다. */
+  it('offers the standard badge options plus a compare-at price field and no type input', () => {
     const html = renderGoodSection(null);
 
     expect(html).toContain('name="compareAtPrice"');
-    for (const type of GOOD_TYPES) expect(html).toContain(`<option value="${type}">`);
     for (const badge of GOOD_BADGES) expect(html).toContain(`<option value="${badge}">`);
     expect(html).toContain('없음');
+    expect(html).not.toMatch(/<select[^>]*name="type"/);
+    for (const type of GOOD_TYPES) expect(html).not.toContain(`<option value="${type}">`);
+    expect(html).toMatch(/data-good-type-derived="no-category"[^>]*>[^]*?대표 카테고리를 고르면 정해집니다/);
+    expect(html).toContain('<input type="hidden" name="type" value=""/>');
+  });
+
+  /*
+   * SHEET-003 완료 기준 — '피규어'처럼 상품 유형이 연결된 카테고리를 고른 상품은 기본 정보에 "상품 유형: X(카테고리에서)"가 읽기 전용이고
+   * 입력칸이 없다. 연결 없는 카테고리 상품은 공개할 수 없다는 이유가 보이고, 공개 중 상품의 불일치는 경고만 한다.
+   */
+  it('상품 유형을 대표 카테고리에서 읽기 전용으로 보이고, 연결이 없거나 다르면 이유를 보인다', () => {
+    const draft = { ...good, publishedAt: null, firstPublishedAt: null, type: '' };
+    const linked = renderGoodSection(draft);
+    expect(linked).toMatch(/<dt[^>]*>상품 유형<\/dt><dd[^>]*>아크릴\(카테고리에서\)<\/dd>/);
+    expect(linked).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    expect(linked).not.toMatch(/<(?:select|input)(?![^>]*type="hidden")[^>]*name="type"/);
+    const unlinked = renderGoodSection({ ...draft, categoryId: unlinkedCategory.id });
+    expect(unlinked).toMatch(/data-good-type-derived="unlinked"/);
+    expect(unlinked).toContain('이 카테고리(또는 상위)에 상품 유형이 연결되어 있지 않아 공개할 수 없습니다.');
+    expect(unlinked).toContain('href="/admin/catalog/categories"');
+    /* 공개 중 상품: 다른 칸 저장은 막지 않고 저장된 유형을 유지하며 경고만 한다. */
+    const published = renderGoodSection({ ...good, categoryId: dollCategory.id });
+    expect(published).toContain('data-good-type-mismatch="different"');
+    expect(published).toContain('카테고리 상품 유형(인형)이 저장된 유형(아크릴)과 다릅니다');
+    expect(published).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    expect(renderGoodSection({ ...good, categoryId: unlinkedCategory.id })).toContain('data-good-type-mismatch="missing"');
+    expect(renderGoodSection(good)).not.toContain('data-good-type-mismatch');
+    /* 대표 카테고리가 아예 없는 공개 상품: 연결 안내가 아니라 대표 카테고리를 고르라고 안내한다. */
+    const noCategory = renderGoodSection({ ...good, categoryId: '' });
+    expect(noCategory).toContain('data-good-type-mismatch="no-category"');
+    expect(noCategory).toContain('대표 카테고리가 없습니다');
+    expect(noCategory).toContain('연결된 카테고리를 대표로 고르면 공개를 유지한 채 맞출 수 있습니다');
+    expect(noCategory).not.toContain('카테고리 관리에서 이 카테고리');
   });
 
   it('previews the selected record values before any edit', () => {

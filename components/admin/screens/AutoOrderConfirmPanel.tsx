@@ -11,7 +11,7 @@ import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 
-/** 한국 시각 날짜·시간을 한 덩어리(줄바꿈 없음)로 보인다. */
+/** KST 날짜·시간을 한 덩어리(줄바꿈 없음)로 보인다. */
 const dateTimeText = (value: string) => <span className="whitespace-nowrap tabular-nums">{formatOrderDateTime(value)}</span>;
 
 const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
@@ -79,7 +79,7 @@ export function AutoOrderConfirmPanel({ initial, listHref = AUTO_ORDER_CONFIRMAT
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>
         <legend className="mb-3 text-sm text-muted-foreground">자동 발주확인 설정</legend>
         <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> 자동 발주확인 사용</label>
-        <AdminField label="매일 실행 시각 (한국 시간)" inputId="auto-order-confirmation-time" hint="이 시각까지 결제 완료된 주문이 대상입니다. 오늘 아직 실행 전이면 바꾼 시각에(이미 지난 시각이면 1분 안에) 실행하고, 이미 실행한 날은 다시 실행하지 않습니다. 다시 켜면 켠 뒤 결제된 주문부터 대상이 됩니다.">
+        <AdminField label="매일 실행 시각 (KST)" inputId="auto-order-confirmation-time" hint="이 시각까지 결제 완료된 주문이 대상입니다. 오늘 아직 실행 전이면 바꾼 시각에(이미 지난 시각이면 1분 안에) 실행하고, 이미 실행한 날은 다시 실행하지 않습니다. 다시 켜면 켠 뒤 결제된 주문부터 대상이 됩니다.">
           <Input className="w-36" id="auto-order-confirmation-time" type="time" step={60} required value={runTime} aria-describedby="auto-order-confirmation-time-hint" onChange={event => setRunTime(event.target.value.slice(0, 5))} />
         </AdminField>
       </fieldset>

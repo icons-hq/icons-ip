@@ -43,7 +43,7 @@ import {
   type ListExportContact,
 } from './list-export-sheets';
 import { loadRefundTransfers } from './refund-transfers.server';
-import { REFUND_TRANSFERS_PAGE_SIZE } from './refund-transfers';
+import { REFUND_TRANSFERS_PAGE_SIZE, refundTransferRowKey } from './refund-transfers';
 import { refundTransferExportCaller, revealRefundTransferAccounts } from './list-export-refund-transfers.server';
 
 /*
@@ -304,7 +304,7 @@ async function refundTransfersSheet(now: Date, actorId: string | undefined) {
       try { data = await loadRefundTransfers(page); } catch { throw new AdminListExportLoadError(); }
       return { items: data.rows, total: data.total };
     },
-    (row) => row.claimId,
+    refundTransferRowKey,
   );
   if (!caller) return refundTransfersListExportSheet({ rows, accounts: null, accountExportId: null, now });
   const { exportId, accounts } = await revealRefundTransferAccounts(caller, rows);

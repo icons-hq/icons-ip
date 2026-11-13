@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import { setErpCategoryMappingAction, setErpCategoryMappingsAction, type ErpCategoryMappingResult, type ErpCategoryMappingsResult } from '@/app/admin/erp-item-actions';
 import type { AdminCategoryErpMapping, AdminCategoryNode } from '@/lib/admin/category';
@@ -21,6 +21,8 @@ import { Button } from './kit/ui/button';
 import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+import { useErpItemsWorkspace } from './ErpItemsWorkspace';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /* 선택지는 칸을 열 때만 그려 행이 늘어도 가볍다. 한 번에 저장할 수 있는 만큼만 보여 '전체 선택'이 보이는 행만 고르게 한다. */
 const VISIBLE_LIMIT = ERP_CATEGORY_MAPPING_BATCH_LIMIT;
@@ -153,6 +155,20 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
   const [unlinkedOnly, setUnlinkedOnly] = useState(false);
   /* 표 안쪽을 내린 채 찾으면 결과 앞줄이 스크롤 위로 가려진다. 조건이 바뀌면 처음부터 보이게 한다. */
   const tableScroller = useRef<HTMLDivElement>(null);
+  /* 1027T-016: 반입 결과의 '미연결 분류 N건 — 연결하기'가 이 표를 연결 필요만 보이게 열고 그 자리로 옮긴다. */
+  const workspace = useErpItemsWorkspace();
+  useEffect(() => {
+    if (!workspace) return undefined;
+    workspace.registerUnlinked(() => {
+      setQuery('');
+      setUnlinkedOnly(true);
+      tableScroller.current?.scrollTo({ top: 0 });
+      const section = document.getElementById('erp-category-mapping');
+      section?.scrollIntoView({ block: 'start' });
+      section?.focus({ preventScroll: true });
+    });
+    return () => workspace.registerUnlinked(null);
+  }, [workspace]);
   /* 저장하지 않고 고른 값(ERP 분류 → 카테고리). 표에 하나만 두어 행이 검색으로 잠시 빠져도 남고, 떠날 때 행 수와 상관없이 한 번만 묻는다. */
   const [drafts, setDrafts] = useState<ReadonlyMap<string, string>>(() => new Map());
   /* 위쪽 품목 표의 페이지 넘김·검색은 쿼리만 바꿔 이 표의 입력이 그대로 남는다.
@@ -272,7 +288,7 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     });
   };
 
-  const submitBulk = (event: FormEvent<HTMLFormElement>) => {
+  const submitBulk = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (bulkPending || !selectedRows.length) return;
     const action = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.name;
@@ -280,7 +296,7 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     if (action === 'unlink') {
       const linkedRows = selectedRows.filter((row) => savedOf(row));
       if (!linkedRows.length) return;
-      if (!window.confirm(`선택한 ERP 분류 중 직접 연결한 ${count(linkedRows.length)}건의 연결을 해제할까요? 같은 경로나 ERP 분류 매핑이 맞는 카테고리가 있으면 자동 연결로 돌아갑니다.`)) return;
+      if (!await adminConfirm(`선택한 ERP 분류 중 직접 연결한 ${count(linkedRows.length)}건의 연결을 해제할까요? 같은 경로나 ERP 분류 매핑이 맞는 카테고리가 있으면 자동 연결로 돌아갑니다.`)) return;
       saveBatch(linkedRows.map((row) => ({ erpCategory: row.erpCategory, categoryId: null })));
       return;
     }
@@ -290,12 +306,12 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
       const current = savedOf(row) || row.fallbackCategoryId;
       return current && current !== bulkTarget;
     }).length;
-    if (replaced && !window.confirm(`이미 다른 카테고리에 연결된 ${count(replaced)}건(자동 연결 포함)이 들어 있습니다. 선택한 ${count(selectedRows.length)}건을 모두 ‘${index.pathLabel(bulkTarget) ?? ''}’에 연결할까요?`)) return;
+    if (replaced && !await adminConfirm(`이미 다른 카테고리에 연결된 ${count(replaced)}건(자동 연결 포함)이 들어 있습니다. 선택한 ${count(selectedRows.length)}건을 모두 ‘${index.pathLabel(bulkTarget) ?? ''}’에 연결할까요?`)) return;
     saveBatch(selectedRows.map((row) => ({ erpCategory: row.erpCategory, categoryId: bulkTarget })));
   };
-  const saveSuggestions = () => {
+  const saveSuggestions = async () => {
     if (bulkPending || !suggestedEntries.length) return;
-    if (!window.confirm(`제안된 카테고리로 ERP 분류 ${count(suggestedEntries.length)}건을 연결할까요? 상품은 바뀌지 않고, 연결은 표에서 다시 바꿀 수 있습니다.`)) return;
+    if (!await adminConfirm(`제안된 카테고리로 ERP 분류 ${count(suggestedEntries.length)}건을 연결할까요? 상품은 바뀌지 않고, 연결은 표에서 다시 바꿀 수 있습니다.`)) return;
     saveBatch(suggestedEntries);
   };
 

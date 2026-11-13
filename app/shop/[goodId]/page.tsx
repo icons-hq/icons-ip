@@ -150,7 +150,9 @@ export default async function Page({ params, searchParams }: PageProps) {
   }
   if (!detail) notFound();
   const event = reviewEvents.rows.find(row => row.goodId === goodId)?.event;
-  const boundaries = [detailPresentationNextChange(presentation), reviewEvents.nextChangeAt, experience?.nextChangeAt, goodOtherCompositionsNextChange(otherCompositions)]
+  const boundaries = [detailPresentationNextChange(presentation), reviewEvents.nextChangeAt, experience?.nextChangeAt, goodOtherCompositionsNextChange(otherCompositions),
+    /* 지역 추가 배송비 정책의 시작·종료 — 배송 안내의 금액을 바꾼다. */
+    shippingPolicy?.regionFees?.nextChangeAt]
     .flatMap(value => value && Number.isFinite(Date.parse(value)) ? [Date.parse(value)] : []);
   const nextChangeAt = boundaries.length ? new Date(Math.min(...boundaries)).toISOString() : null;
 
@@ -167,6 +169,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         detail={{ ...detail, sizeChart }}
         shippingPolicy={shippingPolicy}
         announcements={<GoodAnnouncements data={announcements} />}
+        bottomAnnouncements={<GoodAnnouncements data={announcements} placement="bottom" />}
         promotionBanner={presentation?.banner ? <ProductDetailBanner data={presentation} /> : undefined}
         reviewEventBanner={event ? <ReviewEventBanner event={event} /> : undefined}
         reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}

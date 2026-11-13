@@ -11,6 +11,7 @@ import type {
   PreparedCheckout,
   RefundOutcome,
 } from './gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON } from './gateway';
 import {
   NICEPAY_APPROVE_PATH,
   NICEPAY_CANCEL_URL,
@@ -692,6 +693,15 @@ export function createNicepayPaymentGateway(options: NicepayGatewayOptions): Pay
     async refund(request): Promise<RefundOutcome> {
       assertAttempt(request.attempt);
       const attempt = request.attempt;
+      /*
+       * 부분 취소는 받지 않는다(ADR-0031). 나이스페이 부분 취소 계약 전이고, 거래조회(trans_status)가 승인·취소 여부만
+       * 돌려줘 취소 뒤 잔액을 조회로 검증할 수 없다. 돈을 움직이지 않고 돌려주므로 호출자는 전액 환불로 돌린다.
+       */
+      if (request.partial !== undefined) {
+        return baseOutcome(attempt, 'declined', PARTIAL_CANCEL_UNAVAILABLE_REASON, {
+          resultCode: 'partial_cancel_contract_pending',
+        }) as RefundOutcome;
+      }
       if (request.amount !== attempt.amount) {
         return baseOutcome(attempt, 'needs_review', 'provider_refund_amount_mismatch') as RefundOutcome;
       }

@@ -7,6 +7,12 @@ import { CustomerServiceDialog } from '@/components/admin/screens/CustomerServic
 
 type AdminCreateDialogBusyReport = (source: string, busy: boolean) => void;
 const AdminCreateDialogBusyReporter = createContext<AdminCreateDialogBusyReport | null>(null);
+const AdminCreateDialogCloser = createContext<(() => void) | null>(null);
+
+/** 등록 팝업 안 폼이 저장에 성공하면 팝업을 닫는다. 팝업 밖(목록 안 수정 폼)에서는 null이다. */
+export function useAdminCreateDialogClose(): (() => void) | null {
+  return useContext(AdminCreateDialogCloser);
+}
 
 /**
  * 등록 팝업 안 폼이 저장(서버 액션)을 기다리는 동안 팝업을 닫지 못하게 알린다. ×·Esc로 닫으면 폼이 사라져 저장 결과
@@ -47,10 +53,11 @@ export function AdminCreateDialogButton({ children, disabled = false, label, tit
     });
   }, []);
   const busy = busySources.length > 0;
+  const close = useCallback(() => setOpen(false), []);
   return <>
     <Button disabled={disabled} onClick={() => setOpen(true)} type="button"><Plus aria-hidden="true" />{label}</Button>
-    {open ? <AdminCreateDialogBusyReporter.Provider value={report}>
+    {open ? <AdminCreateDialogBusyReporter.Provider value={report}><AdminCreateDialogCloser.Provider value={close}>
       <CustomerServiceDialog busy={busy} onClose={() => { if (!busy) setOpen(false); }} title={title} wide={wide}>{children}</CustomerServiceDialog>
-    </AdminCreateDialogBusyReporter.Provider> : null}
+    </AdminCreateDialogCloser.Provider></AdminCreateDialogBusyReporter.Provider> : null}
   </>;
 }

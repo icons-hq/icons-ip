@@ -126,7 +126,7 @@ describe('ReviewConsoleScreen', () => {
       total: 0,
     });
 
-    expect(html).toContain('답글 미등록');
+    expect(html).toContain('미답글');
     expect(html).toContain('블라인드');
     expect(html).toContain('조건에 맞는 리뷰가 없습니다.');
   });

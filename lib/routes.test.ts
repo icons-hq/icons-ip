@@ -17,6 +17,7 @@ import {
   activeNavId,
   hrefFor,
   isActive,
+  hidesSiteFooter,
   isAuthShellPath,
   isGoodDetailPath,
   isStandaloneShellPath,
@@ -85,6 +86,21 @@ describe('독립 경험 셸', () => {
   it('온라인 팝업 하위의 전용 프레젠테이션 경로를 등록한다', () => {
     expect(hrefFor('aouadPopup')).toBe('/ip/aouad');
     expect(isActive('iphub', '/ip/aouad')).toBe(true);
+  });
+});
+
+/* 1014-X36 "인증 화면 빼고 전부" — 푸터는 독립 경험(캠페인·게임)에도 남고, 인증 집중 셸과 어드민에서만 비운다. */
+describe('푸터 숨김 범위', () => {
+  it.each(['/update-password', '/account-suspended', '/manager-invitation', '/admin', '/admin/orders'])('%s에서는 푸터를 비운다', (pathname) => {
+    expect(hidesSiteFooter(pathname)).toBe(true);
+  });
+  it.each(['/ip/aouad', '/ip/aouad/scene', '/games', '/games/hyosan-memories', '/login', '/', '/shop', '/legal/terms', '/administrator', '/games-guide'])('%s에는 푸터를 둔다', (pathname) => {
+    expect(hidesSiteFooter(pathname)).toBe(false);
+  });
+  it('푸터를 비우는 경로는 모두 공용 크롬도 비우는 경로다', () => {
+    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/admin', '/admin/orders']) {
+      expect(isStandaloneShellPath(pathname), pathname).toBe(true);
+    }
   });
 });
 

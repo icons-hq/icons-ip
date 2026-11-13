@@ -50,7 +50,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
       <input type="hidden" name="id" value={origin?.id ?? ''} />
       <input type="hidden" name="updatedAt" value={state.values?.updatedAt ?? state.updatedAt ?? initialStamp} />
       {!origin ? <AdminNotice title="출고지 코드는 등록 후 바꿀 수 없습니다" tone="warning">저장하기 전에 코드를 다시 확인해주세요.</AdminNotice> : null}
-      {origin && !origin.returnAddress ? <AdminNotice title="반품 주소를 입력해주세요" tone="warning">반품 주소가 없으면 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice> : null}
+      {origin && !origin.returnAddress ? <AdminNotice title="반품 주소를 입력해주세요" tone="warning">반품 주소가 없으면 반품/교환지를 고르지 않은 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice> : null}
       <SettingsFormGroup title="기본 정보">
         <AdminFormGrid>
           {input('code', '출고지 코드', 'text', '등록 후 바꿀 수 없습니다.')}
@@ -60,7 +60,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
               <option value="">설정 전</option>{carriers.map((carrier) => <option key={carrier.code} value={carrier.code} disabled={!carrier.active}>{carrier.label}{carrier.active ? '' : ' · 비활성'}</option>)}
             </NativeSelect>
           </AdminField>
-          {input('cutoff', '출고 마감 시각 (한국 시간)', 'time')}
+          {input('cutoff', '출고 마감 시각 (KST)', 'time')}
         </AdminFormGrid>
       </SettingsFormGroup>
       <SettingsFormGroup title="배송비">
@@ -70,7 +70,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
         </AdminFormGrid>
       </SettingsFormGroup>
       <SettingsFormGroup title="반품">
-        <AdminFormGrid>{input('returnAddress', '반품 주소')}</AdminFormGrid>
+        <AdminFormGrid>{input('returnAddress', '반품 주소', 'text', '상품에서 반품/교환지를 고르지 않으면 이 주소가 회수 주소입니다. 상품마다 다른 반품지는 반품/교환지 관리에서 등록해 상품에서 고릅니다.')}</AdminFormGrid>
       </SettingsFormGroup>
       <SettingsFormGroup title="출고·주문 운영">
         <AdminFormGrid>

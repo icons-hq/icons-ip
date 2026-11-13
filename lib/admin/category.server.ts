@@ -1,7 +1,9 @@
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
+import { loadCategoryErpSearchNames } from './erp-category-search.server';
 import {
+  categoryGoodType,
   categoryPath,
   type AdminCategoryActivation,
   type AdminCategoryNode,
@@ -18,6 +20,7 @@ interface CategoryRow {
   sort_order: number;
   archived_at: string | null;
   updated_at: string;
+  good_type: string | null;
 }
 
 interface MappingRow {
@@ -116,13 +119,14 @@ function toNode(row: CategoryRow, childCount: number, assignedGoodCount: number)
     updatedAt: row.updated_at,
     childCount,
     assignedGoodCount,
+    goodType: row.good_type ?? null,
   };
 }
 
 export async function loadAdminCategoryWorkspace(includePlatform = true): Promise<AdminCategoryWorkspaceData> {
   const supabase = await createClient();
   const [categoriesResult, mappingsResult, migrationsResult, activationResult, goodsResult, additionalResult] = await Promise.all([
-    readAllRows<CategoryRow>(supabase.from('catalog_categories').select('id,code,name,parent_id,depth,sort_order,archived_at,updated_at').order('sort_order').order('code')),
+    readAllRows<CategoryRow>(supabase.from('catalog_categories').select('id,code,name,parent_id,depth,sort_order,archived_at,updated_at,good_type').order('sort_order').order('code')),
     includePlatform ? readAllRows<MappingRow>(supabase.from('catalog_category_erp_mappings').select('category_id,erp_code,erp_name,source,verified_at,verified_by').order('category_id')) : Promise.resolve({ data: [] as MappingRow[], error: null }),
     includePlatform ? readAllRows<MigrationRow>(supabase.from('goods_type_category_migrations').select('type,category_id,status,note,updated_at').order('type')) : Promise.resolve({ data: [] as MigrationRow[], error: null }),
     includePlatform ? supabase.from('category_activation_control').select('id,customer_enabled,erp_enabled,evidence,updated_at').eq('id', 'catalog').maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -178,6 +182,8 @@ export async function loadAdminCategoryExportRows(includePlatform = true) {
       depth: category.depth,
       status: category.archivedAt ? '보관' : '사용',
       assignedGoods: category.assignedGoodCount,
+      goodType: category.goodType ?? '',
+      effectiveGoodType: categoryGoodType(workspace.categories, category.id),
       ...(includePlatform ? { erpCode: mapping?.erpCode ?? '미설정', erpName: mapping?.erpName ?? '미설정',
         erpSource: mapping?.source ?? '미설정', erpVerifiedAt: mapping?.verifiedAt ?? '미설정' } : {}),
     };
@@ -191,13 +197,16 @@ export async function loadAdminCategoryAssignmentOptions() {
     .sort((left, right) => left.depth - right.depth || left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'ko'));
 }
 
-/** Product selection needs the category tree, not ERP mappings or activation evidence. */
+/**
+ * Product selection needs the category tree, not ERP mappings or activation evidence.
+ * SHEET-042: 카테고리 찾기가 ERP 분류명으로도 찾도록 연결된 ERP 분류 이름(`erpNames`)만 함께 싣는다.
+ */
 export async function loadGoodsCategoryOptions() {
   const client = await createClient();
-  const result = await readAllRows<CategoryRow>(client.from('catalog_categories')
-    .select('id,code,name,parent_id,depth,sort_order,archived_at,updated_at').order('sort_order').order('code'));
+  const [result, erpNames] = await Promise.all([readAllRows<CategoryRow>(client.from('catalog_categories')
+    .select('id,code,name,parent_id,depth,sort_order,archived_at,updated_at,good_type').order('sort_order').order('code')), loadCategoryErpSearchNames()]);
   if (result.error) throw new Error('상품 카테고리 선택지를 불러오지 못했습니다.');
   const children = new Map<string, number>();
   for (const row of result.data) if (row.parent_id && !row.archived_at) children.set(row.parent_id, (children.get(row.parent_id) ?? 0) + 1);
-  return result.data.map(row => toNode(row, children.get(row.id) ?? 0, 0));
+  return result.data.map(row => ({ ...toNode(row, children.get(row.id) ?? 0, 0), ...(erpNames.has(row.id) ? { erpNames: erpNames.get(row.id) } : {}) }));
 }

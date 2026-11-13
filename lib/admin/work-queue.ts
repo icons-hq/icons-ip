@@ -10,7 +10,7 @@ export const ADMIN_WORK_QUEUES = [
   { id: 'orders', label: ADMIN_ORDER_STATUS_LABELS.paid, unit: '주문', description: '발주확인 대기 · 전체 기간', href: adminOrdersHref(normalizeAdminOrderFilters({ status: 'paid' })) },
   { id: 'ready', label: '발송 대기', unit: '배송 건', description: '발주확인 후 발송 전 · 전체 기간', href: shipmentConsoleHref('dispatch', normalizeShipmentFilters({ tab: 'ready' }, 'dispatch')) },
   { id: 'delayed', label: '발송 지연', unit: '배송 건', description: '발주·발송 목록의 기존 지연 기준', href: shipmentConsoleHref('dispatch', normalizeShipmentFilters({ tab: 'delayed' }, 'dispatch')) },
-  { id: 'inquiries', label: '미응답 문의', unit: '문의', description: '미답변 상태 · 전체 기간', href: adminInquiryHref(normalizeAdminInquiryFilters({ status: 'open' })) },
+  { id: 'inquiries', label: '미답변 문의', unit: '문의', description: '미답변 상태 · 전체 기간', href: adminInquiryHref(normalizeAdminInquiryFilters({ status: 'open' })) },
   { id: 'goods', label: '상품 검토 대기', unit: '상품', description: '확인할 상품 전체 · 보관 제외', href: goodsListHref(normalizeGoodsListFilters({ readiness: 'review_required' })) },
   /*
    * 2026-11-05 IA 재정의 D4: 홈에 없던 돈 관련 대기열 두 개. `screenId` 화면을 열 수 있는 계정에만 집계·표시한다

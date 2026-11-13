@@ -2,14 +2,22 @@
 
 migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)을 반영했다. 아래 과거 검증·적용 기록은 당시 원본 DRAFT 기준이며 이번 운영 배포의 성공을 뜻하지 않는다.
 
-#432의 실시간 표면은 기존 문의 원장과 서버 액션을 사용한다. 고객 위젯은 FAQ를 먼저 보여주고 로그인한 고객에게 내 문의·새 문의를 제공한다. `/my/inquiries/[inquiryId]`와 어드민 문의 목록·상세, `/admin/cs/chat` 상담하기 화면도 변경을 구독한다. 커머스 콘솔의 새 1:1 문의 PC 알림과 탭 제목 미답변 수(`components/admin/AdminInquiryNotifier.tsx`)도 같은 구독을 쓴다. 위젯 오버레이는 `OverlayPortal`로 `body` 아래에 렌더한다.
+#432의 실시간 표면은 기존 문의 원장과 서버 액션을 사용한다. 고객 위젯은 FAQ를 먼저 보여주고 로그인한 고객에게 내 문의·새 문의를 제공한다. `/my/inquiries/[inquiryId]`와 어드민 문의 목록·상세, `/admin/cs/chat` 상담하기 화면도 변경을 구독한다. 커머스 콘솔의 새 1:1 문의 PC 알림과 탭 제목 미답변 수(`components/admin/AdminInquiryNotifier.tsx`)도 같은 구독을 쓴다(상품 문의 알림은 아래 절의 30초 확인). 위젯 오버레이는 `OverlayPortal`로 `body` 아래에 렌더한다.
+
+## 상품 문의 PC 알림 (1027T-002, 2026-11-12)
+
+같은 켜기 설정(업무 도구 알림의 "새 1:1 문의·상품 문의 PC 알림")과 같은 리더 탭(Web Locks)이 새 상품 문의(`product_questions`)도 알린다. `product_questions`는 `supabase_realtime` 발행 대상이 아니므로 publication을 넓히지 않고 리더 탭이 30초마다 따라잡기로만 확인한다(1:1 문의의 60초 보완 확인과 별도 주기 — 이것이 유일한 경로라 "1분 안에"를 지키려는 여유). 리더는 `product_questions`를 `created_at` 기준점 이후 오래된 순 20건씩 읽고(첫 확인은 최근 1건을 기준점으로만 쓴다), 기준점(`icons:admin:product-question-notifier-cursor:v1:<계정>`, 5분 신선도)과 탭 간 알림 차례(`icons:admin:product-question-notified:v1:<계정>`)는 1:1 문의와 따로 저장한다. 읽기는 운영자의 브라우저 세션과 기존 RLS(`product_questions_read`·`product_questions_secret_read`, cs.manage)를 그대로 쓴다. 알림 본문은 상품명과 공개 질문 앞 60자이고, 비밀글은 본문 대신 "비밀글"만 싣는다. 알림을 누르면 `/admin/cs/qna?page=1&query=<id>&field=id&detail=<id>`로 그 상품 문의 상세를 연다. 탭 제목의 (N)은 지금처럼 미답변 1:1 문의 수다. 탭을 모두 닫으면 오지 않는다(Web Push 아님).
+
+## 상담 위젯 유형 버튼 (0901-044, 2026-11-12)
+
+위젯 FAQ 화면 맨 위에 "배송 언제 오나요"·"취소"·"교환/반품" 버튼을 둔다. 누르면 `/api/help?topic=delivery|cancel|return`이 운영자가 FAQ 관리에서 그 버튼에 지정한 공개 FAQ(`faq_entries.widget_topic`, 버튼마다 하나)를 돌려주고, 지정이 없거나 비공개면 연결 카테고리(주문/배송·취소/반품/교환)의 공개 FAQ 중 질문에 버튼 낱말(배송 / 취소 / 교환·반품)이 든 것을 표시 순서대로 최대 5개 돌려주고, 그런 FAQ가 없을 때만 그 카테고리의 공개 FAQ 5개를 돌려준다. 낱말 후보는 기존 공개 검색 RPC(`search_faq_entries`, 질문+답변 검색)로 받아 질문에 낱말이 든 것만 다시 거른다 — 취소와 교환/반품은 같은 카테고리라 이렇게 갈라야 서로의 FAQ가 섞이지 않는다. 공개 FAQ가 하나도 없을 때만 위젯의 기본 안내 문구를 보인다. 답 아래에는 로그인 고객에게 "내 주문 배송 조회"(`/orders`), 비로그인 고객에게 로그인 안내(`/login?next=%2Forders`)를 보인다. 지정 저장은 `admin_save_faq_entry_with_widget_topic`(cs.manage, 본문 저장은 기존 `admin_save_faq_entry` 재사용, 지정 변경은 `faq.widget_topic` 감사, 밀려난 FAQ는 `updated_at`을 올려 열린 폼의 덮어쓰기를 막음)이 한 트랜잭션으로 한다. 답변 문구 확정은 CS 운영값이다.
 
 ## 데이터와 권한
 
 - `20260908025703_inquiry_realtime_delivery.sql`은 `supabase_realtime`에 `inquiries`, `inquiry_messages`를 추가하고 INSERT·UPDATE만 발행한다. DELETE의 RLS 필터 제약 때문에 DELETE·TRUNCATE는 발행하지 않는다. 적용 시점에 저장소의 다른 `postgres_changes` 소비자는 없었다. 이후 같은 publication에 테이블을 추가할 때 이 이벤트 정책을 함께 확인한다.
 - 기존 RLS가 고객 본인과 현재 `cs.manage` 권한을 가진 운영자만 허용한다. `inquiry_internal_notes`와 감사 로그는 publication에 넣지 않는다. 서버의 service role로 고객 채널을 만들지 않는다.
 - 테이블 SELECT를 열어두지 않고 공개 가능한 칼럼에만 authenticated SELECT를 부여한다. `inquiries.assignee_id`, `handled_by`, `waiting_since`와 `inquiry_messages.author_id`는 일반 고객뿐 아니라 authenticated를 공유하는 운영자의 원시 구독에도 노출되지 않는다. 운영자 상세의 담당 정보는 staff 권한을 확인하는 `admin_inquiry_workspace` RPC가 읽는다. 답변자 표시 이름은 기존 목적별 조회 RPC를 사용한다.
-- 클라이언트는 이벤트를 갱신 신호로만 사용한다. 표시할 본문·첨부·운영자 이름은 기존 권한 있는 로더에서 다시 읽는다. 예외로 새 1:1 문의 PC 알림은 이벤트의 문의 제목만 알림 본문에 쓰고 메시지 본문은 싣지 않는다. `/api/inquiries`는 요청의 사용자 ID를 받지 않고 서버가 확인한 로그인 사용자로 조회하며 `private, no-store`로 반환한다. 계정이 바뀌면 위젯 패널을 다시 마운트하고, 이전 응답은 사용자 ID와 요청 키로 차단한다.
+- 클라이언트는 이벤트를 갱신 신호로만 사용한다. 표시할 본문·첨부·운영자 이름은 기존 권한 있는 로더에서 다시 읽는다. 예외로 새 1:1 문의 PC 알림은 이벤트의 문의 제목만 알림 본문에 쓰고 메시지 본문은 싣지 않는다(상품 문의 알림은 Realtime을 쓰지 않는다 — 위 절). `/api/inquiries`는 요청의 사용자 ID를 받지 않고 서버가 확인한 로그인 사용자로 조회하며 `private, no-store`로 반환한다. 계정이 바뀌면 위젯 패널을 다시 마운트하고, 이전 응답은 사용자 ID와 요청 키로 차단한다.
 - `SUBSCRIBED`는 WebSocket 채널 입장 완료다. DB 구독 준비는 `system` 이벤트의 `extension=postgres_changes`, `status=ok`로 확인한다. 이때 다시 조회하여 최초 접속·재연결 중 놓친 변경을 보완한다. 첫 DB 구독 대기·연결 오류 동안에는 활성 탭이 온라인인 경우 5초마다 기존 인증 로더를 다시 읽는다. DB ready가 확인되면 이 보완 조회를 중단하며 구독을 닫을 때 타이머도 제거한다. 연결 오류 시 재시도 상태와 수동 새로고침을 표시한다.
 
 ## 자동 검증
@@ -47,7 +55,7 @@ node supabase/tests/inquiry_realtime_delivery.mjs
 
 `/admin/cs/chat`은 ICONS 고객문의의 대화 목록·중앙 대화/입력창·우측 상담정보를 한 화면에서 제공한다. 검색은 대화 본문·닉네임·문의번호·운영자가 붙인 태그를 대상으로 하며, 담당자·최근 1주일/1개월/전체 기간·읽음 여부·최신/오래된 순서 조건을 서버에서 적용한 뒤 30건씩 페이지를 자른다. 기간은 마지막 대화 시각 기준이다. 전체·대기·진행중·완료는 기존 `all|open|answered|closed`에 대응한다. `answered`는 답변 후 추가 질문을 받을 수 있는 상태이고, `closed`는 기존 계약대로 재개할 수 없다.
 
-자주 쓰는 문구, 담당자 변경, 내부 메모와 상담완료는 기존 서버 액션/RPC를 재사용한다. 상담창의 답변·사진·파일은 아래의 검증된 첨부와 멱등 메시지 RPC를 사용한다. 답변은 인앱 알림과 기존 이메일 처리 경로를 유지하며, 이메일만 실패한 경우 답변까지 실패한 것으로 표시하지 않는다. 상담완료는 별도 확인 후 실행한다. 초안은 기존 로그인 계정·세션 경계를 따르고, 고객에게는 내부 메모·운영자 태그를 노출하지 않는다. 구매이력/연결 주문은 `sales.read`, 고객 상세 링크는 `platform.manage` 권한에 따라 표시한다. 모바일에서는 목록↔대화 이동과 상담정보 바로가기를 제공하며 입력창을 하단 도구막대 위에 유지한다.
+자주 쓰는 문구, 담당자 변경, 내부 메모와 상담완료는 기존 서버 액션/RPC를 재사용한다. 상담창의 답변·사진·파일은 아래의 검증된 첨부와 멱등 메시지 RPC를 사용한다. 답변은 인앱 알림과 기존 이메일 처리 경로를 유지하며, 이메일만 실패한 경우 답변까지 실패한 것으로 표시하지 않는다. 상담완료는 별도 확인 후 실행한다. 초안은 기존 로그인 계정·세션 경계를 따르고, 고객에게는 내부 메모·운영자 태그를 노출하지 않는다. 구매이력은 상담 권한(`cs.manage`)이면 역할과 상관없이 `admin_inquiry_purchase_history`로 그 문의 고객의 주문(금액·상태)과 연결 주문 요약을 보이고 열람을 감사한다(1014-103). 주문 상세 링크와 연결 주문의 결제·클레임은 `sales.read`·`sales.manage`, 고객 상세 링크는 `platform.manage` 권한에 따라 표시한다. 상담 정보의 처리 이력(담당 지정·변경·답변·완료)은 `admin_inquiry_processing_history`(`cs.manage`)로 읽는다. 모바일에서는 목록↔대화 이동과 상담정보 바로가기를 제공하며 입력창을 하단 도구막대 위에 유지한다.
 
 `admin_inquiry_chat_console`은 현재 `cs.manage`를 검사한다. `private.inquiry_chat_reads(actor_id, message_id)`는 운영자별 읽음 원장이다. 활성 탭에 표시된 대화의 고객 메시지 ID만 `/api/admin/inquiry-chat/read`로 보내며, API는 같은 출처·현재 로그인 계정 바인딩·업무 권한을 확인한다. `admin_mark_inquiry_chat_read`는 입력 ID 모두가 지정 문의의 고객 메시지인지 검증한 후 멱등 기록한다. 조회 후 도착한 메시지는 같은 타임스탬프이거나 UUID 순서가 앞서더라도 읽음에 포함되지 않는다. 다른 운영자의 읽음도 바꾸지 않는다. 읽음 원장은 본문·연락처를 복제하지 않고 메시지/운영자 삭제 시 FK cascade로 정리되며 알림·이메일을 만들지 않는다.
 
@@ -61,7 +69,7 @@ node supabase/tests/inquiry_realtime_delivery.mjs
 - `20261020085531_inquiry_file_filename_contract.sql`: 다운로드 파일명과 검증된 MIME의 확장자 일치 제약.
 - `20261020085532_inquiry_file_session_lock_order.sql`: 권한 회수와 같은 계정 작업→프로필 잠금 순서로 세션검사 교착 방지.
 
-추가 SQL 회귀는 격리 DB에서 `supabase/tests/inquiry_chat_console.sql`을 실행한다. 실제 역할로 필터/정렬/페이지, 읽음 분리, 미표시 메시지 보존, 태그 멱등/제한/감사, 접근 권한과 최소 ACL을 확인하고 합성 fixture를 전부 롤백한다. 브라우저에서는 합성 고객 새 문의→운영자 실시간 수신/읽음→사진·문구 답변→고객 실시간 수신→담당자/메모/태그→상담완료와 새로고침 후 저장 상태를 확인한다. 태그 전송을 실패시켜 입력 보존과 재시도도 확인한다.
+추가 SQL 회귀는 `supabase/tests/inquiry_chat_console.sql`이다(CI DB 검증의 storefront 샤드에서 돌고, 로컬은 격리 DB에서 실행한다). 실제 역할로 필터/정렬/페이지, 읽음 분리, 미표시 메시지 보존, 태그 멱등/제한/감사, 접근 권한과 최소 ACL을 확인하고 합성 fixture를 전부 롤백한다. 브라우저에서는 합성 고객 새 문의→운영자 실시간 수신/읽음→사진·문구 답변→고객 실시간 수신→담당자/메모/태그→상담완료와 새로고침 후 저장 상태를 확인한다. 태그 전송을 실패시켜 입력 보존과 재시도도 확인한다.
 
 ### 상담 사진·파일 보관함
 

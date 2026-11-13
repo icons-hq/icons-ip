@@ -7,7 +7,7 @@
 export const GOOD_VISIBILITY_REASONS = ['archived', 'ip_archived', 'draft', 'ip_draft', 'restricted'] as const;
 export type GoodVisibilityReason = typeof GOOD_VISIBILITY_REASONS[number];
 /**
- * public은 고객 화면에 보인다. missing은 그 상품번호의 상품이 없다(지워짐). hidden은 보이지 않지만 이유를 나눌 수 없을 때다
+ * public은 고객 화면에 보인다. missing은 그 상품 URL의 상품이 없다(지워짐). hidden은 보이지 않지만 이유를 나눌 수 없을 때다
  * (이유를 싣지 않은 응답·조회 실패, 또는 공개 상품인데 그 전시 목록에서 빠진 경우).
  */
 export type DisplayGoodVisibility = 'public' | GoodVisibilityReason | 'missing' | 'hidden';
@@ -37,7 +37,7 @@ export function displayGoodVisibility(good: { archived: boolean; published: bool
   if (good.visibility) return good.visibility;
   return good.archived ? 'archived' : good.published ? 'public' : 'hidden';
 }
-/** admin_goods_display_visibility 한 줄(없는 상품번호는 결과에 없다). */
+/** admin_goods_display_visibility 한 줄(없는 상품 URL은 결과에 없다). */
 export interface GoodDisplayVisibilityRow { id: string; name: string; code: string | null; visibility: 'public' | GoodVisibilityReason }
 /** 저장된 전시 구성의 상품 한 개(이름은 조회 전이면 null). */
 export interface DisplayGoodInfo { name: string | null; code: string | null; visibility: DisplayGoodVisibility }

@@ -30,9 +30,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    throw new Error(`NEXT_REDIRECT:${path}`);
-  },
+  redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
+  unstable_rethrow: (error: unknown) => { if (error instanceof Error && error.message.startsWith('NEXT_REDIRECT')) throw error; },
 }));
 
 function publishForm(id = IP_ID) {
@@ -148,12 +147,10 @@ describe('admin IP publish actions', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it('explains when Supabase is not configured', async () => {
+  it('redirects to login when Supabase is not configured', async () => {
     mocks.adminState = { isConfigured: false, user: null, role: null, isStaff: false };
 
-    await expect(publishAdminIpAction({}, publishForm())).resolves.toEqual({
-      errors: { form: 'Supabase 환경변수를 설정한 뒤 IP 게시 상태를 변경할 수 있습니다.' },
-    });
+    await expect(publishAdminIpAction({}, publishForm())).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin');
   });
 
   it.each([

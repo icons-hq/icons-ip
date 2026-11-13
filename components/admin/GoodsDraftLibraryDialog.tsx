@@ -13,7 +13,7 @@ import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 const empty: GoodsDraftPage = { rows: [], total: 0, page: 1, pageSize: 20 };
 const time = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
-export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => void; onLoad: (draft: GoodsDraft) => boolean }) {
+export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => void; onLoad: (draft: GoodsDraft) => boolean | Promise<boolean> }) {
   const [data, setData] = useState(empty);
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState(false);
@@ -48,7 +48,7 @@ export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => vo
   async function load(row: GoodsDraftSummary) {
     const result = await getGoodsDraftAction(row.id);
     if (!result.data) { setError(result.error ?? '불러오지 못했습니다.'); return; }
-    if (onLoad(result.data)) onClose();
+    if (await onLoad(result.data)) onClose();
   }
   async function archive(row: GoodsDraftSummary) {
     const result = await setGoodsDraftArchivedAction(row, !row.archived);
@@ -64,7 +64,7 @@ export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => vo
         <Button type="button" variant="outline" disabled={busy} onClick={() => { void run(() => refresh()); }}>조회</Button>
       </div>
       {error ? <p className="text-destructive" role="alert">{error}</p> : null}<p className="text-muted-foreground" role="status">{busy ? '불러오는 중…' : message}</p>
-      <p className="text-muted-foreground tabular-nums">총 {data.total}건 · 저장시각은 한국시간입니다.</p>
+      <p className="text-muted-foreground tabular-nums">총 {data.total}건 · 저장시각은 KST입니다.</p>
       {!busy && !data.rows.length ? <p className="rounded-lg border border-dashed py-10 text-center text-muted-foreground">저장된 임시저장이 없습니다.</p> : null}
       <ul className="m-0 flex min-w-0 list-none flex-col rounded-lg border p-0 empty:hidden">{data.rows.map(row => <li className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 border-b p-3 last:border-b-0 sm:grid-cols-[4rem_minmax(0,1fr)_auto]" key={row.id}>
         {row.imagePath ? <img className="size-16 rounded-md bg-muted object-contain" src={publicMediaUrl(row.imagePath) ?? ''} alt=""/> : <span className="grid size-16 place-items-center rounded-md bg-muted text-xs text-muted-foreground">사진 없음</span>}

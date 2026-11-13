@@ -1,7 +1,7 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { AdminCouponRecord } from '@/lib/admin/coupons';
-const mocks = vi.hoisted(() => ({ confirm: vi.fn(() => true) }));
+const mocks = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
 vi.mock('@/app/admin/coupon-actions', () => ({ setAdminCouponStatusAction: vi.fn() }));
 vi.mock('@/app/admin/coupon-target-actions', () => ({ searchCouponTargetGoodsAction: vi.fn() }));
 vi.mock('@/lib/admin/leave-guard', async (original) => ({ ...await original<typeof import('@/lib/admin/leave-guard')>(), confirmAdminLeave: mocks.confirm }));
@@ -18,29 +18,29 @@ function render(selected: AdminCouponRecord | null, onSelect: (record: { id: str
 const editorCancel = (tree: Element[]) => tree.find(node => typeof node.type === 'function' && node.type.name === 'CouponEditor')!.props.onCancel as () => void;
 const backToList = (tree: Element[]) => tree.find(node => text(node) === '목록으로' && typeof node.props.onClick === 'function')!.props.onClick as () => void;
 
-beforeEach(() => { mocks.confirm.mockReset(); mocks.confirm.mockReturnValue(true); });
+beforeEach(() => { mocks.confirm.mockReset(); mocks.confirm.mockResolvedValue(true); });
 
-it('등록 화면의 취소 버튼은 공용 확인을 거치고, 취소하면 화면에 남는다', () => {
+it('등록 화면의 취소 버튼은 공용 확인을 거치고, 취소하면 화면에 남는다', async () => {
   const onSelect = vi.fn();
-  mocks.confirm.mockReturnValue(false);
-  editorCancel(render(null, onSelect))();
+  mocks.confirm.mockResolvedValue(false);
+  editorCancel(render(null, onSelect))(); await Promise.resolve(); await Promise.resolve();
   expect(mocks.confirm).toHaveBeenCalledOnce();
   expect(onSelect).not.toHaveBeenCalled();
 });
 
-it('등록 화면의 취소 버튼은 확인하면(또는 묻지 않아도 되면) 목록으로 돌아간다', () => {
+it('등록 화면의 취소 버튼은 확인하면(또는 묻지 않아도 되면) 목록으로 돌아간다', async () => {
   const onSelect = vi.fn();
-  editorCancel(render(null, onSelect))();
+  editorCancel(render(null, onSelect))(); await Promise.resolve(); await Promise.resolve();
   expect(onSelect).toHaveBeenCalledWith(null);
 });
 
-it('수정 화면의 목록으로 버튼도 같은 확인을 거친다', () => {
+it('수정 화면의 목록으로 버튼도 같은 확인을 거친다', async () => {
   const selected = { id: 'SPRING', code: 'SPRING', name: '봄 혜택', targetGoodIds: [], targetGoods: [] } as unknown as AdminCouponRecord;
   const onSelect = vi.fn();
-  mocks.confirm.mockReturnValueOnce(false);
+  mocks.confirm.mockResolvedValueOnce(false);
   const back = backToList(render(selected, onSelect));
-  back();
+  back(); await Promise.resolve(); await Promise.resolve();
   expect(onSelect).not.toHaveBeenCalled();
-  back();
+  back(); await Promise.resolve(); await Promise.resolve();
   expect(onSelect).toHaveBeenCalledWith(null);
 });

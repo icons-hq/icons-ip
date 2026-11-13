@@ -40,7 +40,7 @@ describe('settlement screen', () => {
     expect(on).toMatch(/data-tone="success"[^>]*>수집 완료</);
   });
   it('shows transaction evidence and expandable fee details without raw identifiers', () => {
-    const html = render('transactions'); expect(html).toContain('287B949D'); expect(html).toContain('상세 보기'); expect(html).toContain('수집 시점의 결제'); expect(html).toContain('기본 수수료');
+    const html = render('transactions'); expect(html).toContain('287B949D'); expect(html).toContain('상세'); expect(html).toContain('수집 시점의 결제'); expect(html).toContain('기본 수수료');
     expect(render('fees')).toContain('수수료 합계');
     /* 운영팀이 읽는 화면이라 '원문'·'PG' 같은 개발 말은 쓰지 않는다. 표는 제목이 있는 구역 안에 둔다. */
     for (const tab of ['daily', 'transactions', 'fees'] as const) expect(render(tab)).not.toMatch(/원문|조회 환경|대조 전체/);

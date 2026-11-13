@@ -28,7 +28,7 @@ export function CampaignGoodsBlocks({ sectionsText, onSectionsTextChange, campai
   const blocks = useMemo(() => parsed.ok ? campaignGoodsBlocks(parsed.value) : [], [parsed]);
   const [picker, setPicker] = useState<{ index: number | null; selected: string[] } | null>(null);
   const [message, setMessage] = useState('');
-  /* 고른 상품의 이름·공개 여부를 한 번에 확인한다. 조회에 실패해도 상품번호로 보이고 편집은 막지 않는다.
+  /* 고른 상품의 이름·공개 여부를 한 번에 확인한다. 조회에 실패해도 상품 URL로 보이고 편집은 막지 않는다.
      초안 등 고객 화면에 보이지 않는 상품도 묶음에 둘 수 있지만 기획전 본문에는 나오지 않으므로 상품마다 그 이유를 배지로 알린다(QA1 MD). */
   const goods = useGoodReferenceInfo(useMemo(() => blocks.flatMap(block => block.goodIds), [blocks]));
   /** 묶음 하나에서 기획전 본문에 보이지 않을 상품을 이름과 이유로 모은다. */

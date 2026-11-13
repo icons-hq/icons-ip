@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { AdminGoodsVariant } from './goods-variants';
 import { parseGoodsOptionRows, GOODS_OPTION_AXIS_LIMIT, GOODS_OPTION_ROW_LIMIT, type GoodsOptionAxis, type GoodsOptionRow } from './goods-option-editor';
 
@@ -28,7 +29,7 @@ export const exactGoodsOptionIdentity = (attributes: Record<string, string>) => 
 
 export function parseGoodsOptionImportFilters(value: unknown): GoodsOptionImportFilters | null {
   if (!record(value) || typeof value.query !== 'string' || value.query.trim().length > 100 || !['name', 'code', 'id'].includes(String(value.field))
-    || typeof value.categoryId !== 'string' || value.categoryId !== '' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.categoryId)
+    || typeof value.categoryId !== 'string' || value.categoryId !== '' && !isUuid(value.categoryId)
     || !Number.isSafeInteger(value.page) || Number(value.page) < 1 || Number(value.page) > 100000) return null;
   return { query: value.query.trim(), field: value.field as GoodsOptionImportFilters['field'], categoryId: value.categoryId.toLowerCase(), page: Number(value.page) };
 }

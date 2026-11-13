@@ -2,7 +2,10 @@
 export const ADMIN_VOCABULARY = Object.freeze({
   goods: '상품',
   goodsCode: '판매자상품코드',
+  /** 시스템이 매기는 바뀌지 않는 숫자(goods.product_no, ADR-0038). */
   goodsNumber: '상품번호',
+  /** 고객 화면 주소 끝의 영문 값(goods.id). 상품번호와 다르다. */
+  goodsUrl: '상품 URL',
   goodsList: '상품 조회/수정',
   goodsGroups: '그룹상품 조회/수정',
   goodsGroupsCreate: '그룹상품 등록',

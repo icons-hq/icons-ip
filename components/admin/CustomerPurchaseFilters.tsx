@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @next/next/no-html-link-for-pages -- 초기화는 전체 새로고침으로 폼 상태까지 되돌린다. 어드민 없는 주소 catch-all(app/admin/(shell)/[...missing])이 생긴 뒤로 규칙이 /admin 아래 <a>를 모두 페이지 이동으로 본다 */
+
 import { useState, type MouseEvent } from 'react';
 import { Download } from 'lucide-react';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
@@ -50,7 +52,7 @@ export function CustomerPurchaseFilters({ filters, now }: { filters: Filters; no
           <span aria-hidden="true" className="pb-1.5 text-muted-foreground">~</span><label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>비교 종료일</span><input className={DATE_CLASS} data-slot="input" name="compareTo" type="date" min="2010-01-01" max={latest.to} required value={compareTo} onInput={e => setCompareTo(e.currentTarget.value)} onChange={e => setCompareTo(e.target.value)} /></label>
           <Button onClick={previous} type="button" variant="outline">직전 동일 기간</Button></> : null}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"><p className="text-xs text-muted-foreground">한국시간 기준 · 마감된 월요일~일요일 / 월 첫날~말일 · 각 기간 최대 366일</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"><p className="text-xs text-muted-foreground">KST 기준 · 마감된 월요일~일요일 / 월 첫날~말일 · 각 기간 최대 366일</p>
         <div className="flex gap-2"><a className={buttonVariants({ variant: 'ghost' })} data-slot="button" href="/admin/stats/customers?view=purchase">초기화</a>
           <Button type="submit" variant="soft">조회</Button></div></div>
     </form>

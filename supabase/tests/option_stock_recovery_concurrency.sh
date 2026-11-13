@@ -58,6 +58,12 @@ cleanup() {
 set lock_timeout='5s'; set statement_timeout='30s';
 select pg_terminate_backend(pid) from pg_stat_activity where application_name like '${test_prefix}-%' and pid<>pg_backend_pid();
 begin;
+-- 배송 건 재출고 원장(ADR-0041)은 클레임을 on delete restrict로 가리킨다. 품목·배정·주소 확인·회수 생략을 먼저 지운다.
+delete from private.order_claim_reshipment_destinations where order_id in('${first_order}','${second_order}');
+delete from private.group_claim_reshipment_allocations where claim_id in(select id from public.order_cancellation_requests where order_id in('${first_order}','${second_order}'));
+delete from public.order_claim_reshipment_items where claim_id in(select id from public.order_cancellation_requests where order_id in('${first_order}','${second_order}'));
+delete from public.order_claim_collection_waivers where order_id in('${first_order}','${second_order}');
+delete from public.order_claim_reshipments where order_id in('${first_order}','${second_order}');
 delete from public.order_cancellation_requests where order_id in('${first_order}','${second_order}');
 delete from public.order_cancellation_claims where order_id in('${first_order}','${second_order}');
 delete from public.refunds where payment_id='${payment}';
@@ -80,6 +86,7 @@ select 1 / case when
   and not exists(select 1 from public.order_shipment_items where shipment_id in('${first_shipment}','${second_shipment}'))
   and not exists(select 1 from public.order_claim_collections where shipment_id in('${first_shipment}','${second_shipment}'))
   and not exists(select 1 from public.order_claim_reshipment_items where good_id='${test_prefix}')
+  and not exists(select 1 from public.order_claim_reshipments where order_id in('${first_order}','${second_order}'))
   and not exists(select 1 from public.order_items where id in('${first_item}','${second_item}'))
   and not exists(select 1 from public.payments where id='${payment}')
   and not exists(select 1 from public.refunds where payment_id='${payment}')

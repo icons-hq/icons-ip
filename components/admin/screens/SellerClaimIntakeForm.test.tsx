@@ -34,7 +34,7 @@ describe('판매자 반품·교환 접수 화면', () => {
   });
   it('주문 전체·고객 동의·수거 계획을 구분하고 승인·환급 버튼을 만들지 않는다', () => {
     const html = renderToStaticMarkup(<SellerClaimIntakeForm context={sellerClaimContextFixture} carriers={sellerClaimContextFixture.carriers} onClose={() => {}} />);
-    for (const text of ['반품 · 주문 전체','교환 · 주문 전체','고객 합의 근거','고객 요청 시각 (한국 시간)','수거 주소','합성 출고지','접수 후 수거 협의','환불계좌 (선택)','반품 요청 접수']) expect(html).toContain(text);
+    for (const text of ['반품 · 주문 전체','교환 · 주문 전체','고객 합의 근거','고객 요청 시각 (KST)','수거 주소','합성 출고지','접수 후 수거 협의','환불계좌 (선택)','반품 요청 접수']) expect(html).toContain(text);
     /* 앞의 두 테스트가 '없다'고 보는 수거 주소 묶음 제목이 반품 접수에는 실제로 있다(같은 선택자로 확인). */
     expect(html).toMatch(/<legend[^>]*>수거 주소<\/legend>/);
     expect(html).not.toContain('name="amount"'); expect(html).not.toContain('자동수거요청'); expect(html).not.toContain('>환불 승인<');

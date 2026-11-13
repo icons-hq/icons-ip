@@ -19,14 +19,14 @@ describe('출고지시 전 재고 경고', () => {
       unreconciled: [{ variantId: 'v4', goodsName: '배지', optionName: '기본 옵션', optionCode: 'G4-01', pendingQty: 1 }] }} />);
     expect(html).toContain('data-admin-notice="danger"');
     expect(html).toContain('창고 재고보다 출고할 주문이 많은 옵션 1개');
-    expect(html).toContain('출고 대기 9개 · 창고 예상 5개(부족 4)');
+    expect(html).toContain('출고 대기 9개 · 창고 예상 5개 · 부족 4개');
     expect(html).toContain('재고 파일로 대조한 적 없는 출고 대기 옵션도 1개 있습니다.');
     expect(html).toContain('href="/admin/catalog/stock-reconcile"');
   });
 
-  it('창고 예상 수량이 0 아래여도 0으로 보이고 부족 수는 그대로다', () => {
+  it('창고 예상 수량이 0 아래면 음수로 보여 출고 대기와의 차이가 부족 수로 읽힌다', () => {
     const html = renderToStaticMarkup(<StockDispatchWarning data={{ ...base, warnings: [{ ...warning, kind: 'shortage', pendingQty: 6, expectedQty: -1, shortageQty: 7 }] }} />);
-    expect(html).toContain('출고 대기 6개 · 창고 예상 0개(부족 7)');
+    expect(html).toContain('출고 대기 6개 · 창고 예상 −1개 · 부족 7개');
     expect(html).not.toContain('-1개');
   });
 

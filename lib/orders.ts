@@ -168,6 +168,8 @@ export interface OrderCancellationRequestSummary {
 export interface OrderDetail {
   orderNumber?: string;
   reshipmentHistory?: import('./orders/reshipment-items').OrderReshipmentReceipt[];
+  /** 교환으로 다시 보낸 소포(배송 건마다 하나, TKT-166). 진행 중인 교환의 먼저 보낸 소포도 들어 있다. */
+  reshipmentParcels?: import('./orders/reshipment-items').OrderReshipmentParcelView[];
   giftId?: string;
   transaction?: import('./goods-transaction').GoodsTransactionDisplay;
   id: string;

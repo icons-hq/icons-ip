@@ -24,6 +24,8 @@ const actions = vi.hoisted(() => ({
   recordOrderClaimOriginCollectionAction: vi.fn(),
   recordOrderClaimRefundAction: vi.fn(),
   recordOrderClaimReshipmentAction: vi.fn(),
+  planClaimDefectiveStockAction: vi.fn(),
+  retryClaimDefectiveStockAction: vi.fn(),
 }));
 
 vi.mock('@/app/admin/claim-actions', () => actions);
@@ -59,6 +61,8 @@ async function renderAfterDecision(state: AdminClaimActionState, overrides: Part
       actions.recordOrderClaimOriginCollectionAction,
       actions.recordOrderClaimRefundAction,
       actions.recordOrderClaimReshipmentAction,
+      actions.planClaimDefectiveStockAction,
+      actions.retryClaimDefectiveStockAction,
     ]);
     return {
       ...actual,
@@ -242,6 +246,17 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     expect(collecting.match(/<section[^>]*data-claim-secondary-actions=""/)?.[0]).toContain('order-2');
   });
 
+  /* 출고지별 재출고(TKT-166): 한 출고지라도 재출고한 교환은 거부 양식을 그리지 않는다 — DB가 claim_not_rejectable로 막는다. */
+  it('재출고가 시작된 교환에는 거부하기가 없다', async () => {
+    const open = await render({ claimType: 'exchange', stage: 'collecting', collectionPolicy: 'origin', collectionComplete: false });
+    expect(open).toContain('data-claim-reject-fold=""');
+    const started = await render({ claimType: 'exchange', stage: 'collecting', collectionPolicy: 'origin', collectionComplete: false, reshipmentStarted: true });
+    expect(started).not.toContain('data-claim-reject-fold=""');
+    expect(started).not.toContain('>거부<');
+    const held = await render({ claimType: 'exchange', stage: 'on_hold', heldFrom: 'collecting', collectionPolicy: 'origin', collectionComplete: false, reshipmentStarted: true });
+    expect(held).not.toContain('data-claim-reject-fold=""');
+  });
+
   /* 사람 눈 판정(3라운드): 승인은 진한 빨강, 거부는 연한 빨강이라 둘 다 위험 표시처럼 보였다. */
   it('거부는 승인보다 낮은 테두리 버튼이다', async () => {
     const html = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin', collections: [] });
@@ -278,7 +293,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     const declined = { nativeEvent: { submitter }, currentTarget: form, preventDefault: vi.fn() };
     const confirm = vi.fn(() => false);
 
-    expect(confirmClaimPanelSubmit(declined as unknown as React.FormEvent<HTMLFormElement>, confirm)).toBe(false);
+    expect(await confirmClaimPanelSubmit(declined as unknown as React.FormEvent<HTMLFormElement>, confirm)).toBe(false);
     expect(confirm).toHaveBeenCalledWith('승인할까요?');
     // 양식의 기본 제출(양식 action)은 늘 막는다. 보내는 쪽이 직접 보낸다.
     expect(declined.preventDefault).toHaveBeenCalledOnce();
@@ -287,7 +302,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
       nativeEvent: { submitter: { getAttribute: () => null } }, currentTarget: form, preventDefault: vi.fn(),
     };
     const unused = vi.fn(() => false);
-    expect(confirmClaimPanelSubmit(plain as unknown as React.FormEvent<HTMLFormElement>, unused)).toBe(true);
+    expect(await confirmClaimPanelSubmit(plain as unknown as React.FormEvent<HTMLFormElement>, unused)).toBe(true);
     expect(unused).not.toHaveBeenCalled();
   });
 });

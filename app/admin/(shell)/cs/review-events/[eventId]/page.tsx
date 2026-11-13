@@ -7,6 +7,7 @@ import { REVIEW_EVENTS_ADMIN_PATH } from '@/lib/review-events';
 import { ReviewEventEditorScreen } from '@/components/admin/screens/ReviewEventEditorScreen';
 import { searchReviewEventTargetsAction } from '@/app/admin/review-event-actions';
 import { isUuid } from '@/lib/uuid';
+import { adminSavedFlag } from '@/lib/admin/saved-flag';
 
 const STORE_CREDIT_POLICY_PATH = '/admin/settings/store-credits';
 
@@ -19,5 +20,5 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const targets = workspace.event.targetType === 'all' ? null : await searchReviewEventTargetsAction(workspace.event.targetType, '', 1, workspace.event.targetType === 'goods' ? workspace.event.goodIds : workspace.event.categoryIds);
   /* R6: 상세는 workspace.creditPolicy(같은 정책 값)를 그대로 쓰고, 설정 링크만 설정 페이지 게이트로 판정한다. */
   const policyHref = canAccessAdminScreen(auth, adminScreenForPath(STORE_CREDIT_POLICY_PATH), { adminOnly: true }) ? STORE_CREDIT_POLICY_PATH : null;
-  return <ReviewEventEditorScreen key={`${eventId}:${page}:${query}:${filter}`} id={eventId} workspace={workspace} targetLabels={targets?.data?.rows ?? []} query={query} filter={filter} policyHref={policyHref} />;
+  return <ReviewEventEditorScreen key={`${eventId}:${page}:${query}:${filter}`} id={eventId} workspace={workspace} targetLabels={targets?.data?.rows ?? []} query={query} filter={filter} policyHref={policyHref} justSaved={adminSavedFlag(raw)} />;
 }

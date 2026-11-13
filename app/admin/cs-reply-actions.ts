@@ -1,14 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 import { CS_REPLY_TEMPLATE_CATEGORIES, CS_REPLY_TEMPLATE_PAGE_SIZE, csReplyBodyLimit, isCsReplySurface, parseCsReplyTemplate, parseReviewBatchRequest, parseReviewBatchResult,
   type CsReplyTemplate, type CsReplyTemplateList, type ReviewBatchResult } from '@/lib/admin/cs-reply-tools';
 
-async function staff() { const auth=await getCurrentAdminAuthState(); return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth, 'cs.manage'); }
+async function staff() { return Boolean(await requireAdminActionAccess('/admin/cs/inquiries', { capability: 'cs.manage' })); }
 function templateError(error:string) {
   if(error.includes('cs_reply_template_changed')) return '다른 작업에서 템플릿을 변경했습니다. 목록을 새로 조회해주세요.';
   if(error.includes('cs_reply_template_archived')) return '삭제된 템플릿입니다. 복구한 뒤 수정해주세요.';

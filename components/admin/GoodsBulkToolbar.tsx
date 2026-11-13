@@ -18,7 +18,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui
 
 const money = (value: number | null) => value === null ? '사용 옵션 없음' : `${value.toLocaleString('ko-KR')}원`;
 const range = (min: number | null, max: number | null) => min === max ? money(min) : `${money(min)} ~ ${money(max)}`;
-function status(row: GoodsBulkPreview['goods'][number]) { return row.archived ? '보관' : row.published ? '전시중' : '미전시'; }
+function status(row: GoodsBulkPreview['goods'][number]) { return row.archived ? '보관' : row.published ? '공개' : '초안'; }
 const kstDate = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 /* 할인 중지로 꺼질 진행·예정 할인을 상품별로 보여 준다(개별로 걸어 둔 할인 포함). */
 function activeDiscountLabel(row: GoodsBulkPreview['goods'][number]) {
@@ -28,7 +28,7 @@ function activeDiscountLabel(row: GoodsBulkPreview['goods'][number]) {
 }
 function after(row: GoodsBulkPreview['goods'][number], command: GoodsBulkCommand) {
   if (row.skip) return `건너뜀 · ${goodsBulkSkipLabel(row.skip)}`;
-  if (command === 'publish') return '전시중'; if (command === 'unpublish') return '미전시';
+  if (command === 'publish') return '공개'; if (command === 'unpublish') return '초안';
   if (command === 'start') return '판매 운영'; if (command === 'stop') return '판매 중지';
   if (command === 'archive') return '보관'; if (command === 'restore') return '복원';
   if (command === 'price' || command === 'discount') return range(row.nextMin, row.nextMax);
@@ -102,7 +102,7 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
     if (command === 'period' || command === 'discount') {
       const unlimited = command === 'period' && form.get('unlimited') === 'true';
       const parsed = parseGoodsPricePeriodInput({ state: 'draft', discountPrice: null, startsAt: unlimited ? null : form.get('startsAt'), endsAt: unlimited ? null : form.get('endsAt') });
-      if (!parsed || !unlimited && (!parsed.startsAt || !parsed.endsAt)) { setMessage('한국 시간 기준 시작·종료를 입력해주세요. 종료는 시작보다 늦어야 합니다.'); return; }
+      if (!parsed || !unlimited && (!parsed.startsAt || !parsed.endsAt)) { setMessage('KST 기준 시작·종료를 입력해주세요. 종료는 시작보다 늦어야 합니다.'); return; }
       values.startsAt = parsed.startsAt; values.endsAt = parsed.endsAt;
     }
     const request = parseGoodsBulkRequest({ kind, ids: dialog.ids, command, values });
@@ -197,7 +197,7 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
             </AdminSelect></label><label className={FIELD}>금액 또는 비율<Input className="text-right tabular-nums" name="value" type="number" min={1} max={2147483647} step={1} required /></label></div> : null}
             {dialog.command === 'price' ? <p className={NOTE}>기본 판매가를 변경하며 옵션 추가금액과 재고수량은 유지합니다. 비율 계산 시 원 미만은 버립니다.</p> : null}
             {dialog.command === 'period' ? <label className={CHECK}><input type="checkbox" name="unlimited" value="true" />판매기간 제한 해제</label> : null}
-            {dialog.command === 'period' || dialog.command === 'discount' ? <div className="grid gap-3 sm:grid-cols-2"><label className={FIELD}>시작 (한국 시간)<Input name="startsAt" type="datetime-local" /></label><label className={FIELD}>종료 (한국 시간)<Input name="endsAt" type="datetime-local" /></label></div> : null}
+            {dialog.command === 'period' || dialog.command === 'discount' ? <div className="grid gap-3 sm:grid-cols-2"><label className={FIELD}>시작 (KST)<Input name="startsAt" type="datetime-local" /></label><label className={FIELD}>종료 (KST)<Input name="endsAt" type="datetime-local" /></label></div> : null}
             {dialog.command === 'discount' ? <p className={NOTE}>사용 중인 모든 옵션에 기간 할인을 등록합니다. 기존 활성 할인과 시간이 겹치거나 할인가가 맞지 않는 상품은 건너뛰고, 비교 결과와 저장 후에 그 목록을 보여 드립니다. 기획전·IP 단위로 묶어 걸고 한두 상품만 다른 할인율로 정하거나 묶음으로 중지하려면 <Link className="font-medium text-primary underline-offset-4 hover:underline" href={newDiscountPromotionHref(kind === 'ip' ? { ip: dialog.ids[0] } : {})}>할인 프로모션</Link>을 쓰세요.</p> : null}
             {dialog.command === 'discount_stop' ? <p className={NOTE}>{kind === 'ip' ? '이 IP의 보관하지 않은 전체 상품에서 진행 중이거나 예정된 기간 할인을 모두 중지합니다. IP 전체 할인뿐 아니라 상품별로 따로 걸어 둔 할인과 할인 프로모션이 건 할인도 함께 중지되니, 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'
               : '선택 상품의 진행 중이거나 예정된 기간 할인(할인 프로모션이 건 할인 포함)을 모두 중지합니다. 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'} 진행 중이거나 예정된 할인이 없는 상품은 건너뜁니다. 이미 끝난 기간의 할인은 이력으로 남고(중지로 바뀌지 않음) 기존 주문 금액도 바뀌지 않습니다. 한 프로모션의 할인만 끄려면 할인 프로모션 상세에서 중지하세요.</p> : null}
@@ -210,7 +210,7 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
           <p className="text-sm"><strong className="font-semibold">{GOODS_BULK_LABELS[preview.request.command]}</strong> · 상품 {preview.goods.length}개{preview.groups.length ? ` · 그룹 ${preview.groups.length}개` : ''}
             {['discount', 'discount_stop'].includes(preview.request.command) ? ` · 적용 ${appliedCount}개 · 건너뜀 ${preview.goods.length - appliedCount}개` : ''}
             {preview.request.command === 'discount_stop' ? ` · 꺼질 할인 ${preview.goods.reduce((sum, row) => sum + (row.skip ? 0 : row.discounts?.count ?? 0), 0)}건` : ''}</p>
-          {preview.request.values.startsAt ? <p className="text-sm">{new Date(String(preview.request.values.startsAt)).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} ~ {new Date(String(preview.request.values.endsAt)).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (한국 시간)</p> : preview.request.command === 'period' ? <p className="text-sm">판매기간 제한을 해제합니다.</p> : null}
+          {preview.request.values.startsAt ? <p className="text-sm">{new Date(String(preview.request.values.startsAt)).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} ~ {new Date(String(preview.request.values.endsAt)).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (KST)</p> : preview.request.command === 'period' ? <p className="text-sm">판매기간 제한을 해제합니다.</p> : null}
           <GroupTable label="일괄 변경 대상" layout="fixed"><TableHeader><TableRow><TableHead className="w-[44%]">상품명·판매자상품코드</TableHead><TableHead>현재</TableHead><TableHead>변경 후</TableHead></TableRow></TableHeader><TableBody>{[...preview.goods].sort((a, b) => Number(Boolean(b.skip)) - Number(Boolean(a.skip))).map(row => <TableRow key={row.id} className="data-[skipped]:text-muted-foreground" data-skipped={row.skip ? 'true' : undefined}><TableCell className="whitespace-normal wrap-anywhere">{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id}</small></TableCell>
             <TableCell className="whitespace-normal">{preview.request.command === 'discount_stop' ? activeDiscountLabel(row) : ['price', 'discount'].includes(preview.request.command) ? range(row.priceMin, row.priceMax) : ['start', 'stop'].includes(preview.request.command) ? row.stopped ? '판매 중지' : '판매 운영' : status(row)}</TableCell><TableCell className="whitespace-normal">{after(row, preview.request.command)}</TableCell></TableRow>)}</TableBody></GroupTable>
           <p className={NOTE}>{['discount', 'discount_stop'].includes(preview.request.command) ? '비교 이후 상품·옵션 가격이나 할인 기간이 바뀌면 전체 적용을 중단합니다(판매로 인한 재고 변동은 영향 없음).' : '비교 이후 상품이나 재고가 바뀌면 전체 적용을 중단합니다.'} 비교 결과는 15분 동안 유효합니다.</p>

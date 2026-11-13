@@ -1,4 +1,5 @@
 'use server';
+import { isUuid } from '@/lib/uuid';
 import { revalidatePath, updateTag } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
@@ -9,10 +10,10 @@ import { createClient } from '@/lib/supabase/server';
 export type StoreNavigationActionState = { message?: string; error?: string; updatedAt?: string };
 export async function saveStoreNavigationAction(input: unknown, stamp: string, operationId: string): Promise<StoreNavigationActionState> {
   try {
-    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'store.manage' })) return { error: '메뉴 설정은 관리자(admin)만 저장할 수 있습니다.' };
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'store.manage' })) return { error: '메뉴 설정은 최고 관리자만 저장할 수 있습니다.' };
     const navigation = parseStoreNavigation(input);
     if (!navigation) return { error: '7개 메뉴를 중복 없이 설정해주세요. 메뉴명은 1~20자이며 카테고리는 항상 노출해야 합니다.' };
-    if (!stamp || Number.isNaN(Date.parse(stamp)) || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)) return { error: '설정을 다시 열어 최신 저장 정보를 확인해주세요.' };
+    if (!stamp || Number.isNaN(Date.parse(stamp)) || !isUuid(operationId)) return { error: '설정을 다시 열어 최신 저장 정보를 확인해주세요.' };
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_store_navigation', {
       target_operation_id: operationId, target_values: navigation, expected_updated_at: stamp,

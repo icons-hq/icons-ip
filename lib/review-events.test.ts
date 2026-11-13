@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { newReviewEventValues, normalizeReviewEventFilters, parsePublicReviewEvent, parseReviewEvent, parseReviewEventCreditPolicy, parseReviewEventSelection, parseReviewEventValues, reviewEventCreditPolicyLabel,
-  reviewEventCreditPolicyProblem, reviewEventError, reviewEventFieldErrors, reviewEventToday, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
-  parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, reviewEventTemplateError, reviewEventTemplateFieldErrors, reviewEventTemplateNeedsConfirm,
-  trimReviewEventTemplateText, withReviewEventTemplate, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENT_TEMPLATE_UNUSABLE, reviewEventTemplateUsable } from './review-events';
+import { newReviewEventValues, normalizeReviewEventFilters, parsePublicReviewEvent, parseReviewEvent, parseReviewEventCreditPolicy, parseReviewEventSelection, parseReviewEventValues, reviewEventCreditPolicyLabel, reviewEventCreditPolicyProblem, reviewEventFieldErrors, reviewEventToday, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn, parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, reviewEventTemplateError, reviewEventTemplateFieldErrors, reviewEventTemplateNeedsConfirm, trimReviewEventTemplateText, withReviewEventTemplate, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENT_TEMPLATE_UNUSABLE, reviewEventTemplateUsable } from './review-events';
+import { reviewEventError } from '@/lib/admin/review-event-messages';
 describe('review event contracts', () => {
   it('uses KST date boundaries and requires real dates and bounded terms', () => {
     expect(reviewEventToday(Date.parse('2026-10-13T15:00:00Z'))).toBe('2026-10-14');

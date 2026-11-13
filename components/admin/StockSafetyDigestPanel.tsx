@@ -61,7 +61,7 @@ export function StockSafetyDigestPanel({ initial }: { initial: StockSafetyDigest
     const saved = result.settings;
     setState(saved); setEnabled(saved.enabled); setSendTime(saved.sendTime); setRecipients(saved.operatorRecipients.join('\n'));
     setUncertain(false); setError(false); request.current = null;
-    setMessage(saved.enabled ? `저장했습니다. 매일 ${saved.sendTime}(한국 시간)이 지나면 그날 한 번 보냅니다.` : '저장했습니다. 요약 메일을 껐습니다.');
+    setMessage(saved.enabled ? `저장했습니다. 매일 ${saved.sendTime}(KST)이 지나면 그날 한 번 보냅니다.` : '저장했습니다. 요약 메일을 껐습니다.');
   }
 
   return <div className="flex min-w-0 flex-col gap-4" data-stock-digest="panel">
@@ -73,7 +73,7 @@ export function StockSafetyDigestPanel({ initial }: { initial: StockSafetyDigest
         {` · 운영자 ${count(state.operatorRecipients.length)}명 · 출고지 담당자 ${count(originRecipients)}명`}
       </span>
     </p>
-    <p className={HINT}>매일 정한 시각(한국 시간)이 지나면 그날 한 번, 사용 중인 옵션 중 재고수량이 안전재고 기준 이하인 옵션을 모아 보냅니다.
+    <p className={HINT}>매일 정한 시각(KST)이 지나면 그날 한 번, 사용 중인 옵션 중 재고수량이 안전재고 기준 이하인 옵션을 모아 보냅니다.
       운영자 주소에는 전체 목록을, 출고지 담당자 주소에는 그 출고지 상품만 보냅니다. 같은 주소는 하루 한 통이고, 대상 옵션이 없거나 받는 주소가 없으면 보내지 않습니다.
       안전재고 기준은 상품 수정의 옵션 상세에서 옵션마다 넣습니다(비워 두면 대상이 아닙니다).</p>
     {state.enabled && !state.operatorRecipients.length && !originRecipients ? <AdminNotice tone="warning">켜져 있지만 받는 주소가 없어 보내지 않습니다. 운영자 주소나 출고지 담당자 주소를 넣어주세요.</AdminNotice> : null}
@@ -81,7 +81,7 @@ export function StockSafetyDigestPanel({ initial }: { initial: StockSafetyDigest
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>
         <legend className="sr-only">안전재고 요약 메일 설정</legend>
         <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> 하루 1회 요약 메일 보내기</label>
-        <AdminField label="매일 보내는 시각 (한국 시간)" inputId="stock-digest-time" hint="기본 09:00 — 담당자가 업무 시작에 받아 그날 출고 마감(16:30) 전에 보충·품절 처리를 할 수 있습니다. 오늘 시각이 이미 지났고 오늘 보낸 적이 없으면 켠 직후 보냅니다.">
+        <AdminField label="매일 보내는 시각 (KST)" inputId="stock-digest-time" hint="기본 09:00 — 담당자가 업무 시작에 받아 그날 출고 마감(16:30) 전에 보충·품절 처리를 할 수 있습니다. 오늘 시각이 이미 지났고 오늘 보낸 적이 없으면 켠 직후 보냅니다.">
           <Input className="w-36" id="stock-digest-time" type="time" step={60} required value={sendTime} aria-describedby="stock-digest-time-hint"
             onChange={(event) => setSendTime(event.target.value.slice(0, 5))} />
         </AdminField>

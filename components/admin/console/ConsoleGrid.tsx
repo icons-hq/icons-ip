@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { ConsoleTableSettings } from '@/components/admin/kit/console-table-settings';
 import { useGridPreferences } from './AdminPreferences';
+import { StickyTableHead, useStickyTableHead } from './StickyTableHead';
 import { useHorizontalOverflow } from './useHorizontalOverflow';
 
 export type ConsoleSortDirection = 'asc' | 'desc';
@@ -24,6 +25,8 @@ export interface ConsoleGridColumn {
   sortable?: boolean;
   /** 고정 폭. `<col>`에 그대로 들어간다. 예: `'120px'`, `'12%'`. */
   width?: string;
+  /** 폭을 정하지 않은 열(남은 폭을 쓰는 열)의 최소 폭. 좁은 화면에서 글자가 한두 자씩 끊기지 않고 표가 가로로 스크롤된다. */
+  minWidth?: string;
   /** 조회항목 설정에서도 항상 표시한다. 첫 번째 식별 열은 자동으로 필수다. */
   required?: boolean;
   defaultVisible?: boolean;
@@ -43,6 +46,8 @@ export interface ConsoleGridRow {
   cells: ReactNode[];
   /** 상세로 가는 링크. 첫 번째 셀이 이 링크로 감싸진다. */
   href?: string;
+  /** false면 첫 칸 링크를 Tab에서 뺀다. 같은 행에 같은 목적지의 대표 링크가 따로 있을 때만 쓴다(ADM-016 #8). */
+  hrefTabStop?: boolean;
   /** `false`면 이 행은 일괄 선택 대상에서 빠진다. 기본 `true`. */
   selectable?: boolean;
   /** 체크박스 접근성 이름. 기본 `'{id} 선택'`. */
@@ -80,6 +85,8 @@ export interface ConsoleGridProps {
   preferencesKey?: string;
   /** 간단한 보조 표에는 조회항목 설정을 생략할 수 있다. */
   configurable?: boolean;
+  /** 긴 목록을 내릴 때 머리글을 상단 막대 아래에 고정한다(복제 머리글). 팝업 안 표처럼 페이지 스크롤이 아니면 `false`. 기본 `true`. */
+  stickyHeader?: boolean;
 }
 
 /**
@@ -141,6 +148,7 @@ export function ConsoleGrid({
   selectionName,
   sort,
   sortHrefFor,
+  stickyHeader = true,
 }: ConsoleGridProps) {
   const [internalSelection, setInternalSelection] = useState<string[]>(defaultSelectedIds ?? []);
   const selection = selectedIds ?? internalSelection;
@@ -148,6 +156,7 @@ export function ConsoleGrid({
   const selectAllRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const { ref: overflowRef, more: overflowMore } = useHorizontalOverflow<HTMLDivElement>();
+  const { cloneScrollRef, metrics } = useStickyTableHead(overflowRef, tableRef, stickyHeader);
   const { preferences, save } = useGridPreferences(preferencesKey ?? caption, columns);
   const indexes = configurable
     ? preferences.order.filter((key) => !preferences.hidden.includes(key)).map((key) => columns.findIndex((column) => column.key === key))
@@ -211,6 +220,66 @@ export function ConsoleGrid({
     commit(selection.filter((id) => !pageIds.has(id)));
   }
 
+  /* 머리글 행. 머리글 고정용 복제(clone)도 같은 마크업을 한 번 더 그린다. */
+  function renderHeadRow(clone: boolean) {
+    return (
+      <tr className="border-b bg-muted/50" data-slot="table-row">
+        {selectable ? (
+          <th className={`relative h-10 w-10 min-w-10 bg-muted p-0 align-middle ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-head" style={frozenStyle(0)} scope="col">
+            {/* 칸 전체가 클릭 영역이다(label이 칸을 채운다). */}
+            <label className="absolute inset-0 flex cursor-pointer items-center justify-center print:static"><input
+              aria-label={clone ? undefined : '전체 선택'}
+              checked={allSelected}
+              disabled={selectableIds.length === 0}
+              onChange={(event) => toggleAll(event.target.checked)}
+              ref={clone ? undefined : selectAllRef}
+              type="checkbox"
+            /></label>
+          </th>
+        ) : null}
+        {visibleColumns.map((column, displayIndex) => {
+          const active = sort?.key === column.key;
+          const direction = nextSortDirection(sort, column.key, column.defaultDirection);
+          const href = column.sortable
+            ? column.sortHref ?? sortHrefFor?.(column.key, direction)
+            : undefined;
+          const SortIcon = active ? (sort?.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+          return (
+            <th
+              aria-sort={column.sortable
+                ? active
+                  ? sort?.direction === 'asc' ? 'ascending' : 'descending'
+                  : 'none'
+                : undefined}
+              className={`h-10 bg-muted px-3 text-left align-middle text-xs font-semibold whitespace-nowrap text-secondary-foreground data-[align=end]:text-right ${frozenCellClass}`}
+              data-align={column.align ?? 'start'}
+              data-frozen={displayIndex < frozenCount || undefined}
+              data-slot="table-head"
+              style={{ ...frozenStyle(displayIndex + (selectable ? 1 : 0)), ...(column.width ?? column.minWidth ? { minWidth: column.width ?? column.minWidth } : null) }}
+              key={column.key}
+              scope="col"
+            >
+              {href ? (
+                <Link
+                  aria-label={`${column.label} ${SORT_DIRECTION_LABELS[direction]} 정렬`}
+                  className="-mx-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[active]:text-foreground"
+                  data-active={active || undefined}
+                  data-direction={active ? sort?.direction : undefined}
+                  href={href}
+                >
+                  {column.label}
+                  <SortIcon aria-hidden="true" className={`size-3.5${active ? '' : ' opacity-50'}`} />
+                </Link>
+              ) : column.label}
+            </th>
+          );
+        })}
+      </tr>
+
+    );
+  }
+
   const columnCount = visibleColumns.length + (selectable ? 1 : 0);
   const hasWidths = visibleColumns.some((column) => column.width);
   /* 인쇄에서는 고정 칸이 흐름 배치로 돌아간다 — 종이에는 가로 스크롤이 없다. */
@@ -231,6 +300,7 @@ export function ConsoleGrid({
       <div className="relative min-w-0">
       {/* 표가 영역보다 넓으면 오른쪽 끝을 흐리게 해 옆으로 더 있다는 것을 보인다(ADR-0029, 잘린 열 지적). */}
       {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-px right-px z-20 w-10 rounded-r-lg bg-gradient-to-l from-foreground/10 to-transparent print:hidden" data-console-grid-more="" /> : null}
+      {stickyHeader ? <StickyTableHead cloneScrollRef={cloneScrollRef} metrics={metrics} scrollRef={overflowRef}>{renderHeadRow(true)}</StickyTableHead> : null}
       <div aria-label={`${caption} 가로 스크롤`} className="@container relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" ref={overflowRef} role="region" tabIndex={0}>
         <table className="w-full caption-bottom text-sm" data-slot="table" ref={tableRef}>
           <caption className="sr-only">{caption}</caption>
@@ -243,59 +313,7 @@ export function ConsoleGrid({
             </colgroup>
           ) : null}
           <thead className="[&_tr]:border-b" data-slot="table-header">
-            <tr className="border-b bg-muted/50" data-slot="table-row">
-              {selectable ? (
-                <th className={`relative h-10 w-10 min-w-10 bg-muted p-0 align-middle ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-head" style={frozenStyle(0)} scope="col">
-                  {/* 칸 전체가 클릭 영역이다(label이 칸을 채운다). */}
-                  <label className="absolute inset-0 flex cursor-pointer items-center justify-center print:static"><input
-                    aria-label="전체 선택"
-                    checked={allSelected}
-                    disabled={selectableIds.length === 0}
-                    onChange={(event) => toggleAll(event.target.checked)}
-                    ref={selectAllRef}
-                    type="checkbox"
-                  /></label>
-                </th>
-              ) : null}
-              {visibleColumns.map((column, displayIndex) => {
-                const active = sort?.key === column.key;
-                const direction = nextSortDirection(sort, column.key, column.defaultDirection);
-                const href = column.sortable
-                  ? column.sortHref ?? sortHrefFor?.(column.key, direction)
-                  : undefined;
-                const SortIcon = active ? (sort?.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
-
-                return (
-                  <th
-                    aria-sort={column.sortable
-                      ? active
-                        ? sort?.direction === 'asc' ? 'ascending' : 'descending'
-                        : 'none'
-                      : undefined}
-                    className={`h-10 bg-muted px-3 text-left align-middle text-xs font-semibold whitespace-nowrap text-secondary-foreground data-[align=end]:text-right ${frozenCellClass}`}
-                    data-align={column.align ?? 'start'}
-                    data-frozen={displayIndex < frozenCount || undefined}
-                    data-slot="table-head"
-                    style={{ ...frozenStyle(displayIndex + (selectable ? 1 : 0)), ...(column.width ? { minWidth: column.width } : null) }}
-                    key={column.key}
-                    scope="col"
-                  >
-                    {href ? (
-                      <Link
-                        aria-label={`${column.label} ${SORT_DIRECTION_LABELS[direction]} 정렬`}
-                        className="-mx-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[active]:text-foreground"
-                        data-active={active || undefined}
-                        data-direction={active ? sort?.direction : undefined}
-                        href={href}
-                      >
-                        {column.label}
-                        <SortIcon aria-hidden="true" className={`size-3.5${active ? '' : ' opacity-50'}`} />
-                      </Link>
-                    ) : column.label}
-                  </th>
-                );
-              })}
-            </tr>
+            {renderHeadRow(false)}
           </thead>
           <tbody className="[&_tr:last-child]:border-0" data-slot="table-body">
             {rows.length === 0 ? (
@@ -347,7 +365,7 @@ export function ConsoleGrid({
                       >
                         {/* 표에서는 행 전체를 링크로 만들 수 없다. 첫 셀만 상세 링크가 된다. */}
                         {index === 0 && row.href ? (
-                          <Link className="font-medium text-primary underline-offset-4 hover:underline" href={row.href}>{cell}</Link>
+                          <Link className="font-medium text-primary underline-offset-4 hover:underline" href={row.href} tabIndex={row.hrefTabStop === false ? -1 : undefined}>{cell}</Link>
                         ) : cell}
                       </td>
                     );

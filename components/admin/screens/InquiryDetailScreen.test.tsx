@@ -26,6 +26,7 @@ vi.mock('@/app/admin/inquiry-actions', () => ({
 }));
 vi.mock('@/app/admin/inquiry-reply-template-actions', () => ({ listInquiryReplyTemplatesAction: vi.fn(), mutateInquiryReplyTemplateAction: vi.fn(), readInquiryReplyTemplateAction: vi.fn(), readInquiryTemplateOperationAction: vi.fn() }));
 vi.mock('@/app/admin/customer-actions', () => ({ loadCustomerHistoryAction: vi.fn() }));
+vi.mock('@/app/admin/inquiry-purchase-history-actions', () => ({ loadInquiryPurchaseHistoryAction: vi.fn() }));
 
 const INQUIRY_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -259,4 +260,28 @@ it('CS-only managers do not receive order or global customer entry points', () =
   const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} canReadOrders={false} canManageSales={false} canViewCustomer={false} />);
   expect(html).toContain('주문한 지 일주일이 지났어요');
   for (const text of ['연결 주문', '주문 콘솔에서 열기', '고객 상세 열기', '고객 이력', '클레임 이력', ORDER_ID]) expect(html).not.toContain(text);
+});
+
+/* 1014-103: 주문 조회 권한이 없는 상담 역할도 이 문의 고객의 구매이력(금액·상태)을 연다. 주문 상세(배송·결제·클레임)는 지금처럼 닫혀 있다. */
+it('CS-only managers can open the inquiry customer purchase history on demand', () => {
+  const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} canReadOrders={false} canManageSales={false} canViewCustomer={false} />);
+  expect(html).toContain('구매이력'); expect(html).toContain('구매이력 불러오기');
+  expect(html).toContain(`name="inquiryId" value="${INQUIRY_ID}"`);
+  const orderReader = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} />);
+  expect(orderReader).not.toContain('구매이력 불러오기'); expect(orderReader).toContain('고객 이력');
+});
+
+/* 1014-105: 그 문의를 여는 운영자 누구나 처리 이력(누가·언제)을 본다. */
+it('shows who assigned, answered, reassigned and completed the inquiry', () => {
+  const history = { ok: true as const, value: { inquiryId: INQUIRY_ID, total: 4, limit: 100, events: [
+    { id: 'e1', at: '2026-08-18T02:00:00.000Z', kind: 'assigned' as const, actorName: '상담원 가', fromName: null, toName: '상담원 가', reason: null },
+    { id: 'e2', at: '2026-08-18T02:00:00.000Z', kind: 'answered' as const, actorName: '상담원 가', fromName: null, toName: null, reason: null },
+    { id: 'e3', at: '2026-08-19T02:00:00.000Z', kind: 'reassigned' as const, actorName: '매니저 나', fromName: '상담원 가', toName: '상담원 다', reason: '야간 인계' },
+    { id: 'e4', at: '2026-08-26T02:00:00.000Z', kind: 'auto_closed' as const, actorName: null, fromName: null, toName: null, reason: null },
+  ] } };
+  const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail({ history })} now={NOW} canReadOrders={false} canManageSales={false} canViewCustomer={false} />);
+  expect(html).toContain('처리 이력'); expect(html).toContain('첫 답변으로 담당 지정 · 상담원 가'); expect(html).toContain('담당 변경 · 상담원 가 → 상담원 다');
+  expect(html).toContain('사유 · 야간 인계'); expect(html).toContain('자동 종결'); expect(html).toContain('시스템');
+  expect(renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail({ history: { ok: false } })} now={NOW} />)).toContain('처리 이력을 불러오지 못했습니다');
+  expect(renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail({ history: { ok: true, value: { ...history.value, events: [], total: 0 } } })} now={NOW} />)).toContain('아직 운영자 처리 기록이 없습니다.');
 });

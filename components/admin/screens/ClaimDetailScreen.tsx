@@ -17,6 +17,7 @@ import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
+import { returnFeeDeductionBasisLabel, returnFeeDeductionFeePanelNote } from '@/lib/claims/return-fee-deduction';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   formatOrderDateTime,
@@ -36,6 +37,7 @@ import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
 import { ClaimTypeConversion } from '@/components/admin/ClaimTypeConversion';
 import { ClaimReasonChange } from '@/components/admin/ClaimReasonChange';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
 import { ClaimPreviewFullScreenLink } from './ClaimPreviewDialog';
 import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
 import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
@@ -44,6 +46,7 @@ import { ClaimExchangeSteps, ClaimProgressSummary } from './ClaimProgressSummary
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
 import { adminPaymentCancelErrorLabel } from '@/lib/admin/payment-cancel-error';
 import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
+import { adminClaimPendingReshipments, adminClaimRemainingReshipments } from '@/lib/admin/claim-reshipments';
 
 /* 어드민 클레임 상세(#252) — 템플릿 룩 kit Card(ADR-0028).
  *
@@ -82,7 +85,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_collected': '수거·입고',
   'admin.order.claim_origin_collected': '출고지 회수 확인',
   'admin.order.claim_contact_changed': '회수·재배송 주소 정정',
-  'admin.order.claim_collection_corrected': '회수 방법·송장 정정',
+  'admin.order.claim_collection_corrected': '회수 방법·운송장 정정',
   'admin.order.claim_fee_issue': '반품·교환 배송비 청구',
   'order.claim_fee_report_payment': '배송비 고객 입금 알림',
   'admin.order.claim_fee_confirm_payment': '배송비 실제 입금 확인',
@@ -93,6 +96,11 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_refund_completed': '환불 완료',
   'admin.order.claim_reshipped': '교환 재출고',
   'admin.order.claim_reshipment_delivered': '교환품 배송완료 확인',
+  'admin.order.claim_evidence_uploaded': '회수 생략 근거 사진 등록',
+  'admin.order.claim_collection_waived': '회수 생략 결정',
+  'admin.order.claim_collection_reopened': '회수 생략 무효로 수거중 복귀',
+  /* 출고지 입고 확인 밖에서 끝난 회수 완료(입고완료). 원인은 timelineLabel이 diff.cause로 가른다. */
+  'admin.order.claim_collection_completed': '회수 완료',
   'admin.order.claim_type_changed': '반품·교환 유형 전환',
   'admin.order.claim_reason_changed': '교환 사유 정정',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
@@ -103,6 +111,30 @@ const TIMELINE_LABELS: Record<string, string> = {
   'system.order.cancellation_needs_review': '결제 취소 확인 필요 (자동)',
   'admin.order.cancellation_reconcile_started': '결제 취소 다시 확인',
   'admin.order.staff_cancellation_started': '운영자 전액 취소 시작',
+  'admin.order.claim_operational_fee_recorded': '운영 확인액 기록',
+  /* 반품 불량 재고(QNA-035). */
+  'admin.order.claim_defective_stock_planned': '품목별 재고 처리 선택 저장',
+  'order.claim_defective_stock_recorded': '불량 재고 기록',
+  'admin.order.claim_defective_stock_recorded': '불량 재고 기록',
+  /* 반품 자동 회수 접수(QNA-032). */
+  'system.order.claim_return_pickup_requested': '반품 자동 회수 접수 (자동)',
+  'system.order.claim_return_pickup_canceled': '반품 자동 회수 취소 (자동)',
+  'admin.order.claim_return_pickup_retried': '반품 자동 회수 다시 접수',
+  /* 반품배송비 차감(ADR-0031). */
+  'admin.order.claim_refund_deduction_decided': '반품배송비 차감 결정',
+  'admin.order.claim_refund_deduction_confirmed': '반품배송비 차감 확인 · 부분 환불',
+  'system.order.claim_refund_deduction_confirmed': '반품배송비 차감 확인 · 부분 환불 (자동)',
+  'admin.order.claim_refund_deduction_not_applied': '반품배송비 차감 안 함 · 전액 환불',
+  'system.order.claim_refund_deduction_not_applied': '반품배송비 차감 안 함 · 전액 환불 (자동)',
+  /* 재고 부족 부분 취소(ADR-0032). 주문 단위 기록이라 이 요청 전후의 부분 취소도 함께 보인다. */
+  'admin.order.partial_cancellation_started': '재고 부족 부분 취소 시작',
+  'admin.order.partial_cancellation_applied': '재고 부족 부분 취소 적용',
+  'admin.order.partial_cancellation_completed': '재고 부족 부분 취소 환불 완료',
+  'admin.order.partial_cancellation_transferred': '재고 부족 부분 취소 송금 완료',
+  'admin.order.partial_cancellation_rejected': '재고 부족 부분 취소 진행 안 함',
+  'admin.order.partial_cancellation_needs_review': '재고 부족 부분 취소 결제 확인 필요',
+  'admin.order.partial_cancellation_resolved': '재고 부족 부분 취소 결제 확인 해소',
+  'admin.order.partial_cancellation_account_viewed': '부분 취소 환불계좌 열람',
 };
 
 /* 환불 계좌 열람의 경로(감사 diff.purpose, QA1 S-T03-04). 요청 상세 열람과 환불 송금 대기 목록 엑셀이 같은 감사 액션을 남긴다.
@@ -112,16 +144,10 @@ const ACCOUNT_VIEW_ROUTES: Record<string, string> = {
   list_export: '환불 송금 대기 목록 엑셀',
 };
 
-function timelineLabel(entry: { action: string; diff: Record<string, unknown> | null }) {
-  const label = TIMELINE_LABELS[entry.action] ?? entry.action;
-  if (entry.action !== 'admin.order.bank_refund_account_viewed') return label;
-  const route = typeof entry.diff?.purpose === 'string' ? ACCOUNT_VIEW_ROUTES[entry.diff.purpose] : undefined;
-  return route ? `${label} (${route})` : label;
-}
-
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   bank_transfer: '무통장 입금',
   toss: '토스페이먼츠',
+  nicepay: '나이스페이',
   korpay: 'Korpay',
 };
 
@@ -142,6 +168,29 @@ const SECTION_LINK_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm
 const OUTLINE_SM = `${cn(buttonVariants({ size: 'sm', variant: 'outline' }))} w-fit`;
 const ROW_INLINE = 'flex flex-wrap items-center gap-2';
 
+/* 배송 건(출고지)별 재출고(TKT-166)는 감사 기록에 출고지와 회수 생략 여부가 함께 있다. 같은 이름의 줄이 여러 개여도 어느 출고지인지 보이게 한다. */
+/* 회수 생략 결정·결정 효력 회복으로 끝난 회수 완료(입고완료)는 무엇 때문에 끝났는지 함께 보인다. */
+const COLLECTION_COMPLETED_CAUSE_LABELS: Record<string, string> = {
+  collection_waiver_decided: '회수 생략 결정으로 회수 완료',
+  collection_waiver_effective: '사유·유형 변경으로 회수 완료',
+};
+
+function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
+  if (entry.action === 'admin.order.claim_collection_completed') {
+    const cause = typeof entry.diff?.cause === 'string' ? COLLECTION_COMPLETED_CAUSE_LABELS[entry.diff.cause] : undefined;
+    return cause ?? TIMELINE_LABELS[entry.action];
+  }
+  const label = TIMELINE_LABELS[entry.action] ?? entry.action;
+  if (entry.action === 'admin.order.bank_refund_account_viewed') {
+    const route = typeof entry.diff?.purpose === 'string' ? ACCOUNT_VIEW_ROUTES[entry.diff.purpose] : undefined;
+    return route ? `${label} (${route})` : label;
+  }
+  if (entry.action !== 'admin.order.claim_reshipped' && entry.action !== 'admin.order.claim_reshipment_delivered'
+    && entry.action !== 'admin.order.claim_collection_waived') return label;
+  const origin = typeof entry.diff?.originName === 'string' && entry.diff.originName ? ` · ${entry.diff.originName}` : '';
+  return `${label}${origin}${entry.diff?.collectionWaived === true ? ' (회수 생략)' : ''}`;
+}
+
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="grid grid-cols-[minmax(5.5rem,8rem)_minmax(0,1fr)] gap-3 border-b py-2 last:border-b-0" data-claim-summary-row="">
@@ -160,6 +209,7 @@ export function ClaimDetailScreen({
   backHref,
   carriers,
   cancellationForm,
+  defectiveStock = null,
   detail,
   detailHref,
   embedded = false,
@@ -170,6 +220,8 @@ export function ClaimDetailScreen({
   carriers: ShippingCarrierRegistry;
   /** 코페이 취소 접수 양식. 카드 결제가 아니면 null이다. */
   cancellationForm: string | null;
+  /** 반품 품목별 재고 처리 선택(QNA-035). 반품이 아니면 null. */
+  defectiveStock?: ClaimDefectiveStock | null;
   detail: AdminClaimDetail;
   /** 팝업(embedded)에서 같은 요청을 전체 화면 상세로 여는 주소. */
   detailHref?: string;
@@ -181,6 +233,8 @@ export function ClaimDetailScreen({
   now?: Date;
 }) {
   const { cardPacks, claim, order, payment, refund, refundAccount, timeline } = detail;
+  /* 반품배송비 차감(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 아래 화면은 지금 그대로다. */
+  const refundDeduction = detail.refundDeduction ?? null;
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
   const sla = orderClaimSlaState(
     {
@@ -188,6 +242,8 @@ export function ClaimDetailScreen({
       stage: claim.stage,
       collectedAt: claim.collectedAt,
       completedAt: claim.completedAt,
+      /* 환급 기한은 운영자가 적은 실제 입고일부터 센다(1027T-033). 옛 기록은 입고 확인 시각이다. */
+      collectionReceivedOn: claim.collectionReceivedOn ?? null,
     },
     now,
   );
@@ -197,8 +253,10 @@ export function ClaimDetailScreen({
 
   const collectionContactBody = actorId && claim.claimType !== 'cancel' ? <>
     <ClaimCollectionPlan actorId={actorId} claimId={claim.id} operator carriers={carriers} />
+    {/* 재출고는 배송 건(출고지)마다 최종 주소를 확인하고 등록한다. 회수 확인 전 배송 건은 하자·오배송 교환일 때만 회수 없이 보낼 수 있다. */}
     <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
-      canReship={claim.claimType === 'exchange' && claim.stage === 'collected' && claim.collectionPolicy !== null && claim.collectionComplete}
+      reshipTargets={claim.collectionPolicy !== null ? adminClaimPendingReshipments(claim) : []}
+      remainingTargets={adminClaimRemainingReshipments(claim)}
       carriers={carriers} reshipItems={order?.items ?? []} />
     <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
   </> : null;
@@ -246,6 +304,11 @@ export function ClaimDetailScreen({
             label="접수 · 완료"
             value={`${refund.filedAt ? formatOrderDateTime(refund.filedAt) : '-'} · ${refund.completedAt ? formatOrderDateTime(refund.completedAt) : '-'}`}
           />
+          {refundDeduction?.source === 'decision' ? (
+            <Row label="반품배송비" value={refundDeduction.applicable
+              ? `${krw(refundDeduction.deductionAmount)} 차감 · ${returnFeeDeductionBasisLabel(refundDeduction)}`
+              : '차감 없음 · 결제사 부분 취소 불가로 전액 환불'} />
+          ) : null}
           {refund.settlementNote ? (
             <Row label="상계 메모" value={refund.settlementNote} />
           ) : null}
@@ -291,7 +354,7 @@ export function ClaimDetailScreen({
           {' · 접수 '}
           <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
         </p>
-        {sla.tone !== 'muted' ? <span className={SLA_TEXT_CLASS} data-sla-tone={sla.tone}><Clock aria-hidden="true" className="size-3.5" />환급 기한 {sla.label}</span> : null}
+        {sla.tone !== 'muted' ? <span className={SLA_TEXT_CLASS} data-sla-tone={sla.tone}><Clock aria-hidden="true" className="size-3.5" />{claim.claimType === 'return' ? '환급 기한' : '처리 기한'} {sla.label}</span> : null}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {awaitsOperator ? <Link className={`${buttonVariants({ variant: 'soft' })} lg:hidden`} data-slot="button" href="#claim-process">처리하기</Link> : null}
           {embedded && detailHref ? <ClaimPreviewFullScreenLink href={detailHref} /> : null}
@@ -345,8 +408,8 @@ export function ClaimDetailScreen({
                     </ul>
                   </section>
                   <p className="text-xs text-muted-foreground">
-                    {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
-                    협의 재발송으로 안내하고, 부분 환불을 약속하지 마세요.
+                    {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품, 또는 교환에서
+                    하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내하고, 부분 환불을 약속하지 마세요.
                   </p>
                   <Link className={OUTLINE_SM} data-slot="button" href={adminOrderSearchHref(order.id)}>
                     주문 통합검색에서 열기
@@ -362,14 +425,16 @@ export function ClaimDetailScreen({
             <CardHeading>요청 내용</CardHeading>
             <CardContent className="flex min-w-0 flex-col gap-3">
               <p className="break-words whitespace-pre-wrap">{claim.reason}</p>
-              {claim.staffNote || claim.decisionNote || claim.holdReason || claim.lastErrorCode || claim.reshipTrackingNumber || claim.reshippedItems?.length ? <div>
+              {claim.staffNote || claim.decisionNote || claim.holdReason || claim.lastErrorCode || claim.reshipTrackingNumber || claim.reshipments?.length || claim.reshippedItems?.length ? <div>
                 {claim.staffNote ? <Row label="운영 메모" value={claim.staffNote} /> : null}
                 {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
                 {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
                 {claim.lastErrorCode ? (
                   <Row label="결제사 확인 오류" value={adminPaymentCancelErrorLabel(claim.lastErrorCode)} />
                 ) : null}
-                {claim.reshipTrackingNumber ? (
+                {claim.reshipments?.length ? claim.reshipments.map(row => <Row key={row.id} label={`재출고 운송장${row.originName ? ` · ${row.originName}` : ''}`}
+                  value={`${row.carrierLabel ?? row.carrier} ${row.trackingNumber}${row.collectionWaived ? ' · 회수 생략' : ''}`} />)
+                  : claim.reshipTrackingNumber ? (
                   <Row
                     label="재출고 운송장"
                     value={`${claim.reshipCarrier ?? ''} ${claim.reshipTrackingNumber}`}
@@ -398,7 +463,7 @@ export function ClaimDetailScreen({
             </CardContent>
           </Card>
           {/* 배송비 청구와 운영 확인액은 승인에 앞서 채우는 칸이 아니다 — 주문 맥락과 요청 아래에 둔다. */}
-          {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator /></CardContent></Card> : null}
+          {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator deductionNote={claim.claimType === 'return' ? returnFeeDeductionFeePanelNote(refundDeduction) : null} /></CardContent></Card> : null}
           <ClaimOperationalFeePanel claimId={claim.id} claimType={claim.claimType} fee={claim.operationalFee} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
@@ -407,7 +472,10 @@ export function ClaimDetailScreen({
             <CardContent className="flex min-w-0 flex-col gap-4">
               <ClaimActionPanel
                 actorId={actorId}
-                refundAmount={refund?.amount ?? order?.total ?? null}
+                refundAmount={refund?.amount ?? refundDeduction?.refundAmount ?? order?.total ?? null}
+                paidAmount={payment?.amount ?? null}
+                refundDeduction={refundDeduction}
+                defectiveStock={defectiveStock}
                 requestSummary={exchangeRequest}
                 bankTransfer={payment?.provider === 'bank_transfer'}
                 key={claim.id}
@@ -422,6 +490,7 @@ export function ClaimDetailScreen({
                 returnRefundSummary={claim.claimType === 'return' ? refundSummary : undefined}
                 collections={claim.collections}
                 heldFrom={claim.heldFrom}
+                reshipmentStarted={claim.reshippedAt !== null || (claim.reshipments ?? []).length > 0}
                 orderId={claim.orderId}
                 paymentProvider={payment?.provider ?? null}
                 recordedRefundMethod={refund?.method ?? null}
@@ -431,7 +500,7 @@ export function ClaimDetailScreen({
                 reshipItems={order?.items}
                 stage={claim.stage}
                 exchangeSteps={claim.claimType === 'exchange' ? <ClaimExchangeSteps claim={claim} /> : undefined}
-                exchangeShipping={claim.claimType === 'exchange' ? <ClaimReshipmentDelivery claim={claim} /> : undefined}
+                exchangeShipping={claim.claimType === 'exchange' ? <ClaimReshipmentDelivery carriers={carriers} claim={claim} /> : undefined}
                 secondaryActions={claim.claimType === 'exchange' ? <>
                   <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
                   <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} />

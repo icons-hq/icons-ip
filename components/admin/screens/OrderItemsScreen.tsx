@@ -24,6 +24,7 @@ import { OrderPreviewLink, OrderPreviewNewTabLink } from './OrderPreview';
 import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 const fields = [...ADMIN_ORDER_SEARCH_FIELDS, { value: 'item', label: '상품주문번호' }];
 const statuses = [{ value: 'all', label: '전체 상태' }, ...ADMIN_ORDER_STATUSES.map(value => ({ value, label: ADMIN_ORDER_STATUS_LABELS[value] }))];
@@ -37,10 +38,12 @@ const columns: ConsoleGridColumn[] = [
   { key: 'amount', label: '상품금액', width: '120px', align: 'end' },
   { key: 'allocation', label: '할인·적립금 배분', width: '170px', align: 'end' }, { key: 'paid', label: '배분 후 금액', width: '120px', align: 'end' },
   { key: 'buyer', label: '구매자명', width: '110px' },
-  { key: 'recipient', label: '수취인명', width: '110px' }, { key: 'shipment', label: '출고지 / 배송', width: '180px' },
+  { key: 'recipient', label: '수령인명', width: '110px' }, { key: 'shipment', label: '출고지 / 배송', width: '180px' },
   { key: 'claim', label: '취소·반품·교환', width: '140px' }, { key: 'action', label: '주문 전체 상세', width: '120px' },
 ];
 /** 품목에 나눈 할인 합계와 구성. 나눌 수 없는 주문은 —로 둔다. */
+const PARTIAL_COLUMNS: ConsoleGridColumn[] = columns.flatMap(column => column.key === 'qty'
+  ? [column, { key: 'canceledQty', label: '취소 수량', width: '80px', align: 'end' as const }] : [column]);
 function OrderItemAllocationCell({ allocation }: { allocation?: OrderItemAllocation | null }) {
   if (!allocation) return <>—</>;
   const total = allocation.couponDiscount + allocation.storeCreditDiscount + allocation.volumeDiscount;
@@ -54,8 +57,10 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
   const eligible = new Set(data.rows.filter(row => canManage && row.status === 'paid' && (!row.claim || !isOpenOrderClaimStage(row.claim.stage))).map(row => row.id));
   const selection = selected.filter(id => eligible.has(id));
   const orderIds = selectedConfirmableOrderIds(data.rows, selection);
-  function confirm() {
-    if (pending || !orderIds.length || !window.confirm(`선택한 상품주문이 포함된 주문 전체 ${orderIds.length}건을 발주확인할까요? 선택하지 않은 같은 주문의 품목도 함께 처리됩니다.`)) return;
+  /** 재고 부족 부분 취소가 있는 상품주문이 있을 때만 '취소 수량' 열을 둔다(수량·상품금액·배분 후 금액은 남은 몫). */
+  const partial = data.rows.some(row => row.partialCancel);
+  async function confirm() {
+    if (pending || !orderIds.length || !await adminConfirm(`선택한 상품주문이 포함된 주문 전체 ${orderIds.length}건을 발주확인할까요? 선택하지 않은 같은 주문의 품목도 함께 처리됩니다.`)) return;
     setError(''); setMessage('');
     startTransition(async () => {
       try {
@@ -70,13 +75,14 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
     <SalesGuide title="상품주문별 번호·옵션·수량과 연결된 주문·배송을 확인합니다.">
       <p>상품주문번호는 주문에 포함된 개별 품목의 고유 번호입니다. 같은 주문번호가 여러 행에 표시될 수 있습니다. 상품명·옵션은 주문 당시 기록이며 현재 상품 정보로 바뀌지 않습니다.</p>
       <p>상품금액은 주문 당시 단가 × 수량입니다. 주문 쿠폰·적립금·복수구매 할인은 거래확정 엑셀과 같은 규칙으로 품목에 나눠 배분 후 금액(배송비 제외)에 표시합니다. 주문 당시 기록이 없어 나눌 수 없으면 —로 둡니다. 취소·반품은 주문 전체·전액으로 처리합니다.</p>
+      {partial ? <p>취소 수량은 재고 부족 부분 취소로 뺀 수량입니다. 그 행의 수량·상품금액·배분 후 금액은 남은 몫이고, 할인·적립금 배분은 주문 당시 값입니다.</p> : null}
     </SalesGuide>
     <SalesStatusSummary label="상품주문 처리 단계" items={statuses.map(option => ({ label: option.label, active: filters.status === option.value, tone: option.value === 'paid' ? 'warning' as const : undefined,
       count: option.value === 'all' ? Object.values(data.counts).reduce((sum, value) => sum + value, 0) : data.counts[option.value as keyof typeof data.counts],
       href: adminOrderItemsHref(filters, { status: option.value as typeof filters.status, page: 1 }) }))} />
     <SalesFilterPanel currentHref={currentHref} resetHref="/admin/sales/orders?view=items" id="order-items"
       date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
-      search={{ value: filters.query, field: filters.field, options: fields, placeholder: '상품주문 · 주문 · 상품명 · 옵션 · 구매자 · 송장', fitsOrderNumber: true }}>
+      search={{ value: filters.query, field: filters.field, options: fields, placeholder: '상품주문 · 주문 · 상품명 · 옵션 · 구매자 · 운송장', fitsOrderNumber: true }}>
       <SalesFilterField label="주문상태" htmlFor="order-item-status"><SalesSelect id="order-item-status" name="status" value={filters.status} options={statuses} /></SalesFilterField>
       <SalesFilterField label="결제수단" htmlFor="order-item-payment"><SalesSelect id="order-item-payment" name="paymentMethod" value={filters.paymentMethod ?? ''} options={[{ value: '', label: '전체' }, { value: 'card', label: '카드' }, { value: 'bank_transfer', label: '무통장' }]} /></SalesFilterField>
     </SalesFilterPanel>
@@ -87,7 +93,7 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
       </SalesResultsHeader>
       <p className="text-muted-foreground">조회 조건에 맞는 상품주문 {data.total.toLocaleString('ko-KR')}개 · 주문 {data.orderCount.toLocaleString('ko-KR')}건 · 수량 {data.qty.toLocaleString('ko-KR')}개</p>
       {/* 16열 표 — 옛 목록처럼 최소 폭을 두어 열이 눌려 글자가 세로로 쌓이지 않게 가로로 스크롤한다. */}
-      <ConsoleGrid className="[&_table]:min-w-[2040px]" caption="상품주문 목록" preferencesKey="sales-order-items" columns={columns} selectable={canManage}
+      <ConsoleGrid className="[&_table]:min-w-[2040px]" caption="상품주문 목록" preferencesKey="sales-order-items" columns={partial ? PARTIAL_COLUMNS : columns} selectable={canManage}
         selectedIds={selection} onSelectionChange={setSelected} emptyLabel="검색 조건에 맞는 상품주문이 없습니다."
         rows={data.rows.map(row => ({ id: row.id, selectable: eligible.has(row.id), selectLabel: `상품주문 ${row.productOrderNumber ?? row.id} 선택`, cells: [
           <Link key="item" className="font-medium tabular-nums underline-offset-4 hover:underline" href={`${adminOrderDetailHrefFromBack(row.orderId, currentHref)}#item-${row.id}`} target="_blank" rel="noopener noreferrer">{row.productOrderNumber ?? row.id}</Link>,
@@ -98,12 +104,14 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
           <OrderStatusBadge key="status" status={row.status} />,
           formatOrderDateTime(row.createdAt), row.goodName,
           <div key="variant" className={META_CLASS}>{row.variantName ?? '기본 옵션'}<small>{row.variantCode ?? ''}</small><GoodsCustomInputsSummary selection={row.customInputs} /></div>,
-          row.qty, formatKrwExact(row.unitPrice), formatKrwExact(row.itemAmount),
-          <OrderItemAllocationCell key="allocation" allocation={row.allocation} />, row.allocation ? formatKrwExact(row.allocation.paidGoodsTotal) : '—',
+          row.partialCancel?.activeQty ?? row.qty,
+          ...(partial ? [row.partialCancel ? <span key="canceled" className="tabular-nums text-destructive">{row.partialCancel.canceledQty}</span> : '—'] : []),
+          formatKrwExact(row.unitPrice), formatKrwExact(row.partialCancel?.activeItemAmount ?? row.itemAmount),
+          <OrderItemAllocationCell key="allocation" allocation={row.allocation} />, row.allocation ? formatKrwExact(row.allocation.paidGoodsTotal - (row.partialCancel?.paidAmount ?? 0)) : '—',
           orderItemBuyerLabel(row), row.recipientName ?? '—',
-          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}{row.shipmentStatus ? <AdminStatusBadge tone={statusTone('shipment', row.shipmentStatus)}>{shipmentStatusLabel(row.shipmentStatus as ShipmentStatus) ?? ''}</AdminStatusBadge> : null}<small>{row.carrierLabel} {row.trackingNumber}</small></div>,
+          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}{row.shipmentStatus ? <AdminStatusBadge tone={statusTone('shipment', row.shipmentStatus)}>{shipmentStatusLabel(row.shipmentStatus as ShipmentStatus) ?? ''}</AdminStatusBadge> : null}<small>{row.carrierLabel} {row.trackingNumber}</small>{row.extraTrackingNumbers?.map(number => <small className="tabular-nums" key={number}>추가 {number}</small>)}</div>,
           row.claim ? (canManage ? <Link key="claim" className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[row.claim.type]}/${row.claim.id}`}>{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></Link> : <span key="claim" className="inline-flex flex-wrap items-center gap-1">{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></span>) : '—',
-          <Link key="detail" className="font-medium underline-offset-4 hover:underline" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)}>{canManage ? '전체 상세·처리' : '전체 상세'}</Link>,
+          <Link key="detail" className="font-medium underline-offset-4 hover:underline" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)}>{canManage ? '전체 처리' : '전체 상세'}</Link>,
         ] }))}>
         {canManage ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar=""><span className="text-muted-foreground tabular-nums">{selection.length}개 상품주문 · {orderIds.length}개 주문 선택</span>
           <Button type="button" size="sm" disabled={pending || !orderIds.length} onClick={confirm}>선택 주문 전체 발주확인</Button>

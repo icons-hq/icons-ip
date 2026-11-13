@@ -40,8 +40,14 @@ DB·앱과 기존 운영자의 호환 상태를 확인하는 전체 배포 순�
 
 HMAC 키가 바뀌어 기존 미발송 초대의 해시와 토큰이 일치하지 않으면 자동으로 다른 링크를 보내지 않는다. 화면의 재초대를 통해 새 링크를 만든다. 이미 보낸 링크는 저장된 해시를 기준으로 원래 만료일까지 검증한다. 개인정보 원문은 private 초대 원장에만 보관하며 목록에는 이메일을 가려 표시한다.
 
+## 상담 구매이력과 운영자별 처리 이력
+
+[ADR-0020 보완(2026-11-12)](../adr/0020-store-manager-capabilities.md)에 따라 상담 화면을 여는 역할(`cs.manage` — 계정 부매니저·대행사 포함)은 주문 조회 권한 없이도 상담 중 고객의 구매이력(주문번호·상태·결제 금액·대표 상품)을 본다. 범위는 그 문의를 쓴 고객뿐이고, 열람은 `admin.inquiry.purchase_history_viewed` 감사 기록(보여 준 주문 목록·연결 주문 포함)으로 남는다(10분 안에 같은 문의·같은 페이지의 똑같은 목록을 다시 그리면 한 번, 목록이 바뀌면 다시 남김). 대행사에 상담을 맡기기 전에 개인정보 처리위탁 범위(구매이력 열람 포함)를 운영 측에서 확인한다.
+
+문의/리뷰관리 → 운영자별 처리 이력은 운영자 활동 기록이라 매니저 관리 권한(통합·주매니저, 전환 전 호환 단계는 admin)만 열고, 조회할 때마다 `admin.operator.inquiry_history_viewed` 감사 기록이 남는다. 문의 하나의 처리 이력은 그 문의를 여는 운영자 누구나 고객문의 상세·상담하기에서 본다.
+
 ## 검증
 
-운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
+운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), `inquiry_purchase_history_scope.sql`·`operator_inquiry_history.sql`(상담 구매이력 범위·처리 이력 권한과 열람 감사), `erp_linked_goods_apply.sql`(부매니저의 ERP 품목 반입·연결 상품 반영과 삭제 차단), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
 
 초대 동시성 검증은 `SUPABASE_DB_CONTAINER=<격리 컨테이너> OPERATOR_INVITATION_TEST_SCOPE=isolated-local bash supabase/tests/operator_email_invitation_concurrency.sh`로 실행한다. CI의 scope 값은 `ci`다. 스크립트는 원본 DB를 덤프해 별도 DB로 복제하고, cron 작업을 제외한 복제본에서만 역할 fixture를 구성한 뒤 종료 시 제거한다. Python 테스트를 기존 `postgres` DB에 직접 실행하지 않는다.

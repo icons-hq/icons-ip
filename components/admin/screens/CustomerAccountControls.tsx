@@ -7,8 +7,10 @@ import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { canModerateAdminMember, type AdminMemberDetail, type AdminMemberRole } from '@/lib/admin/members';
-import { isLoyaltyGrade, LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
+import { isLoyaltyGrade, LOYALTY_GRADES, loyaltyGradeLabel } from '@/lib/loyalty';
+import { loyaltyBasisSummary } from '@/lib/admin/loyalty-basis';
 import { DISCLOSURE_SUMMARY_CLASS } from './cs-kit-classes';
+import { confirmAdminSubmit } from '@/lib/admin/confirm';
 
 const EMPTY: AdminMemberMutationActionState = {};
 const FORM_CLASS = 'flex flex-col gap-4';
@@ -40,7 +42,7 @@ export function CustomerSuspensionControl({ actor, customer }: { actor: { id: st
       <details className="group/suspend">
       <summary className={DISCLOSURE_SUMMARY_CLASS}>계정 정지 처리<ChevronDown aria-hidden="true" className="size-4 transition-transform group-open/suspend:rotate-180" /></summary>
       <form action={suspend} className={`${FORM_CLASS} mt-3`} onSubmit={(event) => {
-        if (!window.confirm('이 고객의 신규 작성·구매·예매·카드팩 개봉·게임 플레이를 정지합니다. 계속할까요?')) event.preventDefault();
+        confirmAdminSubmit(event, '이 고객의 신규 작성·구매·예매·카드팩 개봉·게임 플레이를 정지합니다. 계속할까요?');
       }}>
         <input type="hidden" name="profileId" value={customer.id} />
         <AdminField label="내부 정지 사유" inputId="customer-suspension-reason" error={suspendState.errors?.reason}>

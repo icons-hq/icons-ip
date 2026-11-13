@@ -3,10 +3,11 @@ import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import { imageBg } from '@/lib/media';
 import { GOODS_GALLERY_MAX, normalizeGoodsSearchKeywords } from './catalog';
-import { restoreGoodsOptionRows } from './goods-option-editor';
-import { optionPriceRange } from '@/lib/goods-options';
+import { restoreGoodsOptionRows, type GoodsOptionRow } from './goods-option-editor';
+import { collapseRandomGoodOptions, optionPriceRange } from '@/lib/goods-options';
+import type { GoodsOptionLimitPolicy, GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
-import { parseGoodsKcDisclosures, type GoodsKcDisclosure } from '@/lib/goods-kc';
+import { parseGoodsKcDisclosures, parseGoodsOtherCertificationDisclosures, type GoodsKcDisclosure, type GoodsOtherCertificationDisclosure } from '@/lib/goods-kc';
 
 /*
  * 어드민 굿즈 미리보기 (#184).
@@ -33,7 +34,24 @@ export interface GoodPreviewInput {
   stockQty: number;
   /** Only the saved, current review projection; never unsaved internal evidence. */
   kcDisclosures?: readonly GoodsKcDisclosure[];
+  /** 저장된 기타 인증 공개 사본(SHEET-014). 고객 상세와 같은 parser를 거친다. */
+  otherCertifications?: readonly GoodsOtherCertificationDisclosure[];
+  /** 저장된 판매 방식(goods.option_sale_mode). 랜덤 판매면 공개 상세처럼 옵션을 '랜덤' 한 줄로 접는다(S36-051). */
+  optionSaleMode?: GoodsOptionSaleMode;
 }
+
+/** 판매 중인 모든 옵션이 같은 '같은 옵션 배정 상한'을 쓸 때만 그 값을 안내한다(공개 계산 열의 allocation_limit과 같은 뜻). */
+function randomAllocationLimit(rows: readonly GoodsOptionRow[]): GoodsOptionLimitPolicy | null {
+  const active = rows.filter((row) => row.isActive !== false);
+  const first = active[0];
+  if (!first) return null;
+  const limit = { orderMaxQty: first.orderMaxQty ?? null, memberMaxQty: first.memberMaxQty ?? null };
+  if (active.some((row) => (row.orderMaxQty ?? null) !== limit.orderMaxQty || (row.memberMaxQty ?? null) !== limit.memberMaxQty)) return null;
+  return limit.orderMaxQty === null && limit.memberMaxQty === null ? null : limit;
+}
+
+/** 비운 재고 칸(NaN, 0901-015)은 미리보기에서 0개로 본다. */
+const previewQuantity = (value: number) => Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 
 /**
  * 지금 폼에 들어 있는 값을 그대로 읽는다.
@@ -68,10 +86,15 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
   const displayOrderText = trimmed(values, 'displayOrder');
   const displayOrderValue = displayOrderText ? Number(displayOrderText) : null;
   const rows = restoreGoodsOptionRows(values.variants);
-  const options: GoodOption[] | undefined = rows?.filter((row) => row.isActive !== false).map((row, index) => ({
+  const selectable: GoodOption[] | undefined = rows?.filter((row) => row.isActive !== false).map((row, index) => ({
     id: row.id ?? `preview-option-${index}`, name: row.name, code: row.code, attributes: row.attributes,
-    price: basePrice + Math.max(0, Math.trunc(row.extraPrice)), stockQty: Math.max(0, Math.trunc(row.stockQty)), isDefault: index === 0,
+    price: basePrice + Math.max(0, Math.trunc(row.extraPrice)), stockQty: previewQuantity(row.stockQty), isDefault: index === 0,
   }));
+  /* 공개 상세(lib/catalog toGood)와 같게 랜덤 판매는 판매 중인 옵션을 '랜덤' 한 줄(풀 합계)로 접고 같은 옵션 배정 상한을 싣는다. */
+  const random = input.optionSaleMode === 'random';
+  const options = random && selectable && rows
+    ? collapseRandomGoodOptions(selectable).map((option) => ({ ...option, randomAllocationLimit: randomAllocationLimit(rows) }))
+    : selectable;
   const mainUrl = imageUrls.imagePath ?? null;
   const gallery: string[] = [];
 
@@ -83,6 +106,7 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
   return {
     good: {
       id: trimmed(values, 'id'),
+      ...(random ? { optionSaleMode: 'random' as const } : {}),
       name: trimmed(values, 'name') || '(굿즈 이름 미입력)',
       nameEn: trimmed(values, 'nameEn') || undefined,
       categoryId: trimmed(values, 'categoryId') || null,
@@ -97,7 +121,7 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
       memberPurchaseLimitEnabled: values.memberPurchaseLimitEnabled === 'true',
       memberLifetimeQtyLimit: trimmed(values, 'memberLifetimeQtyLimit') ? Number(values.memberLifetimeQtyLimit) : null,
       ip: trimmed(values, 'ipId'),
-      type: trimmed(values, 'type') || '(유형 미입력)',
+      type: trimmed(values, 'type') || '(카테고리 상품 유형 없음)',
       price: basePrice,
       catalogPrice: basePrice,
       ...(options ? { options, ...optionPriceRange(options) } : {}),
@@ -114,5 +138,6 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
     detailImageUrl: imageUrls.detailImagePath ?? null,
     notice: previewNotice(values),
     kcDisclosures: parseGoodsKcDisclosures(input.kcDisclosures ?? []) ?? [],
+    otherCertifications: parseGoodsOtherCertificationDisclosures(input.otherCertifications ?? []) ?? [],
   };
 }

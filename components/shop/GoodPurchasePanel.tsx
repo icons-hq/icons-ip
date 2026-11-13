@@ -19,6 +19,7 @@ import { goodsPurchaseVolumePreview } from '@/lib/goods-transaction-presentation
 import { GoodsTransactionTerms } from './GoodsTransactionTerms';
 import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
 import { GiftPurchaseEntry } from '@/components/gifts/GiftPurchaseEntry';
+import { quoteGoodsSalesAction } from '@/app/cart/sales-actions';
 import { createDirectCheckoutDraftAction, type CheckoutDraftActionError } from '@/app/checkout/draft-actions';
 import { onboardingPath } from '@/lib/auth/onboarding';
 import type { CartItem } from '@/lib/cart';
@@ -257,6 +258,24 @@ export function useGoodPurchase({
     })();
   }, [cartMode, cartReady, disabled, good.id, router]);
 
+  /* 회원 누적 구매 한도를 다 쓴 굿즈는 [구매하기]를 누르기 전에 알리고 막는다(T22i·QA1c S-D2-09). 판정은 서버 견적(같은 SQL 규칙)을
+     그대로 쓰고 클라이언트는 추측하지 않는다 — 결제 대기 주문도 한도에 포함되는 값이라 화면이 계산할 수 없다. 로그인 전이거나
+     견적을 읽지 못하면 막지 않고 주문서·주문 생성이 판정한다. */
+  const memberLimitOptionId = good.memberPurchaseLimitEnabled ? selectedOption?.id ?? null : null;
+  const [memberLimitChecked, setMemberLimitChecked] = useState<{ key: string; reached: boolean } | null>(null);
+  const memberLimitKey = memberLimitOptionId ? `${good.id}:${memberLimitOptionId}` : null;
+  useEffect(() => {
+    if (!memberLimitKey || !memberLimitOptionId || !cartReady || cartMode !== 'server') return;
+    let alive = true;
+    void quoteGoodsSalesAction([{ goodId: good.id, variantId: memberLimitOptionId, qty: 1 }]).then((result) => {
+      if (!alive) return;
+      const reached = result.ok && result.quote.goods.some((entry) => entry.goodId === good.id && entry.reason === 'member_purchase_limit_exceeded');
+      setMemberLimitChecked({ key: memberLimitKey, reached });
+    }, () => { if (alive) setMemberLimitChecked({ key: memberLimitKey, reached: false }); });
+    return () => { alive = false; };
+  }, [cartMode, cartReady, good.id, memberLimitKey, memberLimitOptionId]);
+  const memberLimitReached = memberLimitKey !== null && memberLimitChecked?.key === memberLimitKey && memberLimitChecked.reached;
+
   const soldOut = isGoodSoldOut(good);
   const unavailableAddition = chosenAdditions.find((choice) => !choice.good || choice.good.stock === 'soldout' || goodsPurchaseConditionProblem(choice.good));
   const selectedGoods = [good, ...chosenAdditions.flatMap((choice) => choice.good ? [choice.good] : [])];
@@ -264,7 +283,8 @@ export function useGoodPurchase({
     && !selectedGoods.every((item) => item.allowBankTransfer !== false);
   const conditionProblem = goodsPurchaseConditionProblem(good)
     ?? (unavailableAddition ? `${unavailableAddition.name}의 판매 상태가 변경되었습니다. 추가 선택을 해제하고 다시 확인해주세요.` : null)
-    ?? (noCommonPayment ? '함께 선택한 굿즈에서 사용할 수 있는 결제수단이 없습니다.' : null);
+    ?? (noCommonPayment ? '함께 선택한 굿즈에서 사용할 수 있는 결제수단이 없습니다.' : null)
+    ?? (memberLimitReached ? '회원 누적 구매 한도를 모두 사용한 굿즈예요. 결제 대기 중인 주문도 한도에 포함됩니다.' : null);
   const nextQuantity = mergedCartQuantity(selectedOption ? cart.getQuantity(good.id, selectedOption.id) : 0, quantity);
   const blocked = purchaseBlockReason({
     disabled: disabled || Boolean(conditionProblem),

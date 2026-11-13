@@ -56,10 +56,10 @@ function PeriodEditor({ goodId, variants, period, onSaved }: {
         <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" type="number" min={1} max={variant ? variant.price - 1 : 2147483647} step={1} value={discountPrice}
           onChange={(event) => setDiscountPrice(event.target.value)} required={state === 'active'} disabled={pending} />
       </label>
-      <label className={FIELD_LABEL_CLASS}>시작 (한국 시간)
+      <label className={FIELD_LABEL_CLASS}>시작 (KST)
         <input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required={state === 'active'} disabled={pending} />
       </label>
-      <label className={FIELD_LABEL_CLASS}>종료 (한국 시간)
+      <label className={FIELD_LABEL_CLASS}>종료 (KST)
         <input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required={state === 'active'} disabled={pending} />
       </label>
     </div>
@@ -94,7 +94,7 @@ function PeriodReceipt({ period, variant, onSaved }: { period: AdminGoodsPricePe
   return <div className="flex min-w-0 flex-col items-start gap-1.5">
     <strong className="font-medium">{variant?.name ?? '이전 옵션'} · <span className={period.state === 'active' ? 'text-[var(--wc-success)]' : 'text-muted-foreground'}>{period.state === 'active' ? '활성' : '중지'}</span></strong>
     <span className="tabular-nums">{period.regularPrice.toLocaleString('ko-KR')}원 → {period.discountPrice?.toLocaleString('ko-KR') ?? '미설정'}원</span>
-    <span className="text-xs text-muted-foreground">{at(period.startsAt)} ~ {at(period.endsAt)} (한국 시간)</span>
+    <span className="text-xs text-muted-foreground">{at(period.startsAt)} ~ {at(period.endsAt)} (KST)</span>
     {period.state === 'active' && <Button className="mt-1" size="sm" type="button" variant="outline" onClick={stop} disabled={pending}>
       {pending ? '중지 중…' : '기간 할인 중지'}
     </Button>}

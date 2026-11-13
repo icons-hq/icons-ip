@@ -16,7 +16,7 @@ export async function loadMarketingProducts(ids:string[]):Promise<MarketingProdu
  if(!ids.length)return [];
  const catalog=await getCatalogSnapshot({previewDefaultSource:'supabase'});if(catalog.source!=='supabase')throw new Error('상품 정보를 불러오지 못했습니다.');
  const available=new Map(catalog.goods.map(good=>[good.id,good]));
- return ids.flatMap(id=>{const good=available.get(id);return good&&good.saleRestriction!=='adult'?[{id:good.id,name:good.name,imageUrl:imageUrlFromBg(good.img),price:good.price,compareAtPrice:good.compareAtPrice,priceMax:good.priceMax}]:[];});
+ return ids.flatMap(id=>{const good=available.get(id);return good&&good.saleRestriction!=='adult'?[{id:good.id,name:good.name,imageUrl:imageUrlFromBg(good.img),price:good.price,compareAtPrice:good.compareAtPrice,priceMax:good.priceMax,showDiscountRate:good.showDiscountRate}]:[];});
 }
 export async function loadMyMarketingMessage(id:string):Promise<MyMarketingMessage|null> {
  const client=await createClient();const {data,error}=await client.rpc('get_my_marketing_message',{p_recipient_id:id});if(error)throw new Error('알림을 불러오지 못했습니다.');if(data===null)return null;

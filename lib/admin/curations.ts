@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { parseHomeMosaicPayload } from '@/lib/home-mosaic';
 import { HOME_REVIEW_MANUAL_LIMIT, isHomeSalesPeriod } from '@/lib/home-ranking';
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_TITLE_LIMIT, isHomeHeroImageDim, isHomeHeroTextColor, normalizeHeroNewlines } from '@/lib/home-hero';
@@ -131,7 +132,6 @@ const IMAGE_REQUIRED_KINDS = new Set<AdminCurationKind>([
 ]);
 /* slot은 오늘 두 BEST 탭 밴드만 구분한다 (home_curations_slot_check와 같은 규칙). */
 const BEST_TAB_SLOTS = new Set(['category', 'popular']);
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CURATION_IMAGE_PATTERN =
   /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 const CURATION_IMAGE_ERROR = '검증된 큐레이션 이미지를 사용해주세요.';
@@ -183,7 +183,7 @@ function readUuid(
   message: string,
 ) {
   const value = readString(formData, key).toLowerCase();
-  if (!UUID_PATTERN.test(value)) errors[key] = message;
+  if (!isUuid(value)) errors[key] = message;
   return value;
 }
 
@@ -572,7 +572,8 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   let slot: string | null = null;
   if (kind === 'best_tab') {
     if (BEST_TAB_SLOTS.has(rawSlot)) slot = rawSlot;
-    else errors.slot = '탭 슬롯을 선택해주세요.';
+    /* 1007-054: 화면 라벨(상품 모음 위치)과 같은 말로 안내한다. 코드의 slot 이름은 화면에 보이지 않는다. */
+    else errors.slot = '상품 모음 위치를 선택해주세요.';
   } else if (kind === 'collection_banner') {
     if (isCollectionBannerSlot(rawSlot)) slot = rawSlot;
     else errors.slot = '배너를 보일 컬렉션을 선택해주세요.';

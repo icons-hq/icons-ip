@@ -10,9 +10,9 @@ export interface KnownDisplayGood { id: string; name: string; code: string | nul
 const lookupable = (id: string) => Boolean(id) && id === id.trim() && [...id].length <= GOOD_REFERENCE_MAX_LENGTH;
 
 /**
- * 저장된 전시 구성의 상품번호로 이름·판매자상품코드·고객 화면에 보이지 않는 이유를 한 번에 확인한다(카테고리 전시·캠페인 상품 묶음·홈 전시).
- * 가벼운 읽기(admin_goods_display_visibility)라 상품번호 1,000개도 수 ms다. 화면을 다시 열어도 상품번호만 보이지 않게 한다(QA1 MD).
- * 조회에 실패하면 상품번호로 보이고 편집은 막지 않으며, 다음에 목록이 바뀔 때 다시 확인한다. 응답에 없는 상품번호는 찾을 수 없음이다.
+ * 저장된 전시 구성의 상품 URL로 이름·판매자상품코드·고객 화면에 보이지 않는 이유를 한 번에 확인한다(카테고리 전시·캠페인 상품 묶음·홈 전시).
+ * 가벼운 읽기(admin_goods_display_visibility)라 상품 URL 1,000개도 수 ms다. 화면을 다시 열어도 상품 URL만 보이지 않게 한다(QA1 MD).
+ * 조회에 실패하면 상품 URL로 보이고 편집은 막지 않으며, 다음에 목록이 바뀔 때 다시 확인한다. 응답에 없는 상품 URL은 찾을 수 없음이다.
  * 선택기에서 고른 상품은 `remember`로 바로 넣어 다시 묻지 않는다. 응답은 화면이 열려 있는 동안 늘 반영한다.
  */
 export function useGoodReferenceInfo(ids: readonly string[]) {

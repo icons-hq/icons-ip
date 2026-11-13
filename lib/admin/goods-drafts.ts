@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
 
 export const GOODS_DRAFT_PATH = '/admin/catalog/goods?create=1';
@@ -8,7 +9,6 @@ export const GOODS_DRAFT_MAX_BYTES = 2 * 1024 * 1024;
 export const GOODS_DRAFT_INVALID_VALUES_MESSAGE = `상품명을 1~100자로 입력하고 등록 중인 상품의 입력 크기(${GOODS_DRAFT_MAX_BYTES % (1024 * 1024) === 0 ? `${GOODS_DRAFT_MAX_BYTES / (1024 * 1024)}MB` : `${Math.floor(GOODS_DRAFT_MAX_BYTES / 1024)}KB`})와 이미지 업로드 상태를 확인해주세요.`;
 export const GOODS_DRAFT_META_FIELDS = ['serverDraftId', 'serverDraftRevision'] as const;
 const allowed = new Set(GOOD_LOCAL_DRAFT_FIELDS.filter(name => !(GOODS_DRAFT_META_FIELDS as readonly string[]).includes(name)));
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const image = /^public-media\/catalog\/good\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/;
 export interface GoodsDraftSummary { id: string; name: string; imagePath: string | null; revision: number; updatedAt: string; archived: boolean; completedGoodId: string | null }
 export interface GoodsDraft extends GoodsDraftSummary { values: Record<string, string> }
@@ -18,7 +18,7 @@ export interface GoodsDraftIdentity { id: string; revision: number }
 export function validGoodsDraftIdentity(value: unknown, allowNew = false): value is GoodsDraftIdentity {
   if (!value || typeof value !== 'object') return false;
   const data = value as GoodsDraftIdentity;
-  return typeof data.id === 'string' && uuid.test(data.id) && Number.isSafeInteger(data.revision) && data.revision >= (allowNew ? 0 : 1);
+  return typeof data.id === 'string' && isUuid(data.id) && Number.isSafeInteger(data.revision) && data.revision >= (allowNew ? 0 : 1);
 }
 export function goodsDraftIdentity(form: FormData): GoodsDraftIdentity | null | 'invalid' {
   const id = String(form.get('serverDraftId') ?? '');
@@ -69,5 +69,7 @@ export function goodsDraftError(message?: string): string {
   if (message?.includes('goods_draft_changed')) return '다른 창에서 임시저장이 변경되었습니다. 현재 입력은 유지됩니다. 최신 내용을 불러오거나 새 임시저장으로 저장해주세요.';
   if (message?.includes('goods_draft_not_found')) return '임시저장을 찾을 수 없습니다. 목록을 다시 조회해주세요.';
   if (message?.includes('unverified_artwork')) return '이미지 업로드가 완료되지 않았거나 사용할 수 없습니다. 해당 이미지를 다시 확인해주세요. 입력은 유지됩니다.';
-  return '임시저장 처리 결과를 확인하지 못했습니다. 목록에서 저장 여부를 확인해주세요. 입력은 유지됩니다.';
+  if (message?.includes('invalid_goods_draft')) return '서버가 임시저장 값을 받아들이지 않았습니다(원인 코드 invalid_goods_draft). 상품명 1~100자와 입력 크기를 확인하고, 계속되면 화면을 새로 고친 뒤 운영 담당자에게 알려주세요. 입력은 유지됩니다.';
+  const code = message?.match(/^[a-z][a-z0-9_]{2,60}$/)?.[0];
+  return `임시저장 처리 결과를 확인하지 못했습니다${code ? `(원인 코드 ${code})` : ''}. 목록에서 저장 여부를 확인해주세요. 입력은 유지됩니다.`;
 }

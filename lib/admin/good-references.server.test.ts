@@ -29,7 +29,7 @@ describe('전시 상품 조회의 고객 화면 노출 이유', () => {
     const matches = await resolveGoodReferences(['qa-pr1', 'qa-pr9', 'qa-old', 'nope', 'qa-legacy']);
     expect(matches.map(match => match.visibility)).toEqual(['public', 'draft', 'archived', 'missing', 'hidden']);
   });
-  it('가벼운 읽기는 이름·판매자상품코드·이유만 받고, 묻지 않은 상품번호나 모르는 이유는 실패로 본다', async () => {
+  it('가벼운 읽기는 이름·판매자상품코드·이유만 받고, 묻지 않은 상품 URL이나 모르는 이유는 실패로 본다', async () => {
     mocks.rpc.mockResolvedValueOnce({ error: null, data: [{ id: 'qa-pr1', name: 'QA 1', code: 'QA-PR1', visibility: 'public' }, { id: 'qa-ip', name: 'QA IP', code: null, visibility: 'ip_draft' }] });
     expect(await readGoodsDisplayVisibility(['qa-pr1', 'qa-ip', 'qa-gone'])).toEqual([
       { id: 'qa-pr1', name: 'QA 1', code: 'QA-PR1', visibility: 'public' }, { id: 'qa-ip', name: 'QA IP', code: null, visibility: 'ip_draft' }]);
@@ -38,6 +38,6 @@ describe('전시 상품 조회의 고객 화면 노출 이유', () => {
     await expect(readGoodsDisplayVisibility(['qa-pr1'])).rejects.toThrow('상품을 확인하지 못했습니다');
     mocks.rpc.mockResolvedValueOnce({ error: null, data: [{ id: 'qa-pr1', name: 'X', code: null, visibility: 'unpublished' }] });
     await expect(readGoodsDisplayVisibility(['qa-pr1'])).rejects.toThrow('상품을 확인하지 못했습니다');
-    await expect(readGoodsDisplayVisibility(['qa-pr1', 'qa-pr1'])).rejects.toThrow('조회할 상품번호');
+    await expect(readGoodsDisplayVisibility(['qa-pr1', 'qa-pr1'])).rejects.toThrow('조회할 상품 URL');
   });
 });

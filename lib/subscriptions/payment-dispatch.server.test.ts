@@ -32,6 +32,19 @@ describe('attempt integration dispatch', () => {
     expect(dependencies.legacy.refund).toHaveBeenCalledWith(refund);
     expect(recurring.inspect).not.toHaveBeenCalled(); expect(dependencies.prepareRefund).not.toHaveBeenCalled();
   });
+  it('일반 결제 attempt의 힌트를 legacy reconcile 두 번째 인자로 넘긴다', async () => {
+    const { gateway, dependencies, input } = setup();
+    const hint = { providerPaymentKey: 'webhook-payment-key-hint' };
+    await gateway.reconcile(input.attempt, hint);
+    expect(dependencies.legacy.reconcile).toHaveBeenCalledTimes(1);
+    expect(dependencies.legacy.reconcile).toHaveBeenCalledWith(input.attempt, hint);
+  });
+  it('billing attempt는 웹훅 힌트를 받아도 binding 조회로만 판정한다', async () => {
+    const { gateway, dependencies, recurring, input } = setup(billingChargeFixture().binding);
+    await gateway.reconcile(input.attempt, { providerPaymentKey: 'webhook-payment-key-hint' });
+    expect(recurring.inspect).toHaveBeenCalledWith({ attempt: input.attempt, binding: input.binding });
+    expect(dependencies.legacy.reconcile).not.toHaveBeenCalled();
+  });
   it('billing attempt를 일반 결제창/콜백으로 보내지 않고 조회는 해당 binding으로 보낸다', async () => {
     const { gateway, dependencies, recurring, input } = setup(billingChargeFixture().binding);
     await expect(gateway.prepare(input.attempt)).rejects.toThrow('billing_checkout_not_supported');
@@ -61,6 +74,19 @@ describe('attempt integration dispatch', () => {
     expect(dependencies.prepareRefund).toHaveBeenCalledWith(refund, input.binding);
     expect(recurring.refund).toHaveBeenCalledWith({ ...refund, binding: input.binding, writeKeyVersion: 'v1', firstDispatchedAt: '2026-10-14T00:59:00Z' });
     expect(dependencies.legacy.refund).not.toHaveBeenCalled();
+  });
+  it('billing 결제의 부분 취소 요청은 돈을 움직이지 않고 부분 취소 불가로 돌려준다', async () => {
+    const { gateway, dependencies, recurring, input } = setup(billingChargeFixture().binding);
+    const refund = { ...billingRefundFixture(), partial: { expectedBalanceBefore: input.attempt.amount } };
+    expect(await gateway.refund(refund)).toMatchObject({ outcome: 'declined', reasonCode: 'provider_partial_cancel_unavailable' });
+    expect(recurring.refund).not.toHaveBeenCalled(); expect(dependencies.prepareRefund).not.toHaveBeenCalled();
+    expect(dependencies.legacy.refund).not.toHaveBeenCalled();
+  });
+  it('일반 결제의 부분 취소 요청은 legacy gateway가 그대로 받는다', async () => {
+    const { gateway, dependencies, input } = setup();
+    const refund = { ...billingRefundFixture(), partial: { expectedBalanceBefore: input.attempt.amount } };
+    await gateway.refund(refund);
+    expect(dependencies.legacy.refund).toHaveBeenCalledWith(refund);
   });
 });
 

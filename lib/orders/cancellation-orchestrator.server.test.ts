@@ -293,7 +293,12 @@ describe('reconcileOrderCancellation', () => {
       requestId: REQUEST_ID, actorId: ACTOR_ID,
     })).resolves.toEqual({ ok: true, status: 'completed' });
 
-    expect(defaultMocks.gatewayRefund).toHaveBeenCalledWith(expect.objectContaining({ amount: 42000 }));
+    // 원장 결제 키를 게이트웨이에 싣는다 — 게이트웨이는 orderId 조회 대신 이 키로
+    // 조회·취소한다(주문서형 시크릿 키 허용 API).
+    expect(defaultMocks.gatewayRefund).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 42000,
+      providerPaymentKey: PAYMENT_KEY,
+    }));
     expect(defaultMocks.rpc).toHaveBeenCalledWith('complete_order_cancellation_request', {
       p_request_id: REQUEST_ID, p_actor_id: ACTOR_ID, p_provider_payment_keys: [PAYMENT_KEY],
     });
@@ -317,12 +322,20 @@ describe('reconcileOrderCancellation', () => {
     expect(rpcCalls.map(([name]) => name)).toEqual([
       'assert_order_cancellation_reconciliation_allowed',
       'reconcile_expired_prepared_goods_cancellation',
+      // 반품배송비 차감 결정 읽기(ADR-0031). 결정이 없으면 null이고 아래 결제사 호출은 그대로 전액 취소다.
+      'service_order_claim_refund_deduction',
+      // 재고 부족 부분 취소 누계 읽기(ADR-0032). 부분 취소가 없으면 빈 배열이고 아래 결제사 호출은 그대로 전액 취소다.
+      'service_order_payment_partial_refunds',
       'service_get_payment_gateway_binding',
       'complete_order_cancellation_request',
     ]);
     for (const [name, args] of rpcCalls) {
       if (name === 'service_get_payment_gateway_binding') {
         expect(args).not.toHaveProperty('p_actor_id');
+      } else if (name === 'service_order_claim_refund_deduction') {
+        expect(args).toEqual({ p_request_id: REQUEST_ID });
+      } else if (name === 'service_order_payment_partial_refunds') {
+        expect(args).toEqual({ p_order_id: ORDER_ID });
       } else expect(args.p_actor_id).toBeNull();
     }
   });

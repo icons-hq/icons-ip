@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCsEditorDraftStore } from './cs-editor-drafts';
-import { createGoodsAnnouncementPendingSave, goodsAnnouncementPendingForm, parseGoodsAnnouncementPendingSave, retainGoodsAnnouncementPendingSave } from './goods-announcement-pending';
+import { createGoodsAnnouncementPendingSave, goodsAnnouncementPendingDisplayValue, goodsAnnouncementPendingForm, GOODS_ANNOUNCEMENT_PENDING_LABELS, parseGoodsAnnouncementPendingSave, retainGoodsAnnouncementPendingSave } from './goods-announcement-pending';
 
 const ACCOUNT = '00000000-0000-4000-8000-000000062210';
 const ID = '00000000-0000-4000-8000-000000062211';
@@ -32,6 +32,18 @@ describe('상품공지 고정 저장 요청', () => {
     expect(outgoing.get('goodIds')).toBe('["good-a","good-b"]'); expect(outgoing.get('accountId')).toBe(ACCOUNT);
     expect(outgoing.get('operationId')).toBe(OPERATION); expect(outgoing.has('$ACTION_ID_framework')).toBe(false);
     outgoing.set('body', '외부 변경'); expect(goodsAnnouncementPendingForm(pending).get('body')).toBe('  첫 줄\r\n다음 줄  ');
+  });
+  /* 1027T-005: 노출 위치는 보관·복구되고, 위치 칸 이전에 보관된 요청(칸 없음)도 그대로 복구된다. */
+  it('노출 위치를 보관하고 위치 칸이 없던 요청도 복구한다', () => {
+    const input = form(); input.set('placement', 'bottom');
+    const pending = createGoodsAnnouncementPendingSave(input, ACCOUNT, ID, OPERATION)!;
+    expect(goodsAnnouncementPendingForm(pending).get('placement')).toBe('bottom');
+    expect(GOODS_ANNOUNCEMENT_PENDING_LABELS.placement).toBe('노출 위치');
+    expect(goodsAnnouncementPendingDisplayValue('placement', 'bottom')).toBe('상세 하단');
+    const legacy = createGoodsAnnouncementPendingSave(form(), ACCOUNT, ID, OPERATION)!;
+    expect(parseGoodsAnnouncementPendingSave(legacy)).toEqual(legacy);
+    expect(goodsAnnouncementPendingForm(legacy).has('placement')).toBe(false);
+    expect(parseGoodsAnnouncementPendingSave({ ...pending, entries: pending.entries.map(entry => entry[0] === 'placement' ? ['placement', 'outside'] : entry) })).toBeNull();
   });
   it('허용하지 않은 필드·중복·파일·다른 계정/대상·과도한 본문을 보관하지 않는다', () => {
     const pending = createGoodsAnnouncementPendingSave(form(), ACCOUNT, ID, OPERATION)!;

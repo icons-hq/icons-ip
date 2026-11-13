@@ -15,8 +15,8 @@ const operation = '72000000-0000-4000-8000-000000000001';
 const receipt = { revision: 2, updatedAt: '2026-10-13T03:10:00Z' };
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue({ role: 'admin' }); mocks.rpc.mockResolvedValue({ data: receipt, error: null }); });
 it('조회와 저장 모두 admin 전용이며 잘못된 조건은 DB 전에 거절한다', async () => {
-  mocks.access.mockResolvedValueOnce(null); expect(await readLoyaltyPolicyAction()).toMatchObject({ error: expect.stringContaining('admin') });
-  mocks.access.mockResolvedValueOnce(null); expect(await saveLoyaltyPolicyAction(tiers, 1, operation)).toMatchObject({ error: expect.stringContaining('admin') });
+  mocks.access.mockResolvedValueOnce(null); expect(await readLoyaltyPolicyAction()).toMatchObject({ error: expect.stringContaining('최고 관리자') });
+  mocks.access.mockResolvedValueOnce(null); expect(await saveLoyaltyPolicyAction(tiers, 1, operation)).toMatchObject({ error: expect.stringContaining('최고 관리자') });
   expect(await saveLoyaltyPolicyAction([], 1, operation)).toMatchObject({ error: expect.any(String) });
   expect(await saveLoyaltyPolicyAction(tiers, 1, 'invalid')).toMatchObject({ error: expect.any(String) });
   expect(await saveLoyaltyPolicyAction(tiers, -1, operation)).toMatchObject({ error: expect.any(String) });

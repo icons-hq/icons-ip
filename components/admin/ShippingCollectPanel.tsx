@@ -54,7 +54,7 @@ function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, se
     const ticket = scope.capture();if (!ticket) return;
     const occurred = new Date(`${draft.occurredAt.length === 16 ? `${draft.occurredAt}:00` : draft.occurredAt}+09:00`);
     if (!SHIPPING_COLLECT_WRITE_EVENTS.includes(draft.event as ShippingCollectWriteEvent) || !/^(0|[1-9]\d*)$/.test(draft.amount)
-      || !Number.isSafeInteger(Number(draft.amount)) || !Number.isFinite(occurred.getTime())) { setMessage('실제 금액과 한국 시간 기준 시각을 확인해주세요.');return; }
+      || !Number.isSafeInteger(Number(draft.amount)) || !Number.isFinite(occurred.getTime())) { setMessage('실제 금액과 KST 기준 시각을 확인해주세요.');return; }
     const next: ShippingCollectEventRequest = { ...context, shipmentId: obligation.shipmentId, expectedRevision: revision, operationId: crypto.randomUUID(),
       event: draft.event as ShippingCollectWriteEvent, amount: Number(draft.amount), occurredAt: occurred.toISOString(), party: draft.party.trim(), reversesOperationId: draft.event === 'correction' ? latest?.operationId ?? null : null, reference: draft.reference.trim(), note: draft.note.trim() };
     if (!persistOperation(next.operationId)) return;
@@ -95,7 +95,7 @@ function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, se
       {draft.event === 'correction' && latest ? <p className="text-muted-foreground">최근 기록 {latest.operationId}을 취소하는 반대 기록입니다. 정정 금액은 {krw(latest.amount)}이며 올바른 사실은 정정 후 새로 기록해주세요.</p> : null}
       <label className={FIELD}><span className={FIELD_LABEL}>실제 확인 금액 (원)</span><input className="w-full tabular-nums sm:w-48" required inputMode="numeric" pattern="[0-9]+" value={draft.amount} onChange={event => update('amount', event.target.value)} /></label>
       <small className={HINT}>주문 당시 착불 금액 {krw(obligation.amount)}. 미수납 종료는 0원, 수납·전액 환급은 예정 금액과 일치해야 합니다.</small>
-      <label className={FIELD}><span className={FIELD_LABEL}>실제 발생 시각 (한국 시간)</span><input className="w-full sm:w-64" required type="datetime-local" step="1" value={draft.occurredAt} onChange={event => update('occurredAt', event.target.value)} /></label>
+      <label className={FIELD}><span className={FIELD_LABEL}>실제 발생 시각 (KST)</span><input className="w-full sm:w-64" required type="datetime-local" step="1" value={draft.occurredAt} onChange={event => update('occurredAt', event.target.value)} /></label>
       <button className={`${OUTLINE} w-fit`} data-slot="button" type="button" onClick={() => update('occurredAt', new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 19))}>현재 시각 입력</button>
       <label className={FIELD}><span className={FIELD_LABEL}>수납·반환 주체</span><input className="w-full" required maxLength={200} value={draft.party} onChange={event => update('party', event.target.value)} /></label>
       <label className={FIELD}><span className={FIELD_LABEL}>운송사 수납·환급 증빙 번호 또는 참조</span><input className="w-full" required maxLength={1000} value={draft.reference} onChange={event => update('reference', event.target.value)} /></label>

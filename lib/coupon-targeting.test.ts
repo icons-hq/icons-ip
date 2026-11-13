@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseCouponTargeting, parseCouponTargetingRecord, parseCouponTargetCategories, parseCouponTargetIps, couponTargetingLabel } from './coupon-targeting';
+import { parseCouponTargetingRecord, parseCouponTargetCategories, parseCouponTargetIps, couponTargetingLabel } from './coupon-targeting';
+import { parseCouponTargeting } from '@/lib/admin/coupon-targeting-form';
 describe('쿠폰 발급 대상과 할인 상품', () => {
   it('선택 상품 조건을 켜고 대상을 비우면 전체 상품으로 해석하지 않는다', () => {
     const form = new FormData(); form.set('recipientSegment', 'first_purchase'); form.set('goodsScope', 'selected_goods'); form.set('targetGoodIds', '[]');

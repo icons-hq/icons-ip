@@ -23,18 +23,15 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
-import {
-  LOYALTY_GRADES,
-  isLoyaltyGrade,
-  loyaltyBasisSummary,
-  loyaltyGradeLabel,
-} from '@/lib/loyalty';
+import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyGradeLabel } from '@/lib/loyalty';
+import { loyaltyBasisSummary } from '@/lib/admin/loyalty-basis';
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '../console/ConsoleFilterPanel';
 import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '../console/ConsoleListCard';
 import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
 import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
 import { ROW_DANGER_BUTTON_CLASS } from '../screens/cs-kit-classes';
+import { confirmAdminSubmit } from '@/lib/admin/confirm';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -47,10 +44,7 @@ function formatDate(value: string) {
 }
 
 export function confirmMemberSuspension(event: FormEvent<HTMLFormElement>) {
-  const confirmed = window.confirm(
-    '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?',
-  );
-  if (!confirmed) event.preventDefault();
+  confirmAdminSubmit(event, '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?');
 }
 
 /** 권한 값(user·staff·admin)은 DB 계약이고 화면은 운영팀 말로 보인다. */
@@ -350,7 +344,7 @@ export function MembersSection({
       <ConsoleListCard
         actions={suspendedCount ? <Button aria-pressed={showingSuspended} className={ROW_DANGER_BUTTON_CLASS} onClick={() => setSuspendedOnly((value) => !value)} size="sm" type="button" variant="outline">{showingSuspended ? '전체 회원 보기' : `정지 ${suspendedCount.toLocaleString('ko-KR')}명만 보기`}</Button> : undefined}
         aria-label="회원 검색 결과"
-        description="이메일은 일부만 보입니다. 전체 이메일과 운영 정보는 상세 보기에서 확인합니다."
+        description="이메일은 일부만 보입니다. 전체 이메일과 운영 정보는 상세에서 확인합니다."
         title={<>회원 목록 <span className="text-sm font-normal text-muted-foreground tabular-nums">{searchState.members.length.toLocaleString('ko-KR')}명 표시</span></>}
       >
         {searchState.members.length ? <div aria-label="회원 목록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}><Table className="min-w-[44rem]"><caption className="sr-only">회원 목록</caption>
@@ -370,7 +364,7 @@ export function MembersSection({
                 <TableCell className="px-3 text-right"><form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
                   <input name="profileId" type="hidden" value={member.id} />
                   <Button aria-expanded={activeDetail?.id === member.id} className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="outline">
-                    <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세 보기'}
+                    <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세'}
                   </Button>
                 </form></TableCell>
               </TableRow>

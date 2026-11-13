@@ -44,12 +44,12 @@ function Panel({ ids, onClose, identity, scope }: Props & { identity: ClaimConta
  }
  return <section className="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground sm:p-5" aria-label="합포장 관리">
   <div className="flex w-full items-center justify-between gap-3"><h3 className="text-base font-medium text-foreground">합포장 관리</h3><Button type="button" size="sm" variant="outline" disabled={pending || uncertain} onClick={onClose}>닫기</Button></div>
-  <p className="text-muted-foreground">동일 구매자·수취인·전체 주소·출고지의 발송 대기 건을 함께 포장합니다. 선물 포장과 착불 수금 조건도 같아야 합니다. 기존 주문 금액·배송비·착불 금액은 유지합니다.</p>
-  <p className="text-muted-foreground">창고에는 원본 출고 파일과 합포장 안내를 함께 전달해주세요. 택배사와 송장을 등록하면 묶음 전체에 적용됩니다.</p>
+  <p className="text-muted-foreground">동일 구매자·수령인·전체 주소·출고지의 발송 대기 건을 함께 포장합니다. 선물 포장과 착불 수금 조건도 같아야 합니다. 기존 주문 금액·배송비·착불 금액은 유지합니다.</p>
+  <p className="text-muted-foreground">창고에는 원본 출고 파일과 합포장 안내를 함께 전달해주세요. 택배사와 운송장을 등록하면 묶음 전체에 적용됩니다.</p>
   <Button type="button" variant="outline" disabled={pending || uncertain} onClick={() => { void read(); }}>{document ? '최신 합포장 정보 확인' : '선택 건 합포장 조건 확인'}</Button>
   {document ? <>
    <ul className="grid w-full gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))]">{document.rows.map(row => <li className="rounded-lg border p-3 wrap-anywhere" key={row.id}><strong className="font-medium">주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</strong> · 배송 {row.shipmentNumber ?? row.id.slice(-8).toUpperCase()}<br />
-    {row.buyerName} → {row.recipientName ?? '수취인 미기록'} · {row.originName}<br /><span className="tabular-nums">선결제 배송비 {krw(row.shippingFee)} · 착불 {krw(row.collectFee)}</span>
+    {row.buyerName} → {row.recipientName ?? '수령인 미기록'} · {row.originName}<br /><span className="tabular-nums">선결제 배송비 {krw(row.shippingFee)} · 착불 {krw(row.collectFee)}</span>
     {row.pack ? <p className="mt-1 text-muted-foreground">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건 · 묶음 착불 합계 {(row.pack.collectFee === null ? '-' : krw(row.pack.collectFee))}</p> : null}</li>)}</ul>
    {!document.canCreate && !releasable ? <AdminNotice tone="warning">현재 선택은 새 합포장 또는 해제가 불가능합니다. 출고지시 전달 전인지, 같은 배송 조건인지 확인해주세요.</AdminNotice> : null}
    {document.canCreate || releasable || uncertain ? <form className="flex w-full flex-col items-start gap-3" onSubmit={event => { event.preventDefault(); void save(dispatched.current?.kind ?? (document.canCreate ? 'create' : 'release')); }}>

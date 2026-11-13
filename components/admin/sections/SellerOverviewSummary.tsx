@@ -83,20 +83,20 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
   const stages = ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const;
   return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" data-admin-home="summary">
     <SummaryPanel className="md:col-span-2 xl:col-span-4" description="전체 기간의 상품 주문 상태별 건수입니다." href="/admin/sales/orders" icon={ShoppingBag} id="sales" title="판매 관리">
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-5 sm:gap-1">{stages.map((status, index) => <Link className="flex min-w-0 items-center gap-1 rounded-md p-2 transition-colors hover:bg-muted" href={adminOrdersHref(normalizeAdminOrderFilters({ status }))} key={status} prefetch={false}>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-1">{stages.map((status, index) => <Link className="flex min-w-0 items-center gap-1 rounded-md p-2 transition-colors hover:bg-muted" href={adminOrdersHref(normalizeAdminOrderFilters({ status }))} key={status} prefetch={false}>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate text-sm text-muted-foreground">{ADMIN_ORDER_STATUS_LABELS[status]}</span><strong className="text-2xl font-semibold whitespace-nowrap tabular-nums"><OverviewDeferred fallback={<OverviewPendingValue className="h-7 w-14" />} value={insights}>{(ready) => ready ? `${(ready.pipeline.find((stage) => stage.status === status)?.count ?? 0).toLocaleString('ko-KR')}건` : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</OverviewDeferred></strong></span>
-        {index < stages.length - 1 ? <ChevronRight aria-hidden="true" className="hidden size-4 shrink-0 text-muted-foreground/60 sm:block" /> : null}
+        {index < stages.length - 1 ? <ChevronRight aria-hidden="true" className="hidden size-4 shrink-0 text-muted-foreground/60 lg:block" /> : null}
       </Link>)}</div>
-      <div className="mt-2 grid grid-cols-1 gap-x-6 rounded-lg bg-muted/50 px-3 py-1 sm:grid-cols-2">
+      {/* 미답변 문의는 '처리할 업무'에 있다 — 같은 건수를 두 카드에 두지 않는다(ADM-016 #29). */}
+      <div className="mt-2 rounded-lg bg-muted/50 px-3 py-1">
         <CountLink href={queueHref('ready')} label="발송 대기" value={queueValue('ready')} />
-        <CountLink href={queueHref('inquiries')} label="미응답 문의" value={queueValue('inquiries')} />
       </div>
       <SummaryNote>판매 단계는 주문 수, 발송 대기는 출고지별 배송 건 수입니다. 전체 기간 기준입니다.</SummaryNote>
     </SummaryPanel>
     <SummaryPanel className="md:col-span-2 xl:col-span-2" description={visibleQueues.has('unpaid') ? '발주확인 대기 주문, 발송 지연 배송, 미답변 문의, 입금 확인 전 무통장 주문 건수입니다.' : '발주확인 대기 주문, 발송 지연 배송, 미답변 문의 건수입니다.'} href="/admin/sales/dispatch" icon={ClipboardList} id="work" title="처리할 업무">
       <CountLink attention href={queueHref('orders')} label="신규주문" value={queueValue('orders')} />
       <CountLink attention danger href={queueHref('delayed')} label="발송 지연" value={queueValue('delayed')} />
-      <CountLink attention href={queueHref('inquiries')} label="미응답 문의" value={queueValue('inquiries')} />
+      <CountLink attention href={queueHref('inquiries')} label="미답변 문의" value={queueValue('inquiries')} />
       {visibleQueues.has('unpaid') ? <CountLink attention href={queueHref('unpaid')} label="무통장 입금 대기" value={queueValue('unpaid')} /> : null}
       {workQueue?.checkedAt ? <SummaryNote><time className="tabular-nums" dateTime={workQueue.checkedAt}>업무 집계 {new Date(workQueue.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} 기준</time></SummaryNote> : null}
     </SummaryPanel>
@@ -113,15 +113,15 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
       </div>
       <SummaryNote>상품·티켓 결제완료 기준 · 증감은 직전 {days}일 대비</SummaryNote>
     </SummaryPanel>
-    <SummaryPanel className="xl:col-span-3" description="전시중·품절·검토가 필요한 상품 수입니다." href="/admin/catalog/goods" icon={Package} id="goods" title="상품 관리">
-      <CountLink href={goodsListHref(normalizeGoodsListFilters({ status: 'published' }))} label="전시중 상품" unit="개" value={summary?.goods.published} />
+    <SummaryPanel className="xl:col-span-3" description="공개·품절·검토가 필요한 상품 수입니다." href="/admin/catalog/goods" icon={Package} id="goods" title="상품 관리">
+      <CountLink href={goodsListHref(normalizeGoodsListFilters({ status: 'published' }))} label="공개 상품" unit="개" value={summary?.goods.published} />
       <CountLink attention danger href={goodsListHref(normalizeGoodsListFilters({ stock: 'soldout' }))} label="품절 상품" unit="개" value={summary?.goods.soldout} />
       <CountLink href={queueHref('goods')} label="상품 검토 대기" unit="개" value={queueValue('goods')} />
     </SummaryPanel>
-    <SummaryPanel className="xl:col-span-3" description="전체 리뷰, 낮은 평점 리뷰와 미답변 리뷰 건수입니다." href="/admin/cs/reviews" icon={MessageSquareText} id="reviews" title="리뷰 현황">
+    <SummaryPanel className="xl:col-span-3" description="전체 리뷰, 낮은 평점 리뷰와 미답글 리뷰 건수입니다." href="/admin/cs/reviews" icon={MessageSquareText} id="reviews" title="리뷰 현황">
       <CountLink href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS)} label="전체 리뷰" value={summary?.reviews.total} />
       <CountLink attention danger href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS, { lowRating: true })} label="낮은 평점 리뷰" value={summary?.reviews.lowRating} />
-      <CountLink href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS, { reply: 'without' })} label="미답변 리뷰" value={summary?.reviews.awaitingReply} />
+      <CountLink href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS, { reply: 'without' })} label="미답글 리뷰" value={summary?.reviews.awaitingReply} />
     </SummaryPanel>
   </div>;
 }

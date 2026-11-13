@@ -6,7 +6,7 @@ import type { GoodsCustomInputWorkbookInputRow, GoodsCustomInputWorkbookRow } fr
 import { addGoodsGuidanceWorksheets, readGoodsGuidanceWorksheets } from './goods-guidance-workbook-file';
 import type { GoodsAfterSalesWorkbookInputRow, GoodsAfterSalesWorkbookRow, GoodsSizeWorkbookInputRow, GoodsSizeWorkbookRow } from './goods-guidance-workbook';
 import { readBoundedZip } from './bounded-zip.server';
-import { GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_SHEET, emptyGoodsKcWorkbookRow,
+import { GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_LEGACY_HEADERS, GOODS_KC_WORKBOOK_SHEET, emptyGoodsKcWorkbookRow,
   goodsKcWorkbookOrphanErrors, type GoodsKcWorkbookInputRow, type GoodsKcWorkbookKey, type GoodsKcWorkbookRow } from './goods-kc-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 import {
@@ -19,7 +19,9 @@ import {
   GOODS_WORKBOOK_VERSION,
   goodsWorkbookDescriptionCell,
   goodsWorkbookLayout,
+  goodsWorkbookPricesFromLegacy,
   type GoodsWorkbookInputRow,
+  type GoodsWorkbookLegacyPrices,
   type GoodsWorkbookKey,
   type GoodsWorkbookRow,
 } from './goods-workbook';
@@ -32,15 +34,17 @@ import {
   type SabangnetSheetRow,
 } from './sabangnet-goods-format';
 const NUMERIC_KEYS = new Set<GoodsWorkbookKey>([
-  'price',
-  'compareAtPrice', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee',
+  'salePrice',
+  'instantDiscount', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee',
   'individualFee',
-  'variantPrice',
+  'optionPrice',
   'stockQty',
   'lowStockThreshold',
   'displayOrder',
   'minOrderQty', 'maxOrderQty', 'memberLifetimeQtyLimit', 'shippingNoticeTemplateVersion', 'purchaseCostKrw',
 ]);
+/** 상품번호는 숫자 칸이지만 천 단위 쉼표 없이 보인다(목록·검색의 번호 그대로). 텍스트로 적어도 읽는다. */
+const PLAIN_NUMBER_KEYS = new Set<GoodsWorkbookKey>(['productNo']);
 const IDENTIFIER_KEYS = new Set<GoodsWorkbookKey>([
   'code',
   'variantCode',
@@ -81,7 +85,7 @@ export async function buildGoodsWorkbook(
   workbook.creator = 'ICONS';
   workbook.created = new Date('2026-09-08T00:00:00Z');
   const sheet = workbook.addWorksheet('상품', {
-    views: [{ state: 'frozen', xSplit: 2, ySplit: 4, showGridLines: false }],
+    views: [{ state: 'frozen', xSplit: 3, ySplit: 4, showGridLines: false }],
   });
   sheet.getCell('A1').value = GOODS_WORKBOOK_VERSION;
   sheet.getCell('A1').font = { name: 'Arial', size: 14, bold: true };
@@ -114,8 +118,10 @@ export async function buildGoodsWorkbook(
             ? 42
             : key.includes('File')
               ? 28
-              : 18;
-    column.numFmt = NUMERIC_KEYS.has(key) ? '#,##0' : '@';
+              : key === 'productNo'
+                ? 12
+                : 18;
+    column.numFmt = PLAIN_NUMBER_KEYS.has(key) ? '0' : NUMERIC_KEYS.has(key) ? '#,##0' : '@';
     const header = sheet.getCell(4, index + 1);
     header.font = {
       name: 'Arial',
@@ -140,7 +146,7 @@ export async function buildGoodsWorkbook(
     row.values = GOODS_WORKBOOK_KEYS.map((key) =>
       values[key] === ''
         ? null
-        : NUMERIC_KEYS.has(key)
+        : NUMERIC_KEYS.has(key) || (PLAIN_NUMBER_KEYS.has(key) && /^\d+$/.test(values[key]))
           ? Number(values[key])
           : key === 'description'
             ? goodsWorkbookDescriptionCell(values[key])
@@ -179,9 +185,14 @@ export async function buildGoodsWorkbook(
   guide.columns = [{ width: 24 }, { width: 115 }];
   const notes = [
     ['ICONS 상품 일괄 등록', ''],
+    ['상품번호', '시스템이 등록 순서대로 매기는 바뀌지 않는 번호입니다. 기존 상품을 고칠 때는 내려받은 번호를 그대로 두고, 새 상품은 비워 둡니다. 저장하면 번호가 자동으로 붙습니다.'],
+    ['수정할 상품 찾기', '상품번호 → 판매자상품코드 순서로 기존 상품을 찾습니다. 상품 URL로는 찾지 않습니다. 상품번호와 판매자상품코드가 서로 다른 상품을 가리키면 오류이며, 판매자상품코드는 상품 수정 화면에서 바꿉니다.'],
+    ['판매가·즉시할인', '상품 수정 화면과 같습니다. 판매가는 할인 전 가격, 즉시할인은 판매가에서 뺄 금액(원)이며 고객 결제 기준 금액은 판매가 − 즉시할인입니다. 즉시할인 빈칸·0은 할인 없음입니다. 옵션가는 판매가(할인하면 할인가)에 더하는 추가금액입니다.'],
+    ['구형 양식', 'v3~v7 양식도 그대로 올릴 수 있습니다. 구형의 기준 판매가·소비자가·옵션 판매가는 판매가·즉시할인·옵션가로 바꿔 읽고, 상품코드·옵션코드·옵션 재고·매입단가 열은 판매자상품코드·관리코드·재고수량·공급가(매입단가)와 같습니다.'],
     ['A/S 안내', '별도 시트에 상품당 한 행을 입력합니다. 편집은 전화번호와 안내가 필수이며, 전체 해제는 전화번호·안내·특이사항을 모두 비웁니다. 안내 버전은 그대로 둡니다. 상품 고시정보와 원본 템플릿은 바뀌지 않습니다.'],
     ['사이즈 안내', '측정 항목마다 한 행을 입력하며 같은 상품의 표시·단위·안내·버전·사이즈 이름은 동일하게 입력합니다. 사이즈와 치수는 1번부터 같은 순서로 최대 10개입니다. cm/mm 단위의 수치는 자동 변환하지 않습니다.'],
     ['안내 시트 보존과 적용', '시트 또는 상품 행을 생략하면 기존 안내를 유지합니다. 사이즈 표시 중지는 저장된 표를 보존합니다. 상품·A/S·사이즈는 상품별로 함께 저장되며 하나라도 충돌하면 해당 상품의 변경을 모두 취소합니다. 새 자동코드는 초안 저장 후 다시 내보내세요.'],
+    ['상품 유형', '상품 유형은 대표 카테고리(없으면 가까운 상위 카테고리)에 연결한 값으로 정해집니다(카테고리 관리의 상품 유형 연결). 내보낸 파일의 상품 유형은 대표 카테고리에서 정해진 유형(공개 중인 상품은 저장된 유형)이고, 올릴 때 이 열은 반영하지 않습니다. 유형을 바꾸려면 고객 카테고리 코드를 바꾸거나 카테고리의 상품 유형 연결을 바꿉니다. 공개 중인 상품은 유형이 다른 카테고리로 옮길 수 없습니다.'],
     ['할인율 표시', '예(기본값) 또는 아니오를 선택합니다. 공란은 예로 적용합니다. 아니오는 정가 취소선과 할인율만 숨기며 판매가·기간 할인·쿠폰·적립금 계산은 바꾸지 않습니다.'],
     ['고객 카테고리 코드 / 추가 카테고리 코드', '고객 카테고리 코드는 대표 말단 1개입니다. 추가 카테고리 코드는 줄바꿈 또는 쉼표로 구분하며 공란은 추가 분류 전체 해제입니다. 대표·추가 분류 모두 관리자 검색에 쓰고, ERP·공개 분류는 대표 카테고리와 기존 활성화 조건을 따릅니다.'],
     ['KC 검토', '별도 KC 검토 시트에 모델마다 한 행을 입력합니다. 적용 옵션코드는 줄바꿈으로 구분합니다. 검토 상태·버전은 바꾸지 마세요. 시트 또는 상품 행을 없애도 기존 KC 정보는 유지합니다.'],
@@ -189,30 +200,30 @@ export async function buildGoodsWorkbook(
     ['영문 상품명', '선택 항목입니다. 공개 상세와 미리보기에 표시하며 공란으로 저장하면 기존 영문명을 지웁니다.'],
     ['안전재고 기준', '옵션 할당 재고가 기준 이하이면 경고합니다. 판매 수량을 차감하지 않습니다. 공란은 경보 미설정, 0은 수량 0일 때 경고합니다.'],
     ['옵션 사용', '사용 또는 중지를 입력합니다. 사용 중지해도 재고와 주문 기록은 보존됩니다. 사용 중인 옵션과 기본 옵션을 내보내며, 그 밖의 중지 옵션은 상품 편집의 옵션 목록에서 복원합니다.'],
-    ['옵션 축', '옵션 축과 값은 최대 3개, 한 상품의 조합은 최대 100개입니다. v3·v4·v5 양식도 읽을 수 있지만 이미 3축인 상품은 축 소실을 막기 위해 v5 이상 양식이 필요합니다.'],
-    ['직접입력형 옵션', '별도 시트에 항목마다 한 행을 입력합니다. 상품 시트와 같은 상품코드가 필요합니다. 자동코드를 만들 새 상품은 먼저 초안 저장 후 다시 내려받으세요. v3·v4·v5 또는 직접입력 시트/상품 행이 없는 파일은 기존 정의를 유지합니다.'],
+    ['옵션 축', '옵션 축과 값은 최대 3개, 한 상품의 조합은 최대 100개입니다. v3·v4 양식도 읽을 수 있지만 이미 3축인 상품은 축 소실을 막기 위해 v5 이상 양식이 필요합니다.'],
+    ['직접입력형 옵션', '별도 시트에 항목마다 한 행을 입력합니다. 상품 시트와 같은 판매자상품코드가 필요합니다. 자동코드를 만들 새 상품은 먼저 초안 저장 후 다시 내려받으세요. v3·v4·v5 또는 직접입력 시트/상품 행이 없는 파일은 기존 정의를 유지합니다.'],
     ['직접입력형 ID·버전', '내려받은 기존 항목 ID와 정의 버전은 바꾸지 않습니다. 기존 항목을 모두 포함하고, 새 항목만 ID를 비웁니다. 새 상품의 정의 버전은 0입니다. 이름은 최대 25자, 최종 항목은 최대 5개입니다. 같은 상품의 행 순서가 표시 순서입니다.'],
     ['직접입력형 중지·삭제', '전체 사용 아니오는 항목을 보존하고 고객 입력을 끕니다. 항목 처리는 사용·중지·삭제입니다. 행을 지워서 기존 항목을 삭제할 수 없습니다. 삭제 후 최종 5개까지이며 기존 5개와 새 5개를 함께 편집할 수 있습니다.'],
     ['직접입력형 전체 해제', '모두 지우려면 상품당 한 행에서 변경 방식 전체 해제, 전체 사용 아니오를 선택하고 항목 ID·항목명·항목 처리를 비웁니다. 기존 주문 문구는 보존되고 장바구니 입력은 다시 확인해야 합니다.'],
     [
       '입력 단위',
-      '옵션마다 한 행입니다. 같은 상품의 상품코드·이름·IP·배송·고시정보·이미지는 똑같이 반복해주세요.',
+      '옵션마다 한 행입니다. 같은 상품의 상품번호·판매자상품코드·이름·IP·배송·고시정보·이미지는 똑같이 반복해주세요.',
     ],
     [
       '새 상품',
-      '상품명과 IP ID만으로 초안을 시작할 수 있습니다. 코드가 비면 같은 IP·이름의 행을 한 상품으로 묶고 상품코드를 자동 만듭니다.',
+      '상품명과 IP ID만으로 초안을 시작할 수 있습니다. 상품번호는 비워 두고, 상품 URL은 비우거나 새 값을 넣습니다(이미 쓰는 상품 URL이면 오류). 기존 행을 복사해 만들 때도 상품번호·판매자상품코드·상품 URL·옵션별 관리코드를 지웁니다(관리코드는 다른 상품과 겹치면 검증에서 오류로 막힙니다). 새 상품 저장이 실패하면 그 상품번호는 다시 쓰지 않아 번호에 간격이 생길 수 있습니다. 판매자상품코드가 비면 같은 IP·이름의 행을 한 상품으로 묶고 판매자상품코드를 자동 만듭니다.',
     ],
     [
       '기존 상품 수정',
-      '상품코드로 수정 대상을 찾습니다. 수정할 상품의 옵션을 모두 포함해주세요. 빠진 옵션은 삭제 또는 보관됩니다.',
+      '상품번호 또는 판매자상품코드로 수정 대상을 찾습니다(상품 URL로는 찾지 않습니다). 수정할 상품의 옵션을 모두 포함해주세요. 빠진 옵션은 삭제 또는 보관됩니다.',
     ],
     [
       '게시 상태',
-      '초안 또는 공개를 입력합니다. 새 공개·재공개에는 대표 이미지·상품 유형·고시정보·출고지와 KC 검토가 필요합니다. 새 상품의 KC 검토는 초안 저장 후 진행합니다. 빈 게시 상태는 초안입니다.',
+      '초안 또는 공개를 입력합니다. 새 공개·재공개에는 대표 이미지·상품 유형이 연결된 대표 카테고리·고시정보·출고지와 KC 검토가 필요합니다. 새 상품의 KC 검토는 초안 저장 후 진행합니다. 빈 게시 상태는 초안입니다.',
     ],
     [
       '빈칸과 숫자 0',
-      '기준 판매가·옵션 재고·개별 배송비의 빈칸은 0입니다. 매입단가·구매 한도·교환 반품비·안전재고 기준의 빈칸은 미설정입니다. 기존값을 유지하려면 내려받은 값을 그대로 두세요.',
+      '재고수량은 비워 둘 수 없습니다. 재고가 없으면 0을 입력합니다(빈칸이면 그 행을 저장하지 않습니다). 판매가·옵션가·개별 배송비의 빈칸은 0이고 즉시할인의 빈칸은 할인 없음입니다. 공급가(매입단가)·구매 한도·교환 반품비·안전재고 기준의 빈칸은 미설정입니다. 기존값을 유지하려면 내려받은 값을 그대로 두세요.',
     ],
     [
       '이미지',
@@ -224,7 +235,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '옵션 가격',
-      '옵션 판매가는 기준 판매가에 추가금액을 더한 최종 가격입니다. 기준 판매가보다 낮게 입력할 수 없습니다. 첫 옵션이 기본 옵션입니다.',
+      '옵션가는 판매가(할인하면 할인가)에 더하는 0원 이상의 추가금액입니다. 즉시할인은 옵션가에 붙지 않습니다. 첫 옵션이 기본 옵션입니다.',
     ],
     [
       '옵션 구성',
@@ -232,7 +243,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       'ERP와 바코드',
-      '옵션별 ERP 코드·ERP 품명·바코드는 자체 상품/옵션 코드와 별개입니다. 선행 0을 유지하도록 텍스트 형식을 사용하며 빈칸은 외부 값을 지웁니다.',
+      '옵션별 ERP 코드·ERP 품명·바코드는 판매자상품코드·관리코드와 별개입니다. 선행 0을 유지하도록 텍스트 형식을 사용하며 빈칸은 외부 값을 지웁니다.',
     ],
     [
       '구매 조건',
@@ -240,7 +251,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '기간 할인',
-      '이 파일의 옵션 판매가는 일반 판매가입니다. 기간 할인은 여러 버전과 활성화 이력이 있으므로 상품 편집의 기간 할인 목록에서 별도로 관리합니다. 이 파일을 다시 올려도 기간 할인 이력을 지우지 않습니다.',
+      '이 파일의 판매가·즉시할인·옵션가는 일반 판매 금액입니다. 기간 할인은 여러 버전과 활성화 이력이 있으므로 상품 편집의 기간 할인 목록에서 별도로 관리합니다. 이 파일을 다시 올려도 기간 할인 이력을 지우지 않습니다.',
     ],
     ['예약판매·추가구성', '예약은 실제 승인 물량·기간·입고 할당을, 추가구성은 독립 상품의 연결을 별도 화면에서 관리합니다. 이 파일은 일반 옵션 재고를 편집하며 예약 승인 물량이나 추가구성 연결을 복제·초기화하지 않습니다.'],
     [
@@ -265,7 +276,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '수식',
-      '수식·매크로·삽입 개체는 사용하지 않습니다. 상품코드와 옵션코드는 텍스트 형식을 유지해주세요.',
+      '수식·매크로·삽입 개체는 사용하지 않습니다. 판매자상품코드와 관리코드는 텍스트 형식을 유지해주세요.',
     ],
   ];
   notes.forEach((values, index) => {
@@ -332,7 +343,7 @@ function OPTION_HEADER(key: GoodsWorkbookKey) {
     'value2',
     'axis3',
     'value3',
-    'variantPrice',
+    'optionPrice',
     'stockQty',
   ].includes(key);
 }
@@ -352,14 +363,13 @@ export async function parseGoodsWorkbookWithKc(
   });
   const sheet = workbook.getWorksheet('상품');
   const version = sheet?.getCell('A1').text ?? '';
-  // v7와 구형 v6/v5/v4/v3를 읽는다. 열 이름·순서는 각 버전 그대로여야 한다.
+  // v8과 구형 v7/v6/v5/v4/v3를 읽는다. 열 이름·순서는 각 버전 그대로여야 한다. 구형의 가격 열은 v8 열로 옮겨 읽는다.
   const layout = goodsWorkbookLayout(version);
   if (
     !sheet ||
     !layout ||
-    layout.keys.some(
-      (key, index) =>
-        sheet.getCell(4, index + 1).text !== GOODS_WORKBOOK_HEADERS[key],
+    layout.columns.some(
+      (column, index) => sheet.getCell(4, index + 1).text !== column.header,
     )
   )
     throw new Error('현재 상품 양식을 내려받아 열 이름과 순서를 유지해주세요.');
@@ -367,16 +377,23 @@ export async function parseGoodsWorkbookWithKc(
   sheet.eachRow((row, number) => {
     if (number < 5) return;
     const values = emptyGoodsWorkbookRow();
+    const legacy: GoodsWorkbookLegacyPrices = { price: '', compareAtPrice: '', variantPrice: '' };
     const errors: string[] = [];
-    layout.keys.forEach((key, index) => {
+    layout.columns.forEach((column, index) => {
       const cell = readSafeWorkbookCell(
         row.getCell(index + 1),
-        IDENTIFIER_KEYS.has(key),
+        !column.key.startsWith('legacy:') && IDENTIFIER_KEYS.has(column.key as GoodsWorkbookKey),
       );
-      values[key] = cell.value;
+      if (column.key.startsWith('legacy:')) legacy[column.key.slice('legacy:'.length) as keyof GoodsWorkbookLegacyPrices] = cell.value;
+      else values[column.key as GoodsWorkbookKey] = cell.value;
       if (cell.error)
-        errors.push(`${GOODS_WORKBOOK_HEADERS[key]}: ${cell.error}`);
+        errors.push(`${column.header}: ${cell.error}`);
     });
+    if (layout.layout) {
+      const converted = goodsWorkbookPricesFromLegacy(legacy);
+      Object.assign(values, converted.values);
+      errors.push(...converted.errors);
+    }
     if (GOODS_WORKBOOK_KEYS.some((key) => values[key] !== '') || errors.length)
       result.push({ row: number, values, errors, ...(layout.layout ? { layout: layout.layout } : {}) });
   });
@@ -389,7 +406,9 @@ export async function parseGoodsWorkbookWithKc(
   let kcRows: GoodsKcWorkbookInputRow[] | null = null;
   if (kcSheet) {
     const keys = Object.keys(GOODS_KC_WORKBOOK_HEADERS) as GoodsKcWorkbookKey[];
-    if (kcSheet.getCell('A1').text !== version || keys.some((key, index) => kcSheet.getCell(4, index + 1).text !== GOODS_KC_WORKBOOK_HEADERS[key]))
+    // 구형(v3~v7) KC 시트는 판매자상품코드·적용 관리코드 열 이름이 상품코드·적용 옵션코드다(뜻·순서는 같다).
+    const kcHeaders = version === GOODS_WORKBOOK_VERSION ? GOODS_KC_WORKBOOK_HEADERS : GOODS_KC_WORKBOOK_LEGACY_HEADERS;
+    if (kcSheet.getCell('A1').text !== version || keys.some((key, index) => kcSheet.getCell(4, index + 1).text !== kcHeaders[key]))
       throw new Error('KC 검토 시트의 열 이름과 순서를 유지해주세요.');
     kcRows = [];
     kcSheet.eachRow((row, number) => {
@@ -397,7 +416,7 @@ export async function parseGoodsWorkbookWithKc(
       const values = emptyGoodsKcWorkbookRow();
       keys.forEach((key, index) => {
         const cell = readSafeWorkbookCell(row.getCell(index + 1), ['goodCode', 'variantCodes', 'identifier'].includes(key));
-        if (cell.error) throw new Error(`KC 검토 ${number}행 ${GOODS_KC_WORKBOOK_HEADERS[key]}: ${cell.error}`);
+        if (cell.error) throw new Error(`KC 검토 ${number}행 ${kcHeaders[key]}: ${cell.error}`);
         values[key] = cell.value;
       });
       values.goodCode = values.goodCode.trim().toUpperCase();

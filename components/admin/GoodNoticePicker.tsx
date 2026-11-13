@@ -7,6 +7,7 @@ import type { GoodsNoticeInfo } from '@/lib/goods-notice';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 type Preset = GoodsNoticePresetPageData['presets'][number];
 
@@ -42,12 +43,13 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
   function apply(preset: Preset) {
     onApply(preset.notice,copyKcTemplate?preset.kcTemplate:undefined);
     setDismissed(suggestion?.type ?? ''); setSuggestion(null);
-    setMessage(`${preset.name} 템플릿의 7개 항목을 복사했습니다.${copyKcTemplate&&preset.kcTemplate?' KC 유형 틀을 새 미검토 모델로 불러옵니다. 신규 상품은 초안을 저장한 뒤 KC 영역에서 입력을 이어가세요.':''}`);
+    /* TKT-006: 등록 화면과 저장된 상품 모두 KC 틀을 같은 화면 KC 정보의 새 미검토 모델로 채운다(공개 판정은 그대로). */
+    setMessage(`${preset.name} 템플릿의 7개 항목을 복사했습니다.${copyKcTemplate&&preset.kcTemplate?' KC 유형 틀을 KC 정보의 새 미검토 모델로 불러옵니다. 옵션·번호·사업자는 이 상품에 맞게 확인해 입력해주세요.':''}`);
   }
   const shown = suggestion && suggestion.type === suggestType && !readOnly ? suggestion : null;
   return <div className="flex min-w-0 flex-col gap-3" data-good-notice-picker="">
     {shown ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-soft-foreground" data-good-notice-suggestion="">
-      <span className="min-w-0">‘{shown.type}’ 유형에 맞는 템플릿이 있습니다.</span>
+      <span className="min-w-0">카테고리 상품 유형 ‘{shown.type}’에 맞는 템플릿이 있습니다.</span>
       <Button type="button" variant="outline" size="sm" onClick={() => apply(shown.preset)}>{shown.preset.name} 적용</Button>
     </div> : null}
     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -56,7 +58,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
         const result = await loadLastSavedGoodNotice();
         if (result.notice) {
           /* 어느 상품에서 오는지 보고 고르게 한다 — 담당자가 여럿이면 방금 저장한 상품이 내 상품이 아닐 수 있다. */
-          if (!window.confirm(`‘${result.name}’의 고시정보 7개로 지금 입력을 모두 바꿀까요?`)) return;
+          if (!await adminConfirm(`‘${result.name}’의 고시정보 7개로 지금 입력을 모두 바꿀까요?`)) return;
           onApply(result.notice); setMessage(`${result.name}의 최근 저장값 7개를 복사했습니다.`);
         }
         else setMessage(result.error ?? '최근 값이 없습니다.');

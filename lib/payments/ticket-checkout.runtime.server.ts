@@ -10,7 +10,8 @@ function lazyRuntimeGateway(provider: PaymentCheckoutProvider): PaymentGateway {
   return {
     prepare: (attempt) => getPaymentGateway(provider).prepare(attempt),
     confirm: (input) => getPaymentGateway(provider).confirm(input),
-    reconcile: (attempt) => getPaymentGateway(provider).reconcile(attempt),
+    // 선택 힌트까지 그대로 넘긴다 — 인자 개수를 바꾸지 않아 힌트 없는 호출은 이전과 같다.
+    reconcile: (...args) => getPaymentGateway(provider).reconcile(...args),
     refund: (input) => getPaymentGateway(provider).refund(input),
   };
 }

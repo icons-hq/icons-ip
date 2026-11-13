@@ -9,6 +9,7 @@ import {
   type StockReconcileFileResult,
 } from '@/app/admin/stock-reconcile-actions';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { DefectiveStockReference } from '@/components/admin/DefectiveStockReference';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -47,6 +48,7 @@ import {
   type StockReconcilePlan,
 } from '@/lib/admin/stock-reconcile';
 import { formatOrderDateTime } from '@/lib/orders';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 type Source = { label: string; table: string[][]; numericColumns: number[]; warnings: string[] };
 export interface StockReconcileOrigin { id: string; name: string; active: boolean }
@@ -311,7 +313,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   const changedCount = snapshot ? snapshot.items.filter((item) => item.targetQty !== item.stockQty).length : 0;
   /* 서버가 그린 시각 기준이다. 화면을 오래 열어 둔 사이 만료되면 DB가 거절하고 같은 안내를 보인다. */
   const expired = snapshot ? Date.parse(now) - Date.parse(snapshot.createdAt) > 24 * 60 * 60 * 1000 : false;
-  const apply = () => {
+  const apply = async () => {
     if (!snapshot || snapshot.appliedAt) return;
     const trimmed = reason.trim();
     if (!trimmed || trimmed.length > STOCK_RECONCILE_REASON_LIMIT) { setError('반영 사유를 200자 이내로 입력해주세요.'); return; }
@@ -319,7 +321,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     const confirmText = changedCount
       ? `옵션 ${count(changedCount)}개의 재고수량을 파일에 맞춰 바꿉니다${shortages ? `(부족 ${count(shortages)}개는 0으로)` : ''}. 반영할까요?`
       : '바뀌는 옵션이 없습니다. 이 파일로 대조했다는 기록만 남길까요?';
-    if (!window.confirm(confirmText)) return;
+    if (!await adminConfirm(confirmText)) return;
     setError(''); setMessage(''); setConflicts([]);
     startWorking(async () => {
       let result: Awaited<ReturnType<typeof applyStockReconcileAction>>;
@@ -349,7 +351,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
         <p className={HINT} id="stock-reconcile-origin-hint">고르면 다른 출고지 상품의 행은 반영하지 않습니다. 창고 한 곳의 재고 파일이면 그 출고지를 고르세요.</p>
       </div>
       <div className="flex min-w-0 flex-col gap-2">
-        <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-as-of">파일의 재고 기준 시각 (한국 시간)</label>
+        <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-as-of">파일의 재고 기준 시각 (KST)</label>
         <Input id="stock-reconcile-as-of" type="datetime-local" step={60} value={asOf} disabled={busy} className="w-60" aria-describedby="stock-reconcile-as-of-hint"
           onChange={(event) => setAsOf(event.target.value)} />
         <p className={HINT} id="stock-reconcile-as-of-hint">ERP·창고에서 재고를 내려받은 시각입니다(7일 안). 그 뒤에 출고한 주문은 파일에 아직 들어 있고, 그 뒤에 회수한 반품·교환은 아직 없다고 보고 계산합니다.</p>
@@ -383,7 +385,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
 
     {source && plan ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-stock-reconcile="plan">
       <header className="flex flex-col gap-1">
-        <h4 className="text-base leading-snug font-medium wrap-anywhere">파일 확인 · {source.label}</h4>
+        <h3 className="text-base leading-snug font-medium wrap-anywhere">파일 확인 · {source.label}</h3>
         <p className={`${HINT} tabular-nums`}>비어 있지 않은 {count(plan.dataRowCount)}행 · 대조할 행 {count(plan.rows.length)} · 대조하지 않는 행 {count(plan.issues.length)}</p>
       </header>
       <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
@@ -435,11 +437,12 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
 
     {snapshot ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-stock-reconcile="preview">
       <header className="flex flex-wrap items-center gap-2">
-        <h4 className="text-base leading-snug font-medium">{snapshot.appliedAt ? '반영한 대조' : '미리보기'}</h4>
+        <h3 className="text-base leading-snug font-medium">{snapshot.appliedAt ? '반영한 대조' : '미리보기'}</h3>
         {snapshot.appliedAt ? <AdminStatusBadge tone="success">반영 {formatOrderDateTime(snapshot.appliedAt)}{snapshot.appliedByName ? ` · ${snapshot.appliedByName}` : ''}</AdminStatusBadge>
           : <AdminStatusBadge tone="warning">아직 반영 안 함</AdminStatusBadge>}
       </header>
       <StockReconcileResult snapshot={snapshot} showSame={showSame} onToggleSame={() => setShowSame((value) => !value)} />
+      <DefectiveStockReference items={snapshot.items.map((item) => ({ variantId: item.variantId, label: itemName(item) }))} />
       {conflicts.length ? <StockReconcileConflictNotice conflicts={conflicts} busy={busy} onRestart={reset}
         onRepreview={source && plan && !plan.blocking && plan === previewedPlan ? () => preview(true) : undefined} /> : null}
       {!snapshot.appliedAt ? expired ? <AdminNotice tone="warning">24시간이 지난 미리보기는 반영할 수 없습니다. 파일을 다시 올려 미리보기 해주세요.</AdminNotice>

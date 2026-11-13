@@ -301,11 +301,11 @@ describe('RewardPolicySection', () => {
 
   it('새 정책은 제목으로 등록임을 말하고 빈 발급 현황을 띄우지 않으며, 고른 정책은 어떤 정책을 고치는지 보인다', () => {
     const creating = renderPolicySection();
-    expect(creating).toContain('>새 발급 정책 등록</h3>');
+    expect(creating).toContain('>새 발급 정책 등록</h2>');
     expect(creating).not.toContain('미리 골라 둔 값입니다');
     expect(creating).not.toContain('reward-policy-summary-title');
     const editing = renderPolicySection({ records: [selectedPolicy], selected: selectedPolicy });
-    expect(editing).toContain(`>화산 키링 → ${endedPool.name} 수정</h3>`);
+    expect(editing).toContain(`>화산 키링 → ${endedPool.name} 수정</h2>`);
     expect(editing).toContain('reward-policy-summary-title');
   });
 

@@ -112,13 +112,13 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
   const blocked = Boolean(context.blockedReason) || context.pending;
   return <CustomerServiceDialog title="다른 상품 옵션 불러오기" onClose={onClose} wide>
     <section className="flex min-w-0 flex-col gap-4 text-sm" data-good-option-import-dialog="">
-      <p className="text-muted-foreground">상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·관리코드를 유지하고, 새 조합은 재고 0으로 만듭니다. 적용 후 상품을 저장해야 반영됩니다.</p>
+      <p className="text-muted-foreground">상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·관리코드를 유지하고, 새 조합은 재고 칸을 비워 두니 저장 전에 직접 입력해주세요(재고가 없으면 0). 적용 후 상품을 저장해야 반영됩니다.</p>
       {context.blockedReason && <p className="text-destructive" role="alert">{context.blockedReason}</p>}
       <div className="grid min-w-0 items-end gap-3 sm:grid-cols-[9.5rem_minmax(0,1fr)_minmax(0,1fr)_auto]" role="search" aria-label="옵션을 가져올 상품 검색">
         <div className="flex min-w-0 flex-col gap-2">
           <label className={FIELD_LABEL_CLASS} htmlFor="goods-option-import-field">검색 대상</label>
           <NativeSelect className="w-full" id="goods-option-import-field" value={filters.field} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, field: event.target.value as GoodsOptionImportFilters['field'] }))}>
-            <option value="name">상품명</option><option value="code">상품코드·옵션코드</option><option value="id">상품번호</option>
+            <option value="name">상품명</option><option value="code">판매자상품코드·관리코드</option><option value="id">상품 URL</option>
           </NativeSelect>
         </div>
         <label className={`flex min-w-0 flex-col gap-2 ${FIELD_LABEL_CLASS}`}>검색어<input className={GOOD_INPUT_CLASS} data-slot="input" maxLength={100} value={filters.query} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, query: event.target.value }))}
@@ -153,7 +153,7 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
         <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="불러올 옵션과 보존할 기존 옵션" tabIndex={0}>
           <Table className="min-w-[41rem]"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col" className={HEAD_CLASS}>옵션</TableHead><TableHead scope="col" className={HEAD_CLASS}>처리</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>현재 옵션가</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>적용 옵션가</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>적용 판매금액</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>재고수량</TableHead></TableRow></TableHeader>
             <TableBody>{comparison.plan.changes.map((row, index) => <TableRow key={index}><TableCell className="px-3 whitespace-normal wrap-anywhere">{row.name}</TableCell><TableCell className="px-3">{row.kind === 'added' ? '새 옵션' : row.kind === 'stopped' ? '사용 중지·보존' : row.active ? '기존 유지' : '기존 중지 유지'}</TableCell>
-              <TableCell className="px-3 text-right tabular-nums">{row.oldExtraPrice === null ? '—' : formatWon(row.oldExtraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{formatWon(row.extraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{formatWon(basePrice + row.extraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{row.stockQty.toLocaleString('ko-KR')}개</TableCell></TableRow>)}</TableBody>
+              <TableCell className="px-3 text-right tabular-nums">{row.oldExtraPrice === null ? '—' : formatWon(row.oldExtraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{formatWon(row.extraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{formatWon(basePrice + row.extraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{row.kind === 'added' ? '비어 있음' : `${row.stockQty.toLocaleString('ko-KR')}개`}</TableCell></TableRow>)}</TableBody>
           </Table>
         </div>
       </section>}

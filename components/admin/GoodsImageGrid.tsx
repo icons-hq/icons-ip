@@ -36,6 +36,8 @@ import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycl
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { GoodsPhotoEditor } from './GoodsPhotoEditor';
+import { GoodWorkspaceDetails } from './GoodWorkspace';
+import { ChevronRight } from 'lucide-react';
 
 export const GOODS_IMAGE_GUIDANCE_ID = 'goods-image-upload-guidance';
 export const GOODS_IMAGE_RATIO_GUIDANCE = '1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.';
@@ -86,7 +88,7 @@ const TILE_WIDE_ACTION_CLASS = cn(TILE_ACTION_CLASS, 'h-auto min-h-7 w-full py-1
  *   세로 스크롤을 허용하므로, 모바일에서 타일 위를 쓸어도 화면이 스크롤된다. 마우스는 스크롤과 겹치지
  *   않아 타일 본문에서도 끌 수 있다. 키보드는 손잡이·파일 입력에서 ←/→, 또는 ◀/▶ 버튼을 쓴다.
  */
-export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPreviewChange, accountId = '', recordId = 'new', editingDisabled = false }: {
+export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPreviewChange, accountId = '', recordId = 'new', editingDisabled = false, publication = 'published' }: {
   errors?: Record<string, string | undefined>;
   /** 대표 이미지, 추가 이미지 1…N 순서. */
   initialPaths: readonly (string | null | undefined)[];
@@ -95,7 +97,14 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   accountId?: string;
   recordId?: string;
   editingDisabled?: boolean;
+  /**
+   * 상품의 게시 상태. 1007-055(11/11 결정): 초안(새 상품 포함)이면 저장·업로드된 대표 이미지도 ×로 지운다. 공개 중인 상품은 대표 이미지가
+   * 공개 조건이라 교체만 하고, 보관 상품은 복원한 뒤 고친다(대표 이미지 ×·안내 문구가 이 값을 따른다). 업로드가 끝나지 않은 대표 이미지는
+   * 지금처럼 언제나 업로드를 취소할 수 있다. 값을 주지 않으면 저장된 대표 이미지를 지우지 않는 공개 중으로 본다.
+   */
+  publication?: 'draft' | 'published' | 'archived';
 }) {
+  const mainRemovable = publication === 'draft';
   const [slots, setSlots] = useState<Slots>(() => createGoodsImageSlots(initialPaths, initialUrls));
   const [announcement, setAnnouncement] = useState('');
   const [notice, setNotice] = useState('');
@@ -335,7 +344,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     // 지운 자리에는 다음 이미지나 "이미지 추가" 타일이 온다.
     pendingFocus.current = { position, control: 'input' };
     const label = goodsImageLabel(position);
-    commit(removeGoodsImage(slotsRef.current, position), tile.path && position > 0
+    commit(removeGoodsImage(slotsRef.current, position), tile.path
       ? `${label}${goodsImageObjectParticle(position)} 삭제했습니다. 상품을 저장하면 연결이 제거됩니다. 저장소 원본은 별도 보존됩니다.`
       : `${label} 업로드를 취소했습니다.`);
   }
@@ -494,14 +503,15 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
           </svg>
         </button>
       ) : null}
-      {tile && (!isMain || !tile.path) ? (
-        <button aria-label={isMain ? '대표 이미지 업로드 취소' : `${label} 삭제`} className="absolute top-1 right-1 z-[1] inline-flex size-7 items-center justify-center rounded-full border bg-background p-0 text-base leading-none text-foreground shadow-xs outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" data-image-remove="" onClick={() => remove(position)} type="button">
+      {tile && (!isMain || !tile.path || mainRemovable) ? (
+        <button aria-label={isMain ? tile.path ? '대표 이미지 삭제' : '대표 이미지 업로드 취소' : `${label} 삭제`} className="absolute top-1 right-1 z-[1] inline-flex size-7 items-center justify-center rounded-full border bg-background p-0 text-base leading-none text-foreground shadow-xs outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" data-image-remove="" onClick={() => remove(position)} type="button">
           <span aria-hidden="true">×</span>
         </button>
       ) : null}
       <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs leading-snug">
         <strong className="font-medium text-foreground">{isAdd ? `추가 이미지 ${galleryCount}/${GOODS_GALLERY_MAX}` : label}</strong>
-        {isMain ? <span className="text-muted-foreground">공개 필수</span> : null}
+        {isMain ? <span className="text-muted-foreground" data-good-main-image-note={publication}>{publication === 'archived' ? '보관 상품 · 복원 뒤 수정'
+          : publication === 'published' && tile?.path ? '공개 필수 · 공개 중 교체만' : '공개 필수'}</span> : null}
         {stateText ? <span className={state === 'uploaded' ? 'text-[var(--wc-success)]' : state === 'failed' ? 'text-destructive' : 'text-muted-foreground'} data-upload-status={state}>{stateText}</span> : null}
       </div>
       {tile && !isMain ? (
@@ -528,7 +538,14 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-image-grid="">
     <legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 {GOODS_GALLERY_MAX}장</legend>
     <p className="text-sm wrap-anywhere" id={GOODS_IMAGE_GUIDANCE_ID}>{GOODS_IMAGE_RATIO_GUIDANCE} 공통 파일 규격: {GOODS_ARTWORK_GUIDANCE}.</p>
-    <p className="text-xs text-muted-foreground">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
+    {/*
+      ADM-004(복잡도 표 160행): 조작법은 처음 한 번 읽는 안내라 접어 둔다. 펼침은 저장 시도 뒤에도 유지한다. 입력칸이 아니라 안내 문구라 ADM-004
+      "복잡함 줄이기" 지시 범위다 — 묶음 10의 "펼친 채로" 원칙은 입력 섹션 대상이라 여기에 걸리지 않는다(오케스트레이터 판단, T15a 리뷰).
+    */}
+    <GoodWorkspaceDetails stateId="good-image-guide" className="group/image-guide min-w-0 text-xs text-muted-foreground" data-good-image-guide="">
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-3.5 shrink-0 transition-transform group-open/image-guide:rotate-90 motion-reduce:transition-none" />이미지 바꾸기·순서·삭제 방법</summary>
+      <p className="mt-1.5">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. {{ draft: '×를 누르면 그 이미지를 뺍니다.', published: '추가 이미지는 ×로 빼고, 공개 중인 상품의 대표 이미지는 교체만 합니다.', archived: '보관 상품은 복원한 뒤 이미지를 고쳐 저장합니다.' }[publication]} 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
+    </GoodWorkspaceDetails>
     <button type="button" className={cn(buttonVariants({ variant: 'outline' }), 'self-start')} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 선택</button>
     {photoPicker ? <GoodsPhotoPicker onClose={() => setPhotoPicker(false)} onSelect={photo => {
       const current = slotsRef.current;

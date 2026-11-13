@@ -172,11 +172,6 @@ export function ReviewConsoleScreen({
             dateRange={{
               from: filters.from,
               label: '작성일',
-              presetHref: (range) => adminReviewHref(filters, {
-                from: range.from,
-                page: 1,
-                to: range.to,
-              }),
               to: filters.to,
             }}
             hiddenFields={{
@@ -279,7 +274,7 @@ export function ReviewConsoleScreen({
                 count: counts.awaitingReply,
                 href: adminReviewHref(filters, { page: 1, reply: 'without', reviewId: null }),
                 icon: MessageSquareText,
-                label: '답글 미등록',
+                label: '미답글',
                 tone: csChipTone('question', 'awaiting'),
               },
               {

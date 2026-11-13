@@ -17,7 +17,7 @@ export interface MarketingCampaign { id:string;reference:number;name:string;revi
 export interface MarketingValues { name:string;segmentId:string;segmentRevision:number;content:MarketingContent;schedule:MarketingSchedule;exclusion:MarketingExclusion;copyFrom?:string }
 export interface MarketingFilters {query:string;state:'all'|'draft'|MarketingRunState;page:number;start:string;end:string}
 export interface MarketingList {rows:MarketingCampaign[];total:number;page:number;pageSize:20;filters:MarketingFilters}
-export interface MarketingProduct {id:string;name:string;imageUrl:string|null;price:number;compareAtPrice?:number|null;priceMax?:number}
+export interface MarketingProduct {id:string;name:string;imageUrl:string|null;price:number;compareAtPrice?:number|null;priceMax?:number;/** 굿즈의 할인율 표시 설정. 끄면 판매가만 보인다(생략하면 표시). */showDiscountRate?:boolean}
 export interface MarketingProductOptions extends SegmentOptions {products:MarketingProduct[]}
 export interface MyMarketingMessage {id:string;registeredAt:string;content:MarketingContent;goodIds:string[];goods:MarketingProduct[];coupon?:MarketingCoupon|null}
 const chars=(value:string)=>[...value].length;
@@ -41,8 +41,8 @@ export function parseMarketingSchedule(value:unknown):MarketingSchedule|null {
  return null;
 }
 export function marketingScheduleError(schedule:MarketingSchedule,at=new Date()):string|null {
- if(schedule.kind==='immediate'){const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(at));return hour<8||hour>=20?'즉시 등록은 한국 시각 08:00–20:00에 가능합니다.':null;}
- if(schedule.kind==='once'){const date=new Date(schedule.at),hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(date));if(date<=at||date.getTime()>at.getTime()+366*86400000||hour<8||hour>=20)return '예약은 1년 이내의 미래 시각, 한국 시각 08:00–20:00로 설정해주세요.';return null;}
+ if(schedule.kind==='immediate'){const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(at));return hour<8||hour>=20?'즉시 등록은 KST 08:00–20:00에 가능합니다.':null;}
+ if(schedule.kind==='once'){const date=new Date(schedule.at),hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(date));if(date<=at||date.getTime()>at.getTime()+366*86400000||hour<8||hour>=20)return '예약은 1년 이내의 미래 시각, KST 08:00–20:00로 설정해주세요.';return null;}
  const start=new Date(`${schedule.startDate}T${schedule.time}:00+09:00`),end=new Date(`${schedule.endDate}T${schedule.time}:00+09:00`),days=(end.getTime()-start.getTime())/86400000;
  if(!Number.isFinite(days)||days<0||days>365)return '반복 기간은 시작일부터 최대 1년으로 설정해주세요.';
  const first=new Date(start);first.setUTCDate(first.getUTCDate()+((schedule.weekday-new Date(`${schedule.startDate}T00:00:00Z`).getUTCDay()+7)%7));

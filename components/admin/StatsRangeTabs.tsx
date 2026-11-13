@@ -37,7 +37,7 @@ export function StatsRangeTabs({ base, filters, now = new Date(), exportDisabled
           aria-current={!filters.from && days === filters.days ? 'true' : undefined}
           className={STATS_SEGMENT_LINK}
           href={adminStatsHref(base, { ...filters, days, from: null, to: null })}>최근 {days}일</Link>)}</nav>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Input aria-label="조회 시작일" className="w-36" defaultValue={dates.from} name="from" required type="date" />
           <span aria-hidden="true" className="text-muted-foreground">~</span>
           <Input aria-label="조회 종료일" className="w-36" defaultValue={dates.to} name="to" required type="date" />
@@ -46,11 +46,11 @@ export function StatsRangeTabs({ base, filters, now = new Date(), exportDisabled
       <StatsFilterRow label="조회기준">
         {screen !== 'claims' ? <StatsFilterControl htmlFor={`${idPrefix}-bucket`} label="단위"><NativeSelect defaultValue={filters.bucket ?? 'day'} id={`${idPrefix}-bucket`} name="bucket"><option value="day">일별</option><option value="week">주별</option><option value="month">월별</option></NativeSelect></StatsFilterControl> : null}
         <StatsFilterControl htmlFor={`${idPrefix}-compare`} label="비교"><NativeSelect defaultValue={comparisonMode} id={`${idPrefix}-compare`} name="compare"><option value="none">비교 없음</option><option value="previous">직전 동일 기간</option><option value="year">전년 동일 날짜</option></NativeSelect></StatsFilterControl>
-        {screen === 'sales' ? <StatsFilterControl htmlFor={`${idPrefix}-ip`} label="IP 필터 (상품 순위)"><Input className="w-40" defaultValue={filters.ipId} id={`${idPrefix}-ip`} maxLength={64} name="ip" placeholder="IP 코드" /></StatsFilterControl> : null}
+        {screen === 'sales' ? <StatsFilterControl htmlFor={`${idPrefix}-ip`} label="IP 필터 (상품 순위)"><Input className="w-40" defaultValue={filters.ipId} id={`${idPrefix}-ip`} maxLength={64} name="ip" placeholder="IP 공개 URL" /></StatsFilterControl> : null}
       </StatsFilterRow>
       {/* 조회 카드 바닥 줄(콘솔 조회 카드와 같다): 왼쪽에 집계 기준·내보내기, 오른쪽에 [초기화][조회]. */}
       <ConsoleFilterActions start={<>
-        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground"><p>한국시간 기준 · 최대 366일 · 주별은 월요일 시작</p>
+        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground"><p>KST 기준 · 최대 366일 · 주별은 월요일 시작</p>
           {comparisonMode === 'year' ? <p>{ADMIN_STATS_YEAR_COMPARISON_NOTE}</p> : null}</div>
         {!filters.rangeError ? exportDisabledReason ? <p className="text-sm text-muted-foreground" role="status">{exportDisabledReason}</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={`${exportHref}${exportHref.includes('?') ? '&' : '?'}report=${screen}`}><Download aria-hidden="true" />엑셀 다운로드</a> : null}
       </>}>

@@ -172,7 +172,7 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
     <p className="text-sm text-muted-foreground">상품별 정기배송 주기와 안내를 저장합니다. 카드 자동결제 연결과 서비스 공개 준비가 완료된 상품만 고객에게 신청 버튼이 표시됩니다.</p>
     {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 상품 화면을 다시 열어주세요.</p> : <>
       {ui?.error && <p className="text-sm text-destructive" role="alert">{ui.error}</p>}{ui?.message && <p className="text-sm font-medium" role="status">{ui.message}</p>}
-      {stored.unavailable && <p className="text-sm text-muted-foreground" role="status">브라우저 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 저장해주세요.</p>}
+      {stored.unavailable && <p className="text-sm text-muted-foreground" role="status">입력 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 저장해주세요.</p>}
       {showDisabledReason && disabledReason && <p className={GOOD_NOTE_CLASS} role="status">{disabledReason}</p>}
       {workspace?.recoveryPending && <div className={`${GOOD_NOTE_CLASS} flex flex-col items-start gap-2`}>
         <p>{recoveryValid ? '같은 로그인 세션에서 저장하지 않은 정기배송 입력이 있습니다.' : '이전 로그인 세션이거나 확인할 수 없는 임시 입력입니다.'}</p>

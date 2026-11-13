@@ -1,9 +1,13 @@
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
+import { conjunctionParticle, objectParticle, subjectParticle, topicParticle } from '@/lib/korean-particle';
 import {
+  GOOD_TYPE_PUBLISH_REQUIRED,
   normalizeAdminGoodForm,
   normalizeGoodsSearchKeywords,
   validateGoodsSearchKeywords,
 } from './catalog';
+import { categoryGoodType } from './category';
+import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
 import { parseGoodsOptionRows } from './goods-option-editor';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
@@ -14,6 +18,7 @@ import { goodsCustomInputWorkbookConfig, goodsCustomInputWorkbookOrphanErrors, p
   type GoodsCustomInputWorkbookInputRow } from './goods-custom-input-workbook';
 import type { GoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
 import type { GoodsSizeChartSnapshot } from '@/lib/goods-size-chart';
+import { resultParticle } from '@/lib/korean-particle';
 import { goodsGuidanceOrphanErrors, planGoodsAfterSalesWorkbook, planGoodsSizeWorkbook,
   GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_SHEET,
   type GoodsAfterSalesWorkbookInputRow, type GoodsSizeWorkbookInputRow, type GoodsImportGuidance } from './goods-guidance-workbook';
@@ -35,30 +40,36 @@ export const goodsWorkbookDescriptionCell = (description: string) =>
 export const GOODS_IMAGES_ZIP_BYTES_LIMIT = 50 * 1024 * 1024;
 export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
-export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v7';
+/**
+ * v8(ADR-0038·S36-012): 첫 열 상품번호, 열 이름을 상품 수정 화면과 맞춘다 — 판매자상품코드·관리코드·재고수량·상품 표시문구·판매상태,
+ * 가격은 화면처럼 판매가(할인 전)·즉시할인(원)·옵션가(추가금액), 매입단가는 공급가(매입단가). v3~v7 파일도 읽는다(아래 구형 열).
+ */
+export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v8';
+export const GOODS_WORKBOOK_V7_VERSION = 'ICONS 상품 일괄 등록 v7';
 export const GOODS_WORKBOOK_V6_VERSION = 'ICONS 상품 일괄 등록 v6';
 export const GOODS_WORKBOOK_V5_VERSION = 'ICONS 상품 일괄 등록 v5';
 /** v4는 옵션 축/값 3이 없고, v3는 갤러리 5~9도 없다. 구형 양식의 열 순서를 유지해 읽는다. */
 export const GOODS_WORKBOOK_V4_VERSION = 'ICONS 상품 일괄 등록 v4';
 export const GOODS_WORKBOOK_V3_VERSION = 'ICONS 상품 일괄 등록 v3';
 export const GOODS_WORKBOOK_HEADERS = {
-  code: '상품코드',
+  productNo: '상품번호',
+  code: '판매자상품코드',
   name: '상품명',
   ipId: 'IP ID',
   id: '상품 URL',
   publish: '게시 상태',
   type: '상품 유형',
-  price: '기준 판매가',
-  compareAtPrice: '소비자가',
+  salePrice: '판매가',
+  instantDiscount: '즉시할인',
   showDiscountRate: '할인율 표시',
-  badge: '배지',
-  stock: '재고 표시',
+  badge: '상품 표시문구',
+  stock: '판매상태',
   allowBankTransfer: '무통장 허용',
   saleRestriction: '판매 제한',
   originCode: '출고지 코드',
   shippingFeeType: '배송비 유형',
   individualFee: '개별 배송비',
-  variantCode: '옵션코드',
+  variantCode: '관리코드',
   variantName: '옵션명',
   axis1: '옵션 축 1',
   value1: '옵션 값 1',
@@ -66,8 +77,8 @@ export const GOODS_WORKBOOK_HEADERS = {
   value2: '옵션 값 2',
   axis3: '옵션 축 3',
   value3: '옵션 값 3',
-  variantPrice: '옵션 판매가',
-  stockQty: '옵션 재고',
+  optionPrice: '옵션가',
+  stockQty: '재고수량',
   preset: '고시 프리셋',
   noticeMaker: '제조자',
   noticeOrigin: '제조국',
@@ -108,8 +119,8 @@ export const GOODS_WORKBOOK_HEADERS = {
   claimReturnFee: '고객 귀책 반품비 편도',
   claimReturnFreeShippingFee: '최초 무료배송 후 반품비 왕복',
   claimExchangeFee: '고객 귀책 교환비 왕복',
-  purchaseCostKrw: '매입단가 (관리자 전용)',
-  purchaseTaxBasis: '매입단가 세금 구분 (관리자 전용)',
+  purchaseCostKrw: '공급가(매입단가) (관리자 전용)',
+  purchaseTaxBasis: '공급가(매입단가) 세금 구분 (관리자 전용)',
   shippingNoticeTemplateCode: '배송 안내 템플릿 코드',
   shippingNoticeTemplateVersion: '배송 안내 템플릿 버전',
   lowStockThreshold: '안전재고 기준',
@@ -133,23 +144,90 @@ export const GOODS_WORKBOOK_KEYS = Object.keys(
   GOODS_WORKBOOK_HEADERS,
 ) as GoodsWorkbookKey[];
 export type GoodsWorkbookRow = Record<GoodsWorkbookKey, string>;
+/**
+ * v3~v7 가격 열. 저장값 그대로(기준 판매가 = 고객 결제 기준 금액, 소비자가 = 할인 전 금액, 옵션 판매가 = 최종 옵션 금액)라
+ * 읽을 때 v8의 판매가·즉시할인·옵션가로 옮긴다(goodsWorkbookPricesFromLegacy).
+ */
+export type GoodsWorkbookLegacyPrices = { price: string; compareAtPrice: string; variantPrice: string };
+type GoodsWorkbookLegacyPriceKey = `legacy:${keyof GoodsWorkbookLegacyPrices}`;
+export type GoodsWorkbookColumnKey = GoodsWorkbookKey | GoodsWorkbookLegacyPriceKey;
+export type GoodsWorkbookColumn = { key: GoodsWorkbookColumnKey; header: string };
+const LEGACY_PRICE_COLUMNS: Partial<Record<GoodsWorkbookKey, GoodsWorkbookLegacyPriceKey>> = {
+  salePrice: 'legacy:price', instantDiscount: 'legacy:compareAtPrice', optionPrice: 'legacy:variantPrice',
+};
+/** v3~v7의 열 이름(v8에서 화면 이름으로 바뀐 열만). */
+const LEGACY_HEADERS: Partial<Record<GoodsWorkbookColumnKey, string>> = {
+  code: '상품코드', 'legacy:price': '기준 판매가', 'legacy:compareAtPrice': '소비자가', badge: '배지', stock: '재고 표시',
+  variantCode: '옵션코드', 'legacy:variantPrice': '옵션 판매가', stockQty: '옵션 재고',
+  purchaseCostKrw: '매입단가 (관리자 전용)', purchaseTaxBasis: '매입단가 세금 구분 (관리자 전용)',
+};
+/** v5~v7 상품 시트의 열(상품번호 없음). v4는 옵션 축 3이, v3는 갤러리 5~9도 없다. */
+const GOODS_WORKBOOK_V7_COLUMNS: readonly GoodsWorkbookColumn[] = GOODS_WORKBOOK_KEYS.filter((key) => key !== 'productNo').map((key) => {
+  const column = LEGACY_PRICE_COLUMNS[key] ?? key;
+  return { key: column, header: LEGACY_HEADERS[column] ?? GOODS_WORKBOOK_HEADERS[key] };
+});
+const GOODS_WORKBOOK_COLUMNS: readonly GoodsWorkbookColumn[] = GOODS_WORKBOOK_KEYS.map((key) => ({ key, header: GOODS_WORKBOOK_HEADERS[key] }));
 /** v3 양식에 없는 열 — 추가 이미지 5~9(갤러리 5~9). */
 const GOODS_WORKBOOK_V3_ABSENT = /^gallery(Url|File)[4-8]$/;
-/** 업로드한 상품 시트의 A1 버전에 맞는 열 순서. 모르는 버전이면 null이다. */
-export function goodsWorkbookLayout(version: string): { keys: readonly GoodsWorkbookKey[]; layout?: 'v3' | 'v4' } | null {
-  if ([GOODS_WORKBOOK_VERSION, GOODS_WORKBOOK_V6_VERSION, GOODS_WORKBOOK_V5_VERSION].includes(version)) return { keys: GOODS_WORKBOOK_KEYS };
-  const oldOptionKeys = GOODS_WORKBOOK_KEYS.filter(key => key !== 'axis3' && key !== 'value3');
-  if (version === GOODS_WORKBOOK_V4_VERSION) return { keys: oldOptionKeys, layout: 'v4' };
+/** 구형(v3~v7) 양식 표시. v3·v4는 열이 더 적고, 셋 다 상품번호 열이 없으며 가격 열을 옮겨 읽는다. */
+export type GoodsWorkbookLegacyLayout = 'v3' | 'v4' | 'v7';
+/** 업로드한 상품 시트의 A1 버전에 맞는 열 순서와 열 이름. 모르는 버전이면 null이다. */
+export function goodsWorkbookLayout(version: string): { columns: readonly GoodsWorkbookColumn[]; layout?: GoodsWorkbookLegacyLayout } | null {
+  if (version === GOODS_WORKBOOK_VERSION) return { columns: GOODS_WORKBOOK_COLUMNS };
+  if ([GOODS_WORKBOOK_V7_VERSION, GOODS_WORKBOOK_V6_VERSION, GOODS_WORKBOOK_V5_VERSION].includes(version)) return { columns: GOODS_WORKBOOK_V7_COLUMNS, layout: 'v7' };
+  const oldOptionColumns = GOODS_WORKBOOK_V7_COLUMNS.filter(({ key }) => key !== 'axis3' && key !== 'value3');
+  if (version === GOODS_WORKBOOK_V4_VERSION) return { columns: oldOptionColumns, layout: 'v4' };
   if (version === GOODS_WORKBOOK_V3_VERSION)
-    return { keys: oldOptionKeys.filter((key) => !GOODS_WORKBOOK_V3_ABSENT.test(key)), layout: 'v3' };
+    return { columns: oldOptionColumns.filter(({ key }) => !GOODS_WORKBOOK_V3_ABSENT.test(key)), layout: 'v3' };
   return null;
+}
+const INT32_MAX = 2147483647;
+const wholeWon = (text: string) => /^\d+$/.test(text) && Number.isSafeInteger(Number(text)) && Number(text) <= INT32_MAX;
+/**
+ * v3~v7 가격 열을 v8 열로 옮긴다. 판매가 = 소비자가(할인 중) 또는 기준 판매가, 즉시할인 = 소비자가 − 기준 판매가,
+ * 옵션가 = 옵션 판매가 − 기준 판매가. 저장되는 price·compare_at_price·옵션 금액은 v7과 같다. 옮길 수 없는 값은
+ * 구형 열 이름으로 오류를 돌려주고 그 칸은 비운다(같은 오류를 v8 이름으로 한 번 더 말하지 않게).
+ */
+export function goodsWorkbookPricesFromLegacy(legacy: GoodsWorkbookLegacyPrices): {
+  values: Pick<GoodsWorkbookRow, 'salePrice' | 'instantDiscount' | 'optionPrice'>; errors: string[];
+} {
+  const price = legacy.price.trim(), compare = legacy.compareAtPrice.trim(), variant = legacy.variantPrice.trim();
+  const errors: string[] = [];
+  const values = { salePrice: price, instantDiscount: '', optionPrice: '' };
+  const base = wholeWon(price || '0') ? Number(price || 0) : null;
+  if (compare) {
+    if (base === null || !wholeWon(compare)) errors.push('기준 판매가·소비자가는 0 이상의 정수입니다.');
+    else if (Number(compare) <= base) errors.push('소비자가는 기준 판매가보다 커야 합니다.');
+    else Object.assign(values, { salePrice: compare, instantDiscount: String(Number(compare) - base) });
+  }
+  if (variant) {
+    if (base === null || !wholeWon(variant)) errors.push('옵션 판매가는 0~2,147,483,647 정수입니다.');
+    else if (Number(variant) < base) errors.push('옵션 판매가는 기준 판매가보다 낮게 입력할 수 없습니다.');
+    else values.optionPrice = String(Number(variant) - base);
+  }
+  return { values, errors };
+}
+/**
+ * 상품 시트의 판매가·즉시할인을 저장 계약(price = 고객 결제 기준 금액, compareAtPrice = 할인 전 금액)으로 바꾼다.
+ * 상품 수정 화면의 판매가·즉시할인(원)과 같은 뜻이다. 즉시할인 빈칸·0은 할인 없음이다.
+ */
+export function goodsWorkbookStoredPrice(values: Pick<GoodsWorkbookRow, 'salePrice' | 'instantDiscount'>): {
+  price: number; compareAtPrice: number | null; error?: string;
+} {
+  const sale = values.salePrice.trim(), discount = values.instantDiscount.trim();
+  if (!wholeWon(sale || '0')) return { price: 0, compareAtPrice: null, error: '판매가는 0~2,147,483,647 원 단위 정수입니다.' };
+  const regular = Number(sale || 0);
+  if (!discount || discount === '0') return { price: regular, compareAtPrice: null };
+  if (!wholeWon(discount) || Number(discount) >= regular)
+    return { price: regular, compareAtPrice: null, error: `즉시할인은 1원 이상, 판매가 ${regular.toLocaleString('ko-KR')}원보다 작은 원 단위 정수로 입력하거나 비워 주세요.` };
+  return { price: regular - Number(discount), compareAtPrice: regular };
 }
 export type GoodsWorkbookInputRow = {
   row: number;
   values: GoodsWorkbookRow;
   errors?: string[];
-  /** 구형 양식에서 읽은 행. v3의 갤러리 5~9는 보존하고, 3축 상품은 최신 양식을 요구한다. */
-  layout?: 'v3' | 'v4';
+  /** 구형 양식에서 읽은 행. v3의 갤러리 5~9는 보존하고, v3·v4의 3축 상품은 최신 양식을 요구한다. 상품번호는 수정 대상의 번호로 채운다. */
+  layout?: GoodsWorkbookLegacyLayout;
 };
 export type GoodsImportVariant = {
   id: string;
@@ -170,10 +248,15 @@ export type GoodsImportVariant = {
   purchase_tax_basis?: PurchaseTaxBasis | null;
   purchase_cost_revision?: number | null;
 };
+/** 진행·예정 기간 할인 요약(admin_goods_import_records의 livePriceDiscount, TKT-033). 없으면 null. */
+export type GoodsImportLivePriceDiscount = { count: number; minPrice: number; maxPrice: number; startsAt: string; endsAt: string };
 export type GoodsImportExisting = {
   good: Record<string, unknown>;
   variants: GoodsImportVariant[];
   fingerprint: string;
+  livePriceDiscount?: GoodsImportLivePriceDiscount | null;
+  /** 진행·예정 기간 할인 행이 걸린 옵션 id(admin_goods_import_records의 livePriceVariantIds). 없으면 상품의 모든 옵션으로 본다. */
+  livePriceVariantIds?: string[] | null;
   kcReview?: AdminGoodsKc | null;
   afterSales?: GoodsAfterSalesSnapshot | null;
   sizeChart?: GoodsSizeChartSnapshot | null;
@@ -184,8 +267,11 @@ export type GoodsWorkbookContext = {
   ips: { id: string; archived_at: string | null }[];
   origins: { id: string; code: string; is_active: boolean }[];
   presets: { name: string; notice: GoodsNoticeInfo }[];
-  categories?: { id: string; code: string; archived_at: string | null }[];
+  /** 대표·추가 카테고리 코드와 상품 유형 연결(SHEET-003: 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값). */
+  categories?: { id: string; code: string; archived_at: string | null; parent_id?: string | null; good_type?: string | null }[];
   imageNames?: string[];
+  /** 읽은 관리코드(옵션코드)의 소유 상품(관리코드는 전체에서 유일). 새 행의 중복 관리코드를 적용 전에 미리보기에서 잡는다. */
+  variantCodeOwners?: Record<string, string>;
   kcRows?: GoodsKcWorkbookInputRow[] | null;
   customInputRows?: GoodsCustomInputWorkbookInputRow[] | null;
   afterSalesRows?: GoodsAfterSalesWorkbookInputRow[] | null;
@@ -265,23 +351,46 @@ const OPTION_KEYS = new Set<GoodsWorkbookKey>([
   'value2',
   'axis3',
   'value3',
-  'variantPrice',
+  'optionPrice',
   'stockQty',
   'lowStockThreshold',
   'variantActive',
   'erpCode', 'erpName', 'barcode', 'purchaseCostKrw', 'purchaseTaxBasis',
 ]);
 const str = (value: unknown) => (value == null ? '' : String(value));
-const integer = (text: string) =>
-  /^\d+$/.test(text) &&
-  Number.isSafeInteger(Number(text)) &&
-  Number(text) <= 2147483647;
+const integer = wholeWon;
 // Form submissions use CRLF while XLSX XML readers normalize line endings to LF.
 // Normalize only for comparison: preserve the raw stored/input text, blanks,
 // zero values, spaces and every other content change.
 const comparableCellText = (value: string) => value.replace(/\r\n?/g, '\n');
+/**
+ * SHEET-003(ADR-0037): 상품 유형 열은 내보내기에만 쓰고(대표 카테고리에서 정해진 저장 유형) 반입은 반영하지 않는다.
+ * 그래서 변경 여부·같은 상품 행 일치 비교에서도 뺀다.
+ */
+const IGNORED_ON_IMPORT_KEYS = new Set<GoodsWorkbookKey>(['type']);
 const canonical = (values: GoodsWorkbookRow) =>
-  JSON.stringify(GOODS_WORKBOOK_KEYS.map((key) => comparableCellText(values[key])));
+  JSON.stringify(GOODS_WORKBOOK_KEYS.filter((key) => !IGNORED_ON_IMPORT_KEYS.has(key)).map((key) => comparableCellText(values[key])));
+/**
+ * 상품에 적용되는 상품 유형(SHEET-003): 공개 중이면 저장된 유형, 초안은 대표 카테고리(없으면 가까운 상위)의 연결값(없으면 저장된 값).
+ * 내보내기의 상품 유형 열과 반입이 싣는 값이 같은 규칙이다(저장 때 DB 트리거가 같은 값으로 맞춘다).
+ */
+function goodsWorkbookAppliedType(
+  good: Record<string, unknown>,
+  categoryId: string | null,
+  typeNodes: readonly { id: string; parentId: string | null; goodType: string | null }[],
+): { applied: string; categoryType: string } {
+  const categoryType = categoryId ? categoryGoodType(typeNodes, categoryId) : '';
+  const stored = good.type == null ? '' : String(good.type);
+  return { categoryType, applied: good.published_at ? stored : categoryType || stored };
+}
+const goodsWorkbookTypeNodes = (categories: GoodsWorkbookContext['categories']) =>
+  (categories ?? []).map((category) => ({ id: category.id, parentId: category.parent_id ?? null, goodType: category.good_type ?? null }));
+/** 반입에서 상품 유형 열을 무시한다는 안내. 파일 값이 적용될 유형과 다를 때만 보인다. */
+export function goodsWorkbookTypeIgnoredWarning(fileType: string, appliedType: string): string | null {
+  const value = fileType.trim();
+  if (!value || value === appliedType) return null;
+  return `상품 유형 열(‘${value}’)은 반영하지 않습니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값${appliedType ? `(‘${appliedType}’)` : '(지금 연결 없음)'}으로 정해집니다.`;
+}
 const imagePairs = [
   ['imageUrl', 'imageFile', 'image_path'],
   ['galleryUrl0', 'galleryFile0', 'gallery_0'],
@@ -315,6 +424,19 @@ export function emptyGoodsWorkbookRow(): GoodsWorkbookRow {
     GOODS_WORKBOOK_KEYS.map((key) => [key, '']),
   ) as GoodsWorkbookRow;
 }
+/**
+ * 저장된 검증 결과(24시간)의 행을 지금 양식의 행으로 맞춘다. v8 배포 전에 만든 작업은 행이 v7 키(price·compareAtPrice·variantPrice)라
+ * 실패 행 파일을 v8 열로 다시 쓸 수 있게 옮긴다. 이미 v8 행이면 그대로다.
+ */
+export function goodsWorkbookRowFromStored(values: Record<string, unknown>): GoodsWorkbookRow {
+  const row = emptyGoodsWorkbookRow();
+  for (const key of GOODS_WORKBOOK_KEYS) if (typeof values[key] === 'string') row[key] = values[key] as string;
+  if (typeof values.salePrice !== 'string' && ['price', 'compareAtPrice', 'variantPrice'].some((key) => typeof values[key] === 'string'))
+    Object.assign(row, goodsWorkbookPricesFromLegacy({
+      price: str(values.price), compareAtPrice: str(values.compareAtPrice), variantPrice: str(values.variantPrice),
+    }).values);
+  return row;
+}
 /** An export carries editable values; fields outside this format remain in the stored record. */
 export function exportGoodsWorkbookRows(
   record: GoodsImportExisting,
@@ -329,8 +451,13 @@ export function exportGoodsWorkbookRows(
     return code;
   });
   const shippingNotice = good.shipping_notice_snapshot && typeof good.shipping_notice_snapshot === 'object' ? good.shipping_notice_snapshot as Record<string, unknown> : {};
+  // 화면과 같은 판매가(할인 전)·즉시할인(원). 할인 중이 아니면 즉시할인은 빈칸이다.
+  const storedPrice = Number(good.price ?? 0);
+  const storedCompare = good.compare_at_price == null ? null : Number(good.compare_at_price);
+  const discounted = storedCompare !== null && Number.isFinite(storedCompare) && storedCompare > storedPrice;
   const base: GoodsWorkbookRow = {
     ...emptyGoodsWorkbookRow(),
+    productNo: str(good.product_no),
     code: str(good.code),
     name: str(good.name),
     nameEn: str(good.name_en),
@@ -351,9 +478,10 @@ export function exportGoodsWorkbookRows(
     ipId: str(good.ip_id),
     id: str(good.id),
     publish: good.archived_at ? '보관' : good.published_at ? '공개' : '초안',
-    type: str(good.type),
-    price: str(good.price),
-    compareAtPrice: str(good.compare_at_price),
+    /* SHEET-003: 대표 카테고리에서 정해진 유형(공개 중이면 저장된 유형). 반입은 이 열을 반영하지 않는다. */
+    type: goodsWorkbookAppliedType(good, str(good.category_id) || null, goodsWorkbookTypeNodes(context.categories)).applied,
+    salePrice: discounted ? str(storedCompare) : str(good.price),
+    instantDiscount: discounted ? String(storedCompare! - storedPrice) : '',
     showDiscountRate: good.show_discount_rate === false ? '아니오' : '예',
     badge: str(good.badge),
     stock: str(good.stock),
@@ -408,7 +536,8 @@ export function exportGoodsWorkbookRows(
       value2: attributes[1]?.[1] ?? '',
       axis3: attributes[2]?.[0] ?? '',
       value3: attributes[2]?.[1] ?? '',
-      variantPrice: str(variant?.price ?? good.price),
+      // 옵션가는 상품 수정 화면처럼 판매가(할인하면 할인가)에 더하는 추가금액이다.
+      optionPrice: String(Number(variant?.price ?? good.price ?? 0) - storedPrice),
       stockQty: str(variant?.stock_qty ?? 0),
       lowStockThreshold: str(variant?.low_stock_threshold),
       variantActive: variant?.archived_at ? '중지' : '사용',
@@ -451,14 +580,65 @@ function noticeFromPreset(
     noticeAsContact: row.noticeAsContact || str(notice.asContact),
   };
 }
+/** 상품번호는 1부터 매기는 양의 정수다(상품 목록·내보내기 그대로). */
+const PRODUCT_NO_PATTERN = /^[1-9]\d{0,15}$/;
+const MATCHED_BY_NUMBER_ONLY = '판매자상품코드가 비어 있어 상품번호로 찾은 기존 상품을 수정합니다.';
+/**
+ * 반입 키(ADR-0038): 상품번호 → 판매자상품코드 순서로 수정할 기존 상품을 찾는다. 찾으면 그 상품의 판매자상품코드·상품번호를
+ * 행에 채워 같은 상품의 행끼리 묶이고, 내려받은 파일과 같으면 '변경 없음'이 된다. 상품번호와 판매자상품코드가 서로 다른 상품을
+ * 가리키면 덮어쓰지 않고 오류다(판매자상품코드는 상품 수정 화면에서 바꾼다).
+ * 상품 URL은 키가 아니다(구형 파일도 같다). 번호·코드가 모두 빈 행은 새 상품이고, 그 상품 URL을 이미 다른 상품이 쓰면 오류다 —
+ * 기존 행을 복사해 새 상품을 만들며 URL만 남긴 행이 원래 상품을 덮지 않게 한다.
+ */
+function resolveGoodsWorkbookTarget(row: GoodsWorkbookInputRow, existing: readonly GoodsImportExisting[]): {
+  row: GoodsWorkbookInputRow; matchedByNumberOnly: boolean;
+} {
+  const values = { ...row.values };
+  const number = values.productNo.trim(), code = values.code.trim().toUpperCase(), url = values.id.trim();
+  const errors = [...(row.errors ?? [])];
+  let record: GoodsImportExisting | undefined;
+  let matchedByNumberOnly = false;
+  if (number) {
+    const byNumber = PRODUCT_NO_PATTERN.test(number) ? existing.find((item) => str(item.good.product_no) === number) : undefined;
+    if (!PRODUCT_NO_PATTERN.test(number)) errors.push('상품번호는 내려받은 숫자 그대로 두거나, 새 상품이면 비워 주세요.');
+    else if (!byNumber) errors.push(`상품번호 ${number}인 상품을 찾을 수 없습니다. 새 상품은 상품번호를 비워 주세요.`);
+    else if (code && str(byNumber.good.code).toUpperCase() !== code)
+      errors.push(`상품번호 ${number}${conjunctionParticle(number)} 판매자상품코드 ${code}${subjectParticle(code)} 서로 다른 상품을 가리킵니다. 판매자상품코드는 상품 수정 화면에서 바꿔 주세요.`);
+    else { record = byNumber; matchedByNumberOnly = !code; }
+  } else if (code) record = existing.find((item) => str(item.good.code).toUpperCase() === code);
+  else if (url && existing.some((item) => str(item.good.id) === url))
+    errors.push(`이미 쓰는 상품 URL입니다(${url}). 기존 상품을 고치려면 상품번호나 판매자상품코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.`);
+  values.code = record ? str(record.good.code).toUpperCase() : code;
+  if (record) values.productNo = str(record.good.product_no);
+  return { row: { ...row, values, errors }, matchedByNumberOnly };
+}
+const KST_DATE_TIME = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+/**
+ * TKT-033(ADR-0040): 진행·예정 기간 할인(즉시할인 기간·기간 할인·할인 프로모션)이 있는 상품은 엑셀로 판매가·즉시할인·옵션가를 바꾸지 않는다.
+ * 엑셀에는 기간 할인 열이 없어, 바꾸면 기간 할인을 조용히 지우거나 기간 없는 즉시할인을 겹쳐 걸게 된다. 거절하고 이유를 보인다.
+ */
+export function goodsWorkbookLiveDiscountError(discount: GoodsImportLivePriceDiscount): string {
+  const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
+  return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다. `
+    + '엑셀에는 기간 할인 열이 없어 바꾸면 할인이 사라지거나 겹칩니다. 이 상품 행은 반영하지 않으니, 상품 수정이나 상품 목록에서 할인을 멈춘 뒤(또는 끝난 뒤) 바꿔 주세요.';
+}
+export function goodsWorkbookLiveDiscountOptionAddError(discount: GoodsImportLivePriceDiscount): string {
+  const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
+  return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 옵션을 추가·복원할 수 없습니다. `
+    + '새 옵션은 기간 중에도 할인 없이 팔리게 됩니다. 이 상품 행은 반영하지 않으니, 상품 수정에서 바꿔 주세요.';
+}
 export function planGoodsWorkbookImport(
-  rows: GoodsWorkbookInputRow[],
+  inputRows: GoodsWorkbookInputRow[],
   context: GoodsWorkbookContext,
 ): GoodsImportGroup[] {
-  if (rows.length > GOODS_WORKBOOK_ROW_LIMIT)
+  if (inputRows.length > GOODS_WORKBOOK_ROW_LIMIT)
     throw new Error(
       '옵션 행은 파일당 최대 500행입니다. 파일을 나누어 올려주세요.',
     );
+  const targets = inputRows.map((row) => resolveGoodsWorkbookTarget(row, context.existing));
+  const rows = targets.map((target) => target.row);
+  const matchedByNumberOnly = new Set(targets.flatMap((target) => target.matchedByNumberOnly ? [target.row.row] : []));
+  const typeNodes = goodsWorkbookTypeNodes(context.categories);
   const kcOrphans = goodsKcWorkbookOrphanErrors(context.kcRows ?? [], rows.map(row => row.values.code.trim().toUpperCase()));
   if (kcOrphans.length) throw new Error(kcOrphans.join('\n'));
   const customInputOrphans = goodsCustomInputWorkbookOrphanErrors(context.customInputRows ?? [], rows.map(row => row.values.code));
@@ -479,7 +659,7 @@ export function planGoodsWorkbookImport(
       { ...row, values: { ...row.values, code } },
     ]);
   }
-  return [...grouped].map(([key, source]) => {
+  const planned = [...grouped].map(([key, source]) => {
     const sourceCode = source[0].values.code;
     const record = sourceCode
       ? context.existing.find(
@@ -508,8 +688,9 @@ export function planGoodsWorkbookImport(
       afterSalesSource: (context.afterSalesRows ?? []).filter(row => row.values.goodCode.trim().toUpperCase() === first.code),
       sizeSource: (context.sizeRows ?? []).filter(row => row.values.goodCode.trim().toUpperCase() === first.code),
     };
+    if (record && source.some((row) => matchedByNumberOnly.has(row.row))) group.warnings.push(MATCHED_BY_NUMBER_ONLY);
     if (record?.variants.some(variant => (!variant.archived_at || variant.is_default) && Object.keys(variant.attributes).length > 2)
-      && source.some(row => row.layout === 'v3' || row.layout === 'v4')) errors.push('3축 옵션 상품은 최신 v7 양식으로 다시 내려받아 수정해주세요. 구형 양식에는 세 번째 옵션 축이 없어 적용할 수 없습니다.');
+      && source.some(row => row.layout === 'v3' || row.layout === 'v4')) errors.push('3축 옵션 상품은 최신 양식(v8)으로 다시 내려받아 수정해주세요. 구형 양식에는 세 번째 옵션 축이 없어 적용할 수 없습니다.');
     if (!['', '예'].includes(first.kcReset)) errors.push('KC 초기화는 비워두거나 예를 선택해주세요.');
     const kcPlan = planGoodsKcWorkbookRows(context.kcRows, {
       goodCode: first.code, existing: record?.kcReview ?? null,
@@ -547,7 +728,7 @@ export function planGoodsWorkbookImport(
       if (
         GOODS_WORKBOOK_KEYS.some(
           (key) => !OPTION_KEYS.has(key)
-            && key !== 'searchKeywords'
+            && key !== 'searchKeywords' && !IGNORED_ON_IMPORT_KEYS.has(key)
             && comparableCellText(current[key]) !== comparableCellText(first[key]),
         )
         || normalizeGoodsSearchKeywords(current.searchKeywords).join('\n')
@@ -593,7 +774,7 @@ export function planGoodsWorkbookImport(
       errors.push('판매 제한은 none 또는 adult입니다.');
     const searchKeywordsError = validateGoodsSearchKeywords(first.searchKeywords);
     if (searchKeywordsError) errors.push(searchKeywordsError);
-    if (first.code.length > 100) errors.push('상품코드는 100자 이내입니다.');
+    if (first.code.length > 100) errors.push('판매자상품코드는 100자 이내입니다.');
     const origin = context.origins.find(
       (origin) => origin.code === first.originCode,
     );
@@ -619,9 +800,6 @@ export function planGoodsWorkbookImport(
       'shippingNoticeTemplateCode', 'shippingNoticeTemplateVersion',
       'claimRestrictionReason', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee',
       'minOrderQty', 'maxOrderQty', 'memberLifetimeQtyLimit',
-      'type',
-      'price',
-      'compareAtPrice',
       'badge',
       'stock',
       'code',
@@ -641,6 +819,34 @@ export function planGoodsWorkbookImport(
     if (first.categoryCode && !category) errors.push('고객 카테고리 코드를 찾을 수 없습니다.');
     if (category?.archived_at && category.id !== record?.good.category_id) errors.push('보관한 카테고리에 새 상품을 연결할 수 없습니다.');
     form.set('categoryId', category?.id ?? '');
+    /*
+     * SHEET-003(ADR-0037): 상품 유형 열은 반영하지 않는다. 초안은 대표 카테고리(없으면 가까운 상위)의 연결값이고, 연결이 없으면
+     * 저장된 값을 그대로 둔다(그 초안은 공개할 수 없다). 공개 중이면 저장된 유형을 유지하고 유형이 바뀌는 카테고리 변경은 막는다.
+     */
+    const { categoryType, applied: appliedType } = goodsWorkbookAppliedType(record?.good ?? {}, category?.id ?? null, typeNodes);
+    const storedType = str(record?.good.type);
+    const publishedNow = Boolean(record?.good.published_at);
+    form.set('type', appliedType);
+    const typeWarning = goodsWorkbookTypeIgnoredWarning(first.type, appliedType);
+    if (typeWarning) group.warnings.push(typeWarning);
+    // 공개를 유지하는 행만 막는다. 초안으로 바꾸는 행은 DB(admin_save_good publish:false)가 먼저 초안으로 바꾼 뒤 카테고리 이동을 허용한다.
+    if (publishedNow && first.publish === '공개' && (category?.id ?? null) !== (str(record?.good.category_id) || null) && categoryType !== storedType)
+      errors.push(categoryType ? GOOD_TYPE_CATEGORY_MESSAGES.locked : GOOD_TYPE_CATEGORY_MESSAGES.required);
+    else if (first.publish === '공개' && !publishedNow && !categoryType) errors.push(GOOD_TYPE_PUBLISH_REQUIRED);
+    else if (publishedNow && first.publish !== '공개' && categoryType && categoryType !== storedType)
+      group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’${resultParticle(categoryType)} 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
+    /*
+     * 공개를 유지하는 행이 상품명·IP·고시의 제조사·원산지·재질·크기를 바꾸면 DB(KC 가드 goods_kc_reassessment_required)가 적용 때 거절한다.
+     * 검증은 통과시키고 적용에서 원인 없이 실패하지 않도록 같은 판정을 미리보기에서 한다.
+     */
+    if (record && publishedNow && first.publish === '공개') {
+      const changed = ([
+        ['상품명', first.name, record.good.name], ['IP', first.ipId, record.good.ip_id],
+        ['제조사', first.noticeMaker, record.good.notice_maker], ['원산지', first.noticeOrigin, record.good.notice_origin],
+        ['재질', first.noticeMaterial, record.good.notice_material], ['크기', first.noticeSize, record.good.notice_size],
+      ] as const).filter(([, next, previous]) => str(next).trim() !== str(previous).trim()).map(([label]) => label);
+      if (changed.length) errors.push(`공개 상품의 ${changed.join('·')}${objectParticle(changed.at(-1)!)} 바꾸면 KC 재검토가 필요해 저장되지 않습니다. 게시 상태를 초안으로 바꿔 함께 올리거나, 상품을 먼저 초안으로 전환한 뒤 바꿔 주세요.`);
+    }
     const additionalIds: string[] = [];
     for (const code of new Set(first.additionalCategoryCodes.split(/[\n,]+/).map(code => code.trim()).filter(Boolean))) {
       const additional = context.categories?.find(category => category.code === code);
@@ -655,7 +861,11 @@ export function planGoodsWorkbookImport(
       if (!['', '예', '아니오'].includes(first[key])) errors.push(`${GOODS_WORKBOOK_HEADERS[key]}은 예/아니오 또는 미검토 공란으로 입력해주세요.`);
       form.set(key, first[key] === '' ? '' : String(first[key] === '예'));
     }
-    form.set('price', first.price || '0');
+    // 판매가·즉시할인(화면 이름)을 저장 계약 price(할인하면 할인가)·compareAtPrice(할인 전)로 바꾼다. 오류면 할인 없이 검증을 이어 간다.
+    const stored = goodsWorkbookStoredPrice(first);
+    if (stored.error) errors.push(stored.error);
+    form.set('price', String(stored.price));
+    form.set('compareAtPrice', stored.compareAtPrice === null ? '' : String(stored.compareAtPrice));
     form.set('allowCardPayment', String(first.allowCardPayment !== '아니오'));
     form.set('showDiscountRate', String(first.showDiscountRate !== '아니오'));
     form.set('allowBankTransfer', String(first.allowBankTransfer !== '아니오'));
@@ -708,7 +918,7 @@ export function planGoodsWorkbookImport(
     }
     form.set('imagePath', str(imageValues.image_path));
     galleries.forEach((path, index) => form.set(`galleryPath${index}`, path));
-    // 오류 문구는 엑셀 열 이름(기준 판매가·소비자가)을 따른다 — 미리보기와 실패 행 파일의 오류 칸에 그대로 나간다.
+    // 가격 오류는 위에서 엑셀 열 이름(판매가·즉시할인)으로 알렸다 — 여기로는 검증된 저장값만 넘긴다.
     const normalized = normalizeAdminGoodForm(form, {
       ipIds: new Set(
         context.ips.filter((ip) => !ip.archived_at).map((ip) => ip.id),
@@ -720,7 +930,7 @@ export function planGoodsWorkbookImport(
     if (!normalized.ok)
       errors.push(
         ...Object.values(normalized.errors).filter((error): error is string =>
-          Boolean(error),
+          Boolean(error) && !errors.includes(error),
         ),
       );
     const active =
@@ -732,6 +942,11 @@ export function planGoodsWorkbookImport(
         (variant) =>
           variant.code.toUpperCase() === value.variantCode.toUpperCase(),
       );
+      const ownCode = value.variantCode.trim().toUpperCase();
+      const codeOwner = ownCode ? context.variantCodeOwners?.[ownCode] : undefined;
+      if (codeOwner !== undefined && !variant && codeOwner !== (record ? str(record.good.code).toUpperCase() : '')) {
+        errors.push(`${row.row}행: 관리코드 ${ownCode}${topicParticle(ownCode)} 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 기존 행을 복사해 새 상품을 만들 때는 관리코드도 비우거나 새 값으로 바꿔 주세요.`);
+      }
       const attributes: Record<string, string> = Object.create(null);
       for (const [axis, optionValue] of [[value.axis1, value.value1], [value.axis2, value.value2], [value.axis3, value.value3]]) {
         if (!axis && !optionValue) continue;
@@ -739,20 +954,24 @@ export function planGoodsWorkbookImport(
           errors.push(`${row.row}행: 옵션 축 이름이 중복됩니다.`);
         attributes[axis] = optionValue;
       }
+      // 0901-015: 재고는 비워 둘 수 없다(신규·수정 모두). 재고가 없으면 0을 직접 적고, 빈칸을 0으로 바꿔 덮어쓰지 않는다.
+      const stockText = value.stockQty.trim();
+      if (!stockText)
+        errors.push(`${row.row}행: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.`);
       if (
-        !integer(value.variantPrice || first.price || '0') ||
-        !integer(value.stockQty || '0')
+        !integer(value.optionPrice || '0') ||
+        (stockText && !integer(stockText))
       )
         errors.push(
-          `${row.row}행: 옵션 판매가·재고는 0~2,147,483,647 정수입니다.`,
+          `${row.row}행: 옵션가·재고수량은 0~2,147,483,647 정수입니다.`,
         );
       if (value.lowStockThreshold && !integer(value.lowStockThreshold))
         errors.push(`${row.row}행: 안전재고 기준은 0~2,147,483,647 정수이거나 공란이어야 합니다.`);
       if (!['', '사용', '중지'].includes(value.variantActive))
         errors.push(`${row.row}행: 옵션 사용은 사용 또는 중지로 입력해주세요.`);
       const purchaseCost = parsePurchaseCostInput({ unitCostKrw: value.purchaseCostKrw, taxBasis: value.purchaseTaxBasis });
-      if (!context.canManageCosts && (value.purchaseCostKrw || value.purchaseTaxBasis)) errors.push(`${row.row}행: 매입단가는 관리자만 입력할 수 있습니다.`);
-      if (context.canManageCosts && !purchaseCost) errors.push(`${row.row}행: 매입단가와 세금 구분(included/excluded/exempt)을 함께 입력하거나 함께 비워주세요.`);
+      if (!context.canManageCosts && (value.purchaseCostKrw || value.purchaseTaxBasis)) errors.push(`${row.row}행: 공급가(매입단가)는 관리자만 입력할 수 있습니다.`);
+      if (context.canManageCosts && !purchaseCost) errors.push(`${row.row}행: 공급가(매입단가)와 세금 구분(included/excluded/exempt)을 함께 입력하거나 함께 비워주세요.`);
       return {
         ...(context.canManageCosts && purchaseCost ? { purchaseCost: { ...purchaseCost, expectedRevision: variant?.purchase_cost_revision ?? null } } : {}),
         ...(variant
@@ -761,10 +980,8 @@ export function planGoodsWorkbookImport(
         code: value.variantCode.trim().toUpperCase(),
         name: value.variantName || '기본 옵션',
         attributes,
-        extraPrice:
-          Number(value.variantPrice || first.price || 0) -
-          Number(first.price || 0),
-        stockQty: Number(value.stockQty || 0),
+        extraPrice: integer(value.optionPrice || '0') ? Number(value.optionPrice || 0) : 0,
+        stockQty: Number(stockText || 0),
         lowStockThreshold: value.lowStockThreshold ? Number(value.lowStockThreshold) : null,
         isActive: value.variantActive ? value.variantActive === '사용' : !variant?.archived_at,
         erpCode: value.erpCode, erpName: value.erpName, barcode: value.barcode,
@@ -773,7 +990,7 @@ export function planGoodsWorkbookImport(
     });
     const parsedOptions = parseGoodsOptionRows(
       JSON.stringify(options),
-      Number(first.price || 0),
+      stored.price,
     );
     if (!parsedOptions.ok) errors.push(parsedOptions.error);
     if (record) {
@@ -789,14 +1006,31 @@ export function planGoodsWorkbookImport(
         group.warnings.push(
           `기존 옵션 ${removed.length}개가 삭제 또는 보관됩니다.`,
         );
+      if (record.livePriceDiscount) {
+        const storedCompare = record.good.compare_at_price == null ? null : Number(record.good.compare_at_price);
+        // 판매가·즉시할인은 상품 단위로 거절한다. 옵션가는 기간 할인 행이 걸린 옵션만 거절한다(행이 없는 옵션의 옵션가 변경은 DB도 허용한다).
+        // 목록을 싣지 않은 이전 응답은 안전한 쪽(모든 옵션)으로 본다.
+        const liveVariantIds = record.livePriceVariantIds ? new Set(record.livePriceVariantIds) : null;
+        const priceChanged = stored.price !== Number(record.good.price) || stored.compareAtPrice !== storedCompare
+          || options.some((option) => {
+            const previous = active.find((variant) => variant.id === option.id);
+            return Boolean(previous) && option.isActive && (!liveVariantIds || liveVariantIds.has(previous!.id))
+              && previous!.price !== stored.price + option.extraPrice;
+          });
+        if (priceChanged) errors.push(goodsWorkbookLiveDiscountError(record.livePriceDiscount));
+        // 기간 할인은 판매 중인 옵션마다 행이 있어야 같은 묶음으로 열린다. 엑셀로 옵션을 추가·복원하면 새 옵션이 기간 중에도 할인 없이 팔리고
+        // 상품 수정의 즉시할인이 잠기므로 같은 이유로 거절한다.
+        const optionAdded = options.some((option) => option.isActive && !active.some((variant) => variant.id === option.id));
+        if (optionAdded) errors.push(goodsWorkbookLiveDiscountOptionAddError(record.livePriceDiscount));
+      }
       if (
         record.good.published_at &&
-        (Number(first.price) !== record.good.price ||
+        (stored.price !== Number(record.good.price) ||
           options.some((option) => {
             const previous = active.find((variant) => variant.id === option.id);
             return (
               !previous ||
-              previous.price !== Number(first.price) + option.extraPrice ||
+              previous.price !== stored.price + option.extraPrice ||
               previous.stock_qty !== option.stockQty
             );
           }))
@@ -839,6 +1073,24 @@ export function planGoodsWorkbookImport(
     };
     return group;
   });
+  // 같은 파일 안에서 관리코드가 겹치면(한 상품 안이든 상품 사이든) 적용 때 DB 유일 제약으로 실패하므로 미리보기에서 막는다.
+  const seenVariantCodes = new Map<string, { group: GoodsImportGroup; row: number }>();
+  for (const group of planned) {
+    for (const row of group.source) {
+      const code = row.values.variantCode.trim().toUpperCase();
+      if (!code) continue;
+      const previous = seenVariantCodes.get(code);
+      if (previous) {
+        const message = `관리코드 ${code}${subjectParticle(code)} ${previous.row}행과 ${row.row}행에서 겹칩니다. 관리코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
+        for (const target of new Set([previous.group, group])) {
+          if (!target.errors.includes(message)) target.errors.push(message);
+          target.kind = 'error';
+          target.target = null;
+        }
+      } else seenVariantCodes.set(code, { group, row: row.row });
+    }
+  }
+  return planned;
 }
 /** Never split a product's option rows across files. */
 export function partitionGoodsExports(

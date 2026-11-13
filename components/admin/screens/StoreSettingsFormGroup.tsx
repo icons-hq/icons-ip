@@ -8,7 +8,7 @@ export function SettingsFormGroup({ title, description, children }: { title: str
   return <section aria-label={title} className="flex min-w-0 flex-col gap-3 border-t pt-4 first:border-t-0 first:pt-0" data-settings-group="">
     <header className="flex min-w-0 flex-col gap-0.5">
       {/* 묶음 제목은 입력칸 라벨(14px)보다 한 단계 커야 묶음이 잡힌다. */}
-      <h4 className="text-[15px] font-semibold text-foreground">{title}</h4>
+      <h2 className="text-[15px] font-semibold text-foreground">{title}</h2>
       {description ? <p className="text-xs leading-relaxed text-muted-foreground">{description}</p> : null}
     </header>
     {children}

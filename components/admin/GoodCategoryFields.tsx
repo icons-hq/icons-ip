@@ -2,11 +2,11 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { CATEGORY_PATH, categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
+import { CATEGORY_PATH, categoryGoodType, categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
 import { usableTemplateCategory } from '@/lib/admin/category-templates';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
-import { createPrimaryChangeAnnouncer, searchAssignableCategories } from './CategoryAssignmentField';
+import { categoryErpMatch, createPrimaryChangeAnnouncer, searchAssignableCategories, type CategorySearchNode } from './CategoryAssignmentField';
 import { CategoryTemplatePicker } from './screens/CategoryTemplatesScreen';
 import { useCategoryTemplatesAvailable } from './CategoryTemplatesAvailability';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS } from './GoodEditorParts';
@@ -32,9 +32,10 @@ export function keepOptionInView(list: Pick<HTMLElement, 'scrollTop' | 'clientHe
  * 키보드는 combobox 패턴이다: ↑↓ 강조, Enter 선택, Esc 닫기. 포커스는 입력칸에 남는다.
  * 포커스만으로는 열지 않는다 — 임시 저장 복구·오류 안내가 이 칸으로 포커스를 옮겨도 목록이 저절로 펼쳐지면 안 된다.
  * 제출 값은 숨긴 select(name="categoryId") 하나이고, 대표 카테고리는 상위가 제어한다(ERP 품목 선택이 채울 수 있게).
+ * 로더가 연결된 ERP 분류 이름(`erpNames`)을 실어 주면 ERP 분류명으로도 찾고, 그렇게 찾은 줄에 'ERP 분류 X' 근거를 붙인다(CategoryAssignmentField와 같다).
  */
 export function GoodCategoryField({ categories, primary, onPrimaryChange, error }: {
-  categories: AdminCategoryNode[]; primary: string; onPrimaryChange: (id: string) => void; error?: string;
+  categories: CategorySearchNode[]; primary: string; onPrimaryChange: (id: string) => void; error?: string;
 }) {
   const [templatePicker, setTemplatePicker] = useState(false), [templateError, setTemplateError] = useState('');
   const [query, setQuery] = useState(''), [open, setOpen] = useState(false), [active, setActive] = useState(0);
@@ -45,6 +46,7 @@ export function GoodCategoryField({ categories, primary, onPrimaryChange, error 
   useEffect(() => { announcer.committed(primary, selectRef.current); }, [announcer, primary]);
   const activeLeaves = useMemo(() => categories.filter((category) => usableTemplateCategory(categories, category.id)), [categories]);
   const searching = Boolean(query.trim());
+  const erpSearch = useMemo(() => categories.some((category) => category.erpNames?.length), [categories]);
   const results = useMemo(() => searching ? searchAssignableCategories(categories, query) : activeLeaves, [activeLeaves, categories, query, searching]);
   const selectedArchived = primary ? categories.find((category) => category.id === primary && !usableTemplateCategory(categories, category.id) && category.childCount === 0) : undefined;
   const leaves = selectedArchived ? [selectedArchived, ...activeLeaves] : activeLeaves;
@@ -77,13 +79,13 @@ export function GoodCategoryField({ categories, primary, onPrimaryChange, error 
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         {/* 옆의 버튼은 이 묶음 밖이다. 버튼으로 넘어가면 목록을 닫는다. */}
         <div className="relative min-w-0 flex-1 basis-56" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false); }}>
-          <input aria-activedescendant={open && visible.length ? optionId(active) : undefined} aria-autocomplete="list" aria-controls={open && visible.length ? LISTBOX_ID : undefined} aria-describedby="good-category-hint" aria-expanded={open} className={GOOD_INPUT_CLASS} data-slot="input" id="good-category-search" role="combobox" type="text" autoComplete="off" value={query} maxLength={120} placeholder="카테고리명 또는 코드로 찾기" ref={inputRef}
+          <input aria-activedescendant={open && visible.length ? optionId(active) : undefined} aria-autocomplete="list" aria-controls={open && visible.length ? LISTBOX_ID : undefined} aria-describedby="good-category-hint" aria-expanded={open} className={GOOD_INPUT_CLASS} data-slot="input" id="good-category-search" role="combobox" type="text" autoComplete="off" value={query} maxLength={120} placeholder={erpSearch ? '카테고리명·코드·ERP 분류명으로 찾기' : '카테고리명 또는 코드로 찾기'} ref={inputRef}
             onChange={(event) => { setQuery(event.target.value); setOpen(true); setActive(0); }} onClick={() => { if (!open) openList(); }}
             onKeyDown={onSearchKeyDown} />
           {open ? <div className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10" data-good-category-list="" onMouseDown={(event) => event.preventDefault()}>
             <p className="border-b px-3 py-1.5 text-xs text-muted-foreground tabular-nums" role="status">{searching ? '검색 결과' : '전체'} {results.length.toLocaleString('ko-KR')}개{results.length > RESULT_LIMIT ? ` · 앞의 ${RESULT_LIMIT}개를 표시합니다. 검색어를 더 입력해주세요.` : ''}</p>
-            {visible.length ? <ul aria-label="카테고리 목록" className="relative m-0 flex max-h-72 list-none flex-col overflow-y-auto overscroll-contain p-0 [scrollbar-width:thin]" id={LISTBOX_ID} ref={listRef} role="listbox">{visible.map((category, index) => <li aria-checked={primary === category.id} aria-selected={index === active} className="flex min-h-11 shrink-0 cursor-pointer flex-col items-start justify-center gap-0.5 border-b px-3 py-2 text-left text-sm wrap-anywhere text-foreground last:border-b-0 aria-checked:font-medium aria-checked:text-primary-soft-foreground aria-selected:bg-muted" id={optionId(index)} key={category.id} onClick={() => choose(category.id)} onMouseMove={() => { if (index !== active) setActive(index); }} role="option">
-              <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code}</small>
+            {visible.length ? <ul aria-label="카테고리 목록" className="relative m-0 flex max-h-72 list-none flex-col overflow-y-auto overscroll-contain p-0 [scrollbar-width:thin]" id={LISTBOX_ID} ref={listRef} role="listbox">{visible.map((category, index) => ({ category, index, erp: searching ? categoryErpMatch(categories, category, query) : null })).map(({ category, index, erp }) => <li aria-checked={primary === category.id} aria-selected={index === active} className="flex min-h-11 shrink-0 cursor-pointer flex-col items-start justify-center gap-0.5 border-b px-3 py-2 text-left text-sm wrap-anywhere text-foreground last:border-b-0 aria-checked:font-medium aria-checked:text-primary-soft-foreground aria-selected:bg-muted" id={optionId(index)} key={category.id} onClick={() => choose(category.id)} onMouseMove={() => { if (index !== active) setActive(index); }} role="option">
+              <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code} · 상품 유형 {categoryGoodType(categories, category.id) || '연결 없음'}{erp ? ` · ERP 분류 ${erp}` : ''}</small>
             </li>)}</ul> : <p className="px-3 py-2 text-sm text-muted-foreground">일치하는 카테고리가 없습니다.</p>}
           </div> : null}
         </div>
@@ -104,7 +106,8 @@ export function GoodCategoryField({ categories, primary, onPrimaryChange, error 
       if (!template.usable || !usableTemplateCategory(categories, template.categoryId)) { setTemplateError('현재 사용할 수 없는 카테고리입니다. 최신 카테고리를 확인해주세요.'); setTemplatePicker(false); return; }
       choose(template.categoryId); setTemplatePicker(false);
     }} /> : null}
-    <span className="text-xs text-muted-foreground" id="good-category-hint">비워도 판매할 수 있습니다.{selectedArchived ? ' 보관된 카테고리는 선택 해제해야 바뀝니다.' : ''}</span>
+    {/* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이라 공개하려면 연결된 카테고리가 필요하다. */}
+    <span className="text-xs text-muted-foreground" id="good-category-hint">상품 유형은 이 카테고리(없으면 가까운 상위)에 연결한 값으로 정해지고, 상품 유형이 연결된 카테고리여야 공개할 수 있습니다.{selectedArchived ? ' 보관된 카테고리는 선택 해제해야 바뀝니다.' : ''}</span>
     {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
   </div>;
 }

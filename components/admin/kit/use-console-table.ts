@@ -16,7 +16,7 @@ import {
   type RowData,
 } from '@tanstack/react-table';
 import { useRouter } from 'next/navigation';
-import { useMemo, useOptimistic, useTransition } from 'react';
+import { useMemo, useOptimistic, useState, useTransition } from 'react';
 import { useGridPreferences } from '@/components/admin/console/AdminPreferences';
 import type { GridPreferenceColumn } from '@/lib/admin/grid-preferences';
 import { dataTableFeatures, type DataTableFeatures } from '@/components/admin/kit/lib/data-table-features';
@@ -49,6 +49,7 @@ export interface ConsoleTableState {
 export function useConsoleTable<TData extends RowData>({
   columns,
   data,
+  deferColumnFilters = false,
   enableRowSelection,
   getRowId,
   hrefFor,
@@ -61,6 +62,11 @@ export function useConsoleTable<TData extends RowData>({
 }: {
   columns: ColumnDef<DataTableFeatures, TData>[];
   data: TData[];
+  /**
+   * 열 필터를 바꿔도 바로 조회하지 않고 초안으로만 둔다(ADM-016 #13). 조회는 화면이 [검색]에서
+   * 반환된 `draftColumnFilters`로 직접 href를 만들어 보낸다. 페이지·정렬 이동은 적용된 조건 기준으로 즉시 간다.
+   */
+  deferColumnFilters?: boolean;
   enableRowSelection?: (row: Row<DataTableFeatures, TData>) => boolean;
   getRowId: (row: TData) => string;
   /** The screen's href for a table state. Returning null keeps the current page (an unsupported sort, say). */
@@ -77,6 +83,14 @@ export function useConsoleTable<TData extends RowData>({
   const [pending, startTransition] = useTransition();
   const [shown, setShown] = useOptimistic(state);
   const { preferences, save } = useGridPreferences(preferencesKey, preferenceColumns);
+  /* 서버가 그린 조건이 바뀌면(조회·초기화·뒤로 가기) 초안도 그 조건으로 되돌린다. */
+  const [draftColumnFilters, setDraftColumnFilters] = useState(state.columnFilters);
+  const serverFiltersKey = JSON.stringify(state.columnFilters);
+  const [seenFiltersKey, setSeenFiltersKey] = useState(serverFiltersKey);
+  if (seenFiltersKey !== serverFiltersKey) {
+    setSeenFiltersKey(serverFiltersKey);
+    setDraftColumnFilters(state.columnFilters);
+  }
 
   const columnVisibility = useMemo<VisibilityState>(
     () => Object.fromEntries(preferences.hidden.map((key) => [key, false])),
@@ -106,6 +120,10 @@ export function useConsoleTable<TData extends RowData>({
     navigate({ ...shown, sorting: functionalUpdate(updater, shown.sorting), pagination: { ...shown.pagination, pageIndex: 0 } });
   }
   function onColumnFiltersChange(updater: Updater<ColumnFiltersState>) {
+    if (deferColumnFilters) {
+      setDraftColumnFilters((previous) => functionalUpdate(updater, previous));
+      return;
+    }
     navigate({ ...shown, columnFilters: functionalUpdate(updater, shown.columnFilters), pagination: { ...shown.pagination, pageIndex: 0 } });
   }
   function onColumnVisibilityChange(updater: Updater<VisibilityState>) {
@@ -135,7 +153,7 @@ export function useConsoleTable<TData extends RowData>({
     onSortingChange,
     pageCount,
     state: {
-      columnFilters: shown.columnFilters,
+      columnFilters: deferColumnFilters ? draftColumnFilters : shown.columnFilters,
       columnOrder,
       columnPinning,
       columnVisibility,
@@ -146,5 +164,5 @@ export function useConsoleTable<TData extends RowData>({
   });
 
   /* The screen's 조회항목 설정 (ConsoleTableSettings) edits the same preferences: order and frozen columns. */
-  return { pending, preferences, savePreferences: save, table };
+  return { draftColumnFilters, pending, preferences, savePreferences: save, table };
 }

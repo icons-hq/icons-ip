@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import type { AdminMemberDetail, AdminMemberSummary } from '@/lib/admin/members';
 import { confirmMemberSuspension, MembersSection } from './Members';
 
@@ -149,13 +151,13 @@ describe('MembersSection', () => {
     expect(html).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*pointer-coarse:min-h-11)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 회원 정지<\/button>/);
   });
 
-  it('검색·상세 보기·정지·등급 보정은 각자의 폼을 제출한다', () => {
+  it('검색·상세·정지·등급 보정은 각자의 폼을 제출한다', () => {
     hooks.detailState = { member: detail };
     const html = renderToStaticMarkup(
       <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
     /* kit Button은 type을 주지 않으면 type="button"이 된다 — 폼 안 동작은 제출 버튼이어야 한다. */
-    for (const label of ['검색', '상세 보기', '회원 정지', '등급 보정', '실적으로 재산정']) {
+    for (const label of ['검색', '상세', '회원 정지', '등급 보정', '실적으로 재산정']) {
       expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>(?:<svg[\\s\\S]*?</svg>)? ${label}</button>`));
     }
   });
@@ -191,14 +193,14 @@ describe('MembersSection', () => {
     expect(searchPendingHtml).not.toContain('name="reason"');
   });
 
-  /* 같은 말로 보이는 버튼을 두지 않는다 — 고객 상세는 닉네임 링크, 줄의 버튼은 이 화면의 상세 보기 하나다. */
+  /* 같은 말로 보이는 버튼을 두지 않는다 — 고객 상세는 닉네임 링크, 줄의 버튼은 이 화면의 상세 하나다. */
   it('줄마다 버튼은 하나만 두고 권한은 운영자 말로 보인다', () => {
     const html = renderToStaticMarkup(
       <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
 
-    expect(html).not.toContain('고객 상세 열기');
-    expect(html.match(/ 상세 보기<\/button>/g)).toHaveLength(2);
+    expect(html).not.toContain('고객 상세');
+    expect(html.match(/ 상세<\/button>/g)).toHaveLength(2);
     expect(html).toMatch(new RegExp(`<a[^>]*href="/admin/customers/${summaries[0].id}"[^>]*>@팬일호</a>`));
     expect(html).toMatch(/data-tone="neutral"[^>]*>직원</);
     expect(html).not.toMatch(/>(?:user|staff|admin)</);
@@ -226,17 +228,21 @@ describe('MembersSection', () => {
     expect(html.indexOf('fan@example.test')).toBeLessThan(html.indexOf('@운영이호'));
   });
 
-  it('운영자가 영향 확인을 거절하면 정지 제출을 취소한다', () => {
+  it('운영자가 영향 확인을 거절하면 정지 제출을 취소한다', async () => {
     const preventDefault = vi.fn();
-    const confirm = vi.fn(() => false);
-    vi.stubGlobal('window', { confirm });
+    const confirm = stubAdminConfirm(false);
+    const form = { isConnected: true, requestSubmit: vi.fn() };
 
-    confirmMemberSuspension({ preventDefault } as unknown as Parameters<typeof confirmMemberSuspension>[0]);
+    confirmMemberSuspension({ preventDefault, currentTarget: form } as unknown as Parameters<typeof confirmMemberSuspension>[0]);
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalled());
 
     expect(confirm).toHaveBeenCalledWith(
       '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?',
     );
     expect(preventDefault).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    expect(form.requestSubmit).not.toHaveBeenCalled();
+    setAdminConfirmHandler(null);
   });
 
   it('상태 변경 성공 뒤 stale 제재 form을 다시 제출하지 못하게 숨긴다', () => {
@@ -252,12 +258,17 @@ describe('MembersSection', () => {
     expect(html).not.toContain('name="reason"');
   });
 
-  it('운영자가 영향을 확인하면 정지 제출을 허용한다', () => {
+  it('운영자가 영향을 확인하기 전에는 보내지 않고, 확인하면 같은 폼을 다시 제출한다', async () => {
     const preventDefault = vi.fn();
-    vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+    const confirm = stubAdminConfirm(true);
+    const form = { isConnected: true, requestSubmit: vi.fn() };
+    const event = { preventDefault, currentTarget: form } as unknown as Parameters<typeof confirmMemberSuspension>[0];
 
-    confirmMemberSuspension({ preventDefault } as unknown as Parameters<typeof confirmMemberSuspension>[0]);
-
-    expect(preventDefault).not.toHaveBeenCalled();
+    confirmMemberSuspension(event);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(form.requestSubmit).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(form.requestSubmit).toHaveBeenCalledOnce());
+    expect(confirm).toHaveBeenCalledOnce();
+    setAdminConfirmHandler(null);
   });
 });

@@ -58,7 +58,7 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
   function save() {
     setError(''); setNotice('');
     const startsAt = start ? storyKstToIso(start) : null, endsAt = end ? storyKstToIso(end) : null;
-    if ((start && !startsAt) || (end && !endsAt)) { setError('전시기간을 올바른 한국 시각으로 입력해주세요.'); return; }
+    if ((start && !startsAt) || (end && !endsAt)) { setError('전시기간을 올바른 KST으로 입력해주세요.'); return; }
     const current = { ...values, startsAt, endsAt }; const normalized = normalizeShoppingStoryInput(current);
     if (!normalized.ok) { setError(normalized.error); return; }
     const request = retry ?? { id: draftId, expectedRevision: revision, operationId: crypto.randomUUID(), values: current };
@@ -81,7 +81,7 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     </header>
     <fieldset disabled={blocked} className="flex min-w-0 flex-col gap-4">
       <section className={PANEL}><h2 className={PANEL_TITLE}>기본 정보</h2><label className={FIELD}><span>스토리 제목 <span className="text-xs font-normal text-muted-foreground tabular-nums">{storyCharacterLength(values.title)} / 50</span></span><Input value={values.title} onChange={event => setValues(current => ({ ...current, title: event.target.value }))} placeholder="쇼핑스토리 제목을 입력하세요" aria-required="true" /></label>
-        <div className="flex flex-col gap-4 sm:flex-row sm:gap-6 [&>label]:flex-1"><label className={FIELD}>전시 시작일시 (한국 시각)<Input type="datetime-local" value={start} onChange={event => setStart(event.target.value)} /></label><label className={FIELD}>전시 종료일시 (한국 시각)<Input type="datetime-local" value={end} onChange={event => setEnd(event.target.value)} /></label></div><p className={HELP}>시작을 비우면 즉시, 종료를 비우면 무기한 전시됩니다. 전시를 중지하려면 종료 시각을 지정하세요.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:gap-6 [&>label]:flex-1"><label className={FIELD}>전시 시작일시 (KST)<Input type="datetime-local" value={start} onChange={event => setStart(event.target.value)} /></label><label className={FIELD}>전시 종료일시 (KST)<Input type="datetime-local" value={end} onChange={event => setEnd(event.target.value)} /></label></div><p className={HELP}>시작을 비우면 즉시, 종료를 비우면 무기한 전시됩니다. 전시를 중지하려면 종료 시각을 지정하세요.</p>
       </section>
       <section className={PANEL}><h2 className={PANEL_TITLE}>상세 본문</h2><ShoppingStoryBodyEditor accountId={accountId} value={values.bodyHtml} onChange={bodyHtml => setValues(current => ({ ...current, bodyHtml }))} disabled={blocked} /><p className={HELP}>본문 첫 이미지와 텍스트가 목록의 대표이미지·설명이 됩니다. 이미지를 넣지 않으면 텍스트 카드로 노출됩니다.</p></section>
       <section className={PANEL}><div className="flex flex-wrap items-center justify-between gap-3"><h2 className={PANEL_TITLE}>관련상품 <small className="ml-2 text-xs font-normal text-muted-foreground tabular-nums">{values.sections.length} / 10개 섹션 · 전체 {count} / 300개 상품</small></h2><Button type="button" disabled={values.sections.length >= 10} onClick={() => setValues(current => ({ ...current, sections: [...current.sections, { id: crypto.randomUUID(), title: '', imageShape: 'square', goodIds: [] }] }))} size="sm" variant="outline"><Plus aria-hidden="true" />섹션 추가</Button></div>

@@ -1,9 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { IP_INDEX_PATH, ipWorkspaceHref } from '@/lib/admin/ip-workspace';
@@ -14,9 +13,7 @@ const ID = /^[a-z0-9][a-z0-9-]*$/;
 export async function saveIpDirectoryAction(previous: IpDirectoryActionState, data: FormData): Promise<IpDirectoryActionState> {
   const fail = (form: string) => withPreservedFormValues({ errors: { form } }, previous, data);
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(IP_INDEX_PATH)}`);
-    if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return fail('관리자 권한이 필요합니다.');
+    if (!await requireAdminActionAccess(IP_INDEX_PATH, { capability: 'platform.manage' })) return fail('관리자 권한이 필요합니다.');
     const id = String(data.get('id') ?? '');
     const expectedFeatured = data.get('expectedFeatured');
     let order: unknown;

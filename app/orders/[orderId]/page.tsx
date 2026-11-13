@@ -12,6 +12,9 @@ import { loadOrderReviewTargets } from '@/lib/reviews.server';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 import { loadMyOrderClaimTypeHistory } from '@/lib/orders/claim-type-conversion.server';
 import { loadMyOrderClaimReasonHistory } from '@/lib/orders/claim-reason-change.server';
+import { loadMyOrderRefundDeduction, loadReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction.server';
+import { loadMyOrderReturnPickup } from '@/lib/orders/return-pickup.server';
+import { loadMyOrderPartialCancellations } from '@/lib/orders/partial-cancellation.server';
 
 export const metadata: Metadata = {
   title: '주문 상세 — ICONS',
@@ -30,7 +33,7 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]'>) {
 
   /* 리뷰 대상은 배송완료 이상 주문에서만 행이 돌아온다(#254). 그 판정을 화면이
      다시 하지 않도록 RPC 결과를 그대로 넘긴다. */
-  const [order, cardRewardsEnabled, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads] = await Promise.all([
+  const [order, cardRewardsEnabled, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads, refundDeduction, returnFeePolicy, returnPickup, partialCancellations] = await Promise.all([
     loadOrderDetail(auth.user.id, orderId),
     readCardRewardsEnabled(),
     loadOrderReviewTargets(orderId),
@@ -38,6 +41,10 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]'>) {
     loadMyOrderClaimReasonHistory(orderId),
     loadMyOrderProduction(orderId),
     loadMyOrderDownloads(orderId),
+    loadMyOrderRefundDeduction(orderId),
+    loadReturnFeeDeductionPolicy(),
+    loadMyOrderReturnPickup(orderId),
+    loadMyOrderPartialCancellations(orderId),
   ]);
   if (!order) notFound();
 
@@ -68,6 +75,10 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]'>) {
       claimTypeHistory={claimTypeHistory}
       claimReasonHistory={claimReasonHistory}
       retry={retry}
+      refundDeduction={refundDeduction}
+      returnFeePolicy={returnFeePolicy}
+      returnPickup={returnPickup}
+      partialCancellations={partialCancellations}
     />
   );
 }

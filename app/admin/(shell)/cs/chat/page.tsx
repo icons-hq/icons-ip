@@ -3,15 +3,16 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { ADMIN_INQUIRY_CHAT_PATH, normalizeInquiryChatFilters } from '@/lib/admin/inquiry-chat';
 import { loadInquiryChatContext, loadInquiryChatData } from '@/lib/admin/inquiry-chat.server';
 import { loadAdminInquiryDetail } from '@/lib/admin/inquiries.server';
+import { loadInquiryPurchaseHistory } from '@/lib/admin/inquiry-purchase-history.server';
 import { isUuid } from '@/lib/uuid';
 import { InquiryChatScreen } from '@/components/admin/screens/InquiryChatScreen';
-import { getAdminCustomerHistory } from '@/lib/admin/customer-detail.server';
 
-/* 상담 화면 오른쪽 구매이력은 버튼 없이 자동으로 보인다(A7). 같은 RPC가 sales.read를 다시 검사한다. */
-async function loadPurchaseHistory(userId: string) {
+/* 상담 화면 오른쪽 구매이력은 버튼 없이 자동으로 보인다(A7). 상담 화면을 여는 모든 운영자 역할(부매니저·대행사 포함)이
+   그 문의 고객의 구매이력을 본다(1014-103, 사용자 결정 "전부 다 아무나 볼 수 있게"). 같은 RPC가 문의 응대 권한·고객 범위를
+   다시 검사하고 열람을 감사한다. 실패해도 대화는 연다. */
+async function loadPurchaseHistory(inquiryId: string) {
   try {
-    const history = await getAdminCustomerHistory(userId, { tab: 'orders', page: 1 });
-    return { history: history ? { ...history, userId } : null, error: false };
+    return { history: await loadInquiryPurchaseHistory(inquiryId), error: false };
   } catch { return { history: null, error: true }; }
 }
 
@@ -27,7 +28,7 @@ export default async function AdminInquiryChatPage({ searchParams }: {
     loadInquiryChatData(filters), inquiryId ? loadAdminInquiryDetail(inquiryId, access) : Promise.resolve(null),
     inquiryId ? loadInquiryChatContext(inquiryId) : Promise.resolve(null),
   ]);
-  const purchase = detail && access.canReadOrders ? await loadPurchaseHistory(detail.buyer.id) : null;
+  const purchase = detail ? await loadPurchaseHistory(detail.inquiry.id) : null;
   return <InquiryChatScreen key={auth.user.id} accountId={auth.user.id} filters={filters} data={data} detail={detail} chatContext={chatContext}
     selected={Boolean(params.inquiryId)} canReadOrders={access.canReadOrders} canViewCustomer={hasAdminCapability(auth, 'platform.manage')}
     purchaseHistory={purchase?.history ?? null} purchaseHistoryError={purchase?.error ?? false} />;

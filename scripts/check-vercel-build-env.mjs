@@ -1,4 +1,5 @@
-import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   isKorpayMerchantId,
@@ -7,7 +8,16 @@ import {
   normalizeKorpaySiteUrl,
 } from '../lib/payments/korpay-config.mjs';
 import { isNicepayMerchantId, isNicepayMerchantKey } from '../lib/payments/nicepay-config.mjs';
-import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.mjs';
+import {
+  TOSS_ADDITIONAL_MERCHANT_IDS_ENV_NAME,
+  TOSS_LEGACY_VARIANT_ENV_NAME,
+  TOSS_WIDGET_VARIANT_ENV_NAME,
+  isTossDocsPublicKey,
+  isTossKeyPairAligned,
+  tossKeyMode,
+  tossMerchantBindingFromEnvironment,
+  tossMerchantIdsForMode,
+} from '../lib/payments/toss-config.mjs';
 import { isSupabasePublishableKey, isSupabaseSecretKey } from '../lib/supabase/api-key-format.mjs';
 import { validateStagingBuildEnvironment } from './staging-environment.mjs';
 
@@ -31,6 +41,45 @@ const TOSS_CANARY_NAMES = [
 // 나이스페이는 판매 제한 굿즈 주문 전용이다 — 티켓 gate는 없다(runtime-gateway.ts).
 const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 
+const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
+);
+
+/*
+ * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
+ * 값을 읽는다. 개정 날짜는 시행 뒤에도 남으므로 '공지일이 오늘보다 이르다'는 이유로 막지 않는다 — 늘 참이어야 하는 것만 본다:
+ * 둘 다 null(예약 없음)이거나 둘 다 YYYY-MM-DD 이고, 시행일 >= 공지일 + 7일, 공지일 >= 법정 문서 최초 판(2026-11-06).
+ * '공지일 = 실제 운영 배포일'은 런북 절차(배포 직전 날짜 커밋)로 지킨다. 해석할 수 없으면 실패한다.
+ */
+const LEGAL_FIRST_EDITION = '2026-11-06';
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isRealDate(value) {
+  return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+}
+
+export function validateLegalRevisionDates(source) {
+  let parsed;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    throw new Error('Invalid legal revision dates: shipping-bundle-wording-revision.json is not valid JSON');
+  }
+  const announced = parsed?.announcedDate;
+  const effective = parsed?.effectiveDate;
+  if (announced === null && effective === null) return;
+  if (typeof announced !== 'string' || typeof effective !== 'string' || !isRealDate(announced) || !isRealDate(effective)) {
+    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must both be null or both YYYY-MM-DD');
+  }
+  if (announced < LEGAL_FIRST_EDITION) {
+    throw new Error(`Invalid legal revision dates: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
+  }
+  const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
+  if (!(days >= 7)) {
+    throw new Error(`Invalid legal revision dates: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
+  }
+}
+
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -43,7 +92,7 @@ function parseBooleanGate(environment, target, name) {
   throw new Error(`Invalid Vercel ${target} ${name}: use true, false, or leave unset`);
 }
 
-export function validateVercelBuildEnvironment(environment) {
+export function validateVercelBuildEnvironment(environment, options = {}) {
   const stagingVerified = validateStagingBuildEnvironment(environment);
   const target = environment.VERCEL_ENV;
   if (!VERCEL_TARGETS.has(target)) return { checked: false };
@@ -61,6 +110,9 @@ export function validateVercelBuildEnvironment(environment) {
       'KORPAY_KEY',
       'SITE_URL',
     );
+  }
+  if (target === 'production') {
+    validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
@@ -226,6 +278,32 @@ export function validateVercelBuildEnvironment(environment) {
       + 'but NEXT_PUBLIC_TOSS_CLIENT_KEY/TOSS_SECRET_KEY are not a matching widget key pair',
     );
   }
+  const tossMode = tossConfigured ? tossKeyMode(environment.TOSS_SECRET_KEY?.trim()) : 'none';
+
+  // 결제 UI 바인딩(TOSS_WIDGET_VARIANT_KEY·TOSS_ADDITIONAL_MERCHANT_IDS — 서버 전용, 비밀 아님).
+  // 값이 놓였는데 형식 밖이면(DEFAULT 포함) 어느 target이든 빌드를 멈춘다 — 런타임은 같은 값에서
+  // 게이트웨이를 만들지 않으므로(toss-gateway.server.ts) 오타가 결제 불가로 조용히 새지 않게 한다.
+  const tossBinding = tossMerchantBindingFromEnvironment(environment);
+  if (tossBinding.kind === 'invalid') {
+    throw new Error(
+      tossBinding.reason === 'variant_key'
+        ? `Invalid Vercel ${target} ${TOSS_WIDGET_VARIANT_ENV_NAME}: use the payment UI variantKey `
+          + 'from the Toss payment admin (letters, digits, - or _), never DEFAULT, or leave unset'
+        : `Invalid Vercel ${target} ${TOSS_ADDITIONAL_MERCHANT_IDS_ENV_NAME}: use comma-separated `
+          + 'live merchant IDs (2-14 letters, digits or _), or leave unset',
+    );
+  }
+  // 라이브 키는 결제 UI 바인딩 없이 배포하지 않는다. 바인딩이 없으면 위젯이 SDK 기본 DEFAULT 결제
+  // UI를 그리고, 우리 계정의 DEFAULT는 다른 서비스와 함께 쓰는 구 MID에 연결돼 있어 실결제가 ICONS
+  // 상점(MID)이 아닌 곳에 잡힌다. 런북 순서(결제 어드민에 ICONS 결제 UI 생성 → env 등록 → 배포
+  // → 라이브 키 교체)를 빌드가 강제한다. 테스트 키는 막지 않는다 — 바인딩 전 지금 상태가 그것이다.
+  if (target === 'production' && tossMode === 'live' && tossBinding.kind !== 'bound') {
+    throw new Error(
+      `Invalid Vercel production Toss configuration: live widget keys require ${TOSS_WIDGET_VARIANT_ENV_NAME} `
+      + '(the ICONS payment UI linked to the ICONS merchant in the Toss payment admin): '
+      + 'docs/runbooks/toss-production-rollout.md',
+    );
+  }
 
   if (target === 'production'
     && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.CRON_SECRET)) {
@@ -265,7 +343,7 @@ export function validateVercelBuildEnvironment(environment) {
   if (
     tossConfigured
     && (tossOrderCheckoutEnabled || tossTicketCheckoutEnabled)
-    && tossKeyMode(environment.TOSS_SECRET_KEY?.trim()) === 'test'
+    && tossMode === 'test'
   ) {
     warnings.push(
       'Toss public checkout gate is open on test-mode keys. This is the review-window '
@@ -273,6 +351,46 @@ export function validateVercelBuildEnvironment(environment) {
       + 'steps: docs/runbooks/toss-production-rollout.md',
     );
   }
+  // 개발자센터 문서에 박힌 공개 테스트 키(`test_g*k_docs_…`)는 우리 계정의 키가 아니다.
+  // 그 결제는 우리 상점 결제내역·웹훅에 남지 않고, 결제 UI 바인딩이 켜져 있으면 런타임이
+  // Payment.mId를 키 모드의 허용 MID(테스트 키면 `t` + 라이브 MID)와 대조하므로 모든 결제가
+  // needs_review가 된다. 해결은 계정의 주문서형 키로 교체하는 것이다 — 주문서형 키는 계정
+  // 단위이고 MID별 키가 없으며(/reference/using-api/api-keys), 결제의 MID는 결제 어드민의 결제
+  // UI(variant)→MID 연결이 정한다(/guides/v2/payment-widget/admin). 심사 창 배포를 막지 않도록
+  // 빌드는 멈추지 않고 경고만 남긴다. 키 값은 출력하지 않는다.
+  const tossDocsPublicKey = target === 'production'
+    && (isTossDocsPublicKey(environment.NEXT_PUBLIC_TOSS_CLIENT_KEY)
+      || isTossDocsPublicKey(environment.TOSS_SECRET_KEY));
+  if (tossDocsPublicKey) {
+    warnings.push(
+      'Toss keys look like the developer-docs public test keys (test_g*k_docs_...). '
+      + 'Those payments are not recorded on our merchant and never reach our webhook'
+      + (tossBinding.kind === 'bound'
+        ? `, and the runtime merchant check (MID ${tossMerchantIdsForMode('test', tossBinding.additionalMerchantIds).join('|')}) `
+          + 'sends every payment to needs_review'
+        : '')
+      + ". Replace both keys with the account's own payment-widget keys "
+      + '(developer center API keys menu); the payment MID comes from the '
+      + `payment UI (${TOSS_WIDGET_VARIANT_ENV_NAME}) linked in the payment admin: `
+      + 'docs/runbooks/toss-production-rollout.md',
+    );
+  }
+  // MID를 더해도 바인딩(결제 UI)이 없으면 런타임은 MID를 대조하지 않는다 — 효과가 없는 설정이다.
+  if (tossBinding.kind === 'unbound' && tossBinding.additionalMerchantIds.length > 0) {
+    warnings.push(
+      `${TOSS_ADDITIONAL_MERCHANT_IDS_ENV_NAME} is ignored while ${TOSS_WIDGET_VARIANT_ENV_NAME} is unset: `
+      + 'the merchant check runs only for the bound payment UI. docs/runbooks/toss-production-rollout.md',
+    );
+  }
+  // 구 연동이 남긴 공개 env는 현행 코드가 읽지 않는다. 이름이 비슷해 "결제 UI가 이미 지정돼 있다"고
+  // 오해하지 않게 남아 있으면 알린다(빌드는 막지 않는다).
+  if (target === 'production' && isPresent(environment[TOSS_LEGACY_VARIANT_ENV_NAME])) {
+    warnings.push(
+      `${TOSS_LEGACY_VARIANT_ENV_NAME} is a legacy Toss variable and is ignored; the payment UI comes from `
+      + `${TOSS_WIDGET_VARIANT_ENV_NAME}. Remove it after the switchover: docs/runbooks/toss-production-rollout.md`,
+    );
+  }
+  const tossBound = tossBinding.kind === 'bound';
 
   return {
     checked: true,
@@ -292,6 +410,13 @@ export function validateVercelBuildEnvironment(environment) {
     korpayOrderCanaryConfigured,
     korpayTicketCanaryConfigured,
     tossConfigured,
+    tossMode,
+    // 결제 UI 바인딩. 꺼져 있으면 null — 위젯은 SDK 기본 DEFAULT 결제 UI, 런타임 MID 대조 없음.
+    tossVariantKey: tossBound ? tossBinding.variantKey : null,
+    // 바인딩이 켜졌을 때 이 키 모드에서 런타임이 허용하는 Payment.mId(테스트 키면 `t` + 라이브 MID).
+    // 꺼져 있거나 키가 없으면 빈 목록이다(대조하지 않는다).
+    tossMerchantIds: tossBound ? tossMerchantIdsForMode(tossMode, tossBinding.additionalMerchantIds) : [],
+    tossDocsPublicKey,
     tossOrderCheckoutEnabled,
     tossTicketCheckoutEnabled,
     tossOrderCanaryConfigured,
@@ -300,6 +425,32 @@ export function validateVercelBuildEnvironment(environment) {
     nicepayOrderCheckoutEnabled,
     nicepayOrderCanaryConfigured,
   };
+}
+
+/**
+ * 배포 로그 readback 한 줄. 이름·boolean·키 모드·결제 UI variantKey·그 모드의 허용 MID(모두
+ * 비밀 아님)만 싣고 키 값은 싣지 않는다 — 런북의 배포 확인 절이 이 줄을 대조한다. 결제 UI
+ * 바인딩이 꺼져 있으면 `Toss variant=DEFAULT (unbound), Toss merchant check=off`다.
+ */
+export function formatVercelBuildReadback(result, target) {
+  const tossBinding = result.tossVariantKey
+    ? `Toss variant=${result.tossVariantKey}, `
+      + `Toss merchant=${result.tossMerchantIds.length > 0 ? result.tossMerchantIds.join('|') : 'none'}, `
+    : 'Toss variant=DEFAULT (unbound), Toss merchant check=off, ';
+  return `Vercel ${target} environment verified; `
+    + `Korpay configured=${result.korpayConfigured} (drain only; checkout gates retired); `
+    + `Toss configured=${result.tossConfigured}, `
+    + `order checkout enabled=${result.tossOrderCheckoutEnabled}, `
+    + `ticket checkout enabled=${result.tossTicketCheckoutEnabled}, `
+    + `order canary configured=${result.tossOrderCanaryConfigured}, `
+    + `ticket canary configured=${result.tossTicketCanaryConfigured}; `
+    + `Toss mode=${result.tossMode}, `
+    + tossBinding
+    + `docs public key=${result.tossDocsPublicKey}; `
+    + `NICEPAY configured=${result.nicepayConfigured}, `
+    + `order checkout enabled=${result.nicepayOrderCheckoutEnabled}, `
+    + `order canary configured=${result.nicepayOrderCanaryConfigured}; `
+    + `payment reconciliation secret configured=${result.paymentReconciliationConfigured}`;
 }
 
 function main() {
@@ -318,18 +469,7 @@ function main() {
       console.log('Staging inherited test widget keys and isolated Preview target verified; checkout gates closed');
     }
 
-    console.log(
-      `Vercel ${process.env.VERCEL_ENV} environment verified; `
-      + `Korpay configured=${result.korpayConfigured} (drain only; checkout gates retired); `
-      + `Toss configured=${result.tossConfigured}, `
-      + `order checkout enabled=${result.tossOrderCheckoutEnabled}, `
-      + `ticket checkout enabled=${result.tossTicketCheckoutEnabled}, `
-      + `order canary configured=${result.tossOrderCanaryConfigured}, `
-      + `ticket canary configured=${result.tossTicketCanaryConfigured}; `
-      + `NICEPAY configured=${result.nicepayConfigured}, `
-      + `order checkout enabled=${result.nicepayOrderCheckoutEnabled}, `
-      + `order canary configured=${result.nicepayOrderCanaryConfigured}`,
-    );
+    console.log(formatVercelBuildReadback(result, process.env.VERCEL_ENV));
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Invalid Vercel build environment');
     process.exitCode = 1;

@@ -16,7 +16,8 @@ const row = { id: 'g1', code: 'CODE-1', name: '상품', ipId: 'ip', ipTitle: 'IP
 beforeEach(() => {
   vi.clearAllMocks(); mocks.visible = []; mocks.visibleError = false; mocks.selects = []; mocks.filters = [];
   mocks.from.mockImplementation((table: string) => {
-    const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7 }, { id: 'v2', good_id: 'g2', stock_qty: 1 }, { id: 'v3', good_id: 'g2', stock_qty: 2 }]
+    const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7, name: '기본', code: 'V-1' }, { id: 'v2', good_id: 'g2', stock_qty: 1, name: '블루', code: 'V-2' },
+      { id: 'v3', good_id: 'g2', stock_qty: 2, name: '레드', code: 'V-3' }]
       : table === 'goods' ? mocks.visible.map(id => ({ id })) : [];
     const result = Promise.resolve(table === 'goods' && mocks.visibleError ? { data: null, error: { message: 'denied' } } : { data: rows, error: null });
     const builder = { select: (columns: string) => { mocks.selects.push(`${table}:${columns}`); return builder; }, order: () => builder, in: () => builder,
@@ -41,7 +42,7 @@ describe('goods workspace server boundary', () => {
     expect(result.goods).toHaveLength(20); expect(result.total).toBe(1000);
     expect(result.goods[0]).toMatchObject({ code: 'CODE-1', categoryName: '문구', priceMin: 12345, priceMax: 17890, readiness: { availableQty: 0 } });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_search_goods_console', { p_query: 'CODE', p_ip_id: 'ip', p_status: 'draft', p_stock: 'soldout',
-      p_category_id: '00000000-0000-4000-8000-000000000001', p_readiness: 'stock_unavailable', p_filters: goodsConsoleFilterValues(normalizeGoodsListFilters({})), p_limit: 20, p_offset: 20 });
+      p_category_id: '00000000-0000-4000-8000-000000000001', p_readiness: 'stock_unavailable', p_filters: goodsConsoleFilterValues(normalizeGoodsListFilters({})), p_limit: 50, p_offset: 50 });
     // Besides the category filter, only the current page's base prices and active options are read (inline edit).
     expect(mocks.from.mock.calls.map(call => call[0]).sort()).toEqual(['catalog_categories', 'goods', 'goods_variants']);
   });
@@ -67,8 +68,11 @@ describe('goods workspace server boundary', () => {
   it('enables inline stock editing only for goods with exactly one active option', async () => {
     mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [row, { ...row, id: 'g2' }], total: 2 }, error: null });
     const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
-    expect(result.goods[0]).toMatchObject({ basePrice: 12000, compareAtPrice: null, activeDiscountEndsAt: null, activeVariantCount: 1, inlineStock: { variantId: 'v1', stockQty: 7 } });
+    expect(result.goods[0]).toMatchObject({ basePrice: 12000, compareAtPrice: null, activeDiscountEndsAt: null, activeVariantCount: 1, inlineStock: { variantId: 'v1', stockQty: 7 }, inlineOptions: null });
     expect(result.goods[1]).toMatchObject({ basePrice: 9000, compareAtPrice: 11000, activeDiscountEndsAt: '2026-10-30T00:00:00Z', activeVariantCount: 2, inlineStock: null });
+    // 옵션이 여럿이면 옵션별 재고 창이 옵션 이름·관리코드·실재고를 상품 수정의 옵션 순서로 받는다(1014-106).
+    expect(result.goods[1].inlineOptions).toEqual([{ variantId: 'v2', name: '블루', code: 'V-2', stockQty: 1 }, { variantId: 'v3', name: '레드', code: 'V-3', stockQty: 2 }]);
+    expect(mocks.selects).toContain('goods_variants:id,good_id,stock_qty,name,code');
   });
   it('corrects a page after a queue shrinks and retains all other scope', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { statusCounts: counts, rows: [], total: 20 }, error: null }).mockResolvedValueOnce({ data: { statusCounts: counts, rows: [row], total: 20 }, error: null });
@@ -79,6 +83,19 @@ describe('goods workspace server boundary', () => {
   it('returns stock card counts from the same response as the list', async () => {
     mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, stockCounts: { out_of_stock: 3, low: 0, ignored: 9 }, rows: [row], total: 1 }, error: null });
     expect((await loadAdminGoodsList(normalizeGoodsListFilters({ stock: 'low' }))).stockCounts).toEqual({ out_of_stock: 3, low: 0 });
+  });
+  it('상품번호와 판매대기·판매중지·판매종료 칸 건수를 같은 응답에서 읽고, 없거나 어긋나면 칸만 비운다(S36-009·SHEET-036)', async () => {
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, saleStateCounts: { scheduled: 2, stopped: 1, ended: 0, ignored: 4 }, rows: [{ ...row, productNo: 1042 }, { ...row, id: 'g2', productNo: '7' }], total: 2 }, error: null });
+    const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+    expect(result.saleStateCounts).toEqual({ scheduled: 2, stopped: 1, ended: 0 });
+    expect(result.goods.map(good => good.productNo)).toEqual([1042, null]);
+    for (const saleStateCounts of [undefined, null, { scheduled: 1, stopped: 1 }, { scheduled: -1, stopped: 0, ended: 0 }, { scheduled: '1', stopped: 0, ended: 0 }]) {
+      mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, saleStateCounts, rows: [row], total: 1 }, error: null });
+      const fallback = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+      expect(fallback.saleStateCounts).toBeNull();
+      expect(fallback.goods).toHaveLength(1);
+      expect(fallback.goods[0].productNo).toBeNull();
+    }
   });
   it.each([
     ['missing (app deployed before the DB)', undefined],

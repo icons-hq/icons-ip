@@ -4,7 +4,7 @@ export const EVENTS_TICKETS_TOPIC: AdminGuideTopic = {
   slug: 'events-tickets',
   title: '이벤트·티켓·현장 검표',
   navLabel: '이벤트·티켓',
-  summary: '콘텐츠 운영 콘솔의 이벤트·티켓 회차 등록에서 현장 운영의 검표까지, 예매·발권·실제 입장을 구분해 처리합니다.',
+  summary: 'IP·이벤트·티켓 메뉴의 이벤트·티켓 회차 등록에서 티켓 검표까지, 예매·발권·실제 입장을 구분해 처리합니다.',
   sections: [
     {
       id: 'events',
@@ -15,8 +15,8 @@ export const EVENTS_TICKETS_TOPIC: AdminGuideTopic = {
           screenHref: '/admin/catalog/events',
           detail: [
             '연결 IP는 선택입니다. 비워 두면 플랫폼/합동 이벤트로 취급됩니다.',
-            '시작·종료 시각은 한국 시간(KST)으로 입력합니다.',
-            '장소·강조 색상·아트워크(16:9)는 선택 항목입니다.',
+            '시작·종료 시각은 KST로 입력합니다.',
+            '장소·강조 색상·이미지 파일은 선택 항목입니다. 이미지는 잘리지 않고 전체가 표시됩니다.',
           ],
         },
         { text: '저장 후 상태 값으로 예매중 전환 등을 관리합니다.' },
@@ -73,8 +73,8 @@ export const EVENTS_TICKETS_TOPIC: AdminGuideTopic = {
       ],
       list: [
         '검표 완료 — 정상 입장 처리된 티켓입니다.',
-        '이미 검표된 티켓 — 최초 검표 시각이 함께 표시됩니다. 중복 입장 시도인지 확인해주세요.',
-        '환불된 티켓 / 취소·환불 확인 중인 티켓 — 입장에 사용할 수 없습니다.',
+        '이미 사용된 티켓 — 최초 검표 시각이 함께 표시됩니다. 중복 입장 시도인지 확인해주세요.',
+        '환불된 티켓 / 취소 처리 중인 티켓 — 입장에 사용할 수 없습니다.',
       ],
       screens: [{ href: '/admin/check-in' }, { href: '/admin/catalog/ticket-types' }],
     },

@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ClaimDetailScreen } from '@/components/admin/screens/ClaimDetailScreen';
 import { ClaimPreviewKitDialog } from '@/components/admin/screens/ClaimPreviewKitDialog';
 import { ClaimQueueKitScreen } from '@/components/admin/screens/ClaimQueueKitScreen';
+import { ClaimReturnOperationsPanel } from '@/components/admin/screens/ClaimReturnOperationsPanel';
 import {
   adminClaimBasePath,
   adminClaimDetailHref,
@@ -12,6 +13,8 @@ import {
 } from '@/lib/admin/claims';
 import { getAdminClaimConsoleData } from '@/lib/admin/claims.server';
 import { loadAdminClaimWorkspace } from '@/lib/admin/claim-preview.server';
+import { loadClaimReturnOperations } from '@/lib/admin/claim-return-operations.server';
+import { CLAIM_RETURN_OPERATIONS_OFF } from '@/lib/admin/claim-return-pickup';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { ORDER_CLAIM_TYPE_LABELS, orderClaimReferenceLabel, orderClaimTypeForSlug } from '@/lib/orders/claims';
 import { canAccessAdminScreen } from '@/lib/admin/access';
@@ -47,9 +50,11 @@ export default async function AdminSalesClaimsPage({
   const filters = normalizeAdminClaimFilters(query, claimType);
   const previewId = adminClaimPreviewId(query.claimId);
 
-  const [data, workspace] = await Promise.all([
+  /* 반품 자동 회수 접수·반품입고 회신(QNA-032·QNA-034)은 회수가 있는 반품·교환 목록에만 있고, 스위치가 꺼져 있으면 그리지 않는다. */
+  const [data, workspace, returnOperations] = await Promise.all([
     getAdminClaimConsoleData(claimType, filters),
     previewId ? loadAdminClaimWorkspace(previewId) : Promise.resolve(null),
+    claimType === 'cancel' ? Promise.resolve(CLAIM_RETURN_OPERATIONS_OFF) : loadClaimReturnOperations(),
   ]);
   /* 유형이 바뀐 요청(반품↔교환 전환)은 그 유형의 목록 위에서 연다. */
   if (previewId && workspace && workspace.detail.claim.claimType !== claimType) {
@@ -61,6 +66,7 @@ export default async function AdminSalesClaimsPage({
 
   /* ADR-0028: 취소·반품·교환 세 목록 모두 템플릿 룩 kit 화면과 kit 팝업이다. */
   return <>
+    <ClaimReturnOperationsPanel operations={returnOperations} />
     <ClaimQueueKitScreen data={data} canViewRefundTransfers={canAccessAdminScreen(auth, adminScreenForPath(REFUND_TRANSFERS_PATH))} />
     {previewId ? (
       <ClaimPreviewKitDialog
@@ -76,6 +82,7 @@ export default async function AdminSalesClaimsPage({
             backHref={closeHref}
             cancellationForm={workspace.cancellationForm}
             carriers={workspace.carriers}
+            defectiveStock={workspace.defectiveStock}
             detail={workspace.detail}
             detailHref={adminClaimDetailHref(claimType, previewId, filters)}
             embedded

@@ -61,7 +61,7 @@ export interface CategoryDisplayPageBatch {
 export function defaultCategoryDisplayValues(categoryId: string): CategoryDisplayValues {
   return { enabled: false, mode: 'categories', categoryIds: [categoryId], goodIds: [],
     banner: { enabled: false, imagePath: null, mobileImagePath: null, title: '', content: '', altEnabled: false, altTitle: '', altContent: '', linkPath: null, imageDim: 'none', textColor: 'white' },
-    video: { enabled: false, goodId: null }, recommendations: { enabled: false, title: '추천상품', itemCount: 3, goodIds: [] } };
+    video: { enabled: false, goodId: null }, recommendations: { enabled: false, title: '추천 굿즈', itemCount: 3, goodIds: [] } };
 }
 export function parseCategoryDisplayValues(value: unknown): CategoryDisplayValues | null {
   if (!categoryDisplayRecord(value) || !exact(value, ['enabled', 'mode', 'categoryIds', 'goodIds', 'banner', 'video', 'recommendations'])

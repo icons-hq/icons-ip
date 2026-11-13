@@ -2,6 +2,7 @@ import { isUuid } from '@/lib/uuid';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 import { normalizeClaimRefundAccountIdentity, type ClaimRefundAccountIdentity } from '@/lib/orders/claim-refund-account';
 import { isOrderClaimStage, type OrderClaimStage } from '@/lib/orders/claims';
+import { parseReturnFeeDeduction, type ReturnFeeDeduction } from '@/lib/claims/return-fee-deduction';
 
 export type BankRefundIdentity = ClaimRefundAccountIdentity;
 export const BANK_REFUND_KINDS = ['confirm_cancellation', 'file_transfer', 'complete_transfer'] as const;
@@ -19,6 +20,8 @@ export interface BankRefundContext {
   confirmationNotBefore: string | null; transferNotBefore: string | null;
   maskedAccount: string | null; maskedHolder: string | null;
   confirmBlocker: string | null; fileBlocker: string | null; completeBlocker: string | null; viewBlocker: string | null;
+  /** 반품배송비 차감(ADR-0031). 송금액은 refundAmount다(amount는 주문 금액 그대로 — 요청의 대조 값). 없으면 지금 그대로 전액. */
+  refundDeduction?: ReturnFeeDeduction;
 }
 export interface BankRefundReceipt {
   operationId: string; actorId: string; orderId: string; claimId: string; kind: BankRefundKind;
@@ -30,7 +33,8 @@ export interface BankRefundAccountView {
   bankName: string; accountNumber: string; accountHolder: string; viewedAt: string;
 }
 export interface BankRefundFailure { error: string; uncertain?: boolean; conflict?: boolean; authChanged?: boolean }
-export type BankRefundResult = { receipt: BankRefundReceipt | null } | BankRefundFailure;
+/** notice: 영수증은 성공했지만 따라붙은 불량 재고 기록이 끝나지 않았다는 경고(QNA-035). 영수증 성공은 그대로다. */
+export type BankRefundResult = { receipt: BankRefundReceipt | null; notice?: string } | BankRefundFailure;
 const recoveryKeys = ['version', 'actorId', 'sessionId', 'orderId', 'claimId', 'operationId', 'revision', 'amount', 'kind'];
 const kind = (v: unknown): v is BankRefundKind => BANK_REFUND_KINDS.includes(v as BankRefundKind);
 const nullableText = (v: unknown) => v === null || typeof v === 'string';
@@ -56,15 +60,20 @@ export function normalizeBankRefundRequest(value: unknown): BankRefundRequest | 
   const recovery = parseBankRefundRecovery(metadata);
   return recovery ? { ...recovery, occurredAt: new Date(occurredAt).toISOString(), evidence: proof, note, confirmed: true } : null;
 }
-export function parseBankRefundContext(value: unknown): BankRefundContext | null {
+export function parseBankRefundContext(input: unknown): BankRefundContext | null {
   const nullableTimes = ['filedAt', 'confirmedAt', 'transferredAt', 'confirmationNotBefore', 'transferNotBefore'];
   const texts = ['maskedAccount', 'maskedHolder', 'confirmBlocker', 'fileBlocker', 'completeBlocker', 'viewBlocker'];
-  if (!transactionRecord(value) || !transactionExactKeys(value, ['actorId', 'orderId', 'claimId', 'claimType', 'revision', 'amount', 'stage', 'phase', 'gift', ...nullableTimes, ...texts])
+  /* 반품배송비 차감 필드는 판정·결정이 있을 때만 실린다(스위치 OFF면 없음 — 지금 모양 그대로). 있으면 모양까지 맞아야 한다. */
+  if (!transactionRecord(input)) return null;
+  const { refundDeduction: rawDeduction, ...value } = input;
+  const refundDeduction = rawDeduction === undefined ? undefined : parseReturnFeeDeduction(rawDeduction);
+  if (refundDeduction === null) return null;
+  if (!transactionExactKeys(value, ['actorId', 'orderId', 'claimId', 'claimType', 'revision', 'amount', 'stage', 'phase', 'gift', ...nullableTimes, ...texts])
     || !isUuid(value.actorId) || !isUuid(value.orderId) || !isUuid(value.claimId) || !['cancel', 'return', 'exchange'].includes(String(value.claimType))
     || !transactionInteger(value.revision) || !transactionInteger(value.amount) || !isOrderClaimStage(value.stage)
     || !['not_confirmed', 'awaiting_transfer', 'completed'].includes(String(value.phase)) || typeof value.gift !== 'boolean'
     || nullableTimes.some(key => !nullableInstant(value[key])) || texts.some(key => !nullableText(value[key]))) return null;
-  return value as unknown as BankRefundContext;
+  return (refundDeduction ? { ...value, refundDeduction } : value) as unknown as BankRefundContext;
 }
 export function parseBankRefundReceipt(value: unknown): BankRefundReceipt | null {
   if (!transactionRecord(value) || !transactionExactKeys(value, ['operationId', 'actorId', 'orderId', 'claimId', 'kind', 'revision', 'resultRevision', 'amount', 'state', 'createdAt'])

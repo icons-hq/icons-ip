@@ -37,7 +37,7 @@ function AdditionalEditor({ goodId, configuration, onSaved }: {
   return <div className="flex min-w-0 flex-col gap-4">
     <form className="flex min-w-0 flex-wrap items-end gap-2" onSubmit={search}>
       <label className="flex min-w-0 flex-[1_1_12.5rem] flex-col gap-1.5 text-sm font-medium text-foreground">추가할 상품 검색
-        <input className={GOOD_INPUT_CLASS} data-slot="input" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={100} required disabled={pending} placeholder="상품명 또는 상품코드" />
+        <input className={GOOD_INPUT_CLASS} data-slot="input" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={100} required disabled={pending} placeholder="상품명 또는 판매자상품코드" />
       </label>
       <Button type="submit" variant="outline" disabled={pending}>{pending ? '처리 중…' : '검색'}</Button>
     </form>

@@ -26,7 +26,8 @@ interface LoginProps {
 const emptyState: AuthActionState = {};
 
 /* '이메일 저장'(R29 · MD-0004) — 이 기기 localStorage 에 이메일만 둔다. 비밀번호·세션은 저장하지 않는다
-   (로그인 유지는 이미 @supabase/ssr 기본 쿠키가 한다). 저장소를 못 쓰는 브라우저에서는 조용히 넘어간다. */
+   (로그인 유지는 옆의 '로그인 상태 유지' 체크가 정한다 — SHEET-005, lib/supabase/session-persistence.ts).
+   저장소를 못 쓰는 브라우저에서는 조용히 넘어간다. */
 export const SAVED_LOGIN_EMAIL_KEY = 'icons:login:saved-email';
 const MAX_SAVED_EMAIL_LENGTH = 254;
 const savedEmailListeners = new Set<() => void>();
@@ -34,6 +35,12 @@ const savedEmailListeners = new Set<() => void>();
 function savableEmail(value: string): string | null {
   const email = value.trim();
   return email.length <= MAX_SAVED_EMAIL_LENGTH && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+}
+
+/** 소셜 폼의 keepSignedIn 숨은 칸 값. 체크 칸은 로그인 모드에만 있으므로 가입 모드는 상태와 무관하게 늘 기본값(유지)이다 —
+ *  로그인 모드에서 끈 체크가 [이메일 회원가입]으로 넘어간 뒤에도 남아 가입 세션을 몰래 세션 쿠키로 만들지 않는다. */
+export function socialKeepSignedInValue(isSignUp: boolean, keepSignedIn: boolean): '1' | '0' {
+  return isSignUp || keepSignedIn ? '1' : '0';
 }
 
 export function readSavedLoginEmail(): string | null {
@@ -329,6 +336,8 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
   const savedEmail = useSyncExternalStore(subscribeSavedLoginEmail, readSavedLoginEmail, () => null);
   const restoredPendingEmail = useSyncExternalStore(subscribePendingSignup, readPendingSignupEmail, () => null);
   const [rememberChoice, setRememberChoice] = useState<boolean | null>(null);
+  /* '로그인 상태 유지'(SHEET-005) — 기본은 체크(지금처럼 유지)다. 끄고 로그인하면 브라우저를 닫을 때 로그아웃된다(세션 쿠키). */
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
   /* 가입 폼의 비밀번호 — 코드 확인 뒤 비밀번호 로그인 세션을 만들 때만 쓴다. 화면 메모리 밖에는 남기지 않는다. */
   const [signupPassword, setSignupPassword] = useState<string | null>(null);
   const rememberEmail = rememberChoice ?? Boolean(savedEmail);
@@ -444,6 +453,10 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
             {isSignIn && (
               <div className="wc-auth__agree-row">
                 <label>
+                  <input checked={keepSignedIn} name="keepSignedIn" onChange={(event) => setKeepSignedIn(event.target.checked)} type="checkbox" value="1" />
+                  <span>로그인 상태 유지</span>
+                </label>
+                <label>
                   <input checked={rememberEmail} onChange={(event) => setRememberChoice(event.target.checked)} type="checkbox" />
                   <span>이메일 저장</span>
                 </label>
@@ -492,6 +505,8 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
             <p className="wc-auth__social-sub">처음이라면 소셜 계정으로 바로 가입돼요.</p>
             <form action={socialAction} className="wc-auth__social-row">
               <input type="hidden" name="next" value={next} />
+              {/* '로그인 상태 유지'(SHEET-005)는 소셜 로그인에도 적용한다 — 위 이메일 폼의 체크 상태를 함께 보낸다(가입 화면은 체크 칸이 없어 기본값 유지). */}
+              <input type="hidden" name="keepSignedIn" value={socialKeepSignedInValue(isSignUp, keepSignedIn)} />
               <button
                 aria-label="Google로 계속하기"
                 className="wc-auth__social-btn"

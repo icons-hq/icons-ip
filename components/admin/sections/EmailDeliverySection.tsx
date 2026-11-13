@@ -21,7 +21,7 @@ import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
-/* 다른 문의·주문 화면과 같은 날짜 표기(한국 시각, 24시간제). */
+/* 다른 문의·주문 화면과 같은 날짜 표기(KST, 24시간제). */
 const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul',
   year: 'numeric',

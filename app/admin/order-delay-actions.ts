@@ -14,14 +14,14 @@ import {
   type PrepareOrderDelayNotice,
 } from '@/lib/admin/order-delay-notices';
 
-async function run(
-  name: string,
-  args: Record<string, unknown>,
-): Promise<OrderDelayNoticeActionResult> {
+async function run(name: string, args: Record<string, unknown>): Promise<OrderDelayNoticeActionResult> {
   try {
     const client = await createClient();
     const { data, error } = await client.rpc(name, args);
     if (error) return { error: orderDelayNoticeError(error.message) };
+    /* 예약 일정 일괄 변경 안내는 대상 전원의 이메일을 싣지 않는 일괄 결과 문서로만 연다(QNA-040). */
+    if (data && typeof data === 'object' && (data as { kind?: unknown }).kind === 'preorder_schedule')
+      return { error: orderDelayNoticeError('delay_notice_preorder_schedule') };
     const notice = parseOrderDelayNotice(data);
     if (!notice) return { error: orderDelayNoticeError('invalid_result') };
     return {
@@ -33,9 +33,7 @@ async function run(
   }
 }
 
-export async function prepareOrderDelayNoticeAction(
-  input: PrepareOrderDelayNotice,
-): Promise<OrderDelayNoticeActionResult> {
+export async function prepareOrderDelayNoticeAction(input: PrepareOrderDelayNotice): Promise<OrderDelayNoticeActionResult> {
   if (!(await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.manage' }))) return { error: '직원 권한이 필요합니다.' };
   if (
     !input ||
@@ -44,9 +42,7 @@ export async function prepareOrderDelayNoticeAction(
     !Array.isArray(input.shipmentIds) ||
     input.shipmentIds.length < 1 ||
     input.shipmentIds.length > 100 ||
-    input.shipmentIds.some(
-      (id) => typeof id !== 'string' || !isUuid(id),
-    ) ||
+    input.shipmentIds.some((id) => typeof id !== 'string' || !isUuid(id)) ||
     typeof input.title !== 'string' ||
     !input.title.trim() ||
     input.title.trim().length > 80 ||
@@ -58,44 +54,33 @@ export async function prepareOrderDelayNoticeAction(
       (typeof input.expectedShipDate !== 'string' ||
         !/^\d{4}-\d{2}-\d{2}$/.test(input.expectedShipDate) ||
         Number.isNaN(Date.parse(input.expectedShipDate)) ||
-        new Date(input.expectedShipDate).toISOString().slice(0, 10) !==
-          input.expectedShipDate))
+        new Date(input.expectedShipDate).toISOString().slice(0, 10) !== input.expectedShipDate))
   )
     return { error: orderDelayNoticeError('invalid_delay_notice') };
   return run('admin_prepare_order_delay_notice', {
     target_notice: input.requestId.toLowerCase(),
-    target_shipments: [
-      ...new Set(input.shipmentIds.map((id) => id.toLowerCase())),
-    ].sort(),
+    target_shipments: [...new Set(input.shipmentIds.map((id) => id.toLowerCase()))].sort(),
     customer_title: input.title.trim(),
     customer_body: input.body.trim(),
     expected_ship_date: input.expectedShipDate,
   });
 }
 
-export async function readOrderDelayNoticeAction(
-  id: string,
-): Promise<OrderDelayNoticeActionResult> {
+export async function readOrderDelayNoticeAction(id: string): Promise<OrderDelayNoticeActionResult> {
   if (!(await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.manage' }))) return { error: '직원 권한이 필요합니다.' };
-  if (typeof id !== 'string' || !isUuid(id))
-    return { error: orderDelayNoticeError('delay_notice_not_found') };
+  if (typeof id !== 'string' || !isUuid(id)) return { error: orderDelayNoticeError('delay_notice_not_found') };
   return run('admin_get_order_delay_notice', { target_notice: id });
 }
 
-async function mutate(
-  id: string,
-  name: string,
-): Promise<OrderDelayNoticeActionResult> {
+async function mutate(id: string, name: string): Promise<OrderDelayNoticeActionResult> {
   if (!(await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.manage' }))) return { error: '직원 권한이 필요합니다.' };
-  if (typeof id !== 'string' || !isUuid(id))
-    return { error: orderDelayNoticeError('delay_notice_not_found') };
+  if (typeof id !== 'string' || !isUuid(id)) return { error: orderDelayNoticeError('delay_notice_not_found') };
   // Read first so a committed request can always be recovered even if the provider was subsequently disabled.
   const current = await run('admin_get_order_delay_notice', {
     target_notice: id,
   });
   if (current.error || !current.notice) return current;
-  if (name === 'admin_request_order_delay_notice' && current.notice.requestedAt)
-    return current;
+  if (name === 'admin_request_order_delay_notice' && current.notice.requestedAt) return current;
   if (!current.emailConfigured)
     return {
       ...current,
@@ -140,7 +125,9 @@ export async function listOrderDelayNoticesAction(): Promise<{
           typeof row.id === 'string' &&
           isUuid(row.id) &&
           typeof row.title === 'string' &&
-          typeof row.createdAt === 'string',
+          typeof row.createdAt === 'string' &&
+          (row.kind === undefined || row.kind === 'dispatch_delay' || row.kind === 'preorder_schedule') &&
+          (row.scheduleChangeId === undefined || row.scheduleChangeId === null || isUuid(row.scheduleChangeId)),
       )
     )
       return { error: '이전 안내 기록을 불러오지 못했습니다.' };

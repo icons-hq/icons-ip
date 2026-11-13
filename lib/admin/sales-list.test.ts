@@ -13,7 +13,7 @@ describe('sales worklist URL contract', () => {
     const claimHref = adminClaimHref('return', claim);
     expect(claim).toMatchObject({ dateField: 'paid', sort: 'oldest', page: 2 });
     expect(adminClaimBackHref('return', claimHref.split('?')[1])).toBe(claimHref);
-    const settled = normalizeAdminSettledFilters({ field: 'tracking', query: 'GAP1530', dateField: 'settled', pageSize: '50', page: '2' });
+    const settled = normalizeAdminSettledFilters({ field: 'tracking', query: 'GAP1530', dateField: 'settled', pageSize: '100', page: '2' });
     const href = adminSettledHref(settled);
     expect(adminOrderBackHref(href)).toBe(href);
     expect(salesListHiddenFields(href, ['sort', 'pageSize'])).toMatchObject({ field: 'tracking', query: 'GAP1530', dateField: 'settled' });
@@ -21,12 +21,12 @@ describe('sales worklist URL contract', () => {
     expect(normalizeAdminClaimFilters({ dateField: ['paid', 'requested'] })).not.toHaveProperty('dateField');
   });
   it('preserves effective order filters through result controls, pagination and detail return', () => {
-    const filters = normalizeAdminOrderFilters({ field: 'phone', query: '010-1234', dateField: 'paid', paymentMethod: 'card', sort: 'amount_high', pageSize: '50', page: '3' });
+    const filters = normalizeAdminOrderFilters({ field: 'phone', query: '010-1234', dateField: 'paid', paymentMethod: 'card', sort: 'amount_high', pageSize: '100', page: '3' });
     const href = adminOrdersHref(filters);
-    expect(filters).toMatchObject({ field: 'phone', dateField: 'paid', paymentMethod: 'card', sort: 'amount_high', pageSize: 50, page: 3 });
+    expect(filters).toMatchObject({ field: 'phone', dateField: 'paid', paymentMethod: 'card', sort: 'amount_high', pageSize: 100, page: 3 });
     expect(adminOrderBackHref(href)).toBe(href);
     expect(salesListHiddenFields(href, ['sort', 'pageSize'])).toEqual({ dateField: 'paid', paymentMethod: 'card', query: '010-1234', field: 'phone' });
-    expect(new URL(adminOrdersHref(filters, { page: 4 }), 'https://test.invalid').searchParams.get('pageSize')).toBe('50');
+    expect(new URL(adminOrdersHref(filters, { page: 4 }), 'https://test.invalid').searchParams.get('pageSize')).toBe('100');
   });
   it('keeps shipment method/date/search filters when returning from an order detail', () => {
     const filters = normalizeShipmentFilters({ tab: 'delivered', method: 'pickup', paymentMethod: 'bank_transfer', dateField: 'delivered', field: 'tracking', query: '1234', sort: 'newest', pageSize: '500', page: '2' }, 'shipping');
@@ -44,7 +44,7 @@ describe('sales worklist URL contract', () => {
   it('serializes unpaid state and report date basis without introducing unsupported choices', () => {
     const unpaid = normalizeAdminUnpaidFilters({ state: 'unknown', sort: 'newest', pageSize: '100', q: '대조' });
     expect(adminUnpaidHref(unpaid)).toContain('state=unknown');
-    const settled = normalizeAdminSettledFilters({ dateField: 'settled', sort: 'oldest', pageSize: '50' });
+    const settled = normalizeAdminSettledFilters({ dateField: 'settled', sort: 'oldest', pageSize: '100' });
     expect(adminOrderBackHref(adminSettledHref(settled))).toBe(adminSettledHref(settled));
     expect(parseSettledExportFilters({ dateField: 'paid', from: '2026-10-01', to: '2026-10-12', query: '' })).toEqual({ dateField: 'paid', from: '2026-10-01', to: '2026-10-12', query: '' });
     expect(parseSettledExportFilters({ dateField: 'providerPayout' })).toBeNull();

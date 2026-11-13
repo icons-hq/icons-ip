@@ -1,5 +1,6 @@
 'use server';
 import { readGoodsSalePeriod } from '@/lib/admin/goods-sale-period';
+import { INSTANT_DISCOUNT_PERIOD_FIELD, parseInstantDiscountPeriodRequest } from '@/lib/admin/goods-price-editor';
 import { readGoodsAttributeSubmission } from '@/lib/admin/goods-attributes';
 
 import { readAdminGoodsCustomInputs } from '@/lib/admin/goods-custom-inputs';
@@ -7,7 +8,7 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { goodSaveFields } from '@/lib/admin/good-save';
 import { goodsDraftIdentity, goodsDraftError, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
 import {
-  GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspaceSectionFailure, parseGoodWorkspaceSections,
+  GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspacePublishRejection, goodWorkspaceSectionFailure, parseGoodWorkspaceSections,
   type GoodWorkspaceRpcSections,
 } from '@/lib/admin/good-workspace-sections';
 import { canAccessAdminScreen } from '@/lib/admin/access';
@@ -48,8 +49,10 @@ import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import type { AdminCapability } from '@/lib/admin/access';
 import { loadGoodsIpOptions } from '@/lib/admin/goods-list.server';
 import { createClient } from '@/lib/supabase/server';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
-import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
+import { IP_PUBLIC_SLUG_ERROR_MESSAGES } from '@/lib/ip-identity';
+import { GOOD_OPTION_LIMIT_ERROR_FIELD, GOOD_TYPE_CATEGORY_MESSAGES } from '@/lib/admin/good-workspace';
 
 /*
  * `values`·`attempt` 는 실패한 제출을 폼이 되살리기 위한 값이다(lib/admin/form-state.ts).
@@ -57,8 +60,12 @@ import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
  */
 export interface AdminCatalogActionState extends AdminFormValuesState {
   savedGoodId?: string;
+  /** 새 IP 등록이 발급한 내부 ID. 등록 화면은 이 IP 상세로 옮겨 간다. */
+  savedIpId?: string;
   /** 저장 후 공개가 KC 검토에 막혀 같은 입력을 초안으로만 저장했다. `message`가 그 이유다. */
   kcPublishBlocked?: true;
+  /** 새 상품의 저장 후 공개가 KC 밖의 공개 조건에 막혀 저장만 했다(T15b). `message`가 그 이유다. */
+  publishBlocked?: true;
   /** 등록 화면 원자 저장이 KC 섹션을 함께 저장했다. 첫 저장 뒤 KC 유형 틀을 다시 얹지 않는다. */
   workspaceKcSaved?: true;
   stockAdjustment?: { variantId: string; stockQty: number; adjustmentId: string };
@@ -72,7 +79,7 @@ async function requireStaffAction(capability: AdminCapability = 'platform.manage
 
 /* 역할 부여·회수는 staff가 아니라 admin 전용 — RPC도 내부에서 재검사한다. */
 async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
-  return await requireAdminActionAccess('/admin', { adminOnly: true }) ? null : { errors: { form: '최고 관리자(admin) 권한이 필요합니다.' } };
+  return await requireAdminActionAccess('/admin', { adminOnly: true }) ? null : { errors: { form: '최고 관리자 권한이 필요합니다.' } };
 }
 
 function revalidateCatalog(paths: string[]) {
@@ -328,25 +335,32 @@ export async function upsertAdminIpAction(
   if (!result.ok) return fail({ errors: result.errors });
 
   const value = result.value;
+  const fields = {
+    target_title: value.title,
+    target_sub: value.sub,
+    target_vertical_key: value.verticalKey,
+    target_tagline: value.tagline,
+    target_synopsis: value.synopsis,
+    target_glyph: value.glyph,
+    target_bg: value.bg,
+    target_image_path: value.imagePath,
+    /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
+    target_publish: value.publish,
+  };
+  let data: unknown = null;
   let error: { message: string } | null;
   try {
     const supabase = await createClient();
-    ({ error } = await supabase.rpc('admin_upsert_ip', {
-      target_id: value.id,
-      target_title: value.title,
-      target_sub: value.sub,
-      target_vertical_key: value.verticalKey,
-      target_tagline: value.tagline,
-      target_synopsis: value.synopsis,
-      target_glyph: value.glyph,
-      target_bg: value.bg,
-      target_image_path: value.imagePath,
-      // Exposure controls own this value; metadata saves preserve the latest DB flag.
-      target_featured: null,
-      target_previous_id: value.previousId,
-      /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
-      target_publish: value.publish,
-    }));
+    /* 새 IP는 내부 ID를 보내지 않는다 — admin_create_ip가 공개 URL로 발급해 돌려준다(S36-003 · ADR-0039). */
+    ({ data, error } = value.previousId === null
+      ? await supabase.rpc('admin_create_ip', { target_public_slug: value.publicSlug, ...fields })
+      : await supabase.rpc('admin_upsert_ip', {
+        target_id: value.id,
+        ...fields,
+        // Exposure controls own this value; metadata saves preserve the latest DB flag.
+        target_featured: null,
+        target_previous_id: value.previousId,
+      }));
   } catch (error) {
     unstable_rethrow(error);
     return fail(rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'));
@@ -354,16 +368,41 @@ export async function upsertAdminIpAction(
 
   if (error) {
     return fail(
-      catalogWriteIntentFailure(error.message)
+      ipCreateFailure(error.message)
+        ?? catalogWriteIntentFailure(error.message)
         ?? artworkClaimFailure(error.message)
         ?? archivedCatalogFailure(error.message)
         ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'),
     );
   }
 
+  const savedId = value.previousId === null
+    ? (typeof data === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(data) ? data : null)
+    : value.id;
+  /* 등록은 됐지만 발급된 ID를 읽지 못했다 — 다시 저장하면 같은 공개 URL로 중복 등록을 시도하게 되므로 입력을 되살리지 않는다. */
+  if (!savedId) return rpcFailure('IP를 등록했지만 결과를 확인하지 못했습니다. IP 목록에서 확인해주세요.');
+
   /* 게시 전환은 검색 결과도 바꾼다 — 보관 액션이 비우는 표면과 맞춘다. */
-  revalidateCatalog([`/ip/${value.id}`, '/search', '/admin/catalog/ips', `/admin/catalog/ips/${value.id}`]);
+  revalidateCatalog([
+    `/ip/${savedId}`, ...(value.publicSlug && value.publicSlug !== savedId ? [`/ip/${value.publicSlug}`] : []),
+    '/search', '/admin/catalog/ips', `/admin/catalog/ips/${savedId}`,
+  ]);
+  if (value.previousId === null) {
+    return { message: value.publish ? 'IP를 등록하고 공개했습니다.' : 'IP를 등록했습니다.', savedIpId: savedId };
+  }
   return { message: value.publish ? 'IP를 저장하고 공개했습니다.' : 'IP를 저장했습니다.' };
+}
+
+/* 새 IP 등록(admin_create_ip)의 거절을 입력 칸 옆에 운영자 말로 붙인다. */
+function ipCreateFailure(message: string): AdminCatalogActionState | null {
+  if (message.includes('ip_public_slug_taken')) {
+    return { errors: { publicSlug: '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.' } };
+  }
+  if (message.includes('invalid_ip_public_slug')) return { errors: { publicSlug: IP_PUBLIC_SLUG_ERROR_MESSAGES.format } };
+  if (message.includes('invalid_ip_title')) return { errors: { title: 'IP 이름을 입력해주세요.' } };
+  if (message.includes('invalid_ip_vertical')) return { errors: { verticalKey: '등록된 IP 분류를 선택해주세요.' } };
+  if (message.includes('ip_directory_conflict')) return rpcFailure('다른 운영자가 IP 노출 순서를 저장하는 중입니다. 잠시 후 다시 저장해주세요.');
+  return null;
 }
 
 /* 섹션 입력(KC 근거 참조 포함)과 작업 ID는 화면의 키 밖 상태가 보존한다. 실패 상태 값에 되싣지 않는다. */
@@ -399,6 +438,9 @@ async function saveAdminGood(
   if (!salePeriod.ok) return { errors: { saleStartsAt: salePeriod.error } };
   const customInputs = readAdminGoodsCustomInputs(formData);
   if (!customInputs.ok) return {errors:{customInputs:customInputs.error}};
+  /* TKT-033(ADR-0040): 즉시할인 기간 지시. 상품 편집이 다루지 않는 할인 상태면 화면이 보내지 않는다(지시 없는 저장). */
+  const instantDiscountPeriod = parseInstantDiscountPeriodRequest(formData.get(INSTANT_DISCOUNT_PERIOD_FIELD));
+  if (!instantDiscountPeriod) return { errors: { discountPeriod: '즉시할인 기간을 확인하지 못했습니다. 새로고침한 뒤 다시 저장해주세요. 입력은 유지됩니다.' } };
   const optionFields: Record<string, unknown> = {};
   let optionRows: GoodsOptionRow[] = [];
   if (formData.has('variants')) {
@@ -417,15 +459,16 @@ async function saveAdminGood(
   if (formData.has('shippingFeeType')) fulfillmentFields.shipping_fee_type = String(formData.get('shippingFeeType'));
   if (formData.has('individualFee')) fulfillmentFields.individual_fee = String(formData.get('individualFee'));
   /*
-   * 등록 화면(R13·D6②)은 작업 ID와 KC·예약판매 섹션을 함께 보낸다. 작업 ID가 있으면 기본 입력과 섹션을
+   * 등록 화면(R13·D6②·T15b)은 작업 ID와 KC·예약판매·나머지 설정 섹션을 함께 보낸다. 작업 ID가 있으면 기본 입력과 섹션을
    * admin_save_good_workspace 한 트랜잭션으로 저장한다(재시도 중복 방지 영수증 포함). 작업 ID가 없는
-   * 수정 화면·이전 화면은 지금처럼 admin_save_good으로 저장한다. 공개는 래퍼에서 하지 않는다.
+   * 수정 화면·이전 화면은 지금처럼 admin_save_good으로 저장한다. 새 상품의 '저장 후 공개'(0901-008)는 래퍼가 저장을 끝낸 뒤
+   * 같은 요청에서 기존 공개 경로로 시도하고, 거절되면 저장은 남기고 거절 이유를 영수증(publish)에 싣는다.
    */
   const workspaceOperation = formData.get(GOOD_WORKSPACE_OPERATION_FIELD);
   let workspaceSections: GoodWorkspaceRpcSections | null = null;
   if (workspaceOperation !== null) {
     if (!isUuid(workspaceOperation)) return { errors: { form: '저장 요청을 확인하지 못했습니다. 새로고침 후 다시 시도해주세요. 입력은 유지됩니다.' } };
-    if (value.publish) return { errors: { form: '새 상품은 저장한 뒤 게시 상태에서 공개해주세요.' } };
+    if (value.publish && value.previousId) return { errors: { form: '저장된 상품은 판매 준비의 게시 상태에서 공개해주세요.' } };
     const sections = parseGoodWorkspaceSections(formData.get(GOOD_WORKSPACE_SECTIONS_FIELD),
       canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true }));
     if (!sections.ok) return { errors: { [sections.field]: sections.error } };
@@ -441,6 +484,7 @@ async function saveAdminGood(
     ...fulfillmentFields,
     ...goodSaveFields(value),
     default_variant_code: value.defaultVariantCode,
+    ...(instantDiscountPeriod === 'absent' ? {} : { instant_discount_period: instantDiscountPeriod }),
   };
   let { data, error } = workspaceSections
     ? await supabase.rpc('admin_save_good_workspace', { p_request: { operationId: workspaceOperation, good: targetGood, draft: serverDraft, sections: workspaceSections } })
@@ -452,7 +496,7 @@ async function saveAdminGood(
   }
 
   if (error) {
-    const sectionFailure = workspaceSections ? goodWorkspaceSectionFailure(error.message) : null;
+    const sectionFailure = workspaceSections ? goodWorkspaceSectionFailure(error.message, error.code) : null;
     if (sectionFailure) return { errors: sectionFailure as AdminFieldErrors };
     if (/goods_group_common_owned_by_group|goods_group_name_owned_by_group|goods_group_identity_immutable|goods_group_single_variant_required/.test(error.message)) return { errors: { form: '그룹의 공통정보 또는 옵션 구성은 그룹상품에서 수정해주세요. 입력은 유지됩니다. 최신 상품 상태를 다시 확인해주세요.' } };
     if (/goods_aggregation_policy_owned_by_root|goods_aggregation_policy_owned/.test(error.message)) return { errors: { form: '합산 배송·구매수량 조건은 합산 기준 상품에서 수정해주세요. 최신 상품 상태를 다시 확인해주세요.' } };
@@ -467,19 +511,23 @@ async function saveAdminGood(
     if (/goods_custom_inputs_changed/.test(error.message)) return { errors:{customInputs:'다른 작업에서 직접입력형 옵션 설정이 바뀌었습니다. 입력값은 유지됩니다. 새로고침 후 설정을 확인해주세요.'} };
     if (/invalid_goods_custom_input/.test(error.message)) return { errors:{customInputs:'직접입력형 옵션명과 사용여부를 확인해주세요.'} };
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
+    const typeFailure = goodTypeCategoryFailure(error.message);
+    if (typeFailure) return { errors: { categoryId: `${typeFailure} 입력값은 유지됩니다.` } };
     if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지 형식과 정리 후 길이, 업로드한 HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
     const randomOptionFailure = randomOptionSaleModeFailure(error.message);
     if (randomOptionFailure) return randomOptionFailure;
     if (/stock_changed|goods_options_changed|goods_variant_external_identity_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
     if (/goods_kc_reassessment_required|goods_kc_published_edit_requires_draft/.test(error.message)) return { errors: { form: '모델·옵션·고시정보 변경에는 KC 재검토가 필요합니다. 상품을 먼저 초안으로 전환한 뒤 수정해주세요.' } };
     if (error.message.includes('goods_kc_')) return { errors: { form: "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다." } };
-    if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '활성 기간 할인을 중지한 뒤 판매가·할인·옵션가를 변경해주세요.' } };
+    const instantDiscountFailure = instantDiscountPeriodFailure(error.message);
+    if (instantDiscountFailure) return { errors: instantDiscountFailure };
+    if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '진행 중이거나 예정된 기간 할인(할인 프로모션 포함)이 있어 판매가·옵션가를 바꾸지 않았습니다. 그 할인을 먼저 중지해주세요.' } };
     if (/purchase_limit_not_configured|goods_order_quantity_activation|goods_member_quantity_activation/.test(error.message)) return { errors: { minOrderQty: '구매 제한을 설정하려면 최소·최대 구매수량 또는 1인 최대 구매수량을 모두 입력해주세요.' } };
     if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고·옵션별 구매 제한(양의 정수)을 확인해주세요.' } };
     if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
     if (/invalid_good_shipping|invalid_individual_fee/.test(error.message)) return { errors: { shippingFeeType: '배송비 유형과 금액을 확인해주세요.' } };
     if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
-    if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 상품코드입니다.' } };
+    if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 판매자상품코드입니다.' } };
     if (error.message.includes('goods_variants_code_key')) return { errors: { [formData.has('variants') ? 'variants' : 'defaultVariantCode']: '이미 사용 중인 옵션코드입니다.' } };
     const erpIdentityError = erpIdentityTakenFailure(error, optionRows, formData.has('variants') ? 'variants' : 'form');
     if (erpIdentityError) return erpIdentityError;
@@ -499,11 +547,37 @@ async function saveAdminGood(
   revalidateCatalog([...relatedIpPaths(value.ipId, previousIpPath), `/admin/catalog/ips/${value.ipId}`, `/shop/${savedId}`, ...(value.previousId ? [`/shop/${value.previousId}`] : [])]);
   if (data?.draftAlreadyCompleted) return { message: '이미 상품으로 등록한 임시저장입니다. 저장된 상품을 확인해주세요.', savedGoodId: savedId };
   if (kcPublishBlocked) return { message: kcPublishBlocked, kcPublishBlocked: true, savedGoodId: savedId };
-  return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId,
-    ...(workspaceSections && data?.kc ? { workspaceKcSaved: true as const } : {}) };
+  const workspaceKcSaved = workspaceSections && data?.kc ? { workspaceKcSaved: true as const } : {};
+  /* T15b: 새 상품의 저장 후 공개가 거절되면 저장은 끝났다. 성공으로 알리지 않고 저장만 했다는 것과 공개를 막은 이유를 보인다. */
+  const publishRejection = workspaceSections && value.publish ? goodWorkspacePublishRejection(data?.publish) : null;
+  if (publishRejection) return { message: publishRejection.message, savedGoodId: savedId, ...workspaceKcSaved,
+    ...(publishRejection.kc ? { kcPublishBlocked: true as const } : { publishBlocked: true as const }) };
+  return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId, ...workspaceKcSaved };
 }
 
 type AdminSupabase = Awaited<ReturnType<typeof createClient>>;
+
+/** TKT-033(ADR-0040): 즉시할인 기간 저장의 DB 거절을 즉시할인 블록(기간 칸)에 붙인다. 입력은 유지된다. */
+function instantDiscountPeriodFailure(message: string): AdminFieldErrors | null {
+  if (message.includes('instant_discount_period_changed')) return { discountPeriod: '다른 곳에서 이 상품의 할인을 걸거나 멈췄습니다. 입력은 유지됩니다. 새로고침해 최신 할인을 확인한 뒤 다시 저장해주세요.' };
+  if (message.includes('instant_discount_period_managed')) return { discountPeriod: '할인 프로모션이나 기간 할인에서 관리하는 할인이 있어 즉시할인을 바꾸지 않았습니다. 그 할인을 먼저 확인해주세요.' };
+  if (message.includes('instant_discount_period_conflict')) return { discountValue: '진행 중이거나 예정된 기간 할인이 있는 상품에는 기간 없는 즉시할인을 함께 걸 수 없습니다. 특정기간만 할인으로 바꾸거나 기간 할인을 먼저 중지해주세요.' };
+  if (message.includes('instant_discount_period_ended')) return { discountPeriod: '할인 종료 시각이 이미 지났습니다. 종료를 지금 이후로 입력해주세요.' };
+  if (message.includes('instant_discount_period_price_invalid')) return { discountValue: '기간 할인 금액은 가장 낮은 옵션 판매 금액보다 작아야 합니다(옵션마다 같은 금액을 뺍니다).' };
+  if (message.includes('invalid_instant_discount_period')) return { discountPeriod: '할인 시작·종료를 KST으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' };
+  if (message.includes('price_period_overlap')) return { discountPeriod: '같은 기간에 걸린 다른 기간 할인(끝난 할인 포함)과 겹칩니다. 시작을 지금 이후로 바꾸거나 기간을 다시 확인해주세요.' };
+  return null;
+}
+
+/**
+ * SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이다. 저장·공개 RPC가 이 규칙으로 거절한 이유를 고른다.
+ */
+function goodTypeCategoryFailure(message: string): string | null {
+  if (message.includes('goods_type_category_locked')) return GOOD_TYPE_CATEGORY_MESSAGES.locked;
+  if (message.includes('goods_type_category_required')) return GOOD_TYPE_CATEGORY_MESSAGES.required;
+  if (message.includes('goods_type_category_changed')) return GOOD_TYPE_CATEGORY_MESSAGES.changed;
+  return null;
+}
 
 function saveGoodWithServerDraft(supabase: AdminSupabase, targetGood: Record<string, unknown>, draft: GoodsDraftIdentity | null) {
   return draft ? supabase.rpc('admin_save_good_from_draft', { target_good: targetGood, p_draft_id: draft.id, p_draft_revision: draft.revision })

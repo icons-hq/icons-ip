@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { appendSalesListOptions, normalizeSalesListOptions, salesPage, salesParam, type SalesListOptions } from './sales-list';
 import {
@@ -30,7 +31,7 @@ import {
  * 동료에게 링크로 넘길 수 있어야 한다.
  */
 
-export const ADMIN_CLAIM_PAGE_SIZE = 20;
+export const ADMIN_CLAIM_PAGE_SIZE = 50;
 
 export type AdminClaimStageFilter = OrderClaimStage | 'all' | 'open';
 /**
@@ -141,9 +142,9 @@ export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'order', label: '주문·클레임번호' },
   { value: 'buyer', label: '구매자' },
   { value: 'email', label: '구매자 이메일' },
-  { value: 'recipient', label: '수취인명' },
+  { value: 'recipient', label: '수령인명' },
   { value: 'item', label: '상품주문번호' },
-  { value: 'product', label: '상품번호' },
+  { value: 'product', label: '상품 URL' },
 ] as const;
 export type AdminClaimSearchField = (typeof ADMIN_CLAIM_SEARCH_FIELDS)[number]['value'];
 export const ADMIN_CLAIM_DATE_FIELDS = [
@@ -180,6 +181,8 @@ export interface AdminClaimRow {
   orderTotal: number;
   requestedAt: string;
   collectedAt: string | null;
+  /** 회수 확인 때 적은 실제 입고일(KST 날짜). 환급 기한의 기산점이다. 옛 기록은 비어 있다. */
+  collectionReceivedOn?: string | null;
   completedAt: string | null;
   refundMethod: OrderClaimRefundMethod | null;
   handlerName: string | null;
@@ -311,12 +314,11 @@ export function adminClaimPreviewHref(
   return `${adminClaimHref(claimType, filters)}&claimId=${encodeURIComponent(claimId)}`;
 }
 
-const PREVIEW_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** `?claimId=`에서 팝업으로 열 요청 id. 형식이 아니면 팝업을 열지 않는다. */
 export function adminClaimPreviewId(value: SearchParamValue): string | null {
   const candidate = singleParam(value).trim().toLowerCase();
-  return PREVIEW_ID_PATTERN.test(candidate) ? candidate : null;
+  return isUuid(candidate) ? candidate : null;
 }
 
 const BACK_PARAM_KEYS = ['stage', 'reasonType', 'from', 'to', 'query', 'page', 'field', 'dateField', 'sort', 'pageSize'] as const;
@@ -357,7 +359,6 @@ export function adminClaimOpenCount(counts: Record<OrderClaimStage, number>) {
  * 폼 정규화 — 콘솔 액션이 DB에 닿기 전에 입력을 좁힌다
  * ------------------------------------------------------------------------- */
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TRACKING_NUMBER_PATTERN = /^[A-Z0-9]{8,30}$/;
 export const ADMIN_CLAIM_OPERATIONAL_FEE_KINDS = ['return_shipping', 'exchange_shipping', 'other'] as const;
 export type AdminClaimOperationalFeeKind = (typeof ADMIN_CLAIM_OPERATIONAL_FEE_KINDS)[number];
@@ -397,7 +398,7 @@ export function normalizeAdminClaimDecisionForm(
   const decision = readString(formData, 'decision');
   const note = readString(formData, 'note');
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!(ADMIN_CLAIM_DECISIONS as readonly string[]).includes(decision)) {
     return { ok: false, error: '처리할 수 없는 결정입니다.' };
   }
@@ -433,7 +434,7 @@ export function normalizeAdminClaimRefundForm(
   const stage = readString(formData, 'stage');
   const note = readString(formData, 'note');
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (method !== 'pg_cancel' && method !== 'bank_transfer') {
     return { ok: false, error: '환불 수단을 선택해주세요.' };
   }
@@ -462,7 +463,7 @@ export function normalizeAdminClaimReshipmentForm(
   const carrier = readString(formData, 'carrier');
   const trackingNumber = readString(formData, 'trackingNumber').toUpperCase();
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!carrier) return { ok: false, error: '택배사를 선택해주세요.' };
   if (!TRACKING_NUMBER_PATTERN.test(trackingNumber)) {
     return { ok: false, error: '운송장번호를 영문 대문자와 숫자 8~30자로 입력해주세요.' };
@@ -474,7 +475,7 @@ export function normalizeAdminClaimReshipmentForm(
     if (!key.startsWith('variant:')) continue;
     const orderItemId = key.slice(8).toLowerCase();
     const variantId = typeof value === 'string' ? value.toLowerCase() : '';
-    if (!UUID_PATTERN.test(orderItemId) || !UUID_PATTERN.test(variantId) || seen.has(orderItemId)) {
+    if (!isUuid(orderItemId) || !isUuid(variantId) || seen.has(orderItemId)) {
       return { ok: false, error: '재출고할 품목과 옵션을 확인해주세요.' };
     }
     seen.add(orderItemId); items.push({ orderItemId, variantId });
@@ -482,18 +483,60 @@ export function normalizeAdminClaimReshipmentForm(
   return { ok: true, value: { claimId, carrier, trackingNumber, items } };
 }
 
+/*
+ * 회수 확인의 실제 입고일(1027T-033 · 2026-11-12 판단). 운영자가 확인 버튼을 늦게 누른 시각을 반환일로 대신하지
+ * 않도록 입고일을 따로 받는다. KST 달력 날짜(`YYYY-MM-DD`)이고 기본은 오늘이다. 미래 날짜는 여기서, 주문일보다
+ * 이른 날짜는 DB(invalid_collection_received_on)가 거절한다. 환급 기한은 이 날부터 센다.
+ */
+const KST_DAY_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
+export const ADMIN_CLAIM_RECEIVED_ON_INVALID = '실제 입고일은 오늘이나 그 이전 날짜로 입력해주세요.';
+
+/** KST 기준 오늘(`YYYY-MM-DD`). 입고일 입력의 기본값과 상한이다. */
+export function adminClaimTodayKst(now: Date = new Date()) {
+  return KST_DAY_FORMAT.format(now);
+}
+
+/** 입고일 칸. 비어 있으면 null(DB가 오늘로 적는다)이고, 날짜가 아니거나 오늘(KST)보다 뒤면 거절한다. */
+export function normalizeAdminClaimReceivedOn(
+  value: unknown,
+  now: Date = new Date(),
+): AdminClaimFormResult<string | null> {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return { ok: true, value: null };
+  if (!validCalendarDate(text) || text > adminClaimTodayKst(now)) return { ok: false, error: ADMIN_CLAIM_RECEIVED_ON_INVALID };
+  return { ok: true, value: text };
+}
+
+/** 회수 확인 근거 글. 1~500자이고 줄바꿈·탭 밖의 제어 문자는 받지 않는다(DB invalid_collection_evidence와 같은 규칙). */
+function collectionEvidenceProblem(evidence: string) {
+  if (!evidence || evidence.length > 500) return '확인 근거를 500자 이내로 입력해주세요.';
+  if (Array.from(evidence).some((character) => {
+    const code = character.charCodeAt(0);
+    return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
+  })) return '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.';
+  return null;
+}
+
+/**
+ * 레거시 회수(출고지별 회수 이전 요청)의 입고 확인. 근거는 선택이며, 레거시에는 근거 열이 없어 DB가 감사 기록에 남긴다.
+ */
 export function normalizeAdminClaimCollectionForm(
   formData: FormData,
-): AdminClaimFormResult<{ claimId: string; stage: 'collecting' | 'collected' }> {
+): AdminClaimFormResult<{ claimId: string; stage: 'collecting' | 'collected'; receivedOn: string | null; evidence: string | null }> {
   const claimId = readString(formData, 'claimId').toLowerCase();
   const stage = readString(formData, 'stage');
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (stage !== 'collecting' && stage !== 'collected') {
     return { ok: false, error: '처리할 수 없는 수거 단계입니다.' };
   }
+  const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
+  if (!receivedOn.ok) return receivedOn;
+  const evidence = readString(formData, 'evidence');
+  const problem = evidence ? collectionEvidenceProblem(evidence) : null;
+  if (problem) return { ok: false, error: problem };
 
-  return { ok: true, value: { claimId, stage } };
+  return { ok: true, value: { claimId, stage, receivedOn: stage === 'collected' ? receivedOn.value : null, evidence: stage === 'collected' && evidence ? evidence : null } };
 }
 
 export function normalizeAdminClaimEvidenceForm(
@@ -501,7 +544,7 @@ export function normalizeAdminClaimEvidenceForm(
 ): AdminClaimFormResult<{ claimId: string; evidence: string }> {
   const claimId = readString(formData, 'claimId').toLowerCase();
   const evidence = readString(formData, 'evidence');
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!evidence || evidence.length > 500) return { ok: false, error: '확인 근거를 500자 이내로 입력해주세요.' };
   if (Array.from(evidence).some((character) => {
     const code = character.charCodeAt(0);
@@ -526,7 +569,7 @@ export function normalizeAdminClaimOperationalFeeForm(
   const note = readString(formData, 'note');
   const evidence = readString(formData, 'evidence');
   const expectedUpdatedAt = readString(formData, 'expectedUpdatedAt');
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) return { ok: false, error: '최신 클레임을 다시 열어주세요.' };
   if (!amountText) {
     if (kind || note || evidence) return { ok: false, error: '금액을 비우면 비용 유형·메모·근거도 비워야 합니다.' };
@@ -549,10 +592,15 @@ export function normalizeAdminClaimOperationalFeeForm(
 
 export function normalizeAdminClaimOriginCollectionForm(
   formData: FormData,
-): AdminClaimFormResult<{ claimId: string; shipmentId: string; evidence: string }> {
+): AdminClaimFormResult<{ claimId: string; shipmentId: string; bundleId: string | null; evidence: string; receivedOn: string | null }> {
   const normalized = normalizeAdminClaimEvidenceForm(formData);
   if (!normalized.ok) return normalized;
   const shipmentId = readString(formData, 'shipmentId').toLowerCase();
-  if (!UUID_PATTERN.test(shipmentId)) return { ok: false, error: '회수 확인할 배송 건을 선택해주세요.' };
-  return { ok: true, value: { ...normalized.value, shipmentId } };
+  if (!isUuid(shipmentId)) return { ok: false, error: '회수 확인할 배송 건을 선택해주세요.' };
+  /* 회수 묶음(배송 건 × 반품지, S36-040): 반품지가 갈린 배송 건은 묶음을 골라 확인한다. 비우면 배송 건의 유일한 묶음이다. */
+  const bundleId = readString(formData, 'bundleId').toLowerCase();
+  if (bundleId && !isUuid(bundleId)) return { ok: false, error: '회수 확인할 반품지를 다시 선택해주세요.' };
+  const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
+  if (!receivedOn.ok) return receivedOn;
+  return { ok: true, value: { ...normalized.value, shipmentId, bundleId: bundleId || null, receivedOn: receivedOn.value } };
 }

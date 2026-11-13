@@ -173,6 +173,45 @@ describe('createRuntimeTicketPaymentCheckout', () => {
     expect(reconcile).toHaveBeenCalledWith(attempt);
   });
 
+  it('웹훅 paymentKey 힌트는 lazy gateway를 거쳐 reconcile 두 번째 인자로만 전달된다', async () => {
+    const attempt = {
+      id: '30000000-0000-4000-8000-000000000206',
+      provider: 'toss' as const,
+      purpose: 'ticket' as const,
+      refId: '20000000-0000-4000-8000-000000000206',
+      amount: 44_000,
+      currency: 'KRW',
+      idempotencyKey: 'ticket:20000000-0000-4000-8000-000000000206',
+      providerOrderId: 'T30000000000040008000000000000206',
+      providerProductCode: 'P30000000000040008000000000000206',
+      expiresAt: '2099-08-13T10:10:00.000Z',
+    };
+    const reconcile = vi.fn().mockResolvedValue({
+      attemptId: attempt.id,
+      provider: 'toss',
+      outcome: 'approved',
+    });
+    mocks.getPaymentGateway.mockReturnValue({ reconcile });
+    mocks.repository.claimTicketReconciliation.mockResolvedValue({
+      status: 'claimed',
+      attempt,
+      claimToken: '50000000-0000-4000-8000-000000000206',
+    });
+    mocks.repository.finalizeTicketReconciliation.mockResolvedValue({
+      attemptId: attempt.id,
+      provider: 'toss',
+      outcome: 'approved',
+    });
+
+    await createRuntimeTicketPaymentCheckout().reconcilePayment({
+      attemptId: attempt.id,
+      caseRef: 'case_ticket_opaque_206',
+      providerPaymentKeyHint: 'webhook-payment-key-hint',
+    });
+
+    expect(reconcile).toHaveBeenCalledWith(attempt, { providerPaymentKey: 'webhook-payment-key-hint' });
+  });
+
   it('refund reconciliation도 전용 request claim 뒤에서만 provider 조회한다', async () => {
     const attempt = {
       id: '30000000-0000-4000-8000-000000000206',

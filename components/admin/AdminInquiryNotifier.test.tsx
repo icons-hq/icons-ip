@@ -8,20 +8,30 @@ vi.mock('@/lib/admin/navigation-pending', () => ({ startAdminNavigation: navigat
 
 import {
   INQUIRY_NOTIFICATION_DENIED,
+  INQUIRY_NOTIFICATION_SETTINGS_TITLE,
   InquiryNotificationSettingsView,
+  PRODUCT_QUESTION_NOTIFICATION_TITLE,
   acquireInquiryNotifierLeadership,
   claimInquiryNotification,
+  claimProductQuestionNotification,
   enableInquiryNotifications,
   inquiryNotificationSupport,
   inquiryNotificationsEnabled,
   markInquiryNotificationsUnsupported,
   openNotifiedInquiry,
+  openNotifiedProductQuestion,
+  parseProductQuestionRows,
+  productQuestionNotificationBody,
+  productQuestionNotificationHref,
   readInquiryNotifierCursor,
+  readProductQuestionNotifierCursor,
   setInquiryNotificationsEnabled,
   showInquiryNotification,
+  showProductQuestionNotification,
   startInquiryNotifier,
   titleWithInquiryCount,
   writeInquiryNotifierCursor,
+  writeProductQuestionNotifierCursor,
 } from './AdminInquiryNotifier';
 import type { NotificationLike } from './AdminInquiryNotifier';
 
@@ -164,6 +174,11 @@ describe('브라우저 권한 요청 (R2)', () => {
     const view = (props: Partial<Parameters<typeof InquiryNotificationSettingsView>[0]>) => renderToStaticMarkup(<InquiryNotificationSettingsView support="default" enabled={false} message="" busy={false} onEnable={vi.fn()} onDisable={vi.fn()} {...props} />);
     expect(view({})).toContain('>문의 알림 받기</button>');
     expect(view({ support: 'granted', enabled: true })).toContain('>문의 알림 끄기</button>');
+    /* 1027T-002: 같은 켜기 설정이 상품 문의까지 알린다. 탭 제목 숫자는 지금처럼 미답변 1:1 문의 수다. */
+    expect(INQUIRY_NOTIFICATION_SETTINGS_TITLE).toBe('새 1:1 문의·상품 문의 PC 알림');
+    expect(view({})).toContain(`aria-label="${INQUIRY_NOTIFICATION_SETTINGS_TITLE}"`);
+    expect(view({})).toContain('켜면 새 1:1 문의와 상품 문의가 올 때 PC 알림을 띄웁니다.');
+    expect(view({ support: 'granted', enabled: true })).toContain('새 1:1 문의와 상품 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 1:1 문의 수를 표시합니다. 상품 문의는 30초마다 확인합니다.');
     expect(view({ support: 'denied' })).toContain(INQUIRY_NOTIFICATION_DENIED);
     const unsupported = view({ support: 'unsupported' });
     expect(unsupported).toContain('이 브라우저는 알림을 지원하지 않습니다');
@@ -332,5 +347,146 @@ describe('PC 알림을 눌러 문의로 이동 (R2)', () => {
     navigationStart.mockImplementationOnce((href: string) => { order.push(`start ${href}`); });
     openNotifiedInquiry('case-1', (href) => { order.push(`push ${href}`); }, () => { order.push('focus'); });
     expect(order).toEqual(['focus', 'start /admin/cs/inquiries/case-1', 'push /admin/cs/inquiries/case-1']);
+  });
+});
+
+describe('상품 문의 PC 알림 (1027T-002)', () => {
+  const OLD_Q = { id: 'pq-old', goodName: '아크릴 키링', body: '기존 질문', secret: false, createdAt: '2026-11-12T00:00:00Z' };
+  const NEW_Q = { id: 'pq-1', goodName: '아크릴 키링', body: '재입고 예정이 있나요?', secret: false, createdAt: '2026-11-12T00:00:30Z' };
+  function questionEngine(options: { leader?: boolean; claim?: (id: string) => boolean; pages?: (typeof NEW_Q)[][]; withQuestions?: boolean } = {}) {
+    const test = transport();
+    const notify = vi.fn(); const notifyQuestion = vi.fn();
+    const pages = [...(options.pages ?? [[OLD_Q], [NEW_Q]])];
+    const loadQuestions = vi.fn<(cursor: string | null) => Promise<(typeof NEW_Q)[]>>(async () => pages.shift() ?? []);
+    const loadInquiries = vi.fn(async () => []);
+    const stop = startInquiryNotifier({
+      realtime: test.client, loadOpenCount: async () => 0, loadSince: loadInquiries, notify, onCount: vi.fn(), claim: () => true,
+      leader: (onLead) => { if (options.leader !== false) onLead(); return () => {}; },
+      ...(options.withQuestions === false ? {} : { questions: { loadSince: loadQuestions, notify: notifyQuestion, claim: options.claim ?? (() => true) } }),
+    });
+    return { test, notify, notifyQuestion, loadQuestions, loadInquiries, stop };
+  }
+
+  /* 상품 문의는 Realtime이 없어 이 확인이 유일한 경로다. '1분 안에'를 지키려고 30초마다 확인하고, 1:1 문의의 60초 보완 확인은 그대로다. */
+  it('리더 탭은 처음 확인을 기준점으로만 쓰고, 30초 확인에서 새로 등록된 상품 문의를 한 번 알린다(1:1 문의 60초 확인과 별도)', async () => {
+    vi.useFakeTimers();
+    const run = questionEngine({ pages: [[OLD_Q], [NEW_Q], [NEW_Q]] });
+    await settle();
+    expect(run.loadQuestions).toHaveBeenCalledWith(null);
+    expect(run.loadInquiries).toHaveBeenCalledTimes(1);
+    expect(run.notifyQuestion).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(30_000); await settle();
+    expect(run.loadQuestions).toHaveBeenLastCalledWith(OLD_Q.createdAt);
+    expect(run.notifyQuestion).toHaveBeenCalledOnce();
+    expect(run.notifyQuestion).toHaveBeenCalledWith(expect.objectContaining({ id: NEW_Q.id, goodName: NEW_Q.goodName, body: NEW_Q.body, secret: false }));
+    expect(run.loadInquiries).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(30_000); await settle();
+    expect(run.loadQuestions).toHaveBeenLastCalledWith(NEW_Q.createdAt);
+    expect(run.notifyQuestion).toHaveBeenCalledOnce();
+    expect(run.loadInquiries).toHaveBeenCalledTimes(2);
+    expect(run.notify).not.toHaveBeenCalled();
+    run.stop();
+    vi.advanceTimersByTime(120_000); await settle();
+    expect(run.loadQuestions).toHaveBeenCalledTimes(3);
+    expect(run.loadInquiries).toHaveBeenCalledTimes(2);
+  });
+
+  it('리더가 아닌 탭은 상품 문의를 확인하지 않고, 다른 탭이 알림 차례를 가져가면 알리지 않는다', async () => {
+    vi.useFakeTimers();
+    const follower = questionEngine({ leader: false });
+    vi.advanceTimersByTime(60_000); await settle();
+    expect(follower.loadQuestions).not.toHaveBeenCalled();
+    expect(follower.notifyQuestion).not.toHaveBeenCalled();
+    follower.stop();
+    const claimed = questionEngine({ claim: () => false });
+    await settle();
+    vi.advanceTimersByTime(30_000); await settle();
+    expect(claimed.loadQuestions).toHaveBeenCalledTimes(2);
+    expect(claimed.notifyQuestion).not.toHaveBeenCalled();
+    claimed.stop();
+  });
+
+  it('1:1 문의 실시간 이벤트는 상품 문의 알림으로 새지 않고, 상품 문의 소스가 없으면 지금처럼 1:1 문의만 알린다', async () => {
+    const run = questionEngine();
+    await settle();
+    run.test.thread('INSERT', { id: 'q1', title: '배송 문의' });
+    expect(run.notify).toHaveBeenCalledWith({ id: 'q1', title: '배송 문의' });
+    expect(run.notifyQuestion).not.toHaveBeenCalled();
+    run.stop();
+    const legacy = questionEngine({ withQuestions: false });
+    await settle();
+    legacy.test.thread('INSERT', { id: 'q2', title: '교환 문의' });
+    expect(legacy.notify).toHaveBeenCalledOnce();
+    expect(legacy.loadQuestions).not.toHaveBeenCalled();
+    legacy.stop();
+  });
+
+  it('새 리더는 이전 리더가 남긴 상품 문의 기준점부터 확인한다(1:1 문의 기준점·알림 차례와 따로 저장)', async () => {
+    const storage = memoryStorage();
+    const now = () => Date.parse('2026-11-12T00:01:00Z');
+    function tab(load: (cursor: string | null) => Promise<(typeof NEW_Q)[]>) {
+      const test = transport();
+      const notifyQuestion = vi.fn();
+      let becomeLeader: (() => void) | undefined;
+      const loadQuestions = vi.fn(load);
+      const stop = startInquiryNotifier({
+        realtime: test.client, loadOpenCount: async () => 0, loadSince: async () => [], notify: vi.fn(), onCount: vi.fn(), claim: () => true,
+        leader: (onLead) => { becomeLeader = onLead; return () => {}; },
+        questions: {
+          loadSince: loadQuestions, notify: notifyQuestion,
+          claim: (id) => claimProductQuestionNotification('acc', id, storage),
+          cursor: { read: () => readProductQuestionNotifierCursor('acc', storage, now()), write: (value) => writeProductQuestionNotifierCursor('acc', value, storage, now()) },
+        },
+      });
+      return { notifyQuestion, loadQuestions, stop, lead: () => becomeLeader!() };
+    }
+    const a = tab(async (cursor) => cursor === null ? [OLD_Q] : []);
+    a.lead(); await settle();
+    expect(readProductQuestionNotifierCursor('acc', storage, now())).toBe(OLD_Q.createdAt);
+    expect(readInquiryNotifierCursor('acc', storage, now())).toBeNull();
+    a.stop();
+    const b = tab(async (cursor) => cursor === OLD_Q.createdAt ? [NEW_Q] : []);
+    b.lead(); await settle();
+    expect(b.loadQuestions).not.toHaveBeenCalledWith(null);
+    expect(b.notifyQuestion).toHaveBeenCalledOnce();
+    expect(claimProductQuestionNotification('acc', NEW_Q.id, storage)).toBe(false);
+    expect(claimInquiryNotification('acc', NEW_Q.id, storage)).toBe(true);
+    b.stop();
+  });
+
+  it('알림은 상품명과 공개 질문 앞부분을 싣고, 비밀글은 본문 대신 비밀글로만 알린다', () => {
+    const desktop = fakeNotification('granted');
+    const onOpen = vi.fn();
+    expect(showProductQuestionNotification({ id: 'pq-1', goodName: '아크릴 키링', body: '재입고\n예정이 있나요?', secret: false }, onOpen, desktop.api)).toBe(true);
+    expect(desktop.created[0]).toMatchObject({ title: PRODUCT_QUESTION_NOTIFICATION_TITLE, init: { body: '아크릴 키링 · 재입고 예정이 있나요?', tag: 'icons-product-question:pq-1' } });
+    desktop.created[0].instance.onclick?.(new Event('click'));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(desktop.created[0].closed).toBe(true);
+    expect(productQuestionNotificationBody({ id: 'pq-2', goodName: '아크릴 키링', body: '연락처 010-0000-0000으로 주세요', secret: true })).toBe('아크릴 키링 · 비밀글');
+    expect(productQuestionNotificationBody({ id: 'pq-3', goodName: null, body: 'x'.repeat(80), secret: false })).toBe(`${'x'.repeat(60)}…`);
+    const blocked = fakeNotification('granted', { constructs: false });
+    expect(showProductQuestionNotification({ id: 'pq-1', goodName: null, body: '질문', secret: false }, onOpen, blocked.api)).toBe(false);
+  });
+
+  it('알림을 누르면 문의 관리에서 그 상품 문의만 문의번호로 찾아 상세를 연다', () => {
+    const id = '00000000-0000-4000-8000-000000000201';
+    expect(productQuestionNotificationHref(id)).toBe(`/admin/cs/qna?page=1&query=${id}&field=id&detail=${id}`);
+    const order: string[] = [];
+    navigationStart.mockImplementationOnce((href: string) => { order.push(`start ${href}`); });
+    openNotifiedProductQuestion(id, (href) => { order.push(`push ${href}`); }, () => { order.push('focus'); });
+    expect(order).toEqual(['focus', `start ${productQuestionNotificationHref(id)}`, `push ${productQuestionNotificationHref(id)}`]);
+  });
+
+  it('조회 행은 상품명 관계 모양(객체·배열·없음)과 무관하게 좁히고, 비밀글 여부를 모르면 비밀글로 본다', () => {
+    expect(parseProductQuestionRows([
+      { id: 'a', body: '질문', is_secret: false, created_at: '2026-11-12T00:00:00Z', goods: { name: '키링' } },
+      { id: 'b', body: '질문', is_secret: true, created_at: '2026-11-12T00:00:01Z', goods: [{ name: '머그' }] },
+      { id: 'c', body: '질문', created_at: '2026-11-12T00:00:02Z', goods: null },
+      { id: 1, body: '잘못된 행', created_at: '2026-11-12T00:00:03Z' }, null,
+    ])).toEqual([
+      { id: 'a', body: '질문', secret: false, createdAt: '2026-11-12T00:00:00Z', goodName: '키링' },
+      { id: 'b', body: '질문', secret: true, createdAt: '2026-11-12T00:00:01Z', goodName: '머그' },
+      { id: 'c', body: '질문', secret: true, createdAt: '2026-11-12T00:00:02Z', goodName: null },
+    ]);
   });
 });

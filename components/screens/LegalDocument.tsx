@@ -66,7 +66,7 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
     .map((slug) => LEGAL_DOCUMENTS[slug]);
 
   return (
-    <div className="wc-root wc-document">
+    <main className="wc-root wc-document">
       <article className="wc-document__page">
         <header className="wc-document__head">
           <h1 className="wc-document__title">{document.title}</h1>
@@ -140,6 +140,6 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
           </details>
         )}
       </article>
-    </div>
+    </main>
   );
 }

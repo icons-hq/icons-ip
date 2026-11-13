@@ -19,7 +19,7 @@ function form(overrides: Record<string, string> = {}) {
   const data = new FormData();
   for (const [key, value] of Object.entries({
     id: '', updatedAt: '', code: 'basic-v2', version: '2', name: '기본 배송 안내',
-    shippingNotice: '배송 안내', returnExchangeNotice: '교환·반품 안내', csName: '아이콘스 CS',
+    shippingNotice: '배송 안내', returnExchangeNotice: '교환·반품 안내', remoteAreaNotice: ' 제주·도서산간은 1~2일 더 걸립니다. ', csName: '아이콘스 CS',
     csPhone: '02-000-0000', csEmail: 'help@example.com', confirmationEvidence: '운영 자료 확인',
     templateId: '00000000-0000-4000-8000-000000049001', goodId: 'good-1',
     goodUpdatedAt: '2026-09-10T01:00:00Z', ...overrides,
@@ -41,8 +41,18 @@ describe('배송정보 템플릿 액션', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
     const success = await saveShippingNoticeTemplateAction({}, form());
     expect(success.message).toContain('저장했습니다');
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_shipping_notice_template', expect.objectContaining({ target_version: 2 }));
+    /* 도서산간 안내 칸(S36-038)은 v2 저장 함수로만 보낸다 — 구 10인자 함수는 이 칸을 모른다. */
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_shipping_notice_template_v2', expect.objectContaining({
+      target_version: 2, target_remote_area_notice: '제주·도서산간은 1~2일 더 걸립니다.' }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_shipping_notice_template', expect.anything());
     expect(success.updatedAt).toBe('2026-09-10T02:00:00Z');
+  });
+
+  it('새 초안 저장은 목록에서 바로 찾도록 id·이름을 돌려주고, 기존 초안 수정은 돌려주지 않는다(QA2b)', async () => {
+    const id = '00000000-0000-4000-8000-000000049002';
+    mocks.rpc.mockResolvedValue({ data: { id, version: 2, updatedAt: '2026-09-10T02:00:00Z' }, error: null });
+    expect((await saveShippingNoticeTemplateAction({}, form({ id: '' }))).created).toEqual({ id, name: expect.any(String) });
+    expect((await saveShippingNoticeTemplateAction({}, form({ id, updatedAt: '2026-09-10T01:00:00Z' }))).created).toBeUndefined();
   });
 
   it('확인 근거가 있어야 활성화하고 상품 적용은 최신 시각을 함께 보낸다', async () => {

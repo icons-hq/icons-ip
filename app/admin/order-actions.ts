@@ -1,9 +1,9 @@
 'use server';
 
-import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
+import { isUuid } from '@/lib/uuid';
+import { canAccessAdminScreen } from '@/lib/admin/access';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
 import {
   ADMIN_CANCELLATION_RECHECK_LABELS,
@@ -19,7 +19,7 @@ import {
   parseTrackingImport,
   TRACKING_IMPORT_ROW_LIMIT,
 } from '@/lib/admin/tracking-import';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { parseOrderEmailDedupeKey } from '@/lib/email/dedupe';
 import {
   sendOrderConfirmationEmail,
@@ -45,14 +45,9 @@ export interface AdminOrderActionState {
   confirmedOrderIds?: string[];
 }
 
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
-
 async function requireStaffAction() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) {
+  const auth = await requireAdminActionAccess('/admin/sales/orders', { capability: 'sales.manage' });
+  if (!auth) {
     return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
   }
   return { auth, error: null };
@@ -60,9 +55,8 @@ async function requireStaffAction() {
 
 /** 운송장 회신 등록은 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
 async function requireDispatchAction() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.dispatch')) {
+  const auth = await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.dispatch' });
+  if (!auth) {
     return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
   }
   return { auth, error: null };
@@ -146,7 +140,6 @@ export async function updateAdminOrderStatusAction(
   return { message: STATUS_TRANSITION_MESSAGES[normalized.value.status] };
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /* 한 번에 미는 상한. 상한이 없으면 전체선택 한 번이 수백 건의 순차 RPC가 된다. */
 const BULK_CONFIRM_LIMIT = 100;
 
@@ -184,7 +177,7 @@ export async function bulkConfirmAdminOrdersAction(
     formData.getAll('orderIds')
       .filter((value): value is string => typeof value === 'string')
       .map((value) => value.trim().toLowerCase())
-      .filter((value) => UUID_PATTERN.test(value)),
+      .filter((value) => isUuid(value)),
   )];
 
   if (!orderIds.length) return { errors: { form: '발주확인할 주문을 선택해주세요.' } };
@@ -247,7 +240,7 @@ export async function updateAdminOrderTrackingAction(
   const normalized = normalizeAdminOrderTrackingForm(formData, await getShippingCarrierRegistry());
   if (!normalized.ok) return { errors: normalized.errors };
   const shipmentId = String(formData.get('shipmentId') ?? '').trim();
-  if (shipmentId && !UUID_PATTERN.test(shipmentId)) return { errors: { form: '배송건번호를 확인해주세요.' } };
+  if (shipmentId && !isUuid(shipmentId)) return { errors: { form: '배송건번호를 확인해주세요.' } };
 
   const supabase = await createClient();
   const { error } = await supabase.rpc(shipmentId ? 'admin_update_shipment_tracking' : 'admin_update_order_tracking', {
@@ -391,6 +384,10 @@ function staffCancellationError(message: string | null | undefined) {
   if (value.includes('order_claim_in_progress')) {
     return '이미 진행 중인 취소·반품·교환 요청이 있습니다. 취소·반품·교환 관리에서 그 요청을 처리해주세요.';
   }
+  /* 결제사 확인을 기다리는 재고 부족 부분 취소(ADR-0032). 클레임이 아니라 주문 상세의 부분 취소 칸에서 결제 확인을 마친다. */
+  if (value.includes('partial_cancel_in_progress')) {
+    return '재고 부족 부분 취소의 결제 확인을 먼저 마쳐주세요. 이 주문 상세의 재고 부족 부분 취소 칸에서 결제사 확인(결제확인필요 해소)을 끝낸 뒤 전액 취소할 수 있습니다.';
+  }
   if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
   if (value.includes('staff_cancellation_toss_only')) {
     return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
@@ -435,7 +432,7 @@ export async function startAdminOrderCancellationAction(
     revalidatePath('/admin/sales/orders');
     return { errors: { form: staffCancellationError(error.message) } };
   }
-  if (typeof data !== 'string' || !UUID_PATTERN.test(data)) {
+  if (typeof data !== 'string' || !isUuid(data)) {
     revalidateOrderSurfaces(normalized.value.orderId);
     return { errors: { form: '전액 취소 요청을 확인하지 못했습니다. 취소 관리에서 최신 상태를 확인해주세요.' } };
   }
@@ -517,6 +514,8 @@ export interface AdminTrackingImportState {
     unchanged?: number;
     /** 운송장 칸을 비워 건너뛴 줄 수(김포 회신, 아직 출고하지 않은 주문). 실패가 아니다(QA 라운드 1 m8). */
     skipped?: number;
+    /** 서원 회신에서 대표 운송장과 함께 저장한 분리배송 추가 운송장 수(QNA-019). 없으면 키가 없다. */
+    extraTrackings?: number;
   };
 }
 
@@ -535,9 +534,12 @@ export interface AdminTrackingImportPreview {
   sample: { line: number; reference: string; trackingNumber: string }[];
 }
 
+/** 같은 배송 건의 일부 줄만 운송장이 비었을 때 채운 줄의 안내(QA1c B2). 배송 건은 한꺼번에 발송되므로 일부만 등록하지 않는다. */
+const BLANK_SIBLING_TRACKING_REASON = '같은 배송 건에 운송장이 빈 줄이 있어 등록하지 않았습니다. 빈 줄까지 채워 다시 올려주세요.';
+
 const isSmartStoreReply = (parsed: TrackingWorkbookParseResult): parsed is Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }> => 'kind' in parsed && parsed.kind === 'smartstore';
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
-type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
+type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[];extraTrackingsAdded?:number};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
 const REPLY_TEMPLATE_LABEL: Record<ReplyTemplate, string> = { wms_csv: '김포 WMS 21열', seowon_xlsx: '남양주(서원) 송장양식' };
 
@@ -555,15 +557,17 @@ async function resolveReplyOrigin(supabase: Awaited<ReturnType<typeof createClie
     : `${REPLY_TEMPLATE_LABEL[template]} 양식을 쓰는 사용 중인 출고지가 없습니다. 출고지 설정을 확인해주세요.`);
 }
 
-function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean, blankLines = 0): AdminTrackingImportState {
+function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean, counts: { blankLines?: number; extraTrackings?: number } = {}): AdminTrackingImportState {
+  const blankLines=counts.blankLines??0, extraTrackings=counts.extraTrackings??0;
   failed.sort((a,b)=>a.line-b.line);
-  const report={failed,succeeded,...(unchanged?{unchanged}:{}),...(blankLines?{skipped:blankLines}:{})};
+  const report={failed,succeeded,...(unchanged?{unchanged}:{}),...(blankLines?{skipped:blankLines}:{}),...(extraTrackings?{extraTrackings}:{})};
+  const extras=extraTrackings?` 분리배송 추가 운송장 ${extraTrackings}개를 함께 저장했습니다.`:'';
   const skipped=`${unchanged?` 같은 운송장으로 이미 발송된 ${unchanged}건은 그대로 두었습니다.`:''}${blankLines?` 운송장 칸을 비운 ${blankLines}줄은 아직 출고하지 않은 것으로 보고 건너뛰었습니다.`:''}`;
   if(!succeeded.length){
     if((unchanged||blankLines)&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}`,report};
     return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}`},report};
   }
-  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${skipped}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
+  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${extras}${skipped}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
 }
 
 /**
@@ -617,9 +621,42 @@ export async function previewAdminOrderTrackingImportAction(formData: FormData):
     : [...parsed.issues];
   issues.sort((a, b) => a.line - b.line);
   const skipped = blankReplyLines(parsed);
+  /* 표준 양식: 같은 배송 건에 운송장 칸을 비운 줄이 있으면 채운 줄도 등록되지 않는다. 등록 결과와 건수가 어긋나지 않게 미리 나눈다(읽기만 한다). */
+  let blockedRows: typeof rows = [];
+  if (isSmartStoreReply(parsed) && parsed.skipped.length && rows.length) {
+    const blocked = await rowsBlockedByBlankSibling(parsed, rows);
+    if (blocked.size) {
+      blockedRows = rows.filter(row => blocked.has(row.line));
+      for (let index = rows.length - 1; index >= 0; index--) if (blocked.has(rows[index].line)) rows.splice(index, 1);
+      issues.push(...blockedRows.map(row => ({ line: row.line, reference: row.reference, reason: BLANK_SIBLING_TRACKING_REASON })));
+      issues.sort((a, b) => a.line - b.line);
+    }
+  }
   if (!rows.length && !issues.length && !skipped) return { error: '등록할 운송장을 붙여넣거나 파일을 선택해주세요.' };
   if (rows.length + issues.length > TRACKING_IMPORT_ROW_LIMIT) return { error: '운송장은 한 번에 1,000줄까지 등록할 수 있습니다.' };
   return { preview: { format, ready: rows.length, skipped, issues: issues.slice(0, 20), issueCount: issues.length, sample: rows.slice(0, 5) } };
+}
+
+/**
+ * 표준 회신의 채운 줄 가운데 같은 배송 건에 빈 줄이 있는 줄의 줄 번호(읽기 전용). 상품주문번호로 배송 건을 찾지 못하면 아무 줄도 막지 않는다 —
+ * 그때의 최종 판정은 등록 때 DB 배송 건 가드다.
+ */
+async function rowsBlockedByBlankSibling(
+  parsed: Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }>,
+  filled: readonly { line: number; reference: string }[],
+): Promise<Set<number>> {
+  try {
+    const references = [...new Set([...filled.map(row => row.reference), ...parsed.skipped.map(row => row.reference)])];
+    // 권한은 호출한 쪽(requireDispatchAction)이 이미 확인했고, 읽기는 출고 권한(sales.dispatch)으로 열리는 RPC가 맡는다.
+    // 사용자 세션으로 order_items를 직접 읽으면 RLS(sales.read)에 막혀 물류 계정은 0행을 받는다. 돌려받는 것은 상품주문번호·배송 건 id뿐이다.
+    const supabase = await createClient();
+    const linked = await supabase.rpc('admin_tracking_reply_shipment_links', { p_references: references });
+    if (linked.error || !Array.isArray(linked.data)) return new Set();
+    const shipmentByReference = new Map((linked.data as { reference: string; shipmentId: string }[]).map(link => [link.reference.toLowerCase(), link.shipmentId]));
+    const shipmentOf = (reference: string) => { return shipmentByReference.get(reference.toLowerCase()); };
+    const blankShipments = new Set(parsed.skipped.flatMap(row => { const shipment = shipmentOf(row.reference); return shipment ? [shipment] : []; }));
+    return new Set(filled.flatMap(row => { const shipment = shipmentOf(row.reference); return shipment && blankShipments.has(shipment) ? [row.line] : []; }));
+  } catch { return new Set(); }
 }
 
 async function enqueueDispatched(deliveries: { orderId: string; shipmentId: string }[]) {
@@ -649,12 +686,14 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
   if(candidates.truncated)return {errors:{form:'대조할 배송 건이 너무 많아 등록하지 않았습니다. 회신 파일을 나눠 올려주세요.'}};
   const match=matchSeowonReply(parsed.rows,candidates.shipments,candidates.usedTracking);
   const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
-  let queueWarning=false;let unchanged=match.unchanged.length;
+  let queueWarning=false;let unchanged=match.unchanged.length;let extraTrackings=0;
   if(match.commands.length){
+    // 분리배송 연결 송장(QNA-019)은 대표 운송장과 같은 행에 추가 운송장으로 실어 DB가 같은 트랜잭션에서 붙인다.
     const result=await supabase.rpc('admin_import_seowon_tracking_batch',{target_origin_id:origin.id,target_rows:match.commands.map(command=>({
       line:command.line,reference:command.shipmentId,carrier:candidates.defaultCarrier,trackingNumber:command.trackingNumber,
+      ...(command.extraTrackingNumbers?.length?{extraTrackingNumbers:command.extraTrackingNumbers}:{}),
     }))});
-    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_|tracking_number_in_use$|shipment_tracking_conflict$)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==match.commands.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     // 합배송한 배송 건들은 같은 첫 줄을 공유하므로 결과는 줄이 아니라 배송 건으로 찾는다.
@@ -662,6 +701,8 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     const deliveries:{orderId:string;shipmentId:string}[]=[];
     for(const command of match.commands){
       const outcome=outcomes.get(command.shipmentId),reference=commerceReferenceLabel(command.shipmentId,command.shipmentNumber);
+      // 실제로 새로 붙은 추가 운송장 수(합포장 구성원이 묶음으로 먼저 발송돼 '그대로'로 끝난 행도 이번 회신의 번호를 붙인다).
+      if(outcome?.ok&&Number.isSafeInteger(outcome.extraTrackingsAdded))extraTrackings+=outcome.extraTrackingsAdded!;
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
@@ -669,7 +710,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     queueWarning=await enqueueDispatched([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
-  return trackingImportResult(succeeded,failed,unchanged,queueWarning);
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning,{extraTrackings});
 }
 
 /** The DB batch keeps per-row failures and commits each valid shipment once. */
@@ -705,7 +746,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
     const rows=result.data as TrackingBatchRow[];
     for(const row of rows){
       // 표준 양식에서 운송장 칸만 비워 건너뛴 줄은 배송 건 가드용으로만 보냈다. 그 줄 자체의 거절은 실패가 아니다.
-      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:isSmartStoreReply(parsed)&&parsed.skipped.length&&row.error==='invalid_tracking_input'?BLANK_SIBLING_TRACKING_REASON:shipmentMutationError(row.error??'')});}
       else if(row.duplicate)continue;
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);
@@ -714,7 +755,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
     queueWarning=await enqueueDispatched([...new Map(deliveryRows.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
-  return trackingImportResult(succeeded,failed,unchanged,queueWarning,blankLines);
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning,{blankLines});
 }
 
 /**

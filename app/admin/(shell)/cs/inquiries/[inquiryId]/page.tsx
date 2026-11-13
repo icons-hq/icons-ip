@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { hasAdminCapability } from '@/lib/admin/access';
 import { notFound } from 'next/navigation';
 import { AdminOpenInquiryBadge } from '@/components/admin/AdminOpenInquiryBadge';
@@ -6,7 +7,6 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { adminInquiryBackFilters, adminInquiryBackHref } from '@/lib/admin/inquiries';
 import { getAdminInquiryConsoleData, getAdminInquiryNavigation, loadAdminInquiryDetail } from '@/lib/admin/inquiries.server';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export default async function AdminCsInquiryDetailPage({
   params,
@@ -18,7 +18,7 @@ export default async function AdminCsInquiryDetailPage({
 
   const { inquiryId: raw } = await params;
   const inquiryId = raw.toLowerCase();
-  if (!UUID_PATTERN.test(inquiryId)) notFound();
+  if (!isUuid(inquiryId)) notFound();
 
   const query = await searchParams;
   const [detail, data] = await Promise.all([

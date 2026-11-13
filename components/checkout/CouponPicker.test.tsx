@@ -148,7 +148,7 @@ describe('CouponPicker — 표시', () => {
     const held: UserCouponSummary = { ...fix5k, status: 'used', usedAt: '2026-08-31T00:00:00Z',
       pendingOrder: { orderId: '33333333-3333-4333-8333-333333333333', orderNumber: '2026083100000001', paymentMethod: 'card', replaceable: true } };
     const markup = html({ surface, couponState: state([held]) });
-    expect(markup).toContain(`<option value="${held.id}">5천원 할인 · ₩5,000 할인 · 진행 중인 주문에서 사용 중</option>`);
+    expect(markup).toContain(`<option value="${held.id}">5천원 할인 · ₩5,000 할인 · 주문 진행 중</option>`);
     expect(markup).toContain(`‘5천원 할인’ 쿠폰은 진행 중인 주문에서 사용 중이에요. ${copy}`);
     expect(markup).toContain('href="/orders/33333333-3333-4333-8333-333333333333">진행 중인 주문 확인</a>');
     expect(markup).not.toContain('사용할 수 있는 쿠폰이 없어요');

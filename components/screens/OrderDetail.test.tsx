@@ -73,6 +73,24 @@ describe('OrderDetail', () => {
     expect(html).not.toContain('REPLACEMENT-BLUE');
   });
 
+  it('교환 소포를 배송 묶음마다 택배사·운송장·배송조회로 보이고 회수 없이 보낸 소포를 안내한다(TKT-166)', () => {
+    const parcel = { claimId: '93942000-0000-4000-8000-000000000011', reshipmentId: '93942000-0000-4000-8000-000000000021', carrier: 'hanjin', carrierLabel: '한진택배',
+      trackingNumber: 'EXCHANGE0001', trackingUrl: 'https://carrier.example.test/track?no=EXCHANGE0001', reshippedAt: '2026-11-10T01:00:00.000Z', deliveredAt: null,
+      collectionWaived: false, items: [{ orderItemId: '93942000-0000-4000-8000-000000000013', name: '교환 출고 파랑 상품', variantName: '파랑', qty: 1 }] };
+    const html = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt], reshipmentParcels: [parcel,
+      { ...parcel, reshipmentId: '93942000-0000-4000-8000-000000000022', trackingNumber: 'EXCHANGE0002', trackingUrl: 'https://carrier.example.test/track?no=EXCHANGE0002',
+        collectionWaived: true, deliveredAt: '2026-11-11T01:00:00.000Z' }] })} />);
+    expect(html).toContain('교환 배송 2건'); expect(html).toContain('EXCHANGE0001'); expect(html).toContain('EXCHANGE0002');
+    expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0001"'); expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0002"');
+    expect(html).toContain('회수 없이 다시 보내드려요'); expect(html).toContain('도착 확인'); expect(html).toContain('배송 중');
+    expect(html).not.toContain('교환으로 받은 굿즈');
+    /* 소포로 오지 않은 다른 교환(선물 받은 분 화면의 이 기능 전 교환)의 굿즈 이력은 소포 목록 아래에 그대로 남는다. */
+    const older = { ...orderReshipmentReceipt, claimId: '93942000-0000-4000-8000-000000000031' };
+    const mixed = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt, older], reshipmentParcels: [parcel] })} />);
+    expect(mixed).toContain('교환 배송'); expect(mixed).toContain('교환으로 받은 굿즈');
+    expect(mixed.match(/교환 출고 파랑 상품/g)).toHaveLength(2);
+  });
+
   it('주문 내역에서도 온라인 결제금액과 착불·복수할인 원영수증을 유지한다', () => {
     const value = order({ transaction: transactionDisplay, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, giftId: ORDER_ID, address: null,
       items: [{ ...order().items[0], id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }], shipments: [] });
@@ -424,6 +442,20 @@ describe('OrderDetail digital-only deadline wording', () => {
   });
 });
 
+describe('OrderDetail 리뷰 칸 (ADR-0035 리뷰 등록 = 구매확정)', () => {
+  it('구매확정할 수 없어 막힌 리뷰는 그 이유(보류 사유 포함)를 보이고, 작성 시작 전이면 시작일이 먼저다', () => {
+    const target = { orderId: ORDER_ID, goodId: 'g13', goodName: '홍실 아크릴 블록', goodBg: null, orderedAt: '2026-08-01T06:00:00.000Z',
+      deliveredAt: '2026-08-03T06:00:00.000Z', deadlineAt: '2026-09-02T06:00:00.000Z', writable: false, review: null, kind: 'ordinary' as const };
+    const render = (purchaseConfirmation: unknown, opensAt?: string) => renderToStaticMarkup(<OrderDetail now={new Date('2026-08-05T06:00:00.000Z')}
+      order={order({ status: 'delivered', deliveredAt: '2026-08-03T06:00:00.000Z' })}
+      reviewTargets={[{ ...target, opensAt: opensAt ?? null, purchaseConfirmation } as never]} />);
+    expect(render({ required: true, block: 'held', holdReason: '사진 확인 중' })).toContain('이 주문의 구매확정이 보류되어 있습니다(사유: 사진 확인 중).');
+    expect(render({ required: true, block: 'claim_in_progress', holdReason: null })).toContain('취소·반품·교환 신청이 진행 중인 주문은 구매확정할 수 없어');
+    expect(render({ required: false, block: null, holdReason: null })).toContain('현재 작성할 수 없습니다');
+    expect(render({ required: true, block: 'held', holdReason: null }, '2026-08-10T06:00:00.000Z')).toContain('부터 작성 가능');
+  });
+});
+
 /* QA1 S-D2-15: 결제 없이 취소된 주문의 상세에 다시 결제 진입이 없었다. */
 describe('OrderDetail 다시 결제 진입', () => {
   it('결제 없이 취소된 장바구니 주문은 그 주문의 줄로 다시 결제한다', () => {
@@ -443,5 +475,43 @@ describe('OrderDetail 다시 결제 진입', () => {
 
   it('진입이 없으면 그대로다', () => {
     expect(renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled' })} />)).not.toContain('결제 없이 취소된 주문이에요');
+  });
+});
+
+describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
+  const partial = {
+    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed' as const, provider: 'toss' as const, refundAmount: 9_500, goodsRefundAmount: 9_500,
+    shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z',
+    completedAt: '2026-11-12T05:00:05Z', transferredAt: null, closedShipmentCount: 0,
+    items: [{ orderItemId: 'item-1', goodName: '홍실 아크릴 블록', variantName: null, qty: 1, goodsRefundAmount: 9_500 }],
+  };
+  const twoQty = order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 13_500 }] });
+
+  it('굿즈 줄과 배송 묶음 카드는 남은 수량을 말하고 취소된 수량을 적는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
+    expect(html).toContain('<dd>1개<small data-order-item-canceled="1"> · 1개 취소됨</small></dd>');
+    expect(html).toContain('홍실 아크릴 블록 × 1 (1개 취소됨)');
+    expect(html).not.toContain('× 2');
+  });
+
+  it('결제 금액 칸에 부분 취소 환불 합계와 남은 결제 금액을 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
+    expect(html).toContain('부분 취소 환불 합계');
+    expect(html).toContain('−₩9,500');
+    expect(html).toContain('남은 결제 금액');
+    expect(html).toContain('₩20,500');
+  });
+
+  it('부분 취소가 없으면 두 줄도 취소 표시도 없다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} />);
+    expect(html).not.toContain('부분 취소 환불 합계');
+    expect(html).not.toContain('취소됨');
+  });
+
+  it("'송금 완료' 줄은 부분 취소 적용 시각이 아니라 송금 완료 시각을 쓴다", () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[{ ...partial, provider: 'bank_transfer', completedAt: '2026-11-13T01:00:00Z', transferredAt: '2026-11-13T02:30:00Z' }]} />);
+    expect(html).toContain('환불계좌로 송금 완료');
+    expect(html).toContain('dateTime="2026-11-13T02:30:00Z"');
+    expect(html).not.toContain('dateTime="2026-11-12T05:00:05Z"');
   });
 });

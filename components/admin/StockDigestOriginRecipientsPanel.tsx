@@ -56,7 +56,7 @@ export function StockDigestOriginRecipientsPanel({ originId }: { originId: strin
 
   const inputId = `stock-digest-origin-${originId}`;
   return <section aria-label="안전재고 요약 메일 담당자" className="flex min-w-0 flex-col gap-3 border-t pt-4" data-stock-digest="origin">
-    <h4 className="text-base leading-snug font-medium">안전재고 요약 메일 담당자</h4>
+    <h3 className="text-base leading-snug font-medium">안전재고 요약 메일 담당자</h3>
     <p className={HINT}>이 출고지에서 보내는 상품 중 재고수량이 안전재고 기준 이하인 옵션만 담아 하루 한 번 보냅니다(서원처럼 창고 담당자가 다른 곳).
       보내는 시각과 사용 여부는 <Link className="underline underline-offset-4" href={STOCK_RECONCILE_PATH}>재고 대조</Link> 화면에서 정합니다.</p>
     {loadError ? <p className="text-sm text-destructive" role="alert">{loadError}</p> : !origin ? <p className={HINT} role="status">불러오는 중입니다.</p>

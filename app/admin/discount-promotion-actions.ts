@@ -7,7 +7,8 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { parseGoodsGroupIdentity, type GoodsGroupResult } from '@/lib/admin/goods-groups';
 import { transactionExactKeys, transactionRecord } from '@/lib/goods-transaction-values';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 import {
   DISCOUNT_PROMOTIONS_PATH,
   discountPromotionError,

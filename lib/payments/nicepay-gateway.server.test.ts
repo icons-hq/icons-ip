@@ -482,6 +482,20 @@ describe('NICEPAY 웹표준 payment gateway', () => {
       ...overrides,
     });
 
+    it('부분 취소 요청(ADR-0031)은 계약 전이라 거래조회·취소를 부르지 않고 부분 취소 불가로 돌려준다', async () => {
+      const server = nicepayServer({});
+      await expect(gateway(server.fetchImpl).refund(refund({
+        amount: ATTEMPT.amount - 3000,
+        idempotencyKey: `refund:${ATTEMPT.id}:deduction:claim-1`,
+        partial: { expectedBalanceBefore: ATTEMPT.amount },
+      }))).resolves.toMatchObject({
+        outcome: 'declined',
+        reasonCode: 'provider_partial_cancel_unavailable',
+        evidence: { resultCode: 'partial_cancel_contract_pending' },
+      });
+      expect(server.calls).toEqual([]);
+    });
+
     it('원장 TID로 전액 취소를 보내고 취소 응답과 사후 조회가 모두 맞을 때만 approved다', async () => {
       const server = nicepayServer({
         [INQUIRY_URL]: [inquiryResponse('0'), inquiryResponse('1')],

@@ -314,7 +314,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
   ];
 
   return (
-    <div className="wc-root wc-home">
+    <main className="wc-root wc-home">
       {refreshScheduledContent && announcementPopup ? <HomeAnnouncementPopup data={announcementPopup} /> : null}
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={goods} /> : null}
       <h1 className="wc-sr-only">ICONS 홈</h1>
@@ -327,6 +327,6 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
             description="곧 새로운 소식과 굿즈를 만나볼 수 있어요." title="홈을 준비하고 있어요" titleAs="h2" />
         </div>
       ) : visible.map((key) => <Fragment key={key}>{blocks[key]}</Fragment>)}
-    </div>
+    </main>
   );
 }

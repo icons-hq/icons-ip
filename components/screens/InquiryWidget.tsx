@@ -12,7 +12,7 @@ import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { WcButton } from '@/components/wc/WcButton';
 import { isStandaloneShellPath } from '@/lib/routes';
-import type { FaqEntry } from '@/lib/faq';
+import { FAQ_WIDGET_TOPICS, type FaqEntry, type FaqWidgetTopic, type FaqWidgetTopicAnswer } from '@/lib/faq';
 import { formatInquiryDateTime, INQUIRY_CATEGORIES, INQUIRY_IMAGE_ACCEPT, INQUIRY_STATUS_LABELS, MAX_INQUIRY_BODY_LENGTH,
   MAX_INQUIRY_IMAGES, MAX_INQUIRY_TITLE_LENGTH, type InquiryCategory } from '@/lib/inquiries';
 import type { InquiryListItem, InquiryThreadView } from '@/lib/inquiries.server';
@@ -24,6 +24,66 @@ import { FaqSuggestionList } from './FaqSuggestions';
 const EMPTY: InquiryActionState = {};
 type WidgetView = 'faq' | 'list' | 'new' | 'thread';
 interface WidgetData { userId: string; inquiries?: InquiryListItem[]; inquiry?: InquiryThreadView; error?: string }
+
+/*
+ * 버튼형 자주 묻는 질문(0901-044). FAQ 위 유형 버튼을 누르면 운영자가 FAQ 관리에서 지정한 대표 답을 바로 보이고,
+ * 지정이 없으면 서버가 고른 목록(질문에 버튼 낱말이 든 공개 FAQ, 없으면 그 카테고리의 공개 FAQ)을 보인다. 답변 문구는 운영 FAQ가 정본이고, 아래 기본 안내는
+ * 공개 FAQ가 하나도 없을 때만 쓴다. 내 주문 배송 조회 바로가기는 로그인 고객에게만 열고, 비로그인은 로그인 안내다.
+ */
+const WIDGET_TOPIC_DEFAULT_ANSWERS: Record<FaqWidgetTopic, string> = {
+  delivery: '주문한 굿즈의 배송 상태는 내 주문에서 확인할 수 있습니다.',
+  cancel: '주문 취소는 내 주문의 주문 상세에서 요청할 수 있습니다.',
+  return: '교환·반품은 내 주문의 주문 상세에서 요청할 수 있습니다.',
+};
+const ORDERS_HREF = '/orders';
+const ORDERS_LOGIN_HREF = `/login?next=${encodeURIComponent(ORDERS_HREF)}`;
+
+export function WidgetFaqTopicAnswer({ topic, answer, error, signedIn, onNavigate }: {
+  topic: FaqWidgetTopic; answer?: FaqWidgetTopicAnswer; error?: string; signedIn: boolean; onNavigate: () => void;
+}) {
+  return <div className="wc-inquiry-widget__topic-answer" data-topic={topic}>
+    {/* 바깥 영역이 aria-live라 안쪽 문구에는 role을 겹치지 않는다. */}
+    {error ? <p>{error}</p>
+      : !answer ? <p>답변을 불러오는 중입니다.</p>
+        : answer.entry ? <><h4>{answer.entry.question}</h4><p className="wc-inquiry-widget__topic-text">{answer.entry.answer}</p></>
+          : answer.entries.length ? <FaqSuggestionList entries={answer.entries} />
+            : <p className="wc-inquiry-widget__topic-text">{WIDGET_TOPIC_DEFAULT_ANSWERS[topic]}</p>}
+    {signedIn
+      ? <Link className="wc-inquiry-widget__topic-link" href={ORDERS_HREF} onClick={onNavigate}>내 주문 배송 조회</Link>
+      : <p className="wc-inquiry-widget__topic-login">내 주문 배송 조회는 로그인 후 이용할 수 있습니다. <Link href={ORDERS_LOGIN_HREF} onClick={onNavigate}>로그인하고 배송 조회</Link></p>}
+  </div>;
+}
+
+export function WidgetFaqTopics({ signedIn, onNavigate, initialTopic = null }: { signedIn: boolean; onNavigate: () => void; initialTopic?: FaqWidgetTopic | null }) {
+  const [topic, setTopic] = useState<FaqWidgetTopic | null>(initialTopic);
+  const [result, setResult] = useState<{ topic: FaqWidgetTopic; answer?: FaqWidgetTopicAnswer; error?: string }>();
+  useEffect(() => {
+    if (!topic) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/help?topic=${topic}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('faq_topic_unavailable');
+        const answer = await response.json() as FaqWidgetTopicAnswer;
+        if (!controller.signal.aborted) setResult({ topic, answer });
+      } catch {
+        if (!controller.signal.aborted) setResult({ topic, error: '답변을 불러오지 못했습니다. 아래 FAQ 검색이나 문의를 이용해주세요.' });
+      }
+    })();
+    return () => controller.abort();
+  }, [topic]);
+  const current = topic && result?.topic === topic ? result : undefined;
+  return <section className="wc-inquiry-widget__topics" aria-labelledby="inquiry-widget-topics-title">
+    <h3 id="inquiry-widget-topics-title">자주 찾는 문의</h3>
+    <div className="wc-inquiry-widget__topic-buttons" role="group" aria-labelledby="inquiry-widget-topics-title">
+      {FAQ_WIDGET_TOPICS.map((entry) => <button key={entry.id} type="button" aria-pressed={topic === entry.id}
+        aria-controls="inquiry-widget-topic-answer" onClick={() => setTopic((value) => value === entry.id ? null : entry.id)}>{entry.label}</button>)}
+    </div>
+    <div id="inquiry-widget-topic-answer" aria-live="polite">
+      {topic ? <WidgetFaqTopicAnswer topic={topic} answer={current?.answer} error={current?.error} signedIn={signedIn} onNavigate={onNavigate} /> : null}
+    </div>
+  </section>;
+}
 
 function WidgetFaq() {
   const [query, setQuery] = useState('');
@@ -153,7 +213,7 @@ export function InquiryWidgetPanel({ userId, onClose, clientFactory = createClie
           <button type="button" onClick={() => setView('new')} aria-pressed={view === 'new'}>새 문의</button></> : null}
       </nav>
       <div className="wc-inquiry-widget__content">
-        {view === 'faq' ? <WidgetFaq /> : null}
+        {view === 'faq' ? <><WidgetFaqTopics signedIn={Boolean(userId)} onNavigate={onClose} /><WidgetFaq /></> : null}
         {!userId ? <div className="wc-inquiry-widget__login"><p>개인 문의와 답변은 로그인 후 확인할 수 있습니다.</p><WcButton href="/login?next=%2Fmy%2Finquiries" onClick={onClose}>로그인하고 문의하기</WcButton></div> : null}
         {userId && view === 'new' ? <WidgetInquiryComposer onCreated={onCreated} /> : null}
         {userId && ['list', 'thread'].includes(view) ? <>
@@ -187,15 +247,44 @@ function InquiryWidgetDialog({ onClose }: { onClose: () => void }) {
  * 아래로 스크롤하는 동안 문의 런처를 비킨다(QA1 고객 — 모바일에서 떠 있는 [FAQ · 문의]가 요약 금액·배송비 안내를 가렸다).
  * 위로 스크롤하거나 맨 위 가까이면 다시 보인다. 숨김 모양은 990px 미만에서만 그린다(CSS) — 데스크톱은 런처가 여백에 선다.
  */
-function useLauncherTucked(): boolean {
-  const [tucked, setTucked] = useState(false);
+/** 런처 사각형이 가리면 안 되는 영역(요약 금액 등) 가운데 하나라도 겹치는지. 순수 함수라 화면 없이 시험한다. */
+export function launcherCoversAvoidZone(
+  launcher: { left: number; top: number; right: number; bottom: number },
+  zones: readonly { left: number; top: number; right: number; bottom: number }[],
+): boolean {
+  return zones.some(zone => zone.right > launcher.left && zone.left < launcher.right && zone.bottom > launcher.top && zone.top < launcher.bottom);
+}
+
+/** 런처가 서는 자리(고정 위치) 기준 사각형. transform으로 숨기는 동안에도 값이 흔들리지 않도록 계산한 위치와 offset 크기만 쓴다. */
+function launcherFixedRect(button: HTMLElement) {
+  const bottom = Number.parseFloat(window.getComputedStyle(button).bottom) || 0;
+  const right = Number.parseFloat(window.getComputedStyle(button).right) || 0;
+  const bottomEdge = window.innerHeight - bottom;
+  const rightEdge = window.innerWidth - right;
+  return { left: rightEdge - button.offsetWidth, top: bottomEdge - button.offsetHeight, right: rightEdge, bottom: bottomEdge };
+}
+
+function useLauncherTucked(startTucked: boolean): boolean {
+  /* 장바구니는 첫 화면 아래에 요약 금액·배송비 안내와 하단 주문 바가 겹쳐 서 있다 — 런처가 처음부터 비켜 있고 위로 스크롤하면 돌아온다(T22i).
+     스크롤이 한 번이라도 판정하면(override) 그 값을 따른다. */
+  const [override, setTucked] = useState<boolean | null>(null);
+  /* 위로 스크롤해 돌아오는 런처가 요약 금액을 가리지 않게(QA2 고객 S-W1m-03): 화면에 `data-inquiry-avoid` 영역(장바구니·주문서 요약)이
+     런처 자리와 겹치는 동안은 스크롤 방향과 상관없이 비켜 둔다. */
+  const [covering, setCovering] = useState(false);
+  const tucked = covering || (override ?? startTucked);
   useEffect(() => {
     let last = window.scrollY;
     let frame = 0;
+    const measure = () => {
+      const button = document.querySelector<HTMLElement>('.wc-inquiry-widget__launcher');
+      const zones = [...document.querySelectorAll<HTMLElement>('[data-inquiry-avoid]')].map(element => element.getBoundingClientRect());
+      setCovering(Boolean(button) && zones.length > 0 && launcherCoversAvoidZone(launcherFixedRect(button!), zones));
+    };
     const onScroll = () => {
       if (frame) return;
       frame = window.requestAnimationFrame(() => {
         frame = 0;
+        measure();
         const y = window.scrollY;
         if (Math.abs(y - last) < 8) return;
         setTucked(y > last && y > 120);
@@ -203,8 +292,15 @@ function useLauncherTucked(): boolean {
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    /* 요약 영역은 화면이 그려진 뒤(견적·장바구니를 읽은 뒤)에 생긴다 — 새로 붙거나 떨어지면 다시 잰다. */
+    const observer = new MutationObserver(onScroll);
+    observer.observe(document.body, { childList: true, subtree: true });
+    onScroll();
     return () => {
+      observer.disconnect();
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);
@@ -213,7 +309,7 @@ function useLauncherTucked(): boolean {
 
 export function InquiryWidget() {
   const pathname = usePathname();
-  const tucked = useLauncherTucked();
+  const tucked = useLauncherTucked(pathname === '/cart' || pathname.startsWith('/cart/'));
   const [overlay, setOverlay] = useState({ pathname, open: false });
   if (overlay.pathname !== pathname) setOverlay({ pathname, open: false });
   /* /login은 전역 셸 안에서 열리지만(L3) 입력에 집중하는 흐름이라 런처를 띄우지 않는다 — 모바일에서 소셜 버튼을 가린다. */

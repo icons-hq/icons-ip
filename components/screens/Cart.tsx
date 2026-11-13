@@ -531,7 +531,7 @@ export function Cart({
   const estimatedTotal = !transactionActive && shippingFinal ? subtotal + shippingFee - couponDiscount : null;
 
   return (
-    <div className="wc-root wc-cart">
+    <main className="wc-root wc-cart">
       <GoodsSalePeriodRefresh goods={lines.flatMap(line => line.good ? [line.good] : [])} />
       <CartSubheader />
       <div className="wc-container">
@@ -616,7 +616,7 @@ export function Cart({
               </ul>
             </div>
 
-            <aside aria-label="주문 요약" className="wc-cart__aside">
+            <aside aria-label="주문 요약" className="wc-cart__aside" data-inquiry-avoid="">
               <table className="wc-cart__summary">
                 <tbody>
                   <tr>
@@ -714,6 +714,6 @@ export function Cart({
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }

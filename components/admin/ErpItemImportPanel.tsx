@@ -30,6 +30,9 @@ import {
   type ErpImportRow,
 } from '@/lib/admin/erp-item-import';
 import { formatErpSalePrice } from '@/lib/admin/erp-items';
+import { erpImportFollowUp, unlinkedPastedCategories, type ErpImportFollowUp } from '@/lib/admin/erp-import-follow-up';
+import { ERP_LINKED_GOODS_SECTION_ID } from '@/lib/admin/erp-linked-goods';
+import { useErpItemsWorkspace } from './ErpItemsWorkspace';
 
 type ErpImportSource = {
   label: string;
@@ -91,8 +94,13 @@ function IssueTable({ caption, issues }: { caption: string; issues: ErpImportIss
  * 미리보기와 열 변경은 브라우저에서 하고, 반입 행은 서버 액션이 다시 검증한다.
  * 가끔 쓰는 도구라 접어 두어 매일 보는 품목 표가 첫 화면에 들어오게 한다(반입한 품목이 없으면 펼친다).
  */
-export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
+export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories = [] }: {
+  defaultOpen?: boolean;
+  /** 연결 표에서 '연결 필요'인 ERP 분류(서버가 다시 그릴 때마다 최신). 반입 뒤 '미연결 분류 N건'을 고른다. */
+  unlinkedErpCategories?: readonly string[];
+} = {}) {
   const router = useRouter();
+  const workspace = useErpItemsWorkspace();
   const fileInput = useRef<HTMLInputElement>(null);
   const [pasted, setPasted] = useState('');
   const [source, setSource] = useState<ErpImportSource | null>(null);
@@ -101,6 +109,8 @@ export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: bool
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [summary, setSummary] = useState<ErpImportSummary | null>(null);
+  /* 반입된 행의 ERP 코드·분류. 연결 상품 비교 범위와 '미연결 분류 N건'에 쓴다(1027T-016·1027T-X04). */
+  const [followUp, setFollowUp] = useState<ErpImportFollowUp | null>(null);
   const [reading, startReading] = useTransition();
   const [importing, startImporting] = useTransition();
   const busy = reading || importing;
@@ -116,6 +126,7 @@ export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: bool
     setHeaderIndex(undefined);
     setMapping(undefined);
     setSummary(null);
+    setFollowUp(null);
     setProgress(null);
     setError('');
   };
@@ -155,6 +166,7 @@ export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: bool
     setHeaderIndex(undefined);
     setMapping(undefined);
     setSummary(null);
+    setFollowUp(null);
     setProgress(null);
     setError('');
     setPasted('');
@@ -167,11 +179,21 @@ export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: bool
     const total = plan.rows.length;
     setError('');
     setSummary(null);
+    setFollowUp(null);
     setProgress({ done: 0, total });
     /* 미리보기에서 걸러진 행도 반입되지 않았으므로 결과의 거부에 함께 센다. */
     const previewIssues = [...plan.issues];
     startImporting(async () => {
       const merged: ErpImportSummary = { inserted: 0, updated: 0, unchanged: 0, rejected: previewIssues };
+      /* 반입된 행만 이어 할 일(연결 상품 비교·미연결 분류)에 넘긴다. 실패한 묶음과 DB가 거부한 행은 뺀다. */
+      const imported: ErpImportRow[] = [];
+      const serverRejected: ErpImportIssue[] = [];
+      const finish = () => {
+        const next = erpImportFollowUp(imported, serverRejected);
+        setFollowUp(next);
+        /* 붙여넣은 값이 연결 상품과 다르면 미리보기로 보이게 비교를 시작한다(반영은 운영자가 고른 뒤 확정). */
+        if (next.codes.length) workspace?.comparePasted(next.codes);
+      };
       let done = 0;
       for (const chunk of chunks) {
         let result: ErpItemImportResult;
@@ -180,7 +202,10 @@ export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: bool
           setError(done
             ? `${done.toLocaleString('ko-KR')}건까지 반입했습니다. ${result.error}`
             : result.error);
-          if (done) setSummary({ ...merged, rejected: [...merged.rejected].sort((left, right) => left.row - right.row) });
+          if (done) {
+            setSummary({ ...merged, rejected: [...merged.rejected].sort((left, right) => left.row - right.row) });
+            finish();
+          }
           setProgress(null);
           router.refresh();
           return;
@@ -189,15 +214,20 @@ export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: bool
         merged.updated += result.updated;
         merged.unchanged += result.unchanged;
         merged.rejected.push(...result.rejected);
+        imported.push(...chunk);
+        serverRejected.push(...result.rejected);
         done += chunk.length;
         setProgress({ done, total });
       }
       merged.rejected.sort((left, right) => left.row - right.row);
       setSummary(merged);
       setProgress(null);
+      finish();
       router.refresh();
     });
   };
+
+  const unlinkedPasted = followUp ? unlinkedPastedCategories(followUp.categories, unlinkedErpCategories) : [];
 
   const previewRows = plan?.rows.slice(0, ERP_ITEM_PREVIEW_ROWS) ?? [];
   const headerOptions = source ? source.table.slice(0, ERP_ITEM_HEADER_SCAN_ROWS) : [];
@@ -254,12 +284,23 @@ export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: bool
         <AdminStatusBadge tone={summary.rejected.length ? 'danger' : 'neutral'}>거부 {summary.rejected.length.toLocaleString('ko-KR')}</AdminStatusBadge>
       </p>
       <p className={HINT}>같은 내용을 다시 반입해도 &lsquo;같음&rsquo;으로 처리됩니다. 거부된 행은 고친 뒤 다시 반입해주세요.</p>
+      {/* 1027T-016: 붙여넣은 품목의 ERP 분류 중 고객 카테고리에 연결되지 않은 분류를 연결 표로 바로 안내한다. */}
+      {unlinkedPasted.length ? <AdminNotice tone="warning" title={`미연결 분류 ${unlinkedPasted.length.toLocaleString('ko-KR')}건`}>
+        <p>붙여넣은 품목의 ERP 분류 중 고객 카테고리에 연결되지 않은 분류가 있습니다. 연결해 두면 상품 옵션에서 ERP 품목을 고를 때 카테고리를 제안합니다.</p>
+        <p className="mt-1 text-xs text-muted-foreground wrap-anywhere">{unlinkedPasted.slice(0, 5).join(' · ')}{unlinkedPasted.length > 5 ? ` 외 ${(unlinkedPasted.length - 5).toLocaleString('ko-KR')}건` : ''}</p>
+        <Button className="mt-2" size="sm" variant="outline" type="button" onClick={() => workspace?.showUnlinkedCategories()}>연결하기</Button>
+      </AdminNotice> : null}
+      {/* 1027T-X04: 반입이 끝나면 연결 상품 반영 패널이 방금 반입한 품목과 비교한다. 바꾸는 일은 그곳에서 확인한 뒤 한다. */}
+      {followUp?.codes.length && workspace ? <p className={HINT}>
+        방금 반입한 품목과 연결 상품의 판매가·바코드를 비교했습니다. 값이 다르면 아래 연결 상품 반영에서 확인하고 고른 행만 반영합니다.{' '}
+        <a className="text-foreground underline underline-offset-4" href={`#${ERP_LINKED_GOODS_SECTION_ID}`}>비교 결과 보기</a>
+      </p> : null}
       <IssueTable caption="반입하지 못한 행" issues={summary.rejected} />
     </div> : null}
 
     {source && plan ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-erp-items="preview">
       <header className="flex flex-col gap-1">
-        <h4 className="text-base leading-snug font-medium wrap-anywhere">미리보기 · {source.label}</h4>
+        <h3 className="text-base leading-snug font-medium wrap-anywhere">미리보기 · {source.label}</h3>
         <p className={`${HINT} tabular-nums`}>
           비어 있지 않은 {plan.dataRowCount.toLocaleString('ko-KR')}행 · 반입 가능 {plan.rows.length.toLocaleString('ko-KR')}건 · 오류 {plan.issues.length.toLocaleString('ko-KR')}건
           {plan.duplicateCount ? ` · 중복 ${plan.duplicateCount.toLocaleString('ko-KR')}건` : ''}

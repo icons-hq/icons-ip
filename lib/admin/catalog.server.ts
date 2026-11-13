@@ -2,7 +2,7 @@ import 'server-only';
 import { goodsCustomInputConfigFromRow, type GoodsCustomInputConfig } from '@/lib/goods-custom-inputs';
 import { parseGoodClaimPolicy, type GoodClaimPolicy } from '@/lib/goods-claim-policy';
 import { parseShippingNoticeSnapshot } from '@/lib/fulfillment';
-import { parseGoodsKcDisclosures, type GoodsKcDisclosure } from '@/lib/goods-kc';
+import { parseGoodsKcDisclosures, parseGoodsOtherCertificationDisclosures, type GoodsKcDisclosure, type GoodsOtherCertificationDisclosure } from '@/lib/goods-kc';
 import type { GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 
 import { createClient } from '@/lib/supabase/server';
@@ -61,11 +61,20 @@ export interface AdminGoodRecord {
   categoryId?: string | null;
   additionalCategoryIds?: string[];
   claimPolicy?: GoodClaimPolicy | null;
+  /** 상품의 반품/교환지(주소록, S36-040). null이면 출고지 반품 주소를 쓴다. */
+  returnAddressId?: string | null;
+  /** 기타 인증 공개 사본(SHEET-014). 공개 화면 미리보기가 고객 상세와 같게 싣는다. */
+  otherCertifications?: GoodsOtherCertificationDisclosure[];
   shippingNoticeSnapshot?: import('@/lib/fulfillment').ShippingNoticeSnapshot | null;
   type: string;
   price: number;
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있다. */
   compareAtPrice: number | null;
+  /**
+   * 진행·예정 기간 할인 묶음(TKT-033·ADR-0040). 상품 편집 로더만 싣는다 — 실으면 상태, 불러오지 못했으면 null이고
+   * 상품 편집은 null이면 즉시할인을 잠근다(지시 없는 저장).
+   */
+  instantDiscount?: import('./goods-price-editor').GoodsInstantDiscountState | null;
   showDiscountRate?: boolean;
   badge: string | null;
   stock: Stock;
@@ -372,6 +381,8 @@ interface GoodRow {
   shipping_notice_snapshot?: unknown;
   claim_return_allowed?: boolean | null; claim_exchange_allowed?: boolean | null; claim_restriction_reason?: string | null;
   claim_return_fee?: number | null; claim_return_free_shipping_fee?: number | null; claim_exchange_fee?: number | null;
+  return_address_id?: string | null;
+  other_certification_disclosures?: unknown;
   type: string;
   price: number;
   compare_at_price: number | null;
@@ -561,7 +572,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path')
+        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,return_address_id,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path')
         .order('id')
       : null;
   if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
@@ -726,6 +737,7 @@ export async function getAdminCatalogRecords(
       additionalCategoryIds: (row.additional_categories ?? []).map(category => category.category_id),
       shippingNoticeSnapshot: parseShippingNoticeSnapshot(row.shipping_notice_snapshot),
       claimPolicy: parseGoodClaimPolicy({ returnAllowed: row.claim_return_allowed ?? null, exchangeAllowed: row.claim_exchange_allowed ?? null, restrictionReason: row.claim_restriction_reason ?? null, returnFee: row.claim_return_fee ?? null, returnFreeShippingFee: row.claim_return_free_shipping_fee ?? null, exchangeFee: row.claim_exchange_fee ?? null }),
+      returnAddressId: row.return_address_id ?? null,
       compareAtPrice: row.compare_at_price,
       showDiscountRate: row.show_discount_rate ?? true,
       badge: row.badge,
@@ -752,6 +764,7 @@ export async function getAdminCatalogRecords(
         asContact: row.notice_as_contact,
       },
       kcDisclosures: parseGoodsKcDisclosures(row.kc_disclosures ?? []) ?? [],
+      otherCertifications: parseGoodsOtherCertificationDisclosures(row.other_certification_disclosures ?? []) ?? [],
       description: row.description,
       descriptionFormat: row.description_format ?? 'plain',
       descriptionImagePaths: row.description_image_paths ?? [],

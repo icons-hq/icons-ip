@@ -9,7 +9,7 @@ import { krw } from '@/lib/format';
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'rank', label: '순위', width: '70px' },
-  { key: 'name', label: '상품' },
+  { key: 'name', label: '상품', minWidth: '200px' },
   { key: 'ip', label: 'IP', width: '140px' },
   { key: 'qty', label: '수량', align: 'end', width: '90px' },
   { key: 'revenue', label: '금액', align: 'end', width: '130px' },

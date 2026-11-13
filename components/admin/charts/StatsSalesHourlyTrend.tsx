@@ -33,12 +33,12 @@ export function StatsSalesHourlyTrend({ report }: { report: AdminSalesHourlyRepo
   const comparisonFrom = ranking === 'today' ? `${report.comparisonDate} 00:00:00` : adminSalesHourlyTime(report.comparisonLastHourFrom);
   return <>
     <section aria-label="시간대별 판매 추이" className={CARD} data-stats-trend="hourly">
-      <header className={CARD_HEADER}><h3 className="mr-auto text-base font-medium">오늘과 비교일의 판매 추이</h3>
+      <header className={CARD_HEADER}><h2 className="mr-auto text-base font-medium">오늘과 비교일의 판매 추이</h2>
         <div aria-label="시간대 차트 지표" className={STATS_SEGMENTED} role="group"><button aria-pressed={metric === 'revenue'} className={STATS_SEGMENT_BUTTON} onClick={() => setMetric('revenue')} type="button">주문매출</button><button aria-pressed={metric === 'orderCount'} className={STATS_SEGMENT_BUTTON} onClick={() => setMetric('orderCount')} type="button">주문수</button></div>
         <div aria-label="시간대 표시 방식" className={STATS_SEGMENTED} role="group"><button aria-pressed={!cumulative} className={STATS_SEGMENT_BUTTON} onClick={() => setMode('hourly')} type="button">시간대별</button><button aria-pressed={cumulative} className={STATS_SEGMENT_BUTTON} onClick={() => setMode('cumulative')} type="button">누적</button></div>
       </header>
       {report.completedHours === 0 ? <p className={`${CARD_NOTE} border-b`}>집계 마감까지 완료된 시간대가 없습니다. 최신 현황을 조회해주세요.</p> : null}
-      <div className="h-64 px-2 pt-4 pb-1 sm:h-80 sm:px-3"><ResponsiveContainer width="100%" height="100%"><LineChart data={rows} margin={{ top: 12, right: 20, bottom: 10, left: 10 }}>
+      <div aria-label="시간대별 판매 추이 차트. 같은 값은 아래 시간대별 판매 표에서 읽을 수 있습니다." className="h-64 px-2 pt-4 pb-1 sm:h-80 sm:px-3" role="img"><ResponsiveContainer width="100%" height="100%"><LineChart accessibilityLayer={false} data={rows} margin={{ top: 12, right: 20, bottom: 10, left: 10 }}>
         <CartesianGrid stroke={CHART_GRID_STROKE} vertical={false} />
         <XAxis axisLine={{ stroke: CHART_GRID_STROKE }} dataKey="label" tick={CHART_AXIS_TICK} tickLine={false} minTickGap={24} />
         <YAxis tick={CHART_AXIS_TICK} tickFormatter={value => metric === 'revenue' ? krw(Number(value)) : `${Number(value).toLocaleString('ko-KR')}건`} width={92} axisLine={false} tickLine={false} />
@@ -56,11 +56,11 @@ export function StatsSalesHourlyTrend({ report }: { report: AdminSalesHourlyRepo
           count(cumulative ? row.comparisonCumulativeOrderCount : row.comparisonOrderCount), money(cumulative ? row.comparisonCumulativeRevenue : row.comparisonRevenue)] }))} />
     </section>
     <section aria-label="상품별 금액 TOP10" className={CARD} data-stats-ranking="">
-      <header className={CARD_HEADER}><h3 className="mr-auto text-base font-medium">상품별 금액 TOP10</h3><div aria-label="상품 순위 시간 범위" className={STATS_SEGMENTED} role="group"><button aria-pressed={ranking === 'today'} className={STATS_SEGMENT_BUTTON} onClick={() => setRanking('today')} type="button">오늘</button><button aria-pressed={ranking === 'lastHour'} className={STATS_SEGMENT_BUTTON} onClick={() => setRanking('lastHour')} type="button">직전 1시간</button></div></header>
+      <header className={CARD_HEADER}><h2 className="mr-auto text-base font-medium">상품별 금액 TOP10</h2><div aria-label="상품 순위 시간 범위" className={STATS_SEGMENTED} role="group"><button aria-pressed={ranking === 'today'} className={STATS_SEGMENT_BUTTON} onClick={() => setRanking('today')} type="button">오늘</button><button aria-pressed={ranking === 'lastHour'} className={STATS_SEGMENT_BUTTON} onClick={() => setRanking('lastHour')} type="button">직전 1시간</button></div></header>
       <div className={CARD_NOTE}>{ranking === 'today' && report.completedHours === 0 ? <p>오늘과 비교일에 같은 기준으로 집계할 완료 시간 구간이 없습니다.</p> : <><p>조회 구간(KST): {currentFrom} ~ {adminSalesHourlyTime(report.cutoff)} 직전</p><p>비교 구간(KST): {comparisonFrom} ~ {adminSalesHourlyTime(report.comparisonCutoff)} 직전</p></>}<p>IP 조건: {report.ipId || '전체'} · 이 상품 순위에만 적용됩니다. 상품금액은 수량×단가−복수구매 할인이며 주문매출과 다릅니다. 순위는 현재 구간 기준이고 비교값은 같은 상품입니다.</p></div>
       <div className="px-4 pb-4">
         <ConsoleGrid caption="상품별 금액 TOP10" className="[&_table]:min-w-[69rem]" preferencesKey="stats-sales-hourly-goods" columns={[
-          { key: 'rank', label: '순위', width: '70px' }, { key: 'good', label: '상품·상품코드', width: '260px' }, { key: 'ip', label: '주문 당시 IP', width: '160px' },
+          { key: 'rank', label: '순위', width: '70px' }, { key: 'good', label: '상품·판매자상품코드', width: '260px' }, { key: 'ip', label: '주문 당시 IP', width: '160px' },
           { key: 'qty', label: '판매수량', width: '110px', align: 'end' }, { key: 'revenue', label: '상품금액', width: '150px', align: 'end' },
           { key: 'comparisonQty', label: '비교일 수량', width: '110px', align: 'end' }, { key: 'comparisonRevenue', label: '비교일 상품금액', width: '150px', align: 'end' },
         ]} rows={goods.map(row => ({ id: row.goodId, cells: [row.rank, <span className="flex flex-col" key="good">{row.name}<small className="mt-0.5 text-xs text-muted-foreground">{row.goodId}</small></span>, row.ipId, row.qty.toLocaleString('ko-KR'), krw(row.revenue), row.comparisonQty.toLocaleString('ko-KR'), krw(row.comparisonRevenue)] }))}

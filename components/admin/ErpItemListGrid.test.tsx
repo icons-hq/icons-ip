@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConsoleGridRow } from '@/components/admin/console/ConsoleGrid';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 
 const hooks = vi.hoisted(() => ({
   state: [] as unknown[],
@@ -65,9 +66,9 @@ function text(node: ReactNode): string {
 const grid = (tree: ReactNode) => find(tree, (element) => element.type === ConsoleGrid)[0];
 const bar = (tree: ReactNode) => find(tree, (element) => element.type === ConsoleBulkActionBar)[0];
 const form = (tree: ReactNode) => find(tree, (element) => element.type === 'form')[0];
-const submit = (tree: ReactNode) => {
+const submit = async (tree: ReactNode) => {
   const event = { preventDefault: vi.fn() };
-  form(tree).props.onSubmit?.(event);
+  await form(tree).props.onSubmit?.(event);
   expect(event.preventDefault).toHaveBeenCalled();
 };
 
@@ -77,14 +78,15 @@ beforeEach(() => {
   hooks.refresh.mockReset();
   hooks.remove.mockReset();
   hooks.confirm.mockReset();
-  vi.stubGlobal('window', { confirm: hooks.confirm });
+  setAdminConfirmHandler(async (request) => hooks.confirm(request.message) as boolean);
 });
 afterEach(() => {
+  setAdminConfirmHandler(null);
   vi.unstubAllGlobals();
 });
 
 describe('ERP 품목 목록 선택 삭제', () => {
-  it('행을 고를 수 있고, 고르기 전에는 삭제 바를 띄우지 않는다', () => {
+  it('행을 고를 수 있고, 고르기 전에는 삭제 바를 띄우지 않는다', async () => {
     const tree = render();
     expect(grid(tree).props.selectable).toBe(true);
     expect(grid(tree).props.selectedIds).toEqual([]);
@@ -99,7 +101,7 @@ describe('ERP 품목 목록 선택 삭제', () => {
     let tree = render();
     expect(bar(tree).props.selectedCount).toBe(1);
     expect(bar(tree).props.actions?.[0]).toMatchObject({ label: '선택 삭제', variant: 'danger' });
-    submit(tree);
+    await submit(tree);
     expect(hooks.confirm).toHaveBeenCalledWith(expect.stringContaining('선택한 ERP 품목 1건을 지울까요?'));
     expect(hooks.confirm.mock.calls[0][0]).toContain('이미 상품 옵션에 넣은 ERP 코드·품명은 바뀌지 않습니다');
     await Promise.all(hooks.pending.splice(0));
@@ -110,10 +112,10 @@ describe('ERP 품목 목록 선택 삭제', () => {
     expect(hooks.refresh).toHaveBeenCalledOnce();
   });
 
-  it('확인을 취소하면 지우지 않는다', () => {
+  it('확인을 취소하면 지우지 않는다', async () => {
     hooks.confirm.mockReturnValue(false);
     grid(render()).props.onSelectionChange?.(['000123', 'K-2']);
-    submit(render());
+    await submit(render());
     expect(hooks.confirm).toHaveBeenCalledWith(expect.stringContaining('선택한 ERP 품목 2건을 지울까요?'));
     expect(hooks.remove).not.toHaveBeenCalled();
   });
@@ -124,7 +126,7 @@ describe('ERP 품목 목록 선택 삭제', () => {
     grid(render()).props.onSelectionChange?.(['000123', 'OTHER-PAGE']);
     const tree = render();
     expect(grid(tree).props.selectedIds).toEqual(['000123']);
-    submit(tree);
+    await submit(tree);
     await Promise.all(hooks.pending.splice(0));
     expect(hooks.remove).toHaveBeenCalledWith(['000123']);
     expect(text(render())).toContain('ERP 품목을 지우지 못했습니다. 다시 시도해주세요.');

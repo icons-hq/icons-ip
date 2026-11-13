@@ -20,6 +20,18 @@
 
 일반재고의 `resolve_goods_variant_supply`는 기간 밖에서 가용 수량을 0으로 계산한다. 카트·주문 품목의 쓰기 가드와 주문 생성 마지막 검사, 결제 준비·최초 승인 claim은 상품 행 잠금을 기다린 **후** `clock_timestamp()`로 검사한다. 여러 상품의 결제는 모두 잠근 뒤 하나의 공통 시각으로 재검사한다. 중간에 기간이 끝나면 주문·재고·카트·결제 시도의 변경을 함께 롤백한다. 같은 checkout key의 기존 주문 재시도와 terminal callback은 원래 멱등 계약을 유지한다.
 
+## 즉시할인 기간(할인 기간)과의 관계
+
+판매기간은 구매 가능 여부, **즉시할인 기간**은 같은 상품의 가격이다(TKT-033·[ADR-0040](../adr/0040-instant-discount-period-ledger.md)). 둘은 따로 저장되고 서로를 바꾸지 않는다.
+
+- 판매 정보 카드의 즉시할인 블록에서 `특정기간만 할인`을 켜고 한국시간 시작·종료를 넣는다. 저장하면 판매가(할인 전)는 그대로이고, 판매 중인 옵션마다 같은 할인 금액을 뺀 기간 할인 행이 옵션별 기간 할인 원장(`private.goods_variant_price_periods`)에 쓰인다. 기간 전 판매가 → 시작 시각부터 할인가 → 종료 시각부터 판매가(시작 포함·종료 제외)가 상품 상세·장바구니·주문서·체크아웃 견적·주문에 같게 나온다. 주문은 그 행 id와 금액을 보존한다.
+- 같은 블록의 `고객 화면에 할인율 표시`는 즉시할인(기간 포함)·기간 할인·할인 프로모션에 모두 적용된다.
+- 한 상품에는 한 시점 할인 하나다. 할인 프로모션이 건 할인이나 옵션마다 금액·기간이 다른 기간 할인이 진행·예정이면 즉시할인 블록이 잠기고 관리할 곳(할인 프로모션·이어서 설정의 기간 할인)을 안내한다. 진행·예정 기간 할인이 있는 상품에는 기간 없는 즉시할인(정가 표시)을 새로 걸 수 없고, 일괄 즉시할인·할인 프로모션은 기간 없는 즉시할인 상품을 건너뛰고 이유(`instant_discount_active`)를 남긴다.
+- 금액·기간·판매가를 바꿔 저장하면 이전 할인 행은 `중지`로 남고(이미 받은 주문 금액 보존) 새 행이 적용된다. 같은 값으로 다시 저장하면 원장은 그대로다. 상품 화면을 연 뒤 다른 곳(목록·일괄 변경·할인 프로모션)에서 할인을 걸거나 멈췄으면 저장을 거절하고 새로고침을 안내한다(`instant_discount_period_changed`, 입력 유지).
+- 상품 목록 판매가 칸의 `할인 중지 후 판매가 변경`은 기간 할인과 기간 없는 즉시할인을 모두 멈춘 뒤 판매가를 바꾼다. 판매가 단계가 실패해도 멈춘 할인은 되돌리지 않는다.
+- 상품 엑셀에는 기간 할인 열이 없다. 진행·예정 기간 할인이 있는 상품 행의 판매가·즉시할인·옵션가를 바꾸면 그 상품 행은 이유와 함께 반영하지 않는다. 할인을 멈추거나 끝난 뒤 바꾼다.
+- 판매기간이 끝나도 즉시할인 기간 행은 남고(가격 이력), 판매기간 밖에는 구매 자체가 막힌다.
+
 ## 원본 근거와 차이
 
 2026-10-13 스마트스토어 등록 화면에서 일반 판매기간의 설정함/설정안함, 3·5·7·15·30·60·90·120일, 별도 전시상태를 확인했다. 3일은 `2026.10.13 00:00`–`2026.10.15 23:59`로 표시됐다. 예약구매일 때 이 일반 판매기간 영역은 표시 대상에서 제외됐다. 원본 화면 (`output/goods-sale-period-qa-20261013/source-period-3-days.png`), 원본 DOM (`output/goods-sale-period-qa-20261013/source-period-dom.txt`).
@@ -32,4 +44,5 @@
 - `supabase/tests/goods_sale_period_concurrency.sh`: 명시적으로 선택한 로컬 DB의 폐기용 복제본에서 카트·주문·prepare·claim 잠금 대기 중 종료, 다중 상품 공통 시각, 주문 품목 생성 뒤 최종 검사, 기간 CAS와 예약판매 양방향 경합 9종을 실행하고 DB를 정리한다.
 - 실제 관리자 UI: 3일 설정 → 개인 임시저장 → 신규 상품 저장 → 재조회, 5일/15일 두 탭 저장 충돌과 입력 보존, 390px. 저장값 (`output/goods-sale-period-qa-20261013/product-save-readback.json`), 충돌 readback (`output/goods-sale-period-qa-20261013/stale-tab-readback.json`), 충돌 화면 (`output/goods-sale-period-qa-20261013/admin-stale-period-preserved.png`), 390px (`output/goods-sale-period-qa-20261013/admin-period-mobile-390.png`).
 - 실제 공개 UI: 상세 390px과 검색 목록에서 수동 새로고침 없이 시작 전 → 구매 가능 → 판매 종료로 전환했다. 종료 후 고정 구매바 문구·대비를 확인했고, 검증 후 해당 합성 상품은 기간 없음·재고10으로 복원했다. 자동 경계 readback (`output/smartstore-reference-20261012/verification-goods-sale-period-public/automatic-boundary-readbacks.json`), 수락 화면·해시 (`output/smartstore-reference-20261012/verification-goods-sale-period-public/screenshots.json`), 최종 DB (`output/smartstore-reference-20261012/verification-goods-sale-period-public/final-database-readback.json`).
+- `supabase/tests/goods_instant_discount_period.sql`(즉시할인 기간): 원장 행 모양·반열린 경계·재저장 멱등·지문 거절·판매가 변경 재작성·끄기/전환·고객 가격·장바구니·체크아웃 견적·주문 단가와 행 id·할인 프로모션 공존(건너뜀·managed)·일괄 즉시할인 건너뜀·목록 할인 중지(includeInstant)·엑셀 반입 요약·봉인.
 - 모든 DB 적용·저장·구매 경계 검증은 격리된 로컬 합성 데이터에서 수행했다. 운영/Preview 반영과 실제 결제·외부 메시지 전송은 실행하지 않았다.

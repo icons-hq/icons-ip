@@ -33,10 +33,10 @@ function CarrierList({carriers,canEdit}:{carriers:EditableCarrier[];canEdit:bool
       <div aria-hidden="true" className={`${CARRIER_ROW} h-9 border-b bg-muted text-xs font-semibold text-secondary-foreground`}><span>택배사</span><span>사용 여부</span><span className="hidden md:block">코드</span><span className="hidden md:block">배송조회 URL</span><span className="text-right">관리</span></div>
       {carriers.map(carrier=><details className="group border-b last:border-b-0" key={carrier.code}>
         <summary className={`${CARRIER_ROW} min-h-11 cursor-pointer list-none py-2 hover:bg-primary-soft/40 [&::-webkit-details-marker]:hidden`}>
-          <strong className="min-w-0 truncate font-semibold">{carrier.label}</strong>
+          <strong className="min-w-0 font-semibold break-words">{carrier.label}</strong>
           {carrierStatus(carrier.active)}
-          <code className="hidden min-w-0 truncate font-mono text-xs text-muted-foreground md:block">{carrier.code}</code>
-          <span className="hidden min-w-0 truncate text-xs text-muted-foreground md:block" title={carrier.trackingUrlTemplate}>{carrier.trackingUrlTemplate}</span>
+          <code className="hidden min-w-0 font-mono text-xs break-all text-muted-foreground md:block">{carrier.code}</code>
+          <span className="hidden min-w-0 text-xs break-all text-muted-foreground md:block">{carrier.trackingUrlTemplate}</span>
           {/* 줄 전체가 펼치는 자리다(버튼을 겹치지 않는다) — 다른 목록의 수정 버튼과 같은 모양만 입힌다. */}
           <span className={`${buttonVariants({size:'xs',variant:'outline'})} justify-self-end`} data-slot="button">{canEdit?'수정':'보기'}<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180"/></span>
         </summary>

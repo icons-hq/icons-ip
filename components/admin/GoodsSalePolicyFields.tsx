@@ -4,7 +4,7 @@ import { useState, type Dispatch, type SetStateAction } from 'react';
 import { goodsOptionRowKey, isSingleGoodsOption, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
 import { AdminField, AdminFormGrid } from './console/AdminKit';
-import { GoodFoldedRow } from './GoodWorkspace';
+import { GoodEditorSubsection, GoodFoldedRow } from './GoodWorkspace';
 import { ErrorText, SelectField } from './fields';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { GOOD_NUMBER_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS, GoodAmountField, GoodChoiceGroup, GoodChoiceOption } from './GoodEditorParts';
@@ -112,9 +112,9 @@ function GoodsOptionLimitTable({ rows, onRowsChange, randomSale, error }: {
 }
 
 /**
- * 구매 제한(10/27 회의 R12·D7②). 판매가·판매기간 바로 아래에 펼친 채 둔다.
- * 스마트스토어 어휘(최소/최대 구매수량·1인 최대 구매수량)를 쓰되, DB는 주문당 제한을 켜면 최소·최대를 함께 요구한다
- * (goods_order_quantity_activation). 저장 계약(폼 이름)은 그대로다.
+ * 구매 제한(10/27 회의 R12·D7②, 11/11 ADM-011·1027T-021 결정 "펼친 채로"). 판매 정보 카드의 판매기간·예약판매 바로 아래에
+ * 접지 않고 입력칸을 바로 보인다. 스마트스토어 어휘(최소/최대 구매수량·1인 최대 구매수량)를 쓰되, DB는 주문당 제한을 켜면
+ * 최소·최대를 함께 요구한다(goods_order_quantity_activation). 저장 계약(폼 이름)은 그대로다.
  */
 export function GoodsPurchaseLimitFields({ values, current, errors, quantityReadOnly = false, rows, onRowsChange, randomSale = false }: {
   /** 마운트 때 값(비제어 입력의 기본값). */
@@ -140,7 +140,7 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
     ...(randomLimit && optionLimited ? [`같은 옵션 ${[randomLimit.orderMaxQty != null ? `주문당 ${randomLimit.orderMaxQty}개` : '', randomLimit.memberMaxQty != null ? `1인 ${randomLimit.memberMaxQty}개` : ''].filter(Boolean).join('·') || '상한'}까지`]
       : optionLimited ? [`옵션별 제한 ${optionLimited}개`] : []),
   ].join(' · ');
-  return <GoodFoldedRow title="구매 제한" id="good-section-limits" errorCount={errorCount} summary={summary} isDefault={!orderLimit && !memberLimit && !optionLimited}>
+  return <GoodEditorSubsection title="구매 제한" id="good-section-limits" errorCount={errorCount} summary={summary}>
     <div className="flex min-w-0 flex-col gap-5" data-good-purchase-limits="">
       <fieldset disabled={quantityReadOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
         <LimitChoice name="orderQuantityLimitEnabled" legend="최소/최대 구매수량" enabled={orderLimit} onChange={setOrderLimit} />
@@ -159,7 +159,7 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
       <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 합산합니다.</p>
       <GoodsOptionLimitTable rows={rows} onRowsChange={onRowsChange} randomSale={randomSale} error={errors?.[GOOD_OPTION_LIMIT_ERROR_FIELD]} />
     </div>
-  </GoodFoldedRow>;
+  </GoodEditorSubsection>;
 }
 
 /** 결제수단·판매 제한(19금). 구매 제한은 GoodsPurchaseLimitFields가 따로 그린다. */

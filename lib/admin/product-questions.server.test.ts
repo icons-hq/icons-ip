@@ -143,7 +143,7 @@ describe('getAdminProductQuestionConsoleData', () => {
       answeredByName: null,
     })]);
     expect(data.total).toBe(1);
-    expect(data.pageSize).toBe(20);
+    expect(data.pageSize).toBe(50);
   });
 
   /* 비밀글(MD-0023)은 운영 콘솔에서 원문을 그대로 본다 — 표시만 붙인다. 읽기 자체는 cs.manage 세션에
@@ -160,7 +160,7 @@ describe('getAdminProductQuestionConsoleData', () => {
   it('페이지 크기만큼만 읽는다', async () => {
     await getAdminProductQuestionConsoleData({ status: 'all', page: 2 });
 
-    expect(listCall()?.range).toEqual([20, 39]);
+    expect(listCall()?.range).toEqual([50, 99]);
   });
 
   it('상품명 검색·KST 날짜 범위·정렬을 서버 페이지 범위보다 먼저 적용한다', async () => {

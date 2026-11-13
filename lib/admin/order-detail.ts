@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { AdminOrderAddress, AdminOrderItemRecord, AdminOrderStatus } from './orders';
 import { isGoodsOptionSaleMode, type GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
@@ -5,7 +6,7 @@ import { isGoodsOptionSaleMode, type GoodsOptionSaleMode } from '@/lib/goods-opt
 export const MAX_ORDER_NOTE_LENGTH = 2000;
 /** admin_order_detail 품목의 optionSaleMode. 모르는 값·키가 없는 옛 응답은 고른 옵션('select')으로 읽는다. */
 export const adminOrderItemOptionSaleMode = (value: unknown): GoodsOptionSaleMode => isGoodsOptionSaleMode(value) ? value : 'select';
-export const isOrderDetailId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+export const isOrderDetailId = (value: string) => isUuid(value);
 
 export type AdminOrderTimelineSource = 'order' | 'payment' | 'refund' | 'status' | 'shipment' | 'claim' | 'inquiry' | 'email' | 'note';
 export interface AdminOrderTimelineEntry {
@@ -20,6 +21,8 @@ export interface AdminOrderTimelineEntry {
   fromStatus?: string | null;
   toStatus?: string | null;
   carrier?: string | null;
+  /** 택배사 이름(레지스트리). 로더가 채운다 — 화면은 코드(epost 등)를 그대로 보이지 않는다. */
+  carrierLabel?: string | null;
   trackingNumber?: string | null;
   shipmentId?: string | null;
   originName?: string | null;

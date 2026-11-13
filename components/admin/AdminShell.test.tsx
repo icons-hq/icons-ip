@@ -60,36 +60,53 @@ describe('AdminShell', () => {
     expect(html).toContain('value="/admin/cs/chat?inquiry=case-a"');
   });
 
-  it('콘텐츠 운영 권한이 있으면 상단에서 커머스와 콘텐츠 운영 콘솔을 전환한다', () => {
+  /* 1014-074·075: 상단 전환은 쇼핑 | 카드 | 게임. 카드·게임은 이름 붙은 새 창이고, 칸은 경로가 정한다. */
+  it('상단에서 쇼핑·카드·게임을 전환하고 카드·게임은 새 창으로 연다', () => {
     const html = render();
     expect(html).toContain('aria-label="콘솔 전환"');
-    expect(html).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="commerce" href="\/admin">커머스<\/a>/);
-    expect(html).toMatch(/<a class="[^"]*" data-admin-console-link="content" href="\/admin\/catalog\/ips">콘텐츠 운영<\/a>/);
-    expect(html).toContain('data-admin-console="commerce"');
+    expect(html).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="shopping" href="\/admin">쇼핑<\/a>/);
+    expect(html).toMatch(/<a class="[^"]*" data-admin-console-link="card" target="icons-admin-card" href="\/admin\/catalog\/cards">카드<span class="sr-only"> \(새 창\)<\/span><\/a>/);
+    expect(html).toMatch(/<a class="[^"]*" data-admin-console-link="game" target="icons-admin-game" href="\/admin\/catalog\/games">게임<span class="sr-only"> \(새 창\)<\/span><\/a>/);
+    expect(html).toContain('data-admin-console="shopping"');
 
     mocks.pathname = '/admin/catalog/cards';
-    const content = renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>);
-    expect(content).toContain('data-admin-console="content"');
-    expect(content).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="content" href="\/admin\/catalog\/ips">콘텐츠 운영<\/a>/);
-    expect(content).toMatch(/<a class="[^"]*" data-admin-console-link="commerce" href="\/admin">커머스<\/a>/);
-    expect(content).toContain('aria-label="콘텐츠 운영 메뉴"');
-    expect(content).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="cards"/);
-    expect(content).toContain('>콘텐츠 운영</a>');
+    const card = render(<p>카드</p>);
+    expect(card).toContain('data-admin-console="card"');
+    expect(card).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="card" href="\/admin\/catalog\/cards">카드<\/a>/);
+    /* 쇼핑으로 돌아가는 링크는 같은 창이다. 게임 칸은 자기 이름의 창을 다시 쓴다. */
+    expect(card).toMatch(/<a class="[^"]*" data-admin-console-link="shopping" href="\/admin">쇼핑<\/a>/);
+    expect(card).toContain('target="icons-admin-game"');
+    expect(card).toContain('aria-label="카드 운영 메뉴"');
+    expect(card).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="cards"/);
+    expect(card).toContain('>카드 운영</a>');
+
+    mocks.pathname = '/admin/catalog/games';
+    expect(render(<p>게임</p>)).toContain('data-admin-console="game"');
+    /* IP·이벤트·티켓 회차는 (content) route group에 있어도 쇼핑 칸이다. */
+    mocks.pathname = '/admin/catalog/ips';
+    const ips = render(<p>IP</p>);
+    expect(ips).toContain('data-admin-console="shopping"');
+    expect(ips).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="ips"/);
+    /* 어드민 안의 없는 주소는 쇼핑 셸 안에 뜬다. */
+    mocks.pathname = '/admin/no-such-screen';
+    const missing = render(<p>없음</p>);
+    expect(missing).toContain('data-admin-console="shopping"');
+    expect(missing).toContain('aria-label="관리자 메뉴"');
   });
 
-  it('현재 위치는 콘텐츠 콘솔에서 콘솔 이름을 메뉴 그룹으로 다시 적지 않고, 커머스는 메뉴 그룹을 적는다', () => {
+  it('현재 위치는 카드·게임 칸에서 칸 이름을 메뉴 그룹으로 다시 적지 않고, 쇼핑은 메뉴 그룹을 적는다', () => {
     const crumbs = (html: string) => html.slice(html.indexOf('>', html.indexOf('aria-label="현재 위치"')) + 1, html.indexOf('</nav>', html.indexOf('aria-label="현재 위치"')))
       .replace(/<[^>]+>/g, '|').split('|').map((part) => part.trim()).filter((part) => part && part !== '›');
 
     mocks.pathname = '/admin/catalog/cards';
-    const content = renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>);
-    expect(crumbs(content)).toEqual(['콘텐츠 운영', '카드']);
+    const content = render(<p>카드</p>);
+    expect(crumbs(content)).toEqual(['카드 운영', '카드']);
 
     mocks.pathname = '/admin/sales/orders';
     expect(crumbs(render())).toEqual(['홈', '주문관리', '주문통합검색']);
   });
 
-  it('콘텐츠 운영 화면을 볼 수 없는 역할에는 콘솔 전환을 만들지 않는다', () => {
+  it('카드·게임 화면을 볼 수 없는 역할에는 콘솔 전환을 만들지 않는다', () => {
     const limited = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'deputy' as const, capabilities: ['home', 'catalog.read', 'cs.manage'] as ('home' | 'catalog.read' | 'cs.manage')[], revision: 1, setupRequired: false } };
     const html = renderToStaticMarkup(<AdminShell admin={limited}><p>본문</p></AdminShell>);
     expect(html).not.toContain('aria-label="콘솔 전환"');
@@ -112,7 +129,7 @@ describe('AdminShell', () => {
     expect(commerce.indexOf('data-inquiry-notifier')).toBeGreaterThan(commerce.indexOf('</main>'));
 
     mocks.pathname = '/admin/catalog/cards';
-    expect(renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>)).not.toContain('data-inquiry-notifier');
+    expect(render(<p>카드</p>)).not.toContain('data-inquiry-notifier');
 
     const logistics = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'logistics' as const, capabilities: ['home'] as ('home')[], revision: 1, setupRequired: false } };
     mocks.pathname = '/admin';
@@ -121,7 +138,7 @@ describe('AdminShell', () => {
 
   /* R18: 포커스된 어드민 number 입력의 휠 변경 방지는 셸 루트 안, 화면마다 다시 마운트되는 본문 밖에 한 번만 둔다. */
   it('숫자 입력 휠 방지기를 모든 콘솔의 셸 루트 안 본문 밖에 한 번만 마운트한다', () => {
-    for (const html of [render(<p>본문</p>), renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>)]) {
+    for (const html of [render(<p>본문</p>), render(<p>카드</p>)]) {
       expect(html.match(/data-number-wheel-guard/g)).toHaveLength(1);
       expect(html.indexOf('data-number-wheel-guard')).toBeGreaterThan(html.indexOf('</main>'));
       expect(html.lastIndexOf('</div>')).toBeGreaterThan(html.indexOf('data-number-wheel-guard'));

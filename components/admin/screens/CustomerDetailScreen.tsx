@@ -48,7 +48,7 @@ export function CustomerDetailScreen({ detail, actor, noteOperationId, canManage
         {CUSTOMER_TAB_LABELS[entry]}{entry !== 'overview' && tab !== 'overview' ? <span className="rounded-full bg-muted px-1.5 text-xs font-normal text-muted-foreground tabular-nums">{counts[entry].toLocaleString('ko-KR')}</span> : null}
       </Link>)}</nav>
     {tab === 'overview' ? <>
-      <div aria-label="고객 활동 건수" className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="group">
+      <div aria-label="고객 활동 건수" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" role="group">
         <AdminCountCard count={customer.goodsOrderCount} href={customerDetailHref(customer.id, 'orders')} icon={ShoppingBag} label="상품 주문" />
         <AdminCountCard count={customer.ticketOrderCount} icon={Ticket} label="티켓 예매" />
         <AdminCountCard count={counts.inquiries} href={customerDetailHref(customer.id, 'inquiries')} icon={MessageSquare} label={CUSTOMER_TAB_LABELS.inquiries} />

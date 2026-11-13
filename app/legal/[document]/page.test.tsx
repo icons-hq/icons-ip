@@ -6,6 +6,12 @@ import Page, { generateMetadata, generateStaticParams } from './page';
 
 vi.mock('@/lib/legal/business-info.server', async () => { const {BUSINESS_INFO}=await import('@/lib/legal/business-info'); return {getBusinessInfo:async()=>BUSINESS_INFO}; });
 
+/* 운영 상수는 배포 직전에 날짜가 커밋된다(기본 null). 라우트 시험은 주입한 날짜로 세 상태를 고정한다. */
+vi.mock('@/lib/legal/shipping-bundle-wording-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/shipping-bundle-wording-revision')>()),
+  SHIPPING_BUNDLE_WORDING_REVISION: { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' },
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -79,12 +85,68 @@ describe('/legal/[document] 라우트', () => {
     }
   });
 
-  it.each(LEGAL_DOCUMENT_SLUGS)('%s 문서는 오픈 전 최초 판이라 시행일 2026-11-06만 보이고 개정 안내·이전 본문이 없다', async (slug) => {
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
-    expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
-    for (const absent of ['개정 사전 공지', '개정 안내', '이전 정책 본문', '<details class="wc-document__previous">']) {
-      expect(html, absent).not.toContain(absent);
-    }
+  /* '출고지' 표기 예약 개정(1027T-010)은 요청 시각(KST)으로 상태가 갈린다 — 라우트는 요청마다 오늘 날짜로 문서를 만든다.
+     시계를 공지 전날·공지일·시행일 정오(KST)에 세워 세 상태를 고정한다. */
+  describe("'출고지' 표기 개정 렌더", () => {
+    const announcedDate = '2026-11-20';
+    const effectiveDate = '2026-11-27';
+    const noonKst = (date: string, days = 0) => {
+      const at = new Date(`${date}T03:00:00Z`);
+      at.setUTCDate(at.getUTCDate() + days);
+      return at;
+    };
+    const render = async (slug: string, now: Date) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(now);
+      try {
+        return renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+      } finally {
+        vi.useRealTimers();
+      }
+    };
+
+    it.each(LEGAL_DOCUMENT_SLUGS)('%s 문서는 공지 전에는 오픈 전 최초 판(2026-11-06)만 보이고 개정 안내·이전 본문이 없다', async (slug) => {
+      const html = await render(slug, noonKst(announcedDate, -1));
+      expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
+      for (const absent of ['개정 사전 공지', '개정 안내', '이전 정책 본문', '<details class="wc-document__previous">']) {
+        expect(html, absent).not.toContain(absent);
+      }
+    });
+
+    it('개인정보처리방침은 공지 기간·시행 뒤에도 최초 판 그대로다', async () => {
+      for (const now of [noonKst(announcedDate), noonKst(effectiveDate)]) {
+        const html = await render('privacy', now);
+        expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
+        expect(html).not.toContain('개정 사전 공지');
+        expect(html).not.toContain('<details class="wc-document__previous">');
+      }
+    });
+
+    it.each(['terms', 'shipping'])('%s 문서는 공지 기간에 현행 본문 앞에 사전 공지(공지일·시행 예정일)를 보인다', async (slug) => {
+      const html = await render(slug, noonKst(announcedDate));
+      expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
+      expect(html).toContain('개정 사전 공지');
+      expect(html).toContain(`공지일 ${announcedDate}`);
+      expect(html).toContain(`시행 예정일 ${effectiveDate}`);
+      expect(html.indexOf('개정 사전 공지')).toBeLessThan(html.indexOf('wc-document__body'));
+      /* 공지 기간의 현행 본문은 아직 '출고지별' 그대로다. */
+      expect(html.slice(html.indexOf('wc-document__body'))).toContain('출고지별');
+      expect(html).not.toContain('<details class="wc-document__previous">');
+    });
+
+    it.each(['terms', 'shipping'])('%s 문서는 시행일부터 배송 묶음 본문·개정 안내를 보이고 직전 본문을 이전 판으로 남긴다', async (slug) => {
+      const html = await render(slug, noonKst(effectiveDate));
+      expect(html).toContain(`<p class="wc-document__effective">시행일 ${effectiveDate}</p>`);
+      expect(html).toContain(`<aside class="wc-document__notice" aria-label="${effectiveDate} 개정 안내">`);
+      expect(html).not.toContain('개정 사전 공지');
+      const previousAt = html.indexOf('<details class="wc-document__previous">');
+      expect(previousAt).toBeGreaterThan(-1);
+      const current = html.slice(html.indexOf('wc-document__body'), previousAt);
+      expect(current).toContain('배송 묶음별');
+      expect(current).not.toContain('출고지');
+      expect(html.slice(previousAt)).toContain('이전 정책 본문 (시행일 2026-11-06)');
+      expect(html.slice(previousAt)).toContain('출고지별');
+    });
   });
 
   it('개인정보처리방침은 성인 인증·주소록·결제대행사 수탁자를 본문에 담는다', async () => {
@@ -109,7 +171,7 @@ describe('/legal/[document] 라우트', () => {
     const document = LEGAL_DOCUMENTS.privacy;
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
 
-    expect(html).toContain('<div class="wc-root wc-document"><article class="wc-document__page">');
+    expect(html).toContain('<main class="wc-root wc-document"><article class="wc-document__page">');
     expect(html).toContain(`<h1 class="wc-document__title">${document.title}</h1>`);
     expect(html).toContain(`<p class="wc-document__effective">시행일 ${document.effectiveDate}</p>`);
     expect(html).toContain(`<h2 class="wc-document__heading">${document.articles[0]!.heading}</h2>`);

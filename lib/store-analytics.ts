@@ -17,7 +17,7 @@ const SLUG=/^[a-z0-9][a-z0-9-]{0,199}$/;
 const TOKEN=/^[0-9a-f]{32}$/;
 export const CHANNEL_LABELS: Record<AnalyticsChannel,string> = {direct:'직접·출처 미확인',search:'검색',social:'소셜',email:'이메일',paid:'유료 캠페인 표기',referral:'기타 외부',internal:'스토어 내부'};
 export const SOURCE_LABELS: Record<AnalyticsSource,string> = {none:'출처 없음',google:'Google',naver:'네이버',bing:'Bing',daum:'다음',instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',kakao:'카카오',x:'X',threads:'Threads',email:'이메일',other:'기타',icons:'ICONS'};
-export const PAGE_LABELS: Record<AnalyticsPage['kind'],string> = {home:'스토어 홈',shop:'상품 목록',good:'상품 상세',stories:'쇼핑스토리 목록',story:'쇼핑스토리',ip:'IP',events:'이벤트 목록',event:'이벤트 상세'};
+export const PAGE_KINDS: readonly AnalyticsPage['kind'][] = ['home','shop','good','stories','story','ip','events','event'];
 
 export function analyticsCookieNames(secure: boolean) {
  return {choice:secure?'__Host-icons_analytics_choice':'icons_analytics_choice',session:secure?'__Host-icons_analytics_session':'icons_analytics_session'};
@@ -79,7 +79,7 @@ export function parseAnalyticsEvent(input:unknown):AnalyticsEvent|null {
  if(!input||typeof input!=='object'||Array.isArray(input))return null;
  const row=input as Record<string,unknown>;const keys=['eventId','pageKind','targetId','linkToken','channel','source','medium'];
  if(Object.keys(row).length!==keys.length||Object.keys(row).some(key=>!keys.includes(key))||typeof row.eventId!=='string'||!UUID.test(row.eventId)
-  ||typeof row.pageKind!=='string'||!Object.hasOwn(PAGE_LABELS,row.pageKind)||typeof row.targetId!=='string'||row.targetId.length>200
+  ||typeof row.pageKind!=='string'||!(PAGE_KINDS as readonly string[]).includes(row.pageKind)||typeof row.targetId!=='string'||row.targetId.length>200
   ||(row.linkToken!==null&&(typeof row.linkToken!=='string'||!TOKEN.test(row.linkToken)))
   ||!STORE_ANALYTICS_CHANNELS.includes(row.channel as AnalyticsChannel)||!STORE_ANALYTICS_SOURCES.includes(row.source as AnalyticsSource)||!STORE_ANALYTICS_MEDIA.includes(row.medium as AnalyticsMedium))return null;
  if(row.pageKind==='home'?row.targetId!=='home':row.pageKind==='stories'||row.pageKind==='events'?row.targetId!=='all':row.pageKind==='story'?!UUID.test(row.targetId):row.pageKind==='shop'?!['all','new','best'].includes(row.targetId)&&!UUID.test(row.targetId):!SLUG.test(row.targetId))return null;

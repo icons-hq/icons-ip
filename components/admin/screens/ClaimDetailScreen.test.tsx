@@ -258,10 +258,49 @@ describe('ClaimDetailScreen', () => {
     expect(html).not.toContain('admin.order.bank_refund_account_viewed');
     expect(html).not.toContain('export-id-not-rendered');
   });
+  /* QA2(CS·운영 A·B): 웨이브 2 감사 action(불량 재고·자동 회수·반품배송비 차감·재고 부족 부분 취소)이 원문으로 보였다. */
+  it('웨이브 2 감사 action을 원문 대신 업무 용어로 표시한다', () => {
+    const at = NOW.toISOString();
+    const actions = [
+      'admin.order.claim_defective_stock_planned', 'order.claim_defective_stock_recorded',
+      'system.order.claim_return_pickup_requested', 'system.order.claim_return_pickup_canceled', 'admin.order.claim_return_pickup_retried',
+      'admin.order.claim_refund_deduction_decided', 'admin.order.claim_refund_deduction_confirmed', 'system.order.claim_refund_deduction_confirmed',
+      'admin.order.claim_refund_deduction_not_applied', 'system.order.claim_refund_deduction_not_applied',
+      'admin.order.partial_cancellation_started', 'admin.order.partial_cancellation_applied', 'admin.order.partial_cancellation_completed',
+      'admin.order.partial_cancellation_transferred', 'admin.order.partial_cancellation_rejected', 'admin.order.partial_cancellation_needs_review',
+      'admin.order.partial_cancellation_resolved', 'admin.order.partial_cancellation_account_viewed', 'admin.order.claim_operational_fee_recorded',
+    ];
+    const html = render({ timeline: actions.map((action) => ({ action, createdAt: at, actorName: 'cs_lead', diff: {} })) });
+    for (const action of actions) expect(html).not.toContain(action);
+    expect(html).toContain('품목별 재고 처리 선택 저장');
+    expect(html).toContain('반품 자동 회수 취소 (자동)');
+    expect(html).toContain('반품배송비 차감 결정');
+    expect(html).toContain('재고 부족 부분 취소 적용');
+  });
+  it('나이스페이 결제사는 이름으로 보인다', () => {
+    const html = render({ payment: { ...detail().payment!, provider: 'nicepay' } });
+    expect(html).toContain('나이스페이');
+    expect(html).not.toMatch(/>nicepay</);
+  });
   it('사유 정정 감사 이력을 업무 용어로 표시한다', () => {
     const html = render({ timeline: [{ action: 'admin.order.claim_reason_changed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: {} }] });
     expect(html).toContain('교환 사유 정정');
     expect(html).not.toContain('admin.order.claim_reason_changed');
+  });
+  it('회수 생략 결정·결정 효력 회복으로 끝난 회수 완료를 원인과 함께 업무 용어로 표시한다', () => {
+    const at = NOW.toISOString();
+    const html = render({ timeline: [
+      { action: 'admin.order.claim_collection_waived', createdAt: at, actorName: 'cs_lead', diff: { originName: '남양주' } },
+      { action: 'admin.order.claim_collection_completed', createdAt: at, actorName: 'cs_lead', diff: { cause: 'collection_waiver_decided' } },
+      { action: 'admin.order.claim_reason_changed', createdAt: at, actorName: 'cs_lead', diff: {} },
+      { action: 'admin.order.claim_collection_completed', createdAt: at, actorName: 'cs_lead', diff: { cause: 'collection_waiver_effective' } },
+      { action: 'admin.order.claim_collection_completed', createdAt: at, actorName: 'cs_lead', diff: {} },
+    ] });
+    expect(html).toContain('회수 생략 결정으로 회수 완료');
+    expect(html).toContain('사유·유형 변경으로 회수 완료');
+    expect(html).toContain('</time> · 회수 완료 · @cs_lead');
+    expect(html).not.toContain('admin.order.claim_collection_completed');
+    expect(html.indexOf('회수 생략 결정 · 남양주')).toBeLessThan(html.indexOf('회수 생략 결정으로 회수 완료'));
   });
   // 2026-10-12 점검 REF-2·REF-8: 토스 결제의 [환불 완료 확정]은 토스 전액 취소를 직접
   // 발행한다. "결제사 원장에서 먼저 확인하라"는 안내와 계좌 송금 선택지는 사실과 다르다.
@@ -283,7 +322,7 @@ describe('ClaimDetailScreen', () => {
   it('토스 결제의 환불 접수는 접수만 기록하고 취소는 완료 확정에서 나간다고 알린다', () => {
     const html = render({ payment: tossPayment, refund: { ...detail().refund!, method: null, filedAt: null } });
     expect(html).toContain('환불 접수 완료로 기록');
-    expect(html).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.');
+    expect(html).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 요청됩니다.');
     expect(html).not.toContain('<option value="bank_transfer"');
   });
 
@@ -381,6 +420,17 @@ describe('ClaimDetailScreen', () => {
     expect(render()).toContain('id="claim-refund" tabindex="-1"');
   });
 
+  /* 1027T-033·T11b 리뷰: 레거시 회수도 환급 기한은 실제 입고일부터 센다 — 진행 요약은 입고일과 확인 시각을 나눠 보인다. */
+  it('레거시 회수 진행 요약은 실제 입고일과 확인 시각을 나눠 보인다', () => {
+    const base = detail();
+    const legacy = { ...base.claim, collectionPolicy: 'legacy' as const, collections: [], collectedAt: '2026-09-08T04:00:00Z' };
+    const withDate = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...legacy, collectionReceivedOn: '2026-09-07' }} refund={null} />);
+    expect(withDate).toContain('실제 입고일 2026-09-07 · 확인 ');
+    const older = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...legacy, collectionReceivedOn: null }} refund={null} />);
+    expect(older).toContain('입고 ');
+    expect(older).not.toContain('실제 입고일');
+  });
+
   it('교환 재출고와 실제 배송완료 기록을 분리한다', () => {
     const claim = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const, reshippedAt: NOW.toISOString() };
     const pending = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
@@ -390,6 +440,71 @@ describe('ClaimDetailScreen', () => {
     const delivered = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, reshipDeliveredAt: NOW.toISOString() }} refund={null} />);
     expect(delivered).toContain('배송완료 확인');
     expect(delivered).not.toContain('환불 기록');
+  });
+
+  it('주문제작 출고지는 회수 생략을 먼저 기록해 제작을 열고, 제작 대기 동안 그 이유를 보인다(리뷰 #2)', () => {
+    const gimpo = '00000000-0000-4000-8000-0000000000d1', namyangju = '00000000-0000-4000-8000-0000000000d2';
+    const base = detail();
+    const target = { collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: true, productionPending: true };
+    const claim = { ...base.claim, claimType: 'exchange' as const, stage: 'collecting' as const, reasonType: 'defect' as const, collectionPolicy: 'origin' as const,
+      collectionComplete: false, reshippedAt: null, collectionWaiverAllowed: true, reshipments: [],
+      reshipmentTargets: [{ ...target, shipmentId: gimpo, originName: '김포' }, { ...target, shipmentId: namyangju, originName: '남양주', productionRequired: false, productionPending: false }] };
+    const before = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, claim, payment: null, timeline: [] }} now={NOW} />);
+    expect(before).toContain('김포 회수 없이 교환품 제작 시작'); expect(before).toContain(`data-claim-waiver-decision="${gimpo}"`);
+    expect(before).not.toContain(`data-claim-waiver-decision="${namyangju}"`);
+    expect(before).toContain('회수 없이 보내려면 아래에서 회수 생략을 먼저 기록해 제작을 시작합니다');
+    const waiver = { reason: '고객 사진으로 인쇄 불량 확인', waivedAt: NOW.toISOString(), waivedByName: 'cs_lead', evidence: [{ id: '00000000-0000-4000-8000-0000000000e1', mimeType: 'image/jpeg', size: 2048 }] };
+    const decided = { ...claim, reshipmentTargets: [{ ...claim.reshipmentTargets[0], waiver }, claim.reshipmentTargets[1]] };
+    const waiting = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, claim: decided, payment: null, timeline: [{ action: 'admin.order.claim_collection_waived', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포' } },
+        { action: 'admin.order.claim_collection_reopened', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { cause: 'collection_waiver_ineffective' } }] }} now={NOW} />);
+    expect(waiting).toContain('회수 생략 무효로 수거중 복귀');
+    expect(waiting).not.toContain('data-claim-waiver-decision'); expect(waiting).toContain('제작 대기');
+    expect(waiting).toContain('주문제작 상품의 교환품 제작이 끝나면 재출고할 수 있습니다'); expect(waiting).toContain('회수 생략 결정 ·');
+    expect(waiting).toContain('href="/api/admin/claim-evidence/00000000-0000-4000-8000-0000000000e1"'); expect(waiting).toContain('회수 생략 결정 · 김포');
+    expect(waiting).not.toContain('김포 재출고 등록');
+  });
+
+  it('묶음 일부가 입고된 출고지는 회수 생략 결정 칸을 숨기고 그 이유를 한 줄로 보인다', () => {
+    const gimpo = '00000000-0000-4000-8000-0000000000d1';
+    const base = detail();
+    const bundle = (collectedAt: string | null, n: number) => ({ bundleId: `00000000-0000-4000-8000-0000000000b${n}`, returnAddressId: null, returnName: '', returnAddress: '주소', returnPhone: '', items: [], collectedAt, collectorName: null, evidence: null, receivedOn: null });
+    const claim = { ...base.claim, claimType: 'exchange' as const, stage: 'collecting' as const, reasonType: 'defect' as const, collectionPolicy: 'origin' as const,
+      collectionComplete: false, reshippedAt: null, collectionWaiverAllowed: true, reshipments: [],
+      collections: [{ shipmentId: gimpo, originId: 'o1', originName: '김포', returnAddress: '', items: [], collectedAt: null, collectedBy: null, collectorName: null, evidence: null, bundles: [bundle(NOW.toISOString(), 1), bundle(null, 2)] }],
+      reshipmentTargets: [{ shipmentId: gimpo, originName: '김포', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: true, productionPending: true }] };
+    const html = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, claim, payment: null, timeline: [] }} now={NOW} />);
+    expect(html).not.toContain('data-claim-waiver-decision');
+    expect(html).toContain('이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다');
+  });
+
+  it('김포·남양주 교환은 출고지마다 재출고 칸을 두고 한 곳만 보내면 재출고 1/2로 남긴다(TKT-166·QNA-039)', () => {
+    const gimpo = '00000000-0000-4000-8000-0000000000a1', namyangju = '00000000-0000-4000-8000-0000000000a2';
+    const row = { id: '00000000-0000-4000-8000-0000000000b1', shipmentId: gimpo, originName: '김포', carrier: 'hanjin', carrierLabel: '한진택배', trackingNumber: 'GIMPO0000001',
+      reshippedAt: NOW.toISOString(), reshippedByName: 'cs_lead', collectionWaived: false, waiverReason: null, waiverEvidence: [], deliveredAt: null, deliveredByName: null,
+      deliveryEvidence: null, items: [{ orderItemId: '00000000-0000-4000-8000-000000044041', name: '아크릴 블록', variantName: '빨강', variantCode: 'A02', qty: 2 }] };
+    const base = detail();
+    const claim = { ...base.claim, claimType: 'exchange' as const, stage: 'collecting' as const, reasonType: 'defect' as const, collectionPolicy: 'origin' as const,
+      collectionComplete: false, reshippedAt: NOW.toISOString(), collectionWaiverAllowed: true,
+      reshipmentTargets: [{ shipmentId: gimpo, originName: '김포', collectionTracked: true, collectedAt: NOW.toISOString(), reshipped: true, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false },
+        { shipmentId: namyangju, originName: '남양주', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false }],
+      reshipments: [row] };
+    const partial = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, claim, payment: null, timeline: [{ action: 'admin.order.claim_reshipped', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포', collectionWaived: false } }] }} now={NOW} />);
+    expect(partial).toContain('출고지별 재출고'); expect(partial).toContain('재출고 1/2'); expect(partial).toContain('재출고 대기');
+    expect(partial).toContain('김포 배송완료 확인 근거'); expect(partial).toContain('href="https://example.test/GIMPO0000001"');
+    expect(partial).toContain('하자·오배송 교환이라 회수 없이 재출고할 수도 있습니다'); expect(partial).toContain('교환 재출고 · 김포');
+    expect(partial).toContain('재출고 운송장 · 김포');
+    const waived = { ...row, id: '00000000-0000-4000-8000-0000000000b2', shipmentId: namyangju, originName: '남양주', trackingNumber: 'NAMYANG00001', collectionWaived: true,
+      waiverReason: '고객 사진으로 인쇄 불량 확인', waiverEvidence: [{ id: '00000000-0000-4000-8000-0000000000c1', mimeType: 'image/jpeg', size: 2048 }] };
+    const done = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, payment: null, claim: { ...claim, stage: 'completed', reshipmentTargets: claim.reshipmentTargets.map(target => ({ ...target, reshipped: true })), reshipments: [row, waived] },
+        timeline: [{ action: 'admin.order.claim_reshipped', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '남양주', collectionWaived: true } }] }} now={NOW} />);
+    expect(done).toContain('재출고 2/2'); expect(done).toContain('회수 생략 사유'); expect(done).toContain('고객 사진으로 인쇄 불량 확인');
+    expect(done).toContain('href="/api/admin/claim-evidence/00000000-0000-4000-8000-0000000000c1"'); expect(done).toContain('교환 재출고 · 남양주 (회수 생략)');
+    expect(done).toContain('회수 생략 1곳');
   });
 
   it('출고지 확인 수와 서버의 전체 회수 판정을 구분하고 보류 이유를 보존한다', () => {

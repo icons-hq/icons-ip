@@ -256,14 +256,15 @@ describe('contact change persistence and exact replay', () => {
   });
 });
 
-describe('actual reshipment v2', () => {
+describe('actual reshipment per origin', () => {
   function input(): ReshipmentRequest {
-    return { requestId: id(1), orderId: contextRequest.orderId, claimId: contextRequest.claimId, operationId, signedContext: loadClaimContactCodec().signContext(claims('reshipment')),
-      carrier: '합성택배', trackingNumber: '12345678', items: Array.from({ length: 1000 }, (_, index) => ({ orderItemId: id(1000 + index), variantId: id(2000 + index) })), destinationConfirmed: true, dispatchConfirmed: true };
+    return { requestId: id(1), orderId: contextRequest.orderId, claimId: contextRequest.claimId, operationId, signedContext: loadClaimContactCodec().signContext(claims('reshipment')), shipmentId: id(30),
+      carrier: '합성택배', trackingNumber: '12345678', items: Array.from({ length: 1000 }, (_, index) => ({ orderItemId: id(1000 + index), variantId: id(2000 + index) })),
+      collectionWaiver: { reason: '합성 사진으로 하자를 확인했습니다', evidenceFileIds: [id(40)] }, destinationConfirmed: true, dispatchConfirmed: true };
   }
   function reshipHandler(name: string) {
     if (name === 'service_get_order_claim_contact_context') return ok({ ...dbContext(), command: 'reshipment', target: 'reshipment', claimType: 'exchange', current: current('reshipment') });
-    if (name === 'service_record_order_claim_reshipment_v2') return ok(receipt({ command: 'reshipment', target: 'reshipment', expectedClaimType: 'exchange', changedFields: [] }));
+    if (name === 'service_record_order_claim_shipment_reshipment') return ok(receipt({ command: 'reshipment', target: 'reshipment', expectedClaimType: 'exchange', changedFields: [] }));
     return handler(name);
   }
   it('accepts 1000 items, binds the confirmed destination, and never invokes the legacy RPC', async () => {
@@ -272,8 +273,9 @@ describe('actual reshipment v2', () => {
     expect(await recordClaimReshipmentV2(value)).toMatchObject({ receipt: { command: 'reshipment', target: 'reshipment' } });
     const args = mocks.rpc.mock.calls[2][1], snapshot = args.p_sealed_destination;
     expect(args.p_items).toEqual(value.items); expect(args.p_carrier).toBe(value.carrier);
+    expect(args.p_shipment_id).toBe(id(30)); expect(args.p_collection_waiver).toEqual(value.collectionWaiver);
     expect(loadClaimContactCodec().openAddress(snapshot.address, { orderId: value.orderId, claimId: value.claimId, target: 'reshipment', recordKind: 'reshipment_destination', recordId: operationId, piiVersion: snapshot.piiVersion }, snapshot.keyVersion)).toEqual(address);
-    expect(mocks.rpc.mock.calls.map(call => call[0])).toEqual(['service_read_order_claim_contact_operation', 'service_get_order_claim_contact_context', 'service_record_order_claim_reshipment_v2']);
+    expect(mocks.rpc.mock.calls.map(call => call[0])).toEqual(['service_read_order_claim_contact_operation', 'service_get_order_claim_contact_context', 'service_record_order_claim_shipment_reshipment']);
     expect(mocks.revalidate.mock.calls).toEqual(expect.arrayContaining([
       ['/admin/sales/claims/exchanges', undefined], [`/admin/sales/claims/exchanges/${value.claimId}`, undefined],
       [`/orders/${value.orderId}`, undefined], ['/shop', 'layout'], ['/ip', 'layout'], ['/cart', undefined], ['/checkout', undefined], ['/admin/catalog/goods', 'layout'],
@@ -294,7 +296,7 @@ describe('actual reshipment v2', () => {
       return reshipHandler(name);
     });
     expect(await recordClaimReshipmentV2(value)).toMatchObject({ receipt: committed });
-    expect(mocks.rpc.mock.calls.map(call => call[0])).toEqual(['service_read_order_claim_contact_operation', 'service_get_order_claim_contact_context', 'service_read_order_claim_contact_operation', 'service_record_order_claim_reshipment_v2']);
+    expect(mocks.rpc.mock.calls.map(call => call[0])).toEqual(['service_read_order_claim_contact_operation', 'service_get_order_claim_contact_context', 'service_read_order_claim_contact_operation', 'service_record_order_claim_shipment_reshipment']);
     expect(mocks.rpc.mock.calls[3][1].p_sealed_destination).toBeNull();
   });
 });

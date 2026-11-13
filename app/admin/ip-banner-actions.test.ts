@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: async () => mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); } }));
+vi.mock('next/navigation', () => ({
+  redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
+  unstable_rethrow: (error: unknown) => { if (error instanceof Error && error.message.startsWith('NEXT_REDIRECT')) throw error; },
+}));
 
 function form(entries: Record<string, string>) {
   const formData = new FormData();

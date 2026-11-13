@@ -19,10 +19,10 @@ export function GoodsSalePeriodFields({ values, onChange, error }: {
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="판매기간 빠른 선택">{GOODS_SALE_PERIOD_PRESETS.map(days =>
         <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" key={days} type="button" onClick={() => onChange(goodsSalePeriodPreset(days))}>{days}일</button>)}</div>
       <div className="grid min-w-0 gap-x-6 gap-y-5 sm:grid-cols-2">
-        <AdminField inputId="goods-sale-start" label="판매 시작 · 한국시간" error={error}>
+        <AdminField inputId="goods-sale-start" label="판매 시작 · KST" error={error}>
           <input className={GOOD_INPUT_CLASS} data-slot="input" id="goods-sale-start" name="saleStartsAt" type="datetime-local" value={values.saleStartsAt ?? ''} required aria-invalid={error ? 'true' : undefined} onChange={event => onChange({ saleStartsAt: event.target.value })} />
         </AdminField>
-        <AdminField inputId="goods-sale-end" label="판매 종료 · 한국시간">
+        <AdminField inputId="goods-sale-end" label="판매 종료 · KST">
           <input className={GOOD_INPUT_CLASS} data-slot="input" id="goods-sale-end" name="saleEndsAt" type="datetime-local" value={values.saleEndsAt ?? ''} required onChange={event => onChange({ saleEndsAt: event.target.value })} />
         </AdminField>
       </div>

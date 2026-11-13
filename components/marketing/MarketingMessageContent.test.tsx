@@ -15,3 +15,20 @@ describe('첨부 쿠폰 표시', () => {
     expect(missing).toContain('현재 발급 불가'); expect(missing).toContain('disabled=""');
   });
 });
+describe('굿즈 가격 표시', () => {
+  const goodsContent = { ...content, template: 'product_list' as const, couponCode: null, goodIds: ['a'] };
+  const priced = { id: 'a', name: '할인 굿즈', imageUrl: null, price: 8000, compareAtPrice: 10000 };
+  it('할인율 표시를 켠 굿즈는 정가·할인율·판매가를 보인다', () => {
+    const html = renderToStaticMarkup(<MarketingMessageContent content={goodsContent} goods={[{ ...priced, showDiscountRate: true }]} />);
+    expect(html).toContain('20%'); expect(html).toContain('wc-price__original'); expect(html).toContain('8,000');
+  });
+  it('할인율 표시를 끈 굿즈는 알림과 미리보기 모두 판매가만 보인다', () => {
+    for (const preview of [false, true]) {
+      const html = renderToStaticMarkup(<MarketingMessageContent content={goodsContent} goods={[{ ...priced, showDiscountRate: false }]} preview={preview} />);
+      expect(html).not.toContain('20%'); expect(html).not.toContain('wc-price__original'); expect(html).not.toContain('10,000'); expect(html).toContain('8,000');
+    }
+  });
+  it('표시 설정이 없는 기존 값은 표시한다', () => {
+    expect(renderToStaticMarkup(<MarketingMessageContent content={goodsContent} goods={[priced]} />)).toContain('20%');
+  });
+});

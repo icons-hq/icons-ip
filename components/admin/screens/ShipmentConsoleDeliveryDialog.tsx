@@ -132,12 +132,12 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
             <Table>
               <caption className="sr-only">처리할 배송 건</caption>
               <TableHeader><TableRow className="bg-muted/50">
-                <TableHead scope="col">배송건번호</TableHead><TableHead scope="col">수취인 · 상품</TableHead><TableHead scope="col">고객이 고른 방법</TableHead><TableHead scope="col">지금</TableHead><TableHead scope="col">이번 처리</TableHead>
+                <TableHead scope="col">배송건번호</TableHead><TableHead scope="col">수령인 · 상품</TableHead><TableHead scope="col">고객이 고른 방법</TableHead><TableHead scope="col">지금</TableHead><TableHead scope="col">이번 처리</TableHead>
               </TableRow></TableHeader>
               <TableBody>{plan.map((step) => <TableRow key={step.shipment.id}>
                 <TableCell className="tabular-nums">{reference(step.shipment)}<small className="block text-xs text-muted-foreground">{step.shipment.originName}</small></TableCell>
                 <TableCell className="min-w-40 whitespace-normal">{summaries[step.shipment.id] ? <>
-                  <span className="block">{summaries[step.shipment.id].recipient || '수취인 미기록'}</span>
+                  <span className="block">{summaries[step.shipment.id].recipient || '수령인 미기록'}</span>
                   {summaries[step.shipment.id].items.map((item, index) => <small className="block text-xs text-muted-foreground" key={`${step.shipment.id}:${index}`}>{item}</small>)}
                 </> : <span className="text-xs text-muted-foreground">목록 밖 배송 건</span>}</TableCell>
                 <TableCell>{dispatchMethodLabel(step.shipment.customerMethod)}</TableCell>

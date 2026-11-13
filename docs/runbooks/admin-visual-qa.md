@@ -111,6 +111,18 @@ native select의 선택 문구가 잘려도 `aria-describedby`로 연결된 바�
 | `incomplete` | 2 | 자동 검사 실패는 없지만 경로·상태·viewport가 빠졌다. |
 | `fail` / 실행 오류 | 1 | geometry·식별·runtime 검사 실패 또는 검사 실행 오류가 있다. |
 
+### 실제 서버 판정에서 알려진 오탐
+
+2026-11 전 화면 재판정(ADM-003)에서 근거를 확인하고 결과 해석 때 빼는 세 가지다. 검사기의 판정은 그대로 두고, 제외한 건수와 근거를 보고서에 따로 적는다. 아래 조건에 정확히 맞지 않는 같은 코드는 제외하지 않는다.
+
+| 코드 | 제외 조건 | 근거 |
+| --- | --- | --- |
+| `read-only-request-blocked` | 막힌 요청이 전부 STABLE 읽기 RPC(`card_rewards_enabled`·`has_operator_capability`, supabase-js `rpc()`는 기본이 POST)이거나 그 화면 경로로 가는 Next 서버 액션 POST다. | 화면을 열 때 나가는 서버 액션은 읽기(`read*`·`list*`·`load*`·`get*`·`suggest*`, 빈 장바구니의 `syncCartAction`)뿐이다. 새 화면을 판정할 때는 요청의 `Next-Action` 값을 `.next/server/server-reference-manifest.json`의 함수 이름으로 바꿔 다시 확인한다. |
+| `console-error` | 콘솔 오류가 전부 위 차단의 결과(`net::ERR_BLOCKED_BY_CLIENT`)다. | 차단이 만든 오류다. 다른 오류가 하나라도 섞이면 제외하지 않는다. |
+| `field-narrow`·`field-height`·`control-parent-clipped` | 대상이 `input#base-ui-*`이고 1×1 px다. | Base UI Select·Checkbox가 폼 제출용으로 그리는 숨은 입력이다(`aria-hidden`, `tabindex=-1`, `position: fixed`, `clip-path: inset(50%)`). 칠해지지 않는다. |
+
+화면 밖으로 감춘 글자(`sr-only`)는 버튼 경계를 넘는 글자로 측정된다(`control-text-clipped`). 아이콘 버튼의 이름은 `aria-label`로 주고 버튼 안에 `sr-only` 글자를 두지 않는다. 버튼·`summary` 안 글자를 말줄임으로 자르는 것도 글자 잘림으로 측정되므로, 줄을 바꾸거나 보일 글자를 줄인다.
+
 ## 검사기 자체 검증
 
 ```sh

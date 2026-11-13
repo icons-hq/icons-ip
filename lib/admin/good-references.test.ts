@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { GOOD_REFERENCE_LIMIT, isGoodReferenceHeader, parseGoodReferenceLines } from './good-references';
+import { GOOD_REFERENCE_LIMIT, isGoodReferenceHeader, isGoodReferenceKeyHeader, isSystemProductNumberHeader, parseGoodReferenceLines } from './good-references';
 
 describe('전시 상품 여러 줄 붙여넣기(1014-112)', () => {
-  it('URL은 상품번호로, 코드·상품번호는 그대로 입력 순서대로 읽는다', () => {
+  it('주소는 상품 URL 값(주소 끝)으로, 판매자상품코드·상품 URL 값은 그대로 입력 순서대로 읽는다', () => {
     const parsed = parseGoodReferenceLines(['https://iconsip.com/shop/maple-keyring', 'GC-0001', '/shop/hongsil-card?x=1', 'plain-good-id'].join('\n'));
     expect(parsed.refs).toEqual(['maple-keyring', 'GC-0001', 'hongsil-card', 'plain-good-id']);
     expect(parsed.invalid).toEqual([]);
@@ -26,6 +26,17 @@ describe('전시 상품 여러 줄 붙여넣기(1014-112)', () => {
     const parsed = parseGoodReferenceLines(Array.from({ length: GOOD_REFERENCE_LIMIT + 5 }, (_, index) => `GC-${index}`).join('\n'));
     expect(parsed.refs).toHaveLength(GOOD_REFERENCE_LIMIT);
     expect(parsed.overflow).toBe(5);
+  });
+  it('시스템 상품번호 열은 조회하지 않고 이유를 알린다(T22i)', () => {
+    const parsed = parseGoodReferenceLines('상품번호\n12\n13\n14');
+    expect(parsed.refs).toEqual([]);
+    expect(parsed.invalid).toEqual([]);
+    expect(parsed.systemNumberColumn).toBe(true);
+    expect(parseGoodReferenceLines('판매자상품코드\nGC-1').systemNumberColumn).toBe(false);
+    expect(isSystemProductNumberHeader('상품번호')).toBe(true);
+    expect(isSystemProductNumberHeader('상품 번호')).toBe(true);
+    expect(isGoodReferenceKeyHeader('판매자상품코드')).toBe(true);
+    expect(isGoodReferenceKeyHeader('상품번호')).toBe(false);
   });
   it('머리글은 흔한 열 이름만 알아본다', () => {
     for (const header of ['상품코드', '판매자 상품코드', '상품번호', '상품 URL', 'URL', 'code', 'good_id']) expect(isGoodReferenceHeader(header), header).toBe(true);

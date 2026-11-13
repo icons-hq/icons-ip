@@ -36,7 +36,7 @@ it('템플릿의 3구간·선불/착불 선택은 기존 공용 입력 필드를
 it('사용 중인 수량 운임을 무료라는 기본 설정과 혼동하지 않는다', () => {
   const { effective } = shippingFixtures(); const html = renderToStaticMarkup(<ShippingSettingsDeliverySummary effective={effective} />);
   expect(html).toContain('<strong>수량별 배송비 적용'); expect(html).not.toContain('<strong>무료배송');
-  for (const text of ['2개 이하 3,000원', '3~4개 4,000원', '5개 이상 5,000원', '무료배송', '현재 기본 운임 계산에는 사용하지 않습니다']) expect(html).toContain(text);
+  for (const text of ['2개 이하 3,000원', '3~4개 4,000원', '5개 이상 5,000원', '무료배송', '현재 기본 배송비 계산에는 사용하지 않습니다']) expect(html).toContain(text);
 });
 it('비활성 확장 정책은 기본 배송비·선결제로 계산함을 표시한다', () => {
   const { effective, policy } = shippingFixtures();

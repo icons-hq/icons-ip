@@ -1,16 +1,16 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
-import { hasAdminCapability } from '@/lib/admin/access';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { ADMIN_INQUIRY_CHAT_PATH, parseInquiryChatContext } from '@/lib/admin/inquiry-chat';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 
 export async function updateInquiryChatTagAction(input: { accountId: string; inquiryId: string; label: string; present: boolean }): Promise<{ error?: string }> {
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'cs.manage')) return { error: '상담 권한이 필요합니다.' };
+    const auth = await requireAdminActionAccess(ADMIN_INQUIRY_CHAT_PATH, { capability: 'cs.manage' });
+    if (!auth) return { error: '상담 권한이 필요합니다.' };
     if (!input || input.accountId !== auth.user.id) return { error: '로그인 계정이 바뀌었습니다. 화면을 새로고침해주세요.' };
     if (!isUuid(input.inquiryId) || typeof input.label !== 'string' || typeof input.present !== 'boolean') return { error: '태그 정보를 다시 확인해주세요.' };
     const label = input.label.trim();
@@ -24,5 +24,5 @@ export async function updateInquiryChatTagAction(input: { accountId: string; inq
     if (!context || context.inquiryId !== input.inquiryId || context.tags.includes(label) !== input.present) return { error: '태그를 저장하지 못했습니다. 최신 상태를 확인하고 다시 시도해주세요.' };
     revalidatePath(ADMIN_INQUIRY_CHAT_PATH);
     return {};
-  } catch { return { error: '태그 저장 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도할 수 있습니다.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: '태그 저장 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도할 수 있습니다.' }; }
 }

@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { MAX_INQUIRY_BODY_LENGTH } from '@/lib/inquiries';
 
 /** Customer text never enters the catalog localStorage store. Recovery is tab/session scoped. */
@@ -20,7 +21,7 @@ export const EMPTY_INQUIRY_DRAFT: InquiryDraftSnapshot = {
 export function inquiryDraftSessionId(accessToken: string): string | null {
   try {
     const payload = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { session_id?: unknown };
-    return typeof payload.session_id === 'string' && /^[0-9a-f-]{36}$/i.test(payload.session_id) ? payload.session_id : null;
+    return typeof payload.session_id === 'string' && isUuid(payload.session_id) ? payload.session_id : null;
   } catch { return null; }
 }
 

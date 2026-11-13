@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createHash } from 'node:crypto';
 import { isUuid } from '../uuid';
-import type { PaymentAttempt, PaymentGateway, PaymentRefundRequest } from '../payments/gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentGateway, type PaymentRefundRequest } from '../payments/gateway';
 import type { PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import type { GoodsReconciliationFinalizer } from '../payments/goods-checkout.server';
 import { billingProfilesFromEnvironment, type BillingProfileRegistry } from './billing-profiles.server';
@@ -62,17 +62,29 @@ export function createAttemptAwarePaymentGateway(provider: PaymentCheckoutProvid
       if (await bindingFor(input.attempt)) return billingOutcome(input.attempt, 'needs_review', 'billing_callback_not_supported');
       return dependencies.legacy.confirm(input);
     },
-    async reconcile(attempt) {
+    async reconcile(attempt, hint) {
       const binding = await bindingFor(attempt);
-      if (!binding) return dependencies.legacy.reconcile(attempt);
+      // 일반 결제는 웹훅 paymentKey 힌트(서명 없는 본문 — 조회 대상을 좁힐 뿐 판정 근거가 아니다)를
+      // legacy gateway에 그대로 넘긴다. 힌트가 없으면 인자 개수를 바꾸지 않는다. billing 조회는
+      // binding의 결제 키로 하므로 힌트를 쓰지 않는다.
+      if (!binding) {
+        return hint ? dependencies.legacy.reconcile(attempt, hint) : dependencies.legacy.reconcile(attempt);
+      }
       const billing = dependencies.recurring(binding); const input = bound(attempt, binding);
       if (!billing) return billingOutcome(attempt, 'needs_review', 'billing_profile_unavailable');
       if (!input) return billingOutcome(attempt, 'needs_review', 'billing_not_dispatched');
       return billing.inspect(input);
     },
+    async inspectBalance(attempt, providerPaymentKey) {
+      // 정기배송(billing) 결제는 부분 취소 대상이 아니다(ADR-0031·0032). 일반 결제만 legacy 조회로 넘긴다.
+      if (await bindingFor(attempt) || !dependencies.legacy.inspectBalance) return { kind: 'not_supported' as const };
+      return dependencies.legacy.inspectBalance(attempt, providerPaymentKey);
+    },
     async refund(request) {
       const binding = await bindingFor(request.attempt);
       if (!binding) return dependencies.legacy.refund(request);
+      // 정기배송(billing) 결제는 부분 취소 계약이 없다(ADR-0031). 돈을 움직이지 않고 '부분 취소 불가'로 돌려 호출자가 전액 환불로 가게 한다.
+      if (request.partial) return billingOutcome(request.attempt, 'declined', PARTIAL_CANCEL_UNAVAILABLE_REASON);
       const billing = dependencies.recurring(binding); const input = bound(request.attempt, binding);
       if (!billing) return billingOutcome(request.attempt, 'needs_review', 'billing_profile_unavailable');
       if (!input) return billingOutcome(request.attempt, 'needs_review', 'billing_not_dispatched');

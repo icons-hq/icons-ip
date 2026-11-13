@@ -243,6 +243,9 @@ export function orderClaimEffectiveStage(
  * 환불 원장과 durable claim이 열리기 전까지만 거부할 수 있다. `processing`·
  * `needs_review`를 거부하면 주문이 "취소 진행 중"인 채로 남아 완료도 취소도
  * 되지 않는다 — DB가 `claim_not_rejectable`로 막는 것과 같은 규칙이다.
+ *
+ * 교환은 한 출고지라도 재출고했으면(재출고 1/2) 거부할 수 없다. 나간 소포의 재고
+ * 차감과 배송 기록이 남기 때문이다(TKT-166·ADR-0041). DB도 같은 코드로 막는다.
  */
 const REJECTABLE_STAGES = new Set<OrderClaimStage>([
   'requested',
@@ -254,22 +257,38 @@ const REJECTABLE_STAGES = new Set<OrderClaimStage>([
 export function canRejectOrderClaim(
   stage: OrderClaimStage,
   heldFrom: OrderClaimStage | null,
+  reshipmentStarted = false,
 ) {
-  return REJECTABLE_STAGES.has(orderClaimEffectiveStage(stage, heldFrom));
+  return !reshipmentStarted && REJECTABLE_STAGES.has(orderClaimEffectiveStage(stage, heldFrom));
 }
 
 /**
  * 환급 SLA — 약관 제16조 "굿즈를 반환받은 날부터 3영업일".
  *
- * 기산점은 입고 확인(`collectedAt`)이다. 접수일이 아니다 — 물건이 돌아오기 전에는
- * 환급 의무가 시작하지 않는다. 취소처럼 회수가 없는 유형은 승인 시점이 없으므로
- * 기산점 자체가 없고, 화면은 남은 시간을 지어내지 않는다.
+ * 기산점은 운영자가 회수 확인 때 적은 실제 입고일(`collectionReceivedOn`, KST 날짜)이다(1027T-033).
+ * 확인 버튼을 늦게 누른 시각을 반환일로 대신하지 않는다. 기한은 입고일부터 3영업일째 되는 날의 끝(KST)이다.
+ * 입고일이 없는 옛 기록(2026-11-12 이전 확인)은 예전처럼 입고 확인 시각(`collectedAt`)부터 센다.
+ * 접수일이 아니다 — 물건이 돌아오기 전에는 환급 의무가 시작하지 않는다. 취소처럼 회수가 없는
+ * 유형은 승인 시점이 없으므로 기산점 자체가 없고, 화면은 남은 시간을 지어내지 않는다.
  *
  * 영업일은 주말만 제외한다. 공휴일 달력은 앱에 없고, 있는 척하면 실제보다 빠른
  * 기한을 약속하게 된다.
  */
 const REFUND_SLA_BUSINESS_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const RECEIVED_ON_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** 실제 입고일(KST 날짜)부터 3영업일째 되는 날의 끝(KST 23:59:59.999). 날짜가 아니면 null이다. */
+export function orderClaimRefundDueAt(receivedOn: string): Date | null {
+  const match = RECEIVED_ON_PATTERN.exec(receivedOn);
+  if (!match) return null;
+  const day = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== receivedOn) return null;
+  /* UTC 자정으로 둔 달력 날짜라 getUTCDay가 그 날짜의 요일이다. 기한일 다음 날 KST 자정 1ms 전이 기한이다. */
+  const dueDay = addBusinessDays(day, REFUND_SLA_BUSINESS_DAYS);
+  return new Date(dueDay.getTime() + DAY_MS - KST_OFFSET_MS - 1);
+}
 
 export function addBusinessDays(from: Date, days: number) {
   const result = new Date(from.getTime());
@@ -294,6 +313,8 @@ export function orderClaimSlaState(
     stage: OrderClaimStage;
     collectedAt: string | null;
     completedAt: string | null;
+    /** 회수 확인 때 적은 실제 입고일(KST `YYYY-MM-DD`). 있으면 이 날이 기산점이다. */
+    collectionReceivedOn?: string | null;
   },
   now: Date,
 ): OrderClaimSlaState {
@@ -303,6 +324,8 @@ export function orderClaimSlaState(
   if (input.claimType === 'exchange') {
     return { label: '재출고 대기', tone: 'muted', dueAt: null };
   }
+  /* 회수 완료(입고 확인 시각)가 기산의 전제다. 회수 생략 결정이 무효가 돼 단계가 수거중으로 돌아가 확인 시각이 비면
+     남은 회수 완료일이 있어도 기한을 세지 않는다. */
   if (!input.collectedAt) {
     return {
       label: input.claimType === 'cancel' ? '회수 없음' : '입고 전',
@@ -311,12 +334,14 @@ export function orderClaimSlaState(
     };
   }
 
-  const collected = new Date(input.collectedAt);
-  if (Number.isNaN(collected.getTime())) {
-    return { label: '입고 전', tone: 'muted', dueAt: null };
+  let due: Date | null = input.collectionReceivedOn ? orderClaimRefundDueAt(input.collectionReceivedOn) : null;
+  if (!due) {
+    const collected = new Date(input.collectedAt);
+    if (Number.isNaN(collected.getTime())) {
+      return { label: '입고 전', tone: 'muted', dueAt: null };
+    }
+    due = addBusinessDays(collected, REFUND_SLA_BUSINESS_DAYS);
   }
-
-  const due = addBusinessDays(collected, REFUND_SLA_BUSINESS_DAYS);
   const remaining = due.getTime() - now.getTime();
   if (remaining <= 0) {
     return { label: '기한 초과', tone: 'danger', dueAt: due.toISOString() };
@@ -490,7 +515,38 @@ export function orderClaimAvailability(input: {
 
 /** 유형별 접수 안내. 부분 환불을 약속하지 않는 문구를 한 곳에 모아 둔다. */
 export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
-  cancel: '일반 배송 상품은 발주확인 전에 직접 취소할 수 있습니다. 주문제작·배송없음·디지털 상품은 현재 이행 상태에 따라 주문 전체 취소 검토를 요청합니다. 일부 굿즈나 수량만 취소하는 처리는 제공하지 않습니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
-  return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 상품은 안내된 배송 묶음별 반송지에서 전체 회수를 확인하며, 디지털 상품은 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
+  cancel: '일반 배송 굿즈는 발주확인 전에 직접 취소할 수 있습니다. 주문제작·배송없음·디지털 굿즈는 현재 이행 상태에 따라 주문 전체 취소 검토를 요청합니다. 일부 굿즈나 수량만 취소하는 처리는 제공하지 않습니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
+  return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 굿즈는 안내된 배송 묶음별 반송지에서 전체 회수를 확인하며, 디지털 굿즈는 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
   exchange: '배송 중부터 주문 전체 교환을 직접 신청할 수 있습니다. 안내된 배송 묶음별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
 };
+
+/**
+ * 접수 안내. 반품배송비 차감(ADR-0031)이 꺼져 있으면 위 문구 그대로다. 켜져 있으면 반품 안내의 '전액' 문장을
+ * 단순 변심 반품의 차감 규칙(편도, 최초 무료배송이면 왕복, 하자·오배송은 차감 없음)으로 바꾼다.
+ * 재고 부족 부분 취소(ADR-0032)가 적용된 주문이면 취소·반품 안내의 '결제금액 전액'을 '남은 결제 금액'으로 바꾼다
+ * (이미 일부 취소한 금액은 다시 돌려주지 않는다). 부분 취소가 없으면 문구는 그대로다.
+ */
+export function orderClaimIntakeNotice(
+  claimType: OrderClaimType,
+  deduction: { enabled: boolean; oneWayAmount: number | null } | null = null,
+  { partiallyCanceled = false }: { partiallyCanceled?: boolean } = {},
+): string {
+  const notice = ORDER_CLAIM_INTAKE_NOTICES[claimType];
+  const fullRefund = '승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.';
+  const amount = partiallyCanceled ? '이미 일부 취소한 금액을 뺀 남은 결제 금액' : '최초 선결제 배송비를 포함한 결제금액';
+  if (claimType === 'cancel') {
+    return partiallyCanceled
+      ? notice.replace('승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고', '승인되면 이미 일부 취소한 금액을 뺀 남은 결제 금액이 취소되고')
+      : notice;
+  }
+  if (claimType !== 'return') return notice;
+  if (!deduction?.enabled || !deduction.oneWayAmount) {
+    return partiallyCanceled ? notice.replace(fullRefund, `승인된 환불은 ${amount}으로 처리합니다.`) : notice;
+  }
+  const oneWay = `${deduction.oneWayAmount.toLocaleString('ko-KR')}원`;
+  const roundTrip = `${(deduction.oneWayAmount * 2).toLocaleString('ko-KR')}원`;
+  return notice.replace(
+    fullRefund,
+    `승인된 환불은 ${amount}으로 처리하며, 단순 변심 반품은 반품배송비 ${oneWay}(최초 무료배송 주문은 왕복 ${roundTrip})을 빼고 환불합니다. 굿즈 하자·오배송은 빼지 않습니다. 결제 수단이 부분 취소를 지원하지 않으면 ${partiallyCanceled ? '남은 결제 금액을 모두' : '전액'} 환불하고 반품배송비는 따로 안내합니다.`,
+  );
+}

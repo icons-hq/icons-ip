@@ -43,6 +43,8 @@ interface CheckoutOrderProps {
   bankTransferAccount?: BankTransferAccount | null;
   /** 토스 failUrl 쿼리에서 서버가 형식 검증까지 마친 실패 코드. */
   paymentFailCode?: string | null;
+  /** 주문 목록·결제 결과 안내의 [다시 결제하기]로 왔다(?retry=1). 닫힌 장바구니 주문이면 주문서를 바로 연다(T22i). */
+  autoRetry?: boolean;
 }
 
 const emptyPrepareState: PrepareGoodsPaymentActionState = {};
@@ -92,6 +94,7 @@ export function CheckoutOrder({
   order,
   bankTransferAccount = null,
   paymentFailCode = null,
+  autoRetry = false,
 }: CheckoutOrderProps) {
   const router = useRouter();
   const [prepareState, prepareAction, preparePending] = useActionState(
@@ -307,7 +310,7 @@ export function CheckoutOrder({
               <p>{statusCopy?.body ?? closedCopy.body}</p>
               {giftReturn}
               {reorderMode === 'retry_from_cart' ? (
-                <CheckoutRetryButton orderId={order.id} />
+                <CheckoutRetryButton autoStart={autoRetry} orderId={order.id} />
               ) : reorderMode === 'retry_direct' && order.directGoodId ? (
                 /* 바로구매 주문(ADR-0030 확정 동작 8)은 장바구니와 무관하다 — '다시 구매하기'가 이 주문을 결제 없이 닫고 같은 구성으로
                    바로구매 주문서를 다시 연다. 구성을 바꾸려면 보조 동작으로 굿즈 상세에 간다. 이미 다시 주문했으면 그 주문으로 잇는다. */
@@ -361,7 +364,7 @@ export function CheckoutOrder({
               {state === 'closed' && giftReturn}
               {/* 결제 없이 취소된 장바구니 주문도 그 주문의 줄 가운데 장바구니에 남은 것만 고른 주문서로 간다(QA1 S-D2-15) — 모든 줄이
                   체크된 장바구니로 보내지 않는다. 남은 줄이 없으면 아무 줄도 체크하지 않은 장바구니로 간다. */}
-              {state === 'closed' && reorderMode === 'retry_from_cart' && <CheckoutRetryButton orderId={order.id} />}
+              {state === 'closed' && reorderMode === 'retry_from_cart' && <CheckoutRetryButton autoStart={autoRetry} orderId={order.id} />}
               {state === 'closed' && reorderMode === 'retry_direct' && directRetry}
               {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && reorderMode !== 'retry_direct' && (
                 <ReorderAction

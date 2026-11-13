@@ -33,6 +33,18 @@ describe('지역 추가 배송비 운영 화면', () => {
       expect(blocked).not.toContain('지역 정책 적용');
     }
   });
+  /* QA2: 시작 전 정책에 '활성' 배지와 '신규 주문이 차단될 수 있습니다' 경고가 붙었다. 시작 전에는 '예정'이고, 도입 시각 전에는 기존 배송비로 주문이 확정된다. */
+  it('적용 시작 전인 활성 정책은 예정으로 말하고 차단 경고를 붙이지 않는다', () => {
+    const now = new Date('2026-11-09T00:00:00Z');
+    const scheduled = { id: 'p3', originId: origin.id, carrierCode: 'hanjin', name: '합성 예정', version: 1, revision: 1, status: 'active', startsAt: '2026-12-01T00:00:00Z', endsAt: null, rules: [] } as never;
+    const adoption = { originId: origin.id, managedFrom: '2026-12-01T00:00:00Z' } as never;
+    const html = renderToStaticMarkup(<ShippingRegionsScreen policies={[scheduled]} adoptions={[adoption]} origins={[origin]} carriers={[{ code: 'hanjin', label: '한진', active: true }] as never} canEdit now={now} />);
+    expect(html).toContain('>예정<');
+    expect(html).not.toContain('>활성<');
+    expect(html).toContain('지역 정책 적용 예정');
+    expect(html).not.toContain('data-admin-notice="warning"');
+    expect(html).not.toContain('신규 주문이 차단될 수 있습니다');
+  });
   /* 정책이 있으면 첫 화면은 현황·버전 목록이다 — 빈 입력칸과 바닥 저장 막대가 목록을 밀어내지 않는다. 초안 확정은 실제 버튼이다. */
   it('정책이 있으면 입력칸은 닫혀 있고 초안 줄의 확정하기가 주 행동이다', () => {
     const draft = { id: 'p1', originId: origin.id, carrierCode: 'hanjin', name: '합성 초안', version: 2, revision: 1, status: 'draft', rules: [] } as never;

@@ -53,6 +53,13 @@ describe('발주확인 이후 직접 취소 차단', () => {
     expect(markup).toContain('1:1 문의');
   });
 
+  it('입금 대기 무통장 주문의 취소 칸은 입금 대기 주문 취소로 부른다(T22i)', () => {
+    const open = { cancel: true, return: false, exchange: false };
+    expect(cancellationPresentation('pending', null, null, { paymentMethod: 'bank_transfer', eligibility: open }).heading).toBe('입금 대기 주문 취소');
+    expect(cancellationPresentation('pending', null, null, { paymentMethod: 'card', eligibility: open }).heading).toBe('결제 대기 주문 취소');
+    expect(cancellationPresentation('pending', null, null, { eligibility: open }).heading).toBe('결제 대기 주문 취소');
+  });
+
   it('발주확인 이력이 있는 paid 주문은 읽기 RPC의 취소 금지를 따른다', () => {
     expect(cancellationPresentation('paid', null, null, {
       eligibility: { cancel: false, return: false, exchange: false },

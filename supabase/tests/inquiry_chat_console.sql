@@ -134,4 +134,18 @@ select inquiry_chat_test.ok(not has_table_privilege('authenticated','private.inq
   and not has_function_privilege('anon','public.admin_inquiry_chat_context(uuid)','execute')
   and not has_function_privilege('service_role','public.admin_update_inquiry_chat_tag(uuid,uuid,text,boolean)','execute'),'private tag and history ACLs');
 select inquiry_chat_test.ok((select status='open' and waiting_since is not null from public.inquiries where id=inquiry_chat_test.id(201)),'tags preserve inquiry status and waiting time');
+-- 1014-103: 상담 화면을 여는 부매니저(주문 조회 권한 없음)도 그 대화 고객의 구매이력을 본다. 물류·정지·고객 계정은 못 본다.
+set local role authenticated;
+select inquiry_chat_test.actor(3);
+select inquiry_chat_test.ok(public.admin_inquiry_purchase_history(inquiry_chat_test.id(201),1)->>'customerId'=inquiry_chat_test.id(1)::text,
+  'consultation operator reads the conversation customer purchase history');
+select inquiry_chat_test.actor(4);
+select inquiry_chat_test.error($q$select public.admin_inquiry_purchase_history(inquiry_chat_test.id(201),1)$q$,'42501');
+select inquiry_chat_test.actor(5);
+select inquiry_chat_test.error($q$select public.admin_inquiry_purchase_history(inquiry_chat_test.id(201),1)$q$,'42501');
+select inquiry_chat_test.actor(1);
+select inquiry_chat_test.error($q$select public.admin_inquiry_purchase_history(inquiry_chat_test.id(201),1)$q$,'42501');
+reset role;
+select inquiry_chat_test.ok((select count(*)=1 from public.audit_log where action='admin.inquiry.purchase_history_viewed'
+  and target='inquiries:'||inquiry_chat_test.id(201)::text and actor_id=inquiry_chat_test.id(3)),'purchase history view is audited for the operator');
 rollback;

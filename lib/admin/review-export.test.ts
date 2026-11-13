@@ -64,7 +64,7 @@ describe('일반 리뷰 18열 workbook', () => {
     expect(book.worksheets.map(sheet => sheet.name)).toEqual(['리뷰', '내려받기 정보']);
     const sheet = book.worksheets[0];
     expect(sheet.columnCount).toBe(18); expect(sheet.rowCount).toBe(2);
-    expect(sheet.getRow(1).values).toEqual([, '리뷰 ID', '상품번호', '상품명', '작성자 표시명', '평점', '리뷰 내용', '사진 수', '리뷰도움수', '상태', 'BEST 상태', '전체 신고 수', '미처리 신고 수', '답글 등록 여부', '답글 등록 시각', '작성 시각', '수정 시각', '리뷰 구분', '재구매 표시']);
+    expect(sheet.getRow(1).values).toEqual([, '리뷰 ID', '상품 URL', '상품명', '작성자 표시명', '평점', '리뷰 내용', '사진 수', '리뷰도움수', '상태', 'BEST 상태', '전체 신고 수', '미처리 신고 수', '답글 등록 여부', '답글 등록 시각', '작성 시각', '수정 시각', '리뷰 구분', '재구매 표시']);
     expect(sheet.getCell('A2').value).toBe(reviewExportId(1)); expect(sheet.getCell('A2').numFmt).toBe('@');
     expect(sheet.getCell('B2').value).toBe('000012-good'); expect(sheet.getCell('F2').value).toBe(body);
     expect(sheet.getCell('H2').value).toBe(7); expect(sheet.getCell('H2').numFmt).toBe('#,##0');

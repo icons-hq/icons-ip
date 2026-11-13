@@ -92,22 +92,63 @@ export interface PaymentRefundRequest {
   readonly amount: number;
   readonly reason: string;
   /**
-   * 로컬 결제 원장(payments.payment_key)이 기록한 provider 결제 식별자. 주문번호로
-   * 조회할 수 없는 provider(나이스페이 웹표준은 거래조회·취소가 TID 기준)가 취소
-   * 대상을 찾는 데 쓴다. 주문번호 조회가 진실원인 provider(토스)는 쓰지 않는다.
+   * 로컬 결제 원장(payments.payment_key)이 기록한 provider 결제 식별자. 있으면 어댑터가
+   * 이 키로 결제를 조회·취소하고, 조회 응답이 이 attempt의 주문·금액과 맞는지 다시
+   * 대조한다. 나이스페이 웹표준은 거래조회·취소가 TID 기준이라 이 키가 필수이고, 토스는
+   * 주문서형 시크릿 키(gsk)에 명시된 조회가 paymentKey 조회라(공식문서
+   * /reference/using-api/api-keys) 키가 있으면 쓰고 없을 때만 주문번호 조회로 찾는다.
    * 취소 결과의 evidence.providerPaymentKey는 provider 응답에서 다시 읽어 호출자가
    * 이 값과 대조한다.
    */
   readonly providerPaymentKey?: string;
+  /**
+   * 부분 취소(ADR-0031). 없으면 지금 계약 그대로 전액 취소다(amount는 attempt.amount와 같아야 한다).
+   * 있으면 amount가 이번에 돌려줄 금액(cancelAmount)이고, 어댑터는 취소 전 조회 잔액이 expectedBalanceBefore일 때만
+   * 취소를 발행하며 취소 뒤 조회 잔액이 expectedBalanceBefore − amount일 때만 approved를 돌려준다. 부분 취소를 받지
+   * 않는 결제(카드 부분 취소 불가·가상계좌·과세 제외 금액 등, provider 계약 전)는 돈을 움직이지 않고
+   * declined + reasonCode 'provider_partial_cancel_unavailable'이다. 같은 결제에 부분 취소를 여러 번 하면 취소마다
+   * idempotencyKey가 달라야 한다(토스는 같은 키의 첫 응답을 15일간 재생한다). providerPaymentKey가 필요하다.
+   */
+  readonly partial?: PaymentPartialRefund;
+}
+
+export interface PaymentPartialRefund {
+  /** 이번 취소 직전 결제사 잔액의 기대값(원). 첫 부분 취소는 결제 금액(attempt.amount)이다. */
+  readonly expectedBalanceBefore: number;
+}
+
+/** 부분 취소를 받지 않는 결제라 돈을 움직이지 않고 돌려준 결과의 사유 코드. */
+export const PARTIAL_CANCEL_UNAVAILABLE_REASON = 'provider_partial_cancel_unavailable';
+
+/**
+ * reconcile에 덧붙이는 선택 힌트. 서명 없는 웹훅 본문처럼 신뢰할 수 없는 출처에서 올 수
+ * 있으므로 어댑터는 이 값을 확정 근거로 쓰지 않는다 — 조회 응답이 attempt와 일치할 때만
+ * 쓰고, 아니면 힌트 없이 판정한다.
+ */
+export interface PaymentReconcileHint {
+  readonly providerPaymentKey?: string;
 }
 
 export interface RefundOutcome extends PaymentOperationOutcome {
+  /** approved일 때 이번 요청으로 돌려준 금액. 전액 취소는 결제 금액, 부분 취소는 그 취소 금액이다. */
   readonly refundedAmount?: number;
+  /** 부분 취소가 approved일 때 취소 뒤 조회로 확인한 결제사 잔액. */
+  readonly balanceAfter?: number;
 }
+
+/**
+ * 결제사 잔액 조회(재고 부족 부분 취소의 결제확인필요 해소, ADR-0032). 돈을 움직이지 않는다. 원장 결제 키로 조회해 상점(MID)·키·
+ * 주문·총액을 대조한 뒤 지금 잔액과 마지막 취소 거래를 돌려준다. 판정(돈이 안 움직였는지·이미 취소됐는지)은 호출자가 한다.
+ */
+export type PaymentBalanceInspection =
+  | { kind: 'ok'; status: string; balanceAmount: number; lastCancel: { cancelAmount: number; transactionKey: string } | null }
+  | { kind: 'unavailable' | 'mismatch' | 'not_supported' };
 
 export interface PaymentGateway {
   prepare(attempt: PaymentAttempt): Promise<PreparedCheckout>;
   confirm(returnInput: PaymentReturnInput): Promise<ConfirmOutcome>;
-  reconcile(attempt: PaymentAttempt): Promise<ReconcileOutcome>;
+  reconcile(attempt: PaymentAttempt, hint?: PaymentReconcileHint): Promise<ReconcileOutcome>;
   refund(request: PaymentRefundRequest): Promise<RefundOutcome>;
+  /** 부분 취소 해소용 잔액 조회. 지원하지 않는 결제사는 없다(호출자가 not_supported로 읽는다). */
+  inspectBalance?(attempt: PaymentAttempt, providerPaymentKey: string): Promise<PaymentBalanceInspection>;
 }

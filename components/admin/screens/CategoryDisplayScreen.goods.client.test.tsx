@@ -45,10 +45,10 @@ beforeEach(() => { hooks.values = []; hooks.index = 0; hooks.effects.clear(); ho
 afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); });
 
 it('다시 열어도 연결 상품을 이름·판매자상품코드로 보이고, 고객 화면에 안 보이는 상품은 이유(초안·IP 초안·찾을 수 없음)와 함께 미리보기에서 빠진다고 알린다(QA1 MD)', async () => {
-  /* 가벼운 읽기(admin_goods_display_visibility)는 없는 상품번호를 결과에서 뺀다 — 화면은 그 값을 찾을 수 없음으로 본다. */
+  /* 가벼운 읽기(admin_goods_display_visibility)는 없는 상품 URL을 결과에서 뺀다 — 화면은 그 값을 찾을 수 없음으로 본다. */
   mocks.resolve.mockResolvedValueOnce({ ok: true, goods: [row('qa-pr1'), row('qa-pr9', 'draft', 'QA 초안 상품'), row('qa-ip', 'ip_draft', 'QA IP 준비 상품')] });
   const before = render();
-  /* 조회 전에는 지금처럼 상품번호와 '저장된 상품'으로 보인다. */
+  /* 조회 전에는 지금처럼 상품 URL과 '저장된 상품'으로 보인다. */
   expect(goodText(before, 'qa-pr1')).toBe('qa-pr1저장된 상품');
   expect(mocks.resolve).toHaveBeenCalledWith(['qa-pr1', 'qa-pr9', 'qa-ip', 'qa-gone']);
   for (let i = 0; i < 6; i++) await Promise.resolve();
@@ -67,7 +67,7 @@ it('다시 열어도 연결 상품을 이름·판매자상품코드로 보이고
   expect(mocks.resolve).toHaveBeenCalledTimes(1);
 });
 
-it('조회 권한이 없거나 실패하면 상품번호로 보이고 빠진 이유 안내도 지어내지 않는다', async () => {
+it('조회 권한이 없거나 실패하면 상품 URL로 보이고 빠진 이유 안내도 지어내지 않는다', async () => {
   mocks.resolve.mockResolvedValueOnce({ ok: false, error: '상품을 조회할 권한이 필요합니다.' });
   render();
   for (let i = 0; i < 6; i++) await Promise.resolve();

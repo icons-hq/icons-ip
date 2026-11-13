@@ -8,11 +8,11 @@ vi.mock('next/navigation',()=>({redirect:(path:string)=>{throw new Error(`redire
 import { saveStoreSettingsAction,saveShippingCarrierAction,saveInquiryAutoRepliesAction } from './store-settings-actions';
 const stamp='2026-09-08T01:00:00.000001Z';
 function form(fields:Record<string,string>={}) { const data=new FormData(); for(const [k,v] of Object.entries({section:'business',updatedAt:stamp,email:'cs@example.test',phone:'02-000-0000',...fields}))data.set(k,v);return data;}
-beforeEach(()=>{mocks.auth.role='admin';mocks.auth.isStaff=true;mocks.auth.isConfigured=true;mocks.rpc.mockReset().mockResolvedValue({data:'2026-09-08T02:00:00.000001Z',error:null});mocks.updateTag.mockClear();mocks.revalidatePath.mockClear();});
+beforeEach(()=>{Reflect.deleteProperty(mocks.auth,'operatorAccess');mocks.auth.role='admin';mocks.auth.isStaff=true;mocks.auth.isConfigured=true;mocks.rpc.mockReset().mockResolvedValue({data:'2026-09-08T02:00:00.000001Z',error:null});mocks.updateTag.mockClear();mocks.revalidatePath.mockClear();});
 describe('설정 저장 경계',()=>{
   it('staff는 화면을 읽어도 RPC 쓰기를 요청할 수 없다',async()=>{
-    mocks.auth.role='staff';expect((await saveStoreSettingsAction({},form())).errors?.form).toContain('admin');
-    expect((await saveShippingCarrierAction({},form())).errors?.form).toContain('admin');expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.auth.role='staff';expect((await saveStoreSettingsAction({},form())).errors?.form).toContain('최고 관리자');
+    expect((await saveShippingCarrierAction({},form())).errors?.form).toContain('최고 관리자');expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('저장은 현재 버전을 보내고 새 버전 및 공개 캐시 갱신을 반환한다',async()=>{
     const result=await saveStoreSettingsAction({},form());expect(result.updatedAt).toBe('2026-09-08T02:00:00.000001Z');
@@ -62,12 +62,17 @@ it('켠 안내의 공백 문구와 2000자 초과 문구를 거부하며 입력�
   expect(mocks.rpc).not.toHaveBeenCalled();
 });
 
-it('문의 안내 staff 저장을 막고 충돌·통신 실패에도 설정을 보존한다', async () => {
+/* TKT-019·099(사용자 결정 "아무나 가능하게"): 자동 첫 안내 탭을 여는 운영자는 매니저 권한 전환 전 호환 단계의 staff도 저장한다. */
+it('호환 단계 staff도 문의 안내를 저장하고, 충돌·통신 실패에도 설정을 보존한다', async () => {
   const data = form({ 'good.enabled': 'true', 'good.body': '상품 안내' });
-  mocks.auth.role = 'staff';
-  expect((await saveInquiryAutoRepliesAction({}, data)).errors?.form).toContain('admin');
+  Object.assign(mocks.auth, { role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') });
+  expect((await saveInquiryAutoRepliesAction({}, data)).message).toContain('저장했습니다');
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_save_store_settings', expect.objectContaining({ target_section: 'inquiry_auto_replies' }));
+  /* 같은 staff라도 사업자·계좌·택배사는 지금처럼 호환 단계 admin 전용이다. */
+  mocks.rpc.mockClear();
+  expect((await saveStoreSettingsAction({}, form())).errors?.form).toContain('최고 관리자');
+  expect((await saveShippingCarrierAction({}, form())).errors?.form).toContain('최고 관리자');
   expect(mocks.rpc).not.toHaveBeenCalled();
-  mocks.auth.role = 'admin';
   mocks.rpc.mockResolvedValue({error:{message:'store_settings_conflict internal'}});
   expect(await saveInquiryAutoRepliesAction({}, data)).toMatchObject({values:{'good.body':'상품 안내','good.enabled':'true'},errors:{form:expect.stringContaining('다른 관리자')}});
   mocks.rpc.mockRejectedValue(new Error('network detail'));
@@ -79,11 +84,20 @@ it('문의 안내 staff 저장을 막고 충돌·통신 실패에도 설정을 �
 
 it('configured deputy can manage inquiry display but cannot edit business, bank or carrier policy', async () => {
   Object.assign(mocks.auth, { role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') });
-  expect((await saveStoreSettingsAction({}, form())).errors?.form).toContain('admin');
-  expect((await saveStoreSettingsAction({}, form({ section: 'bank_transfer' }))).errors?.form).toContain('admin');
-  expect((await saveShippingCarrierAction({}, form())).errors?.form).toContain('admin');
+  expect((await saveStoreSettingsAction({}, form())).errors?.form).toContain('최고 관리자');
+  expect((await saveStoreSettingsAction({}, form({ section: 'bank_transfer' }))).errors?.form).toContain('최고 관리자');
+  expect((await saveShippingCarrierAction({}, form())).errors?.form).toContain('최고 관리자');
   expect(mocks.rpc).not.toHaveBeenCalled();
   const saved = await saveInquiryAutoRepliesAction({}, form({ 'order.enabled': 'true', 'order.body': '합성 문의 안내' }));
   expect(saved.message).toContain('저장했습니다');
   expect(mocks.rpc).toHaveBeenCalledWith('admin_save_store_settings', expect.objectContaining({ target_section: 'inquiry_auto_replies' }));
+});
+
+it('스토어 관리 권한이 없는 계정은 문의 안내를 저장하지 못하고, 관리자(admin) 전용이라고 안내하지 않는다', async () => {
+  Object.assign(mocks.auth, { role: 'staff', operatorAccess: configuredOperatorAccessFixture('logistics') });
+  const result = await saveInquiryAutoRepliesAction({}, form({ 'order.enabled': 'true', 'order.body': '합성 문의 안내' }));
+  expect(result.errors?.form).toBe('문의 자동 안내를 저장할 권한이 없습니다. 스토어 관리 권한이 있는 매니저에게 요청해주세요.');
+  expect(result.errors?.form).not.toContain('최고 관리자');
+  expect(result.values?.['order.body']).toBe('합성 문의 안내');
+  expect(mocks.rpc).not.toHaveBeenCalled();
 });

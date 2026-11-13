@@ -37,9 +37,9 @@ export function directionParticle(word: string): '로' | '으로' | '(으)로' {
   for (let match = TRAILING_GROUP.exec(text); match; match = TRAILING_GROUP.exec(text)) text = match[1];
   const last = [...text.replace(TRAILING_SYMBOLS, '')].at(-1)!;
   const code = last.codePointAt(0)!;
-  /* ㄹ 받침(종성 index 8)은 '로'. 숫자는 8 팔만 ㄹ 받침. */
+  /* ㄹ 받침(종성 index 8)은 '로'. 숫자는 7 칠·8 팔이 ㄹ 받침. */
   if (code >= HANGUL_FIRST && code <= HANGUL_LAST) return (code - HANGUL_FIRST) % 28 === 8 ? '로' : '으로';
-  return last === '8' ? '로' : '으로';
+  return last === '7' || last === '8' ? '로' : '으로';
 }
 
 /** 주제 조사 은/는. 판정할 수 없으면 '은(는)'. */
@@ -48,8 +48,23 @@ export function topicParticle(word: string): '은' | '는' | '은(는)' {
   return final === null ? '은(는)' : final ? '은' : '는';
 }
 
+/** 결과 조사 로/으로('…로 바뀝니다'). 규칙은 directionParticle과 같다. */
+export const resultParticle = directionParticle;
+
 /** 목적 조사 을/를. 판정할 수 없으면 '을(를)'. */
 export function objectParticle(word: string): '을' | '를' | '을(를)' {
   const final = hasFinalConsonant(word);
   return final === null ? '을(를)' : final ? '을' : '를';
+}
+
+/** 주격 조사 이/가. 판정할 수 없으면 '이(가)'. */
+export function subjectParticle(word: string): '이' | '가' | '이(가)' {
+  const final = hasFinalConsonant(word);
+  return final === null ? '이(가)' : final ? '이' : '가';
+}
+
+/** 접속 조사 과/와('A와 B'). 판정할 수 없으면 '과(와)'. */
+export function conjunctionParticle(word: string): '과' | '와' | '과(와)' {
+  const final = hasFinalConsonant(word);
+  return final === null ? '과(와)' : final ? '과' : '와';
 }

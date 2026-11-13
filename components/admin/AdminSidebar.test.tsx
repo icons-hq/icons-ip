@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ pathname: '/admin' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 
-function render(role = 'staff', consoleId: 'commerce' | 'content' = 'commerce') {
+function render(role = 'staff', consoleId: 'shopping' | 'card' | 'game' = 'shopping') {
   return renderToStaticMarkup(
     <SidebarProvider><AdminSidebar role={role} console={consoleId} /></SidebarProvider>,
   );
@@ -48,25 +48,38 @@ describe('AdminSidebar 2단 메뉴', () => {
 
   it('현재 화면만 aria-current를 단다', () => {
     mocks.pathname = '/admin/catalog/pools';
-    const html = render('staff', 'content');
+    const html = render('staff', 'card');
 
     expect(html).toContain('aria-current="page"');
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
   });
 
-  /* D9: 콘텐츠 운영은 커머스 사이드바에 숨기지 않고 별도 콘솔의 사이드바로 둔다. */
-  it('커머스와 콘텐츠 운영 콘솔은 서로의 메뉴를 섞지 않는다', () => {
-    const commerce = render();
-    expect(commerce).toContain('href="/admin/catalog/goods"');
-    expect(commerce).not.toContain('href="/admin/catalog/cards"');
-    expect(commerce).not.toContain('IP·콘텐츠 운영');
-    const content = render('staff', 'content');
-    for (const href of ['/admin/catalog/ips', '/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/policies', '/admin/catalog/grants',
-      '/admin/catalog/games', '/admin/catalog/events', '/admin/catalog/ticket-types', '/admin/community/moderation', '/admin/check-in', '/admin/guide'])
-      expect(content).toContain(`href="${href}"`);
-    expect(content).not.toContain('href="/admin/catalog/goods"');
-    expect(content).not.toContain('data-admin-nav-screen="overview"');
-    expect(content).toContain('aria-label="콘텐츠 운영 메뉴"');
+  /* 1014-074: 사이드바는 칸(쇼핑·카드·게임)별로 나뉘고 서로의 메뉴를 섞지 않는다. IP·이벤트·티켓 회차·검표는 쇼핑 칸이다. */
+  it('쇼핑·카드·게임 칸은 서로의 메뉴를 섞지 않는다', () => {
+    const shopping = render();
+    for (const href of ['/admin/catalog/goods', '/admin/catalog/ips', '/admin/catalog/events', '/admin/catalog/ticket-types', '/admin/check-in']) expect(shopping).toContain(`href="${href}"`);
+    for (const href of ['/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/games', '/admin/community/moderation']) expect(shopping).not.toContain(`href="${href}"`);
+    expect(shopping).toContain('aria-label="관리자 메뉴"');
+    const card = render('staff', 'card');
+    for (const href of ['/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/policies', '/admin/catalog/grants', '/admin/community/moderation', '/admin/guide']) expect(card).toContain(`href="${href}"`);
+    for (const href of ['/admin/catalog/goods', '/admin/catalog/ips', '/admin/catalog/games', '/admin/check-in']) expect(card).not.toContain(`href="${href}"`);
+    expect(card).not.toContain('data-admin-nav-screen="overview"');
+    expect(card).toContain('aria-label="카드 운영 메뉴"');
+    expect(card).toContain('ICONS 카드 운영');
+    const game = render('staff', 'game');
+    expect(game).toContain('href="/admin/catalog/games"');
+    expect(game).not.toContain('href="/admin/catalog/cards"');
+    expect(game).toContain('aria-label="게임 운영 메뉴"');
+  });
+
+  /* ADM-016 #1·#16: 즐겨찾기 별은 Tab 정지가 아니라 방향키로 닿고, 별은 24px 이상이다. */
+  it('즐겨찾기 별은 Tab 순서에서 빼고(tabindex -1) 방향키 안내를 읽어 준다', () => {
+    const html = render();
+    const stars = html.match(/<button[^>]*data-admin-nav-favorite="[^"]*"[^>]*>/g) ?? [];
+    expect(stars.length).toBeGreaterThan(5);
+    for (const star of stars) expect(star).toContain('tabindex="-1"');
+    expect(html).toContain('오른쪽 화살표로 즐겨찾기 별로 이동합니다');
+    expect(html).not.toMatch(/data-admin-nav-favorite="[^"]*"[^>]*class="[^"]*\bsize-5\b/);
   });
 
   it('홈 링크와 즐겨찾기를 메뉴 그룹 위 바로가기에 유지한다', () => {

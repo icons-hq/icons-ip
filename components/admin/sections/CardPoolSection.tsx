@@ -155,7 +155,7 @@ function PoolForm({
   const field = (name: string) => resolveFieldDefault(state, defaults, name, { scopeKey: 'id' });
 
   return (
-    <form action={action} className={SECTION_CARD} key={adminFormRemountKey(state, defaults)}>
+    <form action={action} className={SECTION_CARD} key={adminFormRemountKey(state, defaults)} noValidate>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <RecordFormHeading editing={selected?.name ?? null} noun="카드풀" onClose={onClose} />
@@ -228,7 +228,7 @@ function OddsForm({
     : `합계 ${Number((total / 1_000).toFixed(3))}% · ${validTotal ? '저장 가능' : '100% 필요'}`;
 
   return (
-    <form action={action} className={SECTION_CARD}>
+    <form action={action} className={SECTION_CARD} noValidate>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="poolId" type="hidden" value={selected?.id ?? ''} />
       <SectionHeading description="퍼센트 합계가 정확히 100%여야 저장됩니다." title="등급별 발급 확률" />

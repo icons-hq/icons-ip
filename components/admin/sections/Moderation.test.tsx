@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
 import { confirmCommunityCommentHide, confirmCommunityPostHide, ModerationSection } from './Moderation';
 
@@ -114,37 +116,45 @@ describe('ModerationSection', () => {
     expect(html).not.toMatch(/<button(?=[^>]*bg-primary-soft)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 상태 저장/);
   });
 
-  it('포스트 숨김도 댓글 숨김처럼 확인을 거친다', () => {
-    const confirm = vi.fn(() => false);
+  it('포스트 숨김도 댓글 숨김처럼 확인을 거친다', async () => {
+    const confirm = stubAdminConfirm(false);
     const preventDefault = vi.fn();
-    vi.stubGlobal('window', { confirm });
+    const form = { isConnected: true, requestSubmit: vi.fn() };
 
-    confirmCommunityPostHide({ preventDefault } as unknown as Parameters<typeof confirmCommunityPostHide>[0]);
+    confirmCommunityPostHide({ preventDefault, currentTarget: form } as unknown as Parameters<typeof confirmCommunityPostHide>[0]);
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledOnce());
 
-    expect(confirm).toHaveBeenCalledOnce();
     expect(preventDefault).toHaveBeenCalledOnce();
+    expect(form.requestSubmit).not.toHaveBeenCalled();
+    setAdminConfirmHandler(null);
   });
 
-  it('cancels submission when the operator declines the irreversible comment hide', () => {
-    const confirm = vi.fn(() => false);
+  it('cancels submission when the operator declines the irreversible comment hide', async () => {
+    const confirm = stubAdminConfirm(false);
     const preventDefault = vi.fn();
-    vi.stubGlobal('window', { confirm });
+    const form = { isConnected: true, requestSubmit: vi.fn() };
 
-    confirmCommunityCommentHide({ preventDefault } as unknown as Parameters<typeof confirmCommunityCommentHide>[0]);
+    confirmCommunityCommentHide({ preventDefault, currentTarget: form } as unknown as Parameters<typeof confirmCommunityCommentHide>[0]);
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalled());
 
     expect(confirm).toHaveBeenCalledWith(
       '이 댓글을 숨기고 연결된 신고를 해결합니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?',
     );
     expect(preventDefault).toHaveBeenCalledOnce();
+    expect(form.requestSubmit).not.toHaveBeenCalled();
     expect(actions.hideComment).not.toHaveBeenCalled();
+    setAdminConfirmHandler(null);
   });
 
-  it('allows submission when the operator confirms the comment hide', () => {
+  it('resubmits the form only after the operator confirms the comment hide', async () => {
     const preventDefault = vi.fn();
-    vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+    stubAdminConfirm(true);
+    const form = { isConnected: true, requestSubmit: vi.fn() };
 
-    confirmCommunityCommentHide({ preventDefault } as unknown as Parameters<typeof confirmCommunityCommentHide>[0]);
-
-    expect(preventDefault).not.toHaveBeenCalled();
+    confirmCommunityCommentHide({ preventDefault, currentTarget: form } as unknown as Parameters<typeof confirmCommunityCommentHide>[0]);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(form.requestSubmit).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(form.requestSubmit).toHaveBeenCalledOnce());
+    setAdminConfirmHandler(null);
   });
 });

@@ -32,7 +32,7 @@ import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
 const emptyGrantState: AdminDrawTicketGrantActionState = {};
 
-/* 어드민 표의 날짜와 같은 표기다(2026.11.06 17:40, 한국 시각). */
+/* 어드민 표의 날짜와 같은 표기다(2026.11.06 17:40, KST). */
 function formatGrantedAt(value: string) {
   return kstDateTimeText(value).replaceAll('-', '.') || '시각 기록 없음';
 }

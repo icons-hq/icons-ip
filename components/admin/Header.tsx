@@ -58,8 +58,8 @@ export function Header({
   next: string;
   title: string;
   groupLabel?: string;
-  /** 커머스↔콘텐츠 운영 콘솔 전환(D9). 볼 수 있는 콘솔이 둘 이상일 때만 그린다. */
-  consoles?: { id: string; label: string; href: string; current: boolean }[];
+  /** 쇼핑·카드·게임 칸 전환(D9, 1014-074). 볼 수 있는 칸이 둘 이상일 때만 그린다. 쇼핑 밖 칸은 `target` 이름의 새 창으로 열린다. */
+  consoles?: { id: string; label: string; href: string; current: boolean; newWindow?: boolean; target?: string }[];
   /** 경로 표시의 첫 칸. 기본은 판매자센터 홈이다. */
   root?: { label: string; href: string };
   /** 판매자 업무 도구(알림·할 일·도움말·상담하기) 버튼 묶음. */
@@ -111,8 +111,10 @@ export function Header({
                 href={item.href}
                 key={item.id}
                 prefetch={false}
+                target={item.target}
               >
                 {item.label}
+                {item.target ? <span className="sr-only"> (새 창)</span> : null}
               </Link>
             ))}
           </nav>
@@ -120,7 +122,7 @@ export function Header({
         <nav aria-label="판매자 바로가기" className="hidden items-center gap-1 lg:flex">
           <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/admin/guide" prefetch={false}>
             <BookOpen aria-hidden="true" />
-            판매자 가이드
+            사용 가이드
           </Link>
           <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/" prefetch={false} rel="noopener noreferrer" target="_blank">
             쇼핑몰 바로가기
@@ -160,14 +162,15 @@ export function Header({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            {/* 640px 아래에서는 상단 막대의 콘솔 전환이 숨으므로, 커머스↔콘텐츠 운영 전환을 계정 메뉴로 옮긴다. */}
+            {/* 640px 아래에서는 상단 막대의 콘솔 전환이 숨으므로, 쇼핑·카드·게임 전환을 계정 메뉴로 옮긴다. */}
             {consoles.length > 1 ? (
               <DropdownMenuGroup className="sm:hidden">
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">콘솔 전환</DropdownMenuLabel>
                 {consoles.map((item) => (
-                  <DropdownMenuItem aria-current={item.current ? 'page' : undefined} key={item.id} render={<Link href={item.href} prefetch={false} />}>
+                  <DropdownMenuItem aria-current={item.current ? 'page' : undefined} key={item.id} render={<Link href={item.href} prefetch={false} target={item.target} />}>
                     <ArrowLeftRight />
                     {item.label}
+                    {item.target ? <span className="sr-only"> (새 창)</span> : null}
                     {item.current ? <Check className="ml-auto" /> : null}
                   </DropdownMenuItem>
                 ))}
@@ -175,11 +178,11 @@ export function Header({
               </DropdownMenuGroup>
             ) : null}
             <DropdownMenuGroup className="md:hidden">
-              <DropdownMenuItem render={<Link href="/admin/guide" prefetch={false} />}><BookOpen />판매자 가이드</DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/admin/guide" prefetch={false} />}><BookOpen />사용 가이드</DropdownMenuItem>
               <DropdownMenuItem render={<Link href="/" prefetch={false} rel="noopener noreferrer" target="_blank" />}><ExternalLink />쇼핑몰 바로가기</DropdownMenuItem>
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
-            <DropdownMenuItem disabled={signOutPending} onClick={() => { if (confirmAdminLeave()) signOutFormRef.current?.requestSubmit(); }}>
+            <DropdownMenuItem disabled={signOutPending} onClick={() => { void confirmAdminLeave().then((leave) => { if (leave) signOutFormRef.current?.requestSubmit(); }); }}>
               <LogOut />
               {signOutPending ? '로그아웃 중…' : '로그아웃'}
             </DropdownMenuItem>

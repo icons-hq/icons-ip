@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { NO_RETURN_PICKUP, returnPickupCollectingNotice, type OrderReturnPickup } from '@/lib/orders/return-pickup';
 import {
   formatOrderDateTime,
   ORDER_WITHDRAWAL_REASON_LABELS,
@@ -12,7 +13,7 @@ import {
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
 import {
-  ORDER_CLAIM_INTAKE_NOTICES,
+  orderClaimIntakeNotice,
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
   isOpenOrderClaimStage,
@@ -90,8 +91,15 @@ export async function submitOrderClaim(
     : false;
 }
 
-/** 단계별 구매자 안내. 유형에 따라 다음에 할 일이 다르다. */
-export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null): string {
+/**
+ * 단계별 구매자 안내. 유형에 따라 다음에 할 일이 다르다.
+ * collectionWaived는 이 요청에서 회수 없이 다시 보낸 소포(하자·오배송 교환의 회수 생략, ADR-0041)가 있다는 뜻이다 —
+ * 그 소포의 굿즈는 반송하지 않아도 된다고 함께 말한다.
+ * returnPickup은 반품 자동 회수 접수(QNA-032)로 택배 기사가 방문해 회수하는 묶음과 고객이 직접 보내는 묶음의 수다. 모두 방문 회수면 방문 회수를,
+ * 섞여 있으면 방문 회수와 함께 회수 송장이 없는 묶음의 회수 주소 발송을, 방문 회수 묶음이 없으면 지금 반송 안내를 그대로 말한다.
+ */
+export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null,
+  { collectionWaived = false, returnPickup = NO_RETURN_PICKUP, giftSender = false }: { collectionWaived?: boolean; returnPickup?: OrderReturnPickup; giftSender?: boolean } = {}): string {
   if (claim.claimType !== 'exchange' && refund?.status === 'awaiting_transfer') {
     return '주문 취소와 재고 복원이 끝났으며 결제자 계좌로 환불 송금을 준비하고 있습니다. 실제 송금이 확인되면 환불 완료로 표시됩니다.';
   }
@@ -102,7 +110,13 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
     case 'in_review':
       return `${typeLabel} 요청을 검토하고 있습니다.`;
     case 'collecting':
-      return '요청이 승인됐습니다. 안내받은 방법으로 굿즈를 반송해주세요.';
+      /* 선물 보낸 분은 받는 분의 주소·회수 송장을 볼 수 없다(개인정보). 회수 정보 확인·반송을 안내하지 않고, 보낸 분이 할 수 있는 일만 말한다(QA2b 기록 1). */
+      if (giftSender) return `요청이 승인됐습니다. 굿즈는 받는 분이 받은 곳에서 회수해요. 받는 분의 주소와 회수 송장은 개인정보라 여기에서는 보여드리지 않아요. 진행 상황은 이 화면과 알림으로 알려드리고, 궁금한 점은 1:1 문의로 알려주세요.`
+        + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.' : '');
+      /* 회수 주소는 승인 때 굿즈마다 고정한 반품지다(S36-040). 배송 묶음별 주소는 아래 회수 정보에서 확인한다(QNA-031). */
+      return (returnPickupCollectingNotice(returnPickup)
+        ?? '요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.')
+        + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.' : '');
     case 'collected':
       return claim.claimType === 'exchange'
         ? '반송하신 굿즈가 입고됐습니다. 교환 굿즈 재출고를 준비하고 있습니다.'
@@ -133,15 +147,29 @@ type SubmissionState = 'idle' | 'form' | 'submitting' | 'done' | 'expired' | 'bl
 
 export function OrderClaimRequest({
   claim,
+  collectionWaived = false,
   eligibility,
+  giftSender = false,
   orderId,
+  partiallyCanceled = false,
   refund = null,
+  returnFeePolicy = null,
+  returnPickup = NO_RETURN_PICKUP,
   status,
 }: {
   claim: OrderCancellationRequestSummary | null;
+  /** 이 요청에 회수 없이 다시 보낸 소포가 있는지(주문 상세 '교환 배송'의 소포에서 센다). */
+  collectionWaived?: boolean;
   eligibility: OrderClaimEligibility | null;
+  /** 선물 주문을 본 보낸 분인지. 받는 분의 주소·회수 송장을 볼 수 없어 수거 안내 문장이 달라진다. */
+  giftSender?: boolean;
   orderId: string;
+  /** 재고 부족 부분 취소(ADR-0032)가 적용된 주문인지. 그러면 접수 안내의 '결제금액 전액'이 '남은 결제 금액'이 된다. */
+  partiallyCanceled?: boolean;
   refund?: OrderRefundSummary | null;
+  returnFeePolicy?: { enabled: boolean; oneWayAmount: number | null } | null;
+  /** 방문 회수(반품 자동 회수 접수, QNA-032)·직접 발송 묶음 수. 둘 다 0이면 지금 반송 안내 그대로다. */
+  returnPickup?: OrderReturnPickup;
   status: OrderDetailStatus;
 }) {
   const router = useRouter();
@@ -243,7 +271,7 @@ export function OrderClaimRequest({
         </dl>
       ) : null}
 
-      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund)}</p> : null}
+      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund, { collectionWaived, returnPickup, giftSender })}</p> : null}
 
       {canRequest ? (
         submission === 'form' ? (
@@ -263,7 +291,7 @@ export function OrderClaimRequest({
                 </label>
               ))}
             </fieldset>
-            <p className="money-caption">{ORDER_CLAIM_INTAKE_NOTICES[claimType]}</p>
+            <p className="money-caption">{orderClaimIntakeNotice(claimType, returnFeePolicy, { partiallyCanceled })}</p>
 
             <fieldset className="order-cancellation-reason">
               <legend>신청 사유</legend>
@@ -376,7 +404,8 @@ export function OrderClaimRequest({
             )}
           </div>
         )
-      ) : (
+      ) : activeClaim || awaitingTransfer ? null : (
+        /* 진행 중인 클레임이 있으면 위 진행 상태·안내가 이미 그 사실을 말한다 — '이미 처리 중인 클레임이 있습니다'를 접수 직후 실패처럼 한 번 더 말하지 않는다(QA2). */
         <p className="order-cancellation-body">
           {blockedReason ?? '반품·교환은 배송이 완료된 뒤에 신청할 수 있습니다.'}
         </p>

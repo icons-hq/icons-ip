@@ -53,13 +53,16 @@ it('섹션에 속하지 않는 오류만 있으면 상단 오류 요약으로 �
   expect(summary.focus).toHaveBeenCalledOnce();
 });
 
-it('등록 화면 KC·예약판매 섹션 오류는 기본 입력 오류 뒤에 두고, 그것만 있으면 같은 자리의 운영 섹션으로 간다(R13)', () => {
+it('등록 화면 KC·예약판매 섹션 오류는 화면 순서(예약판매는 판매 정보 카드, KC는 고시 뒤)대로 첫 자리의 섹션으로 간다(R13·1027T-023)', () => {
   const card = { closest: () => null, querySelector: () => null, parentElement: null, scrollIntoView: vi.fn(), focus: vi.fn() };
   vi.stubGlobal('document', { getElementById: (id: string) => { sections.push(id); return card; }, querySelector: () => null });
   render(4, { workspacePreorders: '예약 오류', workspaceKc: 'KC 오류' });
-  expect(sections).toEqual(['good-operation-kc']);
+  expect(sections).toEqual(['good-operation-preorders']);
   expect(card.scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'instant' });
   expect(card.focus).toHaveBeenCalledWith({ preventScroll: true });
+  sections.length = 0;
+  render(5, { workspaceKc: 'KC 오류' });
+  expect(sections).toEqual(['good-operation-kc']);
 });
 
 /* 10/27 회의 R15 — 목록의 상품번호가 공개 전 상품이면 편집기 미리보기(#good-preview)로 온다. 접힌 채로 두지 않고 연다. */

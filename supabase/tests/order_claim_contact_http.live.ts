@@ -76,7 +76,9 @@ it('runs actual route + service + AES + PostgREST + SQL save/history/replay/seal
 it('commits actual encrypted reshipment destination and reads it back', async () => {
   actor(1); sql(`update public.order_cancellation_requests set stage='collected',collected_at=clock_timestamp() where id='${claim(3)}';`);
   const context = await post(contextRoute, '/api/admin/claim-contact/context', contextRequest(3, 'reshipment'));
-  const input = { requestId: randomUUID(), orderId: order(3), claimId: claim(3), operationId: randomUUID(), signedContext: context.signedContext, carrier: 'hanjin', trackingNumber: 'REALHTTP0003', items: [], destinationConfirmed: true, dispatchConfirmed: true };
+  // 재출고는 배송 건(출고지)마다 기록한다(ADR-0041). 이 교환의 재출고 대상은 원주문의 배송 건 하나이고 회수 생략은 없다.
+  const shipmentId = sql(`select id from public.order_shipments where order_id='${order(3)}';`);
+  const input = { requestId: randomUUID(), orderId: order(3), claimId: claim(3), operationId: randomUUID(), signedContext: context.signedContext, shipmentId, carrier: 'hanjin', trackingNumber: 'REALHTTP0003', items: [], collectionWaiver: null, destinationConfirmed: true, dispatchConfirmed: true };
   const saved = await post(reshipRoute, '/api/admin/claim-contact/reshipment', input); expect(saved.receipt.state).toBe('saved');
   const history = await post(historyRoute, '/api/admin/claim-contact/history', historyRequest(3)); expect(history.reshipmentDestination.source).toBe('v2_confirmed'); expect(history.reshipmentDestination.address).toEqual(context.address);
   const replay = await post(reshipRoute, '/api/admin/claim-contact/reshipment', input); expect(replay.receipt).toEqual(saved.receipt);
@@ -104,7 +106,7 @@ it('runs authenticated inventory, finite retention exceptions and bounded purge 
     case: { action: 'hold', caseRef: 'HTTP-CASE-4', approvalRef: 'HTTP-APPROVAL', legalBasis: 'statutory_preservation', retainUntil: new Date(Date.now() + 3600_000).toISOString(), occurredAt: new Date(Date.now() - 1000).toISOString() } };
   const held = await post(retentionRoute, '/api/admin/claim-contact/retention', heldInput); expect(held.data.state).toBe('held');
   const heldReplay = await post(retentionRoute, '/api/admin/claim-contact/retention', heldInput); expect(heldReplay.data).toEqual(held.data);
-  const purgeInput = () => ({ requestId: randomUUID(), operation: 'purge', subjectId: fixture.users[1], operationId: randomUUID(), cutoff: new Date().toISOString(), limit: 100, confirmed: true });
+  const purgeInput = () => ({ requestId: randomUUID(), operation: 'purge', subjectId: fixture.users[1], operationId: randomUUID(), cutoff: new Date(Date.now() - 1000).toISOString(), limit: 100, confirmed: true });
   const withheld = await post(retentionRoute, '/api/admin/claim-contact/retention', purgeInput()); expect(withheld.data.purgedClaimIds).not.toContain(claim(4));
   const released = await post(retentionRoute, '/api/admin/claim-contact/retention', { ...heldInput, requestId: randomUUID(), operationId: randomUUID(), expectedCaseRevision: 1, case: { ...heldInput.case, action: 'release', retainUntil: null, occurredAt: new Date().toISOString() } });
   expect(released.data.state).toBe('released'); expect(released.data.caseClosedAt).toBeNull();

@@ -168,7 +168,7 @@ export function Events({
   };
 
   return (
-    <div className="wc-root wc-offline">
+    <main className="wc-root wc-offline">
       <div className="wc-container">
         <header className="wc-offline__head">
           <h1 className="wc-offline__title">오프라인 팝업</h1>
@@ -264,6 +264,6 @@ export function Events({
           <p className="wc-offline-guide__caption">취소·환불 규정은 예매 화면에서 안내됩니다</p>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

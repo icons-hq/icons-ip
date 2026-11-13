@@ -2,12 +2,8 @@
 
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
-import {
-  goodsOptionSaleModeErrorMessage,
-  isGoodsOptionSaleMode,
-  parseGoodsOptionSaleModeState,
-  type GoodsOptionSaleModeState,
-} from '@/lib/goods-option-sale-mode';
+import { isGoodsOptionSaleMode, parseGoodsOptionSaleModeState, type GoodsOptionSaleModeState } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 import { createClient } from '@/lib/supabase/server';
 
 /*

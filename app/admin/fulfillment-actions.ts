@@ -1,8 +1,9 @@
 'use server';
-import { canAccessAdminScreen } from '@/lib/admin/access';
+import { isUuid } from '@/lib/uuid';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { createClient } from '@/lib/supabase/server';
 import { FULFILLMENT_ORIGINS_PATH, parseFulfillmentOriginInput } from '@/lib/admin/fulfillment-origins';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
@@ -13,12 +14,10 @@ export async function saveFulfillmentOriginAction(previous: FulfillmentActionSta
   const values = Object.fromEntries([...data.entries()].filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   const fail = (errors: Record<string, string>) => withPreservedFormValues({ errors }, previous, data);
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.user || !auth.isConfigured) redirect(`/login?next=${encodeURIComponent(FULFILLMENT_ORIGINS_PATH)}`);
-    if (!auth.isStaff || !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) return fail({ form: '출고지 설정 변경은 관리자(admin)만 할 수 있습니다.' });
+    if (!await requireAdminActionAccess(FULFILLMENT_ORIGINS_PATH, { capability: 'platform.manage', adminOnly: true })) return fail({ form: '출고지 설정 변경은 최고 관리자만 할 수 있습니다.' });
     const result = parseFulfillmentOriginInput(values);
     if (!result.ok) return fail(result.errors);
-    if (values.id && (!/^[0-9a-f-]{36}$/i.test(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) return fail({ form: '최신 출고지 설정을 다시 열어주세요.' });
+    if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) return fail({ form: '최신 출고지 설정을 다시 열어주세요.' });
     const client = await createClient();
     const { data: saved, error } = await client.rpc('admin_save_fulfillment_origin', {
       target_id: values.id || null, target_values: result.value, expected_updated_at: values.updatedAt || null,
@@ -30,7 +29,7 @@ export async function saveFulfillmentOriginAction(previous: FulfillmentActionSta
       return fail({ form: '출고지 설정을 저장하지 못했습니다. 입력값을 확인하고 다시 시도해주세요.' });
     }
     for (const path of [FULFILLMENT_ORIGINS_PATH, '/admin/settings/store', '/admin/catalog/goods', '/cart', '/checkout', '/legal/shipping']) revalidatePath(path);
-    revalidatePath('/shop/[goodId]', 'page');
+    revalidateGoodsSurfaces();
     // R22: 새 출고지는 '출고지 추가' 탭에 머물지 않고 저장한 출고지의 탭으로 간다.
     if (!values.id) redirect(fulfillmentOriginTabHref(result.value.code));
     return { message: '출고지 설정을 저장했습니다.', attempt: (previous.attempt ?? 0) + 1, ...(values.id ? { updatedAt: saved.updatedAt } : {}) };

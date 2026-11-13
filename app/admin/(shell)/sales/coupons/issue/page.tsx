@@ -4,6 +4,7 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { loadAdminCouponByCode } from '@/lib/admin/coupons.server';
 import { COUPON_ISSUE_PATH, parseCouponIssueBatch } from '@/lib/admin/coupon-issuance';
 import { marketingCouponCode } from '@/lib/admin/marketing-coupons';
+import { adminSavedFlag } from '@/lib/admin/saved-flag';
 import { createClient } from '@/lib/supabase/server';
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { isUuid } from '@/lib/uuid';
@@ -15,5 +16,5 @@ export default async function CouponIssuePage({ searchParams }: { searchParams: 
   if (!coupon) notFound(); const sessionId = session.data.session?.user.id === auth.user.id ? inquiryDraftSessionId(session.data.session.access_token) : null;
   let batch = null;
   if (params.batchId) { const { data, error } = await client.rpc('admin_get_coupon_issue', { p_id: params.batchId }); batch = error ? null : parseCouponIssueBatch(data); if (!batch || batch.couponCode !== coupon.code) notFound(); }
-  return <CouponIssueWorkspace key={`${coupon.code}:${params.batchId ?? ''}:${auth.user.id}:${sessionId}`} coupon={coupon} actorId={auth.user.id} sessionId={sessionId} initial={batch} />;
+  return <CouponIssueWorkspace key={`${coupon.code}:${params.batchId ?? ''}:${auth.user.id}:${sessionId}`} coupon={coupon} actorId={auth.user.id} sessionId={sessionId} initial={batch} justSaved={adminSavedFlag(params)} />;
 }

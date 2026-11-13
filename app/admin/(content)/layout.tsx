@@ -10,13 +10,12 @@ export const metadata = {
 };
 
 /*
- * IP·콘텐츠 운영 콘솔 레이아웃(D9, A14).
+ * 카드·게임 칸과 IP·이벤트·티켓 회차 화면의 레이아웃 묶음(1014-074·075).
  *
- * 카드·카드풀·뽑기권·게임·이벤트·티켓·IP·커뮤니티 운영 화면은 커머스(`(shell)`)와 분리된
- * 이 route group에 있다. URL은 그대로(route group은 경로에 영향이 없다)이며, 이 레이아웃은
- * 콘텐츠 메뉴만 가진 사이드바와 상단 콘솔 전환을 그린다.
+ * 칸(쇼핑·카드·게임)은 이 레이아웃이 아니라 경로가 정한다(`adminConsoleForPath`) — 셸이 사이드바 메뉴와 상단 전환을 거기서 고른다.
+ * 그래서 이 route group은 `(shell)`과 같은 셸을 그린다. 파일 위치만 갈라 둔 이유는 카드·게임·IP 화면 소유가 커머스와 다르기 때문이다.
  *
- * 권한 규칙은 커머스 셸과 같다: 진실원은 각 page의 `requireAdminScreenAccess`이고
+ * 권한 규칙은 쇼핑 셸과 같다: 진실원은 각 page의 `requireAdminScreenAccess`이고
  * (`shell-route-guards.test.ts`가 두 그룹 모두 강제), layout은 로그인했지만 스태프가
  * 아닌 경우에만 셸 자체를 숨긴다.
  */
@@ -34,7 +33,6 @@ export default async function AdminContentLayout({ children }: { children: React
     <AdminShell
       initialNavigation={parseAdminNavigationCookie(shellCookies.navigationCookie)}
       sidebarDefaultOpen={shellCookies.sidebarDefaultOpen}
-      console="content"
       admin={admin}
     >
       {children}

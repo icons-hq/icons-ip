@@ -63,10 +63,10 @@ export function hasAdminCapability(source: AdminAccessSource, capability: AdminC
 
 const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   overview: 'home', guide: 'home', goods: 'catalog.read', 'goods-create': 'catalog.manage', 'goods-groups': 'catalog.manage', 'goods-groups-create': 'catalog.manage', 'goods-import': 'catalog.manage',
-  'fulfillment-origins': 'catalog.manage', 'shipping-settings-templates': 'catalog.manage',
-  'stock-reconcile': 'catalog.manage',
+  'fulfillment-origins': 'catalog.manage', 'return-addresses': 'catalog.manage', 'shipping-settings-templates': 'catalog.manage',
+  'stock-reconcile': 'catalog.manage', 'defective-stock': 'catalog.manage',
   'shipping-notice-templates': 'catalog.manage', 'notice-presets': 'catalog.manage', categories: 'catalog.manage',
-  'erp-items': 'platform.manage', announcements: 'catalog.announcements', 'goods-photos': 'catalog.manage', 'goods-event-templates': 'catalog.manage', 'category-templates': 'catalog.manage', 'goods-after-sales-templates': 'catalog.manage', 'size-templates': 'catalog.manage',
+  'erp-items': 'catalog.manage', announcements: 'catalog.announcements', 'goods-photos': 'catalog.manage', 'goods-event-templates': 'catalog.manage', 'category-templates': 'catalog.manage', 'goods-after-sales-templates': 'catalog.manage', 'size-templates': 'catalog.manage',
   'related-goods': 'catalog.manage', 'goods-attributes': 'platform.manage', 'shipping-regions': 'catalog.manage',
   'shipping-carriers': 'catalog.manage', orders: 'sales.read', gifts: 'sales.read', subscriptions: 'sales.read', unpaid: 'sales.manage',
   /* 발주확인·발송관리와 배송현황은 출고 전용 능력으로 연다(1014-084). 화면 안의 발주확인·합포장·지연 안내·목록 엑셀은 서버 동작과 RPC가 sales.manage를 따로 확인한다. */
@@ -74,6 +74,8 @@ const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   'claims-cancels': 'sales.manage', 'claims-returns': 'sales.manage', 'claims-exchanges': 'sales.manage', 'pg-settlements': 'sales.manage',
   'refund-transfers': 'sales.manage',
   qna: 'cs.manage', inquiries: 'cs.manage', 'inquiry-chat': 'cs.manage', reviews: 'cs.manage', 'review-insights': 'cs.manage', 'review-events': 'cs.manage', faq: 'cs.manage',
+  /* 운영자별 처리 이력(1014-105)은 운영자 활동 기록이라 매니저 관리 권한으로만 연다(통합·주매니저, 전환 전 호환 단계는 admin). 문의마다의 처리 이력은 문의 화면에 있다. */
+  'inquiry-operator-history': 'operators.manage',
   members: 'platform.manage', curations: 'store.manage', 'coupon-register': 'marketing.manage', coupons: 'marketing.manage',
   'discount-promotions': 'catalog.manage',
   'shopping-stories': 'store.manage',

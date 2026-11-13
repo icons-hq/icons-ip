@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 import { getAdminInquiryConsoleData, getAdminInquiryNavigation } from './inquiries.server';
 import { normalizeAdminInquiryFilters } from './inquiries';
-const filters = normalizeAdminInquiryFilters({ status: 'all', satisfaction: 'dissatisfied', page: '3', category: 'order', from: '2026-10-01', to: '2026-10-15', field: 'title', query: '배송' });
+const filters = normalizeAdminInquiryFilters({ status: 'all', satisfaction: 'dissatisfied', page: '3', pageSize: '20', category: 'order', from: '2026-10-01', to: '2026-10-15', field: 'title', query: '배송' });
 const row = { id: 'd5150000-0000-4000-8000-000000000001', reference: 1, category: 'order', title: '문의', status: 'answered', user_id: 'd5150000-0000-4000-8000-000000000002',
   buyer_name: '고객', buyer_email: null, order_id: null, good_id: null, good_name: null, handled_by: null, assignee_id: null, waiting_since: null, handler_name: null, assignee_name: null,
   created_at: '2026-10-15T01:00:00Z', last_message_at: '2026-10-15T02:00:00Z', answered_at: '2026-10-15T02:00:00Z', closed_at: null, message_count: 2, satisfaction: 'dissatisfied' };

@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
@@ -240,7 +241,6 @@ function codePointLength(value: string): number {
   return Array.from(value).length;
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KIND_SET = new Set<string>(ADMIN_CAMPAIGN_KINDS);
 const STATUS_SET = new Set<string>(ADMIN_CAMPAIGN_STATUSES);
 const OFFER_STATUS_SET = new Set<string>(ADMIN_COIN_OFFER_STATUSES);
@@ -312,7 +312,7 @@ function validateSectionField(
     return sectionValueError(index, field.key, '공백만으로는 쓸 수 없습니다.');
   }
 
-  if (field.kind === 'uuid' && !UUID_PATTERN.test(value)) {
+  if (field.kind === 'uuid' && !isUuid(value)) {
     return sectionValueError(index, field.key, '교환처 ID(UUID)여야 합니다.');
   }
 
@@ -495,12 +495,12 @@ export function normalizeAdminCoinExchangeOfferForm(
 
   const rawId = readString(formData, 'offerId').toLowerCase();
   const id = rawId || null;
-  if (id && !UUID_PATTERN.test(id)) {
+  if (id && !isUuid(id)) {
     errors.offerId = '수정할 교환처를 다시 선택해주세요.';
   }
 
   const poolId = readString(formData, 'poolId').toLowerCase();
-  if (!UUID_PATTERN.test(poolId)) errors.poolId = '카드풀을 선택해주세요.';
+  if (!isUuid(poolId)) errors.poolId = '카드풀을 선택해주세요.';
 
   const label = readString(formData, 'label');
   if (!label || label.length > 80) {

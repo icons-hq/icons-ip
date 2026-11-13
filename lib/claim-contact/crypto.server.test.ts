@@ -147,12 +147,26 @@ describe('signed context and stable request HMAC', () => {
   });
   it('sorts reshipment item identity without mutating input, rejects duplicates, and accepts legacy empty selections', () => {
     const codec = loadClaimContactCodec(env()), claims: ContextClaims = { ...context(codec), purpose: 'claim-contact/reshipment-context', target: 'reshipment', expectedClaimType: 'exchange' };
-    const input: ReshipmentRequest = { requestId: id(7), orderId: id(1), claimId: id(2), operationId: id(8), signedContext: codec.signContext(claims),
-      carrier: '합성택배', trackingNumber: '12345678', items: [{ orderItemId: id(11), variantId: id(21) }, { orderItemId: id(10), variantId: id(20) }], destinationConfirmed: true, dispatchConfirmed: true };
+    const input: ReshipmentRequest = { requestId: id(7), orderId: id(1), claimId: id(2), operationId: id(8), signedContext: codec.signContext(claims), shipmentId: null,
+      carrier: '합성택배', trackingNumber: '12345678', items: [{ orderItemId: id(11), variantId: id(21) }, { orderItemId: id(10), variantId: id(20) }], collectionWaiver: null, destinationConfirmed: true, dispatchConfirmed: true };
     expect(codec.requestHmac(claims, input)).toBe(codec.requestHmac(claims, { ...input, items: [...input.items].reverse() }));
     expect(input.items[0].orderItemId).toBe(id(11));
     expect(codec.requestHmac(claims, { ...input, items: [] })).toMatch(/^[0-9a-f]{64}$/);
     expect(() => codec.requestHmac(claims, { ...input, items: [input.items[0], input.items[0]] })).toThrow('claim_contact_crypto_unavailable');
+  });
+  it('binds the reshipped origin and a collection waiver into the same request digest', () => {
+    const codec = loadClaimContactCodec(env()), claims: ContextClaims = { ...context(codec), purpose: 'claim-contact/reshipment-context', target: 'reshipment', expectedClaimType: 'exchange' };
+    const input: ReshipmentRequest = { requestId: id(7), orderId: id(1), claimId: id(2), operationId: id(8), signedContext: codec.signContext(claims), shipmentId: null,
+      carrier: '합성택배', trackingNumber: '12345678', items: [], collectionWaiver: null, destinationConfirmed: true, dispatchConfirmed: true };
+    const base = codec.requestHmac(claims, input), origin = codec.requestHmac(claims, { ...input, shipmentId: id(30) });
+    const waiver = { reason: '합성 사진으로 하자를 확인했습니다', evidenceFileIds: [id(41), id(40)] };
+    expect(origin).not.toBe(base);
+    expect(codec.requestHmac(claims, { ...input, shipmentId: id(31) })).not.toBe(origin);
+    expect(codec.requestHmac(claims, { ...input, shipmentId: id(30), collectionWaiver: waiver })).not.toBe(origin);
+    expect(codec.requestHmac(claims, { ...input, shipmentId: id(30), collectionWaiver: waiver }))
+      .toBe(codec.requestHmac(claims, { ...input, shipmentId: id(30), collectionWaiver: { ...waiver, evidenceFileIds: [id(40), id(41)] } }));
+    expect(() => codec.requestHmac(claims, { ...input, collectionWaiver: { ...waiver, reason: '짧음' } })).toThrow('claim_contact_crypto_unavailable');
+    expect(() => codec.requestHmac(claims, { ...input, collectionWaiver: { ...waiver, evidenceFileIds: [] } })).toThrow('claim_contact_crypto_unavailable');
   });
   it('errors contain only a stable code', () => {
     try { loadClaimContactCodec({ ...env(), ICONS_CLAIM_CONTACT_KEYRING_JSON: `secret ${k1.encryptionKey}` }); }

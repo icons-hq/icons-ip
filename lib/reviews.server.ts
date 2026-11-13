@@ -6,6 +6,7 @@ import { loadReviewEventDisclosures } from '@/lib/review-events.server';
 import type { ReviewEventDisclosure } from '@/lib/review-events';
 import type { ReviewHelpfulMetrics } from './review-helpful';
 import { parseTypedReviewPage, isReviewKind, type ReviewKind } from './review-types';
+import { parseReviewConfirmationBlock, type ReviewPurchaseConfirmation } from './review-purchase-confirmation';
 import {
   EMPTY_REVIEW_SUMMARY,
   GOOD_REVIEW_PAGE_SIZE,
@@ -159,6 +160,8 @@ export interface MyReviewTarget {
   deliveredAt: string | null;
   deadlineAt: string | null;
   writable: boolean;
+  /** 리뷰 등록과 함께 구매확정되는 주문인지, 구매확정할 수 없다면 그 이유(1014-079). */
+  purchaseConfirmation?: ReviewPurchaseConfirmation;
   review: {
     id: string;
     rating: number;
@@ -198,13 +201,23 @@ interface MyReviewTargetRow {
   review_edited_at: string | null;
   admin_reply: string | null;
   admin_reply_at: string | null;
+  purchase_confirmation_required: boolean;
+  purchase_confirmation_block: string | null;
+  purchase_confirmation_hold_reason: string | null;
+}
+
+function validConfirmationColumns(row: MyReviewTargetRow) {
+  return typeof row.purchase_confirmation_required === 'boolean'
+    && parseReviewConfirmationBlock(row.purchase_confirmation_block) !== undefined
+    && (row.purchase_confirmation_hold_reason === null || typeof row.purchase_confirmation_hold_reason === 'string');
 }
 
 /**
  * 배송완료 이상 주문의 굿즈별 리뷰 상태.
  *
  * "작성 가능"과 "작성 완료"를 한 RPC로 받는다. 두 목록을 따로 부르면 같은 굿즈가
- * 두 칸에 동시에 뜨는 창이 생긴다.
+ * 두 칸에 동시에 뜨는 창이 생긴다. 미확정 주문은 구매확정할 수 있을 때만 작성 가능하고,
+ * 막혔으면 그 이유를 함께 받는다(리뷰 등록 = 구매확정, 1014-079).
  */
 export async function loadMyReviewTargets(options: {
   orderId?: string | null;
@@ -213,7 +226,7 @@ export async function loadMyReviewTargets(options: {
   if (!getSupabaseConfig().isConfigured) return [];
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('my_review_targets_v2', {
+  const { data, error } = await supabase.rpc('my_review_targets_v3', {
     target_good_id: options.goodId ?? null,
     target_order_id: options.orderId ?? null,
   });
@@ -221,7 +234,7 @@ export async function loadMyReviewTargets(options: {
   if (error) return [];
 
   const rows = (data ?? []) as MyReviewTargetRow[];
-  if (!Array.isArray(rows) || rows.some(row => !isReviewKind(row.review_kind) || typeof row.editable !== 'boolean' || typeof row.month_reward_eligible !== 'boolean' || (row.repeat_purchase !== null && typeof row.repeat_purchase !== 'boolean'))) return [];
+  if (!Array.isArray(rows) || rows.some(row => !isReviewKind(row.review_kind) || typeof row.editable !== 'boolean' || typeof row.month_reward_eligible !== 'boolean' || (row.repeat_purchase !== null && typeof row.repeat_purchase !== 'boolean') || !validConfirmationColumns(row))) return [];
   const urls = await signedImageUrls(
     supabase,
     [...new Set(rows.flatMap((row) => row.review_image_paths ?? []))],
@@ -238,6 +251,11 @@ export async function loadMyReviewTargets(options: {
     deliveredAt: row.delivered_at,
     deadlineAt: row.deadline_at,
     writable: row.writable === true,
+    purchaseConfirmation: {
+      required: row.purchase_confirmation_required,
+      block: parseReviewConfirmationBlock(row.purchase_confirmation_block) ?? null,
+      holdReason: row.purchase_confirmation_hold_reason,
+    },
     review: row.review_id
       ? {
         id: row.review_id,

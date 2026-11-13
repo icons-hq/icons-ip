@@ -1,3 +1,4 @@
+import { adminClaimBulkProviderLabel } from '@/lib/admin/claim-bulk';
 import { OrderProductionPanel } from '@/components/admin/OrderProductionPanel';
 import { AdminOrderDownloads } from '@/components/admin/AdminOrderDownloads';
 import type { AdminOrderDownloads as DownloadDocument } from '@/lib/admin/order-downloads';
@@ -32,15 +33,18 @@ import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 import { SellerClaimIntakeButton } from './SellerClaimIntakeForm';
 import { OrderAddressButton } from './OrderAddressEditor';
 import { ShippingCollectPanel } from '@/components/admin/ShippingCollectPanel';
+import { OrderPartialCancellationPanel } from '@/components/admin/OrderPartialCancellationPanel';
 
 const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
-  order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·송장',
+  order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·운송장',
   claim: V.claims, inquiry: '문의', email: '메일', note: '운영자 메모',
 };
 const ACTION_LABELS: Record<string, string> = {
   'order.purchase_confirmation.request': '구매확정 요청', 'order.purchase_confirmation.hold': '구매확정 보류',
   'order.purchase_confirmation.resume': '구매확정 보류 해제', 'order.purchase_confirmation.extend': '구매자 기간 연장', 'order.purchase_confirmation.confirm': '구매자 직접 확정',
   'admin.shipment.status_updated': '배송 건 상태 변경', 'admin.shipment.tracking_updated': '배송 건 운송장 수정',
+  'admin.shipment.extra_tracking_added': '추가 운송장 등록', 'admin.shipment.extra_tracking_removed': '추가 운송장 삭제',
+  'system.shipment.tracking_delivered': '배송완료 (택배 추적 자동)',
   'order.preorder_stock_allocated': '예약 재고 할당', 'order.preorder_capacity_released': '예약 물량 해제',
   'admin.shipment.preorder_promise_changed': '예약 발송 일정 변경',
   'admin.shipment.delivery_method_selected': '배송 방식 변경', 'admin.shipment.delivery_evidence_recorded': '인계·수령 근거 기록',
@@ -76,6 +80,8 @@ const ACTION_LABELS: Record<string, string> = {
 /** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
 const TRIGGER_LABELS: Record<string, Record<string, string>> = {
   'admin.order.status_updated': { auto_order_confirmation: '자동 발주확인 (시스템)' },
+  /* 상품 편집의 예약 주문 발송 일정 일괄 변경(QNA-040)이 남긴 배송 건 일정 변경 — 주문 상세에서 하나씩 바꾼 변경과 나눈다. */
+  'admin.shipment.preorder_promise_changed': { goods_preorder_bulk: '예약 발송 일정 변경 (상품 일괄 · 고객 안내)' },
   /* 고객이 주문서·장바구니의 '결제 대기 주문 취소하고 계속'을 눌러 닫은 주문(ADR-0030). 재주문·장바구니 복귀의 자동 정리와 나눈다. */
   'system.order.unpaid_cart_order_closed': { customer_released: '고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함' },
 };
@@ -176,12 +182,12 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
       <time className="tabular-nums" dateTime={entry.occurredAt}>{dateTime(entry.occurredAt)}</time>
       {entry.actorName ? <span>{entry.actorName}</span> : null}
     </div>
-    <h4 className="mt-2.5 mb-1 text-sm font-medium text-foreground wrap-anywhere">{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h4>
+    <h3 className="mt-2.5 mb-1 text-sm font-medium text-foreground wrap-anywhere">{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h3>
     {entry.fromStatus && entry.toStatus ? <p className={EVENT_TEXT}>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
-    {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
+    {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${adminClaimBulkProviderLabel(entry.provider)}` : ''}</p> : null}
     {status ? <p className={`${EVENT_TEXT} text-muted-foreground`}>현재 상태 · {status}</p> : null}
     {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'} · <ShortId value={entry.shipmentId} /></p> : null}
-    {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {entry.carrier} {entry.trackingNumber}</p> : null}
+    {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {[entry.carrierLabel ?? entry.carrier, entry.trackingNumber].filter(Boolean).join(' ')}</p> : null}
     {entry.body ? <p className={`${EVENT_TEXT} whitespace-pre-wrap`}>{entry.body}</p> : null}
     {href ? <Link className="inline-flex min-h-10 items-center text-sm underline underline-offset-4" href={href}>{entry.source === 'inquiry' ? '문의 상세 열기' : '요청 상세 열기'}</Link> : null}
   </li>;
@@ -279,19 +285,22 @@ export function OrderDetailScreen({
         </TableRow></ConsoleTableHeader>
         <TableBody>{items.map((item) => <TableRow className="scroll-mt-4" key={item.id} id={`item-${item.id}`}>
           <TableCell className="align-top whitespace-normal"><div className="flex min-w-48 flex-col gap-0.5 wrap-anywhere"><strong className="font-medium">{item.name}</strong><span className={ITEM_NOTE}>{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div></TableCell>
-          <TableCell className="align-top whitespace-normal">{item.variantName ? <span className="inline-flex flex-wrap items-center gap-1.5">{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : null}</span> : item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : <span className="text-muted-foreground">—</span>}</TableCell>
+          <TableCell className="align-top whitespace-normal">{item.variantName ? <span className="inline-flex min-w-28 flex-wrap items-center gap-1.5">{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : null}</span> : item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : <span className="text-muted-foreground">—</span>}</TableCell>
           <TableCell className={CELL_AMOUNT}>{item.qty}개</TableCell>
           <TableCell className={CELL_AMOUNT}>{money(item.unitPrice)}</TableCell>
-          <TableCell className={`${CELL_AMOUNT} whitespace-normal`}><div className="flex flex-col items-end gap-0.5"><strong className="font-semibold">{money(item.unitPrice * item.qty)}</strong><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div></TableCell>
+          <TableCell className={`${CELL_AMOUNT} whitespace-normal`}><div className="flex min-w-24 flex-col items-end gap-0.5"><strong className="font-semibold">{money(item.unitPrice * item.qty)}</strong><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div></TableCell>
         </TableRow>)}</TableBody>
       </Table></div> : <p className="text-muted-foreground">주문 상품 기록이 없습니다.</p>}
     </AdminSectionCard>
-    <div className="grid min-w-0 gap-6 md:grid-cols-2">
+    {/* 기록은 조회 권한(sales.read)에도 보인다 — 처리 버튼은 DB가 알려주는 canManage로만 그린다. */}
+    <OrderPartialCancellationPanel key={order.id} orderId={order.id} />
+    {/* 두 칸은 lg부터다 — 768에서는 사이드바 옆 본문이 좁아 값 칸이 글자 단위로 끊긴다. */}
+    <div className="grid min-w-0 gap-6 lg:grid-cols-2">
       <AdminSectionCard title="주문 정보">
         <dl className={FACTS}>
           <div className={FACT_ROW}><dt className={FACT_TERM}>현재 상태</dt><dd className={FACT_VALUE}><OrderStatusBadge status={order.status} /></dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>주문 일시</dt><dd className={FACT_VALUE}>{dateTime(order.createdAt)}</dd></div>
-          <div className={FACT_ROW}><dt className={FACT_TERM}>주문자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세 열기</Link> : null}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>주문자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세</Link> : null}</dd></div>
           {goodsTotalMatches ? <div className={FACT_ROW}><dt className={FACT_TERM}>상품 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(goodsTotal)}</dd></div> : null}
           <div className={FACT_ROW}><dt className={FACT_TERM}>배송비</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.shippingFee)}</dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>쿠폰 할인</dt><dd className={`${FACT_VALUE} tabular-nums`}>{minus(order.discountTotal)}</dd></div>

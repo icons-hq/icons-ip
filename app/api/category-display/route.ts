@@ -16,6 +16,6 @@ export async function GET(request: Request) {
     if (!page) return NextResponse.json({ error: '전시를 확인할 수 없습니다.' }, { status: 404, headers });
     return NextResponse.json({ goods: page.result.goods, reviewSummaries: page.result.reviewSummaries ?? {}, token: page.token, nextOffset: page.nextOffset, checkedAt: page.checkedAt }, { headers });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof CategoryDisplayStaleError ? error.message : '전시 상품을 불러오지 못했습니다.' }, { status: error instanceof CategoryDisplayStaleError ? 409 : 503, headers });
+    return NextResponse.json({ error: error instanceof CategoryDisplayStaleError ? error.message : '전시 굿즈를 불러오지 못했습니다.' }, { status: error instanceof CategoryDisplayStaleError ? 409 : 503, headers });
   }
 }

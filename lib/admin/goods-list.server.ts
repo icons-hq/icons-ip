@@ -1,4 +1,5 @@
 import 'server-only';
+import { unstable_rethrow } from 'next/navigation';
 import { loadGoodsEditorOwnership } from './goods-group-common.server';
 import { loadGoodsCategoryOptions } from './category.server';
 import { hasUsableCategoryTemplates } from './category-templates.server';
@@ -6,11 +7,14 @@ import { loadActiveShippingNoticeTemplateOptions } from './shipping-notice-templ
 import { createClient } from '@/lib/supabase/server';
 import { getAdminCatalogRecords, type AdminIpRecord } from './catalog.server';
 import { loadGoodsFulfillmentOptions } from './fulfillment-origins.server';
+import { loadGoodsReturnAddressOptions } from './return-addresses.server';
 import { loadAdminGoodsVariants } from './goods-variants.server';
 import { loadAdminGoodsReadiness, parseGoodsReadiness } from './goods-readiness.server';
 import { imageBg, imageUrlFromBg, publicMediaUrl } from '@/lib/media';
 import type { Ip, Stock } from '@/lib/data';
-import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListStockCounts } from './goods-list';
+import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListSaleStateCounts, type GoodsListStockCounts } from './goods-list';
+import type { GoodsListOptionStock } from './goods-list-inline';
+import { parseGoodsInstantDiscountState, type GoodsInstantDiscountState } from './goods-price-editor';
 
 export function goodsWorkspaceQuery(filters: GoodsListFilters) {
   return { p_query: filters.query, p_ip_id: filters.ipId, p_status: filters.status, p_stock: filters.stock,
@@ -18,7 +22,7 @@ export function goodsWorkspaceQuery(filters: GoodsListFilters) {
 }
 const LIST_ERROR = '상품 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
 interface WorkspaceRow {
-  id: string; code: string; name: string; ipId: string; ipTitle: string;
+  id: string; productNo?: unknown; code: string; name: string; ipId: string; ipTitle: string;
   publishedAt: string | null; archivedAt: string | null; stock: Stock; stockQty: number;
   imagePath: string | null; categoryName: string | null;
   createdAt: string; updatedAt: string;
@@ -30,6 +34,13 @@ function parseGoodsStockCounts(value: unknown): GoodsListStockCounts | null {
   const { out_of_stock: outOfStock, low } = (value ?? {}) as Partial<Record<keyof GoodsListStockCounts, unknown>>;
   return isCount(outOfStock) && isCount(low) ? { out_of_stock: outOfStock, low } : null;
 }
+/* 판매대기·판매중지·판매종료 칸 건수(SHEET-036)도 같다. 형식이 어긋나면 칸만 '집계 없음'이다. */
+function parseGoodsSaleStateCounts(value: unknown): GoodsListSaleStateCounts | null {
+  const { scheduled, stopped, ended } = (value ?? {}) as Partial<Record<keyof GoodsListSaleStateCounts, unknown>>;
+  return isCount(scheduled) && isCount(stopped) && isCount(ended) ? { scheduled, stopped, ended } : null;
+}
+/* 상품번호는 양의 정수다. 앱이 DB보다 먼저 배포되어 값이 없으면 null로 두고 칸에는 '—'를 보인다. */
+const productNumber = (value: unknown) => Number.isSafeInteger(value) && (value as number) > 0 ? value as number : null;
 export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<AdminGoodsListData> {
   const client = await createClient();
   const pageSize = goodsListPageSize(filters.pageSize);
@@ -57,10 +68,11 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
   ]);
   const pageIds = (result.data.rows as WorkspaceRow[]).map(good => good.id);
   const [inline, customerVisible] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds)]);
-  return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), ips, categories, origins, checkedAt: result.data.checkedAt,
+  return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), saleStateCounts: parseGoodsSaleStateCounts(result.data.saleStateCounts),
+    ips, categories, origins, checkedAt: result.data.checkedAt,
     goods: (result.data.rows as WorkspaceRow[]).map(good => {
       const readiness = parseGoodsReadiness(good.readiness);
-      return { ...inline.get(good.id), id: good.id, code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
+      return { ...inline.get(good.id), id: good.id, productNo: productNumber(good.productNo), code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
         publishedAt: good.publishedAt, archivedAt: good.archivedAt, stock: good.stock, stockQty: good.stockQty,
         createdAt: good.createdAt, updatedAt: good.updatedAt,
         activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
@@ -71,7 +83,7 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
   };
 }
 
-/* 상품번호 링크(R15)의 목적지. 고객 상세(`getCatalogGoodDetail`)와 같은 공개 조건으로 한 페이지만 읽는다.
+/* 상품 URL 링크(R15)의 목적지. 고객 상세(`getCatalogGoodDetail`)와 같은 공개 조건으로 한 페이지만 읽는다.
    읽기에 실패하면 모두 편집기 미리보기로 보낸다(고객 화면 404로 보내지 않는다). */
 async function loadGoodsListCustomerVisibility(ids: string[]) {
   const visible = new Set<string>();
@@ -87,10 +99,13 @@ async function loadGoodsListCustomerVisibility(ids: string[]) {
   return visible;
 }
 
-/* 목록 바로 수정(A9)에 필요한 현재 판매가·할인 상태와 단일 옵션 재고. 한 페이지(최대 100개)만 읽는다.
-   판매가 바로 수정은 상품 편집기와 같은 뜻(할인 없는 상품의 판매가)일 때만 연다 — 상품 할인(정가 표시)이나
-   진행·예정 즉시할인이 있으면 이유만 보여 준다. 읽기에 실패하면 바로 수정만 숨기고 목록은 그대로 보여 준다. */
-type InlineValues = { basePrice: number; compareAtPrice: number | null; activeDiscountEndsAt: string | null; activeVariantCount: number; inlineStock: { variantId: string; stockQty: number } | null };
+/* 목록 바로 수정(A9)에 필요한 현재 판매가·할인 상태와 사용 옵션 재고. 한 페이지(최대 100개)만 읽는다.
+   판매가 바로 수정은 상품 편집기와 같은 뜻(상품 할인이 없는 상품의 판매가)일 때만 연다 — 상품 할인(정가 표시)이 있으면
+   이유만 보여 주고, 진행·예정 즉시할인이 있으면 '할인 중지 후 변경' 창으로 연다. 재고는 옵션이 하나면 칸에서 바로,
+   여럿이면 옵션별 재고 창에서 옵션마다 고친다. 읽기에 실패하면 바로 수정만 숨기고 목록은 그대로 보여 준다. */
+type InlineValues = { basePrice: number; compareAtPrice: number | null; activeDiscountEndsAt: string | null; activeVariantCount: number;
+  inlineStock: { variantId: string; stockQty: number } | null; inlineOptions: GoodsListOptionStock[] | null };
+type InlineVariantRow = { id: string; good_id: string; stock_qty: number; name: string | null; code: string | null };
 async function loadGoodsListInlineValues(ids: string[]) {
   const values = new Map<string, InlineValues>();
   if (!ids.length) return values;
@@ -98,19 +113,23 @@ async function loadGoodsListInlineValues(ids: string[]) {
     const client = await createClient();
     const [goods, variants] = await Promise.all([
       client.rpc('admin_goods_list_price_states', { p_good_ids: ids }),
-      client.from('goods_variants').select('id,good_id,stock_qty').in('good_id', ids).is('archived_at', null).order('good_id').order('id').limit(1000),
+      /* 옵션별 재고 창은 상품 수정의 옵션과 같은 순서로 보인다. */
+      client.from('goods_variants').select('id,good_id,stock_qty,name,code').in('good_id', ids).is('archived_at', null).order('good_id').order('sort_order').order('id').limit(1000),
     ]);
     if (goods.error || variants.error || !Array.isArray(goods.data)) return values;
     // A full page may be truncated by the API row cap; never infer a single option from a partial read.
     const complete = (variants.data?.length ?? 0) < 1000;
-    const active = new Map<string, { id: string; stock_qty: number }[]>();
-    for (const row of variants.data ?? []) active.set(row.good_id, [...(active.get(row.good_id) ?? []), row]);
+    const active = new Map<string, InlineVariantRow[]>();
+    for (const row of (variants.data ?? []) as InlineVariantRow[]) active.set(row.good_id, [...(active.get(row.good_id) ?? []), row]);
     for (const row of goods.data as { id: string; price: number; compareAtPrice: number | null; activeDiscountEndsAt: string | null }[]) {
       if (!Number.isSafeInteger(row.price) || !(row.compareAtPrice === null || Number.isSafeInteger(row.compareAtPrice))
         || !(row.activeDiscountEndsAt === null || typeof row.activeDiscountEndsAt === 'string' && Number.isFinite(Date.parse(row.activeDiscountEndsAt)))) continue;
       const options = active.get(row.id) ?? [];
+      const quantities = options.every(option => Number.isSafeInteger(option.stock_qty) && option.stock_qty >= 0);
       values.set(row.id, { basePrice: row.price, compareAtPrice: row.compareAtPrice, activeDiscountEndsAt: row.activeDiscountEndsAt, activeVariantCount: complete ? options.length : -1,
-        inlineStock: complete && options.length === 1 && Number.isSafeInteger(options[0].stock_qty) ? { variantId: options[0].id, stockQty: options[0].stock_qty } : null });
+        inlineStock: complete && options.length === 1 && quantities ? { variantId: options[0].id, stockQty: options[0].stock_qty } : null,
+        inlineOptions: complete && options.length > 1 && quantities
+          ? options.map(option => ({ variantId: option.id, name: option.name?.trim() || '이름 없는 옵션', code: option.code ?? '', stockQty: option.stock_qty })) : null });
     }
   } catch { values.clear(); }
   return values;
@@ -119,7 +138,7 @@ async function loadGoodsListInlineValues(ids: string[]) {
 /** Editor requests one good and its options; opening the list never loads these. */
 export async function loadAdminGoodEditor(goodId?: string) {
   const supabase = await createClient();
-  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership, hasCategoryTemplates] = await Promise.all([
+  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership, hasCategoryTemplates, instantDiscount, returnAddresses] = await Promise.all([
     getAdminCatalogRecords({ include: goodId ? ['goods'] : [], ...(goodId ? { goodId } : {}) }),
     loadGoodsIpOptions(),
     goodId ? loadAdminGoodsVariants(goodId) : Promise.resolve([]),
@@ -130,6 +149,8 @@ export async function loadAdminGoodEditor(goodId?: string) {
     goodId ? loadAdminGoodsReadiness(goodId) : Promise.resolve(null),
     goodId ? loadGoodsEditorOwnership(goodId) : Promise.resolve(null),
     hasUsableCategoryTemplates(),
+    goodId ? loadGoodsInstantDiscount(goodId) : Promise.resolve(null),
+    loadGoodsReturnAddressOptions(),
   ]);
   if (verticals.error) throw new Error('상품 편집 정보를 불러오지 못했습니다.');
   // The preview needs IP presentation only, so avoid the public snapshot's full
@@ -142,8 +163,24 @@ export async function loadAdminGoodEditor(goodId?: string) {
     fans: ip.fansCount, goods: 0, cards: 0, featured: ip.featured,
     tagline: ip.tagline ?? '', synopsis: ip.synopsis ?? '',
   }));
-  const goods = records.goods.map(good => ownership?.goodId === good.id && !ownership.aggregation.editable ? { ...good, ...ownership.aggregation.sharedPolicy } : good);
-  return { ownership, records: { ...records, goods, ips: ipOptions }, variants, catalogIps, origins, categories, shippingNoticeOptions, readiness, hasCategoryTemplates };
+  const goods = records.goods.map(good => ownership?.goodId === good.id && !ownership.aggregation.editable ? { ...good, ...ownership.aggregation.sharedPolicy } : good)
+    .map(good => good.id === goodId ? { ...good, instantDiscount } : good);
+  return { ownership, records: { ...records, goods, ips: ipOptions }, variants, catalogIps, origins, returnAddresses, categories, shippingNoticeOptions, readiness, hasCategoryTemplates };
+}
+
+/**
+ * 상품 편집이 여는 진행·예정 기간 할인 묶음(TKT-033). 읽지 못하면 null — 상품 편집은 즉시할인을 잠그고 지시 없이 저장한다
+ * (기간 할인 원장을 덮어쓰지 않는 쪽).
+ */
+export async function loadGoodsInstantDiscount(goodId: string): Promise<GoodsInstantDiscountState | null> {
+  try {
+    const client = await createClient();
+    const { data, error } = await client.rpc('admin_goods_instant_discount_period', { p_good_id: goodId });
+    return error ? null : parseGoodsInstantDiscountState(data);
+  } catch (error) {
+    unstable_rethrow(error);
+    return null;
+  }
 }
 
 /** IP presentation for product selection, without the IP operating workspace. */

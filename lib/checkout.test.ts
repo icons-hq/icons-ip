@@ -567,4 +567,8 @@ describe('parseOrderRetrySources', () => {
     expect(sources.get(directId)).toEqual({ source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: reorderId });
     expect(parseOrderRetrySources(null).size).toBe(0);
   });
+  it('장바구니 출처도 이미 다시 결제한 주문(retryOrderId)을 알린다(T22i)', () => {
+    const sources = parseOrderRetrySources([{ orderId: cartId, source: 'cart', awaitingPayment: false, baseGoodId: null, retryOrderId: reorderId.toUpperCase() }]);
+    expect(sources.get(cartId)).toEqual({ source: 'cart', awaitingPayment: false, paymentUnresolved: false, baseGoodId: null, retryOrderId: reorderId });
+  });
 });
