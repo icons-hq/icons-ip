@@ -83,7 +83,7 @@ export async function saveGoodsPurchaseCostAction(formData: FormData): Promise<{
     }
     if (!data || typeof data.changed !== 'boolean') return { ok: false, error: '저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.' };
     revalidatePath('/admin/catalog/goods');
-    return { ok: true, message: cost.unitCostKrw === null ? '공급가(매입단가)를 미설정 상태로 저장했습니다.' : '매입단가와 세금 구분을 저장했습니다.' };
+    return { ok: true, message: cost.unitCostKrw === null ? '공급가(매입단가)를 미설정 상태로 저장했습니다.' : '공급가(매입단가)와 세금 구분을 저장했습니다.' };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '공급가(매입단가)를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.' };

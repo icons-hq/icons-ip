@@ -43,7 +43,7 @@ import { ClaimKitBulkResult } from './ClaimKitBulkResult';
  * 확인창에 보이는 건수·출고지·환불 금액·합계·제외 사유는 서버가 읽은 값이다(previewOrderClaimBulkStepAction). 이 창이
  * 고르는 것은 회수 확인의 출고지·실제 입고일·근거뿐이고, 실행은 고른 순서대로 한 건씩 단건 경로를 탄다. 목록 함수
  * 시간 안에 끝나지 않아 '미처리'로 돌아온 건은 같은 확인 아래 이어서 보낸다(한 번에 한 건도 못 하면 멈춘다).
- * 결과는 건별로 남고, 창을 닫으면 목록 아래 결과표로 넘어간다.
+ * 결과는 건별로 남고, 창을 닫으면 목록 위 결과표로 넘어간다.
  *
  * 후행 트랙: 반품배송비 차감(T12a)은 환불 행의 금액·합계(서버 값)와 이 창의 금액 문구를, 불량 재고 분리(T14b)는 환불
  * 확인창의 품목별 '판매 재고 복원/불량' 선택을 이 파일의 RefundStep에 더한다.
@@ -302,7 +302,7 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
   const deducted = rows.some((row) => row.blocker === null && Boolean(row.deductionAmount));
   return <div className="flex min-w-0 flex-col gap-4" data-claim-bulk-refund="">
     <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
-      토스·나이스페이 결제는 한 건씩 순서대로 결제사 전액 취소를 발행하고 결제사 조회로 확인합니다. 확인되면 주문 취소·재고
+      토스·나이스페이 결제는 한 건씩 순서대로 결제사에 전액 취소를 요청하고 결제사 조회로 확인합니다. 확인되면 주문 취소·재고
       복원·카드팩 회수와 환불 완료 기록이 함께 끝납니다. 입고완료 건은 환불 접수를 먼저 기록합니다. 일부가 실패해도 이미 취소된
       건은 되돌리지 않고 건별 결과로 보여 줍니다.
       {deducted ? ' 단순 변심 반품은 반품배송비를 뺀 환불 금액만 부분 취소합니다. 결제사가 그 결제의 부분 취소를 받지 않으면 전액 환불하고 반품배송비는 배송비 청구로 따로 받습니다.' : null}

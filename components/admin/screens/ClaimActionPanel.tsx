@@ -545,7 +545,7 @@ export function ClaimActionPanel({
           </h4>
           <p className={HINT_CLASS}>
             Korpay 취소는 API가 아니라 이메일 접수입니다. 아래 본문을 그대로 보낸 뒤
-            [접수 완료]를 눌러 원장에 남겨주세요.
+            [환불 접수 완료로 기록]을 눌러 환불 기록에 남겨주세요.
           </p>
           <Textarea
             aria-label="결제사 취소 접수 양식"
@@ -600,7 +600,7 @@ export function ClaimActionPanel({
           </Button>
           {autoCancelLabel ? (
             <p className={HINT_CLASS}>
-              접수만 원장에 기록합니다. {autoCancelLabel} {cancelScope}는 아래 [환불 완료 확정]을 누를 때 발행됩니다.
+              접수만 기록합니다. {autoCancelLabel} {cancelScope}는 아래 [환불 완료 확정]을 누를 때 요청됩니다.
             </p>
           ) : null}
         </form>

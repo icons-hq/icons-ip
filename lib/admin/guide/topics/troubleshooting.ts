@@ -171,7 +171,7 @@ const PROMOTION_CASES: AdminGuideErrorCase[] = [
     fix: '혜택 조회/수정 목록에서 해당 쿠폰을 선택해 수정 모드로 연 뒤 고칩니다. 새 쿠폰이라면 다른 코드를 씁니다.',
   },
   {
-    quote: '쿠폰 섹션의 코드가 쿠폰 관리에 등록되어 있지 않아요.',
+    quote: '쿠폰 섹션의 코드가 혜택으로 등록되어 있지 않아요.',
     sourceFile: 'app/admin/campaign-actions.ts',
     cause: '캠페인 랜딩 구성의 쿠폰 블록에 아직 등록되지 않은 쿠폰 코드를 넣었습니다.',
     fix: '혜택 등록에서 그 코드를 먼저 등록한 뒤 캠페인을 저장합니다.',

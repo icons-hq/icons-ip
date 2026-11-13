@@ -172,7 +172,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           <dt className="text-xs text-muted-foreground">전체 할당 재고</dt><dd className="mb-1.5 tabular-nums">{good.stockQty.toLocaleString('ko-KR')}개</dd>
           <dt className="text-xs text-muted-foreground">사용 옵션 재고</dt><dd className="mb-1.5 tabular-nums">{good.activeStockQty.toLocaleString('ko-KR')}개</dd>
           <dt className="text-xs text-muted-foreground">안전재고</dt><dd className="mb-1.5">{good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : '부족 경보 없음'}</dd>
-          <dt className="text-xs text-muted-foreground">운영 상태</dt><dd>{readiness.operation === 'stopped' ? '판매 중지' : readiness.operation === 'active' ? '운영 중' : '확인 필요'}</dd>
+          <dt className="text-xs text-muted-foreground">판매상태</dt><dd>{readiness.operation === 'stopped' ? '판매 중지' : readiness.operation === 'active' ? '운영 중' : '확인 필요'}</dd>
         </dl>{extra}</details>;
         /* 사유가 둘째 줄을 쓰면 전시 여부만 앞에 남긴다(설정 준비 상태는 사유가 말한다) — 칸이 두 줄을 넘지 않게. */
         const saleDetail = sale.detail && reasons.length ? '공개' : sale.detail;

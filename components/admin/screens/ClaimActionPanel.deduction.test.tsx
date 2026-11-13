@@ -66,7 +66,7 @@ describe('ClaimActionPanel — 반품배송비 차감', () => {
     expect(off).not.toContain('반품배송비');
     expect(off).not.toContain('data-claim-refund-deduction');
     expect(off).toContain('결제사 취소 (토스 전액 취소)');
-    expect(off).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.');
+    expect(off).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 요청됩니다.');
   });
 
   it('단순 변심 반품의 환불 단계에 차감액과 환불액을 보이고 결제사 부분 취소를 말한다', () => {
@@ -75,7 +75,7 @@ describe('ClaimActionPanel — 반품배송비 차감', () => {
     expect(html).toContain('결제 금액 30,000원에서 반품배송비(편도 3,000원)를 빼고 환불합니다.');
     expect(html).toContain('환불 접수를 기록할 때 이 금액으로 정해집니다.');
     expect(html).toContain('결제사 취소 (토스 부분 취소)');
-    expect(html).toContain('토스 부분 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.');
+    expect(html).toContain('토스 부분 취소는 아래 [환불 완료 확정]을 누를 때 요청됩니다.');
     expect(html).not.toContain('토스 전액 취소');
   });
 
