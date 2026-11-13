@@ -122,8 +122,9 @@ function OrderReviewEntry({
           const daysLeft = targetReviewDaysRemaining(target, now);
 
           return (
-            <li className="between" key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`} style={{ alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 13.5, minWidth: 0 }}>{target.goodName} · {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']}</span>
+            <li className="between" key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`} style={{ alignItems: 'center', flexWrap: 'wrap', gap: '6px 10px' }}>
+              {/* 좁은 화면에서 이름이 한 글자씩 쪼개지지 않게, 이름은 한 줄을 먼저 차지하고 버튼은 아래로 내려간다(QA2b minor 3). */}
+              <span style={{ flex: '1 1 200px', fontSize: 13.5, minWidth: 0, overflowWrap: 'anywhere' }}>{target.goodName} · {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']}</span>
               {target.review ? (
                 <Link className="btn btn-sm btn-ghost" href={editReviewHref(target.review.id)}>
                   내 리뷰 보기
@@ -257,6 +258,11 @@ export function OrderDetail({
   const remainingItems = order.items.map(item => ({ ...item, canceledQty: Math.min(item.qty, canceledQtyByItem.get(item.id) ?? 0) }))
     .map(item => ({ ...item, qty: item.qty - item.canceledQty }));
   const partialRefundTotal = partialCancellationRefundTotal(partialCancellations);
+  /* 배분 표는 주문 당시 원장 그대로 두고, 굿즈의 모든 줄이 전부 취소된 경우에만 '취소·환불됨' 표시를 붙인다(QA2b minor 2). */
+  const canceledGoodIds = order.transaction ? new Set(order.transaction.lines.map(line => line.goodId).filter(goodId => {
+    const lines = order.transaction!.lines.filter(line => line.goodId === goodId);
+    return lines.every(line => { const item = remainingItems.find(row => row.id === line.lineId); return item !== undefined && item.qty === 0; });
+  })) : undefined;
   const paidAmount = order.transaction?.totals.onlineTotal ?? order.total;
   const hasPhysicalItems = order.items.some(item => order.transaction?.lines.find(line => line.lineId === item.id)?.fulfillment?.mode !== 'digital' && !downloads?.items.some(file => file.itemId === item.id));
   const digitalOnly = order.items.length > 0 && !hasPhysicalItems;
@@ -425,6 +431,7 @@ export function OrderDetail({
               collectionWaived={Boolean(claimRequest && order.reshipmentParcels?.some(parcel => parcel.claimId === claimRequest.id && parcel.collectionWaived))}
               refund={order.refund}
               eligibility={order.claimEligibility}
+              giftSender={Boolean(order.giftId)}
               orderId={order.id}
               partiallyCanceled={partialCancellations.length > 0}
               returnFeePolicy={returnFeePolicy}
@@ -437,7 +444,7 @@ export function OrderDetail({
           {viewerId && claimRequest && !order.giftId && order.paymentMethod === 'bank_transfer' && claimRequest.claimType !== 'exchange'
             && isOpenOrderClaimStage(claimRequest.stage) ? <ClaimRefundAccount actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /> : null}
           {viewerId && hasPhysicalItems && claimRequest && (claimRequest.claimType === 'return' || claimRequest.claimType === 'exchange')
-            ? <><ClaimCollectionPlan actorId={viewerId} claimId={claimRequest.id} shipmentLabels={customerShipmentGroupLabels(order.shipments)} /><ClaimContactHistory key={`contact:${claimRequest.id}`} actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /></> : null}
+            ? <>{order.giftId ? null : <ClaimCollectionPlan actorId={viewerId} claimId={claimRequest.id} shipmentLabels={customerShipmentGroupLabels(order.shipments)} />}<ClaimContactHistory key={`contact:${claimRequest.id}`} actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /></> : null}
           <OrderRefundDeduction deduction={refundDeduction} />
           <OrderPartialCancellations records={partialCancellations} />
           {viewerId ? <OrderClaimFees actorId={viewerId} orderId={order.id} /> : null}
@@ -474,7 +481,7 @@ export function OrderDetail({
             <span className="checkout-step mono">RECEIPT</span>
             <h2>결제 금액</h2>
           </div>
-          {order.transaction ? <GoodsTransactionSummary display={order.transaction} names={transactionReceiptNames(order.transaction, order.items)} /> : <dl className="checkout-totals">
+          {order.transaction ? <GoodsTransactionSummary display={order.transaction} names={transactionReceiptNames(order.transaction, order.items)} canceledGoodIds={canceledGoodIds} /> : <dl className="checkout-totals">
             {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
             <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
             {order.discountTotal > 0 && (

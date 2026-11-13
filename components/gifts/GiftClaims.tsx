@@ -25,7 +25,7 @@ export function GiftClaims({ actorId, orderId, initialContext, returnPickup = NO
     {claim ? <div><p>{({ cancel: '취소', return: '반품', exchange: '교환' })[claim.type]} · {STAGES[claim.stage]}</p>
       {claim.stage === 'collecting' && context.isRecipient && returnPickupCollectingNotice(returnPickup) ? <p data-gift-return-pickup-notice="">{returnPickupCollectingNotice(returnPickup)}</p> : null}
       {claim.reshipTrackingNumber && !claimParcelShown ? <p>교환 굿즈 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
-      {orderId && (claim.type === 'return' || claim.type === 'exchange') ? <><ClaimCollectionPlan actorId={actorId} claimId={claim.id} /><ClaimContactHistory key={claim.id} actorId={actorId} orderId={orderId} claimId={claim.id} /></> : null}
+      {orderId && (claim.type === 'return' || claim.type === 'exchange') ? <>{context.isRecipient ? <ClaimCollectionPlan actorId={actorId} claimId={claim.id} /> : null}<ClaimContactHistory key={claim.id} actorId={actorId} orderId={orderId} claimId={claim.id} /></> : null}
       {claim.canWithdraw ? <button type="button" disabled={request.locked} onClick={() => {
         if (!confirm('진행 중인 요청을 철회할까요? 주문은 유지돼요.')) return;
         const id = crypto.randomUUID(), revision = claim.revision, claimId = claim.id;

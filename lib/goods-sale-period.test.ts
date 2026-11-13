@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goodsSalePeriodOrderNotice, goodsSalePeriodState, goodsSaleUnavailableLabel, parseGoodsSalePeriod } from './goods-sale-period';
+import { goodsSalePeriodBlock, goodsSalePeriodOrderNotice, goodsSalePeriodState, goodsSaleUnavailableLabel, parseGoodsSalePeriod } from './goods-sale-period';
 import { goodsPurchaseConditionProblem } from './goods-options';
 import { parseGoodsVariantSupply } from './goods-preorders';
 
@@ -46,5 +46,16 @@ describe('goodsSalePeriodOrderNotice', () => {
     expect(goodsSalePeriodOrderNotice([{ name: '예정 굿즈', salePeriod: period('scheduled', '2026-12-01T00:00:00Z') }], 'cart', now))
       .toContain('아직 판매를 시작하지 않은 굿즈가 있어요: 예정 굿즈.');
     expect(goodsSalePeriodOrderNotice([{ name: '머그', salePeriod: period('open', '2026-12-01T00:00:00Z') }, { name: '키링' }], 'cart', now)).toBeNull();
+  });
+});
+
+describe('굿즈 하나의 판매기간 차단 판정', () => {
+  it('끝남·시작 전만 막고 열림·기간 없음은 막지 않는다', () => {
+    const base = { startsAt, endsAt, calculatedAt: startsAt, nextChangeAt: null };
+    expect(goodsSalePeriodBlock({ salePeriod: { ...base, state: 'ended' } })).toBe('ended');
+    expect(goodsSalePeriodBlock({ salePeriod: { ...base, state: 'scheduled' } }, 0)).toBe('scheduled');
+    expect(goodsSalePeriodBlock({ salePeriod: { ...base, state: 'open', endsAt: '2000-01-01T00:00:00Z' } })).toBe('ended');
+    expect(goodsSalePeriodBlock({ salePeriod: { ...base, state: 'open', endsAt: '2999-01-01T00:00:00Z' } })).toBeNull();
+    expect(goodsSalePeriodBlock({})).toBeNull();
   });
 });

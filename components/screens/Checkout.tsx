@@ -24,7 +24,7 @@ import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { GOODS_LINE_UNAVAILABLE_MESSAGE, goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
-import { goodsSalePeriodOrderNotice } from '@/lib/goods-sale-period';
+import { goodsSalePeriodBlock, goodsSalePeriodOrderNotice } from '@/lib/goods-sale-period';
 import { QuoteUnavailableRefresh } from '@/components/shop/QuoteUnavailableRefresh';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
@@ -511,7 +511,8 @@ export function Checkout({
 
           <CheckoutAddressBook address={address} book={addressPrefill.book} disabled={submitting} onAddressErrors={setFieldErrors} onPick={pickAddressBookEntry} />
 
-          <div className="checkout-fields">
+          {/* 문의 런처가 입력칸 오른쪽 끝을 가리지 않게, 이 칸들과 겹치는 동안은 런처를 비켜 둔다(QA2b minor 5). */}
+          <div className="checkout-fields" data-inquiry-avoid="">
             <label>
               <span>받는 분</span>
               <input id="checkout-recipientName" required autoComplete="name" maxLength={50} aria-invalid={Boolean(fieldErrors.recipientName)} aria-describedby={fieldErrors.recipientName ? 'checkout-recipientName-error' : undefined} value={address.recipientName} onChange={(event) => setField('recipientName', event.target.value)} />
@@ -552,8 +553,10 @@ export function Checkout({
             <h2>주문 확인</h2>
           </div>
           <div className="checkout-items">
-            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply,customInputs, optionLimitMessage }) => (
-              <div className="checkout-item" key={cartItemKey(goodId, variantId,customInputs)}>
+            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply,customInputs, optionLimitMessage }) => {
+              const saleBlock = good ? goodsSalePeriodBlock(good) : null;
+              return (
+              <div className="checkout-item" data-sale-period-block={saleBlock ?? undefined} key={cartItemKey(goodId, variantId,customInputs)}>
                 <div>
                   <span>{ip?.title ?? 'ICONS'} · {good?.type ?? '판매 종료'}</span>
                   <strong>{good?.name ?? goodId}</strong>
@@ -562,10 +565,12 @@ export function Checkout({
                   {good && goodsCustomInputProblem(good.customInputs,customInputs) && <span>{goodsCustomInputProblem(good.customInputs,customInputs)}</span>}
                   {supply?.mode === 'preorder' ? <span>예약판매 · {goodsShipDateLabel(supply.expectedShipDate)}</span> : null}
                   {optionLimitMessage ? <span>{optionLimitMessage}</span> : null}
+                  {saleBlock ? <span role="status"><strong>{saleBlock === 'ended' ? '판매기간이 끝나 지금은 주문할 수 없어요' : '아직 판매 전이라 지금은 주문할 수 없어요'}</strong></span> : null}
                 </div>
                 <span className="mono">{qty} × {krw(good?.price ?? 0)}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
           <dl className="checkout-totals">
             <div><dt>굿즈 금액</dt><dd>{krw(subtotal)}</dd></div>
@@ -573,7 +578,7 @@ export function Checkout({
             <div><dt>{couponLabel}</dt><dd>−{krw(couponDiscount)}</dd></div>
             {usedStoreCredits > 0 && <div><dt>적립금 사용</dt><dd>−{krw(usedStoreCredits)}</dd></div>}
             <div><dt>배송비</dt><dd>{shippingReady ? shippingFeeLabel(shippingFee) : shipping.quote ? '배송지 확인 후 확정' : '확인 중'}</dd></div>
-            <div className="checkout-total"><dt>결제 금액</dt><dd>{shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
+            <div className="checkout-total"><dt>결제 금액</dt><dd>{salePeriodNotice ? '주문할 수 없는 굿즈를 뺀 뒤 표시' : shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
           </dl>
 
           {direct ? (

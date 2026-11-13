@@ -8,3 +8,10 @@ it('복수 할인·쿠폰·적립금과 온라인16,000/착불3,000/총부담19,
   expect(html).toContain('온라인 결제금액</dt><dd>₩16,000'); expect(html).toContain('수령 시 별도</dt><dd>₩3,000'); expect(html).toContain('총 부담금액</dt><dd>₩19,000');
   expect(html).toContain('착불 배송비는 온라인 결제금액에 포함되지 않습니다.'); expect(html).toContain('수납 주체: 배송사'); expect(html).toContain('착불 배송비 환불 문의: 판매자 문의');
 });
+
+it('전부 취소된 굿즈의 배송 묶음은 원장 금액은 그대로 두고 취소·환불됨을 붙인다(QA2b minor 2)', () => {
+  const good = transactionDisplay.shipping[0].components[0].goodId;
+  const html = renderToStaticMarkup(<GoodsTransactionSummary display={transactionDisplay} names={{ [good]: '피규어' }} canceledGoodIds={new Set([good])} />);
+  expect(html).toContain('전체 취소·환불됨'); expect(html).toContain('피규어 · 취소·환불됨 · 선결제');
+  expect(renderToStaticMarkup(<GoodsTransactionSummary display={transactionDisplay} names={{ [good]: '피규어' }} />)).not.toContain('취소·환불됨');
+});
