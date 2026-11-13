@@ -164,7 +164,7 @@ export function GoodsOptionStockDialog({ flow }: {
               </TableCell>
               <TableCell className={`text-right align-top tabular-nums ${NARROW_CELL}`}><span className="text-xs text-muted-foreground sm:sr-only">현재 </span>{row.seen === null ? '확인 필요' : `${row.seen.toLocaleString('ko-KR')}개`}</TableCell>
               <TableCell className={`align-top ${NARROW_CELL}`}><label className={NARROW_LABEL} htmlFor={qtyId}>새 수량</label>
-                <input id={qtyId} aria-label={`${row.name} 새 수량`} inputMode="numeric" value={row.input} onChange={event => flow.change(row.variantId, { input: event.target.value })}
+                <input id={qtyId} aria-label={`${row.name} 새 수량`} inputMode="numeric" value={row.input} onChange={event => flow.change(row.variantId, { input: event.target.value })} onFocus={event => event.currentTarget.select()}
                   className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" readOnly={row.missing} {...(index === 0 ? { 'data-dialog-autofocus': '' } : {})}
                   aria-invalid={row.status === 'invalid' ? true : undefined} aria-describedby={row.message ? messageId : undefined} /></TableCell>
               <TableCell className={`align-top ${NARROW_CELL}`}><label className={NARROW_LABEL} htmlFor={reasonId}>사유 (선택)</label>

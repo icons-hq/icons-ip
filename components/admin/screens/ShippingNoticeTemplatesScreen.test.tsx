@@ -55,4 +55,19 @@ describe('배송정보 템플릿 관리 화면', () => {
     expect(html).toContain('동시에 수정된 상품에는 적용하지 않습니다.');
     expect(html).toContain('입력하지 않았습니다(선택).');
   });
+  it('방금 저장한 초안(focus)은 열린 채 강조되고 활성화를 안내한다(QA2b)', () => {
+    const template = {
+      id: 'b9000000-0000-4000-8000-000000000001', code: 'basic-v3', version: 3, name: '새 초안', shippingNotice: '배송', returnExchangeNotice: '반품', remoteAreaNotice: '',
+      csName: 'CS', csPhone: '02', csEmail: '', confirmationEvidence: '', status: 'draft' as const,
+      confirmedBy: null, confirmedAt: null, createdAt: '2026-09-10T00:00:00Z', updatedAt: '2026-09-10T01:00:00Z',
+    };
+    const data = { total: 1, filters: { query: '새 초안', goodQuery: '', page: 1 }, templates: [template], impactGoods: [] };
+    const focused = renderToStaticMarkup(<ShippingNoticeTemplatesScreen data={data} focusId={template.id} />);
+    expect(focused).toContain(`id="shipping-notice-template-${template.id}"`);
+    expect(focused).toMatch(/<details[^>]*open=""[^>]*data-focused/);
+    expect(focused).toContain('확인 근거를 입력하고 [활성화]를 눌러주세요.');
+    const plain = renderToStaticMarkup(<ShippingNoticeTemplatesScreen data={data} />);
+    expect(plain).not.toContain('data-focused');
+    expect(plain).not.toContain('초안을 저장했습니다');
+  });
 });

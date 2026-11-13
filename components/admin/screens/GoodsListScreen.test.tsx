@@ -44,7 +44,7 @@ describe('goods list screen', () => {
     expect(host.type).toBe(GoodsInlineDialogHost);
     expect(host.props.identity).toEqual(identity);
     const inside = walk(host.props.children as ReactNode);
-    const grid = inside.find(node => typeof node.props.className === 'string' && (node.props.className as string).includes('[&_table]:min-w-[1088px]'));
+    const grid = inside.find(node => typeof node.props.className === 'string' && (node.props.className as string).includes('[&_table]:min-w-[1090px]'));
     expect(grid).toBeTruthy();
     expect(walk(grid!.props.children as ReactNode).some(node => node.type === GoodsInlineDialogHost)).toBe(false);
     // 모두 저장하고 닫힌 창의 결과 문구는 표 밖, 목록 위에 남는다.

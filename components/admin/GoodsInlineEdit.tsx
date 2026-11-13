@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, useTransition, type FocusEvent, type FormEvent, type ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import { adjustAdminStockAction } from '@/app/admin/actions';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -9,6 +9,8 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
 import { readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import { goodsBulkError } from '@/lib/admin/goods-bulk';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { resultParticle } from '@/lib/korean-particle';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import type { GoodsListOptionStock } from '@/lib/admin/goods-list-inline';
 import { runSingleGoodBulk } from './goods-inline-bulk';
@@ -86,6 +88,9 @@ export function InlineEditor({ label, display, valueText, children, onSubmit, pe
   </form>;
 }
 
+/** 칸 안 입력은 포커스를 받으면 값 전체를 선택한다 — 커서가 끝에 있으면 타이핑이 현재 값 뒤에 이어 붙어 엉뚱한 금액·수량이 된다. */
+const selectAllOnFocus = (event: FocusEvent<HTMLInputElement>) => event.currentTarget.select();
+
 function useInlineState() {
   const router = useRouter();
   const [editing, setEditing] = useState(false), [error, setError] = useState(''), [recovery, setRecovery] = useState<string | null>(null);
@@ -109,11 +114,23 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
   const inputId = useId();
   const dialogs = useGoodsInlineDialogs();
   const discounted = Boolean(discountEndsAt) || instantDiscount;
+  const confirming = useRef(false);
   function save(form: FormData) {
     const raw = String(form.get('price') ?? '').replaceAll(',', '').trim();
     const next = Number(raw);
     if (!/^[1-9][0-9]*$/.test(raw) || !Number.isSafeInteger(next) || next > 2_147_483_647) { state.setError('1원 이상의 정수로 입력해주세요.'); return; }
     if (next === basePrice) { state.setEditing(false); return; }
+    if (confirming.current) return;
+    /* 돈이 걸린 변경이라 저장 전에 이전 → 새 판매가를 한 번 더 확인받는다(할인 중지 후 변경 창과 같은 규칙·문구). */
+    const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
+    confirming.current = true;
+    void adminConfirm({
+      title: '판매가 변경 확인',
+      message: `${goodName || '이 상품'}의 판매가를 ${won(basePrice)}에서 ${won(next)}${resultParticle(won(next))} 바꿉니다.`,
+      confirmLabel: '판매가 변경',
+    }).then(ok => { confirming.current = false; if (ok) persist(next); });
+  }
+  function persist(next: number) {
     state.setError(''); state.start(async () => {
       try {
         const result = await runSingleGoodBulk(identity, goodId, 'price', { mode: 'set', value: next },
@@ -145,7 +162,7 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
   return <InlineEditor fillCell label="판매가" action={discounted ? '할인 중지 후 변경' : undefined} note={discountNote}
     display={display} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing && !discounted} setEditing={setEditing}>
     <label htmlFor={inputId} className="sr-only">기본 판매가 (원)</label>
-    <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
+    <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus onFocus={selectAllOnFocus} className={INLINE_INPUT_CLASS} data-slot="input" />
     <small className="text-xs text-muted-foreground">{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
   </InlineEditor>;
 }
@@ -185,9 +202,10 @@ export function GoodsInlineSale({ goodId, stopped, identity, display, valueText,
   </InlineEditor>;
 }
 
-export function GoodsInlineStock({ goodId, ipId, variantId, stockQty }: {
-  goodId: string; ipId: string; variantId: string; stockQty: number;
+export function GoodsInlineStock({ goodId, ipId, variantId, stockQty, goodName = '' }: {
+  goodId: string; ipId: string; variantId: string; stockQty: number; goodName?: string;
 }) {
+  const confirming = useRef(false);
   const state = useInlineState();
   const inputId = useId();
   // The request id is never rendered; it only makes one adjustment idempotent.
@@ -197,6 +215,17 @@ export function GoodsInlineStock({ goodId, ipId, variantId, stockQty }: {
     const next = Number(raw);
     if (!/^(0|[1-9][0-9]*)$/.test(raw) || !Number.isSafeInteger(next) || next > 2_147_483_647) { state.setError('0 이상의 정수로 입력해주세요.'); return; }
     if (next === stockQty) { state.setEditing(false); return; }
+    if (confirming.current) return;
+    /* 실재고 조정이라 저장 전에 이전 → 새 수량을 한 번 더 확인받는다. */
+    const qty = (value: number) => `${value.toLocaleString('ko-KR')}개`;
+    confirming.current = true;
+    void adminConfirm({
+      title: '재고수량 변경 확인',
+      message: `${goodName || '이 상품'}의 재고수량을 ${qty(stockQty)}에서 ${qty(next)}${resultParticle(qty(next))} 바꿉니다. 실재고 조정 기록이 남습니다.`,
+      confirmLabel: '재고수량 변경',
+    }).then(ok => { confirming.current = false; if (ok) persist(next); });
+  }
+  function persist(next: number) {
     const data = new FormData();
     data.set('adjustmentId', requestId); data.set('goodId', goodId); data.set('ipId', ipId); data.set('variantId', variantId);
     data.set('expectedStockQty', String(stockQty)); data.set('delta', String(next - stockQty));
@@ -213,7 +242,7 @@ export function GoodsInlineStock({ goodId, ipId, variantId, stockQty }: {
   }
   return <InlineEditor fillCell label="재고수량" display={`${stockQty.toLocaleString('ko-KR')}개`} onSubmit={save} pending={state.pending} error={state.error} recovery={false} onRecover={() => undefined} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">재고수량 (개)</label>
-    <input id={inputId} name="stockQty" inputMode="numeric" defaultValue={stockQty} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
+    <input id={inputId} name="stockQty" inputMode="numeric" defaultValue={stockQty} autoFocus onFocus={selectAllOnFocus} className={INLINE_INPUT_CLASS} data-slot="input" />
     <small className="text-xs text-muted-foreground">실재고 조정 기록이 남습니다.</small>
   </InlineEditor>;
 }

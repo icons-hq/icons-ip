@@ -88,6 +88,9 @@ export function normalizeShippingNoticeTemplateFilters(
   };
 }
 
+/** 목록에서 한 템플릿 항목을 가리키는 앵커 id. */
+export const shippingNoticeTemplateAnchor = (id: string) => `shipping-notice-template-${id}`;
+
 export function shippingNoticeTemplateHref(
   filters: ShippingNoticeTemplateFilters,
   page = filters.page,
