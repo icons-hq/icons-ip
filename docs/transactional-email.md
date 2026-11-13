@@ -65,6 +65,11 @@ Production dark deploy → masked env/readback → webhook → Auth 4개 흐름�
 설정 오류로 닫는다. 민감 키를 복제하거나 재발급할 필요는 없으며 HMAC·webhook 서명 설정과
 각 source의 DB 활성화 gate는 여전히 별도로 필요하다.
 
+2026-11-12 안전재고 하루 1회 요약 메일(`stock_safety_digest`)도 같은 dispatcher를 쓴다. 전용 gate는
+`private.stock_safety_digest_settings.enabled`(재고 대조 화면의 '하루 1회 요약 메일 보내기', 기본 꺼짐)이며
+#191 Auth gate·주문 지연 안내 gate와 분리한다. 수신자는 운영자·창고 담당자 업무 주소이고 dispatcher에는
+digest만 남는다. 운영 절차는 [재고 파일 대조·안전재고 요약 메일 운영](./runbooks/stock-reconcile-safety-digest.md).
+
 legacy `email_deliveries`는 `legacy_unverified`로 분류한다. migration 이후 새 legacy 행은
 recipient·subject·오류를 즉시 redaction하며 staff 조회도 masked 값만 반환한다. migration 전
 평문 행의 retry/completion은 기존 recipient·subject·오류를 보존하고, 기존 오류가 null인 경우에만

@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { isLoyaltyGrade, LOYALTY_GRADES, LOYALTY_WINDOW_DAYS, loyaltyBasisSummary, loyaltyGradeLabel } from './loyalty';
+import {
+  GRADE_BENEFIT_CADENCE_LABELS, GRADE_BENEFIT_CADENCES, isGradeBenefitCadence, isLoyaltyGrade, LOYALTY_GRADES, LOYALTY_WINDOW_DAYS,
+  loyaltyBasisSummary, loyaltyGradeLabel,
+} from './loyalty';
+describe('grade benefit cadence', () => {
+  it('matches the DB check values and labels both cadences', () => {
+    expect(GRADE_BENEFIT_CADENCES).toEqual(['upgrade', 'monthly']);
+    expect(isGradeBenefitCadence('monthly')).toBe(true);
+    expect(isGradeBenefitCadence('weekly')).toBe(false);
+    expect(isGradeBenefitCadence(undefined)).toBe(false);
+    expect(GRADE_BENEFIT_CADENCE_LABELS).toEqual({ upgrade: '승급 시 1회', monthly: '매월 1일' });
+  });
+});
 describe('loyalty names and timing', () => {
   it('retains the four grades and rolling window', () => {
     expect(LOYALTY_GRADES).toEqual(['welcome', 'silver', 'gold', 'platinum']);

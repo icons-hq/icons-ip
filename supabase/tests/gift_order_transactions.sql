@@ -33,7 +33,7 @@ select pg_temp.gift_assert((select user_coupon_id=:'coupon_id'::uuid from public
 select public.get_my_gift_checkout_order(:'order_id') as payer_projection \gset
 select public.get_my_gift_checkout_order_numbered(:'order_id') as numbered_payer_projection \gset
 select pg_temp.gift_assert((:'numbered_payer_projection'::jsonb#-'{order,orderNumber}')=:'payer_projection'::jsonb
-  and :'numbered_payer_projection'::jsonb#>>'{order,orderNumber}' ~ '^[0-9]{8}1[0-9]{7}$',
+  and :'numbered_payer_projection'::jsonb#>>'{order,orderNumber}' ~ '^[0-9]{8}(([01][0-9]|2[0-3])[0-5][0-9])?1[0-9]{7}$',
   'numbered checkout retains the legacy exact shape and role redactions');
 select public.get_my_gift_numbered(pg_temp.gift_id(10)) as numbered_gift \gset
 select pg_temp.gift_assert((:'numbered_gift'::jsonb#-'{order,orderNumber}')=public.get_my_gift(pg_temp.gift_id(10))

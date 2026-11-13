@@ -19,6 +19,7 @@ import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { ADMIN_ORDER_STATUS_LABELS, type AdminOrderStatus } from '@/lib/admin/orders';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
+import { forcedDeliveryHref } from '@/lib/admin/forced-delivery';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
@@ -43,6 +44,7 @@ const ACTION_LABELS: Record<string, string> = {
   'order.preorder_stock_allocated': '예약 재고 할당', 'order.preorder_capacity_released': '예약 물량 해제',
   'admin.shipment.preorder_promise_changed': '예약 발송 일정 변경',
   'admin.shipment.delivery_method_selected': '배송 방식 변경', 'admin.shipment.delivery_evidence_recorded': '인계·수령 근거 기록',
+  'admin.order.forced_delivered': '강제 배송완료',
   'admin.order.address_changed': '배송지 변경',
   'admin.order.status_updated': '주문 상태 변경', 'admin.order.tracking_updated': '운송장 수정',
   'admin.order.note': '운영자 메모', 'admin.order.dispatch_delay_noted': '발송 지연 기록',
@@ -74,7 +76,11 @@ const ACTION_LABELS: Record<string, string> = {
 /** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
 const TRIGGER_LABELS: Record<string, Record<string, string>> = {
   'admin.order.status_updated': { auto_order_confirmation: '자동 발주확인 (시스템)' },
+  /* 고객이 주문서·장바구니의 '결제 대기 주문 취소하고 계속'을 눌러 닫은 주문(ADR-0030). 재주문·장바구니 복귀의 자동 정리와 나눈다. */
+  'system.order.unpaid_cart_order_closed': { customer_released: '고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함' },
 };
+/** 고객이 직접 눌러 시스템이 처리한 기록(감사 action은 system.*이다). 취소 주체를 구매자로 적는다. */
+const CUSTOMER_TRIGGERS = new Set(['customer_released']);
 const STATUS_LABELS: Record<string, string> = {
   pending: '대기', paid: '결제완료', failed: '실패', canceled: '취소', refunded: '환불',
   partial_refunded: '부분 환불', requested: '접수', done: '완료', completed: '완료',
@@ -133,6 +139,7 @@ function canceledEntry(timeline: AdminOrderTimelineEntry[]) {
 }
 function cancelActor(entry: AdminOrderTimelineEntry) {
   if (entry.actorName) return entry.actorName;
+  if (entry.trigger && CUSTOMER_TRIGGERS.has(entry.trigger)) return '구매자';
   if (entry.action.startsWith('system.')) return '시스템 자동 처리';
   if (entry.action.startsWith('order.')) return '구매자';
   return null;
@@ -190,6 +197,7 @@ export function OrderDetailScreen({
   canManage = true,
   canViewCustomer = true,
   actorId,
+  embedded = false,
 }: {
   backHref?: string;
   backLabel?: string;
@@ -200,6 +208,8 @@ export function OrderDetailScreen({
   canManage?: boolean;
   canViewCustomer?: boolean;
   actorId?: string;
+  /** 목록 위 상세 팝업(S36-075) 안. 목록 돌아가기 버튼은 팝업 닫기와 겹치고 기록을 쌓으며 스크롤을 올리므로 숨긴다. */
+  embedded?: boolean;
 }) {
   const { order, items } = detail;
   const orderDiscounted = order.discountTotal > 0 || order.storeCreditTotal > 0 || (order.transaction?.totals.volumeDiscountTotal ?? 0) > 0;
@@ -233,12 +243,15 @@ export function OrderDetailScreen({
         <span className="flex items-baseline gap-1.5"><span className="text-muted-foreground">{canceled && !charged && !reversed && !latestRefund ? '주문금액' : '결제금액'}</span><strong className="text-base font-semibold tabular-nums">{money(order.total)}</strong></span>
       </section>
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>
+        {embedded ? null : <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>}
         {canManage ? <Link href={trackingMissing ? `${consoleHref}#sales-order-detail` : consoleHref} className={buttonVariants({ variant: nextStep ? 'default' : 'outline' })} data-slot="button">{nextStep ? `주문 처리 · ${nextStep}` : canceled ? '주문 통합검색에서 보기' : '주문 처리'}</Link> : null}
         {/* 끝난 주문의 배송지는 바꿀 일이 없다. 바뀐 이력은 아래 타임라인에 남아 있다. */}
         {canManage && !addressNotRequired && !canceled ? <OrderAddressButton orderId={order.id} /> : null}
         {canManage && ['shipping', 'delivered', 'done'].includes(order.status) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
         {canManage && (order.status === 'pending' || order.status === 'paid') ? <SellerClaimIntakeButton orderId={order.id} mode="cancel" /> : null}
+        {/* QA1 S-T04-05: 발주확인 뒤 발송 전·배송 중 주문은 발주·발송 화면의 강제 배송완료 카드를 이 주문번호로 바로 연다(사유·확인창·감사는 카드에서). */}
+        {canManage && order.orderNumber && (order.status === 'confirmed' || order.status === 'shipping')
+          ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={forcedDeliveryHref(order.orderNumber)}>강제 배송완료</Link> : null}
       </div>
     </header>
     {canceled && canManage ? <div data-order-cancel-result="">

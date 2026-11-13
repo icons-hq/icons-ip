@@ -3,14 +3,18 @@ import { useId, useState } from 'react';
 import { parseGoodUrl } from '@/lib/admin/good-url';
 import { Button } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
+import { GoodBulkAddPanel, type GoodBulkAddOptions } from './GoodBulkAddPanel';
 
 export type GoodUrlAddResult = { ok: boolean; message: string };
 
 /**
  * 전시 상품 선택기의 "URL로 추가". 주소에서 상품 ID를 꺼낸 뒤 선택기마다 다른 조회·추가 규칙(`onAdd`)에 넘긴다.
  * 선택기 안의 검색 폼과 섞이지 않게 Enter는 이 칸에서만 처리한다(버튼도 type="button"이라 폼을 제출하지 않는다).
+ * `bulk`를 주면 바로 아래에 '여러 줄 붙여넣기 · 엑셀로 추가(한 열)'를 함께 둔다(1014-112).
  */
-export function GoodUrlAddField({ onAdd, disabled = false }: { onAdd: (id: string) => GoodUrlAddResult | Promise<GoodUrlAddResult>; disabled?: boolean }) {
+export function GoodUrlAddField<T = never>({ onAdd, disabled = false, bulk }: {
+  onAdd: (id: string) => GoodUrlAddResult | Promise<GoodUrlAddResult>; disabled?: boolean; bulk?: GoodBulkAddOptions<T>;
+}) {
   const inputId = useId();
   const [value, setValue] = useState('');
   const [pending, setPending] = useState(false);
@@ -35,5 +39,6 @@ export function GoodUrlAddField({ onAdd, disabled = false }: { onAdd: (id: strin
       <Button type="button" variant="outline" disabled={disabled || pending || !value.trim()} onClick={() => void add()}>{pending ? '확인 중…' : 'URL로 추가'}</Button>
     </div>
     {result ? <p className={result.ok ? 'text-sm text-muted-foreground' : 'text-sm text-destructive'} role={result.ok ? 'status' : 'alert'}>{result.message}</p> : null}
+    {bulk ? <GoodBulkAddPanel disabled={disabled} options={bulk} /> : null}
   </div>;
 }

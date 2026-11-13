@@ -1,10 +1,14 @@
 'use client';
-import {useEffect,useState,useTransition} from 'react';
+import {useEffect,useState,useTransition,type ReactNode} from 'react';
 import {useRouter} from 'next/navigation';
 import {bulkConfirmAdminOrdersAction} from '@/app/admin/order-actions';
 import {completeShipmentsAction,exportPendingOriginShipmentsAction,exportShipmentsAction,originBarcodeGapsAction,shipmentBarcodeGapsAction} from '@/app/admin/shipment-actions';
 import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/components/admin/console';
-import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleOrigin,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
+import {isParcelShipment,shipmentConsoleNonParcelBatch,shipmentConsoleRowSelectable,shipmentConsoleSelectable,type ShipmentConsoleOrigin,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
+import {DISPATCH_TARGET_LIMIT} from '@/lib/admin/dispatch-delivery';
+import type {FulfillmentMethod} from '@/lib/goods-fulfillment';
+import {ShipmentConsoleActionsContext,type ShipmentConsoleActions,type ShipmentConsoleNotice,type ShipmentDeliveryDialogMode} from './ShipmentConsoleContext';
+import {ShipmentConsoleDeliveryDialog,type DispatchTargetSummary} from './ShipmentConsoleDeliveryDialog';
 import {shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENGTH,exportPasswordError} from '@/lib/admin/export-password';
 import {ShipmentPackPanel} from './ShipmentPackPanel';
@@ -15,6 +19,7 @@ import {AdminNotice} from '@/components/admin/console/AdminKit';
 import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
 import {Label} from '@/components/admin/kit/ui/label';
+import {directionParticle} from '@/lib/korean-particle';
 import {NativeSelect} from '@/components/admin/kit/ui/native-select';
 /* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
 const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
@@ -23,6 +28,10 @@ const WARNING='text-warning';
 const FIELD='flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';
 const SELECT_FIRST='왼쪽 체크칸에서 배송 건을 고르면 누를 수 있습니다.';
 type ExportRequest={format:'xlsx'|'csv';layout:ShipmentExportLayout}&({kind:'selection';ids:string[]}|{kind:'origin';origin:ShipmentConsoleOrigin});
+/** 출고지시 내려받기 확인 단계에서 다시 알릴 재고 부족(1007-011, QA 라운드 1 m9). 페이지 위 재고 경고와 같은 자료다. */
+export interface ShipmentExportStockShortage {count:number;names:string[]}
+/* ICONS 표준 XLSX는 비밀번호를 받는 확인 단계를 거친다. 재고 부족 경고가 있으면 다른 양식도 같은 확인 단계를 거쳐 경고를 다시 보인다. */
+const needsExportPassword=(request:ExportRequest)=>request.layout==='smartstore'&&request.format==='xlsx';
 function download(file:{base64:string;mime:string;name:string}){
  const bytes=Uint8Array.from(atob(file.base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:file.mime}));
  const anchor=document.createElement('a');anchor.href=url;anchor.download=file.name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -35,8 +44,22 @@ function layoutLabel(layout:ShipmentExportLayout,seowonOnly:boolean){
 function defaultExportLayout(origins:readonly ShipmentConsoleOrigin[],originIds:readonly string[]):ShipmentExportLayout{
  return originIds.length>0&&originIds.every(id=>origins.find(origin=>origin.id===id)?.template==='seowon_xlsx')?'warehouse':'smartstore';
 }
-export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null}){
+export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true,canReadOrders=true,workbarNote=null,stockShortage=null}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
+ /** 목록의 배송방법 필터. 택배 외 한 방법만 모아 보면 그 건도 일괄 발송처리용으로 고른다. */
+ methodFilter?:FulfillmentMethod|null;
+ /** 발주·발송 화면: 행 운송장 칸·배송 방법·택배 외 발송처리(S36-072·S36-X04)를 연다. */
+ dispatchActions?:boolean;
+ /** 판매 관리 권한. 없으면(물류 출고 권한) 발주확인·합포장 관리·고객 지연 안내(이력 포함)를 숨긴다. 출고지시·운송장·발송·배송완료는 그대로다. */
+ canManageSales?:boolean;
+ /** 주문 조회 권한. 없으면(물류 출고 권한) 주문 상세를 열 수 없어 안내 문구가 발송관리 행의 인계·수령 확인을 가리킨다. */
+ canReadOrders?:boolean;
+ /** 작업 막대 끝에 둘 안내(택배가 섞인 발송 대기 목록의 택배 외 건 필터 안내). 막대가 없는 목록이면 안내만 담은 막대를 그린다. */
+ workbarNote?:ReactNode;
+ /** 창고 재고보다 출고할 주문이 많은 옵션. 있으면 출고지시를 내려받는 확인 단계에서 다시 알린다(막지는 않는다). */
+ stockShortage?:ShipmentExportStockShortage|null}){
  const [selected,setSelected]=useState<string[]>([]);const [pending,startTransition]=useTransition();const router=useRouter();
+ const [deliveryDialog,setDeliveryDialog]=useState<{ids:string[];mode:ShipmentDeliveryDialogMode}|null>(null);
+ const nonParcelBatch=shipmentConsoleNonParcelBatch(tab,methodFilter??undefined);
  const [confirmedSelection,setConfirmedSelection]=useState<{href:string;ids:string[]}|null>(null);
  const [message,setMessage]=useState('');const [error,setError]=useState('');const [format,setFormat]=useState<'xlsx'|'csv'>('xlsx');
  // 운영자가 양식을 고르기 전에는 출고지 기본 양식을 쓴다. 남양주(서원)는 서원 원형 송장양식이 기본이다.
@@ -57,7 +80,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  // Keep that successful batch for the immediate export without putting UUIDs in the URL.
  const retainedIds=confirmedSelection?.href===currentHref?confirmedSelection.ids:null;
  const visibleIds=new Set(rows.map(row=>row.id));
- const selectableIds=new Set(rows.filter(row=>tab==='delayed'||shipmentConsoleSelectable(row,tab)).map(row=>row.id));
+ const selectableIds=new Set(rows.filter(row=>shipmentConsoleRowSelectable(row,tab,methodFilter??undefined)).map(row=>row.id));
  const ids=retainedIds?retainedIds.filter(id=>!visibleIds.has(id)||selectableIds.has(id)):selected.filter(id=>selectableIds.has(id));
  const retainedOffPage=retainedIds?.filter(id=>!visibleIds.has(id)).length??0;
  const orderIds=[...new Set(rows.filter(row=>ids.includes(row.id)).map(row=>row.orderId))];
@@ -67,7 +90,16 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const layout=layoutChoice??defaultExportLayout(origins,selectedOrigins.length?selectedOrigins:originId?[originId]:exportOrigins.map(origin=>origin.id));
  // 서원 송장양식은 XLSX로만 주고받으므로 CSV를 골라도 남양주(서원) 파일은 XLSX로 만든다(출고지 기본 양식·기존 창고 양식일 때).
  const seowonCsvNote=format==='csv'&&layoutChoice!=='smartstore'&&origins.some(origin=>origin.active!==false&&origin.template==='seowon_xlsx')?<span className="text-muted-foreground">CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.</span>:null;
- const hasBatchActions=tab==='new'||tab==='delayed'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
+ const hasBatchActions=tab==='new'&&canManageSales||tab==='delayed'||tab!=='new'&&rows.some(isParcelShipment)||Boolean(retainedIds?.length)||dispatchActions&&nonParcelBatch&&rows.length>0;
+ /* 행의 운송장 칸·배송 방법 버튼이 결과를 표 위 알림에 올리고 팝업을 연다. 처리한 행은 목록에서 빠지므로 문구는 표가 보존한다. */
+ function report(notice:ShipmentConsoleNotice){
+  setFailures([]);
+  if(notice.tone==='danger'){setMessage('');setError(notice.message);}else{setError('');setPartial(notice.tone==='warning');setMessage(notice.message);}
+ }
+ const consoleActions:ShipmentConsoleActions|null=dispatchActions?{report,openDelivery:(ids,mode)=>setDeliveryDialog({ids:[...ids],mode})}:null;
+ /* 택배 외 발송처리·배송 방법 팝업에서 고른 건이 맞는지 확인하도록 목록의 수령인·상품을 함께 넘긴다(QA 라운드 1 m5). 화면 밖 건은 번호만 보인다. */
+ const targetSummaries:Record<string,DispatchTargetSummary>=Object.fromEntries(rows.map(row=>[row.id,{recipient:row.recipientName,
+  items:row.items.map(item=>`${item.name}${item.variantName?` · ${item.variantName}`:''} × ${item.qty}`)}]));
  const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
  // 10/27 회의 D10: 기존 창고 양식으로 받을 때, 바코드가 없는 옵션 수를 내보내기 전에 알린다. 경고일 뿐 내보내기를 막지 않는다.
  // 파일에 바코드 칸이 있는지(서원 송장양식, 바코드 열을 고른 표준 양식)는 서버가 배송 건 출고지의 설정으로 판정하므로
@@ -75,17 +107,18 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  // 끝날 때(dataRound)마다 다시 한다. 다른 탭에서 바코드를 고친 경우는 내보내기 결과 문구가 실제로 내보낸 배송 건으로 다시 센 값을 알린다.
  // 출고지 경고는 탭을 열 때마다 부르므로 다음 파일 한 묶음 대신 그 출고지의 미전달 발송 대기 건 전체를 가볍게 센다(리뷰 M27-SHIP-2).
  const exportTab=tab==='ready'||tab==='delayed';
- const barcodeKey=exportTab&&layout==='warehouse'&&exportEligible?[...ids].sort().join(','):'';
- const barcodeOrigins=exportOrigins.filter(origin=>(layoutChoice??defaultExportLayout(origins,[origin.id]))==='warehouse');
- const originBarcodeKey=barcodeOrigins.map(origin=>origin.id).join(',');
+ // ICONS 표준 양식은 출고지와 관계없이 모든 행에 바코드 칸이 있어 그 양식 기준으로 센다(1027T-046). 양식이 바뀌면 키가 바뀌어 다시 센다.
+ const barcodeKey=exportTab&&exportEligible?`${layout}:${[...ids].sort().join(',')}`:'';
+ const originBarcodeKey=exportOrigins.map(origin=>`${origin.id}:${layoutChoice??defaultExportLayout(origins,[origin.id])}`).join(',');
  useEffect(()=>{
   if(!barcodeKey)return;let live=true;
-  shipmentBarcodeGapsAction(barcodeKey.split(',')).then(missing=>{if(live&&missing!==null)setBarcodeGaps({key:`${barcodeKey}#${dataRound}`,missing});},()=>{});
+  const [keyLayout,keyIds]=barcodeKey.split(':') as [ShipmentExportLayout,string];
+  shipmentBarcodeGapsAction(keyIds.split(','),keyLayout).then(missing=>{if(live&&missing!==null)setBarcodeGaps({key:`${barcodeKey}#${dataRound}`,missing});},()=>{});
   return()=>{live=false;};
  },[barcodeKey,dataRound]);
  useEffect(()=>{
   if(!originBarcodeKey)return;let live=true;
-  Promise.all(originBarcodeKey.split(',').map(id=>originBarcodeGapsAction(id).then(missing=>[id,missing] as const)))
+  Promise.all(originBarcodeKey.split(',').map(entry=>{const [id,originLayout]=entry.split(':') as [string,ShipmentExportLayout];return originBarcodeGapsAction(id,originLayout).then(missing=>[id,missing] as const);}))
    .then(entries=>{if(live)setOriginBarcodeGaps({key:`${originBarcodeKey}#${dataRound}`,counts:Object.fromEntries(entries.filter((entry):entry is readonly [string,number]=>entry[1]!==null))});},()=>{});
   return()=>{live=false;};
  },[originBarcodeKey,dataRound]);
@@ -102,14 +135,14 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   const resent=ids.filter(id=>rows.some(row=>row.id===id&&row.exportedAt)||downloadedIds.has(id)).length;
   if(resent&&!window.confirm(`이미 출고지시를 전달한 배송 건 ${resent}건이 포함돼 있습니다. 창고는 같은 건을 두 번 받으면 걸러내지 못해 중복 출고될 수 있습니다. 그래도 다시 내려받을까요?`))return;
   const request:ExportRequest={kind:'selection',ids:[...ids],format,layout};
-  if(layout==='smartstore'&&format==='xlsx'){setError('');setExportRequest(request);}
+  if(needsExportPassword(request)||stockShortage){setError('');setExportRequest(request);}
   else run('export',undefined,request);
  }
  function exportOrigin(origin:ShipmentConsoleOrigin){
   if(pending)return;
   const originLayout=layoutChoice??defaultExportLayout(origins,[origin.id]);
   const request:ExportRequest={kind:'origin',origin,format,layout:originLayout};
-  if(originLayout==='smartstore'&&format==='xlsx'){setError('');setExportRequest(request);}
+  if(needsExportPassword(request)||stockShortage){setError('');setExportRequest(request);}
   else run('export',undefined,request);
  }
  function run(kind:'confirm'|'export'|'complete',credentials?:{password:string;passwordConfirmation:string},requestedExport?:ExportRequest){
@@ -151,7 +184,20 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    finally{setDataRound(round=>round+1);}
   });
  }
- return <div className="flex min-w-0 flex-col gap-3" data-shipment-console-grid="">
+ /* 처리 결과는 표 위에 둔다(QA 라운드 1 M1-b). 처리한 행은 목록에서 빠지고 표가 100행까지 길어지므로, 결과 상자는 머리 막대 아래에 붙어
+    표를 내려 보는 동안에도 보이고 [닫기]로 거둔다. 실패한 배송 건 목록은 상자 안에서만 스크롤한다. */
+ const notices=message||(error&&!exportRequest)||failures.length?<div className="sticky top-14 z-20 flex flex-col gap-2 print:static" data-shipment-console-notice="">
+  {message?<AdminNotice role="status" tone={partial?'warning':'success'}><span className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1"><span className="min-w-0">{message}</span>
+   <Button type="button" size="xs" variant="ghost" onClick={()=>setMessage('')}>닫기</Button></span></AdminNotice>:null}
+  {error&&!exportRequest?<AdminNotice role="alert" tone="danger"><span className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1"><span className="min-w-0">{error}</span>
+   <Button type="button" size="xs" variant="ghost" onClick={()=>setError('')}>닫기</Button></span></AdminNotice>:null}
+  {failures.length?<AdminNotice role="alert" tone="danger" title={`처리하지 못한 배송 건 ${failures.length.toLocaleString('ko-KR')}건`}><span className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+   <ul className="flex max-h-40 min-w-0 list-disc flex-col gap-1 overflow-y-auto pl-5">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>
+   <Button type="button" size="xs" variant="ghost" onClick={()=>setFailures([])}>닫기</Button></span></AdminNotice>:null}
+ </div>:null;
+ const exportNeedsPassword=exportRequest?needsExportPassword(exportRequest):false;
+ return <ShipmentConsoleActionsContext.Provider value={consoleActions}><div className="flex min-w-0 flex-col gap-3" data-shipment-console-grid="">
+  {notices}
   <ConsoleGrid caption="출고지별 배송 건 목록" preferencesKey={`sales-${tab==='transit'||tab==='delivered'?'shipping':'dispatch'}`} columns={columns} rows={gridRows} emptyLabel="조건에 맞는 배송 건이 없습니다."
    selectable={tab!=='delivered'&&hasBatchActions} selectedIds={ids} onSelectionChange={select}>
    {tab!=='delivered'&&hasBatchActions?<div className={WORKBAR} data-sales-workbar="">
@@ -159,27 +205,30 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {retainedOffPage>0?<span className="flex flex-wrap items-center gap-1.5">방금 발주확인한 다른 페이지의 {retainedOffPage}건 포함 <Button type="button" size="xs" variant="outline" onClick={()=>select([])}>선택 해제</Button></span>:null}
     {tab==='new'?<Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</Button>:tab==='transit'?
      <Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={reviewCompletion}>선택 배송완료</Button>:
-     <><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)</option><option value="smartstore">ICONS 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
+     <>{nonParcelBatch?null:<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)</option><option value="smartstore">ICONS 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>
      {seowonCsvNote}
      {ids.length?<span className="text-muted-foreground">선택한 배송 건 내려받기 양식: {layoutLabel(layout,selectedOrigins.length>0&&selectedOrigins.every(id=>originTemplate(id)==='seowon_xlsx'))}</span>:null}
      {selectionBarcodeGap>0?<span className={WARNING} role="status">{shipmentBarcodeGapWarning(selectionBarcodeGap)}</span>:null}
      <Button type="button" size="sm" disabled={pending||!exportEligible} onClick={requestExport}>출고지시 내보내기</Button></>}
-    {actorId&&(tab==='ready'||tab==='delayed')?<Button type="button" size="sm" variant="outline" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</Button>:null}
-    {tab==='delayed'?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</Button>:null}
+     {/* S36-X04: 고른 배송 건에 택배 외 방법을 한 번에 적용하고 실제 인계(발송)까지 기록한다. 택배 일괄 처리(출고지시·운송장)는 그대로다. */}
+     {dispatchActions?<Button type="button" size="sm" variant={nonParcelBatch?'default':'outline'} disabled={pending||!ids.length||ids.length>DISPATCH_TARGET_LIMIT} title={ids.length?undefined:SELECT_FIRST} onClick={()=>setDeliveryDialog({ids:[...ids],mode:'dispatch'})}>택배 외 발송처리</Button>:null}</>}
+    {actorId&&canManageSales&&(tab==='ready'||tab==='delayed')&&!nonParcelBatch?<Button type="button" size="sm" variant="outline" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</Button>:null}
+    {tab==='delayed'&&canManageSales?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</Button>:null}
     {/* 비활성 버튼이 고장처럼 보이지 않게 언제 눌리는지 말한다. */}
     {!ids.length&&!pending&&(tab==='new'||tab==='transit')?<span className="text-xs text-muted-foreground">{SELECT_FIRST}</span>:null}
     {pending?<span className="text-muted-foreground" role="status">처리 중…</span>:null}
-   </div>:null}
+    {workbarNote}
+   </div>:workbarNote?<div className={WORKBAR} data-sales-workbar="">{workbarNote}</div>:null}
    {exportOrigins.length?<div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2" role="group" aria-label="출고지별 새 출고지시 내려받기">
-    {!hasBatchActions?<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)</option><option value="smartstore">ICONS 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
+    {!hasBatchActions||nonParcelBatch?<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)</option><option value="smartstore">ICONS 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>{seowonCsvNote}</>:null}
     <span className="basis-full text-muted-foreground">선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><Button key={origin.id} type="button" size="sm" variant="outline" className="h-auto min-h-7 whitespace-normal text-left" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</Button>)}
-    {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} className={WARNING} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
+    {exportOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} className={WARNING} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
    </div>:null}
   </ConsoleGrid>
-  {tab==='delayed'?<Button className="self-start" variant="outline" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</Button>:null}
+  {tab==='delayed'&&canManageSales?<Button className="self-start" variant="outline" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</Button>:null}
   {actorId&&packSelection!==null?<ShipmentPackPanel key={packSelection.join(',')} actorId={actorId} ids={packSelection} onClose={()=>setPackSelection(null)}/>:null}
   {noticeSelection!==null?<OrderDelayNoticePanel key={noticeSelection.join(',')} shipmentIds={noticeSelection} onClose={()=>setNoticeSelection(null)}/>:null}
   {completion?<CustomerServiceDialog title="배송완료 확인" busy={pending} onClose={()=>setCompletion(null)}>
@@ -193,28 +242,36 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     </div>
    </div>
   </CustomerServiceDialog>:null}
-  {exportRequest?<CustomerServiceDialog title="엑셀 비밀번호 설정" busy={pending} onClose={()=>{setExportRequest(null);setError('');}}>
-   <form autoComplete="off" className="flex flex-col gap-3 text-sm leading-relaxed" data-encrypted-export="" onSubmit={event=>{
-    event.preventDefault();const form=event.currentTarget;const input=new FormData(form);
+  {exportRequest?<CustomerServiceDialog title={exportNeedsPassword?'엑셀 비밀번호 설정':'출고지시 내려받기 확인'} busy={pending} onClose={()=>{setExportRequest(null);setError('');}}>
+   <form autoComplete="off" className="flex flex-col gap-3 text-sm leading-relaxed" data-encrypted-export={exportNeedsPassword?'':undefined} data-export-confirm="" onSubmit={event=>{
+    event.preventDefault();
+    if(!exportNeedsPassword){run('export');return;}
+    const form=event.currentTarget;const input=new FormData(form);
     const password=input.get('password'),passwordConfirmation=input.get('passwordConfirmation');
     form.reset();input.delete('password');input.delete('passwordConfirmation');
     const invalid=exportPasswordError(password,passwordConfirmation);
     if(invalid||typeof password!=='string'||typeof passwordConfirmation!=='string'){setError(invalid??EXPORT_PASSWORD_HINT);return;}
     run('export',{password,passwordConfirmation});
    }}>
-    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 ICONS 표준 양식으로 내려받습니다.</p>
-    <p className="text-muted-foreground">{EXPORT_PASSWORD_HINT}</p>
-    <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus data-dialog-autofocus="" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
-    <label className={FIELD}><span>비밀번호 확인</span><Input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
-    <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 입력합니다.</p>
+    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 {(()=>{const label=exportNeedsPassword?'ICONS 표준 양식':layoutLabel(exportRequest.layout,exportRequest.kind==='origin'?exportRequest.origin.template==='seowon_xlsx':exportRequest.ids.every(id=>originTemplate(rows.find(row=>row.id===id)?.originId??'')==='seowon_xlsx'));return exportRequest.format==='csv'?`${label} CSV로`:`${label}${directionParticle(label)}`;})()} 내려받습니다.</p>
+    {/* 1007-011·QA 라운드 1 m9: 페이지 맨 위 재고 경고는 행으로 내려가면 보이지 않는다. 파일을 받기 직전에 다시 알리고, 받을지는 운영자가 정한다. */}
+    {stockShortage?<AdminNotice role="alert" tone="danger" title={`창고 재고보다 출고할 주문이 많은 옵션 ${stockShortage.count.toLocaleString('ko-KR')}개`}>
+     <p>{stockShortage.names.join(', ')}{stockShortage.count>stockShortage.names.length?` 외 ${(stockShortage.count-stockShortage.names.length).toLocaleString('ko-KR')}개`:''}</p>
+     <p className="text-muted-foreground">출고 대기 주문 전체 기준입니다. 고른 배송 건에 이 옵션이 있으면 창고 실재고를 확인한 뒤 내려받아 주세요. 내려받기를 막지는 않습니다.</p>
+    </AdminNotice>:null}
+    {exportNeedsPassword?<>
+     <p className="text-muted-foreground">{EXPORT_PASSWORD_HINT}</p>
+     <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus data-dialog-autofocus="" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
+     <label className={FIELD}><span>비밀번호 확인</span><Input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
+     <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 입력합니다.</p>
+    </>:null}
     {error?<p role="alert" className="text-destructive">{error}</p>:null}
     <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
      <Button type="button" variant="outline" disabled={pending} onClick={()=>{setExportRequest(null);setError('');}}>취소</Button>
-     <Button type="submit" disabled={pending}>{pending?'파일 만드는 중…':'암호화 엑셀 다운로드'}</Button>
+     <Button type="submit" disabled={pending}>{pending?'파일 만드는 중…':exportNeedsPassword?'암호화 엑셀 다운로드':'출고지시 내려받기'}</Button>
     </div>
    </form>
   </CustomerServiceDialog>:null}
-  {message?<AdminNotice role="status" tone={partial?'warning':'success'}>{message}</AdminNotice>:null}{error&&!exportRequest?<AdminNotice role="alert" tone="danger">{error}</AdminNotice>:null}
-  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>:null}
- </div>;
+  {deliveryDialog?<ShipmentConsoleDeliveryDialog key={`${deliveryDialog.mode}:${deliveryDialog.ids.join(',')}`} mode={deliveryDialog.mode} onClose={()=>setDeliveryDialog(null)} onDone={report} canReadOrders={canReadOrders} shipmentIds={deliveryDialog.ids} summaries={targetSummaries}/>:null}
+ </div></ShipmentConsoleActionsContext.Provider>;
 }

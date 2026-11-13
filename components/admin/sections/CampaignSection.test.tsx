@@ -143,6 +143,28 @@ describe('CampaignSection', () => {
     expect(markup).toContain('sections[2].offer_id');
   });
 
+  /* 1014-112·109 — 상품 묶음 블록은 선택기로 고르고, 저장된 기획전에서 바로 할인 프로모션으로 이어진다. JSON 직접 편집은 고급 입력으로 남는다. */
+  it('저장된 기획전은 상품 묶음 블록과 이 기획전 할인 만들기를 보인다', () => {
+    const markup = render(campaign({ sections: [{ type: 'intro', copy: '오픈' }, { type: 'goods', good_ids: ['maple-keyring', 'maple-card'] }] }));
+
+    expect(markup).toContain('기획전 상품·할인');
+    expect(markup).toContain('상품 묶음 1');
+    expect(markup).toContain('상품 2/8개');
+    expect(markup).toContain('maple-keyring');
+    expect(markup).toMatch(/<button[^>]*type="button"[^>]*>상품 고르기<\/button>/);
+    expect(markup).toContain('href="/admin/sales/discount-promotions/new?campaign=autumn-attendance&amp;from=campaign"');
+    expect(markup).toContain('href="/admin/sales/discount-promotions?campaign=autumn-attendance"');
+    expect(markup).toContain('구성 코드 (고급 입력, 비우면 본문 없음)');
+    expect(markup).toMatch(/<textarea[^>]*name="sections"/);
+  });
+
+  it('새 캠페인은 저장한 뒤 할인을 만들 수 있다고 안내한다', () => {
+    const markup = render(null, [campaign()], true);
+
+    expect(markup).toContain('캠페인을 저장한 뒤 이 기획전 상품에 할인 프로모션을 만들 수 있습니다.');
+    expect(markup).not.toContain('discount-promotions/new?campaign=');
+  });
+
   it('캠페인이 없으면 빈 목록임을 말한다', () => {
     const markup = render(null, []);
 

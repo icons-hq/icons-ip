@@ -29,11 +29,21 @@ describe('bankTransferDepositCode', () => {
     expect(codes.every(code => /^\d{6}$/.test(code))).toBe(true);
   });
 
+  it('주문 시각을 넣은 20자리 주문번호도 앞 8자리 주문일과 끝 5자리 일련번호로 같은 코드를 만든다', () => {
+    // supabase/tests/order_number_time.sql 8)과 같은 벡터다.
+    expect(['20261027091510000001', '20261028235910123456', '20261031000010000001', '20261101120010000001', '20000101235910099999'].map(bankTransferDepositCode))
+      .toEqual(['600001', '723456', '000001', '100001', '099999']);
+    // 전환하는 날 옛 16자리(일련 1)와 새 20자리(일련 2)는 카운터를 이어 써서 코드가 겹치지 않는다.
+    expect(bankTransferDepositCode('2026111210000001')).not.toBe(bankTransferDepositCode('20261112143510000002'));
+    expect(bankTransferDepositName('홍길동', '20261027091510000001')).toBe('홍길동600001');
+  });
+
   it('주문번호가 없는 옛 기록만 UUID 앞 8자리 옛 규칙을 쓴다', () => {
     expect(bankTransferDepositCode(ORDER_ID)).toBe('9A3F21C0');
     expect(bankTransferLegacyDepositCode('9a-3f-21-c0-1111')).toBe('9A3F21C0');
     // 상품주문·배송건번호는 주문번호가 아니다.
     expect(bankTransferDepositCode('2026102720000001')).toBe('20261027');
+    expect(bankTransferDepositCode('20261027091520000001')).toBe('20261027');
   });
 });
 

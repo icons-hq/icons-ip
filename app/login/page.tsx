@@ -7,6 +7,7 @@ import {
   passwordResetErrorMessage,
   postAuthenticationPath,
   safeNextPath,
+  SIGNUP_CONFIRMED_MESSAGE,
 } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { redirect } from 'next/navigation';
@@ -31,7 +32,9 @@ export default async function Page({ searchParams }: PageProps) {
     : authErrorMessage(firstParam(params.auth_error));
   const initialMessage = firstParam(params.password_reset) === 'success'
     ? '비밀번호를 변경했습니다. 새 비밀번호로 로그인해주세요.'
-    : undefined;
+    : firstParam(params.signup_confirmed) === '1'
+      ? SIGNUP_CONFIRMED_MESSAGE
+      : undefined;
   const auth = await getCurrentAuthState();
 
   if (auth.user && !explicitDeletionReauthentication) {

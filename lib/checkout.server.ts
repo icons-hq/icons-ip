@@ -13,11 +13,15 @@ import { loadMyAddressBook } from './address-book.server';
 
 import {
   cartRetentionKeepsCart,
+  directRetryGoodId,
+  directRetryReorderId,
   checkoutEffectivePaymentStatus,
   checkoutPaymentResultOutcome,
   normalizeCheckoutAddress,
   normalizeCheckoutPaymentMethod,
+  parseOrderRetrySources,
   type CheckoutAddress,
+  type OrderRetrySource,
   readCheckoutPayment,
   type CheckoutPaymentAttemptSnapshot,
   type CheckoutPaymentMethod,
@@ -118,6 +122,10 @@ export interface CheckoutOrderSnapshot {
    * 닫혀도 다시 담지 않고 주문서에서 새로 결제한다.
    */
   cartRetained?: boolean;
+  /** 결제를 기다리거나 결제 없이 닫힌 카드 바로구매 주문(ADR-0030)이면 그 상품 상세 굿즈. 결제 화면이 그리로 다시 보낸다. */
+  directGoodId?: string | null;
+  /** 이 바로구매 주문의 다시 구매로 이미 만든 주문(무통장 접수·결제 완료·결제 확인 중). 결제 화면이 그 주문으로 잇는다. */
+  directRetryOrderId?: string | null;
   /** 결제 완료(paid) 원장이 만들어진 시각. 결제 전·무통장 입금 전이면 null. */
   paidAt?: string | null;
   items: CheckoutOrderItem[];
@@ -145,18 +153,44 @@ function selectLatestOrderPaymentAttempt(userId: string, orderId: string) {
 }
 
 /**
- * 이 주문이 결제 없이 장바구니를 남긴 주문인지(ADR-0026, 판정은 `cartRetentionKeepsCart`). 보류 원장은
- * private이라 service role RPC로 본인 주문만 읽는다. 읽지 못하면 false — 다시 담기 경로가 원래대로 남는다.
+ * 보류 원장으로 본 다시 결제 단서(ADR-0026·0030): 장바구니를 남긴 주문인지(`cartRetentionKeepsCart`), 바로구매 주문이면 그 상품 상세 굿즈.
+ * 보류 원장은 private이라 service role RPC로 본인 주문만 읽는다.
+ * 읽지 못하면 둘 다 없음 — 다시 담기 경로가 원래대로 남는다.
  */
-async function loadOrderCartRetained(userId: string, orderId: string): Promise<boolean> {
+async function loadOrderCheckoutRetention(userId: string, orderId: string): Promise<{ cartRetained: boolean; directGoodId: string | null; directRetryOrderId: string | null }> {
   try {
     const { data, error } = await createServiceClient().rpc('service_get_order_cart_retention', {
       p_user_id: userId,
       p_order_id: orderId,
     });
-    return !error && cartRetentionKeepsCart(data);
+    return error
+      ? { cartRetained: false, directGoodId: null, directRetryOrderId: null }
+      : { cartRetained: cartRetentionKeepsCart(data), directGoodId: directRetryGoodId(data), directRetryOrderId: directRetryReorderId(data) };
   } catch {
-    return false;
+    return { cartRetained: false, directGoodId: null, directRetryOrderId: null };
+  }
+}
+
+/**
+ * 주문 내역·주문 상세의 다시 결제 진입(QA1 S-D2-15): 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 출처. 보류
+ * 원장이 private이라 service role RPC로 본인 주문만 읽는다. 읽지 못하면 빈 Map — 그 주문들은 지금처럼 진입 없이 보인다.
+ */
+export async function loadOrderRetrySources(userId: string, orderIds: readonly string[]): Promise<Map<string, OrderRetrySource>> {
+  const ids = [...new Set(orderIds)];
+  if (!ids.length) return new Map();
+  try {
+    const sources = new Map<string, OrderRetrySource>();
+    for (let index = 0; index < ids.length; index += 500) {
+      const { data, error } = await createServiceClient().rpc('service_list_order_retry_sources', {
+        p_user_id: userId,
+        p_order_ids: ids.slice(index, index + 500),
+      });
+      if (error) return new Map();
+      for (const [orderId, source] of parseOrderRetrySources(data)) sources.set(orderId, source);
+    }
+    return sources;
+  } catch {
+    return new Map();
   }
 }
 
@@ -320,7 +354,7 @@ export async function loadCheckoutOrder(
     hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
     ...(orderData.order_number ? { orderNumber: orderData.order_number } : {}),
     ...(orderData.payment_method === 'bank_transfer' ? await loadBankTransferDepositCode(supabase, orderId) : {}),
-    cartRetained: orderData.payment_method === 'card' ? await loadOrderCartRetained(userId, orderId) : false,
+    ...(orderData.payment_method === 'card' ? await loadOrderCheckoutRetention(userId, orderId) : { cartRetained: false }),
     paidAt: paymentData?.status === 'paid' ? paymentData.created_at : null,
     /* 고객은 배송 건 품목의 랜덤 배정 행을 읽지 못한다 — 합친 줄을 my_order_items 의 배송 건에 붙인다. */
     shipments: attachRandomItemsToShipments(await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()), itemRows),
@@ -363,15 +397,16 @@ export async function loadPendingCardPaymentReading(
 ): Promise<CheckoutPaymentReading | null> {
   if (order.status !== 'pending' || order.paymentMethod !== 'card') return null;
   try {
-    const [{ data, error }, cartRetained] = await Promise.all([
+    const [{ data, error }, retention] = await Promise.all([
       selectLatestOrderPaymentAttempt(userId, order.id),
-      loadOrderCartRetained(userId, order.id),
+      loadOrderCheckoutRetention(userId, order.id),
     ]);
     if (error) return null;
     return readCheckoutPayment({
       status: order.status,
       paymentMethod: order.paymentMethod,
-      cartRetained,
+      cartRetained: retention.cartRetained,
+      directGoodId: retention.directGoodId,
       paymentStatus: checkoutEffectivePaymentStatus(data?.state, order.ledgerPaymentStatus),
       paymentAttempt: paymentAttemptSnapshot(data),
       hasActiveCancellationRequest: order.cancellationRequestStatus !== null
@@ -450,10 +485,12 @@ export async function loadLatestCardPaymentResultFocus(
         .limit(1),
     ]);
     if (orderError || paymentError || requestError || !order) return null;
+    const retention = await loadOrderCheckoutRetention(userId, order.id);
 
     return {
       orderId: order.id,
-      ...(await loadOrderCartRetained(userId, order.id) ? { cartRetained: true } : {}),
+      ...(retention.cartRetained ? { cartRetained: true } : {}),
+      ...(retention.directGoodId ? { directRetry: true } : {}),
       outcome: checkoutPaymentResultOutcome({
         orderStatus: order.status,
         paymentStatus: payment?.status ?? null,

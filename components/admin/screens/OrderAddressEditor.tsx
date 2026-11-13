@@ -9,6 +9,7 @@ import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 
 /* 팝업 안 입력 칸(kit Input, ADR-0028). 라벨 글자 아래 입력이 놓이고 라벨이 입력의 이름이 된다. */
 const LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';
@@ -25,6 +26,7 @@ export function OrderAddressEditor({ initial, onClose }: { initial: OrderAddress
   const router = useRouter(); const [context, setContext] = useState(initial);
   const [address, setAddress] = useState(initial.address); const [reason, setReason] = useState(''); const [agreed, setAgreed] = useState(false);
   const [frozen, setFrozen] = useState<OrderAddressRequest | null>(null); const [pending, setPending] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [uncertain, setUncertain] = useState(false); const [conflict, setConflict] = useState(false);
   const [receipt, setReceipt] = useState<OrderAddressReceipt | null>(null); const [error, setError] = useState(''); const [message, setMessage] = useState('');
   const dispatched = useRef<OrderAddressRequest | null>(null); const inFlight = useRef(false);

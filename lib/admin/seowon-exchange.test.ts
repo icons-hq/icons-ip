@@ -23,8 +23,8 @@ describe('서원 송장양식 행 규칙', () => {
   });
   it('품목 하나가 한 행이고 줄바꿈·연속 공백을 한 칸으로 줄이며 5자리가 아닌 우편번호는 비운다', () => {
     expect(seowonExportRows([{ ...line, address: '서울  중구\n세종대로', deliveryNote: '문 앞\n부탁', postalCode: '123' }, { ...line, optionName: '', qty: 1 }])).toEqual([
-      { phone: '010-1234-5678', otherPhone: '', postalCode: '', address: '서울 중구 세종대로', freightType: '', quantity: 2, items: '합성 키링_빨강', recipient: '합성 수취인', deliveryNote: '문 앞 부탁', shipmentNumber: '', optionName: '빨강', barcode: '', erpName: '' },
-      { phone: '010-1234-5678', otherPhone: '', postalCode: '04524', address: line.address, freightType: '', quantity: 1, items: '합성 키링_', recipient: '합성 수취인', deliveryNote: '', shipmentNumber: '', optionName: '', barcode: '', erpName: '' },
+      { phone: '010-1234-5678', otherPhone: '', postalCode: '', address: '서울 중구 세종대로', freightType: '', quantity: 2, items: '합성 키링_빨강', recipient: '합성 수취인', deliveryNote: '문 앞 부탁', shipmentNumber: '', optionName: '빨강', barcode: '', erpName: '', orderNumber: '' },
+      { phone: '010-1234-5678', otherPhone: '', postalCode: '04524', address: line.address, freightType: '', quantity: 1, items: '합성 키링_', recipient: '합성 수취인', deliveryNote: '', shipmentNumber: '', optionName: '', barcode: '', erpName: '', orderNumber: '' },
     ]);
   });
   it('덧붙인 옵션명·바코드·ERP 품명 열은 품목명과 회신 대조 키를 바꾸지 않는다', () => {
@@ -41,6 +41,11 @@ describe('서원 합배송 방지 접미사와 배송건번호 열', () => {
   it('받는 분 이름+전화가 같은 서로 다른 배송 건에 배송건번호 순서로 01·02를 붙이고 행마다 배송건번호를 싣는다', () => {
     const rows = seowonExportTable([shipment('b', '2026102730000002'), shipment('a', '2026102730000001'), shipment('c', '2026102730000003', { lines: [{ ...line, recipient: '다른 분' }] })]);
     expect(rows.map(row => [row.recipient, row.shipmentNumber])).toEqual([['합성 수취인02', '2026102730000002'], ['합성 수취인01', '2026102730000001'], ['다른 분', '2026102730000003']]);
+  });
+  it('덧붙인 주문번호 열(1014-096)은 배송 건의 16자리 주문번호이고 회신 대조 키를 바꾸지 않는다', () => {
+    const rows = seowonExportTable([shipment('a', '2026102730000001', { orderNumber: '2026102710000001', lines: [line, { ...line, optionName: '파랑' }] }), shipment('b', '2026102730000002')]);
+    expect(rows.map(row => [row.shipmentNumber, row.orderNumber])).toEqual([['2026102730000001', '2026102710000001'], ['2026102730000001', '2026102710000001'], ['2026102730000002', '']]);
+    expect(seowonRowKey(rows[0])).toBe(seowonRowKey(seowonExportRows([line])[0]));
   });
   it('주소가 달라도 이름+전화가 같으면 접미사를 붙이고, 공백 차이는 같은 이름으로 본다', () => {
     const rows = seowonExportTable([shipment('a', '2026102730000001'), shipment('b', '2026102730000002', { lines: [{ ...line, recipient: '합성  수취인', address: '부산 해운대구 1' }] })]);

@@ -4,9 +4,12 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-import { parseReviewEvent, parseReviewEventSelection, parseReviewEventValues, reviewEventError, REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, type ReviewEvent } from '@/lib/review-events';
+import { parseReviewEvent, parseReviewEventSelection, parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, parseReviewEventValues, reviewEventError, reviewEventTemplateError,
+  trimReviewEventTemplateText, REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, type ReviewEvent, type ReviewEventTemplate, type ReviewEventTemplatePage } from '@/lib/review-events';
 
 export type ReviewEventActionResult = { event: ReviewEvent } | { error: string; uncertain?: boolean };
+/** SHEET-017 문구 템플릿 결과. conflict는 다른 운영자가 먼저 바꾼 경우, uncertain은 같은 요청으로 다시 확인할 경우다. */
+export type ReviewEventTemplateResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
 const uncertain = (): ReviewEventActionResult => ({ error: '저장 결과를 확인하지 못했습니다. 입력을 유지한 채 같은 요청으로 다시 확인해주세요.', uncertain: true });
 const validRevision = (value: number) => Number.isSafeInteger(value) && value >= 0;
 async function execute(name: string, args: Record<string, unknown>, eventId?: string): Promise<ReviewEventActionResult> {
@@ -68,4 +71,50 @@ export async function searchReviewEventTargetsAction(type: 'goods' | 'categories
     if (error || !data || !Number.isSafeInteger(data.total) || data.total < 0 || data.page !== page || !Array.isArray(data.rows) || data.rows.some((row: Record<string, unknown>) => !row || typeof row.id !== 'string' || typeof row.label !== 'string' || typeof row.code !== 'string')) return { error: '대상 목록을 불러오지 못했습니다.' };
     return { data: data as { total: number; page: number; rows: import('@/lib/review-events').ReviewEventTarget[] } };
   } catch (error) { unstable_rethrow(error); return { error: '대상 목록을 불러오지 못했습니다.' }; }
+}
+
+/* SHEET-017: 리뷰이벤트 문구 템플릿. 목록은 화면이 그때그때 읽으므로 경로를 다시 그리지 않는다
+   (등록 화면에서 템플릿을 저장해도 작성 중인 이벤트 입력이 새로 그려지지 않게). 적립금 정책은 보지 않는다. */
+const TEMPLATE_UNREAD = '템플릿을 불러오지 못했습니다. 다시 조회해주세요.';
+const KNOWN_TEMPLATE_ERRORS = ['22023', '42501', 'P0002', '23514', '23505', 'PT409', '28000'];
+function templateUncertain<T>(error = '저장 결과를 확인하지 못했습니다. 입력을 유지한 채 같은 요청으로 다시 확인해주세요.'): ReviewEventTemplateResult<T> {
+  return { ok: false, error, uncertain: true };
+}
+function templateRejected<T>(error: { code?: string; message?: string }): ReviewEventTemplateResult<T> {
+  return { ok: false, error: reviewEventTemplateError(error.message), conflict: error.code === 'PT409' || error.code === '23505' };
+}
+export async function listReviewEventTemplatesAction(query: string, page: number): Promise<ReviewEventTemplateResult<ReviewEventTemplatePage>> {
+  if (!await requireAdminActionAccess(REVIEW_EVENTS_ADMIN_PATH, { capability: 'cs.manage' })) return { ok: false, error: '리뷰 관리 권한이 필요합니다.' };
+  if (typeof query !== 'string' || query.length > 100 || !Number.isSafeInteger(page) || page < 1 || page > 100000) return { ok: false, error: '검색 조건을 확인해주세요.' };
+  try {
+    const { data, error } = await (await createClient()).rpc('admin_list_review_event_templates', { p_query: query.trim(), p_page: page });
+    const value = error ? null : parseReviewEventTemplatePage(data);
+    return value && value.page === page ? { ok: true, value } : { ok: false, error: TEMPLATE_UNREAD };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: TEMPLATE_UNREAD }; }
+}
+export async function saveReviewEventTemplateAction(id: string, revision: number, operationId: string, input: unknown): Promise<ReviewEventTemplateResult<ReviewEventTemplate>> {
+  if (!await requireAdminActionAccess(REVIEW_EVENTS_ADMIN_PATH, { capability: 'cs.manage' })) return { ok: false, error: '리뷰 관리 권한이 필요합니다.' };
+  const raw = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : null;
+  /* 앞뒤 공백만으로 저장 전체를 거절하지 않는다 — 이벤트 저장과 같다. DB는 잘라 낸 값을 다시 검사한다. */
+  const values = raw && typeof raw.title === 'string' && typeof raw.description === 'string'
+    ? parseReviewEventTemplateValues(trimReviewEventTemplateText({ title: raw.title, description: raw.description })) : null;
+  if (!isUuid(id) || !isUuid(operationId) || !validRevision(revision) || !values) return { ok: false, error: reviewEventTemplateError('invalid_review_event_template') };
+  try {
+    const { data, error } = await (await createClient()).rpc('admin_save_review_event_template', { p_id: id, p_expected_revision: revision, p_operation_id: operationId, p_title: values.title, p_description: values.description });
+    if (error) return KNOWN_TEMPLATE_ERRORS.includes(error.code ?? '') ? templateRejected(error) : templateUncertain();
+    const value = parseReviewEventTemplate(data);
+    if (!value || value.id !== id || value.revision !== revision + 1 || value.title !== values.title || value.description !== values.description) return templateUncertain();
+    return { ok: true, value };
+  } catch (error) { unstable_rethrow(error); return templateUncertain(); }
+}
+export async function deleteReviewEventTemplateAction(id: string, revision: number, operationId: string): Promise<ReviewEventTemplateResult<{ id: string }>> {
+  if (!await requireAdminActionAccess(REVIEW_EVENTS_ADMIN_PATH, { capability: 'cs.manage' })) return { ok: false, error: '리뷰 관리 권한이 필요합니다.' };
+  if (!isUuid(id) || !isUuid(operationId) || !Number.isSafeInteger(revision) || revision < 1) return { ok: false, error: '최신 템플릿 목록을 다시 불러와 주세요.' };
+  const unsure = '삭제 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+  try {
+    const { data, error } = await (await createClient()).rpc('admin_delete_review_event_template', { p_id: id, p_expected_revision: revision, p_operation_id: operationId });
+    if (error) return KNOWN_TEMPLATE_ERRORS.includes(error.code ?? '') ? templateRejected(error) : templateUncertain(unsure);
+    if (!data || typeof data !== 'object' || data.id !== id || data.deleted !== true) return templateUncertain(unsure);
+    return { ok: true, value: { id } };
+  } catch (error) { unstable_rethrow(error); return templateUncertain(unsure); }
 }

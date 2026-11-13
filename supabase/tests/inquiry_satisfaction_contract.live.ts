@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
+import { isCommerceNumber } from '@/lib/commerce-number';
 import { inquirySatisfactionPercent, parseAdminInquirySatisfactionDetail, parseInquirySatisfactionOperation, parseInquirySatisfactionRequest, parseMyInquirySatisfaction } from '@/lib/inquiry-satisfaction';
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
@@ -25,6 +26,7 @@ it('feeds actual console JSON through the production loader and uses evaluated-r
   mocks.rpc.mockImplementation(async name => ({ error: null, data: name === 'admin_inquiry_status_counts' ? [] : captured('console').value }));
   const result = await getAdminInquiryConsoleData(normalizeAdminInquiryFilters({ status: 'all', query: 'TEST 만족도 d515' }));
   expect(result.total).toBe(10); expect(result.rows).toHaveLength(10); expect(result.satisfactionSummary).toEqual({ satisfied: 3, dissatisfied: 1, unrated: 6 });
-  expect(result.rows.find(row => row.orderId !== null)?.orderNumber).toMatch(/^[0-9]{8}1[0-9]{7}$/);
+  // 주문번호는 시각 전환 전 16자리, 전환 뒤 20자리다(order_number_time.sql).
+  expect(isCommerceNumber(result.rows.find(row => row.orderId !== null)?.orderNumber, 'order')).toBe(true);
   expect(inquirySatisfactionPercent(result.satisfactionSummary!)).toBe(75);
 });

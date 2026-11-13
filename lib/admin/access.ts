@@ -1,11 +1,19 @@
 /** Menu and action authorization share the current database capability snapshot. */
 export const ADMIN_CAPABILITIES = [
   'home', 'catalog.read', 'catalog.manage', 'catalog.announcements',
-  'sales.read', 'sales.manage', 'sales.restrictions', 'cs.manage', 'store.manage',
+  'sales.read', 'sales.manage', 'sales.dispatch', 'sales.restrictions', 'cs.manage', 'store.manage',
   'seller.read', 'seller.manage', 'marketing.manage', 'stats.read', 'promotion.manage',
   'operators.manage', 'operators.transfer', 'platform.manage',
 ] as const;
 export type AdminCapability = typeof ADMIN_CAPABILITIES[number];
+/**
+ * 상위 능력이 포함하는 능력. DB `private.has_operator_capability`와 같은 표다.
+ * `sales.dispatch`(출고지시·운송장 회신·발송·배송완료, 1014-084)는 물류출고관리만 목록으로 받고,
+ * `sales.manage`를 가진 역할은 목록에 적지 않은 채 판정에서만 포함한다 — 다른 역할의 권한 응답은 그대로다.
+ */
+export const IMPLIED_ADMIN_CAPABILITIES: Readonly<Partial<Record<AdminCapability, readonly AdminCapability[]>>> = {
+  'sales.manage': ['sales.dispatch'],
+};
 export const MANAGER_ROLES = ['owner', 'primary', 'deputy', 'influencer', 'agency', 'logistics'] as const;
 export type ManagerRole = typeof MANAGER_ROLES[number];
 export const MANAGER_ROLE_LABELS: Record<ManagerRole, string> = {
@@ -49,21 +57,25 @@ export function operatorAccessOf(source: AdminAccessSource): OperatorAccess {
 
 export function hasAdminCapability(source: AdminAccessSource, capability: AdminCapability): boolean {
   const access = operatorAccessOf(source);
-  return access.mode !== 'none' && access.capabilities.includes(capability);
+  return access.mode !== 'none' && (access.capabilities.includes(capability)
+    || access.capabilities.some(held => IMPLIED_ADMIN_CAPABILITIES[held]?.includes(capability) ?? false));
 }
 
 const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   overview: 'home', guide: 'home', goods: 'catalog.read', 'goods-create': 'catalog.manage', 'goods-groups': 'catalog.manage', 'goods-groups-create': 'catalog.manage', 'goods-import': 'catalog.manage',
   'fulfillment-origins': 'catalog.manage', 'shipping-settings-templates': 'catalog.manage',
+  'stock-reconcile': 'catalog.manage',
   'shipping-notice-templates': 'catalog.manage', 'notice-presets': 'catalog.manage', categories: 'catalog.manage',
   'erp-items': 'platform.manage', announcements: 'catalog.announcements', 'goods-photos': 'catalog.manage', 'goods-event-templates': 'catalog.manage', 'category-templates': 'catalog.manage', 'goods-after-sales-templates': 'catalog.manage', 'size-templates': 'catalog.manage',
   'related-goods': 'catalog.manage', 'goods-attributes': 'platform.manage', 'shipping-regions': 'catalog.manage',
-  'shipping-carriers': 'catalog.manage', orders: 'sales.read', gifts: 'sales.read', subscriptions: 'sales.read', unpaid: 'sales.manage', dispatch: 'sales.manage',
-  shipping: 'sales.manage', 'purchase-restrictions': 'sales.restrictions', settled: 'sales.manage',
+  'shipping-carriers': 'catalog.manage', orders: 'sales.read', gifts: 'sales.read', subscriptions: 'sales.read', unpaid: 'sales.manage',
+  /* 발주확인·발송관리와 배송현황은 출고 전용 능력으로 연다(1014-084). 화면 안의 발주확인·합포장·지연 안내·목록 엑셀은 서버 동작과 RPC가 sales.manage를 따로 확인한다. */
+  dispatch: 'sales.dispatch', shipping: 'sales.dispatch', 'purchase-restrictions': 'sales.restrictions', settled: 'sales.manage',
   'claims-cancels': 'sales.manage', 'claims-returns': 'sales.manage', 'claims-exchanges': 'sales.manage', 'pg-settlements': 'sales.manage',
   'refund-transfers': 'sales.manage',
   qna: 'cs.manage', inquiries: 'cs.manage', 'inquiry-chat': 'cs.manage', reviews: 'cs.manage', 'review-insights': 'cs.manage', 'review-events': 'cs.manage', faq: 'cs.manage',
   members: 'platform.manage', curations: 'store.manage', 'coupon-register': 'marketing.manage', coupons: 'marketing.manage',
+  'discount-promotions': 'catalog.manage',
   'shopping-stories': 'store.manage',
   'store-presentation': 'store.manage',
   'category-display': 'store.manage',

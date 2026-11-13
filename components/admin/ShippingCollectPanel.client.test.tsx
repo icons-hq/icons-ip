@@ -9,6 +9,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
   useEffect: (effect: () => void | (() => void), deps: unknown[] = []) => { const frame = hooks.frames.get(hooks.current)!, index = hooks.index++, previous = frame.effects.get(index);if (!previous || deps.some((dep, i) => dep !== previous.deps[i])) { frame.effects.set(index, { deps, cleanup: previous?.cleanup });frame.jobs.push(() => { previous?.cleanup?.();frame.effects.get(index)!.cleanup = effect() || undefined; }); } },
 }));
+/* 목록 위 주문 상세 팝업의 대기 신호(useClaimPreviewBusy)는 실제 렌더러 없이 부르는 이 시험에서 아무 일도 하지 않는다. */
+vi.mock('@/components/orders/claim-preview-busy', () => ({ useClaimPreviewBusy: () => {} }));
 vi.mock('@/app/admin/shipping-collect-event-actions', () => ({ readShippingCollectEventsAction: mocks.read, saveShippingCollectEventAction: mocks.save, readShippingCollectEventOperationAction: mocks.operation, sealShippingCollectOperationAction: mocks.seal }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 /* 이 파일은 컴포넌트 함수를 직접 불러 트리를 편다 — Base UI 기반 kit Badge는 실제 렌더러 밖에서 훅을 쓸 수 없어 글자만 남기는 대역으로 둔다. */

@@ -13,6 +13,7 @@ import { readMyOrderItems } from '@/lib/orders/customer-items.server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { quoteCartTransactionAction } from './transaction-actions';
+import { createSelectionDraftHref } from '@/lib/checkout-draft.server';
 
 /*
  * 취소된 일반 굿즈 주문의 품목(굿즈·옵션·직접입력값·수량)을 장바구니에 다시 담는다.
@@ -76,6 +77,11 @@ export type RestoreCanceledOrderToCartResult =
       readonly couponReselectAt?: 'checkout';
       /** 원 주문에서 사용한 적립금. 주문서 입력은 비어 있으므로 0보다 크면 다시 입력해야 한다. */
       readonly storeCreditUsed: number;
+      /**
+       * 다시 담은 줄만 주문하는 주문서(선택 주문 초안, ADR-0030). 초안 없는 주문서는 장바구니 전체를 주문하므로 그 줄의
+       * 주문서로 보낸다. 만들지 못했으면 없다 — 화면은 장바구니로 보내 고르게 한다.
+       */
+      readonly checkoutHref?: string;
     }
   | {
       readonly ok: false;
@@ -423,6 +429,8 @@ export async function restoreCanceledOrderToCartAction(
     );
 
     let restoredLines = 0;
+    /* 다시 담은 줄(장바구니에 남는 값 그대로 — 수량은 지금 수량과 원 주문 수량 중 큰 값). 이 줄만 주문서에 올린다. */
+    const restoredItems: CartItem[] = [];
     for (const line of lines.values()) {
       const current = cartQuantities.get(cartItemKey(line.goodId, line.variantId, line.customInputs)) ?? 0;
       // Revalidate even when the quantity is already sufficient: an old input
@@ -440,6 +448,8 @@ export async function restoreCanceledOrderToCartAction(
         failures.push({ goodId: line.goodId, line: { name: line.name, reason: lineFailure(error.message) } });
       } else {
         restoredLines += 1;
+        restoredItems.push({ goodId: line.goodId, variantId: line.variantId, qty: Math.max(current, line.qty),
+          ...(line.customInputs ? { customInputs: line.customInputs } : {}) });
       }
     }
 
@@ -451,6 +461,10 @@ export async function restoreCanceledOrderToCartAction(
       ? await restoreOrderCoupon(supabase, auth.user.id, orderData)
       : hadCoupon ? 'not_restored' : 'none';
 
+    /* 다시 담은 줄만 주문서에 올린다 — 장바구니의 다른 줄이 끼어들지 않게 그 줄로 선택 초안을 만든다. 그 사이 다른 탭이
+       장바구니를 바꿨으면 DB가 거절하고(cart_snapshot_changed) 화면은 장바구니로 보낸다. */
+    const checkoutHref = await createSelectionDraftHref(auth.user.id, restoredItems);
+
     return {
       ok: true,
       restoredLines,
@@ -458,6 +472,7 @@ export async function restoreCanceledOrderToCartAction(
       coupon: coupon === 'checkout_not_restored' ? 'not_restored' : coupon,
       ...(coupon === 'checkout_not_restored' ? { couponReselectAt: 'checkout' as const } : {}),
       storeCreditUsed: Math.max(0, orderData.store_credit_total ?? 0),
+      ...(checkoutHref ? { checkoutHref } : {}),
     };
   } catch {
     return { ok: false, error: 'failed' };

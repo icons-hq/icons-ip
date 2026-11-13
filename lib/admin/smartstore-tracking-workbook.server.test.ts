@@ -61,9 +61,10 @@ describe('ICONS 표준 양식 회신', () => {
     expect(parsed.issues.map(issue => issue.reason)).toEqual([
       '운송장번호는 숫자 대신 텍스트 형식으로 입력해주세요.',
       '상품주문번호는 숫자 대신 텍스트 형식으로 입력해주세요.',
-      '운송장번호가 비어 있습니다.',
       '택배사가 비어 있습니다.',
     ]);
+    // 운송장 칸만 비운 줄은 실패가 아니라 건너뛴 줄이다(김포 회신과 같은 기준).
+    expect((parsed as { skipped: unknown[] }).skipped).toEqual([{ line: 4, reference: other }]);
   });
   it('다른 칸의 수식도 거절한다', async () => {
     const parsed = await parseTrackingWorkbook(await bytes([['001234567890', item, 'hanjin', { formula: '1+1' }]], '목록', [...headers, '메모']), carriers);
@@ -110,7 +111,7 @@ describe('ICONS 표준 양식 CSV·붙여넣기 회신', () => {
       + `"${other}","경비실","한진택배",""\r\n`;
     const parsed = parseSmartStoreReplyText(text, carriers)!;
     expect(parsed.rows).toEqual([{ line: 2, reference: item, referenceId: item, carrier: 'hanjin', trackingNumber: '123456789012' }]);
-    expect(parsed.issues).toEqual([{ line: 3, reference: other, reason: '운송장번호가 비어 있습니다.' }]);
+    expect(parsed.issues).toEqual([]); expect(parsed.skipped).toEqual([{ line: 3, reference: other }]);
   });
   it('수식·비활성 택배사·짧은 번호를 XLSX와 똑같이 거절하고 다른 칸의 수식도 거절한다', () => {
     const parsed = parseSmartStoreReplyText(csv([
@@ -199,7 +200,7 @@ describe('이미 내려받은 옛 파일 회신 호환', () => {
   });
   it('안내 행이 있는 74열은 데이터 1,000행을 받고 1,001행은 거절한다', async () => {
     const rows = (count: number) => async () => legacyInstruction((sheet, column) => { for (let row = 3; row < 3 + count; row++) sheet.getCell(row, column('상품주문번호')).value = item; });
-    expect(((await parseTrackingWorkbook(await rows(1000)(), carriers)) as { issues: unknown[] }).issues).toHaveLength(1000);
+    expect(((await parseTrackingWorkbook(await rows(1000)(), carriers)) as { skipped: unknown[] }).skipped).toHaveLength(1000);
     await expect(parseTrackingWorkbook(await rows(1001)(), carriers)).rejects.toThrow('1,000줄');
   });
   it('안내 행의 수식은 받지 않는다', async () => {

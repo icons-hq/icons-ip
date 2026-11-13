@@ -16,6 +16,7 @@ import { formatKrwExact } from '@/components/admin/format';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
 const PRIMARY = cn(buttonVariants());
@@ -44,6 +45,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
     customerRequestedAt: '', agreementEvidence: '', agreementConfirmed: false, collectionAddress: cancellation ? null : context.address,
     collections: cancellation ? [] : context.collections.map(target => ({ shipmentId: target.shipmentId, method: 'not_requested', carrier: null, trackingNumber: null, note: '' })), refundAccount: null }));
   const [pending, setPending] = useState(false); const [uncertain, setUncertain] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [receipt, setReceipt] = useState<SellerClaimReceipt | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const dispatched = useRef<SellerClaimInput | null>(null);

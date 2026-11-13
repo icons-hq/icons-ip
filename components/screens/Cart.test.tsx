@@ -6,10 +6,11 @@ import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good } from '@/lib/data';
 import type { AddressShippingQuote } from '@/lib/shipping-regions';
 import type { CouponQuote } from '@/lib/coupon-targeting';
-import type { GoodsSalesPrecheckoutQuote, GoodsSalesQuoteLine } from '@/lib/goods-sales';
+import type { GoodsSalesPrecheckoutQuote, GoodsSalesQuoteGood, GoodsSalesQuoteLine } from '@/lib/goods-sales';
 import { goodsSalesPrecheckoutQuote } from '@/test/fixtures/goods-sales-precheckout';
 import CartLoading from '@/app/cart/loading';
 import { Cart } from './Cart';
+import { cartLineKey } from '@/lib/checkout-selection';
 
 const mocks = vi.hoisted(() => ({
   items: [] as CartItem[],
@@ -20,21 +21,29 @@ const mocks = vi.hoisted(() => ({
   quotePrices: new Map<string, number>(),
   quotePeriods: new Map<string, Pick<GoodsSalesQuoteLine, 'regularPrice' | 'pricePeriodId' | 'startsAt' | 'endsAt'>>(),
   quoteLineExtras: new Map<string, Partial<GoodsSalesQuoteLine>>(),
+  /* 굿즈 단위 구매 조건(주문당 최소·최대, 회원 누적 한도). 견적은 고른 줄의 굿즈만 돌려준다. */
+  quoteGoods: new Map<string, Partial<GoodsSalesQuoteGood>>(),
   coupon: null as CouponQuote | null,
   precheckout: null as GoodsSalesPrecheckoutQuote | null,
   precheckoutError: null as string | null,
   legacyEnabled: false,
   precheckoutEnabled: false,
+  /* 견적 훅이 받은 줄 — 장바구니가 고른 줄만 견적하는지 본다(ADR-0030). */
+  quotedItems: [] as readonly CartItem[],
 }));
 
 vi.mock('@/components/shop/useShippingQuote', () => ({
-  useShippingQuote: (_items: readonly CartItem[], enabled: boolean) => {
+  useShippingQuote: (quoted: readonly CartItem[], enabled: boolean) => {
     mocks.legacyEnabled = enabled;
+    mocks.quotedItems = quoted;
     return {quote:enabled ? mocks.quote : null,sales:enabled && mocks.quote ? {
     calculatedAt:'2026-09-10T00:00:00Z', shipping:mocks.quote,
-    subtotal:mocks.items.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
-    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true,...mocks.quoteLineExtras.get(item.variantId)})),
-    goods:[],paymentMethods:{card:true,bankTransfer:true},
+    subtotal:quoted.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
+    lines:quoted.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true,...mocks.quoteLineExtras.get(item.variantId)})),
+    goods:[...new Set(quoted.map(item=>item.goodId))].filter(goodId=>mocks.quoteGoods.has(goodId)).map(goodId=>({goodId,
+      qty:quoted.filter(item=>item.goodId===goodId).reduce((sum,item)=>sum+item.qty,0),orderQuantityLimitEnabled:false,minOrderQty:null,maxOrderQty:null,
+      memberPurchaseLimitEnabled:false,memberLifetimeQtyLimit:null,memberReservedQty:null,memberRemainingQty:null,reason:null,...mocks.quoteGoods.get(goodId)})),
+    paymentMethods:{card:true,bankTransfer:true},
     coupon:mocks.coupon,
     } : null,loading:enabled && !mocks.quote,error:null,refresh:vi.fn()};
   },
@@ -51,7 +60,7 @@ const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',ori
 const defaultQuote: AddressShippingQuote = {totalFee:3000,groups:[gimpoGroup],checkoutAllowed:true,finalTotalFee:3000,destination:null,nextChangeAt:null};
 mocks.quote = defaultQuote;
 beforeEach(() => {
-  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.quoteLineExtras.clear(); mocks.coupon = null;
+  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.quoteLineExtras.clear(); mocks.quoteGoods.clear(); mocks.coupon = null;
   mocks.precheckout = null; mocks.precheckoutError = null; mocks.legacyEnabled = false; mocks.precheckoutEnabled = false;
 });
 
@@ -154,6 +163,10 @@ function render(items: CartItem[], couponState: CartCouponState = emptyCouponSta
   return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={couponState} />);
 }
 
+/* 주문 버튼은 고른 줄로 주문서 초안을 만든 뒤 이동하는 버튼이다(ADR-0030) — 링크가 아니다. 열렸는지는 disabled 로 본다. */
+const CHECKOUT_ENABLED = '<button class="wc-btn primary wc-cart__checkout" type="button">';
+const checkoutEnabled = (html: string) => html.includes(CHECKOUT_ENABLED);
+
 function transactionPrecheckout(): GoodsSalesPrecheckoutQuote {
   return { ...goodsSalesPrecheckoutQuote, subtotal: 8000,
     lines: [{ ...goodsSalesPrecheckoutQuote.lines[0], goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }],
@@ -175,16 +188,16 @@ describe('transaction cart product conditions', () => {
     expect(html).toContain('배송지·선불/착불 선택 후 확정');
     expect(html).toContain('주문서에서 할인·배송비 확인 후 표시');
     expect(html).not.toContain('무료'); expect(html).not.toContain('₩3,000'); expect(html).not.toContain('김포 출고');
-    expect(html).toContain('href="/checkout"');
+    expect(checkoutEnabled(html)).toBe(true);
   });
   it('requires a current successful product quote before enabling checkout', () => {
     let html = renderTransaction();
     expect(html).toContain('현재 가격과 구매 조건을 확인하고 있어요.');
-    expect(html).not.toContain('href="/checkout"');
+    expect(checkoutEnabled(html)).toBe(false);
     mocks.precheckoutError = '현재 가격과 구매 조건을 확인하지 못했습니다.';
     html = renderTransaction();
     expect(html).toContain(mocks.precheckoutError); expect(html).toContain('가격·구매 조건 다시 확인');
-    expect(html).not.toContain('href="/checkout"'); expect(html).not.toContain('가격·배송비 다시 확인');
+    expect(checkoutEnabled(html)).toBe(false); expect(html).not.toContain('가격·배송비 다시 확인');
   });
   it('blocks unavailable stock, member limits and incompatible payment conditions from the server', () => {
     const valid = transactionPrecheckout();
@@ -196,7 +209,7 @@ describe('transaction cart product conditions', () => {
     for (const [quote, message] of cases) {
       mocks.precheckout = quote;
       const html = renderTransaction();
-      expect(html).toContain(message); expect(html).not.toContain('href="/checkout"');
+      expect(html).toContain(message); expect(checkoutEnabled(html)).toBe(false);
     }
   });
   it('keeps a selected coupon without comparing it with an intentionally absent coupon calculation', () => {
@@ -204,13 +217,13 @@ describe('transaction cart product conditions', () => {
     const html = renderTransaction({ selectedUserCouponId: fix5k.id, coupons: [fix5k] });
     expect(html).toContain('5천원 할인'); expect(html).toContain('주문서에서 확인');
     expect(html).not.toContain('다른 화면에서 선택한 쿠폰이 변경');
-    expect(html).not.toContain('최소 주문 금액 미달'); expect(html).toContain('href="/checkout"');
+    expect(html).not.toContain('최소 주문 금액 미달'); expect(checkoutEnabled(html)).toBe(true);
   });
   it('does not query either contract when runtime availability is unknown', () => {
     mocks.items = [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }];
     const html = renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={emptyCouponState} transactionMode="unavailable" />);
     expect(mocks.precheckoutEnabled).toBe(false); expect(mocks.legacyEnabled).toBe(false);
-    expect(html).toContain('주문 조건을 확인하지 못했습니다.'); expect(html).not.toContain('href="/checkout"');
+    expect(html).toContain('주문 조건을 확인하지 못했습니다.'); expect(checkoutEnabled(html)).toBe(false);
   });
 });
 
@@ -246,11 +259,11 @@ describe('Cart 주문 요약 테이블', () => {
     expect(html).toContain('배송 묶음별 배송비를 합산합니다.');
   });
 
-  /* R28(MD-0006): 'N개 주문하기' — N은 지금처럼 담긴 총 수량이다. */
-  it('주문 CTA에 담긴 총 수량을 싣는다', () => {
+  /* R28(MD-0006)·SHEET-007: 'N개 주문하기' — N은 고른 줄의 수량 합이다(들어오면 전체 선택이라 담긴 총 수량과 같다). */
+  it('주문 CTA에 고른 줄의 총 수량을 싣는다', () => {
     expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
     expect(html).not.toContain('굿즈 주문하기');
-    expect(html).toContain('href="/checkout"');
+    expect(checkoutEnabled(html)).toBe(true);
     const several = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }]);
     expect(several).toContain('<span class="wc-cart__checkout-count">3개 주문하기</span>');
   });
@@ -330,9 +343,12 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
       [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }],
       { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
     );
+    /* DB가 결제 대기 주문 때문이라고 알린 쿠폰 막힘은 진행 중인 주문 목록으로 잇는다(#540, 무통장 입금 대기 포함). */
     expect(html).toContain('href="/orders?pending=1"');
-    expect(html).toContain('진행 중인 주문 확인');
-    expect(html).not.toContain('href="/checkout"');
+    /* 결제 대기 주문 취소(ADR-0030)는 그 주문을 실제로 찾았을 때만 보인다 — 정적 렌더에서는 아직 읽지 않았다. 화면을 열기만
+       해서는 다른 탭 결제를 끊지 않는다. */
+    expect(html).not.toContain('결제 대기 주문 취소하고 계속');
+    expect(checkoutEnabled(html)).toBe(false);
   });
 
   it('로그인 전에는 컨트롤 대신 안내만 둔다', () => {
@@ -350,9 +366,10 @@ describe('Cart 라인 상태', () => {
     const html = render([{ goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
 
     expect(html).toContain('판매 종료');
-    expect(html).toContain('주문할 수 없는 굿즈 1개');
-    expect(html).toContain('aria-disabled="true"');
-    expect(html).not.toContain('href="/checkout"');
+    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요.');
+    /* 고를 수 있는 줄이 하나도 없으니 주문할 줄도 없다. */
+    expect(html).toContain('<button class="wc-btn primary wc-cart__checkout" disabled="" type="button"><span class="wc-cart__checkout-count">0개 주문하기</span></button>');
+    expect(checkoutEnabled(html)).toBe(false);
   });
 
   it('품절 라인은 수량 스테퍼 없이 상태만 알린다', () => {
@@ -399,13 +416,54 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
     expect(html).not.toContain('까지 주문할 수 있습니다');
   });
 
-  it('견적이 옵션 한도 위반을 알리면 품목 줄에 확정 카피를 보이고 주문을 막는다', () => {
+  /* 견적이 판정한 불가 줄은 체크된 채 남아 전체 주문을 막지 않는다 — 선택에서 빼고 사유를 줄에 보인다(ADR-0030 확정 동작 2). */
+  /* 구매 조건은 이번 선택의 수량 문제다 — 줄을 비활성으로 빼지 않고 체크만 풀어 사유를 보인다. 다시 고르면 다시 견적한다. */
+  it('견적이 옵션 한도 위반을 알리면 그 줄의 체크만 풀고 품목 줄에 확정 카피를 보인다', () => {
     mocks.quoteLineExtras.set(BLUE_VARIANT, { optionLimit: { orderMaxQty: 2, memberMaxQty: 3, memberReservedQty: 2, memberRemainingQty: 1,
       reason: 'option_member_limit_exceeded' } });
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('&#x27;파랑&#x27;은 1인당 3개까지 구매할 수 있습니다.');
-    expect(html).toContain('1인당 구매 수량이 정해진 옵션이 있어요.');
-    expect(html).not.toContain('href="/checkout"');
+    /* 개수는 주문 버튼·배지·전체 비우기 확인과 같은 수량 합이다(줄 수가 아니다). */
+    expect(html).toContain('구매 조건에 맞지 않는 굿즈 2개는 체크를 풀었어요');
+    expect(html).not.toContain('주문할 수 없는 굿즈');
+    expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" type="checkbox"\/>/);
+    expect(checkoutEnabled(html)).toBe(false);
+  });
+
+  it('굿즈 주문당 최대 수량을 넘으면 그 굿즈 줄의 체크만 풀고, 다른 굿즈는 주문할 수 있다', () => {
+    mocks.quoteGoods.set('g13', { orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 2, reason: 'order_quantity_above_maximum' });
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }]);
+    expect(html).toContain('주문당 최대 2개까지 구매할 수 있어요. 옵션을 합해 2개 이하로 골라주세요.');
+    expect(html).toMatch(/<input aria-label="홍실 아크릴 블록[^"]*선택" type="checkbox"\/>/);
+    expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" type="checkbox" checked=""\/>/);
+    expect(html).not.toContain('주문할 수 없는 굿즈');
+    /* 낡은 막힘 문구가 남지 않는다 — 남은 고른 줄만 견적한다. */
+    expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g16']);
+    expect(checkoutEnabled(html)).toBe(true);
+    expect(html).toContain('1개 주문하기');
+  });
+
+  it('회원 누적 한도에 도달했으면 수량 조정을 권하지 않는다', () => {
+    mocks.quoteGoods.set('g13', { memberPurchaseLimitEnabled: true, memberLifetimeQtyLimit: 3, memberReservedQty: 3, memberRemainingQty: 0,
+      reason: 'member_purchase_limit_exceeded' });
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(html).toContain('회원 누적 구매 한도(3개)에 도달했어요.');
+    expect(html).not.toContain('수량을 줄');
+    /* 결제 대기 주문을 실제로 찾기 전에는 해소 안내를 그리지 않는다 — 사유만 보인다. */
+    expect(html).not.toContain('결제 대기 주문 취소하고 계속');
+  });
+
+  it('화면을 연 뒤 재고가 줄어든 줄은 빼고 나머지 줄로 주문할 수 있다', () => {
+    mocks.quoteLineExtras.set(BLUE_VARIANT, { available: false, supply: { mode: 'stock', availableQty: 1, policyId: null, policyRevision: null, state: 'stock',
+      startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: null } });
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
+    expect(html).toContain('재고가 1개만 남아 이번 주문에서 빠졌어요. 수량을 줄이면 다시 고를 수 있어요.');
+    expect(html).toContain('주문할 수 없는 굿즈 2개는 주문에서 빠져요. 수량을 줄이면 다시 고를 수 있어요.');
+    /* 막힘 판정은 남은 고른 줄로만 한다 — 남은 줄(g13)은 주문할 수 있다. */
+    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
+    expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g13']);
+    expect(checkoutEnabled(html)).toBe(true);
+    expect(html).toContain('1개 주문하기');
   });
 });
 
@@ -427,7 +485,7 @@ describe('Cart 빈 상태 (CT-02)', () => {
     expect(html).toMatch(/<div class="wc-cart__cta-bar"><a class="wc-btn accent wc-cart__empty-cta" href="\/shop">굿즈샵 둘러보기<\/a><\/div>/);
     expect(html.indexOf('wc-cart__empty-message')).toBeLessThan(html.indexOf('wc-cart__empty-cta'));
     expect(html).not.toContain('wc-cart__empty-art');
-    expect(html).not.toContain('href="/checkout"');
+    expect(checkoutEnabled(html)).toBe(false);
   });
 });
 
@@ -469,21 +527,22 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
     expect(loading).not.toContain('wc-cart__cta-bar');
   });
 
-  /* 모바일 바는 예상 총액이 확정된 동안만 금액을 싣는다 — 같은 기존 계산값이고, 데스크톱 문구(수량)는 그대로 남는다. */
-  it('주문 CTA 를 고정 바 묶음에 담고 예상 총액이 확정되면 "₩금액 주문하기" 문구를 함께 싣는다', () => {
+  /* SHEET-007: 모바일 바도 데스크톱과 같은 'N개 주문하기'다 — 금액은 바 위 요약 표가 보인다. */
+  it('주문 CTA 를 고정 바 묶음에 담고 예상 총액이 확정돼도 수량 문구만 싣는다', () => {
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
     const bar = html.slice(html.indexOf('<div class="wc-cart__cta-bar">'));
 
-    expect(bar).toMatch(/^<div class="wc-cart__cta-bar"><a class="wc-btn primary wc-cart__checkout wc-cart__checkout--amount" href="\/checkout">/);
-    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
-    expect(bar).toContain('<span class="wc-cart__checkout-amount">₩15,000 주문하기</span>');
+    expect(bar.startsWith('<div class="wc-cart__cta-bar"><button class="wc-btn primary wc-cart__checkout" type="button"><span class="wc-cart__checkout-count">1개 주문하기</span></button></div>')).toBe(true);
+    expect(html).not.toContain('wc-cart__checkout-amount');
+    expect(html).not.toContain('wc-cart__checkout--amount');
+    expect(html).toContain('<td class="wc-cart__total">₩15,000</td>');
   });
 
-  it('배송비가 확정되지 않았거나 주문서 계약이면 금액 문구 없이 수량 문구만 싣는다', () => {
+  it('배송비가 확정되지 않았거나 주문서 계약이어도 같은 수량 문구다', () => {
     mocks.quote = { ...defaultQuote, checkoutAllowed: false, finalTotalFee: null,
       groups: [{ ...gimpoGroup, regionMode: 'managed', regionStatus: 'address_required', finalFee: null, regionalFee: null }] };
     let html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
-    expect(html).toContain('class="wc-btn primary wc-cart__checkout" href="/checkout"');
+    expect(checkoutEnabled(html)).toBe(true);
     expect(html).not.toContain('wc-cart__checkout-amount');
 
     mocks.precheckout = transactionPrecheckout();
@@ -492,11 +551,11 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
     expect(html).not.toContain('wc-cart__checkout-amount');
   });
 
-  it('주문할 수 없는 카트의 바는 금액을 보여도 링크가 아니다', () => {
+  it('주문할 수 없는 카트의 바는 잠긴 버튼이다', () => {
     const html = render([{ goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
 
-    expect(html).toMatch(/<div class="wc-cart__cta-bar"><span aria-disabled="true" class="wc-btn primary disabled wc-cart__checkout[^"]*">/);
-    expect(html).not.toContain('href="/checkout"');
+    expect(html).toContain('<div class="wc-cart__cta-bar"><button class="wc-btn primary wc-cart__checkout" disabled="" type="button">');
+    expect(checkoutEnabled(html)).toBe(false);
   });
 });
 
@@ -568,6 +627,14 @@ describe('Cart 목록 행 (CT-04)', () => {
 });
 
 
+/* 같은 굿즈의 옵션·직접입력 줄을 화면 읽기 프로그램이 구별하도록 체크박스 이름에 옵션·직접입력 요약을 더한다(ADR-0030). */
+describe('Cart 줄 체크박스 이름', () => {
+  it('굿즈 이름에 옵션과 직접입력 요약을 더한다', () => {
+    const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }]);
+    expect(html).toContain('aria-label="아크릴 키링 · 파랑 선택"');
+  });
+});
+
 describe('origin quote and option lines', () => {
   it('keeps each origin fee and free-shipping remainder separate', () => {
     mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
@@ -589,10 +656,27 @@ describe('origin quote and option lines', () => {
     mocks.quote={...defaultQuote,groups:[{...gimpoGroup,carrierLabel:'한진택배'}]};
     expect(render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}])).toContain('<h2>한진택배 배송</h2>');
   });
+  /* 배송 묶음 머리·순서는 카탈로그(굿즈의 출고지·줄 순서)로 정한다 — 고른 줄의 견적에 없는 묶음(해제한 줄)도 머리를 유지한다. */
+  it('견적에 없는 묶음도 카탈로그 출고지로 머리를 두고 줄을 그 묶음 안에 둔다', () => {
+    mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
+    mocks.quote={...defaultQuote,groups:[{...gimpoGroup,carrierLabel:'한진택배'}]};
+    const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
+    expect(html).toContain('<h2>한진택배 배송</h2>');
+    expect(html).toContain('<h2>택배 배송</h2>');
+    expect(html.indexOf('<h2>한진택배 배송</h2>')).toBeLessThan(html.indexOf('<h2>택배 배송</h2>'));
+    /* 견적에 없는 묶음의 줄은 묶음 밖 목록으로 흩어지지 않는다. */
+    const second = html.slice(html.indexOf('<h2>택배 배송</h2>'));
+    expect(second.indexOf('품절된 키링')).toBeLessThan(second.indexOf('</section>'));
+  });
+  /* 첫 견적 전에는 택배사 이름을 모르므로 묶지 않는다 — 이름 없는 머리가 잠깐 보였다 바뀌지 않게. */
+  it('첫 견적 전에는 배송 묶음 머리를 그리지 않는다', () => {
+    mocks.quote=null;
+    expect(render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}])).not.toContain('wc-shipping-group');
+  });
   it('blocks checkout while the current cart has no server quote', () => {
     mocks.quote=null;
     const html=render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}]);
-    expect(html).toContain('배송비 확인 후 표시');expect(html).not.toContain('href="/checkout"');
+    expect(html).toContain('배송비 확인 후 표시');expect(checkoutEnabled(html)).toBe(false);
   });
   it('배송지를 아직 받지 않은 장바구니는 금액 확정을 미루고 주문서 진입을 허용한다', () => {
     mocks.quote = { ...defaultQuote, checkoutAllowed: false, finalTotalFee: null,
@@ -600,14 +684,14 @@ describe('origin quote and option lines', () => {
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
     expect(html).toContain('배송지 입력 후 확정');
     expect(html).not.toContain('₩15,000');
-    expect(html).toContain('href="/checkout"');
+    expect(checkoutEnabled(html)).toBe(true);
   });
   it('정책이 중지된 배송 견적은 확인 없이 주문서로 넘기지 않는다', () => {
     mocks.quote = { ...defaultQuote, checkoutAllowed: false, finalTotalFee: null,
       groups: [{ ...gimpoGroup, regionMode: 'managed', regionStatus: 'policy_unavailable', finalFee: null, regionalFee: null }] };
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
     expect(html).toContain('현재 배송비를 확인 중입니다');
-    expect(html).not.toContain('href="/checkout"');
+    expect(checkoutEnabled(html)).toBe(false);
   });
   it('shows separate option names and prices for the same good', () => {
     const options=[
@@ -657,6 +741,90 @@ describe('origin quote and option lines', () => {
   expect(html).toContain('3개');
   expect(html).toContain('이 항목 삭제');
   expect(html).toContain('다시 확인');
-  expect(html).not.toContain('href="/checkout"');
+  expect(checkoutEnabled(html)).toBe(false);
   expect(html).not.toContain('장바구니가 비어 있어요');
  });
+
+/* 선택 주문(ADR-0030 · 1014-031·032): 견적·쿠폰 대상 소계·배송비·주문 버튼 N은 고른 줄 기준이다. */
+describe('Cart 선택 주문', () => {
+  it('들어오면 고를 수 있는 줄 전부를 견적하고, 주문할 수 없는 줄은 견적·주문에서 빠질 뿐 주문을 막지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 2 }, { goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }]);
+    expect(mocks.quotedItems).toEqual([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 2 }]);
+    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요.');
+    expect(html).toContain('<button class="wc-btn primary wc-cart__checkout" type="button"><span class="wc-cart__checkout-count">2개 주문하기</span></button>');
+    /* 총 굿즈 금액도 고른 줄(아크릴 블록 2개)만이다 — 품절 키링 9,000원은 들지 않는다. */
+    expect(html).toContain('<th scope="row">총 굿즈 금액</th><td>₩24,000</td>');
+    expect(html).toContain('고른 굿즈만 주문해요. 고르지 않은 굿즈는 결제 뒤에도 장바구니에 남아요.');
+  });
+
+  it('모든 줄이 주문 가능하고 전부 골랐으면 선택 안내를 띄우지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(mocks.quotedItems).toEqual([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(html).not.toContain('고른 굿즈만 주문해요.');
+    expect(html).not.toContain('wc-cart__warning');
+  });
+});
+
+/* 선택 바·줄 체크(ADR-0030 · 10/14 회의 1014-031·035·036). 진입 시 전체 체크이고, 주문할 수 없는 줄은 체크할 수 없다. */
+describe('Cart 선택 바', () => {
+  const lineOf = (html: string, marker: string) => html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(marker)) ?? '';
+
+  it('들어오면 고를 수 있는 줄이 모두 체크된 채 열리고 전체 선택·선택 삭제·전체 비우기를 목록 위에 둔다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }]);
+    const bar = html.slice(html.indexOf('<div class="wc-cart__select-bar">'), html.indexOf('<section class="wc-shipping-group"'));
+    expect(bar).toContain('<label class="wc-cart__select-all"><input type="checkbox" checked=""/><span>전체 선택 (1/1)</span></label>');
+    expect(bar).toContain('<button class="wc-cart__select-action" type="button">선택 삭제</button>');
+    expect(bar).toContain('<button aria-expanded="false" class="wc-cart__select-action" type="button">전체 비우기</button>');
+    /* 확인은 누른 뒤에만 연다. */
+    expect(html).not.toContain('wc-cart__clear-confirm');
+    expect(lineOf(html, '홍실 아크릴 블록')).toContain('<label class="wc-cart__line-check"><input aria-label="홍실 아크릴 블록 선택" type="checkbox" checked=""/></label>');
+  });
+
+  it('품절·판매 종료·성인 인증 전 줄은 체크할 수 없고 선택 수에 들지 않는다', () => {
+    const html = render([{ goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }, { goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(lineOf(html, '품절된 키링')).toContain('<input aria-label="품절된 키링 선택" disabled="" type="checkbox"/>');
+    expect(lineOf(html, '판매 종료된 굿즈 (gone)')).toContain('<input aria-label="판매 종료된 굿즈 gone 선택" disabled="" type="checkbox"/>');
+    /* 고를 줄이 없으면 전체 선택도 잠기고 선택 삭제는 할 일이 없다. 전체 비우기는 남는다. */
+    expect(html).toContain('<input disabled="" type="checkbox"/><span>전체 선택 (0/0)</span>');
+    expect(html).toContain('<button class="wc-cart__select-action" disabled="" type="button">선택 삭제</button>');
+    expect(html).toContain('<button aria-expanded="false" class="wc-cart__select-action" type="button">전체 비우기</button>');
+  });
+});
+
+/* QA1 고객 시험 후속(S-D2-06·15·17). */
+describe('Cart 선택 잇기·주문 버튼 사유', () => {
+  const lineOf = (html: string, marker: string) => html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(marker)) ?? '';
+  const two: CartItem[] = [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }];
+
+  it('다시 결제할 줄이 장바구니에 없으면 아무 줄도 체크하지 않은 채 열고 이유를 알린다(S-D2-15)', () => {
+    mocks.items = two;
+    const html = renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={emptyCouponState} retryEmpty />);
+    expect(html).toContain('이 주문의 굿즈가 장바구니에 남아 있지 않아요. 주문할 굿즈를 골라 다시 주문해주세요.');
+    expect(lineOf(html, '홍실 아크릴 블록')).toContain('<input aria-label="홍실 아크릴 블록 선택" type="checkbox"/>');
+    expect(lineOf(html, '아크릴 키링')).toContain('<input aria-label="아크릴 키링 · 파랑 선택" type="checkbox"/>');
+    expect(html).toContain('0개 주문하기');
+  });
+
+  it('비로그인 때 푼 줄은 로그인 화면을 다녀와도 풀린 채다(S-D2-17)', () => {
+    const values = new Map<string, string>([['icons.cart.deselected', JSON.stringify({ keys: [cartLineKey(two[1])], savedAt: Date.now() })]]);
+    vi.stubGlobal('window', { sessionStorage: { getItem: (key: string) => values.get(key) ?? null, setItem: vi.fn(), removeItem: vi.fn() } });
+    try {
+      const html = render(two);
+      expect(lineOf(html, '아크릴 키링')).toContain('<input aria-label="아크릴 키링 · 파랑 선택" type="checkbox"/>');
+      expect(lineOf(html, '홍실 아크릴 블록')).toContain('type="checkbox" checked=""');
+      expect(html).toContain('1개 주문하기');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('주문 버튼이 꺼진 사유를 하단 고정 바 안에도 둔다(S-D2-06)', () => {
+    mocks.coupon = { userCouponId: fix5k.id, couponCode: 'CPNFIX5K', eligibleSubtotal: 12000, discount: 0, reason: 'coupon_min_subtotal' };
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: fix5k.id, coupons: [fix5k] });
+    const bar = html.slice(html.indexOf('<div class="wc-cart__cta-bar">'));
+    expect(bar).toContain('<p class="wc-cart__cta-reason">선택한 쿠폰의 적용 조건이 바뀌었어요. 쿠폰을 다시 선택하거나 적용을 해제해주세요.</p>');
+    expect(checkoutEnabled(html)).toBe(false);
+    mocks.coupon = null;
+    expect(render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }])).not.toContain('wc-cart__cta-reason');
+  });
+});

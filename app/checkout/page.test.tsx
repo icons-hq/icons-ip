@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   transactionMode: 'legacy' as 'legacy' | 'transaction' | 'unavailable',
   checkout: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   transactionCheckout: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  draft: null as unknown,
+  loadDraft: vi.fn(),
+  deriveGoods: vi.fn(),
+  deriveUser: vi.fn(),
 }));
 
 vi.mock('@/components/screens/Checkout', () => ({ Checkout: mocks.checkout }));
@@ -28,6 +32,11 @@ vi.mock('@/lib/coupon-combinations.server', () => ({ loadCouponCombinationPolicy
 vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: async () => mocks.transactionMode }));
 vi.mock('@/lib/payments/bank-transfer.server', () => ({ bankTransferCheckoutEnabled: async () => true }));
 vi.mock('@/lib/payments/goods-checkout-availability', () => ({ goodsCheckoutPaymentsEnabled: () => true }));
+vi.mock('@/lib/checkout-draft.server', () => ({ loadCheckoutDraft: async (...args: unknown[]) => { mocks.loadDraft(...args); return mocks.draft; } }));
+vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({
+  deriveGoodsCartProvider: async (goodIds: string[]) => { mocks.deriveGoods(goodIds); return 'toss'; },
+  deriveUserCartProvider: async (userId: string) => { mocks.deriveUser(userId); return 'toss'; },
+}));
 vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); } }));
 
 const held = (id: string, name: string): UserCouponSummary => ({
@@ -45,6 +54,11 @@ beforeEach(() => {
   mocks.transactionMode = 'legacy';
   mocks.checkout.mockClear();
   mocks.transactionCheckout.mockClear();
+  mocks.draft = null;
+  mocks.loadDraft.mockClear();
+  mocks.deriveGoods.mockClear();
+  mocks.deriveUser.mockClear();
+  mocks.couponState = { selectedUserCouponId: null, coupons: [] };
 });
 
 /* R25(D3①): 운영 주문서는 장바구니와 같은 보유 쿠폰 목록·선택을 받아야 장바구니에서 고르지 않은 쿠폰도 고를 수 있다. */
@@ -79,3 +93,68 @@ describe('/checkout page — 쿠폰 배선', () => {
     expect(mocks.checkout.mock.calls[0][0].couponState).toEqual({ selectedUserCouponId: null, coupons: [], unavailable: true });
   });
 });
+
+/* 주문서 초안(ADR-0030): ?draft= 가 있으면 그 줄만 주문서에 올리고 결제사도 그 줄로 파생한다. */
+describe('/checkout page — 주문서 초안', () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  const draft = { id: draftId, source: 'selection', baseGoodId: null, expiresAt: '2099-01-01T00:00:00Z', stale: false,
+    lines: [{ goodId: 'g2', variantId: '00000000-0000-4000-8000-000000000002', qty: 1 }] };
+
+  it('로그인 사용자의 초안을 읽어 주문서에 넘기고, 결제사는 장바구니 전체가 아니라 초안 줄로 파생한다', async () => {
+    mocks.draft = draft;
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }));
+    expect(mocks.loadDraft).toHaveBeenCalledWith('00000000-0000-4000-8000-000000001201', draftId);
+    expect(mocks.checkout.mock.calls[0][0].draft).toBe(draft);
+    expect(mocks.deriveGoods).toHaveBeenCalledWith(['g2']);
+    expect(mocks.deriveUser).not.toHaveBeenCalled();
+  });
+
+  it('초안이 없으면 지금처럼 장바구니 전체 주문서다', async () => {
+    renderToStaticMarkup(await Page({}));
+    expect(mocks.loadDraft).not.toHaveBeenCalled();
+    expect(mocks.checkout.mock.calls[0][0].draft).toBeNull();
+    expect(mocks.deriveUser).toHaveBeenCalled();
+  });
+
+  it('만료·남의 초안·잘못된 초안 번호는 장바구니 전체로 바꾸지 않고 다시 열라고 안내한다', async () => {
+    for (const value of [draftId, 'not-a-draft']) {
+      const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: value }) }));
+      expect(html).toContain('주문서를 다시 열어주세요');
+      expect(html).toContain('href="/cart"');
+    }
+    mocks.draft = 'error';
+    expect(renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }))).toContain('주문서를 불러오지 못했어요');
+    expect(mocks.checkout).not.toHaveBeenCalled();
+  });
+
+  /* 만료돼도 본인 주문서면 출처가 남는다 — 바로구매 주문서는 장바구니가 아니라 그 굿즈 상세로 돌려보낸다. */
+  it('만료된 바로구매 주문서는 굿즈로 돌아가기를 안내한다', async () => {
+    mocks.draft = { id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: null };
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }));
+    expect(html).toContain('주문서를 다시 열어주세요');
+    expect(html).toContain('href="/shop/g2"');
+    expect(html).toContain('굿즈로 돌아가기');
+    expect(html).not.toContain('href="/cart"');
+    expect(mocks.checkout).not.toHaveBeenCalled();
+  });
+
+  /* 같은 주문서로 이미 무통장 접수·결제했으면(다른 탭·뒤로 가기) 주문서 대신 원 주문으로 안내한다(완료 기준 5). */
+  it('이미 주문한 주문서는 주문서를 다시 그리지 않고 원 주문으로 잇는다', async () => {
+    const orderId = '00000000-0000-4000-8000-0000000000e1';
+    for (const value of [{ ...draft, usedOrderId: orderId }, { id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: orderId }]) {
+      mocks.checkout.mockClear();
+      mocks.draft = value;
+      const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }));
+      expect(html).toContain('이미 주문한 주문서예요');
+      expect(html).toContain(`href="/orders/${orderId}"`);
+      expect(mocks.checkout).not.toHaveBeenCalled();
+    }
+  });
+
+  it('로그인 전이면 초안 주문서로 돌아오게 로그인으로 보낸다', async () => {
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false } as unknown as CurrentAuthState;
+    await expect(Page({ searchParams: Promise.resolve({ draft: draftId }) })).rejects.toThrow(
+      `NEXT_REDIRECT:/login?next=${encodeURIComponent(`/checkout?draft=${draftId}`)}`);
+  });
+});
+

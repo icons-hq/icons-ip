@@ -10,6 +10,7 @@ import { CARRIER_SETTINGS_PATH, STORE_SETTINGS_PATH, storeSettingsHistoryRows, t
 import { formatOrderDateTime } from '@/lib/orders';
 import { DeliveryPoliciesPanel } from '@/components/admin/DeliveryPoliciesPanel';
 import { ShippingCollectContractPanel } from '@/components/admin/ShippingCollectContractPanel';
+import { StockDigestOriginRecipientsPanel } from '@/components/admin/StockDigestOriginRecipientsPanel';
 import { NEW_FULFILLMENT_ORIGIN_TAB, fulfillmentOriginTabHref, selectedFulfillmentOriginTab } from '@/lib/admin/fulfillment-origin-tabs';
 import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 export { selectedFulfillmentOriginTab };
@@ -54,6 +55,7 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
       <ShipmentExportColumnsEditor origin={origin} canEdit={canEdit} />
       <DeliveryPoliciesPanel originId={origin.id} canEdit={canEdit} />
       {canEdit && accountId && <ShippingCollectContractPanel originId={origin.id} accountId={accountId} canEdit />}
+      {canEdit ? <StockDigestOriginRecipientsPanel key={origin.id} originId={origin.id} /> : null}
     </AdminSectionCard> : null}
     {canEdit && tab === NEW_FULFILLMENT_ORIGIN_TAB ? <AdminSectionCard title="새 출고지" summary="저장하면 새 출고지 탭으로 이동합니다."><FulfillmentOriginForm carriers={carriers} canEdit /></AdminSectionCard> : null}
     <AdminSectionCard title="최근 변경 이력">

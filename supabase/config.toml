@@ -180,6 +180,9 @@ enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
+# 설정의 [카카오 계정 연결](1014-014 카카오톡 채널, 스위치 OFF 기본)은 Supabase identity linking이라 manual linking이
+# 켜져 있어야 동작한다. 운영 Auth에서 켜는 것은 사람 게이트다(docs/runbooks/signup-contact-channels.md §6) — 켜기 전에는
+# 버튼이 '지금은 카카오 계정을 연결할 수 없어요'로 끝나고 아무것도 바꾸지 않는다. 로컬은 카카오 provider가 없어 끈 채로 둔다.
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
 minimum_password_length = 6
@@ -252,6 +255,12 @@ otp_expiry = 3600
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
+
+# 가입 확인 메일에 6자리 확인 코드({{ .Token }})와 확인 링크를 함께 담는다(10/14 회의 1014-004).
+# 운영·preview·staging Auth는 scripts/sync-supabase-auth.mjs가 같은 파일·제목으로 맞춘다(CONFIRMATION_TEMPLATE_PATH, docs/runbooks/signup-contact-channels.md §3).
+[auth.email.template.confirmation]
+subject = "ICONS 가입 확인 코드"
+content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
 subject = "ICONS 비밀번호 재설정"

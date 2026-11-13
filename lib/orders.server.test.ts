@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadOrderDetail, loadOrders } from './orders.server';
 import { myOrderItemsFixture } from './orders/my-order-items.fixture';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn() }));
+const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn(), retrySources: vi.fn() }));
 
 vi.mock('./gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.gift }));
 vi.mock('./gifts-order-detail.server', () => ({ loadGiftOrderList: mocks.giftList, loadGiftOrderDetail: mocks.giftDetail }));
-beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); mocks.giftList.mockReset().mockResolvedValue([]); mocks.giftDetail.mockReset(); });
+/* 다시 결제 진입의 출처(QA1 S-D2-15)는 보류 원장을 서비스 롤로 읽는다 — 여기서는 주입한다. */
+vi.mock('./checkout.server', () => ({ loadOrderRetrySources: mocks.retrySources }));
+beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); mocks.giftList.mockReset().mockResolvedValue([]); mocks.giftDetail.mockReset();
+  mocks.retrySources.mockReset().mockResolvedValue(new Map()); });
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 /* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
    목록이 없으므로 테스트도 고정 레지스트리를 주입한다 — 여기서 확인하려는 것은
@@ -145,13 +148,26 @@ beforeEach(() => {
 });
 
 describe('loadOrders', () => {
-  it('복구 목록은 취소 요청이 없는 본인의 결제 대기 주문도 보여준다', async () => {
+  /* QA1 S-D2-15: 결제 대기 카드 주문이 목록에서 숨어 결제 화면을 닫은 고객이 그 주문을 다시 찾지 못했다. */
+  it('결제 대기 카드 주문도 기본 목록에 보이고, 다시 결제 진입의 출처를 붙인다', async () => {
     mocks.client=createClient({records:[],rows:{orders:[
       {id:orderId,user_id:userId,status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z'},
       {id:'other',user_id:'other-user',status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z'},
     ],order_items:[]}});
-    expect(await loadOrders(userId,{includePending:true})).toMatchObject([{id:orderId,status:'pending'}]);
-    expect(await loadOrders(userId)).toEqual([]);
+    const retry = { source: 'cart', awaitingPayment: true, paymentUnresolved: false, baseGoodId: null, retryOrderId: null };
+    mocks.retrySources.mockResolvedValue(new Map([[orderId, retry]]));
+    expect(await loadOrders(userId,{includePending:true})).toMatchObject([{id:orderId,status:'pending',retry}]);
+    expect(await loadOrders(userId)).toMatchObject([{id:orderId,status:'pending',paymentMethod:'card',retry}]);
+    expect(mocks.retrySources).toHaveBeenLastCalledWith(userId, [orderId]);
+  });
+
+  it('결제한 주문·무통장 주문은 다시 결제 출처를 묻지 않는다', async () => {
+    mocks.client=createClient({records:[],rows:{orders:[
+      {id:orderId,user_id:userId,status:'paid',total:10000,created_at:'2026-09-28T00:00:00Z'},
+      {id:'8be5d078-4e59-4f8b-a776-75842bd44073',user_id:userId,status:'pending',total:10000,created_at:'2026-09-27T00:00:00Z',payment_method:'bank_transfer'},
+    ],order_items:[]}});
+    expect(await loadOrders(userId)).toMatchObject([{id:orderId,retry:null},{retry:null}]);
+    expect(mocks.retrySources).toHaveBeenLastCalledWith(userId, []);
   });
   it('무통장 입금 대기 주문은 접수 = 주문 완료라 기본 목록에도 보인다(ADR-0026)', async () => {
     mocks.client=createClient({records:[],rows:{orders:[
@@ -181,6 +197,7 @@ describe('loadOrders', () => {
       itemCount: 3,
       paymentMethod: 'card',
       claim: null,
+      retry: null,
     }]);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
@@ -229,6 +246,7 @@ describe('loadOrders', () => {
         itemCount: 1,
         paymentMethod: 'card',
         claim: { claimType: 'cancel', stage: 'requested' },
+        retry: null,
       },
       {
         id: orderId,
@@ -239,6 +257,7 @@ describe('loadOrders', () => {
         itemCount: 1,
         paymentMethod: 'card',
         claim: null,
+        retry: null,
       },
     ]);
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
@@ -269,7 +288,8 @@ describe('loadOrders', () => {
       },
     });
 
-    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, claim: { claimType: 'cancel', stage: 'requested' } }]);
+    /* 결제 대기 카드 주문도 목록에 보인다(QA1 S-D2-15) — 다른 회원의 주문·클레임은 여전히 없다. */
+    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, claim: { claimType: 'cancel', stage: 'requested' } }, { id: pendingOrderId, claim: null }]);
     const claimQuery = records.find((record) => record.table === 'order_cancellation_requests');
     expect(claimQuery?.in.map(([column, ids]) => [column, [...ids].sort()])).toEqual([['order_id', [orderId, pendingOrderId].sort()]]);
     expect(claimQuery?.eq).toEqual([]);

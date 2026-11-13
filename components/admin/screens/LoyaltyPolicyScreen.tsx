@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { readLoyaltyPolicyAction, saveLoyaltyPolicyAction } from '@/app/admin/loyalty-policy-actions';
-import { parseLoyaltyCriteria, type ConfigurableGrade, type LoyaltyCriterion, type LoyaltyPolicy, type LoyaltyPolicyData } from '@/lib/loyalty-policy';
+import { parseLoyaltyCriteria, type ConfigurableGrade, type LoyaltyCriterion, type LoyaltyPolicy, type LoyaltyPolicyData, type MonthlyGradeCouponRun } from '@/lib/loyalty-policy';
+import { GRADE_BENEFIT_CADENCE_LABELS } from '@/lib/loyalty';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import type { CustomerRewardPolicy } from '@/lib/admin/customer-rewards';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -37,6 +38,14 @@ function criterionText(tier: LoyaltyCriterion) {
   return [tier.amount === null ? null : `${tier.amount.toLocaleString('ko-KR')}원 이상`, tier.itemCount === null ? null : `상품 주문 항목 ${tier.itemCount.toLocaleString('ko-KR')}건 이상`].filter(Boolean).join(' 또는 ');
 }
 const sameCriteria = (a: LoyaltyCriterion[], b: LoyaltyCriterion[]) => a.length === b.length && a.every((tier, index) => tier.grade === b[index].grade && tier.enabled === b[index].enabled && tier.amount === b[index].amount && tier.itemCount === b[index].itemCount);
+/* 매월 지급 기록의 상태 문장 — 색 배지 없이 글로만 쓴다(상태 색은 status-tone 이 정하는 영역이라 새 상태를 늘리지 않는다). */
+const RUN_STATUS: Record<NonNullable<MonthlyGradeCouponRun['finishReason']>, string> = {
+  completed: '지급 완료',
+  no_monthly_coupons: '매월 지급 쿠폰 없음',
+  coupons_closed: '쿠폰 중지·발급 한도로 끝남',
+  month_ended: '달이 바뀌어 끝남(남은 회원 미지급)',
+};
+const runMonth = (value: string) => `${value.slice(0, 4)}년 ${Number(value.slice(5, 7))}월`;
 
 export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData; rewards?: CustomerRewardPolicy }) {
   const [base, setBase] = useState(data.policy);
@@ -51,6 +60,8 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
   const [sample, setSample] = useState({ amount: '', itemCount: '' });
   const [editor, setEditor] = useState<{ index: number; before: Draft } | null>(null);
   const [editorError, setEditorError] = useState('');
+  /* 새 상태는 맨 뒤에 둔다 — 얕은 렌더 테스트가 훅 순서로 상태를 짚는다. */
+  const [runs, setRuns] = useState(data.monthlyRuns ?? []);
   const locked = busy || uncertain;
   const parsed = criteria(draft);
   /* 줄의 '수정'은 초안만 바꾼다 — 저장 전인 변경이 있으면 저장 버튼 옆에 말해 둘의 차이가 보이게 한다. */
@@ -110,7 +121,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
     try {
       const result = await readLoyaltyPolicyAction();
       if ('error' in result) { setFeedback({ error: result.error }); return; }
-      setLatest(result.data); setCoupons(result.data.coupons);
+      setLatest(result.data); setCoupons(result.data.coupons); setRuns(result.data.monthlyRuns ?? []);
     } catch { setFeedback({ error: '최신 정책을 불러오지 못했습니다. 작성한 입력은 유지됩니다.' }); }
     finally { setReading(false); }
   }
@@ -140,9 +151,10 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
           <TableHead className="h-auto bg-transparent py-3 align-top" scope="row"><Badge data-grade={tier.grade} variant="outline">{tier.grade.toUpperCase()}</Badge></TableHead>
           <TableCell className="align-top whitespace-normal" data-label="등급 조건">{criterionText({ grade: tier.grade, enabled: tier.enabled, amount: tier.amount ? Number(tier.amount) : null, itemCount: tier.itemCount ? Number(tier.itemCount) : null }) || '조건을 설정해주세요.'}</TableCell>
           <TableCell className="align-top whitespace-normal" data-label="주문 적립">{rewards ? rewards.gradeEnabled && rewards.baseCreditEnabled ? <span className="tabular-nums">{(rewards.gradeRates[tier.grade] ?? 0) / 100}%</span> : <span className="text-muted-foreground">기본 정책 적용</span> : <span className="text-muted-foreground">—</span>}</TableCell>
-          <TableCell className="align-top whitespace-normal" data-label="혜택 쿠폰"><div className="flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
-            {coupons.some(coupon => coupon.grade === tier.grade) ? <ul className="flex min-w-0 flex-col gap-1">{coupons.filter(coupon => coupon.grade === tier.grade).map(coupon => <li key={coupon.code}><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/sales/coupons?couponCode=${encodeURIComponent(coupon.code)}`}>{coupon.name}<small className={`block ${FIELD_HINT}`}>{coupon.code} · {{ active: '활성', paused: '중지', archived: '중지' }[coupon.status] ?? coupon.status}</small></Link></li>)}</ul> : <span className="text-muted-foreground">연결된 쿠폰 없음</span>}
-            <Link className={`${buttonVariants({ variant: 'ghost', size: 'xs' })} w-fit`} data-slot="button" href={`/admin/sales/coupons/new?grade=${tier.grade}`}><Plus aria-hidden="true" />혜택 쿠폰 등록<span className="sr-only"> · {tier.grade.toUpperCase()}</span></Link>
+          {/* '+ 혜택 쿠폰 등록'은 모든 줄에서 같은 자리(오른쪽 위)에 둔다 — 쿠폰 줄이 길면 쿠폰 이름 칸이 줄을 바꾸고 버튼은 밀려 내려가지 않는다. */}
+          <TableCell className="align-top whitespace-normal" data-label="혜택 쿠폰"><div className="flex min-w-0 items-start justify-between gap-2" data-grade-coupon-cell="">
+            {coupons.some(coupon => coupon.grade === tier.grade) ? <ul className="flex min-w-0 flex-1 flex-col gap-1">{coupons.filter(coupon => coupon.grade === tier.grade).map(coupon => <li key={coupon.code}><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/sales/coupons?couponCode=${encodeURIComponent(coupon.code)}`}>{coupon.name}<small className={`block ${FIELD_HINT}`}>{coupon.code} · {{ active: '활성', paused: '중지', archived: '중지' }[coupon.status] ?? coupon.status} · {GRADE_BENEFIT_CADENCE_LABELS[coupon.cadence ?? 'upgrade']}</small></Link></li>)}</ul> : <span className="min-w-0 flex-1 text-muted-foreground">연결된 쿠폰 없음</span>}
+            <Link className={`${buttonVariants({ variant: 'ghost', size: 'xs' })} w-fit shrink-0`} data-slot="button" href={`/admin/sales/coupons/new?grade=${tier.grade}`}><Plus aria-hidden="true" />혜택 쿠폰 등록<span className="sr-only"> · {tier.grade.toUpperCase()}</span></Link>
           </div></TableCell>
           <TableCell className="align-top"><Button aria-label={`${tier.grade.toUpperCase()} 조건 수정`} disabled={locked || !tier.enabled} onClick={() => openEditor(index)} size="xs" type="button" variant="outline">수정</Button></TableCell>
         </TableRow>)}</TableBody>
@@ -177,7 +189,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
         </div>
         <p className={NOTE}>두 조건을 모두 사용하면 하나만 충족해도 해당 등급을 받을 수 있습니다. 주문 항목 수는 구매 수량 합계와 다릅니다.</p>
         <div className={INFO_PANEL}><h3 className="font-medium">연결된 혜택 쿠폰</h3>
-          {coupons.filter(coupon => coupon.grade === draft[editor.index].grade).length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{coupons.filter(coupon => coupon.grade === draft[editor.index].grade).map(coupon => <li key={coupon.code}>{coupon.name} · {coupon.code}</li>)}</ul> : <p className="text-muted-foreground">연결된 쿠폰이 없습니다. 조건 적용 후 등급별 혜택에서 쿠폰을 등록할 수 있습니다.</p>}
+          {coupons.filter(coupon => coupon.grade === draft[editor.index].grade).length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{coupons.filter(coupon => coupon.grade === draft[editor.index].grade).map(coupon => <li key={coupon.code}>{coupon.name} · {coupon.code} · {GRADE_BENEFIT_CADENCE_LABELS[coupon.cadence ?? 'upgrade']}</li>)}</ul> : <p className="text-muted-foreground">연결된 쿠폰이 없습니다. 조건 적용 후 등급별 혜택에서 쿠폰을 등록할 수 있습니다.</p>}
         </div>
         {editorError ? <AdminNotice role="alert" tone="danger">{editorError}</AdminNotice> : null}
         <div className={`${ACTIONS} justify-end border-t pt-4`}><Button onClick={closeEditor} type="button" variant="outline">취소</Button><Button type="submit">조건 적용</Button></div>
@@ -194,7 +206,21 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className={FIELD_LABEL} htmlFor="loyalty-sample-amount">실적 금액 (원)<Input id="loyalty-sample-amount" inputMode="numeric" maxLength={13} value={sample.amount} onChange={event => setSample({ ...sample, amount: event.target.value })} /></label><label className={FIELD_LABEL} htmlFor="loyalty-sample-count">상품 주문 항목 수 (건)<Input id="loyalty-sample-count" inputMode="numeric" maxLength={7} value={sample.itemCount} onChange={event => setSample({ ...sample, itemCount: event.target.value })} /></label></div>
       <p aria-live="polite" className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm">{estimated ? <>예상 등급 <strong className="font-semibold">{estimated.toUpperCase()}</strong></> : '유효한 등급 조건과 실적 금액·항목 수를 입력해주세요.'}</p>
     </section>
-    <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground sm:p-5"><h3 className="text-base font-medium">등급 혜택 안내</h3><p className={NOTE}>승급할 때 통과한 등급의 쿠폰을 발급합니다. 발급 기간·한도·대상 조건을 따르며 이미 보유한 같은 쿠폰은 다시 발급하지 않습니다. 쿠폰 내용과 연결 등급은 쿠폰 편집에서 관리합니다.</p>
+    <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground sm:p-5"><h3 className="text-base font-medium">등급 혜택 안내</h3><p className={NOTE}>쿠폰마다 지급 방식을 고릅니다. 승급 시 1회는 승급할 때 통과한 등급의 쿠폰을 발급하고 이미 보유한 같은 쿠폰은 다시 발급하지 않습니다. 매월 1일은 매월 1일 0시(한국 시간)에 그 시점 등급이 쿠폰 등급 이상인 회원에게 한 장씩 발급하고 알림을 보내며, 지난달 몫은 소급하지 않습니다. 매월 1일 지급 직전에는 대상 회원(SILVER 이상으로 기록된 회원)의 등급을 최근 90일 실적으로 다시 계산해, 실적이 줄어든 회원은 그때 강등되고 그 등급까지의 쿠폰만 받습니다(강등·승급 이력과 승급 쿠폰은 결제 때와 같은 규칙). 두 방식 모두 발급 기간·한도·대상 조건을 따릅니다. 쿠폰 내용·연결 등급·지급 방식은 쿠폰 편집에서 관리합니다.</p>
       <p className={NOTE}>등급별 주문 적립률은 <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/settings/store-credits#customer-rewards">적립금 정책</Link>에서 설정합니다. 주문 생성 시 등급을 기준으로 최종 적립률을 저장하고 거래확정 때 지급합니다.</p></section>
+    <section aria-label="매월 지급 기록" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground sm:p-5" data-loyalty-monthly-runs="">
+      <h3 className="text-base font-medium">매월 지급 기록</h3>
+      <p className={NOTE}>매월 1일 지급 쿠폰의 최근 6개월 기록입니다. 그 달 첫 실행이 지급할 쿠폰을 정하고 회원 순서대로 나눠 지급합니다.</p>
+      {runs.length ? <div className={TABLE_BOX}><Table className="min-w-[40rem] table-fixed"><caption className="sr-only">매월 등급 혜택 쿠폰 지급 기록</caption>
+        <colgroup><col style={{ width: '15%' }} /><col style={{ width: '25%' }} /><col style={{ width: '15%' }} /><col style={{ width: '45%' }} /></colgroup>
+        <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col">지급 월</TableHead><TableHead scope="col">상태</TableHead><TableHead scope="col">받은 회원 · 장수</TableHead><TableHead scope="col">쿠폰별</TableHead></TableRow></TableHeader>
+        <TableBody>{runs.map(run => <TableRow className="hover:bg-transparent" key={run.grantMonth}>
+          <TableHead className="h-auto bg-transparent py-3 align-top" scope="row">{runMonth(run.grantMonth)}</TableHead>
+          <TableCell className="align-top whitespace-normal" data-label="상태">{run.finishReason ? RUN_STATUS[run.finishReason] : '지급 중'}{run.skipped ? ` · 등급 확인 실패 ${run.skipped.toLocaleString('ko-KR')}명 제외` : ''}<small className={`block ${FIELD_HINT}`}>{formatOrderDateTime(run.startedAt)} 시작{run.finishedAt ? ` · ${formatOrderDateTime(run.finishedAt)} 끝` : ''}</small></TableCell>
+          <TableCell className="align-top tabular-nums" data-label="받은 회원 · 장수">{run.recipients.toLocaleString('ko-KR')}명 · {run.granted.toLocaleString('ko-KR')}장</TableCell>
+          <TableCell className="align-top whitespace-normal" data-label="쿠폰별">{run.coupons.length ? <ul className="flex flex-col gap-0.5">{run.coupons.map(coupon => <li key={coupon.code}>{coupon.name} <span className="tabular-nums text-muted-foreground">{coupon.granted.toLocaleString('ko-KR')}장</span></li>)}</ul> : <span className="text-muted-foreground">지급한 쿠폰 없음</span>}</TableCell>
+        </TableRow>)}</TableBody>
+      </Table></div> : <p className="text-sm text-muted-foreground">아직 매월 지급 기록이 없습니다.</p>}
+    </section>
   </div>;
 }

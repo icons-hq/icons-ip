@@ -58,6 +58,16 @@ async function requireStaffAction() {
   return { auth, error: null };
 }
 
+/** 운송장 회신 등록은 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
+async function requireDispatchAction() {
+  const auth = await getCurrentAdminAuthState();
+  if (!auth.isConfigured || !auth.user) redirect(loginPath());
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.dispatch')) {
+    return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
+  }
+  return { auth, error: null };
+}
+
 function revalidateOrderSurfaces(orderId?: string) {
   revalidatePath('/admin');
   revalidatePath('/orders');
@@ -505,9 +515,27 @@ export interface AdminTrackingImportState {
     failed: AdminTrackingImportFailure[];
     /** 같은 운송장으로 이미 발송된 배송 건 수(같은 회신을 다시 올린 경우). 아무것도 바꾸지 않았다. */
     unchanged?: number;
+    /** 운송장 칸을 비워 건너뛴 줄 수(김포 회신, 아직 출고하지 않은 주문). 실패가 아니다(QA 라운드 1 m8). */
+    skipped?: number;
   };
 }
 
+/** 등록 전 확인(QA 라운드 1 m2): 파일·붙여넣기를 읽기만 하고 아무것도 바꾸지 않은 결과. */
+export interface AdminTrackingImportPreview {
+  /** 알아본 회신 양식 이름. */
+  format: string;
+  /** 등록을 시도할 줄 수. 실제 등록 여부는 등록할 때 배송 건 상태로 다시 정한다. */
+  ready: number;
+  /** 운송장 칸을 비워 건너뛸 줄 수. */
+  skipped: number;
+  /** 읽는 단계에서 이미 등록할 수 없는 줄(앞에서 최대 20줄). */
+  issues: AdminTrackingImportFailure[];
+  issueCount: number;
+  /** 등록할 줄의 앞부분(최대 5줄): 줄 번호·대상·운송장. */
+  sample: { line: number; reference: string; trackingNumber: string }[];
+}
+
+const isSmartStoreReply = (parsed: TrackingWorkbookParseResult): parsed is Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }> => 'kind' in parsed && parsed.kind === 'smartstore';
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
 type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
@@ -527,15 +555,71 @@ async function resolveReplyOrigin(supabase: Awaited<ReturnType<typeof createClie
     : `${REPLY_TEMPLATE_LABEL[template]} 양식을 쓰는 사용 중인 출고지가 없습니다. 출고지 설정을 확인해주세요.`);
 }
 
-function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean): AdminTrackingImportState {
+function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean, blankLines = 0): AdminTrackingImportState {
   failed.sort((a,b)=>a.line-b.line);
-  const report={failed,succeeded,...(unchanged?{unchanged}:{})};
-  const skipped=unchanged?` 같은 운송장으로 이미 발송된 ${unchanged}건은 그대로 두었습니다.`:'';
+  const report={failed,succeeded,...(unchanged?{unchanged}:{}),...(blankLines?{skipped:blankLines}:{})};
+  const skipped=`${unchanged?` 같은 운송장으로 이미 발송된 ${unchanged}건은 그대로 두었습니다.`:''}${blankLines?` 운송장 칸을 비운 ${blankLines}줄은 아직 출고하지 않은 것으로 보고 건너뛰었습니다.`:''}`;
   if(!succeeded.length){
-    if(unchanged&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}`,report};
+    if((unchanged||blankLines)&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}`,report};
     return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}`},report};
   }
   return {message:`${succeeded.length}건의 운송장을 등록했습니다.${skipped}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
+}
+
+/**
+ * 붙여넣기 또는 올린 파일을 회신 양식으로 읽는다(쓰기 없음). 등록과 등록 전 확인이 같은 규칙으로 읽도록 한 곳에 둔다.
+ * 파일이 있으면 붙여넣기보다 파일을 읽는다.
+ */
+async function readTrackingImport(formData: FormData): Promise<{ parsed: TrackingWorkbookParseResult } | { error: string }> {
+  const carriers = await getShippingCarrierRegistry();
+  try {
+    const file = formData.get('file');
+    if (file instanceof File && file.size > 0) {
+      const workbook=/\.xlsx$/i.test(file.name);
+      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {error:`${workbook?'XLSX':'CSV·TSV·텍스트'} 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.`};
+      const password=formData.get('filePassword');
+      if (workbook) return {parsed:await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers,typeof password==='string'?password:'')};
+      if (/\.(csv|tsv|txt)$/i.test(file.name)) {
+        const text=decodeSpreadsheetText(new Uint8Array(await file.arrayBuffer()));
+        if(/^\uFEFF?"?받는분전화번호/.test(text))return {error:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'};
+        // 표준 양식 CSV는 열이 많아 XLSX와 같은 1MB까지 받는다. 일반 세 칸 회신은 종전대로 256KB다.
+        const standard=parseSmartStoreReplyText(text,carriers);
+        if(!standard&&file.size>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {error:'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'};
+        return {parsed:standard??parseTrackingImport(text,carriers)};
+      }
+      return {error:'XLSX 또는 CSV·TSV 파일을 올려주세요.'};
+    }
+    const text=String(formData.get('pasted')??'');
+    if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {error:'붙여넣기 내용은 256KB 이하로 나누어주세요.'};
+    return {parsed:parseSmartStoreReplyText(text,carriers)??parseTrackingImport(text,carriers)};
+  } catch(error) { return {error:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}; }
+}
+
+const blankReplyLines = (parsed: TrackingWorkbookParseResult) => 'kind' in parsed && (parsed.kind === 'gimpo' || parsed.kind === 'smartstore') ? parsed.skipped.length : 0;
+
+/**
+ * 등록 전 확인(QA 라운드 1 m2): 잘못 고른 파일이 바로 등록되지 않도록, 올린 회신을 읽기만 해서 알아본 양식·등록할 줄·건너뛸 줄·
+ * 읽는 단계의 오류를 먼저 보여 준다. DB는 읽지도 바꾸지도 않는다. 권한은 등록과 같다(출고 권한).
+ */
+export async function previewAdminOrderTrackingImportAction(formData: FormData): Promise<{ preview?: AdminTrackingImportPreview; error?: string }> {
+  const access = await requireDispatchAction();
+  if (access.error) return { error: access.error.errors?.form ?? '관리자 권한이 필요합니다.' };
+  const read = await readTrackingImport(formData);
+  if ('error' in read) return { error: read.error };
+  const parsed = read.parsed;
+  const kind = 'kind' in parsed ? parsed.kind : 'generic';
+  const format = kind === 'gimpo' ? '김포 WMS 21열' : kind === 'seowon' ? '남양주(서원) 송장양식' : kind === 'smartstore' ? 'ICONS 표준 양식' : '배송건번호 · 택배사코드 · 운송장번호';
+  const rows: { line: number; reference: string; trackingNumber: string }[] = isSeowonReply(parsed)
+    ? parsed.rows.filter(row => !row.error).map(row => ({ line: row.line, reference: row.shipmentNumber ?? row.items, trackingNumber: row.trackingNumber }))
+    : parsed.rows.map(row => ({ line: row.line, reference: row.reference, trackingNumber: row.trackingNumber }));
+  const issues: AdminTrackingImportFailure[] = isSeowonReply(parsed)
+    ? parsed.rows.filter(row => row.error).map(row => ({ line: row.line, reference: row.shipmentNumber ?? row.items, reason: row.error! }))
+    : [...parsed.issues];
+  issues.sort((a, b) => a.line - b.line);
+  const skipped = blankReplyLines(parsed);
+  if (!rows.length && !issues.length && !skipped) return { error: '등록할 운송장을 붙여넣거나 파일을 선택해주세요.' };
+  if (rows.length + issues.length > TRACKING_IMPORT_ROW_LIMIT) return { error: '운송장은 한 번에 1,000줄까지 등록할 수 있습니다.' };
+  return { preview: { format, ready: rows.length, skipped, issues: issues.slice(0, 20), issueCount: issues.length, sample: rows.slice(0, 5) } };
 }
 
 async function enqueueDispatched(deliveries: { orderId: string; shipmentId: string }[]) {
@@ -592,36 +676,16 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
 export async function bulkRegisterAdminOrderTrackingAction(
   _state: AdminTrackingImportState, formData: FormData,
 ): Promise<AdminTrackingImportState> {
-  const access = await requireStaffAction();
+  const access = await requireDispatchAction();
   if (access.error) return { errors: { form: access.error.errors?.form } };
-  const carriers = await getShippingCarrierRegistry();
-  let parsed: TrackingWorkbookParseResult;
-  try {
-    const file = formData.get('file');
-    if (file instanceof File && file.size > 0) {
-      const workbook=/\.xlsx$/i.test(file.name);
-      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:`${workbook?'XLSX':'CSV·TSV·텍스트'} 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.`}};
-      const password=formData.get('filePassword');
-      if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers,typeof password==='string'?password:'');
-      else if (/\.(csv|tsv|txt)$/i.test(file.name)) {
-        const text=decodeSpreadsheetText(new Uint8Array(await file.arrayBuffer()));
-        if(/^\uFEFF?"?받는분전화번호/.test(text))return {errors:{form:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'}};
-        // 표준 양식 CSV는 열이 많아 XLSX와 같은 1MB까지 받는다. 일반 세 칸 회신은 종전대로 256KB다.
-        const standard=parseSmartStoreReplyText(text,carriers);
-        if(!standard&&file.size>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
-        parsed=standard??parseTrackingImport(text,carriers);
-      }
-      else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
-    } else {
-      const text=String(formData.get('pasted')??'');
-      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
-      parsed=parseSmartStoreReplyText(text,carriers)??parseTrackingImport(text,carriers);
-    }
-  } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
+  const read = await readTrackingImport(formData);
+  if ('error' in read) return { errors: { form: read.error } };
+  const parsed = read.parsed;
   const requestedOrigin=String(formData.get('originId')??'');
   if(isSeowonReply(parsed))return registerSeowonReply(parsed,requestedOrigin);
   const count=parsed.rows.length+parsed.issues.length;
-  if(!count)return {errors:{form:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'}};
+  const blankLines=blankReplyLines(parsed);
+  if(!count)return {errors:{form:blankLines?`운송장번호를 채운 줄이 없습니다. 운송장 칸을 비운 ${blankLines}줄은 아직 출고하지 않은 것으로 보고 건너뛰었습니다.`:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'}};
   if(count>TRACKING_IMPORT_ROW_LIMIT)return {errors:{form:'운송장은 한 번에 1,000줄까지 등록할 수 있습니다.'}};
   const supabase=await createClient();
   let command: ReturnType<typeof trackingImportCommand>;
@@ -640,7 +704,8 @@ export async function bulkRegisterAdminOrderTrackingAction(
     if(result.error||!Array.isArray(result.data)||result.data.length!==command.args.target_rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     const rows=result.data as TrackingBatchRow[];
     for(const row of rows){
-      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+      // 표준 양식에서 운송장 칸만 비워 건너뛴 줄은 배송 건 가드용으로만 보냈다. 그 줄 자체의 거절은 실패가 아니다.
+      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
       else if(row.duplicate)continue;
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);
@@ -649,7 +714,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
     queueWarning=await enqueueDispatched([...new Map(deliveryRows.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
-  return trackingImportResult(succeeded,failed,unchanged,queueWarning);
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning,blankLines);
 }
 
 /**

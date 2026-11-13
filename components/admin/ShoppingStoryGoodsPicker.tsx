@@ -12,6 +12,8 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
+import { displayGoodVisibility } from '@/lib/admin/good-visibility';
+import { DisplayGoodVisibilityNote } from './DisplayGoodVisibility';
 
 /* 관련상품 찾기 팝업(템플릿 룩, ADR-0028). 조회 조건·선택 유지·추가 한도 계약은 그대로다. */
 const FIELD = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium';
@@ -70,7 +72,17 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
         <div className="flex items-center justify-end gap-2 sm:col-span-2"><Button type="button" onClick={() => { setQuery(''); setFilters(DEFAULT_STORY_GOOD_FILTERS); void search(1, { query: '', filters: DEFAULT_STORY_GOOD_FILTERS }); }} variant="ghost">초기화</Button><Button type="submit" variant="soft">검색</Button></div>
       </fieldset>
     </form>
-    <GoodUrlAddField disabled={pending} onAdd={async id => {
+    <GoodUrlAddField<ShoppingStoryGoodOption> disabled={pending} bulk={{
+      /* 검색과 같은 후보(보관 상품·보관 IP 제외)만, 이 스토리에 아직 없는 상품만 담는다. */
+      capacity: capacity - picked.length,
+      classify: match => {
+        if (!match.candidate) return { ok: false, reason: '상품 정보를 확인하지 못했습니다. 검색으로 골라주세요.' };
+        if (existing.has(match.id) || picked.some(item => item.id === match.id)) return { ok: false, reason: GOOD_URL_ERRORS.exists };
+        return { ok: true, id: match.id, item: match.candidate };
+      },
+      onAdd: goods => setPicked(current => [...current, ...goods.filter(good => !current.some(item => item.id === good.id))].slice(0, capacity)),
+      appliedHint: '선택한 상품 추가를 눌러 반영해주세요.',
+    }} onAdd={async id => {
       if (existing.has(id) || picked.some(item => item.id === id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
       if (picked.length >= capacity) return { ok: false, message: `더 추가할 수 없습니다. 추가 가능 ${capacity}개를 확인해주세요.` };
       const good = await findGoodById(id, async page => {
@@ -87,7 +99,7 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
     <div className="flex flex-wrap items-center gap-2.5 text-xs"><span className="min-w-60 flex-1" aria-live="polite">{pending ? '상품을 찾고 있습니다…' : `${data?.total.toLocaleString('ko-KR') ?? 0}개 검색됨`} · {picked.length}개 선택 / 추가 가능 {capacity}개</span><Button type="button" disabled={pending || !selectable.length} onClick={() => setPicked(current => pageSelected ? current.filter(good => !selectable.some(row => row.id === good.id)) : [...current, ...selectable.filter(good => !current.some(row => row.id === good.id)).slice(0, Math.max(0, capacity - current.length))])} size="sm" variant="outline">{pageSelected ? '현재 페이지 선택 해제' : '현재 페이지 선택'}</Button><Button disabled={!picked.length} type="button" onClick={() => setPicked([])} size="sm" variant="ghost">선택 비우기</Button></div>
     <ul className="flex flex-col" aria-busy={pending}>{data?.rows.map(good => {
       const already = existing.has(good.id), selected = picked.some(item => item.id === good.id);
-      return <li className="flex items-center gap-3 border-t py-3 text-xs" key={good.id}><input type="checkbox" aria-label={`${good.name} 선택`} checked={already || selected} disabled={pending || already || (!selected && picked.length >= capacity)} onChange={() => toggle(good)} />{good.imageUrl ? <img className="block size-10 shrink-0 rounded-md bg-muted object-cover sm:size-12" src={good.imageUrl} alt="" /> : <span className="block size-10 shrink-0 rounded-md bg-muted sm:size-12" />}<div className="min-w-0 flex-1"><strong className="font-medium [overflow-wrap:anywhere]">{good.name}</strong><small className="mt-0.5 block leading-relaxed text-muted-foreground">{good.code} · {good.price.toLocaleString('ko-KR')}원{good.priceMax && good.priceMax > good.price ? '~' : ''} · {good.published ? good.soldOut ? '품절' : '공개' : '공개 제외'}{good.discounted ? ' · 할인' : ''}{good.freeShipping ? ' · 무료배송' : ''}{good.saleType === 'preorder' ? ' · 예약 판매' : ''}</small><small className="block leading-relaxed text-muted-foreground">찜 {good.wishCount.toLocaleString('ko-KR')} · 최근 30일 판매 {good.salesQuantity.toLocaleString('ko-KR')} · 리뷰 {good.reviewCount.toLocaleString('ko-KR')}{good.ratingAverage !== null ? ` · 평점 ${good.ratingAverage.toFixed(2)}` : ''}</small></div>{already ? <span className="shrink-0 text-[11px] text-muted-foreground">선택됨</span> : null}</li>;
+      return <li className="flex items-center gap-3 border-t py-3 text-xs" key={good.id}><input type="checkbox" aria-label={`${good.name} 선택`} checked={already || selected} disabled={pending || already || (!selected && picked.length >= capacity)} onChange={() => toggle(good)} />{good.imageUrl ? <img className="block size-10 shrink-0 rounded-md bg-muted object-cover sm:size-12" src={good.imageUrl} alt="" /> : <span className="block size-10 shrink-0 rounded-md bg-muted sm:size-12" />}<div className="min-w-0 flex-1"><strong className="font-medium [overflow-wrap:anywhere]">{good.name}</strong><small className="mt-0.5 block leading-relaxed text-muted-foreground">{good.code} · {good.price.toLocaleString('ko-KR')}원{good.priceMax && good.priceMax > good.price ? '~' : ''}{good.published ? good.soldOut ? ' · 품절' : ' · 공개' : ''}{good.discounted ? ' · 할인' : ''}{good.freeShipping ? ' · 무료배송' : ''}{good.saleType === 'preorder' ? ' · 예약 판매' : ''}<DisplayGoodVisibilityNote compact visibility={displayGoodVisibility(good)} /></small><small className="block leading-relaxed text-muted-foreground">찜 {good.wishCount.toLocaleString('ko-KR')} · 최근 30일 판매 {good.salesQuantity.toLocaleString('ko-KR')} · 리뷰 {good.reviewCount.toLocaleString('ko-KR')}{good.ratingAverage !== null ? ` · 평점 ${good.ratingAverage.toFixed(2)}` : ''}</small></div>{already ? <span className="shrink-0 text-[11px] text-muted-foreground">선택됨</span> : null}</li>;
     })}</ul>
     {!pending && data && !data.rows.length ? <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 상품이 없습니다. 검색 조건을 변경해주세요.</p> : null}
     {data ? <ConsolePagination label="상품 검색 페이지" page={data.page} pageSize={data.pageSize} total={data.total} unit="개" disabled={pending} onPageChange={page => void search(page, applied)} /> : null}

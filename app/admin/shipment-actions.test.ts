@@ -1,13 +1,15 @@
-import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { completeShipmentsAction, exportPendingOriginShipmentsAction, exportShipmentsAction, originBarcodeGapsAction, saveShipmentExportColumnsAction, shipmentBarcodeGapsAction } from './shipment-actions';
+import { applyDispatchDeliveryAction, completeShipmentsAction, exportPendingOriginShipmentsAction, exportShipmentsAction, originBarcodeGapsAction, readDispatchDeliveryOptionsAction, registerShipmentTrackingAction, saveShipmentExportColumnsAction, shipmentBarcodeGapsAction } from './shipment-actions';
 import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from '@/lib/admin/shipment-workbook';
 
 const ID = '00000000-0000-4000-8000-000000000001';
 const SECOND = '00000000-0000-4000-8000-000000000002';
 const STAMP = '2026-09-08T00:00:00Z';
 const credentials = { password: '1234', passwordConfirmation: '1234' };
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), build: vi.fn(), encrypt: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), build: vi.fn(), encrypt: vi.fn(), refresh: vi.fn(), carriers: vi.fn(), enqueue: vi.fn() }));
+vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: mocks.carriers }));
+vi.mock('@/lib/email/order-shipment-jobs.server', () => ({ enqueueOrderShippedEmails: mocks.enqueue }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/admin/shipment-workbook.server', () => ({ buildShipmentExport: mocks.build }));
@@ -23,6 +25,67 @@ beforeEach(() => {
 });
 
 describe('shipment action boundaries', () => {
+  it('물류출고관리는 출고지시를 내려받고 배송완료하며, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ message: '1건의 출고지시를 내려받았습니다.' });
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true }], error: null });
+    expect(await completeShipmentsAction([ID])).toEqual({ message: '1건을 배송완료로 변경했습니다.', failed: [] });
+    for (const role of ['deputy', 'influencer', 'agency'] as const) {
+      mocks.rpc.mockClear();
+      mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture(role), isConfigured: true, user: { id: role }, isStaff: true, role: 'staff' });
+      expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toEqual({ error: '직원 권한이 필요합니다.' });
+      expect(await completeShipmentsAction([ID])).toEqual({ error: '직원 권한이 필요합니다.' });
+      expect(await shipmentBarcodeGapsAction([ID])).toBeNull();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    }
+  });
+  /* 2026-11-12 사용자 결정 "착불 금액은 보이게": 선결제 배송비는 비우고 착불 배송비·합포장 착불 합계는 남긴다. */
+  it('수령인 정보만: 출고 전용 운영자의 표준 양식은 구매자·결제·금액·선결제 배송비를 모든 줄에서 비우고 착불은 남기며 금액 배분을 읽지 않는다 (1014-084)', async () => {
+    const detail = { itemId: SECOND, buyerName: '구매자', buyerId: ID, paidAt: STAMP, paymentMethod: 'card', productPrice: null, optionPrice: null,
+      itemTotal: null, itemDiscount: 300, sellerDiscount: 300, regionalShippingFee: 3000, shippingDiscount: 500, orderNumber: '2026111110000001' };
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 4000,
+      pack: { id: SECOND, revision: 1, count: 2, shipmentIds: [ID, SECOND], collectFee: 4000, canRelease: true },
+      lines: [{ orderId: ID, recipient: '수령인', smartstore: detail }, { orderId: ID, recipient: '수령인', smartstore: { ...detail, itemTotal: 1700 } }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_smartstore_shipment_export' ? structuredClone(exported) : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    expect(await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials)).toMatchObject({ file: { encryption: 'ECMA-376-Agile' } });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('admin_order_item_allocation_inputs');
+    const built = mocks.build.mock.calls[0][0] as typeof exported;
+    expect(built.shipments[0]).toMatchObject({ id: ID, shippingFee: null, shippingCollectFee: 4000, pack: { collectFee: 4000, count: 2 } });
+    for (const line of built.shipments[0].lines) {
+      expect(line.recipient).toBe('수령인');
+      expect(line.smartstore).toMatchObject({ orderNumber: '2026111110000001', buyerName: null, buyerId: null, paidAt: null, paymentMethod: null,
+        itemTotal: null, itemDiscount: null, sellerDiscount: null, regionalShippingFee: null, shippingDiscount: null });
+    }
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
+    // 물류도 ICONS 표준 양식 바코드 경고를 같은 출고 권한으로 센다(통합: admin_smartstore_shipment_barcode_gaps도 sales.dispatch).
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_smartstore_shipment_barcode_gaps', { p_ids: [ID] });
+  });
+  it('주문 조회 권한이 있는 주매니저의 표준 양식 자료는 지금과 같다 (1014-084)', async () => {
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 0,
+      lines: [{ orderId: ID, recipient: '수령인', smartstore: { itemId: SECOND, buyerName: '구매자', paymentMethod: 'card', itemTotal: 1700, itemDiscount: 300 } }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_smartstore_shipment_export' ? structuredClone(exported) : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('primary'), isConfigured: true, user: { id: 'primary' }, isStaff: true, role: 'staff' });
+    await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
+    expect(mocks.build).toHaveBeenCalledWith(exported, 'xlsx', 'smartstore');
+  });
+  /* QA 라운드 1 M2: 결정(1014-084 수령인 정보만)의 '내려받는 파일'은 창고 고유 양식도 포함한다. 단가·선결제 배송비만 비우고 수량·착불은 남긴다. */
+  it('창고 고유 양식도 출고 전용 운영자에게는 줄 단가·선결제 배송비를 비워 만든다 (1014-084)', async () => {
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 2500, lines: [{ orderId: ID, recipient: '수령인', qty: 2, unitPrice: 1000 }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' ? structuredClone(exported) : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    await exportShipmentsAction([ID], 'xlsx', 'warehouse');
+    expect(mocks.build).toHaveBeenCalledWith({ shipments: [{ ...exported.shipments[0], shippingFee: null, lines: [{ orderId: ID, recipient: '수령인', qty: 2, unitPrice: null }] }] },
+      'xlsx', 'warehouse', undefined, { recipientOnly: true });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('admin_order_item_allocation_inputs');
+  });
+  it('주문 조회 권한이 있는 주매니저의 창고 고유 양식 자료는 지금과 같다', async () => {
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, lines: [{ orderId: ID, recipient: '수령인', unitPrice: 1000 }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' ? structuredClone(exported) : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('primary'), isConfigured: true, user: { id: 'primary' }, isStaff: true, role: 'staff' });
+    await exportShipmentsAction([ID], 'xlsx', 'warehouse');
+    expect(mocks.build).toHaveBeenCalledWith(exported, 'xlsx', 'warehouse');
+  });
   it('counts all affected package members once even when only one member was selected', async () => {
     mocks.rpc.mockResolvedValue({data:[{id:ID,ok:true,affectedIds:[ID,SECOND]}],error:null});
     expect(await completeShipmentsAction([ID])).toEqual({message:'2건을 배송완료로 변경했습니다.',failed:[]});
@@ -38,7 +101,8 @@ describe('shipment action boundaries', () => {
     expect(result).toMatchObject({ file: { base64: Buffer.from('encrypted-workbook').toString('base64'), encryption: 'ECMA-376-Agile', sha256: 'a'.repeat(64) } });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_smartstore_shipment_export', { p_ids: [ID] });
     expect(mocks.build).toHaveBeenCalledWith({ shipments: [{ id: ID, updatedAt: STAMP }] }, 'xlsx', 'smartstore');
-    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_smartstore_shipment_export', 'admin_mark_shipments_exported', 'admin_smartstore_shipment_barcode_gaps']);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
     expect(mocks.build.mock.invocationCallOrder[0]).toBeLessThan(mocks.rpc.mock.invocationCallOrder[1]);
     expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.rpc.mock.invocationCallOrder[1]);
   });
@@ -187,9 +251,21 @@ describe('내보내기 전 바코드 경고 조회', () => {
     expect(failedLookup.file).toBeDefined();
     expect(failedLookup.message).toBe('2건의 출고지시를 내려받았습니다.');
   });
-  it('ICONS 표준 양식과 실패한 내보내기는 바코드 빈칸을 세지 않는다', async () => {
-    await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
+  /* 1027T-046 통합: ICONS 표준 양식은 출고지와 관계없이 모든 행에 바코드 칸이 있어 admin_smartstore_shipment_barcode_gaps로 센다. */
+  it('ICONS 표준 양식은 표준 양식 기준으로 바코드 빈칸을 세고, 실패한 내보내기는 세지 않는다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_smartstore_shipment_export' ? { shipments: [{ id: ID, updatedAt: STAMP }] }
+      : name === 'admin_smartstore_shipment_barcode_gaps' ? 2 : 1 }));
+    const standard = await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
+    expect(standard.message).toContain('바코드가 없는 옵션 2개');
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_smartstore_shipment_barcode_gaps', { p_ids: [ID] });
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_shipment_barcode_gaps', expect.anything());
+    mocks.rpc.mockClear();
+    mocks.rpc.mockResolvedValue({ error: null, data: 4 });
+    expect(await shipmentBarcodeGapsAction([ID], 'smartstore')).toBe(4);
+    expect(await originBarcodeGapsAction(ID, 'smartstore')).toBe(4);
+    expect(mocks.rpc.mock.calls).toEqual([['admin_smartstore_shipment_barcode_gaps', { p_ids: [ID] }], ['admin_smartstore_shipment_barcode_gaps', { p_origin_id: ID }]]);
+    expect(await shipmentBarcodeGapsAction([ID], 'bogus' as never)).toBeNull();
+    mocks.rpc.mockClear();
     mocks.rpc.mockImplementation(async (name: string) => name === 'admin_shipment_export'
       ? { error: null, data: { shipments: [{ id: ID, updatedAt: STAMP }] } }
       : { error: { message: 'shipment_changed' }, data: null });
@@ -209,5 +285,92 @@ describe('내보내기 전 바코드 경고 조회', () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
     expect(await originBarcodeGapsAction(ID)).toBeNull();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('발송 대기 행 운송장·배송 방법 액션 (S36-072·S36-X04)', () => {
+  const carriers = [{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' },
+    { code: 'retired', label: '종료 택배', active: false, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }];
+  const ORDER = '00000000-0000-4000-8000-0000000000aa';
+  const OPERATION = '00000000-0000-4000-8000-0000000000ff';
+  beforeEach(() => { mocks.carriers.mockResolvedValue(carriers); mocks.enqueue.mockResolvedValue({ queued: 1 }); });
+
+  /* 1014-084 통합: 행 운송장·배송 방법·택배 외 일괄 인계는 출고 권한(sales.dispatch)이다. 물류출고관리는 쓰고, 출고 권한이 없는 매니저는 RPC 전에 막는다. */
+  it('물류출고관리는 행 운송장·배송 방법 액션을 쓰고, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+    expect(await readDispatchDeliveryOptionsAction([ID])).toEqual({ ok: false, error: '배송 방법 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_dispatch_delivery_options', { p_shipment_ids: [ID] });
+    for (const role of ['deputy', 'influencer', 'agency'] as const) {
+      mocks.rpc.mockClear();
+      mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture(role), isConfigured: true, user: { id: role }, isStaff: true, role: 'staff' });
+      expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toEqual({ ok: false, error: '직원 권한이 필요합니다.' });
+      expect(await readDispatchDeliveryOptionsAction([ID])).toEqual({ ok: false, error: '직원 권한이 필요합니다.' });
+      expect(await applyDispatchDeliveryAction({ targets: [{ shipmentId: ID, updatedAt: STAMP }], method: 'quick', reason: '', handoff: null, operationId: OPERATION }))
+        .toEqual({ ok: false, error: '직원 권한이 필요합니다.' });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    }
+  });
+  it('행 운송장은 직원만, 사용 중 택배사·형식을 확인한 뒤 파일 회신과 같은 일괄 등록 RPC로 보낸다', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toEqual({ ok: false, error: '직원 권한이 필요합니다.' });
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' });
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'retired', trackingNumber: '123456789012' }])).toMatchObject({ ok: false, error: expect.stringContaining('택배사') });
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '12-34' }])).toMatchObject({ ok: false, error: expect.stringContaining('8~30자리') });
+    expect(await registerShipmentTrackingAction([{ shipmentId: 'not-a-shipment', carrier: 'hanjin', trackingNumber: '123456789012' }])).toMatchObject({ ok: false });
+    expect(await registerShipmentTrackingAction([])).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ data: [{ line: 1, reference: ID, ok: true, shipmentId: ID, orderId: ORDER, dispatched: true, packedShipments: [{ orderId: ORDER, shipmentId: ID }] }], error: null });
+    const result = await registerShipmentTrackingAction([{ shipmentId: ID.toUpperCase(), carrier: 'hanjin', trackingNumber: '1234-5678-9012' }]);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_import_shipment_tracking_batch', { target_rows: [{ line: 1, reference: ID, carrier: 'hanjin', trackingNumber: '123456789012' }] });
+    expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: ORDER, shipmentId: ID }]);
+    expect(result).toMatchObject({ ok: true, registered: [ID], unchanged: [], failed: [], queueWarning: false });
+    expect(mocks.refresh).toHaveBeenCalledWith('/admin/sales/dispatch');
+    expect(mocks.refresh).toHaveBeenCalledWith('/admin/sales/orders/[orderId]', 'page');
+  });
+
+  it('이미 다른 운송장으로 발송된 건은 덮어쓰지 않고 행 사유로 돌려주며, 메일 대기열 실패는 경고로 남긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: [{ line: 1, reference: ID, ok: false, error: 'shipment_tracking_conflict' }], error: null });
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }]))
+      .toMatchObject({ ok: true, registered: [], failed: [{ shipmentId: ID, reason: expect.stringContaining('덮어쓰지 않습니다') }] });
+    expect(mocks.enqueue).not.toHaveBeenCalled(); expect(mocks.refresh).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ data: [{ line: 1, reference: ID, ok: true, shipmentId: ID, orderId: ORDER, dispatched: true }], error: null });
+    mocks.enqueue.mockRejectedValue(new Error('queue'));
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toMatchObject({ ok: true, queueWarning: true });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'shipment_pack_incomplete' } });
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toMatchObject({ ok: false });
+  });
+
+  it('배송 방법 팝업 정보는 1~100건만 읽고 응답 형식이 어긋나면 열지 않는다', async () => {
+    expect(await readDispatchDeliveryOptionsAction([])).toMatchObject({ ok: false });
+    expect(await readDispatchDeliveryOptionsAction(Array.from({ length: 101 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`))).toMatchObject({ ok: false });
+    mocks.rpc.mockResolvedValue({ data: { shipments: [], policies: [] }, error: null });
+    expect(await readDispatchDeliveryOptionsAction([ID, ID])).toEqual({ ok: true, options: { shipments: [], policies: [] } });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_dispatch_delivery_options', { p_shipment_ids: [ID] });
+    mocks.rpc.mockResolvedValue({ data: { shipments: [{ id: ID }], policies: [] }, error: null });
+    expect(await readDispatchDeliveryOptionsAction([ID])).toMatchObject({ ok: false });
+  });
+
+  it('방법 적용·인계는 형식을 확인해 같은 요청 번호로 DB에 맡기고, 다른 요청의 응답은 받지 않는다', async () => {
+    const handoff = { operatorName: '출고 담당', providerName: '퀵 업체', providerPhone: '02-1234-5678', handoffReference: '인계 메모', occurredAt: '2026-11-11T01:00:00.000Z' };
+    const input = { targets: [{ shipmentId: ID, updatedAt: '2026-11-11T00:00:00.123456+00:00' }], method: 'quick', reason: ' 고객 요청 ', handoff, operationId: OPERATION };
+    expect(await applyDispatchDeliveryAction({ ...input, method: 'none' })).toMatchObject({ ok: false });
+    expect(await applyDispatchDeliveryAction({ ...input, method: 'pickup' })).toMatchObject({ ok: false });
+    expect(await applyDispatchDeliveryAction({ ...input, handoff: { ...handoff, extra: 'x' } })).toMatchObject({ ok: false });
+    expect(await applyDispatchDeliveryAction({ ...input, targets: [{ shipmentId: ID, updatedAt: 'yesterday' }] })).toMatchObject({ ok: false });
+    expect(await applyDispatchDeliveryAction({ ...input, reason: '가'.repeat(1001) })).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    const receipt = { operationId: OPERATION, method: 'quick', results: [{ shipmentId: ID, ok: true, methodChanged: true, handedOff: true }], changed: 1, handedOff: 1, failed: 0, replayed: false };
+    mocks.rpc.mockResolvedValue({ data: receipt, error: null });
+    expect(await applyDispatchDeliveryAction(input)).toEqual({ ok: true, receipt });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_dispatch_apply_delivery', { p_targets: input.targets, p_method: 'quick', p_reason: '고객 요청', p_handoff: handoff, p_operation_id: OPERATION });
+    expect(mocks.refresh).toHaveBeenCalledWith('/orders/[orderId]', 'page');
+    mocks.rpc.mockResolvedValue({ data: { ...receipt, operationId: SECOND }, error: null });
+    expect(await applyDispatchDeliveryAction(input)).toMatchObject({ ok: false });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'operation_conflict' } });
+    expect(await applyDispatchDeliveryAction(input)).toEqual({ ok: false, error: expect.stringContaining('같은 요청 번호') });
+    mocks.rpc.mockClear();
+    await applyDispatchDeliveryAction({ ...input, method: 'parcel', handoff: null, reason: '' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_dispatch_apply_delivery', expect.objectContaining({ p_method: 'parcel', p_reason: null, p_handoff: null }));
   });
 });

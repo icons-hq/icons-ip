@@ -7,7 +7,7 @@ import {
 import { loyaltyProgressNote, parseLoyaltyPolicy } from '@/lib/loyalty-policy';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
-import { parseUserCouponRows, type UserCouponSummary } from './coupons';
+import { attachCouponPendingOrders, parseUnpaidOrderCoupons, parseUserCouponRows, type CouponPendingOrder, type UserCouponSummary } from './coupons';
 
 /* 쿠폰함·카트 쿠폰 상태 로더 (S7).
  *
@@ -28,6 +28,21 @@ const emptyCartCouponState: CartCouponState = { selectedUserCouponId: null, coup
 
 type CouponSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
+const USER_COUPON_COLUMNS = 'id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,target_ip_ids,issuance_mode,recipient_reason:coupon_recipient_state)';
+
+/**
+ * 결제를 마치지 않은 주문(결제 대기 카드·입금 대기 무통장)이 잡은 본인 쿠폰(QA1 S-D2-08). 못 읽으면 null — 화면은 지금처럼 그
+ * 쿠폰을 사용 완료로 보고 고르지 못하게 한다(장식이라 장바구니·쿠폰함을 막지 않는다).
+ */
+async function loadUnpaidOrderCoupons(supabase: CouponSupabaseClient): Promise<Map<string, CouponPendingOrder> | null> {
+  try {
+    const { data, error } = await supabase.rpc('get_my_unpaid_order_coupons');
+    return error ? null : parseUnpaidOrderCoupons(data);
+  } catch {
+    return null;
+  }
+}
+
 async function currentUserId(supabase: CouponSupabaseClient): Promise<string | null> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
@@ -42,17 +57,26 @@ export async function loadMyCoupons(): Promise<UserCouponSummary[] | null> {
   const userId = await currentUserId(supabase);
   if (!userId) return [];
 
-  const { data, error } = await supabase
-    .from('user_coupons')
-    .select('id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,target_ip_ids,issuance_mode,recipient_reason:coupon_recipient_state)')
-    .eq('user_id', userId)
-    .order('issued_at', { ascending: false });
+  const [{ data, error }, holds] = await Promise.all([
+    supabase
+      .from('user_coupons')
+      .select(USER_COUPON_COLUMNS)
+      .eq('user_id', userId)
+      .order('issued_at', { ascending: false }),
+    loadUnpaidOrderCoupons(supabase),
+  ]);
 
   if (error) return null;
-  return parseUserCouponRows(data ?? []);
+  const coupons = parseUserCouponRows(data ?? []);
+  /* 결제를 마치지 않은 주문이 잡은 쿠폰은 '사용 완료'가 아니라 '결제 대기 주문에 사용 중'으로 보인다. */
+  return coupons ? attachCouponPendingOrders(coupons, holds) : null;
 }
 
-/** 카트 쿠폰 슬롯 상태 — 보유 쿠폰 목록과 현재 적용된 선택. */
+/**
+ * 카트 쿠폰 슬롯 상태 — 보유 쿠폰 목록과 현재 적용된 선택. 쓸 수 있는 쿠폰과 함께, 다음 새 주문이 닫을 결제 대기 카드 주문이
+ * 잡은 쿠폰도 싣는다(QA1 S-D2-08 — 고객이 고르면 새 주문이 그 주문을 닫고 쓴다, ADR-0030). 입금 대기·결제 승인 확인 중 주문이
+ * 잡은 쿠폰은 지금처럼 싣지 않는다.
+ */
 export async function loadCartCouponState(): Promise<CartCouponState> {
   if (!getSupabaseConfig().isConfigured) return emptyCartCouponState;
 
@@ -60,10 +84,10 @@ export async function loadCartCouponState(): Promise<CartCouponState> {
   const userId = await currentUserId(supabase);
   if (!userId) return emptyCartCouponState;
 
-  const [couponsResult, selectionResult] = await Promise.all([
+  const [couponsResult, selectionResult, holds] = await Promise.all([
     supabase
       .from('user_coupons')
-      .select('id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,target_ip_ids,issuance_mode,recipient_reason:coupon_recipient_state)')
+      .select(USER_COUPON_COLUMNS)
       .eq('user_id', userId)
       .eq('status', 'active')
       .order('issued_at', { ascending: false }),
@@ -72,17 +96,41 @@ export async function loadCartCouponState(): Promise<CartCouponState> {
       .select('user_coupon_id')
       .eq('user_id', userId)
       .maybeSingle<{ user_coupon_id: string }>(),
+    loadUnpaidOrderCoupons(supabase),
   ]);
 
   const coupons = couponsResult.error ? null : parseUserCouponRows(couponsResult.data ?? []);
   if (!coupons) return { ...emptyCartCouponState, unavailable: true };
+  const replaceableIds = [...(holds ?? new Map<string, CouponPendingOrder>())].filter(([, hold]) => hold.replaceable).map(([id]) => id);
+  const heldByPendingOrders = replaceableIds.length ? await loadHeldCoupons(supabase, userId, replaceableIds, holds) : [];
 
   return {
     selectedUserCouponId: selectionResult.error
       ? null
       : selectionResult.data?.user_coupon_id ?? null,
-    coupons,
+    coupons: [...coupons, ...heldByPendingOrders].sort((left, right) => right.issuedAt.localeCompare(left.issuedAt) || left.id.localeCompare(right.id)),
   };
+}
+
+/** 결제 대기 주문이 잡은(사용 처리된) 보유 쿠폰. 못 읽으면 빈 목록 — 지금처럼 고를 수 없을 뿐이다. */
+async function loadHeldCoupons(
+  supabase: CouponSupabaseClient,
+  userId: string,
+  ids: readonly string[],
+  holds: ReadonlyMap<string, CouponPendingOrder> | null,
+): Promise<UserCouponSummary[]> {
+  try {
+    const { data, error } = await supabase
+      .from('user_coupons')
+      .select(USER_COUPON_COLUMNS)
+      .eq('user_id', userId)
+      .eq('status', 'used')
+      .in('id', [...ids]);
+    const parsed = error ? null : parseUserCouponRows(data ?? []);
+    return parsed ? attachCouponPendingOrders(parsed, holds).filter((held) => held.pendingOrder?.replaceable === true) : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface LoyaltyStatus {

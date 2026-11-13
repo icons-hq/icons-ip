@@ -185,6 +185,29 @@ describe('restoreCanceledOrderToCartAction', () => {
     expect(result).not.toEqual({ ok: false, error: 'cart_retained' });
   });
 
+  /* 초안 없는 /checkout은 장바구니 전체 주문서다 — 다시 담은 줄만 주문하는 선택 초안으로 주문서를 연다(ADR-0030, 1014-033). */
+  it('다시 담은 줄만으로 주문서 초안을 만들어 그 주문서로 잇는다', async () => {
+    const draftId = '70000000-0000-4000-8000-0000000000d1';
+    mocks.rows.cart_items = [{ id: rowId(9), user_id: userId, good_id: 'g1', variant_id: variantA, qty: 5, input_snapshot: null },
+      { id: rowId(10), user_id: userId, good_id: 'g9', variant_id: variantB, qty: 1, input_snapshot: null }];
+    mocks.retention.mockImplementation((name: string) => Promise.resolve(name === 'service_create_checkout_selection_draft'
+      ? { data: draftId, error: null } : { data: null, error: null }));
+    await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({ ok: true, restoredLines: 2, checkoutHref: `/checkout?draft=${draftId}` });
+    /* 장바구니의 다른 줄(g9)은 끼지 않고, 수량은 다시 담은 뒤 장바구니 값(지금 수량과 원 주문 수량 중 큰 값)이다. */
+    expect(mocks.retention).toHaveBeenCalledWith('service_create_checkout_selection_draft', { p_user_id: userId, p_lines: [
+      { good_id: 'g1', variant_id: variantA, input_revision: 0, input_values: {}, qty: 5 },
+      { good_id: 'g2', variant_id: variantB, input_revision: 0, input_values: {}, qty: 1 },
+    ] });
+  });
+
+  it('주문서 초안을 만들지 못하면 주문서 주소 없이 답한다(화면이 장바구니로 보낸다)', async () => {
+    mocks.retention.mockImplementation((name: string) => Promise.resolve(name === 'service_create_checkout_selection_draft'
+      ? { data: null, error: { message: 'cart_snapshot_changed' } } : { data: null, error: null }));
+    const result = await restoreCanceledOrderToCartAction(orderId);
+    expect(result).toMatchObject({ ok: true, restoredLines: 2 });
+    expect(result).not.toHaveProperty('checkoutHref');
+  });
+
   it('DB가 취소를 확정한 본인 주문의 품목을 장바구니 수량 RPC로 다시 담는다', async () => {
     await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toEqual({
       ok: true,

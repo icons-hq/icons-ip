@@ -5,13 +5,15 @@ import { Onboarding } from './Onboarding';
 
 vi.mock('@/app/onboarding/actions', () => ({
   completeOnboardingAction: vi.fn(),
+  finishOnboardingAction: vi.fn(),
 }));
 vi.mock('@/lib/ip-display', () => ({ ipAccent: () => '#2DE2FF' }));
+const actionState = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
-    useActionState: () => [{}, vi.fn(), false],
+    useActionState: () => [actionState.value, vi.fn(), false],
   };
 });
 
@@ -25,7 +27,6 @@ function render(overrides: Partial<React.ComponentProps<typeof Onboarding>> = {}
       initialMarketing={{ email: false, sms: false }}
       isConfigured
       next="/"
-      nickname=""
       recommendedIps={[]}
       {...overrides}
     />,
@@ -37,11 +38,14 @@ function source() {
 }
 
 describe('Onboarding form contracts', () => {
-  it('shows the same 1–30 character nickname contract enforced by the shared validator', () => {
+  /* 1014-004 — 필수 입력은 생년월일과 약관뿐이다. 닉네임은 묻지 않고 자동으로 만든다는 사실만 알린다. */
+  it('does not ask for a nickname and tells that one is created automatically and can be changed later', () => {
     const html = render();
 
-    expect(html).toContain('placeholder="닉네임 (1–30자)"');
-    expect(html).not.toContain('닉네임 (2–12자)');
+    expect(html).not.toContain('name="nickname"');
+    expect(html).not.toContain('닉네임 (1–30자)');
+    expect(html).toContain('닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요');
+    expect(html.match(/<em class="wc-auth__req">필수<\/em>/g)).toHaveLength(2);
   });
 
   it('submits through a prevented client event so validation errors cannot reset entered values', () => {
@@ -165,3 +169,35 @@ describe('Onboarding optional consents', () => {
   });
 });
 
+
+/* 1014-010 — 카카오톡 채널 스위치가 켜지면 온보딩에서도 카카오톡 수신 동의를 따로 받는다. */
+describe('Onboarding kakao marketing channel', () => {
+  it('adds an optional kakao row, the offered marker and the v2 notice', () => {
+    const html = render({ marketingChannels: ['email', 'sms', 'kakao'], initialMarketing: { email: false, sms: false, kakao: false } });
+
+    expect(html).toContain('마케팅 정보 수신 동의 (카카오톡) <em class="wc-auth__opt">선택</em>');
+    expect(html).toContain('<input type="hidden" name="marketingKakaoOffered" value="1"/>');
+    expect(html).toContain('카카오톡은 ICONS 카카오톡 채널 메시지로 보내 드려요.');
+    expect(html).toContain('알림함의 마케팅 소식은 이메일·SMS·카카오톡 중 하나라도 수신에 동의하면 받아요.');
+  });
+});
+
+/* QA1 S-T02-02: 만 14세 미만 오류가 화면 위쪽 생년월일 칸에만 보여 모바일에서는 버튼 근처에 아무 변화가 없었다. */
+describe('Onboarding 오류 요약', () => {
+  it('칸 오류를 버튼 위에 모아 보이고 그 칸으로 잇는다', () => {
+    actionState.value = { errors: { birthDate: '만 14세 이상만 가입할 수 있어요.', terms: '이용약관에 동의해주세요.' } };
+    try {
+      const html = render();
+      const summary = html.slice(html.indexOf('data-onboarding-error-summary'), html.indexOf('ICONS 시작하기'));
+      expect(summary).toContain('<a href="#birth-date-error">생년월일</a>: 만 14세 이상만 가입할 수 있어요.');
+      expect(summary).toContain('<a href="#terms-error">이용약관 동의</a>: 이용약관에 동의해주세요.');
+      expect(html).toContain('id="birth-date-error"');
+    } finally {
+      actionState.value = {};
+    }
+  });
+
+  it('오류가 없으면 요약을 그리지 않는다', () => {
+    expect(render()).not.toContain('data-onboarding-error-summary');
+  });
+});

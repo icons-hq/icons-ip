@@ -1,6 +1,7 @@
 vi.mock('@/lib/account-goods-cleanup.server', () => ({ cleanupFencedGoodsAccount: vi.fn(async () => true) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  checkKakaoChannelRewardAction,
   prepareProfileAvatarUploadAction,
   requestAccountDeletionAction,
   updateMarketingConsentAction,
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   rejectProfileAvatarClaim: vi.fn(),
   revalidatePath: vi.fn(),
   storageFrom: vi.fn(),
+  syncKakaoReward: vi.fn(),
   updateProfileIdentity: vi.fn(),
   upload: vi.fn(),
 }));
@@ -42,6 +44,9 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
+}));
+vi.mock('@/lib/kakao/channel-reward.server', () => ({
+  syncKakaoChannelFriendReward: mocks.syncKakaoReward,
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
@@ -775,5 +780,137 @@ describe('updateMarketingConsentAction', () => {
       errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+/* 1014-010 — 카카오톡 줄은 화면이 그렸을 때만 읽는다. 스위치가 켜졌으면 세 수단 v2로, 꺼졌으면 철회만 받는다. */
+describe('updateMarketingConsentAction kakao channel', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  function kakaoForm(kakao: boolean) {
+    const data = marketingForm(false);
+    data.set('marketingKakaoOffered', '1');
+    if (kakao) data.set('marketingKakao', 'on');
+    return data;
+  }
+
+  it('saves three channels through the v2 RPC while the kakao switch is on', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+
+    const result = await updateMarketingConsentAction({}, kakaoForm(true));
+    expect(mocks.rpc).toHaveBeenCalledWith('set_my_marketing_consents_v2', {
+      p_email: false, p_sms: false, p_kakao: true, p_notice_version: 'marketing-channels-v2', p_source: 'settings',
+    });
+    expect(result.message).toContain('카카오톡 수신 동의');
+  });
+
+  it('accepts a kakao withdrawal but never a new kakao consent while the switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+
+    await updateMarketingConsentAction({}, kakaoForm(false));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_my_marketing_consents_v2', expect.objectContaining({ p_kakao: false }));
+
+    await updateMarketingConsentAction({}, kakaoForm(true));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_my_marketing_consents', {
+      p_email: false, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'settings',
+    });
+  });
+
+  /* 리뷰 F8 — 카카오톡 줄을 그린 저장의 처리 결과 고지는 고른 값이 아니라 저장 뒤 DB 상태를 따른다. */
+  it('reports the saved state, not the submitted choice, after a kakao-row save', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+    const agreed = { agreed: true, agreedAt: '2026-11-01T00:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v2', source: 'settings' };
+    const withdrawn = { agreed: false, agreedAt: null, withdrawnAt: '2026-11-01T00:00:00.000Z', noticeVersion: 'marketing-channels-v1', source: 'settings' };
+    mocks.rpc.mockResolvedValue({
+      data: { noticeVersion: 'marketing-channels-v1', marketing: true, email: withdrawn, sms: withdrawn, kakao: agreed },
+      error: null,
+    });
+
+    /* 스위치 OFF라 새 카카오톡 동의(체크)는 버려지고 v1 저장이 된다 — 기존 카카오톡 동의는 DB에 그대로 남는다. */
+    const result = await updateMarketingConsentAction({}, kakaoForm(true));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_my_marketing_consents', expect.objectContaining({ p_email: false, p_sms: false }));
+    expect(result.message).toContain('이메일 수신 거부 · SMS 수신 거부 · 카카오톡 수신 동의');
+    expect(result.message).not.toContain('알림함 마케팅 소식도 받지 않아요');
+  });
+
+  it('falls back to the submitted choice when the saved state is unreadable', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+    mocks.rpc.mockResolvedValue({ data: { unexpected: true }, error: null });
+
+    const result = await updateMarketingConsentAction({}, kakaoForm(false));
+    expect(result.message).toContain('이메일 수신 거부 · SMS 수신 거부 · 카카오톡 수신 거부');
+  });
+});
+
+/* 리뷰 F10 — 설정의 [친구 추가 쿠폰 받기]. 가입 수단과 무관하게 카카오 계정을 연결한 회원의 채널 관계를 다시 확인한다. */
+describe('checkKakaoChannelRewardAction', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+    ICONS_KAKAO_CHANNEL_COUPON_CODE: 'KAKAO-FRIEND',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    Object.assign(process.env, KAKAO_ENV);
+    mocks.syncKakaoReward.mockReset();
+  });
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('rechecks the friendship as a settings grant and reports the grant', async () => {
+    mocks.syncKakaoReward.mockResolvedValue('granted');
+
+    await expect(checkKakaoChannelRewardAction()).resolves.toEqual({
+      message: '카카오톡 채널 친구 추가 쿠폰을 쿠폰함에 넣었어요.',
+    });
+    expect(mocks.syncKakaoReward).toHaveBeenCalledWith({ userId: USER_ID, via: 'settings' });
+  });
+
+  it.each([
+    ['already_granted', { message: '이미 친구 추가 쿠폰을 받았어요. 쿠폰함에서 확인해주세요.' }],
+    ['not_friend', { errors: { form: '아직 ICONS 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } }],
+    ['no_kakao_identity', { errors: { form: '카카오 계정을 먼저 연결해주세요.' } }],
+    ['relation_unknown', { errors: { form: '지금은 쿠폰을 확인할 수 없어요. 잠시 후 다시 시도해주세요.' } }],
+  ])('explains the %s outcome', async (outcome, expected) => {
+    mocks.syncKakaoReward.mockResolvedValue(outcome);
+
+    await expect(checkKakaoChannelRewardAction()).resolves.toEqual(expected);
+  });
+
+  it('does nothing while the kakao channel switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+
+    await expect(checkKakaoChannelRewardAction()).resolves.toEqual({
+      errors: { form: '지금은 쿠폰을 확인할 수 없어요. 잠시 후 다시 시도해주세요.' },
+    });
+    expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
+    expect(mocks.syncKakaoReward).not.toHaveBeenCalled();
+  });
+
+  it('keeps the settings sign-in and onboarding gates', async () => {
+    mocks.getCurrentAuthState.mockResolvedValueOnce({ isConfigured: true, user: null, profile: null, isStaff: false });
+
+    await expect(checkKakaoChannelRewardAction()).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fsettings');
+    expect(mocks.syncKakaoReward).not.toHaveBeenCalled();
   });
 });

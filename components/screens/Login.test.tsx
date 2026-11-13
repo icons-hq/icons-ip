@@ -1,17 +1,31 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Login, readSavedLoginEmail, saveLoginEmailChoice, SAVED_LOGIN_EMAIL_KEY } from './Login';
+import {
+  Login,
+  PENDING_SIGNUP_KEY,
+  readPendingSignupEmail,
+  readSavedLoginEmail,
+  saveLoginEmailChoice,
+  savePendingSignupEmail,
+  SAVED_LOGIN_EMAIL_KEY,
+  SignupCodeStep,
+} from './Login';
 
 const mocks = vi.hoisted(() => ({
   signInState: {} as Record<string, unknown>,
   signUpState: {} as Record<string, unknown>,
   resetState: {} as Record<string, unknown>,
   socialState: {} as Record<string, unknown>,
+  verifyCodeState: {} as Record<string, unknown>,
+  resendCodeState: {} as Record<string, unknown>,
   signIn: vi.fn(),
   signUp: vi.fn(),
   reset: vi.fn(),
   social: vi.fn(),
+  verifyCode: vi.fn(),
+  resendCode: vi.fn(),
   savedEmail: null as string | null,
+  pendingEmail: null as string | null,
 }));
 
 vi.mock('@/app/login/actions', () => ({
@@ -19,6 +33,8 @@ vi.mock('@/app/login/actions', () => ({
   signUpWithEmailAction: mocks.signUp,
   requestPasswordResetAction: mocks.reset,
   signInWithSocialAction: mocks.social,
+  verifySignupCodeAction: mocks.verifyCode,
+  resendSignupCodeAction: mocks.resendCode,
 }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -28,10 +44,14 @@ vi.mock('react', async () => {
       if (action === mocks.signIn) return [mocks.signInState, vi.fn(), false];
       if (action === mocks.signUp) return [mocks.signUpState, vi.fn(), false];
       if (action === mocks.social) return [mocks.socialState, vi.fn(), false];
-      return [mocks.resetState, vi.fn(), false];
+      if (action === mocks.verifyCode) return [mocks.verifyCodeState, vi.fn(), false];
+      if (action === mocks.resendCode) return [mocks.resendCodeState, vi.fn(), false];
+      if (action === mocks.reset) return [mocks.resetState, vi.fn(), false];
+      throw new Error('Unexpected login action');
     },
-    /* 정적 렌더는 서버 스냅샷(null)만 본다 — 이 기기에 저장된 이메일을 읽은 클라이언트 렌더를 흉내 낸다. */
-    useSyncExternalStore: () => mocks.savedEmail,
+    /* 정적 렌더는 서버 스냅샷(null)만 본다 — 이 기기(탭)에 저장된 값을 읽은 클라이언트 렌더를 흉내 낸다. */
+    useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) =>
+      getSnapshot.name === 'readPendingSignupEmail' ? mocks.pendingEmail : mocks.savedEmail,
   };
 });
 
@@ -50,7 +70,10 @@ describe('Login', () => {
     mocks.signUpState = {};
     mocks.resetState = {};
     mocks.socialState = {};
+    mocks.verifyCodeState = {};
+    mocks.resendCodeState = {};
     mocks.savedEmail = null;
+    mocks.pendingEmail = null;
   });
 
   it('renders one social form with provider submit values and the preserved next path', () => {
@@ -224,5 +247,219 @@ describe('Login 이메일 저장', () => {
       expect(() => saveLoginEmailChoice('fan@example.test', false)).not.toThrow();
       expect(readSavedLoginEmail()).toBeNull();
     });
+  });
+});
+
+/* 1014-004 — 확인 메일 링크를 새 창에서 여는 대신 같은 화면에서 6자리 코드를 입력한다. 링크도 그대로 동작한다. */
+describe('Login 가입 확인 코드 단계', () => {
+  beforeEach(() => {
+    mocks.signInState = {};
+    mocks.signUpState = {};
+    mocks.resetState = {};
+    mocks.socialState = {};
+    mocks.verifyCodeState = {};
+    mocks.resendCodeState = {};
+    mocks.savedEmail = null;
+    mocks.pendingEmail = null;
+  });
+
+  const sentState = {
+    message: '가입 확인 메일을 보냈습니다. 메일에 적힌 6자리 확인 코드를 아래에 입력해주세요.',
+    pendingSignupEmail: 'fan@icons.gg',
+  };
+
+  it('가입 전에는 코드가 메일로 간다는 사실만 알리고 기존 가입 폼을 그대로 둔다', () => {
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.');
+    expect(html).toContain('name="password"');
+    expect(html).not.toContain('name="code"');
+    expect(html).not.toContain('data-signup-code-step');
+  });
+
+  it('확인 메일을 보내면 같은 화면에서 코드 입력 단계를 연다', () => {
+    mocks.signUpState = sentState;
+    const html = render({ initialMode: 'signup' });
+    const codeInput = html.match(/<input[^>]*name="code"[^>]*>/)?.[0] ?? '';
+
+    expect(html).toContain('data-signup-code-step');
+    expect(html).toContain('<strong>fan@icons.gg</strong>로 확인 메일을 보냈어요.');
+    expect(codeInput).toContain('autoComplete="one-time-code"');
+    expect(codeInput).toContain('inputMode="numeric"');
+    expect(codeInput).toContain('maxLength="6"');
+    expect(html.match(/<input type="hidden" name="email" value="fan@icons.gg"\/>/g)).toHaveLength(2);
+    expect(html.match(/<input type="hidden" name="next" value="\/community\?sort=hot"\/>/g)).toHaveLength(2);
+    expect(html).toContain('role="status"');
+    expect(html).toContain(sentState.message);
+    expect(html).toContain('확인하고 계속하기');
+    expect(html).toContain('코드 다시 받기');
+    expect(html).toContain('다른 이메일로 가입하기');
+    expect(html).toContain('메일의 확인 버튼을 눌러도 가입을 마칠 수 있어요.');
+    /* 단계에서는 비밀번호 폼과 SNS 가입을 접어 코드 입력에 집중한다. */
+    expect(html).not.toContain('name="password"');
+    expect(html).not.toContain('name="provider"');
+    expect(html).not.toContain('가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.');
+  });
+
+  it('틀린 코드와 다시 받기 결과를 단계 안에서 보여 준다', () => {
+    mocks.signUpState = sentState;
+    mocks.verifyCodeState = { errors: { code: '확인 코드가 맞지 않거나 만료됐어요.' }, pendingSignupEmail: 'fan@icons.gg' };
+    mocks.resendCodeState = { message: '새 확인 메일을 보냈습니다.', pendingSignupEmail: 'fan@icons.gg' };
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('확인 코드가 맞지 않거나 만료됐어요.');
+    expect(html).toMatch(/<input[^>]*aria-invalid="true"[^>]*name="code"/);
+    expect(html).toContain('새 확인 메일을 보냈습니다.');
+    expect(html).not.toContain(sentState.message);
+  });
+
+  /* QA1 S-T02-01: 틀린 코드 오류와 초록 '메일을 보냈습니다' 상자가 함께 보였다. */
+  it('코드 확인이 실패하면 처음 보낸 안내를 거둔다', () => {
+    mocks.signUpState = sentState;
+    mocks.verifyCodeState = { errors: { code: '확인 코드가 맞지 않거나 만료됐어요.' }, pendingSignupEmail: 'fan@icons.gg' };
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('확인 코드가 맞지 않거나 만료됐어요.');
+    expect(html).not.toContain(sentState.message);
+    expect(html).not.toContain('role="status"');
+  });
+
+  it('다시 받기 한도에 걸린 가입 제출도 이미 받은 코드를 입력할 수 있게 단계를 연다', () => {
+    mocks.signUpState = { errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' }, pendingSignupEmail: 'fan@icons.gg' };
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('data-signup-code-step');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('확인 메일 재요청이 너무 많습니다.');
+  });
+
+  it('로그인·재설정 모드는 가입 결과가 남아 있어도 코드 단계를 열지 않는다', () => {
+    mocks.signUpState = sentState;
+
+    expect(render()).not.toContain('data-signup-code-step');
+    expect(render({ initialMode: 'reset' })).not.toContain('data-signup-code-step');
+  });
+
+  /* 리뷰 F5 — 새로고침·메일 앱 왕복 뒤에도 이 탭에 기억한 이메일로 재발송 없이 코드 단계를 다시 연다. */
+  it('새로 연 가입 화면은 이 탭에 기억한 이메일로 [받은 코드 입력하기]를 보여 준다', () => {
+    mocks.pendingEmail = 'fan@icons.gg';
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('data-signup-code-resume');
+    /* QA1 S-T02-02: 작은 한 줄이 아니라 가입 폼 위의 상자와 버튼이다. */
+    expect(html).toContain('가입을 이어서 하시겠어요?');
+    expect(html).toContain('<strong>fan@icons.gg</strong>로 확인 코드를 보냈어요. 메일의 6자리 코드를 입력하면 가입이 이어져요.');
+    expect(html).toMatch(/<button class="wc-btn" type="button">받은 코드 입력하기<\/button>/);
+    expect(html.indexOf('data-signup-code-resume')).toBeLessThan(html.indexOf('name="password"'));
+    /* 누르기 전에는 가입 폼 그대로다 — 이미 가입을 마친 이메일이어도 새 가입을 막지 않는다. */
+    expect(html).toContain('name="password"');
+    expect(html).not.toContain('data-signup-code-step');
+    expect(mocks.resendCode).not.toHaveBeenCalled();
+    expect(mocks.signUp).not.toHaveBeenCalled();
+  });
+
+  it('로그인·재설정 모드와 방금 보낸 가입 결과에는 [받은 코드 입력하기]를 두지 않는다', () => {
+    mocks.pendingEmail = 'fan@icons.gg';
+
+    expect(render()).not.toContain('data-signup-code-resume');
+    expect(render({ initialMode: 'reset' })).not.toContain('data-signup-code-resume');
+    mocks.signUpState = sentState;
+    const html = render({ initialMode: 'signup' });
+    expect(html).toContain('data-signup-code-step="sent"');
+    expect(html).not.toContain('data-signup-code-resume');
+  });
+});
+
+/* 리뷰 F1·F5 — 코드 단계는 비밀번호를 화면에 그리지 않는다. 복원한 단계는 재발송 없이 받은 코드를 받는다. */
+describe('SignupCodeStep', () => {
+  beforeEach(() => {
+    mocks.verifyCodeState = {};
+    mocks.resendCodeState = {};
+  });
+
+  function renderStep(overrides: Partial<React.ComponentProps<typeof SignupCodeStep>> = {}) {
+    return renderToStaticMarkup(<SignupCodeStep
+      email="fan@icons.gg"
+      isConfigured
+      next="/community?sort=hot"
+      onChangeEmail={() => undefined}
+      password={null}
+      restored={false}
+      signInHref="/login?mode=signin"
+      {...overrides}
+    />);
+  }
+
+  it('방금 보낸 단계는 화면 메모리의 비밀번호를 마크업에 남기지 않는다', () => {
+    const html = renderStep({ password: 'secret-pass-1234' });
+
+    expect(html).toContain('data-signup-code-step="sent"');
+    expect(html).not.toContain('secret-pass-1234');
+    expect(html).not.toContain('name="password"');
+    expect(html).not.toContain('확인을 마치면 로그인 화면으로 이동해요.');
+  });
+
+  it('복원한 단계는 재발송 없이 받은 코드를 받고, 확인 뒤 로그인 화면으로 간다고 알린다', () => {
+    const html = renderStep({ restored: true });
+
+    expect(html).toContain('data-signup-code-step="restored"');
+    expect(html).toContain('<strong>fan@icons.gg</strong>로 보낸 확인 코드를 입력해주세요.');
+    expect(html).toContain('코드는 다시 보내지 않았어요. 가장 최근 메일의 6자리를 입력해주세요.');
+    expect(html).toContain('확인을 마치면 로그인 화면으로 이동해요. 가입한 이메일과 비밀번호로 로그인해주세요.');
+    expect(html).not.toContain('로 확인 메일을 보냈어요.');
+    expect(html).toContain('코드 다시 받기');
+  });
+});
+
+describe('가입 확인 코드 단계 기억(sessionStorage)', () => {
+  let store: Map<string, string>;
+  beforeEach(() => {
+    store = new Map();
+    vi.stubGlobal('window', { sessionStorage: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => { store.set(key, value); },
+      removeItem: (key: string) => { store.delete(key); },
+    } });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('보낸 이메일만 기억하고(비밀번호 없음) null로 지운다', () => {
+    savePendingSignupEmail('  fan@icons.gg ');
+    const saved = JSON.parse(store.get(PENDING_SIGNUP_KEY) ?? '{}') as Record<string, unknown>;
+    expect(Object.keys(saved).sort()).toEqual(['at', 'email']);
+    expect(saved.email).toBe('fan@icons.gg');
+    expect(readPendingSignupEmail()).toBe('fan@icons.gg');
+    savePendingSignupEmail(null);
+    expect(store.has(PENDING_SIGNUP_KEY)).toBe(false);
+    expect(readPendingSignupEmail()).toBeNull();
+  });
+
+  it('1시간이 지났거나 미래 시각이거나 모양이 틀린 기억은 읽지 않는다', () => {
+    const now = 1_800_000_000_000;
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    store.set(PENDING_SIGNUP_KEY, JSON.stringify({ email: 'fan@icons.gg', at: now - 60 * 60 * 1000 - 1 }));
+    expect(readPendingSignupEmail()).toBeNull();
+    store.set(PENDING_SIGNUP_KEY, JSON.stringify({ email: 'fan@icons.gg', at: now - 60 * 60 * 1000 }));
+    expect(readPendingSignupEmail()).toBe('fan@icons.gg');
+    store.set(PENDING_SIGNUP_KEY, JSON.stringify({ email: 'fan@icons.gg', at: now + 1 }));
+    expect(readPendingSignupEmail()).toBeNull();
+    store.set(PENDING_SIGNUP_KEY, JSON.stringify({ email: 'not-an-email', at: now }));
+    expect(readPendingSignupEmail()).toBeNull();
+    store.set(PENDING_SIGNUP_KEY, '{broken');
+    expect(readPendingSignupEmail()).toBeNull();
+  });
+
+  it('저장소를 쓸 수 없어도 던지지 않는다', () => {
+    vi.stubGlobal('window', { sessionStorage: {
+      getItem: () => { throw new Error('denied'); },
+      setItem: () => { throw new Error('denied'); },
+      removeItem: () => { throw new Error('denied'); },
+    } });
+    expect(() => savePendingSignupEmail('fan@icons.gg')).not.toThrow();
+    expect(() => savePendingSignupEmail(null)).not.toThrow();
+    expect(readPendingSignupEmail()).toBeNull();
   });
 });

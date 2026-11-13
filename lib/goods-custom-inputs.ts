@@ -1,4 +1,5 @@
 import { isUuid } from '@/lib/uuid';
+import { objectParticle } from './korean-particle';
 
 export const GOODS_CUSTOM_INPUT_LIMIT = 5;
 export const GOODS_CUSTOM_INPUT_NAME_LIMIT = 25;
@@ -99,7 +100,7 @@ export function prepareGoodsCustomInputSelection(config: GoodsCustomInputConfig 
   if (!config?.enabled) return { ok: true };
   const fields = config.fields.filter(field => field.active).map(field => ({ id: field.id, name: field.name, value: (values[field.id] ?? '').trim() }));
   for (const field of fields) {
-    if (!boundedText(field.value, GOODS_CUSTOM_INPUT_VALUE_LIMIT)) return { ok: false, error: `${field.name}을(를) 1~${GOODS_CUSTOM_INPUT_VALUE_LIMIT}자로 입력해주세요.` };
+    if (!boundedText(field.value, GOODS_CUSTOM_INPUT_VALUE_LIMIT)) return { ok: false, error: `${field.name}${objectParticle(field.name)} 1~${GOODS_CUSTOM_INPUT_VALUE_LIMIT}자로 입력해주세요.` };
   }
   const selection = parseGoodsCustomInputSelection({ revision: config.revision, fields });
   return selection ? { ok: true, selection } : { ok: false, error: '직접입력형 옵션 설정을 확인하지 못했습니다. 새로고침해주세요.' };

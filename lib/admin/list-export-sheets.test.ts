@@ -8,7 +8,10 @@ import {
   ordersListExportSheet,
   shipmentsListExportSheet,
   unpaidListExportSheet,
+  refundTransfersListExportSheet,
+  type RefundTransferExportAccount,
 } from './list-export-sheets';
+import type { RefundTransferRow } from './refund-transfers';
 import { adminListExportClaimScreenId, type AdminListExportSheet } from './list-export';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -214,4 +217,51 @@ it('exports immutable volume/coupon/credit allocation while keeping COD outside 
   expect(cells(sheet)).toMatchObject({ 결제금액: 16000, '착불 배송비(주문)': 3000, '선불 배송비(주문)': 0,
     '복수구매 할인(주문)': 2000, '복수구매 할인(품목)': 2000, '쿠폰 할인(품목)': 1000, '적립금 사용(품목)': 1000, '품목 실결제액(배송비 제외)': 16000,
     '선물 주문': '선물 · 수령인용 가격표 제외' });
+});
+
+describe('환불 송금 대기 목록 엑셀(1007-047·048)', () => {
+  const row = (overrides: Partial<RefundTransferRow> = {}): RefundTransferRow => ({
+    claimId: 'c0000000-0000-4000-8000-000000000001', orderId: 'd0000000-0000-4000-8000-000000000001', orderNumber: '2026110810000001',
+    reference: 45, claimType: 'return', amount: 12000, confirmedAt: '2026-11-07T14:30:00Z', filedAt: null, updatedAt: '2026-11-07T14:30:00Z',
+    revision: 3, gift: true, payerName: '결제자별명', requesterName: null, ...overrides,
+  });
+  const second = row({ claimId: 'c0000000-0000-4000-8000-000000000002', orderId: 'd0000000-0000-4000-8000-000000000002', orderNumber: undefined,
+    reference: 46, claimType: 'cancel', amount: 3000, filedAt: '2026-11-08T01:00:00Z', gift: false, payerName: null, requesterName: '요청자' });
+  const accounts = new Map<string, RefundTransferExportAccount>([
+    [row().claimId, { status: 'not_filed', bankName: null, accountNumber: null, accountHolder: null }],
+    [second.claimId, { status: 'revealed', bankName: '합성은행', accountNumber: '0012-345-678901', accountHolder: '합성 예금주' }],
+  ]);
+  const now = new Date('2026-11-10T15:10:00Z');
+
+  it('요청 한 건이 한 행이고 송금에 쓸 계좌·계좌 상태를 화면 열과 함께 싣는다', () => {
+    const sheet = refundTransfersListExportSheet({ rows: [row(), second], accounts, accountExportId: 'e0000000-0000-4000-8000-000000000001', now });
+    expect(sheet.columns.map(column => column.header)).toEqual(['요청번호', '송금 대기 금액', '결제자', '은행', '계좌번호', '예금주', '계좌 상태',
+      '대기 일수', '유형', '주문번호', '취소 확정일', '환불 접수일', '요청자']);
+    expect(sheet.columns.find(column => column.header === '계좌번호')?.kind).toBe('code');
+    // 11/7 23:30(KST) 확정 → 11/11 00:10(KST) 내려받기는 한국 달력으로 4일째다.
+    expect(cells(sheet, 0)).toMatchObject({ 요청번호: 'C00045', '송금 대기 금액': 12000, 결제자: '결제자별명', 은행: null, 계좌번호: null, 예금주: null,
+      '계좌 상태': '환불 접수 전', '대기 일수': 4, 유형: '선물 · 반품', 주문번호: '2026110810000001', '취소 확정일': '2026-11-07 23:30', '환불 접수일': '미접수', 요청자: '이름 미등록' });
+    // 계좌번호는 앞자리 0을 지키는 문자열 칸이다. 주문번호가 없는 옛 응답은 화면과 같은 짧은 참조를 쓴다.
+    expect(cells(sheet, 1)).toMatchObject({ 결제자: '이름 미등록', 은행: '합성은행', 계좌번호: '0012-345-678901', 예금주: '합성 예금주', '계좌 상태': '확인됨',
+      유형: '취소', 주문번호: '00000002', '환불 접수일': '2026-11-08 10:00', 요청자: '요청자' });
+    expect(sheet.screen).toBe('refund-transfers');
+    expect(sheet.title).toBe('환불 송금 대기');
+    expect(sheet.recordCount).toBe(2);
+    expect(sheet.filters).toEqual({ accountExportId: 'e0000000-0000-4000-8000-000000000001' });
+    expect(sheet.notes.join(' ')).toContain('계좌 열람 기록');
+    expect(sheet.notes.join(' ')).toContain('결제자 기준');
+  });
+
+  it('계좌 열을 켰는데 계좌·열람 기록이 빠지면 파일을 만들지 않는다', () => {
+    expect(() => refundTransfersListExportSheet({ rows: [row()], accounts: null, accountExportId: null, now })).toThrow('환불 계좌');
+    expect(() => refundTransfersListExportSheet({ rows: [row(), second], accounts: new Map([...accounts].slice(1)), accountExportId: 'x', now })).toThrow('환불 계좌');
+    expect(() => refundTransfersListExportSheet({ rows: [row()], accounts, accountExportId: null, now })).toThrow('환불 계좌');
+  });
+
+  it('스위치를 끄면 계좌 열과 열람 안내 없이 화면과 같은 열만 남는다', () => {
+    const sheet = refundTransfersListExportSheet({ rows: [row()], accounts: null, accountExportId: null, now, includeAccount: false });
+    expect(sheet.columns.map(column => column.header)).toEqual(['요청번호', '송금 대기 금액', '결제자', '대기 일수', '유형', '주문번호', '취소 확정일', '환불 접수일', '요청자']);
+    expect(sheet.filters).toEqual({});
+    expect(sheet.notes.join(' ')).not.toContain('계좌 열람 기록');
+  });
 });

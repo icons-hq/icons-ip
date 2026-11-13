@@ -6,7 +6,8 @@ import type { AddressGoodsSalesQuote } from '@/lib/shipping-regions';
 import { EMPTY_CHECKOUT_ADDRESS_PREFILL, type CheckoutAddressPrefill } from '@/lib/address-book';
 import type { UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
-import { Checkout, checkoutMethodAvailable } from './Checkout';
+import { Checkout, checkoutMethodAvailable, checkoutSubcopy, checkoutSubmitCaption } from './Checkout';
+import type { CheckoutDraft } from '@/lib/checkout-draft';
 
 const mocks = vi.hoisted(() => ({ items: [] as CartItem[], sales: null as AddressGoodsSalesQuote | null }));
 
@@ -128,8 +129,11 @@ it.each(['coupon_first_purchase_reserved', 'coupon_first_purchase_pending'])('�
   const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { coupon: {
     userCouponId: '00000000-0000-4000-8000-000000000099', couponCode: 'FIRST', eligibleSubtotal: 12000, discount: 0, reason,
   } } });
+  /* DB가 결제 대기 주문 때문이라고 알린 쿠폰 막힘은 진행 중인 주문 목록으로 잇는다(#540, 무통장 입금 대기 포함). */
   expect(html).toContain('href="/orders?pending=1"');
-  expect(html).toContain('진행 중인 주문 확인');
+  /* 결제 대기 주문 취소(ADR-0030)는 그 주문을 실제로 찾았을 때만 보인다 — 정적 렌더에서는 아직 읽지 않았다. 화면을 열기만
+     해서는 다른 탭 결제를 끊지 않는다. */
+  expect(html).not.toContain('결제 대기 주문 취소하고 계속');
 });
 
 function submitButton(html: string): string {
@@ -406,4 +410,76 @@ describe('Checkout 배송 묶음 이름', () => {
     expect(html).toContain('<h3>한진택배 배송</h3>');
     expect(html).not.toContain('배송비가 각각 계산됩니다');
   });
+});
+
+/* 주문서 초안(ADR-0030): 장바구니 선택 주문은 고른 줄만, 바로구매는 고른 굿즈만 주문서에 오른다. 장바구니 전체가 아니다. */
+describe('Checkout 주문서 초안', () => {
+  const VARIANT = '00000000-0000-4000-8000-000000000001';
+  const draftOf = (overrides: Partial<CheckoutDraft> = {}): CheckoutDraft => ({ id: '00000000-0000-4000-8000-0000000000d1', source: 'selection',
+    baseGoodId: null, expiresAt: '2026-11-12T10:00:00Z', stale: false, usedOrderId: null, lines: [{ goodId: 'g13', variantId: VARIANT, qty: 2 }], ...overrides });
+  function renderDraft(draft: CheckoutDraft) {
+    /* 계정 장바구니에는 고르지 않은 피규어도 있다. */
+    mocks.items = [{ goodId: 'g13', variantId: VARIANT, qty: 2 }, { goodId: 'g14', variantId: VARIANT, qty: 1 }];
+    const lines = draft.lines.map(item => ({ ...item, regularPrice: 12000, effectivePrice: 12000, pricePeriodId: null, startsAt: null, endsAt: null, available: true }));
+    mocks.sales = { calculatedAt: '2026-09-10T00:00:00Z', subtotal: 24000, lines,
+      goods: [{ goodId: 'g13', qty: 2, orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null, memberPurchaseLimitEnabled: false,
+        memberLifetimeQtyLimit: null, memberReservedQty: null, memberRemainingQty: null, reason: null }],
+      shipping: { totalFee: 3000, groups: [], checkoutAllowed: true, finalTotalFee: 3000, destination: null, nextChangeAt: null },
+      paymentMethods: { card: true, bankTransfer: true } };
+    return renderToStaticMarkup(
+      <Checkout catalog={{ goods, ips: [] }} addressPrefill={EMPTY_CHECKOUT_ADDRESS_PREFILL} paymentAvailable bankTransferAvailable
+        resumeOrderId={null} appliedCoupon={null} couponState={{ selectedUserCouponId: null, coupons: [] }} draft={draft} />,
+    );
+  }
+
+  it('선택 주문 초안이면 고른 줄만 보이고, 고르지 않은 굿즈는 장바구니에 남는다고 안내한다', () => {
+    const html = renderDraft(draftOf());
+    expect(html).toContain('홍실 아크릴 블록');
+    expect(html).not.toContain('홍실 한정 피규어');
+    expect(html).toContain(checkoutSubcopy('selection', 'card'));
+    expect(html).toContain('<a class="checkout-back" href="/cart">← 장바구니 수정</a>');
+    expect(submitButton(html)).not.toContain('disabled');
+  });
+
+  it('고른 줄이 바뀐 선택 초안은 제출을 막고 장바구니로 돌려보낸다', () => {
+    const html = renderDraft(draftOf({ stale: true }));
+    expect(html).toContain('장바구니에서 고른 굿즈의 수량이나 구성이 바뀌었어요.');
+    expect(html).toContain('<a href="/cart">장바구니로 돌아가기</a>');
+    expect(submitButton(html)).toContain('disabled');
+  });
+
+  it('바로구매 초안이면 장바구니 쿠폰 칸 대신 이 주문서 쿠폰 칸을 두고, 굿즈 상세로 돌아가게 한다', () => {
+    const html = renderDraft(draftOf({ source: 'direct', baseGoodId: 'g13' }));
+    expect(html).toContain(checkoutSubcopy('direct', 'card'));
+    expect(html).toContain('id="direct-coupon-title"');
+    expect(html).toContain('이 주문에만 쓸 쿠폰을 골라요. 장바구니에서 고른 쿠폰은 바뀌지 않아요.');
+    expect(html).not.toContain('장바구니에서 고른 쿠폰이 이어져요');
+    expect(html).toContain('<a class="checkout-back" href="/shop/g13">← 굿즈로 돌아가기</a>');
+    expect(html).not.toContain('홍실 한정 피규어');
+  });
+
+  it('장바구니 전체 주문서의 안내 문구는 그대로다', () => {
+    expect(checkoutSubcopy(null, 'card')).toBe('결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.');
+    expect(checkoutSubcopy(null, 'bank_transfer')).toBe('주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.');
+    expect(checkoutSubmitCaption(null, 'card')).toBe('다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 주문한 굿즈가 장바구니에서 빠져요.');
+    expect(checkoutSubmitCaption(null, 'bank_transfer')).toBe('주문이 접수되면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.');
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true });
+    expect(html).toContain('<a class="checkout-back" href="/cart">← 장바구니 수정</a>');
+  });
+});
+
+/* QA1 S-D2-11: 주문서를 연 채 판매기간이 끝나면 '재고가 변경된 굿즈' 공통 안내만 두 번 보였다. */
+it('판매기간이 끝난 굿즈는 그 굿즈와 이유를 한 번 말하고 주문을 잠근다', () => {
+  const original = goods[0].salePeriod;
+  goods[0].salePeriod = { startsAt: '2026-11-01T00:00:00.000Z', endsAt: '2026-11-11T00:00:00.000Z', state: 'ended', calculatedAt: '2026-11-12T00:00:00.000Z', nextChangeAt: null };
+  try {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { lines: [{ goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1,
+      regularPrice: 12000, effectivePrice: 12000, pricePeriodId: null, startsAt: null, endsAt: null, available: false }] } });
+    expect(html).toContain('판매기간이 끝난 굿즈가 있어요: 홍실 아크릴 블록. 장바구니에서 이 굿즈를 빼고 다시 주문해주세요.');
+    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
+    expect(html).not.toContain('재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.');
+    expect(html).toMatch(/<button class="btn btn-holo checkout-submit" disabled=""/);
+  } finally {
+    goods[0].salePeriod = original;
+  }
 });

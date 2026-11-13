@@ -15,16 +15,22 @@ import { GoodPurchasePanel, type GoodPurchaseController, type OtherPurchaseAvail
  *
  * 높이는 콘텐츠를 따르고 화면 85%에서 멈춰 안쪽만 스크롤한다. 백드롭·Escape·닫기 버튼으로
  * 닫히고 닫히면 연 버튼으로 포커스가 돌아간다(useOverlayA11y). OverlayPortal 은 호출부에 둔다.
+ *
+ * `anyWidth`: 위시 카드의 [구매하기](ADR-0030 · 1014-039)처럼 데스크톱에서도 여는 시트다. 상세의 시트는 모바일 바에서만 열려
+ * 데스크톱 폭에서 감춰지므로(wc-catalog.css), 이 시트는 그 감춤을 덮고 넓은 화면에서는 화면 가운데 560 폭 대화상자로 선다 —
+ * 바닥에 붙은 모바일형 시트는 넓은 화면에서 아래쪽이 잘려 보였다(QA1 S-D2-16).
  */
-export function GoodPurchaseSheet({ onClose, otherPurchases, purchase }: { onClose: () => void; otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
+export function GoodPurchaseSheet({ anyWidth = false, onClose, otherPurchases, purchase }: {
+  anyWidth?: boolean; onClose: () => void; otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController;
+}) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useOverlayA11y({ open: true, onClose, panelRef });
 
   return (
     <>
-      <div aria-hidden="true" className="wc-pdp-sheet__dim" onClick={onClose} />
-      <div ref={panelRef} aria-labelledby={titleId} aria-modal="true" className="wc-pdp-sheet" role="dialog">
+      <div aria-hidden="true" className={anyWidth ? 'wc-pdp-sheet__dim wc-pdp-sheet__dim--any-width' : 'wc-pdp-sheet__dim'} onClick={onClose} />
+      <div ref={panelRef} aria-labelledby={titleId} aria-modal="true" className={anyWidth ? 'wc-pdp-sheet wc-pdp-sheet--any-width' : 'wc-pdp-sheet'} role="dialog">
         <div className="wc-pdp-sheet__head">
           <h2 className="wc-pdp-sheet__title" id={titleId}>{purchase.good.name}</h2>
           <button aria-label="구매 옵션 닫기" className="wc-pdp-sheet__close" onClick={onClose} type="button">

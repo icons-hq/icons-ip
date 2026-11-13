@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
+vi.mock('@/app/checkout/draft-actions', () => ({ createCartRetryDraftAction: vi.fn(), createDirectRetryDraftAction: vi.fn(), closeDirectOrderAction: vi.fn() }));
 /* 직전 목록 링크(목적지·문구 판정)는 ListingReturn.client.test 가 본다 — 여기서는 닫힌 주문이 그 링크를 쓰는지만 표식으로 본다. */
 vi.mock('@/components/shell/ListingReturn', () => ({
   ListingReturnLink: ({ children, className }: { children?: ReactNode; className?: string }) => (
@@ -406,17 +407,62 @@ describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
         order={{ ...order, cartRetained: true, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
       />,
     );
-    expect(html).toContain('href="/checkout"');
-    expect(html).toContain('다시 결제하기');
+    /* 다시 결제는 그 주문의 줄로 주문서 초안을 만드는 버튼이다(ADR-0030) — 장바구니 전체 주문서 링크가 아니다. */
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
+    expect(html).not.toContain('href="/checkout"');
     expect(html).toContain('장바구니는 그대로 있으니');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
 
-  it('장바구니가 남은 주문이 결제 없이 취소됐으면 다시 담지 않고 장바구니로 잇는다', () => {
+  /* QA1 S-D2-15: '장바구니 보기'는 모든 줄이 체크된 장바구니로 보냈다 — 그 주문의 줄 가운데 장바구니에 남은 것만 고른 주문서로 간다. */
+  it('장바구니가 남은 주문이 결제 없이 취소됐으면 그 주문의 줄로 다시 결제한다', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, cartRetained: true, status: 'canceled', expiresAt: null }} />);
     expect(html).toContain('결제 없이 취소된 주문이에요');
-    expect(html).toContain('href="/cart"');
+    expect(html).toContain('이 주문의 굿즈 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.');
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
+    expect(html).not.toContain('href="/cart"');
+    expect(html).not.toContain('장바구니 보기');
     expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+});
+
+describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
+  /* 확정 동작 8: '다시 구매하기'는 서버 액션이다 — 이 주문을 닫고 같은 구성으로 바로구매 주문서를 연다. 굿즈 상세는 보조 링크다. */
+  it('결제 없이 끝난 바로구매는 장바구니가 아니라 같은 구성으로 다시 구매하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, directGoodId: 'g2', paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }} />,
+    );
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
+    /* 결제 대기 중인 주문은 보조 동작도 그 주문을 먼저 닫는다 — 마지막 재고를 잡은 본인 주문 때문에 상세가 품절로 보이지 않게. */
+    expect(html).toContain('<button class="checkout-retry-secondary" type="button">이 주문 닫고 굿즈 상세에서 다시 고르기</button>');
+    expect(html).not.toContain('href="/shop/g2"');
+    expect(html).toContain('같은 구성으로 주문서가 열려요');
+    expect(html).not.toContain('다시 결제하기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('결제 없이 취소된 바로구매도 같은 구성으로 다시 구매하게 한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, directGoodId: 'g2', status: 'canceled', expiresAt: null }} />);
+    expect(html).toContain('같은 구성으로 다시 구매할 수 있어요');
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
+    /* 이미 결제 없이 취소된 주문은 닫을 것이 없다 — 보조 링크로 바로 굿즈 상세에 간다. */
+    expect(html).toContain('<a class="checkout-retry-secondary" href="/shop/g2">굿즈 상세에서 다시 고르기</a>');
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+
+  /* 두 탭 다시 구매(UI 재리뷰 4): 다른 탭에서 다시 구매로 이미 접수·결제한 뒤 이 결제 화면을 처음 그리거나 새로 그려도
+     (늦은 탭의 not_retryable 뒤 router.refresh) 처음부터 그 주문으로 잇고 다시 구매하기·이 주문 닫기를 감춘다. */
+  it.each([
+    ['취소된 원 주문', { status: 'canceled' as const, expiresAt: null }],
+    ['결제가 닫힌 원 주문', { paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }],
+  ])('다시 구매로 이미 주문했으면 처음부터 그 주문으로 잇는다: %s', (_label, patch) => {
+    const reordered = '00000000-0000-4000-8000-0000000000e9';
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, directGoodId: 'g2', directRetryOrderId: reordered, ...patch }} />);
+    expect(html).toContain('이미 다시 주문했어요');
+    expect(html).toContain(`<a class="btn btn-holo" href="/orders/${reordered}">다시 주문한 주문 보기</a>`);
+    expect(html).not.toContain('다시 구매하기</button>');
+    expect(html).not.toContain('이 주문 닫고 굿즈 상세에서 다시 고르기');
+    expect(html).not.toContain('같은 구성으로 다시 구매할 수 있어요');
   });
 });
 

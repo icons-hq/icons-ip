@@ -1,6 +1,6 @@
-const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
+const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bulkRegisterAdminOrderTrackingAction } from './order-actions';
+import { bulkRegisterAdminOrderTrackingAction, previewAdminOrderTrackingImportAction } from './order-actions';
 import ExcelJS from 'exceljs';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
 import {GIMPO_EXPORT_HEADERS,SEOWON_EXPORT_HEADERS} from '@/lib/admin/warehouse-templates';
@@ -26,14 +26,14 @@ const seowonShipment='60000000-0000-4000-8000-0000000000a1',seowonOrder='5000000
 const seowonLine={recipient:'합성 수취인',phone:'01012345678',postalCode:'04524',address:'서울특별시 중구 세종대로 110 101호',deliveryNote:'',qty:2};
 const seowonCandidate=(overrides:Record<string,unknown>={})=>({id:seowonShipment,orderId:seowonOrder,status:'ready',carrier:null,trackingNumber:null,
   lines:[{...seowonLine,goodName:'합성 키링',optionName:'빨강'},{...seowonLine,goodName:'합성 엽서',optionName:'',qty:1}],...overrides});
-/** 내려받은 송장양식(7열+덧붙인 6열) 오른쪽에 송장번호 열을 채운 서원 회신. */
+/** 내려받은 송장양식(7열+덧붙인 7열) 오른쪽에 송장번호 열을 채운 서원 회신. */
 async function seowonForm(rows:(string|number)[][],origin=''){
  const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('송장양식');sheet.addRow([...SEOWON_EXPORT_HEADERS,'송장번호']);
  for(const row of rows)sheet.addRow(row);
  for(let i=0;i<5;i++)workbook.addWorksheet(`Sheet${i+1}`);
  const data=new FormData();data.set('file',new File([await workbook.xlsx.writeBuffer() as ArrayBuffer],'seowon-reply.xlsx'));data.set('originId',origin);return data;
 }
-const seowonRow=(items:string,quantity:number,tracking:string|number,phone='010-1234-5678',shipmentNumber='')=>[phone,'','04524','서울특별시 중구 세종대로 110 101호','',quantity,items,'합성 수취인','',shipmentNumber,'','','',tracking];
+const seowonRow=(items:string,quantity:number,tracking:string|number,phone='010-1234-5678',shipmentNumber='')=>[phone,'','04524','서울특별시 중구 세종대로 110 101호','',quantity,items,'합성 수취인','',shipmentNumber,'','','','',tracking];
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.origins.mockImplementation(async (template: string) => ({ error: null, data: template === 'wms_csv' ? [{ id: warehouseOrigin, name: '김포' }] : [{ id: seowonOrigin, name: '남양주' }] }));
@@ -43,7 +43,60 @@ beforeEach(() => {
   mocks.rpc.mockImplementation(async (_name: string, { target_rows }: { target_rows: { line: number; reference: string }[] }) => ({ error: null,
     data: target_rows.map((row) => ({ ...row, ok: true, dispatched: true, orderId: `00000000-0000-4000-8000-${String(row.line).padStart(12, '0')}`, shipmentId: `10000000-0000-4000-8000-${String(row.line).padStart(12, '0')}` })) }));
 });
+/* QA 라운드 1 m8: 김포 회신에서 운송장 칸을 비운 주문은 실패가 아니라 건너뛴 줄로 따로 센다. */
+async function gimpoReplyForm(rows:[string,string][]){
+ const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('김포');sheet.addRow([...GIMPO_EXPORT_HEADERS]);
+ for(const [reference,tracking] of rows){const row=Array(21).fill('');row[8]=reference;row[20]=tracking;sheet.addRow(row);}
+ const data=new FormData();data.set('file',new File([await workbook.xlsx.writeBuffer() as ArrayBuffer],'gimpo-reply.xlsx'));data.set('originId',warehouseOrigin);return data;
+}
+describe('김포 회신의 빈 운송장 칸 (QA 라운드 1 m8)', () => {
+  it('운송장 칸을 비운 주문은 형식 오류 대신 건너뛴 줄로 알리고 DB에 보내지 않는다',async()=>{
+    const shipped='00000000-0000-4000-8000-000000000043';
+    const result=await bulkRegisterAdminOrderTrackingAction({},await gimpoReplyForm([[warehouseOrder,''],[shipped,'001234567890']]));
+    expect(result.report).toMatchObject({failed:[],skipped:1});expect(result.report?.succeeded).toHaveLength(1);
+    expect(result.message).toContain('운송장 칸을 비운 1줄은 아직 출고하지 않은 것으로 보고 건너뛰었습니다.');
+    expect(result.message).not.toContain('8~30자리');
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_import_warehouse_tracking_batch',{target_origin_id:warehouseOrigin,target_rows:[{line:3,reference:shipped,trackingNumber:'001234567890'}]});
+  });
+  it('모든 줄이 비어 있으면 등록하지 않고 건너뛴 줄 수를 알린다',async()=>{
+    const result=await bulkRegisterAdminOrderTrackingAction({},await gimpoReplyForm([[warehouseOrder,''],[warehouseOrder,'']]));
+    expect(result.errors?.form).toBe('운송장번호를 채운 줄이 없습니다. 운송장 칸을 비운 2줄은 아직 출고하지 않은 것으로 보고 건너뛰었습니다.');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+/* QA 라운드 1 m2: 잘못 고른 파일이 바로 등록되지 않도록 읽기만 하는 등록 전 확인을 둔다. */
+describe('운송장 회신 등록 전 확인', () => {
+  it('양식·등록할 줄·건너뛸 줄·읽기 오류를 돌려주고 DB를 읽지도 바꾸지도 않는다',async()=>{
+    const result=await previewAdminOrderTrackingImportAction(await gimpoReplyForm([[warehouseOrder,''],['00000000-0000-4000-8000-000000000043','001234567890'],['00000042','001234567891']]));
+    expect(result.preview).toMatchObject({format:'김포 WMS 21열',ready:1,skipped:1,issueCount:1,
+      sample:[{line:3,reference:'00000000-0000-4000-8000-000000000043',trackingNumber:'001234567890'}]});
+    expect(result.preview?.issues[0]).toMatchObject({line:4});
+    const pasted=await previewAdminOrderTrackingImportAction(form('00000001,hanjin,12345678'));
+    expect(pasted.preview).toMatchObject({format:'배송건번호 · 택배사코드 · 운송장번호',ready:1,skipped:0,issueCount:0});
+    expect(mocks.rpc).not.toHaveBeenCalled();expect(mocks.enqueue).not.toHaveBeenCalled();expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+  it('비어 있는 입력과 출고 권한이 없는 계정은 확인하지 않는다',async()=>{
+    expect(await previewAdminOrderTrackingImportAction(form(''))).toEqual({error:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'});
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'deputy' }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('deputy') });
+    expect(await previewAdminOrderTrackingImportAction(form('00000001,hanjin,12345678'))).toEqual({error:'관리자 권한이 필요합니다.'});
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'logistics' }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('logistics') });
+    expect((await previewAdminOrderTrackingImportAction(form('00000001,hanjin,12345678'))).preview?.ready).toBe(1);
+  });
+});
+
 describe('bulk tracking action', () => {
+  it('물류출고관리는 운송장 회신을 등록하고, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)',async()=>{
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'logistics' }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('logistics') });
+    expect((await bulkRegisterAdminOrderTrackingAction({},form('00000001,hanjin,12345678'))).report?.succeeded).toEqual(['00000001']);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_import_shipment_tracking_batch',expect.anything());
+    mocks.rpc.mockClear();
+    for(const role of ['deputy','influencer','agency'] as const){
+      mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: role }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture(role) });
+      expect((await bulkRegisterAdminOrderTrackingAction({},form('00000001,hanjin,12345678'))).errors?.form).toBe('관리자 권한이 필요합니다.');
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it('queues every original order in an imported package once and retains parser failures for the DB preflight',async()=>{
     const members=[{orderId:'order-one',shipmentId:'shipment-one'},{orderId:'order-two',shipmentId:'shipment-two'}];
     mocks.rpc.mockResolvedValue({error:null,data:[{line:1,reference:'00000001',ok:true,orderId:'order-one',shipmentId:'shipment-one',packedShipments:members},{line:2,reference:'00000002',ok:false,error:'invalid_tracking_input'}]});
@@ -149,7 +202,22 @@ describe('bulk tracking action', () => {
     it('안전 검사에 걸린 줄은 등록하지 않고 사유를 남긴다',async()=>{
       const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`${header}\r\n${item},,한진택배,=1+1\r\n${second},,한진택배,\r\n`));
       expect(mocks.rpc).not.toHaveBeenCalled();
-      expect(result.report?.failed.map(row=>[row.line,row.reason])).toEqual([[2,'수식은 사용할 수 없습니다.'],[3,'운송장번호가 비어 있습니다.']]);
+      expect(result.report?.failed.map(row=>[row.line,row.reason])).toEqual([[2,'수식은 사용할 수 없습니다.']]);
+      // 운송장 칸만 비운 줄은 실패가 아니라 건너뛴 줄이다(QA 라운드 1b, 김포 회신과 같은 기준).
+      expect(result.report?.skipped).toBe(1);
+    });
+    it('운송장 칸만 비운 줄은 DB에 빈 값으로 보내 배송 건 가드를 받되 그 줄의 거절은 실패로 세지 않는다',async()=>{
+      mocks.rpc.mockResolvedValue({error:null,data:[
+        {line:2,reference:item,ok:true,dispatched:true,shipmentId:'s1',orderId:'o1'},
+        {line:3,reference:second,ok:false,error:'invalid_tracking_number'},
+      ]});
+      const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[
+        {line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'},
+        {line:3,reference:second,carrier:'',trackingNumber:''},
+      ]});
+      expect(result.report?.failed).toEqual([]);
+      expect(result.report?.skipped).toBe(1);
     });
     it('표준 양식 CSV는 256KB를 넘어도 받고, 일반 세 칸 CSV는 종전 한도를 유지하며 그대로 처리한다',async()=>{
       const padding='합성 메시지 '.repeat(50);

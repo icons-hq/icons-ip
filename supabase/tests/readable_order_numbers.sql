@@ -8,16 +8,23 @@ create function pg_temp.number_error(statement text,expected text) returns void 
   raise exception 'Expected error: %',expected;
 end $$;
 
-select pg_temp.number_assert(not exists(select 1 from public.orders where left(order_number,9)<>to_char(created_at at time zone 'Asia/Seoul','YYYYMMDD')||'1'), 'existing order dates retained');
+-- 기존 행은 옛 16자리(날짜 + 종류 + 일련)와 주문 시각을 넣은 20자리(날짜 + 시·분 + 종류 + 일련)가 섞일 수 있다(order_number_time.sql).
+select pg_temp.number_assert(not exists(select 1 from public.orders where length(order_number) not in (16,20)
+  or left(order_number,8)<>to_char(created_at at time zone 'Asia/Seoul','YYYYMMDD')
+  or substr(order_number,length(order_number)-7,1)<>'1'
+  or (length(order_number)=20 and substr(order_number,9,4)<>to_char(created_at at time zone 'Asia/Seoul','HH24MI'))), 'existing order dates retained');
 select pg_temp.number_assert(not exists(select 1 from public.order_items i join public.orders o on o.id=i.order_id
-  where left(product_order_number,9)<>left(o.order_number,8)||'2'), 'existing item numbers retain parent order date');
+  where length(product_order_number)<>length(o.order_number) or substr(product_order_number,length(product_order_number)-7,1)<>'2'
+  or left(product_order_number,length(product_order_number)-8)<>left(o.order_number,length(o.order_number)-8)), 'existing item numbers retain parent order date');
 select pg_temp.number_assert(not exists(select 1 from public.order_shipments s join public.orders o on o.id=s.order_id
-  where left(shipment_number,9)<>left(o.order_number,8)||'3'), 'existing shipment numbers retain parent order date');
+  where length(shipment_number)<>16 or left(shipment_number,9)<>left(o.order_number,8)||'3'), 'existing shipment numbers retain parent order date');
 select pg_temp.number_assert(not has_table_privilege('authenticated','private.commerce_number_counters','update')
   and not has_function_privilege('anon','private.next_commerce_number(timestamptz,smallint)','execute')
   and not has_function_privilege('authenticated','private.next_commerce_number(timestamptz,smallint)','execute')
   and not has_function_privilege('service_role','private.next_commerce_number(timestamptz,smallint)','execute'), 'number generator sealed');
 
+-- 아래는 옛 16자리 발급의 회귀다. 시각 전환이 꺼져 있으면(infinity, migration 기본) 종전과 한 글자도 같은 번호를 받는다.
+update private.commerce_number_time_switch set switched_at='infinity' where singleton;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values('c6010000-0000-4000-8000-000000000001','authenticated','authenticated','readable-numbers@example.test','{}','{}',now(),now());
 insert into public.orders(id,user_id,status,total,address,created_at)

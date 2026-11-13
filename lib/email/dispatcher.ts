@@ -9,10 +9,11 @@ export const EMAIL_MESSAGE_KINDS = [
   'account_deletion_notice',
   'order_delay_notice',
   'operator_invitation',
+  'stock_safety_digest',
 ] as const;
 
 export type EmailMessageKind = (typeof EMAIL_MESSAGE_KINDS)[number];
-export type EmailIntentSource = 'auth_hook' | 'account_deletion' | 'order_delay_notice' | 'operator_invitation';
+export type EmailIntentSource = 'auth_hook' | 'account_deletion' | 'order_delay_notice' | 'operator_invitation' | 'stock_safety_digest';
 export type EmailDeliveryState =
   | 'queued'
   | 'dispatching'

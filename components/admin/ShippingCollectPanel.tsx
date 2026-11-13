@@ -15,6 +15,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import { cn } from 'cn';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
 const PRIMARY = cn(buttonVariants({ size: 'sm' }));
 const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
@@ -38,6 +39,7 @@ function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, se
   const [mustConfirm, setMustConfirm] = useState(Boolean(recovery));const requestBusy = useRef(false);
   const [draft, setDraft] = useState(blank);const [revision, setRevision] = useState(obligation.revision);
   const [pending, setPending] = useState(false);const [request, setRequest] = useState<ShippingCollectEventRequest | null>(null);
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [uncertain, setUncertain] = useState(false);const [message, setMessage] = useState<string | null>(null);
   const alive = useRef(true);
   useEffect(() => { alive.current = true;return () => { alive.current = false; }; }, []);

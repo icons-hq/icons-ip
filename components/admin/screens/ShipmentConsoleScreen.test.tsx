@@ -6,9 +6,50 @@ import {shipmentDeliveryFixture} from '@/lib/shipment-delivery.fixture';
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn()}),usePathname:()=>'/admin/sales/dispatch'}));
 vi.mock('@/app/admin/order-actions',()=>({bulkConfirmAdminOrdersAction:vi.fn(),bulkRegisterAdminOrderTrackingAction:vi.fn(),saveAdminOrderDispatchDelayAction:vi.fn()}));
 vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exportShipmentsAction:vi.fn(),exportPendingOriginShipmentsAction:vi.fn()}));
+vi.mock('@/app/admin/dispatch-delivery-actions',()=>({readDispatchShipmentDeliveryAction:vi.fn(),recordDispatchShipmentDeliveryAction:vi.fn()}));
 const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포',template:'wms_csv',active:true},{id:'two',name:'남양주',template:'seowon_xlsx',active:true},{id:'three',name:'중지된 창고',template:'standard',active:false}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
+ it('물류 계정(판매 관리 권한 없음)의 신규주문 탭에는 발주확인을 못 하는 이유를 한 줄 알린다(QA 라운드 1b)',()=>{
+  const newTab={...base,filters:{...base.filters,tab:'new' as const},rows:[]};
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} canReadOrders={false} data={newTab}/>)).toContain('발주확인은 계정 주매니저가 합니다. 물류 계정은 발송 대기부터 처리합니다.');
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={newTab}/>)).not.toContain('발주확인은 계정 주매니저가 합니다');
+ });
+ it('주문 조회 권한이 없는 출고 전용 운영자에게는 구매자·결제·금액 조건과 주문 상세 링크 없이 택배 외 인계 팝업을 둔다 (1014-084 수령인 정보만)',()=>{
+  const rows=[{...row,buyerName:null as unknown as string,total:null as unknown as number,paymentMethod:null as unknown as string,shippingFee:null as unknown as number,production:{count:1,completed:1,ready:true}},
+   {...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})}] as ShipmentConsoleData['rows'];
+  for(const surface of ['dispatch','shipping'] as const){
+   const html=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,surface,filters:{...base.filters,tab:'ready'},rows}}/>);
+   expect(html).not.toContain('구매자명');expect(html).not.toContain('/admin/sales/orders/');expect(html).not.toContain('name="paymentMethod"');
+   expect(html).not.toContain('주문금액 높은순');expect(html).not.toContain('>결제일<');expect(html).not.toContain('value="buyer"');
+   expect(html).toContain('받는 분');expect(html).toContain('상품 · 파랑');expect(html).toContain('배송건번호 · 주문번호 · 수취인');
+  }
+  const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows}}/>);
+  expect(dispatch).toMatch(/aria-haspopup="dialog"[^>]*>퀵 인계·수령 확인<\/button>/);expect(dispatch).toContain('<span>주문제작 1/1건 완료</span>');
+ });
+ /* 2026-11-12 "착불 금액은 보이게": 착불 배송비·합포장 착불 합계·착불 수납 정보는 파일뿐 아니라 이 화면에서도 읽기 전용으로 보인다. */
+ it.each([false,true])('발송·배송현황 행에 착불 배송비·합포장 착불 합계·착불 수납 정보를 읽기 전용으로 보인다 (주문 조회 권한 %s)',canReadOrders=>{
+  const collector={name:'한진택배',method:'수령 시 기사에게 현금',refundContact:'고객센터 1588-0000',instructions:'착불 배송비는 상품 수령 때 지급합니다.'};
+  const pack={id:'70000000-0000-4000-8000-0000000000aa',revision:1,count:2,shipmentIds:['60000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000002'],collectFee:8000,canRelease:true};
+  const rows=[{...row,pack,collect:{collectFee:4000,collector}},{...row,id:'60000000-0000-4000-8000-000000000002',pack,collect:{collectFee:4000,collector:null}},
+   {...row,id:'60000000-0000-4000-8000-000000000003',collect:null}] as ShipmentConsoleData['rows'];
+  for(const surface of ['dispatch','shipping'] as const){
+   const html=renderToStaticMarkup(<ShipmentConsoleScreen actorId="10000000-0000-4000-8000-000000000001" canManageSales={false} canReadOrders={canReadOrders} data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'transit'},rows}}/>);
+   expect(html.match(/착불 배송비 ₩4,000/g)).toHaveLength(2);expect(html.match(/합포장 착불 합계 ₩8,000/g)).toHaveLength(2);
+   for(const text of ['착불 수납 주체','한진택배','수납 방법','수령 시 기사에게 현금','고객 안내','착불 배송비는 상품 수령 때 지급합니다.','착불 환급 문의','고객센터 1588-0000']) expect(html).toContain(text);
+   expect(html).toContain('이 주문에는 착불 수납 정보 기록이 없습니다.');expect(html.match(/data-shipment-collect=""/g)).toHaveLength(2);
+   // 읽기 전용: 합포장 만들기·해제(합포장 관리)는 판매 관리 권한에만 있다.
+   expect(html).not.toContain('>합포장 관리</button>');
+  }
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen actorId="10000000-0000-4000-8000-000000000001" canReadOrders={canReadOrders} data={{...base,rows}}/>)).toContain('>합포장 관리</button>');
+ });
+ it('주문 조회 권한이 있는 주매니저 화면은 지금과 같다 (1014-084)',()=>{
+  const data={...base,rows:[row,{...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})}]} as ShipmentConsoleData;
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={data}/>);
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={data} canReadOrders/>)).toBe(html);
+  expect(html).toContain('구매자명');expect(html).toContain('/admin/sales/orders/');expect(html).toContain('name="paymentMethod"');
+  expect(html).toContain('주문금액 높은순');expect(html).toContain('>결제일<');expect(html).toMatch(/<a [^>]*href="\/admin\/sales\/orders\/[^"]*"[^>]*>퀵 인계·수령 확인<\/a>/);
+ });
  it('지원하는 모든 배송방법을 검색하고 다운로드 방식은 파일 제공 이력으로 연결한다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'digital'})}]}}/>);
   for(const method of ['parcel','quick','pickup','direct','freight','none','digital']) expect(html).toContain(`value="${method}"`);
@@ -185,5 +226,152 @@ describe('배송 건 목록 엑셀 다운로드',()=>{
   expect(html).toContain('data-export-href="/api/admin/list-export?screen=dispatch&amp;tab=ready&amp;originId=00000000-0000-4000-8000-000000042201&amp;query=%ED%99%8D"');
   const shipping=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'delivered'}}}/>);
   expect(shipping).toContain('data-export-href="/api/admin/list-export?screen=shipping&amp;tab=delivered"');
+ });
+});
+describe('주문번호 상세 팝업 (S36-075)',()=>{
+ it.each(['dispatch','shipping'] as const)('번호는 같은 목록 위 팝업(orderId)을 열고 새 탭 열기는 보조 링크로 남긴다: %s',surface=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'transit',query:'maple'},rows:[{...row,status:surface==='dispatch'?'ready':'shipping'}]}}/>);
+  expect(html).toContain(`href="/admin/sales/${surface}?tab=${surface==='dispatch'?'ready':'transit'}&amp;page=1&amp;query=maple&amp;orderId=${row.orderId}"`);
+  expect(html).toContain('aria-label="주문 00000001 상세 팝업 열기"');expect(html).toContain('aria-label="주문 00000001 상세 열기 (새 탭)"');
+  expect(html).toMatch(/aria-label="주문 00000001 상세 팝업 열기"(?:(?!target=)[^>])*>/);
+ });
+});
+describe('발송처리 화면의 행 운송장·배송 방법 (S36-072·S36-X04)',()=>{
+ const header=(html:string)=>html.slice(html.indexOf('<thead'),html.indexOf('</thead>'));
+ const withCarrier={...base,origins:[{...base.origins[0],defaultCarrier:'hanjin'},...base.origins.slice(1)]};
+ it('발송 대기·지연 탭은 발송할 수 있는 택배 행마다 택배사·운송장 칸을 두고 출고지 기본 택배사를 미리 고른다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...withCarrier,rows:[row]}}/>);
+  /* QA 라운드 1 M1-a: 운송장 입력은 발송 상태 칸 아래에 둔다(1440 화면에서 가로 스크롤 없이 [등록]이 보이게). */
+  expect(header(html)).toContain('발송 · 운송장');expect(header(html)).not.toContain('택배사 · 운송장');
+  expect(html).toContain('aria-label="배송 건 00000001 운송장번호"');expect(html).toContain('aria-label="배송 건 00000001 택배사"');
+  expect(html).toMatch(/<option value="hanjin" selected="">한진택배<\/option>/);
+  expect(html).toContain('data-shipment-row-tracking=""');
+  const delayed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...withCarrier,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);
+  expect(delayed).toContain('data-shipment-row-tracking=""');expect(delayed).toContain('택배 외 발송처리');
+ });
+ it('예약 재고 할당 전·택배 외 행은 운송장 칸 대신 이유를 적고, 신규주문·배송현황에는 칸을 두지 않는다',()=>{
+  const held=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,preorderReady:false}]}}/>);
+  expect(held).not.toContain('data-shipment-row-tracking=""');expect(held).toContain('예약 재고 할당·제작 완료 뒤 입력합니다.');
+  /* 택배 외 행은 같은 칸의 인계·수령 확인으로 처리한다 — 따로 '주문 상세에서 처리' 안내를 두지 않는다(QA 라운드 1 m7). */
+  const pickup=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture()}]}}/>);
+  expect(pickup).not.toContain('택배 외 배송 — 배송 방법·주문 상세에서 처리합니다.');expect(pickup).toContain('방문수령 인계·수령 확인');
+  expect(pickup).not.toContain('data-shipment-row-tracking');
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[row]}}/>);
+  expect(header(incoming)).not.toContain('운송장');expect(incoming).not.toContain('data-shipment-row-tracking');
+  const shipping=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678'}]}}/>);
+  expect(header(shipping)).not.toContain('발송 · 운송장');expect(shipping).not.toContain('배송 방법 변경·인계');
+ });
+ it('출고지시 전달 전 준비 건에만 행의 배송 방법 버튼을 두고 배송없음·디지털은 구매 때 방식을 유지한다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
+  expect(html).toContain('aria-label="배송 건 00000001 배송 방법 변경·인계"');
+  const exported=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,exportedAt:'2026-09-08T01:10:00Z'}]}}/>);
+  expect(exported).not.toContain('배송 방법 변경·인계');
+  const fixed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'none'})}]}}/>);
+  expect(fixed).not.toContain('배송 방법 변경·인계');
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[row]}}/>);
+  expect(incoming).toContain('배송 방법 변경·인계');
+ });
+ it('택배 외 한 방법만 모아 본 발송 대기 목록은 그 건을 골라 일괄 발송처리하고 출고지시·합포장 막대는 숨긴다',()=>{
+  const quick={...row,delivery:shipmentDeliveryFixture({method:'quick'})};
+  const unfiltered=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" data={{...base,rows:[quick]}}/>);
+  expect(unfiltered).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  const filtered=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" data={{...base,filters:{...base.filters,method:'quick'},rows:[quick]}}/>);
+  expect(filtered).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  expect(filtered).toContain('택배 외 발송처리');expect(filtered).not.toContain('합포장 관리');
+  const workbar=filtered.slice(filtered.indexOf('data-sales-workbar'),filtered.indexOf('출고지별 새 출고지시 내려받기'));
+  expect(workbar).not.toContain('출고지시 내보내기');
+  /* 택배가 섞인 기본 목록의 전체 선택은 그대로 택배 건만 고른다. */
+  const mixed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row,{...quick,id:'60000000-0000-4000-8000-000000000002'}]}}/>);
+  expect(mixed).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);expect(mixed).not.toContain('aria-label="배송 건 00000002 선택"');
+  expect(mixed).toContain('출고지시 내보내기');expect(mixed).toContain('택배 외 발송처리');
+ });
+});
+describe('리뷰 반영: 주문번호 글자 팝업·택배 외 필터 안내',()=>{
+ it('배송건번호와 "주문 번호" 글자 모두 같은 목록 위 팝업을 열고, 아이콘만 새 탭으로 연다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
+  const popup=`href="/admin/sales/dispatch?tab=ready&amp;page=1&amp;orderId=${row.orderId}"`;
+  expect(html.split(popup).length-1).toBe(2);
+  expect(html).toContain('aria-label="배송 건 00000001의 주문 상세 팝업 열기"');expect(html).toMatch(/aria-label="주문 00000001 상세 팝업 열기"[^>]*>주문 00000001/);
+  expect(html).toMatch(/aria-label="주문 00000001 상세 열기 \(새 탭\)"[^>]*target="_blank"|target="_blank"[^>]*aria-label="주문 00000001 상세 열기 \(새 탭\)"/);
+ });
+ it('택배가 섞인 발송 대기 목록에서 체크칸 없는 택배 외 행이 있으면 작업 막대에 방법별 필터 링크를 둔다',()=>{
+  const quick={...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})};
+  const pickup={...row,id:'60000000-0000-4000-8000-000000000003',delivery:shipmentDeliveryFixture()};
+  const mixed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row,quick,pickup]}}/>);
+  const bar=mixed.slice(mixed.indexOf('data-sales-workbar'),mixed.indexOf('data-non-parcel-hint')+5000);
+  expect(bar).toContain('택배 외 배송 건 2건은 여기서 고를 수 없습니다');
+  expect(bar).toContain('href="/admin/sales/dispatch?tab=ready&amp;page=1&amp;method=quick">퀵 1건만 보기');
+  expect(bar).toContain('href="/admin/sales/dispatch?tab=ready&amp;page=1&amp;method=pickup">방문수령 1건만 보기');
+  /* 택배 행이 없어 처리 막대가 없는 목록도 안내만 담은 막대를 그리고, 출고지시 버튼은 두지 않는다. */
+  const only=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[pickup]}}/>);
+  expect(only).toContain('data-non-parcel-hint=""');expect(only).not.toContain('출고지시 내보내기');
+  /* 그 방법만 모아 본 목록·다른 탭에는 안내가 없다. */
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,method:'quick'},rows:[quick]}}/>)).not.toContain('data-non-parcel-hint');
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row,quick]}}/>)).not.toContain('data-non-parcel-hint');
+ });
+});
+describe('QA 라운드 1 물류: 1440 화면 열 구성·변경 표시·안내',()=>{
+ const header=(html:string)=>html.slice(html.indexOf('<thead'),html.indexOf('</thead>'));
+ it('구매자는 수취인 칸 아래 줄에 두고, 발송 상태와 운송장 입력을 한 칸에 모아 열 수를 줄인다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
+  const heads=[...header(html).matchAll(/<th[^>]*data-slot="table-head"[^>]*>(?:<label[\s\S]*?<\/label>)?([^<]*)/g)].map(match=>match[1]).filter(Boolean);
+  expect(heads).toEqual(['배송건번호 / 주문번호','상품 · 옵션','출고지','수취인 / 구매자','주문 / 발주확인','발송 · 운송장','배송 방식']);
+  expect(html).toContain('aria-label="구매자 구매자"');
+  // 발송 상태 배지와 운송장 입력이 같은 칸이다.
+  const cell=html.slice(html.indexOf('내보내기 전'),html.indexOf('data-shipment-row-tracking'));
+  expect(cell).not.toContain('</td>');
+  // 출고 전용 운영자는 구매자 줄도 머리글도 없다.
+  const logistics=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows:[row]}}/>);
+  expect(header(logistics)).toContain('>수취인<');expect(logistics).not.toContain('aria-label="구매자 ');
+ });
+ it('고객이 고른 방식과 다르게 바뀐 배송 건에 변경 표시를 둔다 (m3)',()=>{
+  const changed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'quick',customerMethod:'parcel',changedBy:'store'})}]}}/>);
+  expect(changed).toContain('data-method-changed=""');expect(changed).toContain('고객 선택 택배에서 변경');
+  const chosen=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'quick',customerMethod:'quick'})}]}}/>);
+  expect(chosen).not.toContain('data-method-changed');
+  const legacy=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'quick'})}]}}/>);
+  expect(legacy).not.toContain('data-method-changed');
+ });
+ it('출고 전용 운영자의 안내는 열 수 없는 주문 상세 대신 행의 인계·수령 확인을 가리킨다 (m7)',()=>{
+  const pickup={...row,delivery:shipmentDeliveryFixture()};
+  for(const [surface,tab] of [['dispatch','ready'],['shipping','transit']] as const){
+   const logistics=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,surface,filters:{...base.filters,tab},rows:[row,pickup]}}/>);
+   expect(logistics).toContain("행의 &#x27;인계·수령 확인&#x27;에서");expect(logistics).not.toContain('주문 상세에서 확인');expect(logistics).not.toContain('주문 상세에서 수령 확인값');
+   const manager=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab},rows:[row,pickup]}}/>);
+   expect(manager).toMatch(/주문 상세에서 (확인|수령 확인값)/);
+  }
+ });
+ it('택배 외 건 필터 안내는 막대 한 줄을 차지하는 본문 크기 글자와 버튼 모양 링크다 (m5)',()=>{
+  const quick={...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})};
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row,quick]}}/>);
+  const hint=html.slice(html.indexOf('<span class="flex basis-full'),html.indexOf('퀵 1건만 보기'));
+  expect(hint).toContain('text-sm text-foreground');expect(hint).not.toContain('text-xs text-muted-foreground');
+  expect(hint).toMatch(/<a[^>]*data-slot="button"[^>]*href="\/admin\/sales\/dispatch\?tab=ready&amp;page=1&amp;method=quick"/);
+ });
+});
+describe('물류 출고 권한 화면 숨김 (T05 통합용 props)',()=>{
+ it('판매 관리 권한이 없으면 발주확인·합포장 관리·고객 지연 안내·지연 메모·목록 엑셀을 숨기고 출고·운송장·택배 외 발송처리는 남긴다',()=>{
+  const delayed=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" canManageSales={false} data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);
+  expect(delayed).not.toContain('목록 엑셀 다운로드');expect(delayed).not.toContain('지연 메모');expect(delayed).not.toContain('지연 안내 결과');
+  expect(delayed).not.toContain('고객 지연 안내');expect(delayed).not.toContain('합포장 관리');expect(delayed).not.toContain('발송지연 안내여부');
+  expect(delayed).toContain('출고지시 내보내기');expect(delayed).toContain('택배 외 발송처리');expect(delayed).toContain('data-shipment-row-tracking=""');
+  expect(delayed).toContain('엑셀 일괄 운송장 등록');
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} data={{...base,filters:{...base.filters,tab:'new'},rows:[row]}}/>);
+  expect(incoming).not.toContain('발주확인</button>');expect(incoming).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  const transit=renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678'}]}}/>);
+  expect(transit).toContain('선택 배송완료');expect(transit).not.toContain('목록 엑셀 다운로드');
+ });
+ it('기본값은 지금 화면 그대로다',()=>{
+  const delayed=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);
+  expect(delayed).toContain('목록 엑셀 다운로드');expect(delayed).toContain('지연 메모');expect(delayed).toContain('고객 지연 안내');expect(delayed).toContain('합포장 관리');
+ });
+ /* 택배 외 실물 배송의 인계·수령은 출고 전용 운영자도 이 화면의 팝업에서 기록한다(1014-084, 오케스트레이터 판단 — 발송·배송완료를 택배로 좁히지 않음). */
+ it('주문 열람 권한이 없으면 번호·제작 현황을 글자로 두고 상세 팝업·새 탭 링크를 만들지 않으며, 택배 외 인계·수령은 이 화면의 팝업으로 기록한다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows:[row,{...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture()},
+   {...row,id:'60000000-0000-4000-8000-000000000003',production:{count:1,completed:0,ready:false,dueAt:null}},
+   {...row,id:'60000000-0000-4000-8000-000000000004',delivery:shipmentDeliveryFixture({method:'digital'})}]}}/>);
+  expect(html).not.toContain('data-order-preview-link');expect(html).not.toContain('상세 열기 (새 탭)');expect(html).not.toContain('/admin/sales/orders/');
+  expect(html).toMatch(/aria-haspopup="dialog"[^>]*>방문수령 인계·수령 확인<\/button>/);expect(html).toContain('주문제작 0/1건 완료');
+  expect(html).toContain('디지털 파일 제공 이력은 주문 상세에서 합니다.');
  });
 });

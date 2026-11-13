@@ -12,6 +12,8 @@ import {
   type AdminSettledConsoleData,
 } from '@/lib/admin/settled';
 import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
+import { adminOrderPreviewHref } from '@/lib/admin/order-preview';
+import { OrderPreviewLink, OrderPreviewNewTabLink } from './OrderPreview';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
@@ -52,16 +54,13 @@ export function SettledScreen({
     return {
       id: row.id,
       cells: [
-        <Link
-          aria-label={`주문 ${orderReferenceLabel(row.id, row.orderNumber)} 상세 열기 (새 탭)`}
-          className="font-medium underline-offset-4 hover:underline"
-          href={adminOrderDetailHrefFromBack(row.id, adminSettledHref(filters))}
-          key="reference"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <span className="tabular-nums">{orderReferenceLabel(row.id, row.orderNumber)}</span>
-        </Link>,
+        /* S36-075: 주문번호는 같은 목록 위 상세 팝업을 연다(닫으면 목록·스크롤 그대로). 새 탭 열기는 옆 보조 링크다. */
+        <span className="inline-flex items-center gap-1" key="reference">
+          <OrderPreviewLink href={adminOrderPreviewHref(currentHref, row.id)} label={`주문 ${orderReferenceLabel(row.id, row.orderNumber)} 상세 팝업 열기`}>
+            <span className="tabular-nums">{orderReferenceLabel(row.id, row.orderNumber)}</span>
+          </OrderPreviewLink>
+          <OrderPreviewNewTabLink href={adminOrderDetailHrefFromBack(row.id, adminSettledHref(filters))} label={`주문 ${orderReferenceLabel(row.id, row.orderNumber)} 상세 열기 (새 탭)`} />
+        </span>,
         <span className="block max-w-39 truncate" key="buyer" title={row.buyerName}>{row.buyerName}</span>,
         row.deliveredAt
           ? (

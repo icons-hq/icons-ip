@@ -12,6 +12,15 @@ it('separates gift payer from requester and links to existing claim detail', () 
   expect(html).not.toContain('계좌번호');
   expect(html).not.toContain('송금 완료 확정');
 });
+it('목록 엑셀은 다른 목록과 같은 비밀번호 내려받기 버튼으로 전체 송금 대기 요청을 받는다(1007-047·048)', () => {
+  const html = renderToStaticMarkup(<RefundTransfersScreen data={{ page: 2, pageSize: 50, total: 51, rows: [] }} />);
+  // 페이지와 무관하게 전체 목록을 받는다. 화면에는 계좌 원문을 그리지 않는다.
+  expect(html).toContain('data-export-href="/api/admin/list-export?screen=refund-transfers"');
+  expect(html).toContain('목록 엑셀 다운로드');
+  expect(html).toContain('전체 51건');
+  expect(html).toContain('요청별 계좌 열람 기록');
+  expect(html).not.toContain('계좌번호');
+});
 it('대기 일수는 24시간이 아니라 한국 달력으로 센다', () => {
   const row = { claimId: 'a1010000-0000-4000-8000-000000000001', orderId: 'a1010000-0000-4000-8000-000000000002', reference: 45, claimType: 'cancel' as const, amount: 12000,
     confirmedAt: '2026-10-13T14:30:00Z', filedAt: '2026-10-13T14:30:00Z', updatedAt: '2026-10-13T14:30:00Z', revision: 1, gift: false, payerName: '결제자', requesterName: '요청자' };

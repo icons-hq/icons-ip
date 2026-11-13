@@ -30,10 +30,11 @@ function errorResponse(message: string, status: number) {
 }
 
 /**
- * 주문·배송 화면의 목록 엑셀 다운로드.
+ * 주문·배송·취소·반품·교환·환불 송금 대기 화면의 목록 엑셀 다운로드.
  *
  * `?screen=<화면 id>&<화면 검색 파라미터>`를 받아 화면과 같은 조건의 전체 결과를 .xlsx로
  * 돌려준다. 권한은 해당 화면 경로로 확인하고, 다운로드 감사 기록이 남아야 파일을 응답한다.
+ * 파일은 언제나 비밀번호로 암호화한다 — 평문 GET이나 비밀번호 없는 경로는 없다.
  */
 export async function GET() {
   return Response.json({ error: '관리자 화면에서 비밀번호를 입력한 뒤 내려받아 주세요.' }, { status: 405, headers: { ...NO_STORE, Allow: 'POST' } });
@@ -43,13 +44,17 @@ export async function POST(request: Request) {
   const params = new URL(request.url).searchParams;
   const screen = params.get('screen');
   const definition = isAdminListExportScreenId(screen) ? ADMIN_LIST_EXPORT_SCREENS[screen] : null;
-  const auth = await requireAdminScreenAccess(definition?.href ?? '/admin');
+  /* 발주·발송과 배송현황 목록 엑셀은 화면을 여는 출고 전용 권한(1014-084)이 아니라 예전처럼 sales.manage로 받는다. */
+  const auth = definition?.id === 'dispatch' || definition?.id === 'shipping'
+    ? await requireAdminScreenAccess(definition.href, { capability: 'sales.manage' })
+    : await requireAdminScreenAccess(definition?.href ?? '/admin');
   if (!definition) return errorResponse('내려받을 화면을 확인해주세요.', 400);
 
   try {
     const password = await readExportPassword(request, ['screen', 'page', 'view', 'field', 'query', 'status', 'state', 'tab', 'from', 'to', 'dateField', 'paymentMethod', 'sort', 'originId', 'method', 'delayNotice', 'stage', 'reasonType']);
     const now = new Date();
-    const sheet = await loadAdminListExportSheet(definition.id, Object.fromEntries(params), now);
+    // 비밀번호를 확인한 뒤에만 조회한다. 환불 송금 대기의 계좌 열람(감사 기록)도 이 뒤에서만 일어난다.
+    const sheet = await loadAdminListExportSheet(definition.id, Object.fromEntries(params), now, auth.user.id);
     const plain = await buildAdminListExportWorkbook(sheet, now);
     let encrypted;
     try { encrypted = encryptAdminWorkbook(plain, password); }

@@ -157,6 +157,24 @@ function otpMessage(subject: string, lead: string, otp: string) {
   };
 }
 
+/** 가입 확인(1014-004): 가입 화면에 그대로 넣을 확인 코드와, 가입을 시작한 브라우저에서 누를 확인 링크를 함께 보낸다. */
+function codeLinkMessage(subject: string, lead: string, code: string, url: string, label: string) {
+  return {
+    subject,
+    text: `${lead}\n\n확인 코드: ${code}\n\n가입을 시작한 브라우저에서는 아래 링크를 눌러도 확인을 마칠 수 있어요.\n${url}\n\n본인이 요청하지 않았다면 이 메일을 무시해 주세요.`,
+    html: [
+      '<div style="font-family:Arial,sans-serif;color:#171717;background:#ffffff;padding:24px">',
+      `<h1 style="font-size:20px">${escapeHtml(subject.replace('[ICONS] ', ''))}</h1>`,
+      `<p>${escapeHtml(lead)}</p>`,
+      `<p style="font-size:24px;font-weight:700;letter-spacing:4px">${escapeHtml(code)}</p>`,
+      '<p>가입을 시작한 브라우저에서는 아래 버튼을 눌러도 확인을 마칠 수 있어요.</p>',
+      `<p><a href="${escapeHtml(url)}">${escapeHtml(label)}</a></p>`,
+      '<p style="color:#666">본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>',
+      '</div>',
+    ].join(''),
+  };
+}
+
 function plan(input: EnqueueEmailInput, message: DispatchEmailInput['message']): PlannedAuthEmail {
   return { ...input, message };
 }
@@ -171,13 +189,18 @@ export function planAuthHookEmails(
     if (!emailData.tokenHash) invalid();
     const redirectTo = callbackRedirect(emailData.redirectTo, '/auth/callback');
     const url = verificationUrl(config.supabaseUrl, emailData.tokenHash, 'signup', redirectTo);
+    /* 1014-004: 가입 화면은 같은 화면에서 확인 코드를 받는다. GoTrue가 코드(email_data.token)를 주면 코드와 링크를 함께 보내고,
+       코드가 없는 응답만 예전처럼 링크만 보낸다(링크는 어느 쪽이든 동작한다). 운영 Auth 템플릿(supabase/templates/confirmation.html)과 같은 구성이다. */
+    const code = /^\d{6,10}$/.test(emailData.token) ? emailData.token : null;
     return [plan({
       source: 'auth_hook',
       sourceReference: `signup:${user.id}:${emailData.tokenHash}:primary`,
       recipient: user.email,
       messageKind: 'auth_signup',
-      contentRevision: 'auth_signup_v1',
-    }, linkedMessage('[ICONS] 이메일을 확인해 주세요', 'ICONS 가입을 완료하려면 이메일을 확인해 주세요.', url, '이메일 확인하기'))];
+      contentRevision: code ? 'auth_signup_v2' : 'auth_signup_v1',
+    }, code
+      ? codeLinkMessage('[ICONS] 가입 확인 코드', 'ICONS 회원가입 화면에 아래 확인 코드를 입력해 주세요.', code, url, '이메일 확인하기')
+      : linkedMessage('[ICONS] 이메일을 확인해 주세요', 'ICONS 가입을 완료하려면 이메일을 확인해 주세요.', url, '이메일 확인하기'))];
   }
 
   if (emailData.action === 'recovery') {

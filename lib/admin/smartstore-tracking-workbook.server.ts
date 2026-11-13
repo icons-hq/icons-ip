@@ -11,7 +11,11 @@ import {
   ICONS_REPLY_CARRIER_HEADER, ICONS_REPLY_ITEM_HEADER, ICONS_REPLY_METHOD_HEADER, ICONS_REPLY_PARCEL_METHODS, ICONS_REPLY_TRACKING_HEADERS,
 } from './smartstore-shipment-workbook';
 
-export interface SmartStoreTrackingParseResult extends TrackingImportParseResult { kind: 'smartstore' }
+export interface SmartStoreTrackingParseResult extends TrackingImportParseResult {
+  kind: 'smartstore';
+  /** 운송장 칸만 비운 줄. 아직 출고하지 않은 것으로 보고 건너뛴다(실패 아님). */
+  skipped: { line: number; reference: string }[];
+}
 
 type ReplyCell = ReturnType<typeof readSafeWorkbookCell>;
 
@@ -108,7 +112,7 @@ function parseReplyTable(table: ReplyTable, carriers: ShippingCarrierRegistry): 
     throw new Error('상품주문번호·택배사·운송장번호 열이 각각 하나씩 있어야 합니다.');
   }
   const inputColumns = [...itemColumns, ...carrierColumns, ...trackingColumns, ...methodColumns];
-  const rows: SmartStoreTrackingParseResult['rows'] = [], issues: SmartStoreTrackingParseResult['issues'] = [];
+  const rows: SmartStoreTrackingParseResult['rows'] = [], issues: SmartStoreTrackingParseResult['issues'] = [], skipped: SmartStoreTrackingParseResult['skipped'] = [];
   for (let line = headerRow + 1; line <= table.rowCount; line++) {
     const referenceCell = table.identifier(line, itemColumns[0], '상품주문번호');
     const carrierCell = table.cell(line, carrierColumns[0]);
@@ -126,12 +130,18 @@ function parseReplyTable(table: ReplyTable, carriers: ShippingCarrierRegistry): 
     const reason = cells.find(cell => cell.error)?.error ?? table.rowProblem(line, inputColumns, headerRow)
       ?? (!isUuid(reference) && !isCommerceNumber(reference, 'item') ? '상품주문번호에 ICONS 출고 파일의 전체 상품주문번호를 유지해주세요.' : undefined)
       ?? (method && !ICONS_REPLY_PARCEL_METHODS.includes(method) ? '퀵·방문수령·직접전달은 주문 상세에서 처리해주세요. 엑셀로는 택배만 등록할 수 있습니다.' : undefined)
-      ?? (!rawCarrier ? '택배사가 비어 있습니다.' : !carrier ? `등록되지 않은 택배사입니다: ${rawCarrier}` : !carrier.active ? `지금 사용하지 않는 택배사입니다: ${carrier.label}` : undefined)
+      ?? (rawCarrier && !carrier ? `등록되지 않은 택배사입니다: ${rawCarrier}` : rawCarrier && carrier && !carrier.active ? `지금 사용하지 않는 택배사입니다: ${carrier.label}` : undefined);
+    // 운송장 칸만 비운 줄은 아직 출고하지 않은 것으로 보고 건너뛴다(김포 회신과 같은 기준, QA 라운드 1b). 실패로 세지 않는다.
+    // 같은 배송 건의 다른 줄에 운송장이 있으면 일부만 채운 것이라 등록하지 않는 규칙은, 건너뛴 줄도 DB 일괄 등록에 빈 값으로 보내
+    // 배송 건 단위 가드가 막게 해서 지킨다(register 쪽).
+    if (!reason && !rawTracking) { skipped.push({ line, reference }); continue; }
+    const lateReason = reason
+      ?? (!rawCarrier ? '택배사가 비어 있습니다.' : undefined)
       ?? (!rawTracking ? '운송장번호가 비어 있습니다.' : !isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(trackingCell.value) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
-    if (reason) issues.push({ line, reference, reason });
+    if (lateReason) issues.push({ line, reference, reason: lateReason });
     else rows.push({ line, reference, referenceId: isUuid(reference) ? reference : null, carrier: carrier!.code, trackingNumber });
   }
-  return { kind: 'smartstore', rows, issues };
+  return { kind: 'smartstore', rows, issues, skipped };
 }
 
 export function parseSmartStoreReply(sheet: ExcelJS.Worksheet, carriers: ShippingCarrierRegistry): SmartStoreTrackingParseResult | null {

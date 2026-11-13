@@ -34,11 +34,16 @@ const operators = [
   sql('operator_capability_coverage'),
   sql('operator_capability_guards'),
   sql('operator_manager_lifecycle'),
+  // 1014-084 물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변.
+  sql('operator_logistics_dispatch'),
   sql('operator_email_invitations'),
   sql('operator_member_loyalty_projection'),
+  // 매월 등급 혜택 쿠폰(S36-062). 실행 월을 2031년으로 고정해 실제 매분 틱과 겹치지 않는다.
+  sql('loyalty_monthly_grade_coupons'),
   sql('operator_manual_recovery_guards'),
   sql('admin_operator_directory'),
   sql('readable_order_numbers'),
+  sql('order_number_time'),
   sql('erp_read'),
   run(
     'erp_read_concurrency.py',
@@ -49,6 +54,7 @@ const operators = [
     `READABLE_ORDER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=${databaseContainer} PGDATABASE=postgres python3 supabase/tests/readable_order_numbers_concurrency.py`,
   ),
   sql('smartstore_shipment_workbook'),
+  sql('warehouse_reply_order_numbers'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
@@ -113,7 +119,10 @@ const catalog = [
   sql('admin_sales_hourly_report'),
   sql('admin_benefit_issuances'),
   sql('admin_encrypted_export_audit', { admin: true }),
+  sql('refund_transfer_list_export'),
   sql('goods_custom_input_workbook', { admin: true }),
+  // 할인 프로모션 묶음(기간할인 원장 출처·중지 범위)과 전시 상품 여러 줄 조회(1014-109·112).
+  sql('discount_promotions', { admin: true }),
 ];
 
 const storefront = [
@@ -143,18 +152,32 @@ const storefront = [
   sql('home_free_product_collections', { admin: true, kc: true }),
   script('home_free_product_collections_concurrency.sh', 'HOME_FREE_PRODUCTS_TEST_SCOPE'),
   sql('customer_marketing_consents'),
+  sql('member_phone_verification'),
+  sql('customer_marketing_consent_kakao'),
+  sql('kakao_channel_friend_coupon'),
   sql('auto_order_confirmation'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
+  sql('stock_reconcile_safety_digest'),
+  // QA1 S-T07-01: 재고 대조 반영과 같은 옵션 주문의 재고 차감이 겹칠 때(주문 먼저 → 거절, 반영 먼저 → 주문이 반영 값에서 뺌).
+  script('stock_reconcile_apply_concurrency.sh', 'STOCK_RECONCILE_RACE_TEST_SCOPE'),
   sql('staging_test_delivery'),
+  sql('dispatch_console_delivery'),
+  sql('forced_order_delivery'),
   sql('commerce_number_labels'),
   sql('bank_transfer_order_number_code'),
   sql('order_item_allocation_inputs'),
   sql('cart_retained_until_payment', { admin: true, kc: true }),
+  // 바로구매·장바구니 선택 주문·선택 삭제(ADR-0030)는 장바구니 보류 계약(ADR-0026) 바로 뒤다.
+  sql('checkout_selection_direct', { admin: true, kc: true }),
+  // 결제 대기 주문이 잡은 쿠폰을 새 주문이 그 주문을 닫고 쓴다(QA1 S-D2-08, ADR-0030 확장).
+  sql('checkout_unpaid_coupon_handoff', { admin: true, kc: true }),
   sql('home_collection_banners', { admin: true }),
   sql('ip_hall_banners', { admin: true }),
   // 예전 story/marketing 단계의 쇼핑 스토리·마케팅·상품 상세 연출·리뷰 이벤트다.
   sql('shopping_stories', { kc: true }),
   sql('shopping_story_goods_picker', { kc: true }),
+  // QA1 MD 후속: 전시 구성 상품의 고객 화면 미노출 이유(초안·IP 초안·판매 제한·보관)와 다시 열기용 가벼운 읽기.
+  sql('goods_display_visibility', { kc: true }),
   sql('goods_relation_visual_compositions', { kc: true }),
   sql('goods_other_compositions', { admin: true, kc: true }),
   sql('story_navigation_and_home_layout'),
@@ -173,6 +196,7 @@ const storefront = [
   script('product_detail_presentation_concurrency.sh', 'PRODUCT_DETAIL_PRESENTATION_TEST_SCOPE'),
   sql('review_events', { admin: true, kc: true }),
   sql('review_event_exports', { admin: true, kc: true }),
+  sql('review_event_templates', { admin: true }),
   script('review_events_concurrency.sh', 'REVIEW_EVENTS_TEST_SCOPE'),
   script('goods_relation_visual_concurrency.sh', 'GOODS_RELATION_VISUAL_TEST_SCOPE'),
 ];

@@ -75,6 +75,18 @@ describe('주문 상세', () => {
     expect(html).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
     expect(html).toContain('장바구니 보류 해제 (결제 확인 필요 주문)');
   });
+  /* 고객이 '결제 대기 주문 취소하고 계속'을 눌러 닫은 주문은 자동 정리가 아니다 — 고객 동작으로 적고 취소 주체도 구매자다(ADR-0030). */
+  it('고객이 결제 대기 주문을 취소하고 계속한 기록은 고객 동작으로 적는다', () => {
+    const released = { id: 'released', source: 'status', occurredAt: '2026-11-12T09:00:00Z', action: 'system.order.unpaid_cart_order_closed', actorName: null, trigger: 'customer_released' } as const;
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'canceled' }, timeline: [released] }} noteOperationId="operation" />);
+    expect(html).toContain('고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함');
+    expect(html).not.toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
+    expect(html).toContain('· 구매자');
+    expect(html).not.toContain('시스템 자동 처리');
+    const automatic = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'canceled' }, timeline: [{ ...released, trigger: 'new_direct_order' }] }} noteOperationId="operation" />);
+    expect(automatic).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
+    expect(automatic).toContain('시스템 자동 처리');
+  });
   /* 사람 눈 판정: 뭘 샀는지가 화면 아래 글머리 한 줄이었고, 금액은 나열만 돼 최종 결제금액 줄이 없었다. */
   it('주문 상품을 맨 위 표로 보이고 금액 칸은 최종 결제금액으로 끝난다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
@@ -172,4 +184,28 @@ it('query-only detail does not mount any shipment or claim operation, note, or g
   const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'delivered' } }} canManage={false} canViewCustomer={false} noteOperationId="operation" />);
   expect(html).toContain('주문 당시 상품명');
   for (const text of ['판매자 직접 반품·교환 접수', '배송 방식·인계 확인', '고객 상세 열기', '>주문 처리<', 'name="body"']) expect(html).not.toContain(text);
+});
+
+/* QA1 S-T04-05: 강제 배송완료는 접힌 카드에 주문번호 전체를 직접 넣어야 했다. 발주확인·배송중 주문의 상세(목록 위 팝업 포함)에서
+   그 주문번호로 카드를 바로 연다. 권한이 없거나 처리할 수 없는 상태면 링크가 없다. */
+it('발주확인·배송중 주문은 강제 배송완료 카드를 그 주문번호로 바로 여는 링크를 둔다', () => {
+  const numbered = { ...detail, order: { ...detail.order, orderNumber: '20261112140010000034' } };
+  const shipping = renderToStaticMarkup(<OrderDetailScreen detail={numbered} embedded noteOperationId="operation" />);
+  expect(shipping).toContain('href="/admin/sales/dispatch?forceDelivery=20261112140010000034#forced-delivery"');
+  const confirmed = renderToStaticMarkup(<OrderDetailScreen detail={{ ...numbered, order: { ...numbered.order, status: 'confirmed' } }} noteOperationId="operation" />);
+  expect(confirmed).toContain('forceDelivery=20261112140010000034');
+  for (const status of ['paid', 'delivered', 'canceled'] as const) {
+    expect(renderToStaticMarkup(<OrderDetailScreen detail={{ ...numbered, order: { ...numbered.order, status } }} noteOperationId="operation" />)).not.toContain('forceDelivery=');
+  }
+  expect(renderToStaticMarkup(<OrderDetailScreen detail={numbered} canManage={false} noteOperationId="operation" />)).not.toContain('forceDelivery=');
+});
+
+/* S36-075 리뷰: 목록 위 팝업 안에서는 목록 돌아가기 버튼이 팝업 닫기와 겹치고 기록을 쌓으며 스크롤을 올리므로 숨긴다. */
+it('embedded(목록 위 팝업)에서는 머리의 목록 버튼을 그리지 않고, 강제 배송완료 감사 기록에 이름을 붙인다', () => {
+  const standalone = renderToStaticMarkup(<OrderDetailScreen backHref="/admin/sales/dispatch?tab=ready&page=1" backLabel="발주·발송 목록" detail={detail} noteOperationId="operation" />);
+  expect(standalone).toContain('>발주·발송 목록<');
+  const embedded = renderToStaticMarkup(<OrderDetailScreen backHref="/admin/sales/dispatch?tab=ready&page=1" backLabel="발주·발송 목록" detail={{ ...detail, timeline: [...detail.timeline,
+    { id: 'five', source: 'status', occurredAt: '2026-09-01T05:00:00Z', action: 'admin.order.forced_delivered', actorName: '수민' }] }} embedded noteOperationId="operation" />);
+  expect(embedded).not.toContain('>발주·발송 목록<');
+  expect(embedded).toContain('>강제 배송완료<');
 });

@@ -105,6 +105,15 @@ export type AdminCoinExchangeOfferFormResult =
   | { ok: true; value: AdminCoinExchangeOfferFormValue }
   | { ok: false; errors: AdminFieldErrors };
 
+export const ADMIN_CAMPAIGNS_PATH = '/admin/display/campaigns';
+/**
+ * 캠페인 관리 주소. 편집 중인 캠페인을 `?campaign=`으로 남긴다 — 할인 프로모션 등 다른 화면으로 갔다가
+ * 돌아가기·뒤로 가기·새로고침해도 같은 캠페인 편집으로 연다(QA1 MD). 없는 캠페인이면 목록이 열린다.
+ */
+export function adminCampaignHref(id: string | null = null) {
+  return id ? `${ADMIN_CAMPAIGNS_PATH}?${new URLSearchParams({ campaign: id })}` : ADMIN_CAMPAIGNS_PATH;
+}
+
 /* ── 본문 블록 스키마 ─────────────────────────────────────────────────────── */
 
 export const ADMIN_CAMPAIGN_MAX_SECTIONS = 20;
@@ -381,6 +390,24 @@ export function parseAdminCampaignSections(raw: string): AdminCampaignSectionsRe
   }
 
   return { ok: true, value: parsed };
+}
+
+/** 본문의 굿즈 블록(본문 안 위치·상품 ID·목차). 선택기로 고른 상품을 같은 자리에 되돌려 쓴다(1014-112). */
+export interface AdminCampaignGoodsBlock { index: number; goodIds: string[]; anchor: string | null }
+export function campaignGoodsBlocks(sections: unknown[]): AdminCampaignGoodsBlock[] {
+  return sections.flatMap((section, index) => {
+    if (typeof section !== 'object' || section === null || Array.isArray(section)) return [];
+    const block = section as Record<string, unknown>;
+    if (block.type !== 'goods' || !Array.isArray(block.good_ids)) return [];
+    return [{ index, goodIds: block.good_ids.filter((id): id is string => typeof id === 'string'),
+      anchor: typeof block.anchor === 'string' ? block.anchor : null }];
+  });
+}
+/** `index`가 null이면 굿즈 블록을 끝에 더하고, 아니면 그 블록의 상품만 바꾼다(목차 등 다른 키는 그대로). */
+export function replaceCampaignGoodsBlock(sections: unknown[], index: number | null, goodIds: string[]): unknown[] {
+  if (index === null) return [...sections, { type: 'goods', good_ids: [...goodIds] }];
+  return sections.map((section, position) => position === index && typeof section === 'object' && section !== null && !Array.isArray(section)
+    ? { ...(section as Record<string, unknown>), good_ids: [...goodIds] } : section);
 }
 
 export function normalizeAdminCampaignForm(formData: FormData): AdminCampaignFormResult {

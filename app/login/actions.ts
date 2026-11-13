@@ -17,6 +17,8 @@ import {
   onboardingPath,
   postAuthenticationPath,
   safeNextPath,
+  signupCodeErrorMessage,
+  signupConfirmedLoginPath,
 } from '@/lib/auth/onboarding';
 import {
   AUTH_NEXT_RECOVERY_MAX_AGE_SECONDS,
@@ -29,6 +31,9 @@ import {
   type AuthNextPurpose,
 } from '@/lib/auth/recovery.server';
 import { getProfileForUser } from '@/lib/auth/server';
+import { isPasswordSessionAccessToken } from '@/lib/auth/session-amr';
+import { hasKakaoIdentity, KAKAO_LINK_SETTINGS_PATH } from '@/lib/kakao/account-link';
+import { KAKAO_CHANNEL_LOGIN_SCOPE, kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { CANONICAL_AUTH_ORIGIN, trustedAuthOrigin } from '@/lib/auth/trusted-origin';
@@ -38,8 +43,14 @@ export interface AuthActionState {
   errors?: {
     email?: string;
     password?: string;
+    code?: string;
     form?: string;
   };
+  /**
+   * 가입 확인 메일을 보낸 이메일(정규화된 값). 화면은 이 값이 있으면 같은 자리에서 6자리 확인 코드 입력 단계를
+   * 연다(10/14 회의 1014-004). 메일의 확인 링크도 그대로 동작한다.
+   */
+  pendingSignupEmail?: string;
 }
 
 export interface SignOutActionState {
@@ -73,11 +84,17 @@ const AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const AUTH_SIGNUP_RESEND_STATE_MAX_AGE_MS = AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS * 1000;
 const AUTH_SIGNUP_RESEND_WINDOW_MS = 10 * 60 * 1000;
 const AUTH_SIGNUP_RESEND_MAX_ATTEMPTS = 3;
-const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요. 이미 가입한 이메일이라면 로그인도 시도할 수 있습니다.';
-const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요.';
+/* 확인 메일에는 6자리 확인 코드와 확인 링크가 함께 있다(supabase/templates/confirmation.html). 화면은 코드 입력을
+   먼저 안내하고, 링크도 계속 동작한다. */
+const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니다. 메일에 적힌 6자리 확인 코드를 아래에 입력해주세요. 메일이 보이지 않으면 스팸함을 확인해주세요. 이미 가입한 이메일이라면 로그인도 시도할 수 있습니다.';
+const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 가장 최근에 받은 메일의 6자리 확인 코드를 입력해주세요.';
+const SIGNUP_CODE_FORMAT_MESSAGE = '메일로 받은 6자리 숫자를 입력해주세요.';
+const SIGNUP_CODE_EMAIL_MISSING_MESSAGE = '확인할 이메일을 찾지 못했습니다. 회원가입을 다시 시작해주세요.';
+const SIGNUP_CODE_RESTART_MESSAGE = '코드를 다시 받으려면 [다른 이메일로 가입하기]를 눌러 같은 이메일로 회원가입을 다시 제출해주세요.';
 const PASSWORD_RESET_SENT_MESSAGE = '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.';
 const SOCIAL_AUTH_PROVIDERS = new Set<SocialAuthProvider>(['google', 'apple', 'kakao']);
 const SOCIAL_AUTH_UNAVAILABLE_MESSAGE = '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.';
+const KAKAO_LINK_UNAVAILABLE_MESSAGE = '지금은 카카오 계정을 연결할 수 없어요. 잠시 후 다시 시도해주세요.';
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 
@@ -292,9 +309,14 @@ export async function signInWithSocialAction(
   const next = safeNextPath(formData.get('next'));
   const origin = await requestOrigin();
   const supabase = await createClient();
+  /* 카카오톡 채널 스위치가 켜졌을 때만 카카오 로그인에 채널 관계 동의항목(plusfriends)을 더 요청한다 — 동의 화면에
+     채널 추가 항목이 보이고, 친구 추가 쿠폰을 확인할 수 있다(1014-014). 꺼져 있으면 요청은 예전과 같다. */
+  const channelScope = provider === 'kakao' && kakaoChannelConfig() ? KAKAO_CHANNEL_LOGIN_SCOPE : null;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: authCallbackUrl(origin) },
+    options: channelScope
+      ? { redirectTo: authCallbackUrl(origin), scopes: channelScope }
+      : { redirectTo: authCallbackUrl(origin) },
   });
 
   if (error || !data.url) {
@@ -302,6 +324,34 @@ export async function signInWithSocialAction(
   }
 
   await rememberAuthNextPath(origin, next, 'oauth', Date.now(), secret);
+  redirect(data.url);
+}
+
+/*
+ * 설정의 [카카오 계정 연결](1014-014, 리뷰 F10). 이메일·Google·Apple로 가입한 회원도 카카오 계정을 연결하면서 같은 카카오
+ * 동의 화면에서 ICONS 카카오톡 채널을 추가할 수 있다(plusfriends 동의항목). Supabase identity linking이라 Auth의
+ * manual linking이 켜져 있어야 한다 — 운영은 사람 게이트이고, 꺼져 있으면 GoTrue가 거절해 이 안내로 끝난다
+ * (docs/runbooks/signup-contact-channels.md). 연결이 끝나면 /auth/callback이 채널 관계를 다시 확인해 쿠폰을 한 번
+ * 발급하고 설정으로 돌려보낸다. 카카오톡 채널 스위치가 꺼져 있으면 아무것도 하지 않는다.
+ */
+export async function linkKakaoAccountAction(): Promise<AuthActionState> {
+  const { isConfigured } = getSupabaseConfig();
+  const secret = authCookieSecret();
+  if (!kakaoChannelConfig() || !isConfigured || !secret) return { errors: { form: KAKAO_LINK_UNAVAILABLE_MESSAGE } };
+
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) redirect(`/login?next=${encodeURIComponent(KAKAO_LINK_SETTINGS_PATH)}`);
+  if (hasKakaoIdentity(userData.user.identities)) return { message: '이미 카카오 계정이 연결돼 있어요.' };
+
+  const origin = await requestOrigin();
+  const { data, error } = await supabase.auth.linkIdentity({
+    provider: 'kakao',
+    options: { redirectTo: authCallbackUrl(origin), scopes: KAKAO_CHANNEL_LOGIN_SCOPE },
+  });
+  if (error || !data.url) return { errors: { form: KAKAO_LINK_UNAVAILABLE_MESSAGE } };
+
+  await rememberAuthNextPath(origin, KAKAO_LINK_SETTINGS_PATH, 'link', Date.now(), secret);
   redirect(data.url);
 }
 
@@ -330,6 +380,57 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
   redirect(postAuthenticationPath(profile, data.user.email, next));
 }
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+/*
+ * 같은 이메일로 확인 메일을 다시 보낸다. 10분에 3번까지만 보내고(서명 쿠키 창), 넘으면 Supabase를 부르지 않는다.
+ * 회원가입 폼을 같은 이메일로 다시 제출한 경우와 코드 입력 단계의 [코드 다시 받기]가 같은 창을 나눠 쓴다.
+ * 창 상태가 없거나 다른 이메일의 창이면 새 창을 연다. 서명 비밀값이 없으면 앱 창 없이 Supabase 한도만 적용된다.
+ */
+async function resendSignupConfirmation(input: {
+  supabase: SupabaseServerClient;
+  cookieStore: CookieStore;
+  origin: string;
+  email: string;
+  next: string;
+  now: number;
+  secret: string | null;
+  state: SignupResendState | null;
+}): Promise<AuthActionState> {
+  const { supabase, cookieStore, origin, email, next, now, secret, state } = input;
+  const signupEmailHash = secret ? emailHash(email, secret) : null;
+
+  if (signupEmailHash) {
+    const window = state?.emailHash === signupEmailHash
+      ? currentSignupResendWindow(state, now)
+      : { emailHash: signupEmailHash, resendCount: 0, windowStartedAt: now };
+    if (isSignupResendWindowActive(window, now) && window.resendCount >= AUTH_SIGNUP_RESEND_MAX_ATTEMPTS) {
+      return {
+        errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' },
+        pendingSignupEmail: email,
+      };
+    }
+    setSignupResendState(cookieStore, origin, {
+      emailHash: signupEmailHash,
+      resendCount: window.resendCount + 1,
+      windowStartedAt: window.windowStartedAt,
+    }, secret);
+  }
+
+  await rememberAuthNextPath(origin, next, 'signup', now, secret);
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: {
+      emailRedirectTo: authCallbackUrl(origin),
+    },
+  });
+
+  if (error) return { errors: { form: authSignUpErrorMessage(error) }, pendingSignupEmail: email };
+
+  return { message: SIGNUP_CONFIRMATION_RESENT_MESSAGE, pendingSignupEmail: email };
+}
+
 export async function signUpWithEmailAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const parsed = validateCredentials(formData);
   if (!parsed.ok) return parsed.state;
@@ -353,31 +454,16 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
   const signupEmailHash = resendSecret ? emailHash(normalizedSignupEmail, resendSecret) : null;
 
   if (signupEmailHash && signupResendState?.emailHash === signupEmailHash) {
-    const resendWindow = currentSignupResendWindow(signupResendState, now);
-    if (isSignupResendWindowActive(signupResendState, now) && resendWindow.resendCount >= AUTH_SIGNUP_RESEND_MAX_ATTEMPTS) {
-      return { errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' } };
-    }
-
-    const attemptedResendState = {
-      emailHash: signupEmailHash,
-      resendCount: resendWindow.resendCount + 1,
-      windowStartedAt: resendWindow.windowStartedAt,
-    };
-
-    await rememberAuthNextPath(origin, next, 'signup', now, resendSecret);
-    setSignupResendState(cookieStore, origin, attemptedResendState, resendSecret);
-
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
+    return resendSignupConfirmation({
+      supabase,
+      cookieStore,
+      origin,
       email: normalizedSignupEmail,
-      options: {
-        emailRedirectTo,
-      },
+      next,
+      now,
+      secret: resendSecret,
+      state: signupResendState,
     });
-
-    if (error) return { errors: { form: authSignUpErrorMessage(error) } };
-
-    return { message: SIGNUP_CONFIRMATION_RESENT_MESSAGE };
   }
 
   const { data, error } = await supabase.auth.signUp({
@@ -411,7 +497,7 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
         return { errors: { form: authSignUpErrorMessage(resendError) } };
       }
 
-      return { message: SIGNUP_CONFIRMATION_SENT_MESSAGE };
+      return { message: SIGNUP_CONFIRMATION_SENT_MESSAGE, pendingSignupEmail: normalizedSignupEmail };
     }
 
     return { errors: { form: authSignUpErrorMessage(error) } };
@@ -430,10 +516,106 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
         windowStartedAt: now,
       }, resendSecret);
     }
-    return { message: SIGNUP_CONFIRMATION_SENT_MESSAGE };
+    return { message: SIGNUP_CONFIRMATION_SENT_MESSAGE, pendingSignupEmail: normalizedSignupEmail };
   }
 
   redirect(onboardingPath(next));
+}
+
+function signupEmailFromForm(formData: FormData): string | null {
+  const email = normalizedEmail(readString(formData, 'email'));
+  return email.length > 0 && email.length <= 320 && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+}
+
+/*
+ * 코드 입력 단계의 [코드 다시 받기](1014-004). 회원가입 폼 재제출과 같은 10분 3회 창을 쓴다.
+ * 이 브라우저에서 그 이메일로 가입을 시작한 창(서명 쿠키)이 있을 때만 보낸다 — 아무 이메일로나 확인 메일을 보내는
+ * 통로가 되지 않게 한다. 창이 없으면(쿠키 만료·다른 브라우저) 회원가입을 다시 제출하면 된다.
+ * 가입하지 않은 이메일이나 이미 확인된 이메일이어도 Supabase는 같은 응답을 주므로 결과 문장도 같다.
+ */
+export async function resendSignupCodeAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
+  const email = signupEmailFromForm(formData);
+  if (!email) return { errors: { form: SIGNUP_CODE_EMAIL_MISSING_MESSAGE } };
+  const next = safeNextPath(formData.get('next'));
+
+  const { isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 가입할 수 있습니다.' }, pendingSignupEmail: email };
+
+  const cookieStore = await cookies();
+  const now = Date.now();
+  const secret = signupResendSecret();
+  const state = signupResendStateFromCookie(cookieStore.get(AUTH_SIGNUP_RESEND_COOKIE_NAME)?.value, now, secret);
+  if (secret && state?.emailHash !== emailHash(email, secret)) {
+    return { errors: { form: SIGNUP_CODE_RESTART_MESSAGE }, pendingSignupEmail: email };
+  }
+
+  const supabase = await createClient();
+  const origin = await requestOrigin();
+  return resendSignupConfirmation({ supabase, cookieStore, origin, email, next, now, secret, state });
+}
+
+/* Supabase SSR 세션 쿠키(sb-<ref>-auth-token, 큰 세션은 .0·.1 조각). */
+const SUPABASE_AUTH_COOKIE = /^sb-.+-auth-token(?:\.\d+)?$/;
+
+/*
+ * 가입 확인 코드로 만든 세션을 닫는다. 이 세션은 AMR이 otp라 운영 Auth의 '현재 비밀번호 요구' 가드를 면제받는다
+ * (recovery·magic link와 같은 판정 — docs/runbooks/supabase-auth-password-update-guards.md). 그래서 브라우저에 주지 않는다.
+ * signOut이 실패하면 auth-js가 로컬 세션을 지우지 않으므로, 이 응답이 세션 쿠키를 들고 나가지 않게 직접 지운다.
+ */
+async function closeSignupCodeSession(supabase: SupabaseServerClient) {
+  try {
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (!error) return;
+  } catch {
+    // 아래에서 쿠키를 직접 지운다.
+  }
+  const cookieStore = await cookies();
+  for (const cookie of cookieStore.getAll()) {
+    if (SUPABASE_AUTH_COOKIE.test(cookie.name)) cookieStore.delete(cookie.name);
+  }
+}
+
+/*
+ * 가입 확인 6자리 코드(1014-004). 메일 링크를 새 창에서 열지 않고 가입한 화면에서 그대로 확인을 끝낸다.
+ * Supabase verifyOtp(type email)는 가입 확인 토큰을 먼저 보고(PKCE 가입의 pkce_ 토큰도 같은 코드로 통과) 이메일을
+ * 확인한다. 이때 생긴 세션은 AMR otp라 현재 비밀번호 없이 비밀번호를 바꿀 수 있는 세션이므로(리뷰 F1) 바로 닫고,
+ * 가입 화면에서 입력한 비밀번호로 다시 로그인해 password 세션만 브라우저에 준다. 비밀번호는 화면 메모리에서만 이
+ * 요청에 실려 오고 저장하지 않는다. 비밀번호가 없거나(새로고침 등) 로그인이 안 되면 로그인 화면으로 보낸다 —
+ * 이메일 확인은 이미 끝났다. 그다음은 링크 콜백과 같은 로그인 뒤 경로(온보딩·정지 계정)를 탄다.
+ * 코드 대입 시도는 GoTrue의 IP별 검증 한도(token_verifications)와 코드 만료가 막는다. 코드가 틀렸는지 만료됐는지는
+ * GoTrue가 구분해 주지 않는다(otp_expired 하나).
+ */
+export async function verifySignupCodeAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
+  const email = signupEmailFromForm(formData);
+  if (!email) return { errors: { form: SIGNUP_CODE_EMAIL_MISSING_MESSAGE } };
+  const code = readString(formData, 'code').replace(/\s+/g, '');
+  const password = readString(formData, 'password');
+  const next = safeNextPath(formData.get('next'));
+  if (!/^\d{6}$/.test(code)) return { errors: { code: SIGNUP_CODE_FORMAT_MESSAGE }, pendingSignupEmail: email };
+
+  const { isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 가입할 수 있습니다.' }, pendingSignupEmail: email };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+  if (error || !data.user) {
+    return { errors: { code: signupCodeErrorMessage(error) }, pendingSignupEmail: email };
+  }
+
+  await closeSignupCodeSession(supabase);
+  if (!password) redirect(signupConfirmedLoginPath(next));
+
+  const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  if (signInError || !signIn.user || !isPasswordSessionAccessToken(signIn.session?.access_token)) {
+    if (!signInError && signIn.session) await closeSignupCodeSession(supabase);
+    redirect(signupConfirmedLoginPath(next));
+  }
+
+  const profile = await getProfileForUser(supabase, signIn.user.id);
+  if (isAccountSuspended(profile) && next !== ACCOUNT_DELETION_PATH) {
+    redirect(ACCOUNT_SUSPENDED_PATH);
+  }
+  redirect(postAuthenticationPath(profile, signIn.user.email, next));
 }
 
 export async function requestPasswordResetAction(

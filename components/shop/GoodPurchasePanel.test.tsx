@@ -11,7 +11,6 @@ import {
   GoodRailBuyBox,
   addToCartResultStep,
   addedCartItems,
-  buyNowNavigation,
   foldedPurchaseInputsNote,
   isGoodSoldOut,
   mergedCartQuantity,
@@ -128,29 +127,28 @@ describe('purchaseBlockReason', () => {
   });
 });
 
-describe('buyNowNavigation', () => {
-  it('요청이 없으면 이동하지 않는다', () => {
-    expect(buyNowNavigation({ requested: false, cartPending: false, cartError: null })).toBe('abort');
+/* 바로구매(ADR-0030 · 10/14 회의 1014-033·037·038): [구매하기]는 그 상품만 주문서 초안으로 만든다 — 장바구니에 담지도,
+   장바구니로 가지도 않는다(10/27 'LFS = 담고 장바구니' 해석은 사용자 11/11 LFS 실측으로 뒤집혔다). */
+describe('바로구매', () => {
+  const source = readFileSync('components/shop/GoodPurchasePanel.tsx', 'utf8');
+  const buyNowBody = source.slice(source.indexOf('const startBuyNow = async () => {'), source.indexOf('  return {\n    good,'));
+
+  it('구매하기는 장바구니에 담지 않고 바로구매 초안으로 주문서를 연다(D2 정정)', () => {
+    expect(buyNowBody).toContain('createDirectCheckoutDraftAction(good.id, entries)');
+    expect(buyNowBody).toContain('router.push(result.href)');
+    expect(buyNowBody).not.toContain('addSelection');
+    expect(source).not.toContain("router.push('/cart')");
   });
 
-  it('카트 반영이 끝나기 전에는 기다린다 — 클라이언트 성공 신호는 진실원이 아니다', () => {
-    expect(buyNowNavigation({ requested: true, cartPending: true, cartError: null })).toBe('wait');
+  it('바로구매 한도는 장바구니에 담긴 수량과 합치지 않는다(1014-037)', () => {
+    expect(source).toContain('optionOrderLimitMessage(good, selectedOption, quantity)');
+    expect(buyNowBody).toContain('if (buyLimitMessage)');
   });
 
-  it('반영이 정착하고 오류가 없을 때만 장바구니로 간다', () => {
-    expect(buyNowNavigation({ requested: true, cartPending: false, cartError: null })).toBe('navigate');
-  });
-
-  it('구매하기는 LFS처럼 담은 뒤 주문서가 아니라 장바구니로 이동한다(D2)', () => {
-    const source = readFileSync('components/shop/GoodPurchasePanel.tsx', 'utf8');
-    expect(source).toContain("if (navigation === 'navigate') router.push('/cart');");
-    expect(source).not.toContain("router.push('/checkout')");
-  });
-
-  it('카트가 오류를 냈으면 이동을 접는다 — 담기지 않은 채 장바구니로 가지 않는다', () => {
-    expect(
-      buyNowNavigation({ requested: true, cartPending: false, cartError: '재고 초과' }),
-    ).toBe('abort');
+  it('로그인 전이면 선택을 세션 저장소에 두고 로그인 뒤 상품 상세로 돌아온다 — 직접입력값을 주소에 싣지 않는다', () => {
+    expect(buyNowBody).toContain('savePendingBuyNow(');
+    expect(buyNowBody).toContain('buyNowReturnPath(good.id, selectedOption.id)');
+    expect(buyNowBody).toContain('/login?next=');
   });
 });
 
@@ -403,6 +401,20 @@ describe('GoodPurchasePanel', () => {
     expect(free).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
   });
 
+  /* QA1 S-D2-09: 굿즈 주문당 최대 수량(옵션 합산)을 넘겨 3까지 올라가고 주문서에서야 막혔다 — 상세에서 멈추고 안내한다. */
+  it('굿즈 주문당 최대 수량도 스테퍼 상한이고 상세에서 안내한다', () => {
+    const options = [{id:'a',name:'A타입',price:8000,stockQty:20,code:'A',attributes:{},isDefault:true}];
+    const capped = { ...good, options, orderQuantityLimitEnabled: true, minOrderQty: null, maxOrderQty: 2 };
+    const atMax = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:capped,selectedOption:options[0],quantity:2})} />);
+    expect(atMax).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    expect(atMax).toContain('같은 굿즈의 옵션을 합산하여 주문당 최대 2개까지 구매할 수 있습니다.');
+    const below = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:capped,selectedOption:options[0],quantity:1})} />);
+    expect(below).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    const unlimited = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...capped,orderQuantityLimitEnabled:false},selectedOption:options[0],quantity:2})} />);
+    expect(unlimited).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    expect(unlimited).not.toContain('주문당 최대');
+  });
+
   /* T7 리뷰 RV-5: 추가 구성 굿즈도 본품과 같은 판매 방식·옵션별 제한 안내(확정 카피)를 보인다. */
   it('추가 구성 굿즈가 랜덤 판매면 무작위 배정 안내를, 옵션별 제한이 있으면 고른 옵션의 안내를 보인다', () => {
     const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
@@ -543,8 +555,8 @@ describe('GoodPurchasePanel', () => {
       .toEqual(['wc-buy-panel__status', CART_ADDED_STATUS]);
     expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '현재 재고보다 많이 담을 수 없습니다.' })} />)))
       .toEqual(['wc-buy-panel__status is-error', '현재 재고보다 많이 담을 수 없습니다.']);
-    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.' })} />)))
-      .toEqual(['wc-buy-panel__status is-error', '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.']);
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '아크릴 블록: 각인 문구를 1~100자로 입력해주세요.' })} />)))
+      .toEqual(['wc-buy-panel__status is-error', '아크릴 블록: 각인 문구를 1~100자로 입력해주세요.']);
     /* 비어 있으면 기본 상태 줄 그대로(빈 줄은 CSS 가 자리를 접는다). */
     expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller()} />))).toEqual(['wc-buy-panel__status', '']);
   });

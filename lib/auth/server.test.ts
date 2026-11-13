@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getClaims: vi.fn(),
   proofCookie: undefined as string | undefined,
   profile: null as Record<string, unknown> | null,
+  rpc: vi.fn(),
   select: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock('@/lib/supabase/config', () => ({
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     auth: { getUser: mocks.getUser, getClaims: mocks.getClaims },
+    rpc: mocks.rpc,
     from: () => {
       const query = {
         select: mocks.select,
@@ -127,5 +129,60 @@ describe('getPasswordUpdateState', () => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: { code: 'session_not_found' } });
 
     await expect(getPasswordUpdateState()).resolves.toEqual({ access: 'recovery_required', user: null });
+  });
+});
+
+/* 2026-11-11 사용자 결정 '옮기고 재인증 요구' — 휴대폰 번호 인증 스위치가 켜졌을 때만, 번호를 다른 계정에 옮겨 간 회원을
+   다시 인증할 때까지 온보딩 미완료로 본다. 스위치가 꺼져 있으면 DB를 읽지 않는다. */
+describe('getCurrentAuthState phone re-verification gate', () => {
+  const PHONE_ENV = {
+    ICONS_PHONE_VERIFICATION_ENABLED: 'true',
+    ICONS_PHONE_VERIFICATION_SECRET: 'phone-verification-test-secret-0123456789',
+    ICONS_SMS_PROVIDER: 'console',
+  } as const;
+  const original = Object.fromEntries(Object.keys(PHONE_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    mocks.getUser.mockReset();
+    mocks.select.mockReset();
+    mocks.rpc.mockReset();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fan@icons.gg' } }, error: null });
+    mocks.profile = {
+      email: 'fan@icons.gg', nickname: 'fan', birth_date: '2000-01-01', avatar_path: null,
+      consents: { terms: true, privacy: true }, onboarded_at: '2026-07-01T00:00:00.000Z', role: 'user', suspended_at: null,
+    };
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('does not read the phone state while the switch is off', async () => {
+    for (const key of Object.keys(PHONE_ENV)) delete process.env[key];
+
+    const state = await getCurrentAuthState();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(state.profile).toEqual(mocks.profile);
+  });
+
+  it('marks a member whose number moved to another account as needing re-verification', async () => {
+    Object.assign(process.env, PHONE_ENV);
+    mocks.rpc.mockResolvedValue({ data: { verified: false, phoneE164: null, verifiedAt: null, reverificationRequired: true }, error: null });
+
+    const state = await getCurrentAuthState();
+    expect(mocks.rpc).toHaveBeenCalledWith('my_member_phone_verification');
+    expect(state.profile).toMatchObject({ phone_reverification_required: true });
+  });
+
+  it('leaves verified members and members who never verified unchanged', async () => {
+    Object.assign(process.env, PHONE_ENV);
+    mocks.rpc.mockResolvedValue({ data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z', reverificationRequired: false }, error: null });
+    expect((await getCurrentAuthState()).profile).toEqual(mocks.profile);
+
+    mocks.rpc.mockResolvedValue({ data: { verified: false, phoneE164: null, verifiedAt: null, reverificationRequired: false }, error: null });
+    expect((await getCurrentAuthState()).profile).toEqual(mocks.profile);
   });
 });

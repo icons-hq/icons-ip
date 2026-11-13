@@ -13,6 +13,11 @@ interface MockActionState {
 
 const mocks = vi.hoisted(() => ({
   deletionAction: vi.fn(),
+  kakaoLinkAction: vi.fn(),
+  kakaoLinkState: {} as MockActionState,
+  kakaoRewardAction: vi.fn(),
+  kakaoRewardPending: false,
+  kakaoRewardState: {} as MockActionState,
   deletionPending: false,
   deletionState: {} as { error?: string; message?: string },
   deletionSubmit: vi.fn(),
@@ -32,10 +37,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/login/actions', () => ({
+  linkKakaoAccountAction: mocks.kakaoLinkAction,
   requestPasswordResetAction: mocks.resetAction,
 }));
 
 vi.mock('@/app/settings/actions', () => ({
+  checkKakaoChannelRewardAction: mocks.kakaoRewardAction,
   requestAccountDeletionAction: mocks.deletionAction,
   updateMarketingConsentAction: mocks.marketingAction,
   updateProfileAction: mocks.profileAction,
@@ -60,6 +67,8 @@ vi.mock('react', async () => {
       if (action === mocks.resetAction) {
         return [mocks.resetState, mocks.resetSubmit, mocks.resetPending];
       }
+      if (action === mocks.kakaoLinkAction) return [mocks.kakaoLinkState, vi.fn(), false];
+      if (action === mocks.kakaoRewardAction) return [mocks.kakaoRewardState, vi.fn(), mocks.kakaoRewardPending];
       throw new Error('Unexpected settings action');
     },
   };
@@ -409,3 +418,84 @@ describe('Settings marketing consent edge states', () => {
   });
 });
 
+
+/* 1014-010 — 카카오톡 채널 스위치가 켜지면(또는 이미 동의한 회원이면) 카카오톡 수신 동의 줄이 더해진다. */
+describe('Settings kakao marketing channel', () => {
+  it('draws the kakao row with the v2 notice and marks the form as offering kakao', () => {
+    const html = render({
+      marketingChannels: ['email', 'sms', 'kakao'],
+      marketingConsent: {
+        marketing: true,
+        email: null,
+        sms: null,
+        kakao: { agreed: true, agreedAt: '2026-11-11T01:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v2', source: 'settings' },
+      },
+    });
+
+    expect(html).toContain('마케팅 정보 수신 동의 (카카오톡) <em class="wc-auth__opt">선택</em>');
+    expect(html).toMatch(/<input[^>]*name="marketingKakao"[^>]*checked=""|<input[^>]*checked=""[^>]*name="marketingKakao"/);
+    expect(html).toContain('<input type="hidden" name="marketingKakaoOffered" value="1"/>');
+    expect(html).toContain('카카오톡은 ICONS 카카오톡 채널 메시지로 보내 드려요.');
+    expect(html).toContain('이메일·SMS·카카오톡 중 하나라도');
+  });
+
+  it('keeps the two rows and no kakao marker by default', () => {
+    const html = render();
+    expect(html).not.toContain('marketingKakao');
+    expect(html).not.toContain('카카오톡');
+  });
+});
+
+/* 리뷰 F10 — 카카오톡 채널 스위치가 켜졌을 때만 [카카오 계정 연결]·채널 추가·[친구 추가 쿠폰 받기]를 그린다. */
+describe('Settings kakao channel section', () => {
+  beforeEach(() => {
+    mocks.kakaoLinkState = {};
+    mocks.kakaoRewardState = {};
+    mocks.kakaoRewardPending = false;
+  });
+
+  const section = (html: string) => {
+    const start = html.indexOf('<section aria-labelledby="settings-kakao-heading"');
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf('</section>', start) + '</section>'.length);
+  };
+
+  it('offers members without Kakao the account link that also adds the channel', () => {
+    const html = section(render({ kakaoChannel: { channelPublicId: '_IconsTest', linked: false, couponOffered: true } }));
+
+    expect(html).toContain('id="kakao-channel"');
+    expect(html).toContain('data-kakao-account-link');
+    expect(html).toContain('<strong>카카오 계정 연결</strong>');
+    expect(html).toContain('같은 동의 화면에서 ICONS 카카오톡 채널을 추가할 수 있어요. 채널을 추가하면 친구 추가 쿠폰을 한 번 드려요.');
+    expect(html).not.toContain('data-kakao-channel-reward');
+    expect(html).not.toContain('pf.kakao.com');
+  });
+
+  it('gives a linked member the channel link and the coupon check with its own status region', () => {
+    mocks.kakaoRewardState = { errors: { form: '아직 ICONS 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } };
+    const html = section(render({
+      kakaoChannel: { channelPublicId: '_IconsTest', linked: true, couponOffered: true, notice: { tone: 'status', message: '카카오 계정을 연결했어요.' } },
+    }));
+
+    expect(html).toContain('<div class="wc-auth__status" role="status">카카오 계정을 연결했어요.</div>');
+    expect(html).toContain('href="https://pf.kakao.com/_IconsTest/friend" rel="noopener noreferrer" target="_blank"');
+    expect(html).toContain('data-kakao-channel-reward');
+    expect(html).toContain('<strong>친구 추가 쿠폰 받기</strong>');
+    expect(html).toMatch(/aria-label="친구 추가 쿠폰 상태"[^>]*><div class="wc-auth__alert" role="alert">아직 ICONS 카카오톡 채널이/);
+    expect(html).not.toContain('data-kakao-account-link');
+  });
+
+  it('omits the coupon check when no friend coupon is configured', () => {
+    const html = section(render({ kakaoChannel: { channelPublicId: '_IconsTest', linked: true, couponOffered: false } }));
+
+    expect(html).toContain('pf.kakao.com/_IconsTest/friend');
+    expect(html).not.toContain('data-kakao-channel-reward');
+  });
+
+  it('draws nothing while the kakao channel switch is off', () => {
+    const html = render();
+
+    expect(html).not.toContain('settings-kakao-heading');
+    expect(html).not.toContain('카카오 계정 연결');
+  });
+});

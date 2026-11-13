@@ -36,6 +36,7 @@ function database(results: Result[]) {
     const builder = {
       select: (...args: unknown[]) => { calls.push(['select', ...args]); return builder; },
       eq: (...args: unknown[]) => { calls.push(['eq', ...args]); return builder; },
+      in: (...args: unknown[]) => { calls.push(['in', ...args]); return builder; },
       maybeSingle: () => Promise.resolve(result),
       then: (resolve: (value: Result) => unknown) => Promise.resolve(result).then(resolve),
     };
@@ -148,5 +149,36 @@ describe('admin coupon list server boundary', () => {
     expect(calls).toContainEqual(['eq', 'code', 'SELECTED-COUPON']);
     expect(calls).toContainEqual(['eq', 'coupon_code', 'SELECTED-COUPON']);
     expect(calls).toContainEqual(['eq', 'status', 'applied']);
+  });
+
+  it('reads the grade benefit cadence of graded coupons on the page and of a directly selected coupon', async () => {
+    const calls = database([
+      { data: [{ ...row('GOLD-MONTHLY'), grade_benefit: 'gold', total_count: 2 }, { ...row('PLAIN'), total_count: 2 }], count: 2, error: null },
+      { data: [{ code: 'GOLD-MONTHLY', grade_benefit_cadence: 'monthly' }], error: null },
+      { data: { ...row('SELECTED-GOLD'), grade_benefit: 'gold', grade_benefit_cadence: 'upgrade' }, error: null },
+      { data: null, count: 0, error: null },
+    ]);
+
+    const data = await getAdminCouponListData(normalizeAdminCouponFilters({ couponCode: 'selected-gold', page: '1' }));
+
+    expect(data.records.map((record) => [record.code, record.gradeBenefitCadence])).toEqual([['GOLD-MONTHLY', 'monthly'], ['PLAIN', 'upgrade']]);
+    expect(calls).toContainEqual(['select', 'code,grade_benefit_cadence']);
+    expect(calls).toContainEqual(['in', 'code', ['GOLD-MONTHLY']]);
+    expect(data.selectedRecord).toMatchObject({ code: 'SELECTED-GOLD', gradeBenefitCadence: 'upgrade' });
+    expect(calls.some(([kind, columns]) => kind === 'select' && typeof columns === 'string' && columns.includes(',grade_benefit_cadence,target_goods:'))).toBe(true);
+  });
+
+  it('fails the list instead of defaulting a graded coupon whose cadence could not be read', async () => {
+    database([
+      { data: [{ ...row('GOLD-MONTHLY'), grade_benefit: 'gold', total_count: 1 }], count: 1, error: null },
+      { data: null, error: { message: 'permission denied' } },
+    ]);
+    await expect(getAdminCouponListData(normalizeAdminCouponFilters({}))).rejects.toThrow('쿠폰 목록을 불러오지 못했습니다');
+
+    database([
+      { data: [{ ...row('GOLD-MONTHLY'), grade_benefit: 'gold', total_count: 1 }], count: 1, error: null },
+      { data: [], error: null },
+    ]);
+    await expect(getAdminCouponListData(normalizeAdminCouponFilters({}))).rejects.toThrow('지급 방식을 확인할 수 없습니다');
   });
 });

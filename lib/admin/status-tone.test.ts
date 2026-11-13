@@ -25,6 +25,14 @@ describe('상태 → tone 단일 표 (ADR-0029)', () => {
     expect(statusTone('event', '종료')).toBe('neutral');
   });
 
+  /* QA1 MD: 전시에 담았지만 고객 화면에 안 보이는 상품(비공개 등)과 한도를 넘어 못 담은 줄은 확인을 부른다 — 담기를 막은 줄(추가 안 함)은 조용하다. */
+  it('전시 상품 고르기의 줄 상태와 고객 화면 공개 표시', () => {
+    expect(statusTone('goodReference', 'ready')).toBe('success');
+    expect(statusTone('goodReference', 'blocked')).toBe('neutral');
+    expect(statusTone('goodReference', 'overLimit')).toBe('warning');
+    expect(statusTone('goodReference', 'notVisible')).toBe('warning');
+  });
+
   it('표에 없는 상태는 눈에 띄지 않는 neutral이다', () => {
     expect(statusTone('order', 'not-a-status')).toBe('neutral');
     expect(statusTone('claim', null)).toBe('neutral');

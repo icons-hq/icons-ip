@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const VARIANT_ID = '00000000-0000-4000-8000-000000000001';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { addCartSelectionAction, deleteCartItemAction, setCartItemQuantityAction, syncCartAction } from './actions';
+import { addCartSelectionAction, deleteCartItemAction, loadUnpaidCheckoutOrdersAction, releaseUnpaidCartOrdersAction, releaseUnpaidCheckoutOrdersAction, removeCartLinesAction, setCartItemQuantityAction, syncCartAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -34,7 +34,9 @@ const mocks = vi.hoisted(() => ({
   goodsMaybeSingle: vi.fn(),
   randomGoodsQuery: vi.fn(),
   randomGoodsRows: { data: [], error: null } as { data: { id: string; random_option: unknown }[]; error: { message: string } | null },
+  serviceRpc: vi.fn(),
 }));
+vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.serviceRpc }) }));
 
 vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => mocks.adultGoods }));
 vi.mock('@/lib/auth/server', () => ({
@@ -405,4 +407,93 @@ describe('cart Server Actions', () => {
     });
     expect(mocks.from).not.toHaveBeenCalled();
   });
+
+  /* 선택 삭제·전체 비우기(ADR-0030 · 1014-035·036): 화면이 본 줄의 식별(굿즈·옵션·직접입력값)만 한 번에 넘긴다. */
+  it('선택한 줄의 식별만 일괄 삭제 RPC 로 넘기고 서버 장바구니로 다시 그린다', async () => {
+    const fieldId='00000000-0000-4000-8000-000000063311';
+    const customInputs={revision:2,fields:[{id:fieldId,name:'각인 문구',value:'첫 문구'}]};
+    mocks.cartRows={data:[{good_id:'g1',variant_id:VARIANT_ID,qty:4}],error:null};
+    await expect(removeCartLinesAction([{goodId:'g2',variantId:'00000000-0000-4000-8000-000000000002',qty:1},
+      {goodId:'g1',variantId:VARIANT_ID,qty:2,customInputs}])).resolves.toEqual({ok:true,mode:'server',items:[{goodId:'g1',variantId:VARIANT_ID,qty:4}]});
+    expect(mocks.rpc).toHaveBeenCalledWith('remove_cart_lines',{p_lines:[
+      {good_id:'g2',variant_id:'00000000-0000-4000-8000-000000000002',input_revision:0,input_values:{}},
+      {good_id:'g1',variant_id:VARIANT_ID,input_revision:2,input_values:{[fieldId]:'첫 문구'}},
+    ]});
+  });
+
+  it('일괄 삭제는 빈·잘못된 줄을 DB 에 보내지 않고, 로그인 전 장바구니는 기기 장바구니로 남긴다', async () => {
+    for (const value of [[], null, [{goodId:'g1',variantId:'not-a-uuid',qty:1}], [{goodId:'g1',variantId:VARIANT_ID,qty:1},{goodId:'g1',variantId:VARIANT_ID,qty:1}]]) {
+      await expect(removeCartLinesAction(value)).resolves.toEqual({ok:false,mode:'server',error:'장바구니 수량을 확인해주세요.'});
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    await expect(removeCartLinesAction([{goodId:'g1',variantId:VARIANT_ID,qty:1}])).resolves.toEqual({ok:false,mode:'local'});
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('일괄 삭제 DB 오류는 일반 저장 오류로만 알린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ error: { message: 'permission denied for table cart_items' } });
+    await expect(removeCartLinesAction([{goodId:'g1',variantId:VARIANT_ID,qty:1}])).resolves.toEqual({
+      ok:false,mode:'server',error:'장바구니를 저장하지 못했습니다. 다시 시도해주세요.'});
+  });
 });
+
+/* 미결제 주문 닫기(ADR-0026·0030): 장바구니·장바구니 주문서 진입은 장바구니 출처만 닫는다. 출처와 무관한 닫기는 견적이
+   결제 대기 주문 때문에 막혀 고객이 '결제 대기 주문 취소하고 계속'을 확인할 때만이다(확인창에 보인 주문만). */
+describe('release unpaid orders', () => {
+  const ORDER = '00000000-0000-4000-8000-0000000000e1';
+  beforeEach(() => {
+    mocks.auth = onboardedAuth();
+    mocks.serviceRpc.mockReset();
+    mocks.serviceRpc.mockResolvedValue({ data: 1, error: null });
+  });
+
+  it('장바구니 복귀는 장바구니 출처 닫기를 로그인 사용자로 부른다', async () => {
+    await expect(releaseUnpaidCartOrdersAction()).resolves.toEqual({ released: 1 });
+    expect(mocks.serviceRpc).toHaveBeenLastCalledWith('release_unpaid_cart_orders', { p_user_id: 'user-1' });
+  });
+
+  it('고객이 확인한 결제 대기 주문만 닫고, 결제를 확인하는 주문은 닫지 않았다고 알린다', async () => {
+    const OTHER = '00000000-0000-4000-8000-0000000000e2';
+    mocks.serviceRpc.mockResolvedValue({ data: { released: 2, confirming: 0 }, error: null });
+    await expect(releaseUnpaidCheckoutOrdersAction([ORDER.toUpperCase(), OTHER])).resolves.toEqual({ ok: true, released: 2, confirming: false });
+    expect(mocks.serviceRpc).toHaveBeenLastCalledWith('release_unpaid_checkout_orders', { p_user_id: 'user-1', p_order_ids: [ORDER, OTHER] });
+    mocks.serviceRpc.mockResolvedValue({ data: { released: 0, confirming: 1 }, error: null });
+    await expect(releaseUnpaidCheckoutOrdersAction([ORDER])).resolves.toEqual({ ok: true, released: 0, confirming: true });
+  });
+
+  it('주문 목록이 비었거나 틀리면 아무것도 닫지 않는다', async () => {
+    for (const value of [[], [ORDER, ORDER], ['x'], ORDER, Array.from({ length: 21 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`)]) {
+      await expect(releaseUnpaidCheckoutOrdersAction(value)).resolves.toEqual({ ok: false });
+    }
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+
+  it('로그인 전이거나 실패하면 닫지 못한 것으로 답한다', async () => {
+    mocks.serviceRpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    await expect(releaseUnpaidCheckoutOrdersAction([ORDER])).resolves.toEqual({ ok: false });
+    mocks.serviceRpc.mockResolvedValue({ data: 3, error: null });
+    await expect(releaseUnpaidCheckoutOrdersAction([ORDER])).resolves.toEqual({ ok: false });
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    mocks.serviceRpc.mockClear();
+    await expect(releaseUnpaidCheckoutOrdersAction([ORDER])).resolves.toEqual({ ok: false });
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+
+  it('확인창에 보일 결제 대기 주문을 로그인 사용자 것만 읽는다', async () => {
+    const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 2, goodIds: ['g1', 'g2'],
+      variantIds: ['00000000-0000-4000-8000-0000000000aa'], userCouponIds: [], releasable: true };
+    mocks.serviceRpc.mockResolvedValue({ data: [row], error: null });
+    await expect(loadUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: true, orders: [{ ...row, id: ORDER }] });
+    expect(mocks.serviceRpc).toHaveBeenLastCalledWith('service_list_unpaid_checkout_orders', { p_user_id: 'user-1' });
+    mocks.serviceRpc.mockResolvedValue({ data: [{ ...row, total: '23000' }], error: null });
+    await expect(loadUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: false });
+    mocks.serviceRpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    await expect(loadUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: false });
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    mocks.serviceRpc.mockClear();
+    await expect(loadUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: false });
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+});
+

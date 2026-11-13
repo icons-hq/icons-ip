@@ -19,6 +19,8 @@ import { adminOrderItemsHref, orderItemBuyerLabel, selectedConfirmableOrderIds, 
 import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { adminOrderDetailHrefFromBack, ADMIN_ORDER_SEARCH_FIELDS, ADMIN_ORDER_STATUSES, ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
+import { adminOrderPreviewHref } from '@/lib/admin/order-preview';
+import { OrderPreviewLink, OrderPreviewNewTabLink } from './OrderPreview';
 import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
@@ -74,7 +76,7 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
       href: adminOrderItemsHref(filters, { status: option.value as typeof filters.status, page: 1 }) }))} />
     <SalesFilterPanel currentHref={currentHref} resetHref="/admin/sales/orders?view=items" id="order-items"
       date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
-      search={{ value: filters.query, field: filters.field, options: fields, placeholder: '상품주문 · 주문 · 상품명 · 옵션 · 구매자 · 송장' }}>
+      search={{ value: filters.query, field: filters.field, options: fields, placeholder: '상품주문 · 주문 · 상품명 · 옵션 · 구매자 · 송장', fitsOrderNumber: true }}>
       <SalesFilterField label="주문상태" htmlFor="order-item-status"><SalesSelect id="order-item-status" name="status" value={filters.status} options={statuses} /></SalesFilterField>
       <SalesFilterField label="결제수단" htmlFor="order-item-payment"><SalesSelect id="order-item-payment" name="paymentMethod" value={filters.paymentMethod ?? ''} options={[{ value: '', label: '전체' }, { value: 'card', label: '카드' }, { value: 'bank_transfer', label: '무통장' }]} /></SalesFilterField>
     </SalesFilterPanel>
@@ -89,7 +91,10 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
         selectedIds={selection} onSelectionChange={setSelected} emptyLabel="검색 조건에 맞는 상품주문이 없습니다."
         rows={data.rows.map(row => ({ id: row.id, selectable: eligible.has(row.id), selectLabel: `상품주문 ${row.productOrderNumber ?? row.id} 선택`, cells: [
           <Link key="item" className="font-medium tabular-nums underline-offset-4 hover:underline" href={`${adminOrderDetailHrefFromBack(row.orderId, currentHref)}#item-${row.id}`} target="_blank" rel="noopener noreferrer">{row.productOrderNumber ?? row.id}</Link>,
-          <Link key="order" className="tabular-nums underline-offset-4 hover:underline" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)} target="_blank" rel="noopener noreferrer">{orderReferenceLabel(row.orderId, row.orderNumber)}</Link>,
+          /* S36-075: 주문번호는 같은 목록 위 상세 팝업을 연다. 새 탭 열기는 옆 보조 링크다(상품주문번호는 그 품목 위치로 새 탭을 연다). */
+          <span key="order" className="inline-flex items-center gap-1"><OrderPreviewLink className="tabular-nums underline-offset-4 hover:underline" href={adminOrderPreviewHref(currentHref, row.orderId)}
+            label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 팝업 열기`}>{orderReferenceLabel(row.orderId, row.orderNumber)}</OrderPreviewLink>
+            <OrderPreviewNewTabLink href={adminOrderDetailHrefFromBack(row.orderId, currentHref)} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`} /></span>,
           <OrderStatusBadge key="status" status={row.status} />,
           formatOrderDateTime(row.createdAt), row.goodName,
           <div key="variant" className={META_CLASS}>{row.variantName ?? '기본 옵션'}<small>{row.variantCode ?? ''}</small><GoodsCustomInputsSummary selection={row.customInputs} /></div>,

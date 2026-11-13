@@ -255,10 +255,29 @@ describe('orderDetailCardPaymentNotice', () => {
 });
 
 describe('장바구니 유지 주문의 다시 결제 안내(ADR-0026)', () => {
-  it('결제 없이 끝난 주문은 주문 상세에서도 주문서로 다시 결제하게 한다', () => {
+  /* 장바구니 전체 주문서로 바로 보내지 않는다 — 결제 화면의 [다시 결제하기]가 그 주문의 줄로 주문서를 연다(ADR-0030). */
+  it('결제 없이 끝난 주문은 주문 상세에서 결제 화면으로 보내 같은 굿즈로 다시 결제하게 한다', () => {
     const reading: CheckoutPaymentReading = { state: 'payment_closed', closure: 'not_approved', reorderMode: 'retry_from_cart', provider: 'toss' };
     const notice = orderDetailCardPaymentNotice(reading, { orderId: 'order-1', orderExpiresAt: null });
     expect(notice.header.body).toContain('장바구니는 그대로 있으니');
-    expect(notice.banner?.link).toEqual({ href: '/checkout', label: '다시 결제하기' });
+    expect(notice.banner?.link).toEqual({ href: '/checkout/order-1', label: '다시 결제하기' });
+  });
+});
+
+describe('바로구매 주문의 다시 구매 안내(ADR-0030)', () => {
+  /* 확정 동작 8: '다시 구매하기'가 이 주문을 결제 없이 닫고 같은 구성으로 바로구매 주문서를 연다 — 결제 화면의 버튼으로 잇는다. */
+  it('결제 없이 끝난 바로구매는 장바구니가 아니라 결제 화면의 다시 구매하기로 잇는다', () => {
+    const reading: CheckoutPaymentReading = { state: 'payment_closed', closure: 'attempt_expired', reorderMode: 'retry_direct', provider: 'toss', directGoodId: 'g2' };
+    const notice = orderDetailCardPaymentNotice(reading, { orderId: 'order-1', orderExpiresAt: null });
+    expect(notice.header.body).toContain('다시 구매하면 이 주문은 결제 없이 취소되고 같은 구성으로 주문서가 열려요');
+    expect(notice.header.body).not.toContain('장바구니는 그대로');
+    expect(notice.banner?.link).toEqual({ href: '/checkout/order-1', label: '다시 구매하기' });
+  });
+
+  it('결제 기한이 지났거나 결제 없이 취소된 바로구매도 같은 구성으로 다시 구매하게 한다', () => {
+    const closed: CheckoutPaymentReading = { state: 'closed', closure: null, reorderMode: 'retry_direct', provider: 'toss', directGoodId: 'g2' };
+    expect(orderDetailCardPaymentNotice(closed, { orderId: 'order-1', orderExpiresAt: null }).header.body).toContain('같은 구성으로 주문서가 열려요');
+    expect(checkoutStatusCopy({ state: 'closed', closedCopy: null, isBankTransfer: false, orderStatus: 'canceled', reorderMode: 'retry_direct' })?.body)
+      .toContain('같은 구성으로 다시 구매할 수 있어요');
   });
 });

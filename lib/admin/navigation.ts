@@ -155,6 +155,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'coupon-register', label: '혜택 등록', href: '/admin/sales/coupons/new', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
       { id: 'coupons', label: '혜택 조회/수정', href: '/admin/sales/coupons', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
+      /* 1014-109: 기획전·IP·선택 상품에 거는 기간 할인 묶음. 상품 관리 권한(catalog.manage)으로 연다. */
+      { id: 'discount-promotions', label: '할인 프로모션', href: '/admin/sales/discount-promotions', status: 'ready', keywords: ['기획전 할인', '즉시할인', '세일'] },
       { id: 'store-credit-console', label: '적립금 지급관리', href: '/admin/sales/store-credits', status: 'ready', adminOnly: true },
       { id: 'marketing-messages', label: '고객 안내 메시지', href: '/admin/marketing/messages', status: 'ready' },
       { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
@@ -190,6 +192,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'globe',
     screens: [
       { id: 'fulfillment-origins', label: '배송정보 관리', href: '/admin/settings/origins', status: 'ready' },
+      /* 재고 대조(1007-009·011·QNA-014): 창고(출고지) 재고 파일과 안전재고 메일. 상품관리 그룹은 사이드바 8개 상한이 차 있어 창고 업무와 함께 둔다. */
+      { id: 'stock-reconcile', label: '재고 대조', href: '/admin/catalog/stock-reconcile', status: 'ready', keywords: ['안전재고', 'ERP 재고', '창고 재고'] },
       { id: 'shipping-regions', label: '지역별 추가배송비 관리', href: '/admin/settings/shipping-regions', status: 'ready' },
       { id: 'shipping-carriers', label: '택배사 관리', href: '/admin/settings/carriers', status: 'ready' },
       { id: 'shipping-settings-templates', label: '배송정보 템플릿 관리', href: '/admin/settings/shipping-templates', status: 'ready' },
@@ -279,6 +283,8 @@ const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
   [/^\/admin\/customers\/[^/]+$/, '고객 상세'],
   [/^\/admin\/catalog\/goods\/export$/, '상품 엑셀 내보내기'],
   [/^\/admin\/catalog\/ips\/[^/]+$/, 'IP 상세'],
+  [/^\/admin\/sales\/discount-promotions\/new$/, '새 할인 프로모션'],
+  [/^\/admin\/sales\/discount-promotions\/[^/]+$/, '할인 프로모션 상세'],
 ];
 
 export function adminDetailTitleForPath(pathname: string): string | null {

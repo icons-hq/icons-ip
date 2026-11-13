@@ -20,6 +20,7 @@ function coupon(overrides: Partial<GradeBenefitCoupon> = {}): GradeBenefitCoupon
     startsAt: '2026-10-01T00:00:00.000Z',
     endsAt: null,
     validDays: 30,
+    cadence: 'upgrade',
     ...overrides,
   };
 }
@@ -43,10 +44,10 @@ const GOLD_COUPONS = [coupon(), coupon({ name: '골드 배송비 쿠폰', benefi
 const benefits: LoyaltyGradeBenefits = {
   creditRatesEnabled: true,
   grades: [
-    { grade: 'welcome', reached: true, creditRateBps: 0, couponCounts: { goods: 0, shipping: 0 }, coupons: [] },
-    { grade: 'silver', reached: true, creditRateBps: 100, couponCounts: { goods: 1, shipping: 0 }, coupons: [SILVER_COUPON] },
-    { grade: 'gold', reached: false, creditRateBps: 150, couponCounts: { goods: 1, shipping: 1 }, coupons: [] },
-    { grade: 'platinum', reached: false, creditRateBps: 300, couponCounts: { goods: 0, shipping: 0 }, coupons: [] },
+    { grade: 'welcome', reached: true, creditRateBps: 0, couponCounts: { goods: 0, shipping: 0, monthly: 0 }, coupons: [] },
+    { grade: 'silver', reached: true, creditRateBps: 100, couponCounts: { goods: 1, shipping: 0, monthly: 0 }, coupons: [SILVER_COUPON] },
+    { grade: 'gold', reached: false, creditRateBps: 150, couponCounts: { goods: 1, shipping: 1, monthly: 0 }, coupons: [] },
+    { grade: 'platinum', reached: false, creditRateBps: 300, couponCounts: { goods: 0, shipping: 0, monthly: 0 }, coupons: [] },
   ],
 };
 
@@ -56,8 +57,8 @@ const platinumBenefits: LoyaltyGradeBenefits = {
   grades: [
     benefits.grades[0],
     benefits.grades[1],
-    { grade: 'gold', reached: true, creditRateBps: 150, couponCounts: { goods: 1, shipping: 1 }, coupons: GOLD_COUPONS },
-    { grade: 'platinum', reached: true, creditRateBps: 300, couponCounts: { goods: 0, shipping: 0 }, coupons: [] },
+    { grade: 'gold', reached: true, creditRateBps: 150, couponCounts: { goods: 1, shipping: 1, monthly: 0 }, coupons: GOLD_COUPONS },
+    { grade: 'platinum', reached: true, creditRateBps: 300, couponCounts: { goods: 0, shipping: 0, monthly: 0 }, coupons: [] },
   ],
 };
 
@@ -121,6 +122,30 @@ describe('MyGradeBenefits', () => {
     expect(html).not.toContain('₩50,000 이상 구매 시');
     /* 적립률은 공개 정책이라 오르지 않은 등급에도 그대로 쓴다. */
     expect(html).toContain('구매 금액의 1.5% 적립금');
+  });
+
+  /* 매월 지급(S36-062): 받은 등급의 쿠폰은 지급 방식을, 오르지 않은 등급은 매월 지급 장수만 알린다. */
+  it('tells how each coupon is paid out and how many come monthly for unreached grades', () => {
+    const monthlyBenefits: LoyaltyGradeBenefits = {
+      ...benefits,
+      grades: [
+        benefits.grades[0],
+        { ...benefits.grades[1], couponCounts: { goods: 1, shipping: 0, monthly: 1 }, coupons: [{ ...SILVER_COUPON, cadence: 'monthly' }] },
+        { ...benefits.grades[2], couponCounts: { goods: 1, shipping: 1, monthly: 1 } },
+        benefits.grades[3],
+      ],
+    };
+    const html = render({ benefits: monthlyBenefits });
+
+    expect(html).toContain('매월 1일에 이 등급 이상이면 한 장씩 지급돼요');
+    expect(html).toContain('그중 1장은 이 등급에 오른 뒤 돌아오는 매월 1일부터 한 장씩 지급돼요');
+    expect(render()).toContain('이 등급에 오를 때 한 번 지급돼요');
+    expect(render()).not.toContain('그중 1장은');
+    /* 상단 안내는 승급 지급분과 매월 지급분을 나눠 쓴다 — 매월 쿠폰을 승급 때 받는다고 읽히지 않게. */
+    expect(html).toContain('승급 지급 쿠폰은 등급이 오를 때 새로 오른 등급까지 한 번 자동으로 지급돼요.');
+    expect(html).toContain('매월 지급 쿠폰은 등급에 오른 뒤 돌아오는 매월 1일부터, 그날 다시 확인한 등급을 기준으로 한 장씩 지급돼요.');
+    expect(html).toContain('최근 90일 실적으로 등급을 다시 확인한 뒤, 그 등급까지의 쿠폰을 한 장씩 지급');
+    expect(html).toContain('지난달에 받지 못한 몫을 나중에 몰아서 드리지는 않아요');
   });
 
   it('keeps a manually held grade row even without automatic promotion', () => {

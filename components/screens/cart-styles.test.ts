@@ -102,10 +102,11 @@ describe('모바일 카트 크롬 (CT-03)', () => {
     expect(decls(catalog, '.wc-cart__cta-bar .wc-cart__empty-cta.wc-btn.accent', MOBILE).width).toBe('100%');
   });
 
-  it('모바일 바는 예상 총액이 확정된 동안만 금액 문구를 보이고, 데스크톱은 수량 문구다', () => {
-    expect(decls(catalog, '.wc-cart__checkout-amount').display).toBe('none');
-    expect(decls(catalog, '.wc-cart__checkout--amount .wc-cart__checkout-count', MOBILE).display).toBe('none');
-    expect(decls(catalog, '.wc-cart__checkout--amount .wc-cart__checkout-amount', MOBILE).display).toBe('inline');
+  /* 주문 버튼은 모든 폭에서 'N개 주문하기'다(SHEET-007 · ADR-0030) — 모바일 금액 문구 전환 규칙을 두지 않는다. */
+  it('모바일 바도 금액 문구로 바꾸지 않는다', () => {
+    expect(decls(catalog, '.wc-cart__checkout-amount')).toEqual({});
+    expect(decls(catalog, '.wc-cart__checkout--amount .wc-cart__checkout-count', MOBILE)).toEqual({});
+    expect(decls(catalog, '.wc-cart__checkout--amount .wc-cart__checkout-amount', MOBILE)).toEqual({});
   });
 
   /* 첫 화면에 푸터가 올라오지 않는 계약은 불러오는 중에도 지킨다(L9 QA 첫 페인트) — 로딩 → 빈 상태에서 푸터가 첫 화면으로

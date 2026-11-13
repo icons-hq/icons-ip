@@ -1,4 +1,5 @@
 import { isUuid } from '@/lib/uuid';
+import type { GoodVisibilityReason } from './good-visibility';
 import { sanitizeShoppingStoryContent } from '@/lib/shopping-stories-content';
 import { SHOPPING_STORY_BODY_MAX, SHOPPING_STORY_GOODS_MAX, SHOPPING_STORY_SECTION_GOODS_MAX,
   SHOPPING_STORY_SECTION_MAX, SHOPPING_STORY_SECTION_TITLE_MAX, SHOPPING_STORY_TITLE_MAX, storyCharacterLength,
@@ -17,6 +18,8 @@ export interface AdminShoppingStoryRow {
 }
 export interface ShoppingStoryGoodOption extends PublicShoppingStoryGood {
   code: string; imageUrl: string | null; archived: boolean; published: boolean;
+  /** 고객 화면에 보이지 않는 이유(초안·IP 초안·성인(19금)·보관됨) 또는 public. 이유를 싣지 않은 옛 응답이면 없다. */
+  visibility?: 'public' | GoodVisibilityReason;
 }
 export interface AdminShoppingStory extends AdminShoppingStoryRow, ShoppingStoryInput {
   goods: ShoppingStoryGoodOption[];

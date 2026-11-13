@@ -7,8 +7,9 @@ import {
   useState,
   type FormEvent,
 } from 'react';
-import { requestPasswordResetAction, type AuthActionState } from '@/app/login/actions';
+import { linkKakaoAccountAction, requestPasswordResetAction, type AuthActionState } from '@/app/login/actions';
 import {
+  checkKakaoChannelRewardAction,
   updateMarketingConsentAction,
   updateProfileAction,
   type SettingsActionState,
@@ -17,18 +18,22 @@ import Link from 'next/link';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
 import { MemberActivityConsent } from '@/components/account/MemberActivityConsent';
 import { CustomerDemographicConsent } from '@/components/account/CustomerDemographicConsent';
+import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
 import { ADDRESS_BOOK_PATH } from '@/lib/address-book';
+import { kakaoChannelAddUrl, type KakaoLinkNotice } from '@/lib/kakao/account-link';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import {
   marketingChannelConsentLabel,
+  marketingConsentNoticeFor,
   MARKETING_CHANNEL_FIELDS,
   MARKETING_CHANNEL_LABELS,
   MARKETING_CHANNELS,
   MARKETING_CONSENT_NOTICE,
+  MARKETING_KAKAO_OFFERED_FIELD,
   type MarketingChannel,
   type MarketingChannelConsent,
   type MarketingConsentState,
@@ -46,12 +51,31 @@ interface SettingsProps {
   marketingConsent: MarketingConsentState | null;
   /** 동의 상태를 읽지 못했다. 미동의로 그려 저장하면 실제 동의를 철회하게 되므로 폼을 잠근다. */
   marketingConsentUnavailable?: boolean;
+  /** 그릴 수신 동의 수단. 카카오톡 채널 스위치가 꺼져 있으면 이메일·SMS 두 줄 그대로다(1014-010). */
+  marketingChannels?: readonly MarketingChannel[];
   isConfigured: boolean;
   nickname: string;
+  /** 휴대폰 번호 인증(1014-005·006). 스위치가 꺼져 있으면 없다 — 그때 설정 화면은 예전과 같다. */
+  phoneVerification?: PhoneVerificationPanelView;
+  /** 카카오 계정 연결·카카오톡 채널(1014-014, 리뷰 F10). 카카오톡 채널 스위치가 꺼져 있으면 없다 — 화면은 예전과 같다. */
+  kakaoChannel?: SettingsKakaoChannelView;
+}
+
+export interface SettingsKakaoChannelView {
+  /** 카카오톡 채널 프로필 ID — 채널 추가 링크에 쓴다. */
+  channelPublicId: string;
+  /** 이 회원에게 카카오 identity가 있는지(서버가 Auth에서 확인한 값). */
+  linked: boolean;
+  /** 친구 추가 쿠폰을 설정했는지. */
+  couponOffered: boolean;
+  /** 카카오 계정 연결을 마치고 돌아온 결과 안내 — 서버가 실제 연결 상태와 맞는 것만 넘긴다. */
+  notice?: KakaoLinkNotice;
 }
 
 const emptyState: SettingsActionState = {};
 const emptyResetState: AuthActionState = {};
+const emptyKakaoLinkState: AuthActionState = {};
+const emptyKakaoRewardState: SettingsActionState = {};
 
 /* 필수 동의(이용약관·개인정보)는 변경 불가 — 동의 완료 상태만 읽기 전용으로 표시 */
 function RequiredConsentRow({ label }: { label: string }) {
@@ -131,6 +155,107 @@ export function PasswordResetRow({ email, isConfigured }: { email: string; isCon
   );
 }
 
+/*
+ * 카카오 계정 연결·카카오톡 채널(1014-014, 리뷰 F10). 카카오로 가입하지 않은 회원도 [카카오 계정 연결]로 카카오 계정을
+ * 붙이면서 같은 카카오 동의 화면에서 채널을 추가할 수 있다. 연결된 회원은 채널 추가 링크와 [친구 추가 쿠폰 받기]로
+ * 채널 관계를 다시 확인받는다 — 발급은 서버가 카카오 관계 조회 API로 확인한 뒤 회원·채널당 한 번만 한다.
+ * 보내는 동안의 다시 보내기는 PasswordResetRow와 같이 onSubmit에서 막는다.
+ */
+function KakaoChannelSection({ isConfigured, view }: { isConfigured: boolean; view: SettingsKakaoChannelView }) {
+  const [linkState, linkAction, linkPending] = useActionState(linkKakaoAccountAction, emptyKakaoLinkState);
+  const [rewardState, rewardAction, rewardPending] = useActionState(checkKakaoChannelRewardAction, emptyKakaoRewardState);
+  const linkError = linkState.errors?.form;
+  const rewardError = rewardState.errors?.form;
+
+  return (
+    <section aria-labelledby="settings-kakao-heading" className="wc-settings__links" id="kakao-channel">
+      <h2 className="wc-mypage__subtitle" id="settings-kakao-heading">카카오톡 채널</h2>
+      {view.notice ? (
+        <div className={view.notice.tone === 'alert' ? 'wc-auth__alert' : 'wc-auth__status'} role={view.notice.tone}>
+          {view.notice.message}
+        </div>
+      ) : null}
+      <ul>
+        {view.linked ? (
+          <>
+            <li>
+              <a className="wc-settings__link-row" href={kakaoChannelAddUrl(view.channelPublicId)} rel="noopener noreferrer" target="_blank">
+                <span>
+                  <strong>채널 추가하기</strong>
+                  <span className="wc-settings__link-hint">카카오 계정이 연결돼 있어요. ICONS 카카오톡 채널을 친구로 추가해요.</span>
+                </span>
+                <span className="wc-settings__link-action">채널 열기</span>
+              </a>
+            </li>
+            {view.couponOffered ? (
+              <li>
+                <form
+                  action={rewardAction}
+                  className="wc-settings__reset-form"
+                  data-kakao-channel-reward
+                  onSubmit={(event) => {
+                    if (rewardPending) event.preventDefault();
+                  }}
+                >
+                  <button
+                    aria-busy={rewardPending || undefined}
+                    aria-disabled={rewardPending ? 'true' : undefined}
+                    className="wc-settings__link-row"
+                    disabled={!isConfigured}
+                    type="submit"
+                  >
+                    <span>
+                      <strong>친구 추가 쿠폰 받기</strong>
+                      <span className="wc-settings__link-hint">채널을 추가했다면 눌러서 쿠폰을 받아요. 회원마다 한 번 드려요.</span>
+                    </span>
+                    <span className="wc-settings__link-action">{rewardPending ? '확인 중' : '쿠폰 받기'}</span>
+                  </button>
+                </form>
+                <div aria-label="친구 추가 쿠폰 상태" aria-live="polite" role="group">
+                  {rewardError ? <div className="wc-auth__alert" role="alert">{rewardError}</div> : null}
+                  {!rewardError && rewardState.message ? <div className="wc-auth__status" role="status">{rewardState.message}</div> : null}
+                </div>
+              </li>
+            ) : null}
+          </>
+        ) : (
+          <li>
+            <form
+              action={linkAction}
+              className="wc-settings__reset-form"
+              data-kakao-account-link
+              onSubmit={(event) => {
+                if (linkPending) event.preventDefault();
+              }}
+            >
+              <button
+                aria-busy={linkPending || undefined}
+                aria-disabled={linkPending ? 'true' : undefined}
+                className="wc-settings__link-row"
+                disabled={!isConfigured}
+                type="submit"
+              >
+                <span>
+                  <strong>카카오 계정 연결</strong>
+                  <span className="wc-settings__link-hint">
+                    카카오 계정을 연결하면서 같은 동의 화면에서 ICONS 카카오톡 채널을 추가할 수 있어요.
+                    {view.couponOffered ? ' 채널을 추가하면 친구 추가 쿠폰을 한 번 드려요.' : ''}
+                  </span>
+                </span>
+                <span className="wc-settings__link-action">{linkPending ? '이동 중' : '연결하기'}</span>
+              </button>
+            </form>
+            <div aria-label="카카오 계정 연결 상태" aria-live="polite" role="group">
+              {linkError ? <div className="wc-auth__alert" role="alert">{linkError}</div> : null}
+              {!linkError && linkState.message ? <div className="wc-auth__status" role="status">{linkState.message}</div> : null}
+            </div>
+          </li>
+        )}
+      </ul>
+    </section>
+  );
+}
+
 /* 수단별 마케팅 정보 수신 동의(10/14 회의 S4 — LFS 설정의 메일·SMS 수신 동의와 같은 두 줄).
    동의 중이면 동의일을 함께 보여 준다(2년 재확인의 기준일). 이관 동의는 날짜 대신 "기존 동의(기록 전)". */
 function MarketingConsentRow({ channel, consent, disabled }: { channel: MarketingChannel; consent: MarketingChannelConsent | null; disabled: boolean }) {
@@ -162,8 +287,11 @@ export function Settings({
   email,
   marketingConsent,
   marketingConsentUnavailable = false,
+  marketingChannels = MARKETING_CHANNELS,
   isConfigured,
   nickname,
+  phoneVerification,
+  kakaoChannel,
 }: SettingsProps) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfileAction, emptyState);
   const [marketingState, marketingAction, marketingPending] = useActionState(updateMarketingConsentAction, emptyState);
@@ -172,6 +300,8 @@ export function Settings({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const profileBusy = uploadPending || profilePending;
   const visibleProfileErrors = uploadErrors ?? profileState.errors;
+  const { notice: marketingNotice } = marketingConsentNoticeFor(marketingChannels);
+  const kakaoOffered = marketingChannels.includes('kakao');
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -275,6 +405,9 @@ export function Settings({
         </WcButton>
       </form>
 
+      {phoneVerification ? (
+        <PhoneVerificationPanel context="settings" isConfigured={isConfigured} view={phoneVerification} />
+      ) : null}
       <MemberActivityConsent />
       <CustomerDemographicConsent />
       {/* 알림함 마케팅 소식의 '마케팅 수신 동의 관리' 링크가 이 폼(#marketing-consent)으로 온다. */}
@@ -283,19 +416,20 @@ export function Settings({
         <ul className="wc-auth__agree">
           <li><RequiredConsentRow label="이용약관 동의" /></li>
           <li><RequiredConsentRow label="개인정보 처리방침 동의" /></li>
-          {MARKETING_CHANNELS.map((channel) => (
+          {marketingChannels.map((channel) => (
             <li key={channel}>
               <MarketingConsentRow channel={channel} consent={marketingConsent?.[channel] ?? null} disabled={marketingConsentUnavailable} />
             </li>
           ))}
         </ul>
+        {kakaoOffered ? <input name={MARKETING_KAKAO_OFFERED_FIELD} type="hidden" value="1" /> : null}
         {marketingConsentUnavailable ? (
           <div className="wc-auth__alert" role="alert">
             마케팅 정보 수신 동의를 불러오지 못했어요. 지금은 변경할 수 없으니 새로고침한 뒤 다시 확인해주세요.
           </div>
         ) : null}
         <p className="wc-mypage__note">
-          {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.inApp}
+          {marketingNotice.summary} {marketingNotice.sms}{kakaoOffered ? ` ${marketingNotice.kakao}` : ''} {marketingNotice.inApp}
         </p>
 
         <div aria-label="마케팅 동의 저장 상태" aria-live="polite" role="group">
@@ -335,6 +469,8 @@ export function Settings({
           <PasswordResetRow email={email} isConfigured={isConfigured} />
         </ul>
       </section>
+
+      {kakaoChannel ? <KakaoChannelSection isConfigured={isConfigured} view={kakaoChannel} /> : null}
 
       <section aria-labelledby="settings-policy-heading" className="wc-settings__links">
         <h2 className="wc-mypage__subtitle" id="settings-policy-heading">약관 및 정책</h2>

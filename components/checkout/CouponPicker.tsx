@@ -7,6 +7,7 @@ import {
   clearCouponAction,
   type CouponActionResult,
 } from '@/app/cart/coupon-actions';
+import { PendingOrderCouponNotices, pendingOrderCouponOptionSuffix } from '@/components/checkout/PendingOrderCouponNotices';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import type { CouponQuote } from '@/lib/coupon-targeting';
 import {
@@ -15,6 +16,7 @@ import {
   couponDisplayState,
   couponErrorNeedsPendingOrder,
   couponExpiryLabel,
+  couponSelectable,
   mapCouponActionError,
   type UserCouponSummary,
 } from '@/lib/coupons';
@@ -96,7 +98,10 @@ export function CouponPicker({
   const locked = pending || disabled;
   const ids = { title: `${surface}-coupon-title`, select: `${surface}-coupon-select`, code: `${surface}-coupon-code` };
 
-  const usable = couponState.coupons.filter((held) => couponDisplayState(held) === 'usable' || held.id === appliedCoupon?.id);
+  /* 운영 주문서(legacy)는 진행 중인(결제 대기) 주문이 잡은 쿠폰도 고를 수 있다 — 접수하는 순간 새 주문이 그 주문을 닫고 쓴다
+     (QA1 S-D2-08). 거래 런타임 주문서는 그 쿠폰을 견적에서 받지 않으므로(해소 상자로 그 주문을 닫는다) 지금처럼 쓸 수 있는 쿠폰만 둔다. */
+  const usable = couponState.coupons.filter((held) => (shippingCouponsAtCheckout ? couponDisplayState(held) === 'usable' : couponSelectable(held))
+    || held.id === appliedCoupon?.id);
   const selectableCoupons = usable.filter((held) => held.coupon.benefitKind !== 'shipping');
   const heldShippingCoupons = shippingCouponsAtCheckout ? 0 : usable.length - selectableCoupons.length;
   const notice = quoteNotice(appliedCoupon, quote);
@@ -157,7 +162,7 @@ export function CouponPicker({
             <option value="">쿠폰 선택 안 함</option>
             {selectableCoupons.map((held) => (
               <option key={held.id} value={held.id}>
-                {held.coupon.name} · {couponBenefitLabel(held.coupon)}
+                {held.coupon.name} · {couponBenefitLabel(held.coupon)}{pendingOrderCouponOptionSuffix(held)}
               </option>
             ))}
           </select>
@@ -170,6 +175,7 @@ export function CouponPicker({
       {heldShippingCoupons > 0 ? (
         <p className="wc-cart__coupon-desc">배송비 쿠폰 {heldShippingCoupons}장은 지금 주문에 쓸 수 없어요.</p>
       ) : null}
+      <PendingOrderCouponNotices coupons={selectableCoupons} surface={surface} />
 
       {appliedCoupon ? (
         <dl className="wc-cart__coupon-detail">

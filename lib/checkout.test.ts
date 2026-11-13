@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   bankTransferMethodNote,
+  cartRetentionKeepsCart,
+  directRetryGoodId,
+  directRetryReorderId,
+  parseOrderRetrySources,
   checkoutAddressErrors,
   checkoutDeadlineTimeLabel,
   checkoutEffectivePaymentStatus,
@@ -263,6 +267,13 @@ describe('checkoutReorderMode', () => {
     paymentAttempt: { state: 'prepared', expiresAt, provider: 'toss' },
   });
 
+  it('결제가 잡혔다가 환불된 취소 주문은 결제 없이 닫힌 주문으로 다루지 않는다', () => {
+    const canceled = { ...order, status: 'canceled', paymentStatus: 'refunded', paymentAttempt: null };
+    expect(checkoutReorderMode({ ...canceled, cartRetained: true }, 'closed', now)).toBe('reorder');
+    expect(checkoutReorderMode({ ...canceled, directGoodId: 'g2' }, 'closed', now)).toBe('reorder');
+    expect(checkoutReorderMode({ ...canceled, paymentStatus: null, cartRetained: true }, 'closed', now)).toBe('retry_from_cart');
+  });
+
   it('승인 거절된 결제 대기 주문은 즉시 취소 뒤 다시 담을 수 있다', () => {
     expect(checkoutReorderMode(order, 'payment_closed', now)).toBe('cancel_then_reorder');
     expect(checkoutReorderMode({ ...order, paymentAttempt: null }, 'closed', now)).toBe('cancel_then_reorder');
@@ -480,11 +491,80 @@ describe('장바구니 유지 주문(ADR-0026)', () => {
   });
 });
 
+describe('바로구매 주문(ADR-0030)', () => {
+  const now = Date.parse('2026-10-27T05:00:00.000Z');
+  const direct: CheckoutClosureInput = {
+    status: 'pending',
+    paymentMethod: 'card',
+    paymentStatus: null,
+    paymentAttempt: { state: 'declined', expiresAt: '2026-10-27T05:10:00.000Z', provider: 'toss' },
+    hasActiveCancellationRequest: false,
+    directGoodId: 'g2',
+  };
+
+  it('결제 없이 끝난 바로구매는 장바구니에 다시 담지 않고 그 굿즈 상세에서 다시 구매하게 한다', () => {
+    expect(checkoutReorderMode(direct, 'payment_closed', now)).toBe('retry_direct');
+    expect(checkoutReorderMode({ ...direct, status: 'canceled', paymentAttempt: null }, 'closed', now)).toBe('retry_direct');
+    expect(checkoutReorderMode({ ...direct, hasActiveCancellationRequest: true }, 'payment_closed', now)).toBeNull();
+    expect(readCheckoutPayment({ ...direct, expiresAt: null }, now)).toMatchObject({ reorderMode: 'retry_direct', directGoodId: 'g2' });
+  });
+
+  it('보류 원장: 바로구매 보류는 장바구니를 남긴 주문이 아니고, 결제 대기·결제 없이 닫힌 보류만 다시 구매를 권한다', () => {
+    const retention = { state: 'awaiting_payment', releaseReason: null, source: 'direct', baseGoodId: 'g2' };
+    expect(cartRetentionKeepsCart(retention)).toBe(false);
+    expect(directRetryGoodId(retention)).toBe('g2');
+    expect(directRetryGoodId({ ...retention, state: 'released', releaseReason: 'superseded' })).toBe('g2');
+    expect(directRetryGoodId({ ...retention, state: 'released', releaseReason: 'detached' })).toBeNull();
+    expect(directRetryGoodId({ ...retention, state: 'consumed' })).toBeNull();
+    /* 장바구니 보류의 모양은 그대로다. */
+    expect(directRetryGoodId({ state: 'awaiting_payment', releaseReason: null })).toBeNull();
+    expect(cartRetentionKeepsCart({ state: 'awaiting_payment', releaseReason: null })).toBe(true);
+  });
+
+  /* 두 탭 다시 구매(UI 재리뷰 4): 다시 구매 초안이 이미 접수·결제(확인 중) 주문을 만들었으면 서버가 그 주문(retryOrderId)을 알린다. */
+  it('보류 원장: 다시 구매로 이미 만든 주문은 바로구매 보류에서만 읽는다', () => {
+    const reordered = '00000000-0000-4000-8000-0000000000e9';
+    const retention = { state: 'released', releaseReason: 'superseded', source: 'direct', baseGoodId: 'g2', retryOrderId: reordered.toUpperCase() };
+    expect(directRetryReorderId(retention)).toBe(reordered);
+    expect(directRetryReorderId({ ...retention, retryOrderId: null })).toBeNull();
+    expect(directRetryReorderId({ ...retention, retryOrderId: 'x' })).toBeNull();
+    expect(directRetryReorderId({ state: 'released', releaseReason: 'superseded', retryOrderId: reordered })).toBeNull();
+    expect(directRetryReorderId(null)).toBeNull();
+  });
+
+  it('주문서 초안 만료는 별도 사유로 안내한다', () => {
+    expect(mapPlaceOrderError('checkout_draft_expired')).toBe('checkout_draft_expired');
+    expect(mapPlaceOrderError('checkout_draft_unavailable')).toBe('checkout_draft_expired');
+    /* 같은 주문서로 이미 접수·결제한 주문이 있다(재제출) — 만료와 나눠 원 주문으로 안내한다. */
+    expect(mapPlaceOrderError('checkout_draft_used')).toBe('checkout_draft_used');
+  });
+});
+
 describe('bankTransferMethodNote', () => {
   it('두 주문서가 같은 무통장 비활성 사유를 쓴다(S26)', () => {
     expect(bankTransferMethodNote({ accountConfigured: false, goodsAllow: true })).toBe('지금은 무통장 입금을 받지 않습니다.');
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: false })).toBe('이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.');
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: null })).toContain('확인한 뒤');
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: true })).toContain('24시간 안에 입금');
+  });
+});
+
+/* QA1 S-D2-15: 주문 내역·상세의 다시 결제 진입 출처(service_list_order_retry_sources). */
+describe('parseOrderRetrySources', () => {
+  const cartId = '11111111-1111-4111-8111-111111111111';
+  const directId = '22222222-2222-4222-8222-222222222222';
+  const reorderId = '33333333-3333-4333-8333-333333333333';
+  it('주문 id별로 출처를 읽고, 틀린 줄은 버린다', () => {
+    const sources = parseOrderRetrySources([
+      { orderId: cartId.toUpperCase(), source: 'cart', awaitingPayment: true, paymentUnresolved: true, baseGoodId: null, retryOrderId: null },
+      { orderId: directId, source: 'direct', awaitingPayment: false, baseGoodId: ' g2 ', retryOrderId: reorderId.toUpperCase() },
+      { orderId: reorderId, source: 'direct', awaitingPayment: false, baseGoodId: null, retryOrderId: null },
+      { orderId: 'nope', source: 'cart', awaitingPayment: true },
+      { orderId: reorderId, source: 'gift', awaitingPayment: true },
+    ]);
+    expect([...sources.keys()]).toEqual([cartId, directId]);
+    expect(sources.get(cartId)).toEqual({ source: 'cart', awaitingPayment: true, paymentUnresolved: true, baseGoodId: null, retryOrderId: null });
+    expect(sources.get(directId)).toEqual({ source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: reorderId });
+    expect(parseOrderRetrySources(null).size).toBe(0);
   });
 });

@@ -1,11 +1,12 @@
 'use client';
-import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { saveAutoOrderConfirmationAction, type AutoOrderConfirmationResult } from '@/app/admin/auto-order-confirmation-actions';
 import { AdminField, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { SalesDisclosureCard } from '@/components/admin/sales/SalesConsole';
 import { AUTO_ORDER_CONFIRMATION_EXCLUSIONS, AUTO_ORDER_CONFIRMATION_PATH, isAutoOrderRunTime, type AutoOrderConfirmationState } from '@/lib/admin/auto-order-confirmation';
 import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
+import { adminOrderPreviewHref } from '@/lib/admin/order-preview';
+import { OrderPreviewLink, OrderPreviewNewTabLink } from './OrderPreview';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -24,7 +25,9 @@ const AUTO_ORDER_CONFIRM_ANCHOR = 'auto-order-confirm';
  * 저장 뒤 revalidatePath·router.refresh로 서버가 새 설정을 다시 그려도 패널을 다시 마운트하지 않는다 —
  * 새 설정이 지금 것보다 오래되지 않았을 때 표시 상태만 맞추고, 저장 결과 문구와 포커스는 남긴다.
  */
-export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmationState | null }) {
+export function AutoOrderConfirmPanel({ initial, listHref = AUTO_ORDER_CONFIRMATION_PATH }: { initial: AutoOrderConfirmationState | null;
+  /** 이 패널이 놓인 발주·발송 목록 주소(현재 조건). 남긴 주문은 이 목록 위 상세 팝업(S36-075)으로 연다. */
+  listHref?: string }) {
   const [state, setState] = useState(initial);
   const [enabled, setEnabled] = useState(initial?.enabled ?? true), [runTime, setRunTime] = useState(initial?.runTime ?? '16:30');
   const [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState(false);
@@ -90,7 +93,8 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     {current.lastExclusions.length ? <div className="flex flex-col gap-2 border-t pt-4">
       <p className="text-muted-foreground">마지막 실행에서 신규주문에 남긴 주문 (최대 20건)</p>
       <ul className="flex flex-col gap-1.5">{current.lastExclusions.map(row => <li className="flex flex-wrap items-center gap-2" key={row.orderId}>
-        <Link className="tabular-nums underline underline-offset-4" href={adminOrderDetailHrefFromBack(row.orderId, AUTO_ORDER_CONFIRMATION_PATH)}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</Link>{' '}
+        <span className="inline-flex items-center gap-1"><OrderPreviewLink className="tabular-nums underline underline-offset-4" href={adminOrderPreviewHref(listHref, row.orderId)} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 팝업 열기`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</OrderPreviewLink>
+          <OrderPreviewNewTabLink href={adminOrderDetailHrefFromBack(row.orderId, listHref)} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`} /></span>{' '}
         <AdminStatusBadge tone={row.outcome === 'failed' ? 'danger' : 'warning'}>{AUTO_ORDER_CONFIRMATION_EXCLUSIONS[row.outcome]}</AdminStatusBadge>
       </li>)}</ul>
     </div> : null}

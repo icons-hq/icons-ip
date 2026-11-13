@@ -84,6 +84,14 @@ describe('Notifications', () => {
     expect(html).toContain('>문의</span>');
   });
 
+  /* 매월 등급 혜택 쿠폰 지급(S36-062)은 승급 알림과 같은 '등급' 묶음으로 적는다. */
+  it('매월 등급 혜택 쿠폰 지급 알림을 등급 알림으로 적는다', () => {
+    const html = render([{ ...unread, type: 'loyalty_monthly_coupons_issued', title: '이번 달 등급 혜택 쿠폰이 도착했어요',
+      body: 'GOLD 등급 혜택 쿠폰 2장을 드렸어요. 쿠폰함에서 확인할 수 있어요.', linkPath: '/my/coupons' }]);
+    expect(html).toContain('>등급</span>');
+    expect(html).toContain('이번 달 등급 혜택 쿠폰이 도착했어요');
+  });
+
   it('shows a generic open failure without provider details', () => {
     expect(render([unread], true)).toContain(
       '알림을 열지 못했습니다. 잠시 후 다시 시도해주세요.',

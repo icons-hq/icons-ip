@@ -60,7 +60,7 @@ export function summarizeOrders(orders: readonly OrderListItem[]): MypageOrderSu
   for (const order of orders) {
     if ((DASHBOARD_ORDER_STEPS as readonly string[]).includes(order.status)) counts[order.status as DashboardOrderStep] += 1;
   }
-  /* 목록 로더가 최신순으로 정렬해 준다(loadOrders). 결제 대기 주문은 기본 목록에 없고 취소 주문은 줄에 남긴다 —
+  /* 목록 로더가 최신순으로 정렬해 준다(loadOrders). 결제 대기 카드 주문도 취소 주문처럼 줄에 남는다 —
      주문 화면과 같은 줄을 보여야 '더보기'로 이어 볼 때 순서가 어긋나지 않는다. */
   return { counts, recent: orders.slice(0, DASHBOARD_RECENT_ORDERS) };
 }

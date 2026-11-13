@@ -25,6 +25,9 @@ describe('직접입력형 정의와 값',()=>{
   it('공백을 정리하고 필수 값·100글자·제어문자·정의 변경을 검사한다',()=>{
     expect(prepareGoodsCustomInputSelection(config,{[ID]:' ALPHA '})).toEqual({ok:true,selection:a});
     expect(prepareGoodsCustomInputSelection(config,{}).ok).toBe(false);
+    /* 필수 안내는 항목 이름 끝 받침에 맞는 조사를 쓴다(QA1 고객 '각인 문구을(를)'). */
+    expect(prepareGoodsCustomInputSelection({...config,fields:[{...config.fields[0],name:'각인 문구'}]},{})).toMatchObject({ok:false,error:'각인 문구를 1~100자로 입력해주세요.'});
+    expect(prepareGoodsCustomInputSelection({...config,fields:[{...config.fields[0],name:'이니셜'}]},{})).toMatchObject({ok:false,error:'이니셜을 1~100자로 입력해주세요.'});
     expect(prepareGoodsCustomInputSelection(config,{[ID]:'😀'.repeat(100)}).ok).toBe(true);
     expect(prepareGoodsCustomInputSelection(config,{[ID]:'😀'.repeat(101)}).ok).toBe(false);
     expect(parseGoodsCustomInputSelection(selection('한줄\n두줄'))).toBeNull();

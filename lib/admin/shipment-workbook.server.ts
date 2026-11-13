@@ -6,7 +6,8 @@ import {buildSmartStoreShipmentExport} from './smartstore-shipment-workbook.serv
 import type {ShipmentExportData} from './shipment-dispatch';
 import {kstFileStamp} from './list-export';
 import {TRACKING_IMPORT_ROW_LIMIT} from './tracking-import';
-import {warehouseExportTable,warehouseOperationalTable,writeSeowonSheet} from './warehouse-templates.server';
+import {warehouseExportTable,warehouseOperationalTable,writeSeowonSheet,type WarehouseExportReader} from './warehouse-templates.server';
+import {recipientOnlyShipmentExport} from './shipment-export-recipient-only';
 type Shipments=ShipmentExportData['shipments'];
 export interface ShipmentExportFile {bytes:Buffer;mime:string;extension:'xlsx'|'csv'|'zip';name:string}
 const XLSX_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -20,11 +21,11 @@ function writeSupplement(workbook:ExcelJS.Workbook,supplement:NonNullable<Return
  sheet.autoFilter={from:{row:1,column:1},to:{row:sheet.rowCount,column:supplement.headers.length}};
 }
 /** One warehouse, one sendable file. Seowon's original sheet is always XLSX. */
-async function buildOriginExport(shipments:Shipments,requested:'xlsx'|'csv',stamp:string):Promise<ShipmentExportFile>{
- const table=warehouseExportTable(shipments),first=shipments[0];
+async function buildOriginExport(shipments:Shipments,requested:'xlsx'|'csv',stamp:string,reader:WarehouseExportReader):Promise<ShipmentExportFile>{
+ const table=warehouseExportTable(shipments,reader),first=shipments[0];
  const format=first.template==='seowon_xlsx'?'xlsx':requested;
  const stem=`icons-출고지시-${fileLabel(first.originName)}-${stamp}`;
- const supplement=warehouseOperationalTable(shipments);
+ const supplement=warehouseOperationalTable(shipments,reader);
  if(format==='csv'){
   const csv=shipmentExportRowsCsv(table.headers,table.rows);
   if(supplement){
@@ -50,12 +51,18 @@ async function buildOriginExport(shipments:Shipments,requested:'xlsx'|'csv',stam
  if(first.template!=='standard'&&bytes.length>NATIVE_EXPORT_FILE_LIMIT_BYTES)throw new Error(`${first.originName} 출고지시 파일이 회신 업로드 한도를 넘습니다. 배송 건을 나눠서 내보내주세요.`);
  return {bytes,mime:XLSX_MIME,extension:'xlsx',name:`${stem}.xlsx`};
 }
-/** 파일 이름은 다른 내려받기와 같은 `icons-이름-YYYYMMDD-HHmm`(KST) 규칙이다. */
-export async function buildShipmentExport(data:ShipmentExportData,format:'xlsx'|'csv',layout:ShipmentExportLayout='warehouse',now=new Date()):Promise<ShipmentExportFile>{
+/**
+ * 파일 이름은 다른 내려받기와 같은 `icons-이름-YYYYMMDD-HHmm`(KST) 규칙이다.
+ * reader.recipientOnly(주문 조회 권한이 없는 출고 전용 운영자, 1014-084 "수령인 정보만")면 어느 양식이든 구매자·결제·금액·선결제 배송비를
+ * 모든 줄에서 비운다. 받은 자료가 이미 비어 있어도 여기서 한 번 더 비운다(같은 결과). 착불 배송비·수납 정보는 남는다.
+ */
+export async function buildShipmentExport(data:ShipmentExportData,format:'xlsx'|'csv',layout:ShipmentExportLayout='warehouse',now=new Date(),reader:WarehouseExportReader={}):Promise<ShipmentExportFile>{
  const stamp=kstFileStamp(now);
+ // 비운 사본은 금액 칸이 null이다. 빌더는 그 칸을 빈칸으로 그리므로 주문 조회 권한자의 계약 타입으로 넘긴다.
+ if(reader.recipientOnly)data=recipientOnlyShipmentExport(data) as unknown as ShipmentExportData;
  if(layout==='smartstore'){
   if(data.shipments.reduce((count,shipment)=>count+shipment.lines.length,0)>TRACKING_IMPORT_ROW_LIMIT)throw new Error('ICONS 표준 양식은 품목 1,000줄까지 만들 수 있습니다. 배송 건을 나눠서 내보내주세요.');
-  const file=await buildSmartStoreShipmentExport(data,format,now);
+  const file=await buildSmartStoreShipmentExport(data,format,now,{recipientOnly:reader.recipientOnly});
   return {...file,extension:file.extension as ShipmentExportFile['extension'],name:`icons-출고지시-${stamp}.${file.extension}`};
  }
  const groups=new Map<string,Shipments>();
@@ -65,7 +72,7 @@ export async function buildShipmentExport(data:ShipmentExportData,format:'xlsx'|
  }
  if(!groups.size)throw new Error('내보낼 배송 건이 없습니다.');
  const files:ShipmentExportFile[]=[];
- for(const shipments of groups.values())files.push(await buildOriginExport(shipments,format,stamp));
+ for(const shipments of groups.values())files.push(await buildOriginExport(shipments,format,stamp,reader));
  if(files.length===1)return files[0];
  const zip=new JSZip(),names=new Set<string>();
  for(const file of files){

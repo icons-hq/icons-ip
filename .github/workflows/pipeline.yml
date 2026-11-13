@@ -404,6 +404,8 @@ jobs:
       # preview 호스트(`icons-<hash>-<team>.vercel.app`)와 애초에 맞지도 않았다.
       #
       # 비밀번호 변경 가드는 앱 handler와 무관하게 recovery 흐름을 유지하므로 앱 배포 전에 켠다.
+      # 가입 확인 메일(1014-004)도 앱 배포 전에 6자리 코드와 확인 링크를 함께 담는다 — 링크는 지금 화면에서도 그대로 동작하고,
+      # 새 앱의 코드 입력 단계는 배포 직후부터 메일의 코드를 받는다.
       # 변경 알림 메일은 custom SMTP가 있는 production에서만 켠다 — preview 계열은 기본 메일
       # 발송 한도를 recovery 메일과 나눠 쓰게 된다.
       - name: Sync and verify Supabase Auth configuration
@@ -416,6 +418,8 @@ jobs:
           PASSWORD_UPDATE_GUARDS: "true"
           PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html
           PASSWORD_CHANGED_SUBJECT: ICONS 비밀번호 변경 안내
+          CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
+          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback
@@ -769,6 +773,8 @@ jobs:
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
+          CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
+          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -1148,6 +1154,8 @@ jobs:
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+          CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
+          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -1254,6 +1262,8 @@ jobs:
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
+          CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
+          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
         run: |
           export SITE_URL="https://$STAGING_ALIAS"
           export REDIRECT_URLS="https://$STAGING_ALIAS/auth/callback

@@ -8,7 +8,9 @@ import {
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
+import { OrderRetryActions } from '@/components/orders/OrderRetryActions';
 import {
+  customerOrderStatusMeta,
   formatOrderDate,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
   orderClaimProgressLabel,
@@ -67,15 +69,28 @@ const QUERY_BANNERS: Record<OrdersPaymentResult, BannerCopy> = {
 /** 원장에서 읽은 실제 결과별 안내. 다음 행동은 그 주문의 결제 화면이 이어받는다. */
 function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
   const checkoutLink = (label: string): BannerLink => ({ href: `/checkout/${focus.orderId}`, label });
-  /* 결제 없이 장바구니를 남긴 주문(ADR-0026)은 다시 담지 않는다 — 주문서에서 다시 결제하면 이 주문은 자동으로 닫힌다. */
+  /* 결제 없이 장바구니를 남긴 주문(ADR-0026)은 다시 담지 않는다 — 주문서에서 다시 결제하면 이 주문은 자동으로 닫힌다.
+     '다시 결제하기'는 그 주문의 결제 화면으로 보낸다. 거기서 그 주문의 줄로만 주문서 초안을 만든다 — 초안 없는 /checkout은
+     장바구니 전체를 주문하므로, 장바구니에서 고른 줄만 주문했던 주문에 고르지 않은 줄이 끼어든다(ADR-0030). */
   if (focus.cartRetained && (focus.outcome === 'not_approved' || focus.outcome === 'attempt_expired' || focus.outcome === 'canceled')) {
+    /* 취소된 주문도 결제 화면의 '다시 결제하기'가 그 주문의 줄 가운데 장바구니에 남은 것만 고른 주문서로 보낸다(QA1 S-D2-15) —
+       '장바구니 보기'로 모든 줄이 체크된 장바구니에 보내지 않는다. */
     return {
       tone: 'failed',
       title: focus.outcome === 'attempt_expired' ? '결제 가능 시간이 지났어요' : '결제가 완료되지 않았어요',
       body: focus.outcome === 'canceled'
-        ? '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 장바구니에서 다시 주문할 수 있어요.'
+        ? '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 이 주문의 굿즈 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.'
         : '결제가 진행되지 않았어요. 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.',
-      link: focus.outcome === 'canceled' ? { href: '/cart', label: '장바구니 보기' } : { href: '/checkout', label: '다시 결제하기' },
+      link: checkoutLink('다시 결제하기'),
+    };
+  }
+  /* 바로구매 주문(ADR-0030)은 장바구니와 무관하다 — 결제 화면의 '다시 구매하기'가 같은 굿즈·옵션으로 주문서를 다시 연다. */
+  if (focus.directRetry && (focus.outcome === 'not_approved' || focus.outcome === 'attempt_expired' || focus.outcome === 'canceled')) {
+    return {
+      tone: 'failed',
+      title: focus.outcome === 'attempt_expired' ? '결제 가능 시간이 지났어요' : '결제가 완료되지 않았어요',
+      body: '결제가 진행되지 않았어요. 청구된 금액은 없고 장바구니는 바뀌지 않았어요. 같은 굿즈·옵션으로 다시 구매할 수 있어요.',
+      link: checkoutLink('다시 구매하기'),
     };
   }
   switch (focus.outcome) {
@@ -275,7 +290,7 @@ export function Orders({
           ) : (
             <ol className="orders-list">
               {orders.map((order) => {
-                const status = orderStatusMeta(order.status);
+                const status = customerOrderStatusMeta(order.status, order.paymentMethod);
                 const claimLabel = orderClaimProgressLabel(order.status, order.claim);
                 const date = formatOrderDate(order.createdAt);
 
@@ -288,9 +303,6 @@ export function Orders({
                       </div>
                       <div className="order-list-item-copy">
                         <strong>{order.itemLabel}</strong>
-                        {order.paymentMethod === 'bank_transfer' && order.status === 'pending' && (
-                          <span className="order-list-badge">입금 대기</span>
-                        )}
                         {/* 진행 중인 취소·반품·교환 — 상세 헤더와 같은 함수(orderClaimProgressLabel)로 말한다. */}
                         {claimLabel && <span className="order-list-badge order-claim-badge">{claimLabel}</span>}
                         <span>{order.itemCount}개 굿즈</span>
@@ -299,6 +311,7 @@ export function Orders({
                       <strong className="order-list-total mono">{krw(order.total)}</strong>
                       <span className="order-list-arrow" aria-hidden><Icon name="chevronRight" size={18} /></span>
                     </Link>
+                    {order.retry ? <OrderRetryActions layout="list" orderId={order.id} retry={order.retry} /> : null}
                   </li>
                 );
               })}

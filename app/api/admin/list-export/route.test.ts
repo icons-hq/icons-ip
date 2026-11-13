@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const mocks = vi.hoisted(() => ({ guard: vi.fn(), load: vi.fn(), build: vi.fn(), record: vi.fn(), encrypt: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
@@ -70,8 +71,9 @@ describe('목록 엑셀 다운로드 라우트', () => {
     const response = await POST(request('screen=dispatch&tab=ready&query=%ED%99%8D&page=4'));
     expect(runtime).toBe('nodejs');
     expect(maxDuration).toBe(60);
-    expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/dispatch');
-    expect(mocks.load).toHaveBeenCalledWith('dispatch', { screen: 'dispatch', tab: 'ready', query: '홍', page: '4' }, new Date('2026-10-07T06:04:00.000Z'));
+    // 화면은 출고 전용 권한으로 열리지만 목록 엑셀은 예전처럼 sales.manage로 받는다(1014-084).
+    expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/dispatch', { capability: 'sales.manage' });
+    expect(mocks.load).toHaveBeenCalledWith('dispatch', { screen: 'dispatch', tab: 'ready', query: '홍', page: '4' }, new Date('2026-10-07T06:04:00.000Z'), 'staff');
     expect(mocks.record).toHaveBeenCalledWith('staff', sheet, 'a'.repeat(64));
     expect(mocks.build.mock.invocationCallOrder[0]).toBeLessThan(mocks.encrypt.mock.invocationCallOrder[0]);
     expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[0]);
@@ -106,7 +108,7 @@ describe('목록 엑셀 다운로드 라우트', () => {
       const href = adminListExportHref(screen, '/admin/sales/shipping?tab=transit&page=3&pageSize=50&sort=newest');
       const response = await POST(request(href.split('?')[1]));
       expect(response.status).toBe(200);
-      expect(mocks.load).toHaveBeenCalledWith(screen, { screen, tab: 'transit', sort: 'newest' }, expect.any(Date));
+      expect(mocks.load).toHaveBeenCalledWith(screen, { screen, tab: 'transit', sort: 'newest' }, expect.any(Date), 'staff');
     },
   );
 
@@ -164,5 +166,69 @@ describe('목록 엑셀 다운로드 라우트', () => {
     const response = await POST(request('screen=orders'));
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: '목록을 불러오지 못해 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.' });
+  });
+});
+
+describe('환불 송금 대기 목록 엑셀(계좌 포함, 1007-047·048)', () => {
+  const refundSheet = { screen: 'refund-transfers', rows: [['요청']], recordCount: 1, filters: { accountExportId: '10000000-0000-4000-8000-00000000a777' } };
+  it('화면 경로로 권한을 확인하고 운영자를 넘겨 계좌를 실은 시트를 암호화한 뒤 기록하고 응답한다', async () => {
+    mocks.load.mockResolvedValue(refundSheet);
+    const response = await POST(request(adminListExportHref('refund-transfers', '/admin/sales/claims/refund-transfers?page=2').split('?')[1]));
+    expect(response.status).toBe(200);
+    expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/claims/refund-transfers');
+    expect(mocks.load).toHaveBeenCalledWith('refund-transfers', { screen: 'refund-transfers' }, expect.any(Date), 'staff');
+    // 평문 바이트는 암호화 직후 0으로 지운다(그래서 호출 인자 내용은 비교하지 않는다).
+    expect(mocks.encrypt).toHaveBeenCalledWith(expect.any(Buffer), 'StrongTEST123!');
+    expect(mocks.record).toHaveBeenCalledWith('staff', refundSheet, 'a'.repeat(64));
+    expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[0]);
+    expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile');
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-xlsx');
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toContain('icons-환불송금대기-20261007-1504.xlsx');
+  });
+  it.each([
+    ['비밀번호 없음', JSON.stringify({})],
+    ['확인 불일치', JSON.stringify({ password: 'StrongTEST123!', passwordConfirmation: 'Other123!' })],
+    ['짧은 비밀번호', JSON.stringify({ password: '123', passwordConfirmation: '123' })],
+  ])('%s이면 목록 조회·계좌 열람·파일·기록 없이 거절한다', async (_label, body) => {
+    const response = await POST(new Request('https://example.test/api/admin/list-export?screen=refund-transfers', {
+      method: 'POST', headers: { origin: 'https://example.test', 'content-type': 'application/json' }, body,
+    }));
+    expect(response.status).toBe(400);
+    expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.build).not.toHaveBeenCalled();
+    expect(mocks.encrypt).not.toHaveBeenCalled(); expect(mocks.record).not.toHaveBeenCalled();
+  });
+  it('GET·본문 없는 요청·다른 출처로는 받을 수 없다', async () => {
+    expect((await GET()).status).toBe(405);
+    const empty = await POST(new Request('https://example.test/api/admin/list-export?screen=refund-transfers', { method: 'POST', headers: { origin: 'https://example.test', 'content-type': 'application/json' } }));
+    expect(empty.status).toBe(400);
+    const other = request('screen=refund-transfers'); other.headers.set('origin', 'https://evil.test');
+    expect((await POST(other)).status).toBe(403);
+    expect(mocks.load).not.toHaveBeenCalled();
+  });
+});
+
+describe('비밀번호 없이 계좌를 내려받는 경로가 없다(소스 계약)', () => {
+  const sources = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory()
+    ? (entry.name === 'node_modules' ? [] : sources(`${dir}/${entry.name}`))
+    : /\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [`${dir}/${entry.name}`] : []);
+  const files = ['app', 'lib', 'components'].flatMap(sources);
+  const users = (pattern: RegExp) => files.filter(file => pattern.test(readFileSync(file, 'utf8'))).sort();
+  it('계좌 일괄 열람 RPC는 목록 엑셀 로더 한 곳에서만 부르고, 그 로더는 비밀번호를 확인한 POST 라우트만 쓴다', () => {
+    expect(users(/\.rpc\(\s*['"]service_export_bank_transfer_refund_accounts['"]/)).toEqual(['lib/admin/list-export-refund-transfers.server.ts']);
+    expect(users(/revealRefundTransferAccounts\b/)).toEqual(['lib/admin/list-export-data.server.ts', 'lib/admin/list-export-refund-transfers.server.ts']);
+    expect(users(/\bloadAdminListExportSheet\b/)).toEqual(['app/api/admin/list-export/route.ts', 'lib/admin/list-export-data.server.ts']);
+  });
+  it('라우트는 비밀번호를 읽은 뒤에만 조회하고, 암호화한 바이트만 응답한다', () => {
+    const route = readFileSync('app/api/admin/list-export/route.ts', 'utf8');
+    const post = route.slice(route.indexOf('export async function POST'));
+    const at = (needle: string) => { const index = post.indexOf(needle); expect(index, needle).toBeGreaterThan(-1); return index; };
+    expect(at('readExportPassword(')).toBeLessThan(at('loadAdminListExportSheet('));
+    expect(at('loadAdminListExportSheet(')).toBeLessThan(at('encryptAdminWorkbook('));
+    expect(at('encryptAdminWorkbook(')).toBeLessThan(at('new Response('));
+    expect(post).toContain('new Response(new Uint8Array(bytes)');
+    expect(post).not.toMatch(/new Response\((plain|sheet)/);
+    // GET은 조회 없이 405다.
+    const get = route.slice(route.indexOf('export async function GET'), route.indexOf('export async function POST'));
+    expect(get).toContain('405'); expect(get).not.toContain('loadAdminListExportSheet');
   });
 });

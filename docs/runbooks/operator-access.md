@@ -42,6 +42,6 @@ HMAC 키가 바뀌어 기존 미발송 초대의 해시와 토큰이 일치하�
 
 ## 검증
 
-운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
+운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
 
 초대 동시성 검증은 `SUPABASE_DB_CONTAINER=<격리 컨테이너> OPERATOR_INVITATION_TEST_SCOPE=isolated-local bash supabase/tests/operator_email_invitation_concurrency.sh`로 실행한다. CI의 scope 값은 `ci`다. 스크립트는 원본 DB를 덤프해 별도 DB로 복제하고, cron 작업을 제외한 복제본에서만 역할 fixture를 구성한 뒤 종료 시 제거한다. Python 테스트를 기존 `postgres` DB에 직접 실행하지 않는다.

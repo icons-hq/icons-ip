@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { completeOnboardingAction } from './actions';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { completeOnboardingAction, finishOnboardingAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   authGetUser: vi.fn(),
@@ -9,16 +9,23 @@ const mocks = vi.hoisted(() => ({
   identity: vi.fn(),
   ipArchivedFilter: vi.fn(),
   ipPublishedFilter: vi.fn(),
+  profileNickname: null as string | null,
+  profileReadError: null as { message: string } | null,
+  finishProfile: null as Record<string, unknown> | null,
   profilePayloads: [] as Record<string, unknown>[],
   profileResults: [] as { data: { id: string } | null; error: { message: string } | null }[],
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  after: vi.fn(),
+  syncKakao: vi.fn(),
 }));
 
 vi.mock('@/lib/profile.server', () => ({ updateProfileIdentity: mocks.identity }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: mocks.getSupabaseConfig }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock('next/server', () => ({ after: mocks.after }));
+vi.mock('@/lib/kakao/channel-reward.server', () => ({ syncKakaoChannelFriendReward: mocks.syncKakao }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -30,12 +37,12 @@ const IP_ONE = '00000000-0000-4000-8000-000000000101';
 const IP_TWO = '00000000-0000-4000-8000-000000000102';
 const familyEmoji = '👨‍👩‍👧‍👦';
 
-function onboardingForm(nickname: string, options: {
+/* 온보딩은 닉네임을 묻지 않는다(1014-004) — 폼에는 생년월일·약관·선택 항목만 있다. */
+function onboardingForm(options: {
   recommended?: string[];
   selected?: string[];
 } = {}) {
   const formData = new FormData();
-  formData.set('nickname', nickname);
   formData.set('birthDate', '2000-01-01');
   formData.set('terms', 'on');
   formData.set('privacy', 'on');
@@ -48,6 +55,17 @@ function onboardingForm(nickname: string, options: {
 
 function profileQuery() {
   return {
+    select: (columns: string) => ({
+      eq: () => ({
+        maybeSingle: async () => {
+          if (columns === 'birth_date,consents,onboarded_at') return { data: mocks.finishProfile, error: null };
+          expect(columns).toBe('nickname');
+          return mocks.profileReadError
+            ? { data: null, error: mocks.profileReadError }
+            : { data: { nickname: mocks.profileNickname }, error: null };
+        },
+      }),
+    }),
     update: (payload: Record<string, unknown>) => {
       mocks.profilePayloads.push(payload);
       return {
@@ -97,6 +115,9 @@ beforeEach(() => {
   mocks.identity.mockReset();
   mocks.ipArchivedFilter.mockReset();
   mocks.ipPublishedFilter.mockReset();
+  mocks.profileNickname = null;
+  mocks.profileReadError = null;
+  mocks.finishProfile = null;
   mocks.profilePayloads = [];
   mocks.profileResults = [];
   mocks.revalidatePath.mockReset();
@@ -124,7 +145,7 @@ beforeEach(() => {
 
 describe('completeOnboardingAction profile identity', () => {
   it('normalizes grouped year, month, and day fields to the stored ISO date', async () => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.delete('birthDate');
     formData.set('birthYear', '2000');
     formData.set('birthMonth', '1');
@@ -138,7 +159,7 @@ describe('completeOnboardingAction profile identity', () => {
   });
 
   it('rejects a date that is not a real calendar date before any writes', async () => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.set('birthDate', '2000-02-31');
 
     await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
@@ -151,7 +172,7 @@ describe('completeOnboardingAction profile identity', () => {
   });
 
   it('identifies incomplete grouped birth-date fields before any writes', async () => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.delete('birthDate');
     formData.set('birthYear', '2000');
     formData.set('birthMonth', '1');
@@ -165,7 +186,7 @@ describe('completeOnboardingAction profile identity', () => {
   });
 
   it('identifies a grouped future birth date before any writes', async () => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.delete('birthDate');
     formData.set('birthYear', '2999');
     formData.set('birthMonth', '1');
@@ -193,7 +214,7 @@ describe('completeOnboardingAction profile identity', () => {
   }
 
   it('rejects an under-14 birth date before any writes', async () => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.set('birthDate', birthDateForExactAge(13));
 
     await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
@@ -206,7 +227,7 @@ describe('completeOnboardingAction profile identity', () => {
 
   /* 경계일은 거부가 아니라 허용 쪽이다 — 생일 당일에 가입할 수 있어야 한다. */
   it('accepts the exact fourteenth birthday', async () => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.set('birthDate', birthDateForExactAge(14));
 
     await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
@@ -217,23 +238,23 @@ describe('completeOnboardingAction profile identity', () => {
   it('maps the database age guard to the same field error', async () => {
     mocks.profileResults.push({ data: null, error: { message: 'minimum_age_required' } });
 
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
 
     await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
       errors: { birthDate: '만 14세 이상만 가입할 수 있습니다.' },
     });
   });
 
-  it('accepts 30 family graphemes and saves nickname only through the identity helper', async () => {
-    const nickname = familyEmoji.repeat(30);
-
-    await expect(completeOnboardingAction({}, onboardingForm(nickname))).rejects.toThrow(
+  /* 1014-004 — 닉네임은 묻지 않고 자동으로 만든다. 저장은 기존 프로필 저장 경로(identity helper)만 쓴다. */
+  it('generates an automatic nickname for an account without one and saves it only through the identity helper', async () => {
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow(
       'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
 
+    expect(mocks.identity).toHaveBeenCalledOnce();
     expect(mocks.identity).toHaveBeenCalledWith({
       userId: USER_ID,
-      nickname,
+      nickname: expect.stringMatching(/^fan_[a-z0-9]{8}$/),
       avatarPath: null,
       replaceAvatar: false,
     });
@@ -247,35 +268,60 @@ describe('completeOnboardingAction profile identity', () => {
     expect(JSON.stringify(mocks.profilePayloads)).not.toContain('nickname');
   });
 
-  it('rejects 31 graphemes before config, authentication, or writes', async () => {
-    await expect(
-      completeOnboardingAction({}, onboardingForm(familyEmoji.repeat(31))),
-    ).resolves.toEqual({ errors: { nickname: '닉네임은 30자 이하로 입력해주세요.' } });
+  it('keeps an existing nickname and ignores any submitted nickname field', async () => {
+    mocks.profileNickname = '아이콘즈 팬';
+    const formData = onboardingForm();
+    formData.set('nickname', familyEmoji.repeat(31));
 
-    expect(mocks.getSupabaseConfig).not.toHaveBeenCalled();
-    expect(mocks.createClient).not.toHaveBeenCalled();
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
+    );
+
     expect(mocks.identity).not.toHaveBeenCalled();
+    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
   });
 
-  it('rejects a raw 513-code-unit nickname before config, authentication, or writes', async () => {
-    await expect(
-      completeOnboardingAction({}, onboardingForm('a'.repeat(513))),
-    ).resolves.toEqual({ errors: { nickname: '닉네임은 30자 이하로 입력해주세요.' } });
+  it('retries a colliding automatic nickname with a new value', async () => {
+    mocks.identity
+      .mockResolvedValueOnce({ ok: false, errorCode: '23505' })
+      .mockResolvedValueOnce({ ok: true, previousAvatarPath: null });
 
-    expect(mocks.getSupabaseConfig).not.toHaveBeenCalled();
-    expect(mocks.createClient).not.toHaveBeenCalled();
-    expect(mocks.identity).not.toHaveBeenCalled();
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
+    );
+
+    expect(mocks.identity).toHaveBeenCalledTimes(2);
+    const [first, second] = mocks.identity.mock.calls.map(([input]) => (input as { nickname: string }).nickname);
+    expect(first).toMatch(/^fan_[a-z0-9]{8}$/);
+    expect(second).toMatch(/^fan_[a-z0-9]{8}$/);
   });
 
-  it('maps identity uniqueness failures to the existing nickname message', async () => {
+  it('stops before any other write when an automatic nickname cannot be saved', async () => {
     mocks.identity.mockResolvedValue({ ok: false, errorCode: '23505' });
 
-    await expect(
-      completeOnboardingAction({}, onboardingForm('taken')),
-    ).resolves.toEqual({ errors: { nickname: '이미 사용 중인 닉네임입니다.' } });
-
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
+      errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' },
+    });
+    expect(mocks.identity).toHaveBeenCalledTimes(5);
     expect(mocks.profilePayloads).toEqual([]);
     expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.identity.mockReset();
+    mocks.identity.mockResolvedValue({ ok: false, errorCode: 'P0002' });
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
+      errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' },
+    });
+    expect(mocks.identity).toHaveBeenCalledOnce();
+  });
+
+  it('does not guess when the current nickname cannot be read', async () => {
+    mocks.profileReadError = { message: 'unavailable' };
+
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
+      errors: { form: '프로필을 확인하지 못했습니다. 다시 시도해주세요.' },
+    });
+    expect(mocks.identity).not.toHaveBeenCalled();
+    expect(mocks.profilePayloads).toEqual([]);
   });
 
   /* 10/14 회의 S2 · D5 — 관심 IP는 선택이다. 건너뛰면 화면이 추천 목록 입력을 보내지 않고,
@@ -288,7 +334,7 @@ describe('completeOnboardingAction profile identity', () => {
       throw new Error(`Unexpected table ${table}`);
     });
 
-    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
     expect(mocks.rpc.mock.calls.filter(([name]) => name === 'follow_ip' || name === 'unfollow_ip')).toEqual([]);
     expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
@@ -302,7 +348,7 @@ describe('completeOnboardingAction profile identity', () => {
       throw new Error(`Unexpected table ${table}`);
     });
 
-    await expect(completeOnboardingAction({}, onboardingForm('fan', {
+    await expect(completeOnboardingAction({}, onboardingForm({
       recommended: [IP_ONE, IP_TWO],
       selected: [IP_TWO],
     }))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
@@ -331,7 +377,7 @@ describe('completeOnboardingAction optional consents', () => {
   };
 
   it('records email and SMS choices separately and does not write the derived marketing flag directly', async () => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.delete('marketingEmail');
     formData.set('marketingSms', 'on');
 
@@ -347,7 +393,7 @@ describe('completeOnboardingAction optional consents', () => {
     mocks.rpc.mockImplementation(async (name: string) => name === 'set_my_marketing_consents'
       ? { data: null, error: { message: 'unavailable' } } : { data: null, error: null });
 
-    await expect(completeOnboardingAction({}, onboardingForm('fan'))).resolves.toEqual({
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
       errors: { form: '마케팅 정보 수신 동의를 저장하지 못했습니다. 다시 시도해주세요.' },
     });
     expect(mocks.profilePayloads.some((payload) => 'onboarded_at' in payload)).toBe(false);
@@ -358,7 +404,7 @@ describe('completeOnboardingAction optional consents', () => {
     [{ genderConsent: 'on' }, '동의하려면 성별을 선택해주세요.'],
     [{ gender: 'unknown', genderConsent: 'on' }, '성별을 다시 선택해주세요.'],
   ])('rejects an incomplete gender choice %o before any writes', async (fields, message) => {
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     for (const [key, value] of Object.entries(fields)) formData.set(key, value);
 
     await expect(completeOnboardingAction({}, formData)).resolves.toEqual({ errors: { gender: message } });
@@ -370,7 +416,7 @@ describe('completeOnboardingAction optional consents', () => {
     mocks.from.mockImplementation((table: string) => {
       if (table !== 'profiles') return table === 'ips' ? ipQuery([]) : followsQuery([]);
       const query = profileQuery();
-      return { update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
+      return { ...query, update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
     });
     mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
       order.push(name);
@@ -378,7 +424,7 @@ describe('completeOnboardingAction optional consents', () => {
       if (name === 'set_customer_demographic_consent') return { data: { ...DEMOGRAPHIC_STATE, revision: 1, choice: 'accepted', gender: args.p_gender, acceptedAt: '2026-10-27T00:00:00.000Z' }, error: null };
       return { data: null, error: null };
     });
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.set('gender', 'female');
     formData.set('genderConsent', 'on');
 
@@ -392,15 +438,205 @@ describe('completeOnboardingAction optional consents', () => {
   });
 
   it('does not save gender without a choice and does not undo completion when the optional save fails', async () => {
-    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
     expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('customer_demographic_state');
 
     mocks.rpc.mockImplementation(async (name: string) => name === 'customer_demographic_state'
       ? { data: null, error: { message: 'unavailable' } } : { data: null, error: null });
-    const formData = onboardingForm('fan');
+    const formData = onboardingForm();
     formData.set('gender', 'male');
     formData.set('genderConsent', 'on');
     await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
   });
 });
 
+
+/* 1014-005·006 — 휴대폰 번호 인증은 스위치가 켜졌을 때만 온보딩 완료 조건이다. */
+describe('completeOnboardingAction phone verification switch', () => {
+  const PHONE_ENV = {
+    ICONS_PHONE_VERIFICATION_ENABLED: 'true',
+    ICONS_PHONE_VERIFICATION_SECRET: 'phone-verification-test-secret-0123456789',
+    ICONS_SMS_PROVIDER: 'console',
+  } as const;
+  const original = Object.fromEntries(Object.keys(PHONE_ENV).map((key) => [key, process.env[key]]));
+
+  function setPhoneEnv(on: boolean) {
+    for (const [key, value] of Object.entries(PHONE_ENV)) {
+      if (on) process.env[key] = value;
+      else delete process.env[key];
+    }
+  }
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('does not read phone verification at all while the switch is off', async () => {
+    setPhoneEnv(false);
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('my_member_phone_verification');
+  });
+
+  /* 리뷰 F2 — 동의·만 14세 확인 전에 번호를 받지 않는다: 1단계(생년월일·약관)를 먼저 저장하고 인증 단계로 보낸다. */
+  it('saves birth date and consents first and moves to the phone step without completing onboarding', async () => {
+    setPhoneEnv(true);
+    const order: string[] = [];
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== 'profiles') return table === 'ips' ? ipQuery([]) : followsQuery([]);
+      const query = profileQuery();
+      return { ...query, update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
+    });
+    mocks.rpc.mockImplementation(async (name: string) => {
+      order.push(name);
+      return name === 'my_member_phone_verification'
+        ? { data: { verified: false, phoneE164: null, verifiedAt: null, reverificationRequired: false }, error: null }
+        : { data: null, error: null };
+    });
+    const formData = onboardingForm();
+    formData.set('gender', 'female');
+    formData.set('genderConsent', 'on');
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({ phoneStep: true, carriedGender: 'female' });
+    expect(mocks.profilePayloads).toEqual([{ birth_date: '2000-01-01', consents: { terms: true, privacy: true } }]);
+    expect(order.indexOf('birth_date,consents')).toBeLessThan(order.indexOf('my_member_phone_verification'));
+    expect(order).not.toContain('onboarded_at');
+    expect(order).not.toContain('customer_demographic_state');
+  });
+
+  it('completes onboarding in one go when the switch is on and the phone is already verified', async () => {
+    setPhoneEnv(true);
+    mocks.rpc.mockImplementation(async (name: string) => name === 'my_member_phone_verification'
+      ? { data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z', reverificationRequired: false }, error: null }
+      : { data: null, error: null });
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+  });
+});
+
+/* 휴대폰 인증 단계의 [ICONS 시작하기] — 1단계 저장과 번호 인증을 모두 확인한 뒤에만 온보딩을 마친다. */
+describe('finishOnboardingAction', () => {
+  const PHONE_ENV = {
+    ICONS_PHONE_VERIFICATION_ENABLED: 'true',
+    ICONS_PHONE_VERIFICATION_SECRET: 'phone-verification-test-secret-0123456789',
+    ICONS_SMS_PROVIDER: 'console',
+  } as const;
+  const original = Object.fromEntries(Object.keys(PHONE_ENV).map((key) => [key, process.env[key]]));
+  const DEMOGRAPHIC_STATE = {
+    actorId: USER_ID, sessionId: '00000000-0000-4000-9000-000000001201', revision: 0, choice: 'unset', gender: null,
+    noticeVersion: 'customer-demographics-v1', acceptedAt: null,
+  };
+
+  function finishForm(values: Record<string, string> = {}) {
+    const data = new FormData();
+    data.set('next', '/community');
+    for (const [key, value] of Object.entries(values)) data.set(key, value);
+    return data;
+  }
+
+  function phoneState(verified: boolean) {
+    mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'my_member_phone_verification') {
+        return { data: { verified, phoneE164: verified ? '+821012345678' : null, verifiedAt: null, reverificationRequired: false }, error: null };
+      }
+      if (name === 'customer_demographic_state') return { data: DEMOGRAPHIC_STATE, error: null };
+      if (name === 'set_customer_demographic_consent') return { data: { ...DEMOGRAPHIC_STATE, revision: 1, choice: 'accepted', gender: args.p_gender, acceptedAt: '2026-11-11T00:00:00.000Z' }, error: null };
+      return { data: null, error: null };
+    });
+  }
+
+  beforeEach(() => {
+    Object.assign(process.env, PHONE_ENV);
+    mocks.finishProfile = { birth_date: '2000-01-01', consents: { terms: true, privacy: true }, onboarded_at: null };
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('refuses to finish before birth date and both consents are saved', async () => {
+    phoneState(true);
+    mocks.finishProfile = { birth_date: null, consents: { terms: true, privacy: true }, onboarded_at: null };
+
+    await expect(finishOnboardingAction({}, finishForm())).resolves.toEqual({
+      errors: { form: '생년월일과 약관 동의를 먼저 저장해주세요. 화면을 새로고침한 뒤 다시 시도해주세요.' },
+    });
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+
+  it('keeps the phone step until the phone is verified', async () => {
+    phoneState(false);
+
+    await expect(finishOnboardingAction({}, finishForm({ gender: 'female', genderConsent: 'on' }))).resolves.toEqual({
+      phoneStep: true,
+      carriedGender: 'female',
+      errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' },
+    });
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+
+  it('completes onboarding after verification and saves the carried gender', async () => {
+    phoneState(true);
+
+    await expect(finishOnboardingAction({}, finishForm({ gender: 'female', genderConsent: 'on' }))).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
+    );
+    expect(mocks.profilePayloads).toEqual([{ onboarded_at: expect.any(String) }]);
+    expect(mocks.rpc).toHaveBeenCalledWith('set_customer_demographic_consent', expect.objectContaining({ p_choice: 'accepted', p_gender: 'female' }));
+  });
+
+  /* 사용자 결정 '옮기고 재인증 요구' — 번호를 잃은 회원이 다시 인증하면 완료 시각을 바꾸지 않고 하던 곳으로 돌아간다. */
+  it('sends an already onboarded member straight back after re-verification', async () => {
+    phoneState(true);
+    mocks.finishProfile = { birth_date: '2000-01-01', consents: { terms: true, privacy: true }, onboarded_at: '2026-07-01T00:00:00.000Z' };
+
+    await expect(finishOnboardingAction({}, finishForm())).rejects.toThrow('NEXT_REDIRECT:/community');
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+});
+
+/* 1014-014 — 카카오톡 채널 친구 추가 쿠폰은 온보딩을 마친 뒤(응답 뒤) 확인한다. 스위치가 꺼져 있으면 아무것도 예약하지 않는다. */
+describe('completeOnboardingAction kakao channel reward', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+    ICONS_KAKAO_CHANNEL_COUPON_CODE: 'KAKAO-FRIEND',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    mocks.after.mockReset();
+    mocks.syncKakao.mockReset();
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('schedules nothing while the switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.after).not.toHaveBeenCalled();
+  });
+
+  it('checks the channel friendship after completion when the switch is on', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.after).toHaveBeenCalledOnce();
+    await (mocks.after.mock.calls[0][0] as () => Promise<void>)();
+    expect(mocks.syncKakao).toHaveBeenCalledWith({ userId: USER_ID, via: 'onboarding' });
+  });
+});

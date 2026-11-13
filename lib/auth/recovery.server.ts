@@ -12,7 +12,8 @@ export const PASSWORD_RESET_WINDOW_MS = 10 * 60 * 1000;
 export const PASSWORD_RESET_MAX_ATTEMPTS = 3;
 export const PASSWORD_RESET_MAX_BUCKETS = 12;
 
-export type AuthNextPurpose = 'signup' | 'oauth' | 'recovery';
+/** link: 설정에서 로그인한 회원이 카카오 계정을 연결하는 흐름(1014-014, 리뷰 F10). 콜백이 결과를 설정 화면으로 돌려보낸다. */
+export type AuthNextPurpose = 'signup' | 'oauth' | 'recovery' | 'link';
 
 export interface AuthNextState {
   issuedAt: number;
@@ -98,6 +99,7 @@ export function authNextStateFromCookie(
     candidate.purpose !== 'signup'
     && candidate.purpose !== 'oauth'
     && candidate.purpose !== 'recovery'
+    && candidate.purpose !== 'link'
   ) return null;
   if (typeof candidate.next !== 'string') return null;
   if (typeof candidate.issuedAt !== 'number' || !Number.isFinite(candidate.issuedAt)) return null;

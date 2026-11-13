@@ -30,7 +30,7 @@ describe('shipment console query boundary', () => {
     const filters = normalizeShipmentFilters({ tab: 'delayed', delayNotice: 'partial_failed', page: '2', pageSize: '50' }, 'dispatch');
     await getShipmentConsoleData(filters, 'dispatch');
     expect(mocks.rpc).toHaveBeenCalledWith('admin_search_shipments_notice_console', expect.objectContaining({ p_delay_notice_status: 'partial_failed', p_offset: 50, p_limit: 50 }));
-    mocks.rpc.mockResolvedValueOnce({ data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'shipment', delivery: shipmentDeliveryFixture() }] }, error: null }).mockResolvedValueOnce({data:{shipment:null},error:null}).mockResolvedValueOnce({data:{shipment:{count:0,completed:0,ready:true,dueAt:null}},error:null});
+    mocks.rpc.mockResolvedValueOnce({ data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'shipment', delivery: shipmentDeliveryFixture() }] }, error: null }).mockResolvedValueOnce({data:{shipment:null},error:null}).mockResolvedValueOnce({data:{shipment:{count:0,completed:0,ready:true,dueAt:null}},error:null}).mockResolvedValueOnce({data:{shipment:null},error:null});
     await expect(getShipmentConsoleData(filters, 'dispatch')).rejects.toThrow('지연 안내 상태를 확인하지 못했습니다');
     mocks.rpc.mockResolvedValue({ data: { rows: [], total: 0, counts }, error: null });
     await expect(getShipmentConsoleData(filters, 'dispatch')).rejects.toThrow('지연 안내 상태를 확인하지 못했습니다');
@@ -56,9 +56,34 @@ describe('shipment console query boundary', () => {
   });
   it('preserves method and preorder data while refusing a missing or malformed method response', async () => {
     const delivery = shipmentDeliveryFixture();
-    mocks.rpc.mockResolvedValueOnce({ data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'shipment', delayNotice: notice, preorderReady: false, delivery }], total: 1, counts }, error: null }).mockResolvedValueOnce({data:{shipment:null},error:null}).mockResolvedValueOnce({data:{shipment:{count:0,completed:0,ready:true,dueAt:null}},error:null});
+    mocks.rpc.mockResolvedValueOnce({ data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'shipment', delayNotice: notice, preorderReady: false, delivery }], total: 1, counts }, error: null }).mockResolvedValueOnce({data:{shipment:null},error:null}).mockResolvedValueOnce({data:{shipment:{count:0,completed:0,ready:true,dueAt:null}},error:null}).mockResolvedValueOnce({data:{shipment:null},error:null});
     expect((await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rows[0]).toMatchObject({ delivery, preorderReady: false });
-    mocks.rpc.mockResolvedValueOnce({ data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'shipment', delivery: { method: 'pickup', policy: null } }], total: 1, counts }, error: null }).mockResolvedValueOnce({data:{shipment:null},error:null}).mockResolvedValueOnce({data:{shipment:{count:0,completed:0,ready:true,dueAt:null}},error:null});
+    mocks.rpc.mockResolvedValueOnce({ data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'shipment', delivery: { method: 'pickup', policy: null } }], total: 1, counts }, error: null }).mockResolvedValueOnce({data:{shipment:null},error:null}).mockResolvedValueOnce({data:{shipment:{count:0,completed:0,ready:true,dueAt:null}},error:null}).mockResolvedValueOnce({data:{shipment:null},error:null});
     await expect(getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rejects.toThrow('배송 방식을 확인하지 못했습니다');
+  });
+  /* 2026-11-12 "착불 금액은 보이게": 배송 건별 착불 배송비·수납 정보를 화면에도 붙인다(출고 전용 운영자 포함, 읽기 전용). */
+  it('attaches the per-shipment collect fee and collection terms read with the same row ids', async () => {
+    const delivery = shipmentDeliveryFixture();
+    const collector = { name: '한진택배', method: '수령 시 기사에게 현금 또는 계좌이체', refundContact: '고객센터 1588-0000', instructions: '착불 배송비는 상품 수령 때 지급합니다.' };
+    mocks.rpc.mockResolvedValueOnce({ data: { rows: [{ id: 'collect', delivery }, { id: 'plain', delivery }], total: 2, counts }, error: null })
+      .mockResolvedValueOnce({ data: { collect: null, plain: null }, error: null })
+      .mockResolvedValueOnce({ data: { collect: { count: 0, completed: 0, ready: true, dueAt: null }, plain: { count: 0, completed: 0, ready: true, dueAt: null } }, error: null })
+      .mockResolvedValueOnce({ data: { collect: { collectFee: 4000, collector }, plain: null }, error: null });
+    const data = await getShipmentConsoleData(normalizeShipmentFilters({}, 'shipping'), 'shipping');
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_collect_summaries', { p_ids: ['collect', 'plain'] });
+    expect(data.rows.map(row => row.collect)).toEqual([{ collectFee: 4000, collector }, null]);
+  });
+  it.each([
+    ['an RPC error', { data: null, error: { message: 'private db error' } }],
+    ['a missing shipment', { data: {}, error: null }],
+    ['an unknown key', { data: { shipment: null, other: null }, error: null }],
+    ['a zero fee', { data: { shipment: { collectFee: 0, collector: null } }, error: null }],
+    ['an incomplete collector', { data: { shipment: { collectFee: 4000, collector: { name: '한진택배' } } }, error: null }],
+  ])('fails visibly instead of drawing a wrong collect amount on %s', async (_label, response) => {
+    mocks.rpc.mockResolvedValueOnce({ data: { rows: [{ id: 'shipment', delivery: shipmentDeliveryFixture() }], total: 1, counts }, error: null })
+      .mockResolvedValueOnce({ data: { shipment: null }, error: null })
+      .mockResolvedValueOnce({ data: { shipment: { count: 0, completed: 0, ready: true, dueAt: null } }, error: null })
+      .mockResolvedValueOnce(response);
+    await expect(getShipmentConsoleData(normalizeShipmentFilters({}, 'shipping'), 'shipping')).rejects.toThrow('착불 정보를 확인하지 못했습니다.');
   });
 });

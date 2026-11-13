@@ -20,6 +20,10 @@ vi.mock('@/app/cart/coupon-actions', () => ({ applyCouponAction: vi.fn(), applyC
 vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: vi.fn() }));
 vi.mock('@/components/checkout/PostcodeField', () => ({ PostcodeField: () => null }));
 vi.mock('@/components/checkout/useStoreCreditQuote', () => ({ useStoreCreditQuote: () => ({ quote: null, loading: false, error: null, refresh: vi.fn() }) }));
+vi.mock('./CheckoutDraftQuotes', () => ({
+  useDraftStoreCreditQuote: () => ({ quote: null, loading: false, error: null, refresh: vi.fn() }),
+  useDirectCheckoutQuote: () => ({ quote: null, sales: null, loading: false, error: null, refresh: vi.fn() }),
+}));
 vi.mock('@/components/shop/useShippingQuote', () => ({ useShippingQuote: () => ({
   quote: (mocks.sales as AddressGoodsSalesQuote | null)?.shipping ?? null, sales: mocks.sales, loading: false, error: null, refresh: vi.fn(),
 }) }));
@@ -99,5 +103,39 @@ describe('Checkout 쿠폰 변경 중 결제 잠금', () => {
     resolve({ ok: false, error: 'unavailable' });
     await work;
     expect(picker().props.disabled).toBe(false);
+  });
+});
+
+/* 같은 주문서(초안)를 다른 탭·뒤로 가기로 다시 내면 DB가 원 주문과 함께 거절한다(ADR-0030 완료 기준 5). 주문서는 원 주문으로
+   잇고 다시 주문하지 않는다. */
+describe('Checkout 이미 주문한 주문서', () => {
+  const ORDER = '00000000-0000-4000-8000-0000000000e1';
+  it('재제출이 거절되면 원 주문 보기를 보이고 결제 버튼을 잠근다', async () => {
+    props = { ...props, draft: { id: '00000000-0000-4000-8000-0000000000d1', source: 'selection', baseGoodId: null, expiresAt: '2099-01-01T00:00:00Z',
+      stale: false, usedOrderId: null, lines: [{ goodId: 'g13', variantId: VARIANT, qty: 1 }] } };
+    mocks.place.mockResolvedValueOnce({ ok: false, error: 'checkout_draft_used', orderId: ORDER });
+    await submit();
+    const tree = all(render());
+    expect(tree.some((node) => node.props.href === `/orders/${ORDER}`)).toBe(true);
+    expect(tree.some((node) => node.props.role === 'alert'
+      && Children.toArray(node.props.children as ReactNode).some((child) => typeof child === 'string' && child.includes('이미 주문한 주문서예요')))).toBe(true);
+    expect(submitButton().props.disabled).toBe(true);
+    await submit();
+    expect(mocks.place).toHaveBeenCalledTimes(1);
+  });
+
+  /* 그 주문의 결제 승인을 확인하고 있으면(리스가 지난 confirming 포함) 다시 내도 새 주문을 만들지 않는다 — 그 주문으로 잇는다. */
+  it('결제 확인 중인 주문이 있으면 그 주문 보기를 보이고 결제 버튼을 잠근다', async () => {
+    props = { ...props, draft: { id: '00000000-0000-4000-8000-0000000000d1', source: 'selection', baseGoodId: null, expiresAt: '2099-01-01T00:00:00Z',
+      stale: false, usedOrderId: null, lines: [{ goodId: 'g13', variantId: VARIANT, qty: 1 }] } };
+    mocks.place.mockResolvedValueOnce({ ok: false, error: 'checkout_payment_in_progress', orderId: ORDER });
+    await submit();
+    const tree = all(render());
+    expect(tree.some((node) => node.props.href === `/orders/${ORDER}`)).toBe(true);
+    expect(tree.some((node) => node.props.role === 'alert'
+      && Children.toArray(node.props.children as ReactNode).some((child) => typeof child === 'string' && child.includes('결제 확인 중인 주문이 있어요')))).toBe(true);
+    expect(submitButton().props.disabled).toBe(true);
+    await submit();
+    expect(mocks.place).toHaveBeenCalledTimes(1);
   });
 });

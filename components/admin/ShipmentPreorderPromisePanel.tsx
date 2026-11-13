@@ -9,6 +9,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 
 /* 예약 발송 일정 카드(템플릿 룩, ADR-0028). */
 const FIELD_CLASS = 'flex w-full min-w-0 flex-col gap-1.5 [&>span]:text-sm [&>span]:font-medium';
@@ -18,6 +19,7 @@ function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise;
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(null);
     const data = new FormData(event.currentTarget);

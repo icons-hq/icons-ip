@@ -8,6 +8,8 @@ import { WishlistCartButton } from '@/components/mypage/WishlistCartButton';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
 import { AddToCartResultDialog, type AddToCartResultItem } from '@/components/shop/AddToCartResultDialog';
+import { purchaseSheetAvailable, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { GoodPurchaseSheet } from '@/components/shop/GoodPurchaseSheet';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { ListingWishHeart } from '@/components/shop/ListingWishHeart';
 import { confirmedWish, subscribeWishConfirmations } from '@/components/shop/wishlist-heart-store';
@@ -15,7 +17,7 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { WcButton } from '@/components/wc/WcButton';
-import type { Ip } from '@/lib/data';
+import type { Good, Ip } from '@/lib/data';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { ipEn } from '@/lib/ip-display';
 import { hrefFor } from '@/lib/routes';
@@ -31,7 +33,37 @@ import { wishlistTabHref, type WishlistLine, type WishlistTab } from '@/lib/wish
  * 수량 없는 '장바구니 담기'가 `listing.showCart` 와 무관하게 선다(S14). 담기가 확정되면 L1 의 담기 결과 모달이 뜬다.
  * 하트를 풀어도 카드는 이 화면에 남는다(새로고침 전까지) — 실수로 푼 하트를 바로 되돌릴 수 있고, 총 개수는
  * 서버가 확인한 해제만큼 줄어든다. 카탈로그에서 사라진 굿즈는 '판매 종료' 카드로 남겨 해제 수단을 둔다.
+ *
+ * 살 수 있는 굿즈 카드에는 [구매하기]도 둔다(ADR-0030 · 10/14 회의 1014-039 "얘만 사고 싶어"). 상품 상세와 같은 구매 시트를
+ * 열어 옵션·수량·직접 입력을 고르고, 시트의 [구매하기]는 그 상품만 주문하는 바로구매다 — 장바구니에 담지 않는다.
  */
+
+/* 위시 카드의 [구매하기]. 상품 상세와 같은 구매 컨트롤러·시트를 쓴다(데스크톱에서도 여는 시트). */
+function WishlistBuyNow({ good }: { good: Good }) {
+  const purchase = useGoodPurchase({ good });
+  const [open, setOpen] = useState(false);
+  if (!purchaseSheetAvailable(purchase)) return null;
+  return (
+    <>
+      <button
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${good.name} 구매하기`}
+        className="wc-btn primary wc-wish__buy"
+        onClick={() => setOpen(true)}
+        style={{ height: 40, padding: '0 8px', fontSize: 14, fontWeight: 700 }}
+        type="button"
+      >
+        구매하기
+      </button>
+      {open ? (
+        <OverlayPortal>
+          <GoodPurchaseSheet anyWidth onClose={() => setOpen(false)} purchase={purchase} />
+        </OverlayPortal>
+      ) : null}
+    </>
+  );
+}
 
 export interface WishlistProps {
   viewerId: string;
@@ -117,7 +149,11 @@ function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (i
         showDiscountRate={good.showDiscountRate}
         soldOut={good.stock === 'soldout' || good.stockQty <= 0}
       />
-      <WishlistCartButton good={good} onAdded={onAdded} />
+      {/* 담기(수량 없는 한 개)와 [구매하기]를 카드 바닥에 함께 세운다. */}
+      <div className="wc-wish__actions" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <WishlistCartButton good={good} onAdded={onAdded} />
+        <WishlistBuyNow good={good} />
+      </div>
     </>
   );
 }

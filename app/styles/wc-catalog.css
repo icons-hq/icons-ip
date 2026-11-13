@@ -2841,6 +2841,23 @@
   .wc-pdp-sheet__dim {
     display: none;
   }
+
+  /* 위시 카드 [구매하기]의 시트(anyWidth)는 넓은 화면에서도 연다 — 바닥에 붙이지 않고 화면 가운데 560 폭 대화상자로 세워
+     아래쪽이 화면 밖으로 잘리지 않게 한다(QA1 S-D2-16). 높이는 콘텐츠를 따르고 화면 85%에서 멈춰 본문만 스크롤한다. */
+  .wc-pdp-sheet__dim.wc-pdp-sheet__dim--any-width {
+    display: block;
+  }
+
+  .wc-pdp-sheet.wc-pdp-sheet--any-width {
+    display: flex;
+    inset: 0;
+    width: min(560px, calc(100vw - 48px));
+    height: fit-content;
+    margin: auto;
+    padding-bottom: 20px;
+    border-radius: var(--wc-radius-sheet);
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3476,6 +3493,21 @@
   color: var(--wc-danger);
 }
 
+/* 진행 중인(결제 대기) 주문이 잡은 쿠폰 안내(QA1 S-D2-08) — 경고가 아니라 사실과 그 주문으로 가는 길이다. */
+.wc-cart__coupon-pending {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-cart__coupon-pending a {
+  color: var(--wc-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .wc-cart__coupon-clear {
   margin: 8px 0 0;
   padding: 0;
@@ -3547,11 +3579,6 @@
 
 .wc-cart__checkout.wc-btn {
   height: 56px;
-}
-
-/* 금액 문구는 모바일 주문 바에서만 보인다 — 화면에 보이는 문구 하나가 접근 이름이다(display:none 은 읽히지 않는다). */
-.wc-cart__checkout-amount {
-  display: none;
 }
 
 .wc-cart__gift {
@@ -3767,15 +3794,6 @@
 
   .wc-cart__cta-bar .wc-cart__empty-cta.wc-btn.accent {
     width: 100%;
-  }
-
-  /* 예상 총액이 확정된 동안 모바일 바는 금액을 싣는다(레퍼런스 "₩금액 주문하기"). 아니면 수량 문구 그대로다. */
-  .wc-cart__checkout--amount .wc-cart__checkout-count {
-    display: none;
-  }
-
-  .wc-cart__checkout--amount .wc-cart__checkout-amount {
-    display: inline;
   }
 
   /* 빈 상태는 레퍼런스처럼 안내 아래를 비워 서브헤더(52)와 바(93) 사이를 채운다 — 첫 화면에 푸터가 올라오지 않는다.

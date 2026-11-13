@@ -21,7 +21,9 @@ import {
 } from '@/lib/admin/coupons';
 import { statusTone } from '@/lib/admin/status-tone';
 import { formatOrderDateTime } from '@/lib/orders';
-import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
+import {
+  GRADE_BENEFIT_CADENCE_LABELS, LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel, type GradeBenefitCadence,
+} from '@/lib/loyalty';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
 import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
@@ -64,6 +66,38 @@ function CouponPeriod({ from, to }: { from: string; to: string | null | undefine
 function CouponPhaseBadge({ coupon }: { coupon: AdminCouponRecord }) {
   const phase = couponPhase(coupon);
   return <AdminStatusBadge tone={statusTone('couponPhase', phase)}>{COUPON_PHASES.find(option => option.value === phase)?.label}</AdminStatusBadge>;
+}
+
+/*
+ * 등급 혜택과 지급 방식(S36-062). 등급을 고른 폼만 지급 방식을 보낸다 — '해당 없음'이면 칸을 그리지 않고
+ * 서버가 '승급 시 1회'로 둔다. 매월 지급의 대상·시점·소급 없음은 DB 정본(run_monthly_grade_coupons)과 같은 말이다.
+ */
+function GradeBenefitFields({ grade, cadence, errors }: { grade: string; cadence: GradeBenefitCadence; errors?: Record<string, string> }) {
+  const [selectedGrade, setSelectedGrade] = useState(grade);
+  return <>
+    <SelectField
+      defaultValue={grade}
+      error={errors?.gradeBenefit}
+      label="등급 혜택"
+      name="gradeBenefit"
+      onChange={(event) => setSelectedGrade(event.target.value)}
+    >
+      <option value="">해당 없음</option>
+      {LOYALTY_GRADES.filter((option) => option !== 'welcome').map((option) => (
+        <option key={option} value={option}>{loyaltyGradeLabel(option)} 등급</option>
+      ))}
+    </SelectField>
+    {selectedGrade ? <>
+      <SelectField defaultValue={cadence} error={errors?.gradeBenefitCadence} label="등급 혜택 지급 방식" name="gradeBenefitCadence">
+        <option value="upgrade">{GRADE_BENEFIT_CADENCE_LABELS.upgrade} (이 등급에 오를 때)</option>
+        <option value="monthly">{GRADE_BENEFIT_CADENCE_LABELS.monthly} (그 시점 이 등급 이상 회원)</option>
+      </SelectField>
+      <ul className="flex list-disc flex-col gap-1 pl-5 text-xs leading-relaxed text-muted-foreground [grid-column:1/-1]" data-grade-cadence-help="">
+        <li>승급 시 1회: 이 등급에 오를 때(건너뛰어 오를 때 포함) 한 번 발급하고, 이미 받은 회원에게는 다시 발급하지 않습니다.</li>
+        <li>매월 1일: 매월 1일 0시(한국 시간)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다. 지난달 몫은 소급하지 않으며, 이번 달 지급이 끝난 뒤 바꾸면 다음 달 1일부터 발급합니다. 발급 한도는 모든 달을 합친 장수입니다.</li>
+      </ul>
+    </> : null}
+  </>;
 }
 
 function CouponEditor({
@@ -164,7 +198,7 @@ function CouponEditor({
       />
       <div hidden={step === 1} className="border-t">
       <h3 className="border-b px-4 py-5 text-base font-medium outline-none sm:px-6" tabIndex={-1}>할인·발급 조건</h3>
-      <p className="border-b bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground sm:px-6">{loyaltyBasisSummary()} 등급 혜택은 승급 시 자동 발급됩니다. 중복 사용은 스토어 정책과 각 쿠폰의 허용 조건을 모두 따릅니다. 발급 후 상품·배송비 할인 구분과 중복 사용 조건, 발급 방식은 변경할 수 없습니다. 배송비 쿠폰은 대상 상품이 포함된 배송 묶음의 선결제 운송비에 적용하며 설치비·착불 비용은 제외합니다.</p>
+      <p className="border-b bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground sm:px-6">{loyaltyBasisSummary()} 등급 혜택은 고른 지급 방식에 따라 승급할 때 한 번 또는 매월 1일에 자동 발급됩니다. 중복 사용은 스토어 정책과 각 쿠폰의 허용 조건을 모두 따릅니다. 발급 후 상품·배송비 할인 구분과 중복 사용 조건, 발급 방식은 변경할 수 없습니다. 배송비 쿠폰은 대상 상품이 포함된 배송 묶음의 선결제 운송비에 적용하며 설치비·착불 비용은 제외합니다.</p>
       <div className="p-4 sm:p-6"><AdminFormGrid>
         <Field
           defaultValue={value('code', defaults?.code)}
@@ -240,17 +274,11 @@ function CouponEditor({
           <option value="active">활성</option>
           <option value="archived">보관 (발급·사용 중단)</option>
         </SelectField>
-        <SelectField
-          defaultValue={value('gradeBenefit', defaults ? defaults.gradeBenefit : initialGrade) as string}
-          error={state.errors?.gradeBenefit}
-          label="등급 혜택 (승급 시 자동 발급)"
-          name="gradeBenefit"
-        >
-          <option value="">해당 없음</option>
-          {LOYALTY_GRADES.filter((grade) => grade !== 'welcome').map((grade) => (
-            <option key={grade} value={grade}>{loyaltyGradeLabel(grade)} 달성 시</option>
-          ))}
-        </SelectField>
+        <GradeBenefitFields
+          cadence={String(value('gradeBenefitCadence', defaults?.gradeBenefitCadence ?? 'upgrade')) === 'monthly' ? 'monthly' : 'upgrade'}
+          errors={state.errors}
+          grade={String(value('gradeBenefit', defaults ? defaults.gradeBenefit : initialGrade))}
+        />
       </AdminFormGrid></div>
       </div>
       </fieldset>
@@ -326,7 +354,7 @@ export function CouponSection({
           <CouponPhaseBadge coupon={coupon} key="phase" />,
           coupon.code,
           <CouponRowActions key={`${coupon.code}-${coupon.termsRevision}-${coupon.status}`} copyHref={`${ADMIN_COUPON_LIST_PATH}/new?copy=${encodeURIComponent(coupon.code)}`} coupon={coupon} issueHref={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(coupon.code)}`} onEdit={() => onSelect(coupon)} />,
-          coupon.issuanceMode === 'targeted' ? '지정 고객' : coupon.gradeBenefit ? `${loyaltyGradeLabel(isLoyaltyGrade(coupon.gradeBenefit) ? coupon.gradeBenefit : 'welcome')} 등급` : coupon.recipientSegment === 'first_purchase' ? '첫구매 고객' : coupon.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객',
+          coupon.issuanceMode === 'targeted' ? '지정 고객' : coupon.gradeBenefit ? <span key="target">{loyaltyGradeLabel(isLoyaltyGrade(coupon.gradeBenefit) ? coupon.gradeBenefit : 'welcome')} 등급<small className="block text-xs text-muted-foreground">{GRADE_BENEFIT_CADENCE_LABELS[coupon.gradeBenefitCadence ?? 'upgrade']}</small></span> : coupon.recipientSegment === 'first_purchase' ? '첫구매 고객' : coupon.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객',
           <span key="discount">{coupon.benefitKind === 'shipping' ? '배송비 ' : '상품 '}{coupon.discountValue.toLocaleString('ko-KR')}{coupon.discountType === 'percent' ? '%' : '원'}{coupon.maxDiscountAmount ? <small className="block text-xs text-muted-foreground">최대 {coupon.maxDiscountAmount.toLocaleString('ko-KR')}원</small> : null}</span>,
           <CouponPeriod from={coupon.issueStartsAt ?? coupon.startsAt} key="issuePeriod" to={couponIssueEndsAt(coupon)} />,
           coupon.validDays ? <span className="text-xs" key="period">발급일로부터 {coupon.validDays}일 후까지</span> : <CouponPeriod from={coupon.startsAt} key="period" to={coupon.endsAt} />,

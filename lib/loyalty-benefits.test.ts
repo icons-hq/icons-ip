@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   gradeBenefitCountLines,
   gradeBenefitCouponCopy,
+  gradeBenefitMonthlyNote,
   gradeCreditRateLabel,
   hasGradeCreditRates,
   loyaltyCriterionCopy,
@@ -24,6 +25,7 @@ function coupon(overrides: Partial<GradeBenefitCoupon> = {}): GradeBenefitCoupon
     startsAt: '2026-10-01T00:00:00.000Z',
     endsAt: null,
     validDays: null,
+    cadence: 'upgrade',
     ...overrides,
   };
 }
@@ -32,10 +34,10 @@ function response(overrides: Record<string, unknown> = {}) {
   return {
     creditRatesEnabled: false,
     grades: [
-      { grade: 'welcome', reached: true, creditRateBps: null, couponCounts: { goods: 0, shipping: 0 }, coupons: [] },
-      { grade: 'silver', reached: true, creditRateBps: null, couponCounts: { goods: 1, shipping: 0 }, coupons: [coupon()] },
-      { grade: 'gold', reached: false, creditRateBps: null, couponCounts: { goods: 1, shipping: 1 }, coupons: [] },
-      { grade: 'platinum', reached: false, creditRateBps: null, couponCounts: { goods: 0, shipping: 0 }, coupons: [] },
+      { grade: 'welcome', reached: true, creditRateBps: null, couponCounts: { goods: 0, shipping: 0, monthly: 0 }, coupons: [] },
+      { grade: 'silver', reached: true, creditRateBps: null, couponCounts: { goods: 1, shipping: 0, monthly: 0 }, coupons: [coupon()] },
+      { grade: 'gold', reached: false, creditRateBps: null, couponCounts: { goods: 1, shipping: 1, monthly: 0 }, coupons: [] },
+      { grade: 'platinum', reached: false, creditRateBps: null, couponCounts: { goods: 0, shipping: 0, monthly: 0 }, coupons: [] },
     ],
     ...overrides,
   };
@@ -54,7 +56,7 @@ describe('parseLoyaltyGradeBenefits', () => {
     expect(parsed?.grades.map((row) => row.grade)).toEqual(['welcome', 'silver', 'gold', 'platinum']);
     expect(parsed?.grades[1].coupons).toEqual([coupon()]);
     expect(parsed?.grades.map((row) => row.reached)).toEqual([true, true, false, false]);
-    expect(parsed?.grades[2]).toMatchObject({ coupons: [], couponCounts: { goods: 1, shipping: 1 } });
+    expect(parsed?.grades[2]).toMatchObject({ coupons: [], couponCounts: { goods: 1, shipping: 1, monthly: 0 } });
     expect(parsed?.creditRatesEnabled).toBe(false);
   });
 
@@ -98,6 +100,36 @@ describe('parseLoyaltyGradeBenefits', () => {
     expect(parseLoyaltyGradeBenefits(onWithRates)).toBeNull();
   });
 
+  /* 매월 지급(S36-062): 쿠폰마다 지급 방식, 등급마다 매월 지급 장수. 도입 전 응답은 승급할 때 한 번으로 읽는다. */
+  it('reads each coupon cadence and the monthly count, treating older responses as upgrade-only', () => {
+    const monthly = response();
+    (monthly.grades as { coupons: unknown[]; couponCounts: unknown }[])[1].coupons = [{ ...coupon(), cadence: 'monthly' }];
+    (monthly.grades as { couponCounts: unknown }[])[1].couponCounts = { goods: 1, shipping: 0, monthly: 1 };
+    (monthly.grades as { couponCounts: unknown }[])[2].couponCounts = { goods: 1, shipping: 1, monthly: 2 };
+    const parsed = parseLoyaltyGradeBenefits(monthly);
+    expect(parsed?.grades[1].coupons[0].cadence).toBe('monthly');
+    expect(parsed?.grades[2].couponCounts).toEqual({ goods: 1, shipping: 1, monthly: 2 });
+
+    const legacy = response();
+    const withoutCadence: Partial<GradeBenefitCoupon> = coupon();
+    delete withoutCadence.cadence;
+    (legacy.grades as { coupons: unknown[]; couponCounts: unknown }[])[1].coupons = [withoutCadence];
+    (legacy.grades as { couponCounts: unknown }[])[1].couponCounts = { goods: 1, shipping: 0 };
+    expect(parseLoyaltyGradeBenefits(legacy)?.grades[1]).toMatchObject({ coupons: [{ cadence: 'upgrade' }], couponCounts: { monthly: 0 } });
+
+    const unknownCadence = response();
+    (unknownCadence.grades as { coupons: unknown[] }[])[1].coupons = [{ ...coupon(), cadence: 'weekly' }];
+    expect(parseLoyaltyGradeBenefits(unknownCadence)).toBeNull();
+
+    const miscountedMonthly = response();
+    (miscountedMonthly.grades as { couponCounts: unknown }[])[1].couponCounts = { goods: 1, shipping: 0, monthly: 1 };
+    expect(parseLoyaltyGradeBenefits(miscountedMonthly)).toBeNull();
+
+    const overflow = response();
+    (overflow.grades as { couponCounts: unknown }[])[2].couponCounts = { goods: 1, shipping: 1, monthly: 3 };
+    expect(parseLoyaltyGradeBenefits(overflow)).toBeNull();
+  });
+
   it('rejects a reordered, partial or malformed ladder', () => {
     const reordered = response();
     (reordered.grades as unknown[]).reverse();
@@ -138,9 +170,14 @@ describe('parseLoyaltyStanding', () => {
 
 describe('grade benefit copy', () => {
   it('summarises an unreached grade by coupon kind only', () => {
-    expect(gradeBenefitCountLines({ goods: 2, shipping: 1 })).toEqual(['굿즈 할인 쿠폰 2장', '배송비 할인 쿠폰 1장']);
-    expect(gradeBenefitCountLines({ goods: 0, shipping: 1 })).toEqual(['배송비 할인 쿠폰 1장']);
-    expect(gradeBenefitCountLines({ goods: 0, shipping: 0 })).toEqual([]);
+    expect(gradeBenefitCountLines({ goods: 2, shipping: 1, monthly: 0 })).toEqual(['굿즈 할인 쿠폰 2장', '배송비 할인 쿠폰 1장']);
+    expect(gradeBenefitCountLines({ goods: 0, shipping: 1, monthly: 0 })).toEqual(['배송비 할인 쿠폰 1장']);
+    expect(gradeBenefitCountLines({ goods: 0, shipping: 0, monthly: 0 })).toEqual([]);
+  });
+
+  it('notes how many coupons of an unreached grade come again on the 1st of each month', () => {
+    expect(gradeBenefitMonthlyNote({ goods: 2, shipping: 1, monthly: 2 })).toBe('그중 2장은 이 등급에 오른 뒤 돌아오는 매월 1일부터 한 장씩 지급돼요');
+    expect(gradeBenefitMonthlyNote({ goods: 2, shipping: 1, monthly: 0 })).toBeNull();
   });
 
   it('knows whether the table shows any grade credit rate', () => {
@@ -169,7 +206,9 @@ describe('grade benefit copy', () => {
       condition: '₩30,000 이상 구매 시',
       validity: '기한 없음',
       recipient: null,
+      cadence: '이 등급에 오를 때 한 번 지급돼요',
     });
+    expect(gradeBenefitCouponCopy(coupon({ cadence: 'monthly' }), now).cadence).toBe('매월 1일에 이 등급 이상이면 한 장씩 지급돼요');
     expect(gradeBenefitCouponCopy(coupon({ benefitKind: 'shipping', minSubtotal: 0 }), now)).toMatchObject({
       benefit: '배송비 ₩3,000 할인',
       condition: '금액 제한 없음',

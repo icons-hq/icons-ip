@@ -13,6 +13,11 @@ export interface ProfileForOnboarding {
   onboarded_at?: string | null;
   role?: 'user' | 'staff' | 'admin' | null;
   suspended_at?: string | null;
+  /**
+   * 휴대폰 번호 인증 스위치가 켜졌을 때만 서버가 채운다: 다른 계정이 같은 번호를 인증해 이 계정의 인증이 해제됐다.
+   * 다시 인증할 때까지 온보딩 미완료로 보고 보호 액션(주문·결제 준비 등) 전에 인증 단계로 보낸다.
+   */
+  phone_reverification_required?: boolean;
 }
 
 interface AuthErrorLike {
@@ -52,6 +57,7 @@ export function isOnboarded(profile: ProfileForOnboarding | null | undefined, au
   if (!profile.onboarded_at) return false;
   if (profile.consents?.terms !== true) return false;
   if (profile.consents?.privacy !== true) return false;
+  if (profile.phone_reverification_required === true) return false;
 
   const birthDate = new Date(`${profile.birth_date}T00:00:00.000Z`);
   if (Number.isNaN(birthDate.getTime())) return false;
@@ -135,7 +141,8 @@ export function authErrorMessage(code: string | null | undefined): string | unde
     case undefined:
       return undefined;
     case 'otp_expired':
-      return '인증 링크가 만료되었거나 이미 사용되었습니다. 최신 확인 메일의 링크를 열거나 회원가입을 다시 시도해주세요.';
+      /* 확인 코드로 가입을 마친 뒤 같은 메일의 링크를 열어도 여기로 온다 — 토큰은 한 번만 쓸 수 있다(1014-004). */
+      return '인증 링크가 만료되었거나 이미 사용되었습니다. 확인 코드로 이미 가입을 마쳤다면 로그인해주세요. 아니라면 최신 확인 메일의 링크를 열거나 회원가입을 다시 시도해주세요.';
     // PKCE code exchange 실패 — 이메일 확인 자체는 완료됐을 수 있다(다른 브라우저에서 링크를 열거나 중복 처리된 경우).
     case 'flow_state_expired':
     case 'flow_state_not_found':
@@ -186,6 +193,37 @@ export function authSignUpErrorMessage(error: AuthErrorLike | null | undefined):
     default:
       return GENERIC_SIGNUP_ERROR_MESSAGE;
   }
+}
+
+/*
+ * 가입 확인 6자리 코드 검증 실패(1014-004). GoTrue는 틀린 코드와 만료된 코드를 같은 otp_expired로 돌려주므로
+ * 두 경우를 한 문장으로 말한다. 자세한 실패 사유는 이용자에게 보이지 않는다.
+ */
+export function signupCodeErrorMessage(error: AuthErrorLike | null | undefined): string {
+  switch (normalizeAuthCode(error?.code)) {
+    case 'otp_expired':
+      return '확인 코드가 맞지 않거나 만료됐어요. 가장 최근 메일의 코드를 확인하거나 코드를 다시 받아주세요.';
+    case 'over_request_rate_limit':
+    case 'over_email_send_rate_limit':
+      return '확인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.';
+    case 'email_address_invalid':
+    case 'validation_failed':
+      return '이메일 주소 형식을 확인해주세요. 예: you@icons.gg';
+    default:
+      return '확인 코드를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.';
+  }
+}
+
+/** 가입 확인 코드로 이메일 확인을 마쳤지만 비밀번호 로그인 세션으로 바꾸지 못했을 때(새로고침 등) 가는 로그인 화면. */
+export const SIGNUP_CONFIRMED_MESSAGE = '가입 확인을 마쳤어요. 가입한 이메일과 비밀번호로 로그인해주세요.';
+
+export function signupConfirmedLoginPath(next: string = '/') {
+  const url = new URL('/login', 'https://icons.local');
+  url.searchParams.set('mode', 'signin');
+  url.searchParams.set('signup_confirmed', '1');
+  const safeNext = safeNextPath(next);
+  if (safeNext !== '/') url.searchParams.set('next', safeNext);
+  return `${url.pathname}${url.search}`;
 }
 
 export function authErrorLoginPath(code: string | null | undefined, next: string = '/') {
