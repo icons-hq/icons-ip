@@ -21,6 +21,7 @@ import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
 import { GoodWorkspaceDetails } from './GoodWorkspace';
 import type { GoodsOptionImportContext } from '@/lib/admin/goods-option-import';
 import { adminConfirm } from '@/lib/admin/confirm';
+import { StableNumberInput } from './StableNumberInput';
 
 type GoodsOptionEditorProps = {
   rows: GoodsOptionRow[];
@@ -87,7 +88,8 @@ function StockQtyInput({ value, onChange, ...props }: { value: number; onChange:
   /* 저장을 눌러 검증에 걸린 빈 칸만 오류로 칠한다(처음부터 빨갛게 보이지 않게). 값을 넣으면 풀린다. */
   const [rejected, setRejected] = useState(false);
   const flagged = empty && rejected;
-  return <input {...props} data-slot="input" aria-describedby="goods-option-stock-guidance" value={empty ? '' : value} min={0} step={1} type="number" required placeholder="숫자 입력"
+  /* 입력 도중의 폼 렌더가 친 글자를 지우지 않게 값이 바뀔 때만 칸을 고친다(StableNumberInput, 원장 재작업 후속 6). */
+  return <StableNumberInput {...props} data-slot="input" aria-describedby="goods-option-stock-guidance" value={empty ? '' : String(value)} min={0} step={1} required placeholder="숫자 입력"
     aria-invalid={flagged ? true : undefined} className={`${props.className ?? ''}${flagged ? ' border-destructive ring-1 ring-destructive/40' : ''}`}
     ref={(input) => { input?.setCustomValidity(empty ? GOODS_OPTION_STOCK_REQUIRED : ''); }}
     onInvalid={() => setRejected(true)}
@@ -149,7 +151,7 @@ function OptionDetailTable({ rows, single, predictedCodes, update, erpRows, onEr
               <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} ERP 코드`} aria-describedby="goods-option-external-identity-guidance" value={row.erpCode ?? ''} maxLength={120} placeholder="미설정" onChange={(event) => update(key, { erpCode: event.target.value })} /></TableCell>
               <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 바코드`} aria-describedby="goods-option-external-identity-guidance" value={row.barcode ?? ''} maxLength={120} placeholder="미설정" onChange={(event) => update(key, { barcode: event.target.value })} /></TableCell>
               <TableCell className={TABLE_CELL_CLASS}>
-                <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 안전재고 기준`} aria-describedby="goods-option-stock-guidance" value={row.lowStockThreshold ?? ''} min={0} max={2147483647} step={1} type="number" placeholder="미설정" onChange={(event) => update(key, { lowStockThreshold: event.target.value === '' ? null : Number(event.target.value) })} />
+                <StableNumberInput className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 안전재고 기준`} aria-describedby="goods-option-stock-guidance" value={row.lowStockThreshold == null ? '' : String(row.lowStockThreshold)} min={0} max={2147483647} step={1} placeholder="미설정" onChange={(event) => update(key, { lowStockThreshold: event.target.value === '' ? null : Number(event.target.value) })} />
                 {row.lowStockThreshold != null && row.stockQty <= row.lowStockThreshold && <small className={LOW_STOCK_CLASS} data-good-option-low-stock="" data-tone="warning">재고 부족 · 기준 {row.lowStockThreshold.toLocaleString('ko-KR')}개 이하</small>}
               </TableCell>
             </TableRow>;
@@ -277,7 +279,7 @@ function OptionList({ rows, basePrice, update, setRows }: {
               {row.isActive === false && <small className="mt-1 block text-xs text-[var(--wc-warning)]">사용 중지 · 주문 기록과 재고 보존</small>}
             </TableCell>
             <TableCell className={TABLE_CELL_CLASS}>
-              <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 옵션가`} value={row.extraPrice} min={0} step={1} type="number" onChange={(event) => update(key, { extraPrice: wholeNumber(event.target.value) })} />
+              <StableNumberInput className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 옵션가`} value={Number.isFinite(row.extraPrice) ? String(row.extraPrice) : ''} min={0} step={1} onChange={(event) => update(key, { extraPrice: wholeNumber(event.target.value) })} />
               <small className="mt-1 block text-[11px] text-muted-foreground tabular-nums">판매 {formatWon(basePrice + (Number.isFinite(row.extraPrice) ? row.extraPrice : 0))}</small>
             </TableCell>
             <TableCell className={TABLE_CELL_CLASS}><StockQtyInput className={GOOD_NUMBER_INPUT_CLASS} aria-label={`옵션 ${index + 1} 재고수량`} value={row.stockQty} onChange={(stockQty) => update(key, { stockQty })} /></TableCell>
@@ -315,7 +317,7 @@ function SingleStock({ row, basePrice, update, structureLocked }: {
     </AdminField>
     {(extraVisible || row.extraPrice !== 0) && <AdminField inputId="goods-single-extra-price" label="기본 옵션 옵션가" hint="판매가(할인하면 할인가)에 더하는 금액입니다. 0원이면 판매가 그대로 판매합니다.">
       <GoodAmountField unit="원">
-        <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-single-extra-price" aria-describedby="goods-single-extra-price-hint" value={row.extraPrice} min={0} step={1} type="number" onChange={(event) => { setExtraVisible(true); update(key, { extraPrice: wholeNumber(event.target.value) }); }} />
+        <StableNumberInput className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-single-extra-price" aria-describedby="goods-single-extra-price-hint" value={Number.isFinite(row.extraPrice) ? String(row.extraPrice) : ''} min={0} step={1} onChange={(event) => { setExtraVisible(true); update(key, { extraPrice: wholeNumber(event.target.value) }); }} />
       </GoodAmountField>
       <small className="text-xs text-muted-foreground tabular-nums">판매 {formatWon(basePrice + (Number.isFinite(row.extraPrice) ? row.extraPrice : 0))}</small>
     </AdminField>}

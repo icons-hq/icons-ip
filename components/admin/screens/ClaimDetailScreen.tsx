@@ -180,6 +180,8 @@ function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
     const cause = typeof entry.diff?.cause === 'string' ? COLLECTION_COMPLETED_CAUSE_LABELS[entry.diff.cause] : undefined;
     return cause ?? TIMELINE_LABELS[entry.action];
   }
+  /* 앞선 재고 부족 부분 취소가 결제액을 모두 돌려준 무통장 취소는 송금대기 없이 환불 0원으로 닫힌다(송금 원장에 '송금 없이 완료'). */
+  if (entry.action === 'admin.order.bank_refund_confirm_cancellation' && entry.diff?.transferAmount === 0) return '무통장 취소 확정 · 송금 없이 완료';
   const label = TIMELINE_LABELS[entry.action] ?? entry.action;
   if (entry.action === 'admin.order.bank_refund_account_viewed') {
     const route = typeof entry.diff?.purpose === 'string' ? ACCOUNT_VIEW_ROUTES[entry.diff.purpose] : undefined;

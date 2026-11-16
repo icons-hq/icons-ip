@@ -22,6 +22,26 @@ export interface BankRefundContext {
   confirmBlocker: string | null; fileBlocker: string | null; completeBlocker: string | null; viewBlocker: string | null;
   /** 반품배송비 차감(ADR-0031). 송금액은 refundAmount다(amount는 주문 금액 그대로 — 요청의 대조 값). 없으면 지금 그대로 전액. */
   refundDeduction?: ReturnFeeDeduction;
+  /**
+   * 앞선 재고 부족 부분 취소(ADR-0032)가 있을 때만 실린다. refundedAmount는 부분 취소로 이미 돌려준 금액,
+   * refundAmount는 송금 원장에 들어갈 금액(결제액 − 부분 취소 환불 − 반품배송비 차감)이다. 0원이면 송금 없이 닫힌다.
+   */
+  partialRefund?: BankRefundPartialRefund;
+}
+export interface BankRefundPartialRefund { refundedAmount: number; refundAmount: number }
+/** 이 칸이 실제로 송금할 금액. 차감 결정·부분 취소가 없으면 주문 금액 전액이다. */
+export function bankRefundTransferAmount(context: BankRefundContext): number {
+  const deduction = context.refundDeduction?.applicable && context.refundDeduction.refundAmount !== null ? context.refundDeduction.refundAmount : null;
+  return deduction ?? context.partialRefund?.refundAmount ?? context.amount;
+}
+/** 앞선 부분 취소가 결제액을 모두 돌려줘 송금할 돈이 없는 취소(송금 없이 환불 0원으로 닫힌다). */
+export function bankRefundWithoutTransfer(context: BankRefundContext): boolean {
+  return context.partialRefund !== undefined && context.partialRefund.refundAmount === 0;
+}
+function parsePartialRefund(value: unknown): BankRefundPartialRefund | null {
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['refundedAmount', 'refundAmount'])
+    || !transactionInteger(value.refundedAmount, 1) || !transactionInteger(value.refundAmount)) return null;
+  return { refundedAmount: value.refundedAmount, refundAmount: value.refundAmount };
 }
 export interface BankRefundReceipt {
   operationId: string; actorId: string; orderId: string; claimId: string; kind: BankRefundKind;
@@ -65,15 +85,18 @@ export function parseBankRefundContext(input: unknown): BankRefundContext | null
   const texts = ['maskedAccount', 'maskedHolder', 'confirmBlocker', 'fileBlocker', 'completeBlocker', 'viewBlocker'];
   /* 반품배송비 차감 필드는 판정·결정이 있을 때만 실린다(스위치 OFF면 없음 — 지금 모양 그대로). 있으면 모양까지 맞아야 한다. */
   if (!transactionRecord(input)) return null;
-  const { refundDeduction: rawDeduction, ...value } = input;
+  const { refundDeduction: rawDeduction, partialRefund: rawPartial, ...value } = input;
   const refundDeduction = rawDeduction === undefined ? undefined : parseReturnFeeDeduction(rawDeduction);
   if (refundDeduction === null) return null;
+  /* 부분 취소 필드도 앞선 부분 취소가 있을 때만 실린다(스위치 OFF면 없음). 있으면 모양까지 맞아야 한다. */
+  const partialRefund = rawPartial === undefined ? undefined : parsePartialRefund(rawPartial);
+  if (partialRefund === null) return null;
   if (!transactionExactKeys(value, ['actorId', 'orderId', 'claimId', 'claimType', 'revision', 'amount', 'stage', 'phase', 'gift', ...nullableTimes, ...texts])
     || !isUuid(value.actorId) || !isUuid(value.orderId) || !isUuid(value.claimId) || !['cancel', 'return', 'exchange'].includes(String(value.claimType))
     || !transactionInteger(value.revision) || !transactionInteger(value.amount) || !isOrderClaimStage(value.stage)
     || !['not_confirmed', 'awaiting_transfer', 'completed'].includes(String(value.phase)) || typeof value.gift !== 'boolean'
     || nullableTimes.some(key => !nullableInstant(value[key])) || texts.some(key => !nullableText(value[key]))) return null;
-  return (refundDeduction ? { ...value, refundDeduction } : value) as unknown as BankRefundContext;
+  return { ...value, ...(refundDeduction ? { refundDeduction } : {}), ...(partialRefund ? { partialRefund } : {}) } as unknown as BankRefundContext;
 }
 export function parseBankRefundReceipt(value: unknown): BankRefundReceipt | null {
   if (!transactionRecord(value) || !transactionExactKeys(value, ['operationId', 'actorId', 'orderId', 'claimId', 'kind', 'revision', 'resultRevision', 'amount', 'state', 'createdAt'])

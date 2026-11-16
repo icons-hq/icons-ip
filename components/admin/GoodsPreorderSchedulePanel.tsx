@@ -270,9 +270,11 @@ export function PreorderScheduleResultView({ change: initial, context }: { chang
   const emailReady = change.emailEnabled;
   const sms = change.targets.some((target) => target.smsStatus);
   const retryable = change.targets.some((target) => target.retryable);
-  /* 미리보기의 '바꾸지 않는 배송 건'(조건상 제외)과 확정 때 선택을 해제한 건을 합쳐 같은 기준으로 센다. 이력에서 연 결과는 선택을 해제한 건만 안다. */
-  const notChanged = context
-    ? (context.excludedTotal + change.excludedCount ? { total: context.excludedTotal + change.excludedCount, detail: ` (조건상 제외 ${context.excludedTotal.toLocaleString('ko-KR')}건 · 선택 해제 ${change.excludedCount.toLocaleString('ko-KR')}건)` } : null)
+  /* 확정 때의 '바꾸지 않는 배송 건'(조건상 제외)과 선택을 해제한 건을 합쳐 같은 기준으로 센다. 조건상 제외 건수는 확정 기록에 남아
+     확정 직후와 발송관리 이력에서 같은 합계다(2026-11-16). 그 전 기록은 조건상 제외를 알 수 없어 선택 해제 건만 말한다. */
+  const conditionExcluded = change.conditionExcludedCount ?? context?.excludedTotal ?? null;
+  const notChanged = conditionExcluded !== null
+    ? (conditionExcluded + change.excludedCount ? { total: conditionExcluded + change.excludedCount, detail: ` (조건상 제외 ${conditionExcluded.toLocaleString('ko-KR')}건 · 선택 해제 ${change.excludedCount.toLocaleString('ko-KR')}건)` } : null)
     : change.excludedCount ? { total: change.excludedCount, detail: ' (확정 때 선택을 해제한 배송 건)' } : null;
   const noEmail = change.targets.filter((target) => !target.hasEmail).length;
   function run(action: () => ReturnType<typeof readPreorderScheduleChangeAction>) {

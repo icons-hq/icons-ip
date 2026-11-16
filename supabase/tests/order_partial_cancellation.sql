@@ -845,18 +845,49 @@ select claim_revision as zero_rev from public.order_cancellation_requests where 
 select pg_temp.pc_stock('partial-cancel-a') as a25_before, pg_temp.pc_stock('partial-cancel-b') as b25_before \gset
 set local role authenticated;
 select pg_temp.pc_auth();
+-- 원장 재작업 알려진 후속 2(2026-11-16): 무통장 환불 칸은 주문 금액이 아니라 송금할 환불액(잔액)을 보이고, 부분 취소로 이미 돌려준 금액을 함께 싣는다.
+--   전에는 '환불 전액 19,000원'·'환불은 송금대기로 남습니다'로 안내했지만 송금 원장에는 아무것도 생기지 않았다(중복 송금 위험).
+select pg_temp.pc_assert((select context->>'amount' = '19000' and context->'partialRefund' = '{"refundedAmount": 19000, "refundAmount": 0}'::jsonb
+   and context->>'phase' = 'not_confirmed' and context->>'confirmBlocker' is null
+  from (select public.admin_bank_transfer_refund_context(pg_temp.pc_id('order', 25), pg_temp.pc_id('claim', 25), pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)) context) s),
+ 'zero_remaining_context_shows_nothing_left_to_transfer');
 select pg_temp.pc_assert(public.admin_record_bank_transfer_refund(pg_temp.pc_id('order', 25), pg_temp.pc_id('claim', 25), pg_temp.pc_id('operation', 91), 'confirm_cancellation',
   :zero_rev, 19000, clock_timestamp(), 'TEST 증빙', 'TEST-ONLY 합성 0원 환불. 실제 송금 없음.', true, pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)) @> '{"state": "recorded"}',
  'zero_remaining_bank_cancel_confirms');
+select pg_temp.pc_assert((select context->>'phase' = 'completed' and context->>'confirmedAt' is not null and context->>'transferredAt' is null
+   and context->'partialRefund' = '{"refundedAmount": 19000, "refundAmount": 0}'::jsonb
+  from (select public.admin_bank_transfer_refund_context(pg_temp.pc_id('order', 25), pg_temp.pc_id('claim', 25), pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)) context) s),
+ 'zero_remaining_context_reads_completed_after_confirmation');
 reset role;
+-- 송금할 돈이 없어도 취소 확정 근거(운영자·확인 일시·증빙·메모)는 송금 원장에 '송금 없이 완료(0원)'로 남는다. 송금 대기 목록에는 나오지 않는다.
 select pg_temp.pc_assert((select status = 'canceled' from public.orders where id = pg_temp.pc_id('order', 25))
  and (select status = 'refunded' from public.payments where id = pg_temp.pc_id('payment', 25))
  and (select amount = 0 and status = 'done' and method = 'bank_transfer' from public.refunds where payment_id = pg_temp.pc_id('payment', 25))
  and (select status = 'completed' from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 25))
- and not exists(select 1 from private.bank_transfer_claim_refunds where order_id = pg_temp.pc_id('order', 25))
+ and (select amount = 0 and state = 'completed' and claim_id = pg_temp.pc_id('claim', 25) and payment_id = pg_temp.pc_id('payment', 25)
+     and confirmation_operation_id = pg_temp.pc_id('operation', 91) and confirmed_by = pg_temp.pc_id('user', 1)
+     and confirmation_evidence = 'TEST 증빙' and confirmation_note = 'TEST-ONLY 합성 0원 환불. 실제 송금 없음.'
+     and transfer_operation_id is null and transferred_at is null and transfer_evidence is null
+   from private.bank_transfer_claim_refunds where order_id = pg_temp.pc_id('order', 25))
+ and private.bank_transfer_refund_legal_proof(pg_temp.pc_id('payment', 25)) @> jsonb_build_object('amount', 0, 'state', 'completed', 'confirmationEvidence', 'TEST 증빙')
  and not exists(select 1 from public.order_cancellation_claims where order_id = pg_temp.pc_id('order', 25))
  and pg_temp.pc_stock('partial-cancel-a') = :a25_before and pg_temp.pc_stock('partial-cancel-b') = :b25_before + 1
- and private.payment_partial_refunded_amount(pg_temp.pc_id('payment', 25)) = 19000, 'zero_remaining_bank_cancel_closes_without_transfer_ledger');
+ and private.payment_partial_refunded_amount(pg_temp.pc_id('payment', 25)) = 19000, 'zero_remaining_bank_cancel_records_zero_ledger_row');
+-- 같은 결제를 다시 확정해도(finalizer 재호출) 원장·재고가 그대로다.
+select pg_temp.pc_stock('partial-cancel-b') as b25_after \gset
+select private.finalize_bank_transfer_claim_refund(pg_temp.pc_id('order', 25), 'TEST 재호출');
+select pg_temp.pc_assert(pg_temp.pc_stock('partial-cancel-b') = :b25_after
+ and (select amount = 0 and status = 'done' from public.refunds where payment_id = pg_temp.pc_id('payment', 25))
+ and (select count(*) = 1 from private.bank_transfer_claim_refunds where order_id = pg_temp.pc_id('order', 25)), 'zero_ledger_row_finalize_is_idempotent');
+set local role authenticated;
+select pg_temp.pc_auth();
+-- 부분 취소 자체의 송금 대기(19,000원) 줄은 따로 남는다. 전체 취소의 0원 행만 목록에 없어야 한다.
+select pg_temp.pc_assert(not exists(select 1 from jsonb_array_elements(public.admin_list_bank_transfer_refunds_numbered(50, 0) -> 'rows') item
+   where item->>'orderId' = pg_temp.pc_id('order', 25)::text and item->>'kind' is distinct from 'partial_cancellation')
+ and exists(select 1 from jsonb_array_elements(public.admin_list_bank_transfer_refunds_numbered(50, 0) -> 'rows') item
+   where item->>'orderId' = pg_temp.pc_id('order', 25)::text and item->>'kind' = 'partial_cancellation' and (item->>'amount')::bigint = 19000),
+ 'zero_ledger_row_is_not_awaiting_transfer');
+reset role;
 
 -- 9-14b. T22i(개인정보): 같은 잔액 0원 전체 취소는 클레임 환불계좌 없이 확정된다. 송금할 돈이 없으므로 계좌를 요구하지 않고,
 --   고객 환불계좌 칸도 열지 않는다(refund_account_not_needed). 주문 26은 주문 25와 같고 환불계좌 행만 없다.
@@ -889,6 +920,40 @@ select pg_temp.pc_assert((select status = 'canceled' from public.orders where id
  and (select amount = 0 and status = 'done' from public.refunds where payment_id = pg_temp.pc_id('payment', 26))
  and (select status = 'completed' from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 26))
  and not exists(select 1 from private.claim_refund_accounts where claim_id = pg_temp.pc_id('claim', 26)), 'zero_remaining_bank_cancel_closes_without_claim_account');
+
+-- 9-14c. 원장 재작업 알려진 후속 2: 잔액이 남은 무통장 주문의 환불 칸도 주문 금액이 아니라 송금 원장에 들어갈 금액(남은 잔액)을 보인다.
+--   주문 30: A 2개(쿠폰 1,000원) + B 1개, 배송비 0원, 결제 29,000원. A 1개를 부분 취소(9,500원)한 뒤 전체 취소 → 송금할 환불액 19,500원.
+select pg_temp.pc_order_ab(30, 'bank_transfer', 2, 1000, 0, 0, 'paid');
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_start('a:1@30', 94, 9500, account => '{"bankName":"TEST 합성은행","accountNumber":"000000003030","accountHolder":"TEST 구매자"}');
+reset role;
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, claim_type, stage, collection_policy, requested_at)
+ values (pg_temp.pc_id('claim', 30), pg_temp.pc_id('order', 30), pg_temp.pc_id('user', 2), 'TEST 무통장 전액 취소(잔액 남음)', 'cancel', 'processing', 'origin', clock_timestamp() - interval '40 minutes');
+insert into public.order_cancellation_claims(order_id, requested_by, previous_status) values (pg_temp.pc_id('order', 30), pg_temp.pc_id('user', 2), 'paid');
+insert into public.refunds(payment_id, amount, status, cancellation_request_id) values (pg_temp.pc_id('payment', 30), 19500, 'requested', pg_temp.pc_id('claim', 30));
+insert into private.claim_refund_accounts(claim_id, bank_name, account_number, account_holder, masked_account, masked_holder)
+ values (pg_temp.pc_id('claim', 30), 'TEST 합성은행', '000000003031', 'TEST 합성구매자', 'TEST 합성은행 ********3031', 'T*********');
+select claim_revision as rev30 from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 30) \gset
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_assert((select context->>'amount' = '29000' and context->'partialRefund' = '{"refundedAmount": 9500, "refundAmount": 19500}'::jsonb
+  from (select public.admin_bank_transfer_refund_context(pg_temp.pc_id('order', 30), pg_temp.pc_id('claim', 30), pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)) context) s),
+ 'remaining_balance_context_shows_transfer_amount');
+select pg_temp.pc_assert(public.admin_record_bank_transfer_refund(pg_temp.pc_id('order', 30), pg_temp.pc_id('claim', 30), pg_temp.pc_id('operation', 95), 'confirm_cancellation',
+  :rev30, 29000, clock_timestamp(), 'TEST 증빙', 'TEST-ONLY 합성 잔액 환불 확정.', true, pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)) @> '{"state": "recorded"}',
+ 'remaining_balance_bank_cancel_confirms');
+reset role;
+select pg_temp.pc_assert((select amount = 19500 and state = 'awaiting_transfer' from private.bank_transfer_claim_refunds where order_id = pg_temp.pc_id('order', 30))
+ and (select amount = 19500 and status = 'awaiting_transfer' from public.refunds where payment_id = pg_temp.pc_id('payment', 30)),
+ 'remaining_balance_ledger_matches_context');
+-- 송금 대기 목록에도 같은 금액으로 들어간다(부분 취소 줄 9,500원과 따로).
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_assert(exists(select 1 from jsonb_array_elements(public.admin_list_bank_transfer_refunds_numbered(50, 0) -> 'rows') item
+   where item->>'orderId' = pg_temp.pc_id('order', 30)::text and item->>'kind' is distinct from 'partial_cancellation' and (item->>'amount')::bigint = 19500),
+ 'remaining_balance_ledger_row_awaits_transfer');
+reset role;
 
 -- 9-15. 카드팩 회수(PR #652 리뷰): 지급 조건(대상 품목이 있고 대상 금액 >= 최소 금액)의 거울이다. 정책 범위에 살아 있는 수량이 남은
 --   대상 품목이 없거나 남은 대상 금액이 최소 금액보다 작으면 열지 않은 카드팩만 회수하고, 열어 본 카드팩은 그대로 둔다.

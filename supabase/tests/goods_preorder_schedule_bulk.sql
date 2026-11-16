@@ -427,6 +427,13 @@ select 1/case when (:'again'::jsonb->>'targetShipments')::int=1 and :'again'::js
  then 1 else 0 end as assert_rerun_only_remaining_and_history;
 select pg_temp.expect_error(format('select public.admin_read_goods_preorder_schedule_change(%L)',pg_temp.ps_id('request',98)),'preorder_schedule_change_not_found');
 reset role;
+-- 원장 재작업 알려진 후속 5(2026-11-16): 확정 기록이 미리보기의 '바꾸지 않는 배송 건'(조건상 제외, 사유별) 건수도 남긴다.
+--   전에는 선택 해제(excludedCount 1건)만 저장돼, 발송관리 이력에서 연 결과가 조건상 제외 5건을 빼고 1건만 보였다.
+--   확정 직후 결과와 이력에서 다시 읽은 결과가 같다(위 assert_rerun_only_remaining_and_history의 읽기 = 확정 응답).
+select 1/case when (:'applied'::jsonb->>'conditionExcludedCount')::int=5
+ and :'applied'::jsonb->'conditionExcludedCounts'=:'preview'::jsonb->'excludedCounts'
+ and (select condition_excluded_counts=:'preview'::jsonb->'excludedCounts' from private.goods_preorder_schedule_changes where id=pg_temp.ps_id('request',1))
+ then 1 else 0 end as assert_condition_exclusions_recorded_for_history;
 
 -- 일정 변경 안내의 대상 변경 판정: 일정이 그대로면 유효, 출고되거나 일정이 다시 바뀌면 낡은 안내다.
 select t.id as payer_target from private.order_delay_notice_targets t where t.notice_id=:'notice_id' and t.order_id=pg_temp.ps_id('order',1) \gset

@@ -52,7 +52,7 @@ export function scheduleChange(overrides: Partial<PreorderScheduleChange> = {}):
     id: scheduleIds.change, goodId: 'hsq-second', goodName: '홍실 2차 랜덤 포토카드', variantId: null, variantName: null, expectedShipDate: '2026-12-09',
     reason: '공급처 입고 일정 변경', title: '예약 주문 발송 일정 변경 안내', customerBody: '발송 예정일이 바뀌었습니다.', actorName: '운영자',
     createdAt: '2026-11-25T01:00:00.000Z', noticeId: scheduleIds.notice, requestedAt: '2026-11-25T01:00:00.000Z', emailEnabled: true, smsQueued: false,
-    shipmentCount: 2, orderCount: 2, excludedCount: 1, policyAction: null, policies: [],
+    shipmentCount: 2, orderCount: 2, excludedCount: 1, conditionExcludedCount: null, policyAction: null, policies: [],
     targets: [
       { id: scheduleIds.target1, orderId: scheduleIds.order1, orderNumber: '2026111210000001', audience: 'payer', hasEmail: true,
         shipments: [{ shipmentId: scheduleIds.shipment1, label: '2026111230000001', originName: '김포', fromDate: '2026-12-02', toDate: '2026-12-09', noticeOnly: false }],

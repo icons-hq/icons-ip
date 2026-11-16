@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BANK_REFUND_KINDS, bankRefundError, bankRefundMetadata, bankRefundReceiptMatches, bankRefundRecoveryKey,
-  normalizeBankRefundRequest, parseBankRefundAccountView, parseBankRefundContext, parseBankRefundReceipt, parseBankRefundRecovery,
+  bankRefundTransferAmount, bankRefundWithoutTransfer, normalizeBankRefundRequest, parseBankRefundAccountView, parseBankRefundContext, parseBankRefundReceipt, parseBankRefundRecovery,
   type BankRefundContext, type BankRefundRequest, type BankRefundReceipt } from './bank-transfer-refund';
 
 const identity = { actorId: 'b1900000-0000-4000-8000-000000000001', sessionId: 'b1900000-0000-4000-8000-000000000002',
@@ -75,6 +75,22 @@ describe('bank refund response boundaries', () => {
   });
   it.each([{ gift: 'true' }, { phase: 'done' }, { stage: 'unknown' }, { amount: -1 }, { revision: '7' }, { filedAt: '2026-02-30T00:00:00Z' }])('rejects malformed context %j', patch => {
     expect(parseBankRefundContext({ ...context, ...patch })).toBeNull();
+  });
+  it('accepts the optional partial refund field and derives the transfer amount from it (원장 재작업 후속 2)', () => {
+    const remaining = { ...context, partialRefund: { refundedAmount: 9500, refundAmount: 2500 } };
+    expect(parseBankRefundContext(remaining)).toEqual(remaining);
+    expect(bankRefundTransferAmount(parseBankRefundContext(remaining)!)).toBe(2500);
+    expect(bankRefundWithoutTransfer(parseBankRefundContext(remaining)!)).toBe(false);
+    const zero = { ...context, phase: 'not_confirmed' as const, partialRefund: { refundedAmount: 12000, refundAmount: 0 } };
+    expect(bankRefundTransferAmount(parseBankRefundContext(zero)!)).toBe(0);
+    expect(bankRefundWithoutTransfer(parseBankRefundContext(zero)!)).toBe(true);
+    // 부분 취소가 없으면 지금처럼 주문 금액 전액이다.
+    expect(bankRefundTransferAmount(context)).toBe(12000);
+    expect(bankRefundWithoutTransfer(context)).toBe(false);
+  });
+  it.each([{ refundedAmount: 0, refundAmount: 0 }, { refundedAmount: 100, refundAmount: -1 }, { refundedAmount: '100', refundAmount: 0 },
+    { refundedAmount: 100 }, { refundedAmount: 100, refundAmount: 0, accountNumber: '123' }, null])('rejects malformed partial refund %j', partialRefund => {
+    expect(parseBankRefundContext({ ...context, partialRefund })).toBeNull();
   });
   it('maps authority and conflict without copying untrusted database messages', () => {
     expect(bankRefundError('42501', account.accountNumber)).toMatchObject({ authChanged: true });

@@ -292,6 +292,8 @@ export function Checkout({
   ));
   /* 판매기간이 끝났거나 시작 전인 굿즈는 공통 '재고 변경' 안내 대신 그 굿즈와 이유를 말한다(QA1 S-D2-11). 주문은 지금처럼 잠긴다. */
   const salePeriodNotice = goodsSalePeriodOrderNotice(lines.flatMap(({ good }) => (good ? [good] : [])), direct ? 'direct' : 'cart');
+  /* 그때 요약의 금액 줄 자리. 보이는 글자는 줄표만, 화면 낭독은 결제 금액 줄과 같은 이유를 읽는다(원장 재작업 후속 7). */
+  const withheldAmount = <><span aria-hidden="true">—</span><span className="wc-sr-only">주문할 수 없는 굿즈를 뺀 뒤 표시</span></>;
   /* 주문서가 스스로 재견적해 줄이 주문 불가가 됐는데 카탈로그의 판매기간은 옛 값이면(운영자가 종료 시각을 앞당긴 경우 등) 서버 속성을 한 번 다시 읽어
      위 안내를 띄운다. 일반 '재고 변경' 문구는 그 안내가 없을 때만 남는다(QA2 S-W1m-02). */
   const quoteUnavailableSignature = salePeriodNotice ? null
@@ -375,7 +377,7 @@ export function Checkout({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged || draftStale || blockingOrderId) return;
+    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || salePeriodNotice || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged || draftStale || blockingOrderId) return;
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -573,11 +575,13 @@ export function Checkout({
             })}
           </div>
           <dl className="checkout-totals">
-            <div><dt>굿즈 금액</dt><dd>{krw(subtotal)}</dd></div>
+            {/* 판매기간 밖 굿즈가 섞이면 서버 견적의 굿즈 금액·할인·배송비는 그 굿즈를 포함한 값이다. 결제 금액처럼 어느 줄에도
+                금액을 보이지 않는다(원장 재작업 후속 7) — 장바구니에서 빼고 돌아오면 다시 계산한다. */}
+            <div><dt>굿즈 금액</dt><dd>{salePeriodNotice ? withheldAmount : krw(subtotal)}</dd></div>
             {/* 쿠폰 행은 할인이 0원이어도 둔다 — 바로 아래 쿠폰 칸에서 고르고 바꾼다(R25). */}
-            <div><dt>{couponLabel}</dt><dd>−{krw(couponDiscount)}</dd></div>
-            {usedStoreCredits > 0 && <div><dt>적립금 사용</dt><dd>−{krw(usedStoreCredits)}</dd></div>}
-            <div><dt>배송비</dt><dd>{shippingReady ? shippingFeeLabel(shippingFee) : shipping.quote ? '배송지 확인 후 확정' : '확인 중'}</dd></div>
+            <div><dt>{couponLabel}</dt><dd>{salePeriodNotice ? withheldAmount : `−${krw(couponDiscount)}`}</dd></div>
+            {usedStoreCredits > 0 && <div><dt>적립금 사용</dt><dd>{salePeriodNotice ? withheldAmount : `−${krw(usedStoreCredits)}`}</dd></div>}
+            <div><dt>배송비</dt><dd>{salePeriodNotice ? withheldAmount : shippingReady ? shippingFeeLabel(shippingFee) : shipping.quote ? '배송지 확인 후 확정' : '확인 중'}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{salePeriodNotice ? '주문할 수 없는 굿즈를 뺀 뒤 표시' : shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
           </dl>
 
@@ -621,7 +625,7 @@ export function Checkout({
           </fieldset>
 
           {shipping.quote && shippingGroupsNotice(shipping.quote.groups) ? <p className="money-caption">{shippingGroupsNotice(shipping.quote.groups)}</p> : null}
-          {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(groups, index)}</h3><ShippingGroupSummary group={group} /></section>)}
+          {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(groups, index)}</h3><ShippingGroupSummary group={group} withheld={salePeriodNotice ? '주문할 수 없는 굿즈를 뺀 뒤 표시' : undefined} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
           {purchaseProblem && !(salePeriodNotice && purchaseProblem === GOODS_LINE_UNAVAILABLE_MESSAGE) ? <p className="checkout-error" role="alert">{copyFor(purchaseProblem)}
@@ -684,7 +688,8 @@ export function Checkout({
           {/* 결제 대기 주문(다른 탭의 바로구매·장바구니 주문)이 쿠폰·구매 한도·재고를 잡고 있을 수 있다 — 주문서를 열기만 해서는 그
               결제를 끊지 않으므로 실제로 찾았을 때만 그 주문을 알리고, 고객이 확인했을 때만 닫는다(ADR-0030). 경고 글과 나눈 상자다. */}
           <CheckoutPendingOrderRelease causes={pendingOrderCauses} onReleased={retryAfterRelease} />
-          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
+          {/* 판매기간 밖 굿즈 안내(salePeriodNotice)가 떠 있으면 서버 재견적을 기다리지 않고 함께 잠근다 — 안내와 버튼이 어긋나지 않게(원장 재작업 후속 7). */}
+          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || Boolean(salePeriodNotice) || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
             {submitting
               ? '재고를 확인하는 중'
               : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}

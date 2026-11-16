@@ -9,6 +9,7 @@ import { NO_RETURN_PICKUP, type OrderReturnPickup } from '@/lib/orders/return-pi
 import { MypageShell } from '@/components/wc/MypageShell';
 import { EMPTY_GIFT_ADDRESS, GiftAddressFields, GiftItems, GiftRequestFeedback } from '@/components/gifts/GiftParts';
 import { useGiftRequest, useGiftUnsaved } from '@/components/gifts/useGiftRequest';
+import { customerConfirm } from '@/lib/customer-confirm';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { normalizeCheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
 import { couponDisplayState, type UserCouponSummary } from '@/lib/coupons';
@@ -90,9 +91,9 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext,
           {gift.isRecipient && shipment.extraTrackings?.length ? <dl><ShipmentExtraTrackings extraTrackings={shipment.extraTrackings.map((extra, index) => { const found = orderShipment(carriers, extra.carrier, extra.trackingNumber); return { id: `${shipment.id}:${index}`, carrier: extra.carrier, carrierLabel: found?.carrierLabel ?? extra.carrier, trackingNumber: extra.trackingNumber, trackingUrl: found?.trackingUrl ?? null }; })} /></dl> : null}</li>)}</ul>
       </section> : null}
       {initialClaimContext ? <GiftClaims actorId={actorId} orderId={receipt?.id} initialContext={initialClaimContext} returnPickup={returnPickup} /> : null}
-      {['awaiting_acceptance', 'accepted'].includes(gift.state) ? <section><h2>선물 관리</h2><button type="button" disabled={request.locked} onClick={() => {
-        if (!confirm('이 선물을 취소할까요? 아직 결제된 금액은 없어요.')) return;
+      {['awaiting_acceptance', 'accepted'].includes(gift.state) ? <section><h2>선물 관리</h2><button type="button" disabled={request.locked} onClick={async () => {
         const operationId = crypto.randomUUID(), revision = gift.revision;
+        if (!(await customerConfirm({ title: '이 선물을 취소할까요?', message: '아직 결제된 금액은 없어요.', confirmLabel: '선물 취소' }))) return;
         request.run(() => closeGiftAction(gift.id, revision, operationId, actorId), result => { applyGift(result.gift); setAddress({ ...EMPTY_GIFT_ADDRESS }); });
       }}>선물 취소</button></section> : null}
       <button type="button" disabled={request.pending || Boolean(request.failure?.uncertain)} onClick={reload}>최신 상태 확인</button>
