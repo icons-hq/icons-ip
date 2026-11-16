@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { isUuid } from '@/lib/uuid';
 import type { SubscriptionCard, SubscriptionResult } from '@/lib/subscriptions/customer';
 import { revokeSubscriptionCardAction } from '@/app/my/subscriptions/actions';
+import { customerConfirm } from '@/lib/customer-confirm';
 import { useSubscriptionRequest } from './useSubscriptionRequest';
 import { SubscriptionRequestFeedback } from './SubscriptionParts';
 type Registration = { id: string; state: string; fake?: boolean; customerKey?: string; clientKey?: string | null; successUrl?: string; failUrl?: string };
@@ -52,9 +53,9 @@ export function SubscriptionCards({ actorId, cards, canRegister, registrationId 
     {!request.blocked && <>
       {cards.length === 0 ? <p>등록한 결제카드가 없습니다.</p> : <ul className="wc-subscriptions__cards">{cards.map(card => <li key={card.id}>
         <div><strong>{card.number}</strong><p>{card.state === 'active' ? `연결된 정기구매 ${card.activePlanCount ?? 0}건` : card.state === 'revoking' ? '카드 삭제 확인 중' : '카드 상태 확인 필요'}</p></div>
-        <button type="button" disabled={request.locked || (card.activePlanCount ?? 0) > 0 || card.state === 'revoking'} onClick={() => {
-          if (!window.confirm('이 카드를 정기결제에서 삭제할까요? 이미 결제한 주문의 환불은 주문 내역에서 별도로 요청할 수 있어요.')) return;
+        <button type="button" disabled={request.locked || (card.activePlanCount ?? 0) > 0 || card.state === 'revoking'} onClick={async () => {
           const input = { expectedActorId: actorId, operationId: crypto.randomUUID(), credentialId: card.id, expectedRevision: card.revision };
+          if (!(await customerConfirm({ title: '이 카드를 정기결제에서 삭제할까요?', message: '이미 결제한 주문의 환불은 주문 내역에서 별도로 요청할 수 있어요.', confirmLabel: '카드 삭제' }))) return;
           request.run(() => revokeSubscriptionCardAction(input), value => { setMessage(value.state === 'revoked' ? '카드 삭제를 확인했습니다.' : '카드 삭제 결과를 확인하고 있습니다.'); router.refresh(); });
         }}>{card.state === 'needs_review' ? '삭제 다시 요청' : '카드 삭제'}</button>
       </li>)}</ul>}

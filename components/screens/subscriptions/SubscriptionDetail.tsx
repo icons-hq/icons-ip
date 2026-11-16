@@ -9,6 +9,7 @@ import { SubscriptionAddressFields, SubscriptionScheduleFields, SubscriptionRequ
 import { useSubscriptionRequest, useSubscriptionUnsaved } from '@/components/subscriptions/useSubscriptionRequest';
 import { changeGoodsSubscriptionStateAction, confirmGoodsSubscriptionAction, confirmGoodsSubscriptionChangeAction, prepareGoodsSubscriptionAction,
   prepareGoodsSubscriptionChangeAction, readGoodsSubscriptionAction } from '@/app/my/subscriptions/actions';
+import { customerConfirm } from '@/lib/customer-confirm';
 import { SUBSCRIPTION_PLAN_LABELS, SUBSCRIPTION_CYCLE_LABELS, SUBSCRIPTION_REASON_LABELS } from '@/lib/subscriptions/model';
 import type { GoodsSubscription, SubscriptionCard, SubscriptionChangeCommand, SubscriptionProposal, SubscriptionCyclePage } from '@/lib/subscriptions/customer';
 import type { SubscriptionSchedule } from '@/lib/subscriptions/schedule';
@@ -94,9 +95,11 @@ export function SubscriptionDetail({ actorId, initialPlan, cards, canRegister, n
         <p>결제가 시작되기 전 회차부터 중지합니다. 이미 결제가 시작된 회차는 결과를 계속 확인하며, 해당 주문의 취소는 주문 내역에서 별도로 요청할 수 있어요.</p>
         {pendingCycle && <p role="status">현재 회차 결제 결과를 확인 중입니다. 해지해도 이 회차의 환불이 자동 완료되지는 않습니다.</p>}
         <div className="wc-subscriptions__row">{(['pause', 'cancel'] as const).filter(value => value === 'cancel' || plan.state !== 'paused').map(value => <button type="button" key={value} disabled={request.locked}
-          onClick={() => {
-            if (!window.confirm(value === 'cancel' ? '정기구매를 해지할까요? 이미 생성된 주문은 주문 내역에서 따로 확인해주세요.' : '정기구매를 일시정지할까요?')) return;
+          onClick={async () => {
             const input = { expectedActorId: actorId, operationId: crypto.randomUUID(), planId: plan.id, expectedRevision: plan.revision, command: value };
+            if (!(await customerConfirm(value === 'cancel'
+              ? { title: '정기구매를 해지할까요?', message: '이미 생성된 주문은 주문 내역에서 따로 확인해주세요.', confirmLabel: '정기구매 해지' }
+              : { title: '정기구매를 일시정지할까요?', confirmLabel: '일시정지' }))) return;
             request.run(() => changeGoodsSubscriptionStateAction(input), accept);
           }}>{value === 'cancel' ? '정기구매 해지' : '일시정지'}</button>)}</div>
       </section>}
