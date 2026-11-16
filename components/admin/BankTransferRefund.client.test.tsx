@@ -168,3 +168,29 @@ it('환불 기록을 기다리는 동안 팝업에 처리 중을 알린다', asy
   pending.resolve({ error: '응답 유실', uncertain: true }); await flush();
   expect(busy).toHaveBeenLastCalledWith(false);
 });
+
+/* 원장 재작업 알려진 후속 2: 재고 부족 부분 취소 뒤의 송금액은 남은 잔액이고, 잔액 0원이면 송금 없이 닫힌다고 말한다. */
+it('부분 취소 뒤에는 주문 금액이 아니라 송금할 환불액(남은 잔액)을 보인다', async () => {
+  await mount({ ...context, amount: 12000, partialRefund: { refundedAmount: 9500, refundAmount: 2500 } });
+  expect(nodes.some(node => node.type === 'strong' && text(node) === '송금할 환불액: ₩2,500')).toBe(true);
+  expect(nodes.some(node => node.type === 'strong' && text(node).includes('환불 전액'))).toBe(false);
+  expect(nodes.some(node => node.props['data-bank-refund-partial'] === '' && text(node) === '앞선 재고 부족 부분 취소로 9,500원을 이미 환불했습니다. 송금할 환불액은 남은 잔액입니다.')).toBe(true);
+  expect(nodes.some(node => node.type === 'span' && text(node) === '등록된 환불계좌로 표시된 환불액(₩2,500)의 실제 송금이 완료된 것을 확인했습니다.')).toBe(true);
+});
+it('잔액 0원 취소 확정은 송금대기가 아니라 송금 없이 마친다고 안내한다', async () => {
+  const zero: BankRefundContext = { ...context, phase: 'not_confirmed', stage: 'processing', confirmedAt: null, filedAt: null, confirmBlocker: null,
+    fileBlocker: 'bank_refund_confirmation_required', completeBlocker: 'bank_refund_confirmation_required', amount: 12000,
+    partialRefund: { refundedAmount: 12000, refundAmount: 0 } };
+  await mount(zero);
+  expect(nodes.some(node => node.type === 'strong' && text(node) === '송금할 환불액: ₩0')).toBe(true);
+  expect(nodes.some(node => text(node) === '취소 확정 전')).toBe(true);
+  expect(nodes.some(node => node.props['data-bank-refund-partial'] === '' && text(node).includes('결제 12,000원을 모두 환불했습니다'))).toBe(true);
+  expect(nodes.some(node => node.type === 'span' && text(node) === '주문 전체의 취소 확정 근거를 확인했습니다. 재고를 복원하고, 돌려줄 잔액이 없어 송금 없이 환불 0원으로 마칩니다.')).toBe(true);
+  mocks.save.mockImplementation(async (original: BankRefundRequest) => ({ receipt: makeReceipt(original) }));
+  mocks.load.mockResolvedValue({ context: { ...zero, phase: 'completed', stage: 'completed', confirmedAt: FILED, confirmBlocker: 'bank_refund_payment_unavailable' } });
+  fill(); submit(); await flush();
+  expect(mocks.save.mock.calls[0][0].kind).toBe('confirm_cancellation');
+  expect(nodes.some(node => node.props.role === 'status' && text(node) === '취소를 확정하고 재고를 복원했습니다. 돌려줄 잔액이 없어 송금 없이 환불을 마쳤습니다.')).toBe(true);
+  expect(nodes.some(node => text(node) === '송금 없이 완료')).toBe(true);
+  expect(nodes.some(node => text(node).includes('송금대기로 남'))).toBe(false);
+});

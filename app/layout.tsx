@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { StoreAnalytics } from '@/components/shell/StoreAnalytics';
 import { MemberActivity } from '@/components/shell/MemberActivity';
 import { HashLanding } from '@/components/shell/HashLanding';
+import { CustomerConfirmHost } from '@/components/shell/CustomerConfirmHost';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 import './styles/wc-foundation.css';
@@ -110,6 +111,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Suspense fallback={null}><MemberActivity /></Suspense>
                 {/* 해시가 붙은 주소·링크의 대상을 고정 크롬 아래 착지선에 세운다 — 스트리밍으로 늦게 드러난 본문 포함. */}
                 <Suspense fallback={null}><HashLanding /></Suspense>
+                {/* 고객 화면 확인창(브라우저 기본 confirm() 대신, lib/customer-confirm.ts). 대화상자는 body 직계로 그린다. */}
+                <CustomerConfirmHost />
                 </StorePresentationProvider>
               </StaffPreviewAvailabilityProvider>
             </AuthPresenceProvider>

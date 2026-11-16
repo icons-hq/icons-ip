@@ -438,4 +438,53 @@ select pg_temp.pv_assert(not has_function_privilege('authenticated', 'private.or
  and not has_table_privilege('authenticated', 'private.order_v1_price_allocations', 'select')
  and not has_table_privilege('service_role', 'private.order_price_allocation_ledger', 'select'), 'v1_ledger_sealed');
 
+-- 8. 계정 삭제 법정 기록(원장 재작업 알려진 후속 3, 2026-11-16): 얼린 버전 1 배분과 재고 부족 부분 취소 기록이 함께 남는다 ----------------------
+--   전에는 품목 배분을 버전 2 표에서만 읽어 버전 1 주문의 배분이 비었고(null), 부분 취소 원장은 아예 담기지 않았다.
+--   구매자(user 2)의 계정 삭제 이벤트를 만들고 법정 기록 스냅숏을 바로 부른다(삭제 흐름의 다른 조건은 account_deletion_phase_one이 본다).
+insert into private.account_deletion_requests(deletion_event_id, subject_user_id, idempotency_key, status)
+ values (pg_temp.pv_id('deletion', 1), pg_temp.pv_id('user', 2), pg_temp.pv_id('deletion-key', 1), 'awaiting_email_intent');
+select private.snapshot_account_deletion_legal_records(pg_temp.pv_id('deletion', 1), pg_temp.pv_id('user', 2));
+create function pg_temp.pv_legal(kind text, ref uuid) returns jsonb language sql as $$
+ select snapshot_data from private.account_deletion_legal_snapshots
+ where deletion_event_id = pg_temp.pv_id('deletion', 1) and record_type = kind and record_ref = ref::text$$;
+-- 주문 3: 얼린 버전 1 배분(대상 쿠폰·적립금 몫)이 품목마다 실린다. 얼린 원장의 규칙 버전·입력 해시·배송 건 선결제 배송비도 함께 남는다.
+select pg_temp.pv_assert((select item->'allocation' = '{"calculationVersion": 1, "subtotal": 5000, "volumeDiscount": 0, "netSubtotal": 5000, "couponDiscount": 0,
+     "storeCreditDiscount": 149, "paidGoodsTotal": 4851}'::jsonb
+   from jsonb_array_elements(pg_temp.pv_legal('order', pg_temp.pv_id('order', 3))->'items') item where item->>'goodRef' = 'partial-cancel-v1-c')
+ and (select item#>>'{allocation,paidGoodsTotal}' = '18433' from jsonb_array_elements(pg_temp.pv_legal('order', pg_temp.pv_id('order', 3))->'items') item
+   where item->>'goodRef' = 'partial-cancel-v1-a')
+ and pg_temp.pv_legal('order', pg_temp.pv_id('order', 3))->'allocationLedger' @> jsonb_build_object('sourceCalculationVersion', 1,
+   'ruleVersion', (select rule_version from private.order_v1_price_allocation_heads where order_id = pg_temp.pv_id('order', 3)),
+   'inputHash', (select input_hash from private.order_v1_price_allocation_heads where order_id = pg_temp.pv_id('order', 3)))
+ and jsonb_array_length(pg_temp.pv_legal('order', pg_temp.pv_id('order', 3))#>'{allocationLedger,shipments}') = 2
+ -- 얼리지 않은 버전 1 주문(2)은 배분 원장이 없다고 남긴다(null) — 지어내지 않는다.
+ and pg_temp.pv_legal('order', pg_temp.pv_id('order', 2))->'allocationLedger' = 'null'::jsonb,
+ 'legal_order_carries_frozen_v1_allocation');
+-- 부분 취소 기록: 주문 1의 토스 두 건(결제사 확인), 주문 3 한 건, 주문 4의 무통장 두 건(송금 대기). 금액·품목·닫힌 배송 건·적립금 되돌림이 원장과 같다.
+select pg_temp.pv_assert((select count(*) = 5 from private.account_deletion_legal_snapshots
+   where deletion_event_id = pg_temp.pv_id('deletion', 1) and record_type = 'order_partial_cancellation')
+ and (select bool_and(s.legal_basis = 'ecommerce_transaction_v1' and s.retain_until = c.created_at + interval '5 years'
+     and s.snapshot_data @> jsonb_build_object('partialCancellationRef', c.id, 'orderRef', c.order_id, 'paymentRef', c.payment_id, 'sequence', c.sequence,
+       'provider', c.provider, 'state', c.state, 'reasonCode', c.reason_code, 'refundAmount', c.refund_amount, 'goodsRefundAmount', c.goods_refund_amount,
+       'shippingRefundAmount', c.shipping_refund_amount, 'storeCreditRestoreAmount', c.store_credit_restore_amount, 'balanceBefore', c.balance_before)
+     -- 보존 정책: 자유서술(고객 결정 요약·운영 메모·송금 증빙)·처리자·계좌는 법정 기록에 남기지 않는다.
+     and not (s.snapshot_data ?| array['note', 'customerDecision', 'createdBy', 'transferEvidence']) and not (s.snapshot_data::text like '%000000001234%')
+     and not (s.snapshot_data::text like '%' || c.customer_decision || '%'))
+   from private.account_deletion_legal_snapshots s join private.order_partial_cancellations c on c.id::text = s.record_ref
+   where s.deletion_event_id = pg_temp.pv_id('deletion', 1) and s.record_type = 'order_partial_cancellation'), 'legal_partial_cancellations_match_ledger');
+select pg_temp.pv_assert((select p->'items' = jsonb_build_array(jsonb_build_object('orderItemRef', pg_temp.pv_id('item-a', 1), 'qty', 1, 'goodsRefundAmount', 9143,
+     'grossAmount', 10000, 'couponDiscount', 285, 'storeCreditDiscount', 571, 'volumeDiscount', 0))
+   and p->'closedShipments' = '[]'::jsonb and p->>'providerConfirmedAt' is not null and p->'transfer' = 'null'::jsonb
+  from (select pg_temp.pv_legal('order_partial_cancellation', (pg_temp.pv_head(1)).id) p) s)
+ and (select p->'closedShipments' = jsonb_build_array(jsonb_build_object('shipmentRef', pg_temp.pv_id('shipment-2', 1), 'shippingFeeRefund', 3000))
+  from (select pg_temp.pv_legal('order_partial_cancellation', (pg_temp.pv_head(2)).id) p) s)
+ and (select p->>'state' = 'awaiting_transfer' and p->'transfer' = 'null'::jsonb and p->>'filedAt' is not null
+  from (select pg_temp.pv_legal('order_partial_cancellation', (pg_temp.pv_head(4)).id) p) s), 'legal_partial_cancellation_details');
+-- 다시 불러도(삭제 흐름 재시도) 같은 기록 하나다.
+select private.snapshot_account_deletion_legal_records(pg_temp.pv_id('deletion', 1), pg_temp.pv_id('user', 2));
+select pg_temp.pv_assert((select count(*) = 5 from private.account_deletion_legal_snapshots
+   where deletion_event_id = pg_temp.pv_id('deletion', 1) and record_type = 'order_partial_cancellation'), 'legal_partial_cancellation_snapshot_idempotent');
+select pg_temp.pv_assert(not has_function_privilege('authenticated', 'private.snapshot_order_partial_cancellations(uuid,uuid)', 'execute')
+ and not has_function_privilege('service_role', 'private.snapshot_order_partial_cancellations(uuid,uuid)', 'execute'), 'legal_partial_cancellation_snapshot_sealed');
+
 rollback;

@@ -96,6 +96,13 @@ describe('확정 영수증', () => {
     expect(parsePreorderScheduleChange(json({ ...change, targets: [{ ...change.targets[0], smsStatus: 'teleported' }] }))).toBeNull();
     expect(parsePreorderScheduleChange(json({ ...change, targets: [{ ...change.targets[0], shipments: [] }] }))).toBeNull();
     expect(parsePreorderScheduleChange(json({ ...change, policyAction: 'ignored' }))).toBeNull();
+    // 조건상 제외 건수(원장 재작업 후속 5): 2026-11-16 뒤 기록은 숫자, 전 기록은 null·없음 — 둘 다 읽고, 모양이 틀리면 버린다.
+    expect(parsePreorderScheduleChange(json({ ...change, conditionExcludedCount: 4 }))?.conditionExcludedCount).toBe(4);
+    const legacy: Record<string, unknown> = { ...change };
+    delete legacy.conditionExcludedCount;
+    expect(parsePreorderScheduleChange(json(legacy))?.conditionExcludedCount).toBeNull();
+    expect(parsePreorderScheduleChange(json({ ...change, conditionExcludedCount: -1 }))).toBeNull();
+    expect(parsePreorderScheduleChange(json({ ...change, conditionExcludedCount: '4' }))).toBeNull();
     expect(parsePreorderScheduleChange(json({ ...change, targets: [{ ...change.targets[0],
       shipments: [{ ...change.targets[0].shipments[0], noticeOnly: true }] }, ...change.targets.slice(1)] }))).toBeNull();
     expect(parsePreorderScheduleChange(json({ ...change, policyAction: 'replaced', policies: [{ variantName: '기본 옵션', expectedShipDate: '2026-12-02', newPolicyId: scheduleIds.policy }] })))

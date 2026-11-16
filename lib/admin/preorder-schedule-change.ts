@@ -149,6 +149,11 @@ export interface PreorderScheduleChange {
   shipmentCount: number;
   orderCount: number;
   excludedCount: number;
+  /**
+   * 확정 때 계획의 '바꾸지 않는 배송 건'(조건상 제외) 합계. 2026-11-16 전 기록은 남기지 않아 null이다(그때는 선택 해제 건만 안다).
+   * 확정 직후 결과와 발송관리 이력에서 연 결과가 같은 합계를 보이게 하는 값이다.
+   */
+  conditionExcludedCount: number | null;
   /** 접수 중 예약 조건을 새 날짜로 바꿨는지(replaced), 그대로 두기로 확인했는지(acknowledged). 해당 없으면 null. */
   policyAction: 'replaced' | 'acknowledged' | null;
   policies: { variantName: string; expectedShipDate: string }[];
@@ -322,6 +327,8 @@ export function parsePreorderScheduleChange(value: unknown): PreorderScheduleCha
     || !optionalInstant(value.requestedAt) || typeof value.emailEnabled !== 'boolean' || typeof value.smsQueued !== 'boolean'
     || !count(value.shipmentCount) || value.shipmentCount < 1 || !count(value.orderCount) || value.orderCount < 1
     || !count(value.excludedCount, Number.MAX_SAFE_INTEGER)
+    /* 조건상 제외 건수는 2026-11-16 이후 기록에만 있다. 없거나 null이면 알 수 없음(null)으로 읽는다. */
+    || (value.conditionExcludedCount !== undefined && value.conditionExcludedCount !== null && !count(value.conditionExcludedCount, Number.MAX_SAFE_INTEGER))
     || (value.policyAction !== null && value.policyAction !== 'replaced' && value.policyAction !== 'acknowledged')) return null;
   const targets = parseList(value.targets, parseChangeTarget, PREORDER_SCHEDULE_LIMIT * 2);
   const policies = parseList(value.policies, (row) => object(row) && text(row.variantName) && isGoodsShipDate(row.expectedShipDate)
@@ -332,7 +339,8 @@ export function parsePreorderScheduleChange(value: unknown): PreorderScheduleCha
     expectedShipDate: value.expectedShipDate, reason: value.reason, title: value.title, customerBody: value.customerBody,
     actorName: value.actorName as string | null, createdAt: value.createdAt, noticeId: value.noticeId, requestedAt: value.requestedAt as string | null,
     emailEnabled: value.emailEnabled, smsQueued: value.smsQueued, shipmentCount: value.shipmentCount, orderCount: value.orderCount,
-    excludedCount: value.excludedCount, policyAction: value.policyAction as PreorderScheduleChange['policyAction'], policies, targets,
+    excludedCount: value.excludedCount, conditionExcludedCount: typeof value.conditionExcludedCount === 'number' ? value.conditionExcludedCount : null,
+    policyAction: value.policyAction as PreorderScheduleChange['policyAction'], policies, targets,
   };
 }
 

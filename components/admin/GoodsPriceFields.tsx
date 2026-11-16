@@ -7,6 +7,7 @@ import { AdminField, AdminNotice } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GoodAmountField, GoodChoiceGroup, GoodChoiceOption } from './GoodEditorParts';
+import { StableNumberInput } from './StableNumberInput';
 
 const RATE_HINT = '즉시할인(기간 포함)과 기간 할인·할인 프로모션에 모두 적용됩니다. 숨김이면 취소선·할인율 없이 결제 금액만 보이며, 결제 금액은 바뀌지 않습니다.';
 /* ADM-004 #74: 두 문장. 서버는 판매가·할인가만 저장해 할인 단위가 남지 않으므로 다시 열면 원으로 보인다. */
@@ -67,7 +68,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
   return <div className="flex min-w-0 flex-col gap-5" data-good-price-editor="">
     <AdminField inputId="goods-regular-price" label={`${ADMIN_VOCABULARY.salePrice} (필수)`} hint="할인 전 가격입니다. 옵션가는 이 금액(기간 없이 할인하면 할인가)에 더합니다." error={regularError}>
       <GoodAmountField unit="원">
-        <input ref={regularRef} className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-regular-price" name="regularPrice" type="number" min={0} max={2147483647} step={1} inputMode="numeric" placeholder="0"
+        <StableNumberInput ref={regularRef} className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-regular-price" name="regularPrice" min={0} max={2147483647} step={1} inputMode="numeric" placeholder="0"
           aria-describedby={`goods-regular-price-hint${regularError ? ' goods-regular-price-error' : ''}`} aria-invalid={regularError ? 'true' : undefined}
           value={draft.regularPrice} onChange={(event) => change({ regularPrice: event.target.value })} />
       </GoodAmountField>
@@ -93,7 +94,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
       <div className={GOOD_SUBPANEL_CLASS} data-good-price-discount="" hidden={discountOff}>
         <AdminField inputId="goods-discount-value" label="할인 금액 또는 할인율" hint={DISCOUNT_HINT} error={discountError}>
           <GoodAmountField>
-            <input ref={discountRef} className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-discount-value" name="discountValue" type="number" step="any" min={0} inputMode="decimal" disabled={discountOff || locked}
+            <StableNumberInput ref={discountRef} className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-discount-value" name="discountValue" step="any" min={0} inputMode="decimal" disabled={discountOff || locked}
               aria-describedby={`goods-discount-value-hint${discountError ? ' goods-discount-value-error' : ''}`} aria-invalid={discountError ? 'true' : undefined}
               value={draft.discountValue} onChange={(event) => change({ discountValue: event.target.value })} />
             <NativeSelect aria-label="할인 단위" className="w-20 shrink-0" name="discountUnit" disabled={discountOff || locked} value={draft.discountUnit} onChange={(event) => change({ discountUnit: event.target.value === 'percent' ? 'percent' : 'won' })}>

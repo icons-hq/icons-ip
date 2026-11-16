@@ -149,8 +149,19 @@ describe('예약 일정 일괄 변경 결과', () => {
     const html = renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange()} context={context} />);
     expect(html).toContain('바꾸지 않은 배송 건은 5건입니다 (조건상 제외 4건 · 선택 해제 1건).');
     expect(html).not.toContain('제외한 배송 건');
-    /* 이력에서 연 결과는 선택을 해제한 건만 안다. */
+    /* 조건상 제외 건수를 남기기 전(2026-11-16 전) 기록을 이력에서 열면 선택을 해제한 건만 안다. */
     expect(renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange()} />)).toContain('바꾸지 않은 배송 건은 1건입니다 (확정 때 선택을 해제한 배송 건).');
+  });
+  it('이력에서 연 결과도 확정 기록의 조건상 제외 건수로 확정 직후와 같은 합계를 보인다(원장 재작업 후속 5)', () => {
+    const recorded = scheduleChange({ conditionExcludedCount: 4 });
+    const fromHistory = renderToStaticMarkup(<PreorderScheduleResultView change={recorded} />);
+    const afterApply = renderToStaticMarkup(<PreorderScheduleResultView change={recorded} context={{ excludedTotal: 4, canReplacePolicies: true, policyBlocked: false }} />);
+    expect(fromHistory).toContain('바꾸지 않은 배송 건은 5건입니다 (조건상 제외 4건 · 선택 해제 1건).');
+    expect(afterApply).toContain('바꾸지 않은 배송 건은 5건입니다 (조건상 제외 4건 · 선택 해제 1건).');
+    /* 기록이 있으면 확정 때 값이 진실이다(미리보기와 확정 사이에 바뀐 건이 있어도 기록을 따른다). */
+    expect(renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange({ conditionExcludedCount: 3 })} context={{ excludedTotal: 4, canReplacePolicies: true, policyBlocked: false }} />))
+      .toContain('바꾸지 않은 배송 건은 4건입니다 (조건상 제외 3건 · 선택 해제 1건).');
+    expect(renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange({ conditionExcludedCount: 0, excludedCount: 0 })} />)).not.toContain('바꾸지 않은 배송 건');
   });
   it('접수 중 조건을 못 바꾼 결과 안내는 보는 사람(주매니저 본인인지)에 맞는다(QA2b)', () => {
     const policies = [{ variantName: '기본 옵션', expectedShipDate: '2026-12-02' }];

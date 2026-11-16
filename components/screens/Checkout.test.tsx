@@ -66,6 +66,13 @@ const goods: Good[] = [
     options: [{id:'00000000-0000-4000-8000-000000000015',name:'랜덤',price:5000,stockQty:6,code:'',isDefault:true,attributes:{},orderMaxQty:null,memberMaxQty:null}],
     img: 'none',
   },
+  /* 원장 재작업 후속 7: 판매기간이 끝난 굿즈(카탈로그 판정 ended). */
+  {
+    id: 'g17', name: '판매 끝난 스티커', ip: 'hong-sil-quest', type: '스티커', price: 5000, badge: null, stock: 'ok', stockQty: 9,
+    options: [{id:'00000000-0000-4000-8000-000000000018',name:'기본 옵션',price:5000,stockQty:9,code:'G17',isDefault:true,attributes:{}}],
+    img: 'none',
+    salePeriod: { startsAt: '2026-01-01T00:00:00Z', endsAt: '2026-02-01T00:00:00Z', state: 'ended', calculatedAt: '2026-03-01T00:00:00Z', nextChangeAt: null },
+  },
   /* D7② 옵션별 구매 제한. */
   {
     id: 'g16', name: '아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 7000, badge: null, stock: 'ok', stockQty: 9,
@@ -514,4 +521,45 @@ it('판매기간이 끝난 굿즈는 그 굿즈와 이유를 한 번 말하고 �
   } finally {
     goods[0].salePeriod = original;
   }
+});
+
+describe('Checkout 판매기간이 끝난 굿즈가 섞인 주문서(원장 재작업 후속 7)', () => {
+  it('결제 금액처럼 굿즈 금액·쿠폰·배송비 줄도 그 굿즈를 포함한 금액을 보이지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, items: [
+      { goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 },
+      { goodId: 'g17', variantId: '00000000-0000-4000-8000-000000000018', qty: 1 },
+    ] });
+    const totals = html.match(/<dl class="checkout-totals">[\s\S]*?<\/dl>/)?.[0] ?? '';
+    expect(totals).not.toBe('');
+    /* 서버 견적 굿즈 금액 17,000원·배송비 3,000원은 끝난 굿즈를 포함한 값이다 — 어느 줄에도 금액으로 남지 않는다. */
+    expect(totals).not.toContain('₩');
+    expect(totals.match(/주문할 수 없는 굿즈를 뺀 뒤 표시/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(html).toContain('판매기간이 끝나 지금은 주문할 수 없어요');
+    expect(submitButton(html)).toContain('disabled');
+  });
+  it('배송 묶음 안내의 배송비·무료까지 남은 금액도 그 굿즈를 뺀 뒤 표시한다', () => {
+    const group = { originId: '00000000-0000-4000-8000-000000042201', originCode: 'gimpo', originName: '김포', policySubtotal: 17000, baseFee: 3000,
+      freeThreshold: 50000, policyFee: 3000, individualFee: 0, totalFee: 3000, regionMode: 'legacy_base_only' as const, regionStatus: 'unconfigured' as const,
+      regionalContractFee: null, regionalFee: 0, finalFee: 3000, policyId: null, policyVersion: null, ruleId: null, regionLabel: null,
+      carrierCode: 'hanjin', carrierLabel: '한진택배', feeUnit: null, unitCount: 0, destinationPostalCode: null, matchedAddressPrefix: null };
+    const shipping = { totalFee: 3000, finalTotalFee: 3000, checkoutAllowed: true, destination: null, nextChangeAt: null, groups: [group] };
+    const ended = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping }, items: [
+      { goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 },
+      { goodId: 'g17', variantId: '00000000-0000-4000-8000-000000000018', qty: 1 },
+    ] });
+    const section = ended.match(/<section class="wc-shipping-group"[\s\S]*?<\/section>/)?.[0] ?? '';
+    expect(section).toContain('<h3>한진택배 배송</h3>');
+    expect(section).toContain('배송비 주문할 수 없는 굿즈를 뺀 뒤 표시');
+    expect(section).not.toContain('₩');
+    expect(section).not.toContain('더 담으면');
+    const open = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping } });
+    expect(open.match(/<section class="wc-shipping-group"[\s\S]*?<\/section>/)?.[0]).toContain('배송비 ₩3,000');
+  });
+  it('판매 중인 굿즈만 있으면 지금처럼 금액을 보인다', () => {
+    const totals = render({ paymentAvailable: true, bankTransferAvailable: true }).match(/<dl class="checkout-totals">[\s\S]*?<\/dl>/)?.[0] ?? '';
+    expect(totals).toContain('₩12,000');
+    expect(totals).toContain('₩3,000');
+    expect(totals).toContain('₩15,000');
+    expect(totals).not.toContain('주문할 수 없는 굿즈를 뺀 뒤 표시');
+  });
 });
