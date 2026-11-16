@@ -457,8 +457,8 @@ select pg_temp.pv_assert((select item->'allocation' = '{"calculationVersion": 1,
    'ruleVersion', (select rule_version from private.order_v1_price_allocation_heads where order_id = pg_temp.pv_id('order', 3)),
    'inputHash', (select input_hash from private.order_v1_price_allocation_heads where order_id = pg_temp.pv_id('order', 3)))
  and jsonb_array_length(pg_temp.pv_legal('order', pg_temp.pv_id('order', 3))#>'{allocationLedger,shipments}') = 2
- -- 얼리지 않은 버전 1 주문(2)은 배분 원장이 없다고 남긴다(null) — 지어내지 않는다.
- and pg_temp.pv_legal('order', pg_temp.pv_id('order', 2))->'allocationLedger' = 'null'::jsonb,
+ -- 얼리지 않은 버전 1 주문(2)은 배분 원장 키를 남기지 않는다(지어내지 않고, 기존 주문 기록 모양 그대로).
+ and not (pg_temp.pv_legal('order', pg_temp.pv_id('order', 2)) ? 'allocationLedger'),
  'legal_order_carries_frozen_v1_allocation');
 -- 부분 취소 기록: 주문 1의 토스 두 건(결제사 확인), 주문 3 한 건, 주문 4의 무통장 두 건(송금 대기). 금액·품목·닫힌 배송 건·적립금 되돌림이 원장과 같다.
 select pg_temp.pv_assert((select count(*) = 5 from private.account_deletion_legal_snapshots

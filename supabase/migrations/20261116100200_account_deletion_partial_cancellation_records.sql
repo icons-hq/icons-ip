@@ -7,7 +7,8 @@
 --
 -- 바꾸는 것
 --  1. 주문 기록의 품목 배분은 배분 원장 읽기(private.order_price_allocation_ledger = 버전 2 ∪ 얼린 버전 1)에서 읽는다.
---     얼린 버전 1이면 그 원장의 규칙 버전·입력 해시·얼린 시각·배송 건 선결제 배송비(allocationLedger)를 함께 남긴다. 없으면 null.
+--     얼린 버전 1이면 그 원장의 규칙 버전·입력 해시·얼린 시각·배송 건 선결제 배송비(allocationLedger)를 함께 남긴다.
+--     얼린 배분이 없는 주문은 키를 넣지 않는다 — 기존 주문 기록의 허용 목록·최소 모양(account_deletion_phase_one)을 그대로 둔다.
 --  2. 새 기록 종류 order_partial_cancellation: 부분 취소마다 금액(결제 몫·배송비·적립금 되돌림)·품목·닫힌 배송 건·결제사 확인·송금 시각을
 --     남긴다. 보존 정책(docs/account-deletion-retention-policy.md)대로 자유서술(고객 결정 요약·운영 메모·송금 증빙/메모)과 처리자 식별자,
 --     환불계좌는 남기지 않는다(계좌는 별도 원장에서 30일 뒤 파기). 사유는 정규화 코드(reason_code)만 남긴다.
@@ -57,14 +58,17 @@ do $patch$
 declare definition text; pair text[]; replacements text[][] := array[
   array[$old$from private.order_price_allocations a where a.order_item_id=item.id and a.order_id=order_record.id)$old$,
         $new$from private.order_price_allocation_ledger a where a.order_item_id=item.id and a.order_id=order_record.id)$new$],
-  array[$old$'calculationVersion',order_record.calculation_version,'volumeDiscount',order_record.volume_discount_total,$old$,
-        $new$'calculationVersion',order_record.calculation_version,
-      'allocationLedger',(select jsonb_build_object('sourceCalculationVersion',h.source_calculation_version,'ruleVersion',h.rule_version,
-       'inputHash',h.input_hash,'frozenAt',h.frozen_at,'paymentAmount',h.payment_amount,'paidGoodsTotal',h.paid_goods_total,'shippingTotal',h.shipping_total,
+  array[$old$    ),
+    'ecommerce_transaction_v1',
+    order_record.created_at + interval '5 years'$old$,
+        $new$    ) || coalesce((select jsonb_build_object('allocationLedger',jsonb_build_object('sourceCalculationVersion',h.source_calculation_version,
+       'ruleVersion',h.rule_version,'inputHash',h.input_hash,'frozenAt',h.frozen_at,'paymentAmount',h.payment_amount,'paidGoodsTotal',h.paid_goods_total,
+       'shippingTotal',h.shipping_total,
        'shipments',coalesce((select jsonb_agg(jsonb_build_object('shipmentRef',v.shipment_id,'prepaidShippingFee',v.prepaid_shipping_fee) order by v.shipment_id)
-        from private.order_v1_shipment_allocations v where v.order_id=order_record.id),'[]'::jsonb))
-       from private.order_v1_price_allocation_heads h where h.order_id=order_record.id),
-      'volumeDiscount',order_record.volume_discount_total,$new$],
+        from private.order_v1_shipment_allocations v where v.order_id=order_record.id),'[]'::jsonb)))
+       from private.order_v1_price_allocation_heads h where h.order_id=order_record.id),'{}'::jsonb),
+    'ecommerce_transaction_v1',
+    order_record.created_at + interval '5 years'$new$],
   array[$old$perform private.snapshot_order_fulfillment_contracts(p_deletion_event_id,p_user_id);$old$,
         $new$perform private.snapshot_order_fulfillment_contracts(p_deletion_event_id,p_user_id);
  perform private.snapshot_order_partial_cancellations(p_deletion_event_id,p_user_id);$new$]
