@@ -342,7 +342,13 @@ describe('홈 (X SQUARE Figma Main Page · 11 HM-05·07)', () => {
   /* review-b m3·M2 — 묶음이 overflow:hidden 이라 프로모션 카드의 바깥 포커스 링(offset 2px, wc-popups.css)은 위·좌·우가 잘린다.
      링을 안쪽에 그리고(스트립 배너와 같은 -4px), 다른 화면의 PromoCard 는 건드리지 않으려고 묶음 안에서만 바꾼다. 행 할인율은 카드 가격 줄과 같은 빨강이다. */
   it('ICONS PICK 프로모션 카드의 포커스 링은 묶음 안에 그려 잘리지 않고, 행 할인율은 판매 빨강이다', () => {
-    expect(decls(HOME, '.wc-x-pick .wc-x-pick__promo:focus-visible')['outline-offset']).toBe('-4px');
+    /* 안쪽 outline 은 카드의 그림·글 층 아래에 칠해져 보이지 않는다(재검증 F1) — 링은 맨 위 층 ::before 에 그린다. */
+    expect(decls(HOME, '.wc-x-pick .wc-x-pick__promo:focus-visible').outline).toBe('none');
+    const ring = decls(HOME, '.wc-x-pick .wc-x-pick__promo:focus-visible::before');
+    expect(ring.position).toBe('absolute');
+    expect(Number(ring['z-index'])).toBeGreaterThan(2);
+    expect(ring.border).toBe('2px solid var(--wc-focus)');
+    expect(ring['pointer-events']).toBe('none');
     expect(read('./styles/wc-popups.css')).not.toMatch(/\.wc-x-pick/);
     const rate = decls(HOME, '.wc-x-pick__rate');
     expect(rate.color).toBe('var(--wc-x-sale)');

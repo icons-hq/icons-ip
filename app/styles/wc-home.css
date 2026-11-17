@@ -509,9 +509,23 @@
 }
 
 /* 묶음이 overflow:hidden 이라 프로모션 카드의 바깥 포커스 링(wc-popups.css, offset 2px)은 위·좌·우가 잘리고, 상품 행이 없으면 아래까지 잘려
-   포커스 표시가 사라진다. 스트립 배너와 같은 방식으로 링을 안쪽에 그린다. PromoCard 는 다른 화면에서도 쓰이므로 이 묶음 안에서만 바꾼다. */
+   포커스 표시가 사라진다. 안쪽 outline(-4px)은 카드가 isolation 으로 만든 층 안에서 그림(art)·글(body, z 2) 아래에 칠해져 보이지 않으므로,
+   링을 맨 위 층(::before, z 3 — ::after 는 그라데이션이 쓴다)에 그린다. PromoCard 는 다른 화면에서도 쓰이므로 이 묶음 안에서만 바꾼다. */
 .wc-x-pick .wc-x-pick__promo:focus-visible {
-  outline-offset: -4px;
+  outline: none;
+}
+
+.wc-x-pick .wc-x-pick__promo:focus-visible::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: 3;
+  border: 2px solid var(--wc-focus);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .wc-x-pick .wc-x-pick__promo:focus-visible::before { border-color: Highlight; }
 }
 
 /* 상품 영역 패딩 20/20/21/20. 행 사이는 18 + 1px 선 + 18 이다. */
