@@ -119,6 +119,10 @@ const catalog = [
   sql('category_display_compositions', { admin: true, kc: true }),
   sql('category_display_tree', { admin: true, kc: true }),
   sql('category_display_menu', { admin: true, kc: true }),
+  // 목록 정렬 3종(인기도·판매량·리뷰 많은순)과 BEST 기간 판매 랭킹(스펙 C §4.1): 홈 판매 BEST와 같은 집계 규칙, id 배열만 공개.
+  sql('goods_listing_orders', { kc: true }),
+  // 카테고리 전시 목록 정렬 10종(인기도·판매량·리뷰 많은순 추가, 스펙 C §4.2): 원수치 순서·구성 순서 동률·거절 이름.
+  sql('category_display_listing_sorts', { kc: true }),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),
   // 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값(SHEET-003·ADR-0037). 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
   sql('goods_type_from_category', { kc: true }),
@@ -224,6 +228,8 @@ const storefront = [
   sql('checkout_unpaid_coupon_handoff', { admin: true, kc: true }),
   sql('home_collection_banners', { admin: true }),
   sql('ip_hall_banners', { admin: true }),
+  // 캠페인 노출 설정(스펙 C §4.3): EVENT·POP-UP 구분·장소·카드 바로가기. 쓰기는 RPC 하나, draft 캠페인의 행은 비공개, id 변경·삭제는 행이 따라간다.
+  sql('campaign_presentations'),
   // 예전 story/marketing 단계의 쇼핑 스토리·마케팅·상품 상세 연출·리뷰 이벤트다.
   sql('shopping_stories', { kc: true }),
   sql('shopping_story_goods_picker', { kc: true }),

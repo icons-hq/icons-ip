@@ -162,7 +162,7 @@ do $$declare page jsonb;facets jsonb;begin
  page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["기타"]}'));
  perform pg_temp.cm_assert(page->>'filteredTotal'='1' and pg_temp.cm_page_ids(page)=array['cm-menu-g-5'],'기타 filters its goods');
  begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["피규어","인형","키링","아크릴","문구","쿠션","파우치","세트","기타","예약판매","피규어"]}'));raise exception 'eleven type values accepted';exception when invalid_parameter_value then null;end;
- begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"sort":"sales"}'));raise exception 'unknown sort accepted';exception when invalid_parameter_value then null;end;
+ begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"sort":"rating"}'));raise exception 'unknown sort accepted';exception when invalid_parameter_value then null;end;
  begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["중고"]}'));raise exception 'unknown type accepted';exception when invalid_parameter_value then null;end;
  -- 수동 전시의 동률·정렬도 같은 규칙이다(가격 동률 없음 — 이름순만 확인).
  page:=public.get_category_display_page(pg_temp.cm_id(24),pg_temp.cm_query('{"sort":"name_asc"}'));
