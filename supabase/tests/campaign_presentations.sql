@@ -3,6 +3,7 @@
 -- 고정하는 것: 쓰기 경로는 RPC 하나뿐(테이블 직접 쓰기 불가)·ACL, promotion.manage 권한 판정(고객·멤버십 없는 staff 프로필·물류 매니저 거절),
 -- 값 정리·모두 비면 삭제·형식 위반(22023)·캠페인 없음(P0002), 감사 기록 전후 값, draft 캠페인의 행은 비공개,
 -- 캠페인 id 가 바뀌면 행이 따라가고 캠페인이 지워지면 행도 지워지는 것, admin_upsert_campaign 은 id 를 바꾸지 못하는 것.
+-- PR2 리뷰 C m1·m2: 공개 열 다섯 개만 열 단위로 읽히고(updated_by 비공개), 바로가기에는 점 조각·역슬래시가 못 들어온다.
 begin;
 
 create function pg_temp.cp_assert(ok boolean, label text) returns void language plpgsql as $$
@@ -37,12 +38,17 @@ select pg_temp.cp_assert(
  and not has_function_privilege('anon', 'public.admin_save_campaign_presentation(text,text,text,text)', 'execute')
  and not has_function_privilege('service_role', 'public.admin_save_campaign_presentation(text,text,text,text)', 'execute'),
  'save RPC is for signed-in operators only');
+-- 읽기는 공개 열 다섯 개만 열 단위로 열려 있다(표 전체 SELECT 없음): 운영자 식별자 updated_by 는 비회원·고객에게 읽히지 않는다.
 select pg_temp.cp_assert(
- has_table_privilege('anon', 'public.campaign_presentations', 'select') and has_table_privilege('authenticated', 'public.campaign_presentations', 'select')
+ (select bool_and(has_column_privilege(r, 'public.campaign_presentations', c, 'select'))
+  from unnest(array['anon', 'authenticated']) r cross join unnest(array['campaign_id', 'popup_mode', 'popup_location', 'card_link_path', 'updated_at']) c)
+ and (select bool_and(not has_column_privilege(r, 'public.campaign_presentations', 'updated_by', 'select') and not has_table_privilege(r, 'public.campaign_presentations', 'select'))
+  from unnest(array['anon', 'authenticated']) r)
  and not has_table_privilege('service_role', 'public.campaign_presentations', 'select')
+ and not has_column_privilege('service_role', 'public.campaign_presentations', 'updated_by', 'select')
  and (select bool_and(not has_table_privilege(r, 'public.campaign_presentations', p))
    from unnest(array['anon', 'authenticated', 'service_role']) r cross join unnest(array['insert', 'update', 'delete', 'truncate']) p),
- 'table is public read only and has no application write path');
+ 'table is public read only on its public columns and has no application write path');
 select pg_temp.cp_assert((select relrowsecurity from pg_class where oid = 'public.campaign_presentations'::regclass), 'row level security is on');
 select pg_temp.cp_assert(exists(select 1 from private.operator_rpc_contracts where signature = 'public.admin_save_campaign_presentation(text,text,text,text)'
   and capability = 'promotion.manage' and guard_kind = 'write')
@@ -121,6 +127,26 @@ select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, 'javasc
 select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, 'ip/hong-sil-quest')$q$, '22023', 'relative path without a leading slash');
 select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/\evil.example')$q$, '22023', 'backslash after the slash');
 select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a b')$q$, '22023', 'whitespace inside the path');
+-- 점 조각(경로 부분의 `.`·`..` 세그먼트, 퍼센트 인코딩 포함)과 역슬래시는 `//외부호스트` 로 정규화되므로 거절한다.
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/..//evil.example')$q$, '22023', 'dot segment hiding a double slash');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/.//evil.example')$q$, '22023', 'single dot segment hiding a double slash');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a/../b')$q$, '22023', 'dot dot segment in the middle');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a/./b')$q$, '22023', 'dot segment in the middle');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a/..')$q$, '22023', 'trailing dot dot segment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a/.')$q$, '22023', 'trailing dot segment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/.')$q$, '22023', 'root dot segment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/..?x=1')$q$, '22023', 'dot dot segment before the query');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a/..#top')$q$, '22023', 'dot dot segment before the fragment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/%2e%2e//evil.example')$q$, '22023', 'encoded dot dot segment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a/%2E/b')$q$, '22023', 'encoded dot segment, upper case');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a/.%2e/b')$q$, '22023', 'mixed dot dot segment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a\b')$q$, '22023', 'backslash inside the path');
+-- 점이 든 평범한 경로·쿼리·해시는 통과한다(점 조각만 거절한다).
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/.well-known/x')$q$, 'ok', 'a dot file name is not a dot segment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/a...b/c.d/..e/f..')$q$, 'ok', 'dots inside names are fine');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/.../x')$q$, 'ok', 'three dots is a plain segment');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/search?q=a/../b#c/./d')$q$, 'ok', 'dot segments after ? or # are not path segments');
+select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/shop?displayCategory=0d2c1c1f-0000-4000-8000-000000000000&sort=popular')$q$, 'ok', 'a category display shortcut');
 select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/' || repeat('a', 300))$q$, '22023', 'link over 300 characters');
 select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-pub', null, null, '/' || repeat('a', 299))$q$, 'ok', 'link of exactly 300 characters');
 select pg_temp.cp_expect($q$select pg_temp.cp_save('cp-missing', 'online', null, null)$q$, 'P0002', 'campaign does not exist');
@@ -136,6 +162,13 @@ delete from public.campaign_presentations where campaign_id = 'cp-pub';
 select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, popup_location) values('cp-pub', '모드 없는 장소')$q$, '23514', 'table: location needs a mode');
 select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, popup_mode) values('cp-pub', 'popup')$q$, '23514', 'table: mode list');
 select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, card_link_path) values('cp-pub', '//evil.example')$q$, '23514', 'table: link must be a single-slash path');
+select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, card_link_path) values('cp-pub', '/..//evil.example')$q$, '23514', 'table: dot segment hiding a double slash');
+select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, card_link_path) values('cp-pub', '/a/..')$q$, '23514', 'table: trailing dot dot segment');
+select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, card_link_path) values('cp-pub', '/a/.')$q$, '23514', 'table: trailing dot segment');
+select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, card_link_path) values('cp-pub', '/a/%2e%2E/b')$q$, '23514', 'table: encoded dot dot segment');
+select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, card_link_path) values('cp-pub', '/a\b')$q$, '23514', 'table: backslash anywhere');
+select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, card_link_path) values('cp-pub', '/.well-known/x?q=/../')$q$, 'ok', 'table: dot file names and query dots pass');
+delete from public.campaign_presentations where campaign_id = 'cp-pub';
 select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, popup_mode, popup_location) values('cp-pub', 'online', '')$q$, '23514', 'table: empty location');
 select pg_temp.cp_expect($q$insert into public.campaign_presentations(campaign_id, popup_mode) values('cp-none', 'online')$q$, '23503', 'table: campaign must exist');
 
@@ -148,14 +181,24 @@ reset role;
 set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
 select pg_temp.cp_assert((select count(*) = 1 and bool_and(campaign_id = 'cp-pub') from public.campaign_presentations), 'guests read only published campaign rows');
+-- 공개 열은 읽히고(같은 쿼리로 값 확인), 운영자 식별자 updated_by 와 `select *` 는 권한 오류다.
+select pg_temp.cp_assert((select (campaign_id, popup_mode, popup_location, card_link_path) = ('cp-pub', 'offline', '게시 장소', '/shop') and updated_at is not null
+ from public.campaign_presentations), 'guests read the public columns');
+select pg_temp.cp_expect($q$select updated_by from public.campaign_presentations$q$, '42501', 'guests cannot read updated_by');
+select pg_temp.cp_expect($q$select * from public.campaign_presentations$q$, '42501', 'guests cannot select every column');
+select pg_temp.cp_expect($q$select p.nickname from public.campaign_presentations c join public.public_profiles p on p.id = c.updated_by$q$, '42501', 'guests cannot follow updated_by to a profile');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', pg_temp.cp_uid(3)::text, true);
 select pg_temp.cp_assert((select count(*) = 1 and bool_and(campaign_id = 'cp-pub') from public.campaign_presentations), 'customers read only published campaign rows');
+select pg_temp.cp_expect($q$select updated_by from public.campaign_presentations$q$, '42501', 'customers cannot read updated_by');
 select set_config('request.jwt.claim.sub', pg_temp.cp_uid(2)::text, true);
 select pg_temp.cp_assert((select count(*) = 1 and bool_and(campaign_id = 'cp-pub') from public.campaign_presentations), 'a manager without promotion.manage cannot read draft rows');
 select set_config('request.jwt.claim.sub', pg_temp.cp_uid(1)::text, true);
 select pg_temp.cp_assert((select count(*) = 2 from public.campaign_presentations), 'promotion.manage operators read draft rows too');
+select pg_temp.cp_expect($q$select updated_by from public.campaign_presentations$q$, '42501', 'even promotion.manage operators read through the public columns only');
+select pg_temp.cp_assert((select count(*) = 2 and bool_and(campaign_id is not null and updated_at is not null) from (select campaign_id, popup_mode, popup_location, card_link_path, updated_at from public.campaign_presentations) c),
+ 'the admin console column list still reads');
 reset role;
 -- 게시 상태가 바뀌면 노출도 따라간다(draft → published).
 update public.campaigns set status = 'published' where id = 'cp-draft';

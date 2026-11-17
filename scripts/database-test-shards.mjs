@@ -123,6 +123,8 @@ const catalog = [
   sql('goods_listing_orders', { kc: true }),
   // 카테고리 전시 목록 정렬 10종(인기도·판매량·리뷰 많은순 추가, 스펙 C §4.2): 원수치 순서·구성 순서 동률·거절 이름.
   sql('category_display_listing_sorts', { kc: true }),
+  // 세 정렬의 VIEW MORE 조회 토큰은 순위가 아니라 구성(굿즈 id 집합)을 해시한다: 위시·판매·리뷰가 순위를 바꿔도 둘째 페이지가 이어진다(PR2 리뷰 C M1, migration 20261117130400).
+  sql('category_display_metric_sort_token', { kc: true }),
   // 카테고리 전시 굿즈 투영의 카드 칩 필드(배송비 유형·옵션 판매 방식, migration 20261117130300).
   sql('category_display_card_chips'),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),

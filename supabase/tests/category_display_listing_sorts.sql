@@ -114,9 +114,9 @@ begin
  page := public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"reviews","min":3000,"max":5000}'));
  perform pg_temp.cl_assert(pg_temp.cl_ids(page) = array['cl-4', 'cl-5', 'cl-3'], 'price range plus reviews sort: ' || array_to_string(pg_temp.cl_ids(page), ','));
 
- -- 조회 토큰은 정렬이 만든 순서를 반영한다(정렬이 바뀌면 토큰이 바뀌고, 같은 정렬·같은 토큰이면 통과).
+ -- 조회 토큰은 정렬 이름이 질의에 들어 있어 정렬마다 다르고, 같은 정렬·같은 토큰이면 통과한다(세 정렬은 순위가 아니라 구성을 해시한다 — category_display_metric_sort_token.sql).
  perform pg_temp.cl_assert((public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"sales"}'))->>'token')
-  is distinct from (public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"popular"}'))->>'token'), 'token follows the sorted order');
+  is distinct from (public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"popular"}'))->>'token'), 'token differs per sort');
  seen := public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"popular"}'))->>'token';
  perform public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"popular"}'), 0, seen);
  -- 나머지 필드(전체 건수·가격 상한·배너 슬롯)는 정렬과 무관하다.
