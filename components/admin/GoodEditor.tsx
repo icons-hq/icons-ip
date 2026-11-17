@@ -573,6 +573,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="기본 정보" id="good-section-basic" summary={values.name || '상품명 미입력'} errorCount={errorCount('category', 'basic', 'attributes')}>
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-category" tabIndex={-1}>
           <OwnedFields locked={groupOwned} fields={['categoryId']} values={initial}><GoodCategoryField categories={categories} primary={categoryId} onPrimaryChange={setCategoryId} error={(typeMoveMessage(errors.categoryId) && !typeState.categoryChangeProblem ? undefined : errors.categoryId) ?? typeState.categoryChangeProblem ?? undefined} /></OwnedFields>
+          {/* 스펙 C §2.9: 유형이 바뀌는 이동이 막힌 그 오류 바로 아래에서 같은 초안 전환(TKT-009 확인창·서버 계약)을 끝낸다. 전환 뒤에도 고른 카테고리는 이 폼 상태에 남아 그대로 저장한다. */}
+          {typeState.categoryChangeProblem && !groupOwned && selected ? <div className="mt-2" data-good-category-draft-switch=""><GoodDraftSwitch id={selected.id} label="초안으로 전환하고 카테고리 바꾸기" disabled={pending || draftBusy || Boolean(selected.archivedAt)} /></div> : null}
         </div>
         {/* TKT-009: 잠금 안내의 버튼 하나 → 확인창 1회 → 바로 초안 전환·잠금 해제. 판매 준비 카드의 초안으로 되돌리기와 같은 서버 계약이다. */}
         {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중 잠금: 상품명·상품 유형·연결 IP·제조자·제조국·소재·크기" tone="neutral">실제 모델과 검토 근거를 일치시키기 위한 잠금입니다. 상품 유형이 바뀌는 대표 카테고리 변경도 막힙니다. 초안으로 전환 후 수정하고 KC를 재검토해야 재공개할 수 있습니다.</AdminNotice>
