@@ -502,6 +502,12 @@
   border-radius: 0;
 }
 
+/* 묶음이 overflow:hidden 이라 프로모션 카드의 바깥 포커스 링(wc-popups.css, offset 2px)은 위·좌·우가 잘리고, 상품 행이 없으면 아래까지 잘려
+   포커스 표시가 사라진다. 스트립 배너와 같은 방식으로 링을 안쪽에 그린다. PromoCard 는 다른 화면에서도 쓰이므로 이 묶음 안에서만 바꾼다. */
+.wc-x-pick .wc-x-pick__promo:focus-visible {
+  outline-offset: -4px;
+}
+
 /* 상품 영역 패딩 20/20/21/20. 행 사이는 18 + 1px 선 + 18 이다. */
 .wc-x-pick__goods {
   margin: 0;
@@ -577,6 +583,12 @@
   font-weight: 600;
   line-height: 17px;
   color: var(--wc-x-ink);
+}
+
+.wc-x-pick__rate {
+  margin-right: 4px;
+  font-weight: 700;
+  color: var(--wc-x-sale);
 }
 
 .wc-x-pick__unavailable {

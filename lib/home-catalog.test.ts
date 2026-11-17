@@ -144,6 +144,17 @@ describe('home goods card chips and IP address', () => {
     expect(resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 5).map((row) => row.chips)).toEqual([[], [], []]);
   });
 
+  /* 개편 리뷰 M2 — 홈 카드가 정가·할인율 표시 여부를 싣는다(목록 카드와 같은 PriceBlock 규칙으로 그리려면 둘 다 필요하다). */
+  it('carries the compare-at price and the discount-rate switch so home cards can show the same rate as listing cards', () => {
+    const goods = [
+      { ...good('sale', 'brand'), price: 15200, compareAtPrice: 16000, showDiscountRate: true },
+      { ...good('hidden-rate', 'brand'), price: 15200, compareAtPrice: 16000, showDiscountRate: false },
+      good('plain', 'brand'),
+    ];
+    const cards = resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 5);
+    expect(cards.map((row) => [row.compareAtPrice, row.showDiscountRate])).toEqual([[16000, true], [16000, false], [null, undefined]]);
+  });
+
   it('adds the public IP address, preferring the public slug and encoding the internal id otherwise', () => {
     const goods = [good('a', 'with-slug'), good('b', 'legacy ip'), good('c', 'unlisted')];
     const ips = [{ ...ip('with-slug'), publicSlug: 'hongsil-quest' }, ip('legacy ip')];

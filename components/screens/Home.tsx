@@ -90,6 +90,7 @@ function HomeProductCard({ good, heartFor, showRating = true }: { good: HomeGood
       action={heartFor(good)}
       brand={good.brand ?? undefined}
       chips={homeCardChips(good, listing.showTags)}
+      compareAtPrice={good.compareAtPrice}
       href={good.href}
       imageBackground={good.imageBg}
       name={good.name}
@@ -97,6 +98,7 @@ function HomeProductCard({ good, heartFor, showRating = true }: { good: HomeGood
       priceMax={good.priceMax}
       reviewSummary={showRating ? good.reviewSummary : undefined}
       salePeriod={good.salePeriod}
+      showDiscountRate={good.showDiscountRate}
       soldOut={good.soldOut}
     />
   );

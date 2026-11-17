@@ -179,6 +179,9 @@ export interface HomeGoodsCard {
   name: string;
   brand: string | null;
   price: number;
+  /** 취소선 정가(`Good.compareAtPrice`)와 할인율 표시 여부 — 카드 가격 줄의 할인율을 목록 화면과 같은 규칙(`PriceBlock`)으로 그린다. 옛 투영은 없다. */
+  compareAtPrice?: number | null;
+  showDiscountRate?: boolean;
   badge: string | null;
   imageBg: string;
   href: string;
@@ -308,6 +311,8 @@ export function resolveHomeGoodsCards(
       brand: ip?.title ?? null,
       price: good.price,
       priceMax: good.priceMax,
+      compareAtPrice: good.compareAtPrice ?? null,
+      showDiscountRate: good.showDiscountRate,
       badge: good.badge ?? null,
       imageBg: good.img,
       href: `/shop/${good.id}`,
