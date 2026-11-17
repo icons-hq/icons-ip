@@ -1,5 +1,5 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ current: '', index: 0, frames: new Map<string, { values: unknown[]; effects: Map<number, { deps: unknown[]; cleanup?: () => void }>; jobs: (() => void)[] }>() }));
 const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), read: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
@@ -15,8 +15,25 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthS
 import { ClaimRefundAccount } from './ClaimRefundAccount';
 import { refundAccountIdentity as identity, refundAccountRequest as request, refundAccountContext as context, refundAccountReceipt as receipt } from '@/test/fixtures/claim-refund-account';
 import { claimRefundAccountRecoveryKey, claimRefundAccountRequestMetadata } from '@/lib/orders/claim-refund-account';
+import { stubCustomerConfirm } from '@/lib/customer-confirm.test-support';
 type Element = ReactElement<Record<string, unknown>>;
 let nodes: Element[], storage: Map<string, string>;
+/* 입력 중 이탈 경고는 document의 click(캡처) 리스너다. DOM 없이 리스너만 붙잡아 링크 누르기를 흉내 낸다. */
+type ClickEvent = ReturnType<typeof clickEvent>;
+const guard: { click?: (event: ClickEvent) => void } = {};
+class FakeElement { closest(): unknown { return null; } }
+class FakeLink extends FakeElement {
+  href: string; target = ''; isConnected = true; resent: ClickEvent[] = [];
+  click = vi.fn(() => { const event = clickEvent(this); this.resent.push(event); guard.click?.(event); });
+  constructor(href: string) { super(); this.href = href; }
+  hasAttribute() { return false; }
+  closest() { return this; }
+}
+function clickEvent(target: unknown) {
+  return { target, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, defaultPrevented: false,
+    preventDefault: vi.fn(function (this: { defaultPrevented: boolean }) { this.defaultPrevented = true; }), stopPropagation: vi.fn() };
+}
+let confirm: ReturnType<typeof stubCustomerConfirm> | null = null;
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 function render() {
   nodes = []; const seen = new Set<string>();
@@ -45,11 +62,17 @@ const deferred = () => { let resolve!: (value: unknown) => void; const promise =
 beforeEach(async () => {
   hooks.frames.clear(); vi.clearAllMocks(); storage = new Map();
   vi.stubGlobal('sessionStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key), key: (index: number) => [...storage.keys()][index] ?? null, get length() { return storage.size; } });
-  vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => false) })); vi.stubGlobal('document', new EventTarget());
+  const native = vi.fn(() => { throw new Error('native confirm must not be used'); });
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: native })); vi.stubGlobal('confirm', native);
+  delete guard.click;
+  vi.stubGlobal('document', { addEventListener: (type: string, listener: (event: ClickEvent) => void) => { if (type === 'click') guard.click = listener; },
+    removeEventListener: (type: string, listener: unknown) => { if (type === 'click' && guard.click === listener) delete guard.click; } });
+  vi.stubGlobal('Element', FakeElement);
+  vi.stubGlobal('location', { href: `https://iconsip.test/orders/${identity.orderId}`, origin: 'https://iconsip.test', pathname: `/orders/${identity.orderId}`, search: '' });
   mocks.load.mockResolvedValue({ context }); mocks.save.mockResolvedValue({ error: '응답 유실', uncertain: true }); mocks.read.mockResolvedValue({ receipt: null });
   render(); effects(); authenticate(); await flush();
 });
-afterEach(() => { dispose(); vi.unstubAllGlobals(); });
+afterEach(() => { dispose(); confirm?.restore(); confirm = null; vi.unstubAllGlobals(); });
 
 it('연속 제출은 하나의 요청이며 계좌 원문은 브라우저 저장소에 남기지 않는다', async () => {
   fill(); const callback = submit(); callback({ preventDefault() {} }); await flush();
@@ -90,4 +113,37 @@ it('다른 세션의 저장 요청을 가져오지 않으며 조회 실패 뒤 �
   dispose(); mocks.load.mockRejectedValueOnce(new Error('offline')); render(); effects(); authenticate(identity.actorId, request.operationId); await flush();
   expect(mocks.read).not.toHaveBeenCalled(); expect(nodes.some(node => text(node).includes('최신 요청 상태를 읽지 못했습니다'))).toBe(true);
   click('최신 요청 상태 확인'); await flush(); expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
+});
+describe('입력 중 이탈 경고(고객 공용 확인창)', () => {
+  const unloadPrevented = () => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; };
+  it('다른 화면 링크는 이동을 멈추고 고객 확인창에 묻는다 — 계속 입력을 고르면 그대로 머문다', async () => {
+    confirm = stubCustomerConfirm(false);
+    fill(); await flush();
+    const link = new FakeLink('https://iconsip.test/orders'), event = clickEvent(link);
+    guard.click!(event);
+    expect(event.preventDefault).toHaveBeenCalled(); expect(event.stopPropagation).toHaveBeenCalled();
+    await flush();
+    expect(confirm).toHaveBeenCalledWith({ title: '화면을 이동할까요?', message: '입력 중인 계좌정보는 브라우저에 보관하지 않아요.', confirmLabel: '이동하기', cancelLabel: '계속 입력' });
+    expect(link.click).not.toHaveBeenCalled(); expect(unloadPrevented()).toBe(true);
+  });
+  it('이동하기를 고르면 같은 링크를 다시 눌러 원래 이동을 잇고, 브라우저가 한 번 더 묻지 않게 한다', async () => {
+    confirm = stubCustomerConfirm(true);
+    fill(); await flush();
+    const link = new FakeLink('https://iconsip.test/orders');
+    guard.click!(clickEvent(link)); await flush();
+    expect(confirm).toHaveBeenCalledTimes(1); expect(link.click).toHaveBeenCalledTimes(1);
+    expect(link.resent[0].preventDefault).not.toHaveBeenCalled(); expect(link.resent[0].stopPropagation).not.toHaveBeenCalled();
+    expect(unloadPrevented()).toBe(false);
+  });
+  it('같은 화면 링크·새 탭 링크·입력 전 화면은 묻지 않는다', async () => {
+    confirm = stubCustomerConfirm(true);
+    expect(guard.click).toBeUndefined();
+    fill(); await flush();
+    const same = clickEvent(new FakeLink(`https://iconsip.test/orders/${identity.orderId}#refund`));
+    guard.click!(same);
+    const tab = new FakeLink('https://iconsip.test/orders'); tab.target = '_blank';
+    const external = clickEvent(tab); guard.click!(external);
+    await flush();
+    expect(same.preventDefault).not.toHaveBeenCalled(); expect(external.preventDefault).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
+  });
 });

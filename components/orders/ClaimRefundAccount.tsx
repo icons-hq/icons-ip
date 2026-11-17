@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
+import { customerConfirm } from '@/lib/customer-confirm';
 import { CLAIM_REFUND_ACCOUNT_RECOVERY_PREFIX, claimRefundAccountError, claimRefundAccountReceiptMatches, claimRefundAccountRecoveryKey,
   claimRefundAccountRequestMetadata, normalizeClaimRefundAccountRequest, parseClaimRefundAccountRecovery, type ClaimRefundAccountContext, type ClaimRefundAccountFailure,
   type ClaimRefundAccountIdentity, type ClaimRefundAccountRecovery, type ClaimRefundAccountRequest, type ClaimRefundAccountReceipt } from '@/lib/orders/claim-refund-account';
@@ -41,16 +42,29 @@ function RefundAccountForm({ identity, scope }: { identity: ClaimRefundAccountId
   }, [identity, reload, scope]);
 
   const dirty = Boolean(recovery || pending || Object.values(draft).some(Boolean));
+  /* 입력 중 이탈 경고. 링크 이동은 고객 공용 확인창(lib/customer-confirm.ts)으로 묻는다 — 확인창은 비동기라 먼저 이동을 멈추고,
+     [이동하기]를 누르면 같은 링크를 다시 눌러 원래 이동을 잇는다. 새로고침·탭 닫기는 브라우저만 물을 수 있어 beforeunload가 맡는다. */
   useEffect(() => {
     if (!dirty) return;
+    let allowed: HTMLAnchorElement | null = null;
     const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     const navigate = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
       if (!anchor || anchor.hasAttribute('download') || anchor.target && anchor.target !== '_self') return;
+      /* 확인 뒤 다시 누른 그 링크는 그대로 보낸다. */
+      if (anchor === allowed) { allowed = null; return; }
       const target = new URL(anchor.href, location.href);
       if (target.origin === location.origin && target.pathname === location.pathname && target.search === location.search) return;
-      if (!window.confirm('입력 중인 계좌정보는 브라우저에 보관하지 않습니다. 화면을 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
+      event.preventDefault(); event.stopPropagation();
+      void customerConfirm({ title: '화면을 이동할까요?', message: '입력 중인 계좌정보는 브라우저에 보관하지 않아요.', confirmLabel: '이동하기', cancelLabel: '계속 입력' })
+        .then(confirmed => {
+          if (!confirmed || !anchor.isConnected) return;
+          /* 이미 이동을 확인했으니 전체 이동에서 브라우저가 한 번 더 묻지 않게 한다. */
+          window.removeEventListener('beforeunload', unload);
+          allowed = anchor;
+          anchor.click();
+        });
     };
     window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
     return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
