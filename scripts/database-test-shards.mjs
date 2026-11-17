@@ -217,6 +217,8 @@ const storefront = [
   sql('commerce_number_labels'),
   sql('bank_transfer_order_number_code'),
   sql('order_item_allocation_inputs'),
+  // 고객 주문 상세 결제수단 표시(MD-0037): private 결제 근거에서 method·마스킹 표기만 꺼내는 본인 전용 RPC.
+  sql('my_order_payment_display'),
   sql('cart_retained_until_payment', { admin: true, kc: true }),
   // 바로구매·장바구니 선택 주문·선택 삭제(ADR-0030)는 장바구니 보류 계약(ADR-0026) 바로 뒤다.
   sql('checkout_selection_direct', { admin: true, kc: true }),
