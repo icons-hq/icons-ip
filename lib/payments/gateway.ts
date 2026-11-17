@@ -144,6 +144,15 @@ export type PaymentBalanceInspection =
   | { kind: 'ok'; status: string; balanceAmount: number; lastCancel: { cancelAmount: number; transactionKey: string } | null }
   | { kind: 'unavailable' | 'mismatch' | 'not_supported' };
 
+/**
+ * 고객 결제 영수증(카드 매출전표) 조회 결과(MD-0038). 영수증 URL은 저장하지 않고 요청 때마다 결제사에 조회한다.
+ * `ok.url`은 어댑터가 결제사 영수증 호스트로 검증한 값이라 303 이동 대상으로 그대로 쓴다. 지원하지 않는 결제사는
+ * 메서드가 없다(호출자가 not_supported로 읽는다).
+ */
+export type PaymentReceiptLookup =
+  | { kind: 'ok'; url: string }
+  | { kind: 'not_found' | 'unavailable' | 'not_supported' };
+
 export interface PaymentGateway {
   prepare(attempt: PaymentAttempt): Promise<PreparedCheckout>;
   confirm(returnInput: PaymentReturnInput): Promise<ConfirmOutcome>;
@@ -151,4 +160,6 @@ export interface PaymentGateway {
   refund(request: PaymentRefundRequest): Promise<RefundOutcome>;
   /** 부분 취소 해소용 잔액 조회. 지원하지 않는 결제사는 없다(호출자가 not_supported로 읽는다). */
   inspectBalance?(attempt: PaymentAttempt, providerPaymentKey: string): Promise<PaymentBalanceInspection>;
+  /** 원장 결제 키로 결제사 영수증 URL을 조회한다. 돈을 움직이지 않는다. 지원하지 않는 결제사는 없다. */
+  receiptUrl?(providerPaymentKey: string): Promise<PaymentReceiptLookup>;
 }
