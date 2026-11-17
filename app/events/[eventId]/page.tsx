@@ -4,41 +4,24 @@
  * 캠페인이 이긴다. 반대로 두면 admin_upsert_campaign 의 슬러그 섀도잉 차단
  * (catalog_id_taken)을 우회해 만들어진 캠페인이 영영 열리지 않는다.
  *
+ * 노출 설정에서 'POP-UP에 싣기'를 고른 캠페인은 `/popups/<id>`가 정본 주소다(스펙 C §2.6) — 이전에 EVENT 로 공유된 링크가
+ * 남아 있을 수 있어 영구 이전한다. 레거시 팝업 브리지와 같은 이유로 쿼리를 함께 넘긴다.
+ *
  * /events/<id>로 저장·공유된 옛 팝업 링크는 그대로 새 경로로 넘긴다. 쿼리도 함께
  * 넘긴다 — 옛 링크에 붙은 회차·유입 추적 파라미터를 여기서 떨어뜨리면 리다이렉트가
  * 링크의 절반만 옮기는 셈이 된다. */
 
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { cache } from 'react';
 import { CampaignLanding } from '@/components/screens/CampaignLanding';
-import { getCurrentAuthState } from '@/lib/auth/server';
+import { loadCampaignLandingProps } from '@/lib/campaign-landing.server';
 import { loadCampaignDetail } from '@/lib/campaigns.server';
-import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
-import { loadCoinOverview } from '@/lib/coins.server';
-import { loadListingWishlist } from '@/lib/wishlist-ids.server';
-
-/* /packs 와 같은 관례 — 게이트 값은 요청당 한 번만 읽는다. */
-const getCardRewardsEnabled = cache(readCardRewardsEnabled);
+import { popupDetailHref } from '@/lib/popups';
 
 interface PageProps {
   params: Promise<{ eventId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
-
-/* 교환 폼의 멱등 키는 블록마다 따로다.
- *
- * 한 페이지에 교환 블록이 여러 개일 수 있고, 키를 공유하면 첫 교환이 성립한 뒤
- * 다른 상품을 제출했을 때 RPC 가 같은 키를 보고 already_exchanged 로 답한다 —
- * 두 번째 교환은 일어나지 않았는데 화면은 성공으로 그린다. 섹션 인덱스로 키를
- * 나눠 두면 각 블록이 자기 재제출만 막는다. */
-function exchangeOperationIdsFor(sections: readonly { type: string }[]): Record<number, string> {
-  const ids: Record<number, string> = {};
-  sections.forEach((section, index) => {
-    if (section.type === 'exchange') ids[index] = crypto.randomUUID();
-  });
-  return ids;
 }
 
 /* 같은 키가 여러 번 온 쿼리(?utm=a&utm=b)는 배열로 도착한다 — 하나로 접으면
@@ -55,6 +38,10 @@ function legacyQueryString(searchParams: Record<string, string | string[] | unde
   }
 
   return query.toString();
+}
+
+function withQuery(path: string, query: string): string {
+  return query ? `${path}?${query}` : path;
 }
 
 export async function generateMetadata({ params }: Pick<PageProps, 'params'>): Promise<Metadata> {
@@ -81,32 +68,12 @@ export default async function Page({ params, searchParams }: PageProps) {
   const campaign = await loadCampaignDetail(eventId);
 
   if (campaign) {
-    /* 공개 브라우징 — 로그인 여부는 참여 패널을 로그인 CTA 로 바꾸는 데만 쓴다.
-       비로그인도 본문은 그대로 읽는다. */
-    const hasGoods = campaign.resolvedSections.some((section) => section.type === 'goods' && section.goods.length > 0);
-    const [auth, cardRewardsEnabled, wishlist] = await Promise.all([
-      getCurrentAuthState(),
-      /* 전역 카드 리워드 게이트. /packs·게임·마이 메뉴가 게이트 OFF 에서 표면을
-         감추는 것과 같은 규율이다 — 교환 CTA 만 남으면 누를 수 있는데 서버가
-         거절하는 버튼이 된다. RPC 의 card_rewards_disabled 는 백스톱으로 남는다. */
-      getCardRewardsEnabled(),
-      /* 굿즈 진열 카드의 목록 하트(LFS 패리티 2차 L4b · CL-01) — 진열이 있을 때만 회원의 위시 ID 를 한 번 읽는다.
-         이 라우트는 이미 로그인 상태를 읽는 동적 렌더라 렌더 방식이 바뀌지 않는다. 던지지 않는다. */
-      hasGoods ? loadListingWishlist() : Promise.resolve(null),
-    ]);
-    const signedIn = Boolean(auth.user);
-    const coin = signedIn ? await loadCoinOverview() : null;
+    if (campaign.presentation?.popupMode) {
+      const query = legacyQueryString(await searchParams);
+      permanentRedirect(withQuery(popupDetailHref(campaign.id), query));
+    }
 
-    return (
-      <CampaignLanding
-        campaign={campaign}
-        cardRewardsEnabled={cardRewardsEnabled}
-        coin={coin}
-        exchangeOperationIds={exchangeOperationIdsFor(campaign.resolvedSections)}
-        signedIn={signedIn}
-        wishlist={wishlist}
-      />
-    );
+    return <CampaignLanding {...await loadCampaignLandingProps(campaign)} />;
   }
 
   const catalog = await getCatalogSnapshot();
@@ -114,6 +81,5 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   /* 쿼리는 리다이렉트 분기에서만 읽는다 — 캠페인 렌더 경로에는 필요 없다. */
   const query = legacyQueryString(await searchParams);
-  const target = `/offline-popups/${encodeURIComponent(eventId)}`;
-  permanentRedirect(query ? `${target}?${query}` : target);
+  permanentRedirect(withQuery(`/offline-popups/${encodeURIComponent(eventId)}`, query));
 }
