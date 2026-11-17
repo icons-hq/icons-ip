@@ -8,17 +8,19 @@ import {
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
+import { OrderLineItem } from '@/components/orders/OrderLineItem';
 import { OrderRetryActions } from '@/components/orders/OrderRetryActions';
 import {
   customerOrderStatusMeta,
-  formatOrderDate,
+  customerOrderStepLabel,
+  formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
   orderClaimProgressLabel,
   orderReferenceLabel,
-  orderStatusMeta,
   type OrderListItem,
   type VisibleOrderStatus,
 } from '@/lib/orders';
+import '@/app/styles/wc-order-history.css';
 import type { PublicReviewEvent } from '@/lib/review-events';
 
 /** 결제 confirm 콜백(/api/payments/goods/confirm…)이 /orders?payment=…로 붙이는 결과값. */
@@ -194,7 +196,7 @@ function OrderFlowGuide() {
         {ORDER_FLOW_STEPS.map((step, index) => (
           <li key={step.status}>
             <span className="orders-flow-index" aria-hidden>{index + 1}</span>
-            <strong>{orderStatusMeta(step.status).label}</strong>
+            <strong>{customerOrderStepLabel(step.status)}</strong>
             <p>{step.body}</p>
             {step.note ? <p className="orders-flow-note">{step.note}</p> : null}
           </li>
@@ -292,25 +294,47 @@ export function Orders({
               {orders.map((order) => {
                 const status = customerOrderStatusMeta(order.status, order.paymentMethod);
                 const claimLabel = orderClaimProgressLabel(order.status, order.claim);
-                const date = formatOrderDate(order.createdAt);
+                const referenceLabel = orderReferenceLabel(order.id, order.orderNumber);
 
                 return (
                   <li key={order.id}>
-                    <Link className="order-list-link card" href={`/orders/${order.id}`}>
-                      <div className="order-list-reference">
-                        <span className="mono">ORDER · {orderReferenceLabel(order.id, order.orderNumber)}</span>
-                        <time dateTime={order.createdAt}>{date}</time>
+                    {/* 카드는 링크가 아니라 문서 한 건이다 — 상세로 가는 길은 아래 '주문 상세 바로가기' 하나다(MD-0036). */}
+                    <article className="wc-order-card">
+                      <div className="wc-order-card__head">
+                        <dl className="wc-order-card__reference">
+                          <div>
+                            <dt>주문일시</dt>
+                            <dd><time dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time></dd>
+                          </div>
+                          <div>
+                            <dt>주문번호</dt>
+                            <dd>{referenceLabel}</dd>
+                          </div>
+                        </dl>
+                        <div className="wc-order-card__badges">
+                          <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
+                          {/* 진행 중인 취소·반품·교환 — 상세 헤더와 같은 함수(orderClaimProgressLabel)로 말한다. */}
+                          {claimLabel && <span className="order-list-badge order-claim-badge">{claimLabel}</span>}
+                        </div>
                       </div>
-                      <div className="order-list-item-copy">
-                        <strong>{order.itemLabel}</strong>
-                        {/* 진행 중인 취소·반품·교환 — 상세 헤더와 같은 함수(orderClaimProgressLabel)로 말한다. */}
-                        {claimLabel && <span className="order-list-badge order-claim-badge">{claimLabel}</span>}
-                        <span>{order.itemCount}개 굿즈</span>
+                      {order.lines?.length ? (
+                        <ul className="wc-order-card__lines">
+                          {order.lines.map((line) => (
+                            <li key={line.key}><OrderLineItem line={line} /></li>
+                          ))}
+                        </ul>
+                      ) : (
+                        /* 품목 줄을 읽지 못한 예외 경로 — 주문 스냅샷 요약으로 대신한다. */
+                        <p className="wc-order-card__summary">
+                          {order.itemLabel}
+                          <span>{order.itemCount}개 굿즈</span>
+                        </p>
+                      )}
+                      <div className="wc-order-card__foot">
+                        <p className="wc-order-card__total">총 결제 금액 <strong>{krw(order.total)}</strong></p>
+                        <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 바로가기</Link>
                       </div>
-                      <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
-                      <strong className="order-list-total mono">{krw(order.total)}</strong>
-                      <span className="order-list-arrow" aria-hidden><Icon name="chevronRight" size={18} /></span>
-                    </Link>
+                    </article>
                     {order.retry ? <OrderRetryActions layout="list" orderId={order.id} retry={order.retry} /> : null}
                   </li>
                 );

@@ -42,9 +42,10 @@ export default async function Page({
      최근 결제 시도의 원장 상태로 고른다. */
   const unresolvedResult = paymentResult === 'checking' || paymentResult === 'failed';
   const [orders, paymentFocus] = await Promise.all([
+    /* 주문내역 카드는 주문마다 품목 줄(썸네일·IP명·구매가/정가)을 그린다(MD-0036) — 이 화면만 줄을 읽는다. */
     includePending || unresolvedResult
-      ? loadOrders(auth.user.id, { includePending: true })
-      : loadOrders(auth.user.id),
+      ? loadOrders(auth.user.id, { includePending: true, withLines: true })
+      : loadOrders(auth.user.id, { withLines: true }),
     paymentResult ? loadLatestCardPaymentResultFocus(auth.user.id) : Promise.resolve(null),
   ]);
   /* 리뷰 보상 배너(MY-08)는 화면에 실린 주문의 굿즈로 진행 중 리뷰 이벤트를 묻는다 — 장식이라 실패해도 배너만 빠진다. */

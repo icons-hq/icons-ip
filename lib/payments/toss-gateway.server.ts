@@ -1,12 +1,14 @@
 import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { isAllowedTossReceiptUrl } from '../orders/receipt';
 import type {
   ConfirmOutcome,
   PaymentAttempt,
   PaymentGateway,
   PaymentOperationOutcome,
   PaymentProviderEvidence,
+  PaymentReceiptLookup,
   PaymentRefundRequest,
   PreparedCheckout,
   RefundOutcome,
@@ -1273,8 +1275,32 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       lastCancel: cancelAmount !== null && transactionKey ? { cancelAmount, transactionKey } : null };
   }
 
+  /**
+   * 고객 결제 영수증(매출전표) URL 조회(MD-0038). 원장 결제 키로 paymentKey 조회를 하고(주문서형 시크릿 키가 쓸 수 있다고
+   * 명시된 조회, 공식문서 122), 응답이 이 키의 결제이고 `receipt.url`이 https + 토스페이먼츠 호스트일 때만 돌려준다 —
+   * 응답 URL을 그대로 303 이동에 쓰므로 호스트를 여기서 막는다(열린 리디렉션 방지). 돈을 움직이지 않는 조회라 어떤 결제
+   * 상태에서도 쓴다(결제 뒤 취소된 결제의 매출전표도 남는다). 결제 키·응답 본문은 로그에 남기지 않는다.
+   * 테스트 키 결제는 토스가 실제 매출전표 데이터를 주지 않는다(공식문서 '결제 결과 안내' 매출전표).
+   */
+  async function receiptUrl(providerPaymentKey: string): Promise<PaymentReceiptLookup> {
+    const paymentKey = validPaymentKey(providerPaymentKey);
+    if (!paymentKey) return { kind: 'not_found', reason: 'invalid_key' };
+    const inquiry = await inquireByPaymentKey(paymentKey);
+    if (inquiry.kind === 'not_found') return { kind: 'not_found', reason: 'payment_not_found' };
+    /* 호출자가 서버 로그에 남기는 사유는 닫힌 코드뿐이다 — 결제사가 준 오류 코드·문구·응답 본문은 싣지 않는다. */
+    if (inquiry.kind === 'configuration_error') return { kind: 'unavailable', reason: 'configuration_error' };
+    if (inquiry.kind === 'http_error') return { kind: 'unavailable', reason: 'http_error' };
+    if (inquiry.kind !== 'ok') return { kind: 'unavailable', reason: 'transport' };
+    const payment = inquiry.payment;
+    // 응답이 이 키의 결제가 아니면 다른 결제의 영수증을 열어 줄 수 있다 — 믿지 않는다.
+    if (payment.paymentKey !== paymentKey) return { kind: 'unavailable', reason: 'key_mismatch' };
+    const url = plainRecord(payment.receipt) ? payment.receipt.url : undefined;
+    return isAllowedTossReceiptUrl(url) ? { kind: 'ok', url } : { kind: 'not_found', reason: 'receipt_url_missing' };
+  }
+
   return {
     inspectBalance,
+    receiptUrl,
     async prepare(attempt): Promise<PreparedCheckout> {
       assertAttempt(attempt);
       const currentTime = now();

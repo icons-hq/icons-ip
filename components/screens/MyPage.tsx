@@ -12,7 +12,7 @@ import { krw } from '@/lib/format';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { ipEn } from '@/lib/ip-display';
 import { DASHBOARD_ORDER_STEPS, type MypageDashboard } from '@/lib/mypage-dashboard';
-import { customerOrderStatusMeta, formatOrderDate, orderStatusMeta } from '@/lib/orders';
+import { customerOrderStatusMeta, customerOrderStepLabel, formatOrderDate } from '@/lib/orders';
 import { hrefFor } from '@/lib/routes';
 
 interface MyPageProps {
@@ -132,7 +132,7 @@ function OrdersBlock({ orders }: { orders: MypageDashboard['orders'] }) {
           <ol aria-label="주문 상태별 건수" className="wc-mydash__steps">
             {DASHBOARD_ORDER_STEPS.map((step) => (
               <li key={step}>
-                <span className="wc-mydash__step-label">{orderStatusMeta(step).label}</span>
+                <span className="wc-mydash__step-label">{customerOrderStepLabel(step)}</span>
                 <strong className="wc-mydash__step-count">
                   {orders.counts[step].toLocaleString('ko-KR')}
                   <span className="wc-sr-only">건</span>
