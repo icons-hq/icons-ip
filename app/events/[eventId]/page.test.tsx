@@ -71,6 +71,7 @@ function campaignFor(id: string): CampaignLandingSnapshot {
     endsAt: '2026-08-31T14:59:00.000Z',
     status: 'published',
     displayState: 'ongoing',
+    presentation: null,
     sections: [],
     resolvedSections: [{ type: 'attendance' }],
   };
@@ -224,6 +225,45 @@ describe('/events/[eventId] 캠페인 상세', () => {
 
     expect(mocks.screen).toHaveBeenCalled();
     expect(mocks.permanentRedirect).not.toHaveBeenCalled();
+  });
+
+  /* 노출 설정에서 'POP-UP에 싣기'를 고른 캠페인의 정본 주소는 /popups/<id>다 — EVENT 로 공유된 옛 링크는 영구 이전한다. */
+  it('POP-UP 캠페인이면 /popups/<id> 로 영구 이전하고 원 쿼리를 함께 싣는다', async () => {
+    mocks.campaign = {
+      ...campaignFor('little-riize'),
+      presentation: { popupMode: 'offline', popupLocation: '서울 마포구', cardLinkPath: null },
+    };
+
+    await expect(Page(pageProps('little-riize', { utm_source: 'kakao' })))
+      .rejects.toThrow('NEXT_REDIRECT:/popups/little-riize?utm_source=kakao');
+
+    expect(mocks.permanentRedirect).toHaveBeenCalledWith('/popups/little-riize?utm_source=kakao');
+    expect(mocks.screen).not.toHaveBeenCalled();
+  });
+
+  it('쿼리가 없는 POP-UP 캠페인은 물음표 없이 이전하고 id 를 인코딩한다', async () => {
+    mocks.campaign = {
+      ...campaignFor('a b'),
+      presentation: { popupMode: 'online', popupLocation: null, cardLinkPath: null },
+    };
+
+    await expect(Page(pageProps('a b'))).rejects.toThrow('NEXT_REDIRECT:/popups/a%20b');
+  });
+
+  /* 바로가기만 설정한 캠페인(POP-UP 방식 없음)은 EVENT 다 — 랜딩 그대로. */
+  it('바로가기만 설정한 캠페인은 이전하지 않고 EVENT 랜딩을 그린다', async () => {
+    mocks.campaign = {
+      ...campaignFor('promo'),
+      presentation: { popupMode: null, popupLocation: null, cardLinkPath: '/ip/hong-sil-quest' },
+    };
+
+    renderToStaticMarkup(await Page(pageProps('promo')));
+
+    expect(mocks.permanentRedirect).not.toHaveBeenCalled();
+    expect(mocks.screen.mock.calls[0]?.[0]?.campaign).toEqual(mocks.campaign);
+    /* basePath·venue 는 POP-UP 랜딩에서만 넘긴다. */
+    expect(mocks.screen.mock.calls[0]?.[0]).not.toHaveProperty('basePath');
+    expect(mocks.screen.mock.calls[0]?.[0]).not.toHaveProperty('venue');
   });
 
   it('캠페인마다 다른 페이지 제목을 낸다', async () => {
