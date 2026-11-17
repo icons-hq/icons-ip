@@ -93,13 +93,24 @@ describe('리뷰작성', () => {
     expect(byKey({ reviewTargets: [target({ kind: 'month' })] }).review.target).toEqual({ kind: 'link', href: `/my/reviews/new?orderId=${ORDER_ID}&goodId=g13&kind=month` });
   });
 
+  it('배송완료·구매확정인데 대상이 0개면 `배송이 완료되면`이라 말하지 않고 쓸 수 있는 굿즈가 없다고 알린다(조회 실패 포함)', () => {
+    for (const status of ['delivered', 'done'] as const) {
+      expect(byKey({ status, reviewTargets: [] }).review, status).toMatchObject({ label: '리뷰작성', target: null, hint: '리뷰작성: 지금은 리뷰를 쓸 수 있는 굿즈가 없어요.' });
+    }
+    const html = renderToStaticMarkup(<OrderActionBar {...input({ status: 'delivered', reviewTargets: [] })} />);
+    expect(html).toContain('리뷰작성: 지금은 리뷰를 쓸 수 있는 굿즈가 없어요.');
+    expect(html).not.toContain('리뷰작성: 배송이 완료되면 쓸 수 있어요.');
+  });
+
   it('쓸 수 있는 대상이 2개 이상이면 리뷰 칸 앵커로 보낸다(이미 쓴 대상은 세지 않는다)', () => {
     expect(byKey({ reviewTargets: [target(), target({ goodId: 'g14' })] }).review.target).toEqual({ kind: 'anchor', href: '#order-review' });
     expect(byKey({ reviewTargets: [target(), target({ goodId: 'g14', review: REVIEW })] }).review.target?.kind).toBe('link');
   });
 
-  it('대상이 없으면 배송 완료 안내, 모두 작성했으면 `내 리뷰 보기`', () => {
-    expect(byKey({ reviewTargets: [] }).review).toMatchObject({ label: '리뷰작성', target: null, hint: '리뷰작성: 배송이 완료되면 쓸 수 있어요.' });
+  it('대상이 없으면 배송완료 전에는 배송 완료 안내, 모두 작성했으면 `내 리뷰 보기`', () => {
+    for (const status of ['paid', 'confirmed', 'shipping'] as const) {
+      expect(byKey({ status, reviewTargets: [] }).review, status).toMatchObject({ label: '리뷰작성', target: null, hint: '리뷰작성: 배송이 완료되면 쓸 수 있어요.' });
+    }
     expect(byKey({ reviewTargets: [target({ writable: false, review: REVIEW }), target({ goodId: 'g14', writable: false, review: REVIEW })] }).review)
       .toMatchObject({ label: '내 리뷰 보기', target: { kind: 'anchor', href: '#order-review' }, hint: null });
   });

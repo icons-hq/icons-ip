@@ -68,14 +68,19 @@ function confirmAction(status: OrderDetailStatus): OrderActionModel {
   return { key: 'confirm', label: '구매확정', target: null, hint: '구매확정: 배송이 완료되면 할 수 있어요.' };
 }
 
-function reviewAction(targets: readonly MyReviewTarget[], now: Date): OrderActionModel {
+function reviewAction(status: OrderDetailStatus, targets: readonly MyReviewTarget[], now: Date): OrderActionModel {
   const writable = targets.filter((target) => target.writable && !target.review);
   if (writable.length === 1) {
     const [target] = writable;
     return { key: 'review', label: '리뷰작성', target: { kind: 'link', href: newReviewHref(target.orderId, target.goodId, target.kind) }, hint: null };
   }
   if (writable.length > 1) return { key: 'review', label: '리뷰작성', target: { kind: 'anchor', href: `#${ORDER_REVIEW_ANCHOR}` }, hint: null };
-  if (targets.length === 0) return { key: 'review', label: '리뷰작성', target: null, hint: '리뷰작성: 배송이 완료되면 쓸 수 있어요.' };
+  if (targets.length === 0) {
+    /* 대상 0개: 배송완료 전이면 아직 때가 아니라서, 배송완료·구매확정인데도 0개면 쓸 수 있는 굿즈가 없어서다(조회 실패일 수도 있어
+       '배송이 완료되면'이라고 거짓을 말하지 않는다). */
+    const delivered = status === 'delivered' || status === 'done';
+    return { key: 'review', label: '리뷰작성', target: null, hint: delivered ? '리뷰작성: 지금은 리뷰를 쓸 수 있는 굿즈가 없어요.' : '리뷰작성: 배송이 완료되면 쓸 수 있어요.' };
+  }
   /* 쓸 수 있는 대상이 없다 — 모두 작성했으면 내 리뷰로, 아니면 아직 못 쓰는 첫 대상의 사유를 말한다. */
   const blocked = targets.find((target) => !target.review);
   if (!blocked) return { key: 'review', label: '내 리뷰 보기', target: { kind: 'anchor', href: `#${ORDER_REVIEW_ANCHOR}` }, hint: null };
@@ -120,7 +125,7 @@ function trackingAction(shipments: readonly ShipmentRecord[]): OrderActionModel 
 export function orderActionBarModel(input: OrderActionBarInput): OrderActionBarModel | null {
   if (input.status === 'pending' || input.status === 'canceled') return null;
   const now = input.now ?? new Date();
-  const actions = [confirmAction(input.status), reviewAction(input.reviewTargets, now)];
+  const actions = [confirmAction(input.status), reviewAction(input.status, input.reviewTargets, now)];
   if (!input.digitalOnly) actions.push(claimAction(input), trackingAction(input.shipments));
   return { actions };
 }
