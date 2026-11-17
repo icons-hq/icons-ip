@@ -112,6 +112,16 @@ describe('MyPage recent orders pending label', () => {
     expect(bank).not.toContain('결제대기');
     expect(recentOrders(pendingRecent('card'))).toContain('결제 대기');
   });
+
+  /* MD-0036: 최근 주문 배지도 고객 이름(주문 완료·구매 확정·취소됨)이고 어드민 이름은 쓰지 않는다. */
+  it('labels recent orders with the customer status names', () => {
+    for (const [status, label] of [['paid', '주문 완료'], ['done', '구매 확정'], ['canceled', '취소됨']] as const) {
+      const html = recentOrders(render({ dashboard: { ...filled, orders: { counts: { paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0 }, recent: [order({ status })] } } }));
+      expect(html).toContain(`<span class="wc-mydash__order-status">${label}</span>`);
+      expect(html).not.toContain('결제완료');
+      expect(html).not.toContain('거래확정');
+    }
+  });
 });
 
 function section(html: string, start: string, end: string) {
@@ -190,7 +200,10 @@ describe('MyPage dashboard', () => {
     const orders = section(html, 'id="mydash-orders"', 'id="mydash-benefits"');
 
     expect(orders).toContain('aria-label="주문 상태별 건수"');
-    for (const [label, count] of [['결제완료', 1], ['발주확인', 0], ['배송중', 2], ['배송완료', 0], ['거래확정', 4]]) {
+    /* MD-0036: 고객 화면은 어드민 이름(결제완료·거래확정)을 쓰지 않는다. */
+    expect(orders).not.toContain('결제완료');
+    expect(orders).not.toContain('거래확정');
+    for (const [label, count] of [['주문 완료', 1], ['발주확인', 0], ['배송중', 2], ['배송완료', 0], ['구매 확정', 4]]) {
       expect(orders).toContain(`<span class="wc-mydash__step-label">${label}</span><strong class="wc-mydash__step-count">${count}<span class="wc-sr-only">건</span></strong>`);
     }
     expect(orders).toContain('href="/orders/11111111-1111-4111-8111-111111111111"');

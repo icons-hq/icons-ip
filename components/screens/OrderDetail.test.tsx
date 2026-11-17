@@ -415,7 +415,7 @@ describe('OrderDetail claim badge and line totals', () => {
       id: '22222222-2222-4222-8222-222222222222', status: 'requested', claimType: 'cancel', stage: 'requested', reference: 1,
       requestedAt: '2026-08-01T07:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null,
     } })} />);
-    expect(html).toMatch(/<div class="order-detail-status-row"><span class="order-status order-status--paid">결제완료<\/span><span class="order-list-badge order-claim-badge">취소 요청<\/span><\/div>/);
+    expect(html).toMatch(/<div class="order-detail-status-row"><span class="order-status order-status--paid">주문 완료<\/span><span class="order-list-badge order-claim-badge">취소 요청<\/span><\/div>/);
   });
 
   it('omits the line total when the quantity is one and keeps it for larger quantities', () => {

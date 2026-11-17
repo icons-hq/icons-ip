@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { OrderListItem } from '@/lib/orders';
+import type { OrderLineView } from '@/lib/orders/order-lines';
 import type { PublicReviewEvent } from '@/lib/review-events';
 import { Orders } from './Orders';
 
@@ -284,7 +285,10 @@ describe('Orders', () => {
     const flow = html.slice(html.indexOf('orders-flow-heading'));
 
     expect(flow).toContain('주문 후 배송 과정');
-    for (const label of ['결제완료', '발주확인', '배송중', '배송완료', '거래확정']) expect(flow).toContain(`<strong>${label}</strong>`);
+    /* MD-0036: 고객 이름(주문 완료·구매 확정) — 어드민 이름(결제완료·거래확정)은 쓰지 않는다. */
+    for (const label of ['주문 완료', '발주확인', '배송중', '배송완료', '구매 확정']) expect(flow).toContain(`<strong>${label}</strong>`);
+    expect(flow).not.toContain('결제완료');
+    expect(flow).not.toContain('거래확정');
     expect(flow).toContain('발주확인 전에는 주문 상세에서 직접 취소할 수 있어요.');
     expect(flow).toContain('배송 중부터 주문 전체로 반품·교환을 신청할 수 있어요.');
     expect(flow).toContain('단순 변심은 공급받은 날부터 7일, 하자·오배송은 공급받은 날부터 3개월 안에 신청해주세요.');
@@ -296,7 +300,7 @@ describe('Orders claim badge', () => {
   it('shows the open claim stage next to the order status with the detail header rule', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ claim: { claimType: 'cancel', stage: 'processing' } })]} />);
     expect(html).toContain('<span class="order-list-badge order-claim-badge">취소 처리 중</span>');
-    expect(html).toContain('결제완료');
+    expect(html).toContain('주문 완료');
     expect(renderToStaticMarkup(<Orders orders={[orderItem({ claim: { claimType: 'cancel', stage: 'rejected' } })]} />)).not.toContain('order-claim-badge');
   });
 });
@@ -355,5 +359,87 @@ describe('Orders 다시 결제 진입', () => {
 
   it('다시 결제 진입이 없는 주문은 그대로다', () => {
     expect(renderToStaticMarkup(<Orders orders={[orderItem({ status: 'canceled' })]} />)).not.toContain('order-retry-actions');
+  });
+});
+
+/* MD-0036 — 주문 카드: 주문일시·주문번호·고객 상태 배지·모든 품목 줄·총 결제 금액·주문 상세 바로가기. */
+describe('Orders 주문 카드', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const line = (n: number, overrides: Partial<OrderLineView> = {}): OrderLineView => ({
+    key: `item-${n}`, goodId: `good-${n}`, name: `굿즈 ${n}`, optionName: n % 2 ? '파랑' : '기본 옵션', qty: n, ipName: 'IP 이름',
+    thumbnail: null, adultMasked: false, purchaseAmount: 10000 * n, regularAmount: 10000 * n, ...overrides,
+  });
+
+  it('주문일시(시각 포함)·주문번호·고객 상태·총 결제 금액을 그린다', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ orderNumber: '20260801150000-ABC123', lines: [line(1)] })]} />);
+
+    expect(html).toContain('<dt>주문일시</dt><dd><time dateTime="2026-08-01T06:00:00.000Z">2026. 8. 1. 15:00</time></dd>');
+    expect(html).toContain('<dt>주문번호</dt><dd>');
+    expect(html).toContain('<span class="order-status order-status--paid">주문 완료</span>');
+    expect(html).toContain('총 결제 금액');
+    expect(html).toContain('<strong>₩30,000</strong>');
+    expect(html).not.toContain('ORDER ·');
+  });
+
+  it('주문의 모든 품목 줄을 그린다(첫 품목 요약이 아니다)', () => {
+    const lines = [1, 2, 3, 4, 5].map((n) => line(n));
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ itemLabel: '굿즈 1 외 4건', itemCount: 15, lines })]} />);
+
+    for (const n of [1, 2, 3, 4, 5]) expect(html).toContain(`class="wc-order-line__name">굿즈 ${n}</p>`);
+    expect(html.match(/class="wc-order-line"/g)).toHaveLength(5);
+    /* 줄이 있으면 요약(첫 굿즈 외 N건)은 쓰지 않는다. */
+    expect(html).not.toContain('굿즈 1 외 4건');
+    expect(html).not.toContain('wc-order-card__summary');
+  });
+
+  it('구매가격이 정가보다 낮은 줄은 정가를 취소선으로, 같은 줄은 숫자 하나만 보인다', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ lines: [line(1, { purchaseAmount: 9000, regularAmount: 10000 }), line(2, { purchaseAmount: 20000, regularAmount: 20000 })] })]} />);
+
+    expect(html).toContain('<strong>₩9,000</strong><span class="wc-sr-only"> 정가 </span><del>₩10,000</del>');
+    expect(html.match(/<del>/g)).toHaveLength(1);
+  });
+
+  it('주문 상세 바로가기 버튼이 그 주문의 상세로 가고, 카드 전체는 더 이상 링크가 아니다', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ lines: [line(1), line(2)] })]} />);
+
+    expect(html).toContain(`<a class="btn btn-ghost" href="/orders/${id}">주문 상세 바로가기</a>`);
+    expect(html).not.toContain('order-list-link');
+    expect(html).toContain('<article class="wc-order-card">');
+    /* 이 주문으로 가는 링크는 버튼 하나뿐이다(품목 줄·카드가 링크를 겹쳐 만들지 않는다). */
+    expect(html.match(new RegExp(`href="/orders/${id}"`, 'g'))).toHaveLength(1);
+    expect(html.indexOf('<article')).toBeLessThan(html.indexOf('주문 상세 바로가기'));
+    expect(html.indexOf('주문 상세 바로가기')).toBeLessThan(html.indexOf('</article>'));
+  });
+
+  it('주문 상태별 고객 라벨과 진행 중 클레임 배지를 함께 보인다', () => {
+    const cases = [['paid', '주문 완료'], ['confirmed', '발주확인'], ['shipping', '배송중'], ['delivered', '배송완료'], ['done', '구매 확정'], ['canceled', '취소됨']] as const;
+    for (const [status, label] of cases) {
+      const html = renderToStaticMarkup(<Orders orders={[orderItem({ status })]} />);
+      expect(html).toContain(`order-status--${status}">${label}</span>`);
+    }
+    const claim = renderToStaticMarkup(<Orders orders={[orderItem({ claim: { claimType: 'return', stage: 'collecting' } })]} />);
+    expect(claim).toContain('<span class="order-list-badge order-claim-badge">반품 회수 중</span>');
+  });
+
+  it('다시 결제 진입(재결제 버튼 띠)은 카드 아래에 그대로 붙는다', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'pending', lines: [line(1)],
+      retry: { source: 'cart', awaitingPayment: true, paymentUnresolved: false, baseGoodId: null, retryOrderId: null } })]} />);
+
+    expect(html).toContain(`<a class="btn btn-holo btn-sm" href="/checkout/${id}?retry=1">다시 결제하기</a>`);
+    expect(html.indexOf('</article>')).toBeLessThan(html.indexOf('order-retry-actions'));
+  });
+
+  it('품목 줄을 읽지 못한 주문은 스냅샷 요약(굿즈 이름·개수)으로 대신 그린다', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ itemLabel: '홍실 아크릴 블록 외 1건', itemCount: 3 })]} />);
+
+    expect(html).toContain('<p class="wc-order-card__summary">홍실 아크릴 블록 외 1건<span>3개 굿즈</span></p>');
+    expect(html).toContain('주문 상세 바로가기');
+    expect(renderToStaticMarkup(<Orders orders={[orderItem({ lines: [] })]} />)).toContain('wc-order-card__summary');
+  });
+
+  it('19금 굿즈 줄은 19 타일로 가린다', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ lines: [line(1, { adultMasked: true })] })]} />);
+    expect(html).toContain('wc-order-line__thumb--adult');
+    expect(html).toContain('19금 굿즈');
   });
 });

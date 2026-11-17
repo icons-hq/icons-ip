@@ -78,7 +78,15 @@ describe('/orders', () => {
       const html = renderToStaticMarkup(await render(result));
       expect(html).toContain(`data-payment-result="${result}"`);
     }
-    expect(mocks.loadOrders).toHaveBeenCalledWith(userId);
+    expect(mocks.loadOrders).toHaveBeenCalledWith(userId, { withLines: true });
+  });
+
+  /* MD-0036: 주문내역 카드는 품목 줄을 그린다 — 이 화면만 줄을 읽고, 두 호출 경로 모두 withLines다. */
+  it('주문내역은 품목 줄을 함께 읽는다', async () => {
+    renderToStaticMarkup(await render(undefined));
+    expect(mocks.loadOrders).toHaveBeenLastCalledWith(userId, { withLines: true });
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ pending: '1' }) }));
+    expect(mocks.loadOrders).toHaveBeenLastCalledWith(userId, { includePending: true, withLines: true });
   });
 
   /* 콜백 리다이렉트에는 주문 식별자가 없다 — 확정되지 않은 결과에서는 결제 대기 주문을
@@ -89,7 +97,7 @@ describe('/orders', () => {
 
     const html = renderToStaticMarkup(await render('checking'));
 
-    expect(mocks.loadOrders).toHaveBeenCalledWith(userId, { includePending: true });
+    expect(mocks.loadOrders).toHaveBeenCalledWith(userId, { includePending: true, withLines: true });
     expect(mocks.loadFocus).toHaveBeenCalledWith(userId);
     expect(html).toContain(`data-focus="${orderId}:attempt_expired"`);
   });
@@ -101,7 +109,7 @@ describe('/orders', () => {
 
   it('복구 링크에서 결제 대기 주문을 포함하고 로그인 복귀에도 선택을 보존한다', async () => {
     await Page({searchParams:Promise.resolve({pending:'1'})});
-    expect(mocks.loadOrders).toHaveBeenCalledWith(userId,{includePending:true});
+    expect(mocks.loadOrders).toHaveBeenCalledWith(userId,{includePending:true,withLines:true});
     mocks.auth={user:null,profile:null};
     await expect(Page({searchParams:Promise.resolve({pending:'1'})})).rejects.toThrow(encodeURIComponent('/orders?pending=1'));
   });
