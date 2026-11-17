@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createHmac, randomInt, randomUUID } from 'node:crypto';
+import { contactChannelsLegalGateOpen } from '@/lib/auth/contact-channels';
 import type { EmailProvider } from '@/lib/email/dispatcher';
 import { resendEmailProviderFromEnvironment } from '@/lib/email/resend-provider.server';
 import { escapeHtml } from '@/lib/email/templates';
@@ -15,6 +16,8 @@ import { EMAIL_CHANGE_CODE_LENGTH, EMAIL_CHANGE_CODE_TTL_SECONDS, normalizeEmail
  * 비밀값은 이미 운영에 있는 메일 발송 HMAC 비밀값(EMAIL_DISPATCH_HMAC_SECRET)을 쓰되 도메인을 나눈다. 메일은 거래 메일과
  * 같은 Resend 설정(RESEND_* 또는 EMAIL_*)으로 보낸다. 둘 중 하나라도 없으면 기능이 닫힌다(화면이 그리지 않는다).
  * 로컬(Vercel 밖)에서 메일 설정이 없으면 코드를 서버 로그에 남기는 console 발송을 쓴다 — Preview·운영에는 없다.
+ * 운영에서는 이 처리(새 이메일·IP 다이제스트)를 고지한 방침 개정의 시행일(휴대폰 인증과 같은 게이트, 2026-11-18 KST)부터 연다.
+ * 바꾼 뒤에는 이전 주소(있으면)로 변경 알림을 보낸다 — 세션을 가로챈 변경을 본인이 알아챌 수 있게.
  */
 
 const DIGEST_DOMAIN = 'icons:member-email-change:v1';
@@ -24,6 +27,8 @@ type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 export interface EmailChangeMessage {
   to: string;
   challengeId: string;
+  /** 같은 요청의 코드 메일과 변경 알림 메일을 나눈다(발송사 멱등 키). */
+  kind?: 'code' | 'changed_notice';
   subject: string;
   text: string;
   html: string;
@@ -48,7 +53,7 @@ export function createConsoleEmailChangeSender(write: (line: string) => void = c
   return {
     provider: 'console',
     async send(message) {
-      write(`[email-change:console] to=${maskedEmail(message.to)} text=${message.text.split('\n').find((line) => line.startsWith('인증 코드')) ?? ''}`);
+      write(`[email-change:console] to=${maskedEmail(message.to)} kind=${message.kind ?? 'code'} text=${message.text.split('\n').find((line) => line.startsWith('인증 코드')) ?? ''}`);
       return true;
     },
   };
@@ -60,7 +65,7 @@ export function emailChangeSenderFromProvider(provider: EmailProvider): EmailCha
     async send(message) {
       const outcome = await provider.send({
         intentId: message.challengeId,
-        idempotencyKey: `member-email-change:${message.challengeId}`,
+        idempotencyKey: `member-email-change:${message.kind ?? 'code'}:${message.challengeId}`,
         recipient: message.to,
         message: { subject: message.subject, text: message.text, html: message.html },
       });
@@ -72,7 +77,9 @@ export function emailChangeSenderFromProvider(provider: EmailProvider): EmailCha
 export function emailChangeConfig(
   env: RuntimeEnvironment = process.env,
   provider: () => EmailProvider | null = resendEmailProviderFromEnvironment,
+  now: Date = new Date(),
 ): EmailChangeConfig | null {
+  if (!contactChannelsLegalGateOpen(env, now)) return null;
   /* 거래 메일 발송 기록(lib/email/supabase-dispatcher-repository.server.ts)과 같은 비밀값·같은 32자 기준이다. */
   const secret = env.EMAIL_DISPATCH_HMAC_SECRET;
   if (!secret || secret.length < 32) return null;
@@ -132,6 +139,7 @@ function retryAfterWords(seconds: unknown) {
 }
 
 const NOT_ELIGIBLE = '이 계정은 여기서 이메일을 바꿀 수 없어요.';
+const REAUTHENTICATION_REQUIRED = '보안을 위해 로그아웃했다가 다시 로그인한 뒤 이메일을 바꿔주세요.';
 const EMAIL_TAKEN = '이 이메일로 가입된 다른 계정이 있어요. 그 계정으로 로그인하거나 다른 이메일을 입력해주세요.';
 
 export type RequestEmailChangeResult =
@@ -171,6 +179,8 @@ export async function requestEmailChangeCode(
         return { ok: false, field: 'email', error: '지금 쓰는 이메일과 같아요. 다른 이메일을 입력해주세요.' };
       case 'not_eligible':
         return { ok: false, field: 'form', error: NOT_ELIGIBLE };
+      case 'reauthentication_required':
+        return { ok: false, field: 'form', error: REAUTHENTICATION_REQUIRED };
       case 'account_unavailable':
         return { ok: false, field: 'form', error: '지금은 이 계정의 이메일을 바꿀 수 없어요.' };
       default:
@@ -178,7 +188,7 @@ export async function requestEmailChangeCode(
     }
   }
 
-  const sent = await config.sender.send({ to: normalized.email, challengeId, ...renderEmailChangeCodeEmail(code) }).catch(() => false);
+  const sent = await config.sender.send({ to: normalized.email, challengeId, kind: 'code', ...renderEmailChangeCodeEmail(code) }).catch(() => false);
   if (!sent) {
     await service.rpc('service_fail_member_email_change', { p_challenge_id: challengeId, p_user_id: input.userId });
     return { ok: false, field: 'form', error: '인증 코드 메일을 보내지 못했어요. 이메일을 확인하고 잠시 후 다시 시도해주세요.' };
@@ -187,7 +197,7 @@ export async function requestEmailChangeCode(
 }
 
 export type VerifyEmailChangeResult =
-  | { ok: true; email: string }
+  | { ok: true; email: string; previousEmail: string | null }
   | { ok: false; field: 'code' | 'form'; error: string; restart: boolean };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -237,7 +247,9 @@ export async function verifyEmailChangeCode(
   }
 
   /* 코드를 맞힌 뒤에만 로그인 이메일을 바꾼다. 확인 메일을 다시 보내지 않도록 email_confirm으로 확인된 주소로 둔다.
-     그 사이 같은 주소로 다른 계정이 생겼으면 GoTrue가 email_exists로 거절한다. */
+     그 사이 같은 주소로 다른 계정이 생겼으면 GoTrue가 email_exists로 거절한다. 이전 주소는 변경 알림용으로 먼저 읽는다. */
+  const before = await service.auth.admin.getUserById(input.userId).catch(() => null);
+  const previousEmail = before?.data?.user?.email?.trim() || null;
   const { error: updateError } = await service.auth.admin.updateUserById(input.userId, { email: result.email, email_confirm: true });
   if (updateError) {
     const code = (updateError as { code?: unknown }).code;
@@ -245,5 +257,29 @@ export async function verifyEmailChangeCode(
       ? { ok: false, field: 'form', error: EMAIL_TAKEN, restart: true }
       : { ok: false, field: 'form', error: '이메일을 바꾸지 못했어요. 잠시 후 인증 코드를 다시 받아주세요.', restart: true };
   }
-  return { ok: true, email: result.email };
+  return { ok: true, email: result.email, previousEmail };
+}
+
+export function renderEmailChangedNotice(newEmail: string) {
+  const subject = '[ICONS] 계정 이메일이 바뀌었어요';
+  const masked = maskedEmail(newEmail);
+  const text = [
+    `ICONS 계정의 이메일이 ${masked}(으)로 바뀌었어요. 앞으로 주문·배송 안내는 새 이메일로 보내 드려요.`,
+    '',
+    '직접 바꾸지 않았다면 바로 ICONS 고객센터(마이페이지 1:1 문의)로 알려주세요.',
+  ].join('\n');
+  const html = `<p>ICONS 계정의 이메일이 ${escapeHtml(masked)}(으)로 바뀌었어요. 앞으로 주문·배송 안내는 새 이메일로 보내 드려요.</p>`
+    + '<p>직접 바꾸지 않았다면 바로 ICONS 고객센터(마이페이지 1:1 문의)로 알려주세요.</p>';
+  return { subject, text, html };
+}
+
+/** 이전 주소로 변경 알림을 보낸다(최선 시도 — 실패해도 변경은 그대로). 이전 주소가 없으면 할 일이 없다. */
+export async function notifyPreviousEmail(
+  config: EmailChangeConfig,
+  input: { previousEmail: string | null; newEmail: string; challengeId: string },
+): Promise<boolean> {
+  if (!input.previousEmail || input.previousEmail === input.newEmail) return false;
+  return config.sender
+    .send({ to: input.previousEmail, challengeId: input.challengeId, kind: 'changed_notice', ...renderEmailChangedNotice(input.newEmail) })
+    .catch(() => false);
 }

@@ -91,6 +91,13 @@ export function createTwilioVerifySender(
     provider: 'twilio_verify',
     async send(message: SmsMessage): Promise<SmsSendResult> {
       if (message.purpose !== 'phone_verification' || !message.code) return { ok: false, reason: 'unavailable' };
+      /* Verify는 같은 번호의 진행 중 Verification(약 10분)을 다시 쓴다 — 취소하지 않고 새로 만들면 이전 코드가 갈 수 있다.
+         DB는 새 요청의 코드만 맞다고 보므로, 먼저 진행 중 Verification을 취소한다(없으면 404 — 무시). */
+      try {
+        await post(`${serviceUrl}/${encodeURIComponent(message.to)}`, new URLSearchParams({ Status: 'canceled' }));
+      } catch {
+        /* 취소 실패는 새 발송을 막지 않는다 — 발송 응답이 결과를 정한다. */
+      }
       let response: Response;
       try {
         response = await post(serviceUrl, new URLSearchParams({

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { isUnusableLoginEmail, normalizeEmailInput } from './email-change';
 import {
   createConsoleEmailChangeSender,
+  notifyPreviousEmail,
   emailChangeCodeDigest,
   emailChangeConfig,
   emailChangeSenderFromProvider,
@@ -31,10 +32,15 @@ function configWith(emailSender = sender().sender): EmailChangeConfig {
   return { secret: SECRET, sender: emailSender };
 }
 
-function service(responses: Record<string, { data: unknown; error: unknown }>, update: { error: unknown } = { error: null }) {
+function service(
+  responses: Record<string, { data: unknown; error: unknown }>,
+  update: { error: unknown } = { error: null },
+  previousEmail: string | null = 'old@privaterelay.appleid.com',
+) {
   const rpc = vi.fn(async (name: string) => responses[name] ?? { data: null, error: { message: 'unexpected' } });
   const updateUserById = vi.fn(async () => update);
-  return { rpc, updateUserById, client: { rpc, auth: { admin: { updateUserById } } } as never };
+  const getUserById = vi.fn(async () => ({ data: { user: { email: previousEmail } }, error: null }));
+  return { rpc, updateUserById, client: { rpc, auth: { admin: { updateUserById, getUserById } } } as never };
 }
 
 describe('isUnusableLoginEmail / normalizeEmailInput', () => {
@@ -65,13 +71,20 @@ describe('emailChangeConfig', () => {
     expect(emailChangeConfig({ EMAIL_DISPATCH_HMAC_SECRET: SECRET, VERCEL_ENV: 'preview' }, () => null)).toBeNull();
   });
 
+  it('opens in production only from the privacy revision effective date (2026-11-18 KST)', () => {
+    const provider = () => ({ send: vi.fn() });
+    const env = { EMAIL_DISPATCH_HMAC_SECRET: SECRET, VERCEL_ENV: 'production' };
+    expect(emailChangeConfig(env, provider, new Date('2026-11-17T14:59:59Z'))).toBeNull();
+    expect(emailChangeConfig(env, provider, new Date('2026-11-17T15:00:00Z'))?.sender.provider).toBe('resend');
+  });
+
   it('sends through the Resend provider with an idempotency key bound to the request', async () => {
     const send = vi.fn(async () => ({ kind: 'accepted' as const, providerReference: 're_1' }));
     const mail = emailChangeSenderFromProvider({ send });
     await expect(mail.send({ to: 'fan@example.com', challengeId: CHALLENGE_ID, subject: 's', text: 't', html: 'h' })).resolves.toBe(true);
     expect(send).toHaveBeenCalledWith({
       intentId: CHALLENGE_ID,
-      idempotencyKey: `member-email-change:${CHALLENGE_ID}`,
+      idempotencyKey: `member-email-change:code:${CHALLENGE_ID}`,
       recipient: 'fan@example.com',
       message: { subject: 's', text: 't', html: 'h' },
     });
@@ -80,7 +93,7 @@ describe('emailChangeConfig', () => {
   it('logs the code locally but masks the address', async () => {
     const write = vi.fn();
     await createConsoleEmailChangeSender(write).send({ to: 'fan@example.com', challengeId: CHALLENGE_ID, ...renderEmailChangeCodeEmail('123456') });
-    expect(write).toHaveBeenCalledWith('[email-change:console] to=f***@example.com text=인증 코드: 123456');
+    expect(write).toHaveBeenCalledWith('[email-change:console] to=f***@example.com kind=code text=인증 코드: 123456');
   });
 });
 
@@ -110,6 +123,7 @@ describe('requestEmailChangeCode', () => {
       [{ ok: false, reason: 'cooldown', retryAfterSeconds: 42 }, { field: 'form', error: '인증 코드 요청이 너무 잦아요. 42초 후 다시 시도해주세요.' }],
       [{ ok: false, reason: 'not_eligible' }, { field: 'form', error: '이 계정은 여기서 이메일을 바꿀 수 없어요.' }],
       [{ ok: false, reason: 'same_email' }, { field: 'email' }],
+      [{ ok: false, reason: 'reauthentication_required' }, { field: 'form', error: '보안을 위해 로그아웃했다가 다시 로그인한 뒤 이메일을 바꿔주세요.' }],
     ];
     for (const [data, expected] of cases) {
       const { client } = service({ service_issue_member_email_change: { data, error: null } });
@@ -137,7 +151,7 @@ describe('verifyEmailChangeCode', () => {
     const { rpc, updateUserById, client } = service({ service_verify_member_email_change: { data: { ok: true, email: 'real@example.com' }, error: null } });
 
     await expect(verifyEmailChangeCode({ userId: USER_ID, challengeId: CHALLENGE_ID, code: '482 913' }, { config: configWith(), service: client }))
-      .resolves.toEqual({ ok: true, email: 'real@example.com' });
+      .resolves.toEqual({ ok: true, email: 'real@example.com', previousEmail: 'old@privaterelay.appleid.com' });
     expect(rpc).toHaveBeenCalledWith('service_verify_member_email_change', {
       p_challenge_id: CHALLENGE_ID, p_user_id: USER_ID, p_code_digest: emailChangeCodeDigest(SECRET, CHALLENGE_ID, '482913'),
     });
@@ -171,5 +185,22 @@ describe('verifyEmailChangeCode', () => {
     await expect(verifyEmailChangeCode({ userId: USER_ID, challengeId: CHALLENGE_ID, code: '12ab' }, { config: configWith(), service: client }))
       .resolves.toMatchObject({ ok: false, field: 'code', restart: false });
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('notifyPreviousEmail', () => {
+  it('tells the previous address that the account email changed, with a separate idempotency kind', async () => {
+    const fake = sender();
+    await expect(notifyPreviousEmail(configWith(fake.sender), { previousEmail: 'old@privaterelay.appleid.com', newEmail: 'real@example.com', challengeId: CHALLENGE_ID }))
+      .resolves.toBe(true);
+    expect(fake.sent[0]).toMatchObject({ to: 'old@privaterelay.appleid.com', challengeId: CHALLENGE_ID, kind: 'changed_notice', subject: '[ICONS] 계정 이메일이 바뀌었어요' });
+    expect(fake.sent[0].text).toContain('r***@example.com');
+    expect(fake.sent[0].text).not.toContain('real@example.com');
+  });
+
+  it('does nothing without a previous address', async () => {
+    const fake = sender();
+    await expect(notifyPreviousEmail(configWith(fake.sender), { previousEmail: null, newEmail: 'real@example.com', challengeId: CHALLENGE_ID })).resolves.toBe(false);
+    expect(fake.sent).toHaveLength(0);
   });
 });

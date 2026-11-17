@@ -31,10 +31,10 @@ create function pg_temp.age_challenges(seconds integer) returns void language sq
    resolved_at = resolved_at - make_interval(secs => seconds) $$;
 
 -- 1~4: Apple 릴레이 주소, 5: 일반 이메일, 6: 이미 다른 회원이 쓰는 주소의 주인
-insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+insert into auth.users(id,aud,role,email,email_confirmed_at,last_sign_in_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select pg_temp.uid(n),'authenticated','authenticated',
   case when n<=4 then 'relay'||n||'@privaterelay.appleid.com' when n=5 then 'member-mail-5@example.test' else 'taken@example.test' end,
-  now(),'{}','{}',now(),now()
+  now(),now(),'{}','{}',now(),now()
  from generate_series(1,6) n;
 update public.profiles set nickname='TEST 메일'||right(id::text,2), birth_date='1990-01-01',
  consents='{"terms":true,"privacy":true}', onboarded_at=now() where id::text like 'e1170000-%';
@@ -64,10 +64,17 @@ select 1/case when not exists(select 1 from private.member_email_change_challeng
 select 1/case when pg_temp.issue(1, 2, 'another@privaterelay.appleid.com', null, '111111')->>'reason'='email_unusable' then 1 else 0 end as assert_relay_target_refused;
 select 1/case when pg_temp.issue(1, 3, 'relay1@privaterelay.appleid.com', null, '111111')->>'reason'='email_unusable' then 1 else 0 end as assert_same_relay_refused;
 
+-- 최근 30분 안에 로그인하지 않은 세션은 다시 로그인해야 한다(세션만 가로채서는 바꾸지 못한다).
+update auth.users set last_sign_in_at=now()-interval '31 minutes' where id=pg_temp.uid(1);
+select 1/case when pg_temp.issue(1, 4, 'real1@example.test', null, '111111')->>'reason'='reauthentication_required' then 1 else 0 end as assert_recent_sign_in_required;
+update auth.users set last_sign_in_at=now() where id=pg_temp.uid(1);
+
 -- 정상 요청 → 60초 안 재요청은 대기 → 틀린 코드는 남은 횟수 → 맞는 코드는 새 주소를 돌려주고 원문을 지운다.
 select pg_temp.keep('issued', pg_temp.issue(1, 10, 'real1@example.test', 'ip a', '123456'));
 select 1/case when (pg_temp.r('issued')->>'ok')::boolean then 1 else 0 end as assert_issued;
 select 1/case when pg_temp.issue(1, 11, 'real1b@example.test', 'ip a', '222222')->>'reason'='cooldown' then 1 else 0 end as assert_cooldown;
+-- 재요청 간격은 회원 단위다 — 다른 회원이 같은 주소를 바로 요청해도 대기라고 답하지 않는다.
+select 1/case when (pg_temp.issue(2, 13, 'real1@example.test', 'ip c', '232323')->>'ok')::boolean then 1 else 0 end as assert_cooldown_per_member;
 select pg_temp.keep('mismatch', pg_temp.verify(1, 10, '000000'));
 select 1/case when pg_temp.r('mismatch')->>'reason'='mismatch' and (pg_temp.r('mismatch')->>'remainingAttempts')::int=4 then 1 else 0 end as assert_mismatch_counts;
 select pg_temp.keep('verified', pg_temp.verify(1, 10, '123456'));

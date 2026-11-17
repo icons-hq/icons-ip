@@ -312,7 +312,7 @@ describe('completeOnboardingAction login email', () => {
     mocks.authGetUser.mockResolvedValue({ data: { user: { id: USER_ID, email: '' } }, error: null });
 
     await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
-      errors: { form: '이메일을 먼저 입력하고 메일로 받은 인증 코드로 확인해주세요.' },
+      errors: { form: '이메일을 먼저 입력하고 메일로 받은 인증 코드로 확인해주세요. 이메일 칸이 보이지 않으면 고객센터로 알려주세요.' },
     });
     expect(mocks.profilePayloads).toEqual([]);
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -517,6 +517,17 @@ describe('finishOnboardingAction', () => {
 
     await expect(finishOnboardingAction({}, finishForm())).resolves.toEqual({
       errors: { form: '생년월일과 약관 동의를 먼저 저장해주세요. 화면을 새로고침한 뒤 다시 시도해주세요.' },
+    });
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+
+  /* 리뷰 P2 — 이메일 없는 계정은 휴대폰 단계에서 마쳐도 게이트를 넘지 못한다. 1단계(이메일 확인)로 돌려보낸다. */
+  it('refuses to finish for an account without a login email', async () => {
+    phoneState(true);
+    mocks.authGetUser.mockResolvedValue({ data: { user: { id: USER_ID, email: null } }, error: null });
+
+    await expect(finishOnboardingAction({}, finishForm())).resolves.toEqual({
+      errors: { form: '이메일을 먼저 확인해야 해요. 화면을 새로고침한 뒤 이메일을 입력해주세요.' },
     });
     expect(mocks.profilePayloads).toEqual([]);
   });

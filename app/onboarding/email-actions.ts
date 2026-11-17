@@ -2,8 +2,9 @@
 
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { EMAIL_CHANGE_CODE_TTL_SECONDS } from '@/lib/auth/email-change';
-import { emailChangeConfig, requestEmailChangeCode, verifyEmailChangeCode } from '@/lib/auth/email-change.server';
+import { emailChangeConfig, notifyPreviousEmail, requestEmailChangeCode, verifyEmailChangeCode } from '@/lib/auth/email-change.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
@@ -85,6 +86,7 @@ export async function verifyEmailChangeCodeAction(
   const challengeId = readString(formData, 'challengeId');
   const email = readString(formData, 'email').slice(0, 254) || state.email;
   let changedEmail: string;
+  let previousEmail: string | null;
   try {
     const result = await verifyEmailChangeCode({ userId, challengeId, code: readString(formData, 'code') }, { config });
     if (!result.ok) {
@@ -93,11 +95,17 @@ export async function verifyEmailChangeCodeAction(
         : { stage: 'code_sent', challengeId, email, errors: { [result.field]: result.error } };
     }
     changedEmail = result.email;
+    previousEmail = result.previousEmail;
   } catch {
     return { stage: 'code_sent', challengeId, email, errors: { form: '인증 코드를 확인하지 못했어요. 잠시 후 다시 시도해주세요.' } };
   }
 
-  revalidatePath('/onboarding');
-  revalidatePath('/settings');
+  /* 세션을 가로챈 변경을 본인이 알아챌 수 있게 이전 주소로 알린다(응답 뒤, 최선 시도). */
+  after(async () => {
+    await notifyPreviousEmail(config, { previousEmail, newEmail: changedEmail, challengeId });
+  });
+  /* 온보딩은 이 조각만 이메일을 보여 주므로 다시 그리지 않는다 — 다시 그리면 대상이 아니게 된 조각이 사라져 완료 안내가
+     보이지 않는다. 설정은 프로필 칸의 이메일도 바뀌어야 하므로 다시 그린다. */
+  if (readString(formData, 'context') !== 'onboarding') revalidatePath('/settings');
   return { stage: 'changed', challengeId, email: changedEmail, message: `이메일을 ${changedEmail}로 바꿨어요.` };
 }

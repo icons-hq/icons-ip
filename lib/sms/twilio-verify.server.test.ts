@@ -35,7 +35,11 @@ describe('createTwilioVerifySender', () => {
     await expect(sender.send({ to: '+821012345678', text: 'ignored', purpose: 'phone_verification', code: '123456' }))
       .resolves.toEqual({ ok: true, providerMessageId: `VE${'c'.repeat(32)}` });
 
-    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    /* 먼저 같은 번호의 진행 중 Verification을 취소해 이전 코드가 다시 가지 않게 한다. */
+    const [cancelUrl, cancelInit] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(cancelUrl).toBe(`https://verify.twilio.com/v2/Services/${VA}/Verifications/%2B821012345678`);
+    expect(String(cancelInit.body)).toBe('Status=canceled');
+    const [url, init] = fetch.mock.calls[1] as unknown as [string, RequestInit];
     expect(url).toBe(`https://verify.twilio.com/v2/Services/${VA}/Verifications`);
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>).Authorization).toBe(`Basic ${Buffer.from(`${SK}:${SECRET}`).toString('base64')}`);
@@ -61,11 +65,13 @@ describe('createTwilioVerifySender', () => {
 
   it('separates a refused number from our own setup problems and logs neither the number nor the code', async () => {
     const log = vi.fn();
-    const refused = createTwilioVerifySender(CONFIG, { fetch: async () => jsonResponse(400, { code: 60200 }), log });
+    /* 취소 호출(404 — 진행 중 Verification 없음)은 로그를 남기지 않고, 발송 응답만 결과를 정한다. */
+    const sendOnly = (status: number, code: number) => async (input: string) => input.endsWith('/Verifications') ? jsonResponse(status, { code }) : jsonResponse(404, { code: 20404 });
+    const refused = createTwilioVerifySender(CONFIG, { fetch: sendOnly(400, 60200), log });
     await expect(refused.send({ to: '+821012345678', text: '', purpose: 'phone_verification', code: '654321' }))
       .resolves.toEqual({ ok: false, reason: 'rejected' });
 
-    const misconfigured = createTwilioVerifySender(CONFIG, { fetch: async () => jsonResponse(403, { code: 60204 }), log });
+    const misconfigured = createTwilioVerifySender(CONFIG, { fetch: sendOnly(403, 60204), log });
     await expect(misconfigured.send({ to: '+821012345678', text: '', purpose: 'phone_verification', code: '654321' }))
       .resolves.toEqual({ ok: false, reason: 'unavailable' });
 

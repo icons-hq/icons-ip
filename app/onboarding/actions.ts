@@ -186,7 +186,7 @@ export async function completeOnboardingAction(
   if (userError || !user) return { errors: { form: '로그인이 필요합니다.' } };
   /* 소셜 로그인이 이메일을 주지 않은 계정은 온보딩을 마쳐도 게이트(isOnboarded)를 넘지 못한다 — 이메일 변경 조각에서
      먼저 이메일을 확인하게 한다(2026-11-17). */
-  if (!user.email?.trim()) return { errors: { form: '이메일을 먼저 입력하고 메일로 받은 인증 코드로 확인해주세요.' } };
+  if (!user.email?.trim()) return { errors: { form: '이메일을 먼저 입력하고 메일로 받은 인증 코드로 확인해주세요. 이메일 칸이 보이지 않으면 고객센터로 알려주세요.' } };
 
   const nicknameResult = await ensureProfileNickname(supabase, user.id);
   if (!nicknameResult.ok) return { errors: { form: nicknameResult.error } };
@@ -286,6 +286,8 @@ export async function finishOnboardingAction(
   const { data: userData, error: userError } = await supabase.auth.getUser();
   const user = userData.user;
   if (userError || !user) return { errors: { form: '로그인이 필요합니다.' } };
+  /* 이메일 없는 계정은 휴대폰 인증을 마쳐도 게이트를 넘지 못한다 — 1단계(이메일 확인)로 돌려보낸다. */
+  if (!user.email?.trim()) return { errors: { form: '이메일을 먼저 확인해야 해요. 화면을 새로고침한 뒤 이메일을 입력해주세요.' } };
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')

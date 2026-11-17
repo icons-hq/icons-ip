@@ -18,6 +18,10 @@ begin;
 --   · 코드 원문은 저장하지 않는다. 앱 서버가 서버 비밀값으로 만든 HMAC(요청 id에 결속)만 비교한다. 새 이메일 원문은
 --     진행 중인 요청에만 두고 결과가 정해지면 지운다. 한도는 이메일·IP 다이제스트로 센다.
 --   · '이미 쓰는 이메일'은 코드를 맞힌 뒤에만 알린다 — 주소만 알면 가입 여부를 알아내는 조회가 되지 않게 한다.
+--   · 세션만 가로채서는 바꿀 수 없게 최근 30분 안에 로그인한 세션만 요청할 수 있다(auth.users.last_sign_in_at). 바꾼 뒤에는
+--     앱이 이전 주소(있으면)로 변경 알림 메일을 보낸다.
+--   · 재요청 간격(60초)은 회원 단위로만 센다 — 주소 단위로 세면 '누군가 방금 이 주소를 요청했다'가 드러난다. 주소별
+--     시간·일 한도는 그 주소의 메일함을 코드 메일로 채우지 못하게 남긴다.
 --   · 매시 정리 작업이 만료 요청을 닫고 이틀 지난 요청 행을 지운다. 탈퇴 신청(계정 봉인) 시 그 회원의 요청 행을 지운다.
 --
 -- 로그인 이메일이 바뀌면 public.profiles.email도 같은 값으로 맞춘다(지금까지 profiles.email은 가입 때 한 번만 채워졌다).
@@ -162,6 +166,10 @@ begin
   if not private.member_login_email_unusable(p_user_id) then
     return jsonb_build_object('ok', false, 'reason', 'not_eligible');
   end if;
+  -- 세션만으로 바꾸지 못하게 최근 로그인을 요구한다(온보딩은 막 로그인한 직후라 걸리지 않는다).
+  if not exists (select 1 from auth.users u where u.id = p_user_id and u.last_sign_in_at > clock_timestamp() - interval '30 minutes') then
+    return jsonb_build_object('ok', false, 'reason', 'reauthentication_required');
+  end if;
   -- 새 주소도 쓸 수 있는 주소여야 한다.
   if p_email like '%@privaterelay.appleid.com' then
     return jsonb_build_object('ok', false, 'reason', 'email_unusable');
@@ -177,9 +185,9 @@ begin
 
   now_at := clock_timestamp();
 
-  -- 같은 회원이나 같은 주소로 60초 안에 다시 보내지 않는다.
+  -- 같은 회원은 60초 안에 다시 보내지 않는다(주소 단위로 세지 않는다 — 다른 회원의 요청 여부가 드러나지 않게).
   select max(c.created_at) into last_at from private.member_email_change_challenges c
-    where (c.user_id = p_user_id or c.email_digest = p_email_digest) and c.created_at > now_at - interval '60 seconds';
+    where c.user_id = p_user_id and c.created_at > now_at - interval '60 seconds';
   if last_at is not null then
     return jsonb_build_object('ok', false, 'reason', 'cooldown',
       'retryAfterSeconds', greatest(1, ceil(extract(epoch from (last_at + interval '60 seconds' - now_at)))::integer));

@@ -20,6 +20,8 @@ export interface EmailChangePanelView {
   currentEmail: string;
   /** 이메일이 아예 없는 계정 — 바꾸기 전에는 온보딩을 마칠 수 없다. */
   required: boolean;
+  /** 메일 발송 설정이 없거나 처리방침 시행 전이라 지금은 바꿀 수 없다(필수 계정에만 그린다). */
+  unavailable?: boolean;
 }
 
 const emptyState: EmailChangeActionState = {};
@@ -75,7 +77,11 @@ export function EmailChangePanel({
             : '다른 이메일로 바꿀 수 있어요.'}
       </p>
 
-      {changed ? (
+      {view.unavailable ? (
+        <div className="wc-auth__alert" role="alert">
+          지금은 여기서 이메일을 등록할 수 없어요. 잠시 후 다시 시도하거나 고객센터로 알려주세요.
+        </div>
+      ) : changed ? (
         <div aria-live="polite" className={statusClass} role="status">
           {verifyResult?.message}
         </div>
@@ -86,6 +92,7 @@ export function EmailChangePanel({
       ) : codeStage ? (
         <form action={verifyAction} className={formClass}>
           <input name="challengeId" type="hidden" value={activeChallenge} />
+          <input name="context" type="hidden" value={context} />
           <input name="email" type="hidden" value={requestState.email ?? ''} />
           {requestState.message ? (
             <div aria-live="polite" className={statusClass} role="status">

@@ -106,6 +106,12 @@ describe('Onboarding form contracts', () => {
     expect(html).not.toContain('바꾸지 않기');
   });
 
+  it('says so instead of a dead end when an email is required but cannot be changed here', () => {
+    const html = render({ email: '', emailChange: { currentEmail: '', required: true, unavailable: true } });
+    expect(html).toContain('지금은 여기서 이메일을 등록할 수 없어요');
+    expect(html).not.toContain('name="email"');
+  });
+
   it('keeps the read-only email for ordinary logins', () => {
     const html = render();
     expect(html).toContain('aria-label="이메일"');

@@ -39,8 +39,10 @@ export default async function Page({ searchParams }: PageProps) {
   const withKakao = marketingKakaoVisible(kakaoChannelConfig() !== null, marketingConsent);
   /* 로그인 이메일이 쓸 수 없는 주소(Apple 이메일 가리기 릴레이·빈 값)면 다른 이메일로 바꾸는 조각을 연다(2026-11-17). */
   const loginEmail = auth.user?.email?.trim() ?? '';
-  const emailChange = auth.user && isUnusableLoginEmail(loginEmail) && emailChangeConfig()
-    ? { currentEmail: loginEmail, required: !loginEmail }
+  /* 이메일이 없는 계정은 바꾸기 전에 온보딩을 마칠 수 없다 — 메일 설정이 없어 바꿀 수 없으면 그 사실을 알린다. */
+  const emailChangeOpen = Boolean(auth.user) && isUnusableLoginEmail(loginEmail) && emailChangeConfig() !== null;
+  const emailChange = auth.user && isUnusableLoginEmail(loginEmail) && (emailChangeOpen || !loginEmail)
+    ? { currentEmail: loginEmail, required: !loginEmail, ...(emailChangeOpen ? {} : { unavailable: true }) }
     : undefined;
 
   return (
@@ -54,7 +56,7 @@ export default async function Page({ searchParams }: PageProps) {
       marketingChannels={withKakao ? MARKETING_CHANNELS_WITH_KAKAO : MARKETING_CHANNELS}
       next={next}
       /* 스위치가 켜졌고 1단계(생년월일·약관 동의)를 이미 저장했으면 휴대폰 인증 단계부터 연다. */
-      phoneStep={Boolean(phoneConfig) && Boolean(auth.profile?.birth_date)
+      phoneStep={Boolean(phoneConfig) && Boolean(loginEmail) && Boolean(auth.profile?.birth_date)
         && auth.profile?.consents?.terms === true && auth.profile?.consents?.privacy === true}
       phoneVerification={phoneConfig ? phoneVerificationView(phoneConfig, verifiedPhone) : undefined}
     />
