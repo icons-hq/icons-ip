@@ -1,6 +1,7 @@
 import type { CheckoutPaymentMethod, CheckoutAddress, OrderRetrySource } from './checkout';
 import { commerceReferenceLabel } from './commerce-number';
 import type { ShipmentRecord } from './orders/shipments';
+import type { OrderLineView } from './orders/order-lines';
 import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, type OrderClaimEligibility, type OrderClaimStage, type OrderClaimType } from './orders/claims';
 
 // 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
@@ -113,6 +114,11 @@ export interface OrderListItem {
   claim?: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null;
   /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 없다. */
   retry?: OrderRetrySource | null;
+  /**
+   * 주문의 모든 품목 줄(MD-0036). `loadOrders(…, { withLines: true })`만 채운다 — 없으면 화면이 `itemLabel`·`itemCount` 요약으로 대체한다.
+   * 썸네일·IP명·영수증 보강이 실패해도 스냅샷 이름·수량·단가의 줄은 남는다.
+   */
+  lines?: OrderLineView[];
 }
 
 export interface OrderDetailItem {
@@ -135,6 +141,8 @@ export interface OrderPaymentSummary {
   amount: number;
   status: string;
   createdAt: string;
+  /** 결제 원장의 provider(`toss` 등). 결제 영수증 버튼 노출 판정(`orderReceiptAvailable`)이 쓴다. 옛 응답은 없다. */
+  provider?: string | null;
 }
 
 export interface OrderRefundSummary {
@@ -166,6 +174,8 @@ export interface OrderCancellationRequestSummary {
 }
 
 export interface OrderDetail {
+  /** 주문 품목 줄(MD-0036·0037). 같은 `OrderLineItem`이 주문내역과 주문 상세에서 그린다. 보강을 못 읽었어도 스냅샷 줄은 있다. */
+  lines?: OrderLineView[];
   orderNumber?: string;
   reshipmentHistory?: import('./orders/reshipment-items').OrderReshipmentReceipt[];
   /** 교환으로 다시 보낸 소포(배송 건마다 하나, TKT-166). 진행 중인 교환의 먼저 보낸 소포도 들어 있다. */
@@ -233,12 +243,28 @@ export function orderStatusMeta(status: OrderDetailStatus): OrderStatusPresentat
 }
 
 /**
+ * 고객 화면(주문 내역·상세·마이페이지)이 쓰는 주문 현황 이름(MD-0036 3번). 어드민의 `orderStatusMeta`
+ * ('결제완료'·'거래확정'·'취소')와 라벨이 달라서 공용 `STATUS_PRESENTATION`을 바꾸지 않고 이 표를 따로 둔다.
+ * 원문 예시(주문 완료·취소됨·배송중·구매 확정)는 원문 글자 그대로 쓰고, 원문에 없는 발주확인·배송완료는 상태 정보를
+ * 잃지 않게 현행 이름을 유지한다. pending은 결제수단으로 가른다(아래 `customerOrderStatusMeta`).
+ */
+const CUSTOMER_STATUS_LABELS: Record<Exclude<OrderDetailStatus, 'pending'>, string> = {
+  paid: '주문 완료',
+  confirmed: '발주확인',
+  shipping: '배송중',
+  delivered: '배송완료',
+  done: '구매 확정',
+  canceled: '취소됨',
+};
+
+/**
  * 고객 주문 내역·상세의 상태 표기. 결제를 마치지 않은 주문은 결제수단으로 말한다 — 카드는 '결제 대기', 무통장은 '입금 대기'
  * (QA1 S-D2-12·S-D2-15·S-T06-01: 입금 대기 주문 제목이 카드 승인 확인 문구와 같았고, 목록에 '입금 대기'와 '결제대기'가 함께 붙었다).
+ * 그 밖의 상태는 라벨만 고객 이름(`CUSTOMER_STATUS_LABELS`)으로 바꾸고 제목·본문·톤은 공용 표 그대로다.
  */
 export function customerOrderStatusMeta(status: OrderDetailStatus, paymentMethod: CheckoutPaymentMethod | null | undefined): OrderStatusPresentation {
   const base = STATUS_PRESENTATION[status];
-  if (status !== 'pending') return base;
+  if (status !== 'pending') return { ...base, label: CUSTOMER_STATUS_LABELS[status] };
   return paymentMethod === 'bank_transfer'
     ? {
         ...base,
@@ -247,6 +273,20 @@ export function customerOrderStatusMeta(status: OrderDetailStatus, paymentMethod
         body: '안내된 계좌로 기한 안에 입금하면 확인 후 주문이 확정돼요. 진행하지 않을 주문은 아래에서 취소할 수 있어요.',
       }
     : { ...base, label: '결제 대기' };
+}
+
+/**
+ * 진행 사다리·배송 과정 안내·마이페이지 상태별 건수처럼 "단계 이름"이 필요한 자리의 고객 라벨. 상태 하나만 받는다
+ * (결제수단별 pending 구분이 필요한 배지는 `customerOrderStatusMeta`). 디지털 전용 주문은 파일 제공 흐름의 이름을 쓴다 —
+ * 발주확인·배송중은 디지털에 없는 단계라 '주문 완료'로 접고(`OrderDetail` 사다리와 같은 규칙), 배송완료는 '파일 제공 시작'이다.
+ */
+export function customerOrderStepLabel(status: OrderDetailStatus, { digital = false }: { digital?: boolean } = {}): string {
+  if (status === 'pending') return '결제 대기';
+  if (digital) {
+    if (status === 'delivered') return '파일 제공 시작';
+    if (status === 'confirmed' || status === 'shipping') return CUSTOMER_STATUS_LABELS.paid;
+  }
+  return CUSTOMER_STATUS_LABELS[status];
 }
 
 /**
