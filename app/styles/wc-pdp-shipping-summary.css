@@ -1,0 +1,56 @@
+/*
+ * 굿즈 상세 구매 패널 — 택배 배송 안내(배송국가·배송비)와 합계 행이 없는 레일 박스 (MD-0039·0040·0041).
+ * 값은 WC 토큰만 쓴다. 공용 wc-catalog.css 는 건드리지 않고, 선택자 특정성으로 기존 규칙을 이긴다.
+ */
+
+/* 제공 방식 안내 안의 `배송국가 대한민국` · `배송비 ₩3,000 (₩40,000 이상 무료)` — 패널 상태 문구(13px)와 같은 크기다. */
+.wc-buy-panel__shipping {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+
+.wc-buy-panel__shipping > div {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wc-buy-panel__shipping dt {
+  flex: none;
+  min-width: 56px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-buy-panel__shipping dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 990px) {
+  /* 합계 행('예상 굿즈 금액')을 뺀 박스는 높이가 153 → 92 로 줄어든다 — 버튼 위 빈 띠(합계 41 + 간격 20)를 없애고,
+     박스 아랫면이 화면 아래에 닿는 기준(top 154 → 93)을 맞춘다. */
+  .wc-pdp-railbox.wc-pdp-railbox--no-total {
+    top: calc(100vh - 93px);
+    top: calc(100dvh - 93px);
+  }
+
+  .wc-pdp-railbox--no-total .wc-pdp-railbox__ctas,
+  .wc-pdp-railbox--no-total .wc-pdp-railbox__buy.is-full,
+  .wc-pdp-railbox--no-total .wc-pdp-railbox__restock {
+    margin-top: 0;
+  }
+}
+
+/* 문의 런처(wc-inquiry-widget.css)는 레일 박스가 하단에 붙은 동안 박스 위 24px에 선다 — 합계 행이 있는 박스(top 154)는 bottom 178px.
+   합계 행이 없는 박스(top 93, 높이 92)는 그만큼 낮아 같은 기준(박스 윗면 + 24px)이면 117px다. 겹치는 폭(박스 오른쪽 끝이 런처 왼쪽 끝을
+   넘는 990~1459px)과 박스가 레일과 함께 밀려 올라가는 동안 감추는 규칙은 wc-inquiry-widget.css 그대로다.
+   박스 상태는 `.wc-pdp[data-rail-box]`, 합계 없음은 박스의 `--no-total` 클래스다 — 둘이 함께일 때만 이 값이고, 선택자가 더 구체적이라 178px을 이긴다. */
+@media (min-width: 990px) and (max-width: 1459px) {
+  #root:has(.wc-pdp[data-rail-box='docked'] .wc-pdp-railbox--no-total) .wc-inquiry-widget__launcher {
+    bottom: 117px;
+  }
+}

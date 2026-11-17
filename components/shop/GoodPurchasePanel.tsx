@@ -17,7 +17,8 @@ import { goodsShipDateLabel, preorderSupplyLabel, preorderUnavailableLabel } fro
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { goodsPurchaseVolumePreview } from '@/lib/goods-transaction-presentation';
 import { GoodsTransactionTerms } from './GoodsTransactionTerms';
-import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
+import type { GoodShippingPolicy } from '@/lib/fulfillment';
+import { goodsShippingSummary } from '@/lib/goods-shipping-summary';
 import { GiftPurchaseEntry } from '@/components/gifts/GiftPurchaseEntry';
 import { quoteGoodsSalesAction } from '@/app/cart/sales-actions';
 import { createDirectCheckoutDraftAction, type CheckoutDraftActionError } from '@/app/checkout/draft-actions';
@@ -26,6 +27,7 @@ import type { CartItem } from '@/lib/cart';
 import { buyNowReturnPath, savePendingBuyNow, takePendingBuyNow } from '@/lib/checkout-buy-now';
 import { SubscriptionPurchaseEntry } from '@/components/subscriptions/SubscriptionPurchaseEntry';
 import type { AddToCartResultItem } from './AddToCartResultDialog';
+import '@/app/styles/wc-pdp-shipping-summary.css';
 
 /*
  * 굿즈 상세의 구매 블록 (R-04 §3.6~3.8 · DESIGN `pdp-buybox`·`cta-pair`·`restock-cta`).
@@ -543,10 +545,15 @@ export interface PurchaseTotalDisplay {
  * 합계 행의 라벨·값. 본문 패널과 데스크톱 레일 박스가 같은 값을 보인다.
  * 고른 품절 옵션(모든 옵션이 품절이면 첫 옵션이 고른 채 열린다)은 그 옵션 가격이고, 고를 옵션이 없는
  * 품절 굿즈도 "옵션 선택 후 표시" 대신 가격으로 합계를 보인다(PD-08).
+ *
+ * 거래 조건(`transactionOffer`)이 있는 굿즈는 행 자체를 두지 않는다(MD-0039·0040 — '예상 굿즈 금액' 삭제). 쿠폰·적립금·배송비를
+ * 반영한 결제 금액은 주문서가 말하고, 이 패널의 안내 문단이 그렇게 알린다. 판매 불가는 '판매 상태' 행이 남고, 거래 조건이 없는
+ * (또는 읽지 못한) 굿즈의 '총 금액' 행도 그대로다.
  */
-export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal' | 'soldOut' | 'quantity' | 'restockOption'>): PurchaseTotalDisplay {
-  const label = purchase.unavailableLabel ? '판매 상태' : purchase.good.transactionOffer ? '예상 굿즈 금액' : '총 금액';
-  if (purchase.unavailableLabel) return { label, amount: purchase.unavailableLabel, numeric: false };
+export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal' | 'soldOut' | 'quantity' | 'restockOption'>): PurchaseTotalDisplay | null {
+  if (purchase.unavailableLabel) return { label: '판매 상태', amount: purchase.unavailableLabel, numeric: false };
+  if (purchase.good.transactionOffer) return null;
+  const label = '총 금액';
   /* 고른 품절 옵션은 그 옵션 가격으로 합계를 보인다(레퍼런스도 품절 옵션을 고른 채 합계를 보인다, 11 §6 B9). */
   if (purchase.restockOption) return { label, amount: krw(purchaseSubtotal(purchase.restockOption.price, purchase.quantity)), numeric: true };
   if (purchase.selectionRequired && purchase.soldOut) {
@@ -666,9 +673,10 @@ export function foldedPurchaseInputsNote(folded: readonly string[]): string | nu
 }
 
 /** 정보 칼럼의 구매 패널. 품절이면(고른 옵션만 품절이어도) CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
-export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
+export function GoodPurchasePanel({ otherPurchases, purchase, shippingPolicy }: { otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController; shippingPolicy?: GoodShippingPolicy | null }) {
   const { disabled, good, inert, message, quantity, restockOption, selectedOption, selectOption, setQuantity } = purchase;
   const total = purchaseTotalDisplay(purchase);
+  const shipping = goodsShippingSummary(good.transactionOffer?.fulfillment, shippingPolicy, good.transactionOffer);
   const cta = purchaseCtaState(purchase);
   const panelRef = useRef<HTMLDivElement>(null);
   const stale = useRestockStaleState(panelRef, cta.kind, PANEL_CTA_FOCUS);
@@ -738,12 +746,20 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
       <GoodsTransactionTerms good={good} quantity={quantity} />
       {restockOnly ? null : (purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => <GoodsTransactionTerms key={choice.goodId} good={choice.good!} quantity={choice.quantity} />)}
       {purchase.volumeDiscountTotal ? <p className="wc-buy-panel__state">선택 굿즈 복수구매 할인 예상 −{krw(purchase.volumeDiscountTotal)}</p> : null}
-      <div className="wc-buy-panel__total">
+      {total ? <div className="wc-buy-panel__total">
         <span className="wc-buy-panel__total-label">{total.label}</span>
         <strong className="wc-buy-panel__total-amount">{total.amount}</strong>
-      </div>
-      {good.transactionOffer?.fulfillment ? <div className="wc-buy-panel__state"><p>제공 방식: {good.transactionOffer.fulfillment.methods.map(m => FULFILLMENT_METHOD_LABELS[m.method]).join(' · ')}</p>
-        <p>{good.transactionOffer.fulfillment.publicNote}</p>{good.transactionOffer.fulfillment.mode === 'digital' ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}</div> : null}
+      </div> : null}
+      {/* 제공 방식(MD-0041): 택배는 `제공 방식: 택배` 줄 대신 배송국가·배송비·도서산간 안내를 보인다. 배송비 숫자는 정책 값에서 읽는다. */}
+      {shipping ? <div className="wc-buy-panel__state">
+        {shipping.methodsLabel ? <p>제공 방식: {shipping.methodsLabel}</p> : null}
+        {shipping.parcel ? <>
+          <dl className="wc-buy-panel__shipping">{shipping.parcel.rows.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
+          <p>{shipping.parcel.notice}</p>
+        </> : null}
+        {shipping.publicNote ? <p>{shipping.publicNote}</p> : null}
+        {shipping.digital ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}
+      </div> : null}
       {/* 두 버튼의 주문 범위가 다르다(ADR-0030): 구매하기는 이 굿즈만, 장바구니는 담아 둔 굿즈와 함께 골라 주문한다. */}
       {good.transactionOffer ? <p className="wc-buy-panel__state">현재 선택한 굿즈 기준이에요. &lsquo;구매하기&rsquo;는 이 굿즈만 주문하고, &lsquo;장바구니&rsquo;에 담으면 담아 둔 다른 굿즈와 함께 골라 주문할 수 있어요. 쿠폰·적립금·배송비를 반영한 결제 금액은 주문서에서 확인해주세요.</p> : null}
       {cta.kind === 'unavailable' ? <WcButton disabled variant="primary">{cta.label}</WcButton> : cta.kind === 'restock' ? (
@@ -884,11 +900,11 @@ export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController 
   const stale = useRestockStaleState(railRef, cta.kind, RAIL_CTA_FOCUS);
 
   return (
-    <section aria-label="빠른 구매" className="wc-pdp-railbox" ref={railRef}>
-      <div className="wc-pdp-railbox__total">
+    <section aria-label="빠른 구매" className={`wc-pdp-railbox${total ? '' : ' wc-pdp-railbox--no-total'}`} ref={railRef}>
+      {total ? <div className="wc-pdp-railbox__total">
         <span className="wc-pdp-railbox__label">{total.label}</span>
         <strong className={`wc-pdp-railbox__amount${total.numeric ? '' : ' is-note'}`}>{total.amount}</strong>
-      </div>
+      </div> : null}
       {cta.kind === 'unavailable' ? <button className="wc-pdp-railbox__buy is-full" disabled type="button">{cta.label}</button> : cta.kind === 'restock' ? (
         <RestockCta className="wc-pdp-railbox__restock" compact disabled={disabled} goodId={good.id} initialRequested={cta.requested} onStaleState={stale.onStale} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (

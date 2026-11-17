@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
+import type { GoodShippingPolicy } from '@/lib/fulfillment';
+import type { FulfillmentMethod, FulfillmentMethodTerms, GoodsFulfillment } from '@/lib/goods-fulfillment';
+import type { GoodsTransactionOffer } from '@/lib/goods-transaction-offers';
 import { toGood, type GoodRow } from '@/lib/catalog';
 import { pendingRestockState } from '@/lib/wishlist.server';
 import { activeGalleryIndex } from './PdpGallery';
@@ -212,7 +215,22 @@ describe('purchaseTotalDisplay', () => {
 
   it('본문 패널과 레일 박스가 같은 합계 라벨·값을 쓴다', () => {
     expect(purchaseTotalDisplay(base)).toEqual({ label: '총 금액', amount: '₩24,000', numeric: true });
-    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: null } }).label).toBe('총 금액');
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: null } })?.label).toBe('총 금액');
+  });
+
+  /* MD-0039·0040 — 거래 조건이 있는 굿즈는 '예상 굿즈 금액' 행을 두지 않는다(본문 패널·레일 박스 모두 null 을 받아 행을 그리지 않는다). */
+  it('거래 조건(transactionOffer)이 있으면 합계 행을 두지 않는다', () => {
+    const offer: GoodsTransactionOffer = { goodId: 'g13', volume: null, delivery: null, collectReady: false, collector: null };
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: offer } })).toBeNull();
+    /* 옵션 전·품절 합계·고른 품절 옵션도 같다 — 거래 조건이 있으면 어느 상태든 행이 없다. */
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: offer }, selectionRequired: true, subtotal: 0 })).toBeNull();
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: offer, stock: 'soldout', stockQty: 0 }, selectionRequired: true, subtotal: 0, soldOut: true })).toBeNull();
+    /* 거래 조건이 없거나(undefined) 읽지 못한(null) 굿즈는 '총 금액' 그대로다. */
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: undefined } })?.label).toBe('총 금액');
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: null } })).toEqual({ label: '총 금액', amount: '₩24,000', numeric: true });
+    /* 판매 불가 안내는 거래 조건이 있어도 '판매 상태' 행으로 남는다. */
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: offer }, unavailableLabel: '판매 종료' }))
+      .toEqual({ label: '판매 상태', amount: '판매 종료', numeric: false });
   });
 
   it('판매 기간 밖이면 판매 상태를, 판매 중 옵션 전이면 안내 문구를 금액 대신 보인다', () => {
@@ -228,7 +246,7 @@ describe('purchaseTotalDisplay', () => {
     expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0, options: [only] }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }))
       .toEqual({ label: '총 금액', amount: '₩9,000', numeric: true });
     /* 옵션이 없는 품절 굿즈는 굿즈 가격이다. */
-    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 })?.amount)
       .toBe('₩12,000');
   });
 
@@ -238,10 +256,10 @@ describe('purchaseTotalDisplay', () => {
     expect(purchaseTotalDisplay({ ...base, restockOption: red, selectionRequired: true, subtotal: 0, quantity: 1 }))
       .toEqual({ label: '총 금액', amount: '₩15,000', numeric: true });
     /* 모든 옵션이 품절인 굿즈에서 직접 고른 옵션도 첫 옵션 대신 그 옵션 가격이다. */
-    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, restockOption: red, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, restockOption: red, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 })?.amount)
       .toBe('₩15,000');
     /* 판매 상태 안내가 먼저다. */
-    expect(purchaseTotalDisplay({ ...base, restockOption: red, unavailableLabel: '판매 종료' }).amount).toBe('판매 종료');
+    expect(purchaseTotalDisplay({ ...base, restockOption: red, unavailableLabel: '판매 종료' })?.amount).toBe('판매 종료');
   });
 });
 
@@ -657,5 +675,144 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('이전 추가상품 · 현재 구매 불가');
     expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
     expect(html).toContain('옵션 선택 후 표시');
+  });
+});
+
+/* MD-0039·0040·0041 — 상품 상세 '예상 굿즈 금액' 삭제와 택배 배송 안내. */
+const parcelTerms = (method: FulfillmentMethod, overrides: Partial<FulfillmentMethodTerms> = {}): FulfillmentMethodTerms =>
+  ({ method, feeAmount: method === 'parcel' ? null : 0, feeBasis: 'per_order', installationFee: 0, ...overrides });
+const withOffer = (fulfillment?: GoodsFulfillment, overrides: Partial<GoodsTransactionOffer> = {}): Good => ({
+  ...good,
+  transactionOffer: { goodId: good.id, volume: null, delivery: null, collectReady: false, collector: null, ...(fulfillment ? { fulfillment } : {}), ...overrides },
+});
+const shipping = (methods: FulfillmentMethodTerms[], overrides: Partial<GoodsFulfillment> = {}): GoodsFulfillment =>
+  ({ goodId: good.id, revision: 1, mode: 'shipping', methods, files: [], publicNote: '', ...overrides });
+const shippingPolicy: GoodShippingPolicy = { originId: 'o1', originName: '김포', baseFee: 3000, freeThreshold: 40000, feeType: 'policy', individualFee: 0 };
+
+describe("'예상 굿즈 금액' 행 삭제 (MD-0039·0040)", () => {
+  it('거래 조건이 있는 굿즈는 본문 패널에 합계 행(예상 굿즈 금액)이 없고 안내·CTA 는 남는다', () => {
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: withOffer(), quantity: 2, subtotal: 24000 })} />);
+    expect(html).not.toContain('예상 굿즈 금액');
+    expect(html).not.toContain('wc-buy-panel__total');
+    expect(html).not.toContain('₩24,000');
+    expect(html).toContain('현재 선택한 굿즈 기준이에요.');
+    expect(html).toContain('>장바구니<');
+    expect(html).toContain('>구매하기<');
+  });
+
+  it('거래 조건이 있는 굿즈는 데스크톱 레일 박스에도 합계 행이 없고 박스는 버튼만 남는다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: withOffer(), quantity: 2, subtotal: 24000 })} />);
+    expect(html).not.toContain('예상 굿즈 금액');
+    expect(html).not.toContain('wc-pdp-railbox__total');
+    expect(html).not.toContain('wc-pdp-railbox__amount');
+    expect(html).toContain('<section aria-label="빠른 구매" class="wc-pdp-railbox wc-pdp-railbox--no-total">');
+    expect(html).toContain('<button class="wc-pdp-railbox__buy" type="button">구매하기</button>');
+  });
+
+  it('판매 불가는 어느 쪽에도 판매 상태 행이 남고, 거래 조건이 없는 굿즈는 총 금액 행이 남는다', () => {
+    const unavailable = controller({ good: withOffer(), unavailableLabel: '판매 시작 전' });
+    const panel = renderToStaticMarkup(<GoodPurchasePanel purchase={unavailable} />);
+    const rail = renderToStaticMarkup(<GoodRailBuyBox purchase={unavailable} />);
+    for (const html of [panel, rail]) {
+      expect(html).toContain('판매 상태');
+      expect(html).not.toContain('예상 굿즈 금액');
+    }
+    expect(rail).toContain('<section aria-label="빠른 구매" class="wc-pdp-railbox">');
+
+    const plain = controller({ quantity: 2, subtotal: 24000 });
+    expect(renderToStaticMarkup(<GoodPurchasePanel purchase={plain} />)).toContain('총 금액');
+    expect(renderToStaticMarkup(<GoodRailBuyBox purchase={plain} />)).toContain('<strong class="wc-pdp-railbox__amount">₩24,000</strong>');
+    const unreadable = controller({ good: { ...good, transactionOffer: null }, quantity: 2, subtotal: 24000 });
+    expect(renderToStaticMarkup(<GoodPurchasePanel purchase={unreadable} />)).toContain('총 금액');
+    expect(renderToStaticMarkup(<GoodRailBuyBox purchase={unreadable} />)).toContain('wc-pdp-railbox__total');
+  });
+
+  /* 합계 행이 없는 박스는 41px 낮아 기존 sticky 기준(top 154)이 어긋난다 — 별도 시트가 수정자 클래스로 맞춘다. */
+  it('합계 행이 없는 레일 박스의 위치 보정 규칙과 배송 블록 스타일을 전용 시트가 가진다', () => {
+    const css = readFileSync(new URL('../../app/styles/wc-pdp-shipping-summary.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/\.wc-pdp-railbox\.wc-pdp-railbox--no-total\s*\{[^}]*top:\s*calc\(100vh - 93px\);\s*top:\s*calc\(100dvh - 93px\);/s);
+    expect(css).toContain('.wc-buy-panel__shipping');
+    expect(css).not.toMatch(/\.admin-|\.wc-admin|#[0-9a-f]{3,8}\b/i);
+    expect(readFileSync(new URL('./GoodPurchasePanel.tsx', import.meta.url), 'utf8')).toContain("import '@/app/styles/wc-pdp-shipping-summary.css';");
+  });
+
+  it('품절 재입고 알림 상태의 레일 박스도 합계 행 없이 재입고 버튼만 둔다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...withOffer(), stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
+    expect(html).toContain('재입고 알림 받기');
+    expect(html).not.toContain('wc-pdp-railbox__total');
+    expect(html).toContain('wc-pdp-railbox--no-total');
+  });
+});
+
+describe('택배 배송 안내 (MD-0041)', () => {
+  const panel = (fulfillment: GoodsFulfillment | undefined, policy: GoodShippingPolicy | null | undefined = shippingPolicy, offer: Partial<GoodsTransactionOffer> = {}) =>
+    renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: withOffer(fulfillment, offer) })} shippingPolicy={policy} />);
+
+  it('택배 하나뿐이면 제공 방식 줄 없이 배송국가·배송비·도서산간 안내를 정책 값으로 보인다', () => {
+    const html = panel(shipping([parcelTerms('parcel')]));
+    expect(html).not.toContain('제공 방식');
+    expect(html).toContain('<dl class="wc-buy-panel__shipping">');
+    expect(html).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
+    expect(html).toContain('<dt>배송비</dt><dd>₩3,000 (₩40,000 이상 무료)</dd>');
+    expect(html).toContain('<p>도서산간 지역은 추가 비용이 발생할 수 있습니다.</p>');
+  });
+
+  it('무료배송 기준 숫자는 코드가 아니라 정책에서 온다', () => {
+    expect(panel(shipping([parcelTerms('parcel')]), { ...shippingPolicy, freeThreshold: 50000 })).toContain('₩3,000 (₩50,000 이상 무료)');
+    expect(panel(shipping([parcelTerms('parcel')]), { ...shippingPolicy, freeThreshold: null })).toContain('<dt>배송비</dt><dd>₩3,000</dd>');
+  });
+
+  it('정책을 싣지 않은 호출부(위시리스트 구매 시트)는 택배 블록 대신 옛 제공 방식 줄을 보인다', () => {
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: withOffer(shipping([parcelTerms('parcel')]), {}) })} />);
+    expect(html).toContain('<p>제공 방식: 택배</p>');
+    expect(html).not.toContain('wc-buy-panel__shipping');
+    expect(html).not.toContain('배송국가');
+    expect(html).not.toContain('도서산간');
+  });
+
+  it('정책이 없다고 읽혔으면(null) 배송비 행만 빠진다', () => {
+    const html = panel(shipping([parcelTerms('parcel')]), null);
+    expect(html).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
+    expect(html).not.toContain('<dt>배송비</dt>');
+    expect(html).toContain('도서산간 지역은 추가 비용이 발생할 수 있습니다.');
+  });
+
+  it('굿즈별 배송비 조건이 있으면 같은 패널의 거래 조건이 말하므로 배송비 행을 한 번 더 두지 않는다', () => {
+    const delivery = { status: 'active', paymentMode: 'prepaid', quantityTerms: null } as unknown as GoodsTransactionOffer['delivery'];
+    const html = panel(shipping([parcelTerms('parcel')]), shippingPolicy, { delivery });
+    expect(html).not.toContain('<dt>배송비</dt>');
+    expect(html).toContain('<dt>배송국가</dt>');
+  });
+
+  it('택배와 방문수령이 함께면 제공 방식 줄을 남기고 택배 블록을 더한다', () => {
+    const html = panel(shipping([parcelTerms('parcel'), parcelTerms('pickup')]));
+    expect(html).toContain('<p>제공 방식: 택배 · 방문수령</p>');
+    expect(html).toContain('<dt>배송국가</dt>');
+  });
+
+  it('택배가 없는 굿즈는 제공 방식 줄 그대로다', () => {
+    const html = panel(shipping([parcelTerms('pickup')]));
+    expect(html).toContain('<p>제공 방식: 방문수령</p>');
+    expect(html).not.toContain('wc-buy-panel__shipping');
+    expect(html).not.toContain('도서산간');
+  });
+
+  it('디지털 굿즈는 제공 방식·공개 안내·파일 제공 안내 그대로이고 택배 블록이 없다', () => {
+    const html = panel(shipping([parcelTerms('digital')], { mode: 'digital', publicNote: '구매 후 바로 받아요.' }));
+    expect(html).toContain('<p>제공 방식: 디지털 파일 다운로드</p>');
+    expect(html).toContain('<p>구매 후 바로 받아요.</p>');
+    expect(html).toContain('결제한 계정에서 구매한 파일을 받습니다.');
+    expect(html).not.toContain('wc-buy-panel__shipping');
+  });
+
+  it('거래 조건에 fulfillment 가 없으면 배송 안내를 그리지 않는다', () => {
+    const html = panel(undefined);
+    expect(html).not.toContain('제공 방식');
+    expect(html).not.toContain('배송국가');
+  });
+
+  it('운영자 공개 안내는 택배 블록 뒤에 그대로 붙는다', () => {
+    const html = panel(shipping([parcelTerms('parcel')], { publicNote: '평일 오후 2시 이전 주문은 당일 출고' }));
+    expect(html.indexOf('도서산간')).toBeLessThan(html.indexOf('평일 오후 2시 이전 주문은 당일 출고'));
   });
 });

@@ -443,7 +443,7 @@ export function GoodDetailView({
                 시트를 열 수 없는 상태(판매 불가·품절 — 바가 비활성 안내·재입고 알림이다)에서는 숨기지
                 않는다(is-inline). 숨기면 옵션·가격·예약·한도 안내와 품절 합계를 모바일에서 볼 길이 없다. */}
             <div className={`wc-pdp__purchase${purchaseSheetAvailable(purchase) ? '' : ' is-inline'}`}>
-              {sheetVisible ? null : <GoodPurchasePanel otherPurchases={otherPurchases} purchase={surfacePurchase} />}
+              {sheetVisible ? null : <GoodPurchasePanel otherPurchases={otherPurchases} purchase={surfacePurchase} shippingPolicy={shippingPolicy} />}
             </div>
             {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
             {ip ? <GoodIpCard ip={ip} /> : null}
@@ -491,7 +491,7 @@ export function GoodDetailView({
       )}
       {sheetVisible ? (
         <OverlayPortal>
-          <GoodPurchaseSheet onClose={() => setSheetOpen(false)} otherPurchases={otherPurchases} purchase={surfacePurchase} />
+          <GoodPurchaseSheet onClose={() => setSheetOpen(false)} otherPurchases={otherPurchases} purchase={surfacePurchase} shippingPolicy={shippingPolicy} />
         </OverlayPortal>
       ) : null}
       {!embedded && addResult.items ? (

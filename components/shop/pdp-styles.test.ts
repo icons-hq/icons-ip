@@ -27,6 +27,7 @@ const decls = (all: Rule[], selector: string, media: string | null = null) => Ob
 
 const catalog = rules('../../app/styles/wc-catalog.css');
 const inquiry = rules('../../app/styles/wc-inquiry-widget.css');
+const shippingSummary = rules('../../app/styles/wc-pdp-shipping-summary.css');
 const MOBILE = '(max-width: 989px)';
 const DESKTOP = '(min-width: 990px)';
 
@@ -123,5 +124,25 @@ describe('문의 런처 겹침 (CH-16)', () => {
     expect(decls(inquiry, "#root:has(.wc-pdp[data-rail-box='leaving']) .wc-inquiry-widget__launcher", OVERLAP).visibility).toBe('hidden');
     /* 넓은 화면에서는 박스(오른쪽 끝 (100vw+1180)/2)와 런처가 겹치지 않는다 — 문의 진입을 감추지 않는다. */
     expect(inquiry.filter((rule) => rule.selectors.some((selector) => selector.includes('data-rail-box')) && rule.media !== OVERLAP)).toEqual([]);
+  });
+
+  it('합계 행 없는 레일 박스(92px)가 하단에 붙은 동안은 런처가 박스 위 24px(bottom 117px)에 서고, 합계 행 있는 박스는 178px 그대로다', () => {
+    const OVERLAP = '(min-width: 990px) and (max-width: 1459px)';
+    const withTotal = "#root:has(.wc-pdp[data-rail-box='docked']) .wc-inquiry-widget__launcher";
+    const withoutTotal = "#root:has(.wc-pdp[data-rail-box='docked'] .wc-pdp-railbox--no-total) .wc-inquiry-widget__launcher";
+    expect(decls(shippingSummary, withoutTotal, OVERLAP).bottom).toBe('117px');
+    expect(decls(inquiry, withTotal, OVERLAP).bottom).toBe('178px');
+    /* 박스 윗면(화면 아래에서 합계 없는 박스 93px, 합계 있는 박스 154px) + 24px = 런처 아랫면. */
+    const offset = (top: string | undefined) => Number(top?.match(/- (\d+)px\)$/)?.[1]);
+    const noTotalTop = offset(decls(shippingSummary, '.wc-pdp-railbox.wc-pdp-railbox--no-total', DESKTOP).top);
+    const withTotalTop = offset(decls(catalog, '.wc-pdp-railbox', DESKTOP).top);
+    expect([noTotalTop, withTotalTop]).toEqual([93, 154]);
+    expect(Number.parseInt(decls(shippingSummary, withoutTotal, OVERLAP).bottom, 10)).toBe(noTotalTop + 24);
+    expect(Number.parseInt(decls(inquiry, withTotal, OVERLAP).bottom, 10)).toBe(withTotalTop + 24);
+    /* 더 구체적이다 — :has() 안의 구성이 늘어(합계 없음 클래스까지) 같은 규칙 안에서 178px을 이긴다. */
+    expect(withoutTotal.length).toBeGreaterThan(withTotal.length);
+    expect(withoutTotal.startsWith("#root:has(.wc-pdp[data-rail-box='docked']")).toBe(true);
+    /* 겹치는 폭 밖에는 이 값을 두지 않는다. */
+    expect(shippingSummary.filter((rule) => rule.selectors.some((selector) => selector.includes('wc-inquiry-widget__launcher')) && rule.media !== OVERLAP)).toEqual([]);
   });
 });

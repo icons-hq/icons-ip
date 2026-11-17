@@ -3,6 +3,7 @@
 import { useId, useRef } from 'react';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { Icon } from '@/components/ui/Icon';
+import type { GoodShippingPolicy } from '@/lib/fulfillment';
 import { GoodPurchasePanel, type GoodPurchaseController, type OtherPurchaseAvailability } from './GoodPurchasePanel';
 
 /*
@@ -20,8 +21,10 @@ import { GoodPurchasePanel, type GoodPurchaseController, type OtherPurchaseAvail
  * 데스크톱 폭에서 감춰지므로(wc-catalog.css), 이 시트는 그 감춤을 덮고 넓은 화면에서는 화면 가운데 560 폭 대화상자로 선다 —
  * 바닥에 붙은 모바일형 시트는 넓은 화면에서 아래쪽이 잘려 보였다(QA1 S-D2-16).
  */
-export function GoodPurchaseSheet({ anyWidth = false, onClose, otherPurchases, purchase }: {
+export function GoodPurchaseSheet({ anyWidth = false, onClose, otherPurchases, purchase, shippingPolicy }: {
   anyWidth?: boolean; onClose: () => void; otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController;
+  /** 택배 굿즈의 배송비 안내가 읽는 출고지 배송비 정책. 본문 패널과 같은 값을 내려 시트가 패널을 그대로 담게 한다. */
+  shippingPolicy?: GoodShippingPolicy | null;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -38,7 +41,7 @@ export function GoodPurchaseSheet({ anyWidth = false, onClose, otherPurchases, p
           </button>
         </div>
         <div className="wc-pdp-sheet__body">
-          <GoodPurchasePanel otherPurchases={otherPurchases} purchase={purchase} />
+          <GoodPurchasePanel otherPurchases={otherPurchases} purchase={purchase} shippingPolicy={shippingPolicy} />
         </div>
       </div>
     </>
