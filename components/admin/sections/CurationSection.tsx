@@ -80,7 +80,7 @@ const ARTWORK_HELP: Record<AdminCurationKind, string> = {
   product_collection: '선택한 상품의 대표이미지를 사용합니다.',
   review_best: '리뷰 상품의 대표이미지를 사용합니다.',
   benefit: '혜택 타일은 이미지를 쓰지 않습니다.',
-  collection_banner: '배너 이미지는 필수입니다. 굿즈샵 전체는 PC 2880×1160px(화면 1440×580), BEST·NEW는 PC 2360×520px(화면 1180×260)를 권장합니다. 문구는 이미지에 넣지 말고 아래 배너 문구 칸에 입력하세요.',
+  collection_banner: '배너 이미지는 필수입니다. 굿즈샵 전체·BEST·NEW 모두 PC 2544×680px(화면 1272×340), 모바일은 750×350px을 권장합니다. 문구는 이미지에 넣지 말고 아래 배너 문구 칸에 입력하세요.',
   search_terms: '추천 검색어는 이미지를 쓰지 않습니다.',
 };
 const DEFAULT_PREVIEW: CurationPublicPreview = { curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false };

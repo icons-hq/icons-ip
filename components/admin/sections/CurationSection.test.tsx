@@ -393,6 +393,15 @@ describe('CurationSection', () => {
     expect(html).toContain('BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다');
   });
 
+  /* PR2 리뷰: 세 컬렉션 모두 화면은 같은 스트립 배너 1272×340이다 — 옛 전폭(1440×580)·칸(1180×260) 치수를 안내하지 않는다. */
+  it('컬렉션 배너 이미지 안내는 세 슬롯 모두 화면 1272×340 기준 권장 치수를 알린다', () => {
+    for (const slot of ['all', 'best', 'new']) {
+      const html = renderSection({ ...record, kind: 'collection_banner', title: '컬렉션 배너', slot, linkPath: null, payload: null });
+      expect(html, slot).toContain('PC 2544×680px(화면 1272×340), 모바일은 750×350px을 권장합니다');
+      for (const old of ['2880', '1440×580', '2360×520', '1180×260', '375×175']) expect(html, `${slot} ${old}`).not.toContain(old);
+    }
+  });
+
   /* ── X SQUARE 홈(ADR-0043) 어드민 — 라벨·도움말·그리드형·홈 스트립 배너 ── */
 
   it('추천 콘텐츠는 IP 바로가기 줄로, 기획전 배너는 ICONS PICK 카드로 보이는 방식을 안내한다', () => {
