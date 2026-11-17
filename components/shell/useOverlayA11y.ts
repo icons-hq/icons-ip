@@ -6,7 +6,7 @@ import { backgroundToInert, tabbableIn, trapFocusTarget } from './overlay-focus'
 /* 모달 오버레이가 공유하는 접근성 — 배경 스크롤 잠금, 배경 inert, 최초 포커스,
    Escape 닫기, Tab 순환, 닫힐 때 이전 포커스 복귀.
    옵션(기본값은 모달 그대로): keepInteractive — inert에서 뺄 셸 행 선택자, trapFocus — Tab 순환 여부.
-   헤더 검색 패널은 비모달이라 헤더 행을 살려 두고(MD-0034) 포커스를 가두지 않는다.
+   헤더 검색 패널은 비모달이라 딤 위에 밝게 남는 줄(헤더 행·유틸 메뉴·공지 띠)을 살려 두고(MD-0034) 포커스를 가두지 않는다.
    구 Nav.tsx의 전체 메뉴 effect를 뽑아낸 것으로, 셸 오버레이(검색·전체 메뉴)와
    화면 오버레이(Shop 필터 시트, Binder 카드 상세)가 함께 쓴다.
    패널은 inert 대상(#root·셸 행들) 밖에 있어야 한다 — #root 안 화면의 오버레이는
@@ -24,7 +24,7 @@ export function useOverlayA11y({
   onClose: () => void;
   panelRef: RefObject<HTMLElement | null>;
   initialFocusRef?: RefObject<HTMLElement | null>;
-  /** inert로 덮지 않을 셸 행 선택자(예: '.wc-header__bar'). 없으면 후보 전부를 덮는다. */
+  /** inert로 덮지 않을 셸 행 선택자 목록(예: '.wc-header__bar, .wc-utilbar'). 없으면 후보 전부를 덮는다. */
   keepInteractive?: string;
   /** false면 Tab 순환을 걸지 않는다 — 비모달 패널용. 기본 true. */
   trapFocus?: boolean;
@@ -100,7 +100,7 @@ export function useOverlayA11y({
       backgroundElements.forEach((element, index) => {
         element.inert = previousInert[index];
       });
-      /* 헤더 행을 살려 둔 패널(keepInteractive)은 다른 버튼을 눌러 닫을 수 있다 — 포커스가 이미 그 버튼에 가 있으면 뺏지 않고,
+      /* 셸 행을 살려 둔 패널(keepInteractive)은 다른 버튼을 눌러 닫을 수 있다 — 포커스가 이미 그 버튼에 가 있으면 뺏지 않고,
          패널 안에서 닫혀 포커스를 잃은(body) 경우에만 연 버튼으로 돌려준다. 모달은 지금처럼 항상 돌려준다. */
       const lostFocus = !ownerDocument.activeElement || ownerDocument.activeElement === ownerDocument.body;
       if (!keepInteractive || lostFocus) previousFocus?.focus?.();

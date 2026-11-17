@@ -23,6 +23,7 @@ import {
   shellNoticeLive,
   shellNoticePageType,
   shellNoticeTimerDelay,
+  stableNoticeBar,
   visibleNoticeBar,
   visibleNoticeStripIndex,
   type ShellNoticeBar,
@@ -138,6 +139,28 @@ describe('같은 탭 닫힘과 스트립 선택', () => {
     /* 후보가 없거나 이상한 시드(범위 밖·NaN)는 첫 공지다. */
     expect(visibleNoticeBar([], [], null, 0.5)).toBeNull();
     for (const seed of [-1, 1, Number.NaN]) expect(visibleNoticeBar(bars, [], null, seed)?.id, String(seed)).toBe('b1');
+  });
+
+  /* review-b m4 — 카드 리워드 게이트는 마운트 뒤에야 켜져 후보가 늘 수 있다. 이미 보이던 공지를 그대로 두고, 막혔을 때만 시드로 다시 고른다. */
+  it('고정한 공지 바는 후보가 늘어도 시드로 다시 고르지 않고, 막혔을 때만(닫힘·종료·후보 이탈) 다시 고른다', () => {
+    const first = [bar('a')];
+    const grown = [bar('a'), bar('b')];
+    /* 게이트가 켜져 후보 [a] → [a, b] 가 되면 시드 0.7 은 b 를 고르지만, 보이던 a 를 고정했으므로 그대로다. */
+    expect(visibleNoticeBar(first, [], null, 0.7)?.id).toBe('a');
+    expect(visibleNoticeBar(grown, [], null, 0.7)?.id).toBe('b');
+    expect(stableNoticeBar(grown, [], null, 0.7, 'a:k')?.id).toBe('a');
+
+    /* 고정이 없거나(처음) 후보에 없으면 시드로 고른다. */
+    expect(stableNoticeBar(grown, [], null, 0.7, null)?.id).toBe('b');
+    expect(stableNoticeBar(grown, [], null, 0.7, 'gone:k')?.id).toBe('b');
+    /* 후보가 막히면(게이트가 목적지를 막아 후보에서 빠짐) 남은 후보로, 닫았거나 끝났으면 다른 공지로 넘어간다. */
+    expect(stableNoticeBar([bar('b')], [], null, 0.7, 'a:k')?.id).toBe('b');
+    expect(stableNoticeBar(grown, ['a:k'], null, 0, 'a:k')?.id).toBe('b');
+    expect(stableNoticeBar([bar('a', { endsAt: 1000 }), bar('b')], [], 2000, 0, 'a:k')?.id).toBe('b');
+    expect(stableNoticeBar([bar('a', { endsAt: 1000 })], [], 500, 0, 'a:k')?.id).toBe('a');
+    /* 전부 닫으면 보일 공지가 없다. */
+    expect(stableNoticeBar(grown, ['a:k', 'b:k'], null, 0.7, 'a:k')).toBeNull();
+    expect(stableNoticeBar([], [], null, 0.7, 'a:k')).toBeNull();
   });
 
   it('공지 바 시드는 스트립 시드와 독립이고, 없거나 이상하면 0이다', () => {

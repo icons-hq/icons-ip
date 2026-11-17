@@ -203,6 +203,26 @@ export function visibleNoticeBar(
   return null;
 }
 
+/** 화면 유형별로 고정해 둔 공지 바 키(없으면 null — 그 유형에서 보일 공지가 없었다). ShellNotices 가 상태로 든다. */
+export type ShellNoticeBarPins = Partial<Record<ShellNoticePageType, string | null>>;
+
+/**
+ * 이미 고른 공지 바를 후보가 바뀌어도 그대로 둔다. 카드 리워드 게이트는 마운트 뒤에야 확정돼(서버·하이드레이션은 꺼짐) 후보가 늘어날 수 있는데,
+ * 후보 수가 바뀐 채 같은 시드로 다시 고르면 보이던 문구가 다른 공지로 바뀌고 노출이 두 번 집계된다. 그래서 pinnedKey 가 아직 후보이고 닫히지 않았고
+ * 끝나지 않았으면 그 공지를 쓰고, 막혔을 때(게이트가 목적지를 막음·닫음·종료)만 visibleNoticeBar 로 다시 고른다.
+ */
+export function stableNoticeBar(
+  bars: readonly ShellNoticeBar[],
+  dismissed: readonly string[],
+  now: number | null,
+  seed: number,
+  pinnedKey: string | null,
+): ShellNoticeBar | null {
+  const pinned = pinnedKey === null ? undefined : bars.find((bar) => bar.key === pinnedKey);
+  if (pinned && !dismissed.includes(pinned.key) && shellNoticeLive(pinned, now)) return pinned;
+  return visibleNoticeBar(bars, dismissed, now, seed);
+}
+
 /**
  * 보일 스트립 인덱스. 시드로 고른 후보가 끝났으면 그다음(돌아서) 끝나지 않은 후보로 넘긴다 — 다른 후보가 끝나도
  * 보이던 스트립은 그대로다. 모두 끝났으면 -1.

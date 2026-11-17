@@ -914,6 +914,23 @@ describe('getHomeSnapshot', () => {
       expect(records.find(row => row.table === 'home_curations')?.is).toContainEqual(['archived_at', null]);
     } finally { mocks.isConfigured = false; mocks.client = null; }
   });
+  /* 개편 리뷰(review-c m2) — 점 조각 링크(`/..//evil.example`)는 파서가 접어 `//외부호스트`가 된다. 배너·혜택 타일 모두 그 행을 그리지 않는다. */
+  it('점 조각 링크를 가진 큐레이션 행은 그리지 않는다', async () => {
+    mocks.isConfigured = true;
+    const image = 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp';
+    const base = { ip_id: null, image_path: null, display_order: 0, active_from: '2020-01-01T00:00:00Z', active_to: null, enabled: true, archived_at: null, payload: null };
+    mocks.client = createSupabaseClient([], { home_curations: [
+      { ...base, id: 'hero-ok', kind: 'hero', title: '배너', image_path: image, link_path: '/shop' },
+      { ...base, id: 'hero-dots', kind: 'hero', title: '배너', image_path: image, link_path: '/..//evil.example' },
+      { ...base, id: 'tile-ok', kind: 'benefit', title: '혜택', link_path: '/events/first' },
+      { ...base, id: 'tile-dots', kind: 'benefit', title: '혜택', link_path: '/.//evil.example' },
+    ] });
+    try {
+      const { curation } = await getHomeSnapshot();
+      expect(curation.heroSlides.map(row => row.id)).toEqual(['hero-ok']);
+      expect(curation.benefitTiles.map(tile => tile.id)).toEqual(['tile-ok']);
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
   it('이미지 전용·링크 없는 배너를 유지하고 기존 10개 초과 행은 정렬된 10개만 공개한다', async () => {
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient([], { home_curations: Array.from({ length: 12 }, (_, index) => ({

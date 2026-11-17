@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { buildDraftCurationPreview, CURATION_ADDABLE_KINDS, createCurationEditorValues, curationKstInput, CURATION_KIND_LABELS, curationValuesForKindChange, moveCurationProduct } from './curation-editor';
+import { buildDraftCurationPreview, CURATION_ADDABLE_KINDS, createCurationEditorValues, curationKstInput, CURATION_KIND_LABELS, curationValuesForKindChange, moveCurationProduct, NOTICE_PAGE_TYPE_LABELS } from './curation-editor';
 import type { AdminCurationRecord } from './curations.server';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
 import { buildHomeReviewBestBand, emptyHomeProductRankings, homeReviewBandRating, type HomeProductRankings } from '@/lib/home-ranking';
 
 const card: HomeGoodsCard = { id: 'g1', name: '실제 상품', brand: 'ICONS', price: 12000, badge: null, imageBg: 'url("/goods.webp")', href: '/shop/g1', soldOut: false };
+
+/* POP-UP 화면은 EVENT 와 같은 캠페인 지면이라 공지 대상 화면 유형 'content' 에 든다(lib/shell-notices shellNoticePageType) — 라벨이 그 범위를 말한다. */
+describe('notice page type labels', () => {
+  it('names the content screens as stories, EVENT and POP-UP', () => {
+    expect(NOTICE_PAGE_TYPE_LABELS.content).toBe('쇼핑스토리·EVENT·POP-UP');
+  });
+});
 
 describe('curation kind labels', () => {
   /* 운영팀이 홈 구성 목록에서 보는 이름은 고객 화면에 보이는 이름과 같다(X SQUARE 홈). */

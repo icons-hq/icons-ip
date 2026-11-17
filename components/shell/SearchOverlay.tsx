@@ -9,16 +9,17 @@ import { useOverlayA11y } from './useOverlayA11y';
 
 /* 헤더 검색 패널(11 §6 B5). 헤더 행(로고·GNB·아이콘) 바로 아래에 붙고, 그 아래 본문은 10% 딤 + 5px 흐림이다.
    위치는 sticky 헤더 상자 기준이라 공지·유틸바·축약 여부와 무관하게 실제 헤더 행 아래에 붙는다(wc-chrome.css --wc-header-row-h).
-   MD-0034: 비모달 패널이다 — 헤더 행은 inert에서 빠져 있어(keepInteractive) 열린 채로도 장바구니·마이페이지·로고가 눌리고,
-   검색 아이콘은 닫기 토글이며(Nav), 본문·푸터·탭바는 딤 + inert로 남는다. 포커스는 가두지 않는다(trapFocus:false) — 입력칸에서
-   Shift+Tab으로 헤더 버튼으로 돌아갈 수 있다.
+   MD-0034: 비모달 패널이다 — 패널 위에 보이는 줄(공지 띠·유틸 메뉴·헤더 행)은 inert에서 빠져 있어(keepInteractive) 열린 채로도 눌린다:
+   장바구니·마이페이지·로고·유틸 메뉴·공지 링크는 이동과 함께 패널을 닫고, 검색 아이콘은 닫기 토글이다(Nav). 본문·푸터·탭바는 딤 + inert로 남는다
+   — 밝게 보이면 눌리고, 딤 아래면 안 눌린다. 포커스는 가두지 않는다(trapFocus:false) — 입력칸에서 Shift+Tab으로 헤더 버튼으로 돌아갈 수 있다.
    ESC 닫기·배경 inert·스크롤 잠금·닫을 때 포커스 복귀는 useOverlayA11y가 맡는다 — 레퍼런스의 ESC 미지원은 옮기지 않는다.
    form의 action="/search"를 남겨 JS 없이도 검색이 성립하게 두고, JS가 살아 있으면 라우터로 가로챈다. */
 /** 검색 버튼의 aria-controls 대상. */
 export const SEARCH_PANEL_ID = 'wc-search-panel';
 
-/** 검색 패널이 inert에서 빼는 셸 행 — 헤더 행(데스크톱은 로고·GNB·아이콘, 모바일은 로고·아이콘). */
-export const SEARCH_KEEP_INTERACTIVE = '.wc-header__bar';
+/** 검색 패널이 inert에서 빼는 셸 행 — 딤 위에 밝게 남는 줄 전부: 헤더 행(데스크톱은 로고·GNB·아이콘, 모바일은 로고·아이콘),
+ *  유틸 메뉴(데스크톱), 롤링 띠배너와 이미지 스트립. 모바일 GNB 탭 행은 패널이 덮으므로 빠지지 않는다. */
+export const SEARCH_KEEP_INTERACTIVE = '.wc-header__bar, .wc-utilbar, .wc-notice-bar, .wc-notice';
 
 export function SearchOverlay({ open, onClose, terms = null }: {
   open: boolean;

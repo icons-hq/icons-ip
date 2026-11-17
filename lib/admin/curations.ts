@@ -481,7 +481,7 @@ function readCurationPayload(
     const rawCount = readString(formData, 'productItemCount');
     const count = Number(rawCount);
     const ids = readString(formData, 'goodIds').split(',').map(id => id.trim()).filter(Boolean);
-    if (!isHomeProductLayout(layout)) errors.productLayout = '리스트형 또는 풀이미지형을 선택해주세요.';
+    if (!isHomeProductLayout(layout)) errors.productLayout = '리스트형·풀이미지형·그리드형 중 하나를 선택해주세요.';
     if (!isHomeProductImageShape(shape)) errors.productImageShape = '상품 사진 비율을 선택해주세요.';
     const [min, max] = homeProductCountRange(isHomeProductLayout(layout) ? layout : 'list');
     if (!/^\d+$/.test(rawCount) || !Number.isInteger(count) || count < min || count > max) {

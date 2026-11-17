@@ -576,6 +576,45 @@ describe('Home X SQUARE blocks', () => {
     expect(html).toContain('<span class="wc-x-chip wc-x-chip--tag">EXCLUSIVE</span>');
   });
 
+  /* review-b M2 — 홈 카드도 목록 카드와 같은 가격 줄(할인율 + 판매가, 취소선 정가 없음)을 그린다. 카드가 정가를 싣지 않으면 같은 굿즈가 홈·목록에서 다르게 보인다. */
+  describe('discount rate on the price line', () => {
+    const sale = (id: string, overrides: Partial<HomeGoodsCard> = {}) => good(id, { price: 15200, compareAtPrice: 16000, showDiscountRate: true, ...overrides });
+    const rate = '<span class="wc-price__rate">5%</span><span class="wc-price__amount">₩15,200</span>';
+    const count = (html: string, needle: string) => html.split(needle).length - 1;
+
+    it('shows the rate on NEW ARRIVAL, grid and list collections, and on tab-band cards', () => {
+      const html = render({
+        ...emptyCuration,
+        newArrivals: [sale('n1')],
+        productCollections: [
+          { id: 'grid', title: '그리드', layout: 'grid', imageShape: 'square', goods: [sale('m1')], moreHref: null },
+          { id: 'list', title: '리스트', layout: 'list', imageShape: 'square', goods: [sale('l1')] },
+        ],
+        categoryBestTabs: [{ id: 'keyring', label: '키링', goods: [sale('t1')] }],
+      });
+
+      expect(count(html, rate)).toBe(4);
+      expect(html).not.toContain('<s class="wc-price__original">');
+    });
+
+    it('shows the rate on the ICONS PICK rows too, as 5% before the price', () => {
+      const html = render({ ...emptyCuration, goodsBands: [{ id: 'pick', title: '기획전', subcopy: null, imageUrl: 'https://cdn.example/pick.webp', href: '/events/pick', goods: [sale('p1')] }] });
+
+      expect(html).toContain('<span class="wc-x-pick__price"><span class="wc-x-pick__rate">5%</span>₩15,200</span>');
+    });
+
+    it('draws no rate when the switch is off, when there is no markdown, or when the price is a range', () => {
+      const html = render({
+        ...emptyCuration,
+        newArrivals: [sale('off', { showDiscountRate: false }), good('plain', { price: 15200 }), sale('range', { priceMax: 18000 })],
+        goodsBands: [{ id: 'pick', title: '기획전', subcopy: null, imageUrl: 'https://cdn.example/pick.webp', href: '/events/pick', goods: [sale('off', { showDiscountRate: false }), good('plain')] }],
+      });
+
+      expect(html).not.toContain('wc-price__rate');
+      expect(html).not.toContain('wc-x-pick__rate');
+    });
+  });
+
   it('draws the strip banner (home size, image link) only when it has a destination the gates allow', () => {
     const stripBanner = { id: 'strip', title: '홍실퀘스트 겨울 MD 출시', imageUrl: 'https://cdn.example/strip.webp', href: '/events/winter' };
     const html = render({ ...emptyCuration, stripBanner });
