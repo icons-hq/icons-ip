@@ -179,7 +179,7 @@ export function Shop({
   );
 
   return (
-    <main className="wc-root wc-listing">
+    <main className="wc-root wc-listing" data-lead={banner ? 'banner' : undefined}>
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={result.goods} /> : null}
       {banner || chips ? (
         <div className="wc-container wc-container--wide">

@@ -490,6 +490,24 @@ describe('스트립 배너 (Figma · 11 CL-09)', () => {
     expect(html).toMatch(/<main class="wc-root wc-listing"><div class="wc-container wc-container--wide"><header class="wc-listing-head">/);
   });
 
+  /* 데스크톱 위 여백은 배너가 첫 줄일 때만 0이다(wc-listing.css `[data-lead='banner']`) — 배너가 없으면 제목 줄·칩이 헤더에 들러붙지 않게 여백을 남긴다. */
+  it('배너가 첫 줄이면 목록 루트에 data-lead="banner" 를 달고 배너가 없으면 달지 않는다', () => {
+    expect(renderWith('best', [banner('b1', 'best')], {}, ['d', 'b'])).toContain('<main class="wc-root wc-listing" data-lead="banner">');
+    expect(renderWith('all', [banner('a1', 'all')])).toContain('<main class="wc-root wc-listing" data-lead="banner">');
+    expect(renderWith('best', [], {}, ['d', 'b'])).not.toContain('data-lead');
+    expect(renderWith('new', [banner('a1', 'all')])).not.toContain('data-lead');
+
+    const query = { ...parseListingSearchParams({}, 'all').query, displayCategory: '00000000-0000-4000-8000-000000000001' };
+    const html = renderToStaticMarkup(<Shop
+      displayBanner={{ id: 'category-1', title: '겨울 여행', subtitle: null, imageUrl: 'https://cdn.test/c.webp', mobileImageUrl: null, href: null, imageAlt: '', imageDim: 'none', textColor: 'black' }}
+      query={query}
+      result={selectShopGoods(catalog, query)}
+      title="전시"
+      view="all"
+    />);
+    expect(html).toContain('<main class="wc-root wc-listing" data-lead="banner">');
+  });
+
   it('굿즈샵 전체 배너(all 슬롯)는 컨테이너 안 맨 앞, 제목 줄 앞에 서고 다른 슬롯은 섞이지 않는다', () => {
     const html = renderWith('all', [banner('a1', 'all'), banner('a2', 'all'), banner('b1', 'best')]);
 

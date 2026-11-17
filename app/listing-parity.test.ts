@@ -418,6 +418,14 @@ describe('X SQUARE 목록 화면 — NEW·BEST·카테고리 (Figma 2026-11-12 �
   const MOBILE = '(max-width: 749px)';
   const TABLET = '(min-width: 750px)';
 
+  /* QA — 배너가 헤더 바로 아래(Figma y=196, 홈 히어로와 같은 출발선)에 붙어야 한다. 배너 없는 목록은 제목 줄이 헤더에 들러붙지 않게 32 를 둔다. */
+  it('데스크톱 위 여백은 배너가 첫 줄일 때만 0이고 아니면 32, 모바일은 그대로 16이다', () => {
+    expect(decls(LISTING, '.wc-listing', DESKTOP)['padding-block']).toBe('32px 120px');
+    expect(decls(LISTING, ".wc-listing[data-lead='banner']", DESKTOP)['padding-top']).toBe('0');
+    expect(decls(LISTING, ".wc-listing[data-lead='banner']")['padding-top']).toBeUndefined();
+    expect(decls(LISTING, '.wc-listing')['padding-block']).toBe('16px 96px');
+  });
+
   it('스트립 배너 아래는 데스크톱 60(Figma Main Content gap)이고 컨테이너 안이면 거터를 이중으로 걸지 않는다', () => {
     expect(decls(LISTING, '.wc-strip-banners', DESKTOP)['margin-bottom']).toBe('60px');
     expect(decls(LISTING, '.wc-strip-banners').margin).toBe('0 auto 24px');

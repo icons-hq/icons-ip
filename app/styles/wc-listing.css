@@ -11,8 +11,11 @@
   padding-block: 16px 96px;
 }
 
+/* 데스크톱 위 여백 — 스트립 배너가 첫 줄이면 여백 없이 헤더 바로 아래에서 시작한다(Figma y=196, 홈 히어로와 같은 출발선).
+   배너가 없으면(칩·제목 줄이 첫 줄) 헤더에 들러붙지 않게 32 를 둔다. 모바일은 배너 유무와 상관없이 16 이다. */
 @media (min-width: 990px) {
   .wc-listing { padding-block: 32px 120px; }
+  .wc-listing[data-lead='banner'] { padding-top: 0; }
 }
 
 /* 목록이 비면 그리드 자리가 무너지지 않게 자체 높이를 준다. */
