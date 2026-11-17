@@ -62,6 +62,10 @@ function parcelFeeValue(
  * - 택배 하나뿐: 제공 방식 줄 없이 택배 블록만.
  * - 택배 + 다른 방식(방문수령 등): 제공 방식 줄을 남겨 고를 수 있는 수령 방식을 보이고, 택배 블록을 더한다.
  * - 택배 없음: 제공 방식 줄(현행).
+ *
+ * `shippingPolicy`의 세 상태를 구분한다. `undefined` = 호출부가 정책을 싣지 않았다(위시리스트 구매 시트처럼 정책을 읽지 않는 화면) —
+ * 배송비를 말할 수 없으니 택배 블록을 그리지 않고 옛 `제공 방식: 택배 …` 줄로 물러난다. `null` = 상품 상세가 읽었는데 정책이 없다 —
+ * 택배 블록에서 배송비 행만 뺀다(굿즈별 조건이 있으면 그것이 배송비를 말한다). 값이 있으면 정책으로 배송비를 말한다.
  */
 export function goodsShippingSummary(
   fulfillment: GoodsFulfillment | null | undefined,
@@ -72,9 +76,11 @@ export function goodsShippingSummary(
   const digital = fulfillment.mode === 'digital';
   const labels = fulfillment.methods.map(method => FULFILLMENT_METHOD_LABELS[method.method]);
   const parcelTerms = digital ? undefined : fulfillment.methods.find(method => method.method === 'parcel');
-  const parcelOnly = Boolean(parcelTerms) && fulfillment.methods.length === 1;
+  /* 정책을 싣지 않은 호출부는 택배 블록을 그릴 근거가 없다 — 택배 하나뿐이어도 옛 제공 방식 줄이 택배를 말한다. */
+  const policyUnknown = shippingPolicy === undefined;
+  const parcelOnly = Boolean(parcelTerms) && fulfillment.methods.length === 1 && !policyUnknown;
   const methodsLabel = parcelOnly || labels.length === 0 ? null : labels.join(' · ');
-  if (!parcelTerms) return { methodsLabel, parcel: null, digital, publicNote: fulfillment.publicNote };
+  if (!parcelTerms || policyUnknown) return { methodsLabel, parcel: null, digital, publicNote: fulfillment.publicNote };
 
   const rows: GoodsShippingRow[] = [{ label: SHIPPING_COUNTRY_ROW_LABEL, value: DOMESTIC_SHIPPING_COUNTRY_LABEL }];
   const fee = parcelFeeValue(parcelTerms, shippingPolicy, offer);

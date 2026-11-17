@@ -762,7 +762,15 @@ describe('택배 배송 안내 (MD-0041)', () => {
     expect(panel(shipping([parcelTerms('parcel')]), { ...shippingPolicy, freeThreshold: null })).toContain('<dt>배송비</dt><dd>₩3,000</dd>');
   });
 
-  it('정책을 받지 못하면 배송비 행만 빠진다', () => {
+  it('정책을 싣지 않은 호출부(위시리스트 구매 시트)는 택배 블록 대신 옛 제공 방식 줄을 보인다', () => {
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: withOffer(shipping([parcelTerms('parcel')]), {}) })} />);
+    expect(html).toContain('<p>제공 방식: 택배</p>');
+    expect(html).not.toContain('wc-buy-panel__shipping');
+    expect(html).not.toContain('배송국가');
+    expect(html).not.toContain('도서산간');
+  });
+
+  it('정책이 없다고 읽혔으면(null) 배송비 행만 빠진다', () => {
     const html = panel(shipping([parcelTerms('parcel')]), null);
     expect(html).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
     expect(html).not.toContain('<dt>배송비</dt>');

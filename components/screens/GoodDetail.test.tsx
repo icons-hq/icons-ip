@@ -917,10 +917,16 @@ describe('상품 상세 금액·배송 문구', () => {
     expect(html).toContain('class="wc-pdp-railbox wc-pdp-railbox--no-total"');
   });
 
-  it('배송 정책이 없으면 배송비 행만 빠진다', () => {
-    const html = renderToStaticMarkup(<GoodDetailView detail={offered} />);
+  it('배송 정책이 없다고 읽혔으면(null) 배송비 행만 빠진다', () => {
+    const html = renderToStaticMarkup(<GoodDetailView detail={offered} shippingPolicy={null} />);
     expect(html).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
     expect(html).not.toContain('<dt>배송비</dt>');
+  });
+
+  it('정책을 싣지 않은 호출부(undefined)는 택배 블록 대신 옛 제공 방식 줄이다', () => {
+    const html = renderToStaticMarkup(<GoodDetailView detail={offered} />);
+    expect(html).not.toContain('<dt>배송국가</dt>');
+    expect(html).toContain('제공 방식: 택배');
   });
 
   it('거래 조건이 없는 굿즈는 총 금액 행이 그대로다', () => {

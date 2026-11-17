@@ -47,6 +47,35 @@ describe('goodsShippingSummary (MD-0041)', () => {
     expect(rowsOf(summary)).toEqual([['배송국가', '대한민국'], ['배송비', '₩3,000 (₩40,000 이상 무료)']]);
   });
 
+  describe('정책 인자 세 상태(위시리스트 구매 시트 D3)', () => {
+    it('undefined(호출부가 정책을 싣지 않음)면 택배 블록 없이 옛 `제공 방식: 택배` 줄로 물러난다', () => {
+      const only = goodsShippingSummary(fulfillment([terms('parcel')]), undefined, offerBase);
+      expect(only).toEqual({ methodsLabel: '택배', parcel: null, digital: false, publicNote: '' });
+      /* 다른 방식이 함께여도, 굿즈별 배송비 조건이 있어도 같다. */
+      expect(goodsShippingSummary(fulfillment([terms('parcel'), terms('pickup')]), undefined, offerBase)).toMatchObject({ methodsLabel: '택배 · 방문수령', parcel: null });
+      expect(goodsShippingSummary(fulfillment([terms('parcel', { feeAmount: 3000 })]), undefined, undefined)).toMatchObject({ methodsLabel: '택배', parcel: null });
+      expect(goodsShippingSummary(fulfillment([terms('parcel')], { publicNote: '평일 출고' }), undefined, offerBase)?.publicNote).toBe('평일 출고');
+    });
+
+    it('null(상품 상세가 읽었는데 정책 없음)이면 택배 블록에서 배송비 행만 뺀다', () => {
+      const summary = goodsShippingSummary(fulfillment([terms('parcel')]), null, offerBase);
+      expect(summary?.methodsLabel).toBeNull();
+      expect(rowsOf(summary)).toEqual([['배송국가', '대한민국']]);
+      expect(summary?.parcel?.notice).toBe(REMOTE_AREA_EXTRA_FEE_NOTICE);
+    });
+
+    it('정책이 있으면 택배 블록에 정책 배송비를 말한다', () => {
+      expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), policy(), offerBase))).toEqual([['배송국가', '대한민국'], ['배송비', '₩3,000 (₩40,000 이상 무료)']]);
+    });
+
+    it('택배가 없거나 디지털이면 정책 인자와 상관없이 현행 그대로다', () => {
+      for (const shippingPolicy of [undefined, null, policy()]) {
+        expect(goodsShippingSummary(fulfillment([terms('pickup')]), shippingPolicy, offerBase)).toMatchObject({ methodsLabel: '방문수령', parcel: null });
+        expect(goodsShippingSummary(fulfillment([terms('digital')], { mode: 'digital' }), shippingPolicy, offerBase)).toMatchObject({ methodsLabel: '디지털 파일 다운로드', parcel: null, digital: true });
+      }
+    });
+  });
+
   it('택배가 없으면 제공 방식 줄만 현행대로 둔다', () => {
     const pickup = goodsShippingSummary(fulfillment([terms('pickup')]), policy(), offerBase);
     expect(pickup).toMatchObject({ methodsLabel: '방문수령', parcel: null, digital: false });
@@ -99,9 +128,9 @@ describe('goodsShippingSummary (MD-0041)', () => {
       expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), policy({ feeType: 'individual', individualFee: 2000 }), offerBase))?.[1]).toEqual(['배송비', '₩2,000 (굿즈당 1회)']);
     });
 
-    it('정책이 없으면 배송비 행을 생략한다', () => {
+    it('정책이 없다고 읽혔으면(null) 배송비 행만 생략한다', () => {
       expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), null, offerBase))).toEqual([['배송국가', '대한민국']]);
-      expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), undefined, undefined))).toEqual([['배송국가', '대한민국']]);
+      expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), null, undefined))).toEqual([['배송국가', '대한민국']]);
     });
 
     it('숫자를 코드가 정하지 않는다 — 정책 값만 바꿔도 화면 값이 따라간다', () => {
