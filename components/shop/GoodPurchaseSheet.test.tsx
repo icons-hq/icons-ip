@@ -71,8 +71,9 @@ describe('GoodPurchaseSheet', () => {
     expect(panel).toContain('추가 구성 굿즈');
     expect(panel).toContain('aria-label="추가 스티커 추가 수량"');
     expect(panel).toContain('주문 후 제작');
-    expect(panel).toContain('예상 굿즈 금액');
-    expect(panel).toContain('₩33,000');
+    /* MD-0039·0040 — 거래 조건이 있는 굿즈에는 '예상 굿즈 금액' 합계 행이 없다(시트도 패널 그대로다). */
+    expect(panel).not.toContain('예상 굿즈 금액');
+    expect(panel).not.toContain('wc-buy-panel__total');
     expect(panel).toContain('>장바구니<');
     expect(panel).toContain('>구매하기<');
     expect(panel).toContain('wc-buy-panel__other-purchases');
@@ -80,6 +81,27 @@ describe('GoodPurchaseSheet', () => {
     expect(panel).toMatch(/<aside class="wc-good-gift-entry"><a href="\/gifts\/?">선물함<\/a>/);
     expect(panel).toContain('각인 문구를 입력해주세요.');
     expect(panel).toContain('role="status"');
+  });
+
+  /* MD-0041 — 시트는 본문 패널과 같은 배송 정책을 받아 택배 배송 안내까지 그대로 담는다. */
+  it('배송 정책을 패널과 같이 받아 택배 배송 안내도 한 칸 빠짐없이 담는다', () => {
+    const shippingPolicy = { originId: 'o1', originName: '김포', baseFee: 3000, freeThreshold: 40000, feeType: 'policy', individualFee: 0 } as const;
+    const parcel = {
+      ...controller,
+      good: { ...good, transactionOffer: { ...good.transactionOffer!, fulfillment: {
+        goodId: 'g13', revision: 1, mode: 'shipping', files: [], publicNote: '',
+        methods: [{ method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }],
+      } } },
+    } as GoodPurchaseController;
+    const sheet = renderToStaticMarkup(<GoodPurchaseSheet onClose={vi.fn()} otherPurchases={otherPurchases} purchase={parcel} shippingPolicy={shippingPolicy} />);
+    const panel = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={otherPurchases} purchase={parcel} shippingPolicy={shippingPolicy} />);
+
+    expect(sheet).toContain(panel);
+    expect(panel).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
+    expect(panel).toContain('<dt>배송비</dt><dd>₩3,000 (₩40,000 이상 무료)</dd>');
+    expect(panel).toContain('도서산간 지역은 추가 비용이 발생할 수 있습니다.');
+    expect(panel).not.toContain('제공 방식');
+    expect(panel).not.toContain('예상 굿즈 금액');
   });
 
   it('가용성을 받지 못한 진입은 그리지 않는다(응답 전·실패와 같다)', () => {
