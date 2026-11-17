@@ -891,3 +891,42 @@ describe('출고지 배송 정책 표시', () => {
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} />)).toContain('배송 정책을 확인하지 못했습니다');
   });
 });
+
+/* MD-0039·0040·0041 — 구매 패널·레일 박스·구매 시트가 같은 배송 정책으로 택배 안내를 그리고 '예상 굿즈 금액'을 두지 않는다. */
+describe('상품 상세 금액·배송 문구', () => {
+  const policy = { originId: 'gimpo', originName: '김포', baseFee: 3000, freeThreshold: 40000, feeType: 'policy' as const, individualFee: 0 };
+  const offered: GoodDetailContent = {
+    ...detail,
+    good: {
+      ...good,
+      transactionOffer: {
+        goodId: 'g13', volume: null, delivery: null, collectReady: false, collector: null,
+        fulfillment: { goodId: 'g13', revision: 1, mode: 'shipping', files: [], publicNote: '', methods: [{ method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }] },
+      },
+    },
+  };
+
+  it('상세가 받은 배송 정책으로 택배 굿즈의 배송국가·배송비를 보이고 합계 행과 제공 방식 줄은 없다', () => {
+    const html = renderToStaticMarkup(<GoodDetailView detail={offered} shippingPolicy={policy} />);
+    expect(html).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
+    expect(html).toContain('<dt>배송비</dt><dd>₩3,000 (₩40,000 이상 무료)</dd>');
+    expect(html).toContain('도서산간 지역은 추가 비용이 발생할 수 있습니다.');
+    expect(html).not.toContain('제공 방식: 택배');
+    expect(html).not.toContain('예상 굿즈 금액');
+    expect(html).not.toContain('wc-pdp-railbox__total');
+    expect(html).toContain('class="wc-pdp-railbox wc-pdp-railbox--no-total"');
+  });
+
+  it('배송 정책이 없으면 배송비 행만 빠진다', () => {
+    const html = renderToStaticMarkup(<GoodDetailView detail={offered} />);
+    expect(html).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
+    expect(html).not.toContain('<dt>배송비</dt>');
+  });
+
+  it('거래 조건이 없는 굿즈는 총 금액 행이 그대로다', () => {
+    const html = renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />);
+    expect(html).toContain('wc-buy-panel__total');
+    expect(html).toContain('wc-pdp-railbox__total');
+    expect(html).not.toContain('배송국가');
+  });
+});
