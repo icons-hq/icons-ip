@@ -1,13 +1,15 @@
-import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import { Shop } from '@/components/screens/Shop';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
-import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
+import { isServerOrderedSort, parseListingSearchParams, selectShopGoods } from '@/lib/shop-catalog';
 import { notFound } from 'next/navigation';
-import { parseCategoryDisplayRequest } from '@/lib/category-display';
-import { loadCategoryDisplayNavigation, loadCategoryDisplayPage } from '@/lib/category-display.server';
+import { listingCategoryDisplayQuery, parseCategoryDisplayRequest } from '@/lib/category-display';
+import { loadCategoryDisplayPage } from '@/lib/category-display.server';
+import { buildCategoryListingNav } from '@/lib/category-chips';
 import { CategoryDisplayShop } from '@/components/shop/CategoryDisplayShop';
-import { CategoryDisplayNavigation } from '@/components/shop/CategoryDisplayContents';
+import { loadListingSortOrders } from '@/lib/goods-listing-orders.server';
+import { EMPTY_STOREFRONT_MEGA_MENUS } from '@/lib/storefront-mega-menu';
+import { getStorefrontMegaMenus } from '@/lib/storefront-mega-menu.server';
 import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 import { getCollectionBanners } from '@/lib/collection-banners.server';
 
@@ -15,32 +17,28 @@ interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
+/* 공개 전시 트리(메가메뉴와 같은 원천)는 칩·제목·하위 탭의 데이터다. 읽기가 실패해도 목록은 막지 않는다 — 칩 영역 없이 목록만 그린다. */
+const loadCategoryTree = () => getStorefrontMegaMenus().then(menus => menus.categories).catch(() => EMPTY_STOREFRONT_MEGA_MENUS.categories);
+
 export default async function Page({ searchParams }: PageProps) {
   const params: Record<string, string | string[] | undefined> = await (searchParams ?? {});
   if (params.displayCategory !== undefined) {
     const input = parseCategoryDisplayRequest(params);
     if (!input) notFound();
-    const [page, navigation, wishlist] = await Promise.all([loadCategoryDisplayPage(input.categoryId, input.query), loadCategoryDisplayNavigation(), loadListingWishlist()]);
+    /* 이 화면에는 필터가 없다 — 전시 id·정렬 검증은 위에서 끝났고, 여기서 필터를 버리고 화면에서 뺀 정렬을 기본값으로 돌린다. */
+    const query = listingCategoryDisplayQuery(input.query);
+    const [page, tree, wishlist] = await Promise.all([loadCategoryDisplayPage(input.categoryId, query), loadCategoryTree(), loadListingWishlist()]);
     if (!page) notFound();
-    return <CategoryDisplayShop key={`${page.category.id}:${page.token}`} initial={{ ...page, navigation }} wishlist={wishlist} />;
+    return <CategoryDisplayShop key={`${page.category.id}:${page.token}`} initial={page} nav={buildCategoryListingNav(tree, page.category.id)} wishlist={wishlist} />;
   }
-  /* 컬렉션 배너(CL-09)는 굿즈샵 전체에만 선다 — 카테고리 전시 분기(위)는 배너를 읽지 않는다. */
-  const [catalog, displayNavigation, wishlist, banners] = await Promise.all([getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist(), getCollectionBanners('all')]);
-  const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
-  const query = parseShopSearchParams(params, {
-    view: 'all',
-    validIpIds: new Set(catalog.ips.map((ip) => ip.id)),
-    validCategoryIds: new Set(categories.map((category) => category.id)),
-  });
-
-  /* 카테고리 전시 내비와 실패 안내는 Shop 의 .wc-root 밖 형제다. 자기 .wc-root 가 없으면 --wc-container-max·--wc-gutter·
-     --wc-hairline·--wc-focus 가 비어 컨테이너 폭·거터·칩 선·포커스 링을 잃고 x0 에서 맨 글자로 선다(l4-qa-2). */
-  const hasDisplayLead = displayNavigation.entries.length > 0 || displayNavigation.failed;
-  return <>
-    {hasDisplayLead ? <div className="wc-root">
-      <CategoryDisplayNavigation entries={displayNavigation.entries} />
-      {displayNavigation.failed ? <p className="wc-container" role="status">카테고리 전시를 불러오지 못했습니다. 전체 굿즈는 계속 확인할 수 있습니다.</p> : null}
-    </div> : null}
-    <Shop banners={banners} query={query} result={selectShopGoods({ ...catalog, categories }, query)} view="all" wishlist={wishlist} />
-  </>;
+  /* 전체 굿즈 — 칩(전체 선택) + "전체 굿즈" + 정렬 셀렉트. 컬렉션 배너(all 슬롯 슬라이더)는 여기서만 읽는다. 필터 쿼리는 읽지 않는다. */
+  const { query } = parseListingSearchParams(params, 'all');
+  const [catalog, tree, wishlist, banners, sortOrders] = await Promise.all([
+    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })),
+    loadCategoryTree(),
+    loadListingWishlist(),
+    getCollectionBanners('all'),
+    isServerOrderedSort(query.sort) ? loadListingSortOrders() : Promise.resolve(null),
+  ]);
+  return <Shop banners={banners} categoryNav={buildCategoryListingNav(tree, null)} query={query} result={selectShopGoods(catalog, query, [], sortOrders)} view="all" wishlist={wishlist} />;
 }

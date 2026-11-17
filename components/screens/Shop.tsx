@@ -1,20 +1,24 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
-import { CollectionBanners } from '@/components/shop/CollectionBanners';
-import { CollectionBrowser } from '@/components/shop/CollectionBrowser';
-import { shopQueryString } from '@/components/shop/collection-filters';
-import { SectionHeading } from '@/components/wc/SectionHeading';
+import { CategoryChips } from '@/components/shop/CategoryChips';
+import { CollectionBanners, ListingBanner, type ListingBannerContent } from '@/components/shop/CollectionBanners';
+import { ListingGrid } from '@/components/shop/ListingGrid';
+import { ListingHeader, type ListingHeaderTab } from '@/components/shop/ListingHeader';
 import { WcButton } from '@/components/wc/WcButton';
+import type { CategoryListingNav } from '@/lib/category-chips';
 import type { CollectionBanner, CollectionBannerSlot } from '@/lib/collection-banners';
+import { HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
+import { LISTING_SORT_LABELS, LISTING_SORTS, NEW_SORT_TABS, SALES_RANKING_DEFAULT_PERIOD } from '@/lib/listing-sorts';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import {
-  SHOP_SORTS,
-  SHOP_VIEW_SORTS,
+  listingQueryString,
   type ShopListQuery,
   type ShopListResult,
+  type ShopSort,
   type ShopView,
 } from '@/lib/shop-catalog';
 
@@ -28,117 +32,172 @@ export {
 } from '@/components/shop/collection-filters';
 
 /*
- * 굿즈샵·NEW·BEST·카테고리 전시 컬렉션 화면 (#326, R-03 §1, LFS 패리티 2차 L4).
+ * 굿즈샵 전체·NEW·BEST·카테고리 전시 목록 화면 (X SQUARE · 스펙 C §2.1~2.5, Figma New·Best·Category 프레임).
  *
- * 본문(사이드바·수량·정렬 줄·그리드·VIEW MORE·모바일 시트)은 검색·IP관과 같은 CollectionBrowser 다.
- * 이 화면은 컬렉션 머리말과 스코프가 빈 경우의 안내, 그리고 URL 조립 규칙만 정한다.
+ * 위에서 아래로: 스트립 배너(1272×340) → 카테고리 칩(카테고리 화면만) → 전시 영상·추천 밴드(전시 구성을 켠 경우만) →
+ * 제목 줄(제목 + 탭 줄 + 정렬 셀렉트) → 5열 그리드 → VIEW MORE. 왼쪽 필터·수량 줄·필터 시트는 없다(D2) —
+ * 검색 결과·IP관은 이 화면이 아니라 `CollectionBrowser` 를 그대로 쓴다.
  *
- * 머리말: 굿즈샵과 NEW 는 제목 없이 목록으로 바로 시작한다(R-03 §1.2 · CL-08 — h1 은 시각 숨김).
- * 컬렉션 배너(CL-09, L8b)는 굿즈샵 전체·BEST·NEW 머리에 선다(카테고리 전시·검색·IP관에는 없다). BEST 는 배너가 없을 때만
- * 텍스트 제목을 보인다 — 배너가 있으면 배너 문구가 머리말이고 h1 은 시각 숨김이다. 배너가 없으면 화면은 지금 그대로다.
+ * 탭 줄은 화면마다 다른 차원이다: NEW = 정렬 6종(그래서 셀렉트가 없다, D4), BEST = 기간(실시간·일간·주간·월간) + 정렬 셀렉트,
+ * 카테고리 = 선택한 1단계의 하위 전시 + 정렬 셀렉트. 어드민 미리보기(`onQueryChange` 사용)는 같은 틀로 그리되 링크 대신 콜백으로 정렬을 바꾼다.
+ * 필터 쿼리(`ip`·`type`·`min`·`max`·`category`)는 이 화면에서 읽지 않는다 — 호출부가 `parseListingSearchParams` 로 파싱한다.
  */
 
 export interface ShopProps {
   view: ShopView;
   query: ShopListQuery;
   result: ShopListResult;
+  /** 카테고리 칩 모델이 제목을 못 정할 때(어드민 미리보기·트리 밖 전시)의 제목. */
   title?: string;
   onQueryChange?: (query: ShopListQuery) => void;
   refreshScheduledContent?: boolean;
-  /** A same-origin embedded preview owns its overlay document. */
+  /** 예전 필터 시트가 쓰던 포털 대상 — 필터 시트가 없어졌으므로 쓰이지 않는다. 어드민 미리보기 호출부 호환용으로만 받는다. */
   overlayContainer?: HTMLElement;
   paging?: { loading: boolean; error?: string; hasMore?: boolean; onLoadMore: () => void; onReload?: () => void };
   /** 목록 하트의 초기 상태(`lib/wishlist-ids.server`). 생략하면 하트를 그리지 않는다(어드민 미리보기). */
   wishlist?: ListingWishlist | null;
   /**
-   * 이 컬렉션의 머리 배너(`lib/collection-banners.server`). 로더가 목적지 게이트·종료·페이지 몫을 이미 걸렀다 —
-   * 그래서 배너 유무로 정하는 머리말(BEST 텍스트 제목)·상단 여백이 실제로 그려지는 배너와 같은 판정을 쓴다.
-   * 비었거나 생략하면 배너 없이 그린다.
+   * 이 컬렉션의 머리 배너(`lib/collection-banners.server`). 로더가 목적지 게이트·종료·페이지 몫을 이미 걸렀다.
+   * 비었거나 생략하면 배너 없이 제목 줄로 시작한다.
    */
   banners?: readonly CollectionBanner[];
+  /** BEST 의 선택된 기간 탭. 생략하면 실시간이다. */
+  period?: HomeSalesPeriod;
+  /** BEST 순위를 읽지 못했다 — 빈 기간과 다른 안내를 그린다. */
+  rankingFailed?: boolean;
+  /** 카테고리 화면의 칩·제목·하위 탭·부제. 생략하면 칩 영역 없이 제목(`title` 또는 화면 기본)만 그린다. */
+  categoryNav?: CategoryListingNav | null;
+  /** 카테고리 전시 구성의 배너(컬렉션 배너 슬롯이 없는 전시 화면용). */
+  displayBanner?: ListingBannerContent | null;
+  /** 칩 영역과 제목 줄 사이 — 카테고리 전시 구성의 영상·추천 밴드. */
+  children?: ReactNode;
 }
 
-/** 배너를 받는 컬렉션 — 굿즈샵 전체·BEST·NEW. 카테고리 전시(`?displayCategory=`)는 같은 화면을 쓰지만 배너가 없다. */
+/** 배너를 받는 컬렉션 — 굿즈샵 전체·BEST·NEW. 카테고리 전시(`?displayCategory=`)는 같은 화면을 쓰지만 컬렉션 배너가 없다(전시 구성 배너를 쓴다). */
 export function collectionBannerSlotFor(view: ShopView, query: Pick<ShopListQuery, 'displayCategory'>): CollectionBannerSlot | null {
   if (query.displayCategory) return null;
   return view === 'all' || view === 'best' || view === 'new' ? view : null;
 }
 
-const VIEW_HEADINGS: Record<ShopView, { title: string; subcopy?: string }> = {
-  all: { title: '굿즈샵' },
-  new: { title: 'NEW' },
-  best: { title: 'BEST', subcopy: '지금 가장 사랑받는 굿즈예요.' },
-  search: { title: '검색 결과' },
-  ip: { title: '굿즈' },
+const VIEW_TITLES: Record<ShopView, string> = {
+  all: '전체 굿즈',
+  new: 'NEW',
+  best: 'BEST',
+  search: '검색 결과',
+  ip: '굿즈',
 };
 
-export function Shop({ query, result, view, title, onQueryChange, paging, refreshScheduledContent = true, overlayContainer, wishlist, banners = [] }: ShopProps) {
-  const pathname = usePathname();
-  const heading = VIEW_HEADINGS[view];
-  const bannerSlot = collectionBannerSlotFor(view, query);
-  const slotBanners = bannerSlot ? banners.filter((banner) => banner.slot === bannerSlot) : [];
-  const hasBanner = slotBanners.length > 0;
-  const headingNode = title
-    ? <SectionHeading as="h1" title={title} />
-    : view === 'best' && !hasBanner
-      ? <SectionHeading as="h1" subcopy={heading.subcopy} title={heading.title} />
-      : <h1 className="wc-sr-only">{heading.title}</h1>;
-  /* 굿즈샵 전체 배너는 전폭이라 컨테이너 밖, BEST·NEW 배너는 콘텐츠 폭이라 컨테이너 안 머리말 자리에 선다. */
-  const wideBanner = bannerSlot === 'all' && hasBanner ? <CollectionBanners banners={slotBanners} slot="all" /> : null;
-  const containedBanner = bannerSlot && bannerSlot !== 'all' && hasBanner ? <CollectionBanners banners={slotBanners} slot={bannerSlot} /> : null;
-  /* 페이지 제목(h1)은 머리 배너보다 먼저 읽힌다 — 전폭 배너가 컨테이너 밖 맨 앞에 서도 시각 숨김 h1 을 그 앞에 둔다
-     (BEST·NEW 와 같은 순서, l8b-qa-5). 보이는 제목(title)은 컨테이너 안 제자리에 둔다. */
-  const headingBeforeWideBanner = Boolean(wideBanner) && !title;
-  const leadHeading = headingBeforeWideBanner ? headingNode : null;
-  const containerHeading = headingBeforeWideBanner ? null : headingNode;
-  const rootClass = `wc-root wc-collection${hasBanner ? ' wc-collection--banner' : ''}`;
+function withQuery(pathname: string, queryString: string) {
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
 
-  /* 스코프가 통째로 비면 필터·정렬을 그릴 이유가 없다. 가짜 목록 대신 안내만 남긴다. */
-  if (result.total === 0) {
-    return (
-      <main className={rootClass}>
-        {leadHeading}
-        {wideBanner}
-        <div className="wc-container">
-          {containerHeading}
-          {containedBanner}
-          <div className="wc-collection__empty">
-            <EmptyState
-              action={view === 'all' && !query.displayCategory ? undefined : (
-                <WcButton href="/shop" variant="primary">굿즈샵 둘러보기</WcButton>
-              )}
-              title="아직 준비 중이에요"
-            />
-          </div>
-        </div>
-      </main>
-    );
+export function Shop({
+  banners = [],
+  categoryNav,
+  children,
+  displayBanner,
+  onQueryChange,
+  paging,
+  period = SALES_RANKING_DEFAULT_PERIOD,
+  query,
+  rankingFailed = false,
+  refreshScheduledContent = true,
+  result,
+  title,
+  view,
+  wishlist,
+}: ShopProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const bannerSlot = collectionBannerSlotFor(view, query);
+  const hasGoods = result.total > 0 && result.filteredTotal > 0;
+  const headingTitle = categoryNav?.title ?? title ?? VIEW_TITLES[view];
+
+  const navigateSort = (sort: ShopSort) => {
+    if (sort === query.sort) return;
+    const next = { ...query, sort };
+    if (onQueryChange) { onQueryChange(next); return; }
+    router.push(withQuery(pathname, listingQueryString(next, period)), { scroll: false });
+  };
+
+  /* 탭 줄: NEW 는 정렬, BEST 는 기간, 카테고리는 하위 전시. 빈 NEW 는 정렬을 고를 이유가 없어 탭을 두지 않는다(BEST 는 다른 기간으로 갈 길이라 남긴다). */
+  let tabs: ListingHeaderTab[] = [];
+  let tabsLabel = '하위 분류';
+  if (view === 'new' && hasGoods) {
+    tabsLabel = '정렬';
+    tabs = NEW_SORT_TABS.map((sort) => ({
+      key: sort,
+      label: LISTING_SORT_LABELS[sort],
+      href: withQuery(pathname, listingQueryString({ ...query, sort }, period)),
+      selected: query.sort === sort,
+    }));
+  } else if (view === 'best') {
+    tabsLabel = '기간';
+    tabs = HOME_SALES_PERIODS.map((value) => ({
+      key: value,
+      label: HOME_SALES_PERIOD_LABELS[value],
+      href: withQuery(pathname, listingQueryString(query, value)),
+      selected: value === period,
+    }));
+  } else if (categoryNav) {
+    tabs = categoryNav.tabs.map((tab) => ({ key: tab.id, label: tab.label, href: tab.href, selected: tab.selected }));
   }
 
-  return (
-    <main className={rootClass}>
-      {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={result.goods} /> : null}
-      {leadHeading}
-      {wideBanner}
-      <div className="wc-container">
-        {containerHeading}
-        {containedBanner}
-        <CollectionBrowser
-          countNoun="굿즈"
-          hrefFor={(next) => {
-            const qs = shopQueryString(next);
-            return qs ? `${pathname}?${qs}` : pathname;
-          }}
-          listSurface={view === 'best' ? 'best' : 'standard'}
-          onQueryChange={onQueryChange}
-          overlayContainer={overlayContainer}
-          paging={paging}
-          query={query}
-          result={result}
-          /* 카테고리 전시는 서버(RPC)가 20개씩 잘라 주므로 DB 화이트리스트(SHOP_SORTS — 컬렉션과 같은 7종)를 연다. */
-          sorts={query.displayCategory ? SHOP_SORTS : SHOP_VIEW_SORTS[view]}
-          wishlist={wishlist}
+  /* 배너가 없으면 빈 머리 컨테이너도 남기지 않는다 — CollectionBanners 는 비어도 요소이므로 슬롯 몫이 있는지 먼저 본다. */
+  const hasSlotBanner = bannerSlot !== null && banners.some((candidate) => candidate.slot === bannerSlot);
+  const banner = hasSlotBanner
+    ? <CollectionBanners banners={banners} slot={bannerSlot} />
+    : !bannerSlot && displayBanner
+      ? <div className="wc-strip-banners" data-slot="category"><section aria-label="카테고리 배너" className="wc-strip-banners__single"><ListingBanner banner={displayBanner} /></section></div>
+      : null;
+
+  const chips = categoryNav ? <CategoryChips nav={categoryNav} /> : null;
+
+  const body = hasGoods ? (
+    <ListingGrid
+      listSurface={view === 'best' ? 'best' : 'standard'}
+      paging={paging}
+      resetKey={`${view}|${listingQueryString(query, period)}`}
+      result={result}
+      wishlist={wishlist}
+    />
+  ) : (
+    <div className="wc-listing__empty">
+      {view === 'best' ? (
+        rankingFailed
+          ? <EmptyState description="잠시 후 다시 확인해주세요." title="순위를 불러오지 못했어요." />
+          : <EmptyState description="다른 기간을 골라 보세요." title="이 기간에 집계된 굿즈가 없어요" />
+      ) : (
+        <EmptyState
+          action={view === 'all' && !query.displayCategory ? undefined : (
+            <WcButton href="/shop" variant="primary">굿즈샵 둘러보기</WcButton>
+          )}
+          title="아직 준비 중이에요"
         />
+      )}
+    </div>
+  );
+
+  return (
+    <main className="wc-root wc-listing">
+      {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={result.goods} /> : null}
+      {banner || chips ? (
+        <div className="wc-container wc-container--wide">
+          {banner}
+          {chips}
+        </div>
+      ) : null}
+      {/* 전시 구성의 영상·추천 밴드는 자기 컨테이너를 가진다 — 넓은 컨테이너 안에 넣으면 거터가 두 번 걸린다. */}
+      {children}
+      <div className="wc-container wc-container--wide">
+        <ListingHeader
+          sort={hasGoods && view !== 'new' ? { value: query.sort, options: LISTING_SORTS, onChange: navigateSort } : null}
+          subtitle={categoryNav?.subtitle}
+          tabs={tabs}
+          tabsLabel={tabsLabel}
+          title={headingTitle}
+        />
+        {body}
       </div>
     </main>
   );

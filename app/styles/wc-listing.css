@@ -1,2 +1,467 @@
 /* X SQUARE 목록 화면(NEW·BEST·카테고리) 전용 스타일 (Figma 2026-11-12, 스펙 C §2.1·§2.4).
- * 공용 부품(카드·그리드·스트립 배너)은 wc-storefront-x.css 가 소유한다. 토큰은 --wc-x-*. */
+ * 공용 부품(카드·그리드·스트립 배너 한 장)은 wc-storefront-x.css 가 소유한다. 토큰은 --wc-x-*(wc-foundation.css 의 .wc-root).
+ * 이 파일의 선택자는 .wc-listing*·.wc-strip-banners*·.wc-strip-banner-slider*·.wc-listing-banner* 로만 시작한다(전역 element 규칙 금지).
+ * 모바일 기본 + 750(그리드·모바일 분기), 990(데스크톱 한 줄 머리)에서 넓힌다. */
+
+/* ------------------------------------------------------------------
+   페이지 골격
+   ------------------------------------------------------------------ */
+
+.wc-listing {
+  padding-block: 16px 96px;
+}
+
+@media (min-width: 990px) {
+  .wc-listing { padding-block: 32px 120px; }
+}
+
+/* 목록이 비면 그리드 자리가 무너지지 않게 자체 높이를 준다. */
+.wc-listing__empty {
+  padding: 64px 0 80px;
+}
+
+/* ------------------------------------------------------------------
+   스트립 배너 — 콘텐츠 폭 1272×340, r12 (모바일 r8). 모양은 공용 .wc-strip-banner 가 쥔다.
+   바깥 상자는 넓은 컨테이너 안이면 그 폭을 따르고(거터 0), 컨테이너 밖(어드민 미리보기)이면 스스로 폭·거터를 잡는다.
+   ------------------------------------------------------------------ */
+
+.wc-strip-banners {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--wc-x-container);
+  margin: 0 auto 24px;
+  padding-inline: var(--wc-gutter);
+}
+
+.wc-container .wc-strip-banners {
+  max-width: none;
+  padding-inline: 0;
+}
+
+.wc-strip-banners__single { margin: 0; }
+
+@media (min-width: 990px) {
+  .wc-strip-banners {
+    margin-bottom: 60px;
+    padding-inline: var(--wc-x-gutter);
+  }
+
+  .wc-container .wc-strip-banners { padding-inline: 0; }
+}
+
+/* 문구 레이어가 앉을 기준 상자. 이미지가 없는 초안(어드민 미리보기)은 같은 비율의 회색 면이다. */
+.wc-listing-banner {
+  position: relative;
+  border-radius: var(--wc-x-radius-strip);
+  color: var(--wc-x-ink);
+}
+
+.wc-listing-banner[data-text-color='white'] { color: #FFFFFF; }
+
+.wc-listing-banner__blank {
+  display: block;
+  aspect-ratio: 1272 / 340;
+  background: var(--wc-surface-grey-2);
+}
+
+/* 딤은 운영자가 고른 경우에만(흰·검정 35%) — 히어로와 같은 선택지다. */
+.wc-listing-banner__dim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: .35;
+  pointer-events: none;
+}
+
+.wc-listing-banner__dim[data-tone='white'] { background: #FFFFFF; }
+.wc-listing-banner__dim[data-tone='black'] { background: #000000; }
+
+/* 문구는 왼쪽 아래다. 장식 레이어라 클릭은 아래 링크로 통과한다(aria-hidden 이라 이름은 링크의 대체텍스트가 맡는다). */
+.wc-listing-banner__copy {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+}
+
+.wc-listing-banner__title {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -.2px;
+  overflow-wrap: anywhere;
+}
+
+.wc-listing-banner__subtitle {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 750px) {
+  .wc-listing-banner__copy {
+    bottom: 40px;
+    left: 40px;
+    gap: 8px;
+    max-width: min(640px, calc(100% - 80px));
+  }
+
+  .wc-listing-banner__title { font-size: 28px; }
+  .wc-listing-banner__subtitle { font-size: 16px; }
+}
+
+/* ------------------------------------------------------------------
+   스트립 배너 슬라이더 (굿즈샵 전체 all 슬롯, 최대 10장) — 같은 크기·수동·루프. 자동 넘김과 진행 막대는 없다.
+   ------------------------------------------------------------------ */
+
+.wc-strip-banner-slider { position: relative; }
+
+.wc-strip-banner-slider__track {
+  display: flex;
+  overflow-x: auto;
+  border-radius: var(--wc-x-radius-strip);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.wc-strip-banner-slider__track::-webkit-scrollbar { display: none; }
+
+.wc-strip-banner-slider__slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+/* 이전·다음 32×32 — 배너 안 오른쪽 아래. 모바일은 스와이프가 이동 수단이라 감춘다. 흰 글리프가 밝은 그림 위에서도 3:1 을 넘게 면을 .45 로 둔다. */
+.wc-strip-banner-slider__controls { display: none; }
+
+.wc-strip-banner-slider__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .45);
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.wc-strip-banner-slider__arrow:focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+/* 모바일 현재 위치 'n / N' — 오른쪽 아래 알약. 흰 13px 글자가 밝은 그림 위에서도 4.5:1 을 넘게 면을 .6 으로 둔다. */
+.wc-strip-banner-slider__fraction {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .6);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 19px;
+}
+
+@media (min-width: 750px) {
+  .wc-strip-banner-slider__controls {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .wc-strip-banner-slider__fraction { display: none; }
+  /* 슬라이더의 문구가 버튼 밑으로 들어가지 않게 오른쪽을 비운다(32 + 8 + 32 + 여백 20 + 20). */
+  .wc-strip-banner-slider .wc-listing-banner__copy { max-width: min(640px, calc(100% - 80px - 92px)); }
+}
+
+@media (forced-colors: active) {
+  .wc-strip-banner-slider__arrow,
+  .wc-strip-banner-slider__fraction { border: 1px solid CanvasText; }
+}
+
+/* ------------------------------------------------------------------
+   카테고리 칩 — 알약 높이 45, 1줄 18 SemiBold 잉크 / 2줄 15 SemiBold 보조 글자. 선택 칩은 검정 채움.
+   ------------------------------------------------------------------ */
+
+.wc-listing-chips { margin: 0 0 24px; }
+
+.wc-listing-chips__scroller {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wc-listing-chips__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-listing-chip {
+  --wc-listing-chip-ink: var(--wc-x-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 45px;
+  padding: 0 30px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--wc-listing-chip-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.wc-listing-chips__row[data-tier='secondary'] .wc-listing-chip {
+  --wc-listing-chip-ink: var(--wc-x-muted);
+  font-size: 15px;
+}
+
+.wc-listing-chip:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+.wc-listing-chips .wc-listing-chip[aria-current='page'] {
+  background: var(--wc-x-ink);
+  color: var(--wc-surface);
+  text-decoration: none;
+}
+
+.wc-listing-chip:focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+/* 1줄과 2줄 사이 구분선 — 칩 줄 폭 전체, 위아래 10. */
+.wc-listing-chips__rule {
+  width: 100%;
+  height: 1px;
+  margin-block: 10px;
+  background: var(--wc-x-line-util);
+}
+
+/* 모바일(<750): 두 줄을 한 줄 가로 스크롤로 합친다 — 구분선은 없고 칩은 낮고 좁다. */
+@media (max-width: 749px) {
+  .wc-listing-chips {
+    overflow-x: auto;
+    margin-inline: calc(-1 * var(--wc-gutter));
+    padding-inline: var(--wc-gutter);
+    scrollbar-width: none;
+  }
+
+  .wc-listing-chips::-webkit-scrollbar { display: none; }
+
+  .wc-listing-chips__scroller {
+    flex-direction: row;
+    align-items: center;
+    width: max-content;
+  }
+
+  .wc-listing-chips__row {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    flex: none;
+  }
+
+  .wc-listing-chips__row + .wc-listing-chips__rule + .wc-listing-chips__row { margin-left: 10px; }
+  .wc-listing-chips__rule { display: none; }
+
+  .wc-listing-chip {
+    height: 36px;
+    padding: 0 16px;
+    font-size: 15px;
+  }
+
+  .wc-listing-chips__row[data-tier='secondary'] .wc-listing-chip { font-size: 15px; }
+}
+
+@media (min-width: 750px) {
+  .wc-listing-chips { margin-bottom: 60px; }
+}
+
+/* ------------------------------------------------------------------
+   목록 머리 — 제목 32 Bold + 탭 줄 + 오른쪽 정렬 셀렉트. 데스크톱 한 줄(43px), 모바일은 제목·셀렉트 한 줄 + 탭 줄 가로 스크롤.
+   ------------------------------------------------------------------ */
+
+.wc-listing-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title sort'
+    'tabs tabs'
+    'sub sub';
+  align-items: center;
+  column-gap: 12px;
+  margin: 0 0 18px;
+}
+
+/* 편집 파운데이션이 h1~h3에 display 폰트·색을 강제하므로 지면 값을 되돌린다. */
+.wc-listing-head__title {
+  grid-area: title;
+  margin: 0;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 32px;
+  letter-spacing: -.5px;
+  color: var(--wc-x-ink);
+}
+
+.wc-listing-head__sub {
+  grid-area: sub;
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--wc-x-muted);
+}
+
+/* 탭 줄 — 링크 묶음(ARIA tablist 가 아니다). 사이마다 1×12 구분선, 선택 탭은 16 Bold 잉크. */
+.wc-listing-tabs {
+  grid-area: tabs;
+  min-width: 0;
+  margin-top: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wc-listing-tabs::-webkit-scrollbar { display: none; }
+
+.wc-listing-tabs__list {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-listing-tabs__item { display: flex; align-items: center; }
+
+.wc-listing-tabs__item + .wc-listing-tabs__item::before {
+  content: '';
+  flex: none;
+  width: 1px;
+  height: 12px;
+  background: var(--wc-x-separator);
+}
+
+.wc-listing-tabs__link {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 15px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--wc-x-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.wc-listing-tabs__item:first-child .wc-listing-tabs__link { padding-left: 0; }
+
+.wc-listing-tabs__link:hover { color: var(--wc-x-ink); }
+
+.wc-listing-tabs__link[aria-current='page'] {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-x-ink);
+}
+
+.wc-listing-tabs__link:focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: -2px;
+}
+
+/* 정렬 셀렉트 — 네이티브 select(편집 파운데이션의 48px·12px 라운드를 되돌린다), 오른쪽 셰브론(Figma 8.4×6, 선 1.2), 테두리 없음. */
+.wc-listing-sort { grid-area: sort; justify-self: end; }
+
+.wc-listing-sort__select {
+  min-width: 0;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 28px 0 8px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: normal;
+  text-align: right;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8.4' height='6' viewBox='0 0 8.4 6' fill='none'%3E%3Cpath d='M.6 .6 4.2 5.4 7.8 .6' stroke='%23121212' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 8.4px 6px;
+  color: rgba(18, 18, 18, .8);
+  cursor: pointer;
+}
+
+.wc-listing-sort__select:focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+@media (min-width: 750px) {
+  .wc-listing-head__title { font-size: 32px; line-height: 43px; }
+  .wc-listing-sort__select { padding-right: 32px; padding-left: 16px; font-size: 16px; }
+}
+
+/* 데스크톱: 제목 · 탭 줄(제목에서 20 뒤) · 셀렉트가 한 줄 43px. */
+@media (min-width: 990px) {
+  .wc-listing-head {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title tabs sort'
+      'sub sub sub';
+    column-gap: 20px;
+    min-height: 43px;
+  }
+
+  .wc-listing-tabs { margin-top: 0; }
+  .wc-listing-sort { grid-column: 3; }
+}
+
+/* ------------------------------------------------------------------
+   그리드 아래 — 불러오기 실패 안내, VIEW MORE (20개 단위)
+   ------------------------------------------------------------------ */
+
+.wc-listing-grid__error {
+  margin: 24px 0 0;
+  text-align: center;
+}
+
+.wc-listing .wc-listing-more {
+  display: flex;
+  width: 100%;
+  max-width: 300px;
+  height: 50px;
+  margin: 40px auto 0;
+}
+
+@media (min-width: 990px) {
+  .wc-listing .wc-listing-more { margin-top: 56px; }
+}
