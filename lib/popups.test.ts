@@ -113,6 +113,41 @@ describe('popupItemsFromEvents (오프라인 팝업)', () => {
     });
   });
 
+  /* QA — 오프라인 팝업과 POP-UP 캠페인의 날짜 표기가 같은 형식(2026.11.14 – 12.7, 같은 해면 뒤 연도 생략)이어야 한다. */
+  it('시작·끝 시각을 읽으면 기간을 POP-UP 캠페인과 같은 형식으로 쓴다', () => {
+    const [same, cross] = popupItemsFromEvents(
+      [event({ id: 'same', date: '11.14 - 12.7' }), event({ id: 'cross', date: '12.20 - 1.5', loc: '' })],
+      times({
+        same: { startsAt: '2026-11-13T15:00:00.000Z', endsAt: '2026-12-07T14:59:59.000Z' },
+        cross: { startsAt: '2026-12-19T15:00:00.000Z', endsAt: '2027-01-05T14:59:59.000Z' },
+      }),
+      NOW,
+    );
+
+    expect(same.meta).toBe('오프라인 · 성수 ICONS 스튜디오 · 2026.11.14 – 12.7');
+    expect(cross.meta).toBe('오프라인 · 2026.12.20 – 2027.1.5');
+    /* 캠페인 쪽과 같은 함수의 결과다. */
+    expect(popupItemsFromCampaigns([campaign({ id: 'c', startsAt: '2026-11-13T15:00:00.000Z', endsAt: '2026-12-07T14:59:59.000Z' })])[0].meta)
+      .toBe('오프라인 · 서울 마포구 · 2026.11.14 – 12.7');
+  });
+
+  it('끝 시각이나 시각 전체를 읽지 못하면 카탈로그의 날짜 표기로 떨어진다', () => {
+    const items = popupItemsFromEvents(
+      [event({ id: 'open', date: '11.14' }), event({ id: 'none', date: '7.01 - 7.21' }), event({ id: 'broken', date: '8.01 - 8.09' })],
+      times({
+        open: { startsAt: '2026-11-13T15:00:00.000Z', endsAt: null },
+        broken: { startsAt: 'not-a-date', endsAt: '2026-12-07T14:59:59.000Z' },
+      }),
+      NOW,
+    );
+
+    expect(items.map((item) => item.meta)).toEqual([
+      '오프라인 · 성수 ICONS 스튜디오 · 11.14',
+      '오프라인 · 성수 ICONS 스튜디오 · 7.01 - 7.21',
+      '오프라인 · 성수 ICONS 스튜디오 · 8.01 - 8.09',
+    ]);
+  });
+
   it('시각을 읽지 못하면 시작 시각 없이도 싣는다', () => {
     const [item] = popupItemsFromEvents([event({ id: 'e1' })], new Map(), NOW);
 

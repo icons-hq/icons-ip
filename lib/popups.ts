@@ -89,6 +89,17 @@ function eventPhase(status: string): PopupPhase | null {
 }
 
 /**
+ * 오프라인 팝업의 기간 표기 — POP-UP 캠페인과 같은 형식(`campaignPeriodLabel`: `2026.11.14 – 12.7`, 같은 해면 뒤 연도 생략)이다.
+ * 시작·끝 시각을 둘 다 읽었을 때만 그렇게 만든다. 못 읽었으면(목업 카탈로그·끝 시각 없음) 카탈로그가 만든 날짜 표기(`event.date`)로 떨어진다.
+ */
+function eventPeriodLabel(event: FandomEvent, times: PopupEventTimes | undefined): string {
+  if (times?.startsAt && times.endsAt && parseTime(times.startsAt) !== null && parseTime(times.endsAt) !== null) {
+    return campaignPeriodLabel(times.startsAt, times.endsAt);
+  }
+  return event.date;
+}
+
+/**
  * 오프라인 팝업(`events`) → 항목.
  * 오프라인 모드만, 상태는 진행중·예매중·예정만, 끝 시각이 이미 지난 것은 뺀다(끝 시각을 모르면 상태를 믿는다).
  */
@@ -115,7 +126,7 @@ export function popupItemsFromEvents(
       imageBg: event.img || null,
       phase,
       startsAtMs: parseTime(times?.startsAt),
-      meta: popupMetaLine({ modeLabel: OFFLINE_MODE_LABEL, location: event.loc, period: event.date }),
+      meta: popupMetaLine({ modeLabel: OFFLINE_MODE_LABEL, location: event.loc, period: eventPeriodLabel(event, times) }),
     }];
   });
 }
