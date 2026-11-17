@@ -16,7 +16,8 @@
   background: var(--wc-surface);
 }
 
-/* 섹션 사이 간격 = 각 섹션의 자기 아래 패딩(모바일 48 · 데스크톱 60). 마지막 섹션의 아래 패딩이 푸터와의 간격이다.
+/* 섹션 사이 간격 = 각 섹션의 자기 아래 패딩(모바일 48 · 데스크톱 60). 데스크톱의 마지막 밴드는 아래 패딩을 걷는다 —
+   푸터가 위 여백(120)을 따로 두어 겹치면 180 이 된다(Figma: 마지막 섹션 끝 → 푸터 선 120). 모바일은 그대로다.
    flex gap 으로 하지 않는다 — 컨테이너(auto 마진)가 column flex 안에서 내용 폭으로 줄어든다. */
 .wc-home__band {
   padding-bottom: 48px;
@@ -48,6 +49,11 @@
 
   .wc-home__band {
     padding-bottom: 60px;
+  }
+
+  /* 마지막 밴드 → 푸터 선은 푸터의 위 여백 120 하나다(Figma). 회색 혜택 밴드의 아래 패딩은 배경 안쪽 여백이라 걷지 않는다. */
+  .wc-home > .wc-home__band:last-child:not(.wc-home__band--grey) {
+    padding-bottom: 0;
   }
 
   .wc-home__empty {

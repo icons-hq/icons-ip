@@ -236,6 +236,11 @@ describe('홈 (X SQUARE Figma Main Page · 11 HM-05·07)', () => {
   it('섹션 사이 간격은 각 섹션의 아래 패딩(모바일 48 · 데스크톱 60)이고 홈 컨테이너는 넓은 컨테이너다', () => {
     expect(decls(HOME, '.wc-home__band')['padding-bottom']).toBe('48px');
     expect(decls(HOME, '.wc-home__band', DESKTOP)['padding-bottom']).toBe('60px');
+    /* 마지막 밴드 → 푸터 선은 푸터 위 여백 120 하나다(Figma). 밴드 아래 패딩 60 이 겹치면 180 이 된다(QA). 데스크톱만, 회색 혜택 밴드(배경 안쪽 여백)는 제외. */
+    expect(decls(HOME, '.wc-home > .wc-home__band:last-child:not(.wc-home__band--grey)', DESKTOP)['padding-bottom']).toBe('0');
+    expect(decls(HOME, '.wc-home > .wc-home__band:last-child:not(.wc-home__band--grey)')['padding-bottom']).toBeUndefined();
+    expect(decls(HOME, '.wc-home__band--grey', DESKTOP)['padding-bottom']).toBe('96px');
+    expect(decls('./styles/wc-chrome.css', '.wc-footer', DESKTOP)['margin-top']).toBe('120px');
     expect(decls(HOME, '.wc-home .wc-container')['max-width']).toBe('var(--wc-x-container)');
     expect(decls(HOME, '.wc-home .wc-container', DESKTOP)['padding-inline']).toBe('var(--wc-x-gutter)');
     /* 옛 밴드 리듬(64/120 · 히어로 뒤 상단 패딩 · 에디터의 제안 뒤 헤어라인)은 지웠다. */
