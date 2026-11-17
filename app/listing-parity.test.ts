@@ -228,73 +228,117 @@ describe('IP관 모바일 배너 (11 IP-05)', () => {
 
 const HOME = './styles/wc-home.css';
 
-describe('홈 밴드 (11 HM-01~07)', () => {
-  it('에디터의 제안 모바일 카드는 300px 에 min-width 0 이라 다음 카드가 보인다(HM-01)', () => {
-    const item = decls(HOME, '.wc-picks .wc-slider__track > *');
+const TABLET = '(min-width: 750px)';
 
-    expect(item.flex).toBe('0 0 300px');
-    expect(item['min-width']).toBe('0');
-    expect(decls(HOME, '.wc-picks .wc-slider__track').gap).toBe('10px');
+/* X SQUARE 홈(ADR-0043)이 에디터의 제안 슬라이더·기획전 리스트 행·'기획전 전체보기' 버튼(HM-01~04·06)을 Figma 구조로 바꿨다:
+ * 추천 콘텐츠 → IP 바로가기 줄, 기획전 → ICONS PICK 카드. 아래 수치는 Figma 덤프(1920 캔버스) 실측이다. 탭 밴드·혜택·섹션 제목(HM-05·07)은 그대로다. */
+describe('홈 (X SQUARE Figma Main Page · 11 HM-05·07)', () => {
+  it('섹션 사이 간격은 각 섹션의 아래 패딩(모바일 48 · 데스크톱 60)이고 홈 컨테이너는 넓은 컨테이너다', () => {
+    expect(decls(HOME, '.wc-home__band')['padding-bottom']).toBe('48px');
+    expect(decls(HOME, '.wc-home__band', DESKTOP)['padding-bottom']).toBe('60px');
+    expect(decls(HOME, '.wc-home .wc-container')['max-width']).toBe('var(--wc-x-container)');
+    expect(decls(HOME, '.wc-home .wc-container', DESKTOP)['padding-inline']).toBe('var(--wc-x-gutter)');
+    /* 옛 밴드 리듬(64/120 · 히어로 뒤 상단 패딩 · 에디터의 제안 뒤 헤어라인)은 지웠다. */
+    expect(read(HOME)).not.toContain('.wc-hero + .wc-home__band');
+    expect(read(HOME)).not.toContain('wc-home__band--picks');
   });
 
-  /* 트랙이 컨테이너 거터 안(16~359)에 갇히면 다음 카드가 오른쪽 거터에서 잘려 375 폭에서 33px 만 보였다(l4-qa-1).
-     레퍼런스는 첫 카드 x16 · 다음 카드 326~375(49px)다 — 트랙 오른쪽 끝이 뷰포트 끝이어야 나오는 값이다. */
-  it('모바일 트랙은 거터를 넘어 화면 끝까지 펴고 첫 카드·스냅은 x16 에 세운다(HM-01 · B20)', () => {
-    const track = decls(HOME, '.wc-picks .wc-slider__track');
-    const container = decls(FOUNDATION, '.wc-container');
+  it('히어로 상자는 모바일 5:6 r12 · 데스크톱 1272/540 r18 이고 높이 상한이 없다', () => {
+    const box = decls(HOME, '.wc-hero__viewport');
+    const desktop = decls(HOME, '.wc-hero__viewport', DESKTOP);
 
-    // 컨테이너 거터와 같은 토큰으로 상쇄해야 트랙 양끝이 뷰포트 양끝과 겹친다.
-    expect(container['padding-inline']).toBe('var(--wc-gutter)');
-    expect(track['margin-inline']).toBe('calc(-1 * var(--wc-gutter))');
-    expect(track['padding-inline']).toBe('var(--wc-gutter)');
-    expect(track['scroll-padding-inline']).toBe('var(--wc-gutter)');
-
-    // 트랙 오른쪽 끝 = 뷰포트 끝이므로 다음 카드 노출 폭 = 뷰포트 − (거터 + 카드 + gap).
-    const gutter = px(read(FOUNDATION).match(/--wc-gutter:\s*([^;]+);/)?.[1]);
-    const card = px(decls(HOME, '.wc-picks .wc-slider__track > *').flex.split(' ')[2]);
-    const gap = px(track.gap);
-    expect(375 - (gutter + card + gap)).toBe(49);
-    expect(390 - (gutter + card + gap)).toBe(64);
+    expect(box['aspect-ratio']).toBe('5 / 6');
+    expect(box['border-radius']).toBe('12px');
+    expect(box.overflow).toBe('hidden');
+    expect(desktop['aspect-ratio']).toBe('1272 / 540');
+    expect(desktop['border-radius']).toBe('var(--wc-x-radius-hero)');
+    expect(desktop['max-height']).toBeUndefined();
   });
 
-  it('데스크톱 3열은 거터 넘김을 되돌려 컨테이너 안쪽 폭에 맞춘다', () => {
-    const track = decls(HOME, '.wc-picks .wc-slider__track', DESKTOP);
+  it('히어로 글은 왼쪽 70·아래 60(모바일 20·24) 최대 600 폭이고 부제 21→제목 36(모바일 15→24)이다', () => {
+    const copy = decls(HOME, '.wc-hero__copy');
+    const desktop = decls(HOME, '.wc-hero__copy', DESKTOP);
 
-    expect(track.gap).toBe('20px');
-    expect(track['margin-inline']).toBe('0');
-    expect(track['padding-inline']).toBe('0');
-    expect(track['scroll-padding-inline']).toBe('0');
-    expect(decls(HOME, '.wc-picks .wc-slider__track > *', DESKTOP).flex).toBe('0 0 calc((100% - 40px) / 3)');
+    expect(copy.left).toBe('20px');
+    expect(copy.bottom).toBe('24px');
+    expect(copy['max-width']).toBe('600px');
+    expect(copy.gap).toBe('5px');
+    expect(desktop.left).toBe('70px');
+    expect(desktop.bottom).toBe('60px');
+    expect(decls(HOME, '.wc-hero__subtitle')['font-size']).toBe('15px');
+    expect(decls(HOME, '.wc-hero__subtitle', DESKTOP)['font-size']).toBe('21px');
+    expect(decls(HOME, '.wc-hero__title')['font-size']).toBe('24px');
+    expect(decls(HOME, '.wc-hero__title', DESKTOP)['font-size']).toBe('36px');
+    expect(decls(HOME, '.wc-hero__scrim').background).toContain('rgba(0,0,0,.45) 0%');
   });
 
-  it('콘텐츠 카드 배지는 12/700 success 글자·grey 칸·3×6·r0 이다(HM-02)', () => {
-    const badge = decls(HOME, '.wc-content-card .wc-content-card__badge');
-
-    expect(badge['font-size']).toBe('12px');
-    expect(badge['font-weight']).toBe('700');
-    expect(badge.padding).toBe('3px 6px');
-    expect(badge['border-radius']).toBe('0');
-    expect(badge.background).toBe('var(--wc-surface-grey)');
-    expect(badge.color).toBe('var(--wc-success)');
+  it('진행 막대는 3px · 최대 960 · 현재 칸이 .3s 로 미끄러지고 장마다 44px 히트 버튼이 겹친다', () => {
+    expect(decls(HOME, '.wc-hero__progress').height).toBe('3px');
+    expect(decls(HOME, '.wc-hero__progress')['max-width']).toBe('960px');
+    expect(decls(HOME, '.wc-hero__track').background).toBe('var(--wc-x-progress-track)');
+    expect(decls(HOME, '.wc-hero__thumb').background).toBe('var(--wc-x-progress-thumb)');
+    expect(decls(HOME, '.wc-hero__thumb').transition).toBe('transform .3s ease');
+    expect(decls(HOME, '.wc-hero__segments').height).toBe('44px');
+    expect(decls(HOME, '.wc-hero__nav')['min-height']).toBe('48px');
+    expect(decls(HOME, '.wc-hero__nav', DESKTOP).gap).toBe('24px');
   });
 
-  it('리스트 행은 하단 1px 헤어라인과 여백 16/18 을 두고 마지막 행은 선이 없다(HM-03)', () => {
-    const row = decls(HOME, '.wc-band__row');
+  it('조작부 버튼은 44×44 히트에 --wc-x-control 선 아이콘이고 구분선은 1×9 #E7E7E7 이다', () => {
+    const button = decls(HOME, '.wc-hero__pause');
+    const arrow = decls(HOME, '.wc-hero__arrow');
+    const divider = decls(HOME, '.wc-hero__divider');
 
-    expect(row['border-bottom']).toBe('1px solid var(--wc-hairline)');
-    expect(row['padding-bottom']).toBe('16px');
-    expect(decls(HOME, '.wc-band__row', DESKTOP)['padding-bottom']).toBe('18px');
-    expect(decls(HOME, '.wc-band__row:last-child')['border-bottom']).toBe('0');
-    expect(decls(HOME, '.wc-band__list', DESKTOP)['row-gap']).toBe('18px');
+    for (const decl of [button, arrow]) {
+      expect(decl.width).toBe('44px');
+      expect(decl.height).toBe('44px');
+      expect(decl.color).toBe('var(--wc-x-control)');
+    }
+    expect(divider.width).toBe('1px');
+    expect(divider.height).toBe('9px');
+    expect(divider.background).toBe('#E7E7E7');
   });
 
-  it('"전체보기"는 1px line.control 선이다(HM-04)', () => {
-    const more = decls(HOME, '.wc-band__more');
+  it('IP 바로가기는 265/180 r15 썸네일이고 데스크톱은 265 고정 열을 가운데에 모은다', () => {
+    const thumb = decls(HOME, '.wc-ip-shortcuts__thumb');
 
-    expect(more.outline).toBe('1px solid var(--wc-line-control)');
-    expect(more['outline-offset']).toBe('-1px');
-    expect(more.height).toBe('50px');
-    expect(decls(HOME, '.wc-band__more', DESKTOP).width).toBe('300px');
+    expect(thumb['aspect-ratio']).toBe('265 / 180');
+    expect(thumb['border-radius']).toBe('var(--wc-x-radius-ip)');
+    expect(decls(HOME, '.wc-ip-shortcuts')['grid-template-columns']).toBe('repeat(2, minmax(0, 1fr))');
+    expect(decls(HOME, '.wc-ip-shortcuts', TABLET)['grid-template-columns']).toBe('repeat(4, minmax(0, 1fr))');
+    const desktop = decls(HOME, '.wc-ip-shortcuts', DESKTOP);
+    expect(desktop['grid-template-columns']).toBe('repeat(auto-fill, 265px)');
+    expect(desktop['justify-content']).toBe('center');
+    expect(desktop.gap).toBe('20px');
+    expect(decls(HOME, '.wc-ip-shortcuts__ip')['font-size']).toBe('13px');
+    expect(decls(HOME, '.wc-ip-shortcuts__ip').color).toBe('var(--wc-x-muted)');
+    expect(decls(HOME, '.wc-ip-shortcuts__title')['font-size']).toBe('14px');
+  });
+
+  it('ICONS PICK 묶음은 0.5px 선 · r8 · 상품 영역 20/20/21/20 · 행 사이 18+1px+18 · 썸네일 94 이다', () => {
+    const pick = decls(HOME, '.wc-x-pick');
+
+    expect(pick.border).toBe('.5px solid var(--wc-x-line-card)');
+    expect(pick['border-radius']).toBe('var(--wc-x-radius-card)');
+    expect(pick.overflow).toBe('hidden');
+    expect(decls(HOME, '.wc-x-pick .wc-x-pick__promo')['border-radius']).toBe('0');
+    expect(decls(HOME, '.wc-x-pick__goods').padding).toBe('20px 20px 21px');
+    const gap = decls(HOME, '.wc-x-pick__row + .wc-x-pick__row');
+    expect(gap['margin-top']).toBe('18px');
+    expect(gap['padding-top']).toBe('18px');
+    expect(gap['border-top']).toBe('1px solid var(--wc-x-line-row)');
+    expect(decls(HOME, '.wc-x-pick__thumb').width).toBe('94px');
+    expect(decls(HOME, '.wc-x-pick__thumb').height).toBe('94px');
+    expect(decls(HOME, '.wc-x-pick__thumb')['border-radius']).toBe('var(--wc-x-radius-thumb-sm)');
+    /* 세 줄의 중심 간격 19 = 줄높이 17 + 2. */
+    expect(px(decls(HOME, '.wc-x-pick__name')['line-height']) + px(decls(HOME, '.wc-x-pick__name')['margin-top'])).toBe(19);
+    expect(decls(HOME, '.wc-x-pick__heart')['margin-right']).toBe('-14px');
+  });
+
+  it('ICONS PICK 은 데스크톱 3열 · 750~989 2열 · 모바일 1열이다', () => {
+    expect(decls(HOME, '.wc-x-pick-grid')['grid-template-columns']).toBe('minmax(0, 1fr)');
+    expect(decls(HOME, '.wc-x-pick-grid', TABLET)['grid-template-columns']).toBe('repeat(2, minmax(0, 1fr))');
+    expect(decls(HOME, '.wc-x-pick-grid', DESKTOP)['grid-template-columns']).toBe('repeat(3, minmax(0, 1fr))');
+    expect(decls(HOME, '.wc-x-pick-grid').gap).toBe('24px');
   });
 
   it('섹션 제목은 28/700 자간 -0.2px 다(HM-05)', () => {
@@ -304,38 +348,14 @@ describe('홈 밴드 (11 HM-01~07)', () => {
     expect(title['letter-spacing']).toBe('-.2px');
   });
 
-  it('에디터의 제안 바로 뒤 밴드 머리에 1px 헤어라인을 긋는다(HM-06)', () => {
-    const line = decls(HOME, '.wc-home__band--picks + .wc-home__band:not(.wc-home__band--grey) > .wc-container::before');
-
-    expect(line.height).toBe('1px');
-    expect(line.background).toBe('var(--wc-hairline)');
-  });
-
   it('혜택 타일은 32px 아이콘을 머리에 두고 데스크톱 패딩은 32/24 다(HM-07)', () => {
     expect(decls(HOME, '.wc-benefit__tile-icon').width).toBe('32px');
     expect(decls(HOME, '.wc-benefit__tile', DESKTOP).padding).toBe('32px 24px');
     expect(decls(HOME, '.wc-benefit__tile', DESKTOP)['min-height']).toBe('158px');
   });
 
-  /* 세로 예산 계약(l4-ui-4·l4-ui-6) — 줄높이·간격을 px 로 고정해 렌더 높이를 CSS 에서 셀 수 있게 둔다.
-     별점 행이 107.8(모바일 105.8)로, 아이콘 타일이 165.8 로 커졌던 것을 되돌리지 않게 막는다. */
-  it('별점까지 든 리스트 행 글 블록이 썸네일 80 안에 들어 행이 99(모바일 97)로 선다(HM-03)', () => {
-    const brand = decls(HOME, '.wc-band__row-brand');
-    const name = decls(HOME, '.wc-band__row-name');
-    const price = decls(HOME, '.wc-band__row-price');
-    const rating = decls(CATALOG, '.wc-band__row-rating');
-    const text = px(brand['line-height']) + px(name['margin-top']) + px(name['line-height'])
-      + px(price['margin-top']) + px(price['line-height']) + px(rating['margin-top']) + px(rating['line-height']);
-    const thumb = px(decls(HOME, '.wc-band__thumb').height);
-
-    expect(thumb).toBe(80);
-    expect(text).toBeLessThanOrEqual(thumb);
-    expect(brand['white-space']).toBe('nowrap');
-    expect(name['white-space']).toBe('nowrap');
-    expect(thumb + px(decls(HOME, '.wc-band__row')['padding-bottom']) + 1).toBe(97);
-    expect(thumb + px(decls(HOME, '.wc-band__row', DESKTOP)['padding-bottom']) + 1).toBe(99);
-  });
-
+  /* 세로 예산 계약(l4-ui-6) — 줄높이·간격을 px 로 고정해 렌더 높이를 CSS 에서 셀 수 있게 둔다. 아이콘 타일이 165.8 로 커졌던 것을 되돌리지 않게 막는다.
+     (구 기획전 리스트 행의 99/97 예산 계약은 행이 ICONS PICK 상품 행으로 바뀌며 위 94 썸네일 계약이 대신한다.) */
   it('데스크톱 혜택 타일의 글 블록이 158 - 패딩 64 안에 들어 280×158 을 지킨다(HM-07)', () => {
     const tile = decls(HOME, '.wc-benefit__tile', DESKTOP);
     const icon = decls(HOME, '.wc-benefit__tile-icon');

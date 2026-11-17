@@ -14,7 +14,7 @@ export const CURATION_KIND_LABELS: Record<AdminCurationKind, string> = {
   hero: '프로모션 배너',
   notice_bar: '텍스트 공지 바',
   notice_strip: '상단 띠배너',
-  editor_pick: '추천 콘텐츠',
+  editor_pick: 'IP 바로가기(추천 콘텐츠)',
   band_banner: '기획전 배너',
   best_tab: '상품 모음',
   sales_best: '판매량 BEST',
@@ -25,12 +25,15 @@ export const CURATION_KIND_LABELS: Record<AdminCurationKind, string> = {
   collection_banner: '컬렉션 배너',
   search_terms: '추천 검색어',
   featured_ip: '특집 IP',
-  announcement: '공지 배너',
+  announcement: '홈 스트립 배너',
 };
 
 export const CURATION_KIND_ORDER: AdminCurationKind[] = [
   'notice_bar', 'notice_strip', 'search_terms', 'hero', 'editor_pick', 'best_tab', 'sales_best', 'review_best', 'product_collection', 'product_mosaic', 'band_banner', 'benefit', 'collection_banner', 'featured_ip', 'announcement',
 ];
+
+/** '구성 추가'에서 새로 만들 수 있는 종류. 특집 IP는 현재 홈 본문에 없어 기존 기록만 수정한다 — 옛 공지 배너(홈 스트립 배너)는 되살아나 새로 만들 수 있다. */
+export const CURATION_ADDABLE_KINDS: AdminCurationKind[] = CURATION_KIND_ORDER.filter((kind) => kind !== 'featured_ip');
 
 export const CURATION_STATUS_LABELS: Record<AdminCurationRecord['status'], string> = {
   active: '노출 중', scheduled: '노출 예정', ended: '종료', inactive: '비노출',
@@ -341,9 +344,12 @@ export function buildDraftCurationPreview(
         curation.reviewBestBands = [buildHomeReviewBestBand(id, title, rule, publicGoods, productRankings)];
         break;
       }
-      // These retained records are not mounted in the current public Home body.
-      // The editor must not present a fictitious public rendering for them.
+      /* 홈 스트립 배너(X SQUARE 홈): 옛 공지 배너 레코드를 되살렸다. 공개 홈이 이미지가 있는 첫 행을 같은 부품(StripBanner)으로 그린다. */
       case 'announcement':
+        if (values.imageUrl) curation.stripBanner = { id, title, imageUrl: values.imageUrl, href };
+        break;
+      // 특집 IP 기록은 현재 공개 홈 본문에 마운트되지 않는다.
+      // The editor must not present a fictitious public rendering for it.
       case 'featured_ip':
         break;
     }

@@ -194,6 +194,59 @@ describe('admin curation action', () => {
     expect(mocks.updateTag).not.toHaveBeenCalled();
   });
 
+  /* X SQUARE 홈: 옛 공지 배너가 '홈 스트립 배너'가 됐다 — 이제 화면에 이미지로만 그려지므로 이미지가 필수다(저장 전 칸별 문구로 막는다). */
+  it('홈 스트립 배너는 이미지 없이 저장하지 않고 인증·RPC 접근 전에 이미지 칸 오류로 막는다', async () => {
+    await expect(upsertAdminCurationAction({}, curationForm({ kind: 'announcement', imagePath: '', title: '겨울 MD', linkPath: '/events/winter' })))
+      .resolves.toEqual({ errors: { imagePath: '홈 스트립 배너 이미지를 등록해주세요.' } });
+    expect(mocks.getCurrentAdminAuthState).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('이미지가 있는 홈 스트립 배너는 링크와 함께 같은 RPC 로 저장한다', async () => {
+    await expect(upsertAdminCurationAction({}, curationForm({ kind: 'announcement', title: '겨울 MD', linkPath: '/events/winter' })))
+      .resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_home_curation', expect.objectContaining({
+      target_kind: 'announcement', target_image_path: IMAGE_PATH, target_link_path: '/events/winter', target_title: '겨울 MD',
+    }));
+  });
+
+  describe('그리드형 자유상품', () => {
+    const grid = (entries: Record<string, string> = {}) => curationForm({
+      kind: 'product_collection', imagePath: '', linkPath: '', title: '메이플스토리', goodIds: 'g1, g2',
+      productLayout: 'grid', productImageShape: 'square', productItemCount: '5', ...entries,
+    });
+
+    it('5개와 10개, 정사각일 때 payload 그대로 저장한다', async () => {
+      for (const count of ['5', '10']) {
+        mocks.rpc.mockClear();
+        await expect(upsertAdminCurationAction({}, grid({ productItemCount: count }))).resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
+        expect(mocks.rpc).toHaveBeenCalledWith('admin_save_home_curation', expect.objectContaining({
+          target_kind: 'product_collection', target_payload: { layout: 'grid', image_shape: 'square', item_count: Number(count), good_ids: ['g1', 'g2'] },
+        }));
+      }
+    });
+
+    /* 공용 정규화는 범위 5~10 만 보므로 6~9 는 여기서 칸별 문구로 막는다(DB 도 거절한다). */
+    it.each(['6', '7', '8', '9'])('개수 %s 는 5개 또는 10개 안내로 막고 RPC 를 부르지 않는다', async count => {
+      await expect(upsertAdminCurationAction({}, grid({ productItemCount: count }))).resolves.toEqual({
+        errors: { productItemCount: '그리드형은 5개 또는 10개만 전시할 수 있습니다.' },
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('정사각이 아닌 사진 비율은 정사각 고정 안내로 막는다', async () => {
+      await expect(upsertAdminCurationAction({}, grid({ productImageShape: 'portrait' }))).resolves.toEqual({
+        errors: { productImageShape: '그리드형 상품 사진은 정사각형으로 고정됩니다.' },
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('리스트·풀이미지의 기존 개수 범위는 그대로다', async () => {
+      await expect(upsertAdminCurationAction({}, grid({ productLayout: 'list', productImageShape: 'portrait', productItemCount: '7' })))
+        .resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
+    });
+  });
+
   it('rejects invalid forms before auth, client, or RPC access', async () => {
     await expect(upsertAdminCurationAction({}, curationForm({
       operationId: 'invalid',
