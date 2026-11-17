@@ -7,11 +7,30 @@ import {
   type AdminCurationActionState,
 } from '@/lib/admin/curations';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { HOME_GRID_ITEM_COUNTS } from '@/lib/home-product-collection';
 import { NOTICE_STRIP_CACHE_TAG } from '@/lib/notice-strip.server';
 import { createClient } from '@/lib/supabase/server';
 
 const SAVE_ERROR = '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.';
 const UNCERTAIN_ERROR = '저장 결과를 확인하지 못했습니다. 입력한 내용을 유지한 채 같은 요청 결과를 확인해주세요.';
+
+/*
+ * X SQUARE 홈이 새로 거는 저장 규칙 두 가지. 공용 정규화(`normalizeAdminCurationForm`)는 종류마다 이미지·개수 범위만 알고,
+ * DB 제약(`home_curations_image_required_check`·`is_valid_home_product_collection`)은 이 둘을 일반 오류로만 돌려주므로
+ * 운영자가 칸을 알아볼 수 있게 저장 전에 칸별 문구로 막는다.
+ * - 홈 스트립 배너(`announcement`): 이미지 필수. 옛 공지 배너는 이미지가 선택이었지만 이제 화면에 이미지로만 그려진다.
+ * - 그리드형 상품 모음: 개수는 5·10 두 값만, 사진은 정사각 고정(범위 5~10 안의 6~9는 DB 가 거절한다).
+ */
+function homeBlockPreflightErrors(value: { kind: string; imagePath: string | null; payload: Record<string, unknown> | null }): AdminCurationActionState['errors'] | null {
+  if (value.kind === 'announcement' && !value.imagePath) return { imagePath: '홈 스트립 배너 이미지를 등록해주세요.' };
+  if (value.kind === 'product_collection' && value.payload?.layout === 'grid') {
+    const errors: NonNullable<AdminCurationActionState['errors']> = {};
+    if (!(HOME_GRID_ITEM_COUNTS as readonly unknown[]).includes(value.payload.item_count)) errors.productItemCount = '그리드형은 5개 또는 10개만 전시할 수 있습니다.';
+    if (value.payload.image_shape !== 'square') errors.productImageShape = '그리드형 상품 사진은 정사각형으로 고정됩니다.';
+    if (Object.keys(errors).length > 0) return errors;
+  }
+  return null;
+}
 
 export async function upsertAdminCurationAction(
   _state: AdminCurationActionState,
@@ -19,6 +38,8 @@ export async function upsertAdminCurationAction(
 ): Promise<AdminCurationActionState> {
   const normalized = normalizeAdminCurationForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
+  const preflight = homeBlockPreflightErrors(normalized.value);
+  if (preflight) return { errors: preflight };
 
   let access: Awaited<ReturnType<typeof requireAdminActionAccess>>;
   try {

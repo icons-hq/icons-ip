@@ -21,7 +21,7 @@ import { ArchivedHeroBanners, HeroBannerDeleteButton } from '@/components/admin/
 import { MarketingLinkIssuer } from '@/components/admin/marketing/MarketingLinkIssuer';
 import type { AdminHomeLayout } from '@/lib/admin/home-layout';
 import {
-  buildDraftCurationPreview, createCurationEditorValues, curationKstInput, CURATION_KIND_LABELS,
+  buildDraftCurationPreview, createCurationEditorValues, curationKstInput, CURATION_ADDABLE_KINDS, CURATION_KIND_LABELS,
   CURATION_KIND_ORDER, CURATION_STATUS_LABELS, curationValuesForKindChange, emptyCurationPreview, moveCurationProduct, NOTICE_PAGE_TYPE_LABELS,
   type CurationEditorValues, type CurationPublicPreview,
 } from '@/lib/admin/curation-editor';
@@ -31,7 +31,7 @@ import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import { isCardRewardDestination } from '@/lib/home-catalog';
 import { eligibleHomeReviewGoodIds, HOME_REVIEW_MANUAL_LIMIT, HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_LIMIT, HOME_HERO_TITLE_LIMIT, type HomeHeroImageDim, type HomeHeroTextColor } from '@/lib/home-hero';
-import { HOME_FREE_PRODUCT_LIMIT, HOME_PRODUCT_CANDIDATE_LIMIT, HOME_PRODUCT_TITLE_LIMIT, homeProductCountRange,
+import { HOME_FREE_PRODUCT_LIMIT, HOME_GRID_ITEM_COUNTS, HOME_PRODUCT_CANDIDATE_LIMIT, HOME_PRODUCT_TITLE_LIMIT, homeProductCountRange,
   type HomeProductImageShape, type HomeProductLayout } from '@/lib/home-product-collection';
 import { SHELL_NOTICE_PAGE_TYPES } from '@/lib/shell-notices';
 import {
@@ -45,35 +45,35 @@ import { useGoodReferenceInfo } from '../useGoodReferenceInfo';
 import { ActionNotice, ErrorText } from '../fields';
 
 const EMPTY_STATE: AdminCurationActionState = {};
-const IMAGE_REQUIRED = new Set<AdminCurationKind>(['hero', 'notice_strip', 'editor_pick', 'band_banner', 'collection_banner']);
+const IMAGE_REQUIRED = new Set<AdminCurationKind>(['hero', 'notice_strip', 'editor_pick', 'band_banner', 'collection_banner', 'announcement']);
 const IMAGE_FREE = new Set<AdminCurationKind>(['notice_bar', 'best_tab', 'benefit', 'sales_best', 'review_best', 'product_mosaic', 'product_collection', 'search_terms']);
 const isShellNoticeKind = (kind: AdminCurationKind) => kind === 'notice_bar' || kind === 'notice_strip';
 const isFreeProductKind = (kind: AdminCurationKind | undefined) => kind === 'product_mosaic' || kind === 'product_collection';
 const KIND_HELP: Record<AdminCurationKind, string> = {
   hero: '홈 첫 화면에 최대 10개의 배너를 차례로 보여줍니다. PC와 모바일 이미지를 따로 등록할 수 있습니다.',
-  notice_bar: '스토어 맨 위에 문구와 이동 버튼으로 보이는 공지입니다. 고객이 닫으면 같은 탭에서는 다시 보이지 않고, 같은 화면에 여러 개가 있으면 순서가 앞선 하나를 보여줍니다.',
+  notice_bar: '스토어 맨 위에 문구와 이동 버튼으로 보이는 공지입니다. 고객이 닫으면 같은 탭에서는 다시 보이지 않고, 같은 화면에 여러 개가 있으면 스토어를 새로 열 때마다 하나를 무작위로 보여줍니다. 문구는 빨간 띠에서 흘러갑니다.',
   notice_strip: '스토어 상단에 보이는 이미지 띠배너입니다. 같은 시간·화면에 여러 개가 있으면 스토어를 새로 열 때마다 하나를 무작위로 보여줍니다.',
-  editor_pick: '이미지, 제목과 설명을 카드로 보여줍니다.',
-  band_banner: '기획전 배너와 선택한 상품을 함께 보여줍니다.',
+  editor_pick: '홈 배너 아래 IP 바로가기 줄입니다. 배지 문구 = 작은 회색 줄(IP 이름), 제목 = 아래 줄 문구. 설명은 지금 화면에 보이지 않습니다.',
+  band_banner: "홈 'ICONS PICK' 카드로 보입니다. 배너 이미지와 제목, 고른 상품 앞 2개가 카드에 나옵니다. 홈 영역 순서에서 연달아 놓은 기획전은 한 줄(3장)로 묶입니다.",
   best_tab: '직접 선택한 상품 또는 최신 등록 상품을 카테고리 BEST·인기템 탭으로 보여줍니다.',
   sales_best: '실시간·일간·주간·월간 판매량으로 각 최대 4개 상품을 자동 전시합니다.',
   product_mosaic: '8개 상품과 대표이미지를 지정한 위치에 콜라주로 보여줍니다.',
-  product_collection: '직접 고른 상품을 리스트나 큰 이미지로 보여줍니다. 모자이크와 합계 5개까지 구성할 수 있습니다.',
+  product_collection: "직접 고른 상품을 리스트나 큰 이미지로 보여줍니다. 모자이크와 합계 5개까지 구성할 수 있습니다. '그리드형(5열)'은 5개 또는 10개를 한 줄 5개로 보여주고, 고른 상품이 모두 한 IP면 '전체보기'가 그 IP관으로 연결됩니다.",
   review_best: '공개 리뷰 평점이 높은 상품을 자동 또는 직접 선정합니다. 4개 이상일 때 전시합니다.',
   benefit: '쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.',
   collection_banner: '굿즈샵 전체(여러 장이면 넘겨 보는 슬라이드)·BEST·NEW 목록 맨 위에 보이는 배너입니다. 문구는 이미지 위에 글자로 얹습니다.',
   search_terms: '검색창을 열면 보이는 추천 검색어 칩입니다. 최대 10개이며, 칩을 누르면 그 검색어의 검색 결과로 이동합니다.',
   featured_ip: '기존 특집 IP 설정입니다. 현재 홈 본문에는 특집 IP 영역이 없습니다.',
-  announcement: '기존 공지 배너 설정입니다. 현재 홈 본문에 배너를 노출하려면 상단 띠배너를 사용하세요.',
+  announcement: '홈 본문 가운데 가로로 긴 배너입니다(권장 2544×340). 노출 중인 첫 배너 하나를 보여줍니다.',
 };
 const ARTWORK_HELP: Record<AdminCurationKind, string> = {
   hero: '히어로 이미지는 필수입니다.',
   featured_ip: '특집 IP 이미지는 선택입니다. 비우면 IP 키아트를 사용합니다.',
-  announcement: '공지 배너 이미지는 선택입니다.',
+  announcement: '홈 스트립 배너 이미지는 필수입니다. 권장 2544×340px(화면 1272×170). 모바일에서는 같은 이미지가 줄어들어 보입니다.',
   notice_strip: '공지 스트립 이미지는 필수입니다.',
   notice_bar: '텍스트 공지 바는 이미지를 쓰지 않습니다.',
-  editor_pick: '에디터의 제안 카드 이미지는 필수입니다.',
-  band_banner: '기획전 배너 이미지는 필수입니다.',
+  editor_pick: 'IP 바로가기 이미지는 필수입니다. 권장 530×360px(화면 265×180)입니다.',
+  band_banner: 'ICONS PICK 카드 이미지는 필수입니다. 권장 816×520px(화면 408×260)입니다.',
   best_tab: 'BEST 탭은 이미지를 쓰지 않습니다.',
   sales_best: '판매 상품의 대표이미지를 사용합니다.',
   product_mosaic: '각 위치에 별도 대표이미지를 등록합니다.',
@@ -217,7 +217,7 @@ export function CurationSection({
       preview={preview} records={records} device={device} onDirty={() => { setLayoutDirty(true); setLayoutSavedMessage(''); }} onSaved={(message) => { setLayoutDirty(false); setLayoutSavedMessage(message); }}
     /> : null}
     {adding ? <CurationEditorDialog title="홈 구성 추가" onClose={() => setAdding(false)}>
-      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-6">{CURATION_KIND_ORDER.filter((kind) => !['featured_ip', 'announcement'].includes(kind)).map((kind) => {
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-6">{CURATION_ADDABLE_KINDS.map((kind) => {
         const limited = (kind === 'hero' && heroCount >= HOME_HERO_LIMIT) || (isFreeProductKind(kind) && freeProductCount >= HOME_FREE_PRODUCT_LIMIT);
         return <button className="flex flex-col items-start gap-2 rounded-lg border bg-background p-4 text-left transition-colors outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 sm:p-5" data-slot="button" disabled={limited} key={kind} onClick={() => requestSelection({ id: null, kind })} type="button"><strong className="text-[15px] font-medium">{CURATION_KIND_LABELS[kind]}</strong><span className="text-xs leading-relaxed text-muted-foreground">{limited ? '등록 한도에 도달했습니다. 기존 구성을 수정해주세요.' : KIND_HELP[kind]}</span></button>;
       })}</div>
@@ -326,7 +326,10 @@ function CurationForm({
   const id = selected?.id ?? draftId;
   const productLimit = kind === 'product_collection' ? HOME_PRODUCT_CANDIDATE_LIMIT : kind === 'review_best' ? HOME_REVIEW_MANUAL_LIMIT : kind === 'best_tab' ? 12 : 4;
   const [productCountMin, productCountMax] = homeProductCountRange(values.productLayout);
-  const productCountValid = Number(values.productItemCount) >= productCountMin && Number(values.productItemCount) <= productCountMax;
+  /* 그리드형은 5개·10개 두 값만 고를 수 있다(한 줄 5열 × 1·2줄). 나머지 디자인은 범위 안의 모든 수다. */
+  const productCountChoices = values.productLayout === 'grid' ? [...HOME_GRID_ITEM_COUNTS]
+    : Array.from({ length: productCountMax - productCountMin + 1 }, (_, index) => index + productCountMin);
+  const productCountValid = (productCountChoices as number[]).includes(Number(values.productItemCount));
   const targetGroups = useMemo(() => adminCurationTargetGroupsFor({ events: eventOptions, goods: goodOptions, ips: ipOptions }, selected?.linkPath ?? null), [eventOptions, goodOptions, ipOptions, selected?.linkPath]);
   const names = useMemo(() => new Map(goodOptions.map((good) => [good.id, good.title])), [goodOptions]);
   /* 공개 홈 상품 목록에 없는 상품은 고객 화면에 보이지 않는다 — 담기는 막지 않고 목록·미리보기에 이유(초안·IP 초안·성인(19금)·보관됨)를
@@ -346,7 +349,7 @@ function CurationForm({
   const eligibleReviewIds = eligibleHomeReviewGoodIds(reviewStatistics, preview.goods);
   const showManualProducts = kind === 'band_banner' || (kind === 'best_tab' && values.selectionMode === 'manual')
     || (kind === 'review_best' && values.reviewSelectionMode === 'manual') || kind === 'product_collection';
-  const legacyKind = kind === 'featured_ip' || kind === 'announcement';
+  const legacyKind = kind === 'featured_ip';
   const optionalLink = kind === 'hero' || kind === 'notice_bar' || kind === 'collection_banner';
   const heroLimitReached = kind === 'hero' && selected?.kind !== 'hero' && heroCount >= HOME_HERO_LIMIT;
   const freeProductLimitReached = isFreeProductKind(kind) && !isFreeProductKind(selected?.kind) && freeProductCount >= HOME_FREE_PRODUCT_LIMIT;
@@ -408,6 +411,7 @@ function CurationForm({
             ? <CurationCountedText name="title" label="제목" value={values.title} limit={HOME_PRODUCT_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
             : textField('title', '제목', { required: true, maxLength: ['sales_best', 'review_best', 'product_mosaic'].includes(kind) ? 15 : 120, placeholder: '제목을 입력하세요' })}
           {kind === 'editor_pick' ? <>{textField('badge', '배지 문구', { maxLength: 20 })}{textField('description', '콘텐츠 설명', { maxLength: 200 })}</> : null}
+          {kind === 'announcement' ? <p className={HELP}>제목은 화면에 보이지 않고 이미지의 대체 텍스트로 쓰입니다. 이미지 안에 들어 있는 문구를 그대로 적어주세요.</p> : null}
           {kind === 'band_banner' ? textField('subcopy', '기획전 설명', { maxLength: 200 }) : null}
           {kind === 'benefit' ? textField('description', '혜택 설명', { maxLength: 200 }) : null}
           {kind === 'featured_ip' ? <CurationSelect error={state.errors?.ipId} label="특집할 IP" name="ipId" onChange={(event) => update('ipId', event.target.value)} required value={values.ipId}><option value="">IP 선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt)} key={ip.id} value={ip.id}>{ip.archivedAt ? '[보관] ' : ''}{ip.title}</option>)}</CurationSelect> : null}
@@ -432,17 +436,28 @@ function CurationForm({
         </>}
         {kind === 'product_collection' ? <section className={FORM_SECTION}>
           <h4 className={SECTION_TITLE}>디자인과 사진</h4>
-          <CurationSelect name="productLayout" label="디자인 유형" error={state.errors?.productLayout} value={values.productLayout} onChange={event => update('productLayout', event.target.value as HomeProductLayout)}>
-            <option value="list">리스트형</option><option value="full_image">풀이미지형</option>
+          <CurationSelect name="productLayout" label="디자인 유형" error={state.errors?.productLayout} value={values.productLayout} onChange={event => {
+            const layout = event.target.value as HomeProductLayout;
+            update('productLayout', layout);
+            /* 그리드형은 정사각 이미지 고정에 5개·10개만 — 이전 디자인의 값이 남아 저장이 막히지 않게 시작값으로 맞춘다. */
+            if (layout === 'grid') {
+              update('productImageShape', 'square');
+              if (!(HOME_GRID_ITEM_COUNTS as readonly number[]).includes(Number(values.productItemCount))) update('productItemCount', String(HOME_GRID_ITEM_COUNTS[0]));
+            }
+          }}>
+            <option value="list">리스트형</option><option value="full_image">풀이미지형</option><option value="grid">그리드형(5열)</option>
           </CurationSelect>
-          <CurationSelect name="productImageShape" label="상품 사진 비율" error={state.errors?.productImageShape} value={values.productImageShape} onChange={event => update('productImageShape', event.target.value as HomeProductImageShape)}>
-            <option value="square">정사각형 1:1</option><option value="portrait">세로직사각형 4:5</option><option value="landscape">가로직사각형 5:4</option>
-          </CurationSelect>
-          <CurationSelect name="productItemCount" label="전시 상품 수" error={state.errors?.productItemCount ?? (!productCountValid ? `${productCountMin}개부터 ${productCountMax}개까지 다시 선택해주세요.` : undefined)} value={values.productItemCount} onChange={event => update('productItemCount', event.target.value)}>
+          {values.productLayout === 'grid' ? <input name="productImageShape" type="hidden" value="square" />
+            : <CurationSelect name="productImageShape" label="상품 사진 비율" error={state.errors?.productImageShape} value={values.productImageShape} onChange={event => update('productImageShape', event.target.value as HomeProductImageShape)}>
+              <option value="square">정사각형 1:1</option><option value="portrait">세로직사각형 4:5</option><option value="landscape">가로직사각형 5:4</option>
+            </CurationSelect>}
+          <CurationSelect name="productItemCount" label="전시 상품 수" error={state.errors?.productItemCount ?? (!productCountValid ? (values.productLayout === 'grid' ? '5개 또는 10개 중에서 다시 선택해주세요.' : `${productCountMin}개부터 ${productCountMax}개까지 다시 선택해주세요.`) : undefined)} value={values.productItemCount} onChange={event => update('productItemCount', event.target.value)}>
             {!productCountValid ? <option value={values.productItemCount}>{values.productItemCount}개 · 새 개수를 선택해주세요</option> : null}
-            {Array.from({ length: productCountMax - productCountMin + 1 }, (_, index) => index + productCountMin).map(count => <option value={count} key={count}>{count}개</option>)}
+            {productCountChoices.map(count => <option value={count} key={count}>{count}개</option>)}
           </CurationSelect>
-          <p className={HELP}>상품 대표이미지의 가운데를 기준으로 잘라 표시합니다. 풀이미지형은 PC 2열·모바일 1열입니다. 사진 비율은 이 구성에만 적용됩니다.</p>
+          {values.productLayout === 'grid'
+            ? <p className={HELP}>그리드형은 PC에서 한 줄에 5개씩, 5개 또는 10개를 NEW ARRIVAL과 같은 상품 카드로 보여줍니다. 상품 사진은 정사각형으로 고정됩니다. 제목 옆 &apos;전체보기&apos;는 고른 상품이 모두 한 IP일 때만 그 IP관으로 연결됩니다(고른 상품이 여러 IP이면 보이지 않습니다).</p>
+            : <p className={HELP}>상품 대표이미지의 가운데를 기준으로 잘라 표시합니다. 풀이미지형은 PC 2열·모바일 1열입니다. 사진 비율은 이 구성에만 적용됩니다.</p>}
           <p className={HELP}>선택한 목록에서 공개 가능한 상품부터 설정한 개수까지 표시합니다. 상품이 없으면 제목을 포함해 영역 전체를 숨깁니다. 품절 상품은 품절 표시와 함께 전시하며, 매출이 없어도 직접 선택한 상품은 표시합니다.</p>
           <p className={HELP}>상품을 누르면 해당 상품 상세로 이동합니다. 디자인이나 전시 개수를 바꿔도 아래 후보 목록은 유지됩니다.</p>
         </section> : null}
