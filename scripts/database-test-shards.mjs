@@ -123,6 +123,8 @@ const catalog = [
   sql('goods_listing_orders', { kc: true }),
   // 카테고리 전시 목록 정렬 10종(인기도·판매량·리뷰 많은순 추가, 스펙 C §4.2): 원수치 순서·구성 순서 동률·거절 이름.
   sql('category_display_listing_sorts', { kc: true }),
+  // 카테고리 전시 굿즈 투영의 카드 칩 필드(배송비 유형·옵션 판매 방식, migration 20261117130300).
+  sql('category_display_card_chips'),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),
   // 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값(SHEET-003·ADR-0037). 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
   sql('goods_type_from_category', { kc: true }),
