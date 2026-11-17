@@ -85,7 +85,8 @@ interface GoodRow {
 const HUB_COLUMNS =
   'id,kind,title,subtitle,status,starts_at,ends_at,card_image_path,banner_image_path,hero_image_path,featured_order';
 const DETAIL_COLUMNS = `${HUB_COLUMNS},sections`;
-/* 노출 설정은 campaigns 에 임베드하지 않고 따로 읽는다 — 표나 RLS 문제로 이 읽기가 실패해도 허브·상세 본문은 그대로 떠야 한다. */
+/* 노출 설정은 campaigns 에 임베드하지 않고 따로 읽는다 — 표나 RLS 문제로 이 읽기가 실패해도 허브·상세 본문은 그대로 떠야 한다.
+   표는 공개 열만 열 단위로 열려 있다(운영자 식별자 updated_by 는 비공개, migration 20261117130410) — `*`로 읽으면 권한 오류다. 열은 꼭 이 목록으로 쓴다. */
 const PRESENTATION_COLUMNS = 'campaign_id,popup_mode,popup_location,card_link_path';
 
 export interface CampaignHubSnapshot {

@@ -88,6 +88,7 @@ export async function getAdminCampaignConsoleData(options: { includeOffers?: boo
       .order('created_at', { ascending: false }),
     supabase
       .from('campaign_presentations')
+      /* 공개 열만 열 단위로 열려 있다(updated_by 비공개) — `*`로 바꾸면 권한 오류다. */
       .select('campaign_id,popup_mode,popup_location,card_link_path'),
   ]);
 
