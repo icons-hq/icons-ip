@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Slider } from '@/components/wc/Slider';
-import { campaignDetailHref, hrefFor, type NavItem } from '@/lib/routes';
+import { hrefFor, type NavItem } from '@/lib/routes';
 import {
   categoryMenuTiles,
   chunkMenuItems,
@@ -135,7 +135,7 @@ export function CategorySheet({
                   <ul key={page[0].id} className="wc-catsheet__collection-page">
                     {page.map((campaign) => (
                       <li key={campaign.id}>
-                        <Link className="wc-catsheet__collection" href={campaignDetailHref(campaign.id)} onClick={onClose}>
+                        <Link className="wc-catsheet__collection" href={campaign.href} onClick={onClose}>
                           <span
                             aria-hidden
                             className="wc-catsheet__collection-image"

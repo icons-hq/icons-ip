@@ -12,7 +12,6 @@ import {
   UTIL_HELP_ITEM,
   UTIL_ITEMS,
   activeNavId,
-  campaignDetailHref,
   hrefFor,
   isActive,
   isStandaloneShellPath,
@@ -583,9 +582,9 @@ function CategoryMegaCatalog({
                 {/* 캠페인 제목은 120자까지 온다(DB 상한) — 칸 180 에서 2줄로 자르고, 전체 제목은 글자(접근 이름)와 title 로 남긴다.
                     자르기는 안쪽 글자 상자가 한다: 링크의 위아래 여백(7)에 걸면 overflow 가 여백 끝에서 잘려 3번째 줄 윗부분이 비친다. */}
                 <Link
-                  aria-current={pathname === campaignDetailHref(campaign.id) ? 'page' : undefined}
+                  aria-current={pathname === campaign.href ? 'page' : undefined}
                   className="wc-mega__link"
-                  href={campaignDetailHref(campaign.id)}
+                  href={campaign.href}
                   onClick={onNavigate}
                   title={campaign.title}
                 >

@@ -58,6 +58,7 @@ beforeEach(() => {
     { id: id(2), parentId: id(1), name: '피규어', depth: 2, imagePath: null, navigable: true },
   ], error: null });
   results.campaigns = { data: [{ id: 'c1', title: '가을 기획전', card_image_path: 'catalog/event/a.webp' }], error: null };
+  results.campaign_presentations = { data: [], error: null };
   results.ips = { data: [{ id: 'maple', public_slug: 'maple', title: 'MapleStory', bg: null, image_path: null, sort_order: 1 }], error: null };
   mocks.from.mockReset().mockImplementation((table: string) => query(table, results[table]));
   mocks.create.mockReset().mockReturnValue({
@@ -77,7 +78,7 @@ describe('메가메뉴 로더', () => {
     expect(mocks.create.mock.calls[0][2].cookies.getAll()).toEqual([]);
     expect(mocks.rpc).toHaveBeenCalledWith('get_storefront_category_menu');
     expect(menus.categories.map((node) => node.name)).toEqual(['토이', '피규어']);
-    expect(menus.campaigns).toEqual([{ id: 'c1', title: '가을 기획전', imageUrl: 'https://cdn.example/public-media/catalog/event/a.webp' }]);
+    expect(menus.campaigns).toEqual([{ id: 'c1', title: '가을 기획전', imageUrl: 'https://cdn.example/public-media/catalog/event/a.webp', href: '/events/c1' }]);
     expect(menus.featuredIps).toEqual([{ id: 'maple', name: 'MapleStory', href: '/ip/maple', imageBg: null }]);
     /* 진행 중만 — 공개 상태, 시작했고 끝나지 않은 캠페인을 허브 배너 순서로. */
     expect(mocks.calls).toEqual(expect.arrayContaining([
@@ -90,6 +91,42 @@ describe('메가메뉴 로더', () => {
       ['ips.is', ['archived_at', null]],
       ['ips.not', ['published_at', 'is', null]],
     ]));
+  });
+
+  /* QA X2 — 기획전 링크가 노출 설정(바로가기·POP-UP)을 따른다. 노출 설정은 공개 열만 명시 select 한다(updated_by 는 권한이 없어 `*`·updated_by 는 실패). */
+  it('기획전 링크는 캠페인 노출 설정의 공개 열만 읽어 EVENT·POP-UP 카드와 같은 목적지로 건다', async () => {
+    results.campaigns = { data: [
+      { id: 'pop', title: '성수 팝업', card_image_path: null },
+      { id: 'go', title: '키링 모음', card_image_path: null },
+      { id: 'plain', title: '일반 기획전', card_image_path: null },
+    ], error: null };
+    results.campaign_presentations = { data: [
+      { campaign_id: 'pop', popup_mode: 'offline', popup_location: '성수', card_link_path: null },
+      { campaign_id: 'go', popup_mode: null, popup_location: null, card_link_path: '/shop/g1' },
+      { campaign_id: 'draft-only', popup_mode: 'online', popup_location: null, card_link_path: null },
+    ], error: null };
+    const { menus, failures } = await readStorefrontMegaMenus();
+    expect(failures).toEqual([]);
+    expect(menus.campaigns.map((campaign) => [campaign.id, campaign.href])).toEqual([
+      ['pop', '/popups/pop'], ['go', '/shop/g1'], ['plain', '/events/plain'],
+    ]);
+    const selects = mocks.calls.filter(([call]) => call === 'campaign_presentations.select');
+    expect(selects).toEqual([['campaign_presentations.select', ['campaign_id,popup_mode,popup_location,card_link_path']]]);
+    expect(JSON.stringify(selects)).not.toContain('updated_by');
+    expect(JSON.stringify(selects)).not.toContain('*');
+  });
+
+  /* 노출 설정을 못 읽어도 기획전은 그대로 뜨고(링크만 지금처럼 /events/<id>), 실패는 로그로 남고 캐시되지 않는다. */
+  it('노출 설정 읽기가 실패하면 기획전 링크는 /events/<id>로 떨어지고 실패가 기록되며 캐시되지 않는다', async () => {
+    results.campaigns = { data: [{ id: 'pop', title: '성수 팝업', card_image_path: null }], error: null };
+    results.campaign_presentations = { data: null, error: { code: '42501', message: 'permission denied for table campaign_presentations' } };
+    const read = await readStorefrontMegaMenus();
+    expect(read.menus.campaigns).toEqual([{ id: 'pop', title: '성수 팝업', imageUrl: null, href: '/events/pop' }]);
+    expect(read.failures).toEqual([{ source: 'presentations', code: '42501', message: 'permission denied for table campaign_presentations' }]);
+    expect(errors).toHaveBeenCalledWith('[storefront/mega-menu] source read failed', read.failures[0]);
+
+    expect((await getStorefrontMegaMenus()).campaigns.map((campaign) => campaign.href)).toEqual(['/events/pop']);
+    expect(cache.store.size).toBe(0);
   });
 
   it('한 원천이 실패해도 나머지는 남고, 틀린 메뉴 트리는 기존 메뉴로 돌아간다 — 실패는 원천·코드로 서버 로그에 남는다', async () => {

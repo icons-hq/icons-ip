@@ -5,9 +5,11 @@ import { normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from './media';
 import { getSupabaseConfig } from './supabase/config';
 import {
   EMPTY_STOREFRONT_MEGA_MENUS,
+  MENU_CAMPAIGN_PRESENTATION_COLUMNS,
   MENU_CAMPAIGN_QUERY_LIMIT,
   STOREFRONT_MEGA_MENU_CACHE_TAG,
   parseStorefrontCategoryMenu,
+  toMenuCampaignPresentations,
   toMenuCampaigns,
   toMenuIps,
   type StorefrontMegaMenus,
@@ -18,7 +20,8 @@ import {
  * 쿠키 없는 anon 클라이언트로 읽고 unstable_cache 로 300초 재검증한다 — cookies() 를 쓰면 법적 문서의 SSG 가
  * dynamic 으로 무너진다(#325). 전시분류·구성·이미지 저장(category-display-actions)과 상품분류 액션(고객 카테고리 공개 전환 포함,
  * category-actions)은 태그를 즉시 만료한다. 상품 공개·캠페인·피처드 IP 변경은 TTL(300초) 안에 반영된다.
- * 세 원천은 따로 실패한다: 하나를 못 읽으면 그 부분만 비고(카테고리가 비면 기존 메뉴), 셸은 깨지지 않는다.
+ * 네 원천은 따로 실패한다: 하나를 못 읽으면 그 부분만 비고(카테고리가 비면 기존 메뉴), 셸은 깨지지 않는다.
+ * 캠페인 노출 설정(바로가기·POP-UP 여부)은 기획전 링크 목적지만 정한다 — 못 읽으면 링크가 `/events/<id>`로 떨어질 뿐 기획전은 그대로 뜬다.
  *
  * 실패한 읽기는 캐시하지 않는다(QA l5-qa-3). 원천이 오류를 돌려주거나 메뉴 트리가 검증에 실패하면 캐시 함수가 던지고,
  * 바깥이 받아 읽은 부분으로 그린다 — 다음 요청이 바로 다시 읽는다. 예전에는 빈 카테고리를 정상 값처럼 300초 동안 남겨,
@@ -26,7 +29,7 @@ import {
  * 스위치 OFF·공개 전시 없음처럼 RPC 가 정상으로 돌려준 빈 트리는 실패가 아니라 그대로 캐시한다.
  */
 
-type MegaMenuSource = 'client' | 'menu' | 'campaigns' | 'featuredIps';
+type MegaMenuSource = 'client' | 'menu' | 'campaigns' | 'presentations' | 'featuredIps';
 
 export interface StorefrontMegaMenuSourceFailure {
   source: MegaMenuSource;
@@ -62,7 +65,7 @@ function sourceFailure(source: MegaMenuSource, error: unknown): StorefrontMegaMe
   };
 }
 
-/** 세 원천을 읽어 읽은 값과 실패 목록을 돌려준다. 던지지 않는다 — 실패는 서버 로그로 남긴다. */
+/** 네 원천을 읽어 읽은 값과 실패 목록을 돌려준다. 던지지 않는다 — 실패는 서버 로그로 남긴다. */
 export async function readStorefrontMegaMenus(now: Date = new Date()): Promise<StorefrontMegaMenuRead> {
   const { url, key, isConfigured } = getSupabaseConfig();
   if (!isConfigured || !url || !key) return { menus: EMPTY_STOREFRONT_MEGA_MENUS, failures: [] };
@@ -72,7 +75,7 @@ export async function readStorefrontMegaMenus(now: Date = new Date()): Promise<S
     const client = createServerClient(url, key, { cookies: { getAll: () => [], setAll: () => {} } });
     const publicUrlFor = (path: string) => client.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
     const at = now.toISOString();
-    const [menu, campaigns, ips] = await Promise.all([
+    const [menu, campaigns, presentations, ips] = await Promise.all([
       client.rpc('get_storefront_category_menu'),
       /* 진행 중 기획전 — 허브 배너 순서(featured_order)를 먼저, 그다음 최근 시작 순. 초안은 RLS 가 가린다.
          상한(8)보다 넉넉히 읽는다 — 자르기는 검증 뒤 toMenuCampaigns 가 한다(검증에서 빠진 자리를 다음 캠페인이 채운다). */
@@ -85,6 +88,8 @@ export async function readStorefrontMegaMenus(now: Date = new Date()): Promise<S
         .order('starts_at', { ascending: false })
         .order('id', { ascending: true })
         .limit(MENU_CAMPAIGN_QUERY_LIMIT),
+      /* 노출 설정 — 카드·배너와 같은 목적지 규칙(바로가기 → POP-UP → EVENT)으로 링크를 건다. 공개 열만 명시 select(updated_by 는 권한이 없다). */
+      client.from('campaign_presentations').select(MENU_CAMPAIGN_PRESENTATION_COLUMNS),
       client.from('ips')
         .select('id,public_slug,title,bg,image_path,sort_order')
         .eq('featured', true)
@@ -97,10 +102,13 @@ export async function readStorefrontMegaMenus(now: Date = new Date()): Promise<S
     else if (!categories) failures.push({ source: 'menu', code: 'invalid_menu_payload', message: 'menu tree failed validation' });
     categories ??= [];
     if (campaigns.error) failures.push(sourceFailure('campaigns', campaigns.error));
+    if (presentations.error) failures.push(sourceFailure('presentations', presentations.error));
     if (ips.error) failures.push(sourceFailure('featuredIps', ips.error));
     menus = {
       categories,
-      campaigns: campaigns.error ? [] : toMenuCampaigns(campaigns.data, publicUrlFor),
+      campaigns: campaigns.error
+        ? []
+        : toMenuCampaigns(campaigns.data, publicUrlFor, presentations.error ? undefined : toMenuCampaignPresentations(presentations.data)),
       featuredIps: ips.error ? [] : toMenuIps(ips.data, publicUrlFor),
     };
   } catch (error) {

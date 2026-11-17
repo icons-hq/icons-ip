@@ -54,7 +54,7 @@ const LIVE_MENUS: StorefrontMegaMenus = {
     { id: nodeId(4), parentId: nodeId(3), name: '머그', depth: 3, imageUrl: null, navigable: true },
     { id: nodeId(5), parentId: null, name: '시즌', depth: 1, imageUrl: null, navigable: true },
   ],
-  campaigns: [{ id: 'fall-drop', title: '가을 기획전', imageUrl: null }],
+  campaigns: [{ id: 'fall-drop', title: '가을 기획전', imageUrl: null, href: '/events/fall-drop' }],
   featuredIps: [
     { id: 'maple', name: 'MapleStory', href: '/ip/maple', imageBg: 'url("https://cdn.example/maple.webp") center / cover no-repeat' },
     { id: 'hongsil', name: 'Hong Sil', href: '/ip/hongsil', imageBg: null },
@@ -647,12 +647,29 @@ describe('카테고리 내비게이션 (L5)', () => {
     expect(megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />))).not.toContain('aria-current="page"');
   });
 
+  /* QA X2 — 기획전 링크는 메뉴 항목이 들고 온 목적지(href)로 간다: POP-UP 캠페인은 /popups/<id>(리디렉션 한 번 덜), 바로가기가 있으면 그곳.
+   * 현재 위치 표시도 그 목적지를 따른다. */
+  it('기획전 링크는 캠페인의 목적지(POP-UP 랜딩·바로가기)로 걸리고 현재 위치도 그 경로를 따른다', () => {
+    const campaigns = [
+      { id: 'pop', title: '성수 팝업', imageUrl: null, href: '/popups/pop' },
+      { id: 'go', title: '키링 모음', imageUrl: null, href: '/shop/g1' },
+      { id: 'plain', title: '일반 기획전', imageUrl: null, href: '/events/plain' },
+    ];
+    mocks.pathname = '/popups/pop';
+    const mega = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, campaigns }} />));
+    expect(mega).toContain('aria-current="page" class="wc-mega__link" title="성수 팝업" href="/popups/pop">');
+    expect(mega).toContain('class="wc-mega__link" title="키링 모음" href="/shop/g1">');
+    expect(mega).toContain('class="wc-mega__link" title="일반 기획전" href="/events/plain">');
+    expect(mega).not.toContain('href="/events/pop"');
+    expect(mega.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+
   /* QA l5-qa-1 — 캠페인 제목은 DB 상한 120자까지 온다. 칸(180)에서 그대로 감기면 한 제목이 8줄이 돼 패널을 밀어 올렸다.
    * 메가는 기획전 링크의 글자 상자만 2줄 말줄임(wc-mega__link-clamp, chrome-styles)이고, 제목은 자르지 않고 전부 싣는다(접근 이름·title). */
   it('긴 기획전 제목(상한 120자)도 개수를 줄이지 않고 전체 제목을 접근 이름·title 로 싣는다', () => {
     const longTitle = '아주 긴 겨울 기획전 '.repeat(10).trimEnd().padEnd(120, '전');
     expect([...longTitle]).toHaveLength(120);
-    const campaigns = [{ id: 'long', title: longTitle, imageUrl: null }, ...Array.from({ length: 5 }, (_, index) => ({ id: `c${index}`, title: `기획전 ${index}`, imageUrl: null }))];
+    const campaigns = [{ id: 'long', title: longTitle, imageUrl: null, href: '/events/long' }, ...Array.from({ length: 5 }, (_, index) => ({ id: `c${index}`, title: `기획전 ${index}`, imageUrl: null, href: `/events/c${index}` }))];
     const mega = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, campaigns }} />));
     expect(mega.match(/<span class="wc-mega__link-clamp">/g)).toHaveLength(6);
     expect(mega).toContain(`class="wc-mega__link" title="${longTitle}" href="/events/long"><span class="wc-mega__link-clamp">${longTitle}</span></a>`);
