@@ -86,9 +86,10 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
   done: {
     // 구매자 직접 확정과 설정된 자동 정책이 같은 상태에 도달한다.
     // 반품·교환 신청 자격과 기한은 별도 계약이다.
+    // label은 어드민 이름('거래확정')이다 — 고객 화면은 `customerOrderStatusMeta`로 '구매 확정'이라 부르고, 제목·본문도 같은 말('구매가 확정')을 쓴다.
     label: '거래확정',
-    title: '거래가 확정됐어요',
-    body: '거래가 확정된 주문입니다. 반품·교환은 배송일과 사유별 신청 기한을 별도로 확인해주세요.',
+    title: '구매가 확정됐어요',
+    body: '구매가 확정된 주문입니다. 반품·교환은 배송일과 사유별 신청 기한을 별도로 확인해주세요.',
     tone: 'done',
   },
   canceled: {

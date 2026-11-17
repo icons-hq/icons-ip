@@ -21,7 +21,7 @@ describe('order presentation helpers', () => {
     ['delivered', '배송완료', '굿즈가 배송 완료됐어요'],
     // "완료"가 아니라 "거래확정"이다(CONTEXT.md) — 변심 청약철회 창이 닫혔다는 뜻이고
     // 하자 클레임은 남아 있다.
-    ['done', '거래확정', '거래가 확정됐어요'],
+    ['done', '거래확정', '구매가 확정됐어요'],
     ['canceled', '취소', '취소된 주문이에요'],
   ] as const)('maps %s to stable Korean copy', (status, label, title) => {
     expect(orderStatusMeta(status)).toMatchObject({ label, title });
@@ -122,6 +122,17 @@ describe('customerOrderStatusMeta', () => {
     expect(orderStatusMeta('pending').label).toBe('결제대기');
     /* 고객 함수가 공용 객체를 덮어쓰지 않는다. */
     customerOrderStatusMeta('done', 'card');
+    expect(orderStatusMeta('done').label).toBe('거래확정');
+  });
+});
+
+describe('구매 확정 문구 통일(QA S2)', () => {
+  it('구매 확정 주문의 배지(구매 확정)·제목·본문이 같은 말(구매가 확정)을 쓴다. 어드민 라벨(거래확정)은 그대로다', () => {
+    const meta = customerOrderStatusMeta('done', 'card');
+    expect(meta.label).toBe('구매 확정');
+    expect(meta.title).toBe('구매가 확정됐어요');
+    expect(meta.body).toBe('구매가 확정된 주문입니다. 반품·교환은 배송일과 사유별 신청 기한을 별도로 확인해주세요.');
+    expect(`${meta.title}${meta.body}`).not.toContain('거래');
     expect(orderStatusMeta('done').label).toBe('거래확정');
   });
 });

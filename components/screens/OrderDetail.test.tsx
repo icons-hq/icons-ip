@@ -614,6 +614,15 @@ describe('OrderDetail 진행 단계·상태 라벨(고객 라벨)', () => {
     expect(upper).not.toContain('결제완료'); expect(upper).not.toContain('거래확정'); expect(upper).toContain('<dt>주문 상태</dt><dd>발주확인</dd>');
   });
 
+  it('구매 확정 주문은 배지·제목·본문이 모두 `구매 확정` 말을 쓰고 `거래 확정` 표기가 없다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'done', deliveredAt: '2026-08-03T06:00:00.000Z' })} />);
+    const upper = html.slice(0, html.indexOf('order-detail-layout'));
+    expect(upper).toContain('order-status--done">구매 확정</span>');
+    expect(upper).toContain('구매가 확정됐어요');
+    expect(upper).toContain('구매가 확정된 주문입니다. 반품·교환은 배송일과 사유별 신청 기한을 별도로 확인해주세요.');
+    expect(upper).not.toContain('거래가 확정'); expect(upper).not.toContain('거래확정');
+  });
+
   it('디지털 전용 주문은 주문 완료 → 파일 제공 시작 → 구매 확정, 배지·주문 상태 칸도 같은 이름이다', () => {
     const downloads = { orderId: ORDER_ID, canCancel: false, reviewRequired: false,
       items: [{ itemId: 'item-1', name: '디지털 파일', files: [], available: true, firstProvidedAt: '2026-08-03T06:00:00.000Z' }] };
