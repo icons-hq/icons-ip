@@ -8,12 +8,23 @@ import type { CollectionBanner } from '@/lib/collection-banners';
 import { Icon } from '@/components/ui/Icon';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { isCardRewardDestination, isCommunityDestination, type HomeCurationSnapshot, type NoticeStrip } from '@/lib/home-catalog';
+import { RollingNoticeBody } from '@/components/shell/RollingNoticeBody';
 import { searchPlaceholder, suggestedSearchHref } from '@/lib/search-terms';
 import { shellNoticeDestinationAllowed, type ShellNoticeBar } from '@/lib/shell-notices';
 
 export type CurationPreviewDevice = 'mobile' | 'desktop';
 
 const PREVIEW_DOCUMENT = '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>스토어 전시 미리보기</title></head><body style="margin:0"><div id="curation-preview-root"></div></body></html>';
+
+/** 텍스트 공지 바 미리보기 — 공개 셸(ShellNotices)과 같은 빨간 롤링 띠 마크업·클래스다(review-b m6). 닫기는 모양만 그리고 미리보기에서는 닫지 않는다. */
+export function CurationPreviewNoticeBar({ bar }: { bar: Pick<ShellNoticeBar, 'message' | 'cta'> }) {
+  return (
+    <aside aria-label="스토어 공지" className="wc-notice-bar wc-x-rolling">
+      <RollingNoticeBody cta={bar.cta} message={bar.message} />
+      <span aria-hidden className="wc-notice-bar__close"><Icon name="close" size={16} /></span>
+    </aside>
+  );
+}
 
 /** A script-free document gives public CSS and picture sources their real viewport. */
 export function CurationPreview({
@@ -99,16 +110,10 @@ export function CurationPreview({
               if ((event.target as HTMLElement).closest('a')) event.preventDefault();
             }}
           >
-            {/* 공개 셸과 같은 마크업·CSS로 텍스트 공지 바를 띠배너 위에 그린다. 미리보기에서는 닫지 않는다. */}
+            {/* 공개 셸과 같은 마크업·CSS(빨간 롤링 띠)로 텍스트 공지 바를 띠배너 위에 그린다. 미리보기에서는 닫지 않는다. */}
             {visibleBar ? (
               <div className="wc-root wc-chrome">
-                <aside aria-label="스토어 공지" className="wc-notice-bar">
-                  <p className="wc-notice-bar__body">
-                    <span className="wc-notice-bar__message">{visibleBar.message}</span>
-                    {visibleBar.cta ? <a className="wc-notice-bar__cta" href={visibleBar.cta.href}>{visibleBar.cta.label}</a> : null}
-                  </p>
-                  <span aria-hidden className="wc-notice-bar__close"><Icon name="close" size={16} /></span>
-                </aside>
+                <CurationPreviewNoticeBar bar={visibleBar} />
               </div>
             ) : null}
             {visibleNotice ? (
