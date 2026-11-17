@@ -1,0 +1,332 @@
+/* ------------------------------------------------------------------
+   거래명세서 (MD-0038) — 주문 한 건의 확인·인쇄 문서
+   화면: 회색 바탕 위의 흰 종이(최대 폭 760px). 인쇄: A4 한 장 문서 — 문서 밖(셸·위젯)은 접고 문서만 흐름대로 인쇄한다.
+   값은 WC 토큰만 쓴다(.wc-root 가 토큰을 가진다). 셸 클래스 이름은 잡지 않는다.
+   ------------------------------------------------------------------ */
+
+.wc-statement-page {
+  display: block;
+  padding: 24px 16px 64px;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink);
+}
+
+.wc-statement-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 760px;
+  margin: 0 auto 12px;
+}
+
+.wc-statement-toolbar .wc-btn,
+.wc-statement-empty .wc-btn {
+  width: auto;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+.wc-statement,
+.wc-statement-empty {
+  max-width: 760px;
+  margin: 0 auto;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.wc-statement {
+  padding: 40px 40px 44px;
+}
+
+.wc-statement-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.wc-statement-empty h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.wc-statement-empty p {
+  margin: 0;
+  color: var(--wc-ink-sub);
+}
+
+.wc-statement__title {
+  margin: 0 0 24px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--wc-ink);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+/* 표의 캡션은 보조기기용이다 — 화면에는 그리지 않는다. */
+.wc-statement caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.wc-statement dl,
+.wc-statement dd,
+.wc-statement ul {
+  margin: 0;
+}
+
+.wc-statement ul {
+  padding: 0;
+  list-style: none;
+}
+
+.wc-statement__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+  margin-bottom: 24px;
+}
+
+.wc-statement__meta > div,
+.wc-statement__info > div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-statement dt {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-statement dd {
+  min-width: 0;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-statement__parties {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.wc-statement__parties h2 {
+  margin: 0 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--wc-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.wc-statement table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-statement th,
+.wc-statement td {
+  padding: 9px 10px;
+  border: 1px solid var(--wc-hairline);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.wc-statement thead th {
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-sub);
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.wc-statement tbody th {
+  font-weight: 400;
+}
+
+.wc-statement .wc-statement__num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.wc-statement__items {
+  margin-bottom: 20px;
+}
+
+.wc-statement__item-name {
+  font-weight: 700;
+}
+
+/* 합계 표: 오른쪽 절반에 붙여 금액을 눈으로 따라 내려가게 한다. */
+.wc-statement__totals {
+  width: min(100%, 360px);
+  margin: 0 0 16px auto;
+}
+
+.wc-statement__totals th {
+  color: var(--wc-ink-sub);
+}
+
+.wc-statement__totals tr[data-kind='total'] th,
+.wc-statement__totals tr[data-kind='total'] td {
+  border-top: 2px solid var(--wc-ink);
+  color: var(--wc-ink);
+  font-weight: 700;
+}
+
+.wc-statement__collect {
+  margin: 0 0 16px;
+  color: var(--wc-ink-sub);
+  text-align: right;
+}
+
+.wc-statement__notes {
+  display: grid;
+  gap: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wc-hairline);
+  color: var(--wc-ink-tertiary);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .wc-statement-page {
+    padding: 16px 16px 48px;
+  }
+
+  .wc-statement {
+    padding: 24px 16px 28px;
+  }
+
+  .wc-statement__title {
+    font-size: 24px;
+  }
+
+  .wc-statement__meta,
+  .wc-statement__parties {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wc-statement__parties {
+    gap: 20px;
+  }
+
+  /* 품목 표는 줄마다 이름 아래에 '라벨 — 값'으로 쌓는다(5열을 375px 에 욱여넣지 않는다). */
+  .wc-statement__items thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .wc-statement__items,
+  .wc-statement__items tbody,
+  .wc-statement__items tr,
+  .wc-statement__items th,
+  .wc-statement__items td {
+    display: block;
+  }
+
+  .wc-statement__items tr {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--wc-hairline);
+  }
+
+  .wc-statement__items th,
+  .wc-statement__items td {
+    padding: 2px 0;
+    border: 0;
+  }
+
+  .wc-statement__items td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+  }
+
+  .wc-statement__items td::before {
+    content: attr(data-label);
+    color: var(--wc-ink-tertiary);
+    text-align: left;
+  }
+
+  .wc-statement__totals {
+    width: 100%;
+  }
+
+  .wc-statement__collect {
+    text-align: left;
+  }
+}
+
+/* ------------------------------------------------------------------
+   인쇄: 문서만 A4 흐름으로. 화면 전용 부품(버튼 줄·바탕·테두리)은 접는다.
+   문서를 품지 않은 body·#root 직계(셸·위젯)를 접고, 그래도 남는 것은 상속 visibility 로 가린다.
+   ------------------------------------------------------------------ */
+
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  body:has(.wc-statement) {
+    visibility: hidden;
+  }
+
+  body:has(.wc-statement) > :not(:has(.wc-statement)),
+  body:has(.wc-statement) #root > :not(:has(.wc-statement)) {
+    display: none !important;
+  }
+
+  .wc-statement {
+    visibility: visible;
+  }
+
+  .wc-statement-page {
+    padding: 0;
+    background: none;
+  }
+
+  .wc-statement-toolbar {
+    display: none !important;
+  }
+
+  .wc-statement {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    break-inside: auto;
+  }
+
+  .wc-statement__items tr,
+  .wc-statement__totals tr {
+    break-inside: avoid;
+  }
+
+  .wc-statement__title {
+    font-size: 24px;
+  }
+}
