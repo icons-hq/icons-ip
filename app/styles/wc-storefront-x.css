@@ -1,0 +1,14 @@
+/* X SQUARE 스토어프런트 공용 부품 (Figma 2026-11-12, ADR-0043).
+ * 정본: 공용 부품 계약(설계자 B)과 Figma 덤프. 토큰은 wc-foundation.css 의 .wc-root(--wc-x-*)가 진실원이다.
+ * 이 파일의 선택자는 .wc-x-·.wc-strip-banner·기존 .wc-product-card 계열로만 시작한다(전역 element 규칙 금지).
+ * import 순서: wc-inquiry-widget.css → 이 파일 → wc-listing.css → wc-popups.css (화면 전용 CSS가 부품 기본값을 덮는다). */
+
+/* ------------------------------------------------------------------
+   넓은 컨테이너 — 데스크톱 최대 1320, 좌우 24(안쪽 1272). 990 미만은 기존 거터(16) 그대로.
+   ------------------------------------------------------------------ */
+
+.wc-container.wc-container--wide { max-width: var(--wc-x-container); }
+
+@media (min-width: 990px) {
+  .wc-container.wc-container--wide { padding-inline: var(--wc-x-gutter); }
+}

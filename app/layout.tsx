@@ -45,6 +45,10 @@ import './styles/wc-offline-popups.css';
 import './styles/wc-document.css';
 import './styles/wc-help.css';
 import './styles/wc-inquiry-widget.css';
+/* X SQUARE 스토어프런트(ADR-0043): 공용 부품 → 목록 → POP-UP·EVENT 순서라 화면 전용 규칙이 부품 기본값을 덮는다. */
+import './styles/wc-storefront-x.css';
+import './styles/wc-listing.css';
+import './styles/wc-popups.css';
 /* 보존 표면(/about — ADR-0011)은 자기 앵커 안에 자체 기본 규칙과 토큰을 가진다. */
 import './styles/about-legacy.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
