@@ -894,8 +894,20 @@
     scroll-margin-top: -109px;
   }
 
+  /* GNB 항목(li)은 헤더 행 전체 높이로 늘어난다 — 메가메뉴는 항목의 hover 로 열리고 패널은 행 바로 아래에 붙으므로, 44px 링크만
+     항목이면 링크와 패널 사이 32px 틈에서 마우스가 항목을 벗어나 패널이 닫힌다. 링크는 항목 안에서 세로 가운데에 선다. */
+  .wc-header__lead {
+    align-self: stretch;
+  }
+
   .wc-gnb {
-    display: block;
+    display: flex;
+    align-self: stretch;
+  }
+
+  .wc-gnb__item {
+    display: flex;
+    align-items: center;
   }
 }
 

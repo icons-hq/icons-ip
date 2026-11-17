@@ -72,6 +72,17 @@ describe('데스크톱 헤더 축약 표현', () => {
     expect(declsFor('.wc-gnb__link')).toMatchObject({ padding: '12px 15px', 'font-size': '17px', 'font-weight': '600', 'line-height': '20px' });
   });
 
+  /* 메가메뉴는 항목(li)의 hover 로 열리고 패널은 헤더 행 바로 아래에 붙는다 — li 가 링크(44) 높이만 차지하면 사이 32px 틈에서 패널이 닫힌다. */
+  it('GNB 항목은 헤더 행 전체 높이로 늘어나 항목과 메가 패널 사이에 틈이 없다', () => {
+    expect(declsFor('.wc-header__lead', DESKTOP)).toMatchObject({ 'align-self': 'stretch' });
+    expect(declsFor('.wc-gnb', DESKTOP)).toMatchObject({ display: 'flex', 'align-self': 'stretch' });
+    expect(declsFor('.wc-gnb__item', DESKTOP)).toMatchObject({ display: 'flex', 'align-items': 'center' });
+    /* 패널은 헤더 행(.wc-header__bar) 바로 아래 — 행이 위치 기준 상자다. */
+    expect(declsFor('.wc-header__bar')).toMatchObject({ position: 'relative' });
+    expect(declsFor('.wc-mega')).toMatchObject({ position: 'absolute', top: '100%' });
+    expect(declsFor('.wc-gnb__item--mega').position).toBe('static');
+  });
+
   it('현재·hover 표기는 글자색을 바꾸지 않고 라벨 아래 2px 잉크 막대 하나다(초록 없음)', () => {
     expect(declsFor('.wc-gnb__link.is-active')).toEqual({ color: 'var(--wc-ink)' });
     expect(declsFor('.wc-gnb__label::after')).toMatchObject({ height: '2px', bottom: '-6px', background: 'var(--wc-ink)' });
