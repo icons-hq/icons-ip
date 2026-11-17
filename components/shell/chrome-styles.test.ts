@@ -372,30 +372,56 @@ describe('하단 착지선 (html scroll-padding-bottom)', () => {
   });
 });
 
-describe('모바일 푸터 순서 (CH-15)', () => {
-  /* 로고 → 회사·정책 → 고객센터(사업자 정보 포함) → 소개·SNS → 링크 → 스태프 블록 → 저작권.
-     CSS order 는 화면 순서와 읽기·포커스 순서를 갈라놓는다(WCAG 1.3.2·2.4.3) — 순서는 마크업이 갖고
-     (SiteFooter.test), 시트는 폭마다 자리가 다른 로고·소개 중 그 폭의 것만 보인다. */
+describe('X SQUARE 푸터 (Figma Site Footer, ADR-0043)', () => {
+  /* 약관·안내 → 고객센터·SNS → 사업자 정보 → 저작권. CSS order 는 화면 순서와 읽기·포커스 순서를 갈라놓는다(WCAG 1.3.2·2.4.3) —
+     순서는 마크업이 갖고(SiteFooter.test) 시트는 모바일에서 세로로 쌓기만 한다. */
   it('푸터 어디에도 order 를 쓰지 않는다', () => {
     const ordered: string[] = [];
     root.walkRules((rule) => {
-      if (!rule.selectors.some((selector) => selector.includes('wc-footer'))) return;
+      if (!rule.selectors.some((selector) => selector.includes('wc-footer') || selector.includes('wc-x-footer'))) return;
       rule.walkDecls('order', () => { ordered.push(`${mediaOf(rule) ?? 'base'} ${rule.selector}`); });
     });
     expect(ordered).toEqual([]);
   });
 
-  it('로고·소개는 데스크톱에서 모바일 사본을, 모바일에서 데스크톱 사본을 감춘다', () => {
-    expect(declsFor('.wc-footer .wc-footer__logo--mobile').display).toBe('none');
-    expect(declsFor('.wc-footer .wc-footer__brand--mobile').display).toBe('none');
-    expect(declsFor('.wc-footer .wc-footer__logo--desktop', MOBILE).display).toBe('none');
-    expect(declsFor('.wc-footer .wc-footer__brand--desktop', MOBILE).display).toBe('none');
-    expect(declsFor('.wc-footer .wc-footer__logo--mobile', MOBILE)).toMatchObject({ display: 'block', 'margin-top': '0' });
-    /* 모바일 소개는 브랜드 시트의 기본(grid)으로 되돌린다. */
-    expect(declsFor('.wc-footer .wc-footer__brand--mobile', MOBILE)).toMatchObject({ display: 'grid', 'margin-top': '24px' });
-    expect(declsFor('.wc-footer__inner', MOBILE)).toMatchObject({ display: 'flex', 'flex-direction': 'column' });
-    /* 고객센터·소개·링크를 세로 흐름에 잇으려면 둘을 묶은 상자를 지워야 한다. */
-    expect(declsFor('.wc-footer__middle', MOBILE)).toMatchObject({ display: 'contents' });
+  it('위 여백 60(데스크톱 120), 전폭 1px 선, 흰 바탕이고 독립 경험은 위 여백을 열지 않는다', () => {
+    expect(declsFor('.wc-footer')).toMatchObject({ 'margin-top': '60px', 'border-top': '1px solid var(--wc-x-line-util)', background: 'var(--wc-surface)' });
+    expect(declsFor('.wc-footer', DESKTOP)['margin-top']).toBe('120px');
+    expect(declsFor('.wc-footer.wc-footer--standalone')['margin-top']).toBe('0');
+    /* 안쪽 패딩은 위 40, 아래 60(통계 안내가 있으면 그 위까지). */
+    expect(declsFor('.wc-footer').padding).toBe('40px 0 max(60px, calc(var(--wc-store-analytics-clearance, 0px) + 16px))');
+  });
+
+  it('1행은 양끝 정렬(왼쪽 링크 간격 24, 오른쪽 고객센터·SNS 간격 22)이고 링크는 16px Bold #535353 토큰이다', () => {
+    expect(declsFor('.wc-x-footer__bar')).toMatchObject({ display: 'flex', 'justify-content': 'space-between' });
+    expect(declsFor('.wc-x-footer__links ul').gap).toBe('4px 24px');
+    expect(declsFor('.wc-x-footer__aside ul').gap).toBe('4px 22px');
+    for (const selector of ['.wc-x-footer__links a', '.wc-x-footer__aside a']) {
+      expect(declsFor(selector), selector).toMatchObject({ 'font-size': '16px', 'font-weight': '700', color: 'var(--wc-x-footer-link)', 'min-height': '24px' });
+    }
+    /* SNS 아이콘은 18px 이고 눌림 상자는 24px 이상이다. */
+    expect(declsFor('.wc-x-footer__social img')).toMatchObject({ width: '18px', height: '18px' });
+    expect(declsFor('.wc-x-footer__aside .wc-x-footer__social')).toMatchObject({ width: '24px' });
+  });
+
+  it('사업자 정보는 12px SemiBold 보조색, 항목 간격 16·줄 간격 4이고 줄바꿈을 허용한다', () => {
+    expect(declsFor('.wc-x-footer__biz')).toMatchObject({ display: 'flex', 'flex-wrap': 'wrap', gap: '4px 16px' });
+    expect(declsFor('.wc-x-footer__biz-row')).toMatchObject({ 'font-size': '12px', 'font-weight': '600', color: 'var(--wc-x-muted)' });
+    expect(declsFor('.wc-x-footer__copy')).toMatchObject({ 'font-size': '12px', 'font-weight': '600', color: 'var(--wc-x-muted)' });
+    /* 상호·주소 라벨은 화면에서만 감추고 접근 이름으로는 남긴다(display:none 이 아니다). */
+    const bare = declsFor('.wc-x-footer__biz-row--bare dt');
+    expect(bare).toMatchObject({ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' });
+    expect(bare.display).toBeUndefined();
+  });
+
+  it('모바일은 1행을 세로로 쌓는다', () => {
+    expect(declsFor('.wc-x-footer__bar', MOBILE)).toMatchObject({ 'flex-direction': 'column', 'align-items': 'flex-start' });
+  });
+
+  it('Figma 푸터에서 빠진 블록(로고·소개·회사 정책 행·발견/내 활동 열·접이식)의 규칙을 남기지 않는다', () => {
+    for (const removed of ['.wc-footer__logo', '.wc-footer__primary', '.wc-footer__middle', '.wc-footer__cols', '.wc-footer__links', '.wc-footer__line', '.wc-footer__biz', '.wc-footer__cs', '.wc-footer__brand']) {
+      expect(css, removed).not.toContain(removed);
+    }
   });
 });
 

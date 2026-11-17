@@ -226,30 +226,20 @@ function visibleGroups(groups: NavGroup[]): NavGroup[] {
     .filter((group) => group.items.length > 0);
 }
 
-/* 푸터 상단 행 — 회사·정책. 법정 고지 3종은 lib/legal/links.ts가 컴포넌트에서 이어 붙인다. */
-export const FOOTER_PRIMARY_ITEMS: NavItem[] = [
-  { id: 'about', label: '회사 소개' },
-  { id: 'offlinePopups', label: '오프라인 팝업' },
-];
+/* 푸터 1행 링크 — Figma Site Footer(ADR-0043)가 정본이다. 법정 고지 3종(아이콘스 이용약관·개인정보처리방침·배송·반품 정책)은
+   lib/legal/links.ts 가 슬러그로 감싸 컴포넌트에서 잇고, 고객센터는 유틸 메뉴와 같은 UTIL_HELP_ITEM(/help)이다.
+   대량구매는 문의 게시판이 아직 없어 대표 이메일 mailto 로 연다 — 값은 어드민 사업자 정보 설정(businessInfo.email)이고 코드에 쓰지 않는다.
+   목적지가 없는 Figma 항목(공지사항·서비스 가이드라인·X)은 죽은 링크로 두지 않고 그리지 않는다(스펙 §6). */
+export const FOOTER_BULK_PURCHASE_LABEL = '대량구매';
+const FOOTER_BULK_PURCHASE_SUBJECT = '[대량구매 문의]';
 
-export const FOOTER_DISCOVER_ITEMS: NavItem[] = visibleItems([
-  { id: 'iphub', label: '온라인 팝업' },
-  { id: 'shop', label: '굿즈샵' },
-  { id: 'packs', label: '카드팩' },
-  { id: 'events', label: '이벤트' },
-  { id: 'community', label: '커뮤니티' },
-]);
-
-export const FOOTER_ACCOUNT_ITEMS: NavItem[] = [
-  { id: 'help', label: '자주 묻는 질문' },
-  { id: 'orders', label: '주문조회' },
-  { id: 'tickets', label: '내 티켓' },
-  { id: 'binder', label: '바인더' },
-  { id: 'wish', label: '위시리스트' },
-  { id: 'notifications', label: '알림함' },
-  { id: 'exchange', label: '카드 트레이드' },
-  { id: 'market', label: '굿즈 마켓' },
-];
+/** 대량구매 mailto 주소. 이메일이 비었거나 형식이 아니면 null — 죽은 링크를 그리지 않는다. */
+export function bulkPurchaseMailto(email: string): string | null {
+  const to = email.trim();
+  /* mailto 의 수신자 자리에 헤더(?bcc=…)·쉼표 목록이 끼지 않게 구분 문자를 거른다. */
+  if (!/^[^\s@<>"?&#%,;/]+@[^\s@<>"?&#%,;/]+$/.test(to)) return null;
+  return `mailto:${to}?subject=${encodeURIComponent(FOOTER_BULK_PURCHASE_SUBJECT)}`;
+}
 
 /* 스태프 전용 시연 진입점 — 푸터가 is_staff readback 이 참일 때만 그린다(SiteFooter).
    경로는 공개 플레이스홀더와 같다: 같은 라우트가 staff/admin 에게만 mock 시연 화면을 렌더한다

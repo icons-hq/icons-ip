@@ -4,10 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_MEGA_GROUPS,
   CATEGORY_SHEET_SHORTCUTS,
-  FOOTER_ACCOUNT_ITEMS,
+  FOOTER_COMMUNITY_STAFF_ITEMS,
   FOOTER_DEMO_ITEMS,
-  FOOTER_DISCOVER_ITEMS,
-  FOOTER_PRIMARY_ITEMS,
   MEMBER_UTIL_ITEMS,
   MENU_SHEET_GROUPS,
   MOB_ITEMS,
@@ -17,6 +15,7 @@ import {
   UTIL_HELP_ITEM,
   UTIL_ITEMS,
   activeNavId,
+  bulkPurchaseMailto,
   hrefFor,
   isActive,
   hidesSiteFooter,
@@ -167,12 +166,12 @@ describe('내비게이션 항목 구성', () => {
     expect(hrefFor(UTIL_HELP_ITEM.id)).toBe('/help');
   });
 
-  it('커뮤니티 스위치가 GNB·푸터·메뉴시트 진입점을 한꺼번에 좌우한다', () => {
+  it('커뮤니티 스위치가 GNB·메뉴시트 진입점을 한꺼번에 좌우한다(푸터에는 스태프 전용 한 곳뿐)', () => {
     const inMenuSheet = MENU_SHEET_GROUPS.some((group) => group.items.some((item) => item.id === 'community'));
 
     expect(NAV_ITEMS.some((item) => item.id === 'community')).toBe(COMMUNITY_ENABLED);
-    expect(FOOTER_DISCOVER_ITEMS.some((item) => item.id === 'community')).toBe(COMMUNITY_ENABLED);
     expect(inMenuSheet).toBe(COMMUNITY_ENABLED);
+    expect(FOOTER_COMMUNITY_STAFF_ITEMS.map((item) => item.id)).toEqual(['community']);
     /* 경로 등록은 스위치와 무관하게 유지한다 — 지우면 hrefFor가 '/'로 폴백한다. */
     expect(hrefFor('community')).toBe('/community');
   });
@@ -218,10 +217,9 @@ describe('푸터·메뉴 경로 등록 계약', () => {
      푸터·메가메뉴·시트는 링크만 있고 활성 표시가 없어 눈으로는 더 안 보인다. */
   const groupedItems = [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS, CATEGORY_SHEET_SHORTCUTS].flatMap((group) => group.items);
   const routedItems = [
-    ...FOOTER_PRIMARY_ITEMS,
-    ...FOOTER_DISCOVER_ITEMS,
-    ...FOOTER_ACCOUNT_ITEMS,
     ...groupedItems,
+    ...FOOTER_DEMO_ITEMS,
+    ...FOOTER_COMMUNITY_STAFF_ITEMS,
   ];
 
   it.each([...new Set(routedItems.map((item) => item.id))].map((id) => [id] as const))(
@@ -316,10 +314,20 @@ describe('세컨더리 마켓 시연 진입점', () => {
     for (const item of FOOTER_DEMO_ITEMS) {
       const href = hrefFor(item.id);
       expect(href).not.toBe('/');
-      expect(FOOTER_ACCOUNT_ITEMS.some((account) => account.id === item.id)).toBe(true);
+      /* 공개 플레이스홀더 진입점은 모바일 전체 메뉴 시트의 '거래' 그룹이다. */
+      expect(MENU_SHEET_GROUPS.flatMap((group) => group.items).some((sheetItem) => sheetItem.id === item.id)).toBe(true);
       const page = join(process.cwd(), 'app', ...href.split('/').filter(Boolean), 'page.tsx');
       expect(existsSync(page)).toBe(true);
       expect(item.label).toContain('시연');
     }
+  });
+});
+
+describe('푸터 대량구매 mailto', () => {
+  /* 문의 게시판이 생기기 전까지 대표 이메일로 연다. 값은 어드민 사업자 정보 설정이고, 형식이 아니면 죽은 링크를 만들지 않는다. */
+  it('이메일이 있으면 제목을 인코딩한 mailto 를, 비었거나 형식이 아니면 null 을 돌려준다', () => {
+    expect(bulkPurchaseMailto('bulk@example.test')).toBe(`mailto:bulk@example.test?subject=${encodeURIComponent('[대량구매 문의]')}`);
+    expect(bulkPurchaseMailto('  bulk@example.test  ')).toBe(`mailto:bulk@example.test?subject=${encodeURIComponent('[대량구매 문의]')}`);
+    for (const email of ['', '   ', 'no-at-sign', 'a b@example.test', '<a@b.test>', 'a@b.test?bcc=x@y.test z', 'a@b.test?bcc=x', 'a@b.test,c@d.test', 'a@b.test&cc=x']) expect(bulkPurchaseMailto(email), email).toBeNull();
   });
 });
