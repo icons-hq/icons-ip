@@ -3,15 +3,19 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Good, Ip, Stock } from '@/lib/data';
 import type { CollectionBanner } from '@/lib/collection-banners';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
+import { buildCategoryListingNav } from '@/lib/category-chips';
 import {
+  parseListingSearchParams,
   parseShopSearchParams,
   selectShopGoods,
-  type ShopView,
+  type ListingView,
 } from '@/lib/shop-catalog';
+import type { StorefrontCategoryNode } from '@/lib/storefront-mega-menu';
 import {
   collectionBannerSlotFor,
   EMPTY_SHOP_FILTER_DRAFT,
   Shop,
+  type ShopProps,
   setDraftPriceRange,
   shopFilterDraftFromQuery,
   shopQueryString,
@@ -66,24 +70,21 @@ const catalog = {
   ],
 };
 
-/* 카운트·facet 라벨은 굵기 강조 태그가 문자열을 쪼갠다 — 읽히는 문장으로 단언한다. */
-function text(html: string) {
-  return html.replace(/<[^>]+>/g, '');
-}
-
 function render(
-  view: ShopView,
+  view: ListingView,
   params: Record<string, string | string[] | undefined> = {},
   source: { ips: Ip[]; goods: Good[] } = catalog,
   bestGoodIds?: string[],
   wishlist?: ListingWishlist | null,
+  extra: Partial<ShopProps> = {},
 ) {
-  const query = parseShopSearchParams(params, {
-    view,
-    validIpIds: new Set(source.ips.map((item) => item.id)),
-  });
+  const { query, period } = parseListingSearchParams(params, view);
   const result = selectShopGoods(source, query, bestGoodIds);
-  return renderToStaticMarkup(<Shop query={query} result={result} view={view} wishlist={wishlist} />);
+  return renderToStaticMarkup(<Shop period={period} query={query} result={result} view={view} wishlist={wishlist} {...extra} />);
+}
+
+function sortLabels(html: string) {
+  return [...html.matchAll(/<option[^>]*>([^<]+)<\/option>/g)].map((match) => match[1]);
 }
 
 describe('필터 draft 순수 함수', () => {
@@ -162,74 +163,76 @@ describe('필터 draft 순수 함수', () => {
   });
 });
 
-describe('굿즈샵 목록', () => {
-  it('wc 스코프 안에서 컬렉션 블록을 그린다', () => {
-    expect(render('all')).toContain('class="wc-root wc-collection"');
-  });
-
-  it('필터가 없으면 전체 개수만, 있으면 선택/전체를 함께 보여준다', () => {
-    expect(text(render('all'))).toContain('전체 › 4개 굿즈');
-    expect(text(render('all', { ip: 'ip1' }))).toContain('전체 › 2/4개 굿즈');
-  });
-
-  /* '전체 ›' 머리는 보조 위계이고 수량 문구만 굵다 — 모바일은 머리를 감춘다(R-03 §1.2·§1.8, CL-05). */
-  it('수량 줄의 머리와 구분 글리프를 수량 문구와 갈라 두고 글리프는 읽지 않게 한다', () => {
+describe('목록 틀 (Figma — 제목 줄 + 정렬 셀렉트 + 5열 그리드, 왼쪽 필터 없음)', () => {
+  it('wc 스코프의 목록 루트와 넓은 컨테이너 안에서 그린다', () => {
     const html = render('all');
 
-    expect(html).toContain('<span class="wc-collection__count-scope">전체<span aria-hidden="true" class="wc-collection__count-sep"> › </span></span>');
-    expect(html).toContain('<strong>4개 굿즈</strong>');
+    expect(html).toContain('<main class="wc-root wc-listing">');
+    expect(html).toContain('class="wc-container wc-container--wide"');
   });
 
-  it('정렬 7종을 레퍼런스 순서의 네이티브 select 로 주고 현재 정렬을 선택 상태로 둔다(12 LD-13)', () => {
+  it('왼쪽 필터·수량 줄·모바일 필터 시트가 없다(D2)', () => {
+    const html = render('all');
+
+    for (const gone of ['wc-collection__sidebar', 'wc-collection__toolbar', 'wc-filter-group', 'wc-filter-trigger', 'wc-filter-sheet', 'wc-price-slider', '굿즈 필터', '전체 초기화', '전체 ›']) {
+      expect(html, gone).not.toContain(gone);
+    }
+    expect(html).not.toMatch(/\d개 굿즈/);
+  });
+
+  it('필터 쿼리는 읽지 않는다 — ?ip·?min 이 걸려도 결과가 같다', () => {
+    const filtered = render('all', { ip: 'ip1', min: '90000', type: '인형' });
+
+    expect(filtered).toBe(render('all'));
+    expect(filtered).toContain('메이플 인형');
+    expect((filtered.match(/<article/g) ?? []).length).toBe(4);
+  });
+
+  it('제목은 보이는 h1 하나이고 전체 목록은 "전체 굿즈"다', () => {
+    const html = render('all');
+
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain('<h1 class="wc-listing-head__title">전체 굿즈</h1>');
+  });
+
+  it('정렬 7종을 인기도·최신 등록순·판매량·가격·리뷰 순서의 네이티브 select 로 주고 현재 정렬을 선택 상태로 둔다', () => {
     const html = render('all', { sort: 'price_desc' });
-    const labels = [...html.matchAll(/<option[^>]*>([^<]+)<\/option>/g)].map((match) => match[1]);
 
-    expect(labels).toEqual(['추천순', '이름 가나다순', '이름 역순', '낮은 가격순', '높은 가격순', '오래된순', '최신순']);
+    expect(sortLabels(html)).toEqual(['추천순', '인기도순', '최신 등록순', '판매량순', '낮은 가격순', '높은 가격순', '리뷰 많은순']);
     expect(html).toMatch(/<option[^>]*value="price_desc"[^>]*selected[^>]*>높은 가격순<\/option>/);
-    expect(html).not.toContain('베스트셀러');
+    expect(html).toMatch(/<label class="wc-sr-only" for="[^"]+">정렬 기준<\/label>/);
+    expect(html).not.toContain('이름 가나다순');
+    expect(html).not.toContain('오래된순');
   });
 
-  it('URL 의 이름순·오래된순을 그대로 반영해 그린다', () => {
-    const named = render('all', { sort: 'name_asc' });
-    expect(named).toMatch(/<option[^>]*value="name_asc"[^>]*selected/);
-    expect(named.indexOf('메이플 인형')).toBeLessThan(named.indexOf('홍실 피규어'));
+  it('이름순·오래된순 URL 은 화면에서 뺐으므로 기본값(추천순)으로 떨어진다', () => {
+    const html = render('all', { sort: 'name_asc' });
+
+    expect(html).toMatch(/<option[^>]*value="recommended"[^>]*selected/);
+    expect(html.indexOf('홍실 피규어')).toBeLessThan(html.indexOf('메이플 인형'));
   });
 
-  it('IP·타입 facet 을 개수와 함께 그리고 선택된 값은 체크한다', () => {
-    const html = render('all', { ip: 'ip2' });
-
-    expect(text(html)).toContain('홍실 (2)');
-    expect(text(html)).toContain('메이플 (2)');
-    expect(text(html)).toContain('키링 (2)');
-    expect(html).toContain('IP (1)');
-    expect(html).toContain('타입 (0)');
-    expect(html).toMatch(/<input[^>]*checked=""[^>]*value="ip2"/);
-  });
-
-  it('가격 슬라이더 상한과 라벨은 스코프 최고가에서 온다', () => {
-    const html = render('all');
-
-    expect(html).toContain('₩0 ~ ₩50,000');
-    expect(html).toMatch(/<input[^>]*max="50000"[^>]*type="range"/);
-  });
-
-  it('카드에 굿즈명·가격·배지·품절을 싣고 상세로 링크한다', () => {
+  it('카드에 굿즈명·가격·운영 배지 칩·할인율·품절을 싣고 상세로 링크한다 — SALE 배지 대신 할인율이다', () => {
     const html = render('all');
 
     expect(html).toContain('href="/shop/a"');
     expect(html).toContain('홍실 피규어');
     expect(html).toContain('₩30,000');
-    expect(html).toContain('NEW');
-    expect(html).toContain('SALE');
+    expect(html).toContain('<span class="wc-x-chip wc-x-chip--tag">NEW</span>');
+    /* 메이플 인형: 정가 60000 → 판매가 50000 = 17%. 옛 SALE 배지는 그리지 않고 취소선 정가도 없다. */
+    expect(html).toContain('<span class="wc-price__rate">17%</span>');
+    expect(html).not.toContain('SALE');
     expect(html).toContain('SOLD OUT');
-    expect(html).toContain('class="wc-product-grid"');
+    expect(html).toContain('class="wc-x-grid"');
+    expect(html).toContain('data-density="listing"');
+    expect(html).not.toContain('class="wc-product-grid"');
   });
 
   it('그리드 카드에는 장바구니 담기 버튼을 두지 않는다', () => {
     expect(render('all')).not.toContain('담기');
   });
 
-  /* LD-4(#326 결정 번복): 모든 상품 카드 우상단에 위시 하트. 목록 페이지가 위시 ID 집합을 한 번 내려 주고
+  /* LD-4(#326 결정 번복): 모든 상품 카드에 위시 하트. 목록 페이지가 위시 ID 집합을 한 번 내려 주고
      카드는 그 집합으로 초기 상태만 정한다. 어드민 미리보기처럼 상태를 받지 않은 자리에는 하트가 없다. */
   it('위시 상태를 받으면 카드마다 링크 밖에 하트를 두고 찜한 굿즈만 눌린 상태로 시작한다', () => {
     const html = render('all', {}, catalog, undefined, { viewerId: 'viewer-1', goodIds: ['b'] });
@@ -259,82 +262,206 @@ describe('굿즈샵 목록', () => {
     expect(html).toContain('평점 5점 만점에 4.6점, 리뷰 7개');
   });
 
-  it('한 페이지를 넘길 때만 VIEW MORE 를 노출한다', () => {
+  it('한 페이지(20개)를 넘길 때만 VIEW MORE 를 노출하고 20장까지만 그린다', () => {
     const many = {
       ips: [ip('ip1', '홍실')],
       goods: Array.from({ length: 25 }, (_, index) => good(`m${index}`, 'ip1')),
     };
+    const html = render('all', {}, many);
 
-    expect(render('all', {}, many)).toContain('class="wc-view-more"');
-    expect(render('all', {}, many)).toContain('>VIEW MORE</button>');
+    expect(html).toContain('class="wc-view-more wc-listing-more"');
+    expect(html).toContain('>VIEW MORE</button>');
+    expect((html.match(/<article/g) ?? []).length).toBe(20);
     expect(render('all')).not.toContain('wc-view-more');
   });
 
-  it('모바일 필터 트리거와 전체 초기화를 제공한다', () => {
-    const html = render('all', { ip: 'ip1' });
+  it('서버가 이어 주는 목록(paging)은 받은 목록을 자르지 않고 hasMore 로 VIEW MORE 를 정한다', () => {
+    const many = {
+      ips: [ip('ip1', '홍실')],
+      goods: Array.from({ length: 25 }, (_, index) => good(`m${index}`, 'ip1')),
+    };
+    const paged = render('all', {}, many, undefined, undefined, { paging: { loading: false, hasMore: false, onLoadMore: () => undefined } });
+    expect((paged.match(/<article/g) ?? []).length).toBe(25);
+    expect(paged).not.toContain('wc-view-more');
 
-    expect(html).toContain('aria-label="필터, 1개 적용됨"');
-    expect(html).toContain('전체 초기화');
-    expect(html).toContain('wc-filter-trigger');
+    const more = render('all', {}, many, undefined, undefined, { paging: { loading: false, hasMore: true, onLoadMore: () => undefined } });
+    expect(more).toContain('>VIEW MORE</button>');
+
+    const failed = render('all', {}, many, undefined, undefined, { paging: { loading: false, error: '굿즈를 더 불러오지 못했습니다.', hasMore: true, onLoadMore: () => undefined, onReload: () => undefined } });
+    expect(failed).toContain('role="alert"');
+    expect(failed).toContain('목록 새로 불러오기');
   });
 });
 
-describe('굿즈샵 빈 상태', () => {
-  it('필터 결과가 없으면 초기화 안내를 띄우고 정렬 컨트롤을 감춘다', () => {
-    const html = render('all', { min: '90000' });
+describe('빈 상태', () => {
+  it('스코프 자체가 비면 준비 중 안내와 굿즈샵 링크만 남긴다(굿즈샵 전체는 링크 없이)', () => {
+    const empty = render('new', {}, { ips: catalog.ips, goods: [] });
 
-    expect(text(html)).toContain('전체 › 0/4개 굿즈');
-    expect(html).toContain('조건에 맞는 굿즈가 없어요');
-    expect(html).toContain('필터를 줄이거나 초기화해 보세요.');
-    expect(html).not.toContain('wc-collection__sort');
-  });
+    expect(empty).toContain('아직 준비 중이에요');
+    expect(empty).toContain('굿즈샵 둘러보기');
+    expect(empty).toContain('href="/shop"');
+    expect(empty).not.toContain('wc-x-grid');
+    expect(empty).not.toContain('<select');
+    /* NEW 는 비었으면 정렬을 고를 이유가 없어 탭 줄도 없다. 제목은 남는다. */
+    expect(empty).toContain('<h1 class="wc-listing-head__title">NEW</h1>');
+    expect(empty).not.toContain('wc-listing-tabs');
 
-  it('스코프 자체가 비면 준비 중 안내와 굿즈샵 링크만 남긴다', () => {
-    const html = render('best', {}, catalog, []);
-
-    expect(html).toContain('아직 준비 중이에요');
-    expect(html).toContain('굿즈샵 둘러보기');
-    expect(html).toContain('href="/shop"');
-    expect(html).not.toContain('wc-product-grid');
-    expect(html).not.toContain('wc-filter-group');
+    const all = render('all', {}, { ips: catalog.ips, goods: [] });
+    expect(all).toContain('아직 준비 중이에요');
+    expect(all).not.toContain('굿즈샵 둘러보기');
   });
 });
 
-describe('컬렉션 뷰별 머리말', () => {
-  it('굿즈샵은 제목을 시각적으로 숨긴 h1 으로만 둔다', () => {
-    expect(render('all')).toMatch(/<h1 class="wc-sr-only">굿즈샵<\/h1>/);
-  });
-
-  /* 레퍼런스 NEW 컬렉션에는 제목이 없다(11 CL-08) — 굿즈샵처럼 h1 은 시각 숨김으로만 둔다. */
-  it('NEW 는 보이는 제목·부제 없이 시각 숨김 h1 만 두고 NEW 배지 굿즈만 담는다', () => {
+describe('NEW — 탭 줄이 곧 정렬이다(D4)', () => {
+  it('NEW 배지 굿즈만 담고 정렬 셀렉트가 없으며 탭 6종을 순서대로 링크로 둔다', () => {
     const html = render('new');
 
-    expect(html).toMatch(/<h1 class="wc-sr-only">NEW<\/h1>/);
-    expect(html).not.toContain('wc-section-heading');
-    expect(html).not.toContain('새로 나온 굿즈를 모아 봤어요.');
+    expect(html).toContain('<h1 class="wc-listing-head__title">NEW</h1>');
     expect(html).toContain('홍실 피규어');
     expect(html).not.toContain('메이플 인형');
+    expect(html).not.toContain('<select');
+    expect(html).toContain('<nav aria-label="정렬" class="wc-listing-tabs">');
+    const tabs = [...html.matchAll(/<a\b[^>]*class="wc-listing-tabs__link"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1]);
+    expect(tabs).toEqual(['인기도순', '최신 등록순', '판매량순', '낮은 가격순', '높은 가격순', '리뷰 많은순']);
   });
 
-  /* L5: 카테고리 전시 RPC 가 컬렉션과 같은 7종을 받는다 — 서버 페이지네이션 목록도 같은 정렬 문법이다(CL-10). */
-  it('카테고리 전시는 서버 페이지네이션이 받는 정렬(컬렉션과 같은 7종)을 연다', () => {
-    const query = { ...parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1', 'ip2']) }), displayCategory: '00000000-0000-4000-8000-000000000001' };
+  it('기본은 최신 등록순 탭이 현재이고 탭 URL 은 기본값을 싣지 않는다', () => {
+    const html = render('new');
+    const current = [...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1]);
+
+    expect(current).toEqual(['최신 등록순']);
+    expect(html).toMatch(/<a aria-current="page" class="wc-listing-tabs__link" href="\/shop">최신 등록순<\/a>/);
+    expect(html).toContain('href="/shop?sort=popular"');
+    expect(html).toContain('href="/shop?sort=reviews"');
+  });
+
+  it('?sort 로 고른 탭이 현재이고 이름순·추천순 같은 값은 최신 등록순으로 떨어진다', () => {
+    const sales = render('new', { sort: 'sales' });
+    expect([...sales.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['판매량순']);
+
+    const fallback = render('new', { sort: 'recommended' });
+    expect([...fallback.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['최신 등록순']);
+  });
+});
+
+describe('BEST — 기간 탭 + 판매 랭킹 순서', () => {
+  it('기간 탭 4개(실시간·일간·주간·월간)와 정렬 셀렉트를 그리고 기본은 실시간이다', () => {
+    const html = render('best', {}, catalog, ['d', 'b']);
+    const tabs = [...html.matchAll(/<a\b[^>]*class="wc-listing-tabs__link"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1]);
+
+    expect(html).toContain('<h1 class="wc-listing-head__title">BEST</h1>');
+    expect(html).toContain('<nav aria-label="기간" class="wc-listing-tabs">');
+    expect(tabs).toEqual(['실시간', '일간', '주간', '월간']);
+    expect([...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['실시간']);
+    expect(html).toContain('href="/shop?period=weekly"');
+    expect(sortLabels(html)).toEqual(['추천순', '인기도순', '최신 등록순', '판매량순', '낮은 가격순', '높은 가격순', '리뷰 많은순']);
+    /* 순위 숫자 배지는 Figma 에 없다. */
+    expect(html).not.toMatch(/wc-product-card__rank|순위 \d/);
+  });
+
+  it('?period 가 현재 탭이 되고 탭 링크는 정렬을 함께 보존한다', () => {
+    const html = render('best', { period: 'weekly', sort: 'price_asc' }, catalog, ['d', 'b']);
+
+    expect([...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['주간']);
+    expect(html).toContain('href="/shop?period=monthly&amp;sort=price_asc"');
+    expect(html).toContain('href="/shop?sort=price_asc"');
+    expect(html).toMatch(/<option[^>]*value="price_asc"[^>]*selected/);
+  });
+
+  it('랭킹 순서를 그대로 그리고 랭킹에 없는 굿즈는 담지 않는다', () => {
+    const html = render('best', {}, catalog, ['d', 'b']);
+
+    expect(html.indexOf('메이플 인형')).toBeLessThan(html.indexOf('홍실 키링'));
+    expect(html).not.toContain('홍실 피규어');
+    expect((html.match(/<article/g) ?? []).length).toBe(2);
+  });
+
+  it('다른 정렬은 순위 목록 안에서만 다시 줄 세운다', () => {
+    const html = render('best', { sort: 'price_asc' }, catalog, ['d', 'b']);
+
+    expect(html.indexOf('홍실 키링')).toBeLessThan(html.indexOf('메이플 인형'));
+    expect(html).not.toContain('메이플 키링');
+  });
+
+  it('빈 기간은 "이 기간에 집계된 굿즈가 없어요" + 다른 기간 안내이고 탭 줄은 남긴다', () => {
+    const html = render('best', { period: 'daily' }, catalog, []);
+
+    expect(html).toContain('이 기간에 집계된 굿즈가 없어요');
+    expect(html).toContain('다른 기간을 골라 보세요.');
+    expect(html).toContain('wc-listing-tabs');
+    expect([...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['일간']);
+    expect(html).not.toContain('<select');
+    expect(html).not.toContain('wc-x-grid');
+    expect(html).not.toContain('굿즈샵 둘러보기');
+  });
+
+  it('랭킹을 읽지 못하면 가짜 순위 대신 실패 안내를 그린다(빈 기간과 다른 문구)', () => {
+    const html = render('best', {}, catalog, [], undefined, { rankingFailed: true });
+
+    expect(html).toContain('순위를 불러오지 못했어요.');
+    expect(html).toContain('잠시 후 다시 확인해주세요.');
+    expect(html).not.toContain('이 기간에 집계된 굿즈가 없어요');
+    expect(html).toContain('wc-listing-tabs');
+  });
+});
+
+describe('카테고리 화면 — 칩·제목·하위 탭', () => {
+  const id = (n: number) => `5a4c3000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const node = (n: number, name: string, parent: number | null): StorefrontCategoryNode => ({
+    id: id(n), parentId: parent === null ? null : id(parent), name, depth: parent === null ? 1 : 2, imageUrl: null, navigable: true,
+  });
+  const tree = [node(1, '문구용품', null), node(11, '다이어리', 1), node(12, '스티커', 1), node(2, '인형', null)];
+
+  it('전체 굿즈는 칩 영역(전체 선택) 아래 "전체 굿즈" 제목이고 하위 탭은 없다', () => {
+    const html = render('all', {}, catalog, undefined, undefined, { categoryNav: buildCategoryListingNav(tree, null) });
+
+    expect(html).toContain('aria-label="카테고리"');
+    expect(html).toMatch(/<a aria-current="page" class="wc-listing-chip" href="\/shop">전체<\/a>/);
+    expect(html).toContain('<h1 class="wc-listing-head__title">전체 굿즈</h1>');
+    expect(html).not.toContain('wc-listing-tabs');
+    expect(html.indexOf('wc-listing-chips')).toBeLessThan(html.indexOf('wc-listing-head'));
+  });
+
+  it('전시 노드를 보면 1단계 이름 제목 + 하위 탭(전체·자식)이고 현재 탭이 선택이다', () => {
+    const displayId = id(12);
+    const query = { ...parseListingSearchParams({}, 'all').query, displayCategory: displayId };
+    const html = renderToStaticMarkup(<Shop categoryNav={buildCategoryListingNav(tree, displayId)} query={query} result={selectShopGoods(catalog, query)} title="스티커" view="all" />);
+
+    expect(html).toContain('<h1 class="wc-listing-head__title">문구용품</h1>');
+    expect([...html.matchAll(/<a\b[^>]*class="wc-listing-tabs__link"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['전체', '다이어리', '스티커']);
+    expect([...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['문구용품', '스티커']);
+    expect(html).toContain('<nav aria-label="하위 분류" class="wc-listing-tabs">');
+    expect(sortLabels(html)).toHaveLength(7);
+  });
+
+  it('어드민 미리보기처럼 title 만 넘기면 칩·탭 없이 제목과 정렬만 그린다', () => {
+    const query = { ...parseListingSearchParams({}, 'all').query, displayCategory: id(1) };
+    const html = renderToStaticMarkup(<Shop onQueryChange={() => undefined} query={query} result={selectShopGoods(catalog, query)} title="QA 인형 전시" view="all" />);
+
+    expect(html).toContain('<h1 class="wc-listing-head__title">QA 인형 전시</h1>');
+    expect(html).not.toContain('wc-listing-chips');
+    expect(html).not.toContain('wc-listing-tabs');
+    expect(html).toContain('<select');
+  });
+
+  /* L5: 카테고리 전시 RPC 가 인기도·판매량·리뷰 많은순까지 받는다 — 서버 페이지네이션 목록도 같은 정렬 7종이다. */
+  it('카테고리 전시도 같은 7종 정렬을 연다', () => {
+    const query = { ...parseListingSearchParams({}, 'all').query, displayCategory: id(1) };
     const html = renderToStaticMarkup(<Shop query={query} result={selectShopGoods(catalog, query)} title="전시" view="all" />);
     const values = [...html.matchAll(/<option[^>]*value="([^"]+)"/g)].map((match) => match[1]);
 
-    expect(values).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
+    expect(values).toEqual(['recommended', 'popular', 'newest', 'sales', 'price_asc', 'price_desc', 'reviews']);
   });
 
-  it('BEST 는 큐레이션 순서를 그대로 그린다', () => {
-    const html = render('best', {}, catalog, ['d', 'b']);
+  it('전시 구성의 영상·추천 밴드(children)는 칩 영역과 제목 줄 사이에 선다', () => {
+    const html = renderToStaticMarkup(<Shop categoryNav={buildCategoryListingNav(tree, id(1))} query={{ ...parseListingSearchParams({}, 'all').query, displayCategory: id(1) }} result={selectShopGoods(catalog, parseListingSearchParams({}, 'all').query)} view="all"><section id="media-band">영상</section></Shop>);
 
-    expect(html).toMatch(/<h1[^>]*>BEST<\/h1>/);
-    expect(html).toContain('지금 가장 사랑받는 굿즈예요.');
-    expect(html.indexOf('메이플 인형')).toBeLessThan(html.indexOf('홍실 키링'));
+    expect(html.indexOf('wc-listing-chips')).toBeLessThan(html.indexOf('media-band'));
+    expect(html.indexOf('media-band')).toBeLessThan(html.indexOf('wc-listing-head'));
   });
 });
 
-describe('컬렉션 머리 배너 (11 CL-09 · L8b)', () => {
+describe('스트립 배너 (Figma · 11 CL-09)', () => {
   function banner(id: string, slot: CollectionBanner['slot'], overrides: Partial<CollectionBanner> = {}): CollectionBanner {
     return {
       id,
@@ -352,68 +479,57 @@ describe('컬렉션 머리 배너 (11 CL-09 · L8b)', () => {
     };
   }
 
-  function renderWith(view: ShopView, banners: CollectionBanner[], params: Record<string, string> = {}, bestGoodIds?: string[]) {
-    const query = parseShopSearchParams(params, { view, validIpIds: new Set(catalog.ips.map((item) => item.id)) });
-    return renderToStaticMarkup(<Shop banners={banners} query={query} result={selectShopGoods(catalog, query, bestGoodIds)} view={view} />);
+  function renderWith(view: ListingView, banners: CollectionBanner[], params: Record<string, string> = {}, bestGoodIds?: string[]) {
+    return render(view, params, catalog, bestGoodIds, undefined, { banners });
   }
 
-  it('배너가 없으면 컬렉션 루트에 배너 수식어도 배너 마크업도 없다(지금 화면 그대로)', () => {
+  it('배너가 없으면 배너 마크업도 빈 머리 컨테이너도 없다 — 제목 줄로 바로 시작한다', () => {
     const html = render('all');
 
-    expect(html).toContain('class="wc-root wc-collection"');
-    expect(html).not.toContain('wc-collection--banner');
-    expect(html).not.toContain('wc-collection-banners');
+    expect(html).not.toContain('wc-strip-banners');
+    expect(html).toMatch(/<main class="wc-root wc-listing"><div class="wc-container wc-container--wide"><header class="wc-listing-head">/);
   });
 
-  it('굿즈샵 전체 배너는 컨테이너 밖 전폭으로, 목록 앞에 선다', () => {
+  it('굿즈샵 전체 배너(all 슬롯)는 컨테이너 안 맨 앞, 제목 줄 앞에 서고 다른 슬롯은 섞이지 않는다', () => {
     const html = renderWith('all', [banner('a1', 'all'), banner('a2', 'all'), banner('b1', 'best')]);
 
-    expect(html).toContain('class="wc-root wc-collection wc-collection--banner"');
-    expect(html).toContain('wc-collection-banners--wide');
-    expect(html.indexOf('wc-collection-banners--wide')).toBeLessThan(html.indexOf('class="wc-container"'));
+    expect(html).toContain('data-slot="all"');
+    expect(html).toContain('aria-roledescription="carousel"');
     expect(html).toContain('배너 a1');
     expect(html).toContain('배너 a2');
-    /* 다른 컬렉션 슬롯의 배너는 섞이지 않는다. */
     expect(html).not.toContain('배너 b1');
-    expect(html).toMatch(/<h1 class="wc-sr-only">굿즈샵<\/h1>/);
-    /* 페이지 제목이 배너보다 먼저 읽힌다(l8b-qa-5) — BEST·NEW 와 같은 순서. */
-    expect(html.indexOf('<h1 class="wc-sr-only">굿즈샵</h1>')).toBeLessThan(html.indexOf('wc-collection-banners--wide'));
+    expect(html.indexOf('wc-strip-banners')).toBeGreaterThan(html.indexOf('class="wc-container wc-container--wide"'));
+    expect(html.indexOf('wc-strip-banners')).toBeLessThan(html.indexOf('wc-listing-head'));
     expect(html.match(/<h1/g)).toHaveLength(1);
   });
 
-  it('스코프가 빈 굿즈샵 전체도 시각 숨김 h1 이 전폭 배너 앞이다(l8b-qa-5)', () => {
-    const query = parseShopSearchParams({}, { view: 'all', validIpIds: new Set() });
-    const html = renderToStaticMarkup(<Shop banners={[banner('a1', 'all')]} query={query} result={selectShopGoods({ ...catalog, goods: [] }, query)} view="all" />);
+  it('BEST·NEW 배너는 한 장이고 NEW 는 NEW 슬롯 배너만 받는다 — 배너가 있어도 제목 줄이 그대로 보인다', () => {
+    const best = renderWith('best', [banner('b1', 'best', { subtitle: '지금 많이 찾는 굿즈' }), banner('b2', 'best')], {}, ['d', 'b']);
+    expect(best).toContain('배너 b1');
+    expect(best).not.toContain('배너 b2');
+    expect(best).not.toContain('aria-roledescription="carousel"');
+    expect(best).toContain('지금 많이 찾는 굿즈');
+    expect(best).toContain('<h1 class="wc-listing-head__title">BEST</h1>');
 
-    expect(html).toContain('아직 준비 중이에요');
-    expect(html.indexOf('<h1 class="wc-sr-only">굿즈샵</h1>')).toBeLessThan(html.indexOf('wc-collection-banners--wide'));
-    expect(html.match(/<h1/g)).toHaveLength(1);
+    const fresh = renderWith('new', [banner('n1', 'new'), banner('a1', 'all')]);
+    expect(fresh).toContain('배너 n1');
+    expect(fresh).not.toContain('배너 a1');
   });
 
-  it('BEST 배너가 있으면 보이는 텍스트 제목을 걷고 콘텐츠 폭 배너가 머리말이 된다', () => {
-    const html = renderWith('best', [banner('b1', 'best', { subtitle: '지금 많이 찾는 굿즈' })], {}, ['d', 'b']);
+  it('카테고리 전시는 컬렉션 배너를 그리지 않고 전시 구성의 배너(displayBanner)를 같은 틀로 그린다', () => {
+    const query = { ...parseListingSearchParams({}, 'all').query, displayCategory: '00000000-0000-4000-8000-000000000001' };
+    const html = renderToStaticMarkup(<Shop
+      banners={[banner('a1', 'all')]}
+      displayBanner={{ id: 'category-1', title: '겨울 여행', subtitle: null, imageUrl: 'https://cdn.test/c.webp', mobileImageUrl: null, href: null, imageAlt: '', imageDim: 'none', textColor: 'black' }}
+      query={query}
+      result={selectShopGoods(catalog, query)}
+      title="전시"
+      view="all"
+    />);
 
-    expect(html).toMatch(/<h1 class="wc-sr-only">BEST<\/h1>/);
-    expect(html).not.toContain('wc-section-heading');
-    expect(html).toContain('wc-collection-banners--contained');
-    expect(html.indexOf('class="wc-container"')).toBeLessThan(html.indexOf('wc-collection-banners--contained'));
-    expect(html).toContain('지금 많이 찾는 굿즈');
-  });
-
-  it('NEW 는 NEW 슬롯 배너만 받는다', () => {
-    const html = renderWith('new', [banner('n1', 'new'), banner('a1', 'all')]);
-
-    expect(html).toContain('배너 n1');
     expect(html).not.toContain('배너 a1');
-    expect(html).toContain('wc-collection-banners--contained');
-  });
-
-  it('카테고리 전시(?displayCategory=)는 같은 화면이어도 배너를 그리지 않는다', () => {
-    const query = { ...parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1', 'ip2']) }), displayCategory: '00000000-0000-4000-8000-000000000001' };
-    const html = renderToStaticMarkup(<Shop banners={[banner('a1', 'all')]} query={query} result={selectShopGoods(catalog, query)} title="전시" view="all" />);
-
-    expect(html).not.toContain('wc-collection-banners');
-    expect(html).not.toContain('wc-collection--banner');
+    expect(html).toContain('겨울 여행');
+    expect(html).toContain('data-slot="category"');
     expect(collectionBannerSlotFor('all', query)).toBeNull();
   });
 
@@ -423,33 +539,18 @@ describe('컬렉션 머리 배너 (11 CL-09 · L8b)', () => {
     expect(collectionBannerSlotFor('best', {})).toBe('best');
   });
 
-  it('머리말·여백 판정과 실제 배너가 어긋나지 않는다 — 카드팩으로 가는 배너도 받은 대로 그리고, 빈 목록이면 텍스트 제목과 여백이 남는다(l8b-ui-2·l8b-data-3)', () => {
-    /* 목적지 게이트는 서버 로더(getCollectionBanners)가 건다. 화면이 받은 배너를 클라이언트 컨텍스트(초기값 꺼짐)로 다시 걷으면
-       첫 HTML 에서 배너만 빠지고 h1 시각 숨김·padding-top 0 은 남는다 — 그 어긋남이 없어야 한다. */
-    const gatedOpen = renderWith('best', [banner('packs', 'best', { href: '/packs' })], {}, ['d', 'b']);
-    expect(gatedOpen).toContain('wc-collection-banners--contained');
-    expect(gatedOpen).toContain('href="/packs"');
-    expect(gatedOpen).toContain('wc-collection--banner');
+  it('카드팩으로 가는 배너도 받은 대로 그린다 — 목적지 게이트는 서버 로더가 이미 걸었다(l8b-ui-2)', () => {
+    const open = renderWith('best', [banner('packs', 'best', { href: '/packs' })], {}, ['d', 'b']);
+    expect(open).toContain('href="/packs"');
 
-    const gatedClosed = renderWith('best', [], {}, ['d', 'b']);
-    expect(gatedClosed).not.toContain('wc-collection-banners');
-    expect(gatedClosed).not.toContain('wc-collection--banner');
-    expect(gatedClosed).toContain('wc-section-heading');
-    expect(gatedClosed).not.toMatch(/<h1 class="wc-sr-only">BEST<\/h1>/);
+    const closed = renderWith('best', [], {}, ['d', 'b']);
+    expect(closed).not.toContain('wc-strip-banners');
   });
 
-  it('BEST 배너가 여러 장 와도 첫 장 하나만 — 슬라이더가 되지 않는다(l8b-ui-1)', () => {
-    const html = renderWith('best', [banner('b1', 'best'), banner('b2', 'best')], {}, ['d', 'b']);
-
-    expect(html).toContain('배너 b1');
-    expect(html).not.toContain('배너 b2');
-    expect(html).not.toContain('aria-roledescription="carousel"');
-  });
-
-  it('스코프가 빈 BEST 도 배너는 그대로 두고 준비 중 안내를 잇는다', () => {
+  it('스코프가 빈 BEST 도 배너는 그대로 두고 빈 기간 안내를 잇는다', () => {
     const html = renderWith('best', [banner('b1', 'best')], {}, []);
 
-    expect(html).toContain('wc-collection-banners--contained');
-    expect(html).toContain('아직 준비 중이에요');
+    expect(html).toContain('배너 b1');
+    expect(html).toContain('이 기간에 집계된 굿즈가 없어요');
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { categoryDisplayQueryKey, categoryDisplayReviewSummaries, defaultCategoryDisplayValues, parseCategoryDisplayRequest, parseCategoryDisplayValues } from './category-display';
-import { SHOP_VIEW_SORTS } from './shop-catalog';
+import { categoryDisplayQueryKey, categoryDisplayReviewSummaries, defaultCategoryDisplayValues, listingCategoryDisplayQuery, parseCategoryDisplayRequest, parseCategoryDisplayValues } from './category-display';
+import { LISTING_SORTS } from './listing-sorts';
+import { SHOP_SORTS } from './shop-catalog';
 const categoryId = '92930000-0000-4000-8000-000000000001';
 
 describe('카테고리 전시 저장 계약', () => {
@@ -38,7 +39,7 @@ describe('공개 전시 조건', () => {
     expect(parseCategoryDisplayRequest({ displayCategory: [categoryId, categoryId] })).toBeNull();
     expect(parseCategoryDisplayRequest({ displayCategory: 'missing' })).toBeNull();
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, min: '200', max: '100' })).toBeNull();
-    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, sort: 'sales' })).toBeNull();
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, sort: 'best_selling' })).toBeNull();
   });
   it('같은 필터 집합을 정규화하되 알 수 없는 IP도 전체 목록으로 바꾸지 않는다', () => {
     const first = parseCategoryDisplayRequest({ displayCategory: categoryId, ip: ['unknown', 'ip1', 'ip1'], type: '키링', min: '100', sort: 'price_asc' })!;
@@ -49,11 +50,23 @@ describe('공개 전시 조건', () => {
 });
 
 describe('카테고리 전시 목록 문법 (LFS 패리티 2차 L5 — CL-10·CL-11·CL-02 잔여)', () => {
-  it('컬렉션과 같은 정렬 7종을 받고 그 밖의 값은 거절한다', () => {
-    for (const sort of SHOP_VIEW_SORTS.all) {
+  it('화면 정렬 7종(인기도·판매량·리뷰 많은순 포함)과 URL 호환용 이름순·오래된순을 받고 그 밖의 값은 거절한다', () => {
+    /* C1 migration(category_display_listing_sorts)이 DB 화이트리스트에 세 정렬을 더했다 — SHOP_SORTS 가 그것과 같다. */
+    for (const sort of [...LISTING_SORTS, 'name_asc', 'name_desc', 'oldest']) {
+      expect(SHOP_SORTS, sort).toContain(sort);
       expect(parseCategoryDisplayRequest({ displayCategory: categoryId, sort })?.query.sort, sort).toBe(sort);
     }
-    for (const sort of ['relevance', 'sales', 'best']) expect(parseCategoryDisplayRequest({ displayCategory: categoryId, sort }), sort).toBeNull();
+    for (const sort of ['relevance', 'best', 'best_selling']) expect(parseCategoryDisplayRequest({ displayCategory: categoryId, sort }), sort).toBeNull();
+  });
+  it('화면에 쓰는 질의는 필터를 버리고 화면에서 뺀 정렬을 기본값으로 돌리되 전시 id 는 그대로 둔다', () => {
+    const parsed = parseCategoryDisplayRequest({ displayCategory: categoryId, ip: 'ip1', type: '키링', min: '100', max: '900', sort: 'name_asc' })!;
+    expect(parsed.query.ips).toEqual(['ip1']);
+    expect(listingCategoryDisplayQuery(parsed.query)).toEqual({ displayCategory: categoryId, view: 'all', ips: [], types: [], priceMin: null, priceMax: null, sort: 'recommended' });
+    for (const sort of LISTING_SORTS) {
+      const kept = parseCategoryDisplayRequest({ displayCategory: categoryId, sort })!;
+      expect(listingCategoryDisplayQuery(kept.query).sort, sort).toBe(sort);
+    }
+    expect(listingCategoryDisplayQuery(parseCategoryDisplayRequest({ displayCategory: categoryId, sort: 'oldest' })!.query).sort).toBe('recommended');
   });
   it("타입 축에 '예약판매'를 받아 notFound 로 떨어지지 않고, 분류 밖 값은 여전히 거절한다", () => {
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '예약판매' })?.query.types).toEqual(['예약판매']);

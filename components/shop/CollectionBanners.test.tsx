@@ -1,9 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { CollectionBanner } from '@/lib/collection-banners';
-import { CollectionBanners } from './CollectionBanners';
+import { CollectionBanners, ListingBanner } from './CollectionBanners';
 
 function banner(id: string, overrides: Partial<CollectionBanner> = {}): CollectionBanner {
   return {
@@ -22,54 +20,66 @@ function banner(id: string, overrides: Partial<CollectionBanner> = {}): Collecti
   };
 }
 
-const css = readFileSync(join(process.cwd(), 'app/styles/wc-catalog.css'), 'utf8');
-
-describe('CollectionBanners', () => {
+describe('CollectionBanners — Figma 스트립 배너(콘텐츠 폭 1272×340, r12)', () => {
   it('배너가 없으면 아무것도 그리지 않는다 — 빈 띠를 남기지 않는다', () => {
     expect(renderToStaticMarkup(<CollectionBanners banners={[]} slot="all" />)).toBe('');
     expect(renderToStaticMarkup(<CollectionBanners banners={[banner('b', { slot: 'best' })]} slot="new" />)).toBe('');
   });
 
-  it('한 장이면 슬라이더 컨트롤 없이 링크 배너 하나를 그리고, 문구는 이미지 위 텍스트 레이어다', () => {
+  it('한 장이면 공용 StripBanner(page) 한 장 — 슬라이더 컨트롤 없이 링크 배너 하나를 그린다', () => {
     const html = renderToStaticMarkup(<CollectionBanners banners={[banner('one', {
       slot: 'best', href: '/shop/best', subtitle: '지금 많이 찾는 굿즈', mobileImageUrl: 'https://cdn.test/one-m.webp', imageAlt: '리락쿠마 키링',
     })]} slot="best" />);
 
-    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).toContain('class="wc-strip-banners" data-slot="best"');
     expect(html).toContain('aria-label="BEST 배너"');
+    expect(html).toContain('class="wc-strip-banner" data-mobile="true" data-size="page"');
     expect(html).not.toContain('aria-roledescription="carousel"');
-    expect(html).not.toContain('wc-collection-banners__arrow');
-    expect(html).toMatch(/<a class="wc-collection-banner" data-text-color="black" href="\/shop\/best">/);
-    expect(html).toContain('<source media="(max-width: 749px)" srcSet="https://cdn.test/one-m.webp"/>');
-    expect(html).toMatch(/<img alt="리락쿠마 키링" decoding="async" fetchPriority="high" loading="eager" sizes="100vw" src="https:\/\/cdn.test\/one.webp"\/>/);
-    expect(html).toContain('<strong class="wc-collection-banner__title">배너 one</strong>');
-    expect(html).toContain('<span class="wc-collection-banner__subtitle">지금 많이 찾는 굿즈</span>');
+    expect(html).not.toContain('wc-strip-banner-slider');
+    expect(html).toMatch(/<a class="wc-strip-banner__link" href="\/shop\/best">/);
+    expect(html).toContain('media="(max-width: 749px)"');
+    expect(html).toContain('srcSet="https://cdn.test/one-m.webp"');
+    /* 모바일 규격(375×175)이 로딩 전에도 자리를 잡는다. */
+    expect(html).toContain('--wc-strip-mobile-ratio:375 / 175');
+    expect(html).toMatch(/<img alt="리락쿠마 키링" class="wc-strip-banner__img" src="https:\/\/cdn.test\/one.webp"\/>/);
   });
 
-  it('링크가 없으면 div 이고, 대체텍스트가 없으면 장식 이미지(alt="")다', () => {
-    const html = renderToStaticMarkup(<CollectionBanners banners={[banner('plain')]} slot="all" />);
+  it('문구는 이미지 위 장식 레이어(aria-hidden)이고, 링크 이름은 대체텍스트 — 없으면 제목이라 같은 문구를 두 번 읽지 않는다', () => {
+    const html = renderToStaticMarkup(<CollectionBanners banners={[banner('copy', { slot: 'new', href: '/shop/new', subtitle: '신상 모음', imageAlt: '' })]} slot="new" />);
 
-    expect(html).toMatch(/<div class="wc-collection-banner" data-text-color="black">/);
-    expect(html).toMatch(/<img alt="" /);
-    expect(html).not.toContain('wc-collection-banner__dim');
+    expect(html).toContain('<span aria-hidden="true" class="wc-listing-banner__copy">');
+    expect(html).toContain('<strong class="wc-listing-banner__title">배너 copy</strong>');
+    expect(html).toContain('<span class="wc-listing-banner__subtitle">신상 모음</span>');
+    expect(html).toContain('<img alt="배너 copy"');
+    /* 딤은 운영자가 고른 경우에만 그린다. */
+    expect(html).not.toContain('wc-listing-banner__dim');
+  });
+
+  it('링크가 없으면 링크 없이 그림만이고, 딤·글자색은 데이터 속성으로 남는다', () => {
+    const plain = renderToStaticMarkup(<CollectionBanners banners={[banner('plain', { slot: 'new' })]} slot="new" />);
+    expect(plain).not.toContain('wc-strip-banner__link');
+    expect(plain).toContain('data-text-color="black"');
+
+    const dimmed = renderToStaticMarkup(<CollectionBanners banners={[banner('dim', { slot: 'new', imageDim: 'black', textColor: 'white' })]} slot="new" />);
+    expect(dimmed).toContain('<span aria-hidden="true" class="wc-listing-banner__dim" data-tone="black"></span>');
+    expect(dimmed).toContain('data-text-color="white"');
   });
 
   it('여러 장이면 수동 캐러셀 — 루프 이전·다음 버튼과 위치 표시, 첫 장만 우선 로드하고 정지 버튼은 없다', () => {
     const html = renderToStaticMarkup(<CollectionBanners banners={[banner('a'), banner('b', { imageDim: 'black', textColor: 'white' }), banner('c')]} slot="all" />);
 
-    expect(html).toContain('wc-collection-banners--wide');
+    expect(html).toContain('class="wc-strip-banners" data-slot="all"');
     expect(html).toContain('aria-roledescription="carousel"');
     expect(html.match(/aria-roledescription="slide"/g)).toHaveLength(3);
     expect(html).toContain('aria-label="1 / 3"');
     expect(html).toContain('aria-label="이전 배너"');
     expect(html).toContain('aria-label="다음 배너"');
-    expect(html).toMatch(/<p aria-live="off" class="wc-collection-banners__fraction"><span>1<\/span> \/ <span>3<\/span><\/p>/);
+    expect(html).toMatch(/<p aria-live="off" class="wc-strip-banner-slider__fraction"><span>1<\/span> \/ <span>3<\/span><\/p>/);
     expect(html.match(/fetchPriority="high"/g)).toHaveLength(1);
     expect(html.match(/loading="lazy"/g)).toHaveLength(2);
-    expect(html).toContain('<span aria-hidden="true" class="wc-collection-banner__dim" data-tone="black"></span>');
-    expect(html).toContain('data-text-color="white"');
-    /* 레퍼런스는 자동 넘김이 꺼져 있다 — 움직이지 않으니 정지 버튼을 두지 않는다. */
-    expect(html).not.toMatch(/일시정지|자동 넘김/);
+    expect(html).toContain('<span aria-hidden="true" class="wc-listing-banner__dim" data-tone="black"></span>');
+    /* 레퍼런스는 자동 넘김이 꺼져 있다 — 움직이지 않으니 정지 버튼을 두지 않는다. 진행 막대도 없다. */
+    expect(html).not.toMatch(/일시정지|자동 넘김|progress/);
   });
 
   it('BEST·NEW는 여러 장을 받아도 운영 순서 첫 장 하나만 — 슬라이더·이전·다음·위치 표시가 없다(l8b-data-1·l8b-ui-1)', () => {
@@ -79,7 +89,7 @@ describe('CollectionBanners', () => {
     expect(html).not.toContain('배너 b2');
     expect(html).not.toContain('aria-roledescription="carousel"');
     expect(html).not.toContain('aria-label="다음 배너"');
-    expect(html).not.toContain('wc-collection-banners__fraction');
+    expect(html).not.toContain('wc-strip-banner-slider__fraction');
   });
 
   it('목적지 게이트는 서버 로더가 이미 걸었다 — 받은 배너를 첫 HTML 에 그대로 그린다(컨텍스트 초기값으로 다시 걷지 않는다, l8b-ui-2)', () => {
@@ -92,34 +102,21 @@ describe('CollectionBanners', () => {
   it('이미지 주소가 빈 초안(어드민 미리보기)은 그림 없이 같은 크기의 면만 그린다', () => {
     const html = renderToStaticMarkup(<CollectionBanners banners={[banner('draft', { slot: 'new', imageUrl: '', title: '' })]} slot="new" />);
 
-    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).toContain('wc-listing-banner__blank');
     expect(html).not.toContain('<img');
     expect(html).not.toContain('<picture');
   });
+});
 
-  it('CSS: 레퍼런스 수치(전폭 72:29·모바일 375:302, 칸 59:13·15:7, 44×45 버튼, 모바일 위치 알약)와 대비 보정을 둔다', () => {
-    expect(css).toMatch(/\.wc-collection-banner \{[^}]*aspect-ratio: 375 \/ 302;/);
-    expect(css).toMatch(/\.wc-collection-banners--contained \.wc-collection-banner \{\s*aspect-ratio: 15 \/ 7;/);
-    expect(css).toMatch(/\.wc-collection-banners--wide \.wc-collection-banner \{\s*aspect-ratio: 72 \/ 29;/);
-    expect(css).toMatch(/\.wc-collection-banners--contained \.wc-collection-banner \{\s*aspect-ratio: 59 \/ 13;/);
-    expect(css).toMatch(/\.wc-collection-banners__arrow \{[^}]*width: 44px;[^}]*height: 45px;[^}]*background: rgba\(0, 0, 0, \.45\);/);
-    expect(css).toMatch(/\.wc-collection-banners__fraction \{[^}]*background: rgba\(0, 0, 0, \.6\);/);
-    expect(css).toMatch(/\.wc-collection--banner \{\s*padding-top: 0;/);
-  });
+describe('ListingBanner — 카테고리 전시 배너도 같은 한 장 틀이다', () => {
+  it('전시 구성 배너(HomeHeroSlide 모양)를 같은 마크업으로 그리고 대체텍스트가 있으면 그것이 이름이다', () => {
+    const html = renderToStaticMarkup(<ListingBanner banner={{
+      id: 'category-1', title: '겨울 여행', subtitle: '신규 일러스트 MD', imageUrl: 'https://cdn.test/c.webp', mobileImageUrl: null, href: '/ip/hong-sil-quest', imageAlt: '눈 내린 풍경', imageDim: 'none', textColor: 'white',
+    }} />);
 
-  it('CSS: 칸 배너는 문구를 흐름 안에 두어 허용 한도의 긴 문구가 잘리지 않고 배너를 늘린다(l8b-ui-3)', () => {
-    const contained = css.match(/\.wc-collection-banners--contained \.wc-collection-banner \{[^}]*aspect-ratio: 15 \/ 7;[^}]*\}/)?.[0] ?? '';
-    expect(contained).toMatch(/box-sizing: border-box;/);
-    expect(contained).toMatch(/display: flex;/);
-    expect(contained).toMatch(/align-items: center;/);
-    /* 비율 상자가 내용 높이로 늘어나려면 스크롤 컨테이너가 아니어야 한다(overflow hidden 금지). */
-    expect(contained).toMatch(/overflow: visible;/);
-    const copy = css.match(/\.wc-collection-banners--contained \.wc-collection-banner__copy \{[^}]*\}/)?.[0] ?? '';
-    expect(copy).toMatch(/position: relative;/);
-    expect(copy).not.toMatch(/top: 50%|translateY/);
-    /* 데스크톱 공용 규칙의 bottom 89 가 흐름 안 문구를 끌어올리지 않게 칸 배너에서 되돌린다. */
-    expect(css).toMatch(/@media \(min-width: 750px\)[\s\S]*\.wc-collection-banners--contained \.wc-collection-banner__copy \{\s*bottom: auto;/);
-    /* 칸 배너는 한 장이라 슬라이더 전용 칸 규칙이 없다. */
-    expect(css).not.toMatch(/\.wc-collection-banners--contained \.wc-collection-banners__(controls|fraction)/);
+    expect(html).toContain('class="wc-listing-banner" data-text-color="white"');
+    expect(html).toContain('<img alt="눈 내린 풍경"');
+    expect(html).toContain('href="/ip/hong-sil-quest"');
+    expect(html).toContain('겨울 여행');
   });
 });

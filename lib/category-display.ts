@@ -3,6 +3,7 @@ import { isSafeInternalLink } from './home-catalog';
 import { normalizeHeroNewlines, type HomeHeroImageDim, type HomeHeroTextColor } from './home-hero';
 import { GOOD_TYPES, isGoodType } from './goods-taxonomy';
 import { SHOP_DEFAULT_SORT, SHOP_PREORDER_TYPE, SHOP_SORTS, type ShopListQuery } from './shop-catalog';
+import { isListingSort } from './listing-sorts';
 import type { GoodsReviewSummary } from './goods-review-summary';
 import type { Good } from './data';
 import type { HomeHeroSlide } from './home-catalog';
@@ -153,6 +154,15 @@ export function parseCategoryDisplayRequest(params: Record<string, string | stri
     || Number.isNaN(min) || Number.isNaN(max) || min !== null && max !== null && min > max
     || params.sort !== undefined && (typeof params.sort !== 'string' || !SHOP_SORTS.includes(params.sort as ShopListQuery['sort']))) return null;
   return { categoryId: params.displayCategory, query: { displayCategory: params.displayCategory, view: 'all', ips, types, priceMin: min, priceMax: max, sort: (params.sort as ShopListQuery['sort'] | undefined) ?? SHOP_DEFAULT_SORT.all } };
+}
+
+/**
+ * 카테고리 전시 화면이 실제로 쓰는 질의. 이 화면에는 필터 UI 가 없다(스펙 C D2) — URL 의 IP·타입·가격 필터는 버려 지울 방법 없는 필터가
+ * 걸린 채 열리지 않게 하고, 화면에서 뺀 정렬(이름순 2종·오래된순)은 기본값으로 떨어뜨린다. 파싱·검증(`parseCategoryDisplayRequest`)은 그대로 두어
+ * 잘못된 전시 id·필터 값은 여전히 404 로 처리한다 — 전시 범위가 조용히 전체 카탈로그가 되지 않는다.
+ */
+export function listingCategoryDisplayQuery(query: ShopListQuery): ShopListQuery {
+  return { ...query, ips: [], types: [], priceMin: null, priceMax: null, sort: isListingSort(query.sort) ? query.sort : SHOP_DEFAULT_SORT.all };
 }
 
 /** 다음 20개 응답의 카드 별점. 요청한 묶음의 굿즈 몫만 받고 형식이 틀린 값은 버린다 — 별점은 장식이라
