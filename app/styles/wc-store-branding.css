@@ -18,6 +18,31 @@
   max-height: 40px;
   object-fit: contain;
 }
+/* X SQUARE 기본 로고(ADR-0043) — 업로드 로고가 없을 때만 쓰는 투명 PNG(800×127)다. 표시 높이는 모바일 18, 데스크톱 24(축약 20)이고
+   폭은 비율을 따른다(≈151). 업로드 로고용 max-width·max-height 상한은 이 로고에 걸지 않는다. */
+.wc-store-brand-logo--default img {
+  width: auto;
+  max-width: none;
+  height: 18px;
+  max-height: none;
+}
+
+@media (min-width: 990px) {
+  .wc-store-brand-logo--default img {
+    height: 24px;
+    transition: height var(--wc-duration-medium) ease;
+  }
+
+  .wc-header[data-condensed='true'] .wc-store-brand-logo--default img {
+    height: 20px;
+  }
+}
+
+/* 컬러형 헤더에서 헤더 글자가 흰색이면(어두운 테마색) 검은 로고를 반전해 읽히게 한다. 기본 로고만 — 업로드 로고는 그대로다. */
+.wc-header[data-store-header='color'][data-logo-ink='light'] .wc-store-brand-logo--default img {
+  filter: invert(1);
+}
+
 .wc-store-brand-details {
   display: grid;
   gap: 12px;

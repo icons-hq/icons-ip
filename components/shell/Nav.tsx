@@ -9,6 +9,7 @@ import {
   CATEGORY_MEGA_GROUPS,
   CATEGORY_SHEET_SHORTCUTS,
   MEMBER_UTIL_ITEMS,
+  UTIL_HELP_ITEM,
   UTIL_ITEMS,
   activeNavId,
   campaignDetailHref,
@@ -33,7 +34,6 @@ import {
   type StorefrontMenuIp,
 } from '@/lib/storefront-mega-menu';
 import { createClient } from '@/lib/supabase/client';
-import { Icon } from '@/components/ui/Icon';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
@@ -41,13 +41,14 @@ import { useCart } from './CartProvider';
 import { CategorySheet } from './CategorySheet';
 import { ListingReturnRecorder } from './ListingReturn';
 import { nextHeaderCondensed, nextTabBarScroll, tabBarScrollAt } from './chrome-scroll';
+import { CartGlyph, MyGlyph, SearchGlyph } from './HeaderIcons';
 import { loginEntryHref } from './login-entry';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { OverlayPortal } from './OverlayPortal';
-import { SearchOverlay } from './SearchOverlay';
+import { SEARCH_PANEL_ID, SearchOverlay } from './SearchOverlay';
 import { ShellNotices } from './ShellNotices';
-import { StoreBrandLogo } from './StoreBranding';
+import { StoreBrandLogo, storefrontLogoName } from './StoreBranding';
 import { DEFAULT_STOREFRONT_BRANDING, type StorefrontBranding } from '@/lib/store-branding';
 import { useStorePresentation } from './StorePresentationProvider';
 import { storeThemeForeground } from '@/lib/store-presentation';
@@ -184,120 +185,129 @@ function WcChrome({
           GNB 항목과 같은 규칙으로 숨긴다(ShellNotices). */}
       <ShellNotices cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} />
 
+      {/* 유틸 메뉴(데스크톱만, Figma 48): 회원은 위시리스트·주문조회·알림함·로그아웃, 비회원은 로그인 / 회원가입. 고객센터는 맨 오른쪽에
+          고정이라 로그인 상태가 확정되며 앞쪽 항목이 늘어도 자리가 움직이지 않는다. 공지사항은 게시판이 없어 그리지 않는다(스펙 §6). */}
       <nav ref={utilbarRef} aria-label="유틸리티 메뉴" className="wc-utilbar">
-        <div className="wc-container wc-utilbar__inner">
+        <div className="wc-container wc-container--wide wc-utilbar__inner">
           <UtilMemberLinks />
-          {UTIL_ITEMS.map((item) => (item.id === 'notifications'
-            ? <UtilNotificationsLink key={item.id} label={item.label} />
-            : (
-              <Link key={item.id} className="wc-utilbar__link" href={hrefFor(item.id)}>
-                {item.label}
-              </Link>
-            )))}
           <UtilAuthAction />
+          <Link className="wc-utilbar__link" href={hrefFor(UTIL_HELP_ITEM.id)}>{UTIL_HELP_ITEM.label}</Link>
         </div>
       </nav>
 
-      <header className="wc-header" data-condensed={condensed ? 'true' : 'false'} data-store-header={common.headerStyle} style={{ '--store-theme': common.themeColor, '--store-theme-ink': storeThemeForeground(common.themeColor) } as CSSProperties}>
+      {/* 데스크톱은 1단 헤더다(Figma 108): 로고 + GNB가 왼쪽 묶음, 검색·장바구니·마이가 오른쪽이다. 모바일은 로고 행 + 탭 행(.wc-gnb-wrap)
+          2단 그대로이고 데스크톱 GNB(.wc-gnb)는 CSS가 감춘다. 검색 패널이 열려도 이 행은 눌린다(MD-0034 — useOverlayA11y keepInteractive). */}
+      <header
+        className="wc-header"
+        data-condensed={condensed ? 'true' : 'false'}
+        data-logo-ink={storeThemeForeground(common.themeColor) === '#ffffff' ? 'light' : 'dark'}
+        data-store-header={common.headerStyle}
+        style={{ '--store-theme': common.themeColor, '--store-theme-ink': storeThemeForeground(common.themeColor) } as CSSProperties}
+      >
         <div className="wc-header__bar">
-          <div className="wc-container wc-header__bar-inner">
-            <Link aria-label={`${branding.displayName} 홈`} className="wc-logo" href="/"><StoreBrandLogo branding={branding} /></Link>
+          <div className="wc-container wc-container--wide wc-header__bar-inner">
+            <div className="wc-header__lead">
+              <Link aria-label={`${storefrontLogoName(branding)} 홈`} className="wc-logo" href="/" onClick={closeOverlay}><StoreBrandLogo branding={branding} /></Link>
+              <nav aria-label="주요 메뉴" className="wc-gnb">
+                <ul className="wc-gnb__list">
+                  {navItems.map((item) => {
+                    if (item.id === 'shop') {
+                      return (
+                        <MegaMenuItem
+                          key={item.id}
+                          active={activeId === 'shop'}
+                          href={hrefFor('shop')}
+                          label={item.label}
+                          panelId="wc-mega-category"
+                          pathname={pathname}
+                        >
+                          {(close) => {
+                            const renderCategoryMega = (location: MegaMenuLocation) => (categoryLive
+                              ? (
+                                <CategoryMegaCatalog
+                                  campaigns={megaMenus.campaigns.slice(0, MEGA_MENU_CAMPAIGN_LIMIT)}
+                                  groups={categoryMenuGroups(megaMenus.categories)}
+                                  location={location}
+                                  onNavigate={close}
+                                  pathname={pathname}
+                                  shortcuts={shortcutGroup}
+                                />
+                              )
+                              : <CategoryMegaFallback groups={megaGroups} onNavigate={close} pathname={location.routePathname} />);
+                            /* 전시분류 페이지(/shop?displayCategory=)의 현재 위치는 쿼리로만 가려진다(리뷰 l5-ui-2). useSearchParams 는 정적
+                               페이지에서 가장 가까운 Suspense 경계까지 클라이언트 렌더로 떨어지므로 메가 내용만 경계로 감싼다 — 서버 HTML 의
+                               폴백은 쿼리를 모르는 같은 메가(/shop 에서는 바로가기 표시 없음)다. */
+                            return (
+                              <Suspense fallback={renderCategoryMega(megaMenuLocation(pathname, null))}>
+                                <MegaLocation pathname={pathname} render={renderCategoryMega} />
+                              </Suspense>
+                            );
+                          }}
+                        </MegaMenuItem>
+                      );
+                    }
+                    /* CH-07 — 온라인 팝업 메가메뉴는 디렉토리 피처드 IP가 있을 때만 연다. 없으면 지금처럼 디렉토리 링크다. */
+                    if (item.id === 'iphub' && megaMenus.featuredIps.length > 0) {
+                      return (
+                        <MegaMenuItem
+                          key={item.id}
+                          active={activeId === 'iphub'}
+                          href={hrefFor('iphub')}
+                          label={item.label}
+                          panelId="wc-mega-online-popup"
+                          pathname={pathname}
+                        >
+                          {(close) => <OnlinePopupMega ips={megaMenus.featuredIps} label={item.label} onNavigate={close} pathname={pathname} />}
+                        </MegaMenuItem>
+                      );
+                    }
+                    return (
+                      <li key={item.id} className="wc-gnb__item">
+                        <Link
+                          aria-current={activeId === item.id ? 'page' : undefined}
+                          className={`wc-gnb__link${activeId === item.id ? ' is-active' : ''}`}
+                          href={hrefFor(item.id)}
+                          onClick={closeOverlay}
+                          title={item.label}
+                        >
+                          <span className="wc-gnb__label">{item.label}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
+            </div>
 
             <div className="wc-header__icons">
+              {/* 검색 아이콘은 열기/닫기 토글이다 — 열린 패널을 이 버튼으로도 닫는다(MD-0034). */}
               <button
+                aria-controls={SEARCH_PANEL_ID}
                 aria-expanded={searchOpen}
                 aria-haspopup="dialog"
                 aria-label="검색"
                 className="wc-icon-btn"
-                onClick={() => setOverlay({ kind: 'search', pathname })}
+                onClick={() => (searchOpen ? closeOverlay() : setOverlay({ kind: 'search', pathname }))}
                 type="button"
               >
-                <Icon name="search" size={24} />
+                <SearchGlyph />
               </button>
               <Link
                 aria-current={isActive('cart', pathname) ? 'page' : undefined}
                 aria-label={count > 0 ? `장바구니, ${count}개` : '장바구니'}
                 className="wc-icon-btn wc-icon-btn--cart"
                 href={hrefFor('cart')}
+                onClick={closeOverlay}
               >
-                <Icon name="bag" size={24} />
+                <CartGlyph />
                 {count > 0 && <span aria-hidden className="wc-cartcount">{count}</span>}
               </Link>
-              <AccountIconLink pathname={pathname} />
+              <AccountIconLink onNavigate={closeOverlay} pathname={pathname} />
             </div>
           </div>
         </div>
 
         <div className="wc-gnb-wrap">
-          <nav aria-label="주요 메뉴" className="wc-gnb">
-            <ul className="wc-gnb__list">
-              {navItems.map((item) => {
-                if (item.id === 'shop') {
-                  return (
-                    <MegaMenuItem
-                      key={item.id}
-                      active={activeId === 'shop'}
-                      href={hrefFor('shop')}
-                      label={item.label}
-                      panelId="wc-mega-category"
-                      pathname={pathname}
-                    >
-                      {(close) => {
-                        const renderCategoryMega = (location: MegaMenuLocation) => (categoryLive
-                          ? (
-                            <CategoryMegaCatalog
-                              campaigns={megaMenus.campaigns.slice(0, MEGA_MENU_CAMPAIGN_LIMIT)}
-                              groups={categoryMenuGroups(megaMenus.categories)}
-                              location={location}
-                              onNavigate={close}
-                              pathname={pathname}
-                              shortcuts={shortcutGroup}
-                            />
-                          )
-                          : <CategoryMegaFallback groups={megaGroups} onNavigate={close} pathname={location.routePathname} />);
-                        /* 전시분류 페이지(/shop?displayCategory=)의 현재 위치는 쿼리로만 가려진다(리뷰 l5-ui-2). useSearchParams 는 정적
-                           페이지에서 가장 가까운 Suspense 경계까지 클라이언트 렌더로 떨어지므로 메가 내용만 경계로 감싼다 — 서버 HTML 의
-                           폴백은 쿼리를 모르는 같은 메가(/shop 에서는 바로가기 표시 없음)다. */
-                        return (
-                          <Suspense fallback={renderCategoryMega(megaMenuLocation(pathname, null))}>
-                            <MegaLocation pathname={pathname} render={renderCategoryMega} />
-                          </Suspense>
-                        );
-                      }}
-                    </MegaMenuItem>
-                  );
-                }
-                /* CH-07 — 온라인 팝업 메가메뉴는 디렉토리 피처드 IP가 있을 때만 연다. 없으면 지금처럼 디렉토리 링크다. */
-                if (item.id === 'iphub' && megaMenus.featuredIps.length > 0) {
-                  return (
-                    <MegaMenuItem
-                      key={item.id}
-                      active={activeId === 'iphub'}
-                      href={hrefFor('iphub')}
-                      label={item.label}
-                      panelId="wc-mega-online-popup"
-                      pathname={pathname}
-                    >
-                      {(close) => <OnlinePopupMega ips={megaMenus.featuredIps} label={item.label} onNavigate={close} pathname={pathname} />}
-                    </MegaMenuItem>
-                  );
-                }
-                return (
-                  <li key={item.id} className="wc-gnb__item">
-                    <Link
-                      aria-current={activeId === item.id ? 'page' : undefined}
-                      className={`wc-gnb__link${activeId === item.id ? ' is-active' : ''}`}
-                      href={hrefFor(item.id)}
-                      title={item.label}
-                    >
-                      <span className="wc-gnb__label">{item.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-
           <nav aria-label="주요 메뉴 탭" className="wc-mob-gnb">
             <div className="wc-mob-gnb__wrap">
               <ul className="wc-mob-gnb__list">
@@ -694,16 +704,27 @@ function UtilNotificationsCount({ label }: { label: string }) {
   );
 }
 
-/* 회원 전용 유틸 링크(위시리스트). 유틸바는 오른쪽 정렬이라 맨 앞(왼쪽)에 두면 presence가 확정되며 나타나도
-   주문조회·알림함·로그아웃 자리는 움직이지 않는다. 미확정·비회원에게는 그리지 않는다. */
+/* 회원 전용 유틸 링크(위시리스트·주문조회·알림함). 유틸바는 오른쪽 정렬이라 맨 앞(왼쪽)에 두면 presence가 확정되며 나타나도
+   로그아웃·고객센터 자리는 움직이지 않는다. 미확정·비회원에게는 그리지 않는다 — 주문과 알림은 로그인 뒤의 화면이다. */
 function UtilMemberLinks() {
   const presence = useAuthPresence();
   if (presence !== 'signed-in') return null;
-  return MEMBER_UTIL_ITEMS.map((item) => (
-    <Link key={item.id} className="wc-utilbar__link" href={hrefFor(item.id)}>
-      {item.label}
-    </Link>
-  ));
+  return (
+    <>
+      {MEMBER_UTIL_ITEMS.map((item) => (
+        <Link key={item.id} className="wc-utilbar__link" href={hrefFor(item.id)}>
+          {item.label}
+        </Link>
+      ))}
+      {UTIL_ITEMS.map((item) => (item.id === 'notifications'
+        ? <UtilNotificationsLink key={item.id} label={item.label} />
+        : (
+          <Link key={item.id} className="wc-utilbar__link" href={hrefFor(item.id)}>
+            {item.label}
+          </Link>
+        )))}
+    </>
+  );
 }
 
 /* presence 확정 전에는 자리만 잡는다. 로그인/로그아웃이 번갈아 깜빡이면 유틸바 폭이 흔들린다. */
@@ -726,13 +747,13 @@ function UtilAuthAction() {
 
   return (
     <button className="wc-utilbar__action" onClick={() => router.push(loginHref())} type="button">
-      로그인
+      로그인 / 회원가입
     </button>
   );
 }
 
-/* 계정 아이콘 — 모바일에서는 CSS가 숨기고 하단 탭바의 '마이'가 그 역할을 맡는다. */
-function AccountIconLink({ pathname }: { pathname: string }) {
+/* 계정 아이콘 — 모바일에서는 CSS가 숨기고 하단 탭바의 '마이'가 그 역할을 맡는다. 검색 패널이 열려 있으면 이동과 함께 닫는다(MD-0034). */
+function AccountIconLink({ onNavigate, pathname }: { onNavigate: () => void; pathname: string }) {
   const router = useRouter();
   const presence = useAuthPresence();
 
@@ -747,8 +768,9 @@ function AccountIconLink({ pathname }: { pathname: string }) {
         aria-label="마이페이지"
         className="wc-icon-btn wc-icon-btn--account"
         href={hrefFor('my')}
+        onClick={onNavigate}
       >
-        <Icon name="user" size={24} />
+        <MyGlyph />
       </Link>
     );
   }
@@ -757,10 +779,13 @@ function AccountIconLink({ pathname }: { pathname: string }) {
     <button
       aria-label="로그인"
       className="wc-icon-btn wc-icon-btn--account"
-      onClick={() => router.push(loginHref())}
+      onClick={() => {
+        onNavigate();
+        router.push(loginHref());
+      }}
       type="button"
     >
-      <Icon name="user" size={24} />
+      <MyGlyph />
     </button>
   );
 }

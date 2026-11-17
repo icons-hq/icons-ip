@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applicableShellNotices,
-  firstVisibleNoticeBar,
   forgetShellNoticeNow,
   initialShellNoticeNow,
   nextShellNoticeEnd,
@@ -9,10 +8,13 @@ import {
   noticeStripIndex,
   parseShellNoticePageTypes,
   readDismissedNoticeKeys,
+  readShellNoticeBarSeed,
   readShellNoticeNow,
   readShellNoticeSeed,
   rememberDismissedNotice,
+  rememberDismissedNotices,
   shellNoticeImpressionVisible,
+  SHELL_NOTICE_BAR_SEED_GLOBAL,
   SHELL_NOTICE_DISMISSED_KEY,
   SHELL_NOTICE_NOW_GLOBAL,
   SHELL_NOTICE_ROOT_ID,
@@ -21,6 +23,7 @@ import {
   shellNoticeLive,
   shellNoticePageType,
   shellNoticeTimerDelay,
+  visibleNoticeBar,
   visibleNoticeStripIndex,
   type ShellNoticeBar,
   type ShellNotices,
@@ -120,11 +123,45 @@ describe('같은 탭 닫힘과 스트립 선택', () => {
     expect(shellNoticeImpressionVisible({ isIntersecting: false, intersectionRatio: 0.8 })).toBe(false);
   });
 
-  it('닫지 않은 첫 공지 바 하나만 보이고, 스트립은 시드로 후보 하나를 고른다', () => {
+  /* 롤링 띠배너(카톡 11/12 "상단에 띠배너는 랜덤으로"): 같은 화면 후보가 여럿이면 하드 로드 시드로 하나를 고른다. 서버 렌더(시드 0)는 운영 순서의 첫 공지다. */
+  it('공지 바는 시드로 시작 후보를 고르고, 거기서 돌아가며 닫지 않은 첫 공지 하나만 보인다', () => {
     const bars = [bar('b1'), bar('b2'), bar('b3')];
-    expect(firstVisibleNoticeBar(bars, [])?.id).toBe('b1');
-    expect(firstVisibleNoticeBar(bars, ['b1:k'])?.id).toBe('b2');
-    expect(firstVisibleNoticeBar(bars, ['b1:k', 'b2:k', 'b3:k'])).toBeNull();
+    expect(visibleNoticeBar(bars, [])?.id).toBe('b1');
+    expect(visibleNoticeBar(bars, ['b1:k'])?.id).toBe('b2');
+    expect(visibleNoticeBar(bars, ['b1:k', 'b2:k', 'b3:k'])).toBeNull();
+    /* 시드 0 / 0.5 / 0.99 → 앞·가운데·끝 후보. */
+    expect([0, 0.5, 0.99].map((seed) => visibleNoticeBar(bars, [], null, seed)?.id)).toEqual(['b1', 'b2', 'b3']);
+    /* 시작 후보가 닫혔으면 돌아가며 다음 후보, 끝을 넘으면 처음으로 돈다. */
+    expect(visibleNoticeBar(bars, ['b2:k'], null, 0.5)?.id).toBe('b3');
+    expect(visibleNoticeBar(bars, ['b3:k'], null, 0.99)?.id).toBe('b1');
+    expect(visibleNoticeBar(bars, ['b2:k', 'b3:k'], null, 0.5)?.id).toBe('b1');
+    /* 후보가 없거나 이상한 시드(범위 밖·NaN)는 첫 공지다. */
+    expect(visibleNoticeBar([], [], null, 0.5)).toBeNull();
+    for (const seed of [-1, 1, Number.NaN]) expect(visibleNoticeBar(bars, [], null, seed)?.id, String(seed)).toBe('b1');
+  });
+
+  it('공지 바 시드는 스트립 시드와 독립이고, 없거나 이상하면 0이다', () => {
+    expect(SHELL_NOTICE_BAR_SEED_GLOBAL).not.toBe(SHELL_NOTICE_SEED_GLOBAL);
+    expect(readShellNoticeBarSeed(null)).toBe(0);
+    expect(readShellNoticeBarSeed({ [SHELL_NOTICE_BAR_SEED_GLOBAL]: 0.42, [SHELL_NOTICE_SEED_GLOBAL]: 0.9 })).toBe(0.42);
+    expect(readShellNoticeSeed({ [SHELL_NOTICE_BAR_SEED_GLOBAL]: 0.42 })).toBe(0);
+    for (const value of [1, -0.1, '0.3', undefined]) expect(readShellNoticeBarSeed({ [SHELL_NOTICE_BAR_SEED_GLOBAL]: value })).toBe(0);
+  });
+
+  /* 무작위로 하나만 보이는데 닫았더니 다른 문구가 튀어나오면 닫기가 무의미하다 — 화면에 적용되는 모든 후보를 한 번에 닫는다. */
+  it('여러 공지 바를 한 번에 닫고 저장소가 막혀도 이 화면 상태에 남긴다', () => {
+    const storage = memoryStorage({ [SHELL_NOTICE_DISMISSED_KEY]: '["stored"]' });
+    expect(rememberDismissedNotices(storage, ['b1:k', 'b2:k', 'b1:k'], ['earlier'])).toEqual(['stored', 'earlier', 'b1:k', 'b2:k']);
+    expect(JSON.parse(storage.data.get(SHELL_NOTICE_DISMISSED_KEY) ?? '')).toEqual(['stored', 'earlier', 'b1:k', 'b2:k']);
+    const bars = [bar('b1'), bar('b2'), bar('b3')];
+    const dismissed = rememberDismissedNotices(storage, bars.map((item) => item.key));
+    for (const seed of [0, 0.5, 0.99]) expect(visibleNoticeBar(bars, dismissed, null, seed), String(seed)).toBeNull();
+    const blocked = { getItem: () => null, setItem: () => { throw new Error('quota'); } };
+    expect(rememberDismissedNotices(blocked, ['x:k', 'y:k'])).toEqual(['x:k', 'y:k']);
+    expect(rememberDismissedNotices(null, ['z:k'], ['x:k'])).toEqual(['x:k', 'z:k']);
+  });
+
+  it('스트립은 시드로 후보 하나를 고른다', () => {
     expect(noticeStripIndex(0, 3)).toBe(0);
     expect(noticeStripIndex(0.5, 3)).toBe(1);
     expect(noticeStripIndex(0.9999, 3)).toBe(2);
@@ -154,11 +191,14 @@ describe('노출 종료(열린 화면)', () => {
 
   it('끝난 공지 바는 건너뛰어 다음 공지 바를 보이고, 닫힘과 함께 판정한다', () => {
     const bars = [bar('b1', { endsAt: T }), bar('b2', { endsAt: T + 60_000 }), bar('b3')];
-    expect(firstVisibleNoticeBar(bars, [], T - 1)?.id).toBe('b1');
-    expect(firstVisibleNoticeBar(bars, [], T)?.id).toBe('b2');
-    expect(firstVisibleNoticeBar(bars, ['b2:k'], T)?.id).toBe('b3');
-    expect(firstVisibleNoticeBar(bars, [], T + 60_000)?.id).toBe('b3');
-    expect(firstVisibleNoticeBar(bars, [], null)?.id).toBe('b1');
+    expect(visibleNoticeBar(bars, [], T - 1)?.id).toBe('b1');
+    expect(visibleNoticeBar(bars, [], T)?.id).toBe('b2');
+    expect(visibleNoticeBar(bars, ['b2:k'], T)?.id).toBe('b3');
+    expect(visibleNoticeBar(bars, [], T + 60_000)?.id).toBe('b3');
+    expect(visibleNoticeBar(bars, [], null)?.id).toBe('b1');
+    /* 무작위로 고른 시작 후보가 끝났어도 다른 후보로 넘긴다 — 시드 0.5(b2)가 끝나면 b3, 모두 끝나면 숨긴다. */
+    expect(visibleNoticeBar(bars, [], T + 60_000, 0.5)?.id).toBe('b3');
+    expect(visibleNoticeBar([bar('x', { endsAt: T }), bar('y', { endsAt: T })], [], T, 0.9)).toBeNull();
   });
 
   it('보이던 스트립은 다른 후보가 끝나도 그대로고, 그 스트립이 끝나면 다음 후보로 넘기며, 모두 끝나면 숨긴다', () => {
@@ -201,7 +241,7 @@ describe('노출 종료(열린 화면)', () => {
   });
 });
 
-/* 인라인 스크립트는 하이드레이션 전에 DOM을 고친다 — 컴포넌트의 계산(firstVisibleNoticeBar·noticeStripIndex)과
+/* 인라인 스크립트는 하이드레이션 전에 DOM을 고친다 — 컴포넌트의 계산(visibleNoticeBar·noticeStripIndex)과
    한 칸이라도 다르면 React가 서버 HTML과 다른 결과를 보게 된다. 최소 DOM 대역으로 같은 입력의 결과를 대조한다. */
 describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
   class FakeElement {
@@ -218,8 +258,8 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
   /* ends: 컴포넌트가 그리는 data-notice-ends(종료 시각이 있을 때만). */
   const endsAttribute = (endsAt: number | null | undefined): Record<string, string> => (typeof endsAt === 'number' ? { 'data-notice-ends': String(endsAt) } : {});
 
-  function run({ bars, strips, dismissed, seed, rootPresent = true, barEnds = [], stripEnds = [] }: {
-    bars: string[]; strips: string[]; dismissed?: string; seed?: unknown; rootPresent?: boolean;
+  function run({ bars, strips, dismissed, seed, barSeed, rootPresent = true, barEnds = [], stripEnds = [] }: {
+    bars: string[]; strips: string[]; dismissed?: string; seed?: unknown; barSeed?: unknown; rootPresent?: boolean;
     barEnds?: (number | null)[]; stripEnds?: (number | null)[];
   }) {
     const barElements = bars.map((key, index) => new FakeElement({ 'data-notice-bar': key, ...endsAttribute(barEnds[index]), ...(index > 0 ? { hidden: '' } : {}) }));
@@ -228,22 +268,29 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
       querySelectorAll: (selector: string) => (selector === '[data-notice-bar]' ? barElements : selector === '[data-notice-strip]' ? stripElements : []),
     };
     const storage = memoryStorage(dismissed === undefined ? {} : { [SHELL_NOTICE_DISMISSED_KEY]: dismissed });
-    const scope: Record<string, unknown> = { sessionStorage: storage, ...(seed === undefined ? {} : { [SHELL_NOTICE_SEED_GLOBAL]: seed }) };
+    const scope: Record<string, unknown> = {
+      sessionStorage: storage,
+      ...(seed === undefined ? {} : { [SHELL_NOTICE_SEED_GLOBAL]: seed }),
+      ...(barSeed === undefined ? {} : { [SHELL_NOTICE_BAR_SEED_GLOBAL]: barSeed }),
+    };
     const document = { getElementById: (id: string) => (rootPresent && id === SHELL_NOTICE_ROOT_ID ? root : null) };
     new Function('window', 'document', SHELL_NOTICE_SCRIPT)(scope, document);
     return { barElements, stripElements, scope, storage };
   }
 
   it.each([
-    { name: '닫힘 없음', dismissed: undefined, seed: 0.1 },
-    { name: '첫 공지 닫힘', dismissed: '["b1:k"]', seed: 0.5 },
-    { name: '모두 닫힘', dismissed: '["b1:k","b2:k","b3:k"]', seed: 0.99 },
-    { name: '깨진 기록', dismissed: 'not-json', seed: 0.7 },
-  ])('$name: 공지 바·스트립의 hidden이 컴포넌트 계산과 같다', ({ dismissed, seed }) => {
+    { name: '닫힘 없음', dismissed: undefined, seed: 0.1, barSeed: 0.1 },
+    { name: '첫 공지 닫힘', dismissed: '["b1:k"]', seed: 0.5, barSeed: 0 },
+    { name: '모두 닫힘', dismissed: '["b1:k","b2:k","b3:k"]', seed: 0.99, barSeed: 0.5 },
+    { name: '깨진 기록', dismissed: 'not-json', seed: 0.7, barSeed: 0.7 },
+    { name: '가운데 공지 시작', dismissed: undefined, seed: 0.2, barSeed: 0.5 },
+    { name: '시작 공지가 닫혀 다음으로 돎', dismissed: '["b2:k"]', seed: 0.2, barSeed: 0.5 },
+    { name: '끝 공지가 닫혀 처음으로 돎', dismissed: '["b3:k"]', seed: 0.2, barSeed: 0.99 },
+  ])('$name: 공지 바·스트립의 hidden이 컴포넌트 계산과 같다', ({ dismissed, seed, barSeed }) => {
     const bars = [bar('b1'), bar('b2'), bar('b3')];
     const strips = ['s1', 's2', 's3'];
-    const result = run({ bars: bars.map((item) => item.key), strips, dismissed, seed });
-    const visible = firstVisibleNoticeBar(bars, readDismissedNoticeKeys(result.storage));
+    const result = run({ bars: bars.map((item) => item.key), strips, dismissed, seed, barSeed });
+    const visible = visibleNoticeBar(bars, readDismissedNoticeKeys(result.storage), null, readShellNoticeBarSeed(result.scope));
     expect(result.barElements.map((element) => !element.hidden)).toEqual(bars.map((item) => item === visible));
     const index = noticeStripIndex(readShellNoticeSeed(result.scope), strips.length);
     expect(result.stripElements.map((element) => !element.hidden)).toEqual(strips.map((_, i) => i === index));
@@ -256,7 +303,9 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
     { name: '끝나지 않음', barEnds: [60_000, null, null], stripEnds: [60_000, 60_000, null], seed: 0.1, dismissed: undefined },
     { name: '끝남과 닫힘이 겹침', barEnds: [0, null, 0], stripEnds: [0, 0, 0], seed: 0.99, dismissed: '["b2:k"]' },
     { name: '마지막 후보가 끝나 처음으로 돎', barEnds: [null, null, null], stripEnds: [null, null, -5], seed: 0.9, dismissed: undefined },
-  ])('$name: 종료 시각이 지난 공지의 hidden도 컴포넌트 계산과 같다', ({ barEnds, stripEnds, seed, dismissed }) => {
+    { name: '무작위로 고른 공지 바가 끝나 다음으로 넘어감', barEnds: [null, 0, null], stripEnds: [null, null, null], seed: 0.1, barSeed: 0.5, dismissed: undefined },
+    { name: '무작위로 고른 끝 공지 바가 끝나 처음으로 돎', barEnds: [null, null, -5], stripEnds: [null, null, null], seed: 0.1, barSeed: 0.99, dismissed: undefined },
+  ])('$name: 종료 시각이 지난 공지의 hidden도 컴포넌트 계산과 같다', ({ barEnds, stripEnds, seed, barSeed, dismissed }) => {
     const T = Date.UTC(2026, 9, 23, 9, 0, 0);
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(T);
@@ -264,12 +313,12 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
     const bars = [bar('b1', { endsAt: at(barEnds[0]) }), bar('b2', { endsAt: at(barEnds[1]) }), bar('b3', { endsAt: at(barEnds[2]) })];
     const strips = [strip('s1', { endsAt: at(stripEnds[0]) }), strip('s2', { endsAt: at(stripEnds[1]) }), strip('s3', { endsAt: at(stripEnds[2]) })];
     const result = run({
-      bars: bars.map((item) => item.key), strips: strips.map((item) => item.id), dismissed, seed,
+      bars: bars.map((item) => item.key), strips: strips.map((item) => item.id), dismissed, seed, barSeed,
       barEnds: bars.map((item) => item.endsAt), stripEnds: strips.map((item) => item.endsAt),
     });
     const now = initialShellNoticeNow(result.scope);
     expect(now).toBe(T);
-    const visible = firstVisibleNoticeBar(bars, readDismissedNoticeKeys(result.storage), now);
+    const visible = visibleNoticeBar(bars, readDismissedNoticeKeys(result.storage), now, readShellNoticeBarSeed(result.scope));
     expect(result.barElements.map((element) => !element.hidden)).toEqual(bars.map((item) => item === visible));
     const index = visibleNoticeStripIndex(strips, readShellNoticeSeed(result.scope), now);
     expect(result.stripElements.map((element) => !element.hidden)).toEqual(strips.map((_, i) => i === index));
@@ -283,6 +332,14 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
     expect(seed as number).toBeLessThan(1);
     expect(readShellNoticeSeed(first.scope)).toBe(seed);
     expect(run({ bars: [], strips: ['a', 'b'], seed: 0.75 }).scope[SHELL_NOTICE_SEED_GLOBAL]).toBe(0.75);
+    /* 공지 바 시드도 따로 뽑아 남긴다 — 스트립 시드를 고정해도 바 시드는 독립이다. */
+    const barSeed = first.scope[SHELL_NOTICE_BAR_SEED_GLOBAL];
+    expect(typeof barSeed).toBe('number');
+    expect(barSeed as number).toBeGreaterThanOrEqual(0);
+    expect(barSeed as number).toBeLessThan(1);
+    expect(readShellNoticeBarSeed(first.scope)).toBe(barSeed);
+    expect(run({ bars: [], strips: [], seed: 0.75, barSeed: 0.25 }).scope[SHELL_NOTICE_BAR_SEED_GLOBAL]).toBe(0.25);
+    expect(run({ bars: [], strips: [], seed: 0.75 }).scope[SHELL_NOTICE_SEED_GLOBAL]).toBe(0.75);
     /* 판정 시각도 공지 묶음이 없는 화면에서 남긴다 — 하이드레이션이 같은 시각으로 판정한다. */
     expect(typeof first.scope[SHELL_NOTICE_NOW_GLOBAL]).toBe('number');
   });

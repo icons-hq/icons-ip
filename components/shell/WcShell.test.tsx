@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
-import type { StorefrontNavigation } from '@/lib/store-navigation';
+import { DEFAULT_STOREFRONT_NAVIGATION, type StorefrontNavigation } from '@/lib/store-navigation';
 import type { StorefrontMegaMenus } from '@/lib/storefront-mega-menu';
 import { BottomTabBar } from './BottomTabBar';
 import { Nav } from './Nav';
@@ -40,6 +40,9 @@ function megaMarkup(html: string, panelId = 'wc-mega-category') {
   expect(start).toBeGreaterThan(-1);
   return html.slice(start, html.indexOf('</div>', start));
 }
+
+/* 새 기본 메뉴(X SQUARE)는 온라인 팝업(IP관 디렉토리)·카드팩·커뮤니티·쇼핑스토리를 숨긴다 — 운영자가 다시 켠 모양은 명시로 만든다. */
+const WITH_ONLINE_POPUP: StorefrontNavigation = [...DEFAULT_STOREFRONT_NAVIGATION, { id: 'iphub', label: '온라인 팝업' }];
 
 const nodeId = (n: number) => `94932000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 /* 공개 전시 트리가 있는 셸(L5) — 고객 카테고리 공개 스위치 ON + 공개 전시 3개, 진행 중 기획전 1개, 피처드 IP 3개. */
@@ -189,11 +192,10 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('aria-label="마이페이지"');
     expect(html).toContain('href="/shop/new"');
     expect(html).toContain('href="/shop/best"');
-    expect(html).toContain('href="/ip"');
-    expect(html).toContain('href="/packs"');
+    expect(html).toContain('href="/popups"');
     expect(html).toContain('href="/events"');
-    /* 커뮤니티는 임시 비공개 스위치 대상이라 노출 기대를 분기한다. */
-    expect(html.includes('href="/community"')).toBe(COMMUNITY_ENABLED);
+    /* 새 기본 GNB는 NEW·BEST·카테고리·POP-UP·EVENT뿐이다 — 쇼핑스토리(MD-0035)·온라인 팝업·카드팩·커뮤니티는 기본 숨김. */
+    for (const hidden of ['/stories', '/ip', '/packs', '/community']) expect(html, hidden).not.toContain(`href="${hidden}"`);
     expect(html).toContain('id="wc-mega-category"');
     expect(html).toContain('href="/binder"');
     expect(html).toContain('href="/market"');
@@ -214,10 +216,28 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('aria-label="장바구니"');
   });
 
+  /* 운영자가 카드팩을 다시 켜도 기능 게이트가 우선이다 — 게이트가 닫히면 GNB와 메가메뉴 양쪽에서 지운다. */
   it('카드 리워드 게이트가 닫히면 GNB와 메가메뉴 양쪽에서 카드팩을 지운다', () => {
+    const withPacks: StorefrontNavigation = [...DEFAULT_STOREFRONT_NAVIGATION, { id: 'packs', label: '카드팩' }];
+    expect(renderToStaticMarkup(<Nav navigation={withPacks} />)).toContain('href="/packs"');
+
     mocks.cardRewardsEnabled = false;
 
-    expect(renderToStaticMarkup(<Nav />)).not.toContain('href="/packs"');
+    expect(renderToStaticMarkup(<Nav navigation={withPacks} />)).not.toContain('href="/packs"');
+  });
+
+  /* X SQUARE GNB(ADR-0043): 오프라인 팝업 예매 도메인은 POP-UP 아래에 있어 그 경로에서 POP-UP이 켜지고, 이벤트 허브는 EVENT가 켜진다. */
+  it('POP-UP은 /popups·/offline-popups, EVENT는 /events 아래에서 현재 위치다', () => {
+    const current = (pathname: string) => {
+      mocks.pathname = pathname;
+      return [...renderToStaticMarkup(<Nav />).matchAll(/aria-current="page" class="wc-gnb__link is-active" title="([^"]+)"/g)].map((match) => match[1]);
+    };
+
+    expect(current('/popups')).toEqual(['POP-UP']);
+    expect(current('/offline-popups')).toEqual(['POP-UP']);
+    expect(current('/offline-popups/seongsu')).toEqual(['POP-UP']);
+    expect(current('/events/fall-drop')).toEqual(['EVENT']);
+    expect(current('/shop/new')).toEqual(['NEW']);
   });
 
   /* '/shop/new'에서 상위 경로인 카테고리(/shop)까지 현재로 표시되면 위치 감각이 무너진다.
@@ -322,9 +342,9 @@ describe('White Catalog 전역 셸', () => {
 
     expect(html).toContain('data-condensed="false"');
     /* 텍스트 공지 바 → 이미지 스트립 → 유틸바 → 헤더. 스킵 링크는 여전히 셸의 첫 포커스 대상이다. */
-    expect(html.indexOf('class="wc-skip-link"')).toBeLessThan(html.indexOf('class="wc-notice-bar"'));
-    expect(html.indexOf('class="wc-notice-bar"')).toBeGreaterThan(-1);
-    expect(html.indexOf('class="wc-notice-bar"')).toBeLessThan(html.indexOf('class="wc-notice"'));
+    expect(html.indexOf('class="wc-skip-link"')).toBeLessThan(html.indexOf('class="wc-notice-bar wc-x-rolling"'));
+    expect(html.indexOf('class="wc-notice-bar wc-x-rolling"')).toBeGreaterThan(-1);
+    expect(html.indexOf('class="wc-notice-bar wc-x-rolling"')).toBeLessThan(html.indexOf('class="wc-notice"'));
     expect(html.indexOf('class="wc-notice"')).toBeGreaterThan(-1);
     expect(html.indexOf('class="wc-notice"')).toBeLessThan(html.indexOf('class="wc-utilbar"'));
     expect(html.indexOf('class="wc-utilbar"')).toBeLessThan(html.indexOf('<header'));
@@ -377,7 +397,9 @@ describe('White Catalog 전역 셸', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
     expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="true"');
+    /* MD-0034: 비모달 패널이다 — 헤더 행이 눌린 채 열려 있다. 검색 버튼이 id 로 가리킨다. */
+    expect(html).toContain('aria-modal="false"');
+    expect(html).toContain('id="wc-search-panel"');
     expect(html).toContain('aria-label="검색"');
     expect(html).toContain('role="search"');
     expect(html).toContain('action="/search"');
@@ -479,6 +501,87 @@ describe('White Catalog 전역 셸', () => {
   });
 });
 
+/* X SQUARE 1단 헤더·유틸 메뉴·로고(ADR-0043, 2026-11-17). */
+describe('X SQUARE 헤더', () => {
+  const headerOf = (html: string) => html.slice(html.indexOf('<header'), html.indexOf('</header>'));
+
+  /* 데스크톱은 1단이다 — 로고와 GNB가 같은 왼쪽 묶음, 아이콘이 오른쪽. 모바일 GNB 탭 행은 헤더 행 아래 .wc-gnb-wrap 에 남는다. */
+  it('데스크톱 GNB는 헤더 행의 왼쪽 묶음 안(로고 뒤)에, 모바일 탭 행은 그 아래에 있다', () => {
+    const header = headerOf(renderToStaticMarkup(<Nav />));
+
+    expect(header).toContain('class="wc-container wc-container--wide wc-header__bar-inner"');
+    const lead = header.slice(header.indexOf('class="wc-header__lead"'), header.indexOf('class="wc-header__icons"'));
+    expect(lead).toContain('class="wc-logo"');
+    expect(lead).toContain('aria-label="주요 메뉴"');
+    expect(lead.indexOf('class="wc-logo"')).toBeLessThan(lead.indexOf('aria-label="주요 메뉴"'));
+    expect(lead).not.toContain('주요 메뉴 탭');
+    expect(header.indexOf('class="wc-header__icons"')).toBeLessThan(header.indexOf('class="wc-gnb-wrap"'));
+    expect(header.slice(header.indexOf('class="wc-gnb-wrap"'))).toContain('aria-label="주요 메뉴 탭"');
+  });
+
+  /* 기본 로고만 X SQUARE 이미지다 — 업로드 로고가 있으면 그게 먼저고, 이름을 바꾼 스토어는 글자 그대로다. */
+  it('로고 링크는 기본 로고일 때 "X SQUARE 홈" 이름의 이미지이고 업로드 로고·바꾼 이름은 설정을 따른다', () => {
+    const base = { displayName: 'ICONS', logoUrl: null, mobileLogoUrl: null, introduction: null, socials: [] };
+    const html = headerOf(renderToStaticMarkup(<Nav branding={base} />));
+
+    expect(html).toContain('aria-label="X SQUARE 홈"');
+    expect(html).toContain('src="/brand/xsquare-logo.png"');
+    expect(html).toContain('alt="X SQUARE"');
+
+    const uploaded = headerOf(renderToStaticMarkup(<Nav branding={{ ...base, logoUrl: 'https://media.test/pc.png' }} />));
+    expect(uploaded).toContain('aria-label="ICONS 홈"');
+    expect(uploaded).toContain('src="https://media.test/pc.png"');
+    expect(uploaded).not.toContain('xsquare-logo');
+
+    const renamed = headerOf(renderToStaticMarkup(<Nav branding={{ ...base, displayName: '검증 스토어' }} />));
+    expect(renamed).toContain('aria-label="검증 스토어 홈"');
+    expect(renamed).not.toContain('xsquare-logo');
+  });
+
+  /* 컬러형 헤더에서 글자가 흰색이면 CSS 가 기본 로고를 반전한다 — 판정은 헤더 속성으로 내려간다. */
+  it('헤더가 테마 글자색(밝음/어두움)을 data-logo-ink 로 알린다', () => {
+    expect(headerOf(renderToStaticMarkup(<Nav />))).toContain('data-logo-ink="dark"');
+  });
+
+  it('검색·장바구니·마이 아이콘은 Figma 글리프이고 검색 버튼은 패널을 가리킨다', () => {
+    const header = headerOf(renderToStaticMarkup(<Nav />));
+    const icons = header.slice(header.indexOf('class="wc-header__icons"'), header.indexOf('class="wc-gnb-wrap"'));
+
+    expect(icons).toMatch(/<button[^>]*aria-controls="wc-search-panel"[^>]*aria-expanded="false"[^>]*aria-label="검색"/);
+    expect(icons.match(/<svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
+    expect(icons).toContain('viewBox="0 0 19.6886 20.7836"');
+    expect(icons).toContain('viewBox="0 0 22.2 24.1673"');
+    expect(icons).toContain('viewBox="0 0 22.2 23.0636"');
+    expect(icons).not.toContain('data-icon=');
+  });
+
+  const utilbarOf = (html: string) => html.slice(html.indexOf('class="wc-utilbar"'), html.indexOf('<header'));
+
+  it('유틸 메뉴: 회원은 위시리스트·주문조회·알림함·로그아웃, 비회원은 로그인 / 회원가입, 고객센터는 항상 맨 오른쪽이다', () => {
+    const member = utilbarOf(renderToStaticMarkup(<Nav />));
+    const order = ['위시리스트', '주문조회', '알림함', '로그아웃', '고객센터'].map((label) => member.indexOf(label));
+    expect(order.every((index) => index > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(member).toContain('<a class="wc-utilbar__link" href="/help">고객센터</a>');
+    expect(member).not.toContain('회원가입');
+
+    mocks.presence = 'signed-out';
+    const guest = utilbarOf(renderToStaticMarkup(<Nav />));
+    expect(guest).toContain('로그인 / 회원가입');
+    expect(guest.indexOf('로그인 / 회원가입')).toBeLessThan(guest.indexOf('고객센터'));
+    /* 주문·알림은 로그인 뒤의 화면이다 — 비회원에게는 그리지 않는다. */
+    for (const hidden of ['주문조회', '알림함', '위시리스트', '로그아웃']) expect(guest, hidden).not.toContain(hidden);
+    /* 게시판이 없는 공지사항은 그리지 않는다. */
+    expect(member).not.toContain('공지사항');
+    expect(guest).not.toContain('공지사항');
+
+    mocks.presence = 'unknown';
+    const pending = utilbarOf(renderToStaticMarkup(<Nav />));
+    expect(pending).toContain('wc-utilbar__placeholder');
+    expect(pending).toContain('href="/help"');
+  });
+});
+
 /* LFS 패리티 2차 L5 — 카테고리·온라인 팝업 메가메뉴(CH-05·CH-07)와 모바일 카테고리 탭 진입(MC-05). */
 describe('카테고리 내비게이션 (L5)', () => {
   it('공개 전시 트리가 있으면 메가메뉴가 굿즈샵 바로가기 · 기획전 | 세로선 | 전시분류 그룹이 된다', () => {
@@ -572,7 +675,7 @@ describe('카테고리 내비게이션 (L5)', () => {
 
   it('온라인 팝업 메가메뉴는 피처드 IP 목록 + 전체보기 + 상위 2개 이미지 타일이고, 피처드가 없으면 링크로 남는다', () => {
     mocks.pathname = '/ip/maple';
-    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} navigation={WITH_ONLINE_POPUP} />);
     const trigger = html.match(/<a[^>]*aria-controls="wc-mega-online-popup"[^>]*>/)?.[0] ?? '';
     expect(trigger).toContain('href="/ip"');
     expect(trigger).toContain('aria-current="page"');
@@ -588,13 +691,13 @@ describe('카테고리 내비게이션 (L5)', () => {
     expect(mega).toContain('<span aria-hidden="true" class="wc-mega__tile-image wc-mega__tile-image--text">H</span>');
     expect(mega).not.toContain('Third IP</span>');
 
-    const noFeatured = renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, featuredIps: [] }} />);
+    const noFeatured = renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, featuredIps: [] }} navigation={WITH_ONLINE_POPUP} />);
     expect(noFeatured).not.toContain('wc-mega-online-popup');
     expect(noFeatured).toMatch(/<li class="wc-gnb__item"><a aria-current="page" class="wc-gnb__link is-active" title="온라인 팝업" href="\/ip">/);
   });
 
   it('메가메뉴는 SSR 에서 닫힌 채 목차를 DOM 에 두고 트리거가 aria-expanded·aria-controls 로 패널을 가리킨다', () => {
-    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} navigation={WITH_ONLINE_POPUP} />);
     for (const panelId of ['wc-mega-category', 'wc-mega-online-popup']) {
       expect(html).toContain(`class="wc-mega" data-open="false" id="${panelId}"`);
       expect(html).toMatch(new RegExp(`<a[^>]*aria-controls="${panelId}"[^>]*aria-expanded="false"`));

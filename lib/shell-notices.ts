@@ -5,7 +5,8 @@ import { isGoodDetailPath } from './routes';
 /*
  * 전역 셸 공지(텍스트 공지 바 · 이미지 스트립)의 공용 계약.
  * 로더(lib/notice-strip.server.ts)는 쿠키 없는 캐시 읽기로 유효한 공지 전체를 내려보내고(#325 — 법적 문서 SSG 유지),
- * 대상 화면 판정·같은 탭 닫힘·스트립 무작위 선택·노출 종료는 클라이언트(components/shell/ShellNotices.tsx)가 이 모듈로 한다.
+ * 대상 화면 판정·같은 탭 닫힘·공지 바와 스트립의 무작위 선택·노출 종료는 클라이언트(components/shell/ShellNotices.tsx)가 이 모듈로 한다.
+ * 텍스트 공지 바는 Figma의 빨간 롤링 띠배너로 그리고(ADR-0043), 같은 화면 후보가 여럿이면 하드 로드마다 무작위 하나다.
  * 첫 페인트 전에 도는 인라인 스크립트(SHELL_NOTICE_SCRIPT)도 같은 규칙을 따른다 — 둘이 어긋나면 하이드레이션이 깨진다.
  * 셸 공지는 하드 로드 때 한 번 내려오고 앱 안 이동에는 다시 오지 않으므로, 종료 시각은 열린 화면에서 클라이언트가 지킨다.
  */
@@ -59,6 +60,8 @@ export const SHELL_NOTICE_ROOT_ID = 'wc-shell-notices';
 export const SHELL_NOTICE_DISMISSED_KEY = 'icons:notice-dismissed:v1';
 /** 인라인 스크립트가 하드 로드마다 한 번 뽑는 스트립 선택 시드(0 이상 1 미만). */
 export const SHELL_NOTICE_SEED_GLOBAL = '__iconsShellNoticeSeed';
+/** 텍스트 공지 바(롤링 띠배너)의 선택 시드 — 스트립 시드와 독립이라 두 공지가 서로의 선택에 묶이지 않는다. */
+export const SHELL_NOTICE_BAR_SEED_GLOBAL = '__iconsShellNoticeBarSeed';
 /** 인라인 스크립트가 종료 판정에 쓴 시각(epoch ms) — 하이드레이션도 같은 시각으로 판정해 스크립트의 결과와 맞춘다. */
 export const SHELL_NOTICE_NOW_GLOBAL = '__iconsShellNoticeNow';
 const DISMISSED_LIMIT = 50;
@@ -127,21 +130,29 @@ export function readDismissedNoticeKeys(storage: Pick<Storage, 'getItem'> | null
 /** 닫힘을 기록하고 새 목록을 돌려준다. 저장에 실패해도 이번 화면에서는 닫힌 상태를 유지한다. */
 /**
  * 닫힘을 더한다. 지금 화면의 닫힘 상태(previous)에 합치고 저장소는 보존용으로만 쓴다 — 저장소가 막혀(사생활 모드·용량 초과)
- * 읽기가 비어도 앞서 닫은 공지가 다시 나타나지 않는다.
+ * 읽기가 비어도 앞서 닫은 공지가 다시 나타나지 않는다. 여러 키는 한 번에 더한다(롤링 띠배너는 닫으면 그 화면의 모든 후보를 닫는다).
  */
-export function rememberDismissedNotice(
+export function rememberDismissedNotices(
   storage: Pick<Storage, 'getItem' | 'setItem'> | null,
-  key: string,
+  keys: readonly string[],
   previous: readonly string[] = [],
 ): string[] {
   const known = [...new Set([...readDismissedNoticeKeys(storage), ...previous])];
-  const next = [...known.filter((entry) => entry !== key), key].slice(-DISMISSED_LIMIT);
+  const next = [...known.filter((entry) => !keys.includes(entry)), ...new Set(keys)].slice(-DISMISSED_LIMIT);
   try {
     storage?.setItem(SHELL_NOTICE_DISMISSED_KEY, JSON.stringify(next));
   } catch {
     /* 사생활 모드 등 저장 불가 — 닫힘은 이 화면의 상태로만 남는다. */
   }
   return next;
+}
+
+export function rememberDismissedNotice(
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null,
+  key: string,
+  previous: readonly string[] = [],
+): string[] {
+  return rememberDismissedNotices(storage, [key], previous);
 }
 
 /**
@@ -164,20 +175,30 @@ export function shellNoticeImpressionVisible(entry: Pick<IntersectionObserverEnt
 /** 노출 문턱 — 공지가 화면에 이만큼 보이면 노출로 센다. */
 export const SHELL_NOTICE_IMPRESSION_RATIO = 0.5;
 
-/** 운영 순서에서 닫지 않았고 끝나지 않은 첫 공지 바. 하나만 보인다. */
-export function firstVisibleNoticeBar(
-  bars: readonly ShellNoticeBar[],
-  dismissed: readonly string[],
-  now: number | null = null,
-): ShellNoticeBar | null {
-  return bars.find((bar) => !dismissed.includes(bar.key) && shellNoticeLive(bar, now)) ?? null;
-}
-
-/** 시드 → 스트립 후보 인덱스. 후보가 없으면 -1. */
+/** 시드 → 스트립·공지 바 후보 인덱스. 후보가 없으면 -1. */
 export function noticeStripIndex(seed: number, count: number): number {
   if (count < 1) return -1;
   const safe = Number.isFinite(seed) && seed >= 0 && seed < 1 ? seed : 0;
   return Math.min(count - 1, Math.floor(safe * count));
+}
+
+/**
+ * 보일 텍스트 공지 바(롤링 띠배너) 하나 — 같은 화면 후보가 여럿이면 하드 로드마다 시드로 무작위(카톡 11/12 "상단에 띠배너는 랜덤으로").
+ * 시작 후보를 시드로 고르고, 거기서 돌아가며 닫지 않았고 끝나지 않은 첫 공지를 쓴다. 서버 렌더·시드 0은 운영 순서의 첫 공지다.
+ */
+export function visibleNoticeBar(
+  bars: readonly ShellNoticeBar[],
+  dismissed: readonly string[],
+  now: number | null = null,
+  seed = 0,
+): ShellNoticeBar | null {
+  const start = noticeStripIndex(seed, bars.length);
+  if (start < 0) return null;
+  for (let step = 0; step < bars.length; step += 1) {
+    const bar = bars[(start + step) % bars.length];
+    if (!dismissed.includes(bar.key) && shellNoticeLive(bar, now)) return bar;
+  }
+  return null;
 }
 
 /**
@@ -217,14 +238,16 @@ export function shellNoticeTimerDelay(endsAt: number, now: number): number {
  * 직전)에야 돌므로, 여기서 고른 후보를 그제야 받기 시작하면 첫 페인트에 늦는다. 그래서 후보는 모두 eager로 그린다(l8a-qa-1).
  * 데이터를 문자열에 끼워 넣지 않는 고정 문자열이라 운영 입력이 스크립트를 깨뜨릴 수 없다.
  */
-export const SHELL_NOTICE_SCRIPT = `(function(){try{var w=window,d=document,g=${JSON.stringify(SHELL_NOTICE_SEED_GLOBAL)},now=Date.now();`
+export const SHELL_NOTICE_SCRIPT = `(function(){try{var w=window,d=document,g=${JSON.stringify(SHELL_NOTICE_SEED_GLOBAL)},gb=${JSON.stringify(SHELL_NOTICE_BAR_SEED_GLOBAL)},now=Date.now();`
   + `if(typeof w[g]!=='number'||!(w[g]>=0&&w[g]<1))w[g]=Math.random();`
+  + `if(typeof w[gb]!=='number'||!(w[gb]>=0&&w[gb]<1))w[gb]=Math.random();`
   + `w[${JSON.stringify(SHELL_NOTICE_NOW_GLOBAL)}]=now;`
   + `var root=d.getElementById(${JSON.stringify(SHELL_NOTICE_ROOT_ID)});if(!root)return;`
   + `var closed=[];try{var raw=JSON.parse(w.sessionStorage.getItem(${JSON.stringify(SHELL_NOTICE_DISMISSED_KEY)})||'[]');if(raw instanceof Array)closed=raw}catch(e){}`
   + `var live=function(el){var end=el.getAttribute('data-notice-ends');return end===null||Number(end)>now};`
-  + `var bars=root.querySelectorAll('[data-notice-bar]'),shown=false,i;`
-  + `for(i=0;i<bars.length;i++){var k=bars[i].getAttribute('data-notice-bar');if(shown||closed.indexOf(k)>=0||!live(bars[i])){bars[i].setAttribute('hidden','')}else{bars[i].removeAttribute('hidden');shown=true}}`
+  + `var bars=root.querySelectorAll('[data-notice-bar]'),bn=bars.length,bpick=-1,i;`
+  + `if(bn){var bstart=Math.min(bn-1,Math.floor(w[gb]*bn));for(i=0;i<bn&&bpick<0;i++){var bj=(bstart+i)%bn;if(closed.indexOf(bars[bj].getAttribute('data-notice-bar'))<0&&live(bars[bj]))bpick=bj}`
+  + `for(i=0;i<bn;i++){if(i===bpick){bars[i].removeAttribute('hidden')}else{bars[i].setAttribute('hidden','')}}}`
   + `var strips=root.querySelectorAll('[data-notice-strip]'),n=strips.length,pick=-1;`
   + `if(n){var start=Math.min(n-1,Math.floor(w[g]*n));for(i=0;i<n&&pick<0;i++){if(live(strips[(start+i)%n]))pick=(start+i)%n}`
   + `for(i=0;i<n;i++){if(i===pick){strips[i].removeAttribute('hidden')}else{strips[i].setAttribute('hidden','')}}}`
@@ -233,6 +256,12 @@ export const SHELL_NOTICE_SCRIPT = `(function(){try{var w=window,d=document,g=${
 /** 클라이언트가 읽는 시드 — 스크립트가 없거나(SSR·차단) 값이 이상하면 0(서버가 그린 첫 스트립). */
 export function readShellNoticeSeed(scope: Record<string, unknown> | null): number {
   const value = scope?.[SHELL_NOTICE_SEED_GLOBAL];
+  return typeof value === 'number' && value >= 0 && value < 1 ? value : 0;
+}
+
+/** 클라이언트가 읽는 텍스트 공지 바 시드 — 스크립트가 없거나 값이 이상하면 0(서버가 그린 운영 순서의 첫 공지 바). */
+export function readShellNoticeBarSeed(scope: Record<string, unknown> | null): number {
+  const value = scope?.[SHELL_NOTICE_BAR_SEED_GLOBAL];
   return typeof value === 'number' && value >= 0 && value < 1 ? value : 0;
 }
 

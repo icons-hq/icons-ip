@@ -48,7 +48,7 @@ it('공개 메뉴 이력은 순서·이름·노출 변경을 구분한다',()=>{
   const before=DEFAULT_STORE_NAVIGATION;
   const after=[...before].reverse().map(item=>item.id==='new'?{...item,label:'신상품',visible:false}:item);
   const rows=storeSettingsHistoryRows({id:'audit',actorName:'관리자',action:'saved',target:'store_settings:navigation',createdAt:'now',diff:{before,after}});
-  expect(rows).toContainEqual({key:'new.order',label:'NEW · 순서',before:'1',after:'8'});
+  expect(rows).toContainEqual({key:'new.order',label:'NEW · 순서',before:'1',after:'9'});
   expect(rows).toContainEqual({key:'new.label',label:'NEW · 메뉴명',before:'NEW',after:'신상품'});
   expect(rows).toContainEqual({key:'new.visible',label:'NEW · 노출',before:'사용',after:'비활성'});
 });

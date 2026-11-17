@@ -7,10 +7,19 @@ import { Icon } from '@/components/ui/Icon';
 import { resolveSuggestedSearchTerms, searchPlaceholder, suggestedSearchHref } from '@/lib/search-terms';
 import { useOverlayA11y } from './useOverlayA11y';
 
-/* 헤더 검색 패널(11 §6 B5). 로고 행 바로 아래에서 GNB 행을 덮고, 그 아래 본문은 10% 딤 + 5px 흐림이다.
-   위치는 sticky 헤더 상자 기준이라 공지·유틸바·축약 여부와 무관하게 실제 로고 행 아래에 붙는다(wc-chrome.css).
-   ESC 닫기·포커스 트랩·배경 inert·스크롤 잠금은 useOverlayA11y가 맡는다 — 레퍼런스의 ESC 미지원은 옮기지 않는다.
+/* 헤더 검색 패널(11 §6 B5). 헤더 행(로고·GNB·아이콘) 바로 아래에 붙고, 그 아래 본문은 10% 딤 + 5px 흐림이다.
+   위치는 sticky 헤더 상자 기준이라 공지·유틸바·축약 여부와 무관하게 실제 헤더 행 아래에 붙는다(wc-chrome.css --wc-header-row-h).
+   MD-0034: 비모달 패널이다 — 헤더 행은 inert에서 빠져 있어(keepInteractive) 열린 채로도 장바구니·마이페이지·로고가 눌리고,
+   검색 아이콘은 닫기 토글이며(Nav), 본문·푸터·탭바는 딤 + inert로 남는다. 포커스는 가두지 않는다(trapFocus:false) — 입력칸에서
+   Shift+Tab으로 헤더 버튼으로 돌아갈 수 있다.
+   ESC 닫기·배경 inert·스크롤 잠금·닫을 때 포커스 복귀는 useOverlayA11y가 맡는다 — 레퍼런스의 ESC 미지원은 옮기지 않는다.
    form의 action="/search"를 남겨 JS 없이도 검색이 성립하게 두고, JS가 살아 있으면 라우터로 가로챈다. */
+/** 검색 버튼의 aria-controls 대상. */
+export const SEARCH_PANEL_ID = 'wc-search-panel';
+
+/** 검색 패널이 inert에서 빼는 셸 행 — 헤더 행(데스크톱은 로고·GNB·아이콘, 모바일은 로고·아이콘). */
+export const SEARCH_KEEP_INTERACTIVE = '.wc-header__bar';
+
 export function SearchOverlay({ open, onClose, terms = null }: {
   open: boolean;
   onClose: () => void;
@@ -21,7 +30,7 @@ export function SearchOverlay({ open, onClose, terms = null }: {
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useOverlayA11y({ open, onClose, panelRef, initialFocusRef: inputRef });
+  useOverlayA11y({ open, onClose, panelRef, initialFocusRef: inputRef, keepInteractive: SEARCH_KEEP_INTERACTIVE, trapFocus: false });
 
   if (!open) return null;
   const chips = resolveSuggestedSearchTerms(terms);
@@ -38,7 +47,7 @@ export function SearchOverlay({ open, onClose, terms = null }: {
   return (
     <>
       <div aria-hidden className="wc-search-backdrop" onClick={onClose} />
-      <div ref={panelRef} aria-label="검색" aria-modal="true" className="wc-search" role="dialog">
+      <div ref={panelRef} aria-label="검색" aria-modal="false" className="wc-search" id={SEARCH_PANEL_ID} role="dialog">
         {/* 모바일은 [뒤로][입력][검색] 한 줄이다. 데스크톱은 1180×60 회색 칸 하나로 보이고(돋보기는 칸 안 왼쪽 장식),
             뒤로·검색 버튼은 화면에서 감춘다 — 닫기는 백드롭·ESC, 제출은 Enter. 두 버튼은 접근 이름과 키보드 순서에
             남아 있고 포커스가 오면 칸 안 오른쪽에 드러난다(wc-chrome.css .wc-search__aux). */}

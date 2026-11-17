@@ -7,19 +7,20 @@ import { Icon } from '@/components/ui/Icon';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import {
   applicableShellNotices,
-  firstVisibleNoticeBar,
   forgetShellNoticeNow,
   initialShellNoticeNow,
   nextShellNoticeEnd,
   noticeStripDimensions,
   readDismissedNoticeKeys,
+  readShellNoticeBarSeed,
   readShellNoticeSeed,
-  rememberDismissedNotice,
+  rememberDismissedNotices,
   SHELL_NOTICE_IMPRESSION_RATIO,
   shellNoticeImpressionVisible,
   SHELL_NOTICE_ROOT_ID,
   SHELL_NOTICE_SCRIPT,
   shellNoticeTimerDelay,
+  visibleNoticeBar,
   visibleNoticeStripIndex,
   type ShellNotices as ShellNoticeData,
 } from '@/lib/shell-notices';
@@ -39,9 +40,25 @@ function browserScope(): Record<string, unknown> | null {
   return typeof window === 'undefined' ? null : window as unknown as Record<string, unknown>;
 }
 
+/* 롤링 띠배너의 사본 수. 트랙은 -50%만큼 흘러 처음으로 돌아가므로 절반(4개)이 가장 넓은 화면을 채워야 끊김이 없다 — 사본마다
+   최소 폭(wc-chrome.css .wc-x-rolling__copy)이 짧은 문구에서도 그 폭을 보장한다. */
+const ROLLING_COPY_COUNT = 8;
+
+function RollingTrack({ message, cta }: { message: string; cta: { label: string } | null }) {
+  return (
+    <span aria-hidden className="wc-x-rolling__track">
+      {Array.from({ length: ROLLING_COPY_COUNT }, (_, index) => (
+        <span key={index} className="wc-x-rolling__copy">{message}{cta ? ` ${cta.label} ›` : ''}</span>
+      ))}
+    </span>
+  );
+}
+
 /*
  * 전역 셸 공지 — 이미지 스트립 위에 텍스트 공지 바를 쌓는다(11 §3 Δ1). 둘 다 유틸바 위라 축약 기준(B1)에
  * 실제 공지 높이가 그대로 더해지고(Nav의 noticeOffsetAbove), 스크롤과 함께 빠져나가 sticky 크롬 높이·해시 착지선은 바뀌지 않는다.
+ * 텍스트 공지 바는 Figma의 빨간 롤링 띠배너다(ADR-0043) — 문구가 오른쪽에서 왼쪽으로 흐르고, 같은 화면 후보가 여럿이면
+ * 하드 로드마다 무작위 하나만 보인다(이미지 스트립과 같은 방식, 시드는 따로). 닫으면 이 화면의 모든 후보가 같은 탭 동안 닫힌다.
  *
  * 서버 렌더는 결정적이다: 이 화면 유형에 맞는 공지를 모두 그리되 첫 공지 바·첫 스트립만 보이고 나머지는 hidden.
  * 바로 뒤 인라인 스크립트가 첫 페인트 전에 같은 탭의 닫힘 기록·하드 로드 시드·지금 시각(끝난 공지 숨김)으로 hidden을 고치고,
@@ -61,9 +78,10 @@ export function ShellNotices({
   const rootRef = useRef<HTMLDivElement>(null);
   const [dismissed, setDismissed] = useState<readonly string[]>(() => readDismissedNoticeKeys(browserSessionStorage()));
   const [seed] = useState(() => readShellNoticeSeed(browserScope()));
+  const [barSeed] = useState(() => readShellNoticeBarSeed(browserScope()));
   const [now, setNow] = useState(() => initialShellNoticeNow(browserScope()));
   const { bars, strips } = applicableShellNotices(notices, pathname, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
-  const visibleBar = firstVisibleNoticeBar(bars, dismissed, now);
+  const visibleBar = visibleNoticeBar(bars, dismissed, now, barSeed);
   const visibleBarKey = visibleBar?.key ?? null;
   const stripIndex = visibleNoticeStripIndex(strips, seed, now);
   const visibleStripId = strips[stripIndex]?.id ?? null;
@@ -114,9 +132,11 @@ export function ShellNotices({
   /* 측정 밖 화면의 클릭은 lib/store-analytics-client가 버린다. */
   const recordClick = (id: string) => recordShellNoticeEvent(id, 'click');
 
-  /* 닫은 버튼이 사라지면 포커스가 문서 처음으로 튄다 — 다음 공지의 조작부, 없으면 로고로 옮긴다. */
-  const dismiss = (key: string) => {
-    flushSync(() => setDismissed((current) => rememberDismissedNotice(browserSessionStorage(), key, current)));
+  /* 닫기는 이 화면에 적용되는 공지 바 후보 전부를 닫는다 — 무작위로 하나만 보이는데 닫았더니 다른 문구가 튀어나오면 닫기가 무의미하다.
+     문구·버튼·대상을 바꾸면 키가 달라져 다시 보인다(기존 규칙). 닫은 버튼이 사라지면 포커스가 문서 처음으로 튄다 —
+     다음 공지의 조작부, 없으면 로고로 옮긴다. */
+  const dismiss = () => {
+    flushSync(() => setDismissed((current) => rememberDismissedNotices(browserSessionStorage(), bars.map((bar) => bar.key), current)));
     const next = rootRef.current?.querySelector<HTMLElement>(
       '[data-notice-bar]:not([hidden]) .wc-notice-bar__close, [data-notice-strip]:not([hidden])',
     ) ?? document.querySelector<HTMLElement>('.wc-chrome .wc-logo');
@@ -131,22 +151,27 @@ export function ShellNotices({
             <aside
               key={bar.key}
               aria-label="스토어 공지"
-              className="wc-notice-bar"
+              className="wc-notice-bar wc-x-rolling"
               data-notice-bar={bar.key}
               data-notice-ends={bar.endsAt ?? undefined}
               data-notice-id={bar.id}
               hidden={bar !== visibleBar}
               suppressHydrationWarning
             >
-              <p className="wc-notice-bar__body">
-                <span className="wc-notice-bar__message">{bar.message}</span>
+              <p className="wc-x-rolling__body">
                 {bar.cta ? (
-                  <Link className="wc-notice-bar__cta" href={bar.cta.href} onClick={() => recordClick(bar.id)}>
-                    {bar.cta.label}
+                  <Link className="wc-x-rolling__link" href={bar.cta.href} onClick={() => recordClick(bar.id)}>
+                    <span className="wc-sr-only">{bar.message} {bar.cta.label}</span>
+                    <RollingTrack cta={bar.cta} message={bar.message} />
                   </Link>
-                ) : null}
+                ) : (
+                  <span className="wc-x-rolling__static">
+                    <span className="wc-sr-only">{bar.message}</span>
+                    <RollingTrack cta={null} message={bar.message} />
+                  </span>
+                )}
               </p>
-              <button aria-label="공지 닫기" className="wc-notice-bar__close" onClick={() => dismiss(bar.key)} type="button">
+              <button aria-label="공지 닫기" className="wc-notice-bar__close" onClick={dismiss} type="button">
                 <Icon name="close" size={16} />
               </button>
             </aside>

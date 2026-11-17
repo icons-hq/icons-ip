@@ -45,3 +45,23 @@ export function trapFocusTarget<T>(
   if (backward) return !inside || onPanel || active === first ? last : null;
   return !inside || active === last ? first : null;
 }
+
+/** 배경 후보 중 쓰는 면만 — 테스트는 가짜 요소로 돌린다. */
+export interface BackgroundCandidate {
+  contains(other: unknown): boolean;
+  matches(selectors: string): boolean;
+}
+
+/**
+ * 오버레이가 inert 로 덮을 배경 요소. 패널이 안에 들어 있는 후보는 건너뛴다(자기 자신까지 얼리는 사고 방지).
+ * keepInteractive 선택자에 걸리는 후보도 건너뛴다 — 비모달 패널(헤더 검색, MD-0034)이 헤더 행을 눌리는 채로 두는 길이다.
+ * 없는(null) 후보는 거른다.
+ */
+export function backgroundToInert<T extends BackgroundCandidate>(
+  candidates: ReadonlyArray<T | null>,
+  panel: unknown,
+  keepInteractive?: string,
+): T[] {
+  return candidates.filter((element): element is T => element !== null && !element.contains(panel)
+    && !(keepInteractive && element.matches(keepInteractive)));
+}

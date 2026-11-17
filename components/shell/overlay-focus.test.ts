@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FOCUSABLE_SELECTOR, isTabbable, tabbableIn, trapFocusTarget, type FocusCandidate } from './overlay-focus';
+import { FOCUSABLE_SELECTOR, backgroundToInert, isTabbable, tabbableIn, trapFocusTarget, type BackgroundCandidate, type FocusCandidate } from './overlay-focus';
 
 /* 모달 오버레이 Tab 순환(useOverlayA11y)의 경계 후보. 셸 QA(2026-10-27) — 시트의 처음·끝에 숨은 버튼이 있으면 Tab 60회 중 13회가
    대화상자 밖(배경의 선택 방문 통계 버튼)으로 샜다. jsdom 없이 쓰는 면만 흉내 낸다. */
@@ -75,5 +75,35 @@ describe('Tab 순환 경계', () => {
 
   it('후보가 없으면 옮길 곳이 없다', () => {
     expect(trapFocusTarget([], 'body', { backward: false, inside: false, onPanel: false })).toBeNull();
+  });
+});
+
+/* MD-0034 — 검색 패널은 비모달이라 헤더 행(로고·GNB·아이콘)은 inert 에서 빠지고 본문·푸터·탭바·공지·유틸은 덮인다. */
+describe('inert 로 덮을 배경', () => {
+  type Background = BackgroundCandidate & { name: string };
+  const background = (name: string, { holdsPanel = false } = {}): Background => ({
+    name,
+    contains: () => holdsPanel,
+    matches: (selectors: string) => selectors.split(',').map((selector) => selector.trim()).includes(`.${name}`),
+  });
+  const shell = [
+    background('root'), background('wc-footer'), background('wc-notice-bar'), background('wc-utilbar'),
+    background('wc-header__bar'), background('wc-gnb-wrap'), background('wc-tabbar'), background('wc-store-analytics'),
+  ];
+  const names = (items: Background[]) => items.map((item) => item.name);
+
+  it('keepInteractive 가 없으면 후보 전부를 덮는다(모달 그대로)', () => {
+    expect(names(backgroundToInert(shell, 'panel'))).toEqual(names(shell));
+  });
+
+  it('검색 패널: 헤더 행만 빠지고 본문·푸터·탭바·공지·유틸·모바일 GNB 탭 행은 덮인다', () => {
+    const covered = names(backgroundToInert(shell, 'panel', '.wc-header__bar'));
+    expect(covered).not.toContain('wc-header__bar');
+    expect(covered).toEqual(expect.arrayContaining(['root', 'wc-footer', 'wc-tabbar', 'wc-notice-bar', 'wc-utilbar', 'wc-gnb-wrap', 'wc-store-analytics']));
+  });
+
+  it('패널이 안에 든 후보와 없는 후보(null)는 거른다', () => {
+    const holder = background('root', { holdsPanel: true });
+    expect(names(backgroundToInert([holder, null, background('wc-footer')], 'panel'))).toEqual(['wc-footer']);
   });
 });
