@@ -17,7 +17,7 @@ describe('public listing policy consumption', () => {
   it('renders safe descriptions, explicit colors and a separate accessible gallery', () => {
     const html = render('standard');
     expect(html).toContain('data-list-shape="portrait"'); expect(html).toContain('1 / 2'); expect(html).toContain('검정');
-    expect(html).not.toContain('>NEW<'); expect(html).not.toContain('>BEST<'); expect(html).toContain('>SALE<');
+    expect(html).not.toContain('>NEW<'); expect(html).not.toContain('>BEST<'); expect(html).not.toContain('>SALE<');
     expect(html).toContain('&lt;script&gt;상품 텍스트&lt;/script&gt;'); expect(html).not.toContain('<script>상품');
     for (const link of html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)) expect(link[1]).not.toContain('<button');
     expect(html).toContain('장바구니에 한 개 담기');

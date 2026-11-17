@@ -49,4 +49,19 @@ describe('ListingWishHeart', () => {
     expect(html).toMatch(/<span aria-hidden="true" class="wc-list-heart__disc">/);
     expect(html).toMatch(/<svg aria-hidden="true"/);
   });
+
+  /* 하트 모양은 X SQUARE Figma 원본(15.7×14.7)이다. 선택은 채움+굵은 선, 빈 상태는 같은 경로의 가는 선이다. */
+  it('draws the Figma heart path, filled and thick when wished and a thin outline when not', () => {
+    const outline = render();
+    const filled = render({ initialWished: true });
+
+    for (const html of [outline, filled]) {
+      expect(html).toContain('viewBox="0 0 15.7 14.7"');
+      expect(html).toContain('d="M7.85 13.35C7.53704 13.35');
+    }
+    expect(outline).toContain('fill="none"');
+    expect(outline).toContain('stroke-width="1.6"');
+    expect(filled).toContain('fill="currentColor"');
+    expect(filled).toContain('stroke-width="2.7"');
+  });
 });

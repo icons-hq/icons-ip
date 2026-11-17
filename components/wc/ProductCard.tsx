@@ -5,11 +5,13 @@ import { useStorePresentation } from '@/components/shell/StorePresentationProvid
 import { AddToCartButton } from '@/components/shop/AddToCartButton';
 import type { Good } from '@/lib/data';
 import type { GoodsListingAppearance } from '@/lib/store-presentation';
-import { Badge } from '@/components/wc/Badge';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { goodsImageBackground } from '@/lib/goods-image';
 import { reviewStarCount, reviewSummaryLabel, type GoodsReviewSummary } from '@/lib/goods-review-summary';
 import { goodsSaleUnavailableLabel, type GoodsSalePeriod } from '@/lib/goods-sale-period';
+import type { ProductCardChip } from '@/lib/product-card-chips';
+
+export type { ProductCardChip, ProductCardChipKind } from '@/lib/product-card-chips';
 
 export interface ProductCardProps {
   href: string;
@@ -19,7 +21,10 @@ export interface ProductCardProps {
   priceMax?: number;
   compareAtPrice?: number | null;
   showDiscountRate?: boolean;
+  /** 옛 배지 표기. `chips`가 없을 때만 쓰며 운영 배지('tag') 칩으로 바꿔 그린다 — 'SALE'은 버린다(할인은 가격 줄의 할인율이 대신한다). */
   badges?: string[];
+  /** 가격 아래 칩 줄(`productCardChips` 결과). 넘기면 `badges`보다 앞서고 그대로 그린다 — 스토어 표시 설정(showTags)은 호출부가 이미 반영한 값이다. */
+  chips?: readonly ProductCardChip[];
   soldOut?: boolean;
   salePeriod?: GoodsSalePeriod;
   imageBackground?: string;
@@ -69,14 +74,31 @@ function MaskedProductCard({ action, className, href, name, price, priceMax, bra
           <Link className="wc-product-card__name-link" href={href}>{name}</Link>
         </h3>
         <p className="wc-product-card__adult-note">성인 인증 후 볼 수 있어요</p>
-        <PriceBlock price={price} priceMax={priceMax} />
+        <PriceBlock price={price} priceMax={priceMax} variant="inline" />
       </div>
     </article>
   );
 }
+
+/* 옛 배지 문자열을 운영 배지 칩으로 바꾼다. SALE 은 파생 표기라 가격 줄의 할인율로 넘어가므로 버리고,
+   BEST·NEW 는 스토어 표시 설정이 태그를 끈 목록 표면에서만 뺀다(기존 규칙 그대로). */
+function badgeChips(badges: readonly string[] | undefined, hideListingTags: boolean): ProductCardChip[] {
+  const seen = new Set<string>();
+  const chips: ProductCardChip[] = [];
+  for (const badge of badges ?? []) {
+    const key = badge.trim().toUpperCase();
+    if (!key || key === 'SALE' || seen.has(key)) continue;
+    if (hideListingTags && (key === 'BEST' || key === 'NEW')) continue;
+    seen.add(key);
+    chips.push({ kind: 'tag', label: badge });
+  }
+  return chips;
+}
+
 export function ProductCard({
   action,
   badges,
+  chips,
   brand,
   className,
   compareAtPrice,
@@ -101,7 +123,7 @@ export function ProductCard({
   const gallery = configured && listing.imageMode === 'gallery' ? [...new Set([imageBackground ?? '', ...(listingAppearance?.gallery ?? [])])].filter(Boolean).slice(0, 10) : [];
   const [imageIndex, setImageIndex] = useState(0);
   const selectedImage = gallery.length ? gallery[imageIndex % gallery.length] : imageBackground;
-  const visibleBadges = configured && !listing.showTags ? badges?.filter(badge => !['BEST', 'NEW'].includes(badge.toUpperCase())) : badges;
+  const cardChips = chips ?? badgeChips(badges, configured && !listing.showTags);
   const saleLabel = goodsSaleUnavailableLabel(salePeriod ?? cartGood?.salePeriod);
   const availabilityLabel = saleLabel ?? (soldOut ? '품절' : null);
   if (masked) return <MaskedProductCard action={action} brand={brand} className={className} href={href} name={name} price={price} priceMax={priceMax} />;
@@ -118,21 +140,21 @@ export function ProductCard({
         {gallery.length > 1 ? <div className="wc-product-card__gallery" aria-label={`${name} 이미지 선택`}><button type="button" aria-label={`${name} 이전 이미지`} onClick={() => setImageIndex(current => (current + gallery.length - 1) % gallery.length)}>‹</button><span aria-live="polite">{imageIndex % gallery.length + 1} / {gallery.length}</span><button type="button" aria-label={`${name} 다음 이미지`} onClick={() => setImageIndex(current => (current + 1) % gallery.length)}>›</button></div> : null}
       </div>
       <div className="wc-product-card__info">
-        {visibleBadges?.length ? (
-          <div className="wc-product-card__badges">
-            {/* SALE 만 흰 바탕 + 틴트 테두리 아웃라인이다 — NEW·EXCLUSIVE 같은 저장 배지(색 바탕)와
-                할인에서 파생된 표기를 모양으로 가른다(R-03 §1.5 · 11 CL-03). */}
-            {visibleBadges.map((badge) => <Badge key={badge} variant={badge === 'SALE' ? 'outline' : 'tint'}>{badge}</Badge>)}
-          </div>
-        ) : null}
         {brand ? <p className="wc-product-card__brand">{brand}</p> : null}
         <h3 className="wc-product-card__name">
           <Link className="wc-product-card__name-link" href={href}>{name}</Link>
           {availabilityLabel ? <span className="wc-sr-only"> ({availabilityLabel})</span> : null}
         </h3>
         {configured && listing.showColors && listingAppearance?.colors.length ? <ul className="wc-product-card__colors" aria-label="굿즈 색상">{listingAppearance.colors.map(chip => <li key={chip.label} title={chip.label}><span style={{ backgroundColor: chip.hex }} /><span className="wc-sr-only">{chip.label}</span></li>)}</ul> : null}
-        <PriceBlock compareAtPrice={compareAtPrice} price={price} priceMax={priceMax} showDiscountRate={showDiscountRate} />
-        {/* 리뷰가 있을 때만 가격 아래 별 다섯 칸 + (리뷰 수). 별은 잉크 한 색이고(DESIGN §2 단일 액센트),
+        <PriceBlock compareAtPrice={compareAtPrice} price={price} priceMax={priceMax} showDiscountRate={showDiscountRate} variant="inline" />
+        {/* 칩 줄은 가격 바로 아래다(Figma). 예약판매·무료배송·캡슐토이는 굿즈 데이터에서, 운영 배지는 저장 배지에서 온다.
+            판매 상태를 전하는 텍스트라 숨긴 이미지 링크 밖에 둔다. */}
+        {cardChips.length ? (
+          <div className="wc-product-card__chips">
+            {cardChips.map((chip) => <span className={`wc-x-chip wc-x-chip--${chip.kind}`} key={`${chip.kind}:${chip.label}`}>{chip.label}</span>)}
+          </div>
+        ) : null}
+        {/* 리뷰가 있을 때만 칩 줄 아래 별 다섯 칸 + (리뷰 수). 별은 잉크 한 색이고(DESIGN §2 단일 액센트),
             스크린리더에는 별 문자 대신 숨은 문장을 읽힌다(상세 별점과 같은 반올림). */}
         {reviewSummary && reviewSummary.count > 0 ? (
           <p className="wc-product-card__rating">

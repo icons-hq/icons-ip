@@ -90,6 +90,8 @@ export interface Good {
   /** 저장된 소비자가(`goods.compare_at_price`). 옵션 정가는 여기에 옵션 추가금액을 더해 파생한다. */
   catalogCompareAtPrice?: number | null;
   badge: string | null;
+  /** 배송비 방식(`goods.shipping_fee_type`). 'free'면 상품 카드가 '무료배송' 칩을 단다. 없으면(옛 투영·목업) 칩을 그리지 않는다. */
+  shippingFeeType?: 'policy' | 'free' | 'individual';
   stock: Stock;
   stockQty: number;
   img: string;

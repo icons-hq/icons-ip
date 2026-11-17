@@ -79,22 +79,66 @@ describe('ProductCard', () => {
     expect(html).not.toContain('품절');
   });
 
-  /* 배지는 판매 상태를 전하는 텍스트라 숨긴 이미지 링크 밖에 있어야 한다. */
-  it('renders badges outside the links', () => {
+  /* 칩은 판매 상태를 전하는 텍스트라 숨긴 이미지 링크 밖에 있어야 한다. 넘긴 배지는 운영 배지('tag') 칩으로 바뀐다. */
+  it('draws legacy badges as tag chips outside the links', () => {
     const html = renderToStaticMarkup(<ProductCard {...card} badges={['신상', '한정']} />);
 
-    const badges = html.match(/<div class="wc-product-card__badges">[\s\S]*?<\/div>/)?.[0] ?? '';
-    expect(badges).toContain('<span class="wc-badge">신상</span>');
-    expect(badges).toContain('<span class="wc-badge">한정</span>');
-    expect(badges).not.toContain('<a ');
+    const chips = html.match(/<div class="wc-product-card__chips">[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(chips).toContain('<span class="wc-x-chip wc-x-chip--tag">신상</span>');
+    expect(chips).toContain('<span class="wc-x-chip wc-x-chip--tag">한정</span>');
+    expect(chips).not.toContain('<a ');
+    expect(html).not.toContain('wc-product-card__badges');
+    expect(html).not.toContain('class="wc-badge');
   });
 
-  /* 레퍼런스는 NEW 같은 저장 배지를 색 바탕으로, 할인 파생 SALE 을 흰 바탕 + 틴트 테두리로 가른다(11 CL-03). */
-  it('draws the derived SALE badge as the outline variant and keeps stored badges tinted', () => {
-    const html = renderToStaticMarkup(<ProductCard {...card} badges={['NEW', 'SALE']} />);
+  /* 할인은 가격 줄의 할인율이 대신하므로 SALE 은 칩으로 그리지 않는다(Figma). 저장 배지(NEW·EXCLUSIVE)는 남는다. */
+  it('drops the derived SALE badge and keeps stored badges as tag chips', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} badges={['NEW', 'SALE']} compareAtPrice={16000} />);
 
-    expect(html).toContain('<span class="wc-badge">NEW</span>');
-    expect(html).toContain('<span class="wc-badge outline">SALE</span>');
+    expect(html).toContain('<span class="wc-x-chip wc-x-chip--tag">NEW</span>');
+    expect(html).not.toContain('>SALE<');
+    expect(html).toContain('<span class="wc-price__rate">25%</span>');
+
+    expect(renderToStaticMarkup(<ProductCard {...card} badges={['SALE']} />)).not.toContain('wc-product-card__chips');
+  });
+
+  /* 가격 아래 한 줄 — 칩 종류마다 클래스가 갈리고 순서는 넘긴 그대로다. 별점은 칩 줄 아래로 간다. */
+  it('draws the chip row under the price in the given order and keeps the rating below it', () => {
+    const html = renderToStaticMarkup(
+      <ProductCard
+        {...card}
+        chips={[
+          { kind: 'preorder', label: '예약판매' },
+          { kind: 'freeShipping', label: '무료배송' },
+          { kind: 'random', label: '캡슐토이' },
+          { kind: 'tag', label: 'NEW' },
+        ]}
+        reviewSummary={{ count: 2, average: 5 }}
+      />,
+    );
+    const chips = html.match(/<div class="wc-product-card__chips">[\s\S]*?<\/div>/)?.[0] ?? '';
+
+    expect(chips).toBe(
+      '<div class="wc-product-card__chips">'
+      + '<span class="wc-x-chip wc-x-chip--preorder">예약판매</span>'
+      + '<span class="wc-x-chip wc-x-chip--freeShipping">무료배송</span>'
+      + '<span class="wc-x-chip wc-x-chip--random">캡슐토이</span>'
+      + '<span class="wc-x-chip wc-x-chip--tag">NEW</span>'
+      + '</div>',
+    );
+    expect(html.indexOf('wc-price')).toBeLessThan(html.indexOf('wc-product-card__chips'));
+    expect(html.indexOf('wc-product-card__chips')).toBeLessThan(html.indexOf('wc-product-card__rating'));
+  });
+
+  /* chips 를 넘기면 badges 는 쓰지 않는다 — 호출부가 productCardChips 로 이미 정한 값이다. */
+  it('prefers explicit chips over legacy badges and omits an empty chip row', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} badges={['EXCLUSIVE']} chips={[{ kind: 'freeShipping', label: '무료배송' }]} />);
+
+    expect(html).toContain('wc-x-chip--freeShipping');
+    expect(html).not.toContain('EXCLUSIVE');
+
+    expect(renderToStaticMarkup(<ProductCard {...card} chips={[]} badges={['NEW']} />)).not.toContain('wc-product-card__chips');
+    expect(renderToStaticMarkup(<ProductCard {...card} />)).not.toContain('wc-product-card__chips');
   });
 
   it('puts the image background on the inline style', () => {
@@ -112,8 +156,19 @@ describe('ProductCard', () => {
     );
 
     expect(html).toContain('<p class="wc-product-card__brand">ICONS</p>');
-    expect(html).toContain('<s class="wc-price__original">₩16,000</s>');
     expect(html).toContain('₩12,000');
+  });
+
+  /* 카드는 한 줄 가격이다 — 취소선 정가 없이 할인율과 판매가만 그린다(PriceBlock variant="inline"). */
+  it('draws the card price as one line without the struck original', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} price={9000} compareAtPrice={12000} />);
+
+    expect(html).toContain('wc-price wc-price--inline');
+    expect(html).toContain('<span class="wc-price__rate">25%</span>');
+    expect(html).toContain('<span class="wc-price__amount">₩9,000</span>');
+    expect(html).not.toContain('wc-price__original');
+    expect(html).not.toContain('₩12,000');
+    expect(renderToStaticMarkup(<ProductCard {...card} price={9000} priceMax={12000} compareAtPrice={15000} />)).toContain('₩9,000 ~ ₩12,000');
   });
 
   /* CL-02: 리뷰가 있으면 가격 아래 별 다섯 칸 + (리뷰 수). 별 문자는 읽지 않고 숨은 문장을 읽는다. */
@@ -134,14 +189,14 @@ describe('ProductCard', () => {
      찜 하트는 넘긴 곳(위시)에서만 그리고, 다른 카드처럼 링크 밖에 둔다. */
   it('draws the adult masked card without the real image, badges or rating', () => {
     const html = renderToStaticMarkup(
-      <ProductCard {...card} badges={['NEW']} imageBackground="url(/generated/goods/g11.png)" masked name="19금 굿즈" reviewSummary={{ count: 3, average: 5 }} />,
+      <ProductCard {...card} badges={['NEW']} chips={[{ kind: 'random', label: '캡슐토이' }]} imageBackground="url(/generated/goods/g11.png)" masked name="19금 굿즈" reviewSummary={{ count: 3, average: 5 }} />,
     );
     expect(html).toContain('wc-product-card--masked');
     expect(html).toContain('>19</span>');
     expect(html).toContain('성인 인증 후 볼 수 있어요');
     expect(html).toContain('₩12,000');
     expect(html).not.toContain('/generated/goods/g11.png');
-    expect(html).not.toContain('wc-product-card__badges');
+    expect(html).not.toContain('wc-product-card__chips');
     expect(html).not.toContain('wc-product-card__rating');
     expect(html).not.toContain('wc-product-card__action');
 
