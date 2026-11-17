@@ -228,6 +228,8 @@ const storefront = [
   sql('checkout_unpaid_coupon_handoff', { admin: true, kc: true }),
   sql('home_collection_banners', { admin: true }),
   sql('ip_hall_banners', { admin: true }),
+  // 캠페인 노출 설정(스펙 C §4.3): EVENT·POP-UP 구분·장소·카드 바로가기. 쓰기는 RPC 하나, draft 캠페인의 행은 비공개, id 변경·삭제는 행이 따라간다.
+  sql('campaign_presentations'),
   // 예전 story/marketing 단계의 쇼핑 스토리·마케팅·상품 상세 연출·리뷰 이벤트다.
   sql('shopping_stories', { kc: true }),
   sql('shopping_story_goods_picker', { kc: true }),
