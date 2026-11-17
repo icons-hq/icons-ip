@@ -27,6 +27,11 @@
   font-size: 14px;
 }
 
+/* 파운데이션 `.wc-btn + .wc-btn { margin-top: 7px }`(세로로 쌓는 버튼)이 가로 줄의 두 번째 버튼(인쇄하기)을 7px 내렸다. */
+.wc-statement-toolbar > .wc-btn + .wc-btn {
+  margin-top: 0;
+}
+
 .wc-statement,
 .wc-statement-empty {
   max-width: 760px;

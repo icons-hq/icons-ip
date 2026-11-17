@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { OrderStatement } from './OrderStatement';
@@ -118,5 +119,14 @@ describe('OrderStatement', () => {
 
   it('모델도 안내도 없으면 일반 안내를 보인다', () => {
     expect(render(null)).toContain('거래명세서를 발급할 수 없는 주문이에요.');
+  });
+});
+
+describe('거래명세서 툴바 스타일 계약', () => {
+  const css = readFileSync(new URL('../../app/styles/wc-order-statement.css', import.meta.url), 'utf8');
+
+  it('파운데이션의 `.wc-btn + .wc-btn` 세로 간격(margin-top 7px)을 툴바 안에서 되돌려 두 버튼이 같은 높이에 선다', () => {
+    /* 파운데이션 규칙(0,2,0)보다 선택자 강도가 높아야 한다 — 툴바 자식 결합자로 (0,3,0). */
+    expect(css).toMatch(/\.wc-statement-toolbar > \.wc-btn \+ \.wc-btn \{\s*margin-top: 0;\s*\}/);
   });
 });
