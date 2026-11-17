@@ -1,9 +1,9 @@
-import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import type { Metadata } from 'next';
 import { Shop } from '@/components/screens/Shop';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
-import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
+import { loadListingSortOrders } from '@/lib/goods-listing-orders.server';
+import { isServerOrderedSort, parseListingSearchParams, selectShopGoods } from '@/lib/shop-catalog';
 import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 import { getCollectionBanners } from '@/lib/collection-banners.server';
 
@@ -16,16 +16,17 @@ interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-/* NEW 는 별도 큐레이션이 아니라 굿즈의 NEW 배지가 정의한다 — 컬렉션 스코프만 다르고
-   필터·정렬·VIEW MORE 는 굿즈샵과 같은 화면이다. */
+/* NEW 는 별도 큐레이션이 아니라 굿즈의 NEW 배지가 정의한다 — 컬렉션 스코프만 다르다. 탭 줄이 곧 정렬(인기도·최신 등록·판매량·가격 2·리뷰)이고
+   기본은 최신 등록순이다. 필터 쿼리는 읽지 않는다(Figma 에 필터가 없다). 인기도·판매량·리뷰 많은순일 때만 DB 정렬 순서를 읽는다. */
 export default async function Page({ searchParams }: PageProps) {
-  const [catalog, params, wishlist, banners] = await Promise.all([getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })), searchParams ?? {}, loadListingWishlist(), getCollectionBanners('new')]);
-  const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
-  const query = parseShopSearchParams(params, {
-    view: 'new',
-    validIpIds: new Set(catalog.ips.map((ip) => ip.id)),
-    validCategoryIds: new Set(categories.map((category) => category.id)),
-  });
+  const params = await (searchParams ?? {});
+  const { query } = parseListingSearchParams(params, 'new');
+  const [catalog, wishlist, banners, sortOrders] = await Promise.all([
+    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })),
+    loadListingWishlist(),
+    getCollectionBanners('new'),
+    isServerOrderedSort(query.sort) ? loadListingSortOrders() : Promise.resolve(null),
+  ]);
 
-  return <Shop banners={banners} query={query} result={selectShopGoods({ ...catalog, categories }, query)} view="new" wishlist={wishlist} />;
+  return <Shop banners={banners} query={query} result={selectShopGoods(catalog, query, [], sortOrders)} view="new" wishlist={wishlist} />;
 }

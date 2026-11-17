@@ -55,6 +55,39 @@
   --wc-container-max: 1212px;
   --wc-gutter: 16px;
   --wc-font: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', sans-serif;
+  /* X SQUARE 스토어프런트(Figma 2026-11-12, ADR-0043). 셸·홈·목록·POP-UP·EVENT의 새 부품만 쓴다.
+     괄호 안은 Figma 원값 — 글자에 쓰는 색은 WCAG AA(4.5:1)에 맞춰 어둡게 보정했다. */
+  --wc-x-container: 1320px;
+  --wc-x-gutter: 24px;
+  --wc-x-content: 1272px;
+  --wc-x-ink: #121212;
+  --wc-x-muted: #767676; /* Figma #888888(3.5:1) */
+  --wc-x-separator: #888888;
+  --wc-x-footer-link: #535353;
+  --wc-x-line-pill: #DBD9D9;
+  --wc-x-line-util: rgba(217,217,217,.5);
+  --wc-x-line-row: #CFCFCF;
+  --wc-x-line-card: rgba(196,196,196,.8);
+  --wc-x-sale: #E02424; /* Figma #FF4D4D(3.3:1) */
+  --wc-x-heart: #FF4D4D;
+  --wc-x-rolling-bg: #E31B23; /* Figma #EC2227(흰 글 4.4:1) */
+  --wc-x-progress-track: #E5E5E5;
+  --wc-x-progress-thumb: #555555;
+  --wc-x-control: #888888;
+  --wc-x-chip-preorder-bg: #F3EBFA;
+  --wc-x-chip-preorder-ink: #8650BD; /* Figma #955FCA */
+  --wc-x-chip-shipping-bg: #E3F2F8;
+  --wc-x-chip-shipping-ink: #276E89; /* Figma #3485A3 */
+  --wc-x-chip-random-bg: #FFF1DA;
+  --wc-x-chip-random-ink: #A6560B; /* Figma #F08418 */
+  --wc-x-chip-tag-bg: #F3F3F3;
+  --wc-x-chip-tag-ink: #3F3F3F;
+  --wc-x-radius-hero: 18px;
+  --wc-x-radius-ip: 15px;
+  --wc-x-radius-strip: 12px;
+  --wc-x-radius-card: 8px;
+  --wc-x-radius-thumb-sm: 6px;
+  --wc-x-radius-chip: 3px;
 
   background: var(--wc-surface);
   color: var(--wc-ink);

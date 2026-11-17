@@ -42,8 +42,9 @@ export const GOOD_DRAFT_SWITCH_NOTICE = '판매 중인 상품이 고객 화면�
  * TKT-009(11/11 결정): 공개 중 잠금 안내의 [초안으로 전환 후 수정] → 확인창 1회 → 바로 초안으로 전환해 잠금을 푼다.
  * 서버 계약은 판매 준비 카드의 초안으로 되돌리기와 같다(setAdminGoodPublishedAction, confirmUnpublish=yes) — 확인창이 그 확인 체크를 대신한다.
  * 전환되면 서버가 다시 그린 상품이 초안이라 편집기의 잠금이 풀린다. 폼 밖으로 열리는 확인창이라 상품 저장에 섞이지 않는다.
+ * 같은 확인창·같은 서버 계약을 다른 자리(카테고리 변경 오류 바로 아래)에서도 쓰므로 버튼 이름만 바꿀 수 있다(label).
  */
-export function GoodDraftSwitch({ id, disabled = false }: { id: string; disabled?: boolean }) {
+export function GoodDraftSwitch({ id, disabled = false, label = '초안으로 전환 후 수정' }: { id: string; disabled?: boolean; label?: string }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -58,7 +59,7 @@ export function GoodDraftSwitch({ id, disabled = false }: { id: string; disabled
     });
   }
   return <>
-    <Button type="button" variant="outline" size="sm" disabled={disabled} data-good-draft-switch="" onClick={() => { setError(''); setOpen(true); }}>초안으로 전환 후 수정</Button>
+    <Button type="button" variant="outline" size="sm" disabled={disabled} data-good-draft-switch="" onClick={() => { setError(''); setOpen(true); }}>{label}</Button>
     <AlertDialog open={open} onOpenChange={(next) => { if (!pending) setOpen(next); }}>
       <AlertDialogContent>
         <AlertDialogHeader>

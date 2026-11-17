@@ -67,6 +67,8 @@ describe('초안으로 전환 후 수정', () => {
     expect(html).not.toContain('초안으로 전환할까요?');
     expect(html).not.toContain('<form');
     expect(renderToStaticMarkup(<GoodDraftSwitch id="g1" disabled />)).toMatch(/<button[^>]*disabled=""[^>]*>초안으로 전환 후 수정<\/button>/);
+    /* 스펙 C §2.9: 카테고리 변경 자리에서는 같은 부품의 버튼 이름만 바꾼다(확인창·서버 계약은 같다). */
+    expect(renderToStaticMarkup(<GoodDraftSwitch id="g1" label="초안으로 전환하고 카테고리 바꾸기" />)).toMatch(/<button[^>]*type="button"[^>]*data-good-draft-switch=""[^>]*>초안으로 전환하고 카테고리 바꾸기<\/button>/);
     for (const text of ['고객 화면에서 내려갑니다', '새 주문을 받지 않습니다', '기존 주문과 결제·취소 처리는 유지됩니다', 'KC를 다시 검토해야']) expect(GOOD_DRAFT_SWITCH_NOTICE).toContain(text);
   });
 });

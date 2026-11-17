@@ -529,3 +529,86 @@ describe('loadCampaignDetail', () => {
     expect(detail?.resolvedSections[0]).not.toHaveProperty(['goods', 0, 'reviewSummary']);
   });
 });
+
+/* 캠페인 노출 설정(스펙 C §2.8·§4.3) — EVENT·POP-UP 구분과 바로가기. 표는 campaigns 에 임베드하지 않고 따로 읽는다. */
+describe('캠페인 노출 설정 읽기', () => {
+  const POPUP_ROW = { campaign_id: 'popup-one', popup_mode: 'offline', popup_location: '서울 마포구', card_link_path: null };
+  const SHORTCUT_ROW = { campaign_id: 'shortcut-one', popup_mode: null, popup_location: null, card_link_path: '/ip/hong-sil-quest' };
+
+  it('허브: 노출 설정 행을 캠페인 id 로 붙이고 행이 없으면 null(EVENT 쪽)이다', async () => {
+    mocks.tables.campaigns = { data: [hubRow('popup-one'), hubRow('shortcut-one'), hubRow('plain-one')], error: null };
+    mocks.tables.campaign_presentations = { data: [POPUP_ROW, SHORTCUT_ROW], error: null };
+
+    const hub = await loadCampaignHub();
+    const byId = new Map(hub.campaigns.map((entry) => [entry.id, entry.presentation]));
+
+    expect(byId.get('popup-one')).toEqual({ popupMode: 'offline', popupLocation: '서울 마포구', cardLinkPath: null });
+    expect(byId.get('shortcut-one')).toEqual({ popupMode: null, popupLocation: null, cardLinkPath: '/ip/hong-sil-quest' });
+    expect(byId.get('plain-one')).toBeNull();
+    expect(mocks.selects).toContainEqual(['campaign_presentations', 'campaign_id,popup_mode,popup_location,card_link_path']);
+  });
+
+  /* 표를 못 읽어도(권한·표 없음) 허브 본문은 그대로 뜬다 — 그 캠페인들은 EVENT 쪽이다. */
+  it('허브: 노출 설정 읽기가 실패해도 캠페인 목록은 그대로고 presentation 은 모두 null 이다', async () => {
+    mocks.tables.campaigns = { data: [hubRow('popup-one'), hubRow('other')], error: null };
+    mocks.tables.campaign_presentations = { data: null, error: { message: 'permission denied' } };
+
+    const hub = await loadCampaignHub();
+
+    expect(hub.campaigns.map((entry) => entry.id).sort()).toEqual(['other', 'popup-one']);
+    expect(hub.campaigns.every((entry) => entry.presentation === null)).toBe(true);
+  });
+
+  it('허브: DB 제약과 어긋난 행은 무시한다', async () => {
+    mocks.tables.campaigns = { data: [hubRow('bad-mode'), hubRow('bad-link')], error: null };
+    mocks.tables.campaign_presentations = {
+      data: [
+        { campaign_id: 'bad-mode', popup_mode: 'weird', popup_location: null, card_link_path: null },
+        { campaign_id: 'bad-link', popup_mode: null, popup_location: null, card_link_path: '//evil.example' },
+      ],
+      error: null,
+    };
+
+    const hub = await loadCampaignHub();
+
+    expect(hub.campaigns.every((entry) => entry.presentation === null)).toBe(true);
+  });
+
+  /* 허브 카드 이미지의 마지막 대체는 히어로다(EVENT 카드: 카드 → 배너 → 히어로). */
+  it('허브: 히어로 이미지도 공개 URL 로 싣는다', async () => {
+    mocks.tables.campaigns = { data: [hubRow('with-hero', { hero_image_path: 'public-media/campaigns/hero.png' })], error: null };
+
+    const hub = await loadCampaignHub();
+
+    expect(hub.campaigns[0]?.heroImagePath).toBe('https://cdn.test/public-media/campaigns/hero.png');
+  });
+
+  it('상세: 그 캠페인의 노출 설정 행을 읽어 싣는다', async () => {
+    mocks.tables.campaigns = { data: { ...hubRow('popup-one'), hero_image_path: null, sections: [] }, error: null };
+    mocks.tables.campaign_presentations = { data: POPUP_ROW, error: null };
+
+    const detail = await loadCampaignDetail('popup-one');
+
+    expect(detail?.presentation).toEqual({ popupMode: 'offline', popupLocation: '서울 마포구', cardLinkPath: null });
+    expect(mocks.filters).toContainEqual(['campaign_presentations', 'campaign_id', 'popup-one']);
+  });
+
+  it('상세: 행이 없거나 읽기에 실패하면 presentation 은 null 이고 본문은 그대로다', async () => {
+    mocks.tables.campaigns = { data: { ...hubRow('plain-one'), hero_image_path: null, sections: [{ type: 'intro', copy: '소개' }] }, error: null };
+
+    mocks.tables.campaign_presentations = { data: null, error: null };
+    expect((await loadCampaignDetail('plain-one'))?.presentation).toBeNull();
+
+    mocks.tables.campaign_presentations = { data: null, error: { message: 'boom' } };
+    const detail = await loadCampaignDetail('plain-one');
+    expect(detail?.presentation).toBeNull();
+    expect(detail?.resolvedSections).toEqual([{ type: 'intro', copy: '소개' }]);
+  });
+
+  it('상세: 캠페인이 없으면 노출 설정이 있어도 null 이다', async () => {
+    mocks.tables.campaigns = { data: null, error: null };
+    mocks.tables.campaign_presentations = { data: POPUP_ROW, error: null };
+
+    await expect(loadCampaignDetail('popup-one')).resolves.toBeNull();
+  });
+});

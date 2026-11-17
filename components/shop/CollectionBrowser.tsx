@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
+import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
@@ -19,7 +20,7 @@ import {
 } from '@/components/shop/collection-filters';
 import { krw } from '@/lib/format';
 import { goodDetailHref } from '@/lib/goods-display';
-import { goodDisplayBadges } from '@/lib/goods-taxonomy';
+import { productCardChips } from '@/lib/product-card-chips';
 import { listingWishSet, type ListingWishlist } from '@/lib/listing-wishlist';
 import {
   SHOP_PAGE_SIZE,
@@ -183,6 +184,7 @@ export function CollectionBrowser({
   wishlist,
 }: CollectionBrowserProps) {
   const router = useRouter();
+  const { listing } = useStorePresentation();
   const panelRef = useRef<HTMLDivElement>(null);
 
   /* 질의가 바뀌면 표시 개수·슬라이더 위치는 처음으로 돌아가야 한다. effect 로 되돌리면
@@ -345,7 +347,7 @@ export function CollectionBrowser({
                       <ListingWishHeart goodId={good.id} initialWished={wished.has(good.id)} label={good.name} viewerId={wishlist.viewerId} />
                     ) : undefined}
                     listSurface={listSurface} listingAppearance={good.listingAppearance} cartGood={good}
-                    badges={goodDisplayBadges(good)}
+                    chips={productCardChips(good, { showTags: listing.showTags })}
                     brand={brandByIpId.get(good.ip)}
                     showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
                     href={goodDetailHref(good.id)}

@@ -7,6 +7,7 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { krw } from '@/lib/format';
 import { RANDOM_OPTION_LABEL } from '@/lib/goods-option-sale-mode';
+import { cartOptionGood } from '@/lib/goods-options';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { listingHeartsFor } from './listing-hearts';
 import { ProductDetailRefresh } from './ProductDetailRefresh';
@@ -37,7 +38,10 @@ export function ProductShippingSavings({ goodId, option, quantity, wishlist }: {
       : !result.items.length ? <p>현재 선택에서는 배송비를 줄일 수 있는 묶음 굿즈가 없습니다.</p>
       : <><ProductDetailRefresh nextChangeAt={result.nextChangeAt} /><div className="wc-pdp-shipping-savings__products">{result.items.map(item => {
         const good = item.good; if (!good) return null; const candidateOption = good.options?.find(value => value.id === item.variantId);
+        /* 카드의 판매가는 후보 옵션 가격이므로 취소선 정가도 그 옵션의 정가여야 한다 — 상품 단위 정가를 옵션 가격에 대면 할인율이 틀린다(cartOptionGood 이 옵션 정가를 파생한다). */
+        const compareAtPrice = candidateOption ? cartOptionGood(good, candidateOption.id)?.compareAtPrice : good.compareAtPrice;
         return <article key={item.goodId}><ProductCard href={`/shop/${good.id}`} name={good.name} imageBackground={good.img} price={candidateOption?.price ?? good.price}
+          compareAtPrice={compareAtPrice} showDiscountRate={good.showDiscountRate}
           action={heartFor(good)} reviewSummary={reviewSummaries[good.id]}
           listSurface="standard" listingAppearance={good.listingAppearance} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} />
           {/* 랜덤 판매 굿즈(D5②)는 옵션을 고르지 않는다 — DB 후보 옵션 이름 대신 '랜덤'으로 말한다. */}

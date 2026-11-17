@@ -4,6 +4,7 @@ import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { upsertAdminCampaignAction, type AdminCampaignActionState } from '@/app/admin/campaign-actions';
+import { CampaignPresentationPanel } from '@/components/admin/CampaignPresentationPanel';
 import { CampaignSection } from '@/components/admin/sections/CampaignSection';
 import { CoinExchangeOfferPanel } from '@/components/admin/sections/CoinExchangeOfferPanel';
 import { adminCampaignHref, type AdminCampaignRecord, type AdminCoinExchangeOfferRecord } from '@/lib/admin/campaigns';
@@ -12,7 +13,8 @@ import { useSelectedRecord } from './record-selection';
 
 /* 캠페인 콘솔 화면 (S8 #330).
  * 캠페인 편성과 카드팩 교환처를 한 화면에 둔다 — exchange 블록이 교환처 id 를
- * 그대로 받으므로, 두 화면으로 나누면 운영자가 id 를 들고 화면을 오가야 한다. */
+ * 그대로 받으므로, 두 화면으로 나누면 운영자가 id 를 들고 화면을 오가야 한다.
+ * 저장된 캠페인을 고르면 그 아래에 노출 설정(EVENT·POP-UP·바로가기) 패널이 붙는다 — 캠페인 본문과 따로 저장한다. */
 
 const emptyState: AdminCampaignActionState = {};
 
@@ -48,6 +50,7 @@ export function CampaignScreen({
         selected={selected}
         state={state}
       />
+      {selected ? <CampaignPresentationPanel campaign={selected} key={selected.id} /> : null}
       {canManageOffers ? <CoinExchangeOfferPanel offers={offers} pools={pools} /> : null}
     </div></>
   );

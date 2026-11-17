@@ -115,6 +115,10 @@ describe('목록 상태 키 계약', () => {
     }
   });
 
+  it('BEST 기간 탭(period)과 정렬은 그대로 남는다', () => {
+    expect(listingReturnEntry('/shop/best', new URLSearchParams('period=weekly&sort=price_asc&utm_source=x'))).toBe('/shop/best?period=weekly&sort=price_asc');
+  });
+
   it('검색 결과 주소(searchResultsHref — 검색어·필터·페이지)는 그대로 남는다', () => {
     const href = searchResultsHref('곰 인형', fullQuery('search', { sort: 'price_asc' }), 3);
     expect(keysOf(href)).toEqual(['q', 'category', 'ip', 'type', 'min', 'max', 'sort', 'page']);

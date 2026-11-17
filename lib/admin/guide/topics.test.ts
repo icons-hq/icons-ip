@@ -144,6 +144,27 @@ describe('어드민 가이드 콘텐츠 무결성', () => {
       }
     }
   });
+  /* X SQUARE 스토어프런트(ADR-0043) — 홈 전시 관리 안내는 구성이 공개 홈의 어느 자리로 보이는지(IP 바로가기·ICONS PICK·홈 스트립 배너·
+     그리드형·NEW ARRIVAL)와 롤링 공지 바의 무작위 노출을, 캠페인 편성 안내는 새 '노출 설정' 패널(EVENT/POP-UP·장소·카드 바로가기)을 말해야 한다. */
+  it('홈 전시·캠페인 안내가 X SQUARE 홈과 캠페인 노출 설정을 설명한다', () => {
+    const text = plainText(ADMIN_GUIDE_TOPICS['display-messaging']);
+
+    for (const phrase of [
+      "추천 콘텐츠는 홈 배너 아래 'IP 바로가기' 줄로",
+      "기획전 배너는 'ICONS PICK' 카드로 보입니다",
+      "연달아 놓은 기획전은 홈에서 ICONS PICK 한 줄로 묶입니다",
+      "예전 공지 배너는 이제 '홈 스트립 배너'로 홈 본문 가운데에",
+      '그리드형(5열)은 5개 또는 10개를 PC 한 줄 5개로',
+      '스토어를 새로 열 때마다 하나를 무작위로 보여주며, 문구는 스토어 맨 위 빨간 띠에서 흘러갑니다',
+      'NEW ARRIVAL(최신 상품 자동)과 홈 스트립 배너는 위치와 노출만 정합니다',
+    ]) expect(text, phrase).toContain(phrase);
+    expect(text).not.toContain('기존 특집 IP와 공지 배너 기록은 수정할 수 있지만');
+    expect(text).not.toContain('같은 화면에 여러 개가 있으면 순서가 앞선 하나를 보여줍니다');
+
+    for (const phrase of ['노출 설정 패널', 'POP-UP에 싣기', '싣지 않음 — EVENT에 보입니다', '카드·배너 바로가기', '노출 설정 저장']) {
+      expect(text, phrase).toContain(phrase);
+    }
+  });
   /* 같은 제품의 판매 구성을 묶은 상품군은 CONTEXT.md의 정본 이름 '그룹상품'으로 부른다 — 어드민 메뉴(그룹상품 등록·
      그룹상품 조회/수정)와 같은 말이어야 운영자가 같은 것인지 추측하지 않는다. 홈 베스트리뷰의 리뷰 합산 범위와
      리뷰도움수의 한 표 집계 범위가 이 그룹이다. 모든 안내 주제·오류 사례·업데이트 내역을 검사한다. */

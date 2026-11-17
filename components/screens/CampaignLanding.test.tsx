@@ -67,6 +67,7 @@ function snapshot(overrides: Partial<CampaignLandingSnapshot> = {}): CampaignLan
     endsAt: '2026-08-31T14:59:00.000Z',
     status: 'published',
     displayState: 'ongoing',
+    presentation: null,
     sections: [],
     resolvedSections: SECTIONS,
     ...overrides,
@@ -318,5 +319,61 @@ describe('CampaignLanding', () => {
       expect(html).not.toContain('뽑기');
       expect(html).not.toContain('충전');
     }
+  });
+
+  /* POP-UP 캠페인 상세 — 같은 랜딩 블록에 장소 줄과 /popups 경로만 더한다(스펙 C §2.6). */
+  describe('POP-UP 캠페인 (basePath·venue)', () => {
+    const POPUP_LOGIN_HREF = `/login?next=${encodeURIComponent('/popups/summer')}`;
+
+    it('일반 EVENT 랜딩에는 장소 줄이 없고 유형 글자는 EVENT 다', () => {
+      const html = render();
+
+      expect(html).not.toContain('wc-campaign__venue');
+      expect(html).toContain('>EVENT<');
+    });
+
+    it('기간 아래에 "장소 방식 · 장소" 한 줄을 그리고 유형 글자를 POP-UP 으로 바꾼다', () => {
+      const html = render({ basePath: '/popups', venue: { mode: 'offline', location: '서울 마포구 월드컵로8길 69 1층' } });
+
+      expect(html).toContain('<p class="wc-campaign__venue"><strong>장소</strong> <span>오프라인 · 서울 마포구 월드컵로8길 69 1층</span></p>');
+      expect(html).toContain('>POP-UP<');
+      expect(html).not.toContain('>EVENT<');
+      /* 기간 줄 바로 아래다. */
+      expect(html.indexOf('wc-campaign__venue')).toBeGreaterThan(html.indexOf('wc-campaign__period'));
+    });
+
+    it('장소가 없으면 방식만 싣는다(브랜드 문구는 넣지 않는다)', () => {
+      const online = render({ basePath: '/popups', venue: { mode: 'online', location: null } });
+      const hybrid = render({ basePath: '/popups', venue: { mode: 'hybrid', location: null } });
+
+      expect(online).toContain('<span>온라인</span>');
+      expect(hybrid).toContain('<span>온·오프라인</span>');
+    });
+
+    /* 로그인 뒤에는 이 POP-UP 으로 돌아온다 — /events 로 하드코딩하면 일반 EVENT 로 떨어진다. */
+    it('로그인 복귀 경로가 basePath 를 따른다', () => {
+      const html = render({ basePath: '/popups', coin: null, signedIn: false, venue: { mode: 'offline', location: null } });
+
+      expect(html.match(new RegExp(`href="${POPUP_LOGIN_HREF.replace('?', '\\?')}"`, 'g'))).toHaveLength(3);
+      expect(html).not.toContain(`href="${LOGIN_HREF}"`);
+    });
+
+    it('종료 안내가 POP-UP 목록으로 돌려보낸다', () => {
+      const html = render({
+        basePath: '/popups',
+        campaign: snapshot({ displayState: 'ended', status: 'ended' }),
+        venue: { mode: 'online', location: null },
+      });
+
+      expect(html).toContain('종료된 POP-UP이에요.');
+      expect(html).toContain('<a class="wc-campaign-panel__link" href="/popups">POP-UP 목록 보기</a>');
+      expect(html).not.toContain('종료된 이벤트예요.');
+    });
+
+    it('일반 EVENT 종료 안내는 /events 로 돌려보낸다', () => {
+      const html = render({ campaign: snapshot({ displayState: 'ended', status: 'ended' }) });
+
+      expect(html).toContain('<a class="wc-campaign-panel__link" href="/events">이벤트 목록 보기</a>');
+    });
   });
 });

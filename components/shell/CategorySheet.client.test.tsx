@@ -24,7 +24,7 @@ const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap((va
 function render() {
   hooks.index = 0;
   return nodes(CategorySheet({
-    campaigns: [{ id: 'c1', title: '가을 기획전', imageUrl: null }],
+    campaigns: [{ id: 'c1', title: '가을 기획전', imageUrl: null, href: '/events/c1' }],
     featuredIps: [],
     nodes: [{ id: '94932000-0000-4000-8000-000000000002', parentId: null, name: '피규어', depth: 1, imageUrl: null, navigable: true }],
     onClose: vi.fn(),

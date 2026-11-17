@@ -6,66 +6,44 @@ import { BUSINESS_INFO, businessInfoRows } from '@/lib/legal/business-info';
 import { SiteFooter } from './SiteFooter';
 
 const mocks = vi.hoisted(() => ({
-  cardRewardsEnabled: true,
   demoVisible: false,
   communityPreviewVisible: false,
   pathname: '/shop',
 }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
-vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => mocks.cardRewardsEnabled }));
 vi.mock('./StaffPreviewAvailability', () => ({
   useSecondaryMarketDemoVisible: () => mocks.demoVisible,
   useCommunityStaffPreviewVisible: () => mocks.communityPreviewVisible,
 }));
 
 function render() {
-  return renderToStaticMarkup(<SiteFooter />);
+  return renderToStaticMarkup(<SiteFooter copyrightYear={2026} />);
 }
 
 beforeEach(() => {
-  mocks.cardRewardsEnabled = true;
   mocks.demoVisible = false;
   mocks.communityPreviewVisible = false;
   mocks.pathname = '/shop';
 });
 
 describe('SiteFooter 법정 고지 링크', () => {
-  it('renders the public brand and social links while retaining business disclosures', () => {
-    const html = renderToStaticMarkup(<SiteFooter branding={{ displayName: '검증 스토어', logoUrl: null, mobileLogoUrl: null, introduction: '스토어 소개', socials: [{ platform: 'instagram', url: 'https://www.instagram.com/example/' }] }} />);
-    expect(html).toContain('검증 스토어 홈');
-    expect(html).toContain('스토어 소개');
-    expect(html).toContain('href="https://www.instagram.com/example/"');
-    expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
-    expect(html).toContain('href="/legal/privacy"');
-  });
-  it('이용약관·개인정보처리방침을 실제 링크로 건다', () => {
+  it('이용약관·개인정보처리방침·배송·반품 정책을 실제 링크로 건다(Figma 표기)', () => {
     const html = render();
 
-    expect(html).toContain('href="/legal/terms"');
-    expect(html).toContain('href="/legal/privacy"');
-    expect(html).toContain('이용약관');
-    expect(html).toContain('개인정보처리방침');
-  });
-
-  it('배송·반품 정책 링크를 추가한다', () => {
-    const html = render();
-
-    expect(html).toContain('href="/legal/shipping"');
-    expect(html).toContain('배송·반품 정책');
-  });
-
-  it('약관 문구를 링크 없는 span으로 남기지 않는다', () => {
-    const html = render();
-
+    expect(html).toContain('<a href="/legal/terms">아이콘스 이용약관</a>');
+    expect(html).toContain('<a href="/legal/privacy">개인정보처리방침</a>');
+    expect(html).toContain('<a href="/legal/shipping">배송·반품 정책</a>');
+    /* 법정 고지가 링크 없는 글자로 남지 않는다. */
     expect(html).not.toContain('<span>이용약관</span>');
     expect(html).not.toContain('<span>개인정보처리방침</span>');
   });
 
-  it('법정 고지 화면 자체에서도 푸터가 유지된다', () => {
-    mocks.pathname = '/legal/privacy';
-
-    expect(render()).toContain('href="/legal/terms"');
+  it('법정 고지 화면 자체와 로그인 화면에서도 푸터가 유지된다', () => {
+    for (const pathname of ['/legal/privacy', '/login']) {
+      mocks.pathname = pathname;
+      expect(render(), pathname).toContain('href="/legal/terms"');
+    }
   });
 
   /* 1014-X36 "인증 화면 빼고 전부" — 캠페인(/ip/aouad)·게임(/games)은 내비·문의 위젯이 없는 독립 경험이어도
@@ -75,7 +53,7 @@ describe('SiteFooter 법정 고지 링크', () => {
     const html = render();
 
     expect(html).toContain('<footer class="wc-root wc-footer wc-footer--standalone" id="site-footer" tabindex="-1">');
-    expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
+    expect(html).toContain(BUSINESS_INFO.companyName);
     for (const href of ['/legal/terms', '/legal/privacy', '/legal/shipping']) expect(html).toContain(`href="${href}"`);
   });
 
@@ -107,126 +85,131 @@ describe('SiteFooter 법정 고지 링크', () => {
     expect(bottoms['.wc-footer']).toBe('max(122px, calc(var(--wc-store-analytics-clearance, 0px) + 16px))');
     expect(bottoms['.wc-footer.wc-footer--standalone']).toBe('max(60px, calc(var(--wc-store-analytics-clearance, 0px) + 16px))');
   });
+});
 
-  it('사업자 정보를 접이식 블록으로 푸터에 표기한다', () => {
+/* 사업자 정보는 전자상거래법상 표시 의무가 걸린 법정 표기다 — Figma 구성으로 단순화해도 접지 않고 항목을 줄이지 않는다. */
+describe('SiteFooter 사업자 정보(법정 표기)', () => {
+  it('설정값 전부(상호·주소·대표자·사업자등록번호·통신판매업 신고번호·전화·이메일·호스팅)를 접지 않고 펼쳐 표기한다', () => {
     const html = render();
 
-    /* SSR은 데스크톱 기본(접힘)이다 — 모바일 기본 펼침(CH-15)은 붙는 순간 클라이언트가 연다. */
-    expect(html).toContain('<details class="wc-footer__biz">');
-    expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
-    expect(html).toContain('aria-label="사업자 정보"');
+    expect(html).not.toContain('<details');
+    expect(html).not.toContain('<summary');
     for (const row of businessInfoRows()) {
-      expect(html).toContain(row.label);
-      expect(html).toContain(row.value);
+      expect(html, row.label).toContain(row.label);
+      expect(html, row.label).toContain(row.value);
     }
   });
 
-  it('결제 확정 원칙을 legacy provider 이름 없이 안내한다', () => {
+  it('1줄은 상호·주소·대표자·사업자등록번호·통신판매업 신고번호, 2줄은 전화·이메일·호스팅이다', () => {
+    const html = render();
+    const lineOf = (label: string) => html.slice(html.indexOf(`aria-label="${label}"`), html.indexOf('</dl>', html.indexOf(`aria-label="${label}"`)));
+    const first = lineOf('사업자 정보');
+    const second = lineOf('연락처·호스팅');
+
+    const order = (line: string, labels: string[]) => labels.map((label) => line.indexOf(`<dt>${label}</dt>`));
+    const firstOrder = order(first, ['상호', '사업장 주소', '대표자', '사업자등록번호', '통신판매업 신고번호']);
+    expect(firstOrder.every((index) => index > -1)).toBe(true);
+    expect([...firstOrder].sort((a, b) => a - b)).toEqual(firstOrder);
+    const secondOrder = order(second, ['전화', '이메일', '호스팅 제공자']);
+    expect(secondOrder.every((index) => index > -1)).toBe(true);
+    expect([...secondOrder].sort((a, b) => a - b)).toEqual(secondOrder);
+    expect(html.indexOf('aria-label="사업자 정보"')).toBeLessThan(html.indexOf('aria-label="연락처·호스팅"'));
+  });
+
+  /* Figma는 상호·주소의 라벨 없이 값만 적는다 — 화면에서만 감추고 접근 이름(dt)으로는 남는다. */
+  it('상호·주소 라벨은 화면에서만 감추고 마크업에는 남긴다', () => {
     const html = render();
 
-    expect(html).toContain('결제사 승인 확인 후 주문 확정');
-    expect(html).not.toContain('토스페이먼츠 안전 결제');
+    expect(html).toContain('<div class="wc-x-footer__biz-row wc-x-footer__biz-row--bare"><dt>상호</dt>');
+    expect(html).toContain('<div class="wc-x-footer__biz-row wc-x-footer__biz-row--bare"><dt>사업장 주소</dt>');
+    expect(html).toContain('<div class="wc-x-footer__biz-row"><dt>대표자</dt>');
   });
 
-  /* S3에서 홈이 공용 셸 위로 올라오면서 '/'는 더 이상 예외가 아니다 — 푸터를 그린다.
-     게임·캠페인은 1014-X36부터 푸터를 그린다(위 '하단에도 사업자 정보' 시험). */
-  it('집중형 인증 셸·어드민에서는 푸터를 렌더하지 않는다', () => {
-    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/admin']) {
-      mocks.pathname = pathname;
-      expect(render(), pathname).toBe('');
-    }
+  it('현재 설정값을 반영하고 비운 항목은 행이 사라진다(줄이 비면 그 줄도)', () => {
+    const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, companyName: '설정회사', phone: '', email: 'new@example.test' }} copyrightYear={2026} />);
+
+    expect(html).toContain('설정회사');
+    expect(html).toContain('new@example.test');
+    expect(html).not.toContain(BUSINESS_INFO.phone);
+    expect(html).not.toContain('<dt>전화</dt>');
+
+    const emptyContact = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, phone: '', email: '', hostingProvider: '' }} copyrightYear={2026} />);
+    expect(emptyContact).not.toContain('aria-label="연락처·호스팅"');
+    expect(emptyContact).toContain('aria-label="사업자 정보"');
   });
 
-  /* CH-13: 로그인은 전역 셸 안이다 — 법정 고지·사업자 정보가 로그인 화면에서도 보인다. */
-  it('로그인 화면에서는 푸터를 렌더한다', () => {
-    mocks.pathname = '/login';
-
-    expect(render()).toContain('href="/legal/terms"');
-  });
-});
-
-describe('SiteFooter 블록 순서 (CH-15)', () => {
-  /* 화면 순서 = 마크업 순서여야 키보드·스크린리더가 화면과 같은 차례로 읽는다(WCAG 1.3.2·2.4.3). 폭마다 자리가 다른
-     로고·소개는 한 벌씩 두고 CSS 가 그 폭이 아닌 쪽을 숨긴다(chrome-styles.test). */
-  const branding = { displayName: '검증 스토어', logoUrl: null, mobileLogoUrl: null, introduction: '스토어 소개', socials: [{ platform: 'instagram' as const, url: 'https://www.instagram.com/example/' }] };
-  const at = (html: string, needle: string) => {
-    const index = html.indexOf(needle);
-    expect(index, needle).toBeGreaterThanOrEqual(0);
-    return index;
-  };
-
-  it('모바일 사본만 이으면 로고 → 회사·정책 → 고객센터 → 소개·SNS → 링크 → 저작권이다', () => {
-    const html = renderToStaticMarkup(<SiteFooter branding={branding} />);
-    const sequence = ['wc-footer__logo wc-footer__logo--mobile', 'wc-footer__primary', 'wc-footer__cs', 'wc-footer__brand--mobile', 'wc-footer__cols', 'wc-footer__line'].map((needle) => at(html, needle));
-    expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
+  it('저작권 줄은 서버가 넘긴 연도를 쓴다', () => {
+    expect(render()).toContain('<p class="wc-x-footer__copy">© 2026 ICONS</p>');
+    expect(renderToStaticMarkup(<SiteFooter copyrightYear={2031} />)).toContain('© 2031 ICONS');
   });
 
-  it('데스크톱 사본만 이으면 회사·정책 → 로고 → 소개·SNS → 고객센터 | 링크 → 저작권이다', () => {
-    const html = renderToStaticMarkup(<SiteFooter branding={branding} />);
-    const sequence = ['wc-footer__primary', 'wc-footer__logo wc-footer__logo--desktop', 'wc-footer__brand--desktop', 'wc-footer__cs', 'wc-footer__cols', 'wc-footer__line'].map((needle) => at(html, needle));
-    expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
-  });
-
-  it('로고·소개 사본은 폭마다 한 벌씩이고 다른 블록은 한 번만 그린다', () => {
-    const html = renderToStaticMarkup(<SiteFooter branding={branding} />);
-    const count = (needle: string) => html.split(needle).length - 1;
-    expect(count('검증 스토어 홈')).toBe(2);
-    expect(count('스토어 소개')).toBe(2);
-    expect(count('aria-label="회사·정책"')).toBe(1);
-    expect(count('사업자 정보</summary>')).toBe(1);
-  });
-});
-
-describe('SiteFooter 도메인 용어', () => {
-  /* 굿즈 클레임 유형 "교환"(회수 후 재출고)이 생기면서 카드 C2C는 "트레이드"로 개명됐다.
-   * 푸터에 옛 표기가 남으면 두 개념이 같은 이름으로 보인다. */
-  it('카드 C2C 링크를 트레이드로 부른다', () => {
+  it('결제 확정 원칙·무상 카드 리워드 약속 문구는 Figma 푸터에 없다', () => {
     const html = render();
 
-    expect(html).toContain('카드 트레이드');
-    expect(html).not.toContain('카드 교환');
-  });
-
-  /* 카드 리워드 게이트가 닫힌 상태에서 푸터만 카드팩을 계속 광고하면 죽은 링크가 남는다. */
-  it('카드 리워드 게이트가 닫히면 카드팩 링크를 지운다', () => {
-    mocks.cardRewardsEnabled = false;
-
-    expect(render()).not.toContain('href="/packs"');
-  });
-
-  /* CH-11: 저작권 줄의 약속도 같은 게이트를 따른다 — 꺼진 배포에서 '무상 카드 리워드'를 내세우지 않는다. */
-  it('카드 리워드 게이트가 닫히면 저작권 줄에서 카드 리워드 약속을 뺀다', () => {
-    expect(render()).toContain('공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정');
-
-    mocks.cardRewardsEnabled = false;
-    const html = render();
-
+    expect(html).not.toContain('결제사 승인 확인 후 주문 확정');
     expect(html).not.toContain('카드 리워드');
-    expect(html).toContain('공식 라이선스 · 결제사 승인 확인 후 주문 확정');
+    expect(html).not.toContain('공식 라이선스');
   });
 });
 
-describe('SiteFooter White Catalog 진입점', () => {
-  it('회사·정책 행과 발견·내 활동 열의 진입점을 모두 세운다', () => {
+describe('SiteFooter Figma 진입점', () => {
+  it('1행 오른쪽에 고객센터(/help)를 둔다', () => {
     const html = render();
 
-    expect(html).toContain('wc-footer');
-    expect(html).toContain('href="/about"');
-    expect(html).toContain('href="/help"');
-    expect(html).toContain('자주 묻는 질문');
-    expect(html).toContain('오프라인 팝업');
-    expect(html).toContain('href="/offline-popups"');
-    /* 캠페인 허브는 별개 도메인이라 발견 열에 자기 링크를 따로 유지한다. */
-    expect(html).toContain('href="/events"');
-    /* 티켓 진입점은 푸터가 유일한 상시 표면이다 — TicketEntrypoints.test.tsx와 이중으로 잠근다. */
-    expect(html).toContain('href="/tickets"');
-    expect(html).toContain('내 티켓');
-    expect(html).toContain('href="/my/wishlist"');
-    expect(html).toContain('© ICONS');
+    expect(html).toContain('aria-label="고객센터·SNS"');
+    expect(html).toContain('<a href="/help">고객센터</a>');
+  });
+
+  /* 대량구매는 문의 게시판이 아직 없어 대표 이메일 mailto 로 연다 — 값은 어드민 사업자 정보 설정이다(코드에 쓰지 않는다). */
+  it('대량구매는 대표 이메일 mailto 이고 이메일이 없으면 링크를 그리지 않는다', () => {
+    const subject = encodeURIComponent('[대량구매 문의]');
+    expect(render()).toContain(`<a href="mailto:${BUSINESS_INFO.email}?subject=${subject}">대량구매</a>`);
+    expect(renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, email: 'bulk@example.test' }} copyrightYear={2026} />)).toContain(`href="mailto:bulk@example.test?subject=${subject}"`);
+
+    for (const email of ['', '  ', 'not-an-address']) {
+      const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, email }} copyrightYear={2026} />);
+      expect(html, email).not.toContain('mailto:');
+      expect(html, email).not.toContain('대량구매');
+    }
+  });
+
+  /* 공지사항·서비스 가이드라인·X는 Figma에 있지만 목적지가 없다 — 죽은 링크를 만들지 않는다(스펙 §6). */
+  it('목적지 없는 Figma 항목(공지사항·서비스 가이드라인·X)과 빠진 링크 열을 그리지 않는다', () => {
+    const html = render();
+
+    for (const missing of ['공지사항', '서비스 가이드라인', 'X (Twitter)', 'twitter', 'x.com']) expect(html, missing).not.toContain(missing);
+    /* 로고·소개·회사 소개·오프라인 팝업·발견·내 활동 열은 Figma 푸터에 없다. */
+    for (const removed of ['회사 소개', '오프라인 팝업', '자주 묻는 질문', '카드 트레이드', '굿즈 마켓', 'wc-store-brand-logo', 'aria-label="발견 메뉴"', 'aria-label="내 활동 메뉴"']) expect(html, removed).not.toContain(removed);
+    for (const href of ['/about', '/offline-popups', '/tickets', '/orders', '/binder', '/market', '/exchange', '/packs', '/community']) expect(html, href).not.toContain(`href="${href}"`);
+  });
+
+  /* SNS는 운영 브랜딩 설정에서 켠 것만 그린다. 인스타그램은 Figma 원본 글리프, 블로그·페이스북은 글자 링크다. */
+  it('브랜딩 설정에서 켠 SNS만 그리고 인스타그램은 Figma 아이콘이다', () => {
+    expect(render()).not.toContain('instagram');
+    const socials = [
+      { platform: 'blog' as const, url: 'https://blog.naver.com/shop' },
+      { platform: 'instagram' as const, url: 'https://www.instagram.com/example/' },
+    ];
+    const html = renderToStaticMarkup(<SiteFooter branding={{ displayName: 'ICONS', logoUrl: null, mobileLogoUrl: null, introduction: '스토어 소개', socials }} copyrightYear={2026} />);
+
+    expect(html).toContain('<a aria-label="인스타그램(새 창)" class="wc-x-footer__social" href="https://www.instagram.com/example/" rel="noopener noreferrer" target="_blank">');
+    expect(html).toContain('<img alt="" height="18" src="/brand/social-instagram.png" width="18"/>');
+    expect(html).toContain('<a href="https://blog.naver.com/shop" rel="noopener noreferrer" target="_blank">네이버 블로그<span class="wc-sr-only"> 새 창</span></a>');
+    expect(html).not.toContain('페이스북');
+    /* 스토어 소개·대표 이미지는 Figma 푸터에 없다. */
+    expect(html).not.toContain('스토어 소개');
+  });
+
+  it('로고 없이 약관·안내 → 고객센터·SNS → 사업자 정보 → 저작권 순서다', () => {
+    const html = renderToStaticMarkup(<SiteFooter copyrightYear={2026} />);
+    const sequence = ['aria-label="약관·안내"', 'aria-label="고객센터·SNS"', 'aria-label="사업자 정보"', 'aria-label="연락처·호스팅"', 'wc-x-footer__copy'].map((needle) => {
+      const index = html.indexOf(needle);
+      expect(index, needle).toBeGreaterThan(-1);
+      return index;
+    });
+    expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
   });
 });
-
-it("현재 설정값을 푸터에 반영하고 비운 전화는 숨긴다",()=>{ const html=renderToStaticMarkup(<SiteFooter businessInfo={{...BUSINESS_INFO,companyName:"설정회사",phone:"",email:"new@example.test"}}/>);expect(html).toContain("설정회사 사업자 정보");expect(html).toContain("new@example.test");expect(html).not.toContain(BUSINESS_INFO.phone); });
 
 describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
   /* 시연은 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 존재한다. 공개 푸터·SSR 결과에
@@ -236,9 +219,6 @@ describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
 
     expect(html).not.toContain('wc-footer__demo');
     expect(html).not.toContain('시연');
-    /* 공개 링크는 그대로 — v2 플레이스홀더 진입점이다. */
-    expect(html).toContain('href="/market"');
-    expect(html).toContain('href="/exchange"');
   });
 
   it('스태프에게는 굿즈 마켓·카드 트레이드 시연 링크를 스태프 전용 표기와 함께 연다', () => {
@@ -249,7 +229,12 @@ describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
     expect(html).toContain('세컨더리 마켓 시연 · 스태프 전용');
     expect(html).toContain('굿즈 마켓 시연');
     expect(html).toContain('카드 트레이드 시연');
+    expect(html).toContain('href="/market"');
+    expect(html).toContain('href="/exchange"');
     expect(html).toContain('실제 결제·체결은 일어나지 않습니다');
+    /* 스태프 블록은 사업자 정보 아래, 저작권 줄 위에 지금 모양 그대로 선다. */
+    expect(html.indexOf('aria-label="연락처·호스팅"')).toBeLessThan(html.indexOf('aria-label="스태프 시연 메뉴"'));
+    expect(html.indexOf('aria-label="스태프 시연 메뉴"')).toBeLessThan(html.indexOf('wc-x-footer__copy'));
   });
 });
 

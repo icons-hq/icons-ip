@@ -12,7 +12,8 @@ select 1 / case when not has_function_privilege('anon','public.admin_save_store_
   and not has_function_privilege('authenticated','private.store_navigation_valid(jsonb)','execute')
   and not has_table_privilege('authenticated','public.store_settings','update') then 1 else 0 end as assert_sealed_writes;
 set local role anon;
-select 1 / case when public.get_storefront_navigation()='[{"id":"new","label":"NEW"},{"id":"best","label":"BEST"},{"id":"shop","label":"카테고리"},{"id":"iphub","label":"온라인 팝업"},{"id":"packs","label":"카드팩"},{"id":"events","label":"이벤트"},{"id":"community","label":"커뮤니티"},{"id":"stories","label":"쇼핑스토리"}]'::jsonb then 1 else 0 end as assert_public_defaults;
+-- 새 기본 메뉴(ADR-0043): NEW·BEST·카테고리·POP-UP·EVENT만 공개하고 온라인 팝업·카드팩·커뮤니티·쇼핑스토리는 숨긴다.
+select 1 / case when public.get_storefront_navigation()='[{"id":"new","label":"NEW"},{"id":"best","label":"BEST"},{"id":"shop","label":"카테고리"},{"id":"popups","label":"POP-UP"},{"id":"events","label":"EVENT"}]'::jsonb then 1 else 0 end as assert_public_defaults;
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000019002',true);
@@ -30,15 +31,16 @@ do $$ declare initial public.store_settings; payload jsonb; invalid jsonb; saved
 begin
   select * into initial from public.store_settings;
   select jsonb_agg(value order by ordinal desc) into payload from jsonb_array_elements(initial.navigation) with ordinality item(value,ordinal);
-  payload:=jsonb_set(payload,'{7,label}','"숨겨진 신상품 메뉴"');
-  payload:=jsonb_set(payload,'{7,visible}','false');
+  -- 뒤집은 9개의 마지막(인덱스 8)이 원래 첫 항목(new)이다.
+  payload:=jsonb_set(payload,'{8,label}','"숨겨진 신상품 메뉴"');
+  payload:=jsonb_set(payload,'{8,visible}','false');
   foreach invalid in array array[
     'null'::jsonb,'{}'::jsonb,'[]'::jsonb,payload-0,payload||'[{}]',
     jsonb_set(payload,'{0}','null'),jsonb_set(payload,'{0,id}','"admin"'),jsonb_set(payload,'{0,id}','"best"'),
     jsonb_set(payload,'{0,label}','""'),jsonb_set(payload,'{0,label}','" new"'),
     jsonb_set(payload,'{0,label}',to_jsonb(repeat('가',21))),jsonb_set(payload,'{0,label}',to_jsonb(E'hello\nworld'::text)),
     jsonb_set(payload,'{0,label}',to_jsonb(U&'\00A0'::text)),jsonb_set(payload,'{0,visible}','"true"'),
-    jsonb_set(payload,'{0,href}','"/admin"'),jsonb_set(payload,'{5,visible}','false')
+    jsonb_set(payload,'{0,href}','"/admin"'),jsonb_set(payload,'{6,visible}','false')
   ] loop
     begin
       perform public.admin_save_store_navigation(gen_random_uuid(),invalid,initial.updated_at); raise exception 'invalid menu accepted: %',invalid;
@@ -49,7 +51,7 @@ begin
   if replay<>saved then raise exception 'replay changed saved timestamp'; end if;
   if (select count(*) from public.admin_store_settings_history(50) where target='store_settings:navigation' and diff->'after'=payload)<>1 then raise exception 'duplicate/missing audit'; end if;
   if (select navigation from public.store_settings)<>payload then raise exception 'order/hidden settings lost'; end if;
-  if public.get_storefront_navigation()<>'[{"id":"stories","label":"쇼핑스토리"},{"id":"community","label":"커뮤니티"},{"id":"events","label":"이벤트"},{"id":"packs","label":"카드팩"},{"id":"iphub","label":"온라인 팝업"},{"id":"shop","label":"카테고리"},{"id":"best","label":"BEST"}]'::jsonb then raise exception 'public projection mismatch'; end if;
+  if public.get_storefront_navigation()<>'[{"id":"events","label":"EVENT"},{"id":"popups","label":"POP-UP"},{"id":"shop","label":"카테고리"},{"id":"best","label":"BEST"}]'::jsonb then raise exception 'public projection mismatch'; end if;
   if public.get_storefront_settings() ? 'navigation' then raise exception 'legal contract changed'; end if;
   begin
     perform public.admin_save_store_navigation('10000000-0000-4000-8000-000000019001',initial.navigation,saved); raise exception 'operation reused with changed payload';

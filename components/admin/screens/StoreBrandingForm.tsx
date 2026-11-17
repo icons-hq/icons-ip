@@ -62,7 +62,7 @@ export function StoreBrandingForm({ settings, canEdit, operationId }: { settings
   const preview = parsed ? storefrontBranding(parsed, path => publicMediaUrl(path) ?? '') : null;
   /* 스토어 브랜드·SNS 입력(템플릿 룩, ADR-0028). 묶음마다 테두리 상자와 제목을 두고, 입력은 kit 부품이다. */
   return <form onSubmit={submit} className="flex min-w-0 flex-col gap-5">
-    <p className="text-sm text-muted-foreground">스토어 헤더와 푸터에 표시할 이름·로고와 푸터의 대표 이미지·소개·SNS를 설정합니다. 사업자 정보는 별도 설정에서 관리합니다.</p>
+    <p className="text-sm text-muted-foreground">스토어 헤더에 표시할 이름·로고와 푸터의 SNS를 설정합니다. 대표 이미지·소개는 지금 스토어 화면에 표시하지 않으며 값만 보관합니다. 사업자 정보는 별도 설정에서 관리합니다.</p>
     <fieldset disabled={pending || !canEdit} className={GROUP}>
       <legend className={LEGEND}>스토어 표시</legend>
       <AdminFormGrid>
@@ -82,8 +82,8 @@ export function StoreBrandingForm({ settings, canEdit, operationId }: { settings
           showCropGuide={false} showPath={false} helpText="비워두면 모바일에서도 PC 로고를 표시합니다." onPathChange={path => change({ mobileLogoPath: path || null })} />
       </AdminFormGrid>
       <ArtworkUploadField key={`profile-${editingStamp}`} allowRemove autoUpload compact kind="curation" label="스토어 대표 이미지" name="profileImagePath" fieldId="brand-profile-image" currentPath={draft.profileImagePath ?? null} currentUrl={draft.profileImagePath ? publicMediaUrl(draft.profileImagePath) : null}
-        showCropGuide={false} showPath={false} helpText="160×160px 이상의 정사각형, 1300×1300px 권장. 최대 5MB의 JPG·PNG·WebP를 사용할 수 있습니다. 푸터에 80×80px로 표시하며 PC·모바일 로고와 별도로 저장합니다." onPathChange={path => change({ profileImagePath: path || null })} />
-      <AdminField label="스토어 소개" inputId="brand-introduction" hint={`${[...draft.introduction].length}/50자 · 푸터에 표시합니다.`}>
+        showCropGuide={false} showPath={false} helpText="160×160px 이상의 정사각형, 1300×1300px 권장. 최대 5MB의 JPG·PNG·WebP를 사용할 수 있습니다. 지금 스토어 화면에는 표시하지 않으며 PC·모바일 로고와 별도로 저장합니다." onPathChange={path => change({ profileImagePath: path || null })} />
+      <AdminField label="스토어 소개" inputId="brand-introduction" hint={`${[...draft.introduction].length}/50자 · 지금 스토어 화면에는 표시하지 않습니다.`}>
         <Input id="brand-introduction" value={draft.introduction} onChange={event => change({ introduction: event.target.value })} aria-describedby="brand-introduction-hint" />
       </AdminField>
       <label className={CHECK}><input type="checkbox" checked={draft.showIntroduction} onChange={event => change({ showIntroduction: event.target.checked })} /> 스토어 소개 노출</label>

@@ -16,6 +16,7 @@ import {
   menuLabel,
   menuMonogram,
   parseStorefrontCategoryMenu,
+  toMenuCampaignPresentations,
   toMenuCampaigns,
   toMenuIps,
 } from './storefront-mega-menu';
@@ -146,10 +147,38 @@ describe('기획전·피처드 IP 원천', () => {
     const campaigns = toMenuCampaigns(rows, url);
     expect(campaigns).toHaveLength(MENU_CAMPAIGN_LIMIT);
     expect(campaigns.slice(0, 2)).toEqual([
-      { id: 'c1', title: '가을 기획전', imageUrl: 'https://cdn.example/catalog/event/a.webp' },
-      { id: 'c3', title: '겨울 기획전', imageUrl: null },
+      { id: 'c1', title: '가을 기획전', imageUrl: 'https://cdn.example/catalog/event/a.webp', href: '/events/c1' },
+      { id: 'c3', title: '겨울 기획전', imageUrl: null, href: '/events/c3' },
     ]);
     expect(toMenuCampaigns(null, url)).toEqual([]);
+  });
+
+  /* QA X2 — 기획전 링크는 EVENT·POP-UP 카드와 같은 규칙(campaignCardHref)이다: 바로가기 → POP-UP 캠페인 /popups/<id> → /events/<id>. */
+  it('기획전 링크는 노출 설정을 따른다 — 바로가기 우선, POP-UP 캠페인은 /popups, 그 밖은 /events', () => {
+    const presentations = toMenuCampaignPresentations([
+      { campaign_id: 'pop', popup_mode: 'offline', popup_location: '성수', card_link_path: null },
+      { campaign_id: 'go', popup_mode: null, popup_location: null, card_link_path: '/shop/g1' },
+      { campaign_id: 'pop-go', popup_mode: 'online', popup_location: null, card_link_path: '/ip/maple' },
+      { campaign_id: 'bad', popup_mode: 'galaxy', popup_location: null, card_link_path: null },
+      { campaign_id: 'bad-link', popup_mode: null, popup_location: null, card_link_path: 'https://evil.example' },
+      { popup_mode: 'online', popup_location: null, card_link_path: null },
+    ]);
+    expect([...presentations.keys()]).toEqual(['pop', 'go', 'pop-go']);
+
+    const rows = ['pop', 'go', 'pop-go', 'bad', 'bad-link', 'plain', '한글 id'].map((campaignId) => ({ id: campaignId, title: campaignId, card_image_path: null }));
+    expect(toMenuCampaigns(rows, url, presentations).map((campaign) => [campaign.id, campaign.href])).toEqual([
+      ['pop', '/popups/pop'],
+      ['go', '/shop/g1'],
+      ['pop-go', '/ip/maple'],
+      /* 형식이 어긋난 행은 없는 것과 같다 — 지금 링크(/events/<id>)로 떨어진다. */
+      ['bad', '/events/bad'],
+      ['bad-link', '/events/bad-link'],
+      ['plain', '/events/plain'],
+      ['한글 id', `/events/${encodeURIComponent('한글 id')}`],
+    ]);
+    /* 노출 설정을 못 읽은 경우(인자 없음)도 /events/<id>다. */
+    expect(toMenuCampaigns(rows.slice(0, 1), url).map((campaign) => campaign.href)).toEqual(['/events/pop']);
+    expect(toMenuCampaignPresentations(null).size).toBe(0);
   });
 
   /* 리뷰 l5-data-1 — 어드민·DB 는 캠페인 제목을 120자까지 받는다. 허브 배너 1순위 기획전이 길이 때문에 메뉴에서 빠지면 안 된다. */

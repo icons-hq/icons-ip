@@ -1,0 +1,244 @@
+/* X SQUARE POP-UP·EVENT 화면 전용 스타일과 PromoCard(.wc-promo-card) (Figma 2026-11-12, 스펙 C §2.6·§2.7).
+ * 토큰은 --wc-x-*(wc-foundation.css 의 .wc-root). 이 파일은 wc-storefront-x.css·wc-listing.css 뒤에 import 된다.
+ *
+ * 규율: 모든 선택자는 .wc-promo-*·.wc-popup-hub·.wc-event-hub 로 시작하고, 캠페인 배너 슬라이더(.wc-campaign-banners*)는
+ * .wc-event-hub 안에서만 모양을 바꾼다(전역 규칙 금지 — 다른 표면이 같은 슬라이더 클래스를 쓸 수 있다). */
+
+/* ------------------------------------------------------------------
+   페이지 틀 — POP-UP·EVENT 공용
+   넓은 컨테이너(안쪽 1272) 안에서 제목 → 3열 카드. 제목 블록은 Figma 71px(위 24 + 글 + 아래 24).
+   ------------------------------------------------------------------ */
+
+.wc-promo-page {
+  display: block;
+  padding-bottom: 64px;
+}
+
+/* 편집 파운데이션이 h1~h3에 display 폰트를 강제하므로 지면 폰트를 되돌린다. */
+.wc-promo-page__title {
+  margin: 0;
+  padding: 12px 0;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 30px;
+  color: var(--wc-x-ink);
+}
+
+/* 빈 상태 — Figma POP-UP 프레임처럼 가운데 한 덩어리. 머리와 푸터 사이 여백이 넉넉하다. */
+.wc-promo-page__empty {
+  padding: 96px 16px;
+}
+
+@media (min-width: 750px) {
+  .wc-promo-page { padding-bottom: 96px; }
+
+  .wc-promo-page__title {
+    padding: 17px 0 16px;
+    font-size: 32px;
+    line-height: 38px;
+  }
+
+  .wc-promo-page__empty { padding: 180px 16px 240px; }
+}
+
+@media (min-width: 990px) {
+  .wc-promo-page { padding-bottom: 120px; }
+}
+
+/* ------------------------------------------------------------------
+   프로모션 카드 그리드 — 데스크톱 3열(408 × 3 + 24 × 2 = 1272), 줄 간격 40.
+   990 미만 2열(750+), 750 미만 1열. 카드는 408:260 비율을 어느 폭에서나 지킨다.
+   ------------------------------------------------------------------ */
+
+.wc-promo-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-promo-grid > li { min-width: 0; }
+
+@media (min-width: 750px) {
+  .wc-promo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 16px;
+  }
+}
+
+@media (min-width: 990px) {
+  .wc-promo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 40px 24px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   프로모션 카드 (components/wc/PromoCard.tsx)
+   배경 이미지 위에 아래 150px(카드 높이의 57.7%) 그라데이션 #121212 0 → 100% 를 깔고, 흰 제목 20 Bold 최대 2줄을
+   왼쪽 30·아래 30 에 둔다. 제목이 이미지 위 글이라 그라데이션이 대비를 만든다(흰 글자 위 어두운 면).
+   ------------------------------------------------------------------ */
+
+.wc-promo-card {
+  position: relative;
+  display: block;
+  aspect-ratio: 408 / 260;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--wc-x-radius-card);
+  background: var(--wc-surface-grey-2);
+  color: #FFFFFF;
+  text-decoration: none;
+}
+
+.wc-promo-card:focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+.wc-promo-card__art {
+  position: absolute;
+  inset: 0;
+  transition: transform var(--wc-duration-medium, .3s) ease;
+}
+
+@media (hover: hover) {
+  .wc-promo-card:hover .wc-promo-card__art { transform: scale(1.03); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-promo-card__art { transition: none; }
+  .wc-promo-card:hover .wc-promo-card__art { transform: none; }
+}
+
+.wc-promo-card::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  height: 57.7%;
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0) 0%, var(--wc-x-ink) 100%);
+  pointer-events: none;
+}
+
+.wc-promo-card__badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  padding: 3px 6px;
+  border-radius: var(--wc-x-radius-chip);
+  background: rgba(255, 255, 255, .9);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 14px;
+  color: var(--wc-x-ink);
+}
+
+.wc-promo-card__body {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  left: 20px;
+  z-index: 2;
+}
+
+/* 제목 2줄 말줄임. h3 에 걸리는 지면 서체 규칙을 되돌리고 글자색을 직접 고정한다. */
+.wc-promo-card__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin: 0;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #FFFFFF;
+  overflow-wrap: anywhere;
+}
+
+.wc-promo-card__meta {
+  margin: 6px 0 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 17px;
+  color: rgba(255, 255, 255, .8);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 750px) {
+  .wc-promo-card__body {
+    right: 30px;
+    bottom: 30px;
+    left: 30px;
+  }
+
+  .wc-promo-card__title {
+    font-size: 20px;
+    line-height: 27px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   EVENT — 스트립 배너 슬라이더 (Figma 1272×340 r12, 이미지만)
+   StripBanner 가 슬라이드 한 장의 모양(비율·radius)을 맡고, 이 아래는 슬라이더 크롬(화살표·상태)만 Figma 모양으로 맞춘다.
+   배너 아래 여백 60(Figma Main Content gap). 자동 넘김·정지 규율은 CampaignBannerSlider 가 그대로 맡는다.
+   ------------------------------------------------------------------ */
+
+.wc-event-hub__banners { margin: 0 0 24px; }
+
+@media (min-width: 750px) {
+  .wc-event-hub__banners { margin-bottom: 40px; }
+}
+
+@media (min-width: 990px) {
+  .wc-event-hub__banners { margin-bottom: 60px; }
+}
+
+/* 화살표는 배너 안 오른쪽 아래 32px 둘(Figma). 보이는 원은 32 이고 터치 영역은 ::after 로 44 까지 넓힌다.
+   모바일 표시 여부(스와이프가 이동 수단이라 감춤)는 wc-campaign.css 규칙이 그대로 정한다. */
+.wc-event-hub .wc-campaign-banners__arrow {
+  top: auto;
+  bottom: 20px;
+  width: 32px;
+  height: 32px;
+  transform: none;
+  border-radius: 50%;
+}
+
+.wc-event-hub .wc-campaign-banners__arrow--prev {
+  right: 60px;
+  left: auto;
+}
+
+.wc-event-hub .wc-campaign-banners__arrow--next { right: 20px; }
+
+.wc-event-hub .wc-campaign-banners__arrow::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+/* ------------------------------------------------------------------
+   POP-UP 캠페인 상세 — 기간 아래 장소 줄 (CampaignLanding venue)
+   ------------------------------------------------------------------ */
+
+.wc-campaign__venue {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wc-ink);
+}
+
+.wc-campaign__venue strong { font-weight: 700; }

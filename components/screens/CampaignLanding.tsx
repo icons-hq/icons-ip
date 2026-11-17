@@ -7,6 +7,7 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { WcButton } from '@/components/wc/WcButton';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { listingHeartsFor, type ListingHeartFor } from '@/components/shop/listing-hearts';
+import { CAMPAIGN_POPUP_MODE_LABELS, type CampaignPopupMode } from '@/lib/campaign-presentation';
 import {
   campaignAnchors,
   campaignKindLabel,
@@ -45,21 +46,35 @@ export interface CampaignLandingProps {
   exchangeOperationIds: Record<number, string>;
   signedIn: boolean;
   /**
+   * 이 랜딩이 열리는 경로의 앞부분(`/events` 기본). 로그인 복귀 경로와 종료 안내의 목록 링크가 이 값을 따른다 —
+   * POP-UP 캠페인은 `/popups`다(스펙 C §2.6).
+   */
+  basePath?: string;
+  /**
+   * POP-UP 캠페인의 방식·장소. 있으면 기간 줄 아래에 "장소 …" 한 줄을 그리고, 헤더 유형 글자를 POP-UP 으로 바꾼다.
+   * 일반 EVENT 캠페인은 생략한다.
+   */
+  venue?: { mode: CampaignPopupMode; location: string | null } | null;
+  /**
    * 굿즈 진열 카드의 목록 하트 초기 상태(LFS 패리티 2차 L4b · CL-01, `lib/wishlist-ids.server`). 라우트가 진열이 있을 때만
    * 한 번 읽어 내려 준다. 생략하면 하트를 그리지 않는다. 카드 별점은 로더가 굿즈 카드에 실어 온다(`reviewSummary`).
    */
   wishlist?: ListingWishlist | null;
 }
 
-function ClosedNotice() {
+const DEFAULT_BASE_PATH = '/events';
+
+function ClosedNotice({ listHref, popup }: { listHref: string; popup: boolean }) {
   /* 종료된 캠페인의 참여 자리. 서버 RPC 는 캠페인 기간을 보지 않으므로 화면이 막는
      것이 유일한 방어는 아니지만, 누를 수 없는 버튼을 남겨 두는 것보다 왜 못 하는지
      적는 편이 낫다(DESIGN §9). 열람은 그대로 열어 둔다. */
   return (
     <div className="wc-campaign-panel wc-campaign-panel--closed">
-      <p className="wc-campaign-panel__lede">종료된 이벤트예요.</p>
-      <p className="wc-campaign-panel__note">다음 캠페인은 이벤트 목록에서 확인할 수 있어요.</p>
-      <Link className="wc-campaign-panel__link" href="/events">이벤트 목록 보기</Link>
+      <p className="wc-campaign-panel__lede">{popup ? '종료된 POP-UP이에요.' : '종료된 이벤트예요.'}</p>
+      <p className="wc-campaign-panel__note">
+        {popup ? '다음 POP-UP은 POP-UP 목록에서 확인할 수 있어요.' : '다음 캠페인은 이벤트 목록에서 확인할 수 있어요.'}
+      </p>
+      <Link className="wc-campaign-panel__link" href={listHref}>{popup ? 'POP-UP 목록 보기' : '이벤트 목록 보기'}</Link>
     </div>
   );
 }
@@ -70,8 +85,10 @@ interface SectionContext {
   ended: boolean;
   /** 굿즈 진열 카드의 목록 하트(L4b · CL-01). 위시 상태를 받지 않았으면 하트가 없다. */
   heartFor: ListingHeartFor;
+  listHref: string;
   loginHref: string;
   next: string;
+  popup: boolean;
   signedIn: boolean;
 }
 
@@ -162,7 +179,7 @@ function SectionBody({
       );
 
     case 'attendance':
-      return context.ended ? <ClosedNotice /> : (
+      return context.ended ? <ClosedNotice listHref={context.listHref} popup={context.popup} /> : (
         <AttendancePanel
           attendedToday={context.attendedToday}
           balance={context.balance}
@@ -173,7 +190,7 @@ function SectionBody({
       );
 
     case 'exchange':
-      return context.ended ? <ClosedNotice /> : (
+      return context.ended ? <ClosedNotice listHref={context.listHref} popup={context.popup} /> : (
         <ExchangePanel
           balance={context.balance}
           loginHref={context.loginHref}
@@ -192,14 +209,16 @@ function SectionBody({
 }
 
 export function CampaignLanding({
+  basePath = DEFAULT_BASE_PATH,
   campaign,
   cardRewardsEnabled,
   coin,
   exchangeOperationIds,
   signedIn,
+  venue = null,
   wishlist,
 }: CampaignLandingProps) {
-  const next = `/events/${encodeURIComponent(campaign.id)}`;
+  const next = `${basePath}/${encodeURIComponent(campaign.id)}`;
   const loginHref = `/login?next=${encodeURIComponent(next)}`;
 
   /* 게이트가 내려가면 교환 블록은 화면에서 사라진다 — 자리만 남겨 "지금은 못 해요"를
@@ -217,8 +236,10 @@ export function CampaignLanding({
     balance: coin?.balance ?? 0,
     ended: campaign.displayState === 'ended',
     heartFor: listingHeartsFor(wishlist),
+    listHref: basePath,
     loginHref,
     next,
+    popup: venue !== null,
     signedIn,
   };
 
@@ -240,7 +261,7 @@ export function CampaignLanding({
               style={{ background: imageBg(campaign.heroImagePath) }}
             />
           ) : null}
-          <p className="wc-campaign__kind">{campaignKindLabel(campaign.kind)}</p>
+          <p className="wc-campaign__kind">{venue ? 'POP-UP' : campaignKindLabel(campaign.kind)}</p>
           <h1 className="wc-campaign__title">{campaign.title}</h1>
           {campaign.subtitle ? <p className="wc-campaign__subtitle">{campaign.subtitle}</p> : null}
           <p className="wc-campaign__period">
@@ -251,6 +272,13 @@ export function CampaignLanding({
               {campaignStateBadgeLabel(campaign)}
             </span>
           </p>
+          {/* POP-UP 은 기간 아래에 방식(온라인·오프라인·온·오프라인)과 장소를 한 줄로 싣는다. */}
+          {venue ? (
+            <p className="wc-campaign__venue">
+              <strong>장소</strong>{' '}
+              <span>{venue.location ? `${CAMPAIGN_POPUP_MODE_LABELS[venue.mode]} · ${venue.location}` : CAMPAIGN_POPUP_MODE_LABELS[venue.mode]}</span>
+            </p>
+          ) : null}
         </header>
 
         {visibleSections.length ? (

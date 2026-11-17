@@ -1,16 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
-import type { Card, FandomEvent, Good, Ip, Vertical } from './data';
+import type { Card, FandomEvent, Good, GoodOption, Ip, Vertical } from './data';
+import type { GoodsVariantSupply } from './goods-preorders';
 import {
   benefitTileIcon,
   buildHomeIpWorld,
   getHomeSelectableIps,
+  HOME_NEW_ARRIVALS_COUNT,
   isCommunityDestination,
   MAX_HOME_PICKER_IPS,
   prioritizeHomePostPreviews,
   readHomeGoodsSelection,
   resolveHomeLatestGoodsCards,
   resolveHomeGoodsCards,
+  isSafeInternalLink,
   withoutCommunityCurations,
   withoutCardRewardCurations,
   type HomeCurationSnapshot,
@@ -98,6 +101,67 @@ describe('automatic home goods selection', () => {
     expect(resolveHomeLatestGoodsCards({ ...catalog, goods: goods.filter((row) => row.id !== 'new-a') }, 3).map((row) => row.id)).toEqual(['new-b', 'older']);
     expect(resolveHomeLatestGoodsCards(catalog, 11)).toEqual([]);
     expect(goods[0].id).toBe('older');
+  });
+
+  it('serves the NEW ARRIVAL count as the newest ten and keeps the latest-count range', () => {
+    expect(HOME_NEW_ARRIVALS_COUNT).toBe(10);
+    const goods = Array.from({ length: 12 }, (_, index) => ({
+      ...good(`g${String(index).padStart(2, '0')}`, 'brand'),
+      createdAt: new Date(Date.UTC(2026, 9, index + 1)).toISOString(),
+    }));
+    const cards = resolveHomeLatestGoodsCards({ ips: [ip('brand')], goods }, HOME_NEW_ARRIVALS_COUNT);
+    expect(cards.map((row) => row.id)).toEqual(['g11', 'g10', 'g09', 'g08', 'g07', 'g06', 'g05', 'g04', 'g03', 'g02']);
+  });
+});
+
+describe('home goods card chips and IP address', () => {
+  const randomOption: GoodOption = { id: 'rand', name: '랜덤', code: 'R', price: 4000, stockQty: 5, isDefault: true, attributes: {} };
+  const openSupply: GoodsVariantSupply = {
+    mode: 'preorder', availableQty: 3, policyId: '11111111-1111-4111-8111-111111111111', policyRevision: 1, state: 'open',
+    startsAt: '2026-11-10T00:00:00.000Z', endsAt: '2026-12-10T00:00:00.000Z', expectedShipDate: '2026-12-20',
+    calculatedAt: '2026-11-17T00:00:00.000Z', nextChangeAt: '2026-12-10T00:00:00.000Z',
+  };
+  const preorderOption: GoodOption = { ...randomOption, id: 'pre', name: '예약', supply: openSupply };
+
+  it('fills chips from the catalog projection in the shared order and keeps the operator badge as a tag chip', () => {
+    const goods: Good[] = [
+      { ...good('plain', 'brand') },
+      { ...good('free', 'brand'), shippingFeeType: 'free', badge: 'NEW' },
+      { ...good('capsule', 'brand'), optionSaleMode: 'random', options: [randomOption] },
+      { ...good('pre', 'brand'), shippingFeeType: 'free', options: [preorderOption], optionSaleMode: 'random' },
+    ];
+    const cards = resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 10);
+    expect(cards.map((row) => row.chips)).toEqual([
+      [],
+      [{ kind: 'freeShipping', label: '무료배송' }, { kind: 'tag', label: 'NEW' }],
+      [{ kind: 'random', label: '캡슐토이' }],
+      [{ kind: 'preorder', label: '예약판매' }, { kind: 'freeShipping', label: '무료배송' }, { kind: 'random', label: '캡슐토이' }],
+    ]);
+    expect(cards[1].badge).toBe('NEW');
+  });
+
+  it('never shows a chip for a projection without shipping data (old rows) and keeps the policy fee silent', () => {
+    const goods = [{ ...good('old', 'brand') }, { ...good('policy', 'brand'), shippingFeeType: 'policy' as const }, { ...good('own', 'brand'), shippingFeeType: 'individual' as const }];
+    expect(resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 5).map((row) => row.chips)).toEqual([[], [], []]);
+  });
+
+  /* 개편 리뷰 M2 — 홈 카드가 정가·할인율 표시 여부를 싣는다(목록 카드와 같은 PriceBlock 규칙으로 그리려면 둘 다 필요하다). */
+  it('carries the compare-at price and the discount-rate switch so home cards can show the same rate as listing cards', () => {
+    const goods = [
+      { ...good('sale', 'brand'), price: 15200, compareAtPrice: 16000, showDiscountRate: true },
+      { ...good('hidden-rate', 'brand'), price: 15200, compareAtPrice: 16000, showDiscountRate: false },
+      good('plain', 'brand'),
+    ];
+    const cards = resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 5);
+    expect(cards.map((row) => [row.compareAtPrice, row.showDiscountRate])).toEqual([[16000, true], [16000, false], [null, undefined]]);
+  });
+
+  it('adds the public IP address, preferring the public slug and encoding the internal id otherwise', () => {
+    const goods = [good('a', 'with-slug'), good('b', 'legacy ip'), good('c', 'unlisted')];
+    const ips = [{ ...ip('with-slug'), publicSlug: 'hongsil-quest' }, ip('legacy ip')];
+    const cards = resolveHomeGoodsCards({ ips, goods }, ['a', 'b', 'c'], 5);
+    expect(cards.map((row) => row.ipHref)).toEqual(['/ip/hongsil-quest', '/ip/legacy%20ip', null]);
+    expect(cards[2].brand).toBeNull();
   });
 });
 
@@ -396,5 +460,52 @@ describe('커뮤니티 목적지 큐레이션 필터', () => {
     expect(filtered.heroSlides.map((slide) => slide.href)).toEqual(['/shop']);
     expect(filtered.editorPicks.map((pick) => pick.href)).toEqual(['/events']);
     expect(filtered.goodsBands.map((band) => band.href)).toEqual(['/shop/new']);
+  });
+});
+
+describe('홈 스트립 배너 게이트', () => {
+  const base = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] };
+  const strip = (href: string) => ({ id: 's1', title: '스트립', imageUrl: 'https://cdn.example/strip.webp', href });
+
+  it('카드 리워드·커뮤니티 목적지 스트립은 null로 걷어내고 나머지는 그대로 둔다', () => {
+    const reward: HomeCurationSnapshot = { ...base, stripBanner: strip('/packs/season-1') };
+    const community: HomeCurationSnapshot = { ...base, stripBanner: strip('/community?tag=notice') };
+    const open: HomeCurationSnapshot = { ...base, stripBanner: strip('/events/summer') };
+    expect(withoutCardRewardCurations(reward).stripBanner).toBeNull();
+    expect(withoutCardRewardCurations(community).stripBanner).toEqual(community.stripBanner);
+    expect(withoutCommunityCurations(community).stripBanner).toBeNull();
+    expect(withoutCommunityCurations(reward).stripBanner).toEqual(reward.stripBanner);
+    expect(withoutCommunityCurations(withoutCardRewardCurations(open)).stripBanner).toEqual(open.stripBanner);
+    expect(withoutCardRewardCurations({ ...base, stripBanner: strip('http://[') }).stripBanner).toBeNull();
+  });
+
+  it('스트립이 없는 스냅샷에는 키를 만들지 않는다', () => {
+    expect(withoutCardRewardCurations(base)).not.toHaveProperty('stripBanner');
+    expect(withoutCommunityCurations(base)).not.toHaveProperty('stripBanner');
+    expect(withoutCommunityCurations({ ...base, stripBanner: null }).stripBanner).toBeNull();
+  });
+});
+
+/* 개편 리뷰(review-c m2) — 점 조각 경로는 파서가 접어 `//외부호스트`가 된다. 정규화 뒤의 경로를 보고, `safeNextPath` 와 같은 규칙으로 맞춘다. */
+describe('isSafeInternalLink', () => {
+  it('keeps ordinary in-site links, including queries, hashes and dotted file names', () => {
+    for (const link of ['/', '/shop', '/shop/new', '/shop?ip=maple&type=%ED%82%A4%EB%A7%81', '/events/e1#top', '/ip/maple-story',
+      '/legal/terms.html', '/a/.hidden', '/a/..foo', '/shop?next=/../x', '/search?q=귀여운 굿즈', '/shop/%EA%B5%BF%EC%A6%88']) {
+      expect(isSafeInternalLink(link), link).toBe(true);
+    }
+  });
+
+  it('rejects dot segments that the URL parser folds into a scheme-relative `//host` (and the encoded forms)', () => {
+    for (const link of ['/..//evil.example', '/.//evil.example', '/%2e%2e//evil.example', '/%2E%2E//evil.example', '/a/..//evil.example',
+      '/.%2e//evil.example', '/%252e%252e//evil.example', '/a/./b', '/a/../b', '/a/..', '/a/.', '/a/%2e', '/%2e/x']) {
+      expect(isSafeInternalLink(link), link).toBe(false);
+    }
+  });
+
+  it('rejects protocol-relative, backslash, whitespace-in-path and control characters', () => {
+    for (const link of ['//evil.example', '/%2F%2Fevil.example', '/\\evil.example', '/%5Cevil.example', '/a b', '/a\u00a0b', '/a\u3000b',
+      '/a\tb', '/a\nb', 'https://evil.example', 'javascript:alert(1)', 'shop', '', '/%']) {
+      expect(isSafeInternalLink(link), JSON.stringify(link)).toBe(false);
+    }
   });
 });

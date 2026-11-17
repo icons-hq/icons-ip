@@ -12,9 +12,10 @@ function campaign(overrides: Partial<CampaignSummary> & Pick<CampaignSummary, 'i
     bannerImagePath: null,
     featuredOrder: null,
     startsAt: '2026-08-06T15:00:00.000Z',
-    endsAt: '2026-08-31T14:59:00.000Z',
+    endsAt: '2099-08-31T14:59:00.000Z',
     status: 'published',
     displayState: 'ongoing',
+    presentation: null,
     ...overrides,
   };
 }
@@ -31,164 +32,189 @@ const drop = campaign({
   kind: 'drop',
   title: '리본 드랍',
   displayState: 'upcoming',
-  startsAt: '2026-09-01T00:00:00.000Z',
-  endsAt: '2026-09-30T00:00:00.000Z',
+  startsAt: '2099-09-01T00:00:00.000Z',
+  endsAt: '2099-09-30T00:00:00.000Z',
 });
 
 const archived = campaign({ id: 'spring', title: '봄 이벤트', displayState: 'ended' });
 
-/* RLS 상 운영자만 받는 행이다 — 화면은 role 을 보지 않고 받은 데이터를 그대로 그린다. */
-const draft = campaign({ id: 'winter', title: '겨울 캠페인', status: 'draft' });
-
-function tabLabels(html: string) {
-  return [...html.matchAll(/<button[^>]*role="tab"[^>]*>([^<]*)<\/button>/g)].map((match) => match[1]);
-}
-
-/** 탭 패널 하나의 마크업. 패널은 서로 이어져 있어 다음 패널 시작 전까지를 자른다. */
-function panelHtml(html: string, id: 'all' | 'event' | 'drop') {
-  const start = html.indexOf(`id="campaign-panel-${id}"`);
-  const bodyStart = html.indexOf('>', start) + 1;
-  const next = html.indexOf('role="tabpanel"', bodyStart);
-  return html.slice(bodyStart, next === -1 ? undefined : next);
-}
-
 function cardCount(html: string) {
-  return html.match(/class="wc-campaign-card"/g)?.length ?? 0;
+  return html.match(/class="wc-promo-card"/g)?.length ?? 0;
 }
 
-describe('CampaignHub', () => {
-  it('카드가 상세로 가는 통짜 링크이고 제목·부제를 싣는다', () => {
+function cardTitles(html: string) {
+  return [...html.matchAll(/<h3 class="wc-promo-card__title">([^<]*)<\/h3>/g)].map((match) => match[1]);
+}
+
+describe('CampaignHub — EVENT (Figma 2026-11-12)', () => {
+  /* Figma: 스트립 배너 → "EVENT" 32 Bold → 카드 3열. 탭·기간 줄·상태 뱃지는 없다. */
+  it('보이는 h1 "EVENT" 와 프로모션 카드 목록을 낸다', () => {
     const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer]} />);
 
-    expect(html).toContain('href="/events/summer"');
-    expect(html).toContain('여름 코인 이벤트');
-    expect(html).toContain('출석하고 카드팩 받기');
+    expect(html).toContain('<h1 class="wc-promo-page__title">EVENT</h1>');
+    expect(html.match(/<h1\b/g)).toHaveLength(1);
+    expect(html).not.toContain('wc-sr-only');
+    expect(html).toContain('class="wc-promo-grid"');
+    expect(cardCount(html)).toBe(1);
   });
 
-  /* 레퍼런스에는 없던 두 요소다 — 없으면 진행중과 종료가 리스트 순서로만 구분된다
-     (R-06 §1.4·§13-2, DESIGN §6 campaign-hub 가 보완을 요구사항으로 못 박음). */
-  it('카드에 기간 라벨과 상태 뱃지를 함께 그린다', () => {
+  it('카드가 캠페인 랜딩으로 가는 통짜 링크이고 제목을 h3 로 싣는다', () => {
+    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer]} />);
+
+    expect(html).toContain('<a class="wc-promo-card" href="/events/summer">');
+    expect(cardTitles(html)).toEqual(['여름 코인 이벤트']);
+    /* 카드 이미지는 CSS 배경이다. */
+    expect(html).toContain('https://cdn.test/summer.png');
+  });
+
+  it('ALL·EVENT·DROP 탭과 기간 줄·상태 뱃지·유형 뱃지가 없다', () => {
     const html = renderToStaticMarkup(
       <CampaignHub banners={[]} campaigns={[summer, drop, archived]} />,
     );
 
-    expect(html).toContain('2026.8.7 – 8.31');
-    expect(html).toContain('진행중');
-    expect(html).toContain('예정');
-    expect(html).toContain('종료');
-    expect(html).toContain('wc-campaign-state--ongoing');
-    expect(html).toContain('wc-campaign-state--upcoming');
-    expect(html).toContain('wc-campaign-state--ended');
+    expect(html).not.toContain('role="tab"');
+    expect(html).not.toContain('wc-tabs');
+    expect(html).not.toContain('wc-campaign-state');
+    expect(html).not.toContain('wc-campaign-card');
+    expect(html).not.toContain('>ALL<');
+    expect(html).not.toContain('>DROP<');
+    expect(html).not.toContain('2099.');
+    expect(html).not.toContain('더보기');
   });
 
-  /* draft 는 기간이 이미 시작해 있어도 아직 공개된 편성이 아니다 — '진행중'과 같은
-     뱃지를 달면 운영자가 목록에서 공개 여부를 구분할 수 없다. */
-  it('draft 캠페인은 진행중 대신 비공개 뱃지를 단다', () => {
-    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[draft]} />);
-
-    expect(html).toContain('비공개');
-    expect(html).toContain('wc-campaign-state--draft');
-    expect(html).not.toContain('wc-campaign-state--ongoing');
-    expect(html).not.toContain('>진행중<');
-  });
-
-  /* 배너는 운영자가 직접 매긴 편성이라 draft 도 실릴 수 있다. 카드를 비워 배너
-     자리만 남기고 센다 — 탭은 ALL·EVENT 두 패널을 모두 그려 카드가 중복된다. */
-  it('배너에 실린 draft도 같은 비공개 뱃지를 쓴다', () => {
+  /* "현재 마케팅 중인" 것만 — 종료와 초안, POP-UP 캠페인은 EVENT 에 싣지 않는다. */
+  it('진행중·오픈 예정만 싣고 종료·초안·POP-UP 캠페인은 뺀다', () => {
+    const draft = campaign({ id: 'winter', title: '겨울 캠페인', status: 'draft' });
+    const popup = campaign({
+      id: 'little-riize',
+      title: '리틀 라이즈 팝업',
+      presentation: { popupMode: 'offline', popupLocation: '서울 마포구', cardLinkPath: null },
+    });
     const html = renderToStaticMarkup(
-      <CampaignHub banners={[{ ...draft, featuredOrder: 1 }]} campaigns={[]} />,
+      <CampaignHub banners={[]} campaigns={[summer, drop, archived, draft, popup]} />,
     );
 
-    expect(html).toContain('wc-campaign-banner');
-    expect(html.match(/wc-campaign-state--draft/g)?.length).toBe(1);
-    expect(html).toContain('비공개');
+    expect(cardTitles(html)).toEqual(['여름 코인 이벤트', '리본 드랍']);
+    expect(html).not.toContain('봄 이벤트');
+    expect(html).not.toContain('겨울 캠페인');
+    expect(html).not.toContain('리틀 라이즈 팝업');
   });
 
-  /* 유형은 색이 아니라 텍스트로 구분한다(R-06 §1.4 — EVENT·DROP 모두 검정 면). */
-  it('유형 뱃지를 텍스트로 싣는다', () => {
+  it('진행중은 시작 최신순, 오픈 예정은 그 뒤에 이른순으로 낸다', () => {
+    const html = renderToStaticMarkup(
+      <CampaignHub
+        banners={[]}
+        campaigns={[
+          campaign({ id: 'up-late', title: '늦은 예정', displayState: 'upcoming', startsAt: '2099-10-01T00:00:00.000Z' }),
+          campaign({ id: 'on-old', title: '옛 진행', startsAt: '2026-08-01T00:00:00.000Z' }),
+          campaign({ id: 'up-soon', title: '빠른 예정', displayState: 'upcoming', startsAt: '2099-09-01T00:00:00.000Z' }),
+          campaign({ id: 'on-new', title: '새 진행', startsAt: '2026-09-01T00:00:00.000Z' }),
+        ]}
+      />,
+    );
+
+    expect(cardTitles(html)).toEqual(['새 진행', '옛 진행', '빠른 예정', '늦은 예정']);
+  });
+
+  it('오픈 예정만 배지를 단다', () => {
     const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer, drop]} />);
 
-    expect(html).toContain('>EVENT<');
-    expect(html).toContain('>DROP<');
+    expect(html.match(/wc-promo-card__badge/g)).toHaveLength(1);
+    expect(html).toContain('<span class="wc-promo-card__badge">오픈 예정</span>');
   });
 
-  /* 레퍼런스 탭은 14/700 라벨뿐이다 — 건수를 붙이지 않는다(11 §8 EV-01). */
-  it('ALL·EVENT·DROP 세 탭을 건수 없이 낸다', () => {
+  /* 마케팅 중인 제품·IP 로 바로 가는 링크 — 노출 설정의 바로가기가 캠페인 랜딩보다 우선이다. */
+  it('노출 설정의 바로가기가 있으면 카드가 그곳으로 간다', () => {
+    const promo = campaign({
+      id: 'promo',
+      title: '홍실 신상 기획',
+      presentation: { popupMode: null, popupLocation: null, cardLinkPath: '/ip/hong-sil-quest' },
+    });
+    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[promo]} />);
+
+    expect(html).toContain('href="/ip/hong-sil-quest"');
+    expect(html).not.toContain('href="/events/promo"');
+  });
+
+  it('카드 이미지는 카드 → 배너 이미지 순으로 고르고 없으면 배경 없이 회색 면이다', () => {
     const html = renderToStaticMarkup(
-      <CampaignHub banners={[]} campaigns={[summer, drop, archived]} />,
+      <CampaignHub
+        banners={[]}
+        campaigns={[
+          campaign({ id: 'banner-only', bannerImagePath: 'https://cdn.test/banner-only.png' }),
+          campaign({ id: 'bare' }),
+        ]}
+      />,
     );
 
-    expect(html.match(/role="tab"/g)).toHaveLength(3);
-    expect(tabLabels(html)).toEqual(['ALL', 'EVENT', 'DROP']);
-    expect(html).not.toMatch(/(?:ALL|EVENT|DROP) \(\d+\)/);
+    expect(html).toContain('https://cdn.test/banner-only.png');
+    expect(html.match(/<div aria-hidden="true" class="wc-promo-card__art"><\/div>/g)).toHaveLength(1);
   });
 
-  /* 레퍼런스 허브는 보이는 제목·부제 없이 배너로 시작한다(R-06 §1.1). 제목은 문서 구조와
-     스크린리더 탐색을 위해 시각적으로만 숨긴 h1 으로 남긴다. */
-  it('보이는 제목·부제 없이 시각적으로 숨긴 h1 만 남긴다', () => {
-    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer]} />);
-
-    expect(html).toContain('<h1 class="wc-sr-only">이벤트</h1>');
-    expect(html.match(/<h1\b/g)).toHaveLength(1);
-    expect(html).not.toContain('wc-section-heading');
-    expect(html).not.toContain('기간 한정 캠페인과 프로모션을 모았어요');
-  });
-
-  /* 카드 리워드 게이트가 꺼져 있어도 허브 자신의 문구가 '카드팩'을 말하던 누수(CH-11).
-     운영자가 넣은 캠페인 문구는 데이터라 여기서 보지 않는다 — 허브가 직접 쓰는 문구만 본다. */
-  it('허브 자체 문구에 카드팩 안내가 없다', () => {
-    const plain = campaign({ id: 'plain', title: '가을 이벤트' });
-    for (const html of [
-      renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[]} />),
-      renderToStaticMarkup(<CampaignHub banners={[{ ...plain, featuredOrder: 1 }]} campaigns={[plain]} />),
-    ]) {
-      expect(html).not.toContain('카드팩');
-      expect(html).not.toContain('코인');
-    }
-  });
-
-  /* 11 §6 B21 — ALL 은 최대 100건을 한 번에, EVENT·DROP 은 10건 + [더보기 (n/총)]. */
-  it('ALL 은 최대 100건을 싣고 EVENT·DROP 은 10건과 더보기로 시작한다', () => {
-    const events = Array.from({ length: 23 }, (_, index) => campaign({ id: `event-${index}`, kind: 'event' }));
-    const drops = Array.from({ length: 90 }, (_, index) => campaign({ id: `drop-${index}`, kind: 'drop' }));
-    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[...events, ...drops]} />);
-
-    expect(cardCount(panelHtml(html, 'all'))).toBe(100);
-    expect(panelHtml(html, 'all')).not.toContain('wc-view-more');
-
-    expect(cardCount(panelHtml(html, 'event'))).toBe(10);
-    expect(panelHtml(html, 'event')).toContain('더보기 (10/23)');
-    expect(panelHtml(html, 'event')).toContain('href="/events/event-9"');
-    expect(panelHtml(html, 'event')).not.toContain('href="/events/event-10"');
-
-    expect(cardCount(panelHtml(html, 'drop'))).toBe(10);
-    expect(panelHtml(html, 'drop')).toContain('더보기 (10/90)');
-  });
-
-  it('10건 이하인 탭에는 더보기를 두지 않는다', () => {
+  /* Figma 스트립 배너에는 글 레이어가 없다 — 이미지만이고, 링크의 접근 이름은 캠페인 제목(img alt)이다. */
+  it('배너는 이미지만 싣고 캠페인 제목을 접근 이름으로 단다', () => {
     const html = renderToStaticMarkup(
-      <CampaignHub banners={[]} campaigns={[summer, drop, archived]} />,
+      <CampaignHub
+        banners={[{ ...summer, bannerImagePath: 'https://cdn.test/summer-banner.png', featuredOrder: 1 }]}
+        campaigns={[summer]}
+      />,
     );
 
-    expect(html).not.toContain('wc-view-more');
-    expect(cardCount(panelHtml(html, 'event'))).toBe(2);
+    expect(html).toContain('aria-roledescription="carousel"');
+    expect(html).toContain('class="wc-strip-banner"');
+    expect(html).toContain('data-size="page"');
+    expect(html).toContain('src="https://cdn.test/summer-banner.png"');
+    expect(html).toContain('alt="여름 코인 이벤트"');
+    expect(html).toContain('<a class="wc-strip-banner__link" href="/events/summer">');
+    expect(html).not.toContain('wc-campaign-banner__body');
+    expect(html).not.toContain('출석하고 카드팩 받기');
   });
 
-  it('배너는 캠페인 상세로 가는 링크에 텍스트 레이어를 얹는다', () => {
+  it('배너 이미지가 없으면 카드 이미지로 대신한다', () => {
     const html = renderToStaticMarkup(
       <CampaignHub banners={[{ ...summer, featuredOrder: 1 }]} campaigns={[summer]} />,
     );
 
-    expect(html).toContain('wc-campaign-banner');
-    expect(html).toContain('aria-roledescription="carousel"');
-    expect(html.match(/href="\/events\/summer"/g)?.length).toBeGreaterThan(1);
+    expect(html).toContain('src="https://cdn.test/summer.png"');
+  });
+
+  it('바로가기가 있는 캠페인의 배너도 그곳으로 간다', () => {
+    const promo = campaign({
+      id: 'promo',
+      bannerImagePath: 'https://cdn.test/promo.png',
+      featuredOrder: 1,
+      presentation: { popupMode: null, popupLocation: null, cardLinkPath: '/shop/g13' },
+    });
+    const html = renderToStaticMarkup(<CampaignHub banners={[promo]} campaigns={[promo]} />);
+
+    expect(html).toContain('<a class="wc-strip-banner__link" href="/shop/g13">');
+  });
+
+  it('종료·POP-UP 캠페인과 이미지 없는 캠페인은 배너에 싣지 않는다', () => {
+    const popup = campaign({
+      id: 'pop',
+      bannerImagePath: 'https://cdn.test/pop.png',
+      featuredOrder: 1,
+      presentation: { popupMode: 'online', popupLocation: null, cardLinkPath: null },
+    });
+    const ended = { ...archived, bannerImagePath: 'https://cdn.test/ended.png', featuredOrder: 2 };
+    const blank = campaign({ id: 'blank', featuredOrder: 3 });
+    const html = renderToStaticMarkup(
+      <CampaignHub banners={[popup, ended, blank]} campaigns={[summer, popup, ended, blank]} />,
+    );
+
+    expect(html).not.toContain('wc-strip-banner');
+    expect(html).not.toContain('aria-roledescription="carousel"');
   });
 
   /* 배너가 둘 이상이면 자동 넘김이 돈다 — 멈출 수단과 현재 위치가 함께 있어야 한다(DESIGN §10). */
   it('배너가 여러 장이면 위치·정지 버튼·좌우 화살표를 함께 낸다', () => {
     const html = renderToStaticMarkup(
       <CampaignHub
-        banners={[{ ...summer, featuredOrder: 1 }, { ...drop, featuredOrder: 2 }]}
+        banners={[
+          { ...summer, bannerImagePath: 'https://cdn.test/a.png', featuredOrder: 1 },
+          { ...drop, bannerImagePath: 'https://cdn.test/b.png', featuredOrder: 2 },
+        ]}
         campaigns={[summer, drop]}
       />,
     );
@@ -201,29 +227,56 @@ describe('CampaignHub', () => {
     expect(html).toMatch(/<button aria-label="다음 배너" class="wc-campaign-banners__arrow/);
   });
 
-  /* 모든 목록에 빈 상태가 있어야 한다(DESIGN §9·§12). */
-  it('캠페인이 없으면 탭 대신 빈 상태와 다음 행동을 낸다', () => {
+  it('배너는 featured_order 순서로 낸다', () => {
+    const html = renderToStaticMarkup(
+      <CampaignHub
+        banners={[
+          { ...drop, bannerImagePath: 'https://cdn.test/second.png', featuredOrder: 2 },
+          { ...summer, bannerImagePath: 'https://cdn.test/first.png', featuredOrder: 1 },
+        ]}
+        campaigns={[summer, drop]}
+      />,
+    );
+
+    expect(html.indexOf('https://cdn.test/first.png')).toBeLessThan(html.indexOf('https://cdn.test/second.png'));
+  });
+
+  /* 모든 목록에 빈 상태가 있어야 한다(DESIGN §9·§12) — 문구는 지금 그대로다. */
+  it('캠페인이 없으면 빈 상태와 다음 행동을 낸다', () => {
     const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[]} />);
 
     expect(html).toContain('진행 중인 캠페인이 없어요');
+    expect(html).toContain('새 캠페인이 열리면 이 자리에서 가장 먼저 알려 드릴게요.');
     expect(html).toContain('href="/"');
-    expect(html).not.toContain('role="tab"');
+    expect(html).toContain('홈으로 가기');
+    /* Figma 의 빈 상태에는 보이는 제목이 없다 — 문서 구조용 h1 만 시각 숨김으로 남는다. */
+    expect(html).toContain('<h1 class="wc-sr-only">EVENT</h1>');
+    expect(cardCount(html)).toBe(0);
   });
 
-  it('한 탭이 비어도 그 패널에 빈 상태를 그린다', () => {
-    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer]} />);
+  it('종료·POP-UP 캠페인뿐이어도 빈 상태다', () => {
+    const popup = campaign({
+      id: 'pop',
+      presentation: { popupMode: 'hybrid', popupLocation: null, cardLinkPath: null },
+    });
+    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[archived, popup]} />);
 
-    expect(html).toContain('예정된 드랍이 없어요');
+    expect(html).toContain('진행 중인 캠페인이 없어요');
+    expect(cardCount(html)).toBe(0);
   });
 
-  /* 사용자-facing 표면에서 '가챠·뽑기·충전' 금지(CONTEXT.md · DESIGN §12). */
-  it('허브 카피에 금지 어휘가 없다', () => {
-    const html = renderToStaticMarkup(
-      <CampaignHub banners={[{ ...summer, featuredOrder: 1 }]} campaigns={[summer, drop, archived]} />,
-    );
-
-    expect(html).not.toContain('가챠');
-    expect(html).not.toContain('뽑기');
-    expect(html).not.toContain('충전');
+  /* 카드 리워드 게이트가 꺼져 있어도 허브 자신의 문구가 '카드팩'을 말하던 누수(CH-11). */
+  it('허브 자체 문구에 카드팩·금지 어휘가 없다', () => {
+    const plain = campaign({ id: 'plain', title: '가을 이벤트' });
+    for (const html of [
+      renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[]} />),
+      renderToStaticMarkup(<CampaignHub banners={[{ ...plain, bannerImagePath: 'https://cdn.test/p.png', featuredOrder: 1 }]} campaigns={[plain, drop]} />),
+    ]) {
+      expect(html).not.toContain('카드팩');
+      expect(html).not.toContain('코인');
+      expect(html).not.toContain('가챠');
+      expect(html).not.toContain('뽑기');
+      expect(html).not.toContain('충전');
+    }
   });
 });

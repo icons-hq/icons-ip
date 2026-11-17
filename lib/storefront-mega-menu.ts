@@ -7,6 +7,8 @@
  * - 기획전: 지금 진행 중인 캠페인(`campaigns`, 정적 배열 금지 — DESIGN §0).
  * - 온라인 팝업: 디렉토리 피처드 IP(`ips.featured`)를 디렉토리와 같은 순서·개수로. */
 
+import { parseCampaignPresentationRow, type CampaignPresentation } from './campaign-presentation';
+import { campaignCardHref } from './campaigns';
 import { sortIpsForDirectory } from './ip-directory';
 import { ipEn } from './ip-display';
 import { publicIpHref } from './ip-identity';
@@ -48,6 +50,9 @@ export interface StorefrontMenuCampaign {
   id: string;
   title: string;
   imageUrl: string | null;
+  /** 눌렀을 때 가는 곳 — EVENT·POP-UP 카드와 같은 규칙(`campaignCardHref`): 노출 설정의 바로가기 → POP-UP 캠페인은 `/popups/<id>` → 그 밖은 `/events/<id>`.
+   *  노출 설정을 못 읽었거나 행이 없으면 `/events/<id>`다. */
+  href: string;
 }
 
 export interface StorefrontMenuIp {
@@ -130,9 +135,29 @@ export function parseStorefrontCategoryMenu(
   return visible.length ? visible : value.length ? null : [];
 }
 
+/** 캠페인 노출 설정에서 읽는 열 — 공개 열만 열 단위로 열려 있다(운영자 식별자 updated_by 는 비공개, migration 20261117130410).
+ *  `*`로 읽으면 권한 오류라 꼭 이 목록으로 쓴다. 로더가 이 열로 읽고 `toMenuCampaignPresentations` 가 파싱한다. */
+export const MENU_CAMPAIGN_PRESENTATION_COLUMNS = 'campaign_id,popup_mode,popup_location,card_link_path';
+
+/** 캠페인 노출 설정 행(`campaign_presentations`)을 캠페인 id → 값으로. 형식이 어긋난 행은 건너뛴다 — 그 캠페인은 EVENT 링크로 떨어진다. */
+export function toMenuCampaignPresentations(rows: unknown): Map<string, CampaignPresentation> {
+  const presentations = new Map<string, CampaignPresentation>();
+  if (!Array.isArray(rows)) return presentations;
+  for (const row of rows) {
+    if (!record(row) || typeof row.campaign_id !== 'string' || !row.campaign_id) continue;
+    const presentation = parseCampaignPresentationRow(row);
+    if (presentation) presentations.set(row.campaign_id, presentation);
+  }
+  return presentations;
+}
+
 /** 진행 중 캠페인 행(RLS 공개 읽기 — 초안 제외)을 메뉴 항목으로. 로더가 진행 중·순서로 좁혀 상한보다 넉넉히 읽어 오고,
  *  여기서 검증한 뒤 `MENU_CAMPAIGN_LIMIT` 로 자른다 — 빠지는 행이 있어도 다음 순서의 캠페인이 자리를 채운다. */
-export function toMenuCampaigns(rows: unknown, publicUrlFor: (path: string) => string): StorefrontMenuCampaign[] {
+export function toMenuCampaigns(
+  rows: unknown,
+  publicUrlFor: (path: string) => string,
+  presentations: ReadonlyMap<string, CampaignPresentation> = new Map(),
+): StorefrontMenuCampaign[] {
   if (!Array.isArray(rows)) return [];
   const seen = new Set<string>();
   const campaigns: StorefrontMenuCampaign[] = [];
@@ -145,6 +170,7 @@ export function toMenuCampaigns(rows: unknown, publicUrlFor: (path: string) => s
       id: row.id,
       title,
       imageUrl: typeof row.card_image_path === 'string' && row.card_image_path ? publicUrlFor(row.card_image_path) : null,
+      href: campaignCardHref({ id: row.id, presentation: presentations.get(row.id) ?? null }),
     });
     if (campaigns.length >= MENU_CAMPAIGN_LIMIT) break;
   }

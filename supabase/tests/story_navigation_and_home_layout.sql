@@ -3,12 +3,12 @@ begin;
 do $$ declare nav jsonb; blocks jsonb;
 begin
  select navigation into nav from public.store_settings where singleton;
- if not private.store_navigation_valid(nav) or jsonb_array_length(nav)<>8 then
+ if not private.store_navigation_valid(nav) or jsonb_array_length(nav)<>9 then
   raise exception 'story navigation migration missing'; end if;
  if (select count(*) from jsonb_array_elements(nav) entry where entry->>'id'='stories')<>1 then
   raise exception 'story destination must occur once'; end if;
  if private.store_navigation_valid((select jsonb_agg(entry) from jsonb_array_elements(nav) entry where entry->>'id'<>'stories')) then
-  raise exception 'stale seven-menu write must not remove stories';end if;
+  raise exception 'stale eight-menu write must not remove stories';end if;
  blocks:='[{"key":"hero","enabled":true},{"key":"editor_picks","enabled":false},{"key":"category_best","enabled":false},{"key":"popular","enabled":true},{"key":"benefits","enabled":false}]';
  if not private.is_valid_home_layout_blocks(blocks) then raise exception 'saved original layout must remain readable';end if;
 end $$;

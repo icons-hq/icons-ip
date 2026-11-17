@@ -1,29 +1,32 @@
-/* White Catalog v4 홈 밴드 — 히어로·에디터의 제안·탭 상품 밴드·기획전 밴드·혜택 타일.
-   수치와 anatomy 의 정본은 재현 스펙 `docs/research/linefriends-square/02-home.md`(R-02)이고,
-   색은 wc-foundation 의 `--wc-*` 토큰만 쓴다(레퍼런스 액센트는 옮기지 않는다).
+/* X SQUARE 홈(ADR-0043, Figma Main Page 1920 캔버스) — 히어로·IP 바로가기·NEW ARRIVAL·스트립 배너·IP 상품 섹션·ICONS PICK과
+   기존 탭 상품 밴드·혜택 타일. 수치와 anatomy 의 정본은 Figma 덤프이고 화면 사이의 부품 수치(상품 카드·그리드·섹션 제목·스트립 배너)는
+   wc-storefront-x.css 가 쥔다. 탭 밴드·혜택·리뷰 밴드의 옛 수치는 White Catalog 재현 스펙(`docs/research/linefriends-square/02-home.md`)이다.
+   색은 wc-foundation 의 `--wc-*`·`--wc-x-*` 토큰만 쓴다(레퍼런스 액센트는 옮기지 않는다).
    wc-foundation·wc-chrome 과 같은 스코프 규율을 지킨다: 모든 규칙은 `.wc-` 클래스에서 시작하고
    전역 element 스타일을 두지 않는다. 아직 이행되지 않은 editorial 표면과 어드민이 같은 문서에
    공존해서, 홈 하나 때문에 그쪽 지면이 통째로 흔들리면 안 되기 때문이다.
-   브레이크포인트는 크롬과 같은 990px 하나다: 모바일 기본(모바일 퍼스트), 데스크톱 `min-width: 990px`. */
+   브레이크포인트는 크롬과 같은 990px 하나가 기본이다: 모바일 기본(모바일 퍼스트), 데스크톱 `min-width: 990px`.
+   IP 바로가기·ICONS PICK 만 콘텐츠 브레이크포인트 750px 를 더 쓴다. */
 
 /* ------------------------------------------------------------------
-   지면과 밴드 리듬
+   지면과 섹션 리듬
    ------------------------------------------------------------------ */
 
 .wc-home {
   background: var(--wc-surface);
 }
 
-/* 섹션 사이 마진은 두지 않는다 — 리듬은 전부 각 밴드의 자기 하단 패딩이 만든다(R-02 §0). */
+/* 섹션 사이 간격 = 각 섹션의 자기 아래 패딩(모바일 48 · 데스크톱 60). 데스크톱의 마지막 밴드는 아래 패딩을 걷는다 —
+   푸터가 위 여백(120)을 따로 두어 겹치면 180 이 된다(Figma: 마지막 섹션 끝 → 푸터 선 120). 모바일은 그대로다.
+   flex gap 으로 하지 않는다 — 컨테이너(auto 마진)가 column flex 안에서 내용 폭으로 줄어든다. */
 .wc-home__band {
-  padding-bottom: 64px;
+  padding-bottom: 48px;
 }
 
-/* 히어로는 진행바·화살표·정지 버튼의 절대 기준 상자라 자기 하단 패딩을 지지 못한다.
-   패딩을 주면 `bottom: 0` 인 진행바가 이미지 아래 빈 칸으로 떨어진다.
-   그래서 히어로 다음 밴드가 R-02 §0 의 리듬(M 64 / D 120)을 상단 패딩으로 대신 받는다. */
-.wc-hero + .wc-home__band {
-  padding-top: 64px;
+/* 홈 모든 섹션은 넓은 컨테이너(1320, 안쪽 1272)다. 새 섹션은 마크업에서 `.wc-container--wide` 를 직접 달고, 이 규칙은 그 밖의 기존 블록
+   (모자이크·쇼핑스토리·스토어 내 검색)이 같은 폭을 쓰게 맞춘다. 값은 wc-storefront-x 의 `.wc-container--wide` 와 같다. */
+.wc-home .wc-container {
+  max-width: var(--wc-x-container);
 }
 
 /* 큐레이션이 통째로 비면 밴드가 하나도 남지 않는다 — 지면이 붕괴하지 않게 자체 높이를 준다. */
@@ -31,35 +34,26 @@
   padding: 40px 0 80px;
 }
 
-/* 홈 헤딩은 시스템 기본 24px 이 아니라 R-02 §1-1 의 28px 을 모바일·데스크톱 공통으로 쓴다.
-   자간은 레퍼런스 실측 -0.2px 이다(11 HM-05 — 예전 -0.8 은 R-07 의 24px 기준값을 빌린 것). */
+/* 탭 밴드·혜택·리뷰 밴드 제목은 시스템 기본 24px 이 아니라 R-02 §1-1 의 28px 을 모바일·데스크톱 공통으로 쓴다.
+   자간은 레퍼런스 실측 -0.2px 이다(11 HM-05 — 예전 -0.8 은 R-07 의 24px 기준값을 빌린 것).
+   새 섹션(NEW ARRIVAL·IP 상품 섹션·ICONS PICK)의 제목은 SectionHeader(.wc-x-sechead__title)가 따로 정한다. */
 .wc-home .wc-section-heading__title {
   font-size: 28px;
   letter-spacing: -.2px;
 }
 
-/* 에디터의 제안과 그다음 밴드 사이 1180 폭 1px 헤어라인(11 §3 Δ8 · HM-06). 레퍼런스에서 관측된 자리는
-   이 한 곳뿐이라 다른 밴드 사이에는 긋지 않는다. 운영자가 순서를 바꿔도 에디터의 제안 바로 뒤를 따라가고,
-   회색 면 밴드(혜택) 앞에서는 면 경계가 이미 구분이라 긋지 않는다. */
-.wc-home__band--picks + .wc-home__band:not(.wc-home__band--grey) > .wc-container::before {
-  content: '';
-  display: block;
-  height: 1px;
-  margin-bottom: 24px;
-  background: var(--wc-hairline);
-}
-
 @media (min-width: 990px) {
+  .wc-home .wc-container {
+    padding-inline: var(--wc-x-gutter);
+  }
+
   .wc-home__band {
-    padding-bottom: 120px;
+    padding-bottom: 60px;
   }
 
-  .wc-hero + .wc-home__band {
-    padding-top: 120px;
-  }
-
-  .wc-home__band--picks + .wc-home__band:not(.wc-home__band--grey) > .wc-container::before {
-    margin-bottom: 36px;
+  /* 마지막 밴드 → 푸터 선은 푸터의 위 여백 120 하나다(Figma). 회색 혜택 밴드의 아래 패딩은 배경 안쪽 여백이라 걷지 않는다. */
+  .wc-home > .wc-home__band:last-child:not(.wc-home__band--grey) {
+    padding-bottom: 0;
   }
 
   .wc-home__empty {
@@ -68,24 +62,26 @@
 }
 
 /* ------------------------------------------------------------------
-   ① 히어로 캐러셀
+   ① 히어로 캐러셀 — 안쪽 배치된 배너 상자(1272×540 r18) + 아래 조작 줄
    ------------------------------------------------------------------ */
 
-/* 컨트롤(진행바·화살표·정지)의 기준 상자다. 뷰포트와 같은 높이를 유지해야
-   화살표의 `top: 50%` 가 이미지 중앙에 떨어진다. */
+/* 조작 줄 아래 → 다음 섹션(IP 바로가기) 간격 32(모바일 24). 조작 줄 높이 48 은 .wc-hero__nav 가 지닌다. */
+.wc-home__hero {
+  padding-bottom: 24px;
+}
+
 .wc-hero {
   position: relative;
 }
 
-/* 슬라이드가 전부 absolute 라 높이는 비율이 만든다. 모바일은 세로형 5:6,
-   데스크톱은 1425×770 비율에 절대 상한 770px(R-02 §2①: 뷰포트 높이와 연동되지 않는다).
-   너비를 auto 로 두면 max-height 가 비율을 타고 너비 상한(1425px)으로 전이돼, 넓은 화면에서
-   히어로가 왼쪽에 붙은 채 잘린다. 너비를 100% 로 확정해 상한은 높이에만 걸리게 한다. */
+/* 슬라이드가 전부 absolute 라 높이는 비율이 만든다. 모바일은 세로형 5:6 r12, 데스크톱은 1272×540 r18 이다(상한 높이 없음 —
+   컨테이너 폭이 곧 배너 폭이라 폭을 100% 로 확정해 비율만 높이를 정한다). */
 .wc-hero__viewport {
   position: relative;
   width: 100%;
   aspect-ratio: 5 / 6;
   overflow: hidden;
+  border-radius: 12px;
 }
 
 /* 전환은 opacity 하나로만 만든다 — JS 는 활성 인덱스만 바꾼다.
@@ -120,23 +116,25 @@
   object-fit: cover;
 }
 
-/* 흰 카피와 검정 진행바가 밝은 아트웍 위에서도 읽히게 하는 최소 장치.
-   이미지 자체를 어둡게 만들지 않고 하단 40%에만 그라데이션을 얹는다. */
+/* 흰 카피가 밝은 아트웍 위에서도 읽히게 하는 최소 장치 — 아래에서 위로 45% → 0 그라데이션(Figma Rectangle 39 값은 추정).
+   이미지 자체를 어둡게 만들지 않고 아래쪽 55%에만 얹는다. */
 .wc-hero__scrim {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 40%;
-  background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.45));
+  inset: 0;
+  background: linear-gradient(0deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 55%);
   pointer-events: none;
 }
 
+/* 글: 왼쪽 70·아래 60(모바일 20·24), 최대 폭 600. 작은 줄(부제) → 큰 줄(제목) 순서이고 둘 사이 5. */
 .wc-hero__copy {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 32px;
+  left: 20px;
+  right: 20px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 600px;
   color: #FFFFFF;
 }
 
@@ -151,95 +149,90 @@
 .wc-hero__dim[data-tone='black'] { background: #000000; }
 .wc-hero__slide[data-text-color='black'] .wc-hero__copy { color: #000000; }
 
-.wc-hero__title {
-  display: block;
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.3;
-  letter-spacing: -.55px;
-}
-
 .wc-hero__subtitle {
   display: block;
-  margin-top: 6px;
   font-size: 15px;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.4;
   white-space: pre-line;
 }
 
-/* 점이 아니라 전폭 세그먼트 진행바다 — 슬라이드 수만큼 균등 분할한다(R-02 §2①). */
-.wc-hero__progress {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
+.wc-hero__title {
+  display: block;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+}
+
+/* 조작 줄 — 진행 막대 + 일시정지·이전·다음. 높이 48(히트 44 + 위아래 2), 묶음은 가운데다(Figma: 막대 960 + 간격 24 + 조작부).
+   막대는 남는 폭을 쓰되 960 을 넘지 않는다. */
+.wc-hero__nav {
   display: flex;
-  height: 6px;
-}
-
-/* flex-grow 로 나누면 슬라이드 수가 바뀌어도 폭 계산이 필요 없다.
-   활성 표기는 검정 30%(scrim 토큰과 같은 값)에서 불투명 잉크로 넘어가는 것뿐이라
-   실제로 움직이는 속성은 background-color 다 — opacity 는 같은 곡선으로 함께 열어 둔다. */
-.wc-hero__segment {
-  position: relative;
-  flex: 1;
-  padding: 0;
-  border: 0;
-  background: var(--wc-scrim);
-  transition: background-color var(--wc-duration-medium), opacity var(--wc-duration-medium);
-  cursor: pointer;
-}
-
-/* 시각 높이는 R-02 의 6px 그대로 두고, 터치 히트만 위로 44px 확장한다(DESIGN §10 아이콘 버튼 44px).
-   슬라이드 하단 44px 가 세그먼트 히트에 양보되지만, 진행바로 장면을 고르는 조작이 그 자리의 1차 의도다. */
-.wc-hero__segment::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 44px;
-}
-
-.wc-hero__segment.is-active {
-  background: var(--wc-ink);
-}
-
-/* 모바일은 스와이프가 이동 수단이라 화살표를 감춘다(R-02 §2① `small-hide`).
-   글리프는 얇지만 히트박스는 아이콘 컨트롤 최소 44px 규칙을 따른다. */
-.wc-hero__arrow {
-  position: absolute;
-  top: 50%;
-  z-index: 2;
-  display: none;
   align-items: center;
   justify-content: center;
-  width: 44px;
+  gap: 12px;
+  min-height: 48px;
+}
+
+/* 막대는 3px 이지만 장마다의 투명 버튼(.wc-hero__segments)이 44px 히트로 그 위에 겹친다. 현재 칸(thumb)은 폭이 전체/장수이고
+   transform 으로 칸 단위로 미끄러진다 — 위치 계산은 JS 가 style 로 넘긴다. */
+.wc-hero__progress {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 960px;
+  height: 3px;
+}
+
+.wc-hero__track,
+.wc-hero__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.wc-hero__track {
+  width: 100%;
+  background: var(--wc-x-progress-track);
+}
+
+.wc-hero__thumb {
+  background: var(--wc-x-progress-thumb);
+  transition: transform .3s ease;
+}
+
+.wc-hero__segments {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  display: flex;
   height: 44px;
-  padding: 0;
   transform: translateY(-50%);
+}
+
+.wc-hero__segment {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
   border: 0;
-  background: none;
-  color: var(--wc-line-control);
+  background: transparent;
   cursor: pointer;
 }
 
-.wc-hero__arrow--prev {
-  left: 24px;
+/* 조작부: [일시정지] [‹] | [›]. 버튼 히트 44×44, 보이는 선 아이콘 32(Figma 원본 경로). 구분선 1×9 #E7E7E7 은 양옆 2px 로
+   두 화살표 중심 간격을 Figma 의 49 에 맞춘다. 아이콘 색은 --wc-x-control(#888, 흰 바탕 3.5:1 — 비텍스트 3:1 이상). */
+.wc-hero__controls {
+  display: flex;
+  flex: none;
+  align-items: center;
 }
 
-.wc-hero__arrow--next {
-  right: 24px;
-}
-
-/* 레퍼런스에 없는 유일한 추가 컨트롤이다 — 자동재생 정지 수단은 DESIGN §10 접근성 요구다. */
-.wc-hero__pause {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  z-index: 2;
+.wc-hero__pause,
+.wc-hero__arrow {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -247,140 +240,126 @@
   height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: rgba(0,0,0,.35);
-  color: #FFFFFF;
+  background: none;
+  color: var(--wc-x-control);
   cursor: pointer;
 }
 
+.wc-hero__pause:hover,
+.wc-hero__arrow:hover {
+  color: var(--wc-x-ink);
+}
+
+.wc-hero__divider {
+  width: 1px;
+  height: 9px;
+  margin-inline: 2px;
+  background: #E7E7E7;
+}
+
 @media (min-width: 990px) {
+  .wc-home__hero {
+    padding-bottom: 32px;
+  }
+
   .wc-hero__viewport {
-    aspect-ratio: 1425 / 770;
-    max-height: 770px;
+    aspect-ratio: 1272 / 540;
+    border-radius: var(--wc-x-radius-hero);
   }
 
   .wc-hero__copy {
-    left: 0;
-    right: 0;
-    bottom: 56px;
-    text-align: center;
+    right: auto;
+    bottom: 60px;
+    left: 70px;
   }
 
-  .wc-hero__arrow {
-    display: inline-flex;
+  .wc-hero__subtitle {
+    font-size: 21px;
   }
 
-  .wc-hero__pause {
-    right: 24px;
-    bottom: 24px;
+  .wc-hero__title {
+    font-size: 36px;
+  }
+
+  .wc-hero__nav {
+    gap: 24px;
   }
 }
 
 /* ------------------------------------------------------------------
-   ② 에디터의 제안 — 콘텐츠 카드와 픽 슬라이더
+   ② IP 바로가기 (추천 콘텐츠 행) — 썸네일 버튼 줄
    ------------------------------------------------------------------ */
 
-.wc-content-card {
-  flex: none;
+/* 모바일 2열(간격 12, 줄 간격 20) · 750~989 4열 유동(간격 12) · 데스크톱 265 고정 폭을 가운데에 모은다(4개면 1120, 간격 20). */
+.wc-ip-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.wc-content-card__link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-}
-
-/* 이미지는 인라인 background 축약값으로 온다 — 여기서는 비율과 각진 모서리, 로드 전 바닥색만 잡는다. */
-.wc-content-card__media {
-  aspect-ratio: 1 / 1;
-  border-radius: 0;
-  background-color: var(--wc-surface-grey-2);
-}
-
-.wc-content-card__info {
-  padding-top: 14px;
-}
-
-/* 콘텐츠 카드 배지 — 상품 배지(11/600 · 틴트)가 아니라 12/700 소형 액센트 글자 + surface.grey 칸,
-   3×6 패딩, 각진 모서리다(레퍼런스 실측 · 11 HM-02). 글자는 소형 액센트 텍스트 규칙대로 state.success 다. */
-.wc-content-card .wc-content-card__badge {
-  padding: 3px 6px;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.15;
-  border: 0;
-  border-radius: 0;
-  background: var(--wc-surface-grey);
-  color: var(--wc-success);
-}
-
-/* 배지는 이미지 위 오버레이가 아니라 정보 영역의 첫 줄이다(R-02 §2②).
-   배지 아래 10px 간격은 타이틀의 margin-top 이 그대로 낸다 — 마진을 양쪽에서 겹쳐 주지 않는다.
-   editorial 파운데이션이 h1~h3에 display 서체와 잉크색을 강제하므로 지면 값으로 되돌린다. */
-.wc-content-card__title {
-  overflow: hidden;
-  margin: 10px 0 0;
-  font-family: inherit;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--wc-ink);
-}
-
-.wc-content-card__desc {
-  overflow: hidden;
-  margin: 8px 0 0;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--wc-ink);
-}
-
-/* 모바일은 고정 300px 카드 + 다음 카드 피킹, 데스크톱은 균등 3열이다(R-02 §2②).
-   프리미티브의 기본 gap 16px 을 이 밴드 안에서만 되돌린다.
-   모바일 트랙은 컨테이너 거터를 넘어 화면 양끝까지 편다(레퍼런스 offset 16 슬라이더 · 11 B20). 트랙이 거터 안(16~359)에
-   갇히면 다음 카드가 화면 끝이 아니라 오른쪽 거터에서 잘려 375 폭에서 33px 만 보인다. 거터만큼 안쪽 패딩을 되돌려 첫 카드는
-   x16 에서 시작하고, scroll-padding 도 같은 값이라 스냅한 카드도 x16 에 선다. 끝 패딩은 끝까지 넘긴 마지막 카드를
-   오른쪽 거터 앞(375 폭에서 x359)에 세운다. */
-.wc-picks .wc-slider__track {
-  gap: 10px;
-  margin-inline: calc(-1 * var(--wc-gutter));
-  padding-inline: var(--wc-gutter);
-  scroll-padding-inline: var(--wc-gutter);
-}
-
-/* min-width:0 이 없으면 flex 항목의 최소 폭이 콘텐츠(한 줄 고정 제목)만큼 커져 첫 카드가 351px 로 늘고
-   다음 카드가 화면 밖으로 밀린다(11 HM-01). 첫 카드 16~316 + gap 10 이고 트랙이 화면 끝까지라 다음 카드가
-   326 부터 화면 끝까지 — 375 폭에서 49px, 390 폭에서 64px 보인다. */
-.wc-picks .wc-slider__track > * {
-  flex: 0 0 300px;
+.wc-ip-shortcuts > li {
   min-width: 0;
 }
 
-/* 모바일 에디터의 제안은 자유 스와이프만 — fraction·화살표를 숨긴다(R-02 §1-4·§2②). */
-.wc-picks .wc-slider__controls {
-  display: none;
+.wc-ip-shortcuts__item {
+  display: block;
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* 이미지는 인라인 background 축약값으로 온다 — 여기서는 비율·모서리·로드 전 바닥색만 잡는다. */
+.wc-ip-shortcuts__thumb {
+  display: block;
+  aspect-ratio: 265 / 180;
+  border-radius: var(--wc-x-radius-ip);
+  background-color: var(--wc-surface-grey-2);
+}
+
+.wc-ip-shortcuts__ip,
+.wc-ip-shortcuts__title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-ip-shortcuts__ip {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--wc-x-muted);
+}
+
+.wc-ip-shortcuts__title {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 17px;
+  color: var(--wc-ink);
+}
+
+/* IP 이름(배지) 없이 문구만 있으면 썸네일에서 바로 12 아래다. */
+.wc-ip-shortcuts__thumb + .wc-ip-shortcuts__title {
+  margin-top: 12px;
+}
+
+@media (min-width: 750px) {
+  .wc-ip-shortcuts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
 }
 
 @media (min-width: 990px) {
-  /* 데스크톱 3열은 컨테이너 안쪽 폭(1180)에 맞춘다 — 모바일의 거터 넘김을 되돌린다. */
-  .wc-picks .wc-slider__track {
+  .wc-ip-shortcuts {
+    grid-template-columns: repeat(auto-fill, 265px);
+    justify-content: center;
     gap: 20px;
-    margin-inline: 0;
-    padding-inline: 0;
-    scroll-padding-inline: 0;
-  }
-
-  .wc-picks .wc-slider__track > * {
-    flex: 0 0 calc((100% - 40px) / 3);
-  }
-
-  .wc-picks .wc-slider__controls {
-    display: flex;
   }
 }
 
@@ -488,163 +467,160 @@
 }
 
 /* ------------------------------------------------------------------
-   ④~⑥ 기획전 밴드 (배너 + 컴팩트 리스트)
+   ⑤ ICONS PICK — 프로모션 카드 + 상품 2행 묶음(기획전 배너 행)
    ------------------------------------------------------------------ */
 
-/* 배너의 카피는 전부 이미지에 구워져 온다 — 오버레이 텍스트도 버튼도 얹지 않는다(R-02 §2④). */
-.wc-band__banner {
-  display: block;
-  margin-bottom: 16px;
-  aspect-ratio: 780 / 431;
+/* 한 줄 3장(≥990) · 2열(750~989) · 1열. 카드 폭은 데스크톱에서 (1272 - 48) / 3 = 408 이라 프로모션 카드 408×260 과 맞는다. */
+.wc-x-pick-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-x-pick-grid > li {
+  min-width: 0;
+}
+
+@media (min-width: 750px) {
+  .wc-x-pick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 990px) {
+  .wc-x-pick-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* 묶음 전체에 0.5px 선 + radius 8 + 잘라내기 — 위 프로모션 카드는 묶음이 모서리를 대신 둥글게 하므로 자기 모서리를 지운다. */
+.wc-x-pick {
   overflow: hidden;
+  border: .5px solid var(--wc-x-line-card);
+  border-radius: var(--wc-x-radius-card);
+  background: var(--wc-surface);
 }
 
-.wc-band__banner img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.wc-x-pick .wc-x-pick__promo {
+  border-radius: 0;
 }
 
-.wc-band__list {
-  display: flex;
-  flex-direction: column;
-  row-gap: 16px;
+/* 묶음이 overflow:hidden 이라 프로모션 카드의 바깥 포커스 링(wc-popups.css, offset 2px)은 위·좌·우가 잘리고, 상품 행이 없으면 아래까지 잘려
+   포커스 표시가 사라진다. 안쪽 outline(-4px)은 카드가 isolation 으로 만든 층 안에서 그림(art)·글(body, z 2) 아래에 칠해져 보이지 않으므로,
+   링을 맨 위 층(::before, z 3 — ::after 는 그라데이션이 쓴다)에 그린다. PromoCard 는 다른 화면에서도 쓰이므로 이 묶음 안에서만 바꾼다. */
+.wc-x-pick .wc-x-pick__promo:focus-visible {
+  outline: none;
 }
 
-/* 행 = [링크(썸네일·글) | 하트]. 행마다 하단 1px 헤어라인과 그 위 여백(모바일 16·데스크톱 18)을 두고
-   마지막 행은 선 없이 끝난다(레퍼런스 380×99 · 343×97 · 11 HM-03). 하트는 링크의 형제라 버튼이 링크 안에 들지 않는다.
-   행 높이는 썸네일 80 이 정한다 — 글 블록(브랜드 16 + 2 + 이름 18 + 6 + 가격 17 + 4 + 별점 16 = 79)이 별점까지
-   80 안에 들어야 별점 있는 행도 99/97 로 선다(예전 줄높이로는 88.8 이라 107.8/105.8 로 커졌다). */
-.wc-band__row {
+.wc-x-pick .wc-x-pick__promo:focus-visible::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: 3;
+  border: 2px solid var(--wc-focus);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .wc-x-pick .wc-x-pick__promo:focus-visible::before { border-color: Highlight; }
+}
+
+/* 상품 영역 패딩 20/20/21/20. 행 사이는 18 + 1px 선 + 18 이다. */
+.wc-x-pick__goods {
+  margin: 0;
+  padding: 20px 20px 21px;
+  list-style: none;
+}
+
+.wc-x-pick__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 8px;
-  align-items: end;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--wc-hairline);
-}
-
-.wc-band__row:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-/* 두 번째 트랙을 `minmax(0, 1fr)` 로 열어야 상품명 한 줄 말줄임이 실제로 작동한다 —
-   기본 `1fr` 은 min-content 바닥을 깔아서 긴 이름이 행을 밀어낸다. */
-.wc-band__row-link {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
-  column-gap: 15px;
   align-items: center;
+  column-gap: 12px;
+}
+
+.wc-x-pick__row + .wc-x-pick__row {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--wc-x-line-row);
+}
+
+/* 행 = [링크(썸네일 94 · 글) | 하트]. 하트는 링크의 형제라 버튼이 링크 안에 들지 않는다. */
+.wc-x-pick__link {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
   min-width: 0;
   color: inherit;
   text-decoration: none;
 }
 
-.wc-band__row-link > * {
-  min-width: 0;
-}
-
-/* 행 하트는 가격 줄 높이에 맞춰 바닥에 붙는다 — 44 히트 영역의 아래 4px 를 행 여백 쪽으로 물린다. */
-.wc-band__heart {
-  margin-bottom: -4px;
-}
-
-.wc-band__thumb {
+.wc-x-pick__thumb {
   display: block;
-  width: 80px;
-  height: 80px;
-  border-radius: 0;
+  width: 94px;
+  height: 94px;
+  border-radius: var(--wc-x-radius-thumb-sm);
   background-color: var(--wc-surface-grey-2);
 }
 
-.wc-band__row-brand {
+.wc-x-pick__text {
   display: block;
-  overflow: hidden;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--wc-ink-tertiary);
+  min-width: 0;
 }
 
-.wc-band__row-name {
+.wc-x-pick__brand,
+.wc-x-pick__name,
+.wc-x-pick__price {
   display: block;
   overflow: hidden;
-  margin-top: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 세 줄의 중심 간격은 19(= 줄높이 17 + 2) — Figma 실측. */
+.wc-x-pick__brand {
   font-size: 13px;
-  font-weight: 400;
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--wc-ink);
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--wc-x-muted);
 }
 
-.wc-band__row-soldout {
-  margin-left: 6px;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--wc-ink-disabled);
+.wc-x-pick__name {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 17px;
+  color: var(--wc-x-ink);
 }
 
-.wc-band__row-price {
-  display: block;
-  margin-top: 6px;
+.wc-x-pick__price {
+  margin-top: 2px;
   font-size: 14px;
   font-weight: 600;
   line-height: 17px;
-  color: var(--wc-ink);
+  color: var(--wc-x-ink);
 }
 
-/* 보더가 아니라 outline 이다 — 안쪽으로 당겨 그려야 50px 높이가 그대로 유지된다(R-02 §1-5).
-   선은 1px line.control(#C8CACC)이다(11 §4 R-02 §1-5 정정 · HM-04 — 예전 1.5px 잉크는 기록 오류 추종). */
-.wc-band__more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 50px;
-  margin: 40px auto 0;
-  font-size: 14px;
+.wc-x-pick__rate {
+  margin-right: 4px;
   font-weight: 700;
-  text-decoration: none;
-  border-radius: var(--wc-radius-form);
-  outline: 1px solid var(--wc-line-control);
-  outline-offset: -1px;
-  background: var(--wc-surface);
-  color: var(--wc-ink);
+  color: var(--wc-x-sale);
 }
 
-@media (min-width: 990px) {
-  /* 780 + 갭 20 + 380 = 1180. 비율 트랙으로 두면 990~1211 구간에서도 넘치지 않고 같은 비율을 유지한다. */
-  .wc-band__layout {
-    display: grid;
-    grid-template-columns: 780fr 380fr;
-    column-gap: 20px;
-  }
+.wc-x-pick__unavailable {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
 
-  .wc-band__banner {
-    margin-bottom: 0;
-  }
-
-  .wc-band__list {
-    row-gap: 18px;
-  }
-
-  .wc-band__row {
-    padding-bottom: 18px;
-  }
-
-  .wc-band__row:last-child {
-    padding-bottom: 0;
-  }
-
-  .wc-band__more {
-    width: 300px;
-    margin-top: 56px;
-  }
+/* 히트 44 가 행의 오른쪽으로 14px 나가 하트 그림(16)의 오른쪽 끝이 글 영역 오른쪽 끝(카드 안쪽 20)에 맞는다(Figma). */
+.wc-x-pick__heart {
+  margin-right: -14px;
 }
 
 /* ------------------------------------------------------------------

@@ -1,9 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { buildDraftCurationPreview, createCurationEditorValues, curationKstInput, curationValuesForKindChange, moveCurationProduct } from './curation-editor';
+import { buildDraftCurationPreview, CURATION_ADDABLE_KINDS, createCurationEditorValues, curationKstInput, CURATION_KIND_LABELS, curationValuesForKindChange, moveCurationProduct, NOTICE_PAGE_TYPE_LABELS } from './curation-editor';
+import type { AdminCurationRecord } from './curations.server';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
 import { buildHomeReviewBestBand, emptyHomeProductRankings, homeReviewBandRating, type HomeProductRankings } from '@/lib/home-ranking';
 
 const card: HomeGoodsCard = { id: 'g1', name: '실제 상품', brand: 'ICONS', price: 12000, badge: null, imageBg: 'url("/goods.webp")', href: '/shop/g1', soldOut: false };
+
+/* POP-UP 화면은 EVENT 와 같은 캠페인 지면이라 공지 대상 화면 유형 'content' 에 든다(lib/shell-notices shellNoticePageType) — 라벨이 그 범위를 말한다. */
+describe('notice page type labels', () => {
+  it('names the content screens as stories, EVENT and POP-UP', () => {
+    expect(NOTICE_PAGE_TYPE_LABELS.content).toBe('쇼핑스토리·EVENT·POP-UP');
+  });
+});
+
+describe('curation kind labels', () => {
+  /* 운영팀이 홈 구성 목록에서 보는 이름은 고객 화면에 보이는 이름과 같다(X SQUARE 홈). */
+  it('names the revived and repurposed kinds by what they look like on the home', () => {
+    expect(CURATION_KIND_LABELS.announcement).toBe('홈 스트립 배너');
+    expect(CURATION_KIND_LABELS.editor_pick).toBe('IP 바로가기(추천 콘텐츠)');
+  });
+
+  /* 옛 공지 배너는 되살아나 새로 만들 수 있고, 현재 홈 본문에 없는 특집 IP만 새로 만들 수 없다. */
+  it('lets the revived 홈 스트립 배너 be added while the retired 특집 IP cannot', () => {
+    expect(CURATION_ADDABLE_KINDS).toContain('announcement');
+    expect(CURATION_ADDABLE_KINDS).not.toContain('featured_ip');
+    expect(CURATION_ADDABLE_KINDS).toContain('editor_pick');
+  });
+});
 
 describe('curation editor preview', () => {
   it('new banners preview explicit defaults while legacy option absence remains absent', () => {
@@ -185,4 +208,40 @@ describe('curation editor preview', () => {
     expect(curationValuesForKindChange({ ...tab, slot: 'new' }, 'best_tab', { isNew: true, touched: new Set(['slot'] as const), draftActiveFrom: DRAFT }).slot).toBe('category');
     expect(curationValuesForKindChange(tab, 'collection_banner', { isNew: true, touched: new Set(), draftActiveFrom: DRAFT }).slot).toBe('all');
   });
+
+  /* X SQUARE 홈: 옛 공지 배너(announcement)가 '홈 스트립 배너'로 살아났다. 공개 홈과 같은 뷰모델로 미리 본다. */
+  it('홈 스트립 배너 초안은 이미지가 있을 때 공개 홈의 스트립 배너로 미리 보이고, 이미지가 없으면 가짜 배너를 그리지 않는다', () => {
+    const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'announcement'), title: '겨울 MD 출시', linkPath: '/events/winter', imageUrl: '/strip.webp' };
+    expect(buildDraftCurationPreview('strip', values, []).curation.stripBanner).toEqual({ id: 'strip', title: '겨울 MD 출시', imageUrl: '/strip.webp', href: '/events/winter' });
+    expect(buildDraftCurationPreview('strip', { ...values, imageUrl: null }, []).curation.stripBanner).toBeUndefined();
+    /* 특집 IP 기록은 공개 홈 본문에 없다 — 가짜 배너를 만들지 않는다. */
+    expect(buildDraftCurationPreview('ip', { ...values, kind: 'featured_ip' }, []).curation.stripBanner).toBeUndefined();
+  });
+
+  it('IP 바로가기(추천 콘텐츠)·ICONS PICK(기획전) 초안은 공개 홈과 같은 뷰모델로 미리 본다', () => {
+    const DRAFT = '2026-10-12T00:00:00Z';
+    const pick = { ...createCurationEditorValues(null, DRAFT, 'editor_pick'), title: '언니! 아직 안데려간 마루', badge: '마루는강쥐', description: '쓰이지 않는 설명', imageUrl: '/pick.webp', linkPath: '/ip/maru' };
+    expect(buildDraftCurationPreview('pick', pick, []).curation.editorPicks[0]).toMatchObject({ title: '언니! 아직 안데려간 마루', badge: '마루는강쥐', href: '/ip/maru' });
+    const band = { ...createCurationEditorValues(null, DRAFT, 'band_banner'), title: '팝업 인기 굿즈', imageUrl: '/band.webp', linkPath: '/events/popup', goodIds: ['g1'] };
+    expect(buildDraftCurationPreview('band', band, [card]).curation.goodsBands[0]).toMatchObject({ title: '팝업 인기 굿즈', imageUrl: '/band.webp', goods: [card] });
+  });
+
+  it('그리드형 자유상품 초안은 5개 또는 10개 · 정사각일 때만 미리 보이고 한 IP면 전체보기 주소를 싣는다', () => {
+    const base = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'product_collection'), title: '메이플스토리',
+      productLayout: 'grid' as const, productImageShape: 'square' as const, productItemCount: '5', goodIds: ['g1'] };
+    const ipCard = { ...card, ipHref: '/ip/maple' };
+    const draft = buildDraftCurationPreview('maple', base, [ipCard]);
+    expect(draft.curation.productCollections?.[0]).toMatchObject({ layout: 'grid', imageShape: 'square', moreHref: '/ip/maple', goods: [ipCard] });
+    expect(buildDraftCurationPreview('maple', { ...base, productItemCount: '7' }, [ipCard]).curation.productCollections).toBeUndefined();
+    expect(buildDraftCurationPreview('maple', { ...base, productImageShape: 'portrait' }, [ipCard]).curation.productCollections).toBeUndefined();
+    expect(buildDraftCurationPreview('maple', { ...base, productItemCount: '10' }, [ipCard]).curation.productCollections?.[0].layout).toBe('grid');
+  });
+
+  it('저장된 그리드형 자유상품은 디자인·개수·정사각 값을 폼으로 되살린다', () => {
+    const record = { id: 'c', kind: 'product_collection', title: '그리드', imagePath: null, imageUrl: null, mobileImageUrl: null, linkPath: null, ipId: null,
+      displayOrder: 0, activeFrom: '2026-10-12T00:00:00Z', activeTo: null, enabled: true, slot: null, mosaicImageUrls: [], status: 'active',
+      updatedAt: '2026-10-12T00:00:00Z', payload: { layout: 'grid', image_shape: 'square', item_count: 10, good_ids: ['g1'] } } as unknown as AdminCurationRecord;
+    expect(createCurationEditorValues(record, '2026-10-12T00:00:00Z')).toMatchObject({ productLayout: 'grid', productImageShape: 'square', productItemCount: '10', goodIds: ['g1'] });
+  });
 });
+

@@ -1,0 +1,237 @@
+/* X SQUARE 스토어프런트 공용 부품 (Figma 2026-11-12, ADR-0043).
+ * 정본: 공용 부품 계약(설계자 B)과 Figma 덤프. 토큰은 wc-foundation.css 의 .wc-root(--wc-x-*)가 진실원이다.
+ * 이 파일의 선택자는 .wc-x-·.wc-strip-banner·기존 .wc-product-card 계열로만 시작한다(전역 element 규칙 금지).
+ * import 순서: wc-inquiry-widget.css → 이 파일 → wc-listing.css → wc-popups.css (화면 전용 CSS가 부품 기본값을 덮는다). */
+
+/* ------------------------------------------------------------------
+   넓은 컨테이너 — 데스크톱 최대 1320, 좌우 24(안쪽 1272). 990 미만은 기존 거터(16) 그대로.
+   ------------------------------------------------------------------ */
+
+.wc-container.wc-container--wide { max-width: var(--wc-x-container); }
+
+@media (min-width: 990px) {
+  .wc-container.wc-container--wide { padding-inline: var(--wc-x-gutter); }
+}
+
+/* ------------------------------------------------------------------
+   부품 — 상품 카드 (Figma Product Card, 폭 242 기준)
+   기존 .wc-product-card 규칙(wc-foundation·wc-catalog·store-presentation)보다 뒤에 오므로 같은 특이도로 덮는다.
+   ------------------------------------------------------------------ */
+
+/* 썸네일은 정사각 + radius 8. 이미지는 contain 그대로(1000×1000 원본 유지 규칙). */
+.wc-product-card__media { border-radius: var(--wc-x-radius-card); }
+
+/* 글 묶음: 썸네일 아래 12(.wc-product-card__info 기본), 항목 사이 4. 줄높이는 Figma 실측(14px → 17). */
+.wc-product-card__brand {
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 17px;
+  color: var(--wc-x-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-product-card__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 17px;
+  color: var(--wc-x-ink);
+}
+
+.wc-product-card__brand + .wc-product-card__name,
+.wc-product-card__name + .wc-price,
+.wc-product-card__adult-note + .wc-price { margin-top: 4px; }
+
+/* 가격 줄 — 할인율 15 Bold 빨강 + 판매가 16 Bold. 카드는 취소선 정가를 그리지 않는다(PriceBlock variant="inline"). */
+.wc-price--inline .wc-price__row { align-items: baseline; gap: 4px; line-height: 20px; }
+
+.wc-price--inline .wc-price__rate {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-x-sale);
+}
+
+.wc-price--inline .wc-price__amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-x-ink);
+}
+
+/* 칩 줄 — 가격 아래 10(간격 4 + 위 패딩 6), 칩 사이 6, 줄바꿈 허용. */
+.wc-product-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.wc-product-card__chips + .wc-product-card__rating { margin-top: 8px; }
+
+.wc-x-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 4px;
+  border-radius: var(--wc-x-radius-chip);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.wc-x-chip--preorder { background: var(--wc-x-chip-preorder-bg); color: var(--wc-x-chip-preorder-ink); }
+.wc-x-chip--freeShipping { background: var(--wc-x-chip-shipping-bg); color: var(--wc-x-chip-shipping-ink); }
+.wc-x-chip--random { background: var(--wc-x-chip-random-bg); color: var(--wc-x-chip-random-ink); }
+.wc-x-chip--tag { background: var(--wc-x-chip-tag-bg); color: var(--wc-x-chip-tag-ink); }
+
+/* 위시 하트 — 썸네일 오른쪽 아래. 히트 44 안에 흰 원 32(+1px 선)가 앉아 원이 모서리에서 8px 떨어진다(44 - 32 = 12 → 6 + 2).
+   빈 하트 선은 ink.tertiary, 선택 하트는 채움 --wc-x-heart. 홈 ICONS PICK 행(.wc-x-pick)도 같은 색·원 크기를 쓴다. */
+.wc-product-card__action {
+  top: auto;
+  right: 2px;
+  bottom: 2px;
+}
+
+.wc-product-card__action .wc-list-heart { margin: 0; }
+
+.wc-product-card__action .wc-list-heart__disc,
+.wc-x-pick .wc-list-heart__disc {
+  width: 32px;
+  height: 32px;
+  border-color: var(--wc-hairline);
+}
+
+.wc-product-card__action .wc-list-heart.is-active,
+.wc-x-pick .wc-list-heart.is-active { color: var(--wc-x-heart); }
+
+/* 갤러리 넘김은 하트와 겹치지 않게 왼쪽 아래로 둔다. */
+.wc-root .wc-product-card__gallery {
+  right: auto;
+  left: 8px;
+}
+
+/* ------------------------------------------------------------------
+   부품 — 상품 그리드 (ProductGrid)
+   열: ≥1200 5 / 990–1199 4 / 750–989 3 / <750 2. 열 간격 15·15·12·12. 줄 간격은 home / listing.
+   ------------------------------------------------------------------ */
+
+.wc-x-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 32px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-x-grid[data-density='home'] { row-gap: 28px; }
+
+.wc-x-grid > * { min-width: 0; }
+
+@media (min-width: 750px) {
+  .wc-x-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 40px; }
+  .wc-x-grid[data-density='home'] { row-gap: 24px; }
+}
+
+@media (min-width: 990px) {
+  .wc-x-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 15px; row-gap: 48px; }
+  .wc-x-grid[data-density='home'] { row-gap: 24px; }
+}
+
+@media (min-width: 1200px) {
+  .wc-x-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: 56px; }
+  .wc-x-grid[data-density='home'] { row-gap: 24px; }
+}
+
+/* ------------------------------------------------------------------
+   부품 — 섹션 제목 + 전체보기 알약 (SectionHeader)
+   ------------------------------------------------------------------ */
+
+.wc-x-sechead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px;
+}
+
+/* 편집 파운데이션이 h1~h3에 display 폰트를 강제하므로 지면 폰트를 되돌린다. */
+.wc-x-sechead__title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+  color: var(--wc-x-ink);
+}
+
+@media (min-width: 750px) {
+  .wc-x-sechead__title { font-size: 28px; }
+}
+
+.wc-x-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 10px 16px;
+  border: 1px solid var(--wc-x-line-pill);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 17px;
+  color: rgba(18, 18, 18, .8);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.wc-x-pill:hover { border-color: var(--wc-x-muted); color: var(--wc-x-ink); }
+
+.wc-x-pill:focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------
+   부품 — 스트립 배너 한 장 (StripBanner)
+   데스크톱 비율 1272:170(home) · 1272:340(page), cover, radius 12. 모바일(<750)은 radius 8,
+   모바일 이미지가 있으면 그 고유 비율(--wc-strip-mobile-ratio), 없으면 같은 비율로 줄인다.
+   ------------------------------------------------------------------ */
+
+.wc-strip-banner {
+  overflow: hidden;
+  border-radius: var(--wc-x-radius-strip);
+  background: var(--wc-surface-grey-2);
+}
+
+.wc-strip-banner picture,
+.wc-strip-banner__link { display: block; }
+
+.wc-strip-banner__link { color: inherit; }
+
+/* 링크 포커스 링은 overflow:hidden 에 잘리지 않게 안쪽에 그린다. */
+.wc-strip-banner__link:focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: -4px;
+}
+
+.wc-strip-banner__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.wc-strip-banner[data-size='home'] .wc-strip-banner__img { aspect-ratio: 1272 / 170; }
+.wc-strip-banner[data-size='page'] .wc-strip-banner__img { aspect-ratio: 1272 / 340; }
+
+@media (max-width: 749px) {
+  .wc-strip-banner { border-radius: 8px; }
+  .wc-strip-banner[data-mobile='true'] .wc-strip-banner__img { aspect-ratio: auto var(--wc-strip-mobile-ratio, 3 / 1); }
+}

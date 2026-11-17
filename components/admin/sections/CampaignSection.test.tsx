@@ -19,6 +19,7 @@ function campaign(overrides: Partial<AdminCampaignRecord> = {}): AdminCampaignRe
     bannerImagePath: null,
     featuredOrder: 1,
     sections: [{ type: 'attendance' }],
+    presentation: { popupMode: null, popupLocation: null, cardLinkPath: null },
     updatedAt: '2026-08-31T15:00:00.000Z',
     ...overrides,
   };

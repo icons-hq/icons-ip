@@ -2,6 +2,7 @@ import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
+import type { CampaignPresentation } from '@/lib/campaign-presentation';
 import {
   CAMPAIGN_CTA_HREF_MAX_LENGTH,
   CAMPAIGN_CTA_LABEL_MAX_LENGTH,
@@ -60,6 +61,11 @@ export interface AdminCampaignRecord {
   featuredOrder: number | null;
   /** 상세 본문 블록. 원문 JSON을 그대로 들고 있다가 폼에 다시 그린다. */
   sections: unknown[];
+  /**
+   * 노출 설정(EVENT·POP-UP 구분, POP-UP 장소, 카드·배너 바로가기). 설정한 행이 없으면 모두 null 인 값(EVENT 에 보인다),
+   * 읽지 못했으면 null 이다 — 노출 설정 패널은 null 이면 안내하고 폼을 막는다(캠페인 본문 저장은 그대로 된다).
+   */
+  presentation: CampaignPresentation | null;
   updatedAt: string;
 }
 

@@ -67,6 +67,7 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
   /* 공개 메뉴 편집(템플릿 룩, ADR-0028). 이름·순서·노출과 저장 계약은 그대로다. */
   return <form onSubmit={submit} className="flex min-w-0 flex-col gap-5">
     <p className="text-sm text-muted-foreground">스토어 상단 메뉴와 모바일 전체 메뉴의 이름·순서·노출을 함께 설정합니다. 메뉴는 기존 페이지로 연결됩니다.</p>
+    <p className="text-sm text-muted-foreground">POP-UP은 진행 중인 온·오프라인 팝업을 모은 화면입니다. 온라인 팝업은 IP관 목록으로 연결되며, 기본 메뉴에서는 숨겨져 있습니다.</p>
     <fieldset disabled={pending || !canEdit} className={GROUP}>
       <legend className={LEGEND}>메뉴 설정</legend>
       <ol className="flex flex-col">

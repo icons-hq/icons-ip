@@ -1,30 +1,36 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { Icon } from '@/components/ui/Icon';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import {
   applicableShellNotices,
-  firstVisibleNoticeBar,
   forgetShellNoticeNow,
   initialShellNoticeNow,
   nextShellNoticeEnd,
   noticeStripDimensions,
   readDismissedNoticeKeys,
+  readShellNoticeBarSeed,
   readShellNoticeSeed,
-  rememberDismissedNotice,
+  rememberDismissedNotices,
   SHELL_NOTICE_IMPRESSION_RATIO,
   shellNoticeImpressionVisible,
   SHELL_NOTICE_ROOT_ID,
   SHELL_NOTICE_SCRIPT,
+  shellNoticePageType,
   shellNoticeTimerDelay,
+  stableNoticeBar,
+  visibleNoticeBar,
   visibleNoticeStripIndex,
+  type ShellNoticeBarPins,
   type ShellNotices as ShellNoticeData,
 } from '@/lib/shell-notices';
 import { enterShellNoticeView, leaveShellNoticeView, recordShellNoticeEvent, shellNoticeSeen } from '@/lib/store-analytics-client';
 import { InlineScript } from './InlineScript';
+import { isActivationTarget } from './overlay-focus';
+import { RollingNoticeBody } from './RollingNoticeBody';
 
 function browserSessionStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -42,29 +48,42 @@ function browserScope(): Record<string, unknown> | null {
 /*
  * 전역 셸 공지 — 이미지 스트립 위에 텍스트 공지 바를 쌓는다(11 §3 Δ1). 둘 다 유틸바 위라 축약 기준(B1)에
  * 실제 공지 높이가 그대로 더해지고(Nav의 noticeOffsetAbove), 스크롤과 함께 빠져나가 sticky 크롬 높이·해시 착지선은 바뀌지 않는다.
+ * 텍스트 공지 바는 Figma의 빨간 롤링 띠배너다(ADR-0043) — 문구가 오른쪽에서 왼쪽으로 흐르고, 같은 화면 후보가 여럿이면
+ * 하드 로드마다 무작위 하나만 보인다(이미지 스트립과 같은 방식, 시드는 따로). 닫으면 이 화면의 모든 후보가 같은 탭 동안 닫힌다.
  *
  * 서버 렌더는 결정적이다: 이 화면 유형에 맞는 공지를 모두 그리되 첫 공지 바·첫 스트립만 보이고 나머지는 hidden.
  * 바로 뒤 인라인 스크립트가 첫 페인트 전에 같은 탭의 닫힘 기록·하드 로드 시드·지금 시각(끝난 공지 숨김)으로 hidden을 고치고,
  * 이 컴포넌트는 같은 저장소·시드·판정 시각을 lazy 초기값으로 읽어 같은 결과로 하이드레이트한다 — 닫은 공지가 깜빡였다
  * 사라지거나 스트립이 바뀌며 밀리지 않는다. 닫거나 끝나면 hidden(display:none)이라 빈 띠가 남지 않는다.
  * 셸 공지는 하드 로드 때만 내려오므로, 열린 화면에서는 다음 종료 시각에 맞춘 타이머로 끝난 공지를 숨긴다.
+ * 보이는 공지 바는 처음 고른 것을 화면 유형별로 고정한다 — 카드 리워드 게이트는 마운트 뒤에야 확정돼(서버·하이드레이션은 꺼짐) 후보가 늘 수 있고,
+ * 그때 같은 시드로 다시 고르면 보이던 문구가 바뀌고 노출이 두 번 집계된다. 게이트가 고른 공지를 막을 때만 다시 고른다(stableNoticeBar).
  */
 export function ShellNotices({
   notices,
   pathname,
   cardRewardsEnabled,
+  onActivate,
 }: {
   notices: ShellNoticeData;
   pathname: string;
   cardRewardsEnabled: boolean;
+  /** 공지 안의 링크·버튼(이동·닫기)을 눌렀을 때 — 검색 패널이 열려 있으면 닫으려는 신호다(MD-0034). 동작은 그대로 하고 알리기만 한다. */
+  onActivate?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [dismissed, setDismissed] = useState<readonly string[]>(() => readDismissedNoticeKeys(browserSessionStorage()));
   const [seed] = useState(() => readShellNoticeSeed(browserScope()));
+  const [barSeed] = useState(() => readShellNoticeBarSeed(browserScope()));
   const [now, setNow] = useState(() => initialShellNoticeNow(browserScope()));
   const { bars, strips } = applicableShellNotices(notices, pathname, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
-  const visibleBar = firstVisibleNoticeBar(bars, dismissed, now);
+  const pageType = shellNoticePageType(pathname);
+  /* 첫 선택(서버·첫 페인트 전 스크립트·하이드레이션과 같은 결과)이 고정의 시작이다. 이후 렌더는 고정한 공지를 그대로 쓰고, 막혔을 때만 새로 고른 키로 갱신한다
+     — 렌더 중 상태 보정(Nav 의 경로 리셋과 같은 방식)이라 값이 같으면 다시 그리지 않는다. */
+  const [pins, setPins] = useState<ShellNoticeBarPins>(() => ({ [pageType]: visibleNoticeBar(bars, dismissed, now, barSeed)?.key ?? null }));
+  const visibleBar = stableNoticeBar(bars, dismissed, now, barSeed, pins[pageType] ?? null);
   const visibleBarKey = visibleBar?.key ?? null;
+  if ((pins[pageType] ?? null) !== visibleBarKey) setPins({ ...pins, [pageType]: visibleBarKey });
   const stripIndex = visibleNoticeStripIndex(strips, seed, now);
   const visibleStripId = strips[stripIndex]?.id ?? null;
 
@@ -114,9 +133,18 @@ export function ShellNotices({
   /* 측정 밖 화면의 클릭은 lib/store-analytics-client가 버린다. */
   const recordClick = (id: string) => recordShellNoticeEvent(id, 'click');
 
-  /* 닫은 버튼이 사라지면 포커스가 문서 처음으로 튄다 — 다음 공지의 조작부, 없으면 로고로 옮긴다. */
-  const dismiss = (key: string) => {
-    flushSync(() => setDismissed((current) => rememberDismissedNotice(browserSessionStorage(), key, current)));
+  /* 링크·버튼의 원래 동작(이동·공지 닫기)이 먼저 끝난 뒤 — 닫기는 포커스를 옮기므로 그 뒤에 패널을 닫아야 패널이 포커스를 되돌려 뺏지 않는다. */
+  const activate = onActivate
+    ? (event: MouseEvent<HTMLDivElement>) => {
+      if (isActivationTarget(event.target)) onActivate();
+    }
+    : undefined;
+
+  /* 닫기는 이 화면에 적용되는 공지 바 후보 전부를 닫는다 — 무작위로 하나만 보이는데 닫았더니 다른 문구가 튀어나오면 닫기가 무의미하다.
+     문구·버튼·대상을 바꾸면 키가 달라져 다시 보인다(기존 규칙). 닫은 버튼이 사라지면 포커스가 문서 처음으로 튄다 —
+     다음 공지의 조작부, 없으면 로고로 옮긴다. */
+  const dismiss = () => {
+    flushSync(() => setDismissed((current) => rememberDismissedNotices(browserSessionStorage(), bars.map((bar) => bar.key), current)));
     const next = rootRef.current?.querySelector<HTMLElement>(
       '[data-notice-bar]:not([hidden]) .wc-notice-bar__close, [data-notice-strip]:not([hidden])',
     ) ?? document.querySelector<HTMLElement>('.wc-chrome .wc-logo');
@@ -126,27 +154,20 @@ export function ShellNotices({
   return (
     <>
       {bars.length > 0 || strips.length > 0 ? (
-        <div className="wc-notices" id={SHELL_NOTICE_ROOT_ID} ref={rootRef}>
+        <div className="wc-notices" id={SHELL_NOTICE_ROOT_ID} onClick={activate} ref={rootRef}>
           {bars.map((bar) => (
             <aside
               key={bar.key}
               aria-label="스토어 공지"
-              className="wc-notice-bar"
+              className="wc-notice-bar wc-x-rolling"
               data-notice-bar={bar.key}
               data-notice-ends={bar.endsAt ?? undefined}
               data-notice-id={bar.id}
               hidden={bar !== visibleBar}
               suppressHydrationWarning
             >
-              <p className="wc-notice-bar__body">
-                <span className="wc-notice-bar__message">{bar.message}</span>
-                {bar.cta ? (
-                  <Link className="wc-notice-bar__cta" href={bar.cta.href} onClick={() => recordClick(bar.id)}>
-                    {bar.cta.label}
-                  </Link>
-                ) : null}
-              </p>
-              <button aria-label="공지 닫기" className="wc-notice-bar__close" onClick={() => dismiss(bar.key)} type="button">
+              <RollingNoticeBody cta={bar.cta} message={bar.message} onCtaClick={() => recordClick(bar.id)} />
+              <button aria-label="공지 닫기" className="wc-notice-bar__close" onClick={dismiss} type="button">
                 <Icon name="close" size={16} />
               </button>
             </aside>

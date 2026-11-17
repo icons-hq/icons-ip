@@ -97,3 +97,24 @@ describe('ProductShippingSavings random candidates', () => {
     expect(lines.join('\n')).not.toContain('배정 후보 옵션');
   });
 });
+
+/* review-b m5 — 후보 카드에서 SALE 칩이 사라진 뒤 할인 신호가 없었다. 카드 판매가는 후보 옵션 가격이므로 취소선 정가도 그 옵션의 정가를 넘긴다. */
+describe('ProductShippingSavings discount display', () => {
+  const optionId = '92200000-0000-4000-8000-000000000021';
+  it('passes the candidate option\'s own compare-at price and the discount-rate switch to the card', () => {
+    /* 기준 판매가 3000·소비자가 4000, 후보 옵션은 추가금액 500 → 옵션 판매가 3500·옵션 정가 4500(상품 단위 정가 4000을 쓰면 할인율이 틀린다). */
+    const discounted: Good = { ...candidate('s1'), price: 3000, catalogPrice: 3000, catalogCompareAtPrice: 4000, compareAtPrice: 4000, showDiscountRate: true,
+      options: [{ id: optionId, name: '추가금 옵션', code: 'PLUS', price: 3500, stockQty: 9, isDefault: false, attributes: {} }] };
+    hooks.state[0] = { key: `g13:${option.id}:1`, value: { ...savings, items: [{ ...savings.items[0], variantId: optionId, good: discounted }] } };
+    const [card] = cardProps(render());
+    expect(card).toMatchObject({ price: 3500, compareAtPrice: 4500, showDiscountRate: true });
+  });
+
+  it('falls back to the good-level compare-at price when the candidate option is not in the folded options (random sale)', () => {
+    const folded: Good = { ...candidate('s2'), price: 3000, compareAtPrice: 4000, showDiscountRate: false, optionSaleMode: 'random' };
+    hooks.state[0] = { key: `g13:${option.id}:1`, value: { ...savings, items: [{ ...savings.items[0], variantId: 'hidden-variant', good: folded }] } };
+    const [card] = cardProps(render());
+    expect(card).toMatchObject({ price: 3000, compareAtPrice: 4000, showDiscountRate: false });
+  });
+});
+

@@ -19,8 +19,7 @@
   html:has([data-admin-header]) { scroll-padding-top: 48px; }
   @media (min-width: 990px) {
     html:has(.wc-chrome .wc-header) { scroll-padding-top: 69px; }
-    html:has(.wc-chrome .wc-header[data-condensed='false']),
-    html:has(.wc-chrome .wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) { scroll-padding-top: 123px; }
+    html:has(.wc-chrome .wc-header[data-condensed='false']) { scroll-padding-top: 109px; }
   }
   /* The same scrolling also stops above what is fixed to the bottom of the viewport (WCAG 2.2 SC 2.4.11) — without it a
      focused control under a bottom layer counts as on screen and never scrolls. The line is the higher of two:

@@ -28,7 +28,7 @@ const shortcuts: NavItem[] = [
   { id: 'new', label: 'NEW' }, { id: 'best', label: 'BEST' }, { id: 'shop', label: '전체 굿즈' }, { id: 'events', label: '이벤트' }, { id: 'stories', label: '쇼핑스토리' },
 ];
 const campaigns: StorefrontMenuCampaign[] = Array.from({ length: 6 }, (_, index) => ({
-  id: `c${index + 1}`, title: `기획전 ${index + 1}`, imageUrl: index === 0 ? 'https://cdn.example/card.webp' : null,
+  id: `c${index + 1}`, title: `기획전 ${index + 1}`, imageUrl: index === 0 ? 'https://cdn.example/card.webp' : null, href: `/events/c${index + 1}`,
 }));
 const ips: StorefrontMenuIp[] = [
   { id: 'maple', name: 'MapleStory', href: '/ip/maple', imageBg: 'url("https://cdn.example/maple.webp") center / cover no-repeat' },
@@ -90,6 +90,15 @@ describe('모바일 카테고리 시트 (MC-05)', () => {
     expect(html.match(/class="wc-catsheet__collection" href="\/events\/c\d"/g)).toHaveLength(6);
     expect(html).toContain('class="wc-catsheet__collection-image" style="background-image:url(&quot;https://cdn.example/card.webp&quot;)"');
     expect(html).toContain('<span aria-hidden="true" class="wc-catsheet__collection-image"></span><span class="wc-catsheet__collection-title">기획전 2</span>');
+
+    /* 링크는 캠페인이 정한 목적지(href)로 간다 — POP-UP 캠페인·바로가기가 /events/<id>로 새지 않는다. */
+    const routed = render({ campaigns: [
+      { id: 'pop', title: '성수 팝업', imageUrl: null, href: '/popups/pop' },
+      { id: 'go', title: '키링 모음', imageUrl: null, href: '/shop?displayCategory=abc' },
+    ] });
+    expect(routed).toContain('class="wc-catsheet__collection" href="/popups/pop"');
+    expect(routed).toContain('class="wc-catsheet__collection" href="/shop?displayCategory=abc"');
+    expect(routed).not.toContain('href="/events/pop"');
 
     const none = render({ campaigns: [] });
     expect(none).not.toContain('>기획전</h2>');

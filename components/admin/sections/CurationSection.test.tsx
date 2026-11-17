@@ -392,4 +392,86 @@ describe('CurationSection', () => {
     expect(html).toContain('노출 기간이 겹치는 배너는 비노출을 빼고 10장까지');
     expect(html).toContain('BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다');
   });
+
+  /* PR2 리뷰: 세 컬렉션 모두 화면은 같은 스트립 배너 1272×340이다 — 옛 전폭(1440×580)·칸(1180×260) 치수를 안내하지 않는다. */
+  it('컬렉션 배너 이미지 안내는 세 슬롯 모두 화면 1272×340 기준 권장 치수를 알린다', () => {
+    for (const slot of ['all', 'best', 'new']) {
+      const html = renderSection({ ...record, kind: 'collection_banner', title: '컬렉션 배너', slot, linkPath: null, payload: null });
+      expect(html, slot).toContain('PC 2544×680px(화면 1272×340), 모바일은 750×350px을 권장합니다');
+      for (const old of ['2880', '1440×580', '2360×520', '1180×260', '375×175']) expect(html, `${slot} ${old}`).not.toContain(old);
+    }
+  });
+
+  /* ── X SQUARE 홈(ADR-0043) 어드민 — 라벨·도움말·그리드형·홈 스트립 배너 ── */
+
+  it('추천 콘텐츠는 IP 바로가기 줄로, 기획전 배너는 ICONS PICK 카드로 보이는 방식을 안내한다', () => {
+    const pick = renderSection({ ...record, kind: 'editor_pick', title: '언니! 아직 안데려간 마루', linkPath: '/ip/maru', payload: { badge: '마루는강쥐' } });
+    expect(pick).toContain('IP 바로가기(추천 콘텐츠) 관리');
+    expect(pick).toContain('홈 배너 아래 IP 바로가기 줄입니다. 배지 문구 = 작은 회색 줄(IP 이름), 제목 = 아래 줄 문구. 설명은 지금 화면에 보이지 않습니다.');
+    expect(pick).toContain('IP 바로가기 이미지는 필수입니다. 권장 530×360px');
+
+    const band = renderSection({ ...record, kind: 'band_banner', title: '팝업 인기 굿즈', linkPath: '/events/popup', payload: { good_ids: ['g13'] } });
+    expect(band).toContain('홈 &#x27;ICONS PICK&#x27; 카드로 보입니다. 배너 이미지와 제목, 고른 상품 앞 2개가 카드에 나옵니다. 홈 영역 순서에서 연달아 놓은 기획전은 한 줄(3장)로 묶입니다.');
+    expect(band).toContain('ICONS PICK 카드 이미지는 필수입니다. 권장 816×520px');
+  });
+
+  it('텍스트 공지 바 안내는 무작위 노출과 빨간 띠 흐름을 알린다', () => {
+    const html = renderSection({ ...record, kind: 'notice_bar', title: '배송 안내', imagePath: null, imageUrl: null, mobileImageUrl: null, linkPath: null, payload: { page_types: ['home'] } });
+    expect(html).toContain('같은 화면에 여러 개가 있으면 스토어를 새로 열 때마다 하나를 무작위로 보여줍니다. 문구는 빨간 띠에서 흘러갑니다.');
+    expect(html).not.toContain('순서가 앞선 하나를 보여줍니다');
+  });
+
+  /* 옛 '공지 배너'(announcement)는 이제 '홈 스트립 배너'다 — 안내만 있던 읽기 전용에서 이미지 필수 편집 폼으로 바뀐다. */
+  it('홈 스트립 배너는 이미지를 필수로 두고 제목이 대체 텍스트임을 알리며 실제 편집 폼과 미리보기를 보인다', () => {
+    const strip: AdminCurationRecord = { ...record, kind: 'announcement', title: '홍실퀘스트 겨울 MD 출시', linkPath: '/events/winter', payload: null };
+    const html = renderSection(strip);
+
+    expect(html).toContain('홈 스트립 배너 관리');
+    expect(html).toContain('홈 본문 가운데 가로로 긴 배너입니다(권장 2544×340). 노출 중인 첫 배너 하나를 보여줍니다.');
+    expect(html).toContain('data-artwork-kind="curation"');
+    expect(html).toContain('홈 스트립 배너 이미지는 필수입니다. 권장 2544×340px');
+    expect(html).toContain('제목은 화면에 보이지 않고 이미지의 대체 텍스트로 쓰입니다.');
+    expect(html).toContain('눌렀을 때 이동할 화면');
+    /* 옛 읽기 전용 안내('가짜 미리보기를 만들지 않는다')가 미리보기 자리를 대신하지 않는다 — 안내 문장은 머리 도움말 한 번뿐이다. */
+    expect((html.match(/홈 본문 가운데 가로로 긴 배너입니다/g) ?? []).length).toBe(1);
+    expect(html).toContain('aria-label="스토어 미리보기"');
+  });
+
+  it('그리드형 자유상품은 5개·10개와 정사각 고정만 고르게 하고 한 IP 전체보기 규칙을 안내한다', () => {
+    const grid: AdminCurationRecord = { ...record, kind: 'product_collection', imagePath: null, imageUrl: null, linkPath: null,
+      payload: { layout: 'grid', image_shape: 'square', item_count: 5, good_ids: ['g13'] } };
+    const html = renderSection(grid);
+
+    expect(html).toContain('<option value="grid" selected="">그리드형(5열)</option>');
+    expect(html).toMatch(/<select[^>]*name="productItemCount"[^>]*>[\s\S]*?<\/select>/);
+    const count = html.match(/<select[^>]*name="productItemCount"[^>]*>([\s\S]*?)<\/select>/)?.[1] ?? '';
+    expect([...count.matchAll(/<option value="(\d+)"/g)].map((match) => match[1])).toEqual(['5', '10']);
+    /* 사진 비율 선택은 숨기고 정사각 값만 제출한다. */
+    expect(html).not.toMatch(/<select[^>]*name="productImageShape"/);
+    expect(html).toContain('type="hidden" name="productImageShape" value="square"');
+    expect(html).toContain('NEW ARRIVAL과 같은 상품 카드');
+    expect(html).toContain('고른 상품이 모두 한 IP일 때만 그 IP관으로 연결됩니다');
+  });
+
+  it('그리드형이 아닌 자유상품은 기존 개수 범위와 사진 비율 선택을 그대로 둔다', () => {
+    const list: AdminCurationRecord = { ...record, kind: 'product_collection', imagePath: null, imageUrl: null, linkPath: null,
+      payload: { layout: 'list', image_shape: 'portrait', item_count: 4, good_ids: ['g13'] } };
+    const html = renderSection(list);
+    const count = html.match(/<select[^>]*name="productItemCount"[^>]*>([\s\S]*?)<\/select>/)?.[1] ?? '';
+
+    expect(html).toContain('name="productImageShape"');
+    expect([...count.matchAll(/<option value="(\d+)"/g)].map((match) => match[1])).toEqual(['3', '4', '5', '6', '7', '8', '9', '10', '11', '12']);
+    expect(html).toContain('상품 대표이미지의 가운데를 기준으로 잘라 표시합니다.');
+  });
+
+  /* 그리드형이 아닌 값(예: 리스트형에서 쓰던 7개)이 남은 채 그리드형으로 저장된 레코드는 개수를 다시 고르게 한다. */
+  it('그리드형에 허용되지 않는 개수는 다시 선택하라고 알린다', () => {
+    const odd: AdminCurationRecord = { ...record, kind: 'product_collection', imagePath: null, imageUrl: null, linkPath: null,
+      payload: { layout: 'grid', image_shape: 'square', item_count: 7, good_ids: ['g13'] } };
+    const html = renderSection(odd);
+
+    expect(html).toContain('5개 또는 10개 중에서 다시 선택해주세요.');
+    expect(html).toContain('7개 · 새 개수를 선택해주세요');
+  });
 });
+

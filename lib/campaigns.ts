@@ -7,6 +7,8 @@
  * 뱃지 없음", §13-2가 그 결함을 지적한다). DESIGN §6 campaign-hub가 이를 의도적 보완으로
  * 못 박았으므로 여기서 두 파생을 모두 소유한다. */
 
+import type { CampaignPresentation } from './campaign-presentation';
+
 export type CampaignKind = 'event' | 'drop';
 
 /**
@@ -140,10 +142,17 @@ export interface CampaignSummary {
   bannerImagePath: string | null;
   /** null이면 허브 배너가 아니다. 값이 있으면 오름차순이 배너 순서다. */
   featuredOrder: number | null;
+  /** 허브 카드 이미지의 마지막 대체(히어로). 상세 로더는 `CampaignDetailData.heroImagePath`로 따로 싣는다. */
+  heroImagePath?: string | null;
   startsAt: string;
   endsAt: string;
   status: CampaignStatus;
   displayState: CampaignDisplayState;
+  /**
+   * 노출 설정(`campaign_presentations`, 스펙 C §2.8) — EVENT·POP-UP 구분, POP-UP 장소, 카드·배너 바로가기.
+   * 행이 없거나 못 읽으면 null 이고, null 은 EVENT 쪽 캠페인이다(화면을 깨지 않는다).
+   */
+  presentation: CampaignPresentation | null;
 }
 
 export interface CampaignDetailData extends CampaignSummary {
@@ -323,6 +332,84 @@ export function orderCampaignsForHub<T extends Pick<CampaignSummary, 'displaySta
     if (group !== 0) return group;
     return (Date.parse(b.startsAt) || 0) - (Date.parse(a.startsAt) || 0);
   });
+}
+
+/* ------------------------------------------------------------------
+   EVENT 허브 (Figma 2026-11-12, 스펙 C §2.7)
+   ------------------------------------------------------------------
+   원천 = 게시된 캠페인 중 POP-UP 캠페인(노출 설정에 popupMode)이 아닌 것, 표시 상태 진행중 → 오픈 예정.
+   종료·초안은 빼고(현재 마케팅 중인 것만), 카드·배너 링크는 노출 설정의 바로가기가 우선이다.
+   로더(`lib/campaigns.server.ts`)는 있는 그대로 싣고 이 순수 함수들이 화면 규칙을 정한다. */
+
+export const CAMPAIGN_UPCOMING_BADGE = '오픈 예정';
+
+type HubCandidate = Pick<CampaignSummary, 'displayState' | 'presentation' | 'startsAt' | 'status'>;
+
+/** POP-UP 캠페인인가 — 노출 설정에 'POP-UP에 싣기'를 골랐다. */
+export function isPopupCampaign(campaign: Pick<CampaignSummary, 'presentation'>): boolean {
+  return Boolean(campaign.presentation?.popupMode);
+}
+
+/* 게시되어 있고(draft 는 운영자 미리보기라 공개 허브에 싣지 않는다), POP-UP 이 아니고, 아직 끝나지 않았다. */
+function isEventHubCandidate(campaign: HubCandidate): boolean {
+  return (
+    campaign.status === 'published'
+    && !isPopupCampaign(campaign)
+    && (campaign.displayState === 'ongoing' || campaign.displayState === 'upcoming')
+  );
+}
+
+/**
+ * EVENT 허브 카드 목록 — 진행중(시작 최신순) → 오픈 예정(시작 이른순).
+ * 허브 기본 정렬(`orderCampaignsForHub`)과 달리 예정은 곧 열리는 것이 먼저 보이게 오름차순이다.
+ */
+export function selectEventHubCampaigns<T extends HubCandidate>(campaigns: readonly T[]): T[] {
+  const startsAt = (campaign: T) => Date.parse(campaign.startsAt) || 0;
+  const eligible = campaigns.filter(isEventHubCandidate);
+  const ongoing = eligible
+    .filter((campaign) => campaign.displayState === 'ongoing')
+    .sort((a, b) => startsAt(b) - startsAt(a));
+  const upcoming = eligible
+    .filter((campaign) => campaign.displayState === 'upcoming')
+    .sort((a, b) => startsAt(a) - startsAt(b));
+  return [...ongoing, ...upcoming];
+}
+
+/** 스트립 배너 이미지 — 배너 이미지, 없으면 카드 이미지. */
+export function campaignBannerImage(campaign: Pick<CampaignSummary, 'bannerImagePath' | 'cardImagePath'>): string | null {
+  return campaign.bannerImagePath ?? campaign.cardImagePath ?? null;
+}
+
+/** 카드 이미지 — 카드 이미지, 없으면 배너 → 히어로. 모두 없으면 null(회색 면). */
+export function campaignCardImage(
+  campaign: Pick<CampaignSummary, 'bannerImagePath' | 'cardImagePath' | 'heroImagePath'>,
+): string | null {
+  return campaign.cardImagePath ?? campaign.bannerImagePath ?? campaign.heroImagePath ?? null;
+}
+
+/**
+ * EVENT 스트립 배너 — `featuredOrder`가 있는 캠페인을 그 순서대로. 같은 제외 규칙(POP-UP·종료·초안)을 따르고,
+ * 이미지가 없는 배너는 빈 면만 남으므로 뺀다.
+ */
+export function selectEventHubBanners<T extends HubCandidate & Pick<CampaignSummary, 'bannerImagePath' | 'cardImagePath' | 'featuredOrder'>>(
+  campaigns: readonly T[],
+): T[] {
+  return campaigns
+    .filter((campaign) => campaign.featuredOrder !== null && isEventHubCandidate(campaign) && campaignBannerImage(campaign) !== null)
+    .sort((a, b) => (a.featuredOrder ?? 0) - (b.featuredOrder ?? 0));
+}
+
+/*
+ * 카드·배너가 가는 곳 — 노출 설정의 바로가기(상품·IP관·카테고리 같은 사이트 안 경로)가 있으면 그곳,
+ * 없으면 캠페인 랜딩이다(POP-UP 캠페인은 `/popups/<id>`, 나머지는 `/events/<id>`).
+ * POP-UP 경로는 `lib/popups.ts`의 `popupDetailHref`와 같은 모양이다 — 그쪽이 이 모듈의 기간 라벨을 import 하므로
+ * 순환을 피해 여기서는 문자열로 쓰고, 같은 값임을 테스트가 고정한다.
+ */
+export function campaignCardHref(campaign: Pick<CampaignSummary, 'id' | 'presentation'>): string {
+  const shortcut = campaign.presentation?.cardLinkPath;
+  if (shortcut) return shortcut;
+  const base = isPopupCampaign(campaign) ? '/popups' : '/events';
+  return `${base}/${encodeURIComponent(campaign.id)}`;
 }
 
 /* ------------------------------------------------------------------

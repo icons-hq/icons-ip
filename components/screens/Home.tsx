@@ -5,6 +5,9 @@ import { ReviewEventDisclosureNote } from '@/components/reviews/ReviewEventBanne
 import { Fragment, type ReactNode } from 'react';
 import { defaultHomeBlockKeys, type HomeRankingBlockKey } from '@/lib/home-layout';
 import { HOME_REVIEW_GOODS_MIN, homeReviewBandRating, type HomeReviewBestBand } from '@/lib/home-ranking';
+import { IconsPick } from '@/components/home/IconsPick';
+import { IpShortcuts } from '@/components/home/IpShortcuts';
+import { homeCardChips } from '@/components/home/home-card-chips';
 import { ProductMosaic } from '@/components/home/ProductMosaic';
 import { ProductCollection } from '@/components/home/ProductCollection';
 import { HomeShoppingStories } from '@/components/home/ShoppingStories';
@@ -12,21 +15,20 @@ import { HomeAnnouncementPopup } from '@/components/home/HomeAnnouncementPopup';
 import type { HomeAnnouncementPopupData } from '@/lib/goods-announcement-popup';
 import { ScheduledHomeRefresh } from '@/components/home/ScheduledHomeRefresh';
 import { ListingWishHeart } from '@/components/shop/ListingWishHeart';
-import { ContentCard } from '@/components/wc/ContentCard';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { HeroCarousel } from '@/components/wc/HeroCarousel';
 import { ProductCard } from '@/components/wc/ProductCard';
+import { ProductGrid } from '@/components/wc/ProductGrid';
+import { SectionHeader } from '@/components/wc/SectionHeader';
+import { StripBanner } from '@/components/wc/StripBanner';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
-import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { Slider } from '@/components/wc/Slider';
 import { Icon } from '@/components/ui/Icon';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { krw } from '@/lib/format';
-import { goodsImageBackground } from '@/lib/goods-image';
-import { reviewStarCount, reviewSummaryLabel } from '@/lib/goods-review-summary';
+import { hrefFor } from '@/lib/routes';
 import {
   benefitTileIcon,
   withoutCardRewardCurations,
@@ -79,6 +81,29 @@ function hasTabGoods(tabs: readonly HomeBestTab[]) {
   return tabs.some((tab) => tab.goods.length > 0);
 }
 
+/* 홈의 모든 상품 카드는 같은 모양이다(NEW ARRIVAL·IP 상품 섹션·탭 밴드·리뷰 밴드). 칩은 서버가 채운 `chips`에서 오고,
+   스토어 표시 설정이 태그를 끈 배포에서는 운영 배지 칩만 빠진다(homeCardChips). 옛 `badges` 표기는 칩이 대신한다. */
+function HomeProductCard({ good, heartFor, showRating = true }: { good: HomeGoodsCard; heartFor: HeartFor; showRating?: boolean }) {
+  const { listing } = useStorePresentation();
+  return (
+    <ProductCard
+      action={heartFor(good)}
+      brand={good.brand ?? undefined}
+      chips={homeCardChips(good, listing.showTags)}
+      compareAtPrice={good.compareAtPrice}
+      href={good.href}
+      imageBackground={good.imageBg}
+      name={good.name}
+      price={good.price}
+      priceMax={good.priceMax}
+      reviewSummary={showRating ? good.reviewSummary : undefined}
+      salePeriod={good.salePeriod}
+      showDiscountRate={good.showDiscountRate}
+      soldOut={good.soldOut}
+    />
+  );
+}
+
 function TabProductBand({
   headingId,
   heartFor,
@@ -105,20 +130,7 @@ function TabProductBand({
         <Slider label={`${tab.label} 굿즈`}>
           {paginate(tab.goods, TAB_PAGE_SIZE).map((page) => (
             <div className="wc-tab-band__page" key={page[0].id}>
-              {page.map((good) => (
-                <ProductCard
-                  key={good.id}
-                  action={heartFor(good)}
-                  reviewSummary={good.reviewSummary}
-                  badges={good.badge ? [good.badge] : undefined}
-                  brand={good.brand ?? undefined}
-                  href={good.href}
-                  imageBackground={good.imageBg}
-                  name={good.name}
-                  price={good.price} priceMax={good.priceMax}
-                  salePeriod={good.salePeriod} soldOut={good.soldOut}
-                />
-              ))}
+              {page.map((good) => <HomeProductCard good={good} heartFor={heartFor} key={good.id} />)}
             </div>
           ))}
         </Slider>
@@ -127,7 +139,7 @@ function TabProductBand({
 
   return (
     <section aria-labelledby={headingId} className="wc-home__band">
-      <div className="wc-container">
+      <div className="wc-container wc-container--wide">
         <div className="wc-tab-band">
           <div className="wc-tab-band__head">
             <SectionHeading id={headingId} title={title} />
@@ -141,7 +153,7 @@ function TabProductBand({
 
 function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heartFor: HeartFor }) {
   return <section aria-labelledby={`home-reviews-${band.id}-heading`} className="wc-home__band">
-    <div className="wc-container">
+    <div className="wc-container wc-container--wide">
       <SectionHeading id={`home-reviews-${band.id}-heading`} title={band.title} />
       <Slider label={`${band.title} 굿즈`}>
         {paginate(band.goods, HOME_REVIEW_GOODS_MIN).map((page) => <div className="wc-home-review__page" key={page[0].id}>
@@ -149,9 +161,7 @@ function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heart
             /* 보이는 숫자는 카드 별점과 같은 그룹 범위이고, 선정(3점 이상)·정렬도 같은 값이다(L4b, lib/home-ranking). */
             const rating = homeReviewBandRating(good);
             return <div className="wc-home-review__item" key={good.id}>
-              <ProductCard action={heartFor(good)} badges={good.badge ? [good.badge] : undefined} brand={good.brand}
-                href={good.href} imageBackground={good.imageBg} name={good.name}
-                price={good.price} priceMax={good.priceMax} salePeriod={good.salePeriod} soldOut={good.soldOut} />
+              <HomeProductCard good={good} heartFor={heartFor} showRating={false} />
               <Link className="wc-home-review__rating" href={`${good.href}?reviewPage=1#reviews`} aria-label={`${good.name} 평점 ${rating.average.toFixed(2)}점, 리뷰 ${rating.count}개 보기`}>
                 <span aria-hidden>★</span> {rating.average.toFixed(2)} <span>리뷰 {rating.count.toLocaleString('ko-KR')}</span>
               </Link>
@@ -168,60 +178,6 @@ function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heart
   </section>;
 }
 
-function GoodsBandSection({ band, heartFor }: { band: HomeGoodsBand; heartFor: HeartFor }) {
-  const headingId = `home-band-${band.id}-heading`;
-
-  return (
-    <section aria-labelledby={headingId} className="wc-home__band">
-      <div className="wc-container">
-        <SectionHeading id={headingId} subcopy={band.subcopy ?? undefined} title={band.title} />
-        <div className="wc-band__layout">
-          {/* 배너 카피는 아트웍에 베이크돼 있어 alt 로 옮길 텍스트가 없다 — 이름은 링크가 갖는다. */}
-          <Link aria-label={`${band.title} 기획전 보기`} className="wc-band__banner" href={band.href}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt="" src={band.imageUrl} />
-          </Link>
-          {band.goods.length > 0 ? (
-            <div className="wc-band__list">
-              {/* 행은 링크(썸네일·글)와 하트의 형제 묶음이다 — 링크 안에 버튼을 넣으면 마크업으로도 잘못됐고
-                  클릭 한 번이 상세 이동까지 같이 일으킨다(11 HM-03, ProductCard action 슬롯과 같은 규칙). */}
-              {band.goods.map((good) => (
-                <div key={good.id} className="wc-band__row">
-                  <Link className="wc-band__row-link" href={good.href}>
-                    <span aria-hidden className="wc-band__thumb" style={{ background: goodsImageBackground(good.imageBg) }} />
-                    <div className="wc-band__row-text">
-                      {good.brand ? <p className="wc-band__row-brand">{good.brand}</p> : null}
-                      <p className="wc-band__row-name">{good.name}</p>
-                      <p className="wc-band__row-price">
-                        {krw(good.price)}
-                        {/* 리스트 행에는 품절 스크림 밴드를 겹칠 자리가 없어 가격 옆 라벨로 전한다(DESIGN §12 품절 상태). */}
-                        {goodsSaleUnavailableLabel(good.salePeriod) || good.soldOut ? <span className="wc-band__row-soldout">{goodsSaleUnavailableLabel(good.salePeriod) ?? '품절'}</span> : null}
-                      </p>
-                      {/* 행 별점(11 HM-03) — 카드와 같은 공개 리뷰 요약이 있을 때만. */}
-                      {good.reviewSummary ? (
-                        <p className="wc-band__row-rating">
-                          <span aria-hidden className="wc-product-card__stars">
-                            {'★'.repeat(reviewStarCount(good.reviewSummary.average))}
-                            <span className="wc-product-card__stars-empty">{'★'.repeat(5 - reviewStarCount(good.reviewSummary.average))}</span>
-                          </span>
-                          <span aria-hidden className="wc-product-card__rating-count">{`(${good.reviewSummary.count.toLocaleString('ko-KR')})`}</span>
-                          <span className="wc-sr-only">{reviewSummaryLabel(good.reviewSummary)}</span>
-                        </p>
-                      ) : null}
-                    </div>
-                  </Link>
-                  {heartFor(good, 'wc-band__heart')}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <Link className="wc-band__more" href={band.href}>기획전 전체보기</Link>
-      </div>
-    </section>
-  );
-}
-
 export function Home({ cardRewardsEnabled, curation: rawCuration, refreshScheduledContent = true, announcementPopup, wishlist }: HomeProps) {
   const { common } = useStorePresentation();
   const heartFor = heartsFrom(wishlist);
@@ -236,25 +192,35 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
   const hasPopular = hasTabGoods(curation.popularTabs);
   /* 게이트 필터가 카드팩·게임 목적지 타일만 걷어 내므로 남은 타일 수로 밴드 존재를 판정한다. */
   const hasBenefit = curation.benefitTiles.length > 0;
+  const newArrivals = curation.newArrivals ?? [];
+  const stripBanner = curation.stripBanner ?? null;
+  /* 기획전 배너(band:<id>)는 따로 그리지 않고, 순서상 연달아 놓인 것끼리 한 'ICONS PICK' 줄로 묶어 그린다(아래 visible 훑기). */
+  const bandsByKey = new Map<string, HomeGoodsBand>(curation.goodsBands.map((band) => [`band:${band.id}`, band]));
+  /* 홈 모든 섹션은 넓은 컨테이너(1320, 안쪽 1272)에 놓인다 — 섹션 사이 간격은 wc-home.css 가 쥔다. */
   const blocks: Record<string, ReactNode> = {
-    hero: hasHero ? <HeroCarousel slides={curation.heroSlides} /> : null,
-    editor_picks: hasPicks ? (
-      <section aria-labelledby="home-picks-heading" className="wc-home__band wc-home__band--picks">
-        <div className="wc-container">
-          <SectionHeading id="home-picks-heading" title="에디터의 제안" />
-          <Slider className="wc-picks" label="에디터의 제안 콘텐츠">
-            {curation.editorPicks.map((pick) => (
-              <ContentCard key={pick.id} badge={pick.badge} description={pick.description}
-                href={pick.href} imageBg={pick.imageBg} title={pick.title} />
-            ))}
-          </Slider>
+    hero: hasHero ? <div className="wc-home__hero wc-container wc-container--wide"><HeroCarousel slides={curation.heroSlides} /></div> : null,
+    editor_picks: hasPicks ? <IpShortcuts picks={curation.editorPicks} /> : null,
+    new_arrivals: newArrivals.length ? (
+      <section aria-labelledby="home-new-arrivals-heading" className="wc-home__band">
+        <div className="wc-container wc-container--wide">
+          <SectionHeader id="home-new-arrivals-heading" moreHref={hrefFor('new')} title="NEW ARRIVAL" />
+          <ProductGrid density="home">
+            {newArrivals.map((good) => <li key={good.id}><HomeProductCard good={good} heartFor={heartFor} /></li>)}
+          </ProductGrid>
         </div>
       </section>
+    ) : null,
+    strip_banner: stripBanner ? (
+      <div className="wc-home__band wc-home__strip">
+        <div className="wc-container wc-container--wide">
+          <StripBanner alt={stripBanner.title} href={stripBanner.href} imageUrl={stripBanner.imageUrl} size="home" />
+        </div>
+      </div>
     ) : null,
     category_best: hasBest ? <TabProductBand headingId="home-best-heading" heartFor={heartFor} idBase="home-best" tabs={curation.categoryBestTabs} title="카테고리 BEST" /> : null,
     popular: hasPopular ? <TabProductBand headingId="home-popular-heading" heartFor={heartFor} idBase="home-popular" tabs={curation.popularTabs} title="인기템" /> : null,
     stories: curation.shoppingStoriesUnavailable ? (
-      <section className="wc-home__band"><div className="wc-container">
+      <section className="wc-home__band"><div className="wc-container wc-container--wide">
         <EmptyState title="스토어 소식을 불러오지 못했어요" titleAs="h2"
           description="잠시 후 다시 확인해주세요."
           action={<Link className="wc-btn" href="/stories">스토리 다시 확인하기</Link>} />
@@ -264,7 +230,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
        꺼진 배포에서 카드 리워드라는 말이 새지 않게 한다. 타일 아이콘은 목적지에서 고른 ICONS 아이콘이다(HM-07). */
     benefits: hasBenefit ? (
       <section aria-labelledby="home-benefit-heading" className="wc-home__band wc-home__band--grey">
-        <div className="wc-container">
+        <div className="wc-container wc-container--wide">
           <SectionHeading id="home-benefit-heading" title="혜택" />
           <ul className="wc-benefit__grid">
             {curation.benefitTiles.map((tile) => (
@@ -281,7 +247,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
       </section>
     ) : null,
   };
-  for (const band of curation.goodsBands) blocks[`band:${band.id}`] = <GoodsBandSection band={band} heartFor={heartFor} />;
+  for (const key of bandsByKey.keys()) blocks[key] = true;
   const rankingKeys: HomeRankingBlockKey[] = [];
   for (const band of curation.salesBestBands ?? []) {
     const key: HomeRankingBlockKey = `sales:${band.id}`;
@@ -306,7 +272,25 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
   }
   const order = curation.layoutOrder ?? defaultHomeBlockKeys(curation.goodsBands.map((band) => band.id), rankingKeys);
   const visible = [...new Set(order)].filter((key) => blocks[key]);
+  /* 보일 키를 순서대로 훑으며 연달아 오는 기획전(band:)을 한 그룹으로 묶는다 — 그룹은 'ICONS PICK' 한 섹션이고 그룹의 첫 키가 React key 다.
+     사이에 다른 블록이 끼면 그룹이 갈라져 각자 ICONS PICK 섹션이 된다. */
+  const sections: ReactNode[] = [];
+  for (let index = 0; index < visible.length; index += 1) {
+    const key = visible[index];
+    const band = bandsByKey.get(key);
+    if (!band) {
+      sections.push(<Fragment key={key}>{blocks[key]}</Fragment>);
+      continue;
+    }
+    const group = [band];
+    while (bandsByKey.has(visible[index + 1])) {
+      index += 1;
+      group.push(bandsByKey.get(visible[index])!);
+    }
+    sections.push(<IconsPick bands={group} heartFor={heartFor} key={key} />);
+  }
   const goods = [
+    ...newArrivals,
     ...curation.categoryBestTabs.flatMap(tab => tab.goods), ...curation.popularTabs.flatMap(tab => tab.goods),
     ...curation.goodsBands.flatMap(band => band.goods), ...(curation.salesBestBands ?? []).flatMap(band => band.tabs.flatMap(tab => tab.goods)),
     ...(curation.reviewBestBands ?? []).flatMap(band => band.goods), ...(curation.mosaicBands ?? []).flatMap(band => band.tiles.flatMap(tile => tile ? [tile.good] : [])),
@@ -326,7 +310,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
           <EmptyState action={<Link className="wc-btn primary" href="/shop">굿즈샵 둘러보기</Link>}
             description="곧 새로운 소식과 굿즈를 만나볼 수 있어요." title="홈을 준비하고 있어요" titleAs="h2" />
         </div>
-      ) : visible.map((key) => <Fragment key={key}>{blocks[key]}</Fragment>)}
+      ) : sections}
     </main>
   );
 }

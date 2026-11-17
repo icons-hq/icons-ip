@@ -2,45 +2,85 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BUSINESS_INFO, businessContactWords, type BusinessInfo as BusinessInfoData } from '@/lib/legal/business-info';
+import { BUSINESS_INFO, businessInfoRows, type BusinessInfo as BusinessInfoData, type BusinessInfoRow } from '@/lib/legal/business-info';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import {
-  FOOTER_ACCOUNT_ITEMS,
+  FOOTER_BULK_PURCHASE_LABEL,
   FOOTER_COMMUNITY_STAFF_ITEMS,
   FOOTER_DEMO_ITEMS,
-  FOOTER_DISCOVER_ITEMS,
-  FOOTER_PRIMARY_ITEMS,
+  UTIL_HELP_ITEM,
+  bulkPurchaseMailto,
   hidesSiteFooter,
   hrefFor,
   isStandaloneShellPath,
 } from '@/lib/routes';
-import { BusinessInfo } from './BusinessInfo';
 import { SITE_FOOTER_ID } from './site-footer-jump';
-import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
-import { StoreBrandFooterDetails, StoreBrandLogo } from './StoreBranding';
-import { DEFAULT_STOREFRONT_BRANDING, type StorefrontBranding } from '@/lib/store-branding';
+import { DEFAULT_STOREFRONT_BRANDING, STORE_SOCIAL_LABELS, type StorefrontBranding } from '@/lib/store-branding';
 
-/* 모바일 크롬 브레이크포인트(wc-chrome.css `max-width: 989px`)와 같은 값이다. */
-const FOOTER_MOBILE_QUERY = '(max-width: 989px)';
+/* X SQUARE 푸터(Figma Site Footer, ADR-0043). 한 줄 링크(약관·안내 | 고객센터·SNS) → 사업자 정보 두 줄 → (스태프 블록) → 저작권이다.
+   법정 표기(상호·대표자·주소·사업자등록번호·통신판매업 신고번호·전화·이메일·호스팅)와 법정 고지 3종은 그대로 두고 접지 않는다 —
+   값은 전부 businessInfo(어드민 사업자 정보 설정)에서 온다. 상호·주소의 라벨은 화면에서만 감추고(Figma) 접근 이름으로는 남긴다.
+   목적지 없는 Figma 항목(공지사항·서비스 가이드라인·X)은 죽은 링크를 만들지 않으려 그리지 않는다. 루트 요소는 푸터 점프·시트 inert 목록이
+   쓰는 `footer.wc-footer#site-footer` 그대로다. */
 
-/* 모바일에서는 사업자 정보를 펼친 채 시작한다(CH-15) — 데스크톱은 지금처럼 접혀 있다. SSR은 뷰포트를 모르므로
-   데스크톱 기본(접힘)으로 그리고 붙는 순간 한 번만 연다. 모듈 수준 함수라 ref 정체성이 안정돼 다시 불리지 않으므로
-   사용자가 접으면 접힌 채로 남는다. open을 prop으로 넘기지 않아 React가 이 상태를 되돌리지 않는다. */
-function openOnMobile(details: HTMLDetailsElement | null) {
-  if (details && window.matchMedia(FOOTER_MOBILE_QUERY).matches) details.open = true;
+/* 법정 고지 링크 이름 — 첫 항목은 Figma 표기('아이콘스 이용약관')를 쓰고 나머지는 문서 이름 그대로다. */
+const FOOTER_LEGAL_LABELS = { ...LEGAL_DOCUMENT_LABELS, terms: `아이콘스 ${LEGAL_DOCUMENT_LABELS.terms}` };
+
+/* 사업자 정보 두 줄 — 1줄: 상호·주소·대표자·사업자등록번호·통신판매업 신고번호, 2줄: 전화·이메일·호스팅. 비어 있는 항목은 행이 사라진다. */
+const BUSINESS_LINES: ReadonlyArray<{ label: string; keys: ReadonlyArray<BusinessInfoRow['key']> }> = [
+  { label: '사업자 정보', keys: ['companyName', 'address', 'representative', 'registrationNumber', 'mailOrderNumber'] },
+  { label: '연락처·호스팅', keys: ['phone', 'email', 'hostingProvider'] },
+];
+/* 값이 자명한 항목은 라벨을 화면에서 감춘다(Figma는 값만 적는다) — 접근 이름으로는 남는다. */
+const LABEL_HIDDEN_KEYS: ReadonlyArray<BusinessInfoRow['key']> = ['companyName', 'address'];
+
+function BusinessLines({ info }: { info: BusinessInfoData }) {
+  const rows = businessInfoRows(info);
+  return BUSINESS_LINES.map((line) => {
+    const lineRows = line.keys.flatMap((key) => rows.filter((row) => row.key === key));
+    if (lineRows.length === 0) return null;
+    return (
+      <dl key={line.label} aria-label={line.label} className="wc-x-footer__biz">
+        {lineRows.map((row) => (
+          <div key={row.key} className={`wc-x-footer__biz-row${LABEL_HIDDEN_KEYS.includes(row.key) ? ' wc-x-footer__biz-row--bare' : ''}`}>
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  });
 }
 
-/* White Catalog 푸터. 링크 목록은 전부 lib/routes.ts가 진실원이고 여기서는 배치만 한다.
- * 법정 고지 3종은 회사·정책 행 뒤에 이어 붙는다 — 사업자 정보와 함께 표시 의무가 걸린 블록이라
- * 접이식(details) 안이라도 마크업에서 사라지지 않는다.
- * 데스크톱 순서는 정책 → 로고 → 소개·SNS → 고객센터·사업자 | 링크 → 저작권, 모바일 순서(CH-15)는
- * 로고 → 정책 → 고객센터 → 사업자 → 소개·SNS → 링크 → 저작권이다. CSS order 로 옮기면 화면 순서와
- * 읽기·포커스 순서가 갈리므로(WCAG 1.3.2·2.4.3) 자리가 다른 로고·소개는 폭마다 한 벌씩 두고,
- * 그 폭이 아닌 쪽은 wc-chrome.css 가 display:none 으로 접근성 트리에서도 뺀다. */
-export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRONT_BRANDING}:{businessInfo?:BusinessInfoData;branding?:StorefrontBranding}) {
+/* SNS는 운영 브랜딩 설정에서 켠 것만 그린다. 인스타그램은 Figma 원본 글리프(18px), 블로그·페이스북은 원본 자산이 없어 글자 링크다. */
+function SocialLinks({ socials }: { socials: StorefrontBranding['socials'] }) {
+  return socials.map(({ platform, url }) => (
+    <li key={platform}>
+      {platform === 'instagram' ? (
+        <a aria-label={`${STORE_SOCIAL_LABELS[platform]}(새 창)`} className="wc-x-footer__social" href={url} rel="noopener noreferrer" target="_blank">
+          {/* Bundled brand asset: Figma Instagram glyph (72px source for the 18px slot). */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img alt="" height={18} src="/brand/social-instagram.png" width={18} />
+        </a>
+      ) : (
+        <a href={url} rel="noopener noreferrer" target="_blank">{STORE_SOCIAL_LABELS[platform]}<span className="wc-sr-only"> 새 창</span></a>
+      )}
+    </li>
+  ));
+}
+
+export function SiteFooter({
+  businessInfo = BUSINESS_INFO,
+  branding = DEFAULT_STOREFRONT_BRANDING,
+  copyrightYear = new Date().getFullYear(),
+}: {
+  businessInfo?: BusinessInfoData;
+  branding?: StorefrontBranding;
+  /** 저작권 줄의 연도 — 서버 레이아웃이 KST 기준으로 넘긴다. */
+  copyrightYear?: number;
+}) {
   const pathname = usePathname();
-  const cardRewardsEnabled = useCardRewardsEnabled();
   const demoVisible = useSecondaryMarketDemoVisible();
   const communityPreviewVisible = useCommunityStaffPreviewVisible();
   // 숨김 범위는 Nav보다 좁다 — 초대·비밀번호 변경·정지 안내(집중형 셸)와 어드민(자체 작업대)만 비운다. 캠페인·게임은
@@ -48,60 +88,29 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
   if (hidesSiteFooter(pathname)) return null;
   /* 독립 경험에는 모바일 탭바가 없다 — 탭바 몫으로 여는 모바일 바닥을 쓰지 않는다(wc-chrome.css .wc-footer--standalone). */
   const standalone = isStandaloneShellPath(pathname);
-
-  /* 카드 리워드가 꺼진 배포에서는 카드팩 진입점을 노출하지 않는다. */
-  const discoverItems = FOOTER_DISCOVER_ITEMS.filter((item) => cardRewardsEnabled || item.id !== 'packs');
-  /* 저작권 줄의 약속도 같은 게이트를 따른다(CH-11) — 꺼진 배포에서 '무상 카드 리워드'를 내세우면 없는 기능을 광고한다.
-     게이트 값은 셸이 이미 읽는 클라이언트 readback(useCardRewardsEnabled)이라 정적 페이지에 새 서버 조회를 얹지 않는다. */
-  const promises = ['공식 라이선스', ...(cardRewardsEnabled ? ['무상 카드 리워드'] : []), '결제사 승인 확인 후 주문 확정'];
+  const bulkPurchaseHref = bulkPurchaseMailto(businessInfo.email);
 
   return (
     <footer className={standalone ? 'wc-root wc-footer wc-footer--standalone' : 'wc-root wc-footer'} id={SITE_FOOTER_ID} tabIndex={-1}>
-      <div className="wc-footer__inner">
-        <p className="wc-footer__logo wc-footer__logo--mobile"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
-        <nav aria-label="회사·정책" className="wc-footer__primary">
-          <ul>
-            {FOOTER_PRIMARY_ITEMS.map((item) => (
-              <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
-            ))}
-            {LEGAL_DOCUMENT_SLUGS.map((slug) => (
-              <li key={slug}><Link href={legalDocumentHref(slug)}>{LEGAL_DOCUMENT_LABELS[slug]}</Link></li>
-            ))}
-          </ul>
-        </nav>
-
-        <p className="wc-footer__logo wc-footer__logo--desktop"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
-        <StoreBrandFooterDetails branding={branding} className="wc-footer__brand--desktop" />
-
-        <div className="wc-footer__middle">
-          <div className="wc-footer__cs">
-            <h2 className="wc-footer__heading">고객센터</h2>
-            <p className="wc-footer__cs-lines">{businessContactWords(businessInfo)}</p>
-            <details ref={openOnMobile} className="wc-footer__biz">
-              <summary>{businessInfo.companyName} 사업자 정보</summary>
-              <BusinessInfo info={businessInfo} className="wc-footer__biz-rows" />
-            </details>
-          </div>
-
-          <StoreBrandFooterDetails branding={branding} className="wc-footer__brand--mobile" />
-
-          <div className="wc-footer__cols">
-            <nav aria-label="발견 메뉴" className="wc-footer__links">
-              <ul>
-                {discoverItems.map((item) => (
-                  <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
-                ))}
-              </ul>
-            </nav>
-            <nav aria-label="내 활동 메뉴" className="wc-footer__links">
-              <ul>
-                {FOOTER_ACCOUNT_ITEMS.map((item) => (
-                  <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
-                ))}
-              </ul>
-            </nav>
-          </div>
+      <div className="wc-container wc-container--wide wc-x-footer__inner">
+        <div className="wc-x-footer__bar">
+          <nav aria-label="약관·안내" className="wc-x-footer__links">
+            <ul>
+              {LEGAL_DOCUMENT_SLUGS.map((slug) => (
+                <li key={slug}><Link href={legalDocumentHref(slug)}>{FOOTER_LEGAL_LABELS[slug]}</Link></li>
+              ))}
+              {bulkPurchaseHref ? <li><a href={bulkPurchaseHref}>{FOOTER_BULK_PURCHASE_LABEL}</a></li> : null}
+            </ul>
+          </nav>
+          <nav aria-label="고객센터·SNS" className="wc-x-footer__aside">
+            <ul>
+              <li><Link href={hrefFor(UTIL_HELP_ITEM.id)}>{UTIL_HELP_ITEM.label}</Link></li>
+              <SocialLinks socials={branding.socials} />
+            </ul>
+          </nav>
         </div>
+
+        <BusinessLines info={businessInfo} />
 
         {/* 세컨더리 마켓 시연 진입점 — 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 마크업에
             존재한다. 공개 푸터·SSR 결과에는 없고, 실제 권한 판정은 라우트 서버 게이트가 한다. */}
@@ -131,10 +140,7 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
           </nav>
         ) : null}
 
-        <div className="wc-footer__line">
-          <span>© ICONS</span>
-          <span>{promises.join(' · ')}</span>
-        </div>
+        <p className="wc-x-footer__copy">© {copyrightYear} ICONS</p>
       </div>
     </footer>
   );

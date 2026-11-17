@@ -91,16 +91,19 @@ export function ListingWishHeart({ className, goodId, initialWished, label, view
       onClick={toggle}
       type="button"
     >
-      {/* 44px 히트 영역 안에 36px 원을 그린다(레퍼런스 카드 하트 36 · DESIGN §10 아이콘 44).
-          하트는 상태를 채움으로만 전한다 — 접근 이름과 aria-pressed 가 같은 사실을 말한다. */}
+      {/* 44px 히트 영역 안에 원을 그린다(원 크기는 CSS — 기본 36, 상품 카드 슬롯은 32 · DESIGN §10 아이콘 44).
+          하트는 상태를 채움으로만 전한다 — 접근 이름과 aria-pressed 가 같은 사실을 말한다.
+          모양은 X SQUARE Figma 원본 하트(refs/figma/assets/icon-heart.svg, 15.7×14.7)다. 원본은 채움+굵은 선(2.7) 한 벌이라
+          선택 상태가 그대로 그 모양이고, 빈 상태는 같은 경로를 가는 선(1.6)으로만 그린다. */}
       <span aria-hidden className="wc-list-heart__disc">
-        <svg aria-hidden focusable="false" height="18" viewBox="0 0 24 24" width="18">
+        <svg aria-hidden focusable="false" height="14.7" viewBox="0 0 15.7 14.7" width="15.7">
           <path
-            d="M12 20.5 4.2 13a4.9 4.9 0 0 1 0-6.9 4.9 4.9 0 0 1 6.9 0l.9.9.9-.9a4.9 4.9 0 0 1 6.9 0 4.9 4.9 0 0 1 0 6.9Z"
+            d="M7.85 13.35C7.53704 13.35 7.27222 13.1269 6.69444 12.631C4.33519 10.6723 1.35 8.19298 1.35 5.06901C1.35 2.78802 2.84259 1.35 4.86482 1.35C6.26111 1.35 7.27222 2.0938 7.85 3.08554C8.42778 2.0938 9.43889 1.35 10.8352 1.35C12.8574 1.35 14.35 2.78802 14.35 5.06901C14.35 8.19298 11.3648 10.6723 9.00556 12.631C8.42778 13.1269 8.16296 13.35 7.85 13.35Z"
             fill={wished ? 'currentColor' : 'none'}
             stroke="currentColor"
+            strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth="1.6"
+            strokeWidth={wished ? '2.7' : '1.6'}
           />
         </svg>
       </span>

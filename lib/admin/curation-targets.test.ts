@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { goodDetailHref } from '@/lib/goods-display';
+import { isSafeInternalLink } from '@/lib/home-catalog';
+import { hrefFor } from '@/lib/routes';
 import { adminCurationTargetGroups, adminCurationTargetGroupsFor } from './curation-targets';
 
 const source = {
@@ -40,6 +42,20 @@ describe('admin curation targets', () => {
     expect(available).toContain('/offline-popups/e100');
     expect(available).not.toContain('/ip/retired');
     expect(available).not.toContain('/offline-popups/e200');
+  });
+
+  /* X SQUARE GNB의 NEW·BEST·POP-UP이 홈 전시의 이동 대상 목록에 있어야 한다(QA X1) — 라벨은 GNB 표기와 같다. */
+  it('offers the X SQUARE GNB screens (NEW, BEST, POP-UP) as fixed destinations', () => {
+    const fixed = adminCurationTargetGroups({ events: [], goods: [], ips: [] })[0];
+
+    expect(fixed.options).toEqual(expect.arrayContaining([
+      { label: 'NEW', path: hrefFor('new') },
+      { label: 'BEST', path: hrefFor('best') },
+      { label: 'POP-UP', path: hrefFor('popups') },
+    ]));
+    expect(fixed.options.filter((option) => ['/shop/new', '/shop/best', '/popups'].includes(option.path))).toHaveLength(3);
+    /* 저장 검증(앱 isSafeInternalLink·DB is_safe_home_curation_link — 같은 규칙)이 받는 경로여야 고른 값이 저장된다. */
+    for (const option of fixed.options) expect(isSafeInternalLink(option.path)).toBe(true);
   });
 
   /* 텍스트 공지 바가 '약관 개정 안내 → 내용 보기'처럼 이벤트·쇼핑스토리·법적 문서로 보낼 수 있어야 한다(L8a). */

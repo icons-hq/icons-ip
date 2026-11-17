@@ -4,17 +4,18 @@ import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_MEGA_GROUPS,
   CATEGORY_SHEET_SHORTCUTS,
-  FOOTER_ACCOUNT_ITEMS,
+  FOOTER_COMMUNITY_STAFF_ITEMS,
   FOOTER_DEMO_ITEMS,
-  FOOTER_DISCOVER_ITEMS,
-  FOOTER_PRIMARY_ITEMS,
   MEMBER_UTIL_ITEMS,
   MENU_SHEET_GROUPS,
   MOB_ITEMS,
   STOREFRONT_MENU_ITEMS,
+  NAV_ACTIVE_ALIASES,
   NAV_ITEMS,
+  UTIL_HELP_ITEM,
   UTIL_ITEMS,
   activeNavId,
+  bulkPurchaseMailto,
   hrefFor,
   isActive,
   hidesSiteFooter,
@@ -139,20 +140,38 @@ describe('White Catalog 내비게이션 경로', () => {
 describe('내비게이션 항목 구성', () => {
   it('GNB는 계약된 항목을 순서대로 유지한다', () => {
     /* 커뮤니티만 임시 비공개 스위치 대상이라 기대를 분기한다 — 스위치를 되돌리면 이 테스트도
-       손대지 않고 8개 계약으로 돌아온다(lib/community-visibility.ts). */
+       손대지 않고 9개 계약으로 돌아온다(lib/community-visibility.ts). 앞 5개가 Figma GNB(NEW·BEST·카테고리·POP-UP·EVENT)다. */
     expect(NAV_ITEMS.map((item) => item.id)).toEqual(
       COMMUNITY_ENABLED
-        ? ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'community', 'stories']
-        : ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'stories'],
+        ? ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'packs', 'community', 'stories']
+        : ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'packs', 'stories'],
     );
   });
 
-  it('커뮤니티 스위치가 GNB·푸터·메뉴시트 진입점을 한꺼번에 좌우한다', () => {
+  /* 새 기본 노출: Figma GNB 5개만 켜고 나머지(온라인 팝업·카드팩·커뮤니티·쇼핑스토리)는 숨긴다(MD-0035). 이름은 POP-UP·EVENT. */
+  it('기본 노출은 NEW·BEST·카테고리·POP-UP·EVENT이고 항목 이름은 Figma를 따른다', () => {
+    expect(STOREFRONT_MENU_ITEMS.filter((item) => item.defaultVisible).map((item) => `${item.id}:${item.label}`)).toEqual([
+      'new:NEW', 'best:BEST', 'shop:카테고리', 'popups:POP-UP', 'events:EVENT',
+    ]);
+    expect(STOREFRONT_MENU_ITEMS.filter((item) => !item.defaultVisible).map((item) => item.id)).toEqual(['iphub', 'packs', 'community', 'stories']);
+    /* 기본 GNB 계열 목록은 이름·id뿐이다 — 노출 필드가 다른 소비처(활성 판정·시트)로 새지 않는다. */
+    for (const item of NAV_ITEMS) expect(Object.keys(item).sort()).toEqual(['id', 'label']);
+  });
+
+  /* 미등록 id는 hrefFor가 '/'로 폴백한다 — POP-UP 항목이 홈 링크로 둔갑하지 않게 경로를 계약으로 묶는다. 화면은 설계자 C의 WP가 만든다. */
+  it('POP-UP 경로를 등록하고 고객센터 유틸 항목을 둔다', () => {
+    expect(hrefFor('popups')).toBe('/popups');
+    expect(hrefFor('events')).toBe('/events');
+    expect(UTIL_HELP_ITEM).toEqual({ id: 'help', label: '고객센터' });
+    expect(hrefFor(UTIL_HELP_ITEM.id)).toBe('/help');
+  });
+
+  it('커뮤니티 스위치가 GNB·메뉴시트 진입점을 한꺼번에 좌우한다(푸터에는 스태프 전용 한 곳뿐)', () => {
     const inMenuSheet = MENU_SHEET_GROUPS.some((group) => group.items.some((item) => item.id === 'community'));
 
     expect(NAV_ITEMS.some((item) => item.id === 'community')).toBe(COMMUNITY_ENABLED);
-    expect(FOOTER_DISCOVER_ITEMS.some((item) => item.id === 'community')).toBe(COMMUNITY_ENABLED);
     expect(inMenuSheet).toBe(COMMUNITY_ENABLED);
+    expect(FOOTER_COMMUNITY_STAFF_ITEMS.map((item) => item.id)).toEqual(['community']);
     /* 경로 등록은 스위치와 무관하게 유지한다 — 지우면 hrefFor가 '/'로 폴백한다. */
     expect(hrefFor('community')).toBe('/community');
   });
@@ -172,7 +191,7 @@ describe('내비게이션 항목 구성', () => {
     expect(MEMBER_UTIL_ITEMS).toEqual([{ id: 'wish', label: '위시리스트' }]);
     expect(hrefFor('wish')).toBe('/my/wishlist');
     expect(STOREFRONT_MENU_ITEMS.map((item) => item.id)).not.toContain('wish');
-    expect(STOREFRONT_MENU_ITEMS).toHaveLength(8);
+    expect(STOREFRONT_MENU_ITEMS).toHaveLength(9);
   });
 });
 
@@ -198,10 +217,9 @@ describe('푸터·메뉴 경로 등록 계약', () => {
      푸터·메가메뉴·시트는 링크만 있고 활성 표시가 없어 눈으로는 더 안 보인다. */
   const groupedItems = [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS, CATEGORY_SHEET_SHORTCUTS].flatMap((group) => group.items);
   const routedItems = [
-    ...FOOTER_PRIMARY_ITEMS,
-    ...FOOTER_DISCOVER_ITEMS,
-    ...FOOTER_ACCOUNT_ITEMS,
     ...groupedItems,
+    ...FOOTER_DEMO_ITEMS,
+    ...FOOTER_COMMUNITY_STAFF_ITEMS,
   ];
 
   it.each([...new Set(routedItems.map((item) => item.id))].map((id) => [id] as const))(
@@ -243,6 +261,22 @@ describe('activeNavId', () => {
     expect(activeNavId('/shop')).toBe('shop');
   });
 
+  /* X SQUARE GNB: POP-UP은 /popups와 오프라인 팝업 예매 도메인(/offline-popups, 활성 별칭), EVENT는 /events 아래에서 켜진다. */
+  it('POP-UP은 /popups·/offline-popups 하위에서, EVENT는 /events 하위에서 현재 위치다', () => {
+    expect(NAV_ACTIVE_ALIASES).toEqual({ popups: ['/offline-popups'] });
+    for (const pathname of ['/popups', '/popups/seongsu', '/offline-popups', '/offline-popups/seongsu']) expect(activeNavId(pathname), pathname).toBe('popups');
+    for (const pathname of ['/events', '/events/fall-drop']) expect(activeNavId(pathname), pathname).toBe('events');
+    /* 별칭은 접두 경계를 지킨다 — 이름이 비슷한 다른 경로를 켜지 않는다. */
+    expect(activeNavId('/offline-popups-archive')).toBeNull();
+    expect(activeNavId('/popups-archive')).toBeNull();
+    /* 별칭이 있어도 가장 길게 맞는 항목 하나만 고른다. */
+    expect(activeNavId('/shop/new')).toBe('new');
+  });
+
+  it('활성 별칭은 운영 메뉴로 항목이 빠지면 따라 빠진다', () => {
+    expect(activeNavId('/offline-popups', NAV_ITEMS.filter((item) => item.id !== 'popups'))).toBeNull();
+  });
+
   /* CH-12: 굿즈 상세는 어떤 1차 내비의 목록도 아니다 — '/shop' 접두가 맞아도 카테고리를 켜지 않는다(레퍼런스 실측). */
   it('굿즈 상세에서는 아무 항목도 고르지 않는다', () => {
     expect(activeNavId('/shop/g3')).toBeNull();
@@ -280,10 +314,20 @@ describe('세컨더리 마켓 시연 진입점', () => {
     for (const item of FOOTER_DEMO_ITEMS) {
       const href = hrefFor(item.id);
       expect(href).not.toBe('/');
-      expect(FOOTER_ACCOUNT_ITEMS.some((account) => account.id === item.id)).toBe(true);
+      /* 공개 플레이스홀더 진입점은 모바일 전체 메뉴 시트의 '거래' 그룹이다. */
+      expect(MENU_SHEET_GROUPS.flatMap((group) => group.items).some((sheetItem) => sheetItem.id === item.id)).toBe(true);
       const page = join(process.cwd(), 'app', ...href.split('/').filter(Boolean), 'page.tsx');
       expect(existsSync(page)).toBe(true);
       expect(item.label).toContain('시연');
     }
+  });
+});
+
+describe('푸터 대량구매 mailto', () => {
+  /* 문의 게시판이 생기기 전까지 대표 이메일로 연다. 값은 어드민 사업자 정보 설정이고, 형식이 아니면 죽은 링크를 만들지 않는다. */
+  it('이메일이 있으면 제목을 인코딩한 mailto 를, 비었거나 형식이 아니면 null 을 돌려준다', () => {
+    expect(bulkPurchaseMailto('bulk@example.test')).toBe(`mailto:bulk@example.test?subject=${encodeURIComponent('[대량구매 문의]')}`);
+    expect(bulkPurchaseMailto('  bulk@example.test  ')).toBe(`mailto:bulk@example.test?subject=${encodeURIComponent('[대량구매 문의]')}`);
+    for (const email of ['', '   ', 'no-at-sign', 'a b@example.test', '<a@b.test>', 'a@b.test?bcc=x@y.test z', 'a@b.test?bcc=x', 'a@b.test,c@d.test', 'a@b.test&cc=x']) expect(bulkPurchaseMailto(email), email).toBeNull();
   });
 });
