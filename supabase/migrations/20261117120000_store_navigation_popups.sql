@@ -34,10 +34,10 @@ revoke all on function private.store_navigation_valid(jsonb) from public,anon,au
 
 -- 저장된 8개 설정을 9개로 옮기는 순수 변환. 이 migration 이 쓰고, 옮기는 규칙을 SQL 시험이 직접 부를 수 있게 남겨 둔다.
 create function private.upgrade_store_navigation_popups(settings jsonb)
-returns jsonb language plpgsql immutable set search_path='' as $$
+returns jsonb language plpgsql stable set search_path='' as $$
 declare
-  old_default constant jsonb:='[{"id":"new","label":"NEW","visible":true},{"id":"best","label":"BEST","visible":true},{"id":"shop","label":"카테고리","visible":true},{"id":"iphub","label":"온라인 팝업","visible":true},{"id":"packs","label":"카드팩","visible":true},{"id":"events","label":"이벤트","visible":true},{"id":"community","label":"커뮤니티","visible":true},{"id":"stories","label":"쇼핑스토리","visible":true}]';
-  new_default constant jsonb:='[{"id":"new","label":"NEW","visible":true},{"id":"best","label":"BEST","visible":true},{"id":"shop","label":"카테고리","visible":true},{"id":"popups","label":"POP-UP","visible":true},{"id":"events","label":"EVENT","visible":true},{"id":"iphub","label":"온라인 팝업","visible":false},{"id":"packs","label":"카드팩","visible":false},{"id":"community","label":"커뮤니티","visible":false},{"id":"stories","label":"쇼핑스토리","visible":false}]';
+  old_default constant jsonb:='[{"id":"new","label":"NEW","visible":true},{"id":"best","label":"BEST","visible":true},{"id":"shop","label":"카테고리","visible":true},{"id":"iphub","label":"온라인 팝업","visible":true},{"id":"packs","label":"카드팩","visible":true},{"id":"events","label":"이벤트","visible":true},{"id":"community","label":"커뮤니티","visible":true},{"id":"stories","label":"쇼핑스토리","visible":true}]'::jsonb;
+  new_default constant jsonb:='[{"id":"new","label":"NEW","visible":true},{"id":"best","label":"BEST","visible":true},{"id":"shop","label":"카테고리","visible":true},{"id":"popups","label":"POP-UP","visible":true},{"id":"events","label":"EVENT","visible":true},{"id":"iphub","label":"온라인 팝업","visible":false},{"id":"packs","label":"카드팩","visible":false},{"id":"community","label":"커뮤니티","visible":false},{"id":"stories","label":"쇼핑스토리","visible":false}]'::jsonb;
 begin
   if settings=old_default then return new_default; end if;
   if jsonb_typeof(settings) is distinct from 'array'
