@@ -20,6 +20,11 @@
   margin-bottom: 24px;
 }
 
+/* 주문자 정보를 읽지 못해 카드가 하나뿐이면 전폭이다. */
+.wc-receipt .order-detail-overview--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 @container order-overview (max-width: 640px) {
   .wc-receipt .order-detail-overview {
     grid-template-columns: minmax(0, 1fr);
@@ -159,4 +164,27 @@
   font-size: 12.5px;
   line-height: 1.6;
   color: var(--wc-ink-tertiary);
+}
+
+/* --- 주문한 굿즈 품목 줄(OrderLineItem 재사용) --------------------------------- */
+
+/* 품목 줄은 `.order-detail-item`(flex) 안에서 가로를 다 쓴다. */
+.wc-receipt .order-detail-item > .wc-order-line {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wc-receipt .order-detail-item .wc-order-line__body .wc-custom-inputs-summary {
+  margin: 4px 0 0;
+}
+
+.wc-receipt .wc-order-line__canceled {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 결제 정보 안의 합계 표는 섹션 간격(gap)이 이미 있어 윗 여백을 줄인다. */
+.wc-receipt .order-receipt-section .checkout-totals {
+  margin-top: 4px;
 }

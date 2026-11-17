@@ -95,7 +95,8 @@ describe('OrderDetail', () => {
     const value = order({ transaction: transactionDisplay, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, giftId: ORDER_ID, address: null,
       items: [{ ...order().items[0], id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }], shipments: [] });
     const html = renderToStaticMarkup(<OrderDetail order={value} />);
-    expect(html).toContain('온라인 결제금액</dt><dd>₩16,000'); expect(html).toContain('총 부담금액</dt><dd>₩19,000');
+    /* MD-0037: 주문 상세 결제 정보는 '온라인 결제금액'을 '총 결제 금액'으로 말한다(금액·착불 분리는 그대로). */
+    expect(html).toContain('총 결제 금액</dt><dd>₩16,000'); expect(html).toContain('총 부담금액</dt><dd>₩19,000'); expect(html).not.toContain('<dt>온라인 결제금액</dt>');
     expect(html).toContain('홍실 아크릴 블록 · 선결제 ₩0 · 착불 별도 ₩3,000'); expect(html).toContain('주소와 연락처는 받는 분만'); expect(html).not.toContain('배송지 정보를 확인할 수 없습니다.');
   });
   it('교환 사유의 정정 전후와 원접수를 표시하고 내부 협의 근거는 노출하지 않는다', () => {
@@ -200,11 +201,15 @@ describe('OrderDetail', () => {
     expect(html).toContain('rel="noreferrer"');
   });
 
-  it('운송장이 없으면 배송조회를 지어내지 않는다', () => {
+  it('운송장이 없으면 배송조회를 지어내지 않는다 — 처리 막대의 배송조회도 비활성 안내다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ shipments: [] })} />);
 
-    expect(html).not.toContain('배송조회');
     expect(html).not.toContain('운송장번호');
+    expect(html).not.toContain('carrier.example.test');
+    /* 배송조회 링크(`<a>`)는 없고, 막대에는 disabled 버튼과 안내 줄만 있다(MD-0037). */
+    expect(html).not.toMatch(/<a [^>]*>배송조회<\/a>/);
+    expect(html).toMatch(/<button [^>]*disabled=""[^>]*>배송조회<\/button>/);
+    expect(html).toContain('배송조회: 운송장이 등록되면 볼 수 있어요.');
   });
 
   it('굿즈 금액과 배송비를 분리해 스냅샷 그대로 보여준다', () => {
@@ -418,11 +423,12 @@ describe('OrderDetail claim badge and line totals', () => {
     expect(html).toMatch(/<div class="order-detail-status-row"><span class="order-status order-status--paid">주문 완료<\/span><span class="order-list-badge order-claim-badge">취소 요청<\/span><\/div>/);
   });
 
-  it('omits the line total when the quantity is one and keeps it for larger quantities', () => {
+  /* MD-0037: 품목 줄은 주문내역 카드와 같은 OrderLineItem이다 — 줄 가격은 단가가 아니라 수량을 곱한 구매가격이다(주문 단위 쿠폰·적립금은 결제 정보에서만). */
+  it('shows each item line price as the unit price times the quantity', () => {
     const single = renderToStaticMarkup(<OrderDetail order={order()} />);
-    expect(single).not.toContain('<strong class="mono">₩27,000</strong>');
+    expect(single).toContain('<p class="wc-order-line__qty">1개</p>'); expect(single).toContain('<strong>₩27,000</strong>');
     const double = renderToStaticMarkup(<OrderDetail order={order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 27000 }] })} />);
-    expect(double).toContain('<strong class="mono">₩54,000</strong>');
+    expect(double).toContain('<p class="wc-order-line__qty">2개</p>'); expect(double).toContain('<strong>₩54,000</strong>');
   });
 });
 
@@ -489,7 +495,9 @@ describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
 
   it('굿즈 줄과 배송 묶음 카드는 남은 수량을 말하고 취소된 수량을 적는다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
-    expect(html).toContain('<dd>1개<small data-order-item-canceled="1"> · 1개 취소됨</small></dd>');
+    /* 줄은 남은 수량과 그 수량의 구매가격(13,500 × 1)을 말하고, 취소된 몫은 줄 아래에 따로 적는다. */
+    expect(html).toContain('<p class="wc-order-line__qty">1개</p>'); expect(html).toContain('<strong>₩13,500</strong>');
+    expect(html).toContain('<small class="wc-order-line__canceled" data-order-item-canceled="1">1개 취소됨</small>');
     expect(html).toContain('홍실 아크릴 블록 × 1 (1개 취소됨)');
     expect(html).not.toContain('× 2');
   });
@@ -513,5 +521,222 @@ describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
     expect(html).toContain('환불계좌로 송금 완료');
     expect(html).toContain('dateTime="2026-11-13T02:30:00Z"');
     expect(html).not.toContain('dateTime="2026-11-12T05:00:05Z"');
+  });
+});
+
+/* ---------------------------------------------------------------------------
+ * MD-0037·0038 주문 상세 개편: 주문자 정보 → 주문 정보(+처리 막대) → 배송지 정보 → 결제 정보
+ * ------------------------------------------------------------------------- */
+
+const ORDERER = { name: '김팬', email: 'fan@example.test', maskedPhone: '010-****-5678' };
+const tossPayment = { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z', provider: 'toss' };
+const ORDER_ITEM = { id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 1, unitPrice: 27000 };
+
+describe('OrderDetail 주문자·주문 정보 카드(MD-0037)', () => {
+  it('주문자 정보는 이름·이메일·휴대폰을 보이고, 값이 없는 행은 생략한다', () => {
+    const full = renderToStaticMarkup(<OrderDetail order={order()} orderer={ORDERER} />);
+    const card = full.slice(full.indexOf('id="orderer-info-heading"'), full.indexOf('id="order-info-heading"'));
+    expect(card).toContain('주문자 정보'); expect(card).toContain('<dt>이름</dt><dd>김팬</dd>');
+    expect(card).toContain('<dt>이메일</dt><dd>fan@example.test</dd>'); expect(card).toContain('<dt>휴대폰</dt><dd>010-****-5678</dd>');
+
+    const bare = renderToStaticMarkup(<OrderDetail order={order()} orderer={{ name: '회원', email: null, maskedPhone: null }} />);
+    expect(bare).toContain('<dt>이름</dt><dd>회원</dd>'); expect(bare).not.toContain('<dt>이메일</dt>'); expect(bare).not.toContain('<dt>휴대폰</dt>');
+  });
+
+  it('주문자 정보를 읽지 못했으면(null·미전달) 카드를 그리지 않고 주문 정보 카드만 전폭으로 둔다', () => {
+    for (const html of [renderToStaticMarkup(<OrderDetail order={order()} />), renderToStaticMarkup(<OrderDetail order={order()} orderer={null} />)]) {
+      expect(html).not.toContain('주문자 정보'); expect(html).toContain('order-detail-overview order-detail-overview--single');
+    }
+  });
+
+  it('주문 정보는 주문번호·주문일시·주문 상태 세 행이다(헤더의 `ORDER ·` 줄은 없다)', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ orderNumber: 'ICN-20261117-0001' })} orderer={ORDERER} />);
+    const card = html.slice(html.indexOf('id="order-info-heading"'), html.indexOf('aria-label="주문 처리"'));
+    expect(card).toContain('<dt>주문번호</dt>'); expect(card).toContain('<dt>주문일시</dt>'); expect(card).toContain('<dt>주문 상태</dt><dd>배송중</dd>');
+    expect(card).toContain('<time dateTime="2026-08-01T06:00:00.000Z">2026. 8. 1. 15:00</time>');
+    expect(html).not.toContain('ORDER ·'); expect(html).not.toContain('order-detail-meta');
+  });
+
+  it('섹션 순서는 주문자 정보 → 주문 정보 → 배송지 정보 → 결제 정보다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order()} orderer={ORDERER} paymentDisplay={null} />);
+    const positions = ['id="orderer-info-heading"', 'id="order-info-heading"', 'id="shipping-address-heading"', 'id="payment-summary-heading"'].map((marker) => html.indexOf(marker));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(html).toContain('>배송지 정보</h3>'); expect(html).not.toContain('>배송지</h3>');
+  });
+
+  it('처리 막대는 주문 정보 카드 안에 있고 pending·canceled 주문에는 없다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'delivered', deliveredAt: '2026-08-03T06:00:00.000Z', claimEligibility: { cancel: false, return: true, exchange: true } })} orderer={ORDERER} viewerId="user-1" />);
+    expect(html.indexOf('id="order-info-heading"')).toBeLessThan(html.indexOf('aria-label="주문 처리"'));
+    expect(html.indexOf('aria-label="주문 처리"')).toBeLessThan(html.indexOf('id="shipping-address-heading"'));
+    for (const status of ['pending', 'canceled'] as const) {
+      expect(renderToStaticMarkup(<OrderDetail order={order({ status, payment: null, shipments: [] })} />)).not.toContain('aria-label="주문 처리"');
+    }
+  });
+});
+
+describe('OrderDetail 처리 막대 앵커(MD-0037)', () => {
+  const target = { orderId: ORDER_ID, goodId: 'g13', goodName: '홍실 아크릴 블록', goodBg: null, orderedAt: '2026-08-01T06:00:00.000Z',
+    deliveredAt: '2026-08-03T06:00:00.000Z', deadlineAt: '2026-11-01T06:00:00.000Z', writable: true, review: null, kind: 'ordinary' as const };
+  const delivered = () => order({ status: 'delivered', deliveredAt: '2026-08-03T06:00:00.000Z', claimEligibility: { cancel: false, return: true, exchange: true }, payment: tossPayment });
+
+  it('막대가 가리키는 자리 id(리뷰·구매확정·반품교환·배송 묶음·결제 정보)가 모두 있다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={delivered()} reviewTargets={[target]} viewerId="user-1" now={new Date('2026-08-05T06:00:00.000Z')} />);
+    for (const id of ['order-review', 'order-purchase-confirmation', 'order-claim-request', 'order-shipments', 'order-payment']) expect(html).toContain(`id="${id}"`);
+    expect(html).toContain('href="#order-purchase-confirmation"'); expect(html).toContain('href="#order-claim-request"');
+    /* 구매확정 버튼은 패널의 확인 절차를 거친다 — 막대는 확정하지 않고 패널로만 보낸다. */
+    expect(html).toContain('<section class="purchase-confirmation" aria-label="구매확정">');
+  });
+
+  it('쓸 수 있는 리뷰 대상이 둘이면 리뷰 칸 앵커로, 하나면 작성 화면으로 보낸다', () => {
+    const two = renderToStaticMarkup(<OrderDetail order={delivered()} reviewTargets={[target, { ...target, goodId: 'g14', goodName: '홍실 키링' }]} viewerId="user-1" />);
+    expect(two).toContain('href="#order-review"');
+    const one = renderToStaticMarkup(<OrderDetail order={delivered()} reviewTargets={[target]} viewerId="user-1" />);
+    expect(one).toContain(`href="/my/reviews/new?orderId=${ORDER_ID}&amp;goodId=g13"`);
+  });
+
+  it('진행 중인 취소 클레임이 있으면 반품·교환 패널이 없으니 같은 앵커를 열어 두지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'paid', shipments: [], cancellationRequest: {
+      id: '22222222-2222-4222-8222-222222222222', status: 'processing', claimType: 'cancel', stage: 'processing', reference: 1, requestedAt: '2026-08-01T07:00:00.000Z',
+      decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null } })} />);
+    expect(html).not.toContain('id="order-claim-request"'); expect(html).not.toContain('href="#order-claim-request"');
+  });
+});
+
+describe('OrderDetail 진행 단계·상태 라벨(고객 라벨)', () => {
+  const ladder = (html: string) => [...html.slice(html.indexOf('aria-label="주문 진행 단계"'), html.indexOf('</ol>')).matchAll(/<li [^>]*>([^<]*)<\/li>/g)].map((match) => match[1]);
+
+  it('사다리는 고객 라벨(주문 완료·발주확인·배송중·배송완료·구매 확정)을 쓴다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'confirmed' })} />);
+    expect(ladder(html)).toEqual(['주문 완료', '발주확인', '배송중', '배송완료', '구매 확정']);
+    /* 헤더·사다리·주문 정보 칸에는 어드민 이름('결제완료'·'거래확정')이 없다 — 결제 정보의 '결제 상태'는 결제 원장 용어라 따로다. */
+    const upper = html.slice(0, html.indexOf('order-detail-layout'));
+    expect(upper).not.toContain('결제완료'); expect(upper).not.toContain('거래확정'); expect(upper).toContain('<dt>주문 상태</dt><dd>발주확인</dd>');
+  });
+
+  it('디지털 전용 주문은 주문 완료 → 파일 제공 시작 → 구매 확정, 배지·주문 상태 칸도 같은 이름이다', () => {
+    const downloads = { orderId: ORDER_ID, canCancel: false, reviewRequired: false,
+      items: [{ itemId: 'item-1', name: '디지털 파일', files: [], available: true, firstProvidedAt: '2026-08-03T06:00:00.000Z' }] };
+    const paid = renderToStaticMarkup(<OrderDetail downloads={downloads} order={order({ status: 'paid' })} orderer={ORDERER} />);
+    expect(ladder(paid)).toEqual(['주문 완료', '파일 제공 시작', '구매 확정']);
+    expect(paid).toContain('order-status order-status--paid">주문 완료</span>'); expect(paid).toContain('<dt>주문 상태</dt><dd>주문 완료</dd>');
+    const done = renderToStaticMarkup(<OrderDetail downloads={downloads} order={order({ status: 'done', deliveredAt: '2026-08-03T06:00:00.000Z' })} orderer={ORDERER} />);
+    expect(done).toContain('<dt>주문 상태</dt><dd>구매 확정</dd>'); expect(done).not.toContain('구매확정</span>');
+    const started = renderToStaticMarkup(<OrderDetail downloads={downloads} order={order({ status: 'delivered', deliveredAt: '2026-08-03T06:00:00.000Z' })} orderer={ORDERER} />);
+    expect(started).toContain('<dt>주문 상태</dt><dd>파일 제공 시작</dd>');
+    /* 디지털 전용 주문의 처리 막대는 구매확정·리뷰작성만 둔다. */
+    expect(started).toContain('data-count="2"'); expect(started).not.toContain('교환반품 접수');
+  });
+});
+
+describe('OrderDetail 결제 정보(MD-0037·0038)', () => {
+  const display = { provider: 'toss', method: '카드', detail: '4330********1234', approvedAt: '2026-08-01T06:01:00.000Z' };
+  const paymentSection = (html: string) => html.slice(html.indexOf('id="order-payment"'), html.indexOf('</aside>'));
+
+  it('결제수단 → 금액 → 결제 상태·일시 순서로 보이고 섹션은 영수증 실패 앵커 id를 가진다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment, status: 'paid' })} paymentDisplay={display} />);
+    const section = paymentSection(html);
+    expect(html).toContain('<section class="order-receipt-section" id="order-payment"');
+    expect(section).toContain('<dt>결제수단</dt><dd>신용·체크카드 (4330********1234)</dd>');
+    const positions = ['결제수단', '총 굿즈 금액', '총 결제 금액', '결제 상태', '결제 일시'].map((label) => section.indexOf(`<dt>${label}</dt>`));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(section).toContain('<dt>결제 상태</dt><dd>결제완료</dd>'); expect(section).toContain('<time dateTime="2026-08-01T06:01:00.000Z">2026. 8. 1. 15:01</time>');
+    expect(section).not.toContain('확인 시각'); expect(section).not.toContain('<dt>금액</dt>');
+  });
+
+  it('결제수단 라벨: 근거가 없으면 `카드·간편결제`, 간편결제는 결제사 이름, 무통장은 `무통장 입금`', () => {
+    expect(paymentSection(renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment })} />))).toContain('<dt>결제수단</dt><dd>카드·간편결제</dd>');
+    expect(paymentSection(renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment })} paymentDisplay={{ ...display, method: '간편결제', detail: '네이버페이' }} />))).toContain('<dd>간편결제 (네이버페이)</dd>');
+    expect(paymentSection(renderToStaticMarkup(<OrderDetail order={order({ paymentMethod: 'bank_transfer', payment: null })} />))).toContain('<dt>결제수단</dt><dd>무통장 입금</dd>');
+  });
+
+  it('v1 주문(영수증 없음)은 총 굿즈 금액·쿠폰 할인 금액·보유 적립금 사용·총 결제 금액 네 라벨을 쓴다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ shippingFee: 3000, total: 24000, discountTotal: 2000, storeCreditTotal: 4000 })} />);
+    const section = paymentSection(html);
+    expect(section).toContain('<dt>총 굿즈 금액</dt><dd>₩27,000</dd>'); expect(section).toContain('<dt>쿠폰 할인 금액</dt><dd>−₩2,000</dd>');
+    expect(section).toContain('<dt>보유 적립금 사용</dt><dd>−₩4,000</dd>'); expect(section).toContain('<dt>총 결제 금액</dt><dd>₩24,000</dd>');
+    for (const old of ['<dt>굿즈 금액</dt>', '<dt>쿠폰 할인</dt>', '<dt>적립금 사용</dt>']) expect(section).not.toContain(old);
+  });
+
+  it('v2 주문(영수증 있음)은 합계 표의 같은 네 라벨을 쓴다', () => {
+    const value = order({ transaction: transactionDisplay, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, payment: tossPayment,
+      items: [{ ...ORDER_ITEM, id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }] });
+    const section = paymentSection(renderToStaticMarkup(<OrderDetail order={value} />));
+    for (const label of ['총 굿즈 금액', '쿠폰 할인 금액', '보유 적립금 사용', '총 결제 금액']) expect(section).toContain(`<dt>${label}</dt>`);
+    expect(section).not.toContain('<dt>온라인 결제금액</dt>');
+  });
+
+  it.each([
+    ['토스 카드 결제완료', { payment: tossPayment, status: 'paid' as const }, true],
+    ['취소된 토스 결제의 영수증도 남는다', { payment: { ...tossPayment, status: 'canceled' }, status: 'canceled' as const }, true],
+    ['결제 provider가 영수증을 지원하지 않는 카드 주문', { payment: { ...tossPayment, provider: 'korpay' }, status: 'paid' as const }, false],
+    ['provider를 모르는 옛 결제 응답', { payment: { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z' }, status: 'paid' as const }, false],
+    ['결제 전 주문', { payment: null, status: 'pending' as const }, false],
+  ])('결제 영수증 버튼: %s → %s', (_name, overrides, visible) => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ shipments: [], ...overrides })} />);
+    const link = `<a class="btn btn-ghost btn-sm" href="/orders/${ORDER_ID}/receipt" rel="noopener noreferrer" target="_blank">결제 영수증</a>`;
+    expect(html.includes(link)).toBe(visible);
+  });
+
+  it('거래명세서 버튼은 결제가 끝나고 취소되지 않은 주문(paid~done)에만 있다', () => {
+    const link = `<a class="btn btn-ghost btn-sm" href="/orders/${ORDER_ID}/statement" rel="noopener" target="_blank">거래명세서</a>`;
+    for (const status of ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const) {
+      expect(renderToStaticMarkup(<OrderDetail order={order({ status, payment: tossPayment, shipments: [] })} />)).toContain(link);
+    }
+    for (const status of ['pending', 'canceled'] as const) {
+      expect(renderToStaticMarkup(<OrderDetail order={order({ status, payment: status === 'canceled' ? { ...tossPayment, status: 'canceled' } : null, shipments: [] })} />)).not.toContain('거래명세서</a>');
+    }
+  });
+
+  it('무통장 주문은 영수증 버튼 없이 거래명세서만 두고 안내 문장을 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ paymentMethod: 'bank_transfer', status: 'paid', payment: { ...tossPayment, provider: 'bank_transfer' }, shipments: [] })} />);
+    expect(html).not.toContain('>결제 영수증</a>'); expect(html).toContain('>거래명세서</a>');
+    expect(html).toContain('무통장 입금 주문은 결제사 영수증 대신 거래명세서로 거래 내용을 확인할 수 있어요.');
+    expect(renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment, shipments: [] })} />)).not.toContain('결제사 영수증 대신');
+    /* 아직 입금 전이라 거래명세서가 없으면 없는 버튼을 가리키는 안내도 하지 않는다. */
+    expect(renderToStaticMarkup(<OrderDetail order={order({ paymentMethod: 'bank_transfer', status: 'pending', payment: null, shipments: [] })} />)).not.toContain('결제사 영수증 대신');
+  });
+
+  it('?receipt=unavailable로 돌아오면 버튼 줄 위에 role=status 안내를 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment, shipments: [] })} receiptNotice />);
+    const notice = '<p class="order-payment-notice" role="status">결제 영수증을 지금 불러오지 못했어요. 잠시 후 다시 시도하거나 아래 &#x27;이 주문 문의하기&#x27;로 요청해주세요.</p>';
+    expect(html).toContain(notice);
+    expect(html.indexOf(notice)).toBeLessThan(html.indexOf('class="order-payment-actions"'));
+    expect(html.indexOf('id="order-payment"')).toBeLessThan(html.indexOf(notice));
+    expect(renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment, shipments: [] })} />)).not.toContain('order-payment-notice');
+  });
+});
+
+describe('OrderDetail 품목 줄(MD-0036·0037 OrderLineItem 재사용)', () => {
+  const line = { key: 'item-1', goodId: 'g13', name: '홍실 아크릴 블록', optionName: '파랑', qty: 1, ipName: '홍실', thumbnail: null, adultMasked: false, purchaseAmount: 24000, regularAmount: 27000 };
+
+  it('읽기 모델의 줄이 있으면 IP명·옵션·구매가격과 정가 취소선을 그린다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ lines: [line] })} />);
+    expect(html).toContain('class="wc-order-line__ip">홍실</p>'); expect(html).toContain('class="wc-order-line__option">옵션 파랑</p>');
+    expect(html).toContain('<strong>₩24,000</strong>'); expect(html).toContain('<del>₩27,000</del>');
+  });
+
+  it('IP명이 없으면 굿즈 유형이 그 자리에 보이고, 있으면 유형은 보이지 않는다', () => {
+    expect(renderToStaticMarkup(<OrderDetail order={order({ lines: [{ ...line, ipName: null }] })} />)).toContain('class="wc-order-line__ip">아크릴 블록</p>');
+    expect(renderToStaticMarkup(<OrderDetail order={order({ lines: [line] })} />)).not.toContain('class="wc-order-line__ip">아크릴 블록</p>');
+  });
+
+  it('읽기 모델이 없는 품목은 스냅샷(이름·옵션·단가×수량)으로 줄을 만든다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ items: [{ ...ORDER_ITEM, qty: 3, variantName: '기본 옵션' }] })} />);
+    expect(html).toContain('class="wc-order-line__name">홍실 아크릴 블록</p>'); expect(html).toContain('<strong>₩81,000</strong>'); expect(html).toContain('<p class="wc-order-line__qty">3개</p>');
+    expect(html).not.toContain('wc-order-line__option');
+  });
+
+  it('부분 취소 뒤에는 남은 수량의 구매가격(정가 포함)을 말하고 취소 수량을 줄 아래에 적는다', () => {
+    const partial = { id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed' as const, provider: 'toss' as const, refundAmount: 24000, goodsRefundAmount: 24000,
+      shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z', completedAt: '2026-11-12T05:00:05Z',
+      transferredAt: null, closedShipmentCount: 0, items: [{ orderItemId: 'item-1', goodName: '홍실 아크릴 블록', variantName: null, qty: 1, goodsRefundAmount: 24000 }] };
+    const html = renderToStaticMarkup(<OrderDetail order={order({ items: [{ ...ORDER_ITEM, qty: 2 }], lines: [{ ...line, qty: 2, purchaseAmount: 48000, regularAmount: 54000 }] })} partialCancellations={[partial]} />);
+    expect(html).toContain('<p class="wc-order-line__qty">1개</p>'); expect(html).toContain('<strong>₩24,000</strong>'); expect(html).toContain('<del>₩27,000</del>');
+    expect(html).toContain('data-order-item-canceled="1">1개 취소됨</small>');
+    /* 전부 취소된 줄은 0개로 말하고 없는 수량의 가격을 지어내지 않는다. */
+    const all = renderToStaticMarkup(<OrderDetail order={order({ items: [{ ...ORDER_ITEM, qty: 1 }], lines: [line] })} partialCancellations={[{ ...partial, items: [{ ...partial.items[0], qty: 1 }] }]} />);
+    expect(all).toContain('<p class="wc-order-line__qty">0개</p>'); expect(all).not.toContain('<strong>₩24,000</strong>');
   });
 });
