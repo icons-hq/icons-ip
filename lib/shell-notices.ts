@@ -77,7 +77,9 @@ export function shellNoticePageType(pathname: string): ShellNoticePageType {
   if (pathname === '/shop' || pathname === '/shop/new' || pathname === '/shop/best' || /^\/ip\/[^/]+$/.test(pathname)) {
     return 'collection';
   }
-  if (pathname === '/stories' || pathname.startsWith('/stories/') || pathname === '/events' || pathname.startsWith('/events/')) {
+  if (pathname === '/stories' || pathname.startsWith('/stories/') || pathname === '/events' || pathname.startsWith('/events/')
+    /* POP-UP(진행 중인 팝업 화면)은 EVENT 와 같은 캠페인 지면이다. */
+    || pathname === '/popups' || pathname.startsWith('/popups/')) {
     return 'content';
   }
   return 'other';

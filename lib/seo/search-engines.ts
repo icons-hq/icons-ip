@@ -43,6 +43,7 @@ export const SITEMAP_STATIC_PATHS = [
   '/shop/best',
   '/ip',
   '/events',
+  '/popups',
   '/offline-popups',
   '/stories',
   '/review-events',
