@@ -38,7 +38,9 @@ function service(
   update: { error: unknown } = { error: null },
   previousEmail: string | null = 'old@privaterelay.appleid.com',
 ) {
-  const rpc = vi.fn(async (name: string, _args?: Record<string, unknown>) => responses[name] ?? { data: null, error: { message: 'unexpected' } });
+  const rpc = vi.fn<(name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>>(
+    async (name) => responses[name] ?? { data: null, error: { message: 'unexpected' } },
+  );
   const updateUserById = vi.fn(async () => update);
   const getUserById = vi.fn(async () => ({ data: { user: { email: previousEmail } }, error: null }));
   return { rpc, updateUserById, client: { rpc, auth: { admin: { updateUserById, getUserById } } } as never };
