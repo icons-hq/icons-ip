@@ -31,8 +31,10 @@ const mocks = vi.hoisted(() => ({
   calls: [] as Array<{ table: string; select: string; orders: string[] }>,
   campaigns: [] as Array<Record<string, unknown>>,
   offers: [] as Array<Record<string, unknown>>,
+  presentations: [] as Array<Record<string, unknown>>,
   campaignError: null as { message: string } | null,
   offerError: null as { message: string } | null,
+  presentationError: null as { message: string } | null,
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -43,6 +45,10 @@ vi.mock('@/lib/supabase/server', () => ({
       const query = {
         select(value: string) {
           call.select = value;
+          /* 노출 설정은 정렬 없이 한 번에 읽는다 — select 가 곧 결과다. */
+          if (table === 'campaign_presentations') {
+            return Promise.resolve({ data: mocks.presentations, error: mocks.presentationError });
+          }
           return query;
         },
         order(column: string) {
@@ -63,8 +69,10 @@ beforeEach(() => {
   mocks.calls = [];
   mocks.campaigns = [CAMPAIGN_ROW];
   mocks.offers = [OFFER_ROW];
+  mocks.presentations = [];
   mocks.campaignError = null;
   mocks.offerError = null;
+  mocks.presentationError = null;
 });
 
 describe('getAdminCampaignConsoleData', () => {
@@ -130,5 +138,45 @@ describe('getAdminCampaignConsoleData', () => {
 
     await expect(getAdminCampaignConsoleData())
       .rejects.toThrow('Failed to load admin coin exchange offers');
+  });
+
+  /* 노출 설정 행이 없는 캠페인은 EVENT 에 보이는 빈 값이다(패널이 폼을 연다). */
+  it('노출 설정 행이 없으면 모두 비운 값으로 붙인다', async () => {
+    const data = await getAdminCampaignConsoleData();
+
+    expect(data.campaigns[0].presentation).toEqual({ popupMode: null, popupLocation: null, cardLinkPath: null });
+    const call = mocks.calls.find((entry) => entry.table === 'campaign_presentations');
+    expect(call?.select).toBe('campaign_id,popup_mode,popup_location,card_link_path');
+  });
+
+  it('캠페인 id 로 노출 설정 행을 이어 붙인다', async () => {
+    mocks.campaigns = [CAMPAIGN_ROW, { ...CAMPAIGN_ROW, id: 'pop-shop', status: 'published' }];
+    mocks.presentations = [{ campaign_id: 'pop-shop', popup_mode: 'hybrid', popup_location: '서울 마포구', card_link_path: '/ip/hong-sil-quest' }];
+
+    const data = await getAdminCampaignConsoleData();
+
+    expect(data.campaigns.map((campaign) => campaign.presentation)).toEqual([
+      { popupMode: null, popupLocation: null, cardLinkPath: null },
+      { popupMode: 'hybrid', popupLocation: '서울 마포구', cardLinkPath: '/ip/hong-sil-quest' },
+    ]);
+  });
+
+  /* 못 읽었을 때 빈 값으로 보이면 운영자가 저장하며 있던 설정을 지운다 — null 로 구분해 패널이 폼을 막는다. */
+  it('노출 설정을 읽지 못해도 캠페인은 읽고 그 설정만 null 이다', async () => {
+    mocks.presentationError = { message: 'relation "campaign_presentations" does not exist' };
+    mocks.presentations = [{ campaign_id: 'autumn-attendance', popup_mode: 'online', popup_location: null, card_link_path: null }];
+
+    const data = await getAdminCampaignConsoleData();
+
+    expect(data.campaigns).toHaveLength(1);
+    expect(data.campaigns[0].presentation).toBeNull();
+  });
+
+  it('형식이 어긋난 노출 설정 행은 빈 값으로 덮지 않고 null 이다', async () => {
+    mocks.presentations = [{ campaign_id: 'autumn-attendance', popup_mode: 'sideways', popup_location: null, card_link_path: null }];
+
+    const data = await getAdminCampaignConsoleData();
+
+    expect(data.campaigns[0].presentation).toBeNull();
   });
 });

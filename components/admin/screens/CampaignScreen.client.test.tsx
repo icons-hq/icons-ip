@@ -13,16 +13,20 @@ vi.mock('react', async () => ({
 }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(hooks.search) }));
 vi.mock('@/app/admin/campaign-actions', () => ({ upsertAdminCampaignAction: vi.fn() }));
+vi.mock('@/app/admin/campaign-presentation-actions', () => ({ saveAdminCampaignPresentationAction: vi.fn() }));
 
 import { CampaignScreen } from './CampaignScreen';
+import { CampaignPresentationPanel } from '@/components/admin/CampaignPresentationPanel';
 import { CampaignSection } from '@/components/admin/sections/CampaignSection';
+import { CoinExchangeOfferPanel } from '@/components/admin/sections/CoinExchangeOfferPanel';
 import type { AdminCampaignRecord } from '@/lib/admin/campaigns';
 
 type Element = ReactElement<Record<string, unknown>>;
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []);
 const record = (id: string): AdminCampaignRecord => ({
   id, kind: 'event', title: `캠페인 ${id}`, subtitle: null, status: 'published', startsAt: '2026-11-01T00:00:00.000Z', endsAt: '2026-11-30T00:00:00.000Z',
-  heroImagePath: null, cardImagePath: null, bannerImagePath: null, featuredOrder: null, sections: [], updatedAt: '2026-11-01T00:00:00.000Z',
+  heroImagePath: null, cardImagePath: null, bannerImagePath: null, featuredOrder: null, sections: [],
+  presentation: { popupMode: null, popupLocation: null, cardLinkPath: null }, updatedAt: '2026-11-01T00:00:00.000Z',
 });
 const records = [record('qa-open'), record('qa-later')];
 function section() { hooks.index = 0; return nodes(CampaignScreen({ offers: [], pools: [], records, canManageOffers: false })).find(node => node.type === CampaignSection)!; }
@@ -48,4 +52,21 @@ it('주소가 없거나 모르는 캠페인이면 지금처럼 목록으로 연�
   hooks.states = []; hooks.search = 'campaign=deleted-campaign';
   expect(section().props.selected).toBeNull();
   expect(replaceState).not.toHaveBeenCalled();
+});
+
+/* 스펙 C §2.8: 노출 설정은 저장된(선택된) 캠페인에만, 캠페인 폼 아래·카드팩 교환처 패널 위에 붙는다. 캠페인 저장과 별개의 폼이다. */
+it('저장된 캠페인을 고른 때만 그 캠페인의 노출 설정 패널을 캠페인 폼과 교환처 패널 사이에 둔다', () => {
+  const tree = () => { hooks.index = 0; return nodes(CampaignScreen({ offers: [], pools: [], records, canManageOffers: true })); };
+  expect(tree().find(node => node.type === CampaignPresentationPanel)).toBeUndefined();
+
+  hooks.states = []; hooks.search = 'campaign=qa-later';
+  const nodesWithPanel = tree();
+  const panel = nodesWithPanel.find(node => node.type === CampaignPresentationPanel)!;
+  expect(panel.props.campaign).toMatchObject({ id: 'qa-later' });
+  const order = [CampaignSection, CampaignPresentationPanel, CoinExchangeOfferPanel].map(type => nodesWithPanel.findIndex(node => node.type === type));
+  expect(order).toEqual([...order].sort((a, b) => a - b));
+  expect(order.every(index => index >= 0)).toBe(true);
+
+  (nodesWithPanel.find(node => node.type === CampaignSection)!.props.onSelect as (record: { id: string } | null) => void)(null);
+  expect(tree().find(node => node.type === CampaignPresentationPanel)).toBeUndefined();
 });
