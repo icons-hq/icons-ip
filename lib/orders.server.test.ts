@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadOrderDetail, loadOrders } from './orders.server';
 import { myOrderItemsFixture } from './orders/my-order-items.fixture';
+import { transactionDisplay, transactionLineId, transactionQuoteId } from '@/test/fixtures/cart-transaction';
 
 const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn(), retrySources: vi.fn() }));
 
@@ -11,6 +12,8 @@ vi.mock('./checkout.server', () => ({ loadOrderRetrySources: mocks.retrySources 
 beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); mocks.giftList.mockReset().mockResolvedValue([]); mocks.giftDetail.mockReset();
   mocks.retrySources.mockReset().mockResolvedValue(new Map()); });
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
+/* 품목 줄 보강의 19금 판정(MD-0036)은 인증 요청 범위가 필요하다 — 여기서는 주입한다. */
+vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => 'full' }));
 /* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
    목록이 없으므로 테스트도 고정 레지스트리를 주입한다 — 여기서 확인하려는 것은
    목록 자체가 아니라 운송장이 그 목록을 거쳐 그려지는가다. */
@@ -46,6 +49,9 @@ interface QueryRecord {
 }
 
 interface ClientOptions {
+  /** get_my_goods_transaction_receipt가 돌려줄 값. 없으면 null(영수증 없음). */
+  receipt?: unknown;
+  rpcCalls?: string[];
   claimEligibility?: unknown;
   reshipmentParcels?: unknown;
   eligibilityError?: boolean;
@@ -130,11 +136,12 @@ function createQuery(table: string, options: ClientOptions, initial: Partial<Que
 
 function createClient(options: ClientOptions) {
   return {
-    rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[] }) => name === 'my_order_items'
+    rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[] }) => { options.rpcCalls?.push(name); return name === 'my_order_items'
       ? createQuery('order_items', options, { rpc: name, in: [['order_id', args?.p_order_ids ?? []]] })
-      : Promise.resolve(name === 'get_my_order_claim_reshipment_items' ? { data: [], error: null }
+      : Promise.resolve(name === 'get_my_goods_transaction_receipt' ? { data: options.receipt ?? null, error: null }
+        : name === 'get_my_order_claim_reshipment_items' ? { data: [], error: null }
         : name === 'get_my_order_claim_reshipments' ? { data: options.reshipmentParcels ?? [], error: null }
-        : { data: options.claimEligibility ?? null, error: options.eligibilityError ? { message: 'unavailable' } : null })),
+        : { data: options.claimEligibility ?? null, error: options.eligibilityError ? { message: 'unavailable' } : null }); }),
     from(table: string) {
       return createQuery(table, options);
     },
@@ -314,6 +321,111 @@ describe('loadOrders', () => {
   });
 });
 
+/* MD-0036: 주문내역 카드의 품목 줄. 읽기 열을 늘리는 건 withLines일 때만이고, 보강이 실패해도 목록은 스냅샷으로 남는다. */
+describe('loadOrders withLines', () => {
+  /* 굿즈 이미지 경로는 공개 미디어 URL로 바뀐다 — 프로젝트 URL이 있어야 URL이 만들어진다. */
+  beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.supabase.test'); });
+  afterEach(() => { vi.unstubAllEnvs(); });
+  const lineRows = (extra: Record<string, unknown> = {}) => ({
+    orders: [{ id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z', calculation_version: 1 }],
+    order_items: [
+      { id: 'item-1', order_id: orderId, good_id: 'g1', variant_id: 'v1', variant_name_snapshot: '파랑', qty: 2, unit_price: 18000, good_name_snapshot: '아크릴 스탠드' },
+      { id: 'item-2', order_id: orderId, good_id: 'g2', variant_id: 'v-assigned-a', variant_name_snapshot: '실제 배정 옵션', cart_variant_id: 'v-base', option_sale_mode_snapshot: 'random', qty: 1, unit_price: 18000, good_name_snapshot: '랜덤 키링' },
+      { id: 'item-3', order_id: orderId, good_id: 'g2', variant_id: 'v-assigned-b', variant_name_snapshot: '다른 배정 옵션', cart_variant_id: 'v-base', option_sale_mode_snapshot: 'random', qty: 1, unit_price: 18000, good_name_snapshot: '랜덤 키링' },
+    ],
+    goods: [
+      { id: 'g1', ip_id: 'ip-1', image_path: 'goods/a.webp', bg: null, sale_restriction: 'none' },
+      { id: 'g2', ip_id: 'ip-1', image_path: null, bg: 'linear-gradient(#111, #333)', sale_restriction: 'none' },
+    ],
+    ips: [{ id: 'ip-1', title: '홍실' }],
+    ...extra,
+  });
+
+  it('모든 품목 줄에 IP명·썸네일을 붙이고, 읽기 열에 옵션을 더한다. 랜덤 판매 옵션은 마스킹 RPC 값 그대로다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({ records, rows: lineRows() });
+
+    const [order] = await loadOrders(userId, { withLines: true });
+
+    expect(order.lines).toMatchObject([
+      { key: 'item-1', name: '아크릴 스탠드', optionName: '파랑', qty: 2, ipName: '홍실', purchaseAmount: 36000, regularAmount: null,
+        thumbnail: expect.stringContaining('goods/a.webp') },
+      /* 같은 굿즈의 두 배정 행은 DB가 한 줄(수량 합계, 옵션명 '랜덤')로 합쳐 준다. */
+      { key: 'item-2', name: '랜덤 키링', optionName: '랜덤', qty: 2, ipName: '홍실', purchaseAmount: 36000, thumbnail: 'linear-gradient(#111, #333)' },
+    ]);
+    expect(order.lines).toHaveLength(2);
+    expect(JSON.stringify(order)).not.toMatch(/실제 배정 옵션|다른 배정 옵션|v-assigned/);
+    expect(records.find((record) => record.table === 'orders')?.select).toBe('id,order_number,user_id,status,total,created_at,payment_method,calculation_version');
+    expect(records.find((record) => record.table === 'order_items')?.select)
+      .toBe('id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode,variant_id,variant_name_snapshot');
+    expect(records.find((record) => record.table === 'goods')?.in).toEqual([['id', ['g1', 'g2']]]);
+    expect(records.find((record) => record.table === 'ips')?.in).toEqual([['id', ['ip-1']]]);
+  });
+
+  it('v2 주문만 거래 영수증을 읽어 구매가(복수구매 할인 반영)와 정가를 붙인다', async () => {
+    const rpcCalls: string[] = [];
+    const receipt = { orderId, quoteId: transactionQuoteId, display: transactionDisplay };
+    mocks.client = createClient({ records: [], rpcCalls, receipt, rows: lineRows({
+      orders: [{ id: orderId, user_id: userId, status: 'paid', total: 16000, created_at: '2026-07-14T06:00:00.000Z', calculation_version: 2 }],
+      order_items: [{ id: transactionLineId, order_id: orderId, good_id: 'transaction-good', variant_id: transactionDisplay.lines[0].variantId, variant_name_snapshot: '기본 옵션', qty: 2, unit_price: 10000, good_name_snapshot: '복수구매 굿즈' }],
+    }) });
+
+    const [order] = await loadOrders(userId, { withLines: true });
+
+    expect(rpcCalls.filter((name) => name === 'get_my_goods_transaction_receipt')).toHaveLength(1);
+    /* (10000 − 1000) × 2 = 18000 구매가, 10000 × 2 = 20000 정가. 기본 옵션은 줄에서 숨기는 이름이라 값은 남고 화면이 감춘다. */
+    expect(order.lines?.[0]).toMatchObject({ name: '복수구매 굿즈', optionName: '기본 옵션', purchaseAmount: 18000, regularAmount: 20000 });
+  });
+
+  it('v1 주문은 영수증을 읽지 않는다', async () => {
+    const rpcCalls: string[] = [];
+    mocks.client = createClient({ records: [], rpcCalls, rows: lineRows() });
+    await loadOrders(userId, { withLines: true });
+    expect(rpcCalls).not.toContain('get_my_goods_transaction_receipt');
+  });
+
+  it('withLines가 아니면 굿즈·IP를 읽지 않고 lines 키도 없다(마이페이지 요약은 비용이 늘지 않는다)', async () => {
+    const records: QueryRecord[] = [];
+    const rpcCalls: string[] = [];
+    mocks.client = createClient({ records, rpcCalls, rows: lineRows() });
+
+    const [order] = await loadOrders(userId);
+
+    expect(order).not.toHaveProperty('lines');
+    expect(records.some((record) => record.table === 'goods' || record.table === 'ips')).toBe(false);
+    expect(rpcCalls).toEqual(['my_order_items']);
+    expect(records.find((record) => record.table === 'orders')?.select).toBe('id,order_number,user_id,status,total,created_at,payment_method');
+  });
+
+  it('선물 주문 목록에는 withLines 여부를 그대로 넘긴다', async () => {
+    mocks.client = createClient({ records: [], rows: lineRows() });
+    await loadOrders(userId, { includePending: true, withLines: true });
+    expect(mocks.giftList).toHaveBeenLastCalledWith(true, { withLines: true });
+    await loadOrders(userId);
+    expect(mocks.giftList).toHaveBeenLastCalledWith(false, { withLines: false });
+  });
+
+  it('굿즈·IP 읽기가 실패해도 목록은 스냅샷 줄로 그대로 돌아온다', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.client = createClient({ records: [], rows: lineRows(), errors: { goods: 'boom', ips: 'boom' } });
+
+    const [order] = await loadOrders(userId, { withLines: true });
+
+    expect(order).toMatchObject({ id: orderId, status: 'paid', total: 54000, itemLabel: '아크릴 스탠드 외 1건' });
+    expect(order.lines).toMatchObject([
+      { name: '아크릴 스탠드', qty: 2, ipName: null, thumbnail: null, purchaseAmount: 36000 },
+      { name: '랜덤 키링', optionName: '랜덤', ipName: null, thumbnail: null },
+    ]);
+    expect(errorSpy).toHaveBeenCalledWith('[orders] line enrichment failed', expect.stringMatching(/^goods:/));
+    errorSpy.mockRestore();
+  });
+
+  it('주문 자체 읽기 실패는 그대로 던진다(보강 실패와 다르다)', async () => {
+    mocks.client = createClient({ records: [], rows: lineRows(), errors: { orders: 'network unavailable' } });
+    await expect(loadOrders(userId, { withLines: true })).rejects.toThrow('Failed to load orders');
+  });
+});
+
 describe('loadOrderDetail', () => {
   it.each([
     [{ cancel: true, return: false, exchange: false }, false, { cancel: true, return: false, exchange: false }],
@@ -465,7 +577,7 @@ describe('loadOrderDetail', () => {
     expect(records.filter(record => record.table === 'order_shipments')).toHaveLength(1);
     expect(records.find(record => record.table === 'order_shipments')?.in).toEqual([['order_id', [orderId]]]);
     expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({
-      select: 'id,amount,status,created_at',
+      select: 'id,amount,status,created_at,provider',
       eq: [['user_id', userId], ['purpose', 'order'], ['ref_id', orderId]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
       maybeSingle: false,
@@ -648,5 +760,61 @@ describe('랜덤 판매 굿즈(D5②) 고객 은닉', () => {
     } });
     const detail = await loadOrderDetail(userId, orderId);
     expect(detail?.shipments?.[0]?.orderItemIds).toEqual(['00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a1']);
+  });
+});
+
+/* MD-0036·0037: 주문 상세도 같은 품목 줄을 쓴다. 이미 읽은 영수증을 다시 읽지 않고, 결제 provider를 싣는다. */
+describe('loadOrderDetail lines·provider', () => {
+  beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.supabase.test'); });
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  const baseRows = () => ({
+    orders: [{ id: orderId, user_id: userId, status: 'paid', total: 54000, address: null, created_at: '2026-07-14T06:00:00.000Z', payment_method: 'card', calculation_version: 1 } as Record<string, unknown>],
+    order_items: [{ id: 'item-1', order_id: orderId, good_id: 'g1', variant_id: 'v1', variant_name_snapshot: '파랑', qty: 2, unit_price: 27000, good_name_snapshot: '아크릴 스탠드', good_type_snapshot: '아크릴' } as Record<string, unknown>],
+    goods: [{ id: 'g1', ip_id: 'ip-1', image_path: 'goods/a.webp', bg: null, sale_restriction: 'none' }],
+    ips: [{ id: 'ip-1', title: '홍실' }],
+    payment_summaries: [{ id: 'payment-1', user_id: userId, purpose: 'order', ref_id: orderId, amount: 54000, status: 'paid', created_at: '2026-07-14T06:01:00.000Z', provider: 'toss' } as Record<string, unknown>],
+  });
+
+  it('품목 줄과 결제 provider를 싣는다(v1은 영수증을 읽지 않고 주문 단가 × 수량)', async () => {
+    const rpcCalls: string[] = [];
+    mocks.client = createClient({ records: [], rpcCalls, rows: baseRows() });
+
+    const detail = await loadOrderDetail(userId, orderId);
+
+    expect(detail?.lines).toMatchObject([{ key: 'item-1', name: '아크릴 스탠드', optionName: '파랑', qty: 2, ipName: '홍실', purchaseAmount: 54000, regularAmount: null, thumbnail: expect.stringContaining('goods/a.webp') }]);
+    expect(detail?.payment).toMatchObject({ amount: 54000, status: 'paid', provider: 'toss' });
+    expect(rpcCalls).not.toContain('get_my_goods_transaction_receipt');
+  });
+
+  it('결제 provider가 없는 옛 결제는 null이다', async () => {
+    const rows = baseRows();
+    delete rows.payment_summaries[0].provider;
+    mocks.client = createClient({ records: [], rows });
+    expect((await loadOrderDetail(userId, orderId))?.payment?.provider).toBeNull();
+  });
+
+  it('v2 주문은 이미 검증해 읽은 영수증으로 줄을 보강하고 영수증을 다시 읽지 않는다', async () => {
+    const rpcCalls: string[] = [];
+    const rows = baseRows();
+    rows.orders = [{ ...rows.orders[0], total: 16000, shipping_fee: 0, discount_total: 1000, store_credit_total: 1000, volume_discount_total: 2000, shipping_collect_total: 3000, calculation_version: 2 }];
+    rows.order_items = [{ ...rows.order_items[0], id: transactionLineId, good_id: 'transaction-good', variant_id: transactionDisplay.lines[0].variantId, qty: 2, unit_price: 10000 }];
+    mocks.client = createClient({ records: [], rpcCalls, rows, receipt: { orderId, quoteId: transactionQuoteId, display: transactionDisplay } });
+
+    const detail = await loadOrderDetail(userId, orderId);
+
+    expect(rpcCalls.filter((name) => name === 'get_my_goods_transaction_receipt')).toHaveLength(1);
+    expect(detail?.lines).toMatchObject([{ key: transactionLineId, purchaseAmount: 18000, regularAmount: 20000 }]);
+  });
+
+  it('굿즈·IP 읽기가 실패해도 주문 상세는 스냅샷 줄과 함께 그대로 열린다', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.client = createClient({ records: [], rows: baseRows(), errors: { goods: 'boom', ips: 'boom' } });
+
+    const detail = await loadOrderDetail(userId, orderId);
+
+    expect(detail).toMatchObject({ id: orderId, status: 'paid', items: [{ name: '아크릴 스탠드' }] });
+    expect(detail?.lines).toMatchObject([{ name: '아크릴 스탠드', ipName: null, thumbnail: null, purchaseAmount: 54000 }]);
+    errorSpy.mockRestore();
   });
 });

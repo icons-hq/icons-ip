@@ -23,6 +23,7 @@ import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 import { loadOrderRetrySources } from './checkout.server';
 import { attachRandomItemsToShipments, readMyOrderItems } from './orders/customer-items.server';
+import { loadOrderLineViews, type OrderLineOrderInput } from './orders/order-lines.server';
 
 interface OrderListRow {
   order_number?: string;
@@ -32,6 +33,8 @@ interface OrderListRow {
   total: number;
   created_at: string;
   payment_method: string | null;
+  /** v2(2) 주문에서만 거래 영수증을 읽어 정가·복수구매 할인을 보강한다. */
+  calculation_version?: number;
 }
 
 interface OrderDetailRow extends OrderListRow {
@@ -52,6 +55,9 @@ interface OrderListItemRow {
   qty: number;
   unit_price: number;
   good_name_snapshot: string;
+  /** `withLines` 목록만 읽는다. 랜덤 판매 줄은 마스킹 RPC가 '랜덤'·장바구니 키 옵션으로 이미 가려 준다. */
+  variant_id?: string | null;
+  variant_name_snapshot?: string | null;
   /** 마스킹 RPC(my_order_items)가 주는 판매 방식. 'random' 줄은 DB가 같은 주문·굿즈의 배정 행을 이미 한 줄로 합쳤다. */
   option_sale_mode?: 'select' | 'random';
 }
@@ -69,7 +75,6 @@ interface OrderDetailItemRow extends OrderListItemRow {
   unit_price: number;
   good_type_snapshot: string;
   variant_id: string;
-  variant_name_snapshot?: string | null;
   custom_inputs_snapshot?: unknown;
   variant_code_snapshot?: string | null;
   supply_source?: 'stock' | 'preorder';
@@ -81,6 +86,7 @@ interface PaymentRow {
   amount: number;
   status: string;
   created_at: string;
+  provider?: string | null;
 }
 
 interface DrawTicketRow {
@@ -114,24 +120,32 @@ function requireDetailStatus(status: string) {
   return status;
 }
 
-export async function loadOrders(userId: string, {includePending=false}:{includePending?:boolean}={}): Promise<OrderListItem[]> {
+const ORDER_LIST_COLUMNS: string = 'id,order_number,user_id,status,total,created_at,payment_method';
+
+/**
+ * 내 주문 목록. `withLines`면 주문마다 모든 품목 줄(썸네일·IP명·구매가/정가, MD-0036)을 붙인다 — 주문내역 `/orders`만 쓰고,
+ * 마이페이지 대시보드 같은 요약 화면은 기본값(false)이라 굿즈·IP·영수증 읽기가 늘지 않는다.
+ */
+export async function loadOrders(userId: string, {includePending=false, withLines=false}:{includePending?:boolean; withLines?:boolean}={}): Promise<OrderListItem[]> {
   const supabase = await createClient();
   const [orderResult, giftOrders] = await Promise.all([
     supabase
       .from('orders')
-      .select('id,order_number,user_id,status,total,created_at,payment_method')
+      /* 거래 영수증을 읽을 주문(v2)을 가르는 calculation_version은 품목 줄이 필요한 목록에서만 읽는다. */
+      .select(ORDER_LIST_COLUMNS + (withLines ? ',calculation_version' : ''))
       .eq('user_id', userId)
       .in('status', [...ORDER_DETAIL_STATUSES])
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
-    loadGiftOrderList(includePending),
+    loadGiftOrderList(includePending, { withLines }),
   ]);
 
   if (orderResult.error) {
     throw new Error(`Failed to load orders: ${orderResult.error.message}`);
   }
 
-  const userOrderRows = (orderResult.data ?? []) as OrderListRow[];
+  /* select 열이 withLines로 갈려 PostgREST 타입 파서가 행 모양을 못 읽는다 — OrderListRow가 그 모양이다. */
+  const userOrderRows = (orderResult.data ?? []) as unknown as OrderListRow[];
   /* 클레임은 이 회원의 주문 id로만 읽는다. 운영자 계정은 RLS로 전체 클레임을 읽을 수 있어서, 조건 없이
      읽으면 자기 /orders에서 남의 클레임까지 받아 온다. 요청자(requested_by)로는 거르지 않는다 —
      운영자 전액 취소처럼 운영자가 접수한 클레임도 고객 목록에 보여야 한다. */
@@ -172,7 +186,8 @@ export async function loadOrders(userId: string, {includePending=false}:{include
     && (order.status === 'pending' || order.status === 'canceled'));
   /* 랜덤 판매 굿즈(D5②)의 배정 행은 고객 직접 읽기에서 빠진다 — 마스킹 RPC로 읽어야 수량·요약이 맞다. */
   const [{ data: itemData, error: itemError }, retrySources] = await Promise.all([
-    readMyOrderItems<OrderListItemRow&{id:string}>(supabase, orderIds, 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode'),
+    readMyOrderItems<OrderListItemRow&{id:string}>(supabase, orderIds,
+      withLines ? 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode,variant_id,variant_name_snapshot' : 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode'),
     loadOrderRetrySources(userId, retryCandidates.map((order) => order.id)),
   ]);
 
@@ -180,12 +195,30 @@ export async function loadOrders(userId: string, {includePending=false}:{include
     throw new Error(`Failed to load order items: ${itemError.message}`);
   }
 
-  const itemsByOrderId = new Map<string, OrderListItemRow[]>();
+  const itemsByOrderId = new Map<string, Array<OrderListItemRow & { id: string }>>();
   for (const item of itemData ?? []) {
     const items = itemsByOrderId.get(item.order_id) ?? [];
     items.push(item);
     itemsByOrderId.set(item.order_id, items);
   }
+
+  /* 품목 줄 보강(썸네일·IP명·영수증)은 실패해도 던지지 않는다 — 실패한 주문은 스냅샷 줄로 남는다. */
+  const linesByOrderId = withLines
+    ? await loadOrderLineViews(supabase, orderRows.map((order): OrderLineOrderInput => ({
+        orderId: order.id,
+        items: (itemsByOrderId.get(order.id) ?? []).map((item) => ({
+          key: item.id,
+          lineId: item.id,
+          goodId: item.good_id,
+          variantId: item.variant_id ?? null,
+          name: item.good_name_snapshot,
+          optionName: item.variant_name_snapshot ?? null,
+          qty: item.qty,
+          unitPrice: item.unit_price,
+        })),
+        tryReceipt: order.calculation_version === 2,
+      })))
+    : null;
 
   return [...giftOrders, ...orderRows.map((order) => {
     const status = requireDetailStatus(order.status);
@@ -207,6 +240,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
       claim: latestClaimByOrderId.get(order.id) ?? null,
       retry: retrySources.get(order.id.toLowerCase()) ?? null,
+      ...(linesByOrderId?.get(order.id) ? { lines: linesByOrderId.get(order.id) } : {}),
     };
   })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
@@ -280,7 +314,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       'id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
     supabase
       .from('payment_summaries')
-      .select('id,amount,status,created_at')
+      .select('id,amount,status,created_at,provider')
       .eq('user_id', userId)
       .eq('purpose', 'order')
       .eq('ref_id', orderId)
@@ -342,6 +376,23 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     cancellationRequestStatus = cancellationRequestRow.status;
   }
 
+  /* 품목 줄 보강은 이미 읽은 영수증(transaction)을 그대로 쓰고 영수증을 다시 읽지 않는다. 실패해도 던지지 않는다. */
+  const linesPromise = loadOrderLineViews(supabase, [{
+    orderId,
+    items: (itemsResult.data ?? []).map((item) => ({
+      key: item.id,
+      lineId: item.id,
+      goodId: item.good_id,
+      variantId: item.variant_id,
+      name: item.good_name_snapshot,
+      optionName: item.variant_name_snapshot ?? null,
+      qty: item.qty,
+      unitPrice: item.unit_price,
+    })),
+    tryReceipt: false,
+    receipt: transaction ?? null,
+  }]);
+
   if (paymentRows.length > 0) {
     const { data: refundData, error: refundError } = await supabase
       .from('refunds')
@@ -357,8 +408,11 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     refund = refundData;
   }
 
+  const lines = (await linesPromise).get(orderId);
+
   return {
     ...(transaction ? { transaction } : {}),
+    ...(lines ? { lines } : {}),
     id: orderData.id,
     ...(orderData.order_number ? { orderNumber: orderData.order_number } : {}),
     status,
@@ -391,6 +445,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           amount: payment.amount,
           status: payment.status,
           createdAt: payment.created_at,
+          provider: payment.provider ?? null,
         }
       : null,
     refund: refund
