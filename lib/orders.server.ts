@@ -33,8 +33,6 @@ interface OrderListRow {
   total: number;
   created_at: string;
   payment_method: string | null;
-  /** v2(2) 주문에서만 거래 영수증을 읽어 정가·복수구매 할인을 보강한다. */
-  calculation_version?: number;
 }
 
 interface OrderDetailRow extends OrderListRow {
@@ -131,8 +129,7 @@ export async function loadOrders(userId: string, {includePending=false, withLine
   const [orderResult, giftOrders] = await Promise.all([
     supabase
       .from('orders')
-      /* 거래 영수증을 읽을 주문(v2)을 가르는 calculation_version은 품목 줄이 필요한 목록에서만 읽는다. */
-      .select(ORDER_LIST_COLUMNS + (withLines ? ',calculation_version' : ''))
+      .select(ORDER_LIST_COLUMNS)
       .eq('user_id', userId)
       .in('status', [...ORDER_DETAIL_STATUSES])
       .order('created_at', { ascending: false })
@@ -144,7 +141,6 @@ export async function loadOrders(userId: string, {includePending=false, withLine
     throw new Error(`Failed to load orders: ${orderResult.error.message}`);
   }
 
-  /* select 열이 withLines로 갈려 PostgREST 타입 파서가 행 모양을 못 읽는다 — OrderListRow가 그 모양이다. */
   const userOrderRows = (orderResult.data ?? []) as unknown as OrderListRow[];
   /* 클레임은 이 회원의 주문 id로만 읽는다. 운영자 계정은 RLS로 전체 클레임을 읽을 수 있어서, 조건 없이
      읽으면 자기 /orders에서 남의 클레임까지 받아 온다. 요청자(requested_by)로는 거르지 않는다 —
@@ -202,7 +198,8 @@ export async function loadOrders(userId: string, {includePending=false, withLine
     itemsByOrderId.set(item.order_id, items);
   }
 
-  /* 품목 줄 보강(썸네일·IP명·영수증)은 실패해도 던지지 않는다 — 실패한 주문은 스냅샷 줄로 남는다. */
+  /* 품목 줄 보강(썸네일·IP명·정가·복수구매 할인·부분 취소 뒤 수량)은 실패해도 던지지 않는다 — 실패한 주문은 스냅샷 줄로 남는다.
+     정가·수량은 주문마다 영수증 RPC를 부르지 않고 배치 RPC(my_order_item_display) 한 번으로 읽는다. */
   const linesByOrderId = withLines
     ? await loadOrderLineViews(supabase, orderRows.map((order): OrderLineOrderInput => ({
         orderId: order.id,
@@ -216,7 +213,8 @@ export async function loadOrders(userId: string, {includePending=false, withLine
           qty: item.qty,
           unitPrice: item.unit_price,
         })),
-        tryReceipt: order.calculation_version === 2,
+        tryReceipt: false,
+        itemDisplay: true,
       })))
     : null;
 

@@ -497,7 +497,7 @@ describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
     const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
     /* 줄은 남은 수량과 그 수량의 구매가격(13,500 × 1)을 말하고, 취소된 몫은 줄 아래에 따로 적는다. */
     expect(html).toContain('<p class="wc-order-line__qty">1개</p>'); expect(html).toContain('<strong>₩13,500</strong>');
-    expect(html).toContain('<small class="wc-order-line__canceled" data-order-item-canceled="1">1개 취소됨</small>');
+    expect(html).toContain('<p class="wc-order-line__canceled" data-order-item-canceled="1">· 1개 취소됨</p>');
     expect(html).toContain('홍실 아크릴 블록 × 1 (1개 취소됨)');
     expect(html).not.toContain('× 2');
   });
@@ -734,9 +734,11 @@ describe('OrderDetail 품목 줄(MD-0036·0037 OrderLineItem 재사용)', () => 
       transferredAt: null, closedShipmentCount: 0, items: [{ orderItemId: 'item-1', goodName: '홍실 아크릴 블록', variantName: null, qty: 1, goodsRefundAmount: 24000 }] };
     const html = renderToStaticMarkup(<OrderDetail order={order({ items: [{ ...ORDER_ITEM, qty: 2 }], lines: [{ ...line, qty: 2, purchaseAmount: 48000, regularAmount: 54000 }] })} partialCancellations={[partial]} />);
     expect(html).toContain('<p class="wc-order-line__qty">1개</p>'); expect(html).toContain('<strong>₩24,000</strong>'); expect(html).toContain('<del>₩27,000</del>');
-    expect(html).toContain('data-order-item-canceled="1">1개 취소됨</small>');
-    /* 전부 취소된 줄은 0개로 말하고 없는 수량의 가격을 지어내지 않는다. */
+    expect(html).toContain('data-order-item-canceled="1">· 1개 취소됨</p>');
+    /* 전부 취소된 줄은 0개 줄 없이 `{원래 수량}개 취소됨`만 말하고 없는 수량의 가격을 지어내지 않는다. */
     const all = renderToStaticMarkup(<OrderDetail order={order({ items: [{ ...ORDER_ITEM, qty: 1 }], lines: [line] })} partialCancellations={[{ ...partial, items: [{ ...partial.items[0], qty: 1 }] }]} />);
-    expect(all).toContain('<p class="wc-order-line__qty">0개</p>'); expect(all).not.toContain('<strong>₩24,000</strong>');
+    expect(all).not.toContain('<p class="wc-order-line__qty">0개</p>'); expect(all).not.toContain('wc-order-line__qty');
+    expect(all).toContain('<p class="wc-order-line__canceled" data-order-item-canceled="1">1개 취소됨</p>');
+    expect(all).not.toContain('<strong>₩24,000</strong>'); expect(all).not.toContain('wc-order-line__price');
   });
 });

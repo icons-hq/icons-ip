@@ -14,7 +14,10 @@ export interface OrderLineView {
   goodId: string;
   name: string;
   optionName: string | null;
+  /** 지금 유효한 수량. 부분 취소(재고 부족)가 있으면 원래 수량보다 적고, 전부 취소됐으면 0이다. 금액은 이 수량 기준이다. */
   qty: number;
+  /** 부분 취소로 빠진 수량. 부분 취소가 없으면 키 자체가 없다. `qty + canceledQty`가 주문 당시 수량이다. */
+  canceledQty?: number;
   ipName: string | null;
   /** CSS background 원값. 렌더에서 `goodsImageBackground`를 거친다. 19금 가림 줄은 항상 null이다. */
   thumbnail: string | null;
@@ -63,6 +66,14 @@ export interface OrderLineInputItem {
   imagePath?: string | null;
 }
 
+/** 배치 RPC `my_order_item_display`의 한 줄. 정가·복수구매 단가 할인이 null이면 영수증 값이 없는 줄(v1·배정 행 정가 불일치)이다. */
+export interface OrderItemDisplay {
+  regularUnitPrice: number | null;
+  volumeUnitDiscount: number | null;
+  /** 부분 취소 뒤 남은 수량(0 이상). */
+  activeQty: number;
+}
+
 export interface OrderLineGoodInfo {
   ipId: string | null;
   imagePath: string | null;
@@ -108,9 +119,33 @@ function thumbnailFor(item: OrderLineInputItem, good: OrderLineGoodInfo | undefi
   return good?.bg ?? null;
 }
 
+/**
+ * 한 줄의 단가·유효 수량. 배치 RPC 값(`display`)이 있으면 그것을 쓰고(정가가 있으면 구매 단가 = 주문 단가 − 복수구매 단가 할인),
+ * 없으면 영수증 줄 매칭, 그것도 없으면 주문 단가 × 주문 수량이다. 유효 수량은 주문 수량을 넘지 않는다.
+ */
+function lineValues(item: OrderLineInputItem, receipt: GoodsTransactionDisplay | null, display: OrderItemDisplay | undefined) {
+  if (display) {
+    const hasReceiptValues = display.regularUnitPrice !== null && display.volumeUnitDiscount !== null;
+    const activeQty = Number.isSafeInteger(display.activeQty) ? Math.min(Math.max(display.activeQty, 0), item.qty) : item.qty;
+    return {
+      activeQty,
+      purchaseUnit: item.unitPrice === null ? null : hasReceiptValues ? item.unitPrice - display.volumeUnitDiscount! : item.unitPrice,
+      regularUnit: hasReceiptValues ? display.regularUnitPrice : null,
+    };
+  }
+  const receiptLine = matchReceiptLine(item, receipt);
+  return {
+    activeQty: item.qty,
+    purchaseUnit: receiptLine ? receiptLine.unitPrice - receiptLine.volumeUnitDiscount : item.unitPrice,
+    regularUnit: receiptLine ? receiptLine.regularUnitPrice : null,
+  };
+}
+
 export function buildOrderLines(input: {
   items: ReadonlyArray<OrderLineInputItem>;
   receipt: GoodsTransactionDisplay | null;
+  /** 품목(`lineId`)별 배치 RPC 값. 있으면 영수증 줄 매칭보다 앞선다 — 정가·복수구매 할인과 부분 취소 뒤 수량을 함께 준다. */
+  display?: ReadonlyMap<string, OrderItemDisplay>;
   goods: ReadonlyMap<string, OrderLineGoodInfo>;
   ipTitles: ReadonlyMap<string, string>;
   adultAccess: AdultGoodsAccess;
@@ -120,19 +155,21 @@ export function buildOrderLines(input: {
     const good = input.goods.get(item.goodId);
     const ipName = (good?.ipId ? input.ipTitles.get(good.ipId) : undefined) ?? null;
     const adultMasked = good?.saleRestriction === 'adult' && input.adultAccess !== 'full';
-    const receiptLine = matchReceiptLine(item, input.receipt);
-    const purchaseUnit = receiptLine ? receiptLine.unitPrice - receiptLine.volumeUnitDiscount : item.unitPrice;
+    const { activeQty, purchaseUnit, regularUnit } = lineValues(item, input.receipt, item.lineId ? input.display?.get(item.lineId) : undefined);
+    const canceledQty = item.qty - activeQty;
     return {
       key: item.key,
       goodId: item.goodId,
       name: item.name,
       optionName: item.optionName,
-      qty: item.qty,
+      qty: activeQty,
+      ...(canceledQty > 0 ? { canceledQty } : {}),
       ipName,
       thumbnail: adultMasked ? null : thumbnailFor(item, good, input.imageUrl),
       adultMasked,
-      purchaseAmount: purchaseUnit === null ? null : safeAmount(purchaseUnit, item.qty),
-      regularAmount: receiptLine ? safeAmount(receiptLine.regularUnitPrice, item.qty) : null,
+      /* 전부 취소된 줄(유효 수량 0)은 없는 수량의 가격을 지어내지 않는다. */
+      purchaseAmount: purchaseUnit === null ? null : safeAmount(purchaseUnit, activeQty),
+      regularAmount: regularUnit === null ? null : safeAmount(regularUnit, activeQty),
     };
   });
 }

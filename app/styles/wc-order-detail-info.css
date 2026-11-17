@@ -178,12 +178,6 @@
   margin: 4px 0 0;
 }
 
-.wc-receipt .wc-order-line__canceled {
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: var(--wc-ink-tertiary);
-}
-
 /* 결제 정보 안의 합계 표는 섹션 간격(gap)이 이미 있어 윗 여백을 줄인다. */
 .wc-receipt .order-receipt-section .checkout-totals {
   margin-top: 4px;

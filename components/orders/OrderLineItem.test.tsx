@@ -77,6 +77,32 @@ describe('OrderLineItem', () => {
     expect(html).toContain('₩18,000');
   });
 
+  it('부분 취소: 남은 수량·남은 수량의 가격을 그리고 줄 아래에 `· N개 취소됨`을 적는다', () => {
+    const html = renderToStaticMarkup(<OrderLineItem line={line({ qty: 2, canceledQty: 1 })} />);
+    expect(html).toContain('<p class="wc-order-line__qty">2개</p>');
+    expect(html).toContain('<p class="wc-order-line__canceled" data-order-item-canceled="1">· 1개 취소됨</p>');
+    expect(html).toContain('₩18,000');
+    /* 취소 줄은 수량 줄 바로 아래에 온다. */
+    expect(html.indexOf('wc-order-line__qty')).toBeLessThan(html.indexOf('wc-order-line__canceled'));
+  });
+
+  it('전부 취소되면 0개 줄과 가격 칸을 그리지 않고 `{원래 수량}개 취소됨`만 적는다', () => {
+    const html = renderToStaticMarkup(<OrderLineItem line={line({ qty: 0, canceledQty: 2, purchaseAmount: null, regularAmount: null })} />);
+    expect(html).not.toContain('wc-order-line__qty');
+    expect(html).not.toContain('0개');
+    expect(html).not.toContain('wc-order-line__price');
+    expect(html).toContain('<p class="wc-order-line__canceled" data-order-item-canceled="2">2개 취소됨</p>');
+    /* 이름·IP명은 그대로 보인다. */
+    expect(html).toContain('아크릴 스탠드');
+    /* 가격 값이 남아 있어도(방어) 전부 취소된 줄은 가격을 그리지 않는다. */
+    expect(renderToStaticMarkup(<OrderLineItem line={line({ qty: 0, canceledQty: 2 })} />)).not.toContain('wc-order-line__price');
+  });
+
+  it('부분 취소가 없으면 취소 줄이 없다', () => {
+    expect(renderToStaticMarkup(<OrderLineItem line={line()} />)).not.toContain('취소됨');
+    expect(renderToStaticMarkup(<OrderLineItem line={line({ canceledQty: 0 })} />)).not.toContain('취소됨');
+  });
+
   it('줄 아래 부가 정보(children)를 본문 안에 그린다', () => {
     const html = renderToStaticMarkup(<OrderLineItem line={line()}><p className="extra">· 1개 취소됨</p></OrderLineItem>);
     expect(html).toContain('<p class="extra">· 1개 취소됨</p>');

@@ -14,10 +14,16 @@ interface FakeOptions {
   goods?: Result | (() => Result | Promise<Result>);
   ips?: Result | (() => Result | Promise<Result>);
   receipt?: (orderId: string) => Result | Promise<Result>;
+  /** my_order_item_display 한 쪽(페이지). 호출마다 앞에서 하나씩 쓴다. 없으면 빈 결과. */
+  display?: Array<{ data: unknown; count: number | null; error: { message: string; code?: string } | null }>;
 }
 
 function fakeClient(options: FakeOptions = {}) {
-  const calls = { goods: [] as string[][], ips: [] as string[][], receipts: [] as string[], activeReceipts: 0, maxActiveReceipts: 0 };
+  const calls = {
+    goods: [] as string[][], ips: [] as string[][], receipts: [] as string[], activeReceipts: 0, maxActiveReceipts: 0,
+    display: [] as Array<{ orderIds: string[]; select?: string; gt?: string; limit?: number; count?: unknown }>,
+  };
+  const displayPages = [...(options.display ?? [])];
   const run = async (source: FakeOptions['goods'], fallback: Result): Promise<Result> => {
     const value = typeof source === 'function' ? await source() : source;
     return value ?? fallback;
@@ -34,16 +40,33 @@ function fakeClient(options: FakeOptions = {}) {
         }),
       };
     },
-    rpc: async (name: string, args: { p_order_id: string }) => {
+    rpc: (name: string, args: { p_order_id?: string; p_order_ids?: string[] }, rpcOptions?: { count?: unknown }) => {
+      if (name === 'my_order_item_display') {
+        /* PostgREST 빌더 흉내: select/order/limit/gt를 기록하고 await하면 다음 페이지를 준다. */
+        const call: (typeof calls.display)[number] = { orderIds: args.p_order_ids ?? [], count: rpcOptions?.count };
+        calls.display.push(call);
+        const page = displayPages.shift() ?? { data: [], count: 0, error: null };
+        const builder = {
+          select(columns: string) { call.select = columns; return builder; },
+          order() { return builder; },
+          limit(size: number) { call.limit = size; return builder; },
+          gt(_column: string, value: string) { call.gt = value; return builder; },
+          then(resolve: (value: typeof page) => unknown, reject?: (reason: unknown) => unknown) { return Promise.resolve(page).then(resolve, reject); },
+        };
+        return builder;
+      }
       expect(name).toBe('get_my_goods_transaction_receipt');
-      calls.receipts.push(args.p_order_id);
-      calls.activeReceipts += 1;
-      calls.maxActiveReceipts = Math.max(calls.maxActiveReceipts, calls.activeReceipts);
-      await new Promise((resolve) => setTimeout(resolve, 1));
-      calls.activeReceipts -= 1;
-      return options.receipt ? options.receipt(args.p_order_id) : { data: { orderId: args.p_order_id, quoteId: transactionQuoteId, display: transactionDisplay }, error: null };
+      return receiptRpc(args as { p_order_id: string });
     },
   };
+  async function receiptRpc(args: { p_order_id: string }) {
+    calls.receipts.push(args.p_order_id);
+    calls.activeReceipts += 1;
+    calls.maxActiveReceipts = Math.max(calls.maxActiveReceipts, calls.activeReceipts);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    calls.activeReceipts -= 1;
+    return options.receipt ? options.receipt(args.p_order_id) : { data: { orderId: args.p_order_id, quoteId: transactionQuoteId, display: transactionDisplay }, error: null };
+  }
   return { client: client as never, calls };
 }
 
@@ -189,6 +212,72 @@ describe('loadOrderLineViews', () => {
     expect(new Set(calls.receipts).size).toBe(14);
     expect(calls.maxActiveReceipts).toBeLessThanOrEqual(6);
     expect(calls.maxActiveReceipts).toBeGreaterThan(1);
+  });
+
+  describe('배치 표시값 RPC(my_order_item_display)', () => {
+    const displayRow = (overrides: Record<string, unknown> = {}) => ({ id: transactionLineId, regular_unit_price: 12000, volume_unit_discount: 1000, active_qty: 2, ...overrides });
+    const displayOrder = (overrides: Partial<OrderLineOrderInput> = {}) => order({ tryReceipt: false, itemDisplay: true, ...overrides });
+
+    it('주문이 여럿이어도 RPC를 한 번만 부르고(주문별 영수증 RPC 없음) 정가·복수구매 할인·남은 수량을 줄에 붙인다', async () => {
+      const { client, calls } = fakeClient({ display: [{ data: [displayRow()], count: 1, error: null }] });
+      const second = displayOrder({ orderId: 'order-2', items: [{ key: 'item-2', lineId: 'item-2-id', goodId: GOOD, variantId: VARIANT, name: '틴케이스', optionName: null, qty: 1, unitPrice: 5000 }] });
+      const result = await loadOrderLineViews(client, [displayOrder(), second]);
+      expect(calls.receipts).toEqual([]);
+      expect(calls.display).toHaveLength(1);
+      expect(calls.display[0]).toMatchObject({ orderIds: [transactionOrder, 'order-2'], select: 'id:item_id,regular_unit_price,volume_unit_discount,active_qty', count: { count: 'exact' }.count });
+      /* (10000 − 1000) × 2 = 18000, 12000 × 2 = 24000. */
+      expect(result.get(transactionOrder)?.[0]).toMatchObject({ qty: 2, purchaseAmount: 18000, regularAmount: 24000 });
+      /* 배치 값이 없는 줄(두 번째 주문)은 주문 단가 × 수량으로 남는다. */
+      expect(result.get('order-2')?.[0]).toMatchObject({ qty: 1, purchaseAmount: 5000, regularAmount: null });
+    });
+
+    it('부분 취소된 줄은 남은 수량 기준 금액과 취소 수량을 담는다', async () => {
+      const { client } = fakeClient({ display: [{ data: [displayRow({ active_qty: 1 })], count: 1, error: null }] });
+      expect((await loadOrderLineViews(client, [displayOrder()])).get(transactionOrder)?.[0]).toMatchObject({ qty: 1, canceledQty: 1, purchaseAmount: 9000, regularAmount: 12000 });
+    });
+
+    it('주문 id는 1000개씩 나눠 보내고, 페이지가 잘리면 id 커서로 이어 읽는다', async () => {
+      const first = displayRow({ id: '00000000-0000-4000-8000-000000000001' });
+      const second = displayRow({ id: '00000000-0000-4000-8000-000000000002', active_qty: 1 });
+      const { client, calls } = fakeClient({ display: [
+        { data: [first], count: 2, error: null },
+        { data: [second], count: 1, error: null },
+        { data: [], count: 0, error: null },
+      ] });
+      const orders = Array.from({ length: 1001 }, (_, index) => displayOrder({ orderId: `order-${index}`, items: [{ key: `k${index}`, lineId: `line-${index}`, goodId: GOOD, name: '굿즈', optionName: null, qty: 2, unitPrice: 100 }] }));
+      await loadOrderLineViews(client, orders);
+      expect(calls.display.map((call) => call.orderIds.length)).toEqual([1000, 1000, 1]);
+      /* 두 번째 호출은 첫 페이지의 마지막 id 뒤부터 이어 읽는다. */
+      expect(calls.display[1].gt).toBe(first.id);
+    });
+
+    it('RPC가 실패하면 던지지 않고 스냅샷 줄로 남기며 결과 코드만 한 줄 남긴다', async () => {
+      const { client } = fakeClient({ display: [{ data: null, count: null, error: { message: 'boom', code: '57014' } }] });
+      const lines = (await loadOrderLineViews(client, [displayOrder()])).get(transactionOrder);
+      expect(lines).toMatchObject([{ ipName: '홍실', qty: 2, purchaseAmount: 20000, regularAmount: null }]);
+      expect(lines?.[0]).not.toHaveProperty('canceledQty');
+      /* 결과 코드만 남긴다 — 메시지·행 내용·id는 남기지 않는다. */
+      expect(errorSpy).toHaveBeenCalledWith('[orders] line enrichment failed', 'item_display:57014');
+    });
+
+    it('모양이 틀린 행은 버리고 그 줄만 스냅샷으로 남는다', async () => {
+      const { client } = fakeClient({ display: [{ data: [displayRow({ active_qty: -1 })], count: 1, error: null }] });
+      expect((await loadOrderLineViews(client, [displayOrder()])).get(transactionOrder)?.[0]).toMatchObject({ qty: 2, purchaseAmount: 20000, regularAmount: null });
+      expect(errorSpy).toHaveBeenCalledWith('[orders] line enrichment failed', 'item_display_row:unknown');
+    });
+
+    it('잘림(개수 불일치)은 실패로 닫혀 스냅샷 줄이 남는다', async () => {
+      const { client } = fakeClient({ display: [{ data: [], count: 3, error: null }] });
+      expect((await loadOrderLineViews(client, [displayOrder()])).get(transactionOrder)?.[0]).toMatchObject({ qty: 2, purchaseAmount: 20000 });
+      /* 코드가 없는 실패(잘림)는 unknown이다. */
+      expect(errorSpy).toHaveBeenCalledWith('[orders] line enrichment failed', 'item_display:unknown');
+    });
+
+    it('itemDisplay가 아닌 주문(선물·상세)은 배치 RPC를 부르지 않는다', async () => {
+      const { client, calls } = fakeClient();
+      await loadOrderLineViews(client, [order(), order({ orderId: 'order-2', tryReceipt: false, receipt: transactionDisplay })]);
+      expect(calls.display).toEqual([]);
+    });
   });
 
   it('굿즈 id는 1000개씩 나눠 읽고 같은 id는 한 번만 보낸다', async () => {

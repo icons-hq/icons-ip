@@ -138,6 +138,8 @@ function createClient(options: ClientOptions) {
   return {
     rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[] }) => { options.rpcCalls?.push(name); return name === 'my_order_items'
       ? createQuery('order_items', options, { rpc: name, in: [['order_id', args?.p_order_ids ?? []]] })
+      /* 배치 표시값 RPC(my_order_item_display): PostgREST가 `id:item_id`로 별칭해 주는 행을 id 커서로 페이지한다. */
+      : name === 'my_order_item_display' ? createQuery('item_display', options, { rpc: name })
       : Promise.resolve(name === 'get_my_goods_transaction_receipt' ? { data: options.receipt ?? null, error: null }
         : name === 'get_my_order_claim_reshipment_items' ? { data: [], error: null }
         : name === 'get_my_order_claim_reshipments' ? { data: options.reshipmentParcels ?? [], error: null }
@@ -355,33 +357,86 @@ describe('loadOrders withLines', () => {
     ]);
     expect(order.lines).toHaveLength(2);
     expect(JSON.stringify(order)).not.toMatch(/실제 배정 옵션|다른 배정 옵션|v-assigned/);
-    expect(records.find((record) => record.table === 'orders')?.select).toBe('id,order_number,user_id,status,total,created_at,payment_method,calculation_version');
+    expect(records.find((record) => record.table === 'orders')?.select).toBe('id,order_number,user_id,status,total,created_at,payment_method');
     expect(records.find((record) => record.table === 'order_items')?.select)
       .toBe('id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode,variant_id,variant_name_snapshot');
     expect(records.find((record) => record.table === 'goods')?.in).toEqual([['id', ['g1', 'g2']]]);
     expect(records.find((record) => record.table === 'ips')?.in).toEqual([['id', ['ip-1']]]);
   });
 
-  it('v2 주문만 거래 영수증을 읽어 구매가(복수구매 할인 반영)와 정가를 붙인다', async () => {
+  it('정가·복수구매 할인은 배치 RPC 한 번으로 읽어 구매가(복수구매 할인 반영)와 정가를 붙인다. 주문별 영수증 RPC는 부르지 않는다', async () => {
     const rpcCalls: string[] = [];
-    const receipt = { orderId, quoteId: transactionQuoteId, display: transactionDisplay };
-    mocks.client = createClient({ records: [], rpcCalls, receipt, rows: lineRows({
-      orders: [{ id: orderId, user_id: userId, status: 'paid', total: 16000, created_at: '2026-07-14T06:00:00.000Z', calculation_version: 2 }],
-      order_items: [{ id: transactionLineId, order_id: orderId, good_id: 'transaction-good', variant_id: transactionDisplay.lines[0].variantId, variant_name_snapshot: '기본 옵션', qty: 2, unit_price: 10000, good_name_snapshot: '복수구매 굿즈' }],
+    const records: QueryRecord[] = [];
+    const secondOrderId = '8be5d078-4e59-4f8b-a776-75842bd44073';
+    mocks.client = createClient({ records, rpcCalls, rows: lineRows({
+      orders: [
+        { id: orderId, user_id: userId, status: 'paid', total: 16000, created_at: '2026-07-14T06:00:00.000Z' },
+        { id: secondOrderId, user_id: userId, status: 'paid', total: 18000, created_at: '2026-07-13T06:00:00.000Z' },
+      ],
+      order_items: [
+        { id: transactionLineId, order_id: orderId, good_id: 'transaction-good', variant_id: transactionDisplay.lines[0].variantId, variant_name_snapshot: '기본 옵션', qty: 2, unit_price: 10000, good_name_snapshot: '복수구매 굿즈' },
+        { id: 'item-b', order_id: secondOrderId, good_id: 'g1', variant_id: 'v1', variant_name_snapshot: '파랑', qty: 2, unit_price: 9000, good_name_snapshot: '아크릴 스탠드' },
+      ],
+      item_display: [
+        { id: transactionLineId, regular_unit_price: 10000, volume_unit_discount: 1000, active_qty: 2 },
+        { id: 'item-b', regular_unit_price: 9000, volume_unit_discount: 0, active_qty: 2 },
+      ],
+    }) });
+
+    const orders = await loadOrders(userId, { withLines: true });
+
+    /* 주문이 둘이어도 배치 RPC는 한 번이고, 주문별 영수증 RPC는 없다. */
+    expect(rpcCalls.filter((name) => name === 'my_order_item_display')).toHaveLength(1);
+    expect(rpcCalls).not.toContain('get_my_goods_transaction_receipt');
+    expect(records.find((record) => record.rpc === 'my_order_item_display')?.select).toBe('id:item_id,regular_unit_price,volume_unit_discount,active_qty');
+    /* (10000 − 1000) × 2 = 18000 구매가, 10000 × 2 = 20000 정가. 기본 옵션은 줄에서 숨기는 이름이라 값은 남고 화면이 감춘다. */
+    expect(orders[0].lines?.[0]).toMatchObject({ name: '복수구매 굿즈', optionName: '기본 옵션', qty: 2, purchaseAmount: 18000, regularAmount: 20000 });
+    expect(orders[0].lines?.[0]).not.toHaveProperty('canceledQty');
+    /* 구매가와 정가가 같은 줄은 숫자 하나로 보인다(값은 둘 다 남는다). */
+    expect(orders[1].lines?.[0]).toMatchObject({ purchaseAmount: 18000, regularAmount: 18000 });
+  });
+
+  it('부분 취소가 있으면 남은 수량과 그 수량의 금액을 담고 취소 수량을 따로 알린다. 전부 취소되면 수량 0에 금액이 없다', async () => {
+    mocks.client = createClient({ records: [], rows: lineRows({
+      item_display: [
+        { id: 'item-1', regular_unit_price: 20000, volume_unit_discount: 2000, active_qty: 1 },
+        { id: 'item-2', regular_unit_price: 18000, volume_unit_discount: 0, active_qty: 0 },
+      ],
     }) });
 
     const [order] = await loadOrders(userId, { withLines: true });
 
-    expect(rpcCalls.filter((name) => name === 'get_my_goods_transaction_receipt')).toHaveLength(1);
-    /* (10000 − 1000) × 2 = 18000 구매가, 10000 × 2 = 20000 정가. 기본 옵션은 줄에서 숨기는 이름이라 값은 남고 화면이 감춘다. */
-    expect(order.lines?.[0]).toMatchObject({ name: '복수구매 굿즈', optionName: '기본 옵션', purchaseAmount: 18000, regularAmount: 20000 });
+    /* item-1: 주문 2개 중 1개가 남았다 → (18000 − 2000) × 1 구매가, 20000 × 1 정가. */
+    expect(order.lines?.[0]).toMatchObject({ key: 'item-1', qty: 1, canceledQty: 1, purchaseAmount: 16000, regularAmount: 20000 });
+    /* item-2(랜덤 판매 합친 줄 2개): 전부 취소 → 0개, 취소 2개, 가격 없음. */
+    expect(order.lines?.[1]).toMatchObject({ key: 'item-2', qty: 0, canceledQty: 2, purchaseAmount: null, regularAmount: null });
+    /* 목록 요약(첫 굿즈 외 N건)은 주문 당시 품목 수량(2 + 2) 그대로다. */
+    expect(order.itemCount).toBe(4);
   });
 
-  it('v1 주문은 영수증을 읽지 않는다', async () => {
+  it('배치 RPC가 실패해도 목록은 스냅샷 줄(주문 단가 × 주문 수량)로 그대로 돌아온다', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.client = createClient({ records: [], rows: lineRows(), errors: { item_display: 'boom' } });
+
+    const [order] = await loadOrders(userId, { withLines: true });
+
+    expect(order.lines).toMatchObject([
+      { key: 'item-1', qty: 2, purchaseAmount: 36000, regularAmount: null },
+      { key: 'item-2', qty: 2, purchaseAmount: 36000, regularAmount: null },
+    ]);
+    expect(order.lines?.[0]).not.toHaveProperty('canceledQty');
+    expect(errorSpy).toHaveBeenCalledWith('[orders] line enrichment failed', 'item_display:unknown');
+    errorSpy.mockRestore();
+  });
+
+  it('v1 주문(배치 RPC가 정가 null을 준 줄)은 주문 단가 × 수량 숫자 하나다', async () => {
     const rpcCalls: string[] = [];
-    mocks.client = createClient({ records: [], rpcCalls, rows: lineRows() });
-    await loadOrders(userId, { withLines: true });
+    mocks.client = createClient({ records: [], rpcCalls, rows: lineRows({
+      item_display: [{ id: 'item-1', regular_unit_price: null, volume_unit_discount: 0, active_qty: 2 }],
+    }) });
+    const [order] = await loadOrders(userId, { withLines: true });
     expect(rpcCalls).not.toContain('get_my_goods_transaction_receipt');
+    expect(order.lines?.[0]).toMatchObject({ qty: 2, purchaseAmount: 36000, regularAmount: null });
   });
 
   it('withLines가 아니면 굿즈·IP를 읽지 않고 lines 키도 없다(마이페이지 요약은 비용이 늘지 않는다)', async () => {

@@ -252,7 +252,8 @@ function snapshotOrderLine(item: RemainingOrderItem, receipt: OrderDetailData['t
 
 /**
  * 주문 상세 품목 줄. 읽기 모델의 줄을 쓰되, IP명이 없으면 굿즈 유형을 그 자리에 보이고(스펙 2-3), 부분 취소(재고 부족)가 있으면
- * 남은 수량과 그 수량의 금액을 보인다 — 취소된 몫은 줄 아래 `N개 취소됨`이 따로 말한다.
+ * 남은 수량과 그 수량의 금액을 보인다 — 취소된 몫은 줄 아래 `N개 취소됨`으로 따로 적고(`canceledQty`), 전부 취소됐으면
+ * `0개`와 가격 없이 그것만 보인다(주문내역 카드와 같은 `OrderLineItem`).
  */
 function displayedOrderLine(item: RemainingOrderItem, linesByKey: ReadonlyMap<string, OrderLineView>, receipt: OrderDetailData['transaction']): OrderLineView {
   const base = linesByKey.get(item.id) ?? snapshotOrderLine(item, receipt);
@@ -261,6 +262,7 @@ function displayedOrderLine(item: RemainingOrderItem, linesByKey: ReadonlyMap<st
   return {
     ...line,
     qty: item.qty,
+    canceledQty: item.canceledQty,
     purchaseAmount: scaleLineAmount(base.purchaseAmount, base.qty, item.qty),
     regularAmount: scaleLineAmount(base.regularAmount, base.qty, item.qty),
   };
@@ -480,12 +482,11 @@ export function OrderDetail({
           </div>
 
           <div className="order-detail-items">
-            {/* 주문내역 카드와 같은 품목 줄이다(MD-0036·0037). 직접 입력 옵션 요약과 부분 취소 수량은 줄 아래에 둔다. */}
+            {/* 주문내역 카드와 같은 품목 줄이다(MD-0036·0037). 부분 취소 수량은 줄이 그리고, 직접 입력 옵션 요약은 줄 아래에 둔다. */}
             {itemLines.map(({ item, line }) => (
               <article className="order-detail-item" key={item.id}>
                 <OrderLineItem line={line}>
                   <GoodsCustomInputsSummary selection={item.customInputs} />
-                  {item.canceledQty > 0 ? <small className="wc-order-line__canceled" data-order-item-canceled={item.canceledQty}>{item.canceledQty}개 취소됨</small> : null}
                 </OrderLineItem>
               </article>
             ))}

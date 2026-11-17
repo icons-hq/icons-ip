@@ -59,7 +59,8 @@
 }
 
 .wc-receipt .wc-order-line__option,
-.wc-receipt .wc-order-line__qty {
+.wc-receipt .wc-order-line__qty,
+.wc-receipt .wc-order-line__canceled {
   font-size: 12.5px;
   line-height: 1.4;
   color: var(--wc-ink-tertiary);

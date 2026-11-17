@@ -113,6 +113,49 @@ describe('buildOrderLines 영수증 줄 매칭', () => {
   });
 });
 
+describe('buildOrderLines 배치 표시값(my_order_item_display)', () => {
+  const display = (value: { regularUnitPrice: number | null; volumeUnitDiscount: number | null; activeQty: number }, lineId = transactionLineId) => new Map([[lineId, value]]);
+
+  it('정가·복수구매 단가 할인이 있으면 (주문 단가 − 할인) × 수량이 구매가, 정가 × 수량이 제품 가격이다. 영수증이 없어도 된다', () => {
+    const [line] = build({ receipt: null, display: display({ regularUnitPrice: 12000, volumeUnitDiscount: 1000, activeQty: 2 }) });
+    expect(line).toMatchObject({ qty: 2, purchaseAmount: 18000, regularAmount: 24000 });
+    expect(line).not.toHaveProperty('canceledQty');
+  });
+
+  it('정가가 null이면(v1·배정 행 정가 불일치) 주문 단가 × 수량 숫자 하나다', () => {
+    const [line] = build({ receipt: null, display: display({ regularUnitPrice: null, volumeUnitDiscount: 0, activeQty: 2 }) });
+    expect(line).toMatchObject({ qty: 2, purchaseAmount: 20000, regularAmount: null });
+  });
+
+  it('부분 취소: 남은 수량 기준으로 금액을 계산하고 취소된 수량을 canceledQty로 담는다', () => {
+    const [line] = build({ items: [item({ qty: 3 })], receipt: null, display: display({ regularUnitPrice: 12000, volumeUnitDiscount: 1000, activeQty: 2 }) });
+    expect(line).toMatchObject({ qty: 2, canceledQty: 1, purchaseAmount: 18000, regularAmount: 24000 });
+  });
+
+  it('전부 취소되면 수량 0·취소 수량은 원래 수량이고 가격을 지어내지 않는다', () => {
+    const [line] = build({ receipt: null, display: display({ regularUnitPrice: 12000, volumeUnitDiscount: 1000, activeQty: 0 }) });
+    expect(line).toMatchObject({ qty: 0, canceledQty: 2, purchaseAmount: null, regularAmount: null });
+  });
+
+  it('남은 수량이 주문 수량을 넘거나 음수면 주문 수량·0으로 접는다', () => {
+    expect(build({ receipt: null, display: display({ regularUnitPrice: null, volumeUnitDiscount: 0, activeQty: 9 }) })[0]).toMatchObject({ qty: 2 });
+    expect(build({ receipt: null, display: display({ regularUnitPrice: null, volumeUnitDiscount: 0, activeQty: -1 }) })[0]).toMatchObject({ qty: 0, canceledQty: 2 });
+  });
+
+  it('배치 값이 있으면 영수증 줄 매칭보다 앞서고, 그 줄의 값이 없으면 영수증 매칭으로 물러난다', () => {
+    const other = new Map([['other-line', { regularUnitPrice: 99999, volumeUnitDiscount: 0, activeQty: 1 }]]);
+    /* 이 품목의 배치 값이 없으면 영수증 줄 매칭(① lineId)을 그대로 쓴다. */
+    expect(build({ display: other })[0]).toMatchObject({ qty: 2, purchaseAmount: 18000, regularAmount: 20000 });
+    /* 배치 값이 있으면 영수증 값(정가 10,000)이 아니라 배치 값(정가 15,000)을 쓴다. */
+    expect(build({ display: display({ regularUnitPrice: 15000, volumeUnitDiscount: 0, activeQty: 2 }) })[0]).toMatchObject({ purchaseAmount: 20000, regularAmount: 30000 });
+  });
+
+  it('주문 단가가 없는 품목은 구매가를 지어내지 않는다', () => {
+    const [line] = build({ items: [item({ unitPrice: null })], receipt: null, display: display({ regularUnitPrice: 12000, volumeUnitDiscount: 0, activeQty: 2 }) });
+    expect(line).toMatchObject({ purchaseAmount: null, regularAmount: 24000 });
+  });
+});
+
 describe('buildOrderLines 썸네일·IP명', () => {
   it('굿즈 이미지 경로를 이미지 URL 배경으로 만들고 IP명을 붙인다', () => {
     expect(build()[0]).toMatchObject({ ipName: '홍실', thumbnail: 'url("https://cdn.example/goods/a.webp") center / cover no-repeat', adultMasked: false });
