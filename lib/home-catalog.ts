@@ -20,6 +20,11 @@ export const HOME_CURATION_IMAGE_PATTERN =
 const AMBIGUOUS_LINK_CHARACTER_PATTERN =
   /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
 
+/* 점 조각 경로는 파서가 접어 원문 검사를 통과한 값도 `//외부호스트`(스킴 상대 URL)로 바뀐다(`/..//evil.example`). 가짜 기준 주소로 정규화한 뒤의 경로를
+   보고, 경로 안의 `.`·`..` 조각(`%2e` 포함)은 정규화 전에 거절한다 — `safeNextPath`(lib/auth/onboarding.ts)와 같은 규칙이다. */
+const INTERNAL_LINK_BASE = 'https://icons.local';
+const LINK_PATH_WHITESPACE_PATTERN = /\s/u;
+
 export function isSafeInternalLink(value: string) {
   const characterLength = Array.from(value).length;
   if (
@@ -35,12 +40,26 @@ export function isSafeInternalLink(value: string) {
 
   try {
     const decoded = decodeURIComponent(value);
-    return (
-      decoded.startsWith('/')
-      && !decoded.startsWith('//')
-      && !decoded.includes('\\')
-      && !AMBIGUOUS_LINK_CHARACTER_PATTERN.test(decoded)
-    );
+    if (
+      !decoded.startsWith('/')
+      || decoded.startsWith('//')
+      || decoded.includes('\\')
+      || AMBIGUOUS_LINK_CHARACTER_PATTERN.test(decoded)
+    ) {
+      return false;
+    }
+
+    /* 공백·점 조각은 경로(쿼리·해시 앞)만 본다 — 쿼리의 공백은 브라우저가 인코딩해 열리고, 기존 운영 링크를 숨기지 않는다. */
+    const pathEnd = value.search(/[?#]/);
+    const rawPath = pathEnd === -1 ? value : value.slice(0, pathEnd);
+    if (LINK_PATH_WHITESPACE_PATTERN.test(rawPath)) return false;
+    if (decodeURIComponent(rawPath).split('/').some((segment) => segment === '.' || segment === '..')) return false;
+
+    /* 원문과 한 번 푼 값 둘 다 정규화한다 — 두 번 인코딩한 점 조각(`%252e%252e//`)은 한 번 풀면 `%2e%2e//` 가 되어 다음 소비자가 접는다. */
+    return [value, decoded].every((candidate) => {
+      const url = new URL(candidate, INTERNAL_LINK_BASE);
+      return url.origin === INTERNAL_LINK_BASE && !url.pathname.startsWith('//') && !url.pathname.includes('\\');
+    });
   } catch {
     return false;
   }

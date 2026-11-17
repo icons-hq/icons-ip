@@ -128,6 +128,9 @@ describe('셸 공지 캐시 읽기', () => {
       bar('long', { title: '가'.repeat(61) }),
       bar('control', { title: '배송\n공지' }),
       bar('unsafe', { link_path: '//outside' }),
+      /* 점 조각은 파서가 접어 `//외부호스트`가 된다 — 공지 바 버튼·스트립 링크 모두 거절한다. */
+      bar('dot-segments', { link_path: '/..//outside' }),
+      strip('strip-dot-segments', { link_path: '/.//outside' }),
       bar('with-image', { image_path: IMAGE }),
       strip('strip-bad-target', { payload: { page_types: [] } }),
       strip('strip-no-image', { image_path: null }),

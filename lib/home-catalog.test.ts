@@ -13,6 +13,7 @@ import {
   readHomeGoodsSelection,
   resolveHomeLatestGoodsCards,
   resolveHomeGoodsCards,
+  isSafeInternalLink,
   withoutCommunityCurations,
   withoutCardRewardCurations,
   type HomeCurationSnapshot,
@@ -482,5 +483,29 @@ describe('홈 스트립 배너 게이트', () => {
     expect(withoutCardRewardCurations(base)).not.toHaveProperty('stripBanner');
     expect(withoutCommunityCurations(base)).not.toHaveProperty('stripBanner');
     expect(withoutCommunityCurations({ ...base, stripBanner: null }).stripBanner).toBeNull();
+  });
+});
+
+/* 개편 리뷰(review-c m2) — 점 조각 경로는 파서가 접어 `//외부호스트`가 된다. 정규화 뒤의 경로를 보고, `safeNextPath` 와 같은 규칙으로 맞춘다. */
+describe('isSafeInternalLink', () => {
+  it('keeps ordinary in-site links, including queries, hashes and dotted file names', () => {
+    for (const link of ['/', '/shop', '/shop/new', '/shop?ip=maple&type=%ED%82%A4%EB%A7%81', '/events/e1#top', '/ip/maple-story',
+      '/legal/terms.html', '/a/.hidden', '/a/..foo', '/shop?next=/../x', '/search?q=귀여운 굿즈', '/shop/%EA%B5%BF%EC%A6%88']) {
+      expect(isSafeInternalLink(link), link).toBe(true);
+    }
+  });
+
+  it('rejects dot segments that the URL parser folds into a scheme-relative `//host` (and the encoded forms)', () => {
+    for (const link of ['/..//evil.example', '/.//evil.example', '/%2e%2e//evil.example', '/%2E%2E//evil.example', '/a/..//evil.example',
+      '/.%2e//evil.example', '/%252e%252e//evil.example', '/a/./b', '/a/../b', '/a/..', '/a/.', '/a/%2e', '/%2e/x']) {
+      expect(isSafeInternalLink(link), link).toBe(false);
+    }
+  });
+
+  it('rejects protocol-relative, backslash, whitespace-in-path and control characters', () => {
+    for (const link of ['//evil.example', '/%2F%2Fevil.example', '/\\evil.example', '/%5Cevil.example', '/a b', '/a\u00a0b', '/a\u3000b',
+      '/a\tb', '/a\nb', 'https://evil.example', 'javascript:alert(1)', 'shop', '', '/%']) {
+      expect(isSafeInternalLink(link), JSON.stringify(link)).toBe(false);
+    }
   });
 });
