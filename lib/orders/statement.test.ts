@@ -193,6 +193,27 @@ describe('buildOrderStatement 합계 표', () => {
     expect(get('total')).toBe(display.totals.onlineTotal);
   });
 
+  it('설치비가 있으면 배송비 행 이름이 `배송·설치비`이고 금액·합계 산술은 그대로다', () => {
+    /* 배송비 3,000 + 설치비 20,000 = 선결제 23,000. 굿즈 20,000 → 총 결제 43,000. */
+    const [group] = transactionDisplay.shipping;
+    const display: GoodsTransactionDisplay = {
+      ...transactionDisplay,
+      totals: { subtotal: 20000, volumeDiscountTotal: 0, netGoodsTotal: 20000, couponDiscountTotal: 0, storeCreditTotal: 0, prepaidShippingTotal: 23000, collectShippingTotal: 0, onlineTotal: 43000, customerTotal: 43000 },
+      shipping: [{ ...group, components: group.components.map((component, index) => (index === 0 ? { ...component, paymentMode: 'prepaid' as const, baseFee: 3000, regionalFee: 0, totalFee: 23000, installationFee: 20000 } : component)) }],
+    };
+    const model = build(v2Order(display));
+    expect(model.totals.find((row) => row.key === 'shipping')).toEqual({ key: 'shipping', label: '배송·설치비', amount: 23000, kind: 'plain' });
+    const get = (key: StatementTotalRow['key']) => amountOf(model.totals, key) ?? 0;
+    expect(get('goods') - get('volume') - get('coupon') - get('credit') + get('shipping')).toBe(get('total'));
+    /* 설치비가 없으면(0 포함) 그대로 `배송비`다. */
+    for (const installationFee of [undefined, 0]) {
+      const plain: GoodsTransactionDisplay = { ...display, shipping: [{ ...group, components: group.components.map((component) => ({ ...component, installationFee })) }] };
+      expect(build(v2Order(plain)).totals.find((row) => row.key === 'shipping')?.label).toBe('배송비');
+    }
+    /* v1 주문(영수증 없음)에는 설치비가 없다. */
+    expect(build(order({ total: 25000, shippingFee: 3000, discountTotal: 3000, storeCreditTotal: 2000 })).totals.find((row) => row.key === 'shipping')?.label).toBe('배송비');
+  });
+
   it('v2: 복수구매·쿠폰·적립금이 모두 0이면 해당 행이 없다', () => {
     const display: GoodsTransactionDisplay = {
       ...transactionDisplay,

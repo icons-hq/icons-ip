@@ -140,6 +140,11 @@ function statementAmounts(order: OrderDetail): StatementAmounts {
   };
 }
 
+/** 선결제 배송비 합에 섞인 설치비. 주문 영수증의 배송 묶음 구성요소 설치비 합이다(v1은 설치비가 없다). */
+function installationFeeTotal(order: OrderDetail): number {
+  return (order.transaction?.shipping ?? []).reduce((sum, group) => sum + group.components.reduce((inner, component) => inner + (component.installationFee ?? 0), 0), 0);
+}
+
 export function buildOrderStatement(input: BuildOrderStatementInput): OrderStatementModel {
   const { order, orderer } = input;
   const amounts = statementAmounts(order);
@@ -149,7 +154,8 @@ export function buildOrderStatement(input: BuildOrderStatementInput): OrderState
   if (amounts.volume > 0) totals.push({ key: 'volume', label: '복수구매 할인', amount: amounts.volume, kind: 'deduction' });
   if (amounts.coupon > 0) totals.push({ key: 'coupon', label: '쿠폰 할인', amount: amounts.coupon, kind: 'deduction' });
   if (amounts.credit > 0) totals.push({ key: 'credit', label: '적립금 사용', amount: amounts.credit, kind: 'deduction' });
-  totals.push({ key: 'shipping', label: '배송비', amount: amounts.shipping, kind: 'plain' });
+  /* 선결제 배송비에 설치비가 섞여 있으면 행 이름이 그것을 말한다 — 금액·합계 산술은 그대로다(주문 상세의 '선결제 배송·설치비'와 같은 말). */
+  totals.push({ key: 'shipping', label: installationFeeTotal(order) > 0 ? '배송·설치비' : '배송비', amount: amounts.shipping, kind: 'plain' });
   totals.push({ key: 'total', label: '총 결제 금액', amount: amounts.total, kind: 'total' });
   if (partialRefund > 0) {
     totals.push({ key: 'partial_refund', label: '부분 취소 환불', amount: partialRefund, kind: 'deduction' });
