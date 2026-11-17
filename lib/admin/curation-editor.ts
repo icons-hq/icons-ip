@@ -44,7 +44,7 @@ export const NOTICE_PAGE_TYPE_LABELS: Record<ShellNoticePageType, string> = {
   home: '홈',
   collection: '상품 목록(굿즈샵·NEW·BEST·IP관)',
   product: '상품 상세',
-  content: '쇼핑스토리·이벤트',
+  content: '쇼핑스토리·EVENT·POP-UP',
   other: '그 밖의 화면(검색·장바구니·마이 등)',
 };
 

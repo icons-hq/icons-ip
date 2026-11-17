@@ -41,6 +41,13 @@ describe('admin curation form normalization', () => {
       expect(normalizeAdminCurationForm(curationForm({ ...base, ...value }))).toMatchObject({ ok: false });
     }
   });
+  it('names all three designs, grid included, when the product-collection design is missing or unknown', () => {
+    const base = { kind: 'product_collection', title: '모음', imagePath: '', linkPath: '', productLayout: 'list', productImageShape: 'portrait', productItemCount: '3', goodIds: 'g1' };
+    for (const productLayout of ['', 'carousel']) {
+      expect(normalizeAdminCurationForm(curationForm({ ...base, productLayout })))
+        .toMatchObject({ ok: false, errors: { productLayout: '리스트형·풀이미지형·그리드형 중 하나를 선택해주세요.' } });
+    }
+  });
   it('프로모션 배너만 제목·내용과 링크를 비울 수 있다', () => {
     expect(normalizeAdminCurationForm(curationForm({ title: '', subtitle: '', linkPath: '', altEnabled: 'on', altTitle: '', altContent: '' })))
       .toMatchObject({ ok: true, value: { title: '', linkPath: null, payload: { alt_enabled: true } } });
