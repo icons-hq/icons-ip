@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CATEGORY_MEGA_GROUPS, CATEGORY_SHEET_SHORTCUTS, hrefFor, STOREFRONT_MENU_ITEMS } from './routes';
-import { configuredNavigationGroups, DEFAULT_STORE_NAVIGATION, DEFAULT_STOREFRONT_NAVIGATION, parseStorefrontNavigation, parseStoreNavigation, resolveStorefrontNavigation, storefrontNavigation, storeMenuSheetGroups } from './store-navigation';
+import { configuredNavigationGroups, DEFAULT_STORE_NAVIGATION, DEFAULT_STOREFRONT_NAVIGATION, parseStorefrontNavigation, parseStoreNavigation, resolveStorefrontNavigation, storefrontNavigation, storeMenuSheetGroups, type StorefrontNavigation } from './store-navigation';
 
 describe('공개 메뉴 설정 계약', () => {
   it('고정 9개 ID를 정확히 한 번 보존하고 실제 경로만 연결한다', () => {
@@ -73,7 +73,7 @@ describe('X SQUARE 기본 메뉴', () => {
 
   /* MD-0035 "카테고리에 쇼핑스토리 항목 삭제": GNB·모바일 탭·카테고리 시트 바로가기·전체 메뉴 시트에서 한 번에 빠진다(/stories 화면 자체는 남는다). */
   it('쇼핑스토리는 기본 메뉴의 GNB·카테고리 시트 바로가기·전체 메뉴 시트 어디에도 나오지 않고, 운영자가 켜면 모두에 돌아온다', () => {
-    const idsOf = (navigation: Array<{ id: string; label: string }>) => {
+    const idsOf = (navigation: StorefrontNavigation) => {
       const items = resolveStorefrontNavigation(navigation, true, true);
       return {
         gnb: items.map(item => item.id),

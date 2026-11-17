@@ -24,6 +24,7 @@ const summer: CampaignSummary = {
   endsAt: '2026-08-31T14:59:00.000Z',
   status: 'published',
   displayState: 'ongoing',
+  presentation: null,
 };
 
 beforeEach(() => {
