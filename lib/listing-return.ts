@@ -29,7 +29,8 @@ const RESOLVE_BASE = 'https://listing-return.invalid';
 const SHOP_FILTER_KEYS = ['category', 'ip', 'type', 'min', 'max', 'sort'] as const;
 const LISTING_STATE_KEYS = {
   shop: ['displayCategory', ...SHOP_FILTER_KEYS],
-  collection: SHOP_FILTER_KEYS,
+  /* BEST 의 기간 탭(실시간·일간·주간·월간)도 목록 상태다 — parseListingSearchParams(lib/shop-catalog)가 읽는 `period`. */
+  collection: [...SHOP_FILTER_KEYS, 'period'],
   search: ['q', ...SHOP_FILTER_KEYS, 'page'],
   ip: ['category', 'type', 'min', 'max', 'sort'],
 } as const satisfies Record<string, readonly string[]>;
