@@ -13,9 +13,12 @@ create function pg_temp.cid(n integer) returns uuid language sql immutable as $$
 -- 앱이 만드는 base64url HMAC 다이제스트(43자)와 같은 모양의 고정값.
 create function pg_temp.d(label text) returns text language sql immutable as $$
  select rpad(regexp_replace(label,'[^A-Za-z0-9_-]','_','g'),43,'x') $$;
+-- 회원마다 방금 만든 로그인 세션 하나(id는 회원 번호에 결속).
+create function pg_temp.sid(n integer) returns uuid language sql immutable as $$
+ select ('e1170003-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid $$;
 create function pg_temp.issue(n_user integer, n_challenge integer, email text, ip_digest text, code text)
 returns jsonb language sql as $$
- select public.service_issue_member_email_change(pg_temp.cid(n_challenge), pg_temp.uid(n_user), email,
+ select public.service_issue_member_email_change(pg_temp.cid(n_challenge), pg_temp.uid(n_user), pg_temp.sid(n_user), email,
   pg_temp.d('mail '||email), case when ip_digest is null then null else pg_temp.d(ip_digest) end, pg_temp.d('code '||code), 600) $$;
 create function pg_temp.verify(n_user integer, n_challenge integer, code text) returns jsonb language sql as $$
  select public.service_verify_member_email_change(pg_temp.cid(n_challenge), pg_temp.uid(n_user), pg_temp.d('code '||code)) $$;
@@ -31,20 +34,21 @@ create function pg_temp.age_challenges(seconds integer) returns void language sq
    resolved_at = resolved_at - make_interval(secs => seconds) $$;
 
 -- 1~4: Apple 릴레이 주소, 5: 일반 이메일, 6: 이미 다른 회원이 쓰는 주소의 주인
-insert into auth.users(id,aud,role,email,email_confirmed_at,last_sign_in_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select pg_temp.uid(n),'authenticated','authenticated',
   case when n<=4 then 'relay'||n||'@privaterelay.appleid.com' when n=5 then 'member-mail-5@example.test' else 'taken@example.test' end,
-  now(),now(),'{}','{}',now(),now()
+  now(),'{}','{}',now(),now()
  from generate_series(1,6) n;
+insert into auth.sessions(id,user_id,created_at,updated_at) select pg_temp.sid(n),pg_temp.uid(n),now(),now() from generate_series(1,6) n;
 update public.profiles set nickname='TEST 메일'||right(id::text,2), birth_date='1990-01-01',
  consents='{"terms":true,"privacy":true}', onboarded_at=now() where id::text like 'e1170000-%';
 
 -- 봉인: 표는 어느 API 롤에도 열리지 않고, 서비스 RPC는 service_role에만 열린다.
 select 1/case when not has_table_privilege('authenticated','private.member_email_change_challenges','select')
  and not has_table_privilege('service_role','private.member_email_change_challenges','select')
- and has_function_privilege('service_role','public.service_issue_member_email_change(uuid,uuid,text,text,text,text,integer)','execute')
- and not has_function_privilege('authenticated','public.service_issue_member_email_change(uuid,uuid,text,text,text,text,integer)','execute')
- and not has_function_privilege('anon','public.service_issue_member_email_change(uuid,uuid,text,text,text,text,integer)','execute')
+ and has_function_privilege('service_role','public.service_issue_member_email_change(uuid,uuid,uuid,text,text,text,text,integer)','execute')
+ and not has_function_privilege('authenticated','public.service_issue_member_email_change(uuid,uuid,uuid,text,text,text,text,integer)','execute')
+ and not has_function_privilege('anon','public.service_issue_member_email_change(uuid,uuid,uuid,text,text,text,text,integer)','execute')
  and has_function_privilege('service_role','public.service_verify_member_email_change(uuid,uuid,text)','execute')
  and not has_function_privilege('authenticated','public.service_verify_member_email_change(uuid,uuid,text)','execute')
  and has_function_privilege('service_role','public.service_fail_member_email_change(uuid,uuid)','execute')
@@ -64,10 +68,16 @@ select 1/case when not exists(select 1 from private.member_email_change_challeng
 select 1/case when pg_temp.issue(1, 2, 'another@privaterelay.appleid.com', null, '111111')->>'reason'='email_unusable' then 1 else 0 end as assert_relay_target_refused;
 select 1/case when pg_temp.issue(1, 3, 'relay1@privaterelay.appleid.com', null, '111111')->>'reason'='email_unusable' then 1 else 0 end as assert_same_relay_refused;
 
--- 최근 30분 안에 로그인하지 않은 세션은 다시 로그인해야 한다(세션만 가로채서는 바꾸지 못한다).
-update auth.users set last_sign_in_at=now()-interval '31 minutes' where id=pg_temp.uid(1);
-select 1/case when pg_temp.issue(1, 4, 'real1@example.test', null, '111111')->>'reason'='reauthentication_required' then 1 else 0 end as assert_recent_sign_in_required;
+-- 요청한 세션 자체가 30분 안에 만들어져야 한다. 계정의 다른 세션이 방금 로그인했어도(last_sign_in_at) 오래된 세션은 통과하지 못하고,
+-- 다른 회원의 세션 id로도 통과하지 못한다(세션만 가로채서는 바꾸지 못한다).
+update auth.sessions set created_at=now()-interval '31 minutes' where id=pg_temp.sid(1);
 update auth.users set last_sign_in_at=now() where id=pg_temp.uid(1);
+select 1/case when pg_temp.issue(1, 4, 'real1@example.test', null, '111111')->>'reason'='reauthentication_required' then 1 else 0 end as assert_stale_session_refused;
+select 1/case when public.service_issue_member_email_change(pg_temp.cid(5), pg_temp.uid(1), pg_temp.sid(2), 'real1@example.test',
+ pg_temp.d('mail real1@example.test'), null, pg_temp.d('code 111111'), 600)->>'reason'='reauthentication_required' then 1 else 0 end as assert_foreign_session_refused;
+select pg_temp.mail_error(format('select public.service_issue_member_email_change(%L,%L,null,%L,%L,null,%L,600)', pg_temp.cid(6), pg_temp.uid(1),
+ 'real1@example.test', pg_temp.d('mail real1@example.test'), pg_temp.d('code 111111')), 'invalid_member_email_change');
+update auth.sessions set created_at=now() where id=pg_temp.sid(1);
 
 -- 정상 요청 → 60초 안 재요청은 대기 → 틀린 코드는 남은 횟수 → 맞는 코드는 새 주소를 돌려주고 원문을 지운다.
 select pg_temp.keep('issued', pg_temp.issue(1, 10, 'real1@example.test', 'ip a', '123456'));

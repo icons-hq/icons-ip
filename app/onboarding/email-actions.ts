@@ -44,11 +44,18 @@ async function requestIp(): Promise<string | null> {
   return ip && ip.length <= 64 ? ip : null;
 }
 
-async function currentUserId(): Promise<string | null> {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* 서명 검증한 JWT(getClaims)에서 회원과 세션을 읽는다. 세션 id는 '요청한 세션이 최근 로그인인지'를 DB가 판정하는 데 쓴다 —
+   계정 전체의 마지막 로그인 시각은 다른 브라우저의 로그인으로 오래된 세션이 통과하므로 쓰지 않는다. */
+async function currentIdentity(): Promise<{ userId: string; sessionId: string } | null> {
   if (!getSupabaseConfig().isConfigured) return null;
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
-  return error || !data.user ? null : data.user.id;
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims as { sub?: unknown; session_id?: unknown } | undefined;
+  if (error || !claims || typeof claims.sub !== 'string' || !UUID.test(claims.sub)) return null;
+  if (typeof claims.session_id !== 'string' || !UUID.test(claims.session_id)) return null;
+  return { userId: claims.sub, sessionId: claims.session_id };
 }
 
 export async function requestEmailChangeCodeAction(
@@ -57,11 +64,11 @@ export async function requestEmailChangeCodeAction(
 ): Promise<EmailChangeActionState> {
   const config = emailChangeConfig();
   if (!config) return { errors: { form: UNAVAILABLE } };
-  const userId = await currentUserId();
-  if (!userId) return { errors: { form: LOGIN_REQUIRED } };
+  const identity = await currentIdentity();
+  if (!identity) return { errors: { form: LOGIN_REQUIRED } };
 
   try {
-    const result = await requestEmailChangeCode({ userId, email: readString(formData, 'email'), ip: await requestIp() }, { config });
+    const result = await requestEmailChangeCode({ ...identity, email: readString(formData, 'email'), ip: await requestIp() }, { config });
     if (!result.ok) return { errors: { [result.field]: result.error } };
     return {
       stage: 'code_sent',
@@ -80,8 +87,9 @@ export async function verifyEmailChangeCodeAction(
 ): Promise<EmailChangeActionState> {
   const config = emailChangeConfig();
   if (!config) return { errors: { form: UNAVAILABLE } };
-  const userId = await currentUserId();
-  if (!userId) return { errors: { form: LOGIN_REQUIRED } };
+  const identity = await currentIdentity();
+  if (!identity) return { errors: { form: LOGIN_REQUIRED } };
+  const { userId } = identity;
 
   const challengeId = readString(formData, 'challengeId');
   const email = readString(formData, 'email').slice(0, 254) || state.email;

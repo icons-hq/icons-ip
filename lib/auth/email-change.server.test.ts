@@ -22,6 +22,7 @@ vi.mock('@/lib/supabase/service', () => ({
 const SECRET = 'email-dispatch-hmac-test-secret-0123456789';
 const USER_ID = '00000000-0000-4000-8000-000000000701';
 const CHALLENGE_ID = '22222222-2222-4222-8222-222222222222';
+const SESSION_ID = '33333333-3333-4333-8333-333333333333';
 
 function sender(ok = true) {
   const sent: EmailChangeMessage[] = [];
@@ -103,12 +104,12 @@ describe('requestEmailChangeCode', () => {
     const { rpc, client } = service({ service_issue_member_email_change: { data: { ok: true }, error: null } });
 
     await expect(requestEmailChangeCode(
-      { userId: USER_ID, email: ' Real@Example.com ', ip: '203.0.113.9' },
+      { userId: USER_ID, sessionId: SESSION_ID, email: ' Real@Example.com ', ip: '203.0.113.9' },
       { config: configWith(fake.sender), service: client, newChallengeId: () => CHALLENGE_ID, newCode: () => '482913' },
     )).resolves.toEqual({ ok: true, challengeId: CHALLENGE_ID, email: 'real@example.com' });
 
     const args = rpc.mock.calls[0][1] as Record<string, unknown>;
-    expect(args).toMatchObject({ p_challenge_id: CHALLENGE_ID, p_user_id: USER_ID, p_email: 'real@example.com', p_ttl_seconds: 600 });
+    expect(args).toMatchObject({ p_challenge_id: CHALLENGE_ID, p_user_id: USER_ID, p_session_id: SESSION_ID, p_email: 'real@example.com', p_ttl_seconds: 600 });
     expect(args.p_code_digest).toBe(emailChangeCodeDigest(SECRET, CHALLENGE_ID, '482913'));
     expect(JSON.stringify(args)).not.toContain('482913');
     expect(JSON.stringify(args)).not.toContain('203.0.113.9');
@@ -127,7 +128,7 @@ describe('requestEmailChangeCode', () => {
     ];
     for (const [data, expected] of cases) {
       const { client } = service({ service_issue_member_email_change: { data, error: null } });
-      await expect(requestEmailChangeCode({ userId: USER_ID, email: 'real@example.com', ip: null }, { config: configWith(fake.sender), service: client }))
+      await expect(requestEmailChangeCode({ userId: USER_ID, sessionId: SESSION_ID, email: 'real@example.com', ip: null }, { config: configWith(fake.sender), service: client }))
         .resolves.toMatchObject({ ok: false, ...expected });
     }
     expect(fake.sent).toHaveLength(0);
@@ -139,7 +140,7 @@ describe('requestEmailChangeCode', () => {
       service_fail_member_email_change: { data: true, error: null },
     });
     await expect(requestEmailChangeCode(
-      { userId: USER_ID, email: 'real@example.com', ip: null },
+      { userId: USER_ID, sessionId: SESSION_ID, email: 'real@example.com', ip: null },
       { config: configWith(sender(false).sender), service: client, newChallengeId: () => CHALLENGE_ID },
     )).resolves.toMatchObject({ ok: false, field: 'form' });
     expect(rpc).toHaveBeenCalledWith('service_fail_member_email_change', { p_challenge_id: CHALLENGE_ID, p_user_id: USER_ID });

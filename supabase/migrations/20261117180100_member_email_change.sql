@@ -18,8 +18,10 @@ begin;
 --   · 코드 원문은 저장하지 않는다. 앱 서버가 서버 비밀값으로 만든 HMAC(요청 id에 결속)만 비교한다. 새 이메일 원문은
 --     진행 중인 요청에만 두고 결과가 정해지면 지운다. 한도는 이메일·IP 다이제스트로 센다.
 --   · '이미 쓰는 이메일'은 코드를 맞힌 뒤에만 알린다 — 주소만 알면 가입 여부를 알아내는 조회가 되지 않게 한다.
---   · 세션만 가로채서는 바꿀 수 없게 최근 30분 안에 로그인한 세션만 요청할 수 있다(auth.users.last_sign_in_at). 바꾼 뒤에는
---     앱이 이전 주소(있으면)로 변경 알림 메일을 보낸다.
+--   · 세션만 가로채서는 바꿀 수 없게, 요청을 보낸 바로 그 세션(auth.sessions — 앱 서버가 서명 검증한 JWT의 session_id)이
+--     이 회원의 것이고 최근 30분 안에 만들어졌어야 한다. auth.users.last_sign_in_at은 계정 전체 값이라 다른 브라우저의 로그인으로
+--     오래된 세션이 통과하므로 쓰지 않는다(계정 탈퇴 재인증 20260813205000과 같은 원칙). 바꾼 뒤에는 앱이 이전 주소(있으면)로
+--     변경 알림 메일을 보낸다.
 --   · 재요청 간격(60초)은 회원 단위로만 센다 — 주소 단위로 세면 '누군가 방금 이 주소를 요청했다'가 드러난다. 주소별
 --     시간·일 한도는 그 주소의 메일함을 코드 메일로 채우지 못하게 남긴다.
 --   · 매시 정리 작업이 만료 요청을 닫고 이틀 지난 요청 행을 지운다. 탈퇴 신청(계정 봉인) 시 그 회원의 요청 행을 지운다.
@@ -123,6 +125,7 @@ $$;
 create function public.service_issue_member_email_change(
   p_challenge_id uuid,
   p_user_id uuid,
+  p_session_id uuid,
   p_email text,
   p_email_digest text,
   p_ip_digest text,
@@ -142,7 +145,7 @@ declare
   profile_suspended timestamptz;
   current_email text;
 begin
-  if p_challenge_id is null or p_user_id is null
+  if p_challenge_id is null or p_user_id is null or p_session_id is null
     or p_email is null or char_length(p_email) not between 6 and 254 or p_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
     or p_email <> pg_catalog.lower(pg_catalog.btrim(p_email))
     or p_email_digest is null or p_email_digest !~ '^[A-Za-z0-9_-]{32,128}$'
@@ -166,8 +169,15 @@ begin
   if not private.member_login_email_unusable(p_user_id) then
     return jsonb_build_object('ok', false, 'reason', 'not_eligible');
   end if;
-  -- 세션만으로 바꾸지 못하게 최근 로그인을 요구한다(온보딩은 막 로그인한 직후라 걸리지 않는다).
-  if not exists (select 1 from auth.users u where u.id = p_user_id and u.last_sign_in_at > clock_timestamp() - interval '30 minutes') then
+  -- 요청한 세션 자체가 최근 로그인이어야 한다(온보딩은 막 로그인한 직후라 걸리지 않는다). 세션 id는 앱 서버가 서명 검증한
+  -- JWT에서 읽어 넘긴다 — 이 RPC는 service_role 전용이다.
+  if not exists (
+    select 1 from auth.sessions s
+    where s.id = p_session_id
+      and s.user_id = p_user_id
+      and s.created_at >= clock_timestamp() - interval '30 minutes'
+      and (s.not_after is null or s.not_after > clock_timestamp())
+  ) then
     return jsonb_build_object('ok', false, 'reason', 'reauthentication_required');
   end if;
   -- 새 주소도 쓸 수 있는 주소여야 한다.
@@ -400,7 +410,7 @@ $$;
 
 alter function private.member_login_email_unusable(uuid) owner to postgres;
 alter function private.member_email_change_rate_limited(text, text, integer, integer) owner to postgres;
-alter function public.service_issue_member_email_change(uuid, uuid, text, text, text, text, integer) owner to postgres;
+alter function public.service_issue_member_email_change(uuid, uuid, uuid, text, text, text, text, integer) owner to postgres;
 alter function public.service_fail_member_email_change(uuid, uuid) owner to postgres;
 alter function public.service_verify_member_email_change(uuid, uuid, text) owner to postgres;
 alter function private.sync_profile_email_from_auth() owner to postgres;
@@ -409,7 +419,7 @@ alter function private.prune_member_email_change_challenges(integer) owner to po
 
 revoke all on function private.member_login_email_unusable(uuid),
   private.member_email_change_rate_limited(text, text, integer, integer),
-  public.service_issue_member_email_change(uuid, uuid, text, text, text, text, integer),
+  public.service_issue_member_email_change(uuid, uuid, uuid, text, text, text, text, integer),
   public.service_fail_member_email_change(uuid, uuid),
   public.service_verify_member_email_change(uuid, uuid, text),
   private.sync_profile_email_from_auth(),
@@ -417,7 +427,7 @@ revoke all on function private.member_login_email_unusable(uuid),
   private.prune_member_email_change_challenges(integer)
   from public, anon, authenticated, service_role;
 grant execute on function private.prune_member_email_change_challenges(integer) to postgres;
-grant execute on function public.service_issue_member_email_change(uuid, uuid, text, text, text, text, integer),
+grant execute on function public.service_issue_member_email_change(uuid, uuid, uuid, text, text, text, text, integer),
   public.service_fail_member_email_change(uuid, uuid),
   public.service_verify_member_email_change(uuid, uuid, text)
   to service_role;

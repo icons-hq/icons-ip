@@ -147,7 +147,7 @@ export type RequestEmailChangeResult =
   | { ok: false; field: 'email' | 'form'; error: string };
 
 export async function requestEmailChangeCode(
-  input: { userId: string; email: unknown; ip: string | null },
+  input: { userId: string; sessionId: string; email: unknown; ip: string | null },
   deps: EmailChangeDependencies,
 ): Promise<RequestEmailChangeResult> {
   const normalized = normalizeEmailInput(input.email);
@@ -160,6 +160,8 @@ export async function requestEmailChangeCode(
   const { data, error } = await service.rpc('service_issue_member_email_change', {
     p_challenge_id: challengeId,
     p_user_id: input.userId,
+    /* 요청한 세션 자체가 최근 로그인이어야 한다(DB가 auth.sessions로 판정). 값은 서명 검증한 JWT에서 온다. */
+    p_session_id: input.sessionId,
     p_email: normalized.email,
     p_email_digest: digest(config.secret, 'email', normalized.email),
     p_ip_digest: input.ip ? digest(config.secret, 'ip', input.ip) : null,
