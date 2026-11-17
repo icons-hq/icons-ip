@@ -119,6 +119,8 @@ const catalog = [
   sql('category_display_compositions', { admin: true, kc: true }),
   sql('category_display_tree', { admin: true, kc: true }),
   sql('category_display_menu', { admin: true, kc: true }),
+  // 목록 정렬 3종(인기도·판매량·리뷰 많은순)과 BEST 기간 판매 랭킹(스펙 C §4.1): 홈 판매 BEST와 같은 집계 규칙, id 배열만 공개.
+  sql('goods_listing_orders', { kc: true }),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),
   // 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값(SHEET-003·ADR-0037). 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
   sql('goods_type_from_category', { kc: true }),
