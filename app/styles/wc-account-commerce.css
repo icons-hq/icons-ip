@@ -350,15 +350,6 @@
   text-transform: uppercase;
 }
 
-.wc-auth__choice-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
 .wc-auth__agree {
   display: flex;
   flex-direction: column;
@@ -526,15 +517,7 @@
   margin: 6px 0 0;
 }
 
-/* 추천 IP 선택 */
-.wc-auth__picks-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
+/* 단계 제목(휴대폰 번호 인증 등) */
 .wc-auth__picks-title {
   font-size: 15px;
   font-weight: 700;
@@ -542,13 +525,7 @@
   color: var(--wc-ink);
 }
 
-.wc-auth__picks-sub {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: var(--wc-ink-tertiary);
-}
-
-/* 관심 IP는 선택 단계다 — 건너뛰기/다시 고르기는 약관 행의 문서 링크와 같은 텍스트 버튼 문법. */
+/* 보조 텍스트 버튼(코드 다시 받기·번호 바꾸기 등) — 약관 행의 문서 링크와 같은 텍스트 버튼 문법. */
 .wc-auth__picks-skip {
   flex: none;
   min-height: 32px;
@@ -563,79 +540,6 @@
   cursor: pointer;
 }
 
-/* IP 타일 — 각진 이미지 체크박스. 선택 상태는 잉크 링 하나로만 말한다. */
-.wc-auth .onboarding-ip-tile {
-  display: block;
-  position: relative;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  border-radius: 0;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px var(--wc-hairline-dark);
-}
-
-.wc-auth .onboarding-ip-tile input[type='checkbox'] {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-  min-height: 0;
-}
-
-.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:checked) {
-  box-shadow: inset 0 0 0 2px var(--wc-ink);
-}
-
-.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:focus-visible) {
-  outline: 2px solid var(--wc-focus);
-  outline-offset: 2px;
-}
-
-/* 흰 글자는 이미지 스크림 위에만 — 타일 하단 밴드가 그 스크림이다(딤 토큰 재사용). */
-.wc-auth .onboarding-ip-meta {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 18px 12px 10px;
-  background: linear-gradient(180deg, transparent, var(--wc-dim));
-}
-
-.wc-auth .onboarding-ip-title {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
-  color: #FFFFFF;
-}
-
-.wc-auth .onboarding-ip-checkmark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex: none;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, .7);
-  background: transparent;
-}
-
-.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:checked) .onboarding-ip-checkmark {
-  border-color: #FFFFFF;
-  background: #FFFFFF;
-}
-
-.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:checked) .onboarding-ip-checkmark::after {
-  content: '✓';
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--wc-ink);
-}
-
 @media (max-width: 749px) {
   .wc-auth__panel {
     max-width: 280px;
@@ -646,9 +550,6 @@
     font-size: 24px;
   }
 
-  .wc-auth__choice-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ------------------------------------------------------------------
@@ -6295,11 +6196,6 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 /* 원본: editorial 의 본문 행간 토큰(--editorial-leading-body: 1.65). */
 .wc-auth .onboarding-birth-hint {
   line-height: 1.65;
-}
-
-/* 타일 하단 밴드는 라벨의 클릭 영역을 가로채지 않는다. 원본: editorial. */
-.wc-auth .onboarding-ip-meta {
-  pointer-events: none;
 }
 
 /* --- 반응형 (원본 브레이크포인트 보존) ------------------------------ */

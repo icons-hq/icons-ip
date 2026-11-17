@@ -12,6 +12,13 @@ vi.mock('@/lib/legal/shipping-bundle-wording-revision', async (importOriginal) =
   SHIPPING_BUNDLE_WORDING_REVISION: { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' },
 }));
 
+/* 방침 개정(휴대폰 번호 인증·이메일 변경, 2026-11-18 시행)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험은 표기 개정 날짜로 시계를 옮기므로
+   방침이 그 개정의 영향을 받지 않는다는 것만 보도록 방침 개정 예약을 끈다. */
+vi.mock('@/lib/legal/contact-channels-privacy-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/contact-channels-privacy-revision')>()),
+  CONTACT_CHANNELS_PRIVACY_REVISION: null,
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');

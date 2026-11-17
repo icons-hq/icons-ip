@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { contactChannelsLegalGateOpen, envSwitchOn } from '@/lib/auth/contact-channels';
+import { SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE, contactChannelsLegalGateOpen, envSwitchOn } from '@/lib/auth/contact-channels';
 import { createServiceClient } from '@/lib/supabase/service';
 import { smsSenderFromEnvironment, type SmsSender } from './sender.server';
 
@@ -34,7 +34,7 @@ const MAX_BODY_LENGTH = 1000;
 
 export function smsNotificationConfig(env: RuntimeEnvironment = process.env, now: Date = new Date()): SmsNotificationConfig | null {
   if (!envSwitchOn(env, 'ICONS_SMS_NOTIFICATIONS_ENABLED')) return null;
-  if (!contactChannelsLegalGateOpen(env, now)) return null;
+  if (!contactChannelsLegalGateOpen(env, now, SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE)) return null;
   const sender = smsSenderFromEnvironment(env);
   if (!sender) return null;
   const optOut = env.ICONS_SMS_ADVERTISING_OPT_OUT?.trim() ?? '';

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { contactChannelsLegalGateOpen, envSwitchOn } from '@/lib/auth/contact-channels';
+import { SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE, contactChannelsLegalGateOpen, envSwitchOn } from '@/lib/auth/contact-channels';
 
 /*
  * 카카오톡 채널(10/14 회의 1014-014, 1014-010의 카카오톡 수단) 런타임 설정. 기본 OFF.
@@ -30,7 +30,7 @@ const COUPON_CODE = /^[A-Z0-9][A-Z0-9-]{2,23}$/;
 
 export function kakaoChannelConfig(env: RuntimeEnvironment = process.env, now: Date = new Date()): KakaoChannelConfig | null {
   if (!envSwitchOn(env, 'ICONS_KAKAO_CHANNEL_ENABLED')) return null;
-  if (!contactChannelsLegalGateOpen(env, now)) return null;
+  if (!contactChannelsLegalGateOpen(env, now, SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE)) return null;
   const channelPublicId = env.KAKAO_CHANNEL_PUBLIC_ID?.trim() ?? '';
   const adminKey = env.KAKAO_ADMIN_KEY?.trim() ?? '';
   if (!CHANNEL_PUBLIC_ID.test(channelPublicId) || !ADMIN_KEY.test(adminKey)) return null;

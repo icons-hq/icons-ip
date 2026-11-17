@@ -78,6 +78,24 @@ reset role;
 select 1/case when not has_function_privilege('service_role','public.admin_execute_coupon_issue(uuid,uuid,uuid)','execute')
  and not has_function_privilege('authenticated','private.issue_coupon_code(text,uuid,text)','execute')
  and not has_table_privilege('authenticated','private.coupon_issue_batches','select') then 1 else 0 end as assert_sealed_roles;
+-- 2026-11-17 사용자 결정: 운영자 계정(staff·admin)도 지정 발급 대상이다. 고객 조회에 operator로 나오고, 발급 판정이
+-- 운영자 계정을 막지 않는다(본인 계정 포함). 정지된 운영자 계정은 여전히 조회·발급되지 않는다.
+set local role authenticated;
+select 1/case when (select count(*) filter(where (row->>'id')::uuid=pg_temp.marketing_id(2) and row->>'operator'='true')=1
+ and count(*) filter(where (row->>'id')::uuid=pg_temp.marketing_id(3) and row->>'operator'='false')=1
+ from jsonb_array_elements(public.admin_find_coupon_issue_customers('marketing_')) row) then 1 else 0 end as assert_operator_accounts_searchable;
+select jsonb_build_object('kind','customers','userIds',jsonb_build_array(pg_temp.marketing_id(1),pg_temp.marketing_id(2))) as operator_targets \gset
+select public.admin_preview_coupon_issue(pg_temp.marketing_id(209),'BATCH-SEG',:'operator_targets',pg_temp.marketing_id(1),pg_temp.marketing_id(900)) as operator_preview \gset
+select 1/case when :'operator_preview'::jsonb->>'status'='prepared' and :'operator_preview'::jsonb->>'invalidCount'='0' and :'operator_preview'::jsonb->>'plannedCount'='2' then 1 else 0 end as assert_operator_preview_valid;
+select 1/case when public.admin_execute_coupon_issue(pg_temp.marketing_id(209),pg_temp.marketing_id(1),pg_temp.marketing_id(900))->>'issuedCount'='2' then 1 else 0 end as assert_operator_issued;
+reset role;
+select 1/case when (select count(*)=2 from public.user_coupons where coupon_code='BATCH-SEG' and user_id in(pg_temp.marketing_id(1),pg_temp.marketing_id(2)) and issued_source='admin_grant') then 1 else 0 end as assert_operator_coupons_held;
+update public.profiles set suspended_at=now(),suspension_reason='운영자 계정 정지 검사' where id=pg_temp.marketing_id(2);
+set local role authenticated;
+select 1/case when not exists(select 1 from jsonb_array_elements(public.admin_find_coupon_issue_customers('marketing_')) row where (row->>'id')::uuid=pg_temp.marketing_id(2)) then 1 else 0 end as assert_suspended_operator_hidden;
+select 1/case when public.admin_preview_coupon_issue(pg_temp.marketing_id(210),'BATCH-SEG',jsonb_build_object('kind','customers','userIds',jsonb_build_array(pg_temp.marketing_id(2))),pg_temp.marketing_id(1),pg_temp.marketing_id(900))->>'invalidCount'='1' then 1 else 0 end as assert_suspended_operator_invalid;
+reset role;
+update public.profiles set suspended_at=null,suspension_reason=null where id=pg_temp.marketing_id(2);
 select set_config('request.jwt.claim.sub',pg_temp.marketing_id(2)::text,true);
 set local role authenticated;
 select pg_temp.marketing_expect(format('select public.admin_get_coupon_issue(%L)',pg_temp.marketing_id(201)),'operator_capability_required');

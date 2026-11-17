@@ -10,7 +10,8 @@
 | --- | --- | --- | --- |
 | 1014-004 가입 확인 코드 | 회원가입 뒤 같은 화면에서 메일의 6자리 확인 코드를 입력해 가입을 잇는다. 코드 확인 세션은 바로 닫고 같은 화면에서 입력한 비밀번호로 다시 로그인한 세션만 남긴다(§3). 새로 연 가입 화면은 [받은 코드 입력하기]로 재발송 없이 코드 단계를 다시 연다. 메일 링크도 그대로 동작한다 | 없음(배포 즉시) | 배포 파이프라인이 앱 배포 전에 운영 Auth 확인 메일 템플릿을 코드+링크로 맞춘다(§3). 배포 뒤 실제 메일 확인만 사람이 한다 |
 | 1014-004 닉네임 자동 | 온보딩은 닉네임을 묻지 않는다. 닉네임이 없는 계정은 `fan_` + 8자 자동 닉네임을 받고 설정에서 바꾼다. 필수 입력은 생년월일·약관 2종 | 없음 | 없음 |
-| 1014-005·006 휴대폰 번호 인증 | 온보딩 마지막 단계(생년월일·약관 저장 뒤, 필수)와 설정에서 SMS 인증번호로 휴대폰 번호(해외 포함)를 확인한다. 번호를 다른 계정에 옮겨 간 회원은 주문 같은 보호 액션 전에 다시 인증한다 | `ICONS_PHONE_VERIFICATION_ENABLED` OFF | 발송사 계약(H4)·처리방침 공지 |
+| 1014-005·006 휴대폰 번호 인증 | 온보딩 마지막 단계(생년월일·약관 저장 뒤, 필수)와 설정에서 SMS 인증번호로 휴대폰 번호(해외 포함)를 확인한다. 번호를 다른 계정에 옮겨 간 회원은 주문 같은 보호 액션 전에 다시 인증한다. 발송은 Twilio Verify(§4 '발송사 연결') | `ICONS_PHONE_VERIFICATION_ENABLED` OFF | 처리방침 개정은 코드에 반영(2026-11-17 공지·11-18 시행). 남은 것은 Twilio API 키·env 등록(§4) |
+| 소셜 로그인 이메일 변경(2026-11-17) | 로그인 이메일이 Apple 이메일 가리기 릴레이 주소이거나 비어 있는 회원만 온보딩·설정에서 다른 이메일을 6자리 메일 코드로 확인해 바꾼다(릴레이는 선택, 빈 값은 필수) | 없음(메일 발송 설정이 있으면 열림) | Apple 발신 도메인 등록(§12) |
 | 1014-010 수단별 수신 동의 | 이메일·SMS에 카카오톡 수신 동의를 더한다 | 카카오톡 채널 스위치를 따른다 OFF | 처리방침 공지 |
 | 1014-010 SMS 알림 seam | 인증 번호·SMS 동의를 DB가 확인한 회원에게 SMS를 보내는 함수 하나(`sendMemberSms`). 첫 생산자는 예약 일정 변경 안내(QNA-040, DB 설정 `sms_enabled`도 함께 필요) | `ICONS_SMS_NOTIFICATIONS_ENABLED` OFF | 발송사·080 수신거부 번호 |
 | 1014-014 카카오톡 채널 | 카카오 로그인 동의 화면 채널 추가(plusfriends 동의항목) + 설정의 [카카오 계정 연결](가입 수단 무관) + 채널 친구 추가 쿠폰 1회 자동 발급 | `ICONS_KAKAO_CHANNEL_ENABLED` OFF | 채널 개설(H5)·콘솔 설정·지정 고객 쿠폰 정의·**manual linking**·처리방침 공지 |
@@ -19,9 +20,13 @@
 (`components/screens/ContactChannelsSwitchOff.test.tsx`가 도입 전 렌더 기준 `test/fixtures/contact-channels-off/`와 비교한다).
 가입 확인 코드(1014-004)는 스위치가 없어 이 비교 대상이 아니다.
 
-**운영 법적 게이트.** 세 스위치 모두 운영(`VERCEL_ENV=production`)에서는 `lib/auth/contact-channels.ts`의
-`CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE`(처리방침 개정 시행일, KST)가 채워지고 그날이 지나야 듣는다. 지금 값은
-`null`이라 env만 켜서는 운영에서 열리지 않는다. Preview·로컬은 env만으로 연다.
+**운영 법적 게이트.** 세 스위치 모두 운영(`VERCEL_ENV=production`)에서는 `lib/auth/contact-channels.ts`의 시행일(KST)이
+지나야 듣는다. 휴대폰 번호 인증은 `CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE` = 방침 개정
+(`lib/legal/contact-channels-privacy-revision.ts`, 2026-11-17 공지·**2026-11-18 시행**)의 시행일이다 — 실제 이용자가 없어 공지
+1일 뒤 시행으로 둔다는 2026-11-17 사용자 결정("시행일 값은 내일날짜로 바로 적어놔도 됨 아직 실제 사용자없음")이다. 이용자가
+생긴 뒤의 개정에는 7일 공지를 지킨다. SMS 알림·카카오톡 채널은 아직 방침에 고지가 없어
+`SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE`(`null`)로 따로 닫혀 있다 — env만 켜서는 운영에서 열리지 않는다.
+Preview·로컬은 env만으로 연다.
 
 ## 2. 결정: 휴대폰 인증은 Supabase Auth 전화 인증이 아니라 자체 인증번호
 
@@ -142,11 +147,34 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 스위치를 켜면 새 회원의 온보딩 완료에 인증 번호가 필요하다. **이미 온보딩을 마친 회원은 다시 막지 않는다** — 설정에서
 등록·변경할 수 있다(번호를 다른 계정에 옮겨 간 회원만 위의 재인증 대상이다). 기존 회원에게도 요구할지는 켜기 전에 정할 일이다.
 
-### 발송사 연결(H4 뒤)
+### 발송사 연결 — Twilio Verify(2026-11-17)
 
-`lib/sms/sender.server.ts`의 `SmsSender`를 구현하고 `smsSenderFromEnvironment`의 `ICONS_SMS_PROVIDER` 값 하나에 연결한다.
-키는 서버 env로만 받는다. 국내 발신번호 사전등록, 해외(특히 +86) 단가·도달률, SMS 펌핑 대비 국가·건수 제한을 계약에서
-정하고 `ICONS_PHONE_VERIFICATION_COUNTRIES`에 연 나라만 적는다(비우면 한국만, `*`는 계약이 전체를 허용할 때만).
+인증번호 문자는 Twilio Verify로 보낸다(`lib/sms/twilio-verify.server.ts`, `ICONS_SMS_PROVIDER=twilio_verify`).
+
+- **왜 Verify인가.** Twilio에서 한국 수신은 국제 발신 번호로만 갈 수 있다(알파벳 발신자·국내 번호 미지원, 단말에는
+  `[국제발신]`·`[Web발신]`과 006/009가 붙는다 — Twilio 국가 가이드). Messages API는 번호를 사서 발신자를 관리해야 하지만
+  Verify는 Twilio의 인증 전용 발신 경로·템플릿·Fraud Guard를 그대로 써서 번호 없이 보낸다. 같은 Twilio 계정의 헤이그랩잇도
+  Verify 서비스(Grabit Phone Verification)로 보내고 있었다.
+- **분리(2026-11-17 사용자 결정 '같은 계정에 전용 서비스').** 같은 Twilio 계정에 X SQUARE 전용 Verify 서비스를 만들었다:
+  이름 `X SQUARE`(문자에 "X SQUARE"로 보인다), SID `VA6a472c8a851e0ee2c04181af19f427d8`, 코드 6자리, **Custom Verification
+  Code 켬**, Fraud Guard Standard. 계정 Verify 지역 권한에서 대한민국(+82)은 허용이다. 사용량은 서비스별로 나뉘고 요금은
+  계정 하나에서 나간다.
+- **인증번호는 지금처럼 우리가 만든다.** 서버가 6자리를 만들고 DB가 HMAC으로 판정한다(만 14세·동의·한도·5회 잠금·번호 옮기기
+  그대로). Verify에는 그 번호를 `CustomCode`로 넘겨 문자만 보낸다(한국 번호는 `Locale=ko`). Custom Code를 쓰면 Twilio에 결과를
+  알려야 하므로, DB가 확인을 마친 뒤 응답 뒤(`after`)에 같은 번호의 Verification을 `approved`로 바꾼다(실패해도 인증은 그대로).
+- **거래 안내·광고 문자는 보내지 않는다.** Verify는 인증번호 전용이라 `sendMemberSms`(SMS 알림 seam)는 이 발송기로 닫힌다.
+  SMS 알림을 켜려면 Messages API 발송기와 발신번호·080 수신거부를 따로 준비한다.
+- **env(서버 전용, Production·Preview).**
+  - `ICONS_SMS_PROVIDER=twilio_verify`
+  - `TWILIO_VERIFY_SERVICE_SID=VA6a472c8a851e0ee2c04181af19f427d8`
+  - `TWILIO_API_KEY_SID`(SK…)·`TWILIO_API_KEY_SECRET` — **사람이 만든다.** Twilio 콘솔 Account → API keys & tokens →
+    Create API key(이름 예: `x-square-verify`, 유형 Standard). 비밀값은 만들 때 한 번만 보이므로 바로 Vercel env에 넣는다.
+    이 값을 채팅·이슈·문서에 남기지 않는다. 계정 Auth Token은 쓰지 않는다(헤이그랩잇과 공유되므로 키를 따로 둔다).
+  - `ICONS_PHONE_VERIFICATION_SECRET`(32자 이상 무작위, 예: `openssl rand -base64 48`)
+  - `ICONS_PHONE_VERIFICATION_COUNTRIES` — 비우면 한국만(기본). 해외를 열려면 Verify Geo Permissions와 함께 정한다.
+  - 마지막에 `ICONS_PHONE_VERIFICATION_ENABLED=true` → 재배포.
+- **로그.** 실패는 `[sms:twilio_verify] send failed status=<HTTP> code=<Twilio 오류 번호>`만 남는다(번호·코드·키 없음).
+  403·60204는 Custom Code가 꺼진 서비스, 401·20003은 키 오류, 60200은 잘못된 번호, 60203은 Twilio 쪽 번호별 발송 한도다.
 
 ## 5. 1014-010 수단별 수신 동의(카카오톡)와 SMS 알림 seam
 
@@ -211,10 +239,13 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 6. env: `KAKAO_CHANNEL_PUBLIC_ID`(채널 프로필 ID, `_`로 시작), `KAKAO_ADMIN_KEY`(대표 어드민 키, 서버 전용),
    `ICONS_KAKAO_CHANNEL_COUPON_CODE`, 마지막에 `ICONS_KAKAO_CHANNEL_ENABLED=true`.
 
-## 7. 개인정보처리방침·동의 문구 초안(시행 7일 전 사전 공지 대상)
+## 7. 개인정보처리방침·동의 문구 초안
 
-공개 중인 본문(`lib/legal/documents.ts`)은 이 작업에서 고치지 않았다. 아래는 켜기 전에 낼 개정안 초안이며 법무 검토 전이다.
-개정 PR은 `pendingRevision`(공지)과 `CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE`(시행일)를 함께 채운다.
+**2026-11-17 반영분.** 휴대폰 번호 인증(Twilio Inc. 위탁·미국 이전)과 소셜 로그인 회원의 이메일 변경은 방침 예약 개정으로 코드에
+들어갔다(`lib/legal/contact-channels-privacy-revision.ts` + `lib/legal/documents.ts`의 `applyContactChannelsPrivacyRevision` —
+11-17 공지, 11-18부터 새 본문·이전 판 보존). 아래 초안 가운데 SMS 알림(080 수신거부·광고 문자)과 카카오톡 채널 부분은 아직
+반영되지 않은 초안이며 법무 검토 전이다. 그 개정 PR은 `pendingRevision`(공지)과
+`SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE`(시행일)를 함께 채운다.
 
 **제1조 표(수집 항목) — 추가·변경**
 
@@ -273,12 +304,12 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 ## 8. 켜는 순서
 
 1. (1014-004, 지금) 배포 파이프라인이 운영 확인 메일 템플릿을 반영(§3, deploy-supabase) → 앱 배포 → 운영 테스트 계정으로 메일·코드 확인.
-2. SMS 발송사 계약(H4): 발신번호 등록, 080 무료 수신거부 번호, 해외 범위. `SmsSender` 구현 PR.
+2. 휴대폰 인증 발송사: Twilio Verify로 연결했다(§4). SMS 알림용 발신번호·080 무료 수신거부 번호는 아직이다.
 3. 카카오톡 채널 개설(H5)·콘솔 설정·지정 고객 친구 추가 쿠폰 정의·manual linking(§6).
-4. 처리방침·약관 개정 PR: §7 초안을 확정해 `pendingRevision`으로 공지하고 `CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE`를 시행일로
-   채운다. 머지·배포 후 7일 공지.
-5. 시행일 뒤 env: 휴대폰 인증 `ICONS_PHONE_VERIFICATION_SECRET`(32자 이상 무작위)·`ICONS_SMS_PROVIDER`·
-   `ICONS_PHONE_VERIFICATION_COUNTRIES`(기본 한국만) → `ICONS_PHONE_VERIFICATION_ENABLED=true`. SMS 알림은
+4. 처리방침 개정: 휴대폰 인증·이메일 변경분은 2026-11-17 공지·11-18 시행으로 반영됐다. SMS 알림·카카오톡 채널분은 §7 초안을
+   확정해 공지하고 `SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE`를 시행일로 채운다(7일 공지).
+5. 시행일 뒤 env: 휴대폰 인증은 §4 '발송사 연결'의 env 목록(Twilio 키·서비스 SID·`ICONS_PHONE_VERIFICATION_SECRET`)
+   → `ICONS_PHONE_VERIFICATION_ENABLED=true`. env는 시행일 전에 넣어도 운영에서는 시행일(11-18 KST)부터 열린다. SMS 알림은
    `ICONS_SMS_ADVERTISING_OPT_OUT` → `ICONS_SMS_NOTIFICATIONS_ENABLED=true`. 카카오는 §6의 6번. 재배포로 반영된다.
 6. 확인: 직원 테스트 계정으로 온보딩 2단계(생년월일·약관 → 휴대폰 인증), 설정 번호 변경, 같은 번호를 두 번째 계정에서 인증해
    첫 계정이 주문 전에 인증 단계로 가는지, 카카오 로그인 동의 화면의 채널 추가 → 쿠폰 1장(재로그인해도 1장), 이메일 계정의
@@ -294,6 +325,11 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 - 휴대폰 인증: `ICONS_PHONE_VERIFICATION_ENABLED=true`, `ICONS_PHONE_VERIFICATION_SECRET`(32자 이상),
   `ICONS_SMS_PROVIDER=console`(로컬 전용 — 인증번호가 서버 로그 `[sms:console]`에 찍힌다). Vercel에서는 console이 만들어지지 않는다.
   재인증은 두 계정에서 같은 번호를 차례로 인증한 뒤 첫 계정으로 `/checkout` 같은 보호 화면을 연다.
+- 이메일 변경: `supabase/tests/member_email_change.sql`. 로컬(Vercel 밖)에서 메일 발송 설정이 없으면 코드가 서버 로그
+  `[email-change:console]`에 찍힌다(`EMAIL_DISPATCH_HMAC_SECRET` 32자 이상은 필요). 릴레이 계정은 DB에서
+  `update auth.users set email='<임의>@privaterelay.appleid.com'`으로 만든다.
+- Twilio Verify: 단위 시험이 요청 모양(CustomCode·Locale)·오류 분류·피드백을 고정한다. 실제 문자는 Preview에 키를 넣고 본인
+  번호로 확인한다.
 - 카카오: 실제 채널 없이는 관계 조회가 실패해 `relation_unknown`으로 끝난다. 로컬에는 카카오 provider가 없어 [카카오 계정
   연결]은 실패 안내로 끝난다. 단위 시험이 가짜 응답으로 흐름을 고정한다.
 
@@ -316,3 +352,45 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 - SMS 펌핑: 국가 허용 목록(기본 한국만)과 번호·IP·회원 한도로 줄이지만 발송사 측 국가·건수 제한도 함께 둔다.
 - 카카오 채널 웹훅 재전송 정책은 확인하지 못했다. 발급은 멱등이고 다음 로그인·온보딩·설정 확인이 다시 시도한다.
 - [친구 추가 쿠폰 받기]는 누를 때마다 카카오 관계 조회 API를 한 번 부른다. 회원별 호출 제한은 두지 않았다(발급은 멱등).
+
+## 12. 소셜 로그인 이메일 — Apple 이메일 가리기(2026-11-17)
+
+Apple 로그인에서 '이메일 가리기'를 고르면 Apple은 `<임의>@privaterelay.appleid.com` 릴레이 주소를 넘긴다. 이 주소는 **우리
+발신 도메인을 Apple에 등록하기 전에는 메일을 받지 못한다**(Apple Private Email Relay가 등록되지 않은 발신자를 거절).
+결정(2026-11-17 사용자): '도메인 등록 + 선택 변경'. Apple 로그인 뒤 실제 이메일을 필수로 요구하지 않는다 — iOS 앱을 내면
+App Store 심사 가이드라인 4.8(로그인 서비스는 이메일을 숨길 수 있어야 한다)에 걸린다.
+
+### 발신 도메인 등록(사람)
+
+1. Apple Developer → Certificates, Identifiers & Profiles → Services → **Sign in with Apple for Email Communication** → Configure.
+2. 우리가 메일을 **보내는** 도메인(또는 주소)을 등록한다. 사이트 주소가 아니라 발신 주소 기준이다:
+   - 거래·이메일 변경 메일: Resend의 발신 주소(`RESEND_FROM`, 없으면 `EMAIL_FROM`)의 도메인
+   - 가입 확인·비밀번호 재설정 메일: Supabase Auth custom SMTP 발신 주소(`smtp_admin_email`)의 도메인
+3. 도메인은 SPF가 통과해야 한다(Resend 도메인 설정에 이미 있는 SPF·DKIM). Apple이 보여 주는 확인 상태가 Verified인지 본다.
+4. 확인: Apple '이메일 가리기'로 가입한 테스트 계정에 주문 확인 메일이 실제 메일함에 오는지 본다.
+
+**사이트 도메인을 바꿀 필요는 없다.** 등록 대상은 발신 도메인이고 여러 개를 등록할 수 있다. 나중에 xsquare.kr로 메일을 보내기
+시작하면 그 도메인을 추가 등록한다. 릴레이 주소는 사이트 도메인이 아니라 Apple 개발자 팀에 묶여 있어 사이트 도메인을 바꿔도
+기존 회원의 릴레이 주소는 그대로다.
+
+### 이메일 변경(앱)
+
+- 대상: 로그인 이메일(`auth.users.email`)이 비었거나 릴레이 주소인 회원만(`lib/auth/email-change.ts` `isUnusableLoginEmail`,
+  DB `private.member_login_email_unusable`). 일반 이메일 계정은 이 경로로 바꿀 수 없다 — 현재 주소 확인 없이 바꾸는 길이 되지
+  않게 한다(운영 Auth는 보안 이메일 변경이 켜져 있어 Supabase 기본 이메일 변경은 현재 주소(릴레이)로도 확인 메일이 가야 끝난다
+  — 바로 그 주소가 메일을 못 받는 경우라 쓰지 않는다).
+- 흐름: 온보딩 1단계 폼 바깥(릴레이는 [다른 이메일로 바꾸기] 선택, 빈 값은 필수)과 설정 → 새 이메일 → Resend로 6자리 코드
+  (10분) → DB `service_verify_member_email_change`가 확인 → 서비스 롤 Admin API `updateUserById(email, email_confirm)` →
+  트리거 `on_auth_user_email_changed`가 `profiles.email`을 맞춘다(주문자 이메일·거래 메일이 profiles.email을 먼저 읽는다).
+- 한도: 같은 회원·같은 주소 60초 간격, 회원·주소 1시간 5건·24시간 10건, IP 1시간 10건·24시간 30건, 오입력 5번이면 닫힘.
+  '이미 쓰는 주소'는 코드를 맞힌 뒤에만 알린다(주소만으로 가입 여부를 알아내지 못하게). 요청 행은 이틀 뒤·탈퇴 신청 시 지운다.
+- 비밀값: 새 env 없이 메일 발송 기록의 `EMAIL_DISPATCH_HMAC_SECRET`(도메인 분리 `icons:member-email-change:v1`)을 쓴다. 이 값이나
+  Resend 설정이 없으면 조각을 그리지 않는다.
+
+### 남는 위험
+
+- **Apple로 다시 로그인할 때 이메일이 되돌아가는지 운영에서 확인하지 못했다.** GoTrue는 기존 identity로 로그인할 때 identity
+  데이터와 user_metadata만 갱신하고 로그인 이메일은 바꾸지 않는 것으로 안다(추정 — supabase/auth `external.go` 기억, 로컬에는
+  Apple provider가 없어 실측 불가). 배포 뒤 릴레이 계정으로 이메일을 바꾸고 Apple로 다시 로그인해 설정의 이메일이 그대로인지 본다.
+- 이메일을 바꾼 Apple 회원에게 비밀번호 재설정 메일을 보내면 비밀번호 로그인이 생긴다. 소셜 계정 비밀번호 설정 제한
+  (`PASSWORD_UNAVAILABLE_FOR_SOCIAL_ACCOUNT_MESSAGE`)과의 관계는 따로 보지 않았다.

@@ -14,8 +14,9 @@ export async function findCouponIssueCustomersAction(query: string) {
   if (typeof query !== 'string' || query.trim().length < 2 || query.length > 200) return { error: '닉네임·ID·정확한 이메일을 2자 이상 입력해주세요.' };
   try {
     const { data, error } = await (await createClient()).rpc('admin_find_coupon_issue_customers', { p_query: query.trim() });
-    if (error || !Array.isArray(data) || data.length > 50 || data.some(row => !row || !isUuid(row.id) || typeof row.nickname !== 'string' || typeof row.maskedEmail !== 'string')) return { error: '고객을 조회하지 못했습니다.' };
-    return { rows: data as { id: string; nickname: string; maskedEmail: string }[] };
+    if (error || !Array.isArray(data) || data.length > 50 || data.some(row => !row || !isUuid(row.id) || typeof row.nickname !== 'string' || typeof row.maskedEmail !== 'string' || (row.operator !== undefined && typeof row.operator !== 'boolean'))) return { error: '고객을 조회하지 못했습니다.' };
+    /* 운영자 계정(staff·admin)도 지정 발급 대상이다(2026-11-17 사용자 결정) — 화면이 '운영자 계정'으로 구분한다. */
+    return { rows: (data as { id: string; nickname: string; maskedEmail: string; operator?: boolean }[]).map(row => ({ id: row.id, nickname: row.nickname, maskedEmail: row.maskedEmail, operator: row.operator === true })) };
   } catch (error) { unstable_rethrow(error); return { error: '고객을 조회하지 못했습니다.' }; }
 }
 export async function previewCouponIssueAction(id: unknown, code: unknown, rawTargets: unknown, rawIdentity: unknown): Promise<CouponIssueResult> {

@@ -22,12 +22,10 @@ function render(overrides: Partial<React.ComponentProps<typeof Onboarding>> = {}
     <Onboarding
       birthDate=""
       email="fan@icons.gg"
-      followedIpIds={[]}
       genderEligible
       initialMarketing={{ email: false, sms: false }}
       isConfigured
       next="/"
-      recommendedIps={[]}
       {...overrides}
     />,
   );
@@ -75,40 +73,43 @@ describe('Onboarding form contracts', () => {
     expect(render()).toContain('만 14세 이상만 가입할 수 있어요');
   });
 
-  it('keeps onboarding checkmarks flat and presents IP names without a dark image filter', () => {
+  /* 2026-11-17 사용자 결정 — 온보딩은 관심 IP를 묻지 않는다. 팔로우 입력도 보내지 않는다. */
+  it('does not show IP picks or send follow fields', () => {
+    const html = render();
     const component = source();
-    const html = render({
-      followedIpIds: ['ip-one'],
-      recommendedIps: [{
-        bg: 'url("/generated/ip/ip-one.webp") center / cover no-repeat',
-        color: '#2DE2FF',
-        fans: 10,
-        id: 'ip-one',
-        sub: 'IP ONE',
-        tagline: 'tagline',
-        title: '아이피 원',
-      }],
-    });
 
-    expect(component).not.toContain("background: checked ? 'var(--holo)'");
-    expect(component).not.toContain('linear-gradient(180deg');
-    expect(html).toContain('class="onboarding-ip-tile"');
-    expect(html).toContain('class="onboarding-ip-title"');
+    expect(html).not.toContain('관심 IP');
+    expect(html).not.toContain('name="followIpIds"');
+    expect(html).not.toContain('name="recommendedIpIds"');
+    expect(component).not.toContain('IpPickTile');
   });
 
-  /* 10/14 회의 S2 · D5 — 관심 IP는 선택 단계다. 필수로 읽히는 문구를 두지 않고, 건너뛰기를 단다. */
-  it('관심 IP 단계를 선택으로 표기하고 건너뛰기를 제공한다', () => {
-    const html = render({
-      recommendedIps: [{ bg: 'none', color: '#000', fans: 1, id: 'ip-one', sub: 'IP', tagline: '', title: '아이피 원' }],
-    });
-    const component = source();
+  /* 2026-11-17 — Apple 이메일 가리기 주소로 가입한 회원은 원하면 다른 이메일로 바꾼다(선택). 조각은 1단계 폼 바깥이다. */
+  it('offers an optional email change outside the step-one form for an Apple relay login', () => {
+    const relay = 'jb7m5nzh4s@privaterelay.appleid.com';
+    const html = render({ email: relay, emailChange: { currentEmail: relay, required: false } });
 
-    expect(html).not.toContain('최애가 필요해요');
-    expect(html).toMatch(/관심 IP 고르기 <em class="wc-auth__opt">선택<\/em>/);
-    expect(html).toContain('고르지 않아도 시작할 수 있어요');
-    expect(html).toMatch(/<button class="wc-auth__picks-skip" type="button">건너뛰기<\/button>/);
-    /* 건너뛰면 타일과 추천 목록 입력을 함께 내려 서버가 팔로우를 바꾸지 않는다. */
-    expect(component).toMatch(/ipPicksSkipped \? \([\s\S]*관심 IP 고르기를 건너뛰었어요[\s\S]*\) : \([\s\S]*<IpPickTile/);
+    expect(html).toContain('data-email-change="closed"');
+    expect(html).toContain('<em class="wc-auth__opt">선택 변경</em>');
+    expect(html).toContain('주문·배송 안내를 다른 이메일로 받고 싶으면 바꿀 수 있어요');
+    expect(html).toContain('다른 이메일로 바꾸기');
+    expect(html.indexOf('data-email-change')).toBeLessThan(html.indexOf('data-onboarding-form'));
+    expect(html).not.toContain('aria-label="이메일"');
+  });
+
+  it('requires an email first when the social login gave none', () => {
+    const html = render({ email: '', emailChange: { currentEmail: '', required: true } });
+
+    expect(html).toContain('data-email-change="email"');
+    expect(html).toContain('<em class="wc-auth__req">필수</em>');
+    expect(html).toContain('name="email"');
+    expect(html).not.toContain('바꾸지 않기');
+  });
+
+  it('keeps the read-only email for ordinary logins', () => {
+    const html = render();
+    expect(html).toContain('aria-label="이메일"');
+    expect(html).not.toContain('data-email-change');
   });
 
   it('필수 동의 항목에서 동의 대상 문서를 바로 열 수 있다', () => {

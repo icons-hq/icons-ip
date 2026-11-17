@@ -9,6 +9,12 @@ import { socialLoginWords } from './social-login';
 import { DEMOGRAPHIC_NOTICE } from '../customer-demographics';
 import { kstToday } from './privacy-address-book-revision';
 import {
+  CONTACT_CHANNELS_PRIVACY_REVISION,
+  type ContactChannelsPrivacyRevision,
+  contactChannelsPrivacyRevisionAnnounced,
+  contactChannelsPrivacyRevisionInEffect,
+} from './contact-channels-privacy-revision';
+import {
   SHIPPING_BUNDLE_WORDING_REVISION,
   type ShippingBundleWordingRevision,
   shippingBundleWordingRevisionAnnounced,
@@ -179,11 +185,161 @@ function applyShippingBundleWordingRevision(
   }
 }
 
+/* 2026-11 예약 개정(개인정보처리방침) — 휴대폰 번호 인증(Twilio Verify)과 소셜 로그인 회원의 선택 이메일 변경(lib/legal/contact-channels-privacy-revision.ts).
+ * 현행 본문 위에 아래 변환만 얹는다. 앵커(바꿀 문장·행·조문 제목)가 하나라도 없거나 둘 이상이면 시행일 상태를 만드는 순간 던진다 —
+ * 본문 문구가 바뀌어 변환이 조용히 빗나가는 일을 테스트가 막는다. */
+/* 제7조·제11조가 함께 쓰는 설정 화면 직접 열람·수정 항목(현행 본문). 개정본의 제7조만 휴대폰 번호를 더한다. */
+const SETTINGS_EDITABLE_ITEMS_TEXT = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
+const PRIVACY_PHONE_ROW: string[] = [
+  '휴대폰 번호 인증',
+  '휴대폰 번호(국가 번호 포함), 인증 완료 일시. 인증번호 요청 기록(요청 일시·결과)과 인증·해제 이력(일시·종류)에는 휴대폰 번호와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
+  '회원이 온보딩 또는 설정에서 생년월일과 필수 동의를 저장한 뒤 휴대폰 번호 인증을 진행한 경우',
+];
+const PRIVACY_EMAIL_CHANGE_ROW: string[] = [
+  '이메일 변경 (선택)',
+  '변경할 이메일 주소. 인증 요청 기록(요청 일시·결과)에는 이메일 주소를 복원할 수 없게 변환한 값만 남깁니다.',
+  '소셜 로그인이 전달한 이메일을 쓸 수 없거나(예: Apple 이메일 가리기 주소) 이메일이 없는 회원이 직접 다른 이메일을 입력하고 인증한 경우',
+];
+const PRIVACY_FOLLOW_ROW: string[] = ['IP 팔로우', '팔로우한 IP와 IP별 알림 설정', '회원이 IP 페이지에서 팔로우한 경우'];
+const PRIVACY_TWILIO_PROCESSOR_ROW: string[] = ['Twilio Inc.', '휴대폰 번호 인증번호 문자 발송', '위탁계약 종료 시까지'];
+const PRIVACY_TWILIO_TRANSFER_ROW: string[] = [
+  'Twilio Inc.',
+  '미국',
+  '휴대폰 번호(국가 번호 포함)와 인증번호 · 인증번호를 요청할 때 · 정보통신망을 통한 전송',
+  '휴대폰 번호 인증 문자 발송 · 위탁계약 종료 시까지',
+];
+
+const CONTACT_CHANNELS_PRIVACY_REASON =
+  '개정 사유 — 회원 연락처를 확인하고 한 번호로 여러 계정을 이용하는 부정 이용을 막기 위해 휴대폰 번호 인증(문자 발송은 Twilio Inc. 위탁)을 도입하고, 소셜 로그인이 전달한 이메일을 쓸 수 없는 회원이 이메일을 직접 바꿀 수 있게 합니다. 서비스에 아직 이용자가 없어 공지 1일 뒤 시행합니다.';
+
+const CONTACT_CHANNELS_PRIVACY_CHANGES: string[] = [
+  CONTACT_CHANNELS_PRIVACY_REASON,
+  "제1조(수집하는 개인정보 항목과 수집 방법)에 '휴대폰 번호 인증'·'이메일 변경 (선택)' 행을 더하고, 온보딩 행에서 '팔로우한 IP'를 빼 'IP 팔로우' 행으로 따로 적으며 닉네임이 자동 생성되고 설정에서 바꿀 수 있음을 밝힙니다.",
+  '제2조(개인정보의 처리 목적)에 휴대폰 번호 인증을 통한 회원 연락처 확인과 부정 이용 방지를 더합니다. 알림·거래 안내의 목적과 방법(알림함·이메일)은 바뀌지 않으며 문자 메시지 알림·마케팅 발송은 하지 않습니다.',
+  '제3조(개인정보의 보유·이용기간)에 휴대폰 번호 인증 요청 기록(요청 2일 뒤 삭제)·인증 이력(1년)과 이메일 변경 인증 요청 기록(요청 2일 뒤 삭제)의 보유 기간, 다른 계정이 같은 번호를 인증한 경우의 처리를 더합니다.',
+  "제5조(개인정보 처리업무의 위탁)에 수탁자 'Twilio Inc.'(인증번호 문자 발송)를 더하고, 이메일 발송 수탁자의 업무에 이메일 변경 인증 메일을 더합니다.",
+  "제6조(개인정보의 국외 이전)에 이전받는 자 'Twilio Inc.'(미국)를 더하고, 이메일 발송 수탁자의 이전 항목·시점에 이메일 변경 인증 메일을 더합니다.",
+  '제7조(정보주체의 권리와 행사 방법)의 설정 화면 직접 열람·수정 항목에 휴대폰 번호를 더하고, 이메일을 쓸 수 없는 소셜 로그인 회원이 이메일을 바꾸는 방법을 안내합니다.',
+];
+
+function privacyArticle(articles: LegalArticle[], headingPrefix: string): LegalArticle {
+  const found = articles.filter((article) => article.heading.startsWith(headingPrefix));
+  if (found.length !== 1) throw new Error(`contact_channels_privacy_anchor_changed:article:${headingPrefix}`);
+  return found[0]!;
+}
+
+function insertTableRowsAfter(article: LegalArticle, firstCell: string, rows: string[][]): void {
+  const table = article.table;
+  const index = table ? table.rows.findIndex((row) => row[0] === firstCell) : -1;
+  if (!table || index < 0 || table.rows.filter((row) => row[0] === firstCell).length !== 1) {
+    throw new Error(`contact_channels_privacy_anchor_changed:row:${article.heading}:${firstCell}`);
+  }
+  table.rows.splice(index + 1, 0, ...rows);
+}
+
+/** 현행 방침 조문의 깊은 사본에 휴대폰 번호 인증·이메일 변경 개정을 적용한 조문 목록. */
+function reviseContactChannelsPrivacyArticles(source: LegalArticle[]): LegalArticle[] {
+  let articles: LegalArticle[] = structuredClone(source);
+  const replaceOnce = (from: string, to: string) => {
+    const result = replaceInArticles(articles, from, to);
+    if (result.count !== 1) throw new Error(`contact_channels_privacy_anchor_changed:text:${from}`);
+    articles = result.articles;
+  };
+
+  /* 제1조 — 온보딩 행의 팔로우한 IP는 온보딩이 더는 받지 않는 항목이라 따로 뺀다. 닉네임은 자동 생성된다. */
+  replaceOnce(
+    '닉네임, 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부, 팔로우한 IP',
+    '닉네임(자동 생성되며 설정에서 바꿀 수 있음), 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부',
+  );
+  insertTableRowsAfter(privacyArticle(articles, '제1조 '), '온보딩', [PRIVACY_PHONE_ROW, PRIVACY_EMAIL_CHANGE_ROW, PRIVACY_FOLLOW_ROW]);
+
+  /* 제2조 */
+  const purposes = privacyArticle(articles, '제2조 (');
+  const purposeAnchor = '굿즈 주문 접수, 대금 결제, 배송, 청약철회·취소·반품·교환·환급 처리';
+  const purposeIndex = purposes.list?.indexOf(purposeAnchor) ?? -1;
+  if (purposeIndex < 0) throw new Error(`contact_channels_privacy_anchor_changed:list:${purposeAnchor}`);
+  purposes.list!.splice(
+    purposeIndex,
+    0,
+    '휴대폰 번호 인증을 통한 회원 연락처 확인과 한 번호로 여러 계정을 이용하는 부정 이용 방지(다른 계정이 같은 번호를 인증하면 이전 계정에 재인증을 요청)',
+  );
+  if (purposes.closing) throw new Error('contact_channels_privacy_anchor_changed:closing:제2조');
+  purposes.closing = [
+    '휴대폰 번호 인증으로 확인한 번호는 위 목적에만 이용하며 문자 메시지를 통한 알림·거래 안내·마케팅 정보 발송에는 이용하지 않습니다. 알림·거래 안내의 목적과 방법(알림함·이메일)은 이 개정으로 바뀌지 않습니다.',
+  ];
+
+  /* 제3조 */
+  const retention = privacyArticle(articles, '제3조 ');
+  if (!retention.closing?.length) throw new Error('contact_channels_privacy_anchor_changed:closing:제3조');
+  retention.closing.push(
+    '휴대폰 번호 인증은 인증 완료한 휴대폰 번호와 인증 일시를 회원 탈퇴 처리 시(탈퇴 신청 기능이 열려 있으면 신청 시) 인증 이력과 함께 파기합니다. 인증번호 요청 기록(요청 일시·결과)은 요청 2일 뒤, 인증·해제 이력(일시·종류)은 발생 1년 뒤 삭제하며 이 기록에는 휴대폰 번호와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다. 한 번호는 한 계정에서만 인증 상태로 유지되므로 다른 계정이 같은 번호를 인증하면 이전 계정의 번호는 즉시 삭제하고 재인증이 필요하다는 표시만 남깁니다.',
+    '이메일 변경 인증 요청 기록(요청 일시·결과)은 요청 2일 뒤 삭제하며 이메일 주소는 복원할 수 없게 변환한 값만 남깁니다. 변경해 인증한 계정 이메일은 다른 회원 정보와 함께 회원 탈퇴 시 파기합니다.',
+  );
+
+  /* 제5조 */
+  const consignment = privacyArticle(articles, '제5조 ');
+  insertTableRowsAfter(consignment, '엔에이치엔케이씨피 주식회사', [PRIVACY_TWILIO_PROCESSOR_ROW]);
+  replaceOnce(
+    '주문 확인·배송 시작 등 거래 안내 메일과 가입 인증·비밀번호 재설정 메일 발송',
+    '주문 확인·배송 시작 등 거래 안내 메일과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송',
+  );
+  replaceOnce(
+    '가입 인증과 비밀번호 재설정 메일에는 수신 이메일 주소가 전달됩니다.',
+    '가입 인증과 비밀번호 재설정 메일에는 수신 이메일 주소가, 이메일 변경 인증 메일에는 변경할 이메일 주소(수신자)와 6자리 인증번호가 전달됩니다.',
+  );
+
+  /* 제6조 */
+  const transfer = privacyArticle(articles, '제6조 ');
+  insertTableRowsAfter(transfer, 'Vercel, Inc.', [PRIVACY_TWILIO_TRANSFER_ROW]);
+  replaceOnce(
+    '택배사와 운송장번호 · 주문 확인·배송 시작 메일 발송 시점과 가입 인증·비밀번호 재설정 메일 발송 시점',
+    '택배사와 운송장번호, 이메일 변경 인증번호 · 주문 확인·배송 시작 메일 발송 시점과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송 시점',
+  );
+  replaceOnce(
+    '거래 안내 메일과 가입 인증·비밀번호 재설정 메일 발송 · 위탁계약 종료 시까지',
+    '거래 안내 메일과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송 · 위탁계약 종료 시까지',
+  );
+
+  /* 제7조 — 휴대폰 번호는 설정에서 열람·재인증할 수 있다. 제11조가 공유하는 SETTINGS_EDITABLE_ITEMS 는 건드리지 않는다. */
+  replaceOnce(
+    `${SETTINGS_EDITABLE_ITEMS_TEXT}는 설정 화면에서 직접 열람·수정할 수 있습니다.`,
+    `${SETTINGS_EDITABLE_ITEMS_TEXT}, 휴대폰 번호는 설정 화면에서 직접 열람·수정할 수 있습니다.`,
+  );
+  const rights = privacyArticle(articles, '제7조 ');
+  const rightsAnchor = rights.paragraphs?.findIndex((text) => text.startsWith('주소록에 저장한 배송지는')) ?? -1;
+  if (rightsAnchor < 0) throw new Error('contact_channels_privacy_anchor_changed:paragraph:제7조 주소록');
+  rights.paragraphs!.splice(
+    rightsAnchor + 1,
+    0,
+    '소셜 로그인이 전달한 이메일을 쓸 수 없는(예: Apple 이메일 가리기 주소) 회원이나 이메일이 없는 회원은 설정 또는 온보딩에서 다른 이메일을 입력하고 인증번호로 확인해 계정 이메일을 바꿀 수 있습니다.',
+  );
+  return articles;
+}
+
+/** 예약 개정을 날짜(KST)에 맞춰 방침에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
+function applyContactChannelsPrivacyRevision(document: LegalDocument, today: string, revision: ContactChannelsPrivacyRevision | null): void {
+  if (revision && contactChannelsPrivacyRevisionInEffect(today, revision)) {
+    const articles = reviseContactChannelsPrivacyArticles(document.articles);
+    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
+    document.articles = articles;
+    document.effectiveDate = revision.effectiveDate;
+    document.revisionChanges = CONTACT_CHANNELS_PRIVACY_CHANGES;
+  } else if (revision && contactChannelsPrivacyRevisionAnnounced(today, revision)) {
+    document.pendingRevision = {
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
+      heading: '휴대폰 번호 인증·이메일 변경 도입에 따른 개정 예정 안내',
+      changes: CONTACT_CHANNELS_PRIVACY_CHANGES,
+    };
+  }
+}
+
 /** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
 export function createLegalDocuments(
   businessInfo:BusinessInfo=BUSINESS_INFO,
   today: string = kstToday(),
   shippingBundleRevision: ShippingBundleWordingRevision | null = SHIPPING_BUNDLE_WORDING_REVISION,
+  contactChannelsPrivacyRevision: ContactChannelsPrivacyRevision | null = CONTACT_CHANNELS_PRIVACY_REVISION,
 ) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
@@ -205,7 +361,7 @@ const CONTACT_PENDING_NOTICE =
  * app/settings/actions.ts는 nickname·avatarPath·marketing만 읽는다. 온보딩에서 받는 생년월일은
  * 입력 필드도 액션도 없으므로, 방침이 설정 화면을 생년월일의 정정 경로로 가리키면
  * 연락처가 비어 있는 지금 이용자에게 존재하지 않는 경로를 안내하게 된다. */
-const SETTINGS_EDITABLE_ITEMS = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
+const SETTINGS_EDITABLE_ITEMS = SETTINGS_EDITABLE_ITEMS_TEXT;
 /* 회원 탈퇴는 아직 화면에도 RPC에도 없다(#102·#137). "즉시 처리합니다"라고 쓰면
  * 이용자가 찾을 수 없는 기능을 가리키게 되므로, 지금 실제로 열려 있는 경로만 적는다.
  * 연락처가 채워지면 문의 창구가 그대로 접수 경로가 된다. */
@@ -843,6 +999,7 @@ const shipping: LegalDocument = {
 
 applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
 applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
+applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
 
 return {terms,privacy,shipping};
 }

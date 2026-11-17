@@ -120,13 +120,11 @@ describe('PhoneVerificationPanel (1014-005·006, 스위치 ON)', () => {
       <Onboarding
         birthDate=""
         email="fan@icons.gg"
-        followedIpIds={[]}
         genderEligible
         initialMarketing={{ email: false, sms: false }}
         isConfigured
         next="/"
         phoneVerification={VIEW}
-        recommendedIps={[]}
         {...props}
       />,
     );
