@@ -624,7 +624,9 @@ export function OrderDetail({
               <p>결제 내역이 없습니다.</p>
             )}
             {receiptNotice ? (
-              <p className="order-payment-notice" role="status">결제 영수증을 지금 불러오지 못했어요. 잠시 후 다시 시도하거나 아래 &apos;이 주문 문의하기&apos;로 요청해주세요.</p>
+              /* 안내 안의 링크가 아래쪽 '이 주문 문의하기' 버튼과 같은 곳(같은 주문 맥락의 문의 작성)으로 바로 보낸다 — 버튼이 화면 어디에
+                 있든(좁은 폭에서는 결제 정보보다 위) 위치 말('아래')에 기대지 않는다. */
+              <p className="order-payment-notice" role="status">결제 영수증을 지금 불러오지 못했어요. 잠시 후 다시 시도하거나 <Link href={newInquiryHref({ category: 'order', orderId: order.id })}>이 주문 문의하기</Link>로 요청해주세요.</p>
             ) : null}
             {receiptAvailable || statementAvailable ? (
               <div className="order-payment-actions">

@@ -698,10 +698,15 @@ describe('OrderDetail 결제 정보(MD-0037·0038)', () => {
     expect(renderToStaticMarkup(<OrderDetail order={order({ paymentMethod: 'bank_transfer', status: 'pending', payment: null, shipments: [] })} />)).not.toContain('결제사 영수증 대신');
   });
 
-  it('?receipt=unavailable로 돌아오면 버튼 줄 위에 role=status 안내를 보인다', () => {
+  it('?receipt=unavailable로 돌아오면 버튼 줄 위에 role=status 안내를 보이고, 안내 안의 `이 주문 문의하기`가 바로 문의 작성으로 간다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment, shipments: [] })} receiptNotice />);
-    const notice = '<p class="order-payment-notice" role="status">결제 영수증을 지금 불러오지 못했어요. 잠시 후 다시 시도하거나 아래 &#x27;이 주문 문의하기&#x27;로 요청해주세요.</p>';
+    const inquiryHref = `/my/inquiries/new?category=order&amp;orderId=${ORDER_ID}`;
+    const notice = `<p class="order-payment-notice" role="status">결제 영수증을 지금 불러오지 못했어요. 잠시 후 다시 시도하거나 <a href="${inquiryHref}">이 주문 문의하기</a>로 요청해주세요.</p>`;
     expect(html).toContain(notice);
+    /* 위치를 가리키는 말('아래')은 쓰지 않는다 — 좁은 폭에서는 문의 버튼이 결제 정보보다 위에 있다. */
+    expect(notice).not.toContain('아래');
+    /* 본문 끝의 기존 `이 주문 문의하기` 버튼과 같은 링크(같은 주문 맥락)다. */
+    expect(html).toContain(`<a class="btn btn-ghost" href="${inquiryHref}">이 주문 문의하기</a>`);
     expect(html.indexOf(notice)).toBeLessThan(html.indexOf('class="order-payment-actions"'));
     expect(html.indexOf('id="order-payment"')).toBeLessThan(html.indexOf(notice));
     expect(renderToStaticMarkup(<OrderDetail order={order({ payment: tossPayment, shipments: [] })} />)).not.toContain('order-payment-notice');

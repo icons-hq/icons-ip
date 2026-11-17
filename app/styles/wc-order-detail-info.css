@@ -147,6 +147,13 @@
   color: var(--wc-ink-sub);
 }
 
+.wc-receipt .order-receipt-section .order-payment-notice a {
+  color: var(--wc-ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .wc-receipt .order-payment-actions {
   display: flex;
   flex-wrap: wrap;
