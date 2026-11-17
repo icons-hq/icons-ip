@@ -2,9 +2,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Shop } from '@/components/screens/Shop';
-import { CategoryDisplayContents } from '@/components/shop/CategoryDisplayContents';
+import { categoryDisplayBanner, CategoryDisplayMedia } from '@/components/shop/CategoryDisplayContents';
 import type { CategoryDisplayPage } from '@/lib/category-display';
 import type { ShopListQuery } from '@/lib/shop-catalog';
+
+/** iframe 안에 그리는 본문 — 고객 화면(`CategoryDisplayShop`)과 같은 틀이다: `Shop`(제목 줄·정렬·그리드) 머리에 전시 구성의 스트립 배너
+ *  (`displayBanner`)를 얹고, 영상·추천 밴드(`CategoryDisplayMedia`)를 칩 영역과 제목 줄 사이에 끼운다. 칩·하위 탭(`categoryNav`)은
+ *  공개 전시 트리에서 서버가 만드는 값이라 저장 전 구성을 보는 미리보기에는 없다. */
+export function CategoryDisplayPreviewBody({ page, onQueryChange, overlayContainer }: { page: CategoryDisplayPage; onQueryChange: (query: ShopListQuery) => void; overlayContainer?: HTMLElement }) {
+  /* 컬렉션 배너 슬롯이 없는 화면이라야 전시 구성 배너가 선다(`collectionBannerSlotFor`) — 전시 id 가 질의에 없는 값이 와도 배너가 빠지지 않게 보강한다. */
+  const query = page.query.displayCategory ? page.query : { ...page.query, displayCategory: page.category.id };
+  return <>
+    <Shop view="all" title={page.category.name} query={query} result={page.result} onQueryChange={onQueryChange} displayBanner={categoryDisplayBanner(page)}
+      refreshScheduledContent={false} overlayContainer={overlayContainer} paging={{ loading: false, hasMore: false, onLoadMore: () => undefined }}>
+      <CategoryDisplayMedia page={page} />
+    </Shop>
+    {page.result.filteredTotal > 20 ? <p className="wc-container">전체 {page.result.filteredTotal.toLocaleString()}개 중 첫 20개를 미리 봅니다.</p> : null}
+  </>;
+}
 
 const DOCUMENT = '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>카테고리 전시 미리보기</title></head><body style="margin:0"><div id="root" class="wc-root"><div id="category-preview"></div></div></body></html>';
 export function CategoryDisplayPreview({ page, mobile, onQueryChange }: { page: CategoryDisplayPage; mobile: boolean; onQueryChange: (query: ShopListQuery) => void }) {
@@ -23,9 +38,7 @@ export function CategoryDisplayPreview({ page, mobile, onQueryChange }: { page: 
     {width > 0 ? <iframe className="block border-0" ref={frame} data-preview-ready={Boolean(portal)} onLoad={mount} srcDoc={DOCUMENT} sandbox="allow-same-origin" title={`${mobile ? '모바일' : 'PC'} 카테고리 전시 미리보기`}
       style={{ width: viewport, height: 700 / scale, transform: `scale(${scale})`, transformOrigin: 'top left' }} /> : <p className="p-4 text-sm text-muted-foreground" role="status">미리보기 준비 중…</p>}
     {portal ? createPortal(<div onClickCapture={event => { if ((event.target as HTMLElement).closest('a')) event.preventDefault(); }}>
-      <CategoryDisplayContents page={page} /><Shop view="all" title={page.category.name} query={page.query} result={page.result} onQueryChange={onQueryChange}
-        refreshScheduledContent={false} overlayContainer={portal.ownerDocument.body} paging={{ loading: false, hasMore: false, onLoadMore: () => undefined }} />
-      {page.result.filteredTotal > 20 ? <p className="wc-container">전체 {page.result.filteredTotal.toLocaleString()}개 중 첫 20개를 미리 봅니다.</p> : null}
+      <CategoryDisplayPreviewBody page={page} onQueryChange={onQueryChange} overlayContainer={portal.ownerDocument.body} />
     </div>, portal) : null}
   </div></div>;
 }
