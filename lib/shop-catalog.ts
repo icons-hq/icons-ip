@@ -3,6 +3,16 @@ import type { CatalogSnapshot } from './catalog';
 import type { Good } from './data';
 import { pickGoodsReviewSummaries, type GoodsReviewSummaries, type GoodsReviewSummary } from './goods-review-summary';
 import { GOOD_TYPES, isGoodType } from './goods-taxonomy';
+import type { HomeSalesPeriod } from './home-ranking';
+import {
+  LISTING_SORT_LABELS,
+  LISTING_SORTS,
+  NEW_DEFAULT_SORT,
+  NEW_SORT_TABS,
+  parseSalesRankingPeriod,
+  SALES_RANKING_DEFAULT_PERIOD,
+  type ListingSortOrders,
+} from './listing-sorts';
 
 /* 굿즈샵·NEW·BEST·검색 결과·온라인 팝업 IP관이 공유하는 목록 상태 하나 (#326, LFS 패리티 2차 L4).
    URL 이 유일한 진실원이라 파싱·필터·정렬·facet 계산을 전부 여기서 끝내고, 화면은 결과만 그린다.
@@ -16,12 +26,15 @@ export type ShopSort =
   | 'price_asc'
   | 'price_desc'
   | 'oldest'
-  | 'newest';
+  | 'newest'
+  | 'popular'
+  | 'sales'
+  | 'reviews';
 
-/** 서버 페이지네이션(카테고리 전시 RPC `get_category_display_page`)도 받는 정렬 — DB 화이트리스트와 같아야 한다.
- *  컬렉션 목록(`SHOP_VIEW_SORTS.all`)과 같은 7종이다 — 카테고리 전시도 같은 정렬 문법을 쓴다(LFS 패리티 2차 L5, 12 LD-13).
- *  클라이언트에서 정렬하는 목록은 뷰별 목록(`SHOP_VIEW_SORTS`)을 쓴다. */
-export const SHOP_SORTS: readonly ShopSort[] = ['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest'];
+/** 서버 페이지네이션(카테고리 전시 RPC `get_category_display_page`)이 받는 정렬 — DB 화이트리스트와 같아야 한다.
+ *  이름순 2종·오래된순은 화면에서 빠졌지만 URL 호환으로 DB 가 계속 받는다. 인기도·판매량·리뷰 많은순은 C1 migration
+ *  (`20261117130100_category_display_listing_sorts`)이 더했다. 화면이 고르게 하는 목록은 `LISTING_SORTS`다(스펙 C §2.5). */
+export const SHOP_SORTS: readonly ShopSort[] = ['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest', 'popular', 'sales', 'reviews'];
 
 export const SHOP_SORT_LABELS: Record<ShopSort, string> = {
   recommended: '추천순',
@@ -31,30 +44,35 @@ export const SHOP_SORT_LABELS: Record<ShopSort, string> = {
   price_asc: '낮은 가격순',
   price_desc: '높은 가격순',
   oldest: '오래된순',
-  newest: '최신순',
+  /* 목록 정렬 어휘 7종은 listing-sorts 가 정본이다. 최신순 라벨이 '최신 등록순'으로 바뀌면 IP관 정렬 라벨도 같이 바뀐다(용어 통일). */
+  newest: LISTING_SORT_LABELS.newest,
+  popular: LISTING_SORT_LABELS.popular,
+  sales: LISTING_SORT_LABELS.sales,
+  reviews: LISTING_SORT_LABELS.reviews,
 };
 
 export type ShopView = 'all' | 'new' | 'best' | 'search' | 'ip';
 
-/* 목록 정렬은 레퍼런스 순서(추천 → 이름 2 → 가격 2 → 출시 2)를 따른다. 베스트셀러는 운영 가주문이
-   판매 순위를 왜곡하는 동안 보류한다(12 LD-13). 검색은 관련성·가격 2종이다(R-03 §2.4). */
-const COLLECTION_SORTS: readonly ShopSort[] = ['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest'];
+/* IP관은 지금 7종(추천 → 이름 2 → 가격 2 → 출시 2)을 그대로 둔다 — Figma 범위 밖이다(스펙 C §2.5). 검색은 관련성·가격 2종이다(R-03 §2.4). */
+const IP_SORTS: readonly ShopSort[] = ['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest'];
 
+/* 굿즈샵 전체·BEST·카테고리는 정렬 7종 하나로 통일한다(`LISTING_SORTS`). NEW 는 탭 줄이 곧 정렬이라 추천순을 뺀 6종이다.
+   이름순·오래된순은 URL 값이 들어와도 기본값으로 떨어진다(화면에서 뺐다). */
 export const SHOP_VIEW_SORTS: Record<ShopView, readonly ShopSort[]> = {
-  all: COLLECTION_SORTS,
-  new: COLLECTION_SORTS,
-  best: COLLECTION_SORTS,
-  ip: COLLECTION_SORTS,
+  all: LISTING_SORTS,
+  new: NEW_SORT_TABS,
+  best: LISTING_SORTS,
+  ip: IP_SORTS,
   search: ['relevance', 'price_asc', 'price_desc'],
 };
 
 /** VIEW MORE 1회 append 단위 (R-03 §1.6). */
 export const SHOP_PAGE_SIZE = 20;
 
-/* 정렬 기본값은 컬렉션마다 다르다 — NEW 는 최신순이 컬렉션의 정의 자체고(R-03 §1.4), 검색은 관련성이다. */
+/* 정렬 기본값은 컬렉션마다 다르다 — NEW 는 최신 등록순이 컬렉션의 정의 자체고(R-03 §1.4), 검색은 관련성이다. */
 export const SHOP_DEFAULT_SORT: Record<ShopView, ShopSort> = {
   all: 'recommended',
-  new: 'newest',
+  new: NEW_DEFAULT_SORT,
   best: 'recommended',
   ip: 'recommended',
   search: 'relevance',
@@ -162,6 +180,43 @@ export function parseShopSearchParams(
   };
 }
 
+export type ListingView = Extract<ShopView, 'all' | 'new' | 'best'>;
+
+/**
+ * 굿즈샵 전체·NEW·BEST·카테고리 화면의 쿼리 파서. 이 화면들에는 필터 UI 가 없다(Figma) — `ip`·`type`·`min`·`max`·`category` 는
+ * 읽지 않는다(지울 방법이 없는 필터가 걸린 채 열리는 걸 막는다). 정렬은 그 화면이 고르게 하는 목록 안에서만 받고 아니면 기본값,
+ * BEST 의 `period` 는 잘못된 값이 실시간으로 떨어진다.
+ */
+export function parseListingSearchParams(
+  params: Record<string, SearchParamValue>,
+  view: ListingView,
+): { query: ShopListQuery; period: HomeSalesPeriod } {
+  const sortParam = firstOf(params.sort);
+  return {
+    query: {
+      ips: [],
+      types: [],
+      priceMin: null,
+      priceMax: null,
+      sort: SHOP_VIEW_SORTS[view].find((candidate) => candidate === sortParam) ?? SHOP_DEFAULT_SORT[view],
+      view,
+    },
+    period: parseSalesRankingPeriod(params.period),
+  };
+}
+
+/**
+ * 목록 화면(굿즈샵 전체·NEW·BEST·카테고리 전시)이 컨트롤을 눌렀을 때 만드는 다음 URL 의 쿼리 문자열. 기본값(뷰 기본 정렬·실시간 기간)은 싣지 않아
+ * 기본 상태 URL 이 깨끗하다. 필터는 이 화면에 없으므로 싣지 않는다 — 전시 id 와 BEST 기간만 정렬과 함께 보존한다.
+ */
+export function listingQueryString(query: Pick<ShopListQuery, 'displayCategory' | 'sort' | 'view'>, period?: HomeSalesPeriod): string {
+  const params = new URLSearchParams();
+  if (query.displayCategory) params.set('displayCategory', query.displayCategory);
+  if (query.view === 'best' && period && period !== SALES_RANKING_DEFAULT_PERIOD) params.set('period', period);
+  if (query.sort !== SHOP_DEFAULT_SORT[query.view]) params.set('sort', query.sort);
+  return params.toString();
+}
+
 /** 뷰가 정하는 스코프 — 필터·정렬·facet·카운트가 모두 이 목록 위에서만 움직인다. */
 function scopeFor(
   goods: readonly Good[],
@@ -171,8 +226,8 @@ function scopeFor(
   if (view === 'new') return goods.filter((good) => good.badge === 'NEW');
   if (view !== 'best') return [...goods];
 
-  /* BEST 는 카탈로그가 아니라 큐레이션이 순서를 정한다. 없는 id 는 빈 카드가 아니라
-     그냥 빠지고(resolveHomeGoodsCards 와 같은 규칙), 중복 지정도 한 번만 센다. */
+  /* BEST 는 카탈로그가 아니라 판매 랭킹(기간별 `get_goods_sales_ranking`)이 순서를 정한다. 카탈로그에 없는 id(성인·비공개로 이 사람에게
+     안 보이는 굿즈)는 빈 카드가 아니라 그냥 빠지고(resolveHomeGoodsCards 와 같은 규칙), 중복도 한 번만 센다. */
   const goodsById = new Map(goods.map((good) => [good.id, good]));
   const seen = new Set<string>();
   const curated: Good[] = [];
@@ -204,10 +259,36 @@ function compareTime(a: Good, b: Good, direction: 1 | -1): number {
   return 0;
 }
 
+/* 인기도·판매량·리뷰 많은순은 DB 가 정한 id 배열(`get_goods_listing_orders`)의 위치로 줄 세운다 — 판매·위시 원수치는 클라이언트에 오지 않는다.
+   배열에 없는 굿즈(성인·방금 공개된 굿즈 등)는 뒤로, 그 안에서는 스코프 순서를 지킨다. 배열을 못 읽었으면(null) 스코프 순서 그대로다. */
+const SERVER_ORDERED_SORTS = ['popular', 'sales', 'reviews'] as const;
+type ServerOrderedSort = typeof SERVER_ORDERED_SORTS[number];
+
+/** 정렬이 DB 순서 배열(`get_goods_listing_orders`)을 필요로 하는가 — 호출부가 필요할 때만 읽는다. */
+export function isServerOrderedSort(sort: ShopSort): sort is ServerOrderedSort {
+  return (SERVER_ORDERED_SORTS as readonly string[]).includes(sort);
+}
+
+function sortByServerOrder(goods: Good[], order: readonly string[] | undefined): Good[] {
+  if (!order) return goods;
+  const position = new Map(order.map((id, index) => [id, index]));
+  return goods
+    .map((good, index) => ({ good, index }))
+    .sort((a, b) => {
+      const left = position.get(a.good.id);
+      const right = position.get(b.good.id);
+      if (left !== undefined && right !== undefined && left !== right) return left - right;
+      if (left !== undefined && right === undefined) return -1;
+      if (left === undefined && right !== undefined) return 1;
+      return a.index - b.index;
+    })
+    .map((entry) => entry.good);
+}
+
 /* 정렬은 스코프 순서(추천순·검색 관련성)를 기준선으로 놓고 그 위에서만 재배열한다.
    동점·시각 부재 항목이 원순서를 잃지 않도록 인덱스를 타이브레이커로 쓴다. */
 function sortGoods(goods: Good[], sort: ShopSort): Good[] {
-  if (sort === 'recommended' || sort === 'relevance') return goods;
+  if (sort === 'recommended' || sort === 'relevance' || isServerOrderedSort(sort)) return goods;
 
   return goods
     .map((good, index) => ({ good, index }))
@@ -237,6 +318,7 @@ export function selectCollectionGoods(
   scope: readonly Good[],
   catalog: CollectionCatalog,
   query: ShopListQuery,
+  sortOrders: ListingSortOrders | null = null,
 ): ShopListResult {
   const selectedIps = new Set(query.ips);
   const selectedTypes = new Set(query.types);
@@ -273,7 +355,12 @@ export function selectCollectionGoods(
 
   const scopeIsRecommended = query.view === 'best' || query.view === 'search';
   const recommended = scopeIsRecommended ? filtered : sortRecommendedGoods(filtered);
-  const sorted = query.sort === 'recommended' ? recommended : sortGoods(filtered, query.sort);
+  /* 서버 정렬 3종은 스코프 순서(= 추천순 결과)를 기준선으로 놓는다 — 배열에 없는 굿즈는 그 순서 그대로 뒤에 남는다. */
+  const sorted = query.sort === 'recommended'
+    ? recommended
+    : isServerOrderedSort(query.sort)
+      ? sortByServerOrder(recommended, sortOrders?.[query.sort])
+      : sortGoods(filtered, query.sort);
 
   return {
     goods: sorted,
@@ -305,6 +392,7 @@ export function selectShopGoods(
   catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'reviewSummaries'> & { categories?: readonly CatalogCategory[] },
   query: ShopListQuery,
   bestGoodIds: readonly string[] = [],
+  sortOrders: ListingSortOrders | null = null,
 ): ShopListResult {
-  return selectCollectionGoods(scopeFor(catalog.goods, query.view, bestGoodIds), catalog, query);
+  return selectCollectionGoods(scopeFor(catalog.goods, query.view, bestGoodIds), catalog, query, sortOrders);
 }

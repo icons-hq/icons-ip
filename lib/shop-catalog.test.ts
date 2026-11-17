@@ -8,11 +8,15 @@ import {
   SHOP_SORT_LABELS,
   SHOP_VIEW_SORTS,
   isPreorderGood,
+  isServerOrderedSort,
+  listingQueryString,
+  parseListingSearchParams,
   parseShopSearchParams,
   selectCollectionGoods,
   selectShopGoods,
   type ShopListQuery,
 } from './shop-catalog';
+import { LISTING_SORT_LABELS, LISTING_SORTS, NEW_SORT_TABS } from './listing-sorts';
 
 function ip(id: string, title: string): Ip {
   return {
@@ -76,14 +80,15 @@ function ids(result: { goods: Good[] }) {
 }
 
 describe('정렬 상수', () => {
-  it('서버 페이지네이션 정렬은 DB 화이트리스트(컬렉션과 같은 7종)와 같고 페이지 크기는 20이다', () => {
-    /* get_category_display_page 가 받는 값과 하나라도 어긋나면 카테고리 전시 페이지가 실패한다(L5 — 4종 → 7종). */
-    expect(SHOP_SORTS).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
-    expect(SHOP_SORTS).toEqual(SHOP_VIEW_SORTS.all);
+  it('서버 페이지네이션 정렬은 DB 화이트리스트(C1 migration 의 10종)와 같고 페이지 크기는 20이다', () => {
+    /* get_category_display_page 가 받는 값과 하나라도 어긋나면 카테고리 전시 페이지가 실패한다 — 이름순·오래된순은 URL 호환으로 DB 가 계속 받고
+       인기도·판매량·리뷰 많은순은 20261117130100_category_display_listing_sorts 가 더했다. */
+    expect(SHOP_SORTS).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest', 'popular', 'sales', 'reviews']);
+    for (const sort of LISTING_SORTS) expect(SHOP_SORTS).toContain(sort);
     expect(SHOP_PAGE_SIZE).toBe(20);
   });
 
-  it('모든 정렬에 한국어 라벨이 있다 — 이름 가나다순·역순·오래된순이 더해졌다(12 LD-13)', () => {
+  it('모든 정렬에 한국어 라벨이 있다 — 목록 정렬 7종은 listing-sorts 의 라벨 그대로고 최신순은 최신 등록순이다(스펙 C §2.5)', () => {
     expect(SHOP_SORT_LABELS).toEqual({
       recommended: '추천순',
       relevance: '관련성순',
@@ -92,18 +97,26 @@ describe('정렬 상수', () => {
       price_asc: '낮은 가격순',
       price_desc: '높은 가격순',
       oldest: '오래된순',
-      newest: '최신순',
+      newest: '최신 등록순',
+      popular: '인기도순',
+      sales: '판매량순',
+      reviews: '리뷰 많은순',
     });
+    for (const sort of LISTING_SORTS) expect(SHOP_SORT_LABELS[sort]).toBe(LISTING_SORT_LABELS[sort]);
   });
 
-  it('목록은 레퍼런스 순서의 7종, 검색은 관련성·가격 3종을 고르게 한다(베스트셀러 보류)', () => {
-    const collection = ['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest'];
-    expect(SHOP_VIEW_SORTS.all).toEqual(collection);
-    expect(SHOP_VIEW_SORTS.new).toEqual(collection);
-    expect(SHOP_VIEW_SORTS.best).toEqual(collection);
-    expect(SHOP_VIEW_SORTS.ip).toEqual(collection);
+  it('굿즈샵 전체·BEST 는 정렬 7종, NEW 는 추천순을 뺀 6종, IP관은 지금 7종, 검색은 관련성·가격 3종이다', () => {
+    expect(SHOP_VIEW_SORTS.all).toEqual(['recommended', 'popular', 'newest', 'sales', 'price_asc', 'price_desc', 'reviews']);
+    expect(SHOP_VIEW_SORTS.best).toEqual(SHOP_VIEW_SORTS.all);
+    expect(SHOP_VIEW_SORTS.new).toEqual(NEW_SORT_TABS);
+    expect(SHOP_VIEW_SORTS.new).not.toContain('recommended');
+    expect(SHOP_VIEW_SORTS.ip).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
     expect(SHOP_VIEW_SORTS.search).toEqual(['relevance', 'price_asc', 'price_desc']);
     for (const sorts of Object.values(SHOP_VIEW_SORTS)) expect(sorts).not.toContain('best_selling');
+  });
+
+  it('DB 순서 배열이 필요한 정렬은 인기도·판매량·리뷰 많은순뿐이다', () => {
+    expect(LISTING_SORTS.filter(isServerOrderedSort)).toEqual(['popular', 'sales', 'reviews']);
   });
 });
 
@@ -163,8 +176,12 @@ describe('parseShopSearchParams', () => {
   });
 
   it('정렬 값은 그 뷰가 고르게 하는 목록 안에서만 받는다', () => {
-    expect(parseShopSearchParams({ sort: 'name_asc' }, { view: 'all', validIpIds }).sort).toBe('name_asc');
+    /* 이름순·오래된순은 굿즈샵 전체·NEW·BEST 에서 화면에서 빠졌다 — URL 에 들어와도 기본값이다. IP관은 지금 7종을 그대로 둔다. */
+    expect(parseShopSearchParams({ sort: 'name_asc' }, { view: 'all', validIpIds }).sort).toBe('recommended');
+    expect(parseShopSearchParams({ sort: 'sales' }, { view: 'all', validIpIds }).sort).toBe('sales');
+    expect(parseShopSearchParams({ sort: 'name_asc' }, { view: 'ip', validIpIds }).sort).toBe('name_asc');
     expect(parseShopSearchParams({ sort: 'oldest' }, { view: 'ip', validIpIds }).sort).toBe('oldest');
+    expect(parseShopSearchParams({ sort: 'popular' }, { view: 'ip', validIpIds }).sort).toBe('recommended');
     /* 검색은 관련성·가격만 있다 — 다른 값은 관련성으로 떨어진다. */
     expect(parseShopSearchParams({ sort: 'name_asc' }, { view: 'search', validIpIds }).sort).toBe('relevance');
     expect(parseShopSearchParams({ sort: 'price_asc' }, { view: 'search', validIpIds }).sort).toBe('price_asc');
@@ -484,5 +501,93 @@ describe('목록 카드 별점 (CL-02)', () => {
 
     expect(selectShopGoods(withSummaries, query({ ips: ['ip1'] })).reviewSummaries).toEqual({ a: { count: 2, average: 4.5 } });
     expect(selectShopGoods(catalog, query())).not.toHaveProperty('reviewSummaries');
+  });
+});
+
+describe('parseListingSearchParams — 굿즈샵 전체·NEW·BEST (Figma 목록 화면)', () => {
+  it('필터 쿼리(ip·type·min·max·category)는 읽지 않는다 — 지울 방법 없는 필터가 걸린 채 열리지 않는다', () => {
+    const { query: parsed } = parseListingSearchParams({ ip: 'ip1', type: ['키링', '예약판매'], min: '5000', max: '20000', category: 'root', sort: 'price_asc' }, 'all');
+
+    expect(parsed).toEqual({ ips: [], types: [], priceMin: null, priceMax: null, sort: 'price_asc', view: 'all' });
+    expect(parsed).not.toHaveProperty('categories');
+    expect(ids(selectShopGoods(catalog, parsed))).toEqual(ids(selectShopGoods(catalog, parseListingSearchParams({ sort: 'price_asc' }, 'all').query)));
+  });
+
+  it('정렬은 그 화면의 허용 목록 안에서만 받는다 — 이름순·오래된순·알 수 없는 값은 기본값이다', () => {
+    for (const sort of LISTING_SORTS) {
+      expect(parseListingSearchParams({ sort }, 'all').query.sort, `all ${sort}`).toBe(sort);
+      expect(parseListingSearchParams({ sort }, 'best').query.sort, `best ${sort}`).toBe(sort);
+    }
+    for (const sort of ['name_asc', 'name_desc', 'oldest', 'relevance', 'hot', '']) {
+      expect(parseListingSearchParams({ sort }, 'all').query.sort, `all ${sort}`).toBe('recommended');
+      expect(parseListingSearchParams({ sort }, 'best').query.sort, `best ${sort}`).toBe('recommended');
+      expect(parseListingSearchParams({ sort }, 'new').query.sort, `new ${sort}`).toBe('newest');
+    }
+    /* NEW 는 탭 줄이 곧 정렬이라 추천순이 없다 — recommended 도 최신 등록순으로 떨어진다. */
+    expect(parseListingSearchParams({ sort: 'recommended' }, 'new').query.sort).toBe('newest');
+    for (const sort of NEW_SORT_TABS) expect(parseListingSearchParams({ sort }, 'new').query.sort).toBe(sort);
+    expect(parseListingSearchParams({ sort: ['sales', 'price_asc'] }, 'new').query.sort).toBe('sales');
+  });
+
+  it('BEST 기간은 잘못된 값이 실시간으로 떨어지고 반복된 값은 첫 값을 본다', () => {
+    expect(parseListingSearchParams({}, 'best').period).toBe('realtime');
+    for (const period of ['realtime', 'daily', 'weekly', 'monthly'] as const) expect(parseListingSearchParams({ period }, 'best').period).toBe(period);
+    expect(parseListingSearchParams({ period: 'yearly' }, 'best').period).toBe('realtime');
+    expect(parseListingSearchParams({ period: ['weekly', 'monthly'] }, 'best').period).toBe('weekly');
+    expect(parseListingSearchParams({ period: ['bad', 'monthly'] }, 'best').period).toBe('realtime');
+  });
+});
+
+describe('listingQueryString — 목록 화면이 다음 URL 에 싣는 값', () => {
+  it('기본 정렬·실시간 기간은 싣지 않고 전시 id·기간·정렬은 함께 보존한다', () => {
+    expect(listingQueryString({ view: 'all', sort: 'recommended' })).toBe('');
+    expect(listingQueryString({ view: 'new', sort: 'newest' })).toBe('');
+    expect(listingQueryString({ view: 'new', sort: 'sales' })).toBe('sort=sales');
+    expect(listingQueryString({ view: 'best', sort: 'recommended' }, 'realtime')).toBe('');
+    expect(listingQueryString({ view: 'best', sort: 'recommended' }, 'weekly')).toBe('period=weekly');
+    expect(listingQueryString({ view: 'best', sort: 'reviews' }, 'monthly')).toBe('period=monthly&sort=reviews');
+    expect(listingQueryString({ view: 'all', sort: 'popular', displayCategory: '5a4c3000-0000-4000-8000-000000000001' })).toBe('displayCategory=5a4c3000-0000-4000-8000-000000000001&sort=popular');
+    /* 기간은 BEST 의 차원이다 — 다른 화면의 URL 에는 새지 않는다. */
+    expect(listingQueryString({ view: 'all', sort: 'recommended' }, 'weekly')).toBe('');
+  });
+});
+
+describe('selectShopGoods 서버 정렬 3종 — 인기도·판매량·리뷰 많은순', () => {
+  const ordered = { ips, goods: [good('a', 'ip1'), good('b', 'ip1'), good('c', 'ip1'), good('d', 'ip1'), good('e', 'ip1')] };
+  const orders = { popular: ['c', 'a', 'e'], sales: ['b', 'a'], reviews: ['d', 'c'] };
+
+  it('DB 가 돌려준 id 배열의 위치로 줄 세우고 배열에 없는 굿즈는 스코프 순서로 뒤에 둔다', () => {
+    expect(ids(selectShopGoods(ordered, query({ sort: 'popular' }), [], orders))).toEqual(['c', 'a', 'e', 'b', 'd']);
+    expect(ids(selectShopGoods(ordered, query({ sort: 'sales' }), [], orders))).toEqual(['b', 'a', 'c', 'd', 'e']);
+    expect(ids(selectShopGoods(ordered, query({ sort: 'reviews' }), [], orders))).toEqual(['d', 'c', 'a', 'b', 'e']);
+  });
+
+  it('배열에 없는 굿즈의 뒤 순서는 진열(추천) 순서다', () => {
+    const displayOrdered = { ips, goods: [good('x', 'ip1', { displayOrder: 3 }), good('y', 'ip1', { displayOrder: 1 }), good('z', 'ip1', { displayOrder: 2 })] };
+
+    expect(ids(selectShopGoods(displayOrdered, query({ sort: 'sales' }), [], { popular: [], sales: ['z'], reviews: [] }))).toEqual(['z', 'y', 'x']);
+  });
+
+  it('정렬 순서를 읽지 못했으면(null) 스코프 순서 그대로다 — 목록은 막지 않는다', () => {
+    expect(ids(selectShopGoods(ordered, query({ sort: 'popular' }), [], null))).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(ids(selectShopGoods(ordered, query({ sort: 'sales' })))).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+
+  it('BEST 는 판매 랭킹 id 순서가 스코프이고 다른 정렬은 그 목록 안에서만 다시 줄 세운다', () => {
+    const best = query({ view: 'best' });
+
+    expect(ids(selectShopGoods(ordered, best, ['d', 'ghost', 'b', 'd', 'a']))).toEqual(['d', 'b', 'a']);
+    expect(ids(selectShopGoods(ordered, { ...best, sort: 'price_asc' }, ['d', 'b', 'a']))).toEqual(['d', 'b', 'a']);
+    /* 랭킹 밖 굿즈(c)는 인기도 배열 맨 앞이어도 BEST 목록에 들어오지 않는다. */
+    expect(ids(selectShopGoods(ordered, { ...best, sort: 'popular' }, ['d', 'b', 'a'], orders))).toEqual(['a', 'd', 'b']);
+    expect(selectShopGoods(ordered, best, []).goods).toEqual([]);
+    expect(selectShopGoods(ordered, best, []).total).toBe(0);
+  });
+
+  it('정렬해도 입력 굿즈 배열을 변형하지 않는다', () => {
+    const input = { ips, goods: [...ordered.goods] };
+    selectShopGoods(input, query({ sort: 'popular' }), [], orders);
+
+    expect(input.goods.map((item) => item.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 });
