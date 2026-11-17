@@ -73,12 +73,12 @@ describe('토스 receiptUrl', () => {
 
   it('응답의 paymentKey가 요청 키와 다르면 다른 결제의 영수증이라 unavailable이다', async () => {
     const toss = server(json(200, payment({ paymentKey: 'tviva20261117000000OTHERpaymentKEY99999' })));
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable', reason: 'key_mismatch' });
   });
 
   it('응답에 paymentKey가 없어도 unavailable이다', async () => {
     const toss = server(json(200, payment({ paymentKey: undefined })));
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable', reason: 'key_mismatch' });
   });
 
   it.each([
@@ -92,46 +92,46 @@ describe('토스 receiptUrl', () => {
     ['2049자', `https://dashboard.tosspayments.com/${'a'.repeat(2049 - 'https://dashboard.tosspayments.com/'.length)}`],
   ])('매출전표 URL이 %s이면 이동 대상으로 쓰지 않는다(not_found)', async (_label, url) => {
     const toss = server(json(200, payment({ receipt: { url } })));
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'not_found' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'not_found', reason: 'receipt_url_missing' });
   });
 
   it('receipt가 없거나 형태가 틀리면 not_found다', async () => {
     for (const receipt of [undefined, null, {}, { url: null }, { url: 123 }, 'https://dashboard.tosspayments.com/receipt', [RECEIPT_URL]]) {
       const toss = server(json(200, payment({ receipt })));
-      expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY), JSON.stringify(receipt)).toEqual({ kind: 'not_found' });
+      expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY), JSON.stringify(receipt)).toEqual({ kind: 'not_found', reason: 'receipt_url_missing' });
     }
   });
 
   it('404는 not_found다', async () => {
     const toss = server(json(404, { code: 'NOT_FOUND_PAYMENT', message: '존재하지 않는 결제 입니다.' }));
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'not_found' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'not_found', reason: 'payment_not_found' });
   });
 
-  it.each([500, 502, 503])('%i 응답은 unavailable이다', async (status) => {
+  it.each([500, 502, 503])('%i 응답은 unavailable(http_error)이다', async (status) => {
     const toss = server(json(status, { code: 'FAILED_INTERNAL_SYSTEM_PROCESSING', message: '내부 시스템 처리 작업이 실패했습니다.' }));
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable', reason: 'http_error' });
   });
 
   it('401·403(키 설정 오류)은 이동 근거가 아니라 unavailable이다', async () => {
     for (const status of [401, 403]) {
       const toss = server(json(status, { code: 'UNAUTHORIZED_KEY', message: '인증되지 않은 시크릿 키 혹은 클라이언트 키 입니다.' }));
-      expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY), String(status)).toEqual({ kind: 'unavailable' });
+      expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY), String(status)).toEqual({ kind: 'unavailable', reason: 'configuration_error' });
     }
   });
 
   it('네트워크 오류는 throw하지 않고 unavailable이다', async () => {
     const toss = server('network_error');
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable', reason: 'transport' });
   });
 
   it('시한 안에 응답이 없으면(타임아웃) unavailable이다', async () => {
     const toss = server('hang');
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable', reason: 'transport' });
   });
 
   it('JSON이 아닌 200 응답은 unavailable이다', async () => {
     const toss = server(new Response('<html>gateway</html>', { status: 200, headers: { 'content-type': 'text/html' } }));
-    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(PAYMENT_KEY)).toEqual({ kind: 'unavailable', reason: 'transport' });
   });
 
   it.each([
@@ -143,8 +143,23 @@ describe('토스 receiptUrl', () => {
     ['한글 포함', 'tviva결제키'],
   ])('결제 키 형식이 %s이면 조회 없이 not_found다', async (_label, key) => {
     const toss = server(json(200, payment()));
-    expect(await gateway(toss.fetchImpl).receiptUrl!(key)).toEqual({ kind: 'not_found' });
+    expect(await gateway(toss.fetchImpl).receiptUrl!(key)).toEqual({ kind: 'not_found', reason: 'invalid_key' });
     expect(toss.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('실패 사유(reason)는 닫힌 코드뿐이고 결제 키·응답 본문·오류 문구를 담지 않는다', async () => {
+    const replies = [
+      json(401, { code: 'UNAUTHORIZED_KEY', message: '키 문구는 담지 않는다' }), json(500, { code: 'LEAKY_CODE', message: '본문 문구' }),
+      json(404, { code: 'NOT_FOUND_PAYMENT', message: 'x' }), 'network_error' as const, json(200, payment({ receipt: { url: 'http://dashboard.tosspayments.com/r' } })),
+    ];
+    const allowed = new Set(['invalid_key', 'payment_not_found', 'configuration_error', 'http_error', 'transport', 'key_mismatch', 'receipt_url_missing']);
+    for (const reply of replies) {
+      const result = await gateway(server(reply).fetchImpl).receiptUrl!(PAYMENT_KEY);
+      expect(result.kind).not.toBe('ok');
+      if (result.kind === 'ok') continue;
+      expect(allowed.has(result.reason ?? '')).toBe(true);
+      expect(JSON.stringify(result)).not.toMatch(/UNAUTHORIZED_KEY|LEAKY_CODE|본문 문구|키 문구|tviva/);
+    }
   });
 
   it('결제 키·응답 본문을 로그에 남기지 않는다', async () => {

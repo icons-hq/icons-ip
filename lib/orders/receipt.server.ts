@@ -47,10 +47,10 @@ export async function resolveOrderReceipt(userId: string, orderId: string): Prom
       .limit(1);
     if (error) return failed('payment_read');
     const row = (rows ?? [])[0] as { id?: unknown; provider?: unknown; status?: unknown } | undefined;
-    if (!row) return UNAVAILABLE;
+    if (!row) return failed('payment_missing');
     const { id: paymentId, provider, status } = row;
     if (typeof paymentId !== 'string' || typeof provider !== 'string' || typeof status !== 'string') return failed('payment_shape');
-    if (!orderReceiptAvailable({ paymentMethod: 'card', payment: { provider, status } }) || !isReceiptProvider(provider)) return UNAVAILABLE;
+    if (!orderReceiptAvailable({ paymentMethod: 'card', payment: { provider, status } }) || !isReceiptProvider(provider)) return failed('provider_unsupported');
 
     const service = createServiceClient();
     const { data: keyRow, error: keyError } = await service
@@ -61,10 +61,11 @@ export async function resolveOrderReceipt(userId: string, orderId: string): Prom
       .maybeSingle();
     if (keyError) return failed('key_read');
     const paymentKey = (keyRow as { payment_key?: unknown } | null)?.payment_key;
-    if (typeof paymentKey !== 'string' || !paymentKey || paymentKey.length > PAYMENT_KEY_MAX_LENGTH) return UNAVAILABLE;
+    if (typeof paymentKey !== 'string' || !paymentKey || paymentKey.length > PAYMENT_KEY_MAX_LENGTH) return failed('key_missing');
 
     const lookup = await getPaymentGateway(provider).receiptUrl?.(paymentKey);
-    if (!lookup || lookup.kind !== 'ok') return UNAVAILABLE;
+    /* 결제사 조회 실패는 사유 코드만 남긴다(`gateway_<kind>[:<reason>]`). 키 오류·결제사 장애로 기능 전체가 막혀도 운영자가 알 수 있게. */
+    if (!lookup || lookup.kind !== 'ok') return failed(`gateway_${lookup?.kind ?? 'missing'}${lookup && 'reason' in lookup && lookup.reason ? `:${lookup.reason}` : ''}`);
     /* 어댑터가 이미 확인했지만, 이동 대상은 여기서도 한 번 더 막는다(열린 리디렉션 방지). 영수증 provider가 토스 하나라
        호스트 규칙도 토스 하나다 — provider를 더할 때 provider별 규칙으로 바꾼다. */
     if (!isAllowedTossReceiptUrl(lookup.url)) return failed('url_rejected');

@@ -95,6 +95,7 @@ describe('resolveOrderReceipt', () => {
     expect(await resolveOrderReceipt(USER_ID, ORDER_ID)).toEqual({ kind: 'unavailable' });
     expect(mocks.createServiceClient).not.toHaveBeenCalled();
     expect(mocks.getPaymentGateway).not.toHaveBeenCalled();
+    expect(errorLog).toHaveBeenCalledWith('[orders] receipt unavailable', 'payment_missing');
   });
 
   it('영수증을 지원하지 않는 provider(korpay·nicepay·무통장)는 service 읽기 전에 unavailable이다', async () => {
@@ -104,6 +105,7 @@ describe('resolveOrderReceipt', () => {
     }
     expect(mocks.createServiceClient).not.toHaveBeenCalled();
     expect(mocks.getPaymentGateway).not.toHaveBeenCalled();
+    expect(errorLog).toHaveBeenCalledWith('[orders] receipt unavailable', 'provider_unsupported');
   });
 
   it('결제 상태가 영수증이 남는 상태가 아니면(결제 전·실패) unavailable이다', async () => {
@@ -135,16 +137,28 @@ describe('resolveOrderReceipt', () => {
       expect(await resolveOrderReceipt(USER_ID, ORDER_ID), JSON.stringify(keyRow)).toEqual({ kind: 'unavailable' });
     }
     expect(mocks.getPaymentGateway).not.toHaveBeenCalled();
+    /* 키를 못 읽은 사유는 코드로 남는다(오류든 빈 값이든). 키 자체는 남기지 않는다. */
+    expect(errorLog).toHaveBeenCalledWith('[orders] receipt unavailable', 'key_read');
+    expect(errorLog).toHaveBeenCalledWith('[orders] receipt unavailable', 'key_missing');
   });
 
-  it('gateway에 receiptUrl이 없거나(미설정 환경) 결과가 ok가 아니면 unavailable이다', async () => {
+  it('gateway에 receiptUrl이 없거나(미설정 환경) 결과가 ok가 아니면 unavailable이고 사유 코드만 한 줄 남긴다', async () => {
     mocks.getPaymentGateway.mockReturnValue({});
     expect(await resolveOrderReceipt(USER_ID, ORDER_ID)).toEqual({ kind: 'unavailable' });
+    expect(errorLog).toHaveBeenLastCalledWith('[orders] receipt unavailable', 'gateway_missing');
     mocks.getPaymentGateway.mockReturnValue({ receiptUrl: mocks.receiptUrl });
     for (const kind of ['not_found', 'unavailable', 'not_supported']) {
       mocks.receiptUrl.mockResolvedValueOnce({ kind });
       expect(await resolveOrderReceipt(USER_ID, ORDER_ID), kind).toEqual({ kind: 'unavailable' });
+      expect(errorLog).toHaveBeenLastCalledWith('[orders] receipt unavailable', `gateway_${kind}`);
     }
+    /* 어댑터가 준 사유(닫힌 코드)는 종류 뒤에 붙는다 — 키 설정 오류·결제사 장애를 로그에서 가려낼 수 있다. */
+    mocks.receiptUrl.mockResolvedValueOnce({ kind: 'unavailable', reason: 'configuration_error' });
+    expect(await resolveOrderReceipt(USER_ID, ORDER_ID)).toEqual({ kind: 'unavailable' });
+    expect(errorLog).toHaveBeenLastCalledWith('[orders] receipt unavailable', 'gateway_unavailable:configuration_error');
+    mocks.receiptUrl.mockResolvedValueOnce({ kind: 'not_found', reason: 'payment_not_found' });
+    expect(await resolveOrderReceipt(USER_ID, ORDER_ID)).toEqual({ kind: 'unavailable' });
+    expect(errorLog).toHaveBeenLastCalledWith('[orders] receipt unavailable', 'gateway_not_found:payment_not_found');
   });
 
   it('gateway가 허용 호스트 밖 URL을 돌려줘도 이동시키지 않는다', async () => {

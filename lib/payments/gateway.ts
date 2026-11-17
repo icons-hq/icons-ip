@@ -148,10 +148,21 @@ export type PaymentBalanceInspection =
  * 고객 결제 영수증(카드 매출전표) 조회 결과(MD-0038). 영수증 URL은 저장하지 않고 요청 때마다 결제사에 조회한다.
  * `ok.url`은 어댑터가 결제사 영수증 호스트로 검증한 값이라 303 이동 대상으로 그대로 쓴다. 지원하지 않는 결제사는
  * 메서드가 없다(호출자가 not_supported로 읽는다).
+ *
+ * 실패에는 서버 로그용 사유 코드(`reason`)를 닫힌 집합으로 싣는다 — 결제 키·응답 본문·URL·결제사가 준 오류 문구는 담지 않는다.
+ * 고객에게는 사유를 나누어 말하지 않는다(어느 쪽이든 '지금 불러오지 못했어요').
  */
+export type PaymentReceiptFailureReason =
+  | 'invalid_key'            // 원장 결제 키가 형식에 맞지 않아 조회하지 않았다
+  | 'payment_not_found'      // 결제사가 그 키의 결제를 모른다(404)
+  | 'configuration_error'    // 결제사 키·접근 설정 오류(401·403 등)
+  | 'http_error'             // 결제사가 오류 응답을 줬다
+  | 'transport'              // 전송 실패·시간 초과·일시 오류 코드
+  | 'key_mismatch'           // 응답의 결제 키가 요청 키와 다르다
+  | 'receipt_url_missing';   // 응답에 이동 가능한 매출전표 URL이 없다
 export type PaymentReceiptLookup =
   | { kind: 'ok'; url: string }
-  | { kind: 'not_found' | 'unavailable' | 'not_supported' };
+  | { kind: 'not_found' | 'unavailable' | 'not_supported'; reason?: PaymentReceiptFailureReason };
 
 export interface PaymentGateway {
   prepare(attempt: PaymentAttempt): Promise<PreparedCheckout>;

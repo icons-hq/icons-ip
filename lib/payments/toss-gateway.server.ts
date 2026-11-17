@@ -1284,15 +1284,18 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
    */
   async function receiptUrl(providerPaymentKey: string): Promise<PaymentReceiptLookup> {
     const paymentKey = validPaymentKey(providerPaymentKey);
-    if (!paymentKey) return { kind: 'not_found' };
+    if (!paymentKey) return { kind: 'not_found', reason: 'invalid_key' };
     const inquiry = await inquireByPaymentKey(paymentKey);
-    if (inquiry.kind === 'not_found') return { kind: 'not_found' };
-    if (inquiry.kind !== 'ok') return { kind: 'unavailable' };
+    if (inquiry.kind === 'not_found') return { kind: 'not_found', reason: 'payment_not_found' };
+    /* 호출자가 서버 로그에 남기는 사유는 닫힌 코드뿐이다 — 결제사가 준 오류 코드·문구·응답 본문은 싣지 않는다. */
+    if (inquiry.kind === 'configuration_error') return { kind: 'unavailable', reason: 'configuration_error' };
+    if (inquiry.kind === 'http_error') return { kind: 'unavailable', reason: 'http_error' };
+    if (inquiry.kind !== 'ok') return { kind: 'unavailable', reason: 'transport' };
     const payment = inquiry.payment;
     // 응답이 이 키의 결제가 아니면 다른 결제의 영수증을 열어 줄 수 있다 — 믿지 않는다.
-    if (payment.paymentKey !== paymentKey) return { kind: 'unavailable' };
+    if (payment.paymentKey !== paymentKey) return { kind: 'unavailable', reason: 'key_mismatch' };
     const url = plainRecord(payment.receipt) ? payment.receipt.url : undefined;
-    return isAllowedTossReceiptUrl(url) ? { kind: 'ok', url } : { kind: 'not_found' };
+    return isAllowedTossReceiptUrl(url) ? { kind: 'ok', url } : { kind: 'not_found', reason: 'receipt_url_missing' };
   }
 
   return {
