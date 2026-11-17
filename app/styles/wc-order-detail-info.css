@@ -1,0 +1,190 @@
+/* ------------------------------------------------------------------
+   주문 상세 개요 (MD-0037) — 주문자 정보·주문 정보 카드, 처리 버튼 막대, 결제 정보 버튼.
+   값은 White Catalog 토큰만 쓴다. `.wc-receipt` 지면 안에서만 적용한다.
+   화면 폭이 아니라 지면(카드) 폭을 기준으로 접는다 — 마이페이지 셸의 좌 메뉴 때문에 같은 뷰포트에서도 본문 폭이 달라서
+   미디어 쿼리로는 4열 막대가 좁은 본문에 눌린다. 그래서 컨테이너 쿼리를 쓴다.
+   ------------------------------------------------------------------ */
+
+/* --- 개요 영역: 주문자 정보 + 주문 정보 --------------------------------- */
+
+.wc-receipt .order-detail-overview-wrap {
+  container-name: order-overview;
+  container-type: inline-size;
+}
+
+.wc-receipt .order-detail-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* 주문자 정보를 읽지 못해 카드가 하나뿐이면 전폭이다. */
+.wc-receipt .order-detail-overview--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container order-overview (max-width: 640px) {
+  .wc-receipt .order-detail-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+.wc-receipt .order-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wc-receipt .order-detail-info .checkout-section-heading {
+  margin-bottom: 8px;
+}
+
+.wc-receipt .order-detail-info__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.wc-receipt .order-detail-info__list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-receipt .order-detail-info__list dt {
+  flex: 0 0 72px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-detail-info__list dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--wc-ink-sub);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+/* --- 처리 버튼 막대 ------------------------------------------------------ */
+
+.wc-receipt .order-action-bar-wrap {
+  container-name: order-actions;
+  container-type: inline-size;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+/* 좁은 지면은 2×2, 넓으면 한 줄 4열(디지털 주문은 버튼이 둘이라 항상 2열). */
+.wc-receipt .order-action-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@container order-actions (min-width: 440px) {
+  .wc-receipt .order-action-bar[data-count='4'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.wc-receipt .order-action-bar .btn {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+/* 비활성은 회색 면이 아니라 같은 아웃라인 버튼을 흐리게 — 이유는 아래 안내 줄이 말한다. */
+.wc-receipt .order-action-bar .btn:disabled {
+  border-color: var(--wc-line-control);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.wc-receipt .order-action-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-action-hints li {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- 배송지·결제 정보 섹션 -------------------------------------------------- */
+
+/* 오른쪽 열이 배송지 정보로 시작한다 — 카드 윗선과 겹치는 구분선·여백을 걷는다. */
+.wc-receipt .order-detail-receipt > .order-receipt-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.wc-receipt .order-receipt-section .order-payment-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--wc-line-control);
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wc-receipt .order-payment-actions .btn {
+  flex: 1 1 120px;
+  min-height: 40px;
+  font-size: 13px;
+}
+
+.wc-receipt .order-receipt-section .order-payment-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* --- 주문한 굿즈 품목 줄(OrderLineItem 재사용) --------------------------------- */
+
+/* 품목 줄은 `.order-detail-item`(flex) 안에서 가로를 다 쓴다. */
+.wc-receipt .order-detail-item > .wc-order-line {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wc-receipt .order-detail-item .wc-order-line__body .wc-custom-inputs-summary {
+  margin: 4px 0 0;
+}
+
+.wc-receipt .wc-order-line__canceled {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 결제 정보 안의 합계 표는 섹션 간격(gap)이 이미 있어 윗 여백을 줄인다. */
+.wc-receipt .order-receipt-section .checkout-totals {
+  margin-top: 4px;
+}

@@ -3,7 +3,6 @@ import type { OrderDownloads as OrderDownloadsDocument } from '@/lib/order-downl
 import { OrderProductionStatus } from '@/components/orders/OrderProductionStatus';
 import type { OrderProduction } from '@/lib/order-production';
 import { REVIEW_KIND_LABELS, targetReviewDaysRemaining } from '@/lib/review-types';
-import { reviewConfirmationBlockMessage } from '@/lib/review-purchase-confirmation';
 
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
@@ -22,10 +21,29 @@ import { OrderPartialCancellations } from '@/components/orders/OrderPartialCance
 import { partialCanceledQtyByItem, partialCancellationRefundTotal, type OrderPartialCancellationRecord } from '@/lib/orders/partial-cancellation';
 import type { MyOrderRefundDeduction, ReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
+import {
+  OrderActionBar,
+  ORDER_CLAIM_REQUEST_ANCHOR,
+  ORDER_PURCHASE_CONFIRMATION_ANCHOR,
+  ORDER_REVIEW_ANCHOR,
+  ORDER_SHIPMENTS_ANCHOR,
+  reviewTargetBlockedReason,
+} from '@/components/orders/OrderActionBar';
+import { OrderLineItem } from '@/components/orders/OrderLineItem';
+import { buildOrderLines, type OrderLineView } from '@/lib/orders/order-lines';
+import {
+  ORDER_RECEIPT_SECTION_ID,
+  orderReceiptAvailable,
+  orderReceiptHref,
+  orderStatementAvailable,
+  orderStatementHref,
+} from '@/lib/orders/receipt';
+import { orderPaymentMethodLabel, type OrderPaymentDisplay } from '@/lib/orders/payment-display';
+import type { OrdererInfo } from '@/lib/orders/orderer.server';
+import '@/app/styles/wc-order-detail-info.css';
 import { newInquiryHref } from '@/lib/inquiries';
 import type { MyReviewTarget } from '@/lib/reviews.server';
 import {
-  formatReviewDate,
   editReviewHref,
   newReviewHref,
 } from '@/lib/reviews';
@@ -40,6 +58,7 @@ import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionS
 import { transactionReceiptNames } from '@/lib/checkout-transaction';
 import {
   customerOrderStatusMeta,
+  customerOrderStepLabel,
   formatOrderDate,
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
@@ -84,7 +103,7 @@ function OrderLadder({ status, digitalOnly = false }: { status: OrderDetailStatu
           data-state={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'upcoming'}
           key={step}
         >
-          {digitalOnly && step === 'delivered' ? '파일 제공 시작' : digitalOnly && step === 'done' ? '구매확정' : orderStatusMeta(step).label}
+          {customerOrderStepLabel(step, { digital: digitalOnly })}
         </li>
       ))}
     </ol>
@@ -111,7 +130,7 @@ function OrderReviewEntry({
   if (!targets.length) return null;
 
   return (
-    <section aria-labelledby="order-review-heading" className="order-detail-inquiry">
+    <section aria-labelledby="order-review-heading" className="order-detail-inquiry" id={ORDER_REVIEW_ANCHOR}>
       {/* WC 이행 표면은 HM/editorial 토큰(--dim 등)을 참조하지 않는다 — 그 토큰은
           이제 어드민 잔존 파일 소유라, 어드민 정리 때 이 글자색이 조용히 사라진다. */}
       <h3 className="mono" id="order-review-heading" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11, letterSpacing: '.14em', margin: 0 }}>
@@ -135,10 +154,8 @@ function OrderReviewEntry({
                 </Link>
               ) : (
                 <span className="faint" style={{ fontSize: 12.5 }}>
-                  {target.opensAt && Date.parse(target.opensAt) > now.getTime() ? `${formatReviewDate(target.opensAt)}부터 작성 가능`
-                    /* 리뷰 등록 = 구매확정(ADR-0035): 구매확정할 수 없어 막힌 주문은 그 이유(보류 사유 포함)를 보인다. */
-                    : target.purchaseConfirmation?.block ? reviewConfirmationBlockMessage(target.purchaseConfirmation.block, target.purchaseConfirmation.holdReason)
-                    : '현재 작성할 수 없습니다'}
+                  {/* 막대의 리뷰작성 안내와 같은 말이다(reviewTargetBlockedReason). */}
+                  {reviewTargetBlockedReason(target, now)}
                 </span>
               )}
             </li>
@@ -208,6 +225,47 @@ function WithdrawalDeadlineNotice({
   );
 }
 
+type RemainingOrderItem = OrderDetailData['items'][number] & { canceledQty: number };
+
+/** 줄 금액을 남은 수량으로 줄인다. 줄 금액은 단가 × 수량이라 나누어떨어지지만, 아니면 틀린 금액을 말하지 않고 비운다. */
+function scaleLineAmount(amount: number | null, from: number, to: number): number | null {
+  if (amount === null || from < 1 || to < 1) return null;
+  const unit = amount / from;
+  return Number.isInteger(unit) ? unit * to : null;
+}
+
+/** 읽기 모델의 줄(`order.lines`)이 없는 품목은 주문 품목 스냅샷으로 만든다 — 썸네일·IP명은 없고, 영수증이 있으면 정가·복수구매 할인은 반영한다. */
+function snapshotOrderLine(item: RemainingOrderItem, receipt: OrderDetailData['transaction']): OrderLineView {
+  const [line] = buildOrderLines({
+    items: [{
+      key: item.id, lineId: item.id, goodId: item.goodId, variantId: item.variantId, name: item.name,
+      optionName: item.variantName ?? null, qty: item.qty + item.canceledQty, unitPrice: item.unitPrice,
+    }],
+    receipt: receipt ?? null,
+    goods: new Map(),
+    ipTitles: new Map(),
+    adultAccess: 'hidden',
+    imageUrl: () => null,
+  });
+  return line;
+}
+
+/**
+ * 주문 상세 품목 줄. 읽기 모델의 줄을 쓰되, IP명이 없으면 굿즈 유형을 그 자리에 보이고(스펙 2-3), 부분 취소(재고 부족)가 있으면
+ * 남은 수량과 그 수량의 금액을 보인다 — 취소된 몫은 줄 아래 `N개 취소됨`이 따로 말한다.
+ */
+function displayedOrderLine(item: RemainingOrderItem, linesByKey: ReadonlyMap<string, OrderLineView>, receipt: OrderDetailData['transaction']): OrderLineView {
+  const base = linesByKey.get(item.id) ?? snapshotOrderLine(item, receipt);
+  const line: OrderLineView = { ...base, ipName: base.ipName ?? (item.type || null) };
+  if (item.canceledQty === 0) return line;
+  return {
+    ...line,
+    qty: item.qty,
+    purchaseAmount: scaleLineAmount(base.purchaseAmount, base.qty, item.qty),
+    regularAmount: scaleLineAmount(base.regularAmount, base.qty, item.qty),
+  };
+}
+
 export function OrderDetail({
   viewerId,
   cardPayment = null,
@@ -224,6 +282,9 @@ export function OrderDetail({
   returnFeePolicy = null,
   returnPickup = NO_RETURN_PICKUP,
   partialCancellations = [],
+  orderer = null,
+  paymentDisplay = null,
+  receiptNotice = false,
 }: {
   viewerId?: string;
   /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 null. */
@@ -250,12 +311,17 @@ export function OrderDetail({
   returnPickup?: OrderReturnPickup;
   /** 적용된 재고 부족 부분 취소(ADR-0032). 없으면 아무것도 그리지 않는다. */
   partialCancellations?: readonly OrderPartialCancellationRecord[];
+  /** 주문자 정보(MD-0037). 주문 시점 스냅샷이 없어 현재 회원 정보다. 없으면(읽지 못함·미전달) 주문자 정보 카드를 그리지 않는다. */
+  orderer?: OrdererInfo | null;
+  /** 결제수단 표시 근거(`get_my_order_payment_display`). 없으면 대체 라벨('카드·간편결제')로 그린다. */
+  paymentDisplay?: OrderPaymentDisplay | null;
+  /** `?receipt=unavailable`로 돌아온 경우 — 결제 영수증을 불러오지 못했다는 안내를 결제 정보에 띄운다. */
+  receiptNotice?: boolean;
 }) {
-  const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
   /* 부분 취소(재고 부족) 뒤에는 주문 품목 수량이 원 수량 그대로다 — 고객에게는 남은 수량을 말하고 취소된 몫을 따로 적는다. */
   const canceledQtyByItem = partialCanceledQtyByItem(partialCancellations);
-  const remainingItems = order.items.map(item => ({ ...item, canceledQty: Math.min(item.qty, canceledQtyByItem.get(item.id) ?? 0) }))
+  const remainingItems: RemainingOrderItem[] = order.items.map(item => ({ ...item, canceledQty: Math.min(item.qty, canceledQtyByItem.get(item.id) ?? 0) }))
     .map(item => ({ ...item, qty: item.qty - item.canceledQty }));
   const partialRefundTotal = partialCancellationRefundTotal(partialCancellations);
   /* 배분 표는 주문 당시 원장 그대로 두고, 굿즈의 모든 줄이 전부 취소된 경우에만 '취소·환불됨' 표시를 붙인다(QA2b minor 2). */
@@ -266,6 +332,11 @@ export function OrderDetail({
   const paidAmount = order.transaction?.totals.onlineTotal ?? order.total;
   const hasPhysicalItems = order.items.some(item => order.transaction?.lines.find(line => line.lineId === item.id)?.fulfillment?.mode !== 'digital' && !downloads?.items.some(file => file.itemId === item.id));
   const digitalOnly = order.items.length > 0 && !hasPhysicalItems;
+  const linesByKey = new Map((order.lines ?? []).map(line => [line.key, line]));
+  const itemLines = remainingItems.map(item => ({ item, line: displayedOrderLine(item, linesByKey, order.transaction) }));
+  const paymentMethodLabel = orderPaymentMethodLabel(order.paymentMethod, paymentDisplay);
+  const receiptAvailable = orderReceiptAvailable({ paymentMethod: order.paymentMethod, payment: order.payment });
+  const statementAvailable = orderStatementAvailable(order.status);
   /* 결제를 마치지 않은 주문은 결제수단으로 말한다 — 무통장은 '입금 대기'·'입금을 기다리고 있어요'(QA1 S-D2-12). 진행 중인 취소
      클레임이 있으면 그 단계로 말한다(orderDetailHeaderPresentation). */
   const headerBase = orderDetailHeaderPresentation(order.status, order.cancellationRequest);
@@ -274,7 +345,7 @@ export function OrderDetail({
     ? { ...paymentStatusMeta }
     : { ...headerBase, label: paymentStatusMeta.label };
   if (digitalOnly && !(order.cancellationRequest?.claimType === 'cancel' && isOpenOrderClaimStage(order.cancellationRequest.stage)) && ['paid', 'confirmed', 'shipping', 'delivered', 'done'].includes(order.status)) {
-    status.label = order.status === 'delivered' ? '파일 제공 시작' : order.status === 'done' ? '구매확정' : '결제완료';
+    status.label = customerOrderStepLabel(order.status, { digital: true });
     status.title = order.status === 'done' ? '구매확정된 디지털 주문이에요' : downloads?.items.some(item => item.available) ? '구매한 파일을 받을 수 있어요' : '파일 제공 상태를 확인해주세요';
     status.body = '구매한 파일과 현재 제공 상태를 아래에서 확인할 수 있습니다. 파일에 문제가 있으면 이 주문의 문의 또는 취소 검토 요청을 이용해주세요.';
   }
@@ -307,11 +378,6 @@ export function OrderDetail({
           <h1 className="wc-receipt__title">{headerCopy.title}</h1>
           <p className="wc-receipt__subcopy">{headerCopy.body}</p>
           <OrderLadder status={order.status} digitalOnly={digitalOnly} />
-          <div className="order-detail-meta mono">
-            <span>ORDER · {orderReferenceLabel(order.id, order.orderNumber)}</span>
-            <span aria-hidden>·</span>
-            <time dateTime={order.createdAt}>{date}</time>
-          </div>
         </div>
       </header>
 
@@ -366,6 +432,46 @@ export function OrderDetail({
         </div></div>
       )}
 
+      {/* 주문자 정보 → 주문 정보(+처리 버튼) 순서는 요구 원문(MD-0037)을 따른다. 배송지 정보·결제 정보는 아래 오른쪽 열이 이어 받는다. */}
+      <div className="wrap order-detail-overview-wrap">
+        <div className={`order-detail-overview${orderer ? '' : ' order-detail-overview--single'}`}>
+          {orderer ? (
+            <section aria-labelledby="orderer-info-heading" className="order-detail-info card">
+              <div className="checkout-section-heading checkout-section-heading--compact">
+                <span className="checkout-step mono">ORDERER</span>
+                <h2 id="orderer-info-heading">주문자 정보</h2>
+              </div>
+              <dl className="order-detail-info__list">
+                <div><dt>이름</dt><dd>{orderer.name}</dd></div>
+                {orderer.email ? <div><dt>이메일</dt><dd>{orderer.email}</dd></div> : null}
+                {orderer.maskedPhone ? <div><dt>휴대폰</dt><dd>{orderer.maskedPhone}</dd></div> : null}
+              </dl>
+            </section>
+          ) : null}
+          <section aria-labelledby="order-info-heading" className="order-detail-info card">
+            <div className="checkout-section-heading checkout-section-heading--compact">
+              <span className="checkout-step mono">ORDER</span>
+              <h2 id="order-info-heading">주문 정보</h2>
+            </div>
+            <dl className="order-detail-info__list">
+              <div><dt>주문번호</dt><dd className="mono">{orderReferenceLabel(order.id, order.orderNumber)}</dd></div>
+              <div><dt>주문일시</dt><dd><time dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time></dd></div>
+              <div><dt>주문 상태</dt><dd>{status.label}</dd></div>
+            </dl>
+            <OrderActionBar
+              cancellationRequest={order.cancellationRequest}
+              claimEligibility={order.claimEligibility}
+              digitalOnly={digitalOnly}
+              now={at}
+              refund={order.refund}
+              reviewTargets={reviewTargets}
+              shipments={order.shipments}
+              status={order.status}
+            />
+          </section>
+        </div>
+      </div>
+
       <div className="wrap order-detail-layout">
         <section className="order-detail-main card" aria-labelledby="ordered-goods-heading">
           <div className="checkout-section-heading checkout-section-heading--compact">
@@ -374,19 +480,13 @@ export function OrderDetail({
           </div>
 
           <div className="order-detail-items">
-            {remainingItems.map((item) => (
+            {/* 주문내역 카드와 같은 품목 줄이다(MD-0036·0037). 직접 입력 옵션 요약과 부분 취소 수량은 줄 아래에 둔다. */}
+            {itemLines.map(({ item, line }) => (
               <article className="order-detail-item" key={item.id}>
-                <div className="order-detail-item-copy">
-                  <span>{item.type}</span>
-                  <h3>{item.name}</h3>
-                  {item.variantName ? <p>{item.variantName}</p> : null}<GoodsCustomInputsSummary selection={item.customInputs} />
-                </div>
-                <dl className="order-detail-item-numbers">
-                  <div><dt>수량</dt><dd>{item.qty}개{item.canceledQty > 0 ? <small data-order-item-canceled={item.canceledQty}> · {item.canceledQty}개 취소됨</small> : null}</dd></div>
-                  <div><dt>단가</dt><dd>{krw(item.unitPrice)}</dd></div>
-                </dl>
-                {/* 수량이 1이면 줄 합계가 단가와 같은 금액이라 두 번 말하지 않는다(10/14 회의 S21). */}
-                {item.qty > 1 ? <strong className="mono">{krw(item.qty * item.unitPrice)}</strong> : null}
+                <OrderLineItem line={line}>
+                  <GoodsCustomInputsSummary selection={item.customInputs} />
+                  {item.canceledQty > 0 ? <small className="wc-order-line__canceled" data-order-item-canceled={item.canceledQty}>{item.canceledQty}개 취소됨</small> : null}
+                </OrderLineItem>
               </article>
             ))}
           </div>
@@ -424,9 +524,9 @@ export function OrderDetail({
           {/* 진행 중인 취소가 있으면 반품·교환 패널을 그리지 않는다. 어차피 접수할
               수 없고(주문당 활성 클레임 1건), 그리면 취소 클레임의 상태를 다시
               말하게 된다. 취소가 끝나거나 거절된 뒤에는 다시 연다. */}
-          {viewerId && ['delivered', 'done'].includes(order.status) ? <PurchaseConfirmationPanel key={order.id} orderId={order.id} actorId={viewerId} claimOpen={Boolean(claimRequest && isOpenOrderClaimStage(claimRequest.stage))} /> : null}
+          {viewerId && ['delivered', 'done'].includes(order.status) ? <div id={ORDER_PURCHASE_CONFIRMATION_ANCHOR}><PurchaseConfirmationPanel key={order.id} orderId={order.id} actorId={viewerId} claimOpen={Boolean(claimRequest && isOpenOrderClaimStage(claimRequest.stage))} /></div> : null}
           {!activeCancelClaim ? (
-            <OrderClaimRequest
+            <div id={ORDER_CLAIM_REQUEST_ANCHOR}><OrderClaimRequest
               claim={isCancelClaim ? null : claimRequest}
               collectionWaived={Boolean(claimRequest && order.reshipmentParcels?.some(parcel => parcel.claimId === claimRequest.id && parcel.collectionWaived))}
               refund={order.refund}
@@ -437,7 +537,7 @@ export function OrderDetail({
               returnFeePolicy={returnFeePolicy}
               returnPickup={returnPickup}
               status={order.status}
-            />
+            /></div>
           ) : null}
 
           {claimRequest ? order.giftId ? <a href={`/gifts/${order.giftId}`}>선물 요청 관리</a> : <ClaimWithdrawal key={claimRequest.id} claimId={claimRequest.id} stage={claimRequest.stage} /> : null}
@@ -477,27 +577,8 @@ export function OrderDetail({
         </section>
 
         <aside className="order-detail-receipt card" aria-label="주문 영수증">
-          <div className="checkout-section-heading checkout-section-heading--compact">
-            <span className="checkout-step mono">RECEIPT</span>
-            <h2>결제 금액</h2>
-          </div>
-          {order.transaction ? <GoodsTransactionSummary display={order.transaction} names={transactionReceiptNames(order.transaction, order.items)} canceledGoodIds={canceledGoodIds} /> : <dl className="checkout-totals">
-            {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
-            {order.discountTotal > 0 && (
-              <div><dt>쿠폰 할인</dt><dd>−{krw(order.discountTotal)}</dd></div>
-            )}
-            {order.storeCreditTotal > 0 && <div><dt>적립금 사용</dt><dd>−{krw(order.storeCreditTotal)}</dd></div>}
-            <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
-            <div className="checkout-total"><dt>총 결제 금액</dt><dd>{krw(order.total)}</dd></div>
-          </dl>}
-          {partialRefundTotal > 0 ? <dl className="checkout-totals" data-order-partial-refund-summary="">
-            <div><dt>부분 취소 환불 합계</dt><dd>−{krw(partialRefundTotal)}</dd></div>
-            <div className="checkout-total"><dt>남은 결제 금액</dt><dd>{krw(Math.max(0, paidAmount - partialRefundTotal))}</dd></div>
-          </dl> : null}
-
           <section className="order-receipt-section" aria-labelledby="shipping-address-heading">
-            <h3 id="shipping-address-heading">배송지</h3>
+            <h3 id="shipping-address-heading">배송지 정보</h3>
             {order.address ? (
               <address>
                 <strong>{order.address.recipientName} · {order.address.phone}</strong>
@@ -509,19 +590,50 @@ export function OrderDetail({
             )}
           </section>
 
-          <ShipmentDetails shipments={order.shipments} items={remainingItems} transactionShipping={order.transaction?.shipping} />
+          <div id={ORDER_SHIPMENTS_ANCHOR}>
+            <ShipmentDetails shipments={order.shipments} items={remainingItems} transactionShipping={order.transaction?.shipping} />
+          </div>
 
-          <section className="order-receipt-section" aria-labelledby="payment-summary-heading">
+          {/* 결제 정보(MD-0037·0038): 결제수단 → 금액 → 결제 상태·일시 → 영수증·거래명세서. id는 영수증을 못 불러왔을 때 돌아오는 앵커다. */}
+          <section className="order-receipt-section" id={ORDER_RECEIPT_SECTION_ID} aria-labelledby="payment-summary-heading">
             <h3 id="payment-summary-heading">결제 정보</h3>
+            <dl className="order-payment-summary">
+              <div><dt>결제수단</dt><dd>{paymentMethodLabel}</dd></div>
+            </dl>
+            {order.transaction ? <GoodsTransactionSummary display={order.transaction} labels="order" names={transactionReceiptNames(order.transaction, order.items)} canceledGoodIds={canceledGoodIds} /> : <dl className="checkout-totals">
+              {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
+              <div><dt>총 굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
+              {order.discountTotal > 0 && (
+                <div><dt>쿠폰 할인 금액</dt><dd>−{krw(order.discountTotal)}</dd></div>
+              )}
+              {order.storeCreditTotal > 0 && <div><dt>보유 적립금 사용</dt><dd>−{krw(order.storeCreditTotal)}</dd></div>}
+              <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
+              <div className="checkout-total"><dt>총 결제 금액</dt><dd>{krw(order.total)}</dd></div>
+            </dl>}
+            {partialRefundTotal > 0 ? <dl className="checkout-totals" data-order-partial-refund-summary="">
+              <div><dt>부분 취소 환불 합계</dt><dd>−{krw(partialRefundTotal)}</dd></div>
+              <div className="checkout-total"><dt>남은 결제 금액</dt><dd>{krw(Math.max(0, paidAmount - partialRefundTotal))}</dd></div>
+            </dl> : null}
             {order.payment ? (
               <dl className="order-payment-summary">
-                <div><dt>상태</dt><dd>{paymentStatusLabel(order.payment.status)}</dd></div>
-                <div><dt>금액</dt><dd className="mono">{krw(order.payment.amount)}</dd></div>
-                <div><dt>확인 시각</dt><dd><time dateTime={order.payment.createdAt}>{formatOrderDateTime(order.payment.createdAt)}</time></dd></div>
+                <div><dt>결제 상태</dt><dd>{paymentStatusLabel(order.payment.status)}</dd></div>
+                <div><dt>결제 일시</dt><dd><time dateTime={order.payment.createdAt}>{formatOrderDateTime(order.payment.createdAt)}</time></dd></div>
               </dl>
             ) : (
               <p>결제 내역이 없습니다.</p>
             )}
+            {receiptNotice ? (
+              <p className="order-payment-notice" role="status">결제 영수증을 지금 불러오지 못했어요. 잠시 후 다시 시도하거나 아래 &apos;이 주문 문의하기&apos;로 요청해주세요.</p>
+            ) : null}
+            {receiptAvailable || statementAvailable ? (
+              <div className="order-payment-actions">
+                {receiptAvailable ? <a className="btn btn-ghost btn-sm" href={orderReceiptHref(order.id)} rel="noopener noreferrer" target="_blank">결제 영수증</a> : null}
+                {statementAvailable ? <a className="btn btn-ghost btn-sm" href={orderStatementHref(order.id)} rel="noopener" target="_blank">거래명세서</a> : null}
+              </div>
+            ) : null}
+            {order.paymentMethod === 'bank_transfer' && statementAvailable ? (
+              <p className="order-payment-note">무통장 입금 주문은 결제사 영수증 대신 거래명세서로 거래 내용을 확인할 수 있어요.</p>
+            ) : null}
           </section>
 
           {cardRewardsEnabled && order.cardPacks.issuedCount > 0 && (
