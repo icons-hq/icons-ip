@@ -44,6 +44,7 @@ import {
   HOME_BEST_TAB_GOODS_LIMIT,
   HOME_CURATION_IMAGE_PATTERN,
   HOME_GOODS_BAND_LIMIT,
+  HOME_NEW_ARRIVALS_COUNT,
   isSafeInternalLink,
   resolveHomeGoodsCards,
   resolveHomeLatestGoodsCards,
@@ -184,6 +185,8 @@ export interface GoodRow {
   sale_period?: unknown;
   custom_inputs_enabled?: boolean; custom_inputs_revision?: number; custom_input_fields?: unknown;
   origin_id?: string;
+  /** 배송비 방식. 카드가 '무료배송' 칩을 달 근거다. 옛 투영(카테고리 전시 RPC 등)에는 없어 비어 있다. */
+  shipping_fee_type?: string;
   goods_variants?: GoodOptionRow[];
   id: string;
   ip_id: string;
@@ -492,6 +495,10 @@ async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
       case 'announcement': {
         const banner = toHomeBanner(row, imageUrlForPath);
         if (banner && curation.announcement === null) curation.announcement = banner;
+        /* 홈 스트립 배너(X SQUARE 홈)는 이미지가 있는 첫 노출 행이다(표시 순서) — 이미지 없는 옛 공지 행은 건너뛴다. */
+        if (banner && row.image_path && !curation.stripBanner) {
+          curation.stripBanner = { id: row.id, title: banner.title, imageUrl: imageUrlForPath(row.image_path), href: banner.href };
+        }
         break;
       }
       case 'featured_ip': {
@@ -679,6 +686,8 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
     ...(options?.length ? optionPriceRange(options) : {}),
     ...(options ? { options } : {}),
     originId: row.origin_id,
+    ...(row.shipping_fee_type === 'policy' || row.shipping_fee_type === 'free' || row.shipping_fee_type === 'individual'
+      ? { shippingFeeType: row.shipping_fee_type } : {}),
     compareAtPrice: goodCompareAtPrice(catalogPricing, options),
     catalogPrice: catalogPricing.price,
     catalogCompareAtPrice: catalogPricing.compareAtPrice,
@@ -889,7 +898,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,shipping_fee_type,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
@@ -1094,7 +1103,7 @@ async function readPublicGoodsByIds(
   if (selected.length > 1000 || selected.some(id => !/^[a-z0-9][a-z0-9-]{0,199}$/.test(id))) throw new Error('Invalid selected goods');
   const result = await readCompleteIdPages<GoodRow>((afterId, pageSize) => {
     let query = supabase.from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,shipping_fee_type,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
       .in('id', selected).is('archived_at', null).not('published_at', 'is', null).in('sale_restriction', adultGoodsRestrictions(adultGoods))
       .is('ips.archived_at', null).not('ips.published_at', 'is', null).order('id').limit(pageSize);
     if (afterId) query = query.gt('id', afterId);
@@ -1413,12 +1422,16 @@ export async function getHomeSnapshot(
               : resolveHomeGoodsCards(catalog, selection.goodIds, HOME_BEST_TAB_GOODS_LIMIT),
           })),
       };
-  const linkEntries = [rawCuration.hero, rawCuration.announcement, ...rawCuration.heroSlides,
+  const linkEntries = [rawCuration.hero, rawCuration.announcement, rawCuration.stripBanner, ...rawCuration.heroSlides,
     ...rawCuration.editorPicks, ...rawCuration.goodsBands, ...rawCuration.benefitTiles];
   const canonicalLinks = await resolvePublicIpLinks(linkEntries.flatMap(entry => entry?.href ? [entry.href] : []), catalog.ips);
   const canonicalLink = <T extends { href: string | null }>(entry: T): T => ({ ...entry, href: entry.href === null ? null : canonicalLinks.get(entry.href) ?? entry.href });
+  /* NEW ARRIVAL 블록 — 공개 카탈로그 최신 등록순 자동 선정이라 큐레이션 행이 없고(mock 포함), 카드가 없으면 키 자체를 싣지 않는다. */
+  const newArrivals = resolveHomeLatestGoodsCards(catalog, HOME_NEW_ARRIVALS_COUNT);
   const normalizedCuration: HomeCurationSnapshot = {
     ...rawCuration,
+    ...(newArrivals.length ? { newArrivals } : {}),
+    ...(rawCuration.stripBanner ? { stripBanner: canonicalLink(rawCuration.stripBanner) } : {}),
     hero: rawCuration.hero ? canonicalLink(rawCuration.hero) : null,
     announcement: rawCuration.announcement ? canonicalLink(rawCuration.announcement) : null,
     heroSlides: rawCuration.heroSlides.map(canonicalLink),

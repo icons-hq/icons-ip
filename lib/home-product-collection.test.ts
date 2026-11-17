@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildHomeProductCollectionBand, isHomeProductCollectionTitle, parseHomeProductCollectionPayload } from './home-product-collection';
+import { buildHomeProductCollectionBand, collectionMoreHref, homeProductCountRange, isHomeProductCollectionTitle, isHomeProductLayout, parseHomeProductCollectionPayload } from './home-product-collection';
 import type { HomeGoodsCard } from './home-catalog';
 
 const payload = { layout: 'list' as const, image_shape: 'square' as const, item_count: 3, good_ids: ['missing', 'g2', 'g1', 'g3', 'g4'] };
@@ -44,5 +44,51 @@ describe('home product collection contract', () => {
   it('counts title code points and rejects empty/control text', () => {
     expect(isHomeProductCollectionTitle('😀'.repeat(15))).toBe(true);
     for (const value of ['', ' 가 ', '😀'.repeat(16), '가\n나', '가\u0085나']) expect(isHomeProductCollectionTitle(value)).toBe(false);
+  });
+
+  describe('grid layout (X SQUARE IP product section)', () => {
+    const grid = { layout: 'grid' as const, image_shape: 'square' as const, item_count: 5, good_ids: ['g1', 'g2', 'g3', 'g4', 'g5', 'g6'] };
+
+    it('is a layout whose count range is 5..10 but accepts only 5 or 10', () => {
+      expect(isHomeProductLayout('grid')).toBe(true);
+      expect(homeProductCountRange('grid')).toEqual([5, 10]);
+      expect(homeProductCountRange('list')).toEqual([3, 12]);
+      expect(homeProductCountRange('full_image')).toEqual([1, 8]);
+      for (const count of [5, 10]) expect(parseHomeProductCollectionPayload({ ...grid, item_count: count })).not.toBeNull();
+      for (const count of [4, 6, 7, 9, 11, 3.5]) expect(parseHomeProductCollectionPayload({ ...grid, item_count: count })).toBeNull();
+    });
+
+    it('forces square images, matching the database rule, and leaves list and full-image shapes alone', () => {
+      expect(parseHomeProductCollectionPayload({ ...grid, image_shape: 'portrait' })).toBeNull();
+      expect(parseHomeProductCollectionPayload({ ...grid, image_shape: 'landscape' })).toBeNull();
+      expect(parseHomeProductCollectionPayload({ ...payload, image_shape: 'portrait' })).not.toBeNull();
+      expect(parseHomeProductCollectionPayload({ ...payload, layout: 'full_image', item_count: 4, image_shape: 'landscape' })).not.toBeNull();
+    });
+
+    const cardOf = (id: string, ipHref: string | null | undefined): HomeGoodsCard => ({ ...card(id), ...(ipHref === undefined ? {} : { ipHref }) });
+
+    it('links "전체보기" to the IP hall only when every shown product shares one IP', () => {
+      const same = ['g1', 'g2', 'g3', 'g4', 'g5'].map((id) => cardOf(id, '/ip/hongsil'));
+      expect(buildHomeProductCollectionBand('module', '홍실퀘스트', grid, same).moreHref).toBe('/ip/hongsil');
+      const mixed = [...same.slice(0, 4), cardOf('g5', '/ip/maple')];
+      expect(buildHomeProductCollectionBand('module', '혼합', grid, mixed).moreHref).toBeNull();
+      expect(buildHomeProductCollectionBand('module', '없음', grid, []).moreHref).toBeNull();
+    });
+
+    it('does not link when a shown product has no IP address, and a hidden product does not break a one-IP set', () => {
+      expect(collectionMoreHref([])).toBeNull();
+      expect(collectionMoreHref([cardOf('a', '/ip/x'), cardOf('b', null)])).toBeNull();
+      expect(collectionMoreHref([cardOf('a', undefined)])).toBeNull();
+      expect(collectionMoreHref([cardOf('a', '/ip/x'), cardOf('b', '/ip/x')])).toBe('/ip/x');
+      const goods = ['g1', 'g2', 'g3', 'g4', 'g5'].map((id) => cardOf(id, '/ip/hongsil'));
+      // g6 is not in the public set (hidden) — the 5 shown products still share the IP.
+      expect(buildHomeProductCollectionBand('module', '홍실', grid, goods).moreHref).toBe('/ip/hongsil');
+    });
+
+    it('only the grid layout carries a link; list and full-image sections never do', () => {
+      const goods = ['g1', 'g2', 'g3'].map((id) => cardOf(id, '/ip/hongsil'));
+      expect(buildHomeProductCollectionBand('module', '목록', payload, goods)).not.toHaveProperty('moreHref');
+      expect(buildHomeProductCollectionBand('module', '풀', { ...payload, layout: 'full_image' }, goods)).not.toHaveProperty('moreHref');
+    });
   });
 });

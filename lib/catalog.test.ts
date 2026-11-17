@@ -1811,6 +1811,81 @@ describe('getHomeSnapshot', () => {
       expect(snapshot.postPreviewByIpId[ip.id], `${ip.title} 홈 팬덤 채널 포스트 누락`).not.toBeNull();
     }
   });
+
+  describe('X SQUARE 홈 블록 데이터', () => {
+    const curationImage = (n: number) => `public-media/catalog/curation/${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}.webp`;
+    const announcement = (id: string, order: number, extra: Record<string, unknown> = {}) => ({
+      id, kind: 'announcement', ip_id: null, title: `스트립 ${id}`, image_path: curationImage(1), link_path: '/events/summer',
+      display_order: order, active_from: '2020-01-01T00:00:00.000Z', active_to: null, enabled: true, ...extra,
+    });
+
+    it('홈 스트립 배너는 표시 순서상 이미지가 있는 첫 announcement 행이고, 이미지 없는 공지는 건너뛰되 옛 announcement는 그대로 둔다', async () => {
+      mocks.isConfigured = true;
+      mocks.client = createSupabaseClient([], { home_curations: [
+        announcement('a-text', 0, { image_path: null, link_path: '/help' }),
+        announcement('b-bad-image', 1, { image_path: 'public-media/catalog/ip/not-a-curation.webp' }),
+        announcement('c-ip-bound', 2, { ip_id: 'hwasan' }),
+        announcement('d-unsafe', 3, { link_path: '//evil.example' }),
+        announcement('e-first-image', 4, { image_path: curationImage(2), link_path: '/ip/hwasan' }),
+        announcement('f-second-image', 5, { image_path: curationImage(3) }),
+      ] });
+      try {
+        const { curation } = await getHomeSnapshot();
+        expect(curation.stripBanner).toEqual({
+          id: 'e-first-image', title: '스트립 e-first-image',
+          imageUrl: `https://cdn.example/catalog/curation/${'2'.repeat(8)}-${'2'.repeat(4)}-4${'2'.repeat(3)}-8${'2'.repeat(3)}-${'2'.repeat(12)}.webp`,
+          href: '/ip/hwasan',
+        });
+        expect(curation.announcement).toMatchObject({ id: 'a-text', imageBg: null, href: '/help' });
+      } finally { mocks.isConfigured = false; mocks.client = null; }
+    });
+
+    it('이미지가 있는 공지가 없으면 스트립 키를 싣지 않는다', async () => {
+      mocks.isConfigured = true;
+      mocks.client = createSupabaseClient([], { home_curations: [announcement('text-only', 0, { image_path: null })] });
+      try {
+        const { curation } = await getHomeSnapshot();
+        expect(curation).not.toHaveProperty('stripBanner');
+        expect(curation.announcement).toMatchObject({ id: 'text-only' });
+      } finally { mocks.isConfigured = false; mocks.client = null; }
+    });
+
+    it('NEW ARRIVAL은 등록일 최신 10개를 자동으로 고르고 카드에 칩과 IP 주소를 싣는다(undated·보관·비공개는 제외)', async () => {
+      const records: QueryRecord[] = [];
+      mocks.isConfigured = true;
+      mocks.client = createSupabaseClient(records, { goods: [
+        ...Array.from({ length: 12 }, (_, index) => ({
+          id: `new-${String(index).padStart(2, '0')}`, ip_id: 'hwasan', name: `신상 ${index}`, type: '키링', price: 5000, stock: 'ok', stock_qty: 3,
+          sale_restriction: 'none', created_at: new Date(Date.UTC(2026, 10, index + 1)).toISOString(),
+          shipping_fee_type: index === 11 ? 'free' : 'policy', badge: index === 11 ? 'NEW' : null,
+        })),
+        { id: 'undated', ip_id: 'hwasan', name: '날짜 없음', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none' },
+        { id: 'draft', ip_id: 'hwasan', name: '비공개', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none', published_at: null,
+          created_at: '2026-12-31T00:00:00.000Z' },
+      ] });
+      try {
+        const { curation } = await getHomeSnapshot();
+        expect(curation.newArrivals?.map((card) => card.id)).toEqual(
+          ['new-11', 'new-10', 'new-09', 'new-08', 'new-07', 'new-06', 'new-05', 'new-04', 'new-03', 'new-02']);
+        expect(curation.newArrivals?.[0]).toMatchObject({
+          href: '/shop/new-11', brand: '화산강림', ipHref: '/ip/hwasan',
+          chips: [{ kind: 'freeShipping', label: '무료배송' }, { kind: 'tag', label: 'NEW' }],
+        });
+        expect(curation.newArrivals?.[1]?.chips).toEqual([]);
+        expect(records.find((record) => record.table === 'goods')?.select).toContain('shipping_fee_type');
+      } finally { mocks.isConfigured = false; mocks.client = null; }
+    });
+
+    it('등록일이 있는 공개 굿즈가 없으면 newArrivals 키를 싣지 않아 홈이 블록을 그리지 않는다', async () => {
+      mocks.isConfigured = true;
+      mocks.client = createSupabaseClient([], { goods: [
+        { id: 'undated', ip_id: 'hwasan', name: '날짜 없음', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none' },
+      ] });
+      try {
+        expect((await getHomeSnapshot()).curation).not.toHaveProperty('newArrivals');
+      } finally { mocks.isConfigured = false; mocks.client = null; }
+    });
+  });
 });
 
 
@@ -1834,6 +1909,8 @@ describe('goods detail publication races', () => {
       expect(detail?.relatedGoods?.groups[0].goods[0]).toMatchObject({ allowBankTransfer: false, allowCardPayment: false });
       const selectedRead = records.find(record => record.table === 'goods' && record.in.some(([key]) => key === 'id'));
       expect(selectedRead?.select?.split(',')).toContain('allow_card_payment');
+      /* 선택 상품 묶음(함께 구매 등)의 카드도 무료배송 칩을 달 수 있게 배송비 방식을 같이 읽는다. */
+      expect(selectedRead?.select?.split(',')).toContain('shipping_fee_type');
       expect(selectedRead?.selectOptions).toEqual({ count: 'exact' });
       expect(selectedRead?.in).toContainEqual(['sale_restriction', ['none']]);
       expect(selectedRead?.not).toContainEqual(['ips.published_at', 'is', null]);
@@ -1959,5 +2036,32 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
       variant('00000000-0000-4000-8000-0000000000e1', '백', 1, 0), variant('00000000-0000-4000-8000-0000000000e2', '흑', 2, 1),
     ] }), () => '');
     expect(good.options).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000e1', name: '랜덤', stockQty: 3 })]);
+  });
+});
+
+describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
+  const row = (extra: Record<string, unknown> = {}): GoodRow => ({ id: 'ship', ip_id: 'hwasan', name: '배송 시험', type: '키링', price: 5000, badge: null,
+    stock: 'ok', stock_qty: 3, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
+
+  it('저장된 세 값만 shippingFeeType으로 싣고, 없거나 알 수 없는 값(옛 투영·직접 수정)은 키를 만들지 않는다', () => {
+    for (const value of ['policy', 'free', 'individual'] as const) {
+      expect(toGood(row({ shipping_fee_type: value }), () => '').shippingFeeType).toBe(value);
+    }
+    expect(toGood(row(), () => '')).not.toHaveProperty('shippingFeeType');
+    expect(toGood(row({ shipping_fee_type: 'FREE' }), () => '')).not.toHaveProperty('shippingFeeType');
+    expect(toGood(row({ shipping_fee_type: null }), () => '')).not.toHaveProperty('shippingFeeType');
+  });
+
+  it('전체 카탈로그 읽기가 shipping_fee_type을 읽어 굿즈에 싣는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, { goods: [
+      { id: 'free-ship', ip_id: 'hwasan', name: '무료배송', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none', shipping_fee_type: 'free' },
+    ] });
+    try {
+      const snapshot = await getCatalogSnapshot();
+      expect(snapshot.goods[0]).toMatchObject({ id: 'free-ship', shippingFeeType: 'free' });
+      expect(records.find((record) => record.table === 'goods')?.select?.split(',')).toContain('shipping_fee_type');
+    } finally { mocks.isConfigured = false; mocks.client = null; }
   });
 });
