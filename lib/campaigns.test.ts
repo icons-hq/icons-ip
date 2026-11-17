@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   CAMPAIGN_HUB_ALL_LIMIT,
   CAMPAIGN_HUB_PAGE_SIZE,
+  CAMPAIGN_UPCOMING_BADGE,
   campaignAnchors,
+  campaignBannerImage,
+  campaignCardHref,
+  campaignCardImage,
   campaignDisplayState,
   campaignMoreLabel,
   campaignPeriodLabel,
@@ -11,13 +15,17 @@ import {
   campaignStateBadgeVariant,
   campaignStateLabel,
   isCampaignInternalHref,
+  isPopupCampaign,
   nextCampaignVisibleCount,
   orderCampaignsForHub,
   parseCampaignSections,
+  selectEventHubBanners,
+  selectEventHubCampaigns,
   type CampaignDisplayState,
   type CampaignStatus,
   type CampaignSummary,
 } from './campaigns';
+import { popupDetailHref } from './popups';
 
 const NOW = Date.parse('2026-08-15T03:00:00.000Z');
 
@@ -299,5 +307,136 @@ describe('허브 목록 분량 (11 §6 B21)', () => {
     expect(nextCampaignVisibleCount(20, 23)).toBe(23);
     expect(nextCampaignVisibleCount(23, 23)).toBe(23);
     expect(nextCampaignVisibleCount(2, 5, 2)).toBe(4);
+  });
+});
+
+/* ------------------------------------------------------------------
+   EVENT 허브 (Figma 2026-11-12, 스펙 C §2.7)
+   ------------------------------------------------------------------ */
+
+function hubCampaign(overrides: Partial<CampaignSummary> & Pick<CampaignSummary, 'id'>): CampaignSummary {
+  return {
+    kind: 'event',
+    title: `${overrides.id} 캠페인`,
+    subtitle: null,
+    cardImagePath: null,
+    bannerImagePath: null,
+    featuredOrder: null,
+    startsAt: '2026-08-01T00:00:00.000Z',
+    endsAt: '2026-08-31T00:00:00.000Z',
+    status: 'published',
+    displayState: 'ongoing',
+    presentation: null,
+    ...overrides,
+  };
+}
+
+const POPUP_PRESENTATION = { popupMode: 'offline', popupLocation: '서울 마포구', cardLinkPath: null } as const;
+
+describe('selectEventHubCampaigns', () => {
+  it('진행중은 시작 최신순, 오픈 예정은 시작 이른순으로 진행중 뒤에 둔다', () => {
+    const list = [
+      hubCampaign({ id: 'up-late', displayState: 'upcoming', startsAt: '2026-09-20T00:00:00.000Z' }),
+      hubCampaign({ id: 'on-old', startsAt: '2026-08-01T00:00:00.000Z' }),
+      hubCampaign({ id: 'up-soon', displayState: 'upcoming', startsAt: '2026-09-02T00:00:00.000Z' }),
+      hubCampaign({ id: 'on-new', startsAt: '2026-08-10T00:00:00.000Z' }),
+    ];
+
+    expect(selectEventHubCampaigns(list).map((entry) => entry.id)).toEqual(['on-new', 'on-old', 'up-soon', 'up-late']);
+  });
+
+  it('종료·초안·POP-UP 캠페인은 싣지 않는다', () => {
+    const list = [
+      hubCampaign({ id: 'live' }),
+      hubCampaign({ id: 'done', displayState: 'ended' }),
+      hubCampaign({ id: 'ended-flag', status: 'ended', displayState: 'ended' }),
+      hubCampaign({ id: 'draft', status: 'draft' }),
+      hubCampaign({ id: 'popup', presentation: POPUP_PRESENTATION }),
+    ];
+
+    expect(selectEventHubCampaigns(list).map((entry) => entry.id)).toEqual(['live']);
+  });
+
+  /* 노출 설정 행이 있어도 POP-UP 방식을 고르지 않았으면(바로가기만 설정) EVENT 쪽이다. */
+  it('바로가기만 설정한 캠페인은 EVENT 에 남는다', () => {
+    const shortcut = hubCampaign({
+      id: 'shortcut',
+      presentation: { popupMode: null, popupLocation: null, cardLinkPath: '/ip/hong-sil-quest' },
+    });
+
+    expect(selectEventHubCampaigns([shortcut])).toEqual([shortcut]);
+    expect(isPopupCampaign(shortcut)).toBe(false);
+  });
+
+  it('입력 배열을 바꾸지 않는다', () => {
+    const list = [hubCampaign({ id: 'b', startsAt: '2026-08-01T00:00:00.000Z' }), hubCampaign({ id: 'a', startsAt: '2026-08-02T00:00:00.000Z' })];
+    const before = list.map((entry) => entry.id);
+
+    selectEventHubCampaigns(list);
+
+    expect(list.map((entry) => entry.id)).toEqual(before);
+  });
+});
+
+describe('selectEventHubBanners', () => {
+  it('featured_order 가 있는 캠페인을 그 순서대로, 같은 제외 규칙으로 싣는다', () => {
+    const list = [
+      hubCampaign({ id: 'second', featuredOrder: 2, bannerImagePath: 'https://cdn.test/2.png' }),
+      hubCampaign({ id: 'not-featured', bannerImagePath: 'https://cdn.test/x.png' }),
+      hubCampaign({ id: 'popup', featuredOrder: 0, bannerImagePath: 'https://cdn.test/p.png', presentation: POPUP_PRESENTATION }),
+      hubCampaign({ id: 'ended', featuredOrder: 1, bannerImagePath: 'https://cdn.test/e.png', displayState: 'ended' }),
+      hubCampaign({ id: 'first', featuredOrder: 1, cardImagePath: 'https://cdn.test/1.png', displayState: 'upcoming' }),
+    ];
+
+    expect(selectEventHubBanners(list).map((entry) => entry.id)).toEqual(['first', 'second']);
+  });
+
+  /* 이미지가 없는 배너는 빈 면만 남는다. */
+  it('이미지가 없는 배너는 뺀다', () => {
+    expect(selectEventHubBanners([hubCampaign({ id: 'blank', featuredOrder: 1 })])).toEqual([]);
+  });
+});
+
+describe('캠페인 이미지 대체 순서', () => {
+  it('배너 이미지는 배너 → 카드, 카드 이미지는 카드 → 배너 → 히어로다', () => {
+    expect(campaignBannerImage({ bannerImagePath: 'b', cardImagePath: 'c' })).toBe('b');
+    expect(campaignBannerImage({ bannerImagePath: null, cardImagePath: 'c' })).toBe('c');
+    expect(campaignBannerImage({ bannerImagePath: null, cardImagePath: null })).toBeNull();
+
+    expect(campaignCardImage({ cardImagePath: 'c', bannerImagePath: 'b', heroImagePath: 'h' })).toBe('c');
+    expect(campaignCardImage({ cardImagePath: null, bannerImagePath: 'b', heroImagePath: 'h' })).toBe('b');
+    expect(campaignCardImage({ cardImagePath: null, bannerImagePath: null, heroImagePath: 'h' })).toBe('h');
+    expect(campaignCardImage({ cardImagePath: null, bannerImagePath: null })).toBeNull();
+  });
+});
+
+describe('campaignCardHref', () => {
+  it('노출 설정의 바로가기가 있으면 그곳으로 바로 간다', () => {
+    expect(campaignCardHref(hubCampaign({
+      id: 'promo',
+      presentation: { popupMode: null, popupLocation: null, cardLinkPath: '/shop/g13' },
+    }))).toBe('/shop/g13');
+    /* POP-UP 캠페인도 바로가기가 우선이다. */
+    expect(campaignCardHref(hubCampaign({
+      id: 'popup',
+      presentation: { popupMode: 'online', popupLocation: null, cardLinkPath: '/ip/hong-sil-quest' },
+    }))).toBe('/ip/hong-sil-quest');
+  });
+
+  it('없으면 캠페인 랜딩이다 — EVENT 는 /events, POP-UP 은 /popups', () => {
+    expect(campaignCardHref(hubCampaign({ id: 'summer' }))).toBe('/events/summer');
+    expect(campaignCardHref(hubCampaign({ id: 'a b', presentation: { popupMode: null, popupLocation: null, cardLinkPath: null } }))).toBe('/events/a%20b');
+    expect(campaignCardHref(hubCampaign({ id: 'popup', presentation: POPUP_PRESENTATION }))).toBe('/popups/popup');
+  });
+
+  /* lib/popups.ts 와의 순환을 피하려고 POP-UP 경로를 문자열로 썼다 — 같은 값임을 고정한다. */
+  it('POP-UP 랜딩 주소가 popupDetailHref 와 같다', () => {
+    expect(campaignCardHref(hubCampaign({ id: 'x y', presentation: POPUP_PRESENTATION }))).toBe(popupDetailHref('x y'));
+  });
+});
+
+describe('오픈 예정 배지', () => {
+  it('문구를 고정한다', () => {
+    expect(CAMPAIGN_UPCOMING_BADGE).toBe('오픈 예정');
   });
 });

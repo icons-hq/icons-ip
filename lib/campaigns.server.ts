@@ -2,6 +2,7 @@ import { parseGoodsSalePeriod, goodsSaleUnavailableLabel } from './goods-sale-pe
 import 'server-only';
 
 import { cache } from 'react';
+import { parseCampaignPresentationRow, type CampaignPresentation } from '@/lib/campaign-presentation';
 import {
   campaignDisplayState,
   isCampaignKind,
@@ -40,11 +41,11 @@ interface CampaignRow {
   ends_at: string;
   card_image_path: string | null;
   banner_image_path: string | null;
+  hero_image_path: string | null;
   featured_order: number | null;
 }
 
 interface CampaignDetailRow extends CampaignRow {
-  hero_image_path: string | null;
   sections: unknown;
 }
 
@@ -82,8 +83,10 @@ interface GoodRow {
 }
 
 const HUB_COLUMNS =
-  'id,kind,title,subtitle,status,starts_at,ends_at,card_image_path,banner_image_path,featured_order';
-const DETAIL_COLUMNS = `${HUB_COLUMNS},hero_image_path,sections`;
+  'id,kind,title,subtitle,status,starts_at,ends_at,card_image_path,banner_image_path,hero_image_path,featured_order';
+const DETAIL_COLUMNS = `${HUB_COLUMNS},sections`;
+/* 노출 설정은 campaigns 에 임베드하지 않고 따로 읽는다 — 표나 RLS 문제로 이 읽기가 실패해도 허브·상세 본문은 그대로 떠야 한다. */
+const PRESENTATION_COLUMNS = 'campaign_id,popup_mode,popup_location,card_link_path';
 
 export interface CampaignHubSnapshot {
   /** featured_order 오름차순. 상단 배너 슬라이더가 이 순서로 그린다. */
@@ -142,6 +145,7 @@ function toSummary(
   row: CampaignRow,
   toPublicUrl: (path: string | null) => string | null,
   now: number,
+  presentation: CampaignPresentation | null,
 ): CampaignSummary | null {
   /* kind 를 모르면 어느 탭에도 넣을 수 없고 뱃지 텍스트도 정할 수 없다 — 조용히 뺀다. */
   if (!isCampaignKind(row.kind)) return null;
@@ -159,6 +163,7 @@ function toSummary(
     subtitle: row.subtitle,
     cardImagePath: toPublicUrl(row.card_image_path),
     bannerImagePath: toPublicUrl(row.banner_image_path),
+    heroImagePath: toPublicUrl(row.hero_image_path),
     featuredOrder: row.featured_order,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
@@ -167,25 +172,62 @@ function toSummary(
       { status, startsAt: row.starts_at, endsAt: row.ends_at },
       now,
     ),
+    presentation,
   };
 }
 
-/** 이벤트 허브 — 배너 슬라이더 + ALL/EVENT/DROP 탭이 읽는 한 벌. */
+/**
+ * 캠페인 노출 설정 전부(id → 값). RLS 가 draft 캠페인의 행을 promotion.manage 운영자에게만 열어 두므로 비운영자는
+ * 공개 캠페인의 행만 받는다. 읽기 실패·형식 오류는 행 없음으로 접는다 — 그 캠페인은 EVENT 쪽이다.
+ */
+async function loadPresentations(supabase: CampaignSupabaseClient): Promise<Map<string, CampaignPresentation>> {
+  try {
+    const { data, error } = await supabase.from('campaign_presentations').select(PRESENTATION_COLUMNS);
+    if (error) return new Map();
+
+    const map = new Map<string, CampaignPresentation>();
+    for (const row of (data ?? []) as { campaign_id?: unknown }[]) {
+      const presentation = parseCampaignPresentationRow(row);
+      if (presentation && typeof row.campaign_id === 'string') map.set(row.campaign_id, presentation);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+async function loadPresentation(supabase: CampaignSupabaseClient, campaignId: string): Promise<CampaignPresentation | null> {
+  try {
+    const { data, error } = await supabase
+      .from('campaign_presentations')
+      .select(PRESENTATION_COLUMNS)
+      .eq('campaign_id', campaignId)
+      .maybeSingle();
+    return error ? null : parseCampaignPresentationRow(data);
+  } catch {
+    return null;
+  }
+}
+
+/** 이벤트·POP-UP 허브가 읽는 한 벌 — 배너(featured_order 순)와 전체 목록. 화면 규칙(POP-UP·종료 제외 등)은 `lib/campaigns.ts`의 순수 함수가 정한다. */
 export async function loadCampaignHub(): Promise<CampaignHubSnapshot> {
   if (!getSupabaseConfig().isConfigured) return EMPTY_HUB;
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('campaigns')
-    .select(HUB_COLUMNS)
-    .order('starts_at', { ascending: false });
+  const [{ data, error }, presentations] = await Promise.all([
+    supabase
+      .from('campaigns')
+      .select(HUB_COLUMNS)
+      .order('starts_at', { ascending: false }),
+    loadPresentations(supabase),
+  ]);
 
   if (error) return EMPTY_HUB;
 
   const now = Date.now();
   const toPublicUrl = publicUrlResolver(supabase);
   const summaries = ((data ?? []) as CampaignRow[]).flatMap((row) => {
-    const summary = toSummary(row, toPublicUrl, now);
+    const summary = toSummary(row, toPublicUrl, now, presentations.get(row.id) ?? null);
     return summary ? [summary] : [];
   });
 
@@ -285,17 +327,20 @@ async function resolveCampaignDetail(id: string): Promise<CampaignLandingSnapsho
   if (!getSupabaseConfig().isConfigured) return null;
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('campaigns')
-    .select(DETAIL_COLUMNS)
-    .eq('id', id)
-    .maybeSingle<CampaignDetailRow>();
+  const [{ data, error }, presentation] = await Promise.all([
+    supabase
+      .from('campaigns')
+      .select(DETAIL_COLUMNS)
+      .eq('id', id)
+      .maybeSingle<CampaignDetailRow>(),
+    loadPresentation(supabase, id),
+  ]);
 
   if (error || !data) return null;
 
   const now = Date.now();
   const toPublicUrl = publicUrlResolver(supabase);
-  const summary = toSummary(data, toPublicUrl, now);
+  const summary = toSummary(data, toPublicUrl, now, presentation);
   if (!summary) return null;
 
   const sections = parseCampaignSections(data.sections);
