@@ -232,6 +232,8 @@ const storefront = [
   sql('goods_relation_visual_compositions', { kc: true }),
   sql('goods_other_compositions', { admin: true, kc: true }),
   sql('story_navigation_and_home_layout'),
+  // X SQUARE GNB(ADR-0043): 공개 메뉴 설정이 9개(popups 추가)가 되고 저장된 설정이 옮겨진다.
+  sql('store_navigation_popups'),
   sql('marketing_links', { kc: true }),
   script('shopping_stories_concurrency.sh', 'SHOPPING_STORIES_TEST_SCOPE'),
   script('marketing_links_concurrency.sh', 'MARKETING_LINKS_TEST_SCOPE'),

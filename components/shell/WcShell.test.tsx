@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
-import type { StorefrontNavigation } from '@/lib/store-navigation';
+import { DEFAULT_STOREFRONT_NAVIGATION, type StorefrontNavigation } from '@/lib/store-navigation';
 import type { StorefrontMegaMenus } from '@/lib/storefront-mega-menu';
 import { BottomTabBar } from './BottomTabBar';
 import { Nav } from './Nav';
@@ -40,6 +40,9 @@ function megaMarkup(html: string, panelId = 'wc-mega-category') {
   expect(start).toBeGreaterThan(-1);
   return html.slice(start, html.indexOf('</div>', start));
 }
+
+/* 새 기본 메뉴(X SQUARE)는 온라인 팝업(IP관 디렉토리)·카드팩·커뮤니티·쇼핑스토리를 숨긴다 — 운영자가 다시 켠 모양은 명시로 만든다. */
+const WITH_ONLINE_POPUP: StorefrontNavigation = [...DEFAULT_STOREFRONT_NAVIGATION, { id: 'iphub', label: '온라인 팝업' }];
 
 const nodeId = (n: number) => `94932000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 /* 공개 전시 트리가 있는 셸(L5) — 고객 카테고리 공개 스위치 ON + 공개 전시 3개, 진행 중 기획전 1개, 피처드 IP 3개. */
@@ -189,11 +192,10 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('aria-label="마이페이지"');
     expect(html).toContain('href="/shop/new"');
     expect(html).toContain('href="/shop/best"');
-    expect(html).toContain('href="/ip"');
-    expect(html).toContain('href="/packs"');
+    expect(html).toContain('href="/popups"');
     expect(html).toContain('href="/events"');
-    /* 커뮤니티는 임시 비공개 스위치 대상이라 노출 기대를 분기한다. */
-    expect(html.includes('href="/community"')).toBe(COMMUNITY_ENABLED);
+    /* 새 기본 GNB는 NEW·BEST·카테고리·POP-UP·EVENT뿐이다 — 쇼핑스토리(MD-0035)·온라인 팝업·카드팩·커뮤니티는 기본 숨김. */
+    for (const hidden of ['/stories', '/ip', '/packs', '/community']) expect(html, hidden).not.toContain(`href="${hidden}"`);
     expect(html).toContain('id="wc-mega-category"');
     expect(html).toContain('href="/binder"');
     expect(html).toContain('href="/market"');
@@ -214,10 +216,28 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('aria-label="장바구니"');
   });
 
+  /* 운영자가 카드팩을 다시 켜도 기능 게이트가 우선이다 — 게이트가 닫히면 GNB와 메가메뉴 양쪽에서 지운다. */
   it('카드 리워드 게이트가 닫히면 GNB와 메가메뉴 양쪽에서 카드팩을 지운다', () => {
+    const withPacks: StorefrontNavigation = [...DEFAULT_STOREFRONT_NAVIGATION, { id: 'packs', label: '카드팩' }];
+    expect(renderToStaticMarkup(<Nav navigation={withPacks} />)).toContain('href="/packs"');
+
     mocks.cardRewardsEnabled = false;
 
-    expect(renderToStaticMarkup(<Nav />)).not.toContain('href="/packs"');
+    expect(renderToStaticMarkup(<Nav navigation={withPacks} />)).not.toContain('href="/packs"');
+  });
+
+  /* X SQUARE GNB(ADR-0043): 오프라인 팝업 예매 도메인은 POP-UP 아래에 있어 그 경로에서 POP-UP이 켜지고, 이벤트 허브는 EVENT가 켜진다. */
+  it('POP-UP은 /popups·/offline-popups, EVENT는 /events 아래에서 현재 위치다', () => {
+    const current = (pathname: string) => {
+      mocks.pathname = pathname;
+      return [...renderToStaticMarkup(<Nav />).matchAll(/aria-current="page" class="wc-gnb__link is-active" title="([^"]+)"/g)].map((match) => match[1]);
+    };
+
+    expect(current('/popups')).toEqual(['POP-UP']);
+    expect(current('/offline-popups')).toEqual(['POP-UP']);
+    expect(current('/offline-popups/seongsu')).toEqual(['POP-UP']);
+    expect(current('/events/fall-drop')).toEqual(['EVENT']);
+    expect(current('/shop/new')).toEqual(['NEW']);
   });
 
   /* '/shop/new'에서 상위 경로인 카테고리(/shop)까지 현재로 표시되면 위치 감각이 무너진다.
@@ -655,7 +675,7 @@ describe('카테고리 내비게이션 (L5)', () => {
 
   it('온라인 팝업 메가메뉴는 피처드 IP 목록 + 전체보기 + 상위 2개 이미지 타일이고, 피처드가 없으면 링크로 남는다', () => {
     mocks.pathname = '/ip/maple';
-    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} navigation={WITH_ONLINE_POPUP} />);
     const trigger = html.match(/<a[^>]*aria-controls="wc-mega-online-popup"[^>]*>/)?.[0] ?? '';
     expect(trigger).toContain('href="/ip"');
     expect(trigger).toContain('aria-current="page"');
@@ -671,13 +691,13 @@ describe('카테고리 내비게이션 (L5)', () => {
     expect(mega).toContain('<span aria-hidden="true" class="wc-mega__tile-image wc-mega__tile-image--text">H</span>');
     expect(mega).not.toContain('Third IP</span>');
 
-    const noFeatured = renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, featuredIps: [] }} />);
+    const noFeatured = renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, featuredIps: [] }} navigation={WITH_ONLINE_POPUP} />);
     expect(noFeatured).not.toContain('wc-mega-online-popup');
     expect(noFeatured).toMatch(/<li class="wc-gnb__item"><a aria-current="page" class="wc-gnb__link is-active" title="온라인 팝업" href="\/ip">/);
   });
 
   it('메가메뉴는 SSR 에서 닫힌 채 목차를 DOM 에 두고 트리거가 aria-expanded·aria-controls 로 패널을 가리킨다', () => {
-    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} navigation={WITH_ONLINE_POPUP} />);
     for (const panelId of ['wc-mega-category', 'wc-mega-online-popup']) {
       expect(html).toContain(`class="wc-mega" data-open="false" id="${panelId}"`);
       expect(html).toMatch(new RegExp(`<a[^>]*aria-controls="${panelId}"[^>]*aria-expanded="false"`));

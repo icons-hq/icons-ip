@@ -37,18 +37,29 @@ function visibleItems(items: NavItem[]): NavItem[] {
   return COMMUNITY_ENABLED ? items : items.filter((item) => item.id !== 'community');
 }
 
-/* 데스크톱 GNB — 카탈로그 진입(NEW·BEST·카테고리)을 앞에 두고 그 뒤에 세계관 표면을 잇는다. */
+/* 데스크톱 GNB — 카탈로그 진입(NEW·BEST·카테고리)을 앞에 두고 그 뒤에 팝업·이벤트를 잇는다(X SQUARE Figma, ADR-0043).
+   운영 메뉴 설정(고정 9개 ID)의 이름·순서·노출이 이 목록 위에 얹힌다. defaultVisible 이 새 기본 노출이다: Figma GNB(NEW·BEST·카테고리·
+   POP-UP·EVENT)만 켜고 나머지는 숨긴다 — 쇼핑스토리는 요청(MD-0035)으로 GNB·카테고리 시트·전체 메뉴에서 빠지고(화면 자체는 남는다),
+   온라인 팝업(IP관 디렉토리)은 상품 상세·POP-UP 화면에서 계속 닿는다. packs·community는 배포 게이트가 따로 거른다. 운영자가 다시 켤 수 있다.
+   'popups'(POP-UP)는 진행 중인 온·오프라인 팝업 화면이다(PATHS.popups — 화면은 설계자 C의 WP가 만든다). */
 export const STOREFRONT_MENU_ITEMS = [
-  { id: 'new', label: 'NEW' },
-  { id: 'best', label: 'BEST' },
-  { id: 'shop', label: '카테고리' },
-  { id: 'iphub', label: '온라인 팝업' },
-  { id: 'packs', label: '카드팩' },
-  { id: 'events', label: '이벤트' },
-  { id: 'community', label: '커뮤니티' },
-  { id: 'stories', label: '쇼핑스토리' },
-] as const satisfies readonly NavItem[];
-export const NAV_ITEMS: NavItem[] = visibleItems([...STOREFRONT_MENU_ITEMS]);
+  { id: 'new', label: 'NEW', defaultVisible: true },
+  { id: 'best', label: 'BEST', defaultVisible: true },
+  { id: 'shop', label: '카테고리', defaultVisible: true },
+  { id: 'popups', label: 'POP-UP', defaultVisible: true },
+  { id: 'events', label: 'EVENT', defaultVisible: true },
+  { id: 'iphub', label: '온라인 팝업', defaultVisible: false },
+  { id: 'packs', label: '카드팩', defaultVisible: false },
+  { id: 'community', label: '커뮤니티', defaultVisible: false },
+  { id: 'stories', label: '쇼핑스토리', defaultVisible: false },
+] as const satisfies readonly (NavItem & { defaultVisible: boolean })[];
+export const NAV_ITEMS: NavItem[] = visibleItems(STOREFRONT_MENU_ITEMS.map(({ id, label }) => ({ id, label })));
+
+/* 활성 표시 별칭 — 항목의 경로 말고도 이 접두 경로에서 그 항목을 켠다. 오프라인 팝업(예매 도메인)은 POP-UP 아래에 있다(C D9).
+   /events*는 PATHS.events 로 이미 EVENT 다. 최장 일치 규칙(activeNavId)이 별칭에도 같이 적용된다. */
+export const NAV_ACTIVE_ALIASES: Record<string, readonly string[]> = {
+  popups: ['/offline-popups'],
+};
 
 /* 모바일 바텀 탭 5개 — 가운데가 홈이다.
    'menu'만 라우트가 없는 액션 탭이라 링크가 아니라 전체 메뉴 시트를 연다. */
@@ -70,7 +81,7 @@ export const UTIL_ITEMS: NavItem[] = [
 export const UTIL_HELP_ITEM: NavItem = { id: 'help', label: '고객센터' };
 
 /* 로그인 회원에게만 보이는 유틸 항목 — 데스크톱의 위시 진입(MY-13, 10/14 S14). 헤더 아이콘 3개 문법은 그대로 둔다.
-   STOREFRONT_MENU_ITEMS에 넣지 않는다: 운영 저장 내비(고정 8개 ID)가 개수 불일치로 통째로 무시된다
+   STOREFRONT_MENU_ITEMS에 넣지 않는다: 운영 저장 내비(고정 9개 ID)가 개수 불일치로 통째로 무시된다
    (lib/store-navigation.ts parseStoreNavigation). 비회원 위시는 없다(CONTEXT.md 위시리스트). */
 export const MEMBER_UTIL_ITEMS: NavItem[] = [
   { id: 'wish', label: '위시리스트' },
@@ -81,6 +92,8 @@ const PATHS: Record<string, string> = {
   new: '/shop/new',
   best: '/shop/best',
   iphub: '/ip',
+  /* POP-UP(진행 중인 온·오프라인 팝업 화면) — 화면은 설계자 C의 WP가 만든다. 미등록이면 hrefFor가 '/'로 폴백해 GNB 항목이 홈 링크가 된다. */
+  popups: '/popups',
   aouadPopup: AOUAD_POPUP_PATH,
   shop: '/shop',
   packs: '/packs',
@@ -163,11 +176,13 @@ export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): str
   for (const item of items) {
     /* 경로 없는 항목은 hrefFor가 '/'로 폴백해 홈에서만 거짓 매칭된다 — 후보에서 아예 뺀다. */
     if (!hasPath(item.id)) continue;
-    if (!isActive(item.id, pathname)) continue;
-    const length = hrefFor(item.id).length;
-    if (length > activeLength) {
+    /* 항목의 경로와 활성 별칭(NAV_ACTIVE_ALIASES) 중 가장 길게 맞는 접두가 그 항목의 일치 길이다. */
+    const matched = [hrefFor(item.id), ...(NAV_ACTIVE_ALIASES[item.id] ?? [])]
+      .filter((prefix) => (prefix === '/' ? pathname === '/' : pathname === prefix || pathname.startsWith(prefix + '/')))
+      .reduce((longest, prefix) => Math.max(longest, prefix.length), -1);
+    if (matched > activeLength) {
       activeId = item.id;
-      activeLength = length;
+      activeLength = matched;
     }
   }
   return activeId;

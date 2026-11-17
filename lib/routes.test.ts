@@ -12,7 +12,9 @@ import {
   MENU_SHEET_GROUPS,
   MOB_ITEMS,
   STOREFRONT_MENU_ITEMS,
+  NAV_ACTIVE_ALIASES,
   NAV_ITEMS,
+  UTIL_HELP_ITEM,
   UTIL_ITEMS,
   activeNavId,
   hrefFor,
@@ -139,12 +141,30 @@ describe('White Catalog 내비게이션 경로', () => {
 describe('내비게이션 항목 구성', () => {
   it('GNB는 계약된 항목을 순서대로 유지한다', () => {
     /* 커뮤니티만 임시 비공개 스위치 대상이라 기대를 분기한다 — 스위치를 되돌리면 이 테스트도
-       손대지 않고 8개 계약으로 돌아온다(lib/community-visibility.ts). */
+       손대지 않고 9개 계약으로 돌아온다(lib/community-visibility.ts). 앞 5개가 Figma GNB(NEW·BEST·카테고리·POP-UP·EVENT)다. */
     expect(NAV_ITEMS.map((item) => item.id)).toEqual(
       COMMUNITY_ENABLED
-        ? ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'community', 'stories']
-        : ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'stories'],
+        ? ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'packs', 'community', 'stories']
+        : ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'packs', 'stories'],
     );
+  });
+
+  /* 새 기본 노출: Figma GNB 5개만 켜고 나머지(온라인 팝업·카드팩·커뮤니티·쇼핑스토리)는 숨긴다(MD-0035). 이름은 POP-UP·EVENT. */
+  it('기본 노출은 NEW·BEST·카테고리·POP-UP·EVENT이고 항목 이름은 Figma를 따른다', () => {
+    expect(STOREFRONT_MENU_ITEMS.filter((item) => item.defaultVisible).map((item) => `${item.id}:${item.label}`)).toEqual([
+      'new:NEW', 'best:BEST', 'shop:카테고리', 'popups:POP-UP', 'events:EVENT',
+    ]);
+    expect(STOREFRONT_MENU_ITEMS.filter((item) => !item.defaultVisible).map((item) => item.id)).toEqual(['iphub', 'packs', 'community', 'stories']);
+    /* 기본 GNB 계열 목록은 이름·id뿐이다 — 노출 필드가 다른 소비처(활성 판정·시트)로 새지 않는다. */
+    for (const item of NAV_ITEMS) expect(Object.keys(item).sort()).toEqual(['id', 'label']);
+  });
+
+  /* 미등록 id는 hrefFor가 '/'로 폴백한다 — POP-UP 항목이 홈 링크로 둔갑하지 않게 경로를 계약으로 묶는다. 화면은 설계자 C의 WP가 만든다. */
+  it('POP-UP 경로를 등록하고 고객센터 유틸 항목을 둔다', () => {
+    expect(hrefFor('popups')).toBe('/popups');
+    expect(hrefFor('events')).toBe('/events');
+    expect(UTIL_HELP_ITEM).toEqual({ id: 'help', label: '고객센터' });
+    expect(hrefFor(UTIL_HELP_ITEM.id)).toBe('/help');
   });
 
   it('커뮤니티 스위치가 GNB·푸터·메뉴시트 진입점을 한꺼번에 좌우한다', () => {
@@ -172,7 +192,7 @@ describe('내비게이션 항목 구성', () => {
     expect(MEMBER_UTIL_ITEMS).toEqual([{ id: 'wish', label: '위시리스트' }]);
     expect(hrefFor('wish')).toBe('/my/wishlist');
     expect(STOREFRONT_MENU_ITEMS.map((item) => item.id)).not.toContain('wish');
-    expect(STOREFRONT_MENU_ITEMS).toHaveLength(8);
+    expect(STOREFRONT_MENU_ITEMS).toHaveLength(9);
   });
 });
 
@@ -241,6 +261,22 @@ describe('activeNavId', () => {
 
   it('카테고리 목록에서는 카테고리를 고른다', () => {
     expect(activeNavId('/shop')).toBe('shop');
+  });
+
+  /* X SQUARE GNB: POP-UP은 /popups와 오프라인 팝업 예매 도메인(/offline-popups, 활성 별칭), EVENT는 /events 아래에서 켜진다. */
+  it('POP-UP은 /popups·/offline-popups 하위에서, EVENT는 /events 하위에서 현재 위치다', () => {
+    expect(NAV_ACTIVE_ALIASES).toEqual({ popups: ['/offline-popups'] });
+    for (const pathname of ['/popups', '/popups/seongsu', '/offline-popups', '/offline-popups/seongsu']) expect(activeNavId(pathname), pathname).toBe('popups');
+    for (const pathname of ['/events', '/events/fall-drop']) expect(activeNavId(pathname), pathname).toBe('events');
+    /* 별칭은 접두 경계를 지킨다 — 이름이 비슷한 다른 경로를 켜지 않는다. */
+    expect(activeNavId('/offline-popups-archive')).toBeNull();
+    expect(activeNavId('/popups-archive')).toBeNull();
+    /* 별칭이 있어도 가장 길게 맞는 항목 하나만 고른다. */
+    expect(activeNavId('/shop/new')).toBe('new');
+  });
+
+  it('활성 별칭은 운영 메뉴로 항목이 빠지면 따라 빠진다', () => {
+    expect(activeNavId('/offline-popups', NAV_ITEMS.filter((item) => item.id !== 'popups'))).toBeNull();
   });
 
   /* CH-12: 굿즈 상세는 어떤 1차 내비의 목록도 아니다 — '/shop' 접두가 맞아도 카테고리를 켜지 않는다(레퍼런스 실측). */
