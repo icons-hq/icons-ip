@@ -49,7 +49,7 @@ export function GoodsTransactionSummary({ display, names = {}, canceledGoodIds, 
       {group.deliveryPolicy && 'handoffLocation' in group.deliveryPolicy ? <p>{group.deliveryPolicy.handoffLocation} · {group.deliveryPolicy.handoffInstructions}<br />{group.deliveryPolicy.appointmentInstructions}<br />{group.deliveryPolicy.completionInstructions}</p> : null}
       {group.chargeDetails ? <ShippingChargeDetailsDisplay details={group.chargeDetails} names={names} /> : null}
       {group.collector && <div className="checkout-collect-notice">
-        <p>착불 배송비는 온라인 결제금액에 포함되지 않습니다.</p>
+        <p>{`착불 배송비는 ${text.onlineTotal}에 포함되지 않습니다.`}</p>
         <p>수납 주체: {group.collector.name} · {group.collector.method}</p>
         <p>{group.collector.instructions}</p>
         <p>착불 배송비 환불 문의: {group.collector.refundContact}</p>

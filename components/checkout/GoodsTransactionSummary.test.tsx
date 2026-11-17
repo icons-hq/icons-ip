@@ -33,6 +33,8 @@ it('order 라벨은 네 줄의 이름만 바꾸고 금액·그 밖의 줄은 같
   expect(order).toContain('<dt>총 굿즈 금액</dt>'); expect(order).toContain('<dt>쿠폰 할인 금액</dt>'); expect(order).toContain('<dt>보유 적립금 사용</dt>');
   expect(order).toContain('총 결제 금액</dt><dd>₩16,000'); expect(order).toContain('총 부담금액</dt><dd>₩19,000'); expect(order).toContain('복수구매 할인');
   expect(order).not.toContain('<dt>온라인 결제금액</dt>');
-  /* 라벨 네 개를 되돌리면 두 표기가 글자 하나까지 같아야 한다 — 금액·순서·착불 안내는 라벨 프롭과 무관하다. */
-  expect(order.replace('총 굿즈 금액', '굿즈 금액').replace('쿠폰 할인 금액', '쿠폰 할인').replace('보유 적립금 사용', '적립금 사용').replace('총 결제 금액', '온라인 결제금액')).toBe(checkout);
+  /* 착불 안내 문장도 같은 합계 이름을 가리킨다 — 표의 행 이름과 문장이 어긋나지 않는다. */
+  expect(order).toContain('착불 배송비는 총 결제 금액에 포함되지 않습니다.');
+  /* 라벨 네 개(착불 안내 속 합계 이름 포함)를 되돌리면 두 표기가 글자 하나까지 같아야 한다 — 금액·순서는 라벨 프롭과 무관하다. */
+  expect(order.replace('총 굿즈 금액', '굿즈 금액').replace('쿠폰 할인 금액', '쿠폰 할인').replace('보유 적립금 사용', '적립금 사용').replaceAll('총 결제 금액', '온라인 결제금액')).toBe(checkout);
 });
