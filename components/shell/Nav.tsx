@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
 import { EMPTY_SHELL_NOTICES, type ShellNotices as ShellNoticeData } from '@/lib/shell-notices';
@@ -46,6 +46,7 @@ import { loginEntryHref } from './login-entry';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { OverlayPortal } from './OverlayPortal';
+import { isActivationTarget } from './overlay-focus';
 import { SEARCH_PANEL_ID, SearchOverlay } from './SearchOverlay';
 import { ShellNotices } from './ShellNotices';
 import { StoreBrandLogo, storefrontLogoName } from './StoreBranding';
@@ -158,6 +159,13 @@ function WcChrome({
   const sheetOpen = overlay.pathname === pathname && overlay.kind === 'sheet';
   const categoryOpen = overlay.pathname === pathname && overlay.kind === 'category';
   const closeOverlay = () => setOverlay({ kind: 'none', pathname });
+  /* 검색 패널만 닫는다 — 패널이 열려 있지 않으면 상태를 그대로 두어 렌더를 아끼는 용도(메가메뉴 열림·공지 클릭처럼 자주 오는 신호). */
+  const closeSearch = () => setOverlay((current) => (current.kind === 'search' ? { kind: 'none', pathname } : current));
+  /* 검색 패널이 열려 있는 동안 딤 위에 밝게 남는 유틸 메뉴·공지 띠의 링크·버튼(MD-0034 "다른 버튼도 작동 가능") — 눌린 동작은 그대로 하고 패널을 닫는다.
+     줄의 빈 곳은 건드리지 않는다. */
+  const closeSearchOnActivate = (event: MouseEvent<HTMLElement>) => {
+    if (isActivationTarget(event.target)) closeSearch();
+  };
 
   const navItems = resolveStorefrontNavigation(navigation, cardRewardsEnabled);
   /* 활성 항목은 반드시 여기 한 곳에서만 고른다. 항목별로 isActive를 부르면
@@ -183,11 +191,11 @@ function WcChrome({
       {/* 텍스트 공지 바 + 이미지 스트립. 유틸바 위에 두면 축약 기준이 실제 공지 높이만큼 자동 보정된다(noticeOffsetAbove) —
           공지가 아직 보이는 동안에는 GNB가 접히지 않는다. 카드 리워드·커뮤니티 목적지 공지는 게이트가 꺼진 배포에서
           GNB 항목과 같은 규칙으로 숨긴다(ShellNotices). */}
-      <ShellNotices cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} />
+      <ShellNotices cardRewardsEnabled={cardRewardsEnabled} notices={notices} onActivate={closeSearch} pathname={pathname} />
 
       {/* 유틸 메뉴(데스크톱만, Figma 48): 회원은 위시리스트·주문조회·알림함·로그아웃, 비회원은 로그인 / 회원가입. 고객센터는 맨 오른쪽에
           고정이라 로그인 상태가 확정되며 앞쪽 항목이 늘어도 자리가 움직이지 않는다. 공지사항은 게시판이 없어 그리지 않는다(스펙 §6). */}
-      <nav ref={utilbarRef} aria-label="유틸리티 메뉴" className="wc-utilbar">
+      <nav ref={utilbarRef} aria-label="유틸리티 메뉴" className="wc-utilbar" onClick={closeSearchOnActivate}>
         <div className="wc-container wc-container--wide wc-utilbar__inner">
           <UtilMemberLinks />
           <UtilAuthAction />
@@ -218,6 +226,7 @@ function WcChrome({
                           active={activeId === 'shop'}
                           href={hrefFor('shop')}
                           label={item.label}
+                          onSearchClose={closeSearch}
                           panelId="wc-mega-category"
                           pathname={pathname}
                         >
@@ -254,6 +263,7 @@ function WcChrome({
                           active={activeId === 'iphub'}
                           href={hrefFor('iphub')}
                           label={item.label}
+                          onSearchClose={closeSearch}
                           panelId="wc-mega-online-popup"
                           pathname={pathname}
                         >
@@ -374,12 +384,15 @@ function WcChrome({
    메가 마크업은 항상 DOM에 두고 data-open으로만 표시를 토글한다 — 크롤러와 스크린리더가 목차를 잃지 않게.
    키보드: 트리거에 포커스가 오면 열리고 Tab 으로 패널 링크를 차례로 지난다. ↓ 는 패널 첫 링크로, Escape 는 패널을 닫고
    트리거로 돌아간다 — 돌아온 포커스가 패널을 다시 열지 않으므로 다음 Tab 은 옆 GNB 항목으로 간다(레퍼런스는 키보드로
-   열리지 않는 결함, 11 §6 B4 — 재현하지 않는다). */
+   열리지 않는 결함, 11 §6 B4 — 재현하지 않는다).
+   검색 패널(비모달, MD-0034)이 열린 채 메가메뉴가 열리면 패널(z3) 뒤에 깔려 위쪽이 가려지고 키보드는 가려진 링크에 포커스가 간다 —
+   그래서 메가메뉴가 열릴 때 검색 패널을 닫고(onSearchClose), 트리거·메가 링크를 눌러도 같은 경로 이동에서 패널이 남지 않게 닫는다. */
 function MegaMenuItem({
   active,
   children,
   href,
   label,
+  onSearchClose,
   panelId,
   pathname,
 }: {
@@ -387,6 +400,8 @@ function MegaMenuItem({
   children: (close: () => void) => ReactNode;
   href: string;
   label: string;
+  /** 검색 패널을 닫는다(열려 있지 않으면 아무 일도 없다). */
+  onSearchClose: () => void;
   panelId: string;
   pathname: string;
 }) {
@@ -404,9 +419,18 @@ function MegaMenuItem({
   const megaOpen = mega.open && mega.pathname === pathname;
   const setMegaOpen = (open: boolean) => setMega({ open, pathname });
   const close = () => setMegaOpen(false);
+  const openMega = () => {
+    onSearchClose();
+    setMegaOpen(true);
+  };
+  /* 메가 링크·트리거를 누르면 메가를 접고 검색 패널도 닫는다 — 같은 경로(/shop → /shop?displayCategory=…)는 경로가 안 바뀌어 패널이 남는다. */
+  const closeAll = () => {
+    close();
+    onSearchClose();
+  };
 
   const onFocusCapture = () => {
-    if (!suppressFocusOpen.current) setMegaOpen(true);
+    if (!suppressFocusOpen.current) openMega();
   };
 
   const onBlurCapture = (event: FocusEvent<HTMLLIElement>) => {
@@ -428,7 +452,7 @@ function MegaMenuItem({
     if (event.key === 'ArrowDown' && event.target === triggerRef.current) {
       event.preventDefault();
       suppressFocusOpen.current = false;
-      setMegaOpen(true);
+      openMega();
       /* 패널이 표시된 다음 프레임에 첫 링크로 옮긴다(닫힌 패널은 display:none 이라 바로는 포커스되지 않는다). */
       window.requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>('a[href]')?.focus());
     }
@@ -443,7 +467,7 @@ function MegaMenuItem({
       onKeyDown={onKeyDown}
       onMouseEnter={() => {
         suppressFocusOpen.current = false;
-        setMegaOpen(true);
+        openMega();
       }}
       onMouseLeave={close}
     >
@@ -454,13 +478,14 @@ function MegaMenuItem({
         aria-expanded={megaOpen}
         className={`wc-gnb__link${active ? ' is-active' : ''}`}
         href={href}
+        onClick={onSearchClose}
         title={label}
       >
         <span className="wc-gnb__label">{label}</span>
       </Link>
 
       <div ref={panelRef} className="wc-mega" data-open={megaOpen ? 'true' : 'false'} id={panelId}>
-        {children(close)}
+        {children(closeAll)}
       </div>
     </li>
   );

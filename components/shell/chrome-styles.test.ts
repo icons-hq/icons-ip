@@ -298,6 +298,8 @@ describe('해시 이동 착지선 (html scroll-padding-top)', () => {
     expect(margin).toBe('-109px');
     expect(declsFor('.wc-header .wc-header__bar :focus', DESKTOP)['scroll-margin-top']).toBe(margin);
     expect(declsFor('.wc-header .wc-gnb__link:focus', DESKTOP)['scroll-margin-top']).toBe(margin);
+    /* review-b C1 — GNB 가 헤더 행 안으로 옮겨져 메가메뉴 링크도 위 선택자에 걸린다. 메가 안은 다시 0 으로 돌려 놓는다(특이도가 더 높다). */
+    expect(declsFor('.wc-header .wc-header__bar .wc-mega :focus', DESKTOP)['scroll-margin-top']).toBe('0');
     /* 메가메뉴는 안쪽 스크롤 상자다 — 음수 여백이 붙으면 위로 넘친 링크를 상자 안으로 데려오지 못한다. 모바일 헤더는 다른 구조다. */
     root.walkDecls('scroll-margin-top', (decl) => {
       const rule = decl.parent as Rule;

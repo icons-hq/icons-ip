@@ -54,7 +54,7 @@ export interface BackgroundCandidate {
 
 /**
  * 오버레이가 inert 로 덮을 배경 요소. 패널이 안에 들어 있는 후보는 건너뛴다(자기 자신까지 얼리는 사고 방지).
- * keepInteractive 선택자에 걸리는 후보도 건너뛴다 — 비모달 패널(헤더 검색, MD-0034)이 헤더 행을 눌리는 채로 두는 길이다.
+ * keepInteractive 선택자에 걸리는 후보도 건너뛴다 — 비모달 패널(헤더 검색, MD-0034)이 헤더 행·유틸 메뉴·공지 띠를 눌리는 채로 두는 길이다.
  * 없는(null) 후보는 거른다.
  */
 export function backgroundToInert<T extends BackgroundCandidate>(
@@ -64,4 +64,13 @@ export function backgroundToInert<T extends BackgroundCandidate>(
 ): T[] {
   return candidates.filter((element): element is T => element !== null && !element.contains(panel)
     && !(keepInteractive && element.matches(keepInteractive)));
+}
+
+/**
+ * 클릭이 링크·버튼에서 일어났는가 — 검색 패널이 열려 있는 동안 밝게 남은 유틸 메뉴·공지 띠의 링크·버튼을 누르면 패널을 닫는다(MD-0034).
+ * 그 줄의 빈 곳을 눌러서는 닫지 않는다. 클릭 대상이 요소가 아니면(텍스트 노드·없음) 아니다.
+ */
+export function isActivationTarget(target: unknown): boolean {
+  const candidate = target as { closest?: (selectors: string) => unknown } | null;
+  return typeof candidate?.closest === 'function' && candidate.closest('a[href], button') !== null;
 }

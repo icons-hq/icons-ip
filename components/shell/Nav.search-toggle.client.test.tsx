@@ -28,8 +28,11 @@ vi.mock('./useOverlayA11y', () => ({ useOverlayA11y: vi.fn() }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
 vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ from: vi.fn() }) }));
+import { BottomTabBar } from './BottomTabBar';
+import { MenuSheet } from './MenuSheet';
 import { Nav } from './Nav';
-import { SearchOverlay } from './SearchOverlay';
+import { SEARCH_KEEP_INTERACTIVE, SearchOverlay } from './SearchOverlay';
+import { ShellNotices } from './ShellNotices';
 import { useOverlayA11y } from './useOverlayA11y';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -101,12 +104,13 @@ describe('헤더 검색 패널 (MD-0034)', () => {
     expect(searchOpen()).toBe(false);
   });
 
-  /* 헤더 행을 inert 에서 빼고(keepInteractive) 포커스를 가두지 않는(trapFocus false) 비모달로 훅을 부른다. */
-  it('검색 패널은 헤더 행을 눌린 채로 두고 포커스를 가두지 않는 비모달로 훅을 연다', () => {
+  /* 딤 위에 밝게 남는 줄(헤더 행·유틸 메뉴·롤링 띠배너·이미지 스트립)을 inert 에서 빼고(keepInteractive) 포커스를 가두지 않는(trapFocus false) 비모달로 훅을 부른다. */
+  it('검색 패널은 밝게 남는 줄을 눌린 채로 두고 포커스를 가두지 않는 비모달로 훅을 연다', () => {
     hooks.index = 0;
     const panel = nodes(SearchOverlay({ open: true, onClose: vi.fn() })).find((node) => node.props.role === 'dialog');
 
-    expect(useOverlayA11y).toHaveBeenCalledWith(expect.objectContaining({ open: true, keepInteractive: '.wc-header__bar', trapFocus: false }));
+    expect(SEARCH_KEEP_INTERACTIVE.split(',').map((selector) => selector.trim())).toEqual(['.wc-header__bar', '.wc-utilbar', '.wc-notice-bar', '.wc-notice']);
+    expect(useOverlayA11y).toHaveBeenCalledWith(expect.objectContaining({ open: true, keepInteractive: SEARCH_KEEP_INTERACTIVE, trapFocus: false }));
     expect(panel?.props['aria-modal']).toBe('false');
     expect(panel?.props.id).toBe('wc-search-panel');
   });
@@ -118,5 +122,101 @@ describe('헤더 검색 패널 (MD-0034)', () => {
     expect(searchOpen()).toBe(false);
     hooks.pathname = '/shop';
     expect(searchOpen()).toBe(false);
+  });
+});
+
+/* MD-0034 원문 "검색 활성화 / 해제 뿐만 아니라 다른 버튼도 작동 가능" — 패널이 열린 동안 밝게 보이는 유틸 메뉴·공지 띠도 눌리고, 누르면 패널이 닫힌다. */
+describe('검색 패널이 열린 동안 유틸 메뉴·공지 띠 (MD-0034)', () => {
+  const linkTarget = { closest: (selectors: string) => (selectors.includes('a[href]') ? {} : null) };
+  const blankTarget = { closest: () => null };
+  const utilbar = () => find((node) => node.type === 'nav' && node.props.className === 'wc-utilbar');
+  const clickWith = (node: Element, target: unknown) => (node.props.onClick as (event: { target: unknown }) => void)({ target });
+
+  it('유틸 메뉴의 링크·버튼을 누르면 패널이 닫히고, 빈 곳을 누르면 열린 채다', () => {
+    click(searchButton());
+    expect(searchOpen()).toBe(true);
+
+    clickWith(utilbar(), blankTarget);
+    expect(searchOpen()).toBe(true);
+
+    clickWith(utilbar(), linkTarget);
+    expect(searchOpen()).toBe(false);
+  });
+
+  it('공지 띠 안의 링크·닫기 버튼은 onActivate 로 패널을 닫고, 패널이 닫혀 있으면 아무것도 바꾸지 않는다', () => {
+    const notices = () => find((node) => node.type === ShellNotices);
+    const activate = notices().props.onActivate as () => void;
+
+    activate();
+    expect(searchOpen()).toBe(false);
+
+    click(searchButton());
+    expect(searchOpen()).toBe(true);
+    (notices().props.onActivate as () => void)();
+    expect(searchOpen()).toBe(false);
+  });
+
+  it('검색 패널이 아닌 오버레이(전체 메뉴 시트)는 이 신호로 닫지 않는다', () => {
+    (find((node) => node.type === BottomTabBar).props.onMenuOpen as () => void)();
+    const sheetOpen = () => find((node) => node.type === MenuSheet).props.open;
+    expect(sheetOpen()).toBe(true);
+    (find((node) => node.type === ShellNotices).props.onActivate as () => void)();
+    expect(sheetOpen()).toBe(true);
+  });
+});
+
+/* review-b m1·m2 — 메가메뉴(카테고리·온라인 팝업)는 검색 패널(z3) 뒤에 열리면 윗부분이 가려지고 키보드는 가려진 링크로 간다. 열릴 때 패널을 닫고,
+   트리거·메가 링크를 눌러도 같은 경로 이동에서 패널이 남지 않게 닫는다. */
+describe('검색 패널이 열린 채 메가메뉴 (review-b m1·m2)', () => {
+  type MegaProps = { onSearchClose: () => void; children: (close: () => void) => ReactNode };
+  const mega = () => find((node) => typeof node.type === 'function' && node.props.panelId === 'wc-mega-category');
+
+  /* 메가 항목은 하위 컴포넌트라 같은 훅 대역으로 직접 돌려 (자체 상태를 가진) 트리를 얻는다. 크롬에서 컴포넌트를 꺼낸 뒤에는 대역 저장소를 비워
+     메가 항목 전용으로 쓴다 — 이후 크롬을 다시 그리지 않는다. */
+  function renderMega(props: MegaProps) {
+    const component = mega().type as (props: unknown) => ReactNode;
+    hooks.values = []; hooks.index = 0;
+    const tree = nodes(component({ active: false, href: '/shop', label: '카테고리', panelId: 'wc-mega-category', pathname: '/shop', ...props }));
+    const megaOpen = () => (hooks.values.find((value) => typeof value === 'object' && value !== null && 'open' in value) as { open: boolean }).open;
+    return { tree, megaOpen };
+  }
+
+  it('Nav 가 두 메가 항목에 검색 패널 닫기를 건다', () => {
+    click(searchButton());
+    expect(searchOpen()).toBe(true);
+    (mega().props.onSearchClose as () => void)();
+    expect(searchOpen()).toBe(false);
+  });
+
+  it('메가메뉴가 열릴 때(hover·focus·↓) 검색 패널을 닫고, 트리거 클릭도 닫는다', () => {
+    const onSearchClose = vi.fn();
+    const { tree, megaOpen } = renderMega({ onSearchClose, children: () => null });
+    const item = tree.find((node) => node.type === 'li') as Element;
+    const trigger = tree.find((node) => node.props['aria-controls'] === 'wc-mega-category') as Element;
+
+    expect(megaOpen()).toBe(false);
+    (item.props.onMouseEnter as () => void)();
+    expect(onSearchClose).toHaveBeenCalledTimes(1);
+    expect(megaOpen()).toBe(true);
+    (item.props.onMouseLeave as () => void)();
+    expect(megaOpen()).toBe(false);
+    (item.props.onFocusCapture as () => void)();
+    expect(onSearchClose).toHaveBeenCalledTimes(2);
+    expect(megaOpen()).toBe(true);
+    expect(trigger.props.onClick).toBe(onSearchClose);
+  });
+
+  it('메가 링크가 받는 닫기 콜백은 메가를 접고 검색 패널도 닫는다', () => {
+    const onSearchClose = vi.fn();
+    let linkClose: (() => void) | null = null;
+    const { tree, megaOpen } = renderMega({ onSearchClose, children: (close) => { linkClose = close; return null; } });
+    (tree.find((node) => node.type === 'li')?.props.onMouseEnter as () => void)();
+    expect(megaOpen()).toBe(true);
+    onSearchClose.mockClear();
+
+    expect(linkClose).not.toBeNull();
+    (linkClose as unknown as () => void)();
+    expect(onSearchClose).toHaveBeenCalledTimes(1);
+    expect(megaOpen()).toBe(false);
   });
 });

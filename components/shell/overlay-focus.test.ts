@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FOCUSABLE_SELECTOR, backgroundToInert, isTabbable, tabbableIn, trapFocusTarget, type BackgroundCandidate, type FocusCandidate } from './overlay-focus';
+import { FOCUSABLE_SELECTOR, backgroundToInert, isActivationTarget, isTabbable, tabbableIn, trapFocusTarget, type BackgroundCandidate, type FocusCandidate } from './overlay-focus';
+import { SEARCH_KEEP_INTERACTIVE } from './SearchOverlay';
 
 /* 모달 오버레이 Tab 순환(useOverlayA11y)의 경계 후보. 셸 QA(2026-10-27) — 시트의 처음·끝에 숨은 버튼이 있으면 Tab 60회 중 13회가
    대화상자 밖(배경의 선택 방문 통계 버튼)으로 샜다. jsdom 없이 쓰는 면만 흉내 낸다. */
@@ -78,7 +79,8 @@ describe('Tab 순환 경계', () => {
   });
 });
 
-/* MD-0034 — 검색 패널은 비모달이라 헤더 행(로고·GNB·아이콘)은 inert 에서 빠지고 본문·푸터·탭바·공지·유틸은 덮인다. */
+/* MD-0034 — 검색 패널은 비모달이라 딤 위에 밝게 남는 줄(공지 띠·유틸 메뉴·헤더 행)은 inert 에서 빠져 눌리고, 딤 아래의 본문·푸터·탭바와
+   패널이 덮는 모바일 GNB 탭 행은 덮인다. "밝으면 눌리고, 딤 아래면 안 눌린다". */
 describe('inert 로 덮을 배경', () => {
   type Background = BackgroundCandidate & { name: string };
   const background = (name: string, { holdsPanel = false } = {}): Background => ({
@@ -87,7 +89,7 @@ describe('inert 로 덮을 배경', () => {
     matches: (selectors: string) => selectors.split(',').map((selector) => selector.trim()).includes(`.${name}`),
   });
   const shell = [
-    background('root'), background('wc-footer'), background('wc-notice-bar'), background('wc-utilbar'),
+    background('root'), background('wc-footer'), background('wc-notice-bar'), background('wc-notice'), background('wc-utilbar'),
     background('wc-header__bar'), background('wc-gnb-wrap'), background('wc-tabbar'), background('wc-store-analytics'),
   ];
   const names = (items: Background[]) => items.map((item) => item.name);
@@ -96,14 +98,28 @@ describe('inert 로 덮을 배경', () => {
     expect(names(backgroundToInert(shell, 'panel'))).toEqual(names(shell));
   });
 
-  it('검색 패널: 헤더 행만 빠지고 본문·푸터·탭바·공지·유틸·모바일 GNB 탭 행은 덮인다', () => {
-    const covered = names(backgroundToInert(shell, 'panel', '.wc-header__bar'));
-    expect(covered).not.toContain('wc-header__bar');
-    expect(covered).toEqual(expect.arrayContaining(['root', 'wc-footer', 'wc-tabbar', 'wc-notice-bar', 'wc-utilbar', 'wc-gnb-wrap', 'wc-store-analytics']));
+  it('검색 패널: 헤더 행·유틸 메뉴·롤링 띠배너·이미지 스트립은 빠지고 본문·푸터·탭바·모바일 GNB 탭 행·방문 통계 안내는 덮인다', () => {
+    const covered = names(backgroundToInert(shell, 'panel', SEARCH_KEEP_INTERACTIVE));
+    expect(covered).toEqual(['root', 'wc-footer', 'wc-gnb-wrap', 'wc-tabbar', 'wc-store-analytics']);
+    for (const kept of ['wc-header__bar', 'wc-utilbar', 'wc-notice-bar', 'wc-notice']) expect(covered).not.toContain(kept);
   });
 
   it('패널이 안에 든 후보와 없는 후보(null)는 거른다', () => {
     const holder = background('root', { holdsPanel: true });
     expect(names(backgroundToInert([holder, null, background('wc-footer')], 'panel'))).toEqual(['wc-footer']);
+  });
+});
+
+/* MD-0034 "다른 버튼도 작동 가능" — 밝게 남은 유틸 메뉴·공지 띠의 링크·버튼을 누르면 패널이 닫힌다. 줄의 빈 곳은 아니다. */
+describe('링크·버튼 클릭 판정', () => {
+  const target = (matches: boolean) => ({ closest: (selectors: string) => (matches && selectors.includes('a[href]') && selectors.includes('button') ? {} : null) });
+
+  it('링크·버튼(또는 그 안쪽 요소)에서 일어난 클릭만 센다', () => {
+    expect(isActivationTarget(target(true))).toBe(true);
+    expect(isActivationTarget(target(false))).toBe(false);
+  });
+
+  it('요소가 아닌 대상은 센다고 보지 않는다', () => {
+    for (const bad of [null, undefined, 'text', 3, {}]) expect(isActivationTarget(bad)).toBe(false);
   });
 });
