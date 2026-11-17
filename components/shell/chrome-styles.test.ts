@@ -50,28 +50,102 @@ describe('헤더 하단 선 (CH-03)', () => {
 });
 
 describe('데스크톱 헤더 축약 표현', () => {
-  /* 모바일은 GNB를 접지 않는다(LD-2) — 축약 표현이 미디어 밖에 남으면 모바일 탭 행이 다시 사라진다. */
-  it('data-condensed는 990px 이상에서만 GNB를 접는다', () => {
+  /* 1단 헤더(ADR-0043)라 GNB는 접히지 않고 헤더 행 높이만 108 → 68로 줄어든다. 모바일은 줄이지 않는다(LD-2) — 축약 표현이
+     미디어 밖에 남으면 모바일 로고 행이 달라진다. */
+  it('data-condensed는 990px 이상에서만 헤더 행을 68로 줄이고 GNB는 접지 않는다', () => {
     const media = mediaFor(/\.wc-header\[data-condensed='true'\]/);
     expect(media.length).toBeGreaterThan(0);
     expect(new Set(media)).toEqual(new Set([DESKTOP]));
-    expect(declsFor(".wc-header[data-condensed='true'] .wc-gnb-wrap", DESKTOP)).toMatchObject({ 'margin-top': '-54px', opacity: '0' });
-    /* 키보드 포커스가 로고 행·GNB에 들어오면 다시 펼친다. 검색 패널 안의 포커스는 재전개 조건이 아니다. */
-    const refocus = ".wc-header[data-condensed='true']:has(.wc-header__bar :focus-visible, .wc-gnb-wrap :focus-visible) .wc-gnb-wrap";
-    expect(declsFor(refocus, DESKTOP)).toMatchObject({ 'margin-top': '0', opacity: '1', 'pointer-events': 'auto' });
-    expect(refocus).not.toContain('wc-search');
+    expect(declsFor(".wc-header[data-condensed='true']", DESKTOP)).toEqual({ '--wc-header-row-h': '68px' });
+    expect(declsFor('.wc-header', DESKTOP)['--wc-header-row-h']).toBe('108px');
+    /* GNB를 로고 행 뒤로 접던 규칙(margin-top 음수·투명·포인터 차단)과 키보드로 되돌리던 예외는 없다. */
+    expect(declsFor(".wc-header[data-condensed='true'] .wc-gnb-wrap", DESKTOP)).toEqual({});
+    expect(css).not.toMatch(/data-condensed='true'\]:has\(/);
+    expect(css).not.toMatch(/margin-top:\s*-54px/);
+  });
+
+  it('데스크톱 헤더 행은 좌우 60 안쪽 세로 가운데이고 GNB·로고는 왼쪽 묶음, 아이콘은 오른쪽이다', () => {
+    expect(declsFor('.wc-header .wc-header__bar-inner.wc-container', DESKTOP)).toMatchObject({ 'align-items': 'center', 'padding-inline': '60px' });
+    expect(declsFor('.wc-header__lead')).toMatchObject({ display: 'flex', gap: '15px' });
+    expect(declsFor('.wc-header__icons', DESKTOP)).toMatchObject({ gap: '11px', 'padding-bottom': '0' });
+    /* Figma GNB: 패딩 12/15, 17px SemiBold 줄높이 20(항목 44). */
+    expect(declsFor('.wc-gnb__link')).toMatchObject({ padding: '12px 15px', 'font-size': '17px', 'font-weight': '600', 'line-height': '20px' });
+  });
+
+  it('현재·hover 표기는 글자색을 바꾸지 않고 라벨 아래 2px 잉크 막대 하나다(초록 없음)', () => {
+    expect(declsFor('.wc-gnb__link.is-active')).toEqual({ color: 'var(--wc-ink)' });
+    expect(declsFor('.wc-gnb__label::after')).toMatchObject({ height: '2px', bottom: '-6px', background: 'var(--wc-ink)' });
+    /* store-presentation.css 의 기본형 헤더 테마색 막대 규칙을 이긴다. */
+    expect(declsFor(".wc-chrome .wc-header[data-store-header='basic'] .wc-gnb .wc-gnb__label::after")).toEqual({ background: 'var(--wc-ink)' });
+  });
+});
+
+describe('유틸 메뉴 (Figma 48)', () => {
+  it('데스크톱에서만 보이고 높이 48 = 항목 47 + 아래 1px 전폭 선이다', () => {
+    expect(declsFor('.wc-utilbar')).toMatchObject({ display: 'none' });
+    expect(declsFor('.wc-utilbar', DESKTOP)).toMatchObject({ display: 'block', 'box-sizing': 'border-box', height: '48px', 'border-bottom': '1px solid var(--wc-x-line-util)' });
+    expect(declsFor('.wc-utilbar .wc-utilbar__inner.wc-container', DESKTOP)).toMatchObject({ height: '47px', 'padding-inline': '60px' });
+  });
+
+  it('항목은 12px SemiBold 보조 잉크, 간격 18, 오른쪽 정렬이다', () => {
+    expect(declsFor('.wc-utilbar__inner')).toMatchObject({ 'justify-content': 'flex-end', gap: '18px' });
+    expect(declsFor('.wc-utilbar__link')).toMatchObject({ 'font-size': '12px', 'font-weight': '600', 'line-height': '47px', color: 'var(--wc-ink-tertiary)' });
+    expect(declsFor('.wc-utilbar__badge').background).toBe('var(--wc-ink)');
+  });
+});
+
+describe('롤링 띠배너 (ADR-0043 · Figma 40)', () => {
+  it('높이 40 빨강 면에 흰 13px Medium 문구, 사본 간격 200(모바일 80)이고 기본 공지 바 규칙을 덮는 건 .wc-x-rolling 뿐이다', () => {
+    expect(declsFor('.wc-notice-bar.wc-x-rolling')).toMatchObject({ height: '40px', background: 'var(--wc-x-rolling-bg)', color: '#FFFFFF', overflow: 'hidden' });
+    expect(declsFor('.wc-x-rolling__body')).toMatchObject({ 'font-size': '13px', 'font-weight': '500', height: '40px' });
+    expect(declsFor('.wc-x-rolling__copy')['padding-right']).toBe('80px');
+    expect(declsFor('.wc-x-rolling__copy', DESKTOP)['padding-right']).toBe('200px');
+    /* 후보 [hidden]이 위 display 규칙에 되살아나지 않는다. */
+    expect(declsFor('.wc-notice-bar.wc-x-rolling[hidden]')).toMatchObject({ display: 'none' });
+    /* 어드민 미리보기가 쓰는 기본 공지 바(회색 47)는 그대로다. */
+    expect(declsFor('.wc-notice-bar')).toMatchObject({ 'min-height': '47px', background: 'var(--wc-surface-grey)' });
+  });
+
+  it('트랙은 40초 선형 무한으로 -50% 흐르고 hover·포커스 중에는 멈춘다(WCAG 2.2.2)', () => {
+    expect(declsFor('.wc-x-rolling__track').animation).toBe('wc-x-rolling 40s linear infinite');
+    let frames = '';
+    root.walkAtRules('keyframes', (rule) => {
+      if (rule.params === 'wc-x-rolling') frames = rule.toString();
+    });
+    expect(frames).toContain('translateX(-50%)');
+    for (const selector of ['.wc-x-rolling:hover .wc-x-rolling__track', '.wc-x-rolling:focus-within .wc-x-rolling__track']) {
+      expect(declsFor(selector), selector).toEqual({ 'animation-play-state': 'paused' });
+    }
+  });
+
+  it('모션 축소에서는 흐르지 않고 첫 사본만 가운데에 둔다', () => {
+    const reduced = '(prefers-reduced-motion: reduce)';
+    expect(declsFor('.wc-x-rolling__track', reduced).animation).toBe('none');
+    expect(declsFor('.wc-x-rolling__copy:not(:first-child)', reduced)).toEqual({ display: 'none' });
+    expect(declsFor('.wc-x-rolling__body', reduced)['text-align']).toBe('center');
+  });
+
+  it('닫기는 44×40 흰 X이고 포커스 링은 흰색 2px을 띠 안쪽에 그린다', () => {
+    expect(declsFor('.wc-notice-bar.wc-x-rolling .wc-notice-bar__close')).toMatchObject({ width: '44px', height: '40px', color: '#FFFFFF', top: '0', right: '0' });
+    expect(declsFor('.wc-notice-bar.wc-x-rolling :focus-visible')).toEqual({ outline: '2px solid #FFFFFF', 'outline-offset': '-4px' });
   });
 });
 
 describe('검색 오버레이 (B5·CH-08·CH-09·MC-04)', () => {
   /* 패널과 백드롭은 sticky 헤더 상자 기준으로 로고 행 바로 아래(= GNB 행 자리)에서 시작한다.
      레퍼런스의 fixed top 156처럼 고정 수치를 쓰면 공지가 붙는 순간 로고 행을 덮거나 공지에 가려진다. */
-  it('패널·백드롭을 로고 행 바로 아래에 붙여 GNB 행을 덮는다', () => {
-    const logoRow = { mobile: declsFor('.wc-header__bar-inner').height, desktop: declsFor('.wc-header__bar-inner', DESKTOP).height };
-    expect(logoRow).toEqual({ mobile: '81px', desktop: '68px' });
+  it('패널·백드롭을 헤더 행 바로 아래에 붙인다(모바일은 GNB 탭 행을 덮는다)', () => {
+    /* 헤더 행 높이는 변수 하나(--wc-header-row-h)다 — 모바일 81, 데스크톱 108, 축약 68. 패널은 그 값을 따라 데스크톱 미디어에 따로 top을 두지 않는다. */
+    const row = {
+      mobile: declsFor('.wc-header')['--wc-header-row-h'],
+      desktop: declsFor('.wc-header', DESKTOP)['--wc-header-row-h'],
+      condensed: declsFor(".wc-header[data-condensed='true']", DESKTOP)['--wc-header-row-h'],
+    };
+    expect(row).toEqual({ mobile: '81px', desktop: '108px', condensed: '68px' });
+    expect(declsFor('.wc-header__bar-inner').height).toBe('var(--wc-header-row-h)');
     for (const selector of ['.wc-search', '.wc-search-backdrop']) {
-      expect(declsFor(selector), selector).toMatchObject({ position: 'absolute', top: logoRow.mobile });
-      expect(declsFor(selector, DESKTOP), selector).toMatchObject({ top: logoRow.desktop });
+      expect(declsFor(selector), selector).toMatchObject({ position: 'absolute', top: 'var(--wc-header-row-h)' });
+      expect(declsFor(selector, DESKTOP).top, selector).toBeUndefined();
     }
     expect(declsFor('.wc-search', DESKTOP)['min-height']).toBe('200px');
   });
@@ -115,7 +189,8 @@ describe('검색 오버레이 (B5·CH-08·CH-09·MC-04)', () => {
 
 describe('모바일 헤더 고정 (LD-2)', () => {
   it('sticky 기준을 로고 행 높이만큼 올려 스크롤하면 GNB 탭 행만 남긴다', () => {
-    expect(declsFor('.wc-header__bar-inner')).toMatchObject({ height: '81px' });
+    expect(declsFor('.wc-header')['--wc-header-row-h']).toBe('81px');
+    expect(declsFor('.wc-header__bar-inner')).toMatchObject({ height: 'var(--wc-header-row-h)' });
     expect(declsFor('.wc-header', MOBILE)).toMatchObject({ top: '-81px' });
   });
 
@@ -142,13 +217,13 @@ describe('모바일 하단 탭바 숨김 (B3·MC-03)', () => {
 describe('표면 sticky 기준 높이 (--wc-sticky-chrome-h)', () => {
   /* 지면 맨 위에서 곧바로 붙는 sticky(캠페인 앵커 내브)는 헤더가 접히기 전(스크롤 150 이하)에 붙는다 — 그동안 기준이
      축약 높이(69)면 펼친 헤더(123, z 3) 뒤로 숨는다. */
-  it('모바일 52, 데스크톱 축약 69, 데스크톱 헤더가 펼친 동안 123', () => {
+  it('모바일 52, 데스크톱 축약 69, 데스크톱 헤더가 펼친 동안 109', () => {
     expect(declsFor('.wc-root')['--wc-sticky-chrome-h']).toBe('52px');
     expect(declsFor('.wc-root', DESKTOP)['--wc-sticky-chrome-h']).toBe('69px');
-    /* 셸(.wc-chrome)과 본문(#root)은 body 아래 형제다 — 전역 element(body) 규칙 없이 형제 결합자로 건다. */
-    expect(declsFor(".wc-chrome:has(.wc-header[data-condensed='false']) ~ #root .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
-    /* 축약 중이어도 키보드가 헤더로 들어와 GNB를 되돌린 동안은 펼친 높이다(검색 패널 안 포커스는 제외 — GNB 규칙과 같은 조건). */
-    expect(declsFor(".wc-chrome:has(.wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) ~ #root .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
+    /* 셸(.wc-chrome)과 본문(#root)은 body 아래 형제다 — 전역 element(body) 규칙 없이 형제 결합자로 건다. 펼침 109 = 헤더 행 108 + 하단 선 1. */
+    expect(declsFor(".wc-chrome:has(.wc-header[data-condensed='false']) ~ #root .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('109px');
+    /* 1단 헤더라 GNB가 접히지 않는다 — 키보드가 되돌리던 예외(123)가 없다. */
+    expect(css).not.toContain('123px');
   });
 });
 
@@ -185,7 +260,7 @@ describe('해시 이동 착지선 (html scroll-padding-top)', () => {
       .filter((entry) => entry.selector.includes('.wc-chrome'))
       .map(({ selector, media, value }) => ({ selector, media, value }));
 
-    expect(expected.map((entry) => entry.value)).toEqual(['52px', '69px', '123px', '123px']);
+    expect(expected.map((entry) => entry.value)).toEqual(['52px', '69px', '109px']);
     expect(mirrored).toEqual(expected);
   });
 
@@ -209,7 +284,7 @@ describe('해시 이동 착지선 (html scroll-padding-top)', () => {
   it('헤더 행 안 포커스는 착지 상자 윗변을 착지선 최댓값만큼 내려 문서를 끌어올리지 않는다', () => {
     const lines = htmlScrollPadding().filter((entry) => entry.selector.includes('.wc-chrome')).map((entry) => Number.parseInt(entry.value, 10));
     const margin = `-${Math.max(...lines)}px`;
-    expect(margin).toBe('-123px');
+    expect(margin).toBe('-109px');
     expect(declsFor('.wc-header .wc-header__bar :focus', DESKTOP)['scroll-margin-top']).toBe(margin);
     expect(declsFor('.wc-header .wc-gnb__link:focus', DESKTOP)['scroll-margin-top']).toBe(margin);
     /* 메가메뉴는 안쪽 스크롤 상자다 — 음수 여백이 붙으면 위로 넘친 링크를 상자 안으로 데려오지 못한다. 모바일 헤더는 다른 구조다. */

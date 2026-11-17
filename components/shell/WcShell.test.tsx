@@ -322,9 +322,9 @@ describe('White Catalog 전역 셸', () => {
 
     expect(html).toContain('data-condensed="false"');
     /* 텍스트 공지 바 → 이미지 스트립 → 유틸바 → 헤더. 스킵 링크는 여전히 셸의 첫 포커스 대상이다. */
-    expect(html.indexOf('class="wc-skip-link"')).toBeLessThan(html.indexOf('class="wc-notice-bar"'));
-    expect(html.indexOf('class="wc-notice-bar"')).toBeGreaterThan(-1);
-    expect(html.indexOf('class="wc-notice-bar"')).toBeLessThan(html.indexOf('class="wc-notice"'));
+    expect(html.indexOf('class="wc-skip-link"')).toBeLessThan(html.indexOf('class="wc-notice-bar wc-x-rolling"'));
+    expect(html.indexOf('class="wc-notice-bar wc-x-rolling"')).toBeGreaterThan(-1);
+    expect(html.indexOf('class="wc-notice-bar wc-x-rolling"')).toBeLessThan(html.indexOf('class="wc-notice"'));
     expect(html.indexOf('class="wc-notice"')).toBeGreaterThan(-1);
     expect(html.indexOf('class="wc-notice"')).toBeLessThan(html.indexOf('class="wc-utilbar"'));
     expect(html.indexOf('class="wc-utilbar"')).toBeLessThan(html.indexOf('<header'));
@@ -377,7 +377,9 @@ describe('White Catalog 전역 셸', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
     expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="true"');
+    /* MD-0034: 비모달 패널이다 — 헤더 행이 눌린 채 열려 있다. 검색 버튼이 id 로 가리킨다. */
+    expect(html).toContain('aria-modal="false"');
+    expect(html).toContain('id="wc-search-panel"');
     expect(html).toContain('aria-label="검색"');
     expect(html).toContain('role="search"');
     expect(html).toContain('action="/search"');
@@ -476,6 +478,87 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('wc-utilbar__placeholder');
     expect(html).not.toContain('로그인');
     expect(html).not.toContain('로그아웃');
+  });
+});
+
+/* X SQUARE 1단 헤더·유틸 메뉴·로고(ADR-0043, 2026-11-17). */
+describe('X SQUARE 헤더', () => {
+  const headerOf = (html: string) => html.slice(html.indexOf('<header'), html.indexOf('</header>'));
+
+  /* 데스크톱은 1단이다 — 로고와 GNB가 같은 왼쪽 묶음, 아이콘이 오른쪽. 모바일 GNB 탭 행은 헤더 행 아래 .wc-gnb-wrap 에 남는다. */
+  it('데스크톱 GNB는 헤더 행의 왼쪽 묶음 안(로고 뒤)에, 모바일 탭 행은 그 아래에 있다', () => {
+    const header = headerOf(renderToStaticMarkup(<Nav />));
+
+    expect(header).toContain('class="wc-container wc-container--wide wc-header__bar-inner"');
+    const lead = header.slice(header.indexOf('class="wc-header__lead"'), header.indexOf('class="wc-header__icons"'));
+    expect(lead).toContain('class="wc-logo"');
+    expect(lead).toContain('aria-label="주요 메뉴"');
+    expect(lead.indexOf('class="wc-logo"')).toBeLessThan(lead.indexOf('aria-label="주요 메뉴"'));
+    expect(lead).not.toContain('주요 메뉴 탭');
+    expect(header.indexOf('class="wc-header__icons"')).toBeLessThan(header.indexOf('class="wc-gnb-wrap"'));
+    expect(header.slice(header.indexOf('class="wc-gnb-wrap"'))).toContain('aria-label="주요 메뉴 탭"');
+  });
+
+  /* 기본 로고만 X SQUARE 이미지다 — 업로드 로고가 있으면 그게 먼저고, 이름을 바꾼 스토어는 글자 그대로다. */
+  it('로고 링크는 기본 로고일 때 "X SQUARE 홈" 이름의 이미지이고 업로드 로고·바꾼 이름은 설정을 따른다', () => {
+    const base = { displayName: 'ICONS', logoUrl: null, mobileLogoUrl: null, introduction: null, socials: [] };
+    const html = headerOf(renderToStaticMarkup(<Nav branding={base} />));
+
+    expect(html).toContain('aria-label="X SQUARE 홈"');
+    expect(html).toContain('src="/brand/xsquare-logo.png"');
+    expect(html).toContain('alt="X SQUARE"');
+
+    const uploaded = headerOf(renderToStaticMarkup(<Nav branding={{ ...base, logoUrl: 'https://media.test/pc.png' }} />));
+    expect(uploaded).toContain('aria-label="ICONS 홈"');
+    expect(uploaded).toContain('src="https://media.test/pc.png"');
+    expect(uploaded).not.toContain('xsquare-logo');
+
+    const renamed = headerOf(renderToStaticMarkup(<Nav branding={{ ...base, displayName: '검증 스토어' }} />));
+    expect(renamed).toContain('aria-label="검증 스토어 홈"');
+    expect(renamed).not.toContain('xsquare-logo');
+  });
+
+  /* 컬러형 헤더에서 글자가 흰색이면 CSS 가 기본 로고를 반전한다 — 판정은 헤더 속성으로 내려간다. */
+  it('헤더가 테마 글자색(밝음/어두움)을 data-logo-ink 로 알린다', () => {
+    expect(headerOf(renderToStaticMarkup(<Nav />))).toContain('data-logo-ink="dark"');
+  });
+
+  it('검색·장바구니·마이 아이콘은 Figma 글리프이고 검색 버튼은 패널을 가리킨다', () => {
+    const header = headerOf(renderToStaticMarkup(<Nav />));
+    const icons = header.slice(header.indexOf('class="wc-header__icons"'), header.indexOf('class="wc-gnb-wrap"'));
+
+    expect(icons).toMatch(/<button[^>]*aria-controls="wc-search-panel"[^>]*aria-expanded="false"[^>]*aria-label="검색"/);
+    expect(icons.match(/<svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
+    expect(icons).toContain('viewBox="0 0 19.6886 20.7836"');
+    expect(icons).toContain('viewBox="0 0 22.2 24.1673"');
+    expect(icons).toContain('viewBox="0 0 22.2 23.0636"');
+    expect(icons).not.toContain('data-icon=');
+  });
+
+  const utilbarOf = (html: string) => html.slice(html.indexOf('class="wc-utilbar"'), html.indexOf('<header'));
+
+  it('유틸 메뉴: 회원은 위시리스트·주문조회·알림함·로그아웃, 비회원은 로그인 / 회원가입, 고객센터는 항상 맨 오른쪽이다', () => {
+    const member = utilbarOf(renderToStaticMarkup(<Nav />));
+    const order = ['위시리스트', '주문조회', '알림함', '로그아웃', '고객센터'].map((label) => member.indexOf(label));
+    expect(order.every((index) => index > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(member).toContain('<a class="wc-utilbar__link" href="/help">고객센터</a>');
+    expect(member).not.toContain('회원가입');
+
+    mocks.presence = 'signed-out';
+    const guest = utilbarOf(renderToStaticMarkup(<Nav />));
+    expect(guest).toContain('로그인 / 회원가입');
+    expect(guest.indexOf('로그인 / 회원가입')).toBeLessThan(guest.indexOf('고객센터'));
+    /* 주문·알림은 로그인 뒤의 화면이다 — 비회원에게는 그리지 않는다. */
+    for (const hidden of ['주문조회', '알림함', '위시리스트', '로그아웃']) expect(guest, hidden).not.toContain(hidden);
+    /* 게시판이 없는 공지사항은 그리지 않는다. */
+    expect(member).not.toContain('공지사항');
+    expect(guest).not.toContain('공지사항');
+
+    mocks.presence = 'unknown';
+    const pending = utilbarOf(renderToStaticMarkup(<Nav />));
+    expect(pending).toContain('wc-utilbar__placeholder');
+    expect(pending).toContain('href="/help"');
   });
 });
 

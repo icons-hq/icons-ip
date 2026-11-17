@@ -383,18 +383,18 @@ describe('White Catalog catalog wiring', () => {
 
   it('moves small accent text to the success ink while decoration keeps brand green', () => {
     /* S4 확정: brand-green은 흰 지면에서 2.3:1이라 소형 텍스트에 쓰면 AA를 못 넘는다.
-     * 텍스트(배지·할인율·GNB 활성·추천 칩)만 --wc-success로 내리고,
-     * 비텍스트(3px 밑줄바·카트 수량 뱃지 bg·칩 배경)는 액센트 정체성을 유지한다. */
+     * 텍스트(배지·할인율·추천 칩)만 --wc-success로 내리고, 비텍스트(칩 배경)는 액센트 정체성을 유지한다.
+     * 2026-11-17(ADR-0043): X SQUARE 셸에는 초록이 없다 — GNB 현재·hover(글자색 + 2px 막대)와 카트 수량 뱃지는 잉크다. */
     const foundation = read('./styles/wc-foundation.css');
     const chrome = read('./styles/wc-chrome.css');
 
     expect(foundation).toMatch(/\.wc-badge\s*\{[^}]*color:\s*var\(--wc-success\)/s);
     expect(foundation).toMatch(/\.wc-badge\s*\{[^}]*background:\s*var\(--wc-accent-tint\)/s);
     expect(foundation).toMatch(/\.wc-price__rate\s*\{[^}]*color:\s*var\(--wc-success\)/s);
-    expect(chrome).toMatch(/\.wc-gnb__link\.is-active\s*\{[^}]*color:\s*var\(--wc-success\)/s);
+    expect(chrome).toMatch(/\.wc-gnb__link\.is-active\s*\{[^}]*color:\s*var\(--wc-ink\)/s);
     expect(chrome).toMatch(/\.wc-search__chip\s*\{[^}]*color:\s*var\(--wc-success\)/s);
-    expect(chrome).toMatch(/\.wc-gnb__label::after\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
-    expect(chrome).toMatch(/\.wc-cartcount\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
+    expect(chrome).toMatch(/\.wc-gnb__label::after\s*\{[^}]*height:\s*2px;[^}]*background:\s*var\(--wc-ink\)/s);
+    expect(chrome).toMatch(/\.wc-cartcount\s*\{[^}]*background:\s*var\(--wc-ink\)/s);
     /* 액센트 버튼은 green 면 그대로 글자만 잉크다 — 흰 글자는 2.3:1(셸 QA 2026-10-27), 흰 글자는 잉크 면 위에만(DESIGN §2). */
     expect(foundation).toMatch(/\.wc-btn\.accent\s*\{[^}]*background:\s*var\(--wc-accent\);[^}]*color:\s*var\(--wc-ink\)/s);
   });
@@ -682,8 +682,8 @@ describe('Hash landing offsets', () => {
     const headerOwn = (margin: { sheet: string; selector: string; value: string }) => margin.sheet === 'wc-chrome.css'
       && margin.value.startsWith('-') && margin.selector.split(', ').every((selector) => selector.startsWith('.wc-header '));
 
-    expect(margins.filter((margin) => !headerOwn(margin) && /--wc-sticky-chrome-h|\b(?:52|68|69|81|88|112|123)px/.test(margin.value))).toEqual([]);
-    expect(margins.filter(headerOwn).map(({ media, value }) => `${media} ${value}`)).toEqual(['(min-width: 990px) -123px']);
+    expect(margins.filter((margin) => !headerOwn(margin) && /--wc-sticky-chrome-h|\b(?:52|68|69|81|88|109|112|123)px/.test(margin.value))).toEqual([]);
+    expect(margins.filter(headerOwn).map(({ media, value }) => `${media} ${value}`)).toEqual(['(min-width: 990px) -109px']);
     /* 감사한 해시 대상: 캠페인 섹션(내브 49, 여백 0 — 섹션 padding 이 여백), PDP 리뷰·Q&A(탭바 55 + 16), 배송비 절약(16).
      * sticky 하위 내브 아래 패널·본문의 키보드 포커스는 내브 높이만큼 띄운다(탭바 55, 캠페인 내브 49). */
     expect(margins.map(({ sheet, selector, media, value }) => `${sheet} ${media ?? 'base'} ${selector}: ${value}`)).toEqual(expect.arrayContaining([

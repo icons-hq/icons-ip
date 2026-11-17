@@ -46,23 +46,34 @@ describe('셸 공지 서버 렌더', () => {
     expect(render({ bars: [], strips: [] })).toBe('');
   });
 
-  it('공지 바는 문구·버튼·닫기를 갖고, 이 화면의 후보 중 첫 번째만 보인다', () => {
+  it('공지 바는 롤링 띠배너로 문구·버튼 링크·닫기를 갖고, 서버 렌더는 후보 중 첫 번째만 보인다', () => {
     const html = render({ bars: [bar('b1'), bar('b2')], strips: [] });
     expect(html).toContain(`id="${SHELL_NOTICE_ROOT_ID}"`);
     expect(tagFor(html, 'data-notice-bar="b1:abc123abc123"')).not.toContain('hidden');
     expect(tagFor(html, 'data-notice-bar="b2:abc123abc123"')).toContain('hidden=""');
+    expect(tagFor(html, 'data-notice-bar="b1:abc123abc123"')).toContain('class="wc-notice-bar wc-x-rolling"');
     expect(html).toContain('aria-label="스토어 공지"');
-    expect(html).toContain('공지 문구 b1');
-    expect(html).toContain('<a class="wc-notice-bar__cta" href="/legal/terms">자세히 보기</a>');
     expect(html).toContain('aria-label="공지 닫기"');
     expect(html).toContain('data-icon="close"');
     expect(html).toContain('data-notice-id="b1"');
+    /* 버튼이 있으면 흐르는 띠 전체가 그 링크다. 스크린리더는 흐르는 사본을 건너뛰고 문구 한 번 + 버튼 이름을 읽는다. */
+    expect(html).toContain('<a class="wc-x-rolling__link" href="/legal/terms"><span class="wc-sr-only">공지 문구 b1 자세히 보기</span>');
+    expect(html).not.toContain('wc-notice-bar__cta');
   });
 
-  it('버튼 없는 공지 바는 문구와 닫기만 그린다', () => {
+  it('흐르는 트랙은 같은 사본 8개이고 접근성 트리에서 숨는다(버튼 있으면 이름을 사본 끝에 붙인다)', () => {
+    const html = markup(render({ bars: [bar('b1')], strips: [] }));
+    const track = html.slice(html.indexOf('<span aria-hidden="true" class="wc-x-rolling__track">'), html.indexOf('</span></a>'));
+    expect(track).toContain('aria-hidden="true"');
+    expect(track.match(/class="wc-x-rolling__copy"/g)).toHaveLength(8);
+    expect(track.match(/공지 문구 b1 자세히 보기 ›/g)).toHaveLength(8);
+  });
+
+  it('버튼 없는 공지 바는 링크 없이 문구와 닫기만 그린다', () => {
     const html = render({ bars: [bar('copy', { cta: null })], strips: [] });
-    expect(html).toContain('공지 문구 copy');
-    expect(html).not.toContain('wc-notice-bar__cta');
+    expect(html).toContain('<span class="wc-x-rolling__static"><span class="wc-sr-only">공지 문구 copy</span>');
+    expect(html.match(/class="wc-x-rolling__copy">공지 문구 copy</g)).toHaveLength(8);
+    expect(html).not.toContain('wc-x-rolling__link');
     expect(html).toContain('wc-notice-bar__close');
   });
 

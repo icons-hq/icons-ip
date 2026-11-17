@@ -14,7 +14,7 @@
 
 /* 스크롤 중 화면 위에 남는 크롬의 높이. 표면별 sticky 요소(PDP 탭바·캠페인 앵커 내브)는
    `top: var(--wc-sticky-chrome-h, <이전 값>)`으로 이 값 바로 아래에 붙는다.
-   모바일·태블릿(≤989px)은 GNB 탭 행 51 + 하단 선 1, 데스크톱은 축약 로고 행 68 + 하단 선 1.
+   모바일·태블릿(≤989px)은 GNB 탭 행 51 + 하단 선 1, 데스크톱은 1단 헤더 행(축약 68 / 펼침 108) + 하단 선 1.
    해시 이동·scrollIntoView 의 착지선(html scroll-padding-top)도 같은 높이다 — 문서 루트(html)는 이 변수를 읽지 못해
    globals.css 가 아래와 같은 상태 조건으로 같은 수치를 적는다(chrome-styles.test 가 두 곳을 맞춘다). */
 .wc-root {
@@ -26,13 +26,12 @@
     --wc-sticky-chrome-h: 69px;
   }
 
-  /* 데스크톱 헤더가 펼친 동안은 화면 위 크롬이 펼침 높이 123이다 — 스크롤 150 이하(B1)이거나, 축약 중 키보드가
-     헤더로 들어와 GNB를 되돌린 동안(아래 data-condensed 규칙). 지면 맨 위에서 곧바로 붙는 sticky(캠페인 앵커 내브)가
-     펼친 헤더(z 3) 뒤로 숨지 않게 같은 높이를 따른다. GNB는 .3s로 접히고 펴지므로 소비자는 top에 같은 전환을 둔다.
+  /* 데스크톱 헤더가 펼친 동안은 화면 위 크롬이 펼침 높이 109(행 108 + 하단 선 1)다 — 스크롤 150 이하(B1). 지면 맨 위에서 곧바로
+     붙는 sticky(캠페인 앵커 내브)가 펼친 헤더(z 3) 뒤로 숨지 않게 같은 높이를 따른다. 헤더 행은 .3s로 줄고 늘므로 소비자는
+     top에 같은 전환을 둔다. 1단 헤더라 GNB가 접히지 않는다 — 키보드가 되돌릴 숨은 GNB도 없다(2026-11-17, ADR-0043).
      셸(.wc-chrome)과 본문(#root)은 body 아래 형제다 — 전역 element(body) 규칙 없이 형제 결합자로 건다. */
-  .wc-chrome:has(.wc-header[data-condensed='false']) ~ #root .wc-root,
-  .wc-chrome:has(.wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) ~ #root .wc-root {
-    --wc-sticky-chrome-h: 123px;
+  .wc-chrome:has(.wc-header[data-condensed='false']) ~ #root .wc-root {
+    --wc-sticky-chrome-h: 109px;
   }
 }
 
@@ -193,6 +192,137 @@
   }
 }
 
+/* 롤링 띠배너(ADR-0043 · Figma 40 · 빨강): 스토어 공지 바를 오른쪽에서 왼쪽으로 흐르는 띠로 그린다. 위 기본 .wc-notice-bar 규칙
+   (회색 47)은 어드민 전시 미리보기(CurationPreview)가 그대로 쓰므로 건드리지 않고, 스토어 공지만 .wc-x-rolling이 덮는다.
+   문구는 같은 사본 8개가 한 줄로 이어져 -50%만큼 흐르고 처음으로 돌아간다(사본마다 최소 폭이 짧은 문구에서도 화면을 채운다).
+   자동으로 흐르는 글은 멈추거나 숨길 수단이 필요하다(WCAG 2.2.2): hover·포커스 중 멈춤, 오른쪽 닫기, 모션 축소 환경에서는 흐르지 않는다. */
+.wc-notice-bar.wc-x-rolling {
+  display: block;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--wc-x-rolling-bg);
+  color: #FFFFFF;
+}
+
+/* 위 [hidden] 규칙보다 특이도가 높은 display 가 후보를 되살리지 않게 다시 끈다. */
+.wc-notice-bar.wc-x-rolling[hidden] {
+  display: none;
+}
+
+.wc-x-rolling__body {
+  height: 40px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.wc-x-rolling__link,
+.wc-x-rolling__static {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+}
+
+.wc-x-rolling__track {
+  display: flex;
+  flex: 0 0 auto;
+  width: max-content;
+  animation: wc-x-rolling 40s linear infinite;
+}
+
+.wc-x-rolling__copy {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  min-width: 360px;
+  padding-right: 80px;
+  white-space: nowrap;
+}
+
+@keyframes wc-x-rolling {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.wc-x-rolling:hover .wc-x-rolling__track,
+.wc-x-rolling:focus-within .wc-x-rolling__track {
+  animation-play-state: paused;
+}
+
+/* 닫기: 44×40 흰 X. 흐르는 글이 X 밑으로 지나가 비치지 않게 띠와 같은 바탕을 깐다. */
+.wc-notice-bar.wc-x-rolling .wc-notice-bar__close {
+  top: 0;
+  right: 0;
+  z-index: 1;
+  width: 44px;
+  height: 40px;
+  margin-top: 0;
+  background: var(--wc-x-rolling-bg);
+  color: #FFFFFF;
+}
+
+/* 빨강 바탕 위 포커스 링은 흰색 2px이고 띠 안쪽에 그린다(위·오른쪽 끝에서 잘리지 않게). */
+.wc-notice-bar.wc-x-rolling :focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: -4px;
+}
+
+@media (min-width: 990px) {
+  .wc-x-rolling__copy {
+    min-width: 640px;
+    padding-right: 200px;
+  }
+}
+
+/* 모션 축소: 흐르지 않는다. 첫 사본 하나만 가운데에 두고, 길면 줄을 바꿔 띠가 자란다(자르면 뒷부분을 읽을 수 없다). */
+@media (prefers-reduced-motion: reduce) {
+  .wc-notice-bar.wc-x-rolling {
+    height: auto;
+    min-height: 40px;
+  }
+
+  .wc-x-rolling__body {
+    height: auto;
+    min-height: 40px;
+    padding: 0 44px;
+    text-align: center;
+  }
+
+  .wc-x-rolling__link,
+  .wc-x-rolling__static {
+    justify-content: center;
+    min-height: 40px;
+  }
+
+  .wc-x-rolling__track {
+    width: auto;
+    animation: none;
+  }
+
+  .wc-x-rolling__copy {
+    min-width: 0;
+    padding: 12px 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .wc-x-rolling__copy:not(:first-child) {
+    display: none;
+  }
+}
+
 /* 큐레이션 kind(notice_strip) 한 장을 통째로 감싸는 링크 배너다. 높이를 고정하지 않고
    이미지 비율을 그대로 따른다(R-01 §1) — 스트립 높이가 그대로 축약 히스테리시스 밴드에 더해진다.
    색·밑줄은 globals의 a 리셋이 이미 지워서 여기서 다시 다루지 않는다. */
@@ -223,7 +353,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 16px;
+  gap: 18px;
 }
 
 .wc-utilbar__link,
@@ -231,9 +361,9 @@
   padding: 0;
   font-family: inherit;
   font-size: 12px;
-  font-weight: 400;
-  line-height: 34px;
-  letter-spacing: -.2px;
+  font-weight: 600;
+  line-height: 47px;
+  letter-spacing: 0;
   text-decoration: none;
   border: 0;
   background: none;
@@ -251,7 +381,7 @@
   line-height: 16px;
   text-align: center;
   border-radius: 8px;
-  background: var(--wc-accent);
+  background: var(--wc-ink);
   color: #FFFFFF;
 }
 
@@ -259,14 +389,22 @@
 .wc-utilbar__placeholder {
   display: inline-block;
   width: 45px;
-  height: 34px;
+  height: 47px;
 }
 
+/* 유틸 메뉴(Figma): 높이 48 = 항목 47 + 아래 1px 전폭 선. 내용은 헤더 행과 같은 좌우 60 안쪽(1320 컨테이너에서 1200)에 오른쪽 정렬이다. */
 @media (min-width: 990px) {
   .wc-utilbar {
     display: block;
-    height: 34px;
+    box-sizing: border-box;
+    height: 48px;
+    border-bottom: 1px solid var(--wc-x-line-util);
     background: var(--wc-surface);
+  }
+
+  .wc-utilbar .wc-utilbar__inner.wc-container {
+    height: 47px;
+    padding-inline: 60px;
   }
 }
 
@@ -274,9 +412,11 @@
    헤더 행 (로고 · 아이콘)
    ------------------------------------------------------------------ */
 
-/* CH-03 — GNB와 축약 헤더 아래에 1px 헤어라인을 둔다(데스크톱 펼침 123 / 축약 69, 모바일 고정 시 52).
-   레퍼런스 실측값 #F0F2F4를 line.hairline-soft 토큰으로 쓴다 — 그림자는 쓰지 않는다. */
+/* CH-03 — 헤더 아래에 1px 헤어라인을 둔다(데스크톱 펼침 109 / 축약 69, 모바일 고정 시 52).
+   레퍼런스 실측값 #F0F2F4를 line.hairline-soft 토큰으로 쓴다 — 그림자는 쓰지 않는다.
+   --wc-header-row-h 는 헤더 행(로고 행)의 높이다: 모바일 81, 데스크톱 펼침 108 / 축약 68(Figma). 검색 패널·백드롭이 이 값 아래에서 시작한다. */
 .wc-header {
+  --wc-header-row-h: 81px;
   position: sticky;
   top: 0;
   z-index: 3;
@@ -284,7 +424,8 @@
   background: var(--wc-surface);
 }
 
-/* 축약될 때 GNB가 이 행 "뒤로" 밀려 들어가야 해서 로고 행이 한 단계 위에 선다. */
+/* 모바일은 GNB 탭 행(.wc-gnb-wrap)이 이 행 "뒤로" 밀려 들어갈 수 있어 로고 행이 한 단계 위에 선다. 데스크톱 GNB와 메가메뉴 패널의
+   기준 상자이기도 하다 — 패널은 이 행 바로 아래(top: 100%)에 붙는다. */
 .wc-header__bar {
   position: relative;
   z-index: 2;
@@ -295,11 +436,24 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  height: 81px;
+  height: var(--wc-header-row-h);
 }
 
-.wc-logo {
+/* 왼쪽 묶음: 로고 → (데스크톱) GNB. 모바일은 로고뿐이고 GNB는 아래 탭 행이다. */
+.wc-header__lead {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
   padding-bottom: 12px;
+}
+
+/* 로고 링크는 44px 터치 대상을 갖는다 — 로고 이미지·글자는 가운데에 선다. */
+.wc-logo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
   font-family: inherit;
   font-size: 22px;
   font-weight: 800;
@@ -360,17 +514,37 @@
   line-height: 18px;
   text-align: center;
   border-radius: 10px;
-  background: var(--wc-accent);
+  background: var(--wc-ink);
   color: #FFFFFF;
 }
 
+/* 데스크톱 1단 헤더(Figma): 행 108(축약 68), 좌우 60 안쪽(1320 컨테이너에서 1200). 로고·GNB가 왼쪽, 아이콘이 오른쪽이고 세로 가운데다.
+   스크롤이 B1 기준(>150 / <64, chrome-scroll.ts)을 넘으면 행만 68로 줄어든다 — GNB는 접히지 않는다. */
 @media (min-width: 990px) {
-  .wc-header__bar-inner {
-    height: 68px;
+  .wc-header {
+    --wc-header-row-h: 108px;
+  }
+
+  .wc-header[data-condensed='true'] {
+    --wc-header-row-h: 68px;
+  }
+
+  .wc-header .wc-header__bar-inner.wc-container {
+    align-items: center;
+    padding-inline: 60px;
+    transition: height var(--wc-duration-medium) ease;
+  }
+
+  .wc-header__lead,
+  .wc-header__icons {
+    padding-bottom: 0;
+  }
+
+  .wc-header__icons {
+    gap: 11px;
   }
 
   .wc-logo {
-    padding-bottom: 14px;
     font-size: 28px;
   }
 }
@@ -404,26 +578,22 @@
    GNB (데스크톱) · 메가메뉴
    ------------------------------------------------------------------ */
 
-/* 데스크톱은 스크롤이 B1 기준(>150 접힘 / <64 해제, chrome-scroll.ts)을 넘으면 GNB만 로고 행 뒤로
-   밀어 넣어 로고 행만 남긴다(R-01 §3.1). 모바일은 접지 않는다 — 아래 '모바일 헤더 고정'.
-   메가 패널의 기준 상자이기도 해서 positioned 상태를 유지한다. */
+/* 데스크톱 GNB(.wc-gnb)는 헤더 행 안 로고 옆에 있다(1단 헤더) — 접히지 않는다. 이 래퍼는 모바일 GNB 탭 행(.wc-mob-gnb)의 자리이고
+   데스크톱에서는 비어 높이가 0이다. */
 .wc-gnb-wrap {
   position: relative;
   z-index: 1;
   background: var(--wc-surface);
-  transition: margin-top var(--wc-duration-medium) ease, opacity var(--wc-duration-medium) ease;
 }
 
 .wc-gnb {
   display: none;
 }
 
-/* ul 자체가 컨테이너 폭·거터를 진다 — 첫 항목 텍스트를 컨테이너 왼끝에 맞추기 위해서다. */
 .wc-gnb__list {
   display: flex;
-  max-width: var(--wc-container-max);
-  margin: 0 auto;
-  padding: 0 var(--wc-gutter);
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -432,7 +602,7 @@
   min-width: 0;
 }
 
-/* 메가 패널이 헤더 전폭을 덮어야 한다 — 기준 상자를 .wc-gnb-wrap에 남기려고 항목은 positioned로 만들지 않는다. */
+/* 메가 패널이 헤더 전폭을 덮어야 한다 — 기준 상자를 헤더 행(.wc-header__bar)에 남기려고 항목은 positioned로 만들지 않는다. */
 .wc-gnb__item--mega {
   position: static;
 }
@@ -442,45 +612,44 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0 16px 4px;
+  padding: 12px 15px;
   font-family: inherit;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 50px;
-  letter-spacing: -.2px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0;
   text-decoration: none;
   color: var(--wc-ink);
 }
 
-.wc-gnb__list > li:first-child .wc-gnb__link {
-  padding-left: 0;
-}
-
-/* GNB 라벨은 16px/700 이라 AA 4.5:1 이 필요하다 — brand-green 은 2.3:1 이라 미달이다.
-   텍스트만 state.success 로 내리고 3px 밑줄바는 아래에서 brand-green 을 계속 쓴다. */
+/* Figma 셸에는 초록이 없다 — 현재·hover 표기는 글자색을 바꾸지 않고 라벨 아래 2px 잉크 막대 하나로 한다(ADR-0043). */
 .wc-gnb__link:hover,
 .wc-gnb__link.is-active {
-  color: var(--wc-success);
+  color: var(--wc-ink);
 }
 
 .wc-gnb__label {
   position: relative;
 }
 
-/* 활성/hover 표기는 색과 3px 바 한 세트다. 바는 중앙에서 양쪽으로 자란다.
-   바는 비텍스트 장식이라 대비 규칙에서 자유롭다 — 액센트 정체성은 여기서 유지한다.
-   그래서 currentColor 가 아니라 brand-green 을 명시한다(텍스트는 state.success 로 갈라졌다). */
+/* 막대는 중앙에서 양쪽으로 자란다. 비텍스트 장식이지만 잉크라 어디서든 읽힌다. */
 .wc-gnb__label::after {
   content: '';
   position: absolute;
   left: 0;
-  bottom: -4px;
+  bottom: -6px;
   width: 100%;
-  height: 3px;
-  background: var(--wc-accent);
+  height: 2px;
+  background: var(--wc-ink);
   transform: scaleX(0);
   transform-origin: center;
   transition: transform var(--wc-duration-medium);
+}
+
+/* 기본형 헤더에서 store-presentation.css 가 막대를 스토어 테마색(기본 초록)으로 칠한다 — 그 규칙(특이도 0,4,1)을 이겨 잉크로 되돌린다.
+   컬러형 헤더는 테마색 바탕이라 store-presentation.css 의 글자색 막대를 그대로 둔다. */
+.wc-chrome .wc-header[data-store-header='basic'] .wc-gnb .wc-gnb__label::after {
+  background: var(--wc-ink);
 }
 
 .wc-gnb__link:hover .wc-gnb__label::after,
@@ -716,28 +885,13 @@
 }
 
 @media (min-width: 990px) {
-  .wc-header[data-condensed='true'] .wc-gnb-wrap {
-    margin-top: -54px;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  /* 축약 상태에서도 키보드가 헤더(로고 행·GNB)로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로
-     사라지면 안 된다. 검색 패널 안의 포커스는 제외한다: 패널이 GNB 자리를 덮고 있어 되돌릴 이유가 없고,
-     되돌리면 열리는 순간 헤더가 54px 자라 흐린 본문이 밀린다. 마우스 클릭의 포커스(:focus-visible 아님)도 제외한다. */
-  .wc-header[data-condensed='true']:has(.wc-header__bar :focus-visible, .wc-gnb-wrap :focus-visible) .wc-gnb-wrap {
-    margin-top: 0;
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  /* 헤더는 sticky 라 로고 행·GNB 안의 포커스는 이미 화면 맨 위에 보인다. 그런데 html scroll-padding-top(globals.css, 최대 펼친
-     헤더 123)이 그 자리를 크롬에 가려진 곳으로 읽어, 브라우저가 포커스를 가운데로 데려오려 문서를 약 470px 끌어올렸다 — 요소는
+  /* 헤더는 sticky 라 헤더 행(로고·GNB·아이콘) 안의 포커스는 이미 화면 맨 위에 보인다. 그런데 html scroll-padding-top(globals.css, 최대 펼친
+     헤더 109)이 그 자리를 크롬에 가려진 곳으로 읽어, 브라우저가 포커스를 가운데로 데려오려 문서를 약 470px 끌어올렸다 — 요소는
      sticky 라 제자리라서 Tab 마다 다시 끌려 맨 위까지 갔다(축약 중 깊이 스크롤한 /shop). 착지 상자 윗변을 착지선 최댓값만큼
      내려 이미 보이는 것으로 읽게 한다. 안쪽 스크롤 상자인 메가메뉴(.wc-mega)와 헤더 밖 검색 패널은 그대로 둔다. */
   .wc-header .wc-header__bar :focus,
   .wc-header .wc-gnb__link:focus {
-    scroll-margin-top: -123px;
+    scroll-margin-top: -109px;
   }
 
   .wc-gnb {
@@ -828,14 +982,15 @@
    검색 오버레이
    ------------------------------------------------------------------ */
 
-/* 11 §6 B5 — 패널은 로고 행 바로 아래에서 GNB 행을 덮고, 그 아래 본문은 10% 딤 + 5px 흐림이다.
-   패널·백드롭 모두 sticky 헤더 상자 기준으로 로고 행(모바일 81 / 데스크톱 68, .wc-header__bar-inner) 바로
+/* 11 §6 B5 — 패널은 헤더 행 바로 아래(모바일은 GNB 탭 행을 덮는다)에서 시작하고, 그 아래 본문은 10% 딤 + 5px 흐림이다.
+   패널·백드롭 모두 sticky 헤더 상자 기준으로 헤더 행(--wc-header-row-h: 모바일 81 / 데스크톱 108·축약 68) 바로
    아래에서 시작한다. 레퍼런스는 fixed top 156이라 공지 바가 생기자 데스크톱에선 로고 행을 덮고 모바일에선
-   공지에 가려졌다 — 헤더 상자 기준이면 공지·유틸바·축약 여부와 무관하게 실제 로고 행 아래에 붙는다.
-   공지·유틸바·로고 행은 딤 밖에서 밝게 남는다. 스크롤 잠금은 useOverlayA11y의 body overflow가 맡는다. */
+   공지에 가려졌다 — 헤더 상자 기준이면 공지·유틸바·축약 여부와 무관하게 실제 헤더 행 아래에 붙는다.
+   공지·유틸바·헤더 행은 딤 밖에서 밝게 남고, 헤더 행은 눌린다(MD-0034 — 비모달: 장바구니·마이페이지·로고 이동 가능, 검색 아이콘은 닫기 토글).
+   스크롤 잠금은 useOverlayA11y의 body overflow가 맡는다. */
 .wc-search-backdrop {
   position: absolute;
-  top: 81px;
+  top: var(--wc-header-row-h);
   left: 0;
   right: 0;
   z-index: 1;
@@ -850,7 +1005,7 @@
    좌우 거터는 안쪽 .wc-container가 진다. */
 .wc-search {
   position: absolute;
-  top: 81px;
+  top: var(--wc-header-row-h);
   left: 0;
   right: 0;
   z-index: 3;
@@ -999,11 +1154,6 @@
 }
 
 @media (min-width: 990px) {
-  .wc-search-backdrop,
-  .wc-search {
-    top: 68px;
-  }
-
   .wc-search {
     min-height: 200px;
     padding: 24px 0;
