@@ -6,8 +6,12 @@ description: >
   스크롤 연출 없는 정적 카탈로그 커머스 디자인 시스템.
   linefriendssquare.com의 레이아웃·IA·컴포넌트 문법을 재현 스펙(docs/research/linefriends-square/)
   기준으로 이식하되, 레퍼런스의 자산·문구·핑크 액센트는 재사용하지 않는다.
+  v5(§14): 셸·홈·NEW·BEST·카테고리·POP-UP·EVENT는 X SQUARE Figma 문법(잉크 액센트·둥근 카드·1320 컨테이너)이 시각 정본이며
+  이 표면들에서는 위의 "단일 brand-green 액센트·radius 0"이 표면별 예외를 가진다.
 authority:
   decision: docs/adr/0011-lfs-storefront-redesign.md
+  x-square-decision: docs/adr/0043-xsquare-figma-storefront.md  # 셸·홈·NEW·BEST·카테고리·POP-UP·EVENT의 시각 정본(v5, §14) — ADR-0011의 해당 표면 부분을 대체
+  x-square-figma: https://www.figma.com/design/L1C8DusFalAh7EZ5dhxugE/ICONS  # 2026-11-12 신사업팀 Figma(Main·New·Best·Category·POP-UP·Event, 1920 캔버스)
   reproduction-spec: docs/research/linefriends-square/
   product-language: CONTEXT.md
   product-scope: docs/PRD.md
@@ -40,6 +44,9 @@ authority:
     discovery: app/styles/wc-discovery.css
     account-commerce: app/styles/wc-account-commerce.css
     campaign: app/styles/wc-campaign.css
+    storefront-x: app/styles/wc-storefront-x.css  # X SQUARE 공용 부품(넓은 컨테이너·상품 카드·그리드·섹션 머리·스트립 배너) — ADR-0043, §14
+    listing: app/styles/wc-listing.css            # NEW·BEST·카테고리 목록 머리·칩·슬라이더 — ADR-0043
+    popups: app/styles/wc-popups.css              # POP-UP·EVENT 목록과 PromoCard — ADR-0043
     offline-popups: app/styles/wc-offline-popups.css  # /offline-popups·/offline-popups/[eventId]
     document: app/styles/wc-document.css              # document-page — /legal/*
   admin:
@@ -62,6 +69,8 @@ authority:
     (ADR-0011 · 패리티 2차 LD-11) — 자체 스타일(about-legacy)을 유지하고 전역 셸만 White Catalog을 쓴다.
     S9에서 함께 격리했던 오프라인 팝업·법적 문서는 패리티 2차 L10(2026-10)에서 재조판하고
     격리 CSS(offline-popups-legacy·legal-doc)를 지웠다.
+    v5(2026-11-17, ADR-0043): 셸·홈·NEW·BEST·카테고리·POP-UP·EVENT와 상품 카드는 X SQUARE Figma가 시각 정본이다(§14).
+    나머지 표면과 이 문서의 v4 절은 그대로 유효하고, 아래 절 중 v5 표면에 해당하는 규칙은 §14가 우선한다.
 reference:
   source: https://linefriendssquare.com (2026-08-26 실측)
   restrictions:
@@ -80,10 +89,13 @@ breakpoints:
 
 > 색은 상품과 IP 이미지가 낸다. 크롬은 흰 종이, 검정 잉크, 초록 한 점.
 > 이 문서는 기계 판독 가능한 구현·검수 정본이다. 표면별 상세 수치는 재현 스펙(docs/research/linefriends-square/, 이하 "R-스펙")의 해당 문서를 인용한다.
+>
+> **적용 범위(v5, 2026-11-17)**: 셸(롤링 띠배너·유틸 메뉴·1단 헤더·GNB·푸터·검색 패널)·홈·NEW·BEST·카테고리·POP-UP·EVENT와 상품 카드는 X SQUARE Figma가 시각 정본이다 — [ADR-0043](docs/adr/0043-xsquare-figma-storefront.md), 이 문서 §14. 이 표면들에서 §2~§8의 수치와 규칙이 §14와 어긋나면 §14가 우선하고, 어긋나는 v4 규칙은 지우지 않고 그대로 둔다(이행하지 않은 표면의 정본이기 때문이다). 그 밖의 표면(상품 상세·카트·체크아웃·마이·검색·IP관·오프라인 팝업·법적 문서·인증)은 v4 그대로다.
 
 ## 0. 상태와 적용 원칙
 
 - 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면이 이 시스템으로 이행됐고, 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일과 1세대 잔재(Holographic Midnight)의 공개 표면 규칙은 S9에서 제거됐다.
+- **X SQUARE 표면(v5)**: 위 근거 결정 중 셸·홈·목록·POP-UP·EVENT의 시각·IA·수치는 [ADR-0043](docs/adr/0043-xsquare-figma-storefront.md)이 대체한다. 새 토큰은 `--wc-x-*`, 공용 부품은 `components/wc`(`ProductCard`·`ProductGrid`·`SectionHeader`·`StripBanner`·`PromoCard`), 정본 절은 §14다. ADR-0011의 금지선(레퍼런스 자산·카피·핑크 재사용 금지)과 §11의 동결 경계는 그대로 유효하다.
 - **어드민**(`/admin/**`)은 White Catalog이 아니라 shadcn/ui 템플릿 룩이다(ADR-0028, 2026-11-06 전 화면 전환). 화면은 `components/admin/kit/` 부품과 Tailwind 유틸리티로 그리고, `globals.css`의 관리자 규칙은 sticky 상단 막대 48을 비키는 `html:has([data-admin-header])`의 scroll-padding-top 한 줄뿐이다(해시 착지·키보드 포커스용). 어드민 전용 규율은 §어드민 콘솔을 따른다. **`/about`**은 구 홈의 콘텐츠를 보존하는 표면으로 자체 스타일(about-legacy)을 갖고 전역 셸은 White Catalog을 쓴다.
 - **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 S9에서 격리 CSS로 자립시켰다가 패리티 2차 L10(2026-10)에서 §8 플레이북대로 재조판했다(`wc-offline-popups.css`·`wc-document.css`). 구 조판을 보존하는 공개 표면은 `/about` 하나다.
 - 시각·IA는 전면 교체하지만 기능 계약(인증, 카트, 주문, 결제, 카드팩, 예매, QR, 권한)은 §11의 동결 경계를 따른다.
@@ -142,6 +154,8 @@ colors:
 **소형 액센트 텍스트**(S4에서 확정 — brand-green 2.3:1은 AA 미달이라 `state.success` #3F7D38 사용, 토큰 `--wc-success`): GNB hover/active 텍스트, 메가메뉴 현재 링크 텍스트, 카드 뱃지 텍스트, 세일 할인율 텍스트, 추천 검색어 칩 텍스트, 폼 검증 피드백 텍스트.
 
 **파괴 행동은 `state.danger`**를 쓰고 액센트로 위장하지 않는다.
+
+> v5 표면(§14)에는 이 사용처 목록이 적용되지 않는다. 그 표면들의 GNB 현재·hover 표시는 잉크 밑줄이고 알림·장바구니 수량 배지는 잉크 바탕이다. 초록이 남는 곳은 v5가 건드리지 않은 위 목록의 나머지 표면뿐이다. 하나의 사이트 안 두 문법의 통일은 ADR-0043의 후속 결정이다.
 
 ### 규칙
 
@@ -219,6 +233,7 @@ layout:
 - 이벤트 포스터는 관리자 목록·미리보기와 오프라인 팝업 목록·상세에서 `contain`으로 원본 전체를 가운데 표시한다. 공개 목록·상세의 3:2 영역은 유지하며, 세로형 포스터의 인물·일정·장소가 잘리지 않도록 비율 차이는 여백으로 둔다.
 - 홈 자유상품 진열은 운영자가 정사각(1:1)·세로(4:5)·가로(5:4)를 명시적으로 고르는 별도 표면이다. 이 진열의 이미지에만 가운데 `cover` 크롭을 적용하며, 일반 상품 카드·목록·상세 갤러리의 1:1 `contain`은 유지한다. 적용 범위는 `wc-product-collection.css`와 전용 렌더러이며 [진열 계약](docs/research/smartstore-admin/home-free-products-contract.md)을 따른다.
 - 섹션 공통 마진 없음 — 각 섹션이 자체 상하 패딩을 가진다(표면별 수치는 R-스펙 02~06).
+- **적용 범위(v5)**: 위 `layout`의 컨테이너 1212·상품 그리드 4열·헤더 3단과 sticky 123은 v5 표면(셸·홈·NEW·BEST·카테고리·POP-UP·EVENT)에는 적용되지 않는다 — 그 표면은 넓은 컨테이너 1320(안쪽 1272)·5열·1단 헤더(sticky 펼침 109)다([§14.4](#144-컨테이너그리드브레이크포인트)·§14.6). 이행하지 않은 표면은 위 값이 정본이다.
 
 ## 5. 형태·선·깊이·모션
 
@@ -255,6 +270,8 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 ## 6. 핵심 컴포넌트 패턴
 
 상세 anatomy·수치는 괄호의 R-스펙 문서가 정본이다.
+
+> **적용 범위(v5)**: 아래 패턴 중 `notice-bar`(롤링 띠로 바뀜)·`triple-header`(데스크톱 1단 헤더·유틸 메뉴)·`underline-gnb`(기본 메뉴 5개·잉크 막대)·`search-overlay`(비모달)·푸터·히어로·상품 카드·`filter-sidebar`(NEW·BEST·카테고리에서 제거)·`collection-banner`(스트립 배너)는 §14가 우선한다. 모바일 셸 패턴(`mobile-tab-gnb`·`bottom-tab-bar`·`category-sheet`)과 나머지 표면 패턴은 이 표가 그대로 정본이다.
 
 | 패턴 | 목적 | 필수 규칙 (R-스펙) |
 |---|---|---|
@@ -307,6 +324,8 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 
 밴드 구성과 수치는 R-스펙 02가 정본이다. 데이터는 전부 어드민 큐레이션·카탈로그에서 온다.
 
+> **적용 범위(v5)**: 홈의 섹션 구성·기본 순서·수치는 [§14.7](#147-홈)이 정본이다. 아래 번호 목록(히어로 → 에디터의 제안 → 카테고리 BEST → 배너 밴드 → 인기템 → 혜택)은 v4 밴드 구성의 기록이고, 그 블록 중 v5 홈 기본 순서에 남은 것(카테고리 BEST·인기템·혜택·랭킹·모자이크·쇼핑스토리)은 렌더가 그대로다.
+
 1. `notice-bar` + `notice-strip` + `triple-header`
 2. 히어로 캐러셀 — 1425×770(1440+), fade 1s·5s·루프, 전폭 9등분 세그먼트 진행바, PC/MO 별도 아트웍(5:6), `home_curations.hero`
 3. "에디터의 제안" `content-card` 3열 — 이벤트·커뮤니티·드랍 소재 큐레이션. 바로 다음 밴드 머리에 1180 폭 1px 헤어라인(회색 면 밴드 앞 제외, 11 §3 Δ8)
@@ -341,7 +360,10 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 회사 소개 | `/about`(신규) | `about-legacy-showcase` | 구 홈 콘텐츠 보존, CTA 링크는 신 사이트로 |
 | 마켓·트레이드 | `/market`, `/exchange` | v2 플레이스홀더 재조판 · staff/admin 전용 mock 시연(`.wc-c2c`)은 같은 라우트의 서버 분기 | 플레이스홀더 유지 |
 | 게임 | `/games/[gameId]` | `standalone-game` | 서버 판정·한도·보상 동결 |
+| 팝업 | `/popups`, `/popups/[id]` | v5 신설(§14.8) — `PromoCard` 3열 목록 + POP-UP 캠페인 랜딩(`CampaignLanding`, 머리에 장소 줄) | 오프라인 팝업 예매·티켓·검표 계약은 `/offline-popups`가 그대로 소유 |
 | 404·에러·로딩 | `not-found`·`error`·`loading` | White Catalog 기본 표면. 404는 제목 18/700 + [이전 페이지(잉크, 기록 없으면 홈) · 메인으로(아웃라인)] 260×56 — 일러스트는 ICONS 라인아트(LG-7) 대기, 수치는 `wc-chrome.css` 404 구간 | — |
+
+v5(§14) 적용: 위 표의 **홈**·**굿즈샵**(`/shop`·NEW·BEST·`?displayCategory=`)·**이벤트**(`/events` 허브) 행의 적용 패턴은 §14가 우선한다 — 굿즈샵의 사이드바 필터·`collection-banner`·4열은 NEW·BEST·카테고리에서 스트립 배너·탭 줄·5열로 바뀌었고(필터 본문은 검색·IP관만), 이벤트 허브의 ALL/EVENT/DROP 탭·2열 카드는 `PromoCard` 3열로 바뀌었다. 상품 상세·카트·마이 등 나머지 행은 그대로다.
 
 지우학 프레젠테이션 `/ip/aouad`는 `/ip`의 별도 시연 카드에서 들어가는 전용 경험이다. 디렉토리는 White Catalog를 유지하고, 경험은 `components/online-popup/aouad`의 CSS module 경계 안에서 야간 효산고의 장면·소품·타이포를 사용한다. 공용 내비게이션·문의 위젯은 `isStandaloneShellPath`로 비우고, 사업자 정보·법정 고지 푸터는 경험 아래에 둔다(`hidesSiteFooter` — 푸터는 인증 집중 셸·어드민에서만 비운다, 1014-X36). 전역 토큰을 덮지 않는다. 프레젠테이션 표기와 ICONS 복귀 동선을 유지하고 실제 주문·결제·예약·리워드로 이어지지 않는다.
 
@@ -399,6 +421,133 @@ protected-boundaries:
 ## 13. 구현 순서
 
 1차 개편(S1~S9)의 단계·PR 구조는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이고, 2026-09-01 main 전환(#333)으로 라이브됐다. 2차 패리티(2026-10)의 차이 목록과 단계는 [11-parity-audit-2026-10.md](docs/research/linefriends-square/11-parity-audit-2026-10.md)·[12-parity-plan-2026-10.md](docs/research/linefriends-square/12-parity-plan-2026-10.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치(11의 정정 포함)를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수.
+
+## 14. X SQUARE 표면 (v5 — ADR-0043)
+
+2026-11-12 신사업팀 Figma(Main·New·Best·Category·POP-UP·Event, 1920 캔버스)가 아래 표면의 시각 정본이다. 결정과 대가는 [ADR-0043](docs/adr/0043-xsquare-figma-storefront.md), 운영 입력은 [xsquare-storefront-content](docs/runbooks/xsquare-storefront-content.md)·[storefront-categories](docs/runbooks/storefront-categories.md) 런북이다. 이 절은 v4 절(§2~§8)을 대체하지 않고 **겹치는 부분만 우선**한다.
+
+### 14.1 적용 범위
+
+| 표면 | 정본 | 비고 |
+|---|---|---|
+| 셸 — 롤링 띠배너·유틸 메뉴·1단 헤더·GNB·푸터·검색 패널 | v5 | 모바일 셸(로고 행 81 + GNB 탭 행 51 + 바텀 탭바·전체 메뉴 시트)은 로고만 바뀌고 v4 그대로 |
+| 홈 `/` | v5 | 섹션 종류·기본 순서는 v5, 어느 IP·배너를 보이는지는 운영 데이터 |
+| `/shop/new`·`/shop/best`·`/shop`(전체·`?displayCategory=`) | v5 | 필터가 있는 본문(`CollectionBrowser`)은 검색·IP관에만 남는다 |
+| `/popups`·`/popups/[id]`·`/events` | v5 | `/events/[eventId]` 랜딩 본문(`CampaignLanding`)은 v4, 머리의 장소 줄만 추가 |
+| 상품 카드 `ProductCard` | v5 | 카드를 쓰는 **모든** 화면(검색·IP관·위시·최근 본·PDP 연관·장바구니 추천 등)에 적용 |
+| 그 밖(PDP·카트·체크아웃·주문·마이·검색·IP관·오프라인 팝업·법적 문서·인증·`/about`) | v4 | 이 절이 건드리지 않는다 |
+
+v5 표면의 액센트는 초록이 아니라 잉크다. 빨강은 롤링 띠·할인율·위시 하트에만, 칩 3색은 카드 칩에만 쓴다. radius는 칩 3 · 상품 행 썸네일 6 · 카드·썸네일 8 · 스트립 12 · IP 버튼 15 · 히어로 18이다.
+
+### 14.2 토큰 (`app/styles/wc-foundation.css` `.wc-root`, 접두 `--wc-x-`)
+
+새 부품과 화면은 강한 글에 `--wc-x-ink`(#121212)를 쓴다. 옛 표면은 기존 `--wc-ink`(#111111) 그대로다. 썸네일 바탕 #F3F3F3은 기존 `--wc-surface-grey-2`다. "Figma 값"은 원본, "구현 값"은 AA 보정 뒤 값이다(§14.3).
+
+| 토큰 | 구현 값 | Figma 값 | 쓰는 곳 |
+|---|---|---|---|
+| `--wc-x-container` | `1320px` | 1320 | 넓은 컨테이너 최대 폭 |
+| `--wc-x-gutter` | `24px`(≥990) · `16px`(<990, 기존 `--wc-gutter`) | 24 | 넓은 컨테이너 좌우 |
+| `--wc-x-content` | `1272px` | 1272 | 참고값(결과 폭) — 부품은 폭을 이 값으로 고정하지 않고 컨테이너 100%를 쓴다 |
+| `--wc-x-ink` | `#121212` | `#121212` | 제목·상품명·가격·탭 선택 |
+| `--wc-x-muted` | `#767676` | `#888888` | 보조 글자(IP명·탭 비선택·브랜드) |
+| `--wc-x-separator` | `#888888` | `#888888` | 탭 사이 1×12 구분선(장식) |
+| `--wc-x-footer-link` | `#535353` | `#535353` | 푸터 링크 |
+| `--wc-x-line-pill` | `#DBD9D9` | `#DBD9D9` | 전체보기 알약 테두리 |
+| `--wc-x-line-util` | `rgba(217,217,217,.5)` | `#D9D9D9`@50% | 유틸 아래·푸터 위·카테고리 칩 줄 구분선 |
+| `--wc-x-line-row` | `#CFCFCF` | `#CFCFCF` | ICONS PICK 카드 상품 행 사이 |
+| `--wc-x-line-card` | `rgba(196,196,196,.8)` | `#C4C4C4`@80% | ICONS PICK 카드 테두리(0.5px) |
+| `--wc-x-sale` | `#E02424` | `#FF4D4D` | 할인율 글자 |
+| `--wc-x-heart` | `#FF4D4D` | `#FF4D4D` | 위시 하트 선택(비텍스트) |
+| `--wc-x-rolling-bg` | `#E31B23` | `#EC2227` | 롤링 띠배너 바탕 |
+| `--wc-x-progress-track` / `-thumb` | `#E5E5E5` / `#555555` | 같음 | 히어로 진행 막대 |
+| `--wc-x-control` | `#888888` | 같음 | 히어로 화살표(비텍스트) |
+| `--wc-x-chip-preorder-bg` / `-ink` | `#F3EBFA` / `#8650BD` | `#F3EBFA` / `#955FCA` | 예약판매 칩 |
+| `--wc-x-chip-shipping-bg` / `-ink` | `#E3F2F8` / `#276E89` | `#E3F2F8` / `#3485A3` | 무료배송 칩 |
+| `--wc-x-chip-random-bg` / `-ink` | `#FFF1DA` / `#A6560B` | `#FFF1DA` / `#F08418` | 캡슐토이 칩 |
+| `--wc-x-chip-tag-bg` / `-ink` | `#F3F3F3` / `#3F3F3F` | (Figma 숨은 NEW 레이어) | 운영 배지(NEW·EXCLUSIVE) 칩 |
+| `--wc-x-radius-hero` / `-ip` / `-strip` / `-card` / `-thumb-sm` / `-chip` | 18 / 15 / 12 / 8 / 6 / 3 px | 같음 | 히어로 / IP 바로가기 / 스트립 배너 / 썸네일·프로모션 카드 / 상품 행 썸네일 / 칩 |
+
+### 14.3 AA 보정 (Figma 값을 어둡게 한 곳)
+
+Figma의 일부 색은 WCAG AA(작은 글자 4.5:1, 비텍스트 3:1)에 못 미친다. 이 저장소는 AA를 지켜 왔으므로(§10, 배지 글자색 선례) 아래만 어둡게 했다. 원본으로 되돌리기로 하면 토큰 한 곳만 바꾸면 되고, 그때는 이 표를 함께 고친다.
+
+| 쓰임 | Figma 값(대비) | 구현 값(대비) | 배경 |
+|---|---|---|---|
+| 보조 글자 `--wc-x-muted` | `#888888`(3.5:1) | `#767676`(4.5:1) | 흰 지면 |
+| 할인율 `--wc-x-sale` | `#FF4D4D`(3.3:1) | `#E02424`(4.7:1) | 흰 지면 |
+| 롤링 띠 바탕 `--wc-x-rolling-bg`(흰 글) | `#EC2227`(4.4:1) | `#E31B23`(4.7:1) | 흰 글자 |
+| 예약판매 칩 글자 | `#955FCA`(3.8:1) | `#8650BD`(4.6:1) | `#F3EBFA` |
+| 무료배송 칩 글자 | `#3485A3`(3.6:1) | `#276E89`(5.0:1) | `#E3F2F8` |
+| 캡슐토이 칩 글자 | `#F08418`(2.3:1) | `#A6560B`(4.8:1) | `#FFF1DA` |
+
+유지한 값: 위시 하트 `#FF4D4D`·히어로 화살표 `#888888`(비텍스트 3:1 이상), 푸터 링크 `#535353`(7.7:1). 위시 하트는 Figma가 원 없는 `#E6E6E6` 채움이라 `#F3F3F3` 썸네일 위에서 1.1:1이므로 흰 원 32 + 1px `--wc-hairline` 위에 올리고 빈 하트의 선은 `--wc-ink-tertiary`로 그린다.
+
+### 14.4 컨테이너·그리드·브레이크포인트
+
+- 넓은 컨테이너 `<div className="wc-container wc-container--wide">`: 최대 1320, 데스크톱 좌우 24(안쪽 1272), <990은 기존 거터 16. 기존 `.wc-container`(1212)는 다른 표면이 계속 쓴다.
+- 크롬 브레이크포인트 990(헤더·푸터), 콘텐츠 브레이크포인트 750(그리드)은 v4 그대로이고 그리드에만 1200 단이 하나 더 있다.
+
+| 폭 | 상품 그리드 열 | 열 간격 | 줄 간격 홈 / 목록 | 히어로 | IP 바로가기 | ICONS PICK | POP-UP·EVENT 카드 |
+|---|---|---|---|---|---|---|---|
+| ≥1200 | 5 | 15 | 24 / 56 | 1272×540 r18 | 265×180, 4열 가운데(간격 20) | 3열 | 3열(408:260) |
+| 990–1199 | 4 | 15 | 24 / 48 | 비율 유지 | 같음 | 3열 | 3열 |
+| 750–989 | 3 | 12 | 24 / 40 | 5:6 r12 | 4열 유동(간격 12) | 2열 | 2열 |
+| <750 | 2 | 12 | 28 / 32 | 5:6 r12 | 2열(간격 12, 줄 20) | 1열 | 1열 |
+
+헤더·푸터: ≥990은 1단 헤더 행 108(스크롤 >150이면 68)과 푸터 한 줄 2열, <990은 모바일 셸(로고 행 81 + GNB 탭 행 51)과 푸터 세로 쌓기. 롤링 띠배너는 전 폭에서 높이 40(사본 간격 ≥990 200, 미만 80).
+
+### 14.5 부품 (`components/wc` — 새 화면은 이것을 import하고 카드·그리드·머리를 새로 만들지 않는다)
+
+| 부품 | 파일 | 규칙 |
+|---|---|---|
+| 상품 카드 | `components/wc/ProductCard.tsx` | 썸네일 정사각 r8(이미지는 1000×1000 `contain` 유지) → IP명 14 Medium `--wc-x-muted` 1줄 → 상품명 14 Medium `--wc-x-ink` 2줄 → 할인율 15 Bold `--wc-x-sale` + 판매가 16 Bold(**취소선 정가를 카드에 그리지 않는다** — `PriceBlock variant="inline"`) → 칩 줄(11 SemiBold, r3, 패딩 3/4, 간격 6) → 별점 줄. 위시 하트는 썸네일 우하단 inset 8(히트 44, 보이는 원 32). 품절·판매 기간 밴드·19금 가림·갤러리·색상 칩·담기는 v4 동작 그대로 |
+| 카드 칩 | `lib/product-card-chips.ts` | 순서 예약판매 → 무료배송 → 캡슐토이 → 운영 배지(NEW·EXCLUSIVE). 예약판매 = 옵션 하나라도 예약 접수 중이고 남은 물량 있음, 무료배송 = `shippingFeeType === 'free'`, 캡슐토이 = 랜덤 판매(ADR-0027). SALE은 칩이 아니다. 칩 판정은 이 함수 한 곳이고 화면이 따로 판정하지 않는다 |
+| 상품 그리드 | `components/wc/ProductGrid.tsx` | `<ul class="wc-x-grid" data-density="home" 또는 "listing">`, 열·간격은 §14.4. 기존 `.wc-product-grid`(4열)는 v4 표면용으로 남는다 |
+| 섹션 머리 | `components/wc/SectionHeader.tsx` | 제목 28 Bold `--wc-x-ink`(<750은 20) + 전체보기 알약(13 Medium, 1px `--wc-x-line-pill`, 높이 38, 접근 이름 "제목 전체보기"). `moreHref`가 없으면 알약을 그리지 않는다 |
+| 스트립 배너 | `components/wc/StripBanner.tsx` | `size="home"` 1272×170 · `size="page"` 1272×340, r12, cover. 모바일(<750)은 r8이고 모바일 이미지가 있으면 그 고유 비율. 여러 장을 넘기는 슬라이더는 목록용 `CollectionBanners`·캠페인용 `CampaignBannerSlider`가 같은 `.wc-strip-banner` 계열로 맡는다 |
+| 프로모션 카드 | `components/wc/PromoCard.tsx` | 408:260 r8, 아래 150px 그라데이션(#121212 0→100%) 위 흰 제목 20 Bold 최대 2줄(`<h3>`), 선택 메타 한 줄 14 Medium, 선택 배지("오픈 예정"). 카드 전체가 링크 하나. POP-UP·EVENT 목록과 홈 ICONS PICK이 같은 모양을 쓴다 |
+| 위시 하트 | `components/shop/ListingWishHeart.tsx` | Figma 하트 경로, 선택은 채움·비선택은 선 |
+
+새 CSS의 선택자는 `.wc-x-`·`.wc-strip-banner`·기존 `.wc-product-card` 계열(공용 부품), `.wc-listing*`(목록), `.wc-promo-*`·`.wc-popups*`(POP-UP·EVENT)로만 시작한다 — 전역 element 규칙을 두지 않는다. import 순서는 `wc-inquiry-widget.css` → `wc-storefront-x.css` → `wc-listing.css` → `wc-popups.css`로, 화면 CSS가 부품 기본값을 덮는다(`app/layout.tsx`).
+
+### 14.6 셸
+
+- **롤링 띠배너**(텍스트 공지 바): 높이 40, 바탕 `--wc-x-rolling-bg`, 글 13 Medium 흰색, 같은 사본 8개가 오른쪽에서 왼쪽으로 40초 선형 반복. 같은 화면 후보가 여럿이면 스토어를 새로 열 때마다 하나를 무작위로 보인다(이미지 띠배너와 같은 방식, 시드는 따로). 오른쪽 닫기(44×40 흰 X)를 두고, hover·포커스에서 멈추며, 줄인 움직임에서는 흐르지 않고 문구가 가운데에 선다(WCAG 2.2.2).
+- **유틸 메뉴**(≥990만): 높이 48, 아래 1px `--wc-x-line-util`, 12 SemiBold `--wc-ink-tertiary`, 오른쪽 끝 정렬. 비로그인 `로그인 / 회원가입`·`고객센터`, 로그인 `위시리스트`·`주문조회`·`알림함`·`로그아웃`·`고객센터`. `공지사항`은 게시판이 없어 그리지 않는다.
+- **1단 헤더**(≥990): 행 108(위아래 32), 왼쪽에 로고(높이 24)와 GNB(17 SemiBold, 항목 패딩 12/15), 오른쪽에 검색·장바구니·마이 아이콘(44×44, Figma 원본 경로 인라인, `currentColor`). GNB 현재·hover는 글 아래 2px 잉크 막대다. 스크롤 >150이면 행만 68로 줄고 GNB는 접히지 않는다. 로고는 `public/brand/xsquare-logo.png`(운영 업로드 로고가 우선, `data-store-header="color"`에서는 잉크가 흰색일 때 `invert`).
+- **sticky 크롬 높이 계약**: 모바일 52 · 데스크톱 축약 69 · 데스크톱 펼침 **109**(행 108 + 선 1) — `wc-chrome.css`의 `--wc-sticky-chrome-h`와 `globals.css`의 `html scroll-padding-top`이 같은 값이고 `components/shell/chrome-styles.test.ts`가 맞춘다. (v4 §4의 데스크톱 123은 v5에 해당하지 않는다.)
+- **검색 패널**: 비모달(`aria-modal="false"`). 헤더 행은 inert에서 빠져 열린 채로 로고·장바구니·마이가 눌리고, 검색 아이콘은 열기/닫기 토글이다. 본문·푸터·탭바는 딤 + inert(MD-0034).
+- **GNB 구성**: 기본 NEW · BEST · 카테고리 · POP-UP · EVENT, 온라인 팝업·카드팩·커뮤니티·쇼핑스토리는 기본 숨김(운영 메뉴 설정으로 켠다). `/popups*`·`/offline-popups*`에서 POP-UP, `/events*`에서 EVENT가 켜진다. 카드팩·커뮤니티는 배포 게이트도 따로 거른다.
+- **푸터**: 1행 왼쪽 `아이콘스 이용약관`·`개인정보처리방침`·`배송·반품 정책`·`대량구매`(mailto, 16 Bold `--wc-x-footer-link`), 오른쪽 `고객센터` + 브랜딩 설정의 SNS(인스타그램 아이콘 18, 블로그·페이스북은 글자 링크) → 사업자 정보(상호·주소·대표자·사업자등록번호·통신판매업·전화·이메일·호스팅, 12 SemiBold `--wc-x-muted`, 접지 않음) → 스태프 블록(해당 시) → `© 연도 ICONS`. 법적 문서 3종과 법정 표기는 필수다. 목적지 없는 Figma 항목(공지사항·서비스 가이드라인·X)은 죽은 링크로 만들지 않는다.
+
+### 14.7 홈
+
+섹션은 `wc-container--wide` 안에서 간격 60(모바일 48)이다. 기본 순서(저장 레이아웃이 없을 때): 히어로 → IP 바로가기(`editor_picks`) → NEW ARRIVAL(`new_arrivals`) → 홈 스트립 배너(`strip_banner`) → IP 상품 섹션(상품 모음) → ICONS PICK(`band:`) → 카테고리 BEST·인기템·혜택 → 판매·리뷰 랭킹·모자이크 → 쇼핑스토리.
+
+| 영역 | 데이터 원천 | 모양 |
+|---|---|---|
+| 히어로 | 프로모션 배너(최대 10) | 1272×540 r18, 글 왼쪽 70·아래 60(부제 21 → 제목 36 SemiBold), 아래 진행 막대(960×3) + 일시정지·이전·다음. 5초 자동 넘김은 손으로 옮겨도 끄지 않고, 일시정지·hover·포커스·탭 숨김·줄인 움직임에서만 멈춘다 |
+| IP 바로가기 | 추천 콘텐츠(배지 = IP명, 제목 = 문구) | 265×180 r15 이미지 + IP명 13 Medium + 문구 14 Medium, 가운데 정렬 |
+| NEW ARRIVAL | 최신 등록 10개 자동 | `SectionHeader` + 5열 × 2줄, 전체보기 → `/shop/new` |
+| 홈 스트립 배너 | 옛 공지 배너(`announcement`)의 첫 노출 행 | `StripBanner size="home"` 1272×170 |
+| IP 상품 섹션 | 상품 모음 '그리드형(5열)' 5 또는 10개 | `SectionHeader` + 5열, 고른 상품이 모두 한 IP면 전체보기가 그 IP관 |
+| ICONS PICK | 연달아 놓인 기획전 배너 | 3열 `PromoCard` + 상품 2행(썸네일 94 r6) 묶음, 0.5px `--wc-x-line-card` 테두리 |
+
+옛 블록(카테고리 BEST·인기템·혜택·쇼핑스토리·랭킹·모자이크·리스트형/풀이미지형 모음)은 렌더를 바꾸지 않고 넓은 컨테이너·섹션 간격만 맞췄다. 운영자가 영역 순서·노출에서 끄면 Figma와 같아진다. 내용(어느 IP·배너)은 코드가 정하지 않는다.
+
+### 14.8 목록 · POP-UP · EVENT
+
+- **한 틀(NEW·BEST·카테고리)**: 스트립 배너 1272×340(원천이 없으면 배너 없이 시작, 가짜 자리 금지) → 제목 32 Bold + 탭 줄 / 오른쪽 정렬 셀렉트 → 5열 그리드(줄 간격 56) → VIEW MORE(20개 단위). 탭은 URL을 바꾸는 링크 묶음(`nav` + `aria-current="page"`, 미선택 15 SemiBold `--wc-x-muted` · 선택 16 Bold `--wc-x-ink`, 사이 1×12 구분선)이고 ARIA tablist가 아니다. 정렬 셀렉트는 네이티브 `<select>`(라벨 "정렬 기준")다. 왼쪽 필터·필터 시트·수량 줄은 없다.
+- **정렬 7종**: 추천순·인기도순·최신 등록순·판매량순·낮은 가격순·높은 가격순·리뷰 많은순. NEW는 탭 줄이 정렬(추천순 제외 6종, 기본 최신 등록순)이라 셀렉트가 없다. BEST 탭은 실시간·일간·주간·월간(기본 실시간)이고 셀렉트는 순위 목록 안에서 다시 줄 세운다.
+- **카테고리 칩**(배너 아래, 가운데): 알약 높이 45·패딩 0 30·간격 10, 1줄 = '전체' + 1단계 트리 순서 앞 4개(18 SemiBold `--wc-x-ink`), 구분선 아래 2줄 = 나머지(15 SemiBold `--wc-x-muted`). 선택 칩은 `--wc-x-ink` 채움 + 흰 글자(`aria-current`). 선택한 1단계의 2단계가 하위 탭('전체' + 자식)이 된다. <750은 한 줄 가로 스크롤(높이 36).
+- **POP-UP·EVENT**: 제목 32 Bold(POP-UP은 비었을 때 시각 숨김 h1) + `PromoCard` 3열(줄 간격 40, 열 간격 24). POP-UP 메타 줄은 `{온라인|오프라인|온·오프라인} · {장소?} · {기간}`, 오픈 예정 카드는 왼쪽 위 "오픈 예정" 배지. EVENT는 맨 위에 추천 캠페인 스트립 배너(이미지만, 슬라이더는 5초 자동·정지 버튼·줄인 움직임 존중). 빈 상태는 `EmptyState`("진행 중인 POP-UP이 없어요" / "새 POP-UP이 열리면 이 자리에서 가장 먼저 알려 드릴게요." / 홈으로 가기).
+
+### 14.9 규율
+
+1. v5 표면에 새 컴포넌트를 더할 때는 §14.5 부품을 먼저 쓰고, 값은 `--wc-x-*` 토큰으로만 적는다(색·반경 하드코딩 금지). Figma 값을 직접 쓰면 AA 보정이 사라진다.
+2. 레퍼런스(LFS)와 마찬가지로 Figma의 이미지·카피·로고를 코드에 옮기지 않는다 — 콘텐츠는 운영 데이터이고, 로고만 승인된 `xsquare-logo.png`다.
+3. 어드민(`/admin/**`)은 이 절의 영향을 받지 않는다. 어드민 전시 미리보기가 공개 컴포넌트를 렌더하므로 공개 부품은 `.wc-root` 안에서만 스타일이 먹도록 쓴다.
+4. 기능 계약(§11)은 그대로다. 정렬·랭킹 읽기는 DB RPC(정렬된 id 배열만), 노출 설정은 `campaign_presentations`가 정한다.
 
 ## 어드민 콘솔 (ADR-0014 · ADR-0028 · ADR-0029)
 
