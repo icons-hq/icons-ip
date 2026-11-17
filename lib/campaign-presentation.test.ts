@@ -126,6 +126,35 @@ describe('normalizeCampaignPresentationInput', () => {
     }
   });
 
+  it('rejects a space inside the shortcut with its own message instead of the leading-slash one', () => {
+    expect(CAMPAIGN_PRESENTATION_MESSAGES.cardLinkWhitespace).toBe('주소에 띄어쓰기를 넣을 수 없습니다.');
+    for (const cardLinkPath of [
+      '/search?q=홍실 퀘스트', '/a b', '/a\tb', '/a\nb', '/a\u00a0b', '/a\u3000b', '/a\u2028b', '/ip/hong sil quest#top',
+      // 공백이 들어 있으면 시작이 `/`가 아니어도 같은 문구다(공백부터 지우게 한다).
+      'ip/hong sil',
+    ]) {
+      expect(normalizeCampaignPresentationInput({ ...blank, cardLinkPath }), JSON.stringify(cardLinkPath)).toEqual({
+        ok: false, errors: { cardLinkPath: CAMPAIGN_PRESENTATION_MESSAGES.cardLinkWhitespace },
+      });
+    }
+    // 앞뒤 공백은 여전히 지워서 받는다(안쪽 공백만 거절).
+    expect(normalizeCampaignPresentationInput({ ...blank, cardLinkPath: '  /ip/x  ' })).toEqual({
+      ok: true, value: { popupMode: null, popupLocation: null, cardLinkPath: '/ip/x' },
+    });
+    // 인코딩된 공백(%20)은 공백이 아니므로 그대로 받는다.
+    expect(normalizeCampaignPresentationInput({ ...blank, cardLinkPath: '/search?q=홍실%20퀘스트' }).ok).toBe(true);
+  });
+
+  it('keeps the format message for other bad shortcuts and reports a space error next to other field errors', () => {
+    expect(normalizeCampaignPresentationInput({ ...blank, cardLinkPath: '//evil.example' })).toEqual({
+      ok: false, errors: { cardLinkPath: CAMPAIGN_PRESENTATION_MESSAGES.cardLinkFormat },
+    });
+    expect(normalizeCampaignPresentationInput({ popupMode: 'popup', popupLocation: '', cardLinkPath: '/a b' })).toEqual({
+      ok: false,
+      errors: { popupMode: CAMPAIGN_PRESENTATION_MESSAGES.popupMode, cardLinkPath: CAMPAIGN_PRESENTATION_MESSAGES.cardLinkWhitespace },
+    });
+  });
+
   it('limits the shortcut to 300 characters with its own message', () => {
     expect(normalizeCampaignPresentationInput({ ...blank, cardLinkPath: '/' + 'a'.repeat(299) }).ok).toBe(true);
     expect(normalizeCampaignPresentationInput({ ...blank, cardLinkPath: '/' + 'a'.repeat(300) })).toEqual({

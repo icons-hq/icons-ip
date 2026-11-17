@@ -71,10 +71,11 @@ export const CAMPAIGN_PRESENTATION_MESSAGES = {
   popupLocation: `장소는 ${CAMPAIGN_POPUP_LOCATION_MAX_LENGTH}자 이하로 입력해주세요.`,
   cardLinkLength: `바로가기 주소는 ${CAMPAIGN_CARD_LINK_MAX_LENGTH}자 이하로 입력해주세요.`,
   cardLinkFormat: '사이트 안 주소(/로 시작)만 넣을 수 있습니다.',
+  cardLinkWhitespace: '주소에 띄어쓰기를 넣을 수 없습니다.',
 } as const;
 
 /** 어드민 폼 입력(빈 문자열 = 비움)을 저장 값으로 정리하고 검증한다. 앞뒤 공백은 지우고, 빈 값은 null 이다.
- *  POP-UP 에 싣지 않으면(popupMode 가 비면) 장소는 무시하고 비운다. 링크는 `isSafeInternalLink`(사이트 안 경로만) + 300자. */
+ *  POP-UP 에 싣지 않으면(popupMode 가 비면) 장소는 무시하고 비운다. 링크는 `isSafeInternalLink`(사이트 안 경로만) + 300자 + 공백 불가. */
 export function normalizeCampaignPresentationInput(input: {
   popupMode: string;
   popupLocation: string;
@@ -100,6 +101,9 @@ export function normalizeCampaignPresentationInput(input: {
   let cardLinkPath: string | null = null;
   if (link !== '') {
     if (characterLength(link) > CAMPAIGN_CARD_LINK_MAX_LENGTH) errors.cardLinkPath = CAMPAIGN_PRESENTATION_MESSAGES.cardLinkLength;
+    /* 앞뒤 공백은 위에서 지웠으므로 남은 공백은 주소 한가운데다. DB 는 공백 든 주소를 22023 으로 거절하는데 그 문구는
+       "/로 시작"이라 엉뚱하니, 화면에서 먼저 전용 문구로 막는다(모든 공백 문자: 스페이스·탭·줄바꿈·NBSP 등). */
+    else if (/\s/u.test(link)) errors.cardLinkPath = CAMPAIGN_PRESENTATION_MESSAGES.cardLinkWhitespace;
     else if (!isSafeInternalLink(link)) errors.cardLinkPath = CAMPAIGN_PRESENTATION_MESSAGES.cardLinkFormat;
     else cardLinkPath = link;
   }
