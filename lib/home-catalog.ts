@@ -7,6 +7,8 @@ import type { HomeProductCollectionBand } from './home-product-collection';
 import type { HomeReviewBestBand, HomeSalesBestBand } from './home-ranking';
 import type { PublicShoppingStorySummary } from './shopping-stories';
 import type { HomeHeroImageDim, HomeHeroTextColor } from './home-hero';
+import { publicIpHref } from './ip-identity';
+import { productCardChips, type ProductCardChip } from './product-card-chips';
 
 export const MAX_HOME_PICKER_IPS = 5;
 
@@ -92,6 +94,9 @@ export function withoutCardRewardCurations(curation: HomeCurationSnapshot): Home
     editorPicks: curation.editorPicks.filter((pick) => !isCardRewardDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCardRewardDestination(band.href)),
     benefitTiles: curation.benefitTiles.filter((tile) => !isCardRewardDestination(tile.href)),
+    ...(curation.stripBanner === undefined ? {} : {
+      stripBanner: curation.stripBanner && !isCardRewardDestination(curation.stripBanner.href) ? curation.stripBanner : null,
+    }),
   };
 }
 
@@ -138,6 +143,9 @@ export function withoutCommunityCurations(curation: HomeCurationSnapshot): HomeC
     editorPicks: curation.editorPicks.filter((pick) => !isCommunityDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCommunityDestination(band.href)),
     benefitTiles: curation.benefitTiles.filter((tile) => !isCommunityDestination(tile.href)),
+    ...(curation.stripBanner === undefined ? {} : {
+      stripBanner: curation.stripBanner && !isCommunityDestination(curation.stripBanner.href) ? curation.stripBanner : null,
+    }),
   };
 }
 
@@ -177,6 +185,18 @@ export interface HomeGoodsCard {
   soldOut: boolean;
   /** 목록 카드 별점(CL-02) — 공개 리뷰가 있을 때만. */
   reviewSummary?: GoodsReviewSummary;
+  /** 카드 칩(예약판매·무료배송·캡슐토이·운영 배지). `productCardChips`가 서버에서 채운다(공용 부품 계약 §3). 옛 투영은 비어 있다. */
+  chips?: ProductCardChip[];
+  /** 상품이 속한 IP의 공개 주소(`/ip/<slug>`). 상품 모음 '전체보기'를 한 IP관으로 잇는 근거다. IP가 카탈로그에 없으면 null. */
+  ipHref?: string | null;
+}
+
+/** 홈 스트립 배너(X SQUARE 홈) — 옛 종류 `announcement`를 되살려 이미지가 있는 첫 노출 행을 쓴다. 링크는 필수다(DB 규칙). */
+export interface HomeStripBanner {
+  id: string;
+  title: string;
+  imageUrl: string;
+  href: string;
 }
 
 export interface HomeGoodsBand {
@@ -202,6 +222,10 @@ export interface HomeBenefitTile {
 }
 
 export interface HomeCurationSnapshot {
+  /** NEW ARRIVAL 블록(`new_arrivals`) — 공개 카탈로그 최신 등록 순 자동 선정. 카드가 없으면 비어 있다. */
+  newArrivals?: HomeGoodsCard[];
+  /** 홈 스트립 배너(`strip_banner`) — 이미지가 있는 첫 `announcement` 행. 없으면 null 또는 생략. */
+  stripBanner?: HomeStripBanner | null;
   shoppingStories?: PublicShoppingStorySummary[];
   storiesNextChangeAt?: string | null;
   shoppingStoriesUnavailable?: boolean;
@@ -225,6 +249,8 @@ export const HOME_GOODS_BAND_LIMIT = 4;
 export const HOME_BEST_TAB_GOODS_LIMIT = 12;
 export const HOME_LATEST_GOODS_MIN = 3;
 export const HOME_LATEST_GOODS_MAX = 10;
+/** 홈 NEW ARRIVAL(5열 × 2줄)이 보여 주는 최신 상품 수. */
+export const HOME_NEW_ARRIVALS_COUNT = 10;
 
 export type HomeGoodsSelection =
   | { mode: 'manual'; goodIds: string[] }
@@ -266,7 +292,7 @@ export function resolveHomeGoodsCards(
   limit: number,
 ): HomeGoodsCard[] {
   const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
-  const brandByIpId = new Map(catalog.ips.map((ip) => [ip.id, ip.title]));
+  const ipById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
   const seen = new Set<string>();
   const cards: HomeGoodsCard[] = [];
 
@@ -275,16 +301,19 @@ export function resolveHomeGoodsCards(
     seen.add(id);
     const good = goodsById.get(id);
     if (!good) continue;
+    const ip = ipById.get(good.ip);
     cards.push({
       id: good.id,
       name: good.name,
-      brand: brandByIpId.get(good.ip) ?? null,
+      brand: ip?.title ?? null,
       price: good.price,
       priceMax: good.priceMax,
       badge: good.badge ?? null,
       imageBg: good.img,
       href: `/shop/${good.id}`,
       soldOut: good.stock === 'soldout',
+      chips: productCardChips(good),
+      ipHref: ip ? publicIpHref({ id: ip.id, publicSlug: ip.publicSlug }) : null,
       ...(good.salePeriod ? { salePeriod: good.salePeriod } : {}),
       ...(catalog.reviewSummaries?.[good.id] ? { reviewSummary: catalog.reviewSummaries[good.id] } : {}),
     });

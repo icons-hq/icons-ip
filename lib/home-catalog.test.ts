@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
-import type { Card, FandomEvent, Good, Ip, Vertical } from './data';
+import type { Card, FandomEvent, Good, GoodOption, Ip, Vertical } from './data';
+import type { GoodsVariantSupply } from './goods-preorders';
 import {
   benefitTileIcon,
   buildHomeIpWorld,
   getHomeSelectableIps,
+  HOME_NEW_ARRIVALS_COUNT,
   isCommunityDestination,
   MAX_HOME_PICKER_IPS,
   prioritizeHomePostPreviews,
@@ -98,6 +100,56 @@ describe('automatic home goods selection', () => {
     expect(resolveHomeLatestGoodsCards({ ...catalog, goods: goods.filter((row) => row.id !== 'new-a') }, 3).map((row) => row.id)).toEqual(['new-b', 'older']);
     expect(resolveHomeLatestGoodsCards(catalog, 11)).toEqual([]);
     expect(goods[0].id).toBe('older');
+  });
+
+  it('serves the NEW ARRIVAL count as the newest ten and keeps the latest-count range', () => {
+    expect(HOME_NEW_ARRIVALS_COUNT).toBe(10);
+    const goods = Array.from({ length: 12 }, (_, index) => ({
+      ...good(`g${String(index).padStart(2, '0')}`, 'brand'),
+      createdAt: new Date(Date.UTC(2026, 9, index + 1)).toISOString(),
+    }));
+    const cards = resolveHomeLatestGoodsCards({ ips: [ip('brand')], goods }, HOME_NEW_ARRIVALS_COUNT);
+    expect(cards.map((row) => row.id)).toEqual(['g11', 'g10', 'g09', 'g08', 'g07', 'g06', 'g05', 'g04', 'g03', 'g02']);
+  });
+});
+
+describe('home goods card chips and IP address', () => {
+  const randomOption: GoodOption = { id: 'rand', name: '랜덤', code: 'R', price: 4000, stockQty: 5, isDefault: true, attributes: {} };
+  const openSupply: GoodsVariantSupply = {
+    mode: 'preorder', availableQty: 3, policyId: '11111111-1111-4111-8111-111111111111', policyRevision: 1, state: 'open',
+    startsAt: '2026-11-10T00:00:00.000Z', endsAt: '2026-12-10T00:00:00.000Z', expectedShipDate: '2026-12-20',
+    calculatedAt: '2026-11-17T00:00:00.000Z', nextChangeAt: '2026-12-10T00:00:00.000Z',
+  };
+  const preorderOption: GoodOption = { ...randomOption, id: 'pre', name: '예약', supply: openSupply };
+
+  it('fills chips from the catalog projection in the shared order and keeps the operator badge as a tag chip', () => {
+    const goods: Good[] = [
+      { ...good('plain', 'brand') },
+      { ...good('free', 'brand'), shippingFeeType: 'free', badge: 'NEW' },
+      { ...good('capsule', 'brand'), optionSaleMode: 'random', options: [randomOption] },
+      { ...good('pre', 'brand'), shippingFeeType: 'free', options: [preorderOption], optionSaleMode: 'random' },
+    ];
+    const cards = resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 10);
+    expect(cards.map((row) => row.chips)).toEqual([
+      [],
+      [{ kind: 'freeShipping', label: '무료배송' }, { kind: 'tag', label: 'NEW' }],
+      [{ kind: 'random', label: '캡슐토이' }],
+      [{ kind: 'preorder', label: '예약판매' }, { kind: 'freeShipping', label: '무료배송' }, { kind: 'random', label: '캡슐토이' }],
+    ]);
+    expect(cards[1].badge).toBe('NEW');
+  });
+
+  it('never shows a chip for a projection without shipping data (old rows) and keeps the policy fee silent', () => {
+    const goods = [{ ...good('old', 'brand') }, { ...good('policy', 'brand'), shippingFeeType: 'policy' as const }, { ...good('own', 'brand'), shippingFeeType: 'individual' as const }];
+    expect(resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 5).map((row) => row.chips)).toEqual([[], [], []]);
+  });
+
+  it('adds the public IP address, preferring the public slug and encoding the internal id otherwise', () => {
+    const goods = [good('a', 'with-slug'), good('b', 'legacy ip'), good('c', 'unlisted')];
+    const ips = [{ ...ip('with-slug'), publicSlug: 'hongsil-quest' }, ip('legacy ip')];
+    const cards = resolveHomeGoodsCards({ ips, goods }, ['a', 'b', 'c'], 5);
+    expect(cards.map((row) => row.ipHref)).toEqual(['/ip/hongsil-quest', '/ip/legacy%20ip', null]);
+    expect(cards[2].brand).toBeNull();
   });
 });
 
@@ -396,5 +448,28 @@ describe('커뮤니티 목적지 큐레이션 필터', () => {
     expect(filtered.heroSlides.map((slide) => slide.href)).toEqual(['/shop']);
     expect(filtered.editorPicks.map((pick) => pick.href)).toEqual(['/events']);
     expect(filtered.goodsBands.map((band) => band.href)).toEqual(['/shop/new']);
+  });
+});
+
+describe('홈 스트립 배너 게이트', () => {
+  const base = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] };
+  const strip = (href: string) => ({ id: 's1', title: '스트립', imageUrl: 'https://cdn.example/strip.webp', href });
+
+  it('카드 리워드·커뮤니티 목적지 스트립은 null로 걷어내고 나머지는 그대로 둔다', () => {
+    const reward: HomeCurationSnapshot = { ...base, stripBanner: strip('/packs/season-1') };
+    const community: HomeCurationSnapshot = { ...base, stripBanner: strip('/community?tag=notice') };
+    const open: HomeCurationSnapshot = { ...base, stripBanner: strip('/events/summer') };
+    expect(withoutCardRewardCurations(reward).stripBanner).toBeNull();
+    expect(withoutCardRewardCurations(community).stripBanner).toEqual(community.stripBanner);
+    expect(withoutCommunityCurations(community).stripBanner).toBeNull();
+    expect(withoutCommunityCurations(reward).stripBanner).toEqual(reward.stripBanner);
+    expect(withoutCommunityCurations(withoutCardRewardCurations(open)).stripBanner).toEqual(open.stripBanner);
+    expect(withoutCardRewardCurations({ ...base, stripBanner: strip('http://[') }).stripBanner).toBeNull();
+  });
+
+  it('스트립이 없는 스냅샷에는 키를 만들지 않는다', () => {
+    expect(withoutCardRewardCurations(base)).not.toHaveProperty('stripBanner');
+    expect(withoutCommunityCurations(base)).not.toHaveProperty('stripBanner');
+    expect(withoutCommunityCurations({ ...base, stripBanner: null }).stripBanner).toBeNull();
   });
 });

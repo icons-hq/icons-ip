@@ -206,6 +206,8 @@ const storefront = [
   script('home_banner_style_archive_concurrency.sh', 'HOME_BANNER_ARCHIVE_TEST_SCOPE'),
   sql('home_free_product_collections', { admin: true, kc: true }),
   script('home_free_product_collections_concurrency.sh', 'HOME_FREE_PRODUCTS_TEST_SCOPE'),
+  // X SQUARE 홈(ADR-0043): 새 고정 블록 2개·그리드형(5열) 상품 모음·기존 저장 레이아웃 이행. 상품 모음 계약 검사 뒤에 둔다.
+  sql('home_xsquare_blocks', { admin: true, kc: true }),
   sql('customer_marketing_consents'),
   sql('member_phone_verification'),
   sql('customer_marketing_consent_kakao'),
