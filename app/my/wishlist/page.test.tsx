@@ -174,7 +174,9 @@ describe('/my/wishlist page', () => {
     expect(html).toContain('wc-product-card__brand">홍실');
     expect(html).toContain('href="/shop/g13"');
     expect(html).toContain('₩12,000');
-    expect(html).toContain('₩16,000');
+    /* X SQUARE 카드는 취소선 정가 대신 할인율을 판매가 앞에 둔다(공용 부품 계약 §3, PriceBlock variant="inline"). */
+    expect(html).toContain('wc-price__rate">25%');
+    expect(html).not.toContain('₩16,000');
     expect(html).toContain('aria-label="홍실 아크릴 블록 위시리스트에서 빼기"');
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('총 <strong>1</strong>개');
