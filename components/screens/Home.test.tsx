@@ -2,10 +2,16 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { HomeCurationSnapshot, HomeGoodsCard } from '@/lib/home-catalog';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
+import { DEFAULT_STORE_PRESENTATION } from '@/lib/store-presentation';
+import { StorePresentationProvider } from '@/components/shell/StorePresentationProvider';
 import { Home } from './Home';
 
+const refresh = vi.hoisted(() => ({ goods: [] as readonly { salePeriod?: unknown }[] }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
+vi.mock('@/components/shop/GoodsSalePeriodRefresh', () => ({
+  GoodsSalePeriodRefresh: ({ goods }: { goods: readonly { salePeriod?: unknown }[] }) => { refresh.goods = goods; return null; },
+}));
 
 const emptyCuration: HomeCurationSnapshot = {
   hero: null,
@@ -78,7 +84,7 @@ describe('home sale-period state', () => {
   it('retains scheduled goods in tab cards and compact rows without a sold-out label', () => {
     const item = good('scheduled', { soldOut: true, salePeriod: { state: 'scheduled', startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' } });
     const html = renderToStaticMarkup(<Home cardRewardsEnabled curation={{ ...emptyCuration, categoryBestTabs: [{ id: 'one', label: '추천', goods: [item] }], goodsBands: [{ id: 'band', title: '선별 굿즈', subcopy: null, imageUrl: '/band.png', href: '/shop', goods: [item] }] }} refreshScheduledContent={false} />);
-    expect(html).toContain('href="/shop/scheduled"'); expect(html).toContain('<span class="wc-band__row-soldout">판매 시작 전</span>'); expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('품절');
+    expect(html).toContain('href="/shop/scheduled"'); expect(html).toContain('<span class="wc-x-pick__unavailable">판매 시작 전</span>'); expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('품절');
   });
 });
 
@@ -116,9 +122,9 @@ describe('Home empty curation', () => {
   });
   it('renders configured global order without reviving hidden or missing sections', () => {
     const html = render({ ...fullCuration, layoutOrder: ['popular', 'band:b1', 'hero'] });
-    expect(html.indexOf('home-popular-heading')).toBeLessThan(html.indexOf('home-band-b1-heading'));
-    expect(html.indexOf('home-band-b1-heading')).toBeLessThan(html.indexOf('대표 큐레이션'));
-    expect(html).not.toContain('home-picks-heading');
+    expect(html.indexOf('home-popular-heading')).toBeLessThan(html.indexOf('home-icons-pick-b1-heading'));
+    expect(html.indexOf('home-icons-pick-b1-heading')).toBeLessThan(html.indexOf('대표 큐레이션'));
+    expect(html).not.toContain('home-ip-shortcuts-heading');
     expect(html).not.toContain('home-best-heading');
     expect(html).not.toContain('home-benefit-heading');
   });
@@ -215,17 +221,18 @@ describe('Home bands', () => {
     expect(render({ ...fullCuration, heroSlides: [] })).not.toContain('aria-label="대표 큐레이션"');
   });
 
-  it('renders the editor picks band as content cards', () => {
+  /* 추천 콘텐츠(editor_pick) 행은 Figma 'IP 바로가기' 줄로 그린다 — 배지 = IP 이름(작은 줄), 제목 = 아래 줄 문구, 설명은 그리지 않는다. */
+  it('renders the editor picks as an IP shortcut row with the badge as the small IP-name line', () => {
     const html = render(fullCuration);
 
-    expect(html).toContain('class="wc-home__band wc-home__band--picks"');
-    expect(html).toContain('id="home-picks-heading"');
-    expect(html).toContain('에디터의 제안');
-    expect(html).toContain('aria-label="에디터의 제안 콘텐츠"');
-    expect(html).toContain('wc-slider wc-picks');
-    expect(html).toContain('wc-content-card');
-    expect(html).toContain('주간 픽');
-    expect(render({ ...fullCuration, editorPicks: [] })).not.toContain('home-picks-heading');
+    expect(html).toContain('aria-labelledby="home-ip-shortcuts-heading"');
+    expect(html).toContain('<h2 class="wc-sr-only" id="home-ip-shortcuts-heading">IP 바로가기</h2>');
+    expect(html).toContain('class="wc-ip-shortcuts__item" href="/events/pick"');
+    expect(html).toContain('<span class="wc-ip-shortcuts__ip">NEW</span>');
+    expect(html).toContain('<span class="wc-ip-shortcuts__title">주간 픽</span>');
+    expect(html).not.toContain('이번 주 큐레이션');
+    expect(html).not.toContain('wc-content-card');
+    expect(render({ ...fullCuration, editorPicks: [] })).not.toContain('home-ip-shortcuts-heading');
   });
 
   it('renders the category BEST band as a tabbed product slider', () => {
@@ -269,61 +276,84 @@ describe('Home bands', () => {
     expect(render({ ...fullCuration, popularTabs: [] })).not.toContain('home-popular-heading');
   });
 
-  it('renders one banner-plus-list band per curated goods band', () => {
-    const html = render(fullCuration);
+  /* 기획전 배너(band_banner) 행은 한 장이 ICONS PICK 카드 한 장이다 — 배너 이미지 + 제목(h3) 프로모션 카드 아래 상품 앞 2개. 부제는 그리지 않는다. */
+  it('renders each curated goods band as an ICONS PICK promo card with its first two products', () => {
+    const html = render({ ...fullCuration, goodsBands: [{ ...fullCuration.goodsBands[0], goods: [good('p1'), good('p2'), good('p3')] }] });
 
-    expect(html).toContain('id="home-band-b1-heading"');
-    expect(html).toContain('주간 기획전');
-    expect(html).toContain('쿠폰 중복 적용');
-    /* 배너 카피는 아트웍에 베이크돼 있어 alt 로 옮길 텍스트가 없다 — 이름은 링크가 갖는다. */
-    expect(html).toContain('aria-label="주간 기획전 기획전 보기"');
-    expect(html).toContain('src="https://cdn.example/band-1.webp"');
-    expect(html).toContain('기획전 전체보기');
-    expect(render({ ...fullCuration, goodsBands: [] })).not.toContain('wc-band__layout');
+    expect(html).toContain('id="home-icons-pick-b1-heading"');
+    expect(html).toContain('>ICONS PICK</h2>');
+    expect(html).toContain('<a class="wc-promo-card wc-x-pick__promo" href="/shop?collection=weekly">');
+    expect(html).toContain('<h3 class="wc-promo-card__title">주간 기획전</h3>');
+    expect(html).toContain('background:url(&quot;https://cdn.example/band-1.webp&quot;) center / cover no-repeat');
+    expect(html).not.toContain('쿠폰 중복 적용');
+    expect(html).not.toContain('기획전 전체보기');
+    expect((html.match(/class="wc-x-pick__row"/g) ?? []).length).toBe(2);
+    expect(html).toContain('href="/shop/p1"');
+    expect(html).toContain('href="/shop/p2"');
+    expect(html).not.toContain('href="/shop/p3"');
+    expect(render({ ...fullCuration, goodsBands: [] })).not.toContain('wc-x-pick');
   });
 
-  /* 리스트 행에는 품절 스크림 밴드를 겹칠 자리가 없다. 가격 옆 라벨이 시각·보조기술 양쪽에 그 상태를 전한다. */
+  /* 순서상 연달아 놓인 기획전은 한 'ICONS PICK' 섹션(한 줄)으로 묶이고, 사이에 다른 블록이 끼면 갈라져 각자 섹션이 된다. */
+  it('groups consecutive bands into one ICONS PICK section and splits them around other blocks', () => {
+    const goodsBands = ['b1', 'b2', 'b3'].map((id) => ({ ...fullCuration.goodsBands[0], id, title: `기획전 ${id}`, goods: [good(`${id}-g`)] }));
+    const grouped = render({ ...fullCuration, goodsBands, layoutOrder: ['band:b1', 'band:b2', 'band:b3', 'popular'] });
+
+    expect((grouped.match(/>ICONS PICK<\/h2>/g) ?? []).length).toBe(1);
+    expect((grouped.match(/class="wc-x-pick"/g) ?? []).length).toBe(3);
+    expect(grouped.indexOf('기획전 b1')).toBeLessThan(grouped.indexOf('기획전 b2'));
+    expect(grouped.indexOf('기획전 b3')).toBeLessThan(grouped.indexOf('home-popular-heading'));
+
+    const split = render({ ...fullCuration, goodsBands, layoutOrder: ['band:b1', 'popular', 'band:b2', 'band:b3'] });
+    expect((split.match(/>ICONS PICK<\/h2>/g) ?? []).length).toBe(2);
+    expect(split).toContain('id="home-icons-pick-b1-heading"');
+    expect(split).toContain('id="home-icons-pick-b2-heading"');
+    expect(split.indexOf('home-icons-pick-b1-heading')).toBeLessThan(split.indexOf('home-popular-heading'));
+    expect(split.indexOf('home-popular-heading')).toBeLessThan(split.indexOf('home-icons-pick-b2-heading'));
+    expect(render({ ...fullCuration, goodsBands, layoutOrder: ['band:b2'] })).toContain('id="home-icons-pick-b2-heading"');
+  });
+
+  /* 상품 행에는 품절 스크림 밴드를 겹칠 자리가 없다. 가격 옆 글이 시각·보조기술 양쪽에 그 상태를 전한다. */
   it('shows the brand only when present and labels sold-out rows next to the price', () => {
     const html = render(fullCuration);
 
-    const rows = [...html.matchAll(/<a\b[^>]*wc-band__row[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0]);
+    const rows = [...html.matchAll(/<a\b[^>]*wc-x-pick__link[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0]);
     expect(rows).toHaveLength(2);
 
-    expect(rows[0]).toContain('<p class="wc-band__row-brand">ICONS</p>');
+    expect(rows[0]).toContain('<span class="wc-x-pick__brand">ICONS</span>');
     expect(rows[0]).toContain('₩29,000');
-    expect(rows[0]).not.toContain('wc-band__row-soldout');
+    expect(rows[0]).not.toContain('wc-x-pick__unavailable');
 
-    expect(rows[1]).not.toContain('wc-band__row-brand');
-    expect(rows[1]).toContain('<span class="wc-band__row-soldout">품절</span>');
+    expect(rows[1]).not.toContain('wc-x-pick__brand');
+    expect(rows[1]).toContain('<span class="wc-x-pick__unavailable">품절</span>');
   });
 
   /* HM-03: 행 = [링크(썸네일·글) | 하트]. 하트는 링크의 형제라 버튼이 링크 안에 들지 않는다. */
-  it('puts a listing heart beside each band row link, never inside it', () => {
+  it('puts a listing heart beside each ICONS PICK row link, never inside it', () => {
     const html = render(fullCuration, true, { viewerId: 'viewer-1', goodIds: ['g7'] });
-    const rows = [...html.matchAll(/<div class="wc-band__row">([\s\S]*?)<\/button><\/div>/g)].map((match) => match[1]);
+    const rows = [...html.matchAll(/<li class="wc-x-pick__row">([\s\S]*?)<\/button><\/li>/g)].map((match) => match[1]);
 
     expect(rows).toHaveLength(2);
     for (const row of rows) {
-      const link = row.match(/<a\b[^>]*class="wc-band__row-link"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
+      const link = row.match(/<a\b[^>]*class="wc-x-pick__link"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
       expect(link).not.toContain('<button');
-      expect(row).toMatch(/<button[^>]*class="wc-list-heart[^"]* wc-band__heart"/);
+      expect(row).toMatch(/<button[^>]*class="wc-list-heart[^"]* wc-x-pick__heart"/);
     }
     expect(rows[1]).toContain('aria-label="굿즈 g7 위시리스트에서 빼기"');
   });
 
-  /* CL-02·HM-03: 홈 카드와 리스트 행도 같은 공개 리뷰 요약으로 별점을 보인다. */
-  it('shows ratings on home cards and band rows from the review summaries', () => {
+  /* CL-02: 홈 카드는 공개 리뷰 요약으로 별점을 보인다. ICONS PICK 행은 Figma 모양(IP명·이름·가격)이라 별점 줄이 없다. */
+  it('shows ratings on home cards from the review summaries but not on ICONS PICK rows', () => {
     const html = render({
       ...fullCuration,
       categoryBestTabs: [{ id: 'keyring', label: '키링', goods: [good('g1', { reviewSummary: { count: 4, average: 4.5 } }), good('g2')] }],
       goodsBands: [{ ...fullCuration.goodsBands[0], goods: [good('g6', { reviewSummary: { count: 2, average: 3 } })] }],
     });
-    const row = html.match(/<div class="wc-band__row">[\s\S]*?<\/a>/)?.[0] ?? '';
 
     expect((html.match(/class="wc-product-card__rating"/g) ?? []).length).toBe(1);
     expect(html).toContain('평점 5점 만점에 4.5점, 리뷰 4개');
-    expect(row).toContain('<p class="wc-band__row-rating">');
-    expect(row).toContain('평점 5점 만점에 3.0점, 리뷰 2개');
+    expect(html).not.toContain('평점 5점 만점에 3.0점, 리뷰 2개');
+    expect(html).not.toContain('wc-band__row-rating');
   });
 
   it('puts hearts on every home product card and row only when the wish set is passed', () => {
@@ -335,16 +365,15 @@ describe('Home bands', () => {
     expect(hearts(render(fullCuration))).toHaveLength(0);
   });
 
-  /* 상품이 하나도 없는 기획전은 배너와 전체보기만 남는다 — 빈 리스트 칼럼을 그리지 않는다. */
-  it('keeps only the banner when a goods band has no products', () => {
+  /* 상품이 하나도 없는 기획전은 프로모션 카드만 남는다 — 빈 상품 목록을 그리지 않는다. */
+  it('keeps only the promo card when a goods band has no products', () => {
     const html = render({
       ...fullCuration,
       goodsBands: [{ ...fullCuration.goodsBands[0], goods: [] }],
     });
 
-    expect(html).toContain('wc-band__banner');
-    expect(html).toContain('기획전 전체보기');
-    expect(html).not.toContain('wc-band__list');
+    expect(html).toContain('wc-promo-card');
+    expect(html).not.toContain('wc-x-pick__goods');
   });
 
   /* 혜택 밴드 제목은 목적지와 무관한 '혜택'이다 — 카드팩·게임 밖의 혜택 타일도 담기 때문이다(12 LD-15). */
@@ -463,15 +492,21 @@ describe('Home bands', () => {
 });
 
 describe('Home band order', () => {
-  /* 밴드 순서는 R-스펙 02 §0 이 정본이다. 조건부 렌더를 옮기다 보면 조용히 뒤집힌다. */
-  it('keeps the reproduction-spec band order', () => {
-    const html = render(fullCuration);
+  /* 저장 레이아웃이 없을 때의 기본 순서(X SQUARE 홈, `defaultHomeBlockKeys`): 히어로 → IP 바로가기 → NEW ARRIVAL → 스트립 → IP 상품 섹션 →
+     ICONS PICK(기획전) → 카테고리 BEST → 인기템 → 혜택. 조건부 렌더를 옮기다 보면 조용히 뒤집힌다. */
+  it('keeps the X SQUARE default band order', () => {
+    const html = render({ ...fullCuration,
+      newArrivals: [good('n1')], stripBanner: { id: 'strip', title: '겨울 MD 출시', imageUrl: 'https://cdn.example/strip.webp', href: '/events/winter' },
+      productCollections: [{ id: 'free', title: 'IP 상품', layout: 'grid', imageShape: 'square', goods: [good('free-good')], moreHref: null }] });
 
     const positions = [
       'aria-label="대표 큐레이션"',
-      'home-picks-heading',
+      'home-ip-shortcuts-heading',
+      'home-new-arrivals-heading',
+      'wc-strip-banner',
+      'home-products-free-heading',
+      'home-icons-pick-b1-heading',
       'home-best-heading',
-      'home-band-b1-heading',
       'home-popular-heading',
       'home-benefit-heading',
     ].map((marker) => html.indexOf(marker));
@@ -484,14 +519,111 @@ describe('Home band order', () => {
     const html = render(fullCuration);
 
     for (const id of [
-      'home-picks-heading',
+      'home-ip-shortcuts-heading',
+      'home-icons-pick-b1-heading',
       'home-best-heading',
-      'home-band-b1-heading',
       'home-popular-heading',
       'home-benefit-heading',
     ]) {
       expect(html).toContain(`aria-labelledby="${id}"`);
       expect(html).toContain(`id="${id}"`);
     }
+  });
+});
+
+/* X SQUARE 홈(ADR-0043)이 더한 블록: NEW ARRIVAL · 스트립 배너 · 그리드형 IP 상품 섹션 · 칩. */
+describe('Home X SQUARE blocks', () => {
+  const chipped = (id: string, overrides: Partial<HomeGoodsCard> = {}) => good(id, { chips: [
+    { kind: 'preorder', label: '예약판매' }, { kind: 'tag', label: 'NEW' }], ...overrides });
+
+  it('draws NEW ARRIVAL as a 5-column home grid with the 전체보기 pill to the NEW list', () => {
+    const html = render({ ...emptyCuration, newArrivals: [chipped('n1'), chipped('n2')] });
+
+    expect(html).toContain('aria-labelledby="home-new-arrivals-heading"');
+    expect(html).toContain('<h2 class="wc-x-sechead__title" id="home-new-arrivals-heading">NEW ARRIVAL</h2>');
+    expect(html).toContain('aria-label="NEW ARRIVAL 전체보기" class="wc-x-pill" href="/shop/new"');
+    expect(html).toContain('<ul class="wc-x-grid" data-density="home">');
+    expect((html.match(/<li><article class="wc-product-card"/g) ?? []).length).toBe(2);
+    expect(html).toContain('class="wc-container wc-container--wide"');
+    /* 서버가 채운 칩을 그대로 그린다 — 옛 badges 표기는 쓰지 않는다. */
+    expect(html).toContain('<span class="wc-x-chip wc-x-chip--preorder">예약판매</span>');
+    expect(html).toContain('<span class="wc-x-chip wc-x-chip--tag">NEW</span>');
+  });
+
+  it('draws no NEW ARRIVAL block for an absent or empty list', () => {
+    expect(render({ ...emptyCuration, newArrivals: [] })).toContain('홈을 준비하고 있어요');
+    expect(render({ ...emptyCuration })).not.toContain('home-new-arrivals-heading');
+  });
+
+  /* 칩의 운영 배지('tag')는 스토어 표시 설정(listing.showTags)이 끄면 홈에서도 빠진다. 예약판매 같은 판매 상태 칩은 남는다. */
+  it('drops the operator tag chips when the store presentation hides tags, keeping the sale-state chips', () => {
+    const curation = { ...emptyCuration, newArrivals: [chipped('n1')] };
+    const hidden = renderToStaticMarkup(
+      <StorePresentationProvider value={{ ...DEFAULT_STORE_PRESENTATION, listing: { ...DEFAULT_STORE_PRESENTATION.listing, showTags: false } }}>
+        <Home cardRewardsEnabled curation={curation} />
+      </StorePresentationProvider>,
+    );
+
+    expect(hidden).not.toContain('wc-x-chip--tag');
+    expect(hidden).toContain('wc-x-chip--preorder');
+    expect(render(curation)).toContain('wc-x-chip--tag');
+  });
+
+  /* 칩이 없는 옛 투영(어드민 미리보기·목업)은 저장 배지 하나를 tag 칩으로 대신하고, 'SALE' 같은 파생 표기는 만들지 않는다. */
+  it('falls back to the stored badge as a tag chip when a card carries no chips', () => {
+    const html = render({ ...emptyCuration, newArrivals: [good('legacy', { badge: 'EXCLUSIVE' })] });
+
+    expect(html).toContain('<span class="wc-x-chip wc-x-chip--tag">EXCLUSIVE</span>');
+  });
+
+  it('draws the strip banner (home size, image link) only when it has a destination the gates allow', () => {
+    const stripBanner = { id: 'strip', title: '홍실퀘스트 겨울 MD 출시', imageUrl: 'https://cdn.example/strip.webp', href: '/events/winter' };
+    const html = render({ ...emptyCuration, stripBanner });
+
+    expect(html).toContain('<div class="wc-strip-banner" data-size="home">');
+    expect(html).toContain('<a class="wc-strip-banner__link" href="/events/winter">');
+    expect(html).toContain('alt="홍실퀘스트 겨울 MD 출시"');
+    expect(html).toContain('src="https://cdn.example/strip.webp"');
+    expect(render({ ...emptyCuration, stripBanner: null })).not.toContain('wc-strip-banner');
+    /* 카드 리워드 게이트가 꺼지면 카드팩으로 가는 스트립은 걸러진다. */
+    expect(render({ ...emptyCuration, stripBanner: { ...stripBanner, href: '/packs' } }, false)).not.toContain('wc-strip-banner');
+    expect(render({ ...emptyCuration, stripBanner: { ...stripBanner, href: '/packs' } }, true)).toContain('wc-strip-banner');
+  });
+
+  it('draws a grid collection as a section header + home grid, with the pill only for a single-IP selection', () => {
+    const band = { id: 'maple', title: '메이플스토리', layout: 'grid' as const, imageShape: 'square' as const, goods: [chipped('m1'), chipped('m2')], moreHref: '/ip/maple' };
+    const html = render({ ...emptyCuration, productCollections: [band] });
+
+    expect(html).toContain('aria-labelledby="home-products-maple-heading"');
+    expect(html).toContain('data-layout="grid" data-image-shape="square"');
+    expect(html).toContain('<h2 class="wc-x-sechead__title" id="home-products-maple-heading">메이플스토리</h2>');
+    expect(html).toContain('aria-label="메이플스토리 전체보기" class="wc-x-pill" href="/ip/maple"');
+    expect(html).toContain('<ul class="wc-x-grid" data-density="home">');
+    expect(html).toContain('wc-x-chip--preorder');
+    expect(html).not.toContain('wc-product-collection');
+    expect(render({ ...emptyCuration, productCollections: [{ ...band, moreHref: null }] })).not.toContain('wc-x-pill');
+    expect(render({ ...emptyCuration, productCollections: [{ ...band, moreHref: undefined }] })).not.toContain('wc-x-pill');
+  });
+
+  it('keeps the list and full-image collections on their own markup', () => {
+    const list = { id: 'list', title: '리스트', layout: 'list' as const, imageShape: 'square' as const, goods: [good('l1')] };
+    const html = render({ ...emptyCuration, productCollections: [list] });
+
+    expect(html).toContain('wc-product-collection__grid');
+    expect(html).not.toContain('wc-x-grid');
+  });
+
+  it('puts the hero inside the wide container as a self-contained carousel block', () => {
+    const html = render(fullCuration);
+
+    expect(html).toContain('<div class="wc-home__hero wc-container wc-container--wide"><section aria-label="대표 큐레이션"');
+  });
+
+  /* 판매 기간 경계에서 홈을 새로 읽는 갱신 대상에 NEW ARRIVAL 카드도 들어간다. */
+  it('hands the NEW ARRIVAL cards to the sale-period refresh boundary', () => {
+    const scheduled = good('soon', { salePeriod: { state: 'scheduled', startsAt: '2026-10-14T00:00:00Z', endsAt: null, calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' } });
+    renderToStaticMarkup(<Home cardRewardsEnabled curation={{ ...emptyCuration, newArrivals: [scheduled] }} />);
+
+    expect(refresh.goods).toContain(scheduled);
   });
 });

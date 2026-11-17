@@ -224,12 +224,14 @@ describe('White Catalog home wiring', () => {
     expect(css).toMatch(/\.wc-hero__slide\s*\{[^}]*transition:[^}]*opacity/s);
   });
 
-  it('keeps the hero viewport full-bleed when the desktop height cap applies', () => {
-    /* 너비가 auto면 max-height 770이 aspect-ratio를 타고 너비 상한 1425px로 전이돼,
-     * 넓은 데스크톱에서 히어로가 왼쪽에 붙은 채 잘린다(R-02 §2①은 전폭 × 고정 770). */
+  it('keeps the hero banner box as wide as its wide container, sized by ratio only', () => {
+    /* X SQUARE 히어로는 전폭이 아니라 넓은 컨테이너(1272) 안쪽 배치다. 폭을 100% 로 확정해 두고 높이는 비율(1272/540)만 정한다 —
+     * 예전 고정 상한(770px)이 비율을 타고 너비로 전이돼 넓은 화면에서 한쪽으로 잘리던 문제를 되풀이하지 않게 상한 높이를 두지 않는다. */
     const css = read('./styles/wc-home.css');
 
     expect(css).toMatch(/\.wc-hero__viewport\s*\{[^}]*width:\s*100%/s);
+    expect(css).toMatch(/\.wc-hero__viewport\s*\{[^}]*aspect-ratio:\s*1272 \/ 540/s);
+    expect(css).not.toMatch(/\.wc-hero__viewport\s*\{[^}]*max-height/s);
   });
 });
 

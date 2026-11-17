@@ -9,7 +9,7 @@ export interface HeroCarouselProps {
   className?: string;
 }
 
-/** R-스펙 02 §2 ① — 전환 1s(CSS), 자동 넘김 5s. */
+/** 전환 1s(CSS), 자동 넘김 5s. */
 export const HERO_AUTOPLAY_MS = 5000;
 
 export interface HeroPlaybackState {
@@ -25,8 +25,9 @@ export interface HeroPlaybackState {
  * 자동재생을 막을 이유는 다섯 가지고 전부 서로 독립이다. 조건을 effect 안에 흩어두면
  * 하나를 고칠 때 나머지가 조용히 빠지므로, "막을 이유가 하나도 없을 때만 돈다"를
  * 이 함수 한 곳에 모은다. DOM 없이도 검증 가능한 지점이기도 하다.
- * 사용자 조작에 의한 정지는 별도 플래그가 아니라 paused 로 표현한다 — 정지 버튼의
- * aria-pressed·라벨이 실제 재생 상태와 어긋나지 않고, 같은 버튼으로 재개할 수 있다.
+ * `paused` 는 정지 버튼으로만 바뀐다 — 정지 버튼의 aria-pressed·라벨이 실제 재생 상태와
+ * 어긋나지 않고, 같은 버튼으로 재개할 수 있다. 화살표·진행 막대로 장을 옮기는 것은
+ * 정지가 아니다(MD 요청: 메인 배너는 일정 시간 뒤 자동으로 넘어간다 — 직접 넘겨 본 뒤에도 계속).
  */
 export function isHeroPlaying(state: HeroPlaybackState) {
   return (
@@ -44,8 +45,28 @@ export function nextHeroIndex(current: number, slideCount: number) {
   return slideCount > 0 ? (current + 1) % slideCount : 0;
 }
 
-const CHEVRON_PREV = 'M6.5 1 1.5 6.5 6.5 12';
-const CHEVRON_NEXT = 'M1.5 1 6.5 6.5 1.5 12';
+/** 어느 방향으로 옮기든 인덱스는 0..slideCount-1 안으로 감긴다. */
+export function wrapHeroIndex(index: number, slideCount: number) {
+  return slideCount > 0 ? ((index % slideCount) + slideCount) % slideCount : 0;
+}
+
+/*
+ * 포커스가 히어로 안에 있다는 이유로 자동재생을 멈추는 것은 키보드 포커스일 때만이다. 마우스로 화살표를 누르면
+ * 브라우저가 그 버튼에 포커스를 주지만(키보드 포커스 링이 뜨지 않는 :focus-visible 아님) 그것은 "읽는 중"이 아니라
+ * 방금 누른 흔적이라, 이걸로 멈추면 직접 한 번 넘겨 본 배너가 다시 안 넘어간다. 판정을 못 하는 환경이면 멈추는 쪽이 안전하다.
+ */
+export function isHeroKeyboardFocus(target: { matches(selector: string): boolean } | null) {
+  if (!target) return false;
+  try {
+    return target.matches(':focus-visible');
+  } catch {
+    return true;
+  }
+}
+
+/* Figma 원본 화살표(refs/figma/assets/icon-arrow-prev·next.svg) 경로. 선은 currentColor, 색은 CSS(--wc-x-control). */
+const ARROW_PREV = 'M19.5 10L12.5 16L19.5 22';
+const ARROW_NEXT = 'M12 22L19 16L12 10';
 
 /*
  * 전환은 전부 CSS(opacity)가 한다. JS 는 어느 인덱스가 활성인지만 바꾼다 —
@@ -53,6 +74,9 @@ const CHEVRON_NEXT = 'M1.5 1 6.5 6.5 1.5 12';
  *
  * 비활성 슬라이드는 화면에서 사라져도 DOM 에 남아 있어, aria-hidden 과 tabIndex -1 을
  * 같이 걸지 않으면 스크린리더 순회와 탭 순서에 보이지 않는 링크가 슬라이드 수만큼 쌓인다.
+ *
+ * 구조(X SQUARE Figma Main Page): 안쪽 배치된 배너 상자(.wc-hero__viewport) 아래에 조작 줄(.wc-hero__nav)이 따로 선다 —
+ * 진행 막대(전체 폭 중 현재 칸이 슬라이드 수만큼 나뉜 길이로 움직인다) + 일시정지·이전·다음.
  */
 export function HeroCarousel({ className, slides }: HeroCarouselProps) {
   const rootRef = useRef<HTMLElement>(null);
@@ -92,23 +116,24 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
     slideCount,
   });
 
-  useEffect(() => {
-    if (!playing) return;
-    const timer = setInterval(
-      () => setCurrent((index) => nextHeroIndex(index, slideCount)),
-      HERO_AUTOPLAY_MS,
-    );
-    return () => clearInterval(timer);
-  }, [playing, slideCount]);
-
   /* 인덱스가 목록 밖으로 나가면 어떤 슬라이드도 활성이 아닌 빈 히어로가 남는다. */
   const activeIndex = current < slideCount ? current : 0;
 
-  /* 장면을 직접 고르면 자동재생을 멈춘다(#325 모션 규율) — 정지 버튼 상태로 멈추므로
-     버튼 라벨이 "재생"으로 바뀌고, 원하면 같은 버튼으로 자동재생을 되살릴 수 있다. */
-  const goTo = (index: number) => {
-    setPaused(true);
-    setCurrent(((index % slideCount) + slideCount) % slideCount);
+  /* 장이 바뀔 때마다(자동이든 직접이든) 5초를 처음부터 센다 — 직접 넘긴 장이 곧바로 다시 넘어가 버리지 않게. */
+  useEffect(() => {
+    if (!playing) return;
+    const timer = setTimeout(
+      () => setCurrent(nextHeroIndex(activeIndex, slideCount)),
+      HERO_AUTOPLAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [playing, slideCount, activeIndex]);
+
+  /* 화살표·진행 막대로 장을 옮겨도 자동재생은 멈추지 않는다(paused 를 건드리지 않는다). 멈춤은 정지 버튼이 맡는다. */
+  const goTo = (index: number) => setCurrent(wrapHeroIndex(index, slideCount));
+
+  const onFocusCapture = (event: FocusEvent<HTMLElement>) => {
+    if (isHeroKeyboardFocus(event.target)) setFocusWithin(true);
   };
 
   const onBlurCapture = (event: FocusEvent<HTMLElement>) => {
@@ -124,11 +149,14 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
       aria-roledescription="carousel"
       className={`wc-hero${className ? ` ${className}` : ''}`}
       onBlurCapture={onBlurCapture}
-      onFocusCapture={() => setFocusWithin(true)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onFocusCapture={onFocusCapture}
     >
-      <div className="wc-hero__viewport">
+      {/* 포인터 정지는 배너 이미지 위에서만이다 — 아래 조작 줄의 화살표를 누른 채 포인터가 그 위에 있어도 자동 넘김이 이어진다. */}
+      <div
+        className="wc-hero__viewport"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
         {slides.map((slide, index) => {
           const active = index === activeIndex;
           const content = <>
@@ -138,10 +166,11 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
             </picture>
             {slide.imageDim === 'white' || slide.imageDim === 'black' ? <span aria-hidden className="wc-hero__dim" data-tone={slide.imageDim} /> : null}
             {!slide.imageDim && (slide.title || slide.subtitle) ? <span aria-hidden className="wc-hero__scrim" /> : null}
+            {/* 화면 순서 = 작은 줄(부제) → 큰 줄(제목). 읽는 순서도 같다. */}
             {slide.title || slide.subtitle ? <>
             <span className="wc-hero__copy">
-              {slide.title ? <strong className="wc-hero__title">{slide.title}</strong> : null}
               {slide.subtitle ? <span className="wc-hero__subtitle">{slide.subtitle}</span> : null}
+              {slide.title ? <strong className="wc-hero__title">{slide.title}</strong> : null}
             </span>
             </> : null}
           </>;
@@ -160,60 +189,72 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
         })}
       </div>
       {hasControls ? (
-        <>
+        <div className="wc-hero__nav">
           <div className="wc-hero__progress">
-            {slides.map((slide, index) => (
-              <button
-                key={slide.id}
-                aria-current={index === activeIndex ? 'true' : undefined}
-                aria-label={`${index + 1}번 슬라이드: ${slide.title || '프로모션 배너'}`}
-                className={`wc-hero__segment${index === activeIndex ? ' is-active' : ''}`}
-                onClick={() => goTo(index)}
-                type="button"
-              />
-            ))}
+            <span aria-hidden className="wc-hero__track" />
+            <span
+              aria-hidden
+              className="wc-hero__thumb"
+              style={{ width: `${100 / slideCount}%`, transform: `translateX(${activeIndex * 100}%)` }}
+            />
+            {/* 장마다 투명 버튼이 막대 위에 겹친다 — 막대는 3px 이지만 히트는 44px 이다. */}
+            <div className="wc-hero__segments">
+              {slides.map((slide, index) => (
+                <button
+                  key={slide.id}
+                  aria-current={index === activeIndex ? 'true' : undefined}
+                  aria-label={`${index + 1}번 슬라이드: ${slide.title || '프로모션 배너'}`}
+                  className={`wc-hero__segment${index === activeIndex ? ' is-active' : ''}`}
+                  onClick={() => goTo(index)}
+                  type="button"
+                />
+              ))}
+            </div>
           </div>
-          <button
-            aria-label="이전 슬라이드"
-            className="wc-hero__arrow wc-hero__arrow--prev"
-            onClick={() => goTo(activeIndex - 1)}
-            type="button"
-          >
-            <svg aria-hidden fill="none" height="39" viewBox="0 0 8 13" width="24">
-              <path d={CHEVRON_PREV} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
-            </svg>
-          </button>
-          <button
-            aria-label="다음 슬라이드"
-            className="wc-hero__arrow wc-hero__arrow--next"
-            onClick={() => goTo(activeIndex + 1)}
-            type="button"
-          >
-            <svg aria-hidden fill="none" height="39" viewBox="0 0 8 13" width="24">
-              <path d={CHEVRON_NEXT} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
-            </svg>
-          </button>
-          {/* 자동으로 움직이는 콘텐츠에는 멈출 수단이 있어야 한다(WCAG 2.2.2). */}
-          <button
-            aria-label={paused ? '자동재생 재생' : '자동재생 일시정지'}
-            aria-pressed={paused}
-            className="wc-hero__pause"
-            onClick={() => setPaused((value) => !value)}
-            type="button"
-          >
-            {paused ? (
-              <svg aria-hidden fill="currentColor" height="14" viewBox="0 0 14 14" width="14">
-                <path d="M3.5 1.5 12 7 3.5 12.5Z" />
+          <div className="wc-hero__controls">
+            {/* 자동으로 움직이는 콘텐츠에는 멈출 수단이 있어야 한다(WCAG 2.2.2). Figma 에는 없는 버튼이라 같은 회색 선 아이콘으로 맞춘다. */}
+            <button
+              aria-label={paused ? '자동재생 재생' : '자동재생 일시정지'}
+              aria-pressed={paused}
+              className="wc-hero__pause"
+              onClick={() => setPaused((value) => !value)}
+              type="button"
+            >
+              {paused ? (
+                <svg aria-hidden fill="currentColor" height="14" viewBox="0 0 14 14" width="14">
+                  <path d="M3.5 1.5 12 7 3.5 12.5Z" />
+                </svg>
+              ) : (
+                <svg aria-hidden fill="currentColor" height="14" viewBox="0 0 14 14" width="14">
+                  <path d="M3 1.5h3v11H3zM8 1.5h3v11H8z" />
+                </svg>
+              )}
+            </button>
+            <button
+              aria-label="이전 슬라이드"
+              className="wc-hero__arrow wc-hero__arrow--prev"
+              onClick={() => goTo(activeIndex - 1)}
+              type="button"
+            >
+              <svg aria-hidden fill="none" height="32" viewBox="0 0 32 32" width="32">
+                <path d={ARROW_PREV} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
               </svg>
-            ) : (
-              <svg aria-hidden fill="currentColor" height="14" viewBox="0 0 14 14" width="14">
-                <path d="M3 1.5h3v11H3zM8 1.5h3v11H8z" />
+            </button>
+            <span aria-hidden className="wc-hero__divider" />
+            <button
+              aria-label="다음 슬라이드"
+              className="wc-hero__arrow wc-hero__arrow--next"
+              onClick={() => goTo(activeIndex + 1)}
+              type="button"
+            >
+              <svg aria-hidden fill="none" height="32" viewBox="0 0 31 32" width="31">
+                <path d={ARROW_NEXT} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
               </svg>
-            )}
-          </button>
+            </button>
+          </div>
           {/* 자동 전환마다 읽어주면 방해가 된다 — 위치는 조회할 때만 닿도록 off 로 둔다. */}
           <p aria-live="off" className="wc-sr-only">{`${activeIndex + 1} / ${slideCount}`}</p>
-        </>
+        </div>
       ) : null}
     </section>
   );

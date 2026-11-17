@@ -4,8 +4,10 @@ import type { HomeHeroSlide } from '@/lib/home-catalog';
 import {
   HERO_AUTOPLAY_MS,
   HeroCarousel,
+  isHeroKeyboardFocus,
   isHeroPlaying,
   nextHeroIndex,
+  wrapHeroIndex,
   type HeroPlaybackState,
 } from './HeroCarousel';
 
@@ -116,9 +118,11 @@ describe('HeroCarousel markup', () => {
     expect(html).toContain('<strong class="wc-hero__title">여름 드랍</strong>');
     expect(html).toContain('<span class="wc-hero__subtitle">SUMMER DROP</span>');
     expect((html.match(/wc-hero__subtitle/g) ?? []).length).toBe(1);
+    /* 화면(과 읽는) 순서는 작은 줄(부제) → 큰 줄(제목)이다. */
+    expect(html.indexOf('wc-hero__subtitle')).toBeLessThan(html.indexOf('wc-hero__title'));
   });
 
-  /* 세그먼트는 점이 아니라 진행바지만, 이름 없이는 스크린리더에서 빈 버튼 더미가 된다. */
+  /* 장마다의 세그먼트 버튼은 보이지 않는 히트 영역이지만, 이름 없이는 스크린리더에서 빈 버튼 더미가 된다. */
   it('names every progress segment and flags the current one', () => {
     const html = renderToStaticMarkup(<HeroCarousel slides={slides} />);
 
@@ -130,6 +134,40 @@ describe('HeroCarousel markup', () => {
     expect(active).toContain('aria-current="true"');
     expect(active).toContain('wc-hero__segment is-active');
     expect(idle).not.toContain('aria-current');
+  });
+
+  /* Figma 구조: 안쪽 배너 상자(viewport) 아래에 조작 줄이 따로 선다 — 진행 막대(트랙 + 현재 칸) 와 일시정지·이전·다음. */
+  it('puts the nav row below the banner box with a track, a moving current slot and the controls', () => {
+    const html = renderToStaticMarkup(<HeroCarousel slides={slides} />);
+
+    expect(html.indexOf('wc-hero__viewport')).toBeLessThan(html.indexOf('wc-hero__nav'));
+    expect(html.indexOf('</div></section>')).toBeGreaterThan(html.indexOf('wc-hero__nav'));
+    const viewport = html.match(/<div class="wc-hero__viewport">[\s\S]*?<div class="wc-hero__nav">/)?.[0] ?? '';
+    expect(viewport).not.toContain('wc-hero__progress');
+    expect(viewport).not.toContain('wc-hero__arrow');
+    expect(html).toContain('<span aria-hidden="true" class="wc-hero__track"></span>');
+    /* 현재 칸 = 전체 폭의 1/장수, 자리는 칸 단위 translateX. */
+    expect(html).toContain('class="wc-hero__thumb" style="width:50%;transform:translateX(0%)"');
+    const threeSlides = renderToStaticMarkup(<HeroCarousel slides={[...slides, { ...slides[1], id: 'hero-3' }]} />);
+    expect(threeSlides).toContain('style="width:33.333333333333336%;transform:translateX(0%)"');
+    expect((threeSlides.match(/class="wc-hero__segment[ "]/g) ?? []).length).toBe(3);
+    /* 조작부 순서: 일시정지 → 이전 → 구분선 → 다음. */
+    const controls = html.match(/<div class="wc-hero__controls">[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(controls.indexOf('wc-hero__pause')).toBeLessThan(controls.indexOf('wc-hero__arrow--prev'));
+    expect(controls.indexOf('wc-hero__arrow--prev')).toBeLessThan(controls.indexOf('wc-hero__divider'));
+    expect(controls.indexOf('wc-hero__divider')).toBeLessThan(controls.indexOf('wc-hero__arrow--next'));
+  });
+
+  /* 화살표는 Figma 원본 선 아이콘(32×32, 선 2)이고 색은 CSS 다. */
+  it('draws the Figma arrow paths with a currentColor stroke', () => {
+    const html = renderToStaticMarkup(<HeroCarousel slides={slides} />);
+
+    expect(html).toContain('d="M19.5 10L12.5 16L19.5 22"');
+    expect(html).toContain('d="M12 22L19 16L12 10"');
+    expect(html).toContain('viewBox="0 0 32 32"');
+    expect(html).toContain('viewBox="0 0 31 32"');
+    expect(html).toContain('stroke="currentColor"');
+    expect(html).toContain('stroke-width="2"');
   });
 
   /* 자동으로 움직이는 콘텐츠에는 멈출 수단과 현재 위치가 있어야 한다(WCAG 2.2.2). */
@@ -155,6 +193,7 @@ describe('HeroCarousel markup', () => {
   it('drops every control for a single slide', () => {
     const html = renderToStaticMarkup(<HeroCarousel slides={[slides[0]]} />);
 
+    expect(html).not.toContain('wc-hero__nav');
     expect(html).not.toContain('wc-hero__progress');
     expect(html).not.toContain('wc-hero__arrow');
     expect(html).not.toContain('wc-hero__pause');
@@ -181,11 +220,11 @@ describe('hero autoplay conditions', () => {
   /*
    * 자동재생을 막는 이유는 다섯 가지고 전부 독립이다. 하나라도 빠지면 사용자가 읽는 중에
    * 슬라이드가 넘어가거나, 탭이 백그라운드로 내려간 뒤에도 타이머가 계속 돈다.
-   * 사용자 조작(세그먼트·화살표)에 의한 정지는 paused 로 합쳐졌다 — goTo 가 setPaused(true)
-   * 를 호출하므로 정지 버튼 상태·라벨이 실제 재생 상태를 항상 정확히 말한다.
+   * paused 는 정지 버튼으로만 바뀐다 — 화살표·진행 막대로 장을 옮기는 것은 정지가 아니다
+   * (HeroCarousel.client.test.tsx 가 컴포넌트 상태로 이를 확인한다).
    */
   it.each([
-    ['정지 버튼(사용자 조작 포함)', { paused: true }],
+    ['정지 버튼', { paused: true }],
     ['포인터 호버', { hovered: true }],
     ['내부 포커스', { focusWithin: true }],
     ['문서 비활성', { hidden: true }],
@@ -197,6 +236,22 @@ describe('hero autoplay conditions', () => {
   it('never plays a single slide', () => {
     expect(isHeroPlaying({ ...playable, slideCount: 1 })).toBe(false);
     expect(isHeroPlaying({ ...playable, slideCount: 0 })).toBe(false);
+  });
+
+  it('wraps manual moves in both directions', () => {
+    expect(wrapHeroIndex(-1, 3)).toBe(2);
+    expect(wrapHeroIndex(3, 3)).toBe(0);
+    expect(wrapHeroIndex(1, 3)).toBe(1);
+    expect(wrapHeroIndex(0, 0)).toBe(0);
+  });
+
+  /* 마우스로 누른 버튼의 포커스(키보드 포커스 링이 없는 :focus-visible 아님)는 자동재생을 멈추지 않는다. */
+  it('stops autoplay for keyboard focus only', () => {
+    expect(isHeroKeyboardFocus({ matches: (selector) => selector === ':focus-visible' })).toBe(true);
+    expect(isHeroKeyboardFocus({ matches: () => false })).toBe(false);
+    expect(isHeroKeyboardFocus(null)).toBe(false);
+    /* :focus-visible 를 모르는 환경은 멈추는 쪽이 안전하다. */
+    expect(isHeroKeyboardFocus({ matches: () => { throw new SyntaxError('unsupported'); } })).toBe(true);
   });
 
   it('wraps from the last slide back to the first', () => {
