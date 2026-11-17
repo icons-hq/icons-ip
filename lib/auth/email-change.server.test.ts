@@ -38,7 +38,7 @@ function service(
   update: { error: unknown } = { error: null },
   previousEmail: string | null = 'old@privaterelay.appleid.com',
 ) {
-  const rpc = vi.fn(async (name: string) => responses[name] ?? { data: null, error: { message: 'unexpected' } });
+  const rpc = vi.fn(async (name: string, _args?: Record<string, unknown>) => responses[name] ?? { data: null, error: { message: 'unexpected' } });
   const updateUserById = vi.fn(async () => update);
   const getUserById = vi.fn(async () => ({ data: { user: { email: previousEmail } }, error: null }));
   return { rpc, updateUserById, client: { rpc, auth: { admin: { updateUserById, getUserById } } } as never };
@@ -108,7 +108,7 @@ describe('requestEmailChangeCode', () => {
       { config: configWith(fake.sender), service: client, newChallengeId: () => CHALLENGE_ID, newCode: () => '482913' },
     )).resolves.toEqual({ ok: true, challengeId: CHALLENGE_ID, email: 'real@example.com' });
 
-    const args = rpc.mock.calls[0][1] as Record<string, unknown>;
+    const args = rpc.mock.calls[0][1] ?? {};
     expect(args).toMatchObject({ p_challenge_id: CHALLENGE_ID, p_user_id: USER_ID, p_session_id: SESSION_ID, p_email: 'real@example.com', p_ttl_seconds: 600 });
     expect(args.p_code_digest).toBe(emailChangeCodeDigest(SECRET, CHALLENGE_ID, '482913'));
     expect(JSON.stringify(args)).not.toContain('482913');
