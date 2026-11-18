@@ -35,8 +35,10 @@ supabase db query --linked \
 ```
 
 최초 배포 출력에서 `payment_count=2`, `toss_count=2`, `korpay_count=0`을 확인한다. 이후
-결제 행이 늘어도 immutable evidence의 `before_total=2`, `updated_count=2`, `after_toss=2`가
-계속 진실원이다. 이어서 기존 known Toss 거래 두 건의 조회·취소·웹훅 경로가
+결제 행이 늘거나 줄어도 immutable evidence의 `before_total=2`, `updated_count=2`, `after_toss=2`가
+계속 진실원이다. 2026-11-18 운영 테스트 데이터 일괄 삭제로 이 두 건을 포함한 테스트 모드 결제가
+모두 지워졌으므로, readback은 현재 결제 행 수를 요구하지 않고 provider가 비어 있는 행이 0인지만
+확인한다. 이어서 기존 known Toss 거래 두 건의 조회·취소·웹훅 경로가
 `provider=toss` 행만 선택하는 테스트와 Production canary를 확인한다. 새로운 Korpay 거래를
 만들거나 실제 결제를 수행하지 않는다.
 
