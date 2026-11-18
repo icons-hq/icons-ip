@@ -154,7 +154,9 @@ begin
     -- 늦게 도착한 옛 실행이 최신 상태를 덮지 않는다.
     last_status_code = case when excluded.last_finished_at >= s.last_finished_at then excluded.last_status_code else s.last_status_code end,
     last_error_code = case when excluded.last_finished_at >= s.last_finished_at then excluded.last_error_code else s.last_error_code end,
-    consecutive_failures = case when p_ok then 0 else s.consecutive_failures + 1 end,
+    -- 연속 실패도 최신 실행만 바꾼다. 늦게 온 옛 성공이 최신 실패를 '정상'으로 되돌리지 않게 한다.
+    consecutive_failures = case when excluded.last_finished_at < s.last_finished_at then s.consecutive_failures
+      when p_ok then 0 else s.consecutive_failures + 1 end,
     updated_at = clock_timestamp();
   if not p_ok then
     incident := private.record_system_job_failure(p_job, 'vercel_cron', p_label, p_started_at, p_status_code, p_error_code, p_detail);

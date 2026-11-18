@@ -88,7 +88,7 @@ select 1/case when (public.service_record_system_job_run('t7-smoke-ok','합성 �
 select 1/case when (public.service_record_system_job_run('t7-smoke-fail','합성 실패 작업',1,clock_timestamp()-interval '3 seconds',clock_timestamp(),false,503,'unhealthy_result','{"failed":2}')->>'incident')::boolean
  and (public.service_record_system_job_run('t7-smoke-fail','합성 실패 작업',1,clock_timestamp()-interval '3 seconds',clock_timestamp(),false,503,'exception:Error')->>'incident')::boolean=false
  then 1 else 0 end as assert_failure_incident_once_per_hour;
--- 늦게 도착한 옛 성공이 최신 실패 상태(코드)를 덮지 않는다. 다만 성공이 오면 연속 실패는 끊긴다.
+-- 늦게 도착한 옛 성공이 최신 실패 상태(코드·연속 실패)를 덮지 않는다 — 마지막 실행이 실패면 계속 실패 중이다.
 select public.service_record_system_job_run('t7-smoke-fail','합성 실패 작업',1,clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '9 minutes',true,200);
 select pg_temp.expect_error($$select public.service_record_system_job_run('Bad_Key','x',1,clock_timestamp(),clock_timestamp(),true,200)$$,'invalid_system_job_run');
 select pg_temp.expect_error($$select public.service_record_system_job_run('t7-smoke-ok','x',1,clock_timestamp(),clock_timestamp(),true,200,'leak')$$,'invalid_system_job_run');
@@ -98,7 +98,7 @@ select pg_temp.expect_error($$select public.service_record_system_job_run('t7-sm
 select pg_temp.expect_error($$select public.service_record_system_job_run('t7-smoke-ok','x',0,clock_timestamp(),clock_timestamp(),true,200)$$,'invalid_system_job_run');
 reset role;
 
-select 1/case when (select consecutive_failures=0 and last_error_code='exception:Error' and last_status_code=503 and last_success_at<last_failure_at
+select 1/case when (select consecutive_failures=2 and last_error_code='exception:Error' and last_status_code=503 and last_success_at<last_failure_at
    from private.system_job_status where job_key='t7-smoke-fail')
  and (select count(*) from private.system_job_failures where job_key='t7-smoke-fail' and source='vercel_cron')=2
  and (select detail from private.system_job_failures where job_key='t7-smoke-fail' and error_code='unhealthy_result')='{"failed":2}'
