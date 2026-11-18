@@ -324,7 +324,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 |---|---|---|
 | 일반 카탈로그(verticals/ips/goods/events) | **공개(anon)**는 게시·미보관 범위. 비공개 상품은 `catalog.read`, IP·이벤트 운영 원문은 `platform.manage`; 상품 선택용 IP는 별도 최소 projection | 상품은 `catalog.manage`(정의자 RPC로만 — anon·authenticated에는 goods 쓰기 테이블 권한이 없다), IP·이벤트는 `platform.manage` |
 | 홈 큐레이션(home_curations) | anon/authenticated는 enabled·현재 노출 창·미보관 연결 IP 행만, `store.manage`는 전체 | 직접 DML 없음. `store.manage`를 재검사하는 audited RPC only |
-| 카드 리워드 카탈로그(cards/card_pools/pool_odds/reward_policies) | **공개(anon)** | `platform.manage`를 재검사하는 audited RPC only. 단 신규 발급·개봉·게임·운영 활성화는 DB 전역 gate 기본 OFF |
+| 카드 리워드 카탈로그(cards/card_pools/pool_odds/reward_policies) | **공개(anon)**. 단 `reward_policies`의 굿즈 대상 행은 대상 굿즈가 그 세션에 보일 때만, `catalog.read`는 전체 | `platform.manage`를 재검사하는 audited RPC only. 단 신규 발급·개봉·게임·운영 활성화는 DB 전역 gate 기본 OFF |
 | 참여형 게임 카탈로그(games) | **공개(anon)** | `platform.manage`를 재검사하는 audited RPC only |
 | game_plays | **본인만** | `play_game` 신뢰 RPC만 |
 | draw_tickets/card_grants | **본인만** | 신뢰 RPC/service role만 |
