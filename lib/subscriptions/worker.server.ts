@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { sendOrderConfirmationEmail } from '../email/transactional.server';
+import { sendOrderConfirmationAlimtalk } from '../kakao/alimtalk/order-notices.server';
 import { isUuid } from '../uuid';
 import { createServiceClient } from '../supabase/service';
 import type { PaymentAttempt, PaymentOperationOutcome } from '../payments/gateway';
@@ -85,5 +86,5 @@ export function createSubscriptionWorkerRepository(client: RpcClient): Subscript
 export function runtimeGoodsSubscriptionWorker() {
   const client = createServiceClient();
   return createGoodsSubscriptionWorker({ repository: createSubscriptionWorkerRepository(client), runtime: identity => createSubscriptionWorkRuntime(client, identity),
-    onApproved: async orderId => { await sendOrderConfirmationEmail(orderId); } });
+    onApproved: async orderId => { await Promise.all([sendOrderConfirmationEmail(orderId), sendOrderConfirmationAlimtalk(orderId)]); } });
 }

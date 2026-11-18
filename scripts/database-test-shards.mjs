@@ -226,6 +226,8 @@ const storefront = [
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
   sql('kakao_channel_friend_coupon'),
+  // 카카오 알림톡 주문 안내: 인증 번호 받는 사람 판정과 한 번만 보내기 클레임.
+  sql('kakao_alimtalk_deliveries'),
   sql('auto_order_confirmation'),
   // 출고 보류(테스트 키 결제·결제사 직접 취소)와 발송 경로 차단·해제.
   sql('order_fulfillment_holds'),

@@ -819,6 +819,16 @@ describe('legal revision date guard', () => {
     }
   });
 
+  it('checks the privacy alimtalk revision dates with the same rule', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), {
+      revisionSource: nullSource, alimtalkRevisionSource: source('2026-11-20', '2026-11-27'),
+    })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), {
+      revisionSource: nullSource, alimtalkRevisionSource: source('2026-11-20', '2026-11-26'),
+    })).toThrow(/at least 7 days/);
+    expect(() => validateLegalRevisionDates('{ not json', 'alimtalk-privacy-revision.json')).toThrow(/alimtalk-privacy-revision.json is not valid JSON/);
+  });
+
   it('fails when only one date is set or a date is malformed', () => {
     expect(() => validateLegalRevisionDates(source('2026-11-20', null))).toThrow(/null or both YYYY/);
     expect(() => validateLegalRevisionDates(source(null, '2026-11-27'))).toThrow(/null or both YYYY/);

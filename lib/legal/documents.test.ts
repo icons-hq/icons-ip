@@ -18,6 +18,13 @@ import {
 } from './contact-channels-privacy-revision';
 import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate } from './privacy-address-book-revision';
 import {
+  ALIMTALK_PRIVACY_REVISION,
+  type AlimtalkPrivacyRevision,
+  alimtalkPrivacyRevisionAnnounced,
+  alimtalkPrivacyRevisionInEffect,
+} from './alimtalk-privacy-revision';
+import { KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE } from '../auth/contact-channels';
+import {
   SHIPPING_BUNDLE_WORDING_REVISION,
   type ShippingBundleWordingRevision,
   shippingBundleWordingRevisionAnnounced,
@@ -706,6 +713,69 @@ describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·�
     expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
     expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
     expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null).privacy).toEqual(base);
+  });
+});
+
+describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주문 안내', () => {
+  /* 날짜는 배포 직전에 JSON으로 커밋되므로 시험은 주입한 날짜로 상태를 고정한다. 휴대폰 번호 인증 개정이 시행된 본문 위에 얹는다. */
+  const ALIMTALK: AlimtalkPrivacyRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
+  const at = (today: string) => createLegalDocuments(BUSINESS_INFO, today, null, PRIVACY_NOW, ALIMTALK);
+  const current = at(shiftDay(ALIMTALK.announcedDate, -1)).privacy;
+  const during = at(ALIMTALK.announcedDate).privacy;
+  const lastNotice = at(shiftDay(ALIMTALK.effectiveDate, -1)).privacy;
+  const revised = at(ALIMTALK.effectiveDate).privacy;
+  const article = (document: LegalDocument, prefix: string) => document.articles.find((item) => item.heading.startsWith(prefix))!;
+
+  it('예약이 없으면(null) 지금 방침 그대로이고, 운영 게이트도 닫혀 있다', () => {
+    expect(ALIMTALK_PRIVACY_REVISION).toBeNull();
+    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBeNull();
+    expect(alimtalkPrivacyRevisionAnnounced('2030-01-01', null)).toBe(false);
+    expect(alimtalkPrivacyRevisionInEffect('2030-01-01', null)).toBe(false);
+    expect(createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, null).privacy)
+      .toEqual(createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW).privacy);
+    expect(plainText(current)).not.toContain('알림톡');
+  });
+
+  it('공지 기간에는 본문을 바꾸지 않고 사전 공지만 붙인다', () => {
+    for (const document of [during, lastNotice]) {
+      expect(document.articles).toEqual(current.articles);
+      expect(document.effectiveDate).toBe(current.effectiveDate);
+      expect(document.pendingRevision).toMatchObject({ ...ALIMTALK, heading: '카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내' });
+      expect(document.pendingRevision!.changes[0]).toContain('개정 사유');
+    }
+  });
+
+  it('시행일부터 개정본이 현행이 되고 휴대폰 번호 인증 시행본을 이전 판으로 보존한다', () => {
+    expect(revised.effectiveDate).toBe(ALIMTALK.effectiveDate);
+    expect(revised.pendingRevision).toBeUndefined();
+    expect(revised.previousVersion).toEqual({ effectiveDate: PRIVACY_NOW.effectiveDate, articles: current.articles });
+    expect(revised.revisionChanges).toEqual(during.pendingRevision!.changes);
+    expect(revised.articles.map((item) => item.heading)).toEqual(current.articles.map((item) => item.heading));
+  });
+
+  it('제2조: 거래 안내 방법에 알림톡을 더하고, 인증 번호를 알림톡 주문 안내에만 쓴다고 바꾼다(문자·마케팅은 계속 쓰지 않는다)', () => {
+    const purposes = article(revised, '제2조 (');
+    expect(purposes.list).toContain('알림함·이메일·카카오톡 알림톡을 통한 거래 진행 안내와 서비스 공지');
+    const closing = purposes.closing!.join('\n');
+    expect(closing).toContain('주문한 회원 본인에게 주문 접수·굿즈 발송 사실을 알리는 카카오톡 알림톡 발송에만 이용합니다');
+    expect(closing).toContain('문자 메시지를 통한 알림·거래 안내와 마케팅 정보 발송에는 이용하지 않습니다');
+    expect(article(current, '제2조 (').closing!.join('\n')).toContain('거래 안내·마케팅 정보 발송에는 이용하지 않습니다');
+  });
+
+  it('제5조: 알림톡 수탁자 두 곳과 전달 항목을 밝힌다', () => {
+    const consignment = article(revised, '제5조 ');
+    const names = consignment.table!.rows.map((row) => row[0]);
+    expect(names).toContain('엔에이치엔클라우드 주식회사');
+    expect(names).toContain('주식회사 카카오');
+    expect(names.indexOf('엔에이치엔클라우드 주식회사')).toBe(names.indexOf('Resend') + 1);
+    for (const row of consignment.table!.rows) expect(row).toHaveLength(3);
+    expect(consignment.closing!.join('\n')).toContain('인증한 휴대폰 번호와 안내 내용');
+    /* 국내 수탁자라 국외 이전 표는 그대로다. */
+    expect(article(revised, '제6조 ')).toEqual(article(current, '제6조 '));
+  });
+
+  it('휴대폰 번호 인증 개정이 시행되지 않은 본문에는 얹을 수 없다(앵커 검사)', () => {
+    expect(() => createLegalDocuments(BUSINESS_INFO, ALIMTALK.effectiveDate, null, null, ALIMTALK)).toThrow(/alimtalk_privacy_anchor_changed/);
   });
 });
 

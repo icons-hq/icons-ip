@@ -44,6 +44,9 @@ const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
 );
+const ALIMTALK_PRIVACY_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/alimtalk-privacy-revision.json', import.meta.url),
+);
 
 /*
  * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
@@ -58,12 +61,12 @@ function isRealDate(value) {
   return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 
-export function validateLegalRevisionDates(source) {
+export function validateLegalRevisionDates(source, file = 'shipping-bundle-wording-revision.json') {
   let parsed;
   try {
     parsed = JSON.parse(source);
   } catch {
-    throw new Error('Invalid legal revision dates: shipping-bundle-wording-revision.json is not valid JSON');
+    throw new Error(`Invalid legal revision dates: ${file} is not valid JSON`);
   }
   const announced = parsed?.announcedDate;
   const effective = parsed?.effectiveDate;
@@ -113,6 +116,11 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   }
   if (target === 'production') {
     validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
+    /* 개인정보처리방침 알림톡 개정(lib/legal/alimtalk-privacy-revision.json)도 같은 규칙(둘 다 null 또는 7일 이상 공지)이다. */
+    validateLegalRevisionDates(
+      options.alimtalkRevisionSource ?? readFileSync(ALIMTALK_PRIVACY_REVISION_FILE, 'utf8'),
+      'alimtalk-privacy-revision.json',
+    );
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
