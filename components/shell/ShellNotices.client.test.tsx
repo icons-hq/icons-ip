@@ -16,6 +16,7 @@ vi.mock('react', async () => ({
   useEffect: () => undefined,
 }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
+vi.mock('./CollectibleFeatures', () => ({ useCollectibleFeatures: () => ({ binder: false, market: false, exchange: false }) }));
 
 import { ShellNotices } from './ShellNotices';
 

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { useSubscriptionMenuAvailable } from '@/components/subscriptions/SubscriptionMenuAvailability';
 import { useGiftMenuAvailable } from '@/components/gifts/GiftMenuAvailability';
 import { useAdultVerificationMenuAvailable } from '@/components/identity/AdultVerificationMenuAvailability';
@@ -24,7 +25,7 @@ export interface MypageMenuItem {
   description: string;
   /** 카드 리워드 게이트(DB 소유)가 닫혀 있으면 숨긴다 — 현 /packs 노출 규칙과 동일.
       성인 인증은 시작할 수 있거나 이미 인증 기록이 있는 회원에게만 보인다. */
-  gated?: 'card-rewards' | 'gifts' | 'subscriptions' | 'adult-verification';
+  gated?: 'card-rewards' | 'gifts' | 'subscriptions' | 'adult-verification' | 'binder';
 }
 
 export interface MypageMenuGroup {
@@ -43,7 +44,8 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
       { href: '/gifts', label: '선물함', description: '보낸 선물과 받은 선물을 확인하세요.', gated: 'gifts' },
       { href: '/tickets', label: '내 티켓', description: '예매 상태와 현장 입장용 티켓을 확인하세요.' },
       { href: '/my/wishlist', label: '위시리스트', description: '하트로 담아둔 굿즈를 다시 확인하세요.' },
-      { href: '/binder', label: '바인더', description: '내가 모은 디지털 카드 컬렉션을 펼쳐보세요.' },
+      /* 카드 바인더는 DB 공개 스위치가 켜진 동안에만 보인다(lib/collectible-features.ts, 기본 숨김). */
+      { href: '/binder', label: '바인더', description: '내가 모은 디지털 카드 컬렉션을 펼쳐보세요.', gated: 'binder' },
       { href: '/packs', label: '카드팩', description: '보유한 카드팩을 확인하고 새 카드를 만나보세요.', gated: 'card-rewards' },
       { href: '/my/reviews', label: '내 리뷰', description: '배송이 완료된 굿즈에 별점과 후기를 남기고 관리하세요.' },
     ],
@@ -81,9 +83,10 @@ export function useMypageMenuGroups(): MypageMenuGroup[] {
   const giftsEnabled = useGiftMenuAvailable();
   const subscriptionsEnabled = useSubscriptionMenuAvailable();
   const adultVerificationVisible = useAdultVerificationMenuAvailable();
+  const binderEnabled = useCollectibleFeatures().binder;
   return MYPAGE_MENU_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => (!item.gated || item.gated === 'card-rewards' && cardRewardsEnabled || item.gated === 'gifts' && giftsEnabled || item.gated === 'subscriptions' && subscriptionsEnabled || item.gated === 'adult-verification' && adultVerificationVisible)),
+    items: group.items.filter((item) => (!item.gated || item.gated === 'card-rewards' && cardRewardsEnabled || item.gated === 'gifts' && giftsEnabled || item.gated === 'subscriptions' && subscriptionsEnabled || item.gated === 'adult-verification' && adultVerificationVisible || item.gated === 'binder' && binderEnabled)),
   }));
 }
 

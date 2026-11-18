@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
-import { hrefFor } from '@/lib/routes';
+import { hrefFor, withoutHiddenCollectibleGroups } from '@/lib/routes';
 import { DEFAULT_STOREFRONT_NAVIGATION, resolveStorefrontNavigation, storeMenuSheetGroups, type StorefrontNavigation } from '@/lib/store-navigation';
 import { Icon } from '@/components/ui/Icon';
 import { ProductInterestMenuLink } from '@/components/shop/ProductInterestShelf';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { useCart } from './CartProvider';
+import { useCollectibleFeatures } from './CollectibleFeatures';
 import { loginEntryHref } from './login-entry';
 import { useOverlayA11y } from './useOverlayA11y';
 
@@ -31,6 +32,8 @@ export function MenuSheet({
   const { resetForSignOut } = useCart();
   const presence = useAuthPresence();
   const panelRef = useRef<HTMLDivElement>(null);
+  /* '내 활동'의 바인더와 '거래' 그룹은 DB 공개 스위치가 꺼진 동안 빠진다(lib/collectible-features.ts). */
+  const collectibleFeatures = useCollectibleFeatures();
 
   useOverlayA11y({ open, onClose, panelRef });
 
@@ -40,7 +43,7 @@ export function MenuSheet({
      렌더 시점 pathname을 굳혀 두면 경로가 바뀐 뒤 돌아올 곳이 어긋난다. */
   const loginHref = () => loginEntryHref(window.location.pathname, window.location.search);
 
-  const groups = storeMenuSheetGroups(resolveStorefrontNavigation(navigation, cardRewardsEnabled));
+  const groups = withoutHiddenCollectibleGroups(storeMenuSheetGroups(resolveStorefrontNavigation(navigation, cardRewardsEnabled)), collectibleFeatures);
 
   return (
     <>

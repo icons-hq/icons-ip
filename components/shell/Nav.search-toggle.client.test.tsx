@@ -23,6 +23,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('./CartProvider', () => ({ useCart: () => ({ count: 2, resetForSignOut: vi.fn() }) }));
 vi.mock('./AuthPresenceProvider', () => ({ useAuthPresence: () => hooks.presence }));
 vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => true }));
+vi.mock('./CollectibleFeatures', () => ({ useCollectibleFeatures: () => ({ binder: false, market: false, exchange: false }) }));
 vi.mock('./StorePresentationProvider', () => ({ useStorePresentation: () => ({ common: { themeColor: '#78bb53', headerStyle: 'basic', showHomeSearch: false } }) }));
 vi.mock('./useOverlayA11y', () => ({ useOverlayA11y: vi.fn() }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));

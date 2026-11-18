@@ -26,6 +26,7 @@ import { WcButton } from '@/components/wc/WcButton';
 export function CardDetail({
   card,
   cardRewardsEnabled,
+  exchangeEnabled = false,
   ip,
   hasOwnership,
   collection,
@@ -33,6 +34,8 @@ export function CardDetail({
 }: {
   card: Card;
   cardRewardsEnabled: boolean;
+  /** 카드 트레이드 공개 스위치(lib/collectible-features.ts). 꺼져 있으면(기본) 트레이드 버튼·안내를 그리지 않는다. */
+  exchangeEnabled?: boolean;
   ip: Ip | undefined;
   hasOwnership: boolean;
   collection: string;
@@ -101,8 +104,8 @@ export function CardDetail({
             <p className="wc-binder__detail-no" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--wc-ink-tertiary)' }}>No. {card.no}</p>
             <p className="wc-binder__detail-desc" style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--wc-ink-sub)' }}>
               {owned
-                ? '보유 중인 카드입니다. 트레이드에 등록하거나 프로필에 전시할 수 있어요.'
-                : '아직 보유하지 않은 카드입니다. 카드팩 · 트레이드로 획득할 수 있어요.'}
+                ? exchangeEnabled ? '보유 중인 카드입니다. 트레이드에 등록하거나 프로필에 전시할 수 있어요.' : '보유 중인 카드입니다.'
+                : exchangeEnabled ? '아직 보유하지 않은 카드입니다. 카드팩 · 트레이드로 획득할 수 있어요.' : '아직 보유하지 않은 카드입니다. 카드팩으로 획득할 수 있어요.'}
             </p>
             <div className="wc-binder__detail-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 20 }}>
               {([
@@ -118,7 +121,7 @@ export function CardDetail({
             <div className="wc-btn-group wc-binder__detail-actions" style={{ marginTop: 22 }}>
               {owned ? (
                 <>
-                  <WcButton href={hrefFor('exchange')} variant="primary">트레이드 등록</WcButton>
+                  {exchangeEnabled && <WcButton href={hrefFor('exchange')} variant="primary">트레이드 등록</WcButton>}
                   {COMMUNITY_ENABLED && <WcButton href={hrefFor('community')}>전시하기</WcButton>}
                 </>
               ) : (
@@ -126,7 +129,7 @@ export function CardDetail({
                   {cardRewardsEnabled && (
                     <WcButton href={hrefFor('packs')} variant="primary">카드팩으로 획득</WcButton>
                   )}
-                  <WcButton href={hrefFor('exchange')}>트레이드로 획득</WcButton>
+                  {exchangeEnabled && <WcButton href={hrefFor('exchange')}>트레이드로 획득</WcButton>}
                 </>
               )}
             </div>
@@ -139,10 +142,13 @@ export function CardDetail({
 
 export function Binder({
   cardRewardsEnabled,
+  exchangeEnabled = false,
   catalog,
   ownedCardIds = null,
 }: {
   cardRewardsEnabled: boolean;
+  /** 카드 트레이드 공개 스위치(lib/collectible-features.ts, 라우트가 매 요청 읽는다). 꺼져 있으면 트레이드 링크를 그리지 않는다. */
+  exchangeEnabled?: boolean;
   catalog: Pick<CatalogSnapshot, 'source' | 'ips' | 'cards'>;
   /** supabase 모드 본인 보유(user_cards) — null = 미로그인/미설정(공개 도감) */
   ownedCardIds?: string[] | null;
@@ -337,13 +343,15 @@ export function Binder({
                 <span className="wc-binder__cta-action">카드팩 열기</span>
               </Link>
             )}
-            <Link className="wc-binder__cta" href={hrefFor('exchange')}>
-              <span className="wc-binder__cta-copy" style={{ minWidth: 0 }}>
-                <strong style={{ display: 'block' }}>중복 카드가 있나요?</strong>
-                <span style={{ display: 'block', marginTop: 2, fontSize: 13, fontWeight: 400, color: 'var(--wc-ink-tertiary)' }}>트레이드에서 직거래하거나 경매에 올려보세요.</span>
-              </span>
-              <span className="wc-binder__cta-action">트레이드로</span>
-            </Link>
+            {exchangeEnabled && (
+              <Link className="wc-binder__cta" href={hrefFor('exchange')}>
+                <span className="wc-binder__cta-copy" style={{ minWidth: 0 }}>
+                  <strong style={{ display: 'block' }}>중복 카드가 있나요?</strong>
+                  <span style={{ display: 'block', marginTop: 2, fontSize: 13, fontWeight: 400, color: 'var(--wc-ink-tertiary)' }}>트레이드에서 직거래하거나 경매에 올려보세요.</span>
+                </span>
+                <span className="wc-binder__cta-action">트레이드로</span>
+              </Link>
+            )}
           </div>
         </section>
       </div>
@@ -355,6 +363,7 @@ export function Binder({
           <CardDetail
             card={detail}
             cardRewardsEnabled={cardRewardsEnabled}
+            exchangeEnabled={exchangeEnabled}
             ip={ipsById.get(detail.ip)}
             hasOwnership={hasOwnership}
             collection={collectionOf(detail)}

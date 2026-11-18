@@ -14,7 +14,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 공개 카탈로그(IP, 굿즈, 카드, 이벤트)는 Supabase 환경변수가 있으면 DB를 읽고, 로컬 개발에서 환경변수가 없으면 `lib/data.ts` mock으로 fallback한다. 코드의 Vercel Preview 기본값은 mock이지만 GitHub Actions preview 배포는 선택된 preview DB와 `ICONS_CATALOG_SOURCE=supabase`를 명시적으로 주입한다.
 - Supabase Auth/SSR은 이메일/비밀번호 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정 요청·콜백·새 비밀번호 저장·전역 로그아웃, 온보딩 완료 게이트와 IP 팔로우 보호 액션에 연결되어 있다. 환경변수가 없으면 인증 폼은 비활성화되고 세션 갱신은 no-op으로 동작한다.
 - 커뮤니티 공개 피드는 Supabase `posts`/`public_profiles`와 최근 7일 visible 포스트의 트렌딩 태그를 읽는다. 포스트·댓글 Server Action과 RPC는 연결돼 있지만 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF다. 운영·법률 준비를 증명한 별도 migration 전까지 공개 읽기·좋아요·신고·차단·본인 삭제·운영자 숨김만 유지한다.
-- 디지털 카드 리워드는 DB 전역 gate에서 기본 OFF다. 법무·운영 승인을 반영한 별도 migration 전까지 카드팩·게임 공개 표면과 신규 발급·개봉·운영 활성화를 차단하고, 기존 보유 카드 바인더만 읽기 전용으로 유지한다.
+- 디지털 카드 리워드는 DB 전역 gate에서 기본 OFF다. 법무·운영 승인을 반영한 별도 migration 전까지 카드팩·게임 공개 표면과 신규 발급·개봉·운영 활성화를 차단하고, 카드 바인더는 별도의 수집·거래 기능 공개 스위치(기본 숨김, 어드민 판매자 정보 → 기능 공개 관리)를 따른다.
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 현재 DB 권한으로 메뉴·조회·변경을 제한한다. 상품·주문·문의·전시·마케팅·분석과 IP·카드·게임 운영을 각각 검사하며, 기존 `profiles.role` 값만으로 접근을 허용하지 않는다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
@@ -402,7 +402,7 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 
 - 공개 브라우징이 기본이다. IP, 굿즈, 카드, 이벤트, 커뮤니티 읽기는 로그인 없이 접근 가능해야 한다.
 - 보호 액션은 구매, 카드팩 개봉, 게임 플레이, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
-- `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다. 예외인 스태프 mock 시연은 현재 `platform.manage` 권한이 있는 계정에만 같은 라우트와 푸터 진입점이 열리며, `lib/secondary-market-demo.ts`의 스위치 한 줄로 함께 닫힌다. 실거래 배선이 아니다.
+- `/binder`·`/exchange`·`/market`은 운영하지 않아 DB 공개 스위치(기본 전부 꺼짐, `/admin/settings/features`)가 닫고 있다. 꺼진 기능은 모든 진입점에서 사라지고 라우트는 404다. 켜면 `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 돌아간다. 예외인 스태프 mock 시연은 현재 `platform.manage` 권한이 있는 계정에만 같은 라우트와 푸터 진입점이 열리며, `lib/secondary-market-demo.ts`의 스위치 한 줄로 함께 닫힌다. 실거래 배선이 아니다.
 - 지우학 온라인 팝업 프레젠테이션은 비로그인 공개이며 `/ip`의 카드와 `/ip/aouad` 직접 링크로 들어간다. 페이지와 전용 에셋은 같은 공개 게이트를 사용하고, 회수는 `lib/aouad-popup.ts`의 상수 변경과 배포가 필요하다. 전용 서버 게이트와 로컬 QA, 시연 초기화, 배포 확인은 [운영 가이드](./docs/runbooks/aouad-executive-demo.md)에 정리한다. 화면의 주문·결제·예약·리워드는 브라우저 시연이며 실제 거래를 만들지 않는다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 토스 경로는 조회 API 재검증과 웹훅 트리거 재정합을 함께 쓰고, 어느 경로도 클라이언트 성공 콜백이나 웹훅 payload만으로 주문·티켓을 확정하지 않는다.

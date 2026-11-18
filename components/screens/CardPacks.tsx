@@ -12,6 +12,7 @@ import { Badge } from '@/components/wc/Badge';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { WcButton } from '@/components/wc/WcButton';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 
 /* 카드팩 개봉 화면(#71) — White Catalog campaign-landing 차용 재조판(#327 · DESIGN §8).
  * 구매로 발급된 뽑기권(UI "카드팩")을 풀별로 보여주고 개봉한다. 카드는 open_draw_ticket
@@ -65,6 +66,8 @@ export function CardPacks({
   const [phase, setPhase] = useState<Phase>({ kind: 'list' });
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  /* 카드 바인더가 숨김(DB 공개 스위치, 기본)이면 바인더로 가는 버튼과 '바인더에 저장' 안내를 그리지 않는다. */
+  const binderEnabled = useCollectibleFeatures().binder;
 
   const cardsById = useMemo(() => new Map(catalog.cards.map((c) => [c.id, c])), [catalog.cards]);
   const ipsById = useMemo(() => new Map(catalog.ips.map((ip) => [ip.id, ip])), [catalog.ips]);
@@ -114,7 +117,9 @@ export function CardPacks({
           <div className="wc-packs__hero-body">
             <SectionHeading
               as="h1"
-              subcopy="굿즈를 구매하면 카드팩이 발급돼요. 개봉하면 그 컬렉션의 카드 1장이 나오고, 내 바인더에 바로 저장됩니다."
+              subcopy={binderEnabled
+                ? '굿즈를 구매하면 카드팩이 발급돼요. 개봉하면 그 컬렉션의 카드 1장이 나오고, 내 바인더에 바로 저장됩니다.'
+                : '굿즈를 구매하면 카드팩이 발급돼요. 개봉하면 그 컬렉션의 카드 1장이 나옵니다.'}
               title="카드팩"
             />
             {inventory.signedIn && (
@@ -125,9 +130,11 @@ export function CardPacks({
             <p className="wc-packs__hero-note" style={{ marginTop: 12 }}>
               카드팩은 구매 리워드로 무상 발급 · 유효기간 없이 원할 때 개봉
             </p>
-            <div className="wc-packs__hero-actions" style={{ maxWidth: 220, marginTop: 20 }}>
-              <WcButton href={hrefFor('binder')}>내 바인더</WcButton>
-            </div>
+            {binderEnabled && (
+              <div className="wc-packs__hero-actions" style={{ maxWidth: 220, marginTop: 20 }}>
+                <WcButton href={hrefFor('binder')}>내 바인더</WcButton>
+              </div>
+            )}
           </div>
           <div className="wc-packs__hero-visual">
             {heroCard && <MachineCard card={heroCard} />}
@@ -158,10 +165,10 @@ export function CardPacks({
               })}
             </div>
             <div className="wc-btn-group wc-packs__reveal-actions" style={{ maxWidth: 448, margin: '24px auto 0' }}>
-              <WcButton href={hrefFor('binder')} variant="primary">내 바인더에서 보기</WcButton>
-              <WcButton onClick={() => setPhase({ kind: 'list' })}>계속 개봉</WcButton>
+              {binderEnabled && <WcButton href={hrefFor('binder')} variant="primary">내 바인더에서 보기</WcButton>}
+              <WcButton onClick={() => setPhase({ kind: 'list' })} variant={binderEnabled ? undefined : 'primary'}>계속 개봉</WcButton>
             </div>
-            <p className="wc-packs__reveal-note" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--wc-ink-tertiary)' }}>개봉된 카드는 바인더에 자동 저장됩니다</p>
+            {binderEnabled && <p className="wc-packs__reveal-note" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--wc-ink-tertiary)' }}>개봉된 카드는 바인더에 자동 저장됩니다</p>}
           </section>
         )}
 

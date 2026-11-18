@@ -39,7 +39,7 @@ const strip = (id: string, patch: Partial<ShellNoticeStrip> = {}): ShellNoticeSt
   id, title: `띠배너 ${id}`, imageUrl: `https://cdn.example/${id}.webp`, mobileImageUrl: null, href: '/events',
   pageTypes: null, endsAt: null, ...patch,
 });
-const open = { cardRewardsEnabled: true, communityEnabled: true };
+const open = { cardRewardsEnabled: true, communityEnabled: true, collectibleFeatures: { binder: true, market: true, exchange: true } };
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -80,13 +80,19 @@ describe('화면별 공지 후보', () => {
 
   it('게이트가 꺼진 목적지(카드팩·게임·커뮤니티)의 공지는 숨기고, 버튼 없는 공지 바는 게이트와 무관하다', () => {
     const gated: ShellNotices = {
-      bars: [bar('packs', { cta: { label: '보기', href: '/packs' } }), bar('copy', { cta: null }), bar('community', { cta: { label: '보기', href: '/community' } })],
-      strips: [strip('games', { href: '/games/roulette' }), strip('events')],
+      bars: [bar('packs', { cta: { label: '보기', href: '/packs' } }), bar('copy', { cta: null }), bar('community', { cta: { label: '보기', href: '/community' } }),
+        bar('binder', { cta: { label: '보기', href: '/binder' } })],
+      strips: [strip('games', { href: '/games/roulette' }), strip('events'), strip('market', { href: '/market' }), strip('exchange', { href: '/exchange/123' })],
     };
-    const closed = applicableShellNotices(gated, '/', { cardRewardsEnabled: false, communityEnabled: false });
+    const closed = applicableShellNotices(gated, '/', { cardRewardsEnabled: false, communityEnabled: false, collectibleFeatures: { binder: false, market: false, exchange: false } });
     expect(closed.bars.map((item) => item.id)).toEqual(['copy']);
     expect(closed.strips.map((item) => item.id)).toEqual(['events']);
-    expect(applicableShellNotices(gated, '/', open).bars).toHaveLength(3);
+    expect(applicableShellNotices(gated, '/', open).bars).toHaveLength(4);
+    expect(applicableShellNotices(gated, '/', open).strips).toHaveLength(4);
+    /* 수집·거래 기능은 기능별로 따로 닫힌다 — 마켓만 열면 마켓 공지만 돌아온다. */
+    const marketOnly = applicableShellNotices(gated, '/', { ...open, collectibleFeatures: { binder: false, market: true, exchange: false } });
+    expect(marketOnly.bars.map((item) => item.id)).toEqual(['packs', 'copy', 'community']);
+    expect(marketOnly.strips.map((item) => item.id)).toEqual(['games', 'events', 'market']);
   });
 });
 

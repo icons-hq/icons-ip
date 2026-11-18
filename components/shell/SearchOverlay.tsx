@@ -4,6 +4,8 @@ import { useRef, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/Icon';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
+import { useCollectibleFeatures } from './CollectibleFeatures';
 import { resolveSuggestedSearchTerms, searchPlaceholder, suggestedSearchHref } from '@/lib/search-terms';
 import { useOverlayA11y } from './useOverlayA11y';
 
@@ -30,6 +32,7 @@ export function SearchOverlay({ open, onClose, terms = null }: {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const binderEnabled = useCollectibleFeatures().binder;
 
   useOverlayA11y({ open, onClose, panelRef, initialFocusRef: inputRef, keepInteractive: SEARCH_KEEP_INTERACTIVE, trapFocus: false });
 
@@ -66,7 +69,7 @@ export function SearchOverlay({ open, onClose, terms = null }: {
               defaultValue=""
               enterKeyHint="search"
               name="q"
-              placeholder={searchPlaceholder()}
+              placeholder={searchPlaceholder(COMMUNITY_ENABLED, binderEnabled)}
               ref={inputRef}
               type="search"
             />

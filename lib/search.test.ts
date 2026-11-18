@@ -69,7 +69,7 @@ describe('getSearchSnapshot', () => {
     await expect(getSearchSnapshot('IP')).rejects.toThrow('Failed to load search IP identities: identity unavailable');
   });
   it('uses mock catalog data when Supabase is not configured', async () => {
-    const snapshot = await getSearchSnapshot('리락쿠마');
+    const snapshot = await getSearchSnapshot('리락쿠마', { binderEnabled: true });
 
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(snapshot.source).toBe('mock');
@@ -89,6 +89,16 @@ describe('getSearchSnapshot', () => {
         ? [expect.objectContaining({ id: 'p1', label: expect.stringContaining('낮잠 쿠션') })]
         : undefined,
     );
+  });
+
+  it('drops card results while the card binder is hidden — cards only lead to the binder (default is hidden)', async () => {
+    const hidden = await getSearchSnapshot('리락쿠마');
+    const shown = await getSearchSnapshot('리락쿠마', { binderEnabled: true });
+
+    expect(hidden.groups.map((group) => group.kind)).not.toContain('card');
+    expect(shown.groups.map((group) => group.kind)).toContain('card');
+    const cardCount = shown.groups.find((group) => group.kind === 'card')?.results.length ?? 0;
+    expect(hidden.displayedTotal).toBe(shown.displayedTotal - cardCount);
   });
 
   it('uses mock catalog data on Vercel Preview even when Supabase is configured', async () => {
@@ -184,7 +194,7 @@ describe('getSearchSnapshot', () => {
       error: null,
     });
 
-    const snapshot = await getSearchSnapshot('  리락  ');
+    const snapshot = await getSearchSnapshot('  리락  ', { binderEnabled: true });
 
     expect(mocks.rpc).toHaveBeenCalledWith('search_public_content', {
       search_query: '리락',
@@ -207,5 +217,10 @@ describe('getSearchSnapshot', () => {
       displayedTotal: COMMUNITY_ENABLED ? 5 : 3,
       groups: COMMUNITY_ENABLED ? [...publicGroups, ...communityGroups] : publicGroups,
     });
+
+    /* 카드 바인더가 숨김이면(기본) 카드 그룹이 빠지고 표시 개수도 함께 준다. */
+    const withoutCards = await getSearchSnapshot('  리락  ');
+    expect(withoutCards.groups.map((group) => group.kind)).not.toContain('card');
+    expect(withoutCards.displayedTotal).toBe(COMMUNITY_ENABLED ? 4 : 2);
   });
 });

@@ -10,6 +10,7 @@ import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
 import { shopQueryString } from '@/components/shop/collection-filters';
 import { IpDetail, type IpGoodsCollection } from './IpDetail';
+import { CollectibleFeaturesProvider } from '@/components/shell/CollectibleFeatures';
 
 /* R-03 §1.9 개별 관 행동 단언 — 팔로우·알림 폼의 hidden 필드 계약(app/ip/actions.ts),
  * 해시태그 실데이터 파생, 품절 포함 굿즈 카운트 행, 연결 밴드 경로. */
@@ -377,12 +378,25 @@ describe('IpDetail goods section', () => {
 
 describe('IpDetail link band', () => {
   it('links the card binder with the lineup size, offline pop-ups, and the fandom channel', () => {
-    const html = render();
+    const html = renderToStaticMarkup(
+      <CollectibleFeaturesProvider value={{ binder: true, market: false, exchange: false }}>
+        <IpDetail detail={detail} followError={false} followState={notFollowed} notificationError={false} notificationSaved={false} />
+      </CollectibleFeaturesProvider>,
+    );
 
     expect(html).toContain('카드 도감 2종');
     expect(html).toContain('href="/binder"');
     expect(html).toContain('href="/offline-popups"');
     /* 팬덤 채널은 커뮤니티 임시 비공개 스위치를 따른다. */
     expect(html.includes('href="/community?ip=maplestory"')).toBe(COMMUNITY_ENABLED);
+  });
+
+  /* 카드 바인더는 운영하지 않는다 — 공개 스위치가 꺼져 있으면(기본) 카드 도감 링크가 없고 다른 공간 링크는 그대로다. */
+  it('drops the card codex link while the card binder is hidden', () => {
+    const html = render();
+
+    expect(html).not.toContain('href="/binder"');
+    expect(html).not.toContain('카드 도감');
+    expect(html).toContain('href="/offline-popups"');
   });
 });

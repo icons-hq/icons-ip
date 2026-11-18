@@ -3,12 +3,15 @@ import postcss, { type AtRule } from 'postcss';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUSINESS_INFO, businessInfoRows } from '@/lib/legal/business-info';
+import { COLLECTIBLE_FEATURES_OFF, type CollectibleFeatures } from '@/lib/collectible-features';
+import { CollectibleFeaturesProvider } from './CollectibleFeatures';
 import { SiteFooter } from './SiteFooter';
 
 const mocks = vi.hoisted(() => ({
   demoVisible: false,
   communityPreviewVisible: false,
   pathname: '/shop',
+  collectibleFeatures: { binder: false, market: false, exchange: false } as CollectibleFeatures,
 }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
@@ -18,13 +21,18 @@ vi.mock('./StaffPreviewAvailability', () => ({
 }));
 
 function render() {
-  return renderToStaticMarkup(<SiteFooter copyrightYear={2026} />);
+  return renderToStaticMarkup(
+    <CollectibleFeaturesProvider value={mocks.collectibleFeatures}><SiteFooter copyrightYear={2026} /></CollectibleFeaturesProvider>,
+  );
 }
+
+const ALL_COLLECTIBLES_ON: CollectibleFeatures = { binder: true, market: true, exchange: true };
 
 beforeEach(() => {
   mocks.demoVisible = false;
   mocks.communityPreviewVisible = false;
   mocks.pathname = '/shop';
+  mocks.collectibleFeatures = COLLECTIBLE_FEATURES_OFF;
 });
 
 describe('SiteFooter 법정 고지 링크', () => {
@@ -223,6 +231,7 @@ describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
 
   it('스태프에게는 굿즈 마켓·카드 트레이드 시연 링크를 스태프 전용 표기와 함께 연다', () => {
     mocks.demoVisible = true;
+    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
     const html = render();
 
     expect(html).toContain('aria-label="스태프 시연 메뉴"');
@@ -235,6 +244,21 @@ describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
     /* 스태프 블록은 사업자 정보 아래, 저작권 줄 위에 지금 모양 그대로 선다. */
     expect(html.indexOf('aria-label="연락처·호스팅"')).toBeLessThan(html.indexOf('aria-label="스태프 시연 메뉴"'));
     expect(html.indexOf('aria-label="스태프 시연 메뉴"')).toBeLessThan(html.indexOf('wc-x-footer__copy'));
+  });
+
+  /* 마켓·트레이드를 운영하지 않는 동안(DB 공개 스위치 기본값) 스태프에게도 시연 진입점이 없다 — 라우트도 404다. */
+  it('굿즈 마켓·카드 트레이드가 숨김이면 스태프에게도 시연 블록이 없고, 켜진 기능의 시연 링크만 남는다', () => {
+    mocks.demoVisible = true;
+    const hidden = render();
+    expect(hidden).not.toContain('wc-footer__demo');
+    expect(hidden).not.toContain('href="/market"');
+    expect(hidden).not.toContain('href="/exchange"');
+
+    mocks.collectibleFeatures = { binder: false, market: true, exchange: false };
+    const marketOnly = render();
+    expect(marketOnly).toContain('aria-label="스태프 시연 메뉴"');
+    expect(marketOnly).toContain('href="/market"');
+    expect(marketOnly).not.toContain('href="/exchange"');
   });
 });
 
@@ -271,6 +295,7 @@ describe('SiteFooter 커뮤니티 스태프 프리뷰 진입점', () => {
   it('세컨더리 마켓 시연과 커뮤니티 프리뷰가 함께 열려도 각자 블록으로 선다', () => {
     mocks.demoVisible = true;
     mocks.communityPreviewVisible = true;
+    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
     const html = render();
 
     expect(html).toContain('aria-label="스태프 시연 메뉴"');

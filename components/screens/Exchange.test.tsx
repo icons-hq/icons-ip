@@ -2,13 +2,17 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Exchange } from './Exchange';
 
-const cardRewardGate = vi.hoisted(() => ({ enabled: true }));
+const cardRewardGate = vi.hoisted(() => ({ enabled: true, binder: true }));
 vi.mock('@/components/shell/CardRewardAvailability', () => ({
   useCardRewardsEnabled: () => cardRewardGate.enabled,
+}));
+vi.mock('@/components/shell/CollectibleFeatures', () => ({
+  useCollectibleFeatures: () => ({ binder: cardRewardGate.binder, market: false, exchange: true }),
 }));
 
 afterEach(() => {
   cardRewardGate.enabled = true;
+  cardRewardGate.binder = true;
 });
 
 function render() {
@@ -57,5 +61,15 @@ describe('Exchange 카드 리워드 게이트', () => {
     expect(html).not.toContain('href="/packs"');
     expect(html).not.toContain('카드팩 열기');
     expect(html).toContain('href="/binder"');
+  });
+
+  /* 카드 바인더가 숨김(DB 공개 스위치)이면 바인더 버튼도 없다 — 404 로 떨어지는 링크를 남기지 않는다. */
+  it('카드 바인더가 숨김이면 바인더 동선을 감춘다', () => {
+    cardRewardGate.binder = false;
+    const html = render();
+
+    expect(html).not.toContain('href="/binder"');
+    expect(html).not.toContain('내 바인더');
+    expect(html).toContain('href="/packs"');
   });
 });

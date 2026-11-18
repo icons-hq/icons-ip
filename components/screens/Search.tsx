@@ -8,11 +8,12 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { publicIpHref } from '@/lib/ip-identity';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { SEARCH_PAGE_WINDOW, searchPageWindow, type SearchGoodsCollection } from '@/lib/search-goods';
 import type { SearchResult, SearchResultGroup, SearchSnapshot } from '@/lib/search';
-import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
+import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
 import { SHOP_VIEW_SORTS, type ShopListQuery } from '@/lib/shop-catalog';
 
 export interface SearchProps {
@@ -151,6 +152,9 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
   /* 굿즈 그룹만 자체 결과로 대체하고 나머지 그룹은 보조 섹션으로 남긴다. */
   const asideGroups = snapshot.groups.filter((group) => group.kind !== 'good');
   const hasQuery = query.length > 0;
+  /* 카드 결과는 카드 바인더가 공개일 때만 실린다(lib/search.ts) — 안내 문구도 같은 범위만 말한다. 포스트는 커뮤니티 공개 스위치를 따른다. */
+  const binderEnabled = useCollectibleFeatures().binder;
+  const scopeDescription = `${['굿즈', 'IP', ...(binderEnabled ? ['카드'] : []), ...(COMMUNITY_ENABLED ? ['포스트'] : [])].join('·')}를 한 번에 찾아드려요.`;
   const total = goods.result.total;
 
   return (
@@ -179,7 +183,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
               className="wc-search-results__input"
               defaultValue={query}
               name="q"
-              placeholder={COMMUNITY_ENABLED ? 'IP · 굿즈 · 카드 · 포스트 통합 검색' : 'IP · 굿즈 · 카드 통합 검색'}
+              placeholder={searchPlaceholder(COMMUNITY_ENABLED, binderEnabled)}
               type="search"
             />
           </form>
@@ -207,8 +211,8 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
             <EmptyState
               description={hasQuery
                 ? '다른 검색어로 시도해 보세요.'
-                /* 포스트는 커뮤니티 임시 비공개 동안 결과에서 빠지므로 안내에서도 뺀다. */
-                : COMMUNITY_ENABLED ? '굿즈·IP·카드·포스트를 한 번에 찾아드려요.' : '굿즈·IP·카드를 한 번에 찾아드려요.'}
+                /* 포스트·카드는 각 공개 스위치가 꺼진 동안 결과에서 빠지므로 안내에서도 뺀다. */
+                : scopeDescription}
               title={hasQuery ? `'${query}'에 맞는 결과가 없어요` : '검색어를 입력해 주세요'}
               titleAs="h2"
             />

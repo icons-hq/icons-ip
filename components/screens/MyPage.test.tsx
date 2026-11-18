@@ -7,9 +7,12 @@ import { RecentGoodsCards } from '@/components/mypage/MypageRecentGoods';
 import { MyPage } from './MyPage';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
-const gates = vi.hoisted(() => ({ cardRewards: true, cart: { ready: true, count: 0 } }));
+const gates = vi.hoisted(() => ({ cardRewards: true, binder: true, cart: { ready: true, count: 0 } }));
 vi.mock('@/components/shell/CardRewardAvailability', () => ({
   useCardRewardsEnabled: () => gates.cardRewards,
+}));
+vi.mock('@/components/shell/CollectibleFeatures', () => ({
+  useCollectibleFeatures: () => ({ binder: gates.binder, market: false, exchange: false }),
 }));
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({ ...gates.cart, resetForSignOut: vi.fn() }),
@@ -19,6 +22,7 @@ vi.mock('@/app/shop/experience-actions', () => ({ loadInterestCollectionAction: 
 
 afterEach(() => {
   gates.cardRewards = true;
+  gates.binder = true;
   gates.cart = { ready: true, count: 0 };
 });
 
@@ -193,6 +197,15 @@ describe('MyPage dashboard', () => {
 
     expect(html).not.toContain('href="/packs"');
     expect(html).not.toContain('>카드팩</');
+  });
+
+  /* 카드 바인더는 운영하지 않는다 — DB 공개 스위치(기본 숨김)가 꺼져 있으면 마이페이지 메뉴에서도 빠진다. */
+  it('hides the card binder while its public switch is off', () => {
+    gates.binder = false;
+    const html = render();
+
+    expect(html).not.toContain('href="/binder"');
+    expect(html).not.toContain('>바인더</');
   });
 
   it('summarises orders by step and links the latest orders', () => {

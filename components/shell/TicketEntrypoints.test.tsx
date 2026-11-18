@@ -12,6 +12,7 @@ vi.mock('./StaffPreviewAvailability', () => ({
   useCommunityStaffPreviewVisible: () => false,
 }));
 vi.mock('@/components/shell/CardRewardAvailability', () => ({ useCardRewardsEnabled: () => true }));
+vi.mock('@/components/shell/CollectibleFeatures', () => ({ useCollectibleFeatures: () => ({ binder: false, market: false, exchange: false }) }));
 vi.mock('@/components/subscriptions/SubscriptionMenuAvailability', () => ({ useSubscriptionMenuAvailable: () => true }));
 vi.mock('@/components/gifts/GiftMenuAvailability', () => ({ useGiftMenuAvailable: () => true }));
 vi.mock('@/components/identity/AdultVerificationMenuAvailability', () => ({ useAdultVerificationMenuAvailable: () => true }));

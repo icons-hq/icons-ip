@@ -13,7 +13,9 @@ import {
   hidesSiteFooter,
   hrefFor,
   isStandaloneShellPath,
+  withoutHiddenCollectibleItems,
 } from '@/lib/routes';
+import { useCollectibleFeatures } from './CollectibleFeatures';
 import { SITE_FOOTER_ID } from './site-footer-jump';
 import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
 import { DEFAULT_STOREFRONT_BRANDING, STORE_SOCIAL_LABELS, type StorefrontBranding } from '@/lib/store-branding';
@@ -81,7 +83,9 @@ export function SiteFooter({
   copyrightYear?: number;
 }) {
   const pathname = usePathname();
-  const demoVisible = useSecondaryMarketDemoVisible();
+  /* 마켓·트레이드 시연은 그 기능의 DB 공개 스위치가 켜져 있을 때만 남는다 — 둘 다 꺼지면 블록 자체가 없다(lib/collectible-features.ts). */
+  const demoItems = withoutHiddenCollectibleItems(FOOTER_DEMO_ITEMS, useCollectibleFeatures());
+  const demoVisible = useSecondaryMarketDemoVisible() && demoItems.length > 0;
   const communityPreviewVisible = useCommunityStaffPreviewVisible();
   // 숨김 범위는 Nav보다 좁다 — 초대·비밀번호 변경·정지 안내(집중형 셸)와 어드민(자체 작업대)만 비운다. 캠페인·게임은
   // 내비·문의 위젯이 없는 독립 경험이어도 사업자 정보·법정 고지 푸터는 그 아래에 둔다(1014-X36, lib/routes.ts hidesSiteFooter).
@@ -118,7 +122,7 @@ export function SiteFooter({
           <nav aria-label="스태프 시연 메뉴" className="wc-footer__demo">
             <h2 className="wc-footer__demo-heading">세컨더리 마켓 시연 · 스태프 전용</h2>
             <ul>
-              {FOOTER_DEMO_ITEMS.map((item) => (
+              {demoItems.map((item) => (
                 <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
               ))}
             </ul>

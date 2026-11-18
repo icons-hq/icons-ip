@@ -9,6 +9,7 @@ vi.mock('./supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rp
 vi.mock('./supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 vi.mock('./goods-listing-appearance.server', () => ({ loadGoodsListingAppearance: mocks.appearance }));
 vi.mock('./card-rewards/gate.server', () => ({ readCardRewardsEnabled: mocks.rewards }));
+vi.mock('./collectible-features.server', () => ({ getCollectibleFeatures: async () => ({ binder: false, market: false, exchange: false }) }));
 vi.mock('./goods-review-summary.server', () => ({ loadGoodsReviewSummaries: mocks.summaries }));
 const id = '93930000-0000-4000-8000-000000000011', now = '2026-10-14T00:00:00Z';
 const query = { displayCategory: id, view: 'all' as const, ips: [], types: [], priceMin: null, priceMax: null, sort: 'recommended' as const };
@@ -67,6 +68,11 @@ describe('전시 공개 DTO', () => {
     mocks.appearance.mockResolvedValue(new Map([['g1', appearance]])); mocks.rewards.mockResolvedValue(false);
     const result = await hydrateCategoryDisplayPage(input, {} as SupabaseClient);
     expect(result.result.goods[0].listingAppearance).toEqual(appearance); expect(result.banner).toBeNull();
+    /* 운영하지 않는 수집·거래 기능(숨김이 기본)으로 가는 배너도 같은 자리에서 걷어낸다. */
+    const market = parseCategoryDisplayPage(page(), query)!;
+    market.banner = { id, title: '', subtitle: null, imageUrl: 'image', mobileImageUrl: null, href: '/market', imageAlt: '', imageDim: 'none', textColor: 'white' };
+    mocks.rewards.mockResolvedValue(true);
+    expect((await hydrateCategoryDisplayPage(market, {} as SupabaseClient)).banner).toBeNull();
   });
   it('목록 카드 별점은 이 페이지 굿즈 몫만 배치로 읽고, 실패하면 별점만 숨긴다(CL-02)', async () => {
     const client = { rpc: vi.fn() } as unknown as SupabaseClient;

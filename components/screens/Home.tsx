@@ -23,6 +23,7 @@ import { SectionHeader } from '@/components/wc/SectionHeader';
 import { StripBanner } from '@/components/wc/StripBanner';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { Slider } from '@/components/wc/Slider';
 import { Icon } from '@/components/ui/Icon';
@@ -33,6 +34,7 @@ import {
   benefitTileIcon,
   withoutCardRewardCurations,
   withoutCommunityCurations,
+  withoutHiddenCollectibleCurations,
   type HomeBestTab,
   type HomeCurationSnapshot,
   type HomeGoodsBand,
@@ -185,7 +187,9 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
      GNB 의 packs 필터·구 홈과 같은 규칙이다. 혜택 타일도 다른 큐레이션처럼 목적지로 거른다(12 LD-15). */
   const gatedCuration = cardRewardsEnabled ? rawCuration : withoutCardRewardCurations(rawCuration);
   /* 커뮤니티 임시 비공개도 같은 규칙으로 목적지를 건다 — 배너만 살아 404 로 떨어지지 않게. */
-  const curation = COMMUNITY_ENABLED ? gatedCuration : withoutCommunityCurations(gatedCuration);
+  const communityCuration = COMMUNITY_ENABLED ? gatedCuration : withoutCommunityCurations(gatedCuration);
+  /* 운영하지 않는 수집·거래 기능(카드 바인더·굿즈 마켓·카드 트레이드)도 DB 공개 스위치가 꺼진 동안 목적지로 거른다. */
+  const curation = withoutHiddenCollectibleCurations(communityCuration, useCollectibleFeatures());
   const hasHero = curation.heroSlides.length > 0;
   const hasPicks = curation.editorPicks.length > 0;
   const hasBest = hasTabGoods(curation.categoryBestTabs);

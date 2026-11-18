@@ -44,6 +44,18 @@ describe('Binder card reward gate', () => {
     expect(html).not.toContain('href="/packs"');
     expect(html).not.toContain('카드팩 열기');
   });
+
+  /* 카드 트레이드는 운영하지 않는다 — 공개 스위치가 꺼져 있으면(기본) 트레이드 CTA 밴드가 없고, 켜면 돌아온다. */
+  it('drops the trade CTA band unless the card trade switch is on', () => {
+    const props = { cardRewardsEnabled: true, catalog: { source: 'supabase' as const, cards: [card], ips: [ip] }, ownedCardIds: [card.id] };
+    const hidden = renderToStaticMarkup(<Binder {...props} />);
+    expect(hidden).not.toContain('href="/exchange"');
+    expect(hidden).not.toContain('트레이드');
+
+    const shown = renderToStaticMarkup(<Binder {...props} exchangeEnabled />);
+    expect(shown).toContain('href="/exchange"');
+    expect(shown).toContain('트레이드로');
+  });
 });
 
 describe('Binder White Catalog chrome', () => {
@@ -91,11 +103,12 @@ describe('Binder White Catalog chrome', () => {
 });
 
 describe('CardDetail', () => {
-  const renderDetail = (overrides: { owned?: boolean; cardRewardsEnabled?: boolean; hasOwnership?: boolean } = {}) =>
+  const renderDetail = (overrides: { owned?: boolean; cardRewardsEnabled?: boolean; hasOwnership?: boolean; exchangeEnabled?: boolean } = {}) =>
     renderToStaticMarkup(
       <CardDetail
         card={{ ...card, owned: overrides.owned ?? false }}
         cardRewardsEnabled={overrides.cardRewardsEnabled ?? true}
+        exchangeEnabled={overrides.exchangeEnabled ?? true}
         collection="1/1"
         hasOwnership={overrides.hasOwnership ?? true}
         ip={ip}
@@ -133,5 +146,14 @@ describe('CardDetail', () => {
     expect(owned).toContain('트레이드 등록');
     /* '전시하기'는 커뮤니티 임시 비공개 스위치를 따른다. */
     expect(owned.includes('전시하기')).toBe(COMMUNITY_ENABLED);
+  });
+
+  it('drops trade CTAs and copy while the card trade switch is off', () => {
+    for (const owned of [true, false]) {
+      const html = renderDetail({ owned, exchangeEnabled: false });
+      expect(html).not.toContain('href="/exchange"');
+      expect(html).not.toContain('트레이드');
+    }
+    expect(renderDetail({ owned: false, exchangeEnabled: false })).toContain('카드팩으로 획득할 수 있어요');
   });
 });
