@@ -17,7 +17,7 @@
 --   · 한 트랜잭션에서: 정지(public.admin_suspend_user — 정지 감사 포함), 주소록(private.erase_member_address_book),
 --     휴대폰 번호·인증 요청·이력(private.erase_member_phone), 마케팅 정보 수신 동의 전 수단 철회(원장에 source
 --     member_withdrawal로 기록, 파생값 consents.marketing=false), 성별(고객 통계 동의) 철회, 활동 기록·동의 철회, 진행 중
---     이메일 변경 요청, 재입고 알림 신청 삭제, 로그인 세션(auth.sessions·refresh token) 삭제.
+--     이메일 변경 요청, 대기 중인 재입고 알림 신청 삭제, 로그인 세션(auth.sessions·refresh token) 삭제.
 --   · 처리 기록(private.member_withdrawal_processings)과 감사 로그(admin.member.withdrawal_processed: 문의 번호·지운 개수,
 --     개인정보 원문·메모 없음)를 남긴다. 다시 부르면 처음 기록을 돌려주고(멱등) 그 사이 생긴 세션만 다시 끊는다.
 -- 재로그인 차단은 Supabase Auth 관리 API(ban)가 맡는다 — DB가 할 수 없고 관리 API에는 사용자 id로 세션을 끊는 호출이
@@ -187,8 +187,8 @@ begin
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('member-email:user:' || target_profile_id::text, 0));
   delete from private.member_email_change_challenges where user_id = target_profile_id;
   get diagnostics erased_email_changes = row_count;
-  -- 재입고 알림은 정지와 무관하게 메일·알림을 보내므로 신청을 지운다.
-  delete from public.restock_alerts where user_id = target_profile_id;
+  -- 재입고 알림은 정지와 무관하게 메일·알림을 보내므로 아직 알리지 않은(대기) 신청을 지운다. 알린 기록(발송 이력)은 남긴다.
+  delete from public.restock_alerts where user_id = target_profile_id and status = 'pending';
   get diagnostics erased_restock_alerts = row_count;
 
   revoked := private.revoke_member_auth_sessions(target_profile_id);

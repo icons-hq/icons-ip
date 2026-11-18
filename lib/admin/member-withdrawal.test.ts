@@ -69,7 +69,7 @@ describe('탈퇴 처리 응답 검증', () => {
   });
 
   it('처리 결과 요약은 지운 것만 말한다', () => {
-    expect(memberWithdrawalErasedSummary(ERASED, 2)).toBe('배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 2건 · 재입고 알림 신청 1건 · 로그인 세션 2개 종료');
+    expect(memberWithdrawalErasedSummary(ERASED, 2)).toBe('배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 2건 · 대기 중인 재입고 알림 신청 1건 · 로그인 세션 2개 종료');
     expect(memberWithdrawalErasedSummary({ ...ERASED, addressBookEntries: 0, phoneNumbers: 0, marketingConsents: 0, restockAlerts: 0 }, 0))
       .toBe('지울 정보가 없었습니다');
   });

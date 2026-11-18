@@ -10,7 +10,7 @@ begin;
 --   · 입력: 메모 길이·문의 번호, 본인 처리 거절, 다른 회원의 문의 번호 거절
 --   · 진행 중 의무(탈퇴 신청과 같은 판정)·운영 권한(프로필 역할·매니저 소속)이 있으면 아무것도 바꾸지 않고 blocked + 남은 의무
 --   · 처리: 정지(정지 감사 포함)·주소록·휴대폰 번호(요청·이력 포함)·마케팅 수신 동의 철회(원장 source member_withdrawal)·
---     성별 동의·활동 기록·이메일 변경 요청·재입고 알림·로그인 세션 삭제, 처리 기록과 감사 로그(문의 번호·개수, 메모·개인정보 없음).
+--     성별 동의·활동 기록·이메일 변경 요청·대기 중인 재입고 알림·로그인 세션 삭제, 처리 기록과 감사 로그(문의 번호·개수, 메모·개인정보 없음).
 --     다른 회원 데이터는 그대로
 --   · 멱등: 다시 부르면 처음 기록(already_processed)을 돌려주고 그 사이 생긴 세션만 끊는다. 처리 기록·감사는 한 번
 --   · 정지 계정은 주소록 저장·휴대폰 인증 요청이 거절되고, 탈퇴 처리한 계정은 정지 해제가 막힌다
@@ -115,6 +115,10 @@ insert into public.ips(id, title, vertical_key) values ('withdrawal-ip', 'TEST �
 insert into public.goods(id, ip_id, name, type, price, stock, stock_qty)
 values ('withdrawal-goods', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈', '문구', 10000, 'soldout', 0);
 insert into public.restock_alerts(user_id, good_id) values (pg_temp.uid(3), 'withdrawal-goods'), (pg_temp.uid(7), 'withdrawal-goods');
+insert into public.goods(id, ip_id, name, type, price, stock, stock_qty)
+values ('withdrawal-goods-2', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈 2', '문구', 10000, 'ok', 3);
+-- 이미 알린 신청(발송 이력)은 남긴다.
+insert into public.restock_alerts(user_id, good_id, status, notified_at) values (pg_temp.uid(3), 'withdrawal-goods-2', 'notified', now());
 insert into auth.sessions(id, user_id, created_at, updated_at) values
   ('a10d5e55-0000-4000-8000-000000000301', pg_temp.uid(3), now(), now()),
   ('a10d5e55-0000-4000-8000-000000000302', pg_temp.uid(3), now(), now()),
@@ -223,7 +227,8 @@ select 1/case when (select suspended_at is not null and suspension_reason = '탈
   and not exists (select 1 from private.member_activity_events where user_id = pg_temp.uid(3))
   and (select choice = 'declined' from private.member_activity_consents where user_id = pg_temp.uid(3))
   and not exists (select 1 from private.member_email_change_challenges where user_id = pg_temp.uid(3))
-  and not exists (select 1 from public.restock_alerts where user_id = pg_temp.uid(3))
+  and not exists (select 1 from public.restock_alerts where user_id = pg_temp.uid(3) and status = 'pending')
+  and exists (select 1 from public.restock_alerts where user_id = pg_temp.uid(3) and status = 'notified')
   and not exists (select 1 from auth.sessions where user_id = pg_temp.uid(3))
   and not exists (select 1 from auth.refresh_tokens where user_id = pg_temp.uid(3)::text)
   -- 프로필·Auth 사용자·문의는 남긴다(hard delete 범위).

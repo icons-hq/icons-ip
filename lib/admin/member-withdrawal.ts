@@ -41,7 +41,7 @@ export const MEMBER_WITHDRAWAL_EFFECTS = [
   '배송지 관리(주소록) 삭제',
   '인증한 휴대폰 번호와 인증 요청·이력 삭제',
   '마케팅 정보 수신 동의 전 수단 철회',
-  '성별(고객 통계 동의)·활동 기록 동의와 기록 삭제, 진행 중인 이메일 변경 요청·재입고 알림 신청 삭제',
+  '성별(고객 통계 동의)·활동 기록 동의와 기록 삭제, 진행 중인 이메일 변경 요청·대기 중인 재입고 알림 신청 삭제',
   '모든 기기의 로그인 세션 종료와 재로그인 차단',
 ] as const;
 
@@ -83,7 +83,7 @@ const ERASED_LABELS: Record<keyof MemberWithdrawalErased, string> = {
   activityEvents: '활동 기록',
   activityConsents: '활동 기록 동의 철회',
   emailChangeRequests: '이메일 변경 요청',
-  restockAlerts: '재입고 알림 신청',
+  restockAlerts: '대기 중인 재입고 알림 신청',
 };
 
 /** 처리 결과 한 줄 요약. 0건은 빼고, 지운 것이 없으면 그렇게 말한다. */
