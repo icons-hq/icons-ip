@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Settings, type SettingsKakaoChannelView } from '@/components/screens/Settings';
+import { isUnusableLoginEmail } from '@/lib/auth/email-change';
+import { emailChangeConfig } from '@/lib/auth/email-change.server';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getAccountDeletionPresentation } from '@/lib/account-deletion.server';
@@ -68,6 +70,11 @@ export default async function Page({ searchParams }: PageProps = {}) {
 
   /* 카카오톡 수신 동의 줄은 카카오톡 채널 스위치가 켜졌거나 이미 동의한 회원에게만 그린다(1014-010). */
   const withKakao = marketingKakaoVisible(kakaoConfig !== null, marketingConsent);
+  /* 로그인 이메일이 쓸 수 없는 주소(Apple 이메일 가리기 릴레이·빈 값)인 회원만 다른 이메일로 바꿀 수 있다(2026-11-17). */
+  const loginEmail = auth.user?.email?.trim() ?? '';
+  const emailChange = auth.isConfigured && auth.user && isUnusableLoginEmail(loginEmail) && emailChangeConfig()
+    ? { currentEmail: loginEmail, required: !loginEmail }
+    : undefined;
 
   return (
     <Settings
@@ -76,6 +83,7 @@ export default async function Page({ searchParams }: PageProps = {}) {
       avatarInitial={avatar.avatarInitial}
       avatarUrl={avatar.avatarUrl}
       email={auth.profile?.email ?? auth.user?.email ?? ''}
+      {...(emailChange ? { emailChange } : {})}
       marketingConsent={marketingConsent}
       marketingConsentUnavailable={auth.isConfigured && Boolean(auth.user) && marketingConsent === null}
       marketingChannels={withKakao ? MARKETING_CHANNELS_WITH_KAKAO : MARKETING_CHANNELS}

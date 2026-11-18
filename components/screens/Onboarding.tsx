@@ -1,7 +1,8 @@
 'use client';
 
-import { startTransition, useActionState, useState, type FormEvent } from 'react';
+import { startTransition, useActionState, type FormEvent } from 'react';
 import { completeOnboardingAction, finishOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
+import { EmailChangePanel, type EmailChangePanelView } from '@/components/screens/EmailChangePanel';
 import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { WcButton } from '@/components/wc/WcButton';
 import { DEMOGRAPHIC_GENDER_LABELS, DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_NOTICE } from '@/lib/customer-demographics';
@@ -19,7 +20,11 @@ import {
 interface OnboardingProps {
   birthDate: string;
   email: string;
-  followedIpIds: string[];
+  /**
+   * 로그인 이메일이 쓸 수 없는 주소(Apple 이메일 가리기 릴레이·빈 값)일 때만 있다 — 다른 이메일로 바꾸는 조각을 그린다
+   * (2026-11-17, 릴레이는 선택·빈 값은 필수). 없으면 지금처럼 이메일을 읽기 전용으로 보인다.
+   */
+  emailChange?: EmailChangePanelView;
   /** 채널별 마케팅 정보 수신 동의의 현재 선택(10/14 회의 S4). */
   initialMarketing: MarketingChannelChoices;
   /** 그릴 수신 동의 수단. 카카오톡 채널 스위치가 꺼져 있으면 이메일·SMS 두 줄 그대로다(1014-010). */
@@ -38,15 +43,6 @@ interface OnboardingProps {
    * (새로고침, 또는 번호를 다른 계정에 옮겨 간 회원의 재인증).
    */
   phoneStep?: boolean;
-  recommendedIps: {
-    bg: string;
-    color: string;
-    fans: number;
-    id: string;
-    sub: string;
-    tagline: string;
-    title: string;
-  }[];
 }
 
 const emptyState: OnboardingActionState = {};
@@ -108,34 +104,6 @@ function TermRow({
   );
 }
 
-function IpPickTile({
-  bg,
-  defaultChecked,
-  id,
-  title,
-}: {
-  bg: string;
-  defaultChecked: boolean;
-  id: string;
-  title: string;
-}) {
-  return (
-    <label className="onboarding-ip-tile" style={{ background: bg, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      <input
-        defaultChecked={defaultChecked}
-        name="followIpIds"
-        type="checkbox"
-        value={id}
-      />
-      <input name="recommendedIpIds" type="hidden" value={id} />
-      <span className="onboarding-ip-meta">
-        <span className="onboarding-ip-title">{title}</span>
-        <span aria-hidden className="onboarding-ip-checkmark" />
-      </span>
-    </label>
-  );
-}
-
 /** 버튼 위 오류 요약(QA1 S-T02-02) — 칸 순서대로, 그 칸의 오류 문구로 잇는다. */
 function onboardingFieldErrors(errors: Partial<Record<string, string>> | undefined): { anchor: string; label: string; message: string }[] {
   const fields = [
@@ -153,7 +121,7 @@ function onboardingFieldErrors(errors: Partial<Record<string, string>> | undefin
 export function Onboarding({
   birthDate,
   email,
-  followedIpIds,
+  emailChange,
   genderEligible,
   initialMarketing,
   isConfigured,
@@ -161,14 +129,9 @@ export function Onboarding({
   next,
   phoneStep = false,
   phoneVerification,
-  recommendedIps,
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
   const [finishState, finishAction, finishPending] = useActionState(finishOnboardingAction, emptyState);
-  /* 관심 IP는 선택 단계다(10/14 회의 S2 · D5). 건너뛰면 타일과 추천 목록 입력을 함께 내려
-     서버가 팔로우를 바꾸지 않는다 — 고르지 않은 채 제출해 이미 팔로우한 IP가 풀리는 일도 없다. */
-  const [ipPicksSkipped, setIpPicksSkipped] = useState(false);
-  const initiallyFollowed = new Set(followedIpIds);
   const [birthYear = '', birthMonth = '', birthDay = ''] = birthDate.split('-');
   const { notice: marketingNotice } = marketingConsentNoticeFor(marketingChannels);
   const kakaoOffered = marketingChannels.includes('kakao');
@@ -232,18 +195,20 @@ export function Onboarding({
       <div className="wc-auth__panel">
         <h1 className="wc-auth__title">프로필을 완성해요</h1>
         {/* 가입 간소화(10/14 회의 1014-004) — 필수 입력은 생년월일과 약관 동의뿐이다. 닉네임은 서버가 자동으로
-            만들고(나중에 설정에서 변경), 관심 IP·성별·마케팅 수신은 선택이다. 휴대폰 번호 인증 스위치가 켜지면 이
-            1단계를 저장한 뒤 인증 단계로 간다. */}
+            만들고(나중에 설정에서 변경), 성별·마케팅 수신은 선택이다. 관심 IP는 묻지 않는다(2026-11-17 사용자 결정 —
+            팔로우는 IP 페이지에서 한다). 휴대폰 번호 인증 스위치가 켜지면 이 1단계를 저장한 뒤 인증 단계로 간다. */}
         <p className="wc-auth__lede">
           {phoneVerification
             ? '생년월일과 약관 동의를 저장한 뒤 휴대폰 번호를 인증하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.'
             : '생년월일과 약관 동의만 확인하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.'}
         </p>
 
+        {emailChange ? <EmailChangePanel context="onboarding" isConfigured={isConfigured} view={emailChange} /> : null}
+
         <form action={action} className="wc-auth__form" data-onboarding-form onSubmit={handleSubmit}>
           <input type="hidden" name="next" value={next} />
 
-          <input disabled value={email} aria-label="이메일" />
+          {emailChange ? null : <input disabled value={email} aria-label="이메일" />}
           <fieldset
             aria-describedby={state.errors?.birthDate ? 'birth-date-hint birth-date-error' : 'birth-date-hint'}
             className="onboarding-birth-fieldset"
@@ -355,43 +320,6 @@ export function Onboarding({
               <ErrorText id="gender-error">{state.errors?.gender}</ErrorText>
             </fieldset>
           ) : null}
-
-          {recommendedIps.length > 0 && (
-            <div className="wc-auth__picks" data-onboarding-ip-picks={ipPicksSkipped ? 'skipped' : 'open'}>
-              <div className="wc-auth__picks-head">
-                <span className="wc-auth__picks-title" id="onboarding-ip-picks-title">
-                  관심 IP 고르기 <em className="wc-auth__opt">선택</em>
-                </span>
-                {ipPicksSkipped ? (
-                  <button autoFocus className="wc-auth__picks-skip" type="button" onClick={() => setIpPicksSkipped(false)}>
-                    다시 고르기
-                  </button>
-                ) : (
-                  <button className="wc-auth__picks-skip" type="button" onClick={() => setIpPicksSkipped(true)}>
-                    건너뛰기
-                  </button>
-                )}
-              </div>
-              {ipPicksSkipped ? (
-                <p className="wc-auth__picks-sub" role="status">관심 IP 고르기를 건너뛰었어요. 나중에 IP 페이지에서 팔로우할 수 있어요.</p>
-              ) : (
-                <>
-                  <p className="wc-auth__picks-sub">팔로우한 IP 기준으로 홈과 알림이 맞춰져요. 고르지 않아도 시작할 수 있어요.</p>
-                  <div aria-labelledby="onboarding-ip-picks-title" className="wc-auth__choice-grid" role="group">
-                    {recommendedIps.map((ip) => (
-                      <IpPickTile
-                        key={ip.id}
-                        bg={ip.bg}
-                        defaultChecked={initiallyFollowed.has(ip.id)}
-                        id={ip.id}
-                        title={ip.title}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
 
           {state.errors?.form && (
             <div className="wc-auth__alert" role="alert">

@@ -7,8 +7,6 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   getSupabaseConfig: vi.fn(),
   identity: vi.fn(),
-  ipArchivedFilter: vi.fn(),
-  ipPublishedFilter: vi.fn(),
   profileNickname: null as string | null,
   profileReadError: null as { message: string } | null,
   finishProfile: null as Record<string, unknown> | null,
@@ -38,18 +36,13 @@ const IP_TWO = '00000000-0000-4000-8000-000000000102';
 const familyEmoji = '👨‍👩‍👧‍👦';
 
 /* 온보딩은 닉네임을 묻지 않는다(1014-004) — 폼에는 생년월일·약관·선택 항목만 있다. */
-function onboardingForm(options: {
-  recommended?: string[];
-  selected?: string[];
-} = {}) {
+function onboardingForm() {
   const formData = new FormData();
   formData.set('birthDate', '2000-01-01');
   formData.set('terms', 'on');
   formData.set('privacy', 'on');
   formData.set('marketingEmail', 'on');
   formData.set('next', '/community');
-  for (const id of options.recommended ?? []) formData.append('recommendedIpIds', id);
-  for (const id of options.selected ?? []) formData.append('followIpIds', id);
   return formData;
 }
 
@@ -82,39 +75,12 @@ function profileQuery() {
   };
 }
 
-function ipQuery(rows: { id: string }[]) {
-  return {
-    select: () => ({
-      is: (column: string, value: unknown) => {
-        mocks.ipArchivedFilter(column, value);
-        return {
-          not: (column: string, operator: string, value: unknown) => {
-            mocks.ipPublishedFilter(column, operator, value);
-            return { in: async () => ({ data: rows, error: null }) };
-          },
-          in: async () => ({ data: rows, error: null }),
-        };
-      },
-    }),
-  };
-}
-
-function followsQuery(rows: { ip_id: string }[]) {
-  return {
-    select: () => ({
-      eq: () => ({ in: async () => ({ data: rows, error: null }) }),
-    }),
-  };
-}
-
 beforeEach(() => {
   mocks.authGetUser.mockReset();
   mocks.createClient.mockReset();
   mocks.from.mockReset();
   mocks.getSupabaseConfig.mockReset();
   mocks.identity.mockReset();
-  mocks.ipArchivedFilter.mockReset();
-  mocks.ipPublishedFilter.mockReset();
   mocks.profileNickname = null;
   mocks.profileReadError = null;
   mocks.finishProfile = null;
@@ -132,8 +98,6 @@ beforeEach(() => {
   mocks.rpc.mockResolvedValue({ data: null, error: null });
   mocks.from.mockImplementation((table: string) => {
     if (table === 'profiles') return profileQuery();
-    if (table === 'ips') return ipQuery([]);
-    if (table === 'ip_follows') return followsQuery([]);
     throw new Error(`Unexpected table ${table}`);
   });
   mocks.createClient.mockResolvedValue({
@@ -324,48 +288,34 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.profilePayloads).toEqual([]);
   });
 
-  /* 10/14 회의 S2 · D5 — 관심 IP는 선택이다. 건너뛰면 화면이 추천 목록 입력을 보내지 않고,
-     서버는 팔로우를 바꾸지 않은 채 온보딩을 끝낸다(이미 팔로우한 IP를 풀지 않는다). */
-  it('completes onboarding without IP picks and leaves existing follows untouched', async () => {
-    mocks.from.mockImplementation((table: string) => {
-      if (table === 'profiles') return profileQuery();
-      if (table === 'ips') return ipQuery([{ id: IP_ONE }]);
-      if (table === 'ip_follows') return followsQuery([{ ip_id: IP_ONE }]);
-      throw new Error(`Unexpected table ${table}`);
-    });
+  /* 2026-11-17 사용자 결정 — 온보딩은 관심 IP를 묻지 않는다. 옛 화면이 팔로우 입력을 보내도 팔로우를 바꾸지 않는다. */
+  it('completes onboarding without touching IP follows even when stale follow fields arrive', async () => {
+    const formData = onboardingForm();
+    formData.append('recommendedIpIds', IP_ONE);
+    formData.append('recommendedIpIds', IP_TWO);
+    formData.append('followIpIds', IP_TWO);
 
-    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
-    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'follow_ip' || name === 'unfollow_ip')).toEqual([]);
-    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
-  });
-
-  it('keeps the existing recommended follow, consent, and completion flow', async () => {
-    mocks.from.mockImplementation((table: string) => {
-      if (table === 'profiles') return profileQuery();
-      if (table === 'ips') return ipQuery([{ id: IP_ONE }, { id: IP_TWO }]);
-      if (table === 'ip_follows') return followsQuery([{ ip_id: IP_ONE }]);
-      throw new Error(`Unexpected table ${table}`);
-    });
-
-    await expect(completeOnboardingAction({}, onboardingForm({
-      recommended: [IP_ONE, IP_TWO],
-      selected: [IP_TWO],
-    }))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
-
+    expect(new Set(mocks.from.mock.calls.map(([table]) => table))).toEqual(new Set(['profiles']));
     expect(mocks.rpc.mock.calls).toEqual([
       ['set_my_marketing_consents', { p_email: true, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'onboarding' }],
-      ['follow_ip', { target_ip_id: IP_TWO }],
-      ['unfollow_ip', { target_ip_id: IP_ONE }],
     ]);
-    expect(mocks.ipArchivedFilter).toHaveBeenCalledWith('archived_at', null);
-    expect(mocks.ipPublishedFilter).toHaveBeenCalledWith('published_at', 'is', null);
-    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
-      `/ip/${IP_TWO}`,
-      `/ip/${IP_ONE}`,
-      '/',
-      '/ip',
-    ]);
+    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual(['/', '/ip']);
+  });
+});
+
+describe('completeOnboardingAction login email', () => {
+  /* 2026-11-17 — 소셜 로그인이 이메일을 주지 않은 계정은 온보딩을 마쳐도 게이트를 넘지 못한다. 이메일 변경 조각에서 먼저 확인하게 한다. */
+  it('asks for an email first and writes nothing when the login has none', async () => {
+    mocks.authGetUser.mockResolvedValue({ data: { user: { id: USER_ID, email: '' } }, error: null });
+
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
+      errors: { form: '이메일을 먼저 입력하고 메일로 받은 인증 코드로 확인해주세요. 이메일 칸이 보이지 않으면 고객센터로 알려주세요.' },
+    });
+    expect(mocks.profilePayloads).toEqual([]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -414,7 +364,7 @@ describe('completeOnboardingAction optional consents', () => {
   it('saves a consented gender through the existing optional consent path right after completion', async () => {
     const order: string[] = [];
     mocks.from.mockImplementation((table: string) => {
-      if (table !== 'profiles') return table === 'ips' ? ipQuery([]) : followsQuery([]);
+      if (table !== 'profiles') throw new Error(`Unexpected table ${table}`);
       const query = profileQuery();
       return { ...query, update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
     });
@@ -486,7 +436,7 @@ describe('completeOnboardingAction phone verification switch', () => {
     setPhoneEnv(true);
     const order: string[] = [];
     mocks.from.mockImplementation((table: string) => {
-      if (table !== 'profiles') return table === 'ips' ? ipQuery([]) : followsQuery([]);
+      if (table !== 'profiles') throw new Error(`Unexpected table ${table}`);
       const query = profileQuery();
       return { ...query, update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
     });
@@ -567,6 +517,17 @@ describe('finishOnboardingAction', () => {
 
     await expect(finishOnboardingAction({}, finishForm())).resolves.toEqual({
       errors: { form: '생년월일과 약관 동의를 먼저 저장해주세요. 화면을 새로고침한 뒤 다시 시도해주세요.' },
+    });
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+
+  /* 리뷰 P2 — 이메일 없는 계정은 휴대폰 단계에서 마쳐도 게이트를 넘지 못한다. 1단계(이메일 확인)로 돌려보낸다. */
+  it('refuses to finish for an account without a login email', async () => {
+    phoneState(true);
+    mocks.authGetUser.mockResolvedValue({ data: { user: { id: USER_ID, email: null } }, error: null });
+
+    await expect(finishOnboardingAction({}, finishForm())).resolves.toEqual({
+      errors: { form: '이메일을 먼저 확인해야 해요. 화면을 새로고침한 뒤 이메일을 입력해주세요.' },
     });
     expect(mocks.profilePayloads).toEqual([]);
   });

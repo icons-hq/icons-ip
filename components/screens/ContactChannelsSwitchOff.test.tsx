@@ -95,12 +95,10 @@ describe('연락 수단 스위치 OFF — 화면 불변', () => {
       <Onboarding
         birthDate=""
         email="fan@icons.gg"
-        followedIpIds={[]}
         genderEligible
         initialMarketing={{ email: true, sms: false }}
         isConfigured
         next="/"
-        recommendedIps={[]}
       />,
     );
     const consents = slice(html, '<ul class="wc-auth__agree">', '</ul>') + slice(html, '<p class="onboarding-consent-note">', '</p>');

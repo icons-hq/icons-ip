@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
 import { MemberActivityConsent } from '@/components/account/MemberActivityConsent';
 import { CustomerDemographicConsent } from '@/components/account/CustomerDemographicConsent';
+import { EmailChangePanel, type EmailChangePanelView } from '@/components/screens/EmailChangePanel';
 import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
@@ -57,6 +58,8 @@ interface SettingsProps {
   nickname: string;
   /** 휴대폰 번호 인증(1014-005·006). 스위치가 꺼져 있으면 없다 — 그때 설정 화면은 예전과 같다. */
   phoneVerification?: PhoneVerificationPanelView;
+  /** 로그인 이메일이 쓸 수 없는 주소(Apple 이메일 가리기 릴레이·빈 값)일 때만 있다 — 다른 이메일로 바꾸는 조각(2026-11-17). */
+  emailChange?: EmailChangePanelView;
   /** 카카오 계정 연결·카카오톡 채널(1014-014, 리뷰 F10). 카카오톡 채널 스위치가 꺼져 있으면 없다 — 화면은 예전과 같다. */
   kakaoChannel?: SettingsKakaoChannelView;
 }
@@ -285,6 +288,7 @@ export function Settings({
   avatarInitial,
   avatarUrl,
   email,
+  emailChange,
   marketingConsent,
   marketingConsentUnavailable = false,
   marketingChannels = MARKETING_CHANNELS,
@@ -405,6 +409,7 @@ export function Settings({
         </WcButton>
       </form>
 
+      {emailChange ? <EmailChangePanel context="settings" isConfigured={isConfigured} view={emailChange} /> : null}
       {phoneVerification ? (
         <PhoneVerificationPanel context="settings" isConfigured={isConfigured} view={phoneVerification} />
       ) : null}

@@ -9,7 +9,6 @@ import { AUTO_NICKNAME_MAX_ATTEMPTS, generateAutoNickname } from '@/lib/auth/nic
 import { safeNextPath } from '@/lib/auth/onboarding';
 import { isDemographicGender, type DemographicGender } from '@/lib/customer-demographics';
 import { customerDemographicState, updateCustomerDemographicChoice } from '@/lib/customer-demographics.server';
-import { buildRecommendedIpFollowChanges, uniqueSelectedIpIds } from '@/lib/ip-follow';
 import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { syncKakaoChannelFriendReward } from '@/lib/kakao/channel-reward.server';
 import { readMarketingChannelChoices } from '@/lib/marketing-consent';
@@ -157,46 +156,6 @@ async function ensureProfileNickname(
   return { ok: false, error: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' };
 }
 
-async function filterExistingRecommendedIpIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  recommendedIpIds: string[],
-) {
-  if (!recommendedIpIds.length) return [];
-
-  const { data, error } = await supabase
-    .from('ips')
-    .select('id')
-    .is('archived_at', null)
-    .not('published_at', 'is', null)
-    .in('id', recommendedIpIds);
-
-  if (error) {
-    throw new Error(`Failed to validate recommended IPs: ${error.message}`);
-  }
-
-  return uniqueSelectedIpIds(recommendedIpIds, new Set(((data ?? []) as { id: string }[]).map((row) => row.id)));
-}
-
-async function getFollowedRecommendedIpIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  recommendedIpIds: string[],
-) {
-  if (!recommendedIpIds.length) return [];
-
-  const { data, error } = await supabase
-    .from('ip_follows')
-    .select('ip_id')
-    .eq('user_id', userId)
-    .in('ip_id', recommendedIpIds);
-
-  if (error) {
-    throw new Error(`Failed to load followed recommendations: ${error.message}`);
-  }
-
-  return uniqueSelectedIpIds(((data ?? []) as { ip_id: string }[]).map((row) => row.ip_id), new Set(recommendedIpIds));
-}
-
 export async function completeOnboardingAction(
   _state: OnboardingActionState,
   formData: FormData,
@@ -208,8 +167,6 @@ export async function completeOnboardingAction(
   const privacy = formData.get('privacy') === 'on';
   const marketingChoices = readMarketingChannelChoices(formData, { kakaoChannelOn: kakaoChannelConfig() !== null });
   const genderResult = readOnboardingGender(formData);
-  const selectedIpIds = uniqueSelectedIpIds(formData.getAll('followIpIds'));
-  const recommendedIpIds = uniqueSelectedIpIds(formData.getAll('recommendedIpIds'));
   const errors: NonNullable<OnboardingActionState['errors']> = {};
 
   if (birthDateResult.error) errors.birthDate = birthDateResult.error;
@@ -227,21 +184,9 @@ export async function completeOnboardingAction(
   const user = userData.user;
 
   if (userError || !user) return { errors: { form: '로그인이 필요합니다.' } };
-
-  let existingRecommendedIpIds: string[];
-  let followedRecommendedIpIds: string[];
-  try {
-    existingRecommendedIpIds = await filterExistingRecommendedIpIds(supabase, recommendedIpIds);
-    followedRecommendedIpIds = await getFollowedRecommendedIpIds(supabase, user.id, existingRecommendedIpIds);
-  } catch {
-    return { errors: { form: '관심 IP를 확인하지 못했습니다. 다시 시도해주세요.' } };
-  }
-
-  const followChanges = buildRecommendedIpFollowChanges({
-    followedIpIds: followedRecommendedIpIds,
-    recommendedIpIds: existingRecommendedIpIds,
-    selectedIpIds,
-  });
+  /* 소셜 로그인이 이메일을 주지 않은 계정은 온보딩을 마쳐도 게이트(isOnboarded)를 넘지 못한다 — 이메일 변경 조각에서
+     먼저 이메일을 확인하게 한다(2026-11-17). */
+  if (!user.email?.trim()) return { errors: { form: '이메일을 먼저 입력하고 메일로 받은 인증 코드로 확인해주세요. 이메일 칸이 보이지 않으면 고객센터로 알려주세요.' } };
 
   const nicknameResult = await ensureProfileNickname(supabase, user.id);
   if (!nicknameResult.ok) return { errors: { form: nicknameResult.error } };
@@ -269,17 +214,8 @@ export async function completeOnboardingAction(
   const marketingResult = await saveMyMarketingConsents(supabase, marketingChoices, 'onboarding');
   if (!marketingResult.ok) return { errors: { form: '마케팅 정보 수신 동의를 저장하지 못했습니다. 다시 시도해주세요.' } };
 
-  for (const ipId of followChanges.toFollow) {
-    const { error: followError } = await supabase.rpc('follow_ip', { target_ip_id: ipId });
-    if (followError) return { errors: { form: '관심 IP를 저장하지 못했습니다. 다시 시도해주세요.' } };
-    revalidatePath(`/ip/${ipId}`);
-  }
-
-  for (const ipId of followChanges.toUnfollow) {
-    const { error: unfollowError } = await supabase.rpc('unfollow_ip', { target_ip_id: ipId });
-    if (unfollowError) return { errors: { form: '관심 IP를 저장하지 못했습니다. 다시 시도해주세요.' } };
-    revalidatePath(`/ip/${ipId}`);
-  }
+  /* 관심 IP는 온보딩에서 묻지 않는다(2026-11-17 사용자 결정) — 팔로우는 IP 페이지에서만 바꾼다. 옛 화면이 보낸
+     팔로우 입력이 와도 무시해, 온보딩이 이미 팔로우한 IP를 바꾸는 일이 없다. */
 
   /* 휴대폰 번호 인증(1014-005·006)은 스위치가 켜졌을 때만 온보딩 2단계다. 생년월일·약관 동의를 먼저 저장한 뒤
      (위) 인증 단계로 보낸다 — 동의·만 14세 확인 전에는 번호를 받지 않는다. 이미 인증한 계정은 바로 마친다.
@@ -350,6 +286,8 @@ export async function finishOnboardingAction(
   const { data: userData, error: userError } = await supabase.auth.getUser();
   const user = userData.user;
   if (userError || !user) return { errors: { form: '로그인이 필요합니다.' } };
+  /* 이메일 없는 계정은 휴대폰 인증을 마쳐도 게이트를 넘지 못한다 — 1단계(이메일 확인)로 돌려보낸다. */
+  if (!user.email?.trim()) return { errors: { form: '이메일을 먼저 확인해야 해요. 화면을 새로고침한 뒤 이메일을 입력해주세요.' } };
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')

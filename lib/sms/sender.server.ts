@@ -1,12 +1,15 @@
 import 'server-only';
 
+import { createTwilioVerifySender, twilioVerifyConfigFromEnvironment } from './twilio-verify.server';
+
 /*
  * SMS 발송 seam(1014-005·006 인증번호, 1014-010 SMS 알림).
  *
- * 발송사는 아직 정하지 않았다(사람 게이트 H4 — 국내 발신번호 등록, 해외 단가·도달률). 그래서 앱은 이 인터페이스에만
- * 기대고, 발송사 구현은 계약 뒤에 `smsSenderFromEnvironment`에 하나 더한다. 지금 있는 구현은 둘이다.
+ * 앱은 이 인터페이스에만 기대고, 발송사 구현은 `smsSenderFromEnvironment`의 ICONS_SMS_PROVIDER 값 하나에 연결한다.
  *   · 없음(null) — 기본. 발송을 시도하지 않고 기능을 닫는다(fail closed).
  *   · console — 로컬 개발·시험 전용. 문자 대신 서버 로그에 남긴다. Vercel(Preview·운영)에서는 만들지 않는다.
+ *   · twilio_verify — Twilio Verify(2026-11-17). 인증번호 문자 전용이다 — 거래 안내·광고 문자는 보내지 않고 닫힌다
+ *     (`lib/sms/twilio-verify.server.ts`). 키가 모자라면 null이다.
  * 비밀값(발송사 키)은 서버 env로만 받고 로그·응답에 남기지 않는다.
  */
 
@@ -17,6 +20,8 @@ export interface SmsMessage {
   to: string;
   text: string;
   purpose: SmsPurpose;
+  /** 인증번호(phone_verification만). 템플릿을 발송사가 정하는 발송기(Twilio Verify)는 text 대신 이 값을 넘긴다. */
+  code?: string;
 }
 
 export type SmsSendResult =
@@ -26,6 +31,8 @@ export type SmsSendResult =
 export interface SmsSender {
   readonly provider: string;
   send(message: SmsMessage): Promise<SmsSendResult>;
+  /** 인증 결과를 받는 발송사(Twilio Verify Custom Code)에 DB가 확인을 마친 번호를 알린다. 없는 발송사는 할 일이 없다. */
+  confirmVerification?(to: string): Promise<boolean>;
 }
 
 type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
@@ -53,5 +60,9 @@ export function smsSenderFromEnvironment(env: RuntimeEnvironment = process.env):
   const provider = env.ICONS_SMS_PROVIDER?.trim();
   if (!provider) return null;
   if (provider === 'console') return env.VERCEL || env.VERCEL_ENV ? null : createConsoleSmsSender();
+  if (provider === 'twilio_verify') {
+    const config = twilioVerifyConfigFromEnvironment(env);
+    return config ? createTwilioVerifySender(config) : null;
+  }
   return null;
 }

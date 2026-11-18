@@ -2,8 +2,10 @@
 
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import {
   PHONE_CODE_TTL_SECONDS,
+  confirmVerifiedPhoneWithProvider,
   phoneVerificationConfig,
   requestPhoneVerificationCode,
   verifyPhoneVerificationCode,
@@ -104,6 +106,12 @@ export async function verifyPhoneCodeAction(
     return { stage: 'code_sent', challengeId, maskedPhone, errors: { form: '인증번호를 확인하지 못했어요. 잠시 후 다시 시도해주세요.' } };
   }
 
+  /* Twilio Verify Custom Code는 인증 결과 피드백을 받는다 — 응답을 늦추지 않게 응답 뒤에 알린다. */
+  if (config.sender.confirmVerification) {
+    after(async () => {
+      await confirmVerifiedPhoneWithProvider(config, await createClient());
+    });
+  }
   revalidatePath('/onboarding');
   revalidatePath('/settings');
   return { stage: 'verified', challengeId, maskedPhone, message: '휴대폰 번호를 인증했어요.' };

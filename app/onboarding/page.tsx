@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
 import { Onboarding } from '@/components/screens/Onboarding';
+import { isUnusableLoginEmail } from '@/lib/auth/email-change';
+import { emailChangeConfig } from '@/lib/auth/email-change.server';
 import { isOnboarded, safeNextPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { getCatalogSnapshot } from '@/lib/catalog';
-import { getFollowedIpIdsForUser } from '@/lib/ip-follow.server';
 import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { MARKETING_CHANNELS, MARKETING_CHANNELS_WITH_KAKAO, marketingChannelChoices, marketingKakaoVisible } from '@/lib/marketing-consent';
 import { readMyMarketingConsentState } from '@/lib/marketing-consent.server';
@@ -31,39 +31,34 @@ export default async function Page({ searchParams }: PageProps) {
 
   /* 휴대폰 번호 인증은 스위치가 켜졌을 때만 읽는다 — 꺼져 있으면 DB도 화면도 예전과 같다(1014-005·006). */
   const phoneConfig = auth.user ? phoneVerificationConfig() : null;
-  const [catalog, followedIpIds, marketingConsent, verifiedPhone] = await Promise.all([
-    getCatalogSnapshot(),
-    auth.user ? getFollowedIpIdsForUser(auth.user.id) : Promise.resolve(new Set<string>()),
+  const [marketingConsent, verifiedPhone] = await Promise.all([
     auth.user ? readMyMarketingConsentState() : Promise.resolve(null),
     phoneConfig ? createClient().then(readMyVerifiedPhone) : Promise.resolve(null),
   ]);
   /* 카카오톡 수신 동의 줄은 카카오톡 채널 스위치가 켜졌거나 이미 동의한 회원에게만 그린다(1014-010). */
   const withKakao = marketingKakaoVisible(kakaoChannelConfig() !== null, marketingConsent);
-  const recommendedIps = catalog.ips.slice(0, 5).map((ip) => ({
-    bg: ip.bg,
-    color: ip.v.color,
-    fans: ip.fans,
-    id: ip.id,
-    sub: ip.sub,
-    tagline: ip.tagline,
-    title: ip.title,
-  }));
+  /* 로그인 이메일이 쓸 수 없는 주소(Apple 이메일 가리기 릴레이·빈 값)면 다른 이메일로 바꾸는 조각을 연다(2026-11-17). */
+  const loginEmail = auth.user?.email?.trim() ?? '';
+  /* 이메일이 없는 계정은 바꾸기 전에 온보딩을 마칠 수 없다 — 메일 설정이 없어 바꿀 수 없으면 그 사실을 알린다. */
+  const emailChangeOpen = Boolean(auth.user) && isUnusableLoginEmail(loginEmail) && emailChangeConfig() !== null;
+  const emailChange = auth.user && isUnusableLoginEmail(loginEmail) && (emailChangeOpen || !loginEmail)
+    ? { currentEmail: loginEmail, required: !loginEmail, ...(emailChangeOpen ? {} : { unavailable: true }) }
+    : undefined;
 
   return (
     <Onboarding
       birthDate={auth.profile?.birth_date ?? ''}
       email={auth.profile?.email ?? auth.user?.email ?? ''}
-      followedIpIds={[...followedIpIds]}
+      emailChange={emailChange}
       genderEligible={!auth.profile || auth.profile.role === 'user'}
       initialMarketing={marketingChannelChoices(marketingConsent, { withKakao })}
       isConfigured={auth.isConfigured}
       marketingChannels={withKakao ? MARKETING_CHANNELS_WITH_KAKAO : MARKETING_CHANNELS}
       next={next}
       /* 스위치가 켜졌고 1단계(생년월일·약관 동의)를 이미 저장했으면 휴대폰 인증 단계부터 연다. */
-      phoneStep={Boolean(phoneConfig) && Boolean(auth.profile?.birth_date)
+      phoneStep={Boolean(phoneConfig) && Boolean(loginEmail) && Boolean(auth.profile?.birth_date)
         && auth.profile?.consents?.terms === true && auth.profile?.consents?.privacy === true}
       phoneVerification={phoneConfig ? phoneVerificationView(phoneConfig, verifiedPhone) : undefined}
-      recommendedIps={recommendedIps}
     />
   );
 }

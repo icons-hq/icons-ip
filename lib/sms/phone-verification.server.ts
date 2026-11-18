@@ -161,7 +161,7 @@ export async function requestPhoneVerificationCode(
     }
   }
 
-  const sent = await config.sender.send({ to: normalized.e164, text: phoneCodeMessage(code, normalized.e164), purpose: 'phone_verification' })
+  const sent = await config.sender.send({ to: normalized.e164, text: phoneCodeMessage(code, normalized.e164), purpose: 'phone_verification', code })
     .catch(() => ({ ok: false as const, reason: 'unavailable' as const }));
   if (!sent.ok) {
     await service.rpc('service_fail_member_phone_verification', { p_challenge_id: challengeId, p_user_id: input.userId });
@@ -215,6 +215,22 @@ export async function verifyPhoneVerificationCode(
       return { ok: false, field: 'form', error: '지금은 이 계정으로 휴대폰 번호를 인증할 수 없어요.', restart: true };
     default:
       return { ok: false, field: 'form', error: '인증번호를 다시 받아주세요.', restart: true };
+  }
+}
+
+/**
+ * 인증 결과를 받는 발송사(Twilio Verify Custom Code)에 확인을 마친 번호를 알린다. DB가 이미 판정했으므로 실패해도
+ * 인증은 그대로다 — 응답 뒤(after)에 부른다. 본인 인증 번호는 로그인한 회원 세션으로 읽는다.
+ */
+export async function confirmVerifiedPhoneWithProvider(config: PhoneVerificationConfig, client: UserClient): Promise<boolean> {
+  if (!config.sender.confirmVerification) return false;
+  try {
+    const { data, error } = await client.rpc('my_member_phone_verification');
+    const result = record(data);
+    if (error || !result || result.verified !== true || typeof result.phoneE164 !== 'string') return false;
+    return await config.sender.confirmVerification(result.phoneE164);
+  } catch {
+    return false;
   }
 }
 

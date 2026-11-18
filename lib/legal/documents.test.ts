@@ -11,6 +11,11 @@ import {
   PENDING_PROCESSOR_LABEL,
   type LegalDocument,
 } from './documents';
+import {
+  CONTACT_CHANNELS_PRIVACY_REVISION,
+  contactChannelsPrivacyRevisionAnnounced,
+  contactChannelsPrivacyRevisionInEffect,
+} from './contact-channels-privacy-revision';
 import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate } from './privacy-address-book-revision';
 import {
   SHIPPING_BUNDLE_WORDING_REVISION,
@@ -32,14 +37,23 @@ function shiftDay(date: string, days: number): string {
 /* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
 const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
 const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION);
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION);
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION);
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION);
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null);
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null);
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null);
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null);
+
+/* 방침 개정(휴대폰 번호 인증·이메일 변경)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 끄고(null) 2026-11-06 최초 판을 고정한다.
+   BASE_LEGAL 은 실제 시계와 무관하게 방침 최초 판을 고정한 현행 문서 셋이다(방침 본문 문구를 검사하는 시험이 시행일 뒤에도 같은 본문을 본다). */
+const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null);
+/* 방침 개정 상태 — 날짜는 개정 상수에서 파생한다. 표기 개정은 꺼서(null) terms·shipping 을 건드리지 않게 한다. */
+const PRIVACY_NOW = CONTACT_CHANNELS_PRIVACY_REVISION;
+const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW);
+const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW);
+const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW);
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
-  ...[BEFORE_BUNDLE, DURING_BUNDLE, AFTER_BUNDLE].flatMap((set) => LEGAL_DOCUMENT_SLUGS.map((slug) => set[slug])),
+  ...[BEFORE_BUNDLE, DURING_BUNDLE, AFTER_BUNDLE, AFTER_PRIVACY_REVISION].flatMap((set) => LEGAL_DOCUMENT_SLUGS.map((slug) => set[slug])),
 ];
 
 function source() {
@@ -418,7 +432,7 @@ describe('이용약관', () => {
 });
 
 describe('개인정보처리방침', () => {
-  const privacy = LEGAL_DOCUMENTS.privacy;
+  const privacy = BASE_LEGAL.privacy;
   const text = plainText(privacy);
 
   it('코드가 실제로 수집하는 항목을 기술한다', () => {
@@ -572,6 +586,126 @@ describe('개인정보처리방침', () => {
 
     expect(body).toMatch(/이용약관 제7조의 탈퇴 요청/);
     expect(body).toMatch(/직접 탈퇴를 실행하는 기능은 아직 없/);
+  });
+});
+
+describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·이메일 변경', () => {
+  const base = BASE_LEGAL.privacy;
+  const revised = AFTER_PRIVACY_REVISION.privacy;
+  const article = (document: LegalDocument, prefix: string) => document.articles.find((item) => item.heading.startsWith(prefix))!;
+
+  it('공지 1일·시행 1일 뒤 일정이고 최초 판 시행일은 그대로다', () => {
+    expect(PRIVACY_NOW).toEqual({ announcedDate: '2026-11-17', effectiveDate: '2026-11-18' });
+    expect(LEGAL_EFFECTIVE_DATES.privacy).toBe('2026-11-06');
+    expect(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate).toBe(LEGAL_EFFECTIVE_DATES.privacy);
+  });
+
+  it('공지 전날까지는 최초 판 그대로다', () => {
+    expect(BEFORE_PRIVACY_NOTICE.privacy).toEqual(base);
+    expect(base.effectiveDate).toBe('2026-11-06');
+    expect(base.pendingRevision).toBeUndefined();
+    expect(base.previousVersion).toBeUndefined();
+    expect(base.revisionChanges).toBeUndefined();
+    expect(plainText(base)).not.toContain('Twilio');
+  });
+
+  it('공지일에는 본문을 바꾸지 않고 개정 사전 공지만 붙인다', () => {
+    const during = DURING_PRIVACY_NOTICE.privacy;
+    expect(during.articles).toEqual(base.articles);
+    expect(during.effectiveDate).toBe('2026-11-06');
+    expect(during.previousVersion).toBeUndefined();
+    expect(during.revisionChanges).toBeUndefined();
+    expect(during.pendingRevision).toMatchObject({
+      announcedDate: '2026-11-17',
+      effectiveDate: '2026-11-18',
+      heading: '휴대폰 번호 인증·이메일 변경 도입에 따른 개정 예정 안내',
+    });
+    expect(during.pendingRevision!.changes[0]).toContain('개정 사유');
+    expect(during.pendingRevision!.changes.length).toBeGreaterThanOrEqual(7);
+    /* terms·shipping 은 이 개정과 무관하다. */
+    expect(DURING_PRIVACY_NOTICE.terms).toEqual(BASE_LEGAL.terms);
+    expect(DURING_PRIVACY_NOTICE.shipping).toEqual(BASE_LEGAL.shipping);
+  });
+
+  it('시행일부터 개정본이 현행이 되고 직전 본문을 이전 판으로 보존한다', () => {
+    expect(revised.effectiveDate).toBe('2026-11-18');
+    expect(revised.pendingRevision).toBeUndefined();
+    expect(revised.previousVersion).toEqual({ effectiveDate: '2026-11-06', articles: base.articles });
+    expect(revised.revisionChanges).toEqual(DURING_PRIVACY_NOTICE.privacy.pendingRevision!.changes);
+    expect(revised.articles.map((item) => item.heading)).toEqual(base.articles.map((item) => item.heading));
+    expect(AFTER_PRIVACY_REVISION.terms).toEqual(BASE_LEGAL.terms);
+    expect(AFTER_PRIVACY_REVISION.shipping).toEqual(BASE_LEGAL.shipping);
+    for (const row of article(revised, '제1조 ').table!.rows) expect(row).toHaveLength(3);
+  });
+
+  it('개정본 제1조: 휴대폰 번호 인증·이메일 변경·IP 팔로우 행을 더하고 온보딩 행에서 팔로우한 IP를 뺀다', () => {
+    const rows = article(revised, '제1조 ').table!.rows;
+    const byLabel = (label: string) => rows.find((row) => row[0] === label)!;
+    expect(byLabel('휴대폰 번호 인증')[1]).toContain('휴대폰 번호(국가 번호 포함)');
+    expect(byLabel('휴대폰 번호 인증')[1]).toContain('복원할 수 없게 변환한 값');
+    expect(byLabel('이메일 변경 (선택)')[2]).toContain('Apple 이메일 가리기');
+    expect(byLabel('IP 팔로우')).toEqual(['IP 팔로우', '팔로우한 IP와 IP별 알림 설정', '회원이 IP 페이지에서 팔로우한 경우']);
+    expect(byLabel('온보딩')[1]).not.toContain('팔로우한 IP');
+    expect(byLabel('온보딩')[1]).toContain('자동 생성');
+    expect(rows.map((row) => row[0]).slice(1, 5)).toEqual(['온보딩', '휴대폰 번호 인증', '이메일 변경 (선택)', 'IP 팔로우']);
+    expect(article(base, '제1조 ').table!.rows.find((row) => row[0] === '온보딩')![1]).toContain('팔로우한 IP');
+  });
+
+  it('개정본 제2조·제3조: 목적과 보유 기간을 더하고 문자 알림·마케팅은 하지 않는다고 밝힌다', () => {
+    const purposes = article(revised, '제2조 (');
+    expect(purposes.list!.some((item) => item.startsWith('휴대폰 번호 인증을 통한 회원 연락처 확인'))).toBe(true);
+    expect(purposes.list!.length).toBe(article(base, '제2조 (').list!.length + 1);
+    expect(purposes.closing!.join('\n')).toContain('문자 메시지를 통한 알림·거래 안내·마케팅 정보 발송에는 이용하지 않습니다');
+    const retention = article(revised, '제3조 ').closing!.join('\n');
+    expect(retention).toContain('요청 2일 뒤');
+    expect(retention).toContain('발생 1년 뒤');
+    expect(retention).toContain('재인증이 필요하다는 표시만');
+    expect(retention).toContain('이메일 변경 인증 요청 기록');
+  });
+
+  it('개정본 제5조·제6조: Twilio를 위탁·국외 이전에 올리고 이메일 발송 수탁자 업무에 이메일 변경을 더한다', () => {
+    const consignment = article(revised, '제5조 ');
+    expect(consignment.table!.rows).toContainEqual(['Twilio Inc.', '휴대폰 번호 인증번호 문자 발송', '위탁계약 종료 시까지']);
+    const resend = consignment.table!.rows.find((row) => row[0] === 'Resend')!;
+    expect(resend[1]).toContain('이메일 변경 인증 메일');
+    expect(consignment.closing!.join('\n')).toContain('이메일 변경 인증 메일에는 변경할 이메일 주소');
+
+    const transfer = article(revised, '제6조 ');
+    expect(transfer.table!.rows).toContainEqual([
+      'Twilio Inc.',
+      '미국',
+      '휴대폰 번호(국가 번호 포함)와 인증번호 · 인증번호를 요청할 때 · 정보통신망을 통한 전송',
+      '휴대폰 번호 인증 문자 발송 · 위탁계약 종료 시까지',
+    ]);
+    const resendTransfer = transfer.table!.rows.find((row) => row[0] === 'Resend')!;
+    expect(resendTransfer[2]).toContain('이메일 변경 인증 메일');
+    expect(resendTransfer[3]).toContain('이메일 변경 인증 메일');
+    for (const row of consignment.table!.rows) expect(row).toHaveLength(3);
+    for (const row of transfer.table!.rows) expect(row).toHaveLength(4);
+  });
+
+  it('개정본 제7조: 휴대폰 번호를 설정 직접 수정 항목에 더하고, 제11조의 항목 나열은 그대로 둔다', () => {
+    const rights = article(revised, '제7조 ').paragraphs!.join('\n');
+    expect(rights).toContain('닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부, 휴대폰 번호는 설정 화면에서 직접');
+    expect(rights).toContain('이메일을 바꿀 수 있습니다');
+    expect(article(revised, '제11조 ')).toEqual(article(base, '제11조 '));
+  });
+
+  it('개정본에도 금지 어휘가 없고 문자 마케팅 발송을 주장하지 않는다', () => {
+    const text = plainText(revised);
+    for (const word of ['상품', '가챠', '뽑기', '확률', '충전', '천장']) expect(text, word).not.toMatch(new RegExp(word));
+    expect(text).not.toMatch(/문자[^.]*마케팅 정보를 (발송|제공)/);
+  });
+
+  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 최초 판이다', () => {
+    expect(contactChannelsPrivacyRevisionAnnounced('2026-11-16', PRIVACY_NOW)).toBe(false);
+    expect(contactChannelsPrivacyRevisionAnnounced('2026-11-17', PRIVACY_NOW)).toBe(true);
+    expect(contactChannelsPrivacyRevisionAnnounced('2026-11-18', PRIVACY_NOW)).toBe(false);
+    expect(contactChannelsPrivacyRevisionInEffect('2026-11-17', PRIVACY_NOW)).toBe(false);
+    expect(contactChannelsPrivacyRevisionInEffect('2026-11-18', PRIVACY_NOW)).toBe(true);
+    expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
+    expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null).privacy).toEqual(base);
   });
 });
 

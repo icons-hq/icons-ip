@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parsePhoneAllowlist } from './phone-number';
 import {
+  confirmVerifiedPhoneWithProvider,
   generatePhoneCode,
   maskedVerifiedPhone,
   phoneCodeDigest,
@@ -91,7 +92,7 @@ describe('requestPhoneVerificationCode', () => {
     });
     expect(JSON.stringify(args)).not.toContain('482913');
     expect(JSON.stringify(args)).not.toContain('203.0.113.7');
-    expect(fake.sent).toEqual([{ to: '+821012345678', text: '[ICONS] 인증번호 [482913]를 5분 안에 입력해주세요.', purpose: 'phone_verification' }]);
+    expect(fake.sent).toEqual([{ to: '+821012345678', text: '[ICONS] 인증번호 [482913]를 5분 안에 입력해주세요.', purpose: 'phone_verification', code: '482913' }]);
   });
 
   it('does not touch the database for an invalid number or a country that is not open', async () => {
@@ -172,6 +173,26 @@ describe('verifyPhoneVerificationCode', () => {
     const db = service({ service_verify_member_phone_verification: { data, error: null } });
     expect(await verifyPhoneVerificationCode({ userId: USER_ID, challengeId: CHALLENGE_ID, code: '123456' }, { config: configWith(sender().sender), service: db.client }))
       .toEqual({ ok: false, ...expected });
+  });
+});
+
+describe('confirmVerifiedPhoneWithProvider (Twilio Verify Custom Code 피드백)', () => {
+  it('tells the provider the number our DB verified, read with the member session', async () => {
+    const confirmVerification = vi.fn(async () => true);
+    const config = configWith({ ...sender().sender, confirmVerification });
+    const { client } = service({ my_member_phone_verification: { data: { verified: true, phoneE164: '+821012345678' }, error: null } });
+
+    await expect(confirmVerifiedPhoneWithProvider(config, client)).resolves.toBe(true);
+    expect(confirmVerification).toHaveBeenCalledWith('+821012345678');
+  });
+
+  it('does nothing for providers without feedback or when the number is not verified', async () => {
+    const confirmVerification = vi.fn(async () => true);
+    const { client: unverified } = service({ my_member_phone_verification: { data: { verified: false }, error: null } });
+
+    await expect(confirmVerifiedPhoneWithProvider(configWith(sender().sender), unverified)).resolves.toBe(false);
+    await expect(confirmVerifiedPhoneWithProvider(configWith({ ...sender().sender, confirmVerification }), unverified)).resolves.toBe(false);
+    expect(confirmVerification).not.toHaveBeenCalled();
   });
 });
 
