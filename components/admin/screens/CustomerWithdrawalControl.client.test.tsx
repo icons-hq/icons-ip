@@ -40,9 +40,12 @@ const customer: AdminMemberDetail = {
   withdrawal: { processed: false, processedAt: null, inquiryReference: null, signinBlocked: false, signinBlockedAt: null },
 };
 
+/* useRef 순서: 확인 통과 표식(0) · 대조 중 표식(1) · 대조한 번호 숨은 칸(2). */
+const confirmedInput = () => hooks.refs[2] as { current: { value: string } };
 function submitForm(inquiryReference: string) {
   hooks.stateIndex = 0; hooks.refIndex = 0;
   hooks.state[0] = inquiryReference;
+  hooks.refs[2] ??= { current: { value: '' } };
   const form = all(CustomerWithdrawalControl({ actor: { id: 'actor', role: 'admin' }, customer }))
     .find((element) => element.type === 'form' && element.props.onSubmit);
   const target = { isConnected: true, requestSubmit: vi.fn() };
@@ -72,6 +75,24 @@ it('제출을 멈추고 문의 유형·제목·작성일을 확인창에서 대�
   expect(confirms[0].message).toContain('문의 #1234 · 계정 · 회원 탈퇴 요청합니다');
   expect(confirms[0].message).not.toContain('주의');
   expect(target.requestSubmit).toHaveBeenCalledWith('submit-button');
+  expect(confirmedInput().current.value).toBe('1234');
+});
+
+it('대조하는 동안의 거듭 제출은 무시하고 입력은 읽기 전용이다', async () => {
+  let resolve: (value: unknown) => void = () => {};
+  mocks.preview.mockReturnValue(new Promise((done) => { resolve = done; }));
+  const first = submitForm('1234');
+  const second = submitForm('1234');
+  expect(second.event.preventDefault).toHaveBeenCalledOnce();
+  expect(mocks.preview).toHaveBeenCalledTimes(1);
+  hooks.stateIndex = 0; hooks.refIndex = 0;
+  const tree = all(CustomerWithdrawalControl({ actor: { id: 'actor', role: 'admin' }, customer }));
+  const fields = tree.filter((element) => (element.props as { name?: string }).name === 'inquiryReference' || (element.props as { name?: string }).name === 'note');
+  expect(new Set(fields.map((element) => (element.props as { name?: string }).name))).toEqual(new Set(['inquiryReference', 'note']));
+  expect(fields.every((element) => (element.props as { readOnly?: boolean }).readOnly === true)).toBe(true);
+  resolve({ ok: false, error: '중단' });
+  await settle();
+  expect(first.target.requestSubmit).not.toHaveBeenCalled();
 });
 
 it('계정 유형이 아닌 문의는 경고를 앞에 두고, 취소하면 제출하지 않는다', async () => {

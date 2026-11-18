@@ -50,15 +50,19 @@ export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: st
   const [checking, setChecking] = useState(false);
   /* 확인을 마친 제출 하나만 통과시키는 표식. 대조·확인 중의 거듭 제출은 무시한다. */
   const confirmedRef = useRef(false);
+  const checkingRef = useRef(false);
+  /* 확인창에서 대조한 문의 번호를 함께 보낸다 — 서버 액션이 입력한 번호와 다르면 처리하지 않는다. */
+  const confirmedInputRef = useRef<HTMLInputElement>(null);
   const allowed = canModerateAdminMember({ actorId: actor.id, memberId: customer.id, moderation: customer.moderation });
   const withdrawal = customer.withdrawal;
 
   /* 되돌릴 수 없는 처리라 문의 번호의 유형·제목·작성일을 불러와 확인창에서 대조하게 한다(계정 유형이 아니면 경고).
-     확인하면 같은 제출자로 다시 제출하고, 그 제출만 서버 액션으로 보낸다. */
+     대조하는 동안 입력은 읽기 전용이다. 확인하면 대조한 번호를 숨은 칸에 적고 같은 제출자로 다시 제출한다. */
   async function confirmWithInquiry(event: FormEvent<HTMLFormElement>) {
     if (confirmedRef.current) { confirmedRef.current = false; return; }
     event.preventDefault();
-    if (checking) return;
+    if (checkingRef.current) return;
+    checkingRef.current = true;
     const form = event.currentTarget;
     const submitter = (event.nativeEvent as { submitter?: HTMLElement | null }).submitter ?? undefined;
     setCheckError(null);
@@ -68,11 +72,13 @@ export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: st
       if (!preview.ok) { setCheckError(preview.error); return; }
       const ok = await adminConfirm({ title: '탈퇴 요청 처리', message: memberWithdrawalConfirmMessage(preview.inquiry), confirmLabel: '탈퇴 처리', destructive: true });
       if (!ok || !form.isConnected) return;
+      if (confirmedInputRef.current) confirmedInputRef.current.value = String(preview.inquiry.reference);
       confirmedRef.current = true;
       try { form.requestSubmit(submitter); } finally { confirmedRef.current = false; }
     } catch {
       setCheckError('문의를 확인하지 못했습니다. 다시 시도해주세요.');
     } finally {
+      checkingRef.current = false;
       setChecking(false);
     }
   }
@@ -108,15 +114,16 @@ export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: st
               </div>
               <form action={process} className={FORM_CLASS} onSubmit={(event) => { void confirmWithInquiry(event); }}>
                 <input name="profileId" type="hidden" value={customer.id} />
+                <input defaultValue="" name="confirmedInquiryReference" ref={confirmedInputRef} type="hidden" />
                 <AdminField error={state.errors?.inquiryReference} hint="이 고객이 탈퇴를 요청한 1:1 문의의 번호입니다(문의 탭의 #번호)." inputId="customer-withdrawal-inquiry" label="문의 번호">
                   <Input aria-describedby={state.errors?.inquiryReference ? 'customer-withdrawal-inquiry-error' : 'customer-withdrawal-inquiry-hint'}
-                    aria-invalid={Boolean(state.errors?.inquiryReference)} autoComplete="off" className="max-w-48" disabled={processing}
+                    aria-invalid={Boolean(state.errors?.inquiryReference)} autoComplete="off" className="max-w-48" disabled={processing} readOnly={checking}
                     id="customer-withdrawal-inquiry" inputMode="numeric" maxLength={16} name="inquiryReference" onChange={(event) => setInquiryReference(event.target.value)}
                     placeholder="예: 1234" required value={inquiryReference} />
                 </AdminField>
                 <AdminField error={state.errors?.note} hint="정지 사유로 남는 내부 기록입니다. 고객의 연락처·주소 같은 개인정보는 적지 마세요." inputId="customer-withdrawal-note" label="처리 메모">
                   <Textarea aria-describedby={state.errors?.note ? 'customer-withdrawal-note-error' : 'customer-withdrawal-note-hint'}
-                    aria-invalid={Boolean(state.errors?.note)} className="min-h-20" disabled={processing} id="customer-withdrawal-note"
+                    aria-invalid={Boolean(state.errors?.note)} className="min-h-20" disabled={processing} id="customer-withdrawal-note" readOnly={checking}
                     maxLength={MEMBER_WITHDRAWAL_NOTE_MAX} name="note" onChange={(event) => setNote(event.target.value)} required rows={2} value={note} />
                 </AdminField>
                 <Button className="self-start" disabled={processing || checking} type="submit" variant="danger">{processing ? '처리 중' : checking ? '문의 확인 중' : '탈퇴 요청 처리'}</Button>

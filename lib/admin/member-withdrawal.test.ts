@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INQUIRY_WITHDRAWAL_SCOPE } from '@/lib/account-deletion';
 import {
   MEMBER_WITHDRAWAL_RETAINED,
+  MEMBER_WITHDRAWAL_UNCONFIRMED,
   memberWithdrawalConfirmMessage,
   memberWithdrawalErasedSummary,
   memberWithdrawalRpcError,
@@ -32,14 +33,25 @@ describe('탈퇴 요청 처리 입력', () => {
   });
 
   it('회원·문의 번호·메모(2~200자, 제어 문자 없음)를 검증하고 앞뒤 공백을 걷는다', () => {
-    expect(normalizeMemberWithdrawalForm(form({ profileId: MEMBER.toUpperCase(), inquiryReference: '#77', note: '  고객 요청 확인  ' })))
+    expect(normalizeMemberWithdrawalForm(form({ profileId: MEMBER.toUpperCase(), inquiryReference: '#77', confirmedInquiryReference: '77', note: '  고객 요청 확인  ' })))
       .toEqual({ ok: true, value: { profileId: MEMBER, inquiryReference: 77, note: '고객 요청 확인' } });
     const invalid = normalizeMemberWithdrawalForm(form({ profileId: 'nope', inquiryReference: 'x', note: '가' }));
     expect(invalid.ok).toBe(false);
     if (!invalid.ok) expect(Object.keys(invalid.errors).sort()).toEqual(['inquiryReference', 'note', 'profileId']);
     expect(normalizeMemberWithdrawalForm(form({ profileId: MEMBER, inquiryReference: '7', note: '가'.repeat(201) })).ok).toBe(false);
     expect(normalizeMemberWithdrawalForm(form({ profileId: MEMBER, inquiryReference: '7', note: '고객\u0001요청' })).ok).toBe(false);
-    expect(normalizeMemberWithdrawalForm(form({ profileId: MEMBER, inquiryReference: '7', note: '고객\n요청' })).ok).toBe(true);
+    expect(normalizeMemberWithdrawalForm(form({ profileId: MEMBER, inquiryReference: '7', confirmedInquiryReference: '7', note: '고객\n요청' })).ok).toBe(true);
+  });
+
+  it('확인창에서 대조한 번호와 다르거나 대조를 거치지 않은 제출은 받지 않는다', () => {
+    for (const confirmed of [undefined, '', '8', 'abc']) {
+      const entries: Record<string, string> = { profileId: MEMBER, inquiryReference: '7', note: '고객 요청' };
+      if (confirmed !== undefined) entries.confirmedInquiryReference = confirmed;
+      const result = normalizeMemberWithdrawalForm(form(entries));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors.inquiryReference).toBe(MEMBER_WITHDRAWAL_UNCONFIRMED);
+    }
+    expect(normalizeMemberWithdrawalForm(form({ profileId: MEMBER, inquiryReference: '#7', confirmedInquiryReference: '7', note: '고객 요청' })).ok).toBe(true);
   });
 });
 

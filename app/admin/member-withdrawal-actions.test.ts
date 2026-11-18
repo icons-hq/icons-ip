@@ -26,6 +26,7 @@ function form(entries: Record<string, string> = {}) {
   const data = new FormData();
   data.set('profileId', MEMBER);
   data.set('inquiryReference', '#1234');
+  data.set('confirmedInquiryReference', '1234');
   data.set('note', '  1:1 문의 탈퇴 요청 확인  ');
   for (const [key, value] of Object.entries(entries)) data.set(key, value);
   return data;
@@ -58,6 +59,12 @@ describe('탈퇴 요청 처리 액션', () => {
   it('입력이 틀리면 RPC 전에 필드 오류를 돌려준다', async () => {
     const state = await processMemberWithdrawalAction({}, form({ inquiryReference: '문의', note: '가' }));
     expect(state.errors).toMatchObject({ inquiryReference: expect.any(String), note: expect.any(String) });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('확인창에서 대조한 문의 번호와 제출한 번호가 다르면 RPC를 부르지 않는다', async () => {
+    const state = await processMemberWithdrawalAction({}, form({ confirmedInquiryReference: '1233' }));
+    expect(state.errors?.inquiryReference).toContain('대조한 문의 번호와 입력한 번호가 다릅니다');
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

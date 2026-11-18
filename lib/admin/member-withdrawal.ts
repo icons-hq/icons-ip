@@ -13,6 +13,7 @@ import { isUuid } from '@/lib/uuid';
 import type { AdminMemberFormResult } from './members';
 
 export const MEMBER_WITHDRAWAL_NOTE_MIN = 2;
+export const MEMBER_WITHDRAWAL_UNCONFIRMED = '확인창에서 대조한 문의 번호와 입력한 번호가 다릅니다. 다시 눌러 문의를 확인해주세요.';
 export const MEMBER_WITHDRAWAL_NOTE_MAX = 200;
 /** Auth 관리 API ban_duration. 100년 — DB 확인은 50년 이상 남은 차단만 재로그인 차단으로 인정한다. */
 export const WITHDRAWN_MEMBER_BAN_DURATION = '876000h';
@@ -113,10 +114,13 @@ export function normalizeMemberWithdrawalForm(
   const profileId = readString(formData, 'profileId');
   const inquiryReference = parseInquiryReference(readString(formData, 'inquiryReference'));
   const note = readString(formData, 'note');
+  /* 확인창에서 대조한 문의 번호. 대조 뒤 입력이 바뀌었거나 확인을 거치지 않은 제출은 처리하지 않는다. */
+  const confirmedReference = parseInquiryReference(readString(formData, 'confirmedInquiryReference'));
   const noteLength = [...note].length;
   const errors: Record<string, string> = {};
   if (!isUuid(profileId)) errors.profileId = '회원을 찾을 수 없습니다.';
   if (inquiryReference === null) errors.inquiryReference = '탈퇴를 요청한 1:1 문의 번호(숫자)를 입력해주세요.';
+  else if (confirmedReference !== inquiryReference) errors.inquiryReference = MEMBER_WITHDRAWAL_UNCONFIRMED;
   if (noteLength < MEMBER_WITHDRAWAL_NOTE_MIN || noteLength > MEMBER_WITHDRAWAL_NOTE_MAX || /[\u0000-\u0008\u000b-\u001f\u007f]/.test(note)) {
     errors.note = `처리 메모는 ${MEMBER_WITHDRAWAL_NOTE_MIN}자 이상 ${MEMBER_WITHDRAWAL_NOTE_MAX}자 이하로 입력해주세요.`;
   }
