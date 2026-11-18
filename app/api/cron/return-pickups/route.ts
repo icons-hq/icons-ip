@@ -3,6 +3,7 @@ import { returnPickupAdapterFromEnvironment } from '@/lib/fulfillment/pickup/ada
 import { openSealedPickupAddress } from '@/lib/fulfillment/pickup/address.server';
 import { returnPickupRepository } from '@/lib/fulfillment/pickup/repository.server';
 import { runReturnPickupTick } from '@/lib/fulfillment/pickup/run';
+import { startCronRun } from '@/lib/system-health/cron-run.server';
 
 /*
  * 반품 자동 회수 접수(QNA-032·ADR-0034). 5분마다 불리지만 DB 스위치가 꺼져 있으면(기본) 스위치를 한 번 읽고 끝난다 — 택배사를 부르지
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   if (!secret || actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
     return Response.json({ ok: false }, { status: 401, headers });
   }
+  const run = startCronRun('return-pickups');
   try {
     const result = await runReturnPickupTick({
       repository: returnPickupRepository(),
@@ -32,8 +34,8 @@ export async function GET(request: Request) {
     // 단계가 실패했거나, 켜져 있는데 이 서버에 어댑터가 없거나(키·이름 불일치), 형식이 틀린 일·결과가 있으면 관측되게 503으로 남긴다.
     // 택배사가 거절한 접수는 실패가 아니라 업무 결과다 — DB가 '자동 수거 실패'로 세어 운영 화면에 보인다.
     const ok = !result.failedStages && (result.enabled !== true || (!result.unavailable && result.invalid === 0));
-    return Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers });
-  } catch {
-    return Response.json({ ok: false }, { status: 503, headers });
+    return run.finish(Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers }));
+  } catch (error) {
+    return run.fail(error, Response.json({ ok: false }, { status: 503, headers }));
   }
 }

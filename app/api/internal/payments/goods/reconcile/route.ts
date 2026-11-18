@@ -101,10 +101,12 @@ function response(body: Record<string, unknown>, status: number) {
  * `finalize_goods_manual_payment_recovery`)이 정상 경로다. attempt 부재는 404
  * `attempt_not_found`, 조회 실패는 502 `attempt_lookup_failed`다.
  *
- * reconcile을 태우는 트리거는 토스 웹훅 재전송(최대 7회)과 이 라우트뿐이고 주기
- * 크론은 없다 — 재전송이 소진되거나 웹훅이 오지 않아 `unknown`으로 남은 건을
- * 운영자가 여기서 건 지정으로 닫는다. 나이스페이는 웹훅을 쓰지 않으므로(결제통보는
- * 위변조 검증 수단이 없다) 이 라우트가 유일한 트리거다. 확정은 여전히 조회 API
+ * reconcile을 태우는 트리거는 토스 웹훅 재전송(최대 7회), 10분 주기 자동 재확인 cron
+ * (`/api/cron/payment-reconciliation` — unknown·멈춘 confirming만), 운영 화면 시스템 상태의
+ * '결제 상태 다시 확인'(서버 액션, 감사 기록), 그리고 이 라우트다. 셋은 같은 seam을
+ * `lib/payments/attempt-reconciliation.server.ts`로 부르고, 이 라우트는 화면에 접근할 수 없는
+ * 상황의 비밀값 경로로 남는다. 나이스페이는 웹훅을 쓰지 않는다(결제통보는 위변조 검증
+ * 수단이 없다). 확정은 여전히 조회 API
  * 재검증(reconcile seam)과 DB 멱등 finalizer가 하며, 응답에는 provider 식별자를
  * 싣지 않는다.
  */

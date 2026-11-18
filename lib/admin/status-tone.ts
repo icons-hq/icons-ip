@@ -174,6 +174,10 @@ const STATUS_TONES = {
   regionPolicy: { draft: 'neutral', scheduled: 'info', active: 'success', retired: 'warning' },
   /** 적립금 일괄 지급 작업 */
   creditBatch: { prepared: 'warning', invalid: 'warning', completed: 'success', failed: 'danger' },
+  /** 자동 작업 상태 — lib/admin/system-health systemJobState. 실패 중·멈춤은 문제, 기록 없음·꺼짐은 판단할 수 없어 조용히 둔다 */
+  systemJob: { ok: 'success', failing: 'danger', stalled: 'danger', unrecorded: 'neutral', inactive: 'neutral' },
+  /** 미종결 결제 시도 사유 — lib/admin/system-health. 결제사와 원장이 어긋난 건은 사람이 봐야 해 위험, 나머지는 다시 확인할 일이다 */
+  unresolvedPayment: { unknown: 'warning', confirming_stalled: 'warning', needs_review: 'danger' },
 } as const satisfies Record<string, Record<string, AdminTone>>;
 
 export type AdminStatusDomain = keyof typeof STATUS_TONES;
