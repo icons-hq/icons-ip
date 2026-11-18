@@ -28,14 +28,17 @@
 
 ## 현재 읽기 경계와 후속 RLS 이슈
 
-이 변경은 공개 앱 로더와 `search_public_content`에서 초안을 제외한다. `ips_read`의 `using (true)`와 기존 공개 카탈로그 SELECT 정책을 유지하므로 **anon REST 직접 조회는 초안 IP 및 하위 카탈로그를 읽을 수 있다**. 초안은 공개 시점 준비 상태이며 비밀자료 보관 수단이 아니다. 앱 필터 통과를 DB 접근 통제 완료로 기록하지 않는다.
+공개 앱 로더와 `search_public_content`는 초안을 제외한다. DB 읽기 경계는 표마다 다르다.
 
-후속 이슈: [#451 — 초안·보관 카탈로그의 Data API 읽기를 제한하고 보유 이력 읽기를 분리한다](https://github.com/icons-hq/icons-ip/issues/451).
+- **굿즈·옵션(20261118160000):** 익명·회원의 `goods` 직접 SELECT는 게시·미보관·부모 IP 게시·미보관·판매 제한 판정 통과(19금은 유효한 성인 인증 본인) 행만 연다(`goods_public_read`). `goods_variants` 공개 읽기는 그 부모가 보이는 행만이다(정책 안의 goods 조회가 goods RLS를 그대로 거친다). `catalog.read` 운영자는 초안·보관·19금까지 읽는다(`goods_operator_read`) — `catalog.read`가 없는 물류 역할은 고객과 같다. anon REST로 초안·보관·19금 굿즈를 직접 읽을 수 없다.
+- 공개가 아닌 굿즈를 읽어야 하는 고객 화면은 RLS를 우회하는 좁은 읽기로 옮겼다: 본인 주문 품목 줄의 썸네일·IP·19금 가림(`my_order_line_goods`, 본인 주문에 담긴 굿즈만), 인증 전 방문자의 19금 가림 카드(`get_masked_adult_goods`, 이름·이미지 없음), 선물 품목의 랜덤 판매 옵션 가림(`get_random_option_good_ids`, 넘긴 id의 판매 방식만). 주문·장바구니·찜·리뷰·선물·정기구매·클레임·알림·영수증 RPC는 security definer라 영향이 없다. 내 상품 문의 목록은 내려간 굿즈 이름을 '판매 종료된 굿즈'로 보인다(문의 행은 회원이 직접 쓸 수 있어 비공개 이름을 여는 근거로 쓰지 않는다).
+- **아직 열린 것:** `ips`·`cards`·`events`의 `using (true)` 공개 SELECT는 그대로라 **anon REST는 초안 IP·카드·이벤트를 읽을 수 있다**. `reviews`·`product_questions` 공개 읽기(visible)도 부모 굿즈 공개와 묶지 않았다 — 묶음 상품 리뷰가 보관된 구성 상품의 리뷰 사진을 열람자 세션으로 서명하므로 별도 설계가 필요하다. `public-media` 버킷은 공개 버킷이라 경로를 아는 이미지는 직접 열린다. 초안은 공개 시점 준비 상태이며 비밀자료 보관 수단이 아니다.
 
-- anon과 일반 authenticated의 직접 `ips`·하위 카탈로그 SELECT는 공개 상태만 허용한다. staff는 현재 어드민 읽기를 유지한다.
+후속 이슈: [#451 — 초안·보관 카탈로그의 Data API 읽기를 제한하고 보유 이력 읽기를 분리한다](https://github.com/icons-hq/icons-ip/issues/451). 굿즈 부분은 위 migration으로 닫았고 남은 범위는 IP·카드·이벤트다.
+
+- anon과 일반 authenticated의 직접 `ips`·카드·이벤트 SELECT는 공개 상태만 허용한다. staff는 현재 어드민 읽기를 유지한다.
 - 주문·바인더·카드팩·팔로우·커뮤니티 이력이 비공개 카탈로그에도 의존하는 호출처를 먼저 조사하고, 소유자 범위의 전용 RPC/뷰 또는 기존 스냅샷으로 옮긴다.
 - 공개 검색·캠페인·게임·홈·상품 상세와 직접 REST 조회를 모두 검증하고, 소유자 이력 열람과 운영자 초안 편집을 회귀 검증한다.
-- 익명·일반 회원·소유자·staff·service role의 allow/deny, 함수 EXECUTE 봉인, 동시 게시 전환을 SQL 스모크에서 확인한다.
-- RLS 강화는 #437 범위 밖이므로 이 슬라이스에서 기존 공개 SELECT 정책을 변경하지 않는다. #451 발행은 #410 리뷰 ⑥의 추적 요구를 충족하며, DB 읽기 통제 구현 완료를 뜻하지 않는다.
+- 익명·일반 회원·소유자·staff·service role의 allow/deny, 함수 EXECUTE 봉인, 동시 게시 전환을 SQL 스모크에서 확인한다. 굿즈 쪽은 `supabase/tests/goods_public_read_visibility.sql`이 익명·회원·인증 성인·물류 운영자·카탈로그 운영자의 직접 읽기와 세 읽기 RPC의 권한·범위를 확인한다.
 
 공식 참조: [Supabase RLS의 grants와 policies](https://supabase.com/docs/guides/database/postgres/row-level-security), [함수 권한과 보안 경계](https://supabase.com/docs/guides/database/functions).
