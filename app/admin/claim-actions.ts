@@ -161,6 +161,9 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_operational_fee_conflict')) return '다른 운영자가 금액을 변경했습니다. 최신 클레임을 다시 열어주세요.';
   if (value.includes('invalid_claim_operational_fee')) return '운영 확인액·비용 유형·메모·근거를 확인해주세요.';
   if (value.includes('unknown shipping carrier')) return '등록되지 않은 택배사입니다.';
+  /* 운송장 등록 판정(SHP-030~032). 재출고·일괄 재출고 결과표가 같은 문구를 쓴다. */
+  if (value.includes('tracking_number_in_use')) return '다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 교환품 상자의 운송장번호를 다시 확인해주세요.';
+  if (value.includes('tracking_number_format_mismatch')) return '택배사의 운송장번호 형식(자릿수)과 맞지 않습니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.';
   /* 환불 원장 기록(admin_record_order_claim_refund)의 입력·권한 거절. 일괄 환불 결과표도 이 문구를 그대로 쓴다(QA2 S-T12b-06). */
   if (value.includes('invalid settlement note')) return '상계·정산 메모는 앞뒤 공백 없이 300자 이내로 적어주세요.';
   if (value.includes('invalid refund method') || value.includes('invalid refund stage')) return '환불 수단이나 처리 단계를 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';

@@ -200,6 +200,18 @@ describe('real xlsx boundary', () => {
     expect(image?.[2]).toContain('대표·갤러리 9칸(추가 이미지 1~9)·상세 이미지마다');
     expect(image?.[2]).toContain('갤러리 4칸짜리 v3 양식도 그대로 올릴 수 있으며, 이때 기존 상품의 갤러리 5~9는 저장된 이미지를 유지합니다.');
   });
+  it('상품 유형 열은 양식에 남아 있어 유형 값이 든 구형·내려받은 파일도 그대로 읽고, 작성 안내는 유형을 쓰지 않는다고 말한다(ADR-0044)', async () => {
+    expect(GOODS_WORKBOOK_HEADERS.type).toBe('상품 유형');
+    const bytes = await buildGoodsWorkbook([{ ...values, type: '피규어' }]);
+    const parsed = await parseGoodsWorkbook(bytes);
+    expect(parsed[0].errors).toEqual([]);
+    expect(parsed[0].values.type).toBe('피규어');
+    const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(bytes as never);
+    const guide = workbook.getWorksheet('작성 안내')!;
+    const note = guide.getRows(1, guide.rowCount)!.map(row => [row.getCell(1).text, row.getCell(2).text]).find(([label]) => label === '상품 유형')![1];
+    expect(note).toContain('상품 유형은 더 쓰지 않습니다');
+    expect(note).not.toContain('카테고리에 연결한 값');
+  });
   it('작성 안내 시트는 재고수량 빈칸을 0으로 바꾸지 않고 0을 직접 입력하라고 안내한다(0901-015)', async () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.load((await buildGoodsWorkbook([values])) as never);

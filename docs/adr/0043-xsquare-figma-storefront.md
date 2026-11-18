@@ -2,7 +2,7 @@
 
 - Status: accepted (2026-11-17) — 신사업팀(김미주 대리)의 2026-11-12 Figma와 "보내주신 피그마 적용" 결정(아래 인용). main 머지와 운영 배포는 별도 승인.
 - 대체(일부): [ADR-0011](./0011-lfs-storefront-redesign.md)의 **셸·홈·NEW·BEST·카테고리 목록·이벤트 허브의 시각·IA·수치**. ADR-0011의 금지선(레퍼런스 자산·카피·핑크 재사용 금지)·돈의 경계·나머지 표면(상품 상세·카트·마이·검색·IP관·오프라인 팝업·법적 문서)은 그대로다.
-- 관련: [ADR-0037](./0037-goods-type-from-category.md)(카테고리 → 상품 유형), [ADR-0027](./0027-random-option-sale-goods.md)(랜덤 판매 — '캡슐토이' 칩의 원천), 루트 `DESIGN.md` "X SQUARE 표면(v5)", [카테고리 운영 절차](../runbooks/storefront-categories.md), [X SQUARE 스토어 운영 입력](../runbooks/xsquare-storefront-content.md)
+- 관련: [ADR-0044](./0044-retire-goods-type.md)(상품 유형 폐기 — 상품 종류는 카테고리, '타입' 필터는 예약판매만), [ADR-0027](./0027-random-option-sale-goods.md)(랜덤 판매 — '캡슐토이' 칩의 원천), 루트 `DESIGN.md` "X SQUARE 표면(v5)", [카테고리 운영 절차](../runbooks/storefront-categories.md), [X SQUARE 스토어 운영 입력](../runbooks/xsquare-storefront-content.md)
 
 ## 맥락
 

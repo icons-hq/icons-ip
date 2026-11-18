@@ -81,6 +81,8 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { adminPaymentCancelErrorCopy } from '@/lib/admin/payment-cancel-error';
 import { ShipmentExtraTrackingsPanel } from '@/components/admin/ShipmentExtraTrackingsPanel';
+import { ShipmentTrackingSwapForm } from '@/components/admin/ShipmentTrackingSwapForm';
+import { ShipmentTrackingDuplicateForm } from '@/components/admin/ShipmentTrackingDuplicateForm';
 import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, PackageCheck, Truck, type LucideIcon } from 'lucide-react';
 import { adminConfirm, confirmAdminSubmit } from '@/lib/admin/confirm';
 
@@ -956,7 +958,7 @@ function OrderDetail({
         <div className="flex flex-col gap-2">
           {order.items.map((item) => (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={item.id}>
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5"><strong className="font-medium wrap-anywhere">{item.name}</strong><span className="text-xs text-muted-foreground">{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5"><strong className="font-medium wrap-anywhere">{item.name}</strong>{item.type ? <span className="text-xs text-muted-foreground">{item.type}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /></div>
               <span className="text-muted-foreground tabular-nums">{item.qty.toLocaleString('ko-KR')}개</span>
               <strong className="font-semibold tabular-nums">{formatKrwExact(item.unitPrice * item.qty)}</strong>
             </div>
@@ -1104,6 +1106,17 @@ function OrderDetail({
               <div className="mt-2"><ShipmentExtraTrackingsPanel shipmentId={shipment.id} reference={commerceReferenceLabel(shipment.id, shipment.shipmentNumber)} carriers={carriers}
                 defaultCarrier={shipment.carrier} extras={shipment.extraTrackings ?? []} /></div>
             </details> : null}
+            {/* 다른 주문과 뒤바뀌어 등록된 운송장(SHP-031). 정정은 다른 주문의 번호를 받지 않으므로 두 배송 건을 한 번에 맞바꾼다. */}
+            {shipment.trackingNumber ? <details className="group rounded-lg border px-3 py-2">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">다른 주문과 운송장 맞바꾸기<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+              <div className="mt-2"><ShipmentTrackingSwapForm shipmentId={shipment.id} reference={commerceReferenceLabel(shipment.id, shipment.shipmentNumber)} trackingNumber={shipment.trackingNumber} /></div>
+            </details> : null}
+            {/* 다른 주문이 쓰는 번호로 거절됐지만 창고에 같은 상자로 확인한 경우(SHP-030 리뷰 2): 사유를 적어 정정한다. */}
+            <details className="group rounded-lg border px-3 py-2">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">중복 확인 후 운송장 등록<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+              <div className="mt-2"><ShipmentTrackingDuplicateForm shipmentId={shipment.id} reference={commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}
+                carriers={carriers.filter(carrier => carrier.active)} defaultCarrier={shipment.carrier} /></div>
+            </details>
           </section>
         )) : null}
         {order.shipments.filter(shipment=>!isParcelShipment(shipment)).map(shipment=>(

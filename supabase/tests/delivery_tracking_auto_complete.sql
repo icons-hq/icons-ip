@@ -5,6 +5,8 @@
 -- 발주확인·출고지시 이전 이력(번호 재사용·오기)은 근거가 아니고, 회신 등록이 배달보다 늦거나 배달 뒤 추가 운송장을 붙여도 정상 배달 이벤트는 근거다. 틀린 이벤트는 그 운송장만 조회 오류로 남기고 나머지는 계속 기록한다.
 -- 합성 계정·주문만 쓰고 끝에서 모두 되돌린다.
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 do $$ begin
  if to_regclass('private.operator_legacy_fixture_control') is not null then
   raise exception 'Delivery tracking tests must run without the legacy fixture helper';end if;

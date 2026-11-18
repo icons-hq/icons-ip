@@ -293,7 +293,7 @@ export function OrderDetailScreen({
           <TableHead className="text-right" scope="col">수량</TableHead><TableHead className="text-right" scope="col">개당</TableHead><TableHead className="text-right" scope="col">금액</TableHead>
         </TableRow></ConsoleTableHeader>
         <TableBody>{items.map((item) => <TableRow className="scroll-mt-4" key={item.id} id={`item-${item.id}`}>
-          <TableCell className="align-top whitespace-normal"><div className="flex min-w-48 flex-col gap-0.5 wrap-anywhere"><strong className="font-medium">{item.name}</strong><span className={ITEM_NOTE}>{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div></TableCell>
+          <TableCell className="align-top whitespace-normal"><div className="flex min-w-48 flex-col gap-0.5 wrap-anywhere"><strong className="font-medium">{item.name}</strong>{item.type ? <span className={ITEM_NOTE}>{item.type}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /></div></TableCell>
           <TableCell className="align-top whitespace-normal">{item.variantName ? <span className="inline-flex min-w-28 flex-wrap items-center gap-1.5">{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : null}</span> : item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : <span className="text-muted-foreground">—</span>}</TableCell>
           <TableCell className={CELL_AMOUNT}>{item.qty}개</TableCell>
           <TableCell className={CELL_AMOUNT}>{money(item.unitPrice)}</TableCell>

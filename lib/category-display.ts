@@ -1,7 +1,6 @@
 import { isUuid } from './uuid';
 import { isSafeInternalLink } from './home-catalog';
 import { normalizeHeroNewlines, type HomeHeroImageDim, type HomeHeroTextColor } from './home-hero';
-import { GOOD_TYPES, isGoodType } from './goods-taxonomy';
 import { SHOP_DEFAULT_SORT, SHOP_PREORDER_TYPE, SHOP_SORTS, type ShopListQuery } from './shop-catalog';
 import { isListingSort } from './listing-sorts';
 import type { GoodsReviewSummary } from './goods-review-summary';
@@ -146,11 +145,11 @@ export function parseCategoryDisplaySnapshot(value: unknown): CategoryDisplaySna
 export function parseCategoryDisplayRequest(params: Record<string, string | string[] | undefined>): { categoryId: string; query: ShopListQuery } | null {
   if (typeof params.displayCategory !== 'string' || !isUuid(params.displayCategory) || params.category !== undefined) return null;
   const array = (v: string | string[] | undefined) => v === undefined ? [] : Array.isArray(v) ? v : [v];
-  const ips = [...new Set(array(params.ip))], types = [...new Set(array(params.type))];
+  const ips = [...new Set(array(params.ip))], types = [...new Set(array(params.type))].filter(type => type === SHOP_PREORDER_TYPE);
   const price = (v: string | string[] | undefined) => v === undefined ? null : typeof v === 'string' && /^\d+$/.test(v) && Number.isSafeInteger(Number(v)) && Number(v) <= 100_000_000 ? Number(v) : NaN;
   const min = price(params.min), max = price(params.max);
-  /* 타입 축은 굿즈 분류 + '예약판매'(옵션 공급 방식 파생 값, 컬렉션과 같은 축 — DB get_category_display_page 화이트리스트와 같다). */
-  if (ips.length > 100 || ips.some(id => !GOOD_ID.test(id)) || types.length > GOOD_TYPES.length + 1 || types.some(type => !isGoodType(type) && type !== SHOP_PREORDER_TYPE)
+  /* 타입 축은 '예약판매'(옵션 공급 방식 파생 값) 하나다(ADR-0044). 옛 유형 값은 오류가 아니라 무시한다. */
+  if (ips.length > 100 || ips.some(id => !GOOD_ID.test(id))
     || Number.isNaN(min) || Number.isNaN(max) || min !== null && max !== null && min > max
     || params.sort !== undefined && (typeof params.sort !== 'string' || !SHOP_SORTS.includes(params.sort as ShopListQuery['sort']))) return null;
   return { categoryId: params.displayCategory, query: { displayCategory: params.displayCategory, view: 'all', ips, types, priceMin: min, priceMax: max, sort: (params.sort as ShopListQuery['sort'] | undefined) ?? SHOP_DEFAULT_SORT.all } };

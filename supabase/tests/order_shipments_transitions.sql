@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 select 1 / case when to_regprocedure('public.admin_update_shipment_status(uuid,text,text,text)') is not null then 1 else 0 end as assert_shipment_transitions;
 -- Use a rollback-only synthetic order; payment-provider callbacks are not invoked.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values

@@ -183,9 +183,18 @@ export function writeSeowonSheet(workbook: ExcelJS.Workbook, rows: readonly (rea
   return sheet;
 }
 
+/**
+ * 회신 줄의 받는 분 이름·전화번호(회신에 값이 있으면). DB가 주문 배송지와 대조해 다르면 그 주문의 줄만 실패한다
+ * (두 주문의 운송장이 뒤바뀐 회신 의심, `private.assert_reply_recipient`). 비어 있으면 대조하지 않는다.
+ */
+export interface ReplyRecipient { recipientName?: string; recipientPhone?: string }
+const replyRecipient = (name: string, phone: string): ReplyRecipient => ({
+  ...(name.trim() ? { recipientName: name.trim() } : {}), ...(phone.trim() ? { recipientPhone: phone.trim() } : {}),
+});
+
 export interface WarehouseTrackingParseResult {
   kind: 'gimpo';
-  rows: { line: number; reference: string; trackingNumber: string }[];
+  rows: ({ line: number; reference: string; trackingNumber: string } & ReplyRecipient)[];
   issues: TrackingImportParseResult['issues'];
   /** 운송장 칸을 비운 줄(아직 출고하지 않은 주문). 오류가 아니라 건너뛴 줄로 따로 센다(QA 라운드 1 m8). */
   skipped: { line: number; reference: string }[];
@@ -227,6 +236,7 @@ export function parseWarehouseReply(sheet: ExcelJS.Worksheet): WarehouseTracking
     if (cells.every(cell => !cell.value && !cell.error)) continue;
     const reference = cells.find(cell => cell.key === 'orderNumber')!.value.trim().toLowerCase();
     const tracking = cells.find(cell => cell.key === 'trackingNumber')!.value;
+    const recipient = replyRecipient(cells.find(cell => cell.key === 'recipient')!.value, cells.find(cell => cell.key === 'phone')!.value);
     const trackingNumber = normalizeTrackingNumber(tracking.trim());
     const blank = !tracking.trim();
     const reason = cells.find(cell => cell.error)?.error
@@ -234,7 +244,7 @@ export function parseWarehouseReply(sheet: ExcelJS.Worksheet): WarehouseTracking
       ?? (!blank && (!isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(tracking)) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
     if (reason) { issues.push({ line, reference, reason }); if (isGimpoOrderReference(reference)) blocked.add(reference); }
     else if (blank) blanks.push({ line, reference });
-    else rows.push({ line, reference, trackingNumber });
+    else rows.push({ line, reference, trackingNumber, ...recipient });
   }
   // 운송장 칸을 비운 주문은 아직 출고하지 않은 것으로 보고 건너뛴다. 같은 주문(한 배송 건)의 다른 줄에는 운송장이 있으면
   // 일부만 채운 것이라 어느 쪽이 맞는지 알 수 없으므로 그 주문 전체를 등록하지 않는다(덮어쓰기·부분 발송 방지).
@@ -323,7 +333,8 @@ export function parseSeowonReply(sheet: ExcelJS.Worksheet): SeowonTrackingParseR
 export function trackingImportCommand(parsed: Exclude<TrackingWorkbookParseResult, SeowonTrackingParseResult>, originId: string) {
   if ('kind' in parsed && parsed.kind === 'smartstore') {
     return { name: 'admin_import_item_tracking_batch' as const, args: { target_rows: [
-      ...parsed.rows.map(row => ({ line: row.line, reference: row.reference, carrier: row.carrier, trackingNumber: row.trackingNumber })),
+      ...parsed.rows.map(row => ({ line: row.line, reference: row.reference, carrier: row.carrier, trackingNumber: row.trackingNumber,
+        ...(row.recipientName ? { recipientName: row.recipientName } : {}), ...(row.recipientPhone ? { recipientPhone: row.recipientPhone } : {}) })),
       ...parsed.issues.map(issue => ({ line: issue.line, reference: issue.reference, carrier: '', trackingNumber: '' })),
       // 운송장 칸만 비운 줄도 빈 값으로 보내 같은 배송 건의 채운 줄이 일부만 발송되지 않게 DB 배송 건 가드가 막는다.
       ...(parsed.rows.length ? parsed.skipped.map(blank => ({ line: blank.line, reference: blank.reference, carrier: '', trackingNumber: '' })) : []),
@@ -334,6 +345,7 @@ export function trackingImportCommand(parsed: Exclude<TrackingWorkbookParseResul
     return { name: 'admin_import_warehouse_tracking_batch' as const,
       args: { target_origin_id: originId, target_rows: [...parsed.rows.map(row => ({
         line: row.line, reference: row.reference, trackingNumber: row.trackingNumber,
+        ...(row.recipientName ? { recipientName: row.recipientName } : {}), ...(row.recipientPhone ? { recipientPhone: row.recipientPhone } : {}),
       })), ...parsed.issues.map(issue => ({line: issue.line, reference: issue.reference, trackingNumber: ''}))] } };
   }
   return { name: 'admin_import_shipment_tracking_batch' as const, args: { target_rows: [...parsed.rows.map(row => ({

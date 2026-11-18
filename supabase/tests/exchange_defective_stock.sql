@@ -8,6 +8,8 @@
 --  5. 회수 생략 출고지는 결정이 필요 없고 고를 수도 없다. 그룹상품 교환(배송 건 없는 옛 주문)도 같은 규칙이다.
 --  6. 교환에서 불량으로 기록된 품목도 뒤의 반품에서 다시 고를 수 있다(기록은 이력이고 막지 않는다).
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 create function pg_temp.et_id(kind text,n integer) returns uuid language sql immutable as $$select md5('exchange-defective:'||kind||':'||n)::uuid$$;
 create function pg_temp.et_assert(ok boolean,label text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'exchange defective assertion: %',label;end if;end$$;
 create function pg_temp.et_error(q text,expected text) returns void language plpgsql as $$begin

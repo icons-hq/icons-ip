@@ -89,14 +89,14 @@ function sortLabels(html: string) {
 
 describe('필터 draft 순수 함수', () => {
   const query = parseShopSearchParams(
-    { ip: 'ip1', type: '키링', min: '5000', max: '20000', sort: 'price_asc' },
+    { ip: 'ip1', type: '예약판매', min: '5000', max: '20000', sort: 'price_asc' },
     { view: 'all', validIpIds: new Set(['ip1', 'ip2']) },
   );
 
   it('현재 질의에서 필터만 draft 로 뜬다', () => {
     expect(shopFilterDraftFromQuery(query)).toEqual({
       ips: ['ip1'],
-      types: ['키링'],
+      types: ['예약판매'],
       priceMin: 5000,
       priceMax: 20000,
     });
@@ -108,7 +108,7 @@ describe('필터 draft 순수 함수', () => {
     expect(added.ips).toEqual(['ip1', 'ip2']);
 
     expect(toggleDraftValue(added, 'ips', 'ip1').ips).toEqual(['ip2']);
-    expect(toggleDraftValue(draft, 'types', '인형').types).toEqual(['키링', '인형']);
+    expect(toggleDraftValue(draft, 'types', '인형').types).toEqual(['예약판매', '인형']);
     expect(draft.ips).toEqual(['ip1']);
   });
 
@@ -132,14 +132,14 @@ describe('필터 draft 순수 함수', () => {
   it('가격 필터를 URL 에 실을 때 기본 정렬은 빼고 반복 파라미터로 직렬화한다', () => {
     const qs = shopQueryString({
       ips: ['ip1', 'ip2'],
-      types: ['키링'],
+      types: ['예약판매'],
       priceMin: 5000,
       priceMax: 20000,
       sort: 'recommended',
       view: 'all',
     });
 
-    expect(decodeURIComponent(qs)).toBe('ip=ip1&ip=ip2&type=키링&min=5000&max=20000');
+    expect(decodeURIComponent(qs)).toBe('ip=ip1&ip=ip2&type=예약판매&min=5000&max=20000');
     expect(shopQueryString({ ips: [], types: [], priceMin: null, priceMax: null, sort: 'newest', view: 'new' })).toBe('');
     expect(shopQueryString({ ips: [], types: [], priceMin: null, priceMax: null, sort: 'newest', view: 'all' })).toBe('sort=newest');
   });

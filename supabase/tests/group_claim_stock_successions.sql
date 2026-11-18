@@ -1,6 +1,8 @@
 \set ON_ERROR_STOP on
 -- Synthetic stock lifecycle; all mutations roll back and all actors are explicit.
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 
 -- Test-only access to the preserved physical engine. New dispatch through the
 -- old public RPC is sealed; contact-v2 and public denial are covered separately

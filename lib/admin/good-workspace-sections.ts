@@ -1,6 +1,6 @@
 import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from './vocabulary';
-import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
+import { goodCategoryFailure } from './good-workspace';
 import {
   MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, goodsKcSoleNotApplicable, kcModelFromTemplate, normalizeGoodsKcModels,
   planGoodsKcProductNotApplicable, type GoodsKcModelInput, type GoodsKcVariant,
@@ -255,11 +255,9 @@ export function goodWorkspacePublishRejection(publish: unknown): { message: stri
   const reason = typeof result?.error === 'string' ? result.error : '';
   const saved = adminGoodsCopy('굿즈를 저장했지만 공개하지 않았습니다.');
   if (reason.includes('goods_kc_')) return { kc: true, message: `${saved} KC 검토를 마쳐야 공개할 수 있습니다. KC 정보에서 검토를 완료한 뒤 판매 준비에서 공개해주세요.` };
-  const why = reason.includes('goods_publish_incomplete') ? '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 판매 준비에서 공개해주세요.'
+  const why = reason.includes('goods_publish_incomplete') ? '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 판매 준비에서 공개해주세요.'
     : /invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(reason) ? '활성 출고지를 고른 뒤 판매 준비에서 공개해주세요.'
-    : reason.includes('goods_type_category_required') ? GOOD_TYPE_CATEGORY_MESSAGES.required
-    : reason.includes('goods_type_category_changed') ? GOOD_TYPE_CATEGORY_MESSAGES.changed
-    : '공개 조건을 확인한 뒤 판매 준비에서 공개해주세요.';
+    : goodCategoryFailure(reason) ?? '공개 조건을 확인한 뒤 판매 준비에서 공개해주세요.';
   return { kc: false, message: `${saved} ${why}` };
 }
 
@@ -291,8 +289,6 @@ export function goodWorkspaceSectionFailure(message: string, code?: string): Par
   if (message.includes('goods_workspace_kc_variant_unresolved') || message.includes('invalid_goods_workspace_kc_variant')) {
     return { workspaceKc: 'KC 모델에 연결한 옵션을 저장된 옵션목록에서 찾지 못했습니다. 적용 옵션을 다시 선택해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' };
   }
-  // 화면이 확인한 상품 유형과 저장 시점의 대표 카테고리 연결값이 다르면 KC를 검토 완료로 두지 않고 전체를 거절한다.
-  if (message.includes('goods_type_category_changed')) return { workspaceKc: '카테고리에 연결된 상품 유형이 바뀌었습니다. 새로고침한 뒤 KC를 다시 확인해주세요.' };
   if (message.includes('goods_kc_review_changed')) return { workspaceKc: '다른 작업에서 KC 검토가 바뀌었습니다. 입력은 유지됩니다. 새로고침 후 KC 정보를 확인해주세요.' };
   if (message.includes('goods_kc_attestation_required') || message.includes('goods_kc_review_incomplete')) {
     return { workspaceKc: '사용 중인 옵션 연결과, KC 대상이면 제품군·제도·품목·모델·사업자와 인증·신고번호(안전인증·안전확인)를 확인한 뒤 확인을 체크해주세요. 아니면 확인 체크를 풀어 미검토로 저장합니다.' };

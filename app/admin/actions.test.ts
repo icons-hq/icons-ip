@@ -722,12 +722,11 @@ describe('admin catalog actions', () => {
     });
   });
 
-  /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리의 연결값이다. 저장·공개가 이 규칙으로 막히면 카테고리 칸에 이유를 보이고 입력을 남긴다. */
+  /* ADR-0044: 공개엔 대표 카테고리가 필요하고 공개 중 상품은 대표 카테고리를 비울 수 없다. 막히면 카테고리 칸에 이유를 보이고 입력을 남긴다. */
   it.each([
-    ['goods_type_category_locked', '유형이 다른 카테고리로 옮길 수 없습니다'],
-    ['goods_type_category_required', '상품 유형이 연결되어 있어야 공개할 수 있습니다'],
-    ['goods_type_category_changed', '카테고리에 연결된 상품 유형이 저장된 유형과 다릅니다'],
-  ])('상품 유형 규칙 %s를 카테고리 칸에 안내한다', async (message, text) => {
+    ['goods_category_required', '대표 카테고리를 고른 뒤 공개해주세요.'],
+    ['goods_published_category_clear', '공개 중인 상품은 대표 카테고리를 비울 수 없습니다.'],
+  ])('대표 카테고리 규칙 %s를 카테고리 칸에 안내한다', async (message, text) => {
     const form = goodForm();
     mocks.rpc.mockResolvedValue({ data: null, error: { message } });
     const result = await upsertAdminGoodAction({}, form);
@@ -1865,7 +1864,7 @@ describe('admin catalog actions', () => {
       const form = goodForm();
       form.set('previousId', 'g100');
       form.set('intent', 'publish');
-      form.set('type', '키링');
+      form.set('categoryId', '00000000-0000-4000-8000-000000051121');
       form.set('imagePath', 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp');
       return form;
     }
@@ -1881,7 +1880,7 @@ describe('admin catalog actions', () => {
           { revision: 1, reason: 'review_completed', status: 'reviewed' }]), error: null });
 
       await expect(upsertAdminGoodAction({}, publishForm())).resolves.toEqual({
-        message: "초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+        message: "초안으로 저장했습니다. 상품명·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
         kcPublishBlocked: true,
         savedGoodId: 'g100',
         attempt: 1,
@@ -1889,7 +1888,7 @@ describe('admin catalog actions', () => {
       expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_save_good', 'admin_read_goods_kc', 'admin_save_good', 'admin_read_goods_kc']);
       const [first, retry] = [mocks.rpc.mock.calls[0][1].target_good, mocks.rpc.mock.calls[2][1].target_good];
       // 첫 호출은 트랜잭션째 되돌려졌으므로 다시 저장은 부분 변경이 아니라 같은 전체 입력이고, 공개 전환만 뺀다.
-      expect(first).toMatchObject({ publish: true, type: '키링' });
+      expect(first).toMatchObject({ publish: true, type: '아크릴 스탠드' });
       expect(retry).toEqual({ ...first, publish: null });
       expect(mocks.rpc.mock.calls[1][1]).toEqual({ p_good_id: 'g100' });
       expect(mocks.rpc.mock.calls[3][1]).toEqual({ p_good_id: 'g100' });
@@ -2066,6 +2065,19 @@ describe('상품 등록 원자 저장', () => {
     await expect(upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).resolves.toMatchObject({ savedGoodId: 'g100', message: expect.stringContaining('이미 상품으로 등록한 임시저장') });
   });
 
+  /* ADR-0044: 공개 요청에 대표 카테고리가 없으면 저장하지 않고 카테고리 칸에 알린다. type은 폼이 싣는 값을 그대로 보낸다(패스스루). */
+  it('대표 카테고리 없는 공개 요청은 카테고리 칸 오류로 막고, type은 폼 값 그대로 보낸다', async () => {
+    const noCategory = workspaceForm({ kc: null, preorders: [] }); noCategory.set('intent', 'publish');
+    noCategory.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
+    const blocked = await upsertAdminGoodAction({}, noCategory);
+    expect(blocked.errors?.categoryId).toBe('대표 카테고리를 고른 뒤 공개해주세요.');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    const draft = workspaceForm({ kc: null, preorders: [] }); draft.set('type', '저장된 유형');
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100' }, error: null });
+    await upsertAdminGoodAction({}, draft);
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_request.good.type).toBe('저장된 유형');
+  });
+
   it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID는 저장하지 않는다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_compare_at_price_invalid' } });
     expect((await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).errors?.form).toContain('할인은 0원보다 크고');
@@ -2077,6 +2089,7 @@ describe('상품 등록 원자 저장', () => {
   /* T15b(0901-008): 새 상품의 저장 후 공개는 래퍼 한 번으로 저장한 뒤 공개를 시도하고, 거절되면 저장만 했다고 이유와 함께 알린다. */
   it('새 상품 저장 후 공개는 같은 요청에 공개를 싣고, 거절되면 저장 성공과 공개 보류 이유를 함께 알린다', async () => {
     const publish = () => { const form = workspaceForm({ kc: null, preorders: [] }); form.set('intent', 'publish');
+      form.set('categoryId', '00000000-0000-4000-8000-000000051121');
       form.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp'); return form; };
     mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: true, error: null } }, error: null });
     const published = await upsertAdminGoodAction({}, publish());

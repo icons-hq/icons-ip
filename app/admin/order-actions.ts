@@ -37,6 +37,7 @@ import { decodeSpreadsheetText } from '@/lib/admin/spreadsheet-text';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
+import { carrierTrackingNumberIssue, trackingFormatRulesNote, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 import { FULFILLMENT_HOLD_BLOCKED_MESSAGE, isFulfillmentHoldError } from '@/lib/admin/fulfillment-holds';
 
@@ -98,6 +99,16 @@ const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝�
  * 전이별 완료 문구(#250). "완료 처리"는 done이 거래확정으로 재정의되면서
  * 배송완료와 뜻이 갈렸다 — 운영자가 어느 칸을 밀었는지 문구로 알 수 있어야 한다.
  */
+/**
+ * 운송장 등록 판정(DB `private.assert_tracking_registrable`)이 거절한 사유. 다른 주문의 번호·택배사 형식은 운영자가 고칠 수 있는
+ * 사유라 일반 실패 문구 대신 그대로 알린다. 형식 거절에는 레지스트리의 택배사별 규칙을 덧붙인다.
+ */
+const TRACKING_REGISTRATION_ERRORS = new Set(['tracking_number_in_use', 'tracking_number_format_mismatch', 'invalid_tracking_input', 'inactive_shipping_carrier']);
+async function trackingRegistrationError(code: string | null | undefined): Promise<string | null> {
+  if (!code || !TRACKING_REGISTRATION_ERRORS.has(code)) return null;
+  return trackingRowReason(code, await getShippingCarrierRegistry());
+}
+
 const STATUS_TRANSITION_MESSAGES: Record<AdminOrderFormStatus, string> = {
   confirmed: '주문을 발주확인했습니다.',
   shipping: '배송을 시작했습니다.',
@@ -125,6 +136,8 @@ export async function updateAdminOrderStatusAction(
   if (error) {
     /* 출고 보류(테스트 결제·결제사 취소)는 DB가 발주확인·발송을 거절한다 — 무엇이 막았는지 그대로 말한다. */
     if (isFulfillmentHoldError(error.message)) return { errors: { form: FULFILLMENT_HOLD_BLOCKED_MESSAGE } };
+    const tracking = await trackingRegistrationError(error.message);
+    if (tracking) return { errors: { form: tracking } };
     return { errors: { form: '주문 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }
 
@@ -256,7 +269,8 @@ export async function updateAdminOrderTrackingAction(
     p_tracking_number: normalized.value.trackingNumber,
   });
   if (error) {
-    return { errors: { form: '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' } };
+    const tracking = await trackingRegistrationError(error.message);
+    return { errors: { form: tracking ?? '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);
@@ -666,6 +680,14 @@ async function rowsBlockedByBlankSibling(
   } catch { return new Set(); }
 }
 
+/** 회신 줄 실패 사유. 택배사 형식 거절에는 레지스트리의 택배사별 규칙을 덧붙인다. */
+function trackingRowReason(code: string, registry: ShippingCarrierRegistry): string {
+  const message = shipmentMutationError(code);
+  if (code !== 'tracking_number_format_mismatch') return message;
+  const rules = trackingFormatRulesNote(registry);
+  return rules ? `${message} (${rules})` : message;
+}
+
 async function enqueueDispatched(deliveries: { orderId: string; shipmentId: string }[]) {
   if (!deliveries.length) return false;
   try { await enqueueOrderShippedEmails(deliveries); return false; } catch { return true; }
@@ -691,7 +713,11 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
   if(!candidates.defaultCarrier)return {errors:{form:shipmentMutationError('warehouse_carrier_required')}};
   // 일부 후보만으로 대조하면 빠진 같은 내용의 배송 건 대신 남은 건이 발송될 수 있다. 잘렸으면 아무것도 바꾸지 않는다.
   if(candidates.truncated)return {errors:{form:'대조할 배송 건이 너무 많아 등록하지 않았습니다. 회신 파일을 나눠 올려주세요.'}};
-  const match=matchSeowonReply(parsed.rows,candidates.shipments,candidates.usedTracking);
+  // 출고지 기본 택배사의 번호 형식(우체국 13자리 등)에 맞지 않는 줄은 대조 전에 그 줄의 오류로 둔다(같은 배송 건의 다른 줄도 함께 멈춘다).
+  const registry=await getShippingCarrierRegistry();
+  const carrier=registry.find(entry=>entry.code===candidates.defaultCarrier);
+  const rows=carrier?parsed.rows.map(row=>{if(row.error)return row;const issue=carrierTrackingNumberIssue(carrier,row.trackingNumber);return issue?{...row,error:issue}:row;}):parsed.rows;
+  const match=matchSeowonReply(rows,candidates.shipments,candidates.usedTracking);
   const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
   let queueWarning=false;let unchanged=match.unchanged.length;let extraTrackings=0;
   if(match.commands.length){
@@ -700,8 +726,8 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
       line:command.line,reference:command.shipmentId,carrier:candidates.defaultCarrier,trackingNumber:command.trackingNumber,
       ...(command.extraTrackingNumbers?.length?{extraTrackingNumbers:command.extraTrackingNumbers}:{}),
     }))});
-    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_|tracking_number_in_use$|shipment_tracking_conflict$|order fulfillment hold$)/.test(result.error.message))
-      return {errors:{form:shipmentMutationError(result.error.message)}};
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_|tracking_number_in_use$|tracking_number_format_mismatch$|shipment_tracking_conflict$|order fulfillment hold$)/.test(result.error.message))
+      return {errors:{form:trackingRowReason(result.error.message,registry)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==match.commands.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     // 합배송한 배송 건들은 같은 첫 줄을 공유하므로 결과는 줄이 아니라 배송 건으로 찾는다.
     const outcomes=new Map((result.data as TrackingBatchRow[]).map(row=>[row.reference,row]));
@@ -712,7 +738,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
       if(outcome?.ok&&Number.isSafeInteger(outcome.extraTrackingsAdded))extraTrackings+=outcome.extraTrackingsAdded!;
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
-      else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
+      else for(const line of command.lines)failed.push({line,reference,reason:trackingRowReason(outcome?.error??'',registry)});
     }
     queueWarning=await enqueueDispatched([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
@@ -745,15 +771,16 @@ export async function bulkRegisterAdminOrderTrackingAction(
   const failed:AdminTrackingImportFailure[]=[...parsed.issues];
   const succeeded:string[]=[];
   let queueWarning=false;let unchanged=0;
+  const registry=await getShippingCarrierRegistry();
   if(parsed.rows.length){
     const result=await supabase.rpc(command.name,command.args);
     if(result.error?.message&&/^(warehouse_|shipment_pack_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
-      return {errors:{form:shipmentMutationError(result.error.message)}};
+      return {errors:{form:trackingRowReason(result.error.message,registry)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==command.args.target_rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     const rows=result.data as TrackingBatchRow[];
     for(const row of rows){
       // 표준 양식에서 운송장 칸만 비워 건너뛴 줄은 배송 건 가드용으로만 보냈다. 그 줄 자체의 거절은 실패가 아니다.
-      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:isSmartStoreReply(parsed)&&parsed.skipped.length&&row.error==='invalid_tracking_input'?BLANK_SIBLING_TRACKING_REASON:shipmentMutationError(row.error??'')});}
+      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:isSmartStoreReply(parsed)&&parsed.skipped.length&&row.error==='invalid_tracking_input'?BLANK_SIBLING_TRACKING_REASON:trackingRowReason(row.error??'',registry)});}
       else if(row.duplicate)continue;
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);

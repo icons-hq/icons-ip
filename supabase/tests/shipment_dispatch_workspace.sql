@@ -1,6 +1,8 @@
 \set ON_ERROR_STOP on
 \timing on
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('00000000-0000-4000-8000-000000042989','authenticated','authenticated','dispatch-sql@example.test','{}','{}',now(),now());
 update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000042989';

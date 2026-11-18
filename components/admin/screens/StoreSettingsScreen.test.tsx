@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe,expect,it,vi } from 'vitest';
-vi.mock('@/app/admin/store-settings-actions',()=>({saveStoreSettingsAction:vi.fn(),saveShippingCarrierAction:vi.fn(),saveInquiryAutoRepliesAction:vi.fn()}));
+vi.mock('@/app/admin/store-settings-actions',()=>({saveStoreSettingsAction:vi.fn(),saveShippingCarrierAction:vi.fn(),saveShippingCarrierFormatAction:vi.fn(),saveInquiryAutoRepliesAction:vi.fn()}));
 vi.mock('@/app/admin/store-branding-actions',()=>({saveStoreBrandingAction:vi.fn()}));
 import { ShippingCarriersScreen, StoreSettingsScreen } from './StoreSettingsScreen';
 import { DEFAULT_STORE_BRANDING } from '@/lib/store-branding';

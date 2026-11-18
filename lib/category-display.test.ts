@@ -68,13 +68,14 @@ describe('카테고리 전시 목록 문법 (LFS 패리티 2차 L5 — CL-10·CL
     }
     expect(listingCategoryDisplayQuery(parseCategoryDisplayRequest({ displayCategory: categoryId, sort: 'oldest' })!.query).sort).toBe('recommended');
   });
-  it("타입 축에 '예약판매'를 받아 notFound 로 떨어지지 않고, 분류 밖 값은 여전히 거절한다", () => {
+  it("타입 축은 '예약판매'만 받고 옛 유형 값은 오류가 아니라 무시한다", () => {
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '예약판매' })?.query.types).toEqual(['예약판매']);
-    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['키링', '예약판매', '예약판매'] })?.query.types).toEqual(['키링', '예약판매']);
-    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트', '기타', '예약판매'] })?.query.types).toHaveLength(10);
-    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '중고' })).toBeNull();
-    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: 'PRE-ORDER' })).toBeNull();
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['키링', '예약판매', '예약판매'] })?.query.types).toEqual(['예약판매']);
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트', '기타'] })?.query.types).toEqual([]);
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '중고' })?.query.types).toEqual([]);
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: 'PRE-ORDER' })?.query.types).toEqual([]);
   });
+
   it('다음 묶음의 별점은 그 묶음 굿즈 몫의 올바른 값만 받는다', () => {
     const summaries = categoryDisplayReviewSummaries({
       g1: { count: 3, average: 4.33 }, g2: { count: 0, average: 4 }, g3: { count: 2, average: 6 }, outside: { count: 1, average: 5 }, g4: 'bad',
