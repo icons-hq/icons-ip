@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bankRefundMetadata, type BankRefundContext, type BankRefundRequest, type BankRefundReceipt } from '@/lib/admin/bank-transfer-refund';
-const mocks = vi.hoisted(() => ({ access: vi.fn(), create: vi.fn(), rpc: vi.fn(), revalidate: vi.fn(), gateway: vi.fn(), reconcile: vi.fn(), recover: vi.fn() }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), create: vi.fn(), rpc: vi.fn(), revalidate: vi.fn(), gateway: vi.fn(), reconcile: vi.fn(), recover: vi.fn(), record: vi.fn() }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ recordPiiAccess: mocks.record }));
 vi.mock('@/lib/admin/action-access.server', () => ({ requireAdminActionAccess: mocks.access }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.create }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
@@ -177,9 +178,20 @@ describe('bank refund context and audited account view', () => {
   });
   it('returns raw account only from its audited view RPC with matching identity, view id and revision', async () => {
     mocks.rpc.mockResolvedValue({ data: account, error: null });
+    mocks.record.mockResolvedValue('1');
     expect(await viewBankRefundAccountAction(viewInput)).toEqual({ account });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_view_bank_transfer_refund_account', { ...identityArgs, p_view_id: other, p_expected_revision: 7 });
     expect(mocks.revalidate).not.toHaveBeenCalled();
+    expect(mocks.record).toHaveBeenCalledExactlyOnceWith({ actorId: identity.actorId, action: 'reveal', surface: 'refund_account',
+      path: '/api/admin/bank-transfer-refund-account', subjectKind: 'claim', subjectIds: [identity.claimId], detail: { viewId: other } });
+    expect(JSON.stringify(mocks.record.mock.calls)).not.toContain(account.accountNumber);
+  });
+  it('개인정보 접속기록을 남기지 못하면 계좌 원문을 돌려주지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: account, error: null });
+    mocks.record.mockRejectedValue(new Error('pii log down'));
+    const result = await viewBankRefundAccountAction(viewInput);
+    expect(result).toHaveProperty('error'); expect(result).not.toHaveProperty('account');
+    expect(JSON.stringify(result)).not.toContain(account.accountNumber);
   });
   it.each(['viewId', 'actorId', 'orderId', 'claimId', 'revision'] as const)('discards an account view with mismatched %s', async key => {
     mocks.rpc.mockResolvedValue({ data: { ...account, [key]: key === 'revision' ? 8 : request.operationId }, error: null });

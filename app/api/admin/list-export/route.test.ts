@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), load: vi.fn(), build: vi.fn(), record: vi.fn(), encrypt: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), load: vi.fn(), build: vi.fn(), record: vi.fn(), encrypt: vi.fn(), access: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
+vi.mock('@/lib/admin/pii-access-log.server', () => {
+  class PiiAccessLogError extends Error {
+    constructor() { super('개인정보 접속기록을 남기지 못해 요청을 처리하지 않았습니다. 잠시 후 다시 시도해주세요.'); }
+  }
+  return { PiiAccessLogError, recordPiiAccess: mocks.access };
+});
 vi.mock('@/lib/admin/list-export.server', () => ({ buildAdminListExportWorkbook: mocks.build }));
 vi.mock('@/lib/admin/list-export-data.server', async () => {
   class AdminListExportAuditError extends Error {
@@ -31,6 +37,7 @@ beforeEach(() => {
   mocks.build.mockResolvedValue(Buffer.from('xlsx-bytes'));
   mocks.encrypt.mockReturnValue({ bytes: Buffer.from('encrypted-xlsx'), sha256: 'a'.repeat(64) });
   mocks.record.mockResolvedValue('10000000-0000-4000-8000-00000000a501');
+  mocks.access.mockResolvedValue('77');
 });
 
 afterEach(() => { vi.useRealTimers(); });
@@ -77,6 +84,10 @@ describe('목록 엑셀 다운로드 라우트', () => {
     expect(mocks.record).toHaveBeenCalledWith('staff', sheet, 'a'.repeat(64));
     expect(mocks.build.mock.invocationCallOrder[0]).toBeLessThan(mocks.encrypt.mock.invocationCallOrder[0]);
     expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[0]);
+    // 개인정보 접속기록은 검색어 원문 없이 화면·건수·감사 번호만 남긴다.
+    expect(mocks.access).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff', action: 'export', surface: 'export.list', path: '/api/admin/list-export',
+      subjectKind: 'shipment', subjectCount: 1, detail: { screen: 'dispatch', rowCount: 2, auditId: '10000000-0000-4000-8000-00000000a501' } });
+    expect(JSON.stringify(mocks.access.mock.calls)).not.toContain('홍');
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('spreadsheetml.sheet');
     expect(response.headers.get('cache-control')).toBe('private, no-store');
@@ -159,6 +170,16 @@ describe('목록 엑셀 다운로드 라우트', () => {
     expect(response.status).toBe(500);
     expect(response.headers.get('content-type')).toContain('application/json');
     expect((await response.json()).error).toContain('다운로드 기록을 남기지 못해');
+    expect(mocks.access).not.toHaveBeenCalled();
+  });
+
+  it('개인정보 접속기록을 남기지 못하면 파일을 내보내지 않는다', async () => {
+    const { PiiAccessLogError } = await import('@/lib/admin/pii-access-log.server');
+    mocks.access.mockRejectedValue(new PiiAccessLogError());
+    const response = await POST(request('screen=orders'));
+    expect(response.status).toBe(500);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect((await response.json()).error).toContain('개인정보 접속기록을 남기지 못해');
   });
 
   it('영문 내부 오류는 한국어 안내로 바꾼다', async () => {

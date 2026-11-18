@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({
   preview: vi.fn(),
   stock: vi.fn(),
   stockWarning: vi.fn(() => null),
+  note: vi.fn(),
 }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
 vi.mock('@/lib/admin/stock-reconcile.server', () => ({ loadStockDispatchWarnings: mocks.stock }));
 vi.mock('@/components/admin/StockDispatchWarning', () => ({ StockDispatchWarning: mocks.stockWarning }));
@@ -62,6 +64,14 @@ describe('AdminSalesDispatchPage shipment contract', () => {
     expect(panel.props.initial).toEqual(autoState);
     expect(list.type).toBe(mocks.screen);
     expect(list.props.data).toEqual(await mocks.load.mock.results[0].value);
+    // 유형을 고르지 않은 검색(전체)은 이름 검색일 수 있어 원문 없이 발송 검색 기록을 남긴다.
+    expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId: '11111111-1111-4111-8111-111111111111', action: 'search', surface: 'shipment.search',
+      path: '/admin/sales/dispatch', subjectKind: 'shipment', subjectIds: [], subjectCount: 0, detail: { field: 'all', view: 'new', page: 2 } });
+    expect(JSON.stringify(mocks.note.mock.calls)).not.toContain('maple');
+    mocks.note.mockClear();
+    await AdminSalesDispatchPage({ searchParams: Promise.resolve({ field: 'tracking', query: '123456789012' }) });
+    await AdminSalesDispatchPage({ searchParams: Promise.resolve({}) });
+    expect(mocks.note).not.toHaveBeenCalled();
   });
   /* 처리할 주문 표가 첫 화면에 오도록 설정 카드는 표 아래에 둔다. 켜짐·꺼짐은 표 위 단계 이름 줄에서 읽는다(사람 눈 판정 — 표가 첫 화면에 1건만 보였다). */
   /* 1014-083: 환경과 관계없이 배송 처리 권한자에게 강제 배송완료(사유·확인창·감사)를 목록 아래에 둔다. 스테이징 확인을 거치지 않는다. */

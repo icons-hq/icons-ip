@@ -14,6 +14,7 @@ import {
   type OperationResponse, type ReshipmentRequest, type SealedChange, type SealedDestination, type SourceBinding, type Target, type TargetView,
 } from './contracts';
 import { ClaimContactCryptoError, loadClaimContactCodec, type ClaimContactCodec, type ClaimContactRecordBinding } from './crypto.server';
+import { notePiiAccess, PiiAccessLogError, recordPiiAccess } from '@/lib/admin/pii-access-log.server';
 
 class ContactError extends Error {
   constructor(readonly code: ClaimContactErrorCode) { super(code); this.name = 'ClaimContactServiceError'; }
@@ -51,6 +52,18 @@ async function authenticate(): Promise<Auth> {
   // The service boundary starts only after both checks. Every RPC independently
   // rechecks the live session, current capability/ownership and subject fences.
   return { actorId: user.data.user.id, sessionId, service: createServiceClient() };
+}
+/**
+ * 회수지·재배송지 원문을 운영자에게 돌려주기 전에 개인정보 접속기록을 남긴다(원문 확인). 기록이 없으면 원문을 내보내지 않는다 —
+ * 화면은 보이던 원문을 지우고 다시 확인하게 한다(recoveryOnly). 기록에는 클레임 ID와 대상·작업 코드만 남고 주소는 남지 않는다.
+ */
+async function revealed(auth: Auth, claimId: string, surface: 'claim.contact' | 'claim.contact_history', path: string, detail: Record<string, string>) {
+  try {
+    await recordPiiAccess({ actorId: auth.actorId, action: 'reveal', surface, path, subjectKind: 'claim', subjectIds: [claimId], detail });
+  } catch (error) {
+    if (error instanceof PiiAccessLogError) fail('claim_contact_access_log_unavailable');
+    throw error;
+  }
 }
 function scopeArgs(auth: Auth, input: { orderId: string; claimId: string }) {
   return { p_order_id: input.orderId, p_claim_id: input.claimId, p_actor_id: auth.actorId, p_session_id: auth.sessionId };
@@ -105,6 +118,7 @@ export async function fetchClaimContactContext(raw: unknown): Promise<ContextRes
         expectedClaimType: value.claimType, expectedClaimRevision: value.claimRevision, source: value.current.source,
         addressHmac: codec.addressHmac(address, input), addressHmacKeyVersion: codec.activeKeyVersion, issuedAt: new Date(now).toISOString(), expiresAt, signingKeyVersion: codec.activeKeyVersion });
     }
+    if (address) await revealed(auth, input.claimId, 'claim.contact', '/api/admin/claim-contact/context', { target: input.target, command: input.command });
     return fromDb('ContextResponse', { requestId: input.requestId, actorId: auth.actorId, sessionId: auth.sessionId,
       orderId: input.orderId, claimId: input.claimId, target: input.target, command: input.command, claimType: value.claimType, claimRevision: value.claimRevision,
       allowed: value.allowed, blocker: value.blocker, sourceKind: value.current.source?.sourceKind ?? null, referenceOnly: value.current.referenceOnly,
@@ -236,6 +250,11 @@ async function mutate(raw: unknown, command: Command): Promise<OperationResponse
           p_tracking_number: (input as ReshipmentRequest).trackingNumber, p_items: (input as ReshipmentRequest).items, p_collection_waiver: (input as ReshipmentRequest).collectionWaiver };
       const receipt = fromDb('OperationReceipt', await rpc(auth, command === 'change' ? 'service_change_order_claim_contact' : 'service_record_order_claim_shipment_reshipment', args));
       if (!receiptMatches(receipt, auth, scope)) return fail('claim_contact_outcome_unknown');
+      // 회수지·재배송지 정정은 이미 저장됐다 — 접속기록(정정)은 실패해도 결과를 바꾸지 않는다(DB 감사 기록이 따로 있다).
+      if (receipt.state === 'saved') {
+        await notePiiAccess({ actorId: auth.actorId, action: 'correct', surface: 'claim.contact',
+          path: `/api/admin/claim-contact/${command}`, subjectKind: 'claim', subjectIds: [input.claimId], detail: { command, target: scope.target } });
+      }
       return operationResponse(auth, input.requestId, receipt);
     }
     try { return await dispatch(keyVersion, sealed); }
@@ -304,10 +323,16 @@ async function history(raw: unknown, viewerKind: 'operator' | 'customer'): Promi
     if (viewerKind === 'customer' && value.entries.some(entry => entry.actorId !== null || entry.ciphertext?.agreement != null)) return fail('claim_contact_outcome_unknown');
     if ((!value.piiAccess || value.viewerKind === 'gift_sender') && (value.current.collection.sourceAddress || value.current.collection.plan
       || value.current.reshipment.sourceAddress || value.current.reshipment.plan || value.entries.some(entry => entry.ciphertext !== null) || value.reshipmentDestination.destination)) return fail('claim_contact_outcome_unknown');
-    return fromDb('HistoryResponse', { requestId: input.requestId, viewerId: value.viewerId, sessionId: value.sessionId, orderId: value.orderId, claimId: value.claimId,
+    const response = fromDb('HistoryResponse', { requestId: input.requestId, viewerId: value.viewerId, sessionId: value.sessionId, orderId: value.orderId, claimId: value.claimId,
       viewerKind: value.viewerKind, piiAccess: value.piiAccess, current: { collection: targetView(codec, input, value.current.collection), reshipment: targetView(codec, input, value.current.reshipment) },
       entries: value.entries.map(entry => historyEntry(codec, input, entry, viewerKind === 'operator')), nextCursor: value.nextCursor,
       reshipmentDestination: finalDestination(codec, input, value.reshipmentDestination) });
+    // 운영자에게 원문 주소(현재·변경 전후·재배송지)가 하나라도 나가면 접속기록을 남긴다. 고객 본인 조회는 대상이 아니다.
+    if (viewerKind === 'operator' && (response.current.collection.address || response.current.reshipment.address
+      || response.entries.some(entry => entry.before || entry.after) || response.reshipmentDestination.address)) {
+      await revealed(auth, input.claimId, 'claim.contact_history', '/api/admin/claim-contact/history', { entries: String(response.entries.length) });
+    }
+    return response;
   });
 }
 export async function fetchAdminClaimContactHistory(input: unknown) { return history(input, 'operator'); }

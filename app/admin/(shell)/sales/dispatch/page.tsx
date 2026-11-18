@@ -15,6 +15,8 @@ import { getShipmentConsoleData } from '@/lib/admin/shipment-dispatch.server';
 import { loadStockDispatchWarnings } from '@/lib/admin/stock-reconcile.server';
 import { stockShortageSummary } from '@/lib/admin/stock-reconcile';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
+import { piiSearchRecord } from '@/lib/admin/pii-access-log';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 
 export default async function AdminSalesDispatchPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
   const auth=await requireAdminScreenAccess('/admin/sales/dispatch');
@@ -34,6 +36,10 @@ export default async function AdminSalesDispatchPage({searchParams}:{searchParam
   const exportTab=filters.tab==='ready'||filters.tab==='delayed';
   const [data,autoConfirmation,preview,stockWarnings]=await Promise.all([getShipmentConsoleData(filters,'dispatch'),canManageSales?getAutoOrderConfirmation():Promise.resolve(null),previewId?loadAdminOrderPreview(auth,previewId):Promise.resolve(null),
     exportTab?loadStockDispatchWarnings(filters.originId??null):Promise.resolve(null)]);
+  /* 구매자명·수령인명(또는 전체)으로 검색한 결과는 주문 검색과 같은 방식으로 접속기록에 남긴다(원문 없이, 실패해도 연다). */
+  const search=piiSearchRecord({actorId:auth.user.id,surface:'shipment.search',path:'/admin/sales/dispatch',subjectKind:'shipment',
+    subjectIds:data.rows.map(row=>row.id),total:data.total,field:filters.field,query:filters.query,page:filters.page,view:filters.tab});
+  if(search)await notePiiAccess(search);
   /* 처리할 주문 표가 첫 화면에 오도록 설정 카드는 표 아래에 둔다. 켜짐·꺼짐은 건수 카드 옆 버튼에서 바로 읽고, 누르면 설정으로 내려간다. */
   const autoOff=autoConfirmation?!autoConfirmation.enabled:false;
   const autoStatus=<a className={`${buttonVariants({variant:'outline'})} shrink-0`} data-slot="button" href="#auto-order-confirm">자동 발주확인 <AdminStatusBadge tone={autoConfirmation?autoConfirmation.enabled?'success':'warning':'danger'}>{autoConfirmation?autoConfirmation.enabled?'켜짐':'꺼짐':'불러오지 못함'}</AdminStatusBadge>{autoOff?<span className="text-xs font-normal text-muted-foreground">신규주문은 직접 발주확인합니다</span>:null}</a>;
