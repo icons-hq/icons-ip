@@ -33,13 +33,25 @@ type GiftClient = Awaited<ReturnType<typeof createClient>>;
 /**
  * 선물 품목의 랜덤 판매 옵션명을 가린다(ADR-0027 · m27 CUST-1). 선물은 만들 때 랜덤 판매 굿즈를 거절하지만, 만든 뒤 판매 방식이
  * 랜덤으로 바뀐 굿즈는 품목 스냅샷에 기본 옵션의 실제 이름이 남는다. 화면·서버 액션 응답에 닿기 전에 '랜덤'으로 바꾼다.
- * 판매 방식을 읽지 못하면 옵션명을 그대로 내보내지 않고 실패한다. 랜덤 판매 굿즈는 많지 않아 공개 카탈로그에서 한 번에 읽는다.
+ * 판매 방식을 읽지 못하면 옵션명을 그대로 내보내지 않고 실패한다. 판매 방식은 공개 카탈로그(goods RLS)가 아니라 판매 방식만 돌려주는
+ * RPC로 읽는다 — 선물 뒤 굿즈가 내려가도(초안·보관·19금) 가림이 풀리지 않는다. RPC는 공개가 아닌 굿즈에는 호출자 본인의 선물
+ * (보낸·받은 선물, 연 선물 초대 세션 `giftSessionHash`) 품목일 때만 답한다.
  */
-export async function maskRandomGiftOptions<T extends { items: GiftItem[] }>(values: readonly T[], client?: GiftClient): Promise<T[]> {
-  if (!values.some(value => value.items.length)) return [...values];
-  const { data, error } = await (client ?? await createClient()).from('goods').select('id').eq('option_sale_mode', 'random');
-  if (error || !Array.isArray(data)) throw new Error('선물 정보를 확인하지 못했습니다.');
-  const random = new Set(data.flatMap(row => typeof row?.id === 'string' ? [row.id] : []));
+const RANDOM_OPTION_LOOKUP_LIMIT = 1000;
+export async function maskRandomGiftOptions<T extends { items: GiftItem[] }>(values: readonly T[], client?: GiftClient, giftSessionHash?: string): Promise<T[]> {
+  const goodIds = [...new Set(values.flatMap(value => value.items.map(item => item.goodId)))];
+  if (!goodIds.length) return [...values];
+  const supabase = client ?? await createClient(), random = new Set<string>();
+  for (let offset = 0; offset < goodIds.length; offset += RANDOM_OPTION_LOOKUP_LIMIT) {
+    const { data, error } = await supabase.rpc('get_random_option_good_ids', {
+      p_good_ids: goodIds.slice(offset, offset + RANDOM_OPTION_LOOKUP_LIMIT), ...(giftSessionHash ? { p_gift_session_hash: giftSessionHash } : {}),
+    });
+    if (error || !Array.isArray(data)) throw new Error('선물 정보를 확인하지 못했습니다.');
+    for (const id of data) {
+      if (typeof id !== 'string') throw new Error('선물 정보를 확인하지 못했습니다.');
+      random.add(id);
+    }
+  }
   return values.map(value => maskRandomGiftItems(value, random));
 }
 export async function loadGift(id: string) {
@@ -58,5 +70,6 @@ export async function loadGiftInvitation() {
   const client = await createClient(), { data, error } = await client.rpc('read_my_gift_invitation', { p_session_hash: sessionHash });
   if (error) throw new Error('선물 링크를 확인하지 못했습니다.'); if (data === null) return null;
   const invitation = parseGiftInvitation(data); if (!invitation) throw new Error('선물 정보를 확인하지 못했습니다.');
-  return (await maskRandomGiftOptions([invitation], client))[0];
+  /* 받기 전 초대는 아직 받는 사람이 정해지지 않아, 초대 세션으로 그 선물의 품목임을 밝힌다. */
+  return (await maskRandomGiftOptions([invitation], client, sessionHash))[0];
 }
