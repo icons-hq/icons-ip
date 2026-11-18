@@ -43,7 +43,7 @@ import { GoodsCustomInputEditor } from './GoodsCustomInputEditor';
 import { GoodsOptionEditor } from './GoodsOptionEditor';
 import { GoodsPriceFields } from './GoodsPriceFields';
 import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
-import { GoodsPurchaseLimitFields, GoodsSalePolicyFields } from './GoodsSalePolicyFields';
+import { GoodsPaymentMethodFields, GoodsPurchaseLimitFields, GoodsSaleRestrictionFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
 import { GOOD_LOCKED_SELECTS_CLASS } from './GoodEditorParts';
 import { GoodDraftSwitch } from './GoodPublishControls';
@@ -631,9 +631,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
 
       {/*
         2. 판매 정보: 판매가 → 할인 → 재고수량 → 옵션 순서는 회귀 금지(MD 피드백). 그 뒤 판매기간 → 예약판매 → 구매 제한을 접지 않고 펼쳐 둔다
-        (11/11 ADM-011·1027T-021·1027T-023 결정 "둘 다 펼친 채로" — 10/27 회의 R12·R13 원안).
+        (11/11 ADM-011·1027T-021·1027T-023 결정 "둘 다 펼친 채로" — 10/27 회의 R12·R13 원안). 판매 제한(19금)은 구매 제한 바로 아래다(11/18 MD 요청).
       */}
-      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · ${priceResult.period ? '기간 ' : ''}할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : instantDiscount?.summary ? ` · 진행·예정 기간 할인 ${instantDiscount.summary.minPrice === instantDiscount.summary.maxPrice ? formatWon(instantDiscount.summary.minPrice) : `${formatWon(instantDiscount.summary.minPrice)}~${formatWon(instantDiscount.summary.maxPrice)}`}` : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
+      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits', 'restriction') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · ${priceResult.period ? '기간 ' : ''}할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : instantDiscount?.summary ? ` · 진행·예정 기간 할인 ${instantDiscount.summary.minPrice === instantDiscount.summary.maxPrice ? formatWon(instantDiscount.summary.minPrice) : `${formatWon(instantDiscount.summary.minPrice)}~${formatWon(instantDiscount.summary.maxPrice)}`}` : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
         <GoodsPriceFields draft={priceDraft} onDraftChange={setPriceDraft} result={priceResult} errors={errors} instant={instantDiscount} showDiscountRate={initial.showDiscountRate} />
         <div className="flex min-w-0 scroll-mt-24 flex-col gap-3 border-t pt-5 outline-none" id="good-section-variants" tabIndex={-1}>
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-sm font-medium text-foreground">재고수량 / 옵션</h2><span className="text-xs text-muted-foreground">{stockSummary}</span></div>
@@ -653,6 +653,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         {/* 예약판매 입력은 이름이 없고 소속 폼을 뗐다(GOOD_DETACHED_FORM_ID). Enter로 상품이 저장되지 않게 막고, 자동복구는 이 안의 입력을 수정으로 세지 않는다. */}
         {preorderSlot ? <div className="contents" data-good-preorder-slot="" onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault(); }}>{preorderSlot}</div> : null}
         <GoodsPurchaseLimitFields quantityReadOnly={aggregationOwned} values={initial} current={values} errors={errors} rows={rows} onRowsChange={setRows} randomSale={randomSale} />
+        <GoodsSaleRestrictionFields values={initial} current={values} errors={errors} />
       </GoodEditorSection>
 
       {/* 3. 상품이미지: 썸네일 그리드·클릭 교체·X 삭제·드래그 정렬·추가 이미지 9장은 그대로 둔다. */}
@@ -708,7 +709,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} />
         </GoodFoldedRow>
         <GoodsClaimPolicyFields values={initial} current={values} errors={errors as Record<string, string>} returnAddresses={returnAddresses} />
-        <GoodsSalePolicyFields values={initial} current={values} errors={errors} />
+        <GoodsPaymentMethodFields values={initial} current={values} errors={errors} />
       </GoodEditorSection>
 
       {/* 7. 추가 설정(접힘): 대부분의 상품은 기본값 그대로다. 접혀도 입력은 DOM에 남는다. */}
