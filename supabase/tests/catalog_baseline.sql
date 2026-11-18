@@ -184,10 +184,24 @@ begin
   end if;
 end $$;
 
+-- g10·g12는 보관된 옛 상품 이력이다. 보관 상품은 공개 읽기(anon)에 보이지 않고(#678), 소유자 기준으로는 보관·품절·재고 0으로 남는다.
+-- `supabase db query --file`은 파일 전체를 한 트랜잭션으로 돌려 앞 블록의 anon 역할이 이어질 수 있다 — 이 블록이 역할을 직접 정한다.
 do $$
 declare
   matched_count integer;
 begin
+  perform set_config('role', 'anon', true);
+  select count(*) into matched_count
+  from public.goods
+  where id = any (array['g10', 'g12']);
+  if matched_count <> 0 then
+    raise exception 'catalog baseline invalid: archived g10 and g12 history must not be publicly readable, found %', matched_count;
+  end if;
+
+  perform set_config('role', 'none', true);
+  if current_user = 'anon' then
+    raise exception 'catalog baseline archive check must run as the connecting owner role';
+  end if;
   select count(*) into matched_count
   from public.goods
   where id = any (array['g10', 'g12'])
