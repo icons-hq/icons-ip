@@ -34,6 +34,8 @@ const operators = [
   sql('operator_capability_coverage'),
   sql('operator_capability_guards'),
   sql('operator_manager_lifecycle'),
+  // 운영자 2단계 인증 스위치·DB 강제·초기화·회수 세션 끊기.
+  sql('operator_mfa_requirement'),
   // 1014-084 물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변.
   sql('operator_logistics_dispatch'),
   sql('operator_email_invitations'),
