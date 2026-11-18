@@ -8,6 +8,7 @@ type AuthState = {
   role: 'user' | 'staff' | 'admin' | null;
   isStaff: boolean;
   operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
+  mfaPending?: boolean;
 };
 
 const staff: AuthState = {
@@ -53,6 +54,15 @@ describe('requireAdminScreenAccess', () => {
     setAuth({ isConfigured: false, user: null, role: null, isStaff: false });
 
     await expect(requireAdminScreenAccess('/admin')).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin');
+  });
+
+  /* 2단계 인증 대기(OPS-006)는 404가 아니라 인증 화면이다. 인증 뒤 원래 화면으로 돌아온다. */
+  it('2단계 인증 대기 운영자는 원래 경로를 담아 인증 화면으로 보낸다', async () => {
+    setAuth({ ...staff, isStaff: false, operatorAccess: undefined, mfaPending: true } as AuthState);
+
+    await expect(requireAdminScreenAccess('/admin/sales/orders?status=paid')).rejects.toThrow(
+      'NEXT_REDIRECT:/admin/mfa?next=%2Fadmin%2Fsales%2Forders%3Fstatus%3Dpaid',
+    );
   });
 
   /* 비스태프에게는 화면의 존재 자체를 숨긴다 — 403 이 아니라 404 다. */
