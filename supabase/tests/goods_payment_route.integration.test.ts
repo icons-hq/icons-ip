@@ -68,9 +68,14 @@ describe.skipIf(!runLocalIntegration)('goods payment confirm route local integra
     const { error: profileError } = await userSupabase.from('profiles').update({
       birth_date: '2000-01-01',
       consents: { terms: true, privacy: true },
-      onboarded_at: new Date().toISOString(),
     }).eq('id', testUserId);
     expect(profileError).toBeNull();
+    // 온보딩 완료는 서버만 기록한다(회원의 onboarded_at 직접 쓰기는 회수 대상).
+    const { error: onboardingError } = await supabase.rpc('service_complete_member_onboarding', {
+      p_user_id: testUserId,
+      p_require_phone: false,
+    });
+    expect(onboardingError).toBeNull();
 
     const { data: availableGoods, error: availableGoodsError } = await userSupabase
       .from('goods')

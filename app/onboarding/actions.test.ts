@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   profileResults: [] as { data: { id: string } | null; error: { message: string } | null }[],
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  serviceRpc: vi.fn(),
+  serviceConfigured: true,
   after: vi.fn(),
   syncKakao: vi.fn(),
 }));
@@ -21,6 +23,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/profile.server', () => ({ updateProfileIdentity: mocks.identity }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: mocks.getSupabaseConfig }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => ({ rpc: mocks.serviceRpc }),
+  getServiceRoleConfig: () => ({ isConfigured: mocks.serviceConfigured }),
+}));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/server', () => ({ after: mocks.after }));
 vi.mock('@/lib/kakao/channel-reward.server', () => ({ syncKakaoChannelFriendReward: mocks.syncKakao }));
@@ -88,6 +94,9 @@ beforeEach(() => {
   mocks.profileResults = [];
   mocks.revalidatePath.mockReset();
   mocks.rpc.mockReset();
+  mocks.serviceRpc.mockReset();
+  mocks.serviceRpc.mockResolvedValue({ data: null, error: null });
+  mocks.serviceConfigured = true;
 
   mocks.getSupabaseConfig.mockReturnValue({ isConfigured: true });
   mocks.authGetUser.mockResolvedValue({
@@ -227,8 +236,8 @@ describe('completeOnboardingAction profile identity', () => {
         birth_date: '2000-01-01',
         consents: { terms: true, privacy: true },
       },
-      { onboarded_at: expect.any(String) },
     ]);
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: false });
     expect(JSON.stringify(mocks.profilePayloads)).not.toContain('nickname');
   });
 
@@ -242,7 +251,7 @@ describe('completeOnboardingAction profile identity', () => {
     );
 
     expect(mocks.identity).not.toHaveBeenCalled();
-    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: false });
   });
 
   it('retries a colliding automatic nickname with a new value', async () => {
@@ -301,7 +310,7 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.rpc.mock.calls).toEqual([
       ['set_my_marketing_consents', { p_email: true, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'onboarding' }],
     ]);
-    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: false });
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual(['/', '/ip']);
   });
 });
@@ -346,7 +355,7 @@ describe('completeOnboardingAction optional consents', () => {
     await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
       errors: { form: '마케팅 정보 수신 동의를 저장하지 못했습니다. 다시 시도해주세요.' },
     });
-    expect(mocks.profilePayloads.some((payload) => 'onboarded_at' in payload)).toBe(false);
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -368,6 +377,7 @@ describe('completeOnboardingAction optional consents', () => {
       const query = profileQuery();
       return { ...query, update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
     });
+    mocks.serviceRpc.mockImplementation(async () => { order.push('onboarded_at'); return { data: null, error: null }; });
     mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
       order.push(name);
       if (name === 'customer_demographic_state') return { data: DEMOGRAPHIC_STATE, error: null };
@@ -440,6 +450,7 @@ describe('completeOnboardingAction phone verification switch', () => {
       const query = profileQuery();
       return { ...query, update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
     });
+    mocks.serviceRpc.mockImplementation(async () => { order.push('onboarded_at'); return { data: null, error: null }; });
     mocks.rpc.mockImplementation(async (name: string) => {
       order.push(name);
       return name === 'my_member_phone_verification'
@@ -464,7 +475,31 @@ describe('completeOnboardingAction phone verification switch', () => {
       : { data: null, error: null });
 
     await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
-    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: true });
+  });
+
+  it('goes back to the phone step when the server write refuses an unverified phone', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => name === 'my_member_phone_verification'
+      ? { data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z', reverificationRequired: false }, error: null }
+      : { data: null, error: null });
+    mocks.serviceRpc.mockResolvedValue({ data: null, error: { message: 'onboarding_phone_required' } });
+
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
+      phoneStep: true,
+      errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' },
+    });
+  });
+
+  it('does not complete onboarding when the server write is unavailable', async () => {
+    mocks.serviceConfigured = false;
+    mocks.rpc.mockImplementation(async (name: string) => name === 'my_member_phone_verification'
+      ? { data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z', reverificationRequired: false }, error: null }
+      : { data: null, error: null });
+
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
+      errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' },
+    });
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
   });
 });
 
@@ -549,7 +584,8 @@ describe('finishOnboardingAction', () => {
     await expect(finishOnboardingAction({}, finishForm({ gender: 'female', genderConsent: 'on' }))).rejects.toThrow(
       'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
-    expect(mocks.profilePayloads).toEqual([{ onboarded_at: expect.any(String) }]);
+    expect(mocks.profilePayloads).toEqual([]);
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: true });
     expect(mocks.rpc).toHaveBeenCalledWith('set_customer_demographic_consent', expect.objectContaining({ p_choice: 'accepted', p_gender: 'female' }));
   });
 
