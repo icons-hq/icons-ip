@@ -2,7 +2,7 @@ import { isUuid } from '@/lib/uuid';
 
 /**
  * 주문 출고 보류(원장 PAY-050·SHP-093·OPS-074·OPS-065·CLM-051). DB가 보류를 판정하고 출고 경로를 막는다
- * (supabase/migrations/20261118150000_order_fulfillment_holds.sql). 화면은 사유·근거를 보이고 해제만 요청한다.
+ * (supabase/migrations/20261118156000_order_fulfillment_holds.sql). 화면은 사유·근거를 보이고 해제만 요청한다.
  *  - test_payment: 운영 배포에 토스 테스트 키가 물린 기간에 승인된 결제. 돈이 실제로 결제되지 않았다.
  *  - provider_canceled: 토스 상점관리자 등 결제사에서 직접 취소됐는데 우리 원장에 그 취소가 없다.
  */

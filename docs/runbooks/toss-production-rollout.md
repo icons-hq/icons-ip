@@ -524,7 +524,7 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
 
 운영(`VERCEL_ENV=production`)에 테스트 키가 물린 동안 승인된 결제는 돈이 빠지지 않았는데도 `paid`다
 (원장 PAY-050·SHP-093·OPS-074). 이 결제가 16:30 자동 발주확인 → 출고지시 파일로 창고에 섞이지 않게
-주문 단위 **출고 보류(test_payment)**를 건다(`supabase/migrations/20261118150000_order_fulfillment_holds.sql`).
+주문 단위 **출고 보류(test_payment)**를 건다(`supabase/migrations/20261118156000_order_fulfillment_holds.sql`).
 
 - **표식**: 굿즈 결제 준비(prepare)가 체크아웃을 돌려주기 전에 시도의 토스 키 모드(`test`·`live`)를
   `private.payment_attempt_key_modes`에 남긴다(`service_record_goods_payment_key_mode`). 기록하지 못하면
