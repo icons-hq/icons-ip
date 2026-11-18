@@ -5,7 +5,7 @@
 -- removed the seeded demo goods, cards, card pool, games and events from
 -- Production, so this canary asserts only invariants that hold for any valid
 -- catalog: anon can read every public catalog surface, the reference verticals
--- exist, and every visible card pool keeps odds that total 1.
+-- exist, and every card pool with configured odds keeps odds that total 1.
 -- Seeded environments (local smoke, isolated and shared preview) keep running
 -- catalog_baseline.sql, which pins the seed itself.
 
@@ -35,14 +35,23 @@ begin
   perform count(*) from public.pool_odds;
   perform count(*) from public.games;
 
+  -- Creating a pool (admin_upsert_card_pool) and configuring its odds
+  -- (admin_set_pool_odds) are separate operator steps, so a pool without any
+  -- odds rows is a legitimate intermediate state. Only configured pools must
+  -- total 1.
   select count(*) into matched_count
   from public.card_pools pool
-  where (
-    select coalesce(sum(odds.probability), 0)
+  where exists (
+    select 1
+    from public.pool_odds odds
+    where odds.pool_id = pool.id
+  )
+  and (
+    select sum(odds.probability)
     from public.pool_odds odds
     where odds.pool_id = pool.id
   ) <> 1;
   if matched_count <> 0 then
-    raise exception 'production catalog readback: % visible card pools have odds that do not total 1', matched_count;
+    raise exception 'production catalog readback: % configured card pools have odds that do not total 1', matched_count;
   end if;
 end $$;
