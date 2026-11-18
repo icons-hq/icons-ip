@@ -1,7 +1,12 @@
 -- Production-specific readback for #204. The reusable migration remains safe
 -- for empty local/preview databases, while the production workflow separately
 -- requires exactly two rows before the provider column exists. These checks use
--- immutable migration evidence so future Korpay rows do not break every deploy.
+-- immutable migration evidence so later payment rows never break every deploy.
+--
+-- The current ledger may legitimately be empty: the 2026-11-18 test data purge
+-- removed every test-mode payment from Production, including the two backfilled
+-- Toss rows. The migration evidence below still pins that backfill, so the
+-- current-row check only requires that no payment row lacks an explicit provider.
 
 select 1 / case when (
   select before_total = 2
@@ -15,9 +20,7 @@ select 1 / case when (
 ) then 1 else 0 end as assert_production_provider_backfill_evidence;
 
 select 1 / case when (
-  select count(*) >= 2
-    and count(*) filter (where provider = 'toss') >= 2
-    and count(*) filter (where provider is null) = 0
+  select count(*) filter (where provider is null) = 0
   from public.payments
 ) then 1 else 0 end as assert_current_payments_have_explicit_provider;
 

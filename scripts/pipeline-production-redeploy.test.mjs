@@ -73,6 +73,14 @@ describe('production config redeploy workflow contract', () => {
         (step) => step.name === 'Reconcile production Supabase Edge Functions',
       ).run,
     ).toBe('node scripts/reconcile-supabase-functions.mjs');
+    // Production 카탈로그는 운영자가 관리하므로 seed를 고정하는 baseline이 아니라
+    // 데이터와 무관한 readback만 돌린다. baseline이 돌아오면 실상품 운영이 배포를 막는다.
+    expect(
+      deploySupabase.steps.find((step) => step.name === 'Verify production catalog readback').run,
+    ).toBe('supabase db query --linked --file supabase/tests/catalog_production_readback.sql');
+    expect(
+      deploySupabase.steps.some((step) => step.run?.includes('catalog_baseline.sql')),
+    ).toBe(false);
     expect(deployVercel.needs).toEqual(['validate', 'deploy-supabase']);
     expect(condition).toBe(normalizeExpression(productionDeployCondition));
   });

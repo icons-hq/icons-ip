@@ -447,8 +447,10 @@ jobs:
       - name: Verify payment provider backfill readback
         run: supabase db query --linked --file supabase/tests/payment_provider_production_readback.sql
 
-      - name: Verify Supabase catalog baseline
-        run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
+      # Production 카탈로그는 운영자가 관리한다(2026-11-18 테스트 데이터 삭제로 seed 시연 카탈로그 없음).
+      # seed 자체를 고정하는 catalog_baseline.sql은 seed가 있는 preview·로컬에서만 돈다.
+      - name: Verify production catalog readback
+        run: supabase db query --linked --file supabase/tests/catalog_production_readback.sql
 
       - name: Reconcile production Supabase Edge Functions
         env:
