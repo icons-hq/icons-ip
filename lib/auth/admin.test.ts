@@ -63,6 +63,35 @@ describe('getCurrentAdminAuthState', () => {
     mocks.rpc.mockResolvedValue(response);
     expect(await getCurrentAdminAuthState()).toMatchObject({ isStaff: false, operatorAccess: { mode: 'none', capabilities: [] } });
   });
+  it('2단계 인증 요구가 켜졌는데 세션이 기준을 못 넘으면 운영자 권한을 주지 않고 대기만 알린다(OPS-006)', async () => {
+    mocks.profile = { role: 'staff', suspended_at: null };
+    mocks.rpc.mockResolvedValue({ data: { ...configuredOperatorAccessFixture('primary'), mfa: { required: true, satisfied: false } }, error: null });
+    expect(await getCurrentAdminAuthState()).toMatchObject({ isStaff: false, mfaPending: true, mfaRequired: true, operatorAccess: { mode: 'none', capabilities: [] } });
+    mocks.rpc.mockResolvedValue({ data: { ...configuredOperatorAccessFixture('primary'), mfa: 'broken' }, error: null });
+    expect(await getCurrentAdminAuthState()).toMatchObject({ isStaff: false, mfaPending: true });
+  });
+  it('기준을 넘은 세션과 스위치가 꺼진(또는 키를 모르는 옛 DB) 응답은 지금처럼 운영자다', async () => {
+    mocks.profile = { role: 'staff', suspended_at: null };
+    const access = configuredOperatorAccessFixture('deputy');
+    mocks.rpc.mockResolvedValue({ data: { ...access, mfa: { required: true, satisfied: true } }, error: null });
+    const satisfied = await getCurrentAdminAuthState();
+    expect(satisfied).toMatchObject({ isStaff: true, mfaRequired: true, operatorAccess: access });
+    expect(satisfied.mfaPending).toBeUndefined();
+    for (const data of [{ ...access, mfa: { required: false, satisfied: true } }, access]) {
+      mocks.rpc.mockResolvedValue({ data, error: null });
+      const state = await getCurrentAdminAuthState();
+      expect(state).toMatchObject({ isStaff: true, operatorAccess: access });
+      expect(state.mfaPending).toBeUndefined();
+      expect(state.mfaRequired).toBeUndefined();
+    }
+  });
+  it('운영자가 아니면 MFA 응답이 와도 대기로 보지 않는다', async () => {
+    mocks.profile = { role: 'staff', suspended_at: null };
+    mocks.rpc.mockResolvedValue({ data: { mode: 'none', managerRole: null, capabilities: [], revision: 2, setupRequired: false, mfa: { required: false, satisfied: false } }, error: null });
+    const state = await getCurrentAdminAuthState();
+    expect(state).toMatchObject({ isStaff: false });
+    expect(state.mfaPending).toBeUndefined();
+  });
   it('does not restore raw admin authority after a network failure', async () => {
     mocks.profile = { role: 'admin', suspended_at: null };
     mocks.rpc.mockRejectedValue(new Error('unavailable'));

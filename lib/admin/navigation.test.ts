@@ -115,7 +115,7 @@ describe('어드민 IA 정의', () => {
     expect(ids('shipping')).toEqual(['fulfillment-origins', 'return-addresses', 'stock-reconcile', 'defective-stock', 'shipping-regions', 'shipping-carriers', 'shipping-settings-templates', 'shipping-notice-templates']);
     expect(ids('templates')).toEqual(['notice-presets', 'goods-event-templates', 'category-templates', 'goods-after-sales-templates', 'size-templates',
       'goods-attributes']);
-    expect(ids('seller')).toEqual(['operations-settings', 'system-health', 'store-settings', 'roles', 'pii-access-log', 'store-credits', 'collectible-features']);
+    expect(ids('seller')).toEqual(['operations-settings', 'system-health', 'store-settings', 'roles', 'operator-mfa', 'my-security', 'pii-access-log', 'store-credits', 'collectible-features']);
     expect(ADMIN_NAV_GROUPS.some((group) => group.id === 'promotion')).toBe(false);
     for (const group of commerce.filter((item) => item.id !== 'help')) expect(group.consoles).toBeUndefined();
     expect(ids('content')).toEqual(['ips', 'events', 'ticket-types', 'check-in']);
@@ -141,13 +141,13 @@ describe('어드민 IA 정의', () => {
     for (const [id, href] of before) expect(ADMIN_SCREENS.find((screen) => screen.id === id)?.href).toBe(href);
     expect(ADMIN_SCREENS.find((screen) => screen.id === 'purchase-restrictions')?.label).toBe('판매방해 고객관리');
     expect(ADMIN_SCREENS.filter((screen) => screen.adminOnly).map((screen) => screen.id).sort()).toEqual([
-      'collectible-features', 'customer-grades', 'goods-attributes', 'pg-settlements', 'pii-access-log', 'refund-transfers', 'roles', 'store-credit-console', 'store-credits',
+      'collectible-features', 'customer-grades', 'goods-attributes', 'operator-mfa', 'pg-settlements', 'pii-access-log', 'refund-transfers', 'roles', 'store-credit-console', 'store-credits',
     ]);
   });
 
   it('그룹상품 등록·조회는 사이드바에서만 숨기고 라우트·화면 판정은 그대로 둔다', () => {
     const hidden = ADMIN_SCREENS.filter((screen) => screen.navHidden).map((screen) => screen.id);
-    expect(hidden).toEqual(['gifts', 'subscriptions', 'goods-groups-create', 'goods-groups']);
+    expect(hidden).toEqual(['gifts', 'subscriptions', 'goods-groups-create', 'goods-groups', 'my-security']);
     const visible = visibleAdminNavGroups('admin').flatMap((group) => group.screens.map((screen) => screen.id));
     for (const id of hidden) expect(visible).not.toContain(id);
     expect(adminScreenForPath('/admin/catalog/groups')?.id).toBe('goods-groups');

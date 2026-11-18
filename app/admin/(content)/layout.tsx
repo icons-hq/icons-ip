@@ -22,6 +22,9 @@ export const metadata = {
 export default async function AdminContentLayout({ children }: { children: ReactNode }) {
   const auth = await getCurrentAdminAuthState();
 
+  /* 2단계 인증 대기(OPS-006)면 셸을 그리지 않는다 — page 게이트가 원래 경로를 담아 인증 화면으로 보낸다. */
+  if (auth.mfaPending) return children;
+
   if (auth.user && !auth.isStaff) {
     notFound();
   }

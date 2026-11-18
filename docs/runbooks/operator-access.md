@@ -19,7 +19,66 @@ DB·앱과 기존 운영자의 호환 상태를 확인하는 전체 배포 순�
 - 계정 주매니저는 다른 주매니저를 직접 회수할 수 없다. 업무 범위에 맞는 다른 역할로 변경한 다음 회수한다.
 - 통합 매니저만 이용 중인 다른 계정 주매니저에게 승계한다. 한 트랜잭션에서 기존 소유자는 주매니저, 대상자는 통합 매니저가 된다. 통합 매니저는 정확히 한 명이며, 승계 전 정지·일반회원 전환·탈퇴는 차단된다.
 - 담당업무는 표시용이다. 대표는 통합 매니저에 고정되며 다른 업무 표시는 접근 권한을 추가하지 않는다.
-- 회수 후 기존 로그인 세션도 다음 서버 요청부터 제한된다. 이미 승인·완료된 외부 결제 처리를 반영하는 수신 경로는 기존 요청·실행자·공급자 증거에 결속된 완료 작업만 허용한다.
+- 회수 후 기존 로그인 세션도 다음 서버 요청부터 제한된다. 역할 회수(`admin_change_operator_role`의 회수)와 최초 전환에서 권한 회수를 고른 운영자는 같은 트랜잭션에서 Auth 세션(`auth.sessions`, refresh token은 cascade)이 모두 지워져 refresh와 `getUser`가 실패하고 로그인으로 돌아간다. 이미 발급된 access token은 만료(기본 1시간)까지 서명이 유효하지만 운영자 능력이 없어 DB가 거절한다. 이미 승인·완료된 외부 결제 처리를 반영하는 수신 경로는 기존 요청·실행자·공급자 증거에 결속된 완료 작업만 허용한다.
+
+## 2단계 인증(운영자 MFA)
+
+원장 OPS-006·OPS-005. 운영자 비밀번호 하나로 환불·개인정보 엑셀·설정 변경이 열리지 않도록 Supabase Auth TOTP(인증 앱)를 쓴다. 고객에게는 요구하지 않는다.
+
+- **스위치:** `private.operator_mfa_policy.required`(기본 꺼짐, migration `20261118163000_operator_mfa_requirement.sql`). 화면은 판매자 정보 → 2단계 인증 관리(`/admin/settings/mfa`, 매니저 관리 권한)이고, 본인 등록은 계정 메뉴·판매자 정보의 내 보안 설정(`/admin/settings/security`, 운영자 누구나)이다.
+- **켜졌을 때 DB 강제:** 운영자 판정 공통 진입(`private.has_operator_capability` → `public.has_operator_capability`·`private.require_*_operator_capability`·RLS, 역할 기반 `public.is_staff`)이 "지금 요청 JWT의 `aal`이 `aal2`이고 그 JWT의 `session_id` 세션 행이 아직 살아 있으며 행의 `aal`도 `aal2`인" 운영자만 운영자로 본다. 거절은 `operator_mfa_required`다. 판정 대상이 지금 요청의 로그인 사용자이고 JWT 역할이 `authenticated`일 때만 따지므로 service_role·cron·JWT 없는 트리거·다른 사람 권한 확인 경로와 고객 RPC는 바뀌지 않는다.
+- **service_role 경로:** 앱 서버가 사용자 JWT를 검증한 뒤 사용자·세션을 인자로 넘겨 service client로 부르는 운영자 경로(클레임 연락처 열람·변경·재출고, 상담 첨부 올리기·내려받기, 디지털 자산, 환불 계좌 내려받기, 부분취소 정리, 리뷰 내보내기)는 넘겨받은 세션 행이 `aal2`여야 운영자로 본다. 세션 행의 `aal`은 GoTrue가 인증 앱 확인 때 올리고 요소 삭제 때 내리므로, 지운 인증 앱의 토큰은 만료 전에도 거절된다.
+- **켜졌을 때 앱:** 어드민 화면·서버 액션 가드가 aal2가 아닌 운영자를 `/admin/mfa?next=<원래 경로>`로 보낸다. 등록한 인증 앱이 있으면 코드를 받고, 없으면 그 자리에서 등록한다(켠 뒤 새로 들어온 운영자의 첫 등록은 비밀번호만으로 이뤄진다 — 아래 남은 위험).
+
+### 호스티드 Auth 설정(사람)
+
+`supabase/config.toml`의 `[auth.mfa.totp]`는 로컬 전용이다. CI는 호스티드 `config.toml`을 push하지 않고 `scripts/sync-supabase-auth.mjs`도 MFA를 다루지 않는다. 호스티드 프로젝트는 TOTP가 기본으로 켜져 있지만, 스위치를 켜기 전에 운영(필요하면 preview) 프로젝트에서 직접 확인한다.
+
+1. Supabase Dashboard → Authentication → Multi-Factor(MFA)에서 Authenticator app(TOTP)이 **Enabled**인지 본다. `Verification Disabled`·`Disabled`면 운영자가 등록·인증할 수 없다.
+2. 또는 Management API read-back: `GET /v1/projects/{ref}/config/auth`의 `mfa_totp_enroll_enabled`·`mfa_totp_verify_enabled`가 둘 다 `true`인지 본다. 아니면 그 두 키만 `PATCH`하고 다시 읽는다(다른 Auth 키를 함께 보내지 않는다). 운영 설정 변경은 명시 승인 범위에서 한다.
+
+### 배포 전 확인(사람)
+
+운영 Supabase SQL editor에서 migration을 올리기 **전에** 읽기만 한다.
+
+```sql
+select has_table_privilege('postgres','auth.sessions','delete') as sessions_delete,
+       has_table_privilege('postgres','auth.refresh_tokens','delete') as refresh_tokens_delete;
+```
+
+둘 다 `true`여야 한다. 권한이 없으면 세션 끊기(`private.operator_revoke_auth_sessions`)가 실패해 **운영자 권한 회수(매니저 관리의 회수·최초 역할 설정)가 통째로 실패하고**, 2단계 인증 초기화도 실패한다. `false`면 배포를 멈추고 보고한다(로컬 격리 스택은 둘 다 `true`).
+
+### 켜는 순서
+
+1. 운영 배포(migration·앱)와 위 Auth 설정 read-back을 확인한다.
+2. 모든 운영자가 내 보안 설정에서 인증 앱을 등록한다. 2단계 인증 관리의 **미등록 0명**을 확인한다. 쓰지 않는 운영자 계정은 매니저 관리에서 권한을 회수한다. 미등록 운영자가 있으면 DB가 켜기를 거절한다(`operator_mfa_unenrolled`).
+3. 켜는 사람(통합 매니저·계정 주매니저, 전환 전 admin)이 내 보안 설정의 **이 세션 확인**으로 지금 세션을 aal2로 만든 뒤 2단계 인증 관리에서 켠다. aal1 세션은 거절된다(`operator_mfa_self_required`) — 켜는 사람이 스스로 잠기지 않게 한다.
+4. 확인: 다른 브라우저(시크릿 창)에서 운영자로 로그인해 `/admin`이 `/admin/mfa`로 가는지, 코드 입력 뒤 원래 화면이 열리는지 본다. `select required,revision,updated_at from private.operator_mfa_policy;`와 감사 기록 `admin.operator.mfa_policy`를 읽는다.
+
+### 끄는 법
+
+- 평소: 2단계 인증 관리에서 끈다(켜진 동안에는 aal2 세션만 가능). 등록한 인증 앱은 지워지지 않는다.
+- 비상(켜는 권한이 있는 모든 사람이 인증 앱을 잃은 경우 등): 명시 승인을 받아 운영 DB SQL로 끄고 기록을 남긴다.
+
+```sql
+begin;
+update private.operator_mfa_policy set required=false,revision=revision+1,updated_by=null,updated_at=clock_timestamp() where singleton;
+insert into public.audit_log(actor_id,action,target,diff)
+values(null,'admin.operator.mfa_policy','operator_mfa_policy',jsonb_build_object('emergency',true,'reason','<사유>','result',jsonb_build_object('required',false)));
+commit;
+```
+
+### 기기 분실 초기화
+
+- 통합 매니저(전환 전에는 admin)가 본인에게 직접 분실을 확인한 뒤 2단계 인증 관리에서 그 운영자를 **초기화**한다. DB(`admin_reset_operator_mfa`)가 권한을 판정하고 대상의 로그인 세션을 모두 끊고 `admin.operator.mfa_reset` 감사 기록을 남긴 뒤, 앱 서버가 Supabase Auth admin API(`auth.admin.mfa.deleteFactor`)로 인증 앱 등록을 지우고 같은 요청으로 한 번 더 불러 그 사이 생긴 세션까지 끊는다. 실패하면 화면의 **같은 요청 결과 확인**으로 다시 시도한다(재시도도 세션을 다시 끊는다).
+- 계정 주매니저는 초기화할 수 없다. 본인 초기화는 내 보안 설정에서 직접 한다.
+- 통합 매니저 본인이 분실했고 스위치가 켜져 있으면: 명시 승인을 받아 Supabase Dashboard → Authentication → Users → 해당 사용자에서 MFA factor를 지우고(또는 Management/Admin API), 위 비상 SQL처럼 `audit_log`에 사유를 남긴다.
+
+### 남은 위험
+
+- 켠 뒤 새로 초대된 운영자의 **첫 등록**은 비밀번호만으로 된다(첫 사용 신뢰). 초대 직후 본인이 바로 등록하도록 안내한다.
+- 세션 끊기는 `auth.sessions` 행 삭제다(supabase-js `auth.admin.signOut`은 대상 사용자의 JWT가 있어야 해 사용자 ID로 쓸 수 없다). 로컬 격리 스택에서 `postgres` 소유 함수의 삭제 권한과 GoTrue의 refresh 거절을 확인했다. 호스티드는 위 배포 전 확인으로 권한을 보고, 첫 회수 뒤 대상 계정이 로그인으로 돌아가는지 한 번 본다.
+- 사용자·세션 없이 사용자 ID만 넘기는 service_role 운영자 경로(어드민 이미지·상품 미디어 올리기, 티켓 검표, 일부 엑셀 기록, 초대 메일 준비 등)는 DB가 세션을 알 수 없어 앱 가드(2단계 인증 대기면 운영자 아님)가 막는다.
 
 ## 이메일 초대
 
@@ -82,6 +141,6 @@ order by a.created_at desc limit 200;
 
 ## 검증
 
-운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), `inquiry_purchase_history_scope.sql`·`operator_inquiry_history.sql`(상담 구매이력 범위·처리 이력 권한과 열람 감사), `erp_linked_goods_apply.sql`(부매니저의 ERP 품목 반입·연결 상품 반영과 삭제 차단), `operator_pii_access_log.sql`(접속기록 기록 권한·append-only·점검 권한·이상 징후·보관 정리·ERP 제외), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
+운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_mfa_requirement.sql`(2단계 인증 스위치 off/on·aal1 거절·aal2 허용·끊긴 세션 거절·고객·service_role 무영향·초기화·회수 세션 끊기), `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), `inquiry_purchase_history_scope.sql`·`operator_inquiry_history.sql`(상담 구매이력 범위·처리 이력 권한과 열람 감사), `erp_linked_goods_apply.sql`(부매니저의 ERP 품목 반입·연결 상품 반영과 삭제 차단), `operator_pii_access_log.sql`(접속기록 기록 권한·append-only·점검 권한·이상 징후·보관 정리·ERP 제외), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
 
 초대 동시성 검증은 `SUPABASE_DB_CONTAINER=<격리 컨테이너> OPERATOR_INVITATION_TEST_SCOPE=isolated-local bash supabase/tests/operator_email_invitation_concurrency.sh`로 실행한다. CI의 scope 값은 `ci`다. 스크립트는 원본 DB를 덤프해 별도 DB로 복제하고, cron 작업을 제외한 복제본에서만 역할 fixture를 구성한 뒤 종료 시 제거한다. Python 테스트를 기존 `postgres` DB에 직접 실행하지 않는다.
