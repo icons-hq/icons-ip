@@ -254,9 +254,10 @@ it('공개 중 상품의 대표 카테고리 비움 오류는 카테고리를 �
   const h = setup(false, false, publishedGood, typeCategories);
   chooseCategory(h, ''); attributesReadyFor(h, null);
   submitForm(h);
-  expect(h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors.categoryId).toContain('비울 수 없습니다');
+  const categoryError = () => (h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors as Record<string, string | undefined>).categoryId;
+  expect(categoryError()).toContain('비울 수 없습니다');
   chooseCategory(h, DOLL);
-  expect(h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors.categoryId).toBeUndefined();
+  expect(categoryError()).toBeUndefined();
 });
 
 it('대표 카테고리가 원래 없던 공개 상품은 그대로 두고 다른 칸을 저장할 수 있다', () => {

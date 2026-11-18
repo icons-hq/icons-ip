@@ -60,7 +60,7 @@ describe('category form without good type', () => {
   it('ignores a legacy goodType input and no longer reports invalid_good_type', () => {
     const base = { code: 'paper', name: '문구', parentId: null, sortOrder: '0' };
     for (const goodType of [undefined, '', '피규어', '포스터']) {
-      const result = normalizeCategoryForm({ ...base, goodType });
+      const result = normalizeCategoryForm({ ...base, goodType } as Parameters<typeof normalizeCategoryForm>[0]);
       expect(result).toMatchObject({ ok: true });
       expect((result as { value: object }).value).not.toHaveProperty('goodType');
     }

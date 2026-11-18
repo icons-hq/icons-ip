@@ -757,8 +757,9 @@ describe('상품 유형 열(ADR-0044)', () => {
     /* 다른 칸을 바꾸면 type은 파일 값이 아니라 저장된 값(피규어) 그대로다. 초안 기존 상품도 같다. */
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, type: '인형', stockQty: '9' } }], withRecord)[0]).toMatchObject({ kind: 'update', target: { type: '피규어' } });
     const draft: GoodsImportExisting = { ...record, good: { ...record.good, published_at: null, first_published_at: null, type: '문구' } };
-    const [draftRow] = exportGoodsWorkbookRows(draft, { ...ctx, existing: [draft] });
-    expect(planGoodsWorkbookImport([{ row: 5, values: { ...draftRow, type: '피규어', stockQty: '9' } }], { ...ctx, existing: [draft] })[0]).toMatchObject({ kind: 'update', target: { type: '문구' } });
+    const draftCtx: GoodsWorkbookContext = { ...ctx, existing: [draft] };
+    const [draftRow] = exportGoodsWorkbookRows(draft, draftCtx);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...draftRow, type: '피규어', stockQty: '9' } }], draftCtx)[0]).toMatchObject({ kind: 'update', target: { type: '문구' } });
   });
   it('공개 상품의 대표 카테고리는 다른 카테고리로 옮길 수 있고 KC 경고도 없지만, 비울 수는 없다', () => {
     const record: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '피규어', category_id: leaf } };
