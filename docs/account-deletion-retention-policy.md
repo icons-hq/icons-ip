@@ -78,11 +78,40 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 
 법정 snapshot은 `private` schema의 service-only 원장에 저장하고 `public`, `anon`, `authenticated`, 일반 `service_role` 직접 권한을 모두 회수한다. `legal_basis`, `retain_until`, 접근 목적, 사건별 hold와 파기 결과가 없는 record는 생성할 수 없다. 매일 만료 batch가 legal hold 없는 record를 파기하고 PII 없는 category·건수·시각만 감사한다.
 
-주소록(`public.address_book_entries`)은 법정 보존 대상이 아니다. 탈퇴 신청으로 계정 fence가 생기는 트랜잭션에서 그 회원의 주소록을 지운다. 이미 한 주문의 배송지는 주문 정보로서 위 '배송 운영 개인정보'·거래 기록 기준을 따른다. 주문이 있는 회원은 `orders.user_id` 제약 때문에 Auth 삭제의 cascade로 지워지지 않는다. 그래서 Phase 1이 OFF인 동안 문의로 받은 탈퇴는 운영자가 다음 순서로 처리한다.
+주소록(`public.address_book_entries`)은 법정 보존 대상이 아니다. 탈퇴 신청으로 계정 fence가 생기는 트랜잭션에서 그 회원의 주소록을 지운다. 이미 한 주문의 배송지는 주문 정보로서 위 '배송 운영 개인정보'·거래 기록 기준을 따른다. 주문이 있는 회원은 `orders.user_id` 제약 때문에 Auth 삭제의 cascade로 지워지지 않는다. 그래서 Phase 1이 OFF인 동안 문의로 받은 탈퇴는 아래 운영자 절차로 처리한다.
 
-1. `admin_suspend_user`로 계정을 정지한다. 정지된 계정은 주소록 저장·기본 지정이 거절된다.
-2. SQL 편집기에서 `select private.erase_member_address_book('<회원 id>');`를 실행한다. 지운 개수를 돌려주고 다시 실행해도 안전하다.
-3. 이 함수는 감사 로그를 남기지 않으므로 문의 번호·실행자·실행 시각·반환 개수를 탈퇴 처리 기록에 적는다.
+### 문의로 받은 탈퇴의 운영자 처리 (Phase 1 OFF 동안)
+
+탈퇴 신청 기능이 꺼져 있는 동안 고객 화면(`/settings/delete-account`·설정 하단 회원 탈퇴)은 화면 신청 대신 1:1 문의(유형 '계정')로 탈퇴를 요청하라고 안내하고 문의 작성으로 잇는다. 회원 관리 권한(`platform.manage` — 통합 매니저·계정 주매니저, 매니저 역할 설정 전에는 staff/admin)을 가진 운영자가 어드민 고객 상세(`/admin/customers/<회원 id>`) 개요의 **탈퇴 요청 처리**로 처리한다. SQL 편집기 절차(정지 + `private.erase_member_address_book` 실행 + 수기 기록)는 더 쓰지 않는다.
+
+1. 문의 내용으로 본인의 탈퇴 요청인지 확인한다. 고객 상세에서 탈퇴 요청 처리를 펼쳐 문의 번호(#번호)와 처리 메모(정지 사유로 남는 내부 기록 — 연락처·주소 같은 개인정보는 적지 않는다)를 입력하고, 확인창에서 처리한다.
+2. DB `admin_process_member_withdrawal`이 한 트랜잭션에서 처리한다.
+   - 문의 번호가 그 회원이 쓴 1:1 문의인지 확인한다.
+   - §3 진행 중 의무(`private.account_deletion_blockers` — 탈퇴 신청과 같은 판정)와 운영 권한(프로필 staff/admin·매니저 소속)이 남아 있으면 아무것도 바꾸지 않고 남은 항목·건수를 돌려준다. 해당 거래를 끝내거나 권한을 회수한 뒤 다시 처리한다.
+   - 계정을 정지한다(`admin_suspend_user`, 정지 감사 포함). 주소록, 인증한 휴대폰 번호와 인증 요청·이력, 마케팅 정보 수신 동의(동의 중인 모든 수단 철회 — 원장 출처 `member_withdrawal`, 파생값 `consents.marketing=false`), 성별(고객 통계 동의), 활동 기록과 그 동의, 진행 중인 이메일 변경 요청, 대기 중인 재입고 알림 신청을 지운다(탈퇴 봉인 트리거의 삭제 범위와 같고, 재입고 알림은 정지와 무관하게 알림·메일을 보내므로 더한다). 모든 로그인 세션(`auth.sessions`, refresh token)을 지운다.
+   - 처리 기록 `private.member_withdrawal_processings`와 감사 로그 `admin.member.withdrawal_processed`(문의 번호·처리자·시각·지운 개수 — 메모·개인정보 원문 없음)를 남긴다. 다시 처리해도 처음 기록을 돌려주고(멱등) 그 사이 생긴 세션만 다시 끊는다.
+3. 이어서 앱 서버가 Supabase Auth 관리 API로 재로그인을 막는다(`ban_duration` 876000h — 로그인·토큰 갱신 거절). 관리 API에는 사용자 id로 세션을 끊는 호출이 없어(`signOut`은 그 사용자의 JWT가 필요하다) 세션 삭제는 2의 RPC가 한다. `admin_confirm_member_withdrawal_signin_block`이 `auth.users.banned_until`을 직접 읽어 장기 차단을 확인한 뒤 감사 로그 `admin.member.withdrawal_signin_blocked`를 남긴다. 차단이 실패하면 정지·삭제는 이미 끝난 상태로 고객 상세에 '재로그인 차단 다시 적용'이 보인다.
+4. 처리한 계정은 정지를 해제할 수 없다(`member_withdrawn`). 이미 발급된 access token은 만료(기본 1시간)까지 남지만 정지로 보호 액션은 막힌다.
+5. 문의에 처리 결과를 답변하고 문의를 닫는다.
+
+이 처리는 hard delete가 아니다. §1·§2의 완전한 탈퇴(법정 snapshot 분리 → 메일 fence → hard delete → compliance tombstone)의 선행 조건이 아직 없어서 다음은 남긴다.
+
+| 남는 항목 | 이유 |
+|---|---|
+| 프로필 이메일·닉네임·생년월일·아바타, Auth 사용자(정지·재로그인 차단 상태) | Auth hard delete는 법정 snapshot 분리·Storage 정리·compliance tombstone 뒤에만 한다(§2 4~5단계). 주문이 있는 회원은 `orders.user_id` 제약으로 Auth 삭제가 막힌다. 같은 이메일로 다시 가입할 수 없다 |
+| 주문·결제·환불·티켓·클레임 기록과 주문 배송지 사본 | 법정 거래 기록(위 매트릭스). 분리 보존 원장이 활성화되기 전에는 운영 DB에 그대로 둔다 |
+| 1:1 문의·리뷰·커뮤니티 작성물·업로드 이미지 | 작성자 연결 해제·이미지 삭제는 hard delete 단계(§4) |
+| 보유 카드·카드팩·코인, 위시·알림함·팔로우, 알린 재입고 알림 기록 등 | 개인화 데이터 삭제는 hard delete 단계(§1 3항) |
+| 처리 기록·감사 로그 | 처리 근거(개인정보 원문 없음). 처리 기록은 프로필이 hard delete될 때 함께 지워진다 |
+
+남은 일(hard delete로 가기 위한 선행 조건):
+
+- 별도 Supabase compliance 프로젝트(§6)의 생성·append/scan credential 분리·backup·restore drill과 Production 연결(#215).
+- Phase 1 readiness 값 4종(§2 끝): 거래 lookup 연락처 HMAC/key version, legacy 승인·환급·공급의 검증된 시각, immutable 티켓 계약 snapshot, 승인된 커뮤니티·권리사건 보존 seam.
+- #191 이메일 fence(durable outbox·Send Email Hook)와 탈퇴 notice producer·실수신 증거.
+- 삭제 worker(커뮤니티 연결 해제·Storage 전 bucket 인벤토리와 잔여 0건 확인·일반 DB 개인정보 삭제·전역 sign-out·Auth hard delete)와 restore replay.
+- 탈퇴 후 권리행사 창구(§7)와 개인정보처리방침·이용약관 개정(새 시행일·개정 이력). 지금 약관 제7조는 "탈퇴를 처리하면 개인정보를 지체 없이 파기"라고 적지만 이 임시 처리는 위 표의 항목을 남긴다.
+- 이 절차로 처리한 회원의 hard delete 백필 순서. 대상 목록은 `private.member_withdrawal_processings`다.
 
 ## 6. Secondary Supabase compliance ledger
 
