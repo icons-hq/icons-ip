@@ -425,6 +425,10 @@ jobs:
             https://iconsip.com/auth/recovery/callback
             https://www.iconsip.com/auth/callback
             https://www.iconsip.com/auth/recovery/callback
+            https://xsquare.kr/auth/callback
+            https://xsquare.kr/auth/recovery/callback
+            https://www.xsquare.kr/auth/callback
+            https://www.xsquare.kr/auth/recovery/callback
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
             http://localhost:3000/auth/callback

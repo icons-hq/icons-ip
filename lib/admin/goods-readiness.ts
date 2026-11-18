@@ -14,7 +14,7 @@ export const GOODS_READINESS_REASONS = {
   no_active_options: { label: '사용 중인 옵션 없음', detail: '기존 옵션과 KC 검토 범위를 확인하고 필요한 옵션을 사용하세요.', target: 'variants' },
   stock_unavailable: { label: '판매 가용 수량 없음', detail: '사용 옵션의 할당 재고와 예약판매 가용 수량·기간을 확인하세요.', target: 'variants' },
   payment_disabled: { label: '결제수단 모두 중지', detail: '현재 상품에서 허용하는 결제수단을 확인하세요.', target: 'sale' },
-  restricted_sale: { label: '판매 제한 상품', detail: '현재 판매 제한 상품의 공개·구매는 닫혀 있습니다.', target: 'sale' },
+  restricted_sale: { label: '판매 제한 상품', detail: '현재 판매 제한 상품의 공개·구매는 닫혀 있습니다.', target: 'restriction' },
   shipping_unavailable: { label: '출고지 사용 불가', detail: '상품에 연결한 출고지의 사용 상태를 확인하세요.', target: 'shipping' },
   kc_required: { label: 'KC 검토 필요', detail: '초안 저장 후 KC 정보에서 검토하세요. KC 대상이 아니면 상품 전체 KC 해당 없음으로 끝낼 수 있습니다.', target: 'kc' },
   kc_legacy_unrecorded: { label: '기존 공개 · KC 미기록', detail: '기존 공개 상태는 유지됩니다. 초안 전환·재공개 전에 KC 검토를 확인하세요.', target: 'kc' },

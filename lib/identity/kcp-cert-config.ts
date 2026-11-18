@@ -26,7 +26,7 @@ export interface KcpCertConfiguration {
   readonly resultUrl: string;
   /** 거래등록 응답의 인증창 주소가 이 origin이어야 브라우저를 보낸다. */
   readonly certWindowOrigin: string;
-  /** Ret_URL의 origin. 운영은 https://iconsip.com 하나다. */
+  /** Ret_URL의 origin. 운영은 운영 도메인 루트(lib/site-domains.mjs) 중 SITE_URL 하나다. */
   readonly siteOrigin: string;
   /** DI·KCP 거래번호를 키 해시로 바꾸는 서버 비밀값. 바뀌면 1명의 1계정 연속성이 끊긴다. */
   readonly digestSecret: string;
@@ -52,7 +52,7 @@ function trimmed(value: string | undefined) {
 }
 
 /**
- * Ret_URL origin. 운영은 결제와 같은 정규화로 https://iconsip.com 하나만 받는다. 그 밖은
+ * Ret_URL origin. 운영은 결제와 같은 정규화로 운영 도메인 루트(lib/site-domains.mjs)만 받는다. 그 밖은
  * https 아무 호스트나, 로컬 개발 호스트(localhost·127.0.0.1·*.localhost)의 http를 받는다 —
  * 로컬 QA는 다른 스택과 로그인 쿠키가 섞이지 않게 *.localhost 하위 호스트를 쓴다.
  */

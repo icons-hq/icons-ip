@@ -12,6 +12,13 @@ describe('전시 상품 URL 붙여넣기(10/14 회의 A11)', () => {
     ]);
   });
 
+  it('도메인 전환 기간에는 새 운영 도메인(xsquare.kr)의 상품 주소도 받는다', () => {
+    expect(['https://xsquare.kr/shop/maple-keyring', 'www.xsquare.kr/shop/maple-keyring/', 'HTTPS://XSQUARE.KR/shop/maple-keyring']
+      .map(value => parseGoodUrl(value))).toEqual(Array(3).fill({ ok: true, id: 'maple-keyring' }));
+    for (const value of ['https://xsquare.kr.evil.test/shop/abc', 'https://fakexsquare.kr/shop/abc', 'https://x-square.kr/shop/abc'])
+      expect(parseGoodUrl(value)).toEqual({ ok: false, error: GOOD_URL_ERRORS.host });
+  });
+
   it('지금 어드민을 연 호스트(스테이징·로컬)의 상품 주소도 받는다', () => {
     expect(parseGoodUrl('http://localhost:3000/shop/abc', 'localhost:3000')).toEqual({ ok: true, id: 'abc' });
     expect(parseGoodUrl('http://localhost:3000/shop/abc', 'localhost:3100')).toEqual({ ok: false, error: GOOD_URL_ERRORS.host });

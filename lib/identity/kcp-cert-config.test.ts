@@ -56,7 +56,9 @@ describe('kcpCertConfiguration', () => {
     expect(kcpCertConfiguration({ ...productionEnvironment, KCP_CERT_WEB_SITE_ID: '' })).toBeNull();
   });
 
-  it('운영 Ret_URL origin은 iconsip.com 하나다', () => {
+  it('운영 Ret_URL origin은 운영 도메인 루트(iconsip.com·xsquare.kr)만 받는다', () => {
+    expect(kcpCertConfiguration({ ...productionEnvironment, SITE_URL: 'https://xsquare.kr' })?.siteOrigin).toBe('https://xsquare.kr');
+    expect(kcpCertConfiguration({ ...productionEnvironment, SITE_URL: 'https://www.xsquare.kr' })).toBeNull();
     expect(kcpCertConfiguration({ ...productionEnvironment, SITE_URL: 'https://icons-ip.vercel.app' })).toBeNull();
     expect(kcpCertConfiguration({ ...productionEnvironment, SITE_URL: 'https://iconsip.com/path' })).toBeNull();
   });
