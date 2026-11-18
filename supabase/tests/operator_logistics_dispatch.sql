@@ -106,7 +106,8 @@ insert into ld_dispatch_contracts(signature) values
  ('public.admin_update_shipment_status(uuid,text,text,text)'),('public.admin_update_shipment_tracking(uuid,text,text)'),
  ('public.admin_complete_shipments(uuid[])'),('public.admin_enqueue_shipment_emails(jsonb)'),
  ('public.admin_read_shipment_delivery(uuid)'),('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)'),
- ('public.admin_tracking_reply_shipment_links(text[])'),('public.admin_shipment_partial_cancel_flags(uuid[])');
+ ('public.admin_tracking_reply_shipment_links(text[])'),('public.admin_shipment_partial_cancel_flags(uuid[])'),
+ ('public.admin_shipment_fulfillment_hold_flags(uuid[])');
 select pg_temp.ld_assert(
  (select array_agg(signature order by signature) from private.operator_rpc_contracts where capability='sales.dispatch')
   =(select array_agg(signature order by signature) from ld_dispatch_contracts)
