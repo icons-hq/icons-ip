@@ -8,6 +8,7 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { useShipmentConsoleActions } from './ShipmentConsoleContext';
+import { ShipmentTrackingDuplicateForm } from '@/components/admin/ShipmentTrackingDuplicateForm';
 
 /*
  * 발송 대기 행의 택배사·운송장 칸(S36-072, "그 자리 저장"). 창고 회신 파일과 같은 등록 경로라
@@ -31,6 +32,8 @@ export function ShipmentConsoleRowTracking({ shipmentId, reference, carriers, de
   const [tracking, setTracking] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  /* 다른 주문의 번호로 거절된 번호(SHP-030). 창고에 같은 상자로 확인했으면 사유를 적어 중복 확인 후 등록한다. */
+  const [duplicate, setDuplicate] = useState<{ carrier: string; trackingNumber: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -39,12 +42,16 @@ export function ShipmentConsoleRowTracking({ shipmentId, reference, carriers, de
     const trackingNumber = normalizeTrackingNumber(tracking);
     if (!carrier) { setError('택배사를 골라주세요.'); return; }
     if (!isTrackingNumber(trackingNumber)) { setError('운송장번호는 하이픈을 뺀 8~30자리 영숫자입니다.'); return; }
-    setError(''); setNotice('');
+    setError(''); setNotice(''); setDuplicate(null);
     startTransition(async () => {
       try {
         const result = await registerShipmentTrackingAction([{ shipmentId, carrier, trackingNumber }]);
         if (!result.ok) { setError(result.error); return; }
-        if (result.failed.length) { setError(result.failed[0].reason); return; }
+        if (result.failed.length) {
+          setError(result.failed[0].reason);
+          if (result.failed[0].code === 'tracking_number_in_use') setDuplicate({ carrier, trackingNumber });
+          return;
+        }
         const message = `배송 건 ${reference}: ${result.message}`;
         if (actions) actions.report({ tone: result.queueWarning ? 'warning' : 'success', message });
         else setNotice(message);
@@ -58,7 +65,7 @@ export function ShipmentConsoleRowTracking({ shipmentId, reference, carriers, de
 
   if (!carriers.length) return <span className="text-xs text-muted-foreground">사용 중인 택배사가 없습니다.</span>;
   /* 1440 화면에서 표가 넘치지 않게 택배사 위, 운송장·등록 아래로 쌓는다. */
-  return <form className="flex w-40 min-w-0 flex-col gap-1" data-shipment-row-tracking="" noValidate onSubmit={submit}>
+  return <div className="flex w-40 min-w-0 flex-col gap-1"><form className="flex w-40 min-w-0 flex-col gap-1" data-shipment-row-tracking="" noValidate onSubmit={submit}>
     <NativeSelect aria-label={`배송 건 ${reference} 택배사`} className="w-full" disabled={pending} id={`${fieldId}-carrier`} onChange={(event) => setCarrier(event.target.value)} size="sm" value={carrier}>
       <option value="">택배사 선택</option>
       {carriers.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
@@ -71,5 +78,8 @@ export function ShipmentConsoleRowTracking({ shipmentId, reference, carriers, de
     </div>
     {error ? <p className="text-xs text-destructive" id={`${fieldId}-error`} role="alert">{error}</p> : null}
     {notice ? <p className="text-xs text-success" role="status">{notice}</p> : null}
-  </form>;
+  </form>
+  {duplicate ? <ShipmentTrackingDuplicateForm compact shipmentId={shipmentId} reference={reference} carriers={carriers} fixed={duplicate}
+    onDone={(message) => { setDuplicate(null); setError(''); setTracking(''); const text = `배송 건 ${reference}: ${message}`; if (actions) actions.report({ tone: 'success', message: text }); else setNotice(text); }} /> : null}
+  </div>;
 }

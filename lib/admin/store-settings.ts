@@ -15,7 +15,28 @@ export type StoreSettingsValue = Record<string,string>;
 export type ParsedSettings<T> = {ok:true;value:T} | {ok:false;errors:Record<string,string>};
 export type StoreSettingsSnapshot = { business:StoreSettingsValue;bankTransfer:StoreSettingsValue|null;inquiryAutoReplies:InquiryAutoReplies;branding?:StoreBranding;navigation?:StoreNavigation;updatedAt:string };
 export type StoreSettingsAudit = { id:string;actorName:string;action:string;target:string;createdAt:string;diff:Record<string,unknown> };
-export type EditableCarrier = { code:string;label:string;trackingUrlTemplate:string;active:boolean;updatedAt:string };
+export type EditableCarrier = { code:string;label:string;trackingUrlTemplate:string;active:boolean;updatedAt:string;
+  /** 운송장번호 형식(정규식)·안내 문구(SHP-032). 비어 있으면 공통 형식(8~30자 영숫자)만 본다. */
+  trackingNumberPattern?:string;trackingNumberRule?:string };
+
+/**
+ * 택배사 운송장 형식 입력(택배사 관리 화면). 형식과 안내 문구는 함께 두거나 함께 비운다. 형식은 전체 일치(^…$) 정규식이고,
+ * 확인용 번호(하이픈·공백을 뺀 대문자)가 공통 형식과 새 형식에 맞아야 한다 — 잘못된 식으로 그 택배사의 모든 발송이 막히지 않게.
+ * DB(`admin_save_shipping_carrier_tracking_format`)가 같은 검사를 다시 한다. JS가 읽지 못하는 식도 받지 않는다(화면 안내가 이 식을 쓴다).
+ */
+export function parseCarrierFormatInput(input:{pattern:string;rule:string;sample:string}):ParsedSettings<{pattern:string;rule:string;sample:string}> {
+  const pattern=input.pattern.trim(), rule=input.rule.trim(), sample=input.sample.replace(/[\s-]/g,'').toUpperCase();
+  if (!pattern && !rule) return {ok:true,value:{pattern:'',rule:'',sample:''}};
+  const errors:Record<string,string>={};
+  let compiled:RegExp|null=null;
+  if (!pattern) errors.trackingNumberPattern='안내 문구와 함께 형식을 입력하거나 둘 다 비워주세요.';
+  else if (!pattern.startsWith('^') || !pattern.endsWith('$') || pattern.length>200) errors.trackingNumberPattern='형식은 ^로 시작해 $로 끝나는 200자 이내 정규식입니다. 예: ^[0-9]{10,14}$';
+  else { try { compiled=new RegExp(pattern); } catch { errors.trackingNumberPattern='정규식을 읽을 수 없습니다. 괄호·중괄호를 확인해주세요.'; } }
+  if (!rule) errors.trackingNumberRule='형식과 함께 안내 문구(예: 숫자 10~14자리)를 입력해주세요.';
+  else if (rule.length>60) errors.trackingNumberRule='안내 문구는 60자 이내로 입력해주세요.';
+  if (compiled && (!/^[A-Z0-9]{8,30}$/.test(sample) || !compiled.test(sample))) errors.trackingNumberSample='실제 운송장번호 하나를 넣어 새 형식에 맞는지 확인해주세요.';
+  return Object.keys(errors).length?{ok:false,errors}:{ok:true,value:{pattern,rule,sample}};
+}
 
 /** Missing means unconfigured; an explicit blank removes that public row. */
 export function mergeBusinessInfo(overrides:Record<string,unknown>,fallback:BusinessInfo=BUSINESS_INFO):BusinessInfo {
@@ -58,7 +79,7 @@ export function parseCarrierInput(input:{code:string;label:string;trackingUrlTem
 /** Show only changed operator-facing fields, not row ids or database timestamps. */
 export function storeSettingsHistoryRows(entry:StoreSettingsAudit) {
   const labels:Record<string,string>={...BUSINESS_INFO_LABELS,...BANK_ACCOUNT_LABELS,
-    code:'코드',label:'이름',tracking_url_template:'배송조회 URL',is_active:'새 발송 사용',
+    code:'코드',label:'이름',tracking_url_template:'배송조회 URL',is_active:'새 발송 사용',tracking_number_pattern:'운송장 형식',tracking_number_rule:'운송장 형식 안내',
     default_carrier:'기본 택배사',export_template:'발주서 양식',name:'출고지 이름',base_fee:'기본 배송비',free_threshold:'무료배송 기준',return_address:'반품 주소',cutoff:'마감 시각'};
   const before=entry.diff.before&&typeof entry.diff.before==='object'?entry.diff.before as Record<string,unknown>:{};
   const after=entry.diff.after&&typeof entry.diff.after==='object'?entry.diff.after as Record<string,unknown>:{};

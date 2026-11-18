@@ -54,7 +54,7 @@ begin;
 set local lock_timeout='5s';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${shipment_user}',true);
-select public.admin_update_shipment_status('${shipment_first}','${next_status}','hanjin','100000001');
+select public.admin_update_shipment_status('${shipment_first}','${next_status}','hanjin','1000000001');
 select pg_sleep(1.5);
 commit;
 SQL
@@ -66,7 +66,7 @@ begin;
 set local lock_timeout='5s';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${shipment_user}',true);
-select public.admin_update_shipment_status('${shipment_second}','${next_status}','hanjin','100000002');
+select public.admin_update_shipment_status('${shipment_second}','${next_status}','hanjin','1000000002');
 commit;
 SQL
   second_pid=$!

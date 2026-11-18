@@ -89,7 +89,7 @@ def mark_export(versions):
 race('export-before-edit', mark_export(export_versions(5)), change(5, 6), 'order_dispatched')
 race('edit-before-stale-export', change(6, 7), mark_export(export_versions(6)), 'shipment_changed')
 shipment = sql(f"select id from public.order_shipments where order_id='{uid('order', 7)}' order by id limit 1;")
-race('dispatch-before-edit', actor() + f"select public.admin_update_shipment_status('{shipment}','shipping','hanjin','ADDRESSRACE7');", change(7, 8), 'order_not_ready')
+race('dispatch-before-edit', actor() + f"select public.admin_update_shipment_status('{shipment}','shipping','hanjin','700000000007');", change(7, 8), 'order_not_ready')
 race('claim-before-edit', f"select id from public.orders where id='{uid('order', 8)}' for update;insert into public.order_cancellation_requests(order_id,requested_by,reason,claim_type,stage) values('{uid('order', 8)}','{uid('user', 5)}','합성 요청','cancel','requested');", change(8, 9), 'order_claim_open')
 rule = json.dumps(dict(id=uid('rule', 3), postalFrom='90000', postalTo='90999', addressPrefix='', regionLabel='합성 경합 추가료', disposition='surcharge', amount=2500), ensure_ascii=False)
 race('region-policy-before-edit', f"select id from public.fulfillment_origins where id='{uid('origin', 1)}' for update;update private.shipping_region_policies set configuration=jsonb_set(configuration,'{{rules}}',(configuration->'rules')||'{rule}'::jsonb) where id='{uid('policy', 1)}';", change(9, 10, address="address_test.new_address()||'{\"postalCode\":\"90000\"}'::jsonb"), 'order_address_shipping_fee_changed')

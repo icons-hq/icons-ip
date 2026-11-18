@@ -31,11 +31,11 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:competing=list
 assert competing.count('saved')==1
 barrier=threading.Barrier(12)
 def dispatch(n):
- barrier.wait(timeout=15);return sql(prefix+f"select public.admin_import_shipment_tracking('{ids[n%2]}','hanjin','TESTPACKRACE123');commit;")
+ barrier.wait(timeout=15);return sql(prefix+f"select public.admin_import_shipment_tracking('{ids[n%2]}','hanjin','700000000123');commit;")
 with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:list(pool.map(dispatch,range(12)))
 barrier=threading.Barrier(8)
 def correct(n):
- barrier.wait(timeout=15);return sql(prefix+f"select public.admin_update_shipment_tracking('{ids[n%2]}','hanjin','TESTPACKFIX{n:04}');commit;")
+ barrier.wait(timeout=15);return sql(prefix+f"select public.admin_update_shipment_tracking('{ids[n%2]}','hanjin','71000000{n:04}');commit;")
 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(correct,range(8)))
 proof=json.loads(sql(f"select jsonb_build_object('packs',(select count(distinct pack_id) from private.shipment_pack_members where shipment_id=any({arr(ids)})),'events',(select count(*) from private.shipment_pack_events where actor_id='{actor}'),'shipping',(select count(*) from public.order_shipments where id=any({arr(ids[:2])}) and status='shipping'),'distinctTracking',(select count(distinct tracking_number) from public.order_shipments where id=any({arr(ids[:2])})),'total',(select sum(total) from public.orders where id::text like '{run}-0000-4001-%'),'notifications',(select count(*) from public.notifications where user_id='{run}-0000-4000-8000-000000000002'));"))
 assert proof['packs']==2 and proof['events']==2 and proof['shipping']==2 and proof['distinctTracking']==1 and proof['total']==40000,proof

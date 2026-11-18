@@ -61,8 +61,11 @@ const operators = [
   sql('warehouse_reply_order_numbers'),
   // QNA-019 배송 건 추가 운송장(서원 회신 대표+추가, 운영자 추가·삭제)과 QNA-028 택배 추적 자동 배송완료(스위치 기본 꺼짐).
   sql('order_shipment_extra_trackings'),
+  // 운송장 무결성: 다른 주문 번호 재사용·택배사 형식·뒤바뀐 회신·맞바꾸기.
+  sql('tracking_number_integrity'),
   sql('delivery_tracking_auto_complete'),
   script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
+  script('tracking_number_integrity_concurrency.sh', 'TRACKING_INTEGRITY_TEST_SCOPE'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
