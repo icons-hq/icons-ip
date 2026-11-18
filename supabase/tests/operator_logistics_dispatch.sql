@@ -107,7 +107,7 @@ insert into ld_dispatch_contracts(signature) values
  ('public.admin_import_item_tracking_batch(jsonb)'),('public.admin_import_shipment_tracking(text,text,text)'),
  ('public.admin_update_shipment_status(uuid,text,text,text)'),('public.admin_update_shipment_tracking(uuid,text,text)'),
  -- 뒤바뀐 운송장 맞바꾸기(SHP-031)는 운송장 정정과 같은 출고 권한이다.
- ('public.admin_swap_shipment_trackings(uuid,text,text,text,text)'),
+ ('public.admin_swap_shipment_trackings(uuid,text,text,text,text)'),('public.admin_register_shipment_tracking_duplicate(uuid,text,text,text)'),
  ('public.admin_complete_shipments(uuid[])'),('public.admin_enqueue_shipment_emails(jsonb)'),
  ('public.admin_read_shipment_delivery(uuid)'),('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)'),
  ('public.admin_tracking_reply_shipment_links(text[])'),('public.admin_shipment_partial_cancel_flags(uuid[])'),

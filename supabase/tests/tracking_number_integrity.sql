@@ -1,7 +1,9 @@
 \set ON_ERROR_STOP on
 -- 운송장 중복·형식 판정(원장 SHP-030·SHP-031·SHP-032·SHP-014, migration 20261118161000).
+-- 리뷰 보완: 한진 14자리, 재출고·최근 배송완료 상자의 합배송 예외, 취소 주문의 쓰임 제외, 중복 확인 후 등록, 국가번호 82 전화,
+-- 파일 안 추가 운송장 교차, 택배사 운송장 형식 편집.
 -- 다른 주문이 쓰는 운송장(대표·추가·교환 재출고)은 어느 진입 경로로도 새로 등록하지 않는다. 같은 주문·합포장·같은 받는 분 합배송만
--- 함께 쓴다. 택배사 레지스트리의 번호 형식(한진 숫자 10~12자리, 우체국 숫자 13자리)을 등록 때 본다. 김포·표준 회신의 받는 분이 주문과
+-- 함께 쓴다. 택배사 레지스트리의 번호 형식(한진 숫자 10~14자리, 우체국 숫자 13자리)을 등록 때 본다. 김포·표준 회신의 받는 분이 주문과
 -- 다르면 그 주문의 줄만 실패한다. 일괄·회신은 파일 전체가 아니라 그 줄(배송 건)만 실패한다.
 -- 합성 계정·주문만 쓰고 끝에서 모두 되돌린다. legacy fixture 없이 돈다.
 begin;
@@ -30,17 +32,24 @@ create function pg_temp.ti_dispatch(n integer,carrier text,tracking text) return
 $$;
 
 -- 0. 레지스트리·판정 함수 계약. 판정·잠금 도우미는 봉인돼 있고, 형식 정규식은 전체 일치·유효한 식만 받는다.
-select pg_temp.ti_assert((select tracking_number_pattern='^[0-9]{10,12}$' and tracking_number_rule='숫자 10~12자리' from public.shipping_carriers where code='hanjin')
+select pg_temp.ti_assert((select tracking_number_pattern='^[0-9]{10,14}$' and tracking_number_rule='숫자 10~14자리' from public.shipping_carriers where code='hanjin')
  and (select tracking_number_pattern='^[0-9]{13}$' and tracking_number_rule='숫자 13자리' from public.shipping_carriers where code='epost'),
  'registry carries carrier tracking formats');
 select pg_temp.ti_assert(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private'
-  and p.proname in('tracking_destination_key','tracking_number_lock_key','tracking_number_format_ok','tracking_shipments_related','tracking_number_conflict',
+  and p.proname in('tracking_phone_key','tracking_destination_key','tracking_number_lock_key','tracking_number_format_ok','tracking_shipments_related','tracking_number_conflict',
    'assert_tracking_registrable','tracking_batch_shipment','lock_tracking_batch','assert_reply_recipient')
   and(has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('service_role',p.oid,'execute')))
  and (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private'
-  and p.proname in('tracking_destination_key','tracking_number_lock_key','tracking_number_format_ok','tracking_shipments_related','tracking_number_conflict',
-   'assert_tracking_registrable','tracking_batch_shipment','lock_tracking_batch','assert_reply_recipient'))=9,
- 'judgment helpers are sealed');
+  and p.proname in('tracking_phone_key','tracking_destination_key','tracking_number_lock_key','tracking_number_format_ok','tracking_shipments_related','tracking_number_conflict',
+   'assert_tracking_registrable','tracking_batch_shipment','lock_tracking_batch','assert_reply_recipient'))=10
+ and (select relrowsecurity from pg_class where oid='private.tracking_duplicate_approvals'::regclass)
+ and not has_table_privilege('authenticated','private.tracking_duplicate_approvals','select')
+ and (select capability||':'||guard_kind from private.operator_rpc_contracts where signature='public.admin_register_shipment_tracking_duplicate(uuid,text,text,text)')='sales.dispatch:write'
+ and (select capability||':'||guard_kind||':'||legacy_admin_only from private.operator_rpc_contracts
+   where signature='public.admin_save_shipping_carrier_tracking_format(text,text,text,text,timestamp with time zone)')='platform.manage:write:true'
+ and not has_function_privilege('anon','public.admin_register_shipment_tracking_duplicate(uuid,text,text,text)','execute')
+ and not has_function_privilege('anon','public.admin_save_shipping_carrier_tracking_format(text,text,text,text,timestamp with time zone)','execute'),
+ 'judgment helpers, approvals and new RPCs are sealed');
 -- 모든 진입 경로가 같은 판정을 부른다(발송·정정·추가 운송장·서원 추가 운송장·교환 재출고).
 select pg_temp.ti_assert((select bool_and(position('private.assert_tracking_registrable(' in pg_get_functiondef(f::regprocedure))>0) from unnest(array[
   'private.admin_update_shipment_status_before_delivery_methods(uuid,text,text,text)','private.admin_update_shipment_tracking_before_delivery_methods(uuid,text,text)',
@@ -71,9 +80,10 @@ insert into public.ips(id,title,vertical_key) values('tracking-integrity-ip','TE
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('tracking-integrity-good','tracking-integrity-ip','TEST 운송장 판정 상품','문구',1000,'ok',100);
 
 -- 받는 분: A(합성가)·B(합성나)·C(합성다)·D(합성라). A2는 A와 전화·주소가 같은 가족(이름만 다르다) — 한 상자의 받는 분이다.
+-- E(합성마)는 전화번호가 국가번호 82로 저장된 주문이다.
 create function pg_temp.ti_address(dest text) returns jsonb language sql immutable as $$
- select jsonb_build_object('recipientName',case dest when 'A' then '합성가' when 'A2' then '합성가족' when 'B' then '합성나' when 'C' then '합성다' else '합성라' end,
-  'phone',case left(dest,1) when 'A' then '01011110001' when 'B' then '01022220002' when 'C' then '01033330003' else '01044440004' end,
+ select jsonb_build_object('recipientName',case dest when 'A' then '합성가' when 'A2' then '합성가족' when 'B' then '합성나' when 'C' then '합성다' when 'E' then '합성마' else '합성라' end,
+  'phone',case left(dest,1) when 'A' then '01011110001' when 'B' then '01022220002' when 'C' then '01033330003' when 'E' then '821055556666' else '01044440004' end,
   'postalCode','04524','address1','합성시 운송장로 1','address2',left(dest,1)||'동','deliveryNote','')$$;
 -- 주문 n: (구매자, 받는 분, 출고지 1=김포 2=남양주 3=기타, 상태, 배송 건 상태·운송장)
 create temporary table ti_orders(n integer,buyer integer,dest text,origin integer,order_status public.order_status,shipment_status text,tracking text) on commit drop;
@@ -84,7 +94,12 @@ insert into ti_orders values
  (10,3,'A',1,'confirmed','ready',null),(11,4,'B',1,'confirmed','ready',null),(12,5,'C',3,'delivered','delivered','120000000012'),
  (13,6,'D',1,'confirmed','ready',null),(14,3,'A',1,'confirmed','ready',null),(15,6,'D',1,'confirmed','ready',null),
  (16,3,'A',1,'confirmed','ready',null),(17,3,'A',1,'confirmed','ready',null),(18,4,'B',1,'confirmed','ready',null),
- (19,4,'A2',1,'confirmed','ready',null);
+ (19,4,'A2',1,'confirmed','ready',null),
+ -- 20: 주문 12 교환 재출고와 같은 상자(같은 받는 분·출고지) · 21: 전화 82 저장 · 22: 배송완료된 합배송 상자의 늦은 줄
+ -- 23: 취소된 주문의 운송장 · 24: 그 번호를 다시 쓰는 주문 · 25: 중복 확인 후 등록 · 26: 한진 14자리
+ (20,5,'C',3,'confirmed','ready',null),(21,6,'E',1,'confirmed','ready',null),(22,3,'A',1,'confirmed','ready',null),
+ (23,6,'D',1,'canceled','shipping','230000000023'),(24,4,'B',1,'confirmed','ready',null),(25,4,'B',1,'confirmed','ready',null),
+ (26,6,'D',1,'confirmed','ready',null);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at,shipped_at,delivered_at)
 select pg_temp.ti_id('order',n),pg_temp.ti_id('user',buyer),order_status,1000,0,pg_temp.ti_address(dest),now()-interval '3 days',
  case when order_status in('shipping','delivered') then now()-interval '2 days' end,case when order_status='delivered' then now()-interval '1 day' end
@@ -118,13 +133,16 @@ select pg_temp.ti_as(1);
 
 -- 1. 택배사별 형식. 공통 형식(8~30자 영숫자)을 지나도 택배사 형식에 맞지 않으면 등록하지 않는다. 형식이 없는 택배사는 공통 형식만 본다.
 select pg_temp.ti_error(pg_temp.ti_dispatch(7,'hanjin','12345678'),'tracking_number_format_mismatch');
-select pg_temp.ti_error(pg_temp.ti_dispatch(7,'hanjin','1234567890123'),'tracking_number_format_mismatch');
+select pg_temp.ti_error(pg_temp.ti_dispatch(7,'hanjin','123456789012345'),'tracking_number_format_mismatch');
 select pg_temp.ti_error(pg_temp.ti_dispatch(7,'hanjin','AB12345678'),'tracking_number_format_mismatch');
 select pg_temp.ti_error(pg_temp.ti_dispatch(7,'epost','601234567890'),'tracking_number_format_mismatch');
 select pg_temp.ti_error(pg_temp.ti_dispatch(7,'hanjin','12-34'),'invalid_tracking_input');
 select pg_temp.ti_assert(pg_temp.ti_state(7)='ready:-','format rejections change nothing');
 select public.admin_update_shipment_status(pg_temp.ti_id('shipment',13),'shipping','ti_courier','TIABC12345');
 select pg_temp.ti_assert(pg_temp.ti_state(13)='shipping:TIABC12345','a carrier without a format keeps the common rule');
+-- 한진 공식 배송조회가 받는 14자리 운송장(리뷰 1)은 등록된다.
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',26),'shipping','hanjin','12345678901234');
+select pg_temp.ti_assert(pg_temp.ti_state(26)='shipping:12345678901234','hanjin 14 digits are accepted');
 
 -- 2. 수동 발송: 다른 주문(다른 받는 분)의 번호는 거절, 같은 받는 분·같은 출고지 합배송과 같은 주문의 분할 배송 건은 함께 쓴다.
 select public.admin_update_shipment_status(pg_temp.ti_id('shipment',1),'shipping','hanjin','100000000001');
@@ -135,9 +153,36 @@ select public.admin_update_shipment_status(pg_temp.ti_id('shipment',4),'shipping
 select public.admin_update_shipment_status(pg_temp.ti_id('shipment',40),'shipping','hanjin','100000000004');
 select pg_temp.ti_assert(pg_temp.ti_state(3)='shipping:100000000001' and pg_temp.ti_state(4)='shipping:100000000004'
  and pg_temp.ti_state(40)='shipping:100000000004','same recipient merged box and same-order split share a number');
--- 합배송 예외는 배송 중인 상자뿐이다. 배송완료된 옛 상자의 번호는 같은 받는 분의 새 주문에도 다시 쓰지 않는다.
+-- 합배송 예외는 배송 중이거나 최근 7일 안에 배송완료된 상자다(리뷰 2·S3). 같은 상자의 늦은 줄은 받는다.
 select public.admin_update_shipment_status(pg_temp.ti_id('shipment',n),'delivered',null,null) from generate_series(1,3,2) n;
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',22),'shipping','hanjin','100000000001');
+select pg_temp.ti_assert(pg_temp.ti_state(22)='shipping:100000000001','a late line of a recently delivered merged box registers');
+-- 7일이 지난 옛 상자의 번호는 같은 받는 분의 새 주문에도 다시 쓰지 않는다.
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',22),'delivered',null,null);
+reset role;
+update public.order_shipments set delivered_at=now()-interval '8 days' where id in(pg_temp.ti_id('shipment',1),pg_temp.ti_id('shipment',3),pg_temp.ti_id('shipment',22));
+set local role authenticated;
+select pg_temp.ti_as(1);
 select pg_temp.ti_error(pg_temp.ti_dispatch(10,'hanjin','100000000001'),'tracking_number_in_use');
+-- 취소된 주문의 쓰임은 보지 않는다(리뷰 2).
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',24),'shipping','hanjin','230000000023');
+select pg_temp.ti_assert(pg_temp.ti_state(24)='shipping:230000000023','a canceled order no longer owns its number');
+
+-- 2-1. 중복 확인 후 등록(리뷰 2): 판정이 거절한 같은 상자를 운영자가 사유와 함께 등록한다. 형식 검사는 그대로이고 승인·감사가 남는다.
+select pg_temp.ti_error(format('select public.admin_register_shipment_tracking_duplicate(%L,%L,%L,%L)',pg_temp.ti_id('shipment',25),'hanjin','100000000001','  '),'tracking_duplicate_reason_required');
+select pg_temp.ti_error(format('select public.admin_register_shipment_tracking_duplicate(%L,%L,%L,%L)',pg_temp.ti_id('shipment',25),'hanjin','AB12345678','같은 상자 확인'),'tracking_number_format_mismatch');
+select pg_temp.ti_error(format('select public.admin_register_shipment_tracking_duplicate(%L,%L,%L,%L)',pg_temp.ti_id('shipment',25),'hanjin','250000000025','같은 상자 확인'),'tracking_duplicate_not_needed');
+select pg_temp.ti_error(pg_temp.ti_dispatch(25,'hanjin','100000000001'),'tracking_number_in_use');
+select public.admin_register_shipment_tracking_duplicate(pg_temp.ti_id('shipment',25),'hanjin','1000-0000-0001','창고 확인: 주문 1과 같은 상자') as duplicate \gset
+select pg_temp.ti_assert(:'duplicate'::jsonb->>'status'='dispatched' and pg_temp.ti_state(25)='shipping:100000000001','duplicate registration dispatches after confirmation');
+select pg_temp.ti_error(pg_temp.ti_dispatch(18,'hanjin','100000000001'),'tracking_number_in_use');
+reset role;
+select pg_temp.ti_assert((select count(*) from private.tracking_duplicate_approvals where shipment_id=pg_temp.ti_id('shipment',25) and tracking_number='100000000001'
+   and reason='창고 확인: 주문 1과 같은 상자' and actor_id=pg_temp.ti_id('user',1))=1
+ and (select count(*) from public.audit_log where action='admin.shipment.tracking_duplicate_registered' and diff->>'shipmentId'=pg_temp.ti_id('shipment',25)::text
+   and diff->>'outcome'='dispatched' and diff->>'otherSource' is not null)=1,'the approval and audit record the reason');
+set local role authenticated;
+select pg_temp.ti_as(1);
 -- 옛 단일 주문 RPC도 같은 판정을 지난다.
 select pg_temp.ti_error(format('select public.admin_update_order_status(%L,%L,%L,%L)',pg_temp.ti_id('order',7),'shipping','hanjin','100000000004'),'tracking_number_in_use');
 
@@ -223,6 +268,18 @@ select public.admin_import_warehouse_tracking_batch('00000000-0000-4000-8000-000
 select pg_temp.ti_assert((select bool_and(value->>'error'='tracking_number_shared_in_reply') from jsonb_array_elements(:'gimpo_shared'::jsonb))
  and pg_temp.ti_state(10)='ready:-' and pg_temp.ti_state(7)='ready:-','gimpo cross-order number in one file stops both');
 
+-- 국가번호 82로 저장된 주문 전화(리뷰 3): 내려받은 값 그대로 돌아온 회신도, 국내 표기로 돌아온 회신도 같은 번호다.
+select public.admin_import_warehouse_tracking_batch('00000000-0000-4000-8000-000000042201',jsonb_build_array(
+ jsonb_build_object('line',2,'reference',pg_temp.ti_id('order',21)::text,'trackingNumber','210000000021','recipientName','합성마','recipientPhone','821055556666'),
+ jsonb_build_object('line',3,'reference',pg_temp.ti_id('order',21)::text,'trackingNumber','210000000021','recipientName','합성마','recipientPhone','010-5555-6666'))) as gimpo82 \gset
+select pg_temp.ti_assert((select bool_and(value->>'ok'='true') from jsonb_array_elements(:'gimpo82'::jsonb)) and pg_temp.ti_state(21)='shipping:210000000021',
+ 'stored 82 phone matches the same reply phone');
+reset role;
+select pg_temp.ti_assert(private.tracking_phone_key('821055556666')=private.tracking_phone_key('010-5555-6666') and private.tracking_phone_key('1055556666')='1055556666'
+ and private.tracking_phone_key(' ') is null,'phone key normalizes country code and leading zero');
+set local role authenticated;
+select pg_temp.ti_as(1);
+
 -- 7. ICONS 표준 양식(상품주문번호): 수취인·연락처가 주문과 다르면 그 배송 건의 줄만 실패한다.
 select public.admin_import_item_tracking_batch(jsonb_build_array(
  jsonb_build_object('line',2,'reference',pg_temp.ti_id('item',11)::text,'carrier','hanjin','trackingNumber','110000000011','recipientName','합성다','recipientPhone','01033330003'),
@@ -237,6 +294,13 @@ select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000
  jsonb_build_object('line',3,'reference',pg_temp.ti_id('shipment',9)::text,'carrier','epost','trackingNumber','6000000000008'))) as seowon_shared \gset
 select pg_temp.ti_assert((select bool_and(value->>'error'='tracking_number_shared_in_reply') from jsonb_array_elements(:'seowon_shared'::jsonb))
  and pg_temp.ti_state(8)='ready:-' and pg_temp.ti_state(9)='ready:-','seowon cross-order number in one file stops both');
+-- 한 줄의 추가 운송장이 다른 줄(다른 받는 분)의 대표 운송장과 같아도 파일 안 교차다(리뷰 4·S5). 두 줄 모두 멈추고 아무것도 붙지 않는다.
+select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000042202',jsonb_build_array(
+ jsonb_build_object('line',2,'reference',pg_temp.ti_id('shipment',8)::text,'carrier','epost','trackingNumber','6000000000081','extraTrackingNumbers',jsonb_build_array('6000000000092')),
+ jsonb_build_object('line',3,'reference',pg_temp.ti_id('shipment',9)::text,'carrier','epost','trackingNumber','6000000000092'))) as seowon_extra_shared \gset
+select pg_temp.ti_assert((select bool_and(value->>'error'='tracking_number_shared_in_reply') from jsonb_array_elements(:'seowon_extra_shared'::jsonb))
+ and pg_temp.ti_state(8)='ready:-' and pg_temp.ti_state(9)='ready:-'
+ and not exists(select 1 from public.order_shipment_extra_trackings where tracking_number='6000000000092'),'an extra crossing another row stops both rows');
 select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000042202',jsonb_build_array(
  jsonb_build_object('line',2,'reference',pg_temp.ti_id('shipment',8)::text,'carrier','epost','trackingNumber','6000000000008'))) as seowon_one \gset
 select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000042202',jsonb_build_array(
@@ -273,6 +337,13 @@ select pg_temp.ti_error(pg_temp.ti_dispatch(7,'hanjin','120000000099'),'tracking
 select pg_temp.ti_assert(private.tracking_number_conflict('hanjin','120000000099',array[pg_temp.ti_id('shipment',7)],null)->>'source'='reshipment',
  'a reshipment number counts as a use');
 
+-- 교환 재출고 상자에 같은 받는 분·같은 출고지의 새 주문을 함께 넣었으면 같은 번호를 받는다(리뷰 2·S2 — 재출고가 먼저 기록돼도).
+set local role authenticated;
+select pg_temp.ti_as(1);
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',20),'shipping','hanjin','120000000099');
+select pg_temp.ti_assert(pg_temp.ti_state(20)='shipping:120000000099','a same-recipient order shares the reshipment box');
+reset role;
+
 -- 10. 같은 번호의 등록은 advisory lock으로 줄 선다(트랜잭션 끝까지 잡힌다). 실제 두 세션 경합은 tracking_number_integrity_concurrency.sh가 본다.
 select count(*) as locks_before from pg_locks where locktype='advisory' and pid=pg_backend_pid() \gset
 select private.assert_tracking_registrable('hanjin','900000000009',array[pg_temp.ti_id('shipment',7)],null);
@@ -280,5 +351,39 @@ select pg_temp.ti_assert((select count(*) from pg_locks where locktype='advisory
  and exists(select 1 from pg_locks where locktype='advisory' and pid=pg_backend_pid() and granted
   and ((classid::bigint<<32)|objid::bigint)=private.tracking_number_lock_key('hanjin','900000000009')),
  'the registration takes the number lock');
+
+-- 11. 택배사 운송장 형식 편집(리뷰 1): 최고 관리자만, 확인용 번호가 새 형식에 맞아야 저장하고, 감사 기록을 남긴다. 저장한 형식은 바로 등록 판정에 쓰인다.
+insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+values(pg_temp.ti_id('user',7),'authenticated','authenticated','tracking-integrity-7@example.test',now(),'{}','{}',now(),now());
+update public.profiles set role='admin',nickname='tracking_integrity_admin',birth_date='1990-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}'
+ where id=pg_temp.ti_id('user',7);
+insert into private.operator_memberships(profile_id,manager_role) select pg_temp.ti_id('user',7),'owner'
+ where not exists(select 1 from private.operator_memberships where manager_role='owner');
+insert into private.operator_memberships(profile_id,manager_role) select pg_temp.ti_id('user',7),'primary'
+ where not exists(select 1 from private.operator_memberships where profile_id=pg_temp.ti_id('user',7));
+select updated_at as hanjin_stamp from public.shipping_carriers where code='hanjin' \gset
+create function pg_temp.ti_format(pattern text,rule text,sample text,stamp text) returns text language sql as $$
+ select format('select public.admin_save_shipping_carrier_tracking_format(%L,%L,%L,%L,%L)','hanjin',pattern,rule,sample,stamp);
+$$;
+set local role authenticated;
+select pg_temp.ti_as(2);
+select pg_temp.ti_error(pg_temp.ti_format('^[0-9]{12}$','숫자 12자리','123456789012',:'hanjin_stamp'),'42501');
+select pg_temp.ti_as(7);
+select pg_temp.ti_error(pg_temp.ti_format('[0-9]{12}','숫자 12자리','123456789012',:'hanjin_stamp'),'invalid_tracking_number_format');
+select pg_temp.ti_error(pg_temp.ti_format('^([0-9]$','깨진 식','123456789012',:'hanjin_stamp'),'invalid_tracking_number_format');
+select pg_temp.ti_error(pg_temp.ti_format('^[0-9]{12}$','','123456789012',:'hanjin_stamp'),'invalid_tracking_number_format');
+select pg_temp.ti_error(pg_temp.ti_format('^[0-9]{12}$','숫자 12자리','1234567890',:'hanjin_stamp'),'tracking_number_format_sample_mismatch');
+select pg_temp.ti_error(pg_temp.ti_format('^[0-9]{12}$','숫자 12자리','123456789012','2000-01-01 00:00:00+00'),'store_settings_conflict');
+select public.admin_save_shipping_carrier_tracking_format('hanjin','^([0-9]{12}|[0-9]{14})$','숫자 12·14자리','1234-5678-9012-34',:'hanjin_stamp') as hanjin_stamp2 \gset
+select pg_temp.ti_as(1);
+select pg_temp.ti_error(pg_temp.ti_dispatch(7,'hanjin','1234567890'),'tracking_number_format_mismatch');
+select pg_temp.ti_as(7);
+-- 형식과 안내를 함께 비우면 공통 형식만 본다.
+select public.admin_save_shipping_carrier_tracking_format('hanjin','','','',:'hanjin_stamp2') as hanjin_stamp3 \gset
+reset role;
+select pg_temp.ti_assert((select tracking_number_pattern is null and tracking_number_rule is null from public.shipping_carriers where code='hanjin')
+ and (select count(*) from public.audit_log where action='admin.shipping_carrier.saved' and target='shipping_carriers:hanjin' and actor_id=pg_temp.ti_id('user',7))=2
+ and (select diff#>>'{after,tracking_number_pattern}' from public.audit_log where action='admin.shipping_carrier.saved' and target='shipping_carriers:hanjin'
+   and diff#>>'{before,tracking_number_pattern}'='^[0-9]{10,14}$')='^([0-9]{12}|[0-9]{14})$','format edits are audited and clear together');
 
 rollback;

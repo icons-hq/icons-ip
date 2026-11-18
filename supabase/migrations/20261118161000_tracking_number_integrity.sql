@@ -8,16 +8,22 @@
 --    "다른 주문의 쓰임"을 함께 보고, 같은 번호의 등록은 advisory lock으로 줄 세운다(두 회신이 같은 번호를 동시에 올려도 하나만 통과).
 --    쓰임은 대표 운송장(order_shipments)·추가 운송장·교환 재출고(배송 건별 기록과 옛 클레임 단위 기록)다.
 --    정상 공유: 같은 주문(분할·추가·재출고), 같은 합포장 묶음(private.shipment_pack_members, 풀리지 않은 구성원), 그리고
---    창고가 같은 받는 분의 발송 대기 건을 한 상자로 묶은 합배송(같은 출고지·받는 분 전화번호·주소가 같고 아직 배송 중인 배송 건,
---    서원 회신 대조의 합배송 규칙과 같은 경우)이다. 마지막은 받는 사람이 같아 개인정보가 드러나지 않고 같은 상자라 배송완료도 같다.
+--    창고가 같은 받는 분의 배송 건을 한 상자로 묶은 합배송(같은 출고지·받는 분 전화번호·주소가 같은 배송 건·교환 재출고 가운데 배송 중이거나
+--    최근 7일 안에 배송완료된 것, 서원 회신 대조의 합배송 규칙과 같은 받는 분 기준)이다. 받는 사람이 같아 개인정보가 드러나지 않고 같은
+--    상자라 배송완료도 같다. 7일: 택배는 보통 1~3일 안에 배송완료되고 회신 정정·재업로드는 같은 주 안에 끝나므로, 한 상자의 늦게 등록하는
+--    줄은 받고 몇 주 지난 옛 번호의 재사용은 받지 않는다. 취소된 주문의 쓰임은 보지 않는다.
+--    이 밖의 정상 공유(예: 7일이 지난 뒤 같은 상자 확인)는 운영자가 사유를 적어 '중복 확인 후 등록'한다
+--    (admin_register_shipment_tracking_duplicate, 출고 권한·사유·감사, private.tracking_duplicate_approvals).
 -- 2. 진입 경로는 모두 이 판정을 지난다. 발송·정정(private.change_packed_shipments가 부르는 두 함수 — 수동 입력·세 칸·김포·표준·서원 회신과
 --    옛 주문 단위 RPC가 모두 여기를 지난다), 추가 운송장(운영자·서원 회신), 교환 재출고(배송 건별 기록 함수 — 운영자·연락처 처리 서비스).
 --    일괄·회신 반입은 줄(배송 건)마다 savepoint 안에서 실패하므로 파일 전체가 아니라 그 줄만 실패한다. 한 파일 안에서 서로 관계없는
 --    배송 건에 같은 번호가 적히면 어느 줄이 맞는지 알 수 없으므로 그 번호의 줄을 모두 실패로 돌린다(먼저 나온 줄이 등록되지 않게).
 -- 3. 택배사 레지스트리에 번호 형식(정규식)과 사람이 읽는 규칙을 둔다. 우체국택배는 숫자 13자리(공공데이터포털 우정사업본부
 --    종적조회 API의 등기번호 13자리, NHN Cloud 카카오 비즈메시지 문제 해결 가이드의 택배사별 송장번호 형식 표).
---    한진택배는 같은 NHN 표가 숫자 10자리 또는 12자리라고 적지만 한진 공식 안내를 확인하지 못해, 11자리를 거절하지 않도록
---    숫자 10~12자리로 넓게 둔다(오타 중 영문·하이픈 외 문자·자릿수 초과·부족은 여전히 걸린다). 형식이 없는 택배사는 공통 형식만 본다.
+--    한진택배 공식 배송조회(hanjin.com/kor/CMS/DeliveryMgr/WaybillSch.do 입력 검사, 2026-11-18 확인)는 숫자 12자리 또는 14자리만
+--    받고, NHN 표는 10자리 또는 12자리(옛 안내)다. 출고가 막히지 않도록 숫자 10~14자리로 넓게 둔다(영문·자릿수 초과·부족은 걸린다).
+--    형식이 없는 택배사는 공통 형식만 본다. 형식은 택배사 관리 화면에서 최고 관리자가 확인용 번호와 함께 고친다
+--    (admin_save_shipping_carrier_tracking_format, 감사 기록).
 -- 4. 김포 21열·표준 양식 회신의 받는 분 이름·전화번호(회신에 있으면)를 주문 배송지와 대조해, 다르면 그 주문(배송 건)의 줄만 실패한다.
 --    회신이 이 칸을 보내지 않으면(세 칸 회신·옛 앱) 지금처럼 대조하지 않는다.
 -- 5. 이미 등록된 운영 데이터는 소급하지 않는다. 표 제약이 아니라 등록 함수의 판정이고, 바뀌지 않는 번호(배송완료 처리·같은 회신 재업로드)는 다시 보지 않는다.
@@ -58,7 +64,7 @@ comment on column public.shipping_carriers.tracking_number_pattern is
 comment on column public.shipping_carriers.tracking_number_rule is '사람이 읽는 운송장번호 형식(오류 안내 문구). 형식 정규식과 함께 둔다.';
 
 -- 운영자가 이미 다른 형식을 적었으면 덮어쓰지 않는다.
-update public.shipping_carriers set tracking_number_pattern = '^[0-9]{10,12}$', tracking_number_rule = '숫자 10~12자리'
+update public.shipping_carriers set tracking_number_pattern = '^[0-9]{10,14}$', tracking_number_rule = '숫자 10~14자리'
  where code = 'hanjin' and tracking_number_pattern is null;
 update public.shipping_carriers set tracking_number_pattern = '^[0-9]{13}$', tracking_number_rule = '숫자 13자리'
  where code = 'epost' and tracking_number_pattern is null;
@@ -72,15 +78,23 @@ create index if not exists order_cancellation_requests_reship_tracking_idx
   on public.order_cancellation_requests (reship_carrier, reship_tracking_number) where reship_tracking_number is not null;
 
 -- 3. 공용 판정
--- 받는 분 열쇠(전화번호 숫자 + 주소, 공백·대소문자 무시). 서원 회신 대조가 한 상자의 받는 분으로 보는 열쇠(전화·주소)와 같다.
+-- 전화번호 비교 열쇠: 숫자만 남기고, 국가번호 82로 시작하는 11자리 이상은 82를 떼고, 앞자리 0을 뗀다. 주문에 저장된 값과 회신 값에
+-- 같은 규칙을 써서 엑셀이 지운 앞자리 0·국제 표기(8210…)를 같은 번호로 본다. 숫자가 없으면 null.
+create function private.tracking_phone_key(p_phone text) returns text
+language sql immutable set search_path = '' as $$
+  select nullif(ltrim(case when digits ~ '^82' and length(digits) >= 11 then substr(digits, 3) else digits end, '0'), '')
+  from (select regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g') digits) phone;
+$$;
+revoke all on function private.tracking_phone_key(text) from public, anon, authenticated, service_role;
+
+-- 받는 분 열쇠(전화번호 열쇠 + 주소, 공백·대소문자 무시). 서원 회신 대조가 한 상자의 받는 분으로 보는 열쇠(전화·주소)와 같다.
 -- 전화나 주소가 없으면 null — 합배송으로 보지 않는다.
 create function private.tracking_destination_key(p_address jsonb) returns text
 language sql immutable set search_path = '' as $$
   select case
-    when nullif(regexp_replace(coalesce(p_address->>'phone', ''), '[^0-9]', '', 'g'), '') is null
+    when private.tracking_phone_key(p_address->>'phone') is null
       or nullif(regexp_replace(coalesce(p_address->>'address1', ''), '[[:space:]]', '', 'g'), '') is null then null
-    else concat_ws(chr(31),
-      regexp_replace(p_address->>'phone', '[^0-9]', '', 'g'),
+    else concat_ws(chr(31), private.tracking_phone_key(p_address->>'phone'),
       lower(regexp_replace(concat(p_address->>'address1', p_address->>'address2'), '[[:space:]]', '', 'g')))
   end;
 $$;
@@ -117,7 +131,8 @@ $$;
 revoke all on function private.tracking_shipments_related(uuid, uuid) from public, anon, authenticated, service_role;
 
 -- 이 번호를 쓰는 "다른 주문"의 쓰임 하나(없으면 null). 대상은 배송 건들(합포장 구성원 포함)과/또는 주문이다.
--- 합배송 예외는 배송 중인 택배 배송 건의 대표·추가 운송장에만 적용한다(배송완료된 옛 상자의 번호를 새 주문에 다시 쓰지 않게).
+-- 취소된 주문의 쓰임은 보지 않는다. 합배송 예외(같은 출고지·같은 받는 분 열쇠)는 대표·추가 운송장과 배송 건별 교환 재출고에 쓰고,
+-- 그 쓰임이 배송 중이거나 최근 7일 안에 배송완료됐을 때만이다(재출고는 배송완료 확인 전이면 배송 중으로 본다).
 create function private.tracking_number_conflict(p_carrier text, p_tracking text, p_shipments uuid[], p_order uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
   with target as (
@@ -130,30 +145,51 @@ language sql stable security definer set search_path = '' as $$
     union select s.order_id from public.order_shipments s
       where s.id = any(private.shipment_pack_scope(coalesce(p_shipments, '{}'::uuid[])))
   ), uses as (
-    select 'shipment' source, s.order_id, s.id shipment_id, s.origin_id, s.status, s.delivery_method
+    select 'shipment' source, s.order_id, s.id shipment_id, s.origin_id, s.delivery_method, s.status, s.delivered_at
     from public.order_shipments s where s.carrier = p_carrier and s.tracking_number = p_tracking
     union all
-    select 'extra', x.order_id, x.shipment_id, s.origin_id, s.status, s.delivery_method
+    select 'extra', x.order_id, x.shipment_id, s.origin_id, s.delivery_method, s.status, s.delivered_at
     from public.order_shipment_extra_trackings x join public.order_shipments s on s.id = x.shipment_id
     where x.carrier = p_carrier and x.tracking_number = p_tracking
     union all
-    select 'reshipment', r.order_id, r.shipment_id, null, null, null
-    from public.order_claim_reshipments r where r.carrier = p_carrier and r.tracking_number = p_tracking
+    select 'reshipment', r.order_id, r.shipment_id, s.origin_id, s.delivery_method,
+      case when r.delivered_at is null then 'shipping' else 'delivered' end, r.delivered_at
+    from public.order_claim_reshipments r left join public.order_shipments s on s.id = r.shipment_id
+    where r.carrier = p_carrier and r.tracking_number = p_tracking
     union all
-    select 'reshipment', q.order_id, null, null, null, null
+    -- 옛 클레임 단위 재출고만(배송 건별 기록이 있는 클레임은 같은 번호를 이 열에도 적는다 — 위 기록이 진실원이다).
+    select 'reshipment', q.order_id, null, null, null, null, null
     from public.order_cancellation_requests q where q.reship_carrier = p_carrier and q.reship_tracking_number = p_tracking
+      and not exists(select 1 from public.order_claim_reshipments r where r.claim_id = q.id)
   )
   select jsonb_build_object('source', u.source, 'orderId', u.order_id, 'shipmentId', u.shipment_id)
-  from uses u
+  from uses u join public.orders uo on uo.id = u.order_id
   where u.order_id not in (select id from allowed)
-    and not (u.source in ('shipment', 'extra') and u.status = 'shipping' and u.delivery_method = 'parcel' and exists(
-      select 1 from target t join public.orders o on o.id = u.order_id
-      where t.origin_id = u.origin_id and t.destination is not null
-        and t.destination = private.tracking_destination_key(o.address)))
+    and uo.status <> 'canceled'
+    and not (u.origin_id is not null and u.delivery_method = 'parcel'
+      and (u.status = 'shipping' or (u.status = 'delivered' and u.delivered_at >= now() - interval '7 days'))
+      and exists(select 1 from target t
+        where t.origin_id = u.origin_id and t.destination is not null and t.destination = private.tracking_destination_key(uo.address)))
   order by u.source, u.order_id
   limit 1;
 $$;
 revoke all on function private.tracking_number_conflict(text, text, uuid[], uuid) from public, anon, authenticated, service_role;
+
+-- 운영자가 '중복 확인 후 등록'으로 승인한 배송 건·번호(사유·처리자·다른 주문의 쓰임). 판정은 이 승인이 있으면 다른 주문의 쓰임을
+-- 보지 않는다(형식 검사는 그대로). 승인은 admin_register_shipment_tracking_duplicate만 만든다.
+create table private.tracking_duplicate_approvals (
+  id uuid primary key default gen_random_uuid(),
+  shipment_id uuid not null references public.order_shipments(id) on delete cascade,
+  carrier text not null,
+  tracking_number text not null,
+  reason text not null check (char_length(reason) between 1 and 500),
+  conflict jsonb not null,
+  actor_id uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default clock_timestamp(),
+  constraint tracking_duplicate_approvals_unique unique (shipment_id, carrier, tracking_number)
+);
+alter table private.tracking_duplicate_approvals enable row level security;
+revoke all on table private.tracking_duplicate_approvals from public, anon, authenticated, service_role;
 
 -- 등록 판정(모든 진입 경로가 부른다). 공통 형식 → 택배사 형식 → 같은 번호 줄 세우기 → 다른 주문의 쓰임.
 create function private.assert_tracking_registrable(p_carrier text, p_tracking text, p_shipments uuid[], p_order uuid) returns void
@@ -165,7 +201,10 @@ begin
     raise check_violation using message = 'tracking_number_format_mismatch'; end if;
   -- 같은 번호를 동시에 등록하는 두 트랜잭션은 여기서 줄을 선다. 뒤에 온 쪽은 앞의 커밋을 본 뒤 판정한다(READ COMMITTED 문장 스냅샷).
   perform pg_advisory_xact_lock(private.tracking_number_lock_key(p_carrier, p_tracking));
-  if private.tracking_number_conflict(p_carrier, p_tracking, p_shipments, p_order) is not null then
+  if private.tracking_number_conflict(p_carrier, p_tracking, p_shipments, p_order) is not null and not exists(
+    select 1 from private.tracking_duplicate_approvals a
+    where a.shipment_id = any(private.shipment_pack_scope(coalesce(p_shipments, '{}'::uuid[])))
+      and a.carrier = p_carrier and a.tracking_number = p_tracking) then
     raise check_violation using message = 'tracking_number_in_use'; end if;
 end $$;
 revoke all on function private.assert_tracking_registrable(text, text, uuid[], uuid) from public, anon, authenticated, service_role;
@@ -186,21 +225,23 @@ end $$;
 revoke all on function private.tracking_batch_shipment(jsonb, uuid) from public, anon, authenticated, service_role;
 
 -- 일괄·회신 반입 준비: 파일의 모든 번호(대표·추가)를 열쇠 순서로 잠그고, 파일 안에서 서로 관계없는 배송 건에 같은 번호가 적힌
--- 번호('택배사:번호')를 돌려준다. 출고지가 있으면(김포) 택배사는 출고지 기본 택배사다.
+-- 번호('택배사:번호')를 돌려준다. 한 줄의 추가 운송장과 다른 줄의 대표 운송장이 같아도 교차다. 출고지가 있으면(김포) 택배사는
+-- 출고지 기본 택배사다.
 create function private.lock_tracking_batch(p_rows jsonb, p_origin uuid) returns text[]
 language plpgsql security definer set search_path = '' as $$
-declare origin_carrier text; entries jsonb := '[]'; row_value jsonb; carrier_value text; lock_key bigint; conflicts text[];
+declare origin_carrier text; entries jsonb := '[]'; row_value jsonb; carrier_value text; row_shipment uuid; lock_key bigint; conflicts text[];
 begin
   if jsonb_typeof(p_rows) is distinct from 'array' then return '{}'; end if;
   if p_origin is not null then select default_carrier into origin_carrier from public.fulfillment_origins where id = p_origin; end if;
   for row_value in select value from jsonb_array_elements(p_rows) loop
     if jsonb_typeof(row_value) is distinct from 'object' then continue; end if;
     carrier_value := coalesce(origin_carrier, nullif(btrim(row_value->>'carrier'), ''));
-    entries := entries || jsonb_build_array(jsonb_build_object('shipmentId', private.tracking_batch_shipment(row_value, p_origin),
-      'carrier', carrier_value, 'trackingNumber', private.normalize_tracking_number(row_value->>'trackingNumber'), 'representative', true));
+    row_shipment := private.tracking_batch_shipment(row_value, p_origin);
+    entries := entries || jsonb_build_array(jsonb_build_object('shipmentId', row_shipment,
+      'carrier', carrier_value, 'trackingNumber', private.normalize_tracking_number(row_value->>'trackingNumber')));
     if jsonb_typeof(row_value->'extraTrackingNumbers') = 'array' then
-      entries := entries || coalesce((select jsonb_agg(jsonb_build_object('carrier', carrier_value,
-        'trackingNumber', private.normalize_tracking_number(extra #>> '{}'), 'representative', false))
+      entries := entries || coalesce((select jsonb_agg(jsonb_build_object('shipmentId', row_shipment, 'carrier', carrier_value,
+        'trackingNumber', private.normalize_tracking_number(extra #>> '{}')))
         from jsonb_array_elements(row_value->'extraTrackingNumbers') extra where jsonb_typeof(extra) = 'string'), '[]');
     end if;
   end loop;
@@ -212,8 +253,7 @@ begin
   with batch_rows as (
     select distinct (value->>'shipmentId')::uuid sid, value->>'carrier' carrier, value->>'trackingNumber' tracking
     from jsonb_array_elements(entries)
-    where value->>'representative' = 'true' and value->>'shipmentId' is not null
-      and value->>'carrier' is not null and value->>'trackingNumber' is not null
+    where value->>'shipmentId' is not null and value->>'carrier' is not null and value->>'trackingNumber' is not null
   )
   select coalesce(array_agg(distinct a.carrier || ':' || a.tracking), '{}') into conflicts
   from batch_rows a join batch_rows b on a.carrier = b.carrier and a.tracking = b.tracking and a.sid < b.sid
@@ -241,12 +281,11 @@ begin
     and not starts_with(replied_name, stored_name) and not starts_with(stored_name, replied_name) then
     raise check_violation using message = 'tracking_reply_recipient_mismatch'; end if;
   replied_phone := btrim(coalesce(p_row->>'recipientPhone', ''));
-  stored_phone := ltrim(regexp_replace(coalesce(address->>'phone', ''), '[^0-9]', '', 'g'), '0');
+  -- 주문에 저장된 값과 회신 값에 같은 전화번호 열쇠(숫자만, 국가번호 82·앞자리 0 제거)를 쓴다.
+  stored_phone := private.tracking_phone_key(address->>'phone');
   if replied_phone ~ '^[0-9[:space:]()+.-]+$' then
-    replied_phone := regexp_replace(replied_phone, '[^0-9]', '', 'g');
-    if replied_phone ~ '^82' and length(replied_phone) >= 11 then replied_phone := substr(replied_phone, 3); end if;
-    replied_phone := ltrim(replied_phone, '0');
-    if length(replied_phone) >= 8 and stored_phone <> '' and replied_phone <> stored_phone then
+    replied_phone := private.tracking_phone_key(replied_phone);
+    if length(coalesce(replied_phone, '')) >= 8 and stored_phone is not null and replied_phone <> stored_phone then
       raise check_violation using message = 'tracking_reply_recipient_mismatch'; end if;
   end if;
 end $$;
@@ -303,7 +342,9 @@ $a$ -- 주문 잠금 뒤에 번호를 열쇠 순서로 잠근다(주문 → 번�
  conflicts:=private.lock_tracking_batch(target_rows,null);
  for input in select value from jsonb_array_elements(target_rows) loop$a$,
 $a$   completed:=public.admin_import_shipment_tracking(shipment_key::text,input->>'carrier',input->>'trackingNumber');$a$,
-$a$   if nullif(btrim(input->>'carrier'),'')||':'||private.normalize_tracking_number(input->>'trackingNumber')=any(conflicts) then
+$a$   if nullif(btrim(input->>'carrier'),'')||':'||private.normalize_tracking_number(input->>'trackingNumber')=any(conflicts)
+    or exists(select 1 from jsonb_array_elements(case when jsonb_typeof(input->'extraTrackingNumbers')='array' then input->'extraTrackingNumbers' else '[]'::jsonb end) extra
+     where jsonb_typeof(extra)='string' and nullif(btrim(input->>'carrier'),'')||':'||private.normalize_tracking_number(extra#>>'{}')=any(conflicts)) then
     raise check_violation using message='tracking_number_shared_in_reply';end if;
    completed:=public.admin_import_shipment_tracking(shipment_key::text,input->>'carrier',input->>'trackingNumber');$a$
 ]);
@@ -407,7 +448,86 @@ end $$;
 revoke all on function public.admin_swap_shipment_trackings(uuid, text, text, text, text) from public, anon, authenticated, service_role;
 grant execute on function public.admin_swap_shipment_trackings(uuid, text, text, text, text) to authenticated;
 
--- 6. 운영자 계약. 바꾼 함수는 등록된 능력·분류를 그대로 두고 지문만 다시 적는다. 맞바꾸기는 운송장 정정과 같은 출고 권한이다.
+-- 6. 중복 확인 후 등록. 판정이 다른 주문의 쓰임으로 거절했지만 같은 상자가 맞는 경우(7일이 지난 합배송 확인, 받는 분 표기가 달라
+--    열쇠가 어긋난 같은 집 등) 운영자가 사유를 적어 그 배송 건에 그 번호를 등록한다. 형식 검사는 그대로이고, 승인·감사 기록이 남는다.
+--    발송 대기 건은 발송처리, 발송된 건은 운송장 정정과 같은 경로(합포장 묶음 전체)를 지난다.
+create function public.admin_register_shipment_tracking_duplicate(p_shipment_id uuid, p_carrier text, p_tracking_number text, p_reason text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare actor uuid; carrier_value text := nullif(btrim(coalesce(p_carrier, '')), ''); tracking_value text := private.normalize_tracking_number(p_tracking_number);
+  reason_value text := nullif(btrim(coalesce(p_reason, '')), ''); scope uuid[]; shipment public.order_shipments; conflict jsonb; outcome text;
+begin
+  actor := private.require_operator_capability('sales.dispatch', false);
+  if p_shipment_id is null then raise invalid_parameter_value using message = 'invalid_tracking_duplicate'; end if;
+  if reason_value is null or char_length(reason_value) > 500 then raise check_violation using message = 'tracking_duplicate_reason_required'; end if;
+  if carrier_value is null or tracking_value is null or tracking_value !~ '^[A-Z0-9]{8,30}$' then
+    raise check_violation using message = 'invalid_tracking_input'; end if;
+  if not exists(select 1 from public.shipping_carriers where code = carrier_value and is_active) then
+    raise check_violation using message = 'inactive_shipping_carrier'; end if;
+  if not private.tracking_number_format_ok(carrier_value, tracking_value) then
+    raise check_violation using message = 'tracking_number_format_mismatch'; end if;
+  scope := private.lock_shipment_pack_scope(array[p_shipment_id]);
+  select * into shipment from public.order_shipments where id = p_shipment_id;
+  if shipment.delivery_method <> 'parcel' then raise check_violation using message = 'delivery_method_evidence_required'; end if;
+  if shipment.status not in ('ready', 'shipping', 'delivered') then raise check_violation using message = 'invalid_shipment_transition'; end if;
+  perform pg_advisory_xact_lock(private.tracking_number_lock_key(carrier_value, tracking_value));
+  conflict := private.tracking_number_conflict(carrier_value, tracking_value, scope, null);
+  if conflict is null then raise check_violation using message = 'tracking_duplicate_not_needed'; end if;
+  insert into private.tracking_duplicate_approvals(shipment_id, carrier, tracking_number, reason, conflict, actor_id)
+  values (shipment.id, carrier_value, tracking_value, reason_value, conflict, actor)
+  on conflict (shipment_id, carrier, tracking_number) do update
+    set reason = excluded.reason, conflict = excluded.conflict, actor_id = excluded.actor_id, created_at = excluded.created_at;
+  if shipment.status = 'ready' then
+    perform public.admin_update_shipment_status(shipment.id, 'shipping', carrier_value, tracking_value); outcome := 'dispatched';
+  else
+    perform public.admin_update_shipment_tracking(shipment.id, carrier_value, tracking_value); outcome := 'corrected';
+  end if;
+  insert into public.audit_log(actor_id, action, target, diff) values (actor, 'admin.shipment.tracking_duplicate_registered', 'order:' || shipment.order_id,
+    jsonb_build_object('shipmentId', shipment.id, 'originName', shipment.origin_name_snapshot, 'carrier', carrier_value, 'trackingNumber', tracking_value,
+      'reason', reason_value, 'outcome', outcome, 'fromTrackingNumber', shipment.tracking_number,
+      'otherSource', conflict->>'source', 'otherOrderId', conflict->>'orderId', 'otherShipmentId', conflict->>'shipmentId'));
+  return jsonb_build_object('status', outcome, 'shipmentId', shipment.id, 'orderId', shipment.order_id,
+    'packedShipments', (select jsonb_agg(jsonb_build_object('shipmentId', s.id, 'orderId', s.order_id) order by s.id) from public.order_shipments s where s.id = any(scope)));
+end $$;
+revoke all on function public.admin_register_shipment_tracking_duplicate(uuid, text, text, text) from public, anon, authenticated, service_role;
+grant execute on function public.admin_register_shipment_tracking_duplicate(uuid, text, text, text) to authenticated;
+
+-- 7. 택배사 운송장 형식 편집(택배사 관리 화면, 최고 관리자). 형식과 안내 문구는 함께 저장·삭제하고, 형식을 둘 때는 확인용 번호가
+--    공통 형식과 새 형식에 맞아야 저장한다(잘못된 식으로 모든 발송이 막히지 않게). 택배사 저장과 같은 잠금·충돌 검사·감사 기록이다.
+create function public.admin_save_shipping_carrier_tracking_format(target_code text, target_pattern text, target_rule text, target_sample text,
+  expected_updated_at timestamptz)
+returns timestamptz language plpgsql security definer set search_path = '' as $format$
+declare actor uuid := (select auth.uid()); previous public.shipping_carriers; saved public.shipping_carriers;
+  code_value text := btrim(coalesce(target_code, '')); pattern_value text := nullif(btrim(coalesce(target_pattern, '')), '');
+  rule_value text := nullif(btrim(coalesce(target_rule, '')), ''); sample_value text := private.normalize_tracking_number(target_sample);
+begin
+  perform private.require_operator_capability('platform.manage', true);
+  if actor is null or not public.has_operator_capability('platform.manage', true) then raise insufficient_privilege using message = 'admin_required'; end if;
+  if (pattern_value is null) <> (rule_value is null) or char_length(coalesce(pattern_value, '')) > 200 or char_length(coalesce(rule_value, '')) > 60
+    or (pattern_value is not null and pattern_value !~ '^\^.+\$$') then
+    raise invalid_parameter_value using message = 'invalid_tracking_number_format'; end if;
+  if pattern_value is not null then
+    begin
+      if sample_value is null or sample_value !~ '^[A-Z0-9]{8,30}$' or not (sample_value ~ pattern_value) then
+        raise invalid_parameter_value using message = 'tracking_number_format_sample_mismatch'; end if;
+    exception when invalid_regular_expression then
+      raise invalid_parameter_value using message = 'invalid_tracking_number_format';
+    end;
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('shipping_carrier:' || code_value, 0));
+  select * into previous from public.shipping_carriers where code = code_value for update;
+  if not found then raise no_data_found using message = 'shipping_carrier_not_found'; end if;
+  if expected_updated_at is distinct from previous.updated_at then raise sqlstate 'PT409' using message = 'store_settings_conflict'; end if;
+  update public.shipping_carriers set tracking_number_pattern = pattern_value, tracking_number_rule = rule_value
+    where code = code_value returning * into saved;
+  insert into public.audit_log(actor_id, action, target, diff) values (actor, 'admin.shipping_carrier.saved', 'shipping_carriers:' || code_value,
+    jsonb_build_object('before', to_jsonb(previous), 'after', to_jsonb(saved)));
+  return saved.updated_at;
+end $format$;
+revoke all on function public.admin_save_shipping_carrier_tracking_format(text, text, text, text, timestamptz) from public, anon, authenticated, service_role;
+grant execute on function public.admin_save_shipping_carrier_tracking_format(text, text, text, text, timestamptz) to authenticated;
+
+-- 8. 운영자 계약. 바꾼 함수는 등록된 능력·분류를 그대로 두고 지문만 다시 적는다. 맞바꾸기·중복 확인 후 등록은 운송장 정정과 같은 출고
+--    권한, 운송장 형식 편집은 택배사 저장과 같은 최고 관리자 권한이다.
 do $contracts$
 declare
   signature text;
@@ -442,6 +562,9 @@ begin
     end if;
   end loop;
   perform private.register_operator_rpc_contract('public.admin_swap_shipment_trackings(uuid,text,text,text,text)'::regprocedure, 'sales.dispatch', 'write', false);
+  perform private.register_operator_rpc_contract('public.admin_register_shipment_tracking_duplicate(uuid,text,text,text)'::regprocedure, 'sales.dispatch', 'write', false);
+  perform private.register_operator_rpc_contract('public.admin_save_shipping_carrier_tracking_format(text,text,text,text,timestamp with time zone)'::regprocedure,
+    'platform.manage', 'write', true);
 end $contracts$;
 
 notify pgrst, 'reload schema';
