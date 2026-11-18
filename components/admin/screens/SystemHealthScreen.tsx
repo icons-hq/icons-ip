@@ -70,7 +70,7 @@ function HealthBody({ health, payments, canReconcile }: { health: SystemHealthRe
 
 function JobsSection({ health }: { health: SystemHealthReport }) {
   return <AdminSectionCard id="system-jobs" title="자동 작업"
-    summary="'멈춤'은 주기의 두 배 + 10분 동안 성공 기록이 없다는 뜻입니다. '기록 없음'은 이 배포에서 아직 한 번도 돌지 않은 작업입니다(로컬·미리보기에서는 앱 자동 작업이 돌지 않습니다).">
+    summary="'멈춤'은 주기의 두 배 + 10분 동안 성공 기록이 없다는 뜻입니다. '기록 없음'은 아직 한 번도 돌지 않은 작업입니다(막 등록한 DB 작업, 로컬·미리보기의 앱 자동 작업 — 미리보기에서는 앱 자동 작업이 돌지 않습니다).">
     <Table aria-label="자동 작업 상태">
       <TableHeader><TableRow>
         <TableHead scope="col">상태</TableHead><TableHead scope="col">작업</TableHead><TableHead scope="col">종류</TableHead>

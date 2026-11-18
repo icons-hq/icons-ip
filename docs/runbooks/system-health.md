@@ -16,8 +16,8 @@
 판정 기준:
 
 - **실패 중**: 앱 작업은 마지막 실행이 5xx·예외로 끝났다. DB 작업은 마지막 실행이 `failed`이거나, 실행 안에서 건너뛴 행이 주기의 두 배 + 10분 안에 있었다.
-- **멈춤**: 주기의 두 배 + 10분 동안 기록이 없다(앱 작업 — cron이 불리지 않거나 함수가 시간 초과로 끝나 기록하지 못함) 또는 성공이 없다(DB 작업). DB 작업은 `cron.job_run_details` 최근 20,000회(약 2.8일)만 보므로, 표본이 그보다 짧은 동안(매일 작업의 2일 10분 기준 등)은 멈춤을 판정하지 않는다.
-- **기록 없음**: 이 배포에서 한 번도 돈 적이 없는 앱 작업. 로컬·미리보기에서는 Vercel cron이 돌지 않아 전부 이렇게 보인다. 운영에서 배포 하루 뒤에도 기록 없음이면 `vercel.json` 등록·`CRON_SECRET`(401은 기록하지 않는다)을 확인한다.
+- **멈춤**: 주기의 두 배 + 10분 동안 기록이 없다(앱 작업 — cron이 불리지 않거나 함수가 시간 초과로 끝나 기록하지 못함) 또는 성공이 없다(DB 작업). DB 작업은 `cron.job_run_details` 최근 20,000회(약 2.8일)만 보므로, 표본이 그보다 짧은 동안(매일 작업의 2일 10분 기준 등)은 멈춤을 판정하지 않는다. `cron.job`에는 등록 시각이 없어 처음 본 시각을 `private.system_pg_cron_jobs`에 남기고(10분 주기 정리 잡 `system-job-records-maintenance`), 처음 본 지 멈춤 기준이 지나지 않은 잡은 멈춤으로 보지 않는다.
+- **기록 없음**: 이 배포에서 한 번도 돈 적이 없는 앱 작업, 또는 표본 안에 실행이 없는 DB 작업(막 등록한 잡 포함). 로컬·미리보기에서는 Vercel cron이 돌지 않아 앱 작업이 전부 이렇게 보인다. 운영에서 배포 하루 뒤에도 기록 없음이면 `vercel.json` 등록·`CRON_SECRET`(401은 기록하지 않는다)을 확인한다. 기록 없음은 할 일 건수에 세지 않는다.
 - 미종결 결제: `payment_attempts.state`가 `unknown`·`needs_review`이거나, 리스(`claim_expires_at`)가 지난 `confirming`.
 
 ## 자동 작업이 실패 중·멈춤일 때
@@ -35,7 +35,7 @@
 
 미종결 결제는 닫힐 때까지 재고·쿠폰·적립금을 잡고 있다.
 
-- **자동 재확인**: `/api/cron/payment-reconciliation`이 10분마다 결과 불명(`unknown`)·멈춘 확인(리스가 지난 `confirming`)을 최대 3건 골라 결제사 조회 API로 다시 확인한다. 고르는 규칙은 DB(`service_list_payment_reconciliation_candidates`): 조회 API가 있는 시도(굿즈 토스·나이스페이, 티켓 토스), 마지막 변경 뒤 10분, 만든 지 7일 안, 30분 안에 누구도(웹훅·운영자·cron) 확인하지 않은 것. 그래서 같은 시도의 조회는 30분에 한 번, 회차당 3건이다. `needs_review`는 고르지 않는다(사람 몫). 확정은 기존 재정합 seam(claim 리스 10분·DB 멱등 finalizer)이 해서 웹훅·운영자와 겹쳐도 안전하다. 굿즈 승인으로 닫히면 그 사이 자동 승인된 취소의 결제사 전액 취소를 응답 뒤에 발행한다(내부 재정합 라우트와 같은 규칙).
+- **자동 재확인**: `/api/cron/payment-reconciliation`이 10분마다 결과 불명(`unknown`)·멈춘 확인(리스가 지난 `confirming`)을 최대 3건 골라 결제사 조회 API로 다시 확인한다. 고르는 규칙은 DB(`service_claim_payment_reconciliation_candidates`): 조회 API가 있는 시도(굿즈 토스·나이스페이, 티켓 토스) 중 이 배포에 결제사 설정이 있는 것(앱이 설정된 게이트웨이 목록을 넘긴다), 마지막 변경 뒤 10분, 만든 지 7일 안, 30분 안에 누구도(웹훅·운영자·cron) 확인하거나 이 cron이 뽑지 않은 것을 마지막 확인이 오래된 순(한 번도 확인하지 않은 것이 먼저)으로. 뽑는 순간 표식(`private.payment_reconciliation_auto_checks`)을 남기므로 결제사 조회 전에 끝난 후보(설정 없음·claim 전 실패)도 30분 동안 다시 뽑히지 않아, 조회할 수 없는 시도가 큐 앞자리를 막지 않는다. 그래서 같은 시도의 조회는 30분에 한 번, 회차당 3건이다. 설정된 결제사가 하나도 없는 배포는 DB도 부르지 않는다. `needs_review`는 고르지 않는다(사람 몫). 확정은 기존 재정합 seam(claim 리스 10분·DB 멱등 finalizer)이 해서 웹훅·운영자와 겹쳐도 안전하다. 굿즈 승인으로 닫히면 그 사이 자동 승인된 취소의 결제사 전액 취소를 응답 뒤에 발행한다(내부 재정합 라우트와 같은 규칙).
 - **운영자 재확인**: 시스템 상태 → 미종결 결제의 '결제 상태 다시 확인'(`sales.manage`). DB가 감사 기록(`audit_log.action = 'admin.payment_attempt.reconcile_requested'`, `diff.caseRef`)을 남긴 뒤 서버 액션이 같은 seam을 서버 안에서 부른다(내부 HTTP·비밀값 없음). 재정합 감사(`private.goods_payment_reconciliation_audits` 등)에 같은 `caseRef`(`admin-<요청번호>`)가 남아 두 기록이 이어진다. 같은 시도는 1분에 한 번만 새로 확인한다.
 
 결과별 다음 행동:
@@ -63,10 +63,14 @@
 
 메일·메신저 알림은 아직 붙이지 않았다. 붙일 자리는 `lib/system-health/alert-sink.server.ts`의 `notifySystemIncident` 한 함수다 — 앱 자동 작업 실패 중 DB가 새 사건이라고 답한 것(같은 작업의 그 시간 첫 실패)에서만 불린다. 이 함수는 throw하지 않아야 하고(cron 응답 계약 유지), 받는 값에는 비밀·개인정보가 없다. DB 안의 pg_cron 실패는 앱을 거치지 않으므로, 그것까지 외부로 보내려면 운영 알림 `category = 'system'`을 주기적으로 읽는 별도 작업이 필요하다.
 
+## 새 pg_cron 잡을 더할 때
+
+migration이 `cron.schedule`로 잡을 더하면 정리 잡이 10분 안에 처음 본 시각을 남긴다. 그 전까지와 처음 본 뒤 멈춤 기준(주기 × 2 + 10분)이 지나기 전까지는 실행 기록이 없어도 '기록 없음'이고 할 일 건수에 들지 않는다 — 매일 도는 새 잡이 첫 실행 전에 '멈춤'으로 뜨지 않는다. 기준이 지나도 성공이 없으면 그때 멈춤이다. 운영자용 이름은 `lib/system-health/cron-jobs.ts`의 `PG_CRON_JOB_LABELS`에 더한다(없으면 잡 이름 그대로 보인다).
+
 ## 새 cron 라우트를 더할 때
 
 `vercel.json`의 `crons`, `lib/system-health/cron-jobs.ts`의 `CRON_JOBS`(이름·주기), 라우트의 `startCronRun('<작업>')`·`run.finish(...)`·`run.fail(error, ...)`를 함께 더한다. `lib/system-health/cron-jobs.test.ts`가 셋의 일치, 인증(401) 뒤 기록 시작, 기록 없는 `catch {}`가 없음을 강제한다.
 
 ## 보존
 
-실패 기록은 30일, 30일 동안 실행이 없던 앱 작업 상태 행은 pg_cron `system-job-records-retention`(매일 03:41 UTC)이 지운다. `cron.job_run_details` 자체의 정리는 이 작업 범위가 아니다.
+pg_cron `system-job-records-maintenance`(10분마다)가 실패 기록 30일, 30일 동안 실행이 없던 앱 작업 상태 행, 미종결이 아니게 된 시도의 자동 재확인 표식을 지우고, 없어진 pg_cron 잡의 처음 본 기록을 지운다. `cron.job_run_details` 자체의 정리는 이 작업 범위가 아니다.
