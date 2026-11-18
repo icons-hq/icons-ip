@@ -5,16 +5,18 @@ import type { PaymentAttempt, PaymentBalanceInspection } from './gateway';
 /**
  * 결제사 직접 취소 감지(원장 OPS-065·CLM-051). 운영자가 토스 상점관리자에서 결제를 취소하면 우리 원장은 모른다 —
  * 종결(approved) 결제에 웹훅이 오면 본문을 믿지 않고 원장의 결제 키로 결제사 잔액을 조회(돈·원장을 바꾸지 않는 조회)한 뒤,
- * 결제사 취소 금액이 우리 원장의 환불보다 크면 DB가 주문을 출고 보류한다(service_flag_goods_provider_cancellation).
+ * 결제사 취소 금액 중 우리 원장이 설명하지 못하는 몫이 있으면 DB가 주문을 출고 보류한다(service_flag_goods_provider_cancellation).
  *
  * 판정:
  *  - held · already_recorded · consistent · not_applicable · mismatch — 재전송해도 같은 결과라 200으로 닫는다.
- *  - in_flight — 우리가 발행 중인 취소(취소 요청·클레임·부분 취소·환불 대기)가 있어 원장이 곧 그 취소를 기록한다. 판정을 미루고
- *    웹훅 재전송(1·4·16분…)으로 다시 본다. 우리 취소의 웹훅을 오탐하지 않는 장치다.
+ *  - in_flight — 우리가 결제사 취소를 냈을 수 있는 처리(취소·반품 요청 처리 중·결제확인필요, 취소 claim, 처리 중 부분 취소, 환불 대기)가
+ *    진행 중이다. DB가 관측을 대기 기록에 남기고 그 처리가 끝나면 5분 주기 sweep이 다시 판정한다. 웹훅 재전송(1·4·16분…)도 받는다.
+ *  - cooldown — 같은 결제를 2분 안에 이미 조회했다(서명 없는 위조 웹훅의 조회 폭주 방지). 조회하지 않고, 라우트가 503으로 남겨
+ *    진짜 웹훅이면 쿨다운 뒤 재전송이 다시 본다(200으로 닫으면 쿨다운 직후의 진짜 취소 웹훅을 놓친다).
  *  - 조회 일시 실패·DB 실패는 throw — 라우트가 5xx로 남겨 재전송을 받는다.
  */
 export type GoodsProviderCancellationVerdict =
-  | 'held' | 'already_recorded' | 'consistent' | 'in_flight' | 'not_applicable' | 'mismatch';
+  | 'held' | 'already_recorded' | 'consistent' | 'in_flight' | 'not_applicable' | 'mismatch' | 'cooldown';
 
 const DATABASE_VERDICTS = new Set<GoodsProviderCancellationVerdict>(['held', 'already_recorded', 'consistent', 'in_flight', 'not_applicable']);
 
@@ -31,8 +33,11 @@ export interface GoodsProviderCancellationContext {
 }
 
 export interface GoodsProviderCancellationDependencies {
-  /** 대상(토스 굿즈 승인 + 원장 paid + 결제 키 + 주문 미취소)이면 시도와 원장 결제 키, 아니면 null. */
-  readonly loadContext: (attemptId: string) => Promise<GoodsProviderCancellationContext | null>;
+  /**
+   * 대상(토스 굿즈 승인 + 원장 paid + 결제 키 + 주문 미취소)이면 시도와 원장 결제 키, 아니면 null. 2분 안에 이미 조회한 결제면
+   * 'cooldown'이다(조회 차례를 잡으면 DB가 마지막 조회 시각을 적는다).
+   */
+  readonly loadContext: (attemptId: string) => Promise<GoodsProviderCancellationContext | 'cooldown' | null>;
   /** 원장 결제 키로 결제사 잔액을 조회한다(상점·키·주문·총액 대조는 어댑터가 한다). */
   readonly inspect: (attempt: PaymentAttempt, paymentKey: string) => Promise<PaymentBalanceInspection>;
   readonly record: (input: {
@@ -50,13 +55,14 @@ export function createGoodsProviderCancellationCheck(dependencies: GoodsProvider
     readonly attemptId: string;
     readonly caseRef: string;
   }): Promise<GoodsProviderCancellationVerdict> {
-    let context: GoodsProviderCancellationContext | null;
+    let context: GoodsProviderCancellationContext | 'cooldown' | null;
     try {
       context = await dependencies.loadContext(input.attemptId);
     } catch {
       throw new GoodsProviderCancellationCheckError('context_failed');
     }
     if (!context) return 'not_applicable';
+    if (context === 'cooldown') return 'cooldown';
 
     let inspection: PaymentBalanceInspection;
     try {
@@ -97,10 +103,12 @@ interface RpcClient {
   rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message?: string } | null }>;
 }
 
-function parseContext(value: unknown): GoodsProviderCancellationContext | null {
+function parseContext(value: unknown): GoodsProviderCancellationContext | 'cooldown' | null {
   if (value === null) return null;
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_context');
   const record = value as Record<string, unknown>;
+  if (record.status === 'cooldown') return 'cooldown';
+  if (record.status !== 'proceed') throw new Error('invalid_context');
   const attempt = record.attempt as Record<string, unknown> | undefined;
   if (!attempt || typeof attempt !== 'object' || typeof record.paymentKey !== 'string' || !record.paymentKey
     || typeof attempt.id !== 'string' || attempt.provider !== 'toss' || attempt.purpose !== 'order'
@@ -126,11 +134,11 @@ function parseContext(value: unknown): GoodsProviderCancellationContext | null {
   };
 }
 
-/** service_role RPC 둘(대상·결제 키 읽기 / 대조 기록). 게이트웨이 조회는 호출자가 고른다. */
+/** service_role RPC 둘(조회 차례 잡기·결제 키 읽기 / 대조 기록). 게이트웨이 조회는 호출자가 고른다. */
 export function createGoodsProviderCancellationRepository(client: RpcClient) {
   return {
     async loadContext(attemptId: string) {
-      const { data, error } = await client.rpc('service_goods_provider_cancellation_context', { p_attempt_id: attemptId });
+      const { data, error } = await client.rpc('service_begin_goods_provider_cancellation_check', { p_attempt_id: attemptId });
       if (error) throw new Error('context_lookup_failed');
       return parseContext(data);
     },

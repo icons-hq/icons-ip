@@ -150,6 +150,13 @@ describe('POST /api/webhooks/tosspayments', () => {
       expect((await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })))).status).toBe(200);
     });
 
+    it('같은 결제를 막 조회했으면(cooldown) 조회 없이 503으로 남겨 진짜 웹훅의 재전송을 받는다', async () => {
+      const { post } = handler({ loadAttempt: approvedOrder(), checkProviderCancellation: vi.fn(async () => 'cooldown' as const) });
+      const result = await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })));
+      expect(result.status).toBe(503);
+      expect(await result.json()).toEqual({ error: 'provider_cancellation_cooldown' });
+    });
+
     it('우리 취소가 진행 중(in_flight)이면 503으로 미뤄 재전송이 다시 보게 한다', async () => {
       const { post } = handler({ loadAttempt: approvedOrder(), checkProviderCancellation: vi.fn(async () => 'in_flight' as const) });
       const result = await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })));

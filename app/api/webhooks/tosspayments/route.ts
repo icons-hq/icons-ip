@@ -137,7 +137,9 @@ export function createTossWebhookHandler({
        * 고른다: DONE(정상 승인 알림)은 조회하지 않고, 그 밖(CANCELED·PARTIAL_CANCELED·없음·위조)은 조회한다 — 위조된 DONE이
        * 진짜 취소 웹훅을 막을 수 없고 위조된 취소 상태는 조회 한 번을 부를 뿐이다. 조회 8초 + DB 두 번으로 응답 예산(10초)
        * 안에 든다. 조회·DB 일시 실패는 5xx로 남겨 재전송을 받는다. 우리 취소가 진행 중이면(in_flight) 원장이 곧 그 취소를
-       * 기록하므로 503으로 미뤄 1·4·16분 뒤 재전송이 다시 본다 — 우리 취소의 웹훅을 결제사 직접 취소로 오탐하지 않는다.
+       * 기록하므로 503으로 미뤄 1·4·16분 뒤 재전송이 다시 본다 — 우리 취소의 웹훅을 결제사 직접 취소로 오탐하지 않는다. 미룬 관측은
+       * DB 대기 기록에 남아 재전송이 끊겨도 5분 주기 sweep이 그 처리가 끝난 뒤 다시 판정한다. 같은 결제를 2분 안에 다시 조회하지
+       * 않는다(서명 없는 위조 웹훅이 결제사 조회·주문 잠금을 무제한 부르지 못하게 — 쿨다운도 503).
        */
       const caseRef = tossWebhookCaseRef(request, createCaseRefFallback);
       if (!caseRef) return acknowledged();
@@ -148,7 +150,13 @@ export function createTossWebhookHandler({
         return Response.json({ error: 'provider_cancellation_check_failed' }, { status: 500 });
       }
       if (verdict === 'in_flight') {
+        // DB가 관측을 대기 기록에 남겼다 — 그 처리가 끝나면 sweep이 다시 판정한다. 재전송도 받아 새 관측으로 다시 본다.
         return Response.json({ error: 'cancellation_in_progress' }, { status: 503 });
+      }
+      if (verdict === 'cooldown') {
+        // 같은 결제를 2분 안에 이미 조회했다(위조 웹훅의 조회 폭주 방지). 200으로 닫으면 쿨다운 직후 도착한 진짜 취소 웹훅을 놓치므로
+        // 503으로 남겨 재전송이 쿨다운 뒤 다시 조회하게 한다(누락보다 재전송 소음이 낫다).
+        return Response.json({ error: 'provider_cancellation_cooldown' }, { status: 503 });
       }
       return acknowledged();
     }

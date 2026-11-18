@@ -60,6 +60,13 @@ describe('결제사 직접 취소 감지', () => {
     await expect(check({ kind: 'not_supported' }).run()).resolves.toBe('not_applicable');
   });
 
+  it('2분 안에 이미 조회한 결제는 결제사를 다시 부르지 않고 cooldown이다', async () => {
+    const cooled = check({ kind: 'ok', status: 'CANCELED', balanceAmount: 0, lastCancel: null }, 'held', 'cooldown');
+    await expect(cooled.run()).resolves.toBe('cooldown');
+    expect(cooled.deps.inspect).not.toHaveBeenCalled();
+    expect(cooled.deps.record).not.toHaveBeenCalled();
+  });
+
   it('in_flight 판정은 그대로 돌려준다(라우트가 503으로 미룬다)', async () => {
     await expect(check({ kind: 'ok', status: 'CANCELED', balanceAmount: 0, lastCancel: null }, 'in_flight').run()).resolves.toBe('in_flight');
   });
@@ -67,8 +74,8 @@ describe('결제사 직접 취소 감지', () => {
 
 describe('결제사 직접 취소 감지 저장소', () => {
   it('service RPC 계약: 대상 읽기와 대조 기록', async () => {
-    const rpc = vi.fn(async (name: string) => name === 'service_goods_provider_cancellation_context'
-      ? { data: { attempt: { id: ATTEMPT_ID, provider: 'toss', purpose: 'order', ref_id: ORDER_ID, amount: 31_000, currency: 'KRW',
+    const rpc = vi.fn(async (name: string) => name === 'service_begin_goods_provider_cancellation_check'
+      ? { data: { status: 'proceed', attempt: { id: ATTEMPT_ID, provider: 'toss', purpose: 'order', ref_id: ORDER_ID, amount: 31_000, currency: 'KRW',
           idempotency_key: attempt.idempotencyKey, provider_order_id: attempt.providerOrderId, provider_product_code: attempt.providerProductCode,
           expires_at: attempt.expiresAt }, paymentKey: 'ledger-payment-key' }, error: null }
       : { data: 'already_recorded', error: null });
@@ -81,9 +88,11 @@ describe('결제사 직접 취소 감지 저장소', () => {
       { p_attempt_id: ATTEMPT_ID, p_provider_status: 'CANCELED', p_provider_balance: 0, p_case_ref: CASE_REF });
   });
 
-  it('대상이 아니면 null, 형태가 어긋나거나 오류면 throw', async () => {
+  it('대상이 아니면 null, 쿨다운이면 cooldown, 형태가 어긋나거나 오류면 throw', async () => {
     await expect(createGoodsProviderCancellationRepository({ rpc: async () => ({ data: null, error: null }) }).loadContext(ATTEMPT_ID)).resolves.toBeNull();
-    await expect(createGoodsProviderCancellationRepository({ rpc: async () => ({ data: { attempt: { id: ATTEMPT_ID } }, error: null }) }).loadContext(ATTEMPT_ID)).rejects.toThrow();
+    await expect(createGoodsProviderCancellationRepository({ rpc: async () => ({ data: { status: 'cooldown' }, error: null }) }).loadContext(ATTEMPT_ID)).resolves.toBe('cooldown');
+    await expect(createGoodsProviderCancellationRepository({ rpc: async () => ({ data: { status: 'proceed', attempt: { id: ATTEMPT_ID } }, error: null }) }).loadContext(ATTEMPT_ID)).rejects.toThrow();
+    await expect(createGoodsProviderCancellationRepository({ rpc: async () => ({ data: { attempt: {}, paymentKey: 'x' }, error: null }) }).loadContext(ATTEMPT_ID)).rejects.toThrow();
     await expect(createGoodsProviderCancellationRepository({ rpc: async () => ({ data: null, error: { message: 'x' } }) }).loadContext(ATTEMPT_ID)).rejects.toThrow();
   });
 });
