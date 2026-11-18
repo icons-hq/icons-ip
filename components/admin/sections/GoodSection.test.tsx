@@ -621,16 +621,31 @@ describe('GoodSection', () => {
     expect(preorders).toMatch(/role="alert">예약 활성화는 관리자 계정에서 할 수 있습니다/);
   });
 
-  it('keeps the stored sale restriction in the same goods form as payment methods', () => {
+  /* 11/18 MD 요청 — #637 뒤 배송·반품·결제의 접힌 줄 안에 있어 찾지 못한 판매 제한(19금)을 판매 정보 카드의 구매 제한 바로 아래에 펼쳐 둔다. */
+  it('판매 제한(19금)은 판매 정보 카드의 구매 제한 바로 아래에 펼쳐져 있고, 결제수단만 배송·반품·결제에 남는다', () => {
     const html = renderGoodSection({ ...good, saleRestriction: 'adult' });
-
-    expect(html).toContain('결제·판매 제한');
-    expect(html).not.toContain('구매수량·결제 설정');
-    expect(html).toContain('name="saleRestriction"');
-    expect(html).toContain('name="allowCardPayment"');
-    expect(html).toContain('성인(19금)');
-    expect(html).toMatch(/<option[^>]*value="adult"[^>]*selected|<option[^>]*selected[^>]*value="adult"/);
-    expect(html).toContain('성인 인증을 마친 회원에게만 공개·판매됩니다');
+    const limits = html.indexOf('id="good-section-limits"');
+    const restriction = html.indexOf('id="good-section-restriction"');
+    const images = html.indexOf('id="good-section-images"');
+    expect(restriction).toBeGreaterThan(limits);
+    expect(restriction).toBeLessThan(images);
+    expect(html).not.toMatch(/<details[^>]*id="good-section-restriction"/);
+    const card = html.slice(restriction, images);
+    expect(card).toContain('id="good-section-restriction-title">판매 제한</h2>');
+    expect(card).toContain('<input type="radio" name="saleRestriction" checked="" value="adult"/>성인(19금)');
+    expect(card).toContain('<input type="radio" name="saleRestriction" value="none"/>없음');
+    expect(card).toContain('성인 인증을 마친 회원에게만 공개·판매됩니다');
+    expect(html.match(/name="saleRestriction"/g)).toHaveLength(2);
+    /* 결제수단은 배송·반품·결제 카드의 접힌 줄에 그대로 있다. */
+    const delivery = html.slice(html.indexOf('id="good-section-delivery"'), html.indexOf('id="good-section-information"'));
+    expect(delivery).toMatch(/<details[^>]*id="good-section-sale"/);
+    expect(delivery).toContain('결제수단');
+    for (const name of ['allowCardPayment', 'allowBankTransfer']) expect(delivery).toContain(`name="${name}"`);
+    expect(delivery).not.toContain('name="saleRestriction"');
+    expect(html).not.toContain('결제·판매 제한');
+    const none = renderGoodSection(good);
+    expect(none).toContain('<input type="radio" name="saleRestriction" checked="" value="none"/>없음');
+    expect(none).toContain('<input type="radio" name="saleRestriction" value="adult"/>성인(19금)');
   });
 
   /*
