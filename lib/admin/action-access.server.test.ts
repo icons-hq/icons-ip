@@ -22,6 +22,11 @@ describe('admin action access', () => {
     expect(await requireAdminActionAccess('/admin', { onUnauthenticated: 'error', adminOnly: true })).toBeNull();
     expect(await requireAdminActionAccess('/admin', { onUnauthenticated: 'error' })).toEqual(staff);
   });
+  it('2단계 인증 대기는 인증 화면으로 보내고, 백그라운드 읽기는 거절만 한다(OPS-006)', async () => {
+    mocks.auth.mockResolvedValue({ ...staff, isStaff: false, operatorAccess: undefined, mfaPending: true });
+    await expect(requireAdminActionAccess('/admin/sales/orders')).rejects.toThrow('NEXT_REDIRECT:/admin/mfa?next=%2Fadmin%2Fsales%2Forders');
+    expect(await requireAdminActionAccess('/admin/sales/orders', { onUnauthenticated: 'error' })).toBeNull();
+  });
   it('일반 회원과 정지된 운영자는 폼 오류를 만들 수 있는 거절 결과를 받는다', async () => {
     for (const role of ['user', 'staff', 'admin']) {
       mocks.auth.mockResolvedValue({ ...staff, role, isStaff: false });
