@@ -220,10 +220,10 @@ export async function loadMyQuestions(): Promise<MyProductQuestion[]> {
     answerBody: row.answer_body,
     answeredAt: row.answered_at,
     createdAt: row.created_at,
-    /* 굿즈가 내려가 이름을 못 읽어도 줄은 남긴다 — 내가 쓴 글이 사라져 보이면 안 된다. goods 공개 읽기는 공개
-       상품만 열므로(20261118160000) 초안·보관·19금(인증 전)으로 바뀐 굿즈는 장바구니·선물과 같은 판매 종료 표기다.
-       문의 행은 회원이 직접 쓸 수 있어 비공개 굿즈 이름을 여는 근거로 쓰지 않는다. */
-    goodName: row.goods?.name?.trim() || '판매 종료된 굿즈',
+    /* 굿즈가 내려가 이름을 못 읽어도 줄은 남긴다 — 내가 쓴 글이 사라져 보이면 안 된다. goods 공개 읽기는 지금 이
+       세션에 보이는 상품만 연다(20261118160000). 초안·보관만이 아니라 성인 인증이 만료된 회원의 19금(판매 중) 굿즈도
+       빠지므로 판매 종료라고 단정하지 않는 중립 표기다. 문의 행은 회원이 직접 쓸 수 있어 비공개 굿즈 이름을 여는 근거로 쓰지 않는다. */
+    goodName: row.goods?.name?.trim() || '지금 볼 수 없는 굿즈',
     /* 굿즈 상세의 Q&A 탭으로 바로 보낸다 — 내 질문이 놓인 자리를 찾아 탭을 다시
        누르게 하지 않는다. */
     goodPath: goodQuestionsHref(row.good_id),

@@ -282,7 +282,7 @@ describe('loadMyQuestions', () => {
       status: 'visible',
       isSecret: false,
     });
-    expect(questions[1]).toMatchObject({ status: 'hidden', goodName: '판매 종료된 굿즈' });
+    expect(questions[1]).toMatchObject({ status: 'hidden', goodName: '지금 볼 수 없는 굿즈' });
   });
 
   /* 본인 비밀글은 원문 그대로다 — 비밀글 정책이 작성자에게는 열려 있다. 표시만 붙인다. */
