@@ -189,105 +189,93 @@ it('이름 없는 옵션별 제한 입력의 브라우저 검증 오류를 구�
 });
 
 /*
- * 스펙 C §2.9 — 공개 중 상품의 대표 카테고리를 상품 유형이 다른 곳으로 옮기면 저장이 막힌다(ADR-0037 KC 재검토 안전장치, 유지).
- * 그 오류 바로 아래에 같은 초안 전환(GoodDraftSwitch — TKT-009 확인창·서버 계약)을 버튼 이름만 바꿔 붙여 같은 화면에서 끝내게 한다.
+ * ADR-0044 — 상품 유형이 없어졌다. 공개 중 상품의 대표 카테고리는 다른 카테고리로 자유롭게 옮길 수 있고(초안 전환 버튼 없음),
+ * 비울 수만 없다. 폼은 type을 저장된 값 그대로 싣는다(패스스루 — 새 상품은 '').
  */
-const category = (id: string, name: string, goodType: string | null, parentId: string | null = null): AdminCategoryNode => ({
-  id, code: id, name, parentId, depth: parentId ? 2 : 1, sortOrder: 0, archivedAt: null, updatedAt: '', childCount: 0, assignedGoodCount: 0, goodType,
+const category = (id: string, name: string, parentId: string | null = null): AdminCategoryNode => ({
+  id, code: id, name, parentId, depth: parentId ? 2 : 1, sortOrder: 0, archivedAt: null, updatedAt: '', childCount: 0, assignedGoodCount: 0,
 });
 /* 상품속성 제출은 카테고리 id 를 UUID 로만 받는다. */
-const FIGURE = '33333333-3333-4333-8333-333333333331', FIGURE_MINI = '33333333-3333-4333-8333-333333333332', DOLL = '33333333-3333-4333-8333-333333333333', UNTYPED = '33333333-3333-4333-8333-333333333334';
-const typeCategories = [category(FIGURE, '피규어', '피규어'), category(FIGURE_MINI, '미니 피규어', null, FIGURE), category(DOLL, '인형', '인형'), category(UNTYPED, '유형 미연결', null)];
+const FIGURE = '33333333-3333-4333-8333-333333333331', FIGURE_MINI = '33333333-3333-4333-8333-333333333332', DOLL = '33333333-3333-4333-8333-333333333333';
+const typeCategories = [category(FIGURE, '피규어'), category(FIGURE_MINI, '미니 피규어', FIGURE), category(DOLL, '인형')];
 const publishedGood: AdminGoodRecord = { ...good, categoryId: FIGURE, type: '피규어', publishedAt: '2026-11-01T00:00:00Z', firstPublishedAt: '2026-11-01T00:00:00Z' };
-const CATEGORY_SWITCH_LABEL = '초안으로 전환하고 카테고리 바꾸기';
 const switches = (tree: Element[]) => tree.filter(node => node.type === GoodDraftSwitch);
-const categorySwitch = (tree: Element[]) => switches(tree).find(node => node.props.label === CATEGORY_SWITCH_LABEL);
 const chooseCategory = (h: ReturnType<typeof setup>, id: string) => (h.render().find(node => node.type === GoodCategoryField)!.props.onPrimaryChange as (id: string) => void)(id);
 /* 상품속성 편집기가 새 카테고리의 조회를 마쳤다고 알린다. 끝나기 전에는 저장 전 검사가 속성 안내로 먼저 막는다. */
-const attributesReadyFor = (h: ReturnType<typeof setup>, id: string) => (h.render().find(node => node.type === GoodsAttributeEditor)!.props.onChange as (value: string, draft: string, initial: boolean, preview: unknown[]) => void)(
+const attributesReadyFor = (h: ReturnType<typeof setup>, id: string | null) => (h.render().find(node => node.type === GoodsAttributeEditor)!.props.onChange as (value: string, draft: string, initial: boolean, preview: unknown[]) => void)(
   JSON.stringify({ categoryId: id, schemaRevision: 0, expectedRevision: 0, values: {}, removeIds: [] }), '[]', true, []);
 const categoryError = (tree: Element[]) => tree.find(node => node.type === GoodCategoryField)!.props.error;
+const hiddenType = (tree: Element[]) => tree.find(node => node.type === 'input' && node.props.name === 'type' && node.props.type === 'hidden')!.props.value;
 const submitForm = (h: ReturnType<typeof setup>, extra: Record<string, unknown> = {}) => {
   const preventDefault = vi.fn();
   (h.render(extra).find(node => node.type === 'form')!.props.onSubmitCapture as (event: unknown) => void)({ currentTarget: h.form, preventDefault });
   return preventDefault;
 };
 
-it('공개 중 상품의 카테고리를 유형이 바뀌는 곳으로 옮기면 오류 아래에 초안 전환 버튼이 나타난다', () => {
-  const h = setup(false, false, publishedGood, typeCategories);
-  expect(categorySwitch(h.render())).toBeUndefined();
-  expect(categoryError(h.render())).toBeUndefined();
-
-  chooseCategory(h, DOLL);
-  const tree = h.render();
-  expect(categoryError(tree)).toContain('공개 중인 상품은 상품 유형이 다른 카테고리로 옮길 수 없습니다.');
-  const button = categorySwitch(tree)!;
-  /* 같은 확인창·같은 서버 계약: 잠금 안내의 버튼과 같은 부품에 이 상품 id 를 넘긴다. */
-  expect(button.props).toMatchObject({ id: publishedGood.id, label: CATEGORY_SWITCH_LABEL, disabled: false });
-  /* 버튼은 카테고리 오류와 같은 묶음(#good-section-category) 안, 칸 바로 뒤에 있다. */
-  const section = tree.find(node => node.props.id === 'good-section-category')!;
-  const inside = nodes(section.props.children as ReactNode);
-  expect(inside.some(node => node.type === GoodCategoryField)).toBe(true);
-  expect(inside.some(node => node.type === GoodDraftSwitch && node.props.label === CATEGORY_SWITCH_LABEL)).toBe(true);
-  /* 위쪽 잠금 안내의 기존 버튼은 그대로 하나 더 있다(기본 이름). */
-  expect(switches(tree).filter(node => node.props.label === undefined)).toHaveLength(1);
+it('숨은 type 입력은 저장된 값을 그대로 싣고, 카테고리를 바꿔도 파생하지 않는다', () => {
+  const stored = setup(false, false, publishedGood, typeCategories);
+  expect(hiddenType(stored.render())).toBe('피규어');
+  chooseCategory(stored, DOLL);
+  expect(hiddenType(stored.render())).toBe('피규어');
+  const created = setup(false, false, null, typeCategories);
+  chooseCategory(created, DOLL);
+  expect(hiddenType(created.render())).toBe('');
+  const draft = setup(false, false, { ...publishedGood, publishedAt: null, type: '키링' }, typeCategories);
+  chooseCategory(draft, DOLL);
+  expect(hiddenType(draft.render())).toBe('키링');
 });
 
-it('유형이 연결되지 않은 카테고리로의 이동도 같은 버튼으로 끝낸다', () => {
-  const h = setup(false, false, publishedGood, typeCategories);
-  chooseCategory(h, UNTYPED);
-  const tree = h.render();
-  expect(categoryError(tree)).toContain('상품 유형이 연결되어 있어야');
-  expect(categorySwitch(tree)).toBeDefined();
-});
-
-it('유형이 같은 카테고리로의 이동(하위 분류 포함)은 바로 저장되므로 버튼이 없다', () => {
+it('공개 중 상품의 카테고리를 다른 카테고리로 옮겨도 막지 않고 초안 전환 버튼도 없다', () => {
   vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
   const h = setup(false, false, publishedGood, typeCategories);
-  chooseCategory(h, FIGURE_MINI); attributesReadyFor(h, FIGURE_MINI);
+  chooseCategory(h, DOLL); attributesReadyFor(h, DOLL);
   const tree = h.render();
   expect(categoryError(tree)).toBeUndefined();
-  expect(categorySwitch(tree)).toBeUndefined();
-  /* 저장 전 검사가 막지 않는다 — 제출 기본 동작을 멈추지 않고 자동복구 제출로 넘어간다. */
+  /* 위쪽 잠금 안내의 기존 초안 전환 버튼 하나만 있다(카테고리 오류 아래 버튼은 없다). */
+  expect(switches(tree)).toHaveLength(1);
+  expect(switches(tree)[0].props.label).toBeUndefined();
   const preventDefault = submitForm(h);
   expect(preventDefault).not.toHaveBeenCalled();
   expect(mocks.submit).toHaveBeenCalledOnce();
 });
 
-it('초안 상품과 새 상품에는 막힌 이동이 없어 버튼이 없다', () => {
-  const draft = setup(false, false, { ...publishedGood, publishedAt: null }, typeCategories);
-  chooseCategory(draft, DOLL);
-  expect(categorySwitch(draft.render())).toBeUndefined();
-  const created = setup(false, false, null, typeCategories);
-  chooseCategory(created, DOLL);
-  expect(categorySwitch(created.render())).toBeUndefined();
-});
-
-it('보관된 상품에서는 버튼을 막는다', () => {
-  const archived = setup(false, false, { ...publishedGood, archivedAt: '2026-11-02T00:00:00Z' }, typeCategories);
-  chooseCategory(archived, DOLL);
-  expect(categorySwitch(archived.render())!.props.disabled).toBe(true);
-});
-
-it('전환되어 초안이 돼도 고른 카테고리는 폼에 남고 막힘이 풀려 그대로 저장할 수 있다', () => {
+it('공개 중 상품의 대표 카테고리를 비우면 서버 호출 없이 막고 카테고리 칸에 알린다', () => {
   vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
   const h = setup(false, false, publishedGood, typeCategories);
-  chooseCategory(h, DOLL); attributesReadyFor(h, DOLL);
-  /* 공개 중에는 저장 전 검사가 유형이 바뀌는 이동으로 막는다(서버 호출 없음). */
+  chooseCategory(h, ''); attributesReadyFor(h, null);
   const blocked = submitForm(h);
   expect(blocked).toHaveBeenCalledOnce();
   expect(mocks.submit).not.toHaveBeenCalled();
-  expect(h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors).toMatchObject({ categoryId: expect.stringContaining('초안으로 전환한 뒤 바꾸고 KC를 다시 검토') });
+  expect(h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors).toMatchObject({ categoryId: '공개 중인 상품은 대표 카테고리를 비울 수 없습니다. 다른 카테고리를 고르거나 비공개로 전환한 뒤 비워주세요.' });
+});
 
-  /* 서버가 초안으로 다시 내려준 상품(같은 편집 상태). 고른 카테고리가 그대로 남고 막힘·버튼이 사라진다. */
-  const draft = { selected: { ...publishedGood, publishedAt: null } };
-  const converted = h.render(draft);
-  expect(converted.find(node => node.type === GoodCategoryField)!.props).toMatchObject({ primary: DOLL, error: undefined });
-  expect(categorySwitch(converted)).toBeUndefined();
-  h.entries.set('categoryId', DOLL);
-  const allowed = submitForm(h, draft);
-  expect(allowed).not.toHaveBeenCalled();
+it('공개 중 상품의 대표 카테고리 비움 오류는 카테고리를 다시 고르면 바로 지운다', () => {
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
+  const h = setup(false, false, publishedGood, typeCategories);
+  chooseCategory(h, ''); attributesReadyFor(h, null);
+  submitForm(h);
+  const categoryError = () => (h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors as Record<string, string | undefined>).categoryId;
+  expect(categoryError()).toContain('비울 수 없습니다');
+  chooseCategory(h, DOLL);
+  expect(categoryError()).toBeUndefined();
+});
+
+it('대표 카테고리가 원래 없던 공개 상품은 그대로 두고 다른 칸을 저장할 수 있다', () => {
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
+  const h = setup(false, false, { ...publishedGood, categoryId: null }, typeCategories);
+  attributesReadyFor(h, null);
+  const preventDefault = submitForm(h);
+  expect(preventDefault).not.toHaveBeenCalled();
   expect(mocks.submit).toHaveBeenCalledOnce();
+});
+
+it('초안 상품과 새 상품에는 초안 전환 버튼이 없다', () => {
+  const draft = setup(false, false, { ...publishedGood, publishedAt: null }, typeCategories);
+  chooseCategory(draft, DOLL);
+  expect(switches(draft.render())).toHaveLength(0);
+  const created = setup(false, false, null, typeCategories);
+  chooseCategory(created, DOLL);
+  expect(switches(created.render())).toHaveLength(0);
 });
 
 /*

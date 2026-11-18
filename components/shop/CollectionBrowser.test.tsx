@@ -28,7 +28,7 @@ const goods: Good[] = [
 const query: ShopListQuery = { ips: [], types: [], priceMin: null, priceMax: null, sort: 'relevance', view: 'search' };
 const result: ShopListResult = {
   goods, filteredTotal: goods.length, total: goods.length, priceCeil: 20000,
-  ipFacets: [{ value: 'brand', label: '브랜드', count: goods.length }], typeFacets: [{ value: '키링', label: '키링', count: goods.length }],
+  ipFacets: [{ value: 'brand', label: '브랜드', count: goods.length }], typeFacets: [{ value: '예약판매', label: '예약판매', count: 1 }],
 };
 
 function card(html: string, name: string) {
@@ -49,6 +49,27 @@ describe('CollectionBrowser product cards', () => {
     expect(card(html, '굿즈 free')).toContain('<span class="wc-x-chip wc-x-chip--tag">NEW</span>');
     expect(card(html, '굿즈 capsule')).toContain('<span class="wc-x-chip wc-x-chip--random">캡슐토이</span>');
     expect(card(html, '굿즈 sale')).not.toContain('wc-x-chip');
+  });
+
+  it('예약판매 facet 이 있으면 타입 그룹을, 없으면 사이드바·시트 탭 모두 그리지 않는다', () => {
+    expect(html).toContain('타입 (0)');
+    const none = renderToStaticMarkup(
+      <CollectionBrowser countNoun="결과" hrefFor={() => '/search?q=키링'} query={query} result={{ ...result, typeFacets: [] }} sorts={['relevance']} />,
+    );
+    expect(none).not.toContain('타입');
+  });
+
+  it('예약판매가 없는 스코프에 남은 type 값은 필터 개수·배지로 세지 않는다', () => {
+    const stale: ShopListQuery = { ...query, types: ['예약판매'] };
+    const none = renderToStaticMarkup(
+      <CollectionBrowser countNoun="결과" hrefFor={() => '/search?q=키링'} query={stale} result={{ ...result, typeFacets: [] }} sorts={['relevance']} />,
+    );
+    expect(none).not.toContain('적용됨');
+    expect(none).not.toContain('wc-filter-trigger__count');
+    const withFacet = renderToStaticMarkup(
+      <CollectionBrowser countNoun="결과" hrefFor={() => '/search?q=키링'} query={stale} result={result} sorts={['relevance']} />,
+    );
+    expect(withFacet).toContain('필터, 1개 적용됨');
   });
 
   it('keeps the discount rate on the price line and drops the old SALE badge', () => {

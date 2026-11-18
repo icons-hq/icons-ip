@@ -111,7 +111,8 @@ describe('/ip/[id] page', () => {
     })).rejects.toThrow(`NEXT_REDIRECT:/ip/mountain-fire?type=${encodeURIComponent('키링')}&type=${encodeURIComponent('인형')}&sort=price_asc`);
   });
 
-  /* 굿즈 영역은 IP로 좁힌 굿즈샵 컬렉션이다(11 IP-01) — 스코프가 이미 IP 하나라 ip 파라미터는 버린다. */
+  /* 굿즈 영역은 IP로 좁힌 굿즈샵 컬렉션이다(11 IP-01) — 스코프가 이미 IP 하나라 ip 파라미터는 버린다.
+     상품 유형은 없어졌으므로(ADR-0044) 옛 `?type=인형` 링크는 오류 없이 무시한다. */
   it('computes the IP-scoped collection from the URL and passes the listing wish set', async () => {
     mocks.detail = {
       source: 'mock', ip, cards: [], events: [], posts: [],
@@ -126,8 +127,8 @@ describe('/ip/[id] page', () => {
     }));
 
     const props = mocks.ipDetail.mock.calls[0]?.[0] as { collection: { query: { ips: string[]; types: string[]; sort: string; view: string }; result: { goods: { id: string }[]; total: number } }; wishlist: unknown };
-    expect(props.collection.query).toMatchObject({ ips: [], types: ['인형'], sort: 'price_desc', view: 'ip' });
-    expect(props.collection.result.goods.map((good) => good.id)).toEqual(['g2']);
+    expect(props.collection.query).toMatchObject({ ips: [], types: [], sort: 'price_desc', view: 'ip' });
+    expect(props.collection.result.goods.map((good) => good.id)).toEqual(['g2', 'g1']);
     expect(props.collection.result.total).toBe(2);
     expect(props.wishlist).toEqual({ viewerId: 'viewer-1', goodIds: ['g2'] });
   });

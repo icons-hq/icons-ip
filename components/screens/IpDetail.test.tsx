@@ -146,7 +146,7 @@ describe('IpDetail follow form', () => {
 /* 팔로우·알림 저장(성공·실패·로그인 왕복) 뒤에도 고른 굿즈 필터·정렬이 남아야 한다(Codex #598). */
 describe('IpDetail form return path', () => {
   it('sends the current filtered hall URL as next from every follow and notification form', () => {
-    const collection = collectionOf({ sort: 'name_asc', type: '키링' });
+    const collection = collectionOf({ sort: 'name_asc' });
     const expected = `/ip/maplestory?${shopQueryString(collection.query)}`.replace(/&/g, '&amp;');
     expect(expected).toContain('sort=name_asc');
 
@@ -323,9 +323,9 @@ describe('IpDetail goods section', () => {
     const html = render();
 
     expect(html).toContain('aria-label="굿즈 필터"');
-    expect(html).toContain('타입 (0)');
-    expect(text(html)).toContain('키링 (2)');
-    expect(text(html)).toContain('인형 (1)');
+    /* 예약판매 굿즈가 없으면 '타입' 그룹은 아예 그리지 않는다(ADR-0044) — 옛 9종 옵션도 없다. */
+    expect(html).not.toContain('타입 (');
+    expect(text(html)).not.toContain('키링 (');
     expect(html).not.toContain('IP (0)');
     expect(html).not.toContain('wc-iphall__filter-chip');
     expect(html).toContain('class="wc-product-grid"');
@@ -342,10 +342,10 @@ describe('IpDetail goods section', () => {
   it('renders the server-computed collection with its filters and sort applied', () => {
     const html = render({ collection: collectionOf({ type: '키링', sort: 'price_asc' }) });
 
-    expect(text(html)).toContain('전체 › 2/3개 굿즈');
+    /* 옛 ?type=키링 링크는 무시된다 — 3개 모두 보이고 정렬만 적용된다. */
+    expect(text(html)).toContain('전체 › 3개 굿즈');
     expect(html.indexOf('버섯 키링')).toBeLessThan(html.indexOf('단풍 키링'));
-    expect(html).not.toContain('슬라임 인형');
-    expect(html).toMatch(/<input[^>]*checked=""[^>]*value="키링"/);
+    expect(html).toContain('슬라임 인형');
   });
 
   it('pages beyond twenty goods with VIEW MORE', () => {

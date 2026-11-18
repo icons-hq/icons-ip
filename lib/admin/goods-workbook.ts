@@ -1,13 +1,12 @@
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
 import { conjunctionParticle, objectParticle, subjectParticle, topicParticle } from '@/lib/korean-particle';
 import {
-  GOOD_TYPE_PUBLISH_REQUIRED,
+  GOOD_CATEGORY_PUBLISH_REQUIRED,
   normalizeAdminGoodForm,
   normalizeGoodsSearchKeywords,
   validateGoodsSearchKeywords,
 } from './catalog';
-import { categoryGoodType } from './category';
-import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
+import { GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE } from './good-workspace';
 import { parseGoodsOptionRows } from './goods-option-editor';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
@@ -18,7 +17,6 @@ import { goodsCustomInputWorkbookConfig, goodsCustomInputWorkbookOrphanErrors, p
   type GoodsCustomInputWorkbookInputRow } from './goods-custom-input-workbook';
 import type { GoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
 import type { GoodsSizeChartSnapshot } from '@/lib/goods-size-chart';
-import { resultParticle } from '@/lib/korean-particle';
 import { goodsGuidanceOrphanErrors, planGoodsAfterSalesWorkbook, planGoodsSizeWorkbook,
   GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_SHEET,
   type GoodsAfterSalesWorkbookInputRow, type GoodsSizeWorkbookInputRow, type GoodsImportGuidance } from './goods-guidance-workbook';
@@ -267,8 +265,8 @@ export type GoodsWorkbookContext = {
   ips: { id: string; archived_at: string | null }[];
   origins: { id: string; code: string; is_active: boolean }[];
   presets: { name: string; notice: GoodsNoticeInfo }[];
-  /** 대표·추가 카테고리 코드와 상품 유형 연결(SHEET-003: 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값). */
-  categories?: { id: string; code: string; archived_at: string | null; parent_id?: string | null; good_type?: string | null }[];
+  /** 대표·추가 카테고리 코드. */
+  categories?: { id: string; code: string; archived_at: string | null }[];
   imageNames?: string[];
   /** 읽은 관리코드(옵션코드)의 소유 상품(관리코드는 전체에서 유일). 새 행의 중복 관리코드를 적용 전에 미리보기에서 잡는다. */
   variantCodeOwners?: Record<string, string>;
@@ -364,33 +362,12 @@ const integer = wholeWon;
 // zero values, spaces and every other content change.
 const comparableCellText = (value: string) => value.replace(/\r\n?/g, '\n');
 /**
- * SHEET-003(ADR-0037): 상품 유형 열은 내보내기에만 쓰고(대표 카테고리에서 정해진 저장 유형) 반입은 반영하지 않는다.
- * 그래서 변경 여부·같은 상품 행 일치 비교에서도 뺀다.
+ * ADR-0044: 상품 유형은 없다. 상품 유형 열은 구형·내려받은 파일의 열 이름·순서 검사 때문에 양식에 남겨 두지만 내보낼 때 비워 두고,
+ * 반입은 값을 읽어도 반영하지 않는다(저장은 DB의 저장된 type을 그대로 다시 보낸다). 그래서 변경 여부·같은 상품 행 일치 비교에서도 뺀다.
  */
 const IGNORED_ON_IMPORT_KEYS = new Set<GoodsWorkbookKey>(['type']);
 const canonical = (values: GoodsWorkbookRow) =>
   JSON.stringify(GOODS_WORKBOOK_KEYS.filter((key) => !IGNORED_ON_IMPORT_KEYS.has(key)).map((key) => comparableCellText(values[key])));
-/**
- * 상품에 적용되는 상품 유형(SHEET-003): 공개 중이면 저장된 유형, 초안은 대표 카테고리(없으면 가까운 상위)의 연결값(없으면 저장된 값).
- * 내보내기의 상품 유형 열과 반입이 싣는 값이 같은 규칙이다(저장 때 DB 트리거가 같은 값으로 맞춘다).
- */
-function goodsWorkbookAppliedType(
-  good: Record<string, unknown>,
-  categoryId: string | null,
-  typeNodes: readonly { id: string; parentId: string | null; goodType: string | null }[],
-): { applied: string; categoryType: string } {
-  const categoryType = categoryId ? categoryGoodType(typeNodes, categoryId) : '';
-  const stored = good.type == null ? '' : String(good.type);
-  return { categoryType, applied: good.published_at ? stored : categoryType || stored };
-}
-const goodsWorkbookTypeNodes = (categories: GoodsWorkbookContext['categories']) =>
-  (categories ?? []).map((category) => ({ id: category.id, parentId: category.parent_id ?? null, goodType: category.good_type ?? null }));
-/** 반입에서 상품 유형 열을 무시한다는 안내. 파일 값이 적용될 유형과 다를 때만 보인다. */
-export function goodsWorkbookTypeIgnoredWarning(fileType: string, appliedType: string): string | null {
-  const value = fileType.trim();
-  if (!value || value === appliedType) return null;
-  return `상품 유형 열(‘${value}’)은 반영하지 않습니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값${appliedType ? `(‘${appliedType}’)` : '(지금 연결 없음)'}으로 정해집니다.`;
-}
 const imagePairs = [
   ['imageUrl', 'imageFile', 'image_path'],
   ['galleryUrl0', 'galleryFile0', 'gallery_0'],
@@ -478,8 +455,8 @@ export function exportGoodsWorkbookRows(
     ipId: str(good.ip_id),
     id: str(good.id),
     publish: good.archived_at ? '보관' : good.published_at ? '공개' : '초안',
-    /* SHEET-003: 대표 카테고리에서 정해진 유형(공개 중이면 저장된 유형). 반입은 이 열을 반영하지 않는다. */
-    type: goodsWorkbookAppliedType(good, str(good.category_id) || null, goodsWorkbookTypeNodes(context.categories)).applied,
+    /* ADR-0044: 상품 유형은 없다. 열은 양식 호환을 위해 남기고 값은 비운다. */
+    type: '',
     salePrice: discounted ? str(storedCompare) : str(good.price),
     instantDiscount: discounted ? String(storedCompare! - storedPrice) : '',
     showDiscountRate: good.show_discount_rate === false ? '아니오' : '예',
@@ -638,7 +615,6 @@ export function planGoodsWorkbookImport(
   const targets = inputRows.map((row) => resolveGoodsWorkbookTarget(row, context.existing));
   const rows = targets.map((target) => target.row);
   const matchedByNumberOnly = new Set(targets.flatMap((target) => target.matchedByNumberOnly ? [target.row.row] : []));
-  const typeNodes = goodsWorkbookTypeNodes(context.categories);
   const kcOrphans = goodsKcWorkbookOrphanErrors(context.kcRows ?? [], rows.map(row => row.values.code.trim().toUpperCase()));
   if (kcOrphans.length) throw new Error(kcOrphans.join('\n'));
   const customInputOrphans = goodsCustomInputWorkbookOrphanErrors(context.customInputRows ?? [], rows.map(row => row.values.code));
@@ -820,21 +796,17 @@ export function planGoodsWorkbookImport(
     if (category?.archived_at && category.id !== record?.good.category_id) errors.push('보관한 카테고리에 새 상품을 연결할 수 없습니다.');
     form.set('categoryId', category?.id ?? '');
     /*
-     * SHEET-003(ADR-0037): 상품 유형 열은 반영하지 않는다. 초안은 대표 카테고리(없으면 가까운 상위)의 연결값이고, 연결이 없으면
-     * 저장된 값을 그대로 둔다(그 초안은 공개할 수 없다). 공개 중이면 저장된 유형을 유지하고 유형이 바뀌는 카테고리 변경은 막는다.
+     * ADR-0044: 상품 유형 열은 값이 있어도 반영하지 않는다. 저장은 기존 상품의 저장된 type(새 상품은 '')을 그대로 다시 보내
+     * type이 지워지거나 바뀌어 KC 검토가 되돌아가지 않게 한다. 공개하려면 대표 카테고리가 있어야 하고, 공개 중 상품의 대표 카테고리는
+     * 다른 카테고리로 옮길 수 있지만 비울 수는 없다.
      */
-    const { categoryType, applied: appliedType } = goodsWorkbookAppliedType(record?.good ?? {}, category?.id ?? null, typeNodes);
     const storedType = str(record?.good.type);
     const publishedNow = Boolean(record?.good.published_at);
-    form.set('type', appliedType);
-    const typeWarning = goodsWorkbookTypeIgnoredWarning(first.type, appliedType);
-    if (typeWarning) group.warnings.push(typeWarning);
-    // 공개를 유지하는 행만 막는다. 초안으로 바꾸는 행은 DB(admin_save_good publish:false)가 먼저 초안으로 바꾼 뒤 카테고리 이동을 허용한다.
-    if (publishedNow && first.publish === '공개' && (category?.id ?? null) !== (str(record?.good.category_id) || null) && categoryType !== storedType)
-      errors.push(categoryType ? GOOD_TYPE_CATEGORY_MESSAGES.locked : GOOD_TYPE_CATEGORY_MESSAGES.required);
-    else if (first.publish === '공개' && !publishedNow && !categoryType) errors.push(GOOD_TYPE_PUBLISH_REQUIRED);
-    else if (publishedNow && first.publish !== '공개' && categoryType && categoryType !== storedType)
-      group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’${resultParticle(categoryType)} 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
+    form.set('type', storedType);
+    if (first.publish === '공개' && !category) {
+      if (!publishedNow) errors.push(GOOD_CATEGORY_PUBLISH_REQUIRED);
+      else if (record?.good.category_id) errors.push(GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE);
+    }
     /*
      * 공개를 유지하는 행이 상품명·IP·고시의 제조사·원산지·재질·크기를 바꾸면 DB(KC 가드 goods_kc_reassessment_required)가 적용 때 거절한다.
      * 검증은 통과시키고 적용에서 원인 없이 실패하지 않도록 같은 판정을 미리보기에서 한다.
@@ -873,6 +845,8 @@ export function planGoodsWorkbookImport(
     form.set('orderQuantityLimitEnabled', String(first.orderQuantityLimitEnabled === '예'));
     form.set('memberPurchaseLimitEnabled', String(first.memberPurchaseLimitEnabled === '예'));
     if (record) form.set('previousId', str(record.good.id));
+    /* 대표 카테고리가 원래 없던 공개 상품은 지금 공개 상태 그대로 두므로 대표 카테고리 검사만 건너뛴다. 대표 이미지·고시 검사는 공개 요청 그대로 받는다. */
+    const keepPublishedWithoutCategory = first.publish === '공개' && publishedNow && !category;
     if (first.publish === '공개') form.set('intent', 'publish');
     const imageValues: Record<string, unknown> = {
       image_path: null,
@@ -926,7 +900,7 @@ export function planGoodsWorkbookImport(
       eventIds: new Set(),
       goodIpById: new Map(),
       verticalKeys: new Set(),
-    }, { copy: 'workbook' });
+    }, { copy: 'workbook', skipPublishCategory: keepPublishedWithoutCategory });
     if (!normalized.ok)
       errors.push(
         ...Object.values(normalized.errors).filter((error): error is string =>

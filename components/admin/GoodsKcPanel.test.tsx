@@ -166,7 +166,7 @@ describe('KC 모델 검토 화면', () => {
     expect(unreviewed).toContain('모델 1 모델명 (선택)');
   });
   it('기본 상품 저장(성공·실패 회차)마다 KC 패널이 서버 KC 상태를 다시 읽는다', () => {
-    // 상품명·유형·IP·고시정보·옵션 저장은 DB에서 KC 검토를 미검토로 되돌릴 수 있다. 패널은 회차가 바뀌면
+    // 상품명·IP·고시정보·옵션 저장은 DB에서 KC 검토를 미검토로 되돌릴 수 있다. 패널은 회차가 바뀌면
     // 화면을 비우지 않고 다시 읽어 '검토 완료'가 남지 않게 한다. effect는 정적 렌더로 실행되지 않아 배선을 대조한다.
     const section = readFileSync('components/admin/sections/GoodSection.tsx', 'utf8');
     expect(section).toMatch(/<GoodsKcPanel goodId=\{selected\.id\} refreshKey=\{state\.attempt \?\? 0\}/);
