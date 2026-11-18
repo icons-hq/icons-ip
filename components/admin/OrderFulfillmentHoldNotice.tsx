@@ -102,7 +102,7 @@ export function OrderFulfillmentHoldList({ list, hrefFor }: {
 }) {
   if (!list?.total) return null;
   return <section aria-label="출고 보류 주문" data-order-fulfillment-hold-list="">
-    <AdminNotice role="status" tone="danger" title={`출고 보류 주문 ${list.total.toLocaleString('ko-KR')}건 · 발주확인·출고지시에서 빠져 있습니다`}>
+    <AdminNotice role="status" tone={statusTone('fulfillmentHold', 'blocked')} title={`출고 보류 주문 ${list.total.toLocaleString('ko-KR')}건 · 발주확인·출고지시에서 빠져 있습니다`}>
       <div className="flex flex-col gap-2">
         <ul className="flex flex-col gap-1.5">
           {list.items.map(item => <li className="flex flex-wrap items-center gap-2" key={item.orderId}>
