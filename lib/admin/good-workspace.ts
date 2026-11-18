@@ -23,12 +23,14 @@ export const GOOD_EDITOR_SECTIONS = [
   { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'] },
   { key: 'period', label: '판매기간', fields: ['salePeriodEnabled', 'saleStartsAt', 'saleEndsAt', 'salePeriodRevision'] },
   { key: 'limits', label: '구매 제한', fields: ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit', GOOD_OPTION_LIMIT_ERROR_FIELD] },
+  /* 판매 제한(19금)은 판매 정보 카드의 구매 제한 바로 아래에 펼쳐 둔다(11/18 MD 요청 — #637 뒤 배송·반품·결제의 접힌 줄에서 찾지 못함). */
+  { key: 'restriction', label: '판매 제한', fields: ['saleRestriction'] },
   { key: 'images', label: '상품이미지', fields: ['imagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3', 'galleryPath4', 'galleryPath5', 'galleryPath6', 'galleryPath7', 'galleryPath8'] },
   { key: 'description', label: '상세설명', fields: ['description', 'descriptionFormat', 'detailImagePath', 'descriptionUploadPath', 'descriptionImageAlt'] },
   { key: 'notice', label: '상품정보제공고시', fields: GOODS_NOTICE_FIELDS.map((field) => field.formName) },
   { key: 'shipping', label: '출고지·배송비', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate'] },
   { key: 'claims', label: '반품·교환', fields: [ 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason', 'claimReturnAddressId'] },
-  { key: 'sale', label: '결제·판매 제한', fields: ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] },
+  { key: 'sale', label: '결제수단', fields: ['allowCardPayment', 'allowBankTransfer'] },
   { key: 'information', label: '추가 설정', fields: ['additionalCategoryIds', 'customInputs', 'customInputsExpectedRevision', 'badge', 'stock', 'nameEn', 'displayOrder', 'searchKeywords', 'code', 'defaultVariantCode', 'id'] },
 ] as const;
 export type GoodEditorSectionKey = typeof GOOD_EDITOR_SECTIONS[number]['key'];
@@ -39,7 +41,7 @@ export type GoodEditorSectionKey = typeof GOOD_EDITOR_SECTIONS[number]['key'];
  */
 export const GOOD_EDITOR_CARDS = [
   { key: 'basic', label: '기본 정보', anchor: 'good-section-basic', sections: ['category', 'basic', 'attributes'], field: 'name' },
-  { key: 'sales', label: '판매 정보', anchor: 'good-section-price', sections: ['price', 'variants', 'period', 'limits'], field: 'regularPrice' },
+  { key: 'sales', label: '판매 정보', anchor: 'good-section-price', sections: ['price', 'variants', 'period', 'limits', 'restriction'], field: 'regularPrice' },
   { key: 'images', label: '상품이미지', anchor: 'good-section-images', sections: ['images'] },
   { key: 'description', label: '상세설명', anchor: 'good-section-description', sections: ['description'], field: 'descriptionFormat' },
   { key: 'notice', label: '고시·KC', anchor: 'good-section-notice', sections: ['notice'], field: 'noticeMaker' },

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { GOOD_EDITOR_SECTIONS, GOOD_OPTION_LIMIT_ERROR_FIELD, goodFieldSection } from '@/lib/admin/good-workspace';
-import { GoodsPurchaseLimitFields } from './GoodsSalePolicyFields';
+import { GoodsPaymentMethodFields, GoodsPurchaseLimitFields, GoodsSaleRestrictionFields } from './GoodsSalePolicyFields';
 
 const rows: GoodsOptionRow[] = [
   { name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 3 },
@@ -47,5 +47,36 @@ describe('구매 제한 카드', () => {
     const errored = renderToStaticMarkup(<GoodsPurchaseLimitFields values={{}} errors={{ [GOOD_OPTION_LIMIT_ERROR_FIELD]: '빨강 최대 구매수량(주문당) 입력값을 확인해주세요.' }} rows={rows} onRowsChange={() => {}} />);
     expect(errored).toContain('1개 확인 필요');
     expect(errored).toContain('빨강 최대 구매수량(주문당) 입력값을 확인해주세요.');
+  });
+});
+
+describe('판매 제한(19금)·결제수단', () => {
+  /* 11/18 MD 요청: 판매 제한은 접힌 줄이 아니라 판매 정보 카드의 펼친 소항목이고, 두 선택지가 바로 보인다. */
+  it('판매 제한은 접지 않고 없음·성인(19금) 두 선택지를 바로 보이며 제출 값은 그대로다', () => {
+    const html = renderToStaticMarkup(<GoodsSaleRestrictionFields values={{ saleRestriction: 'none' }} />);
+    expect(html).not.toContain('<details');
+    expect(html).toMatch(/^<section aria-labelledby="good-section-restriction-title"[^>]*id="good-section-restriction"/);
+    expect(summary(html)).toBe('없음');
+    expect(html).toContain('<input type="radio" name="saleRestriction" checked="" value="none"/>없음');
+    expect(html).toContain('<input type="radio" name="saleRestriction" value="adult"/>성인(19금)');
+    expect(goodFieldSection('saleRestriction').key).toBe('restriction');
+  });
+
+  it('요약은 편집 중인 현재 입력값을 따르고, 오류는 같은 자리에서 센다', () => {
+    expect(summary(renderToStaticMarkup(<GoodsSaleRestrictionFields values={{ saleRestriction: 'none' }} current={{ saleRestriction: 'adult' }} />))).toBe('성인(19금)');
+    const errored = renderToStaticMarkup(<GoodsSaleRestrictionFields values={{}} errors={{ saleRestriction: '판매 제한 유형을 선택해주세요.' }} />);
+    expect(errored).toContain('1개 확인 필요');
+    expect(errored).toContain('판매 제한 유형을 선택해주세요.');
+    expect(errored.match(/aria-invalid="true"/g)).toHaveLength(2);
+  });
+
+  it('결제수단 줄은 카드·무통장만 담고 판매 제한을 싣지 않는다', () => {
+    const html = renderToStaticMarkup(<GoodsPaymentMethodFields values={{ allowCardPayment: 'true', allowBankTransfer: 'false', saleRestriction: 'adult' }} />);
+    expect(html).toMatch(/<details[^>]*id="good-section-sale"/);
+    expect(html).toContain('>결제수단<');
+    expect(summary(html)).toBe('카드 허용 · 무통장 받지 않음');
+    for (const name of ['allowCardPayment', 'allowBankTransfer']) expect(html).toContain(`name="${name}"`);
+    expect(html).not.toContain('saleRestriction');
+    expect(GOOD_EDITOR_SECTIONS.find((section) => section.key === 'sale')?.fields).toEqual(['allowCardPayment', 'allowBankTransfer']);
   });
 });
