@@ -135,8 +135,8 @@ const catalog = [
   // 카테고리 전시 굿즈 투영의 카드 칩 필드(배송비 유형·옵션 판매 방식, migration 20261117130300).
   sql('category_display_card_chips'),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),
-  // 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값(SHEET-003·ADR-0037). 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
-  sql('goods_type_from_category', { kc: true }),
+  // 상품 유형 층 걷어내기(ADR-0044): 공개 조건은 대표 카테고리, 유형은 파생·판정하지 않는다. 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
+  sql('goods_type_layer_retire', { kc: true }),
   // 상품 기본 칸 버전: 옛 편집 화면 저장이 다른 작업의 변경(19금·결제 수단·옵션 순서 포함)을 되돌리지 않는다.
   sql('goods_base_revision'),
   // 공개 Data API의 상품·옵션 읽기 경계(초안·보관·19금 비노출, 고객 화면 좁은 읽기 RPC).

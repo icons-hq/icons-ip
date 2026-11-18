@@ -12,18 +12,14 @@ import { CategoryTemplatesAvailableProvider } from '../CategoryTemplatesAvailabi
 import { CategoryBulkCreatePanel } from '../CategoryBulkCreatePanel';
 import { CategoryErpMappingTable } from '../CategoryErpMappingTable';
 import { CategoryTree, firstCategoryInTree } from '../CategoryTree';
-import { GOOD_TYPES } from '@/lib/goods-taxonomy';
-import { goodTypeSuggestion } from '@/lib/admin/good-workspace';
 import { FoldCard } from '../sections/SectionLayout';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button, buttonVariants } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
-import { Textarea } from '../kit/ui/textarea';
 import {
   assignAdminGoodCategoryAction,
   archiveAdminCategoryAction,
   saveAdminCategoryAction,
-  saveAdminCategoryTypeMigrationAction,
   setAdminCategoryActivationAction,
   unarchiveAdminCategoryAction,
   type AdminCategoryActionState,
@@ -31,12 +27,9 @@ import {
 import {
   categoryActivationLabel,
   categoryExportHref,
-  categoryGoodTypeSource,
   categoryParentOptions,
-  categoryPath,
   type AdminCategoryActivation,
   type AdminCategoryErpMapping,
-  type AdminCategoryMigration,
   type AdminCategoryNode,
 } from '@/lib/admin/category';
 import { ERP_ITEMS_PATH } from '@/lib/admin/erp-items';
@@ -70,33 +63,7 @@ export function categoryFormChanged(form: Pick<HTMLFormElement, 'elements'> | nu
   return current('name') !== category.name
     || current('code') !== category.code
     || current('parentId') !== (shownParent ?? '')
-    || current('sortOrder') !== String(category.sortOrder)
-    || current('goodType') !== (category.goodType ?? '');
-}
-
-/**
- * 카테고리의 상품 유형 연결 칸(SHEET-003·ADR-0037). 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값이다.
- * 바꾸면 이 카테고리(하위 포함) 초안 상품의 유형이 바로 바뀌고 KC를 다시 검토한다. 공개 중 상품은 저장된 유형을 유지한다.
- */
-function GoodTypeField({ category, categories }: { category?: AdminCategoryNode; categories: AdminCategoryNode[] }) {
-  const selectRef = useRef<HTMLSelectElement>(null);
-  const applied = category ? categoryGoodTypeSource(categories, category.id) : null;
-  const suggestion = category && !category.goodType ? goodTypeSuggestion(categoryPath(categories, category.id)) : null;
-  const parentName = applied?.inherited && applied.categoryId ? categories.find((node) => node.id === applied.categoryId)?.name : null;
-  return <div className="flex min-w-0 flex-col gap-2" data-category-good-type-field="">
-    <Labeled label="상품 유형 연결"><AdminSelect defaultValue={category?.goodType ?? ''} name="goodType" ref={selectRef} wrapperClassName="w-full">
-      <option value="">연결 안 함 · 상위 카테고리를 따름</option>
-      {GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-    </AdminSelect></Labeled>
-    <p className="text-sm text-muted-foreground">
-      {applied ? applied.type ? <>지금 이 카테고리 상품의 유형은 <strong className="font-medium text-foreground">{applied.type}</strong>입니다{parentName ? ` (상위 ‘${parentName}’ 연결)` : ''}. </> : <>지금은 이 카테고리와 상위에 연결된 유형이 없어 이 카테고리 상품은 공개할 수 없습니다. </> : null}
-      바꾸면 이 카테고리(하위 포함) 초안 상품의 유형이 바로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다. 공개 중인 상품은 저장된 유형을 유지하고 판매 준비에 경고가 보입니다.
-    </p>
-    {suggestion ? <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground" data-category-good-type-suggestion="">이름 기준 추천 <Button size="sm" type="button" variant="soft" onClick={() => {
-      const select = selectRef.current;
-      if (select) { select.value = suggestion; select.dispatchEvent(new Event('change', { bubbles: true })); }
-    }}>{suggestion} 선택</Button></p> : null}
-  </div>;
+    || current('sortOrder') !== String(category.sortOrder);
 }
 
 function CategoryForm({ category, categories, formRef }: { category?: AdminCategoryNode; categories: AdminCategoryNode[]; formRef?: RefObject<HTMLFormElement | null> }) {
@@ -112,8 +79,6 @@ function CategoryForm({ category, categories, formRef }: { category?: AdminCateg
       <Labeled label="상위 카테고리"><AdminSelect defaultValue={category?.parentId ?? ''} key={category?.parentId ?? ''} name="parentId" wrapperClassName="w-full"><option value="">최상위</option>{options.map((option) => <option key={option.id} value={option.id}>{'　'.repeat(Math.max(0, option.depth - 1))}{option.name} ({option.code})</option>)}</AdminSelect></Labeled>
       <Labeled label="노출 순서 (작을수록 앞)"><Input className="tabular-nums" defaultValue={category?.sortOrder ?? 0} min={0} name="sortOrder" type="number" /></Labeled>
     </div>
-    <GoodTypeField category={category} categories={categories} />
-    {state.errors?.goodType ? <p className="text-sm text-destructive" role="alert">{state.errors.goodType}</p> : null}
     <Notice state={state} />
     <Button className="self-start" disabled={pending} type="submit">{pending ? '저장 중' : category ? '저장' : '카테고리 추가'}</Button>
   </form>;
@@ -172,21 +137,6 @@ function RenderOnFirstOpen({ children }: { children: ReactNode }) {
   return <><span hidden ref={marker} />{opened ? children : null}</>;
 }
 
-function MigrationForm({ types, categories }: { types: string[]; categories: AdminCategoryNode[] }) {
-  const [state, action, pending] = useActionState(saveAdminCategoryTypeMigrationAction, EMPTY);
-  return <form action={action} className={FORM_BOX}>
-    <input name="operationId" type="hidden" value="" />
-    <div className={FIELD_GRID}>
-      <Labeled label="기존 유형"><AdminSelect name="type" wrapperClassName="w-full"><option value="">선택</option>{types.map((type) => <option key={type} value={type}>{type}</option>)}</AdminSelect></Labeled>
-      <Labeled label="제안 카테고리"><AdminSelect name="categoryId" wrapperClassName="w-full"><option value="">미설정</option>{categories.filter((category) => !category.archivedAt && category.childCount === 0).map((category) => <option key={category.id} value={category.id}>{category.name} ({category.code})</option>)}</AdminSelect></Labeled>
-      <Labeled label="상태"><AdminSelect defaultValue="suggested" name="status" wrapperClassName="w-full"><option value="suggested">제안</option><option value="confirmed">운영 확인</option><option value="rejected">보류</option></AdminSelect></Labeled>
-    </div>
-    <Labeled label="메모"><Textarea name="note" rows={2} /></Labeled>
-    {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-    <Button className="self-start" variant="outline" disabled={pending} type="submit">{pending ? '저장 중' : '이관 메모 저장'}</Button>
-  </form>;
-}
-
 function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
   const [state, action, pending] = useActionState(assignAdminGoodCategoryAction, EMPTY);
   return <form action={action} className={FORM_BOX}>
@@ -200,7 +150,7 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
   </form>;
 }
 
-export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = true, hasCategoryTemplates = false }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[]; canManagePlatform?: boolean; hasCategoryTemplates?: boolean }) {
+export function CategoryScreen({ data, canManagePlatform = true, hasCategoryTemplates = false }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; activation: AdminCategoryActivation }; canManagePlatform?: boolean; hasCategoryTemplates?: boolean }) {
   const activeLeaves = data.categories.filter((category) => !category.archivedAt && category.childCount === 0);
   const mappedIds = new Set(data.mappings.map((mapping) => mapping.categoryId));
   /* 오른쪽 입력 묶음은 트리에서 고른 항목 하나다. 아직 안 골랐으면 트리 맨 위 항목을 연다. */
@@ -214,8 +164,8 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
     setSelectedId(category.id);
   }
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="categories">
-    <AdminPageHeader title="카테고리 관리" description="카테고리를 최대 4단계로 구성하고 상품에 대표·추가 분류로 연결합니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값으로 정해집니다." actions={/* 파일 내려받기 API라 Link(미리 가져오기·화면 이동)가 아니라 일반 링크다. */<a className={buttonVariants({ variant: 'outline' })} data-slot="button" href={categoryExportHref()}><Download aria-hidden="true" />{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</a>} />
-    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<AdminStatusBadge tone={data.activation.customerEnabled ? statusTone('display', 'active') : 'warning'}>{data.activation.customerEnabled ? '고객 화면 적용 중' : '고객 화면 미적용'}</AdminStatusBadge>} cue={data.activation.customerEnabled ? undefined : '펼쳐서 켜기'} summary={data.activation.customerEnabled ? categoryActivationLabel(data.activation) : '고객 화면에는 아직 기존 유형이 보입니다. 트리를 다 만든 뒤 펼쳐서 켜주세요.'}><ActivationForm activation={data.activation} /></FoldCard> : null}
+    <AdminPageHeader title="카테고리 관리" description="카테고리를 최대 4단계로 구성하고 상품에 대표·추가 분류로 연결합니다. 상품은 대표 카테고리가 있어야 공개할 수 있습니다." actions={/* 파일 내려받기 API라 Link(미리 가져오기·화면 이동)가 아니라 일반 링크다. */<a className={buttonVariants({ variant: 'outline' })} data-slot="button" href={categoryExportHref()}><Download aria-hidden="true" />{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</a>} />
+    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<AdminStatusBadge tone={data.activation.customerEnabled ? statusTone('display', 'active') : 'warning'}>{data.activation.customerEnabled ? '고객 화면 적용 중' : '고객 화면 미적용'}</AdminStatusBadge>} cue={data.activation.customerEnabled ? undefined : '펼쳐서 켜기'} summary={data.activation.customerEnabled ? categoryActivationLabel(data.activation) : '고객 화면에는 아직 카테고리가 보이지 않습니다. 트리를 다 만든 뒤 펼쳐서 켜주세요.'}><ActivationForm activation={data.activation} /></FoldCard> : null}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(17rem,0.45fr)_minmax(0,1fr)]" data-category-screen="master-detail">
       <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`} summary="이름을 누르면 오른쪽에서 수정합니다."><CategoryTree activeId={selected?.id ?? null} categories={data.categories} onSelect={selectCategory} /></AdminSectionCard>
       {/* 트리가 길어도 고르는 동안 입력 묶음이 함께 보이게 붙어 따라온다. 새 등록은 접어 저장 버튼이 한 화면에 하나만 보이게 한다. */}
@@ -234,7 +184,6 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
       <p className="text-sm text-muted-foreground">반입한 ERP 분류를 고객 카테고리에 잇는 일(상품 옵션의 카테고리 제안)은 <Link className="text-foreground underline underline-offset-4" href={`${ERP_ITEMS_PATH}#erp-category-mapping`}>ERP 품목 화면의 연결 표</Link>에서 합니다.</p>
       <RenderOnFirstOpen><CategoryErpMappingTable categories={data.categories} mappings={data.mappings} /></RenderOnFirstOpen>
     </FoldCard> : null}
-    {canManagePlatform ? <FoldCard title="기존 유형 이관 메모"><p className="text-sm text-muted-foreground">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 카테고리 기능을 켜는 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</FoldCard> : null}
     <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><CategoryTemplatesAvailableProvider available={hasCategoryTemplates}><AssignmentForm categories={data.categories} /></CategoryTemplatesAvailableProvider></AdminSectionCard>
   </section>;
 }

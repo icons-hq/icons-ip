@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { saveAdminCategoryAction, archiveAdminCategoryAction, saveAdminCategoryErpMappingAction, setAdminCategoryActivationAction, assignAdminGoodCategoryAction, saveAdminCategoryTypeMigrationAction } from './category-actions';
+import { saveAdminCategoryAction, archiveAdminCategoryAction, saveAdminCategoryErpMappingAction, setAdminCategoryActivationAction, assignAdminGoodCategoryAction } from './category-actions';
 import { searchCouponTargetGoodsAction } from './coupon-target-actions';
 import { cloneAdminGoodAction } from './good-clone-actions';
 import { readGoodsAdditionalAction } from './goods-additional-actions';
@@ -43,7 +43,6 @@ const cases: { name: string; path: string; run: () => Promise<unknown> }[] = [
   { name: 'ERP 분류', path: categoryPath, run: () => saveAdminCategoryErpMappingAction({}, form()) },
   { name: '분류 활성화', path: categoryPath, run: () => setAdminCategoryActivationAction({}, form()) },
   { name: '대표 분류', path: categoryPath, run: () => assignAdminGoodCategoryAction({}, form()) },
-  { name: '유형 이관', path: categoryPath, run: () => saveAdminCategoryTypeMigrationAction({}, form()) },
   { name: '쿠폰 상품 검색', path: '/admin/sales/coupons', run: () => searchCouponTargetGoodsAction('') },
   { name: '상품 복사', path: goodsPath, run: () => cloneAdminGoodAction({}, form()) },
   { name: '추가 구성', path: goodsPath, run: () => readGoodsAdditionalAction('') },

@@ -13,7 +13,7 @@ import { readCardRewardsEnabled } from './card-rewards/gate.server';
 import { isUuid } from './uuid';
 import { goodDetailHref } from './goods-display';
 import { categoryDisplayRecord as record, CATEGORY_DISPLAY_PAGE_SIZE, isCategoryDisplayGoodId, type CategoryDisplayPage, type CategoryDisplayNavigation } from './category-display';
-import type { ShopFacetOption, ShopListQuery } from './shop-catalog';
+import { SHOP_PREORDER_TYPE, type ShopFacetOption, type ShopListQuery } from './shop-catalog';
 import type { Good } from './data';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -52,7 +52,7 @@ function facets(value: unknown): ShopFacetOption[] | null {
   return result;
 }
 export function categoryDisplaySqlQuery(query: ShopListQuery) {
-  return { ips: [...query.ips].sort(), types: [...query.types].sort(), min: query.priceMin, max: query.priceMax, sort: query.sort };
+  return { ips: [...query.ips].sort(), types: query.types.filter(type => type === SHOP_PREORDER_TYPE).sort(), min: query.priceMin, max: query.priceMax, sort: query.sort };
 }
 export function parseCategoryDisplayPage(value: unknown, query: ShopListQuery): CategoryDisplayPage | null {
   if (!record(value) || !record(value.category) || !isUuid(value.category.id) || typeof value.category.name !== 'string'
@@ -66,7 +66,7 @@ export function parseCategoryDisplayPage(value: unknown, query: ShopListQuery): 
   if (goods.some(good => !good) || new Set(goods.map(good => good?.id)).size !== goods.length || !ipFacets || !typeFacets) return null;
   const page: CategoryDisplayPage = { category: { id: value.category.id, name: value.category.name }, checkedAt: value.checkedAt,
     token: value.token, offset: value.offset, nextOffset: value.nextOffset as number | null, query,
-    result: { goods: goods as Good[], total: value.total, filteredTotal: value.filteredTotal, priceCeil: value.priceCeil, ipFacets, typeFacets },
+    result: { goods: goods as Good[], total: value.total, filteredTotal: value.filteredTotal, priceCeil: value.priceCeil, ipFacets, typeFacets: typeFacets.filter(facet => facet.value === SHOP_PREORDER_TYPE) },
     banner: null, video: null, recommendations: null, navigation: [] };
   if (value.banner !== null) {
     const b = value.banner;

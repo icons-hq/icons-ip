@@ -10,8 +10,8 @@ describe('상품 초안과 판매 가능 상태', () => {
     const context = { ipIds: new Set(['hwasan']), eventIds: new Set<string>(), goodIpById: new Map<string,string>(), verticalKeys: new Set<string>() };
     expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: true, value: { publish: null, type: '', price: 0 } });
     form.set('intent', 'publish');
-    // SHEET-003: 상품 유형은 입력칸이 없고 대표 카테고리의 연결값이다. 공개 제출에 유형이 없으면 카테고리 칸에 안내한다.
-    expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: false, errors: { imagePath: expect.any(String), noticeMaker: expect.any(String), categoryId: expect.stringContaining('상품 유형이 연결') } });
+    // ADR-0044: 상품 유형은 없다. 공개 제출에 대표 카테고리가 없으면 카테고리 칸에 안내한다.
+    expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: false, errors: { imagePath: expect.any(String), noticeMaker: expect.any(String), categoryId: '대표 카테고리를 고른 뒤 공개해주세요.' } });
   });
   it('공개·재고·고시정보 완료를 모두 갖춘 비보관 상품만 판매 가능하다', () => {
     const ready = { publishedAt: '2026-09-08', archivedAt: null, stockQty: 3, noticeComplete: true };

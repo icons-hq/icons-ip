@@ -16,7 +16,7 @@ import {
 } from './goods-workbook';
 import { goodsConsoleFilterValues, type GoodsListFilters } from './goods-list';
 import { parseAdminGoodsKc } from './goods-kc';
-import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
+import { goodCategoryFailure } from './good-workspace';
 import { exportGoodsKcWorkbookRows } from './goods-kc-workbook';
 import { exportGoodsCustomInputWorkbookRows, goodsCustomInputWorkbookConfig } from './goods-custom-input-workbook';
 import { parseGoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
@@ -135,7 +135,7 @@ export async function loadGoodsWorkbookContext(
     );
   const categories: NonNullable<GoodsWorkbookContext['categories']> = [];
   for (let start = 0; ; start += 1000) {
-    const result = await client.from('catalog_categories').select('id,code,archived_at,parent_id,good_type').order('id').range(start, start + 999);
+    const result = await client.from('catalog_categories').select('id,code,archived_at').order('id').range(start, start + 999);
     if (result.error) throw new Error('카테고리 코드를 읽지 못했습니다.');
     categories.push(...(result.data ?? []));
     if ((result.data?.length ?? 0) < 1000) break;
@@ -278,10 +278,11 @@ export function goodsImportErrorMessage(error?: string) {
     return '미리보기 이후 A/S·사이즈 안내가 바뀌었습니다. 해당 상품은 저장하지 않았습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('guidance') || error?.includes('goods_after_sales') || error?.includes('goods_size_chart'))
     return 'A/S·사이즈 안내의 입력 내용과 버전을 확인하고 다시 검증해주세요. 해당 상품의 변경은 저장하지 않았습니다.';
-  /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이다. */
-  if (error?.includes('goods_type_category_locked')) return GOOD_TYPE_CATEGORY_MESSAGES.locked;
-  if (error?.includes('goods_type_category_required')) return GOOD_TYPE_CATEGORY_MESSAGES.required;
-  if (error?.includes('goods_type_category_changed')) return GOOD_TYPE_CATEGORY_MESSAGES.changed;
+  /* ADR-0044: 공개엔 대표 카테고리가 필요하고, 공개 중 상품은 대표 카테고리를 비울 수 없다. */
+  if (error?.includes('goods_notice_required'))
+    return '공개에 필요한 상품정보제공고시가 비어 있어 저장하지 않았습니다. 고시 7칸을 모두 채우고 다시 검증해주세요.';
+  const categoryFailure = goodCategoryFailure(error);
+  if (categoryFailure) return categoryFailure;
   if (error?.includes('category') || error?.includes('additional_categories'))
     return '대표·추가 카테고리의 코드와 활성 말단 상태를 확인하고 다시 검증해주세요.';
   if (error?.includes('stock_changed'))

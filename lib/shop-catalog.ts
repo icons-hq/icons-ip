@@ -2,7 +2,6 @@ import { categoryAncestorIds, orderedCatalogCategories, type CatalogCategory } f
 import type { CatalogSnapshot } from './catalog';
 import type { Good } from './data';
 import { pickGoodsReviewSummaries, type GoodsReviewSummaries, type GoodsReviewSummary } from './goods-review-summary';
-import { GOOD_TYPES, isGoodType } from './goods-taxonomy';
 import type { HomeSalesPeriod } from './home-ranking';
 import {
   LISTING_SORT_LABELS,
@@ -171,7 +170,7 @@ export function parseShopSearchParams(
 
   return {
     ips: dedupe(valuesOf(params.ip).filter((id) => options.validIpIds.has(id))),
-    types: dedupe(valuesOf(params.type).filter((type) => isGoodType(type) || type === SHOP_PREORDER_TYPE)),
+    types: dedupe(valuesOf(params.type).filter((type) => type === SHOP_PREORDER_TYPE)),
     ...(options.validCategoryIds ? { categories: dedupe(valuesOf(params.category).filter((id) => options.validCategoryIds!.has(id))) } : {}),
     priceMin: parsePrice(params.min),
     priceMax: parsePrice(params.max),
@@ -322,15 +321,16 @@ export function selectCollectionGoods(
 ): ShopListResult {
   const selectedIps = new Set(query.ips);
   const selectedTypes = new Set(query.types);
-  const wantsPreorder = selectedTypes.has(SHOP_PREORDER_TYPE);
+  /* 예약판매 굿즈가 스코프에 하나도 없으면 옛 링크의 type 값은 무시한다 — 그룹이 숨겨져 해제할 길 없는 빈 목록이 되지 않게. */
+  const wantsPreorder = selectedTypes.has(SHOP_PREORDER_TYPE) && scope.some(isPreorderGood);
   const categories = catalog.categories ?? [];
   const selectedCategories = new Set(query.categories ?? []);
   const goodCategoryIds = new Map(scope.map((good) => [good.id, good.categoryId ? categoryAncestorIds(categories, good.categoryId) : []]));
   const filtered = scope.filter((good) => {
     if (selectedCategories.size > 0 && !goodCategoryIds.get(good.id)?.some((id) => selectedCategories.has(id))) return false;
     if (selectedIps.size > 0 && !selectedIps.has(good.ip)) return false;
-    /* 타입 그룹 안의 값끼리는 OR 다 — 예약판매도 같은 그룹의 값 하나로 고른다. */
-    if (selectedTypes.size > 0 && !selectedTypes.has(good.type) && !(wantsPreorder && isPreorderGood(good))) return false;
+    /* 타입 축에는 예약판매 하나만 남았다(ADR-0044). */
+    if (wantsPreorder && !isPreorderGood(good)) return false;
     if (query.priceMin !== null && good.price < query.priceMin) return false;
     if (query.priceMax !== null && good.price > query.priceMax) return false;
     return true;
@@ -339,12 +339,10 @@ export function selectCollectionGoods(
   /* facet 카운트와 가격 상한은 필터 적용 전 스코프에서 뽑는다 — 필터를 걸 때마다
      체크박스가 사라지거나 슬라이더 최대값이 줄면 되돌릴 방법이 없어진다(R-03 §1.3). */
   const countByIp = new Map<string, number>();
-  const countByType = new Map<string, number>();
   const countByCategory = new Map<string, number>();
   let preorderCount = 0;
   for (const good of scope) {
     countByIp.set(good.ip, (countByIp.get(good.ip) ?? 0) + 1);
-    countByType.set(good.type, (countByType.get(good.type) ?? 0) + 1);
     /* 굿즈의 카테고리 ID 목록은 자기와 모든 조상이라 부모 개수는 자손 합계가 된다. */
     for (const id of goodCategoryIds.get(good.id) ?? []) countByCategory.set(id, (countByCategory.get(id) ?? 0) + 1);
     if (isPreorderGood(good)) preorderCount += 1;
@@ -378,11 +376,6 @@ export function selectCollectionGoods(
         count: countByCategory.get(category.id) ?? 0,
       })) } : {}),
     typeFacets: [
-      ...GOOD_TYPES.filter((type) => (countByType.get(type) ?? 0) > 0).map((type) => ({
-        value: type,
-        label: type,
-        count: countByType.get(type) ?? 0,
-      })),
       ...(preorderCount > 0 ? [{ value: SHOP_PREORDER_TYPE, label: SHOP_PREORDER_TYPE, count: preorderCount }] : []),
     ],
   };
