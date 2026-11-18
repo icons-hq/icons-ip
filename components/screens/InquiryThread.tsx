@@ -62,7 +62,10 @@ function MessageBubble({
   );
 }
 
-export function InquiryThread({ inquiry, satisfaction }: { inquiry: InquiryThreadView; satisfaction?: InquirySatisfactionLoad }) {
+/** restricted: 정지·온보딩 미완료 회원이 계정 문의를 볼 때 — 이어 쓰기는 받되 이미지 첨부는 받지 않는다(원장 CUS-035). */
+export function InquiryThread({ inquiry, satisfaction, restricted = false }: {
+  inquiry: InquiryThreadView; satisfaction?: InquirySatisfactionLoad; restricted?: boolean;
+}) {
   const [state, action, pending] = useActionState(replyToInquiryAction, EMPTY_STATE);
   const closed = inquiry.status === 'closed';
 
@@ -121,12 +124,14 @@ export function InquiryThread({ inquiry, satisfaction }: { inquiry: InquiryThrea
               <span className="wc-auth__error" role="alert">{state.errors.body}</span>
             ) : null}
 
-            <label className="wc-mypage__field">
-              <span className="wc-mypage__field-title">
-                이미지 첨부 <small>선택 · 최대 {MAX_INQUIRY_IMAGES}장</small>
-              </span>
-              <input accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
-            </label>
+            {restricted ? null : (
+              <label className="wc-mypage__field">
+                <span className="wc-mypage__field-title">
+                  이미지 첨부 <small>선택 · 최대 {MAX_INQUIRY_IMAGES}장</small>
+                </span>
+                <input accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
+              </label>
+            )}
             {state.errors?.images ? (
               <span className="wc-auth__error" role="alert">{state.errors.images}</span>
             ) : null}

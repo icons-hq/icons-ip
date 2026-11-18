@@ -8,10 +8,12 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import {
   INQUIRY_CATEGORIES,
+  INQUIRY_CATEGORY_LABELS,
   INQUIRY_IMAGE_ACCEPT,
   MAX_INQUIRY_BODY_LENGTH,
   MAX_INQUIRY_IMAGES,
   MAX_INQUIRY_TITLE_LENGTH,
+  RESTRICTED_MEMBER_INQUIRY_CATEGORY,
   type InquiryCategory,
 } from '@/lib/inquiries';
 
@@ -40,9 +42,12 @@ export interface InquiryComposerLink {
 export function InquiryComposer({
   defaultCategory,
   link,
+  restricted = false,
 }: {
   defaultCategory: InquiryCategory;
   link: InquiryComposerLink;
+  /** 정지·온보딩 미완료 회원: 계정 문의만 쓴다(유형 고정·첨부와 주문·굿즈 연결 없음, 원장 CUS-035). */
+  restricted?: boolean;
 }) {
   const [state, action, pending] = useActionState(createInquiryAction, EMPTY_STATE);
   const [title, setTitle] = useState('');
@@ -59,23 +64,38 @@ export function InquiryComposer({
 
       <FaqSuggestions title={title} />
 
+      {restricted ? (
+        <p className="wc-mypage__notice" role="note">
+          정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의(회원 탈퇴 요청 등)만 보낼 수 있어요. 탈퇴를 원하면 제목이나 내용에
+          탈퇴를 요청한다고 적어주세요.
+        </p>
+      ) : null}
+
       <form action={action} className="wc-mypage__form">
-        {keepOrder && link.orderId ? (
+        {!restricted && keepOrder && link.orderId ? (
           <input name="orderId" type="hidden" value={link.orderId} />
         ) : null}
-        {keepGood && link.goodId ? (
+        {!restricted && keepGood && link.goodId ? (
           <input name="goodId" type="hidden" value={link.goodId} />
         ) : null}
 
-        <label className="wc-mypage__field">
-          문의 유형
-          <select defaultValue={defaultCategory} name="category">
-            {INQUIRY_CATEGORIES.map((category) => (
-              <option key={category.id} value={category.id}>{category.label}</option>
-            ))}
-          </select>
-          <FieldError>{state.errors?.category}</FieldError>
-        </label>
+        {restricted ? (
+          <div className="wc-mypage__field">
+            <span className="wc-mypage__field-title">문의 유형</span>
+            <input name="category" type="hidden" value={RESTRICTED_MEMBER_INQUIRY_CATEGORY} />
+            <span>{INQUIRY_CATEGORY_LABELS[RESTRICTED_MEMBER_INQUIRY_CATEGORY]}</span>
+          </div>
+        ) : (
+          <label className="wc-mypage__field">
+            문의 유형
+            <select defaultValue={defaultCategory} name="category">
+              {INQUIRY_CATEGORIES.map((category) => (
+                <option key={category.id} value={category.id}>{category.label}</option>
+              ))}
+            </select>
+            <FieldError>{state.errors?.category}</FieldError>
+          </label>
+        )}
 
         <label className="wc-mypage__field">
           제목
@@ -100,7 +120,7 @@ export function InquiryComposer({
           <FieldError>{state.errors?.body}</FieldError>
         </label>
 
-        {link.orderId || link.goodId ? (
+        {!restricted && (link.orderId || link.goodId) ? (
           <div className="wc-mypage__field">
             <span className="wc-mypage__field-title">연결된 정보</span>
             {link.orderId ? (
@@ -130,13 +150,15 @@ export function InquiryComposer({
           </div>
         ) : null}
 
-        <label className="wc-mypage__field">
-          <span className="wc-mypage__field-title">
-            이미지 첨부 <small>선택 · 최대 {MAX_INQUIRY_IMAGES}장</small>
-          </span>
-          <input accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
-          <FieldError>{state.errors?.images}</FieldError>
-        </label>
+        {restricted ? null : (
+          <label className="wc-mypage__field">
+            <span className="wc-mypage__field-title">
+              이미지 첨부 <small>선택 · 최대 {MAX_INQUIRY_IMAGES}장</small>
+            </span>
+            <input accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
+            <FieldError>{state.errors?.images}</FieldError>
+          </label>
+        )}
 
         <FieldError>{state.errors?.form}</FieldError>
 

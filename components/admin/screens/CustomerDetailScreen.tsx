@@ -10,6 +10,7 @@ import { statusTone } from '@/lib/admin/status-tone';
 import { isLoyaltyGrade, loyaltyGradeLabel } from '@/lib/loyalty';
 import { CustomerIdCopy, CustomerLoyaltyControl, CustomerSuspensionControl } from './CustomerAccountControls';
 import { CustomerNoteForm } from './CustomerNoteForm';
+import { CustomerWithdrawalControl } from './CustomerWithdrawalControl';
 import { CustomerRecordList, customerDateTime } from './CustomerRecordList';
 
 const FACT_ROW_CLASS = 'grid grid-cols-[5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[6.25rem_minmax(0,1fr)]';
@@ -19,7 +20,7 @@ function ConsentRow({ label, agreed, required = false }: { label: string; agreed
   return <span className="flex items-center gap-2">{label}<span className="text-xs text-muted-foreground">{required ? '필수' : '선택'}</span><AdminStatusBadge tone={agreed ? 'success' : required ? 'warning' : 'neutral'}>{agreed ? '동의' : '미동의'}</AdminStatusBadge></span>;
 }
 
-/* 템플릿 룩(ADR-0028): 고객 머리 카드(누구인지·상태·동작) → 탭(밑줄형) → 개요(건수 카드 + 카드 두 칸) 또는 탭별 이력 카드. 정지·등급 보정은 접어 둔다 — 고객을 보러 들어온 화면이다. */
+/* 템플릿 룩(ADR-0028): 고객 머리 카드(누구인지·상태·동작) → 탭(밑줄형) → 개요(건수 카드 + 카드 두 칸) 또는 탭별 이력 카드. 정지·탈퇴 요청 처리·등급 보정은 접어 둔다 — 고객을 보러 들어온 화면이다. */
 export function CustomerDetailScreen({ detail, actor, noteOperationId, canManageCredits = false }: {
   detail: AdminCustomerDetail; actor: { id: string; role: AdminMemberRole }; noteOperationId: string; canManageCredits?: boolean;
 }) {
@@ -62,6 +63,8 @@ export function CustomerDetailScreen({ detail, actor, noteOperationId, canManage
         </dl></AdminSectionCard>
         <div className="flex min-w-0 flex-col gap-6 max-sm:gap-4">
           <CustomerSuspensionControl key={`${customer.id}:${customer.suspendedAt}`} actor={actor} customer={customer} />
+          {/* 처리 직후 결과 문구가 남도록 고객 단위로만 다시 마운트한다(처리 상태가 바뀌어도 같은 인스턴스). */}
+          <CustomerWithdrawalControl key={customer.id} actor={actor} customer={customer} />
           <CustomerLoyaltyControl key={`${customer.id}:${customer.loyaltyGrade}`} customer={customer} />
         </div>
       </div>

@@ -9,7 +9,7 @@ import {
   AUTH_RECOVERY_NEXT_COOKIE_NAME,
   AUTH_NEXT_COOKIE_NAME,
   ACCOUNT_SUSPENDED_PATH,
-  ACCOUNT_DELETION_PATH,
+  isAccountDeletionEntryPath,
   authCallbackUrl,
   authRecoveryCallbackUrl,
   authSignUpErrorMessage,
@@ -408,7 +408,7 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
   await rememberSessionPersistence(keepSignedIn);
 
   const profile = await getProfileForUser(supabase, data.user.id);
-  if (isAccountSuspended(profile) && next !== ACCOUNT_DELETION_PATH) {
+  if (isAccountSuspended(profile) && !isAccountDeletionEntryPath(next)) {
     redirect(ACCOUNT_SUSPENDED_PATH);
   }
   redirect(postAuthenticationPath(profile, data.user.email, next));
@@ -646,7 +646,7 @@ export async function verifySignupCodeAction(_state: AuthActionState, formData: 
   }
 
   const profile = await getProfileForUser(supabase, signIn.user.id);
-  if (isAccountSuspended(profile) && next !== ACCOUNT_DELETION_PATH) {
+  if (isAccountSuspended(profile) && !isAccountDeletionEntryPath(next)) {
     redirect(ACCOUNT_SUSPENDED_PATH);
   }
   redirect(postAuthenticationPath(profile, signIn.user.email, next));

@@ -2097,6 +2097,25 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   color: var(--wc-success);
 }
 
+/* 탈퇴 신청 기능이 꺼져 있는 동안의 1:1 문의 접수 안내 — 설명 · 회색 안내 박스 · 잉크 CTA 순서. */
+.wc-mypage .account-deletion-guide,
+.wc-auth .account-deletion-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wc-mypage .account-deletion-facts,
+.wc-auth .account-deletion-facts {
+  margin: 0;
+  padding: 12px 14px 12px 32px;
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.7;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
 .wc-mypage .account-deletion-blockers,
 .wc-auth .account-deletion-blockers {
   padding: 12px 14px;
