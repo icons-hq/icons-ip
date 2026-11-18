@@ -27,7 +27,10 @@ const mocks = vi.hoisted(() => ({
   members: vi.fn(),
   moderation: vi.fn(async () => ({ reports: [] })),
   profiles: vi.fn(async () => []),
+  note: vi.fn(),
 }));
+
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 
 vi.mock('@/components/admin/sections/Members', () => ({ MembersSection: mocks.membersSection }));
 vi.mock('@/lib/admin/members.server', () => ({ getAdminMemberSummaries: mocks.members }));
@@ -81,6 +84,8 @@ describe('AdminCommunityMembersPage', () => {
       actor: { id: '11111111-1111-4111-8111-111111111111', role: 'staff' },
       initialMembers: [expect.objectContaining({ maskedEmail: 'f***@icons.gg' })],
     });
+    expect(mocks.note).toHaveBeenLastCalledWith({ actorId: '11111111-1111-4111-8111-111111111111', action: 'search', surface: 'member.search',
+      path: '/admin/community/members', subjectKind: 'member', subjectIds: [suspended.id], subjectCount: 1, detail: { queried: false } });
   });
 
   /* key가 그대로면 정지 처리 후 revalidate가 와도 화면은 옛 목록을 계속 쓴다. */

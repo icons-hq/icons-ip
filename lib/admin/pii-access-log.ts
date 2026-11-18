@@ -28,9 +28,13 @@ export type PiiAccessAction = keyof typeof PII_ACCESS_ACTION_LABELS;
 export const PII_ACCESS_SURFACE_LABELS = {
   'customer.detail': '고객 상세',
   'customer.store_credits': '고객 적립금',
+  'member.search': '회원 검색',
+  'member.detail': '회원 관리 상세',
   'order.detail': '주문 상세',
   'order.search': '주문 검색',
+  'shipment.search': '발송·배송현황 검색',
   'claim.detail': '클레임 상세',
+  'claim.search': '클레임 검색',
   'claim.contact': '클레임 회수·재배송지',
   'claim.contact_history': '클레임 회수·재배송지 이력',
   refund_account: '환불계좌',
@@ -61,8 +65,39 @@ export const PII_ACCESS_FLAG_RULES: Record<PiiAccessFlag, string> = {
 export const PII_ACCESS_FLAG_FILTERS = ['any', 'off_hours', 'bulk', 'burst'] as const;
 export type PiiAccessFlagFilter = typeof PII_ACCESS_FLAG_FILTERS[number];
 
-/** 주문 검색에서 이름·이메일·연락처가 검색어가 될 수 있는 유형(전체 포함). 주문번호·운송장·상품 검색은 남기지 않는다. */
-export const PII_ORDER_SEARCH_FIELDS: ReadonlySet<string> = new Set(['all', 'nickname', 'email', 'recipient', 'phone']);
+/**
+ * 주문·클레임·발송 목록 검색에서 이름·이메일·연락처가 검색어가 될 수 있는 유형(전체 포함). 화면마다 이름이 달라
+ * (구매자명 nickname·buyer) 모두 둔다. 주문번호·배송건번호·운송장·상품 검색은 남기지 않는다.
+ */
+export const PII_SEARCH_FIELDS: ReadonlySet<string> = new Set(['all', 'nickname', 'buyer', 'email', 'recipient', 'phone']);
+
+export interface PiiAccessRecord {
+  actorId: string;
+  action: PiiAccessAction;
+  surface: PiiAccessSurface;
+  /** 화면·라우트 경로. 쿼리 문자열은 버린다. */
+  path: string;
+  subjectKind: PiiAccessSubjectKind;
+  subjectIds?: readonly (string | null | undefined)[];
+  /** 대상 수. 생략하면 ID 수. 대량 내려받기는 ID 없이 건수만 넘긴다. */
+  subjectCount?: number;
+  /** 화면 id·검색 유형·건수·감사 ID 같은 짧은 코드만. 개인정보 원문을 넣지 않는다. */
+  detail?: Record<string, string | number | boolean | null | undefined>;
+}
+
+/**
+ * 목록 검색의 접속기록. 검색어가 있고 개인정보 검색 유형(유형을 고르지 않은 전체 포함)일 때만 남기며, 검색어 원문은 싣지 않고
+ * 검색 유형·쪽과 이 쪽에 보인 대상 ID, 전체 결과 수만 싣는다. 남길 것이 없으면 null.
+ */
+export function piiSearchRecord(input: {
+  actorId: string; surface: PiiAccessSurface; path: string; subjectKind: PiiAccessSubjectKind;
+  subjectIds: readonly string[]; total: number; field: string | null | undefined; query: string; page: number; view?: string;
+}): PiiAccessRecord | null {
+  const field = input.field || 'all';
+  if (!input.query.trim() || !PII_SEARCH_FIELDS.has(field)) return null;
+  return { actorId: input.actorId, action: 'search', surface: input.surface, path: input.path, subjectKind: input.subjectKind,
+    subjectIds: input.subjectIds, subjectCount: input.total, detail: { field, ...(input.view ? { view: input.view } : {}), page: input.page } };
+}
 
 export function isPiiAccessAction(value: unknown): value is PiiAccessAction {
   return typeof value === 'string' && Object.hasOwn(PII_ACCESS_ACTION_LABELS, value);

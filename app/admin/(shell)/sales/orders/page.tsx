@@ -9,7 +9,7 @@ import { adminOrderItemsHref, normalizeAdminOrderItemFilters } from '@/lib/admin
 import { getAdminOrderItemData } from '@/lib/admin/order-items.server';
 import { adminOrderPreviewId } from '@/lib/admin/order-preview';
 import { loadAdminOrderPreview } from '@/lib/admin/order-preview.server';
-import { PII_ORDER_SEARCH_FIELDS } from '@/lib/admin/pii-access-log';
+import { piiSearchRecord } from '@/lib/admin/pii-access-log';
 import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 
 /*
@@ -17,9 +17,9 @@ import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
  * 이 쪽에 보인 주문, 전체 결과 수만 남긴다. 주문번호·운송장·상품 검색과 검색어 없는 목록은 남기지 않는다(실패해도 목록은 연다).
  */
 async function noteOrderSearch(actorId: string, filters: { field: string; query: string; page: number }, view: 'orders' | 'items', orderIds: string[], total: number) {
-  if (!filters.query || !PII_ORDER_SEARCH_FIELDS.has(filters.field)) return;
-  await notePiiAccess({ actorId, action: 'search', surface: 'order.search', path: '/admin/sales/orders', subjectKind: 'order',
-    subjectIds: orderIds, subjectCount: total, detail: { field: filters.field, view, page: filters.page } });
+  const record = piiSearchRecord({ actorId, surface: 'order.search', path: '/admin/sales/orders', subjectKind: 'order',
+    subjectIds: orderIds, total, field: filters.field, query: filters.query, page: filters.page, view });
+  if (record) await notePiiAccess(record);
 }
 
 /* 이 화면의 서버 액션은 결제사 취소를 바로 발행하고 결과를 조회로 확인한다

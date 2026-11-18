@@ -33,7 +33,9 @@ const mocks = vi.hoisted(() => ({
   getSummaries: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  note: vi.fn(),
 }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.auth }));
 vi.mock('@/lib/admin/members.server', () => ({
@@ -67,6 +69,7 @@ describe('admin member actions', () => {
     mocks.getSummaries.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.rpc.mockReset();
+    mocks.note.mockReset();
     mocks.getSummaries.mockResolvedValue(members);
     mocks.getDetail.mockResolvedValue({ ...members[0], email: 'fan@example.test' });
     mocks.rpc.mockResolvedValue({ data: {}, error: null });
@@ -83,6 +86,19 @@ describe('admin member actions', () => {
       member: expect.objectContaining({ id: profileId, email: 'fan@example.test' }),
     });
     expect(mocks.getDetail).toHaveBeenCalledWith(profileId);
+    // 검색 결과(가린 이메일)와 전체 이메일·동의를 보여 주는 상세 카드 모두 원문 없이 개인정보 접속기록을 남긴다.
+    expect(mocks.note.mock.calls).toEqual([
+      [{ actorId: 'staff-1', action: 'search', surface: 'member.search', path: '/admin/community/members', subjectKind: 'member',
+        subjectIds: [profileId], subjectCount: 1, detail: { queried: true } }],
+      [{ actorId: 'staff-1', action: 'view', surface: 'member.detail', path: '/admin/community/members', subjectKind: 'member', subjectIds: [profileId] }],
+    ]);
+    expect(JSON.stringify(mocks.note.mock.calls)).not.toContain('fan');
+  });
+
+  it('찾지 못한 회원 상세는 기록하지 않는다', async () => {
+    mocks.getDetail.mockResolvedValue(null);
+    await expect(loadAdminMemberDetailAction({ member: null }, form())).resolves.toEqual({ member: null, errors: { form: '회원을 찾을 수 없습니다.' } });
+    expect(mocks.note).not.toHaveBeenCalled();
   });
 
   it('계정 상태 변경 후 정확한 고객 상세와 회원 목록을 갱신한다', async () => {

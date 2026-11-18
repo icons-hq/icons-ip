@@ -100,6 +100,19 @@ it('찾을 수 없는 요청은 팝업 안에서 알린다', async () => {
   expect(mocks.note).not.toHaveBeenCalled();
 });
 
+it('구매자·수령인 검색은 원문 없이 클레임 검색 기록을 남기고, 주문번호 검색·검색어 없는 목록은 남기지 않는다', async () => {
+  const other = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac';
+  mocks.list.mockResolvedValue({ claimType: 'return', counts: {}, filters: {}, pageSize: 20, rows: [{ id: CLAIM_ID }, { id: other }], total: 5 });
+  await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ field: 'buyer', query: '홍길동' }) } as never);
+  expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff-1', action: 'search', surface: 'claim.search', path: '/admin/sales/claims/returns',
+    subjectKind: 'claim', subjectIds: [CLAIM_ID, other], subjectCount: 5, detail: { field: 'buyer', page: 1 } });
+  expect(JSON.stringify(mocks.note.mock.calls)).not.toContain('홍길동');
+  mocks.note.mockClear();
+  await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ field: 'order', query: 'C00012' }) } as never);
+  await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ stage: 'open' }) } as never);
+  expect(mocks.note).not.toHaveBeenCalled();
+});
+
 it('형식이 아닌 claimId는 무시한다', async () => {
   await Page({ params: Promise.resolve({ claimType: 'cancels' }), searchParams: Promise.resolve({ claimId: 'x' }) } as never);
   expect(mocks.workspace).not.toHaveBeenCalled();

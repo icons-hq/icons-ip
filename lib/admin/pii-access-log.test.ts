@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   PII_ACCESS_LOG_RETENTION_YEARS,
-  PII_ORDER_SEARCH_FIELDS,
+  PII_SEARCH_FIELDS,
+  piiSearchRecord,
   normalizePiiAccessLogFilters,
   parsePiiAccessLog,
   parsePiiAccessLogExport,
@@ -45,8 +46,17 @@ describe('개인정보 접속기록 조회 조건', () => {
     expect(piiAccessPath('/admin/sales/orders?field=phone&query=01012345678')).toBe('/admin/sales/orders');
     expect(piiAccessPath('/admin/customers/abc/')).toBe('/admin/customers/abc');
     expect(piiAccessPath('https://evil.test/admin')).toBe('/admin');
-    expect(PII_ORDER_SEARCH_FIELDS.has('phone')).toBe(true); expect(PII_ORDER_SEARCH_FIELDS.has('order')).toBe(false);
+    expect(PII_SEARCH_FIELDS.has('phone')).toBe(true); expect(PII_SEARCH_FIELDS.has('buyer')).toBe(true); expect(PII_SEARCH_FIELDS.has('order')).toBe(false);
     expect(PII_ACCESS_LOG_RETENTION_YEARS).toBe(2);
+  });
+  it('목록 검색은 검색어가 있는 개인정보 검색 유형(유형 없음=전체 포함)만 원문 없이 남긴다', () => {
+    const base = { actorId: ACTOR, surface: 'claim.search' as const, path: '/admin/sales/claims/returns', subjectKind: 'claim' as const, subjectIds: [ORDER], total: 4, page: 2 };
+    expect(piiSearchRecord({ ...base, field: undefined, query: '홍길동' })).toEqual({ actorId: ACTOR, action: 'search', surface: 'claim.search',
+      path: '/admin/sales/claims/returns', subjectKind: 'claim', subjectIds: [ORDER], subjectCount: 4, detail: { field: 'all', page: 2 } });
+    expect(piiSearchRecord({ ...base, field: 'buyer', query: '홍', view: 'items' })?.detail).toEqual({ field: 'buyer', view: 'items', page: 2 });
+    expect(JSON.stringify(piiSearchRecord({ ...base, field: 'email', query: 'fan@example.test' }))).not.toContain('fan@example.test');
+    expect(piiSearchRecord({ ...base, field: 'order', query: '2026111800001' })).toBeNull();
+    expect(piiSearchRecord({ ...base, field: 'buyer', query: '  ' })).toBeNull();
   });
 });
 

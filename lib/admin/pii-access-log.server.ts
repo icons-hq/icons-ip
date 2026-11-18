@@ -10,12 +10,10 @@ import {
   parsePiiAccessLog,
   parsePiiAccessLogExport,
   piiAccessPath,
-  type PiiAccessAction,
   type PiiAccessLogData,
   type PiiAccessLogExport,
   type PiiAccessLogFilters,
-  type PiiAccessSubjectKind,
-  type PiiAccessSurface,
+  type PiiAccessRecord,
 } from './pii-access-log';
 
 /*
@@ -29,19 +27,7 @@ import {
  *  - 접속기록 점검 화면 자체는 기록이 남아야 연다(fail-closed) — 운영자 IP와 열람 대상을 모아 보여 주는 화면이라서다.
  */
 
-export interface PiiAccessRecord {
-  actorId: string;
-  action: PiiAccessAction;
-  surface: PiiAccessSurface;
-  /** 화면·라우트 경로. 쿼리 문자열은 버린다. */
-  path: string;
-  subjectKind: PiiAccessSubjectKind;
-  subjectIds?: readonly (string | null | undefined)[];
-  /** 대상 수. 생략하면 ID 수. 대량 내려받기는 ID 없이 건수만 넘긴다. */
-  subjectCount?: number;
-  /** 화면 id·검색 유형·건수·감사 ID 같은 짧은 코드만. 개인정보 원문을 넣지 않는다. */
-  detail?: Record<string, string | number | boolean | null | undefined>;
-}
+export type { PiiAccessRecord };
 
 export class PiiAccessLogError extends Error {
   constructor() { super('개인정보 접속기록을 남기지 못해 요청을 처리하지 않았습니다. 잠시 후 다시 시도해주세요.'); this.name = 'PiiAccessLogError'; }

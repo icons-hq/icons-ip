@@ -16,6 +16,7 @@ import { loadAdminClaimWorkspace } from '@/lib/admin/claim-preview.server';
 import { loadClaimReturnOperations } from '@/lib/admin/claim-return-operations.server';
 import { CLAIM_RETURN_OPERATIONS_OFF } from '@/lib/admin/claim-return-pickup';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
+import { piiSearchRecord } from '@/lib/admin/pii-access-log';
 import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 import { ORDER_CLAIM_TYPE_LABELS, orderClaimReferenceLabel, orderClaimTypeForSlug } from '@/lib/orders/claims';
 import { canAccessAdminScreen } from '@/lib/admin/access';
@@ -61,6 +62,10 @@ export default async function AdminSalesClaimsPage({
   if (previewId && workspace && workspace.detail.claim.claimType !== claimType) {
     redirect(adminClaimPreviewHref(workspace.detail.claim.claimType, previewId));
   }
+  /* 구매자·구매자 이메일·수령인명(또는 전체)으로 검색한 결과는 주문 검색과 같은 방식으로 접속기록에 남긴다(원문 없이, 실패해도 연다). */
+  const search = piiSearchRecord({ actorId: auth.user.id, surface: 'claim.search', path: adminClaimBasePath(claimType), subjectKind: 'claim',
+    subjectIds: data.rows.map(row => row.id), total: data.total, field: filters.field, query: filters.query, page: filters.page });
+  if (search) await notePiiAccess(search);
   /* 목록 위 상세 팝업도 클레임 상세 화면이다 — 상세 라우트와 같은 개인정보 접속기록(실패해도 연다). */
   if (previewId && workspace) {
     await notePiiAccess({ actorId: auth.user.id, action: 'view', surface: 'claim.detail', path: `${adminClaimBasePath(claimType)}/${previewId}`,
