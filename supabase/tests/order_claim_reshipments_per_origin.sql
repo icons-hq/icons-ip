@@ -142,6 +142,8 @@ select pg_temp.po_error(format('select private.record_order_claim_shipment_reshi
  pg_temp.po_id('claim',1),pg_temp.po_id('shipment',1),jsonb_build_object('reason','TEST 입고된 배송 건 회수 생략','evidenceFileIds',jsonb_build_array(pg_temp.po_id('file',9)))::text),'collection_waiver_not_needed');
 
 -- 김포만 먼저 재출고(파랑으로 교환): 회수품 +1, 보낸 옵션 −1, 클레임은 열린 채 '재출고 1/2'.
+-- 하자 교환은 재출고 전에 회수품 재고 처리를 정한다(CLM-046, 여기서는 정상 복원).
+select public.admin_plan_claim_exchange_defective_stock(pg_temp.po_id('claim',1),pg_temp.po_id('shipment',1),'{}'::uuid[])->>'decided' as gimpo_decided \gset
 select pg_temp.po_fresh(1);
 insert into po_receipts values(1,pg_temp.po_reship(1,pg_temp.po_id('shipment',1),1,(select value from po_ctx where n=1),'POGIMPO00001',
  jsonb_build_array(jsonb_build_object('orderItemId',pg_temp.po_id('item',1),'variantId',pg_temp.po_id('variant',1)))));
@@ -359,6 +361,7 @@ select pg_temp.po_assert(not exists(select 1 from public.order_claim_collection_
 -- 남양주(일반)는 입고 뒤 먼저 재출고한다. 김포 주문제작의 제작이 남아도 막히지 않는다(제작 검사는 배송 건마다).
 select public.admin_record_order_claim_origin_collection(pg_temp.po_id('claim',4),pg_temp.po_id('shipment',42),'TEST 남양주 입고');
 select pg_temp.po_error(format('select public.admin_waive_order_claim_collection(%L,%L,%L::jsonb)',pg_temp.po_id('claim',4),pg_temp.po_id('shipment',42),pg_temp.po_waiver()::text),'collection_waiver_not_needed');
+select public.admin_plan_claim_exchange_defective_stock(pg_temp.po_id('claim',4),pg_temp.po_id('shipment',42),'{}'::uuid[])->>'decided' as namyangju_decided \gset
 select pg_temp.po_reship(4,pg_temp.po_id('shipment',42),42,pg_temp.po_fresh(4),'POMTO0000042')->>'state' as normal_first \gset
 select pg_temp.po_assert(:'normal_first'='saved'
  and (select stage='collecting' and reshipped_at is not null from public.order_cancellation_requests where id=pg_temp.po_id('claim',4))
@@ -485,6 +488,7 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.po_id('u
 select pg_temp.po_late_production(6,'start',61) as t3_started \gset
 select pg_temp.po_late_production(6,'complete',62) as t3_completed \gset
 select set_config('request.jwt.claims','',true);
+select public.admin_plan_claim_exchange_defective_stock(pg_temp.po_id('claim',6),pg_temp.po_id('shipment',61),'{}'::uuid[])->>'decided' as t3_decided \gset
 select pg_temp.po_reship(6,pg_temp.po_id('shipment',61),62,pg_temp.po_fresh(6),'POCONV000061')->>'state' as t3_gimpo \gset
 select pg_temp.po_assert(:'t3_waived'='saved' and :'t3_started'='started' and :'t3_completed'='completed' and :'t3_gimpo'='saved'
  and (select stage='completed' from public.order_cancellation_requests where id=pg_temp.po_id('claim',6)),
@@ -571,6 +575,7 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.po_id('u
 select pg_temp.po_late_production(10,'start',102) as flip_restarted \gset
 select pg_temp.po_late_production(10,'complete',103) as flip_completed \gset
 select set_config('request.jwt.claims','',true);
+select public.admin_plan_claim_exchange_defective_stock(pg_temp.po_id('claim',10),pg_temp.po_id('shipment',v.n),'{}'::uuid[])->>'decided' from (values(101),(102)) v(n);
 select pg_temp.po_reship(10,pg_temp.po_id('shipment',101),101,pg_temp.po_fresh(10),'POFLIP000101')->>'state' as flip_gimpo \gset
 select pg_temp.po_reship(10,pg_temp.po_id('shipment',102),102,pg_temp.po_fresh(10),'POFLIP000102')->>'state' as flip_namyangju \gset
 select pg_temp.po_assert(:'flip_restarted'='started' and :'flip_completed'='completed' and :'flip_gimpo'='saved' and :'flip_namyangju'='saved'
@@ -597,6 +602,7 @@ select pg_temp.po_assert(:'flip_waiver_back'::boolean and private.claim_collecti
  'a job completed before the round trip comes back completed');
 select public.admin_record_order_claim_origin_collection(pg_temp.po_id('claim',11),pg_temp.po_id('shipment',112),'TEST 남양주 입고');
 select pg_temp.po_reship(11,pg_temp.po_id('shipment',111),111,pg_temp.po_fresh(11),'POFLIP000111')->>'state' as flip_waived_gimpo \gset
+select public.admin_plan_claim_exchange_defective_stock(pg_temp.po_id('claim',11),pg_temp.po_id('shipment',112),'{}'::uuid[])->>'decided' as flip_waived_decided \gset
 select pg_temp.po_reship(11,pg_temp.po_id('shipment',112),112,pg_temp.po_fresh(11),'POFLIP000112')->>'state' as flip_waived_namyangju \gset
 select pg_temp.po_assert(:'flip_waived_gimpo'='saved' and :'flip_waived_namyangju'='saved'
  and (select stage='completed' from public.order_cancellation_requests where id=pg_temp.po_id('claim',11))

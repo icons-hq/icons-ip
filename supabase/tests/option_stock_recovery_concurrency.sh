@@ -63,6 +63,8 @@ delete from private.order_claim_reshipment_destinations where order_id in('${fir
 delete from private.group_claim_reshipment_allocations where claim_id in(select id from public.order_cancellation_requests where order_id in('${first_order}','${second_order}'));
 delete from public.order_claim_reshipment_items where claim_id in(select id from public.order_cancellation_requests where order_id in('${first_order}','${second_order}'));
 delete from public.order_claim_collection_waivers where order_id in('${first_order}','${second_order}');
+-- 교환 회수품 재고 처리 결정(CLM-046)도 클레임·배송 건·처리자를 on delete restrict로 가리킨다. 이 시험은 불량을 고르지 않는다.
+delete from private.claim_exchange_stock_decisions where order_id in('${first_order}','${second_order}');
 delete from public.order_claim_reshipments where order_id in('${first_order}','${second_order}');
 delete from public.order_cancellation_requests where order_id in('${first_order}','${second_order}');
 delete from public.order_cancellation_claims where order_id in('${first_order}','${second_order}');
@@ -87,6 +89,7 @@ select 1 / case when
   and not exists(select 1 from public.order_claim_collections where shipment_id in('${first_shipment}','${second_shipment}'))
   and not exists(select 1 from public.order_claim_reshipment_items where good_id='${test_prefix}')
   and not exists(select 1 from public.order_claim_reshipments where order_id in('${first_order}','${second_order}'))
+  and not exists(select 1 from private.claim_exchange_stock_decisions where order_id in('${first_order}','${second_order}'))
   and not exists(select 1 from public.order_items where id in('${first_item}','${second_item}'))
   and not exists(select 1 from public.payments where id='${payment}')
   and not exists(select 1 from public.refunds where payment_id='${payment}')
@@ -145,6 +148,9 @@ select public.admin_decide_order_claim(:'first_claim','approve',null);
 select public.admin_decide_order_claim(:'second_claim','approve',null);
 select 1 / case when public.admin_record_order_claim_origin_collection(:'first_claim','${first_shipment}','첫 주문 파랑 옵션 1개 실물 입고 확인')='collected'
   and public.admin_record_order_claim_origin_collection(:'second_claim','${second_shipment}','둘째 주문 파랑 옵션 1개 실물 입고 확인')='collected' then 1 else 0 end;
+-- 하자·오배송 교환은 재출고 전에 회수품 재고 처리(여기서는 모두 정상 복원)를 정한다(CLM-046).
+select 1 / case when (public.admin_plan_claim_exchange_defective_stock(:'first_claim','${first_shipment}','{}'::uuid[])->>'decided')::boolean
+  and (public.admin_plan_claim_exchange_defective_stock(:'second_claim','${second_shipment}','{}'::uuid[])->>'decided')::boolean then 1 else 0 end;
 commit;
 SQL
 then

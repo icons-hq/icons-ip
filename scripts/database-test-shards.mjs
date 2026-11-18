@@ -90,6 +90,8 @@ const operators = [
   script('goods_return_address_concurrency.sh', 'RETURN_ADDRESS_TEST_SCOPE'),
   // 반품 불량 재고 분리(QNA-035): 불량 품목은 복원 제외·원장 기록·재고 대조 흐름 제외, 같은 클레임 동시 기록 멱등.
   sql('claim_defective_stock'),
+  // 교환 회수품 불량 재고 분리와 하자 교환 재출고 전 재고 처리 결정.
+  sql('exchange_defective_stock'),
   script('claim_defective_stock_concurrency.sh', 'CLAIM_DEFECTIVE_TEST_SCOPE'),
   // 반품 자동 회수 접수(QNA-032)·반품입고 파일 반영(QNA-034·ADR-0034): 스위치 OFF 불변, 회수 묶음별 접수 큐·재시도·취소, 파일 매칭·확정.
   sql('claim_return_pickup', { admin: true }),

@@ -103,6 +103,8 @@ select pg_temp.production_actor(1);set local role authenticated;
 select public.admin_save_goods_production('production-check-a',pg_temp.production_values(9),2,gen_random_uuid(),'c7160805-0000-4000-8000-000000000001','c7160805-0000-4000-9000-000000000001');
 select public.admin_decide_order_claim(:'exchange_id','approve',null);
 select public.admin_record_order_claim_origin_collection(:'exchange_id',:'shipment_id','TEST 제작품 실물 전체 회수');
+-- 하자 교환은 재출고 전에 회수품 재고 처리(정상 복원)를 정한다(CLM-046). 제작 완료 검사는 그 뒤에도 그대로다.
+select public.admin_plan_claim_exchange_defective_stock(:'exchange_id',:'shipment_id','{}'::uuid[])->>'decided' as exchange_stock_decided;
 reset role;
 select id as exchange_job from private.order_production_jobs where claim_id=:'exchange_id' \gset
 select 1/case when (select terms->>'leadDays'='7' and basis_at is not null and due_at is not null from private.order_production_jobs where id=:'exchange_job') then 1 else 0 end as replacement_preserves_purchased_terms;

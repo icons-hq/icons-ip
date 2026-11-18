@@ -25,7 +25,7 @@ import {
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimDetailLoadFailureMessage } from '@/lib/admin/claim-transaction-snapshot';
-import { DEFECTIVE_STOCK_PENDING_NOTICE, readStockDispositions } from '@/lib/admin/defective-stock';
+import { DEFECTIVE_STOCK_PENDING_NOTICE, EXCHANGE_STOCK_DECISION_REQUIRED, readStockDispositions } from '@/lib/admin/defective-stock';
 import { recordClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { CLAIM_EVIDENCE_MAX_FILES, CLAIM_WAIVER_REASON_MAX, CLAIM_WAIVER_REASON_MIN, claimWaiverReasonValid, normalizeClaimWaiverReason } from '@/lib/admin/claim-evidence';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
@@ -83,6 +83,7 @@ const IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. �
 const DEFECTIVE_PLAN_FAILED = '품목별 재고 처리를 저장하지 못했습니다. 환불과 재고는 그대로입니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
 const DEFECTIVE_RECORD_FAILED = `불량 재고를 기록하지 못했습니다. ${DEFECTIVE_STOCK_PENDING_NOTICE}`;
 const DEFECTIVE_STOCK_RECORDED_NOTE = '판매 재고에는 넣지 않았습니다.';
+const EXCHANGE_STOCK_PLAN_FAILED = '회수품 재고 처리를 저장하지 못했습니다. 재고와 재출고는 그대로입니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
 const REFUND_METHOD_MISMATCH = '이 결제의 환불 수단과 다릅니다. 토스 결제는 결제사 취소(토스 전액 취소)로만 환불합니다. 화면을 새로고침한 뒤 다시 진행해주세요.';
 
 const DECISION_MESSAGES: Record<string, string> = {
@@ -97,7 +98,7 @@ const DECISION_MESSAGES: Record<string, string> = {
 function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   const value = (message ?? '').toLowerCase();
   if (value.includes('defective_stock_claim_closed')) return '이미 환불이 확정된 요청이라 재고 처리를 바꿀 수 없습니다.';
-  if (value.includes('defective_stock_item_in_other_claim') || value.includes('defective_stock_plan_conflict')) return '다른 반품 요청에서 이미 불량으로 고른 품목입니다. 이력을 확인해주세요.';
+  if (value.includes('defective_stock_item_in_other_claim') || value.includes('defective_stock_plan_conflict')) return '다른 반품·교환 요청에서 이미 불량으로 고른 품목입니다. 이력을 확인해주세요.';
   if (value.includes('defective_stock_item_not_in_order') || value.includes('defective_stock_return_only')) return '이 반품 요청의 품목이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
   if (value.includes('defective_stock_item_not_shipped')) return '출고되지 않았거나 디지털인 품목은 불량으로 고를 수 없습니다. 화면을 새로고침해주세요.';
   if (value.includes('defective_stock_item_fully_canceled')) return '재고 부족 부분 취소로 남은 수량이 없는 품목은 불량으로 고를 수 없습니다. 화면을 새로고침해주세요.';
@@ -149,6 +150,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('collection_waiver_unavailable')) return '출고지별 회수를 쓰지 않는 교환은 회수를 생략할 수 없습니다.';
   if (value.includes('collection_waiver_evidence_required')) return '회수 생략 근거 사진을 1~5장 올려주세요.';
   if (value.includes('invalid_collection_waiver_reason')) return '회수 생략 사유를 10~500자로 적어주세요.';
+  if (value.includes('exchange_stock_decision_required')) return `${EXCHANGE_STOCK_DECISION_REQUIRED} 처리 칸의 회수품 재고 처리에서 저장한 뒤 다시 재출고해주세요.`;
   if (value.includes('production_incomplete')) return '주문제작 상품의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.';
   if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
@@ -814,6 +816,51 @@ export async function planClaimDefectiveStockAction(
     message: dispositions.defectiveIds.length > 0
       ? `불량 ${dispositions.defectiveIds.length}개 품목을 저장했습니다. 환불을 확정하면 판매 재고에 넣지 않고 불량 재고에 기록합니다.`
       : '모든 품목을 판매 재고 복원으로 저장했습니다.',
+  };
+}
+
+/** 교환 회수품 재고 처리(CLM-046)의 DB 거절을 운영자 문구로 옮긴다. 반품과 다른 뜻의 코드만 여기서 고르고 나머지는 공용 문구다. */
+function exchangeStockErrorMessage(message: string | null | undefined) {
+  const value = (message ?? '').toLowerCase();
+  if (value.includes('defective_stock_claim_closed')) return '이미 재출고한 출고지이거나 재출고할 수 있는 단계가 아니라 회수품 재고 처리를 바꿀 수 없습니다. 최신 상태를 확인해주세요.';
+  if (value.includes('exchange_defective_not_collected')) return '회수를 확인한 출고지만 회수품 재고 처리를 정할 수 있습니다. 먼저 출고지별 회수를 확인해주세요.';
+  if (value.includes('exchange_defective_collection_waived')) return '회수 생략을 결정한 출고지는 돌아오는 상품이 없어 회수품 재고 처리를 정하지 않습니다.';
+  if (value.includes('defective_stock_item_not_in_order') || value.includes('defective_stock_exchange_only')) return '이 출고지의 회수 품목이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
+  if (value.includes('defective_stock_item_fully_canceled')) return '재고 부족 부분 취소로 남은 수량이 없는 품목은 불량으로 고를 수 없습니다. 화면을 새로고침해주세요.';
+  return rpcErrorMessage(message, EXCHANGE_STOCK_PLAN_FAILED);
+}
+
+/**
+ * 교환 출고지의 회수품 재고 처리(CLM-046)를 재출고 전에 저장한다. 불량으로 고른 품목은 그 출고지를 재출고할 때 판매 재고에 넣지 않고
+ * 불량 재고에 기록되며, 나머지는 지금처럼 복원된다. 저장만으로 재고는 움직이지 않는다. 하자·오배송 교환은 이 저장(모두 정상 복원 포함)이
+ * 있어야 재출고할 수 있다.
+ */
+export async function planExchangeDefectiveStockAction(
+  _state: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const access = await requireStaffAction();
+  if (access.error || !access.userId) return access.error ?? { error: EXCHANGE_STOCK_PLAN_FAILED };
+  const claimId = String(formData.get('claimId') ?? '').toLowerCase();
+  /* 배송 건 없는 옛 주문(주문 전체)은 빈 값이다. */
+  const shipmentValue = String(formData.get('shipmentId') ?? '').toLowerCase();
+  const shipmentId = shipmentValue === '' ? null : shipmentValue;
+  const dispositions = readStockDispositions(formData);
+  if (dispositions && 'error' in dispositions) return { error: dispositions.error };
+  if (!isUuid(claimId) || (shipmentId !== null && !isUuid(shipmentId)) || !dispositions) return { error: EXCHANGE_STOCK_PLAN_FAILED };
+  const { error } = await (await createClient()).rpc('admin_plan_claim_exchange_defective_stock', {
+    p_claim_id: claimId,
+    p_shipment_id: shipmentId,
+    p_order_item_ids: dispositions.defectiveIds,
+  });
+  revalidateClaimSurfaces(claimId, 'exchange');
+  if (error) return { error: exchangeStockErrorMessage(error.message) };
+  const origin = String(formData.get('originName') ?? '').trim();
+  const where = origin ? `${origin} 출고지를` : '이 출고지를';
+  return {
+    message: dispositions.defectiveIds.length > 0
+      ? `불량 ${dispositions.defectiveIds.length}개 품목을 저장했습니다. ${where} 재출고할 때 판매 재고에 넣지 않고 불량 재고에 기록합니다.`
+      : `회수 상품을 모두 정상 재고로 복원하도록 저장했습니다. ${where} 재출고할 때 판매 재고로 돌아갑니다.`,
   };
 }
 
