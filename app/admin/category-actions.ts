@@ -124,8 +124,6 @@ export async function saveAdminCategoryAction(
       target_parent_id: normalized.value.parentId,
       target_sort_order: normalized.value.sortOrder,
       target_expected_updated_at: normalized.value.expectedUpdatedAt,
-      /* ADR-0044: 상품 유형 연결은 더 쓰지 않는다. null = 저장된 값을 그대로 둔다. */
-      target_good_type: null,
     });
     if (error) return preserve(state, formData, { form: mapRpcError(error) });
     revalidateCategorySurfaces();
