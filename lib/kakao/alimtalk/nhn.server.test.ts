@@ -73,7 +73,8 @@ describe('createNhnAlimtalkSender', () => {
     expect(JSON.parse(init.body as string)).toEqual({
       senderKey: SENDER_KEY,
       templateCode: 'XSQ_ORDER_PAID',
-      recipientList: [{ recipientNo: '01012345678', templateParameter: MESSAGE.templateParameter }],
+      /* 콘솔의 대체 발송 설정과 무관하게 문자로 넘기지 않는다. */
+      recipientList: [{ recipientNo: '01012345678', templateParameter: MESSAGE.templateParameter, resendParameter: { isResend: false } }],
     });
   });
 

@@ -107,7 +107,13 @@ export function createNhnAlimtalkSender(
           body: JSON.stringify({
             senderKey: config.senderKey,
             templateCode: message.templateCode,
-            recipientList: [{ recipientNo: message.recipientNo, templateParameter: message.templateParameter }],
+            /* 문자 대체 발송은 요청마다 끈다 — NHN은 콘솔에서 대체 발송을 켜 두면 resendParameter가 없는 요청에도 적용한다.
+               알림톡이 실패한 회원은 이메일만 받는다(방침·런북: 문자 거래 안내는 하지 않는다). */
+            recipientList: [{
+              recipientNo: message.recipientNo,
+              templateParameter: message.templateParameter,
+              resendParameter: { isResend: false },
+            }],
           }),
           cache: 'no-store',
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
