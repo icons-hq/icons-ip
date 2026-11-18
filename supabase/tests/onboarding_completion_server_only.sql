@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
--- 온보딩 완료(profiles.onboarded_at)는 서버만 기록한다. authenticated의 직접 update는 권한 오류로 거절되고,
--- service_role 전용 RPC만 쓰며(휴대폰 인증 필요 시 인증된 번호를 다시 확인) 이미 마친 계정의 시각은 바꾸지 않는다.
+-- 온보딩 완료(profiles.onboarded_at)를 서버가 기록하는 service_role 전용 RPC. authenticated·anon은 부를 수 없고,
+-- 휴대폰 인증이 필요하면 인증된 번호를 다시 확인하며, 이미 마친 계정의 시각은 바꾸지 않는다.
+-- (authenticated의 열 직접 update 회수는 후속 migration과 그 스모크가 단언한다.)
 begin;
 create function pg_temp.uid(n integer) returns uuid language sql immutable as $$
  select ('a6271800-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid $$;
@@ -19,24 +20,18 @@ update public.profiles set nickname='TEST 온보딩04', birth_date=null, consent
 -- 3번만 인증된 번호가 있다.
 insert into private.member_phone_numbers(user_id, phone_e164, verified_at) values (pg_temp.uid(3), '+821012340003', now());
 
--- 선언적 단언: 열 권한과 RPC 봉인.
-select 1/case when not has_column_privilege('authenticated','public.profiles','onboarded_at','UPDATE')
- and not has_column_privilege('anon','public.profiles','onboarded_at','UPDATE')
- and has_column_privilege('authenticated','public.profiles','birth_date','UPDATE')
- and has_column_privilege('authenticated','public.profiles','consents','UPDATE') then 1 else 0 end as assert_onboarded_at_not_client_writable;
+-- 선언적 단언: RPC 봉인.
 select 1/case when has_function_privilege('service_role','public.service_complete_member_onboarding(uuid,boolean)','execute')
  and not has_function_privilege('authenticated','public.service_complete_member_onboarding(uuid,boolean)','execute')
  and not has_function_privilege('anon','public.service_complete_member_onboarding(uuid,boolean)','execute')
  and not has_function_privilege('public','public.service_complete_member_onboarding(uuid,boolean)','execute') then 1 else 0 end as assert_complete_rpc_sealed;
 
--- 런타임: 로그인한 회원이 직접 쓰면 거절된다(휴대폰 인증 우회 시도).
+-- 런타임: 로그인한 회원은 완료 RPC를 부를 수 없다.
 select set_config('request.jwt.claim.sub', pg_temp.uid(1)::text, true);
 select set_config('request.jwt.claims', jsonb_build_object('sub', pg_temp.uid(1)::text, 'role', 'authenticated')::text, true);
 set local role authenticated;
-select pg_temp.expect_error(format('update public.profiles set onboarded_at = now() where id = %L', pg_temp.uid(1)), 'permission denied');
 select pg_temp.expect_error(format('select public.service_complete_member_onboarding(%L, false)', pg_temp.uid(1)), 'permission denied');
 reset role;
-select 1/case when (select onboarded_at is null from public.profiles where id=pg_temp.uid(1)) then 1 else 0 end as assert_direct_write_left_no_trace;
 
 -- service_role 경로.
 set local role service_role;
