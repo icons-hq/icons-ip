@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getShipmentConsoleData } from './shipment-dispatch.server';
-import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispatch';
+import { normalizeShipmentFilters, shipmentConsoleHref, shipmentConsoleSelectable } from './shipment-dispatch';
 import { shipmentDeliveryFixture } from '@/lib/shipment-delivery.fixture';
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), origins: vi.fn(), carriers: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ order: mocks.origins }) }) }) }));
@@ -64,7 +64,7 @@ describe('shipment console query boundary', () => {
     mocks.rpc.mockResolvedValueOnce(shippingRows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects)
       .mockResolvedValueOnce({ data: { autoDelivery: false, shipments: { shipment: { extraTrackings: [extra], deliveredBy: null, tracking: null } } }, error: null });
     const off = await getShipmentConsoleData(normalizeShipmentFilters({}, 'shipping'), 'shipping');
-    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_shipment_tracking_summaries', { p_ids: ['shipment'] });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_tracking_summaries', { p_ids: ['shipment'] });
     expect(off.autoDelivery).toBe(false);
     expect(off.rows[0].trackingSummary).toEqual({ extraTrackings: [extra], deliveredBy: null, tracking: null });
     // 꺼져 있다고 응답했으면 혹시 실린 추적 값도 그리지 않는다.
@@ -102,10 +102,27 @@ describe('shipment console query boundary', () => {
     const collects = { data: { held: null, free: null }, error: null };
     mocks.rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects).mockResolvedValueOnce({ data: ['held'], error: null });
     const data = await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch');
-    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_shipment_partial_cancel_flags', { p_ids: ['held', 'free'] });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_partial_cancel_flags', { p_ids: ['held', 'free'] });
     expect(data.rows.map(row => row.partialCancelInProgress)).toEqual([true, undefined]);
     mocks.rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects).mockResolvedValueOnce({ data: null, error: { message: 'private' } });
     expect((await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rows.map(row => row.partialCancelInProgress)).toEqual([undefined, undefined]);
+  });
+  /* 출고 보류(테스트 결제·결제사 취소) 표시. 발송처리·배송현황 모두 배송 건 id만 읽고, 읽지 못하면 표시만 없이 목록을 보인다(차단은 DB). */
+  it('출고 보류 배송 건을 표시하고 선택에서 뺀다', async () => {
+    const delivery = shipmentDeliveryFixture();
+    const rows = { data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'held', delayNotice: notice, delivery, status: 'ready' }, { id: 'free', delayNotice: notice, delivery, status: 'ready' }], total: 2, counts }, error: null };
+    const packs = { data: { held: null, free: null }, error: null };
+    const production = { data: { held: { count: 0, completed: 0, ready: true, dueAt: null }, free: { count: 0, completed: 0, ready: true, dueAt: null } }, error: null };
+    const collects = { data: { held: null, free: null }, error: null };
+    mocks.rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects)
+      .mockResolvedValueOnce({ data: [], error: null }).mockResolvedValueOnce({ data: ['held'], error: null });
+    const data = await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch');
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_shipment_fulfillment_hold_flags', { p_ids: ['held', 'free'] });
+    expect(data.rows.map(row => row.fulfillmentHold)).toEqual([true, undefined]);
+    expect(data.rows.map(row => shipmentConsoleSelectable(row, 'new'))).toEqual([false, true]);
+    mocks.rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects)
+      .mockResolvedValueOnce({ data: [], error: null }).mockResolvedValueOnce({ data: null, error: { message: 'private' } });
+    expect((await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rows.map(row => row.fulfillmentHold)).toEqual([undefined, undefined]);
   });
   /* 2026-11-12 "착불 금액은 보이게": 배송 건별 착불 배송비·수납 정보를 화면에도 붙인다(출고 전용 운영자 포함, 읽기 전용). */
   it('attaches the per-shipment collect fee and collection terms read with the same row ids', async () => {

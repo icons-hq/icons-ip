@@ -38,6 +38,7 @@ import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
+import { FULFILLMENT_HOLD_BLOCKED_MESSAGE, isFulfillmentHoldError } from '@/lib/admin/fulfillment-holds';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
@@ -122,6 +123,8 @@ export async function updateAdminOrderStatusAction(
     p_tracking_number: normalized.value.trackingNumber,
   });
   if (error) {
+    /* 출고 보류(테스트 결제·결제사 취소)는 DB가 발주확인·발송을 거절한다 — 무엇이 막았는지 그대로 말한다. */
+    if (isFulfillmentHoldError(error.message)) return { errors: { form: FULFILLMENT_HOLD_BLOCKED_MESSAGE } };
     return { errors: { form: '주문 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }
 
@@ -192,6 +195,7 @@ export async function bulkConfirmAdminOrdersAction(
   const supabase = await createClient();
   const confirmedOrderIds: string[] = [];
   const failed: string[] = [];
+  let held = 0;
 
   for (const orderId of orderIds) {
     const { error } = await supabase.rpc('admin_update_order_status', {
@@ -202,6 +206,7 @@ export async function bulkConfirmAdminOrdersAction(
     });
     if (error) {
       failed.push(orderId);
+      if (isFulfillmentHoldError(error.message)) held += 1;
       continue;
     }
     confirmedOrderIds.push(orderId);
@@ -211,10 +216,12 @@ export async function bulkConfirmAdminOrdersAction(
 
   const confirmed = confirmedOrderIds.length;
   const failedLabels = failed.length ? await orderNumberLabels(supabase, failed) : '';
+  /* 출고 보류 주문은 원인이 하나로 정해진다 — 실패 문구 끝에 건수를 덧붙여 주문 상세에서 확인하게 한다. */
+  const heldNote = held ? ` 이 중 ${held}건은 출고 보류(테스트 결제·결제사 취소) 주문입니다.` : '';
   if (!confirmed) {
     return {
       errors: {
-        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${failedLabels}`,
+        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${failedLabels}${heldNote}`,
       },
     };
   }
@@ -224,7 +231,7 @@ export async function bulkConfirmAdminOrdersAction(
        (취소 요청·이미 바뀐 상태·일시적 오류) 한 가지로 단정하지 않는다. */
     return {
       confirmedOrderIds,
-      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${failedLabels} — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
+      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${failedLabels} — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.${heldNote}`,
     };
   }
   return { confirmedOrderIds, message: `${confirmed}건을 발주확인했습니다.` };

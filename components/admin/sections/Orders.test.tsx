@@ -262,7 +262,23 @@ describe('OrdersSection', () => {
     expect(html).toMatch(/aria-label="신규주문 2건"[^>]*data-tone="warning"/);
     expect(html).toMatch(/aria-label="발주확인 3건"[^>]*data-tone="default"/);
     /* 사람 눈 판정: 처리 중인 요청이 있는 신규주문 줄에는 체크칸이 없어 '신규주문에만 있다'는 안내와 어긋났다. */
-    expect(html).toContain('체크칸은 진행 중인 취소·반품·교환 요청이 없는 신규주문에만 있습니다.');
+    expect(html).toContain('체크칸은 진행 중인 취소·반품·교환 요청과 출고 보류가 없는 신규주문에만 있습니다.');
+  });
+
+  /* 출고 보류(테스트 결제·결제사 취소): 행 배지·처리 패널 안내가 보이고, 발주확인 버튼과 일괄 선택 체크칸이 없다. 목록 위 묶음은 팝업으로 잇는다. */
+  it('출고 보류 주문은 배지·안내를 보이고 발주확인 대상에서 빠진다', () => {
+    const hold = { reason: 'test_payment' as const, placedAt: '2026-11-18T01:00:00.000Z', providerStatus: null, providerCanceledAmount: null, paymentAmount: 32000 };
+    const base = orderData({ fulfillmentHolds: [hold] });
+    const html = renderToStaticMarkup(<OrdersSection data={{ ...base, fulfillmentHoldList: { total: 1, items: [{ orderId: base.items[0].id, orderNumber: null, status: 'paid', holds: [hold] }] } }} />);
+    expect(html).toContain('출고 보류 · 테스트 결제');
+    expect(html).toContain('출고 보류 중인 주문입니다');
+    expect(html).toContain('출고 보류 주문 1건');
+    expect(html).toContain('사유 적고 보류 해제');
+    expect(html).not.toContain('선택 주문 1건');
+    const free = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+    expect(free).not.toContain('출고 보류 중인 주문입니다');
+    expect(free).toContain(actionMarker('발주확인'));
+    expect(html).not.toContain(actionMarker('발주확인'));
   });
 
   /* 사람 눈 판정: 품목 수에 따라 줄 높이가 4~5줄로 들쭉날쭉했고, 단계 카드가 전부 같은 동그라미라 진행·완료·취소가 구분되지 않았다. */

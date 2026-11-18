@@ -34,6 +34,7 @@ import { SellerClaimIntakeButton } from './SellerClaimIntakeForm';
 import { OrderAddressButton } from './OrderAddressEditor';
 import { ShippingCollectPanel } from '@/components/admin/ShippingCollectPanel';
 import { OrderPartialCancellationPanel } from '@/components/admin/OrderPartialCancellationPanel';
+import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldNotice } from '@/components/admin/OrderFulfillmentHoldNotice';
 
 const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
   order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·운송장',
@@ -76,6 +77,9 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.bank_refund_complete_transfer': '계좌 송금 완료',
   'system.order.unpaid_cart_order_closed': '결제 대기 주문 자동 취소 (재주문·장바구니 복귀)',
   'system.order.cart_hold_detached': '장바구니 보류 해제 (결제 확인 필요 주문)',
+  'system.order.fulfillment_hold_placed': '출고 보류 (테스트 결제·결제사 취소)',
+  'admin.order.fulfillment_hold_released': '출고 보류 해제',
+  'system.order.fulfillment_hold_released': '출고 보류 종료 (주문 취소)',
 };
 /** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
 const TRIGGER_LABELS: Record<string, Record<string, string>> = {
@@ -123,8 +127,10 @@ function ItemAllocationSummary({ allocation, discounted, unavailable = false }: 
 }
 
 /** 주문 콘솔 패널(sections/Orders)에서 지금 이어서 할 일. '주문 처리'만으로는 어떤 처리인지 알 수 없다. 운송장이 빠진 배송 건이 있으면 그것부터다. */
-function orderNextStep(status: AdminOrderStatus, hasOpenClaim: boolean, hasParcel: boolean, trackingMissing: boolean) {
+function orderNextStep(status: AdminOrderStatus, hasOpenClaim: boolean, hasParcel: boolean, trackingMissing: boolean, held = false) {
   if (hasOpenClaim) return '요청 확인';
+  /* 출고 보류 중에는 발주확인·운송장·배송완료가 DB에서 막힌다 — 보류 안내(취소 또는 해제)가 먼저다. */
+  if (held && status !== 'canceled' && status !== 'done') return '출고 보류 확인';
   if (status === 'paid') return '발주확인';
   if (status === 'confirmed' && hasParcel) return '운송장 등록';
   if (status === 'shipping' && hasParcel) return trackingMissing ? '운송장 등록' : '배송완료';
@@ -225,7 +231,7 @@ export function OrderDetailScreen({
   const addressNotRequired = detail.shipments.length > 0 && detail.shipments.every(shipment => shipment.delivery && ['pickup', 'none', 'digital'].includes(shipment.delivery.method));
   const hasOpenClaim = detail.timeline.some(entry => entry.source === 'claim' && isOrderClaimStage(entry.status) && isOpenOrderClaimStage(entry.status));
   const trackingMissing = detail.shipments.filter(shipment => isParcelShipment(shipment) && shipment.status === 'shipping' && !shipment.trackingNumber).length;
-  const nextStep = orderNextStep(order.status, hasOpenClaim, !detail.shipments.length || detail.shipments.some(isParcelShipment), trackingMissing > 0);
+  const nextStep = orderNextStep(order.status, hasOpenClaim, !detail.shipments.length || detail.shipments.some(isParcelShipment), trackingMissing > 0, Boolean(detail.fulfillmentHolds?.length));
   /* 취소 주문에서 제일 궁금한 것은 환불이 됐는지다. 타임라인의 환불 기록을 머리 아래로 올린다. 사유는 요청 상세에 있어 그리로 잇는다. */
   const canceled = order.status === 'canceled';
   const { refund: latestRefund, charged, reversed } = canceledMoneySummary(canceled ? timeline : []);
@@ -246,6 +252,7 @@ export function OrderDetailScreen({
         <AdminPageHeading title="주문 상세" />
         <strong className="text-base font-semibold tabular-nums">{order.orderNumber ?? order.id}</strong>
         <OrderStatusBadge className={LARGE_STATUS_BADGE_CLASS} status={order.status} />
+        <OrderFulfillmentHoldBadges holds={detail.fulfillmentHolds ?? []} />
         <span className="flex items-baseline gap-1.5"><span className="text-muted-foreground">{canceled && !charged && !reversed && !latestRefund ? '주문금액' : '결제금액'}</span><strong className="text-base font-semibold tabular-nums">{money(order.total)}</strong></span>
       </section>
       <div className="flex flex-wrap items-center gap-2">
@@ -270,6 +277,8 @@ export function OrderDetailScreen({
         </div>
       </AdminNotice>
     </div> : null}
+    {/* 출고 보류(테스트 결제·결제사 취소)는 출고를 막는 상태라 머리 바로 아래에서 다음 행동과 함께 보인다. */}
+    <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} />
     {/* 운송장이 빠졌다는 경고는 눌러야 할 일이라 머리 바로 아래에 둔다. 등록은 바로 위 주 버튼 하나로 간다 — 같은 일을 하는 버튼이 둘이면 다른 일인지 망설인다. */}
     {trackingMissing ? <AdminNotice role="status" tone="warning" title={`배송 중인데 운송장이 없는 배송 건이 ${trackingMissing}건 있습니다`}>
       배송완료로 처리하기 전에 택배사와 운송장번호를 등록해주세요.

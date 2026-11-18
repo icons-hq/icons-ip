@@ -213,6 +213,7 @@ export function preorderMutationError(message: string): string {
     random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
     invalid_random_preorder: '승인 물량·접수 기간·발송 예정일·승인 근거를 확인해주세요.',
     'order cancellation in progress': '취소·클레임이 진행 중인 주문은 해당 처리를 먼저 확인해주세요.',
+    'order fulfillment hold': '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이 있습니다. 주문 상세의 출고 보류 안내를 확인해주세요.',
   };
   return errors[message] ?? '예약판매 처리를 완료하지 못했습니다. 입력과 현재 상품 상태를 확인해주세요.';
 }

@@ -1,0 +1,108 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { releaseOrderFulfillmentHoldAction } from '@/app/admin/fulfillment-hold-actions';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { Button } from '@/components/admin/kit/ui/button';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
+import { adminPrompt } from '@/lib/admin/confirm';
+import Link from 'next/link';
+import {
+  FULFILLMENT_HOLD_LABELS,
+  fulfillmentHoldGuidance,
+  type FulfillmentHoldReason,
+  type OrderFulfillmentHold,
+  type OrderFulfillmentHoldList,
+} from '@/lib/admin/fulfillment-holds';
+import { formatOrderDateTime } from '@/lib/orders';
+import { statusTone } from '@/lib/admin/status-tone';
+
+/** 목록 행·상태 칸에 붙는 출고 보류 배지. 사유가 둘이면 둘 다 보인다. */
+export function OrderFulfillmentHoldBadges({ holds }: { holds: readonly OrderFulfillmentHold[] }) {
+  if (!holds.length) return null;
+  return <>{holds.map(hold => <AdminStatusBadge key={hold.reason} data-fulfillment-hold={hold.reason}
+    title={fulfillmentHoldGuidance(hold)} tone={statusTone('fulfillmentHold', hold.reason)}>
+    출고 보류 · {FULFILLMENT_HOLD_LABELS[hold.reason]}
+  </AdminStatusBadge>)}</>;
+}
+
+/**
+ * 주문 상세·처리 패널의 출고 보류 안내(원장 PAY-050·CLM-051). 보류 중에는 DB가 발주확인·출고지시·발송을 막는다.
+ * 사유별로 다음 행동을 안내하고, 주문 관리 권한(sales.manage)이면 사유를 적어 해제할 수 있다.
+ */
+export function OrderFulfillmentHoldNotice({ orderId, holds, canManage }: {
+  orderId: string; holds: readonly OrderFulfillmentHold[]; canManage: boolean;
+}) {
+  /* 보류가 없는 대부분의 주문은 라우터·전이 훅을 붙이지 않는다(정적 렌더·팝업 밖에서도 그대로 그려진다). */
+  return holds.length ? <HeldOrderNotice canManage={canManage} holds={holds} orderId={orderId} /> : null;
+}
+
+function HeldOrderNotice({ orderId, holds, canManage }: {
+  orderId: string; holds: readonly OrderFulfillmentHold[]; canManage: boolean;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  useClaimPreviewBusy(pending);
+
+  async function release(reason: FulfillmentHoldReason) {
+    const note = await adminPrompt({
+      title: `출고 보류 해제 · ${FULFILLMENT_HOLD_LABELS[reason]}`,
+      message: reason === 'test_payment'
+        ? '실제 돈이 결제되지 않은 테스트 결제입니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 결제를 따로 받았거나 출고해야 하는 이유를 적어주세요.'
+        : '결제사에서 취소된 금액이 있습니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 고객과 합의한 내용 등 출고해야 하는 이유를 적어주세요.',
+      confirmLabel: '보류 해제',
+      destructive: true,
+      input: { label: '해제 사유', placeholder: '예: 고객과 통화해 남은 금액으로 출고하기로 함', minLength: 5, maxLength: 500 },
+    });
+    if (note === null) return;
+    startTransition(async () => {
+      const outcome = await releaseOrderFulfillmentHoldAction({ orderId, reason, note, operationId: crypto.randomUUID() });
+      setResult(outcome.ok ? { ok: true, text: outcome.message } : { ok: false, text: outcome.error });
+      if (outcome.ok) router.refresh();
+    });
+  }
+
+  return <AdminNotice role="status" tone="danger" title="출고 보류 중인 주문입니다">
+    <div className="flex flex-col gap-3" data-order-fulfillment-hold="">
+      <p className="text-sm">보류가 풀릴 때까지 자동·수동 발주확인, 출고지시 내보내기, 발송·배송완료 처리가 막힙니다.</p>
+      <ul className="flex flex-col gap-2.5">
+        {holds.map(hold => <li className="flex flex-col items-start gap-1.5" key={hold.reason}>
+          <span className="flex flex-wrap items-center gap-2">
+            <AdminStatusBadge tone={statusTone('fulfillmentHold', hold.reason)}>{FULFILLMENT_HOLD_LABELS[hold.reason]}</AdminStatusBadge>
+            {hold.placedAt ? <time className="text-xs text-muted-foreground tabular-nums" dateTime={hold.placedAt}>{formatOrderDateTime(hold.placedAt)}</time> : null}
+          </span>
+          <p className="text-sm leading-relaxed wrap-anywhere">{fulfillmentHoldGuidance(hold)}</p>
+          {canManage ? <Button disabled={pending} onClick={() => { void release(hold.reason); }} size="sm" variant="outline">
+            {pending ? '처리 중' : '사유 적고 보류 해제'}
+          </Button> : null}
+        </li>)}
+      </ul>
+      {result ? <p className={result.ok ? 'text-sm text-success' : 'text-sm text-destructive'} role={result.ok ? 'status' : 'alert'}>{result.text}</p> : null}
+    </div>
+  </AdminNotice>;
+}
+
+/**
+ * 주문 목록 위 '출고 보류 주문' 묶음(운영 할 일의 출고 보류 건수가 여기로 온다). 오래된 순 최대 20건을 보이고, 주문번호를 누르면
+ * 목록 위 상세 팝업에서 사유·다음 행동·해제를 본다. 보류가 없으면 그리지 않는다.
+ */
+export function OrderFulfillmentHoldList({ list, hrefFor }: {
+  list: OrderFulfillmentHoldList | undefined; hrefFor: (orderId: string) => string;
+}) {
+  if (!list?.total) return null;
+  return <section aria-label="출고 보류 주문" data-order-fulfillment-hold-list="">
+    <AdminNotice role="status" tone="danger" title={`출고 보류 주문 ${list.total.toLocaleString('ko-KR')}건 · 발주확인·출고지시에서 빠져 있습니다`}>
+      <div className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-1.5">
+          {list.items.map(item => <li className="flex flex-wrap items-center gap-2" key={item.orderId}>
+            <Link className="font-medium tabular-nums underline-offset-4 hover:underline" href={hrefFor(item.orderId)}>{item.orderNumber ?? item.orderId}</Link>
+            <OrderFulfillmentHoldBadges holds={item.holds} />
+          </li>)}
+        </ul>
+        {list.total > list.items.length ? <p className="text-xs text-muted-foreground">오래된 {list.items.length}건만 보입니다. 처리하면 다음 건이 올라옵니다.</p> : null}
+      </div>
+    </AdminNotice>
+  </section>;
+}

@@ -39,6 +39,8 @@ export interface ShipmentConsoleRow {
  production?:import('@/lib/order-production').ShipmentProductionSummary;
  /** 재고 부족 부분 취소가 결제사 확인 중인 주문의 배송 건(QA2 물류). 출고지시·발송이 막힌다. 금액은 담지 않는다. */
  partialCancelInProgress?:boolean;
+ /** 출고 보류(테스트 결제·결제사 취소) 주문의 배송 건. 발주확인·출고지시·발송이 막힌다. 사유·금액은 담지 않는다(출고 전용 권한도 읽는다). */
+ fulfillmentHold?:boolean;
  /** 배송현황만: 추가 운송장(QNA-019)과 스위치가 켜진 때의 자동 배송완료 표시(QNA-028). */
  trackingSummary?:import('./shipment-tracking').ShipmentTrackingSummary;
 }
@@ -106,12 +108,14 @@ export function shipmentMutationError(code:string):string{
  if(warehouseErrors[code])return warehouseErrors[code];
  if(code.startsWith('production_'))return productionError(undefined,code);
  if(code.startsWith('shipment_pack_'))return shipmentPackError(code);
- const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다.',invalid_shipment_reference:'배송건번호 형식을 확인해주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'발주확인 또는 현재 배송 상태를 확인해주세요.',tracking_required:'택배사와 운송장번호가 필요합니다.',invalid_tracking_input:'운송장번호 형식을 확인해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목에 실제 입고 물량을 먼저 할당해주세요.'};
+ const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다.',invalid_shipment_reference:'배송건번호 형식을 확인해주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'발주확인 또는 현재 배송 상태를 확인해주세요.',tracking_required:'택배사와 운송장번호가 필요합니다.',invalid_tracking_input:'운송장번호 형식을 확인해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.','order fulfillment hold':'출고 보류 중인 주문입니다(테스트 결제 또는 결제사 취소). 주문 상세의 출고 보류 안내를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목에 실제 입고 물량을 먼저 할당해주세요.'};
  return known[code]??'처리하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
 }
 /** Older in-process projections may omit delivery; a present invalid value fails closed. */
 export function isParcelShipment(row:Pick<ShipmentConsoleRow,'delivery'>):boolean{return row.delivery===undefined||row.delivery?.method==='parcel';}
 export function shipmentConsoleSelectable(row:ShipmentConsoleRow,tab:ShipmentConsoleTab):boolean{
+ // 출고 보류 건은 발주확인·출고지시·발송이 DB에서 거절된다 — 선택하지 않는다(배송완료 처리도 같다).
+ if(row.fulfillmentHold===true)return false;
  if(tab==='new')return true; // Order confirmation remains shared by every fulfillment method.
  if(tab==='delivered'||!isParcelShipment(row))return false;
  return tab==='transit'||row.preorderReady!==false&&row.production?.ready!==false&&row.partialCancelInProgress!==true;

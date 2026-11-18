@@ -17,6 +17,7 @@ import {
 import { loadOrderShipments } from '@/lib/orders/shipments.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
+import { listOrderFulfillmentHolds, loadOrderFulfillmentHolds } from './fulfillment-holds.server';
 import {
   ADMIN_ORDER_STATUSES,
   GOODS_PAYMENT_ATTEMPT_STATES,
@@ -240,11 +241,13 @@ export async function getAdminOrderRecords(
     p_date_field: filters.dateField ?? 'ordered',
     p_payment_method: filters.paymentMethod ?? null,
   };
-  const [carriers, { data, error }, countsResult] = await Promise.all([
+  const [carriers, { data, error }, countsResult, fulfillmentHoldList] = await Promise.all([
     getShippingCarrierRegistry(),
     supabase.rpc('admin_search_orders_console', { ...search, p_limit: pageSize, p_offset: (filters.page - 1) * pageSize,
       p_status: filters.status === 'all' ? null : filters.status, p_sort: filters.sort ?? 'newest' }),
     options.includeCounts === false ? Promise.resolve(null) : supabase.rpc('admin_sales_order_counts', search),
+    /* 화면(건수를 읽는 호출)만 출고 보류 묶음을 읽는다. 목록 엑셀은 읽지 않는다. */
+    options.includeCounts === false ? Promise.resolve(undefined) : listOrderFulfillmentHolds(20),
   ]);
 
   if (error) throw new Error(`Failed to load admin orders: ${error.message}`);
@@ -260,12 +263,14 @@ export async function getAdminOrderRecords(
   }
   const rows = (data ?? []) as SearchRow[];
   if (!rows.length) {
-    return { carriers, filters, items: [], pageSize, total: 0, ...(counts ? { counts } : {}) };
+    return { carriers, filters, items: [], pageSize, total: 0, ...(counts ? { counts } : {}), ...(fulfillmentHoldList ? { fulfillmentHoldList } : {}) };
   }
 
   const orderIds = rows.map((row) => row.id);
-  const [shipments, deliveries, transactions] = await Promise.all([
+  /* 출고 보류는 주문 조회 권한이면 읽는다(발주확인·출고를 막는 상태라 처리 권한이 없어도 보여야 한다). */
+  const [shipments, deliveries, transactions, holds] = await Promise.all([
     loadOrderShipments(supabase, orderIds, carriers), loadAdminOrderDeliveries(orderIds), loadAdminOrderTransactions(orderIds),
+    loadOrderFulfillmentHolds(orderIds, supabase),
   ]);
   const recoveryOrderIds = canManage && includeManualRecovery
     ? rows.filter((row) => row.cancellation_request_id
@@ -440,11 +445,13 @@ export async function getAdminOrderRecords(
         manualRecoveryAvailable: relatedAttempt.manualRecoveryAvailable,
       },
       shipments: shipments.filter(shipment => shipment.orderId === row.id),
+      ...(holds.has(row.id) ? { fulfillmentHolds: holds.get(row.id) } : {}),
     };
   });
 
   return {
     ...(counts ? { counts } : {}),
+    ...(fulfillmentHoldList ? { fulfillmentHoldList } : {}),
     carriers,
     filters,
     items,
