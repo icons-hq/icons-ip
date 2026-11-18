@@ -5,7 +5,13 @@ import type { AdminOrderFilters } from './orders';
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown, deliveryRows: [] as Record<string, unknown>[] }));
+const mocks = vi.hoisted(() => ({ client: null as unknown, deliveryRows: [] as Record<string, unknown>[], holds: new Map<string, unknown[]>(), holdIds: [] as string[][],
+  holdList: { total: 0, items: [] } as { total: number; items: unknown[] } }));
+/* 출고 보류는 별도 로더(admin_order_fulfillment_holds)가 읽는다. 보류 표시 계약은 아래 전용 시험이 본다. */
+vi.mock('./fulfillment-holds.server', () => ({
+  loadOrderFulfillmentHolds: async (ids: string[]) => { mocks.holdIds.push(ids); return mocks.holds; },
+  listOrderFulfillmentHolds: async () => mocks.holdList,
+}));
 vi.mock('@/lib/order-delivery.server', () => ({ loadAdminOrderDeliveries: async (ids: string[]) => new Map(ids.map(id => [id, { orderId: id, address: mocks.deliveryRows.find(row => row.id === id)?.address ?? null, isGift: false }])) }));
 vi.mock('@/lib/order-transactions.server', () => ({ loadAdminOrderTransactions: async (ids: string[]) => new Map(ids.map(id => [id, null])) }));
 
@@ -267,6 +273,31 @@ describe('getAdminOrderRecords', () => {
     );
   });
 
+  it('출고 보류가 있는 주문에만 보류 사유를 싣는다(주문 조회 권한이면 읽는다)', async () => {
+    const records: QueryRecord[] = [];
+    const hold = { reason: 'provider_canceled', placedAt: '2026-11-18T01:00:00.000Z', providerStatus: 'CANCELED', providerCanceledAmount: 32000, unexplainedAmount: 32000, paymentAmount: 32000, outboundBlocked: true };
+    mocks.holds = new Map([[ORDER_ID, [hold]]]);
+    mocks.holdIds = [];
+    mocks.client = createClient({
+      records,
+      rpc: vi.fn(),
+      rpcRows: [{ id: ORDER_ID, user_id: USER_ID, buyer_name: 'maple_fan', buyer_email: null, status: 'paid', total: 32000, address: null,
+        created_at: '2026-07-14T06:00:00.000Z', updated_at: '2026-07-14T06:01:00.000Z', cancellation_request_id: null, total_count: 1 }],
+      rows: { order_shipments: [], order_items: [], payment_summaries: [], refunds: [] },
+    });
+    try {
+      const result = await getAdminOrderRecords(filters, false, { canManage: false });
+      expect(mocks.holdIds).toEqual([[ORDER_ID]]);
+      expect(result.items[0].fulfillmentHolds).toEqual([hold]);
+      // 화면 호출(건수 포함)은 출고 보류 묶음도 싣고, 목록 엑셀(건수 없음)은 읽지 않는다.
+      expect(result.fulfillmentHoldList).toEqual({ total: 0, items: [] });
+      const exported = await getAdminOrderRecords(filters, false, { canManage: false, includeCounts: false });
+      expect(exported.fulfillmentHoldList).toBeUndefined();
+    } finally {
+      mocks.holds = new Map();
+    }
+  });
+
   it('returns an empty page without issuing broad child-table queries', async () => {
     const records: QueryRecord[] = [];
     const rpc = vi.fn();
@@ -287,6 +318,7 @@ describe('getAdminOrderRecords', () => {
       pageSize: 50,
       total: 0,
       counts: { pending: 0, paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0, canceled: 0 },
+      fulfillmentHoldList: { total: 0, items: [] },
     });
     expect(records).toEqual([]);
   });

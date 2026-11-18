@@ -3,8 +3,8 @@ import 'server-only';
 import { sendOrderConfirmationEmail } from '../email/transactional.server';
 import { createServiceClient } from '../supabase/service';
 import { createGoodsPaymentCheckout } from './goods-checkout';
-import { createGoodsPaymentAttemptRepository } from './goods-checkout.server';
-import { getPaymentGateway, type PaymentCheckoutProvider } from './runtime-gateway';
+import { createGoodsPaymentAttemptRepository, createGoodsPaymentKeyModeRecorder } from './goods-checkout.server';
+import { getPaymentGateway, tossGatewayKeyMode, type PaymentCheckoutProvider } from './runtime-gateway';
 import { createRuntimeAttemptPaymentGateway, goodsReconciliationFinalizer } from '../subscriptions/payment-dispatch.server';
 
 /**
@@ -30,5 +30,9 @@ export function createRuntimeGoodsPaymentCheckout(
     onApproved: async (attempt) => {
       await sendOrderConfirmationEmail(attempt.refId);
     },
+    /* 토스 결제 준비는 이 배포의 키 모드를 시도에 남긴다(운영 배포만 — 그 밖은 null). 운영에 테스트 키가 물린 기간의
+       승인은 DB가 출고 보류한다(supabase/migrations/20261118156000_order_fulfillment_holds.sql). 나이스페이·코페이는 실 MID다. */
+    providerKeyMode: provider === 'toss' ? tossGatewayKeyMode : undefined,
+    recordKeyMode: createGoodsPaymentKeyModeRecorder(service),
   });
 }

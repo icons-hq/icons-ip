@@ -94,6 +94,10 @@ const STATUS_TONES = {
   claimReturnPickup: { pending: 'info', failed: 'danger', requested: 'info', collected: 'success', cancel_pending: 'info', cancel_failed: 'danger', canceled: 'neutral' },
   /** 재고 부족 부분 취소 — lib/orders/partial-cancellation(ADR-0032). 결제확인필요는 출고를 막고 있어 위험색, 송금 대기는 우리가 보낼 돈이다 */
   partialCancellation: { processing: 'info', needs_review: 'danger', rejected: 'neutral', completed: 'success', awaiting_transfer: 'warning' },
+  /** 주문 출고 보류 사유 — lib/admin/fulfillment-holds. 둘 다 돈이 들어오지 않았거나 돌려준 주문이라 출고를 막는 위험색이다.
+   *  blocked는 사유를 모르는 화면(발송·배송현황의 배송 건)에서 아직 나가지 않은 배송 건의 보류, shipped는 이미 발송된
+   *  주문의 보류(출고를 막지 않는 경고)다 */
+  fulfillmentHold: { test_payment: 'danger', provider_canceled: 'danger', blocked: 'danger', shipped: 'warning' },
   // [cs]
   /** 상담하기 대화 상태 — lib/admin/inquiry-chat CHAT_STATUS_OPTIONS. 답변 뒤 대화가 이어지는 '진행중'은 진행 색이고, 고객문의의 '답변 완료'와 뜻이 달라 별도 줄이다 */
   inquiryChat: { open: 'warning', answered: 'info', closed: 'neutral' },

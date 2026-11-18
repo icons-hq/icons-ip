@@ -6,11 +6,15 @@ import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { DIGITAL_BUCKET, DIGITAL_MIME_EXTENSIONS, parseDigitalFile } from '@/lib/goods-fulfillment';
 import { transactionExactKeys, transactionRecord } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
+import { DIGITAL_DOWNLOAD_ON_HOLD_MESSAGE } from '@/lib/order-downloads';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 const headers = { 'Cache-Control': 'private, no-store, max-age=0', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Vary': 'Cookie' };
 const failure = (status: number) => Response.json({ error: '파일을 받을 수 없습니다. 로그인과 주문 상태를 확인한 뒤 다시 시도해주세요.' }, { status, headers });
+/* 출고 보류(결제 확인 중) — 이유 문구는 lib/order-downloads가 정한다(첫 제공 전·재다운로드 모두 DB `digital_access_on_hold`). */
+const onHold = () => Response.json({ error: DIGITAL_DOWNLOAD_ON_HOLD_MESSAGE, reason: 'payment_review' }, { status: 409, headers });
+const isOnHold = (error: { message?: string } | null) => error?.message === 'digital_access_on_hold';
 export async function POST(request: Request) {
  if (!isSameOriginRequest(request)) return failure(403);
  const size = Number(request.headers.get('content-length') ?? 0); if (!Number.isFinite(size) || size > 1024) return failure(400);
@@ -23,6 +27,7 @@ export async function POST(request: Request) {
   if (!sessionId || current.session?.user.id !== authenticated.user.id) return failure(401);
   const service = createServiceClient(); const args = { p_actor: authenticated.user.id, p_session: sessionId, p_item: body.itemId, p_asset: body.assetId };
   const info = await service.rpc('service_get_digital_download_info', args);
+  if (isOnHold(info.error)) return onHold();
   const value = info.data;
   if (info.error || !transactionRecord(value) || value.itemId !== body.itemId || value.assetId !== body.assetId || !isUuid(value.orderId)
    || typeof value.path !== 'string' || !/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|zip|png|jpg|mp3|mp4|txt)$/.test(value.path)
@@ -35,6 +40,7 @@ export async function POST(request: Request) {
   if (createHash('sha256').update(new Uint8Array(bytes)).digest('hex') !== value.sha256) return failure(503);
   // Recheck payment, refund, session, and purchased files after the private read.
   const recorded = await service.rpc('service_record_digital_download', { ...args, p_operation: body.operationId, p_sha256: value.sha256 });
+  if (isOnHold(recorded.error)) return onHold();
   if (recorded.error || !transactionRecord(recorded.data) || recorded.data.operationId !== body.operationId || recorded.data.itemId !== body.itemId || recorded.data.assetId !== body.assetId) return failure(409);
   const encoded = encodeURIComponent(file.name).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
   return new Response(new Blob([bytes], { type: file.mimeType }).stream(), { headers: { ...headers, 'Content-Type': file.mimeType,

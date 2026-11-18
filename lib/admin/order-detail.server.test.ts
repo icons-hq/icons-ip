@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { getAdminOrderDetail } from './order-detail.server';
-const mocks=vi.hoisted(()=>({rpc:vi.fn(),from:vi.fn(),select:vi.fn(),eq:vi.fn()}));
+const mocks=vi.hoisted(()=>({rpc:vi.fn(),from:vi.fn(),select:vi.fn(),eq:vi.fn(),holds:new Map<string,unknown[]>()}));
+vi.mock('./fulfillment-holds.server',()=>({loadOrderFulfillmentHolds:async()=>mocks.holds}));
 vi.mock('@/lib/order-delivery.server',()=>({loadAdminOrderDeliveries:async(ids:string[])=>new Map(ids.map(id=>[id,{orderId:id,address:null,isGift:false}]))}));
 vi.mock('@/lib/order-transactions.server',()=>({loadAdminOrderTransactions:async(ids:string[])=>new Map(ids.map(id=>[id,null]))}));
 vi.mock('@/lib/supabase/server',()=>({createClient:()=>({rpc:mocks.rpc,from:mocks.from})}));
@@ -17,6 +18,12 @@ it('관리자 세션에서 해당 주문의 배송 메일 큐 상태만 읽는�
  expect(mocks.eq).toHaveBeenCalledWith('order_id','order');
  expect(mocks.select).toHaveBeenCalledWith('shipment_id,status,attempts,last_error_code,updated_at');
  expect(result?.emailJobs).toEqual([{shipmentId:'shipment',status:'review',attempts:2,lastErrorCode:'provider_network_error',updatedAt:'2026-09-08'}]);
+});
+it('출고 보류를 주문 상세에 싣고, 없으면 빈 배열이다',async()=>{
+ expect((await getAdminOrderDetail('order'))?.fulfillmentHolds).toEqual([]);
+ const hold={reason:'test_payment',placedAt:'2026-11-18T01:00:00.000Z',providerStatus:null,providerCanceledAmount:null,unexplainedAmount:null,paymentAmount:31000,outboundBlocked:true};
+ mocks.holds=new Map([['order',[hold]]]);
+ try{expect((await getAdminOrderDetail('order'))?.fulfillmentHolds).toEqual([hold]);}finally{mocks.holds=new Map();}
 });
 it('권한 검사 RPC가 주문을 반환하지 않으면 큐 조회도 하지 않는다',async()=>{
  mocks.rpc.mockResolvedValue({data:null,error:null});

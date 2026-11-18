@@ -111,6 +111,14 @@ interface GoodsPaymentCheckoutDependencies {
    * 안 되므로 throw는 삼켜진다 — 실패 관측은 hook 구현의 책임이다.
    */
   readonly onApproved?: (attempt: PaymentAttempt) => Promise<unknown>;
+  /**
+   * 이 배포의 결제사 키 모드('test' | 'live'). 없거나 null이면 남기지 않는다(로컬·preview — 게이트웨이가 운영 배포에만 있다).
+   * 값이 있으면 prepare가 체크아웃을 돌려주기 전에 `recordKeyMode`로 시도에 남긴다. 운영에 테스트 키가 물린 기간에 승인된
+   * 결제는 DB가 그 기록으로 출고 보류한다(돈이 실제로 결제되지 않았다). 기록에 실패하면 prepare가 실패한다 — 결제창을 열기
+   * 전이라 돈은 움직이지 않고, 기록 없이 승인돼 출고되는 것보다 낫다.
+   */
+  readonly providerKeyMode?: () => 'test' | 'live' | null;
+  readonly recordKeyMode?: (input: { readonly attemptId: string; readonly keyMode: 'test' | 'live' }) => Promise<void>;
 }
 
 function callbackNonceDigest(value: string) {
@@ -169,6 +177,8 @@ export function createGoodsPaymentCheckout({
   repository,
   createClaimToken = randomUUID,
   onApproved,
+  providerKeyMode,
+  recordKeyMode,
 }: GoodsPaymentCheckoutDependencies): GoodsPaymentCheckout {
   async function notifyApproved(attempt: PaymentAttempt) {
     if (!onApproved) return;
@@ -191,6 +201,11 @@ export function createGoodsPaymentCheckout({
         attemptId: attempt.id,
         callbackNonceDigest: callbackNonceDigest(prepared.callbackNonce),
       });
+      const keyMode = providerKeyMode?.() ?? null;
+      if (keyMode) {
+        if (!recordKeyMode) throw new GoodsPaymentContractError('key_mode_recorder_missing');
+        await recordKeyMode({ attemptId: attempt.id, keyMode });
+      }
       return prepared;
     },
 

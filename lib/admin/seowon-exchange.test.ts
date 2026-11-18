@@ -76,6 +76,13 @@ describe('서원 회신 대조', () => {
     expect(match.commands).toEqual([]);
     expect(match.issues).toEqual([{ line: 2, reference: 'A', reason: SEOWON_REPLY_REASONS.partial }]);
   });
+  it('출고 보류 주문의 발송 전 배송 건은 그 줄만 실패로 돌리고 나머지 줄은 등록한다(DB가 파일 전체를 거절하지 않게)', () => {
+    const other = { ...line, phone: '01099998888', recipient: '합성 다른 수취인' };
+    const match = matchSeowonReply([reply(2, 'T1'), reply(3, 'T2', { phone: '010-9999-8888' })],
+      [candidate('a', { fulfillmentHold: true }), candidate('b', { lines: [other] })]);
+    expect(match.commands.map(command => command.shipmentId)).toEqual(['b']);
+    expect(match.issues).toEqual([{ line: 2, reference: 'A', reason: SEOWON_REPLY_REASONS.fulfillmentHold }]);
+  });
   it('우편번호를 비우거나 공백·하이픈이 달라도 같은 줄로 본다', () => {
     expect(matchSeowonReply([reply(2, 'T1', { phone: '01012345678', address: `  ${line.address.replace(/ /g, '  ')} ` })], [candidate('a')]).commands).toHaveLength(1);
   });

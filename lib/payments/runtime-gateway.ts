@@ -10,7 +10,7 @@ import {
 import { createKorpayPaymentGateway } from './korpay-gateway.server';
 import { isNicepayMerchantId, isNicepayMerchantKey } from './nicepay-config.mjs';
 import { createNicepayPaymentGateway, type NicepayPaymentReferenceStore } from './nicepay-gateway.server';
-import { isTossClientKey, isTossKeyPairAligned, isTossSecretKey } from './toss-config.mjs';
+import { isTossClientKey, isTossKeyPairAligned, isTossSecretKey, tossKeyMode } from './toss-config.mjs';
 import { createTossPaymentGateway } from './toss-gateway.server';
 
 export type NewPaymentCheckoutPurpose = 'order' | 'ticket';
@@ -114,6 +114,18 @@ function nicepayReferenceStore(): NicepayPaymentReferenceStore {
       return data as string[];
     },
   };
+}
+
+/**
+ * 지금 배포의 토스 게이트웨이 키 모드. 게이트웨이가 운영 배포(VERCEL_ENV=production)에서만 구성되므로 로컬·preview·
+ * 스테이징은 늘 null이다 — 운영에 테스트 키가 물린 기간(라이브 전환 전)만 'test'다. 굿즈 결제 준비가 시도마다 남기고,
+ * DB는 'test'로 승인된 주문을 출고 보류한다(supabase/migrations/20261118156000_order_fulfillment_holds.sql).
+ */
+export function tossGatewayKeyMode(): 'test' | 'live' | null {
+  const configuration = tossConfiguration();
+  if (!configuration) return null;
+  const mode = tossKeyMode(configuration.secretKey);
+  return mode === 'test' || mode === 'live' ? mode : null;
 }
 
 /** Credentials make the adapter ready; rollout gates remain independent. */

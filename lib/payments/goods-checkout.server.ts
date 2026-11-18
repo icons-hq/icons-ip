@@ -129,7 +129,17 @@ function evidenceArgs(evidence: PaymentProviderEvidence | undefined) {
   };
 }
 
-export type GoodsReconciliationFinalizer = 'finalize_goods_payment_reconciliation' | 'service_finalize_subscription_payment_reconciliation';
+/**
+ * 굿즈 결제 시도의 결제사 키 모드를 남긴다(service_role RPC). 테스트 키로 승인된 운영 결제를 DB가 출고 보류하는 근거다.
+ * 결제 전(prepared)에만 바꿀 수 있고, 실패는 throw한다 — 호출자(prepare)가 체크아웃을 열지 않는다.
+ */
+export function createGoodsPaymentKeyModeRecorder(client: RpcClient) {
+  return async ({ attemptId, keyMode }: { readonly attemptId: string; readonly keyMode: 'test' | 'live' }) => {
+    await rpc(client, 'service_record_goods_payment_key_mode', { p_attempt_id: attemptId, p_key_mode: keyMode });
+  };
+}
+
+export type GoodsReconciliationFinalizer ='finalize_goods_payment_reconciliation' | 'service_finalize_subscription_payment_reconciliation';
 
 export function createGoodsPaymentAttemptRepository(client: RpcClient, options: {
   readonly reconciliationFinalizer?: (attemptId: string) => Promise<GoodsReconciliationFinalizer>;

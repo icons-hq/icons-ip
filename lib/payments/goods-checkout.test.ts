@@ -194,6 +194,55 @@ describe('GoodsPaymentCheckout', () => {
     expect(repository.nonceDigests.size).toBe(1);
   });
 
+  it('키 모드가 있는 배포의 prepare는 체크아웃을 돌려주기 전에 시도에 키 모드를 남긴다', async () => {
+    const recordKeyMode = vi.fn(async () => undefined);
+    const repository = new MemoryGoodsPaymentAttemptRepository();
+    const checkout = createGoodsPaymentCheckout({
+      provider: 'korpay',
+      gateway: new FakePaymentGateway({ prepare: [prepared()] }),
+      repository,
+      providerKeyMode: () => 'test',
+      recordKeyMode,
+    });
+
+    await expect(checkout.prepare({ userId: USER_ID, orderId: ORDER_ID })).resolves.toEqual(prepared());
+    expect(recordKeyMode).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, keyMode: 'test' });
+  });
+
+  it('키 모드를 남기지 못하면 체크아웃을 돌려주지 않는다(결제창 전 fail closed)', async () => {
+    const checkout = createGoodsPaymentCheckout({
+      provider: 'korpay',
+      gateway: new FakePaymentGateway({ prepare: [prepared()] }),
+      repository: new MemoryGoodsPaymentAttemptRepository(),
+      providerKeyMode: () => 'test',
+      recordKeyMode: async () => { throw new Error('rpc failed'); },
+    });
+
+    await expect(checkout.prepare({ userId: USER_ID, orderId: ORDER_ID })).rejects.toThrow('rpc failed');
+  });
+
+  it('키 모드가 없는 배포(로컬·preview)는 기록하지 않고, 기록기 없이 키 모드만 있으면 계약 오류다', async () => {
+    const recordKeyMode = vi.fn(async () => undefined);
+    const local = createGoodsPaymentCheckout({
+      provider: 'korpay',
+      gateway: new FakePaymentGateway({ prepare: [prepared()] }),
+      repository: new MemoryGoodsPaymentAttemptRepository(),
+      providerKeyMode: () => null,
+      recordKeyMode,
+    });
+    await expect(local.prepare({ userId: USER_ID, orderId: ORDER_ID })).resolves.toEqual(prepared());
+    expect(recordKeyMode).not.toHaveBeenCalled();
+
+    const unwired = createGoodsPaymentCheckout({
+      provider: 'korpay',
+      gateway: new FakePaymentGateway({ prepare: [prepared()] }),
+      repository: new MemoryGoodsPaymentAttemptRepository(),
+      providerKeyMode: () => 'live',
+    });
+    await expect(unwired.prepare({ userId: USER_ID, orderId: ORDER_ID }))
+      .rejects.toMatchObject({ code: 'key_mode_recorder_missing' });
+  });
+
   it.each(['approved', 'declined', 'canceled', 'unknown', 'needs_review'] as const)(
     'Fake gateway의 %s 결과를 공통 ConfirmOutcome으로 끝까지 확정한다',
     async (paymentOutcome) => {

@@ -60,4 +60,6 @@ export interface AdminOrderDetail {
   /** 배분 조회 자체가 실패했다. 나눌 수 없는 주문(빈 itemAllocations)과 구분해 '불러오지 못했다'고 안내한다. */
   itemAllocationsUnavailable?: true;
   timeline: AdminOrderTimelineEntry[];
+  /** 출고 보류(테스트 결제·결제사 취소). 비어 있으면 보류가 없다. */
+  fulfillmentHolds?: import('./fulfillment-holds').OrderFulfillmentHold[];
 }

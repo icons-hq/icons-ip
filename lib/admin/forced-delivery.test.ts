@@ -31,6 +31,9 @@ describe('운영 강제 배송완료 값 (1014-083)', () => {
     /* QA1 S-T04-05: 이미 배송완료·취소된 주문은 '먼저 발주확인'이 아니라 처리할 배송 건이 없다고 알린다. */
     expect(forcedDeliveryError('23514', 'forced_delivery_nothing_to_deliver')).toContain('이미 배송완료됐거나 취소된 주문');
     expect(forcedDeliveryBlockerLabel('nothing_to_deliver')).not.toContain('발주확인');
+    /* 출고 보류: 아직 나가지 않은 배송 건이 있는 보류 주문만 막는다(미리보기 막는 사유·실행 거절 모두). */
+    expect(forcedDeliveryError('23514', 'order fulfillment hold')).toBe(forcedDeliveryBlockerLabel('fulfillment_hold'));
+    expect(forcedDeliveryBlockerLabel('fulfillment_hold')).toContain('출고 보류');
   });
   it('주문 상세에서 강제 배송완료 카드를 그 주문번호로 여는 주소', () => {
     expect(forcedDeliveryHref('20261112140010000034')).toBe('/admin/sales/dispatch?forceDelivery=20261112140010000034#forced-delivery');

@@ -989,6 +989,7 @@ export const CLAIM_CONTACT_ERRORS = {
   reshipment_shipment_required: errorDefinition(400, '재출고할 배송 건을 골라 다시 확인해주세요.', '22023'),
   reshipment_shipment_not_found: errorDefinition(409, '이 교환의 재출고 대상 배송 건이 아닙니다. 최신 정보를 다시 확인해주세요.', '23514', { conflict: true }),
   reshipment_conflict: errorDefinition(409, '이 배송 건은 이미 다른 운송장이나 굿즈로 재출고했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
+  order_fulfillment_hold: errorDefinition(409, '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이라 교환품을 재출고할 수 없습니다. 주문 상세의 출고 보류 안내를 확인해주세요.', '23514'),
   claim_collections_incomplete: errorDefinition(409, '이 배송 건의 회수 확인이 먼저 필요합니다. 하자·오배송 교환은 회수 없이 재출고할 수 있습니다.', '23514'),
   collection_waiver_not_allowed: errorDefinition(409, '회수 없이 재출고는 하자·오배송 교환에서만 쓸 수 있습니다.', '23514'),
   collection_waiver_not_needed: errorDefinition(409, '이미 회수를 확인한 배송 건입니다. 회수 생략 없이 재출고해주세요.', '23514'),

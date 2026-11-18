@@ -117,6 +117,11 @@ export interface SeowonReplyCandidate {
   seowonLabel?: { batch: string; suffix: string } | null;
   /** 운영자가 묶은 합포장. 구성 배송 건은 같은 송장으로 함께 등록해야 한다. */
   pack?: { id: string; shipmentIds: string[] } | null;
+  /**
+   * 발송 전 배송 건이 출고 보류(테스트 결제·결제사 취소) 주문이다. DB 일괄 등록의 사전 검증이 파일 전체를 거절하므로 대조가 그 줄만 실패로
+   * 돌리고 나머지 줄은 등록한다.
+   */
+  fulfillmentHold?: boolean;
 }
 export interface SeowonReplyMatch {
   /**
@@ -144,6 +149,7 @@ export const SEOWON_REPLY_REASONS = {
   numberMismatch: '배송건번호와 줄 내용(전화번호·주소·품목명·수량)이 출고지시 파일과 다릅니다. 내려받은 파일의 값은 그대로 두고 송장번호만 채워주세요.',
   suffixMismatch: '받는분성명 뒤의 번호(01·02 등)가 이 배송 건을 마지막으로 내보낸 출고지시 파일과 다릅니다. 내려받은 파일의 값은 그대로 두거나 주문 통합검색에서 배송 건별로 등록해주세요.',
   packIncomplete: '합포장의 다른 배송 건 줄이 회신에 없거나 송장번호가 다릅니다. 합포장 전체를 같은 송장번호로 올리거나 주문 통합검색에서 처리해주세요.',
+  fulfillmentHold: '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)의 배송 건이라 등록하지 않았습니다. 창고에서 이미 나갔다면 주문 상세에서 보류를 확인한 뒤(해제 또는 반품 접수) 처리해주세요.',
 } as const;
 
 const label = (row: RowIdentity) => `전화 끝 ${digits(row.phone).slice(-4) || '없음'} · ${squash(row.items).slice(0, 40) || '품목명 없음'}`;
@@ -283,6 +289,8 @@ export function matchSeowonReply(
   for (const [id, matched] of assigned) {
     const lines = [...new Set(matched.map(row => row.line))].sort((a, b) => a - b);
     if (matched.some(row => row.error)) { for (const row of matched) issue(row, row.error ?? SEOWON_REPLY_REASONS.blockedSibling, shortId(id)); continue; }
+    // 출고 보류 주문의 발송 전 배송 건은 이 줄만 멈춘다(보내면 DB가 파일 전체를 거절한다).
+    if (byId.get(id)!.fulfillmentHold === true) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.fulfillmentHold, shortId(id)); continue; }
     // 분리배송(QNA-019): 한 배송 건의 줄에 송장번호가 여럿이면 가장 앞 줄의 번호가 대표, 나머지는 나온 순서대로 추가 운송장이다.
     const [trackingNumber, ...extraTrackingNumbers] = [...new Set([...matched].sort((a, b) => a.line - b.line).map(row => row.trackingNumber))];
     if (extraTrackingNumbers.length >= SEOWON_REPLY_TRACKING_LIMIT) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.tooManyTrackings, shortId(id)); continue; }

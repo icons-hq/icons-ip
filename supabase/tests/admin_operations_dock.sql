@@ -42,7 +42,7 @@ select public.admin_set_operation_alert_badge(false);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000069002',true);
 select 1/case when(public.admin_operation_alerts()->>'badgeEnabled')::boolean
  and exists(select 1 from jsonb_array_elements(public.admin_operation_alerts('orders','unread')->'items')e where e->>'id'=:'alert_id' and e->>'readAt' is null)
- and jsonb_array_length(public.admin_operation_tasks())=7 then 1 else 0 end as staff_account_isolation_and_tasks;
+ and jsonb_array_length(public.admin_operation_tasks())=8 then 1 else 0 end as staff_account_isolation_and_tasks;
 do $$begin
  begin perform public.admin_update_operation_alerts('hide',null,clock_timestamp(),'bad','all');raise exception 'bad category accepted';exception when invalid_parameter_value then null;end;
  begin perform public.admin_update_operation_alerts('read',null,'infinity');raise exception 'unbounded timestamp accepted';exception when invalid_parameter_value then null;end;
