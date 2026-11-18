@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGoodsPreorderInput, parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderMutationError, preparePreorderAllocation } from './goods-preorders';
+import { parseAdminPreorderReservations, parseGoodsPreorderInput, parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderMutationError, preparePreorderAllocation } from './goods-preorders';
 describe('preorder operation inputs', () => {
   it('retains unset drafts and requires supply evidence and all promised dates to activate', () => {
     expect(parseGoodsPreorderInput({ state: 'draft', capacityQty: '', startsAt: '', endsAt: '', expectedShipDate: '', approvalReference: '' }))
@@ -77,5 +77,17 @@ describe('랜덤 판매 일괄 예약 입력', () => {
   it('일괄 저장 거절 코드를 운영자 문구로 옮긴다', () => {
     expect(preorderMutationError('random_preorder_options_mismatch')).toContain('새로고침');
     expect(preorderMutationError('random_option_preorder_mismatch')).toContain('발송 예정일');
+  });
+});
+
+describe('출고 보류 예약 주문 표시', () => {
+  const row = { orderItemId: '10000000-0000-4000-8000-000000000001', orderId: '20000000-0000-4000-8000-000000000001', policyId: '30000000-0000-4000-8000-000000000001',
+    variantId: '40000000-0000-4000-8000-000000000001', variantName: null, qty: 1, physicalStockQty: 3, state: 'reserved', orderStatus: 'paid',
+    expectedShipDate: '2026-12-02', createdAt: '2026-11-18T00:00:00Z', allocatedAt: null, allocationReference: null, releasedAt: null, releaseReason: null };
+  it('보류 여부를 읽고(옛 응답은 없음) 형식이 틀리면 거절한다', () => {
+    expect(parseAdminPreorderReservations({ total: 1, hasMore: false, items: [{ ...row, fulfillmentHold: true }] })?.items[0].fulfillmentHold).toBe(true);
+    expect(parseAdminPreorderReservations({ total: 1, hasMore: false, items: [row] })?.items[0].fulfillmentHold).toBeUndefined();
+    expect(parseAdminPreorderReservations({ total: 1, hasMore: false, items: [{ ...row, fulfillmentHold: 'yes' }] })).toBeNull();
+    expect(preorderMutationError('order fulfillment hold')).toContain('출고 보류');
   });
 });

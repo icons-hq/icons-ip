@@ -17,7 +17,7 @@ export const FORCED_DELIVERY_ORDER_PARAM = 'forceDelivery';
 export function forcedDeliveryHref(orderNumber: string): string {
   return `/admin/sales/dispatch?${FORCED_DELIVERY_ORDER_PARAM}=${encodeURIComponent(orderNumber)}#${FORCED_DELIVERY_ANCHOR}`;
 }
-export const FORCED_DELIVERY_BLOCKERS = ['requires_confirmed', 'nothing_to_deliver', 'claim_in_progress', 'digital_access_only', 'preorder_allocation_required', 'production_incomplete'] as const;
+export const FORCED_DELIVERY_BLOCKERS = ['requires_confirmed', 'nothing_to_deliver', 'claim_in_progress', 'digital_access_only', 'preorder_allocation_required', 'production_incomplete', 'fulfillment_hold'] as const;
 export type ForcedDeliveryBlocker = typeof FORCED_DELIVERY_BLOCKERS[number];
 
 export interface ForcedDeliveryPreview {
@@ -72,6 +72,7 @@ export function forcedDeliveryBlockerLabel(blocker: ForcedDeliveryBlocker): stri
     digital_access_only: '디지털 파일 배송 건만 남았습니다. 디지털 파일은 구매자가 내려받을 때 제공 시작으로 기록되고 그때부터 청약철회가 제한되므로 강제로 기록하지 않습니다(예외). 시험 주문이면 구매자 계정으로 파일을 내려받아 주세요.',
     preorder_allocation_required: '예약 품목에 실제 입고 물량이 할당되지 않았습니다. 실물이 없는 배송 건은 재고 기준상 배송완료로 기록하지 않습니다(예외). 예약 재고를 먼저 할당해주세요.',
     production_incomplete: '주문제작 품목의 제작이 끝나지 않았습니다. 실물이 없는 배송 건은 배송완료로 기록하지 않습니다(예외). 제작 완료를 먼저 확인해주세요.',
+    fulfillment_hold: '출고 보류(테스트 결제 또는 결제사 취소) 중인 주문에 아직 나가지 않은 배송 건이 있습니다. 주문 상세의 출고 보류 안내를 먼저 확인해주세요(예외). 이미 발송된 배송 건만 남은 주문은 막지 않습니다.',
   }[blocker];
 }
 
@@ -96,6 +97,7 @@ export function forcedDeliveryError(code?: string, message?: string): string {
   if (message?.includes('cancellation in progress')) return forcedDeliveryBlockerLabel('claim_in_progress');
   if (message?.includes('preorder_allocation_required')) return forcedDeliveryBlockerLabel('preorder_allocation_required');
   if (message?.includes('production_incomplete')) return forcedDeliveryBlockerLabel('production_incomplete');
+  if (message?.includes('order fulfillment hold')) return forcedDeliveryBlockerLabel('fulfillment_hold');
   if (message?.includes('shipment_pack_changed')) return '합포장 구성이 바뀌었습니다. 대상을 다시 확인해주세요.';
   if (message?.includes('operation_conflict')) return '같은 요청 번호에 다른 내용이 기록돼 있습니다. 대상을 다시 확인한 뒤 처리해주세요.';
   return '처리 결과를 확인하지 못했습니다. 주문 상세에서 현재 상태를 확인해주세요.';

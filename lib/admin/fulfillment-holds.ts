@@ -21,7 +21,14 @@ export interface OrderFulfillmentHold {
   providerStatus: string | null;
   /** provider_canceled: 결제사가 취소한 누계 금액. */
   providerCanceledAmount: number | null;
+  /** provider_canceled: 그중 우리 원장(적용된 부분 환불)이 설명하지 못하는 금액 — 보류의 근거다. */
+  unexplainedAmount: number | null;
   paymentAmount: number | null;
+  /**
+   * 이 보류가 지금 출고를 막는가. 아직 나가지 않은 주문(신규주문·발주확인)이거나 발송 전 배송 건이 남아 있을 때만 true다.
+   * 다 나간 주문의 보류는 경고다 — 배송완료는 막지 않고, 반품 접수 또는 사유를 적어 해제한다.
+   */
+  outboundBlocked: boolean;
 }
 
 export interface OrderFulfillmentHoldListItem {
@@ -53,7 +60,10 @@ function parseHolds(value: unknown): OrderFulfillmentHold[] | null {
       placedAt: nullableString(row.placedAt),
       providerStatus: nullableString(row.providerStatus),
       providerCanceledAmount: nullableAmount(row.providerCanceledAmount),
+      unexplainedAmount: nullableAmount(row.unexplainedAmount),
       paymentAmount: nullableAmount(row.paymentAmount),
+      /* 모르는 값은 막는 쪽으로 읽는다(안내가 '출고하지 마세요'로 남는다). */
+      outboundBlocked: row.outboundBlocked !== false,
     });
   }
   return holds;
@@ -89,17 +99,27 @@ export function parseOrderFulfillmentHoldList(value: unknown): OrderFulfillmentH
 
 const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 
-/** 보류 사유별 안내 문구. 다음 행동(운영자 전액 취소 또는 사유를 적고 해제)까지 말한다. */
+/**
+ * 보류 사유별 안내 문구. 다음 행동까지 말한다 — 아직 나가지 않은 주문은 운영자 전액 취소(또는 사유 적고 해제), 이미 발송된 주문은
+ * 운영자 전액 취소가 열리지 않으므로 반품 접수 또는 사유 적고 해제다.
+ */
 export function fulfillmentHoldGuidance(hold: OrderFulfillmentHold): string {
+  const unexplained = hold.unexplainedAmount ?? hold.providerCanceledAmount;
+  if (!hold.outboundBlocked) {
+    if (hold.reason === 'test_payment') {
+      return '토스 테스트 키로 승인된(실제 돈이 결제되지 않은) 결제인데 이미 발송된 주문입니다. 배송완료 처리는 막지 않습니다. 물건을 돌려받으려면 반품을 접수하고, 그대로 두기로 했다면 사유를 적고 보류를 해제하세요.';
+    }
+    return `이미 발송된 주문인데 결제사에서 취소된 금액${unexplained !== null ? `(${krw(unexplained)})` : ''}이 시스템에 기록돼 있지 않습니다. 배송완료 처리는 막지 않습니다. 물건을 돌려받으려면 반품을 접수하고, 고객과 합의해 그대로 두기로 했다면 사유를 적고 보류를 해제하세요. 운영자 전액 취소는 발송 전 주문에서만 열립니다.`;
+  }
   if (hold.reason === 'test_payment') {
     return '운영 환경에서 토스 테스트 키로 승인된 결제입니다. 실제 돈이 결제되지 않았으므로 출고하지 마세요. 고객 주문이면 운영자 전액 취소로 주문을 닫고(재고·쿠폰이 돌아갑니다), 리허설 주문이면 그대로 두어도 출고되지 않습니다.';
   }
   const full = hold.paymentAmount !== null && hold.providerCanceledAmount !== null && hold.providerCanceledAmount >= hold.paymentAmount;
-  const amount = hold.providerCanceledAmount !== null ? ` ${krw(hold.providerCanceledAmount)}` : '';
+  const amount = unexplained !== null ? ` ${krw(unexplained)}` : '';
   if (full) {
     return `결제사에서 결제가 전액 취소되었습니다(취소${amount}). 출고하지 말고 운영자 전액 취소로 주문을 닫으세요 — 시스템이 이미 취소된 결제로 확인해 환불 기록을 남기고 재고·쿠폰을 되돌립니다.`;
   }
-  return `결제사에서 결제 일부가 취소되었습니다(취소${amount}). 남은 금액도 취소해야 하면 토스 상점관리자에서 남은 금액을 마저 취소한 뒤 운영자 전액 취소로 주문을 닫으세요. 남은 금액으로 출고하기로 했다면 사유를 적고 보류를 해제하세요.`;
+  return `결제사에서 결제 일부가 시스템 모르게 취소되었습니다(취소${amount}). 남은 금액도 취소해야 하면 토스 상점관리자에서 남은 금액을 마저 취소한 뒤 운영자 전액 취소로 주문을 닫으세요. 남은 금액으로 출고하기로 했다면 사유를 적고 보류를 해제하세요.`;
 }
 
 /** 해제 결과 오류 코드 → 문구. */
@@ -110,6 +130,11 @@ export function fulfillmentHoldReleaseError(code?: string | null, message?: stri
   if (message?.includes('invalid_fulfillment_hold_release')) return '해제 사유를 5자 이상 500자 이하로 입력해주세요.';
   if (message?.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
   return '보류를 해제하지 못했습니다. 화면을 새로고침해 현재 상태를 확인한 뒤 다시 시도해주세요.';
+}
+
+/** 보류 배지 문구. 출고를 막는 보류와 발송 뒤 경고를 글자로도 나눈다. */
+export function fulfillmentHoldBadgeLabel(hold: OrderFulfillmentHold): string {
+  return hold.outboundBlocked ? `출고 보류 · ${FULFILLMENT_HOLD_LABELS[hold.reason]}` : `발송 후 ${FULFILLMENT_HOLD_LABELS[hold.reason]} 확인`;
 }
 
 /** DB 출고 경로가 보류로 거절할 때의 오류 문구(message 'order fulfillment hold'). */

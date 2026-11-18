@@ -267,7 +267,7 @@ describe('OrdersSection', () => {
 
   /* 출고 보류(테스트 결제·결제사 취소): 행 배지·처리 패널 안내가 보이고, 발주확인 버튼과 일괄 선택 체크칸이 없다. 목록 위 묶음은 팝업으로 잇는다. */
   it('출고 보류 주문은 배지·안내를 보이고 발주확인 대상에서 빠진다', () => {
-    const hold = { reason: 'test_payment' as const, placedAt: '2026-11-18T01:00:00.000Z', providerStatus: null, providerCanceledAmount: null, paymentAmount: 32000 };
+    const hold = { reason: 'test_payment' as const, placedAt: '2026-11-18T01:00:00.000Z', providerStatus: null, providerCanceledAmount: null, unexplainedAmount: null, paymentAmount: 32000, outboundBlocked: true };
     const base = orderData({ fulfillmentHolds: [hold] });
     const html = renderToStaticMarkup(<OrdersSection data={{ ...base, fulfillmentHoldList: { total: 1, items: [{ orderId: base.items[0].id, orderNumber: null, status: 'paid', holds: [hold] }] } }} />);
     expect(html).toContain('출고 보류 · 테스트 결제');

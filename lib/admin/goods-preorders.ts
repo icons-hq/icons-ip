@@ -23,6 +23,8 @@ export interface AdminPreorderReservation {
   orderStatus: 'pending' | 'paid' | 'confirmed' | 'shipping' | 'delivered' | 'done' | 'canceled';
   expectedShipDate: string; createdAt: string; allocatedAt: string | null; allocationReference: string | null;
   releasedAt: string | null; releaseReason: string | null;
+  /** 출고 보류(테스트 결제·결제사 취소)로 실재고 할당이 막힌 주문. 선택할 수 없다(옛 응답에는 없다). */
+  fulfillmentHold?: boolean;
 }
 export interface AdminPreorderReservationPage { total: number; items: AdminPreorderReservation[]; hasMore: boolean }
 /** 예약 주문 목록 한 페이지 행 수 — 조회 RPC의 `p_limit`(상한 100)과 화면 페이지 이동이 같은 값을 쓴다. */
@@ -103,6 +105,7 @@ export function parseAdminPreorderReservations(value: unknown): AdminPreorderRes
       || (row.allocatedAt !== null && !timestamp(row.allocatedAt)) || (row.releasedAt !== null && !timestamp(row.releasedAt))
       || (row.allocationReference !== null && typeof row.allocationReference !== 'string')
       || (row.releaseReason !== null && typeof row.releaseReason !== 'string')
+      || (row.fulfillmentHold !== undefined && typeof row.fulfillmentHold !== 'boolean')
       || items.some((item) => item.orderItemId === row.orderItemId)) return null;
     items.push(row as unknown as AdminPreorderReservation);
   }
@@ -213,7 +216,7 @@ export function preorderMutationError(message: string): string {
     random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
     invalid_random_preorder: '승인 물량·접수 기간·발송 예정일·승인 근거를 확인해주세요.',
     'order cancellation in progress': '취소·클레임이 진행 중인 주문은 해당 처리를 먼저 확인해주세요.',
-    'order fulfillment hold': '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이 있습니다. 주문 상세의 출고 보류 안내를 확인해주세요.',
+    'order fulfillment hold': '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 할당해주세요.',
   };
   return errors[message] ?? '예약판매 처리를 완료하지 못했습니다. 입력과 현재 상품 상태를 확인해주세요.';
 }

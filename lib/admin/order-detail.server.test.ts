@@ -21,7 +21,7 @@ it('관리자 세션에서 해당 주문의 배송 메일 큐 상태만 읽는�
 });
 it('출고 보류를 주문 상세에 싣고, 없으면 빈 배열이다',async()=>{
  expect((await getAdminOrderDetail('order'))?.fulfillmentHolds).toEqual([]);
- const hold={reason:'test_payment',placedAt:'2026-11-18T01:00:00.000Z',providerStatus:null,providerCanceledAmount:null,paymentAmount:31000};
+ const hold={reason:'test_payment',placedAt:'2026-11-18T01:00:00.000Z',providerStatus:null,providerCanceledAmount:null,unexplainedAmount:null,paymentAmount:31000,outboundBlocked:true};
  mocks.holds=new Map([['order',[hold]]]);
  try{expect((await getAdminOrderDetail('order'))?.fulfillmentHolds).toEqual([hold]);}finally{mocks.holds=new Map();}
 });

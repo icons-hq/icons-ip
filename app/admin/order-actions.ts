@@ -700,7 +700,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
       line:command.line,reference:command.shipmentId,carrier:candidates.defaultCarrier,trackingNumber:command.trackingNumber,
       ...(command.extraTrackingNumbers?.length?{extraTrackingNumbers:command.extraTrackingNumbers}:{}),
     }))});
-    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_|tracking_number_in_use$|shipment_tracking_conflict$)/.test(result.error.message))
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_|tracking_number_in_use$|shipment_tracking_conflict$|order fulfillment hold$)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==match.commands.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     // 합배송한 배송 건들은 같은 첫 줄을 공유하므로 결과는 줄이 아니라 배송 건으로 찾는다.

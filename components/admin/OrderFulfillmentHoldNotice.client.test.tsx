@@ -33,7 +33,7 @@ function text(node: ReactNode): string {
   }).join(' ');
 }
 const ORDER_ID = '20000000-0000-4000-8000-000000000651';
-const testHold: OrderFulfillmentHold = { reason: 'test_payment', placedAt: '2026-11-18T01:00:00Z', providerStatus: null, providerCanceledAmount: null, paymentAmount: 31000 };
+const testHold: OrderFulfillmentHold = { reason: 'test_payment', placedAt: '2026-11-18T01:00:00Z', providerStatus: null, providerCanceledAmount: null, unexplainedAmount: null, paymentAmount: 31000, outboundBlocked: true };
 const render = (holds: OrderFulfillmentHold[], canManage = true) => { hooks.index = 0; return OrderFulfillmentHoldNotice({ orderId: ORDER_ID, holds, canManage }); };
 let prompts: AdminConfirmRequest[] = [];
 let restore: () => void = () => {};
@@ -68,6 +68,14 @@ it('확인창을 닫으면 아무것도 부르지 않고, 조회 권한만 있�
   for (let n = 0; n < 8; n++) await Promise.resolve();
   expect(mocks.release).not.toHaveBeenCalled();
   expect(all(render([testHold], false)).some(element => element.props.onClick)).toBe(false);
+});
+
+it('이미 발송된 주문의 보류는 경고 안내와 경고 배지다', () => {
+  const shipped: OrderFulfillmentHold = { ...testHold, reason: 'provider_canceled', providerStatus: 'CANCELED', providerCanceledAmount: 31000, unexplainedAmount: 31000, outboundBlocked: false };
+  const tree = render([shipped]);
+  expect(text(tree)).toContain('발송 뒤 결제 확인이 필요한 주문입니다');
+  expect(text(tree)).toContain('배송완료 처리는 막지 않습니다');
+  expect(text(OrderFulfillmentHoldBadges({ holds: [shipped] }))).toContain('발송 후 결제사 취소 확인');
 });
 
 it('배지와 목록 묶음', () => {

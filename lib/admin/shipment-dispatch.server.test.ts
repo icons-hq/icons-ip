@@ -120,6 +120,9 @@ describe('shipment console query boundary', () => {
     expect(mocks.rpc).toHaveBeenLastCalledWith('admin_shipment_fulfillment_hold_flags', { p_ids: ['held', 'free'] });
     expect(data.rows.map(row => row.fulfillmentHold)).toEqual([true, undefined]);
     expect(data.rows.map(row => shipmentConsoleSelectable(row, 'new'))).toEqual([false, true]);
+    // 이미 나간 배송 건은 보류여도 배송완료 처리를 고를 수 있다(발송 뒤 보류는 경고다).
+    expect(shipmentConsoleSelectable({ ...data.rows[0], status: 'shipping', delivery: undefined }, 'transit')).toBe(true);
+    expect(shipmentConsoleSelectable({ ...data.rows[0], delivery: undefined }, 'ready')).toBe(false);
     mocks.rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects)
       .mockResolvedValueOnce({ data: [], error: null }).mockResolvedValueOnce({ data: null, error: { message: 'private' } });
     expect((await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rows.map(row => row.fulfillmentHold)).toEqual([undefined, undefined]);

@@ -10,6 +10,7 @@ import { adminPrompt } from '@/lib/admin/confirm';
 import Link from 'next/link';
 import {
   FULFILLMENT_HOLD_LABELS,
+  fulfillmentHoldBadgeLabel,
   fulfillmentHoldGuidance,
   type FulfillmentHoldReason,
   type OrderFulfillmentHold,
@@ -18,12 +19,16 @@ import {
 import { formatOrderDateTime } from '@/lib/orders';
 import { statusTone } from '@/lib/admin/status-tone';
 
+/** 보류 배지 색. 출고를 막는 보류는 사유 색(위험), 이미 발송된 주문의 보류는 경고색이다. */
+const holdTone = (hold: OrderFulfillmentHold) => statusTone('fulfillmentHold', hold.outboundBlocked ? hold.reason : 'shipped');
+
 /** 목록 행·상태 칸에 붙는 출고 보류 배지. 사유가 둘이면 둘 다 보인다. */
 export function OrderFulfillmentHoldBadges({ holds }: { holds: readonly OrderFulfillmentHold[] }) {
   if (!holds.length) return null;
   return <>{holds.map(hold => <AdminStatusBadge key={hold.reason} data-fulfillment-hold={hold.reason}
-    title={fulfillmentHoldGuidance(hold)} tone={statusTone('fulfillmentHold', hold.reason)}>
-    출고 보류 · {FULFILLMENT_HOLD_LABELS[hold.reason]}
+    data-fulfillment-hold-blocking={hold.outboundBlocked ? '' : undefined}
+    title={fulfillmentHoldGuidance(hold)} tone={holdTone(hold)}>
+    {fulfillmentHoldBadgeLabel(hold)}
   </AdminStatusBadge>)}</>;
 }
 
@@ -64,13 +69,17 @@ function HeldOrderNotice({ orderId, holds, canManage }: {
     });
   }
 
-  return <AdminNotice role="status" tone="danger" title="출고 보류 중인 주문입니다">
+  const blocking = holds.some(hold => hold.outboundBlocked);
+  return <AdminNotice role="status" tone={blocking ? 'danger' : 'warning'}
+    title={blocking ? '출고 보류 중인 주문입니다' : '발송 뒤 결제 확인이 필요한 주문입니다'}>
     <div className="flex flex-col gap-3" data-order-fulfillment-hold="">
-      <p className="text-sm">보류가 풀릴 때까지 자동·수동 발주확인, 출고지시 내보내기, 발송·배송완료 처리가 막힙니다.</p>
+      <p className="text-sm">{blocking
+        ? '보류가 풀릴 때까지 자동·수동 발주확인, 출고지시 내보내기, 발송 전 배송 건의 운송장 등록·발송 처리와 교환 재출고가 막힙니다. 이미 발송된 배송 건의 배송완료는 막지 않습니다.'
+        : '이미 발송된 주문이라 배송완료 처리는 막지 않습니다. 교환 재출고만 막힙니다.'}</p>
       <ul className="flex flex-col gap-2.5">
         {holds.map(hold => <li className="flex flex-col items-start gap-1.5" key={hold.reason}>
           <span className="flex flex-wrap items-center gap-2">
-            <AdminStatusBadge tone={statusTone('fulfillmentHold', hold.reason)}>{FULFILLMENT_HOLD_LABELS[hold.reason]}</AdminStatusBadge>
+            <AdminStatusBadge tone={holdTone(hold)}>{FULFILLMENT_HOLD_LABELS[hold.reason]}</AdminStatusBadge>
             {hold.placedAt ? <time className="text-xs text-muted-foreground tabular-nums" dateTime={hold.placedAt}>{formatOrderDateTime(hold.placedAt)}</time> : null}
           </span>
           <p className="text-sm leading-relaxed wrap-anywhere">{fulfillmentHoldGuidance(hold)}</p>

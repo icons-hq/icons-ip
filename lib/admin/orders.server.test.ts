@@ -275,7 +275,7 @@ describe('getAdminOrderRecords', () => {
 
   it('출고 보류가 있는 주문에만 보류 사유를 싣는다(주문 조회 권한이면 읽는다)', async () => {
     const records: QueryRecord[] = [];
-    const hold = { reason: 'provider_canceled', placedAt: '2026-11-18T01:00:00.000Z', providerStatus: 'CANCELED', providerCanceledAmount: 32000, paymentAmount: 32000 };
+    const hold = { reason: 'provider_canceled', placedAt: '2026-11-18T01:00:00.000Z', providerStatus: 'CANCELED', providerCanceledAmount: 32000, unexplainedAmount: 32000, paymentAmount: 32000, outboundBlocked: true };
     mocks.holds = new Map([[ORDER_ID, [hold]]]);
     mocks.holdIds = [];
     mocks.client = createClient({

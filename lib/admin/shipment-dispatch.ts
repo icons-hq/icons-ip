@@ -39,7 +39,8 @@ export interface ShipmentConsoleRow {
  production?:import('@/lib/order-production').ShipmentProductionSummary;
  /** 재고 부족 부분 취소가 결제사 확인 중인 주문의 배송 건(QA2 물류). 출고지시·발송이 막힌다. 금액은 담지 않는다. */
  partialCancelInProgress?:boolean;
- /** 출고 보류(테스트 결제·결제사 취소) 주문의 배송 건. 발주확인·출고지시·발송이 막힌다. 사유·금액은 담지 않는다(출고 전용 권한도 읽는다). */
+ /** 출고 보류(테스트 결제·결제사 취소) 주문의 배송 건. 발송 전(ready)이면 발주확인·출고지시·발송이 막히고, 이미 나간 건이면 경고다.
+  *  사유·금액은 담지 않는다(출고 전용 권한도 읽는다). */
  fulfillmentHold?:boolean;
  /** 배송현황만: 추가 운송장(QNA-019)과 스위치가 켜진 때의 자동 배송완료 표시(QNA-028). */
  trackingSummary?:import('./shipment-tracking').ShipmentTrackingSummary;
@@ -114,8 +115,8 @@ export function shipmentMutationError(code:string):string{
 /** Older in-process projections may omit delivery; a present invalid value fails closed. */
 export function isParcelShipment(row:Pick<ShipmentConsoleRow,'delivery'>):boolean{return row.delivery===undefined||row.delivery?.method==='parcel';}
 export function shipmentConsoleSelectable(row:ShipmentConsoleRow,tab:ShipmentConsoleTab):boolean{
- // 출고 보류 건은 발주확인·출고지시·발송이 DB에서 거절된다 — 선택하지 않는다(배송완료 처리도 같다).
- if(row.fulfillmentHold===true)return false;
+ // 출고 보류 주문의 발송 전 배송 건은 발주확인·출고지시·발송이 DB에서 거절된다 — 선택하지 않는다. 이미 나간 배송 건의 배송완료는 막지 않는다.
+ if(row.fulfillmentHold===true&&row.status==='ready')return false;
  if(tab==='new')return true; // Order confirmation remains shared by every fulfillment method.
  if(tab==='delivered'||!isParcelShipment(row))return false;
  return tab==='transit'||row.preorderReady!==false&&row.production?.ready!==false&&row.partialCancelInProgress!==true;
