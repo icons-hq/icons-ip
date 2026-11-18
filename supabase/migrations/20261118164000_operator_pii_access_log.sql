@@ -6,7 +6,8 @@
 --
 -- 무엇을 남기나: 어드민 고객 상세·주문 상세·주문 검색(이름·연락처·이메일 검색)·클레임 상세·클레임 연락처 원문·환불계좌
 -- 원문 열람과 개인정보가 담긴 엑셀·출고지시 파일 내려받기, 그리고 이 기록 자체의 점검 열람·내려받기.
--- 개인정보 원문(이름·전화·주소·검색어)은 남기지 않는다. 대상은 회원·주문·클레임·배송 건 ID와 건수로 남긴다.
+-- 개인정보 원문(이름·전화·주소·검색어)은 남기지 않는다. 대상은 회원·주문·클레임·배송 건·선물·리뷰 ID와 건수로 남긴다
+-- (대량 내려받기는 ID 없이 건수와 기존 내려받기 감사 기록 번호만 남길 수 있다 — 조건은 그 감사 기록에 있다).
 -- 접속지(IP)는 DB가 알 수 없다(PostgREST 앞단은 Next 서버다). 서버가 Vercel이 덮어쓰는 요청 헤더에서 읽어 넘긴다.
 --
 -- 쓰기: service_role만 부르는 public.service_record_operator_pii_access 하나. 행위자는 서버가 확인한 로그인 계정이다.
@@ -35,7 +36,7 @@ create table private.operator_pii_access_log (
   surface text not null check (surface ~ '^[a-z][a-z_]{0,31}([.][a-z][a-z_]{0,31}){0,2}$'),
   -- 화면·경로만. 쿼리 문자열(검색어가 들어간다)은 받지 않는다.
   path text not null check (length(path) <= 300 and path ~ '^/(admin|api/admin)(/[A-Za-z0-9._~%-]+)*$'),
-  subject_kind text not null check (subject_kind in ('member', 'order', 'claim', 'shipment', 'none')),
+  subject_kind text not null check (subject_kind in ('member', 'order', 'claim', 'shipment', 'gift', 'review', 'none')),
   subject_ids uuid[] not null default '{}' check (cardinality(subject_ids) <= 1000 and array_position(subject_ids, null) is null),
   subject_count integer not null check (subject_count >= cardinality(subject_ids) and subject_count <= 1000000),
   -- 대상이 주문·클레임·배송 건이면 그 회원. '이 회원의 정보를 누가 봤나'를 한 번에 찾는다.
@@ -122,7 +123,7 @@ begin
   if p_path is null or length(p_path) > 300 or p_path !~ '^/(admin|api/admin)(/[A-Za-z0-9._~%-]+)*$' then
     raise invalid_parameter_value using message = 'pii_access_path_invalid';
   end if;
-  if p_subject_kind is null or p_subject_kind not in ('member', 'order', 'claim', 'shipment', 'none') then
+  if p_subject_kind is null or p_subject_kind not in ('member', 'order', 'claim', 'shipment', 'gift', 'review', 'none') then
     raise invalid_parameter_value using message = 'pii_access_subject_invalid';
   end if;
   if p_subject_ids is not null and array_position(p_subject_ids, null) is not null then

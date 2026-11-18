@@ -14,6 +14,7 @@ import { exportShipmentsAction } from './shipment-actions';
  * 여기서는 RPC 응답과 권한만 바꿔 끼우고, 파일을 열어 칸 값을 확인한다.
  */
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), refresh: vi.fn() }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ recordPiiAccess: vi.fn(async () => '1') }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.refresh }));

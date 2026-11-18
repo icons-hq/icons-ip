@@ -47,7 +47,7 @@ export const PII_ACCESS_SURFACE_LABELS = {
 export type PiiAccessSurface = keyof typeof PII_ACCESS_SURFACE_LABELS;
 
 export const PII_ACCESS_SUBJECT_LABELS = {
-  member: '회원', order: '주문', claim: '클레임', shipment: '배송 건', none: '대상 없음',
+  member: '회원', order: '주문', claim: '클레임', shipment: '배송 건', gift: '선물', review: '리뷰', none: '대상 없음',
 } as const;
 export type PiiAccessSubjectKind = keyof typeof PII_ACCESS_SUBJECT_LABELS;
 

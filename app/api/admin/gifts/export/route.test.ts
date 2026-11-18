@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn(), service: vi.fn(), build: vi.fn(), encrypt: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn(), service: vi.fn(), build: vi.fn(), encrypt: vi.fn(), access: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ recordPiiAccess: mocks.access }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.service }) }));
 vi.mock('@/lib/admin/list-export.server', () => ({ buildAdminListExportWorkbook: mocks.build }));
@@ -28,9 +29,14 @@ it('검색조건 전체 snapshot→암호화→현재 권한 감사 뒤에만 �
   expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile'); expect(response.headers.get('x-icons-export-rows')).toBe('1');
   expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-선물수락대기-\d{8}-\d{4}\.xlsx/);
   expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-workbook'); expect(plain.every(byte => byte === 0)).toBe(true);
+  expect(mocks.access).toHaveBeenCalledExactlyOnceWith({ actorId: id(10), action: 'export', surface: 'export.gifts', path: '/api/admin/gifts/export',
+    subjectKind: 'gift', subjectIds: [adminGiftRow.id], subjectCount: 1, detail: { auditId: id(21) } });
+  expect(JSON.stringify(mocks.access.mock.calls)).not.toContain('상품');
 });
-it.each(['encryption', 'audit'])('%s 실패는 평문을 지우고 파일을 반환하지 않는다', async kind => {
-  if (kind === 'encryption') mocks.encrypt.mockImplementationOnce(() => { throw new Error('failed'); }); else mocks.service.mockResolvedValueOnce({ error: { code: '42501' }, data: null });
+it.each(['encryption', 'audit', 'access-log'])('%s 실패는 평문을 지우고 파일을 반환하지 않는다', async kind => {
+  if (kind === 'encryption') mocks.encrypt.mockImplementationOnce(() => { throw new Error('failed'); });
+  else if (kind === 'audit') mocks.service.mockResolvedValueOnce({ error: { code: '42501' }, data: null });
+  else mocks.access.mockRejectedValueOnce(new Error('pii log down'));
   const response = await POST(request()); expect(response.status).toBe(500); expect(response.headers.get('content-type')).toContain('json'); expect(plain.every(byte => byte === 0)).toBe(true);
 });
 it('권한 거절과 최대 건수 초과는 workbook을 만들지 않는다', async () => {
