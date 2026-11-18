@@ -1,10 +1,11 @@
 import { commerceNumberPattern } from '@/lib/commerce-number';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
+import { CANONICAL_SITE_ORIGIN } from '@/lib/site-domains.mjs';
 import { isUuid } from '@/lib/uuid';
 
 /** 스테이징 전용 테스트 도구(ADR-0025). 운영은 서버와 DB가 각각 거절한다. */
 export const PRODUCTION_SUPABASE_PROJECT_REF = 'sbutbsghcxmxmxgrshwq';
-export const PRODUCTION_SITE_HOST = 'iconsip.com';
+export const PRODUCTION_SITE_HOST = new URL(CANONICAL_SITE_ORIGIN).host;
 /** 주문번호 16자리(옛 형식)와 20자리(주문 시각 형식)를 모두 받는다. DB `private.is_commerce_number(…, 1)`과 같은 규칙이다. */
 export const ORDER_NUMBER_PATTERN = commerceNumberPattern('order');
 

@@ -37,7 +37,7 @@ export function isSystemProductNumberHeader(value: string) { return /^상품\s*�
 export function isGoodReferenceKeyHeader(value: string) { return isGoodReferenceHeader(value) && !isSystemProductNumberHeader(value); }
 export const SYSTEM_NUMBER_COLUMN_NOTICE = "'상품번호'는 시스템이 매기는 번호라 이 칸에서는 찾지 않습니다. '판매자상품코드' 또는 '상품 URL' 열을 올리거나 붙여넣어 주세요.";
 
-function looksLikeUrl(value: string) { return value.includes('/') || /^https?:/i.test(value) || /iconsip\.com/i.test(value); }
+function looksLikeUrl(value: string) { return value.includes('/') || /^https?:/i.test(value) || /(?:iconsip\.com|xsquare\.kr)/i.test(value); }
 
 /** 붙여 넣은 글(또는 엑셀 한 열의 칸들)을 조회 값으로 나눈다. */
 export function parseGoodReferenceLines(text: string, currentHost?: string | null): GoodReferenceLines {

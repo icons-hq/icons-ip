@@ -19,6 +19,12 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(goodFieldSection('showDiscountRate').key).toBe('price');
     expect(goodFieldSection('discountPeriod').key).toBe('price');
     expect(goodFieldSection('discountStartsAt').key).toBe('price');
+    /* 판매 제한(19금)은 판매 정보 카드(구매 제한 바로 아래), 결제수단은 배송·반품·결제 카드다(11/18 MD 요청). */
+    expect(goodFieldSection('saleRestriction').key).toBe('restriction');
+    expect(GOOD_EDITOR_CARDS.find((card) => card.key === 'sales')?.sections).toContain('restriction');
+    expect(goodFieldSection('allowBankTransfer').key).toBe('sale');
+    expect(goodReadinessReasonAnchor({ code: 'restricted_sale', target: GOODS_READINESS_REASONS.restricted_sale.target })).toBe('good-section-restriction');
+    expect(goodReadinessReasonAnchor({ code: 'payment_disabled', target: GOODS_READINESS_REASONS.payment_disabled.target })).toBe('good-section-sale');
     /* 판매가 → 재고수량·옵션 → 판매기간 → 예약판매 → 구매 제한(1027T-023), KC는 고시 바로 뒤. */
     expect(orderedGoodErrors({ workspacePreorders: 'p', maxOrderQty: 'l', variants: 'v', price: 'a', originId: 'o', workspaceKc: 'k', noticeMaker: 'n', saleStartsAt: 's' }).map(([field]) => field))
       .toEqual(['price', 'variants', 'saleStartsAt', 'workspacePreorders', 'maxOrderQty', 'noticeMaker', 'workspaceKc', 'originId']);

@@ -229,6 +229,13 @@ describe('payment runtime gateway', () => {
     configureToss('https://iconsip.com?redirect=evil');
     expect(paymentProviderConfigured()).toBe(false);
 
+    configureToss('https://www.xsquare.kr');
+    expect(paymentProviderConfigured()).toBe(false);
+
+    // 도메인 전환(docs/runbooks/domain-migration-xsquare.md) 기간에는 새 운영 도메인 루트도 받는다.
+    configureToss('https://xsquare.kr');
+    expect(paymentProviderConfigured()).toBe(true);
+
     configureToss('https://iconsip.com');
     vi.stubEnv('TOSS_ORDER_CANARY_USER_ID', '10000000-0000-7000-8000-000000000207');
     expect(paymentProviderConfigured()).toBe(true);
