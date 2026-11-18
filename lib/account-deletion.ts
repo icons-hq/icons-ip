@@ -91,6 +91,11 @@ function normalizeBlockers(value: unknown): AccountDeletionBlocker[] | null {
   return blockers;
 }
 
+/** 진행 중 의무 목록 응답 검증. 하나라도 계약(코드·건수·해소 경로)과 다르면 null — 어드민 탈퇴 요청 처리 결과도 같은 모양이다. */
+export function parseAccountDeletionBlockers(value: unknown): AccountDeletionBlocker[] | null {
+  return normalizeBlockers(value);
+}
+
 export function normalizeAccountDeletionPreview(value: unknown): AccountDeletionPreview {
   if (!isRecord(value)) return unavailablePreview;
   const blockers = normalizeBlockers(value.blockers);

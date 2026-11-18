@@ -92,6 +92,7 @@ function suspensionRpcError(message: string): string {
   if (message.includes('cannot_unsuspend_self') || message.includes('cannot_unsuspend_admin')) {
     return '본인 또는 admin 계정은 정지 해제할 수 없습니다.';
   }
+  if (message.includes('member_withdrawn')) return '탈퇴 요청을 처리한 계정은 정지를 해제할 수 없습니다.';
   if (message.includes('profile_not_found')) return '회원을 찾을 수 없습니다.';
   if (message.includes('forbidden') || message.includes('account_suspended')) {
     return '이 계정을 제재할 권한이 없습니다.';
