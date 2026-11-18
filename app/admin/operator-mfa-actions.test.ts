@@ -43,7 +43,8 @@ describe('2단계 인증 요구 스위치 저장', () => {
 
   it('잘못된 입력은 DB 전에 거절하고, DB 거절은 사유 문구로, 모르는 실패는 같은 요청 재확인으로 돌려준다', async () => {
     for (const args of [['true', 1, op], [true, 0, op], [true, 1.5, op], [true, 1, 'nope']] as const) {
-      expect(await saveOperatorMfaPolicyAction(...args)).not.toHaveProperty('uncertain');
+      // 서버 액션은 클라이언트가 보낸 임의 값을 받는다 — 타입 밖 값도 시험한다.
+      expect(await saveOperatorMfaPolicyAction(...(args as unknown as Parameters<typeof saveOperatorMfaPolicyAction>))).not.toHaveProperty('uncertain');
     }
     expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'operator_mfa_self_required' } });
