@@ -85,6 +85,9 @@ const PUBLIC_EXCLUDED = ADMIN_SOURCES.map(path => `${path}/`);
 const PUBLIC_SOURCES = ['app', 'components', 'lib'];
 const isPublicSource = (file: string) => !PUBLIC_EXCLUDED.some(prefix => file.startsWith(prefix)) && !/\.fixture\.(?:ts|tsx)$/.test(file);
 const CARD_PACK_EXCHANGE_SOURCES = ['components/campaign/ExchangePanel.tsx', 'app/events/participation-actions.ts'];
+/* 두 전수 검사는 범위 안 모든 TS/TSX 를 TypeScript 파서로 훑어 코드가 늘수록 느려진다 — 로컬 약 2.6초, CI 러너에서는
+   기본 5초 경계(5.0~5.5초)를 넘겨 앱 변경이 없는 PR 도 실패했다(2026-11-18 #666·#668). 검사 범위는 그대로 두고 제한만 늘린다. */
+const FULL_SCAN_TIMEOUT_MS = 20_000;
 
 describe('관리자·공개 굿즈 어휘 계약 (#503)', () => {
   it('관리자 정적 문구의 굿즈는 운영 어휘 매핑을 거친다', () => {
@@ -92,12 +95,12 @@ describe('관리자·공개 굿즈 어휘 계약 (#503)', () => {
       .filter(copy => /굿즈|추가\s*상품|추가\s+구성\s*상품|추가구성\s+상품/.test(copy.text.replace(/굿즈샵|굿즈 마켓/g, '')) && !copy.mapped
         && !Object.hasOwn(MAPPED_GUIDE_SOURCES, copy.file) && !excepted(copy, ADMIN_COPY_EXCEPTIONS));
     expect(violations).toEqual([]);
-  });
+  }, FULL_SCAN_TIMEOUT_MS);
   it('어드민 경로 밖 전체는 이유를 적은 예외 외에 상품이라는 별칭을 쓰지 않는다', () => {
     const violations = PUBLIC_SOURCES.flatMap(sourceFiles).filter(isPublicSource).flatMap(literals)
       .filter(copy => copy.text.includes('상품') && !excepted(copy, PUBLIC_COPY_EXCEPTIONS));
     expect(violations).toEqual([]);
-  });
+  }, FULL_SCAN_TIMEOUT_MS);
   it('카드팩 교환 문구는 실물 굿즈와 유료 가챠 어휘를 쓰지 않는다', () => {
     const violations = CARD_PACK_EXCHANGE_SOURCES.flatMap(literals)
       .filter(copy => /상품|굿즈|가챠|뽑기|충전/.test(copy.text));
