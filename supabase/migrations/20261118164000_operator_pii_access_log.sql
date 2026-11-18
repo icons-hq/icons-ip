@@ -39,8 +39,8 @@ create table private.operator_pii_access_log (
   subject_kind text not null check (subject_kind in ('member', 'order', 'claim', 'shipment', 'gift', 'review', 'none')),
   subject_ids uuid[] not null default '{}' check (cardinality(subject_ids) <= 1000 and array_position(subject_ids, null) is null),
   subject_count integer not null check (subject_count >= cardinality(subject_ids) and subject_count <= 1000000),
-  -- 대상이 주문·클레임·배송 건이면 그 회원. '이 회원의 정보를 누가 봤나'를 한 번에 찾는다.
-  member_ids uuid[] not null default '{}' check (cardinality(member_ids) <= 1000 and array_position(member_ids, null) is null),
+  -- 대상의 회원(주문·클레임·배송 건의 구매자와 선물 받는 사람, 선물의 보낸·받는 사람, 리뷰 작성자). '이 회원의 정보를 누가 봤나'를 한 번에 찾는다.
+  member_ids uuid[] not null default '{}' check (cardinality(member_ids) <= 2000 and array_position(member_ids, null) is null),
   detail jsonb not null default '{}'::jsonb check (jsonb_typeof(detail) = 'object' and octet_length(detail::text) <= 2000),
   fingerprint text not null check (fingerprint ~ '^[0-9a-f]{32}$'),
   check (subject_kind <> 'none' or (cardinality(subject_ids) = 0 and subject_count = 0))
@@ -106,6 +106,7 @@ declare
   access_label text;
   ids uuid[];
   members uuid[] := '{}';
+  order_ids uuid[] := '{}';
   print text;
   existing bigint;
   recorded bigint;
@@ -145,17 +146,26 @@ begin
     raise invalid_parameter_value using message = 'pii_access_detail_invalid';
   end if;
 
+  -- 대상의 회원: 주문·클레임·배송 건은 그 주문의 구매자와 선물 주문이면 받는 사람(배송지·연락처의 주인), 선물은 보낸 사람·받는 사람,
+  -- 리뷰는 작성자. '이 회원의 정보를 누가 봤나'를 member_ids 하나로 찾는다(대상 1,000개에서 최대 2,000명).
+  order_ids := case p_subject_kind
+    when 'order' then ids
+    when 'claim' then (select coalesce(array_agg(distinct c.order_id), '{}') from public.order_cancellation_requests c where c.id = any(ids))
+    when 'shipment' then (select coalesce(array_agg(distinct s.order_id), '{}') from public.order_shipments s where s.id = any(ids))
+    else '{}'::uuid[] end;
   members := case p_subject_kind
     when 'member' then ids
-    when 'order' then (select coalesce(array_agg(distinct o.user_id order by o.user_id), '{}') from public.orders o
-      where o.id = any(ids) and o.user_id is not null)
-    when 'claim' then (select coalesce(array_agg(distinct o.user_id order by o.user_id), '{}')
-      from public.order_cancellation_requests c join public.orders o on o.id = c.order_id
-      where c.id = any(ids) and o.user_id is not null)
-    when 'shipment' then (select coalesce(array_agg(distinct o.user_id order by o.user_id), '{}')
-      from public.order_shipments s join public.orders o on o.id = s.order_id
-      where s.id = any(ids) and o.user_id is not null)
-    else '{}'::uuid[] end;
+    when 'gift' then (select coalesce(array_agg(distinct m.id order by m.id), '{}')
+      from private.gift_intents g cross join lateral unnest(array[g.sender_id, g.recipient_id]) as m(id)
+      where g.id = any(ids) and m.id is not null)
+    when 'review' then (select coalesce(array_agg(distinct r.user_id order by r.user_id), '{}') from public.reviews r
+      where r.id = any(ids) and r.user_id is not null)
+    else (select coalesce(array_agg(distinct x.id order by x.id), '{}') from (
+        select o.user_id as id from public.orders o where o.id = any(order_ids)
+        union select g.recipient_id from private.gift_intents g where g.order_id = any(order_ids)
+      ) as x where x.id is not null)
+    end;
+  members := members[1:2000];
 
   access := private.operator_access_for(p_actor_id);
   access_label := case access->>'mode'

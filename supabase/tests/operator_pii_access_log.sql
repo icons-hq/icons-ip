@@ -116,6 +116,34 @@ begin
   perform pii_log_test.ok(n=0,'raw personal data is never copied into the ledger');
 end $$;
 
+-- 대상의 회원: 선물 주문은 구매자와 받는 사람(배송지·연락처의 주인), 선물은 보낸·받는 사람, 리뷰는 작성자로 잇는다.
+-- 주문 102(구매자 6)를 회원 1에게 보낸 선물이다. 리뷰는 상품·구매 확인 트리거를 비켜 작성자 칸만 둔다(롤백).
+insert into private.gift_intents(id,sender_id,recipient_id,sender_label,expires_at,state,order_id,ordered_source_revision)
+values (pii_log_test.id(301),pii_log_test.id(6),pii_log_test.id(1),'접속기록 합성 보낸 사람',now()+interval '7 days','ordered',pii_log_test.id(102),'1');
+set local session_replication_role = replica;
+insert into public.reviews(id,user_id,good_id,order_id,rating,body)
+values (pii_log_test.id(401),pii_log_test.id(1),'pii-log-synthetic-good',pii_log_test.id(101),5,'접속기록 합성 리뷰');
+set local session_replication_role = origin;
+set local role service_role;
+do $$ begin
+  insert into pii_ids values('gift-order',pii_log_test.rec(5,'view','order.detail','/admin/sales/orders/'||pii_log_test.id(102),null,'order',array[pii_log_test.id(102)],1,'{"via":"popup"}'));
+  insert into pii_ids values('gift-claim',pii_log_test.rec(5,'search','claim.search','/admin/sales/claims/cancels',null,'claim','{}',0));
+  insert into pii_ids values('gift',pii_log_test.rec(5,'export','export.gifts','/api/admin/gifts/export',null,'gift',array[pii_log_test.id(301)],1));
+  insert into pii_ids values('review',pii_log_test.rec(5,'export','export.reviews','/api/admin/reviews/export',null,'review',array[pii_log_test.id(401)],1));
+end $$;
+reset role;
+do $$ declare pair uuid[] := (select array_agg(x order by x) from unnest(array[pii_log_test.id(1),pii_log_test.id(6)]) x);
+begin
+  perform pii_log_test.ok((select member_ids=pair from private.operator_pii_access_log where id=(select id from pii_ids where label='gift-order')),
+    'a gift order view resolves the buyer and the recipient');
+  perform pii_log_test.ok((select member_ids='{}' from private.operator_pii_access_log where id=(select id from pii_ids where label='gift-claim')),
+    'a subject-less search resolves nobody');
+  perform pii_log_test.ok((select member_ids=pair from private.operator_pii_access_log where id=(select id from pii_ids where label='gift')),
+    'a gift export resolves the sender and the recipient');
+  perform pii_log_test.ok((select member_ids=array[pii_log_test.id(1)] from private.operator_pii_access_log where id=(select id from pii_ids where label='review')),
+    'a review export resolves the author');
+end $$;
+
 set local role service_role;
 -- 입력 검증: 쿼리 문자열(검색어)·원문이 들어갈 길을 막는다.
 select pii_log_test.error($q$select pii_log_test.rec(2,'view','order.search','/admin/sales/orders?query=홍길동',null,'none','{}',0)$q$,'pii_access_path_invalid');

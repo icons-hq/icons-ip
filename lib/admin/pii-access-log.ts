@@ -243,12 +243,12 @@ function uuidList(value: unknown, max: number): value is string[] {
   return Array.isArray(value) && value.length <= max && value.every(isUuid);
 }
 
-function parseEntry(value: unknown, idLimit: number): PiiAccessLogEntry | null {
+function parseEntry(value: unknown, idLimit: number, memberLimit: number): PiiAccessLogEntry | null {
   if (!record(value) || !text(value.id, 20) || !/^\d+$/.test(value.id) || !instant(value.at) || !isUuid(value.actorId)
     || !text(value.actorName, 200) || !text(value.actorAccess, 32) || !(value.ip === null || text(value.ip, 64))
     || !isPiiAccessAction(value.action) || !text(value.surface, 100) || !text(value.path) || !isPiiAccessSubjectKind(value.subjectKind)
     || !uuidList(value.subjectIds, idLimit) || !count(value.subjectCount) || value.subjectIds.length > value.subjectCount
-    || !uuidList(value.memberIds, idLimit) || !count(value.memberCount) || value.memberIds.length > value.memberCount
+    || !uuidList(value.memberIds, memberLimit) || !count(value.memberCount) || value.memberIds.length > value.memberCount
     || !record(value.detail) || Object.values(value.detail).some(item => item !== null && !['string', 'number', 'boolean'].includes(typeof item))
     || !Array.isArray(value.flags) || !value.flags.every(isFlag)) return null;
   return {
@@ -259,11 +259,11 @@ function parseEntry(value: unknown, idLimit: number): PiiAccessLogEntry | null {
   };
 }
 
-function parseEntries(value: unknown, idLimit: number, max: number): PiiAccessLogEntry[] | null {
+function parseEntries(value: unknown, idLimit: number, memberLimit: number, max: number): PiiAccessLogEntry[] | null {
   if (!Array.isArray(value) || value.length > max) return null;
   const items: PiiAccessLogEntry[] = [];
   for (const row of value) {
-    const parsed = parseEntry(row, idLimit);
+    const parsed = parseEntry(row, idLimit, memberLimit);
     if (!parsed) return null;
     items.push(parsed);
   }
@@ -277,7 +277,7 @@ export function parsePiiAccessLog(value: unknown): PiiAccessLogData | null {
   const summary = value.summary;
   if (!count(summary.total) || !count(summary.offHours) || !count(summary.bulk) || !count(summary.burst) || !count(summary.flagged)
     || summary.flagged > summary.total) return null;
-  const items = parseEntries(value.items, 5, value.pageSize);
+  const items = parseEntries(value.items, 5, 5, value.pageSize);
   if (!items || items.length > value.total) return null;
   const actors: PiiAccessLogActor[] = [];
   for (const row of value.actors) {
@@ -292,7 +292,7 @@ export function parsePiiAccessLog(value: unknown): PiiAccessLogData | null {
 export interface PiiAccessLogExport { from: string; to: string; total: number; capturedAt: string; rows: PiiAccessLogEntry[] }
 export function parsePiiAccessLogExport(value: unknown): PiiAccessLogExport | null {
   if (!record(value) || !validDay(value.from) || !validDay(value.to) || !count(value.total) || !instant(value.capturedAt)) return null;
-  const rows = parseEntries(value.rows, 1000, 10_000);
+  const rows = parseEntries(value.rows, 1000, 2000, 10_000);
   return rows && rows.length === value.total ? { from: value.from, to: value.to, total: value.total, capturedAt: value.capturedAt, rows } : null;
 }
 
