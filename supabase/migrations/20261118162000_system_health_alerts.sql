@@ -5,11 +5,14 @@
 --    남긴다. 비밀·개인정보는 싣지 않는다(오류 코드는 형식이 정해진 짧은 코드뿐이고, 상세는 건수·단계 이름만). 실패는 실패 기록에
 --    한 줄씩 쌓이고(30일 보존), 같은 작업의 운영 알림('시스템')은 한 시간에 하나만 남긴다.
 --  * pg_cron 잡의 실패·멈춤은 cron.job_run_details에서 읽는다(최근 20,000회만 본다 — 하루 약 7천 회라 2.8일쯤이 들어온다).
+--    cron.job에는 등록 시각이 없어 처음 본 시각을 private.system_pg_cron_jobs에 따로 남긴다(10분 주기 정리 잡). 처음 본 지
+--    멈춤 기준(주기×2+10분)이 지나지 않은 잡은 실행 기록이 없어도 멈춤이 아니라 '기록 없음'이다 — 새 잡이 첫 실행 전에 경보로 뜨지 않는다.
 --  * 결제 기한 만료 sweep(expire_stale_checkouts)은 한 주문의 오류가 매분 sweep 전체를 되돌리지 않게 주문마다 예외를 가둔다.
 --    건너뛴 주문은 실패 기록(pg_cron)에 남는다 — pg_cron 실행은 성공으로 보이므로 이 기록이 유일한 흔적이다.
 --  * 미종결 결제 시도(unknown·needs_review, 리스가 지난 confirming)는 재고·쿠폰을 무기한 잡는다. 운영 화면이 목록·건별 재확인
 --    (sales.manage, 감사 기록)을 하고, 10분 주기 cron이 결과 불명(unknown)·멈춘 확인(confirming)만 조회 API로 다시 확인한다
---    (시도당 30분 쿨다운, 회차당 최대 5건, 7일 지난 시도는 사람에게 맡긴다). needs_review는 결제사와 원장이 어긋난 건이라 사람만 본다.
+--    (이 배포에 설정된 결제사만, 시도당 30분 쿨다운 — 뽑힐 때 표식을 남겨 조회하지 못한 후보도 큐를 막지 않는다, 마지막 확인이
+--    오래된 순, 회차당 최대 5건, 7일 지난 시도는 사람에게 맡긴다). needs_review는 결제사와 원장이 어긋난 건이라 사람만 본다.
 --  * 판정(admin_system_health, platform.manage)과 운영 할 일 '시스템 점검' 건수(platform.manage). 읽기 RPC는 STABLE이라
 --    PostgREST가 읽기 전용 트랜잭션에서 연다 — 잠금이 없는 has_operator_capability만 쓴다(require_operator_capability는 FOR SHARE).
 --  * 외부 알림(메일·메신저)은 붙이지 않는다. 붙일 자리는 앱의 lib/system-health/alert-sink.server.ts 한 함수다.
@@ -57,9 +60,24 @@ create table private.system_job_failures (
 );
 create index system_job_failures_recent on private.system_job_failures(occurred_at desc);
 create index system_job_failures_job on private.system_job_failures(job_key, occurred_at desc);
+-- pg_cron 잡을 처음 본 시각(cron.job에는 등록 시각이 없다). 10분 주기 정리 잡이 새 잡을 더하고 없어진 잡을 지운다.
+-- '-infinity'는 이 migration 전부터 실행 기록이 있던 잡(처음 본 시각과 무관하게 멈춤을 판정한다).
+create table private.system_pg_cron_jobs (
+  jobname text primary key,
+  first_seen_at timestamptz not null
+);
+-- 자동 재확인 cron이 후보로 뽑은 시각. 결제사 조회 전에 끝난 후보(설정 없음·claim 전 실패)도 30분 쿨다운에 들게 한다.
+create table private.payment_reconciliation_auto_checks (
+  attempt_id uuid primary key references public.payment_attempts(id) on delete cascade,
+  last_picked_at timestamptz not null,
+  picks integer not null default 1 check (picks >= 1)
+);
 alter table private.system_job_status enable row level security;
 alter table private.system_job_failures enable row level security;
-revoke all on private.system_job_status, private.system_job_failures from public, anon, authenticated, service_role;
+alter table private.system_pg_cron_jobs enable row level security;
+alter table private.payment_reconciliation_auto_checks enable row level security;
+revoke all on private.system_job_status, private.system_job_failures, private.system_pg_cron_jobs,
+  private.payment_reconciliation_auto_checks from public, anon, authenticated, service_role;
 
 -- 결제 재확인 쿨다운·마지막 확인 시각을 시도별로 찾는다(웹훅 재전송마다 한 줄씩 쌓이는 표).
 create index if not exists goods_payment_reconciliation_audits_target
@@ -198,8 +216,9 @@ begin
       'active', true) row_json
     from private.system_job_status s) v;
 
-  -- pg_cron: 최근 실행 표본(런 번호 역순 20,000회 ≈ 2.8일)에서 작업별 마지막 실행·성공·24시간 실패. 표본이 멈춤 기준보다 짧으면
-  -- 멈춤을 판정하지 않는다. 실행 안에서 건너뛴 행(실패 기록의 pg_cron 줄)도 그 작업의 실패로 센다.
+  -- pg_cron: 최근 실행 표본(런 번호 역순 20,000회 ≈ 2.8일)에서 작업별 마지막 실행·성공·24시간 실패. 표본이 멈춤 기준보다 짧거나,
+  -- 처음 본 지(private.system_pg_cron_jobs) 멈춤 기준이 지나지 않았거나 아직 정리 잡이 보지 못한 새 잡이면 멈춤을 판정하지 않는다
+  -- (새 잡은 첫 실행 전까지 '기록 없음'). 실행 안에서 건너뛴 행(실패 기록의 pg_cron 줄)도 그 작업의 실패로 센다.
   with recent as materialized (
     select d.jobid, d.status, d.start_time, d.end_time from cron.job_run_details d order by d.runid desc limit 20000
   ), horizon as (
@@ -218,10 +237,11 @@ begin
   ), jobs as (
     select j.jobname, j.schedule, j.active, private.cron_schedule_minutes(j.schedule) as minutes,
       runs.last_success_at, runs.last_failure_at, runs.last_run_at, coalesce(runs.failures, 0) as run_failures, runs.last_status,
-      skipped.last_at as skipped_at, coalesce(skipped.failures, 0) as skipped_failures, horizon.since
+      skipped.last_at as skipped_at, coalesce(skipped.failures, 0) as skipped_failures, horizon.since, seen.first_seen_at
     from cron.job j
     left join runs on runs.jobid = j.jobid
     left join skipped on skipped.job_key = j.jobname
+    left join private.system_pg_cron_jobs seen on seen.jobname = j.jobname
     cross join horizon
     where j.jobname is not null
   )
@@ -235,8 +255,9 @@ begin
       'failures24h', r.run_failures + r.skipped_failures,
       'failing', r.active and (coalesce(r.last_status = 'failed', false)
         or coalesce(r.skipped_at > at - private.system_job_stall_threshold(coalesce(r.minutes, 60)), false)),
-      'stalled', r.active and r.minutes is not null and r.since is not null
+      'stalled', r.active and r.minutes is not null and r.since is not null and r.first_seen_at is not null
         and r.since < at - private.system_job_stall_threshold(r.minutes)
+        and r.first_seen_at < at - private.system_job_stall_threshold(r.minutes)
         and coalesce(r.last_success_at, '-infinity'::timestamptz) < at - private.system_job_stall_threshold(r.minutes),
       'active', r.active) order by r.jobname), '[]'::jsonb)
   into cron_jobs from jobs r;
@@ -384,34 +405,51 @@ revoke all on function public.admin_begin_payment_reconciliation(uuid, uuid) fro
 grant execute on function public.admin_begin_payment_reconciliation(uuid, uuid) to authenticated;
 
 -- 5. 자동 재확인 후보(cron, service_role) -------------------------------------------------------------------------------
--- 결과 불명(unknown)·멈춘 확인(confirming 리스 만료)만. 조회 API가 있는 시도(굿즈 토스·나이스페이, 티켓 토스)이고, 마지막 변경 뒤
--- 10분이 지났고(콜백·웹훅 처리 중인 건을 건드리지 않는다), 7일 안에 만든 시도이며, 30분 안에 누구도(웹훅·운영자·cron) 확인하지 않은 것.
-create function public.service_list_payment_reconciliation_candidates(p_limit integer) returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+-- 결과 불명(unknown)·멈춘 확인(confirming 리스 만료)만. 조회 API가 있는 시도(굿즈 토스·나이스페이, 티켓 토스) 중 이 배포에 결제사
+-- 설정이 있는 것(p_providers — 앱이 설정된 게이트웨이만 넘긴다)이고, 마지막 변경 뒤 10분이 지났고(콜백·웹훅 처리 중인 건을 건드리지
+-- 않는다), 7일 안에 만든 시도이며, 30분 안에 누구도(웹훅·운영자·cron) 확인하거나 이 cron이 뽑지 않은 것. 뽑는 순간 표식을 남겨
+-- 결제사 조회 전에 끝난 후보(설정 없음·claim 전 실패)도 30분 쿨다운에 들고, 마지막 확인·뽑힘이 오래된 순(없으면 맨 앞)으로 골라
+-- 조회하지 못하는 후보가 큐 앞자리를 차지하지 못한다.
+create function public.service_claim_payment_reconciliation_candidates(p_limit integer, p_providers text[]) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
 declare at timestamptz := clock_timestamp(); result jsonb;
 begin
-  if p_limit is null or p_limit not between 1 and 5 then
-    raise invalid_parameter_value using message = 'invalid_reconciliation_candidate_limit';
+  if p_limit is null or p_limit not between 1 and 5 or p_providers is null or cardinality(p_providers) > 4
+    or array_position(p_providers, null) is not null or not (p_providers <@ array['toss', 'nicepay']::text[]) then
+    raise invalid_parameter_value using message = 'invalid_reconciliation_candidate_filter';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('attemptId', c.id, 'purpose', c.purpose, 'provider', c.provider, 'refId', c.ref_id)
-    order by c.updated_at, c.id), '[]'::jsonb)
-  into result
-  from (
-    select a.id, a.purpose, a.provider, a.ref_id, a.updated_at from public.payment_attempts a
-    where a.state in ('unknown', 'confirming')
-      and private.payment_attempt_unresolved(a.state, a.claim_expires_at, at)
-      and ((a.purpose = 'order' and a.provider in ('toss', 'nicepay')) or (a.purpose = 'ticket' and a.provider = 'toss'))
-      and a.updated_at <= at - interval '10 minutes'
-      and a.created_at >= at - interval '7 days'
-      and not exists(select 1 from private.goods_payment_reconciliation_audits g where g.target_id = a.id and g.requested_at > at - interval '30 minutes')
-      and not exists(select 1 from private.ticket_payment_reconciliation_audits t where t.target_id = a.id and t.requested_at > at - interval '30 minutes')
-    order by a.updated_at, a.id
+  with picked as (
+    select c.id, c.purpose, c.provider, c.ref_id, c.last_checked_at, c.updated_at from (
+      select a.id, a.purpose, a.provider, a.ref_id, a.updated_at,
+        greatest(
+          (select max(g.requested_at) from private.goods_payment_reconciliation_audits g where g.target_id = a.id),
+          (select max(t.requested_at) from private.ticket_payment_reconciliation_audits t where t.target_id = a.id),
+          (select m.last_picked_at from private.payment_reconciliation_auto_checks m where m.attempt_id = a.id)) as last_checked_at
+      from public.payment_attempts a
+      where a.state in ('unknown', 'confirming')
+        and private.payment_attempt_unresolved(a.state, a.claim_expires_at, at)
+        and ((a.purpose = 'order' and a.provider in ('toss', 'nicepay')) or (a.purpose = 'ticket' and a.provider = 'toss'))
+        and a.provider::text = any(p_providers)
+        and a.updated_at <= at - interval '10 minutes'
+        and a.created_at >= at - interval '7 days'
+    ) c
+    where c.last_checked_at is null or c.last_checked_at <= at - interval '30 minutes'
+    order by c.last_checked_at nulls first, c.updated_at, c.id
     limit p_limit
-  ) c;
+  ), marked as (
+    insert into private.payment_reconciliation_auto_checks as m(attempt_id, last_picked_at)
+    select id, at from picked
+    on conflict (attempt_id) do update set last_picked_at = excluded.last_picked_at, picks = m.picks + 1
+    returning m.attempt_id
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('attemptId', p.id, 'purpose', p.purpose, 'provider', p.provider, 'refId', p.ref_id)
+    order by p.last_checked_at nulls first, p.updated_at, p.id), '[]'::jsonb)
+  into result
+  from picked p where p.id in (select attempt_id from marked);
   return result;
 end $$;
-revoke all on function public.service_list_payment_reconciliation_candidates(integer) from public, anon, authenticated, service_role;
-grant execute on function public.service_list_payment_reconciliation_candidates(integer) to service_role;
+revoke all on function public.service_claim_payment_reconciliation_candidates(integer, text[]) from public, anon, authenticated, service_role;
+grant execute on function public.service_claim_payment_reconciliation_candidates(integer, text[]) to service_role;
 
 -- 6. 결제 기한 만료 sweep: 주문마다 예외를 가둔다 ----------------------------------------------------------------------
 -- 한 주문의 오류(데이터 이상·트리거 거절)가 매분 sweep 전체(최대 200건)를 되돌려 다른 주문의 재고·쿠폰까지 묶던 것을 막는다.
@@ -481,9 +519,30 @@ $a$'href','/admin/cs/reviews?reply=without&status=visible') where public.has_ope
 select 8,jsonb_build_object('id','system','label','시스템 점검','count',private.system_health_issue_count(),'href','/admin/settings/system') where public.has_operator_capability('platform.manage')$a$
 ]);
 
--- 8. 보존: 실패 기록 30일, 30일 동안 실행이 없던 작업 상태 행.
-select cron.schedule('system-job-records-retention', '41 3 * * *',
-  $job$delete from private.system_job_failures where occurred_at < now() - interval '30 days'; delete from private.system_job_status where updated_at < now() - interval '30 days'$job$);
+-- 8. 정리 잡(10분): pg_cron 잡을 처음 본 시각을 남기고(새 잡의 멈춤 오탐 방지), 실패 기록 30일·30일 동안 실행이 없던 작업 상태 행·
+--    미종결이 아닌 시도의 자동 재확인 표식을 지운다.
+create function private.maintain_system_job_records() returns void
+language plpgsql set search_path = '' as $$
+begin
+  insert into private.system_pg_cron_jobs(jobname, first_seen_at)
+  select j.jobname, clock_timestamp() from cron.job j where j.jobname is not null
+  on conflict (jobname) do nothing;
+  delete from private.system_pg_cron_jobs s where not exists(select 1 from cron.job j where j.jobname = s.jobname);
+  delete from private.system_job_failures where occurred_at < now() - interval '30 days';
+  delete from private.system_job_status where updated_at < now() - interval '30 days';
+  delete from private.payment_reconciliation_auto_checks m using public.payment_attempts a
+  where a.id = m.attempt_id and not private.payment_attempt_unresolved(a.state, a.claim_expires_at, clock_timestamp());
+end $$;
+revoke all on function private.maintain_system_job_records() from public, anon, authenticated, service_role;
+
+select cron.schedule('system-job-records-maintenance', '*/10 * * * *', $job$select private.maintain_system_job_records()$job$);
+-- 이 migration 전부터 표본 안에 실행 기록이 있던 잡은 처음 본 시각을 '-infinity'로 둔다(멈춤 판정을 미루지 않는다). 기록이 없는 잡
+-- (이 migration이 막 만든 정리 잡 포함)은 지금을 처음 본 시각으로 남긴다 — 첫 실행 전에 멈춤으로 뜨지 않는다.
+insert into private.system_pg_cron_jobs(jobname, first_seen_at)
+select j.jobname, case when exists(select 1 from (select d.jobid from cron.job_run_details d order by d.runid desc limit 20000) recent
+    where recent.jobid = j.jobid) then '-infinity'::timestamptz else clock_timestamp() end
+from cron.job j where j.jobname is not null
+on conflict (jobname) do nothing;
 
 -- 9. 운영자 계약: 새 RPC와 재정의한 함수(분류는 기존 행 그대로).
 select private.register_operator_rpc_contract('public.admin_system_health()'::regprocedure, 'platform.manage', 'read', false);

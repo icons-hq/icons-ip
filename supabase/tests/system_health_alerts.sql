@@ -18,8 +18,12 @@ select 1/case when (
   has_function_privilege('service_role','public.service_record_system_job_run(text,text,integer,timestamptz,timestamptz,boolean,integer,text,jsonb)','execute')
   and not has_function_privilege('authenticated','public.service_record_system_job_run(text,text,integer,timestamptz,timestamptz,boolean,integer,text,jsonb)','execute')
   and not has_function_privilege('anon','public.service_record_system_job_run(text,text,integer,timestamptz,timestamptz,boolean,integer,text,jsonb)','execute')
-  and has_function_privilege('service_role','public.service_list_payment_reconciliation_candidates(integer)','execute')
-  and not has_function_privilege('authenticated','public.service_list_payment_reconciliation_candidates(integer)','execute')
+  and has_function_privilege('service_role','public.service_claim_payment_reconciliation_candidates(integer,text[])','execute')
+  and not has_function_privilege('authenticated','public.service_claim_payment_reconciliation_candidates(integer,text[])','execute')
+  and not has_function_privilege('anon','public.service_claim_payment_reconciliation_candidates(integer,text[])','execute')
+  and not has_function_privilege('service_role','private.maintain_system_job_records()','execute')
+  and not has_table_privilege('service_role','private.system_pg_cron_jobs','select,insert,update,delete')
+  and not has_table_privilege('service_role','private.payment_reconciliation_auto_checks','select,insert,update,delete')
   and has_function_privilege('authenticated','public.admin_system_health()','execute')
   and not has_function_privilege('anon','public.admin_system_health()','execute')
   and not has_function_privilege('service_role','public.admin_system_health()','execute')
@@ -35,13 +39,16 @@ select 1/case when (
   and not has_table_privilege('service_role','private.system_job_failures','select,insert,update,delete')
   and not has_table_privilege('authenticated','private.system_job_failures','select')
   and (select bool_and(provolatile='s') from pg_proc where oid in ('public.admin_system_health()'::regprocedure,
-    'public.admin_unresolved_payment_attempts(integer)'::regprocedure,'public.service_list_payment_reconciliation_candidates(integer)'::regprocedure))
-  and (select provolatile='v' from pg_proc where oid='public.admin_begin_payment_reconciliation(uuid,uuid)'::regprocedure)
+    'public.admin_unresolved_payment_attempts(integer)'::regprocedure))
+  and (select bool_and(provolatile='v') from pg_proc where oid in ('public.admin_begin_payment_reconciliation(uuid,uuid)'::regprocedure,
+    'public.service_claim_payment_reconciliation_candidates(integer,text[])'::regprocedure))
   and (select count(*) from private.operator_rpc_contracts where (signature,capability,guard_kind) in (
     ('public.admin_system_health()','platform.manage','read'),
     ('public.admin_unresolved_payment_attempts(integer)','sales.manage','read'),
     ('public.admin_begin_payment_reconciliation(uuid,uuid)','sales.manage','write')))=3
-  and (select count(*) from cron.job where jobname='system-job-records-retention')=1
+  and (select count(*) from cron.job where jobname='system-job-records-maintenance' and schedule='*/10 * * * *')=1
+  -- migration이 막 만든 정리 잡은 처음 본 시각이 남아 있어 첫 실행 전에 멈춤으로 뜨지 않는다.
+  and exists(select 1 from private.system_pg_cron_jobs where jobname='system-job-records-maintenance')
   and private.operator_alert_capability('system')='platform.manage'
 ) then 1 else 0 end as assert_sealed_acl;
 
@@ -107,9 +114,12 @@ reset role;
 insert into private.system_job_status(job_key,label,expected_interval_minutes,last_started_at,last_finished_at,last_success_at,last_status_code,consecutive_failures)
 values('t7-smoke-stalled','합성 멈춘 작업',10,now()-interval '2 hours',now()-interval '2 hours',now()-interval '2 hours',200,0);
 
--- pg_cron: 실패 실행이 마지막인 합성 잡, 표본 안에 성공이 없는 합성 매분 잡(멈춤).
+-- pg_cron: 실패 실행이 마지막인 합성 잡, 처음 본 지 오래됐는데 표본 안에 성공이 없는 합성 매분 잡(멈춤),
+-- 막 등록돼 아직 한 번도 돌지 않은 합성 매일 잡(멈춤 아님 — 기록 없음).
 select cron.schedule('t7-smoke-cron-failing','*/5 * * * *','select 1') as failing_job \gset
 select cron.schedule('t7-smoke-cron-stalled','* * * * *','select 1') as stalled_job \gset
+select cron.schedule('t7-smoke-cron-new','41 3 * * *','select 1') as new_job \gset
+insert into private.system_pg_cron_jobs(jobname,first_seen_at) values('t7-smoke-cron-stalled',now()-interval '7 days'),('t7-smoke-cron-failing',now()-interval '7 days');
 -- 런 번호는 시퀀스 대신 현재 최대값 뒤의 큰 수를 쓴다(표본은 런 번호 역순이라 합성 실행이 표본 안에 든다).
 select coalesce(max(runid),0)+1000000 as run_base from cron.job_run_details \gset
 insert into cron.job_run_details(jobid,runid,job_pid,database,username,command,status,return_message,start_time,end_time) values
@@ -174,28 +184,48 @@ select pg_temp.attempt(1,'toss','order','unknown') as unknown_attempt,
   pg_temp.attempt(6,'korpay','order','needs_review') as korpay_attempt,
   pg_temp.attempt(7,'toss','order','unknown',null,interval '1 hour',interval '2 minutes') as fresh_attempt,
   pg_temp.attempt(8,'toss','order','unknown',null,interval '8 days',interval '8 days') as old_attempt,
-  pg_temp.attempt(9,'toss','order','unknown') as audited_attempt \gset
+  pg_temp.attempt(9,'toss','order','unknown') as audited_attempt,
+  pg_temp.attempt(10,'nicepay','order','unknown',null,interval '3 hours',interval '3 hours') as nicepay_attempt,
+  pg_temp.attempt(11,'toss','order','unknown',null,interval '5 hours',interval '5 hours') as checked_attempt \gset
 -- 9번은 방금(웹훅·운영자) 확인한 시도다.
 insert into private.goods_payment_reconciliation_audits(claim_token,operation,target_id,actor_ref,case_ref,claim_status)
 values(gen_random_uuid(),'payment',:'audited_attempt','goods_payment_reconciliation_service_v1','t7-smoke-recent-check-01','in_progress');
+-- 11번은 40분 전(쿨다운 밖)에 확인한 시도다 — 변경은 가장 오래됐어도 한 번도 확인하지 않은 시도보다 뒤에 뽑힌다.
+insert into private.goods_payment_reconciliation_audits(claim_token,operation,target_id,actor_ref,case_ref,claim_status,requested_at)
+values(gen_random_uuid(),'payment',:'checked_attempt','goods_payment_reconciliation_service_v1','t7-smoke-older-check-01','in_progress',now()-interval '40 minutes');
 
 -- 자동 재확인 후보: 결과 불명·멈춘 확인만, 조회 API가 있는 결제사, 10분 지난 변경, 7일 안, 30분 쿨다운.
 -- 다른 테스트의 미종결 시도는 이 트랜잭션 안에서만 방금 바뀐 것으로 만들어(갱신 트리거가 updated_at을 지금으로) 후보에서 뺀다.
 update public.payment_attempts set amount=amount where state in ('unknown','confirming') and id::text not like 'a7000000-0000-4003-%';
+create function pg_temp.picks(n integer,providers text[]) returns text[] language sql as $$
+ select coalesce(array_agg(e->>'attemptId' order by o),'{}') from jsonb_array_elements(public.service_claim_payment_reconciliation_candidates(n,providers)) with ordinality x(e,o)
+$$;
 set local role service_role;
-select 1/case when (select array_agg(e->>'attemptId' order by e->>'attemptId') from jsonb_array_elements(public.service_list_payment_reconciliation_candidates(5)) e)
-   = array[:'unknown_attempt',:'stalled_attempt']
- and jsonb_array_length(public.service_list_payment_reconciliation_candidates(1))=1
-then 1 else 0 end as assert_auto_candidates;
-select pg_temp.expect_error($$select public.service_list_payment_reconciliation_candidates(6)$$,'invalid_reconciliation_candidate_limit');
+-- 이 배포에 토스만 설정돼 있으면 나이스페이 시도(10번, 변경이 더 오래됨)는 후보가 아니다. 한 번도 확인하지 않은 1번이 먼저다.
+select pg_temp.picks(1,array['toss']) as pick_a \gset
+select pg_temp.picks(5,array['toss']) as pick_b \gset
+-- 뽑힌 시도는 결제사 조회 전에 끝났어도(설정 없음·claim 전 실패) 30분 동안 다시 뽑히지 않는다.
+select pg_temp.picks(5,array['toss','nicepay']) as pick_c \gset
+select pg_temp.picks(5,array['toss','nicepay']) as pick_d \gset
+select pg_temp.expect_error($$select public.service_claim_payment_reconciliation_candidates(6,array['toss'])$$,'invalid_reconciliation_candidate_filter');
+select pg_temp.expect_error($$select public.service_claim_payment_reconciliation_candidates(1,array['korpay'])$$,'invalid_reconciliation_candidate_filter');
+select pg_temp.expect_error($$select public.service_claim_payment_reconciliation_candidates(1,null)$$,'invalid_reconciliation_candidate_filter');
 reset role;
+select 1/case when :'pick_a'::text[]=array[:'unknown_attempt']
+ and :'pick_b'::text[]=array[:'stalled_attempt',:'checked_attempt']
+ and :'pick_c'::text[]=array[:'nicepay_attempt']
+ and cardinality(:'pick_d'::text[])=0
+ and (select count(*) from private.payment_reconciliation_auto_checks where attempt_id::text like 'a7000000-0000-4003-%')=4
+ and not exists(select 1 from private.payment_reconciliation_auto_checks where attempt_id in
+   (:'review_attempt',:'korpay_attempt',:'fresh_attempt',:'old_attempt',:'audited_attempt',:'live_attempt',:'approved_attempt'))
+then 1 else 0 end as assert_auto_candidates;
 
--- 목록(sales.manage): 이 시험의 미종결 7건(1·2·3·6·7·8·9 — 승인 5번·리스가 살아 있는 확인 4번 제외)이 기준 건수에 더해진다.
+-- 목록(sales.manage): 이 시험의 미종결 9건(1·2·3·6·7·8·9·10·11 — 승인 5번·리스가 살아 있는 확인 4번 제외)이 기준 건수에 더해진다.
 set local role authenticated;
 select pg_temp.as_actor('a7000000-0000-4000-8000-000000000001');
 select public.admin_unresolved_payment_attempts(200) as list \gset
-select 1/case when (:'list'::jsonb->>'total')::integer=:base_unresolved+7
- and jsonb_array_length(:'list'::jsonb->'items')=least(:base_unresolved+7,200)
+select 1/case when (:'list'::jsonb->>'total')::integer=:base_unresolved+9
+ and jsonb_array_length(:'list'::jsonb->'items')=least(:base_unresolved+9,200)
  and not exists(select 1 from jsonb_array_elements(:'list'::jsonb->'items') e where e->>'attemptId' in (:'live_attempt',:'approved_attempt'))
  and exists(select 1 from jsonb_array_elements(:'list'::jsonb->'items') e where e->>'attemptId'=:'stalled_attempt' and e->>'reason'='confirming_stalled'
    and (e->>'reconcilable')::boolean and e->>'orderNumber' is not null and (e->>'amount')::integer=10003)
@@ -243,18 +273,32 @@ select 1/case when exists(select 1 from jsonb_array_elements(:'health'::jsonb->'
  and exists(select 1 from jsonb_array_elements(:'health'::jsonb->'jobs') e where e->>'jobKey'='t7-smoke-cron-failing' and e->>'source'='pg_cron'
    and (e->>'failing')::boolean and e->>'lastErrorCode'='pg_cron_failed' and (e->>'expectedIntervalMinutes')::integer=5 and (e->>'failures24h')::integer=1)
  and exists(select 1 from jsonb_array_elements(:'health'::jsonb->'jobs') e where e->>'jobKey'='t7-smoke-cron-stalled' and (e->>'stalled')::boolean)
+ -- 표본이 3일 전까지 있어도(운영처럼) 처음 본 기록이 없거나 막 본 새 잡은 멈춤이 아니다.
+ and exists(select 1 from jsonb_array_elements(:'health'::jsonb->'jobs') e where e->>'jobKey'='t7-smoke-cron-new'
+   and not (e->>'stalled')::boolean and not (e->>'failing')::boolean and e->>'lastRunAt' is null)
  and exists(select 1 from jsonb_array_elements(:'health'::jsonb->'jobs') e where e->>'jobKey'='expire-stale-checkouts' and (e->>'failing')::boolean
    and e->>'lastErrorCode'='rows_skipped' and (e->>'failures24h')::integer>=1)
  and exists(select 1 from jsonb_array_elements(:'health'::jsonb->'recentFailures') e where e->>'jobKey'='t7-smoke-cron-failing' and e->>'errorCode'='pg_cron_failed')
  and position('합성 오류 원문' in :'health'::jsonb::text)=0
- and (:'health'::jsonb->'counts'->>'unresolvedPayments')::integer=:base_unresolved+7
- and (:'health'::jsonb->'payments'->>'goods')::integer=:base_goods+7
+ and (:'health'::jsonb->'counts'->>'unresolvedPayments')::integer=:base_unresolved+9
+ and (:'health'::jsonb->'payments'->>'goods')::integer=:base_goods+9
  and (:'health'::jsonb->'counts'->>'emailFailures')::integer>=1
  and (:'health'::jsonb->'counts'->>'emailBounces')::integer>=1
  and (:'health'::jsonb->'counts'->>'issues')::integer=(:'health'::jsonb->'counts'->>'problemJobs')::integer
    +(:'health'::jsonb->'counts'->>'unresolvedPayments')::integer+(:'health'::jsonb->'counts'->>'emailFailures')::integer
  and (:'health'::jsonb->'counts'->>'problemJobs')::integer>=5
 then 1 else 0 end as assert_health_report;
+
+reset role;
+select private.maintain_system_job_records();
+select 1/case when (select first_seen_at>now()-interval '1 minute' from private.system_pg_cron_jobs where jobname='t7-smoke-cron-new')
+ and (select first_seen_at from private.system_pg_cron_jobs where jobname='t7-smoke-cron-stalled')<now()-interval '6 days'
+then 1 else 0 end as assert_maintenance_records_first_seen;
+set local role authenticated;
+select pg_temp.as_actor('a7000000-0000-4000-8000-000000000001');
+select 1/case when exists(select 1 from jsonb_array_elements(public.admin_system_health()->'jobs') e where e->>'jobKey'='t7-smoke-cron-new' and not (e->>'stalled')::boolean)
+ and (public.admin_system_health()->'counts'->>'issues')::integer=(:'health'::jsonb->'counts'->>'issues')::integer
+then 1 else 0 end as assert_new_cron_job_not_counted;
 
 select 1/case when exists(select 1 from jsonb_array_elements(public.admin_operation_tasks()) e where e->>'id'='system' and e->>'href'='/admin/settings/system'
    and (e->>'count')::integer=(:'health'::jsonb->'counts'->>'issues')::integer)
