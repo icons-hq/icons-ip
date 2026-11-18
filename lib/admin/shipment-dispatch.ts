@@ -101,6 +101,10 @@ export function shipmentMutationError(code:string):string{
   tracking_number_shared_in_reply:'같은 파일 안에서 다른 주문의 배송 건에도 같은 운송장번호가 적혀 있습니다. 어느 줄이 맞는지 확인한 뒤 그 줄들을 고쳐 다시 올려주세요(같은 받는 분·같은 출고지의 합배송과 합포장은 함께 등록됩니다).',
   // 택배사별 규칙 문구는 레지스트리(shipping_carriers.tracking_number_rule)에 있다. 레지스트리를 가진 호출부가 trackingFormatRulesNote로 덧붙인다.
   tracking_number_format_mismatch:'택배사의 운송장번호 형식(자릿수)과 맞지 않습니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.',
+  tracking_swap_reason_required:'운송장을 맞바꾸는 사유를 입력해주세요(500자 이내).',
+  tracking_swap_same_pack:'같은 합포장 묶음의 배송 건끼리는 운송장을 맞바꿀 수 없습니다. 묶음은 같은 운송장을 씁니다.',
+  invalid_tracking_swap:'맞바꿀 두 배송 건을 확인해주세요. 같은 배송 건이거나 이미 같은 운송장입니다.',
+  shipment_tracking_changed:'입력한 운송장번호가 지금 등록된 번호와 다릅니다. 이미 맞바꿨거나 다른 운영자가 고쳤을 수 있으니 새로고침해 두 배송 건을 확인해주세요.',
   tracking_reply_recipient_mismatch:'회신의 받는 분 이름·전화번호가 주문 배송지와 다릅니다. 두 주문의 운송장이 뒤바뀐 회신일 수 있어 등록하지 않았습니다. 창고에 확인한 뒤 주문 통합검색에서 배송 건별로 등록해주세요.',
   // 배송 건 추가 운송장(QNA-019)
   extra_tracking_reason_required:'추가 운송장을 더하거나 지우는 사유를 입력해주세요(500자 이내).',

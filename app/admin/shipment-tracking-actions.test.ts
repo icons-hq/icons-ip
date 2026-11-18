@@ -9,7 +9,7 @@ vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: asy
 ] }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn(), redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); } }));
-import { addShipmentExtraTrackingAction, removeShipmentExtraTrackingAction } from './shipment-tracking-actions';
+import { addShipmentExtraTrackingAction, removeShipmentExtraTrackingAction, swapShipmentTrackingAction } from './shipment-tracking-actions';
 
 const shipmentId = '00000000-0000-4000-8000-000000000001';
 const extraTrackingId = '00000000-0000-4000-8000-000000000002';
@@ -70,5 +70,40 @@ describe('배송 건 추가 운송장 액션 (QNA-019)', () => {
     as('primary');
     mocks.rpc.mockResolvedValue({ data: { status: 'added' }, error: null });
     expect(await addShipmentExtraTrackingAction(add())).toMatchObject({ ok: true });
+  });
+});
+
+describe('뒤바뀐 운송장 맞바꾸기 액션 (SHP-031)', () => {
+  const swap = (overrides: Record<string, string> = {}) => form({ shipmentId, expectedTrackingNumber: '100000000001', otherReference: ' 2026 1118 3000 0002 ',
+    otherTrackingNumber: '2000-0000-0002', reason: ' 김포 회신 두 주문 뒤바뀜 ', ...overrides });
+
+  it('정규화한 두 번호와 상대 배송건번호로 DB 맞바꾸기를 부르고 두 화면을 새로 읽게 한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { status: 'swapped', trackingNumber: '200000000002', otherTrackingNumber: '100000000001' }, error: null });
+    expect(await swapShipmentTrackingAction(swap())).toEqual({ ok: true, message: expect.stringContaining('이 배송 건은 200000000002, 상대 배송 건은 100000000001') });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_swap_shipment_trackings', { p_shipment_id: shipmentId, p_expected_tracking: '100000000001',
+      p_other_reference: '2026111830000002', p_expected_other_tracking: '200000000002', p_reason: '김포 회신 두 주문 뒤바뀜' });
+    expect(mocks.revalidate).toHaveBeenCalledWith('/orders/[orderId]', 'page');
+    // 전체 UUID 참조는 하이픈을 지우지 않는다.
+    await swapShipmentTrackingAction(swap({ otherReference: extraTrackingId }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_swap_shipment_trackings', expect.objectContaining({ p_other_reference: extraTrackingId }));
+  });
+
+  it('입력이 비면 DB를 부르지 않고, DB 거절·모르는 응답은 운영 문구로 알린다', async () => {
+    for (const overrides of [{ otherReference: ' ' }, { otherTrackingNumber: '12' }, { reason: '' }, { shipmentId: 'nope' }]) {
+      expect(await swapShipmentTrackingAction(swap(overrides))).toMatchObject({ ok: false });
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'shipment_tracking_changed' } });
+    expect(await swapShipmentTrackingAction(swap())).toEqual({ ok: false, error: expect.stringContaining('이미 맞바꿨거나') });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'tracking_number_in_use' } });
+    expect(await swapShipmentTrackingAction(swap())).toEqual({ ok: false, error: expect.stringContaining('다른 주문의 배송 건') });
+    mocks.rpc.mockResolvedValue({ data: { status: 'mystery' }, error: null });
+    expect(await swapShipmentTrackingAction(swap())).toEqual({ ok: false, error: expect.stringContaining('확인하지 못했습니다') });
+  });
+
+  it('출고 권한이 없으면 맞바꾸지 않는다', async () => {
+    as('deputy');
+    expect(await swapShipmentTrackingAction(swap())).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

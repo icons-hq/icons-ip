@@ -81,6 +81,7 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { adminPaymentCancelErrorCopy } from '@/lib/admin/payment-cancel-error';
 import { ShipmentExtraTrackingsPanel } from '@/components/admin/ShipmentExtraTrackingsPanel';
+import { ShipmentTrackingSwapForm } from '@/components/admin/ShipmentTrackingSwapForm';
 import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, PackageCheck, Truck, type LucideIcon } from 'lucide-react';
 import { adminConfirm, confirmAdminSubmit } from '@/lib/admin/confirm';
 
@@ -1103,6 +1104,11 @@ function OrderDetail({
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">추가 운송장{shipment.extraTrackings?.length ? ` ${shipment.extraTrackings.length}개` : ''}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
               <div className="mt-2"><ShipmentExtraTrackingsPanel shipmentId={shipment.id} reference={commerceReferenceLabel(shipment.id, shipment.shipmentNumber)} carriers={carriers}
                 defaultCarrier={shipment.carrier} extras={shipment.extraTrackings ?? []} /></div>
+            </details> : null}
+            {/* 다른 주문과 뒤바뀌어 등록된 운송장(SHP-031). 정정은 다른 주문의 번호를 받지 않으므로 두 배송 건을 한 번에 맞바꾼다. */}
+            {shipment.trackingNumber ? <details className="group rounded-lg border px-3 py-2">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">다른 주문과 운송장 맞바꾸기<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+              <div className="mt-2"><ShipmentTrackingSwapForm shipmentId={shipment.id} reference={commerceReferenceLabel(shipment.id, shipment.shipmentNumber)} trackingNumber={shipment.trackingNumber} /></div>
             </details> : null}
           </section>
         )) : null}

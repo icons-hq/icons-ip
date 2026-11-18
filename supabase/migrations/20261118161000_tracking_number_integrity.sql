@@ -21,6 +21,8 @@
 -- 4. 김포 21열·표준 양식 회신의 받는 분 이름·전화번호(회신에 있으면)를 주문 배송지와 대조해, 다르면 그 주문(배송 건)의 줄만 실패한다.
 --    회신이 이 칸을 보내지 않으면(세 칸 회신·옛 앱) 지금처럼 대조하지 않는다.
 -- 5. 이미 등록된 운영 데이터는 소급하지 않는다. 표 제약이 아니라 등록 함수의 판정이고, 바뀌지 않는 번호(배송완료 처리·같은 회신 재업로드)는 다시 보지 않는다.
+-- 6. 두 주문의 운송장이 서로 뒤바뀌어 등록되면 위 판정 때문에 정정으로 고칠 수 없으므로, 두 배송 건의 대표 운송장을 한 번에 맞바꾸는
+--    운영자 RPC(admin_swap_shipment_trackings, 출고 권한·사유 필수·감사)를 둔다.
 --
 -- 기존 함수는 현재 정의에서 바꿀 줄만 앵커 치환한다(앵커가 정확히 한 번 나오지 않으면 멈춘다). 끝에서 운영자 계약 지문을 다시 적는다.
 begin;
@@ -352,7 +354,61 @@ $a$ perform private.lock_tracking_batch(target_rows,null);
 
 drop function private.t6_patch_function(regprocedure, text[]);
 
--- 5. 운영자 계약. 바꾼 함수는 등록된 능력·분류를 그대로 두고 지문만 다시 적는다.
+-- 5. 뒤바뀐 운송장 맞바꾸기. 두 주문의 운송장이 서로 바뀌어 등록되면 위 판정 때문에 어느 쪽도 상대 번호로 정정할 수 없다.
+--    운영자가 두 배송 건(합포장이면 묶음 전체)의 대표 운송장을 한 트랜잭션에서 맞바꾼다. 화면이 본 두 번호(p_expected_*)가 지금 값과
+--    같을 때만 바꾸므로 같은 요청을 다시 보내도 되돌아가지 않는다(두 번째는 shipment_tracking_changed). 추가 운송장은 그대로다.
+create function public.admin_swap_shipment_trackings(p_shipment_id uuid, p_expected_tracking text, p_other_reference text,
+  p_expected_other_tracking text, p_reason text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare actor uuid; other_id uuid; reason_value text := nullif(btrim(coalesce(p_reason, '')), '');
+  first_scope uuid[]; second_scope uuid[]; first public.order_shipments; second public.order_shipments; member public.order_shipments;
+begin
+  actor := private.require_operator_capability('sales.dispatch', false);
+  if p_shipment_id is null or p_other_reference is null then raise invalid_parameter_value using message = 'invalid_tracking_swap'; end if;
+  if reason_value is null or char_length(reason_value) > 500 then raise check_violation using message = 'tracking_swap_reason_required'; end if;
+  other_id := private.resolve_shipment_reference(p_other_reference);
+  if other_id = p_shipment_id then raise invalid_parameter_value using message = 'invalid_tracking_swap'; end if;
+  -- 주문 → 배송 건 순서로 두 묶음을 한 번에 잠근다(다른 등록 경로와 같은 순서).
+  perform private.lock_shipment_pack_scope(array[p_shipment_id, other_id]);
+  first_scope := private.shipment_pack_scope(array[p_shipment_id]);
+  second_scope := private.shipment_pack_scope(array[other_id]);
+  if first_scope && second_scope then raise check_violation using message = 'tracking_swap_same_pack'; end if;
+  select * into first from public.order_shipments where id = p_shipment_id;
+  select * into second from public.order_shipments where id = other_id;
+  if exists(select 1 from public.order_shipments s join public.orders o on o.id = s.order_id
+    where s.id = any(first_scope || second_scope)
+      and (s.delivery_method <> 'parcel' or s.status not in ('shipping', 'delivered') or o.status = 'canceled' or s.tracking_number is null)) then
+    raise check_violation using message = 'order_not_shipped'; end if;
+  if first.tracking_number is distinct from private.normalize_tracking_number(p_expected_tracking)
+    or second.tracking_number is distinct from private.normalize_tracking_number(p_expected_other_tracking)
+    or exists(select 1 from public.order_shipments where id = any(first_scope) and (carrier, tracking_number) is distinct from (first.carrier, first.tracking_number))
+    or exists(select 1 from public.order_shipments where id = any(second_scope) and (carrier, tracking_number) is distinct from (second.carrier, second.tracking_number)) then
+    raise check_violation using message = 'shipment_tracking_changed'; end if;
+  if (first.carrier, first.tracking_number) = (second.carrier, second.tracking_number) then
+    raise check_violation using message = 'invalid_tracking_swap'; end if;
+  perform pg_advisory_xact_lock(key) from (select unnest(array[private.tracking_number_lock_key(first.carrier, first.tracking_number),
+    private.tracking_number_lock_key(second.carrier, second.tracking_number)]) key order by 1) keys;
+  update public.order_shipments set carrier = second.carrier, tracking_number = second.tracking_number, updated_at = clock_timestamp() where id = any(first_scope);
+  update public.order_shipments set carrier = first.carrier, tracking_number = first.tracking_number, updated_at = clock_timestamp() where id = any(second_scope);
+  -- 맞바꾼 뒤에도 각 번호를 다른 주문(추가 운송장·재출고 포함)이 쓰고 있으면 바꾸지 않는다.
+  if private.tracking_number_conflict(second.carrier, second.tracking_number, first_scope, null) is not null
+    or private.tracking_number_conflict(first.carrier, first.tracking_number, second_scope, null) is not null then
+    raise check_violation using message = 'tracking_number_in_use'; end if;
+  for member in select * from public.order_shipments where id = any(first_scope || second_scope) order by id loop
+    insert into public.audit_log(actor_id, action, target, diff) values (actor, 'admin.shipment.tracking_updated', 'order:' || member.order_id,
+      jsonb_build_object('shipmentId', member.id, 'originName', member.origin_name_snapshot,
+        'fromCarrier', case when member.id = any(first_scope) then first.carrier else second.carrier end,
+        'fromTrackingNumber', case when member.id = any(first_scope) then first.tracking_number else second.tracking_number end,
+        'toCarrier', member.carrier, 'toTrackingNumber', member.tracking_number,
+        'swappedWithShipmentId', case when member.id = any(first_scope) then second.id else first.id end, 'reason', reason_value));
+  end loop;
+  return jsonb_build_object('status', 'swapped', 'shipmentId', first.id, 'orderId', first.order_id, 'otherShipmentId', second.id, 'otherOrderId', second.order_id,
+    'trackingNumber', second.tracking_number, 'otherTrackingNumber', first.tracking_number);
+end $$;
+revoke all on function public.admin_swap_shipment_trackings(uuid, text, text, text, text) from public, anon, authenticated, service_role;
+grant execute on function public.admin_swap_shipment_trackings(uuid, text, text, text, text) to authenticated;
+
+-- 6. 운영자 계약. 바꾼 함수는 등록된 능력·분류를 그대로 두고 지문만 다시 적는다. 맞바꾸기는 운송장 정정과 같은 출고 권한이다.
 do $contracts$
 declare
   signature text;
@@ -386,6 +442,7 @@ begin
       perform private.register_operator_internal_contract(fn);
     end if;
   end loop;
+  perform private.register_operator_rpc_contract('public.admin_swap_shipment_trackings(uuid,text,text,text,text)'::regprocedure, 'sales.dispatch', 'write', false);
 end $contracts$;
 
 notify pgrst, 'reload schema';

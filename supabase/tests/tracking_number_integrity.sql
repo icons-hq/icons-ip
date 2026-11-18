@@ -171,6 +171,33 @@ select pg_temp.ti_assert(pg_temp.ti_state(7)='ready:-' and pg_temp.ti_state(2)='
  and pg_temp.ti_state(16)='shipping:160000000016' and pg_temp.ti_state(17)='shipping:160000000016' and pg_temp.ti_state(18)='shipping:18000000001',
  'only valid rows dispatched; same-recipient rows of one file share a merged box');
 
+-- 5-1. 뒤바뀐 운송장 맞바꾸기: 정정으로는 서로의 번호로 바꿀 수 없으므로 두 배송 건을 한 번에 맞바꾼다. 화면이 본 번호와 지금 값이 같아야
+--      하므로 같은 요청을 다시 보내도 되돌아가지 않는다. 같은 합포장 안·발송 전 배송 건은 맞바꾸지 않는다.
+select pg_temp.ti_error(format('select public.admin_update_shipment_tracking(%L,%L,%L)',pg_temp.ti_id('shipment',2),'ti_courier','TIABC12345'),'tracking_number_in_use');
+select shipment_number as s13_number from public.order_shipments where id=pg_temp.ti_id('shipment',13) \gset
+create function pg_temp.ti_swap(expected text,other text,expected_other text,reason text) returns text language sql as $$
+ select format('select public.admin_swap_shipment_trackings(%L,%L,%L,%L,%L)',pg_temp.ti_id('shipment',2),expected,other,expected_other,reason);
+$$;
+select pg_temp.ti_error(pg_temp.ti_swap('200000000002',:'s13_number','TIABC12345','  '),'tracking_swap_reason_required');
+select pg_temp.ti_error(pg_temp.ti_swap('200000000002',:'s13_number','TIABC99999','창고 회신 뒤바뀜'),'shipment_tracking_changed');
+select pg_temp.ti_error(pg_temp.ti_swap('200000000002',pg_temp.ti_id('shipment',7)::text,'-','창고 회신 뒤바뀜'),'order_not_shipped');
+select public.admin_swap_shipment_trackings(pg_temp.ti_id('shipment',2),'2000-0000-0002',:'s13_number','tiabc12345','창고 회신 뒤바뀜') as swapped \gset
+select pg_temp.ti_assert(:'swapped'::jsonb->>'status'='swapped'
+ and pg_temp.ti_state(2)='shipping:TIABC12345' and pg_temp.ti_state(13)='shipping:200000000002'
+ and (select carrier from public.order_shipments where id=pg_temp.ti_id('shipment',2))='ti_courier','swap exchanges both carriers and numbers');
+select pg_temp.ti_error(pg_temp.ti_swap('200000000002',:'s13_number','TIABC12345','같은 요청 재전송'),'shipment_tracking_changed');
+select pg_temp.ti_assert(pg_temp.ti_state(2)='shipping:TIABC12345' and pg_temp.ti_state(13)='shipping:200000000002','a replay never swaps back');
+-- 맞바꾼 번호를 다른 주문이 함께 쓰고 있으면(같은 받는 분 합배송 상자의 다른 배송 건) 맞바꾸지 않는다.
+select pg_temp.ti_error(format('select public.admin_swap_shipment_trackings(%L,%L,%L,%L,%L)',pg_temp.ti_id('shipment',13),'200000000002',pg_temp.ti_id('shipment',16)::text,'160000000016','합배송 상자'),'tracking_number_in_use');
+select pg_temp.ti_error(format('select public.admin_swap_shipment_trackings(%L,%L,%L,%L,%L)',pg_temp.ti_id('shipment',5),'500000000055',pg_temp.ti_id('shipment',6)::text,'500000000055','묶음 안'),'tracking_swap_same_pack');
+reset role;
+select pg_temp.ti_assert((select count(*) from public.audit_log where action='admin.shipment.tracking_updated' and diff->>'reason'='창고 회신 뒤바뀜'
+  and diff->>'swappedWithShipmentId' in (pg_temp.ti_id('shipment',2)::text,pg_temp.ti_id('shipment',13)::text))=2
+ and (select capability||':'||guard_kind from private.operator_rpc_contracts where signature='public.admin_swap_shipment_trackings(uuid,text,text,text,text)')='sales.dispatch:write'
+ and not has_function_privilege('anon','public.admin_swap_shipment_trackings(uuid,text,text,text,text)','execute'),'swap is audited and guarded');
+set local role authenticated;
+select pg_temp.ti_as(1);
+
 -- 6. 김포 21열 회신: 받는 분 이름·전화가 주문과 다르면(뒤바뀐 회신 의심) 그 주문의 줄만 실패한다. 접미사·앞자리 0 유실은 같은 사람이다.
 select public.admin_import_warehouse_tracking_batch('00000000-0000-4000-8000-000000042201',jsonb_build_array(
  jsonb_build_object('line',2,'reference',pg_temp.ti_id('order',10)::text,'trackingNumber','100000000010','recipientName','합성나','recipientPhone','010-2222-0002'),
