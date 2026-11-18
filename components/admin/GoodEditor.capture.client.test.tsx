@@ -1,5 +1,5 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminCategoryNode } from '@/lib/admin/category';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
@@ -46,6 +46,9 @@ import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GoodsImageGrid } from './GoodsImageGrid';
 import { GoodWorkspaceErrors } from './GoodWorkspace';
 import { createGoodEditorDraft } from '@/lib/admin/good-editor';
+import { GoodsPriceFields } from './GoodsPriceFields';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import type { GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
 
 type Element = ReactElement<Record<string, unknown>>;
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []);
@@ -285,4 +288,53 @@ it('전환되어 초안이 돼도 고른 카테고리는 폼에 남고 막힘이
   const allowed = submitForm(h, draft);
   expect(allowed).not.toHaveBeenCalled();
   expect(mocks.submit).toHaveBeenCalledOnce();
+});
+
+/*
+ * CAT-007·CAT-008 — 판매가를 저장된 금액의 절반 이하·두 배 이상(자릿수 오타)이나 0원·1,000원 미만으로 바꾼 저장은 이전 → 새 판매가를
+ * 확인창(adminConfirm)으로 보이고, 확인해야 같은 제출을 다시 보낸다. 취소하면 서버 호출(자동복구 제출 기록)도 없다.
+ */
+describe('판매가 오입력 확인', () => {
+  const changePrice = (h: ReturnType<typeof setup>, regularPrice: string) =>
+    (h.render().find(node => node.type === GoodsPriceFields)!.props.onDraftChange as (update: (draft: GoodsPriceDraft) => GoodsPriceDraft) => void)(draft => ({ ...draft, regularPrice }));
+  const connect = (h: ReturnType<typeof setup>) => Object.assign(h.form, { isConnected: true, requestSubmit: vi.fn(() => { submitForm(h); }) });
+
+  it('자릿수 오타 판매가는 확인한 뒤에만 제출하고 확인창에 이전 → 새 판매가를 보인다', async () => {
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
+    const confirm = stubAdminConfirm(true);
+    try {
+      const h = setup(); h.initialize(); connect(h);
+      changePrice(h, '1000');
+      const first = submitForm(h);
+      expect(first).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
+      expect(confirm).toHaveBeenCalledOnce();
+      expect(confirm.mock.calls[0][0]).toContain('판매가: 10,000원 → 1,000원 (이전 금액의 절반 이하)');
+    } finally { confirm.restore(); }
+  });
+
+  it('확인을 취소하면 제출하지 않고, 흔한 금액 변경은 묻지 않는다', async () => {
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
+    const confirm = stubAdminConfirm(false);
+    try {
+      const h = setup(); h.initialize(); const form = connect(h);
+      changePrice(h, '100000');
+      expect(submitForm(h)).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(confirm).toHaveBeenCalledOnce());
+      await Promise.resolve();
+      expect(form.requestSubmit).not.toHaveBeenCalled(); expect(mocks.submit).not.toHaveBeenCalled();
+      changePrice(h, '12000');
+      expect(submitForm(h)).not.toHaveBeenCalled();
+      expect(mocks.submit).toHaveBeenCalledOnce(); expect(confirm).toHaveBeenCalledOnce();
+    } finally { confirm.restore(); }
+  });
+});
+
+/* CAT-027 — 저장된 상품의 편집 화면은 연 시점의 기본 칸 버전을 숨은 칸으로 보낸다. 새 상품·버전을 읽지 못한 기록에는 싣지 않는다. */
+it('저장된 상품은 기본 칸 버전을 숨은 칸으로 싣고 새 상품에는 싣지 않는다', () => {
+  const revisionInput = (tree: Element[]) => tree.find(node => node.type === 'input' && node.props.name === 'baseRevision');
+  expect(revisionInput(setup(false, false, { ...good, baseRevision: 7 }).render())!.props.value).toBe('7');
+  expect(revisionInput(setup(false, false, { ...good, baseRevision: 0 }).render())!.props.value).toBe('0');
+  expect(revisionInput(setup(false, false, good).render())).toBeUndefined();
+  expect(revisionInput(setup(false, false, null).render())).toBeUndefined();
 });

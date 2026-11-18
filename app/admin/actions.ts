@@ -53,6 +53,7 @@ import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
 import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 import { IP_PUBLIC_SLUG_ERROR_MESSAGES } from '@/lib/ip-identity';
 import { GOOD_OPTION_LIMIT_ERROR_FIELD, GOOD_TYPE_CATEGORY_MESSAGES } from '@/lib/admin/good-workspace';
+import { GOODS_BASE_REVISION_INVALID_MESSAGE, goodBaseRevisionFailure, readGoodBaseRevision } from '@/lib/admin/goods-base-revision';
 
 /*
  * `values`·`attempt` 는 실패한 제출을 폼이 되살리기 위한 값이다(lib/admin/form-state.ts).
@@ -439,6 +440,9 @@ async function saveAdminGood(
   const customInputs = readAdminGoodsCustomInputs(formData);
   if (!customInputs.ok) return {errors:{customInputs:customInputs.error}};
   /* TKT-033(ADR-0040): 즉시할인 기간 지시. 상품 편집이 다루지 않는 할인 상태면 화면이 보내지 않는다(지시 없는 저장). */
+  /* CAT-027: 편집 화면이 연 시점의 상품 기본 칸 버전. 저장된 상품을 고칠 때만 싣고, 없으면(옛 화면) 지금처럼 비교 없이 저장한다. */
+  const baseRevision = readGoodBaseRevision(formData);
+  if (baseRevision === 'invalid') return { errors: { form: GOODS_BASE_REVISION_INVALID_MESSAGE } };
   const instantDiscountPeriod = parseInstantDiscountPeriodRequest(formData.get(INSTANT_DISCOUNT_PERIOD_FIELD));
   if (!instantDiscountPeriod) return { errors: { discountPeriod: '즉시할인 기간을 확인하지 못했습니다. 새로고침한 뒤 다시 저장해주세요. 입력은 유지됩니다.' } };
   const optionFields: Record<string, unknown> = {};
@@ -485,6 +489,7 @@ async function saveAdminGood(
     ...goodSaveFields(value),
     default_variant_code: value.defaultVariantCode,
     ...(instantDiscountPeriod === 'absent' ? {} : { instant_discount_period: instantDiscountPeriod }),
+    ...(baseRevision !== null && value.previousId ? { base_expected_revision: baseRevision } : {}),
   };
   let { data, error } = workspaceSections
     ? await supabase.rpc('admin_save_good_workspace', { p_request: { operationId: workspaceOperation, good: targetGood, draft: serverDraft, sections: workspaceSections } })
@@ -496,6 +501,9 @@ async function saveAdminGood(
   }
 
   if (error) {
+    /* 다른 작업이 그사이 기본 칸을 바꿨다. 무엇도 저장하지 않았고 입력은 유지된다(옛 값으로 되돌리지 않는다). */
+    const baseFailure = goodBaseRevisionFailure(error.message);
+    if (baseFailure) return { errors: { form: baseFailure } };
     const sectionFailure = workspaceSections ? goodWorkspaceSectionFailure(error.message, error.code) : null;
     if (sectionFailure) return { errors: sectionFailure as AdminFieldErrors };
     if (/goods_group_common_owned_by_group|goods_group_name_owned_by_group|goods_group_identity_immutable|goods_group_single_variant_required/.test(error.message)) return { errors: { form: '그룹의 공통정보 또는 옵션 구성은 그룹상품에서 수정해주세요. 입력은 유지됩니다. 최신 상품 상태를 다시 확인해주세요.' } };

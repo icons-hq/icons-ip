@@ -83,6 +83,20 @@ describe('목록 칸 안 바로 수정의 입력 안전', () => {
     expect(mocks.preview).toHaveBeenCalledTimes(1);
     expect(mocks.commit).toHaveBeenCalledTimes(1);
   });
+  /* CAT-008: 자릿수 오타처럼 이전 금액의 절반 이하·두 배 이상이거나 1,000원 미만이면 같은 확인창에 오입력 경고를 덧붙인다. */
+  it('판매가를 크게 바꾸거나 1,000원 미만으로 바꾸면 확인창에 오입력 경고를 덧붙인다', async () => {
+    const { editor } = renderEditor(price as El);
+    answer = false;
+    (editor.props.onSubmit as (form: FormData) => void)(formOf('price', '1000'));
+    await settle();
+    (editor.props.onSubmit as (form: FormData) => void)(formOf('price', '900'));
+    await settle();
+    expect(confirmations.map(({ message }) => message)).toEqual([
+      '상품 A의 판매가를 10,000원에서 1,000원으로 바꿉니다.\n\n새 판매가가 이전 금액의 절반 이하입니다. 금액을 잘못 입력하지 않았는지 확인해주세요.',
+      '상품 A의 판매가를 10,000원에서 900원으로 바꿉니다.\n\n새 판매가가 1,000원 미만, 이전 금액의 절반 이하입니다. 금액을 잘못 입력하지 않았는지 확인해주세요.',
+    ]);
+    expect(mocks.preview).not.toHaveBeenCalled();
+  });
   it('값이 같거나 잘못된 판매가는 확인창 없이 처리한다', async () => {
     const { editor } = renderEditor(price as El);
     (editor.props.onSubmit as (form: FormData) => void)(formOf('price', '10000'));

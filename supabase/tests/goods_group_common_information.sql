@@ -142,8 +142,9 @@ begin
 end$$;
 select pg_temp.review_and_publish_common('group-conversion-source');
 select pg_temp.review_and_publish_common(:'new_good');
+-- base_revision(상품 기본 칸 버전, CAT-027)은 공통 칸이 바뀌면 함께 오르는 파생 값이라 updated_at처럼 개별 칸 비교에서 뺀다.
 select jsonb_object_agg(g.id,to_jsonb(g)-array['ip_id','type','category_id','name_en','notice_maker','notice_origin','notice_material','notice_size','notice_made_on',
- 'notice_as_manager','notice_as_contact','description','description_format','description_image_paths','search_keywords','published_at','updated_at','kc_disclosures']) as personal_before,
+ 'notice_as_manager','notice_as_contact','description','description_format','description_image_paths','search_keywords','published_at','updated_at','kc_disclosures','base_revision']) as personal_before,
  bool_and(published_at is not null and first_published_at is not null and jsonb_array_length(kc_disclosures)>0) as was_reviewed_and_published
  from public.goods g where id in('group-conversion-source',:'new_good') \gset
 select 1/case when :'was_reviewed_and_published'::boolean then 1 else 0 end as assert_reviewed_fixture;
@@ -169,7 +170,7 @@ select 1/case when private.goods_group_common_identity('group-conversion-source'
  and not exists(select 1 from private.goods_group_write_authorizations where transaction_id=txid_current())
  then 1 else 0 end as assert_html_copy_unpublication_and_kc_invalidation;
 select 1/case when :'personal_before'::jsonb=(select jsonb_object_agg(g.id,to_jsonb(g)-array['ip_id','type','category_id','name_en','notice_maker','notice_origin','notice_material','notice_size','notice_made_on',
- 'notice_as_manager','notice_as_contact','description','description_format','description_image_paths','search_keywords','published_at','updated_at','kc_disclosures']) from public.goods g where id in('group-conversion-source',:'new_good'))
+ 'notice_as_manager','notice_as_contact','description','description_format','description_image_paths','search_keywords','published_at','updated_at','kc_disclosures','base_revision']) from public.goods g where id in('group-conversion-source',:'new_good'))
  and :'variants_before'=(select md5(jsonb_agg(to_jsonb(v) order by id)::text) from public.goods_variants v where good_id in('group-conversion-source',:'new_good'))
  and :'costs_before'=(select md5(jsonb_agg(to_jsonb(v) order by variant_id)::text) from private.goods_variant_purchase_costs v where variant_id=:'new_variant')
  and :'original_items_hash'=(select md5(jsonb_agg(to_jsonb(i) order by i.id)::text) from public.order_items i where i.good_id='group-conversion-source')

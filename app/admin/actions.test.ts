@@ -668,6 +668,38 @@ describe('admin catalog actions', () => {
     expect(await upsertAdminGoodAction({}, broken)).toMatchObject({ errors: { discountPeriod: expect.stringContaining('즉시할인 기간을 확인하지 못했습니다') } });
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good', expect.anything());
   });
+  /* CAT-027: 편집 화면이 연 시점의 기본 칸 버전을 저장된 상품 저장에만 싣는다. 없으면(옛 화면·새 상품) 지금처럼 비교 없이 저장한다. */
+  it('상품 기본 칸 버전을 base_expected_revision으로 싣고, 새 상품·버전 없는 요청에는 싣지 않으며, 잘못된 버전은 저장하지 않는다', async () => {
+    const edit = goodForm();
+    edit.set('previousId', 'g100');
+    edit.set('baseRevision', '12');
+    await upsertAdminGoodAction({}, edit);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_good', { target_good: expect.objectContaining({ previous_id: 'g100', base_expected_revision: 12 }) });
+    const legacy = goodForm();
+    legacy.set('previousId', 'g100');
+    await upsertAdminGoodAction({}, legacy);
+    expect(mocks.rpc.mock.lastCall?.[1].target_good).not.toHaveProperty('base_expected_revision');
+    const created = goodForm();
+    created.set('baseRevision', '3');
+    await upsertAdminGoodAction({}, created);
+    expect(mocks.rpc.mock.lastCall?.[1].target_good).not.toHaveProperty('base_expected_revision');
+    mocks.rpc.mockClear();
+    const broken = goodForm();
+    broken.set('previousId', 'g100');
+    broken.set('baseRevision', '1.5');
+    expect(await upsertAdminGoodAction({}, broken)).toMatchObject({ errors: { form: expect.stringContaining('저장 요청을 확인하지 못했습니다') } });
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good', expect.anything());
+  });
+  it('다른 작업이 기본 칸을 바꿔 저장이 거절되면 입력을 유지하고 새로고침을 안내한다', async () => {
+    const form = goodForm();
+    form.set('previousId', 'g100');
+    form.set('baseRevision', '4');
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_base_changed', code: 'PT409' } });
+    expect(await upsertAdminGoodAction({}, form)).toMatchObject({
+      errors: { form: '다른 작업에서 상품 정보가 바뀌었습니다. 입력은 유지됩니다. 새로고침해 최신 내용을 확인한 뒤 다시 저장해주세요.' },
+      values: { name: '화산강림 아크릴 스탠드', price: '22000' },
+    });
+  });
   it.each([
     ['instant_discount_period_changed', 'discountPeriod', '다른 곳에서 이 상품의 할인을 걸거나 멈췄습니다'],
     ['instant_discount_period_managed', 'discountPeriod', '할인 프로모션이나 기간 할인에서 관리하는 할인'],

@@ -22,12 +22,14 @@ import { readGoodsClaimPolicy } from './goods-claim-policy';
 import { readAdminGoodsCustomInputs } from './goods-custom-inputs';
 import { EMPTY_GOODS_CUSTOM_INPUTS, parseGoodsCustomInputConfig } from '@/lib/goods-custom-inputs';
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
-export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
+export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'baseRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
   ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`)];
 /**
  * 복구 안내를 두고 옵션 행이나 카테고리를 고치면 딸린 칸도 화면 값을 쓴다. 옵션 행과 축·동시편집 기준,
  * 카테고리와 그 상품속성은 이전 기록과 섞이면 맞지 않는다. 축이나 사용 여부만 고칠 때는 이전 옵션 행을 남긴다.
  * 직접입력형 항목·판매기간을 고치면 서버 버전 비교값도 화면 값을 쓴다. 이전 기록의 오래된 버전과 짝지으면 동시 수정이 없어도 저장이 거절된다.
+ * 기본 칸 버전(baseRevision)은 어느 칸에도 묶지 않는다 — 되살린 기록에는 고치지 않은 기본 칸의 이전 값도 함께 남으므로,
+ * 화면의 새 버전과 짝지으면 그사이 다른 작업이 바꾼 값을 조용히 되돌린다. 이전 기록의 버전과 함께 저장해 충돌로 알린다.
  */
 export const GOOD_LOCAL_DRAFT_LINKED_FIELDS = {
   variants: ['variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'],
@@ -43,6 +45,8 @@ export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminF
     saleEndsAt: toKstDateTimeInput(selected?.saleEndsAt ?? null), salePeriodRevision: String(selected?.salePeriodRevision ?? 0),
     customInputs:JSON.stringify({enabled:selected?.customInputs?.enabled ?? false,fields:selected?.customInputs?.fields ?? []}),
     customInputsExpectedRevision:String(selected?.customInputs?.revision ?? 0),
+    /* CAT-027: 편집 화면이 연 시점의 상품 기본 칸 버전. 새 상품·버전을 읽지 못한 기록은 비워 서버가 비교하지 않는다. */
+    baseRevision: selected?.baseRevision === undefined ? '' : String(selected.baseRevision),
     id: selected?.id ?? '', code: selected?.code ?? '', ipId: selected?.ipId ?? initialIpId,
     name: selected?.name ?? '', nameEn: selected?.nameEn ?? '', searchKeywords: selected?.searchKeywords?.join('\n') ?? '', displayOrder: selected?.displayOrder == null ? '' : String(selected.displayOrder), type: selected?.type ?? '', price: String(selected?.price ?? 0),
     compareAtPrice: selected?.compareAtPrice == null ? '' : String(selected.compareAtPrice),

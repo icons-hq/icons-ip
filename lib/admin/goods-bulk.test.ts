@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goodsBulkError, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, parseGoodsBulkShippingIds, type GoodsBulkPreview, type GoodsBulkRequest } from './goods-bulk';
+import { goodsBulkError, goodsBulkPriceConfirmation, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, parseGoodsBulkShippingIds, type GoodsBulkPreview, type GoodsBulkRequest } from './goods-bulk';
 const id = 'b9000000-0000-4000-8000-000000000001';
 const request: GoodsBulkRequest = { kind: 'goods', ids: ['good-a'], command: 'price', values: { mode: 'increase', value: 100 } };
 const preview: GoodsBulkPreview = { state: 'ready', operationId: id, request, groups: [], expiresAt: '2026-10-16T14:00:00.123456Z',
@@ -92,5 +92,21 @@ describe('상품 일괄 변경 계약', () => {
   it('배송 템플릿 진입에서 선택 상품을 보존하고 잘못된 URL 입력을 버린다', () => {
     const ids = ['good-a', 'good-b']; expect(parseGoodsBulkShippingIds(new URL(goodsBulkShippingHref(ids), 'http://test').searchParams.get('goods'))).toEqual(ids);
     expect(parseGoodsBulkShippingIds('good-a,good-a')).toEqual([]); expect(parseGoodsBulkShippingIds(['good-a'])).toEqual([]);
+  });
+});
+
+/* CAT-008: 일괄 판매가 변경을 적용하기 전에 크게 바뀌거나 1,000원 미만이 되는 상품을 이전 → 새 값으로 확인받는다. */
+describe('일괄 판매가 변경 오입력 확인', () => {
+  const row = preview.goods[0];
+  it('판매가 변경의 오입력 후보만 상품별로 묻고, 다른 변경·정상 범위는 묻지 않는다', () => {
+    expect(goodsBulkPriceConfirmation(preview)).toBeNull();
+    const typo = goodsBulkPriceConfirmation({ request, goods: [{ ...row, price: 29000, nextPrice: 2900 }, { ...row, id: 'good-b', name: '상품 B', price: 20000, nextPrice: 21000 },
+      { ...row, id: 'good-c', name: '상품 C', price: 900, nextPrice: 950 }] });
+    expect(typo).toMatchObject({ title: '판매가 확인', confirmLabel: '이대로 적용' });
+    expect(typo?.message).toContain('· 상품 A: 29,000원 → 2,900원 (이전 금액의 절반 이하)');
+    expect(typo?.message).toContain('· 상품 C: 900원 → 950원 (1,000원 미만)');
+    expect(typo?.message).not.toContain('상품 B');
+    expect(typo?.message).toContain('맞으면 3개 상품에 판매가 변경을 적용합니다.');
+    expect(goodsBulkPriceConfirmation({ request: { ...request, command: 'discount' }, goods: [{ ...row, price: 29000, nextPrice: 2900 }] })).toBeNull();
   });
 });
