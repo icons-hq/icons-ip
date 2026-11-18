@@ -11,6 +11,8 @@ vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: as
   const response = await fetch(`${process.env.CC_POSTGREST_ORIGIN}/rpc/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CC_SERVICE_TOKEN}` }, body: JSON.stringify(args) });
   const value = await response.json(); transport.last = value; return response.ok ? { data: value, error: null } : { data: null, error: value };
 } }) }));
+/* 라우트를 Next 요청 밖에서 직접 부르므로 요청 헤더를 넣는다. 원문 확인은 개인정보 접속기록이 남아야 응답한다(CUS-084) — 기록은 실제 PostgREST로 간다. */
+vi.mock('next/headers', () => ({ headers: async () => new Headers({ 'x-real-ip': '127.0.0.1' }) }));
 import * as contextRoute from '@/app/api/admin/claim-contact/context/route';
 import * as changeRoute from '@/app/api/admin/claim-contact/change/route';
 import * as operationRoute from '@/app/api/admin/claim-contact/operation/route';
@@ -83,6 +85,9 @@ it('commits actual encrypted reshipment destination and reads it back', async ()
   const history = await post(historyRoute, '/api/admin/claim-contact/history', historyRequest(3)); expect(history.reshipmentDestination.source).toBe('v2_confirmed'); expect(history.reshipmentDestination.address).toEqual(context.address);
   const replay = await post(reshipRoute, '/api/admin/claim-contact/reshipment', input); expect(replay.receipt).toEqual(saved.receipt);
   expect(sql(`select current_setting('request.jwt.claim.sub',true) is null;`)).toBe('t');
+  // 원문을 돌려준 요청(재출고지 확인·이력)마다 접속기록이 남는다. 주소는 남기지 않는다.
+  expect(sql(`select count(*) filter (where surface='claim.contact') || ':' || count(*) filter (where surface='claim.contact_history') || ':' || bool_and(client_ip='127.0.0.1' and actor_id='${fixture.users[0]}' and detail::text not like '%주소%')
+    from private.operator_pii_access_log where action='reveal' and subject_kind='claim' and subject_ids=array['${claim(3)}']::uuid[];`)).toBe('1:1:true');
 });
 it('denies direct anonymous/customer RPC execution and cross-origin/raw GET routes', async () => {
   const input = { p_order_id: order(4), p_claim_id: claim(4), p_actor_id: fixture.users[0], p_session_id: fixture.sessions[0], p_target: 'reshipment', p_command: 'change' };

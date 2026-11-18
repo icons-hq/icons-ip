@@ -3,7 +3,8 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 import { REVIEW_EVENTS_ADMIN_PATH } from '@/lib/review-events';
-import { normalizeReviewEventExportFilters, parseReviewEventExportSnapshot, reviewEventExportSheet } from '@/lib/admin/review-event-export';
+import { normalizeReviewEventExportFilters, parseReviewEventExportSnapshot, reviewEventExportSheet, type ReviewEventExportEntry } from '@/lib/admin/review-event-export';
+import { recordPiiAccess } from '@/lib/admin/pii-access-log.server';
 import { buildAdminListExportWorkbook } from '@/lib/admin/list-export.server';
 import { adminListExportContentDisposition, kstFileStamp } from '@/lib/admin/list-export';
 
@@ -12,7 +13,7 @@ export const maxDuration = 60;
 const NO_STORE = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
 const fail = (error: string, status: number) => Response.json({ error }, { status, headers: NO_STORE });
 export async function GET(request: Request) {
-  await requireAdminScreenAccess(REVIEW_EVENTS_ADMIN_PATH);
+  const auth = await requireAdminScreenAccess(REVIEW_EVENTS_ADMIN_PATH);
   const params = Object.fromEntries(new URL(request.url).searchParams);
   if (params.privacyConfirmed !== 'yes') return fail('개인정보 파일 취급 안내를 확인해주세요.', 400);
   const filters = normalizeReviewEventExportFilters(params);
@@ -29,6 +30,12 @@ export async function GET(request: Request) {
     const audit = await client.rpc('admin_record_review_event_export', { p_filters: filters, p_fingerprint: snapshot.fingerprint, p_row_count: snapshot.total });
     if (audit.error?.message === 'review_event_export_changed' || audit.error?.message === 'review_event_export_limit' || audit.error?.message === 'review_event_not_found') return fail('목록이나 저장된 선정 상태가 바뀌어 파일을 만들지 않았습니다. 다시 내려받아 주세요.', 409);
     if (audit.error || !isUuid(audit.data)) return fail('다운로드 기록이나 현재 권한을 확인하지 못해 파일을 만들지 않았습니다.', 503);
+    // 응모 목록은 응모자 닉네임이 담긴 파일이라 개인정보 접속기록(내려받기)을 남긴다. 이벤트 목록은 고객 정보가 없어 남기지 않는다.
+    if (filters.mode === 'entries') {
+      const entries = snapshot.rows as ReviewEventExportEntry[];
+      await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.review_events', path: '/api/admin/review-events/export',
+        subjectKind: 'review', subjectIds: entries.map(row => row.reviewId), subjectCount: snapshot.total, detail: { eventId: filters.eventId, auditId: audit.data } });
+    }
     const stamp = kstFileStamp(generatedAt), label = filters.mode === 'events' ? '리뷰이벤트목록' : '리뷰이벤트응모';
     return new Response(new Uint8Array(bytes), { headers: { ...NO_STORE,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

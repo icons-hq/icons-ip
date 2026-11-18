@@ -983,6 +983,8 @@ export const CLAIM_CONTACT_ERRORS = {
   claim_contact_purged: errorDefinition(410, '연락처 정보가 삭제되어 처리 내역만 확인할 수 있습니다.', 'PT410', { recoveryOnly: true }),
   claim_contact_context_expired: errorDefinition(409, '확인 시간이 지났습니다. 진행 중인 요청의 저장 결과를 먼저 확인해주세요.', null, { recoveryOnly: true }),
   claim_contact_crypto_unavailable: errorDefinition(503, '연락처 정보를 안전하게 처리할 수 없습니다. 저장 결과를 확인해주세요.', null, { recoveryOnly: true }),
+  // 원문 확인의 개인정보 접속기록을 남기지 못했다. 읽기 단계라 저장한 것이 없다 — 보이던 원문을 지우고 다시 시도하게 한다.
+  claim_contact_access_log_unavailable: errorDefinition(503, '개인정보 접속기록을 남기지 못해 연락처를 보여 주지 않았습니다. 저장된 변경은 없으니 잠시 후 다시 시도해주세요.', null, { recoveryOnly: true }),
   claim_contact_outcome_unknown: errorDefinition(503, '처리 결과를 확인하지 못했습니다. 같은 요청번호로 저장 결과를 확인해주세요.', null, { uncertain: true, recoveryOnly: true }),
   claim_contact_retention_due: errorDefinition(410, '연락처 보관기간이 지나 내용을 열거나 변경할 수 없습니다. 처리 내역만 확인할 수 있습니다.', 'PT410', { recoveryOnly: true }),
   // 배송 건 재출고(TKT-166·QNA-039). DB가 거절해 아무것도 저장되지 않은 경우만 확정 오류로 보인다.

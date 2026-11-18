@@ -39,6 +39,7 @@ export const ADMIN_QA_ROUTES = [
   ['marketing/messages', '고객 안내 메시지'], ['marketing/links', '마케팅 링크'],
   ['marketing/segments', '타겟 세그먼트'], ['marketing/customer-grades', '고객등급 관리'],
   ['community/moderation', '커뮤니티 관리'], ['community/members', '회원 관리'], ['community/roles', '매니저 관리'],
+  ['settings/access-log', '개인정보 접속기록'],
   ['messaging/notifications', '공지 발송'], ['messaging/emails', '메일 발송 이력'],
   ['stats/sales', '판매분석'], ['stats/claims', '취소/반품/교환 분석'], ['stats/customers', '고객분석'],
   ['stats/traffic', '방문·유입 분석'], ['stats/marketing', '마케팅 링크 성과'],

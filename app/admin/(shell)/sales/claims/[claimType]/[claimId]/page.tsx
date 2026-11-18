@@ -7,6 +7,7 @@ import {
 } from '@/lib/admin/claims';
 import { loadAdminClaimWorkspace } from '@/lib/admin/claim-preview.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 import { orderClaimTypeForSlug } from '@/lib/orders/claims';
 
 /* 이 화면의 서버 액션은 결제사 취소를 바로 발행하고 결과를 조회로 확인한다
@@ -34,6 +35,9 @@ export default async function AdminSalesClaimDetailPage({
   const { cancellationForm, carriers, defectiveStock, detail } = workspace;
   /* 유형 전환 전의 링크도 현재 요청의 큐로 연결한다. */
   if (detail.claim.claimType !== claimType) redirect(`${adminClaimBasePath(detail.claim.claimType)}/${claimId}`);
+  /* 고객이 쓴 요청·선물 요청자·환불 정보를 보여 주는 화면 — 개인정보 접속기록(실패해도 화면은 연다). */
+  await notePiiAccess({ actorId: access.user.id, action: 'view', surface: 'claim.detail', path: `${adminClaimBasePath(claimType)}/${claimId}`,
+    subjectKind: 'claim', subjectIds: [claimId], detail: { via: 'page' } });
 
   return (
     <ClaimDetailScreen

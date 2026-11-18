@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn(), builder: vi.fn(), numbers: vi.fn(), encrypt: vi.fn(), audit: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn(), builder: vi.fn(), numbers: vi.fn(), encrypt: vi.fn(), audit: vi.fn(), access: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
+vi.mock('@/lib/admin/pii-access-log.server', () => {
+  class PiiAccessLogError extends Error { constructor() { super('개인정보 접속기록을 남기지 못해 요청을 처리하지 않았습니다. 잠시 후 다시 시도해주세요.'); } }
+  return { PiiAccessLogError, recordPiiAccess: mocks.access };
+});
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/admin/settled-workbook.server', () => ({ buildSettledWorkbook: mocks.builder, loadSettledExportNumbers: mocks.numbers }));
 vi.mock('@/lib/admin/encrypted-workbook.server', () => ({ encryptAdminWorkbook: mocks.encrypt }));
@@ -19,8 +23,22 @@ beforeEach(() => {
   mocks.builder.mockResolvedValue(Buffer.from('xlsx-evidence'));
   mocks.encrypt.mockReturnValue({ bytes: Buffer.from('encrypted-evidence'), sha256: 'a'.repeat(64) });
   mocks.audit.mockResolvedValue('audit-id');
+  mocks.access.mockResolvedValue('91');
 });
 describe('보존된 거래확정 암호화 엑셀 다운로드', () => {
+  it('파일을 응답하기 전에 주문 ID·영수증·감사 번호로 개인정보 접속기록을 남기고, 실패하면 파일을 내보내지 않는다', async () => {
+    mocks.builder.mockImplementation(async (_value: unknown, read: (snapshot: { orders: { id: string }[] }) => Promise<unknown>) => {
+      await read({ orders: [{ id: 'order-1' }, { id: 'order-2' }] }); return Buffer.from('xlsx-evidence');
+    });
+    expect((await POST(request())).status).toBe(200);
+    expect(mocks.access).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff', action: 'export', surface: 'export.settled', path: '/api/admin/settled-workbook',
+      subjectKind: 'order', subjectIds: ['order-1', 'order-2'], subjectCount: 2, detail: { receiptId: ID, auditId: 'audit-id' } });
+    const { PiiAccessLogError } = await import('@/lib/admin/pii-access-log.server');
+    mocks.access.mockRejectedValue(new PiiAccessLogError());
+    const failed = await POST(request());
+    expect(failed.status).toBe(500);
+    expect((await failed.json()).error).toContain('개인정보 접속기록');
+  });
   it('권한→보존 기록→생성→암호화→감사 순서 후 파일을 응답한다', async () => {
     const response = await POST(request());
     expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/settled');
