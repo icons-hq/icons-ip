@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), goods: vi.fn(), filters: [] as unknown[][], cookie: null as string | null }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), goods: vi.fn(), lookups: [] as unknown[], cookie: null as string | null }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => mocks.cookie === null ? undefined : { value: mocks.cookie } }) }));
 vi.mock('./supabase/service', () => ({ createServiceClient: vi.fn() }));
 vi.mock('./supabase/server', () => ({
   createClient: async () => ({
-    rpc: mocks.rpc,
-    from: (table: string) => ({
-      select: (columns: string) => ({
-        eq: (column: string, value: unknown) => { mocks.filters.push([table, columns, column, value]); return mocks.goods(); },
-      }),
-    }),
+    /* 랜덤 판매 여부는 공개 카탈로그(goods RLS)가 아니라 판매 방식 RPC로만 읽는다 — 직접 goods 조회는 없다. */
+    rpc: (name: string, args: unknown) => {
+      if (name !== 'get_random_option_good_ids') return mocks.rpc(name, args);
+      mocks.lookups.push(args);
+      return mocks.goods(args);
+    },
   }),
 }));
 
@@ -27,8 +27,8 @@ const gift = { ...invitation, party: 'sender', isRecipient: false, state: 'await
 const variantNames = (value: { items: { variantName: string }[] } | null) => value?.items.map(item => item.variantName);
 
 beforeEach(() => {
-  mocks.filters = []; mocks.cookie = null;
-  mocks.goods.mockReset().mockResolvedValue({ data: [{ id: 'random-good' }], error: null });
+  mocks.lookups = []; mocks.cookie = null;
+  mocks.goods.mockReset().mockResolvedValue({ data: ['random-good'], error: null });
   mocks.rpc.mockReset();
 });
 
@@ -41,12 +41,14 @@ describe('선물 품목의 랜덤 판매 옵션 가림', () => {
     expect((await loadGifts('sender')).items.map(variantNames)).toEqual([['빨강', '랜덤']]);
     mocks.cookie = Buffer.alloc(32, 7).toString('base64url');
     expect(variantNames(await loadGiftInvitation())).toEqual(['빨강', '랜덤']);
-    expect(mocks.filters).toEqual(Array(3).fill(['goods', 'id', 'option_sale_mode', 'random']));
+    expect(mocks.lookups).toEqual(Array(3).fill({ p_good_ids: ['select-good', 'random-good'] }));
   });
 
   it('랜덤 판매 여부를 읽지 못하면 옵션명을 그대로 내보내지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: gift, error: null });
     mocks.goods.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    await expect(loadGift(id)).rejects.toThrow();
+    mocks.goods.mockResolvedValue({ data: [{ id: 'random-good' }], error: null });
     await expect(loadGift(id)).rejects.toThrow();
   });
 });

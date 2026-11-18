@@ -744,6 +744,32 @@ function toCatalogGood(row: GoodRow, adultGoods: AdultGoodsAccess, imageUrlForPa
   return row.sale_restriction === 'adult' && adultGoods !== 'full' ? toMaskedAdultGood(row) : toGood(row, imageUrlForPath);
 }
 
+const nullableInteger = (value: unknown): value is number | null => value === null || (typeof value === 'number' && Number.isSafeInteger(value));
+const nullableString = (value: unknown): value is string | null => value === null || typeof value === 'string';
+
+/**
+ * 인증 전 방문자의 19금 가림 카드 행(ADR-0024). goods RLS는 인증 전 세션에 성인 상품 행을 열지 않으므로
+ * (20261118160000) 가림 카드가 쓰는 열만 주는 RPC로 읽는다 — 이름·이미지·배지는 처음부터 오지 않는다.
+ * 모양이 틀린 행은 버린다(카드가 하나 빠질 뿐 목록 전체를 막지 않는다).
+ */
+async function loadMaskedAdultGoodRows(supabase: CatalogSupabaseClient, goodId?: string): Promise<GoodRow[]> {
+  const { data, error } = await supabase.rpc('get_masked_adult_goods', goodId ? { p_good_id: goodId } : {});
+  if (error) throw new Error(`Failed to load masked adult goods: ${error.message}`);
+  if (!Array.isArray(data)) return [];
+  return data.flatMap((value: unknown): GoodRow[] => {
+    if (!value || typeof value !== 'object') return [];
+    const row = value as Record<string, unknown>;
+    if (typeof row.id !== 'string' || typeof row.ip_id !== 'string' || typeof row.price !== 'number' || !Number.isSafeInteger(row.price)
+      || typeof row.stock !== 'string' || typeof row.stock_qty !== 'number' || !Number.isSafeInteger(row.stock_qty)
+      || !nullableInteger(row.display_order) || !nullableString(row.category_id) || !nullableString(row.created_at)) return [];
+    return [{
+      id: row.id, ip_id: row.ip_id, name: ADULT_GOOD_LABEL, type: '', price: row.price, badge: null, stock: row.stock, stock_qty: row.stock_qty,
+      bg: null, image_path: null, allow_bank_transfer: null, display_order: row.display_order, category_id: row.category_id,
+      created_at: row.created_at, sale_restriction: 'adult',
+    }];
+  });
+}
+
 /** 공개 굿즈 목록의 추천 기준. 명시 순서 뒤에 기존 ID 순서를 둔다. */
 function compareGoodsDisplayOrder(left: Good, right: Good) {
   const leftOrder = typeof left.displayOrder === 'number' && Number.isInteger(left.displayOrder) && left.displayOrder >= 0
@@ -887,7 +913,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   const adultGoods = options.adultGoods ?? 'hidden';
   const supabase = await createClient();
 
-  const [verticalsResult, ipsResult, goodsResult, cardsResult, eventsResult] = await Promise.all([
+  const [verticalsResult, ipsResult, goodsResult, cardsResult, eventsResult, maskedAdultRows] = await Promise.all([
     supabase.from('verticals').select('key,label,color').order('key'),
     supabase
       .from('ips')
@@ -902,8 +928,9 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
-         이 스냅샷이 리스트·검색·홈·바인더를 모두 먹이므로 기본은 지금처럼 비노출이다. */
-      .in('sale_restriction', adultGoodsRestrictions(adultGoods))
+         이 스냅샷이 리스트·검색·홈·바인더를 모두 먹이므로 기본은 지금처럼 비노출이다.
+         가림(masked) 카드는 행 전체가 아니라 아래 가림 카드 RPC로 읽는다 — RLS가 인증 전 세션에 성인 행을 닫는다. */
+      .in('sale_restriction', adultGoodsRestrictions(adultGoods === 'masked' ? 'hidden' : adultGoods))
       .order('id'),
     supabase
       .from('cards')
@@ -915,6 +942,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
       .is('archived_at', null)
       .order('id'),
+    adultGoods === 'masked' ? loadMaskedAdultGoodRows(supabase) : Promise.resolve([] as GoodRow[]),
   ]);
 
   if (verticalsResult.error) {
@@ -950,7 +978,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
    * IP 없는 이벤트(플랫폼·합동)는 그대로 남는다.
    */
   const belongsToPublicIp = (ipId: string | null) => ipId === null || ipsById.has(ipId);
-  const goods = ((goodsResult.data ?? []) as GoodRow[])
+  const goods = [...((goodsResult.data ?? []) as GoodRow[]), ...maskedAdultRows]
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toCatalogGood(row, adultGoods, imageUrlForPath))
     .sort(compareGoodsDisplayOrder);
@@ -1144,17 +1172,13 @@ export async function getCatalogGoodsByIds(
  */
 export async function isPublishedAdultGood(goodId: string): Promise<boolean> {
   if (getCatalogSource() !== 'supabase' || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return false;
-  const supabase = await createClient();
-  const { data, error } = await supabase.from('goods')
-    .select('id,ips!inner(id)')
-    .eq('id', goodId)
-    .eq('sale_restriction', 'adult')
-    .is('archived_at', null)
-    .not('published_at', 'is', null)
-    .is('ips.archived_at', null)
-    .not('ips.published_at', 'is', null)
-    .maybeSingle();
-  return !error && Boolean(data);
+  try {
+    /* goods RLS가 인증 전 세션에 성인 행을 닫으므로 가림 카드 RPC로 공개 여부만 확인한다. */
+    const rows = await loadMaskedAdultGoodRows(await createClient(), goodId);
+    return rows.some(row => row.id === goodId);
+  } catch {
+    return false;
+  }
 }
 
 /** 상세 목적지는 목록의 첫 페이지와 독립적으로 상품·IP 공개 조건을 검사한다. */
