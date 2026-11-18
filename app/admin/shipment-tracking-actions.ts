@@ -93,8 +93,8 @@ export async function swapShipmentTrackingAction(form: FormData): Promise<Shipme
   const shipmentId = String(form.get('shipmentId') ?? '');
   const expected = normalizeTrackingNumber(String(form.get('expectedTrackingNumber') ?? ''));
   // 화면의 배송건번호(16자리)는 띄어 써도 받는다. 전체 UUID는 그대로 넘긴다.
-  const rawReference = String(form.get('otherReference') ?? '').trim();
-  const otherReference = isUuid(rawReference) ? rawReference : rawReference.replace(/[\s-]/g, '');
+  const rawReference = String(form.get('otherReference') ?? '').trim(), compactReference = rawReference.replace(/[\s-]/g, '');
+  const otherReference = isUuid(rawReference) ? rawReference : compactReference;
   const otherTracking = normalizeTrackingNumber(String(form.get('otherTrackingNumber') ?? ''));
   if (!isUuid(shipmentId) || !isTrackingNumber(expected)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
   if (!otherReference) return { ok: false, error: '맞바꿀 상대 배송건번호를 입력해주세요.' };
