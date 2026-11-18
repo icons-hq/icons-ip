@@ -15,6 +15,9 @@ begin;
 --   · 멱등: 다시 부르면 처음 기록(already_processed)을 돌려주고 그 사이 생긴 세션만 끊는다. 처리 기록·감사는 한 번
 --   · 정지 계정은 주소록 저장·휴대폰 인증 요청이 거절되고, 탈퇴 처리한 계정은 정지 해제가 막힌다
 --   · 재로그인 차단 확인: auth.users.banned_until이 장기 차단이 아니면 거절, 차단 뒤에는 기록·감사하고 그 사이 세션을 끊는다. 재호출은 replayed
+--   · 처리 전 대조용 문의 요약(그 회원의 문의만, platform.manage만)
+--   · 정지 회원(20261118165100): 계정 문의만 접수·이어 쓰기, 그 문의로 탈퇴 처리 가능. 마케팅 동의는 유지·철회만(새로 켜기·직접 쓰기 거절),
+--     재입고 알림 신청 거절. 정지되지 않은 회원의 동의는 그대로
 -- ============================================================================
 
 select 1/case when (
@@ -45,8 +48,14 @@ select 1/case when (
     (signature = 'public.admin_process_member_withdrawal(uuid,bigint,text)' and guard_kind = 'write')
     or (signature = 'public.admin_confirm_member_withdrawal_signin_block(uuid)' and guard_kind = 'write')
     or (signature = 'public.admin_member_withdrawal_status(uuid)' and guard_kind = 'read')
-    or (signature = 'public.admin_unsuspend_user(uuid)' and guard_kind = 'write'))) = 4
+    or (signature = 'public.admin_unsuspend_user(uuid)' and guard_kind = 'write')
+    or (signature = 'public.admin_member_withdrawal_inquiry(uuid,bigint)' and guard_kind = 'read'))) = 5
+  and has_function_privilege('authenticated','public.admin_member_withdrawal_inquiry(uuid,bigint)','execute')
+  and not has_function_privilege('anon','public.admin_member_withdrawal_inquiry(uuid,bigint)','execute')
+  and not has_function_privilege('service_role','public.admin_member_withdrawal_inquiry(uuid,bigint)','execute')
+  and (select provolatile = 's' from pg_proc where oid = 'public.admin_member_withdrawal_inquiry(uuid,bigint)'::regprocedure)
   and to_regproc('private.t10_withdrawal_patch_function') is null
+  and to_regproc('private.t10_followup_patch_function') is null
 ) then 1 else 0 end as assert_sealed_acl_and_contracts;
 
 -- ---------------------------------------------------------------------------
@@ -73,16 +82,16 @@ create function pg_temp.d(label text) returns text language sql immutable as $$
 $$;
 
 -- 1: 처리하는 운영자(계정 주매니저), 2: 권한 없는 계정 부매니저, 3: 탈퇴 회원(데이터 있음), 4: 결제완료 주문이 있는 회원,
--- 5: staff 역할 회원, 6: 물류 매니저 소속(프로필 역할 user), 7: 다른 일반 회원
+-- 5: staff 역할 회원, 6: 물류 매니저 소속(프로필 역할 user), 7: 다른 일반 회원, 8: 제재로 먼저 정지된 회원(정지 중 계정 문의로 탈퇴 요청)
 insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
 select pg_temp.uid(n), 'authenticated', 'authenticated', 'withdrawal-' || n || '@example.test', now(), '{}', '{}'
-from generate_series(1, 7) n;
+from generate_series(1, 8) n;
 update public.profiles
 set nickname = 'TEST 탈퇴 처리 ' || right(id::text, 1), birth_date = '1990-01-01', onboarded_at = now(),
   consents = '{"terms":true,"privacy":true}'::jsonb,
   role = case when id = pg_temp.uid(1) then 'admin'::public.user_role
     when id in (pg_temp.uid(2), pg_temp.uid(5)) then 'staff'::public.user_role else 'user'::public.user_role end
-where id in (select pg_temp.uid(n) from generate_series(1, 7) n);
+where id in (select pg_temp.uid(n) from generate_series(1, 8) n);
 insert into private.operator_memberships(profile_id, manager_role) values
   (pg_temp.uid(1), 'primary'), (pg_temp.uid(2), 'deputy'), (pg_temp.uid(6), 'logistics');
 update private.operator_access_state set configured = true where id;
@@ -352,5 +361,81 @@ select 1/case when ((:'blocked'::jsonb)->>'signinBlocked')::boolean
   and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_signin_blocked' and target = 'profile:' || pg_temp.uid(3)
     and actor_id = pg_temp.uid(1) and diff = jsonb_build_object('inquiryReference', :ref3, 'revokedSessions', 1)) = 1
   then 1 else 0 end as signin_block_confirmed_once;
+
+-- ---------------------------------------------------------------------------
+-- 처리 전 대조(문의 요약): 그 회원의 문의만, platform.manage만
+-- ---------------------------------------------------------------------------
+select pg_temp.as_actor(pg_temp.uid(1));
+set local role authenticated;
+select 1/case when (public.admin_member_withdrawal_inquiry(pg_temp.uid(4), :ref4)) - 'createdAt'
+    = jsonb_build_object('reference', :ref4, 'category', 'account', 'title', '회원 탈퇴 요청합니다', 'status', 'open')
+  and (public.admin_member_withdrawal_inquiry(pg_temp.uid(4), :ref4))->>'createdAt' is not null
+  and public.admin_member_withdrawal_inquiry(pg_temp.uid(4), :ref7) is null
+  and public.admin_member_withdrawal_inquiry(pg_temp.uid(4), 999999999999) is null
+  then 1 else 0 end as inquiry_preview_only_for_that_member;
+select pg_temp.expect_error(format('select public.admin_member_withdrawal_inquiry(%L, 0)', pg_temp.uid(4)), 'invalid_member_withdrawal');
+reset role;
+select pg_temp.as_actor(pg_temp.uid(2));
+set local role authenticated;
+select pg_temp.expect_error(format('select public.admin_member_withdrawal_inquiry(%L, %s)', pg_temp.uid(4), :ref4), 'operator_capability_required');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- 정지 회원의 탈퇴 경로: 계정 문의만 접수·이어 쓰기, 그 문의로 처리할 수 있다
+-- ---------------------------------------------------------------------------
+select id as withdrawal_variant from public.goods_variants where good_id = 'withdrawal-goods' order by is_default desc limit 1 \gset
+select private.write_customer_marketing_consent(pg_temp.uid(8), 'email', true, 'marketing-channels-v1', 'onboarding', clock_timestamp() - interval '1 day');
+update public.profiles set consents = consents || '{"marketing":true}'::jsonb where id = pg_temp.uid(8);
+update public.profiles set suspended_at = now(), suspension_reason = 'TEST 제재' where id = pg_temp.uid(8);
+select pg_temp.as_actor(pg_temp.uid(8));
+set local role authenticated;
+select public.create_inquiry('account', '탈퇴하고 싶어요', '정지된 계정인데 탈퇴를 요청합니다.') as suspended_account_inquiry \gset
+select pg_temp.expect_error($q$select public.create_inquiry('order', '배송 문의', '언제 오나요')$q$, 'account_suspended');
+select pg_temp.expect_error($q$select public.create_inquiry('etc', '기타 문의', '질문')$q$, 'account_suspended');
+select 1/case when public.append_inquiry_message(:'suspended_account_inquiry', '본인 확인 답변입니다.') is not null then 1 else 0 end as suspended_append_account_ok;
+reset role;
+set local session_replication_role = replica;
+insert into public.inquiries(id, user_id, category, title, status, waiting_since) values
+  ('a10d1a00-0000-4000-8000-000000000801', pg_temp.uid(8), 'order', '정지 전 주문 문의', 'open', now());
+set local session_replication_role = origin;
+select pg_temp.as_actor(pg_temp.uid(8));
+set local role authenticated;
+select pg_temp.expect_error($q$select public.append_inquiry_message('a10d1a00-0000-4000-8000-000000000801', '이어서 질문')$q$, 'account_suspended');
+
+-- 정지 회원의 마케팅 동의: 이미 동의한 수단 유지·철회는 받고, 새로 켜기만 거절한다(직접 쓰기 포함).
+select 1/case when (public.set_my_marketing_consents(true, false, 'marketing-channels-v1', 'settings'))->'email'->>'agreed' = 'true' then 1 else 0 end as suspended_keeps_existing_consent;
+select pg_temp.expect_error($q$select public.set_my_marketing_consents(true, true, 'marketing-channels-v1', 'settings')$q$, 'account_suspended');
+select pg_temp.expect_error($q$select public.set_my_marketing_consents_v2(true, false, true, 'marketing-channels-v2', 'settings')$q$, 'account_suspended');
+select 1/case when (public.set_my_marketing_consents(false, false, 'marketing-channels-v1', 'settings'))->>'marketing' = 'false' then 1 else 0 end as suspended_can_withdraw;
+select pg_temp.expect_error($q$select public.set_my_marketing_consents(true, false, 'marketing-channels-v1', 'settings')$q$, 'account_suspended');
+update public.profiles set consents = consents || '{"marketing":true}'::jsonb where id = pg_temp.uid(8);
+-- 재입고 알림 신청도 거절한다.
+select pg_temp.expect_error($q$select public.request_restock_alert('withdrawal-goods')$q$, 'account_suspended');
+select pg_temp.expect_error(format('select public.request_variant_restock_alert(%L, %L)', 'withdrawal-goods', :'withdrawal_variant'), 'account_suspended');
+reset role;
+select 1/case when (select consents->'marketing' = 'false'::jsonb from public.profiles where id = pg_temp.uid(8))
+  and not exists (select 1 from private.customer_marketing_consents where user_id = pg_temp.uid(8) and agreed)
+  and (select count(*) from private.customer_marketing_consent_events where user_id = pg_temp.uid(8) and agreed) = 1
+  and not exists (select 1 from public.restock_alerts where user_id = pg_temp.uid(8))
+  and (select count(*) from public.inquiries where user_id = pg_temp.uid(8) and category = 'account') = 1
+  and (select count(*) from public.inquiry_messages m join public.inquiries i on i.id = m.inquiry_id
+    where i.user_id = pg_temp.uid(8) and m.author = 'user') = 2
+  then 1 else 0 end as suspended_member_writes_only_account_inquiry_and_withdrawals;
+
+select pg_temp.as_actor(pg_temp.uid(1));
+set local role authenticated;
+select public.admin_process_member_withdrawal(pg_temp.uid(8), (select reference from public.inquiries where id = :'suspended_account_inquiry'), '정지 중 계정 문의로 받은 탈퇴') as processed_suspended \gset
+reset role;
+select 1/case when (:'processed_suspended'::jsonb)->>'status' = 'processed'
+  and not ((:'processed_suspended'::jsonb)->>'suspended')::boolean
+  and (select suspension_reason = 'TEST 제재' from public.profiles where id = pg_temp.uid(8))
+  and exists (select 1 from private.member_withdrawal_processings where user_id = pg_temp.uid(8))
+  then 1 else 0 end as suspended_member_withdrawal_processed_from_account_inquiry;
+
+-- 정지 해제·탈퇴와 무관한 회원은 지금처럼 동의를 켠다.
+select pg_temp.as_actor(pg_temp.uid(7));
+set local role authenticated;
+select 1/case when (public.set_my_marketing_consents(true, true, 'marketing-channels-v1', 'settings'))->'sms'->>'agreed' = 'true' then 1 else 0 end as active_member_can_agree;
+reset role;
 
 rollback;

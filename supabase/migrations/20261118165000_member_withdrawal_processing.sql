@@ -68,7 +68,9 @@ alter table private.customer_marketing_consent_events add constraint customer_ma
 
 -- 3. 로그인 세션 종료. 세션 행을 지우면 refresh token·MFA 기록이 함께 지워지고(외래키 cascade) Auth의 사용자 조회가
 --    'session_not_found'로 실패한다. 세션 없는 옛 refresh token도 지운다. 이미 발급된 access token은 만료(기본 1시간)까지
---    PostgREST에서 유효하지만 정지로 보호 액션은 막힌다. 지운 세션 수를 돌려준다.
+--    PostgREST에서 유효하다 — 그동안 정지를 확인하는 쓰기(구매·예매·작성·카드팩 개봉·게임, 마케팅 새 동의·재입고 알림 신청
+--    (20261118165100), 계정 유형이 아닌 문의)는 거절되지만 위시처럼 정지를 확인하지 않는 본인 행 쓰기는 만료 전까지 될 수 있다.
+--    지운 세션 수를 돌려준다.
 create function private.revoke_member_auth_sessions(p_user_id uuid) returns integer
 language plpgsql volatile security definer set search_path = '' as $$
 declare revoked integer;
