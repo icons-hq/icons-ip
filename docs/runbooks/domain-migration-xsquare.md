@@ -37,7 +37,8 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
 
 - Vercel 프로젝트 `icons-ip`에 `xsquare.kr`·`www.xsquare.kr`가 붙어 있고, **전환 전까지는 경로를 유지한 채
   `iconsip.com`으로 307 리디렉션**한다. 반쯤 동작하는 사이트가 새 도메인으로 노출되지 않게 하려는 것이다.
-- Resend에 `xsquare.kr`를 Forge·도쿄(ap-northeast-1)로 추가했다. 받는 메일(`Enable receiving`)은 켜지 않았다.
+- Resend에 `xsquare.kr`를 Forge·도쿄(ap-northeast-1)로 추가했고 2026-11-18 검증을 마쳤다(발신 가능).
+  받는 메일(`Enable receiving`)은 켜지 않았다.
 
 ## 1단계: 두 도메인 병행 준비
 
@@ -70,7 +71,8 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
 - [ ] **Google OAuth**: 동의 화면의 승인된 도메인에 `xsquare.kr` 추가.
 - [ ] **Apple**: Services ID의 도메인, Sign in with Apple 이메일 릴레이 발신 도메인 등록. 릴레이는 발신 도메인
       루트의 SPF를 요구하므로 Resend 검증 뒤 루트 SPF 레코드를 함께 넣는다.
-- [ ] **Resend**: `xsquare.kr` 검증 완료 확인. 웹훅 `https://xsquare.kr/api/webhooks/resend`(전환 때 교체).
+- [x] **Resend**: `xsquare.kr` 발신 도메인 검증(2026-11-18).
+- [ ] **Resend 웹훅**: `https://xsquare.kr/api/webhooks/resend`(전환 때 교체).
 - [ ] **Supabase Auth custom SMTP**: 발신 주소를 `no-reply@xsquare.kr`로 바꿀 준비(전환 때 교체).
 - [ ] **검색엔진**: Google Search Console·네이버 서치어드바이저에 `xsquare.kr` 등록, 전환 뒤 주소 변경 도구와 사이트맵 제출.
 - [ ] **법정 표기·신고**: 통신판매업 신고의 인터넷 도메인 변경, 이용약관·개인정보처리방침·사업자 정보 화면의
