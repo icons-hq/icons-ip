@@ -52,7 +52,7 @@ export const PG_CRON_JOB_LABELS: Readonly<Record<string, string>> = {
   'monthly-grade-coupons': '등급 쿠폰 월 발급',
   'member-email-change-retention': '이메일 변경 인증 기록 정리',
   'goods-provider-cancellation-sweep': '결제사 취소 판정 대기 처리',
-  'system-job-records-retention': '자동 작업 기록 보존 정리',
+  'system-job-records-maintenance': '자동 작업 기록 정리',
 };
 
 /** 운영자에게 보일 작업 이름. 모르는 잡은 잡 이름 그대로 보인다. */

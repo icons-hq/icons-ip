@@ -42,6 +42,15 @@ export function paymentAttemptRoute(attempt: Pick<PaymentAttemptReference, 'purp
   return null;
 }
 
+/**
+ * 이 배포에서 결제사 조회로 다시 확인할 수 있는 결제사(설정된 게이트웨이). 자동 재확인 후보를 이 목록으로만 받아, 설정이 없는
+ * 결제사의 시도가 매 회차 뽑혀 큐를 막지 않게 한다. 티켓은 토스뿐이고 토스 설정은 굿즈·티켓이 같다.
+ */
+export function reconcilablePaymentProviders(): ('toss' | 'nicepay')[] {
+  return (['toss', 'nicepay'] as const).filter(provider =>
+    goodsPaymentConfirmationAvailable(provider) || (provider === 'toss' && ticketPaymentProviderAvailable('toss')));
+}
+
 const CASE_REF = /^[A-Za-z0-9_-]{16,128}$/;
 
 export async function reconcilePaymentAttempt(

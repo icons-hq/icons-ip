@@ -16,7 +16,7 @@ vi.mock('@/lib/orders/cancellation-auto.server', () => ({ scheduleApprovedOrderC
 
 import { GoodsPaymentReconciliationInProgressError } from './goods-checkout';
 import { TicketPaymentReconciliationInProgressError } from './ticket-checkout';
-import { paymentAttemptRoute, reconcilePaymentAttempt } from './attempt-reconciliation.server';
+import { paymentAttemptRoute, reconcilablePaymentProviders, reconcilePaymentAttempt } from './attempt-reconciliation.server';
 
 const caseRef = 'admin-a7000000000040098000000000000001';
 const goods = { attemptId: 'a7000000-0000-4003-8000-000000000001', purpose: 'order', provider: 'nicepay', refId: 'a7000000-0000-4002-8000-000000000001' };
@@ -39,6 +39,18 @@ describe('미종결 결제 한 건 재확인', () => {
     for (const attempt of [{ purpose: 'order', provider: 'korpay' }, { purpose: 'order', provider: 'bank_transfer' }, { purpose: 'ticket', provider: 'nicepay' }, { purpose: 'prize_sale', provider: 'toss' }]) {
       expect(paymentAttemptRoute(attempt)).toBeNull();
     }
+  });
+
+  it('자동 재확인 후보는 이 배포에 설정된 결제사로만 받는다', () => {
+    mocks.goodsAvailable.mockImplementation((provider: string) => provider === 'toss');
+    expect(reconcilablePaymentProviders()).toEqual(['toss']);
+    mocks.goodsAvailable.mockReturnValue(false);
+    mocks.ticketAvailable.mockReturnValue(true);
+    expect(reconcilablePaymentProviders()).toEqual(['toss']);
+    mocks.ticketAvailable.mockReturnValue(false);
+    expect(reconcilablePaymentProviders()).toEqual([]);
+    mocks.goodsAvailable.mockReturnValue(true);
+    expect(reconcilablePaymentProviders()).toEqual(['toss', 'nicepay']);
   });
 
   it('굿즈는 그 결제사의 재정합 seam을 부르고 승인되면 취소 예약을 건다', async () => {

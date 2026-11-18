@@ -44,6 +44,6 @@ describe('자동 작업 목록', () => {
     expect(systemJobLabel('new-job', 'pg_cron')).toBe('new-job');
     expect(systemJobLabel('renamed-job', 'vercel_cron', '옛 이름')).toBe('옛 이름');
     expect(Object.values(CRON_JOBS).every(job => job.label.length <= 60)).toBe(true);
-    expect(Object.keys(PG_CRON_JOB_LABELS)).toContain('system-job-records-retention');
+    expect(Object.keys(PG_CRON_JOB_LABELS)).toContain('system-job-records-maintenance');
   });
 });

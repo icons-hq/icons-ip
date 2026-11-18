@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/system-health/cron-run-recorder.server', () => ({ recordCronJobRun: async () => ({ incident: false }) }));
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), reconcile: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), reconcile: vi.fn(), providers: vi.fn() }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/payments/attempt-reconciliation.server', async () => ({
   ...await vi.importActual<object>('@/lib/payments/attempt-reconciliation.server'),
   reconcilePaymentAttempt: mocks.reconcile,
+  reconcilablePaymentProviders: mocks.providers,
 }));
 vi.mock('@/lib/orders/cancellation-auto.server', () => ({ scheduleApprovedOrderCancellation: vi.fn() }));
 import { GET, maxDuration } from './route';
@@ -16,6 +17,7 @@ const request = (authorization = 'Bearer synthetic-reconcile-cron') => new Reque
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('CRON_SECRET', 'synthetic-reconcile-cron');
+  mocks.providers.mockReturnValue(['toss']);
   mocks.rpc.mockResolvedValue({ data: [goods, ticket], error: null });
   mocks.reconcile.mockResolvedValue({ kind: 'reconciled', outcome: 'approved' });
 });
@@ -28,23 +30,34 @@ describe('미종결 결제 자동 재확인', () => {
     expect(maxDuration).toBe(90);
   });
 
-  it('DB가 고른 후보(최대 3건)만 재정합 seam으로 확인하고 건수만 응답한다', async () => {
+  it('이 배포에 설정된 결제사만 넘겨 DB가 뽑은 후보(최대 3건)를 재정합 seam으로 확인하고 건수만 응답한다', async () => {
     mocks.reconcile.mockResolvedValueOnce({ kind: 'reconciled', outcome: 'approved' }).mockResolvedValueOnce({ kind: 'reconciled', outcome: 'unknown' });
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('service_list_payment_reconciliation_candidates', { p_limit: 3 });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('service_claim_payment_reconciliation_candidates', { p_limit: 3, p_providers: ['toss'] });
     expect(mocks.reconcile).toHaveBeenCalledTimes(2);
     expect(mocks.reconcile.mock.calls[0][0]).toEqual(goods);
     expect(mocks.reconcile.mock.calls[0][1]).toMatch(/^auto-\d{12}-a700000000004003800000000000000[1]$/);
     const body = await response.json();
-    expect(body).toEqual({ ok: true, candidates: 2, approved: 1, closed: 0, unresolved: 1, inProgress: 0, unavailable: 0, failed: 0, deferred: 0 });
+    expect(body).toEqual({ ok: true, providers: 1, candidates: 2, approved: 1, closed: 0, unresolved: 1, inProgress: 0, unavailable: 0, failed: 0, deferred: 0 });
     expect(JSON.stringify(body)).not.toContain(goods.attemptId);
   });
 
-  it('조회 실패·결제사 설정 없음은 503, 후보 형식 오류·조회 불가도 503이다', async () => {
+  it('설정된 결제사가 없으면 DB도 결제사도 부르지 않고 성공이다', async () => {
+    mocks.providers.mockReturnValue([]);
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, providers: 0, candidates: 0 });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('조회 실패·결제사 설정 없음은 503, 넘기지 않은 결제사·형식 오류·조회 불가도 503이다', async () => {
     mocks.reconcile.mockResolvedValueOnce({ kind: 'failed' });
     expect((await GET(request())).status).toBe(503);
     mocks.reconcile.mockResolvedValue({ kind: 'unavailable' });
+    expect((await GET(request())).status).toBe(503);
+    mocks.rpc.mockResolvedValue({ data: [{ ...goods, provider: 'nicepay' }], error: null });
     expect((await GET(request())).status).toBe(503);
     mocks.rpc.mockResolvedValue({ data: [{ ...goods, provider: 'korpay' }], error: null });
     expect((await GET(request())).status).toBe(503);
