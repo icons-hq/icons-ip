@@ -377,7 +377,11 @@ export async function updateMarketingConsentAction(
 
   const supabase = await createClient();
   const result = await saveMyMarketingConsents(supabase, choices, 'settings');
-  if (!result.ok) return { errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' } };
+  if (!result.ok) {
+    return { errors: { form: result.reason === 'account_suspended'
+      ? '정지된 계정은 마케팅 정보 수신에 새로 동의할 수 없어요. 수신 거부는 언제든 할 수 있어요.'
+      : '설정을 저장하지 못했습니다. 다시 시도해주세요.' } };
+  }
 
   revalidatePath(SETTINGS_PATH);
   /* 카카오톡 줄을 그린 저장은 고른 값과 저장된 값이 다를 수 있다(스위치 OFF면 새 카카오톡 동의를 버린다). 처리 결과
