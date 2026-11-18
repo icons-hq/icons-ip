@@ -159,6 +159,24 @@ select 1/case when (select type from public.goods where id='gr-move-good')='문�
  and not exists(select 1 from public.audit_log where action='admin.catalog.category.good_type_changed'
    and target='catalog_categories:00000000-0000-4000-8000-000000190120')
  then 1 else 0 end as legacy_type_argument_is_ignored;
+-- 정리 migration 전에 저장된 카테고리 작업(요청에 'good_type': null)을 같은 작업 ID로 다시 보내면
+-- 충돌(operation_conflict)이 아니라 저장된 결과를 돌려준다(재시도는 다시 저장하지 않는다).
+reset role;
+insert into public.audit_log(id,actor_id,action,target,diff)
+ select '00000000-0000-4000-8000-000000190313','98190000-0000-4000-8000-000000000001','admin.catalog.category.updated',
+  'catalog_categories:00000000-0000-4000-8000-000000190120',
+  jsonb_build_object('category_id','00000000-0000-4000-8000-000000190120'::uuid,
+   'request',jsonb_build_object('category_id','00000000-0000-4000-8000-000000190120'::uuid,'code','gr-other','name','다른분류',
+     'parent_id',null::uuid,'sort_order',4,'expected_updated_at',category.updated_at,'good_type',null::text),
+   'after',jsonb_build_object('code','gr-other','name','다른분류','parent_id',null::uuid,'depth',1,'good_type',null::text))
+ from public.catalog_categories as category where category.id='00000000-0000-4000-8000-000000190120';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','98190000-0000-4000-8000-000000000001',true);
+select public.admin_upsert_category('00000000-0000-4000-8000-000000190313','00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,4,
+ (select updated_at from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')) as gr_other_replayed \gset
+select 1/case when :'gr_other_replayed'::jsonb=jsonb_build_object('id','00000000-0000-4000-8000-000000190120','depth',1)
+ and (select sort_order from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')=3
+ then 1 else 0 end as replay_across_cleanup_returns_saved_result;
 
 -- --------------------------------------------------------------------------
 -- 공개 중: 다른 대표 카테고리로 옮길 수 있고(유형·KC 그대로), 비우는 것만 막는다.

@@ -1,6 +1,6 @@
 -- ADR-0044 정리 단계: 상품 유형 층에서 남겨 둔 카테고리 쪽 저장 칸을 지운다.
 --
--- 20261118161500_goods_type_layer_retire.sql이 동작을 바꾸고 배포됐다. 지금 운영 앱은 아래 칸·표·RPC를 읽거나 부르지
+-- 20261118161500_goods_type_layer_retire.sql이 동작을 바꾸고 배포됐다(#677). 지금 운영 앱은 아래 칸·표·RPC를 읽거나 부르지
 -- 않으므로(카테고리 저장은 target_good_type에 null을 보낸다) 한 번에 지워도 배포 사이 이전 앱이 깨지지 않는다.
 --   1. catalog_categories.good_type(+ 값 목록 CHECK)을 지운다. 카테고리 저장 RPC는 그 칸을 쓰지 않는다.
 --      target_good_type 인자는 기본값 null이라 이전 화면이 보내도 맞으므로 받기만 하고 무시한다(시그니처 유지).
@@ -53,7 +53,8 @@ begin
   if found then
     if existing_actor_id = actor_id
        and existing_action in ('admin.catalog.category.created', 'admin.catalog.category.updated')
-       and existing_diff -> 'request' = request_payload
+       -- 이 migration 전에 저장된 작업은 요청에 'good_type' 키가 있다. 같은 작업 ID 재시도가 충돌로 바뀌지 않게 그 키를 빼고 비교한다.
+       and (existing_diff -> 'request') - 'good_type' = request_payload
     then
       result_id := coalesce(target_category_id, nullif(existing_diff ->> 'category_id', '')::uuid);
       next_depth := nullif(existing_diff #>> '{after,depth}', '')::integer;
