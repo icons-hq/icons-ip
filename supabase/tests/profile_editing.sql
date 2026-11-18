@@ -218,7 +218,7 @@ select 1 / case when has_column_privilege(
   'public.profiles',
   'consents',
   'UPDATE'
-) and has_column_privilege(
+) and not has_column_privilege(
   'authenticated',
   'public.profiles',
   'onboarded_at',

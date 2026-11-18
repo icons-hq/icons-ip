@@ -17,6 +17,7 @@ import { updateProfileIdentity } from '@/lib/profile.server';
 import { phoneVerificationConfig, readMyVerifiedPhone } from '@/lib/sms/phone-verification.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -241,14 +242,21 @@ async function completeOnboarding(
   options: { alreadyOnboarded: boolean; gender: DemographicGender | null; next: string },
 ): Promise<OnboardingActionState> {
   if (!options.alreadyOnboarded) {
-    const { error: completeError } = await supabase
-      .from('profiles')
-      .update({ onboarded_at: new Date().toISOString() })
-      .eq('id', userId)
-      .select('id')
-      .single();
+    /* 완료 기록은 서버만 쓴다 — authenticated의 profiles.onboarded_at update 권한은 회수됐다. 휴대폰 인증 스위치가 켜져
+       있으면 RPC가 같은 트랜잭션에서 인증된 번호를 다시 확인한다(액션의 앞선 판정을 신뢰하지 않는다). */
+    if (!getServiceRoleConfig().isConfigured) return { errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' } };
+    const { error: completeError } = await createServiceClient().rpc('service_complete_member_onboarding', {
+      p_user_id: userId,
+      p_require_phone: Boolean(phoneVerificationConfig()),
+    });
 
-    if (completeError) return { errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' } };
+    if (completeError) {
+      if (completeError.message?.includes('onboarding_phone_required')) {
+        revalidatePath('/onboarding');
+        return { phoneStep: true, ...(options.gender ? { carriedGender: options.gender } : {}), errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' } };
+      }
+      return { errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' } };
+    }
   }
   if (options.gender) await saveOnboardingGender(options.gender);
   /* 카카오톡 채널 친구 추가 쿠폰(1014-014, 스위치 OFF 기본)은 온보딩을 마친 회원만 받는다. 카카오 로그인 동의 화면에서
