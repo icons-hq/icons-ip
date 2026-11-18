@@ -160,6 +160,13 @@ describe('postAuthenticationPath', () => {
     for (const other of ['/my/inquiries/new', '/my/inquiries/new?category=order', '/my/inquiries/new?category=account&orderId=x', '/my/inquiries']) {
       expect(isAccountDeletionEntryPath(other)).toBe(false);
     }
+    /* 답변 알림 메일의 문의 스레드 링크 — 정확한 uuid 경로만. 유형 판정은 스레드 화면이 한다. */
+    const thread = '/my/inquiries/11111111-1111-4111-8111-111111111111';
+    expect(isAccountDeletionEntryPath(thread)).toBe(true);
+    expect(postAuthenticationPath(null, 'fan@icons.gg', thread)).toBe(thread);
+    for (const other of ['/my/inquiries/not-a-uuid', `${thread}/edit`, `${thread}?x=1`, `${thread}#reply`, '/my/inquiries/11111111-1111-4111-8111-11111111111']) {
+      expect(isAccountDeletionEntryPath(other)).toBe(false);
+    }
     expect(postAuthenticationPath(null, 'fan@icons.gg', '/my/inquiries/new?category=order')).toBe(
       '/onboarding?next=%2Fmy%2Finquiries%2Fnew%3Fcategory%3Dorder',
     );

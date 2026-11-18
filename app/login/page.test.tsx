@@ -146,6 +146,10 @@ describe('/login page', () => {
     await expect(Page({
       searchParams: Promise.resolve({ next: '/my/inquiries/new?category=order' }),
     })).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
+    /* 답변 알림 메일의 스레드 링크로도 돌아간다 — 계정 문의인지는 스레드 화면이 판정한다. */
+    await expect(Page({
+      searchParams: Promise.resolve({ next: '/my/inquiries/11111111-1111-4111-8111-111111111111' }),
+    })).rejects.toThrow('NEXT_REDIRECT:/my/inquiries/11111111-1111-4111-8111-111111111111');
   });
 
   it('renders the sign-in form for an explicit deletion reauthentication request', async () => {

@@ -41,10 +41,13 @@ describe('/my/inquiries/[inquiryId] — 계정 문의 예외(원장 CUS-035)', (
     await expect(run()).rejects.toThrow(`NEXT_REDIRECT:/onboarding?next=${encodeURIComponent(`/my/inquiries/${INQUIRY}`)}`);
   });
 
-  it('정지 회원은 지금처럼 문의를 열람하고 첨부 없이 이어 쓴다(계정 문의가 아니면 DB·액션이 거절)', async () => {
+  /* 로그인은 이 경로를 정지 게이트 없이 돌려보낸다(답변 알림 메일 링크) — 유형 판정은 이 화면이 한다. */
+  it('정지 회원은 자기 계정 문의만 첨부 없이 열고, 다른 문의는 정지 화면으로 보낸다', async () => {
     mocks.auth = { isConfigured: true, user: USER, profile: { ...ONBOARDED, suspended_at: '2026-11-18T00:00:00Z' }, isStaff: false };
-    mocks.thread.mockResolvedValue({ id: INQUIRY, category: 'order' });
+    mocks.thread.mockResolvedValue({ id: INQUIRY, category: 'account' });
     expect(props(await run())).toMatchObject({ restricted: true });
+    mocks.thread.mockResolvedValue({ id: INQUIRY, category: 'order' });
+    await expect(run()).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
   });
 
   it('일반 회원은 제한 없이 연다', async () => {

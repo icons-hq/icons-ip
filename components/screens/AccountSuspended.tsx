@@ -14,6 +14,7 @@ export function AccountSuspended() {
           도움이 필요하거나 회원 탈퇴를 원하면 계정 문의를 남겨주세요.
         </p>
         <WcButton href={ACCOUNT_INQUIRY_PATH} variant="primary">계정 문의하기</WcButton>
+        <WcButton href="/my/inquiries">내 문의 보기</WcButton>
         <form action={signOutAction} className="wc-auth__form">
           <WcButton type="submit">로그아웃</WcButton>
         </form>

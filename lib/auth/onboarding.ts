@@ -1,3 +1,5 @@
+import { isUuid } from '@/lib/uuid';
+
 export interface OnboardingConsents {
   terms?: boolean | null;
   privacy?: boolean | null;
@@ -72,9 +74,17 @@ export function isOnboarded(profile: ProfileForOnboarding | null | undefined, au
   return birthDate <= todayUtc;
 }
 
-/** 정지·온보딩 게이트를 건너뛰는 탈퇴 경로(탈퇴 화면·계정 문의 작성). 로그인 뒤 이동과 정지 화면 분기가 같은 판정을 쓴다. */
+const INQUIRY_THREAD_PATH = /^\/my\/inquiries\/([^/?#]+)$/;
+
+/**
+ * 정지·온보딩 게이트를 건너뛰는 탈퇴 경로 — 탈퇴 화면, 계정 문의 작성, 문의 스레드(`/my/inquiries/<uuid>`, 답변 알림 메일의 링크).
+ * 로그인 뒤 이동과 정지 화면 분기가 같은 판정을 쓴다. 스레드는 유형을 여기서 알 수 없어 그 화면이 판정한다 —
+ * 정지·온보딩 미완료 회원에게는 계정 문의만 열고 나머지는 정지 화면·온보딩으로 보낸다.
+ */
 export function isAccountDeletionEntryPath(next: string): boolean {
-  return next === ACCOUNT_DELETION_PATH || next === ACCOUNT_INQUIRY_PATH;
+  if (next === ACCOUNT_DELETION_PATH || next === ACCOUNT_INQUIRY_PATH) return true;
+  const thread = INQUIRY_THREAD_PATH.exec(next);
+  return Boolean(thread && isUuid(thread[1]));
 }
 
 export function postAuthenticationPath(
