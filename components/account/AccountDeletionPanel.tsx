@@ -8,10 +8,11 @@ import {
 import { WcButton } from '@/components/wc/WcButton';
 import {
   ACCOUNT_DELETION_CONFIRMATION,
+  INQUIRY_WITHDRAWAL_SCOPE,
   type AccountDeletionPresentation,
   type AccountDeletionStatus,
 } from '@/lib/account-deletion';
-import { newInquiryHref } from '@/lib/inquiries';
+import { ACCOUNT_INQUIRY_PATH } from '@/lib/auth/onboarding';
 
 interface AccountDeletionPanelProps {
   presentation: AccountDeletionPresentation;
@@ -19,8 +20,8 @@ interface AccountDeletionPanelProps {
 }
 
 const emptyState: AccountDeletionActionState = {};
-/** 탈퇴 요청을 받는 1:1 문의 작성 화면(유형 '계정'으로 연다). */
-export const ACCOUNT_DELETION_INQUIRY_HREF = newInquiryHref({ category: 'account' });
+/** 탈퇴 요청을 받는 1:1 문의 작성 화면(유형 '계정'으로 연다). 정지·온보딩 미완료 회원도 이 경로로 계정 문의를 쓸 수 있다. */
+export const ACCOUNT_DELETION_INQUIRY_HREF = ACCOUNT_INQUIRY_PATH;
 const confirmationHintId = 'account-deletion-confirmation-hint';
 const confirmationErrorId = 'account-deletion-confirmation-error';
 
@@ -96,8 +97,12 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
             남겨주시면, 운영자가 진행 중인 거래가 없는지 확인한 뒤 처리하고 문의 답변으로 알려드려요.
           </p>
           <ul className="account-deletion-facts">
-            <li>처리되면 이 계정으로 다시 로그인할 수 없고, 배송지·휴대폰 번호·마케팅 정보 수신 동의 같은 정보는 바로 지워져요.</li>
-            <li>주문·결제·환불 같은 거래 기록은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요.</li>
+            <li>처리되면 이 계정으로 다시 로그인할 수 없고, {INQUIRY_WITHDRAWAL_SCOPE.erased.join('·')}은 바로 지워져요.</li>
+            <li>
+              {INQUIRY_WITHDRAWAL_SCOPE.retained.join(', ')}은 완전 삭제 절차가 준비될 때까지 이용할 수 없는 상태로 남아요.
+              {' '}{INQUIRY_WITHDRAWAL_SCOPE.rejoin}.
+            </li>
+            <li>{INQUIRY_WITHDRAWAL_SCOPE.transactionRecords}은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요.</li>
             <li>진행 중인 주문·배송·취소·환불, 이용 전 티켓, 정기배송이 있으면 그 일이 끝난 뒤 처리돼요.</li>
           </ul>
           <WcButton href={ACCOUNT_DELETION_INQUIRY_HREF} variant="primary">1:1 문의로 탈퇴 요청하기</WcButton>

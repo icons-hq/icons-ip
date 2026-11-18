@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { INQUIRY_WITHDRAWAL_SCOPE } from '@/lib/account-deletion';
 import {
+  MEMBER_WITHDRAWAL_RETAINED,
+  memberWithdrawalConfirmMessage,
   memberWithdrawalErasedSummary,
   memberWithdrawalRpcError,
   normalizeMemberWithdrawalForm,
   parseInquiryReference,
+  parseMemberWithdrawalInquiry,
   parseMemberWithdrawalOutcome,
   parseMemberWithdrawalStatus,
 } from './member-withdrawal';
@@ -79,5 +83,33 @@ describe('탈퇴 처리 응답 검증', () => {
     expect(memberWithdrawalRpcError('cannot_withdraw_self')).toBe('본인 계정은 탈퇴 처리할 수 없습니다.');
     expect(memberWithdrawalRpcError('operator_capability_required')).toBe('이 계정을 탈퇴 처리할 권한이 없습니다.');
     expect(memberWithdrawalRpcError('boom')).toContain('처리하지 못했습니다');
+  });
+});
+
+describe('처리 전 문의 대조', () => {
+  const INQUIRY = { reference: 1234, category: 'account', title: '회원 탈퇴 요청합니다', createdAt: '2026-11-18T01:00:00+00:00' };
+
+  it('문의 요약을 검증하고, 그 회원의 문의가 아니면 null·모양이 다르면 undefined다', () => {
+    expect(parseMemberWithdrawalInquiry({ ...INQUIRY, status: 'open' })).toEqual(INQUIRY);
+    expect(parseMemberWithdrawalInquiry(null)).toBeNull();
+    expect(parseMemberWithdrawalInquiry({ ...INQUIRY, reference: 0 })).toBeUndefined();
+    expect(parseMemberWithdrawalInquiry({ ...INQUIRY, createdAt: 'yesterday' })).toBeUndefined();
+  });
+
+  it('확인 문구는 유형·제목·접수 시각을 보이고 계정 유형이 아니면 경고를 앞에 둔다', () => {
+    const account = memberWithdrawalConfirmMessage(INQUIRY);
+    expect(account).toMatch(/^문의 #1234 · 계정 · 회원 탈퇴 요청합니다 · 2026\. 11\. 18\./);
+    expect(account).toContain('되돌릴 수 없고');
+    const order = memberWithdrawalConfirmMessage({ ...INQUIRY, category: 'order', title: '배송 문의' });
+    expect(order).toMatch(/^주의: 이 문의는 '계정' 유형이 아닙니다\(주문\/배송\)/);
+  });
+});
+
+describe('남는 정보 고지의 원천', () => {
+  it('어드민 처리 화면은 고객 안내와 같은 목록(INQUIRY_WITHDRAWAL_SCOPE)에서 남는 항목을 만든다', () => {
+    const text = MEMBER_WITHDRAWAL_RETAINED.join('\n');
+    for (const item of INQUIRY_WITHDRAWAL_SCOPE.retained) expect(text).toContain(item);
+    expect(text).toContain(INQUIRY_WITHDRAWAL_SCOPE.transactionRecords);
+    expect(text).toContain('같은 이메일로 다시 가입할 수 없습니다');
   });
 });

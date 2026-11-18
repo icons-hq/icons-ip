@@ -1,5 +1,18 @@
 export const ACCOUNT_DELETION_CONFIRMATION = '회원 탈퇴를 신청합니다';
 
+/**
+ * 탈퇴 신청 기능이 꺼져 있는 동안 1:1 문의로 받은 탈퇴를 운영자가 처리할 때(admin_process_member_withdrawal) 지우는 것과
+ * 남는 것. hard delete가 아니라서 남는 정보가 있다 — 고객 안내(회원 탈퇴 화면)와 어드민 처리 화면이 이 목록 하나를 쓴다.
+ * 순서·끝 글자는 고객 문장의 조사('은')에 맞춰 둔다. 범위가 바뀌면 docs/account-deletion-retention-policy.md §5와 함께 바꾼다.
+ */
+export const INQUIRY_WITHDRAWAL_SCOPE = {
+  erased: ['배송지', '인증한 휴대폰 번호', '마케팅 정보 수신 동의', '성별·활동 기록', '재입고 알림 신청'],
+  retained: ['회원 프로필(이메일·닉네임·생년월일·프로필 사진)', '1:1 문의·리뷰·커뮤니티 작성물', '보유 카드·카드팩·위시·알림함'],
+  transactionRecords: '주문·결제·환불·티켓 거래 기록',
+  rejoin: '같은 이메일로는 다시 가입할 수 없어요',
+} as const;
+
+
 const blockerContracts = {
   active_order: '/orders',
   active_received_gift: '/gifts',

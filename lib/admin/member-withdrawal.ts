@@ -6,8 +6,9 @@
  * 재로그인 차단은 Supabase Auth 관리 API(ban)로 걸고 `admin_confirm_member_withdrawal_signin_block`이 DB에서 확인·기록한다.
  * 남는 항목과 이유는 docs/account-deletion-retention-policy.md §5.
  */
-import { parseAccountDeletionBlockers, type AccountDeletionBlocker, type AccountDeletionBlockerCode } from '@/lib/account-deletion';
+import { INQUIRY_WITHDRAWAL_SCOPE, parseAccountDeletionBlockers, type AccountDeletionBlocker, type AccountDeletionBlockerCode } from '@/lib/account-deletion';
 import { transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
+import { formatInquiryDateTime, inquiryCategoryLabel, isRestrictedMemberInquiryCategory } from '@/lib/inquiries';
 import { isUuid } from '@/lib/uuid';
 import type { AdminMemberFormResult } from './members';
 
@@ -45,12 +46,12 @@ export const MEMBER_WITHDRAWAL_EFFECTS = [
   '모든 기기의 로그인 세션 종료와 재로그인 차단',
 ] as const;
 
-/** 지우지 않고 남는 것. 정책(hard delete·법정 snapshot 분리)의 선행 조건이 준비될 때까지 남긴다. */
-export const MEMBER_WITHDRAWAL_RETAINED = [
-  '주문·결제·환불·티켓 등 거래 기록(전자상거래법에 따른 보관)',
-  '회원 프로필(이메일·닉네임·생년월일)과 로그인 계정 — 완전 삭제 절차 준비 전까지 정지 상태로 남습니다',
-  '1:1 문의·리뷰·커뮤니티 작성물, 보유 카드·카드팩, 위시·알림함',
-] as const;
+/** 지우지 않고 남는 것(고객 안내와 같은 원천 INQUIRY_WITHDRAWAL_SCOPE). 정책(hard delete·법정 snapshot 분리)의 선행 조건이 준비될 때까지 남긴다. */
+export const MEMBER_WITHDRAWAL_RETAINED: readonly string[] = [
+  `${INQUIRY_WITHDRAWAL_SCOPE.transactionRecords}(전자상거래법에 따른 보관)`,
+  `${INQUIRY_WITHDRAWAL_SCOPE.retained[0]}과 로그인 계정 — 완전 삭제 절차 준비 전까지 정지 상태로 남고, 같은 이메일로 다시 가입할 수 없습니다`,
+  ...INQUIRY_WITHDRAWAL_SCOPE.retained.slice(1),
+];
 
 /** 운영자가 보는 진행 중 의무 이름. 고객 화면 이름과 같은 코드 계약(lib/account-deletion)이다. */
 export const MEMBER_WITHDRAWAL_BLOCKER_LABELS: Record<AccountDeletionBlockerCode, string> = {
@@ -171,6 +172,31 @@ export function parseMemberWithdrawalOutcome(value: unknown): MemberWithdrawalOu
   if (value.status !== 'processed') return null;
   const erased = parseErased(value.erased);
   return erased ? { status: 'processed', withdrawal, erased, revokedSessions: value.revokedSessions } : null;
+}
+
+/** 처리 전 확인창이 보여주는 문의 요약(admin_member_withdrawal_inquiry). 운영자가 탈퇴를 요청한 문의가 맞는지 대조한다. */
+export interface MemberWithdrawalInquiry {
+  reference: number;
+  category: string;
+  title: string;
+  createdAt: string;
+}
+
+/** 그 회원의 문의가 아니면 null(RPC가 null), 모양이 다르면 undefined. */
+export function parseMemberWithdrawalInquiry(value: unknown): MemberWithdrawalInquiry | null | undefined {
+  if (value === null) return null;
+  if (!transactionRecord(value) || !transactionInteger(value.reference, 1) || typeof value.category !== 'string'
+    || typeof value.title !== 'string' || !transactionInstant(value.createdAt)) return undefined;
+  return { reference: value.reference, category: value.category, title: value.title, createdAt: value.createdAt };
+}
+
+/** 되돌릴 수 없는 처리 직전의 확인 문구. 계정 유형이 아닌 문의면 경고를 앞에 둔다. */
+export function memberWithdrawalConfirmMessage(inquiry: MemberWithdrawalInquiry): string {
+  const summary = `문의 #${inquiry.reference} · ${inquiryCategoryLabel(inquiry.category)} · ${inquiry.title} · ${formatInquiryDateTime(inquiry.createdAt)} 접수`;
+  const warning = isRestrictedMemberInquiryCategory(inquiry.category)
+    ? ''
+    : `주의: 이 문의는 '계정' 유형이 아닙니다(${inquiryCategoryLabel(inquiry.category)}). 탈퇴를 요청한 문의가 맞는지 다시 확인해주세요.\n\n`;
+  return `${warning}${summary}\n\n이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지운 뒤 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 위 문의의 탈퇴 요청을 처리할까요?`;
 }
 
 /** RPC 오류를 운영자 문구로. 모르는 오류는 일반 실패로 접는다. */
