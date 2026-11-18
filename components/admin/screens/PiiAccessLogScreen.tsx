@@ -63,7 +63,7 @@ export function PiiAccessLogScreen({ data, filters }: { data: PiiAccessLogData; 
   };
   return <section aria-label="개인정보 접속기록" className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="pii-access-log">
     <AdminNotice title="운영자가 고객 개인정보를 열람·검색·내려받은 기록입니다.">
-      <p>고객 상세·주문 상세(목록 위 팝업 포함)·클레임 상세 열람, 이름·연락처·이메일로 한 주문 검색, 회수지·재배송지·환불계좌 원문 확인, 개인정보가 담긴 엑셀·출고지시 파일 내려받기를 누가·언제·어디서(IP)·누구의 정보를 처리했는지 남깁니다. 개인정보 원문(이름·연락처·주소·검색어)은 남기지 않습니다.</p>
+      <p>고객 상세·회원 상세·주문 상세(목록 위 팝업 포함)·클레임 상세 열람, 회원 검색과 이름·연락처·이메일로 한 주문·클레임·발송 목록 검색, 회수지·재배송지·환불계좌 원문 확인, 개인정보가 담긴 엑셀·출고지시 파일 내려받기를 누가·언제·어디서(IP)·누구의 정보를 처리했는지 남깁니다. 개인정보 원문(이름·연락처·주소·검색어)은 남기지 않습니다.</p>
       <p>기록은 {PII_ACCESS_LOG_RETENTION_YEARS}년 보관한 뒤 자동으로 지워지며 누구도 고치거나 지울 수 없습니다. 이 화면을 열거나 목록을 내려받은 기록도 남습니다. 한 달에 한 번 이상 이상 징후를 점검하고 경위를 확인해주세요.</p>
     </AdminNotice>
     <ConsoleFilterPanel action={PII_ACCESS_LOG_PATH} className="[&_[data-console-filter=period]>div>div:last-child]:flex-wrap" idPrefix="pii-access-log"
@@ -95,8 +95,8 @@ export function PiiAccessLogScreen({ data, filters }: { data: PiiAccessLogData; 
         </AdminSelect>
       </ConsoleFilterField>
       <ConsoleFilterField className="min-w-[min(100%,20rem)] flex-1" htmlFor="pii-access-log-subject" label="대상 ID">
-        <Input autoComplete="off" defaultValue={filters.subject ?? ''} id="pii-access-log-subject" name="subject" placeholder="회원·주문·클레임·배송 건 ID" spellCheck={false} />
-        <span className="text-xs text-muted-foreground">회원 ID를 넣으면 그 회원의 주문·클레임을 본 기록도 함께 찾습니다.</span>
+        <Input autoComplete="off" defaultValue={filters.subject ?? ''} id="pii-access-log-subject" name="subject" placeholder="회원·주문·클레임·배송 건·선물·리뷰 ID" spellCheck={false} />
+        <span className="text-xs text-muted-foreground">회원 ID를 넣으면 그 회원의 주문·클레임·선물·리뷰를 본 기록도 함께 찾습니다.</span>
       </ConsoleFilterField>
     </ConsoleFilterPanel>
     {filters.adjusted ? <AdminNotice role="status" title="조회 조건 일부를 기본값으로 바꿔 조회했습니다." tone="warning">
