@@ -290,7 +290,7 @@ push하는 설정은 아니다.
 
 Vercel Git 연결은 프로젝트 메타데이터용으로 유지하지만, `vercel.json`의 `git.deploymentEnabled: false`로 Vercel Git 자동 배포는 생성하지 않는다. Preview와 production 배포 경로는 GitHub Actions의 Vercel CLI deploy만 사용한다.
 
-`deploy-supabase`는 Supabase Auth Site URL, shared/recovery Redirect URLs, email link/OTP TTL 3,600초, confirmation/rate-limit, 비밀번호 변경 가드와 변경 알림 설정을 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 같은 read-only catalog canary로 production baseline을 즉시 확인한다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 migration과 template를 제외한 Auth 설정은 이미 적용됐을 수 있다. 새 token-hash handler가 Production에 성공적으로 배포된 뒤에만 `deploy-vercel`의 마지막 단계가 version-controlled recovery template를 활성화하고 read-back한다.
+`deploy-supabase`는 Supabase Auth Site URL, shared/recovery Redirect URLs, email link/OTP TTL 3,600초, confirmation/rate-limit, 비밀번호 변경 가드와 변경 알림 설정을 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 데이터와 무관한 read-only catalog readback(`supabase/tests/catalog_production_readback.sql`)으로 공개 카탈로그 읽기를 즉시 확인한다. Production 카탈로그는 운영자가 관리하므로 seed 시연 카탈로그를 고정하는 `catalog_baseline.sql`은 seed가 있는 preview·로컬 smoke에서만 돈다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 migration과 template를 제외한 Auth 설정은 이미 적용됐을 수 있다. 새 token-hash handler가 Production에 성공적으로 배포된 뒤에만 `deploy-vercel`의 마지막 단계가 version-controlled recovery template를 활성화하고 read-back한다.
 
 배포 workflow에는 다음 GitHub Secrets가 필요하다.
 
