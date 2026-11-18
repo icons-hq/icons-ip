@@ -61,7 +61,7 @@ async function revealed(auth: Auth, claimId: string, surface: 'claim.contact' | 
   try {
     await recordPiiAccess({ actorId: auth.actorId, action: 'reveal', surface, path, subjectKind: 'claim', subjectIds: [claimId], detail });
   } catch (error) {
-    if (error instanceof PiiAccessLogError) fail('claim_contact_crypto_unavailable');
+    if (error instanceof PiiAccessLogError) fail('claim_contact_access_log_unavailable');
     throw error;
   }
 }

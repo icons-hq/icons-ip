@@ -76,7 +76,8 @@ describe('개인정보 접속기록(원문 확인·정정)', () => {
     const { PiiAccessLogError } = await import('@/lib/admin/pii-access-log.server');
     mocks.record.mockRejectedValue(new PiiAccessLogError());
     const response = await fetchClaimContactContext(contextRequest);
-    expect(response).toMatchObject({ code: 'claim_contact_crypto_unavailable' });
+    expect(response).toMatchObject({ code: 'claim_contact_access_log_unavailable', recoveryOnly: true, uncertain: false });
+    expect((response as { message: string }).message).toContain('개인정보 접속기록을 남기지 못해');
     expect(JSON.stringify(response)).not.toContain(address.recipientName);
   });
   it('원문이 없는 거절 응답은 기록하지 않고, 저장된 정정은 실패해도 결과를 바꾸지 않는 정정 기록을 남긴다', async () => {
