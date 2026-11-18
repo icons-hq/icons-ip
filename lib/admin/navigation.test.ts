@@ -147,7 +147,7 @@ describe('어드민 IA 정의', () => {
 
   it('그룹상품 등록·조회는 사이드바에서만 숨기고 라우트·화면 판정은 그대로 둔다', () => {
     const hidden = ADMIN_SCREENS.filter((screen) => screen.navHidden).map((screen) => screen.id);
-    expect(hidden).toEqual(['gifts', 'subscriptions', 'goods-groups-create', 'goods-groups']);
+    expect(hidden).toEqual(['gifts', 'subscriptions', 'goods-groups-create', 'goods-groups', 'my-security']);
     const visible = visibleAdminNavGroups('admin').flatMap((group) => group.screens.map((screen) => screen.id));
     for (const id of hidden) expect(visible).not.toContain(id);
     expect(adminScreenForPath('/admin/catalog/groups')?.id).toBe('goods-groups');
