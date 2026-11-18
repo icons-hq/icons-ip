@@ -41,7 +41,12 @@ describe('선물 품목의 랜덤 판매 옵션 가림', () => {
     expect((await loadGifts('sender')).items.map(variantNames)).toEqual([['빨강', '랜덤']]);
     mocks.cookie = Buffer.alloc(32, 7).toString('base64url');
     expect(variantNames(await loadGiftInvitation())).toEqual(['빨강', '랜덤']);
-    expect(mocks.lookups).toEqual(Array(3).fill({ p_good_ids: ['select-good', 'random-good'] }));
+    /* 받기 전 초대는 초대 세션으로 그 선물의 품목임을 밝힌다(공개가 아닌 굿즈도 본인 선물 품목이면 답한다). */
+    expect(mocks.lookups).toEqual([
+      { p_good_ids: ['select-good', 'random-good'] },
+      { p_good_ids: ['select-good', 'random-good'] },
+      { p_good_ids: ['select-good', 'random-good'], p_gift_session_hash: expect.stringMatching(/^[a-f0-9]{64}$/) },
+    ]);
   });
 
   it('랜덤 판매 여부를 읽지 못하면 옵션명을 그대로 내보내지 않는다', async () => {

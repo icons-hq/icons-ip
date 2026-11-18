@@ -21,7 +21,15 @@
 --        - my_order_line_goods: 본인 주문 품목 줄의 썸네일·IP·판매 제한(MD-0036). 상품이
 --          나중에 내려가거나 19금 인증이 만료돼도 본인이 산 줄은 지금처럼 보강된다.
 --        - get_random_option_good_ids: 선물 품목의 랜덤 판매 옵션명 가림(ADR-0027). 상품이
---          내려가도 실제 배정 옵션명이 새지 않게 판매 방식만 돌려준다(fail-closed 유지).
+--          내려가도 실제 배정 옵션명이 새지 않게 판매 방식만 돌려준다(fail-closed 유지). 공개가
+--          아닌 상품은 호출자 본인의 선물(보낸·받은·초대 세션) 품목에 있을 때만 답한다.
+--   5. 같은 경계를 우회하던 공개 읽기를 닫는다.
+--        - 계산 열 goods_random_option(goods)은 위조한 goods 행으로 RPC를 직접 부르면 초안 랜덤
+--          상품의 가격·재고를 돌려줬다(게시 조건이 없었다). 게시 조건을 더한다. goods·옵션 행을
+--          인자로 받는 다른 공개 계산 열(가격·공급·판매 기간·추가 구성)은 이미 공개 판정이 있고,
+--          재고 합계·운영자 계산 열은 catalog.read를 요구한다.
+--        - reward_policies(using true)는 초안·19금 대상 상품 id를 익명에게 나열했다. 고객 화면은
+--          이 표를 읽지 않으므로(운영 콘솔은 정의자 RPC) 대상 상품이 그 세션에 보이는 행만 연다.
 --
 -- 범위 밖(이 migration이 바꾸지 않는 것):
 --   - ips·cards·events 공개 읽기(#451의 나머지)와 public-media 공개 버킷의 직접 URL.
@@ -179,35 +187,117 @@ grant execute on function public.my_order_line_goods(text[]) to authenticated;
 -- 5. 선물 품목의 랜덤 판매 여부
 -- ---------------------------------------------------------------------------
 -- 선물 화면은 랜덤 판매로 바뀐 상품의 품목 스냅샷 옵션명을 '랜덤'으로 가린다. 판매 방식을
--- 못 읽으면 가리지 못하므로, 상품이 내려가도 판매 방식은 읽혀야 한다. 넘긴 id 중 랜덤 판매인
--- 것만 돌려준다 — 모르는 id의 존재·이름은 드러나지 않는다. 선물 초대는 로그인 전에도 열린다.
-create function public.get_random_option_good_ids(p_good_ids text[])
+-- 못 읽으면 가리지 못하므로, 상품이 내려가도 판매 방식은 읽혀야 한다. 다만 아무 id나 넣어
+-- 초안·보관 랜덤 상품의 존재를 확인하지 못하게, 넘긴 id 중 다음에 해당하는 랜덤 판매 상품만
+-- 답한다: 지금 그 세션에 공개인 상품, 호출자가 보내거나 받은 선물의 품목, 호출자가 연 선물
+-- 초대 세션(p_gift_session_hash)의 품목. 선물 화면은 모두 로그인 뒤라 익명에는 열지 않는다.
+create function public.get_random_option_good_ids(p_good_ids text[], p_gift_session_hash text default null)
 returns setof text
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $function$
+declare
+  actor uuid := (select auth.uid());
+  invited_gift uuid;
 begin
+  if actor is null then
+    raise insufficient_privilege using message = 'auth required';
+  end if;
   if p_good_ids is null or cardinality(p_good_ids) > 1000 then
     raise invalid_parameter_value using message = 'invalid_random_option_goods';
+  end if;
+  if p_gift_session_hash is not null then
+    invited_gift := private.gift_session_id(p_gift_session_hash, statement_timestamp());
   end if;
   return query
   select good.id
   from public.goods good
+  join public.ips ip on ip.id = good.ip_id
   where good.id = any(p_good_ids)
     and good.option_sale_mode = 'random'
+    and (
+      (good.published_at is not null and good.archived_at is null
+        and ip.published_at is not null and ip.archived_at is null
+        and private.good_sale_restriction_visible(good.sale_restriction, actor))
+      or exists (
+        select 1
+        from private.gift_items item
+        join private.gift_intents gift on gift.id = item.gift_id
+        where item.good_id = good.id
+          and (gift.sender_id = actor or gift.recipient_id = actor or gift.id = invited_gift)
+      )
+    )
   order by good.id;
 end;
 $function$;
 
-comment on function public.get_random_option_good_ids(text[]) is
-  '넘긴 상품 id 중 랜덤 판매(ADR-0027)인 것. 선물 품목 옵션명 가림용이라 공개 상태와 무관하다.';
+comment on function public.get_random_option_good_ids(text[], text) is
+  '넘긴 상품 id 중 랜덤 판매(ADR-0027)인 것. 공개 상품이거나 호출자 본인 선물(보낸·받은·초대 세션)의 품목일 때만 답한다.';
 
-revoke all on function public.get_random_option_good_ids(text[]) from public, anon, authenticated, service_role;
-grant execute on function public.get_random_option_good_ids(text[]) to anon, authenticated;
+revoke all on function public.get_random_option_good_ids(text[], text) from public, anon, authenticated, service_role;
+grant execute on function public.get_random_option_good_ids(text[], text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 6. 운영자 정책 계약
+-- 6. 계산 열 goods_random_option — 게시 조건
+-- ---------------------------------------------------------------------------
+-- 계산 열은 PostgREST에서 RPC로도 불린다(POST /rpc/goods_random_option {"good":{"id":...}}).
+-- 인자 행은 호출자가 지어낼 수 있으므로 본문이 id로 다시 읽은 행에 공개 판정을 건다. 지금
+-- 본문에는 보관·IP·판매 제한 조건만 있고 게시 조건이 빠져 있다. 본문은 앵커 치환으로만 고친다.
+create function private.t5_patch_function(p_function regprocedure, p_pairs text[]) returns void
+language plpgsql set search_path = '' as $helper$
+declare definition text := pg_catalog.pg_get_functiondef(p_function); i integer;
+begin
+  if pg_catalog.array_length(p_pairs, 1) is null or pg_catalog.array_length(p_pairs, 1) % 2 <> 0 then
+    raise exception 't5 patch pairs';
+  end if;
+  for i in 1 .. pg_catalog.array_length(p_pairs, 1) / 2 loop
+    if (pg_catalog.length(definition) - pg_catalog.length(pg_catalog.replace(definition, p_pairs[2 * i - 1], '')))
+      / pg_catalog.length(p_pairs[2 * i - 1]) <> 1 then
+      raise exception 't5_anchor_changed: % anchor % must appear once', p_function, i;
+    end if;
+    definition := pg_catalog.replace(definition, p_pairs[2 * i - 1], p_pairs[2 * i]);
+  end loop;
+  execute definition;
+  if exists (select 1 from private.operator_internal_contracts contract where contract.signature::regprocedure = p_function) then
+    perform private.register_operator_internal_contract(p_function);
+  end if;
+end $helper$;
+revoke all on function private.t5_patch_function(regprocedure, text[]) from public, anon, authenticated, service_role;
+
+select private.t5_patch_function('public.goods_random_option(public.goods)'::regprocedure, array[
+$a$  where current_good.id=good.id and current_good.option_sale_mode='random' and current_good.archived_at is null$a$,
+$a$  where current_good.id=good.id and current_good.option_sale_mode='random' and current_good.archived_at is null
+    and current_good.published_at is not null$a$
+]);
+
+drop function private.t5_patch_function(regprocedure, text[]);
+
+-- ---------------------------------------------------------------------------
+-- 7. 뽑기권 발급 정책 — 대상 상품이 보이는 행만
+-- ---------------------------------------------------------------------------
+-- 고객 화면은 이 표를 읽지 않는다(발급은 주문 확정 정의자 경로, 운영 콘솔은 admin_list_reward_policies).
+-- 상품 대상 정책은 대상 상품이 그 세션에 보일 때만(하위 조회가 goods RLS를 거친다), IP 단위 정책은 그대로다.
+drop policy reward_policies_read on public.reward_policies;
+create policy reward_policies_public_read on public.reward_policies
+  for select
+  to anon, authenticated
+  using (
+    target_good_id is null
+    or exists (
+      select 1
+      from public.goods good
+      where good.id = reward_policies.target_good_id
+    )
+  );
+create policy reward_policies_operator_read on public.reward_policies
+  for select
+  to authenticated
+  using ((select public.has_operator_capability('catalog.read')));
+
+-- ---------------------------------------------------------------------------
+-- 8. 운영자 정책 계약
 -- ---------------------------------------------------------------------------
 select private.register_operator_policy_contract('public.goods'::regclass, 'goods_operator_read', 'catalog.read');
+select private.register_operator_policy_contract('public.reward_policies'::regclass, 'reward_policies_operator_read', 'catalog.read');
