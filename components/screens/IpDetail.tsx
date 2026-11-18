@@ -288,7 +288,7 @@ export function IpDetail({
               }}
               query={goodsCollection.query}
               result={goodsCollection.result}
-              sheetDescription="원하는 타입과 가격을 골라보세요."
+              sheetDescription={goodsCollection.result.typeFacets.length > 0 ? '원하는 타입과 가격을 골라보세요.' : '원하는 가격을 골라보세요.'}
               showIpFacet={false}
               sorts={SHOP_VIEW_SORTS.ip}
               wishlist={wishlist}

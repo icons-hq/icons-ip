@@ -4,8 +4,6 @@ import {
   categoryActivationLabel,
   categoryDepthMap,
   categoryDescendantIds,
-  categoryGoodType,
-  categoryGoodTypeSource,
   categoryParentOptions,
   categoryPath,
   isCategoryLeaf,
@@ -57,22 +55,14 @@ describe('category domain contract', () => {
   });
 });
 
-/* SHEET-003(ADR-0037): 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값. DB private.goods_category_type과 같은 규칙이다. */
-describe('category good type', () => {
-  const typed = nodes.map((node) => ({ ...node, goodType: node.code === 'life' ? '문구' : node.code === 'notebook' ? '쿠션' : null }));
-  it('takes the nearest linked type and says where it came from', () => {
-    expect(categoryGoodTypeSource(typed, nodes[3].id)).toEqual({ type: '쿠션', categoryId: nodes[2].id, inherited: true });
-    expect(categoryGoodTypeSource(typed, nodes[2].id)).toEqual({ type: '쿠션', categoryId: nodes[2].id, inherited: false });
-    expect(categoryGoodTypeSource(typed, nodes[1].id)).toEqual({ type: '문구', categoryId: nodes[0].id, inherited: true });
-    expect(categoryGoodType(nodes, nodes[3].id)).toBe('');
-    expect(categoryGoodType(typed, '')).toBe('');
-    expect(categoryGoodType(typed, 'unknown')).toBe('');
-  });
-  it('normalizes the link field: blank clears, absent keeps, unknown types are rejected', () => {
+/* ADR-0044: 상품 유형 연결은 없다. 폼에 옛 goodType 값이 와도 읽지도 거절하지도 않는다. */
+describe('category form without good type', () => {
+  it('ignores a legacy goodType input and no longer reports invalid_good_type', () => {
     const base = { code: 'paper', name: '문구', parentId: null, sortOrder: '0' };
-    expect(normalizeCategoryForm({ ...base, goodType: '피규어' })).toMatchObject({ ok: true, value: { goodType: '피규어' } });
-    expect(normalizeCategoryForm({ ...base, goodType: '' })).toMatchObject({ ok: true, value: { goodType: '' } });
-    expect(normalizeCategoryForm(base)).toMatchObject({ ok: true, value: { goodType: null } });
-    expect(normalizeCategoryForm({ ...base, goodType: '포스터' })).toMatchObject({ ok: false, errors: { invalid_good_type: expect.any(String) } });
+    for (const goodType of [undefined, '', '피규어', '포스터']) {
+      const result = normalizeCategoryForm({ ...base, goodType });
+      expect(result).toMatchObject({ ok: true });
+      expect((result as { value: object }).value).not.toHaveProperty('goodType');
+    }
   });
 });

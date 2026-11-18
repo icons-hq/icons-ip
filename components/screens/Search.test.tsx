@@ -126,7 +126,7 @@ describe('Search 컬렉션 본문 (SR-01)', () => {
 
     expect(html).toContain('aria-label="굿즈 필터"');
     expect(html).toContain('IP (0)');
-    expect(html).toContain('타입 (0)');
+    expect(html).not.toContain('타입 (');
     expect(text(html)).toContain('리락쿠마 (2)');
     expect(text(html)).toContain('메이플스토리 (1)');
     expect(text(html)).toContain('전체 › 3개 결과');
@@ -197,10 +197,10 @@ describe('Search 페이지네이션 (SR-03)', () => {
   });
 
   it('필터·정렬을 페이지 링크에 그대로 싣고 1페이지 링크에는 page 를 빼 둔다', () => {
-    const html = render('keyring', many(85), { page: 2, params: { type: '키링', sort: 'price_desc' } });
+    const html = render('keyring', many(85), { page: 2, params: { type: '예약판매', sort: 'price_desc' } });
 
-    expect(html).toMatch(/href="\/search\?q=keyring&(amp;)?type=%ED%82%A4%EB%A7%81&(amp;)?sort=price_desc&(amp;)?page=3"/);
-    expect(html).toMatch(/href="\/search\?q=keyring&(amp;)?type=%ED%82%A4%EB%A7%81&(amp;)?sort=price_desc"/);
+    expect(html).toMatch(/href="\/search\?q=keyring&(amp;)?type=%EC%98%88%EC%95%BD%ED%8C%90%EB%A7%A4&(amp;)?sort=price_desc&(amp;)?page=3"/);
+    expect(html).toMatch(/href="\/search\?q=keyring&(amp;)?type=%EC%98%88%EC%95%BD%ED%8C%90%EB%A7%A4&(amp;)?sort=price_desc"/);
   });
 
   /* 데스크톱 10칸·모바일 5칸 고정 창 — 좁은 창 밖 셀은 모바일에서만 감춘다(11 §6 B8). */

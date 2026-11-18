@@ -40,7 +40,7 @@ function all(value: ReactNode): Element[] {
 }
 async function selectThrough(category: AdminCategoryNode) {
   hooks.index = 0; hooks.refIndex = 0;
-  const tree = all(CategoryScreen({ data: { categories: [first, second], mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }, canManagePlatform: false }))
+  const tree = all(CategoryScreen({ data: { categories: [first, second], mappings: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }, canManagePlatform: false }))
     .find(item => item.type === CategoryTree)!;
   await tree.props.onSelect?.(category);
 }
@@ -51,9 +51,9 @@ afterEach(() => { setAdminConfirmHandler(null); });
 it('수정 칸 값이 저장된 값과 같으면 변경 없음이고, 하나라도 다르면 변경 있음이다', async () => {
   const categories = [first, second];
   expect(categoryFormChanged(form(saved), first, categories)).toBe(false);
-  for (const change of [{ name: '생활잡화' }, { code: 'living' }, { parentId: second.id }, { sortOrder: '5' }, { goodType: '피규어' }] as Record<string, string>[]) expect(categoryFormChanged(form({ ...saved, ...change }), first, categories)).toBe(true);
-  /* SHEET-003: 상품 유형 연결도 저장된 값과 비교한다. */
-  expect(categoryFormChanged(form({ ...saved, goodType: '피규어' }), { ...first, goodType: '피규어' }, categories)).toBe(false);
+  for (const change of [{ name: '생활잡화' }, { code: 'living' }, { parentId: second.id }, { sortOrder: '5' }] as Record<string, string>[]) expect(categoryFormChanged(form({ ...saved, ...change }), first, categories)).toBe(true);
+  /* ADR-0044: 상품 유형 연결 칸이 없으므로 옛 값이 폼에 남아 있어도 변경으로 보지 않는다. */
+  expect(categoryFormChanged(form({ ...saved, goodType: '피규어' }), first, categories)).toBe(false);
   expect(categoryFormChanged(null, first, categories)).toBe(false);
 });
 

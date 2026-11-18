@@ -121,7 +121,7 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
       memberPurchaseLimitEnabled: values.memberPurchaseLimitEnabled === 'true',
       memberLifetimeQtyLimit: trimmed(values, 'memberLifetimeQtyLimit') ? Number(values.memberLifetimeQtyLimit) : null,
       ip: trimmed(values, 'ipId'),
-      type: trimmed(values, 'type') || '(카테고리 상품 유형 없음)',
+      type: trimmed(values, 'type'),
       price: basePrice,
       catalogPrice: basePrice,
       ...(options ? { options, ...optionPriceRange(options) } : {}),

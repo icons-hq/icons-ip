@@ -168,6 +168,13 @@ describe('checkoutMethodAvailable', () => {
 });
 
 describe('Checkout 결제수단 게이트', () => {
+  it('주문서 줄에 상품 유형을 그리지 않고, 판매가 끝난 상품만 판매 종료를 보인다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true });
+    expect(html).not.toContain('아크릴</span>');
+    expect(html).not.toContain('판매 종료');
+    const ended = render({ paymentAvailable: true, bankTransferAvailable: true, items: [{ goodId: 'g-gone', variantId: null, qty: 1 }], quote: null });
+    expect(ended).toContain('ICONS · 판매 종료');
+  });
   it('배송비가 확정되지 않으면 확정 결제 금액을 제시하거나 주문을 허용하지 않는다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: {
       totalFee: 3000, groups: [], checkoutAllowed: false, finalTotalFee: null, destination: null, nextChangeAt: null,

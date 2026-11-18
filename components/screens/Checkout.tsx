@@ -560,7 +560,7 @@ export function Checkout({
               return (
               <div className="checkout-item" data-sale-period-block={saleBlock ?? undefined} key={cartItemKey(goodId, variantId,customInputs)}>
                 <div>
-                  <span>{ip?.title ?? 'ICONS'} · {good?.type ?? '판매 종료'}</span>
+                  <span>{good ? (ip?.title ?? 'ICONS') : `${ip?.title ?? 'ICONS'} · 판매 종료`}</span>
                   <strong>{good?.name ?? goodId}</strong>
                   {optionName ? <span>{optionName}</span> : null}
                   <GoodsCustomInputsSummary selection={customInputs} />

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodTypeFromCategory, goodTypeSuggestion, GOOD_TYPE_CATEGORY_MESSAGES, orderedGoodErrors } from './good-workspace';
+import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodCategoryFailure, GOOD_CATEGORY_REQUIRED_MESSAGE, GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE, orderedGoodErrors } from './good-workspace';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
 
-const values = { name: '상품', ipId: 'ip', type: '키링', imagePath: 'path', originId: 'origin', noticeMaker: 'a', noticeOrigin: 'b', noticeMaterial: 'c', noticeSize: 'd', noticeMadeOn: 'e', noticeAsManager: 'f', noticeAsContact: 'g' };
+const values = { name: '상품', ipId: 'ip', type: '키링', categoryId: 'category', imagePath: 'path', originId: 'origin', noticeMaker: 'a', noticeOrigin: 'b', noticeMaterial: 'c', noticeSize: 'd', noticeMadeOn: 'e', noticeAsManager: 'f', noticeAsContact: 'g' };
 
 describe('상품 등록 카드와 필수 입력 안내', () => {
   it('카드 7장이 입력 섹션을 빠짐없이 한 번씩 묶는다', () => {
@@ -39,8 +39,8 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(done).toHaveLength(15);
     expect(goodRemainingByCard(done)).toEqual({ basic: 0, sales: 0, images: 0, notice: 0, delivery: 0 });
 
-    const missing = goodPublishRequirements({ values: { ...values, type: ' ', imagePath: '', noticeMaker: '' }, regularPrice: 0, hasStock: false, kcDone: false });
-    expect(missing.filter((item) => !item.done).map((item) => item.key)).toEqual(['type', 'regularPrice', 'stock', 'imagePath', 'noticeMaker', 'kc']);
+    const missing = goodPublishRequirements({ values: { ...values, categoryId: ' ', imagePath: '', noticeMaker: '' }, regularPrice: 0, hasStock: false, kcDone: false });
+    expect(missing.filter((item) => !item.done).map((item) => item.key)).toEqual(['category', 'regularPrice', 'stock', 'imagePath', 'noticeMaker', 'kc']);
     expect(goodRemainingByCard(missing)).toEqual({ basic: 1, sales: 2, images: 1, notice: 2, delivery: 0 });
     /* 필수 항목이 없는 카드는 표시하지 않는다. */
     expect(goodRemainingByCard(missing).description).toBeUndefined();
@@ -73,7 +73,7 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     const withoutIp: Record<string, string> = { ...saved };
     delete withoutIp.ipId;
     expect(changedGoodLockedFields(saved, withoutIp).map(([field]) => field)).toEqual(['ipId']);
-    expect(Object.keys(GOOD_PUBLISHED_LOCKS)).toEqual(['name', 'type', 'ipId', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize']);
+    expect(Object.keys(GOOD_PUBLISHED_LOCKS)).toEqual(['name', 'ipId', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize']);
   });
 
   it('지금 보는 카드는 읽는 선을 지난 마지막 카드다', () => {
@@ -143,50 +143,21 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(changed({}, [...rows, { name: '새 옵션', attributes: {} }])).toBe(true);
   });
 
-  it('대표 카테고리에서 상품 유형을 제안하고 맞는 유형이 없으면 제안하지 않는다', () => {
-    expect(goodTypeSuggestion(['문구', '아크릴 키링'])).toBe('키링');
-    expect(goodTypeSuggestion(['봉제', '미니인형'])).toBe('인형');
-    expect(goodTypeSuggestion(['지류', '스티커·엽서'])).toBe('문구');
-    expect(goodTypeSuggestion(['리빙', '컵·텀블러'])).toBeNull();
-    expect(goodTypeSuggestion([])).toBeNull();
+  it('서버의 대표 카테고리 규칙 오류를 계약 문구로 바꾸고 옛 상품 유형 코드는 바꾸지 않는다', () => {
+    expect(goodCategoryFailure('goods_category_required')).toBe(GOOD_CATEGORY_REQUIRED_MESSAGE);
+    expect(GOOD_CATEGORY_REQUIRED_MESSAGE).toBe('대표 카테고리를 고른 뒤 공개해주세요.');
+    expect(goodCategoryFailure('check_violation: goods_published_category_clear')).toBe(GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE);
+    expect(GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE).toBe('공개 중인 상품은 대표 카테고리를 비울 수 없습니다. 다른 카테고리를 고르거나 비공개로 전환한 뒤 비워주세요.');
+    for (const old of ['goods_type_category_required', 'goods_type_category_locked', 'goods_type_category_changed', 'other', '', null, undefined]) expect(goodCategoryFailure(old)).toBeNull();
   });
-});
-
-/* SHEET-003(ADR-0037): 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값. 화면 판정이고 저장·공개 판정은 서버가 한다. */
-describe('상품 유형을 대표 카테고리에서 파생', () => {
-  const categories = [
-    { id: 'root', parentId: null, goodType: '피규어' },
-    { id: 'leaf', parentId: 'root', goodType: null },
-    { id: 'doll', parentId: 'root', goodType: '인형' },
-    { id: 'none', parentId: null, goodType: null },
-  ];
-  it('초안은 연결값을 싣고, 연결이 없으면 저장된 값을 그대로 둔다(공개는 막힌다)', () => {
-    expect(goodTypeFromCategory({ categories, categoryId: 'leaf', initialCategoryId: 'leaf', storedType: '문구', published: false }))
-      .toEqual({ category: { type: '피규어', categoryId: 'root', inherited: true }, submitted: '피규어', categoryChangeProblem: null, publishedMismatch: null });
-    expect(goodTypeFromCategory({ categories, categoryId: 'none', initialCategoryId: 'none', storedType: '문구', published: false }).submitted).toBe('문구');
-    expect(goodTypeFromCategory({ categories, categoryId: '', initialCategoryId: '', storedType: '', published: false }).submitted).toBe('');
-  });
-  it('공개 중이면 저장된 유형을 유지하고, 유형이 바뀌는 카테고리 변경은 막고, 그대로면 경고만 한다', () => {
-    const published = { categories, initialCategoryId: 'leaf', storedType: '피규어', published: true };
-    expect(goodTypeFromCategory({ ...published, categoryId: 'leaf' })).toMatchObject({ submitted: '피규어', categoryChangeProblem: null, publishedMismatch: null });
-    expect(goodTypeFromCategory({ ...published, categoryId: 'root' })).toMatchObject({ submitted: '피규어', categoryChangeProblem: null });
-    expect(goodTypeFromCategory({ ...published, categoryId: 'doll' }).categoryChangeProblem).toBe(GOOD_TYPE_CATEGORY_MESSAGES.locked);
-    expect(goodTypeFromCategory({ ...published, categoryId: 'none' }).categoryChangeProblem).toBe(GOOD_TYPE_CATEGORY_MESSAGES.required);
-    expect(goodTypeFromCategory({ ...published, categoryId: '' }).categoryChangeProblem).toBe(GOOD_TYPE_CATEGORY_MESSAGES.required);
-    expect(goodTypeFromCategory({ ...published, initialCategoryId: 'doll', categoryId: 'doll' })).toMatchObject({ submitted: '피규어', categoryChangeProblem: null, publishedMismatch: 'different' });
-    expect(goodTypeFromCategory({ ...published, initialCategoryId: 'none', categoryId: 'none' }).publishedMismatch).toBe('missing');
-    expect(goodTypeFromCategory({ ...published, initialCategoryId: '', categoryId: '' }).publishedMismatch).toBe('no-category');
-  });
-  it('판매 준비 사유는 카테고리 칸으로 안내하고, 초안의 유형 불일치는 공개를 막는 항목이다', () => {
-    expect(goodReadinessReasonAnchor({ code: 'type_missing', target: 'basic' })).toBe('good-section-category');
-    expect(goodReadinessReasonAnchor({ code: 'type_category_mismatch', target: 'basic' })).toBe('good-section-category');
-    expect(goodReadinessReasonAnchor({ code: 'type_no_category', target: 'basic' })).toBe('good-section-category');
-    expect(GOODS_READINESS_REASONS.type_no_category.label).toBe('대표 카테고리 없음');
-    expect(GOODS_READINESS_REASONS.type_no_category.detail).toContain('대표로 고르면 공개를 유지한 채');
-    expect(goodReadinessAction('type_missing')).toBe('카테고리 상품 유형 확인하기');
-    expect(GOODS_READINESS_REASONS.type_missing.label).toBe('카테고리에 상품 유형 연결 필요');
+  it('판매 준비 사유 category_missing은 카테고리 칸으로 안내하고, 초안에서는 공개를 막는 항목이다', () => {
+    expect(goodReadinessReasonAnchor({ code: 'category_missing', target: 'basic' })).toBe('good-section-category');
+    expect(GOODS_READINESS_REASONS.category_missing).toEqual({ label: '대표 카테고리 없음', detail: '대표 카테고리를 골라야 공개할 수 있습니다. 공개 중인 상품도 대표 카테고리를 정해 두세요.', target: 'basic' });
+    expect(goodReadinessAction('category_missing')).toBe('대표 카테고리 고르기');
+    for (const old of ['type_missing', 'type_category_mismatch', 'type_no_category']) expect(GOODS_READINESS_REASONS).not.toHaveProperty(old);
     const reason = (code: GoodsReadinessReasonCode) => ({ code, ...GOODS_READINESS_REASONS[code], kind: 'blocking' as const });
-    const readiness: AdminGoodsReadiness = { ...unknownGoodsReadiness(), state: 'blocked', publication: 'draft', reasons: [reason('draft'), reason('type_category_mismatch')] };
+    const readiness: AdminGoodsReadiness = { ...unknownGoodsReadiness(), state: 'blocked', publication: 'draft', reasons: [reason('draft'), reason('category_missing')] };
     expect(goodReadinessPlan(readiness).publish).toBeNull();
+    expect(goodReadinessPlan(readiness).next?.code).toBe('category_missing');
   });
 });
