@@ -8,8 +8,9 @@
 -- goods.base_revision은 그 기본 칸의 버전이다. goods.updated_at은 쓰지 않는다 — 주문·결제 만료가 옵션 재고를 바꾸면
 -- goods.stock_qty 캐시(refresh_goods_variant_stock)가 갱신되며 updated_at도 바뀌어, 판매 중인 상품마다 저장이 충돌로 막힌다.
 -- 버전은 트리거가 올리므로 어느 쓰기 경로(편집 저장·등록 workspace·목록 일괄·바로 수정·ERP 반영·엑셀 반입·그룹 공통정보·
--- 배송 템플릿 적용)든 기본 칸이 실제로 바뀌면 함께 오른다. 같은 값을 다시 쓰는 저장, 재고·공개 상태·KC 고지·판매 제한·
--- 결제 수단처럼 편집 화면이 쓰지 않거나 따로 지키는 칸은 버전을 올리지 않는다.
+-- 배송 템플릿 적용)든 기본 칸이 실제로 바뀌면 함께 오른다(목록 판매 중지·재개가 바꾸는 판매상태 goods.stock 포함).
+-- 같은 값을 다시 쓰는 저장, 재고 수량(stock_qty)·공개 상태·KC 고지·판매 제한·결제 수단처럼 편집 화면이 쓰지 않거나
+-- 따로 지키는 칸은 버전을 올리지 않는다.
 --
 -- 상품 유형(type)은 대표 카테고리에서 파생되고(공개 전환 때 다시 맞출 수 있다) 저장 RPC가 같은 규칙으로 다시 정하므로 넣지 않는다.
 -- 대표 카테고리(category_id)가 들어가 있어 유형 변경도 대부분 함께 잡힌다.
@@ -127,13 +128,23 @@ $a$    where id = coalesce(nullif(target_good->>'previous_id', ''), target_good-
 $a$
 ]);
 
+-- 그룹 공통정보 저장은 구성 상품의 공통 칸만 바꾸고 나머지 칸(개별 칸)이 그대로인지 행 전체로 견준다. 공통 칸이 바뀌면
+-- 기본 칸 버전도 함께 오르므로, 그 비교에서 updated_at처럼 base_revision을 뺀다(개별 칸 변경 판정은 그대로).
+select private.t2_patch_function('public.admin_save_goods_group_common(uuid,bigint,jsonb,uuid,uuid,uuid)'::regprocedure, array[
+$a$'published_at','updated_at','kc_disclosures']) into individual_before$a$,
+$a$'published_at','updated_at','kc_disclosures','base_revision']) into individual_before$a$,
+$a$'published_at','updated_at','kc_disclosures']) into individual_after$a$,
+$a$'published_at','updated_at','kc_disclosures','base_revision']) into individual_after$a$
+]);
+
 -- 운영자 계약 지문: 다시 정의한 함수는 기존 분류 그대로 다시 등록한다.
 do $$
 declare fn regprocedure; contract private.operator_rpc_contracts;
 begin
   foreach fn in array array[
     'public.admin_save_good(jsonb)'::regprocedure,
-    'private.apply_goods_additional_categories(text,uuid[])'::regprocedure] loop
+    'private.apply_goods_additional_categories(text,uuid[])'::regprocedure,
+    'public.admin_save_goods_group_common(uuid,bigint,jsonb,uuid,uuid,uuid)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then
