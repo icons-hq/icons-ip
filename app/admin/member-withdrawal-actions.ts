@@ -7,11 +7,15 @@ import {
   memberWithdrawalErasedSummary,
   memberWithdrawalRpcError,
   normalizeMemberWithdrawalForm,
+  parseInquiryReference,
+  parseMemberWithdrawalInquiry,
   parseMemberWithdrawalOutcome,
+  type MemberWithdrawalInquiry,
 } from '@/lib/admin/member-withdrawal';
 import { banWithdrawnMemberSignin, getMemberWithdrawalStatus } from '@/lib/admin/member-withdrawal.server';
 import { normalizeAdminMemberDetailForm } from '@/lib/admin/members';
 import { createClient } from '@/lib/supabase/server';
+import { isUuid } from '@/lib/uuid';
 
 export interface MemberWithdrawalActionState {
   errors?: Record<string, string>;
@@ -33,6 +37,35 @@ async function applySigninBlock(supabase: Awaited<ReturnType<typeof createClient
   if (!await banWithdrawnMemberSignin(profileId)) return false;
   const { error } = await supabase.rpc('admin_confirm_member_withdrawal_signin_block', { target_profile_id: profileId });
   return !error;
+}
+
+export type MemberWithdrawalInquiryPreview = { ok: true; inquiry: MemberWithdrawalInquiry } | { ok: false; error: string };
+
+/**
+ * 처리 직전 확인창이 보여줄 문의 요약(유형·제목·작성일). 그 회원이 쓴 문의가 아니면 처리 전에 멈춘다.
+ * 읽기만 하고, 같은 판정을 처리 RPC가 다시 한다.
+ */
+export async function previewMemberWithdrawalInquiryAction(
+  profileIdValue: unknown,
+  inquiryReferenceValue: unknown,
+): Promise<MemberWithdrawalInquiryPreview> {
+  if (!await requireAdminActionAccess('/admin/community/members', { capability: 'platform.manage' })) {
+    return { ok: false, error: '관리자 권한이 필요합니다.' };
+  }
+  const profileId = typeof profileIdValue === 'string' ? profileIdValue.trim().toLowerCase() : '';
+  const reference = typeof inquiryReferenceValue === 'string' ? parseInquiryReference(inquiryReferenceValue) : null;
+  if (!isUuid(profileId)) return { ok: false, error: '회원을 찾을 수 없습니다.' };
+  if (reference === null) return { ok: false, error: '탈퇴를 요청한 1:1 문의 번호(숫자)를 입력해주세요.' };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_member_withdrawal_inquiry', {
+    target_profile_id: profileId, target_inquiry_reference: reference,
+  });
+  if (error) return { ok: false, error: memberWithdrawalRpcError(error.message) };
+  const inquiry = parseMemberWithdrawalInquiry(data);
+  if (inquiry === null) return { ok: false, error: memberWithdrawalRpcError('member_withdrawal_inquiry_not_found') };
+  if (!inquiry) return { ok: false, error: '문의를 확인하지 못했습니다. 다시 시도해주세요.' };
+  return { ok: true, inquiry };
 }
 
 /**

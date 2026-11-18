@@ -1,6 +1,6 @@
 const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { processMemberWithdrawalAction, retryMemberWithdrawalSigninBlockAction } from './member-withdrawal-actions';
+import { previewMemberWithdrawalInquiryAction, processMemberWithdrawalAction, retryMemberWithdrawalSigninBlockAction } from './member-withdrawal-actions';
 
 const MEMBER = '00000000-0000-4000-8000-000000000301';
 const PROCESSED_AT = '2026-11-18T10:00:00+00:00';
@@ -121,5 +121,24 @@ describe('탈퇴 요청 처리 액션', () => {
 
     rpcResults({ admin_confirm_member_withdrawal_signin_block: { data: null, error: { message: 'member_withdrawal_signin_not_blocked' } } });
     expect((await retryMemberWithdrawalSigninBlockAction({}, form())).errors?.form).toContain('적용하지 못했습니다');
+  });
+
+  it('처리 전 대조는 그 회원의 문의 요약만 돌려주고 권한·입력·소유를 먼저 확인한다', async () => {
+    rpcResults({ admin_member_withdrawal_inquiry: { data: { reference: 1234, category: 'account', title: '회원 탈퇴 요청', status: 'open', createdAt: PROCESSED_AT }, error: null } });
+    await expect(previewMemberWithdrawalInquiryAction(MEMBER, '#1234')).resolves.toEqual({
+      ok: true, inquiry: { reference: 1234, category: 'account', title: '회원 탈퇴 요청', createdAt: PROCESSED_AT },
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_member_withdrawal_inquiry', { target_profile_id: MEMBER, target_inquiry_reference: 1234 });
+
+    rpcResults({ admin_member_withdrawal_inquiry: { data: null, error: null } });
+    expect(await previewMemberWithdrawalInquiryAction(MEMBER, '99')).toMatchObject({ ok: false, error: expect.stringContaining('1:1 문의 번호가 아닙니다') });
+
+    mocks.rpc.mockClear();
+    expect(await previewMemberWithdrawalInquiryAction(MEMBER, '문의')).toMatchObject({ ok: false });
+    expect(await previewMemberWithdrawalInquiryAction('nope', '12')).toMatchObject({ ok: false });
+    mocks.auth = { isConfigured: true, user: { id: 'staff-1', email: null }, role: 'staff', isStaff: true,
+      operatorAccess: configuredOperatorAccessFixture('deputy') };
+    expect(await previewMemberWithdrawalInquiryAction(MEMBER, '12')).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

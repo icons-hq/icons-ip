@@ -1,7 +1,8 @@
 'use client';
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState, type FormEvent } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
+  previewMemberWithdrawalInquiryAction,
   processMemberWithdrawalAction,
   retryMemberWithdrawalSigninBlockAction,
   type MemberWithdrawalActionState,
@@ -10,13 +11,14 @@ import { AdminField, AdminNotice, AdminSectionCard } from '@/components/admin/co
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
-import { confirmAdminSubmit } from '@/lib/admin/confirm';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { canModerateAdminMember, type AdminMemberDetail, type AdminMemberRole } from '@/lib/admin/members';
 import {
   MEMBER_WITHDRAWAL_BLOCKER_LABELS,
   MEMBER_WITHDRAWAL_EFFECTS,
   MEMBER_WITHDRAWAL_NOTE_MAX,
   MEMBER_WITHDRAWAL_RETAINED,
+  memberWithdrawalConfirmMessage,
 } from '@/lib/admin/member-withdrawal';
 import { formatOrderDateTime } from '@/lib/orders';
 import { DISCLOSURE_SUMMARY_CLASS } from './cs-kit-classes';
@@ -44,8 +46,36 @@ export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: st
   const [retryState, retry, retrying] = useActionState(retryMemberWithdrawalSigninBlockAction, EMPTY);
   const [inquiryReference, setInquiryReference] = useState('');
   const [note, setNote] = useState('');
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  /* 확인을 마친 제출 하나만 통과시키는 표식. 대조·확인 중의 거듭 제출은 무시한다. */
+  const confirmedRef = useRef(false);
   const allowed = canModerateAdminMember({ actorId: actor.id, memberId: customer.id, moderation: customer.moderation });
   const withdrawal = customer.withdrawal;
+
+  /* 되돌릴 수 없는 처리라 문의 번호의 유형·제목·작성일을 불러와 확인창에서 대조하게 한다(계정 유형이 아니면 경고).
+     확인하면 같은 제출자로 다시 제출하고, 그 제출만 서버 액션으로 보낸다. */
+  async function confirmWithInquiry(event: FormEvent<HTMLFormElement>) {
+    if (confirmedRef.current) { confirmedRef.current = false; return; }
+    event.preventDefault();
+    if (checking) return;
+    const form = event.currentTarget;
+    const submitter = (event.nativeEvent as { submitter?: HTMLElement | null }).submitter ?? undefined;
+    setCheckError(null);
+    setChecking(true);
+    try {
+      const preview = await previewMemberWithdrawalInquiryAction(customer.id, inquiryReference);
+      if (!preview.ok) { setCheckError(preview.error); return; }
+      const ok = await adminConfirm({ title: '탈퇴 요청 처리', message: memberWithdrawalConfirmMessage(preview.inquiry), confirmLabel: '탈퇴 처리', destructive: true });
+      if (!ok || !form.isConnected) return;
+      confirmedRef.current = true;
+      try { form.requestSubmit(submitter); } finally { confirmedRef.current = false; }
+    } catch {
+      setCheckError('문의를 확인하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setChecking(false);
+    }
+  }
 
   return <AdminSectionCard title="탈퇴 요청 처리">
     {withdrawal === undefined || withdrawal === null
@@ -76,14 +106,7 @@ export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: st
                 <p className="text-muted-foreground">완전 삭제가 아니라 다음은 남습니다.</p>
                 <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{MEMBER_WITHDRAWAL_RETAINED.map((item) => <li key={item}>{item}</li>)}</ul>
               </div>
-              <form action={process} className={FORM_CLASS} onSubmit={(event) => {
-                confirmAdminSubmit(event, {
-                  title: '탈퇴 요청 처리',
-                  message: `이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지운 뒤 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 문의 #${inquiryReference.trim().replace(/^#/, '')}의 탈퇴 요청을 처리할까요?`,
-                  confirmLabel: '탈퇴 처리',
-                  destructive: true,
-                });
-              }}>
+              <form action={process} className={FORM_CLASS} onSubmit={(event) => { void confirmWithInquiry(event); }}>
                 <input name="profileId" type="hidden" value={customer.id} />
                 <AdminField error={state.errors?.inquiryReference} hint="이 고객이 탈퇴를 요청한 1:1 문의의 번호입니다(문의 탭의 #번호)." inputId="customer-withdrawal-inquiry" label="문의 번호">
                   <Input aria-describedby={state.errors?.inquiryReference ? 'customer-withdrawal-inquiry-error' : 'customer-withdrawal-inquiry-hint'}
@@ -96,7 +119,8 @@ export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: st
                     aria-invalid={Boolean(state.errors?.note)} className="min-h-20" disabled={processing} id="customer-withdrawal-note"
                     maxLength={MEMBER_WITHDRAWAL_NOTE_MAX} name="note" onChange={(event) => setNote(event.target.value)} required rows={2} value={note} />
                 </AdminField>
-                <Button className="self-start" disabled={processing} type="submit" variant="danger">{processing ? '처리 중' : '탈퇴 요청 처리'}</Button>
+                <Button className="self-start" disabled={processing || checking} type="submit" variant="danger">{processing ? '처리 중' : checking ? '문의 확인 중' : '탈퇴 요청 처리'}</Button>
+                {checkError ? <p className="text-sm text-destructive" role="alert">{checkError}</p> : null}
                 <Feedback state={state} />
               </form>
             </div>
