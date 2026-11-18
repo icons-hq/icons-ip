@@ -45,12 +45,13 @@ describe('admin category actions', () => {
     expect(mocks.updateTag).toHaveBeenCalledWith(STOREFRONT_MEGA_MENU_CACHE_TAG);
   });
 
-  /* ADR-0044: 상품 유형 연결은 더 쓰지 않는다. 폼에 옛 goodType 값이 와도 읽지 않고 RPC에는 항상 null(그대로)을 보낸다. */
+  /* ADR-0044: 상품 유형 연결은 없다. 폼에 옛 goodType 값이 와도 읽지 않고 RPC에 유형 인자를 보내지 않는다. */
   it('상품 유형 연결을 보내지 않고, 옛 폼의 goodType 값은 무시한다', async () => {
     await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어' }));
-    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_category', expect.objectContaining({ target_code: 'figure', target_good_type: null }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_category', expect.objectContaining({ target_code: 'figure' }));
+    expect(mocks.rpc.mock.lastCall?.[1]).not.toHaveProperty('target_good_type');
     await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어', goodType: '피규어' }));
-    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_category', expect.objectContaining({ target_good_type: null }));
+    expect(mocks.rpc.mock.lastCall?.[1]).not.toHaveProperty('target_good_type');
     const invalid = await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어', goodType: '포스터' }));
     expect(invalid).not.toHaveProperty('errors');
   });

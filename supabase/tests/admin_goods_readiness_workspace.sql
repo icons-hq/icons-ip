@@ -8,9 +8,9 @@ update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000
 insert into public.verticals(key,label,color) values('readiness-test','상품 준비 테스트','#000');
 insert into public.ips(id,title,vertical_key,published_at) values('readiness-test','준비 테스트','readiness-test',now()),('readiness-draft-ip','초안 IP','readiness-test',null);
 -- SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이다. 상위에 '문구'를 연결해 하위가 물려받는다.
-insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order,good_type) values
- ('00000000-0000-4000-8000-000000052810','readiness-parent','테스트 상위',null,1,0,'문구'),
- ('00000000-0000-4000-8000-000000052811','readiness-child','테스트 하위','00000000-0000-4000-8000-000000052810',2,0,null);
+insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order) values
+ ('00000000-0000-4000-8000-000000052810','readiness-parent','테스트 상위',null,1,0),
+ ('00000000-0000-4000-8000-000000052811','readiness-child','테스트 하위','00000000-0000-4000-8000-000000052810',2,0);
 insert into public.goods(id,code,ip_id,name,type,price,stock,category_id)
  select 'readiness-'||lpad(n::text,3,'0'),'READINESS-'||lpad(n::text,3,'0'),'readiness-test','동일 상품명','문구',1000,'ok','00000000-0000-4000-8000-000000052811'::uuid
  from generate_series(1,25) n;

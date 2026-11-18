@@ -48,4 +48,5 @@ ADR-0037로 상품 유형(피규어·인형·키링·아크릴·문구·쿠션·
 - 공개 중인 상품의 대표 카테고리를 바꿔도 KC 재검토가 생기지 않는다.
 - 고객 목록 필터에서 9종 유형 칩이 사라지고, 검색 부제가 카테고리 이름으로 바뀐다.
 - 판매 준비에 `category_missing`이 새로 생겼다. 배포 사이 몇 분 동안 이전 앱 판은 모르는 사유를 '준비 상태 확인 필요'로 보이고(fail-closed), 새 오류 코드(`goods_category_required`·`goods_published_category_clear`)는 일반 저장 실패 문구로 보인다.
-- 후속: 저장 칸 정리 migration(위 결정 7). 운영 배포 뒤에 한다.
+- 정리 단계(2026-11-18, `20261118162500_goods_type_layer_cleanup.sql`, 운영 배포 뒤): `catalog_categories.good_type`, 기존 유형 이관 메모(`goods_type_category_migrations`·`admin_set_category_type_migration`·운영자 계약 행), 필터의 옛 사유 3종을 지웠다. 카테고리 저장 RPC의 `target_good_type` 인자는 기본값이 null이라 시그니처를 바꾸지 않고 받기만 하고 무시한다(앱은 더 보내지 않는다).
+- 남은 것: `goods.type`·`order_items.good_type_snapshot`과 KC 맥락의 `type`. 지우려면 앱이 먼저 type을 쓰지 않게 배포한 뒤 칸을 지우는 두 번의 배포가 필요하고, 주문 생성 함수와 SQL 시험 250여 개 파일을 함께 고쳐야 한다. 쓰지 않는 칸일 뿐 동작에는 영향이 없다.
