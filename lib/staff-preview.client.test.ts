@@ -22,6 +22,18 @@ describe('스태프 진입점 공용 readback', () => {
     await expect(fetchStaffAccess()).resolves.toEqual({ adminConsole: true, platformManage: false });
   });
 
+  it('2단계 인증 대기 운영자에게는 진입점을 열지 않고, 확인한 세션·꺼진 스위치는 그대로 연다(OPS-006)', async () => {
+    const full = { capabilities: ['home', 'platform.manage'] };
+    mocks.rpc.mockResolvedValue({ data: access({ ...full, mfa: { required: true, satisfied: false } }), error: null });
+    await expect(fetchStaffAccess()).resolves.toEqual(NO_STAFF_ACCESS);
+    mocks.rpc.mockResolvedValue({ data: access({ ...full, mfa: 'broken' }), error: null });
+    await expect(fetchStaffAccess()).resolves.toEqual(NO_STAFF_ACCESS);
+    for (const mfa of [{ required: true, satisfied: true }, { required: false, satisfied: true }]) {
+      mocks.rpc.mockResolvedValue({ data: access({ ...full, mfa }), error: null });
+      await expect(fetchStaffAccess()).resolves.toEqual({ adminConsole: true, platformManage: true });
+    }
+  });
+
   it('권한 전환 전(legacy) 운영자도 같은 규칙으로 연다', async () => {
     mocks.rpc.mockResolvedValue({ data: access({ mode: 'legacy', managerRole: null, capabilities: ['home', 'platform.manage'], setupRequired: true }), error: null });
     await expect(fetchStaffAccess()).resolves.toEqual({ adminConsole: true, platformManage: true });

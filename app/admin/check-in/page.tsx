@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { TicketCheckIn } from '@/components/admin/check-in/TicketCheckIn';
+import { adminMfaPath } from '@/lib/admin/mfa';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export default async function AdminCheckInPage() {
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent('/admin/check-in')}`);
   }
+  if (auth.mfaPending) redirect(adminMfaPath('/admin/check-in'));
   if (!auth.isStaff) notFound();
 
   return <TicketCheckIn />;

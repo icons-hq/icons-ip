@@ -1,4 +1,5 @@
 import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
+import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { isValidElement, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import AdminShellLayout from './layout';
@@ -35,6 +36,15 @@ describe('AdminShellLayout', () => {
     const element = await AdminShellLayout({ children: <p>본문</p> }) as ReactElement<Record<string, unknown>>;
     expect(element.props.sidebarDefaultOpen).toBe(false);
     expect(element.props.initialNavigation).toEqual({ openGroupIds: ['sales'], favoriteScreenIds: ['orders'], currentGroupId: 'sales' });
+  });
+
+  /* 2단계 인증 대기(OPS-006)는 404도 셸도 아니다 — page 게이트가 원래 경로를 담아 인증 화면으로 보낸다. */
+  it('2단계 인증 대기면 셸 없이 page만 그린다', async () => {
+    vi.mocked(getCurrentAdminAuthState).mockResolvedValueOnce({
+      isConfigured: true, user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' }, role: 'staff', isStaff: false, mfaPending: true,
+    });
+    const children = <p>본문</p>;
+    expect(await AdminShellLayout({ children })).toBe(children);
   });
 
   /* 공용 PC에서 다른 운영자의 메뉴 설정을 읽지 않는다. */
