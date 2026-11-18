@@ -259,6 +259,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'system-health', label: '시스템 상태', href: '/admin/settings/system', status: 'ready' },
       { id: 'store-settings', label: '판매자 정보 관리', href: '/admin/settings/store', status: 'ready' },
       { id: 'roles', label: '매니저 관리', href: '/admin/community/roles', status: 'ready', adminOnly: true },
+      /* 운영자 2단계 인증(OPS-006): 요구 스위치·운영자별 등록 현황·기기 분실 초기화는 매니저 관리 권한, 본인 인증 앱은 운영자 누구나. */
+      { id: 'operator-mfa', label: '2단계 인증 관리', href: '/admin/settings/mfa', status: 'ready', adminOnly: true },
+      /* 본인 설정이라 오른쪽 위 계정 메뉴에서 연다 — 판매자 정보 그룹의 사이드바 상한(8)을 지키려고 사이드바에서는 숨긴다. */
+      { id: 'my-security', label: '내 보안 설정', href: '/admin/settings/security', status: 'ready', navHidden: true },
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
       /* 운영하지 않는 카드 바인더·굿즈 마켓·카드 트레이드의 공개 스위치(기본 숨김). 켜고 끄기는 관리자만 한다. */
       { id: 'collectible-features', label: '기능 공개 관리', href: '/admin/settings/features', status: 'ready', adminOnly: true },

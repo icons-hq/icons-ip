@@ -2,11 +2,12 @@
 
 import { Fragment, useActionState, useRef, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeftRight, BookOpen, Check, ChevronsUpDown, ExternalLink, LogOut } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Check, ChevronsUpDown, ExternalLink, LogOut, ShieldCheck } from 'lucide-react';
 import { adminSignOutAction, type SignOutActionState } from '@/app/login/actions';
 import { MANAGER_ROLE_LABELS, type OperatorAccess } from '@/lib/admin/access';
 import { clearInquiryDraftsForSignOut } from '@/lib/admin/inquiry-draft-lifecycle';
 import { confirmAdminLeave } from '@/lib/admin/leave-guard';
+import { ADMIN_MY_SECURITY_PATH } from '@/lib/admin/mfa';
 import { Avatar, AvatarFallback } from '@/components/admin/kit/ui/avatar';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/admin/kit/ui/breadcrumb';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -162,6 +163,11 @@ export function Header({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            {/* 본인 인증 앱(2단계 인증, OPS-006)은 권한과 무관하게 모든 운영자가 계정 메뉴에서 연다. */}
+            <DropdownMenuGroup>
+              <DropdownMenuItem render={<Link href={ADMIN_MY_SECURITY_PATH} prefetch={false} />}><ShieldCheck />내 보안 설정</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </DropdownMenuGroup>
             {/* 640px 아래에서는 상단 막대의 콘솔 전환이 숨으므로, 쇼핑·카드·게임 전환을 계정 메뉴로 옮긴다. */}
             {consoles.length > 1 ? (
               <DropdownMenuGroup className="sm:hidden">

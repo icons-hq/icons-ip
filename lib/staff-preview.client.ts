@@ -1,4 +1,5 @@
 import { parseOperatorAccess } from '@/lib/admin/access';
+import { parseOperatorMfa } from '@/lib/admin/mfa';
 import { createClient } from '@/lib/supabase/client';
 
 /** 로그인 계정의 현재 ICONS 운영 권한 — 스태프 전용 진입점의 노출에만 쓴다. */
@@ -20,6 +21,9 @@ export async function fetchStaffAccess(): Promise<StaffAccess> {
     if (error) return NO_STAFF_ACCESS;
     const access = parseOperatorAccess(data);
     if (!access || access.mode === 'none' || !access.capabilities.includes('home')) return NO_STAFF_ACCESS;
+    /* 2단계 인증 대기(OPS-006) 운영자는 셸 게이트처럼 운영자가 아니다 — 서버가 거절할 진입점을 보이지 않는다. */
+    const mfa = parseOperatorMfa((data as { mfa?: unknown }).mfa);
+    if (mfa.required && !mfa.satisfied) return NO_STAFF_ACCESS;
     return { adminConsole: true, platformManage: access.capabilities.includes('platform.manage') };
   } catch {
     return NO_STAFF_ACCESS;

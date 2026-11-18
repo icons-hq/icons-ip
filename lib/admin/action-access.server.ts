@@ -3,6 +3,7 @@ import 'server-only';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { canAccessAdminScreen, type AdminCapability } from './access';
+import { adminMfaPath } from './mfa';
 import { adminScreenForPath } from './navigation';
 
 export interface AdminActionAccessOptions {
@@ -16,12 +17,17 @@ export interface AdminActionAccessOptions {
   onUnauthenticated?: 'redirect' | 'error';
 }
 
-/** 미로그인은 복귀 경로로 이동하고, 권한 거절은 호출자가 폼 오류로 표시한다. */
+/** 미로그인·2단계 인증 대기는 복귀 경로로 이동하고, 권한 거절은 호출자가 폼 오류로 표시한다. */
 export async function requireAdminActionAccess(pathname: string, { onUnauthenticated = 'redirect', ...options }: AdminActionAccessOptions = {}) {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) {
     if (onUnauthenticated === 'error') return null;
     redirect(`/login?next=${encodeURIComponent(pathname)}`);
+  }
+  /* 2단계 인증 대기(OPS-006)는 미로그인처럼 다룬다: 인증 화면으로 보내고, 백그라운드 읽기는 거절만 한다. */
+  if (auth.mfaPending) {
+    if (onUnauthenticated === 'error') return null;
+    redirect(adminMfaPath(pathname));
   }
   if (!auth.isStaff || !canAccessAdminScreen(auth, adminScreenForPath(pathname), { ...options, intent: 'write' })) return null;
   return { ...auth, user: auth.user };

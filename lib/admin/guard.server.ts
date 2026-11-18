@@ -3,6 +3,7 @@ import 'server-only';
 import { notFound, redirect } from 'next/navigation';
 import { getCurrentAdminAuthState, type CurrentAdminAuthState } from '@/lib/auth/admin';
 import { canAccessAdminScreen, type AdminCapability } from './access';
+import { adminMfaPath } from './mfa';
 import { adminScreenForPath } from './navigation';
 
 /*
@@ -21,6 +22,11 @@ export async function requireAdminScreenAccess(
 
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent(pathname)}`);
+  }
+
+  /* 운영자 2단계 인증 스위치가 켜졌는데 세션이 aal2가 아니면 화면 대신 인증 화면으로 보낸다(OPS-006). 인증 뒤 이 화면으로 돌아온다. */
+  if (auth.mfaPending) {
+    redirect(adminMfaPath(pathname));
   }
 
   if (!auth.isStaff) {

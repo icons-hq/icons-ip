@@ -93,6 +93,8 @@ describe('manager authorization contract', () => {
     const logistics = configuredOperatorAccessFixture('logistics');
     const screens = visibleAdminNavGroups('staff', logistics).flatMap(group => group.screens.map(screen => screen.id));
     expect(screens).toEqual(['overview', 'dispatch', 'shipping', 'announcements', 'guide']);
+    // 내 보안 설정(본인 인증 앱 등록, OPS-006)은 모든 운영자의 화면이다 — 사이드바가 아니라 계정 메뉴에서 연다.
+    expect(canAccessAdminScreen(logistics, adminScreenForPath('/admin/settings/security'))).toBe(true);
     for (const path of ['/admin/sales/dispatch', '/admin/sales/shipping']) {
       expect(canAccessAdminScreen(logistics, adminScreenForPath(path)), path).toBe(true);
       expect(canAccessAdminScreen(logistics, adminScreenForPath(path), { intent: 'write' }), path).toBe(true);
