@@ -46,8 +46,42 @@ HMAC 키가 바뀌어 기존 미발송 초대의 해시와 토큰이 일치하�
 
 문의/리뷰관리 → 운영자별 처리 이력은 운영자 활동 기록이라 매니저 관리 권한(통합·주매니저, 전환 전 호환 단계는 admin)만 열고, 조회할 때마다 `admin.operator.inquiry_history_viewed` 감사 기록이 남는다. 문의 하나의 처리 이력은 그 문의를 여는 운영자 누구나 고객문의 상세·상담하기에서 본다.
 
+## 개인정보 접속기록과 월 점검
+
+개인정보의 안전성 확보조치 기준 제8조(접속기록의 보관 및 점검)에 따라 운영자가 고객 개인정보를 처리한 기록을 남기고 점검한다. 원장은 `private.operator_pii_access_log`이고 2년 보관 뒤 cron `operator-pii-access-log-retention`(매일 03:37 UTC)이 지운다. 운영자·서비스 키를 포함해 누구도 표를 직접 읽거나 고치지 못하며(트리거가 UPDATE·TRUNCATE와 보관 기간 안의 DELETE를 막는다), 보관 기간을 바꾸면 `private.pii_access_log_retention()`과 앱 상수 `PII_ACCESS_LOG_RETENTION_YEARS`를 함께 바꾼다.
+
+**남는 것:** 운영자 ID·기록 시점의 역할, 시각, 접속지 IP(Vercel이 덮어쓰는 `x-real-ip`·`x-forwarded-for`), 업무(열람·검색·내려받기·원문 확인·정정), 화면 경로(쿼리 문자열 없음), 대상(회원·주문·클레임·배송 건·선물·리뷰 ID 최대 1,000개와 건수, 주문·클레임·배송 건의 회원 ID). 이름·연락처·주소·검색어 원문은 남기지 않는다. 대량 목록 엑셀은 ID 대신 건수와 기존 내려받기 감사 번호(`audit_log`의 조건·파일 해시)를 남긴다.
+
+**대상 업무:** 고객 상세·고객 적립금, 주문 상세(목록 위 팝업 포함)·클레임 상세 열람, 구매자명·이메일·수령인·수령인 연락처(또는 전체)로 한 주문 검색, 클레임 회수지·재배송지 원문 확인·정정, 환불계좌 원문 확인, 목록 엑셀(주문·미결제·발주·배송현황·취소·반품·교환·환불 송금), 거래확정·선물·정기구매·적립금(원장)·리뷰·리뷰이벤트 응모 엑셀, 출고지시 파일, 접속기록 점검 화면 열람·엑셀. 통계·상품·카테고리·PG 정산·혜택 리포트 엑셀은 고객 식별 정보가 없어 대상이 아니다.
+
+**실패 정책:** 내려받기·원문 확인과 점검 화면은 기록이 남아야 응답한다(출고지시 파일은 창고 전달 표시 전에 기록하므로 실패하면 배송 상태도 바뀌지 않는다). 화면 열람·검색은 업무가 멈추지 않게 기록 실패를 서버 로그(`[pii-access-log]`)에만 남기고 연다. 같은 운영자·화면·대상·접속지의 열람·검색을 10분 안에 다시 그리면 한 번만 남는다.
+
+**월 1회 점검(통합 매니저 또는 계정 주매니저):**
+
+1. 판매자 정보 → 개인정보 접속기록에서 지난달 1일~말일(KST)을 조회한다.
+2. 이상 징후 카드의 건수를 확인한다 — 근무시간 외(평일 08~21시 밖·주말), 대량(한 번에 대상 1,000건 이상), 몰아보기(같은 운영자가 같은 1시간에 상세·원문 50건 이상).
+3. 이상 징후 기록마다 담당 운영자에게 업무 경위(주문 처리·CS·출고·정산)를 확인한다. 특정 고객의 요청(열람 문의·민원)이 있으면 대상 ID에 회원 ID를 넣어 그 회원의 주문·클레임 열람까지 함께 찾는다.
+4. 경위가 확인되지 않거나 업무 밖 열람이면 [역할 변경·회수](#역할-변경회수승계)로 권한을 줄이고, 개인정보 유출 의심이면 내부 보고·처리방침의 유출 통지 절차를 따른다.
+5. 점검 기간·이상 징후 건수·확인 결과·조치를 목록 엑셀(비밀번호 설정)과 함께 내부 점검 기록으로 보관한다. 엑셀 내려받기도 접속기록에 남는다.
+
+**한계:** 기록은 앱 경로에서 남긴다. 운영자 세션으로 PostgREST RPC를 직접 부른 읽기, 반품·교환 근거 사진 보기, 회원 목록 검색, 문의 상세의 고객 메시지 열람은 이 원장에 남지 않는다(상담 구매이력·운영자별 처리 이력 열람은 `audit_log`에 남는다). 처리방침의 개인정보 안전성 확보조치 항목에 접속기록 보관·점검이 적혀 있는지는 법정 문서 담당이 확인한다.
+
+### 감사 기록 SQL 조회(범용 화면이 생기기 전)
+
+환불·취소·정지 같은 처리 기록(`public.audit_log`)을 행위자·대상·기간으로 찾는 범용 화면은 아직 없다. 사고 조사에는 Supabase SQL 편집기에서 읽기 전용 조회만 한다(수정·삭제 금지, 결과 공유 시 개인정보 가림).
+
+```sql
+-- 기간·행위자·대상으로 처리 기록 찾기(최신순 200건). 대상 형식은 'order:<주문 ID>', 'claim:<클레임 ID>', 'inquiries:<문의 ID>' 등이다.
+select a.created_at at time zone 'Asia/Seoul' as kst, a.actor_id, p.nickname, a.action, a.target, a.diff
+from public.audit_log a left join public.profiles p on p.id = a.actor_id
+where a.created_at >= timestamptz '2026-11-01 00:00+09' and a.created_at < timestamptz '2026-12-01 00:00+09'
+  and (a.target like 'order:%' or a.action like 'admin.order.%')   -- 필요에 맞게 바꾼다
+  -- and a.actor_id = '<운영자 ID>'
+order by a.created_at desc limit 200;
+```
+
 ## 검증
 
-운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), `inquiry_purchase_history_scope.sql`·`operator_inquiry_history.sql`(상담 구매이력 범위·처리 이력 권한과 열람 감사), `erp_linked_goods_apply.sql`(부매니저의 ERP 품목 반입·연결 상품 반영과 삭제 차단), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
+운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), `inquiry_purchase_history_scope.sql`·`operator_inquiry_history.sql`(상담 구매이력 범위·처리 이력 권한과 열람 감사), `erp_linked_goods_apply.sql`(부매니저의 ERP 품목 반입·연결 상품 반영과 삭제 차단), `operator_pii_access_log.sql`(접속기록 기록 권한·append-only·점검 권한·이상 징후·보관 정리·ERP 제외), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
 
 초대 동시성 검증은 `SUPABASE_DB_CONTAINER=<격리 컨테이너> OPERATOR_INVITATION_TEST_SCOPE=isolated-local bash supabase/tests/operator_email_invitation_concurrency.sh`로 실행한다. CI의 scope 값은 `ci`다. 스크립트는 원본 DB를 덤프해 별도 DB로 복제하고, cron 작업을 제외한 복제본에서만 역할 fixture를 구성한 뒤 종료 시 제거한다. Python 테스트를 기존 `postgres` DB에 직접 실행하지 않는다.

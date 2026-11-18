@@ -220,4 +220,12 @@ begin
   perform pii_log_test.ok(names @> array['public.orders'] and not names && array['private.operator_pii_access_log'],'ERP read does not list the access ledger');
 end $$;
 reset role;
+
+-- PostgREST는 STABLE RPC를 READ ONLY 트랜잭션으로 부른다. 점검 읽기·내려받기는 잠금·쓰기 없이 끝나야 한다(1차 결함 교훈).
+set transaction read only;
+set local role authenticated;
+select pii_log_test.actor(2);
+select pii_log_test.ok((public.admin_pii_access_log('2026-03-02','2026-03-08')->>'total')::integer=54,'inspection read runs in a READ ONLY transaction');
+select pii_log_test.ok((public.admin_export_pii_access_log('2026-03-02','2026-03-08',null,null,null,null,'any')->>'total')::integer=53,'inspection export runs in a READ ONLY transaction');
+reset role;
 rollback;
