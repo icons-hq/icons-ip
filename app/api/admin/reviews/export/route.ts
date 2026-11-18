@@ -5,6 +5,7 @@ import { adminListExportContentDisposition, kstFileStamp } from '@/lib/admin/lis
 import { EXPORT_NO_STORE, ExportRequestError, exportErrorResponse, readExportPassword } from '@/lib/admin/export-request.server';
 import { parseReviewExportQuery, REVIEW_EXPORT_QUERY_KEYS, reviewExportSheet } from '@/lib/admin/review-export';
 import { prepareReviewExport, ReviewExportError } from '@/lib/admin/review-export.server';
+import { recordPiiAccess } from '@/lib/admin/pii-access-log.server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
     try { encrypted = encryptAdminWorkbook(plain, password); }
     finally { plain.fill(0); }
     const auditId = await prepared.recordEncryptedFile(encrypted.sha256), stamp = kstFileStamp(generatedAt);
+    // 개인정보 접속기록(내려받기): 작성자 표시명·본문이 담긴 파일이다. 리뷰 ID(최대 1,000개)·건수·감사 번호만 남긴다.
+    await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.reviews', path: '/api/admin/reviews/export',
+      subjectKind: 'review', subjectIds: prepared.snapshot.rows.map(row => row.id), subjectCount: prepared.snapshot.total, detail: { auditId } });
     return new Response(new Uint8Array(encrypted.bytes), { headers: {
       ...EXPORT_NO_STORE, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': adminListExportContentDisposition(`icons-리뷰-${stamp}.xlsx`, `icons-reviews-${stamp}.xlsx`),

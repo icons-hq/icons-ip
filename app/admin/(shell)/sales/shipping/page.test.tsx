@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
   screen: vi.fn(() => null),
   load: vi.fn(),
   preview: vi.fn(),
+  note: vi.fn(),
 }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 vi.mock('@/components/admin/screens/ShipmentConsoleScreen', () => ({ ShipmentConsoleScreen: mocks.screen }));
 vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
 vi.mock('@/lib/admin/shipment-dispatch.server', () => ({ getShipmentConsoleData: mocks.load }));
@@ -46,6 +48,11 @@ describe('AdminSalesShippingPage shipment contract', () => {
     expect(parts(screen)[0].props.data).toEqual(await mocks.load.mock.results[0].value);
     expect(parts(screen)[1]).toBeNull();
     expect(mocks.preview).not.toHaveBeenCalled();
+    expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId: '11111111-1111-4111-8111-111111111111', action: 'search', surface: 'shipment.search',
+      path: '/admin/sales/shipping', subjectKind: 'shipment', subjectIds: [], subjectCount: 0, detail: { field: 'all', view: 'transit', page: 2 } });
+    mocks.note.mockClear();
+    await AdminSalesShippingPage({ searchParams: Promise.resolve({ field: 'shipment', query: '2026111800000001' }) });
+    expect(mocks.note).not.toHaveBeenCalled();
   });
   it('출고지 필터를 보존하면서 잘못된 페이지는 첫 100건 범위로 되돌린다', async () => {
     await AdminSalesShippingPage({ searchParams: Promise.resolve({ originId: 'ABCDEF00-0000-4000-8000-000000000001', page: '21474838' }) });
