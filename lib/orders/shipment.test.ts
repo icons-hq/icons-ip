@@ -130,14 +130,16 @@ describe('orderShipment', () => {
 
 describe('택배사별 운송장번호 형식 (SHP-032)', () => {
   /* 레지스트리의 형식 정규식·규칙 문구(shipping_carriers.tracking_number_pattern·rule). DB 등록 판정과 같은 값이다. */
-  const hanjin = { label: '한진택배', trackingNumberPattern: '^[0-9]{10,12}$', trackingNumberRule: '숫자 10~12자리' };
+  const hanjin = { label: '한진택배', trackingNumberPattern: '^[0-9]{10,14}$', trackingNumberRule: '숫자 10~14자리' };
   const epost = { label: '우체국택배', trackingNumberPattern: '^[0-9]{13}$', trackingNumberRule: '숫자 13자리' };
 
   it('형식에 맞으면 null, 아니면 택배사와 규칙을 밝힌 안내를 돌려준다', () => {
     expect(carrierTrackingNumberIssue(hanjin, '1234567890')).toBeNull();
     expect(carrierTrackingNumberIssue(hanjin, '123456789012')).toBeNull();
-    expect(carrierTrackingNumberIssue(hanjin, '1234567890123')).toBe('한진택배 운송장번호는 숫자 10~12자리입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.');
-    expect(carrierTrackingNumberIssue(hanjin, 'AB12345678')).toContain('숫자 10~12자리');
+    // 한진 공식 배송조회는 14자리도 받는다.
+    expect(carrierTrackingNumberIssue(hanjin, '12345678901234')).toBeNull();
+    expect(carrierTrackingNumberIssue(hanjin, '123456789012345')).toBe('한진택배 운송장번호는 숫자 10~14자리입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.');
+    expect(carrierTrackingNumberIssue(hanjin, 'AB12345678')).toContain('숫자 10~14자리');
     expect(carrierTrackingNumberIssue(epost, '6012345678901')).toBeNull();
     expect(carrierTrackingNumberIssue(epost, '601234567890')).toContain('우체국택배 운송장번호는 숫자 13자리');
   });
@@ -152,7 +154,7 @@ describe('택배사별 운송장번호 형식 (SHP-032)', () => {
       { code: 'hanjin', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}', ...hanjin },
       { code: 'epost', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}', ...epost },
       { code: 'retired_courier', label: '계약종료 택배', active: false, trackingUrlTemplate: 'https://example.test/{trackingNumber}', trackingNumberPattern: '^[0-9]{9}$', trackingNumberRule: '숫자 9자리' },
-    ])).toBe('한진택배 숫자 10~12자리 · 우체국택배 숫자 13자리');
+    ])).toBe('한진택배 숫자 10~14자리 · 우체국택배 숫자 13자리');
     expect(trackingFormatRulesNote(REGISTRY)).toBe('');
   });
 });

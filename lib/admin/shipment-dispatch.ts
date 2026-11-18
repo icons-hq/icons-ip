@@ -97,7 +97,10 @@ export function shipmentMutationError(code:string):string{
   conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
   shipment_tracking_conflict:'이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
   // 운송장 중복·형식(SHP-030~032). DB 등록 판정(private.assert_tracking_registrable)이 모든 진입 경로에서 같은 코드를 낸다.
-  tracking_number_in_use:'다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 회신 파일의 번호가 다른 주문과 뒤바뀌었거나 예전 회신을 다시 올린 것은 아닌지 확인해주세요.',
+  tracking_number_in_use:'다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 회신 파일의 번호가 다른 주문과 뒤바뀌었거나 예전 회신을 다시 올린 것은 아닌지 확인해주세요. 창고에 확인해 같은 상자가 맞으면 발송 대기 행의 [중복 확인 후 등록] 또는 주문 상세의 "중복 확인 후 운송장 등록"에서 사유를 적고 등록합니다.',
+  tracking_duplicate_reason_required:'같은 상자로 확인한 사유를 입력해주세요(500자 이내). 감사 기록에 남습니다.',
+  tracking_duplicate_not_needed:'지금은 다른 주문이 쓰는 번호가 아닙니다. 일반 등록·운송장 수정으로 저장해주세요.',
+  invalid_tracking_duplicate:'중복 확인 후 등록할 배송 건을 다시 선택해주세요.',
   tracking_number_shared_in_reply:'같은 파일 안에서 다른 주문의 배송 건에도 같은 운송장번호가 적혀 있습니다. 어느 줄이 맞는지 확인한 뒤 그 줄들을 고쳐 다시 올려주세요(같은 받는 분·같은 출고지의 합배송과 합포장은 함께 등록됩니다).',
   // 택배사별 규칙 문구는 레지스트리(shipping_carriers.tracking_number_rule)에 있다. 레지스트리를 가진 호출부가 trackingFormatRulesNote로 덧붙인다.
   tracking_number_format_mismatch:'택배사의 운송장번호 형식(자릿수)과 맞지 않습니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.',

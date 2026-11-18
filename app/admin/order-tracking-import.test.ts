@@ -464,7 +464,7 @@ describe('비밀번호를 건 회신 파일 등록',{timeout:20_000},()=>{
 /* SHP-030~032: 다른 주문이 쓰는 번호·택배사 형식·뒤바뀐 회신은 DB 등록 판정이 그 줄(배송 건)만 거절하고, 사유는 운영 문구로 보인다. */
 describe('운송장 중복·형식 회신 결과', () => {
   const registry = [
-    { code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}', trackingNumberPattern: '^[0-9]{10,12}$', trackingNumberRule: '숫자 10~12자리' },
+    { code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}', trackingNumberPattern: '^[0-9]{10,14}$', trackingNumberRule: '숫자 10~14자리' },
     { code: 'epost', label: '우체국택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}', trackingNumberPattern: '^[0-9]{13}$', trackingNumberRule: '숫자 13자리' },
   ];
   beforeEach(() => { mocks.carriers.mockResolvedValue(registry); });
@@ -483,18 +483,18 @@ describe('운송장 중복·형식 회신 결과', () => {
     const reasons = result.report?.failed.map(failure => [failure.line, failure.reason]);
     expect(reasons?.[0]).toEqual([2, expect.stringContaining('다른 주문의 배송 건')]);
     expect(reasons?.[1]).toEqual([3, expect.stringContaining('같은 파일 안에서 다른 주문의 배송 건')]);
-    expect(reasons?.[2]).toEqual([4, '택배사의 운송장번호 형식(자릿수)과 맞지 않습니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요. (한진택배 숫자 10~12자리 · 우체국택배 숫자 13자리)']);
+    expect(reasons?.[2]).toEqual([4, '택배사의 운송장번호 형식(자릿수)과 맞지 않습니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요. (한진택배 숫자 10~14자리 · 우체국택배 숫자 13자리)']);
     expect(reasons?.[3]).toEqual([5, expect.stringContaining('받는 분 이름·전화번호가 주문 배송지와 다릅니다')]);
     expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: 'order-one', shipmentId: 'shipment-one' }]);
   });
 
   it('세 칸 회신의 택배사 형식 오류는 DB에 보내지 않고 그 줄의 규칙을 알린다', async () => {
-    const result = await bulkRegisterAdminOrderTrackingAction({}, form('00000001,hanjin,123456789012\n00000002,hanjin,1234567890123'));
+    const result = await bulkRegisterAdminOrderTrackingAction({}, form('00000001,hanjin,123456789012\n00000002,hanjin,123456789012345'));
     expect(mocks.rpc).toHaveBeenCalledWith('admin_import_shipment_tracking_batch', { target_rows: [
       { line: 1, reference: '00000001', carrier: 'hanjin', trackingNumber: '123456789012' },
       { line: 2, reference: '00000002', carrier: '', trackingNumber: '' },
     ] });
-    expect(result.report?.failed).toEqual([{ line: 2, reference: '00000002', reason: '한진택배 운송장번호는 숫자 10~12자리입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.' }]);
+    expect(result.report?.failed).toEqual([{ line: 2, reference: '00000002', reason: '한진택배 운송장번호는 숫자 10~14자리입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.' }]);
   });
 
   it('서원 회신은 출고지 기본 택배사(우체국 13자리) 형식에 맞지 않는 줄을 대조 전에 멈추고 같은 배송 건의 다른 줄도 보내지 않는다', async () => {
@@ -519,7 +519,7 @@ describe('운송장 중복·형식 회신 결과', () => {
     const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([
       seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, '6012345678901'),
     ]));
-    expect(result.errors?.form).toContain('(한진택배 숫자 10~12자리 · 우체국택배 숫자 13자리)');
+    expect(result.errors?.form).toContain('(한진택배 숫자 10~14자리 · 우체국택배 숫자 13자리)');
     expect(mocks.enqueue).not.toHaveBeenCalled();
   });
 });

@@ -130,7 +130,7 @@ export function carrierTrackingNumberIssue(
   return `${carrier.label} 운송장번호는 ${carrier.trackingNumberRule ?? '정해진 형식'}입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.`;
 }
 
-/** 형식 규칙이 있는 사용 중 택배사의 규칙 안내(예: `한진택배 숫자 10~12자리 · 우체국택배 숫자 13자리`). 없으면 빈 문자열. */
+/** 형식 규칙이 있는 사용 중 택배사의 규칙 안내(예: `한진택배 숫자 10~14자리 · 우체국택배 숫자 13자리`). 없으면 빈 문자열. */
 export function trackingFormatRulesNote(registry: ShippingCarrierRegistry): string {
   return registry.filter(carrier => carrier.active && carrier.trackingNumberPattern && carrier.trackingNumberRule)
     .map(carrier => `${carrier.label} ${carrier.trackingNumberRule}`).join(' · ');

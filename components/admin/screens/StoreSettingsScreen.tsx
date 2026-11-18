@@ -4,7 +4,7 @@ import { statusTone } from '@/lib/admin/status-tone';
 import { ChevronDown, Plus } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { StoreSettingsForm,ShippingCarrierForm,InquiryAutoRepliesForm } from './StoreSettingsForm';
+import { StoreSettingsForm,ShippingCarrierForm,ShippingCarrierFormatForm,InquiryAutoRepliesForm } from './StoreSettingsForm';
 import { CARRIER_SETTINGS_PATH,STORE_SETTINGS_PATH,storeSettingsHistoryRows,type EditableCarrier,type StoreSettingsAudit,type StoreSettingsSection,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
 import { formatOrderDateTime } from '@/lib/orders';
 import { StoreBrandingForm } from './StoreBrandingForm';
@@ -40,7 +40,7 @@ function CarrierList({carriers,canEdit}:{carriers:EditableCarrier[];canEdit:bool
           {/* 줄 전체가 펼치는 자리다(버튼을 겹치지 않는다) — 다른 목록의 수정 버튼과 같은 모양만 입힌다. */}
           <span className={`${buttonVariants({size:'xs',variant:'outline'})} justify-self-end`} data-slot="button">{canEdit?'수정':'보기'}<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180"/></span>
         </summary>
-        <div className="border-t bg-muted/30 p-4"><ShippingCarrierForm carrier={carrier} canEdit={canEdit}/></div>
+        <div className="flex flex-col gap-4 border-t bg-muted/30 p-4"><ShippingCarrierForm carrier={carrier} canEdit={canEdit}/><ShippingCarrierFormatForm carrier={carrier} canEdit={canEdit}/></div>
       </details>)}
     </div>
     {canEdit?<details className="group rounded-lg border">

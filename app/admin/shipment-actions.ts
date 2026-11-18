@@ -14,7 +14,7 @@ import {parseShipmentExportColumns,shipmentBarcodeGapWarning,type ShipmentExport
 import {exportPasswordError} from '@/lib/admin/export-password';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
 import {unstable_rethrow} from 'next/navigation';
-import {findShippingCarrier,isTrackingNumber,normalizeTrackingNumber} from '@/lib/orders/shipment';
+import {carrierTrackingNumberIssue,findShippingCarrier,isTrackingNumber,normalizeTrackingNumber} from '@/lib/orders/shipment';
 import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
 import {enqueueOrderShippedEmails} from '@/lib/email/order-shipment-jobs.server';
 import {DISPATCH_HANDOFF_METHODS,DISPATCH_METHODS,DISPATCH_REASON_MAX_LENGTH,DISPATCH_TARGET_LIMIT,dispatchDeliveryError,parseDispatchDeliveryOptions,parseDispatchDeliveryReceipt,
@@ -149,7 +149,7 @@ export async function saveShipmentExportColumnsAction(id:string,columns:unknown,
 }
 
 export type ShipmentTrackingRowInput={shipmentId:string;carrier:string;trackingNumber:string};
-export type ShipmentTrackingRowResult={ok:true;message:string;registered:string[];unchanged:string[];failed:{shipmentId:string;reason:string}[];queueWarning:boolean}|{ok:false;error:string};
+export type ShipmentTrackingRowResult={ok:true;message:string;registered:string[];unchanged:string[];failed:{shipmentId:string;reason:string;code?:string}[];queueWarning:boolean}|{ok:false;error:string};
 type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
 /**
  * 발송 대기 행의 택배사·운송장 칸(S36-072). 창고 회신 파일과 같은 일괄 등록 RPC에 1~100건을 그대로 넘긴다 —
@@ -166,6 +166,9 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   if(!selected?.active)return {ok:false,error:shipmentMutationError('inactive_shipping_carrier')};
   const tracking=typeof trackingNumber==='string'?normalizeTrackingNumber(trackingNumber):'';
   if(!isTrackingNumber(tracking))return {ok:false,error:'운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.'};
+  // 택배사별 형식(레지스트리). DB 등록 판정이 다시 본다.
+  const formatIssue=carrierTrackingNumberIssue(selected,tracking);
+  if(formatIssue)return {ok:false,error:formatIssue};
   rows.push({line:index+1,reference:shipmentId.toLowerCase(),carrier:selected.code,trackingNumber:tracking});
  }
  try{
@@ -175,7 +178,8 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   const data=result.data as TrackingBatchRow[];
   const registered=data.filter(row=>row.ok&&row.dispatched!==false).map(row=>row.reference);
   const unchanged=data.filter(row=>row.ok&&row.dispatched===false).map(row=>row.reference);
-  const failed=data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??'')}));
+  // 사유 코드도 넘긴다 — 다른 주문의 번호로 거절된 행은 화면이 '중복 확인 후 등록'을 연다.
+  const failed=data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??''),...(row.error?{code:row.error}:{})}));
   const deliveries=data.filter(row=>row.ok&&row.dispatched!==false&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
   let queueWarning=false;
   if(deliveries.length){try{await enqueueOrderShippedEmails([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);}catch{queueWarning=true;}}
