@@ -21,6 +21,13 @@ const UNKNOWN = '처리 결과를 확인하지 못했습니다. 같은 요청으
 export function OperatorMfaPolicyPanel({ initial, canReset, selfId }: { initial: OperatorMfaPolicy; canReset: boolean; selfId: string }) {
   const router = useRouter();
   const [policy, setPolicy] = useState(initial);
+  /* 저장·초기화 뒤 router.refresh()는 다시 마운트하지 않고 같은 자리에 새 initial(다른 객체)을 내려보낸다 — 렌더 중에 맞춘다.
+     늦게 도착한 이전 렌더(revision이 더 낮음)는 무시한다. 초기화는 revision을 바꾸지 않으므로 같은 revision도 받는다. */
+  const [synced, setSynced] = useState(initial);
+  if (initial !== synced) {
+    setSynced(initial);
+    if (initial.revision >= policy.revision) setPolicy(initial);
+  }
   const [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false);
   const [message, setMessage] = useState(''), [error, setError] = useState(false);
   const request = useRef<{ required: boolean; revision: number; id: string } | null>(null);
