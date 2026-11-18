@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { processOrderDelaySms } from '@/lib/orders/order-delay-sms.server';
+import { startCronRun } from '@/lib/system-health/cron-run.server';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -16,11 +17,12 @@ export async function GET(request: Request) {
   if (!secret || actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
     return Response.json({ ok: false }, { status: 401, headers });
   }
+  const run = startCronRun('order-delay-sms');
   try {
     const result = await processOrderDelaySms();
     const ok = !result.failed && !result.stale;
-    return Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers });
-  } catch {
-    return Response.json({ ok: false }, { status: 503, headers });
+    return run.finish(Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers }));
+  } catch (error) {
+    return run.fail(error, Response.json({ ok: false }, { status: 503, headers }));
   }
 }

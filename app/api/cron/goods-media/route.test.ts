@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/system-health/cron-run-recorder.server', () => ({ recordCronJobRun: async () => ({ incident: false }) }));
 const { cleanup, digital } = vi.hoisted(() => ({ cleanup: vi.fn(), digital: vi.fn() }));
 vi.mock('@/lib/admin/digital-assets.server', () => ({ cleanupDigitalAssets: digital }));
 vi.mock('@/lib/admin/goods-media.server', () => ({ cleanupGoodsMediaUploads: cleanup }));
