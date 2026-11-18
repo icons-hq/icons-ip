@@ -136,11 +136,12 @@ end $$;
 create trigger t7_smoke_reject_cancel before update of status on public.orders for each row
  when (new.id='a7000000-0000-4001-8000-000000000001' and new.status='canceled') execute function public.t7_smoke_reject_cancel();
 
-select 1/case when public.expire_stale_checkouts()=1 then 1 else 0 end as assert_sweep_continues_after_row_failure;
+-- 공유 DB에 다른 만료 주문이 남아 있을 수 있어 처리 건수는 하한만 본다(판정은 아래 두 주문의 상태로 한다).
+select 1/case when public.expire_stale_checkouts()>=1 then 1 else 0 end as assert_sweep_continues_after_row_failure;
 select 1/case when (select status from public.orders where id='a7000000-0000-4001-8000-000000000001')='pending'
  and (select status from public.orders where id='a7000000-0000-4001-8000-000000000002')='canceled'
  and (select count(*) from private.system_job_failures where job_key='expire-stale-checkouts' and source='pg_cron'
-   and error_code='sqlstate_P0001' and (detail->>'skipped')::integer=1 and detail->'targets' ? 'order:a7000000-0000-4001-8000-000000000001')=1
+   and error_code='sqlstate_P0001' and (detail->>'skipped')::integer>=1 and detail->'targets' ? 'order:a7000000-0000-4001-8000-000000000001')=1
  and (select count(*) from private.admin_operation_alerts where category='system' and event_key like 'system_job:expire-stale-checkouts:%')=1
  and not exists(select 1 from private.system_job_failures where detail::text like '%synthetic sweep failure%')
 then 1 else 0 end as assert_skipped_row_recorded_without_message;
@@ -149,6 +150,9 @@ drop trigger t7_smoke_reject_cancel on public.orders;
 -- ---------------------------------------------------------------------------
 -- 3. 미종결 결제 시도
 -- ---------------------------------------------------------------------------
+-- 공유 DB에 다른 테스트가 커밋한 미종결 시도가 있을 수 있어 건수는 시작 전 기준에 더해 본다.
+select count(*) as base_unresolved, count(*) filter (where purpose='order') as base_goods from public.payment_attempts
+ where private.payment_attempt_unresolved(state,claim_expires_at,now()) \gset
 create function pg_temp.attempt(n integer,provider public.payment_provider,purpose public.payment_purpose,state public.payment_attempt_state,
   claim_expires interval default null,age interval default interval '1 hour',touched interval default interval '1 hour') returns uuid language plpgsql as $$
 declare aid uuid:=('a7000000-0000-4003-8000-'||lpad(n::text,12,'0'))::uuid; oid uuid:=('a7000000-0000-4002-8000-'||lpad(n::text,12,'0'))::uuid;
@@ -176,6 +180,8 @@ insert into private.goods_payment_reconciliation_audits(claim_token,operation,ta
 values(gen_random_uuid(),'payment',:'audited_attempt','goods_payment_reconciliation_service_v1','t7-smoke-recent-check-01','in_progress');
 
 -- 자동 재확인 후보: 결과 불명·멈춘 확인만, 조회 API가 있는 결제사, 10분 지난 변경, 7일 안, 30분 쿨다운.
+-- 다른 테스트의 미종결 시도는 이 트랜잭션 안에서만 방금 바뀐 것으로 만들어(갱신 트리거가 updated_at을 지금으로) 후보에서 뺀다.
+update public.payment_attempts set amount=amount where state in ('unknown','confirming') and id::text not like 'a7000000-0000-4003-%';
 set local role service_role;
 select 1/case when (select array_agg(e->>'attemptId' order by e->>'attemptId') from jsonb_array_elements(public.service_list_payment_reconciliation_candidates(5)) e)
    = array[:'unknown_attempt',:'stalled_attempt']
@@ -184,12 +190,12 @@ then 1 else 0 end as assert_auto_candidates;
 select pg_temp.expect_error($$select public.service_list_payment_reconciliation_candidates(6)$$,'invalid_reconciliation_candidate_limit');
 reset role;
 
--- 목록(sales.manage): 미종결 6건(1·2·3·6·7·8·9 중 승인·리스 살아 있는 확인 제외 = 1,2,3,6,7,8,9 → 7건).
+-- 목록(sales.manage): 이 시험의 미종결 7건(1·2·3·6·7·8·9 — 승인 5번·리스가 살아 있는 확인 4번 제외)이 기준 건수에 더해진다.
 set local role authenticated;
 select pg_temp.as_actor('a7000000-0000-4000-8000-000000000001');
-select public.admin_unresolved_payment_attempts(50) as list \gset
-select 1/case when (:'list'::jsonb->>'total')::integer=7
- and jsonb_array_length(:'list'::jsonb->'items')=7
+select public.admin_unresolved_payment_attempts(200) as list \gset
+select 1/case when (:'list'::jsonb->>'total')::integer=:base_unresolved+7
+ and jsonb_array_length(:'list'::jsonb->'items')=least(:base_unresolved+7,200)
  and not exists(select 1 from jsonb_array_elements(:'list'::jsonb->'items') e where e->>'attemptId' in (:'live_attempt',:'approved_attempt'))
  and exists(select 1 from jsonb_array_elements(:'list'::jsonb->'items') e where e->>'attemptId'=:'stalled_attempt' and e->>'reason'='confirming_stalled'
    and (e->>'reconcilable')::boolean and e->>'orderNumber' is not null and (e->>'amount')::integer=10003)
@@ -241,8 +247,8 @@ select 1/case when exists(select 1 from jsonb_array_elements(:'health'::jsonb->'
    and e->>'lastErrorCode'='rows_skipped' and (e->>'failures24h')::integer>=1)
  and exists(select 1 from jsonb_array_elements(:'health'::jsonb->'recentFailures') e where e->>'jobKey'='t7-smoke-cron-failing' and e->>'errorCode'='pg_cron_failed')
  and position('합성 오류 원문' in :'health'::jsonb::text)=0
- and (:'health'::jsonb->'counts'->>'unresolvedPayments')::integer=7
- and (:'health'::jsonb->'payments'->>'goods')::integer=7
+ and (:'health'::jsonb->'counts'->>'unresolvedPayments')::integer=:base_unresolved+7
+ and (:'health'::jsonb->'payments'->>'goods')::integer=:base_goods+7
  and (:'health'::jsonb->'counts'->>'emailFailures')::integer>=1
  and (:'health'::jsonb->'counts'->>'emailBounces')::integer>=1
  and (:'health'::jsonb->'counts'->>'issues')::integer=(:'health'::jsonb->'counts'->>'problemJobs')::integer
