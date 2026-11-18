@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({ pathname: '/offline-popups' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 vi.mock('./StaffPreviewAvailability', () => ({
+  useAdminConsoleVisible: () => false,
   useSecondaryMarketDemoVisible: () => false,
   useCommunityStaffPreviewVisible: () => false,
 }));

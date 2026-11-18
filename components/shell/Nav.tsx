@@ -50,6 +50,7 @@ import { OverlayPortal } from './OverlayPortal';
 import { isActivationTarget } from './overlay-focus';
 import { SEARCH_PANEL_ID, SearchOverlay } from './SearchOverlay';
 import { ShellNotices } from './ShellNotices';
+import { AdminConsoleLink, useAdminConsoleVisible } from './AdminConsoleLink';
 import { StoreBrandLogo, storefrontLogoName } from './StoreBranding';
 import { DEFAULT_STOREFRONT_BRANDING, type StorefrontBranding } from '@/lib/store-branding';
 import { useStorePresentation } from './StorePresentationProvider';
@@ -197,9 +198,11 @@ function WcChrome({
       <ShellNotices cardRewardsEnabled={cardRewardsEnabled} notices={notices} onActivate={closeSearch} pathname={pathname} />
 
       {/* 유틸 메뉴(데스크톱만, Figma 48): 회원은 위시리스트·주문조회·알림함·로그아웃, 비회원은 로그인 / 회원가입. 고객센터는 맨 오른쪽에
-          고정이라 로그인 상태가 확정되며 앞쪽 항목이 늘어도 자리가 움직이지 않는다. 공지사항은 게시판이 없어 그리지 않는다(스펙 §6). */}
+          고정이라 로그인 상태가 확정되며 앞쪽 항목이 늘어도 자리가 움직이지 않는다. 공지사항은 게시판이 없어 그리지 않는다(스펙 §6).
+          어드민 콘솔 운영자에게는 맨 앞에 관리자 페이지 바로가기가 더 선다 — 운영 권한 readback 뒤에만 그린다. */}
       <nav ref={utilbarRef} aria-label="유틸리티 메뉴" className="wc-utilbar" onClick={closeSearchOnActivate}>
         <div className="wc-container wc-container--wide wc-utilbar__inner">
+          <UtilAdminConsoleLink />
           <UtilMemberLinks />
           <UtilAuthAction />
           <Link className="wc-utilbar__link" href={hrefFor(UTIL_HELP_ITEM.id)}>{UTIL_HELP_ITEM.label}</Link>
@@ -753,6 +756,12 @@ function UtilMemberLinks() {
         )))}
     </>
   );
+}
+
+/* 관리자 페이지 바로가기 — 어드민 콘솔에 들어갈 수 있는 운영자에게만 운영 권한 readback 뒤에 마크업이 생긴다(서버 HTML 에는 없다).
+   유틸바는 오른쪽 정렬이라 맨 앞에 두면 나타나도 다른 항목 자리가 움직이지 않는다. */
+function UtilAdminConsoleLink() {
+  return useAdminConsoleVisible() ? <AdminConsoleLink className="wc-utilbar__link" /> : null;
 }
 
 /* presence 확정 전에는 자리만 잡는다. 로그인/로그아웃이 번갈아 깜빡이면 유틸바 폭이 흔들린다. */

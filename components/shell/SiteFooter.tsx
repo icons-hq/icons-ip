@@ -19,6 +19,7 @@ import { useCollectibleFeatures } from './CollectibleFeatures';
 import { SITE_FOOTER_ID } from './site-footer-jump';
 import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
 import { DEFAULT_STOREFRONT_BRANDING, STORE_SOCIAL_LABELS, type StorefrontBranding } from '@/lib/store-branding';
+import { AdminConsoleLink, useAdminConsoleVisible } from './AdminConsoleLink';
 
 /* X SQUARE 푸터(Figma Site Footer, ADR-0043). 한 줄 링크(약관·안내 | 고객센터·SNS) → 사업자 정보 두 줄 → (스태프 블록) → 저작권이다.
    법정 표기(상호·대표자·주소·사업자등록번호·통신판매업 신고번호·전화·이메일·호스팅)와 법정 고지 3종은 그대로 두고 접지 않는다 —
@@ -87,6 +88,7 @@ export function SiteFooter({
   const demoItems = withoutHiddenCollectibleItems(FOOTER_DEMO_ITEMS, useCollectibleFeatures());
   const demoVisible = useSecondaryMarketDemoVisible() && demoItems.length > 0;
   const communityPreviewVisible = useCommunityStaffPreviewVisible();
+  const adminConsoleVisible = useAdminConsoleVisible();
   // 숨김 범위는 Nav보다 좁다 — 초대·비밀번호 변경·정지 안내(집중형 셸)와 어드민(자체 작업대)만 비운다. 캠페인·게임은
   // 내비·문의 위젯이 없는 독립 경험이어도 사업자 정보·법정 고지 푸터는 그 아래에 둔다(1014-X36, lib/routes.ts hidesSiteFooter).
   if (hidesSiteFooter(pathname)) return null;
@@ -115,6 +117,17 @@ export function SiteFooter({
         </div>
 
         <BusinessLines info={businessInfo} />
+
+        {/* 관리자 페이지 바로가기 — 어드민 콘솔에 들어갈 수 있는 운영자에게만 마크업이 생긴다(운영 권한 readback). 유틸 메뉴가
+            없는 모바일 상품 상세·장바구니·결제와 공용 내비가 없는 캠페인·게임에서도 닿도록 푸터 스태프 블록 맨 앞에 둔다. */}
+        {adminConsoleVisible ? (
+          <nav aria-label="관리자 바로가기" className="wc-footer__demo">
+            <h2 className="wc-footer__demo-heading">관리자 · 스태프 전용</h2>
+            <ul>
+              <li><AdminConsoleLink /></li>
+            </ul>
+          </nav>
+        ) : null}
 
         {/* 세컨더리 마켓 시연 진입점 — 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 마크업에
             존재한다. 공개 푸터·SSR 결과에는 없고, 실제 권한 판정은 라우트 서버 게이트가 한다. */}
