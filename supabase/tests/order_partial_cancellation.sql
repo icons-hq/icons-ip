@@ -520,6 +520,8 @@ select pg_temp.pc_stock('partial-cancel-a') as a13_before \gset
 set local role authenticated;
 select pg_temp.pc_auth();
 select public.admin_record_order_claim_origin_collection(:'exchange_claim', pg_temp.pc_id('shipment-1', 13), 'TEST 교환 회수 입고 확인');
+-- 하자 교환은 재출고 전에 회수품 재고 처리(여기서는 정상 복원)를 정한다(CLM-046).
+select public.admin_plan_claim_exchange_defective_stock(:'exchange_claim', pg_temp.pc_id('shipment-1', 13), '{}'::uuid[]) ->> 'decided' as exchange_stock_decided;
 reset role;
 select pg_temp.pc_auth();
 select private.record_order_claim_shipment_reshipment(:'exchange_claim', pg_temp.pc_id('shipment-1', 13), 'hanjin', 'TESTPC99990013', '[]'::jsonb);

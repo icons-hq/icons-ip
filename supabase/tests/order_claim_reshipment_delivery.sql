@@ -65,6 +65,8 @@ do $$ declare claim_key uuid; begin
   exception when check_violation then if sqlerrm<>'claim_reshipment_not_dispatched' then raise; end if; end;
 end $$;
 select public.admin_record_order_claim_origin_collection(:'exchange_id','45a10000-0000-4000-8000-000000000051','실물 2개 입고 대조');
+-- 하자 교환은 재출고 전에 회수품 재고 처리(정상 복원)를 정한다(CLM-046).
+select public.admin_plan_claim_exchange_defective_stock(:'exchange_id','45a10000-0000-4000-8000-000000000051','{}'::uuid[])->>'decided' as first_exchange_stock_decided;
 select pg_temp.record_order_claim_reshipment_physical(:'exchange_id','hanjin','EX45A1000001','[]');
 select set_config('request.jwt.claim.sub','45a10000-0000-4000-8000-000000000002',true);
 select 1/case when public.order_claim_eligibility('45a10000-0000-4000-8000-000000000010')='{"cancel":false,"return":false,"exchange":false}' then 1 else 0 end as assert_in_transit_exchange_does_not_reuse_original_delivery;
@@ -160,6 +162,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','45a10000-0000-4000-8000-000000000001',true);
 select public.admin_decide_order_claim(:'second_exchange_id','approve',null);
 select public.admin_record_order_claim_origin_collection(:'second_exchange_id','45a10000-0000-4000-8000-000000000051','두 번째 교환 실물 2개 입고');
+select public.admin_plan_claim_exchange_defective_stock(:'second_exchange_id','45a10000-0000-4000-8000-000000000051','{}'::uuid[])->>'decided' as second_exchange_stock_decided;
 select pg_temp.record_order_claim_reshipment_physical(:'second_exchange_id','hanjin','EX45A1000002','[]');
 select 1/case when (public.order_claim_eligibility('45a10000-0000-4000-8000-000000000010')->>'return')::boolean=false then 1 else 0 end as assert_second_exchange_needs_new_delivery_confirmation;
 select public.admin_record_order_claim_reshipment_delivery(:'second_exchange_id','두 번째 교환품 전체 수령 확인');

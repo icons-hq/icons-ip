@@ -108,6 +108,8 @@ reset role;
 select pg_temp.transaction_expect_error($q$select private.record_order_claim_reshipment_physical('bd160000-0000-4002-8000-000000000001','hanjin','TESTRESHIP1234','[]')$q$,'claim_collections_incomplete');
 set local role authenticated;
 select public.admin_record_order_claim_origin_collection('bd160000-0000-4002-8000-000000000001',:'shipment_b','TEST 교환 대상 실물 회송 완료');
+-- 하자 교환은 재출고 전에 회수품 재고 처리(정상 복원)를 정한다(CLM-046).
+select public.admin_plan_claim_exchange_defective_stock('bd160000-0000-4002-8000-000000000001',:'shipment_b','{}'::uuid[])->>'decided' as exchange_stock_decided;
 reset role;
 -- The sealed physical engine is tested directly; contact-version binding is
 -- independently tested by the current public contact-v2 contract suite.

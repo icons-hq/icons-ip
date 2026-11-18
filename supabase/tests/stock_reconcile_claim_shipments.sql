@@ -97,6 +97,8 @@ select pg_temp.sc_assert(pg_temp.sc_flow_is(pg_temp.sc_default('sc-good-1'),:'t0
  'per-origin intake time and the waived origin stay out of returned flows');
 
 -- 3) 김포 재출고(파랑으로 교환): 회수품 +1, 파랑 −1. 김포 품목은 재고에 반영됐고 파랑 1개가 지금 나갔다.
+--    하자 교환이라 재출고 전에 김포 회수품의 재고 처리(정상 복원)를 정한다(CLM-046).
+select public.admin_plan_claim_exchange_defective_stock(pg_temp.sc_id('claim',1),pg_temp.sc_id('shipment',1),'{}'::uuid[])->>'decided' as gimpo_decided \gset
 select private.record_order_claim_shipment_reshipment(pg_temp.sc_id('claim',1),pg_temp.sc_id('shipment',1),'hanjin','SCGIMPO00001',
  jsonb_build_array(jsonb_build_object('orderItemId',pg_temp.sc_id('item',1),'variantId',pg_temp.sc_id('variant',1)))) as first_reship \gset
 select pg_sleep(0.02);
