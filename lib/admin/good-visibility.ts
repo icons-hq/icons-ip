@@ -13,7 +13,7 @@ export type GoodVisibilityReason = typeof GOOD_VISIBILITY_REASONS[number];
 export type DisplayGoodVisibility = 'public' | GoodVisibilityReason | 'missing' | 'hidden';
 export type HiddenDisplayGoodVisibility = Exclude<DisplayGoodVisibility, 'public'>;
 
-/** 판매 제한 이름은 판매 설정(GoodSaleRestrictionControl·GoodsSalePolicyFields)의 '성인(19금)'과 같다. */
+/** 판매 제한 이름은 판매 설정(GoodSaleRestrictionControl·GoodsSalePolicyFields의 GoodsSaleRestrictionFields)의 '성인(19금)'과 같다. */
 export const DISPLAY_GOOD_VISIBILITY_LABELS: Record<HiddenDisplayGoodVisibility, string> = {
   draft: '초안', ip_draft: 'IP 초안', restricted: '성인(19금)', archived: '보관됨', ip_archived: 'IP 보관됨', missing: '찾을 수 없음', hidden: '고객 화면 미노출',
 };

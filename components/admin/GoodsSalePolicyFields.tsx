@@ -12,7 +12,7 @@ import { GOOD_NUMBER_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS, GoodAmountField, GoodC
 const QUANTITY_FIELDS = ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit'] as const;
 /** 구매 제한 카드의 오류 개수에 세는 칸(상품 단위 수량 + 옵션별 제한 표). */
 const LIMIT_ERROR_FIELDS: readonly string[] = [...QUANTITY_FIELDS, GOOD_OPTION_LIMIT_ERROR_FIELD];
-const PAYMENT_FIELDS = ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] as const;
+const PAYMENT_FIELDS = ['allowCardPayment', 'allowBankTransfer'] as const;
 /** 랜덤 판매 상품의 옵션별 구매 제한 안내. 고객은 옵션을 고르지 않으므로 '같은 옵션 배정 상한' 하나를 모든 옵션에 넣는다. */
 export const GOODS_RANDOM_OPTION_LIMIT_GUIDANCE = '랜덤 판매 상품은 같은 옵션을 주문 1건·회원 1명에게 몇 개까지 배정할지 정합니다. 입력한 값은 모든 옵션에 같이 들어가고 나중에 더한 옵션에도 채워지며, 주문할 때 상한에 닿은 옵션은 빼고 배정합니다.';
 export const GOODS_RANDOM_OPTION_LIMIT_MIXED = '옵션마다 값이 달라 저장할 수 없습니다. 값을 다시 입력하면 모든 옵션에 같은 값이 들어갑니다.';
@@ -162,8 +162,8 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
   </GoodEditorSubsection>;
 }
 
-/** 결제수단·판매 제한(19금). 구매 제한은 GoodsPurchaseLimitFields가 따로 그린다. */
-export function GoodsSalePolicyFields({ values, current, errors }: {
+/** 결제수단(배송·반품·결제 카드의 접힌 줄). 판매 제한(19금)은 GoodsSaleRestrictionFields가 판매 정보 카드에 따로 그린다. */
+export function GoodsPaymentMethodFields({ values, current, errors }: {
   values: Record<string, string>;
   /** 편집 중인 현재 입력값. 한 줄 요약은 이 값으로 보인다. */
   current?: Record<string, string>;
@@ -174,18 +174,37 @@ export function GoodsSalePolicyFields({ values, current, errors }: {
       <option value="true">{enabled}</option><option value="false">{disabled}</option>
     </SelectField>;
   }
-  const errorCount = Object.keys(errors ?? {}).filter((key) => errors?.[key] && (PAYMENT_FIELDS as readonly string[]).includes(key)).length;
+  const errorCount = PAYMENT_FIELDS.filter((name) => errors?.[name]).length;
   const live = current ?? values;
-  return <GoodFoldedRow errorCount={errorCount} title="결제·판매 제한" id="good-section-sale" isDefault={live.allowCardPayment !== 'false' && live.allowBankTransfer !== 'false' && live.saleRestriction !== 'adult'}
-    summary={`카드 ${live.allowCardPayment === 'false' ? '받지 않음' : '허용'} · 무통장 ${live.allowBankTransfer === 'false' ? '받지 않음' : '허용'} · 판매 제한 ${live.saleRestriction === 'adult' ? '성인(19금)' : '없음'}`}>
+  return <GoodFoldedRow errorCount={errorCount} title="결제수단" id="good-section-sale" isDefault={live.allowCardPayment !== 'false' && live.allowBankTransfer !== 'false'}
+    summary={`카드 ${live.allowCardPayment === 'false' ? '받지 않음' : '허용'} · 무통장 ${live.allowBankTransfer === 'false' ? '받지 않음' : '허용'}`}>
     <AdminFormGrid>
       {choice('allowCardPayment', '카드 결제', '허용', '받지 않음')}
       {choice('allowBankTransfer', '무통장 입금', '허용', '받지 않음')}
-      <SelectField name="saleRestriction" label="판매 제한" defaultValue={values.saleRestriction} error={errors?.saleRestriction}>
-        <option value="none">없음</option><option value="adult">성인(19금)</option>
-      </SelectField>
     </AdminFormGrid>
     <p className="text-sm text-muted-foreground">함께 주문한 모든 상품이 허용하는 결제수단만 사용할 수 있습니다. 두 수단을 모두 닫으면 새 주문을 받지 않습니다. 실제 결제는 결제사·계좌 준비 상태도 확인합니다.</p>
-    <p className="text-sm text-muted-foreground">성인(19금) 상품은 성인 인증을 마친 회원에게만 공개·판매됩니다. 성인 인증이 열리기 전에는 스토어에 노출되지 않습니다.</p>
   </GoodFoldedRow>;
+}
+
+/**
+ * 판매 제한(19금). 판매 정보 카드의 구매 제한 바로 아래에 접지 않고 두 선택지를 바로 보인다(11/18 MD 요청 — #637 뒤 배송·반품·결제의
+ * 접힌 줄 안에 있어 찾지 못했다). 비제어 라디오라 제출 값(saleRestriction=none|adult)과 저장 계약은 그대로다.
+ */
+export function GoodsSaleRestrictionFields({ values, current, errors }: {
+  values: Record<string, string>;
+  /** 편집 중인 현재 입력값. 제목 옆 요약은 이 값으로 보인다. */
+  current?: Record<string, string>;
+  errors?: Record<string, string | undefined>;
+}) {
+  const error = errors?.saleRestriction;
+  const adult = values.saleRestriction === 'adult';
+  const liveAdult = (current ?? values).saleRestriction === 'adult';
+  return <GoodEditorSubsection title="판매 제한" id="good-section-restriction" errorCount={error ? 1 : 0} summary={liveAdult ? '성인(19금)' : '없음'}>
+    <GoodChoiceGroup legend="판매 제한 (19금 상품 설정)">
+      <GoodChoiceOption name="saleRestriction" value="none" defaultChecked={!adult} aria-invalid={error ? 'true' : undefined}>없음</GoodChoiceOption>
+      <GoodChoiceOption name="saleRestriction" value="adult" defaultChecked={adult} aria-invalid={error ? 'true' : undefined}>성인(19금)</GoodChoiceOption>
+    </GoodChoiceGroup>
+    <ErrorText>{error}</ErrorText>
+    <p className="-mt-2 text-sm text-muted-foreground">성인(19금) 상품은 성인 인증을 마친 회원에게만 공개·판매됩니다. 성인 인증이 열리기 전에는 스토어에 노출되지 않습니다.</p>
+  </GoodEditorSubsection>;
 }

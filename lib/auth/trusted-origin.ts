@@ -1,10 +1,12 @@
 import 'server-only';
 
-export const CANONICAL_AUTH_ORIGIN = 'https://iconsip.com';
+import { CANONICAL_SITE_ORIGIN, PRODUCTION_SITE_HOSTS } from '@/lib/site-domains.mjs';
+
+export const CANONICAL_AUTH_ORIGIN = CANONICAL_SITE_ORIGIN;
 
 const STATIC_AUTH_ORIGINS = new Set([
   CANONICAL_AUTH_ORIGIN,
-  'https://www.iconsip.com',
+  ...PRODUCTION_SITE_HOSTS.map((host) => `https://${host}`),
   'https://icons-ip.vercel.app',
   'http://localhost:3000',
   'http://127.0.0.1:3000',

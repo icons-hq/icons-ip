@@ -41,6 +41,10 @@ describe('repository Auth redirect contract', () => {
     expect(localConfig).toContain('http://127.0.0.1:3000/auth/recovery/callback');
     expect(pipeline).toContain('https://iconsip.com/auth/recovery/callback');
     expect(pipeline).toContain('https://www.iconsip.com/auth/recovery/callback');
+    for (const host of ['xsquare.kr', 'www.xsquare.kr']) {
+      expect(pipeline).toContain(`https://${host}/auth/callback`);
+      expect(pipeline).toContain(`https://${host}/auth/recovery/callback`);
+    }
     expect(pipeline).toContain('https://icons-ip.vercel.app/auth/recovery/callback');
     expect(pipeline).toContain('https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback');
     expect(pipeline).toContain('https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback');
