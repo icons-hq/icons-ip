@@ -3,8 +3,9 @@ import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { previewGoodsBulkAction, commitGoodsBulkAction, readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
-import { GOODS_BULK_IP_LIMIT, GOODS_BULK_LABELS, goodsBulkError, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkRequest, type GoodsBulkCommand, type GoodsBulkKind, type GoodsBulkPreview, type GoodsBulkReceipt, type GoodsBulkSkipped } from '@/lib/admin/goods-bulk';
+import { GOODS_BULK_IP_LIMIT, GOODS_BULK_LABELS, goodsBulkError, goodsBulkPriceConfirmation, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkRequest, type GoodsBulkCommand, type GoodsBulkKind, type GoodsBulkPreview, type GoodsBulkReceipt, type GoodsBulkSkipped } from '@/lib/admin/goods-bulk';
 import { isUuid } from '@/lib/uuid';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { parseGoodsPricePeriodInput } from '@/lib/admin/goods-price-periods';
 import { newDiscountPromotionHref } from '@/lib/admin/discount-promotions';
 import type { GoodsGroupIdentity, GoodsGroupResult } from '@/lib/admin/goods-groups';
@@ -131,13 +132,21 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
   }
   function commit() {
     if (!preview || !acknowledged || locked || busy.current || !session.current()) return;
+    /* CAT-008: 0원·1,000원 미만·이전 금액의 절반 이하·두 배 이상으로 바뀌는 판매가는 적용 전에 상품별 이전 → 새 값을 한 번 더 확인받는다. */
+    const priceCheck = goodsBulkPriceConfirmation(preview);
+    if (!priceCheck) { apply(preview); return; }
+    busy.current = true;
+    void adminConfirm(priceCheck).then((ok) => { busy.current = false; if (ok && session.current()) apply(preview); });
+  }
+  function apply(target: GoodsBulkPreview) {
+    if (busy.current || !session.current()) return;
     try {
       const saved = savedOperation(); if (saved) { setRecovery(saved); setMessage('먼저 이전 요청의 결과를 확인해주세요.'); return; }
-      localStorage.setItem(`${prefix}${preview.operationId}`, preview.operationId);
-      if (localStorage.getItem(`${prefix}${preview.operationId}`) !== preview.operationId) throw new Error('bulk journal');
+      localStorage.setItem(`${prefix}${target.operationId}`, target.operationId);
+      if (localStorage.getItem(`${prefix}${target.operationId}`) !== target.operationId) throw new Error('bulk journal');
     } catch { setStorageBroken(true); setMessage('진행 내역을 보관하지 못해 실행하지 않았습니다. 브라우저 저장공간을 확인해주세요.'); return; }
-    setRecovery(preview.operationId); busy.current = true; setMessage(''); startTransition(async () => {
-      try { accept(await commitGoodsBulkAction(preview.operationId, identity)); }
+    setRecovery(target.operationId); busy.current = true; setMessage(''); startTransition(async () => {
+      try { accept(await commitGoodsBulkAction(target.operationId, identity)); }
       catch { if (session.current()) setMessage('결과가 불명확합니다. 같은 요청의 결과를 조회해주세요.'); }
       finally { busy.current = false; }
     });

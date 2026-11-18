@@ -80,7 +80,9 @@ import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields'
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { resultParticle } from '@/lib/korean-particle';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/admin/kit/ui/dropdown-menu';
-import { adminConfirm } from '@/lib/admin/confirm';
+import { adminConfirm, confirmAdminSubmit } from '@/lib/admin/confirm';
+import { goodEditorPriceConfirmation } from '@/lib/admin/goods-price-guard';
+import { GOOD_BASE_REVISION_FIELD } from '@/lib/admin/goods-base-revision';
 
 /*
  * 고시정보 입력 (#171). 항목·라벨·폼 이름은 lib/goods-notice.ts 하나에서 나온다.
@@ -410,7 +412,23 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       if (sectionsInput instanceof HTMLInputElement) sectionsInput.value = JSON.stringify(prepared.value);
       if (operationInput instanceof HTMLInputElement) operationInput.value = atomicSections.operationId();
     }
+    /*
+     * CAT-007·CAT-008: 판매가가 0원·1,000원 미만이거나 저장된 금액의 절반 이하·두 배 이상이면 저장(등록의 저장 후 공개 포함) 전에
+     * 바뀌는 값을 보여 주고 한 번 더 확인받는다. 확인하면 같은 버튼으로 다시 제출해 위 검사를 다시 지난다.
+     */
+    const publishing = (event.nativeEvent as SubmitEvent | undefined)?.submitter?.getAttribute('value') === 'publish';
+    if (!confirmAdminSubmit(event, priceConfirmation(publishing))) { setClientErrors({}); return; }
     setClientErrors({}); onSubmitCapture(event);
+  }
+  function priceConfirmation(publish: boolean) {
+    if (priceResult.regularPrice === null || priceResult.regularPriceError) return null;
+    const nextSale = priceResult.discountError || priceResult.salePrice === null ? priceResult.regularPrice : priceResult.salePrice;
+    const savedResult = selected ? resolveGoodsPrice(goodsPriceDraftFromValues(lockedValues, instantDiscount)) : null;
+    const saved = selected && savedResult ? {
+      regularPrice: savedResult.regularPrice ?? selected.price,
+      salePrice: savedResult.salePrice ?? savedResult.regularPrice ?? selected.price,
+    } : null;
+    return goodEditorPriceConfirmation({ saved, next: { regularPrice: priceResult.regularPrice, salePrice: nextSale }, publish });
   }
   function showInvalidFields(event: FormEvent<HTMLFormElement>) {
     /* 소속 폼을 뗀 예약판매 입력(GOOD_DETACHED_FORM_ID)의 검증은 그 패널 저장의 것이다. 상품 저장 오류로 바꾸거나 말풍선을 막지 않는다. */
@@ -561,6 +579,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     {/* 키보드로 옮긴 입력칸이 위 고정 섹션 내비·아래 고정 저장 영역에 가리지 않게 위아래 여백을 둔다(섹션 자체는 scroll-mt). */}
     <form action={action} className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-my-32" data-good-workspace-form="" onInputCapture={() => setLocalSaveMessage(current => current ? null : current)} onInvalidCapture={showInvalidFields} onPointerDownCapture={closeSaveInfo} onSubmitCapture={submit} ref={attachForm}>
       <input name="previousId" type="hidden" value={selected?.id ?? ''} />
+      {/* CAT-027: 연 시점의 상품 기본 칸 버전. 다른 작업이 그사이 바꿨으면 저장 전체가 거절되어 옛 값으로 되돌리지 않는다. */}
+      {selected && initial.baseRevision ? <input name={GOOD_BASE_REVISION_FIELD} type="hidden" value={initial.baseRevision} /> : null}
       <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
       <input name="published" type="hidden" value={String(Boolean(selected?.publishedAt))} />
       <input name="bg" type="hidden" value={selected?.bg ?? ''} />

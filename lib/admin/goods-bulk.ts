@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { transactionExactKeys as exact, transactionInstant as instant, transactionInteger as integer, transactionRecord as record } from '@/lib/goods-transaction-values';
 import { validGoodsGroupGoodId } from './goods-groups';
+import { GOODS_PRICE_GUARD_INTRO, GOODS_PRICE_GUARD_TITLE, formatGoodsPriceGuardList, goodsPriceGuardRows } from './goods-price-guard';
 
 export const GOODS_BULK_COMMANDS = ['publish', 'unpublish', 'start', 'stop', 'archive', 'restore', 'price', 'discount', 'discount_stop', 'period', 'dissolve'] as const;
 export type GoodsBulkCommand = typeof GOODS_BULK_COMMANDS[number];
@@ -132,6 +133,21 @@ export function goodsBulkError(code: string | null): string {
     operator_capability_required: '상품 관리 권한이 필요합니다.',
   };
   return messages[code ?? ''] ?? '일괄 변경을 적용하지 않았습니다. 상품의 판매 준비·현재 상태와 입력값을 확인해주세요.';
+}
+
+/**
+ * 일괄 판매가 변경을 적용하기 전 오입력 확인(CAT-008). 비교 결과의 기본 판매가가 0원·1,000원 미만이거나 이전 금액의 절반 이하·
+ * 두 배 이상으로 바뀌는 상품을 이전 → 새 값으로 보인다. 판매가 변경이 아니거나 해당 상품이 없으면 null.
+ */
+export function goodsBulkPriceConfirmation(preview: Pick<GoodsBulkPreview, 'request' | 'goods'>): { title: string; message: string; confirmLabel: string } | null {
+  if (preview.request.command !== 'price') return null;
+  const lines = goodsPriceGuardRows(preview.goods.filter((row) => !row.skip), (row) => ({ label: row.name, before: row.price, after: row.nextPrice }));
+  if (!lines.length) return null;
+  return {
+    title: GOODS_PRICE_GUARD_TITLE,
+    message: `${GOODS_PRICE_GUARD_INTRO}\n\n${formatGoodsPriceGuardList(lines)}\n\n맞으면 ${preview.goods.filter((row) => !row.skip).length.toLocaleString('ko-KR')}개 상품에 판매가 변경을 적용합니다.`,
+    confirmLabel: '이대로 적용',
+  };
 }
 
 export function goodsBulkShippingHref(ids: string[]) { return `/admin/settings/shipping-templates?goods=${encodeURIComponent(ids.join(','))}`; }

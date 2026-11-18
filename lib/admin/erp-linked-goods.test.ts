@@ -67,6 +67,16 @@ describe('연결 상품 반영 확정 계약', () => {
       + '이미 있던 바코드가 바뀌는 행이 1건입니다. 창고에 등록된 바코드와 같은지 확인해주세요. 반영 내역은 감사 기록에 남습니다.');
     expect(erpLinkedGoodsConfirmation([row('barcode')])).toBe('연결 상품 1개에 바코드 1건을 반영할까요? 반영 내역은 감사 기록에 남습니다.');
   });
+  /* CAT-008: 상품 편집·목록 일괄 변경과 같은 기준으로 크게 바뀌거나 1,000원 미만인 판매가를 이전 → 새 값으로 함께 묻는다. */
+  it('확정 확인창은 절반 이하·두 배 이상·1,000원 미만으로 바뀌는 판매가를 옵션별로 덧붙인다', () => {
+    const text = erpLinkedGoodsConfirmation([row('price', { next: 1100 }),
+      row('price', { key: 'b:price', isDefault: false, optionName: '대형', current: 12000, next: 120000 }), row('price', { key: 'c:price', current: 10000, next: 12000 })]);
+    expect(text).toContain('반영 내역은 감사 기록에 남습니다.\n\n판매가가 0원·1,000원 미만이거나 이전 금액의 절반 이하·두 배 이상입니다.');
+    expect(text).toContain('· 아크릴 키링: 10,000원 → 1,100원 (이전 금액의 절반 이하)');
+    expect(text).toContain('· 아크릴 키링 (대형): 12,000원 → 120,000원 (이전 금액의 두 배 이상)');
+    expect(text).not.toContain('12,000원 → 12,000원');
+    expect(text).not.toContain('10,000원 → 12,000원');
+  });
 
   it('결과를 읽어 반영·막힘·거절을 한 줄로 알린다', () => {
     const completed = parseErpLinkedGoodsReceipt({ state: 'completed', operationId: 'op', applied: { price: 2, barcode: 0, goods: 2 }, failed: [] });

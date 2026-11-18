@@ -8,7 +8,8 @@ export const GOODS_DRAFT_MAX_BYTES = 2 * 1024 * 1024;
 /** 서버 임시저장 입력을 거절할 때의 안내. 크기 상한은 GOODS_DRAFT_MAX_BYTES에서 만들어 실제 상한과 어긋나지 않게 한다. */
 export const GOODS_DRAFT_INVALID_VALUES_MESSAGE = `상품명을 1~100자로 입력하고 등록 중인 상품의 입력 크기(${GOODS_DRAFT_MAX_BYTES % (1024 * 1024) === 0 ? `${GOODS_DRAFT_MAX_BYTES / (1024 * 1024)}MB` : `${Math.floor(GOODS_DRAFT_MAX_BYTES / 1024)}KB`})와 이미지 업로드 상태를 확인해주세요.`;
 export const GOODS_DRAFT_META_FIELDS = ['serverDraftId', 'serverDraftRevision'] as const;
-const allowed = new Set(GOOD_LOCAL_DRAFT_FIELDS.filter(name => !(GOODS_DRAFT_META_FIELDS as readonly string[]).includes(name)));
+/* 서버 임시저장은 새 상품 등록 입력이다. 저장된 상품의 기본 칸 버전(baseRevision)은 담지 않는다. */
+const allowed = new Set(GOOD_LOCAL_DRAFT_FIELDS.filter(name => !(GOODS_DRAFT_META_FIELDS as readonly string[]).includes(name) && name !== 'baseRevision'));
 const image = /^public-media\/catalog\/good\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/;
 export interface GoodsDraftSummary { id: string; name: string; imagePath: string | null; revision: number; updatedAt: string; archived: boolean; completedGoodId: string | null }
 export interface GoodsDraft extends GoodsDraftSummary { values: Record<string, string> }

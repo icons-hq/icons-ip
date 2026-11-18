@@ -10,6 +10,7 @@ import { GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
 import { readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import { goodsBulkError } from '@/lib/admin/goods-bulk';
 import { adminConfirm } from '@/lib/admin/confirm';
+import { goodsPriceGuardNotice } from '@/lib/admin/goods-price-guard';
 import { resultParticle } from '@/lib/korean-particle';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import type { GoodsListOptionStock } from '@/lib/admin/goods-list-inline';
@@ -121,12 +122,13 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
     if (!/^[1-9][0-9]*$/.test(raw) || !Number.isSafeInteger(next) || next > 2_147_483_647) { state.setError('1원 이상의 정수로 입력해주세요.'); return; }
     if (next === basePrice) { state.setEditing(false); return; }
     if (confirming.current) return;
-    /* 돈이 걸린 변경이라 저장 전에 이전 → 새 판매가를 한 번 더 확인받는다(할인 중지 후 변경 창과 같은 규칙·문구). */
+    /* 돈이 걸린 변경이라 저장 전에 이전 → 새 판매가를 한 번 더 확인받는다(할인 중지 후 변경 창과 같은 규칙·문구).
+       1,000원 미만·이전 금액의 절반 이하·두 배 이상이면 오입력 경고를 덧붙인다(CAT-008, 상품 편집과 같은 기준). */
     const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
     confirming.current = true;
     void adminConfirm({
       title: '판매가 변경 확인',
-      message: `${goodName || '이 상품'}의 판매가를 ${won(basePrice)}에서 ${won(next)}${resultParticle(won(next))} 바꿉니다.`,
+      message: `${goodName || '이 상품'}의 판매가를 ${won(basePrice)}에서 ${won(next)}${resultParticle(won(next))} 바꿉니다.${goodsPriceGuardNotice(basePrice, next)}`,
       confirmLabel: '판매가 변경',
     }).then(ok => { confirming.current = false; if (ok) persist(next); });
   }
