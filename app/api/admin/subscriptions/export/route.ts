@@ -9,6 +9,7 @@ import { readExportPassword, ExportRequestError } from '@/lib/admin/export-reque
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { isUuid } from '@/lib/uuid';
+import { recordPiiAccess } from '@/lib/admin/pii-access-log.server';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 const HEADERS = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
@@ -34,6 +35,10 @@ export async function POST(request: Request) {
     const service = createServiceClient(), audit = await service.rpc('service_record_goods_subscription_export', { p_actor_id: auth.user.id,
       p_receipt_id: data.receiptId, p_fingerprint: data.fingerprint, p_file_sha256: encrypted.sha256 });
     if (audit.error || !isUuid(audit.data)) throw new Error('subscription_export_audit_unavailable');
+    // 개인정보 접속기록(내려받기): 구매자 ID·이름이 담긴 파일이다. 구매자(회원) ID(최대 1,000명)·인원·감사 번호만 남긴다.
+    const owners = [...new Set(rows.map(row => row.ownerId))];
+    await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.subscriptions', path: '/api/admin/subscriptions/export',
+      subjectKind: 'member', subjectIds: owners, subjectCount: owners.length, detail: { records: rows.length, auditId: audit.data } });
     return new Response(new Uint8Array(encrypted.bytes), { headers: { ...HEADERS, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': adminListExportContentDisposition(`icons-정기구매관리-${stamp}.xlsx`, `icons-subscriptions-${stamp}.xlsx`), 'X-ICONS-Export-Audit': audit.data,
       'X-ICONS-Export-Rows': String(rows.length), 'X-ICONS-Export-Records': String(rows.length), 'X-ICONS-Export-Encryption': 'ECMA-376-Agile' } });

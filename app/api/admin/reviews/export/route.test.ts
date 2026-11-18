@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), prepare: vi.fn(), record: vi.fn(), build: vi.fn(), encrypt: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), prepare: vi.fn(), record: vi.fn(), build: vi.fn(), encrypt: vi.fn(), access: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ recordPiiAccess: mocks.access }));
 vi.mock('@/lib/admin/list-export.server', () => ({ buildAdminListExportWorkbook: mocks.build }));
 vi.mock('@/lib/admin/encrypted-workbook.server', () => ({ encryptAdminWorkbook: mocks.encrypt }));
 vi.mock('@/lib/admin/review-export.server', () => ({ prepareReviewExport: mocks.prepare,
@@ -62,6 +63,15 @@ describe('일반 리뷰 암호화 POST export', () => {
     expect(response.headers.get('x-icons-export-records')).toBe('1'); expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile');
     expect(response.headers.get('content-disposition')).toContain('icons-reviews-'); expect(response.headers.get('content-disposition')).toContain(encodeURIComponent('리뷰'));
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-workbook');
+    const snapshot = reviewExportSnapshotFixture();
+    expect(mocks.access).toHaveBeenCalledExactlyOnceWith({ actorId: actor, action: 'export', surface: 'export.reviews', path: '/api/admin/reviews/export',
+      subjectKind: 'review', subjectIds: snapshot.rows.map(row => row.id), subjectCount: snapshot.total, detail: { auditId: id(30) } });
+    expect(mocks.record.mock.invocationCallOrder[0]).toBeLessThan(mocks.access.mock.invocationCallOrder[0]);
+  });
+  it('개인정보 접속기록을 남기지 못하면 암호문을 응답하지 않는다', async () => {
+    mocks.access.mockRejectedValueOnce(new Error('pii log down'));
+    const response = await POST(request()); expect(response.status).toBe(503); privateResponse(response);
+    expect(response.headers.get('content-type')).toContain('application/json'); expect(await response.text()).not.toContain('workbook');
   });
   it.each([403, 409, 503])('최종 감사 %s 실패는 암호문·평문을 응답하지 않는다', async status => {
     mocks.record.mockRejectedValue(new ReviewExportError('발급을 확인하지 못했습니다.', status));

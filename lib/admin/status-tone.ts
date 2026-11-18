@@ -178,6 +178,8 @@ const STATUS_TONES = {
   systemJob: { ok: 'success', failing: 'danger', stalled: 'danger', unrecorded: 'neutral', inactive: 'neutral' },
   /** 미종결 결제 시도 사유 — lib/admin/system-health. 결제사와 원장이 어긋난 건은 사람이 봐야 해 위험, 나머지는 다시 확인할 일이다 */
   unresolvedPayment: { unknown: 'warning', confirming_stalled: 'warning', needs_review: 'danger' },
+  /** 개인정보 접속기록의 이상 징후 — lib/admin/pii-access-log PII_ACCESS_FLAG_LABELS. 점검자가 먼저 볼 것(근무시간 외)과 경위를 물을 것(대량·몰아보기). */
+  piiAccessFlag: { off_hours: 'warning', bulk: 'danger', burst: 'danger' },
 } as const satisfies Record<string, Record<string, AdminTone>>;
 
 export type AdminStatusDomain = keyof typeof STATUS_TONES;

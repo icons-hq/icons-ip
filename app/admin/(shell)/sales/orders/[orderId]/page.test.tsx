@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminOrderDetailPage from './page';
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: { id: 'staff' } as { id: string } | null, isStaff: true, role: 'staff' },
-  load: vi.fn(), production: vi.fn(), downloads: vi.fn(),
+  load: vi.fn(), production: vi.fn(), downloads: vi.fn(), note: vi.fn(),
 }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => ({ ...mocks.auth, operatorAccess: 'operatorAccess' in mocks.auth && mocks.auth.operatorAccess || legacyOperatorAccessFixture() })) }));
 vi.mock('@/lib/admin/order-detail.server', () => ({ getAdminOrderDetail: mocks.load }));
 vi.mock('@/lib/order-production.server', () => ({ loadAdminOrderProduction: mocks.production }));
@@ -34,8 +35,11 @@ describe('정확한 주문 상세 라우트', () => {
   it('정확한 주문만 읽고 없는 주문이나 잘못된 ID는 404로 끝난다', async () => {
     await visit();
     expect(mocks.load).toHaveBeenCalledExactlyOnceWith(ORDER, true);
-    mocks.load.mockResolvedValue(null);
+    expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff', action: 'view', surface: 'order.detail',
+      path: `/admin/sales/orders/${ORDER}`, subjectKind: 'order', subjectIds: [ORDER], detail: { via: 'page' } });
+    mocks.load.mockResolvedValue(null); mocks.note.mockClear();
     await expect(visit()).rejects.toThrow('not_found');
+    expect(mocks.note).not.toHaveBeenCalled();
     mocks.load.mockClear();
     await expect(visit('not-a-uuid')).rejects.toThrow('not_found');
     expect(mocks.load).not.toHaveBeenCalled();

@@ -6,6 +6,8 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { adminOrderPreviewId } from '@/lib/admin/order-preview';
 import { loadAdminOrderPreview } from '@/lib/admin/order-preview.server';
 import { hasAdminCapability } from '@/lib/admin/access';
+import { piiSearchRecord } from '@/lib/admin/pii-access-log';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 
 export default async function AdminSalesShippingPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
   const auth=await requireAdminScreenAccess('/admin/sales/shipping');
@@ -17,6 +19,10 @@ export default async function AdminSalesShippingPage({searchParams}:{searchParam
   /* S36-075: 주문번호를 누르면 `?orderId=`로 같은 목록 위에 주문 상세 팝업을 연다. */
   const previewId=canReadOrders?adminOrderPreviewId(params.orderId):null;
   const [data,preview]=await Promise.all([getShipmentConsoleData(filters,'shipping'),previewId?loadAdminOrderPreview(auth,previewId):Promise.resolve(null)]);
+  /* 구매자명·수령인명(또는 전체)으로 검색한 결과는 주문 검색과 같은 방식으로 접속기록에 남긴다(원문 없이, 실패해도 연다). */
+  const search=piiSearchRecord({actorId:auth.user.id,surface:'shipment.search',path:'/admin/sales/shipping',subjectKind:'shipment',
+    subjectIds:data.rows.map(row=>row.id),total:data.total,field:filters.field,query:filters.query,page:filters.page,view:filters.tab});
+  if(search)await notePiiAccess(search);
   const registered=params.registered;
   const extra=params.extra;
   const registeredExtraCount=typeof extra==='string'&&/^\d{1,4}$/.test(extra)&&Number(extra)>=1&&Number(extra)<=1000?Number(extra):null;
