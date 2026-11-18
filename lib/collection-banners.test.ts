@@ -84,8 +84,8 @@ describe('liveCollectionBanners', () => {
   const banner = (id: string, slot: CollectionBanner['slot'], endsAt: number | null = null, href: string | null = null): CollectionBanner => ({
     id, slot, title: id, subtitle: null, imageUrl: id, mobileImageUrl: null, href, imageAlt: '', imageDim: 'none', textColor: 'black', endsAt,
   });
-  const OPEN = { cardRewardsEnabled: true, communityEnabled: true };
-  const CLOSED = { cardRewardsEnabled: false, communityEnabled: false };
+  const OPEN = { cardRewardsEnabled: true, communityEnabled: true, collectibleFeatures: { binder: true, market: true, exchange: true } };
+  const CLOSED = { cardRewardsEnabled: false, communityEnabled: false, collectibleFeatures: { binder: false, market: false, exchange: false } };
 
   it('요청 시각에 끝난 배너와 다른 슬롯을 거르고 운영 순서를 지킨다', () => {
     const now = Date.parse('2026-10-27T00:00:00Z');
@@ -110,6 +110,7 @@ describe('liveCollectionBanners', () => {
   it('꺼진 목적지(카드팩·게임·커뮤니티)를 걸러낸 뒤에 자르므로 빠진 자리는 다음 장이 채운다(l8b-data-4)', () => {
     const best = [banner('packs', 'best', null, '/packs'), banner('next', 'best', null, '/shop/best')];
     const all = [banner('games', 'all', null, '/games'), banner('community', 'all', null, '/community'),
+      banner('binder', 'all', null, '/binder'), banner('market', 'all', null, '/market?tab=new'), banner('exchange', 'all', null, '/exchange'),
       ...Array.from({ length: 10 }, (_, index) => banner(`s${index}`, 'all'))];
 
     expect(liveCollectionBanners(best, 'best', 0, CLOSED).map((item) => item.id)).toEqual(['next']);

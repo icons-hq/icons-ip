@@ -114,8 +114,8 @@ export function suggestedSearchHref(term: string): string {
   return `/search?q=${encodeURIComponent(term)}`;
 }
 
-/** 통합 검색 입력 안내. 커뮤니티가 닫힌 배포에서는 검색도 포스트·태그 결과를 거르므로(lib/search.ts)
- *  '포스트'를 약속하지 않는다 — /search 화면(Search.tsx)의 같은 분기와 한 규칙이다. */
-export function searchPlaceholder(communityEnabled: boolean = COMMUNITY_ENABLED): string {
-  return communityEnabled ? 'IP · 굿즈 · 카드 · 포스트 통합 검색' : 'IP · 굿즈 · 카드 통합 검색';
+/** 통합 검색 입력 안내. 커뮤니티가 닫힌 배포에서는 검색도 포스트·태그 결과를 거르고, 카드 바인더가 숨김이면 카드 결과를 거르므로
+ *  (lib/search.ts) '포스트'·'카드'를 약속하지 않는다 — /search 화면(Search.tsx)과 한 규칙이다. 바인더 값을 모르면 숨김으로 본다. */
+export function searchPlaceholder(communityEnabled: boolean = COMMUNITY_ENABLED, binderEnabled = false): string {
+  return `${['IP', '굿즈', ...(binderEnabled ? ['카드'] : []), ...(communityEnabled ? ['포스트'] : [])].join(' · ')} 통합 검색`;
 }

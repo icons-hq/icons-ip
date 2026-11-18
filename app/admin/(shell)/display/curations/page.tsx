@@ -6,6 +6,7 @@ import { getAdminHomeLayout } from '@/lib/admin/home-layout.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { getHomeSnapshot } from '@/lib/catalog';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
+import { readCollectibleFeatures } from '@/lib/collectible-features.server';
 import { resolveHomeGoodsCards, resolveHomeLatestGoodsCards } from '@/lib/home-catalog';
 import { getShellNotices } from '@/lib/notice-strip.server';
 import { applicableShellNotices } from '@/lib/shell-notices';
@@ -15,7 +16,7 @@ import { loadHomeProductRankings } from '@/lib/home-ranking.server';
 export default async function AdminDisplayCurationsPage() {
   await requireAdminScreenAccess('/admin/display/curations');
 
-  const [curations, records, home, notices, cardRewardsEnabled, homeLayout] = await Promise.all([
+  const [curations, records, home, notices, cardRewardsEnabled, homeLayout, collectibleFeatures] = await Promise.all([
     getAdminCurations(),
     loadAdminCurationTargets(),
     /* 리뷰 BEST 선정·정렬·표시가 그룹 범위 요약(reviewSummary)을 쓰므로 공개 홈(app/page.tsx)과 같은 옵션으로 읽는다 —
@@ -24,10 +25,11 @@ export default async function AdminDisplayCurationsPage() {
     getShellNotices(),
     readCardRewardsEnabled(),
     getAdminHomeLayout(),
+    readCollectibleFeatures(),
   ]);
   const productRankings = await loadHomeProductRankings(home.catalog.goods);
   /* '현재 공개 홈' 미리보기는 홈 화면 유형에 실제로 보일 공지를 쓴다 — 무작위 스트립은 첫 후보로 고정해 보여 준다. */
-  const homeNotices = applicableShellNotices(notices, '/', { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
+  const homeNotices = applicableShellNotices(notices, '/', { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures });
 
   return (
     <CurationScreen

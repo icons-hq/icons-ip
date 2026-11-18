@@ -7,8 +7,9 @@ import { CollectionBanners } from '@/components/shop/CollectionBanners';
 import type { CollectionBanner } from '@/lib/collection-banners';
 import { Icon } from '@/components/ui/Icon';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { isCardRewardDestination, isCommunityDestination, type HomeCurationSnapshot, type NoticeStrip } from '@/lib/home-catalog';
+import { isCardRewardDestination, isCommunityDestination, isHiddenCollectibleDestination, type HomeCurationSnapshot, type NoticeStrip } from '@/lib/home-catalog';
 import { RollingNoticeBody } from '@/components/shell/RollingNoticeBody';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { searchPlaceholder, suggestedSearchHref } from '@/lib/search-terms';
 import { shellNoticeDestinationAllowed, type ShellNoticeBar } from '@/lib/shell-notices';
 
@@ -48,6 +49,7 @@ export function CurationPreview({
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const collectibleFeatures = useCollectibleFeatures();
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [stageWidth, setStageWidth] = useState(0);
   const viewportWidth = device === 'mobile' ? 390 : 1212;
@@ -76,13 +78,14 @@ export function CurationPreview({
 
   const visibleNotice = noticeStrip
     && (cardRewardsEnabled || !isCardRewardDestination(noticeStrip.href))
-    && (COMMUNITY_ENABLED || !isCommunityDestination(noticeStrip.href));
+    && (COMMUNITY_ENABLED || !isCommunityDestination(noticeStrip.href))
+    && !isHiddenCollectibleDestination(noticeStrip.href, collectibleFeatures);
   const visibleBar = noticeBar
-    && shellNoticeDestinationAllowed(noticeBar.cta?.href ?? null, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED })
+    && shellNoticeDestinationAllowed(noticeBar.cta?.href ?? null, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures })
     ? noticeBar : null;
   /* 공개 컬렉션은 서버 로더가 게이트를 건 목록을 받는다(lib/collection-banners.server) — 미리보기도 같은 판정으로 보여 준다. */
   const bannerAllowed = collectionBanner !== null
-    && shellNoticeDestinationAllowed(collectionBanner.href, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
+    && shellNoticeDestinationAllowed(collectionBanner.href, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures });
 
   return (
     <div className="relative m-3 min-h-[620px] min-w-0 flex-1 md:m-5" data-store-preview-stage="" ref={stageRef}>
@@ -146,7 +149,7 @@ export function CurationPreview({
                     <span aria-hidden className="wc-icon-btn wc-search__aux"><Icon name="chevronLeft" size={24} /></span>
                     <div className="wc-search__field">
                       <span aria-hidden className="wc-search__field-icon"><Icon name="search" size={22} /></span>
-                      <input aria-label="검색어" className="wc-search__input" placeholder={searchPlaceholder()} readOnly tabIndex={-1} type="search" />
+                      <input aria-label="검색어" className="wc-search__input" placeholder={searchPlaceholder(COMMUNITY_ENABLED, collectibleFeatures.binder)} readOnly tabIndex={-1} type="search" />
                     </div>
                     <span aria-hidden className="wc-icon-btn wc-search__aux"><Icon name="search" size={24} /></span>
                   </div>

@@ -21,7 +21,8 @@ import {
   type HomeCurationSnapshot,
   type HomePostPreviewByIpId,
 } from '@/lib/home-catalog';
-import { isCommunityDestination } from '@/lib/home-catalog';
+import { isCommunityDestination, isHiddenCollectibleDestination } from '@/lib/home-catalog';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { RARITY_META } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
@@ -779,9 +780,11 @@ export function AboutLegacy({
   const hasPreviewDataset = REFERENCE_FEATURED_IP_IDS
     .every((id) => catalog.ips.some((ip) => ip.id === id));
   /* 게이트가 걸린 목적지의 큐레이션은 배너만 살아 죽은 링크가 되므로 함께 걸러낸다. */
+  const collectibleFeatures = useCollectibleFeatures();
   const isGatedDestination = (href: string) =>
     (!cardRewardsEnabled && isCardRewardDestination(href))
-    || (!COMMUNITY_ENABLED && isCommunityDestination(href));
+    || (!COMMUNITY_ENABLED && isCommunityDestination(href))
+    || isHiddenCollectibleDestination(href, collectibleFeatures);
   const curatedHero = curation.hero && isGatedDestination(curation.hero.href) ? null : curation.hero;
   const curatedAnnouncement = curation.announcement && isGatedDestination(curation.announcement.href)
     ? null

@@ -94,10 +94,18 @@ const HIDDEN_SEARCH_KINDS: ReadonlySet<SearchResultKind> = new Set(
   COMMUNITY_ENABLED ? [] : (['post', 'tag'] as SearchResultKind[]),
 );
 
-function visibleSearchResults(results: SearchResult[]): SearchResult[] {
-  if (HIDDEN_SEARCH_KINDS.size === 0) return results;
-  return results.filter((result) => !HIDDEN_SEARCH_KINDS.has(result.kind));
+/* 카드 결과는 카드 바인더(도감)로만 이어진다 — 바인더가 숨김(DB 공개 스위치, lib/collectible-features.ts)이면 카드 결과도 걷어낸다.
+   남기면 눌렀을 때 404 로 떨어진다. displayedTotal 도 이 뒤에서 센다. */
+function visibleSearchResults(results: SearchResult[], options: SearchVisibilityOptions): SearchResult[] {
+  return results.filter((result) => !HIDDEN_SEARCH_KINDS.has(result.kind) && (options.binderEnabled || result.kind !== 'card'));
 }
+
+export interface SearchVisibilityOptions {
+  /** 카드 바인더 공개 여부. 호출부가 넘기지 않으면 꺼짐(카드 결과 숨김)으로 본다. */
+  binderEnabled: boolean;
+}
+
+const SEARCH_VISIBILITY_OFF: SearchVisibilityOptions = { binderEnabled: false };
 
 function groupSearchResults(results: SearchResult[]) {
   return GROUP_ORDER.map((kind) => ({
@@ -128,7 +136,7 @@ function mockScore(query: string, primary: string) {
   return primary.toLowerCase().includes(query.toLowerCase()) ? 1 : 0.5;
 }
 
-function getMockSearchSnapshot(query: string): SearchSnapshot {
+function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions): SearchSnapshot {
   const ipsByTitle = new Map(DATA.IPS.map((ip) => [ip.title, ip]));
   const ipsById = new Map(DATA.IPS.map((ip) => [ip.id, ip]));
 
@@ -214,7 +222,7 @@ function getMockSearchSnapshot(query: string): SearchSnapshot {
       })),
   ].sort((left, right) => right.score - left.score);
 
-  const visible = visibleSearchResults(results);
+  const visible = visibleSearchResults(results, options);
 
   return {
     source: 'mock',
@@ -224,12 +232,12 @@ function getMockSearchSnapshot(query: string): SearchSnapshot {
   };
 }
 
-export async function getSearchSnapshot(rawQuery: string | string[] | null | undefined): Promise<SearchSnapshot> {
+export async function getSearchSnapshot(rawQuery: string | string[] | null | undefined, options: SearchVisibilityOptions = SEARCH_VISIBILITY_OFF): Promise<SearchSnapshot> {
   const query = normalizeSearchQuery(rawQuery);
   const source = resolveCatalogSource({ isSupabaseConfigured: getSupabaseConfig().isConfigured });
 
   if (!query) return emptySnapshot(source, query);
-  if (source === 'mock') return getMockSearchSnapshot(query);
+  if (source === 'mock') return getMockSearchSnapshot(query, options);
 
   const supabase = await createClient();
   const imageUrlForPath = (path: string) => {
@@ -251,7 +259,7 @@ export async function getSearchSnapshot(rawQuery: string | string[] | null | und
     .map((row) => toSearchResult(row, imageUrlForPath))
     .filter((result): result is SearchResult => result !== null);
 
-  const visible = visibleSearchResults(results);
+  const visible = visibleSearchResults(results, options);
   const ipIds = [...new Set(visible.flatMap(result => result.ipId ? [result.ipId] : result.kind === 'ip' ? [result.id] : []))];
   if (ipIds.length > 0) {
     const identities = await supabase.from('ips').select('id,public_slug')

@@ -1,4 +1,5 @@
-import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from './home-catalog';
+import type { CollectibleFeatures } from './collectible-features';
+import { isCardRewardDestination, isCommunityDestination, isHiddenCollectibleDestination, type NoticeStrip } from './home-catalog';
 import type { ImageSize } from './image-size';
 import { isGoodDetailPath } from './routes';
 
@@ -98,13 +99,16 @@ export function parseShellNoticePageTypes(value: unknown): ShellNoticePageType[]
 export interface ShellNoticeGates {
   cardRewardsEnabled: boolean;
   communityEnabled: boolean;
+  /** 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치(lib/collectible-features.ts). */
+  collectibleFeatures: CollectibleFeatures;
 }
 
-/** 게이트가 꺼진 목적지(카드팩·게임·커뮤니티)로 보내는 공지는 GNB 항목과 같은 규칙으로 숨긴다. */
+/** 게이트가 꺼진 목적지(카드팩·게임·커뮤니티·숨긴 수집·거래 기능)로 보내는 공지는 GNB 항목과 같은 규칙으로 숨긴다. */
 export function shellNoticeDestinationAllowed(href: string | null, gates: ShellNoticeGates): boolean {
   if (href === null) return true;
   return (gates.cardRewardsEnabled || !isCardRewardDestination(href))
-    && (gates.communityEnabled || !isCommunityDestination(href));
+    && (gates.communityEnabled || !isCommunityDestination(href))
+    && !isHiddenCollectibleDestination(href, gates.collectibleFeatures);
 }
 
 /** 이 화면에 보일 수 있는 공지(대상 유형·게이트) — 순서는 운영 순서 그대로다. */

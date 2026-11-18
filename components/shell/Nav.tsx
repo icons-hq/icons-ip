@@ -15,6 +15,7 @@ import {
   hrefFor,
   isActive,
   isStandaloneShellPath,
+  withoutHiddenCollectibleGroups,
   type NavGroup,
   type NavItem,
 } from '@/lib/routes';
@@ -36,6 +37,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
+import { useCollectibleFeatures } from './CollectibleFeatures';
 import { useCart } from './CartProvider';
 import { CategorySheet } from './CategorySheet';
 import { ListingReturnRecorder } from './ListingReturn';
@@ -170,7 +172,9 @@ function WcChrome({
   /* 활성 항목은 반드시 여기 한 곳에서만 고른다. 항목별로 isActive를 부르면
      '/shop/new'에서 카테고리(/shop)와 NEW가 동시에 활성으로 보인다. */
   const activeId = activeNavId(pathname, navItems);
-  const megaGroups = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, navItems);
+  /* 운영하지 않는 수집·거래 기능(카드 바인더·굿즈 마켓·카드 트레이드)은 DB 공개 스위치가 꺼진 동안 폴백 메가메뉴의 '수집'·'거래' 그룹에서 빠진다. */
+  const collectibleFeatures = useCollectibleFeatures();
+  const megaGroups = configuredNavigationGroups(withoutHiddenCollectibleGroups(CATEGORY_MEGA_GROUPS, collectibleFeatures), navItems);
   /* 공개 전시 트리가 있으면(고객 카테고리 공개 스위치 ON + 공개 전시 1개 이상) 카테고리 메가메뉴는 실제 분류·기획전을 싣고
      모바일 '카테고리' 탭은 카테고리 시트를 연다. 없으면 지금 메뉴(굿즈샵·수집·거래)와 전체 메뉴 시트로 돌아간다(L5 폴백). */
   const categoryLive = isCategoryMenuLive(megaMenus);

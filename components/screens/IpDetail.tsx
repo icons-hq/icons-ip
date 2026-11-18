@@ -17,6 +17,7 @@ import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { compactNumber } from '@/lib/format';
 import type { IpFollowState } from '@/lib/ip-follow';
 import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
@@ -196,6 +197,8 @@ export function IpDetail({
   wishlist?: ListingWishlist | null;
 }) {
   const { ip, goods, cards } = detail;
+  /* 카드 도감(바인더) 링크는 카드 바인더 공개 스위치가 켜진 동안에만 그린다(lib/collectible-features.ts). */
+  const binderEnabled = useCollectibleFeatures().binder;
   const hallBanner = banner && (banner.imageUrl || banner.mobileImageUrl) ? banner : null;
   const canonicalSlug = publicSlug ?? ip.publicSlug ?? ip.id;
   const hallPath = publicIpHref(canonicalSlug);
@@ -296,7 +299,7 @@ export function IpDetail({
 
       <div className="wc-container">
         <nav aria-label="이 IP의 다른 공간" className="wc-iphall__links">
-          <Link href={hrefFor('binder')}>{`카드 도감 ${cards.length}종`}</Link>
+          {binderEnabled && <Link href={hrefFor('binder')}>{`카드 도감 ${cards.length}종`}</Link>}
           <Link href={hrefFor('offlinePopups')}>오프라인 팝업</Link>
           {COMMUNITY_ENABLED && <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>}
         </nav>

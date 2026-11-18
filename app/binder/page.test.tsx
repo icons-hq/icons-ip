@@ -3,6 +3,8 @@ import type { Card, Ip } from '@/lib/data';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
+  binderEnabled: true,
+  exchangeEnabled: false,
   cardRewardsEnabled: false,
   getBinderCatalogOverlay: vi.fn(),
   getCatalogSnapshot: vi.fn(),
@@ -12,6 +14,14 @@ vi.mock('@/components/screens/Binder', () => ({ Binder: () => null }));
 vi.mock('@/lib/catalog', () => ({
   getBinderCatalogOverlay: mocks.getBinderCatalogOverlay,
   getCatalogSnapshot: mocks.getCatalogSnapshot,
+}));
+vi.mock('next/navigation', () => ({
+  notFound: () => {
+    throw new Error('NEXT_NOT_FOUND');
+  },
+}));
+vi.mock('@/lib/collectible-features.server', () => ({
+  readCollectibleFeatures: async () => ({ binder: mocks.binderEnabled, market: false, exchange: mocks.exchangeEnabled }),
 }));
 vi.mock('@/lib/card-rewards/gate.server', () => ({
   readCardRewardsEnabled: () => mocks.cardRewardsEnabled,
@@ -51,6 +61,8 @@ const archivedIp: Ip = {
 
 describe('binder page', () => {
   beforeEach(() => {
+    mocks.binderEnabled = true;
+    mocks.exchangeEnabled = false;
     mocks.getCatalogSnapshot.mockReset();
     mocks.getBinderCatalogOverlay.mockReset();
     mocks.getCatalogSnapshot.mockResolvedValue({
@@ -93,5 +105,21 @@ describe('binder page', () => {
 
     expect(props.catalog.cards).toEqual([activeCard]);
     expect(props.ownedCardIds).toBeNull();
+  });
+
+  it('passes the card trade switch to the binder screen', async () => {
+    mocks.getBinderCatalogOverlay.mockResolvedValue(null);
+    expect(((await Page()).props as { exchangeEnabled: boolean }).exchangeEnabled).toBe(false);
+    mocks.exchangeEnabled = true;
+    expect(((await Page()).props as { exchangeEnabled: boolean }).exchangeEnabled).toBe(true);
+  });
+
+  /* 카드 바인더는 운영하지 않는다 — 공개 스위치가 꺼져 있으면(기본) 누구에게나 404이고, 보유 카드를 읽기 전에 닫는다. */
+  it('is not found for everyone while the card binder is hidden, before reading any card data', async () => {
+    mocks.binderEnabled = false;
+
+    await expect(Page()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.getCatalogSnapshot).not.toHaveBeenCalled();
+    expect(mocks.getBinderCatalogOverlay).not.toHaveBeenCalled();
   });
 });

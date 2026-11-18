@@ -7,6 +7,7 @@ import type { HomeProductCollectionBand } from './home-product-collection';
 import type { HomeReviewBestBand, HomeSalesBestBand } from './home-ranking';
 import type { PublicShoppingStorySummary } from './shopping-stories';
 import type { HomeHeroImageDim, HomeHeroTextColor } from './home-hero';
+import { COLLECTIBLE_FEATURE_IDS, type CollectibleFeatures } from './collectible-features';
 import { publicIpHref } from './ip-identity';
 import { productCardChips, type ProductCardChip } from './product-card-chips';
 
@@ -115,6 +116,33 @@ export function withoutCardRewardCurations(curation: HomeCurationSnapshot): Home
     benefitTiles: curation.benefitTiles.filter((tile) => !isCardRewardDestination(tile.href)),
     ...(curation.stripBanner === undefined ? {} : {
       stripBanner: curation.stripBanner && !isCardRewardDestination(curation.stripBanner.href) ? curation.stripBanner : null,
+    }),
+  };
+}
+
+/* 운영하지 않는 수집·거래 기능(카드 바인더·굿즈 마켓·카드 트레이드)으로 가는 큐레이션·공지를 DB 공개 스위치가 꺼진 동안 걸러낸다
+   (lib/collectible-features.ts). 어드민 타깃 목록에는 없지만 직접 입력한 사이트 안 주소가 남아 있으면 404 로 떨어지는 링크가 된다.
+   파싱 불가 href 는 카드 리워드 판정과 같은 이유로 안전하게 숨김 대상으로 본다. */
+export function isHiddenCollectibleDestination(href: string, features: CollectibleFeatures): boolean {
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
+  } catch {
+    return true;
+  }
+  return COLLECTIBLE_FEATURE_IDS.some((id) => !features[id] && (pathname === `/${id}` || pathname.startsWith(`/${id}/`)));
+}
+
+export function withoutHiddenCollectibleCurations(curation: HomeCurationSnapshot, features: CollectibleFeatures): HomeCurationSnapshot {
+  const hidden = (href: string) => isHiddenCollectibleDestination(href, features);
+  return {
+    ...curation,
+    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !hidden(slide.href)),
+    editorPicks: curation.editorPicks.filter((pick) => !hidden(pick.href)),
+    goodsBands: curation.goodsBands.filter((band) => !hidden(band.href)),
+    benefitTiles: curation.benefitTiles.filter((tile) => !hidden(tile.href)),
+    ...(curation.stripBanner === undefined ? {} : {
+      stripBanner: curation.stripBanner && !hidden(curation.stripBanner.href) ? curation.stripBanner : null,
     }),
   };
 }

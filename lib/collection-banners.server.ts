@@ -2,6 +2,7 @@ import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { unstable_cache } from 'next/cache';
 import { readCardRewardsEnabled } from './card-rewards/gate.server';
+import { getCollectibleFeatures } from './collectible-features.server';
 import {
   collectionBannersNeedCardRewardGate,
   liveCollectionBanners,
@@ -83,7 +84,9 @@ export async function getCollectionBanners(slot: CollectionBannerSlot, now: numb
   try {
     const banners = await getCachedCollectionBanners();
     const cardRewardsEnabled = collectionBannersNeedCardRewardGate(banners, slot, now) ? await readCardRewardsEnabled() : false;
-    return liveCollectionBanners(banners, slot, now, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
+    /* 숨긴 수집·거래 기능으로 가는 배너는 셸과 같은 캐시 읽기(관리자 저장이 즉시 만료)로 거른다. 읽지 못하면 꺼짐이다. */
+    const collectibleFeatures = await getCollectibleFeatures();
+    return liveCollectionBanners(banners, slot, now, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures });
   } catch (error) {
     console.error('[storefront/collection-banners] read failed', {
       code: error instanceof CollectionBannerReadError ? error.code : null,

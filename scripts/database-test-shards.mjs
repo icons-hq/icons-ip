@@ -38,6 +38,8 @@ const operators = [
   sql('operator_logistics_dispatch'),
   sql('operator_email_invitations'),
   sql('operator_member_loyalty_projection'),
+  // 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치(기본 꺼짐)와 platform.manage 감사 저장.
+  sql('collectible_feature_control'),
   // 매월 등급 혜택 쿠폰(S36-062). 실행 월을 2031년으로 고정해 실제 매분 틱과 겹치지 않는다.
   sql('loyalty_monthly_grade_coupons'),
   sql('operator_manual_recovery_guards'),

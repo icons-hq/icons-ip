@@ -3,6 +3,7 @@
    아직 여기로 모이지 않은 잔여물은 하나다: components/screens/Home.tsx의 하드코딩 내비게이션(S3에서 제거). */
 
 import { COMMUNITY_ENABLED } from './community-visibility';
+import { isHiddenCollectibleRoute, type CollectibleFeatures } from './collectible-features';
 import { publicIpHref, type PublicIpReference } from './ip-identity';
 
 export const AOUAD_POPUP_PATH = '/ip/aouad';
@@ -216,6 +217,18 @@ export function hidesSiteFooter(pathname: string): boolean {
 export interface NavGroup {
   heading: string;
   items: NavItem[];
+}
+
+/* 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치(DB, lib/collectible-features.ts)가 꺼진 항목을 걷어낸다. 커뮤니티와 달리
+   런타임 값이라 모듈 상수에 굽지 않고, 링크 묶음을 그리는 소비처(Nav·MenuSheet·SiteFooter)가 렌더할 때 이 함수를 통과시킨다.
+   항목이 모두 빠진 그룹('수집'·'거래')은 제목만 남지 않도록 통째로 걷어낸다. */
+export function withoutHiddenCollectibleItems(items: NavItem[], features: CollectibleFeatures): NavItem[] {
+  return items.filter((item) => !isHiddenCollectibleRoute(item.id, features));
+}
+export function withoutHiddenCollectibleGroups(groups: NavGroup[], features: CollectibleFeatures): NavGroup[] {
+  return groups
+    .map((group) => ({ ...group, items: withoutHiddenCollectibleItems(group.items, features) }))
+    .filter((group) => group.items.length > 0);
 }
 
 /* 그룹판 visibleItems. 항목이 모두 빠진 그룹은 제목만 남지 않도록 통째로 걷어낸다. */

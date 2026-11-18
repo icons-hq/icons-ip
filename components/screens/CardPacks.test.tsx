@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Card, Ip } from '@/lib/data';
 import type { DrawTicketInventory } from '@/lib/draw-tickets';
+import { CollectibleFeaturesProvider } from '@/components/shell/CollectibleFeatures';
 import { CardPacks } from './CardPacks';
 
 /* 서버 액션 모듈은 next/cache 등 서버 전용 의존을 끌고 온다 — 개봉은 상호작용 경로라
@@ -59,8 +60,12 @@ const inventoryWithGroups: DrawTicketInventory = {
   ],
 };
 
-function render(inventory: DrawTicketInventory) {
-  return renderToStaticMarkup(<CardPacks catalog={catalog} inventory={inventory} />);
+function render(inventory: DrawTicketInventory, binder = false) {
+  return renderToStaticMarkup(
+    <CollectibleFeaturesProvider value={{ binder, market: false, exchange: false }}>
+      <CardPacks catalog={catalog} inventory={inventory} />
+    </CollectibleFeaturesProvider>,
+  );
 }
 
 describe('CardPacks White Catalog chrome', () => {
@@ -84,7 +89,12 @@ describe('CardPacks White Catalog chrome', () => {
     expect(html).toContain('개봉 1회 = 카드 1장');
     expect(html).toContain('보유 카드팩');
     expect(html).toContain('<strong>2</strong>');
-    expect(html).toContain('href="/binder"');
+    /* 카드 바인더는 운영하지 않는다 — 공개 스위치가 꺼져 있으면(기본) 바인더 버튼·'바인더에 저장' 안내가 없다. */
+    expect(html).not.toContain('href="/binder"');
+    expect(html).not.toContain('바인더');
+    const withBinder = render(inventoryWithGroups, true);
+    expect(withBinder).toContain('href="/binder"');
+    expect(withBinder).toContain('내 바인더에 바로 저장됩니다');
   });
 
   it('picks the highest rarity lineup card as the hero visual', () => {

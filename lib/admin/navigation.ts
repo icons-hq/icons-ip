@@ -258,6 +258,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'store-settings', label: '판매자 정보 관리', href: '/admin/settings/store', status: 'ready' },
       { id: 'roles', label: '매니저 관리', href: '/admin/community/roles', status: 'ready', adminOnly: true },
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
+      /* 운영하지 않는 카드 바인더·굿즈 마켓·카드 트레이드의 공개 스위치(기본 숨김). 켜고 끄기는 관리자만 한다. */
+      { id: 'collectible-features', label: '기능 공개 관리', href: '/admin/settings/features', status: 'ready', adminOnly: true },
     ],
   },
   /* 카드 칸: 카드·카드풀·뽑기권·카드팩 발급과 카드 전시가 있는 팬 활동(커뮤니티). */

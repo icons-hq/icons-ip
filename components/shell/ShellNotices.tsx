@@ -31,6 +31,7 @@ import { enterShellNoticeView, leaveShellNoticeView, recordShellNoticeEvent, she
 import { InlineScript } from './InlineScript';
 import { isActivationTarget } from './overlay-focus';
 import { RollingNoticeBody } from './RollingNoticeBody';
+import { useCollectibleFeatures } from './CollectibleFeatures';
 
 function browserSessionStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -76,7 +77,8 @@ export function ShellNotices({
   const [seed] = useState(() => readShellNoticeSeed(browserScope()));
   const [barSeed] = useState(() => readShellNoticeBarSeed(browserScope()));
   const [now, setNow] = useState(() => initialShellNoticeNow(browserScope()));
-  const { bars, strips } = applicableShellNotices(notices, pathname, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
+  const collectibleFeatures = useCollectibleFeatures();
+  const { bars, strips } = applicableShellNotices(notices, pathname, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures });
   const pageType = shellNoticePageType(pathname);
   /* 첫 선택(서버·첫 페인트 전 스크립트·하이드레이션과 같은 결과)이 고정의 시작이다. 이후 렌더는 고정한 공지를 그대로 쓰고, 막혔을 때만 새로 고른 키로 갱신한다
      — 렌더 중 상태 보정(Nav 의 경로 리셋과 같은 방식)이라 값이 같으면 다시 그리지 않는다. */

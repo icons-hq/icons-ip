@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   pathname: '/shop',
   presence: 'signed-in' as 'unknown' | 'signed-in' | 'signed-out',
   search: '',
+  /* 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치 — 운영 기본값(전부 숨김)에서 시작한다. */
+  collectibleFeatures: { binder: false, market: false, exchange: false },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -30,6 +32,7 @@ vi.mock('@/components/ui/Icon', () => ({ Icon: ({ name }: { name: string }) => <
 vi.mock('./CartProvider', () => ({ useCart: () => ({ count: mocks.count, resetForSignOut: vi.fn() }) }));
 vi.mock('./AuthPresenceProvider', () => ({ useAuthPresence: () => mocks.presence }));
 vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => mocks.cardRewardsEnabled }));
+vi.mock('./CollectibleFeatures', () => ({ useCollectibleFeatures: () => mocks.collectibleFeatures }));
 vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/auth/onboarding', () => ({ nextPathWithSearch: () => '/' }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ from: vi.fn() }) }));
@@ -68,7 +71,10 @@ beforeEach(() => {
   mocks.pathname = '/shop';
   mocks.presence = 'signed-in';
   mocks.search = '';
+  mocks.collectibleFeatures = { binder: false, market: false, exchange: false };
 });
+
+const ALL_COLLECTIBLES_ON = { binder: true, market: true, exchange: true };
 
 describe('White Catalog 전역 셸', () => {
   /* 초대·비밀번호 변경·정지 안내는 집중형 셸, 게임·캠페인은 자기완결 번들, 어드민은 자체 작업대다.
@@ -197,9 +203,8 @@ describe('White Catalog 전역 셸', () => {
     /* 새 기본 GNB는 NEW·BEST·카테고리·POP-UP·EVENT뿐이다 — 쇼핑스토리(MD-0035)·온라인 팝업·카드팩·커뮤니티는 기본 숨김. */
     for (const hidden of ['/stories', '/ip', '/packs', '/community']) expect(html, hidden).not.toContain(`href="${hidden}"`);
     expect(html).toContain('id="wc-mega-category"');
-    expect(html).toContain('href="/binder"');
-    expect(html).toContain('href="/market"');
-    expect(html).toContain('href="/exchange"');
+    /* 카드 바인더·굿즈 마켓·카드 트레이드는 운영하지 않는다 — 공개 스위치 기본값(숨김)에서는 메가메뉴 어디에도 없다. */
+    for (const hidden of ['/binder', '/market', '/exchange']) expect(html, hidden).not.toContain(`href="${hidden}"`);
     expect(html).toContain('wc-tabbar');
     expect(html).toContain('href="/my/wishlist"');
     expect(html).toContain('aria-haspopup="dialog"');
@@ -350,7 +355,31 @@ describe('White Catalog 전역 셸', () => {
     expect(html.indexOf('class="wc-utilbar"')).toBeLessThan(html.indexOf('<header'));
   });
 
+  it('수집·거래 기능 공개 스위치를 켜면 폴백 메가메뉴·메뉴 시트에 그 기능 링크만 돌아온다', () => {
+    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
+    const html = renderToStaticMarkup(<Nav />);
+    for (const shown of ['/binder', '/market', '/exchange']) expect(html, shown).toContain(`href="${shown}"`);
+
+    mocks.collectibleFeatures = { binder: true, market: false, exchange: false };
+    const binderOnly = renderToStaticMarkup(<Nav />);
+    expect(binderOnly).toContain('href="/binder"');
+    expect(binderOnly).not.toContain('href="/market"');
+    expect(binderOnly).not.toContain('href="/exchange"');
+    const sheet = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
+    expect(sheet).toContain('href="/binder"');
+    /* 항목이 모두 빠진 '거래' 그룹은 제목도 남기지 않는다. */
+    expect(sheet).not.toContain('>거래<');
+  });
+
+  it('전체 메뉴 시트는 수집·거래 기능이 숨김이면(기본) 바인더와 거래 그룹을 싣지 않는다', () => {
+    const html = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
+    expect(html).toContain('내 활동');
+    for (const hidden of ['/binder', '/market', '/exchange']) expect(html, hidden).not.toContain(`href="${hidden}"`);
+    expect(html).not.toContain('>거래<');
+  });
+
   it('전체 메뉴 시트가 스토어·내 활동·거래 그룹과 인증 액션을 담는다', () => {
+    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
     const html = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
 
     expect(html).toContain('aria-label="전체 메뉴"');
@@ -411,13 +440,19 @@ describe('White Catalog 전역 셸', () => {
 
   /* CH-11: 커뮤니티가 닫힌 배포에서 입력 안내가 '포스트'를 약속하면 결과에 없는 종류를 광고하는 셈이다.
    * /search 화면과 같은 규칙(searchPlaceholder)을 쓴다. */
-  it('검색 안내는 커뮤니티 노출 스위치를 따른다', () => {
+  it('검색 안내는 커뮤니티·카드 바인더 공개 스위치를 따른다', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
     expect(html).toContain(`placeholder="${searchPlaceholder()}"`);
     expect(html.includes('포스트')).toBe(COMMUNITY_ENABLED);
-    expect(searchPlaceholder(true)).toBe('IP · 굿즈 · 카드 · 포스트 통합 검색');
-    expect(searchPlaceholder(false)).toBe('IP · 굿즈 · 카드 통합 검색');
+    /* 카드 결과는 카드 바인더로만 이어져 바인더가 숨김(기본)이면 '카드'를 약속하지 않는다. */
+    expect(html).not.toContain('카드');
+    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
+    expect(renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />)).toContain(`placeholder="${searchPlaceholder(COMMUNITY_ENABLED, true)}"`);
+    expect(searchPlaceholder(true, true)).toBe('IP · 굿즈 · 카드 · 포스트 통합 검색');
+    expect(searchPlaceholder(false, true)).toBe('IP · 굿즈 · 카드 통합 검색');
+    expect(searchPlaceholder(false)).toBe('IP · 굿즈 통합 검색');
+    expect(searchPlaceholder(true, false)).toBe('IP · 굿즈 · 포스트 통합 검색');
   });
 
   /* CH-09: 데스크톱은 회색 칸 하나(돋보기는 칸 안 장식)로 보이지만, 뒤로·제출 버튼은 접근 이름을 가진 채
@@ -686,8 +721,13 @@ describe('카테고리 내비게이션 (L5)', () => {
     /* 공개 스위치 OFF·전시 없음 — 운영 화면이 머지만으로 바뀌지 않는다. */
     const fallback = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, categories: [] }} />));
     expect(fallback).not.toContain('wc-mega__list--catalog');
-    for (const heading of ['굿즈샵', '수집', '거래']) expect(fallback).toContain(`<p class="wc-mega__heading">${heading}</p>`);
+    /* 수집·거래 그룹은 카드 바인더·굿즈 마켓·카드 트레이드가 숨김(기본)이면 제목째 빠진다 — 카드팩은 운영 메뉴 설정에서 숨김이다. */
+    expect(fallback).toContain('<p class="wc-mega__heading">굿즈샵</p>');
+    for (const heading of ['수집', '거래']) expect(fallback).not.toContain(`<p class="wc-mega__heading">${heading}</p>`);
     expect(fallback).not.toContain('가을 기획전');
+    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
+    const opened = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, categories: [] }} />));
+    for (const heading of ['굿즈샵', '수집', '거래']) expect(opened).toContain(`<p class="wc-mega__heading">${heading}</p>`);
   });
 
   it('온라인 팝업 메가메뉴는 피처드 IP 목록 + 전체보기 + 상위 2개 이미지 타일이고, 피처드가 없으면 링크로 남는다', () => {

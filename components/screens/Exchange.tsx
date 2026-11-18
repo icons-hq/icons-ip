@@ -1,6 +1,7 @@
 'use client';
 
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
+import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { Badge } from '@/components/wc/Badge';
 import { WcButton } from '@/components/wc/WcButton';
 import { hrefFor } from '@/lib/routes';
@@ -10,6 +11,8 @@ import { hrefFor } from '@/lib/routes';
    mock 매물 리스트와 수수료·체결 방식을 단정하는 문구는 싣지 않는다. */
 export function Exchange() {
   const cardRewardsEnabled = useCardRewardsEnabled();
+  /* 카드 바인더가 숨김(DB 공개 스위치)이면 바인더 버튼을 그리지 않는다. */
+  const binderEnabled = useCollectibleFeatures().binder;
 
   return (
     <div className="wc-root">
@@ -23,7 +26,9 @@ export function Exchange() {
           {cardRewardsEnabled ? (
             <WcButton href={hrefFor('packs')} variant="primary">카드팩 열기</WcButton>
           ) : null}
-          <WcButton href={hrefFor('binder')} variant={cardRewardsEnabled ? 'outline' : 'primary'}>내 바인더</WcButton>
+          {binderEnabled ? (
+            <WcButton href={hrefFor('binder')} variant={cardRewardsEnabled ? 'outline' : 'primary'}>내 바인더</WcButton>
+          ) : null}
         </div>
       </section>
     </div>

@@ -6,7 +6,8 @@ import { toGood, type GoodRow } from './catalog';
 import { parseGoodsMediaAsset } from './goods-media';
 import { loadGoodsListingAppearance } from './goods-listing-appearance.server';
 import { loadGoodsReviewSummaries } from './goods-review-summary.server';
-import { isSafeInternalLink, isCommunityDestination, isCardRewardDestination } from './home-catalog';
+import { isSafeInternalLink, isCommunityDestination, isCardRewardDestination, isHiddenCollectibleDestination } from './home-catalog';
+import { getCollectibleFeatures } from './collectible-features.server';
 import { COMMUNITY_ENABLED } from './community-visibility';
 import { readCardRewardsEnabled } from './card-rewards/gate.server';
 import { isUuid } from './uuid';
@@ -120,10 +121,11 @@ export async function loadCategoryDisplayPage(categoryId: string, query: ShopLis
  *  목록 카드 별점(CL-02)도 컬렉션과 같은 배치 RPC로 이 페이지(20개) 굿즈 몫만 읽는다 — 별점은 장식이라 실패하면 숨길 뿐 목록을 막지 않는다. */
 export async function hydrateCategoryDisplayPage(page: CategoryDisplayPage, client: SupabaseClient): Promise<CategoryDisplayPage> {
   const ids = page.result.goods.map(good => good.id);
-  const [appearance, rewards, reviewSummaries] = await Promise.all([loadGoodsListingAppearance(client, ids), readCardRewardsEnabled(),
-    loadGoodsReviewSummaries(client, ids).catch(() => ({}))]);
+  const [appearance, rewards, reviewSummaries, collectibleFeatures] = await Promise.all([loadGoodsListingAppearance(client, ids), readCardRewardsEnabled(),
+    loadGoodsReviewSummaries(client, ids).catch(() => ({})), getCollectibleFeatures()]);
   for (const good of page.result.goods) good.listingAppearance = appearance.get(good.id);
   page.result.reviewSummaries = reviewSummaries;
-  if (page.banner?.href && ((!COMMUNITY_ENABLED && isCommunityDestination(page.banner.href)) || (!rewards && isCardRewardDestination(page.banner.href)))) page.banner = null;
+  if (page.banner?.href && ((!COMMUNITY_ENABLED && isCommunityDestination(page.banner.href)) || (!rewards && isCardRewardDestination(page.banner.href))
+    || isHiddenCollectibleDestination(page.banner.href, collectibleFeatures))) page.banner = null;
   return page;
 }
