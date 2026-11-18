@@ -8,9 +8,11 @@
 -- goods.base_revision은 그 기본 칸의 버전이다. goods.updated_at은 쓰지 않는다 — 주문·결제 만료가 옵션 재고를 바꾸면
 -- goods.stock_qty 캐시(refresh_goods_variant_stock)가 갱신되며 updated_at도 바뀌어, 판매 중인 상품마다 저장이 충돌로 막힌다.
 -- 버전은 트리거가 올리므로 어느 쓰기 경로(편집 저장·등록 workspace·목록 일괄·바로 수정·ERP 반영·엑셀 반입·그룹 공통정보·
--- 배송 템플릿 적용)든 기본 칸이 실제로 바뀌면 함께 오른다(목록 판매 중지·재개가 바꾸는 판매상태 goods.stock 포함).
--- 같은 값을 다시 쓰는 저장, 재고 수량(stock_qty)·공개 상태·KC 고지·판매 제한·결제 수단처럼 편집 화면이 쓰지 않거나
--- 따로 지키는 칸은 버전을 올리지 않는다.
+-- 배송 템플릿 적용·판매 제한/무통장 스위치)든 기본 칸이 실제로 바뀌면 함께 오른다(목록 판매 중지·재개가 바꾸는 판매상태
+-- goods.stock, 편집 화면 판매 조건 칸이 매번 다시 쓰는 결제 수단 allow_card_payment·allow_bank_transfer와 판매 제한
+-- sale_restriction 포함 — 빠지면 옛 화면이 19금 판매 제한을 'none'으로 되돌려 인증 없이 팔린다).
+-- 같은 값을 다시 쓰는 저장, 재고 수량(stock_qty)·공개 상태·KC 고지처럼 편집 화면이 쓰지 않거나 따로 지키는 칸은
+-- 버전을 올리지 않는다. 감시 칸은 모두 운영자 저장 경로만 쓰고 주문·결제·예약 작업(pg_cron)은 쓰지 않는다.
 --
 -- 상품 유형(type)은 대표 카테고리에서 파생되고(공개 전환 때 다시 맞출 수 있다) 저장 RPC가 같은 규칙으로 다시 정하므로 넣지 않는다.
 -- 대표 카테고리(category_id)가 들어가 있어 유형 변경도 대부분 함께 잡힌다.
@@ -24,7 +26,7 @@ begin;
 alter table public.goods add column base_revision bigint not null default 0;
 alter table public.goods add constraint goods_base_revision_nonnegative check (base_revision >= 0);
 comment on column public.goods.base_revision is
-  '상품 기본 칸(편집 화면이 다시 보내는 칸)과 옵션 금액·이름·코드·구매 제한, 추가 카테고리가 바뀔 때마다 1씩 오르는 버전(CAT-027).';
+  '상품 기본 칸(편집 화면이 다시 보내는 칸, 결제 수단·판매 제한 포함)과 옵션 금액·이름·코드·구매 제한·순서·대표 옵션, 추가 카테고리가 바뀔 때마다 1씩 오르는 버전(CAT-027).';
 
 -- 기본 칸이 실제로 바뀌었거나, 다른 표(옵션·추가 카테고리)의 변경이 버전을 올려 달라고(base_revision을 바꿔) 요청하면 1 올린다.
 -- 쓰는 쪽이 임의의 값을 넣을 수는 없다. 다른 BEFORE UPDATE 트리거가 고친 NEW까지 보도록 이름을 zzz로 두어 마지막에 돈다.
@@ -44,7 +46,8 @@ begin
         new.order_quantity_limit_enabled, new.min_order_qty, new.max_order_qty,
         new.member_purchase_limit_enabled, new.member_lifetime_qty_limit,
         new.claim_return_allowed, new.claim_exchange_allowed, new.claim_restriction_reason,
-        new.claim_return_fee, new.claim_return_free_shipping_fee, new.claim_exchange_fee, new.return_address_id)
+        new.claim_return_fee, new.claim_return_free_shipping_fee, new.claim_exchange_fee, new.return_address_id,
+        new.allow_card_payment, new.allow_bank_transfer, new.sale_restriction)
       is distinct from
        (old.id, old.ip_id, old.name, old.price, old.compare_at_price, old.show_discount_rate, old.badge, old.stock, old.bg,
         old.image_path, old.gallery_paths, old.detail_image_path,
@@ -57,7 +60,8 @@ begin
         old.order_quantity_limit_enabled, old.min_order_qty, old.max_order_qty,
         old.member_purchase_limit_enabled, old.member_lifetime_qty_limit,
         old.claim_return_allowed, old.claim_exchange_allowed, old.claim_restriction_reason,
-        old.claim_return_fee, old.claim_return_free_shipping_fee, old.claim_exchange_fee, old.return_address_id) then
+        old.claim_return_fee, old.claim_return_free_shipping_fee, old.claim_exchange_fee, old.return_address_id,
+        old.allow_card_payment, old.allow_bank_transfer, old.sale_restriction) then
     new.base_revision := old.base_revision + 1;
   end if;
   return new;
@@ -76,11 +80,13 @@ begin
   return null;
 end $$;
 revoke all on function private.bump_goods_base_revision_from_variant() from public, anon, authenticated, service_role;
+-- 옵션 순서(sort_order)와 대표 옵션(is_default)도 편집 화면이 보낸 행 순서로 다시 쓰므로 감시한다(옵션 구성 비교는 id 묶음만 본다).
+-- 이 둘은 옵션 편집 저장·그룹 전환만 쓰고 주문·재고 경로는 쓰지 않는다.
 create trigger goods_variants_base_revision
-  after update of price, name, attributes, code, low_stock_threshold, order_max_qty, member_max_qty on public.goods_variants
+  after update of price, name, attributes, code, low_stock_threshold, order_max_qty, member_max_qty, sort_order, is_default on public.goods_variants
   for each row
-  when ((old.price, old.name, old.attributes, old.code, old.low_stock_threshold, old.order_max_qty, old.member_max_qty)
-    is distinct from (new.price, new.name, new.attributes, new.code, new.low_stock_threshold, new.order_max_qty, new.member_max_qty))
+  when ((old.price, old.name, old.attributes, old.code, old.low_stock_threshold, old.order_max_qty, old.member_max_qty, old.sort_order, old.is_default)
+    is distinct from (new.price, new.name, new.attributes, new.code, new.low_stock_threshold, new.order_max_qty, new.member_max_qty, new.sort_order, new.is_default))
   execute function private.bump_goods_base_revision_from_variant();
 
 -- 앵커 치환 도구(이 migration 안에서만 쓰고 끝에서 지운다). 앵커가 정확히 한 번 나오지 않으면 실패한다.
@@ -128,6 +134,14 @@ $a$    where id = coalesce(nullif(target_good->>'previous_id', ''), target_good-
 $a$
 ]);
 
+-- 옵션 저장은 대표 옵션 유일 색인(goods_variants_one_default) 때문에 대표 표시를 먼저 모두 끄고 행마다 다시 켠다. 순서·대표가
+-- 그대로인 저장도 대표 옵션이 꺼졌다 켜져 버전이 오르므로, 보낸 첫 행(새 대표)이 이미 대표면 끄지 않는다(다른 대표만 끈다).
+select private.t2_patch_function('private.save_goods_options(text,jsonb,jsonb,boolean)'::regprocedure, array[
+$a$ update public.goods_variants set is_default=false where good_id=target_id and is_default;$a$,
+$a$ update public.goods_variants set is_default=false where good_id=target_id and is_default
+   and id::text is distinct from nullif(target_rows->0->>'id','');$a$
+]);
+
 -- 그룹 공통정보 저장은 구성 상품의 공통 칸만 바꾸고 나머지 칸(개별 칸)이 그대로인지 행 전체로 견준다. 공통 칸이 바뀌면
 -- 기본 칸 버전도 함께 오르므로, 그 비교에서 updated_at처럼 base_revision을 뺀다(개별 칸 변경 판정은 그대로).
 select private.t2_patch_function('public.admin_save_goods_group_common(uuid,bigint,jsonb,uuid,uuid,uuid)'::regprocedure, array[
@@ -144,7 +158,8 @@ begin
   foreach fn in array array[
     'public.admin_save_good(jsonb)'::regprocedure,
     'private.apply_goods_additional_categories(text,uuid[])'::regprocedure,
-    'public.admin_save_goods_group_common(uuid,bigint,jsonb,uuid,uuid,uuid)'::regprocedure] loop
+    'public.admin_save_goods_group_common(uuid,bigint,jsonb,uuid,uuid,uuid)'::regprocedure,
+    'private.save_goods_options(text,jsonb,jsonb,boolean)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

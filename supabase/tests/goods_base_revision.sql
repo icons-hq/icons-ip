@@ -84,14 +84,43 @@ select private.change_goods_variant_stock('base-a', :'default_variant', -2);
 select private.change_goods_variant_stock('base-a', :'default_variant', 1);
 select pg_temp.base_assert(pg_temp.base_revision('base-a') = :rev4, 'stock movement keeps the base revision');
 select pg_temp.base_assert((select stock_qty = 15 from public.goods where id = 'base-a'), 'stock cache moved');
--- 편집 화면이 쓰지 않는 칸(결제 수단·판매 제한)도 버전을 올리지 않는다.
+-- 결제 수단·판매 제한은 편집 화면 판매 조건 칸이 매번 다시 보내는 칸이다. 다른 화면이 19금 판매 제한·무통장 차단을 저장하면
+-- 버전이 오르고, 그 전에 연 화면(판매 제한 없음·무통장 허용)의 저장은 거절되어 판매 제한이 'none'으로 되돌아가지 않는다.
 set local role authenticated;
-select public.admin_set_good_bank_transfer('base-a', false);
-select pg_temp.base_assert(pg_temp.base_revision('base-a') = :rev4, 'payment-method toggle keeps the base revision');
+select public.admin_save_good(pg_temp.base_payload('base-a') || jsonb_build_object('sale_restriction', 'adult', 'allow_bank_transfer', false, 'base_expected_revision', :rev4));
+select pg_temp.base_assert(pg_temp.base_revision('base-a') > :rev4
+  and (select sale_restriction = 'adult' and not allow_bank_transfer from public.goods where id = 'base-a'), 'sale restriction and payment change bump the revision');
+select pg_temp.base_error(format('select public.admin_save_good(%L::jsonb)', (pg_temp.base_payload('base-a') || jsonb_build_object('name', 'TEST 이름만 수정',
+  'sale_restriction', 'none', 'allow_bank_transfer', true, 'allow_card_payment', true, 'base_expected_revision', :rev4))::text), 'goods_base_changed');
+select pg_temp.base_assert((select sale_restriction = 'adult' and not allow_bank_transfer and name = 'TEST 기본 칸 A 수정' from public.goods where id = 'base-a'),
+  'stale editor cannot lift the adult sale restriction');
+select pg_temp.base_revision('base-a') as rev4b \gset
+select public.admin_set_good_bank_transfer('base-a', true);
+select pg_temp.base_assert(pg_temp.base_revision('base-a') = :rev4b + 1, 'payment-method switch bumps the revision');
 -- 버전을 직접 정할 수 없다(어떤 값을 넣어도 1만 오른다).
+select pg_temp.base_revision('base-a') as rev4c \gset
 reset role;
 update public.goods set base_revision = 999 where id = 'base-a';
-select pg_temp.base_assert(pg_temp.base_revision('base-a') = :rev4 + 1, 'explicit write only requests a single bump');
+select pg_temp.base_assert(pg_temp.base_revision('base-a') = :rev4c + 1, 'explicit write only requests a single bump');
+
+-- 옵션 순서·대표 옵션도 편집 화면이 보낸 행 순서로 다시 쓴다(옵션 구성 비교는 id 묶음만 본다). 같은 순서로 다시 저장하면
+-- 버전이 그대로이고, 다른 화면이 순서를 바꾸면 버전이 올라 옛 화면이 순서·대표 옵션을 되돌리지 못한다.
+set local role authenticated;
+select public.admin_save_good('{"id":"base-c","ip_id":"base-revision-tests","name":"TEST 순서","price":10000,"variant_baseline":[],"variants":[{"name":"빨강","attributes":{"색상":"빨강"},"extraPrice":0,"stockQty":3},{"name":"파랑","attributes":{"색상":"파랑"},"extraPrice":0,"stockQty":3},{"name":"노랑","attributes":{"색상":"노랑"},"extraPrice":0,"stockQty":3}]}');
+create function pg_temp.base_order_payload(p_id text, p_desc boolean) returns jsonb language sql as $$
+  select pg_temp.base_payload(p_id) || jsonb_build_object('variants', (select jsonb_agg(jsonb_build_object('id', v.id, 'name', v.name, 'attributes', v.attributes, 'code', v.code,
+      'extraPrice', v.price - g.price, 'stockQty', v.stock_qty, 'expectedStockQty', v.stock_qty) order by case when p_desc then -v.sort_order else v.sort_order end)
+    from public.goods_variants v join public.goods g on g.id = v.good_id where v.good_id = p_id and v.archived_at is null)) $$;
+create function pg_temp.base_order(p_id text) returns text language sql as $$
+  select string_agg(name || case when is_default then '*' else '' end, ',' order by sort_order) from public.goods_variants where good_id = p_id and archived_at is null $$;
+select pg_temp.base_order_payload('base-c', false) as order_screen \gset
+select pg_temp.base_revision('base-c') as order_rev \gset
+select public.admin_save_good(:'order_screen'::jsonb || jsonb_build_object('base_expected_revision', :order_rev));
+select pg_temp.base_assert(pg_temp.base_revision('base-c') = :order_rev and pg_temp.base_order('base-c') = '빨강*,파랑,노랑', 'same option order keeps the revision');
+select public.admin_save_good(pg_temp.base_order_payload('base-c', true) || jsonb_build_object('base_expected_revision', :order_rev));
+select pg_temp.base_assert(pg_temp.base_revision('base-c') > :order_rev and pg_temp.base_order('base-c') = '노랑*,파랑,빨강', 'option order and default change bump the revision');
+select pg_temp.base_error(format('select public.admin_save_good(%L::jsonb)', (:'order_screen'::jsonb || jsonb_build_object('name', 'TEST 순서 이름만', 'base_expected_revision', :order_rev))::text), 'goods_base_changed');
+select pg_temp.base_assert(pg_temp.base_order('base-c') = '노랑*,파랑,빨강', 'stale editor cannot restore the old option order');
 
 -- 8. 추가 카테고리는 다른 표지만 편집 화면이 다시 보내는 칸이라 집합이 바뀔 때만 버전을 올린다.
 set local role authenticated;
