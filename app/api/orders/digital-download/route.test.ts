@@ -5,6 +5,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: mocks.user, getSession: mocks.session } }) }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.rpc, storage: { from: mocks.bucket } }) }));
 import { POST } from './route';
+import { DIGITAL_DOWNLOAD_ON_HOLD_MESSAGE } from '@/lib/order-downloads';
 const id = (n: number) => `c7160850-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const bytes = new TextEncoder().encode('TEST purchased private file\n');
 const sha = createHash('sha256').update(bytes).digest('hex');
@@ -32,6 +33,19 @@ describe('private purchased file transfer', () => {
  it('a refund or claim between storage read and transfer returns no bytes', async () => {
   mocks.rpc.mockImplementation(async (name: string) => name === 'service_get_digital_download_info' ? { data: info, error: null } : { data: null, error: { code: '23514' } });
   const response = await POST(request()); expect(response.status).toBe(409); expect(await response.text()).not.toContain('TEST purchased');
+ });
+ it('출고 보류(결제 확인 중) 주문은 내부 사정 없이 이유를 돌려주고 파일을 보내지 않는다', async () => {
+  mocks.rpc.mockImplementation(async () => ({ data: null, error: { code: '23514', message: 'digital_access_on_hold' } }));
+  const held = await POST(request());
+  expect(held.status).toBe(409);
+  const json = await held.json();
+  expect(json).toEqual({ error: DIGITAL_DOWNLOAD_ON_HOLD_MESSAGE, reason: 'payment_review' });
+  expect(json.error).not.toContain('테스트');
+  expect(mocks.download).not.toHaveBeenCalled();
+  // 내려받은 뒤 기록 직전에 보류가 걸려도 바이트를 보내지 않는다.
+  mocks.rpc.mockImplementation(async (name: string) => name === 'service_get_digital_download_info' ? { data: info, error: null } : { data: null, error: { code: '23514', message: 'digital_access_on_hold' } });
+  const late = await POST(request());
+  expect(late.status).toBe(409); expect((await late.json()).reason).toBe('payment_review');
  });
  it('rejects a mutated blob or mismatched private path without recording delivery', async () => {
   mocks.download.mockResolvedValue({ data: new Blob([new Uint8Array(bytes.length)]), error: null }); expect((await POST(request())).status).toBe(503); expect(mocks.rpc).toHaveBeenCalledTimes(1);

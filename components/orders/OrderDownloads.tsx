@@ -14,7 +14,13 @@ function DownloadButton({ itemId, file, available }: { itemId: string; file: Dig
   try {
    const response = await fetch('/api/orders/digital-download', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, assetId: file.id, operationId: operation.current }) });
-   if (!response.ok) { setError('파일을 받지 못했습니다. 현재 주문 상태를 확인하거나 같은 요청으로 다시 시도해주세요.'); return; }
+   if (!response.ok) {
+    /* 결제 확인 중(출고 보류)이면 서버가 이유 문구를 준다. 그 밖의 실패는 지금 문구 그대로다. */
+    const failure: unknown = await response.json().catch(() => null);
+    const reason = failure && typeof failure === 'object' && (failure as { reason?: unknown }).reason === 'payment_review'
+      && typeof (failure as { error?: unknown }).error === 'string' ? (failure as { error: string }).error : null;
+    setError(reason ?? '파일을 받지 못했습니다. 현재 주문 상태를 확인하거나 같은 요청으로 다시 시도해주세요.'); return;
+   }
    const blob = await response.blob(); if (blob.size !== file.size) { setError('파일 전송이 완료되지 않았습니다. 다시 시도해주세요.'); return; }
    url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = file.name; document.body.append(link); link.click(); link.remove();
    operation.current = null; router.refresh();
