@@ -222,6 +222,8 @@ const storefront = [
   sql('member_phone_verification'),
   // 온보딩 완료는 서버(service_role)만 기록하고 휴대폰 인증을 쓰기 시점에 다시 확인한다.
   sql('onboarding_completion_server_only'),
+  // 문의로 받은 탈퇴의 어드민 처리(정지·개인정보 삭제·세션 종료·감사)와 정지 회원 계정 문의.
+  sql('member_withdrawal_processing'),
   // 2026-11-17: 로그인 이메일이 쓸 수 없는 주소(Apple 릴레이·빈 값)인 회원의 이메일 변경 코드·프로필 이메일 동기화.
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
