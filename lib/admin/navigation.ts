@@ -255,6 +255,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'grid',
     screens: [
       { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
+      /* 자동 작업 실패·멈춤, 미종결 결제, 메일 발송 실패(원장 OPS-039·PAY-067). 운영 할 일 '시스템 점검'이 여기로 온다. */
+      { id: 'system-health', label: '시스템 상태', href: '/admin/settings/system', status: 'ready' },
       { id: 'store-settings', label: '판매자 정보 관리', href: '/admin/settings/store', status: 'ready' },
       { id: 'roles', label: '매니저 관리', href: '/admin/community/roles', status: 'ready', adminOnly: true },
       /* 개인정보 접속기록 점검(CUS-084·OPS-014): 운영자 IP·열람 대상을 모아 보는 화면이라 매니저 관리 권한만 연다. */

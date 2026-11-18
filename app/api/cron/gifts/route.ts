@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/service';
 import { isUuid } from '@/lib/uuid';
+import { startCronRun } from '@/lib/system-health/cron-run.server';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -10,6 +11,7 @@ export async function GET(request: Request) {
   if (!secret || !authorization?.startsWith('Bearer ')) return Response.json({ ok: false }, { status: 401, headers });
   const actual = Buffer.from(authorization.slice(7)), expected = Buffer.from(secret);
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return Response.json({ ok: false }, { status: 401, headers });
+  const run = startCronRun('gifts');
   try {
     const client = createServiceClient(), expired = await client.rpc('service_expire_gifts', { p_limit: 100 });
     if (expired.error || !Number.isSafeInteger(expired.data?.expired) || expired.data.expired < 0 || expired.data.expired > 100) throw new Error('gift_expiry_failed');
@@ -24,6 +26,6 @@ export async function GET(request: Request) {
       if (result.error || result.data?.giftId !== id || !['cleaned', 'ordered', 'not_fenced', 'missing'].includes(result.data?.state)) { failed++; continue; }
       if (result.data.state === 'cleaned') cleaned++;
     }
-    return Response.json({ ok: failed === 0, expired: expired.data.expired, exportReceiptsPurged: exports.data, cleaned, failed }, { status: failed ? 503 : 200, headers });
-  } catch { return Response.json({ ok: false }, { status: 503, headers }); }
+    return run.finish(Response.json({ ok: failed === 0, expired: expired.data.expired, exportReceiptsPurged: exports.data, cleaned, failed }, { status: failed ? 503 : 200, headers }));
+  } catch (error) { return run.fail(error, Response.json({ ok: false }, { status: 503, headers })); }
 }

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { processStockSafetyDigests } from '@/lib/email/stock-safety-digest-jobs.server';
+import { startCronRun } from '@/lib/system-health/cron-run.server';
 
 /*
  * 안전재고 하루 1회 요약 메일(QNA-014). 매분 불러도 그날 실행은 DB가 설정 시각(KST) 뒤 한 번만 만들고,
@@ -18,11 +19,12 @@ export async function GET(request: Request) {
   if (!secret || actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
     return Response.json({ ok: false }, { status: 401, headers });
   }
+  const run = startCronRun('stock-safety-digest');
   try {
     const result = await processStockSafetyDigests();
     const ok = !result.failed && !result.unknown && !result.stale;
-    return Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers });
-  } catch {
-    return Response.json({ ok: false }, { status: 503, headers });
+    return run.finish(Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers }));
+  } catch (error) {
+    return run.fail(error, Response.json({ ok: false }, { status: 503, headers }));
   }
 }

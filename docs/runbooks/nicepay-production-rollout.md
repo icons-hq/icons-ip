@@ -140,10 +140,13 @@ AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint�
    주문번호)로 거래를 찾는다.
 2. 승인 상태인데 우리 주문이 결제되지 않은 건이면 가맹점관리자에서 그 거래를 전액 취소한다.
    구매자에게는 다시 주문하도록 안내한다.
-3. 내부 재정합 라우트로 그 attempt 한 건을 다시 정합한다:
+3. 그 attempt 한 건을 다시 정합한다: 시스템 상태(`/admin/settings/system`) → 미종결 결제의
+   '결제 상태 다시 확인'(`sales.manage`, 감사 기록 — `docs/runbooks/system-health.md`), 또는 내부 재정합 라우트
    `POST /api/internal/payments/goods/reconcile`(`Authorization: Bearer
    $PAYMENT_RECONCILIATION_SECRET`, 본문 `{"operation":"payment","attemptId":…,"caseRef":…}`).
-   거래조회가 `취소`면 `declined`로 닫힌다.
+   거래조회가 `취소`면 `declined`로 닫힌다. 결과 불명(`unknown`)·멈춘 확인은 10분 주기 자동 재확인
+   cron(`/api/cron/payment-reconciliation`)도 다시 확인한다 — 나이스페이는 웹훅을 쓰지 않으므로 이 cron이 사람 없이
+   닫히는 유일한 길이다.
 
 ### 결제통보(웹훅)
 
