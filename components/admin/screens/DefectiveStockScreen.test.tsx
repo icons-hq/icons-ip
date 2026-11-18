@@ -4,10 +4,14 @@ import type { DefectiveStockList } from '@/lib/admin/defective-stock';
 import { DefectiveStockScreen } from './DefectiveStockScreen';
 
 const CLAIM = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const EXCHANGE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 const list: DefectiveStockList = {
   variants: [{ goodId: 'g1', goodName: '아크릴 키링', variantId: 'v1', variantName: '파랑', variantCode: 'KR-01', qty: 3, entries: 2, lastRecordedAt: '2026-11-12T01:00:00Z' }],
-  entries: [{ id: 'e1', claimId: CLAIM, claimReference: 12, orderItemId: 'oi1', goodName: '아크릴 키링', variantId: 'v1', variantName: '파랑', variantCode: 'KR-01', qty: 2, recordedAt: '2026-11-12T01:00:00Z', recordedByName: '김담당' }],
+  entries: [
+    { id: 'e1', claimId: CLAIM, claimType: 'return', claimReference: 12, orderItemId: 'oi1', goodName: '아크릴 키링', variantId: 'v1', variantName: '파랑', variantCode: 'KR-01', qty: 2, recordedAt: '2026-11-12T01:00:00Z', recordedByName: '김담당' },
+    { id: 'e2', claimId: EXCHANGE, claimType: 'exchange', claimReference: 14, orderItemId: 'oi2', goodName: '아크릴 키링', variantId: 'v1', variantName: '파랑', variantCode: 'KR-01', qty: 1, recordedAt: '2026-11-12T02:00:00Z', recordedByName: '박담당' },
+  ],
   pending: [],
 };
 
@@ -22,6 +26,9 @@ describe('불량 재고 화면', () => {
     expect(html).toContain(`href="/admin/sales/claims/returns/${CLAIM}"`);
     expect(html).toContain('김담당');
     expect(html).not.toContain('불량 기록 필요');
+    /* 교환 회수 상품의 불량(CLM-046)은 근거 교환 요청으로 잇는다. */
+    expect(html).toContain(`href="/admin/sales/claims/exchanges/${EXCHANGE}"`);
+    expect(html).toContain('교환 ');
   });
 
   it('기록이 없으면 빈 상태를, 기록 필요 클레임이 있으면 반품 상세로 안내한다', () => {

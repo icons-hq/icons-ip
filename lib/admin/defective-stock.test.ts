@@ -46,11 +46,14 @@ describe('반품 불량 재고 읽기·양식 계약', () => {
     expect(parseDefectiveStockList(null)).toBeNull();
     const list = parseDefectiveStockList({
       variants: [{ goodId: 'g', goodName: '굿즈', variantId: 'v', variantName: '옵션', variantCode: 'C1', qty: 3, entries: 2, lastRecordedAt: '2026-11-12T00:00:00Z' }],
-      entries: [{ id: 'e', claimId: 'c', claimReference: 7, orderItemId: 'o', goodName: '굿즈', variantId: 'v', variantName: '옵션', variantCode: 'C1', qty: 1, recordedAt: '2026-11-12T00:00:00Z', recordedByName: '담당' }],
+      entries: [{ id: 'e', claimId: 'c', claimReference: 7, orderItemId: 'o', goodName: '굿즈', variantId: 'v', variantName: '옵션', variantCode: 'C1', qty: 1, recordedAt: '2026-11-12T00:00:00Z', recordedByName: '담당' },
+        { id: 'x', claimId: 'cx', claimType: 'exchange', claimReference: 9, orderItemId: 'o2', goodName: '굿즈', variantId: 'v', variantName: '옵션', variantCode: 'C1', qty: 1, recordedAt: '2026-11-12T01:00:00Z', recordedByName: '담당' }],
       pending: [{ claimId: 'c2', claimReference: 8, qty: 2, items: 1 }],
     });
     expect(list?.variants[0]).toMatchObject({ variantId: 'v', qty: 3, entries: 2 });
-    expect(list?.entries[0]).toMatchObject({ claimReference: 7, recordedByName: '담당' });
+    /* 출처가 없는 옛 응답은 반품이고, 교환 회수 불량(CLM-046)은 교환으로 읽는다. */
+    expect(list?.entries[0]).toMatchObject({ claimReference: 7, recordedByName: '담당', claimType: 'return' });
+    expect(list?.entries[1]).toMatchObject({ claimId: 'cx', claimType: 'exchange' });
     expect(list?.pending).toEqual([{ claimId: 'c2', claimReference: 8, qty: 2, items: 1 }]);
     expect(parseDefectiveQtyByVariant([{ variantId: 'v', qty: 2 }, { variantId: 'w', qty: 0 }, { qty: 1 }])).toEqual({ v: 2 });
   });

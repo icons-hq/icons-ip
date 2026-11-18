@@ -737,6 +737,8 @@ export interface AdminClaimBulkReshipItem {
   /** 기본으로 고를 재출고 옵션(지금 주문 품목의 옵션). */
   currentVariantId: string;
   options: AdminClaimBulkReshipOption[];
+  /** 상세의 회수품 재고 처리에서 불량으로 고른 품목(CLM-046). 재출고 때 판매 재고로 되돌리지 않고 불량 재고에 기록된다. */
+  defective?: boolean;
 }
 
 export interface AdminClaimBulkReshipRow {
@@ -772,6 +774,8 @@ export const ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON = '주문제작 상품이 �
 export const ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON = '교환품 제작이 끝나지 않은 출고지입니다. 주문제작 처리에서 제작을 마친 뒤 재출고합니다.';
 export const ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON = '회수 확인 전 출고지입니다. 회수를 확인한 뒤 재출고합니다.';
 export const ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON = '일부 반품지만 입고된 출고지입니다. 남은 반품지의 입고를 확인한 뒤 재출고합니다.';
+/* 하자·오배송 교환의 회수 상품은 결정 없이 판매 재고로 되돌리지 않는다(CLM-046). 검수 결과를 보고 고르는 일이라 일괄에서 대신 정하지 않는다. */
+export const ADMIN_CLAIM_BULK_RESHIP_STOCK_DECISION_REASON = '하자·오배송 교환의 회수 상품입니다. 상세에서 회수품 재고 처리(불량 분리 또는 정상 재고 복원)를 먼저 저장한 뒤 재출고합니다.';
 
 /** 한 줄의 재출고 입력. 화면이 보내기 전에 확인하고, 형식은 DB가 다시 본다. */
 export function adminClaimBulkReshipRowError(input: { carrier: string; trackingNumber: string; items: readonly { variantId: string }[] }) {

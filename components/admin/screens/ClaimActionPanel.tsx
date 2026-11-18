@@ -15,6 +15,7 @@ import {
   decideOrderClaimAction,
   recordOrderClaimCollectionAction,
   planClaimDefectiveStockAction,
+  planExchangeDefectiveStockAction,
   recordOrderClaimRefundAction,
   recordOrderClaimReshipmentAction,
   retryClaimDefectiveStockAction,
@@ -40,7 +41,8 @@ import {
   type ReturnFeeDeduction,
 } from '@/lib/claims/return-fee-deduction';
 import { krwAmountWords } from '@/lib/format';
-import { DEFECTIVE_STOCK_PENDING_NOTICE, type ClaimDefectiveStock } from '@/lib/admin/defective-stock';
+import { DEFECTIVE_STOCK_PENDING_NOTICE, EXCHANGE_STOCK_DECISION_REQUIRED, EXCHANGE_STOCK_FIELD_NOTE, type ClaimDefectiveStock } from '@/lib/admin/defective-stock';
+import type { AdminClaimExchangeStockTarget } from '@/lib/admin/claim-reshipments';
 import { RETURN_PICKUP_CANCEL_REASON_LABELS, RETURN_PICKUP_STATE_LABELS } from '@/lib/admin/claim-return-pickup';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
@@ -99,6 +101,7 @@ const CLAIM_PANEL_ACTIONS = {
   reship: recordOrderClaimReshipmentAction,
   defectivePlan: planClaimDefectiveStockAction,
   defectiveRetry: retryClaimDefectiveStockAction,
+  exchangeStockPlan: planExchangeDefectiveStockAction,
 } as const;
 type ClaimPanelAction = keyof typeof CLAIM_PANEL_ACTIONS;
 const PANEL_ACTION_FIELD = 'panelAction';
@@ -296,6 +299,8 @@ export interface ClaimActionPanelProps {
   refundDeduction?: ReturnFeeDeduction | null;
   /** 반품 품목별 재고 처리 선택(QNA-035). 반품이 아니거나 읽지 못하면 null — 선택 칸을 그리지 않고 지금처럼 전부 복원한다. */
   defectiveStock?: ClaimDefectiveStock | null;
+  /** 교환: 회수를 확인했고 재출고 전인 출고지의 회수품 재고 처리(CLM-046). 하자·오배송 교환은 저장해야 재출고가 열린다. */
+  exchangeStockTargets?: AdminClaimExchangeStockTarget[];
   /** 처리 제목 바로 아래에 둘 요청 요약(교환이 무엇으로 바꾸려는지). */
   requestSummary?: ReactNode;
   /** 교환: 처리 제목 아래의 단계 표시. */
@@ -331,6 +336,7 @@ export function ClaimActionPanel({
   paidAmount = null,
   refundDeduction = null,
   defectiveStock = null,
+  exchangeStockTargets = [],
   requestSummary = null,
   exchangeSteps = null,
   exchangeShipping = null,
@@ -463,6 +469,47 @@ export function ClaimActionPanel({
           : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
       </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
   </>;
+
+  /* 교환 회수품 재고 처리(CLM-046). 출고지마다 한 양식이다 — 회수를 확인한 곳부터 재출고하므로 결정도 출고지 단위다.
+     하자·오배송 교환에서 아직 정하지 않은 출고지는 품목마다 고르지 않으면 저장되지 않는다(기본값 없음). */
+  const exchangeStock = claimType === 'exchange' && exchangeStockTargets.length > 0 ? (
+    <section aria-label="회수품 재고 처리" className="flex min-w-0 flex-col gap-3" data-claim-exchange-stock="">
+      <h4 className={SECTION_TITLE_CLASS}>회수품 재고 처리</h4>
+      {exchangeStockTargets.some((target) => target.required && !target.decided) ? (
+        <AdminNotice title="재출고 전에 회수 상품의 재고 처리를 정해주세요" tone="warning">
+          {`${EXCHANGE_STOCK_DECISION_REQUIRED} 검수 결과대로 품목마다 '불량' 또는 '판매 재고 복원'을 골라 저장하면 그 출고지의 재출고 등록이 열립니다.`}
+        </AdminNotice>
+      ) : null}
+      {exchangeStockTargets.map((target) => {
+        const key = target.shipmentId ?? 'order';
+        const undecided = target.required && !target.decided;
+        return (
+          <form action={panelAction} className={FORM_CLASS} data-claim-exchange-stock-target={key} key={key}>
+            <PanelActionField kind="exchangeStockPlan" />
+            <input name="claimId" type="hidden" value={claimId} />
+            <input name="claimType" type="hidden" value={claimType} />
+            <input name="shipmentId" type="hidden" value={target.shipmentId ?? ''} />
+            <input name="originName" type="hidden" value={target.originName ?? ''} />
+            <ClaimDefectiveStockChoice
+              idPrefix={`claim-exchange-stock-${key}`}
+              items={target.items}
+              legend={`${target.originName ?? '주문 전체'} 회수 상품`}
+              note={EXCHANGE_STOCK_FIELD_NOTE}
+              requireChoice={undecided}
+            />
+            <Button className="w-fit" disabled={pending} size="sm" type="submit" variant={undecided ? 'default' : 'outline'}>재고 처리 저장</Button>
+            <p className={HINT_CLASS}>
+              {target.decided
+                ? `${target.decidedByName ?? '담당자'}가 저장했습니다. 이 출고지를 재출고하기 전까지 바꿀 수 있습니다.`
+                : target.required
+                  ? '저장하기 전에는 이 출고지를 재출고할 수 없습니다. 모두 다시 팔 수 있으면 모두 판매 재고 복원으로 저장합니다.'
+                  : '단순 변심 교환은 저장하지 않으면 회수 상품을 모두 판매 재고로 복원합니다. 불량이 있을 때만 저장하면 됩니다.'}
+            </p>
+          </form>
+        );
+      })}
+    </section>
+  ) : null;
 
   const decisionForm = <>
     {canReview || canApprove ? (
@@ -748,7 +795,7 @@ export function ClaimActionPanel({
       {requestSummary}
       {/* 보류 설정과 해제는 한 부품의 두 상태다. 보류 직후 다시 마운트되면 완료 문구와 포커스가 사라지므로 트리의 자리는 아래 묶음 하나로 두고, 보류 중일 때만 CSS order로 위로 올린다(보류 해제가 지금 할 일이다). */}
       <div className={`flex min-w-0 flex-col gap-4 ${canResume ? 'order-2' : 'order-1'}`}>
-        {canApprove ? <>{decisionForm}{rejectionFold}{originCollection}{legacyCollection}{refundControls}{exchangeShipping}</> : <>{originCollection}{legacyCollection}{refundControls}{exchangeShipping}{rejectionFold}</>}
+        {canApprove ? <>{decisionForm}{rejectionFold}{originCollection}{legacyCollection}{exchangeStock}{refundControls}{exchangeShipping}</> : <>{originCollection}{legacyCollection}{exchangeStock}{refundControls}{exchangeShipping}{rejectionFold}</>}
       </div>
       {canHold || canResume || secondaryActions ? <section aria-label={canResume ? '보류 해제와 그 밖의 처리' : '필요할 때만 쓰는 처리'} className={`flex min-w-0 flex-col gap-2 ${canResume ? 'order-1' : 'order-2 border-t pt-3'}`} data-claim-secondary-actions="">
         <h4 className="text-xs font-medium text-muted-foreground">{canResume ? '보류 중' : '필요할 때만'}</h4>

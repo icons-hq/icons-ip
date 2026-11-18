@@ -1,4 +1,5 @@
-import type { AdminClaimDetail } from './claims.server';
+import type { AdminClaimDetail, AdminClaimReshipItem } from './claims.server';
+import type { ClaimDefectiveItem } from './defective-stock';
 
 /*
  * 교환 재출고 진행(TKT-166·QNA-039, ADR-0041).
@@ -51,6 +52,8 @@ export interface AdminClaimPendingReshipment {
   /** 회수 생략을 이미 결정했다. 재출고 때 사유·사진을 다시 받지 않는다. */
   waived: boolean;
   orderItemIds: string[];
+  /** 회수품 재고 처리에서 불량으로 고른 품목(CLM-046). 재출고 때 판매 재고로 되돌리지 않고 불량 재고에 기록한다. */
+  defectiveOrderItemIds: string[];
 }
 
 function reshipmentOpen(claim: Claim) {
@@ -78,9 +81,55 @@ export function adminClaimPendingReshipments(claim: Claim): AdminClaimPendingRes
     const waivable = target.collectionTracked && !collected && !waived && claim.collectionWaiverAllowed === true && !target.productionRequired
       && !adminClaimShipmentPartiallyReceived(claim, target.shipmentId);
     if ((collected || waived) && target.productionPending) return [];
+    /* 하자·오배송 교환의 회수품은 재고 처리(불량 분리·정상 복원)를 정해야 재출고한다(CLM-046). DB도 exchange_stock_decision_required로 막는다. */
+    if (adminClaimStockDecisionPending(claim, target)) return [];
     return collected || waived || waivable
-      ? [{ shipmentId: target.shipmentId, originName: target.originName, collected, waivable, waived, orderItemIds: target.orderItemIds }]
+      ? [{ shipmentId: target.shipmentId, originName: target.originName, collected, waivable, waived, orderItemIds: target.orderItemIds,
+        defectiveOrderItemIds: collected && !waived ? target.stockDecision?.defectiveOrderItemIds ?? [] : [] }]
       : [];
+  });
+}
+
+type Target = NonNullable<Claim['reshipmentTargets']>[number];
+
+/** 회수품 재고 처리를 고를 수 있는 배송 건: 회수를 확인했고(회수 생략 아님) 아직 재출고하지 않았다. */
+function stockChoiceOpen(claim: Claim, target: Target) {
+  return reshipmentOpen(claim) && !target.reshipped && target.waiver === null && targetCollected(claim, target) && Boolean(target.stockDecision);
+}
+
+/**
+ * 재출고 전에 회수품 재고 처리를 정해야 하는 배송 건(CLM-046): 하자·오배송 교환에서 회수를 확인했고 회수 생략이 아니며 아직 정하지 않았다.
+ * 결정이 없는 옛 응답(stockDecision 없음)은 막지 않는다 — 그때는 DB가 재출고에서 다시 막는다.
+ */
+export function adminClaimStockDecisionPending(claim: Claim, target: Target) {
+  return stockChoiceOpen(claim, target) && target.stockDecision?.required === true && !target.stockDecision.decided;
+}
+
+/** 출고지 하나의 회수품 재고 처리 칸. 품목은 그 배송 건의 회수 품목(살아 있는 수량)이다. */
+export interface AdminClaimExchangeStockTarget {
+  shipmentId: string | null;
+  originName: string | null;
+  /** 하자·오배송 교환이라 재출고 전에 정해야 한다. */
+  required: boolean;
+  decided: boolean;
+  decidedAt: string | null;
+  decidedByName: string | null;
+  items: ClaimDefectiveItem[];
+}
+
+/** 교환 상세의 '회수품 재고 처리' 칸에 그릴 배송 건. 단순 변심 교환도 원하면 불량을 고를 수 있다. */
+export function adminClaimExchangeStockTargets(claim: Claim, orderItems: readonly AdminClaimReshipItem[]): AdminClaimExchangeStockTarget[] {
+  if (claim.claimType !== 'exchange') return [];
+  return (claim.reshipmentTargets ?? []).filter(target => stockChoiceOpen(claim, target)).map((target) => {
+    const decision = target.stockDecision!;
+    return {
+      shipmentId: target.shipmentId, originName: target.originName, required: decision.required, decided: decision.decided,
+      decidedAt: decision.decidedAt, decidedByName: decision.decidedByName,
+      items: orderItems.filter(item => target.orderItemIds.includes(item.id)).map((item) => {
+        const defective = decision.defectiveOrderItemIds.includes(item.id);
+        return { orderItemId: item.id, name: item.name, variantName: item.variantName, qty: item.qty, defective, state: defective ? 'planned' as const : null };
+      }),
+    };
   });
 }
 

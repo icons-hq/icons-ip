@@ -12,6 +12,7 @@ vi.mock('@/app/admin/claim-actions', () => ({
   recordOrderClaimRefundAction: vi.fn(),
   recordOrderClaimReshipmentAction: vi.fn(),
   planClaimDefectiveStockAction: vi.fn(),
+  planExchangeDefectiveStockAction: vi.fn(),
   retryClaimDefectiveStockAction: vi.fn(),
 }));
 vi.mock('@/app/admin/claim-bulk-step-actions', () => ({
@@ -115,6 +116,55 @@ describe('ClaimActionPanel — 품목별 재고 처리', () => {
     const html = render({ bankTransfer: true, actorId: 'staff-1', paymentProvider: 'bank_transfer', defectiveStock: stock() });
     expect(html).toContain('품목별 재고 처리 저장');
     expect(html).toContain('[취소 확정]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다');
+  });
+});
+
+describe('ClaimActionPanel — 교환 회수품 재고 처리(CLM-046)', () => {
+  const SHIPMENT = 'cccc0003-cccc-4ccc-8ccc-cccccccccccc';
+  const exchange = (overrides: Partial<ClaimActionPanelProps> = {}) => render({
+    claimType: 'exchange', collectionPolicy: 'origin', stage: 'collected', refundLedgerOpen: false, refundFiled: false, ...overrides,
+  });
+  const target = (overrides: Partial<NonNullable<ClaimActionPanelProps['exchangeStockTargets']>[number]> = {}) => ({
+    shipmentId: SHIPMENT, originName: '김포', required: true, decided: false, decidedAt: null, decidedByName: null,
+    items: stock().items, ...overrides,
+  });
+
+  it('재고 처리할 출고지가 없으면 지금과 같은 교환 패널이다', () => {
+    const base = exchange();
+    expect(exchange({ exchangeStockTargets: [] })).toBe(base);
+    expect(base).not.toContain('data-claim-exchange-stock');
+  });
+
+  it('하자·오배송 교환에서 아직 정하지 않은 출고지는 기본값 없이 품목마다 고르게 하고 재출고 전 결정이 필요하다고 알린다', () => {
+    const html = exchange({ exchangeStockTargets: [target()] });
+    expect(html).toContain('data-claim-exchange-stock=""');
+    expect(html).toContain(`data-claim-exchange-stock-target="${SHIPMENT}"`);
+    expect(html).toContain('재출고 전에 회수 상품의 재고 처리를 정해주세요');
+    expect(html).toContain('김포 회수 상품');
+    expect(html).toContain(`name="stockDisposition:${ITEM_A}"`);
+    expect(html).toMatch(/<option[^>]*value=""[^>]*>선택해주세요<\/option>/);
+    expect(html).toMatch(/<select[^>]*required=""/);
+    expect(html).toContain(`name="shipmentId" value="${SHIPMENT}"`);
+    expect(html).toContain('name="panelAction" value="exchangeStockPlan"');
+    expect(html).toContain('저장하기 전에는 이 출고지를 재출고할 수 없습니다');
+  });
+
+  it('저장한 선택은 그대로 보이고 재출고 전까지 바꿀 수 있다고 안내한다', () => {
+    const html = exchange({ exchangeStockTargets: [target({ decided: true, decidedByName: '김담당', items: [
+      { orderItemId: ITEM_A, name: '아크릴 키링', variantName: null, qty: 2, defective: true, state: 'planned' },
+    ] })] });
+    expect(html).not.toContain('재출고 전에 회수 상품의 재고 처리를 정해주세요');
+    expect(html).not.toContain('선택해주세요');
+    expect(html).toMatch(/<option[^>]*value="defective"[^>]*selected|<option selected=""[^>]*value="defective"/);
+    expect(html).toContain('김담당가 저장했습니다');
+  });
+
+  it('단순 변심 교환은 저장하지 않으면 모두 복원한다고 안내하고, 배송 건 없는 옛 주문은 출고지 값을 비운다', () => {
+    const html = exchange({ exchangeStockTargets: [target({ required: false, shipmentId: null, originName: null })] });
+    expect(html).not.toContain('재출고 전에 회수 상품의 재고 처리를 정해주세요');
+    expect(html).toContain('주문 전체 회수 상품');
+    expect(html).toContain('name="shipmentId" value=""');
+    expect(html).toContain('저장하지 않으면 회수 상품을 모두 판매 재고로 복원합니다');
   });
 });
 

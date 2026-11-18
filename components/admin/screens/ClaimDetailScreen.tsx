@@ -46,7 +46,7 @@ import { ClaimExchangeSteps, ClaimProgressSummary } from './ClaimProgressSummary
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
 import { adminPaymentCancelErrorLabel } from '@/lib/admin/payment-cancel-error';
 import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
-import { adminClaimPendingReshipments, adminClaimRemainingReshipments } from '@/lib/admin/claim-reshipments';
+import { adminClaimExchangeStockTargets, adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimStockDecisionPending } from '@/lib/admin/claim-reshipments';
 
 /* 어드민 클레임 상세(#252) — 템플릿 룩 kit Card(ADR-0028).
  *
@@ -259,6 +259,8 @@ export function ClaimDetailScreen({
     <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
       reshipTargets={claim.collectionPolicy !== null ? adminClaimPendingReshipments(claim) : []}
       remainingTargets={adminClaimRemainingReshipments(claim)}
+      stockDecisionPendingOrigins={claim.collectionPolicy !== null ? (claim.reshipmentTargets ?? [])
+        .filter(target => adminClaimStockDecisionPending(claim, target)).map(target => target.originName ?? '주문 전체') : []}
       carriers={carriers} reshipItems={order?.items ?? []} />
     <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
   </> : null;
@@ -478,6 +480,7 @@ export function ClaimDetailScreen({
                 paidAmount={payment?.amount ?? null}
                 refundDeduction={refundDeduction}
                 defectiveStock={defectiveStock}
+                exchangeStockTargets={claim.claimType === 'exchange' && claim.collectionPolicy !== null ? adminClaimExchangeStockTargets(claim, order?.items ?? []) : []}
                 requestSummary={exchangeRequest}
                 bankTransfer={payment?.provider === 'bank_transfer'}
                 key={claim.id}

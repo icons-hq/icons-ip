@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AdminClaimDetail, AdminClaimReshipment, AdminClaimReshipmentTarget } from './claims.server';
-import { adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimReshipmentProgress, adminClaimShipmentPartiallyReceived, adminClaimWaiverDecisions } from './claim-reshipments';
+import type { AdminClaimDetail, AdminClaimReshipItem, AdminClaimReshipment, AdminClaimReshipmentTarget, AdminClaimStockDecision } from './claims.server';
+import { adminClaimExchangeStockTargets, adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimReshipmentProgress, adminClaimShipmentPartiallyReceived, adminClaimStockDecisionPending, adminClaimWaiverDecisions } from './claim-reshipments';
 
 const target = (n: number, overrides: Partial<AdminClaimReshipmentTarget> = {}): AdminClaimReshipmentTarget => ({
   shipmentId: `00000000-0000-4000-8000-00000000000${n}`, originName: n === 1 ? '김포' : '남양주', collectionTracked: true,
@@ -92,5 +92,53 @@ describe('교환 재출고 진행(출고지별, TKT-166)', () => {
     expect(adminClaimPendingReshipments(claim({ reshipmentTargets: [target(1, { collectionTracked: false })] }))).toEqual([]);
     expect(adminClaimPendingReshipments(claim({ stage: 'collected', reshipmentTargets: [target(1, { collectionTracked: false, shipmentId: null })] })))
       .toMatchObject([{ shipmentId: null, collected: true }]);
+  });
+
+  describe('회수품 재고 처리(CLM-046)', () => {
+    const collected = '2026-11-09T00:00:00.000Z';
+    const decision = (overrides: Partial<AdminClaimStockDecision> = {}): AdminClaimStockDecision => ({
+      required: true, decided: false, decidedAt: null, decidedByName: null, defectiveOrderItemIds: [], recordedOrderItemIds: [], ...overrides,
+    });
+    const item = (n: number): AdminClaimReshipItem => ({
+      id: target(n).orderItemIds[0], goodId: `g${n}`, name: `굿즈 ${n}`, qty: n, unitPrice: 1000, variantId: `v${n}`, variantName: n === 1 ? '파랑' : null,
+      currentVariantId: `v${n}`, options: [],
+    });
+
+    it('하자·오배송 교환은 회수를 확인한 출고지도 재고 처리를 정하기 전에는 재출고 대상이 아니다', () => {
+      const undecided = claim({ reshipmentTargets: [target(1, { collectedAt: collected, stockDecision: decision() }), target(2, { collectedAt: collected, stockDecision: decision({ decided: true }) })] });
+      expect(adminClaimPendingReshipments(undecided).map(row => row.originName)).toEqual(['남양주']);
+      expect(adminClaimStockDecisionPending(undecided, undecided.reshipmentTargets![0])).toBe(true);
+      expect(adminClaimStockDecisionPending(undecided, undecided.reshipmentTargets![1])).toBe(false);
+    });
+
+    it('불량으로 고른 품목을 재출고 대상에 싣는다', () => {
+      const decided = claim({ reshipmentTargets: [target(1, { collectedAt: collected, stockDecision: decision({ decided: true, defectiveOrderItemIds: [target(1).orderItemIds[0]] }) })] });
+      expect(adminClaimPendingReshipments(decided)).toMatchObject([{ originName: '김포', defectiveOrderItemIds: [target(1).orderItemIds[0]] }]);
+    });
+
+    it('단순 변심 교환·회수 생략 출고지·옛 응답은 결정을 기다리지 않는다', () => {
+      const waiver = { reason: '고객 사진으로 인쇄 불량 확인', waivedAt: collected, waivedByName: null, evidence: [] };
+      const optional = claim({ reshipmentTargets: [target(1, { collectedAt: collected, stockDecision: decision({ required: false }) })] });
+      expect(adminClaimPendingReshipments(optional)).toHaveLength(1);
+      const waived = claim({ collectionWaiverAllowed: true, reshipmentTargets: [target(1, { waiver, stockDecision: decision() })] });
+      expect(adminClaimPendingReshipments(waived)).toMatchObject([{ waived: true, defectiveOrderItemIds: [] }]);
+      expect(adminClaimExchangeStockTargets(waived, [item(1)])).toEqual([]);
+      const legacyResponse = claim({ reshipmentTargets: [target(1, { collectedAt: collected })] });
+      expect(adminClaimPendingReshipments(legacyResponse)).toHaveLength(1);
+      expect(adminClaimExchangeStockTargets(legacyResponse, [item(1)])).toEqual([]);
+    });
+
+    it('재고 처리 칸은 회수를 확인했고 재출고 전인 출고지만 그리고 저장된 불량을 기본값으로 싣는다', () => {
+      const open = claim({ reshipmentTargets: [
+        target(1, { collectedAt: collected, stockDecision: decision({ decided: true, decidedByName: '담당', defectiveOrderItemIds: [target(1).orderItemIds[0]] }) }),
+        target(2, { stockDecision: decision() }),
+      ] });
+      expect(adminClaimExchangeStockTargets(open, [item(1), item(2)])).toEqual([{
+        shipmentId: target(1).shipmentId, originName: '김포', required: true, decided: true, decidedAt: null, decidedByName: '담당',
+        items: [{ orderItemId: target(1).orderItemIds[0], name: '굿즈 1', variantName: '파랑', qty: 1, defective: true, state: 'planned' }],
+      }]);
+      expect(adminClaimExchangeStockTargets(claim({ ...open, reshipmentTargets: [{ ...open.reshipmentTargets![0], reshipped: true }] }), [item(1)])).toEqual([]);
+      expect(adminClaimExchangeStockTargets(claim({ ...open, claimType: 'return' }), [item(1)])).toEqual([]);
+    });
   });
 });
