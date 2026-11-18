@@ -90,7 +90,7 @@ describe('뒤바뀐 운송장 맞바꾸기 액션 (SHP-031)', () => {
   });
 
   it('입력이 비면 DB를 부르지 않고, DB 거절·모르는 응답은 운영 문구로 알린다', async () => {
-    for (const overrides of [{ otherReference: ' ' }, { otherTrackingNumber: '12' }, { reason: '' }, { shipmentId: 'nope' }]) {
+    for (const overrides of [{ otherReference: ' ' }, { otherTrackingNumber: '12' }, { reason: '' }, { shipmentId: 'nope' }] as Record<string, string>[]) {
       expect(await swapShipmentTrackingAction(swap(overrides))).toMatchObject({ ok: false });
     }
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe('중복 확인 후 운송장 등록 액션 (SHP-030 리뷰 2)', () => {
   });
 
   it('사유·택배사·형식이 틀리면 DB를 부르지 않고, DB 거절은 운영 문구로 알린다', async () => {
-    for (const overrides of [{ reason: '  ' }, { carrier: 'retired' }, { trackingNumber: '12' }, { trackingNumber: 'AB1234567890' }, { shipmentId: 'nope' }]) {
+    for (const overrides of [{ reason: '  ' }, { carrier: 'retired' }, { trackingNumber: '12' }, { trackingNumber: 'AB1234567890' }, { shipmentId: 'nope' }] as Record<string, string>[]) {
       expect(await registerDuplicateShipmentTrackingAction(duplicate(overrides))).toMatchObject({ ok: false });
     }
     expect(mocks.rpc).not.toHaveBeenCalled();

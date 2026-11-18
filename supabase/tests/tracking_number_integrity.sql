@@ -386,4 +386,35 @@ select pg_temp.ti_assert((select tracking_number_pattern is null and tracking_nu
  and (select diff#>>'{after,tracking_number_pattern}' from public.audit_log where action='admin.shipping_carrier.saved' and target='shipping_carriers:hanjin'
    and diff#>>'{before,tracking_number_pattern}'='^[0-9]{10,14}$')='^([0-9]{12}|[0-9]{14})$','format edits are audited and clear together');
 
+-- 선물 주문(리뷰 3): orders.address는 비어 있고 받는 분은 비공개 배송 스냅샷에 있다. 합배송 판정과 회신 대조는 출고 화면과 같은
+-- 운영 주소(private.operational_order_address)를 읽는다. 27·28은 선물(받는 분 A·B), 29는 A의 일반 주문 — 모두 김포.
+insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
+select pg_temp.ti_id('order',n),pg_temp.ti_id('user',5),'confirmed',1000,0,case when n=29 then pg_temp.ti_address('A') end,now()-interval '3 days'
+from unnest(array[27,28,29]) n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+select pg_temp.ti_id('item',n),pg_temp.ti_id('order',n),'tracking-integrity-good',v.id,1,1000,'TEST 운송장 판정 상품','문구','tracking-integrity-ip'
+from unnest(array[27,28,29]) n cross join (select id from public.goods_variants where good_id='tracking-integrity-good' and is_default) v;
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,exported_at)
+select pg_temp.ti_id('shipment',n),pg_temp.ti_id('order',n),'00000000-0000-4000-8000-000000042201'::uuid,'김포',0,'{}',now()-interval '2 days'
+from unnest(array[27,28,29]) n;
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select pg_temp.ti_id('order',n),pg_temp.ti_id('shipment',n),pg_temp.ti_id('item',n),1 from unnest(array[27,28,29]) n;
+-- 선물 수락 흐름 없이 스냅샷만 둔다(선물 의도·받는 분 FK는 이 판정과 무관하다).
+set local session_replication_role=replica;
+insert into private.order_delivery_private_snapshots(order_id,gift_id,recipient_id,address,gift_address_revision,source_revision,shipping_evidence)
+values(pg_temp.ti_id('order',27),pg_temp.ti_id('gift',27),pg_temp.ti_id('user',6),pg_temp.ti_address('A'),1,'TEST','{}'),
+ (pg_temp.ti_id('order',28),pg_temp.ti_id('gift',28),pg_temp.ti_id('user',6),pg_temp.ti_address('B'),1,'TEST','{}');
+set local session_replication_role=origin;
+set local role authenticated;
+select pg_temp.ti_as(1);
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',29),'shipping','hanjin','290000000029');
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',27),'shipping','hanjin','290000000029');
+select pg_temp.ti_error(pg_temp.ti_dispatch(28,'hanjin','290000000029'),'tracking_number_in_use');
+select pg_temp.ti_assert(pg_temp.ti_state(27)='shipping:290000000029' and pg_temp.ti_state(28)='ready:-',
+ 'a gift to the same recipient shares the merged box; a gift to another recipient does not');
+reset role;
+select pg_temp.ti_error($q$select private.assert_reply_recipient(pg_temp.ti_id('order',28),'{"recipientName":"합성가"}'::jsonb)$q$,'tracking_reply_recipient_mismatch');
+select pg_temp.ti_error($q$select private.assert_reply_recipient(pg_temp.ti_id('order',28),'{"recipientPhone":"010-1111-0001"}'::jsonb)$q$,'tracking_reply_recipient_mismatch');
+select private.assert_reply_recipient(pg_temp.ti_id('order',28),'{"recipientName":"합성나","recipientPhone":"010-2222-0002"}'::jsonb);
+
 rollback;

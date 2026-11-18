@@ -125,8 +125,9 @@ language sql stable security definer set search_path = '' as $$
     where a.id = p_first and b.id = p_second and (
       a.order_id = b.order_id
       or b.id = any(private.shipment_pack_scope(array[a.id]))
-      or (a.origin_id = b.origin_id and private.tracking_destination_key(ao.address) is not null
-        and private.tracking_destination_key(ao.address) = private.tracking_destination_key(bo.address))));
+      or (a.origin_id = b.origin_id and private.tracking_destination_key(private.operational_order_address(ao.id)) is not null
+        and private.tracking_destination_key(private.operational_order_address(ao.id))
+          = private.tracking_destination_key(private.operational_order_address(bo.id)))));
 $$;
 revoke all on function private.tracking_shipments_related(uuid, uuid) from public, anon, authenticated, service_role;
 
@@ -136,8 +137,8 @@ revoke all on function private.tracking_shipments_related(uuid, uuid) from publi
 create function private.tracking_number_conflict(p_carrier text, p_tracking text, p_shipments uuid[], p_order uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
   with target as (
-    select s.id, s.order_id, s.origin_id, private.tracking_destination_key(o.address) destination
-    from public.order_shipments s join public.orders o on o.id = s.order_id
+    select s.id, s.order_id, s.origin_id, private.tracking_destination_key(private.operational_order_address(s.order_id)) destination
+    from public.order_shipments s
     where s.id = any(coalesce(p_shipments, '{}'::uuid[]))
   ), allowed as (
     select p_order id where p_order is not null
@@ -169,7 +170,7 @@ language sql stable security definer set search_path = '' as $$
     and not (u.origin_id is not null and u.delivery_method = 'parcel'
       and (u.status = 'shipping' or (u.status = 'delivered' and u.delivered_at >= now() - interval '7 days'))
       and exists(select 1 from target t
-        where t.origin_id = u.origin_id and t.destination is not null and t.destination = private.tracking_destination_key(uo.address)))
+        where t.origin_id = u.origin_id and t.destination is not null and t.destination = private.tracking_destination_key(private.operational_order_address(uo.id))))
   order by u.source, u.order_id
   limit 1;
 $$;
@@ -273,7 +274,8 @@ begin
   if (p_row ? 'recipientName' and jsonb_typeof(p_row->'recipientName') <> 'string')
     or (p_row ? 'recipientPhone' and jsonb_typeof(p_row->'recipientPhone') <> 'string') then
     raise invalid_parameter_value using message = 'invalid_tracking_row'; end if;
-  select o.address into address from public.orders o where o.id = p_order;
+  -- 선물 주문은 orders.address가 비어 있고 받는 분은 배송 스냅샷에 있다 — 출고 화면과 같은 운영 주소를 읽는다.
+  select private.operational_order_address(o.id) into address from public.orders o where o.id = p_order;
   if not found then return; end if;
   replied_name := lower(regexp_replace(coalesce(p_row->>'recipientName', ''), '[[:space:]]', '', 'g'));
   stored_name := lower(regexp_replace(coalesce(address->>'recipientName', ''), '[[:space:]]', '', 'g'));
