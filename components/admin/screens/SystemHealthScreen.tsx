@@ -114,7 +114,7 @@ function FailuresSection({ health }: { health: SystemHealthReport }) {
 }
 
 function PaymentsSection({ health, payments, canReconcile }: { health: SystemHealthReport; payments: UnresolvedPaymentAttemptList | null | undefined; canReconcile: boolean }) {
-  const summary = `결제사 결과를 받지 못했거나(결과 불명) 확인 처리가 멈춘 결제는 그동안 재고·쿠폰을 잡고 있습니다. 결과 불명·멈춘 확인은 10분마다 자동으로 다시 확인합니다(같은 결제는 30분에 한 번, 7일 안). 굿즈 ${health.payments.goods.toLocaleString('ko-KR')}건 · 티켓 ${health.payments.tickets.toLocaleString('ko-KR')}건${health.payments.other ? ` · 그 밖 ${health.payments.other.toLocaleString('ko-KR')}건` : ''}.`;
+  const summary = `결제사 결과를 받지 못했거나(결과 불명) 확인 처리가 멈춘 결제는 그동안 재고·쿠폰을 잡고 있습니다. 결과 불명·멈춘 확인은 10분마다 자동으로 다시 확인합니다(같은 결제는 30분에 한 번, 7일 안). 상품 주문 ${health.payments.goods.toLocaleString('ko-KR')}건 · 티켓 ${health.payments.tickets.toLocaleString('ko-KR')}건${health.payments.other ? ` · 그 밖 ${health.payments.other.toLocaleString('ko-KR')}건` : ''}.`;
   return <AdminSectionCard id="unresolved-payments" summary={summary} title="미종결 결제">
     {!canReconcile ? <AdminNotice tone="neutral">{"목록과 '결제 상태 다시 확인'은 주문 관리 권한이 있는 매니저에게 보입니다."}</AdminNotice>
       : payments === null || payments === undefined ? <AdminNotice role="alert" tone="danger">미종결 결제 목록을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice>

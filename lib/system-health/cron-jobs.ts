@@ -11,7 +11,7 @@ export interface CronJobDefinition {
 }
 
 export const CRON_JOBS = {
-  'admin-artwork': { label: '관리자 이미지 업로드 정리', intervalMinutes: 1440 },
+  'admin-artwork': { label: '관리자 아트워크 업로드 정리', intervalMinutes: 1440 },
   'bank-deposits': { label: '무통장 입금 내역 수집', intervalMinutes: 15 },
   'order-shipment-emails': { label: '배송 안내 메일 발송', intervalMinutes: 1 },
   'order-delay-notices': { label: '배송 지연 안내 메일 발송', intervalMinutes: 1 },
@@ -20,7 +20,7 @@ export const CRON_JOBS = {
   'store-analytics': { label: '매장 분석·회원 활동 기록 보존 정리', intervalMinutes: 1 },
   'review-rating-history': { label: '리뷰 평점 일별 기록', intervalMinutes: 60 },
   'customer-rewards': { label: 'BEST 리뷰 적립금 지급', intervalMinutes: 1 },
-  'goods-media': { label: '상품 이미지·디지털 파일 정리', intervalMinutes: 1440 },
+  'goods-media': { label: '이미지·디지털 파일 업로드 정리', intervalMinutes: 1440 },
   gifts: { label: '선물 만료·정리', intervalMinutes: 1 },
   subscriptions: { label: '정기구매 결제', intervalMinutes: 1 },
   'stock-safety-digest': { label: '안전재고 요약 메일', intervalMinutes: 1 },

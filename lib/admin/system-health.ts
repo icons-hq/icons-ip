@@ -158,7 +158,7 @@ export const UNRESOLVED_PAYMENT_REASON_HINTS: Record<UnresolvedPaymentReason, st
   needs_review: '결제사 결과가 주문과 맞지 않습니다(금액·주문 불일치 등). 다시 확인해도 같으면 결제사 관리자 화면에서 거래를 확인해주세요.',
   confirming_stalled: '승인 확인 처리가 끝나지 않고 멈췄습니다. 다시 확인하면 결제사 조회로 마무리합니다.',
 };
-export const PAYMENT_PURPOSE_LABELS: Record<string, string> = { order: '굿즈 주문', ticket: '티켓 예매', prize_sale: '실물 쿠지', wallet: '폐기된 결제 유형' };
+export const PAYMENT_PURPOSE_LABELS: Record<string, string> = { order: '상품 주문', ticket: '티켓 예매', prize_sale: '실물 쿠지', wallet: '폐기된 결제 유형' };
 export const PAYMENT_PROVIDER_LABELS: Record<string, string> = { toss: '토스페이먼츠', nicepay: '나이스페이', korpay: '코페이', bank_transfer: '무통장입금' };
 
 export interface UnresolvedPaymentAttempt {
