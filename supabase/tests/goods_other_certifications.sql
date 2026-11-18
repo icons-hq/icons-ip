@@ -144,15 +144,19 @@ select 1/case when (select count(*) from public.audit_log where target='goods:ot
 update public.goods set other_certification_disclosures='[{"kind":"주입","agency":"","number":"INJECTED"}]' where id='other-cert-good';
 select 1/case when (select other_certification_disclosures::text not like '%INJECTED%' and jsonb_array_length(other_certification_disclosures)=1
  from public.goods where id='other-cert-good') then 1 else 0 end as projection_not_writable;
+-- 초안 상품 행은 익명 Data API에 열리지 않는다(20261118160000) — 고객 열은 공개한 뒤 확인한다.
 set local role anon;
-select 1/case when (select other_certification_disclosures#>>'{0,number}'='R-R-TEST-0001'
-  and other_certification_disclosures::text not like '%INTERNAL-TEST-1%' and other_certification_disclosures::text not like '%visible%'
- from public.goods where id='other-cert-good') then 1 else 0 end as anon_reads_only_visible_projection;
+select 1/case when not exists(select 1 from public.goods where id='other-cert-good') then 1 else 0 end as anon_cannot_read_draft_good;
 select pg_temp.expect_oc_error($sql$select * from private.goods_other_certifications$sql$,'permission denied','42501');
 reset role;
 
 -- 공개 중에도 고칠 수 있다(공개 조건이 아니고 KC 잠금 대상이 아니다). 고객 열이 바로 바뀐다.
 select pg_temp.publish_goods_kc_fixture('other-cert-good');
+set local role anon;
+select 1/case when (select other_certification_disclosures#>>'{0,number}'='R-R-TEST-0001'
+  and other_certification_disclosures::text not like '%INTERNAL-TEST-1%' and other_certification_disclosures::text not like '%visible%'
+ from public.goods where id='other-cert-good') then 1 else 0 end as anon_reads_only_visible_projection;
+reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','98060000-0000-4000-8000-000000000001',true);
 select public.admin_save_goods_other_certifications('other-cert-good',jsonb_build_array(

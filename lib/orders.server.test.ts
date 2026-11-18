@@ -136,8 +136,10 @@ function createQuery(table: string, options: ClientOptions, initial: Partial<Que
 
 function createClient(options: ClientOptions) {
   return {
-    rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[] }) => { options.rpcCalls?.push(name); return name === 'my_order_items'
+    rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[]; p_good_ids?: string[] }) => { options.rpcCalls?.push(name); return name === 'my_order_items'
       ? createQuery('order_items', options, { rpc: name, in: [['order_id', args?.p_order_ids ?? []]] })
+      /* 품목 줄 보강의 굿즈 값은 본인 주문 RPC(my_order_line_goods)로 읽는다 — goods 공개 읽기는 내려간 굿즈를 열지 않는다. */
+      : name === 'my_order_line_goods' ? createQuery('goods', options, { rpc: name, in: [['id', args?.p_good_ids ?? []]] })
       /* 배치 표시값 RPC(my_order_item_display): PostgREST가 `id:item_id`로 별칭해 주는 행을 id 커서로 페이지한다. */
       : name === 'my_order_item_display' ? createQuery('item_display', options, { rpc: name })
       : Promise.resolve(name === 'get_my_goods_transaction_receipt' ? { data: options.receipt ?? null, error: null }
@@ -360,7 +362,7 @@ describe('loadOrders withLines', () => {
     expect(records.find((record) => record.table === 'orders')?.select).toBe('id,order_number,user_id,status,total,created_at,payment_method');
     expect(records.find((record) => record.table === 'order_items')?.select)
       .toBe('id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode,variant_id,variant_name_snapshot');
-    expect(records.find((record) => record.table === 'goods')?.in).toEqual([['id', ['g1', 'g2']]]);
+    expect(records.find((record) => record.table === 'goods')).toMatchObject({ rpc: 'my_order_line_goods', in: [['id', ['g1', 'g2']]] });
     expect(records.find((record) => record.table === 'ips')?.in).toEqual([['id', ['ip-1']]]);
   });
 
