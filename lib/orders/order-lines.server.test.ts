@@ -33,14 +33,19 @@ function fakeClient(options: FakeOptions = {}) {
       return {
         select: () => ({
           in: (_column: string, ids: string[]) => {
-            if (table === 'goods') { calls.goods.push(ids); return run(options.goods, { data: [goodRow()], error: null }); }
+            /* 굿즈는 공개 읽기(goods RLS)가 아니라 본인 주문 RPC로 읽어야 한다 — 내려간 굿즈도 본인 줄은 보강된다. */
+            expect(table).toBe('ips');
             calls.ips.push(ids);
             return run(options.ips, { data: [{ id: 'ip-1', title: '홍실' }], error: null });
           },
         }),
       };
     },
-    rpc: (name: string, args: { p_order_id?: string; p_order_ids?: string[] }, rpcOptions?: { count?: unknown }) => {
+    rpc: (name: string, args: { p_order_id?: string; p_order_ids?: string[]; p_good_ids?: string[] }, rpcOptions?: { count?: unknown }) => {
+      if (name === 'my_order_line_goods') {
+        calls.goods.push(args.p_good_ids ?? []);
+        return run(options.goods, { data: [goodRow()], error: null });
+      }
       if (name === 'my_order_item_display') {
         /* PostgREST 빌더 흉내: select/order/limit/gt를 기록하고 await하면 다음 페이지를 준다. */
         const call: (typeof calls.display)[number] = { orderIds: args.p_order_ids ?? [], count: rpcOptions?.count };

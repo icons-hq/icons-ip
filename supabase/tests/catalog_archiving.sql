@@ -97,7 +97,8 @@ select 1 / case when (
   where schemaname = 'public'
     and (
       (tablename = 'ips' and policyname = 'ips_read')
-      or (tablename = 'goods' and policyname = 'goods_read')
+      -- 굿즈 공개 읽기는 공개 상태로 좁혀졌다(20261118160000). 보관 이력은 RPC·스냅샷으로 읽는다.
+      or (tablename = 'goods' and policyname = 'goods_public_read')
       or (tablename = 'cards' and policyname = 'cards_read')
       or (tablename = 'events' and policyname = 'events_read')
     )
