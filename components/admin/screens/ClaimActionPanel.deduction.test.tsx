@@ -14,7 +14,7 @@ vi.mock('@/app/admin/claim-actions', () => ({
   recordOrderClaimOriginCollectionAction: vi.fn(),
   recordOrderClaimRefundAction: vi.fn(),
   recordOrderClaimReshipmentAction: vi.fn(),
-  planClaimDefectiveStockAction: vi.fn(),
+  planClaimDefectiveStockAction: vi.fn(), planExchangeDefectiveStockAction: vi.fn(),
   retryClaimDefectiveStockAction: vi.fn(),
 }));
 

@@ -608,6 +608,29 @@ describe('재출고 표(loadOrderClaimBulkReshipmentsAction)', () => {
     ]);
   });
 
+  it('하자·오배송 교환의 회수 확인 출고지는 회수품 재고 처리를 저장하기 전에는 빼고, 저장한 불량 품목은 줄에 표시한다(CLM-046)', async () => {
+    mocks.carriers.mockResolvedValue([{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }]);
+    const item = (n: number) => ({ id: `0000000${n}-0000-4000-8000-000000000000`, name: `굿즈 ${n}`, qty: 1, variantName: '기본', currentVariantId: `variant-${n}`,
+      options: [{ id: `variant-${n}`, name: '기본', code: `SKU-${n}`, stockQty: 3, goodName: `굿즈 ${n}` }] });
+    const decision = (overrides: Record<string, unknown> = {}) => ({ required: true, decided: false, decidedAt: null, decidedByName: null, defectiveOrderItemIds: [], recordedOrderItemIds: [], ...overrides });
+    const target = (n: number, origin: string, stockDecision: object) => ({ shipmentId: SHIP(n), originName: origin, collectionTracked: true, collectedAt: '2026-11-11T00:00:00Z',
+      reshipped: false, orderItemIds: [item(n).id], waiver: null, productionRequired: false, productionPending: false, stockDecision });
+    mocks.loadAdminClaimDetail.mockImplementation(async () => ({
+      claim: { id: ID(1), reference: 1, orderId: ORDER(1), claimType: 'exchange', stage: 'collected', collectionPolicy: 'origin', reshipTrackingNumber: null, collectionWaiverAllowed: true,
+        reshipmentTargets: [
+          target(1, 'TEST 김포', decision()),
+          target(2, 'TEST 남양주', decision({ decided: true, defectiveOrderItemIds: [item(2).id] })),
+        ] },
+      order: { items: [item(1), item(2)] },
+    }));
+    const load = await loadOrderClaimBulkReshipmentsAction({ claimType: 'exchange', step: 'reship', claimIds: [ID(1)] });
+    if (load.error !== undefined) throw new Error(load.error);
+    expect(load.claims).toHaveLength(1);
+    expect(load.claims[0].rows).toEqual([{ shipmentId: SHIP(2), originName: 'TEST 남양주', waived: false,
+      items: [expect.objectContaining({ orderItemId: item(2).id, defective: true })] }]);
+    expect(load.claims[0].skipped).toEqual([{ originName: 'TEST 김포', reason: expect.stringContaining('회수품 재고 처리(불량 분리 또는 정상 재고 복원)를 먼저 저장') }]);
+  });
+
   it('한 요청을 읽지 못해도 나머지 요청의 재출고 표를 열고, 읽지 못한 요청은 이유와 번호로 뺀다(QA2 B1)', async () => {
     mocks.carriers.mockResolvedValue([{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }]);
     stepRpc(new Map([[ID(1), fact(1, { claimType: 'exchange' })], [ID(2), fact(2, { claimType: 'exchange' })]]));

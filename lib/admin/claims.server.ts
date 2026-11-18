@@ -270,6 +270,23 @@ export interface AdminClaimReshipmentTarget {
   productionRequired: boolean;
   /** 교환품 제작이 아직 끝나지 않아 재출고를 기다리는지. */
   productionPending: boolean;
+  /** 회수품 재고 처리 결정(CLM-046). 옛 응답에는 없어 null이다(그때는 DB가 재출고에서 다시 막는다). */
+  stockDecision?: AdminClaimStockDecision | null;
+}
+
+/**
+ * 교환 출고지의 회수품 재고 처리 결정(CLM-046). 회수를 확인한 뒤·재출고 전에 회수 품목 중 불량을 고르며(빈 선택 = 모두 정상 재고
+ * 복원), 하자·오배송 교환(required)은 이 결정이 있어야 재출고한다. 불량 품목은 재출고 때 판매 재고로 되돌리지 않고 불량 재고에 기록된다.
+ */
+export interface AdminClaimStockDecision {
+  required: boolean;
+  decided: boolean;
+  decidedAt: string | null;
+  decidedByName: string | null;
+  /** 불량으로 고른 품목(기록 전·후 모두). */
+  defectiveOrderItemIds: string[];
+  /** 재출고 때 불량 재고에 기록된 품목. */
+  recordedOrderItemIds: string[];
 }
 
 /** 배송 건 하나의 재출고 기록. 회수 생략이면 사유와 근거 사진이 함께 남는다(QNA-039). */
@@ -388,7 +405,21 @@ function reshipmentTargets(value: unknown): AdminClaimReshipmentTarget[] {
     waiver: collectionWaiver(target.waiver),
     productionRequired: target.productionRequired === true,
     productionPending: target.productionPending === true,
+    stockDecision: stockDecision(target.stockDecision),
   }));
+}
+
+function idList(value: unknown) {
+  return (Array.isArray(value) ? value : []).filter((id): id is string => typeof id === 'string');
+}
+
+function stockDecision(value: unknown): AdminClaimStockDecision | null {
+  if (!isRecord(value)) return null;
+  return {
+    required: value.required === true, decided: value.decided === true,
+    decidedAt: text(value.decidedAt), decidedByName: text(value.decidedByName),
+    defectiveOrderItemIds: idList(value.defectiveOrderItemIds), recordedOrderItemIds: idList(value.recordedOrderItemIds),
+  };
 }
 
 function reshipments(value: unknown): AdminClaimReshipment[] {

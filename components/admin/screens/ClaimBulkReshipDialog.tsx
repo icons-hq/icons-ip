@@ -313,7 +313,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
               <p className="font-medium">{originLabel(row)}</p>
               {row.waived ? <p className="text-xs text-muted-foreground" data-claim-bulk-reship-waived="">회수 생략으로 결정한 출고지입니다. 회수 상품 재고는 복원하지 않고 보낸 상품 재고만 줄어듭니다.</p> : null}
               {row.items.map((item) => <label className="flex min-w-0 flex-col gap-1" key={item.orderItemId}>
-                <span className="text-xs text-muted-foreground">{item.name}{item.variantName ? ` · ${item.variantName}` : ''} · {item.qty}개 재출고 상품</span>
+                <span className="text-xs text-muted-foreground">{item.name}{item.variantName ? ` · ${item.variantName}` : ''} · {item.qty}개 재출고 상품{item.defective ? ' · 회수품 불량(판매 재고에 넣지 않고 불량 재고에 기록)' : ''}</span>
                 <NativeSelect className="w-full" disabled={busy} onChange={(event) => patch(key, { items: { ...draft.items, [item.orderItemId]: event.target.value } })} value={draft.items[item.orderItemId] ?? ''}>
                   <option disabled value="">재출고할 상품 선택</option>
                   {item.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}

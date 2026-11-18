@@ -91,6 +91,14 @@ def collect(claim):
     return actor() + f"select public.admin_record_order_claim_origin_collection('{uid('claim',claim)}','{shipment}','합성 입고 확인');"
 
 
+def stock_decision(claim):
+    # 교환 회수 불량 재고(CLM-046): 하자·오배송 교환은 회수품 재고 처리를 정해야 재출고한다. 클레임 버전은 바꾸지 않는다.
+    shipment = sql(f"select shipment_id from public.order_claim_collections where claim_id='{uid('claim',claim)}' order by shipment_id limit 1;")
+    if not shipment:
+        raise RuntimeError('Expected collection shipment')
+    return actor() + f"select public.admin_plan_claim_exchange_defective_stock('{uid('claim',claim)}','{shipment}','{{}}'::uuid[]);"
+
+
 def reship(claim):
     items = sql(f"select jsonb_agg(jsonb_build_object('orderItemId',id,'variantId',variant_id)) from public.order_items where order_id='{uid('order',claim)}';")
     return PHYSICAL_RESHIPMENT_SHIM + actor() + f"select pg_temp.record_order_claim_reshipment_physical('{uid('claim',claim)}','hanjin','REASON{claim:08d}','{items}'::jsonb);"
@@ -172,6 +180,8 @@ race('collection-before-change', collect(43), change(43,43), 'claim_changed')
 race('change-before-collection', change(44,44), collect(44))
 for number in (45,46):
     sql('begin;' + collect(number) + 'commit;')
+# 하자·오배송으로 정정된 뒤 재출고하는 46은 회수품 재고 처리(모두 정상 복원)를 먼저 정한다. 사유 정정은 그 결정을 그대로 둔다.
+sql('begin;' + stock_decision(46) + 'commit;')
 race('reship-before-change', reship(45), change(45,45), 'claim_changed')
 race('change-before-reship', change(46,46), reship(46))
 race('cancel-ledger-before-change', finance_start(47), change(47,47), 'claim_reason_finance_started')

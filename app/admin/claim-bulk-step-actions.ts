@@ -7,6 +7,7 @@ import {
   ADMIN_CLAIM_BULK_REFUND_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON,
+  ADMIN_CLAIM_BULK_RESHIP_STOCK_DECISION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON,
@@ -29,7 +30,7 @@ import {
   type AdminClaimBulkState,
   type AdminClaimBulkStepPreviewState,
 } from '@/lib/admin/claim-bulk';
-import { adminClaimPendingReshipments, adminClaimShipmentPartiallyReceived, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
+import { adminClaimPendingReshipments, adminClaimShipmentPartiallyReceived, adminClaimStockDecisionPending, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
 import { adminClaimBasePath } from '@/lib/admin/claims';
 import type { ClaimDefectiveItem } from '@/lib/admin/defective-stock';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
@@ -311,7 +312,9 @@ export async function loadOrderClaimBulkReshipmentsAction(input: unknown): Promi
           .map((target) => ({
             originName: target.originName ?? '주문 전체',
             // 입고도 회수 생략 결정도 없는 배송 건은 제작 대기보다 입고 안내가 먼저다(입고 전에는 제작 여부와 무관하게 회수가 필요하다).
-            reason: decisionKeys.has(target.shipmentId ?? 'order') ? ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON
+            // 회수를 확인한 하자·오배송 교환 출고지는 회수품 재고 처리를 정해야 한다(CLM-046) — 제작 대기와 겹치면 결정이 먼저다.
+            reason: adminClaimStockDecisionPending(detail.claim, target) ? ADMIN_CLAIM_BULK_RESHIP_STOCK_DECISION_REASON
+              : decisionKeys.has(target.shipmentId ?? 'order') ? ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON
               : (target.collectionTracked ? target.collectedAt === null : detail.claim.stage !== 'collected') && target.waiver === null
                 ? (adminClaimShipmentPartiallyReceived(detail.claim, target.shipmentId) ? ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON : ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON)
                 : ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
@@ -327,6 +330,7 @@ export async function loadOrderClaimBulkReshipmentsAction(input: unknown): Promi
           variantName: item.variantName,
           qty: item.qty,
           currentVariantId: item.currentVariantId,
+          ...(target.defectiveOrderItemIds.includes(item.id) ? { defective: true } : {}),
           options: item.options.map((option) => ({
             id: option.id,
             label: `${option.goodName ? `${option.goodName} · ` : ''}${option.name} · ${option.code} · 재고 ${option.stockQty}개`,

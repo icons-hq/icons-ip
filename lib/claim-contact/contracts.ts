@@ -998,6 +998,10 @@ export const CLAIM_CONTACT_ERRORS = {
   invalid_collection_waiver_reason: errorDefinition(400, '회수 생략 사유를 10~500자로 적어주세요.', '23514'),
   collection_waiver_conflict: errorDefinition(409, '이 배송 건은 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
   production_incomplete: errorDefinition(409, '주문제작 굿즈의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.', '23514'),
+  // 교환 회수 불량 재고(CLM-046): 하자·오배송 교환은 회수품 재고 처리(불량 분리·정상 복원)를 정해야 재출고한다.
+  exchange_stock_decision_required: errorDefinition(409, '하자·오배송 교환은 이 배송 건 회수품의 재고 처리(불량 분리 또는 정상 재고 복원)를 정해야 재출고할 수 있습니다. 처리 칸에서 저장한 뒤 다시 등록해주세요.', '23514'),
+  // 회수품을 불량으로 분리하면 같은 옵션 교환도 보낼 옵션 재고가 따로 필요하다(상쇄되지 않는다).
+  stock_out_of_range: errorDefinition(409, '재출고할 옵션 재고가 부족합니다. 옵션 재고를 확인하거나 다른 옵션으로 재출고해주세요.', '22003'),
 } as const;
 export type ClaimContactErrorCode = keyof typeof CLAIM_CONTACT_ERRORS;
 function errorCode(code: unknown): ClaimContactErrorCode {
