@@ -43,6 +43,8 @@ export type AdminGoodSaleRestriction = 'none' | 'adult';
 
 export interface AdminGoodRecord {
   saleStartsAt?: string | null; saleEndsAt?: string | null; salePeriodRevision?: number;
+  /** 상품 기본 칸 버전(goods.base_revision, CAT-027). 편집 화면이 연 시점의 값을 저장에 실어 다른 작업의 변경을 되돌리지 않게 한다. 싣지 않은 기록은 비교하지 않는다. */
+  baseRevision?: number;
   customInputs?: GoodsCustomInputConfig;
   id: string;
   kcDisclosures?: GoodsKcDisclosure[];
@@ -340,6 +342,12 @@ function resolveQueriedKinds(
 /* 조회하지 않은 종류 자리에 넣는 빈 결과. 아래 error 검사·매핑 코드를 그대로 태우기 위해서다. */
 const skippedResult = Promise.resolve({ data: [] as never[], error: null as { message: string } | null });
 
+/** goods.base_revision(bigint)을 편집 화면 기준값으로 옮긴다. 읽지 못한 값은 싣지 않아 저장이 비교 없이 지금처럼 동작한다. */
+function goodBaseRevision(value: number | string | undefined): { baseRevision?: number } {
+  const revision = typeof value === 'string' && /^(0|[1-9][0-9]{0,15})$/.test(value) ? Number(value) : value;
+  return typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0 ? { baseRevision: revision } : {};
+}
+
 interface IpRow {
   id: string;
   public_slug?: string | null;
@@ -361,7 +369,7 @@ interface IpRow {
 
 interface GoodRow {
   option_sale_mode?: string | null; updated_at?: string;
-  sale_starts_at?: string | null; sale_ends_at?: string | null; sale_period_revision?: number;
+  sale_starts_at?: string | null; sale_ends_at?: string | null; sale_period_revision?: number; base_revision?: number | string;
   custom_inputs_enabled?: boolean; custom_inputs_revision?: number; custom_input_fields?: unknown;
   id: string;
   code: string;
@@ -572,7 +580,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,return_address_id,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path')
+        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,base_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,return_address_id,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path')
         .order('id')
       : null;
   if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
@@ -716,6 +724,7 @@ export async function getAdminCatalogRecords(
       optionSaleMode: row.option_sale_mode === 'random' ? 'random' as const : 'select' as const,
       updatedAt: row.updated_at,
       saleStartsAt: row.sale_starts_at ?? null, saleEndsAt: row.sale_ends_at ?? null, salePeriodRevision: row.sale_period_revision ?? 0,
+      ...goodBaseRevision(row.base_revision),
       customInputs:goodsCustomInputConfigFromRow(row),
       id: row.id,
       code: row.code,

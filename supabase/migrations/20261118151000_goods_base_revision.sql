@@ -26,14 +26,11 @@ comment on column public.goods.base_revision is
   '상품 기본 칸(편집 화면이 다시 보내는 칸)과 옵션 금액·이름·코드·구매 제한, 추가 카테고리가 바뀔 때마다 1씩 오르는 버전(CAT-027).';
 
 -- 기본 칸이 실제로 바뀌었거나, 다른 표(옵션·추가 카테고리)의 변경이 버전을 올려 달라고(base_revision을 바꿔) 요청하면 1 올린다.
--- 쓰는 쪽이 임의의 값을 넣을 수는 없다. 다른 BEFORE 트리거가 고친 NEW까지 보도록 이름을 zzz로 두어 마지막에 돈다.
+-- 쓰는 쪽이 임의의 값을 넣을 수는 없다. 다른 BEFORE UPDATE 트리거가 고친 NEW까지 보도록 이름을 zzz로 두어 마지막에 돈다.
+-- 새 행은 열 기본값 0으로 시작한다(INSERT에는 걸지 않는다 — 상품번호 발급 zz_goods_assign_product_no가 마지막 BEFORE INSERT여야 한다).
 create function private.track_goods_base_revision() returns trigger
 language plpgsql set search_path = '' as $$
 begin
-  if tg_op = 'INSERT' then
-    new.base_revision := 0;
-    return new;
-  end if;
   if new.base_revision is distinct from old.base_revision
     or (new.id, new.ip_id, new.name, new.price, new.compare_at_price, new.show_discount_rate, new.badge, new.stock, new.bg,
         new.image_path, new.gallery_paths, new.detail_image_path,
@@ -65,7 +62,7 @@ begin
   return new;
 end $$;
 revoke all on function private.track_goods_base_revision() from public, anon, authenticated, service_role;
-create trigger zzz_goods_base_revision before insert or update on public.goods
+create trigger zzz_goods_base_revision before update on public.goods
   for each row execute function private.track_goods_base_revision();
 
 -- 편집 화면은 옵션 행의 이름·속성·금액·코드·구매 제한도 다시 보낸다(save_goods_options). 옵션 구성(id 묶음)과 재고는

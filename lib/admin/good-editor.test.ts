@@ -92,6 +92,19 @@ it('복구 안내를 두고 직접입력형 항목·판매기간을 고치면 �
   untouched.session.capture(Object.entries({ ...baseline, name: '새 상품명' })); untouched.session.flush();
   expect(untouched.open().getSnapshot().recovery?.values).toMatchObject({ customInputs: '{"enabled":true,"fields":["이전"]}', customInputsExpectedRevision: '1', salePeriodRevision: '4', name: '새 상품명' });
 });
+/* CAT-027: 기본 칸 버전은 어느 칸에도 묶지 않는다. 되살린 기록의 고치지 않은 기본 칸 값과 그 버전이 함께 저장돼 그사이 바뀐 상품은 충돌로 막힌다. */
+it('기본 칸 버전은 저장된 상품에서만 채우고, 복구 기록에서는 고친 칸과 관계없이 기록의 버전을 남긴다', () => {
+  expect(goodEditorValues({ id: 'g', code: 'G', notice: {}, galleryPaths: [], baseRevision: 9 } as never, {})).toHaveProperty('baseRevision', '9');
+  expect(goodEditorValues({ id: 'g', code: 'G', notice: {}, galleryPaths: [] } as never, {})).toHaveProperty('baseRevision', '');
+  expect(goodEditorValues(null, {})).toHaveProperty('baseRevision', '');
+  expect(GOOD_LOCAL_DRAFT_FIELDS).toContain('baseRevision');
+  expect(Object.values(GOOD_LOCAL_DRAFT_LINKED_FIELDS).flat()).not.toContain('baseRevision');
+  const baseline = { baseRevision: '9', name: '지금 상품명', description: '지금 상세' };
+  const saved = { baseRevision: '4', name: '이전 상품명', description: '이전 상세' };
+  const edited = reopenedGoodDraft(saved, baseline);
+  edited.session.capture(Object.entries({ ...baseline, name: '새 상품명' })); edited.session.flush();
+  expect(edited.open().getSnapshot().recovery?.values).toMatchObject({ baseRevision: '4', name: '새 상품명', description: '이전 상세' });
+});
 it('defaults discount display on and carries a recovered off setting into the public preview', () => {
   expect(goodEditorValues(null, {})).toHaveProperty('showDiscountRate', 'true');
   expect(GOOD_LOCAL_DRAFT_FIELDS).toContain('showDiscountRate');

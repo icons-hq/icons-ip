@@ -42,6 +42,10 @@ describe('server registration drafts',()=>{
     expect(values).toEqual({name:'상품',claimReturnAddressId:id});
     expect(validateGoodsDraftValues(values)).toBe(true);
   });
+  /* CAT-027: 기본 칸 버전은 저장된 상품의 편집 기준값이라 새 상품 서버 임시저장에 싣지 않는다(DB 허용 키에도 없다). */
+  it('저장된 상품의 기본 칸 버전은 서버 임시저장 값에 싣지 않는다',()=>{
+    expect(collectGoodsDraftValues([['name','상품'],['baseRevision','3']])).toEqual({name:'상품'});
+  });
   it('DB가 값을 거절하면 원인 코드를 보이고 입력 유지 안내를 남긴다',()=>{
     expect(goodsDraftError('invalid_goods_draft')).toContain('invalid_goods_draft');
     expect(goodsDraftError('some_new_error')).toContain('원인 코드 some_new_error');
