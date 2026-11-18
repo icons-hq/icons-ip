@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({ register: vi.fn(), refresh: vi.fn(), report: v
   states: [] as unknown[], index: 0, work: [] as Promise<void>[] }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('@/app/admin/shipment-actions', () => ({ registerShipmentTrackingAction: mocks.register }));
+vi.mock('@/components/admin/ShipmentTrackingDuplicateForm', () => ({ ShipmentTrackingDuplicateForm: function ShipmentTrackingDuplicateForm() { return null; } }));
 vi.mock('./ShipmentConsoleContext', () => ({ useShipmentConsoleActions: () => mocks.actions ? { report: mocks.report, openDelivery: mocks.openDelivery } : null }));
 vi.mock('react', async () => ({
   ...await vi.importActual<typeof import('react')>('react'),
@@ -19,6 +20,7 @@ vi.mock('react', async () => ({
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Input } from '@/components/admin/kit/ui/input';
 import { ShipmentConsoleRowTracking } from './ShipmentConsoleRowTracking';
+import { ShipmentTrackingDuplicateForm } from '@/components/admin/ShipmentTrackingDuplicateForm';
 
 type Element = ReactElement<Record<string, unknown>>;
 const SHIPMENT = '60000000-0000-4000-8000-000000000001';
@@ -28,7 +30,8 @@ function text(value: ReactNode): string { return Children.toArray(value).map(nod
 function render(defaultCarrier: string | null = 'hanjin') { mocks.index = 0; return ShipmentConsoleRowTracking({ shipmentId: SHIPMENT, reference: '2026111130000001', carriers, defaultCarrier }) as Element; }
 function select(tree: Element) { return nodes(tree).find(node => node.type === NativeSelect)!; }
 function input(tree: Element) { return nodes(tree).find(node => node.type === Input)!; }
-function submit() { (render().props.onSubmit as (event: { preventDefault: () => void }) => void)({ preventDefault: () => {} }); }
+function form(tree: Element) { return nodes(tree).find(node => node.type === 'form')!; }
+function submit() { (form(render()).props.onSubmit as (event: { preventDefault: () => void }) => void)({ preventDefault: () => {} }); }
 beforeEach(() => { vi.clearAllMocks(); mocks.states = []; mocks.index = 0; mocks.work = []; mocks.actions = true; });
 
 it('출고지 기본 택배사가 사용 중이면 미리 고르고, 아니면 비워 운영자가 고르게 한다', () => {
@@ -63,4 +66,19 @@ it('이미 다른 운송장으로 발송된 건은 행에 사유를 남기고 �
   submit(); await Promise.all(mocks.work);
   expect(text(render())).toContain('이미 다른 운송장으로 발송된 배송 건입니다.');
   expect(mocks.report).not.toHaveBeenCalled(); expect(mocks.refresh).not.toHaveBeenCalled();
+});
+
+/* SHP-030: 다른 주문이 쓰는 번호로 거절되면 그 번호를 고정한 '중복 확인 후 등록'을 행 아래에 연다. */
+it('다른 주문의 번호로 거절된 행은 그 번호로 중복 확인 후 등록을 연다', async () => {
+  mocks.register.mockResolvedValue({ ok: true, message: '운송장을 등록하지 못했습니다.', registered: [], unchanged: [],
+    failed: [{ shipmentId: SHIPMENT, reason: '다른 주문의 배송 건에 이미 등록된 운송장번호입니다.', code: 'tracking_number_in_use' }], queueWarning: false });
+  render();
+  expect(nodes(render()).some(node => node.type === ShipmentTrackingDuplicateForm)).toBe(false);
+  (input(render()).props.onChange as (event: { target: { value: string } }) => void)({ target: { value: '1000-0000-0001' } });
+  submit(); await Promise.all(mocks.work);
+  const duplicate = nodes(render()).find(node => node.type === ShipmentTrackingDuplicateForm)!;
+  expect(duplicate.props).toMatchObject({ shipmentId: SHIPMENT, fixed: { carrier: 'hanjin', trackingNumber: '100000000001' } });
+  (duplicate.props.onDone as (message: string) => void)('중복을 확인하고 운송장 100000000001을 등록해 배송 중으로 옮겼습니다.');
+  expect(mocks.report).toHaveBeenCalledWith({ tone: 'success', message: '배송 건 2026111130000001: 중복을 확인하고 운송장 100000000001을 등록해 배송 중으로 옮겼습니다.' });
+  expect(nodes(render()).some(node => node.type === ShipmentTrackingDuplicateForm)).toBe(false);
 });

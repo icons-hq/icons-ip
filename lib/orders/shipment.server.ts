@@ -22,6 +22,8 @@ interface CarrierRow {
   label: string;
   is_active: boolean;
   tracking_url_template: string;
+  tracking_number_pattern?: string | null;
+  tracking_number_rule?: string | null;
 }
 
 /**
@@ -39,7 +41,7 @@ export async function loadShippingCarrierRegistry(
 ): Promise<ShippingCarrierRegistry> {
   const { data, error } = await client
     .from('shipping_carriers')
-    .select('code,label,is_active,tracking_url_template')
+    .select('code,label,is_active,tracking_url_template,tracking_number_pattern,tracking_number_rule')
     .order('sort_order', { ascending: true })
     .order('code', { ascending: true });
 
@@ -52,6 +54,8 @@ export async function loadShippingCarrierRegistry(
     label: row.label,
     active: row.is_active,
     trackingUrlTemplate: row.tracking_url_template,
+    trackingNumberPattern: row.tracking_number_pattern ?? null,
+    trackingNumberRule: row.tracking_number_rule ?? null,
   }));
 }
 

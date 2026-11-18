@@ -17,6 +17,13 @@ export interface ShippingCarrier {
   active: boolean;
   /** `{trackingNumber}` 자리에 운송장번호가 들어가는 조회 URL. */
   trackingUrlTemplate: string;
+  /**
+   * 택배사별 운송장번호 형식(정규식, 하이픈·공백을 뺀 대문자 번호에 전체 일치). 없으면 공통 형식만 본다.
+   * DB 등록 판정(`private.tracking_number_format_ok`)과 같은 값이다 — 앱 검사는 줄별 안내용이고 최종 판정은 DB다.
+   */
+  trackingNumberPattern?: string | null;
+  /** 사람이 읽는 형식 규칙(예: `숫자 13자리`). 형식 정규식과 함께 있다. */
+  trackingNumberRule?: string | null;
 }
 
 export type ShippingCarrierRegistry = readonly ShippingCarrier[];
@@ -102,6 +109,31 @@ export function normalizeTrackingNumber(value: string): string {
 
 export function isTrackingNumber(value: string): boolean {
   return TRACKING_NUMBER_PATTERN.test(value);
+}
+
+/** 레지스트리 정규식을 읽는다. JS가 읽지 못하는 식이면 앱 검사를 건너뛴다(DB가 최종 판정한다). */
+function carrierPattern(carrier: Pick<ShippingCarrier, 'trackingNumberPattern'>): RegExp | null {
+  if (!carrier.trackingNumberPattern) return null;
+  try { return new RegExp(carrier.trackingNumberPattern); } catch { return null; }
+}
+
+/**
+ * 정규화한 운송장번호가 그 택배사의 형식에 맞지 않으면 안내 문구, 맞으면 null.
+ * 공통 형식(8~30자 영숫자)은 `isTrackingNumber`가 먼저 본다.
+ */
+export function carrierTrackingNumberIssue(
+  carrier: Pick<ShippingCarrier, 'label' | 'trackingNumberPattern' | 'trackingNumberRule'>,
+  trackingNumber: string,
+): string | null {
+  const pattern = carrierPattern(carrier);
+  if (!pattern || pattern.test(trackingNumber)) return null;
+  return `${carrier.label} 운송장번호는 ${carrier.trackingNumberRule ?? '정해진 형식'}입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.`;
+}
+
+/** 형식 규칙이 있는 사용 중 택배사의 규칙 안내(예: `한진택배 숫자 10~14자리 · 우체국택배 숫자 13자리`). 없으면 빈 문자열. */
+export function trackingFormatRulesNote(registry: ShippingCarrierRegistry): string {
+  return registry.filter(carrier => carrier.active && carrier.trackingNumberPattern && carrier.trackingNumberRule)
+    .map(carrier => `${carrier.label} ${carrier.trackingNumberRule}`).join(' · ');
 }
 
 /**

@@ -4,6 +4,8 @@
 -- 재출고하면 종결된다. 하자·오배송 교환은 사유·근거 사진이 있으면 회수 확인 없이 재출고하고 보낸 옵션만 뺀다.
 -- 합성 데이터만 쓰고 롤백한다. 결제사·택배사·저장소 API는 부르지 않는다.
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 load 'safeupdate';
 create function pg_temp.po_id(kind text,n integer) returns uuid language sql immutable as $$select md5('claim-per-origin:'||kind||':'||n)::uuid$$;
 create function pg_temp.po_assert(ok boolean,label text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'per-origin reshipment assertion: %',label;end if;end$$;
