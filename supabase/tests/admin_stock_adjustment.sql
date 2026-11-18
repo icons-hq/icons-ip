@@ -104,9 +104,12 @@ begin
 end;
 $$;
 
+-- 초안 굿즈 행은 일반 회원 세션에 열리지 않는다(20261118160000) — 재고는 소유자 롤로 확인한다.
+reset role;
 select 1 / case when (
   select stock_qty = 10 from public.goods where id = 'admin-stock-test-good'
 ) then 1 else 0 end as assert_non_staff_did_not_change_stock;
+set local role authenticated;
 
 -- staff 입력 검증과 stale 수량 가드
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000701', true);
