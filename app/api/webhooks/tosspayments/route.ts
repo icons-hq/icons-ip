@@ -4,7 +4,13 @@ import {
   GoodsPaymentReconciliationInProgressError,
 } from '@/lib/payments/goods-checkout';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
-import { paymentProviderConfigured } from '@/lib/payments/runtime-gateway';
+import {
+  createGoodsProviderCancellationCheck,
+  createGoodsProviderCancellationRepository,
+  type GoodsProviderCancellationVerdict,
+} from '@/lib/payments/goods-provider-cancellation.server';
+import { getPaymentGateway, paymentProviderConfigured } from '@/lib/payments/runtime-gateway';
+import { createRuntimeAttemptPaymentGateway } from '@/lib/subscriptions/payment-dispatch.server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 import { TicketPaymentReconciliationInProgressError } from '@/lib/payments/ticket-checkout';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
@@ -64,6 +70,11 @@ interface TossWebhookHandlerDependencies {
    * 없거나 Korpay·무통장이면 no-op이다.
    */
   readonly scheduleOrderCancellation: (orderId: string) => void;
+  /**
+   * 종결(approved) 굿즈 결제의 결제사 직접 취소 감지(원장 OPS-065·CLM-051). 본문을 믿지 않고 원장 결제 키로 결제사 잔액을
+   * 조회해(원장을 바꾸지 않는 조회) 우리 원장에 없는 취소면 DB가 주문을 출고 보류한다. 조회·DB 실패는 throw.
+   */
+  readonly checkProviderCancellation: (input: { readonly attemptId: string; readonly caseRef: string }) => Promise<GoodsProviderCancellationVerdict>;
   readonly createCaseRefFallback?: () => string;
 }
 
@@ -77,8 +88,9 @@ function acknowledged() {
  * 토스 웹훅(같은 URL에 문서 기반 재작성 — #390). 웹훅은 확정의 진실원이 아니라
  * 재정합 트리거다: 본문에서 orderId(대상 attempt)와 paymentKey(조회 힌트)만 읽어 해당
  * attempt를 조회 API 기반 reconcile seam에 태우고, 반영은 전부 DB 멱등 finalizer가 한다.
- * 종결된 attempt에 대한 웹훅(중복 수신·상태 역전 신호)은 no-op 200이다 — 원장을
- * 웹훅으로 되돌리는 경로는 존재하지 않는다. 웹훅은 상점아이디(MID)별로 등록·전송되므로
+ * 종결된 attempt에 대한 웹훅(중복 수신·상태 역전 신호)은 원장을 바꾸지 않는다 — 원장을
+ * 웹훅으로 되돌리는 경로는 존재하지 않는다. 승인된 굿즈 결제의 웹훅만 결제사 직접 취소를
+ * 조회해 출고 보류를 남길 수 있다(checkProviderCancellation). 웹훅은 상점아이디(MID)별로 등록·전송되므로
  * (공식문서 41 /guides/v2/webhook) 개발자센터에서 MID iconsi0xvd(테스트 모드 ticonsi0xvd)에
  * 등록한다.
  */
@@ -88,6 +100,7 @@ export function createTossWebhookHandler({
   reconcileGoods,
   reconcileTicket,
   scheduleOrderCancellation,
+  checkProviderCancellation,
   createCaseRefFallback = randomUUID,
 }: TossWebhookHandlerDependencies) {
   return async function handleTossWebhook(request: Request) {
@@ -117,6 +130,28 @@ export function createTossWebhookHandler({
     }
     // 미지 식별자는 재전송해도 처리할 것이 없다 — 우리 원장의 결제가 아니다.
     if (!attempt) return acknowledged();
+    if (attempt.purpose === 'order' && attempt.state === 'approved' && parsed.providerStatusHint !== 'DONE') {
+      /*
+       * 승인된 굿즈 결제의 상태 변경 웹훅 — 운영자가 토스 상점관리자에서 직접 취소했을 수 있다. 원장은 웹훅이 되돌리지 않는다
+       * (종결 상태는 그대로). 결제사 조회로 취소를 확인하고 우리 원장에 없는 취소면 출고 보류만 남긴다. 본문 status는 조회할지만
+       * 고른다: DONE(정상 승인 알림)은 조회하지 않고, 그 밖(CANCELED·PARTIAL_CANCELED·없음·위조)은 조회한다 — 위조된 DONE이
+       * 진짜 취소 웹훅을 막을 수 없고 위조된 취소 상태는 조회 한 번을 부를 뿐이다. 조회 8초 + DB 두 번으로 응답 예산(10초)
+       * 안에 든다. 조회·DB 일시 실패는 5xx로 남겨 재전송을 받는다. 우리 취소가 진행 중이면(in_flight) 원장이 곧 그 취소를
+       * 기록하므로 503으로 미뤄 1·4·16분 뒤 재전송이 다시 본다 — 우리 취소의 웹훅을 결제사 직접 취소로 오탐하지 않는다.
+       */
+      const caseRef = tossWebhookCaseRef(request, createCaseRefFallback);
+      if (!caseRef) return acknowledged();
+      let verdict: GoodsProviderCancellationVerdict;
+      try {
+        verdict = await checkProviderCancellation({ attemptId: attempt.id, caseRef });
+      } catch {
+        return Response.json({ error: 'provider_cancellation_check_failed' }, { status: 500 });
+      }
+      if (verdict === 'in_flight') {
+        return Response.json({ error: 'cancellation_in_progress' }, { status: 503 });
+      }
+      return acknowledged();
+    }
     // prepared는 TTL 스윕 소관이고, 종결 상태는 웹훅이 건드릴 수 없다(멱등).
     if (!RECONCILABLE_STATES.has(attempt.state)) return acknowledged();
 
@@ -224,4 +259,17 @@ export const POST = createTossWebhookHandler({
   reconcileGoods: (input) => createRuntimeGoodsPaymentCheckout('toss').reconcilePayment(input),
   reconcileTicket: (input) => createRuntimeTicketPaymentCheckout('toss').reconcilePayment(input),
   scheduleOrderCancellation: scheduleApprovedOrderCancellation,
+  checkProviderCancellation: (input) => {
+    const service = createServiceClient();
+    const repository = createGoodsProviderCancellationRepository(service);
+    // billing(정기배송) 결제는 attempt 래퍼가 not_supported로 돌려 감지 대상에서 빠진다.
+    const gateway = createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss'));
+    return createGoodsProviderCancellationCheck({
+      loadContext: repository.loadContext,
+      inspect: (attempt, paymentKey) => gateway.inspectBalance
+        ? gateway.inspectBalance(attempt, paymentKey)
+        : Promise.resolve({ kind: 'not_supported' as const }),
+      record: repository.record,
+    })(input);
+  },
 });

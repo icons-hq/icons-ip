@@ -7,13 +7,16 @@ import { isTossProviderOrderId } from './toss-config.mjs';
 // { eventType, createdAt, data: Payment }. 서명 헤더(tosspayments-webhook-signature)는
 // 지급대행 웹훅에만 붙고 결제 웹훅에는 없으므로 본문은 어떤 상태 반영의 근거도 되지
 // 않는다 — 여기서는 어느 attempt를 재정합화할지(orderId)와, 조회 대상을 좁힐 힌트
-// (paymentKey)만 읽고 전부 버린다. 힌트는 게이트웨이가 조회 응답이 attempt와 일치할
-// 때만 쓴다. raw payload는 저장하지 않는다.
+// (paymentKey), 종결 결제의 결제사 취소 조회를 할지 고르는 힌트(status)만 읽고 전부
+// 버린다. 힌트는 게이트웨이가 조회 응답이 attempt와 일치할 때만 쓰고, status 힌트는
+// 조회 여부만 고른다(판정은 조회 결과). raw payload는 저장하지 않는다.
 const MAX_WEBHOOK_BYTES = 64 * 1024;
 const EVENT_TYPE = /^[A-Z_]{2,64}$/;
 const CASE_REF = /^[A-Za-z0-9_-]{16,128}$/;
 // paymentKey wire 형식 — successUrl 콜백 파서·어댑터와 같은 계약(최대 200자, 제어문자 금지).
 const PAYMENT_KEY = /^[\x21-\x7e]{1,200}$/;
+// Payment.status 형식(READY·DONE·CANCELED·PARTIAL_CANCELED 등 대문자 열거값).
+const PAYMENT_STATUS = /^[A-Z_]{1,40}$/;
 
 export class TossWebhookInvalidError extends Error {}
 
@@ -55,6 +58,12 @@ export type ParsedTossWebhook =
       readonly providerOrderId: string;
       /** 본문 data.paymentKey — 형식만 통과한 미검증 힌트다. */
       readonly providerPaymentKeyHint?: string;
+      /**
+       * 본문 data.status — 형식만 통과한 미검증 힌트다. 상태 반영의 근거로 쓰지 않는다. 종결 결제의 결제사 취소 조회를
+       * 할지 고르는 데만 쓴다('DONE'이면 조회하지 않는다 — 위조된 DONE은 진짜 취소 웹훅을 막지 못하고, 위조된 취소 상태는
+       * 조회 한 번을 부를 뿐이다).
+       */
+      readonly providerStatusHint?: string;
     }
   | { readonly kind: 'unsupported_event' }
   | { readonly kind: 'unknown_reference' };
@@ -97,12 +106,14 @@ export async function parseTossWebhook(request: Request): Promise<ParsedTossWebh
   }
   // paymentKey가 없거나 형식 밖이면 힌트 없이 재정합한다(orderId 조회) — 힌트는 선택이다.
   const paymentKey = record?.paymentKey;
+  const status = record?.status;
   return {
     kind: 'payment_status_changed',
     providerOrderId: orderId,
     ...(typeof paymentKey === 'string' && PAYMENT_KEY.test(paymentKey)
       ? { providerPaymentKeyHint: paymentKey }
       : {}),
+    ...(typeof status === 'string' && PAYMENT_STATUS.test(status) ? { providerStatusHint: status } : {}),
   };
 }
 
