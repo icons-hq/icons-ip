@@ -82,16 +82,16 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 
 ### 문의로 받은 탈퇴의 운영자 처리 (Phase 1 OFF 동안)
 
-탈퇴 신청 기능이 꺼져 있는 동안 고객 화면(`/settings/delete-account`·설정 하단 회원 탈퇴)은 화면 신청 대신 1:1 문의(유형 '계정')로 탈퇴를 요청하라고 안내하고 문의 작성으로 잇는다. 회원 관리 권한(`platform.manage` — 통합 매니저·계정 주매니저, 매니저 역할 설정 전에는 staff/admin)을 가진 운영자가 어드민 고객 상세(`/admin/customers/<회원 id>`) 개요의 **탈퇴 요청 처리**로 처리한다. SQL 편집기 절차(정지 + `private.erase_member_address_book` 실행 + 수기 기록)는 더 쓰지 않는다.
+탈퇴 신청 기능이 꺼져 있는 동안 고객 화면(`/settings/delete-account`·설정 하단 회원 탈퇴)은 화면 신청 대신 1:1 문의(유형 '계정')로 탈퇴를 요청하라고 안내하고, 처리 뒤 지워지는 것·남는 것·같은 이메일 재가입 불가를 알린 뒤 문의 작성으로 잇는다. 정지 회원과 온보딩을 마치지 않은 회원도 이 경로를 쓸 수 있도록 '계정' 유형 문의만은 접수·이어 쓰기·열람이 열려 있다(앱 화면·액션과 DB `create_inquiry`·`append_inquiry_message`. 다른 유형과 다른 보호 액션은 그대로 막히고 하루 20건 상한도 같다. 이미지 첨부와 주문·굿즈 연결은 받지 않는다). 회원 관리 권한(`platform.manage` — 통합 매니저·계정 주매니저, 매니저 역할 설정 전에는 staff/admin)을 가진 운영자가 어드민 고객 상세(`/admin/customers/<회원 id>`) 개요의 **탈퇴 요청 처리**로 처리한다. SQL 편집기 절차(정지 + `private.erase_member_address_book` 실행 + 수기 기록)는 더 쓰지 않는다.
 
-1. 문의 내용으로 본인의 탈퇴 요청인지 확인한다. 고객 상세에서 탈퇴 요청 처리를 펼쳐 문의 번호(#번호)와 처리 메모(정지 사유로 남는 내부 기록 — 연락처·주소 같은 개인정보는 적지 않는다)를 입력하고, 확인창에서 처리한다.
+1. 문의 내용으로 본인의 탈퇴 요청인지 확인한다. 고객 상세에서 탈퇴 요청 처리를 펼쳐 문의 번호(#번호)와 처리 메모(정지 사유로 남는 내부 기록 — 연락처·주소 같은 개인정보는 적지 않는다)를 입력한다. 확인창이 그 문의의 유형·제목·작성일을 보여주므로(`admin_member_withdrawal_inquiry`, '계정' 유형이 아니면 경고) 탈퇴를 요청한 문의가 맞는지 대조한 뒤 처리한다.
 2. DB `admin_process_member_withdrawal`이 한 트랜잭션에서 처리한다.
    - 문의 번호가 그 회원이 쓴 1:1 문의인지 확인한다.
    - §3 진행 중 의무(`private.account_deletion_blockers` — 탈퇴 신청과 같은 판정)와 운영 권한(프로필 staff/admin·매니저 소속)이 남아 있으면 아무것도 바꾸지 않고 남은 항목·건수를 돌려준다. 해당 거래를 끝내거나 권한을 회수한 뒤 다시 처리한다.
    - 계정을 정지한다(`admin_suspend_user`, 정지 감사 포함). 주소록, 인증한 휴대폰 번호와 인증 요청·이력, 마케팅 정보 수신 동의(동의 중인 모든 수단 철회 — 원장 출처 `member_withdrawal`, 파생값 `consents.marketing=false`), 성별(고객 통계 동의), 활동 기록과 그 동의, 진행 중인 이메일 변경 요청, 대기 중인 재입고 알림 신청을 지운다(탈퇴 봉인 트리거의 삭제 범위와 같고, 재입고 알림은 정지와 무관하게 알림·메일을 보내므로 더한다). 모든 로그인 세션(`auth.sessions`, refresh token)을 지운다.
    - 처리 기록 `private.member_withdrawal_processings`와 감사 로그 `admin.member.withdrawal_processed`(문의 번호·처리자·시각·지운 개수 — 메모·개인정보 원문 없음)를 남긴다. 다시 처리해도 처음 기록을 돌려주고(멱등) 그 사이 생긴 세션만 다시 끊는다.
 3. 이어서 앱 서버가 Supabase Auth 관리 API로 재로그인을 막는다(`ban_duration` 876000h — 로그인·토큰 갱신 거절). 관리 API에는 사용자 id로 세션을 끊는 호출이 없어(`signOut`은 그 사용자의 JWT가 필요하다) 세션 삭제는 2의 RPC가 한다. `admin_confirm_member_withdrawal_signin_block`이 `auth.users.banned_until`을 직접 읽어 장기 차단을 확인한 뒤 감사 로그 `admin.member.withdrawal_signin_blocked`를 남긴다. 차단이 실패하면 정지·삭제는 이미 끝난 상태로 고객 상세에 '재로그인 차단 다시 적용'이 보인다.
-4. 처리한 계정은 정지를 해제할 수 없다(`member_withdrawn`). 이미 발급된 access token은 만료(기본 1시간)까지 남지만 정지로 보호 액션은 막힌다.
+4. 처리한 계정은 정지를 해제할 수 없다(`member_withdrawn`). 이미 발급된 access token은 만료(기본 1시간)까지 PostgREST에서 유효하다. 그동안 정지를 확인하는 쓰기 — 구매·예매·작성·카드팩 개봉·게임, 마케팅 정보 수신 새 동의(직접 `consents.marketing` 쓰기 포함, 철회는 언제나 허용), 재입고 알림 신청, '계정' 유형이 아닌 문의 — 는 거절되지만, 위시처럼 정지를 확인하지 않는 본인 행 쓰기는 만료 전까지 될 수 있다.
 5. 문의에 처리 결과를 답변하고 문의를 닫는다.
 
 이 처리는 hard delete가 아니다. §1·§2의 완전한 탈퇴(법정 snapshot 분리 → 메일 fence → hard delete → compliance tombstone)의 선행 조건이 아직 없어서 다음은 남긴다.
@@ -103,6 +103,12 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 | 1:1 문의·리뷰·커뮤니티 작성물·업로드 이미지 | 작성자 연결 해제·이미지 삭제는 hard delete 단계(§4) |
 | 보유 카드·카드팩·코인, 위시·알림함·팔로우, 알린 재입고 알림 기록 등 | 개인화 데이터 삭제는 hard delete 단계(§1 3항) |
 | 처리 기록·감사 로그 | 처리 근거(개인정보 원문 없음). 처리 기록은 프로필이 hard delete될 때 함께 지워진다 |
+
+배포 전 확인(운영 Supabase, 사람): 처리 RPC는 함수 소유자 `postgres`로 `auth.sessions`·`auth.refresh_tokens` 행을 지운다. 로컬 이미지는 이 권한이 있지만 운영 프로젝트에서 SQL 편집기로 다음이 둘 다 `true`인지 먼저 확인한다. `false`면 처리 RPC가 실패해 아무것도 바뀌지 않는다.
+
+```sql
+select has_table_privilege('postgres','auth.sessions','delete'), has_table_privilege('postgres','auth.refresh_tokens','delete');
+```
 
 남은 일(hard delete로 가기 위한 선행 조건):
 
