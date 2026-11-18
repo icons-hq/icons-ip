@@ -88,7 +88,7 @@ const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   'benefit-report': 'marketing.manage', 'customer-grades': 'marketing.manage', campaigns: 'promotion.manage',
   'store-credit-console': 'marketing.manage', 'store-credits': 'marketing.manage', notifications: 'marketing.manage',
   emails: 'marketing.manage', 'stats-traffic': 'stats.read', 'stats-marketing': 'stats.read', 'stats-sales': 'stats.read', 'stats-claims': 'stats.read', 'stats-customers': 'stats.read',
-  'store-settings': 'seller.read', roles: 'operators.manage', 'operations-settings': 'platform.manage', 'collectible-features': 'platform.manage',
+  'store-settings': 'seller.read', roles: 'operators.manage', 'operations-settings': 'platform.manage', 'system-health': 'platform.manage', 'collectible-features': 'platform.manage',
   ips: 'platform.manage', cards: 'platform.manage', pools: 'platform.manage', policies: 'platform.manage',
   grants: 'platform.manage', games: 'platform.manage', events: 'platform.manage', 'ticket-types': 'platform.manage',
   moderation: 'platform.manage', 'check-in': 'platform.manage',
