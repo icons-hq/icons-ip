@@ -622,6 +622,8 @@ describe('validateVercelBuildEnvironment', () => {
       'https://iconsip.com/checkout',
       'https://iconsip.com?redirect=evil',
       'https://iconsip.com#fragment',
+      'https://www.xsquare.kr',
+      'https://xsquare.kr.evil.example',
       'https://wrong.example',
     ]) {
       expect(() => validateVercelBuildEnvironment(productionEnvironment({
