@@ -7,6 +7,7 @@
  * 판매가는 상품 목록의 판매가 바로 수정과 같은 상품 저장 규칙으로, 바코드는 옵션 ERP 식별자 저장으로 반영한다.
  */
 import { ERP_ITEM_LIMITS } from './erp-items';
+import { GOODS_PRICE_GUARD_INTRO, formatGoodsPriceGuardList, goodsPriceGuardRows } from './goods-price-guard';
 
 export type ErpLinkedGoodsField = 'price' | 'barcode';
 
@@ -233,7 +234,18 @@ export function erpLinkedGoodsConfirmation(rows: readonly ErpLinkedGoodsRow[]): 
   return `연결 상품 ${count(goods)}개에 ${fields}을 반영할까요?`
     + (price ? ' 바뀐 판매가는 저장하는 즉시 고객 화면과 새 주문에 적용됩니다.' : '')
     + (changes ? ` 이미 있던 바코드가 바뀌는 행이 ${count(changes)}건입니다. 창고에 등록된 바코드와 같은지 확인해주세요.` : '')
-    + ' 반영 내역은 감사 기록에 남습니다.';
+    + ' 반영 내역은 감사 기록에 남습니다.'
+    + erpLinkedGoodsPriceGuard(rows);
+}
+
+/** CAT-008: 반영할 판매가가 1,000원 미만이거나 지금 금액의 절반 이하·두 배 이상인 옵션(상품 편집·목록 일괄 변경과 같은 기준). 없으면 빈 문자열. */
+function erpLinkedGoodsPriceGuard(rows: readonly ErpLinkedGoodsRow[]): string {
+  const lines = goodsPriceGuardRows(rows.filter((row) => row.field === 'price' && typeof row.next === 'number'), (row) => ({
+    label: row.isDefault ? row.goodName : `${row.goodName} (${row.optionName})`,
+    before: typeof row.current === 'number' ? row.current : null,
+    after: row.next as number,
+  }));
+  return lines.length ? `\n\n${GOODS_PRICE_GUARD_INTRO}\n${formatGoodsPriceGuardList(lines)}` : '';
 }
 
 /** 값 표시. 판매가는 원, 바코드는 글자 그대로, 비어 있으면 '없음'. */
