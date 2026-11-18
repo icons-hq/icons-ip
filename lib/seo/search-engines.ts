@@ -1,6 +1,7 @@
 import type { Metadata, MetadataRoute } from 'next';
 import { goodDetailHref } from '../goods-display';
 import { publicIpHref } from '../ip-identity';
+import { CANONICAL_SITE_ORIGIN } from '../site-domains.mjs';
 import { LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '../legal/links';
 
 /*
@@ -70,7 +71,7 @@ export interface SitemapCatalog {
 
 /** 절대 주소 기준. 운영 SITE_URL 을 따르고 없으면 운영 도메인이다(app/shop/[goodId]/structured-data.ts siteOrigin 과 같은 규칙). */
 export function publicSiteOrigin(siteUrl: string | undefined = process.env.SITE_URL): string {
-  return (siteUrl?.trim() || 'https://iconsip.com').replace(/\/+$/, '');
+  return (siteUrl?.trim() || CANONICAL_SITE_ORIGIN).replace(/\/+$/, '');
 }
 
 /** 루트 metadataBase — SITE_URL 이 주소 모양이 아니어도 레이아웃이 깨지지 않게 운영 도메인으로 물러선다. */
@@ -81,7 +82,7 @@ export function metadataBaseUrl(siteUrl: string | undefined = process.env.SITE_U
   } catch {
     // 아래 운영 도메인으로 물러선다.
   }
-  return new URL('https://iconsip.com');
+  return new URL(CANONICAL_SITE_ORIGIN);
 }
 
 /** 운영과 같은 내용을 다른 주소로 내는 배포(미리보기·스테이징)인가. 로컬 실행(VERCEL_ENV 없음)은 운영 규칙으로 확인한다. */

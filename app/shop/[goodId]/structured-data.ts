@@ -3,6 +3,7 @@ import type { Good } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { goodDetailHref } from '@/lib/goods-display';
 import { goodsPurchaseConditionProblem } from '@/lib/goods-options';
+import { CANONICAL_SITE_ORIGIN } from '@/lib/site-domains.mjs';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 
 /*
@@ -18,7 +19,7 @@ const DESCRIPTION_MAX = 500;
 
 /** 구조화 데이터·OG 의 절대 주소 기준. 운영 SITE_URL 을 따르고, 없으면 운영 도메인이다. */
 export function siteOrigin(): string {
-  return (process.env.SITE_URL?.trim() || 'https://iconsip.com').replace(/\/+$/, '');
+  return (process.env.SITE_URL?.trim() || CANONICAL_SITE_ORIGIN).replace(/\/+$/, '');
 }
 
 /** CSS 배경 축약값(`url("…") center / cover`)에서 첫 이미지 주소. 이미지가 없는 gradient 는 null. */
