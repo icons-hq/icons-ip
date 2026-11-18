@@ -64,11 +64,12 @@ async function requireInquiryAuthor(next: string, accountInquiry: () => boolean 
 }
 
 const RESTRICTED_IMAGES = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의에 이미지를 첨부할 수 없습니다.';
-const RESTRICTED_LINK = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의만 보낼 수 있고 주문·굿즈를 연결할 수 없습니다.';
+const RESTRICTED_LINK = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의만 글로 보낼 수 있고 이미지·주문·굿즈를 함께 보낼 수 없습니다.';
 
 /** RPC가 던진 도메인 오류를 사용자 문구로. 모르는 오류는 일반 실패로 접는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string): InquiryFormErrors {
   const value = (message ?? '').toLowerCase();
+  if (value.includes('account_suspended_inquiry_limited')) return { form: RESTRICTED_LINK };
   if (value.includes('account_suspended')) {
     return { form: '정지된 계정은 문의를 보낼 수 없습니다.' };
   }

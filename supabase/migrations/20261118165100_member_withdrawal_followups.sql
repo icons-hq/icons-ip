@@ -1,8 +1,9 @@
 -- 문의로 받은 회원 탈퇴 처리의 후속(원장 CUS-035·CUS-036 리뷰).
 --
--- 1. 정지 회원도 '계정' 유형 1:1 문의로 탈퇴를 요청할 수 있게 좁게 연다. 다른 유형의 새 문의와 다른 보호 액션은 그대로 막고,
---    하루 20건 상한·본인 주문 연결 같은 기존 제한은 그대로다. 이어 쓰기도 계정 문의에만 허용한다(지금까지 DB는 정지 회원의
---    이어 쓰기를 따로 막지 않았다 — 앱만 막았다). 온보딩 미완료 회원은 DB가 원래 막지 않으므로 앱이 계정 문의만 연다.
+-- 1. 정지 회원도 '계정' 유형 1:1 문의로 탈퇴를 요청할 수 있게 좁게 연다. 정지 회원의 계정 문의는 글만 받는다 — 이미지 첨부와
+--    주문·굿즈 연결은 DB가 거절한다(account_suspended_inquiry_limited). 다른 유형의 새 문의와 다른 보호 액션은 그대로 막고
+--    하루 20건 상한도 그대로다. 이어 쓰기도 계정 문의에만, 첨부 없이 허용한다(지금까지 DB는 정지 회원의 이어 쓰기를 따로 막지
+--    않았다 — 앱만 막았다). 온보딩 미완료 회원은 DB가 원래 막지 않으므로 같은 규칙(계정 문의만·첨부·연결 없음)을 앱이 지킨다.
 -- 2. 탈퇴 처리 직후 남은 access token(최대 1시간)으로 PostgREST를 직접 불러 마케팅 정보 수신에 다시 동의하거나 재입고 알림을
 --    신청하지 못하게 한다. 정지 회원은 동의 '켜기'(동의하지 않은 수단을 동의로 바꾸기)와 재입고 알림 신청만 거절한다 —
 --    동의 철회는 언제나 받는다(정보통신망법 제50조). 회원이 consents.marketing을 직접 쓰는 옛 경로도 켜는 값은 받지 않는다.
@@ -23,24 +24,30 @@ begin
   execute definition;
 end $$;
 
--- 1-a. 새 문의: 정지 회원은 '계정' 유형만 접수한다.
+-- 1-a. 새 문의: 정지 회원은 '계정' 유형만, 첨부·주문·굿즈 연결 없이 접수한다.
 select private.t10_followup_patch_function('private.create_inquiry_before_system_notice(text,text,text,uuid,text,text[])'::regprocedure, array[
 $a$      and profile.suspended_at is not null
   ) then
     raise insufficient_privilege using message = 'account_suspended';$a$,
 $a$      and profile.suspended_at is not null
-  ) and v_category <> 'account' then
-    -- 정지 회원은 계정 문의(탈퇴 요청·정지 문의)만 접수한다 — 탈퇴 경로가 막히지 않게(원장 CUS-035).
-    raise insufficient_privilege using message = 'account_suspended';$a$
+  ) and (v_category <> 'account' or cardinality(coalesce(target_image_paths, '{}'::text[])) > 0
+    or target_order_id is not null or target_good_id is not null) then
+    -- 정지 회원은 계정 문의(탈퇴 요청·정지 문의)를 글로만 접수한다 — 탈퇴 경로가 막히지 않게(원장 CUS-035).
+    raise insufficient_privilege using message = case when v_category <> 'account' then 'account_suspended'
+      else 'account_suspended_inquiry_limited' end;$a$
 ]);
 
--- 1-b. 이어 쓰기: 정지 회원은 자기 계정 문의에만 이어 쓴다.
+-- 1-b. 이어 쓰기: 정지 회원은 자기 계정 문의에만, 첨부 없이 이어 쓴다.
 select private.t10_followup_patch_function('public.append_inquiry_message(uuid,text,text[])'::regprocedure, array[
 $a$  if v_status = 'closed' then$a$,
-$a$  -- 정지 회원은 계정 문의(탈퇴 요청·정지 문의)에만 이어 쓴다.
-  if exists (select 1 from public.profiles as profile where profile.id = v_actor and profile.suspended_at is not null)
-    and (select thread.category from public.inquiries as thread where thread.id = target_inquiry_id) <> 'account' then
-    raise insufficient_privilege using message = 'account_suspended';
+$a$  -- 정지 회원은 계정 문의(탈퇴 요청·정지 문의)에만 글로 이어 쓴다.
+  if exists (select 1 from public.profiles as profile where profile.id = v_actor and profile.suspended_at is not null) then
+    if (select thread.category from public.inquiries as thread where thread.id = target_inquiry_id) <> 'account' then
+      raise insufficient_privilege using message = 'account_suspended';
+    end if;
+    if cardinality(coalesce(target_image_paths, '{}'::text[])) > 0 then
+      raise insufficient_privilege using message = 'account_suspended_inquiry_limited';
+    end if;
   end if;
 
   if v_status = 'closed' then$a$

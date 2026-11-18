@@ -16,7 +16,7 @@ begin;
 --   · 정지 계정은 주소록 저장·휴대폰 인증 요청이 거절되고, 탈퇴 처리한 계정은 정지 해제가 막힌다
 --   · 재로그인 차단 확인: auth.users.banned_until이 장기 차단이 아니면 거절, 차단 뒤에는 기록·감사하고 그 사이 세션을 끊는다. 재호출은 replayed
 --   · 처리 전 대조용 문의 요약(그 회원의 문의만, platform.manage만)
---   · 정지 회원(20261118165100): 계정 문의만 접수·이어 쓰기, 그 문의로 탈퇴 처리 가능. 마케팅 동의는 유지·철회만(새로 켜기·직접 쓰기 거절),
+--   · 정지 회원(20261118165100): 계정 문의만 글로 접수·이어 쓰기(첨부·주문·굿즈 연결은 거절), 그 문의로 탈퇴 처리 가능. 마케팅 동의는 유지·철회만(새로 켜기·직접 쓰기 거절),
 --     재입고 알림 신청 거절. 정지되지 않은 회원의 동의는 그대로
 -- ============================================================================
 
@@ -386,13 +386,24 @@ reset role;
 select id as withdrawal_variant from public.goods_variants where good_id = 'withdrawal-goods' order by is_default desc limit 1 \gset
 select private.write_customer_marketing_consent(pg_temp.uid(8), 'email', true, 'marketing-channels-v1', 'onboarding', clock_timestamp() - interval '1 day');
 update public.profiles set consents = consents || '{"marketing":true}'::jsonb where id = pg_temp.uid(8);
+set local session_replication_role = replica;
+insert into public.orders(id, user_id, total, order_number, status)
+values ('a10d0de0-0000-4000-8000-000000000801', pg_temp.uid(8), 10000, '2026111819990801', 'delivered');
+set local session_replication_role = origin;
 update public.profiles set suspended_at = now(), suspension_reason = 'TEST 제재' where id = pg_temp.uid(8);
 select pg_temp.as_actor(pg_temp.uid(8));
 set local role authenticated;
 select public.create_inquiry('account', '탈퇴하고 싶어요', '정지된 계정인데 탈퇴를 요청합니다.') as suspended_account_inquiry \gset
 select pg_temp.expect_error($q$select public.create_inquiry('order', '배송 문의', '언제 오나요')$q$, 'account_suspended');
 select pg_temp.expect_error($q$select public.create_inquiry('etc', '기타 문의', '질문')$q$, 'account_suspended');
+-- 정지 회원의 계정 문의는 글만 받는다 — 첨부·주문·굿즈 연결은 DB가 거절한다(앱만 막던 빈틈).
+select pg_temp.expect_error(format('select public.create_inquiry(%L, %L, %L, null, null, array[%L])', 'account', '탈퇴', '첨부 포함',
+  pg_temp.uid(8)::text || '/inquiry/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jpg'), 'account_suspended_inquiry_limited');
+select pg_temp.expect_error(format('select public.create_inquiry(%L, %L, %L, %L)', 'account', '탈퇴', '주문 연결', 'a10d0de0-0000-4000-8000-000000000801'), 'account_suspended_inquiry_limited');
+select pg_temp.expect_error(format('select public.create_inquiry(%L, %L, %L, null, %L)', 'account', '탈퇴', '굿즈 연결', 'withdrawal-goods'), 'account_suspended_inquiry_limited');
 select 1/case when public.append_inquiry_message(:'suspended_account_inquiry', '본인 확인 답변입니다.') is not null then 1 else 0 end as suspended_append_account_ok;
+select pg_temp.expect_error(format('select public.append_inquiry_message(%L, %L, array[%L])', :'suspended_account_inquiry', '첨부',
+  pg_temp.uid(8)::text || '/inquiry/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg'), 'account_suspended_inquiry_limited');
 reset role;
 set local session_replication_role = replica;
 insert into public.inquiries(id, user_id, category, title, status, waiting_since) values
