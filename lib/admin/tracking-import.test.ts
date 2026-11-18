@@ -154,3 +154,25 @@ describe('TRACKING_IMPORT_SAMPLE', () => {
     expect(result.rows).toHaveLength(1);
   });
 });
+
+describe('parseTrackingImport · 택배사별 형식 (SHP-032)', () => {
+  const registry: ShippingCarrierRegistry = [
+    { ...CARRIERS[0], trackingNumberPattern: '^[0-9]{10,12}$', trackingNumberRule: '숫자 10~12자리' },
+    { code: 'epost', label: '우체국택배', active: true, trackingUrlTemplate: 'https://example.test/epost?no={trackingNumber}', trackingNumberPattern: '^[0-9]{13}$', trackingNumberRule: '숫자 13자리' },
+  ];
+
+  it('택배사 형식에 맞지 않는 줄만 그 규칙과 함께 되돌리고 나머지 줄은 읽는다', () => {
+    const result = parseTrackingImport([
+      '배송건번호,택배사코드,운송장번호',
+      '1a2b3c4d,hanjin,1234-5678-901',
+      '2b3c4d5e,hanjin,1234-5678-90123',
+      '3c4d5e6f,epost,601234567890',
+      '4d5e6f7a,epost,6012345678901',
+    ].join('\n'), registry);
+    expect(result.rows.map(row => [row.line, row.trackingNumber])).toEqual([[2, '12345678901'], [5, '6012345678901']]);
+    expect(result.issues).toEqual([
+      { line: 3, reference: '2b3c4d5e', reason: '한진택배 운송장번호는 숫자 10~12자리입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.' },
+      { line: 4, reference: '3c4d5e6f', reason: '우체국택배 운송장번호는 숫자 13자리입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.' },
+    ]);
+  });
+});

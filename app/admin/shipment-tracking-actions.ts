@@ -6,7 +6,7 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { SHIPMENT_EXTRA_TRACKING_REASON_LIMIT } from '@/lib/admin/shipment-tracking';
 import { createClient } from '@/lib/supabase/server';
-import { isSelectableShippingCarrier, isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
+import { carrierTrackingNumberIssue, findShippingCarrier, isSelectableShippingCarrier, isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { objectParticle } from '@/lib/korean-particle';
 import { isUuid } from '@/lib/uuid';
@@ -39,8 +39,12 @@ export async function addShipmentExtraTrackingAction(form: FormData): Promise<Sh
   if (!isUuid(shipmentId) || !isUuid(operationId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
   const reason = reasonOf(form);
   if (!reason) return { ok: false, error: shipmentMutationError('extra_tracking_reason_required') };
-  if (!isSelectableShippingCarrier(await getShippingCarrierRegistry(), carrier)) return { ok: false, error: shipmentMutationError('inactive_shipping_carrier') };
+  const registry = await getShippingCarrierRegistry();
+  if (!isSelectableShippingCarrier(registry, carrier)) return { ok: false, error: shipmentMutationError('inactive_shipping_carrier') };
   if (!isTrackingNumber(trackingNumber)) return { ok: false, error: shipmentMutationError('invalid_tracking_input') };
+  // 택배사별 형식(레지스트리)은 DB 등록 판정이 다시 본다. 여기서는 어느 규칙인지 먼저 알린다.
+  const formatIssue = carrierTrackingNumberIssue(findShippingCarrier(registry, carrier)!, trackingNumber);
+  if (formatIssue) return { ok: false, error: formatIssue };
   try {
     const { data, error } = await (await createClient()).rpc('admin_add_shipment_extra_tracking', {
       p_shipment_id: shipmentId, p_carrier: carrier, p_tracking_number: trackingNumber, p_reason: reason, p_operation_id: operationId,

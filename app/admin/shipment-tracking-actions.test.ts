@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: async () => [
-  { code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' },
+  { code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}', trackingNumberPattern: '^[0-9]{10,12}$', trackingNumberRule: '숫자 10~12자리' },
   { code: 'retired', label: '계약 종료 택배', active: false, trackingUrlTemplate: 'https://example.test/{trackingNumber}' },
 ] }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
@@ -32,6 +32,9 @@ describe('배송 건 추가 운송장 액션 (QNA-019)', () => {
   });
   it('사유·택배사·번호 형식이 틀리면 DB를 부르지 않는다', async () => {
     const invalid: Record<string, string>[] = [{ reason: '  ' }, { reason: 'x'.repeat(501) }, { carrier: 'retired' }, { carrier: 'unknown' }, { trackingNumber: '12' }, { shipmentId: 'nope' }, { operationId: '' }];
+    // 택배사별 형식(레지스트리): 한진 숫자 10~12자리. 영문이 섞이거나 한 자리 넘치면 그 규칙을 알린다.
+    expect(await addShipmentExtraTrackingAction(add({ trackingNumber: 'AB1234567890' }))).toEqual({ ok: false, error: expect.stringContaining('한진택배 운송장번호는 숫자 10~12자리') });
+    expect(await addShipmentExtraTrackingAction(add({ trackingNumber: '1234567890123' }))).toMatchObject({ ok: false });
     for (const overrides of invalid) {
       expect(await addShipmentExtraTrackingAction(add(overrides))).toMatchObject({ ok: false });
     }
@@ -39,7 +42,9 @@ describe('배송 건 추가 운송장 액션 (QNA-019)', () => {
   });
   it('DB 거절은 운영 문구로 바꾼다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'tracking_number_in_use' } });
-    expect(await addShipmentExtraTrackingAction(add())).toEqual({ ok: false, error: expect.stringContaining('다른 배송 건에 등록된 운송장번호') });
+    expect(await addShipmentExtraTrackingAction(add())).toEqual({ ok: false, error: expect.stringContaining('다른 주문의 배송 건') });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'tracking_number_format_mismatch' } });
+    expect(await addShipmentExtraTrackingAction(add())).toEqual({ ok: false, error: expect.stringContaining('형식(자릿수)') });
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'order_not_shipped' } });
     expect(await addShipmentExtraTrackingAction(add())).toMatchObject({ ok: false });
     mocks.rpc.mockResolvedValue({ data: { status: 'mystery' }, error: null });
