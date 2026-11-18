@@ -9,7 +9,7 @@
 
 | 항목 | 상태 |
 | --- | --- |
-| 코드 | 발송기(`lib/kakao/alimtalk/nhn.server.ts`), 주문 안내 2종(`lib/kakao/alimtalk/order-notices.server.ts`), 템플릿 정본(`lib/kakao/alimtalk/templates.ts`), 한 번만 보내기 장부·받는 사람 판정(`supabase/migrations/20261118158000_kakao_alimtalk_deliveries.sql`) |
+| 코드 | 발송기(`lib/kakao/alimtalk/nhn.server.ts`), 주문 안내 2종(`lib/kakao/alimtalk/order-notices.server.ts`), 템플릿 정본(`lib/kakao/alimtalk/templates.ts`), 한 번만 보내기 장부·받는 사람 판정(`supabase/migrations/20261118160500_kakao_alimtalk_deliveries.sql`) |
 | 스위치 | `ICONS_KAKAO_ALIMTALK_ENABLED` **OFF**. 운영은 처리방침 개정 시행일(`KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE` = 2026-11-25 KST)부터 열린다 |
 | 채널 | 엑스 스퀘어 — 비즈니스 심사 완료((주)아이콘스, 우리 카카오 앱과 같은 사업자), 채널 공개·검색 허용 켜짐, 고객센터 연락처 `https://xsquare.kr`(2026-11-18 옛 Cafe24 주소에서 바꿈). 마스터는 플레이엑스 공용 카카오 계정 |
 | 처리방침 | 예약 개정 **2026-11-18 공지 · 2026-11-25 시행**(`lib/legal/alimtalk-privacy-revision.json`, 2026-11-18 사용자 결정 '오늘 시작'). 본문 변환은 `documents.ts`(§6) |
@@ -101,7 +101,7 @@
 | 주문 상세 보기 | 웹링크(WL) | `https://xsquare.kr/orders/#{주문ID}` |
 
 심사 메모: 두 템플릿 모두 주문한 회원 본인에게 그 주문의 접수·발송 사실만 알리는 정보성 메시지다. 쿠폰·이벤트·추천 문구가
-없고, 이름·주소·연락처를 담지 않는다. 변수 예시 값: 주문번호 `2026111815800001`, 굿즈명 `메이플스토리 아크릴 키링 외 2건`,
+없고, 이름·주소·연락처를 담지 않는다. 변수 예시 값: 주문번호 `2026111816050001`, 굿즈명 `메이플스토리 아크릴 키링 외 2건`,
 결제금액 `32,000`, 택배사 `한진택배`, 송장번호 `512345678901`, 주문ID `5f0c…`(UUID).
 
 ## 4. 사람이 할 일(순서대로)

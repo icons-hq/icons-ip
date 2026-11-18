@@ -95,13 +95,13 @@ describe('주문 접수 알림톡', () => {
     for (const reason of ['no_verified_phone', 'already_sent', 'unsupported_number', 'in_progress']) {
       const send = sender();
       const log = vi.fn();
-      await expect(sendOrderConfirmationAlimtalk(ORDER_ID, { config: CONFIG, repository: repository({ claim: vi.fn(async () => ({ ok: false, reason })) }), sender: send, log }))
+      await expect(sendOrderConfirmationAlimtalk(ORDER_ID, { config: CONFIG, repository: repository({ claim: vi.fn(async (): Promise<AlimtalkClaim> => ({ ok: false, reason })) }), sender: send, log }))
         .resolves.toEqual({ status: 'skipped', reason });
       expect(send.send).not.toHaveBeenCalled();
       expect(log).not.toHaveBeenCalled();
     }
     const log = vi.fn();
-    await sendOrderConfirmationAlimtalk(ORDER_ID, { config: CONFIG, repository: repository({ claim: vi.fn(async () => ({ ok: false, reason: 'outcome_unknown' })) }), sender: sender(), log });
+    await sendOrderConfirmationAlimtalk(ORDER_ID, { config: CONFIG, repository: repository({ claim: vi.fn(async (): Promise<AlimtalkClaim> => ({ ok: false, reason: 'outcome_unknown' })) }), sender: sender(), log });
     expect(log).toHaveBeenCalledWith(`[alimtalk] order confirmation not sent (order:${ORDER_ID}): outcome_unknown`);
   });
 
