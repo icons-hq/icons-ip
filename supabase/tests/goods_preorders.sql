@@ -1,6 +1,8 @@
 \set ON_ERROR_STOP on
 -- Prepend supabase/tests/helpers/goods_kc_fixture.sql in the same psql session.
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 select set_config('request.jwt.claim.sub','',true);
 create function pg_temp.expect_error(statement text,expected_message text,expected_code text default null)
 returns void language plpgsql as $$ begin

@@ -8,10 +8,11 @@ import type { EditableCarrier, InquiryAutoReplies, StoreSettingsAudit, StoreSett
 export async function loadAdminShippingCarriers(): Promise<EditableCarrier[]> {
   const client = await createClient();
   const { data, error } = await client.from('shipping_carriers')
-    .select('code,label,is_active,tracking_url_template,updated_at').order('sort_order').order('code');
+    .select('code,label,is_active,tracking_url_template,tracking_number_pattern,tracking_number_rule,updated_at').order('sort_order').order('code');
   if (error) throw new Error('택배사를 불러오지 못했습니다.');
   return (data ?? []).map(row => ({ code: row.code, label: row.label, active: row.is_active,
-    trackingUrlTemplate: row.tracking_url_template, updatedAt: row.updated_at }));
+    trackingUrlTemplate: row.tracking_url_template, updatedAt: row.updated_at,
+    trackingNumberPattern: row.tracking_number_pattern ?? '', trackingNumberRule: row.tracking_number_rule ?? '' }));
 }
 
 export async function loadAdminStoreSettingsHistory(): Promise<StoreSettingsAudit[]> {

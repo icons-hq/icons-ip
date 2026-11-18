@@ -5,6 +5,7 @@ import officeCrypto from 'officecrypto-tool';
 import {encryptAdminWorkbook} from './encrypted-workbook.server';
 import {parseTrackingWorkbook} from './tracking-workbook.server';
 import {GIMPO_EXPORT_HEADERS,SEOWON_EXPORT_HEADERS} from './warehouse-templates';
+import {trackingImportCommand} from './warehouse-templates.server';
 vi.mock('server-only',()=>({}));
 const carriers=[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}];
 async function bytes(rows:unknown[][]){const w=new ExcelJS.Workbook();w.addWorksheet('운송장').addRows(rows);return Buffer.from(await w.xlsx.writeBuffer());}
@@ -30,6 +31,15 @@ describe('김포 원본 운송장 회신',()=>{
  it('21열 원본을 감지하고 동일 주문 다행을 DB 그룹 검증에 전달한다',async()=>{
   const parsed=await parseTrackingWorkbook(await bytes([[...GIMPO_EXPORT_HEADERS],warehouseRow(),warehouseRow()]),carriers);
   expect(parsed).toEqual({kind:'gimpo',rows:[{line:2,reference:order,trackingNumber:'001234567890'},{line:3,reference:order,trackingNumber:'001234567890'}],issues:[],skipped:[]});
+ });
+ /* SHP-031: 회신의 수취인명·수취인전화번호1을 그대로 DB에 실어 주문 배송지와 대조한다(뒤바뀐 회신 감지). 빈 칸은 싣지 않는다. */
+ it('수취인명·전화번호 칸이 있으면 줄에 싣고 김포 일괄 등록 명령에 그대로 넘긴다',async()=>{
+  const row=warehouseRow();row[18]='합성 수취인';row[4]=1012345678;
+  const parsed=await parseTrackingWorkbook(await bytes([[...GIMPO_EXPORT_HEADERS],row,warehouseRow()]),carriers);
+  if(!('kind' in parsed)||parsed.kind!=='gimpo')throw new Error('gimpo reply expected');
+  expect(parsed.rows).toEqual([{line:2,reference:order,trackingNumber:'001234567890',recipientName:'합성 수취인',recipientPhone:'1012345678'},{line:3,reference:order,trackingNumber:'001234567890'}]);
+  expect(trackingImportCommand(parsed,'00000000-0000-4000-8000-000000042201').args.target_rows).toEqual([
+   {line:2,reference:order,trackingNumber:'001234567890',recipientName:'합성 수취인',recipientPhone:'1012345678'},{line:3,reference:order,trackingNumber:'001234567890'}]);
  });
  /* QA 라운드 1 m8: 운송장 칸을 비운 주문은 형식 오류가 아니라 아직 출고하지 않은 건으로 건너뛰고 따로 센다. 일부 행만 비운 주문은 막는다. */
  it('운송장 칸을 모두 비운 주문은 건너뛴 줄로 세고, 같은 주문의 일부 행만 비우면 그 주문을 등록하지 않는다',async()=>{

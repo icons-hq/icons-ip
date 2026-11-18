@@ -59,10 +59,11 @@ describe('shipment workbook exchange', () => {
     expect(parsed.issues).toEqual([]);
     expect(parsed.rows.map(row => row.reference)).toEqual([firstOrder, firstOrder, secondOrder]);
     expect(trackingImportCommand(parsed, originId)).toEqual({
+      // 내려받은 받는 분 이름·전화번호를 그대로 돌려보내 DB가 주문 배송지와 대조한다(뒤바뀐 회신 감지, SHP-031).
       name: 'admin_import_warehouse_tracking_batch', args: { target_origin_id: originId, target_rows: [
-        { line: 2, reference: firstOrder, trackingNumber: '001234567890' },
-        { line: 3, reference: firstOrder, trackingNumber: '001234567890' },
-        { line: 4, reference: secondOrder, trackingNumber: '001234567890' },
+        { line: 2, reference: firstOrder, trackingNumber: '001234567890', recipientName: line.recipient, recipientPhone: line.phone },
+        { line: 3, reference: firstOrder, trackingNumber: '001234567890', recipientName: line.recipient, recipientPhone: line.phone },
+        { line: 4, reference: secondOrder, trackingNumber: '001234567890', recipientName: line.recipient, recipientPhone: line.phone },
       ] },
     });
     expect(() => trackingImportCommand(parsed, '')).toThrow('출고지를 선택');

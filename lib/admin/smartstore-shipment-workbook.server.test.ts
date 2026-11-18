@@ -210,7 +210,9 @@ describe('ICONS 표준 양식 출고지시', () => {
     const parsed = await parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers);
     expect(parsed.issues).toEqual([]);
     if (!('kind' in parsed) || parsed.kind !== 'smartstore') throw new Error('Expected ICONS standard reply');
-    expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.productOrderNumber, carrier: 'hanjin', trackingNumber: '001234567890' }] } });
+    // 수취인·연락처는 고치지 않고 돌려받은 값 그대로 DB에 실어 주문 배송지와 대조한다(뒤바뀐 회신 감지).
+    expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.productOrderNumber, carrier: 'hanjin', trackingNumber: '001234567890',
+      recipientName: line.recipient, recipientPhone: line.phone }] } });
     const filled = encryptAdminWorkbook(Buffer.from(await book.xlsx.writeBuffer()), '1234');
     expect(await parseTrackingWorkbook(filled.bytes, carriers, '1234')).toEqual(parsed);
     // 실제 Agile 암호화·복호화를 다섯 번 해 CI 러너에서 5초 기본 제한을 넘긴다.
@@ -255,7 +257,8 @@ describe('ICONS 표준 양식 출고지시', () => {
     row[HEADERS.indexOf('운송장번호')] = '123456789012';
     const parsed = parseSmartStoreReplyText(shipmentExportRowsCsv(head, [row]), carriers)!;
     expect(parsed.issues).toEqual([]);
-    expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.productOrderNumber, carrier: 'hanjin', trackingNumber: '123456789012' }] } });
+    expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.productOrderNumber, carrier: 'hanjin', trackingNumber: '123456789012',
+      recipientName: line.recipient, recipientPhone: line.phone }] } });
   });
 
   it('품목 번호가 없거나 겹치거나 금액·날짜 기록이 깨지면 파일을 만들지 않는다', async () => {

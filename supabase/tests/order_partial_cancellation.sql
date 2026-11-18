@@ -8,6 +8,8 @@
 --  4. 무통장: 시작 때 적용·송금 대기(송금액 = 배분액) → 송금 증빙으로 완료, 계좌 원문 열람 감사·파기 일정.
 --  5. 진행하지 않음(결제사가 부분 취소를 받지 않음)·확인 필요·창고 출고 중단 확인·막힘 이유·적립금 되돌림·원장 불변·권한.
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 create function pg_temp.pc_id(kind text, n integer) returns uuid language sql immutable as $$select md5('partial-cancel:'||kind||':'||n)::uuid$$;
 create function pg_temp.pc_assert(ok boolean, label text) returns void language plpgsql as $$begin
  if ok is distinct from true then raise exception 'Partial cancellation assertion failed: %', label; end if; end $$;

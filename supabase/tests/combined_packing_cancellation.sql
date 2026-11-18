@@ -5,6 +5,8 @@
 -- 단독 출고(shipment_pack_selection_required)·묶음 출고(shipment_not_ready)·해제(shipment_pack_release_blocked)
 -- 모두 막혔다. 남는 구성원이 1건이면 묶음 자체를 해제한다.
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 create function pg_temp.transaction_expect_error(statement text,expected text) returns void language plpgsql as $$begin
  begin execute statement;exception when others then if position(expected in sqlerrm)>0 then return;end if;raise;end;
  raise exception 'Expected error: %',expected;
