@@ -24,7 +24,6 @@ beforeEach(() => {
         { id: 'c2', code: 'paper', name: '문구', parent_id: 'c1', depth: 2, sort_order: 1, archived_at: null, updated_at: '2026-09-10T00:00:00Z' },
       ]);
       if (table === 'catalog_category_erp_mappings') return query([{ category_id: 'c2', erp_code: 'ERP-01', erp_name: '문구', source: 'erp-sheet', verified_at: '2026-09-10T00:00:00Z', verified_by: 'staff' }]);
-      if (table === 'goods_type_category_migrations') return query([]);
       if (table === 'category_activation_control') return query({ id: 'catalog', customer_enabled: true, erp_enabled: false, evidence: { customer: { source: 'sheet', reference: 'CAT-01', verifiedAt: '2026-09-10T00:00:00Z' } }, updated_at: '2026-09-10T00:00:00Z' });
       if (table === 'goods_additional_categories') return query([{ good_id: 'g2', category_id: 'c2' }]);
       return query([{ id: 'g1', category_id: 'c2' }]);
@@ -71,11 +70,11 @@ it('goods category options carry linked ERP category names for search, and stay 
   expect(withoutErp.some(category => 'erpNames' in category)).toBe(false);
 });
 
-it('basic category workspace skips ERP, migration, and activation reads altogether', async () => {
+it('basic category workspace skips ERP and activation reads altogether', async () => {
   const client = await mocks.createClient(); const from = vi.spyOn(client, 'from');
   const result = await loadAdminCategoryWorkspace(false);
   expect(result.categories[1].assignedGoodCount).toBe(2);
-  expect(result.mappings).toEqual([]); expect(result.migrations).toEqual([]);
+  expect(result.mappings).toEqual([]); expect(result).not.toHaveProperty('migrations');
   expect(from.mock.calls.map(args => args[0])).toEqual(['catalog_categories', 'goods', 'goods_additional_categories']);
   const rows = await loadAdminCategoryExportRows(false);
   expect(rows[0]).not.toHaveProperty('erpCode');

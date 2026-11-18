@@ -1,6 +1,7 @@
 # 상품 유형은 대표 카테고리에서 파생한다
 
-- Status: accepted (2026-11-12) — 사용자 결정(원장 재작업 묶음 11, 아래 인용). main 머지와 운영 배포는 별도 승인.
+- Status: superseded (2026-11-18) — [ADR-0044](./0044-retire-goods-type.md)가 상품 유형 층을 없애고 공개 조건을 대표 카테고리로 바꿨다. 아래 결정은 히스토리로 보존한다.
+- 원래 상태: accepted (2026-11-12) — 사용자 결정(원장 재작업 묶음 11, 아래 인용).
 - 관련: [ADR-0036](./0036-goods-kc-self-declaration.md)(KC 자가 신고), [ADR-0038](./0038-system-product-number.md)(상품번호·상품 엑셀 v8), [운영 절차: KC 검토](../runbooks/goods-kc-review.md)
 
 ## 맥락

@@ -47,6 +47,8 @@ vi.mock('@/lib/orders/shipment.server', () => {
     active: true,
     trackingUrlTemplate: 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do'
       + '?mCode=MN038&schLang=KR&wblnumText2={trackingNumber}',
+    trackingNumberPattern: '^[0-9]{10,14}$',
+    trackingNumberRule: '숫자 10~14자리',
   }];
   return {
     getShippingCarrierRegistry: async () => carriers,
@@ -284,6 +286,21 @@ describe('admin order actions', () => {
       p_tracking_number: '999888777666',
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/orders/${ORDER_ID}`);
+  });
+
+  /* SHP-030·032: 다른 주문이 쓰는 번호·택배사 형식은 운영자가 고칠 수 있는 사유라 그대로 알린다. */
+  it('운송장 수정이 다른 주문의 번호·택배사 형식으로 거절되면 그 사유를 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'tracking_number_in_use' } });
+    expect((await updateAdminOrderTrackingAction({}, trackingForm())).errors?.form).toContain('다른 주문의 배송 건');
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'tracking_number_format_mismatch' } });
+    expect((await updateAdminOrderTrackingAction({}, trackingForm())).errors?.form).toContain('(한진택배 숫자 10~14자리)');
+  });
+
+  it('택배사 형식에 맞지 않는 번호는 RPC 전에 칸 오류로 돌려준다', async () => {
+    await expect(updateAdminOrderTrackingAction({}, trackingForm('9998-8877-7666-123'))).resolves.toEqual({
+      errors: { trackingNumber: '한진택배 운송장번호는 숫자 10~14자리입니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('운송장 수정 RPC 실패는 DB 오류 원문을 숨긴다', async () => {

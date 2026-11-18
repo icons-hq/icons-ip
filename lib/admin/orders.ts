@@ -15,6 +15,8 @@ import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispat
 import { ADMIN_VOCABULARY } from './vocabulary';
 import { appendSalesListOptions, normalizeSalesListOptions, salesDateField, salesPage, salesParam, SALES_ORDER_SEARCH_FIELDS, type SalesDateField, type SalesListOptions, type SalesOrderSearchField } from './sales-list';
 import {
+  carrierTrackingNumberIssue,
+  findShippingCarrier,
   isSelectableShippingCarrier,
   isTrackingNumber,
   normalizeTrackingNumber,
@@ -344,6 +346,11 @@ function readTrackingInput(
     errors.trackingNumber = '운송장번호를 입력해주세요.';
   } else if (!isTrackingNumber(trackingNumber)) {
     errors.trackingNumber = '운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.';
+  } else {
+    // 택배사별 형식(레지스트리). 최종 판정은 DB 등록 판정이고 여기서는 칸 옆에 먼저 알린다.
+    const selected = findShippingCarrier(carriers, carrier);
+    const issue = selected ? carrierTrackingNumberIssue(selected, trackingNumber) : null;
+    if (issue) errors.trackingNumber = issue;
   }
   if (Object.keys(errors).length) return { ok: false, errors };
 

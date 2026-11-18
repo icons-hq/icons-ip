@@ -35,8 +35,14 @@ const good = (id: string, overrides: Partial<Good> = {}): Good => ({
 
 const ips = [ip('rilakkuma', '리락쿠마'), ip('maple', '메이플스토리')];
 
+const categories = [
+  { id: 'cat-cushion', code: 'c-cushion', name: '쿠션', parentId: null, depth: 1, sortOrder: 0 },
+  { id: 'cat-maple-set', code: 'c-maple-set', name: '메이플 세트', parentId: null, depth: 1, sortOrder: 1 },
+  { id: 'cat-rilakkuma-set', code: 'c-rilakkuma-set', name: '리락쿠마 세트', parentId: null, depth: 1, sortOrder: 2 },
+];
+
 function catalogOf(goods: Good[]) {
-  return { ips, goods };
+  return { ips, goods, categories };
 }
 
 describe('searchGoods 매칭 축', () => {
@@ -52,9 +58,9 @@ describe('searchGoods 매칭 축', () => {
     expect(result.total).toBe(1);
   });
 
-  it('분류·배지·소속 IP 제목으로도 찾는다', () => {
+  it('대표 카테고리 이름·배지·소속 IP 제목으로도 찾는다', () => {
     const catalog = catalogOf([
-      good('g1', { name: '이름에 없음', type: '쿠션' }),
+      good('g1', { name: '이름에 없음', categoryId: 'cat-cushion' }),
       good('g2', { name: '이름에 없음2', badge: 'EXCLUSIVE' }),
       good('g3', { name: '이름에 없음3', ip: 'maple' }),
       good('g4', { name: '이름에 없음4' }),
@@ -63,6 +69,12 @@ describe('searchGoods 매칭 축', () => {
     expect(searchGoods(catalog, '쿠션', 1).items.map((item) => item.id)).toEqual(['g1']);
     expect(searchGoods(catalog, 'exclusive', 1).items.map((item) => item.id)).toEqual(['g2']);
     expect(searchGoods(catalog, '메이플', 1).items.map((item) => item.id)).toEqual(['g3']);
+  });
+
+  it('옛 상품 유형 값으로는 찾지 않는다(ADR-0044)', () => {
+    const catalog = catalogOf([good('g1', { name: '이름에 없음', type: '쿠션' })]);
+
+    expect(searchGoods(catalog, '쿠션', 1).total).toBe(0);
   });
 
   it('저장된 검색 키워드로 찾고 굿즈명 일치 다음에 둔다', () => {
@@ -85,10 +97,10 @@ describe('searchGoods 매칭 축', () => {
 
 describe('searchGoods 정렬', () => {
   it('굿즈명 일치 > IP 일치 > 나머지 순으로 놓고 동순위는 카탈로그 원순서를 지킨다', () => {
-    /* 세 순위를 한 질의로 가르려면 질의어가 이름·IP 제목·그 밖(분류)에 각각 심겨야 한다.
+    /* 세 순위를 한 질의로 가르려면 질의어가 이름·IP 제목·그 밖(대표 카테고리 이름)에 각각 심겨야 한다.
        'IP 제목의 일부'를 질의어로 삼고 같은 어휘를 이름과 분류에도 심는다. */
     const catalog = catalogOf([
-      good('rest-1', { name: '무관', type: '메이플 세트' }),
+      good('rest-1', { name: '무관', categoryId: 'cat-maple-set' }),
       good('ip-1', { name: '무관', ip: 'maple' }),
       good('name-1', { name: '메이플 인형' }),
       good('ip-2', { name: '무관2', ip: 'maple' }),
@@ -156,7 +168,7 @@ describe('selectSearchGoods (SR-01)', () => {
   const listQuery = (params: Record<string, string | string[]> = {}): ShopListQuery =>
     parseShopSearchParams(params, { view: 'search', validIpIds: new Set(ips.map((item) => item.id)) });
   const catalog = catalogOf([
-    good('rest', { name: '무관', ip: 'maple', type: '리락쿠마 세트', price: 7000 }),
+    good('rest', { name: '무관', ip: 'maple', categoryId: 'cat-rilakkuma-set', price: 7000 }),
     good('ipGood', { name: '무관2', price: 5000 }),
     good('name', { name: '리락쿠마 인형', type: '인형', price: 30000 }),
     good('name2', { name: '리락쿠마 키링', price: 9000 }),
@@ -175,11 +187,11 @@ describe('selectSearchGoods (SR-01)', () => {
     expect(collection.result.priceCeil).toBe(30000);
   });
 
-  it('IP·타입·가격 필터와 가격 정렬을 굿즈샵과 같은 규칙으로 얹는다', () => {
+  it('IP·가격 필터와 가격 정렬을 굿즈샵과 같은 규칙으로 얹고 옛 유형 값(?type=인형)은 무시한다', () => {
     const filtered = selectSearchGoods(catalog, '리락쿠마', listQuery({ type: '인형', sort: 'price_desc' }), 1);
 
-    expect(filtered.result.goods.map((item) => item.id)).toEqual(['name']);
-    expect(filtered.result.filteredTotal).toBe(1);
+    expect(filtered.result.goods.map((item) => item.id)).toEqual(['name', 'name2', 'rest', 'ipGood']);
+    expect(filtered.result.filteredTotal).toBe(4);
     expect(filtered.result.total).toBe(4);
     expect(selectSearchGoods(catalog, '리락쿠마', listQuery({ ip: 'rilakkuma', sort: 'price_asc' }), 1).result.goods.map((item) => item.id))
       .toEqual(['ipGood', 'name2', 'name']);

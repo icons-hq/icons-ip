@@ -136,7 +136,7 @@ select public.admin_update_order_status('00000000-0000-4000-8000-000000045310','
 SQL
 for first in dispatch request;do
  psql_exec -q -c "update public.order_shipments set status='ready',shipped_at=null,delivered_at=null where order_id='00000000-0000-4000-8000-000000045310'" >/dev/null
- dispatch="set local role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000045301',true); select public.admin_update_shipment_status('00000000-0000-4000-8000-000000045321','shipping','hanjin','RACE453001');"
+ dispatch="set local role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000045301',true); select public.admin_update_shipment_status('00000000-0000-4000-8000-000000045321','shipping','hanjin','453000000001');"
  request="select public.request_order_claim('00000000-0000-4000-8000-000000045310','00000000-0000-4000-8000-000000045302','cancel','출고 경합 취소','defect');"
  if [[ "$first" == dispatch ]];then first_sql="$dispatch";second_sql="$request";else first_sql="$request";second_sql="$dispatch";fi
  psql_exec -q <<SQL >"${claim_logs}/dispatch-${first}-first.log" 2>&1 &

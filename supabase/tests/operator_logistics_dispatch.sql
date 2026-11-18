@@ -3,6 +3,8 @@
 -- 물류출고관리는 출고지시 내려받기·운송장 회신·발송·배송완료만 하고, 다른 역할의 권한은 넓어지지도 좁아지지도 않는다.
 -- 합성 계정·주문만 쓰고 끝에서 모두 되돌린다. legacy fixture 없이, 역할 설정 전(configured=false) DB에서 돈다.
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 do $$ begin
  if to_regclass('private.operator_legacy_fixture_control') is not null then
   raise exception 'Logistics dispatch tests must run without the legacy fixture helper';end if;
@@ -104,6 +106,8 @@ insert into ld_dispatch_contracts(signature) values
  ('public.admin_import_warehouse_tracking_batch(uuid,jsonb)'),('public.admin_import_shipment_tracking_batch(jsonb)'),
  ('public.admin_import_item_tracking_batch(jsonb)'),('public.admin_import_shipment_tracking(text,text,text)'),
  ('public.admin_update_shipment_status(uuid,text,text,text)'),('public.admin_update_shipment_tracking(uuid,text,text)'),
+ -- 뒤바뀐 운송장 맞바꾸기(SHP-031)는 운송장 정정과 같은 출고 권한이다.
+ ('public.admin_swap_shipment_trackings(uuid,text,text,text,text)'),('public.admin_register_shipment_tracking_duplicate(uuid,text,text,text)'),
  ('public.admin_complete_shipments(uuid[])'),('public.admin_enqueue_shipment_emails(jsonb)'),
  ('public.admin_read_shipment_delivery(uuid)'),('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)'),
  ('public.admin_tracking_reply_shipment_links(text[])'),('public.admin_shipment_partial_cancel_flags(uuid[])'),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeBusinessInfo, parseStoreSettingsInput, parseCarrierInput,storeSettingsHistoryRows } from './store-settings';
+import { mergeBusinessInfo, parseStoreSettingsInput, parseCarrierFormatInput, parseCarrierInput,storeSettingsHistoryRows } from './store-settings';
 import type { BusinessInfo } from '@/lib/legal/business-info';
 import { DEFAULT_STORE_BRANDING } from '@/lib/store-branding';
 import { DEFAULT_STORE_NAVIGATION } from '@/lib/store-navigation';
@@ -51,4 +51,27 @@ it('공개 메뉴 이력은 순서·이름·노출 변경을 구분한다',()=>{
   expect(rows).toContainEqual({key:'new.order',label:'NEW · 순서',before:'1',after:'9'});
   expect(rows).toContainEqual({key:'new.label',label:'NEW · 메뉴명',before:'NEW',after:'신상품'});
   expect(rows).toContainEqual({key:'new.visible',label:'NEW · 노출',before:'사용',after:'비활성'});
+});
+
+describe('택배사 운송장 형식 입력 (SHP-032)', () => {
+  it('형식·안내 문구·확인용 번호를 함께 받고, 둘 다 비우면 형식을 지운다', () => {
+    expect(parseCarrierFormatInput({ pattern: ' ^[0-9]{10,14}$ ', rule: ' 숫자 10~14자리 ', sample: '1234-5678-9012-34' }))
+      .toEqual({ ok: true, value: { pattern: '^[0-9]{10,14}$', rule: '숫자 10~14자리', sample: '12345678901234' } });
+    expect(parseCarrierFormatInput({ pattern: '', rule: '', sample: 'anything' })).toEqual({ ok: true, value: { pattern: '', rule: '', sample: '' } });
+  });
+  it('전체 일치가 아니거나 읽을 수 없는 식, 한쪽만 있는 입력, 확인용 번호가 맞지 않는 입력을 거절한다', () => {
+    expect(parseCarrierFormatInput({ pattern: '[0-9]{12}', rule: '숫자 12자리', sample: '123456789012' })).toMatchObject({ ok: false, errors: { trackingNumberPattern: expect.any(String) } });
+    expect(parseCarrierFormatInput({ pattern: '^([0-9]$', rule: '깨진 식', sample: '123456789012' })).toMatchObject({ ok: false, errors: { trackingNumberPattern: expect.stringContaining('정규식') } });
+    expect(parseCarrierFormatInput({ pattern: '^[0-9]{12}$', rule: '', sample: '123456789012' })).toMatchObject({ ok: false, errors: { trackingNumberRule: expect.any(String) } });
+    expect(parseCarrierFormatInput({ pattern: '', rule: '숫자 12자리', sample: '' })).toMatchObject({ ok: false, errors: { trackingNumberPattern: expect.any(String) } });
+    expect(parseCarrierFormatInput({ pattern: '^[0-9]{12}$', rule: '숫자 12자리', sample: '1234567890' })).toMatchObject({ ok: false, errors: { trackingNumberSample: expect.any(String) } });
+  });
+  it('변경 이력은 운송장 형식과 안내 문구의 전후를 보여 준다', () => {
+    expect(storeSettingsHistoryRows({ id: 'a', actorName: '관리자', action: 'admin.shipping_carrier.saved', target: 'shipping_carriers:hanjin', createdAt: '2026-11-18T00:00:00Z',
+      diff: { before: { tracking_number_pattern: '^[0-9]{10,14}$', tracking_number_rule: '숫자 10~14자리' }, after: { tracking_number_pattern: null, tracking_number_rule: null } } }))
+      .toEqual([
+        { key: 'tracking_number_pattern', label: '운송장 형식', before: '^[0-9]{10,14}$', after: '미설정' },
+        { key: 'tracking_number_rule', label: '운송장 형식 안내', before: '숫자 10~14자리', after: '미설정' },
+      ]);
+  });
 });

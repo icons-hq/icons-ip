@@ -52,11 +52,17 @@ function includesKeyword(keywords: readonly string[] | undefined, needle: string
  * 순위별 버킷에 담으면 정렬 없이 카탈로그 원순서가 그대로 동순위 순서가 된다.
  * 부분일치는 문자열 포함 비교라 %·_ 같은 와일드카드가 특별한 뜻을 갖지 않는다.
  */
-export function matchSearchGoods(catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>, query: string): Good[] {
+export function matchSearchGoods(
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'> & { categories?: readonly CatalogCategory[] },
+  query: string,
+): Good[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
 
   const ipTitleById = new Map(catalog.ips.map((ip) => [ip.id, ip.title]));
+  /* 상품 유형은 없다(ADR-0044). 그 밖 축은 대표 카테고리 이름이다 — DB 검색(search_public_content)과 같은 규칙이고,
+     고객에게 공개된 카테고리만 받는다(카테고리 기능이 꺼져 있으면 빈 목록). */
+  const categoryNameById = new Map((catalog.categories ?? []).map((category) => [category.id, category.name]));
   const byName: Good[] = [];
   const byKeyword: Good[] = [];
   const byIp: Good[] = [];
@@ -75,7 +81,7 @@ export function matchSearchGoods(catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>
       byIp.push(good);
       continue;
     }
-    if (includesFold(good.type, needle) || includesFold(good.badge, needle)) {
+    if (includesFold(good.categoryId ? categoryNameById.get(good.categoryId) : null, needle) || includesFold(good.badge, needle)) {
       rest.push(good);
     }
   }

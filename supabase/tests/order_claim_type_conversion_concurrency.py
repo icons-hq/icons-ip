@@ -145,7 +145,7 @@ def refund(claim):
 
 def reship(claim):
     items = sql(f"select jsonb_agg(jsonb_build_object('orderItemId',id,'variantId',variant_id)) from public.order_items where order_id='{uid('order',claim)}';")
-    return PHYSICAL_RESHIPMENT_SHIM + actor() + f"select pg_temp.record_order_claim_reshipment_physical('{uid('claim',claim)}','hanjin','CONVERT{claim:08d}','{items}'::jsonb);"
+    return PHYSICAL_RESHIPMENT_SHIM + actor() + f"select pg_temp.record_order_claim_reshipment_physical('{uid('claim',claim)}','hanjin','5200{claim:08d}','{items}'::jsonb);"
 
 race('refund-before-convert', refund(17), convert(17, 12), 'claim_changed')
 race('convert-before-refund', convert(18, 13), refund(18), 'exchange_has_no_refund')
