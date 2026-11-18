@@ -39,12 +39,16 @@ export interface ClaimContactReshipTarget {
   waivable: boolean;
   waived?: boolean;
   orderItemIds: readonly string[];
+  /** 회수품 재고 처리에서 불량으로 고른 품목(CLM-046). 재출고 때 판매 재고로 되돌리지 않고 불량 재고에 기록된다. */
+  defectiveOrderItemIds?: readonly string[];
 }
 type Props = { actorId: string; orderId: string; claimId: string; carriers: ShippingCarrierRegistry; reshipItems: readonly AdminClaimReshipItem[];
   /** 지금 재출고를 등록할 수 있는 배송 건. 비어 있으면 재출고 등록 버튼을 그리지 않는다. */
   reshipTargets: readonly ClaimContactReshipTarget[];
   /** 아직 재출고하지 않은 대상 배송 건 수(등록할 수 없는 배송 건 포함). 1이면 이번 재출고가 교환을 종결한다. 없으면 reshipTargets 수다. */
-  remainingTargets?: number };
+  remainingTargets?: number;
+  /** 회수를 확인했지만 회수품 재고 처리를 정하지 않아 재출고를 열지 않은 출고지 이름(하자·오배송 교환, CLM-046). */
+  stockDecisionPendingOrigins?: readonly string[] };
 type Draft = { recipientName: string; phone: string; postalCode: string; address1: string; address2: string; agreement: string; customerConfirmed: boolean; handoffConfirmed: boolean;
   carrier: string; trackingNumber: string; items: Record<string, string>; destinationConfirmed: boolean; dispatchConfirmed: boolean;
   waiveCollection: boolean; waiverReason: string; evidence: ClaimEvidenceFile[] };
@@ -73,7 +77,7 @@ function receiptMatches(receipt: OperationReceipt, journal: ClaimContactJournal)
     && receipt.target === journal.target && receipt.expectedClaimType === journal.expectedClaimType && receipt.expectedClaimRevision === journal.expectedClaimRevision;
 }
 
-export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, carriers, reshipItems, reshipTargets, remainingTargets }: Omit<Props, 'actorId'> & {
+export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, carriers, reshipItems, reshipTargets, remainingTargets, stockDecisionPendingOrigins = [] }: Omit<Props, 'actorId'> & {
   identity: ClaimContactIdentity; scope: ClaimContactScope;
 }) {
   const router = useRouter(), key = claimContactJournalKey(identity, orderId, claimId);
@@ -222,6 +226,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
     } finally { if (alive.current) setUploading(false); }
   }
   const targetItems = reshipTarget ? reshipItems.filter(item => reshipTarget.orderItemIds.includes(item.id)) : [];
+  const defectiveItems = reshipTarget ? targetItems.filter(item => reshipTarget.defectiveOrderItemIds?.includes(item.id)) : [];
   /* 교환을 종결하는지는 등록할 수 있는 배송 건 수가 아니라 아직 재출고하지 않은 대상 전체로 정한다(입고 전 출고지도 남은 대상이다). */
   const lastTarget = (remainingTargets ?? reshipTargets.length) === 1;
   /* 회수 없이 보내는 재출고: 같은 요청에서 회수 생략을 고르거나, 회수 생략을 먼저 결정한 배송 건이다. */
@@ -238,6 +243,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
       </button>)}
     </div>
     {reshipTargets.length > 1 ? <p className="text-muted-foreground">출고지마다 따로 재출고합니다. 버튼을 누를 때마다 최종 주소를 다시 확인합니다.</p> : null}
+    {stockDecisionPendingOrigins.length ? <p className="text-muted-foreground" data-claim-stock-decision-pending="">{stockDecisionPendingOrigins.join(' · ')}: 하자·오배송 교환이라 처리 칸의 회수품 재고 처리(불량 분리 또는 정상 재고 복원)를 저장하면 재출고를 등록할 수 있습니다.</p> : null}
     {context ? <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-private="true">
       <h4 className="font-medium">{context.command === 'reshipment' ? `${reshipTarget ? `${targetName(reshipTarget)} ` : ''}재출고 최종 주소 확인` : `${targetLabel(context.target)} 연락처 수정`}</h4>
       {context.referenceOnly ? <p className="text-muted-foreground">{context.sourceKind === 'seller_intake' ? '최초 접수 당시 주소를 참고합니다.' : '원주문 배송지를 참고합니다.'} 확인만으로 연락처가 수정되지는 않습니다.</p> : null}
@@ -293,7 +299,9 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.dispatchConfirmed} onChange={event => patch({ dispatchConfirmed: event.target.checked })} /><span>전체 수량과 실제 발송 정보를 확인했습니다.</span></label>
             <p className="text-muted-foreground">{waivedDispatch
               ? '회수 상품 재고는 복원하지 않고, 선택한 상품의 재고만 줄입니다. 고객에게는 회수 없이 다시 보내드린다고 안내합니다. 결제금액과 카드팩은 유지됩니다.'
-              : '이 배송 건에서 회수한 상품의 재고를 복원하고 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.'}</p>
+              : defectiveItems.length
+                ? `불량으로 고른 회수 상품(${defectiveItems.map(item => item.name).join(', ')})은 판매 재고에 넣지 않고 불량 재고에 기록하고, 나머지 회수 상품의 재고를 복원합니다. 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.`
+                : '이 배송 건에서 회수한 상품의 재고를 복원하고 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.'}</p>
           </>}
         </fieldset>
         {!recovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" disabled={locked || uploading} type="submit">{context.command === 'change' ? '연락처 수정 저장'

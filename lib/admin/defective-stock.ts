@@ -4,7 +4,10 @@ import { isUuid } from '@/lib/uuid';
  * 불량은 판매 재고(재고수량)에 넣지 않고 옵션별 불량 재고 원장에 따로 남는다.
  *
  * 선택은 환불 확정 전에 DB에 저장되고(그 품목은 재고를 복원하지 않는다), 확정이 끝난 뒤 원장으로 기록된다.
- * 확정 뒤 기록이 실패하면 확정은 되돌리지 않고 '불량 기록 필요'로 남겨 다시 시도한다. */
+ * 확정 뒤 기록이 실패하면 확정은 되돌리지 않고 '불량 기록 필요'로 남겨 다시 시도한다.
+ *
+ * 교환 회수품(CLM-046)도 같은 원장이다. 회수를 확인한 출고지마다 재출고 전에 고르고, 재출고가 같은 거래에서 기록한다.
+ * 하자·오배송 교환은 이 선택(빈 선택 = 모두 정상 복원)을 저장해야 재출고할 수 있다. */
 
 export const DEFECTIVE_STOCK_PATH = '/admin/catalog/defective-stock';
 
@@ -14,6 +17,9 @@ export const STOCK_DISPOSITION_LABELS = { restore: '판매 재고 복원', defec
 export type StockDisposition = keyof typeof STOCK_DISPOSITION_LABELS;
 
 export const DEFECTIVE_STOCK_FIELD_NOTE = '불량으로 고른 품목은 판매 재고에 넣지 않고 불량 재고 목록에 따로 기록합니다.';
+/* 교환 회수품(CLM-046). 회수를 확인한 출고지마다 재출고 전에 고른다. 재출고가 재고를 정하는 순간 함께 기록되므로 '기록 필요'가 없다. */
+export const EXCHANGE_STOCK_FIELD_NOTE = '불량으로 고른 회수 상품은 재출고할 때 판매 재고에 넣지 않고 불량 재고 목록에 따로 기록합니다. 나머지는 지금처럼 판매 재고로 복원합니다.';
+export const EXCHANGE_STOCK_DECISION_REQUIRED = '하자·오배송 교환은 회수 상품의 재고 처리(불량 분리 또는 정상 재고 복원)를 정해야 재출고할 수 있습니다.';
 export const DEFECTIVE_STOCK_PENDING_NOTICE = '환불(재고)은 확정됐지만 불량 재고 기록이 끝나지 않았습니다. 환불은 다시 하지 말고 반품 처리 권한이 있는 담당자가 [불량 기록 다시 시도]만 눌러주세요.';
 
 /** 기록 RPC 실패를 운영자 문구로 옮긴다. 원문 코드는 노출하지 않는다. */
@@ -58,6 +64,8 @@ export interface DefectiveStockVariantRow {
 export interface DefectiveStockEntryRow {
   id: string;
   claimId: string;
+  /** 근거 요청의 유형. 반품 환불 확정 또는 교환 재출고 때 기록된다. 옛 응답은 반품이다. */
+  claimType: 'return' | 'exchange';
   claimReference: number;
   orderItemId: string;
   goodName: string;
@@ -115,7 +123,8 @@ export function parseDefectiveStockList(value: unknown): DefectiveStockList | nu
       variantCode: text(row.variantCode), qty: int(row.qty), entries: int(row.entries), lastRecordedAt: text(row.lastRecordedAt) || null,
     })),
     entries: rows('entries').map((row) => ({
-      id: text(row.id), claimId: text(row.claimId), claimReference: int(row.claimReference), orderItemId: text(row.orderItemId),
+      id: text(row.id), claimId: text(row.claimId), claimType: row.claimType === 'exchange' ? 'exchange' : 'return',
+      claimReference: int(row.claimReference), orderItemId: text(row.orderItemId),
       goodName: text(row.goodName), variantId: text(row.variantId), variantName: text(row.variantName), variantCode: text(row.variantCode),
       qty: int(row.qty), recordedAt: text(row.recordedAt), recordedByName: text(row.recordedByName),
     })),

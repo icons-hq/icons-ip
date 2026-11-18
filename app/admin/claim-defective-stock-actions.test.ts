@@ -1,11 +1,12 @@
 import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { planClaimDefectiveStockAction, recordOrderClaimRefundAction, retryClaimDefectiveStockAction } from './claim-actions';
+import { planClaimDefectiveStockAction, planExchangeDefectiveStockAction, recordOrderClaimRefundAction, retryClaimDefectiveStockAction } from './claim-actions';
 
 const CLAIM_ID = 'abcdef01-1234-4123-8123-123456789abc';
 const ORDER_ID = 'abcdef03-1234-4123-8123-123456789abc';
 const ITEM_A = 'abcdef0a-1234-4123-8123-123456789abc';
 const ITEM_B = 'abcdef0b-1234-4123-8123-123456789abc';
+const SHIPMENT = 'abcdef05-1234-4123-8123-123456789abc';
 
 const mocks = vi.hoisted(() => ({
   getCurrentAdminAuthState: vi.fn(),
@@ -99,7 +100,7 @@ describe('반품 환불 확정의 품목별 재고 처리(QNA-035)', () => {
   it('선택 저장이 실패하면 결제사 취소·재고 복원을 시작하지 않는다', async () => {
     results.admin_plan_claim_defective_stock = { error: { message: 'defective_stock_item_in_other_claim' } };
     const state = await recordOrderClaimRefundAction({}, completeForm({ [ITEM_A]: 'defective' }));
-    expect(state.error).toContain('다른 반품 요청에서 이미 불량으로 고른 품목');
+    expect(state.error).toContain('다른 반품·교환 요청에서 이미 불량으로 고른 품목');
     expect(names()).toEqual(['admin_plan_claim_defective_stock']);
     expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
   });
@@ -151,5 +152,48 @@ describe('불량 기록 다시 시도·선택만 저장', () => {
     const state = await planClaimDefectiveStockAction({}, form);
     expect(calls).toEqual([{ name: 'admin_plan_claim_defective_stock', args: { p_claim_id: CLAIM_ID, p_order_item_ids: [ITEM_A] } }]);
     expect(state.message).toContain('불량 1개 품목을 저장했습니다');
+  });
+});
+
+describe('교환 회수품 재고 처리(CLM-046)', () => {
+  function exchangeForm(selection: Record<string, 'restore' | 'defective'>, shipmentId: string = SHIPMENT) {
+    const form = new FormData();
+    form.set('claimId', CLAIM_ID); form.set('claimType', 'exchange'); form.set('shipmentId', shipmentId); form.set('originName', '김포');
+    for (const [id, value] of Object.entries(selection)) form.set(`stockDisposition:${id}`, value);
+    return form;
+  }
+
+  it('출고지의 불량 품목만 저장 RPC에 넘기고 재고는 움직이지 않는다', async () => {
+    results.admin_plan_claim_exchange_defective_stock = { data: { claimId: CLAIM_ID, shipmentId: SHIPMENT, planned: 1, decided: true } };
+    const state = await planExchangeDefectiveStockAction({}, exchangeForm({ [ITEM_A]: 'defective', [ITEM_B]: 'restore' }));
+    expect(calls).toEqual([{ name: 'admin_plan_claim_exchange_defective_stock', args: { p_claim_id: CLAIM_ID, p_shipment_id: SHIPMENT, p_order_item_ids: [ITEM_A] } }]);
+    expect(state.message).toBe('불량 1개 품목을 저장했습니다. 김포 출고지를 재출고할 때 판매 재고에 넣지 않고 불량 재고에 기록합니다.');
+  });
+
+  it('모두 정상 복원도 결정으로 저장하고, 배송 건 없는 옛 주문은 출고지 없이 저장한다', async () => {
+    const state = await planExchangeDefectiveStockAction({}, exchangeForm({ [ITEM_A]: 'restore' }, ''));
+    expect(calls).toEqual([{ name: 'admin_plan_claim_exchange_defective_stock', args: { p_claim_id: CLAIM_ID, p_shipment_id: null, p_order_item_ids: [] } }]);
+    expect(state.message).toContain('모두 정상 재고로 복원하도록 저장했습니다');
+  });
+
+  it('선택 칸이 없거나 값이 잘못되면 RPC를 부르지 않는다', async () => {
+    expect((await planExchangeDefectiveStockAction({}, exchangeForm({}))).error).toContain('회수품 재고 처리를 저장하지 못했습니다');
+    const broken = exchangeForm({ [ITEM_A]: 'defective' });
+    broken.set(`stockDisposition:${ITEM_B}`, 'discard');
+    expect((await planExchangeDefectiveStockAction({}, broken)).error).toContain('품목별 재고 처리 선택을 확인하지 못했습니다');
+    expect((await planExchangeDefectiveStockAction({}, exchangeForm({ [ITEM_A]: 'defective' }, 'not-a-uuid'))).error).toContain('회수품 재고 처리를 저장하지 못했습니다');
+    expect(calls).toEqual([]);
+  });
+
+  it('재출고한 출고지·회수 전·회수 생략 출고지 거절을 교환 문구로 알린다', async () => {
+    for (const [code, text] of [
+      ['defective_stock_claim_closed', '이미 재출고한 출고지'],
+      ['exchange_defective_not_collected', '회수를 확인한 출고지만'],
+      ['exchange_defective_collection_waived', '회수 생략을 결정한 출고지'],
+      ['defective_stock_item_in_other_claim', '다른 반품·교환 요청에서'],
+    ] as const) {
+      results.admin_plan_claim_exchange_defective_stock = { error: { message: code } };
+      expect((await planExchangeDefectiveStockAction({}, exchangeForm({ [ITEM_A]: 'defective' }))).error).toContain(text);
+    }
   });
 });
