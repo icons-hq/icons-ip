@@ -262,6 +262,8 @@ describe('claim-contact strict wire contracts', () => {
     }
     expect(claimContactDatabaseError('PT409', 'claim_contact_changed phone=01012345678').code).toBe('claim_contact_outcome_unknown');
     expect(claimContactDatabaseError('WRONG', 'claim_contact_changed').code).toBe('claim_contact_outcome_unknown');
+    // 출고 보류 주문의 교환 재출고 거절은 '결과 불명'이 아니라 이유로 보인다.
+    expect(claimContactDatabaseError('23514', 'order_fulfillment_hold')).toMatchObject({ code: 'order_fulfillment_hold', uncertain: false });
     // 불량 분리로 같은 옵션 교환도 재고가 따로 필요해졌다 — 재고 부족은 '결과 불명'이 아니라 이유로 보인다.
     expect(claimContactDatabaseError('22003', 'stock_out_of_range').code).toBe('stock_out_of_range');
     const safe = claimContactError('secret name and address', 'not-a-uuid');

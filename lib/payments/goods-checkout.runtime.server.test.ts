@@ -12,6 +12,8 @@ const ATTEMPT_ID = '30000000-0000-4000-8000-000000000207';
 
 const mocks = vi.hoisted(() => ({
   getPaymentGateway: vi.fn(),
+  tossGatewayKeyMode: vi.fn(),
+  recordKeyMode: vi.fn(),
   sendOrderConfirmationEmail: vi.fn(),
   repository: {
     prepareOrderAttempt: vi.fn(),
@@ -28,9 +30,11 @@ vi.mock('../supabase/service', () => ({
 }));
 vi.mock('./runtime-gateway', () => ({
   getPaymentGateway: mocks.getPaymentGateway,
+  tossGatewayKeyMode: mocks.tossGatewayKeyMode,
 }));
 vi.mock('./goods-checkout.server', () => ({
   createGoodsPaymentAttemptRepository: () => mocks.repository,
+  createGoodsPaymentKeyModeRecorder: () => mocks.recordKeyMode,
 }));
 vi.mock('../email/transactional.server', () => ({
   sendOrderConfirmationEmail: mocks.sendOrderConfirmationEmail,
@@ -81,6 +85,10 @@ const callback = {
 describe('createRuntimeGoodsPaymentCheckout', () => {
   beforeEach(() => {
     mocks.getPaymentGateway.mockReset();
+    mocks.tossGatewayKeyMode.mockReset();
+    mocks.tossGatewayKeyMode.mockReturnValue(null);
+    mocks.recordKeyMode.mockReset();
+    mocks.recordKeyMode.mockResolvedValue(undefined);
     mocks.sendOrderConfirmationEmail.mockReset();
     mocks.sendOrderConfirmationEmail.mockResolvedValue({ status: 'sent' });
     for (const fn of Object.values(mocks.repository)) fn.mockReset();
@@ -143,6 +151,28 @@ describe('createRuntimeGoodsPaymentCheckout', () => {
 
       expect(reconcile).toHaveBeenCalledTimes(1);
       expect(reconcile.mock.calls[0]).toEqual(hint ? [attempt, { providerPaymentKey: hint }] : [attempt]);
+    },
+  );
+
+  /* 운영 배포의 토스 테스트 키 결제는 준비 때 키 모드를 남겨 DB가 승인 뒤 출고 보류한다. 코페이·나이스페이는 남기지 않는다. */
+  it.each([['toss', 'test', 1], ['toss', null, 0], ['korpay', 'test', 0]] as const)(
+    '%s 결제 준비는 게이트웨이 키 모드(%s)를 시도에 남긴다(호출 %i회)',
+    async (provider, keyMode, calls) => {
+      mocks.tossGatewayKeyMode.mockReturnValue(keyMode);
+      const attempt = attemptFor(provider);
+      mocks.repository.prepareOrderAttempt.mockResolvedValue(attempt);
+      mocks.repository.bindCallbackNonce.mockResolvedValue(undefined);
+      mocks.getPaymentGateway.mockReturnValue({
+        prepare: vi.fn().mockResolvedValue({
+          attemptId: attempt.id, provider, action: { kind: 'redirect', url: 'https://payments.example.test' },
+          callbackNonce: 'opaque-callback-nonce-key-mode', expiresAt: attempt.expiresAt,
+        }),
+      });
+
+      await createRuntimeGoodsPaymentCheckout(provider).prepare({ userId: '10000000-0000-4000-8000-000000000207', orderId: ORDER_ID });
+
+      expect(mocks.recordKeyMode).toHaveBeenCalledTimes(calls);
+      if (calls) expect(mocks.recordKeyMode).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, keyMode });
     },
   );
 });

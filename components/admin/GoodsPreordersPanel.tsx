@@ -299,9 +299,9 @@ function ReservationSelection({ goodId, page, onSaved, canAllocate }: { goodId: 
       {page.items.map((item) => <li key={item.orderItemId} className="flex min-w-0 flex-col gap-1 px-3 py-3">
         <label className="flex items-start gap-2 text-sm">
           {canAllocate && item.state === 'reserved' && <input className="mt-0.5" form={form} type="checkbox" checked={selected.includes(item.orderItemId)}
-            disabled={pending || !['paid', 'confirmed', 'shipping'].includes(item.orderStatus)}
+            disabled={pending || !['paid', 'confirmed', 'shipping'].includes(item.orderStatus) || item.fulfillmentHold === true}
             onChange={(event) => setSelected((current) => event.target.checked ? [...current, item.orderItemId] : current.filter((id) => id !== item.orderItemId))} />}
-          <span className="min-w-0">{item.variantName ?? '기본 옵션'} · <span className="tabular-nums">{item.qty.toLocaleString('ko-KR')}개</span> · {status[item.state]}{item.orderStatus === 'pending' ? ' · 결제 대기' : ''}</span>
+          <span className="min-w-0">{item.variantName ?? '기본 옵션'} · <span className="tabular-nums">{item.qty.toLocaleString('ko-KR')}개</span> · {status[item.state]}{item.orderStatus === 'pending' ? ' · 결제 대기' : ''}{item.fulfillmentHold ? <span className="font-medium text-destructive"> · 출고 보류(할당 불가 — 주문 상세 확인)</span> : null}</span>
         </label>
         <a className="w-fit text-xs underline underline-offset-4 wrap-anywhere" href={`/admin/sales/orders/${item.orderId}`}>주문 {item.orderId}</a>
         <small className="block text-xs text-muted-foreground">{goodsShipDateLabel(item.expectedShipDate)} · 현재 실제 옵션 재고 <span className="tabular-nums">{item.physicalStockQty.toLocaleString('ko-KR')}개</span></small>

@@ -196,6 +196,7 @@ export function deliveryErrorMessage(code?: string): string {
     invalid_delivery_evidence: '실제 인계 담당자·시각과 방식에 맞는 근거를 모두 입력해주세요.',
     preorder_allocation_required: '예약 품목에 실제 입고 물량을 먼저 할당해주세요.',
     'order cancellation in progress': '진행 중인 취소·클레임을 먼저 확인해주세요.',
+    'order fulfillment hold': '출고 보류 중인 주문입니다(테스트 결제 또는 결제사 취소). 주문 상세의 출고 보류 안내를 확인해주세요.',
   };
   return (code && messages[code]) || '배송 방식 처리 결과를 확인하지 못했습니다. 새로고침한 뒤 기록을 확인해주세요.';
 }

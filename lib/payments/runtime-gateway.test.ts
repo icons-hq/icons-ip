@@ -5,6 +5,7 @@ import {
   getPaymentGateway,
   newPaymentCheckoutEnabled,
   paymentProviderConfigured,
+  tossGatewayKeyMode,
 } from './runtime-gateway';
 
 const tossAttempt: PaymentAttempt = {
@@ -107,6 +108,18 @@ describe('payment runtime gateway', () => {
       provider: 'toss',
       action: { kind: 'client_sdk' },
     });
+  });
+
+  it('토스 키 모드는 운영 배포의 구성된 게이트웨이에서만 읽힌다(출고 보류 판정)', () => {
+    expect(tossGatewayKeyMode()).toBeNull();
+    configureToss();
+    expect(tossGatewayKeyMode()).toBe('test');
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    expect(tossGatewayKeyMode()).toBeNull();
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('TOSS_SECRET_KEY', 'live_gsk_iconsdocs00000000000001');
+    // 키 쌍 모드가 어긋나면 게이트웨이가 없으므로 모드도 없다.
+    expect(tossGatewayKeyMode()).toBeNull();
   });
 
   it('실자격 증명이 잘못 놓여도 Production 밖에서는 live adapter를 열지 않는다', async () => {

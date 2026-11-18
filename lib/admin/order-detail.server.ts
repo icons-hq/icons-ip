@@ -5,6 +5,7 @@ import { loadAdminOrderDeliveries } from '@/lib/order-delivery.server';
 import { loadAdminOrderTransactions } from '@/lib/order-transactions.server';
 import { parseRegionalShippingSnapshot } from '@/lib/shipping-regions';
 import { loadOrderItemAllocationsForScreen } from './item-allocation.server';
+import { loadOrderFulfillmentHolds } from './fulfillment-holds.server';
 import { shipmentExtraTrackings, type ShipmentExtraTrackingRow } from '@/lib/orders/shipments';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { shippingCarrierLabel } from '@/lib/orders/shipment';
@@ -27,7 +28,8 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
   const extraRows = (extraResult.data ?? []) as (ShipmentExtraTrackingRow & { shipment_id: string })[];
   /* 추가 운송장과 타임라인의 운송장 줄(택배사 코드)은 레지스트리 이름으로 보인다. */
   const carriers = extraRows.length || detail.timeline.some(entry => entry.carrier) ? await getShippingCarrierRegistry() : [];
-  const [deliveries, transactions, allocations] = await Promise.all([loadAdminOrderDeliveries([orderId]), loadAdminOrderTransactions([orderId]), loadOrderItemAllocationsForScreen([orderId])]);
+  const [deliveries, transactions, allocations, holds] = await Promise.all([loadAdminOrderDeliveries([orderId]), loadAdminOrderTransactions([orderId]), loadOrderItemAllocationsForScreen([orderId]),
+    loadOrderFulfillmentHolds([orderId], supabase)]);
   const delivery = deliveries.get(orderId), transaction = transactions.get(orderId)?.display;
   if (!delivery || transaction && (transaction.totals.onlineTotal !== detail.order.total || transaction.lines.length !== detail.items.length
     || transaction.lines.some(line => !detail.items.some(item => item.id === line.lineId && item.variantId === line.variantId && item.qty === line.qty && item.unitPrice === line.unitPrice)))) throw new Error('주문 배송·금액 원장을 확인하지 못했습니다.');
@@ -35,6 +37,7 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
     const extraTrackings = shipmentExtraTrackings(extraRows.filter(row => row.shipment_id === shipment.id), carriers, shipment);
     return { ...shipment, regionalShipping: parseRegionalShippingSnapshot(shipment.regionalShipping), ...(extraTrackings.length ? { extraTrackings } : {}) };
   }), order: { ...detail.order, ...(delivery.orderNumber ? { orderNumber: delivery.orderNumber } : {}), address: delivery.address ?? {}, isGift: delivery.isGift, ...(delivery.addressNeedsReview ? { addressNeedsReview: true } : {}), ...(transaction ? { transaction } : {}) }, emailJobs,
+    fulfillmentHolds: holds.get(orderId) ?? [],
     itemAllocations: Object.fromEntries([...allocations ?? []].map(([itemId, loaded]) => [itemId, loaded.allocation])),
     ...(allocations ? {} : { itemAllocationsUnavailable: true as const }),
     timeline: (canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)))

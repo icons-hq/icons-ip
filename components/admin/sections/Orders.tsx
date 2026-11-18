@@ -73,6 +73,7 @@ import { SellerClaimIntakeButton } from '@/components/admin/screens/SellerClaimI
 import { OrderViewTabs } from '@/components/admin/sales/OrderViewTabs';
 import { OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldList, OrderFulfillmentHoldNotice } from '@/components/admin/OrderFulfillmentHoldNotice';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -941,6 +942,8 @@ function OrderDetail({
         <strong className="text-lg font-semibold tabular-nums">{formatKrwExact(order.total)}</strong>
       </header>
 
+      <OrderFulfillmentHoldNotice canManage={canManage} holds={order.fulfillmentHolds ?? []} orderId={order.id} />
+
       <dl className={FACTS_CLASS}>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>구매자</dt><dd className={FACT_VALUE}>{order.buyerName}</dd></div>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>이메일</dt><dd className={FACT_VALUE}>{order.buyerEmail ?? '미등록'}</dd></div>
@@ -1073,7 +1076,8 @@ function OrderDetail({
 
       {canManage ? <div className="grid grid-cols-1 items-start gap-3 border-t pt-4 empty:hidden sm:grid-cols-2" data-order-actions="">
         {['shipping', 'delivered', 'done'].includes(order.status) && !openCancellationRequest(order) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
-        {canAdvanceOrderStatus && order.status === 'paid' ? (
+        {/* 출고 보류 주문은 DB가 발주확인을 거절한다 — 버튼 대신 위 출고 보류 안내가 다음 행동을 말한다. */}
+        {canAdvanceOrderStatus && order.status === 'paid' && !order.fulfillmentHolds?.length ? (
           <OrderStatusAction
             carriers={carriers}
             label="발주확인"
@@ -1198,7 +1202,8 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
     ? data.items.find((order) => order.id === data.filters.orderId) ?? null
     : data.items[0] ?? null;
   const currentHref = adminOrdersHref(data.filters);
-  const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
+  /* 출고 보류 주문은 DB가 발주확인을 거절한다 — 일괄 선택에서도 뺀다(남은 건이 곧 실패한 건이라는 결과 문구와 섞이지 않게). */
+  const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order) && !order.fulfillmentHolds?.length).map((order) => order.id));
   const selectedIds = selection.filter((id) => eligible.has(id));
   /* 1440 화면(표 폭 1,100px)에 진행 중인 요청까지 잘리지 않고 들어오게 나눈다. 진행 중인 요청 칸은 '취소 결제확인필요'가 한 줄에 들어가는 폭이고, 상품 칸이 남는 자리를 받는다. 수령인명은 조회항목 설정에서 켠다. */
   const columns: ConsoleGridColumn[] = [
@@ -1217,7 +1222,9 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <span key="reference" className="inline-flex items-center gap-1"><OrderPreviewLink href={adminOrderPreviewHref(currentHref,order.id)}
         label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 팝업 열기`}>{orderReferenceLabel(order.id, order.orderNumber)}</OrderPreviewLink>
         <OrderPreviewNewTabLink href={adminOrderDetailHref(order.id,data.filters)} label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 열기 (새 탭)`}/></span>,
-      <OrderStatusBadge key="status" status={order.status} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined} />,
+      order.fulfillmentHolds?.length
+        ? <span key="status" className="flex flex-col items-start gap-1"><OrderStatusBadge status={order.status} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined} /><OrderFulfillmentHoldBadges holds={order.fulfillmentHolds} /></span>
+        : <OrderStatusBadge key="status" status={order.status} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined} />,
       <OrderItemsCell items={order.items} key="items" />,
       formatKrwExact(order.total), order.items.reduce((qty,item)=>qty+item.qty,0),
       <time key="created" className="tabular-nums whitespace-nowrap" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
@@ -1278,6 +1285,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
         count:option.value==='all'?(data.counts?Object.values(data.counts).reduce((sum,value)=>sum+value,0):undefined):data.counts?.[option.value],
         href:adminOrdersHref(data.filters,{status:option.value,page:1,orderId:null})}))}/>
       <OrderFilters filters={data.filters} />
+      <OrderFulfillmentHoldList hrefFor={orderId => adminOrderPreviewHref(currentHref, orderId)} list={data.fulfillmentHoldList} />
       {canManage && resultOutsideList ? (
         <section aria-label="취소 처리 결과">
           <AdminNotice title={`주문 ${orderReferenceLabel(resultOutsideList, cancellationState.orderNumber)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.`} tone={cancellationResultTone(cancellationState)}>
@@ -1319,7 +1327,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
             {canManage ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar="">
               <span className="text-muted-foreground tabular-nums">{selectedIds.length}건 선택</span>
               <Button disabled={bulkPending||selectedIds.length===0} size="sm" title={selectedIds.length===0?'왼쪽 체크칸에서 신규주문을 고르면 누를 수 있습니다.':undefined} type="submit">{bulkPending?'처리 중…':'선택 주문 발주확인'}</Button>
-              <span className="text-xs text-muted-foreground">체크칸은 진행 중인 취소·반품·교환 요청이 없는 신규주문에만 있습니다.</span>
+              <span className="text-xs text-muted-foreground">체크칸은 진행 중인 취소·반품·교환 요청과 출고 보류가 없는 신규주문에만 있습니다.</span>
               <ActionFeedback state={bulkState}/>
               <span className="ml-auto flex items-center gap-2"><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/dispatch">발송관리</Link><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/shipping">배송현황</Link></span>
             </div> : null}

@@ -33,6 +33,13 @@ describe('상태 → tone 단일 표 (ADR-0029)', () => {
     expect(statusTone('goodReference', 'notVisible')).toBe('warning');
   });
 
+  it('출고 보류는 아직 나가지 않은 배송 건이면 위험, 이미 발송된 주문이면 경고다', () => {
+    expect(statusTone('fulfillmentHold', 'test_payment')).toBe('danger');
+    expect(statusTone('fulfillmentHold', 'provider_canceled')).toBe('danger');
+    expect(statusTone('fulfillmentHold', 'blocked')).toBe('danger');
+    expect(statusTone('fulfillmentHold', 'shipped')).toBe('warning');
+  });
+
   it('표에 없는 상태는 눈에 띄지 않는 neutral이다', () => {
     expect(statusTone('order', 'not-a-status')).toBe('neutral');
     expect(statusTone('claim', null)).toBe('neutral');

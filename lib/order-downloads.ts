@@ -16,3 +16,9 @@ export function parseOrderDownloads(value: unknown): OrderDownloads | null {
  }
  return value as unknown as OrderDownloads;
 }
+
+/**
+ * 주문이 출고 보류(운영 쪽 결제 확인 — 테스트 결제·결제사 취소)라 디지털 파일 제공을 멈춘 경우의 고객 문구. 내부 사정(테스트 결제 등)을
+ * 말하지 않고 '결제 확인 중'이라는 이유와 다음 행동만 알린다. 첫 제공 전·재다운로드 모두 같다.
+ */
+export const DIGITAL_DOWNLOAD_ON_HOLD_MESSAGE = '결제 확인이 끝나지 않아 지금은 파일을 받을 수 없습니다. 확인이 끝나면 이 화면에서 다시 받을 수 있고, 궁금한 점은 주문 관련 1:1 문의로 알려주세요.';

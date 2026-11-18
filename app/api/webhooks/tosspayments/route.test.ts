@@ -53,6 +53,7 @@ function handler(overrides: Partial<Parameters<typeof createTossWebhookHandler>[
     reconcileGoods: vi.fn(async () => ({ outcome: 'approved' as const })),
     reconcileTicket: vi.fn(async () => ({ outcome: 'approved' as const })),
     scheduleOrderCancellation: vi.fn(),
+    checkProviderCancellation: vi.fn(async () => 'consistent' as const),
     createCaseRefFallback: () => '11111111-2222-4333-8444-555555555555',
     ...overrides,
   };
@@ -120,6 +121,70 @@ describe('POST /api/webhooks/tosspayments', () => {
       expect(result.status).toBe(200);
       expect(deps.reconcileGoods).not.toHaveBeenCalled();
     }
+  });
+
+  describe('승인된 굿즈 결제의 결제사 직접 취소 감지', () => {
+    const approvedOrder = () => vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' }));
+
+    it('정상 승인 알림(DONE)은 조회하지 않고 200이다', async () => {
+      const { deps, post } = handler({ loadAttempt: approvedOrder() });
+      const result = await post(webhookRequest(statusChangedBody()));
+      expect(result.status).toBe(200);
+      expect(deps.checkProviderCancellation).not.toHaveBeenCalled();
+      expect(deps.reconcileGoods).not.toHaveBeenCalled();
+    });
+
+    it.each(['CANCELED', 'PARTIAL_CANCELED', undefined])('본문 status %s는 원장 결제 키 조회로 확인한다 — 재정합은 태우지 않는다', async (status) => {
+      const { deps, post } = handler({ loadAttempt: approvedOrder(), checkProviderCancellation: vi.fn(async () => 'held' as const) });
+      const result = await post(webhookRequest(statusChangedBody({ status }), { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID }));
+      expect(result.status).toBe(200);
+      // 본문의 paymentKey·금액은 넘기지 않는다 — 조회는 원장 결제 키로 한다.
+      expect(deps.checkProviderCancellation).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, caseRef: TRANSMISSION_ID });
+      expect(deps.reconcileGoods).not.toHaveBeenCalled();
+      expect(deps.scheduleOrderCancellation).not.toHaveBeenCalled();
+      expect(await result.text()).not.toContain(PAYMENT_KEY);
+    });
+
+    it.each(['already_recorded', 'consistent', 'not_applicable', 'mismatch'] as const)('판정 %s는 재전송해도 같아 200으로 닫는다', async (verdict) => {
+      const { post } = handler({ loadAttempt: approvedOrder(), checkProviderCancellation: vi.fn(async () => verdict) });
+      expect((await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })))).status).toBe(200);
+    });
+
+    it('같은 결제를 막 조회했으면(cooldown) 조회 없이 503으로 남겨 진짜 웹훅의 재전송을 받는다', async () => {
+      const { post } = handler({ loadAttempt: approvedOrder(), checkProviderCancellation: vi.fn(async () => 'cooldown' as const) });
+      const result = await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })));
+      expect(result.status).toBe(503);
+      expect(await result.json()).toEqual({ error: 'provider_cancellation_cooldown' });
+    });
+
+    it('우리 취소가 진행 중(in_flight)이면 503으로 미뤄 재전송이 다시 보게 한다', async () => {
+      const { post } = handler({ loadAttempt: approvedOrder(), checkProviderCancellation: vi.fn(async () => 'in_flight' as const) });
+      const result = await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })));
+      expect(result.status).toBe(503);
+      expect(await result.json()).toEqual({ error: 'cancellation_in_progress' });
+    });
+
+    it('조회·기록 실패는 500으로 남겨 재전송을 받는다', async () => {
+      const { post } = handler({
+        loadAttempt: approvedOrder(),
+        checkProviderCancellation: vi.fn(async () => { throw new Error('provider_unavailable'); }),
+      });
+      const result = await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })));
+      expect(result.status).toBe(500);
+      expect(await result.json()).toEqual({ error: 'provider_cancellation_check_failed' });
+    });
+
+    it('티켓·거절·취소 종결 시도는 감지 대상이 아니다', async () => {
+      for (const attempt of [
+        { id: ATTEMPT_ID, purpose: 'ticket' as const, refId: RESERVATION_ID, state: 'approved' },
+        { id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'declined' },
+        { id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'canceled' },
+      ]) {
+        const { deps, post } = handler({ loadAttempt: vi.fn(async () => attempt) });
+        expect((await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })))).status).toBe(200);
+        expect(deps.checkProviderCancellation).not.toHaveBeenCalled();
+      }
+    });
   });
 
   it('prepared attempt는 TTL 스윕 소관이라 재정합을 태우지 않는다', async () => {

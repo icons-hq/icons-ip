@@ -215,6 +215,8 @@ export interface AdminOrderRecord {
   cancellationRequest: AdminOrderCancellationRequestRecord | null;
   manualRecoveryAttempt: AdminGoodsManualRecoveryAttemptRecord | null;
   shipments: ShipmentRecord[];
+  /** 출고 보류(테스트 결제·결제사 취소). 없거나 빈 배열이면 보류가 없다 — 판정·차단은 DB가 한다. */
+  fulfillmentHolds?: import('./fulfillment-holds').OrderFulfillmentHold[];
 }
 
 export interface AdminOrderConsoleData {
@@ -229,6 +231,8 @@ export interface AdminOrderConsoleData {
    */
   carriers: ShippingCarrierRegistry;
   counts?: Record<AdminOrderStatus, number>;
+  /** 출고 보류 중인 주문(오래된 순 최대 20건과 전체 건수). 화면 목록만 읽는다(엑셀 출력은 읽지 않는다). */
+  fulfillmentHoldList?: import('./fulfillment-holds').OrderFulfillmentHoldList;
 }
 
 export type AdminOrderFieldErrors = Record<string, string>;
