@@ -44,19 +44,20 @@ function shiftDay(date: string, days: number): string {
 /* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
 const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
 const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null);
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null);
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null);
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null);
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, null);
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, null);
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, null);
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, null);
 
-/* 방침 개정(휴대폰 번호 인증·이메일 변경)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 끄고(null) 2026-11-06 최초 판을 고정한다.
+/* 방침 개정(휴대폰 번호 인증·이메일 변경, 카카오톡 알림톡)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 모두 끄고(null) 2026-11-06 최초 판을 고정한다.
+   알림톡 개정은 아래 전용 describe가 날짜별로 고정한다.
    BASE_LEGAL 은 실제 시계와 무관하게 방침 최초 판을 고정한 현행 문서 셋이다(방침 본문 문구를 검사하는 시험이 시행일 뒤에도 같은 본문을 본다). */
-const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null);
+const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, null);
 /* 방침 개정 상태 — 날짜는 개정 상수에서 파생한다. 표기 개정은 꺼서(null) terms·shipping 을 건드리지 않게 한다. */
 const PRIVACY_NOW = CONTACT_CHANNELS_PRIVACY_REVISION;
-const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW);
-const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW);
-const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW);
+const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, null);
+const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, null);
+const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, null);
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
@@ -712,7 +713,7 @@ describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·�
     expect(contactChannelsPrivacyRevisionInEffect('2026-11-18', PRIVACY_NOW)).toBe(true);
     expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
     expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null).privacy).toEqual(base);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, null).privacy).toEqual(base);
   });
 });
 
@@ -726,13 +727,26 @@ describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주�
   const revised = at(ALIMTALK.effectiveDate).privacy;
   const article = (document: LegalDocument, prefix: string) => document.articles.find((item) => item.heading.startsWith(prefix))!;
 
-  it('예약이 없으면(null) 지금 방침 그대로이고, 운영 게이트도 닫혀 있다', () => {
-    expect(ALIMTALK_PRIVACY_REVISION).toBeNull();
-    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBeNull();
+  it('운영 일정은 2026-11-18 공지·7일 뒤 시행이고, 운영 게이트가 같은 시행일을 읽는다', () => {
+    expect(ALIMTALK_PRIVACY_REVISION).toEqual({ announcedDate: '2026-11-18', effectiveDate: '2026-11-25' });
+    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBe('2026-11-25');
+    /* 운영 상수(기본 인자) 그대로 공지·시행 상태를 만들 수 있어야 한다 — 휴대폰 번호 인증 개정이 이미 시행 중인 본문 위다. */
+    const announced = createLegalDocuments(BUSINESS_INFO, '2026-11-18').privacy;
+    expect(announced.pendingRevision?.heading).toBe('카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내');
+    expect(plainText(announced)).not.toContain('알림톡');
+    const effective = createLegalDocuments(BUSINESS_INFO, '2026-11-25').privacy;
+    expect(effective.effectiveDate).toBe('2026-11-25');
+    expect(effective.previousVersion?.effectiveDate).toBe('2026-11-18');
+    expect(plainText(effective)).toContain('카카오톡 알림톡');
+  });
+
+  it('예약이 없으면(null) 지금 방침 그대로다', () => {
     expect(alimtalkPrivacyRevisionAnnounced('2030-01-01', null)).toBe(false);
     expect(alimtalkPrivacyRevisionInEffect('2030-01-01', null)).toBe(false);
-    expect(createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, null).privacy)
-      .toEqual(createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW).privacy);
+    const unreserved = createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, null).privacy;
+    expect(unreserved.articles).toEqual(current.articles);
+    expect(unreserved.effectiveDate).toBe(PRIVACY_NOW.effectiveDate);
+    expect(unreserved.pendingRevision).toBeUndefined();
     expect(plainText(current)).not.toContain('알림톡');
   });
 

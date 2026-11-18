@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE } from '@/lib/auth/contact-channels';
 import { NHN_ALIMTALK_ENDPOINT, createNhnAlimtalkSender, kakaoAlimtalkConfig, type KakaoAlimtalkConfig } from './nhn.server';
 
 const SENDER_KEY = 'a'.repeat(40);
@@ -46,8 +47,11 @@ describe('kakaoAlimtalkConfig', () => {
     expect(kakaoAlimtalkConfig({ ...ENV, NHN_ALIMTALK_TEMPLATE_ORDER_CONFIRMATION: '', NHN_ALIMTALK_TEMPLATE_ORDER_SHIPPED: '' })).toBeNull();
   });
 
-  it('운영은 처리방침 시행일이 정해지기 전에는 env를 다 넣어도 닫혀 있다', () => {
-    expect(kakaoAlimtalkConfig({ ...ENV, VERCEL_ENV: 'production' }, new Date('2030-01-01T00:00:00Z'))).toBeNull();
+  it('운영은 처리방침 개정 시행일(KST 0시) 전에는 env를 다 넣어도 닫혀 있다', () => {
+    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).not.toBeNull();
+    const effectiveStart = new Date(`${KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE}T00:00:00+09:00`);
+    expect(kakaoAlimtalkConfig({ ...ENV, VERCEL_ENV: 'production' }, new Date(effectiveStart.getTime() - 1000))).toBeNull();
+    expect(kakaoAlimtalkConfig({ ...ENV, VERCEL_ENV: 'production' }, effectiveStart)).toEqual(CONFIG);
     expect(kakaoAlimtalkConfig({ ...ENV, VERCEL_ENV: 'preview' })).toEqual(CONFIG);
   });
 });
