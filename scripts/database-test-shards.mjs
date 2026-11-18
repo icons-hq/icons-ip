@@ -207,6 +207,8 @@ const storefront = [
   sql('inquiry_chat_console'),
   sql('inquiry_purchase_history_scope'),
   sql('operator_inquiry_history'),
+  // 운영자 개인정보 접속기록 원장·기록·점검·보관 정리.
+  sql('operator_pii_access_log'),
   sql('admin_sales_read_contract_gaps', { admin: true }),
   script('admin_sales_read_contract_gaps_concurrency.sh', 'SALES_READ_GAP_TEST_SCOPE'),
   sql('admin_claim_detail_search', { admin: true }),
