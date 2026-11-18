@@ -26,7 +26,8 @@ DB·앱과 기존 운영자의 호환 상태를 확인하는 전체 배포 순�
 원장 OPS-006·OPS-005. 운영자 비밀번호 하나로 환불·개인정보 엑셀·설정 변경이 열리지 않도록 Supabase Auth TOTP(인증 앱)를 쓴다. 고객에게는 요구하지 않는다.
 
 - **스위치:** `private.operator_mfa_policy.required`(기본 꺼짐, migration `20261118163000_operator_mfa_requirement.sql`). 화면은 판매자 정보 → 2단계 인증 관리(`/admin/settings/mfa`, 매니저 관리 권한)이고, 본인 등록은 계정 메뉴·판매자 정보의 내 보안 설정(`/admin/settings/security`, 운영자 누구나)이다.
-- **켜졌을 때 DB 강제:** 운영자 판정 공통 진입(`private.has_operator_capability` → `public.has_operator_capability`·`private.require_*_operator_capability`·RLS, 역할 기반 `public.is_staff`)이 "지금 요청 JWT의 `aal`이 `aal2`이고 그 JWT의 `session_id` 세션 행이 아직 있는" 운영자만 운영자로 본다. 거절은 `operator_mfa_required`다. 판정 대상이 지금 요청의 로그인 사용자이고 JWT 역할이 `authenticated`일 때만 따지므로 service_role·cron·JWT 없는 트리거·다른 사람 권한 확인 경로와 고객 RPC는 바뀌지 않는다.
+- **켜졌을 때 DB 강제:** 운영자 판정 공통 진입(`private.has_operator_capability` → `public.has_operator_capability`·`private.require_*_operator_capability`·RLS, 역할 기반 `public.is_staff`)이 "지금 요청 JWT의 `aal`이 `aal2`이고 그 JWT의 `session_id` 세션 행이 아직 살아 있으며 행의 `aal`도 `aal2`인" 운영자만 운영자로 본다. 거절은 `operator_mfa_required`다. 판정 대상이 지금 요청의 로그인 사용자이고 JWT 역할이 `authenticated`일 때만 따지므로 service_role·cron·JWT 없는 트리거·다른 사람 권한 확인 경로와 고객 RPC는 바뀌지 않는다.
+- **service_role 경로:** 앱 서버가 사용자 JWT를 검증한 뒤 사용자·세션을 인자로 넘겨 service client로 부르는 운영자 경로(클레임 연락처 열람·변경·재출고, 상담 첨부 올리기·내려받기, 디지털 자산, 환불 계좌 내려받기, 부분취소 정리, 리뷰 내보내기)는 넘겨받은 세션 행이 `aal2`여야 운영자로 본다. 세션 행의 `aal`은 GoTrue가 인증 앱 확인 때 올리고 요소 삭제 때 내리므로, 지운 인증 앱의 토큰은 만료 전에도 거절된다.
 - **켜졌을 때 앱:** 어드민 화면·서버 액션 가드가 aal2가 아닌 운영자를 `/admin/mfa?next=<원래 경로>`로 보낸다. 등록한 인증 앱이 있으면 코드를 받고, 없으면 그 자리에서 등록한다(켠 뒤 새로 들어온 운영자의 첫 등록은 비밀번호만으로 이뤄진다 — 아래 남은 위험).
 
 ### 호스티드 Auth 설정(사람)
@@ -35,6 +36,17 @@ DB·앱과 기존 운영자의 호환 상태를 확인하는 전체 배포 순�
 
 1. Supabase Dashboard → Authentication → Multi-Factor(MFA)에서 Authenticator app(TOTP)이 **Enabled**인지 본다. `Verification Disabled`·`Disabled`면 운영자가 등록·인증할 수 없다.
 2. 또는 Management API read-back: `GET /v1/projects/{ref}/config/auth`의 `mfa_totp_enroll_enabled`·`mfa_totp_verify_enabled`가 둘 다 `true`인지 본다. 아니면 그 두 키만 `PATCH`하고 다시 읽는다(다른 Auth 키를 함께 보내지 않는다). 운영 설정 변경은 명시 승인 범위에서 한다.
+
+### 배포 전 확인(사람)
+
+운영 Supabase SQL editor에서 migration을 올리기 **전에** 읽기만 한다.
+
+```sql
+select has_table_privilege('postgres','auth.sessions','delete') as sessions_delete,
+       has_table_privilege('postgres','auth.refresh_tokens','delete') as refresh_tokens_delete;
+```
+
+둘 다 `true`여야 한다. 권한이 없으면 세션 끊기(`private.operator_revoke_auth_sessions`)가 실패해 **운영자 권한 회수(매니저 관리의 회수·최초 역할 설정)가 통째로 실패하고**, 2단계 인증 초기화도 실패한다. `false`면 배포를 멈추고 보고한다(로컬 격리 스택은 둘 다 `true`).
 
 ### 켜는 순서
 
@@ -58,14 +70,15 @@ commit;
 
 ### 기기 분실 초기화
 
-- 통합 매니저(전환 전에는 admin)가 본인에게 직접 분실을 확인한 뒤 2단계 인증 관리에서 그 운영자를 **초기화**한다. DB(`admin_reset_operator_mfa`)가 권한을 판정하고 대상의 로그인 세션을 모두 끊고 `admin.operator.mfa_reset` 감사 기록을 남긴 뒤, 앱 서버가 Supabase Auth admin API(`auth.admin.mfa.deleteFactor`)로 인증 앱 등록을 지운다. 삭제가 실패하면 화면의 **같은 요청 결과 확인**으로 다시 시도한다.
+- 통합 매니저(전환 전에는 admin)가 본인에게 직접 분실을 확인한 뒤 2단계 인증 관리에서 그 운영자를 **초기화**한다. DB(`admin_reset_operator_mfa`)가 권한을 판정하고 대상의 로그인 세션을 모두 끊고 `admin.operator.mfa_reset` 감사 기록을 남긴 뒤, 앱 서버가 Supabase Auth admin API(`auth.admin.mfa.deleteFactor`)로 인증 앱 등록을 지우고 같은 요청으로 한 번 더 불러 그 사이 생긴 세션까지 끊는다. 실패하면 화면의 **같은 요청 결과 확인**으로 다시 시도한다(재시도도 세션을 다시 끊는다).
 - 계정 주매니저는 초기화할 수 없다. 본인 초기화는 내 보안 설정에서 직접 한다.
 - 통합 매니저 본인이 분실했고 스위치가 켜져 있으면: 명시 승인을 받아 Supabase Dashboard → Authentication → Users → 해당 사용자에서 MFA factor를 지우고(또는 Management/Admin API), 위 비상 SQL처럼 `audit_log`에 사유를 남긴다.
 
 ### 남은 위험
 
 - 켠 뒤 새로 초대된 운영자의 **첫 등록**은 비밀번호만으로 된다(첫 사용 신뢰). 초대 직후 본인이 바로 등록하도록 안내한다.
-- 세션 끊기는 `auth.sessions` 행 삭제다(supabase-js `auth.admin.signOut`은 대상 사용자의 JWT가 있어야 해 사용자 ID로 쓸 수 없다). 로컬 격리 스택에서 `postgres` 소유 함수의 삭제 권한과 GoTrue의 refresh 거절을 확인했다. 호스티드에서도 첫 회수 뒤 대상 계정이 로그인으로 돌아가는지 한 번 본다.
+- 세션 끊기는 `auth.sessions` 행 삭제다(supabase-js `auth.admin.signOut`은 대상 사용자의 JWT가 있어야 해 사용자 ID로 쓸 수 없다). 로컬 격리 스택에서 `postgres` 소유 함수의 삭제 권한과 GoTrue의 refresh 거절을 확인했다. 호스티드는 위 배포 전 확인으로 권한을 보고, 첫 회수 뒤 대상 계정이 로그인으로 돌아가는지 한 번 본다.
+- 사용자·세션 없이 사용자 ID만 넘기는 service_role 운영자 경로(어드민 이미지·상품 미디어 올리기, 티켓 검표, 일부 엑셀 기록, 초대 메일 준비 등)는 DB가 세션을 알 수 없어 앱 가드(2단계 인증 대기면 운영자 아님)가 막는다.
 
 ## 이메일 초대
 

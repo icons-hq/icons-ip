@@ -38,8 +38,8 @@ export async function saveOperatorMfaPolicyAction(required: unknown, expectedRev
 
 /**
  * 기기를 잃은 운영자의 2단계 인증 초기화(통합 매니저, 전환 전에는 admin). DB가 권한을 판정하고 대상의 로그인 세션을 끊고
- * 감사 기록을 남긴 뒤에만 Supabase Auth admin API로 인증 앱 등록을 지운다. 삭제가 실패하면 같은 요청 ID로 다시 부른다 —
- * DB는 같은 기록을 돌려주고 남은 등록만 다시 지운다.
+ * 감사 기록을 남긴 뒤에만 Supabase Auth admin API로 인증 앱 등록을 지우고, 같은 요청 ID로 한 번 더 불러 그 사이 생긴 세션을 끊는다.
+ * 실패하면 같은 요청 ID로 다시 부른다 — DB는 같은 기록을 돌려주며 세션을 다시 끊고, 남은 등록만 다시 지운다.
  */
 export async function resetOperatorMfaAction(profileId: unknown, operationId: unknown): Promise<OperatorMfaResetResult> {
   try {
@@ -63,6 +63,9 @@ export async function resetOperatorMfaAction(profileId: unknown, operationId: un
       if (removed.error) return { error: '세션은 끊었지만 인증 앱 등록을 모두 지우지 못했습니다. 같은 요청으로 다시 시도해 주세요.', uncertain: true };
       factorsDeleted += 1;
     }
+    /* 같은 요청 ID로 한 번 더 부르면 DB가 같은 기록을 돌려주며 세션을 다시 끊는다 — 첫 호출과 삭제 사이에 만든 세션까지 지운다. */
+    const sealed = await (await createClient()).rpc('admin_reset_operator_mfa', { p_profile_id: profileId, p_operation_id: operationId });
+    if (sealed.error) return { error: '인증 앱 등록은 지웠지만 마지막 세션 정리를 확인하지 못했습니다. 같은 요청으로 다시 시도해 주세요.', uncertain: true };
     revalidatePath(OPERATOR_MFA_POLICY_PATH);
     return { receipt: { ...receipt, factorsDeleted } };
   } catch (error) { unstable_rethrow(error); return { error: operatorMfaError(), uncertain: true }; }

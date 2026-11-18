@@ -111,6 +111,50 @@ select pg_temp.as_user(2,'aal1',1);
 reset role;
 select 1/case when private.has_operator_capability(pg_temp.uid(3),'catalog.manage') then 1 else 0 end as other_actor_check_unaffected;
 
+-- 세션 행이 aal1로 내려간 세션(GoTrue가 요소 삭제 때 내린다)은 JWT가 aal2라도 거절한다.
+reset role;
+update auth.sessions set aal='aal1' where id='86310000-0000-4000-8000-000000000022';
+select pg_temp.as_user(2,'aal2',2);
+set local role authenticated;
+select 1/case when not public.has_operator_capability('home') then 1 else 0 end as downgraded_session_row_blocked;
+reset role;
+update auth.sessions set aal='aal2' where id='86310000-0000-4000-8000-000000000022';
+-- 인증 앱이 모두 지워진 사용자(초기화의 admin 삭제는 세션 행 aal을 내리지 않는다)의 aal2 세션도 거절한다.
+delete from auth.mfa_factors where user_id=pg_temp.uid(2);
+select pg_temp.as_user(2,'aal2',2);
+set local role authenticated;
+select 1/case when not public.has_operator_capability('home') then 1 else 0 end as factorless_aal2_session_blocked;
+reset role;
+insert into auth.mfa_factors(id,user_id,friendly_name,factor_type,status,created_at,updated_at,secret)
+values('86320000-0000-4000-8000-000000000002',pg_temp.uid(2),'operator-mfa-2','totp','verified',now(),now(),'synthetic');
+
+-- 앱 서버가 사용자 JWT를 검증한 뒤 service client로 사용자·세션을 넘기는 경로(클레임 연락처·상담 첨부·디지털 자산·
+-- 환불 계좌 내려받기·부분취소 정리·리뷰 내보내기)도 넘겨받은 세션 행이 aal2여야 운영자로 본다(aal2면 권한 관문을 지나 다음 검사에서 멈춘다).
+select set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims','{"role":"service_role"}',true);
+create function pg_temp.sid(n integer,a integer) returns uuid language sql immutable as $$ select ('86310000-0000-4000-8000-0000000000'||n||a)::uuid $$;
+select pg_temp.expect_error(format('select private.contact_require_identity(%L,%L,%L,false,%L,true)',pg_temp.uid(2),pg_temp.sid(2,1),'sales.manage','{}'),'auth_changed');
+select private.contact_require_identity(pg_temp.uid(2),pg_temp.sid(2,2),'sales.manage',false,'{}',true);
+select private.contact_require_identity(pg_temp.uid(5),pg_temp.sid(5,1),null,false,'{}',true);
+select pg_temp.expect_error(format('select private.inquiry_file_session(%L,%L,true)',pg_temp.uid(2),pg_temp.sid(2,1)),'operator_mfa_required');
+select private.inquiry_file_session(pg_temp.uid(2),pg_temp.sid(2,2),true);
+select private.inquiry_file_session(pg_temp.uid(5),pg_temp.sid(5,1),false);
+select pg_temp.expect_error(format('select private.digital_operator_session(%L,%L)',pg_temp.uid(2),pg_temp.sid(2,1)),'42501');
+select private.digital_operator_session(pg_temp.uid(2),pg_temp.sid(2,2));
+insert into private.inquiry_chat_files(id,actor_id,session_id,filename,mime_type,path,size_bytes,sha256,state,in_library,expires_at,verified_at)
+values('86340000-0000-4000-8000-000000000001',pg_temp.uid(2),pg_temp.sid(2,2),'operator-mfa.pdf','application/pdf',
+  '86340000-0000-4000-8000-000000000001/86340000-0000-4000-8000-000000000002.pdf',10,repeat('a',64),'verified',true,now()+interval '1 day',now());
+set local role service_role;
+select pg_temp.expect_error(format('select public.service_inquiry_file_download(%L,%L,%L)',pg_temp.uid(2),pg_temp.sid(2,1),'86340000-0000-4000-8000-000000000001'),'42501');
+select 1/case when public.service_inquiry_file_download(pg_temp.uid(2),pg_temp.sid(2,2),'86340000-0000-4000-8000-000000000001') ? 'path' then 1 else 0 end as aal2_staff_library_download;
+select pg_temp.expect_error(format('select public.service_export_bank_transfer_refund_accounts(%L,%L,%L,%L)',pg_temp.uid(2),pg_temp.sid(2,1),'86340000-0000-4000-8000-000000000011','[]'),'bank_refund_permission_required');
+select public.service_export_bank_transfer_refund_accounts(pg_temp.uid(2),pg_temp.sid(2,2),'86340000-0000-4000-8000-000000000012','[]') is not null as aal2_bank_export_allowed;
+select pg_temp.expect_error(format('select public.service_export_order_partial_cancellation_refund_accounts(%L,%L,%L,%L)',pg_temp.uid(2),pg_temp.sid(2,1),'86340000-0000-4000-8000-000000000013','[]'),'bank_refund_permission_required');
+select pg_temp.expect_error(format('select public.service_resolve_order_partial_cancellation(%L,%L,%L,null,null,%L,%L)','86340000-0000-4000-8000-000000000014','retry','합성',pg_temp.uid(2),pg_temp.sid(2,1)),'bank_refund_permission_required');
+select pg_temp.expect_error(format('select public.service_record_review_export_v2(%L,%L,%L,%L,0,%L,%L)',pg_temp.uid(2),pg_temp.sid(2,1),'{}',repeat('a',64),now()-interval '1 second',repeat('b',64)),'review_export_auth_changed');
+select pg_temp.expect_error(format('select public.service_record_review_export_v2(%L,%L,%L,%L,0,%L,%L)',pg_temp.uid(2),pg_temp.sid(2,2),'{}',repeat('a',64),now()-interval '1 second',repeat('b',64)),'invalid_review_export_filters');
+select pg_temp.expect_error(format('select public.service_record_review_export(%L,%L,%L,%L,0,%L,%L)',pg_temp.uid(2),pg_temp.sid(2,1),'{}',repeat('a',64),now()-interval '1 second',repeat('b',64)),'review_export_auth_changed');
+reset role;
+
 -- 고객: 능력이 없어 거절 사유도 그대로이고 고객 RPC는 영향이 없다.
 select pg_temp.as_user(5,'aal1',1);
 set local role authenticated;
@@ -142,6 +186,13 @@ select public.admin_reset_operator_mfa(pg_temp.uid(3),'86330000-0000-4000-8000-0
 select 1/case when (:'reset'::jsonb)->>'factorCount'='1' and (:'reset'::jsonb)->>'sessionsRevoked'='2'
   and public.admin_reset_operator_mfa(pg_temp.uid(3),'86330000-0000-4000-8000-000000000024')=:'reset'::jsonb then 1 else 0 end as reset_exact_replay;
 select pg_temp.expect_error(format('select public.admin_reset_operator_mfa(%L,%L)',pg_temp.uid(2),'86330000-0000-4000-8000-000000000024'),'operation_conflict');
+reset role;
+-- 같은 요청의 재시도(요소 삭제 뒤 마무리 호출 포함)는 그 사이 새로 만든 세션도 끊는다.
+reset role;
+insert into auth.sessions(id,user_id,aal,created_at,updated_at) values('86310000-0000-4000-8000-000000000039',pg_temp.uid(3),'aal2',now(),now());
+select pg_temp.as_user(1,'aal2',2);
+set local role authenticated;
+select 1/case when public.admin_reset_operator_mfa(pg_temp.uid(3),'86330000-0000-4000-8000-000000000024')=:'reset'::jsonb then 1 else 0 end as reset_replay_same_receipt;
 reset role;
 select 1/case when not exists(select 1 from auth.sessions where user_id=pg_temp.uid(3))
   and not exists(select 1 from auth.refresh_tokens where user_id=pg_temp.uid(3)::text)

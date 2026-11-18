@@ -67,7 +67,8 @@ describe('기기 분실 2단계 인증 초기화', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_reset_operator_mfa', { p_profile_id: target, p_operation_id: op });
     expect(mocks.listFactors).toHaveBeenCalledWith({ userId: target });
     expect(mocks.deleteFactor.mock.calls).toEqual([[{ id: 'f1', userId: target }], [{ id: 'f2', userId: target }]]);
-    expect(mocks.order).toEqual(['rpc', 'list', 'delete', 'delete']);
+    expect(mocks.order).toEqual(['rpc', 'list', 'delete', 'delete', 'rpc']);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_reset_operator_mfa', { p_profile_id: target, p_operation_id: op });
   });
 
   it('권한이 없거나 DB가 거절하면 인증 앱 등록을 건드리지 않는다', async () => {
@@ -82,6 +83,13 @@ describe('기기 분실 2단계 인증 초기화', () => {
     expect(await resetOperatorMfaAction('nope', op)).not.toHaveProperty('uncertain');
     expect(mocks.listFactors).not.toHaveBeenCalled();
     expect(mocks.deleteFactor).not.toHaveBeenCalled();
+  });
+
+  it('삭제 뒤 세션 정리를 확인하지 못하면 같은 요청으로 다시 시도하게 한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { profileId: target, factorCount: 2, sessionsRevoked: 3 }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { code: '08006', message: 'connection lost' } });
+    expect(await resetOperatorMfaAction(target, op)).toEqual({ error: expect.stringContaining('마지막 세션 정리'), uncertain: true });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it('삭제가 실패하면 같은 요청으로 다시 시도하게 한다', async () => {
