@@ -447,8 +447,11 @@ jobs:
       - name: Verify payment provider backfill readback
         run: supabase db query --linked --file supabase/tests/payment_provider_production_readback.sql
 
-      - name: Verify Supabase catalog baseline
-        run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
+      # 운영 카탈로그는 운영자가 소유한다 — 2026-11-18 테스트 데이터 정리로 시연 카탈로그(g1~g15·카드·이벤트·
+      # 기준 카드풀)가 지워졌으므로 내용 단언(catalog_baseline.sql)은 seed 가 있는 preview·CI 에서만 돌리고,
+      # 운영에서는 anon 이 공개 카탈로그를 읽을 수 있는지(권한·RLS)만 확인한다.
+      - name: Verify Supabase public catalog read canary
+        run: supabase db query --linked --file supabase/tests/catalog_public_read_canary.sql
 
       - name: Reconcile production Supabase Edge Functions
         env:

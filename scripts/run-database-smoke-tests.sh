@@ -11,6 +11,7 @@ run_sql_test() {
   cat supabase/tests/helpers/goods_kc_fixture.sql "$1" | docker exec -i "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
 }
 run_sql_test supabase/tests/catalog_baseline.sql
+bash scripts/test-catalog-public-read-canary.sh
 run_sql_test supabase/tests/profile_editing.sql
 run_sql_test supabase/tests/minimum_age_gate.sql
 run_sql_test supabase/tests/adult_verification.sql

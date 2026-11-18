@@ -35,8 +35,13 @@ supabase db query --linked \
 ```
 
 최초 배포 출력에서 `payment_count=2`, `toss_count=2`, `korpay_count=0`을 확인한다. 이후
-결제 행이 늘어도 immutable evidence의 `before_total=2`, `updated_count=2`, `after_toss=2`가
-계속 진실원이다. 이어서 기존 known Toss 거래 두 건의 조회·취소·웹훅 경로가
+결제 행이 늘거나 줄어도 immutable evidence의 `before_total=2`, `updated_count=2`, `after_toss=2`가
+계속 진실원이다. readback이 단언하는 것은 이 evidence와 `payments.provider`의 NOT NULL
+스키마 계약뿐이고 현재 결제 행 수는 단언하지 않는다 — 출력의 세 count는 기록용이다.
+2026-11-18 운영 테스트 데이터 정리가 이 두 건을 포함한 테스트 결제 전부를 지워 이후 출력은
+`payment_count=0`에서 시작한다(main run 44221431113의 readback 실패가 이 단언을 데이터와 떼어 낸 계기다).
+`scripts/test-payment-provider-production-readback.sh`가 토스 2건·빈 원장 통과와 nullable
+provider·evidence 불일치 실패를 함께 잠근다. 이어서 기존 known Toss 거래 두 건의 조회·취소·웹훅 경로가
 `provider=toss` 행만 선택하는 테스트와 Production canary를 확인한다. 새로운 Korpay 거래를
 만들거나 실제 결제를 수행하지 않는다.
 
