@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+vi.mock('@/lib/system-health/cron-run-recorder.server', () => ({ recordCronJobRun: async () => ({ incident: false }) }));
 const mocks = vi.hoisted(() => ({ worker: vi.fn(), cleanup: vi.fn(), rpc: vi.fn() }));
 vi.mock('@/lib/subscriptions/worker.server', () => ({ runtimeGoodsSubscriptionWorker: () => ({ run: mocks.worker }) }));
 vi.mock('@/lib/subscriptions/credential-revocation.server', () => ({ runBillingCredentialCleanup: mocks.cleanup }));

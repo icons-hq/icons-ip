@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { trackingAdapterFromEnvironment } from '@/lib/fulfillment/tracking/adapter.server';
 import { deliveryTrackingRepository } from '@/lib/fulfillment/tracking/repository.server';
 import { runDeliveryTrackingTick } from '@/lib/fulfillment/tracking/run';
+import { startCronRun } from '@/lib/system-health/cron-run.server';
 
 /*
  * 택배 추적 자동 배송완료(QNA-028). 10분마다 불리지만 DB 스위치가 꺼져 있으면(기본) 스위치를 한 번 읽고 끝난다 —
@@ -22,13 +23,14 @@ export async function GET(request: Request) {
   if (!secret || actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
     return Response.json({ ok: false }, { status: 401, headers });
   }
+  const run = startCronRun('delivery-tracking');
   try {
     const result = await runDeliveryTrackingTick({ repository: deliveryTrackingRepository(), adapterFor: provider => trackingAdapterFromEnvironment(provider) });
     // 단계가 실패했거나, 켜져 있는데 어댑터가 없거나(키·이름 불일치) 조회·형식이 틀린 결과가 있으면 관측되게 503으로 남긴다.
     // 꺼져 있으면 정상이다. 잠금이 겹쳐 다음 회차로 넘긴 묶음(skipped)은 실패가 아니다.
     const ok = !result.failedStages && (result.enabled !== true || (!result.unavailable && result.failed === 0 && result.invalid === 0));
-    return Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers });
-  } catch {
-    return Response.json({ ok: false }, { status: 503, headers });
+    return run.finish(Response.json({ ok, ...result }, { status: ok ? 200 : 503, headers }));
+  } catch (error) {
+    return run.fail(error, Response.json({ ok: false }, { status: 503, headers }));
   }
 }

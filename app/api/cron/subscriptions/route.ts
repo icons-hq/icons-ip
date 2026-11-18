@@ -4,11 +4,13 @@ import { timingSafeEqual } from 'node:crypto';
 import { runtimeGoodsSubscriptionWorker } from '@/lib/subscriptions/worker.server';
 import { runBillingCredentialCleanup } from '@/lib/subscriptions/credential-revocation.server';
 import { subscriptionJson } from '@/lib/subscriptions/http.server';
+import { startCronRun } from '@/lib/system-health/cron-run.server';
 export const maxDuration = 90;
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET, expected = Buffer.from(secret ?? ''), authorization = request.headers.get('authorization');
   const actual = Buffer.from(authorization?.startsWith('Bearer ') ? authorization.slice(7) : '');
   if (!secret || expected.length !== actual.length || !timingSafeEqual(expected, actual)) return subscriptionJson({ ok: false }, 401);
+  const run = startCronRun('subscriptions');
   try {
     const service = createServiceClient();
     for (const name of ['service_purge_billing_registration_secrets', 'service_purge_goods_subscription_exports']) {
@@ -25,6 +27,6 @@ export async function GET(request: Request) {
         if (cleaned.error || !cleaned.data || !['not_fenced', 'cleaned', 'deferred'].includes(cleaned.data.state)) throw new Error('subscription_cleanup_unavailable');
       }
     }
-    return subscriptionJson({ ok: true, state: result.state, processed: result.state === 'idle' ? 0 : 1, cleanup: cleanup?.state ?? null });
-  } catch { return subscriptionJson({ ok: false, error: 'subscription_work_unavailable' }, 502); }
+    return run.finish(subscriptionJson({ ok: true, state: result.state, processed: result.state === 'idle' ? 0 : 1, cleanup: cleanup?.state ?? null }));
+  } catch (error) { return run.fail(error, subscriptionJson({ ok: false, error: 'subscription_work_unavailable' }, 502)); }
 }

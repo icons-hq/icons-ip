@@ -40,6 +40,16 @@ describe('상태 → tone 단일 표 (ADR-0029)', () => {
     expect(statusTone('fulfillmentHold', 'shipped')).toBe('warning');
   });
 
+  it('자동 작업은 실패 중·멈춤만 위험이고, 미종결 결제는 불일치 확인 필요만 위험이다', () => {
+    expect(statusTone('systemJob', 'failing')).toBe('danger');
+    expect(statusTone('systemJob', 'stalled')).toBe('danger');
+    expect(statusTone('systemJob', 'ok')).toBe('success');
+    expect(statusTone('systemJob', 'unrecorded')).toBe('neutral');
+    expect(statusTone('unresolvedPayment', 'needs_review')).toBe('danger');
+    expect(statusTone('unresolvedPayment', 'unknown')).toBe('warning');
+    expect(statusTone('unresolvedPayment', 'confirming_stalled')).toBe('warning');
+  });
+
   it('표에 없는 상태는 눈에 띄지 않는 neutral이다', () => {
     expect(statusTone('order', 'not-a-status')).toBe('neutral');
     expect(statusTone('claim', null)).toBe('neutral');

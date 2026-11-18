@@ -110,6 +110,11 @@ describe('manager authorization contract', () => {
     expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('logistics')).map(([key]) => key)).toEqual(['all']);
     expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('agency')).map(([key]) => key)).toEqual(['all', 'inquiries', 'questions', 'reviews']);
     expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('influencer')).map(([key]) => key)).toEqual(['all', 'orders', 'inquiries', 'questions', 'reviews']);
+    /* '시스템'(자동 작업 실패)과 시스템 상태 화면은 DB private.operator_alert_capability와 같은 platform.manage다. */
+    expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('primary')).map(([key]) => key)).toContain('system');
+    expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('deputy')).map(([key]) => key)).not.toContain('system');
+    expect(canAccessAdminScreen({ role: 'staff', operatorAccess: configuredOperatorAccessFixture('primary') }, adminScreenForPath('/admin/settings/system'))).toBe(true);
+    expect(canAccessAdminScreen({ role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') }, adminScreenForPath('/admin/settings/system'))).toBe(false);
   });
   it('legacy admin-only restrictions survive while primary configured authority is capability-based', () => {
     const screen = adminScreenForPath('/admin/marketing/customer-grades');
