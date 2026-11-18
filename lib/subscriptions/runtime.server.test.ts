@@ -13,6 +13,7 @@ it('합성 원장은 명시적으로 켠 로컬 앱과 로컬 DB 조합에서만
 });
 it('운영 callback은 canonical origin으로 제한하고 query·user-info 경로를 거절한다', () => {
   expect(subscriptionSiteOrigin({ SITE_URL: 'https://iconsip.com', VERCEL_ENV: 'production' })).toBe('https://iconsip.com');
+  expect(subscriptionSiteOrigin({ SITE_URL: 'https://xsquare.kr', VERCEL_ENV: 'production' })).toBe('https://xsquare.kr');
   expect(subscriptionSiteOrigin({ SITE_URL: 'https://attacker.example', VERCEL_ENV: 'production' })).toBeNull();
   expect(subscriptionSiteOrigin({ SITE_URL: 'https://iconsip.com/path' })).toBeNull();
   expect(subscriptionSiteOrigin({ SITE_URL: 'https://user:pass@iconsip.com' })).toBeNull();
