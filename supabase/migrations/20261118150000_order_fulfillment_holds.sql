@@ -212,7 +212,7 @@ create table private.goods_provider_cancellation_checks (
   updated_at timestamptz not null default clock_timestamp(),
   check (not pending or (pending_since is not null and observed_balance is not null and observed_status is not null and case_ref is not null))
 );
-create index goods_provider_cancellation_checks_pending on private.goods_provider_cancellation_checks(pending_since) where pending;
+create index goods_provider_cancellation_checks_pending on private.goods_provider_cancellation_checks(updated_at, attempt_id) where pending;
 alter table private.goods_provider_cancellation_checks enable row level security;
 revoke all on private.goods_provider_cancellation_checks from public, anon, authenticated, service_role;
 
@@ -342,18 +342,21 @@ revoke all on function public.service_flag_goods_provider_cancellation(uuid, tex
 grant execute on function public.service_flag_goods_provider_cancellation(uuid, text, bigint, text) to service_role;
 
 -- 미룬 판정 sweep(5분마다). 우리 처리가 끝났으면(완료·거절·철회·환불 확정) 저장한 관측으로 다시 판정한다. 시도마다 하위 트랜잭션이고
--- 잠금을 오래 기다리지 않는다(못 잡으면 다음 회차). 돌려주는 값은 대기를 끝낸 시도 수다.
+-- 잠금을 오래 기다리지 않는다(못 잡으면 다음 회차). 마지막으로 본 시각이 오래된 것부터 본다 — 다시 본 행은 updated_at이 갱신돼
+-- 뒤로 가므로 계속 대기인 행이 상한보다 많아도 뒤 행이 굶지 않는다. 돌려주는 값은 대기를 끝낸 시도 수다.
 create function private.sweep_goods_provider_cancellation_checks(p_limit integer default 200) returns integer
 language plpgsql security definer set search_path = '' as $$
 declare item record; settled integer := 0; verdict text;
 begin
   perform set_config('lock_timeout', '3s', true);
   for item in select attempt_id, observed_status, observed_balance, case_ref from private.goods_provider_cancellation_checks
-    where pending order by pending_since, attempt_id limit greatest(1, least(coalesce(p_limit, 200), 1000)) loop
+    where pending order by updated_at, attempt_id limit greatest(1, least(coalesce(p_limit, 200), 1000)) loop
     begin
       verdict := private.apply_goods_provider_cancellation(item.attempt_id, item.observed_status, item.observed_balance, item.case_ref);
       if verdict <> 'in_flight' then settled := settled + 1; end if;
-    exception when lock_not_available or deadlock_detected then null;
+    exception when lock_not_available or deadlock_detected then
+      -- 이번 회차에 못 본 행도 뒤로 보낸다(같은 행이 매번 앞을 막지 않게).
+      update private.goods_provider_cancellation_checks set updated_at = clock_timestamp() where attempt_id = item.attempt_id;
     end;
   end loop;
   return settled;
@@ -512,12 +515,13 @@ $a$ or exists(select 1 from public.order_shipments s where s.id=any(target_ids) 
  if exists(select 1 from public.order_shipments s where s.id=any(target_ids) and private.order_fulfillment_held(s.order_id)) then raise check_violation using message='order fulfillment hold';end if;$a$
 ]);
 
--- 주문이 처음 발송(결제 대기·신규주문·발주확인 → 배송중)될 때만 막는다. 배송완료·거래확정은 막지 않는다 — 이미 나간 물건의
--- 도착 기록이고, 막으면 택배 추적 자동 배송완료·자동 거래확정 묶음이 계속 실패할 뿐이다(발송 뒤 보류는 경고·반품 접수 몫).
+-- 아직 나가지 않은 주문(결제 대기·신규주문·발주확인)이 처음 발송·배송완료(디지털 첫 제공·방문수령 등은 바로 배송완료)로 넘어갈 때만
+-- 막는다. 이미 나간 주문(배송중)의 배송완료·거래확정은 막지 않는다 — 이미 나간 물건의 도착 기록이고, 막으면 택배 추적 자동 배송완료·
+-- 자동 거래확정 묶음이 계속 실패할 뿐이다(발송 뒤 보류는 경고·반품 접수 몫).
 select private.t1_hold_patch_function('public.guard_order_transition_during_cancellation()'::regprocedure, array[
 $a$  -- 결제사 확인을 기다리는 재고 부족 부분 취소(ADR-0032)가 있으면 발송·배송완료로 넘어가지 않는다.$a$,
 $a$  -- 출고 보류(테스트 키 결제·결제사 직접 취소)가 있으면 아직 나가지 않은 주문을 발송으로 넘기지 않는다.
-  if new.status is distinct from old.status and new.status = 'shipping' and old.status in ('pending', 'paid', 'confirmed')
+  if new.status is distinct from old.status and new.status in ('shipping', 'delivered') and old.status in ('pending', 'paid', 'confirmed')
     and private.order_fulfillment_held(old.id) then
     raise exception using errcode = '23514', message = 'order fulfillment hold';
   end if;
@@ -569,6 +573,32 @@ $a$ -- 출고 보류(테스트 결제·결제사 취소) 주문에는 교환품�
  if exists(select 1 from private.group_claim_reshipment_receipts where claim_id=p_claim_id) then$a$
 ]);
 
+-- 디지털 파일 제공: 내려받기 경로는 출고 경로 공통 검사를 거치지 않으므로 여기서 막는다. 보류가 있으면 첫 제공(혼합 주문의 미제공
+-- 디지털 건 포함)도 재다운로드도 열지 않는다 — 디지털 제공은 이어지는 이용이고, 기존 규칙도 환불이 접수·확정되면 이미 받은 파일의
+-- 재다운로드까지 막는다(돈을 받지 못했거나 결제사에서 돌려준 주문을 같은 기준으로 본다). 고객에게는 이유 코드만 돌려준다.
+select private.t1_hold_patch_function('private.digital_download_context(uuid,uuid,uuid,uuid)'::regprocedure, array[
+$a$  or not(item.fulfillment_terms_snapshot->'files' @> jsonb_build_array(jsonb_build_object('id',p_asset))) then raise check_violation using message='digital_access_unavailable';end if;$a$,
+$a$  or not(item.fulfillment_terms_snapshot->'files' @> jsonb_build_array(jsonb_build_object('id',p_asset))) then raise check_violation using message='digital_access_unavailable';end if;
+ if private.order_fulfillment_held(purchase.id) then raise check_violation using message='digital_access_on_hold';end if;$a$
+]);
+select private.t1_hold_patch_function('public.get_my_order_downloads(uuid)'::regprocedure, array[
+$a$  and not exists(select 1 from public.refunds r join public.payments p on p.id=r.payment_id where p.purpose='order' and p.ref_id=p_order and r.status in('requested','processing','done'));$a$,
+$a$  and not exists(select 1 from public.refunds r join public.payments p on p.id=r.payment_id where p.purpose='order' and p.ref_id=p_order and r.status in('requested','processing','done'))
+  and not private.order_fulfillment_held(p_order);$a$
+]);
+
+-- 수령 확인 코드: 아직 나가지 않은 배송 건(방문수령·배송없음 ready)의 수령 확인만 보류로 막는다. 이미 인계된 배송 건(퀵·직접·화물
+-- shipping)의 수령 확인은 배송완료 기록이라 막지 않는다 — 기록 쪽(admin_record_shipment_delivery의 *_receive)과 같다. 취소·클레임
+-- 진행 검사는 공통 검사가 보류보다 먼저 거절하므로 그대로다.
+select private.t1_hold_patch_function('public.issue_shipment_receipt_confirmation(uuid)'::regprocedure, array[
+$a$  perform private.assert_order_dispatch_allowed(purchase.id);$a$,
+$a$  begin
+    perform private.assert_order_dispatch_allowed(purchase.id);
+  exception when check_violation then
+    if sqlerrm is distinct from 'order fulfillment hold' or shipment.status <> 'shipping' then raise; end if;
+  end;$a$
+]);
+
 -- 10. 새 RPC·재정의한 함수의 운영자 계약(분류는 기존 행 그대로).
 select private.register_operator_rpc_contract('public.admin_order_fulfillment_holds(uuid[])'::regprocedure, 'sales.read', 'read', false);
 select private.register_operator_rpc_contract('public.admin_list_order_fulfillment_holds(integer)'::regprocedure, 'sales.read', 'read', false);
@@ -588,7 +618,10 @@ do $$declare fn regprocedure; contract record; begin
     'public.admin_list_goods_preorder_reservations(text,text,integer,integer)'::regprocedure,
     'public.admin_force_order_delivery_preview(text)'::regprocedure,
     'public.service_record_order_claim_shipment_reshipment(uuid,uuid,uuid,uuid,uuid,uuid,integer,jsonb,jsonb,text,text,text,text,jsonb,jsonb,boolean)'::regprocedure,
-    'private.record_order_claim_reshipment_physical(uuid,text,text,jsonb)'::regprocedure] loop
+    'private.record_order_claim_reshipment_physical(uuid,text,text,jsonb)'::regprocedure,
+    'private.digital_download_context(uuid,uuid,uuid,uuid)'::regprocedure,
+    'public.get_my_order_downloads(uuid)'::regprocedure,
+    'public.issue_shipment_receipt_confirmation(uuid)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

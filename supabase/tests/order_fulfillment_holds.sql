@@ -18,6 +18,8 @@ begin;
 --     재전송·그 뒤 우리 부분 취소에도 다시 걸리지 않는다
 --   · 주문이 취소되면 보류가 닫히고 판정도 비운다
 --   · 화면 읽기(주문별 보류·목록·발송 행 표시)와 운영 할 일 건수
+--   · 디지털 파일: 보류 중에는 첫 제공·재다운로드 모두 막고(신규주문 → 배송완료 전이 포함) 해제하면 제공한다
+--   · 수령 확인 코드: 이미 인계된 배송 건은 보류여도 발급한다(발송 전 배송 건이 남아 있어도)
 --   · 권한 봉인(선언적 확인)
 -- ============================================================================
 
@@ -422,5 +424,85 @@ select 1/case when pg_temp.reasons(6)='' and not private.order_fulfillment_held(
 select 1/case when private.order_fulfillment_hold_reasons(gen_random_uuid())='{}'::text[] and private.order_fulfillment_held(gen_random_uuid())=false
  and private.order_fulfillment_blocking(gen_random_uuid())=false
  then 1 else 0 end as assert_missing_order_not_held;
+
+-- ---------------------------------------------------------------------------
+-- 7. 디지털 파일 제공도 보류를 읽는다(내려받기 경로는 출고 공통 검사를 거치지 않는다)
+-- ---------------------------------------------------------------------------
+-- 15번: 디지털 품목만 있는 테스트 키 결제 주문. 첫 제공도(배송 건 ready·주문 paid) 재다운로드도 보류 중에는 열지 않는다.
+select pg_temp.hold_order(15);
+insert into auth.sessions(id,user_id,created_at,updated_at,not_after) values
+ ('a1d00000-0000-4008-8000-000000000001','a1d00000-0000-4000-8000-000000000001',now(),now(),now()+interval '1 hour'),
+ ('a1d00000-0000-4008-8000-000000000002','a1d00000-0000-4000-8000-000000000002',now(),now(),now()+interval '1 hour');
+insert into private.goods_digital_assets(id,actor_id,session_id,filename,mime_type,path,size_bytes,sha256,state,expires_at,verified_at)
+ values('a1d00000-0000-4009-8000-000000000001','a1d00000-0000-4000-8000-000000000001','a1d00000-0000-4008-8000-000000000001','TEST 보류 파일.txt','text/plain',
+  'a1d00000-0000-4000-8000-000000000001/a1d00000-0000-4009-8000-000000000001.txt',32,repeat('b',64),'verified',now()+interval '1 day',now());
+set local session_replication_role=replica;
+update public.order_items set fulfillment_terms_snapshot=jsonb_build_object('mode','digital','files',jsonb_build_array(jsonb_build_object('id','a1d00000-0000-4009-8000-000000000001')))
+ where order_id=pg_temp.hold_id('order',15);
+update public.order_shipments set delivery_method='digital',fulfillment_partition='digital',delivery_selection_id=gen_random_uuid(),
+ delivery_method_snapshot='{"version":"2","confirmationRule":"protected_download"}' where id=pg_temp.hold_id('shipment',15);
+set local session_replication_role=origin;
+set local role service_role;
+select public.service_record_goods_payment_key_mode(pg_temp.hold_id('attempt',15),'test');
+reset role;
+select pg_temp.approve(15);
+insert into private.payment_provider_evidence(payment_attempt_id,evidence_kind,approved_at) values(pg_temp.hold_id('attempt',15),'confirm',now());
+select id as dl_item from public.order_items where order_id=pg_temp.hold_id('order',15) \gset
+set local role service_role;
+select pg_temp.expect_error(format('select public.service_get_digital_download_info(%L,%L,%L,%L)','a1d00000-0000-4000-8000-000000000002',
+ 'a1d00000-0000-4008-8000-000000000002',:'dl_item','a1d00000-0000-4009-8000-000000000001'),'digital_access_on_hold');
+select pg_temp.expect_error(format('select public.service_record_digital_download(%L,%L,%L,%L,%L,%L)','a1d00000-0000-4000-8000-000000000002',
+ 'a1d00000-0000-4008-8000-000000000002',:'dl_item','a1d00000-0000-4009-8000-000000000001','a1d00000-0000-400a-8000-000000000001',repeat('b',64)),'digital_access_on_hold');
+reset role;
+select pg_temp.as_actor('a1d00000-0000-4000-8000-000000000002');
+set local role authenticated;
+select public.get_my_order_downloads(pg_temp.hold_id('order',15))#>>'{items,0,available}' as dl_available_held \gset
+reset role;
+-- 디지털 첫 제공처럼 신규주문에서 바로 배송완료로 넘어가는 전이도 막는다.
+select pg_temp.expect_error($$update public.orders set status='delivered' where id='a1d00000-0000-4001-8000-000000000015'$$,'order fulfillment hold');
+select 1/case when :'dl_available_held'='false' and private.order_fulfillment_blocking(pg_temp.hold_id('order',15))
+ and (select status='paid' from public.orders where id=pg_temp.hold_id('order',15))
+ and (select status='ready' from public.order_shipments where id=pg_temp.hold_id('shipment',15))
+ and not exists(select 1 from private.order_digital_downloads where order_id=pg_temp.hold_id('order',15))
+ then 1 else 0 end as assert_digital_held_not_provided;
+-- 운영자가 결제를 확인하고 해제하면 받을 수 있고, 첫 제공이 배송완료로 기록된다.
+select pg_temp.as_actor('a1d00000-0000-4000-8000-000000000001');
+set local role authenticated;
+select public.admin_release_order_fulfillment_hold(pg_temp.hold_id('order',15),'test_payment','TEST 결제 확인 후 파일 제공','a1d00000-0000-4000-8000-0000000000a5');
+reset role;
+set local role service_role;
+select public.service_record_digital_download('a1d00000-0000-4000-8000-000000000002','a1d00000-0000-4008-8000-000000000002',:'dl_item',
+ 'a1d00000-0000-4009-8000-000000000001','a1d00000-0000-400a-8000-000000000001',repeat('b',64));
+reset role;
+select 1/case when (select status='delivered' from public.order_shipments where id=pg_temp.hold_id('shipment',15))
+ and (select status='delivered' from public.orders where id=pg_temp.hold_id('order',15))
+ and (select count(*)=1 from private.order_digital_downloads where order_id=pg_temp.hold_id('order',15))
+ then 1 else 0 end as assert_digital_provided_after_release;
+
+-- 수령 확인 코드: 일부만 나간 보류 주문(16번: 퀵 배송 건은 인계 끝, 택배 배송 건은 발송 전)에서 인계된 배송 건의 수령 코드는 발급한다.
+select pg_temp.hold_order(16,'confirmed');
+insert into public.order_items(id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
+ values('a1d00000-0000-4005-8000-000000000161',pg_temp.hold_id('order',16),'hold-goods',1,0,'TEST 출고 보류 굿즈','문구','hold-ip',
+  (select id from public.goods_variants where good_id='hold-goods' and is_default));
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
+ values('a1d00000-0000-4004-8000-000000000161',pg_temp.hold_id('order',16),'a1d00000-0000-4000-8000-0000000000f2','TEST 출고 보류 창고 2',0,'{}');
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+ values(pg_temp.hold_id('order',16),'a1d00000-0000-4004-8000-000000000161','a1d00000-0000-4005-8000-000000000161',1);
+select pg_temp.approve(16);
+set local session_replication_role=replica;
+update public.order_shipments set delivery_method='quick',fulfillment_partition='quick',delivery_policy_id=gen_random_uuid(),delivery_selection_id=gen_random_uuid(),
+ delivery_method_snapshot='{"version":"2"}',status='shipping',shipped_at=now() where id='a1d00000-0000-4004-8000-000000000161';
+update public.orders set status='shipping' where id=pg_temp.hold_id('order',16);
+set local session_replication_role=origin;
+set local role service_role;
+select public.service_flag_goods_provider_cancellation(pg_temp.hold_id('attempt',16),'CANCELED',0,'webhook-case-0000000018') as partial_shipped_flag \gset
+reset role;
+select pg_temp.as_actor('a1d00000-0000-4000-8000-000000000002');
+set local role authenticated;
+select public.issue_shipment_receipt_confirmation('a1d00000-0000-4004-8000-000000000161')->>'code' as receipt_code \gset
+reset role;
+select 1/case when :'partial_shipped_flag'='held' and private.order_fulfillment_blocking(pg_temp.hold_id('order',16))
+ and :'receipt_code' ~ '^[0-9A-F]{12}$'
+ then 1 else 0 end as assert_receipt_code_for_handed_over_shipment;
 
 rollback;
