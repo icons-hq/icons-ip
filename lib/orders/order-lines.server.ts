@@ -48,12 +48,16 @@ function chunks<T>(values: readonly T[], size: number): T[][] {
 interface GoodRow { id: string; ip_id: string | null; image_path: string | null; bg: string | null; sale_restriction: string | null }
 interface IpRow { id: string; title: string | null }
 
+/**
+ * 본인 주문에 담긴 굿즈의 보강 값. goods 공개 읽기는 공개 상품만 열므로(20261118160000) 나중에 내려가거나
+ * 19금 인증이 만료된 상품도 본인 주문 줄이면 돌려주는 RPC로 읽는다. 19금 가림은 아래 buildOrderLines가 계속 한다.
+ */
 async function readGoods(supabase: SupabaseServerClient, goodIds: readonly string[]): Promise<{ goods: Map<string, OrderLineGoodInfo>; failed: boolean }> {
   const goods = new Map<string, OrderLineGoodInfo>();
   let failed = false;
   for (const ids of chunks(goodIds, ID_CHUNK)) {
     try {
-      const { data, error } = await supabase.from('goods').select('id,ip_id,image_path,bg,sale_restriction').in('id', ids);
+      const { data, error } = await supabase.rpc('my_order_line_goods', { p_good_ids: ids });
       if (error || !Array.isArray(data)) { failed = true; logEnrichmentFailure('goods', error); continue; }
       for (const row of data as GoodRow[]) {
         if (typeof row?.id !== 'string') continue;
@@ -177,7 +181,7 @@ async function readAdultAccess(): Promise<AdultGoodsAccess> {
 /**
  * 주문 품목 줄에 썸네일·IP명·정가를 보강한다(MD-0036). 굿즈·IP 행과 거래 영수증을 읽는 어떤 단계가 실패해도 그 단계의 값만
  * 비고 줄은 스냅샷 이름·수량·단가로 남는다 — 이 함수는 throw하지 않는다(보강은 장식이라 주문 목록·상세 전체를 막지 않는다).
- * 고객 세션 클라이언트로 읽으므로 `goods`·`ips`(공개 읽기)와 본인 주문 영수증만 보인다.
+ * 고객 세션 클라이언트로 읽으므로 본인 주문의 굿즈(`my_order_line_goods`)·`ips`(공개 읽기)와 본인 주문 영수증만 보인다.
  */
 export async function loadOrderLineViews(
   supabase: SupabaseServerClient,
