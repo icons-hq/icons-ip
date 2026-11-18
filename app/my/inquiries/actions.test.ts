@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   upload: vi.fn(),
   revalidatePath: vi.fn(),
+  threadCategory: 'account' as string | null,
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.authState }));
@@ -30,6 +31,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     rpc: mocks.rpc,
     storage: { from: () => ({ upload: mocks.upload }) },
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: mocks.threadCategory ? { category: mocks.threadCategory } : null, error: null }) }) }) }),
   }),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
@@ -62,6 +64,7 @@ beforeEach(() => {
   mocks.upload.mockReset();
   mocks.upload.mockResolvedValue({ error: null });
   mocks.revalidatePath.mockReset();
+  mocks.threadCategory = 'account';
 });
 
 describe('createInquiryAction', () => {
@@ -172,5 +175,68 @@ describe('replyToInquiryAction', () => {
     const state = await replyToInquiryAction({}, formData);
 
     expect(state.errors?.form).toContain('새 문의로 접수해주세요');
+  });
+});
+
+/* 정지 회원·온보딩 미완료 회원도 계정 문의(탈퇴 요청 등)는 쓴다(원장 CUS-035). 다른 유형은 지금처럼 막는다. */
+describe('정지·온보딩 미완료 회원의 계정 문의', () => {
+  function replyForm(extra?: (formData: FormData) => void) {
+    const formData = new FormData();
+    formData.set('inquiryId', INQUIRY_ID);
+    formData.set('body', '탈퇴 처리 부탁드립니다');
+    extra?.(formData);
+    return formData;
+  }
+
+  it('정지 회원은 계정 문의를 접수하고 새 스레드로 간다', async () => {
+    mocks.suspended = true;
+    await expect(createInquiryAction({}, createForm({ category: 'account', title: '회원 탈퇴 요청' }))).rejects.toThrow(
+      `NEXT_REDIRECT:/my/inquiries/${INQUIRY_ID}`,
+    );
+    expect(mocks.rpc).toHaveBeenCalledWith('create_inquiry', expect.objectContaining({ target_category: 'account', target_title: '회원 탈퇴 요청' }));
+  });
+
+  it('온보딩 미완료 회원은 계정 문의만 접수하고 다른 유형은 온보딩으로 보낸다', async () => {
+    mocks.onboarded = false;
+    const state = await createWidgetInquiryAction({}, createForm({ category: 'account' }));
+    expect(state.inquiryId).toBe(INQUIRY_ID);
+    await expect(createInquiryAction({}, createForm())).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding?next=%2Fmy%2Finquiries%2Fnew',
+    );
+  });
+
+  it('계정 문의라도 이미지 첨부와 주문 연결은 받지 않는다', async () => {
+    mocks.suspended = true;
+    const withImage = createForm({ category: 'account' });
+    withImage.append('images', new File([new Uint8Array(64)], 'a.png', { type: 'image/png' }));
+    expect((await createInquiryAction({}, withImage)).errors?.images).toContain('이미지를 첨부할 수 없습니다');
+    expect((await createInquiryAction({}, createForm({ category: 'account', orderId: ORDER_ID }))).errors?.form).toContain('주문·굿즈를 연결할 수 없습니다');
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('정지 회원은 자기 계정 문의에만 이어 쓰고 다른 문의는 정지 화면으로 간다', async () => {
+    mocks.suspended = true;
+    mocks.rpc.mockResolvedValue({ data: 'msg-1', error: null });
+    expect((await replyToInquiryAction({}, replyForm())).message).toContain('추가 문의를 등록했습니다');
+    expect(mocks.rpc).toHaveBeenCalledWith('append_inquiry_message', expect.objectContaining({ target_inquiry_id: INQUIRY_ID }));
+
+    mocks.rpc.mockClear();
+    mocks.threadCategory = 'order';
+    await expect(replyToInquiryAction({}, replyForm())).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('온보딩 미완료 회원의 이어 쓰기는 이미지 없이 계정 문의에만 받는다', async () => {
+    mocks.onboarded = false;
+    const state = await replyToInquiryAction({}, replyForm((formData) => {
+      formData.append('images', new File([new Uint8Array(64)], 'a.png', { type: 'image/png' }));
+    }));
+    expect(state.errors?.images).toContain('이미지를 첨부할 수 없습니다');
+    expect(mocks.upload).not.toHaveBeenCalled();
+    mocks.threadCategory = null;
+    await expect(replyToInquiryAction({}, replyForm())).rejects.toThrow(
+      `NEXT_REDIRECT:/onboarding?next=${encodeURIComponent(`/my/inquiries/${INQUIRY_ID}`)}`,
+    );
   });
 });

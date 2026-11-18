@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Inquiries } from '@/components/screens/Inquiries';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
+import { isRestrictedMemberInquiryCategory } from '@/lib/inquiries';
 import { loadMyInquiries } from '@/lib/inquiries.server';
 
 export const metadata: Metadata = {
@@ -15,9 +16,15 @@ export const metadata: Metadata = {
 export default async function Page() {
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent('/my/inquiries')}`);
-  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath('/my/inquiries'));
+  const onboarded = isOnboarded(auth.profile, auth.user.email);
 
   const inquiries = await loadMyInquiries(auth.user.id);
+  /* 온보딩 미완료 회원은 자기 계정 문의(탈퇴 요청 등)만 본다(원장 CUS-035). 계정 문의가 없으면 지금처럼 온보딩부터 마친다. */
+  if (!onboarded) {
+    const accountInquiries = inquiries.filter((inquiry) => isRestrictedMemberInquiryCategory(inquiry.category));
+    if (!accountInquiries.length) redirect(onboardingPath('/my/inquiries'));
+    return <Inquiries inquiries={accountInquiries} />;
+  }
 
   return <Inquiries inquiries={inquiries} />;
 }

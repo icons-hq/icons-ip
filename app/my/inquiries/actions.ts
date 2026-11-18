@@ -11,6 +11,7 @@ import {
 import { getCurrentAuthState } from '@/lib/auth/server';
 import {
   buildInquiryUploadPath,
+  isRestrictedMemberInquiryCategory,
   normalizeInquiryForm,
   normalizeInquiryReplyForm,
   type InquiryFormErrors,
@@ -20,7 +21,7 @@ import { createClient } from '@/lib/supabase/server';
 /* 1:1 문의 접수·추가 질문(#253).
  *
  * 문의는 보호 액션이다 — 열람은 공개 브라우징 원칙을 따르지 않는 개인 기록이라
- * 진입 자체에 로그인이 필요하다. 정지 계정은 접수도 추가 질문도 막는다.
+ * 진입 자체에 로그인이 필요하다. 정지 계정·온보딩 미완료 계정은 계정 문의(탈퇴 요청 등)만 접수·추가 질문할 수 있다.
  *
  * 상태 전이(사용자 메시지 → open)는 전부 RPC 안에 있다. 여기서는 첨부 업로드와
  * 오류 문구 변환만 한다. */
@@ -44,15 +45,26 @@ function loginPath(next: string) {
   return `/login?next=${encodeURIComponent(next)}`;
 }
 
-async function requireActiveUser(next: string) {
+/**
+ * 로그인·정지·온보딩 게이트. 정지 회원과 온보딩 미완료 회원은 계정 문의(탈퇴 요청 등)일 때만 통과하고(`accountInquiry`),
+ * 그때도 이미지 첨부는 받지 않는다(원장 CUS-035). 계정 문의가 아니면 지금처럼 정지 화면·온보딩으로 보낸다.
+ */
+async function requireInquiryAuthor(next: string, accountInquiry: () => boolean | Promise<boolean>) {
   const auth = await getCurrentAuthState();
 
   if (!auth.isConfigured || !auth.user) redirect(loginPath(next));
-  if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
+  const suspended = isAccountSuspended(auth.profile);
+  const onboarded = isOnboarded(auth.profile, auth.user.email);
+  if ((suspended || !onboarded) && !await accountInquiry()) {
+    if (suspended) redirect(ACCOUNT_SUSPENDED_PATH);
+    redirect(onboardingPath(next));
+  }
 
-  return auth.user;
+  return { user: auth.user, restricted: suspended || !onboarded };
 }
+
+const RESTRICTED_IMAGES = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의에 이미지를 첨부할 수 없습니다.';
+const RESTRICTED_LINK = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의만 보낼 수 있고 주문·굿즈를 연결할 수 없습니다.';
 
 /** RPC가 던진 도메인 오류를 사용자 문구로. 모르는 오류는 일반 실패로 접는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string): InquiryFormErrors {
@@ -109,10 +121,13 @@ async function uploadInquiryImages(
 }
 
 async function submitInquiry(formData: FormData): Promise<InquiryActionState> {
-  const user = await requireActiveUser('/my/inquiries/new');
+  const { user, restricted } = await requireInquiryAuthor('/my/inquiries/new',
+    () => isRestrictedMemberInquiryCategory(formData.get('category')));
 
   const normalized = normalizeInquiryForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
+  if (restricted && normalized.value.images.length) return { errors: { images: RESTRICTED_IMAGES } };
+  if (restricted && (normalized.value.orderId || normalized.value.goodId)) return { errors: { form: RESTRICTED_LINK } };
 
   let inquiryId: string;
   try {
@@ -153,11 +168,17 @@ export async function replyToInquiryAction(
 ): Promise<InquiryActionState> {
   const normalized = normalizeInquiryReplyForm(formData);
   const next = normalized.ok ? `/my/inquiries/${normalized.value.inquiryId}` : '/my/inquiries';
-  const user = await requireActiveUser(next);
+  const supabase = await createClient();
+  /* 정지·온보딩 미완료 회원은 자기 계정 문의에만 이어 쓴다. 유형은 본인 행만 보이는 RLS 읽기로 확인한다(DB도 정지 회원에게 같은 규칙). */
+  const { user, restricted } = await requireInquiryAuthor(next, async () => {
+    if (!normalized.ok) return false;
+    const { data } = await supabase.from('inquiries').select('category').eq('id', normalized.value.inquiryId).maybeSingle();
+    return isRestrictedMemberInquiryCategory(data?.category);
+  });
 
   if (!normalized.ok) return { errors: normalized.errors };
+  if (restricted && normalized.value.images.length) return { errors: { images: RESTRICTED_IMAGES } };
 
-  const supabase = await createClient();
   const uploaded = await uploadInquiryImages(supabase, user.id, normalized.value.images);
   if (!uploaded.ok) return { errors: { images: UPLOAD_FAILED } };
 

@@ -42,6 +42,17 @@ export function inquiryCategoryLabel(value: string): string {
   return isInquiryCategory(value) ? INQUIRY_CATEGORY_LABELS[value] : '기타';
 }
 
+/**
+ * 정지 회원·온보딩을 마치지 않은 회원도 쓸 수 있는 유일한 문의 유형 — 탈퇴 요청·정지 문의 같은 계정 문의(원장 CUS-035).
+ * 탈퇴를 요청하려고 정지를 풀거나 약관·생년월일·휴대폰 번호를 더 내게 하지 않는다. 접수·이어 쓰기·열람만 열고
+ * 이미지 첨부와 주문·굿즈 연결은 받지 않는다. DB(create_inquiry·append_inquiry_message)도 정지 회원에게 같은 규칙이다.
+ */
+export const RESTRICTED_MEMBER_INQUIRY_CATEGORY = 'account' satisfies InquiryCategory;
+
+export function isRestrictedMemberInquiryCategory(value: unknown): boolean {
+  return value === RESTRICTED_MEMBER_INQUIRY_CATEGORY;
+}
+
 export const INQUIRY_STATUSES = ['open', 'answered', 'closed'] as const;
 export type InquiryStatus = (typeof INQUIRY_STATUSES)[number];
 

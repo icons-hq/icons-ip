@@ -30,6 +30,11 @@ export const AUTH_CALLBACK_PATH = '/auth/callback';
 export const AUTH_RECOVERY_CALLBACK_PATH = '/auth/recovery/callback';
 export const ACCOUNT_SUSPENDED_PATH = '/account-suspended';
 export const ACCOUNT_DELETION_PATH = '/settings/delete-account';
+/**
+ * 탈퇴 요청을 받는 1:1 문의 작성 경로(유형 '계정', 원장 CUS-035). 정지·온보딩 미완료 회원도 로그인 뒤 이 경로로 돌아오고
+ * 계정 문의를 쓸 수 있다 — 탈퇴하려고 정지를 풀거나 개인정보를 더 내게 하지 않는다.
+ */
+export const ACCOUNT_INQUIRY_PATH = '/my/inquiries/new?category=account';
 export const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
 export const AUTH_RECOVERY_NEXT_COOKIE_NAME = 'icons_auth_recovery_next';
 export const AUTH_RECOVERY_PROOF_COOKIE_NAME = 'icons_auth_recovery_proof';
@@ -67,13 +72,18 @@ export function isOnboarded(profile: ProfileForOnboarding | null | undefined, au
   return birthDate <= todayUtc;
 }
 
+/** 정지·온보딩 게이트를 건너뛰는 탈퇴 경로(탈퇴 화면·계정 문의 작성). 로그인 뒤 이동과 정지 화면 분기가 같은 판정을 쓴다. */
+export function isAccountDeletionEntryPath(next: string): boolean {
+  return next === ACCOUNT_DELETION_PATH || next === ACCOUNT_INQUIRY_PATH;
+}
+
 export function postAuthenticationPath(
   profile: ProfileForOnboarding | null | undefined,
   authEmail: string | null | undefined,
   next: string,
 ): string {
   const safeNext = safeNextPath(next);
-  if (safeNext === ACCOUNT_DELETION_PATH) return safeNext;
+  if (isAccountDeletionEntryPath(safeNext)) return safeNext;
   return isOnboarded(profile, authEmail) ? safeNext : onboardingPath(safeNext);
 }
 

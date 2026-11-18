@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { after, NextResponse, type NextRequest } from 'next/server';
 import {
-  ACCOUNT_DELETION_PATH,
+  isAccountDeletionEntryPath,
   ACCOUNT_SUSPENDED_PATH,
   AUTH_CALLBACK_PATH,
   AUTH_NEXT_COOKIE_NAME,
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
   const profile = await getProfileForUser(supabase, data.user.id);
   return redirectTo(
     request,
-    isAccountSuspended(profile) && state.loginNext !== ACCOUNT_DELETION_PATH
+    isAccountSuspended(profile) && !isAccountDeletionEntryPath(state.loginNext)
       ? ACCOUNT_SUSPENDED_PATH
       : state.isKakaoLink
         ? kakaoLinkResultPath(kakaoLinked ? 'linked' : 'failed')

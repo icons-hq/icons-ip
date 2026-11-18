@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { InquiryThread } from '@/components/screens/InquiryThread';
-import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
+import { isAccountSuspended, isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
+import { isRestrictedMemberInquiryCategory } from '@/lib/inquiries';
 import { loadMyInquiryThread } from '@/lib/inquiries.server';
 import { loadMyInquirySatisfaction } from '@/lib/inquiry-satisfaction.server';
 
@@ -22,12 +23,15 @@ export default async function Page({ params }: PageProps<'/my/inquiries/[inquiry
   const next = `/my/inquiries/${inquiryId}`;
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(next)}`);
-  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
+  const onboarded = isOnboarded(auth.profile, auth.user.email);
 
   const [inquiry, satisfaction] = await Promise.all([
     loadMyInquiryThread(auth.user.id, inquiryId), loadMyInquirySatisfaction(inquiryId),
   ]);
+  /* 온보딩 미완료 회원은 자기 계정 문의(탈퇴 요청 등)만 본다(원장 CUS-035). 다른 문의는 지금처럼 온보딩부터 마친다. */
+  if (!onboarded && !isRestrictedMemberInquiryCategory(inquiry?.category)) redirect(onboardingPath(next));
   if (!inquiry) notFound();
 
-  return <InquiryThread inquiry={inquiry} satisfaction={satisfaction} />;
+  const restricted = !onboarded || isAccountSuspended(auth.profile);
+  return <InquiryThread inquiry={inquiry} restricted={restricted} satisfaction={satisfaction} />;
 }

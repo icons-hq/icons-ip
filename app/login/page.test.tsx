@@ -138,6 +138,14 @@ describe('/login page', () => {
       searchParams: Promise.resolve({ next: '/settings/delete-account' }),
     })).rejects.toThrow('NEXT_REDIRECT:/settings/delete-account');
     expect(mocks.loginProps).toBeNull();
+
+    /* 탈퇴 요청은 계정 문의로 받는다(원장 CUS-035) — 정지 회원도 그 작성 경로로 돌아간다. 다른 문의는 정지 화면이다. */
+    await expect(Page({
+      searchParams: Promise.resolve({ next: '/my/inquiries/new?category=account' }),
+    })).rejects.toThrow('NEXT_REDIRECT:/my/inquiries/new?category=account');
+    await expect(Page({
+      searchParams: Promise.resolve({ next: '/my/inquiries/new?category=order' }),
+    })).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
   });
 
   it('renders the sign-in form for an explicit deletion reauthentication request', async () => {
