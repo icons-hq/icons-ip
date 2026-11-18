@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- 상품 기본 칸 동시 수정 보호(CAT-027·CAT-028, 20261118151000). 합성 데이터만 쓰고 끝에서 되돌린다.
+-- 상품 기본 칸 동시 수정 보호(CAT-027·CAT-028, 20261118155000). 합성 데이터만 쓰고 끝에서 되돌린다.
 begin;
 create function pg_temp.base_assert(p_ok boolean, p_message text) returns void language plpgsql as $$
 begin if p_ok is distinct from true then raise exception '%', p_message; end if; end $$;
