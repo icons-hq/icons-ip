@@ -36,7 +36,8 @@ def shipment(n):
 
 
 def tracking(n):
-    return f'DC{n:08d}'
+    # 한진 운송장 형식(숫자 10~12자리)을 지키는 합성 번호.
+    return f'7{n:011d}'
 
 
 SERVICE_RUN = 'set local role service_role;select public.service_complete_tracked_deliveries(50);reset role;'
@@ -126,7 +127,7 @@ select ('f13c0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid,('f13c0000-0000-
 set local role authenticated;
 select set_config('request.jwt.claim.sub','{operator}',true);
 select public.admin_import_shipment_tracking_batch((select jsonb_agg(jsonb_build_object('line',n,'reference',('f13c0000-0000-4002-8000-'||lpad(n::text,12,'0')),
- 'carrier','hanjin','trackingNumber','DC'||lpad(n::text,8,'0'))) from generate_series(1,{PAIRS * 2}) n));
+ 'carrier','hanjin','trackingNumber','7'||lpad(n::text,11,'0'))) from generate_series(1,{PAIRS * 2}) n));
 reset role;
 -- 짝마다 id가 큰 배송 건을 먼저 발송한 것으로 둔다: 자동 처리 후보 순서(발송 순)가 운영자 잠금 순서(id 순)와 반대다.
 update public.order_shipments set shipped_at=now()-interval '2 days'+case when (right(id::text,12)::integer)%2=1 then interval '1 hour' else interval '0' end

@@ -171,7 +171,7 @@ done
 psql_exec_physical -q <<SQL >"$work_dir/reship-holder.log" 2>&1 &
 set application_name='${test_prefix}-reship-holder'; begin; set local lock_timeout='5s';
 set local role authenticated; select set_config('request.jwt.claim.sub','${staff}',true);
-select pg_temp.option_recovery_reship('${first_claim}','hanjin','RACE440001','[{"orderItemId":"${first_item}","variantId":"${red}"}]');
+select pg_temp.option_recovery_reship('${first_claim}','hanjin','440000000001','[{"orderItemId":"${first_item}","variantId":"${red}"}]');
 select pg_sleep(1.5); commit;
 SQL
 holder=$!
@@ -179,14 +179,14 @@ wait_for_state "${test_prefix}-reship-holder" Timeout "$holder" "$work_dir/reshi
 psql_exec_physical -q <<SQL >"$work_dir/reship-replay.log" 2>&1 &
 set application_name='${test_prefix}-reship-replay'; begin; set local lock_timeout='5s';
 set local role authenticated; select set_config('request.jwt.claim.sub','${staff}',true);
-select pg_temp.option_recovery_reship('${first_claim}','hanjin','RACE440001','[{"orderItemId":"${first_item}","variantId":"${red}"}]'); commit;
+select pg_temp.option_recovery_reship('${first_claim}','hanjin','440000000001','[{"orderItemId":"${first_item}","variantId":"${red}"}]'); commit;
 SQL
 replay=$!
 wait_for_state "${test_prefix}-reship-replay" Lock "$replay" "$work_dir/reship-replay.log"
 psql_exec_physical -q <<SQL >"$work_dir/reship-competing.log" 2>&1 &
 set application_name='${test_prefix}-reship-competing'; begin; set local lock_timeout='5s';
 set local role authenticated; select set_config('request.jwt.claim.sub','${staff}',true);
-select pg_temp.option_recovery_reship('${second_claim}','hanjin','RACE440002','[{"orderItemId":"${second_item}","variantId":"${red}"}]'); commit;
+select pg_temp.option_recovery_reship('${second_claim}','hanjin','440000000002','[{"orderItemId":"${second_item}","variantId":"${red}"}]'); commit;
 SQL
 competing=$!
 wait_for_state "${test_prefix}-reship-competing" Lock "$competing" "$work_dir/reship-competing.log"

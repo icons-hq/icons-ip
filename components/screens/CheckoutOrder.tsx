@@ -405,7 +405,7 @@ export function CheckoutOrder({
           <div className="checkout-items">
             {order.items.map((item) => (
               <div className="checkout-item" key={item.id}>
-                <div><span>{item.type}</span><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /></div>
+                <div>{item.type ? <span>{item.type}</span> : null}<strong>{item.name}</strong>{item.variantName ? <span>{item.variantName}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /></div>
                 <span className="mono">{item.qty} × {krw(item.unitPrice)}</span>
               </div>
             ))}

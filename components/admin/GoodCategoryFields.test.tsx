@@ -33,10 +33,11 @@ describe('상품 등록 대표 카테고리', () => {
     expect(html).not.toContain('role="listbox"');
   });
 
-  /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이라, 연결된 카테고리여야 공개할 수 있다고 안내한다. */
-  it('카테고리 안내는 상품 유형이 이 카테고리에서 정해진다고 말한다', () => {
+  /* ADR-0044: 상품 유형은 없다. 대표 카테고리가 있어야 공개할 수 있다고 안내한다. */
+  it('카테고리 안내는 대표 카테고리가 있어야 공개할 수 있다고 말하고 상품 유형을 말하지 않는다', () => {
     const html = renderToStaticMarkup(field);
-    expect(html).toContain('상품 유형은 이 카테고리(없으면 가까운 상위)에 연결한 값으로 정해지고, 상품 유형이 연결된 카테고리여야 공개할 수 있습니다.');
+    expect(html).toContain('마지막 단계 카테고리를 하나 고릅니다. 대표 카테고리가 있어야 공개할 수 있습니다.');
+    expect(html).not.toContain('상품 유형');
     expect(html).not.toContain('비워도 판매할 수 있습니다');
   });
 

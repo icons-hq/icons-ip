@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { ListChecks, Search } from 'lucide-react';
 import { findGoodNoticePresets, loadLastSavedGoodNotice } from '@/app/admin/good-notice-actions';
 import type { GoodsNoticePresetPageData, GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
@@ -8,33 +8,42 @@ import { ConsolePagination } from '@/components/admin/console/ConsolePagination'
 import { Button } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 import { adminConfirm } from '@/lib/admin/confirm';
+import { SUGGEST_LOOKUP_FAILED, suggestNoticePresetByNames } from '@/lib/admin/good-notice-suggestion';
 
 type Preset = GoodsNoticePresetPageData['presets'][number];
+const NO_NAMES: readonly string[] = [];
 
 /*
  * 상품 폼 안에 놓이므로 버튼은 모두 type="button"이다(kit Button 기본값). 검색칸은 이름이 없어 제출되지 않는다.
- * 템플릿 목록은 열면 바로 보이고, 상품 유형에 맞는 템플릿은 제안만 한다 — 고시는 법정 표시라 사람이 누를 때만 적용한다.
+ * 템플릿 목록은 열면 바로 보이고, 대표 카테고리 이름에 맞는 템플릿은 제안만 한다 — 고시는 법정 표시라 사람이 누를 때만 적용한다.
  */
-export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true, suggestType='' }: {
+export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true, suggestNames=NO_NAMES }: {
   onApply: (notice: GoodsNoticeInfo, kcTemplate?:GoodsKcPresetTemplate|null) => void;readOnly?:boolean;copyKcTemplate?:boolean;
-  /** 고른 상품 유형. 비어 있으면 제안하지 않는다. */
-  suggestType?: string;
+  /** 대표 카테고리 이름(말단 → 위로). 앞에서부터 템플릿이 있는 첫 이름으로 제안한다. 비어 있으면 제안하지 않는다. */
+  suggestNames?: readonly string[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState<GoodsNoticePresetPageData | null>(null);
   const [message, setMessage] = useState('');
   const [pending, start] = useTransition();
-  const [suggestion, setSuggestion] = useState<{ type: string; preset: Preset } | null>(null);
+  const [suggestion, setSuggestion] = useState<{ key: string; type: string; preset: Preset } | null>(null);
   const [dismissed, setDismissed] = useState('');
+  /* 이름별 조회 결과 캐시(null = 템플릿 없음). 같은 이름을 다시 부르지 않는다. */
+  const presetByName = useRef(new Map<string, Preset | null>());
+  const suggestKey = suggestNames.join('\u0000');
   useEffect(() => {
-    if (!suggestType || readOnly || dismissed === suggestType) return;
+    if (!suggestKey || readOnly || dismissed === suggestKey) return;
     let alive = true;
-    findGoodNoticePresets(suggestType, 1).then((result) => {
-      if (alive) setSuggestion('error' in result || !result.presets[0] ? null : { type: suggestType, preset: result.presets[0] });
+    const names = suggestKey.split('\u0000');
+    suggestNoticePresetByNames(names, async (name) => {
+      const result = await findGoodNoticePresets(name, 1);
+      return 'error' in result ? SUGGEST_LOOKUP_FAILED : result.presets[0] ?? null;
+    }, presetByName.current, () => !alive).then((found) => {
+      if (alive) setSuggestion(found ? { key: suggestKey, type: found.name, preset: found.preset } : null);
     }).catch(() => { if (alive) setSuggestion(null); });
     return () => { alive = false; };
-  }, [suggestType, readOnly, dismissed]);
+  }, [suggestKey, readOnly, dismissed]);
   function search(number = 1) { start(async () => {
     const result = await findGoodNoticePresets(query, number);
     if ('error' in result) { setMessage(result.error); return; }
@@ -42,14 +51,14 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
   }); }
   function apply(preset: Preset) {
     onApply(preset.notice,copyKcTemplate?preset.kcTemplate:undefined);
-    setDismissed(suggestion?.type ?? ''); setSuggestion(null);
+    setDismissed(suggestion?.key ?? ''); setSuggestion(null);
     /* TKT-006: 등록 화면과 저장된 상품 모두 KC 틀을 같은 화면 KC 정보의 새 미검토 모델로 채운다(공개 판정은 그대로). */
     setMessage(`${preset.name} 템플릿의 7개 항목을 복사했습니다.${copyKcTemplate&&preset.kcTemplate?' KC 유형 틀을 KC 정보의 새 미검토 모델로 불러옵니다. 옵션·번호·사업자는 이 상품에 맞게 확인해 입력해주세요.':''}`);
   }
-  const shown = suggestion && suggestion.type === suggestType && !readOnly ? suggestion : null;
+  const shown = suggestion && suggestion.key === suggestKey && !readOnly ? suggestion : null;
   return <div className="flex min-w-0 flex-col gap-3" data-good-notice-picker="">
     {shown ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-soft-foreground" data-good-notice-suggestion="">
-      <span className="min-w-0">카테고리 상품 유형 ‘{shown.type}’에 맞는 템플릿이 있습니다.</span>
+      <span className="min-w-0">카테고리 ‘{shown.type}’에 맞는 템플릿이 있습니다.</span>
       <Button type="button" variant="outline" size="sm" onClick={() => apply(shown.preset)}>{shown.preset.name} 적용</Button>
     </div> : null}
     <div className="flex min-w-0 flex-wrap items-center gap-2">

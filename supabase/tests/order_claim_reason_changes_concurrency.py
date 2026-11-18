@@ -101,7 +101,7 @@ def stock_decision(claim):
 
 def reship(claim):
     items = sql(f"select jsonb_agg(jsonb_build_object('orderItemId',id,'variantId',variant_id)) from public.order_items where order_id='{uid('order',claim)}';")
-    return PHYSICAL_RESHIPMENT_SHIM + actor() + f"select pg_temp.record_order_claim_reshipment_physical('{uid('claim',claim)}','hanjin','REASON{claim:08d}','{items}'::jsonb);"
+    return PHYSICAL_RESHIPMENT_SHIM + actor() + f"select pg_temp.record_order_claim_reshipment_physical('{uid('claim',claim)}','hanjin','5100{claim:08d}','{items}'::jsonb);"
 
 
 def finance_start(claim, refund=False):

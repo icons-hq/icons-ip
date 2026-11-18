@@ -2,7 +2,7 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState, useState } from 'react';
 import { Check } from 'lucide-react';
-import { saveStoreSettingsAction,saveShippingCarrierAction,saveInquiryAutoRepliesAction,type StoreSettingsActionState } from '@/app/admin/store-settings-actions';
+import { saveStoreSettingsAction,saveShippingCarrierAction,saveShippingCarrierFormatAction,saveInquiryAutoRepliesAction,type StoreSettingsActionState } from '@/app/admin/store-settings-actions';
 import { AdminField,AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -88,6 +88,33 @@ export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSetting
     {canEdit?<Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'문의 자동 안내 저장'}</Button>:null}
   </form>;
 }
+/**
+ * 택배사 운송장 형식(SHP-032). 등록된 택배사에만 있다. 형식과 안내 문구를 함께 고치거나 함께 비우고, 형식을 둘 때는 실제 운송장번호
+ * 하나로 맞는지 확인한다. 저장한 형식은 다음 등록부터 모든 등록 경로의 판정·안내에 쓰인다.
+ */
+export function ShippingCarrierFormatForm({carrier,canEdit}:{carrier:EditableCarrier;canEdit:boolean}) {
+  const [state,action,pending]=useActionState(saveShippingCarrierFormatAction,{});
+  const {formRef}=useAdminLeaveGuard({serverState:state});
+  const id=(key:string)=>`carrier-${carrier.code}-format-${key}`;
+  const fields:[string,string,string,string,number][]=[
+    ['trackingNumberPattern','운송장 형식(정규식)',carrier.trackingNumberPattern??'','^로 시작해 $로 끝납니다. 예: 숫자 10~14자리는 ^[0-9]{10,14}$',200],
+    ['trackingNumberRule','형식 안내 문구',carrier.trackingNumberRule??'','등록이 거절될 때 운영자에게 보이는 문구입니다. 예: 숫자 10~14자리',60],
+    ['trackingNumberSample','확인용 운송장번호','','실제 운송장번호 하나를 넣어 새 형식에 맞는지 확인합니다. 저장되지 않습니다.',40],
+  ];
+  return <form action={action} className="flex min-w-0 flex-col gap-4 border-t pt-4" ref={formRef} data-carrier-format="">
+    <input type="hidden" name="code" value={carrier.code}/>
+    <input type="hidden" name="updatedAt" value={latestStamp(carrier.updatedAt,state.updatedAt)}/>
+    <p className="text-sm font-medium text-foreground">운송장 형식</p>
+    <p className={NOTE}>모든 운송장 등록(발송처리·운송장 수정·창고 회신·추가 운송장·교환 재출고)이 이 형식에 맞아야 합니다. 둘 다 비우면 공통 형식(8~30자 영숫자)만 봅니다.</p>
+    <AdminFormGrid>{fields.map(([key,label,initial,hint,max])=><div className="min-w-0" key={key}><AdminField label={label} inputId={id(key)} error={state.errors?.[key]} hint={hint}>
+      <Input className={readOnlyLook(canEdit)} id={id(key)} name={key} defaultValue={state.values?.[key]??initial} maxLength={max} readOnly={!canEdit} autoComplete="off" spellCheck={false}
+        aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`${id(key)}-error`:`${id(key)}-hint`}/>
+    </AdminField></div>)}</AdminFormGrid>
+    <Feedback state={state}/>
+    {canEdit?<Button className="w-fit" disabled={pending} type="submit" variant="outline"><Check aria-hidden="true"/>{pending?'저장 중…':'운송장 형식 저장'}</Button>:null}
+  </form>;
+}
+
 export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;canEdit:boolean}) {
   const [state,action,pending]=useActionState(saveShippingCarrierAction,{});
   const {formRef}=useAdminLeaveGuard({serverState:state});

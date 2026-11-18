@@ -354,6 +354,18 @@ describe('발송 대기 행 운송장·배송 방법 액션 (S36-072·S36-X04)',
     expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toMatchObject({ ok: false });
   });
 
+  /* SHP-030: 다른 주문의 번호로 거절된 행은 사유 코드를 함께 돌려줘 화면이 '중복 확인 후 등록'을 연다. 택배사 형식은 DB 전에 본다. */
+  it('다른 주문의 번호로 거절된 행은 사유 코드를 싣고, 택배사 형식이 틀리면 DB를 부르지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: [{ line: 1, reference: ID, ok: false, error: 'tracking_number_in_use' }], error: null });
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }]))
+      .toMatchObject({ ok: true, failed: [{ shipmentId: ID, code: 'tracking_number_in_use', reason: expect.stringContaining('중복 확인 후 등록') }] });
+    mocks.rpc.mockClear();
+    mocks.carriers.mockResolvedValue([{ ...carriers[0], trackingNumberPattern: '^[0-9]{10,14}$', trackingNumberRule: '숫자 10~14자리' }]);
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012345' }]))
+      .toEqual({ ok: false, error: expect.stringContaining('한진택배 운송장번호는 숫자 10~14자리') });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it('배송 방법 팝업 정보는 1~100건만 읽고 응답 형식이 어긋나면 열지 않는다', async () => {
     expect(await readDispatchDeliveryOptionsAction([])).toMatchObject({ ok: false });
     expect(await readDispatchDeliveryOptionsAction(Array.from({ length: 101 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`))).toMatchObject({ ok: false });

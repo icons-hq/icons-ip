@@ -176,7 +176,7 @@ export function CollectionBrowser({
   overlayContainer,
   pager,
   paging,
-  query,
+  query: requestedQuery,
   result,
   sheetDescription = '원하는 IP와 가격을 골라보세요.',
   showIpFacet = true,
@@ -184,6 +184,8 @@ export function CollectionBrowser({
   wishlist,
 }: CollectionBrowserProps) {
   const router = useRouter();
+  /* 스코프에 예약판매가 없어 타입 그룹이 숨겨지면 옛 링크의 type 값은 필터로 세지도 링크에 싣지도 않는다 — 해제할 길 없는 '필터 1개'가 되지 않게. */
+  const query = result.typeFacets.length > 0 || requestedQuery.types.length === 0 ? requestedQuery : { ...requestedQuery, types: [] };
   const { listing } = useStorePresentation();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -193,7 +195,7 @@ export function CollectionBrowser({
   const [shown, setShown] = useState({ key: queryKey, count: SHOP_PAGE_SIZE });
   const [price, setPrice] = useState({ key: queryKey, min: query.priceMin, max: query.priceMax });
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetTab, setSheetTab] = useState<SheetTabId>(showIpFacet ? 'ips' : 'types');
+  const [sheetTab, setSheetTab] = useState<SheetTabId>(showIpFacet ? 'ips' : result.typeFacets.length > 0 ? 'types' : 'price');
   const [draft, setDraft] = useState<ShopFilterDraft>(() => shopFilterDraftFromQuery(query));
 
   const closeSheet = () => setSheetOpen(false);
@@ -225,7 +227,7 @@ export function CollectionBrowser({
     || query.priceMax !== null;
   const filterCount = (query.categories?.length ?? 0) + (showIpFacet ? query.ips.length : 0) + query.types.length
     + Number(query.priceMin !== null || query.priceMax !== null);
-  const sheetTabs = SHEET_TABS.filter((tab) => (tab.id !== 'categories' || result.categoryFacets?.length) && (tab.id !== 'ips' || showIpFacet));
+  const sheetTabs = SHEET_TABS.filter((tab) => (tab.id !== 'categories' || result.categoryFacets?.length) && (tab.id !== 'ips' || showIpFacet) && (tab.id !== 'types' || result.typeFacets.length > 0));
   const hasMore = paging ? paging.hasMore ?? result.goods.length < result.filteredTotal : !pager && visibleCount < result.filteredTotal;
 
   return (
@@ -248,7 +250,7 @@ export function CollectionBrowser({
               />
             </details>
           ) : null}
-          <details className="wc-filter-group" open>
+          {result.typeFacets.length > 0 && <details className="wc-filter-group" open>
             <summary className="wc-filter-group__summary">{`타입 (${query.types.length})`}</summary>
             <FilterCheckList
               name="wc-shop-type"
@@ -256,7 +258,7 @@ export function CollectionBrowser({
               options={result.typeFacets}
               selected={query.types}
             />
-          </details>
+          </details>}
           <details className="wc-filter-group" open>
             <summary className="wc-filter-group__summary">가격</summary>
             {/* 슬라이더는 드래그 한 눈금마다 라우팅하면 서버 왕복이 폭주한다. 눈금은 로컬에
@@ -316,7 +318,7 @@ export function CollectionBrowser({
               data-active={hasFilters || undefined}
               onClick={() => {
                 setDraft(shopFilterDraftFromQuery(query));
-                setSheetTab(showIpFacet ? 'ips' : 'types');
+                setSheetTab(showIpFacet ? 'ips' : result.typeFacets.length > 0 ? 'types' : 'price');
                 setSheetOpen(true);
               }}
               type="button"

@@ -134,13 +134,13 @@ describe('parseShopSearchParams', () => {
     expect(parseShopSearchParams({ ip: 'ip2' }, { view: 'all', validIpIds }).ips).toEqual(['ip2']);
   });
 
-  it('상품 타입은 표준 분류 값만 남긴다', () => {
+  it('옛 상품 유형 값(?type=키링)은 조용히 무시한다', () => {
     const parsed = parseShopSearchParams(
       { type: ['키링', '잡화', '인형'] },
       { view: 'all', validIpIds },
     );
 
-    expect(parsed.types).toEqual(['키링', '인형']);
+    expect(parsed.types).toEqual([]);
   });
 
   it('가격은 0 이상 정수만 받고 음수·비정수·빈 값은 null 이다', () => {
@@ -190,7 +190,7 @@ describe('parseShopSearchParams', () => {
 
   it('예약판매는 타입 축의 값으로 받는다', () => {
     expect(parseShopSearchParams({ type: [SHOP_PREORDER_TYPE, '키링', 'PRE-ORDER'] }, { view: 'all', validIpIds }).types)
-      .toEqual([SHOP_PREORDER_TYPE, '키링']);
+      .toEqual([SHOP_PREORDER_TYPE]);
   });
 
   it('알려진 정렬 값은 그대로 쓰고 뷰를 함께 실어 보낸다', () => {
@@ -221,10 +221,10 @@ describe('selectShopGoods 필터', () => {
     expect(result.filteredTotal).toBe(4);
   });
 
-  it('IP·타입·가격 필터를 함께 적용한다', () => {
+  it('IP·가격 필터를 적용하고 옛 유형 값은 걸러내지 않는다', () => {
     expect(ids(selectShopGoods(catalog, query({ ips: ['ip1'] })))).toEqual(['a', 'b']);
-    expect(ids(selectShopGoods(catalog, query({ types: ['키링'] })))).toEqual(['b', 'c']);
-    expect(ids(selectShopGoods(catalog, query({ ips: ['ip1', 'ip2'], types: ['키링'] })))).toEqual(['b', 'c']);
+    expect(ids(selectShopGoods(catalog, query({ types: ['키링'] })))).toEqual(['a', 'b', 'c', 'd']);
+    expect(ids(selectShopGoods(catalog, query({ ips: ['ip1', 'ip2'], types: ['키링'] })))).toEqual(['a', 'b', 'c', 'd']);
   });
 
   it('가격 필터는 경계값을 포함하는 폐구간이다', () => {
@@ -381,9 +381,14 @@ describe('예약판매 타입 값 (11 §3 Δ6 · CL-11)', () => {
     expect(selectShopGoods(catalog, query()).typeFacets.map((facet) => facet.value)).not.toContain(SHOP_PREORDER_TYPE);
   });
 
-  it('타입 그룹 안에서 예약판매와 분류 값은 OR 로 고른다', () => {
+  it('예약판매를 고르면 예약판매 굿즈만 남는다', () => {
     expect(ids(selectShopGoods(scoped, query({ types: [SHOP_PREORDER_TYPE] })))).toEqual(['p1']);
-    expect(ids(selectShopGoods(scoped, query({ types: [SHOP_PREORDER_TYPE, '인형'] })))).toEqual(['d', 'p1']);
+  });
+
+  it('스코프에 예약판매 굿즈가 없으면 예약판매 값은 무시한다 — 해제할 길 없는 빈 목록 금지', () => {
+    const result = selectShopGoods(catalog, query({ types: [SHOP_PREORDER_TYPE] }));
+    expect(result.typeFacets).toEqual([]);
+    expect(result.filteredTotal).toBe(goods.length);
   });
 });
 
@@ -424,12 +429,8 @@ describe('selectShopGoods facet', () => {
     ]);
   });
 
-  it('타입 facet 은 표준 분류 순서를 따르고 0건 타입은 뺀다', () => {
-    expect(selectShopGoods(catalog, query()).typeFacets).toEqual([
-      { value: '피규어', label: '피규어', count: 1 },
-      { value: '인형', label: '인형', count: 1 },
-      { value: '키링', label: '키링', count: 2 },
-    ]);
+  it('타입 facet 은 상품 유형 값(피규어·키링 등)을 더 이상 담지 않는다', () => {
+    expect(selectShopGoods(catalog, query()).typeFacets).toEqual([]);
   });
 
   it('facet 과 가격 상한은 필터가 아니라 뷰 스코프에서 나온다', () => {
@@ -471,9 +472,9 @@ describe('고객 계층 카테고리', () => {
     expect(result.goods.map((item) => item.id)).toEqual(['g1']);
     expect(result.categoryFacets?.map((facet) => facet.count)).toEqual([1, 1, 1, 1]);
   });
-  it('활성 공개 분류만 URL에서 받고 기존 유형 필터와 결합한다', () => {
+  it('활성 공개 분류만 URL에서 받고 옛 유형 값은 무시한다', () => {
     expect(parse({ category: 'archived' }).categories).toEqual([]);
-    expect(selectShopGoods(catalog, parse({ category: 'root', type: '문구' })).goods).toHaveLength(0);
+    expect(selectShopGoods(catalog, parse({ category: 'root', type: '문구' })).goods).toHaveLength(1);
     expect(selectShopGoods({ ...catalog, categories: [] }, parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1']) })).goods).toHaveLength(2);
   });
 
