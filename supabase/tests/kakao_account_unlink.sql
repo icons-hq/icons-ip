@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- 카카오 계정 상태 변경 웹훅(user-unlinked) — 봉인·형식 거절·다른 수단 회원의 연결 끊기(공급자 목록·카카오 메타 정리)·
 -- 대표 공급자 교체·재전송 멱등·카카오만 회원의 탈퇴 검토 대기·비밀번호 없는 이메일 identity·알림 뒤 재로그인(relinked·대기
--- 목록 제외)·같은 초 로그인 여유·모르는 회원번호·미래 시각 보정·회원 삭제 시 원장 정리.
+-- 목록 제외)·같은 초 로그인 여유·탈퇴 처리 회원 제외·모르는 회원번호·미래 시각 보정·회원 삭제 시 원장 정리.
 begin;
 create function pg_temp.unlink_error(q text, wanted text) returns void language plpgsql as $$begin
  begin execute q; exception when others then if position(wanted in sqlerrm)>0 then return; end if; raise; end;
@@ -146,6 +146,13 @@ update auth.identities set last_sign_in_at=clock_timestamp()+interval '1 minute'
  where user_id=pg_temp.uid(8) and provider='kakao';
 select 1/case when not exists (select 1 from private.kakao_unlink_withdrawal_queue where user_id=pg_temp.uid(8))
  then 1 else 0 end as clamped_event_lets_relogin_leave_queue;
+
+-- 어드민에서 탈퇴를 처리한 회원은 대기 목록에서 빠진다(문의로 받은 탈퇴 처리, 20261118165000).
+select 1/case when exists (select 1 from private.kakao_unlink_withdrawal_queue where user_id=pg_temp.uid(7))
+ then 1 else 0 end as queued_before_withdrawal;
+insert into private.member_withdrawal_processings(user_id, inquiry_reference) values (pg_temp.uid(7), 1);
+select 1/case when not exists (select 1 from private.kakao_unlink_withdrawal_queue where user_id=pg_temp.uid(7))
+ then 1 else 0 end as processed_withdrawal_leaves_queue;
 
 -- 모르는 회원번호는 기록만 한다.
 select pg_temp.keep('unknown', public.service_record_kakao_unlink('set-9', '9999999999', 'INCOMPLETE_SIGN_UP', now()));

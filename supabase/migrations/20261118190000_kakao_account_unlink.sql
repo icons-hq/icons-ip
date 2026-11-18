@@ -37,7 +37,8 @@ revoke all on private.kakao_unlink_events from public, anon, authenticated, serv
 comment on table private.kakao_unlink_events is
   '카카오 연결 해제(계정 상태 변경 웹훅 user-unlinked) 수신 원장. 이벤트(jti)당 한 행. 서명 검증을 통과한 알림만 service_record_kakao_unlink로 쓴다. 카카오 회원번호는 남기지 않고, 회원 삭제 시 함께 지워진다.';
 
--- 카카오로만 가입한 회원의 탈퇴 검토 대기 목록. 회원마다 마지막 연결 해제만 보고, 그 뒤 카카오로 다시 로그인했으면 뺀다.
+-- 카카오로만 가입한 회원의 탈퇴 검토 대기 목록. 회원마다 마지막 연결 해제만 보고, 그 뒤 카카오로 다시 로그인했거나
+-- 이미 어드민에서 탈퇴를 처리한 회원(private.member_withdrawal_processings, 20261118165000)은 뺀다.
 create view private.kakao_unlink_withdrawal_queue as
 select latest.user_id, latest.reason, latest.event_at, latest.received_at
 from (
@@ -51,11 +52,12 @@ where latest.outcome = 'withdrawal_review'
     select 1 from auth.identities i
     where i.user_id = latest.user_id and i.provider = 'kakao'
       and greatest(coalesce(i.last_sign_in_at, i.created_at), i.created_at, i.updated_at) > latest.event_at + interval '5 seconds'
-  );
+  )
+  and not exists (select 1 from private.member_withdrawal_processings w where w.user_id = latest.user_id);
 alter view private.kakao_unlink_withdrawal_queue owner to postgres;
 revoke all on private.kakao_unlink_withdrawal_queue from public, anon, authenticated, service_role;
 comment on view private.kakao_unlink_withdrawal_queue is
-  '카카오로만 가입한 회원이 카카오 쪽에서 연결을 끊어 탈퇴 검토를 기다리는 목록(runbook kakao-account-unlink.md). 알림 뒤 다시 로그인한 회원은 빠진다.';
+  '카카오로만 가입한 회원이 카카오 쪽에서 연결을 끊어 탈퇴 검토를 기다리는 목록(runbook kakao-account-unlink.md). 알림 뒤 다시 로그인했거나 이미 탈퇴를 처리한 회원은 빠진다.';
 
 create function public.service_record_kakao_unlink(
   p_event_id text,
