@@ -8,6 +8,7 @@ import { CollectibleFeaturesProvider } from './CollectibleFeatures';
 import { SiteFooter } from './SiteFooter';
 
 const mocks = vi.hoisted(() => ({
+  adminConsoleVisible: false,
   demoVisible: false,
   communityPreviewVisible: false,
   pathname: '/shop',
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 vi.mock('./StaffPreviewAvailability', () => ({
+  useAdminConsoleVisible: () => mocks.adminConsoleVisible,
   useSecondaryMarketDemoVisible: () => mocks.demoVisible,
   useCommunityStaffPreviewVisible: () => mocks.communityPreviewVisible,
 }));
@@ -29,6 +31,7 @@ function render() {
 const ALL_COLLECTIBLES_ON: CollectibleFeatures = { binder: true, market: true, exchange: true };
 
 beforeEach(() => {
+  mocks.adminConsoleVisible = false;
   mocks.demoVisible = false;
   mocks.communityPreviewVisible = false;
   mocks.pathname = '/shop';
@@ -300,5 +303,29 @@ describe('SiteFooter 커뮤니티 스태프 프리뷰 진입점', () => {
 
     expect(html).toContain('aria-label="스태프 시연 메뉴"');
     expect(html).toContain('aria-label="스태프 전용 커뮤니티 메뉴"');
+  });
+});
+
+describe('SiteFooter 관리자 페이지 바로가기', () => {
+  it('기본(비로그인·일반 회원·readback 전)에는 관리자 링크가 마크업에 없다', () => {
+    const html = render();
+
+    expect(html).not.toContain('href="/admin"');
+    expect(html).not.toContain('관리자');
+  });
+
+  /* 관리자 바로가기는 스태프 블록 맨 앞이다 — 시연·커뮤니티 블록과 같은 스킨이지만 별개 블록이라 그쪽 안내를 붙이지 않는다. */
+  it('어드민 콘솔 운영자에게는 사업자 정보 아래 스태프 블록 맨 앞에 선다', () => {
+    mocks.adminConsoleVisible = true;
+    mocks.demoVisible = true;
+    mocks.communityPreviewVisible = true;
+    /* 시연 블록은 마켓·트레이드 공개 스위치가 켜진 동안에만 선다 — 세 블록의 순서를 보려고 켠다. */
+    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
+    const html = render();
+
+    expect(html).toContain('<nav aria-label="관리자 바로가기" class="wc-footer__demo"><h2 class="wc-footer__demo-heading">관리자 · 스태프 전용</h2><ul><li><a href="/admin">관리자 페이지</a></li></ul></nav>');
+    expect(html.indexOf('aria-label="연락처·호스팅"')).toBeLessThan(html.indexOf('aria-label="관리자 바로가기"'));
+    expect(html.indexOf('aria-label="관리자 바로가기"')).toBeLessThan(html.indexOf('aria-label="스태프 시연 메뉴"'));
+    expect(html.indexOf('aria-label="스태프 시연 메뉴"')).toBeLessThan(html.indexOf('aria-label="스태프 전용 커뮤니티 메뉴"'));
   });
 });

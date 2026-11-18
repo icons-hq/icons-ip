@@ -534,6 +534,23 @@ describe('White Catalog 전역 셸', () => {
     expect(html).not.toContain('로그인');
     expect(html).not.toContain('로그아웃');
   });
+
+  /* 관리자 페이지 바로가기는 운영 권한 readback(브라우저) 뒤에만 생긴다 — provider 기본값(서버 HTML·readback 전)으로는
+   * 로그인 회원에게도 유틸 메뉴·전체 메뉴 시트·푸터 어디에도 마크업이 없다. 노출된 모양은 AdminConsoleLink.test 가 잠근다. */
+  it('관리자 페이지 바로가기는 서버 HTML·readback 전에는 어디에도 없다', () => {
+    for (const presence of ['signed-in', 'signed-out', 'unknown'] as const) {
+      mocks.presence = presence;
+      const surfaces = [
+        renderToStaticMarkup(<Nav />),
+        renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />),
+        renderToStaticMarkup(<SiteFooter />),
+      ];
+      for (const html of surfaces) {
+        expect(html, presence).not.toContain('href="/admin"');
+        expect(html, presence).not.toContain('관리자 페이지');
+      }
+    }
+  });
 });
 
 /* X SQUARE 1단 헤더·유틸 메뉴·로고(ADR-0043, 2026-11-17). */

@@ -271,6 +271,13 @@ export const FOOTER_COMMUNITY_STAFF_ITEMS: NavItem[] = [
   { id: 'community', label: '커뮤니티' },
 ];
 
+/* 관리자 페이지 바로가기 — 어드민 콘솔에 들어갈 수 있는 운영자(`/admin` 셸 게이트와 같은 판정)에게만 유틸 메뉴(데스크톱)·
+   전체 메뉴 시트(모바일)·푸터 스태프 블록이 그린다(StaffPreviewAvailability readback). 서버 HTML·비로그인·일반 회원에게는
+   마크업이 없고, 링크가 보여도 권한은 `/admin` 서버 게이트가 매 요청 판정한다. 어드민은 hrefFor 의 고객 라우트 표에 없는
+   별도 작업대라 경로를 여기 상수로 둔다. */
+export const ADMIN_CONSOLE_HREF = '/admin';
+export const ADMIN_CONSOLE_LABEL = '관리자 페이지';
+
 /* 카테고리 메가메뉴의 기존 그룹 — 고객 카테고리 공개 스위치가 꺼졌거나 공개 전시분류가 없을 때의 폴백이다.
    공개 전시 트리가 있으면 메가메뉴는 첫 그룹(굿즈샵)만 바로가기로 남기고 기획전·전시분류 그룹을 잇는다(L5, Nav.tsx). */
 export const CATEGORY_MEGA_GROUPS: NavGroup[] = [

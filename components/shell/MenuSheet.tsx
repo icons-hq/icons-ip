@@ -13,10 +13,13 @@ import { useCart } from './CartProvider';
 import { useCollectibleFeatures } from './CollectibleFeatures';
 import { loginEntryHref } from './login-entry';
 import { useOverlayA11y } from './useOverlayA11y';
+import { AdminConsoleLink, useAdminConsoleVisible } from './AdminConsoleLink';
 
 /* 모바일 전체 메뉴 시트. 바텀바의 '메뉴' 탭이 연다. 모바일 GNB의 '카테고리' 탭은 공개 전시 트리가 있으면
    카테고리 전용 시트(CategorySheet)를, 없으면(고객 카테고리 공개 스위치 OFF·공개 전시 없음) 이 시트를 연다(L5 폴백).
-   스토어 그룹은 GNB와 같은 설정 순서, 내 활동/거래는 routes.ts의 고정 그룹을 사용한다. */
+   스토어 그룹은 GNB와 같은 설정 순서, 내 활동/거래는 routes.ts의 고정 그룹을 사용한다.
+   어드민 콘솔 운영자에게는 맨 위에 '스태프 전용' 섹션(관리자 페이지 바로가기)이 더 선다 — 모바일에는 유틸 메뉴가 없어
+   여기가 메뉴 탭 → 한 번으로 닿는 자리다. 운영 권한 readback 이 참일 때만 마크업이 생긴다. */
 export function MenuSheet({
   open,
   onClose,
@@ -36,6 +39,7 @@ export function MenuSheet({
   const collectibleFeatures = useCollectibleFeatures();
 
   useOverlayA11y({ open, onClose, panelRef });
+  const adminConsoleVisible = useAdminConsoleVisible();
 
   if (!open) return null;
 
@@ -53,6 +57,14 @@ export function MenuSheet({
           <Icon name="close" size={24} />
         </button>
         <div className="wc-sheet__inner">
+          {adminConsoleVisible ? (
+            <section className="wc-sheet__section">
+              <h2 className="wc-sheet__title">스태프 전용</h2>
+              <ul className="wc-sheet__links">
+                <li><AdminConsoleLink className="wc-sheet__link" onNavigate={onClose} /></li>
+              </ul>
+            </section>
+          ) : null}
           {groups.map((group) => (
             <section key={group.heading} className="wc-sheet__section">
               <h2 className="wc-sheet__title">{group.heading}</h2>
