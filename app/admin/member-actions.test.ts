@@ -158,6 +158,14 @@ describe('admin member actions', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
+  it('탈퇴 요청을 처리한 계정의 정지 해제 거절을 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'member_withdrawn' } });
+    await expect(unsuspendAdminMemberAction({}, form())).resolves.toEqual({
+      errors: { form: '탈퇴 요청을 처리한 계정은 정지를 해제할 수 없습니다.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
   it('상세 로드 실패 시 이전 회원 PII와 제재 대상을 폐기한다', async () => {
     mocks.getDetail.mockRejectedValue(new Error('private db detail'));
 

@@ -1,6 +1,7 @@
 import { Login } from '@/components/screens/Login';
 import {
   ACCOUNT_DELETION_PATH,
+  isAccountDeletionEntryPath,
   ACCOUNT_SUSPENDED_PATH,
   authErrorMessage,
   isAccountSuspended,
@@ -38,7 +39,7 @@ export default async function Page({ searchParams }: PageProps) {
   const auth = await getCurrentAuthState();
 
   if (auth.user && !explicitDeletionReauthentication) {
-    if (isAccountSuspended(auth.profile) && next !== ACCOUNT_DELETION_PATH) {
+    if (isAccountSuspended(auth.profile) && !isAccountDeletionEntryPath(next)) {
       redirect(ACCOUNT_SUSPENDED_PATH);
     }
     redirect(postAuthenticationPath(auth.profile, auth.user.email, next));

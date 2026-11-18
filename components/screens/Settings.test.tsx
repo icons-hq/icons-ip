@@ -118,13 +118,14 @@ describe('Settings', () => {
     mocks.uploadProfileAvatar.mockReset();
   });
 
-  it('keeps the destructive request default-off and explains unfinished phases', () => {
+  /* 탈퇴 신청 기능이 꺼져 있는 동안은 화면 신청 대신 1:1 문의 접수 경로를 안내한다(원장 CUS-035). */
+  it('keeps the destructive request default-off and routes withdrawal to a 1:1 inquiry', () => {
     const html = render();
 
-    expect(html).toContain('아직 탈퇴 신청을 받지 않습니다');
-    expect(html).toContain('실제 Storage·DB·Auth hard delete');
-    expect(html).toContain('해당 단계 직전에 대상과');
-    expect(html).toContain('비가역성을 다시 보여드리고 별도 확인을 받습니다');
+    expect(html).toContain('지금은 1:1 문의로 탈퇴 요청을 받고 있어요');
+    expect(html).toContain('href="/my/inquiries/new?category=account"');
+    expect(html).toContain('거래 기록은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요');
+    expect(html).not.toContain('실제 Storage·DB·Auth hard delete');
     expect(html).not.toContain('name="confirmation"');
   });
 

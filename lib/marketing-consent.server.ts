@@ -25,13 +25,13 @@ export async function readMyMarketingConsentState(client?: SupabaseServerClient)
 
 /**
  * 채널별 선택을 원장에 기록한다. 같은 선택의 재저장은 DB가 아무것도 바꾸지 않는다(멱등).
- * `state`는 응답 모양이 맞을 때만 채운다 — 저장 성공 여부는 `ok`로만 판단한다.
+ * `state`는 응답 모양이 맞을 때만 채운다 — 저장 성공 여부는 `ok`로만 판단한다. 정지 회원의 새 동의 거절은 `reason`으로 구분한다.
  */
 export async function saveMyMarketingConsents(
   supabase: SupabaseServerClient,
   choices: MarketingChannelChoices,
   source: MarketingConsentSource,
-): Promise<{ ok: true; state: MarketingConsentState | null } | { ok: false }> {
+): Promise<{ ok: true; state: MarketingConsentState | null } | { ok: false; reason: 'account_suspended' | 'failed' }> {
   /* 카카오톡 줄을 그리지 않은 저장은 예전 두 수단 RPC를 그대로 부른다(스위치 OFF면 동작 불변). */
   const { data, error } = choices.kakao === undefined
     ? await supabase.rpc('set_my_marketing_consents', {
@@ -47,6 +47,7 @@ export async function saveMyMarketingConsents(
       p_notice_version: MARKETING_CONSENT_NOTICE_VERSION_WITH_KAKAO,
       p_source: source,
     });
-  if (error) return { ok: false };
+  /* 정지 회원은 새로 동의할 수 없다(철회는 받는다) — DB가 account_suspended로 거절한다. */
+  if (error) return { ok: false, reason: error.message?.includes('account_suspended') ? 'account_suspended' : 'failed' };
   return { ok: true, state: parseMarketingConsentState(data) };
 }
