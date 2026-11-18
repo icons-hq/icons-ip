@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ getUser: vi.fn(), getClaims: vi.fn(), rpc: vi.fn(), createService: vi.fn(), revalidate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getUser: vi.fn(), getClaims: vi.fn(), rpc: vi.fn(), createService: vi.fn(), revalidate: vi.fn(), record: vi.fn(), note: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
+vi.mock('@/lib/admin/pii-access-log.server', () => {
+  class PiiAccessLogError extends Error {}
+  return { PiiAccessLogError, recordPiiAccess: mocks.record, notePiiAccess: mocks.note };
+});
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: mocks.getUser, getClaims: mocks.getClaims } }) }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: mocks.createService }));
 import { changeClaimContact, fetchAdminClaimContactHistory, fetchClaimContactContext, fetchMyClaimContactHistory, readOrSealClaimContactOperation, recordClaimReshipmentV2 } from './service.server';
@@ -56,8 +60,34 @@ beforeEach(() => {
   mocks.getClaims.mockReset().mockResolvedValue({ data: { claims: { sub: actorId, session_id: sessionId } }, error: null });
   mocks.rpc.mockReset().mockImplementation(handler); mocks.createService.mockReset().mockReturnValue({ rpc: mocks.rpc });
   mocks.revalidate.mockReset();
+  mocks.record.mockReset().mockResolvedValue('1'); mocks.note.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+describe('개인정보 접속기록(원문 확인·정정)', () => {
+  it('운영자에게 회수지 원문을 돌려주기 전에 클레임 ID와 대상 코드만 기록한다', async () => {
+    const response = await fetchClaimContactContext(contextRequest);
+    expect(response).toMatchObject({ address });
+    expect(mocks.record).toHaveBeenCalledExactlyOnceWith({ actorId, action: 'reveal', surface: 'claim.contact', path: '/api/admin/claim-contact/context',
+      subjectKind: 'claim', subjectIds: [contextRequest.claimId], detail: { target: 'collection', command: 'change' } });
+    expect(JSON.stringify(mocks.record.mock.calls)).not.toContain(address.recipientName);
+  });
+  it('기록을 남기지 못하면 원문을 내보내지 않는다', async () => {
+    const { PiiAccessLogError } = await import('@/lib/admin/pii-access-log.server');
+    mocks.record.mockRejectedValue(new PiiAccessLogError());
+    const response = await fetchClaimContactContext(contextRequest);
+    expect(response).toMatchObject({ code: 'claim_contact_crypto_unavailable' });
+    expect(JSON.stringify(response)).not.toContain(address.recipientName);
+  });
+  it('원문이 없는 거절 응답은 기록하지 않고, 저장된 정정은 실패해도 결과를 바꾸지 않는 정정 기록을 남긴다', async () => {
+    mocks.rpc.mockResolvedValueOnce(ok({ ...dbContext(), allowed: false, blocker: 'claim_contact_retention_due', current: { ...current(), piiState: 'unavailable', unavailableReason: 'retention_due', referenceOnly: false, source: null, sourceAddress: null, plan: null } }));
+    await fetchClaimContactContext(contextRequest);
+    expect(mocks.record).not.toHaveBeenCalled();
+    expect(await changeClaimContact(cleanChange())).toMatchObject({ receipt: { state: 'saved' } });
+    expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId, action: 'correct', surface: 'claim.contact', path: '/api/admin/claim-contact/change',
+      subjectKind: 'claim', subjectIds: [contextRequest.claimId], detail: { command: 'change', target: 'collection' } });
+  });
+});
 
 describe('authenticated contact context and keyless recovery', () => {
   it('checks getUser then verified claims before deriving server-only actor/session and creating service client', async () => {
@@ -348,10 +378,13 @@ describe('history privacy and per-target availability', () => {
     expect(response).toMatchObject({ viewerKind: kind, current: { collection: { address }, reshipment: { piiState: 'not_applicable', address: null } }, entries: [{ before: address, agreement: null, actorId: null }] });
     expect(mocks.rpc.mock.calls[0][1].p_viewer_kind).toBe('customer');
     expect(JSON.stringify(response)).not.toContain('내부 합성 합의');
+    expect(mocks.record).not.toHaveBeenCalled();
   });
   it('returns operator-only agreement after decrypting independent history envelopes', async () => {
     mocks.rpc.mockResolvedValue(ok(historyBody()));
     expect(await fetchAdminClaimContactHistory(historyRequest)).toMatchObject({ entries: [{ agreement: '내부 합성 합의', actorId }] });
+    expect(mocks.record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ action: 'reveal', surface: 'claim.contact_history',
+      path: '/api/admin/claim-contact/history', subjectIds: [historyRequest.claimId] }));
   });
   it('gift sender gets minimal change facts only and rejects a DB projection containing recipient PII', async () => {
     const body = historyBody('gift_sender'); body.piiAccess = false;
