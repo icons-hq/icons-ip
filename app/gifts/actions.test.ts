@@ -7,7 +7,8 @@ vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined })
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: vi.fn() }));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => ({ user: { id: ACTOR }, profile: null }) }));
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: async () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ eq: () => mocks.goods() }) }) }),
+  /* 랜덤 판매 여부는 판매 방식 RPC로만 읽는다(goods 공개 읽기는 내려간 굿즈를 열지 않는다). */
+  createClient: async () => ({ rpc: (name: string, args: unknown) => name === 'get_random_option_good_ids' ? mocks.goods(args) : mocks.rpc(name, args) }),
 }));
 
 import { createGiftAction, issueGiftLinkAction } from './actions';
@@ -20,7 +21,7 @@ const gift = { id: GIFT, revision: 1, message: '', senderLabel: '보낸 분', ex
   address: null, addressRevision: null, order: null, shipments: [] };
 
 beforeEach(() => {
-  mocks.goods.mockReset().mockResolvedValue({ data: [{ id: 'random-good' }], error: null });
+  mocks.goods.mockReset().mockResolvedValue({ data: ['random-good'], error: null });
   mocks.rpc.mockReset();
 });
 

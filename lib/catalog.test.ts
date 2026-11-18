@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, toGood, type CatalogPostPreview, type CatalogSnapshot, type GoodRow } from './catalog';
+import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, isPublishedAdultGood, toGood, type CatalogPostPreview, type CatalogSnapshot, type GoodRow } from './catalog';
 import { getHomeSelectableIps } from './home-catalog';
 import type { Ip } from './data';
 
@@ -633,6 +633,76 @@ describe('getCatalogSnapshot', () => {
 
     expect(snapshot.goods.map((good) => good.id)).toEqual(['a']);
     expect(snapshot.reviewSummaries).toEqual({});
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  /* CAT-063·CUS-045: goods RLS가 인증 전 세션에 19금 행을 닫는다. 가림 카드는 행 전체가 아니라 가림 카드 RPC가
+     주는 최소 열로만 만든다 — 직접 조회는 제한 없음만 읽고, 운영자 세션에서 성인 행이 와도 그 경로로는 싣지 않는다. */
+  it('builds masked adult cards only from the masked RPC and reads unrestricted rows directly', async () => {
+    const records: QueryRecord[] = [];
+    const rpcCalls: { name: string; args: unknown }[] = [];
+    mocks.isConfigured = true;
+    const client = createSupabaseClient(records, {
+      goods: [
+        { id: 'a', ip_id: 'hwasan', name: '첫 번째', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
+        { id: 'adult-direct', ip_id: 'hwasan', name: '성인 직접 행', type: '키링', price: 9000, stock: 'ok', stock_qty: 1, sale_restriction: 'adult', image_path: 'goods/adult.webp' },
+      ],
+    });
+    client.rpc = (name?: string, args?: unknown) => {
+      rpcCalls.push({ name: name ?? '', args });
+      return Promise.resolve({
+        data: name === 'get_masked_adult_goods'
+          ? [
+              { id: 'adult-x', ip_id: 'hwasan', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: '2026-11-01T00:00:00Z' },
+              { id: 'adult-bad', ip_id: 'hwasan', price: '5000' },
+              { id: 'adult-draft-ip', ip_id: 'draft-ip', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: null },
+            ]
+          : null,
+        error: null,
+      });
+    };
+    mocks.client = client;
+
+    const snapshot = await getCatalogSnapshot({ adultGoods: 'masked' });
+
+    expect(records.find((record) => record.table === 'goods')?.in).toContainEqual(['sale_restriction', ['none']]);
+    expect(rpcCalls.filter((call) => call.name === 'get_masked_adult_goods')).toEqual([{ name: 'get_masked_adult_goods', args: {} }]);
+    expect(snapshot.goods.map((good) => good.id).sort()).toEqual(['a', 'adult-x']);
+    expect(snapshot.goods.find((good) => good.id === 'adult-x')).toMatchObject({ name: '19금 굿즈', img: '', price: 5000, masked: true, saleRestriction: 'adult' });
+
+    rpcCalls.length = 0;
+    await getCatalogSnapshot({ adultGoods: 'hidden' });
+    await getCatalogSnapshot({ adultGoods: 'full' });
+    expect(rpcCalls.filter((call) => call.name === 'get_masked_adult_goods')).toEqual([]);
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('answers the adult detail gate from the masked RPC and closes on failure', async () => {
+    mocks.isConfigured = true;
+    const rpcCalls: unknown[] = [];
+    const client = createSupabaseClient([]);
+    let failure: { message: string } | null = null;
+    client.rpc = (name?: string, args?: unknown) => {
+      rpcCalls.push([name, args]);
+      const goodId = (args as { p_good_id?: string } | undefined)?.p_good_id;
+      return Promise.resolve({
+        data: failure ? null : name === 'get_masked_adult_goods' && goodId === 'adult-x'
+          ? [{ id: 'adult-x', ip_id: 'hwasan', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: null }]
+          : [],
+        error: failure,
+      });
+    };
+    mocks.client = client;
+
+    await expect(isPublishedAdultGood('adult-x')).resolves.toBe(true);
+    await expect(isPublishedAdultGood('plain-good')).resolves.toBe(false);
+    expect(rpcCalls).toEqual([['get_masked_adult_goods', { p_good_id: 'adult-x' }], ['get_masked_adult_goods', { p_good_id: 'plain-good' }]]);
+    failure = { message: 'unavailable' };
+    await expect(isPublishedAdultGood('adult-x')).resolves.toBe(false);
 
     mocks.isConfigured = false;
     mocks.client = null;
