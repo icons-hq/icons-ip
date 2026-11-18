@@ -9,6 +9,18 @@ import { adminOrderItemsHref, normalizeAdminOrderItemFilters } from '@/lib/admin
 import { getAdminOrderItemData } from '@/lib/admin/order-items.server';
 import { adminOrderPreviewId } from '@/lib/admin/order-preview';
 import { loadAdminOrderPreview } from '@/lib/admin/order-preview.server';
+import { PII_ORDER_SEARCH_FIELDS } from '@/lib/admin/pii-access-log';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
+
+/*
+ * 이름·이메일·수령인·연락처(또는 전체)로 검색한 결과는 개인정보 접속기록에 남긴다 — 검색어 원문은 남기지 않고 검색 유형·쪽과
+ * 이 쪽에 보인 주문, 전체 결과 수만 남긴다. 주문번호·운송장·상품 검색과 검색어 없는 목록은 남기지 않는다(실패해도 목록은 연다).
+ */
+async function noteOrderSearch(actorId: string, filters: { field: string; query: string; page: number }, view: 'orders' | 'items', orderIds: string[], total: number) {
+  if (!filters.query || !PII_ORDER_SEARCH_FIELDS.has(filters.field)) return;
+  await notePiiAccess({ actorId, action: 'search', surface: 'order.search', path: '/admin/sales/orders', subjectKind: 'order',
+    subjectIds: orderIds, subjectCount: total, detail: { field: filters.field, view, page: filters.page } });
+}
 
 /* 이 화면의 서버 액션은 결제사 취소를 바로 발행하고 결과를 조회로 확인한다
    (사전 조회·취소·사후 조회 각 8초 + DB). 페이지 단위 maxDuration이 액션 예산이다. */
@@ -33,6 +45,7 @@ export default async function AdminSalesOrdersPage({
   if (query.view === 'items') {
     const itemFilters = normalizeAdminOrderItemFilters(query);
     const [data, loaded] = await Promise.all([getAdminOrderItemData(itemFilters), preview]);
+    await noteOrderSearch(auth.user.id, itemFilters, 'items', data.rows.map(row => row.orderId), data.orderCount);
     return <>
       <OrderItemsScreen data={data} canManage={hasAdminCapability(auth, 'sales.manage')} />
       {previewId && loaded ? <OrderPreviewPopup key={previewId} actorId={auth.user.id} closeHref={adminOrderItemsHref(itemFilters)} orderId={previewId} preview={loaded} /> : null}
@@ -46,6 +59,7 @@ export default async function AdminSalesOrdersPage({
     canAccessAdminScreen(auth, null, { capability: 'sales.manage', adminOnly: true }),
     { canManage: hasAdminCapability(auth, 'sales.manage') },
   ), preview]);
+  await noteOrderSearch(auth.user.id, filters, 'orders', orders.items.map(order => order.id), orders.total);
 
   return <>
     <OrdersSection data={orders} canManage={hasAdminCapability(auth, 'sales.manage')} />

@@ -16,6 +16,7 @@ import { loadAdminClaimWorkspace } from '@/lib/admin/claim-preview.server';
 import { loadClaimReturnOperations } from '@/lib/admin/claim-return-operations.server';
 import { CLAIM_RETURN_OPERATIONS_OFF } from '@/lib/admin/claim-return-pickup';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 import { ORDER_CLAIM_TYPE_LABELS, orderClaimReferenceLabel, orderClaimTypeForSlug } from '@/lib/orders/claims';
 import { canAccessAdminScreen } from '@/lib/admin/access';
 import { adminScreenForPath } from '@/lib/admin/navigation';
@@ -59,6 +60,11 @@ export default async function AdminSalesClaimsPage({
   /* 유형이 바뀐 요청(반품↔교환 전환)은 그 유형의 목록 위에서 연다. */
   if (previewId && workspace && workspace.detail.claim.claimType !== claimType) {
     redirect(adminClaimPreviewHref(workspace.detail.claim.claimType, previewId));
+  }
+  /* 목록 위 상세 팝업도 클레임 상세 화면이다 — 상세 라우트와 같은 개인정보 접속기록(실패해도 연다). */
+  if (previewId && workspace) {
+    await notePiiAccess({ actorId: auth.user.id, action: 'view', surface: 'claim.detail', path: `${adminClaimBasePath(claimType)}/${previewId}`,
+      subjectKind: 'claim', subjectIds: [previewId], detail: { via: 'popup' } });
   }
 
   const closeHref = adminClaimHref(claimType, filters);
