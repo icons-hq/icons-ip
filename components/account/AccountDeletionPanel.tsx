@@ -5,11 +5,14 @@ import {
   requestAccountDeletionAction,
   type AccountDeletionActionState,
 } from '@/app/settings/actions';
+import { WcButton } from '@/components/wc/WcButton';
 import {
   ACCOUNT_DELETION_CONFIRMATION,
+  INQUIRY_WITHDRAWAL_SCOPE,
   type AccountDeletionPresentation,
   type AccountDeletionStatus,
 } from '@/lib/account-deletion';
+import { ACCOUNT_INQUIRY_PATH } from '@/lib/auth/onboarding';
 
 interface AccountDeletionPanelProps {
   presentation: AccountDeletionPresentation;
@@ -17,6 +20,8 @@ interface AccountDeletionPanelProps {
 }
 
 const emptyState: AccountDeletionActionState = {};
+/** 탈퇴 요청을 받는 1:1 문의 작성 화면(유형 '계정'으로 연다). 정지·온보딩 미완료 회원도 이 경로로 계정 문의를 쓸 수 있다. */
+export const ACCOUNT_DELETION_INQUIRY_HREF = ACCOUNT_INQUIRY_PATH;
 const confirmationHintId = 'account-deletion-confirmation-hint';
 const confirmationErrorId = 'account-deletion-confirmation-error';
 
@@ -69,6 +74,8 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
   const isPreviewBlocker = currentStatus.status === 'not_requested'
     && presentation.preview.available
     && !presentation.preview.eligible;
+  /* 탈퇴 신청 기능이 꺼져 있고 접수된 신청도 없으면 화면 신청 대신 1:1 문의 접수를 안내한다. */
+  const inquiryOnly = !presentation.preview.available && currentStatus.status === 'not_requested';
   const visibleBlockers = currentStatus.status === 'blocked'
     ? currentStatus.blockers
     : isPreviewBlocker
@@ -82,25 +89,39 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
   return (
     <section className="account-deletion-panel col">
       <h2 className="account-deletion-title">회원 탈퇴</h2>
-      <p className="account-deletion-description">
-        신청 즉시 새 구매·예매·작성·카드팩 개봉·게임·마케팅 변경이 중단됩니다.
-        진행 중인 거래가 있으면 삭제는 보류됩니다. 법정 거래 기록은 분리 보존되며,
-        현재 신청 단계에서는 계정이 삭제되지 않습니다. 실제 Storage·DB·Auth hard delete와
-        복원 방지 원장 기록이 시작되면 되돌릴 수 없습니다. 해당 단계 직전에 대상과
-        비가역성을 다시 보여드리고 별도 확인을 받습니다.
-      </p>
+      {inquiryOnly ? (
+        /* 탈퇴 신청 기능이 꺼져 있는 동안의 접수 경로(원장 CUS-035). 운영자가 문의를 확인해 처리한다. */
+        <div className="account-deletion-guide">
+          <p className="account-deletion-description">
+            지금은 1:1 문의로 탈퇴 요청을 받고 있어요. 문의 유형을 &lsquo;계정&rsquo;으로 골라 탈퇴를 원한다고
+            남겨주시면, 운영자가 진행 중인 거래가 없는지 확인한 뒤 처리하고 문의 답변으로 알려드려요.
+          </p>
+          <ul className="account-deletion-facts">
+            <li>처리되면 이 계정으로 다시 로그인할 수 없고, {INQUIRY_WITHDRAWAL_SCOPE.erased.join('·')}은 바로 지워져요.</li>
+            <li>
+              {INQUIRY_WITHDRAWAL_SCOPE.retained.join(', ')}은 완전 삭제 절차가 준비될 때까지 이용할 수 없는 상태로 남아요.
+              {' '}{INQUIRY_WITHDRAWAL_SCOPE.rejoin}.
+            </li>
+            <li>{INQUIRY_WITHDRAWAL_SCOPE.transactionRecords}은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요.</li>
+            <li>진행 중인 주문·배송·취소·환불, 이용 전 티켓, 정기배송이 있으면 그 일이 끝난 뒤 처리돼요.</li>
+          </ul>
+          <WcButton href={ACCOUNT_DELETION_INQUIRY_HREF} variant="primary">1:1 문의로 탈퇴 요청하기</WcButton>
+        </div>
+      ) : (
+        <p className="account-deletion-description">
+          신청 즉시 새 구매·예매·작성·카드팩 개봉·게임·마케팅 변경이 중단됩니다.
+          진행 중인 거래가 있으면 삭제는 보류됩니다. 법정 거래 기록은 분리 보존되며,
+          현재 신청 단계에서는 계정이 삭제되지 않습니다. 실제 Storage·DB·Auth hard delete와
+          복원 방지 원장 기록이 시작되면 되돌릴 수 없습니다. 해당 단계 직전에 대상과
+          비가역성을 다시 보여드리고 별도 확인을 받습니다.
+        </p>
+      )}
 
       {presentation.preview.available && currentStatus.status === 'not_requested' && (
         <p className="account-deletion-description">
           신청 직전에 본인 세션을 다시 확인합니다. 오래된 세션이면{' '}
           <a href="/login?next=%2Fsettings%2Fdelete-account&reauth=1">다시 로그인</a>해주세요.
         </p>
-      )}
-
-      {!presentation.preview.available && currentStatus.status === 'not_requested' && (
-        <div className="account-deletion-feedback account-deletion-feedback--neutral" role="status">
-          안전한 통지와 복원 방지 절차를 준비 중이라 아직 탈퇴 신청을 받지 않습니다.
-        </div>
       )}
 
       {message && (

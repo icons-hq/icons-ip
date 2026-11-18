@@ -5,11 +5,13 @@ import { CustomerDetailScreen } from './CustomerDetailScreen';
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useActionState: (_a: unknown, state: unknown) => [state, vi.fn(), false] }));
 vi.mock('@/app/admin/customer-actions', () => ({ addCustomerNoteAction: vi.fn(), loadCustomerHistoryAction: vi.fn() }));
 vi.mock('@/app/admin/member-actions', () => ({ suspendAdminMemberAction: vi.fn(), unsuspendAdminMemberAction: vi.fn(), adjustMemberLoyaltyAction: vi.fn(), recalculateMemberLoyaltyAction: vi.fn() }));
+vi.mock('@/app/admin/member-withdrawal-actions', () => ({ processMemberWithdrawalAction: vi.fn(), retryMemberWithdrawalSigninBlockAction: vi.fn() }));
 const USER = '00000000-0000-4000-8000-000000004301';
 const detail: AdminCustomerDetail = {
   customer: { id: USER, nickname: '상담 고객', email: 'customer@example.test', role: 'user', createdAt: '2026-01-01T00:00:00Z',
     consents: { terms: true, privacy: true, marketing: false }, suspendedAt: null, suspensionReason: null,
-    loyaltyGrade: 'silver', goodsOrderCount: 25, ticketOrderCount: 2, submittedReportCount: 0, receivedReportCount: 0, moderation: { managerRole: null, canModerate: true } },
+    loyaltyGrade: 'silver', goodsOrderCount: 25, ticketOrderCount: 2, submittedReportCount: 0, receivedReportCount: 0, moderation: { managerRole: null, canModerate: true },
+    withdrawal: { processed: false, processedAt: null, inquiryReference: null, signinBlocked: false, signinBlockedAt: null } },
   counts: { orders: 25, inquiries: 3, claims: 2, coupons: 4, notes: 1 }, tab: 'overview', page: 1, pageSize: 20, total: 0, items: [],
 };
 const render = (data = detail) => renderToStaticMarkup(<CustomerDetailScreen detail={data} actor={{ id: 'actor', role: 'staff' }} noteOperationId="operation" />);
@@ -42,6 +44,20 @@ describe('고객 상세 작업 공간', () => {
     expect(html.match(/data-tone="neutral"[^>]*>미동의</g)).toHaveLength(1);
     expect(html).toContain('필수');
     expect(html).toContain('선택');
+  });
+
+  /* 문의로 받은 탈퇴(원장 CUS-036): 개요에 접힌 처리 폼을 두고, 처리한 계정은 정지 해제를 내지 않는다. */
+  it('개요에 탈퇴 요청 처리를 접어 두고 처리한 계정에는 정지 해제를 내지 않는다', () => {
+    const html = render();
+    expect(html).toMatch(/<details(?![^>]*\sopen)[^>]*data-member-withdrawal="pending"/);
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>탈퇴 요청 처리<\/button>/);
+    const withdrawn = render({ ...detail, customer: { ...detail.customer, suspendedAt: '2026-11-18T01:00:00Z', suspensionReason: '탈퇴 요청 처리 · 문의 #12',
+      withdrawal: { processed: true, processedAt: '2026-11-18T01:00:00Z', inquiryReference: 12, signinBlocked: true, signinBlockedAt: '2026-11-18T01:00:01Z' } } });
+    expect(withdrawn).toContain('탈퇴 요청을 처리한 계정입니다');
+    expect(withdrawn).toContain('탈퇴 요청을 처리한 계정이라 정지를 해제할 수 없습니다');
+    expect(withdrawn).not.toContain('>정지 해제</button>');
+    const suspended = render({ ...detail, customer: { ...detail.customer, suspendedAt: '2026-11-18T01:00:00Z', suspensionReason: '운영 방해' } });
+    expect(suspended).toMatch(/<button(?=[^>]*type="submit")[^>]*>정지 해제<\/button>/);
   });
 
   it('주문 탭은 지정 주문 상세와 고객 안의 다음 페이지로 이어진다', () => {

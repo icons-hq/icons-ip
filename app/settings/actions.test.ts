@@ -781,6 +781,16 @@ describe('updateMarketingConsentAction', () => {
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+
+  /* 정지 회원은 새로 동의할 수 없고 수신 거부는 언제든 할 수 있다 — DB가 새 동의만 account_suspended로 거절한다. */
+  it('explains that a suspended account can withdraw but not newly agree', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'account_suspended' } });
+
+    await expect(updateMarketingConsentAction({}, marketingForm(true))).resolves.toEqual({
+      errors: { form: '정지된 계정은 마케팅 정보 수신에 새로 동의할 수 없어요. 수신 거부는 언제든 할 수 있어요.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
 });
 
 /* 1014-010 — 카카오톡 줄은 화면이 그렸을 때만 읽는다. 스위치가 켜졌으면 세 수단 v2로, 꺼졌으면 철회만 받는다. */

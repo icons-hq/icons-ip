@@ -17,7 +17,8 @@ export const MARKETING_CONSENT_NOTICE_VERSION = 'marketing-channels-v1';
 export const MARKETING_CONSENT_NOTICE_VERSION_WITH_KAKAO = 'marketing-channels-v2';
 /** 채널을 나누기 전 단일 동의의 안내 버전. 이관 동의(source legacy)는 실제 동의 시각이 기록된 적이 없다. */
 export const MARKETING_LEGACY_NOTICE_VERSION = 'marketing-legacy-v0';
-export const MARKETING_CONSENT_SOURCES = ['legacy', 'legacy_app', 'onboarding', 'settings'] as const;
+/** member_withdrawal: 문의로 받은 탈퇴를 운영자가 처리하며 남긴 철회(admin_process_member_withdrawal). */
+export const MARKETING_CONSENT_SOURCES = ['legacy', 'legacy_app', 'onboarding', 'settings', 'member_withdrawal'] as const;
 export type MarketingConsentRecordSource = (typeof MARKETING_CONSENT_SOURCES)[number];
 /** 기본 두 수단. 카카오톡 채널 스위치가 꺼져 있으면 화면은 이 두 줄만 그린다. */
 export const MARKETING_CHANNELS = ['email', 'sms'] as const;
