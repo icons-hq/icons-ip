@@ -89,6 +89,8 @@ const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   'store-credit-console': 'marketing.manage', 'store-credits': 'marketing.manage', notifications: 'marketing.manage',
   emails: 'marketing.manage', 'stats-traffic': 'stats.read', 'stats-marketing': 'stats.read', 'stats-sales': 'stats.read', 'stats-claims': 'stats.read', 'stats-customers': 'stats.read',
   'store-settings': 'seller.read', roles: 'operators.manage', 'operations-settings': 'platform.manage', 'collectible-features': 'platform.manage',
+  /* 개인정보 접속기록 점검: 운영자 활동·IP를 모아 보는 화면이라 운영자별 처리 이력과 같은 매니저 관리 권한으로 연다. */
+  'pii-access-log': 'operators.manage',
   ips: 'platform.manage', cards: 'platform.manage', pools: 'platform.manage', policies: 'platform.manage',
   grants: 'platform.manage', games: 'platform.manage', events: 'platform.manage', 'ticket-types': 'platform.manage',
   moderation: 'platform.manage', 'check-in': 'platform.manage',

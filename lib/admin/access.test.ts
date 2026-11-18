@@ -70,6 +70,20 @@ describe('manager authorization contract', () => {
     expect(canAccessAdminScreen({ role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') }, screen)).toBe(false);
     expect(canAccessAdminScreen(NO_OPERATOR_ACCESS, screen)).toBe(false);
   });
+
+  /* CUS-084·OPS-014: 개인정보 접속기록 점검은 운영자 IP·열람 대상을 모아 보는 화면이라 매니저 관리 권한(통합·주매니저, 호환 단계 admin)만 연다. */
+  it('개인정보 접속기록 점검은 매니저 관리 권한으로만 접근한다', () => {
+    const screen = adminScreenForPath('/admin/settings/access-log');
+    expect(screen).toMatchObject({ id: 'pii-access-log', label: '개인정보 접속기록', adminOnly: true });
+    for (const role of ['owner', 'primary'] as const) expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen), role).toBe(true);
+    for (const role of ['deputy', 'influencer', 'agency', 'logistics'] as const) {
+      expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen), role).toBe(false);
+      expect(visibleAdminNavGroups('staff', configuredOperatorAccessFixture(role)).flatMap(group => group.screens).map(item => item.id), role).not.toContain('pii-access-log');
+    }
+    expect(canAccessAdminScreen({ role: 'admin', operatorAccess: legacyOperatorAccessFixture('admin') }, screen)).toBe(true);
+    expect(canAccessAdminScreen({ role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') }, screen)).toBe(false);
+    expect(canAccessAdminScreen(NO_OPERATOR_ACCESS, screen)).toBe(false);
+  });
   /* 1027T-016(사용자 결정 2026-11-11 "MD 권한"): ERP 품목 화면 읽기·반입·분류 연결은 상품 관리 권한이다. 품목 삭제는 화면이 따로 platform.manage를 본다. */
   it('ERP 품목 화면은 상품 관리 권한을 가진 MD·인플루언서·대행사에게 열리고, 물류출고관리에게는 닫힌다', () => {
     const screen = adminScreenForPath('/admin/catalog/erp-items');
