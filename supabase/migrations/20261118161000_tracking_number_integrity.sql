@@ -8,7 +8,7 @@
 --    "다른 주문의 쓰임"을 함께 보고, 같은 번호의 등록은 advisory lock으로 줄 세운다(두 회신이 같은 번호를 동시에 올려도 하나만 통과).
 --    쓰임은 대표 운송장(order_shipments)·추가 운송장·교환 재출고(배송 건별 기록과 옛 클레임 단위 기록)다.
 --    정상 공유: 같은 주문(분할·추가·재출고), 같은 합포장 묶음(private.shipment_pack_members, 풀리지 않은 구성원), 그리고
---    창고가 같은 받는 분의 발송 대기 건을 한 상자로 묶은 합배송(같은 출고지·받는 분 이름·전화·주소가 같고 아직 배송 중인 배송 건,
+--    창고가 같은 받는 분의 발송 대기 건을 한 상자로 묶은 합배송(같은 출고지·받는 분 전화번호·주소가 같고 아직 배송 중인 배송 건,
 --    서원 회신 대조의 합배송 규칙과 같은 경우)이다. 마지막은 받는 사람이 같아 개인정보가 드러나지 않고 같은 상자라 배송완료도 같다.
 -- 2. 진입 경로는 모두 이 판정을 지난다. 발송·정정(private.change_packed_shipments가 부르는 두 함수 — 수동 입력·세 칸·김포·표준·서원 회신과
 --    옛 주문 단위 RPC가 모두 여기를 지난다), 추가 운송장(운영자·서원 회신), 교환 재출고(배송 건별 기록 함수 — 운영자·연락처 처리 서비스).
@@ -72,23 +72,21 @@ create index if not exists order_cancellation_requests_reship_tracking_idx
   on public.order_cancellation_requests (reship_carrier, reship_tracking_number) where reship_tracking_number is not null;
 
 -- 3. 공용 판정
--- 받는 분 열쇠(이름·전화·우편번호·주소, 공백 무시). 이름이나 전화가 없으면 null — 합배송으로 보지 않는다.
+-- 받는 분 열쇠(전화번호 숫자 + 주소, 공백·대소문자 무시). 서원 회신 대조가 한 상자의 받는 분으로 보는 열쇠(전화·주소)와 같다.
+-- 전화나 주소가 없으면 null — 합배송으로 보지 않는다.
 create function private.tracking_destination_key(p_address jsonb) returns text
 language sql immutable set search_path = '' as $$
   select case
-    when nullif(regexp_replace(coalesce(p_address->>'recipientName', ''), '[[:space:]]', '', 'g'), '') is null
-      or nullif(regexp_replace(coalesce(p_address->>'phone', ''), '[^0-9]', '', 'g'), '') is null then null
+    when nullif(regexp_replace(coalesce(p_address->>'phone', ''), '[^0-9]', '', 'g'), '') is null
+      or nullif(regexp_replace(coalesce(p_address->>'address1', ''), '[[:space:]]', '', 'g'), '') is null then null
     else concat_ws(chr(31),
-      lower(regexp_replace(p_address->>'recipientName', '[[:space:]]', '', 'g')),
       regexp_replace(p_address->>'phone', '[^0-9]', '', 'g'),
-      regexp_replace(coalesce(p_address->>'postalCode', ''), '[[:space:]]', '', 'g'),
-      lower(regexp_replace(coalesce(p_address->>'address1', ''), '[[:space:]]', '', 'g')),
-      lower(regexp_replace(coalesce(p_address->>'address2', ''), '[[:space:]]', '', 'g')))
+      lower(regexp_replace(concat(p_address->>'address1', p_address->>'address2'), '[[:space:]]', '', 'g')))
   end;
 $$;
 revoke all on function private.tracking_destination_key(jsonb) from public, anon, authenticated, service_role;
 
--- 같은 번호 등록을 줄 세우는 열쇠. 여러 번호는 호출자가 이 열쇠 문자열 순서로 잠근다.
+-- 같은 번호 등록을 줄 세우는 열쇠. 여러 번호를 잡는 호출자는 이 열쇠 값의 오름차순으로 잠근다.
 create function private.tracking_number_lock_key(p_carrier text, p_tracking text) returns bigint
 language sql immutable set search_path = '' as $$
   select hashtextextended('icons:tracking:' || p_carrier || ':' || p_tracking, 0);
@@ -191,7 +189,7 @@ revoke all on function private.tracking_batch_shipment(jsonb, uuid) from public,
 -- 번호('택배사:번호')를 돌려준다. 출고지가 있으면(김포) 택배사는 출고지 기본 택배사다.
 create function private.lock_tracking_batch(p_rows jsonb, p_origin uuid) returns text[]
 language plpgsql security definer set search_path = '' as $$
-declare origin_carrier text; entries jsonb := '[]'; row_value jsonb; carrier_value text; key text; conflicts text[];
+declare origin_carrier text; entries jsonb := '[]'; row_value jsonb; carrier_value text; lock_key bigint; conflicts text[];
 begin
   if jsonb_typeof(p_rows) is distinct from 'array' then return '{}'; end if;
   if p_origin is not null then select default_carrier into origin_carrier from public.fulfillment_origins where id = p_origin; end if;
@@ -206,9 +204,10 @@ begin
         from jsonb_array_elements(row_value->'extraTrackingNumbers') extra where jsonb_typeof(extra) = 'string'), '[]');
     end if;
   end loop;
-  for key in select distinct value->>'carrier' || ':' || (value->>'trackingNumber') from jsonb_array_elements(entries)
+  -- 여러 번호를 잡는 모든 경로(일괄·회신 반입, 맞바꾸기)는 잠금 열쇠 값 순서로 잡는다 — 번호가 엇갈린 두 요청이 교착하지 않는다.
+  for lock_key in select distinct private.tracking_number_lock_key(value->>'carrier', value->>'trackingNumber') from jsonb_array_elements(entries)
     where value->>'carrier' is not null and value->>'trackingNumber' is not null order by 1 loop
-    perform pg_advisory_xact_lock(hashtextextended('icons:tracking:' || key, 0));
+    perform pg_advisory_xact_lock(lock_key);
   end loop;
   with batch_rows as (
     select distinct (value->>'shipmentId')::uuid sid, value->>'carrier' carrier, value->>'trackingNumber' tracking

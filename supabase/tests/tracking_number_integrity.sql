@@ -70,11 +70,11 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,ret
 insert into public.ips(id,title,vertical_key) values('tracking-integrity-ip','TEST 운송장 판정 IP','character');
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('tracking-integrity-good','tracking-integrity-ip','TEST 운송장 판정 상품','문구',1000,'ok',100);
 
--- 받는 분: A(합성가)·B(합성나)·C(합성다)·D(합성라).
+-- 받는 분: A(합성가)·B(합성나)·C(합성다)·D(합성라). A2는 A와 전화·주소가 같은 가족(이름만 다르다) — 한 상자의 받는 분이다.
 create function pg_temp.ti_address(dest text) returns jsonb language sql immutable as $$
- select jsonb_build_object('recipientName',case dest when 'A' then '합성가' when 'B' then '합성나' when 'C' then '합성다' else '합성라' end,
-  'phone',case dest when 'A' then '01011110001' when 'B' then '01022220002' when 'C' then '01033330003' else '01044440004' end,
-  'postalCode','04524','address1','합성시 운송장로 1','address2',dest||'동','deliveryNote','')$$;
+ select jsonb_build_object('recipientName',case dest when 'A' then '합성가' when 'A2' then '합성가족' when 'B' then '합성나' when 'C' then '합성다' else '합성라' end,
+  'phone',case left(dest,1) when 'A' then '01011110001' when 'B' then '01022220002' when 'C' then '01033330003' else '01044440004' end,
+  'postalCode','04524','address1','합성시 운송장로 1','address2',left(dest,1)||'동','deliveryNote','')$$;
 -- 주문 n: (구매자, 받는 분, 출고지 1=김포 2=남양주 3=기타, 상태, 배송 건 상태·운송장)
 create temporary table ti_orders(n integer,buyer integer,dest text,origin integer,order_status public.order_status,shipment_status text,tracking text) on commit drop;
 insert into ti_orders values
@@ -83,7 +83,8 @@ insert into ti_orders values
  (7,6,'D',1,'confirmed','ready',null),(8,4,'B',2,'confirmed','ready',null),(9,5,'C',2,'confirmed','ready',null),
  (10,3,'A',1,'confirmed','ready',null),(11,4,'B',1,'confirmed','ready',null),(12,5,'C',3,'delivered','delivered','120000000012'),
  (13,6,'D',1,'confirmed','ready',null),(14,3,'A',1,'confirmed','ready',null),(15,6,'D',1,'confirmed','ready',null),
- (16,3,'A',1,'confirmed','ready',null),(17,3,'A',1,'confirmed','ready',null),(18,4,'B',1,'confirmed','ready',null);
+ (16,3,'A',1,'confirmed','ready',null),(17,3,'A',1,'confirmed','ready',null),(18,4,'B',1,'confirmed','ready',null),
+ (19,4,'A2',1,'confirmed','ready',null);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at,shipped_at,delivered_at)
 select pg_temp.ti_id('order',n),pg_temp.ti_id('user',buyer),order_status,1000,0,pg_temp.ti_address(dest),now()-interval '3 days',
  case when order_status in('shipping','delivered') then now()-interval '2 days' end,case when order_status='delivered' then now()-interval '1 day' end
@@ -170,6 +171,10 @@ select pg_temp.ti_assert((select jsonb_agg(coalesce(value->>'error','ok') order 
 select pg_temp.ti_assert(pg_temp.ti_state(7)='ready:-' and pg_temp.ti_state(2)='shipping:200000000002' and pg_temp.ti_state(14)='ready:-' and pg_temp.ti_state(15)='ready:-'
  and pg_temp.ti_state(16)='shipping:160000000016' and pg_temp.ti_state(17)='shipping:160000000016' and pg_temp.ti_state(18)='shipping:18000000001',
  'only valid rows dispatched; same-recipient rows of one file share a merged box');
+
+-- 전화·주소가 같은 받는 분(이름만 다른 가족)의 같은 출고지 배송 건은 배송 중인 상자의 번호를 함께 쓴다(서원 합배송 기준과 같다).
+select public.admin_update_shipment_status(pg_temp.ti_id('shipment',19),'shipping','hanjin','160000000016');
+select pg_temp.ti_assert(pg_temp.ti_state(19)='shipping:160000000016','same phone and address share a merged box');
 
 -- 5-1. 뒤바뀐 운송장 맞바꾸기: 정정으로는 서로의 번호로 바꿀 수 없으므로 두 배송 건을 한 번에 맞바꾼다. 화면이 본 번호와 지금 값이 같아야
 --      하므로 같은 요청을 다시 보내도 되돌아가지 않는다. 같은 합포장 안·발송 전 배송 건은 맞바꾸지 않는다.
