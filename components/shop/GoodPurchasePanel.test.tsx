@@ -46,7 +46,6 @@ const good: Good = {
   id: 'g13',
   name: '아크릴 블록',
   ip: 'hong-sil-quest',
-  type: '아크릴',
   price: 12000,
   badge: 'NEW',
   stock: 'ok',

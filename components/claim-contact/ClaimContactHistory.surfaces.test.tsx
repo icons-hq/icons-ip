@@ -17,7 +17,7 @@ const actorId = '10000000-0000-4000-8000-000000000001', orderId = '10000000-0000
 const at = '2026-10-14T00:00:00Z';
 function order(claimType: OrderCancellationRequestSummary['claimType']): OrderValue {
   return { id: orderId, status: 'delivered', total: 1000, shippingFee: 0, discountTotal: 0, storeCreditTotal: 0, paymentMethod: 'card', expiresAt: null,
-    address: null, createdAt: at, deliveredAt: at, items: [{ id: '10000000-0000-4000-8000-000000000005', variantId: '10000000-0000-4000-8000-000000000006', goodId: 'test-physical', name: 'TEST 실물 굿즈', type: '문구', qty: 1, unitPrice: 1000 }], payment: null, refund: null, shipments: [], cardPacks: { issuedCount: 0, availableCount: 0 },
+    address: null, createdAt: at, deliveredAt: at, items: [{ id: '10000000-0000-4000-8000-000000000005', variantId: '10000000-0000-4000-8000-000000000006', goodId: 'test-physical', name: 'TEST 실물 굿즈', qty: 1, unitPrice: 1000 }], payment: null, refund: null, shipments: [], cardPacks: { issuedCount: 0, availableCount: 0 },
     claimEligibility: { cancel: false, return: true, exchange: true }, cancellationRequest: {
       id: claimId, status: 'requested', reference: 1, requestedAt: at, decidedAt: null, decisionNote: null, claimType, stage: 'requested',
       reshipCarrier: null, reshipTrackingNumber: null,

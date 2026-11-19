@@ -606,7 +606,7 @@ describe('loadOrderDetail', () => {
       status: 'shipping',
       total: 57000,
       shippingFee: 3000,
-      items: [{ goodId: 'goods-1', name: '아크릴 스탠드', type: '아크릴', qty: 2, unitPrice: 27000 }],
+      items: [{ goodId: 'goods-1', name: '아크릴 스탠드', qty: 2, unitPrice: 27000 }],
       payment: { amount: 54000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' },
       refund: { status: 'requested', createdAt: '2026-07-14T07:30:00.000Z' },
       cancellationRequest: {

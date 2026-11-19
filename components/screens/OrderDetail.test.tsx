@@ -42,7 +42,7 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
     },
     createdAt: '2026-08-01T06:00:00.000Z',
     deliveredAt: null,
-    items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 1, unitPrice: 27000 }],
+    items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', qty: 1, unitPrice: 27000 }],
     payment: { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z' },
     refund: null,
     cancellationRequest: null,
@@ -427,7 +427,7 @@ describe('OrderDetail claim badge and line totals', () => {
   it('shows each item line price as the unit price times the quantity', () => {
     const single = renderToStaticMarkup(<OrderDetail order={order()} />);
     expect(single).toContain('<p class="wc-order-line__qty">1개</p>'); expect(single).toContain('<strong>₩27,000</strong>');
-    const double = renderToStaticMarkup(<OrderDetail order={order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 27000 }] })} />);
+    const double = renderToStaticMarkup(<OrderDetail order={order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', qty: 2, unitPrice: 27000 }] })} />);
     expect(double).toContain('<p class="wc-order-line__qty">2개</p>'); expect(double).toContain('<strong>₩54,000</strong>');
   });
 });
@@ -491,7 +491,7 @@ describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
     completedAt: '2026-11-12T05:00:05Z', transferredAt: null, closedShipmentCount: 0,
     items: [{ orderItemId: 'item-1', goodName: '홍실 아크릴 블록', variantName: null, qty: 1, goodsRefundAmount: 9_500 }],
   };
-  const twoQty = order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 13_500 }] });
+  const twoQty = order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', qty: 2, unitPrice: 13_500 }] });
 
   it('굿즈 줄과 배송 묶음 카드는 남은 수량을 말하고 취소된 수량을 적는다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
@@ -731,9 +731,10 @@ describe('OrderDetail 품목 줄(MD-0036·0037 OrderLineItem 재사용)', () => 
     expect(html).toContain('<strong>₩24,000</strong>'); expect(html).toContain('<del>₩27,000</del>');
   });
 
-  it('IP명이 없으면 굿즈 유형이 그 자리에 보이고, 있으면 유형은 보이지 않는다', () => {
-    expect(renderToStaticMarkup(<OrderDetail order={order({ lines: [{ ...line, ipName: null }] })} />)).toContain('class="wc-order-line__ip">아크릴 블록</p>');
-    expect(renderToStaticMarkup(<OrderDetail order={order({ lines: [line] })} />)).not.toContain('class="wc-order-line__ip">아크릴 블록</p>');
+  it('IP명이 없으면 그 자리는 비고, 굿즈 유형은 어디에도 보이지 않는다', () => {
+    const none = renderToStaticMarkup(<OrderDetail order={order({ lines: [{ ...line, ipName: null }] })} />);
+    expect(none).not.toContain('wc-order-line__ip');
+    expect(none).not.toContain('>아크릴 블록</p>');
   });
 
   it('읽기 모델이 없는 품목은 스냅샷(이름·옵션·단가×수량)으로 줄을 만든다', () => {

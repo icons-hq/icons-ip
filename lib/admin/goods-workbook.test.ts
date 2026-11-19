@@ -734,10 +734,11 @@ describe('상품 유형 열(ADR-0044)', () => {
     { id: doll, code: 'doll-leaf', archived_at: null },
   ];
   const ctx: GoodsWorkbookContext = { ...context, categories };
-  it('반입은 유형 열의 값(구형 파일 포함)을 읽어도 반영하지 않고 안내도 하지 않는다 — 새 상품은 빈 type', () => {
+  it('반입은 유형 열의 값(구형 파일 포함)을 읽어도 반영하지 않고 안내도 하지 않는다 — target에 type 없음', () => {
     for (const type of ['문구', '피규어', '']) {
       const [group] = planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf', type })], ctx);
-      expect(group).toMatchObject({ kind: 'new', target: { type: '', category_id: leaf } });
+      expect(group).toMatchObject({ kind: 'new', target: { category_id: leaf } });
+      expect((group as { target: object }).target).not.toHaveProperty('type');
       expect(group.errors).toEqual([]);
       expect(group.warnings.join()).not.toContain('상품 유형');
     }
@@ -746,20 +747,20 @@ describe('상품 유형 열(ADR-0044)', () => {
     expect(planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf', publish: '공개' })], ctx)[0].errors).not.toContain(GOOD_CATEGORY_PUBLISH_REQUIRED);
     expect(planGoodsWorkbookImport([row({ publish: '공개' })], ctx)[0].errors).toContain(GOOD_CATEGORY_PUBLISH_REQUIRED);
     expect(GOOD_CATEGORY_PUBLISH_REQUIRED).toBe('대표 카테고리를 고른 뒤 공개해주세요.');
-    expect(planGoodsWorkbookImport([row({ publish: '초안' })], ctx)[0]).toMatchObject({ kind: 'new', target: { type: '' } });
+    expect(planGoodsWorkbookImport([row({ publish: '초안' })], ctx)[0]).toMatchObject({ kind: 'new' });
   });
-  it('내보내기는 유형 열을 비우고, 구형 파일이 유형 열만 달라도 변경 없음이며 저장된 type을 그대로 싣는다', () => {
+  it('내보내기는 유형 열을 비우고, 구형 파일이 유형 열만 달라도 변경 없음이며 type을 싣지 않는다', () => {
     const record: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '피규어', category_id: leaf } };
     const withRecord: GoodsWorkbookContext = { ...ctx, existing: [record] };
     const [exported] = exportGoodsWorkbookRows(record, withRecord);
     expect(exported).toMatchObject({ type: '', categoryCode: 'figure-leaf' });
     for (const type of ['', '인형', '피규어']) expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, type } }], withRecord)[0].kind).toBe('unchanged');
-    /* 다른 칸을 바꾸면 type은 파일 값이 아니라 저장된 값(피규어) 그대로다. 초안 기존 상품도 같다. */
-    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, type: '인형', stockQty: '9' } }], withRecord)[0]).toMatchObject({ kind: 'update', target: { type: '피규어' } });
+    /* 다른 칸을 바꿔도 유형 열의 값은 반영되지 않는다. 초안 기존 상품도 같다. */
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, type: '인형', stockQty: '9' } }], withRecord)[0]).toMatchObject({ kind: 'update' });
     const draft: GoodsImportExisting = { ...record, good: { ...record.good, published_at: null, first_published_at: null, type: '문구' } };
     const draftCtx: GoodsWorkbookContext = { ...ctx, existing: [draft] };
     const [draftRow] = exportGoodsWorkbookRows(draft, draftCtx);
-    expect(planGoodsWorkbookImport([{ row: 5, values: { ...draftRow, type: '피규어', stockQty: '9' } }], draftCtx)[0]).toMatchObject({ kind: 'update', target: { type: '문구' } });
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...draftRow, type: '피규어', stockQty: '9' } }], draftCtx)[0]).toMatchObject({ kind: 'update' });
   });
   it('공개 상품의 대표 카테고리는 다른 카테고리로 옮길 수 있고 KC 경고도 없지만, 비울 수는 없다', () => {
     const record: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '피규어', category_id: leaf } };
@@ -768,7 +769,7 @@ describe('상품 유형 열(ADR-0044)', () => {
     const moved = planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf' } }], withRecord)[0];
     expect(moved.errors).toEqual([]);
     expect(moved.warnings.join()).not.toContain('KC');
-    expect(moved).toMatchObject({ kind: 'update', target: { type: '피규어', category_id: doll } });
+    expect(moved).toMatchObject({ kind: 'update', target: { category_id: doll } });
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: '' } }], withRecord)[0].errors)
       .toContain('공개 중인 상품은 대표 카테고리를 비울 수 없습니다. 다른 카테고리를 고르거나 비공개로 전환한 뒤 비워주세요.');
     /* 초안으로 바꾸면서 비우는 행은 막지 않는다. */
@@ -780,7 +781,7 @@ describe('상품 유형 열(ADR-0044)', () => {
     const [exported] = exportGoodsWorkbookRows(record, withRecord);
     const plan = planGoodsWorkbookImport([{ row: 5, values: { ...exported, stockQty: '9' } }], withRecord)[0];
     expect(plan.errors).toEqual([]);
-    expect(plan).toMatchObject({ kind: 'update', target: { type: '문구' } });
+    expect(plan).toMatchObject({ kind: 'update' });
   });
   it('대표 카테고리 없는 공개 상품의 공개 행도 대표 이미지·고시 검사는 받고 카테고리 검사만 건너뛴다', () => {
     const record: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '문구' } };

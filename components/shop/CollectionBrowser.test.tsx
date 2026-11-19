@@ -16,7 +16,7 @@ const openSupply: GoodsVariantSupply = {
 };
 const option = (id: string, patch: Partial<GoodOption> = {}): GoodOption => ({ id, name: '기본', code: id, price: 15200, stockQty: 5, isDefault: true, attributes: {}, ...patch });
 const good = (id: string, patch: Partial<Good> = {}): Good => ({
-  id, name: `굿즈 ${id}`, ip: 'brand', type: '키링', price: 15200, badge: null, stock: 'ok', stockQty: 5, img: 'linear-gradient(#111, #222)', ...patch,
+  id, name: `굿즈 ${id}`, ip: 'brand', price: 15200, badge: null, stock: 'ok', stockQty: 5, img: 'linear-gradient(#111, #222)', ...patch,
 });
 
 const goods: Good[] = [

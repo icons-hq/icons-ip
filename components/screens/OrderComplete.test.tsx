@@ -30,7 +30,7 @@ const order: CheckoutOrderSnapshot = {
   paymentMethod: 'card',
   paymentAttempt: null,
   hasActiveCancellationRequest: false,
-  items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', variantName: '블루', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴', qty: 2, unitPrice: 6000 }],
+  items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', variantName: '블루', goodId: 'g13', name: '홍실 아크릴 블록', qty: 2, unitPrice: 6000 }],
 };
 
 describe('orderCompleteDestination', () => {

@@ -10,7 +10,6 @@ import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 import { goodsOptionLimitNotices, RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
 import { REVIEW_EVENT_CREDIT_POLICY_OFF } from '@/lib/review-events';
-import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { ORDER_CLAIM_BUYER_REASON_TYPES } from '@/lib/orders/claims';
 import { ADMIN_WEEKLY_CHANGES } from './changes';
 import { ADMIN_GUIDE_TOPICS, type AdminGuideTopic, type AdminGuideTopicSlug } from './topics';
@@ -211,7 +210,6 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain((['created', 'skipped', 'failed'] as const).map(categoryBulkResultLabel).join('·'));
     expect(repoFile('components/admin/CategoryAssignmentField.tsx')).toContain('등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요.');
     expect(text).toContain('등록된 카테고리가 없습니다');
-    expect(GOOD_TYPES).toContain('기타');
     expect(text).not.toContain('기존 8종');
     expect(repoFile('components/admin/ErpCategoryMappingPanel.tsx')).toContain('이름만 같고 경로가 다르면 연결하지 않습니다.');
     expect(text).toContain('이름만 같고 경로가 다르면 연결하지 않습니다');

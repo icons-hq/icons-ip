@@ -39,7 +39,7 @@ type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap((child) => (isValidElement<Record<string, unknown>>(child) ? [child, ...all(child.props.children as ReactNode)] : []));
 
 const VARIANT = '00000000-0000-4000-8000-000000000001';
-const good: Good = { id: 'g13', name: '홍실 아크릴 블록', ip: 'hong-sil-quest', type: '아크릴', price: 12000, badge: null, stock: 'ok', stockQty: 20,
+const good: Good = { id: 'g13', name: '홍실 아크릴 블록', ip: 'hong-sil-quest', price: 12000, badge: null, stock: 'ok', stockQty: 20,
   options: [{ id: VARIANT, name: '기본 옵션', price: 12000, stockQty: 20, code: 'G13', isDefault: true, attributes: {} }], img: 'none' };
 const held = (id: string, name: string): UserCouponSummary => ({ id, status: 'active', issuedAt: '2026-08-30T00:00:00Z', expiresAt: null, usedAt: null,
   coupon: { code: 'CPNFIX5K', name, discountType: 'fixed', discountValue: 5000, maxDiscountAmount: null, minSubtotal: 0, endsAt: null, gradeBenefit: null } });

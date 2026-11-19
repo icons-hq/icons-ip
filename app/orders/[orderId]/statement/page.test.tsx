@@ -47,7 +47,7 @@ function order(overrides: Partial<OrderDetail> = {}): OrderDetail {
     address: null,
     createdAt: '2026-11-17T05:05:00.000Z',
     deliveredAt: null,
-    items: [{ id: 'item-1', variantId: 'v1', variantName: '파랑', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴', qty: 1, unitPrice: 27000 }],
+    items: [{ id: 'item-1', variantId: 'v1', variantName: '파랑', goodId: 'g13', name: '홍실 아크릴 블록', qty: 1, unitPrice: 27000 }],
     payment: { amount: 30000, status: 'paid', createdAt: '2026-11-17T05:06:00.000Z' },
     refund: null,
     cancellationRequest: null,

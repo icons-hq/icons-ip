@@ -6,7 +6,7 @@ import { AddToCartButton } from './AddToCartButton';
 const mocks = vi.hoisted(() => ({ add: vi.fn(), getQuantity: vi.fn(() => 0) }));
 vi.mock('@/components/shell/CartProvider', () => ({ useCart: () => ({ ...mocks, pending: false, ready: true }) }));
 const option = { id: '00000000-0000-4000-8000-000000000001', name: '파랑', code: 'BLUE', price: 1000, stockQty: 2, isDefault: true, attributes: {} };
-const good: Good = { id: 'good', ip: 'ip', name: '키링', type: '키링', price: 1000, stockQty: 99, stock: 'ok', badge: null, img: 'none', options: [option] };
+const good: Good = { id: 'good', ip: 'ip', name: '키링', price: 1000, stockQty: 99, stock: 'ok', badge: null, img: 'none', options: [option] };
 beforeEach(() => vi.clearAllMocks());
 
 describe('찜 목록 담기', () => {
