@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- ADR-0044: 상품 유형 층을 걷어냈다(ADR-0037 대체). 공개 조건은 대표 카테고리이고, 유형은 파생·판정되지 않는다.
--- goods.type은 후속 migration에서 지울 때까지 남는 칸이다. 칸 삭제 1단계(20261118173000)부터 어떤 저장 경로도 이 칸을 쓰지 않고
+-- goods.type은 후속 migration에서 지울 때까지 남는 칸이다. 칸 삭제 1단계(20261118195000)부터 어떤 저장 경로도 이 칸을 쓰지 않고
 -- (새 상품은 기본값 ''), KC 맥락·가드도 유형을 보지 않는다. 카테고리 이동이나 카테고리의 옛 연결 칸 변경으로도 바뀌지 않는다.
 -- Prepend helpers/goods_kc_fixture.sql in the same connection. Everything rolls back.
 
@@ -264,7 +264,7 @@ select 1/case when (select subtitle from public.search_public_content('합성 gr
  and not exists(select 1 from public.search_public_content('봉투류',20) where id='gr-defer-good')
  then 1 else 0 end as search_hides_archived_category;
 -- --------------------------------------------------------------------------
--- 칸 삭제 1단계(20261118173000): 상품·주문 저장이 유형 칸을 쓰지 않고, KC는 유형을 보지 않는다.
+-- 칸 삭제 1단계(20261118195000): 상품·주문 저장이 유형 칸을 쓰지 않고, KC는 유형을 보지 않는다.
 -- --------------------------------------------------------------------------
 reset role;
 select set_config('request.jwt.claim.sub','',true);
