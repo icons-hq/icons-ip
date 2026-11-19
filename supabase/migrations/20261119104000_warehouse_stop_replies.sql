@@ -26,6 +26,7 @@
 --   public.admin_origin_tracking_candidates(uuid,text[],text[])
 --   private.stock_reconcile_flows(uuid[],timestamp with time zone)
 --   private.tracking_number_conflict(text,text,uuid[],uuid)
+--   private.record_order_claim_collection_bundle(uuid,uuid,uuid,text,date)
 -- 결제사 취소 처리 중에 기록한 '이미 출고' 회신은 취소 완료(배송 건 취소) 때 트리거가 발견으로 남긴다.
 -- ============================================================================
 begin;
@@ -54,7 +55,8 @@ create table private.warehouse_stop_replies (
   shipment_id uuid not null,
   -- 이 회신이 답한 출고지시(배송 건 exported_at 스냅샷). 다시 출고지시하면 예전 회신은 판정에서 빠진다.
   exported_at timestamptz not null,
-  outcome text not null check (outcome in ('stopped', 'already_shipped')),
+  -- stopped = 창고가 내보내지 않기로 확인(보관), already_shipped = 이미 내보냄, returned = 이미 나간 상품이 고객 반송으로 창고에 다시 들어옴.
+  outcome text not null check (outcome in ('stopped', 'already_shipped', 'returned')),
   channel text not null check (channel in ('phone', 'messenger', 'email', 'warehouse_system', 'other')),
   replied_at timestamptz not null,
   note text check (note is null or (note = btrim(note) and char_length(note) between 1 and 500
@@ -65,12 +67,16 @@ create table private.warehouse_stop_replies (
   -- '출고 중단' 회신은 한 번의 취소(운영자 전액 취소 요청 또는 부분 취소 요청번호)에만 쓴다.
   used_at timestamptz,
   used_by uuid references public.profiles(id) on delete restrict,
-  used_kind text check (used_kind in ('staff_cancellation', 'partial_cancellation')),
+  used_kind text check (used_kind in ('staff_cancellation', 'partial_cancellation', 'claim_collection')),
   used_ref uuid,
   foreign key (order_id, shipment_id) references public.order_shipments(order_id, id) on delete restrict,
   unique (operation_id, shipment_id),
   check ((used_at is null) = (used_by is null) and (used_at is null) = (used_kind is null) and (used_at is null) = (used_ref is null)),
-  check (used_at is null or outcome = 'stopped'),
+  -- 그 출고지시의 배송 건이 실제로 발송되면(운송장 반입·발송 처리) 쓰지 않은 회신은 발송으로 반박된 것이라 무효가 된다.
+  superseded_at timestamptz,
+  superseded_reason text check (superseded_reason in ('dispatched')),
+  check (used_at is null or outcome in ('stopped', 'returned')),
+  check ((superseded_at is null) = (superseded_reason is null)),
   check (channel <> 'other' or note is not null)
 );
 create index warehouse_stop_replies_shipment on private.warehouse_stop_replies(shipment_id, replied_at desc, recorded_at desc, id desc);
@@ -141,7 +147,7 @@ comment on table private.canceled_shipment_dispatches is
 create function private.warehouse_stop_current_reply(p_shipment_id uuid) returns private.warehouse_stop_replies
 language sql stable security definer set search_path = '' as $$
   select r.* from private.warehouse_stop_replies r join public.order_shipments s on s.id = r.shipment_id
-  where r.shipment_id = p_shipment_id and r.exported_at = s.exported_at
+  where r.shipment_id = p_shipment_id and r.exported_at = s.exported_at and r.superseded_at is null
   order by r.replied_at desc, r.recorded_at desc, r.id desc limit 1;
 $$;
 revoke all on function private.warehouse_stop_current_reply(uuid) from public, anon, authenticated, service_role;
@@ -182,7 +188,7 @@ declare used integer;
 begin
   if p_reply_ids is null or cardinality(p_reply_ids) = 0 then return; end if;
   update private.warehouse_stop_replies set used_at = clock_timestamp(), used_by = p_actor, used_kind = p_kind, used_ref = p_ref
-  where id = any(p_reply_ids) and used_at is null and outcome = 'stopped';
+  where id = any(p_reply_ids) and used_at is null and superseded_at is null and outcome in ('stopped', 'returned');
   get diagnostics used = row_count;
   if used <> cardinality(p_reply_ids) then raise check_violation using message = 'warehouse_stop_reply_used'; end if;
 end $$;
@@ -344,7 +350,7 @@ declare reply private.warehouse_stop_replies;
 begin
   if new.exported_at is null or new.shipped_at is not null or new.delivery_method <> 'parcel' then return null; end if;
   select r.* into reply from private.warehouse_stop_replies r
-  where r.shipment_id = new.id and r.exported_at = new.exported_at
+  where r.shipment_id = new.id and r.exported_at = new.exported_at and r.superseded_at is null
   order by r.replied_at desc, r.recorded_at desc, r.id desc limit 1;
   if not found or reply.outcome <> 'already_shipped' then return null; end if;
   begin
@@ -363,6 +369,24 @@ create trigger order_shipments_canceled_after_already_shipped_reply
   after update of status on public.order_shipments
   for each row when (new.status = 'canceled' and old.status is distinct from 'canceled')
   execute function private.record_dispatch_from_already_shipped_reply();
+
+-- 출고 중단 회신을 남겼는데도 창고 운송장이 반입돼 배송 건이 발송되면 그 회신은 실제 발송으로 반박된 것이다. 발송 대기를 벗어나는
+-- 순간(발송·배송완료, 발송 시각 기록) 그 출고지시의 쓰지 않은 회신을 무효로 표시한다 — 나중에 배송 건이 발송 대기로 돌아와도
+-- (발송 되돌리기·운송장 없는 강제 배송완료 되돌리기는 출고지시 시각을 유지한다) 옛 회신이 취소·회수 확인의 근거가 되지 않는다.
+create function private.supersede_warehouse_stop_replies_on_dispatch() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  update private.warehouse_stop_replies
+  set superseded_at = clock_timestamp(), superseded_reason = 'dispatched'
+  where shipment_id = new.id and exported_at = old.exported_at and used_at is null and superseded_at is null;
+  return null;
+end $$;
+revoke all on function private.supersede_warehouse_stop_replies_on_dispatch() from public, anon, authenticated, service_role;
+create trigger order_shipments_supersede_warehouse_stop_replies
+  after update of status, shipped_at on public.order_shipments
+  for each row when (old.status = 'ready' and old.exported_at is not null
+    and (new.status in ('shipping', 'delivered') or (old.shipped_at is null and new.shipped_at is not null)))
+  execute function private.supersede_warehouse_stop_replies_on_dispatch();
 
 -- ---------------------------------------------------------------------------
 -- 5. 운영자 RPC
@@ -389,7 +413,7 @@ begin
   if p_operation_id is null or p_shipment_ids is null or cardinality(p_shipment_ids) not between 1 and 20
     or array_position(p_shipment_ids, null) is not null
     or (select count(distinct x.id) from unnest(p_shipment_ids) x(id)) <> cardinality(p_shipment_ids)
-    or p_outcome is null or p_outcome not in ('stopped', 'already_shipped')
+    or p_outcome is null or p_outcome not in ('stopped', 'already_shipped', 'returned')
     or p_channel is null or p_channel not in ('phone', 'messenger', 'email', 'warehouse_system', 'other')
     or p_replied_at is null or not isfinite(p_replied_at)
     or (v_note is not null and (char_length(v_note) > 500 or translate(v_note, E'\n\r\t', '') ~ '[[:cntrl:]]'))
@@ -432,6 +456,11 @@ begin
     -- 회신은 그 출고지시 뒤의 일이다. 화면은 분 단위로 받으므로 출고지시와 같은 분까지 받는다.
     if p_replied_at < date_trunc('minute', shipment.exported_at) then
       raise check_violation using message = 'warehouse_stop_reply_before_export';
+    end if;
+    -- 반송 입고는 창고가 이미 출고했다고 회신한 발송 대기 배송 건에만 남긴다(취소된 배송 건은 취소 뒤 출고 처리의 회수 입고로 닫는다).
+    if p_outcome = 'returned' and (shipment.status <> 'ready'
+      or coalesce((private.warehouse_stop_current_reply(shipment.id)).outcome, '') <> 'already_shipped') then
+      raise check_violation using message = 'warehouse_stop_reply_returned_without_shipped';
     end if;
     insert into private.warehouse_stop_replies(order_id, shipment_id, exported_at, outcome, channel, replied_at, note, recorded_by, operation_id)
     values (shipment.order_id, shipment.id, shipment.exported_at, p_outcome, p_channel, p_replied_at, v_note, actor, p_operation_id)
@@ -533,7 +562,10 @@ create function public.admin_order_warehouse_stop_context(p_order_id uuid) retur
 language plpgsql stable security definer set search_path = '' as $$
 declare result jsonb;
 begin
-  perform private.require_operator_capability('sales.read', false);
+  -- 읽기 RPC는 PostgREST 읽기 전용 트랜잭션에서 돈다. 행 잠금이 있는 권한 가드(require_operator_capability) 대신 판정만 한다.
+  if (select auth.uid()) is null or not public.has_operator_capability('sales.read', false) then
+    raise insufficient_privilege using message = 'operator_capability_required';
+  end if;
   if p_order_id is null then raise invalid_parameter_value using message = 'order_not_found'; end if;
   select jsonb_build_object(
     'orderId', o.id,
@@ -545,7 +577,8 @@ begin
         'exportedAt', s.exported_at, 'stopStatus', private.warehouse_stop_status(s.id),
         'replies', coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'outcome', r.outcome, 'channel', r.channel,
             'repliedAt', r.replied_at, 'note', r.note, 'recordedAt', r.recorded_at, 'recordedByName', recorder.nickname,
-            'current', r.exported_at = s.exported_at, 'usedKind', r.used_kind, 'usedAt', r.used_at)
+            'current', r.exported_at = s.exported_at and r.superseded_at is null, 'usedKind', r.used_kind, 'usedAt', r.used_at,
+            'supersededAt', r.superseded_at, 'supersededReason', r.superseded_reason)
             order by r.replied_at desc, r.recorded_at desc, r.id desc)
           from private.warehouse_stop_replies r left join public.profiles recorder on recorder.id = r.recorded_by
           where r.shipment_id = s.id), '[]'::jsonb))
@@ -694,6 +727,30 @@ $a$    (coalesce((select sum(r.qty) from returned r where r.holder_id=t.id and r
 ]);
 
 -- ---------------------------------------------------------------------------
+-- 9-1. 배송 중 반품·교환의 출고지별 회수 확인: 출고지시가 나간 발송 전 배송 건의 '창고 보관 확인'도 창고 회신이 근거다
+-- ---------------------------------------------------------------------------
+-- 회수 확인의 모든 경로(출고지별·반품지별·반품 입고 반입)가 이 함수를 지난다. 창고가 이미 내보냈는데 보관 확인으로 기록하면
+-- 결제 전액이 환불되고 물건도 고객에게 간다(CLM-013과 같은 결과). 지금 출고지시의 현재 회신이 출고 중단 확인 또는 반송 입고여야 하고,
+-- 이미 출고면 거절한다. 쓴 회신은 이 클레임에 묶인다(같은 클레임의 다른 반품지 묶음은 같은 회신을 쓴다).
+select private.o3d_patch_function('private.record_order_claim_collection_bundle(uuid,uuid,uuid,text,date)'::regprocedure, array[
+$a$ order_day date;today date:=(clock_timestamp() at time zone 'Asia/Seoul')::date;received date;shipment_collected boolean:=false;$a$,
+$a$ order_day date;today date:=(clock_timestamp() at time zone 'Asia/Seoul')::date;received date;shipment_collected boolean:=false;
+ stop_reply private.warehouse_stop_replies;$a$,
+$a$ received:=coalesce(p_received_on,today);$a$,
+$a$ if exists(select 1 from public.order_shipments s where s.id=shipment_key and s.status='ready' and s.exported_at is not null and s.shipped_at is null) then
+   stop_reply:=private.warehouse_stop_current_reply(shipment_key);
+   if stop_reply.id is null then raise check_violation using message='claim_collection_warehouse_reply_required';end if;
+   if stop_reply.outcome='already_shipped' then raise check_violation using message='claim_collection_warehouse_already_shipped';end if;
+   if stop_reply.used_at is null then
+     perform private.consume_warehouse_stop_replies(array[stop_reply.id],'claim_collection',p_claim_id,actor);
+   elsif stop_reply.used_kind<>'claim_collection' or stop_reply.used_ref<>p_claim_id then
+     raise check_violation using message='claim_collection_warehouse_reply_required';
+   end if;
+ end if;
+ received:=coalesce(p_received_on,today);$a$
+]);
+
+-- ---------------------------------------------------------------------------
 -- 10. 운영자 계약: 새 RPC는 새로, 고친 함수는 기존 분류값 그대로 지문을 다시 적는다
 -- ---------------------------------------------------------------------------
 select private.register_operator_rpc_contract('public.admin_record_warehouse_stop_reply(uuid[],text,text,timestamp with time zone,text,uuid)'::regprocedure, 'sales.dispatch', 'write', false);
@@ -708,7 +765,8 @@ do $$declare fn regprocedure; contract record; begin
     'public.admin_import_seowon_tracking_batch(uuid,jsonb)'::regprocedure,
     'public.admin_origin_tracking_candidates(uuid,text[],text[])'::regprocedure,
     'private.stock_reconcile_flows(uuid[],timestamp with time zone)'::regprocedure,
-    'private.tracking_number_conflict(text,text,uuid[],uuid)'::regprocedure] loop
+    'private.tracking_number_conflict(text,text,uuid[],uuid)'::regprocedure,
+    'private.record_order_claim_collection_bundle(uuid,uuid,uuid,text,date)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

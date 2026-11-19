@@ -18,6 +18,8 @@ begin;
 --   · 처리(sales.manage): 사유 필수, 한 번만, 같은 요청번호 재요청은 처음 결과. 운영 알림·감사·화면 읽기
 --   · (리뷰 보완) 표준 양식의 오류 줄(운송장 빈칸·받는 분 불일치)은 취소된 배송 건이어도 발견을 만들지 않는다.
 --     결제사 취소 처리 중에 기록한 '이미 출고' 회신은 취소 완료 때 발견이 된다. 발견의 운송장은 살아 있는 다른 주문에 쓸 수 없다
+--   · (통합 리뷰) 배송 중 반품의 출고지시 나간 발송 전 배송 건 '창고 보관 확인'도 창고 회신이 근거다(이미 출고면 거절, 반송 입고 회신 뒤 회수).
+--     발송으로 반박된 출고 중단 회신은 무효가 되어, 배송 건이 발송 대기로 돌아와도 취소 근거가 되지 않는다. 읽기 RPC는 행을 잠그지 않는다
 --   · 권한 봉인
 -- ============================================================================
 
@@ -120,7 +122,7 @@ grant execute on function pg_temp.stock(integer),pg_temp.reply(uuid[],text,times
 select pg_temp.wsr_order(1,array[3]),pg_temp.wsr_order(2,array[3,1]),pg_temp.wsr_order(3,array[2]),pg_temp.wsr_order(4,array[2]),
  pg_temp.wsr_order(5,array[3]),pg_temp.wsr_order(6,array[3]),pg_temp.wsr_order(7,array[3],false),pg_temp.wsr_order(8,array[3],true,'shipping'),
  pg_temp.wsr_order(9,array[1]),pg_temp.wsr_order(10,array[3]),pg_temp.wsr_order(11,array[3]),pg_temp.wsr_order(12,array[3]),
- pg_temp.wsr_order(13,array[3]),pg_temp.wsr_order(14,array[3]);
+ pg_temp.wsr_order(13,array[3]),pg_temp.wsr_order(14,array[3]),pg_temp.wsr_order(15,array[1,3]),pg_temp.wsr_order(16,array[3]);
 -- END FIXTURE
 
 -- ---------------------------------------------------------------------------
@@ -418,5 +420,61 @@ select 1/case when (public.admin_import_shipment_tracking(pg_temp.wsr_id('shipme
 reset role;
 select 1/case when (select status='ready' and tracking_number is null from public.order_shipments where id=pg_temp.wsr_id('shipment-14',1))
  then 1 else 0 end as assert_live_order_not_dispatched_with_discovery_waybill;
+
+-- ---------------------------------------------------------------------------
+-- 6. 통합 리뷰 보완
+-- ---------------------------------------------------------------------------
+-- (1) 주문 15: 김포(배송 건 1) 발송, 일반(배송 건 2) 출고지시·발송 전. 고객이 주문 전체 배송 중 반품을 접수했다.
+update public.orders set status='shipping', shipped_at=now()-interval '2 days', created_at=now()-interval '5 days' where id=pg_temp.wsr_id('order',15);
+update public.order_shipments set status='shipping', carrier='hanjin', tracking_number='4200000151', shipped_at=now()-interval '2 days'
+ where id=pg_temp.wsr_id('shipment-15',1);
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type,requested_at)
+ values(pg_temp.wsr_id('claim',15),pg_temp.wsr_id('order',15),pg_temp.wsr_id('user',2),'TEST 배송 중 반품','return','requested','defect',clock_timestamp());
+select pg_temp.as_actor(1);
+set local role authenticated;
+select public.admin_decide_order_claim(pg_temp.wsr_id('claim',15),'approve',null);
+-- 회신이 없으면 발송 전 배송 건의 창고 보관 확인을 받지 않는다.
+select pg_temp.expect_error(format('select public.admin_record_order_claim_origin_collection(%L,%L,%L,%L::date)',pg_temp.wsr_id('claim',15),pg_temp.wsr_id('shipment-15',2),
+ 'TEST 창고 보관 확인',(clock_timestamp() at time zone 'Asia/Seoul')::date),'claim_collection_warehouse_reply_required');
+-- 창고가 이미 출고했다고 회신했으면 보관 확인이 아니다. 반품이 열려 있는 동안은 운송장 반입(발송 처리)도 막혀 있다.
+select pg_temp.reply(array[pg_temp.wsr_id('shipment-15',2)],'already_shipped',clock_timestamp(),151);
+select pg_temp.expect_error(format('select public.admin_record_order_claim_origin_collection(%L,%L,%L,%L::date)',pg_temp.wsr_id('claim',15),pg_temp.wsr_id('shipment-15',2),
+ 'TEST 창고 보관 확인',(clock_timestamp() at time zone 'Asia/Seoul')::date),'claim_collection_warehouse_already_shipped');
+select pg_temp.expect_error(format('select public.admin_import_shipment_tracking(%L,%L,%L)',pg_temp.wsr_id('shipment-15',2),'hanjin','4200000152'),'order cancellation in progress');
+-- 반송 입고는 이미 출고 회신이 있는 발송 대기 배송 건에만 남긴다.
+select pg_temp.expect_error(format('select pg_temp.reply(array[%L]::uuid[],%L,clock_timestamp(),152)',pg_temp.wsr_id('shipment-14',1),'returned'),'warehouse_stop_reply_returned_without_shipped');
+-- 고객이 받은 상자를 돌려보내 창고에 다시 들어오면 '반송 입고'를 기록하고 회수를 확인한다. 그 회신은 이 클레임에 묶인다.
+select pg_temp.reply(array[pg_temp.wsr_id('shipment-15',2)],'returned',clock_timestamp()+interval '1 minute',153) as returned_15 \gset
+select public.admin_record_order_claim_origin_collection(pg_temp.wsr_id('claim',15),pg_temp.wsr_id('shipment-15',2),'TEST 고객 반송 상자 입고',
+ (clock_timestamp() at time zone 'Asia/Seoul')::date) as collected_15;
+reset role;
+select 1/case when (select collected_at is not null from public.order_claim_collections where claim_id=pg_temp.wsr_id('claim',15) and shipment_id=pg_temp.wsr_id('shipment-15',2))
+ and (select used_kind='claim_collection' and used_ref=pg_temp.wsr_id('claim',15) from private.warehouse_stop_replies where id=(:'returned_15'::jsonb->'replyIds'->>0)::uuid)
+ and private.warehouse_stop_status(pg_temp.wsr_id('shipment-15',2))='used'
+ then 1 else 0 end as assert_retention_check_requires_warehouse_reply;
+
+-- (2) 주문 16: 출고 중단 회신을 남겼는데 창고 운송장이 반입돼 발송됐다 → 그 회신은 무효다. 배송 건이 발송 대기로 돌아와도(되돌리기 흉내) 취소 근거가 아니다.
+select pg_temp.as_actor(1);
+set local role authenticated;
+select pg_temp.reply(array[pg_temp.wsr_id('shipment-16',1)],'stopped',clock_timestamp(),161) as stopped_16 \gset
+select public.admin_import_shipment_tracking(pg_temp.wsr_id('shipment-16',1)::text,'hanjin','4200000161');
+reset role;
+select 1/case when (select superseded_reason='dispatched' and superseded_at is not null and used_at is null
+   from private.warehouse_stop_replies where id=(:'stopped_16'::jsonb->'replyIds'->>0)::uuid)
+ then 1 else 0 end as assert_dispatch_supersedes_unused_reply;
+set local session_replication_role = replica;
+update public.order_shipments set status='ready', shipped_at=null, carrier=null, tracking_number=null where id=pg_temp.wsr_id('shipment-16',1);
+update public.orders set status='confirmed', shipped_at=null where id=pg_temp.wsr_id('order',16);
+set local session_replication_role = origin;
+select 1/case when private.warehouse_stop_status(pg_temp.wsr_id('shipment-16',1))='required' then 1 else 0 end as assert_superseded_reply_is_not_current;
+select pg_temp.as_actor(1);
+set local role authenticated;
+select pg_temp.expect_error(format('select public.admin_start_order_cancellation(%L,%L,null,true)',pg_temp.wsr_id('order',16),'customer_request'),'warehouse_stop_reply_required');
+select public.admin_order_warehouse_stop_context(pg_temp.wsr_id('order',16)) as context_16 \gset
+reset role;
+select 1/case when :'context_16'::jsonb->'shipments'->0->'replies'->0->>'supersededReason'='dispatched'
+ and not (:'context_16'::jsonb->'shipments'->0->'replies'->0->>'current')::boolean
+ and :'context_16'::jsonb->'shipments'->0->>'stopStatus'='required'
+ then 1 else 0 end as assert_context_marks_superseded_reply;
 
 rollback;
