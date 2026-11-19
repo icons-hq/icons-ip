@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ORDER_PARTIAL_CANCELLATION_STATE_LABELS,
+  STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE,
+  orderHasUnsentShipmentAfterDispatch,
   orderPartialCancellationBlockerMessage,
   orderPartialCancellationErrorMessage,
   orderPartialCancellationItemBlockerLabel,
@@ -70,5 +72,23 @@ describe('부분 취소 운영 문구', () => {
     expect(orderPartialCancellationResolutionMessage('balance_unexplained')).toContain('해소하지 않았습니다');
     expect(orderPartialCancellationResolutionMessage('provider_unavailable')).toContain('조회하지 못했습니다');
     expect(orderPartialCancellationResolutionMessage('anything_else')).not.toContain('anything_else');
+  });
+});
+
+/* 혼합 출고지 일부 발송(원장 #15): 발송 전 배송 건 몫은 부분 취소, 발송된 몫은 반품으로 안내한다. */
+describe('일부 발송 주문', () => {
+  it('발송된 배송 건 품목과 모두 발송된 주문의 막힘을 운영 문구로 옮긴다', () => {
+    expect(orderPartialCancellationItemBlockerLabel('shipment_dispatched')).toBe('이미 발송된 배송 건(반품으로 처리)');
+    expect(orderPartialCancellationErrorMessage('partial_cancel_item_shipment_dispatched')).toBe('고를 수 없는 상품이 있습니다(이미 발송된 배송 건(반품으로 처리)). 새로고침해주세요.');
+    expect(orderPartialCancellationBlockerMessage('shipment_already_dispatched')).toBe('모든 배송 건이 이미 발송돼 부분 취소할 몫이 없습니다. 발송된 상품은 반품으로 처리해주세요.');
+    expect(orderPartialCancellationBlockerMessage('order_not_partial_cancelable')).toContain('배송중(일부 발송)');
+  });
+  it('배송중이고 품목이 남은 발송 전 배송 건이 있을 때만 전액 취소 대신 안내한다', () => {
+    const ready = { status: 'ready', orderItemIds: ['i1'] }, shipped = { status: 'shipping', orderItemIds: ['i2'] };
+    expect(orderHasUnsentShipmentAfterDispatch({ status: 'shipping', shipments: [shipped, ready] })).toBe(true);
+    expect(orderHasUnsentShipmentAfterDispatch({ status: 'shipping', shipments: [shipped, { status: 'ready', orderItemIds: [] }] })).toBe(false);
+    expect(orderHasUnsentShipmentAfterDispatch({ status: 'shipping', shipments: [shipped, { status: 'canceled', orderItemIds: [] }] })).toBe(false);
+    expect(orderHasUnsentShipmentAfterDispatch({ status: 'confirmed', shipments: [ready] })).toBe(false);
+    expect(STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE).toContain('재고 부족 부분 취소(설정이 켜져 있을 때)');
   });
 });

@@ -36,6 +36,15 @@ describe('ClaimReturnBundles', () => {
     expect(renderToStaticMarkup(<ClaimReturnBundles row={row} operator={false} />)).toBe('');
   });
 
+  /* 배송 분실(원장 #15): 고객에게 "다시 보내드려요"라고 하지 않고 분실이 확인돼 반송이 필요 없다고 말한다. */
+  it('배송 분실 배송 건은 다시 보내드린다고 말하지 않는다', () => {
+    const html = renderToStaticMarkup(<ClaimReturnBundles row={{ ...row, collectionWaived: true, carrierLoss: true, returnBundles: [seoul] }} operator={false} />);
+    expect(html).toContain('배송 중 분실이 확인된 배송 묶음이에요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.');
+    expect(html).not.toContain('다시 보내드려요');
+    expect(html).not.toContain('서울특별시');
+    expect(renderToStaticMarkup(<ClaimReturnBundles row={{ ...row, collectionWaived: true, carrierLoss: true, returnBundles: [seoul] }} operator />)).toContain('배송 분실로 기록한 배송 건입니다.');
+  });
+
   /* 회수 생략(ADR-0041): 고객에게는 주소 대신 반송이 필요 없다고 말하고, 운영자는 주소를 계속 본다(늦은 도착 확인). */
   it('회수 생략 배송 건은 고객에게 주소 대신 반송이 필요 없다고 말한다', () => {
     const waived = { ...row, returnBundles: [seoul], collectionWaived: true as const };
