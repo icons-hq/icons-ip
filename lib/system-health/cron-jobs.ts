@@ -23,6 +23,7 @@ export const CRON_JOBS = {
   'goods-media': { label: '이미지·디지털 파일 업로드 정리', intervalMinutes: 1440 },
   gifts: { label: '선물 만료·정리', intervalMinutes: 1 },
   subscriptions: { label: '정기구매 결제', intervalMinutes: 1 },
+  'ops-alert-digest': { label: '운영 알림 요약 메일', intervalMinutes: 5 },
   'stock-safety-digest': { label: '안전재고 요약 메일', intervalMinutes: 1 },
   'delivery-tracking': { label: '택배 추적 자동 배송완료', intervalMinutes: 10 },
   'return-pickups': { label: '반품 자동 회수 접수', intervalMinutes: 5 },
