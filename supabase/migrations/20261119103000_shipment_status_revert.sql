@@ -188,7 +188,8 @@ end $$;
 revoke all on function public.admin_revert_shipment_delivery(uuid,text,uuid,timestamptz) from public,anon,authenticated,service_role;
 grant execute on function public.admin_revert_shipment_delivery(uuid,text,uuid,timestamptz) to authenticated;
 
--- 발송 되돌리기. p_expected_tracking_number는 화면이 본 대표 운송장이다(그 사이 바뀌었으면 PT409).
+-- 발송 되돌리기. p_expected_tracking_number는 화면이 본 대표 운송장이다(그 사이 바뀌었으면 PT409). 운송장 없이 배송 중인 건(강제 배송완료를
+-- 되돌린 건 등)은 빈 값으로 대조한다.
 create function public.admin_revert_shipment_dispatch(p_shipment_id uuid, p_reason text, p_operation_id uuid, p_expected_tracking_number text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); expected text:=nullif(upper(btrim(coalesce(p_expected_tracking_number,''))),'');
@@ -197,7 +198,7 @@ declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); expected te
   removed_notification uuid; order_status public.order_status;
 begin
   actor:=private.require_operator_capability('sales.manage',false);
-  if p_shipment_id is null or p_operation_id is null or expected is null then raise invalid_parameter_value using message='invalid_shipment_revert'; end if;
+  if p_shipment_id is null or p_operation_id is null then raise invalid_parameter_value using message='invalid_shipment_revert'; end if;
   if char_length(reason_value) not between 5 and 500 then raise invalid_parameter_value using message='shipment_revert_reason_required'; end if;
   request:=jsonb_build_object('shipmentId',p_shipment_id,'reason',reason_value,'expectedTrackingNumber',expected);
   perform pg_advisory_xact_lock(hashtextextended('shipment-revert:'||p_operation_id::text,0));
