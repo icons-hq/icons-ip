@@ -129,9 +129,10 @@ select pg_temp.expect_error(format(
 
 select updated_at as archived_leaf_updated_at from public.catalog_categories where id = :'leaf_id'::uuid \gset
 select public.admin_unarchive_category('00000000-0000-4000-8000-000000047418', :'leaf_id'::uuid, :'archived_leaf_updated_at'::timestamptz);
-select public.admin_set_category_type_migration('00000000-0000-4000-8000-000000047419', '문구', :'leaf_id'::uuid, 'suggested', '운영 확인 전 제안');
-select 1 / case when exists(select 1 from public.goods_type_category_migrations where type = '문구' and status = 'suggested')
-then 1 else 0 end as assert_legacy_type_migration_is_optional;
+-- ADR-0044: 기존 유형 이관 메모(goods_type_category_migrations)와 그 저장 RPC는 없어졌다.
+select 1 / case when to_regclass('public.goods_type_category_migrations') is null
+  and to_regprocedure('public.admin_set_category_type_migration(uuid,text,uuid,text,text)') is null
+then 1 else 0 end as assert_legacy_type_migration_removed;
 
 -- R9: 붙여넣기 일괄 등록. 같은 부모 아래 같은 이름(공백·전각·대소문자 무시)은 건너뛰고, 줄마다 실패를 따로 돌려주며,
 -- 이름의 '/'는 구분자가 아니다. 코드는 ASCII slug로 자동 생성하고, 같은 작업 ID 재시도는 같은 결과를 돌려준다.

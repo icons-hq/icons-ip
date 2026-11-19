@@ -39,6 +39,7 @@ $$;
 
 -- --------------------------------------------------------------------------
 -- 걷어낸 장치: 파생 함수·트리거가 없고, KC 가드는 category_id 쓰기에 돌지 않으며, 공개 상품도 유형이 비어 있을 수 있다.
+-- 정리 단계(20261118162500): 카테고리 유형 칸·기존 유형 이관 메모(표·RPC·운영자 계약 행)·필터의 옛 사유가 없다.
 -- --------------------------------------------------------------------------
 select 1/case when to_regprocedure('private.goods_category_type(uuid)') is null
  and to_regprocedure('private.goods_category_type_majority()') is null
@@ -50,8 +51,13 @@ select 1/case when to_regprocedure('private.goods_category_type(uuid)') is null
  and pg_get_constraintdef((select oid from pg_constraint where conname='goods_type_check' and conrelid='public.goods'::regclass)) not like '%published_at%'
  and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in('public','private')
    and (p.prosrc ~ 'goods_category_type' or p.prosrc ~ 'goods_type_category_(required|locked|changed)'
-     or (p.prosrc ~ '''type_(missing|category_mismatch|no_category)'''
-       and p.oid<>'private.admin_goods_workspace_matches(text,text,text,text,uuid,text)'::regprocedure)))
+     or p.prosrc ~ '''type_(missing|category_mismatch|no_category)''' or p.prosrc ~ 'goods_type_category_migrations'))
+ and not exists(select 1 from information_schema.columns where table_schema='public' and table_name='catalog_categories' and column_name='good_type')
+ and to_regclass('public.goods_type_category_migrations') is null
+ and to_regprocedure('public.admin_set_category_type_migration(uuid,text,uuid,text,text)') is null
+ and not exists(select 1 from private.operator_rpc_contracts where signature='public.admin_set_category_type_migration(uuid,text,uuid,text,text)')
+ and not exists(select 1 from private.operator_internal_contracts where signature='public.admin_set_category_type_migration(uuid,text,uuid,text,text)')
+ and not exists(select 1 from private.operator_policy_contracts where table_name='goods_type_category_migrations')
  then 1 else 0 end as type_layer_removed;
 
 -- --------------------------------------------------------------------------
@@ -66,11 +72,11 @@ insert into public.verticals(key,label,color) values('goods-type-retire','유형
 insert into public.ips(id,title,vertical_key,published_at) values('goods-type-retire','유형 정리 합성검증','goods-type-retire',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
  values('00000000-0000-4000-8000-000000190030','goods-type-retire','합성 출고지','hanjin',3000,30000,'배송 금지 검증 주소',true);
--- 옛 연결 칸(good_type)이 있는 카테고리와 없는 카테고리. 이제 둘 다 공개에 쓸 수 있다.
-insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order,good_type) values
- ('00000000-0000-4000-8000-000000190100','gr-linked','합성 키링 연결',null,1,0,'키링'),
- ('00000000-0000-4000-8000-000000190110','gr-plain','봉투류',null,1,1,null),
- ('00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,1,2,null);
+-- 대표 카테고리 셋. 카테고리에는 상품 유형 칸이 없다.
+insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order) values
+ ('00000000-0000-4000-8000-000000190100','gr-linked','합성 키링 연결',null,1,0),
+ ('00000000-0000-4000-8000-000000190110','gr-plain','봉투류',null,1,1),
+ ('00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,1,2);
 -- 공개 조건(대표 이미지·고시 7칸·출고지)은 채운다. 합성 이미지 경로는 시스템 입력으로 넣는다.
 insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,category_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact)
@@ -115,10 +121,9 @@ select 1/case when public.admin_read_goods_readiness('gr-nocat-good')->'blocking
  and not (public.admin_read_goods_readiness('gr-plain-good')->'reasonCodes' ? 'category_missing')
  and (public.admin_search_goods_workspace(p_query=>'합성 gr-nocat-good',p_readiness=>'category_missing')->>'total')::integer=1
  then 1 else 0 end as missing_category_blocks_draft;
--- 옛 유형 사유 필터는 배포 사이 이전 앱 호환으로 받되 아무 상품도 걸리지 않는다(판매 준비가 더는 내지 않는다).
-select 1/case when (public.admin_search_goods_workspace(p_query=>'합성 gr-',p_readiness=>'type_missing')->>'total')::integer=0
- and (public.admin_search_goods_workspace(p_query=>'합성 gr-',p_readiness=>'type_no_category')->>'total')::integer=0
- then 1 else 0 end as legacy_type_filters_match_nothing;
+-- 옛 유형 사유 필터 값은 더 받지 않는다(정리 단계에서 이전 앱 호환을 걷어냈다).
+select pg_temp.gr_expect_error($sql$select public.admin_search_goods_workspace(p_query=>'합성 gr-',p_readiness=>'type_missing')$sql$,
+ 'invalid_goods_workspace_filter','22023');
 
 -- 저장하며 공개하면 대표 카테고리를 넣은 뒤 공개한다(공개 판정이 새 대표 카테고리를 본다). 유형은 들어온 값 그대로다.
 select pg_temp.gr_review('gr-defer-good');
@@ -140,14 +145,38 @@ select 1/case when (select type='문구' and category_id='00000000-0000-4000-800
  and public.admin_read_goods_kc('gr-move-good')->>'status'='reviewed'
  then 1 else 0 end as draft_save_move_keeps_type_and_kc;
 
--- 카테고리의 옛 연결 칸을 바꿔도 그 아래 상품은 바뀌지 않는다(갱신 트리거 없음).
-select public.admin_upsert_category('00000000-0000-4000-8000-000000190302','00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,2,
- (select updated_at from public.catalog_categories where id='00000000-0000-4000-8000-000000190120'),'인형') is not null as gr_other_relinked;
+-- 카테고리 저장은 옛 target_good_type 인자를 받기만 하고 무시한다(이전 화면 호환). 그 아래 상품도 바뀌지 않는다.
+select public.admin_upsert_category('00000000-0000-4000-8000-000000190311','00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,2,
+ (select updated_at from public.catalog_categories where id='00000000-0000-4000-8000-000000190120'),'인형') as gr_other_saved \gset
+select public.admin_upsert_category('00000000-0000-4000-8000-000000190312','00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,3,
+ (select updated_at from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')) as gr_other_saved_without_type \gset
 select 1/case when (select type from public.goods where id='gr-move-good')='문구'
  and public.admin_read_goods_kc('gr-move-good')->>'status'='reviewed'
+ and not (:'gr_other_saved'::jsonb ? 'goodType')
+ and (select sort_order from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')=3
+ and not exists(select 1 from public.audit_log where id in('00000000-0000-4000-8000-000000190311','00000000-0000-4000-8000-000000190312')
+   and (diff::text like '%good_type%'))
  and not exists(select 1 from public.audit_log where action='admin.catalog.category.good_type_changed'
    and target='catalog_categories:00000000-0000-4000-8000-000000190120')
- then 1 else 0 end as legacy_link_does_not_touch_goods;
+ then 1 else 0 end as legacy_type_argument_is_ignored;
+-- 정리 migration 전에 저장된 카테고리 작업(요청에 'good_type': null)을 같은 작업 ID로 다시 보내면
+-- 충돌(operation_conflict)이 아니라 저장된 결과를 돌려준다(재시도는 다시 저장하지 않는다).
+reset role;
+insert into public.audit_log(id,actor_id,action,target,diff)
+ select '00000000-0000-4000-8000-000000190313','98190000-0000-4000-8000-000000000001','admin.catalog.category.updated',
+  'catalog_categories:00000000-0000-4000-8000-000000190120',
+  jsonb_build_object('category_id','00000000-0000-4000-8000-000000190120'::uuid,
+   'request',jsonb_build_object('category_id','00000000-0000-4000-8000-000000190120'::uuid,'code','gr-other','name','다른분류',
+     'parent_id',null::uuid,'sort_order',4,'expected_updated_at',category.updated_at,'good_type',null::text),
+   'after',jsonb_build_object('code','gr-other','name','다른분류','parent_id',null::uuid,'depth',1,'good_type',null::text))
+ from public.catalog_categories as category where category.id='00000000-0000-4000-8000-000000190120';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','98190000-0000-4000-8000-000000000001',true);
+select public.admin_upsert_category('00000000-0000-4000-8000-000000190313','00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,4,
+ (select updated_at from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')) as gr_other_replayed \gset
+select 1/case when :'gr_other_replayed'::jsonb=jsonb_build_object('id','00000000-0000-4000-8000-000000190120','depth',1)
+ and (select sort_order from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')=3
+ then 1 else 0 end as replay_across_cleanup_returns_saved_result;
 
 -- --------------------------------------------------------------------------
 -- 공개 중: 다른 대표 카테고리로 옮길 수 있고(유형·KC 그대로), 비우는 것만 막는다.

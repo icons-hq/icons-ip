@@ -35,8 +35,8 @@ insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_ma
 -- 다른 카테고리로 옮겨도 유형·KC 맥락은 그대로이고, KC 맥락은 고시정보 변경으로 바꾼다.
 select pg_temp.link_goods_type_category_fixture('kc-fallback-good');
 select pg_temp.link_goods_type_category_fixture('kc-fallback-none');
-insert into public.catalog_categories(id,code,name,depth,sort_order,good_type)
- values('00000000-0000-4000-8000-000000100840','kc-fallback-keyring','합성 키링 분류',1,0,'키링');
+insert into public.catalog_categories(id,code,name,depth,sort_order)
+ values('00000000-0000-4000-8000-000000100840','kc-fallback-keyring','합성 키링 분류',1,0);
 -- 어드민 상품 폼과 같은 전체 저장 입력(상품 + 옵션 + 기준값)을 만든다.
 create function pg_temp.kc_fallback_payload(target_id text) returns jsonb language sql as $$
   select record->'good'||jsonb_build_object('previous_id',target_id,

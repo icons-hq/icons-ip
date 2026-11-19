@@ -248,8 +248,8 @@ create function pg_temp.workspace_auth(p_actor text,p_session text) returns void
   perform set_config('request.jwt.claims',jsonb_build_object('sub',p_actor,'role','authenticated','session_id',p_session)::text,true);
 end $$;
 update private.goods_transaction_runtime set enabled=true where singleton;
-insert into public.catalog_categories(id,code,name,depth,sort_order,good_type)
-  values('12000000-0000-4000-8000-0000000c0001','test-workspace-sections','TEST-ONLY 원자 저장 분류',1,0,'문구');
+insert into public.catalog_categories(id,code,name,depth,sort_order)
+  values('12000000-0000-4000-8000-0000000c0001','test-workspace-sections','TEST-ONLY 원자 저장 분류',1,0);
 select public.service_prepare_admin_artwork_upload('00000000-0000-4000-8000-000000120002','catalog/good/12000000-0000-4000-8000-0000000a0001.webp','good','image/webp',100,now()+interval '10 minutes');
 select * from public.service_begin_admin_artwork_verification('00000000-0000-4000-8000-000000120002','catalog/good/12000000-0000-4000-8000-0000000a0001.webp');
 select public.service_verify_admin_artwork_upload('00000000-0000-4000-8000-000000120002','catalog/good/12000000-0000-4000-8000-0000000a0001.webp',100);
