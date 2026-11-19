@@ -103,6 +103,21 @@ describe('validateVercelBuildEnvironment', () => {
     expect(validateVercelBuildEnvironment({})).toEqual({ checked: false });
   });
 
+  it('treats Turnstile as all-or-nothing: both keys or neither', () => {
+    const site = { NEXT_PUBLIC_TURNSTILE_SITE_KEY: '0x4AAAAAAA-site' };
+    const secret = { TURNSTILE_SECRET_KEY: '0x4AAAAAAA-secret' };
+    expect(validateVercelBuildEnvironment({ ...baseEnvironment, ...site, ...secret }).checked).toBe(true);
+    expect(validateVercelBuildEnvironment({ ...baseEnvironment }).checked).toBe(true);
+    expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, ...site }))
+      .toThrow('Incomplete Vercel preview Turnstile environment');
+    expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, ...secret }))
+      .toThrow('Incomplete Vercel preview Turnstile environment');
+    // 값이 비어 있는 것은 없는 것과 같다.
+    expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, ...site, TURNSTILE_SECRET_KEY: '  ' }))
+      .toThrow('Incomplete Vercel preview Turnstile environment');
+    expect(validateVercelBuildEnvironment({ ...baseEnvironment, NEXT_PUBLIC_TURNSTILE_SITE_KEY: ' ', TURNSTILE_SECRET_KEY: '' }).checked).toBe(true);
+  });
+
   it('accepts a Fake-only preview and keeps checkout closed', () => {
     expect(validateVercelBuildEnvironment({ ...baseEnvironment })).toEqual({
       checked: true,

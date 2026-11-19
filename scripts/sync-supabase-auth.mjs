@@ -85,12 +85,20 @@ export function missingSmtpSettings(config) {
   return missing;
 }
 
+/*
+ * 운영 Auth가 한 시간에 보낼 수 있는 메일(가입 확인·재설정·변경 알림) 수. 프로젝트 전체가 나눠 쓴다.
+ * 배포 파이프라인이 이 값으로 강제하고 검증한다 — 값을 바꿀 곳은 여기 한 곳이다.
+ * 앱 서버의 IP 시도 한도(supabase/migrations/20261119106000_auth_mail_abuse_limits.sql, IP당 시간 15)는 이 값의 절반이라
+ * 접속 IP 하나가 한도를 독점하지 못한다. 이 값을 올리거나 내리면 런북(docs/runbooks/signup-contact-channels.md 봇 차단 절)과 같이 본다.
+ */
+export const AUTH_EMAIL_RATE_LIMIT_PER_HOUR = 30;
+
 export function mailerPatch({ enforceMailer }) {
   if (!enforceMailer) return {};
   return {
     mailer_autoconfirm: false,
     mailer_secure_email_change_enabled: true,
-    rate_limit_email_sent: 30,
+    rate_limit_email_sent: AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
   };
 }
 
@@ -195,7 +203,7 @@ export function isSatisfied({
   const autoconfirm = config.mailer_autoconfirm;
   if (autoconfirm !== false && autoconfirm !== null && autoconfirm !== undefined) return false;
   if (config.mailer_secure_email_change_enabled !== true) return false;
-  if (Number(config.rate_limit_email_sent) !== 30) return false;
+  if (Number(config.rate_limit_email_sent) !== AUTH_EMAIL_RATE_LIMIT_PER_HOUR) return false;
   return true;
 }
 

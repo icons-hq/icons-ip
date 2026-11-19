@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   getProfileForUser: vi.fn(),
   cookieDeletes: [] as string[],
   createClientOptions: [] as unknown[],
+  abuseRpc: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/config', () => ({
@@ -56,6 +57,16 @@ vi.mock('@/lib/supabase/server', () => ({
     },
   }),
 }));
+
+/* 메일 시도 한도·Turnstile 방어(lib/auth/mail-abuse.server.ts)는 실제 모듈을 쓰고 DB RPC와 fetch만 가짜로 바꾼다. */
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => ({ rpc: mocks.abuseRpc }),
+}));
+
+beforeEach(() => {
+  mocks.abuseRpc.mockReset();
+  mocks.abuseRpc.mockResolvedValue({ data: { ok: true }, error: null });
+});
 
 vi.mock('@/lib/auth/server', () => ({
   getProfileForUser: mocks.getProfileForUser,
@@ -1041,5 +1052,254 @@ describe('linkKakaoAccountAction', () => {
     expect(state).toEqual({ errors: { form: '지금은 카카오 계정을 연결할 수 없어요. 잠시 후 다시 시도해주세요.' } });
     expect(JSON.stringify(state)).not.toContain('Manual linking');
     expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)).toBeUndefined();
+  });
+});
+
+describe('가입·재전송·재설정 메일 방어(CUS-003)', () => {
+  const resendForm = () => {
+    const data = new FormData();
+    data.set('email', 'Fan@Icons.gg');
+    data.set('next', '/');
+    return data;
+  };
+  const TOSS = ['NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'] as const;
+  const originalTurnstile = Object.fromEntries(TOSS.map((name) => [name, process.env[name]]));
+
+  beforeEach(() => {
+    process.env.AUTH_SIGNUP_RESEND_SECRET = TEST_SIGNUP_RESEND_SECRET;
+    for (const name of TOSS) delete process.env[name];
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-19T00:00:00.000Z'));
+    mocks.isConfigured = true;
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com'], ['x-real-ip', '203.0.113.7']]);
+    mocks.cookies.clear();
+    mocks.cookieSetCalls.length = 0;
+    for (const fn of [mocks.signUp, mocks.resend, mocks.resetPasswordForEmail]) fn.mockReset();
+    mocks.signUp.mockResolvedValue({ data: { user: { id: 'u1' }, session: null }, error: null });
+    mocks.resend.mockResolvedValue({ data: {}, error: null });
+    mocks.resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    for (const name of TOSS) {
+      if (originalTurnstile[name] === undefined) delete process.env[name];
+      else process.env[name] = originalTurnstile[name];
+    }
+    if (ORIGINAL_SIGNUP_RESEND_SECRET === undefined) delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    else process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SIGNUP_RESEND_SECRET;
+  });
+
+  it('가입은 IP·이메일 다이제스트만 DB에 보내고 원문은 보내지 않는다', async () => {
+    await submitSignup('Fan@Icons.gg');
+
+    expect(mocks.abuseRpc).toHaveBeenCalledTimes(1);
+    const [name, args] = mocks.abuseRpc.mock.calls[0] as [string, Record<string, string>];
+    expect(name).toBe('service_consume_auth_mail_attempt');
+    expect(args.p_action).toBe('signup');
+    expect(args.p_ip_digest).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(args.p_email_digest).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(JSON.stringify(args)).not.toContain('203.0.113.7');
+    expect(JSON.stringify(args).toLowerCase()).not.toContain('icons.gg');
+    expect(mocks.signUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('같은 이메일은 대소문자가 달라도 같은 다이제스트로 센다', async () => {
+    await submitSignup('Fan@Icons.gg');
+    await submitSignup('fan@icons.gg');
+    const digests = mocks.abuseRpc.mock.calls.map((call) => (call[1] as { p_email_digest: string }).p_email_digest);
+    expect(new Set(digests).size).toBe(1);
+  });
+
+  it('한도를 넘으면 Supabase를 부르지 않고 기존 쿠키 한도와 같은 문구로 거절한다', async () => {
+    mocks.abuseRpc.mockResolvedValue({ data: { ok: false, reason: 'rate_limited', retryAfterSeconds: 120 }, error: null });
+
+    expect(await submitSignup('Fan@Icons.gg')).toEqual({
+      errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' },
+    });
+    expect(mocks.signUp).not.toHaveBeenCalled();
+    expect(mocks.resend).not.toHaveBeenCalled();
+    expect(mocks.cookieSetCalls).toHaveLength(0);
+  });
+
+  it('남은 시간이 10분보다 길면 그 시간을 올림해 알려준다', async () => {
+    mocks.abuseRpc.mockResolvedValue({ data: { ok: false, reason: 'rate_limited', retryAfterSeconds: 2400 }, error: null });
+    expect((await submitSignup()).errors?.form).toBe('확인 메일 재요청이 너무 많습니다. 40분 후 다시 시도해주세요.');
+    mocks.abuseRpc.mockResolvedValue({ data: { ok: false, reason: 'rate_limited', retryAfterSeconds: 50_000 }, error: null });
+    expect((await submitSignup()).errors?.form).toBe('확인 메일 재요청이 너무 많습니다. 14시간 후 다시 시도해주세요.');
+  });
+
+  it('쿠키를 버리고 다시 와도 서버 한도가 막는다(쿠키 창이 없는 새 브라우저)', async () => {
+    mocks.abuseRpc.mockResolvedValue({ data: { ok: false, reason: 'rate_limited', retryAfterSeconds: 60 }, error: null });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      mocks.cookies.clear();
+      expect((await submitSignup('victim@icons.gg')).errors?.form).toContain('너무 많습니다');
+    }
+    expect(mocks.signUp).not.toHaveBeenCalled();
+  });
+
+  it('코드 재받기는 한도에 걸리면 이메일을 유지한 채 거절하고 보내지 않는다', async () => {
+    await submitSignup('Fan@Icons.gg');
+    mocks.abuseRpc.mockClear();
+    mocks.abuseRpc.mockResolvedValue({ data: { ok: false, reason: 'rate_limited', retryAfterSeconds: 30 }, error: null });
+
+    expect(await resendSignupCodeAction({}, resendForm())).toEqual({
+      errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' },
+      pendingSignupEmail: 'fan@icons.gg',
+    });
+    expect(mocks.resend).not.toHaveBeenCalled();
+    expect(mocks.abuseRpc.mock.calls[0]?.[1]).toMatchObject({ p_action: 'resend' });
+  });
+
+  it('쿠키 창이 없는 코드 재받기는 한도를 소비하지 않고 먼저 거절한다', async () => {
+    expect((await resendSignupCodeAction({}, resendForm())).errors?.form).toContain('회원가입을 다시 제출');
+    expect(mocks.abuseRpc).not.toHaveBeenCalled();
+  });
+
+  it('재설정은 한도에 걸리면 메일도 쿠키 시도 기록도 남기지 않는다', async () => {
+    mocks.abuseRpc.mockResolvedValue({ data: { ok: false, reason: 'rate_limited', retryAfterSeconds: 3000 }, error: null });
+
+    const state = await requestPasswordResetAction({}, resetFormData());
+    expect(state).toEqual({ errors: { form: '비밀번호 재설정 요청이 너무 많습니다. 50분 후 다시 시도해주세요.' } });
+    expect(mocks.resetPasswordForEmail).not.toHaveBeenCalled();
+    expect(latestCookieSet(AUTH_PASSWORD_RESET_COOKIE_NAME)).toBeUndefined();
+    expect(mocks.abuseRpc.mock.calls[0]?.[1]).toMatchObject({ p_action: 'reset' });
+  });
+
+  it('IP 헤더가 없으면 IP 다이제스트 없이 이메일 한도만 건다', async () => {
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com']]);
+    await submitSignup();
+    expect(mocks.abuseRpc.mock.calls[0]?.[1]).toMatchObject({ p_ip_digest: null });
+    expect(mocks.signUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('x-real-ip가 없으면 x-forwarded-for의 첫 값을 쓴다', async () => {
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com'], ['x-forwarded-for', '198.51.100.9, 10.0.0.1']]);
+    await submitSignup();
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com'], ['x-real-ip', '198.51.100.9']]);
+    mocks.cookies.clear();
+    await submitSignup();
+    const [first, second] = mocks.abuseRpc.mock.calls.map((call) => (call[1] as { p_ip_digest: string }).p_ip_digest);
+    expect(first).toBe(second);
+  });
+
+  it('비밀값이 없으면 한도를 건너뛰고 가입을 막지 않는다', async () => {
+    delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await submitSignup();
+    expect(mocks.abuseRpc).not.toHaveBeenCalled();
+    expect(mocks.signUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('한도 DB가 실패해도 가입은 열어 둔다(Auth 자체 한도와 쿠키 창은 남는다)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.abuseRpc.mockResolvedValue({ data: null, error: { message: 'db down' } });
+    await submitSignup();
+    expect(mocks.signUp).toHaveBeenCalledTimes(1);
+
+    mocks.abuseRpc.mockRejectedValue(new Error('network'));
+    mocks.cookies.clear();
+    await submitSignup();
+    expect(mocks.signUp).toHaveBeenCalledTimes(2);
+  });
+
+  describe('Turnstile', () => {
+    const verifyResponse = (success: boolean) => ({ ok: true, json: async () => ({ success }) });
+
+    it('키가 없으면 꺼져 있다 — 토큰 없이도 지금처럼 동작하고 Cloudflare를 부르지 않는다', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      await submitSignup();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mocks.signUp).toHaveBeenCalledTimes(1);
+    });
+
+    it('비밀 키만 있으면 켜지지 않는다(사이트 키 없이는 위젯이 없어 모두 막히므로)', async () => {
+      process.env.TURNSTILE_SECRET_KEY = 'secret';
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      await submitSignup();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mocks.signUp).toHaveBeenCalledTimes(1);
+    });
+
+    describe('두 키가 모두 있을 때', () => {
+      beforeEach(() => {
+        process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'site';
+        process.env.TURNSTILE_SECRET_KEY = 'secret';
+      });
+
+      const withToken = (data: FormData, token = 'token-1') => {
+        data.set('cf-turnstile-response', token);
+        return data;
+      };
+
+      it('토큰이 없으면 Cloudflare도 DB 한도도 Supabase도 부르지 않고 거절한다', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        const state = await submitSignup();
+        expect(state.errors?.form).toContain('자동 가입 방지');
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(mocks.abuseRpc).not.toHaveBeenCalled();
+        expect(mocks.signUp).not.toHaveBeenCalled();
+      });
+
+      it('검증이 통과하면 토큰·비밀 키·접속 IP를 siteverify로 보내고 가입을 이어 간다', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(verifyResponse(true));
+        vi.stubGlobal('fetch', fetchMock);
+        await signUpWithEmailAction({}, withToken(formData()));
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify');
+        expect(init.method).toBe('POST');
+        expect(init.signal).toBeInstanceOf(AbortSignal);
+        const body = init.body as URLSearchParams;
+        expect(Object.fromEntries(body)).toEqual({ secret: 'secret', response: 'token-1', remoteip: '203.0.113.7' });
+        expect(mocks.signUp).toHaveBeenCalledTimes(1);
+      });
+
+      it('검증이 실패하면 거절하고 시도 한도도 소비하지 않는다', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(false)));
+        const state = await signUpWithEmailAction({}, withToken(formData()));
+        expect(state.errors?.form).toContain('자동 가입 방지');
+        expect(mocks.abuseRpc).not.toHaveBeenCalled();
+        expect(mocks.signUp).not.toHaveBeenCalled();
+      });
+
+      it('Cloudflare가 오류를 주거나 응답하지 않아도 거절한다', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+        expect((await signUpWithEmailAction({}, withToken(formData()))).errors?.form).toContain('자동 가입 방지');
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('timeout', 'TimeoutError')));
+        expect((await signUpWithEmailAction({}, withToken(formData()))).errors?.form).toContain('자동 가입 방지');
+        expect(mocks.signUp).not.toHaveBeenCalled();
+      });
+
+      it('코드 재받기는 이메일을 유지한 채 거절하고, 재설정도 같은 검증을 거친다', async () => {
+        await signUpWithEmailAction({}, (() => {
+          vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(true)));
+          return withToken(formData());
+        })());
+        mocks.resend.mockClear();
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(false)));
+
+        expect(await resendSignupCodeAction({}, withToken(resendForm()))).toEqual({
+          errors: { form: expect.stringContaining('자동 가입 방지') },
+          pendingSignupEmail: 'fan@icons.gg',
+        });
+        expect(mocks.resend).not.toHaveBeenCalled();
+
+        expect((await requestPasswordResetAction({}, resetFormData())).errors?.form).toContain('자동 가입 방지');
+        expect(mocks.resetPasswordForEmail).not.toHaveBeenCalled();
+      });
+
+      it('재설정은 검증을 통과하면 메일을 보낸다', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(true)));
+        await requestPasswordResetAction({}, withToken(resetFormData()));
+        expect(mocks.resetPasswordForEmail).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });

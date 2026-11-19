@@ -128,6 +128,17 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     throw new Error(`Invalid Vercel ${target} SUPABASE_SERVICE_ROLE_KEY: use a Supabase secret key (sb_secret_), not a legacy service_role JWT`);
   }
 
+  // Cloudflare Turnstile(가입·재설정·재전송 봇 차단)은 사이트 키와 비밀 키가 둘 다 있을 때만 켜진다. 하나만 있으면
+  // 운영자가 방어가 켜졌다고 오해한 채 꺼져 있거나(비밀 키만), 위젯만 그려지고 서버가 검증하지 않으므로(사이트 키만) 빌드를 멈춘다.
+  const turnstileSiteKey = isPresent(environment.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+  const turnstileSecretKey = isPresent(environment.TURNSTILE_SECRET_KEY);
+  if (turnstileSiteKey !== turnstileSecretKey) {
+    throw new Error(
+      `Incomplete Vercel ${target} Turnstile environment: set both NEXT_PUBLIC_TURNSTILE_SITE_KEY and `
+      + 'TURNSTILE_SECRET_KEY, or neither (docs/runbooks/signup-contact-channels.md)',
+    );
+  }
+
   const korpayOrderCheckoutEnabled = parseBooleanGate(
     environment,
     target,

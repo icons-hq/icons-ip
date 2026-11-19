@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 import {
+  AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
   isSatisfied,
   isSafeConfirmationTemplate,
   isSafePasswordChangedTemplate,
@@ -344,7 +345,7 @@ describe('isSatisfied', () => {
    * 다르다고 보면 PATCH → 확인이 영원히 실패해 배포가 멈춘다.
    */
   it('mailer_autoconfirm이 없는 신규 프로젝트도 강제 모드를 통과한다', () => {
-    const config = { ...base, mailer_secure_email_change_enabled: true, rate_limit_email_sent: 30 };
+    const config = { ...base, mailer_secure_email_change_enabled: true, rate_limit_email_sent: AUTH_EMAIL_RATE_LIMIT_PER_HOUR };
     expect(isSatisfied({ ...args, config, enforceMailer: true })).toBe(true);
   });
 
@@ -353,9 +354,16 @@ describe('isSatisfied', () => {
       ...base,
       mailer_autoconfirm: true,
       mailer_secure_email_change_enabled: true,
-      rate_limit_email_sent: 30,
+      rate_limit_email_sent: AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
     };
     expect(isSatisfied({ ...args, config, enforceMailer: true })).toBe(false);
+  });
+
+  it('시간당 메일 한도가 기준값과 다르면 강제 모드를 통과하지 않는다', () => {
+    for (const value of [AUTH_EMAIL_RATE_LIMIT_PER_HOUR - 1, AUTH_EMAIL_RATE_LIMIT_PER_HOUR + 1, undefined]) {
+      const config = { ...base, mailer_autoconfirm: false, mailer_secure_email_change_enabled: true, rate_limit_email_sent: value };
+      expect(isSatisfied({ ...args, config, enforceMailer: true })).toBe(false);
+    }
   });
 
   it('rate limit이 문자열로 와도 숫자로 비교한다', () => {
@@ -363,7 +371,7 @@ describe('isSatisfied', () => {
       ...base,
       mailer_autoconfirm: false,
       mailer_secure_email_change_enabled: true,
-      rate_limit_email_sent: '30',
+      rate_limit_email_sent: String(AUTH_EMAIL_RATE_LIMIT_PER_HOUR),
     };
     expect(isSatisfied({ ...args, config, enforceMailer: true })).toBe(true);
   });
@@ -460,7 +468,7 @@ describe('mailerPatch', () => {
     expect(mailerPatch({ enforceMailer: true })).toEqual({
       mailer_autoconfirm: false,
       mailer_secure_email_change_enabled: true,
-      rate_limit_email_sent: 30,
+      rate_limit_email_sent: AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
     });
   });
 });

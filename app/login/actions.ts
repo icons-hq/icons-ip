@@ -30,6 +30,14 @@ import {
   signedAuthNextCookieValue,
   type AuthNextPurpose,
 } from '@/lib/auth/recovery.server';
+import {
+  authMailLimitedWait,
+  consumeAuthMailAttempt,
+  requestClientIp,
+  TURNSTILE_FAILED_MESSAGE,
+  verifyTurnstileToken,
+  type AuthMailAction,
+} from '@/lib/auth/mail-abuse.server';
 import { getProfileForUser } from '@/lib/auth/server';
 import { isPasswordSessionAccessToken } from '@/lib/auth/session-amr';
 import { hasKakaoIdentity, KAKAO_LINK_SETTINGS_PATH } from '@/lib/kakao/account-link';
@@ -417,6 +425,36 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 /*
+ * 메일을 보내는 세 요청(가입·확인 메일 재전송·비밀번호 재설정)의 공통 방어. Supabase를 부르기 전에 먼저 거친다.
+ * 1) Turnstile(키가 둘 다 있을 때만) 2) 접속 IP·이메일 DB 한도. 거절이면 사용자에게 보일 상태를, 통과면 null을 돌려준다.
+ * 한도 문구는 앱 쿠키 한도와 같은 형태이고, IP 때문인지 이메일 때문인지는 밝히지 않는다.
+ */
+async function rejectAbusiveAuthMail(input: {
+  action: AuthMailAction;
+  email: string;
+  formData: FormData;
+  pendingSignupEmail?: string;
+}): Promise<AuthActionState | null> {
+  const withPending = (state: AuthActionState): AuthActionState => (
+    input.pendingSignupEmail ? { ...state, pendingSignupEmail: input.pendingSignupEmail } : state
+  );
+  const ip = await requestClientIp();
+  if (!await verifyTurnstileToken(input.formData, ip)) {
+    return withPending({ errors: { form: TURNSTILE_FAILED_MESSAGE } });
+  }
+  const attempt = await consumeAuthMailAttempt({ action: input.action, email: input.email, ip });
+  if (attempt.ok) return null;
+  const wait = authMailLimitedWait(attempt.retryAfterSeconds);
+  return withPending({
+    errors: {
+      form: input.action === 'reset'
+        ? `비밀번호 재설정 요청이 너무 많습니다. ${wait} 다시 시도해주세요.`
+        : `확인 메일 재요청이 너무 많습니다. ${wait} 다시 시도해주세요.`,
+    },
+  });
+}
+
+/*
  * 같은 이메일로 확인 메일을 다시 보낸다. 10분에 3번까지만 보내고(서명 쿠키 창), 넘으면 Supabase를 부르지 않는다.
  * 회원가입 폼을 같은 이메일로 다시 제출한 경우와 코드 입력 단계의 [코드 다시 받기]가 같은 창을 나눠 쓴다.
  * 창 상태가 없거나 다른 이메일의 창이면 새 창을 연다. 서명 비밀값이 없으면 앱 창 없이 Supabase 한도만 적용된다.
@@ -473,10 +511,13 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
   const { isConfigured } = getSupabaseConfig();
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 가입할 수 있습니다.' } };
 
+  const normalizedSignupEmail = normalizedEmail(email);
+  const rejected = await rejectAbusiveAuthMail({ action: 'signup', email: normalizedSignupEmail, formData });
+  if (rejected) return rejected;
+
   const supabase = await createClient();
   const origin = await requestOrigin();
   const emailRedirectTo = authCallbackUrl(origin);
-  const normalizedSignupEmail = normalizedEmail(email);
   const cookieStore = await cookies();
   const now = Date.now();
   const resendSecret = signupResendSecret();
@@ -583,6 +624,9 @@ export async function resendSignupCodeAction(_state: AuthActionState, formData: 
     return { errors: { form: SIGNUP_CODE_RESTART_MESSAGE }, pendingSignupEmail: email };
   }
 
+  const rejected = await rejectAbusiveAuthMail({ action: 'resend', email, formData, pendingSignupEmail: email });
+  if (rejected) return rejected;
+
   const supabase = await createClient();
   const origin = await requestOrigin();
   return resendSignupConfirmation({ supabase, cookieStore, origin, email, next, now, secret, state });
@@ -687,6 +731,9 @@ export async function requestPasswordResetAction(
   if (attempt.blocked) {
     return { errors: { form: '비밀번호 재설정 요청이 너무 많습니다. 10분 후 다시 시도해주세요.' } };
   }
+
+  const rejected = await rejectAbusiveAuthMail({ action: 'reset', email, formData });
+  if (rejected) return rejected;
 
   // 로그인 화면과 설정 화면이 같은 action을 쓰므로 어느 쪽에서 보내도 같은 쿠키를 읽고 쓴다.
   cookieStore.set(AUTH_PASSWORD_RESET_COOKIE_NAME, attempt.cookieValue, {
