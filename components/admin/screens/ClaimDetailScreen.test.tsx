@@ -109,6 +109,7 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
 function render(overrides: Partial<AdminClaimDetail> = {}, cancellationForm: string | null = null) {
   return renderToStaticMarkup(
     <ClaimDetailScreen
+      partialReturn={null}
       backHref="/admin/sales/claims/returns"
       cancellationForm={cancellationForm}
       carriers={CARRIERS}
@@ -236,7 +237,7 @@ describe('ClaimDetailScreen', () => {
     value.claim.reshippedItems = [{ orderItemId: 'old-line', goodId: 'replacement', originalGoodId: 'original', name: '실제 교환 파랑 상품', variantId: 'new-variant', variantName: '기본', variantCode: 'NEW-BLUE', qty: 2 }];
     value.order!.items[0].options = [{ id: 'new-variant', goodId: 'replacement', goodName: '실제 교환 파랑 상품', name: '기본', code: 'NEW-BLUE', stockQty: 3 }];
     value.order!.items[0].currentVariantId = 'new-variant';
-    const html = renderToStaticMarkup(<ClaimDetailScreen detail={value} carriers={CARRIERS} now={NOW} backHref="/admin/sales/claims/exchanges" cancellationForm={null} />);
+    const html = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} detail={value} carriers={CARRIERS} now={NOW} backHref="/admin/sales/claims/exchanges" cancellationForm={null} />);
     expect(html).toContain('아크릴 블록 × 2');
     expect(html).toContain('재출고 상품');
     expect(html).toContain('실제 교환 파랑 상품 · 기본 · NEW-BLUE');
@@ -449,14 +450,14 @@ describe('ClaimDetailScreen', () => {
     const claim = { ...base.claim, claimType: 'exchange' as const, stage: 'collecting' as const, reasonType: 'defect' as const, collectionPolicy: 'origin' as const,
       collectionComplete: false, reshippedAt: null, collectionWaiverAllowed: true, reshipments: [],
       reshipmentTargets: [{ ...target, shipmentId: gimpo, originName: '김포' }, { ...target, shipmentId: namyangju, originName: '남양주', productionRequired: false, productionPending: false }] };
-    const before = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+    const before = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
       detail={{ ...base, claim, payment: null, timeline: [] }} now={NOW} />);
     expect(before).toContain('김포 회수 없이 교환품 제작 시작'); expect(before).toContain(`data-claim-waiver-decision="${gimpo}"`);
     expect(before).not.toContain(`data-claim-waiver-decision="${namyangju}"`);
     expect(before).toContain('회수 없이 보내려면 아래에서 회수 생략을 먼저 기록해 제작을 시작합니다');
     const waiver = { reason: '고객 사진으로 인쇄 불량 확인', waivedAt: NOW.toISOString(), waivedByName: 'cs_lead', evidence: [{ id: '00000000-0000-4000-8000-0000000000e1', mimeType: 'image/jpeg', size: 2048 }] };
     const decided = { ...claim, reshipmentTargets: [{ ...claim.reshipmentTargets[0], waiver }, claim.reshipmentTargets[1]] };
-    const waiting = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+    const waiting = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
       detail={{ ...base, claim: decided, payment: null, timeline: [{ action: 'admin.order.claim_collection_waived', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포' } },
         { action: 'admin.order.claim_collection_reopened', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { cause: 'collection_waiver_ineffective' } }] }} now={NOW} />);
     expect(waiting).toContain('회수 생략 무효로 수거중 복귀');
@@ -474,7 +475,7 @@ describe('ClaimDetailScreen', () => {
       collectionComplete: false, reshippedAt: null, collectionWaiverAllowed: true, reshipments: [],
       collections: [{ shipmentId: gimpo, originId: 'o1', originName: '김포', returnAddress: '', items: [], collectedAt: null, collectedBy: null, collectorName: null, evidence: null, bundles: [bundle(NOW.toISOString(), 1), bundle(null, 2)] }],
       reshipmentTargets: [{ shipmentId: gimpo, originName: '김포', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: true, productionPending: true }] };
-    const html = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+    const html = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
       detail={{ ...base, claim, payment: null, timeline: [] }} now={NOW} />);
     expect(html).not.toContain('data-claim-waiver-decision');
     expect(html).toContain('이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다');
@@ -491,7 +492,7 @@ describe('ClaimDetailScreen', () => {
       reshipmentTargets: [{ shipmentId: gimpo, originName: '김포', collectionTracked: true, collectedAt: NOW.toISOString(), reshipped: true, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false },
         { shipmentId: namyangju, originName: '남양주', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false }],
       reshipments: [row] };
-    const partial = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+    const partial = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
       detail={{ ...base, claim, payment: null, timeline: [{ action: 'admin.order.claim_reshipped', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포', collectionWaived: false } }] }} now={NOW} />);
     expect(partial).toContain('출고지별 재출고'); expect(partial).toContain('재출고 1/2'); expect(partial).toContain('재출고 대기');
     expect(partial).toContain('김포 배송완료 확인 근거'); expect(partial).toContain('href="https://example.test/GIMPO0000001"');
@@ -499,7 +500,7 @@ describe('ClaimDetailScreen', () => {
     expect(partial).toContain('재출고 운송장 · 김포');
     const waived = { ...row, id: '00000000-0000-4000-8000-0000000000b2', shipmentId: namyangju, originName: '남양주', trackingNumber: 'NAMYANG00001', collectionWaived: true,
       waiverReason: '고객 사진으로 인쇄 불량 확인', waiverEvidence: [{ id: '00000000-0000-4000-8000-0000000000c1', mimeType: 'image/jpeg', size: 2048 }] };
-    const done = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+    const done = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
       detail={{ ...base, payment: null, claim: { ...claim, stage: 'completed', reshipmentTargets: claim.reshipmentTargets.map(target => ({ ...target, reshipped: true })), reshipments: [row, waived] },
         timeline: [{ action: 'admin.order.claim_reshipped', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '남양주', collectionWaived: true } }] }} now={NOW} />);
     expect(done).toContain('재출고 2/2'); expect(done).toContain('회수 생략 사유'); expect(done).toContain('고객 사진으로 인쇄 불량 확인');
@@ -597,7 +598,7 @@ describe('ClaimDetailScreen', () => {
 
   it('연락처 원문과 실제 재출고 폼은 현재 운영자 세션과 주소를 확인한 뒤에만 연다', () => {
     const value = detail(); value.claim.claimType = 'exchange';
-    const html = renderToStaticMarkup(<ClaimDetailScreen actorId="00000000-0000-4000-8000-000000000001" detail={value}
+    const html = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} actorId="00000000-0000-4000-8000-000000000001" detail={value}
       carriers={CARRIERS} now={NOW} backHref="/admin/sales/claims/exchanges" cancellationForm={null} />);
     expect(html).toContain('연락처 정보를 확인하기 위해 로그인 상태를 확인');
     expect(html).not.toContain('재출고 등록하고 교환 종결');
@@ -753,6 +754,7 @@ describe('ClaimDetailScreen', () => {
   it('팝업(embedded)에서는 뒤로가기·제목 대신 전체 화면 링크를 두고 처리 패널은 그대로 그린다', () => {
     const html = renderToStaticMarkup(
       <ClaimDetailScreen
+      partialReturn={null}
         backHref="/admin/sales/claims/returns?stage=open&page=1"
         cancellationForm={null}
         carriers={CARRIERS}
@@ -775,9 +777,53 @@ describe('ClaimDetailScreen', () => {
 it('shows the actual gift requester and separate COD without suggesting a recipient refund', async () => {
   const { transactionDisplay } = await import('@/test/fixtures/cart-transaction');
   const base = detail();
-  const html = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin?tab=returns" carriers={CARRIERS} cancellationForm={null}
+  const html = renderToStaticMarkup(<ClaimDetailScreen partialReturn={null} backHref="/admin?tab=returns" carriers={CARRIERS} cancellationForm={null}
     detail={{ ...base, gift: { giftId: ORDER_ID, requesterRole: 'recipient', requesterName: '받는분 별명' },
       order: { ...base.order!, total: 16000, transaction: transactionDisplay } }} now={NOW} />);
   expect(html).toContain('받는분 별명 · 선물 받는 분'); expect(html).toContain('구매자의 결제수단');
   expect(html).toContain('계약상 착불 배송비'); expect(html).toContain('온라인 환불금액에 포함되지 않음');
 });
+
+describe('부분 반품 칸 — 적대적 리뷰 반영(ADR-0047, 2026-11-19)', () => {
+  const renderPartial = (partialReturn: Parameters<typeof ClaimDetailScreen>[0]['partialReturn'], stage = 'processing') => {
+    const value = detail(); value.claim.claimType = 'return'; value.claim.stage = stage as typeof value.claim.stage;
+    return renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/returns" carriers={CARRIERS} cancellationForm={null}
+      detail={value} now={NOW} partialReturn={partialReturn} actorId="00000000-0000-4000-8000-000000000001" />);
+  };
+
+  it('반품인데 부분 반품 칸을 읽지 못하면(undefined) 경고하고 주문 전체 환불 단계를 그리지 않는다', () => {
+    const html = renderPartial(undefined);
+    expect(html).toContain('부분 반품 정보를 읽지 못했습니다');
+    expect(html).toContain('부분 반품 정보를 읽지 못해 환불 단계를 열지 않았습니다');
+    expect(html).not.toContain('환불 완료 확정');
+  });
+
+  it('결제사가 부분 취소를 받지 않아 닫힌 부분 반품은 결제 담당에게 계좌 송금 전환을 보인다', () => {
+    const html = renderPartial({
+      items: [{ orderItemId: '00000000-0000-4000-8000-000000044041', goodName: '아크릴 블록', variantName: '파랑', variantCode: 'A01', qty: 1, orderedQty: 2,
+        shipmentNumber: null, originName: null }],
+      refundId: null,
+      history: [{ id: '00000000-0000-4000-8000-000000044099', state: 'rejected' }] as never,
+      preview: { provider: 'toss', balanceBefore: 43000, goodsRefundAmount: 20000, shippingRefundAmount: 0, grossRefundAmount: 20000, returnFeeDeduction: 0,
+        returnFeeBasis: null, returnFeeReason: 'seller_fault', refundAmount: 20000, storeCreditRestoreAmount: 0, emptiedShipmentCount: 0 },
+      previewError: null, settlement: null, transferConvertible: true,
+    }, 'needs_review');
+    expect(html).toContain('[계좌 송금 부분 환불로 전환]으로 환급 기한');
+    expect(html).toContain('계좌 송금 부분 환불로 전환</button>');
+    expect(html).toContain('data-partial-return-transfer-entry');
+  });
+
+  it('계좌 송금으로 바꾼 부분 반품은 송금 대기 안내를 보이고 결제사 완료 확정을 그리지 않는다', () => {
+    const html = renderPartial({
+      items: [], refundId: '00000000-0000-4000-8000-000000044098',
+      history: [{ id: '00000000-0000-4000-8000-000000044099', state: 'rejected' },
+        { id: '00000000-0000-4000-8000-000000044098', state: 'awaiting_transfer', refundAmount: 20000, returnFeeDeduction: 0, goodsRefundAmount: 20000,
+          shippingRefundAmount: 0, storeCreditRestoreAmount: 0, items: [], reasonCode: 'return', provider: 'bank_transfer' }] as never,
+      preview: null, previewError: null, settlement: 'bank_transfer', transferConvertible: false,
+    });
+    expect(html).toContain('data-partial-return-converted');
+    expect(html).toContain('계좌 송금으로 돌려주는 부분 반품 환불은 송금 대기에 올라 있습니다');
+    expect(html).not.toContain('환불 완료 확정 (');
+  });
+});
+

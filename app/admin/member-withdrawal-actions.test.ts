@@ -12,13 +12,14 @@ const mocks = vi.hoisted(() => ({
   auth: null as unknown,
   rpc: vi.fn(),
   ban: vi.fn(),
+  eraseAvatar: vi.fn(),
   status: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc }) }));
-vi.mock('@/lib/admin/member-withdrawal.server', () => ({ banWithdrawnMemberSignin: mocks.ban, getMemberWithdrawalStatus: mocks.status }));
+vi.mock('@/lib/admin/member-withdrawal.server', () => ({ banWithdrawnMemberSignin: mocks.ban, eraseWithdrawnMemberAvatar: mocks.eraseAvatar, getMemberWithdrawalStatus: mocks.status }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); } }));
 
@@ -42,9 +43,11 @@ describe('탈퇴 요청 처리 액션', () => {
       operatorAccess: legacyOperatorAccessFixture() };
     mocks.rpc.mockReset();
     mocks.ban.mockReset();
+    mocks.eraseAvatar.mockReset();
     mocks.status.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.ban.mockResolvedValue(true);
+    mocks.eraseAvatar.mockResolvedValue(true);
   });
 
   it('platform.manage가 없으면 아무것도 부르지 않는다', async () => {
@@ -106,6 +109,41 @@ describe('탈퇴 요청 처리 액션', () => {
     rpcResults({ admin_process_member_withdrawal: { data: { ...STATUS, signinBlocked: true, signinBlockedAt: PROCESSED_AT, status: 'already_processed', revokedSessions: 0 }, error: null } });
     await expect(processMemberWithdrawalAction({}, form())).resolves.toEqual({ message: '이미 탈퇴 처리한 회원입니다(문의 #1234).' });
     expect(mocks.ban).not.toHaveBeenCalled();
+  });
+
+  it('지울 프로필 사진이 있으면 재로그인 차단 뒤 사진을 지우고, 실패하면 다시 적용하라고 알린다', async () => {
+    rpcResults({
+      admin_process_member_withdrawal: { data: { ...STATUS, avatarErasePending: true, status: 'processed', suspended: true, revokedSessions: 0,
+        erased: { ...ERASED, profileFields: ['nickname', 'birthDate', 'avatar'] } }, error: null },
+      admin_confirm_member_withdrawal_signin_block: { data: {}, error: null },
+    });
+    const done = await processMemberWithdrawalAction({}, form());
+    expect(mocks.eraseAvatar).toHaveBeenCalledWith(expect.anything(), MEMBER);
+    expect(done.message).toContain('프로필 익명화(닉네임·생년월일·프로필 사진)');
+    expect(done.errors).toBeUndefined();
+
+    mocks.eraseAvatar.mockResolvedValue(false);
+    const failed = await processMemberWithdrawalAction({}, form());
+    expect(failed.message).toContain('처리했습니다');
+    expect(failed.errors?.form).toContain('프로필 사진 파일을 지우지 못했습니다');
+  });
+
+  it('사진이 없는 처리는 사진 삭제를 부르지 않는다', async () => {
+    rpcResults({
+      admin_process_member_withdrawal: { data: { ...STATUS, avatarErasePending: false, status: 'processed', suspended: true, erased: ERASED, revokedSessions: 0 }, error: null },
+      admin_confirm_member_withdrawal_signin_block: { data: {}, error: null },
+    });
+    await processMemberWithdrawalAction({}, form());
+    expect(mocks.eraseAvatar).not.toHaveBeenCalled();
+  });
+
+  it('다시 적용은 차단이 끝났어도 지울 사진이 남았으면 사진 삭제만 다시 한다', async () => {
+    mocks.status.mockResolvedValue({ ...STATUS, signinBlocked: true, signinBlockedAt: PROCESSED_AT, avatarErasePending: true });
+    await expect(retryMemberWithdrawalSigninBlockAction({}, form())).resolves.toEqual({ message: '프로필 사진 삭제를 적용했습니다.' });
+    expect(mocks.ban).not.toHaveBeenCalled();
+    expect(mocks.eraseAvatar).toHaveBeenCalledWith(expect.anything(), MEMBER);
+    mocks.eraseAvatar.mockResolvedValue(false);
+    expect((await retryMemberWithdrawalSigninBlockAction({}, form())).errors?.form).toContain('프로필 사진 파일을 지우지 못했습니다');
   });
 
   it('RPC 거절은 운영자 문구로, 모르는 응답은 새로고침 안내로 접는다', async () => {

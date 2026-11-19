@@ -44,6 +44,10 @@ const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
 );
+/* 부분 반품·반품배송비 차감 약관 개정(ADR-0047)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
+const PARTIAL_RETURN_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/partial-return-terms-revision.json', import.meta.url),
+);
 
 /*
  * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
@@ -58,25 +62,27 @@ function isRealDate(value) {
   return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 
-export function validateLegalRevisionDates(source) {
+/** fileName은 오류 문구가 어느 날짜 파일인지 말하게 한다(약관 개정 날짜 파일이 둘 이상이다). */
+export function validateLegalRevisionDates(source, fileName = 'shipping-bundle-wording-revision.json') {
+  const prefix = `Invalid legal revision dates in ${fileName}`;
   let parsed;
   try {
     parsed = JSON.parse(source);
   } catch {
-    throw new Error('Invalid legal revision dates: shipping-bundle-wording-revision.json is not valid JSON');
+    throw new Error(`${prefix}: ${fileName} is not valid JSON`);
   }
   const announced = parsed?.announcedDate;
   const effective = parsed?.effectiveDate;
   if (announced === null && effective === null) return;
   if (typeof announced !== 'string' || typeof effective !== 'string' || !isRealDate(announced) || !isRealDate(effective)) {
-    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must both be null or both YYYY-MM-DD');
+    throw new Error(`${prefix}: announcedDate and effectiveDate must both be null or both YYYY-MM-DD`);
   }
   if (announced < LEGAL_FIRST_EDITION) {
-    throw new Error(`Invalid legal revision dates: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
+    throw new Error(`${prefix}: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
   }
   const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
   if (!(days >= 7)) {
-    throw new Error(`Invalid legal revision dates: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
+    throw new Error(`${prefix}: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
   }
 }
 
@@ -113,6 +119,8 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   }
   if (target === 'production') {
     validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
+    validateLegalRevisionDates(options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8'),
+      'partial-return-terms-revision.json');
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 

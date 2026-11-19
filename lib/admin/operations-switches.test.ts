@@ -10,6 +10,7 @@ const doc = {
   delayNotice: { revision: 1, enabled: false, smsEnabled: false, evidence: null, changedAt: '2026-11-19T01:00:00Z', updatedBy: null },
   returnFee: { revision: 1, enabled: false, oneWayAmount: null, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: null, inflightCount: 0 },
   partialCancel: { revision: 1, enabled: false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: null },
+  partialReturn: { revision: 1, enabled: false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: null },
 };
 
 describe('운영 스위치 문서', () => {
@@ -28,6 +29,10 @@ describe('운영 스위치 문서', () => {
     expect(parseOperationsSwitches({ ...doc, returnFee: { ...doc.returnFee, oneWayAmount: 0 } })).toBeNull();
     expect(parseOperationsSwitches({ ...doc, returnFee: { ...doc.returnFee, enabledAt: 'x' } })).toBeNull();
     expect(parseOperationsSwitches({ ...doc, partialCancel: { ...doc.partialCancel, extra: 1 } })).toBeNull();
+    /* 부분 반품(ADR-0047) 칸도 같은 모양이어야 하고, 없으면(옛 문서) 통과시키지 않는다. */
+    expect(parseOperationsSwitches({ ...doc, partialReturn: { ...doc.partialReturn, extra: 1 } })).toBeNull();
+    expect(parseOperationsSwitches({ delayNotice: doc.delayNotice, returnFee: doc.returnFee, partialCancel: doc.partialCancel })).toBeNull();
+    expect(parseOperationsSwitches(doc)?.partialReturn).toMatchObject({ enabled: false, revision: 1 });
     expect(parseOperationsSwitches({ delayNotice: doc.delayNotice, returnFee: doc.returnFee })).toBeNull();
   });
 
@@ -49,7 +54,7 @@ describe('운영 스위치 문서', () => {
   });
 
   it('세 스위치 모두 켜기 전 확인 항목이 있다', () => {
-    for (const kind of ['delayNotice', 'returnFee', 'partialCancel'] as const) expect(OPERATIONS_SWITCH_CHECKLISTS[kind].length).toBeGreaterThan(2);
+    for (const kind of ['delayNotice', 'returnFee', 'partialCancel', 'partialReturn'] as const) expect(OPERATIONS_SWITCH_CHECKLISTS[kind].length).toBeGreaterThan(2);
   });
 
   it('화면은 통합·계정 주매니저(platform.manage)만 열고 권한 전환 전에는 admin만 연다', () => {

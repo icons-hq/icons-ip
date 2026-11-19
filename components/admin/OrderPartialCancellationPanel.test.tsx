@@ -35,7 +35,7 @@ function context(overrides: Partial<OrderPartialCancellationContext> = {}): Orde
 
 function record(overrides: Partial<OrderPartialCancellationRecord> = {}): OrderPartialCancellationRecord {
   return {
-    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed', provider: 'toss', refundAmount: 9_500, goodsRefundAmount: 9_500,
+    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, reasonCode: 'out_of_stock', claimId: null, returnFeeDeduction: 0, state: 'completed', provider: 'toss', refundAmount: 9_500, goodsRefundAmount: 9_500,
     shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z',
     completedAt: '2026-11-12T05:00:05Z', transferredAt: null,
     items: [{ orderItemId: ITEM_A, goodName: '품절 상품 A', variantName: '블루', qty: 1, goodsRefundAmount: 9_500 }],
@@ -143,3 +143,31 @@ describe('재고 부족 부분 취소 패널', () => {
     expect(view(context({ history: [record({ refundAmount: 0, goodsRefundAmount: 0 })] }))).toContain('결제사를 부르지 않고 적용');
   });
 });
+
+describe('부분 반품 환불 줄(ADR-0047)', () => {
+  it('같은 원장의 반품 줄은 반품 이름·반품배송비 차감·반품 요청으로 보인다', () => {
+    const html = view(context({ history: [record({ reasonCode: 'return', claimId: 'dddddddd-0000-4000-8000-00000000000d',
+      returnFeeDeduction: 3_000, refundAmount: 6_500, goodsRefundAmount: 9_500 })] }));
+    expect(html).toContain('1차 부분 반품 환불');
+    expect(html).toContain('반품배송비 ₩3,000 차감');
+    expect(html).toContain('반품 요청:');
+  });
+});
+
+describe('부분 반품 환불 줄의 결제사 확인(ADR-0047, 적대적 리뷰 2026-11-19)', () => {
+  it('결제사 확인 전인 부분 반품 줄은 \'결제사 확인 다시 하기\'를 두지 않고 반품 상세의 [환불 완료 확정]을 가리킨다', () => {
+    const html = view(context({ history: [record({ reasonCode: 'return', claimId: 'dddddddd-0000-4000-8000-00000000000d', state: 'processing',
+      appliedAt: null, completedAt: null })] }));
+    expect(html).not.toContain('결제사 확인 다시 하기');
+    expect(html).toContain('반품 요청 상세에서 [환불 완료 확정]으로 확인합니다');
+    const stockout = view(context({ history: [record({ state: 'processing', appliedAt: null, completedAt: null })] }));
+    expect(stockout).toContain('결제사 확인 다시 하기');
+  });
+
+  it('결제사가 받지 않아 닫힌 부분 반품 줄은 계좌 송금 전환을 가리킨다', () => {
+    const html = view(context({ history: [record({ reasonCode: 'return', claimId: 'dddddddd-0000-4000-8000-00000000000d', state: 'rejected',
+      appliedAt: null, completedAt: null })] }));
+    expect(html).toContain('계좌 송금 부분 환불로 전환합니다');
+  });
+});
+

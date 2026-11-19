@@ -74,6 +74,18 @@ export async function saveReturnFeeDeductionSwitchAction(enabled: unknown, oneWa
   }, (state) => state.returnFee.enabled === enabled && (!enabled || state.returnFee.oneWayAmount === oneWayAmount));
 }
 
+/** 부분 반품 스위치(ADR-0047). 꺼져 있으면 반품은 지금처럼 주문 전체만 받는다. */
+export async function savePartialReturnSwitchAction(enabled: unknown, evidence: unknown, expectedRevision: unknown,
+  operationId: unknown): Promise<OperationsSwitchResult> {
+  if (!await requireAdminActionAccess(OPERATIONS_SWITCHES_PATH, GUARD)) return FORBIDDEN;
+  if (typeof enabled !== 'boolean' || !validRevision(expectedRevision) || !isUuid(operationId)) return INVALID;
+  const text = evidenceOf(enabled, evidence, SWITCH_EVIDENCE_MAX);
+  if ('error' in text) return text;
+  return call('admin_save_partial_return_switch', {
+    p_enabled: enabled, p_evidence: text.evidence, p_expected_revision: expectedRevision, p_operation_id: operationId,
+  }, (state) => state.partialReturn.enabled === enabled);
+}
+
 /** 재고 부족 부분 취소 스위치(반품배송비 차감과 독립). */
 export async function savePartialCancelSwitchAction(enabled: unknown, evidence: unknown, expectedRevision: unknown,
   operationId: unknown): Promise<OperationsSwitchResult> {

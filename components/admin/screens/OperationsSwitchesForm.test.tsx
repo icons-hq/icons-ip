@@ -11,6 +11,7 @@ const off: OperationsSwitchesState = {
   delayNotice: { revision: 1, enabled: false, smsEnabled: false, evidence: null, changedAt: at, updatedBy: null },
   returnFee: { revision: 1, enabled: false, oneWayAmount: null, evidence: null, enabledAt: null, updatedAt: at, updatedBy: null, inflightCount: 7 },
   partialCancel: { revision: 1, enabled: false, evidence: null, enabledAt: null, updatedAt: at, updatedBy: null },
+  partialReturn: { revision: 1, enabled: false, evidence: null, enabledAt: null, updatedAt: at, updatedBy: null },
 };
 
 it('꺼진 화면은 진행 중 단순 변심 반품 수와 켜기 전 확인 항목(부분 취소 게이트·HMAC 키)을 보인다', () => {
@@ -26,4 +27,11 @@ it('꺼진 화면은 진행 중 단순 변심 반품 수와 켜기 전 확인 �
 
 it('이메일 설정이 없으면 지연 안내 켜기를 막는 안내를 보인다', () => {
   expect(renderToStaticMarkup(<OperationsSwitchesForm emailConfigured={false} initial={off} />)).toContain('지금은 켤 수 없습니다');
+});
+
+it('부분 반품(ADR-0047) 스위치 칸이 약관 개정·결제사 거절 처리 확인 항목과 함께 꺼진 채로 보인다', () => {
+  const html = renderToStaticMarkup(<OperationsSwitchesForm emailConfigured initial={off} />);
+  expect(html).toContain('부분 반품');
+  expect(html).toContain('이용약관 제16조와 배송·반품 정책의 부분 반품 개정');
+  expect(html).toContain('전액 환불로 돌리지 않고 확인 필요로 남는다');
 });
