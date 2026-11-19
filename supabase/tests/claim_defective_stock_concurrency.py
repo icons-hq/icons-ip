@@ -57,7 +57,7 @@ insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot
  select ('{ITEM_DEFECT}'::uuid), '{uid('order')}'::uuid, 'defective-race-good-1', v.id, 'TEST 불량재고 상품 1', 'defective-race-ip', 2, 10000
  from public.goods_variants v where v.good_id='defective-race-good-1' and v.is_default
  union all
- select ('{ITEM_KEPT}'::uuid), '{uid('order')}'::uuid, 'defective-race-good-2', v.id, 'TEST 불량재고 상품 2', '문구', 'defective-race-ip', 3, 10000
+ select ('{ITEM_KEPT}'::uuid), '{uid('order')}'::uuid, 'defective-race-good-2', v.id, 'TEST 불량재고 상품 2', 'defective-race-ip', 3, 10000
  from public.goods_variants v where v.good_id='defective-race-good-2' and v.is_default;
 insert into public.payments(id,user_id,provider,purpose,ref_id,amount,status,payment_key,idempotency_key,created_at)
  values ('{uid('payment')}','{uid('user', 2)}','toss','order','{uid('order')}',50000,'paid','TEST-DEFECT-RACE-KEY','defective-race-test',clock_timestamp()-interval '3 days');

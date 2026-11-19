@@ -325,7 +325,7 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
   now()-interval '12 days',now()-interval '2 days' from generate_series(4,5)n;
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
  select pg_temp.po_id('item',n*10+1),pg_temp.po_id('order',n),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 주문제작','po-ip' from generate_series(4,5)n
- union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','문구','po-ip' from generate_series(4,5)n;
+ union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','po-ip' from generate_series(4,5)n;
 -- 주문제작 조건·원주문 제작 완료·결제 확인은 이 시험의 전제라 트리거 없이 심는다(order_production.sql과 같은 결제 근거).
 set session_replication_role=replica;
 update public.order_items set production_terms_snapshot='{"leadDays":3,"dayBasis":"calendar"}' where id in(pg_temp.po_id('item',41),pg_temp.po_id('item',51));
@@ -431,7 +431,7 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
   now()-interval '12 days',now()-interval '2 days' from generate_series(6,11)n;
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
  select pg_temp.po_id('item',n*10+1),pg_temp.po_id('order',n),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 주문제작','po-ip' from generate_series(6,11)n
- union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','문구','po-ip' from generate_series(6,11)n;
+ union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','po-ip' from generate_series(6,11)n;
 set session_replication_role=replica;
 update public.order_items set production_terms_snapshot='{"leadDays":3,"dayBasis":"calendar"}' where id in(select pg_temp.po_id('item',n*10+1) from generate_series(6,11)n);
 insert into private.order_production_jobs(order_id,order_item_id,terms,state,basis_at,due_at,started_at,completed_at)
