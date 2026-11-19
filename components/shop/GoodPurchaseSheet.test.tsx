@@ -34,7 +34,7 @@ const soldOutOption: GoodOption = { id: '00000000-0000-4000-8000-000000000103', 
 const extraOption: GoodOption = { id: '00000000-0000-4000-8000-000000000104', name: '스티커 A', code: 'G14-A', price: 3000, stockQty: 4, isDefault: false, attributes: {} };
 
 const good: Good = {
-  id: 'g13', name: '각인 아크릴 블록', ip: 'hong-sil-quest', type: '아크릴', price: 12000, priceMax: 15000, badge: null, stock: 'ok', stockQty: 5,
+  id: 'g13', name: '각인 아크릴 블록', ip: 'hong-sil-quest', price: 12000, priceMax: 15000, badge: null, stock: 'ok', stockQty: 5,
   img: 'linear-gradient(#111, #222)', options: [preorder, soldOutOption],
   orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 3,
   memberPurchaseLimitEnabled: true, memberLifetimeQtyLimit: 6,
@@ -42,7 +42,7 @@ const good: Good = {
   transactionOffer: { goodId: 'g13', volume: null, delivery: null, collectReady: false, collector: null,
     production: { version: 1, goodId: 'g13', revision: 1, leadDays: 5, dayBasis: 'business', closedDates: [], publicNote: '각인은 주문 후 제작합니다.' } },
 };
-const extra: Good = { id: 'g14', name: '추가 스티커', ip: 'hong-sil-quest', type: '문구', price: 3000, badge: null, stock: 'ok', stockQty: 4,
+const extra: Good = { id: 'g14', name: '추가 스티커', ip: 'hong-sil-quest', price: 3000, badge: null, stock: 'ok', stockQty: 4,
   img: 'linear-gradient(#111, #222)', options: [{ ...extraOption, id: '00000000-0000-4000-8000-000000000105', name: '스티커 B' }, extraOption] };
 
 const controller: GoodPurchaseController = {

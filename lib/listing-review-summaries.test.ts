@@ -7,7 +7,7 @@ import {
   pdpShelfGoodIds,
 } from './listing-review-summaries';
 
-const good = (id: string): Good => ({ id, name: id, ip: 'ip', type: '문구', price: 1000, badge: null, img: '', stock: 'ok', stockQty: 1 });
+const good = (id: string): Good => ({ id, name: id, ip: 'ip', price: 1000, badge: null, img: '', stock: 'ok', stockQty: 1 });
 
 describe('listingReviewSummaryIds', () => {
   it('RPC 형식 밖 값·중복을 빼고 처음 나온 순서를 지킨다', () => {

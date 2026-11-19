@@ -12,7 +12,6 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
 
   it('제출 칸은 그대로 옮긴 카드에 속하고 오류 순서는 화면 순서를 따른다', () => {
     expect(goodFieldSection('ipId').key).toBe('basic');
-    expect(goodFieldSection('type').key).toBe('basic');
     expect(goodFieldSection('customInputs').key).toBe('information');
     expect(goodFieldSection('additionalCategoryIds').key).toBe('information');
     /* TKT-033: 할인율 표시와 즉시할인 기간은 판매 정보 카드의 즉시할인 블록에 있다. */

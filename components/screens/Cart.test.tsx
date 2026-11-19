@@ -103,7 +103,6 @@ const goods: Good[] = [
     originId: 'gimpo',
     name: '홍실 아크릴 블록',
     ip: 'hong-sil-quest',
-    type: '아크릴',
     price: 12000,
     badge: null,
     stock: 'ok',
@@ -115,7 +114,6 @@ const goods: Good[] = [
     id: 'g14',
     name: '품절된 키링',
     ip: 'hong-sil-quest',
-    type: '키링',
     price: 9000,
     badge: null,
     stock: 'soldout',
@@ -125,13 +123,13 @@ const goods: Good[] = [
   },
   /* D5② 랜덤 판매 — 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접은 모양. */
   {
-    id: 'g15', originId: 'gimpo', name: '랜덤 포토카드', ip: 'hong-sil-quest', type: '포토카드', price: 5000, badge: null, stock: 'ok', stockQty: 6,
+    id: 'g15', originId: 'gimpo', name: '랜덤 포토카드', ip: 'hong-sil-quest', price: 5000, badge: null, stock: 'ok', stockQty: 6,
     optionSaleMode: 'random', options: [{id:RANDOM_VARIANT,name:'랜덤',code:'',price:5000,stockQty:6,isDefault:true,attributes:{},orderMaxQty:null,memberMaxQty:null}],
     img: 'none',
   },
   /* D7② 옵션별 구매 제한 — 주문당 최대 2개·1인 최대 3개. */
   {
-    id: 'g16', originId: 'gimpo', name: '아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 7000, badge: null, stock: 'ok', stockQty: 9,
+    id: 'g16', originId: 'gimpo', name: '아크릴 키링', ip: 'hong-sil-quest', price: 7000, badge: null, stock: 'ok', stockQty: 9,
     options: [{id:BLUE_VARIANT,name:'파랑',code:'BLUE',price:7000,stockQty:9,isDefault:true,attributes:{},orderMaxQty:2,memberMaxQty:3},
       {id:'00000000-0000-4000-8000-000000000017',name:'빨강',code:'RED',price:7000,stockQty:0,isDefault:false,attributes:{}}],
     img: 'none',

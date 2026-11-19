@@ -364,7 +364,7 @@ const integer = wholeWon;
 const comparableCellText = (value: string) => value.replace(/\r\n?/g, '\n');
 /**
  * ADR-0044: 상품 유형은 없다. 상품 유형 열은 구형·내려받은 파일의 열 이름·순서 검사 때문에 양식에 남겨 두지만 내보낼 때 비워 두고,
- * 반입은 값을 읽어도 반영하지 않는다(저장은 DB의 저장된 type을 그대로 다시 보낸다). 그래서 변경 여부·같은 상품 행 일치 비교에서도 뺀다.
+ * 반입은 값을 읽어도 반영하지 않는다(상품은 유형 값을 쓰지 않는다). 그래서 변경 여부·같은 상품 행 일치 비교에서도 뺀다.
  */
 const IGNORED_ON_IMPORT_KEYS = new Set<GoodsWorkbookKey>(['type']);
 const canonical = (values: GoodsWorkbookRow) =>
@@ -797,13 +797,10 @@ export function planGoodsWorkbookImport(
     if (category?.archived_at && category.id !== record?.good.category_id) errors.push('보관한 카테고리에 새 상품을 연결할 수 없습니다.');
     form.set('categoryId', category?.id ?? '');
     /*
-     * ADR-0044: 상품 유형 열은 값이 있어도 반영하지 않는다. 저장은 기존 상품의 저장된 type(새 상품은 '')을 그대로 다시 보내
-     * type이 지워지거나 바뀌어 KC 검토가 되돌아가지 않게 한다. 공개하려면 대표 카테고리가 있어야 하고, 공개 중 상품의 대표 카테고리는
-     * 다른 카테고리로 옮길 수 있지만 비울 수는 없다.
+     * ADR-0044: 상품 유형 열은 값이 있어도 반영하지 않는다(상품은 유형 값을 쓰지 않는다). 공개하려면 대표 카테고리가 있어야 하고,
+     * 공개 중 상품의 대표 카테고리는 다른 카테고리로 옮길 수 있지만 비울 수는 없다.
      */
-    const storedType = str(record?.good.type);
     const publishedNow = Boolean(record?.good.published_at);
-    form.set('type', storedType);
     if (first.publish === '공개' && !category) {
       if (!publishedNow) errors.push(GOOD_CATEGORY_PUBLISH_REQUIRED);
       else if (record?.good.category_id) errors.push(GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE);

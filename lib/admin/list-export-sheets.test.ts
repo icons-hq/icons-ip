@@ -33,8 +33,8 @@ function order(overrides: Partial<AdminOrderRecord> = {}): AdminOrderRecord {
     createdAt: '2026-10-06T15:10:00.000Z',
     updatedAt: '2026-10-06T15:10:00.000Z',
     items: [
-      { id: 'item-1', variantId: 'v-1', variantName: '파랑', variantCode: '00123', name: '아크릴 키링', type: 'goods', qty: 2, unitPrice: 15_000, customInputs:CUSTOM_INPUTS },
-      { id: 'item-2', variantId: 'v-2', variantName: null, variantCode: null, name: '스티커', type: 'goods', qty: 1, unitPrice: 12_000 },
+      { id: 'item-1', variantId: 'v-1', variantName: '파랑', variantCode: '00123', name: '아크릴 키링', qty: 2, unitPrice: 15_000, customInputs:CUSTOM_INPUTS },
+      { id: 'item-2', variantId: 'v-2', variantName: null, variantCode: null, name: '스티커', qty: 1, unitPrice: 12_000 },
     ],
     payments: [{ id: 'pay-1', provider: 'toss', amount: 45_000, status: 'paid', createdAt: '2026-10-06T15:11:00.000Z' }],
     refunds: [],
@@ -212,7 +212,7 @@ describe('배송지 칸 읽기', () => {
 it('exports immutable volume/coupon/credit allocation while keeping COD outside the payment amount', async () => {
   const { transactionDisplay, transactionLineId, transactionInput } = await import('@/test/fixtures/cart-transaction');
   const sheet = ordersListExportSheet({ records: [order({ isGift: true, transaction: transactionDisplay, total: 16000,
-    items: [{ id: transactionLineId, variantId: transactionInput.items[0].variantId!, variantName: null, name: '이름이 변경된 상품', type: 'goods', qty: 2, unitPrice: 10000 }] })],
+    items: [{ id: transactionLineId, variantId: transactionInput.items[0].variantId!, variantName: null, name: '이름이 변경된 상품', qty: 2, unitPrice: 10000 }] })],
     paymentMethods: new Map(), filters: { field: 'all', query: '', status: 'all', from: null, to: null, page: 1, orderId: null } });
   expect(cells(sheet)).toMatchObject({ 결제금액: 16000, '착불 배송비(주문)': 3000, '선불 배송비(주문)': 0,
     '복수구매 할인(주문)': 2000, '복수구매 할인(품목)': 2000, '쿠폰 할인(품목)': 1000, '적립금 사용(품목)': 1000, '품목 실결제액(배송비 제외)': 16000,

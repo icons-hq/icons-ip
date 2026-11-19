@@ -95,8 +95,6 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
         </AdminSectionCard>
         <AdminSectionCard title="연결 IP·검색 설정"><AdminFormGrid>
           <SelectField name="ipId" label="연결 IP" defaultValue={snapshot.fields.ipId} error={errors.ipId}><option value="">선택</option>{ips.map(ip => <option key={ip.id} value={ip.id} disabled={Boolean(ip.archivedAt)}>{ip.title}</option>)}</SelectField>
-          {/* ADR-0044: 상품 유형은 없다. 저장된 그룹 공통 type을 그대로 싣는다(필수 키). */}
-          <input type="hidden" name="type" value={snapshot.fields.type} />
           <Field name="nameEn" label="영문 상품명" defaultValue={snapshot.fields.nameEn} maxLength={200} error={errors.nameEn} />
         </AdminFormGrid><TextArea name="searchKeywords" label="검색 키워드" defaultValue={snapshot.fields.searchKeywords} maxLength={4200} error={errors.searchKeywords} /></AdminSectionCard>
         <AdminSectionCard title="상품정보고시"><GoodNoticePicker copyKcTemplate={false} onApply={applyNotice} readOnly={locked} /><AdminFormGrid>

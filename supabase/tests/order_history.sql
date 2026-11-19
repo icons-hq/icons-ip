@@ -201,11 +201,10 @@ where id = 'order-history-good';
 select 1 / case when (
   select jsonb_build_object(
     'name', good_name_snapshot,
-    'type', good_type_snapshot,
     'ipId', good_ip_id_snapshot,
     'qty', qty,
     'unitPrice', unit_price
-  ) = '{"name":"주문 당시 굿즈명","type":"아크릴","ipId":"order-history-ip-a","qty":1,"unitPrice":25000}'::jsonb
+  ) = '{"name":"주문 당시 굿즈명","ipId":"order-history-ip-a","qty":1,"unitPrice":25000}'::jsonb
   from public.order_items
   where order_id = :'order_id'::uuid
 ) then 1 else 0 end as assert_order_item_identity_snapshot_is_immutable;

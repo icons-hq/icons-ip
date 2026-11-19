@@ -8,7 +8,7 @@ describe('상품 초안과 판매 가능 상태', () => {
     form.set('name', '준비 중인 상품');
     form.set('ipId', 'hwasan');
     const context = { ipIds: new Set(['hwasan']), eventIds: new Set<string>(), goodIpById: new Map<string,string>(), verticalKeys: new Set<string>() };
-    expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: true, value: { publish: null, type: '', price: 0 } });
+    expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: true, value: { publish: null, price: 0 } });
     form.set('intent', 'publish');
     // ADR-0044: 상품 유형은 없다. 공개 제출에 대표 카테고리가 없으면 카테고리 칸에 안내한다.
     expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: false, errors: { imagePath: expect.any(String), noticeMaker: expect.any(String), categoryId: '대표 카테고리를 고른 뒤 공개해주세요.' } });

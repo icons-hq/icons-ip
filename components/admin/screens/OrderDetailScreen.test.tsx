@@ -17,7 +17,7 @@ const detail: AdminOrderDetail = {
     createdAt: '2026-09-01T00:00:00Z',
     address: { recipientName: '수령자', phone: '01012345678', postalCode: '12345', address1: '서울시', address2: '101호' } },
   shipments: [shipmentFixture()],
-  items: [{ variantId: '00000000-0000-4000-8000-000000000001', id: 'item', name: '주문 당시 상품명', type: '아크릴', qty: 2, unitPrice: 5000 }],
+  items: [{ variantId: '00000000-0000-4000-8000-000000000001', id: 'item', name: '주문 당시 상품명', qty: 2, unitPrice: 5000 }],
   timeline: [
     { id: 'one', source: 'payment', occurredAt: '2026-09-01T01:00:00Z', action: 'recorded', amount: 12800, status: 'paid', provider: 'korpay' },
     { id: 'two', source: 'status', occurredAt: '2026-09-01T02:00:00Z', action: 'admin.order.status_updated', fromStatus: 'paid', toStatus: 'confirmed', actorName: '수민' },

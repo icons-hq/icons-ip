@@ -41,8 +41,8 @@ const catalog: CatalogSnapshot = {
   verticals: [vertical],
   ips: [hwasan, otherIp],
   goods: [
-    { id: 'g2', ip: 'hwasan', name: '아크릴 스탠드', type: '아크릴', price: 22000, badge: null, stock: 'ok', stockQty: 12, img: 'g2' },
-    { id: 'g1', ip: 'lumen', name: '피규어', type: '피규어', price: 89000, badge: null, stock: 'ok', stockQty: 4, img: 'g1' },
+    { id: 'g2', ip: 'hwasan', name: '아크릴 스탠드', price: 22000, badge: null, stock: 'ok', stockQty: 12, img: 'g2' },
+    { id: 'g1', ip: 'lumen', name: '피규어', price: 89000, badge: null, stock: 'ok', stockQty: 4, img: 'g1' },
   ],
   cards: [
     { id: 'c2', ip: 'hwasan', name: '화산의 검', no: '014/120', rarity: 'SSR', owned: false, bg: 'c2' },
