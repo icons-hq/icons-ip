@@ -20,6 +20,7 @@ const INPUT_LINKS: { label: string; description: string; href: string; adminOnly
   { label: '카테고리·ERP 분류', description: '고객 카테고리와 ERP 분류 매핑', href: '/admin/catalog/categories' },
   { label: '쿠폰', description: '지급·사용 조건과 적용 상품', href: '/admin/sales/coupons' },
   { label: '적립금 정책', description: '적립·사용 기준과 정책 승인 근거', href: '/admin/settings/store-credits', adminOnly: true, readiness: 'storeCredits' },
+  { label: '운영 스위치', description: '지연 안내 메일·반품배송비 차감·재고 부족 부분 취소를 켜고 끕니다', href: '/admin/settings/switches', adminOnly: true },
 ];
 
 const contactTitle = (contact: OperationsContact) => contact.scope === 'operations' ? '운영 총괄' : `${contact.originName} 출고지`;
