@@ -62,7 +62,7 @@ alter table public.user_coupons
 alter table public.user_coupons
   add constraint user_coupons_revoke_shape check (
     (revoked_at is null and revoked_by is null and revoke_reason is null)
-    or (revoked_at is not null and status = 'active' and char_length(btrim(revoke_reason)) between 2 and 500)
+    or (revoked_at is not null and status = 'active' and coalesce(char_length(btrim(revoke_reason)) between 2 and 500, false))
   );
 
 comment on column public.user_coupons.revoked_at is
