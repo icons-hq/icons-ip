@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
+  adminArtworkRejectMessage,
   ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE,
   GOODS_ARTWORK_MAX_BYTES,
   buildAdminArtworkPath,
@@ -131,6 +132,8 @@ async function promoteImage(
       .upload(path, bytes, { contentType: mimeType, upsert: false });
     if (uploaded.error) throw new Error('이미지를 저장하지 못했습니다.');
     const promoted = await verifyAndPromoteAdminArtwork(input);
+    // 확인이 이미지를 거절했으면 그 이유를 알린다(claim에도 같은 이유가 남는다).
+    if (promoted && 'rejection' in promoted) throw new Error(adminArtworkRejectMessage('good', promoted.rejection));
     // 운영자별 확인 한도(blockedReason)도 예전처럼 1분 창 대기 여부로 판정한다.
     if (!promoted || 'blockedReason' in promoted) {
       const retry = await verificationWait(batch.actor_id);

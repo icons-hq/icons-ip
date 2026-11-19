@@ -692,6 +692,28 @@ describe('goods Excel planning', () => {
     expect(changed).toMatchObject({ kind: 'update', target: { gallery_paths: [...gallery.slice(0, 8), 'import-image:gallery_8'] } });
     expect(changed.images).toEqual([{ field: 'gallery_8', source: 'https://img.example.com/new-9.png', kind: 'url' }]);
   });
+  /* 2026-11-19: 엑셀의 상세 이미지 칸은 긴 상세 이미지 첫 장이다. 한 장 칸으로 저장하면 DB가 목록을 그 한 장으로 줄이므로
+     2장 이상인 상품은 첫 장 주소를 그대로 둘 때만 받고, 목록 키는 보내지 않아 둘째 장부터를 DB가 유지한다. */
+  it('긴 상세 이미지가 여러 장인 상품은 첫 장을 그대로 둘 때만 반영하고 바꾸거나 비우면 막는다', () => {
+    const detail = ['public-media/catalog/good/detail-1.png', 'public-media/catalog/good/detail-2.png'];
+    const record = { ...existing, good: { ...existing.good, detail_image_path: detail[0], detail_image_paths: detail } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx)[0];
+    expect(exported.detailImageUrl).toBe(`https://example.test/${detail[0]}`);
+    const renamed = planGoodsWorkbookImport([{ row: 5, values: { ...exported, name: '상품명만 수정', publish: '초안' } }], ctx)[0];
+    expect(renamed.errors).toEqual([]);
+    expect(renamed).toMatchObject({ kind: 'update', target: { detail_image_path: detail[0] } });
+    expect(renamed.target).not.toHaveProperty('detail_image_paths');
+    for (const detailImageUrl of ['https://img.example.com/new-detail.png', '']) {
+      const blocked = planGoodsWorkbookImport([{ row: 5, values: { ...exported, detailImageUrl } }], ctx)[0];
+      expect(blocked.kind).toBe('error');
+      expect(blocked.errors.join(' ')).toContain('긴 상세 이미지가 2장인 상품은 엑셀로 상세 이미지를 바꾸거나 비울 수 없습니다');
+    }
+    // 한 장인 상품은 지금처럼 엑셀로 바꾼다.
+    const single = { ...existing, good: { ...existing.good, detail_image_path: detail[0], detail_image_paths: [detail[0]] } };
+    const replaced = planGoodsWorkbookImport([{ row: 5, values: { ...exportGoodsWorkbookRows(single, context)[0], detailImageUrl: 'https://img.example.com/new-detail.png' } }], { ...context, existing: [single] })[0];
+    expect(replaced).toMatchObject({ kind: 'update', target: { detail_image_path: 'import-image:detail_image_path' } });
+  });
   it('갤러리 4칸 v3 양식도 올리고 기존 상품의 추가 이미지 5~9는 저장값을 유지한다', async () => {
     const gallery = Array.from({ length: 9 }, (_, index) => `public-media/catalog/good/gallery-${index + 1}.webp`);
     const record = { ...existing, good: { ...existing.good, gallery_paths: gallery } };

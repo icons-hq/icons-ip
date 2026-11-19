@@ -333,11 +333,16 @@ export function GoodDetailView({
       content: (
         <div className="wc-pdp-panel">
           <GoodsDescription description={detail.description} format={detail.descriptionFormat} imagePaths={detail.descriptionImagePaths} />
-          {detail.detailImageUrl ? (
-            /* 긴 세로 이미지는 크롭하지 않고 <img> 로 그린다. 어드민이 넣는 외부 URL 이라
-               next/image 의 최적화 대상이 아니다. */
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img alt={`${good.name} 상세 이미지`} className="wc-pdp-panel__image" src={detail.detailImageUrl} />
+          {detail.detailImageUrls.length ? (
+            /* 긴 세로 이미지는 크롭하지 않고 <img> 로 그린다. 어드민이 넣는 외부 URL 이라 next/image 의 최적화 대상이 아니다.
+               잘라 올린 통이미지가 이음새 없이 이어지도록 묶음 안에서는 간격을 두지 않는다(wc-pdp-panel__detail-images). */
+            <div className="wc-pdp-panel__detail-images" data-detail-images="">
+              {detail.detailImageUrls.map((url, index) => (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img alt={detail.detailImageUrls.length > 1 ? `${good.name} 상세 이미지 ${index + 1}` : `${good.name} 상세 이미지`}
+                  className="wc-pdp-panel__image" decoding="async" key={`${index}-${url}`} loading={index === 0 ? undefined : 'lazy'} src={url} />
+              ))}
+            </div>
           ) : null}
           {bottomAnnouncements}
           {ip ? <GoodIpStory ip={ip} /> : null}
