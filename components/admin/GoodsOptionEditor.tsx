@@ -9,6 +9,7 @@ import {
   emptyNewGoodsOptionStock, goodsOptionRowsForImport, shouldAutoFillErpSalePrice, GOODS_OPTION_AXIS_LIMIT, GOODS_OPTION_ROW_LIMIT, GOODS_OPTION_STOCK_REQUIRED,
   type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow, type GoodsOptionSavedCodes,
 } from '@/lib/admin/goods-option-editor';
+import { OPTION_AUTO_CODE_BARCODE_WARNING, looksLikeBarcode } from '@/lib/admin/goods-code-hint';
 import { formatWon, planErpSalePrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -175,7 +176,10 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
                 </button>}
                 {erp?.message && <small role="status" className={ERP_MESSAGE_CLASS[tone]} data-good-option-erp-message="" data-tone={tone}>{erp.message}</small>}
               </TableCell>
-              <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" readOnly={!codesOpen} id={single ? 'goods-single-code' : undefined} aria-label={single ? `기본 옵션의 ${optionCode}` : `옵션 ${index + 1} ${optionCode}`} value={row.code} maxLength={120} placeholder={codesOpen ? '창고 품번처럼 정해진 코드' : predictedCodes[index] ? `${AUTO_CODE} · 예상 ${predictedCodes[index]}` : AUTO_CODE} onChange={(event) => update(key, { code: event.target.value })} /></TableCell>
+              <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" readOnly={!codesOpen} id={single ? 'goods-single-code' : undefined} aria-label={single ? `기본 옵션의 ${optionCode}` : `옵션 ${index + 1} ${optionCode}`} aria-describedby={looksLikeBarcode(row.code) ? `goods-option-code-barcode-${index}` : undefined} value={row.code} maxLength={120} placeholder={codesOpen ? '창고 품번처럼 정해진 코드' : predictedCodes[index] ? `${AUTO_CODE} · 예상 ${predictedCodes[index]}` : AUTO_CODE} onChange={(event) => update(key, { code: event.target.value })} />
+                {/* 잠긴 칸에 이미 들어간 바코드도 열어 보지 않고 알아보게 한다. 창고 품번일 수 있어 막지는 않는다. */}
+                {looksLikeBarcode(row.code) && <small className={LOW_STOCK_CLASS} data-good-option-code-barcode="" data-tone="warning" id={`goods-option-code-barcode-${index}`} role="status">{OPTION_AUTO_CODE_BARCODE_WARNING}</small>}
+              </TableCell>
               <TableCell className={TABLE_CELL_CLASS}>
                 <StableNumberInput className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 안전재고 기준`} aria-describedby="goods-option-stock-guidance" value={row.lowStockThreshold == null ? '' : String(row.lowStockThreshold)} min={0} max={2147483647} step={1} placeholder="비우면 알림 없음" onChange={(event) => update(key, { lowStockThreshold: event.target.value === '' ? null : Number(event.target.value) })} />
                 {row.lowStockThreshold != null && row.stockQty <= row.lowStockThreshold && <small className={LOW_STOCK_CLASS} data-good-option-low-stock="" data-tone="warning">재고 부족 · 기준 {row.lowStockThreshold.toLocaleString('ko-KR')}개 이하</small>}
