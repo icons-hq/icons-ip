@@ -105,6 +105,8 @@ const operators = [
   sql('order_partial_cancellation'),
   // 버전 1 주문의 부분 취소(ADR-0032 보완): 첫 부분 취소 때 얼리는 파생 배분 원장, 합계 보존·결정성·막힘·기존 경로 불변. 경합은 아래 스크립트가 함께 본다.
   sql('order_partial_cancellation_v1'),
+  // 혼합 출고지 일부 발송 뒤 발송 전 배송 건 몫의 부분 취소(원장 #15): 토스·무통장·버전 1·수량 일부·해소, 주문 상태 재계산·구매확정 포착.
+  sql('order_partial_cancellation_mixed_dispatch'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),

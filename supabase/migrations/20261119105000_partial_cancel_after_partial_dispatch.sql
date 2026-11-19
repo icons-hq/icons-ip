@@ -13,7 +13,9 @@
 --  * 주문 상태는 닫힌 배송 건을 빼고 다시 센다(배송 건 상태 갱신 트리거 → refresh_order_fulfillment, ADR-0032 결정 3·8).
 --    남은 배송 건이 모두 배송완료면 주문이 배송완료가 되고 그 시각에 구매확정 정책을 포착한다(delivered_at = 남은 배송 건의 마지막 도착).
 --  * 결제사 확인을 기다리는 동안(처리 중·결제확인필요) 그 주문은 반품·교환 접수를 받지 않는다 — 배송 중 접수가 열려 있는
---    일부 발송 주문에서 부분 취소 잔액이 확정되기 전 환불 의도 금액이 잔액보다 커지지 않게 한다.
+--    일부 발송 주문에서 부분 취소 잔액이 확정되기 전 환불 의도 금액이 잔액보다 커지지 않게 한다. 같은 동안 발송 전 배송 건은
+--    배송 건 행에서도 발송을 막는다(이미 배송중인 주문은 주문 상태 전이 가드를 지나지 않으므로) — 결제사에서 돈은 돌려줬는데
+--    물건도 나가는 일이 없게 한다. 이미 나간 배송 건의 배송완료 기록은 막지 않는다.
 --  * 교환 재출고 품목 원장(order_claim_reshipment_items)에 이력이 있는 품목은 재고 복원 단위가 품목 전체라 나누지 않는다
 --    (그룹 배정 원장과 같은 stock_topology_changed). 발송 전 주문만 열던 때는 생길 수 없던 이력이다.
 --  * 스위치(partial_cancel_enabled)는 그대로다. 켜는 것은 사람 결정이다.
@@ -90,6 +92,23 @@ $a$  -- 2026-11-19(원장 #15): 다른 배송 건의 발송은 막지 않는다.
 select private.o3e_patch_function('private.order_return_intake_eligible(uuid)',
 $a$  select 1 from public.orders o where o.id=p_order_id and o.status='shipping'$a$,
 $a$  select 1 from public.orders o where o.id=p_order_id and o.status='shipping' and not private.order_partial_cancel_in_flight(o.id)$a$);
+
+-- 5. 발송 차단의 마지막 방어선. 발송 전 주문은 주문 상태 전이 가드(결제완료·발주확인 → 배송중)가 처리 중 발송을 막았지만, 이미
+--    배송중인 주문은 주문 상태가 바뀌지 않아 그 가드를 지나지 않는다. 결제사 확인을 기다리는 동안 그 주문의 발송 전 배송 건이
+--    나가지 않게 배송 건 행에서 막는다(이미 나간 배송 건의 배송완료 기록은 막지 않는다). 출고 경로는 이미 assert_order_dispatch_allowed로
+--    같은 판정을 하므로 이 트리거는 그 경로를 지나지 않은 쓰기만 잡는다.
+create function private.guard_shipment_dispatch_during_partial_cancel() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if old.status = 'ready' and (new.status in ('shipping', 'delivered') or new.shipped_at is not null)
+    and private.order_partial_cancel_in_flight(new.order_id) then
+    raise exception using errcode = '23514', message = 'order cancellation in progress';
+  end if;
+  return new;
+end $$;
+revoke all on function private.guard_shipment_dispatch_during_partial_cancel() from public, anon, authenticated, service_role;
+create trigger shipment_partial_cancel_dispatch_guard before update of status, shipped_at on public.order_shipments
+  for each row execute function private.guard_shipment_dispatch_during_partial_cancel();
 
 -- 재정의한 함수의 등록된 계약을 새 본문·ACL로 다시 적는다(분류는 기존 행 그대로).
 do $$declare fn regprocedure; contract record; begin
