@@ -57,7 +57,7 @@ const originalFormData = FormData;
 const good: AdminGoodRecord = { id: 'capture-owner', code: 'CAPTURE-OWNER', ipId: 'capture-ip', name: 'TEST 배송비 owner', price: 10000, compareAtPrice: null, badge: null, allowBankTransfer: true, saleRestriction: 'none',
   publishedAt: null, firstPublishedAt: null, archivedAt: null, stock: 'ok', stockQty: 10, bg: null,
   imagePath: 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp', imageUrl: 'https://example.test/good.webp',
-  galleryPaths: [], galleryUrls: [], detailImagePath: null, detailImageUrl: null, description: '저장된 상세설명',
+  galleryPaths: [], galleryUrls: [], detailImagePaths: [], detailImageUrls: [], description: '저장된 상세설명',
   originId: '11111111-1111-4111-8111-111111111112', shippingFeeType: 'individual', individualFee: 2500,
   notice: { maker: 'TEST 제조자', origin: '대한민국', material: '종이', size: 'A5', madeOn: '2026-10', asManager: 'TEST 담당', asContact: 'TEST 연락처' } };
 const variants: AdminGoodsVariant[] = [{ id: '11111111-1111-4111-8111-111111111113', goodId: good.id, name: '기본 옵션', code: 'CAPTURE-01', price: good.price, stockQty: 10, isDefault: true, archivedAt: null }];

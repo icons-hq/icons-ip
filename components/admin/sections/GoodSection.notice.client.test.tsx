@@ -23,7 +23,7 @@ type Element = ReactElement<Record<string, unknown>>;
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []);
 const good = { id: 'notice-good', code: 'NOTICE-GOOD', ipId: 'notice-ip', name: 'TEST 잠금 안내', type: '문구', price: 10000, compareAtPrice: null, badge: null,
   publishedAt: null, firstPublishedAt: null, archivedAt: null, stock: 'ok', stockQty: 1, bg: null, imagePath: null, imageUrl: null,
-  galleryPaths: [], galleryUrls: [], detailImagePath: null, detailImageUrl: null, description: '' } as unknown as AdminGoodRecord;
+  galleryPaths: [], galleryUrls: [], detailImagePaths: [], detailImageUrls: [], description: '' } as unknown as AdminGoodRecord;
 const PANELS = [GoodsTransactionTermsPanel, GoodShippingChargeGroupPanel, GoodsSubscriptionPolicyPanel, GoodsFulfillmentPanel, GoodsProductionPanel];
 
 function render(selected: AdminGoodRecord = good, state: Parameters<typeof GoodSection>[0]['state'] = {}) {

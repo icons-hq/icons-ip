@@ -78,7 +78,8 @@ export interface AdminGoodFormValue extends AdminGoodsSalePolicyInput, GoodsLink
   descriptionImagePaths?: string[];
   /** 순서가 곧 노출 순서다. 빈 슬롯은 빠진 채로 온다. */
   galleryPaths: string[];
-  detailImagePath: string | null;
+  /** 긴 상세 이미지. 순서가 곧 상세 설명 아래 노출 순서이고, 빈 칸은 빠진 채로 온다. */
+  detailImagePaths: string[];
 }
 
 export interface AdminStockAdjustmentFormValue {
@@ -196,6 +197,14 @@ const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
  * (#172 · 계획 D6, 2026-10-07 MD 요청으로 4장에서 확대). DB check 제약 goods_gallery_paths_limit과
  * admin_upsert_good 검사(20261007160000)와 같은 값이다. */
 export const GOODS_GALLERY_MAX = 9;
+/*
+ * 긴 상세 이미지(상세 설명 아래에 원래 비율로 이어 붙는 이미지)는 최대 10장이다(2026-11-19 MD 요청: 세로 9,000px가 넘는
+ * 통이미지를 잘라 여러 장으로 올린다). DB goods_detail_image_paths_limit·admin_save_good(20261119170100)과 같은 값이다.
+ * 첫 칸은 옛 한 장 칸 이름(detailImagePath)을 그대로 써서, 저장된 브라우저 자동복구·서버 임시저장이 첫 장으로 이어진다.
+ */
+export const GOODS_DETAIL_IMAGE_MAX = 10;
+export const GOODS_DETAIL_IMAGE_FIELD_NAMES: readonly string[] = Array.from({ length: GOODS_DETAIL_IMAGE_MAX },
+  (_, index) => (index === 0 ? 'detailImagePath' : `detailImagePath${index}`));
 export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
 export const GOODS_SEARCH_KEYWORDS_MAX_COUNT = 50;
 export const GOODS_SEARCH_KEYWORD_MAX_LENGTH = 80;
@@ -383,6 +392,21 @@ function readGoodsNotice(formData: FormData, errors: AdminFieldErrors, required 
  * 추가 이미지는 번호가 붙은 칸 GOODS_GALLERY_MAX개다 (#172). 운영자는 칸 순서로 노출 순서를 정하고,
  * 비운 칸은 배열에서 빠진다 — 배열 인덱스가 그대로 노출 순서가 된다.
  */
+/* 긴 상세 이미지 칸(GOODS_DETAIL_IMAGE_FIELD_NAMES)도 칸 순서가 노출 순서이고 비운 칸은 빠진다. */
+function readGoodsDetailImagePaths(formData: FormData, errors: AdminFieldErrors): string[] {
+  const paths: string[] = [];
+  for (const key of GOODS_DETAIL_IMAGE_FIELD_NAMES) {
+    const path = readString(formData, key);
+    if (!path) continue;
+    if (paths.includes(path)) {
+      errors[key] = '같은 이미지를 긴 상세 이미지에 두 번 넣을 수 없습니다.';
+      continue;
+    }
+    paths.push(path);
+  }
+  return paths;
+}
+
 function readGoodsGalleryPaths(formData: FormData, errors: AdminFieldErrors): string[] {
   const paths: string[] = [];
 
@@ -578,6 +602,7 @@ export function normalizeAdminGoodForm(
   const salePolicy = readAdminGoodsSalePolicy(formData);
   Object.assign(errors, salePolicy.errors);
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
+  const detailImagePaths = readGoodsDetailImagePaths(formData, errors);
 
   if (!name) errors.name = adminGoodsCopy('굿즈 이름을 입력해주세요.');
   /* ADR-0044: 상품 유형은 없다. 공개하려면 대표 카테고리가 있어야 한다. */
@@ -622,7 +647,7 @@ export function normalizeAdminGoodForm(
       ...(formData.has('descriptionFormat') ? { descriptionFormat: descriptionFormat as GoodsDescriptionFormat, descriptionImagePaths: htmlContent?.imagePaths ?? [] } : {}),
       ...(formData.has('nameEn') ? { nameEn } : {}),
       galleryPaths,
-      detailImagePath: nullableString(formData, 'detailImagePath'),
+      detailImagePaths,
     },
   };
 }

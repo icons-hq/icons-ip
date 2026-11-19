@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { ADMIN_ARTWORK_MAX_DIMENSION, GOODS_ARTWORK_MAX_DIMENSION } from './artwork';
-import { ADMIN_ARTWORK_OUTPUT_MAX_EDGE, adminArtworkOutputBox, normalizeAdminArtworkImage } from './artwork-image.server';
+import { ADMIN_ARTWORK_OUTPUT_MAX_EDGE, adminArtworkOutputBox, inspectAdminArtworkImage, normalizeAdminArtworkImage } from './artwork-image.server';
 
 describe('normalizeAdminArtworkImage', () => {
   it.each([
@@ -156,5 +156,35 @@ describe('normalizeAdminArtworkImage', () => {
     }).jpeg().toBuffer();
 
     await expect(normalizeAdminArtworkImage(source, 'image/jpeg', 'good')).resolves.toMatchObject({ height: 10_240, width: 2_560 });
+  });
+});
+
+/* 2026-11-19: 거절 이유를 claim·운영자 안내에 남긴다. 원본 4장은 1000×9,067~11,565 PNG(4.2~7.0MB)를 .jpg로 저장한 파일이었다. */
+describe('inspectAdminArtworkImage', () => {
+  it('reports a PNG declared as JPEG as a format mismatch with both formats', async () => {
+    const png = await sharp({ create: { background: { alpha: 1, b: 90, g: 60, r: 30 }, channels: 3, height: 11565, width: 1000 } }).png().toBuffer();
+
+    await expect(inspectAdminArtworkImage(png, 'image/jpeg', 'good')).resolves.toEqual({
+      ok: false,
+      reason: 'format_mismatch',
+      detail: { declared: 'image/jpeg', detected: 'png', width: 1000, height: 11565 },
+    });
+    // 같은 파일을 실제 형식(PNG)으로 신고하면 원래 크기 그대로 통과한다(긴 상세 이미지는 줄이지 않는다).
+    await expect(inspectAdminArtworkImage(png, 'image/png', 'good')).resolves.toMatchObject({ ok: true, image: { width: 1000, height: 11565 } });
+  });
+
+  it('reports the uploaded size when one side exceeds the kind limit', async () => {
+    const tall = await sharp({ create: { background: { alpha: 1, b: 90, g: 60, r: 30 }, channels: 3, height: ADMIN_ARTWORK_MAX_DIMENSION + 8, width: 10 } }).png().toBuffer();
+
+    await expect(inspectAdminArtworkImage(tall, 'image/png', 'ip')).resolves.toEqual({
+      ok: false,
+      reason: 'dimension_exceeded',
+      detail: { width: 10, height: ADMIN_ARTWORK_MAX_DIMENSION + 8, maxDimension: ADMIN_ARTWORK_MAX_DIMENSION },
+    });
+  });
+
+  it('reports unreadable bytes as a decode failure and oversize input before decoding', async () => {
+    await expect(inspectAdminArtworkImage(new TextEncoder().encode('not-an-image'), 'image/png', 'good')).resolves.toMatchObject({ ok: false, reason: 'decode_failed' });
+    await expect(inspectAdminArtworkImage(new Uint8Array(0), 'image/png', 'good')).resolves.toMatchObject({ ok: false, reason: 'size_exceeded' });
   });
 });

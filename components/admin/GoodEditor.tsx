@@ -11,7 +11,8 @@ import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShipping
 
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type Dispatch, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
-import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
+import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_DETAIL_IMAGE_FIELD_NAMES, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
+import { GoodsDetailImageList } from './GoodsDetailImageList';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
@@ -75,7 +76,7 @@ import { DEFAULT_FULFILLMENT_ORIGIN_ID } from '@/lib/admin/fulfillment-origins';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRemainingByCard, GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
-import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
+import { ActionNotice, Field, SelectField, TextArea } from './fields';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/admin/kit/ui/dropdown-menu';
 import { adminConfirm, confirmAdminSubmit } from '@/lib/admin/confirm';
@@ -495,6 +496,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
+  const detailImageCount = GOODS_DETAIL_IMAGE_FIELD_NAMES.filter((name) => values[name]).length;
   const previewHtmlDescription = previewValues.descriptionFormat === 'html';
   const previewDescription = previewValues.description;
   const descriptionCheck = useMemo(() => previewHtmlDescription ? sanitizeGoodsDescription(previewDescription ?? '') : null, [previewHtmlDescription, previewDescription]);
@@ -663,9 +665,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             <p className="text-sm text-muted-foreground">호스팅 이미지 주소(https://…)는 업로드 없이 HTML에 그대로 쓰면 됩니다. http 주소는 https로 바꿔 저장합니다. 호스팅하지 않은 이미지만 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
           </fieldset>
         </OwnedFields>
-        <GoodOptionalFields id="good-optional-detail-image" title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
-          <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지(상세 설명) 아래에 원래 비율로 붙는 이미지 파일 1장입니다. 호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
-          <ErrorText>{errors.detailImagePath}</ErrorText>
+        {/* 2026-11-19 MD 요청: 긴 상세 이미지는 썸네일처럼 여러 장(최대 10장)을 올리고 순서를 바꾼다. 첫 칸 이름은 옛 한 장 칸(detailImagePath) 그대로다. */}
+        <GoodOptionalFields id="good-optional-detail-image" title="긴 상세 이미지 (선택)" summary={detailImageCount ? `${detailImageCount}장` : '이미지 없음'} hasErrors={GOODS_DETAIL_IMAGE_FIELD_NAMES.some((name) => errors[name])}>
+          <GoodsDetailImageList errors={errors} initialPaths={GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />
         </GoodOptionalFields>
       </GoodEditorSection>
 

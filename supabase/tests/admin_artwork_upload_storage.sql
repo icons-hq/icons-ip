@@ -424,16 +424,16 @@ select public.service_reject_admin_artwork_upload(
   'catalog/card/20000000-0000-4000-8000-000000000004.png'
 );
 
--- 남용 억제 창은 굿즈 폼 한 장(대표 1 + 추가 이미지 9 + 상세 1 = 11칸)을 한 번 채우고
--- 한 번 갈아끼우는 22회까지 열려 있다(20261007160000, 추가 이미지 4장 시절은 12회). 4회였을 때는 다섯 번째 업로드가
--- 파일에 아무 문제가 없는데도 "이미지 파일을 확인하지 못했습니다"로 막혔다.
--- 5~22번째는 통과하고, 23번째에서 창이 닫힌다.
+-- 남용 억제 창은 굿즈 폼 한 장(대표 1 + 추가 이미지 9 + 긴 상세 이미지 10 = 20칸)을 한 번 채우고
+-- 한 번 갈아끼우는 40회까지 열려 있다(20261119170100, 추가 이미지 4장 시절은 12회, 상세 1장 시절은 22회). 4회였을 때는
+-- 다섯 번째 업로드가 파일에 아무 문제가 없는데도 "이미지 파일을 확인하지 못했습니다"로 막혔다.
+-- 5~40번째는 통과하고, 41번째에서 창이 닫힌다.
 do $$
 declare
   slot integer;
   path text;
 begin
-  for slot in 5..22 loop
+  for slot in 5..40 loop
     path := 'catalog/card/20000000-0000-4000-8000-0000000000' || lpad(slot::text, 2, '0') || '.png';
 
     perform public.service_prepare_admin_artwork_upload(
@@ -459,7 +459,7 @@ $$;
 
 select public.service_prepare_admin_artwork_upload(
   '00000000-0000-4000-8000-000000011205',
-  'catalog/card/20000000-0000-4000-8000-000000000023.png',
+  'catalog/card/20000000-0000-4000-8000-000000000041.png',
   'card', 'image/png', 10, now() + interval '10 minutes'
 );
 
@@ -467,7 +467,7 @@ select 1 / case when not exists (
   select 1
   from public.service_begin_admin_artwork_verification(
     '00000000-0000-4000-8000-000000011205',
-    'catalog/card/20000000-0000-4000-8000-000000000023.png'
+    'catalog/card/20000000-0000-4000-8000-000000000041.png'
   )
 ) then 1 else 0 end as assert_actor_verification_rate_limit;
 
