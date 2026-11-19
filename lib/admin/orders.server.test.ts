@@ -137,7 +137,7 @@ describe('getAdminOrderRecords', () => {
       rows: {
         order_items: Array.from({ length: 1500 }, (_, index) => ({
           id: `item-${String(index).padStart(4, '0')}`, order_id: ORDER_ID, qty: 1, unit_price: 1,
-          good_name_snapshot: `상품 ${index}`, good_type_snapshot: '키링',
+          good_name_snapshot: `상품 ${index}`,
         })),
         payment_summaries: [],
       },
@@ -194,7 +194,6 @@ describe('getAdminOrderRecords', () => {
           qty: 1,
           unit_price: 32000,
           good_name_snapshot: '화산강림 아크릴 스탠드',
-          good_type_snapshot: '아크릴 스탠드',
         }],
         payment_summaries: [{
           id: 'payment-1',

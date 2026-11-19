@@ -36,8 +36,7 @@ export function parseGoodsGroupCommonSnapshot(value: unknown): GoodsGroupCommonS
   const group = parseGoodsGroupSnapshot(value.group), afterSales = parseGoodsAfterSalesSnapshot(value.afterSales), sizeChart = parseGoodsSizeChartSnapshot(value.sizeChart), common = value.common;
   if (!group || group.archivedAt || !afterSales || !sizeChart || afterSales.goodId !== group.commonGoodId || sizeChart.goodId !== group.commonGoodId
     || !transactionExactKeys(common, ['goods','attributes','additionalCategories','afterSales','sizeChart']) || !transactionRecord(common.goods)
-    /* 상품 유형 칸 삭제(ADR-0044) 배포 사이에는 DB가 옛 'type' 키를 아직 실을 수 있다. 값은 읽지 않고, 다음 정리 PR이 이 허용을 걷는다. */
-    || !(transactionExactKeys(common.goods, GROUP_COMMON_DB_FIELDS) || transactionExactKeys(common.goods, [...GROUP_COMMON_DB_FIELDS, 'type']) && typeof common.goods.type === 'string')
+    || !transactionExactKeys(common.goods, GROUP_COMMON_DB_FIELDS)
     || !Array.isArray(common.additionalCategories) || common.additionalCategories.some(id => !isUuid(id))) return null;
   const goods = common.goods;
   if (!validGoodsGroupGoodId(goods.ip_id) || goods.category_id !== null && !isUuid(goods.category_id) || !['plain','html'].includes(String(goods.description_format))

@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- ADR-0044: 상품 유형 층을 걷어냈다(ADR-0037 대체). 공개 조건은 대표 카테고리이고, 유형은 파생·판정되지 않는다.
--- goods.type은 후속 migration에서 지울 때까지 남는 칸이다. 칸 삭제 1단계(20261118173000)부터 어떤 저장 경로도 이 칸을 쓰지 않고
--- (새 상품은 기본값 ''), KC 맥락·가드도 유형을 보지 않는다. 카테고리 이동이나 카테고리의 옛 연결 칸 변경으로도 바뀌지 않는다.
+-- 상품 유형 칸(goods.type)과 주문 유형 스냅샷(order_items.good_type_snapshot)은 칸 삭제 1·2단계(20261118173000·20261118175000)로
+-- 지웠다. KC 맥락·가드는 유형을 보지 않고, 상품 저장은 이전 앱이 보내는 type 키·target_type 인자를 받기만 하고 무시한다.
 -- Prepend helpers/goods_kc_fixture.sql in the same connection. Everything rolls back.
 
 begin;
@@ -26,7 +26,7 @@ begin
     'evidence',jsonb_build_object('applicability','','certificate','','testReport','','declaration',''))),
     'reviewed',(config->>'revision')::integer,config->>'contextFingerprint',true);
 end $$;
--- 어드민 상품 폼과 같은 전체 저장 입력(상품 + 옵션 + 기준값). 저장된 type을 그대로 싣는다(앱의 패스스루와 같다).
+-- 어드민 상품 폼과 같은 전체 저장 입력(상품 + 옵션 + 기준값).
 create function pg_temp.gr_payload(target_id text) returns jsonb language sql as $$
   select record->'good'||jsonb_build_object('previous_id',target_id,
     'variant_baseline',(select coalesce(jsonb_agg(value->'id'),'[]') from jsonb_array_elements(record->'variants') where value->>'archived_at' is null),
@@ -48,7 +48,7 @@ select 1/case when to_regprocedure('private.goods_category_type(uuid)') is null
  and not exists(select 1 from pg_trigger where tgname in('goods_category_type_derive','catalog_categories_good_type_refresh'))
  and exists(select 1 from pg_trigger where tgrelid='public.goods'::regclass and tgname='goods_kc_guard'
    and pg_get_triggerdef(oid) not like '%category_id%')
- and pg_get_constraintdef((select oid from pg_constraint where conname='goods_type_check' and conrelid='public.goods'::regclass)) not like '%published_at%'
+ and not exists(select 1 from pg_constraint where conname='goods_type_check' and conrelid='public.goods'::regclass)
  and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in('public','private')
    and (p.prosrc ~ 'goods_category_type' or p.prosrc ~ 'goods_type_category_(required|locked|changed)'
      or p.prosrc ~ '''type_(missing|category_mismatch|no_category)''' or p.prosrc ~ 'goods_type_category_migrations'))
@@ -83,18 +83,13 @@ insert into public.goods(id,ip_id,name,price,image_path,origin_id,category_id,no
  select id,'goods-type-retire','합성 '||id,1000,'public-media/goods-type-test.webp','00000000-0000-4000-8000-000000190030',category_id,
   '합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000'
  from (values
-  ('gr-plain-good','','00000000-0000-4000-8000-000000190110'::uuid),
-  ('gr-legacy-good','문구','00000000-0000-4000-8000-000000190100'::uuid),
-  ('gr-nocat-good','',null::uuid),
-  ('gr-defer-good','',null::uuid),
-  ('gr-move-good','문구','00000000-0000-4000-8000-000000190110'::uuid)
- ) as fixtures(id,type,category_id);
+  ('gr-plain-good','00000000-0000-4000-8000-000000190110'::uuid),
+  ('gr-legacy-good','00000000-0000-4000-8000-000000190100'::uuid),
+  ('gr-nocat-good',null::uuid),
+  ('gr-defer-good',null::uuid),
+  ('gr-move-good','00000000-0000-4000-8000-000000190110'::uuid)
+ ) as fixtures(id,category_id);
 update public.goods_variants set stock_qty=5 where good_id like 'gr-%';
-
--- 새 상품의 유형은 들어온 값 그대로다(연결 칸이 있는 카테고리여도 파생하지 않는다).
-select 1/case when (select type from public.goods where id='gr-plain-good')=''
- and (select type from public.goods where id='gr-legacy-good')='문구'
- then 1 else 0 end as insert_keeps_given_type;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','98190000-0000-4000-8000-000000000001',true);
@@ -104,14 +99,14 @@ select set_config('request.jwt.claim.sub','98190000-0000-4000-8000-000000000001'
 -- --------------------------------------------------------------------------
 select pg_temp.gr_review('gr-plain-good');
 select public.admin_set_good_published('gr-plain-good',true);
-select 1/case when (select published_at is not null and type='' from public.goods where id='gr-plain-good')
+select 1/case when (select published_at is not null from public.goods where id='gr-plain-good')
  and public.admin_read_goods_readiness('gr-plain-good')->>'state'='ready'
  then 1 else 0 end as category_without_type_publishes;
--- 옛 연결 칸과 다른 유형이 저장돼 있어도 공개된다(대조하지 않는다).
+-- 옛 키링 연결 이름의 카테고리에 있어도 공개된다(유형을 대조하지 않는다).
 select pg_temp.gr_review('gr-legacy-good');
 select public.admin_set_good_published('gr-legacy-good',true);
-select 1/case when (select published_at is not null and type='문구' from public.goods where id='gr-legacy-good')
- then 1 else 0 end as stored_type_is_not_compared;
+select 1/case when (select published_at is not null from public.goods where id='gr-legacy-good')
+ then 1 else 0 end as legacy_category_publishes;
 
 -- 대표 카테고리가 없으면 거절하고, 판매 준비가 category_missing을 막는 사유로 보인다. 목록 필터도 이 사유를 받는다.
 select pg_temp.gr_review('gr-nocat-good');
@@ -128,7 +123,7 @@ select pg_temp.gr_expect_error($sql$select public.admin_search_goods_workspace(p
 -- 저장하며 공개하면 대표 카테고리를 넣은 뒤 공개한다(공개 판정이 새 대표 카테고리를 본다). 유형은 들어온 값 그대로다.
 select pg_temp.gr_review('gr-defer-good');
 select public.admin_save_good(pg_temp.gr_payload('gr-defer-good')||jsonb_build_object('category_id','00000000-0000-4000-8000-000000190110','publish',true)) is not null as gr_defer_saved;
-select 1/case when (select published_at is not null and type='' and category_id='00000000-0000-4000-8000-000000190110' from public.goods where id='gr-defer-good')
+select 1/case when (select published_at is not null and category_id='00000000-0000-4000-8000-000000190110' from public.goods where id='gr-defer-good')
  and public.admin_read_goods_kc('gr-defer-good')->>'status'='reviewed'
  then 1 else 0 end as save_and_publish_after_category;
 
@@ -137,20 +132,20 @@ select 1/case when (select published_at is not null and type='' and category_id=
 -- --------------------------------------------------------------------------
 select pg_temp.gr_review('gr-move-good');
 select public.admin_assign_good_category('00000000-0000-4000-8000-000000190301','gr-move-good','00000000-0000-4000-8000-000000190100',null);
-select 1/case when (select type='문구' and category_id='00000000-0000-4000-8000-000000190100' from public.goods where id='gr-move-good')
+select 1/case when (select category_id='00000000-0000-4000-8000-000000190100' from public.goods where id='gr-move-good')
  and public.admin_read_goods_kc('gr-move-good')->>'status'='reviewed'
- then 1 else 0 end as draft_move_keeps_type_and_kc;
+ then 1 else 0 end as draft_move_keeps_kc;
 select public.admin_save_good(pg_temp.gr_payload('gr-move-good')||'{"category_id":"00000000-0000-4000-8000-000000190120"}') is not null as gr_move_saved;
-select 1/case when (select type='문구' and category_id='00000000-0000-4000-8000-000000190120' from public.goods where id='gr-move-good')
+select 1/case when (select category_id='00000000-0000-4000-8000-000000190120' from public.goods where id='gr-move-good')
  and public.admin_read_goods_kc('gr-move-good')->>'status'='reviewed'
- then 1 else 0 end as draft_save_move_keeps_type_and_kc;
+ then 1 else 0 end as draft_save_move_keeps_kc;
 
 -- 카테고리 저장은 옛 target_good_type 인자를 받기만 하고 무시한다(이전 화면 호환). 그 아래 상품도 바뀌지 않는다.
 select public.admin_upsert_category('00000000-0000-4000-8000-000000190311','00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,2,
  (select updated_at from public.catalog_categories where id='00000000-0000-4000-8000-000000190120'),'인형') as gr_other_saved \gset
 select public.admin_upsert_category('00000000-0000-4000-8000-000000190312','00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,3,
  (select updated_at from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')) as gr_other_saved_without_type \gset
-select 1/case when (select type from public.goods where id='gr-move-good')='문구'
+select 1/case when (select category_id from public.goods where id='gr-move-good')='00000000-0000-4000-8000-000000190120'
  and public.admin_read_goods_kc('gr-move-good')->>'status'='reviewed'
  and not (:'gr_other_saved'::jsonb ? 'goodType')
  and (select sort_order from public.catalog_categories where id='00000000-0000-4000-8000-000000190120')=3
@@ -182,11 +177,11 @@ select 1/case when :'gr_other_replayed'::jsonb=jsonb_build_object('id','00000000
 -- 공개 중: 다른 대표 카테고리로 옮길 수 있고(유형·KC 그대로), 비우는 것만 막는다.
 -- --------------------------------------------------------------------------
 select public.admin_assign_good_category('00000000-0000-4000-8000-000000190303','gr-legacy-good','00000000-0000-4000-8000-000000190110',null);
-select 1/case when (select published_at is not null and type='문구' and category_id='00000000-0000-4000-8000-000000190110' from public.goods where id='gr-legacy-good')
+select 1/case when (select published_at is not null and category_id='00000000-0000-4000-8000-000000190110' from public.goods where id='gr-legacy-good')
  and public.admin_read_goods_kc('gr-legacy-good')->>'status'='reviewed'
  then 1 else 0 end as published_moves_to_any_category;
 select public.admin_save_good(pg_temp.gr_payload('gr-legacy-good')||'{"category_id":"00000000-0000-4000-8000-000000190120"}') is not null as gr_legacy_saved;
-select 1/case when (select published_at is not null and type='문구' and category_id='00000000-0000-4000-8000-000000190120' from public.goods where id='gr-legacy-good')
+select 1/case when (select published_at is not null and category_id='00000000-0000-4000-8000-000000190120' from public.goods where id='gr-legacy-good')
  then 1 else 0 end as published_save_moves_category;
 select pg_temp.gr_expect_error($sql$select public.admin_assign_good_category('00000000-0000-4000-8000-000000190304','gr-legacy-good',null,null)$sql$,
  'goods_published_category_clear','23514');
@@ -194,9 +189,9 @@ select pg_temp.gr_expect_error(format('select public.admin_save_good(%L::jsonb)'
  (pg_temp.gr_payload('gr-legacy-good')||'{"category_id":null}')::text),'goods_published_category_clear','23514');
 select 1/case when (select category_id='00000000-0000-4000-8000-000000190120' from public.goods where id='gr-legacy-good')
  then 1 else 0 end as published_category_not_cleared;
--- 공개 중 상품도 저장 입력의 type은 쓰지 않는다(칸 삭제 1단계). KC 맥락이 바뀌지 않으므로 재검토로 막히지도 않는다.
+-- 공개 중 상품에 이전 앱처럼 type 키를 실어 저장해도 무시하고, KC 재검토로 막히지 않는다.
 select public.admin_save_good(pg_temp.gr_payload('gr-legacy-good')||'{"type":"인형"}') is not null as gr_legacy_published_type_ignored;
-select 1/case when (select type='문구' and published_at is not null from public.goods where id='gr-legacy-good')
+select 1/case when (select published_at is not null from public.goods where id='gr-legacy-good')
  and private.goods_kc_review_current('gr-legacy-good')
  then 1 else 0 end as published_save_ignores_type;
 
@@ -232,13 +227,13 @@ create function pg_temp.gr_workspace_request(op uuid,p_good_id text) returns jso
         'basis','','evidence',jsonb_build_object('applicability','','certificate','','testReport','','declaration',''))))));
 $$;
 select public.admin_save_good_workspace(pg_temp.gr_workspace_request('00000000-0000-4000-8000-000000190901','gr-nocat-good')) is not null as gr_ws_saved;
-select 1/case when (select name='합성 저장 이름 gr-nocat-good' and type='' from public.goods where id='gr-nocat-good')
+select 1/case when (select name='합성 저장 이름 gr-nocat-good' from public.goods where id='gr-nocat-good')
  and public.admin_read_goods_kc('gr-nocat-good')->>'status'='reviewed'
  then 1 else 0 end as workspace_saves_with_kc;
--- 화면(이전 앱)이 보낸 type이 저장값과 달라도 PT409로 거절하지 않고, 칸 삭제 1단계부터는 저장하지도 않는다.
+-- 화면(이전 앱)이 type을 보내도 PT409로 거절하지 않고 무시한다.
 select public.admin_save_good_workspace(pg_temp.gr_workspace_request('00000000-0000-4000-8000-000000190902','gr-nocat-good')
  ||jsonb_build_object('good',pg_temp.gr_payload('gr-nocat-good')||'{"type":"인형","name":"합성 다른 유형 저장"}')) is not null as gr_ws_other_type_saved;
-select 1/case when (select name='합성 다른 유형 저장' and type='' from public.goods where id='gr-nocat-good')
+select 1/case when (select name='합성 다른 유형 저장' from public.goods where id='gr-nocat-good')
  and public.admin_read_goods_kc('gr-nocat-good')->>'status'='reviewed'
  then 1 else 0 end as workspace_ignores_type;
 
@@ -264,41 +259,42 @@ select 1/case when (select subtitle from public.search_public_content('합성 gr
  and not exists(select 1 from public.search_public_content('봉투류',20) where id='gr-defer-good')
  then 1 else 0 end as search_hides_archived_category;
 -- --------------------------------------------------------------------------
--- 칸 삭제 1단계(20261118173000): 상품·주문 저장이 유형 칸을 쓰지 않고, KC는 유형을 보지 않는다.
+-- 칸 삭제(20261118173000·20261118175000): 두 칸이 없고, 어떤 함수도 유형 칸·키를 읽거나 쓰지 않는다.
 -- --------------------------------------------------------------------------
 reset role;
 select set_config('request.jwt.claim.sub','',true);
-select 1/case when (select column_default from information_schema.columns where table_schema='public' and table_name='goods' and column_name='type')=$d$''::text$d$
- and (select column_default from information_schema.columns where table_schema='public' and table_name='order_items' and column_name='good_type_snapshot')=$d$''::text$d$
+select 1/case when not exists(select 1 from information_schema.columns where table_schema='public'
+   and (table_name,column_name) in (('goods','type'),('order_items','good_type_snapshot')))
  and pg_get_triggerdef((select oid from pg_trigger where tgrelid='public.goods'::regclass and tgname='goods_kc_guard')) !~ '\mtype\M'
  and not (private.goods_kc_context('gr-legacy-good')->'good' ? 'type')
  and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in('public','private')
-   and p.proname in('admin_upsert_good','admin_clone_good_before_discount_display','create_goods_group_product','calculate_goods_transaction_locked',
-     'place_goods_transaction','place_order_before_shipments','allocate_random_option_items','guard_goods_kc')
-   and (p.prosrc ~ 'good_type_snapshot' or p.prosrc ~ '''goodType''' or p.prosrc ~ '\m(good|source_good|old|new|r)\.type\M' or p.prosrc ~ '\m\s+type = excluded\.type'))
- then 1 else 0 end as writers_do_not_use_type_columns;
+   and (p.prosrc ~ 'good_type_snapshot' or p.prosrc ~ '''goodType''' or p.prosrc ~ '\m(good|source_good|p_good|g|r)\.type\M'
+     or p.prosrc ~ '''ip_id'',''type'',''category_id''' or p.prosrc ~ '\m\s+type = excluded\.type'))
+ and pg_get_function_result('public.my_order_items(uuid[])'::regprocedure) !~ 'good_type_snapshot'
+ and has_function_privilege('authenticated','public.my_order_items(uuid[])','execute')
+ and not has_function_privilege('anon','public.my_order_items(uuid[])','execute')
+ and pg_get_functiondef('private.category_display_page(uuid,jsonb,jsonb,integer,text,bigint)'::regprocedure) !~ '피규어'
+ and pg_get_functiondef('public.admin_save_goods_draft(uuid,jsonb,integer)'::regprocedure) !~ '''type'''
+ and not (select private.category_display_public_good(g,'[]'::jsonb) ? 'type' from public.goods g where g.id='gr-legacy-good')
+ then 1 else 0 end as type_columns_and_keys_removed;
 
--- 이 migration 전에 저장한 KC 검토 기록에는 맥락에 'type'이 있다. 기록은 그대로 두고 비교에서만 빼므로 검토가 현재로 남는다.
+-- 칸 삭제 전에 저장한 KC 검토 기록에는 맥락에 'type'이 있다. 기록은 그대로 두고 비교에서만 빼므로 검토가 현재로 남는다.
 update private.goods_kc_reviews set context_snapshot=jsonb_set(context_snapshot,'{good,type}','"문구"')
  where good_id='gr-legacy-good' and status='reviewed';
 select 1/case when exists(select 1 from private.goods_kc_reviews where good_id='gr-legacy-good' and status='reviewed' and context_snapshot->'good' ? 'type')
  and private.goods_kc_review_current('gr-legacy-good')
  then 1 else 0 end as legacy_kc_snapshot_with_type_stays_current;
--- 유형 값만 바뀌어도(남은 칸) 공개 중 상품이 KC 재검토로 막히지 않는다.
-update public.goods set type='인형' where id='gr-legacy-good';
-select 1/case when (select published_at is not null from public.goods where id='gr-legacy-good')
- and private.goods_kc_review_current('gr-legacy-good')
- then 1 else 0 end as type_write_does_not_touch_kc;
 
--- 상품 저장 RPC는 target_type을 받기만 한다: 새 상품은 기본값(''), 기존 상품은 저장된 값 그대로다.
+-- 상품 저장은 이전 앱의 type 키를 받기만 하고 나머지 칸을 저장한다.
 set local role authenticated;
 select set_config('request.jwt.claim.sub','98190000-0000-4000-8000-000000000001',true);
 select public.admin_save_good(pg_temp.gr_payload('gr-legacy-good')||'{"type":"피규어","price":1700,"publish":true}') is not null as gr_legacy_type_ignored;
-select 1/case when (select type='인형' and price=1700 from public.goods where id='gr-legacy-good')
+select 1/case when (select price=1700 and published_at is not null from public.goods where id='gr-legacy-good')
+ and private.goods_kc_review_current('gr-legacy-good')
  then 1 else 0 end as save_ignores_given_type;
 reset role;
 
--- 그룹 공통정보 입력은 'type' 키가 있어도(이전 앱) 없어도(새 앱) 받고, 모르는 키는 거절한다.
+-- 그룹 공통정보 입력은 공통 칸만 받는다('type'도 이제 모르는 키다).
 create function pg_temp.gr_group_values(extra jsonb) returns jsonb language sql as $$
   select jsonb_build_object('goods',jsonb_build_object('ip_id','goods-type-retire','category_id',null,'name_en',null,'notice_maker',null,
     'notice_origin',null,'notice_material',null,'notice_size',null,'notice_made_on',null,'notice_as_manager',null,'notice_as_contact',null,
@@ -306,7 +302,8 @@ create function pg_temp.gr_group_values(extra jsonb) returns jsonb language sql 
     'additional_category_ids','[]'::jsonb)||extra,'attributes','{}'::jsonb,'afterSales','{}'::jsonb,'sizeChart','{}'::jsonb);
 $$;
 select private.validate_goods_group_common_values(pg_temp.gr_group_values('{}'));
-select private.validate_goods_group_common_values(pg_temp.gr_group_values('{"type":"문구"}'));
+select pg_temp.gr_expect_error($sql$select private.validate_goods_group_common_values(pg_temp.gr_group_values('{"type":"문구"}'))$sql$,
+ 'invalid_goods_group_common','22023');
 select pg_temp.gr_expect_error($sql$select private.validate_goods_group_common_values(pg_temp.gr_group_values('{"price":1}'))$sql$,
  'invalid_goods_group_common','22023');
 rollback;
