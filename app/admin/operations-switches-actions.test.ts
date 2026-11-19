@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveOrderDelayNoticeSwitchAction, savePartialCancelSwitchAction, saveReturnFeeDeductionSwitchAction } from './operations-switches-actions';
 
-const mocks = vi.hoisted(() => ({ access: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn(), dispatcher: vi.fn() }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn(), dispatcher: vi.fn(), surfaces: vi.fn() }));
 vi.mock('@/lib/admin/action-access.server', () => ({ requireAdminActionAccess: mocks.access }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/email/dispatcher.server', () => ({ emailDispatcherFromEnvironment: mocks.dispatcher }));
+vi.mock('@/lib/admin/revalidate-goods.server', () => ({ revalidateGoodsSurfaces: mocks.surfaces }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 
@@ -12,7 +13,7 @@ const id = 'c3a00000-0000-4000-9000-0000000000a1';
 const stamp = { updatedBy: '운영자' };
 const state = (over: { delay?: boolean; fee?: boolean; partial?: boolean } = {}) => ({
   delayNotice: { revision: 2, enabled: over.delay ?? false, smsEnabled: false, evidence: null, changedAt: '2026-11-19T01:00:00Z', ...stamp },
-  returnFee: { revision: 2, enabled: over.fee ?? false, oneWayAmount: over.fee ? 3000 : null, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', ...stamp },
+  returnFee: { revision: 2, enabled: over.fee ?? false, oneWayAmount: over.fee ? 3000 : null, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', inflightCount: 0, ...stamp },
   partialCancel: { revision: 2, enabled: over.partial ?? false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', ...stamp },
 });
 beforeEach(() => {
@@ -76,6 +77,7 @@ describe('운영 스위치 저장 액션', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_save_return_fee_deduction_switch', {
       p_enabled: true, p_one_way_amount: 3000, p_evidence: 'TEST 약관 개정 공지', p_expected_revision: 2, p_operation_id: id,
     });
+    expect(mocks.surfaces).toHaveBeenCalledOnce();
     expect(await saveReturnFeeDeductionSwitchAction(true, 4000, 'TEST 약관 개정 공지', 2, id)).toHaveProperty('uncertain', true);
   });
 

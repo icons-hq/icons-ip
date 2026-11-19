@@ -137,6 +137,8 @@ reset role;
 select 1/case when (select result#>>'{delayNotice,revision}'='1' and result#>>'{delayNotice,enabled}'='false' and result#>>'{delayNotice,smsEnabled}'='false'
   and result#>>'{returnFee,enabled}'='false' and result#>'{returnFee,oneWayAmount}'='null'::jsonb
   and result#>>'{partialCancel,enabled}'='false' and result#>>'{partialCancel,revision}'='1'
+  and (result#>>'{returnFee,inflightCount}')::integer=(select count(*) from public.order_cancellation_requests c
+    where c.claim_type='return' and c.reason_type='change_of_mind' and c.status in ('requested','processing','needs_review'))
   from switch_results where name='initial') then 1 else 0 end as assert_admin_reads_document;
 select 1/case when (select revision=1 and not enabled from private.order_delay_notice_delivery_control where singleton)
   and (select revision=1 and not enabled and not partial_cancel_enabled from private.return_fee_deduction_settings where singleton)
@@ -187,6 +189,7 @@ update private.order_delay_notice_delivery_control set enabled=true where single
 select 1/case when (select revision=4 from private.order_delay_notice_delivery_control where singleton)
   and exists(select 1 from public.audit_log where action='system.order_delay_notice.delivery_changed'
     and diff#>>'{after,enabled}'='true' and diff#>>'{before,enabled}'='false' and actor_id is null)
+  and (select updated_by is null from private.order_delay_notice_delivery_control where singleton)  -- RPC가 아닌 변경은 변경자를 마지막 어드민에게 귀속하지 않는다
   then 1 else 0 end as assert_direct_change_is_system_audited;
 select pg_temp.expect_error('delete from private.order_delay_notice_delivery_control where singleton','order_delay_notice_delivery_control_required');
 update private.order_delay_notice_delivery_control set enabled=false where singleton;
@@ -228,7 +231,7 @@ select set_config('icons.operations_switch_tx','',true);
 update private.return_fee_deduction_settings set enabled=true,enabled_at=clock_timestamp() where singleton;
 select 1/case when exists(select 1 from public.audit_log where action='system.return_fee_deduction.settings_changed'
   and diff#>>'{after,enabled}'='true' and diff#>>'{before,enabled}'='false' and actor_id is null and diff ? 'sessionUser')
-  and (select revision=4 from private.return_fee_deduction_settings where singleton)
+  and (select revision=4 and updated_by is null from private.return_fee_deduction_settings where singleton)
   then 1 else 0 end as assert_return_fee_direct_change_keeps_system_audit;
 update private.return_fee_deduction_settings set enabled=false where singleton;
 
