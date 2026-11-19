@@ -81,7 +81,7 @@ describe('AccountDeletionPanel · 탈퇴 신청 기능이 꺼져 있을 때(원�
     expect(html).toContain('지금은 1:1 문의로 탈퇴 요청을 받고 있어요');
     expect(html).toContain('href="/my/inquiries/new?category=account"');
     expect(html).toContain('1:1 문의로 탈퇴 요청하기');
-    expect(html).toContain('배송지·인증한 휴대폰 번호·마케팅 정보 수신 동의·성별·활동 기록·재입고 알림 신청은 바로 지워져요');
+    expect(html).toContain('배송지·인증한 휴대폰 번호·마케팅 정보 수신 동의·성별·활동 기록·재입고 알림 신청·생년월일·프로필 사진은 바로 지워지고, 닉네임은 ‘탈퇴한 회원’으로 바뀌어요');
     expect(html).toContain('거래 기록은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요');
     expect(html).toContain('진행 중인 주문·배송·취소·환불, 이용 전 티켓, 정기배송이 있으면 그 일이 끝난 뒤 처리돼요');
   });
