@@ -155,12 +155,15 @@ export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: st
           </AdminNotice>
           {withdrawal.signinBlocked
             ? <p className="text-sm text-muted-foreground">재로그인 차단 · {withdrawal.signinBlockedAt ? formatOrderDateTime(withdrawal.signinBlockedAt) : ''} 적용</p>
-            : <form action={retry} className={FORM_CLASS}>
-              <AdminNotice title="재로그인 차단이 아직 적용되지 않았습니다." tone="warning">정지·삭제는 끝났습니다. 다시 적용해 로그인을 막아주세요.</AdminNotice>
+            : null}
+          {!withdrawal.signinBlocked || withdrawal.avatarErasePending
+            ? <form action={retry} className={FORM_CLASS}>
+              <AdminNotice title={withdrawal.signinBlocked ? '프로필 사진 파일이 아직 지워지지 않았습니다.' : withdrawal.avatarErasePending ? '재로그인 차단과 프로필 사진 삭제가 아직 적용되지 않았습니다.' : '재로그인 차단이 아직 적용되지 않았습니다.'} tone="warning">정지·삭제는 끝났습니다. 다시 적용해 마무리해주세요.</AdminNotice>
               <input name="profileId" type="hidden" value={customer.id} />
-              {allowed ? <Button className="self-start" disabled={retrying} type="submit" variant="outline">{retrying ? '적용 중' : '재로그인 차단 다시 적용'}</Button> : null}
+              {allowed ? <Button className="self-start" disabled={retrying} type="submit" variant="outline">{retrying ? '적용 중' : withdrawal.signinBlocked ? '프로필 사진 삭제 다시 적용' : '재로그인 차단 다시 적용'}</Button> : null}
               <Feedback state={retryState} />
-            </form>}
+            </form>
+            : null}
           <Feedback state={state} />
           <Feedback state={kakaoState} />
         </div>
