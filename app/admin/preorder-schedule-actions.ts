@@ -10,6 +10,7 @@ import {
   parsePreorderScheduleChange, parsePreorderScheduleChangeSummaries, parsePreorderSchedulePreview, preorderScheduleError,
   type PreorderScheduleChange, type PreorderScheduleChangeSummary, type PreorderSchedulePolicyMode, type PreorderSchedulePreview,
 } from '@/lib/admin/preorder-schedule-change';
+import { canOpenOperationsSwitches } from '@/lib/admin/operations-switches.server';
 import { emailDispatcherFromEnvironment } from '@/lib/email/dispatcher.server';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
 import { smsNotificationConfig } from '@/lib/sms/notifications.server';
@@ -27,7 +28,7 @@ const STAFF_REQUIRED = '예약 주문 일정 변경은 주문 관리 권한이 �
 const EMAIL_NOT_CONFIGURED = '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다. 두 채널이 준비되어야 일정 변경과 안내를 진행할 수 있습니다.';
 
 type Failure = { ok: false; error: string };
-export type PreorderSchedulePreviewResult = { ok: true; preview: PreorderSchedulePreview; emailConfigured: boolean; smsAvailable: boolean } | Failure;
+export type PreorderSchedulePreviewResult = { ok: true; preview: PreorderSchedulePreview; emailConfigured: boolean; smsAvailable: boolean; switchesLink: boolean } | Failure;
 /** uncertain: 확정 요청이 서버에 닿았는지 모른다 — 같은 요청 UUID로 결과를 먼저 읽는다. */
 export type PreorderScheduleChangeResult = { ok: true; change: PreorderScheduleChange } | (Failure & { uncertain?: boolean; stale?: boolean });
 
@@ -67,7 +68,7 @@ export async function previewPreorderScheduleChangeAction(input: unknown): Promi
     if (!preview || preview.goodId !== request.goodId || preview.expectedShipDate !== request.expectedShipDate) {
       return { ok: false, error: '예약 주문 미리보기를 확인하지 못했습니다. 다시 미리 봐주세요.' };
     }
-    return { ok: true, preview, emailConfigured: Boolean(emailDispatcherFromEnvironment()), smsAvailable: Boolean(smsNotificationConfig()) };
+    return { ok: true, preview, emailConfigured: Boolean(emailDispatcherFromEnvironment()), smsAvailable: Boolean(smsNotificationConfig()), switchesLink: await canOpenOperationsSwitches() };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 주문 미리보기를 불러오지 못했습니다.' }; }
 }
 
