@@ -19,10 +19,10 @@ describe('엑셀 비밀번호와 요청 경계', () => {
     const body = JSON.stringify({ password: 'StrongTEST123!', passwordConfirmation: 'StrongTEST123!' });
     await expect(readExportPassword(request(body), ['screen'])).resolves.toBe('StrongTEST123!');
     await expect(readExportPassword(request(body), [])).rejects.toThrow('조건');
-    await expect(readExportPassword(request(body, 'text/plain'), ['screen'])).rejects.toThrow('형식');
-    await expect(readExportPassword(request('{'), ['screen'])).rejects.toThrow('형식');
-    await expect(readExportPassword(request(JSON.stringify({ password: 'StrongTEST123!', passwordConfirmation: 'StrongTEST123!', debug: true })), ['screen'])).rejects.toThrow('형식');
-    await expect(readExportPassword(request('x'.repeat(4097)), ['screen'])).rejects.toThrow('너무 큽니다');
+    await expect(readExportPassword(request(body, 'text/plain'), ['screen'])).rejects.toThrow('다운로드 요청을 읽지 못했습니다');
+    await expect(readExportPassword(request('{'), ['screen'])).rejects.toThrow('다운로드 요청을 읽지 못했습니다');
+    await expect(readExportPassword(request(JSON.stringify({ password: 'StrongTEST123!', passwordConfirmation: 'StrongTEST123!', debug: true })), ['screen'])).rejects.toThrow('다운로드 요청을 읽지 못했습니다');
+    await expect(readExportPassword(request('x'.repeat(4097)), ['screen'])).rejects.toThrow('다운로드 요청을 읽지 못했습니다');
     const absent = request(body); absent.headers.delete('origin');
     await expect(readExportPassword(absent, ['screen'])).rejects.toThrow('현재 관리자');
     const normalized = request(body); normalized.headers.set('host', 'icons-qa.localhost:4348'); normalized.headers.set('origin', 'https://icons-qa.localhost:4348');

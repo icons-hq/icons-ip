@@ -24,7 +24,7 @@ function readText(value: unknown): string | null {
 export async function loadAdminGoodsVariantExternalIdentities(goodId: string): Promise<AdminGoodsVariantExternalIdentity[]> {
   const client = await createClient();
   const { data, error } = await client.rpc('admin_list_goods_variant_external_identities', { target_good_id: goodId });
-  if (error) throw new Error('옵션 ERP 식별자를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+  if (error) throw new Error('옵션의 ERP 코드·바코드·ERP 품명을 불러오지 못했습니다. 잠시 후 새로고침해주세요.');
   return ((data ?? []) as RpcRow[]).flatMap((row) => {
     if (typeof row.variant_id !== 'string' || typeof row.good_id !== 'string') return [];
     return [{

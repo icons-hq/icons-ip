@@ -99,17 +99,17 @@ function suspensionRpcError(message: string): string {
     return '통합 매니저와 계정 주매니저는 먼저 매니저 관리에서 승계 또는 역할 변경을 진행해주세요.';
   }
   if (message.includes('cannot_suspend_self') || message.includes('cannot_suspend_admin')) {
-    return '본인 또는 admin 계정은 정지할 수 없습니다.';
+    return '본인 계정과 관리자 계정은 정지할 수 없습니다.';
   }
   if (message.includes('cannot_unsuspend_self') || message.includes('cannot_unsuspend_admin')) {
-    return '본인 또는 admin 계정은 정지 해제할 수 없습니다.';
+    return '본인 계정과 관리자 계정은 정지 해제할 수 없습니다.';
   }
   if (message.includes('member_withdrawn')) return '탈퇴 요청을 처리한 계정은 정지를 해제할 수 없습니다.';
   if (message.includes('profile_not_found')) return '회원을 찾을 수 없습니다.';
   if (message.includes('forbidden') || message.includes('account_suspended')) {
     return '이 계정을 제재할 권한이 없습니다.';
   }
-  return '회원 제재 상태를 변경하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
+  return '회원 정지 상태를 바꾸지 못했습니다. 회원을 다시 검색해 지금 상태를 확인한 뒤 다시 시도해주세요.';
 }
 
 export async function suspendAdminMemberAction(

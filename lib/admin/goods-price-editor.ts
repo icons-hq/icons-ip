@@ -155,7 +155,7 @@ export function goodsPriceDraftFromValues(values: Readonly<Record<string, string
   return { regularPrice: regularPrice === '0' ? '' : regularPrice, discountEnabled: false, discountValue: '', discountUnit: 'won', ...noPeriod };
 }
 
-const PERIOD_ERROR = '할인 시작·종료를 KST으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.';
+const PERIOD_ERROR = '할인 시작·종료 일시(KST)를 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.';
 
 /** 특정기간만 할인의 기간 입력(KST)을 ISO로 바꾼다. `now`보다 종료가 이르면(이미 끝난 할인) 오류다. */
 function discountPeriod(draft: GoodsPriceDraft, now: number): { startsAt: string; endsAt: string } | { error: string } {

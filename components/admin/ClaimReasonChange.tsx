@@ -30,7 +30,7 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
   const locked = pending || uncertain || Boolean(receipt); const editable = () => !inFlight.current && !dispatched.current && !receipt;
   function accept(saved: ClaimReasonReceipt, request: ClaimReasonRequest) {
     if (!claimReasonReceiptMatches(saved, request) || saved.orderId !== context.orderId || saved.fromReasonType !== context.reasonType || saved.fromReason !== context.reason) {
-      setError('현재 요청과 다른 저장 결과입니다. 같은 요청의 결과를 다시 확인해주세요.'); setUncertain(true); return;
+      setError('불러온 저장 결과가 이 요청과 맞지 않습니다. [같은 요청 결과 확인]을 다시 누르고, 같은 안내가 반복되면 새로고침해 처리 이력을 확인해주세요.'); setUncertain(true); return;
     }
     dispatched.current = null; setReceipt(saved); setUncertain(false); setError(''); setMessage('');
     if (saved.changed) router.refresh();
@@ -48,8 +48,8 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
         const keep = wasUncertain || Boolean(result.uncertain); setUncertain(keep); setConflict(!keep && Boolean(result.conflict)); setError(result.error);
         if (!keep) dispatched.current = null;
       } else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.'); }
-    } catch { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.'); }
+      else { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
+    } catch { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
   async function readback() {
@@ -58,8 +58,8 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
       const result = await readClaimReasonChangeAction(request.id);
       if ('error' in result) setError(result.error);
       else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else setMessage('확인된 저장 결과가 없습니다. 입력을 고정한 채 같은 요청을 재시도할 수 있습니다.');
-    } catch { setError('결과를 읽지 못했습니다. 같은 요청을 다시 확인해주세요.'); }
+      else setMessage('아직 저장된 결과가 없습니다. 입력한 내용 그대로 [같은 내용으로 재시도]를 누르면 됩니다(두 번 처리되지 않습니다).');
+    } catch { setError('저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
   async function reload() {
@@ -72,10 +72,10 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
         const changedType = context.claimType !== result.context.claimType;
         setContext(result.context); setConflict(false); setConfirmed(false); setFeeReviewed(false);
         if (changedActor || changedType) { setReasonType(result.context.reasonType); setReason(result.context.reason); setAgreement(''); }
-        setMessage(changedActor || changedType ? '계정 또는 요청 유형이 바뀌어 입력과 확인을 초기화했습니다.' : '최신 요청을 읽었습니다. 보존된 입력과 현재 사유·비용을 다시 확인해주세요.');
+        setMessage(changedActor || changedType ? '로그인 계정이나 요청 유형이 바뀌어 입력한 내용과 체크를 지웠습니다. 다시 입력해주세요.' : '최신 요청을 다시 불러왔습니다. 입력한 내용은 그대로 두었습니다. 현재 사유·비용과 비교한 뒤 확인 칸에 다시 체크해주세요.');
         if (changedType) { router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[result.context.claimType]}/${context.claimId}`); router.refresh(); }
-      } else setError('현재 요청의 상태를 읽지 못했습니다.');
-    } catch { setError('최신 요청을 읽지 못했습니다.'); }
+      } else setError('이 요청의 최신 상태를 불러오지 못했습니다. 새로고침한 뒤 다시 열어주세요.');
+    } catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
   return <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" aria-label="교환 사유 정정" data-claim-panel="reason-change">
@@ -100,7 +100,7 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
             <label className={FIELD}><span className={FIELD_LABEL}>내부 고객 협의 근거 (2~500자)</span><input className="w-full" value={agreement} minLength={2} maxLength={1000} required placeholder="상담 일시, 참조번호와 협의한 내용을 적어주세요." onChange={event => { if (editable()) setAgreement(event.target.value); }} /></label>
             <p className="text-muted-foreground">협의 근거는 운영자에게만 보입니다. 고객에게는 정정된 분류와 고객용 설명이 안내됩니다.</p>
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={confirmed} required onChange={event => { if (editable()) setConfirmed(event.target.checked); }} /><span>고객과 사유 정정 내용을 확인했습니다.</span></label>
-            {context.fee ? <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={feeReviewed} required onChange={event => { if (editable()) setFeeReviewed(event.target.checked); }} /><span>기존 비용 기록과 정정할 사유의 정합성을 확인했습니다. 비용 정정은 별도로 처리합니다.</span></label> : null}
+            {context.fee ? <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={feeReviewed} required onChange={event => { if (editable()) setFeeReviewed(event.target.checked); }} /><span>기존 비용 기록이 정정할 사유와 맞는지 확인했습니다. 비용을 고쳐야 하면 운영 확인액에서 따로 고칩니다.</span></label> : null}
           </fieldset>
           <div className="flex flex-wrap gap-2">{uncertain ? <>
             <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void readback(); }}>같은 요청 결과 확인</button>
@@ -120,8 +120,8 @@ export function ClaimReasonChange({ claimId }: { claimId: string }) {
     try {
       const result = await loadClaimReasonContextAction(claimId);
       if ('error' in result) setError(result.error); else if ('context' in result && result.context.claimId === claimId) setContext(result.context);
-      else setError('현재 요청의 상태를 읽지 못했습니다.');
-    } catch { setError('최신 요청을 읽지 못했습니다.'); } finally { loading.current = false; setPending(false); }
+      else setError('이 요청의 최신 상태를 불러오지 못했습니다. 새로고침한 뒤 다시 열어주세요.');
+    } catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); } finally { loading.current = false; setPending(false); }
   }
   return context ? <ClaimReasonChangePanel initial={context} onClose={() => setContext(null)} />
     : <div className="flex min-w-0 flex-col items-start gap-2" data-claim-panel-entry="reason-change"><button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : '교환 사유 정정 및 이력'}</button>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}</div>;

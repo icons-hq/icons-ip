@@ -35,7 +35,7 @@ export async function buildCustomerPurchaseWorkbook(data: CustomerPurchaseReport
     ['상품 판매금액', '상품 단가×수량의 합계−복수구매 할인−쿠폰 할인. 사용 적립금 포함·배송비 제외.'],
     ['상품 실결제액', '상품 판매금액−사용 적립금. 배송비 제외.'],
     ['객단가', '상품 판매금액÷중복 제거 결제고객수. 원 단위로 표시합니다.'],
-    ['금액 확인 필요', '주문 스냅샷 불일치 포함 유형·기간의 금액과 객단가는 빈칸. 고객수·주문수는 포함.'],
+    ['금액 확인 필요', '주문 당시 저장된 금액이 맞지 않는 주문이 있는 유형·기간은 금액과 객단가를 빈칸으로 둠. 고객수·주문수는 포함.'],
     ['시각 미확인 집계', '각 기간에 생성된 결제 완료 이력 주문 중 승인·입금 시각 미확인 주문. 결제 기간에 귀속하지 않음.'],
     ['조회기간 시각 미확인', data.current.unknownPaidAtCount.toLocaleString('ko-KR')],
     ...(data.comparison ? [['비교기간 시각 미확인', data.comparison.unknownPaidAtCount.toLocaleString('ko-KR')]] as const : []),

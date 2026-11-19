@@ -32,7 +32,7 @@ describe('review event XLSX contract', () => {
     expect(data.name).toBe('리뷰이벤트 응모'); expect(data.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 }); expect(data.autoFilter).toBeTruthy();
     expect(row.getCell(3).value).toBe('=HYPERLINK("https://invalid.test")'); expect(row.getCell(4).value).toBe('00001234');
     expect(row.getCell(6).value).toBe(1); expect(row.getCell(8).value).toBe('2026-10-13 00:00');
-    expect(row.getCell(10).value).toBe('선정됨'); expect(row.getCell(11).value).toBe('재확인 필요'); expect(row.getCell(12).value).toBe('기지급 · 재선정 불가'); expect(row.getCell(13).value).toBe('회수 완료'); expect(row.getCell(14).value).toBe(1000); expect(row.getCell(14).numFmt).toBe('#,##0');
+    expect(row.getCell(10).value).toBe('선정됨'); expect(row.getCell(11).value).toBe('재확인 필요'); expect(row.getCell(12).value).toBe('이미 지급 · 다시 선정 불가'); expect(row.getCell(13).value).toBe('회수 완료'); expect(row.getCell(14).value).toBe(1000); expect(row.getCell(14).numFmt).toBe('#,##0');
     const info = workbook.getWorksheet('내려받기 정보')!; const lines: string[] = [];
     workbook.eachSheet(worksheet => worksheet.eachRow(item => item.eachCell(cell => expect(readSafeWorkbookCell(cell).error).toBeUndefined())));
     info.eachRow(item => lines.push(String(item.getCell(2).value))); expect(lines).toContain('고객'); expect(lines).toContain('회수됨'); expect(lines).toContain('현재 검색 조건의 전체 페이지');

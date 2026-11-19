@@ -134,10 +134,10 @@ const IMAGE_REQUIRED_KINDS = new Set<AdminCurationKind>([
 const BEST_TAB_SLOTS = new Set(['category', 'popular']);
 const CURATION_IMAGE_PATTERN =
   /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
-const CURATION_IMAGE_ERROR = '검증된 큐레이션 이미지를 사용해주세요.';
+const CURATION_IMAGE_ERROR = '이 화면의 업로드로 올린 이미지만 쓸 수 있습니다. 이미지를 다시 업로드해주세요.';
 const GOOD_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
-const DATE_TIME_ERROR = '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.';
+const DATE_TIME_ERROR = '날짜와 시각을 모두 입력해주세요(예: 2026-11-19 14:00).';
 const INT32_MAX = 2147483647;
 const AMBIGUOUS_LINK_CHARACTER_PATTERN =
   /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
@@ -287,15 +287,15 @@ function readGoodIds(
     .filter(Boolean);
 
   if (goodIds.length === 0) {
-    if (kind === 'best_tab') errors.goodIds = '상품 ID 를 1개 이상 등록해주세요.';
+    if (kind === 'best_tab') errors.goodIds = '상품을 1개 이상 골라주세요.';
     return;
   }
   if (goodIds.some((goodId) => !GOOD_ID_PATTERN.test(goodId))) {
-    errors.goodIds = '상품 ID 형식이 올바르지 않습니다.';
+    errors.goodIds = '고른 상품 중 확인할 수 없는 상품이 있습니다. 상품을 다시 골라주세요.';
     return;
   }
   if (goodIds.length > limit) {
-    errors.goodIds = `상품 ID 는 최대 ${limit}개까지 등록할 수 있습니다.`;
+    errors.goodIds = `상품은 최대 ${limit}개까지 고를 수 있습니다.`;
     return;
   }
   payload.good_ids = goodIds;
@@ -379,8 +379,8 @@ function readCurationPayload(
         const content = normalizeHeroNewlines(readString(formData, 'altContent'));
         if (characterLength(title) > HOME_HERO_TITLE_LIMIT) errors.altTitle = '대체텍스트 제목은 40자 이하로 입력해주세요.';
         if (characterLength(content) > HOME_HERO_CONTENT_LIMIT) errors.altContent = '대체텍스트 내용은 150자 이하로 입력해주세요.';
-        if (/[\u0000-\u001f\u007f]/.test(title)) errors.altTitle = '대체텍스트 제목에 제어 문자를 입력할 수 없습니다.';
-        if (/[\u0000-\u0009\u000b-\u001f\u007f]/.test(content)) errors.altContent = '대체텍스트 내용에는 줄바꿈 외의 제어 문자를 입력할 수 없습니다.';
+        if (/[\u0000-\u001f\u007f]/.test(title)) errors.altTitle = '대체텍스트 제목에는 줄바꿈·탭 같은 특수 문자를 넣을 수 없습니다.';
+        if (/[\u0000-\u0009\u000b-\u001f\u007f]/.test(content)) errors.altContent = '대체텍스트 내용에는 줄바꿈 말고 탭 같은 특수 문자를 넣을 수 없습니다.';
         if (title) payload.alt_title = title;
         if (content) payload.alt_content = content;
       }
@@ -514,11 +514,11 @@ function readDateTime(
 
 export function normalizeAdminCurationForm(formData: FormData): AdminCurationFormResult {
   const errors: AdminCurationFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청 정보가 맞지 않습니다. 새로고침한 뒤 다시 저장해주세요.');
   const expectedUpdatedAt = readString(formData, 'expectedUpdatedAt') || null;
   if (expectedUpdatedAt !== null && (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/.test(expectedUpdatedAt)
     || Number.isNaN(Date.parse(expectedUpdatedAt)))) errors.expectedUpdatedAt = '저장본 정보를 확인하지 못했습니다. 새로고침해주세요.';
-  const id = readUuid(formData, 'id', errors, '유효한 큐레이션 ID가 필요합니다.');
+  const id = readUuid(formData, 'id', errors, '수정할 구성을 확인하지 못했습니다. 왼쪽 목록에서 다시 골라주세요.');
   const rawKind = readString(formData, 'kind');
   const kind = CURATION_KINDS.has(rawKind as AdminCurationKind)
     ? rawKind as AdminCurationKind
@@ -545,7 +545,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   if (kind === 'hero' && title !== readString(formData, 'originalTitle') && characterLength(title) > HOME_HERO_TITLE_LIMIT) {
     errors.title = '제목은 40자 이하로 입력해주세요. 기존 제목은 그대로 유지할 수 있습니다.';
   }
-  if (kind === 'product_collection' && !isHomeProductCollectionTitle(title)) errors.title = '제목은 제어 문자 없이 1자 이상 15자 이하로 입력해주세요.';
+  if (kind === 'product_collection' && !isHomeProductCollectionTitle(title)) errors.title = '제목은 줄바꿈·탭 없이 1자 이상 15자 이하로 입력해주세요.';
   if (kind === 'notice_bar' && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) < 1 || characterLength(title) > NOTICE_BAR_MESSAGE_LIMIT)) {
     errors.title = `공지 문구는 줄바꿈 없이 1자 이상 ${NOTICE_BAR_MESSAGE_LIMIT}자 이하로 입력해주세요.`;
   }
@@ -594,7 +594,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     || decodedLinkPath === null
     || isUnsafeInternalLink(decodedLinkPath)
   ))) {
-    errors.linkPath = '1~2048자의 안전한 내부 경로를 입력해주세요.';
+    errors.linkPath = '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.';
   }
   if (kind === 'product_collection' && linkPath !== null) errors.linkPath = '자유상품은 각 상품의 상세 화면으로 이동합니다.';
   if (kind === 'search_terms' && linkPath !== null) errors.linkPath = '추천 검색어는 각 검색어의 검색 결과로 이동합니다.';

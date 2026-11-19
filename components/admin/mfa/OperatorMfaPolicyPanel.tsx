@@ -11,7 +11,7 @@ import type { OperatorMfaPolicy, OperatorMfaRow } from '@/lib/admin/mfa';
 import { statusTone } from '@/lib/admin/status-tone';
 import { formatOrderDateTime } from '@/lib/orders';
 
-const UNKNOWN = '처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해 주세요.';
+const UNKNOWN = '처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러 주세요. 여러 번 눌러도 한 번만 처리됩니다.';
 
 /**
  * 운영자 2단계 인증 요구 스위치와 운영자별 등록 현황·초기화(OPS-006).
@@ -72,7 +72,7 @@ export function OperatorMfaPolicyPanel({ initial, canReset, selfId }: { initial:
     if (!known) {
       const ok = await adminConfirm({
         title: '2단계 인증 초기화',
-        message: `${row.nickname}(${row.maskedEmail})의 인증 앱 등록을 모두 지우고 그 계정의 로그인 세션을 전부 끊습니다. 휴대폰을 잃었다는 요청을 본인에게서 직접 확인한 뒤에만 진행하세요. 초기화한 운영자는 다시 로그인해 새 휴대폰으로 등록합니다.`,
+        message: `${row.nickname}(${row.maskedEmail})의 인증 앱 등록을 모두 지우고 그 계정을 모든 기기에서 로그아웃시킵니다. 휴대폰을 잃었다는 요청을 본인에게서 직접 확인한 뒤에만 진행하세요. 초기화한 운영자는 다시 로그인해 새 휴대폰으로 등록합니다.`,
         confirmLabel: '초기화',
         destructive: true,
       });
@@ -87,7 +87,7 @@ export function OperatorMfaPolicyPanel({ initial, canReset, selfId }: { initial:
     setResetting(null);
     if ('error' in result) { setMessage(result.error); setError(true); if (!result.uncertain) forget(); return; }
     forget(); setError(false);
-    setMessage(`${row.nickname}의 2단계 인증을 초기화했습니다(인증 앱 ${result.receipt.factorsDeleted}개 삭제, 로그인 세션 ${result.receipt.sessionsRevoked}개 종료).`);
+    setMessage(`${row.nickname}의 2단계 인증을 초기화했습니다(인증 앱 ${result.receipt.factorsDeleted}개 삭제, 로그인 ${result.receipt.sessionsRevoked}곳 로그아웃).`);
     router.refresh();
   }
 
@@ -97,7 +97,7 @@ export function OperatorMfaPolicyPanel({ initial, canReset, selfId }: { initial:
         <AdminStatusBadge tone={statusTone('setting', policy.required ? 'active' : 'inactive')}>{policy.required ? '켜짐' : '꺼짐'}</AdminStatusBadge>
         <span className="text-sm text-muted-foreground">{policy.required ? '모든 운영자가 인증 앱 코드를 입력해야 어드민이 열립니다.' : '비밀번호만으로 어드민이 열립니다.'}</span>
       </div>
-      <p className="text-sm text-muted-foreground">켜려면 본인이 먼저 내 보안 설정에서 인증 앱을 등록하고 이 세션을 확인해야 하며, 운영자 전원이 등록을 마쳐야 합니다(미등록 {policy.unenrolledCount}명).</p>
+      <p className="text-sm text-muted-foreground">켜려면 본인이 먼저 내 보안 설정에서 인증 앱을 등록하고 지금 로그인을 인증 앱 코드로 확인해야 하며, 운영자 전원이 등록을 마쳐야 합니다(미등록 {policy.unenrolledCount}명).</p>
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={pending} onClick={() => void toggle()} variant={policy.required && !uncertain ? 'outline' : 'default'}>
           {pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : policy.required ? '2단계 인증 요구 끄기' : '2단계 인증 요구 켜기'}

@@ -516,16 +516,16 @@ async function saveAdminGood(
     if (/goods_sale_period_changed/.test(error.message)) return { errors: { saleStartsAt: '다른 작업에서 판매기간이 바뀌었습니다. 입력은 유지됩니다. 새로고침 후 최신 기간을 확인해주세요.' } };
     if (/goods_sale_period_preorder_conflict/.test(error.message)) return { errors: { saleStartsAt: '예약판매 옵션은 일반 판매기간과 함께 사용할 수 없습니다. 예약판매를 일반재고로 전환하거나 판매기간을 설정안함으로 변경해주세요.' } };
     if (/invalid_goods_sale_period/.test(error.message)) return { errors: { saleStartsAt: '판매 시작·종료 시각을 확인해주세요.' } };
-    if (/goods_attributes_changed|goods_attribute_schema_changed/.test(error.message)) return { errors: { productAttributes: '속성 정의 또는 저장값이 다른 작업에서 바뀌었습니다. 입력은 유지됩니다. 최신 속성 정의·저장값을 조회해 비교해주세요.' } };
+    if (/goods_attributes_changed|goods_attribute_schema_changed/.test(error.message)) return { errors: { productAttributes: '다른 작업에서 이 카테고리의 상품속성 항목이나 이 상품의 속성 값이 바뀌었습니다. 입력은 유지됩니다. 지금 입력을 따로 적어 둔 뒤 새로고침해 바뀐 속성을 확인하고 다시 저장해주세요.' } };
     if (/goods_attribute_required/.test(error.message)) return { errors: { productAttributes: '현재 대표 카테고리의 필수 상품속성을 입력해주세요.' } };
-    if (/invalid_goods_attribute|goods_attribute_retained_limit/.test(error.message)) return { errors: { productAttributes: '상품속성의 유형·선택값·숫자 소수 6자리 제한을 확인해주세요. 미저장 이전 카테고리 값은 명시적으로 정리해야 합니다.' } };
+    if (/invalid_goods_attribute|goods_attribute_retained_limit/.test(error.message)) return { errors: { productAttributes: '상품속성 값을 확인해주세요. 선택형은 목록에 있는 값만 고를 수 있고, 숫자는 소수점 아래 6자리까지 넣을 수 있습니다. 카테고리를 바꾸기 전에 넣고 저장하지 않은 속성 값은 그 카테고리로 돌아가 저장하거나, 상품속성 칸의 보관값 목록에서 지운 뒤 저장해주세요.' } };
     if (/goods_draft_/.test(error.message)) return { errors: { form: goodsDraftError(error.message) } };
     if (/goods_custom_inputs_changed/.test(error.message)) return { errors:{customInputs:'다른 작업에서 직접입력형 옵션 설정이 바뀌었습니다. 입력값은 유지됩니다. 새로고침 후 설정을 확인해주세요.'} };
     if (/invalid_goods_custom_input/.test(error.message)) return { errors:{customInputs:'직접입력형 옵션명과 사용여부를 확인해주세요.'} };
-    if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
+    if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '고른 카테고리가 바뀌었거나 연결할 수 없는 상태입니다. 대표·추가 카테고리를 다시 골라주세요. 사용 중인 맨 아래 단계 카테고리만 고를 수 있습니다. 입력값은 유지됩니다.' } };
     const categoryFailure = goodCategoryFailure(error.message);
     if (categoryFailure) return { errors: { categoryId: `${categoryFailure} 입력값은 유지됩니다.` } };
-    if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지 형식과 정리 후 길이, 업로드한 HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
+    if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지를 저장하지 못했습니다. 상세페이지 형식, 글자 수(쓸 수 없는 태그를 정리한 뒤 기준), 상세페이지에 올린 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
     const randomOptionFailure = randomOptionSaleModeFailure(error.message);
     if (randomOptionFailure) return randomOptionFailure;
     if (/stock_changed|goods_options_changed|goods_variant_external_identity_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
@@ -536,7 +536,7 @@ async function saveAdminGood(
     if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '진행 중이거나 예정된 기간 할인(할인 프로모션 포함)이 있어 판매가·옵션가를 바꾸지 않았습니다. 그 할인을 먼저 중지해주세요.' } };
     if (/purchase_limit_not_configured|goods_order_quantity_activation|goods_member_quantity_activation/.test(error.message)) return { errors: { minOrderQty: '구매 제한을 설정하려면 최소·최대 구매수량 또는 1인 최대 구매수량을 모두 입력해주세요.' } };
     if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고·옵션별 구매 제한(양의 정수)을 확인해주세요.' } };
-    if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
+    if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 사용 중인 출고지를 골라주세요.' } };
     if (/invalid_good_shipping|invalid_individual_fee/.test(error.message)) return { errors: { shippingFeeType: '배송비 유형과 금액을 확인해주세요.' } };
     if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
     if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 상품 자동코드입니다.' } };
@@ -576,7 +576,7 @@ function instantDiscountPeriodFailure(message: string): AdminFieldErrors | null 
   if (message.includes('instant_discount_period_conflict')) return { discountValue: '진행 중이거나 예정된 기간 할인이 있는 상품에는 기간 없는 즉시할인을 함께 걸 수 없습니다. 특정기간만 할인으로 바꾸거나 기간 할인을 먼저 중지해주세요.' };
   if (message.includes('instant_discount_period_ended')) return { discountPeriod: '할인 종료 시각이 이미 지났습니다. 종료를 지금 이후로 입력해주세요.' };
   if (message.includes('instant_discount_period_price_invalid')) return { discountValue: '기간 할인 금액은 가장 낮은 옵션 판매 금액보다 작아야 합니다(옵션마다 같은 금액을 뺍니다).' };
-  if (message.includes('invalid_instant_discount_period')) return { discountPeriod: '할인 시작·종료를 KST으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' };
+  if (message.includes('invalid_instant_discount_period')) return { discountPeriod: '할인 시작·종료를 KST로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' };
   if (message.includes('price_period_overlap')) return { discountPeriod: '같은 기간에 걸린 다른 기간 할인(끝난 할인 포함)과 겹칩니다. 시작을 지금 이후로 바꾸거나 기간을 다시 확인해주세요.' };
   return null;
 }
@@ -651,7 +651,7 @@ export async function adjustAdminStockAction(
     }
     if (error.message.includes('adjustment_conflict')) {
       revalidateStock(ipPath);
-      return rpcFailure('이미 사용된 재고 조정 요청입니다. 최신 수량을 확인해주세요.');
+      return rpcFailure('이 재고 조정은 이미 처리됐습니다. 새로고침해 최신 수량을 확인한 뒤, 더 조정할 것이 있을 때만 다시 조정해주세요.');
     }
     if (error.message.includes('stock_out_of_range')) {
       return rpcFailure('재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.');
@@ -731,7 +731,7 @@ async function saveAdminCard(formData: FormData): Promise<AdminCatalogActionStat
       return rpcFailure('카드와 같은 IP의 카드풀만 연결할 수 있습니다.');
     }
     if (error.message.includes('pool_rarity_uncovered')) {
-      return rpcFailure('현재 풀의 마지막 양수 확률 카드는 이동하거나 해제할 수 없습니다.');
+      return rpcFailure('이 카드는 카드풀에서 확률이 0%보다 큰 등급의 마지막 카드라 다른 카드풀로 옮기거나 연결을 풀 수 없습니다. 같은 등급에 다른 카드를 먼저 연결해주세요.');
     }
     if (error.message.includes('pooled_card_catalog_contract_locked')) {
       return rpcFailure('풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경해주세요.');
@@ -783,7 +783,7 @@ async function saveAdminCardPool(formData: FormData): Promise<AdminCatalogAction
       return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
     }
     if (error.message.includes('active_reward_policy_window_conflict')) {
-      return rpcFailure('활성 발급 정책과 운영 기간이 겹치지 않습니다. 먼저 정책을 비활성화해주세요.');
+      return rpcFailure('사용 중인 발급 정책의 운영 기간이 바꾼 카드풀 운영 기간과 겹치지 않게 됩니다. 그 발급 정책의 정책 활성화를 먼저 끈 뒤 기간을 바꿔주세요.');
     }
     if (error.message.includes('game_pool_window_conflict')) {
       return rpcFailure('카드풀 운영 기간은 연결된 게임 운영 기간 전체를 포함해야 합니다.');
@@ -792,7 +792,7 @@ async function saveAdminCardPool(formData: FormData): Promise<AdminCatalogAction
       return rpcFailure('연결할 IP를 찾을 수 없습니다.');
     }
     if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
     }
     return rpcFailure('카드풀을 저장하지 못했습니다. 다시 시도해주세요.');
   }
@@ -827,7 +827,7 @@ export async function setAdminPoolOddsAction(
     const archivedError = archivedCatalogFailure(error.message);
     if (archivedError) return archivedError;
     if (error.message.includes('pool_rarity_uncovered')) {
-      return rpcFailure('양수 확률인 모든 등급에 소속 카드가 필요합니다.');
+      return rpcFailure('확률이 0%보다 큰 등급에는 카드가 1장 이상 연결되어 있어야 합니다.');
     }
     if (
       error.message.includes('invalid_pool_probability')
@@ -840,7 +840,7 @@ export async function setAdminPoolOddsAction(
       return rpcFailure('카드풀을 찾을 수 없습니다.');
     }
     if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
     }
     return rpcFailure('등급별 확률을 저장하지 못했습니다. 다시 시도해주세요.');
   }
@@ -880,7 +880,7 @@ export async function upsertAdminRewardPolicyAction(
     const archivedError = archivedCatalogFailure(error.message);
     if (archivedError) return archivedError;
     if (error.message.includes('card_rewards_disabled')) {
-      return rpcFailure('카드 리워드는 현재 비활성화되어 있습니다.');
+      return rpcFailure('카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.');
     }
     if (error.message.includes('auth_required')) {
       return rpcFailure('로그인이 필요합니다.');
@@ -889,7 +889,7 @@ export async function upsertAdminRewardPolicyAction(
       return rpcFailure('관리자 권한이 필요합니다.');
     }
     if (error.message.includes('invalid_operation_id')) {
-      return rpcFailure('유효한 저장 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+      return rpcFailure('저장 요청 정보가 맞지 않습니다. 화면을 새로고침한 뒤 다시 저장해주세요.');
     }
     if (error.message.includes('invalid_reward_policy_id')) {
       return rpcFailure('발급 정책 정보를 확인해주세요.');
@@ -910,7 +910,7 @@ export async function upsertAdminRewardPolicyAction(
       return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
     }
     if (error.message.includes('invalid_reward_policy_active')) {
-      return rpcFailure('활성화 설정을 확인해주세요.');
+      return rpcFailure('정책 활성화 값을 확인할 수 없습니다. 화면을 새로고침한 뒤 정책 활성화를 다시 골라 저장해주세요.');
     }
     if (error.message.includes('reward_policy_good_ip_mismatch')) {
       return rpcFailure('선택한 IP의 굿즈만 지정할 수 있습니다.');
@@ -934,7 +934,7 @@ export async function upsertAdminRewardPolicyAction(
       return rpcFailure('이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.');
     }
     if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
     }
     return rpcFailure('발급 정책을 저장하지 못했습니다. 다시 시도해주세요.');
   }
@@ -973,14 +973,14 @@ export async function upsertAdminGameAction(
     const archivedError = archivedCatalogFailure(error.message);
     if (archivedError) return archivedError;
     if (error.message.includes('card_rewards_disabled')) {
-      return rpcFailure('카드 리워드는 현재 비활성화되어 있습니다.');
+      return rpcFailure('카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.');
     }
     if (error.message.includes('auth_required')) return rpcFailure('로그인이 필요합니다.');
     if (error.message.includes('forbidden')) return rpcFailure('관리자 권한이 필요합니다.');
     if (error.message.includes('invalid_operation_id')) {
-      return rpcFailure('유효한 저장 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+      return rpcFailure('저장 요청 정보가 맞지 않습니다. 화면을 새로고침한 뒤 다시 저장해주세요.');
     }
-    if (error.message.includes('invalid_game_id')) return rpcFailure('게임 ID를 확인해주세요.');
+    if (error.message.includes('invalid_game_id')) return rpcFailure('게임 주소 이름은 영문 소문자나 숫자로 시작하고, 영문 소문자·숫자·하이픈만 쓸 수 있습니다.');
     if (error.message.includes('invalid_game_title')) return rpcFailure('게임 제목을 입력해주세요.');
     if (error.message.includes('invalid_game_daily_limit')) {
       return rpcFailure('일일 플레이 한도는 1~100 사이여야 합니다.');
@@ -1006,15 +1006,15 @@ export async function upsertAdminGameAction(
     }
     if (error.message.includes('event_not_found')) return rpcFailure('이벤트를 찾을 수 없습니다.');
     if (error.message.includes('game_catalog_locked')) {
-      return rpcFailure('플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.');
+      return rpcFailure('플레이 이력이 있어 게임 주소 이름·카드풀·이벤트·설정을 바꿀 수 없습니다.');
     }
     if (error.message.includes('game_variant_read_only')) {
-      return rpcFailure('legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.');
+      return rpcFailure('이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.');
     }
-    if (error.message.includes('game_id_conflict')) return rpcFailure('이미 사용 중인 게임 ID입니다.');
+    if (error.message.includes('game_id_conflict')) return rpcFailure('이미 쓰고 있는 게임 주소 이름입니다. 다른 이름을 입력해주세요.');
     if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
     if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
     }
     return rpcFailure('게임을 저장하지 못했습니다. 다시 시도해주세요.');
   }
@@ -1053,11 +1053,11 @@ export async function endAdminGameAction(
       return rpcFailure('운영 중인 게임만 지금 종료할 수 있습니다.');
     }
     if (error.message.includes('game_variant_read_only')) {
-      return rpcFailure('legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.');
+      return rpcFailure('이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.');
     }
     if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
     if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이미 처리된 종료 요청입니다. 화면을 새로고침해주세요.');
+      return rpcFailure('이 종료 요청은 이미 처리됐습니다. 화면을 새로고침해 게임 상태를 확인해주세요.');
     }
     return rpcFailure('게임 운영을 종료하지 못했습니다. 다시 시도해주세요.');
   }
@@ -1147,7 +1147,7 @@ export async function upsertAdminTicketTypeAction(
     }
     if (error.message.includes('capacity_below_sold')) {
       revalidateTicketing();
-      return rpcFailure('정원은 현재 할당 수량보다 작게 줄일 수 없습니다.');
+      return rpcFailure('정원은 지금까지 예매된 수량(결제 대기 포함)보다 작게 줄일 수 없습니다.');
     }
     if (error.message.includes('ticket_type_catalog_locked')) {
       revalidateTicketing();
@@ -1159,7 +1159,7 @@ export async function upsertAdminTicketTypeAction(
     }
     if (error.message.includes('operation_conflict')) {
       revalidateTicketing();
-      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
     }
     return rpcFailure('티켓 회차를 저장하지 못했습니다. 다시 시도해주세요.');
   }

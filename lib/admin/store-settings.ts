@@ -49,7 +49,7 @@ export function parseStoreSettingsInput(section:'business'|'bank_transfer',input
   const fields=section==='business'?BUSINESS_INFO_LABELS:BANK_ACCOUNT_LABELS;
   if (!input || typeof input!=='object' || Array.isArray(input)) return {ok:false,errors:{form:'설정 값을 다시 확인해주세요.'}};
   const entries=Object.entries(input);
-  if (entries.some(([key,value])=>!Object.hasOwn(fields,key)||typeof value!=='string')) return {ok:false,errors:{form:'허용되지 않은 설정 항목입니다.'}};
+  if (entries.some(([key,value])=>!Object.hasOwn(fields,key)||typeof value!=='string')) return {ok:false,errors:{form:'이 화면에서 저장할 수 없는 설정 항목이 들어 있습니다. 새로고침한 뒤 다시 저장해주세요.'}};
   const value:StoreSettingsValue=Object.fromEntries(entries.map(([key,v])=>[key,(v as string).trim()]));
   const errors:Record<string,string>={};
   for (const [key,text] of Object.entries(value)) {
@@ -59,7 +59,7 @@ export function parseStoreSettingsInput(section:'business'|'bank_transfer',input
   if (section==='bank_transfer') {
     const filled=Object.keys(BANK_ACCOUNT_LABELS).filter(key=>Boolean(value[key]));
     if (filled.length!==0 && filled.length!==3) errors.form='무통장 계좌는 은행·계좌번호·예금주를 모두 입력하거나 모두 비워주세요.';
-    if (Object.keys(value).length!==3) errors.form='무통장 계좌의 세 항목을 모두 보내주세요.';
+    if (Object.keys(value).length!==3) errors.form='무통장 계좌 칸을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.';
   }
   return Object.keys(errors).length?{ok:false,errors}:{ok:true,value};
 }
@@ -83,7 +83,7 @@ export function storeSettingsHistoryRows(entry:StoreSettingsAudit) {
     default_carrier:'기본 택배사',export_template:'발주서 양식',name:'출고지 이름',base_fee:'기본 배송비',free_threshold:'무료배송 기준',return_address:'반품 주소',cutoff:'마감 시각'};
   const before=entry.diff.before&&typeof entry.diff.before==='object'?entry.diff.before as Record<string,unknown>:{};
   const after=entry.diff.after&&typeof entry.diff.after==='object'?entry.diff.after as Record<string,unknown>:{};
-  const words=(value:unknown)=>value===true?'사용':value===false?'비활성':typeof value==='string'||typeof value==='number'?String(value):'미설정';
+  const words=(value:unknown)=>value===true?'사용':value===false?'사용 안 함':typeof value==='string'||typeof value==='number'?String(value):'없음';
   if (entry.target==='store_settings:navigation') {
     const oldItems=Array.isArray(entry.diff.before)?entry.diff.before as StoreNavigation:[];
     const newItems=Array.isArray(entry.diff.after)?entry.diff.after as StoreNavigation:[];
@@ -91,7 +91,7 @@ export function storeSettingsHistoryRows(entry:StoreSettingsAudit) {
       const oldIndex=oldItems.findIndex(row=>row.id===item.id),newIndex=newItems.findIndex(row=>row.id===item.id);
       const old=oldItems[oldIndex],next=newItems[newIndex];
       return [
-        ...(oldIndex!==newIndex?[{key:`${item.id}.order`,label:`${item.label} · 순서`,before:oldIndex<0?'미설정':String(oldIndex+1),after:newIndex<0?'미설정':String(newIndex+1)}]:[]),
+        ...(oldIndex!==newIndex?[{key:`${item.id}.order`,label:`${item.label} · 순서`,before:oldIndex<0?'없음':String(oldIndex+1),after:newIndex<0?'없음':String(newIndex+1)}]:[]),
         ...(['label','visible'] as const).filter(key=>old?.[key]!==next?.[key]).map(key=>({key:`${item.id}.${key}`,label:`${item.label} · ${key==='label'?'메뉴명':'노출'}`,before:words(old?.[key]),after:words(next?.[key])})),
       ];
     });

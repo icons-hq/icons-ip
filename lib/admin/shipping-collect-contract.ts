@@ -63,9 +63,9 @@ export function parseShippingCollectPending(value: unknown): ShippingCollectPend
   return value as unknown as ShippingCollectPending;
 }
 export function shippingCollectError(message?: string): string {
-  const errors: Record<string, string> = { collect_contract_changed: '착불 운영 조건이 변경됐습니다. 입력을 유지하고 최신 저장본과 비교해주세요.',
-    invalid_collect_contract: '활성화에는 수납·출고·환급의 실제 운영 조건과 근거를 모두 입력해야 합니다.',
-    fulfillment_origin_not_found: '출고지가 없거나 비활성 상태입니다.', auth_context_changed: '로그인 상태가 바뀌었습니다. 현재 계정으로 다시 열어주세요.',
-    operator_operation_conflict: '이전 요청과 입력이 다릅니다. 원래 요청 결과를 확인해주세요.', operator_capability_required: '운영 설정을 변경할 권한이 필요합니다.' };
-  return Object.entries(errors).find(([code]) => message?.includes(code))?.[1] ?? '착불 운영 조건을 저장하지 못했습니다. 입력과 현재 권한을 확인해주세요.';
+  const errors: Record<string, string> = { collect_contract_changed: '다른 사람이 착불 운영 조건을 먼저 바꿨습니다. 입력은 그대로 있으니 [입력과 최신 저장본 비교]에서 확인한 뒤 다시 저장해주세요.',
+    invalid_collect_contract: '"실제 운영 근거 확인 · 사용"으로 저장하려면 수납·출고·환급의 실제 운영 조건과 근거 칸을 모두 채워야 합니다.',
+    fulfillment_origin_not_found: '출고지를 찾을 수 없거나 사용을 멈춘 출고지입니다. 출고지 목록을 새로고침해 확인해주세요.', auth_context_changed: '로그인 상태가 바뀌었습니다. 현재 계정으로 다시 열어주세요.',
+    operator_operation_conflict: '같은 요청 번호로 다른 내용이 이미 처리됐습니다. [이전 저장 결과 확인]으로 원래 요청의 결과를 확인해주세요.', operator_capability_required: '운영 설정을 변경할 권한이 필요합니다.' };
+  return Object.entries(errors).find(([code]) => message?.includes(code))?.[1] ?? '착불 운영 조건을 저장하지 못했습니다. 칸마다 글자 수와 필수 입력을 확인하고, 최고 관리자 계정으로 로그인했는지 확인해주세요.';
 }

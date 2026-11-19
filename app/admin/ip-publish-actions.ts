@@ -24,7 +24,7 @@ export interface AdminIpPublishActionState {
 
 const CATALOG_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const RETRY_ERROR = 'IP 게시 상태를 변경하지 못했습니다. 다시 시도해주세요.';
-const STALE_ERROR = 'IP 게시 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
+const STALE_ERROR = 'IP 게시 상태를 변경하지 못했습니다. 새로고침해 지금 게시 상태를 확인한 뒤 다시 시도해주세요.';
 
 const RPC_GUARD_MESSAGES: ReadonlyArray<readonly [string, string]> = [
   ['catalog_not_found', 'IP를 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.'],
@@ -39,7 +39,7 @@ function normalizePublishForm(formData: FormData):
   const id = typeof rawId === 'string' ? rawId.trim() : '';
 
   if (!CATALOG_ID_PATTERN.test(id)) {
-    return { ok: false, errors: { id: '올바른 IP ID가 필요합니다.' } };
+    return { ok: false, errors: { id: 'IP를 찾지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' } };
   }
   return { ok: true, id };
 }
@@ -140,7 +140,7 @@ export async function unpublishAdminIpAction(
   formData: FormData,
 ): Promise<AdminIpPublishActionState> {
   if (formData.get('confirmUnpublish') !== 'yes') {
-    return { errors: { form: '초안 전환의 영향을 확인한 뒤 다시 시도해주세요.' } };
+    return { errors: { form: '초안으로 되돌리기 전에 ‘초안 전환의 영향을 확인했습니다’를 체크해주세요.' } };
   }
   return updateAdminIpPublishState(false, formData);
 }

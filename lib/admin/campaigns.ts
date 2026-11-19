@@ -300,18 +300,18 @@ function validateSectionField(
     const min = field.minItems ?? 1;
     const max = field.maxItems ?? ADMIN_CAMPAIGN_MAX_SECTIONS;
     if (!Array.isArray(value) || value.length < min || value.length > max) {
-      return sectionValueError(index, field.key, `문자열 ${min}~${max}개의 배열이어야 합니다.`);
+      return sectionValueError(index, field.key, `따옴표로 감싼 글 ${min}~${max}개를 대괄호 [ ] 안에 넣어주세요.`);
     }
     const bad = value.some(
       (entry) => typeof entry !== 'string' || codePointLength(entry) < 1 || codePointLength(entry) > field.maxLength,
     );
     return bad
-      ? sectionValueError(index, field.key, `각 항목은 1~${field.maxLength}자 문자열이어야 합니다.`)
+      ? sectionValueError(index, field.key, `각 항목은 따옴표로 감싼 1~${field.maxLength}자 글이어야 합니다.`)
       : null;
   }
 
   if (typeof value !== 'string' || codePointLength(value) < 1 || codePointLength(value) > field.maxLength) {
-    return sectionValueError(index, field.key, `1~${field.maxLength}자 문자열이어야 합니다.`);
+    return sectionValueError(index, field.key, `따옴표로 감싼 1~${field.maxLength}자 글이어야 합니다.`);
   }
 
   if (field.nonBlank && !value.trim()) {
@@ -319,7 +319,7 @@ function validateSectionField(
   }
 
   if (field.kind === 'uuid' && !isUuid(value)) {
-    return sectionValueError(index, field.key, '교환처 ID(UUID)여야 합니다.');
+    return sectionValueError(index, field.key, '카드팩 교환처 목록의 [구성 코드 복사]로 복사한 교환처 번호를 넣어주세요.');
   }
 
   /* 외부 링크는 피싱·추적 위험이 있어 받지 않는다(LD-18). DB 가 같은 판정으로 다시 막는다. */
@@ -344,11 +344,11 @@ export function parseAdminCampaignSections(raw: string): AdminCampaignSectionsRe
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    return { ok: false, message: 'JSON 형식이 아닙니다. 대괄호와 쉼표를 확인해주세요.' };
+    return { ok: false, message: '구성 코드 형식이 맞지 않습니다. 대괄호·중괄호·쉼표·따옴표가 빠지거나 남지 않았는지 확인해주세요.' };
   }
 
   if (!Array.isArray(parsed)) {
-    return { ok: false, message: '최상위는 블록 배열([...])이어야 합니다.' };
+    return { ok: false, message: '구성 코드 전체를 대괄호 [ ]로 감싼 블록 목록으로 입력해주세요.' };
   }
   if (parsed.length > ADMIN_CAMPAIGN_MAX_SECTIONS) {
     return {
@@ -359,7 +359,7 @@ export function parseAdminCampaignSections(raw: string): AdminCampaignSectionsRe
 
   for (const [index, entry] of parsed.entries()) {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-      return { ok: false, message: `${index + 1}번째 블록이 객체가 아닙니다.` };
+      return { ok: false, message: `${index + 1}번째 블록을 중괄호 { }로 감싸주세요.` };
     }
 
     const section = entry as Record<string, unknown>;
@@ -367,7 +367,7 @@ export function parseAdminCampaignSections(raw: string): AdminCampaignSectionsRe
     if (typeof type !== 'string' || !SECTION_SPEC_BY_TYPE.has(type)) {
       return {
         ok: false,
-        message: `${index + 1}번째 블록의 type이 없거나 모르는 값입니다 (${ADMIN_CAMPAIGN_SECTION_TYPES.join(', ')}).`,
+        message: `${index + 1}번째 블록의 type이 없거나 쓸 수 없는 값입니다. 다음 중 하나를 넣어주세요: ${ADMIN_CAMPAIGN_SECTION_TYPES.join(', ')}.`,
       };
     }
 
@@ -384,7 +384,7 @@ export function parseAdminCampaignSections(raw: string): AdminCampaignSectionsRe
       if (typeof anchor !== 'string' || anchor.length < 1 || anchor.length > ANCHOR_MAX_LENGTH) {
         return {
           ok: false,
-          message: sectionValueError(index, 'anchor', `1~${ANCHOR_MAX_LENGTH}자 문자열이어야 합니다.`),
+          message: sectionValueError(index, 'anchor', `따옴표로 감싼 1~${ANCHOR_MAX_LENGTH}자 글이어야 합니다.`),
         };
       }
     }
@@ -426,12 +426,12 @@ export function normalizeAdminCampaignForm(formData: FormData): AdminCampaignFor
   const status = readString(formData, 'status');
 
   if (!ID_PATTERN.test(id)) {
-    errors.id = 'ID는 소문자·숫자·하이픈 2~64자로 입력해주세요.';
+    errors.id = '캠페인 주소는 영문 소문자·숫자·하이픈으로 2~64자를 입력해주세요.';
   }
   /* 이미 등록된 캠페인의 ID는 바꿀 수 없다(DB가 catalog_id_immutable로 막는다).
      폼이 읽기 전용을 우회당해도 여기서 먼저 걸러 낸다. */
   if (previousId && previousId !== id) {
-    errors.id = '등록된 캠페인 ID는 변경할 수 없습니다.';
+    errors.id = '캠페인 주소는 등록 후 바꿀 수 없습니다.';
   }
   if (!title || title.length > 120) {
     errors.title = title.length > 120 ? '제목은 120자 이하로 입력해주세요.' : '캠페인 제목을 입력해주세요.';

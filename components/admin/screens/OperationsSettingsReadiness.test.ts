@@ -18,9 +18,9 @@ it('저장값으로 카드별 완료·미완료를 말한다', () => {
   expect(state.business).toEqual({ done: false, detail: '1개 항목 미입력' });
   expect(state.bankTransfer).toEqual({ done: false, detail: '계좌 미입력' });
   expect(state.origins).toEqual({ done: false, detail: '반품 주소 1곳 미입력' });
-  expect(state.regions).toEqual({ done: false, detail: '활성 정책 없음' });
+  expect(state.regions).toEqual({ done: false, detail: '사용 중인 정책 없음' });
   expect(state.carriers).toEqual({ done: true, detail: '1곳 사용 중' });
-  expect(state.notices).toEqual({ done: true, detail: '활성 템플릿 2개' });
+  expect(state.notices).toEqual({ done: true, detail: '사용 중인 템플릿 2개' });
   expect(state.storeCredits).toEqual({ done: true, detail: '정책 사용 중' });
 });
 

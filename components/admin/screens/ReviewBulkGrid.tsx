@@ -36,7 +36,7 @@ export function ReviewBulkGrid({columns,rows,reviews,accountId='',navigation}:{c
   const selectedReviews=reviews.filter(review=>selected.includes(review.id));
   const changeReply=(value:string)=>{setReply(value);setConfirmed(false);};
   function acceptResult(value:ReviewBatchResult){setResult(value);setError('');setNotSubmitted(false);recovery.save(null);}
-  function run(work:()=>Promise<void>){startTransition(async()=>{setError('');try{await work();}catch{setError('처리 결과를 확인하지 못했습니다. 같은 요청의 결과를 다시 확인해주세요.');}});}
+  function run(work:()=>Promise<void>){startTransition(async()=>{setError('');try{await work();}catch{setError('처리 결과를 확인하지 못했습니다. [처리 결과 다시 확인]을 눌러주세요. 결과만 확인하므로 두 번 등록되지 않습니다.');}});}
   async function submit(value:ReviewBatchRequest) {
     setFrozen(value);recovery.save(value);setNotSubmitted(false);
     const response=await replyReviewsBatchAction(value);if(response.ok)acceptResult(response.result);else setError(response.error);
@@ -72,7 +72,7 @@ export function ReviewBulkGrid({columns,rows,reviews,accountId='',navigation}:{c
           {!request&&<label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)} disabled={pending} /> 대상과 답글을 확인했습니다. 기존 답글 {selectedReviews.filter(review=>review.adminReply).length}건은 새 내용으로 바뀝니다.</label>}
           {error&&<p className="bg-transparent text-destructive" role="alert">{error}</p>}
           <div className="flex flex-wrap justify-center gap-2">{request?<>
-            <Button disabled={pending} onClick={()=>run(async()=>{const response=await readReviewReplyBatchAction(request.requestId);if(!response.ok){setError(response.error);return;}if(response.result){acceptResult(response.result);return;}setNotSubmitted(true);setError('완료된 처리 기록이 없습니다. 아래 버튼으로 같은 요청을 다시 등록할 수 있습니다.');})} size="sm" type="button">처리 결과 다시 확인</Button>
+            <Button disabled={pending} onClick={()=>run(async()=>{const response=await readReviewReplyBatchAction(request.requestId);if(!response.ok){setError(response.error);return;}if(response.result){acceptResult(response.result);return;}setNotSubmitted(true);setError('아직 등록된 기록이 없습니다. [같은 요청으로 다시 등록]을 눌러 같은 대상·답글로 다시 등록해주세요. 같은 요청은 한 번만 처리됩니다.');})} size="sm" type="button">처리 결과 다시 확인</Button>
             {notSubmitted&&<Button disabled={pending} onClick={()=>run(()=>submit(request))} size="sm" type="button" variant="outline">같은 요청으로 다시 등록</Button>}
           </>:<Button disabled={pending||!confirmed||[...reply.trim()].length<5||selected.length<1||selected.length>REVIEW_BATCH_MAX} size="sm" type="submit">일괄 답글 등록</Button>}
           <Button disabled={pending} onClick={()=>setOpen(false)} size="sm" type="button" variant="outline">닫기</Button></div>

@@ -55,7 +55,7 @@ export async function buildStatsWorkbook(source: Source, filters: AdminStatsFilt
       ['순위 범위', '상품은 조회조건에 맞는 전체 순위(기간별 최대 10,000개), 이벤트·회차는 상위 20개. 상품 금액은 주문 당시 단가 × 수량에서 복수구매 할인을 뺀 금액이며 쿠폰·적립금·배송비 제외.'],
       ['상품 전체 건수', source.goods.totalCount.toLocaleString('ko-KR')],
       ['상품 집계 시각 (KST)', kstDateTimeText(source.goods.asOf)],
-      ['상품 엑셀 상한', ADMIN_SALES_GOODS_EXPORT_LIMIT.toLocaleString('ko-KR')],
+      ['상품 엑셀 최대 개수', ADMIN_SALES_GOODS_EXPORT_LIMIT.toLocaleString('ko-KR')],
       ...(source.comparisonGoods ? [['비교 상품 전체 건수', source.comparisonGoods.totalCount.toLocaleString('ko-KR')], ['비교 상품 집계 시각 (KST)', kstDateTimeText(source.comparisonGoods.asOf)]] as const : []),
     ] as const : []),
     ...(source.kind === 'claims' ? [['클레임 기준', '각 클레임의 생성일 기준.']] as const : []),

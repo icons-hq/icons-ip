@@ -115,7 +115,7 @@ export function parseTrackingImport(
       issues.push({
         line,
         reference,
-        reason: '콘솔에 표시되는 16자리 배송건번호 또는 단일 배송 주문번호를 입력해주세요. 기존 8자리 번호와 전체 UUID도 사용할 수 있습니다.',
+        reason: '발송 화면에 보이는 16자리 배송건번호를 입력해주세요. 배송 건이 하나뿐인 주문은 주문번호를 넣어도 됩니다. 예전 8자리 번호와 36자리 내부 번호도 받습니다.',
       });
       return;
     }

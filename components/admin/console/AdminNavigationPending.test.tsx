@@ -88,7 +88,7 @@ describe('진행 표시', () => {
 
   it('10초가 지나면 지연 안내와 다시 시도를 잠금 밖에 보인다', () => {
     const html = render(pending('slow', true), <AdminNavigationIndicators />);
-    expect(html).toContain('응답이 늦어지고 있습니다');
+    expect(html).toContain('화면을 불러오는 데 시간이 걸리고 있습니다');
     expect(html).toContain('다시 시도');
     expect(html).toContain('type="button"');
   });

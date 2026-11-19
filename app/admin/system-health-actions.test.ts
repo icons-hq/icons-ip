@@ -53,7 +53,7 @@ describe('결제 상태 다시 확인', () => {
   });
 
   it('확인 중·지원하지 않음·결제사 설정 없음·실패를 성공으로 보고하지 않는다', async () => {
-    for (const [kind, text] of [['in_progress', '다른 처리'], ['unsupported', '수동 처리'], ['unavailable', '결제사 설정'], ['failed', '다시 시도']] as const) {
+    for (const [kind, text] of [['in_progress', '다른 처리'], ['unsupported', '수동 복구'], ['unavailable', '연결 설정'], ['failed', '다시 시도']] as const) {
       mocks.reconcile.mockResolvedValueOnce({ kind });
       const result = await reconcilePaymentAttemptAction({ attemptId, operationId });
       expect(result.ok).toBe(false);

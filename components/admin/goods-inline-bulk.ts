@@ -10,12 +10,12 @@ import { discountStopStaleBaseMessage, priceAfterStopStaleMessage, type Discount
  */
 
 type BulkOutcome = { ok: true } | { ok: false; message: string; operationId?: string };
-const UNCERTAIN = '처리 결과가 불명확합니다. 같은 요청의 결과를 조회해주세요.';
+const UNCERTAIN = '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'처리 결과 조회\'를 눌러 결과를 확인해주세요.';
 
 export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: string, command: GoodsBulkCommand,
   values: Record<string, string | number | null>, staleMessage: (row: GoodsBulkGood) => string | null): Promise<BulkOutcome> {
   const request = parseGoodsBulkRequest({ kind: 'goods', ids: [goodId], command, values });
-  if (!request) return { ok: false, message: '입력값을 확인해주세요.' };
+  if (!request) return { ok: false, message: '바꿀 값의 형식이 맞지 않습니다. 판매가는 0원 이상의 정수로 입력해주세요.' };
   const operationId = crypto.randomUUID();
   const preview = await previewGoodsBulkAction(operationId, request, identity);
   if ('error' in preview) return { ok: false, message: preview.error };

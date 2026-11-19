@@ -154,7 +154,7 @@ export async function registerDuplicateShipmentTrackingAction(form: FormData): P
     }
     refresh();
     return { ok: true, message: result.status === 'dispatched'
-      ? `중복을 확인하고 운송장 ${trackingNumber}${objectParticle(trackingNumber)} 등록해 배송 중으로 옮겼습니다.${queueWarning ? ' 배송 메일 대기열 확인이 필요합니다.' : ''} 사유가 감사 기록에 남습니다.`
+      ? `중복을 확인하고 운송장 ${trackingNumber}${objectParticle(trackingNumber)} 등록해 배송 중으로 옮겼습니다.${queueWarning ? ' 배송 안내 메일 발송 예약을 확인하지 못했습니다. 주문 상세의 배송 메일 처리 상태에서 확인해주세요.' : ''} 사유가 감사 기록에 남습니다.`
       : `중복을 확인하고 운송장을 고쳤습니다(${trackingNumber}). 사유가 감사 기록에 남습니다.` };
   } catch (error) {
     unstable_rethrow(error);

@@ -14,7 +14,7 @@ export function MarketingTestReceiptButton({ campaignId, revision, actorId, sess
       else { setError(result.error ?? '테스트 결과를 확인하지 못했습니다.'); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) operation.current = null; }
     });
   }
-  return <div className="flex flex-col gap-2.5 rounded-lg border bg-card p-4 text-sm"><p className="text-xs text-muted-foreground">저장본 버전 {revision}을 현재 운영자 본인의 알림함으로 보냅니다. 고객 발송 이력·통계에는 포함하지 않습니다.</p>
+  return <div className="flex flex-col gap-2.5 rounded-lg border bg-card p-4 text-sm"><p className="text-xs text-muted-foreground">마지막으로 저장한 내용(버전 {revision})을 지금 로그인한 운영자 본인의 알림함으로 보냅니다. 고객 발송 이력·통계에는 포함하지 않습니다.</p>
     <Button className="self-start" type="button" variant="outline" disabled={pending || session.blocked} onClick={send}>{pending ? '등록 중…' : uncertain ? '같은 테스트 요청 결과 확인' : '내 알림함으로 테스트'}</Button>
     {link ? <p className="text-success" role="status">내 알림함에 테스트를 등록했습니다. <Link className="underline underline-offset-4" href={link}>테스트 알림 열기</Link></p> : null}{error ? <p className="text-destructive" role="alert">{error}</p> : null}
   </div>;

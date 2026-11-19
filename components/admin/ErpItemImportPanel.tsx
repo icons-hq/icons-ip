@@ -46,14 +46,14 @@ type ErpImportSummary = { inserted: number; updated: number; unchanged: number; 
 const ISSUE_LIST_LIMIT = 100;
 const FILE_KB = ERP_ITEM_FILE_BYTES_LIMIT / 1024;
 const FILE_REQUEST_FAILED = `파일을 보내지 못했습니다. ${FILE_KB}KB 이하의 XLSX·CSV 파일인지 확인한 뒤 다시 올려주세요. 계속 안 되면 표를 복사해 붙여넣어 주세요.`;
-const IMPORT_REQUEST_FAILED = 'ERP 품목 반입 요청이 끊겼습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.';
+const IMPORT_REQUEST_FAILED = 'ERP 품목을 올리는 중에 연결이 끊겼습니다. 같은 내용으로 다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다.';
 
 /**
  * 파일을 서버로 보내기 전 확인. 서버 액션 요청 본문은 1MB에서 액션 실행 전에 끊기므로,
  * 크기·형식은 여기서 readErpItemFileAction과 같은 순서·문구로 먼저 막는다(서버도 다시 확인한다).
  */
 export function erpItemFileError(file: Pick<File, 'name' | 'size'>): string | null {
-  if (file.size === 0) return '반입할 파일을 선택해주세요.';
+  if (file.size === 0) return '올릴 파일을 선택해주세요.';
   if (/\.xls$/i.test(file.name)) return 'XLS 파일은 엑셀에서 XLSX로 다시 저장하거나, 표를 복사해 붙여넣어 주세요.';
   if (!/\.(xlsx|csv|tsv|txt)$/i.test(file.name)) return 'XLSX 또는 CSV 파일을 올려주세요.';
   if (file.size > ERP_ITEM_FILE_BYTES_LIMIT) return `파일은 ${FILE_KB}KB 이하로 올려주세요. 크면 필요한 열만 남겨 저장하거나 표를 복사해 붙여넣어 주세요.`;
@@ -133,7 +133,7 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
 
   const readPasted = () => {
     if (!normalizeErpText(pasted, true)) { setError('엑셀에서 복사한 표를 붙여넣어 주세요.'); return; }
-    if (pasted.length > ERP_ITEM_PASTE_CHAR_LIMIT) { setError('붙여넣은 내용이 너무 깁니다. 나누어 반입해주세요.'); return; }
+    if (pasted.length > ERP_ITEM_PASTE_CHAR_LIMIT) { setError('붙여넣은 내용이 너무 깁니다. 표를 몇 번에 나누어 붙여넣고 올려주세요.'); return; }
     const parsed = parseErpDelimitedTable(pasted);
     begin({ label: '붙여넣은 표', table: boundErpTable(parsed.rows), numericColumns: [], warnings: parsed.warnings });
   };
@@ -200,7 +200,7 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
         try { result = await importErpItemsAction(chunk); } catch { result = { ok: false, error: IMPORT_REQUEST_FAILED }; }
         if (!result.ok) {
           setError(done
-            ? `${done.toLocaleString('ko-KR')}건까지 반입했습니다. ${result.error}`
+            ? `${done.toLocaleString('ko-KR')}건까지 올렸습니다. ${result.error}`
             : result.error);
           if (done) {
             setSummary({ ...merged, rejected: [...merged.rejected].sort((left, right) => left.row - right.row) });
@@ -235,8 +235,8 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
   return <FoldCard
     id="erp-item-import"
     open={defaultOpen}
-    summary={`엑셀 표 붙여넣기·파일 · 한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지 · ERP 코드(품번)가 같으면 새 값으로 바꿉니다.`}
-    title="품목 반입"
+    summary={`엑셀 표 붙여넣기·파일 · 한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 · ERP 코드(품번)가 이미 있는 품목은 새 값으로 바꿉니다.`}
+    title="품목 올리기"
   >
     <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))] print:hidden" data-erp-items="sources">
       <div className="flex min-w-0 flex-col gap-2">
@@ -251,8 +251,8 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
           placeholder={'품번\t품명\t카테고리\t판매가\t바코드\n000123\t아크릴 키링\t문구 > 키링\t12,000\t8801234567890'}
           onChange={(event) => setPasted(event.target.value)}
         />
-        <p className={HINT} id="erp-item-paste-hint">머리글 행까지 함께 복사하면 열을 자동으로 짝짓습니다. 선행 0이 있는 품번·바코드는 그대로 보존합니다.</p>
-        {/* 미리보기가 열리면 주 행동은 아래 'N건 반입'이다 — 이 카드의 실선 버튼은 한 번에 하나다. */}
+        <p className={HINT} id="erp-item-paste-hint">머리글 줄(품번·품명 같은 열 이름)까지 함께 복사하면 열마다 어떤 항목인지 자동으로 고릅니다. 0으로 시작하는 품번·바코드도 앞의 0까지 그대로 저장됩니다.</p>
+        {/* 미리보기가 열리면 주 행동은 아래 'N건 올리기'다 — 이 카드의 실선 버튼은 한 번에 하나다. */}
         <div><Button variant={source ? 'outline' : 'default'} type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
       </div>
       <div className="flex min-w-0 flex-col gap-2">
@@ -273,7 +273,7 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
 
     <div aria-live="polite" className="flex flex-col gap-1 empty:hidden">
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-      {progress ? <p className="text-sm tabular-nums" role="status">반입 중 · {progress.done.toLocaleString('ko-KR')} / {progress.total.toLocaleString('ko-KR')}건</p> : null}
+      {progress ? <p className="text-sm tabular-nums" role="status">올리는 중 · {progress.done.toLocaleString('ko-KR')} / {progress.total.toLocaleString('ko-KR')}건</p> : null}
     </div>
 
     {summary ? <div className="flex min-w-0 flex-col gap-3 border-t pt-4" role="status">
@@ -283,7 +283,7 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
         <AdminStatusBadge>같음 {summary.unchanged.toLocaleString('ko-KR')}</AdminStatusBadge>{' '}
         <AdminStatusBadge tone={summary.rejected.length ? 'danger' : 'neutral'}>거부 {summary.rejected.length.toLocaleString('ko-KR')}</AdminStatusBadge>
       </p>
-      <p className={HINT}>같은 내용을 다시 반입해도 &lsquo;같음&rsquo;으로 처리됩니다. 거부된 행은 고친 뒤 다시 반입해주세요.</p>
+      <p className={HINT}>같은 내용을 다시 올려도 &lsquo;같음&rsquo;으로 세고 아무것도 바꾸지 않습니다. 거부된 줄은 아래 사유를 보고 고친 뒤 다시 올려주세요.</p>
       {/* 1027T-016: 붙여넣은 품목의 ERP 분류 중 고객 카테고리에 연결되지 않은 분류를 연결 표로 바로 안내한다. */}
       {unlinkedPasted.length ? <AdminNotice tone="warning" title={`미연결 분류 ${unlinkedPasted.length.toLocaleString('ko-KR')}건`}>
         <p>붙여넣은 품목의 ERP 분류 중 고객 카테고리에 연결되지 않은 분류가 있습니다. 연결해 두면 상품 옵션에서 ERP 품목을 고를 때 카테고리를 제안합니다.</p>
@@ -292,17 +292,17 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
       </AdminNotice> : null}
       {/* 1027T-X04: 반입이 끝나면 연결 상품 반영 패널이 방금 반입한 품목과 비교한다. 바꾸는 일은 그곳에서 확인한 뒤 한다. */}
       {followUp?.codes.length && workspace ? <p className={HINT}>
-        방금 반입한 품목과 연결 상품의 판매가·바코드를 비교했습니다. 값이 다르면 아래 연결 상품 반영에서 확인하고 고른 행만 반영합니다.{' '}
+        방금 올린 품목과 연결 상품의 판매가·바코드를 비교했습니다. 값이 다르면 아래 연결 상품 반영에서 확인하고 고른 줄만 상품에 반영합니다.{' '}
         <a className="text-foreground underline underline-offset-4" href={`#${ERP_LINKED_GOODS_SECTION_ID}`}>비교 결과 보기</a>
       </p> : null}
-      <IssueTable caption="반입하지 못한 행" issues={summary.rejected} />
+      <IssueTable caption="올리지 못한 줄" issues={summary.rejected} />
     </div> : null}
 
     {source && plan ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-erp-items="preview">
       <header className="flex flex-col gap-1">
         <h3 className="text-base leading-snug font-medium wrap-anywhere">미리보기 · {source.label}</h3>
         <p className={`${HINT} tabular-nums`}>
-          비어 있지 않은 {plan.dataRowCount.toLocaleString('ko-KR')}행 · 반입 가능 {plan.rows.length.toLocaleString('ko-KR')}건 · 오류 {plan.issues.length.toLocaleString('ko-KR')}건
+          비어 있지 않은 {plan.dataRowCount.toLocaleString('ko-KR')}줄 · 올릴 수 있는 품목 {plan.rows.length.toLocaleString('ko-KR')}건 · 오류 {plan.issues.length.toLocaleString('ko-KR')}건
           {plan.duplicateCount ? ` · 중복 ${plan.duplicateCount.toLocaleString('ko-KR')}건` : ''}
         </p>
       </header>
@@ -340,9 +340,9 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
       </ul></AdminNotice> : null}
       {plan.blocking ? <p className="text-sm text-destructive" role="alert">{plan.blocking}</p> : null}
 
-      {previewRows.length ? <div className={TABLE_REGION} role="region" aria-label="반입 미리보기" tabIndex={0}>
+      {previewRows.length ? <div className={TABLE_REGION} role="region" aria-label="올릴 품목 미리보기" tabIndex={0}>
         <table className={`${TABLE} min-w-[640px]`} data-slot="table">
-          <caption className={CAPTION}>반입할 품목 · 앞 {Math.min(ERP_ITEM_PREVIEW_ROWS, plan.rows.length).toLocaleString('ko-KR')}건</caption>
+          <caption className={CAPTION}>올릴 품목 · 앞 {Math.min(ERP_ITEM_PREVIEW_ROWS, plan.rows.length).toLocaleString('ko-KR')}건</caption>
           <TableHeader><TableRow>
             <TableHead scope="col">행</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">ERP 품명</TableHead>
             <TableHead scope="col">ERP 분류</TableHead><TableHead scope="col" className="text-right">판매가</TableHead><TableHead scope="col">바코드</TableHead>
@@ -358,12 +358,12 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
         </table>
       </div> : null}
 
-      <IssueTable caption="반입할 수 없는 행" issues={plan.issues} />
+      <IssueTable caption="올릴 수 없는 줄" issues={plan.issues} />
 
-      <p className={HINT}>열을 고르지 않은 항목은 이미 반입된 값을 그대로 둡니다. 열을 골랐는데 칸이 비어 있으면 그 값을 비웁니다.</p>
+      <p className={HINT}>ERP 분류·판매가·바코드 중 열을 고르지 않은 항목은 전에 올려 둔 값을 그대로 둡니다. 열을 골랐는데 칸이 비어 있으면 그 품목의 값을 지웁니다.</p>
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Button type="button" disabled={busy || Boolean(plan.blocking) || !plan.rows.length} onClick={runImport}>
-          {importing ? '반입 중' : `${plan.rows.length.toLocaleString('ko-KR')}건 반입`}
+          {importing ? '올리는 중' : `${plan.rows.length.toLocaleString('ko-KR')}건 올리기`}
         </Button>
         <Button variant="ghost" type="button" disabled={busy} onClick={reset}>처음부터 다시</Button>
       </div>

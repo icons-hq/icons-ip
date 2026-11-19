@@ -11,7 +11,7 @@ export interface RestrictionActionState { error?: string; message?: string }
 export async function findPurchaseRestrictionCustomerAction(_state: RestrictionLookupState, form: FormData): Promise<RestrictionLookupState> {
   if (!await requireAdminActionAccess(PATH, { capability: 'sales.restrictions' })) return { error: DENIED };
   const query = String(form.get('customerQuery') ?? '').trim();
-  if (!query || query.length > 254) return { error: '고객 ID 또는 정확한 이메일 주소를 입력해주세요.' };
+  if (!query || query.length > 254) return { error: '회원번호 또는 정확한 이메일 주소를 입력해주세요.' };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_find_purchase_restriction_customer', { p_query: query });
   if (error) return { error: '고객을 조회하지 못했습니다. 다시 시도해주세요.' };
@@ -29,7 +29,7 @@ export async function registerPurchaseRestrictionAction(_state: RestrictionActio
   });
   if (error) return { error: purchaseRestrictionError(error.message) };
   revalidatePath(PATH);
-  return { message: data?.releasedAt ? '이 요청으로 등록했던 구매제한은 이미 해제되었습니다. 새 등록은 고객을 다시 조회해주세요.' : data?.changed ? adminGoodsCopy('신규 굿즈 주문 구매제한을 등록했습니다.') : '이미 처리된 동일 등록 요청입니다. 목록에서 상태를 확인해주세요.' };
+  return { message: data?.releasedAt ? '이 요청으로 등록했던 구매제한은 이미 해제되었습니다. 새 등록은 고객을 다시 조회해주세요.' : data?.changed ? adminGoodsCopy('신규 굿즈 주문 구매제한을 등록했습니다.') : '이 등록은 이미 처리됐습니다. 목록에서 구매제한 상태를 확인해주세요.' };
 }
 export async function releasePurchaseRestrictionAction(_state: RestrictionActionState, form: FormData): Promise<RestrictionActionState> {
   if (!await requireAdminActionAccess(PATH, { capability: 'sales.restrictions' })) return { error: DENIED };

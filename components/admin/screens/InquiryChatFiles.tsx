@@ -77,7 +77,7 @@ function InquiryChatFileLibrary({ disabled, onClose, onSelect }: { disabled: boo
       if (!active.current) return;
       if (result.ok) { setUpload(undefined); setNotice('파일을 보관함에 저장했습니다. 첨부를 선택하면 현재 메시지에 추가됩니다.'); await load(); }
       else setError(result.error);
-    } catch { if (active.current) setError('파일 등록 결과를 확인하지 못했습니다. 같은 파일로 다시 시도해주세요.'); }
+    } catch { if (active.current) setError('파일이 등록됐는지 확인하지 못했습니다. [같은 파일 다시 시도]를 눌러주세요.'); }
     finally { if (active.current) setBusy(false); }
   }
   return <CustomerServiceDialog title="파일 보관함" onClose={onClose} busy={busy} wide>

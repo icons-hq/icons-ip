@@ -23,7 +23,7 @@ export async function saveStoreCreditPolicyAction(_state: StoreCreditActionState
   if (!parsed.ok) return { error: parsed.error, values };
   const operationId = read(form, 'operationId');
   const version = Number(read(form, 'version'));
-  if (!isUuid(operationId) || !Number.isSafeInteger(version) || version < 1) return { error: '정책 화면을 새로 열고 다시 저장해주세요.', values };
+  if (!isUuid(operationId) || !Number.isSafeInteger(version) || version < 1) return { error: '저장하지 않았습니다. 화면을 새로고침한 뒤 다시 저장해주세요.', values };
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_save_store_credit_policy', { p_operation_id: operationId, p_expected_version: version, p_policy: parsed.policy });
@@ -32,8 +32,8 @@ export async function saveStoreCreditPolicyAction(_state: StoreCreditActionState
     revalidatePath('/admin/settings/store-credits');
     revalidatePath('/my/store-credits');
     revalidatePath('/checkout');
-    return { message: parsed.policy.enabled ? '적립금 정책을 저장하고 활성화했습니다.' : '적립금 정책을 비활성 상태로 저장했습니다.', policy: saved, operationId: crypto.randomUUID() };
-  } catch { return { error: '정책을 저장하지 못했습니다. 입력은 유지됩니다.', values }; }
+    return { message: parsed.policy.enabled ? '적립금 정책을 저장했습니다. 적립금 지급과 주문 사용이 켜져 있습니다.' : '적립금 정책을 꺼진 상태로 저장했습니다.', policy: saved, operationId: crypto.randomUUID() };
+  } catch { return { error: '정책이 저장됐는지 확인하지 못했습니다. 입력은 그대로 있습니다. ‘정책 저장’을 다시 눌러주세요. 이미 저장됐다면 두 번 저장되지 않습니다.', values }; }
 }
 
 export async function adjustStoreCreditAction(_state: StoreCreditActionState, form: FormData): Promise<StoreCreditActionState> {
@@ -47,11 +47,11 @@ export async function adjustStoreCreditAction(_state: StoreCreditActionState, fo
   const direction = read(form, 'direction'); const reason = read(form, 'reason');
   const errors: Record<string, string> = {};
   const expiresAt = direction === 'credit' ? kstDateTimeToIso(form, 'expiresAt', errors) : null;
-  if (expiresAt && new Date(Date.parse(expiresAt) + 9 * 60 * 60 * 1000).toISOString().slice(0, 16) !== read(form, 'expiresAt')) errors.expiresAt = '유효한 날짜를 입력해주세요.';
+  if (expiresAt && new Date(Date.parse(expiresAt) + 9 * 60 * 60 * 1000).toISOString().slice(0, 16) !== read(form, 'expiresAt')) errors.expiresAt = '있는 날짜·시각으로 만료 일시를 입력해주세요.';
   if (!isUuid(userId) || !isUuid(operationId) || amount === null || amount === 0 || expectedAvailable === null
     || !['credit', 'debit'].includes(direction) || !reason || reason.length > 1000
     || Object.keys(errors).length || (direction === 'credit' && !expiresAt)) {
-    return { error: '고객·조정 금액·사유를 확인하고, 지급 시 만료 일시(KST)를 입력해주세요.', values };
+    return { error: '저장하지 않았습니다. 조정 금액(1원 이상)과 조정 사유(1,000자 이내)를 넣고, 지급이면 만료 일시(KST)도 넣어주세요.', values };
   }
   try {
     const supabase = await createClient();
@@ -65,5 +65,5 @@ export async function adjustStoreCreditAction(_state: StoreCreditActionState, fo
     revalidatePath('/my/store-credits');
     revalidatePath('/checkout');
     return { message: '적립금 조정을 저장했습니다.', available: saved.available, operationId: crypto.randomUUID() };
-  } catch { return { error: '적립금 조정을 저장하지 못했습니다. 입력은 유지됩니다.', values }; }
+  } catch { return { error: '적립금 조정이 저장됐는지 확인하지 못했습니다. 입력은 그대로 있습니다. 내용을 바꾸지 말고 ‘적립금 조정 저장’을 다시 눌러주세요. 이미 저장됐다면 두 번 저장되지 않습니다.', values }; }
 }

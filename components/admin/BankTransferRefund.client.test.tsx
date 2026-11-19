@@ -156,7 +156,7 @@ it('계좌 조회 실패와 다른 작업 receipt는 원문이나 성공 상태�
   expect(nodes.some(node => node.type === 'dialog')).toBe(false); expect(memory()).not.toContain(rawAccount.accountNumber);
   mocks.save.mockImplementationOnce(async (original: BankRefundRequest) => ({ receipt: { ...makeReceipt(original), claimId: other } }));
   fill(); submit(); await flush(); expect(storage.size).toBe(1); expect(mocks.refresh).not.toHaveBeenCalled();
-  expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('다른 결과'))).toBe(true);
+  expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('이 처리와 맞지 않습니다'))).toBe(true);
 });
 
 /* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 무통장 환불 기록을 기다리는 동안 팝업이 닫히지 않게 알린다. */

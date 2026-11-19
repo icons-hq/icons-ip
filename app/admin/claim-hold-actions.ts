@@ -15,7 +15,7 @@ const access = () => requireAdminActionAccess('/admin/sales/claims/returns', { c
 export async function loadClaimHoldContextAction(claimId: string): Promise<ClaimHoldResult> {
   const actor = await access();
   if (!actor) return { error: claimHoldError('42501') };
-  if (!isUuid(claimId)) return { error: '요청번호를 확인해주세요.' };
+  if (!isUuid(claimId)) return { error: '요청을 찾지 못했습니다. 화면을 새로고침한 뒤 다시 열어주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_order_claim_hold_context', { p_claim_id: claimId });
@@ -24,14 +24,14 @@ export async function loadClaimHoldContextAction(claimId: string): Promise<Claim
       ? { context } : { error: claimHoldError(error?.code, error?.message) };
   } catch (error) {
     unstable_rethrow(error);
-    return { error: '최신 요청을 읽지 못했습니다.' };
+    return { error: '최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.' };
   }
 }
 
 export async function readClaimHoldAction(id: string): Promise<ClaimHoldResult> {
   const actor = await access();
   if (!actor) return { error: claimHoldError('42501'), uncertain: true };
-  if (!isUuid(id)) return { error: '변경 요청번호를 확인해주세요.', uncertain: true };
+  if (!isUuid(id)) return { error: '저장 결과를 확인할 번호가 올바르지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_read_order_claim_hold', { p_operation_id: id });
@@ -39,10 +39,10 @@ export async function readClaimHoldAction(id: string): Promise<ClaimHoldResult> 
     if (data === null) return { receipt: null };
     const receipt = parseClaimHoldReceipt(data);
     return receipt?.id === id && receipt.actorId === actor.user.id
-      ? { receipt } : { error: '해당 요청의 저장 결과를 확인하지 못했습니다.', uncertain: true };
+      ? { receipt } : { error: '불러온 저장 결과가 이 요청과 맞지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
   } catch (error) {
     unstable_rethrow(error);
-    return { error: '저장 결과를 읽지 못했습니다.', uncertain: true };
+    return { error: '저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.', uncertain: true };
   }
 }
 
@@ -50,7 +50,7 @@ export async function changeClaimHoldAction(input: unknown): Promise<ClaimHoldRe
   const actor = await access();
   if (!actor) return { error: claimHoldError('42501') };
   const request = normalizeClaimHoldRequest(input);
-  if (!request) return { error: '보류 사유와 현재 요청에 대한 확인을 입력해주세요.' };
+  if (!request) return { error: '보류할 때는 보류 사유를 10~200자로 입력하고, 확인 칸에 체크해주세요.' };
   if (request.actorId !== actor.user.id) return { error: claimHoldError('42501') };
   try {
     const client = await createClient();
@@ -65,7 +65,7 @@ export async function changeClaimHoldAction(input: unknown): Promise<ClaimHoldRe
     };
     const receipt = parseClaimHoldReceipt(data);
     if (!receipt || !claimHoldReceiptMatches(receipt, request)) {
-      return { error: '저장 결과가 불확실합니다. 같은 요청 결과를 확인해주세요.', uncertain: true };
+      return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true };
     }
     for (const path of ['/admin/sales/claims', '/admin/sales/orders', '/admin/sales/dispatch',
       `/admin/sales/orders/${receipt.orderId}`, `/orders/${receipt.orderId}`]) {
@@ -74,6 +74,6 @@ export async function changeClaimHoldAction(input: unknown): Promise<ClaimHoldRe
     return { receipt };
   } catch (error) {
     unstable_rethrow(error);
-    return { error: '저장 결과가 불확실합니다. 같은 요청 결과를 확인해주세요.', uncertain: true };
+    return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true };
   }
 }

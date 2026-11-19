@@ -10,7 +10,7 @@ import { STOCK_RECONCILE_PATH } from '@/lib/admin/stock-reconcile';
 import { STOCK_DIGEST_ORIGIN_RECIPIENT_LIMIT, parseRecipientList, type StockDigestOrigin } from '@/lib/admin/stock-safety-digest';
 
 const HINT = 'text-sm text-muted-foreground';
-const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+const UNKNOWN = '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.';
 
 /**
  * 배송정보 관리 출고지 탭의 '안전재고 요약 메일 담당자' 칸(QNA-014). 탭이 열리면 그 출고지의 주소를 읽어 온다.

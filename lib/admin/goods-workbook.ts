@@ -739,7 +739,7 @@ export function planGoodsWorkbookImport(
       first.preset &&
       !context.presets.some((preset) => preset.name === first.preset)
     )
-      errors.push('고시 프리셋 이름을 찾을 수 없습니다.');
+      errors.push('고시 프리셋 칸의 이름과 같은 상품정보제공고시 템플릿이 없습니다. 템플릿 관리에 등록된 이름을 그대로 넣거나 칸을 비워 주세요.');
     if (!['', '초안', '공개'].includes(first.publish))
       errors.push('게시 상태는 초안 또는 공개로 입력해주세요.');
     if (!['', '예', '아니오'].includes(first.allowBankTransfer))

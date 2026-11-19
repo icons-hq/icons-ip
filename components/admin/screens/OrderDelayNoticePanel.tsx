@@ -211,7 +211,7 @@ export function OrderDelayNoticePanel({ shipmentIds, onClose }: { shipmentIds: s
           </p>
           {!emailReady ? (
             <AdminNotice role="status" tone="danger">
-              {!notice.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두
+              {!notice.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '메일 발송 서비스 연결(발송 키·서명 설정)이 아직 준비되지 않았습니다. 개발 담당자에게 메일 발송 설정을 요청해주세요.'} 두
               채널의 준비가 완료되어야 발송을 요청할 수 있습니다.
               {!notice.emailEnabled && receipt.switchesLink ? <> <Link className="font-medium underline underline-offset-4" data-operations-switches-link="" href={OPERATIONS_SWITCHES_PATH}>운영 스위치에서 켜기</Link></> : null}
             </AdminNotice>
@@ -261,10 +261,10 @@ export function OrderDelayNoticePanel({ shipmentIds, onClose }: { shipmentIds: s
                     <TableCell className="align-top whitespace-normal">
                       <AdminStatusBadge tone={statusTone('delayNoticeChannel', target.emailStatus)}>
                         {target.emailStatus === 'sent' && target.emailProviderState === 'accepted'
-                          ? '공급자 접수'
+                          ? '발송 서비스 접수'
                           : ORDER_DELAY_STATUS_LABELS[target.emailStatus]}
                       </AdminStatusBadge>
-                      {target.emailProviderState === 'delivered' ? <small className="text-xs text-muted-foreground"> · 수신 서버 전달</small> : null}
+                      {target.emailProviderState === 'delivered' ? <small className="text-xs text-muted-foreground"> · 받는 메일 서버에 전달됨</small> : null}
                       {target.errorCode ? (
                         <p className="mt-1 text-destructive">{ORDER_DELAY_ERROR_LABELS[target.errorCode] || '발송 상태를 확인해주세요.'}</p>
                       ) : null}
@@ -276,8 +276,8 @@ export function OrderDelayNoticePanel({ shipmentIds, onClose }: { shipmentIds: s
             </Table>
           </div>
           <p className="text-muted-foreground">
-            이메일의 ‘공급자 접수’는 수신함 도착 확인과 다릅니다. 결과 불명은 같은 요청으로만 복구하며 이미 발송한 앱 알림·이메일은 다시 보내지
-            않습니다.
+            이메일의 ‘발송 서비스 접수’는 고객 메일함에 도착했다는 뜻이 아닙니다. 결과 불명은 [안내 결과 새로고침]으로만 확인하며, 이미 보낸 앱 알림·이메일은
+            다시 보내지 않습니다.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {!notice.requestedAt ? (

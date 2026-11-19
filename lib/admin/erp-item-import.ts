@@ -336,7 +336,7 @@ export function buildErpImportPlan(table: readonly (readonly string[])[], option
   ];
 
   const warnings: string[] = [];
-  if (headerIndex < 0 && table.length) warnings.push('머리글 행을 찾지 못했습니다. 열마다 가져올 항목을 골라주세요.');
+  if (headerIndex < 0 && table.length) warnings.push('머리글 줄(품번·품명 같은 열 이름)을 찾지 못했습니다. 아래 표에서 열마다 가져올 항목을 골라주세요.');
   const numeric = new Set(options.numericColumns ?? []);
   for (const [field, column] of [['code', codeColumn], ['barcode', barcodeColumn]] as const) {
     if (column !== undefined && numeric.has(column)) {
@@ -376,18 +376,18 @@ export function buildErpImportPlan(table: readonly (readonly string[])[], option
   const duplicateCodes = [...new Set(duplicates)];
   if (duplicates.length) {
     const sample = duplicateCodes.slice(0, 5).join(', ');
-    warnings.push(`같은 ERP 코드가 ${duplicates.length.toLocaleString('ko-KR')}번 다시 나와 마지막 행으로 반입합니다: ${sample}${duplicateCodes.length > 5 ? ' 외' : ''}`);
+    warnings.push(`같은 ERP 코드가 ${duplicates.length.toLocaleString('ko-KR')}번 다시 나와 마지막 줄의 값으로 올립니다: ${sample}${duplicateCodes.length > 5 ? ' 외' : ''}`);
   }
-  if (skippedRowCount) warnings.push(`ERP 코드와 품명이 모두 빈 ${skippedRowCount.toLocaleString('ko-KR')}행은 반입하지 않습니다.`);
+  if (skippedRowCount) warnings.push(`ERP 코드와 품명이 모두 빈 ${skippedRowCount.toLocaleString('ko-KR')}줄은 올리지 않습니다.`);
 
   const rows = [...byCode.values()];
   let blocking: string | null = null;
   if (missingFields.length) {
-    blocking = `${missingFields.map((field) => ERP_COLUMN_TARGET_LABELS[field]).join('·')} 열을 골라야 반입할 수 있습니다.`;
+    blocking = `${missingFields.map((field) => ERP_COLUMN_TARGET_LABELS[field]).join('·')} 열을 골라야 올릴 수 있습니다. 아래 열 표의 가져올 항목에서 골라주세요.`;
   } else if (dataRowCount > ERP_ITEM_IMPORT_ROW_LIMIT) {
-    blocking = `한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지 반입할 수 있습니다. 파일을 나누어 반입해주세요.`;
+    blocking = `한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 올릴 수 있습니다. 파일을 나누어 올려주세요.`;
   } else if (!rows.length) {
-    blocking = dataRowCount ? '반입할 수 있는 행이 없습니다. 행별 사유를 확인해주세요.' : '반입할 행이 없습니다.';
+    blocking = dataRowCount ? '올릴 수 있는 줄이 없습니다. 아래 올릴 수 없는 줄의 사유를 보고 표를 고쳐 다시 붙여넣어 주세요.' : '올릴 품목이 없습니다. 품목이 든 표를 붙여넣거나 파일을 골라주세요.';
   }
 
   return {

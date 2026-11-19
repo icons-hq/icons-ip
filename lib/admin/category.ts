@@ -116,14 +116,14 @@ export function normalizeCategoryForm(input: {
   }
 
   const errors: Partial<Record<CategoryValidationError, string>> = {};
-  if (raw.id !== null && !isCategoryId(raw.id)) errors.invalid_id = '카테고리 ID가 올바르지 않습니다.';
+  if (raw.id !== null && !isCategoryId(raw.id)) errors.invalid_id = '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.';
   if (!CATEGORY_CODE_PATTERN.test(raw.code) || raw.code.length > CATEGORY_CODE_MAX_LENGTH) {
     errors.invalid_code = '코드는 영문 소문자·숫자·하이픈으로 입력해주세요.';
   }
-  if (!raw.name || raw.name.length > CATEGORY_NAME_MAX_LENGTH) errors.invalid_name = '카테고리 이름을 입력해주세요.';
-  if (raw.parentId !== null && !isCategoryId(raw.parentId)) errors.invalid_parent = '부모 카테고리가 올바르지 않습니다.';
-  if (!Number.isSafeInteger(raw.sortOrder) || raw.sortOrder < 0) errors.invalid_sort_order = '순서는 0 이상의 정수여야 합니다.';
-  if (raw.id !== null && !raw.expectedUpdatedAt) errors.missing_expected_version = '최신 카테고리를 확인한 뒤 다시 저장해주세요.';
+  if (!raw.name || raw.name.length > CATEGORY_NAME_MAX_LENGTH) errors.invalid_name = `카테고리 이름을 입력해주세요. ${CATEGORY_NAME_MAX_LENGTH}자까지 쓸 수 있습니다.`;
+  if (raw.parentId !== null && !isCategoryId(raw.parentId)) errors.invalid_parent = '상위 카테고리를 찾지 못했습니다. 새로고침한 뒤 상위 카테고리를 다시 골라주세요.';
+  if (!Number.isSafeInteger(raw.sortOrder) || raw.sortOrder < 0) errors.invalid_sort_order = '노출 순서는 0 이상의 정수로 입력해주세요.';
+  if (raw.id !== null && !raw.expectedUpdatedAt) errors.missing_expected_version = '새로고침해 최신 카테고리를 확인한 뒤 다시 저장해주세요.';
   return { ok: false, errors };
 }
 
@@ -205,10 +205,10 @@ export function categoryParentOptions(nodes: readonly AdminCategoryNode[], editi
 }
 
 export function categoryActivationLabel(activation: AdminCategoryActivation): string {
-  if (activation.customerEnabled && activation.erpEnabled) return '고객 분류·ERP 활성';
-  if (activation.customerEnabled) return '고객 분류 활성 · ERP 미설정';
-  if (activation.erpEnabled) return 'ERP 활성 · 고객 분류 미설정';
-  return '검토 중 · 고객 분류·ERP 미설정';
+  if (activation.customerEnabled && activation.erpEnabled) return '고객 화면·ERP 분류 사용 중';
+  if (activation.customerEnabled) return '고객 화면 사용 중 · ERP 분류 꺼짐';
+  if (activation.erpEnabled) return 'ERP 분류 사용 중 · 고객 화면 꺼짐';
+  return '검토 중 · 고객 화면·ERP 분류 모두 꺼짐';
 }
 
 export function categoryWorkspaceHref(): string {

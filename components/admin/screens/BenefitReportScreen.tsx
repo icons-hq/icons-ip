@@ -38,7 +38,7 @@ export function BenefitReportControls({ filters, admin, now = new Date() }: { fi
       <h2 className={SECTION_TITLE}>혜택 지급 조회</h2>
       {filters.code ? <><input type="hidden" name="code" value={filters.code} /><input type="hidden" name="detail" value={filters.detail} /></> : null}
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
-        <ConsoleFilterField className="min-w-[min(100%,16rem)] flex-1" htmlFor="benefit-query" label="혜택이름 / ID"><Input id="benefit-query" type="search" name="q" maxLength={100} defaultValue={filters.query} placeholder="혜택이름 또는 쿠폰 ID" /></ConsoleFilterField>
+        <ConsoleFilterField className="min-w-[min(100%,16rem)] flex-1" htmlFor="benefit-query" label="혜택이름 / 쿠폰 코드"><Input id="benefit-query" type="search" name="q" maxLength={100} defaultValue={filters.query} placeholder="혜택이름 또는 쿠폰 코드" /></ConsoleFilterField>
         <ConsoleFilterField htmlFor="benefit-discount" label="할인종류"><NativeSelect id="benefit-discount" name="discount" defaultValue={filters.discount}><option value="all">전체</option><option value="fixed">정액 할인</option><option value="percent">정률 할인</option></NativeSelect></ConsoleFilterField>
         <ConsoleFilterField htmlFor="benefit-segment" label="타겟팅 대상"><NativeSelect id="benefit-segment" name="segment" defaultValue={filters.segment}><option value="all">전체</option><option value="first_purchase">첫 구매 고객</option><option value="repeat_purchase">재구매 고객</option><option value="targeted">지정 고객</option></NativeSelect></ConsoleFilterField>
         <ConsoleFilterField label="조회기간"><div className="flex flex-wrap items-center gap-2">
@@ -81,7 +81,7 @@ export function BenefitReportScreen({ data, comparison, issuances = null, filter
     </ul></details>
     <ConsoleListCard title="혜택 지급현황" total={data.couponCount} unit="개" actions={issuanceExportTooLarge ? <p className="text-warning">발급 상세 엑셀은 최대 10,000건입니다. 기간이나 혜택 조건을 줄여주세요.</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={benefitReportHref(resolvedFilters, '/api/admin/benefit-workbook')}><Download aria-hidden="true" />엑셀 다운로드</a>}>
       {filters.code ? <p className="text-muted-foreground">선택한 혜택: <strong className="font-medium text-foreground">{filters.code}</strong> · <Link className="underline underline-offset-4" href={benefitReportHref({ ...resolvedFilters, code: '', page: 1 })}>전체 혜택 보기</Link></p> : null}
-    <ConsoleGrid caption="혜택별 지급현황" preferencesKey="benefit-report-coupons" columns={[{ key: 'name', label: '혜택이름', width: '220px' }, { key: 'code', label: '혜택 ID', width: '160px' }, ...metricColumns]}
+    <ConsoleGrid caption="혜택별 지급현황" preferencesKey="benefit-report-coupons" columns={[{ key: 'name', label: '혜택이름', width: '220px' }, { key: 'code', label: '쿠폰 코드', width: '160px' }, ...metricColumns]}
       rows={data.coupons.map(row => ({ id: row.code, cells: [<Link key="name" className="font-medium underline-offset-4 hover:underline" href={benefitReportHref({ ...resolvedFilters, code: row.code, detail: 'uses', page: 1 })}>{row.name}</Link>, row.code,
         <Link key="issued" className="tabular-nums underline underline-offset-4" aria-label={`${row.name} 발급 ${row.issued.toLocaleString('ko-KR')}장 상세`} href={benefitReportHref({ ...resolvedFilters, code: row.code, detail: 'issuances', page: 1 })}>{row.issued.toLocaleString('ko-KR')}</Link>, ...metricCells(row).slice(1)] }))} emptyLabel="조회기간에 발급·결제 사용·복구된 혜택이 없습니다." />
       {!filters.code ? pagination : null}
@@ -95,7 +95,7 @@ export function BenefitReportScreen({ data, comparison, issuances = null, filter
         <p>발급 전체 <strong className="font-medium tabular-nums">{issuances.totalCount.toLocaleString('ko-KR')}장</strong> · 현재 결제 사용 집계 <strong className="font-medium tabular-nums">{issuances.paidUseCount.toLocaleString('ko-KR')}장</strong> · 조회시각(KST) {issuanceDate(issuances.asOf)}</p>
         <p className="text-muted-foreground">조회기간에 발급된 쿠폰입니다. ‘예’는 현재 결제가 유지되어 기간 발급분 사용률에 포함되는 건입니다. ‘아니오’는 사용 가능이나 환불 완료를 뜻하지 않습니다. 발급·취소가 진행 중이면 먼저 읽은 상단 요약과 차이가 날 수 있습니다.</p>
         <ConsoleGrid caption="쿠폰 발급 상세" preferencesKey="benefit-report-issuances" columns={[
-          { key: 'id', label: '발급 ID', width: '300px' }, { key: 'coupon', label: '쿠폰 ID', width: '180px' },
+          { key: 'id', label: '발급 번호', width: '300px' }, { key: 'coupon', label: '쿠폰 코드', width: '180px' },
           { key: 'date', label: '발급일시(KST)', width: '190px' }, { key: 'paid', label: '현재 결제 사용 집계 여부', width: '200px' },
         ]} rows={issuances.rows.map(row => ({ id: row.id, cells: [row.id, row.couponCode, issuanceDate(row.issuedAt), row.isPaidUse ? '예' : '아니오'] }))} emptyLabel={issuances.totalCount ? '이 페이지에는 발급 내역이 없습니다.' : '선택한 조건과 기간에 발급된 쿠폰이 없습니다.'} />
         {filters.page > 1 && issuances.rows.length === 0 ? <Link className={`${PAGE_LINK} self-start`} data-slot="button" href={benefitReportHref({ ...resolvedFilters, page: 1 })}>발급 상세 첫 페이지</Link> : null}

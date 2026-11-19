@@ -23,10 +23,10 @@ describe('공용 사진 서버 액션', () => {
     expect(await saveGoodsPhotoAction(photo)).toMatchObject({ error: expect.stringContaining('저장 결과') });
   });
   it('형식 오류를 RPC 전에 거르고 DB 충돌·참조 오류를 사용자에게 구분한다', async () => {
-    expect(await saveGoodsPhotoAction({...photo, imagePath:'https://example.com/img.png'})).toMatchObject({error:expect.stringContaining('업로드 상태')});
+    expect(await saveGoodsPhotoAction({...photo, imagePath:'https://example.com/img.png'})).toMatchObject({error:expect.stringContaining('사진을 다시 올려주세요')});
     expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.rpc.mockResolvedValueOnce({ error: { code: 'PT409', message: 'goods_photo_changed' } });
-    expect(await saveGoodsPhotoAction(photo)).toMatchObject({ error: expect.stringContaining('입력은 유지') });
+    expect(await saveGoodsPhotoAction(photo)).toMatchObject({ error: expect.stringContaining('입력은 그대로 있습니다') });
     mocks.rpc.mockResolvedValueOnce({ error: { message: 'goods_photo_in_use' } });
     expect(await saveGoodsPhotoAction({...photo, archived:true})).toMatchObject({ error: expect.stringContaining('사용 중인 사진') });
   });

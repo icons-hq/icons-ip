@@ -212,7 +212,7 @@ const RARITY_VALUES = new Set<RarityKey>(['N', 'R', 'SR', 'SSR', 'HOLO']);
 const EVENT_MODES = new Set(['온라인', '오프라인']);
 const EVENT_STATUSES = new Set(['예매중', '예정', '진행중', '종료']);
 const ADMIN_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
-const ADMIN_DATE_TIME_ERROR = '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.';
+const ADMIN_DATE_TIME_ERROR = '일시는 날짜와 시각(시·분)까지 모두 골라주세요.';
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -664,7 +664,7 @@ export function normalizeAdminStockAdjustmentForm(
   const reason = readString(formData, 'reason');
 
   if (!isUuid(adjustmentId)) {
-    errors.adjustmentId = '유효한 재고 조정 요청이 아닙니다.';
+    errors.adjustmentId = '재고 조정 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.';
   }
   if (!isUuid(variantId)) errors.variantId = '재고를 조정할 옵션을 선택해주세요.';
 
@@ -681,7 +681,7 @@ export function normalizeAdminStockAdjustmentForm(
   if (!INTEGER_PATTERN.test(deltaRaw) || !Number.isInteger(delta) || delta === 0) {
     errors.delta = '조정 수량은 0이 아닌 정수여야 합니다.';
   } else if (delta < INT32_MIN || delta > INT32_MAX) {
-    errors.delta = '조정 수량은 32비트 정수 범위여야 합니다.';
+    errors.delta = '조정 수량이 너무 큽니다. -2,147,483,648~2,147,483,647 안의 정수로 입력해주세요.';
   }
 
   if (!reason) {
@@ -715,7 +715,7 @@ export function normalizeAdminCardForm(
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const rarity = readString(formData, 'rarity') as RarityKey;
-  const poolId = readNullableUuid(formData, 'poolId', errors, '유효한 카드풀을 선택해주세요.');
+  const poolId = readNullableUuid(formData, 'poolId', errors, '등록된 카드풀을 골라주세요.');
 
   if (!name) errors.name = '카드 이름을 입력해주세요.';
   if (!RARITY_VALUES.has(rarity)) errors.rarity = '등급을 선택해주세요.';
@@ -743,8 +743,8 @@ export function normalizeAdminCardPoolForm(
   context: AdminCatalogContext,
 ): AdminFormResult<AdminCardPoolFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const id = readUuid(formData, 'id', errors, '유효한 카드풀이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const id = readUuid(formData, 'id', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const activeFromRaw = readString(formData, 'activeFrom');
@@ -793,8 +793,8 @@ export function normalizeAdminPoolOddsForm(
   formData: FormData,
 ): AdminFormResult<AdminPoolOddsFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const poolId = readUuid(formData, 'poolId', errors, '유효한 카드풀이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const poolId = readUuid(formData, 'poolId', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const milliPercents = Object.fromEntries(
     ODDS_FIELDS.map(([rarity, key]) => [rarity, probabilityFromPercent(formData, key, errors)]),
   ) as Record<RarityKey, number>;
@@ -823,9 +823,9 @@ export function normalizeAdminRewardPolicyForm(
   context: AdminCatalogContext,
 ): AdminFormResult<AdminRewardPolicyFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const id = readUuid(formData, 'id', errors, '유효한 발급 정책이 아닙니다.');
-  const poolId = readUuid(formData, 'poolId', errors, '유효한 카드풀이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const id = readUuid(formData, 'id', errors, '발급 정책을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
+  const poolId = readUuid(formData, 'poolId', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const trigger = readString(formData, 'trigger');
   const targetIpId = readString(formData, 'targetIpId');
   const targetGoodId = nullableString(formData, 'targetGoodId');
@@ -895,11 +895,11 @@ export function normalizeAdminGameForm(
   context: AdminGameContext,
 ): AdminFormResult<AdminGameFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
   const previousGameId = nullableString(formData, 'previousGameId');
   const id = readSlug(formData, 'id', errors, '게임 ID를 입력해주세요.');
   const title = readString(formData, 'title');
-  const rewardPoolId = readUuid(formData, 'rewardPoolId', errors, '유효한 카드풀을 선택해주세요.');
+  const rewardPoolId = readUuid(formData, 'rewardPoolId', errors, '등록된 카드풀을 골라주세요.');
   const eventId = nullableString(formData, 'eventId');
   const perUserDailyLimitRaw = readString(formData, 'perUserDailyLimit');
   const activeFromRaw = readString(formData, 'activeFrom');
@@ -971,7 +971,7 @@ export function normalizeAdminGameEndForm(
   formData: FormData,
 ): AdminFormResult<AdminGameEndFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 종료 요청이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '종료 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.');
   const gameId = readSlug(formData, 'gameId', errors, '게임을 선택해주세요.');
 
   if (Object.keys(errors).length) return { ok: false, errors };
@@ -1023,8 +1023,8 @@ export function normalizeAdminTicketTypeForm(
   context: AdminCatalogContext,
 ): AdminFormResult<AdminTicketTypeFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const id = readUuid(formData, 'id', errors, '유효한 티켓 회차가 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const id = readUuid(formData, 'id', errors, '티켓 회차를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const eventId = readString(formData, 'eventId');
   const name = readString(formData, 'name');
   const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');

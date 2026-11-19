@@ -42,7 +42,7 @@ export const WAREHOUSE_STOP_ANCHOR = 'warehouse-stop';
 const shipmentLabel = (shipment: { originName: string; shipmentId: string; shipmentNumber: string | null }) =>
   `${shipment.originName} · ${commerceReferenceLabel(shipment.shipmentId, shipment.shipmentNumber)}`;
 const USED_LABELS = { staff_cancellation: '운영자 전액 취소에 씀', partial_cancellation: '재고 부족 부분 취소에 씀', claim_collection: '반품·교환 회수 확인에 씀' } as const;
-const SOURCE_LABELS = { tracking_reply: '운송장 회신 반입', warehouse_reply: '창고 이미 출고 회신' } as const;
+const SOURCE_LABELS = { tracking_reply: '운송장 회신 올리기', warehouse_reply: '창고 이미 출고 회신' } as const;
 
 function ReplyHistory({ shipment }: { shipment: WarehouseStopShipment }) {
   if (!shipment.replies.length) return <p className={HINT}>기록된 창고 회신이 없습니다.</p>;

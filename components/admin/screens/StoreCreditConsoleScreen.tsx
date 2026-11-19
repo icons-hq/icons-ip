@@ -32,10 +32,10 @@ export function StoreCreditConsoleScreen({ data, policy }: { data: StoreCreditCo
     { key: 'expiry', label: '만료 일시', width: '146px' },{ key: 'detail', label: '저장된 결과', width: '150px', required: true },
   ];
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="store-credits">
-    <SalesGuide title="운영 적립금을 지급하고 실제 원장 내역을 확인합니다."><p>관리자만 지급할 수 있습니다. 최대 1,000명을 먼저 검증하고 대상 수·금액을 확인한 뒤 일괄 지급합니다. 기존 정책의 보유 상한·유효기간과 회수 적립금 상계를 적용합니다.</p><p>한 명이라도 처리 조건이 달라지면 전체 지급을 중단합니다. 저장된 작업 ID로 결과를 조회하거나 재시도해 중복 지급을 방지합니다.</p></SalesGuide>
+    <SalesGuide title="운영 적립금을 지급하고 실제 원장 내역을 확인합니다."><p>관리자만 지급할 수 있습니다. 최대 1,000명을 먼저 검증하고 대상 수·금액을 확인한 뒤 일괄 지급합니다. 적립금 정책의 최대 보유 적립금·유효기간을 따르고, 환불로 회수할 적립금이 있는 고객은 지급액에서 그만큼 먼저 뺍니다.</p><p>한 명이라도 조건이 달라지면 아무에게도 지급하지 않고 멈춥니다. 결과를 모를 때는 새로 지급하지 말고 같은 작업의 결과를 조회하거나 같은 작업으로 다시 지급하세요. 같은 작업은 두 번 지급되지 않습니다.</p></SalesGuide>
     {ledger ? tabs : <StoreCreditRegisterArea enabled={policy.enabled} tabs={tabs} validityDays={policy.validityDays} />}
     <SalesFilterPanel currentHref={currentHref} resetHref={ledger ? '/admin/sales/store-credits?mode=ledger' : undefined} id="store-credit-console" hiddenFieldExclusions={['kind','pageSize']}
-      date={{ from: filters.from, to: filters.to, field: 'created', options: [{ value: 'created', label: ledger ? '발생일' : '등록일' }] }} search={{ value: filters.query, placeholder: '고객명 · 정확한 이메일 · 고객/주문/작업 ID · 사유' }}>
+      date={{ from: filters.from, to: filters.to, field: 'created', options: [{ value: 'created', label: ledger ? '발생일' : '등록일' }] }} search={{ value: filters.query, placeholder: '고객명 · 정확한 이메일 · 회원/주문/작업 번호 · 사유' }}>
       <SalesFilterField label={ledger ? '내역 구분' : '처리상태'} htmlFor="credit-kind"><SalesSelect id="credit-kind" name="kind" value={filters.kind} options={[{ value: '', label: '전체' },...(ledger ? STORE_CREDIT_KINDS.map(value => ({ value,label: storeCreditEntryLabel(value) })) : Object.entries(STATUS).map(([value,label]) => ({ value,label })))]} /></SalesFilterField>
       <SalesFilterField label="목록 수" htmlFor="credit-page-size"><SalesSelect id="credit-page-size" name="pageSize" value={String(filters.pageSize)} options={[20,50,100].map(value => ({ value:String(value),label:`${value}개씩 보기` }))} /></SalesFilterField>
     </SalesFilterPanel>

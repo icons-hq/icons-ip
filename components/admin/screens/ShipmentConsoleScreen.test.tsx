@@ -72,7 +72,7 @@ describe('배송 건 콘솔',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,delayNotice:'partial_failed'},rows:[{...row,delayNotice:notice}]}}/>);
   expect(html).toContain('발송지연 안내여부');expect(html).toContain('지연 안내 결과');expect(html).toContain('앱 발송 · 이메일 실패');
   expect(html).toContain('<option value="partial_failed" selected="">일부 채널 실패·제외</option>');
-  expect(html).toContain('delayNotice=partial_failed');expect(html).toContain('고객의 수신·열람을 뜻하지 않습니다');
+  expect(html).toContain('delayNotice=partial_failed');expect(html).toContain('고객이 받았거나 읽었다는 뜻은 아닙니다');
   expect(html).toContain('data-sales-filters=""');
   const searchForm=html.slice(html.indexOf('data-sales-filters=""'),html.indexOf('</form>'));
   expect((searchForm.match(/name="delayNotice"/g)??[])).toHaveLength(1);

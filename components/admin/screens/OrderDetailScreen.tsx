@@ -335,7 +335,7 @@ export function OrderDetailScreen({
           <div className={FACT_ROW}><dt className={FACT_TERM}>적립금 사용</dt><dd className={`${FACT_VALUE} tabular-nums`}>{minus(order.storeCreditTotal)}</dd></div>
           {order.transaction && <>
             <div className={FACT_ROW}><dt className={FACT_TERM}>복수구매 할인</dt><dd className={`${FACT_VALUE} tabular-nums`}>{minus(order.transaction.totals.volumeDiscountTotal)}</dd></div>
-            <div className={FACT_ROW}><dt className={FACT_TERM}>온라인 결제금액 / 착불 배송비</dt><dd className={FACT_VALUE}>{money(order.transaction.totals.onlineTotal)} / {money(order.transaction.totals.collectShippingTotal)} · 착불은 별도 수납 원장으로 확인</dd></div>
+            <div className={FACT_ROW}><dt className={FACT_TERM}>온라인 결제금액 / 착불 배송비</dt><dd className={FACT_VALUE}>{money(order.transaction.totals.onlineTotal)} / {money(order.transaction.totals.collectShippingTotal)} · 착불은 착불 수납 기록에서 확인</dd></div>
           </>}
           <div className={`${FACT_ROW} border-t pt-3`}><dt className="font-medium">최종 결제금액</dt><dd className={`${FACT_VALUE} text-base font-semibold tabular-nums`}>{money(order.total)}</dd></div>
           {order.isGift && <div className={FACT_ROW}><dt className={FACT_TERM}>선물 배송</dt><dd className={FACT_VALUE}>수령인 배송지 · 수령인용 포장 명세에는 가격·결제정보를 제외합니다.</dd></div>}
@@ -385,7 +385,7 @@ export function OrderDetailScreen({
     </AdminSectionCard>
     <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(17.5rem,1fr)]">
       <AdminSectionCard title="주문 타임라인">
-        <p className="text-sm text-muted-foreground">이른 기록부터 표시합니다. 각 원장의 현재 처리 상태를 함께 확인할 수 있습니다.</p>
+        <p className="text-sm text-muted-foreground">이른 기록부터 표시합니다. 결제·배송·취소 같은 기록마다 지금 처리 상태를 함께 보여 줍니다.</p>
         <ol className="mt-2 flex flex-col">{timeline.map((entry) => <TimelineEntry key={entry.id} entry={entry} digital={Boolean(entry.shipmentId && digitalShipments.has(entry.shipmentId))} />)}</ol>
       </AdminSectionCard>
       {canManage ? <AdminSectionCard title="구매확정·운영자 메모">

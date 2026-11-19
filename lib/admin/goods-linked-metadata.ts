@@ -34,7 +34,7 @@ export function readGoodsLinkedMetadata(form: FormData) {
     const version = versionText ? Number(versionText) : null;
     if (extra !== undefined || (code && (!/^[a-z][a-z0-9-]{1,39}$/.test(code) || !/^[1-9][0-9]*$/.test(versionText ?? '')
       || version === null || !Number.isSafeInteger(version) || version > 1_000_000)) || (!code && versionText)) {
-      errors.shippingNoticeTemplate = '배송 안내 템플릿과 버전을 다시 선택해주세요.';
+      errors.shippingNoticeTemplate = '배송 안내 템플릿을 다시 선택해주세요. 그사이 템플릿이 바뀌었을 수 있습니다.';
     } else {
       value.shippingNoticeTemplateCode = code || null;
       value.shippingNoticeTemplateVersion = version;

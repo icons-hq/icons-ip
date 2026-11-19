@@ -91,7 +91,7 @@ export function useOptionStockDialog({ onSaved }: { onSaved?: (target: OptionSto
       }
       const plan = planOptionStockSave(rows);
       setRows(plan.rows);
-      if (!plan.ok) { setSummary('입력을 확인해주세요. 아무 옵션도 저장하지 않았습니다.'); return; }
+      if (!plan.ok) { setSummary('수량이나 사유가 맞지 않는 옵션이 있습니다. 해당 옵션에 표시된 안내대로 고친 뒤 다시 저장해주세요. 아무 옵션도 저장하지 않았습니다.'); return; }
       if (!plan.requests.length) { setSummary('바뀐 수량이 없습니다.'); return; }
       setSummary('');
       run(async () => {

@@ -61,7 +61,7 @@ export function DiscountPromotionDetailScreen({ promotion, identity, canManage }
         if ('error' in result) { setMessage(result.error); if (result.authChanged) session.deny(); return; }
         setDialog(false); setMessage('');
         router.refresh();
-      } catch { if (session.current()) setMessage('중지 결과가 불명확합니다. 다시 누르면 같은 요청으로 결과를 확인합니다.'); }
+      } catch { if (session.current()) setMessage('중지됐는지 확인하지 못했습니다. ‘프로모션 중지’를 다시 누르면 같은 요청으로 결과만 확인합니다. 두 번 처리되지 않습니다.'); }
       finally { busy.current = false; }
     });
   }
@@ -101,7 +101,7 @@ export function DiscountPromotionDetailScreen({ promotion, identity, canManage }
         </ul>
         <label className="flex cursor-pointer items-center gap-2"><input checked={acknowledged} disabled={pending} onChange={event => setAcknowledged(event.target.checked)} type="checkbox" />꺼질 할인과 영향을 확인했습니다.</label>
         {message ? <p className="text-destructive" role="alert">{message}</p> : null}
-        {!identity || session.blocked ? <p className="text-destructive" role="alert">로그인 계정 또는 세션을 확인하지 못했습니다. 화면을 다시 열어주세요.</p> : null}
+        {!identity || session.blocked ? <p className="text-destructive" role="alert">로그인 계정을 확인하지 못했습니다(다른 계정으로 바뀌었거나 로그아웃됨). 화면을 새로고침해주세요.</p> : null}
         <div className="flex flex-wrap justify-end gap-2"><Button disabled={pending} onClick={() => setDialog(false)} type="button" variant="outline">취소</Button>
           <Button disabled={pending || !acknowledged || !identity || session.blocked} onClick={stop} type="button" variant="destructive">{pending ? '중지하는 중…' : '프로모션 중지'}</Button></div>
       </div>

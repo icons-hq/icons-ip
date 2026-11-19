@@ -262,7 +262,7 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
         <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={pending || models.length >= MAX_GOODS_KC_MODELS}
           onClick={() => change([...models, { ...emptyGoodsKcModel(), family: templateFamily, scheme: templateScheme }])}>유형 틀로 모델 추가</button>
       </div>
-      <small className="text-xs text-muted-foreground">유형 틀은 제품군·제도만 채웁니다. 모델·옵션·번호·사업자·증빙은 새로 입력하며, 기존 고시 프리셋의 7개 항목은 그대로 유지합니다.</small>
+      <small className="text-xs text-muted-foreground">유형 틀은 제품군·제도만 채웁니다. 모델·옵션·번호·사업자·증빙은 새로 입력합니다. 상품정보제공고시 템플릿에서 가져온 7개 항목은 바뀌지 않습니다.</small>
     </div>}
     {problems.length > 0 && !readOnly && <div className={GOOD_NOTE_CLASS}><strong className="font-medium">검토 완료 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div>}
     {models.length > 0 && problems.length === 0 && <GoodsKcDisclosure title="고객 고시 미리보기" disclosures={publicGoodsKcDisclosures(models, configuration.variants)} />}
@@ -279,7 +279,7 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   </>;
   /* 첫 상태 문단은 시험이 속성 없이 대조한다 — 굵기는 부모의 자식 선택 유틸리티로 준다. */
   return <div className="flex min-w-0 flex-col gap-4 text-sm [&>p[role=status]:first-child]:font-medium" data-kc-editor="">
-    <p role="status">{dirty?'KC 미검토 초안 · 미저장':configuration.status === 'reviewed' ? notApplicableReviewed ? '상품 전체 KC 해당 없음으로 검토 완료' : 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
+    <p role="status">{dirty?'KC 미검토 · 저장하지 않은 입력 있음':configuration.status === 'reviewed' ? notApplicableReviewed ? '상품 전체 KC 해당 없음으로 검토 완료' : 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
       {!dirty && configuration.reviewedAt ? ` · ${configuration.reviewerName ?? '운영자'} · ${new Date(configuration.reviewedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}</p>
     {refreshNotice && <p className={GOOD_NOTE_CLASS} role="status">{refreshNotice}</p>}
     {readOnly && <p className="text-sm text-muted-foreground">{configuration.archivedAt ? '보관된 상품은 복원한 뒤 검토할 수 있습니다.' : 'KC 정보를 수정하려면 먼저 상품을 비공개로 전환해주세요.'}</p>}
@@ -348,7 +348,7 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
   return <section className={`${GOOD_SUBPANEL_CLASS} text-sm`} aria-labelledby={`kc-review-${goodId}`} data-kc-panel="">
     <div className="flex flex-col gap-1"><h2 id={`kc-review-${goodId}`} className="text-base leading-snug font-medium">KC 정보</h2>
       <p className="text-sm text-muted-foreground">KC 인증 대상 여부를 고릅니다. 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝내고, 대상이면 인증 종류·번호와 모델·사업자·적용 옵션을 입력합니다(내부 검토 근거는 선택).
-        신규 공개와 비공개 후 재공개에는 검토 완료가 필요하며, 기존 공개 미기록 상품은 자동 승인하거나 중지하지 않습니다.</p>
+        새로 공개하거나 비공개했다가 다시 공개하려면 검토 완료가 필요합니다. 예전에 KC 기록 없이 공개된 상품은 그대로 두며, 자동으로 검토 완료하거나 판매를 멈추지 않습니다.</p>
     </div>
     {notice?.goodId === goodId && <p className={`${GOOD_NOTE_CLASS} font-medium text-[var(--wc-success)]`} role="status">{notice.message}</p>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">KC 검토를 불러오는 중입니다…</p> : visible.error ? <p className="text-sm text-destructive" role="alert">{visible.error}</p>
@@ -356,7 +356,7 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
         initialDraft={refresh || savedEpoch ? null : initialDraft} onDraftChange={onDraftChange}
         onSaved={(configuration, message) => { remember({ draft: null }); setLoaded({ goodId, configuration }); setNotice({ goodId, message }); setSavedEpoch((value) => value + 1); }} /> : null}
     <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending} onClick={() => { remember({ configuration: null, draft: null }); setLoaded(null); setRefresh((value) => value + 1); }}>저장된 KC 정보 다시 불러오기</button>
-    <small className="text-xs text-muted-foreground">저장 실패 시 현재 입력은 유지됩니다. 내부 증빙 참조는 브라우저 자동복구 저장소에 보관하지 않으므로, 작업을 중단하기 전에 미검토로 저장해주세요.</small>
+    <small className="text-xs text-muted-foreground">저장에 실패해도 지금 입력은 남아 있습니다. 다만 내부 검토 근거 칸은 브라우저에 임시 보관하지 않아 화면을 닫으면 사라지므로, 작업을 멈추기 전에 미검토 상태로라도 저장해주세요.</small>
     <GoodsOtherCertificationsPanel goodId={goodId} />
   </section>;
 }

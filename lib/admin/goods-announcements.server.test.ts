@@ -22,12 +22,12 @@ describe('상품 공지 관리자 읽기', () => {
     mocks.rpc.mockResolvedValueOnce({ data: { announcement: null, popup: { selected: false, revision: 9, startsAt: null, endsAt: null } }, error: null });
     expect(await loadGoodsAnnouncement(ID, true)).toMatchObject({ revision: 0, popup: { revision: 9 } });
     mocks.rpc.mockResolvedValueOnce({ data: { announcement: null, popup: null }, error: null });
-    await expect(loadGoodsAnnouncement(ID, true)).rejects.toThrow('응답');
+    await expect(loadGoodsAnnouncement(ID, true)).rejects.toThrow('내용을 읽지 못했습니다');
   });
   it('역전된 게시 기간이나 부분 중요기간을 정상 상세로 받지 않는다', async () => {
     for (const fields of [{ startsAt: '2026-10-15T00:00:00Z', endsAt: '2026-10-14T00:00:00Z' }, { importantStartsAt: '2026-10-14T00:00:00Z', importantEndsAt: null }]) {
       mocks.rpc.mockResolvedValueOnce({ data: { announcement: { ...blankGoodsAnnouncement(ID), reference: 1, revision: 1, ...fields }, popup: blankGoodsAnnouncement(ID).popup }, error: null });
-      await expect(loadGoodsAnnouncement(ID)).rejects.toThrow('응답');
+      await expect(loadGoodsAnnouncement(ID)).rejects.toThrow('내용을 읽지 못했습니다');
     }
   });
   it('목록·상세의 노출 위치를 읽고 위치가 없던 응답은 상단으로 본다', async () => {

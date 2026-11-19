@@ -103,11 +103,11 @@ export function GoodWorkspacePurchaseCostsSection({ serverError }: { serverError
       return <div key={key} className="grid min-w-0 gap-3 border-t pt-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-end">
         <strong className="min-w-0 font-medium wrap-anywhere">{label}{row.isActive === false ? ' · 사용 중지' : ''}</strong>
         <label className={FIELD_LABEL_CLASS}>공급가(매입단가) (원)<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" type="number" min={0} max={2147483647} step={1}
-          aria-label={`${label} 공급가(매입단가)`} value={entry.unitCostKrw} placeholder="미설정" onChange={(event) => update(key, { unitCostKrw: event.target.value })} /></label>
+          aria-label={`${label} 공급가(매입단가)`} value={entry.unitCostKrw} placeholder="비우면 정하지 않음" onChange={(event) => update(key, { unitCostKrw: event.target.value })} /></label>
         <div className={FIELD_LABEL_CLASS}><label htmlFor={`cost-basis-${index}`}>세금 구분</label>
           <NativeSelect className="w-full" id={`cost-basis-${index}`} aria-label={`${label} 공급가(매입단가) 세금 구분`} value={entry.taxBasis}
             onChange={(event) => update(key, { taxBasis: event.target.value as '' | PurchaseTaxBasis })}>
-            <option value="">미설정</option>
+            <option value="">선택 안 함</option>
             {Object.entries(PURCHASE_TAX_BASIS_LABELS).map(([basis, text]) => <option key={basis} value={basis}>{text}</option>)}
           </NativeSelect></div>
       </div>;
@@ -280,7 +280,7 @@ export function GoodWorkspaceShippingChargeGroupSection({ accountId, serverError
     {identity ? <ShippingChargeGroupField identity={identity} originId={originId} value={value?.id ?? null}
       selectedGroup={(value?.display as ShippingChargeGroupSummaryValue | undefined) ?? null}
       onChange={(id, group) => set(id && group ? { id, revision: group.revision, originId: group.originId, display: group } : null)} />
-      : <p className={blocked ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>}
+      : <p className={blocked ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인한 계정이 바뀌었거나 다시 로그인했습니다. 지금 계정으로 화면을 새로고침해주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>}
     {value && originId && value.originId !== originId ? <p className="text-sm text-[var(--wc-warning)]" role="status">고른 묶음그룹의 출고지가 지금 출고지와 다릅니다. 출고지를 맞추거나 묶음그룹을 다시 골라주세요.</p> : null}
     <SectionError message={error ?? serverError} />
   </DraftBody>;
@@ -320,9 +320,9 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
       prepared = true; setPendingFile(candidate);
       const sent = await createClient().storage.from(DIGITAL_BUCKET).upload(grant.path, file, { contentType: candidate.mimeType, upsert: false });
       if (!scope.canApply(ticket)) return;
-      if (sent.error) { setMessage('전송 결과를 확인하지 못했습니다. 같은 파일의 업로드 결과를 확인해주세요.'); return; }
+      if (sent.error) { setMessage('파일이 올라갔는지 확인하지 못했습니다. 아래 같은 업로드 결과 확인을 눌러주세요.'); return; }
       await verify(candidate);
-    } catch { if (scope.canApply(ticket)) setMessage(prepared ? '전송 결과를 확인하지 못했습니다. 같은 파일의 업로드 결과를 확인해주세요.' : '업로드 준비에 실패했습니다. 다시 선택해주세요.'); }
+    } catch { if (scope.canApply(ticket)) setMessage(prepared ? '파일이 올라갔는지 확인하지 못했습니다. 아래 같은 업로드 결과 확인을 눌러주세요.' : '업로드 준비에 실패했습니다. 다시 선택해주세요.'); }
     finally { busy.current = false; setPending(false); }
   }
   async function verify(candidate = pendingFile) {
@@ -337,7 +337,7 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
       <legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 제공 방식</legend>
       <GoodsFulfillmentDraftFields draft={value} onChange={(draft) => set(draft as GoodWorkspaceExtraDraft['fulfillment'])} onUpload={(file) => { void upload(file); }} fieldId={fieldId} />
     </fieldset>
-    {pendingFile ? <p className="flex flex-wrap items-center gap-2 text-sm" role="status">{pendingFile.name}의 전송·검증 결과를 확인해주세요. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
+    {pendingFile ? <p className="flex flex-wrap items-center gap-2 text-sm" role="status">{pendingFile.name}이(가) 올라갔는지 아직 확인하지 못했습니다. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
     {message ? <p className="text-sm font-medium" role="status">{message}</p> : null}
     <SectionError message={error ?? serverError} />
   </DraftBody>;

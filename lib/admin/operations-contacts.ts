@@ -38,7 +38,7 @@ export function parseOperationsContactValues(input: unknown):
   }
   const entries = Object.entries(input);
   if (entries.length !== 4 || entries.some(([key, value]) => !Object.hasOwn(OPERATIONS_CONTACT_FIELDS, key) || typeof value !== 'string')) {
-    return { ok: false, errors: { form: '담당자 정보의 네 항목을 모두 보내주세요.' } };
+    return { ok: false, errors: { form: '담당자 정보 네 칸을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.' } };
   }
   const errors: Record<string, string> = {};
   const value = Object.fromEntries(entries.map(([key, raw]) => {

@@ -232,9 +232,9 @@ export function InquiryQueueScreen({
             <section aria-label="답변 만족도 요약" className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
               <strong className="font-semibold text-foreground">평가 응답 중 만족 비율 {satisfactionPercent === null ? '—' : `${satisfactionPercent.toLocaleString('ko-KR')}%`}</strong>
               <span className="text-muted-foreground tabular-nums">만족 {data.satisfactionSummary.satisfied.toLocaleString('ko-KR')} · 불만족 {data.satisfactionSummary.dissatisfied.toLocaleString('ko-KR')} · 미평가 {data.satisfactionSummary.unrated.toLocaleString('ko-KR')}</span>
-              <small className="basis-full text-xs text-muted-foreground">{satisfactionPercent === null ? '평가 응답 없음 · ' : ''}만족도 선택을 제외한 현재 조회 조건 기준입니다. 만족·불만족 응답만 비율에 포함합니다.</small>
+              <small className="basis-full text-xs text-muted-foreground">{satisfactionPercent === null ? '평가 응답 없음 · ' : ''}지금 조회 조건으로 센 값입니다(만족도 조건은 빼고 셉니다). 비율은 만족·불만족으로 평가한 문의만으로 계산하고 미평가는 넣지 않습니다.</small>
             </section>
-          ) : <AdminNotice role="alert" tone="danger">만족도 요약을 불러오지 못했습니다.</AdminNotice>}
+          ) : <AdminNotice role="alert" tone="danger">만족도 요약을 불러오지 못했습니다. 새로고침해 다시 확인해주세요.</AdminNotice>}
         </div>
       </section>
 

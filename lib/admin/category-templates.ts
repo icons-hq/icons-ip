@@ -36,13 +36,13 @@ export function parseCategoryTemplateChanges(value: unknown): CategoryTemplateCh
   return new Set(changes.map(row => row.categoryId)).size !== changes.length ? null : changes.sort((a, b) => a.categoryId.localeCompare(b.categoryId));
 }
 /** 새 등록(저장 버전 0)이 충돌했다 = 그 카테고리의 등록 기록이 이미 있다. 사용 중인지 보관됐는지는 응답으로 구분되지 않는다. */
-export const CATEGORY_TEMPLATE_ALREADY_EXISTS = '이미 등록됐거나 보관된 카테고리입니다. 보관된 항목은 보관 상태를 보관됨으로 조회해 복구해주세요.';
+export const CATEGORY_TEMPLATE_ALREADY_EXISTS = '이미 자주 쓰는 카테고리로 등록됐거나 보관된 카테고리입니다. 보관된 것이면 조회 조건의 보관 상태를 보관됨으로 바꿔 찾은 뒤 복구해주세요.';
 export function categoryTemplateError(message?: string): string {
-  if (message === 'category_templates_changed' || message === 'operation_conflict') return '다른 저장 결과가 있습니다. 선택은 유지했습니다. 최신 목록을 다시 확인해주세요.';
-  if (message === 'category_not_usable') return '사용 중인 마지막 단계 카테고리만 등록·복구할 수 있습니다. 카테고리 상태를 확인해주세요.';
-  if (message === 'category_not_found') return '카테고리를 찾을 수 없습니다. 최신 카테고리를 확인해주세요.';
-  if (message === 'operator_capability_required') return '현재 상품 관리 권한을 확인해주세요.';
-  return '자주 쓰는 카테고리를 저장하지 못했습니다. 선택과 현재 권한을 확인해주세요.';
+  if (message === 'category_templates_changed' || message === 'operation_conflict') return '다른 사람(다른 작업)이 먼저 바꿨습니다. 고른 항목은 그대로 두었습니다. [최신 목록 다시 조회]로 목록을 새로 불러온 뒤 다시 저장해주세요.';
+  if (message === 'category_not_usable') return '보관되지 않은 마지막 단계 카테고리만 등록·복구할 수 있습니다. 카테고리 관리에서 보관 여부와 하위 카테고리가 있는지 확인해주세요.';
+  if (message === 'category_not_found') return '카테고리를 찾을 수 없습니다. 새로고침한 뒤 다시 골라주세요.';
+  if (message === 'operator_capability_required') return '상품 관리 권한이 있는 계정만 저장할 수 있습니다. 로그인한 계정의 권한을 확인해주세요.';
+  return '자주 쓰는 카테고리를 저장하지 못했습니다. 새로고침한 뒤 다시 시도해주세요. 계속 안 되면 계정에 상품 관리 권한이 있는지 확인해주세요.';
 }
 export function selectedCategoryPath(categories: AdminCategoryNode[], selectedId: string): AdminCategoryNode[] {
   const result: AdminCategoryNode[] = [], seen = new Set<string>();

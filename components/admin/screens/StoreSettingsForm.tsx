@@ -127,7 +127,7 @@ export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;
         aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`carrier-${carrier?.code??'new'}-${key}-error`:key==='trackingUrlTemplate'||key==='code'&&carrier?`carrier-${carrier?.code??'new'}-${key}-hint`:undefined}/>
     </AdminField></div>)}</AdminFormGrid>
     <label className={CHECK_LABEL}><input type="checkbox" name="active" value="true" defaultChecked={state.values?state.values.active==='true':carrier?.active??true} disabled={!canEdit}/> 새 발송에서 사용</label>
-    <p className={NOTE}>비활성화해도 기존 주문의 배송조회 링크는 유지됩니다.</p><Feedback state={state}/>
+    <p className={NOTE}>&lsquo;새 발송에서 사용&rsquo;을 꺼도 기존 주문의 배송조회 링크는 유지됩니다.</p><Feedback state={state}/>
     {canEdit?<Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':carrier?'택배사 저장':'택배사 등록'}</Button>:null}
   </form>;
 }

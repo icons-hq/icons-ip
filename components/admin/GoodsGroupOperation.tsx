@@ -69,7 +69,7 @@ export function useGoodsGroupOperation(identity: GoodsGroupIdentity | null, scop
       if (!active) return;
       try {
         const saved = journal.current ?? nextSaved();
-        if (saved) { journal.current = saved; setRecovery(saved); setMessage('이전 요청의 결과 확인이 남아 있습니다. 다시 실행하지 않고 진행 내역을 확인해주세요.'); }
+        if (saved) { journal.current = saved; setRecovery(saved); setMessage('이전 요청이 처리됐는지 아직 모릅니다. 다시 실행하지 말고 \'진행 내역 확인\'을 눌러주세요.'); }
       } catch { setStorageBroken(true); setMessage('진행 내역을 읽지 못했습니다. 브라우저 저장공간을 확인하고 화면을 다시 열어주세요.'); }
       setInitialized(true);
     };
@@ -98,16 +98,16 @@ export function useGoodsGroupOperation(identity: GoodsGroupIdentity | null, scop
   function execute(metadata: GoodsGroupRecovery, action: () => Promise<GoodsGroupResult<GoodsGroupReceipt>>) {
     if (!current() || !initialized || storageBroken || busy.current || journal.current || !identity || !key) return;
     const safe = parseGoodsGroupRecovery(metadata, identity);
-    if (!safe) { setMessage('요청 정보가 현재 로그인과 일치하지 않습니다. 화면을 다시 열어주세요.'); return; }
+    if (!safe) { setMessage('이 요청은 다른 계정이나 이전 로그인에서 시작됐습니다. 화면을 새로고침해주세요.'); return; }
     try {
-      const previous = nextSaved(); if (previous) { journal.current = previous; setRecovery(previous); setMessage('먼저 이전 진행 내역을 확인해주세요.'); return; }
+      const previous = nextSaved(); if (previous) { journal.current = previous; setRecovery(previous); setMessage('이전 요청이 처리됐는지 아직 모릅니다. 먼저 \'진행 내역 확인\'을 눌러주세요.'); return; }
       const itemKey = `${key}:${safe.operationId}`; window.localStorage.setItem(itemKey, JSON.stringify(safe));
       if (window.localStorage.getItem(itemKey) !== JSON.stringify(safe)) throw new Error('journal not durable');
     }
     catch { setMessage('진행 내역을 보관하지 못해 실행하지 않았습니다. 브라우저 저장공간을 확인해주세요.'); return; }
     journal.current = safe; setRecovery(safe); setReceipt(null); setMessage(''); busy.current = true;
     startTransition(async () => {
-      try { accept(await action()); } catch { if (current()) setMessage('결과가 불명확합니다. 같은 진행 내역의 결과를 확인해주세요.'); }
+      try { accept(await action()); } catch { if (current()) setMessage('처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'진행 내역 확인\'을 눌러 결과를 확인해주세요.'); }
       finally { busy.current = false; }
     });
   }

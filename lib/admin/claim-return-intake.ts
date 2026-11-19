@@ -82,7 +82,7 @@ export function mapReturnIntakeTable(table: readonly (readonly string[])[], colu
     if (usable(candidate)) { headerIndex = index; found = candidate; break; }
   }
   if (headerIndex < 0) {
-    return { error: `열 이름을 찾지 못했습니다. 첫 줄 근처에 입고일 열과 회수 운송장 또는 주문번호 열이 있어야 합니다. 지금 대응표: ${RETURN_INTAKE_FIELDS.map(field => `${RETURN_INTAKE_FIELD_LABELS[field]}(${columns[field].join('·')})`).join(' / ')}` };
+    return { error: `열 이름을 찾지 못했습니다. 첫 줄 근처에 입고일 열과 회수 운송장 또는 주문번호 열이 있어야 합니다. 지금 읽는 열 이름: ${RETURN_INTAKE_FIELDS.map(field => `${RETURN_INTAKE_FIELD_LABELS[field]}(${columns[field].join('·')})`).join(' / ')}` };
   }
   const rows: ReturnIntakeRow[] = [];
   const issues: ReturnIntakeIssue[] = [];
@@ -185,7 +185,7 @@ export function returnIntakeErrorText(code: string | undefined): string {
     case 'claim_collection_conflict': return '이미 다른 근거로 입고 확인된 회수 묶음입니다.';
     case 'invalid_collection_received_on': return '입고일은 주문일부터 오늘 사이여야 합니다.';
     case 'claim_not_collectable': return '지금 단계에서는 입고를 확인할 수 없습니다.';
-    case 'claim_return_address_required': return '회수 주소가 없는 출고지입니다. 출고지 반품 주소를 등록해주세요.';
+    case 'claim_return_address_required': return '회수 주소가 없는 출고지입니다. 상품의 반품/교환지를 고르거나 출고지 설정에 반품 주소를 등록해주세요.';
     case 'claim_collection_warehouse_already_shipped': return '창고가 이미 출고했다고 회신한 배송 건입니다. 반송 입고 회신을 남긴 뒤 상세에서 확인해주세요.';
     case 'claim_collection_warehouse_reply_required': return '출고지시가 나간 발송 전 배송 건입니다. 창고 회신(출고 중단 확인)을 남긴 뒤 상세에서 확인해주세요.';
     default: return '기록하지 못했습니다. 상세에서 확인해주세요.';

@@ -12,8 +12,8 @@ export async function loadGoodShippingRegionSummaries(origins: GoodsFulfillmentO
     return origins.map((origin) => {
       const adoption = adoptions.find((row) => row.originId === origin.id);
       if (!adoption || Date.parse(adoption.managedFrom) > now) return {
-        originId: origin.id, checkedAt, label: '지역 추가료 미설정 · 기본 배송비만 적용',
-        detail: '현재 지역 정책을 도입하지 않은 출고지입니다. 추가료를 확인한 무료 정책으로 표시하는 것은 아닙니다.',
+        originId: origin.id, checkedAt, label: '지역 추가료 정책 없음 · 기본 배송비만 적용',
+        detail: '아직 지역 추가료 정책을 쓰지 않는 출고지입니다. 지역 추가료가 0원으로 확인됐다는 뜻은 아닙니다.',
       };
       const policy = policies.filter((row) => row.originId === origin.id && row.carrierCode === origin.defaultCarrier
         && row.status === 'active' && row.startsAt && Date.parse(row.startsAt) <= now && (!row.endsAt || Date.parse(row.endsAt) > now))

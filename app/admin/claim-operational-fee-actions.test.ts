@@ -50,7 +50,7 @@ describe('운영 확인액 기록 액션', () => {
   it('충돌과 권한 오류는 입력을 보존하고 외부 원문을 숨긴다', async () => {
     mocks.rpc.mockResolvedValue({ error: { message: 'claim_operational_fee_conflict private_detail' } });
     const result = await recordOrderClaimOperationalFeeAction({}, form({ amount: '1200' }));
-    expect(result.error).toContain('다른 운영자');
+    expect(result.error).toContain('다른 담당자가 먼저 금액을');
     expect(result.values?.amount).toBe('1200');
     expect(JSON.stringify(result)).not.toContain('private_detail');
     mocks.auth.isStaff = false;

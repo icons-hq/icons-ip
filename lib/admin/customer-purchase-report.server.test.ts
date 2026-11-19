@@ -21,7 +21,7 @@ describe('고객 구매 분석 읽기 경계', () => {
       (d: ReturnType<typeof customerPurchaseFixture>) => { d.current.rows[0].monetaryIssueOrderCount = 1; },
     ]) {
       const data = customerPurchaseFixture(); mutate(data); rpc.mockResolvedValueOnce({ data, error: null });
-      await expect(getCustomerPurchaseReport(filters)).rejects.toThrow('응답이 올바르지');
+      await expect(getCustomerPurchaseReport(filters)).rejects.toThrow('결과를 읽지 못했습니다');
     }
   });
   it('권한 회수·집계 실패를 0건으로 바꾸지 않는다', async () => {

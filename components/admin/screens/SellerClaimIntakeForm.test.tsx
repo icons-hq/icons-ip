@@ -42,11 +42,11 @@ describe('판매자 반품·교환 접수 화면', () => {
   });
   it('서버가 접수를 막은 상태는 배정·수령 확인 사유를 보여준다', () => {
     const html = renderToStaticMarkup(<SellerClaimIntakeForm context={{ ...sellerClaimContextFixture, blockedReasons: { change_of_mind: 'not_claimable', defect: 'not_claimable' } }} carriers={sellerClaimContextFixture.carriers} onClose={() => {}} />);
-    expect(html).toContain('전체 수량의 배송 배정과 이전 교환품의 수령 상태');
+    expect(html).toContain('전체 수량의 배송 배정(모든 수량이 배송 건에 담겨 발송됐는지)과 이전 교환품의 수령 상태');
   });
   it('상세에서 실제 담당자·고객 요청시각·출고지별 계획을 읽는다', () => {
     const html = renderToStaticMarkup(<SellerClaimIntakeEvidence intake={sellerClaimReceiptFixture} />);
-    expect(html).toContain('합성 담당자'); expect(html).toContain('전화 상담'); expect(html).toContain('접수 기한 소급 없음');
+    expect(html).toContain('합성 담당자'); expect(html).toContain('전화 상담'); expect(html).toContain('신청 기한은 실제 접수 시각 기준');
     expect(html).toContain('합성 주문 상품 2개'); expect(html).toContain('실제 입고 확인을 별도로');
   });
 });

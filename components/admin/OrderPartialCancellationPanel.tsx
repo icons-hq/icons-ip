@@ -126,8 +126,8 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
       </>}
     </div> : null}
     {record.state === 'needs_review' && record.provider === 'toss' && canManage ? <form className="flex flex-col gap-2 border-t pt-3" onSubmit={event => { event.preventDefault(); void resolve(); }}>
-      <p className="font-medium">결제확인필요 해소 (결제 담당 admin)</p>
-      <p className={HINT}>다시 확인해도 닫히지 않을 때 씁니다. 서버가 결제사 잔액을 조회만 해서, 시작 때 잔액 그대로면 진행하지 않음으로 닫고, 이 취소만큼 줄어 있으면 그 결제사 취소 거래로 적용합니다. 둘 다 아니면 아무것도 바꾸지 않습니다.</p>
+      <p className="font-medium">결제확인필요 해소 (결제 담당자)</p>
+      <p className={HINT}>[결제사 확인 다시 하기]로도 끝나지 않을 때 씁니다. 결제사에 취소를 새로 요청하지 않고 잔액만 조회합니다. 잔액이 시작 때 그대로면 이 부분 취소를 &lsquo;진행하지 않음&rsquo;으로 닫고, 이 취소 금액만큼 줄어 있으면 결제사에서 이미 취소된 것으로 보고 적용합니다. 둘 다 아니면 아무것도 바꾸지 않습니다.</p>
       <label className={FIELD}><span className="font-medium">해소 사유</span>
         <input className="w-full" disabled={pending} maxLength={500} onChange={event => setResolveReason(event.target.value)} required value={resolveReason} /></label>
       <Button className="w-fit" disabled={pending || resolveReason.trim().length < 5} type="submit" variant="outline">{pending ? '조회 중…' : '결제사 잔액 조회해 해소'}</Button>

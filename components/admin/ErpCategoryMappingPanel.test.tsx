@@ -162,7 +162,7 @@ describe('ERP 분류 연결 표', () => {
     const panel = ErpCategoryMappingPanel({ rows: fallbackRows, categories, categoryErpMappings: mappings });
     expect(text(panel)).toContain('ERP 분류 1개 중 1개 연결됨');
     const tree = await renderRow({ rows: fallbackRows, categoryErpMappings: mappings });
-    expect(text(tree)).toContain('고객 카테고리의 ERP 분류 매핑에 따라 ‘문구 > 키링’ 카테고리를 제안합니다.');
+    expect(text(tree)).toContain('카테고리 관리의 ERP 분류 매핑에 적힌 값에 따라 ‘문구 > 키링’ 카테고리를 제안합니다.');
     expect(find(tree, (element) => isButton(element) && text(element).includes('ERP 분류 매핑대로 연결'))).toHaveLength(0);
   });
 
@@ -209,7 +209,7 @@ describe('ERP 분류 연결 표', () => {
     expect(text(tree)).not.toContain('다른 ERP 분류');
     find(tree, (element) => isSelect(element))[0].props.onValueChange?.(KEYRING);
     tree = await renderRow({ categoryErpMappings: mappings });
-    expect(text(tree)).toContain('고른 카테고리는 고객 카테고리 화면에서 다른 ERP 분류(‘문구’, ST-01)에 매핑돼 있습니다. 맞는 카테고리인지 확인해주세요.');
+    expect(text(tree)).toContain('고른 카테고리는 카테고리 관리의 ERP 분류 매핑에 다른 ERP 분류(‘문구’, ST-01)로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.');
     find(tree, (element) => isSelect(element))[0].props.onValueChange?.(PHOTO);
     expect(text(await renderRow({ categoryErpMappings: mappings }))).not.toContain('다른 ERP 분류');
   });
@@ -753,7 +753,7 @@ describe('ERP 분류 일괄 연결', () => {
     panel = draw();
     expect(statusLine(panel)).toBe('');
     bulkBar(panel).props.controls.props.onValueChange(KEYRING);
-    expect(statusLine(draw())).toBe('고른 카테고리는 고객 카테고리 화면에서 다른 ERP 분류(‘문구’, ST-01)에 매핑돼 있습니다. 맞는 카테고리인지 확인해주세요.');
+    expect(statusLine(draw())).toBe('고른 카테고리는 카테고리 관리의 ERP 분류 매핑에 다른 ERP 분류(‘문구’, ST-01)로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.');
   });
 
   it('한 번에 500행까지 그리고, 일괄 저장 상한과 같다', () => {

@@ -59,7 +59,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     startTransition(async () => {
       let result: CategoryDisplayTreeResult;
       try { result = await updateCategoryDisplayNodeImageAction(attempt.nodeId, attempt.imagePath, attempt.revision, attempt.operationId, actorId); }
-      catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+      catch { result = { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true }; }
       if (!alive.current || blockedRef.current) return;
       if ('error' in result) {
         setMessage(result.error); setError(true); setImageUncertain(Boolean(result.uncertain)); setConflict(Boolean(result.conflict));
@@ -85,7 +85,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     startTransition(async () => {
       let result: CategoryDisplayTreeResult;
       try { result = await updateCategoryDisplayTreeAction(attempt.change, attempt.revision, attempt.operationId, actorId); }
-      catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+      catch { result = { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true }; }
       if (!alive.current || blockedRef.current) return;
       if ('error' in result) {
         setMessage(result.error); setError(true); setUncertain(Boolean(result.uncertain)); setConflict(Boolean(result.conflict));

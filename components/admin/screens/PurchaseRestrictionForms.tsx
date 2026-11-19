@@ -47,7 +47,7 @@ export function PurchaseRestrictionRegister() {
   return <details className="group min-w-0 open:basis-full"><summary className={`${buttonVariants()} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} data-slot="button">판매방해 고객 등록<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180" /></summary>
     <div className="mt-2 rounded-lg border p-4">
     <form method="post" onSubmit={event => submitPreservingFields(event, action)} className="flex flex-wrap items-center gap-2.5">
-      <Label htmlFor="restriction-customer-query">고객 ID 또는 이메일</Label><Input className="w-72 max-w-full" id="restriction-customer-query" name="customerQuery" maxLength={254} required value={query} onChange={event => setQuery(event.target.value)} placeholder="고객 ID 또는 정확한 이메일 주소" />
+      <Label htmlFor="restriction-customer-query">회원번호 또는 이메일</Label><Input className="w-72 max-w-full" id="restriction-customer-query" name="customerQuery" maxLength={254} required value={query} onChange={event => setQuery(event.target.value)} placeholder="회원번호 또는 정확한 이메일 주소" />
       <Button type="submit" variant="soft" disabled={pending}>{pending ? '조회 중…' : '고객 조회'}</Button>
     </form>
     {state.error ? <p role="alert" className="mt-2 text-sm text-destructive">{state.error}</p> : null}

@@ -8,7 +8,7 @@ export async function findGoodNoticePresets(query: string, page: number) {
   const auth = await requireAdminActionAccess('/admin/catalog/goods');
   if (!auth) return { error: '관리자 권한이 필요합니다.' };
   try { return await loadGoodsNoticePresets(normalizeGoodsNoticePresetFilters({ q: query, page: String(page) })); }
-  catch { return { error: '프리셋을 불러오지 못했습니다. 다시 시도해주세요.' }; }
+  catch { return { error: '템플릿을 불러오지 못했습니다. 다시 시도해주세요.' }; }
 }
 export async function loadLastSavedGoodNotice(): Promise<{ notice?: GoodsNoticeInfo; name?: string; error?: string }> {
   const auth = await requireAdminActionAccess('/admin/catalog/goods');

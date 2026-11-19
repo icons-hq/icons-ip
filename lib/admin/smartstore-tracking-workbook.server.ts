@@ -103,8 +103,8 @@ function parseReplyTable(table: ReplyTable, carriers: ShippingCarrierRegistry): 
   if (!headerRow) return null;
   const headerCells = headerRowCells(table, headerRow);
   // 머리글 위의 안내 행을 읽지는 않지만 수식이 든 파일은 머리글과 똑같이 거절한다.
-  if (headerRow === 2 && headerRowCells(table, 1).some(cell => cell.error)) throw new Error('안내 행의 수식·오류를 제거하고 다시 올려주세요.');
-  if (headerCells.some(cell => cell.error)) throw new Error('헤더의 수식·오류를 제거하고 원본 열 이름을 유지해주세요.');
+  if (headerRow === 2 && headerRowCells(table, 1).some(cell => cell.error)) throw new Error('안내 줄의 수식·오류 값을 지우고 다시 올려주세요.');
+  if (headerCells.some(cell => cell.error)) throw new Error('머리글 줄의 수식·오류 값을 지우고, 열 이름은 내려받은 그대로 두세요.');
   const headers = headerCells.map(cell => cell.value.trim());
   const columnsNamed = (names: readonly string[]) => headers.flatMap((header, index) => names.includes(header) ? [index + 1] : []);
   const itemColumns = columnsNamed([ICONS_REPLY_ITEM_HEADER]), carrierColumns = columnsNamed([ICONS_REPLY_CARRIER_HEADER]);

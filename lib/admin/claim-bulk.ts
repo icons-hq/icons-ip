@@ -524,10 +524,10 @@ export const ADMIN_CLAIM_BULK_REFUND_BLOCKERS: Record<string, string> = {
   claim_collections_incomplete: '모든 출고지의 회수 확인이 끝나지 않았습니다. 회수를 먼저 확인해주세요.',
   payment_missing: '결제 내역이 없는 주문입니다. 주문 통합검색에서 처리 상태를 확인해주세요.',
   bank_transfer: '무통장 입금 결제는 결제사 취소가 없습니다. 상세의 무통장 환불 처리와 환불 송금 대기에서 계좌 송금으로 처리합니다.',
-  virtual_account: '가상계좌 결제는 환불계좌가 필요해 결제사 취소를 일괄로 발행하지 않습니다. 상세에서 처리해주세요.',
-  korpay: '코페이 결제는 결제사 취소 API가 없습니다. 상세에서 취소 접수 양식으로 접수한 뒤 확정해주세요.',
+  virtual_account: '가상계좌 결제는 환불계좌가 필요해 결제사 취소를 한꺼번에 요청하지 않습니다. 상세에서 처리해주세요.',
+  korpay: '코페이 결제는 결제사 취소를 자동으로 요청할 수 없습니다. 상세의 결제사 취소 접수 양식으로 이메일 접수한 뒤 확정해주세요.',
   provider_unsupported: '자동 취소를 지원하지 않는 결제입니다. 상세에서 확인해주세요.',
-  refund_method_bank_transfer: '계좌 송금으로 접수된 환불입니다. 결제사 취소를 발행하지 않습니다. 상세에서 처리해주세요.',
+  refund_method_bank_transfer: '계좌 송금으로 접수된 환불이라 결제사 취소를 요청하지 않습니다. 상세에서 처리해주세요.',
   refund_ledger_missing: '환불 기록이 없는 요청입니다. 상세에서 결제 내역을 확인해주세요.',
   claim_not_refundable: '환불을 확정할 수 있는 단계가 아닙니다.',
 };
@@ -658,7 +658,7 @@ export function normalizeAdminClaimBulkCollectInput(input: unknown, now: Date = 
   if (!receivedOn.ok || receivedOn.value === null) return { ok: false, error: '실제 입고일은 오늘이나 그 이전 날짜로 입력해주세요.' };
   const evidence = typeof input.evidence === 'string' ? input.evidence.trim() : '';
   if (!evidence || evidence.length > 500) return { ok: false, error: '회수 확인 근거를 500자 이내로 입력해주세요.' };
-  if (hasControlCharacter(evidence)) return { ok: false, error: '회수 확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.' };
+  if (hasControlCharacter(evidence)) return { ok: false, error: '회수 확인 근거에 눈에 보이지 않는 특수 문자가 섞여 있습니다. 다른 곳에서 복사해 붙였다면 지우고 직접 다시 입력해주세요.' };
   const ids = readIds(input.items.map((item) => (record(item) ? item.claimId : null)), ADMIN_CLAIM_BULK_LIMIT);
   if (!ids.ok) return ids;
   if (ids.claimIds.length !== input.items.length) return { ok: false, error: '같은 요청이 두 번 선택됐습니다. 새로고침한 뒤 다시 선택해주세요.' };

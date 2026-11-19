@@ -83,7 +83,7 @@ describe('ClaimActionPanel — 반품배송비 차감', () => {
     const decision: ReturnFeeDeduction = { ...plan, source: 'decision', state: 'planned' };
     const html = render({ refundDeduction: decision, refundAmount: 27000, stage: 'processing', refundLedgerOpen: true, refundFiled: true });
     expect(html).toContain('환불 완료 확정 (토스 부분 취소)');
-    expect(html).toContain('반품배송비 3,000원을 뺀 27,000원만 부분 취소하고 결제사 잔액을 조회로 확인합니다.');
+    expect(html).toContain('반품배송비 3,000원을 뺀 27,000원만 부분 취소하고, 결제사에 남은 결제 금액을 조회해 취소됐는지 확인합니다.');
     expect(html).toContain('₩27,000');
     expect(html).not.toContain('환불 접수를 기록할 때 이 금액으로 정해집니다.');
     expect(claimRefundCompletionConfirmation(true, '토스', { refundAmount: 27000, deductionAmount: 3000 }))

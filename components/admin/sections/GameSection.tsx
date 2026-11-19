@@ -331,7 +331,7 @@ function ReadOnlyVariantNotice({ selected }: { selected: AdminGameRecord }) {
         {variantLabel(selected)}은 이 콘솔에서 등록하거나 편집할 수 없습니다.
       </p>
       <p className="text-sm text-muted-foreground">
-        이전 굿즈 보상형 게임은 현 로드맵에서 활성화하지 않으며 신규 실물 쿠지에 재사용하지 않습니다.
+        이전 굿즈 보상형 게임은 지금 운영하지 않으며 다시 켜지 않습니다. 새 실물 쿠지에도 쓰지 않습니다.
       </p>
     </section>
   );
@@ -374,7 +374,7 @@ function EndGameForm({ gameId, operationId }: { gameId: string; operationId: str
       <header className="flex flex-col gap-1">
         <h3 className="text-base leading-snug font-medium text-foreground" id={`end-game-title-${gameId}`}>게임 종료</h3>
         <p className="text-sm text-muted-foreground" id={descriptionId}>
-          삭제하지 않고 서버의 현재 시각을 운영 종료로 기록합니다.
+          게임을 삭제하지 않고, 지금 시각을 운영 종료 시각으로 기록합니다.
         </p>
       </header>
       <ActionNotice state={state} />

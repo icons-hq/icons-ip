@@ -42,5 +42,5 @@ it('충돌/확정 거절과 전송 불명을 구분하고 DB 원문을 노출하
 });
 it('최신 정책 재조회 실패는 원래 초안을 덮어쓸 값을 반환하지 않는다', async () => {
   mocks.load.mockRejectedValueOnce(new Error('failed'));
-  expect(await readLoyaltyPolicyAction()).toMatchObject({ error: expect.stringContaining('입력은 유지') });
+  expect(await readLoyaltyPolicyAction()).toMatchObject({ error: expect.stringContaining('입력은 그대로') });
 });

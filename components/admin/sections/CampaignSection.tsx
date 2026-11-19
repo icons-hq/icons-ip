@@ -79,7 +79,7 @@ function SectionSchemaHelp() {
         <p className={NOTE}>
           최상위는 블록 배열이고 최대 {ADMIN_CAMPAIGN_MAX_SECTIONS}개까지입니다. 모든 블록은
           {' '}<code>type</code>이 필수이고 <code>anchor</code>(1~20자, 상세 목차 링크)를 선택으로
-          받습니다. 목록에 없는 키는 저장되지 않습니다 — 오타는 조용히 통과하는 대신 거절됩니다.
+          받습니다. 아래 목록에 없는 키를 쓰면 저장이 거절됩니다. 키 이름에 오타가 있어도 거절되니 오류 문구를 보고 고쳐주세요.
           상품 묶음(goods) 블록의 상품은 위 ‘기획전 상품·할인’에서 선택기로 고를 수 있고, 다른 블록은 이 코드를 직접 입력합니다.
         </p>
         <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground">

@@ -39,7 +39,7 @@ function Panel({ ids, onClose, identity, scope }: Props & { identity: ClaimConta
    if (!alive.current || !scope.canApply(ticket)) return;
    if ('error' in result) { setError(result.error ?? '저장 결과를 확인하지 못했습니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) dispatched.current = null; }
    else { setDocument(result.document); setUncertain(false); dispatched.current = null; setReason(''); setConfirmed(false); setMessage(request.kind === 'create' ? '합포장을 저장했습니다. 출고지시에는 묶음의 모든 배송 건을 선택해주세요.' : '출고 전 합포장을 해제했습니다.'); router.refresh(); }
-  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setError('저장 결과를 확인하지 못했습니다. 같은 요청으로 결과를 확인해주세요.'); } }
+  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setError('저장 결과를 확인하지 못했습니다. [같은 요청으로 저장 결과 확인]을 눌러주세요.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  return <section className="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground sm:p-5" aria-label="합포장 관리">

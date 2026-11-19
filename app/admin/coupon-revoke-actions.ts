@@ -30,7 +30,7 @@ export async function revokeUserCouponsAction(input: { userCouponIds: unknown; r
     });
     if (error) return { ok: false, error: couponRevokeError(error.message) };
     const result = parseCouponRevokeResult(data);
-    if (!result) return { ok: false, error: '회수 결과를 읽지 못했습니다. 고객 쿠폰 상태를 다시 확인해주세요.' };
+    if (!result) return { ok: false, error: '회수됐는지 확인하지 못했습니다. 화면을 새로고침해 고객 쿠폰 상태를 확인해주세요. 이미 회수된 쿠폰은 다시 회수해도 두 번 처리되지 않습니다.' };
     if (result.revokedCount > 0) { revalidatePath('/admin/customers/[userId]', 'page'); revalidatePath('/admin/sales/coupons/issue'); revalidatePath('/admin/sales/benefit-report'); revalidatePath('/my/coupons'); }
     return { ok: true, result };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: COUPON_REVOKE_FALLBACK }; }

@@ -100,7 +100,7 @@ describe('normalizeAdminCouponForm', () => {
     expect(ungraded.ok && ungraded.value.gradeBenefitCadence).toBeNull();
     const bad = normalizeAdminCouponForm(form({ ...valid, gradeBenefit: 'gold', gradeBenefitCadence: 'weekly' }));
     expect(bad.ok).toBe(false);
-    if (!bad.ok) expect(bad.errors.gradeBenefitCadence).toBe('등급 혜택 지급 방식을 확인해주세요.');
+    if (!bad.ok) expect(bad.errors.gradeBenefitCadence).toBe('등급 혜택 지급 방식(승급 시 1회·매월 1일)을 골라주세요.');
   });
 });
 

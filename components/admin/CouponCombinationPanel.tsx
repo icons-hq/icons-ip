@@ -19,7 +19,7 @@ function Panel({ identity, scope }: { identity: ClaimContactIdentity; scope: Cla
  async function read() {
   if (busy.current || uncertain) return; const ticket = scope.capture(); if (!ticket) return; busy.current = true; setPending(true);
   try { const result = await readCouponCombinationPolicyAction(); if (!alive.current || !scope.canApply(ticket)) return;
-   if (result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); setMessage('저장된 정책을 불러왔습니다.'); } else setMessage(result.error ?? '정책을 불러오지 못했습니다.');
+   if (result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); setMessage('저장된 정책을 불러왔습니다.'); } else setMessage(result.error ?? '정책을 불러오지 못했습니다. ‘현재 정책 불러오기’를 다시 눌러주세요.');
   } finally { busy.current = false; if (alive.current) setPending(false); }
  }
  async function save() {
@@ -27,8 +27,8 @@ function Panel({ identity, scope }: { identity: ClaimContactIdentity; scope: Cla
   const request = sent.current ?? { values: draft, revision: policy.revision, operation: crypto.randomUUID() }; sent.current = request; busy.current = true; setPending(true);
   try { const result = await saveCouponCombinationPolicyAction(request.values, request.revision, request.operation, identity); if (!alive.current || !scope.canApply(ticket)) return;
    if (result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); sent.current = null; setUncertain(false); setMessage('정책을 저장하고 현재 값을 다시 확인했습니다.'); }
-   else { setMessage(result.error ?? '저장 결과를 확인하지 못했습니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) sent.current = null; }
-  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
+   else { setMessage(result.error ?? '저장됐는지 확인하지 못했습니다. 입력은 그대로 있습니다. ‘같은 요청으로 저장 결과 확인’을 눌러주세요. 이미 저장됐다면 두 번 저장되지 않고 결과만 보여 줍니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) sent.current = null; }
+  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장됐는지 확인하지 못했습니다. 입력은 그대로 있습니다. ‘같은 요청으로 저장 결과 확인’을 눌러주세요. 이미 저장됐다면 두 번 저장되지 않고 결과만 보여 줍니다.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  return <div className="flex flex-col gap-3"><p className="leading-relaxed text-muted-foreground">기본값은 중복 사용·배송비 쿠폰 모두 사용 안 함입니다. 중복 사용은 선택한 모든 쿠폰이 허용한 경우에만 적용됩니다.</p>
@@ -37,7 +37,7 @@ function Panel({ identity, scope }: { identity: ClaimContactIdentity; scope: Cla
    <label className={CHECK}><input type="checkbox" checked={draft.stackingEnabled} onChange={e => setDraft({ ...draft, stackingEnabled: e.target.checked })} />쿠폰 중복 사용 허용</label>
    <label className="flex flex-wrap items-center gap-2">상품 쿠폰 최대 사용 수<NativeSelect className="w-24" value={draft.maxGoodsCoupons} onChange={e => setDraft({ ...draft, maxGoodsCoupons: Number(e.target.value) })}>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}장</option>)}</NativeSelect></label>
    <label className={CHECK}><input type="checkbox" checked={draft.shippingEnabled} onChange={e => setDraft({ ...draft, shippingEnabled: e.target.checked })} />배송비 쿠폰 사용 허용 · 주문당 1장</label>
-   <p className="text-xs leading-relaxed text-muted-foreground">상품 쿠폰은 선택 순서대로 남은 상품 금액에 적용합니다. 배송비 쿠폰은 그다음 선결제 운송비에 적용하며 설치비·착불 운송비는 제외합니다. 최소 주문 금액은 복수구매 할인 후, 쿠폰 할인 전의 대상 상품 소계로 확인합니다.</p>
+   <p className="text-xs leading-relaxed text-muted-foreground">상품 쿠폰은 선택 순서대로 남은 상품 금액에 적용합니다. 배송비 쿠폰은 그다음 주문할 때 미리 내는 배송비(선결제 운송비)에 적용하며, 설치비와 착불 운송비에는 쓰지 않습니다. 최소 주문 금액은 복수구매 할인 후, 쿠폰 할인 전의 대상 상품 소계로 확인합니다.</p>
    <label className="flex min-w-0 flex-col gap-1.5 font-medium">설정 근거<Input className="sm:max-w-[520px]" value={draft.evidence} maxLength={1000} minLength={2} required onChange={e => setDraft({ ...draft, evidence: e.target.value })} /></label>
    <label className={CHECK}><input type="checkbox" checked={draft.confirmed} required onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} />중복 사용 조건과 할인 대상 금액을 확인했습니다.</label>
   </fieldset><Button className="self-start" type="submit" disabled={pending || !draft.confirmed}>{uncertain ? '같은 요청으로 저장 결과 확인' : '쿠폰 정책 저장'}</Button></form> : null}

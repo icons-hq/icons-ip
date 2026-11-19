@@ -50,7 +50,7 @@ function ReportFilterCard({ active, count, icon, label, onSelect, tone, quiet = 
 }
 
 export function confirmCommunityCommentHide(event: FormEvent<HTMLFormElement>) {
-  confirmAdminSubmit(event, '이 댓글을 숨기고 연결된 신고를 해결합니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?');
+  confirmAdminSubmit(event, '이 댓글을 숨기고 연결된 신고를 처리완료로 바꿉니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?');
 }
 
 export function confirmCommunityPostHide(event: FormEvent<HTMLFormElement>) {

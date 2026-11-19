@@ -151,8 +151,8 @@ const ERROR_PRESENTATIONS: Record<TicketCheckInErrorCode, { body: string; title:
     body: 'USB·Bluetooth 스캐너 또는 수동 입력을 사용해주세요.',
   },
   not_found: {
-    title: '유효한 티켓을 찾을 수 없습니다',
-    body: 'QR이 선명한지 확인하고 다시 스캔해주세요.',
+    title: '이 코드의 티켓을 찾을 수 없습니다',
+    body: 'QR이 선명한지 확인하고 다시 스캔해주세요. 직접 입력했다면 32자 코드를 다시 확인해주세요.',
   },
   permission_denied: {
     title: '카메라 권한이 거부됐습니다',
@@ -326,7 +326,7 @@ export function TicketCheckIn() {
           {flow.kind === 'submitting' ? (
             <div className={`${RESULT_CARD} border-info-border bg-info-soft`} data-check-in-result="processing">
               <h2 className={`${RESULT_TITLE} text-info`}>티켓 상태를 확인하고 있습니다</h2>
-              <p className="text-sm">중복 요청 없이 서버 원장을 확인합니다.</p>
+              <p className="text-sm">잠시 기다려주세요. 같은 티켓은 두 번 검표되지 않습니다.</p>
             </div>
           ) : flow.kind === 'result' && resultPresentation ? (
             <ResultCard

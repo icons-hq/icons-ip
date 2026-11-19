@@ -27,6 +27,6 @@ export async function getCustomerPurchaseReport(filters: CustomerPurchaseFilters
   if (!data || !validPeriod(data.current) || !(data.comparison === null || validPeriod(data.comparison))
     || !Array.isArray(data.trend) || data.trend.length !== 13 || !data.trend.every(validPeriod)
     || data.current.from !== filters.from || data.current.to !== filters.to
-    || (filters.compare ? data.comparison?.from !== filters.compareFrom || data.comparison?.to !== filters.compareTo : data.comparison !== null)) throw new Error('고객 구매 분석 응답이 올바르지 않습니다.');
+    || (filters.compare ? data.comparison?.from !== filters.compareFrom || data.comparison?.to !== filters.compareTo : data.comparison !== null)) throw new Error('고객 구매 분석 결과를 읽지 못했습니다. 화면을 새로고침해주세요.');
   return data as CustomerPurchaseReport;
 }

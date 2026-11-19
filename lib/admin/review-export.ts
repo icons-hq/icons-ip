@@ -127,10 +127,10 @@ export function reviewExportSheet(snapshot: ReviewExportSnapshot): ListExportWor
       ['BEST 상태', filters.best === 'all' ? '전체' : REVIEW_BEST_LABELS[filters.best]],
       ['검색 대상', ADMIN_REVIEW_SEARCH_FIELDS.find(option => option.value === filters.field)!.label], ['검색어', filters.query ? `검색어 있음(${filters.query.length}자)` : '없음'],
       ['정렬', ADMIN_REVIEW_SORT_OPTIONS.find(option => option.value === filters.sort)!.label], ['단건 리뷰 조건', filters.reviewId ?? '없음'],
-      ['DB 조회 시각 (KST)', kstDateTimeText(snapshot.capturedAt)]],
-    notes: ['한 행은 원본 리뷰 한 건입니다. 현재 페이지와 선택한 행에 한정하지 않습니다.',
-      '조회 시점의 확인용 파일입니다. 답글·블라인드·BEST 선정·도움수·보상을 변경하거나 다시 가져오는 기능이 없습니다.',
-      '연락처·이메일·회원 ID·주문 ID·사진 주소·답글 본문·비공개 처리 사유를 제외했습니다. 리뷰 내용과 작성자 표시명에 고객이 적은 개인정보는 포함될 수 있습니다.'],
+      ['조회 시각 (KST)', kstDateTimeText(snapshot.capturedAt)]],
+    notes: ['한 줄은 리뷰 한 건입니다. 화면의 현재 페이지나 선택한 줄만이 아니라 검색 조건에 맞는 리뷰 전체가 들어 있습니다.',
+      '내려받은 때의 내용을 확인하는 파일입니다. 이 파일로 답글·블라인드·BEST 선정·도움수·보상을 바꾸거나 다시 올릴 수 없습니다.',
+      '연락처·이메일·회원번호·주문번호·사진 주소·답글 본문·비공개 처리 사유를 제외했습니다. 리뷰 내용과 작성자 표시명에 고객이 적은 개인정보는 포함될 수 있습니다.'],
     filters: { ...safeFilters, queryPresent: String(Boolean(filters.query)), queryLength: String(filters.query.length), fingerprint: snapshot.fingerprint },
   };
 }

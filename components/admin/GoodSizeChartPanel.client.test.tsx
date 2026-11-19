@@ -47,7 +47,7 @@ it('keeps losing input for comparison and requires explicit adoption of the fres
   mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2, values: { ...values, chart: { ...chart, note: '다른 담당자 안내' } } } });
   button('최신 저장본 확인').props.onClick?.(); await settle();
   expect(all(render()).find(node => node.type === 'textarea')?.props.value).toBe('작성 중 안내');
-  button('최신 버전 기준으로 작성한 표 유지').props.onClick?.();
+  button('최신 저장본 기준으로 작성한 표 유지').props.onClick?.();
   mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 3, values: { ...values, chart: { ...chart, note: '작성 중 안내' } } } }); submit(); await settle();
   expect(mocks.save.mock.calls[1]).toEqual(['synthetic-size', { ...values, chart: { ...chart, note: '작성 중 안내' } }, 2, expect.any(String)]);
 });
@@ -80,7 +80,7 @@ it('브라우저 복구 기록이 남은 동안 표를 고치거나 저장해 �
   mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2 } });
   button('최신 저장본 확인').props.onClick?.(); await settle();
   expect(button('최신 저장본으로 바꾸기').props.disabled).toBe(true);
-  button('최신 저장본으로 바꾸기').props.onClick?.(); button('최신 버전 기준으로 작성한 표 유지').props.onClick?.();
+  button('최신 저장본으로 바꾸기').props.onClick?.(); button('최신 저장본 기준으로 작성한 표 유지').props.onClick?.();
   expect(mocks.discard).not.toHaveBeenCalled(); expect(mocks.capture).not.toHaveBeenCalled();
   button('복구 기록 버리기').props.onClick?.();
   expect(mocks.discard).toHaveBeenCalledOnce(); expect(button('최신 저장본으로 바꾸기').props.disabled).toBe(false);

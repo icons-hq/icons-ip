@@ -52,7 +52,7 @@ describe('배송정보 템플릿 관리 화면', () => {
     }} />);
     expect(html).toContain('이 템플릿 적용');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 템플릿 적용<\/button>/);
-    expect(html).toContain('동시에 수정된 상품에는 적용하지 않습니다.');
+    expect(html).toContain('검색한 뒤 다른 사람이 수정한 상품에는 적용하지 않습니다.');
     expect(html).toContain('입력하지 않았습니다(선택).');
   });
   it('방금 저장한 초안(focus)은 열린 채 강조되고 활성화를 안내한다(QA2b)', () => {

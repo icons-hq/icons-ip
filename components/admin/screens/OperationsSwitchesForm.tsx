@@ -18,7 +18,7 @@ import { adminConfirm } from '@/lib/admin/confirm';
 import { statusTone } from '@/lib/admin/status-tone';
 import { formatOrderDateTime } from '@/lib/orders';
 
-const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+const UNKNOWN = '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.';
 
 export interface SaveInput { enabled: boolean; amount: number | null; evidence: string | null; revision: number; id: string }
 
@@ -68,7 +68,7 @@ export function SwitchSection(props: SectionProps) {
   const savedAmount = props.amountInitial == null ? '' : String(props.amountInitial);
   const dirty = evidence !== (props.evidence ?? '') || (hasAmount && amount !== savedAmount) || checks.some(Boolean) || uncertain;
   useAdminLeaveGuard({ dirty, blocked: pending, message: uncertain
-    ? `${props.title} 저장 결과를 아직 확인하지 못했습니다. 나가면 같은 요청으로 다시 확인할 수 없습니다. 화면을 나가시겠습니까?`
+    ? `${props.title} 저장 결과를 아직 확인하지 못했습니다. 지금 나가면 이 저장이 반영됐는지 이 화면에서 다시 확인할 수 없습니다. 화면을 나가시겠습니까?`
     : `저장하지 않은 ${props.title} 입력이 있습니다. 화면을 나가시겠습니까?`, recover: false });
   const allChecked = checks.every(Boolean);
   /* 입력은 결과가 불확실한 동안에도 잠그지만 [같은 요청 결과 확인] 버튼은 눌러야 하므로 버튼은 저장 중에만 막는다. */

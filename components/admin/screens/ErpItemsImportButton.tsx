@@ -25,5 +25,5 @@ export function ErpItemsImportButton({ defaultOpen }: { defaultOpen: boolean }) 
     panel.open = true;
     panel.scrollIntoView({ block: 'start' });
     panel.querySelector('textarea')?.focus({ preventScroll: true });
-  }} type="button" variant={open ? 'outline' : 'default'}><Upload aria-hidden="true" />품목 반입</Button>;
+  }} type="button" variant={open ? 'outline' : 'default'}><Upload aria-hidden="true" />품목 올리기</Button>;
 }

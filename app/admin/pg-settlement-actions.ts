@@ -6,8 +6,8 @@ import { pgSettlementWorker, type PgSettlementActionResult } from '@/lib/settlem
 import type { SettlementMode, SettlementQuery } from '@/lib/settlements/types';
 import { isUuid } from '@/lib/uuid';
 
-const forbidden = (): PgSettlementActionResult => ({ ok: false, error: '현재 정산 관리 권한을 확인해주세요.' });
-const uncertain = (): PgSettlementActionResult => ({ ok: false, uncertain: true, error: '처리 결과를 확인하지 못했습니다. 같은 요청의 현재 상태를 다시 확인해주세요.' });
+const forbidden = (): PgSettlementActionResult => ({ ok: false, error: '정산 관리 권한이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' });
+const uncertain = (): PgSettlementActionResult => ({ ok: false, uncertain: true, error: '처리 결과를 확인하지 못했습니다. [현재 상태 확인](작업이 아직 없으면 [같은 수집 요청 확인])을 눌러 같은 수집 작업의 상태부터 확인해주세요.' });
 export async function startPgSettlementImportAction(operationId: string, query: SettlementQuery & { mode: SettlementMode; account?: string | null }): Promise<PgSettlementActionResult> {
   try {
     const auth = await requireAdminActionAccess(PG_SETTLEMENT_PATH, { capability: 'sales.manage', adminOnly: true });
@@ -25,7 +25,7 @@ export async function advancePgSettlementImportAction(importId: string): Promise
 export async function readPgSettlementImportAction(importId: string): Promise<PgSettlementActionResult> {
   try {
     if (!await requireAdminActionAccess(PG_SETTLEMENT_PATH, { capability: 'sales.manage', adminOnly: true })) return forbidden();
-    if (!isUuid(importId)) return { ok: false, error: '수집 작업을 확인해주세요.' };
+    if (!isUuid(importId)) return { ok: false, error: '수집 작업 정보를 읽지 못했습니다. 화면을 새로고침해 저장된 수집 작업을 다시 불러와 주세요.' };
     const job = await (await pgSettlementWorker()).read(importId);
     if (!job) return uncertain();
     return { ok: true, kind: job.state === 'complete' ? 'complete' : job.state === 'failed' ? 'failed' : 'paused', job };

@@ -69,7 +69,7 @@ export function StatsClaimsScreen({
       </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
-        { label: '클레임 접수', current: data.claimCount, previous: comparison.claimCount, unit: '건', polarity: 'lower' },
+        { label: `${V.claimRequest} 접수`, current: data.claimCount, previous: comparison.claimCount, unit: '건', polarity: 'lower' },
         { label: '환불 완료', current: data.refunds.completedCount, previous: comparison.refunds.completedCount, unit: '건', polarity: 'lower' },
       ]} /> : null}
       <StatsSection title={`유형별 접수와 ${V.claimRate}`}>

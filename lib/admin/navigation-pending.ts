@@ -39,7 +39,7 @@ export const ADMIN_NAVIGATION_IDLE: AdminNavigationPending = Object.freeze({ pat
 /** `role="status"`가 읽을 문구. 없을 때는 빈 문자열이어야 다음 대기에서 다시 읽힌다. */
 export function adminNavigationStatusMessage(stage: AdminNavigationStage) {
   if (stage === 'dim') return '화면을 불러오는 중입니다.';
-  if (stage === 'slow') return '응답이 늦어지고 있습니다. 다시 시도할 수 있습니다.';
+  if (stage === 'slow') return '화면을 불러오는 데 시간이 걸리고 있습니다. 다시 시도를 누르면 이 화면을 다시 불러옵니다.';
   return '';
 }
 

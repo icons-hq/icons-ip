@@ -87,7 +87,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
         {draft.sourceError ? <p className="bg-transparent text-destructive" role="alert">{draft.sourceError}</p> : null}
         {draft.value !== null || draft.sourceError ? <Button className="self-start" disabled={busy || draft.blocked} onClick={draft.refreshSource} size="sm" type="button" variant="outline">최신 저장본 다시 확인</Button> : null}
         {changedSource ? <section className={RECORD_CHANGED_CLASS} aria-label="현재 저장된 답글 비교">
-          <p className="bg-transparent font-medium text-warning" role="alert">초안 작성 이후 답글 또는 리뷰 원문·상태가 바뀌었습니다. 현재 저장본과 리뷰 원문을 확인한 뒤 작성 문구를 다시 검토해주세요.</p>
+          <p className="bg-transparent font-medium text-warning" role="alert">답글을 쓰기 시작한 뒤 저장된 답글이나 리뷰 내용·상태가 바뀌었습니다. 아래 현재 저장된 답글과 리뷰 내용을 확인하고 작성 문구를 고친 뒤 [현재 저장본 확인 · 작성 문구 유지]를 누르면 다시 저장할 수 있습니다.</p>
           <h3>현재 저장된 답글</h3><p>{draft.source.reply || '아직 등록된 답글이 없습니다.'}</p>
           <Button className="self-start" disabled={editingLocked} onClick={draft.acknowledge} size="sm" type="button" variant="outline">현재 저장본 확인 · 작성 문구 유지</Button>
         </section> : null}
@@ -100,7 +100,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
           <Feedback state={replyState} />
           {draft.hasUnresolvedOperation && draft.recovery === null ? <AdminNotice role="status" tone="warning">
             <div className="flex flex-wrap items-center gap-2">
-              <p>앞선 저장 결과를 확인하기 전까지 작성 문구를 유지합니다.</p>
+              <p>앞서 누른 저장이 됐는지 아직 확인하지 못해 작성 문구를 고칠 수 없습니다. [같은 요청으로 결과 확인]을 눌러주세요. 다시 눌러도 두 번 저장되지 않습니다.</p>
               <Button disabled={busy || draft.blocked} onClick={draft.retry} size="sm" type="button" variant="outline">같은 요청으로 결과 확인</Button>
             </div>
           </AdminNotice> : null}
@@ -112,13 +112,13 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
         <details className="group/visibility border-t pt-4">
           <summary className={DISCLOSURE_SUMMARY_CLASS}>리뷰 노출 관리{hidden ? ' · 블라인드 상태' : ''}<ChevronDown aria-hidden="true" className="size-4 transition-transform group-open/visibility:rotate-180" /></summary>
           <form action={statusAction} className="mt-3 flex flex-col items-start gap-2" onSubmit={(event) => {
-            const message = hidden ? '이 리뷰를 다시 공개할까요? 공개 즉시 평점 평균과 목록에 다시 반영됩니다.' : `${review.rating}점 리뷰를 블라인드할까요? 공개 목록과 평점 평균에서 즉시 빠지고 사유가 감사 로그에 남습니다.`;
+            const message = hidden ? '이 리뷰를 다시 공개할까요? 공개 즉시 평점 평균과 목록에 다시 반영됩니다.' : `${review.rating}점 리뷰를 블라인드할까요? 공개 목록과 평점 평균에서 즉시 빠지고 사유가 감사 기록에 남습니다.`;
             confirmAdminSubmit(event, message);
           }}>
             <input name="reviewId" type="hidden" value={review.id} />
             <input name="status" type="hidden" value={hidden ? 'visible' : 'hidden'} />
             {hidden ? <p>블라인드 사유: {review.hiddenReason ?? '기록 없음'}</p> : <div className="flex w-full flex-col gap-1.5">
-              <Label htmlFor={`review-reason-${review.id}`}>블라인드 사유 (감사 로그에 남습니다)</Label>
+              <Label htmlFor={`review-reason-${review.id}`}>블라인드 사유 (감사 기록에 남습니다)</Label>
               <Input id={`review-reason-${review.id}`} maxLength={500} minLength={2} name="reason" onChange={(event) => setReason(event.target.value)} required type="text" value={reason} />
             </div>}
             <Button disabled={busy} size="sm" type="submit" variant={hidden ? 'outline' : 'destructive'}>{statusPending ? '처리 중' : hidden ? '블라인드 해제' : '블라인드'}</Button>

@@ -52,13 +52,13 @@ export async function loadGoodsAnnouncement(id: string, allowNew = false): Promi
   const client = await createClient(); const { data, error } = await client.rpc('admin_get_goods_announcement_editor_context', { p_id: id });
   if (error) throw new Error('상품 공지를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   const popup = object(data) ? parsePopupSelection(data.popup) : null;
-  if (!object(data) || !popup) throw new Error('상품 공지 응답을 확인하지 못했습니다.');
+  if (!object(data) || !popup) throw new Error('상품 공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
   if (data.announcement === null) {
-    if (popup.selected) throw new Error('상품 공지 응답을 확인하지 못했습니다.');
+    if (popup.selected) throw new Error('상품 공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
     return allowNew ? { ...blankGoodsAnnouncement(id), popup } : null;
   }
   const value = object(data.announcement) ? parseGoodsAnnouncement({ ...data.announcement, popup }) : null;
-  if (!value || value.id !== id) throw new Error('상품 공지 응답을 확인하지 못했습니다.');
+  if (!value || value.id !== id) throw new Error('상품 공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
   return value;
 }
 export async function searchGoodsForAnnouncement(query: string, page: number): Promise<GoodsAnnouncementCandidates> {

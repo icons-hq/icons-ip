@@ -26,8 +26,8 @@ export interface ShippingNoticeTemplateActionState extends AdminFormValuesState 
 }
 
 const SAVE_FAILED = '배송 안내 템플릿을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
-const ACTIVATE_FAILED = '배송 안내 템플릿을 활성화하지 못했습니다. 입력값과 확인 근거를 다시 확인해주세요.';
-const APPLY_FAILED = '상품에 배송 안내 템플릿을 적용하지 못했습니다. 최신 상품을 다시 확인해주세요.';
+const ACTIVATE_FAILED = '배송 안내 템플릿을 활성화하지 못했습니다. 필수 안내(배송·교환/반품 안내, 고객센터 정보)와 활성화 확인 근거가 모두 채워졌는지 확인한 뒤 다시 눌러주세요.';
+const APPLY_FAILED = '상품에 배송 안내 템플릿을 적용하지 못했습니다. 다른 사람이 상품을 먼저 수정했을 수 있으니 상품을 다시 검색해 적용해주세요.';
 
 function stringValue(data: FormData, key: string): string {
   const value = data.get(key);
@@ -48,7 +48,7 @@ function rpcErrors(error: { code?: string; message: string }, fallback: string):
   if (error.message.includes('shipping_notice_template_conflict') || error.message.includes('good_shipping_notice_conflict')) {
     return { form: '다른 운영자가 변경했습니다. 입력값을 복사한 뒤 최신 내용을 다시 열어주세요.' };
   }
-  if (error.message.includes('shipping_notice_template_not_found')) return { form: '템플릿을 찾을 수 없습니다. 삭제되었거나 접근이 바뀌었습니다.' };
+  if (error.message.includes('shipping_notice_template_not_found')) return { form: '템플릿을 찾을 수 없습니다. 삭제됐거나 권한이 바뀌었을 수 있으니 새로고침해 목록을 확인해주세요.' };
   if (error.message.includes('shipping_notice_template_active_immutable')) return { form: '활성 템플릿은 수정할 수 없습니다. 새 버전으로 등록해주세요.' };
   if (error.message.includes('shipping_notice_template_required')) return { form: '배송·교환/반품 안내와 고객센터 정보, 확인 근거를 모두 입력해주세요.' };
   if (error.message.includes('shipping_notice_template_not_active')) return { form: '활성화된 템플릿만 상품에 적용할 수 있습니다.' };
@@ -157,7 +157,7 @@ export async function applyShippingNoticeTemplateAction(
   const fail = (errors: Record<string, string>): ShippingNoticeTemplateActionState => ({ errors, attempt });
   const accessError = await staffError();
   if (accessError) return fail({ form: accessError });
-  if (!clear && !isShippingNoticeTemplateId(templateId)) return fail({ form: '적용할 템플릿을 확인해주세요.' });
+  if (!clear && !isShippingNoticeTemplateId(templateId)) return fail({ form: '적용할 템플릿을 찾지 못했습니다. 새로고침한 뒤 템플릿을 다시 열어 적용해주세요.' });
   if (!goodId || goodId.length > 120) return fail({ goodId: '상품 ID를 입력해주세요.' });
   if (!goodUpdatedAt || Number.isNaN(Date.parse(goodUpdatedAt))) return fail({ form: '상품 목록에서 최신 상품을 선택해주세요.' });
   try {

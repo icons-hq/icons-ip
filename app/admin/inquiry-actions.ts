@@ -37,8 +37,8 @@ export interface AdminInquiryActionState {
   uncertain?: boolean;
 }
 
-const ANSWER_FAILED = '답변을 등록하지 못했습니다. 최신 상태를 확인해주세요.';
-const CLOSE_FAILED = '문의를 종결하지 못했습니다. 최신 상태를 확인해주세요.';
+const ANSWER_FAILED = '답변을 등록하지 못했습니다. 화면을 새로고침해 최신 상태(종결·다른 운영자 답변 등)를 확인한 뒤 다시 시도해주세요.';
+const CLOSE_FAILED = '문의를 종결하지 못했습니다. 화면을 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.';
 const UPLOAD_FAILED = '첨부 이미지를 업로드하지 못했습니다. 다시 시도해주세요.';
 
 interface AnswerRow {
@@ -189,7 +189,7 @@ export async function reassignInquiryAction(
   const assigneeId = readString(formData, 'assigneeId');
   const reason = readString(formData, 'reason');
   if (!isUuid(inquiryId) || (assigneeId && !isUuid(assigneeId))) {
-    return { errors: { form: '문의와 담당자를 다시 확인해주세요.' } };
+    return { errors: { form: '문의나 담당자를 찾지 못했습니다. 화면을 새로고침한 뒤 담당자를 다시 골라주세요.' } };
   }
   if (!reason || reason.length > 500) {
     return { errors: { form: '담당자 변경 사유를 500자 이내로 입력해주세요.' } };
@@ -203,7 +203,7 @@ export async function reassignInquiryAction(
   if (error) {
     return { errors: { form: error.message.includes('invalid_inquiry_assignee')
       ? '현재 응대 가능한 운영자를 선택해주세요.'
-      : '담당자를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
+      : '담당자를 변경하지 못했습니다. 화면을 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.' } };
   }
   revalidatePath('/admin/cs/inquiries');
   revalidatePath('/admin/cs/chat');

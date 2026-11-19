@@ -96,7 +96,7 @@ describe('sendAdminNotificationAction', () => {
       title: '',
     }))).resolves.toEqual({
       errors: {
-        operationId: '올바른 발송 요청 ID가 필요합니다.',
+        operationId: '발송 요청 정보가 맞지 않습니다. 새로고침한 뒤 다시 발송해주세요.',
         title: '제목은 1자 이상 120자 이하로 입력해주세요.',
       },
     });

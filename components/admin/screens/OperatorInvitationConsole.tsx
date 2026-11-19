@@ -47,7 +47,7 @@ function useInvitationRequest(onSuccess: (result: Exclude<WriteReceipt, { error:
       const result = await active.run(active.id);
       if ('error' in result) { setError(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) setRequest(null); return; }
       setRequest(null); setUncertain(false); onSuccess(result);
-    } catch { setError('처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); setUncertain(true); }
+    } catch { setError('처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 처리됩니다.'); setUncertain(true); }
     finally { setPending(false); }
   }
   return { pending, uncertain, error, run };

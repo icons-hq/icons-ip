@@ -88,7 +88,7 @@ export function CategoryTemplatesScreen({ categories = [], onSelect, selectionHi
     const fixed = request.current; busy.current = true; readSequence.current++; setPending(true); setMessage('');
     let result: CategoryTemplateResult<CategoryTemplate[]>;
     try { result = await saveCategoryTemplatesAction(fixed.items, fixed.archived, fixed.id); }
-    catch { result = { ok: false, uncertain: true, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }; }
+    catch { result = { ok: false, uncertain: true, error: '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.' }; }
     busy.current = false; if (!mounted.current) return; setPending(false);
     if (!result.ok) {
       /* 새 등록(버전 0)의 충돌은 목록이 낡았다는 뜻이 아니라 그 카테고리가 이미 있다는 뜻이다. 화면을 잠그지 않고 이유를 말해 다른 카테고리를 고르게 한다. */

@@ -79,10 +79,10 @@ export function assertWarehouseExportShipments(shipments: Shipments) {
     if (!['standard', 'wms_csv', 'seowon_xlsx'].includes(shipment.template)
       || shipment.template !== first.template || shipment.originId !== first.originId || !shipment.lines.length
       || (shipment.template === 'standard' && !parseShipmentExportColumns(shipment.columns))) {
-      throw new Error('출고지시 양식 또는 상품 정보를 확인해주세요.');
+      throw new Error('출고지시 양식 또는 상품 정보를 확인하지 못해 파일을 만들지 않았습니다. 배송정보 관리에서 이 출고지의 출고지시 양식 설정을 확인한 뒤 다시 내려받아 주세요.');
     }
     if (shipment.template === 'seowon_xlsx' && shipment.lines.some(line => !Number.isSafeInteger(line.qty) || line.qty < 1)) {
-      throw new Error('출고지시 수량 정보를 확인해주세요.');
+      throw new Error('수량이 1개 미만인 품목이 있어 파일을 만들지 않았습니다. 목록을 새로고침해 다시 내려받고, 계속되면 개발 담당자에게 알려주세요.');
     }
   }
   // 김포·서원 회신은 내려받은 파일에 운송장만 채워 올린다. 회신 한도(1,000줄)를 넘는 파일은 만들지 않는다.
@@ -106,7 +106,7 @@ export function warehouseExportTable(shipments: Shipments, { recipientOnly = fal
   // (ICONS 표준 양식은 위 계약 확인만 쓰고 자기 금액 칸은 비운 값을 빈칸으로 둔다. 수령인 정보만 받는 계정은 금액 칸을 쓰지 않으므로 확인하지 않는다.)
   if (first.template === 'wms_csv' && !recipientOnly && shipments.some(shipment => !Number.isSafeInteger(shipment.shippingFee) || shipment.shippingFee < 0
     || shipment.lines.some(line => !Number.isSafeInteger(line.unitPrice) || line.unitPrice < 0))) {
-    throw new Error('출고지시 금액 정보를 확인해주세요.');
+    throw new Error('주문 당시 상품 금액이나 배송비 기록이 비어 있는 배송 건이 있어 김포 양식 파일을 만들지 않았습니다. 목록을 새로고침해 다시 내려받고, 계속되면 개발 담당자에게 알려주세요.');
   }
   // 김포 회신은 주문번호(쇼핑몰)로만 배송 건을 찾는다. 번호를 확인하지 못하면 회신이 돌아오지 않는 파일을 만들지 않는다.
   if (first.template === 'wms_csv' && shipments.some(shipment => !isCommerceNumber(shipment.orderNumber, 'order'))) {

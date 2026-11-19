@@ -37,7 +37,7 @@ export const CLAIM_BULK_RESHIP_AUTH_CHANGED = '로그인 상태가 바뀌어 남
 export const CLAIM_BULK_RESHIP_PENDING_EXCLUDED = '결과를 확인하지 않은 재출고 작업이 남아 있어 이 요청은 뺐습니다. 요청 상세의 [저장 결과 확인]으로 결과를 먼저 확인해주세요.';
 export const CLAIM_BULK_RESHIP_PENDING_OPERATION = '결과를 확인하지 않은 연락처·재출고 작업이 남아 있어 보내지 않았습니다. 요청 상세에서 저장 결과를 먼저 확인해주세요.';
 const INVALID_ROW = '재출고 정보를 확인하지 못했습니다. 택배사·운송장·상품을 다시 확인해주세요.';
-const JOURNAL_UNAVAILABLE = '요청번호를 보관할 수 없어 보내지 않았습니다. 브라우저 저장소를 확인해주세요.';
+const JOURNAL_UNAVAILABLE = '이 탭에 처리 번호를 저장하지 못해 보내지 않았습니다. 브라우저 설정에서 사이트 데이터 저장이 막혀 있지 않은지 확인한 뒤 새로고침해주세요.';
 const NOT_SAVED = '재출고를 등록하지 못했습니다. 요청 상세에서 확인해주세요.';
 
 /** 확인창에서 불러와 운영자가 확인한 최종 주소(요청 하나). */

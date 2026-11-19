@@ -945,7 +945,7 @@ describe('admin catalog actions', () => {
     ['good_not_found', '상품을 찾을 수 없습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['stock_changed', '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.'],
-    ['adjustment_conflict', '이미 사용된 재고 조정 요청입니다. 최신 수량을 확인해주세요.'],
+    ['adjustment_conflict', '이 재고 조정은 이미 처리됐습니다. 새로고침해 최신 수량을 확인한 뒤, 더 조정할 것이 있을 때만 다시 조정해주세요.'],
   ])('maps %s stock RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
 
@@ -1522,14 +1522,14 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['card_rewards_disabled', '카드 리워드는 현재 비활성화되어 있습니다.'],
+    ['card_rewards_disabled', '카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.'],
     ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['game_pool_window_not_covered', '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.'],
     ['game_event_ip_mismatch', '같은 IP의 온라인 이벤트만 선택할 수 있습니다.'],
-    ['game_catalog_locked', '플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.'],
-    ['game_variant_read_only', 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.'],
-    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['game_catalog_locked', '플레이 이력이 있어 게임 주소 이름·카드풀·이벤트·설정을 바꿀 수 없습니다.'],
+    ['game_variant_read_only', '이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.'],
+    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
   ])('maps %s game RPC errors and preserves the failure boundary', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
 
@@ -1552,7 +1552,7 @@ describe('admin catalog actions', () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_variant_read_only' } });
 
     await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
-      errors: { form: 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.' },
+      errors: { form: '이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -1592,12 +1592,12 @@ describe('admin catalog actions', () => {
   it.each([
     ['auth_required', '로그인이 필요합니다.'],
     ['forbidden', '관리자 권한이 필요합니다.'],
-    ['invalid_operation_id', '유효한 저장 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['invalid_operation_id', '저장 요청 정보가 맞지 않습니다. 화면을 새로고침한 뒤 다시 저장해주세요.'],
     ['invalid_reward_policy_id', '발급 정책 정보를 확인해주세요.'],
     ['invalid_reward_trigger', '지원하지 않는 발급 조건입니다.'],
     ['invalid_min_amount', '최소 결제 금액을 확인해주세요.'],
     ['invalid_tickets_per_grant', '발급 수량은 1~100 사이여야 합니다.'],
-    ['invalid_reward_policy_active', '활성화 설정을 확인해주세요.'],
+    ['invalid_reward_policy_active', '정책 활성화 값을 확인할 수 없습니다. 화면을 새로고침한 뒤 정책 활성화를 다시 골라 저장해주세요.'],
     ['invalid_reward_policy_active_from', '운영 시작 일시를 확인해주세요.'],
     ['invalid_reward_policy_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
     ['ip_not_found', '연결할 IP를 찾을 수 없습니다.'],
@@ -1608,8 +1608,8 @@ describe('admin catalog actions', () => {
     ['reward_policy_pool_window_disjoint', '정책과 카드풀 운영 기간이 겹쳐야 합니다.'],
     ['reward_policy_pool_locked', '이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
-    ['card_rewards_disabled', '카드 리워드는 현재 비활성화되어 있습니다.'],
+    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
+    ['card_rewards_disabled', '카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.'],
   ])('maps %s reward-policy RPC errors without leaking SQL', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
     const formData = rewardPolicyForm();
@@ -1635,10 +1635,10 @@ describe('admin catalog actions', () => {
   it.each([
     ['pool_ip_locked', '연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.'],
     ['invalid_pool_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
-    ['active_reward_policy_window_conflict', '활성 발급 정책과 운영 기간이 겹치지 않습니다. 먼저 정책을 비활성화해주세요.'],
+    ['active_reward_policy_window_conflict', '사용 중인 발급 정책의 운영 기간이 바꾼 카드풀 운영 기간과 겹치지 않게 됩니다. 그 발급 정책의 정책 활성화를 먼저 끈 뒤 기간을 바꿔주세요.'],
     ['game_pool_window_conflict', '카드풀 운영 기간은 연결된 게임 운영 기간 전체를 포함해야 합니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
   ])('maps %s card-pool RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
 
@@ -1650,12 +1650,12 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['pool_rarity_uncovered', '양수 확률인 모든 등급에 소속 카드가 필요합니다.'],
+    ['pool_rarity_uncovered', '확률이 0%보다 큰 등급에는 카드가 1장 이상 연결되어 있어야 합니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['invalid_pool_probability', '각 확률과 합계가 올바른지 확인해주세요.'],
     ['invalid_probability_precision', '각 확률과 합계가 올바른지 확인해주세요.'],
     ['pool_odds_must_sum_to_one', '각 확률과 합계가 올바른지 확인해주세요.'],
-    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
   ])('maps %s pool-odds RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
 
@@ -1668,7 +1668,7 @@ describe('admin catalog actions', () => {
   it.each([
     ['card_pool_ip_mismatch', '카드와 같은 IP의 카드풀만 연결할 수 있습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['pool_rarity_uncovered', '현재 풀의 마지막 양수 확률 카드는 이동하거나 해제할 수 없습니다.'],
+    ['pool_rarity_uncovered', '이 카드는 카드풀에서 확률이 0%보다 큰 등급의 마지막 카드라 다른 카드풀로 옮기거나 연결을 풀 수 없습니다. 같은 등급에 다른 카드를 먼저 연결해주세요.'],
     ['pooled_card_catalog_contract_locked', '풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경해주세요.'],
   ])('maps %s card binding errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
@@ -1723,11 +1723,11 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['capacity_below_sold', '정원은 현재 할당 수량보다 작게 줄일 수 없습니다.'],
+    ['capacity_below_sold', '정원은 지금까지 예매된 수량(결제 대기 포함)보다 작게 줄일 수 없습니다.'],
     ['ticket_type_catalog_locked', '예매 이력이 있는 회차는 이벤트·회차명·가격을 변경할 수 없습니다.'],
     ['event_not_found', '연결할 이벤트를 찾을 수 없습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
   ])('maps %s ticket session RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
 

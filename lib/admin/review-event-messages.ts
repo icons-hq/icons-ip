@@ -7,18 +7,18 @@ export function reviewEventError(message: string | undefined): string {
     review_event_changed: '다른 운영자가 변경했습니다. 입력은 유지됩니다. 최신 이벤트를 다시 열어 확인해주세요.',
     review_event_review_changed: '선정한 리뷰가 변경되었습니다. 최신 리뷰를 확인하고 선정을 다시 저장해주세요.',
     review_event_terms_locked: '이벤트가 시작되면 조건을 바꾸거나 보관할 수 없습니다.',
-    review_event_start_tomorrow: '이벤트는 KST으로 내일부터 시작할 수 있습니다.',
-    review_event_credit_policy: '적립금 정책의 활성 여부·보유 상한·유효기간을 확인해주세요.',
-    invalid_review_event: '입력값을 확인해주세요. 이벤트명 1~15자, 내용 1~30자, 종료일은 시작일 +1~31일, 발표일은 종료일 +3~10일입니다.',
+    review_event_start_tomorrow: '이벤트는 KST 기준 내일부터 시작할 수 있습니다. 시작일을 내일 이후로 바꿔주세요.',
+    review_event_credit_policy: '적립금 정책이 켜져 있는지, 1인 혜택이 보유 상한 이하인지, 지급 후 유효기간이 정책 유효기간 이하인지 확인해주세요. 적립금 정책은 판매자 정보 → 적립금 정책(관리자)에서 바꿉니다.',
+    invalid_review_event: '입력한 조건이 맞지 않습니다. 이벤트명 1~15자, 내용 1~30자, 종료일은 시작일 +1~31일, 발표일은 종료일 +3~10일로 입력해주세요.',
     review_event_selection_closed: '응모 마감 후, 발표 전에만 선정을 저장할 수 있습니다.',
     review_event_publish_not_ready: '발표일 이후에만 발표 및 지급할 수 있습니다.',
     review_event_entry_ineligible: '선정 대상의 리뷰·구매·고객 상태가 바뀌었습니다. 최신 응모 현황에서 확인해주세요.',
     review_event_customer_once: '한 이벤트에서는 고객 한 명당 리뷰 하나만 선정할 수 있습니다.',
     review_event_target_missing: '선택한 상품이나 카테고리가 보관·삭제되었습니다.',
     store_credit_balance_limit: '일부 고객의 적립금 보유 상한을 넘었습니다. 전체 지급과 발표가 취소되었으니 대상 잔액을 확인해주세요.',
-    store_credit_disabled: '적립금 정책이 비활성 상태입니다. 지급과 발표는 반영되지 않았습니다.',
+    store_credit_disabled: '적립금 정책이 꺼져 있어 지급과 발표를 하지 않았습니다. 판매자 정보 → 적립금 정책(관리자)에서 켠 뒤 다시 확정해주세요.',
     account_suspended: '일부 고객의 계정이 정지되었습니다. 전체 지급과 발표는 반영되지 않았습니다.',
     account_deletion_in_progress: '탈퇴 처리 중인 고객이 있습니다. 전체 지급과 발표는 반영되지 않았습니다.',
   };
-  return errors[message ?? ''] ?? '입력값과 현재 권한을 확인해주세요. 입력과 기존 선정은 유지됩니다.';
+  return errors[message ?? ''] ?? '처리하지 못했습니다. 입력한 조건과 이 작업 권한(리뷰 관리·혜택 지급)을 확인해주세요. 입력과 기존 선정은 그대로 있습니다.';
 }

@@ -17,7 +17,7 @@ export function IpIndexScreen({ data, deletedId = null }: { data: AdminIpIndexDa
     <AdminPageHeader title="IP" description="IP 분류별로 IP를 찾고 연결된 콘텐츠를 관리합니다."
       actions={<Link className={buttonVariants()} data-slot="button" href={`${IP_INDEX_PATH}?create=1`}><Plus aria-hidden="true" />IP 등록</Link>} />
     {deletedId ? <AdminNotice role="status" title="IP를 삭제했습니다" tone="success">
-      내부 ID {deletedId}는 다시 발급하지 않습니다. 삭제한 내용은 감사 로그에 남았습니다.
+      내부 ID {deletedId}는 다시 발급하지 않습니다. 삭제한 내용은 감사 기록에 남았습니다.
     </AdminNotice> : null}
     <ConsoleFilterPanel action={IP_INDEX_PATH} search={{ name: 'q', label: 'IP 이름·ID', value: filters.query }}
       statusFilter={{ value: filters.status, options: [

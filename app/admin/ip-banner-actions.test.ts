@@ -48,10 +48,10 @@ describe('saveAdminIpHallBannerAction (IP-06)', () => {
 
   it('rejects static or non-IP artwork paths and bad ids before auth or RPC', async () => {
     expect(await saveAdminIpHallBannerAction({}, form({ ipId: 'hwasan', hallBannerImagePath: '/generated/ip/banner.webp' })))
-      .toEqual({ errors: { imagePath: '검증된 IP 이미지를 업로드해주세요.' } });
+      .toEqual({ errors: { imagePath: 'IP관 배너는 이 화면의 업로드로 올린 이미지만 쓸 수 있습니다. 이미지를 다시 업로드해주세요.' } });
     expect(await saveAdminIpHallBannerAction({}, form({ ipId: 'hwasan', hallBannerMobileImagePath: 'public-media/catalog/curation/97510000-0000-4000-8000-000000000001.webp' })))
-      .toEqual({ errors: { mobileImagePath: '검증된 IP 이미지를 업로드해주세요.' } });
-    expect(await saveAdminIpHallBannerAction({}, form({ ipId: 'Bad Id' }))).toEqual({ errors: { form: '올바른 IP ID가 필요합니다.' } });
+      .toEqual({ errors: { mobileImagePath: 'IP관 배너는 이 화면의 업로드로 올린 이미지만 쓸 수 있습니다. 이미지를 다시 업로드해주세요.' } });
+    expect(await saveAdminIpHallBannerAction({}, form({ ipId: 'Bad Id' }))).toEqual({ errors: { form: '배너를 저장할 IP를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' } });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

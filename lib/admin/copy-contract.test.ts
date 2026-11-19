@@ -84,4 +84,23 @@ describe('어드민 문구 계약 (ADM-016 E)', () => {
   it('최고 관리자 전용 거절 문구에 코드 값(admin)을 드러내지 않는다', () => {
     expect(offenders(/관리자\(admin\)/)).toEqual([]);
   });
+  /*
+   * 2026-11-19 어드민 문구 전수 정리(docs/admin-copy-guide.md). MD가 '반입된 ERP 품목·선행 0·미설정' 같은 안내를 이해하지 못해
+   * ERP 코드를 옛 관리코드 칸에 넣었다. 운영자가 읽는 문구에 개발 용어를 다시 쓰지 않는다. 주석은 보지 않는다.
+   */
+  it('#40 운영자가 읽는 문구에 개발 용어(선행 0·반입·스냅샷·멱등·페이로드·감사 로그)를 쓰지 않는다', () => {
+    expect(offenders(/선행 ?0/)).toEqual([]);
+    expect(offenders(/반입/)).toEqual([]);
+    expect(offenders(/스냅샷|멱등|페이로드|감사 로그/)).toEqual([]);
+  });
+
+  it('#41 값이 없을 때 \'미설정\'이라고만 쓰지 않는다(없음·선택 안 함·등록 안 함처럼 뜻을 말한다)', () => {
+    /* 예약판매 화면은 다른 작업(예약판매 저장 한 번에 적용)이 고치는 중이라 그 작업이 합쳐진 뒤 정리한다. */
+    expect(offenders(/미설정/, ['components/admin/GoodWorkspaceSections.tsx', 'components/admin/GoodsPreordersPanel.tsx'])).toEqual([]);
+  });
+
+  it('#42 시스템이 만드는 코드는 상품 자동코드·옵션 자동코드라 부른다(옛 이름 판매자상품코드·관리코드는 옛 엑셀 머리글 별칭에만 남는다)', () => {
+    /* 작성 안내 시트는 예전 양식의 열 이름도 읽는다고 알려야 해서 옛 이름을 쓴다. */
+    expect(offenders(/판매자상품코드|관리코드/, ['lib/admin/goods-workbook-headers.ts', 'lib/admin/stock-reconcile.ts', 'lib/admin/good-references.ts', 'lib/admin/goods-workbook-file.ts'])).toEqual([]);
+  });
 });

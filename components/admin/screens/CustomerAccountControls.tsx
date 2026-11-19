@@ -44,7 +44,7 @@ export function CustomerSuspensionControl({ actor, customer }: { actor: { id: st
       <details className="group/suspend">
       <summary className={DISCLOSURE_SUMMARY_CLASS}>계정 정지 처리<ChevronDown aria-hidden="true" className="size-4 transition-transform group-open/suspend:rotate-180" /></summary>
       <form action={suspend} className={`${FORM_CLASS} mt-3`} onSubmit={(event) => {
-        confirmAdminSubmit(event, '이 고객의 신규 작성·구매·예매·카드팩 개봉·게임 플레이를 정지합니다. 계속할까요?');
+        confirmAdminSubmit(event, '이 고객은 새 글 작성·구매·예매·카드팩 개봉·게임 플레이를 할 수 없게 됩니다. 나중에 정지 해제로 풀 수 있습니다. 계속할까요?');
       }}>
         <input type="hidden" name="profileId" value={customer.id} />
         <AdminField label="내부 정지 사유" inputId="customer-suspension-reason" error={suspendState.errors?.reason}>

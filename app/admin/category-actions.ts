@@ -69,18 +69,18 @@ function mapRpcError(error: { code?: unknown; message?: unknown }): string {
   if (descriptor.includes('category_depth_exceeded')) return '카테고리는 최대 4단계까지만 만들 수 있습니다.';
   if (descriptor.includes('category_parent_archived')) return '보관된 부모 카테고리는 선택할 수 없습니다.';
   if (descriptor.includes('category_has_goods')) return adminGoodsCopy('굿즈가 연결된 카테고리는 하위 카테고리를 추가하거나 이동 목적지로 사용할 수 없습니다.');
-  if (descriptor.includes('category_has_active_children')) return '활성 하위 카테고리를 먼저 정리해주세요.';
+  if (descriptor.includes('category_has_active_children')) return '보관하지 않은 하위 카테고리가 있습니다. 하위 카테고리를 먼저 보관하거나 다른 곳으로 옮겨주세요.';
   if (descriptor.includes('category_erp_code_taken')) return '이미 연결된 ERP 코드입니다.';
-  if (descriptor.includes('category_activation_unready')) return '실제 분류·ERP 값과 운영 확인 근거를 채운 뒤 활성화해주세요.';
+  if (descriptor.includes('category_activation_unready')) return '켜려는 쪽의 실제 카테고리·ERP 값과 근거 칸(출처·참조·검증 시각)을 모두 채운 뒤 켜주세요.';
   /* ADR-0044: 대표 분류 적용은 공개 중 상품의 대표 카테고리를 비우지 못한다. */
   const goodCategoryMessage = goodCategoryFailure(descriptor);
   if (goodCategoryMessage) return goodCategoryMessage;
   if (descriptor.includes('category_not_found') || descriptor.includes('goods_not_found')) return '최신 카테고리 목록을 확인한 뒤 다시 시도해주세요.';
   if (descriptor.includes('category_changed') || descriptor.includes('pt409')) return '다른 운영자가 카테고리를 변경했습니다. 새로고침 후 다시 시도해주세요.';
   if (descriptor.includes('invalid_category_paths')) return `경로 목록을 확인하세요. 한 줄은 1,000자, 한 번에 ${CATEGORY_BULK_LINE_LIMIT.toLocaleString('ko-KR')}줄까지 등록할 수 있습니다.`;
-  if (descriptor.includes('operation_conflict')) return '같은 요청 번호로 다른 내용이 이미 처리됐습니다. 카테고리 트리를 새로고침한 뒤 다시 시도하세요.';
+  if (descriptor.includes('operation_conflict')) return '같은 등록 요청이 다른 내용으로 이미 처리됐습니다. 카테고리 트리를 새로고침한 뒤 다시 시도하세요.';
   if (code === '42501' || code === '28000' || descriptor.includes('forbidden') || descriptor.includes('auth_required')) return '관리자 권한이 필요합니다.';
-  return '카테고리 저장을 완료하지 못했습니다. 최신 내용을 확인해주세요.';
+  return '카테고리 저장을 완료하지 못했습니다. 새로고침해 카테고리 트리에 반영됐는지 확인한 뒤 다시 시도해주세요.';
 }
 
 function revalidateCategorySurfaces() {
@@ -178,8 +178,8 @@ async function archiveCategory(
   if ('error' in access) return preserve(state, formData, { form: access.error });
   const id = typeof formData.get('id') === 'string' ? String(formData.get('id')).trim() : '';
   const expectedUpdatedAt = typeof formData.get('expectedUpdatedAt') === 'string' ? String(formData.get('expectedUpdatedAt')).trim() : '';
-  if (!isCategoryId(id)) return preserve(state, formData, { id: '카테고리 ID가 올바르지 않습니다.' });
-  if (!expectedUpdatedAt) return preserve(state, formData, { form: '최신 카테고리를 확인한 뒤 다시 시도해주세요.' });
+  if (!isCategoryId(id)) return preserve(state, formData, { id: '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.' });
+  if (!expectedUpdatedAt) return preserve(state, formData, { form: '새로고침해 최신 카테고리를 확인한 뒤 다시 시도해주세요.' });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc(operation === 'archive' ? 'admin_archive_category' : 'admin_unarchive_category', {
@@ -215,7 +215,7 @@ export async function saveAdminCategoryErpMappingAction(
   const source = typeof formData.get('source') === 'string' ? String(formData.get('source')).trim() : '';
   const verifiedAt = typeof formData.get('verifiedAt') === 'string' ? String(formData.get('verifiedAt')).trim() : '';
   const errors: NonNullable<AdminCategoryActionState['errors']> = {};
-  if (!isCategoryId(categoryId)) errors.categoryId = '카테고리 ID가 올바르지 않습니다.';
+  if (!isCategoryId(categoryId)) errors.categoryId = '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.';
   if (!erpCode) errors.erpCode = 'ERP 코드를 입력해주세요.';
   if (!erpName) errors.erpName = 'ERP 품명을 입력해주세요.';
   if (!source) errors.source = 'ERP 분류 출처를 입력해주세요.';
@@ -258,10 +258,10 @@ export async function setAdminCategoryActivationAction(
     verifiedAt: String(formData.get('erpEvidenceVerifiedAt') ?? '').trim(),
   };
   if (customerEnabled && (!customerEvidence.source || !customerEvidence.reference || !customerEvidence.verifiedAt)) {
-    return preserve(state, formData, { form: '고객 분류 실제 값과 운영 확인 근거를 입력해주세요.' });
+    return preserve(state, formData, { form: '고객 화면을 켜려면 고객 분류 근거 출처·참조·검증 시각을 모두 입력해주세요.' });
   }
   if (erpEnabled && (!erpEvidence.source || !erpEvidence.reference || !erpEvidence.verifiedAt)) {
-    return preserve(state, formData, { form: 'ERP 실제 분류와 검증 근거를 입력해주세요.' });
+    return preserve(state, formData, { form: 'ERP 분류를 켜려면 ERP 근거 출처·참조·검증 시각을 모두 입력해주세요.' });
   }
   try {
     const supabase = await createClient();
@@ -271,7 +271,7 @@ export async function setAdminCategoryActivationAction(
     });
     if (error) return preserve(state, formData, { form: mapRpcError(error) });
     revalidateCategorySurfaces();
-    return { message: '카테고리 활성화 상태를 저장했습니다.', changed: data !== false };
+    return { message: '카테고리 사용 설정을 저장했습니다.', changed: data !== false };
   } catch (error) {
     unstable_rethrow(error);
     return preserve(state, formData, { form: RETRY });
@@ -287,8 +287,8 @@ export async function assignAdminGoodCategoryAction(
   if ('error' in access) return preserve(state, formData, { form: access.error });
   const goodId = typeof formData.get('goodId') === 'string' ? String(formData.get('goodId')).trim() : '';
   const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';
-  if (!GOOD_ID.test(goodId)) return preserve(state, formData, { form: adminGoodsCopy('굿즈 ID가 올바르지 않습니다.') });
-  if (categoryId && !isCategoryId(categoryId)) return preserve(state, formData, { categoryId: '말단 카테고리를 선택해주세요.' });
+  if (!GOOD_ID.test(goodId)) return preserve(state, formData, { form: adminGoodsCopy('굿즈를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.') });
+  if (categoryId && !isCategoryId(categoryId)) return preserve(state, formData, { categoryId: '마지막 단계 카테고리를 선택해주세요.' });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_assign_good_category', {

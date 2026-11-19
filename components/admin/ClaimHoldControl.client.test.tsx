@@ -58,7 +58,7 @@ it('연속 제출을 막고 다른 주문의 receipt를 성공으로 표시하�
   const form = all(render()).find(element => element.type === 'form')!;
   form.props.onSubmit?.({ preventDefault: () => {} }); form.props.onSubmit?.({ preventDefault: () => {} }); expect(mocks.save).toHaveBeenCalledOnce();
   finish({ receipt: { ...receipt, id: mocks.save.mock.calls[0][0].id, orderId: receipt.claimId } }); await settle();
-  expect(text(render())).toContain('현재 요청과 다른 저장 결과'); expect(mocks.refresh).not.toHaveBeenCalled();
+  expect(text(render())).toContain('이 요청과 맞지 않습니다'); expect(mocks.refresh).not.toHaveBeenCalled();
 });
 
 /* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 보류 처리를 기다리는 동안 팝업이 Esc·×로 닫히지 않게 알린다. */

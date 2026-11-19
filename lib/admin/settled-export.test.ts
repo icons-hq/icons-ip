@@ -213,7 +213,7 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
 
   it('버전 1 주문도 얼린 배분 원장이 있으면 그 값을 쓰고, 공통 배분으로 나눈 값과 한 칸도 다르지 않다', () => {
     const { baseline, copy } = frozen(legacyV1Snapshot());
-    expect(baseline.orders[0].issues).toEqual(expect.not.arrayContaining(['쿠폰 대상·금액의 주문 당시 기록 미기록 또는 불일치']));
+    expect(baseline.orders[0].issues).toEqual(expect.not.arrayContaining(['쿠폰 대상·금액의 주문 당시 기록이 없거나 맞지 않음']));
     const model = buildSettledExportModel(parseSettledExportSnapshot(copy));
     expect(model.lines).toEqual(baseline.lines);
     expect(model.orders).toEqual(baseline.orders);

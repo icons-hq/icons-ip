@@ -196,7 +196,7 @@ describe('UnpaidScreen 입금 내역 큐', () => {
   it('연동 전에는 큐가 비어 있다고 분명히 말한다', () => {
     const html = renderToStaticMarkup(<UnpaidScreen data={consoleData()} now={now} />);
 
-    expect(html).toContain('미매칭 입금이 없습니다');
+    expect(html).toContain('주문과 연결할 입금이 없습니다');
   });
 
   it('제안이 있어도 확정 버튼은 사람이 누르게 둔다', () => {
@@ -206,9 +206,9 @@ describe('UnpaidScreen 입금 내역 큐', () => {
 
     expect(html).toContain('주문코드·금액 일치');
     expect(html).toContain('이 주문으로 확정');
-    expect(html).toContain('큐에서 내리기');
+    expect(html).toContain('목록에서 내리기');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 주문으로 확정</);
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>큐에서 내리기</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>목록에서 내리기</);
   });
 
   /* 금액이 다른 제안은 부분 입금일 수도, 남의 주문일 수도 있다. */
@@ -239,9 +239,9 @@ describe('UnpaidScreen 입금 내역 큐', () => {
       />,
     );
 
-    expect(html).toContain('대조되는 미입금 주문을 찾지 못했습니다');
+    expect(html).toContain('제안할 미입금 주문을 찾지 못했습니다');
     expect(html).not.toContain('이 주문으로 확정');
-    expect(html).toContain('큐에서 내리기');
+    expect(html).toContain('목록에서 내리기');
   });
 });
 

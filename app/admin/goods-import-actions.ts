@@ -157,7 +157,7 @@ async function downloadSource(
     .download(`${batch.actor_id}/${batch.id}/${file}`);
   if (error || !data)
     throw new Error('업로드 파일을 읽지 못했습니다. 파일을 다시 올려주세요.');
-  if (data.size > max) throw new Error('업로드 파일 용량이 상한을 초과합니다.');
+  if (data.size > max) throw new Error('올린 파일이 너무 큽니다. 상품 양식은 2MB, 이미지 ZIP은 50MB 이하로 다시 올려주세요.');
   return Buffer.from(await data.arrayBuffer());
 }
 export async function previewGoodsImport(id: string) {

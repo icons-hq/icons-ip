@@ -63,7 +63,7 @@ it('동일 제출 callback을 중복 실행해도 UUID 하나이며 비PII 요�
 it('새로고침은 원 operation 조회 후 봉인하고 최신 상태 확인 전에는 새 저장을 막는다', async () => {
   fill();submit();await flush();const original = mocks.save.mock.calls[0][0];dispose();render();effects();authenticate();await flush();
   click('이전 결과 확인');await flush();expect(mocks.operation.mock.calls[0][0].operationId).toBe(original.operationId);expect(mocks.save).toHaveBeenCalledTimes(1);
-  click('이전 요청 봉인 후 다시 입력');await flush();expect(mocks.seal.mock.calls[0][0].operationId).toBe(original.operationId);expect(data.size).toBe(0);
+  click('이전 요청 무효 처리 후 다시 입력');await flush();expect(mocks.seal.mock.calls[0][0].operationId).toBe(original.operationId);expect(data.size).toBe(0);
   expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(true);click('최신 상태 확인 · 새 증빙 입력');await flush();expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
 });
 it.each(['account', 'session', 'signout'])('%s 전환 후 늦은 증빙 응답과 복구 메타데이터를 노출하지 않는다', async kind => {
