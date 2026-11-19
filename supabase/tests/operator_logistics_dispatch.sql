@@ -109,6 +109,8 @@ insert into ld_dispatch_contracts(signature) values
  -- 뒤바뀐 운송장 맞바꾸기(SHP-031)는 운송장 정정과 같은 출고 권한이다.
  ('public.admin_swap_shipment_trackings(uuid,text,text,text,text)'),('public.admin_register_shipment_tracking_duplicate(uuid,text,text,text)'),
  ('public.admin_complete_shipments(uuid[])'),('public.admin_enqueue_shipment_emails(jsonb)'),
+ -- 택배사 도착 일시를 넣는 선택 배송완료(ADR-0045)는 옛 배송완료와 같은 출고 권한이다. 되돌리기 두 RPC는 sales.manage라 이 목록에 없다.
+ ('public.admin_complete_shipments_at(uuid[],timestamp with time zone,text)'),
  ('public.admin_read_shipment_delivery(uuid)'),('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)'),
  ('public.admin_tracking_reply_shipment_links(text[])'),('public.admin_shipment_partial_cancel_flags(uuid[])'),
  ('public.admin_shipment_fulfillment_hold_flags(uuid[])');

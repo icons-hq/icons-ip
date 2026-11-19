@@ -16,6 +16,12 @@ export interface ShipmentConsoleActions {
 
 export const ShipmentConsoleActionsContext = createContext<ShipmentConsoleActions | null>(null);
 
+/**
+ * 행 부품이 처리 결과를 표 위 알림에 올리는 통로만. 배송현황처럼 행 처리 팝업이 없는 표에서도 준다 —
+ * 배송 상태 되돌리기(ADR-0045)는 처리한 행이 다른 탭으로 옮겨 가므로 결과 문구를 표(또는 주문 상세의 패널)가 보존한다.
+ */
+export const ShipmentConsoleNoticeContext = createContext<((notice: ShipmentConsoleNotice) => void) | null>(null);
+
 /** 표 밖(단위 테스트·다른 화면)에서는 null이다. 부품은 이때 스스로 결과를 보이거나 버튼을 숨긴다. */
 export function useShipmentConsoleActions() {
   return useContext(ShipmentConsoleActionsContext);

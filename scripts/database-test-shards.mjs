@@ -70,6 +70,9 @@ const operators = [
   sql('delivery_tracking_auto_complete'),
   script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
   script('tracking_number_integrity_concurrency.sh', 'TRACKING_INTEGRITY_TEST_SCOPE'),
+  // 배송완료·발송 되돌리기와 택배사 도착 일시(ADR-0045), 되돌리기 대 자동 구매확정·반품 접수 경합.
+  sql('shipment_status_revert'),
+  script('shipment_status_revert_concurrency.sh', 'SHIPMENT_REVERT_TEST_SCOPE'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
@@ -243,6 +246,9 @@ const storefront = [
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
   sql('kakao_channel_friend_coupon'),
+  // 코드 입력 등급 확인(PAY-028)과 지정 발급 쿠폰 개별 회수(PAY-034). 회수 대 결제 경합은 별도 스크립트.
+  sql('coupon_grade_check_and_revoke'),
+  script('coupon_revoke_concurrency.sh', 'COUPON_REVOKE_TEST_SCOPE'),
   // 카카오 계정 상태 변경 웹훅(user-unlinked): 다른 수단 회원의 카카오 연결 끊기·카카오만 회원의 탈퇴 검토 대기.
   sql('kakao_account_unlink'),
   // 카카오 연결 해제 탈퇴 검토 대기의 어드민 처리: 카카오계정 탈퇴 사유만 해제 알림으로 처리, 연결만 끊은 회원은 1:1 문의 경로.
