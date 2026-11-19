@@ -18,7 +18,7 @@ import {
 
 const ORIGIN = 'https://iconsip.test';
 const good: Good = {
-  id: 'g13', name: '아크릴 블록', ip: 'hong-sil-quest', type: '아크릴', price: 12000, badge: null, stock: 'ok', stockQty: 8,
+  id: 'g13', name: '아크릴 블록', ip: 'hong-sil-quest', price: 12000, badge: null, stock: 'ok', stockQty: 8,
   img: 'url("/generated/goods/g13.png") center / cover no-repeat, linear-gradient(#111, #222)',
   options: [{ id: '00000000-0000-4000-8000-000000000501', name: '기본 옵션', code: 'G13', price: 12000, stockQty: 8, isDefault: true, attributes: {} }],
 };
@@ -29,7 +29,7 @@ const detail: GoodDetailContent = {
   description: '<p>붉은 실 &amp; 아크릴</p><script>alert(1)</script><p>두 번째   문단</p>',
   descriptionFormat: 'html',
   gallery: ['url("https://cdn.example/g13-1.webp") center / cover no-repeat', 'linear-gradient(#000, #fff)', 'url("/generated/goods/g13.png")'],
-  detailImageUrl: null,
+  detailImageUrls: [],
   notice: EMPTY_GOODS_NOTICE,
 };
 

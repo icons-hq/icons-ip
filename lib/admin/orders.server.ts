@@ -72,7 +72,7 @@ async function loadOrderItemRows(
   for (let start = 0; ; start += ORDER_ITEM_PAGE_ROWS) {
     const { data, error } = await supabase
       .from('order_items')
-      .select('id,product_order_number,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot')
+      .select('id,product_order_number,order_id,qty,unit_price,good_name_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot')
       .in('order_id', [...orderIds])
       .order('id', { ascending: true })
       .range(start, start + ORDER_ITEM_PAGE_ROWS - 1);
@@ -90,7 +90,6 @@ interface ItemRow {
   qty: number;
   unit_price: number;
   good_name_snapshot: string;
-  good_type_snapshot: string;
   variant_id: string;
   variant_name_snapshot?: string | null;
   custom_inputs_snapshot?: unknown;
@@ -417,7 +416,6 @@ export async function getAdminOrderRecords(
         name: item.good_name_snapshot,
         ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),
       variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
-        type: item.good_type_snapshot,
         qty: item.qty,
         unitPrice: item.unit_price,
       })),

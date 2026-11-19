@@ -37,7 +37,6 @@ const goods: AdminGoodRecord[] = [
     archivedAt: null,
     ipId: 'ip-a',
     name: '화산 키링',
-    type: '키링',
     price: 15000,
     compareAtPrice: null,
     badge: null,
@@ -51,8 +50,8 @@ const goods: AdminGoodRecord[] = [
     description: null,
     galleryPaths: [],
     galleryUrls: [],
-    detailImagePath: null,
-    detailImageUrl: null,
+    detailImagePaths: [],
+    detailImageUrls: [],
   },
   {
     id: 'good-b',
@@ -61,7 +60,6 @@ const goods: AdminGoodRecord[] = [
     archivedAt: null,
     ipId: 'ip-b',
     name: '루멘 포스터',
-    type: '포스터',
     price: 20000,
     compareAtPrice: null,
     badge: null,
@@ -75,8 +73,8 @@ const goods: AdminGoodRecord[] = [
     description: null,
     galleryPaths: [],
     galleryUrls: [],
-    detailImagePath: null,
-    detailImageUrl: null,
+    detailImagePaths: [],
+    detailImageUrls: [],
   },
 ];
 

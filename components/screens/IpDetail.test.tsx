@@ -49,9 +49,9 @@ const detail: CatalogIpDetail = {
   source: 'mock',
   ip,
   goods: [
-    { id: 'g1', name: '단풍 키링', ip: ip.id, type: '키링', price: 12000, badge: 'NEW', stock: 'ok', stockQty: 10, img: 'linear-gradient(#333, #444)' },
-    { id: 'g2', name: '슬라임 인형', ip: ip.id, type: '인형', price: 29000, badge: null, stock: 'soldout', stockQty: 0, img: 'linear-gradient(#333, #444)' },
-    { id: 'g3', name: '버섯 키링', ip: ip.id, type: '키링', price: 9000, badge: null, stock: 'ok', stockQty: 4, img: 'linear-gradient(#333, #444)' },
+    { id: 'g1', name: '단풍 키링', ip: ip.id, price: 12000, badge: 'NEW', stock: 'ok', stockQty: 10, img: 'linear-gradient(#333, #444)' },
+    { id: 'g2', name: '슬라임 인형', ip: ip.id, price: 29000, badge: null, stock: 'soldout', stockQty: 0, img: 'linear-gradient(#333, #444)' },
+    { id: 'g3', name: '버섯 키링', ip: ip.id, price: 9000, badge: null, stock: 'ok', stockQty: 4, img: 'linear-gradient(#333, #444)' },
   ],
   cards: [
     { id: 'c1', ip: ip.id, name: '단풍잎 용사', no: '001', rarity: 'SSR', owned: false, bg: 'linear-gradient(#111, #222)' },

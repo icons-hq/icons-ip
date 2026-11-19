@@ -1,3 +1,4 @@
+import { GOODS_DETAIL_IMAGE_FIELD_NAMES } from './catalog';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import type { GoodsOptionRow } from './goods-option-editor';
 import { GOOD_WORKSPACE_EXTRA_ERROR_SECTIONS } from './good-workspace-extra-sections';
@@ -15,7 +16,7 @@ export const GOOD_OPTION_LIMIT_ERROR_FIELD = 'optionLimits';
  */
 export const GOOD_EDITOR_SECTIONS = [
   { key: 'category', label: '카테고리', fields: ['categoryId'] },
-  { key: 'basic', label: '상품명', fields: ['name', 'ipId', 'type'] },
+  { key: 'basic', label: '상품명', fields: ['name', 'ipId'] },
   { key: 'attributes', label: '상품속성', fields: ['productAttributes', 'productAttributeDraft'] },
   { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit', 'discountPeriodEnabled', 'discountStartsAt', 'discountEndsAt', 'discountPeriod', 'showDiscountRate'] },
   { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'] },
@@ -24,7 +25,7 @@ export const GOOD_EDITOR_SECTIONS = [
   /* 판매 제한(19금)은 판매 정보 카드의 구매 제한 바로 아래에 펼쳐 둔다(11/18 MD 요청 — #637 뒤 배송·반품·결제의 접힌 줄에서 찾지 못함). */
   { key: 'restriction', label: '판매 제한', fields: ['saleRestriction'] },
   { key: 'images', label: '상품이미지', fields: ['imagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3', 'galleryPath4', 'galleryPath5', 'galleryPath6', 'galleryPath7', 'galleryPath8'] },
-  { key: 'description', label: '상세설명', fields: ['description', 'descriptionFormat', 'detailImagePath', 'descriptionUploadPath', 'descriptionImageAlt'] },
+  { key: 'description', label: '상세설명', fields: ['description', 'descriptionFormat', ...GOODS_DETAIL_IMAGE_FIELD_NAMES, 'descriptionUploadPath', 'descriptionImageAlt'] },
   { key: 'notice', label: '상품정보제공고시', fields: GOODS_NOTICE_FIELDS.map((field) => field.formName) },
   { key: 'shipping', label: '출고지·배송비', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate'] },
   { key: 'claims', label: '반품·교환', fields: [ 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason', 'claimReturnAddressId'] },

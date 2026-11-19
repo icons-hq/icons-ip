@@ -74,7 +74,7 @@ describe('예약 일정 일괄 변경 미리보기', () => {
 
   it('권한이 없거나 교체할 수 없으면 그대로 둔다는 확인을 받아야 확정할 수 있다', () => {
     const denied = preview({ canReplacePolicies: false });
-    expect(denied).not.toContain('새 버전으로 활성화');
+    expect(denied).not.toContain('새 버전으로 적용');
     expect(denied).toContain('접수 중 조건은 계정 주매니저·통합 매니저가 새 날짜로 바꿔야 새 주문에도 같은 날짜가 안내됩니다.');
     expect(confirmButton(denied)).toContain('disabled=""');
     const blocked = preview({ policyBlockReason: 'before_sale_end' });
@@ -203,7 +203,7 @@ describe('예약판매 영역의 진입점', () => {
   });
   it('예약 조건을 새 날짜로 활성화한 직후 기존 예약 주문도 그 날짜로 미리보는 입구를 보인다', () => {
     const html = renderToStaticMarkup(<GoodsPreorderSchedulePanel goodId="hsq-second" variants={variants} suggestion={{ expectedShipDate: '2026-12-09', variantId: null, key: 1 }} />);
-    expect(html).toContain('예약 조건을 2026년 12월 9일 발송으로 활성화했습니다');
+    expect(html).toContain('예약판매를 2026년 12월 9일 발송으로 적용했습니다');
     expect(html).toContain('예약 주문도 이 날짜로 미리보기');
   });
 });

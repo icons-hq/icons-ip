@@ -202,8 +202,9 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
       const label = `기간 할인 ${index + 1}`;
       const row = rowFor(entry.optionKey);
       if (!row) return fail('pricePeriods', `${label}: 대상 옵션을 다시 선택해주세요.`);
-      const period = parseGoodsPricePeriodInput({ state: entry.state, discountPrice: entry.discountPrice.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt });
-      if (!period) return fail('pricePeriods', `${label}: 할인가(1원 이상)와 KST 기준 시작·종료를 확인해주세요. 활성에는 모든 값이 필요합니다.`);
+      /* 2026-11-19: 기간 할인은 저장하면 적용된다(초안 선택 없음). 배포 전 브라우저에 보관된 초안 입력도 적용으로 싣는다. */
+      const period = parseGoodsPricePeriodInput({ state: 'active', discountPrice: entry.discountPrice.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt });
+      if (!period) return fail('pricePeriods', `${label}: 할인가(1원 이상)와 KST 기준 시작·종료를 모두 입력해주세요.`);
       entries.push({ variant: variantRef(row), period });
     }
     value.pricePeriods = entries;

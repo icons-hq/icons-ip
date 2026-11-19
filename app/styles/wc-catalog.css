@@ -1592,6 +1592,14 @@
   margin-top: 16px;
 }
 
+/* 긴 상세 이미지 묶음: 잘라 올린 조각이 이음새 없이 이어 붙도록 묶음 위에만 간격을 둔다. */
+.wc-pdp-panel__detail-images {
+  margin-top: 16px;
+}
+.wc-pdp-panel .wc-pdp-panel__detail-images > .wc-pdp-panel__image {
+  margin-top: 0;
+}
+
 /* 상품 정보 고시 — 표를 감싸는 섹션. 넓은 표가 지면을 밀지 않게 자체 가로 스크롤을 준다. */
 .wc-pdp-notice {
   display: block;

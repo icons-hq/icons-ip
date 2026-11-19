@@ -103,8 +103,12 @@ fixture = Path(__file__).with_name('order_partial_return.sql').read_text()
 fixture = fixture[fixture.index('create function pg_temp.pr_id'):fixture.index('-- END FIXTURE')]
 sql('begin;create schema partial_return_test;grant usage on schema partial_return_test to authenticated;' + fixture.replace('pg_temp.', 'partial_return_test.') + 'commit;')
 sql("select partial_return_test.pr_order(n, 'toss', 3000, true) from unnest(array[13, 14, 15, 16]) n;")
-sql(f"""insert into private.goods_preorder_policies(id, variant_id, created_by)
-  select '{uid('policy', 16)}', id, '{uid('user', 1)}' from public.goods_variants where good_id='partial-return-c' and is_default;
+# 예약 정책에는 초안이 없다(2026-11-19). 옵션이 선택하지 않은(접수를 마친) 완전한 정책에 예약을 걸어 둔다.
+sql(f"""insert into private.goods_preorder_policies(id, variant_id, state, capacity_qty, starts_at, ends_at, expected_ship_date,
+    created_by, activated_by, activated_at, stopped_by, stopped_at)
+  select '{uid('policy', 16)}', id, 'stopped', 10, now() - interval '2 days', now() - interval '1 day', current_date + 7,
+    '{uid('user', 1)}', '{uid('user', 1)}', now() - interval '2 days', '{uid('user', 1)}', now() - interval '1 day'
+  from public.goods_variants where good_id='partial-return-c' and is_default;
   insert into private.goods_preorder_reservations(order_item_id, order_id, policy_id, qty)
   values ('{uid('item-partial-return-c', 16)}', '{uid('order', 16)}', '{uid('policy', 16)}', 1);""")
 sql("update private.return_fee_deduction_settings set partial_return_enabled=true,partial_return_evidence='합성 동시성 시험',partial_return_enabled_at=clock_timestamp(),"

@@ -42,7 +42,7 @@ export function validateGoodsDraftValues(value: unknown): value is Record<string
     || new TextEncoder().encode(JSON.stringify(values)).length > GOODS_DRAFT_MAX_BYTES) return false;
   if (Object.entries(values).some(([key, item]) => !allowed.has(key) || typeof item !== 'string' || /^(?:\s*)(?:blob:|data:)/i.test(item))) return false;
   if ((values.variantBaseline ?? '[]') !== '[]' || (values.customInputsExpectedRevision ?? '0') !== '0') return false;
-  return Object.entries(values).every(([key, item]) => !['imagePath','detailImagePath','descriptionUploadPath'].includes(key) && !key.startsWith('galleryPath') || !item || image.test(String(item)));
+  return Object.entries(values).every(([key, item]) => !['imagePath','descriptionUploadPath'].includes(key) && !key.startsWith('galleryPath') && !key.startsWith('detailImagePath') || !item || image.test(String(item)));
 }
 export function parseGoodsDraftSummary(value: unknown): GoodsDraftSummary | null {
   if (!value || typeof value !== 'object') return null;
@@ -55,7 +55,12 @@ export function parseGoodsDraftSummary(value: unknown): GoodsDraftSummary | null
 }
 export function parseGoodsDraft(value: unknown): GoodsDraft | null {
   const summary = parseGoodsDraftSummary(value);
-  return summary && validateGoodsDraftValues((value as GoodsDraft).values) ? value as GoodsDraft : null;
+  if (!summary) return null;
+  /* 상품 유형 칸 삭제(ADR-0044) 전에 저장한 임시저장은 'type'을 담고 있을 수 있다. 쓰지 않는 값이라 버리고 읽는다. 다음 정리 PR의 migration이 저장된 값에서도 지운다. */
+  const stored = (value as GoodsDraft).values;
+  const values = stored && typeof stored === 'object' && !Array.isArray(stored) && Object.hasOwn(stored, 'type')
+    ? Object.fromEntries(Object.entries(stored).filter(([key]) => key !== 'type')) : stored;
+  return validateGoodsDraftValues(values) ? { ...(value as GoodsDraft), values } : null;
 }
 export function parseGoodsDraftPage(value: unknown): GoodsDraftPage | null {
   if (!value || typeof value !== 'object') return null;

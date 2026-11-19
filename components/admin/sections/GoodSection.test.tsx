@@ -87,7 +87,6 @@ const good: AdminGoodRecord = {
   archivedAt: null,
   ipId: 'hwasan',
   name: '화산강림 아크릴 스탠드',
-  type: '아크릴',
   price: 22000,
   compareAtPrice: 26000,
   badge: 'NEW',
@@ -109,8 +108,8 @@ const good: AdminGoodRecord = {
   description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
   galleryPaths: ['public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp'],
   galleryUrls: ['https://cdn.example/catalog/good/gallery-1.webp'],
-  detailImagePath: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
-  detailImageUrl: 'https://cdn.example/catalog/good/detail.webp',
+  detailImagePaths: ['public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp'],
+  detailImageUrls: ['https://cdn.example/catalog/good/detail.webp'],
 };
 
 function renderGoodSection(
@@ -196,9 +195,8 @@ describe('GoodSection', () => {
     }
     expect(html.match(/<select[^>]*name="ipId"[^>]*>/)?.[0]).toContain('disabled');
     expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="ipId"/);
-    /* 상품 유형은 입력칸도 표시도 없고, 저장된 type을 숨은 입력으로 그대로 제출한다(ADR-0044). */
-    expect(html).not.toMatch(/<select[^>]*name="type"/);
-    expect(html).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    /* 상품 유형은 입력칸도 숨은 입력도 없다(ADR-0044). */
+    expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
     expect(html).not.toContain('data-good-type-derived');
     expect(html).toContain('초안으로 전환 후 수정');
   });
@@ -224,10 +222,12 @@ describe('GoodSection', () => {
     expect(html).toContain('value="public-media/catalog/good/failed.webp"');
     expect(html).toContain('value="보존 옵션"');
     expect(html).toContain('value="-1"');
-    /* 대표·추가 이미지는 한 그리드(자리별 hidden input)이고, 상세 HTML 이미지·긴 상세 이미지만 별도 업로드 칸이다(함께 저장할 설정의 사은품 사진 칸은 기본 폼 밖이다). */
+    /* 대표·추가 이미지는 한 그리드(자리별 hidden input), 긴 상세 이미지는 타일 목록(이미지 추가 타일 1개)이고, 상세 HTML 이미지만
+       별도 업로드 칸이다(함께 저장할 설정의 사은품 사진 칸은 기본 폼 밖이다). */
     const editor = html.slice(0, html.indexOf('data-good-operation-hub='));
-    expect(editor.match(/data-auto-upload="true"/g)).toHaveLength(2);
-    expect(editor.match(/<li class="[^"]*" data-artwork-upload-field=""/g)).toHaveLength(2);
+    expect(editor.match(/data-auto-upload="true"/g)).toHaveLength(1);
+    expect(editor.match(/<li class="[^"]*" data-artwork-upload-field=""/g)).toHaveLength(3);
+    expect(editor.match(/data-detail-image-add=""/g)).toHaveLength(1);
     expect(html).toContain('최근 저장된 상품에서 복사');
     expect(html).toContain('템플릿에서 가져오기');
   });
@@ -513,7 +513,7 @@ describe('GoodSection', () => {
     });
 
     it('저장할 입력이 있고 공개 조건을 채웠을 때만 저장 후 공개가 보이고 저장하기가 주 행동이다', () => {
-      const values = { previousId: draft.id, name: draft.name, type: draft.type, ipId: draft.ipId, imagePath: draft.imagePath, regularPrice: '26000', price: '22000', originId: '11111111-1111-4111-8111-111111111111', noticeMaker: '주식회사 아이콘스', noticeOrigin: '대한민국', noticeMaterial: '아크릴', noticeSize: '80 x 60 x 20mm · 90g', noticeMadeOn: '2026-07', noticeAsManager: '아이콘스 고객센터', noticeAsContact: '02-000-0000' };
+      const values = { previousId: draft.id, name: draft.name, ipId: draft.ipId, imagePath: draft.imagePath, regularPrice: '26000', price: '22000', originId: '11111111-1111-4111-8111-111111111111', noticeMaker: '주식회사 아이콘스', noticeOrigin: '대한민국', noticeMaterial: '아크릴', noticeSize: '80 x 60 x 20mm · 90g', noticeMadeOn: '2026-07', noticeAsManager: '아이콘스 고객센터', noticeAsContact: '02-000-0000' };
       const variants = [{ id: '11111111-1111-4111-8111-111111111111', goodId: draft.id, name: '기본 옵션', code: 'HW-0100-01', price: draft.price, stockQty: 12, isDefault: true, archivedAt: null, attributes: {} }];
       const dirty = renderGoodSection(draft, { attempt: 1, values }, { readiness: ready, variants });
       expect(button(bar(dirty), '저장 후 공개')).toContain('value="publish"');
@@ -780,7 +780,7 @@ describe('GoodSection', () => {
 
   /* #172 — 설명·추가 이미지 9칸(2026-10-07 4칸에서 확대)·상세 이미지가 같은 업로드 칸을 재사용한다. */
   /* 2026-10-07 MD 요청 — 대표 이미지·추가 이미지를 한 썸네일 그리드로, "슬롯"·잘림 예시 없이. */
-  it('offers one image grid for the main and additional images, a description, and one detail image', () => {
+  it('offers one image grid for the main and additional images, a description, and a detail image list', () => {
     /* 기본 폼만 본다 — 함께 저장할 설정(사은품 사진 3칸)은 기본 폼 밖의 별도 입력이다. */
     const page = renderGoodSection(null);
     const html = page.slice(0, page.indexOf('data-good-operation-hub='));
@@ -796,12 +796,16 @@ describe('GoodSection', () => {
     expect(html).not.toMatch(/슬롯|갤러리 \(최대|공개 화면 잘림 확인/);
     /* 상세설명은 카드 안 접힘 없이 형식 선택과 입력을 바로 보인다. */
     expect(html).not.toContain('상세설명 편집');
-    expect(html).toContain('name="detailImagePath"');
-    expect(html).toContain('상세 이미지');
+    /* 긴 상세 이미지는 최대 10장 목록이다. 첫 칸은 옛 한 장 칸 이름(detailImagePath) 그대로다. */
+    for (const name of ['detailImagePath', ...Array.from({ length: 9 }, (_, index) => `detailImagePath${index + 1}`)]) {
+      expect(html).toContain(`name="${name}"`);
+    }
+    expect(html).toContain('긴 상세 이미지 · 최대 10장');
+    expect(html).toContain('aria-label="긴 상세 이미지 추가 (여러 장 선택 가능)"');
     /* 이미지 제약은 공유 업로드 계약(ADMIN_ARTWORK_ACCEPT)을 그대로 따른다. */
     expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(4);
-    /* 그리드 안내 1회 + HTML 이미지 업로드 자체 안내 1회 */
-    expect(html.match(/최대 20MB · 가로·세로 최대 30,000px/g)).toHaveLength(2);
+    /* 그리드 안내 1회 + 긴 상세 이미지 목록 안내 1회 + HTML 이미지 업로드 자체 안내 1회 */
+    expect(html.match(/최대 20MB · 가로·세로 최대 30,000px/g)).toHaveLength(3);
   });
 
   /* 리뷰 재현: HTML 이미지 업로드가 그리드의 1:1(1000×1000) 권장을 설명으로 읽었다 — 긴 세로 상세 이미지에는 틀린 안내다. */
@@ -1036,29 +1040,18 @@ describe('GoodSection', () => {
     expect(html).toContain('name="compareAtPrice"');
     for (const badge of GOOD_BADGES) expect(html).toContain(`<option value="${badge}">`);
     expect(html).toContain('없음');
-    expect(html).not.toMatch(/<select[^>]*name="type"/);
+    expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
     expect(html).not.toContain('data-good-type-derived');
-    expect(html).toContain('<input type="hidden" name="type" value=""/>');
   });
 
-  /*
-   * ADR-0044 — 상품 유형은 화면 어디에도 없다. 숨은 type 입력은 저장된 값 그대로이고(새 상품은 ''), 카테고리를 옮겨도 값을 파생하지 않는다.
-   * 공개 중 상품의 카테고리 이동은 경고 없이 자유롭다.
-   */
-  it('상품 유형을 보이지 않고 저장된 type을 그대로 싣는다', () => {
-    const draft = { ...good, publishedAt: null, firstPublishedAt: null, type: '' };
-    const linked = renderGoodSection(draft);
-    expect(linked).not.toContain('상품 유형');
-    expect(linked).not.toContain('카테고리에서)');
-    expect(linked).toContain('<input type="hidden" name="type" value=""/>');
-    expect(linked).not.toMatch(/<(?:select|input)(?![^>]*type="hidden")[^>]*name="type"/);
-    const stored = renderGoodSection({ ...draft, type: '인형' });
-    expect(stored).toContain('<input type="hidden" name="type" value="인형"/>');
-    expect(stored).not.toContain('data-good-type-');
-    const published = renderGoodSection({ ...good, categoryId: dollCategory.id });
-    expect(published).toContain('<input type="hidden" name="type" value="아크릴"/>');
-    expect(published).not.toContain('data-good-type-mismatch');
-    expect(renderGoodSection({ ...good, categoryId: '' })).not.toContain('data-good-type-mismatch');
+  /* ADR-0044 — 상품 유형은 화면 어디에도 없고 숨은 입력으로도 싣지 않는다. */
+  it('상품 유형을 보이지 않고 type 입력도 싣지 않는다', () => {
+    const draft = { ...good, publishedAt: null, firstPublishedAt: null };
+    for (const html of [renderGoodSection(draft), renderGoodSection({ ...good, categoryId: dollCategory.id }), renderGoodSection({ ...good, categoryId: '' })]) {
+      expect(html).not.toContain('상품 유형');
+      expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
+      expect(html).not.toContain('data-good-type-');
+    }
   });
 
   it('previews the selected record values before any edit', () => {

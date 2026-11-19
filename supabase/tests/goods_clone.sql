@@ -121,7 +121,6 @@ select 1 / case when exists(
       and clone.code = 'CLONE-0479'
       and clone.name = '복사 상품'
       and clone.ip_id = 'goods-clone-0479'
-      and clone.type = '문구'
       and clone.price = 1000
       and clone.compare_at_price = 1500
       and clone.image_path = 'public-media/goods-clone-0479/main.webp'
