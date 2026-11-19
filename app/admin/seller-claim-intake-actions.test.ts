@@ -70,4 +70,19 @@ describe('판매자 직접 접수 액션', () => {
     expect(await readSellerClaimIntakeAction(SELLER_CLAIM_TEST_REQUEST)).toHaveProperty('error');
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
   });
+  it('부분 반품(ADR-0047): 고른 굿즈는 떼어 부분 반품 대리 접수로 보내고, 반품이 아니거나 모양이 틀리면 RPC 전에 거절한다', async () => {
+    const item = 'c3a9b2d5-4e6f-4a7b-8c9d-0e1f2a3b4c5d';
+    mocks.rpc.mockResolvedValueOnce({ data: {}, error: null }).mockResolvedValueOnce({ data: sellerClaimReceiptFixture, error: null });
+    expect(await submitSellerClaimIntakeAction({ ...sellerClaimInputFixture, items: [{ orderItemId: item, qty: 1 }] })).toEqual({ receipt: sellerClaimReceiptFixture });
+    expect(mocks.rpc.mock.calls[0][0]).toBe('admin_submit_seller_partial_return_intake');
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_items: [{ orderItemId: item, qty: 1 }], p_request_id: SELLER_CLAIM_TEST_REQUEST });
+    expect(mocks.rpc.mock.calls[0][1].p_payload).not.toHaveProperty('items');
+    mocks.rpc.mockReset();
+    expect(await submitSellerClaimIntakeAction({ ...sellerClaimInputFixture, claimType: 'exchange', items: [{ orderItemId: item, qty: 1 }] })).toHaveProperty('error');
+    expect(await submitSellerClaimIntakeAction({ ...sellerClaimInputFixture, items: [] })).toHaveProperty('error');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ error: { code: '23514', message: 'partial_return_item_shipment_not_dispatched' } });
+    expect(await submitSellerClaimIntakeAction({ ...sellerClaimInputFixture, items: [{ orderItemId: item, qty: 1 }] }))
+      .toMatchObject({ uncertain: false, error: expect.stringContaining('일부 반품할 수 없는 굿즈') });
+  });
 });

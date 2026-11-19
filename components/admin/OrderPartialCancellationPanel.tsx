@@ -91,22 +91,26 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
   }
   return <li className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" data-partial-cancellation={record.id}>
     <p className="flex flex-wrap items-center gap-2">
-      <strong className="font-medium">{record.sequence}차 부분 취소</strong>
+      {/* 부분 반품(ADR-0047)도 같은 부분 환불 원장의 줄이다 — 재고 부족 부분 취소와 이름·문장을 나눈다. */}
+      <strong className="font-medium">{record.sequence}차 {record.reasonCode === 'return' ? '부분 반품 환불' : '부분 취소'}</strong>
       <AdminStatusBadge tone={statusTone('partialCancellation', record.state)}>{ORDER_PARTIAL_CANCELLATION_STATE_LABELS[record.state]}</AdminStatusBadge>
       <span className="text-muted-foreground">{record.provider === 'bank_transfer' ? '계좌 송금' : '토스 부분 취소'}</span>
     </p>
-    <p className="wrap-anywhere">{orderPartialCancellationItemsLabel(record.items)} 취소</p>
+    <p className="wrap-anywhere">{orderPartialCancellationItemsLabel(record.items)} {record.reasonCode === 'return' ? '반품' : '취소'}</p>
     <p className="tabular-nums">환불 {krw(record.refundAmount)}{record.shippingRefundAmount > 0 ? ` (상품 ${krw(record.goodsRefundAmount)} + 배송비 ${krw(record.shippingRefundAmount)})` : ''}
+      {record.returnFeeDeduction > 0 ? ` · 반품배송비 ${krw(record.returnFeeDeduction)} 차감` : ''}
       {record.refundAmount === 0 ? ' (결제 배분액 0원 — 결제사를 부르지 않고 적용)' : ''}
       {record.storeCreditRestoreAmount > 0 ? ` · 적립금 ${krw(record.storeCreditRestoreAmount)} 되돌림` : ''}</p>
     {staff ? <>
-      <p className="text-muted-foreground wrap-anywhere">고객 결정: {staff.customerDecision}{staff.note ? ` · 메모: ${staff.note}` : ''}</p>
+      <p className="text-muted-foreground wrap-anywhere">{record.reasonCode === 'return' ? '반품 요청' : '고객 결정'}: {staff.customerDecision}{staff.note ? ` · 메모: ${staff.note}` : ''}</p>
       <p className={HINT}>{formatOrderDateTime(record.createdAt)}{staff.createdBy ? ` · ${staff.createdBy}` : ''}{staff.warehouseStopConfirmed ? ' · 창고 출고 중단 확인' : ''}
         {staff.closedShipments.length ? ` · 닫은 배송 건 ${staff.closedShipments.map(shipment => shipment.shipmentNumber ?? shipment.originName).join(', ')}` : ''}</p>
       {staff.resolution ? <p className="wrap-anywhere" data-partial-cancellation-resolution={staff.resolution}>[해소] {ORDER_PARTIAL_CANCELLATION_RESOLUTION_LABELS[staff.resolution]}
         {staff.resolvedAt ? ` · ${formatOrderDateTime(staff.resolvedAt)}` : ''}{staff.resolutionReason ? ` · 사유: ${staff.resolutionReason}` : ''}</p> : null}
     </> : null}
-    {record.state === 'rejected' && !staff?.resolution ? <AdminNotice tone="neutral">결제사가 이 결제의 부분 취소를 받지 않아 진행하지 않았습니다. 돈·주문·재고는 그대로입니다.</AdminNotice> : null}
+    {record.state === 'rejected' && !staff?.resolution ? <AdminNotice tone="neutral">{record.reasonCode === 'return'
+      ? '결제사가 이 결제의 부분 취소를 받지 않아 부분 반품 환불을 진행하지 않았습니다. 돈은 움직이지 않았고 반품 요청은 확인 필요로 남았습니다(전액 환불로 돌리지 않습니다).'
+      : '결제사가 이 결제의 부분 취소를 받지 않아 진행하지 않았습니다. 돈·주문·재고는 그대로입니다.'}</AdminNotice> : null}
     {(record.state === 'processing' || record.state === 'needs_review') ? <div className="flex flex-col gap-2">
       <AdminNotice tone={record.state === 'needs_review' ? 'danger' : 'info'}>
         결제사 부분 취소 확인 전입니다. 확인이 끝날 때까지 이 주문은 출고지시·발송·다른 취소가 막힙니다.{staff?.lastErrorCode ? ` 확인 코드: ${staff.lastErrorCode}` : ''}

@@ -143,3 +143,13 @@ describe('재고 부족 부분 취소 패널', () => {
     expect(view(context({ history: [record({ refundAmount: 0, goodsRefundAmount: 0 })] }))).toContain('결제사를 부르지 않고 적용');
   });
 });
+
+describe('부분 반품 환불 줄(ADR-0047)', () => {
+  it('같은 원장의 반품 줄은 반품 이름·반품배송비 차감·반품 요청으로 보인다', () => {
+    const html = view(context({ history: [record({ reasonCode: 'return', claimId: 'dddddddd-0000-4000-8000-00000000000d',
+      returnFeeDeduction: 3_000, refundAmount: 6_500, goodsRefundAmount: 9_500 })] }));
+    expect(html).toContain('1차 부분 반품 환불');
+    expect(html).toContain('반품배송비 ₩3,000 차감');
+    expect(html).toContain('반품 요청:');
+  });
+});
