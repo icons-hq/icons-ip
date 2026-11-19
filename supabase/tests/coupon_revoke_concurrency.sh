@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # 쿠폰 회수(PAY-034)와 결제의 쿠폰 사용이 같은 쿠폰을 두고 겹치는 경합.
-# 회수·결제는 같은 회원 잠금(lock_goods_transaction_actor) → user_coupons 행 순서라 한쪽이 먼저 끝나고 다른 쪽이 그 결과를 본다.
+# 회수·결제는 같은 회원 advisory 잠금 → user_coupons 행 순서라 한쪽이 먼저 끝나고 다른 쪽이 그 결과를 본다.
+#  3) 지정 발급 실행(계정 작업 잠금 → 회원 잠금)과 같은 고객의 회수가 두 방향으로 겹쳐도 교착 없이 둘 다 끝난다.
 #  1) 결제가 먼저: 회수는 줄을 서고, 결제가 커밋한 뒤 used 로 거절한다(쿠폰은 사용 상태 그대로).
 #  2) 회수가 먼저: 결제는 줄을 서고, 회수가 커밋한 뒤에는 쿠폰이 만료로 평가되며 사용 처리(status=used)가 DB 제약으로 거절된다.
 
@@ -34,6 +35,7 @@ cleanup_fixtures() {
   psql_exec -q <<SQL >/dev/null 2>&1 || true
 delete from public.audit_log where actor_id = '${operator_id}'::uuid;
 delete from public.user_coupons where coupon_code = '${coupon_code}';
+delete from private.coupon_issue_batches where coupon_code = '${coupon_code}';
 delete from public.coupons where code = '${coupon_code}';
 delete from auth.sessions where id = '${session_id}'::uuid;
 delete from private.operator_memberships where profile_id = '${operator_id}'::uuid;
@@ -131,5 +133,47 @@ if ! grep -q 'user_coupons_revoke_shape' "$racer_log"; then echo "revoke-first r
 state_two="$(psql_scalar "select status || ':' || (revoked_at is not null)::text || ':' || ((select o_reason from private.evaluate_user_coupon(id, user_id, 20000)))
   from public.user_coupons where id = '${held_two}'::uuid")"
 if [[ "$state_two" != "active:true:coupon_expired" ]]; then echo "revoke-first race: unexpected final state ${state_two}" >&2; exit 1; fi
+
+# ── 3) 지정 발급 실행 대 회수(같은 고객, 두 방향) ──────────────────────────────
+batch_a="bfc02900-0000-4000-8000-0000000000b1"; batch_b="bfc02900-0000-4000-8000-0000000000b2"
+op_three="bfc02900-0000-4000-8000-0000000000a3"; op_four="bfc02900-0000-4000-8000-0000000000a4"
+targets="{\"kind\":\"customers\",\"userIds\":[\"${holder_id}\"]}"
+prepare_batch() {
+  { operator_session; printf "select public.admin_preview_coupon_issue('%s','${coupon_code}','%s'::jsonb,'${operator_id}','${session_id}');\ncommit;\n" "$1" "$targets"; } \
+    | docker exec -i "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q >/dev/null
+}
+execute_sql="select public.admin_execute_coupon_issue('%s','${operator_id}','${session_id}')"
+reset_holder_coupon() {
+  psql_exec -q -c "delete from public.user_coupons where coupon_code = '${coupon_code}'; update public.coupons set issued_count = 0 where code = '${coupon_code}'" >/dev/null
+}
+run_pair() { # $1 first-label $2 first-sql $3 second-label $4 second-sql
+  local first_log="${work_dir}/$1.log" second_log="${work_dir}/$3.log"
+  { operator_session; printf "%s;\nselect pg_catalog.pg_sleep(2);\ncommit;\n" "$2"; } | docker exec -e PGAPPNAME="${test_prefix}-$1" -i "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$first_log" 2>&1 &
+  local first_pid=$!
+  wait_for_backend_wait "${test_prefix}-$1" "Timeout" "$first_pid" "$first_log"
+  { operator_session; printf "%s;\ncommit;\n" "$4"; } | docker exec -e PGAPPNAME="${test_prefix}-$3" -i "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$second_log" 2>&1 &
+  local second_pid=$!
+  wait_for_backend_wait "${test_prefix}-$3" "Lock" "$second_pid" "$second_log"
+  wait "$first_pid" || { echo "deadlock or failure in $1" >&2; cat "$first_log" >&2; exit 1; }
+  wait "$second_pid" || { echo "deadlock or failure in $3" >&2; cat "$second_log" >&2; exit 1; }
+}
+
+# 3-a) 발급 실행이 먼저 잡고 있는 동안 같은 고객의 회수가 줄을 선다.
+reset_holder_coupon
+held_three="$(issue_coupon)"
+prepare_batch "$batch_a"
+run_pair issue-first "$(printf "$execute_sql" "$batch_a")" revoke-second "$(printf "select public.admin_revoke_user_coupons(array['%s']::uuid[], '발급 대 회수', '%s')" "$held_three" "$op_three")"
+grep -q '"status": "completed"' "${work_dir}/issue-first.log" || { echo "issue-first: execution did not complete" >&2; cat "${work_dir}/issue-first.log" >&2; exit 1; }
+grep -q '"revokedCount": 1' "${work_dir}/revoke-second.log" || { echo "issue-first: revoke did not finish" >&2; cat "${work_dir}/revoke-second.log" >&2; exit 1; }
+
+# 3-b) 회수가 먼저 잡고 있는 동안 같은 고객의 발급 실행이 줄을 선다(회수된 고객은 제외 줄이라 실행은 막히지 않는다).
+reset_holder_coupon
+held_four="$(issue_coupon)"
+prepare_batch "$batch_b"
+run_pair revoke-first "$(printf "select public.admin_revoke_user_coupons(array['%s']::uuid[], '회수 대 발급', '%s')" "$held_four" "$op_four")" issue-second "$(printf "$execute_sql" "$batch_b")"
+grep -q '"revokedCount": 1' "${work_dir}/revoke-first.log" || { echo "revoke-first: revoke did not finish" >&2; cat "${work_dir}/revoke-first.log" >&2; exit 1; }
+grep -q '"status": "completed"' "${work_dir}/issue-second.log" || { echo "revoke-first: execution did not complete" >&2; cat "${work_dir}/issue-second.log" >&2; exit 1; }
+state_three="$(psql_scalar "select (revoked_at is not null)::text from public.user_coupons where id = '${held_four}'::uuid")"
+[[ "$state_three" == "true" ]] || { echo "issue-vs-revoke: revoked coupon state lost (${state_three})" >&2; exit 1; }
 
 echo "coupon revoke vs checkout race: ok (payment-first=${state_one}, revoke-first=${state_two})"

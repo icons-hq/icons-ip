@@ -25,7 +25,8 @@
 --     평가가 회수 직전 시각으로 비교해 통과하는 틈을 없앤다.
 --   - 회수 가능: 미사용(active)만. 결제 대기 주문이 잡은 쿠폰을 포함한 사용(used)은 in_use 로 줄을
 --     거절한다 — 주문을 취소하면 active 로 돌아오니 그 뒤 다시 회수한다.
---   - 회원 잠금(결제와 같은 lock_goods_transaction_actor) → user_coupons FOR UPDATE(id 순)로 결제와 같은 방향이다.
+--   - 회원 advisory 잠금(결제·코드 입력·지정 발급의 첫 잠금과 같은 키) → user_coupons FOR UPDATE(id 순)로 결제와 같은 방향이다.
+--     계정 작업 잠금(lock_account_action_subject)은 잡지 않는다 — 탈퇴 fence 대상 작업이 아니고, 지정 발급 실행(계정 작업 잠금 → 회원 advisory)과 반대 순서로 겹쳐 교착하지 않게 한다.
 --     회수와 결제가 겹치면 한쪽이 먼저 끝나고 다른 쪽이 그 결과를 본다(결제가 먼저면 in_use, 회수가 먼저면 만료).
 --   - 회수한 쿠폰은 같은 코드로 다시 받을 수 없다: 보유 판정이 회수된 행을 만나면 coupon_revoked 로 거절하고,
 --     운영자 지정 발급 확인은 그 고객을 막는 사유가 아니라 '제외' 줄(excluded='revoked')로 분류한다 — 새로 발급하지 않고
@@ -175,9 +176,9 @@ begin
   select array_agg(distinct target.id order by target.id) into ids from unnest(p_user_coupon_ids) as target(id);
   request := jsonb_build_object('userCouponIds', to_jsonb(ids), 'reason', reason);
 
-  -- 회원 잠금(결제·코드 입력과 같은 키) → 쿠폰 행 순서. 회원은 id 순으로 잡아 겹치는 회수끼리 서로 기다리지 않는다.
+  -- 회원 advisory 잠금(결제·코드 입력·지정 발급 실행이 처음 잡는 키와 같다) → 쿠폰 행 순서. 회원은 id 순으로 잡아 겹치는 회수끼리 서로 기다리지 않는다.
   for member in select distinct held_row.user_id from public.user_coupons held_row where held_row.id = any(ids) order by held_row.user_id loop
-    perform private.lock_goods_transaction_actor(member);
+    perform pg_advisory_xact_lock(hashtextextended(member::text, 0));
   end loop;
 
   select * into previous from public.audit_log where id = p_operation_id;
