@@ -11,6 +11,7 @@ import {
   verifySignupCodeAction,
   type AuthActionState,
 } from '@/app/login/actions';
+import { TurnstileField } from '@/components/auth/TurnstileField';
 import { WcButton } from '@/components/wc/WcButton';
 
 export type LoginMode = 'signin' | 'signup' | 'reset';
@@ -280,6 +281,7 @@ export function SignupCodeStep({
       <form action={verifyAction} className="wc-auth__form" onSubmit={handleVerify}>
         <input type="hidden" name="email" value={email} />
         <input type="hidden" name="next" value={next} />
+        <TurnstileField />
         <Field
           autoComplete="one-time-code"
           error={verifyState.errors?.code}
@@ -309,6 +311,7 @@ export function SignupCodeStep({
       <form action={resendAction} className="wc-auth__switch">
         <input type="hidden" name="email" value={email} />
         <input type="hidden" name="next" value={next} />
+        <TurnstileField />
         <button className="wc-auth__picks-skip" disabled={!isConfigured || resendPending} type="submit">
           {resendPending ? '보내는 중…' : '코드 다시 받기'}
         </button>
@@ -440,6 +443,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
               placeholder="이메일"
               type="email"
             />
+            <TurnstileField />
             {!isReset && (
               <Field
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}

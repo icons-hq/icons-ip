@@ -10,6 +10,7 @@ import {recipientOnlyShipmentExport} from '@/lib/admin/shipment-export-recipient
 import {seowonExportLabels} from '@/lib/admin/seowon-exchange';
 import {randomUUID} from 'node:crypto';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
+import {shipmentArrivalError,shipmentCompletionFailure} from '@/lib/admin/shipment-revert';
 import {parseShipmentExportColumns,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
@@ -135,14 +136,27 @@ async function barcodeGaps(client:Client,target:string[]|{p_origin_id:string},la
   return !result.error&&Number.isSafeInteger(result.data)&&Number(result.data)>=0?Number(result.data):null;
  }catch{return null;}
 }
-export async function completeShipmentsAction(ids:unknown){
- if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
+/**
+ * 선택 배송완료(ADR-0045). arrival.deliveredAt은 택배사 조회의 배송완료 일시(ISO)이고 null이면 처리 시각이다. 7일보다 이른 일시는
+ * 늦게 처리한 사유를 받는다. DB(admin_complete_shipments_at)가 같은 범위와 발송 등록 시각 하한을 배송 건마다 다시 본다.
+ */
+export async function completeShipmentsAction(ids:unknown,arrival:{deliveredAt?:unknown;reason?:unknown}|null=null){
+ const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
  if(!keys)return {error:'배송완료 처리할 배송 건을 1~1,000개 선택해주세요.'};
- const client=await createClient();const result=await client.rpc('admin_complete_shipments',{target_ids:keys});
+ const deliveredAt=arrival?.deliveredAt??null;const reason=typeof arrival?.reason==='string'?arrival.reason.trim():'';
+ if(deliveredAt!==null&&(typeof deliveredAt!=='string'||!INSTANT.test(deliveredAt)))return {error:'택배사 배송완료 일시를 확인해주세요.'};
+ // 7일보다 이른 일시는 판매 관리 권한만(물류 계정은 7일 이내). DB가 같은 권한을 다시 본다.
+ const invalid=shipmentArrivalError(deliveredAt,reason,new Date(),hasAdminCapability(auth,'sales.manage'));if(invalid)return {error:invalid};
+ const client=await createClient();const result=await client.rpc('admin_complete_shipments_at',{target_ids:keys,p_delivered_at:deliveredAt,p_reason:reason||null});
+ if(result.error?.message?.startsWith('delivered_at_'))return {error:shipmentCompletionFailure(result.error.message)};
  if(result.error||!Array.isArray(result.data))return {error:'배송완료를 처리하지 못했습니다. 최신 상태를 확인해주세요.'};
- const rows=result.data as {id:string;ok:boolean;error?:string;affectedIds?:string[]}[];refresh();
+ const rows=result.data as {id:string;ok:boolean;error?:string;affectedIds?:string[];arrivalIds?:string[]}[];refresh();
  const completed=new Set(rows.filter(row=>row.ok).flatMap(row=>row.affectedIds??[row.id]));
- return {message:`${completed.size}건을 배송완료로 변경했습니다.`,failed:rows.filter(row=>!row.ok).map(row=>({id:row.id,reason:shipmentMutationError(row.error??'')}))};
+ // 입력한 일시는 DB가 건별로 실제 기록한 배송 건(arrivalIds)만 센다. 이미 배송완료돼 있던 건은 기존 일시를 그대로 둔다.
+ const arrived=new Set(rows.filter(row=>row.ok).flatMap(row=>row.arrivalIds??[]));const kept=[...completed].filter(id=>!arrived.has(id)).length;
+ const arrivalNote=deliveredAt&&completed.size?arrived.size?` 그중 ${arrived.size}건은 입력한 택배사 배송완료 일시로 기록했습니다.${kept?` 이미 배송완료돼 있던 ${kept}건은 기존 배송완료 일시를 그대로 두었습니다.`:''}`
+  :' 모두 이미 배송완료돼 있던 건이라 입력한 일시를 기록하지 않았습니다(기존 배송완료 일시 그대로).':'';
+ return {message:`${completed.size}건을 배송완료로 변경했습니다.${arrivalNote}`,failed:rows.filter(row=>!row.ok).map(row=>({id:row.id,reason:shipmentCompletionFailure(row.error??'')}))};
 }
 export async function saveShipmentExportColumnsAction(id:string,columns:unknown,updatedAt:string){
  const auth=await staff();if(!auth||!canAccessAdminScreen(auth,null,{capability:'platform.manage',adminOnly:true}))return {error:'관리자 권한이 필요합니다.'};
@@ -155,7 +169,7 @@ export async function saveShipmentExportColumnsAction(id:string,columns:unknown,
 
 export type ShipmentTrackingRowInput={shipmentId:string;carrier:string;trackingNumber:string};
 export type ShipmentTrackingRowResult={ok:true;message:string;registered:string[];unchanged:string[];failed:{shipmentId:string;reason:string;code?:string}[];queueWarning:boolean}|{ok:false;error:string};
-type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
+type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];canceledAfterExport?:boolean};
 /**
  * 발송 대기 행의 택배사·운송장 칸(S36-072). 창고 회신 파일과 같은 일괄 등록 RPC에 1~100건을 그대로 넘긴다 —
  * 합포장은 묶음 전체에 적용되고, 이미 발송된 배송 건의 운송장은 덮어쓰지 않는다(같은 번호는 그대로, 다르면 실패).
@@ -182,9 +196,12 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   if(result.error||!Array.isArray(result.data)||result.data.length!==rows.length)return {ok:false,error:'등록 결과를 확인하지 못했습니다. 목록을 새로고침해 배송 상태를 확인해주세요.'};
   const data=result.data as TrackingBatchRow[];
   const registered=data.filter(row=>row.ok&&row.dispatched!==false).map(row=>row.reference);
-  const unchanged=data.filter(row=>row.ok&&row.dispatched===false).map(row=>row.reference);
+  const unchanged=data.filter(row=>row.ok&&row.dispatched===false&&!row.canceledAfterExport).map(row=>row.reference);
   // 사유 코드도 넘긴다 — 다른 주문의 번호로 거절된 행은 화면이 '중복 확인 후 등록'을 연다.
-  const failed=data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??''),...(row.error?{code:row.error}:{})}));
+  // 출고지시 뒤 취소된 배송 건(ADR-0046)은 발송처리되지 않고 취소 뒤 출고 발견으로 남았다 — 등록되지 않은 행으로 알린다.
+  const failed=[...data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??''),...(row.error?{code:row.error}:{})})),
+   ...data.filter(row=>row.ok&&row.canceledAfterExport).map(row=>({shipmentId:row.reference,code:'canceled_after_export',
+    reason:"취소한 주문의 배송 건이라 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다. 주문 상세에서 고객 연락·회수를 처리해주세요."}))];
   const deliveries=data.filter(row=>row.ok&&row.dispatched!==false&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
   let queueWarning=false;
   if(deliveries.length){try{await enqueueOrderShippedEmails([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);}catch{queueWarning=true;}}

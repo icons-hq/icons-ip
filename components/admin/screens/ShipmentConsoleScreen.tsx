@@ -30,6 +30,8 @@ import {SalesFilterField,SalesFilterPanel,SalesGuide,SalesResultsHeader,SalesSel
 import {SHIPMENT_DELAY_NOTICE_OPTIONS,shipmentDelayNoticeLabel} from '@/lib/admin/shipment-delay-notice';
 import {ORDER_DELAY_STATUS_LABELS} from '@/lib/admin/order-delay-notices';
 import {ShipmentExtraTrackingsButton} from '@/components/admin/ShipmentExtraTrackingsPanel';
+import {ShipmentStatusRevertButton} from '@/components/admin/ShipmentStatusRevertButton';
+import {shipmentRevertKind} from '@/lib/admin/shipment-revert';
 import {SHIPMENT_DELIVERED_BY_LABELS,trackingProgressLabel,type ShipmentTrackingSummary} from '@/lib/admin/shipment-tracking';
 import {ChevronDown,Info,PackageCheck,TimerOff,Truck} from 'lucide-react';
 import type {ReactNode} from 'react';
@@ -129,6 +131,7 @@ export function ShipmentConsoleScreen({data,registeredCount,registeredExtraCount
   const waitingDays=isDispatch&&row.status==='ready'?daysSince(row.confirmedAt??row.createdAt,now):0;
   const delayDays=isDispatch?dispatchDelayDays(row,now):null;
   const reference=commerceReferenceLabel(row.id, row.shipmentNumber);
+  const revertKind=isDispatch?null:shipmentRevertKind(row.status,parcel);
   /* 운송장 입력은 지금 발송할 수 있는 택배 건(예약 재고 할당·제작 완료)에만 발송 상태 아래에 둔다. 막힌 건은 위 배지가 이유를 말한다.
      택배 외 건은 이 칸의 인계·수령 확인으로 처리하므로 따로 안내하지 않는다(QA 라운드 1 m7). */
   const trackingInput=!rowTracking||!parcel?null:row.status==='ready'&&shipmentConsoleSelectable(row,'ready')
@@ -174,7 +177,10 @@ export function ShipmentConsoleScreen({data,registeredCount,registeredExtraCount
     <div key="tracking" className={CELL_STACK}>{transitDays>=LONG_TRANSIT_DAYS?<AdminStatusBadge tone="warning">{transitDays}일째 배송 중</AdminStatusBadge>:<AdminStatusBadge tone={statusTone('shipment',row.status)}>{shipmentStatusLabel(row.status)}</AdminStatusBadge>}{tracking?<a className={`${CELL_LINK} tabular-nums whitespace-nowrap`} href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:<AdminStatusBadge tone="warning">운송장 확인 필요</AdminStatusBadge>}
      {row.fulfillmentHold?<AdminStatusBadge tone={statusTone('fulfillmentHold','shipped')} data-fulfillment-hold="">결제사 취소·테스트 결제 확인 필요</AdminStatusBadge>:null}
      {row.trackingSummary?<TrackingExtras summary={row.trackingSummary} carriers={carriers} autoDelivery={data.autoDelivery===true}/>:null}
-     {row.trackingSummary&&tracking&&(row.status==='shipping'||row.status==='delivered')?<ShipmentExtraTrackingsButton shipmentId={row.id} reference={reference} carriers={carriers} defaultCarrier={row.carrier} extras={row.trackingSummary.extraTrackings}/>:null}</div>,
+     {row.trackingSummary&&tracking&&(row.status==='shipping'||row.status==='delivered')?<ShipmentExtraTrackingsButton shipmentId={row.id} reference={reference} carriers={carriers} defaultCarrier={row.carrier} extras={row.trackingSummary.extraTrackings}/>:null}
+     {/* 배송 상태 정정(ADR-0045): 판매 관리 권한만. 배송 중은 발송 대기로, 배송완료는 배송 중으로 한 단계 되돌린다. */}
+     {canManageSales&&revertKind?<ShipmentStatusRevertButton shipmentId={row.id} reference={reference} kind={revertKind} expected={revertKind==='delivery'?row.deliveredAt:row.trackingNumber}
+      packCount={row.pack?.count??null} trackingLabel={tracking?`${tracking.carrierLabel} ${tracking.trackingNumber}`:row.trackingNumber}/>:null}</div>,
    ...(delayNoticeColumn?[<div key="notice" className={CELL_STACK}><AdminStatusBadge tone={row.delayNotice?statusTone('delayNotice',row.delayNotice.status):'warning'}>{shipmentDelayNoticeLabel(row.delayNotice?.status)}</AdminStatusBadge>
     {row.delayNotice?.requestedAt?<><small className={CELL_NOTE}>앱 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus??'prepared']} · 이메일 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus??'unknown']}</small><small className={`${CELL_NOTE} tabular-nums`}>{formatOrderDateTime(row.delayNotice.requestedAt)}</small></>:null}</div>]:[]),
    ...(delayNoteColumn?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId, row.orderNumber)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),

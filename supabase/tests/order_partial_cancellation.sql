@@ -327,10 +327,20 @@ update public.order_shipments set exported_at = now(), exported_by = pg_temp.pc_
 set local role authenticated;
 select pg_temp.pc_auth();
 select pg_temp.pc_assert((public.admin_preview_order_partial_cancellation(pg_temp.pc_id('order', 6), pg_temp.pc_items('a:1@6'))->>'warehouseStopRequired')::boolean, 'exported_shipment_requires_warehouse_stop');
-select pg_temp.pc_error($$select pg_temp.pc_start('a:1@6', 7, 9500)$$, 'warehouse_stop_confirmation_required');
-select pg_temp.pc_assert(pg_temp.pc_start('a:1@6', 7, 9500, warehouse => true) @> '{"state": "processing"}', 'warehouse_stop_confirmed_start');
+select pg_temp.pc_error($$select pg_temp.pc_start('a:1@6', 7, 9500)$$, 'warehouse_stop_reply_required');
+-- 확인란(운영자 진술)만으로는 열리지 않는다. 그 배송 건의 출고지시 뒤 창고 '출고 중단' 회신 기록이 근거다(ADR-0046).
+select pg_temp.pc_error($$select pg_temp.pc_start('a:1@6', 7, 9500, warehouse => true)$$, 'warehouse_stop_reply_required');
+-- 창고가 '이미 출고'라고 회신하면 거절된다. 뒤의 더 늦은 '출고 중단' 회신(정정)이 판정한다.
+select public.admin_record_warehouse_stop_reply(array[pg_temp.pc_id('shipment-1', 6)], 'already_shipped', 'messenger', clock_timestamp(),
+ null, pg_temp.pc_id('warehouse-reply', 2));
+select pg_temp.pc_error($$select pg_temp.pc_start('a:1@6', 7, 9500)$$, 'warehouse_already_shipped');
+select public.admin_record_warehouse_stop_reply(array[pg_temp.pc_id('shipment-1', 6)], 'stopped', 'phone', clock_timestamp() + interval '1 minute',
+ 'TEST 창고 통화 — 품절 상품만 빼고 출고', pg_temp.pc_id('warehouse-reply', 1));
+select pg_temp.pc_assert(pg_temp.pc_start('a:1@6', 7, 9500) @> '{"state": "processing"}', 'warehouse_stop_confirmed_start');
 reset role;
-select pg_temp.pc_assert((pg_temp.pc_head(7)).warehouse_stop_confirmed, 'warehouse_stop_recorded');
+select pg_temp.pc_assert((pg_temp.pc_head(7)).warehouse_stop_confirmed
+ and (select used_kind = 'partial_cancellation' and used_ref = pg_temp.pc_id('operation', 7) from private.warehouse_stop_replies
+   where operation_id = pg_temp.pc_id('warehouse-reply', 1)), 'warehouse_stop_recorded');
 
 -- 7. 적립금 몫은 적립금으로 되돌리고, 뒤의 전액 취소는 남은 몫만 되돌린다 -----------------------------------------------------------
 select private.issue_store_credit_lot(pg_temp.pc_id('user', 2), 5000, clock_timestamp() + interval '90 days', 'admin', null, pg_temp.pc_id('user', 1), pg_temp.pc_id('credit-op', 1), 'TEST 적립금') as credit_lot \gset

@@ -30,6 +30,7 @@ import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { trackingImportCommand, type SeowonTrackingParseResult } from '@/lib/admin/warehouse-templates.server';
+import { warehouseStopErrorMessage } from '@/lib/admin/warehouse-stop';
 import { matchSeowonReply, type SeowonReplyCandidate } from '@/lib/admin/seowon-exchange';
 import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, TRACKING_IMPORT_TEXT_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
 import { parseSmartStoreReplyText } from '@/lib/admin/smartstore-tracking-workbook.server';
@@ -396,8 +397,9 @@ export async function reconcileAdminOrderCancellationAction(
 /** DB가 던지는 운영자 전액 취소 거절 코드를 운영자 문구로 옮긴다. 원문은 노출하지 않는다. */
 function staffCancellationError(message: string | null | undefined) {
   const value = message ?? '';
-  if (value.includes('warehouse_stop_confirmation_required')) {
-    return '출고지시 파일이 나간 배송 건이 있습니다. 창고에서 출고 중단을 확인한 뒤 양식의 창고 출고 중단 확인란을 체크하고 다시 실행해주세요. 확인란이 보이지 않으면 새로고침해주세요.';
+  /* 출고지시가 나간 배송 건은 창고 회신 기록이 근거다(ADR-0046). 문구는 주문 상세의 창고 회신 기록으로 잇는다. */
+  if (/warehouse_stop_reply_required|warehouse_already_shipped|warehouse_stop_reply_used|warehouse_stop_confirmation_required/.test(value)) {
+    return warehouseStopErrorMessage(value);
   }
   /* 일부 발송 주문(원장 #15): 발송 전 몫은 재고 부족 부분 취소, 발송된 몫은 반품으로 안내한다. */
   if (value.includes('shipment_already_dispatched')) return STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE;
@@ -537,7 +539,20 @@ export interface AdminTrackingImportState {
     skipped?: number;
     /** 서원 회신에서 대표 운송장과 함께 저장한 분리배송 추가 운송장 수(QNA-019). 없으면 키가 없다. */
     extraTrackings?: number;
+    /**
+     * 출고지시 뒤 취소된 배송 건에 온 운송장 회신(ADR-0046). 등록도 실패도 아니고 '취소 뒤 출고 발견'으로 기록됐다 —
+     * 환불한 주문의 물건이 나갔으니 주문 상세에서 고객 연락·회수를 처리한다. 없으면 키가 없다.
+     */
+    canceledAfterExport?: AdminTrackingCanceledAfterExport[];
   };
+}
+
+/** 취소 뒤 출고 발견으로 기록된 회신 줄. alreadyRecorded는 같은 회신을 다시 올려 이미 기록된 발견을 그대로 둔 줄이다. */
+export interface AdminTrackingCanceledAfterExport {
+  line: number;
+  reference: string;
+  orderId: string | null;
+  alreadyRecorded: boolean;
 }
 
 /** 등록 전 확인(QA 라운드 1 m2): 파일·붙여넣기를 읽기만 하고 아무것도 바꾸지 않은 결과. */
@@ -560,7 +575,7 @@ const BLANK_SIBLING_TRACKING_REASON = '같은 배송 건에 운송장이 빈 줄
 
 const isSmartStoreReply = (parsed: TrackingWorkbookParseResult): parsed is Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }> => 'kind' in parsed && parsed.kind === 'smartstore';
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
-type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[];extraTrackingsAdded?:number};
+type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[];extraTrackingsAdded?:number;canceledAfterExport?:boolean;replayed?:boolean};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
 const REPLY_TEMPLATE_LABEL: Record<ReplyTemplate, string> = { wms_csv: '김포 WMS 21열', seowon_xlsx: '남양주(서원) 송장양식' };
 
@@ -578,17 +593,20 @@ async function resolveReplyOrigin(supabase: Awaited<ReturnType<typeof createClie
     : `${REPLY_TEMPLATE_LABEL[template]} 양식을 쓰는 사용 중인 출고지가 없습니다. 출고지 설정을 확인해주세요.`);
 }
 
-function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean, counts: { blankLines?: number; extraTrackings?: number } = {}): AdminTrackingImportState {
-  const blankLines=counts.blankLines??0, extraTrackings=counts.extraTrackings??0;
+function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean, counts: { blankLines?: number; extraTrackings?: number; canceledAfterExport?: AdminTrackingCanceledAfterExport[] } = {}): AdminTrackingImportState {
+  const blankLines=counts.blankLines??0, extraTrackings=counts.extraTrackings??0, canceled=[...(counts.canceledAfterExport??[])].sort((a,b)=>a.line-b.line);
   failed.sort((a,b)=>a.line-b.line);
-  const report={failed,succeeded,...(unchanged?{unchanged}:{}),...(blankLines?{skipped:blankLines}:{}),...(extraTrackings?{extraTrackings}:{})};
+  const report={failed,succeeded,...(unchanged?{unchanged}:{}),...(blankLines?{skipped:blankLines}:{}),...(extraTrackings?{extraTrackings}:{}),...(canceled.length?{canceledAfterExport:canceled}:{})};
   const extras=extraTrackings?` 분리배송 추가 운송장 ${extraTrackings}개를 함께 저장했습니다.`:'';
   const skipped=`${unchanged?` 같은 운송장으로 이미 발송된 ${unchanged}건은 그대로 두었습니다.`:''}${blankLines?` 운송장 칸을 비운 ${blankLines}줄은 아직 출고하지 않은 것으로 보고 건너뛰었습니다.`:''}`;
+  /* ADR-0046: 취소한 주문의 배송 건 회신은 발송처리하지 않고 취소 뒤 출고 발견으로 남는다. 성공·실패와 따로 알린다. */
+  const fresh=canceled.filter(row=>!row.alreadyRecorded).length, again=canceled.length-fresh;
+  const canceledNote=`${fresh?` 취소한 주문의 배송 건 ${fresh}건은 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다. 주문 상세에서 고객 연락·회수를 처리해주세요.`:''}${again?` 이미 '취소 뒤 출고 발견'으로 기록된 ${again}건은 그대로 두었습니다.`:''}`;
   if(!succeeded.length){
-    if((unchanged||blankLines)&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}`,report};
-    return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}`},report};
+    if((unchanged||blankLines||canceled.length)&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}${canceledNote}`,report};
+    return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}${canceledNote}`},report};
   }
-  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${extras}${skipped}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
+  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${extras}${skipped}${canceledNote}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
 }
 
 /**
@@ -720,6 +738,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
   const match=matchSeowonReply(rows,candidates.shipments,candidates.usedTracking);
   const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
   let queueWarning=false;let unchanged=match.unchanged.length;let extraTrackings=0;
+  const canceledAfterExport:AdminTrackingCanceledAfterExport[]=[];
   if(match.commands.length){
     // 분리배송 연결 송장(QNA-019)은 대표 운송장과 같은 행에 추가 운송장으로 실어 DB가 같은 트랜잭션에서 붙인다.
     const result=await supabase.rpc('admin_import_seowon_tracking_batch',{target_origin_id:origin.id,target_rows:match.commands.map(command=>({
@@ -736,6 +755,8 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
       const outcome=outcomes.get(command.shipmentId),reference=commerceReferenceLabel(command.shipmentId,command.shipmentNumber);
       // 실제로 새로 붙은 추가 운송장 수(합포장 구성원이 묶음으로 먼저 발송돼 '그대로'로 끝난 행도 이번 회신의 번호를 붙인다).
       if(outcome?.ok&&Number.isSafeInteger(outcome.extraTrackingsAdded))extraTrackings+=outcome.extraTrackingsAdded!;
+      // 출고지시 뒤 취소된 배송 건(ADR-0046): DB가 취소 뒤 출고 발견으로 남겼다. 발송처리·배송 메일은 없다.
+      if(outcome?.ok&&outcome.canceledAfterExport){canceledAfterExport.push({line:command.line,reference,orderId:command.orderId,alreadyRecorded:outcome.replayed===true});continue;}
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:trackingRowReason(outcome?.error??'',registry)});
@@ -743,7 +764,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     queueWarning=await enqueueDispatched([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
-  return trackingImportResult(succeeded,failed,unchanged,queueWarning,{extraTrackings});
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning,{extraTrackings,canceledAfterExport});
 }
 
 /** The DB batch keeps per-row failures and commits each valid shipment once. */
@@ -770,6 +791,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
   catch (error) { return { errors: { form: error instanceof Error ? error.message : '출고지를 확인해주세요.' } }; }
   const failed:AdminTrackingImportFailure[]=[...parsed.issues];
   const succeeded:string[]=[];
+  const canceledAfterExport:AdminTrackingCanceledAfterExport[]=[];
   let queueWarning=false;let unchanged=0;
   const registry=await getShippingCarrierRegistry();
   if(parsed.rows.length){
@@ -782,6 +804,8 @@ export async function bulkRegisterAdminOrderTrackingAction(
       // 표준 양식에서 운송장 칸만 비워 건너뛴 줄은 배송 건 가드용으로만 보냈다. 그 줄 자체의 거절은 실패가 아니다.
       if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:isSmartStoreReply(parsed)&&parsed.skipped.length&&row.error==='invalid_tracking_input'?BLANK_SIBLING_TRACKING_REASON:trackingRowReason(row.error??'',registry)});}
       else if(row.duplicate)continue;
+      // 출고지시 뒤 취소된 배송 건(ADR-0046): 취소 뒤 출고 발견으로 기록됐다. 성공도 실패도 아니다.
+      else if(row.canceledAfterExport)canceledAfterExport.push({line:row.line,reference:row.reference,orderId:row.orderId??null,alreadyRecorded:row.replayed===true});
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);
     }
@@ -789,7 +813,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
     queueWarning=await enqueueDispatched([...new Map(deliveryRows.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
-  return trackingImportResult(succeeded,failed,unchanged,queueWarning,{blankLines});
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning,{blankLines,canceledAfterExport});
 }
 
 /**
