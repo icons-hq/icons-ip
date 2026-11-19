@@ -151,17 +151,42 @@ begin
 end;
 $$;
 
+-- Supabase Auth의 프로젝트 시간당 메일 한도(over_email_send_rate_limit)에 닿았을 때 앱이 부른다(service_role).
+-- 시스템 상태 화면·운영 알림·요약 메일이 잡도록 시간 단위 event_key로 운영 알림 행을 한 줄 남긴다(같은 시간 안에서는 한 번만).
+-- 개인정보는 싣지 않는다. 새 행이면 true.
+create function public.service_record_auth_mail_limit_alert()
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  alert uuid;
+begin
+  insert into private.admin_operation_alerts(event_key, category, title, href)
+  values ('auth_mail_limit:' || to_char(date_trunc('hour', clock_timestamp() at time zone 'UTC'), 'YYYYMMDDHH24'),
+    'system', '가입·재설정 메일 시간당 한도에 도달했습니다', '/admin/settings/system')
+  on conflict (event_key) do nothing
+  returning id into alert;
+  return alert is not null;
+end;
+$$;
+
 alter function private.auth_mail_abuse_retry_after(text, text, integer, integer) owner to postgres;
 alter function public.service_consume_auth_mail_attempt(text, text, text) owner to postgres;
 alter function private.prune_auth_mail_abuse_attempts(integer) owner to postgres;
+alter function public.service_record_auth_mail_limit_alert() owner to postgres;
 
 revoke all on function private.auth_mail_abuse_retry_after(text, text, integer, integer),
   public.service_consume_auth_mail_attempt(text, text, text),
+  public.service_record_auth_mail_limit_alert(),
   private.prune_auth_mail_abuse_attempts(integer)
   from public, anon, authenticated, service_role;
 -- cron 작업은 등록한 롤(postgres)로 돈다. 복원 뒤 소유자가 달라져도 실행되게 명시한다.
 grant execute on function private.prune_auth_mail_abuse_attempts(integer) to postgres;
-grant execute on function public.service_consume_auth_mail_attempt(text, text, text) to service_role;
+grant execute on function public.service_consume_auth_mail_attempt(text, text, text),
+  public.service_record_auth_mail_limit_alert() to service_role;
 
 -- pg_cron이 있는 배포만 등록한다. cron.schedule은 이름 기준 upsert라 재적용에 안전하다.
 do $$

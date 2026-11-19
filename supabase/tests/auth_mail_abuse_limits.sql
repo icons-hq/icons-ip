@@ -29,6 +29,20 @@ select 1/case when not has_table_privilege('service_role','private.auth_mail_abu
  and (select relrowsecurity from pg_class where oid='private.auth_mail_abuse_attempts'::regclass)
  then 1 else 0 end as sealed;
 
+-- 프로젝트 메일 한도 도달 알림: service_role만 부를 수 있고, 같은 시간 안에서는 한 행만, 개인정보 없이 system 분류로 남는다.
+select 1/case when has_function_privilege('service_role','public.service_record_auth_mail_limit_alert()','execute')
+ and not has_function_privilege('authenticated','public.service_record_auth_mail_limit_alert()','execute')
+ and not has_function_privilege('anon','public.service_record_auth_mail_limit_alert()','execute')
+ then 1 else 0 end as alert_sealed;
+delete from private.admin_operation_alerts where event_key like 'auth_mail_limit:%';
+select public.service_record_auth_mail_limit_alert() as first_alert \gset
+select public.service_record_auth_mail_limit_alert() as second_alert \gset
+select 1/case when :'first_alert'='t' and :'second_alert'='f'
+ and (select count(*) from private.admin_operation_alerts where event_key like 'auth_mail_limit:%')=1
+ and exists(select 1 from private.admin_operation_alerts where event_key like 'auth_mail_limit:%'
+   and category='system' and href='/admin/settings/system' and title='가입·재설정 메일 시간당 한도에 도달했습니다')
+ then 1 else 0 end as mail_limit_alert_once_per_hour;
+
 -- 입력 검증: 모르는 종류·모양이 틀린 다이제스트·빈 이메일은 거절한다(원문 IP·이메일이 들어오지 못하게 한다).
 select pg_temp.err($q$select public.service_consume_auth_mail_attempt('login', null, repeat('a',43))$q$, 'invalid_auth_mail_attempt');
 select pg_temp.err($q$select public.service_consume_auth_mail_attempt('signup', '203.0.113.7', repeat('a',43))$q$, 'invalid_auth_mail_attempt');

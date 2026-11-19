@@ -80,15 +80,28 @@ describe('Turnstile(토큰은 GoTrue가 검증한다)', () => {
 });
 
 describe('logAuthMailLimit', () => {
-  it('프로젝트 메일 한도 오류만 태그 로그를 남기고 이메일·IP는 싣지 않는다', () => {
+  it('프로젝트 메일 한도 오류만 태그 로그와 운영 알림을 남기고 이메일·IP는 싣지 않는다', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    logAuthMailLimit({ code: 'over_request_rate_limit' }, 'signup');
-    logAuthMailLimit(null, 'signup');
+    const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
+    await logAuthMailLimit({ code: 'over_request_rate_limit' }, 'signup', { service: { rpc } as never });
+    await logAuthMailLimit(null, 'signup', { service: { rpc } as never });
     expect(spy).not.toHaveBeenCalled();
-    logAuthMailLimit({ code: 'over_email_send_rate_limit', status: 429 }, 'reset');
+    expect(rpc).not.toHaveBeenCalled();
+    await logAuthMailLimit({ code: 'over_email_send_rate_limit', status: 429 }, 'reset', { service: { rpc } as never });
     expect(spy).toHaveBeenCalledTimes(1);
     expect(String(spy.mock.calls[0][0])).toContain('[auth-mail-limit]');
     expect(JSON.stringify(spy.mock.calls[0])).toContain('reset');
+    expect(rpc).toHaveBeenCalledWith('service_record_auth_mail_limit_alert');
+    spy.mockRestore();
+  });
+
+  it('알림 기록이 실패해도 던지지 않고 로그만 더 남긴다', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const failing = { rpc: vi.fn().mockRejectedValue(new Error('db down')) };
+    await expect(logAuthMailLimit({ code: 'over_email_send_rate_limit' }, 'signup', { service: failing as never })).resolves.toBeUndefined();
+    const failed = { rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'nope' } }) };
+    await expect(logAuthMailLimit({ code: 'over_email_send_rate_limit' }, 'signup', { service: failed as never })).resolves.toBeUndefined();
+    expect(spy).toHaveBeenCalledTimes(4);
     spy.mockRestore();
   });
 });

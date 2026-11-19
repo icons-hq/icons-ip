@@ -524,7 +524,7 @@ async function resendSignupConfirmation(input: {
     },
   });
 
-  logAuthMailLimit(error, 'resend');
+  await logAuthMailLimit(error, 'resend');
   if (error) {
     return {
       errors: { form: isCaptchaError(error) ? captchaFailedMessage('resend') : authSignUpErrorMessage(error) },
@@ -584,7 +584,7 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
     },
   });
 
-  logAuthMailLimit(error, 'signup');
+  await logAuthMailLimit(error, 'signup');
   if (error) {
     if (isCaptchaError(error)) return { errors: { form: captchaFailedMessage('signup') } };
     if (isExistingAccountSignUpError(error)) {
@@ -790,7 +790,7 @@ export async function requestPasswordResetAction(
     redirectTo: authRecoveryCallbackUrl(origin),
     ...(guard.captchaToken ? { captchaToken: guard.captchaToken } : {}),
   });
-  logAuthMailLimit(error, 'reset');
+  await logAuthMailLimit(error, 'reset');
   if (isCaptchaError(error)) return { errors: { form: captchaFailedMessage('reset') } };
   const operationalError = passwordResetOperationalErrorMessage(error);
   if (operationalError) return { errors: { form: operationalError } };

@@ -64,13 +64,25 @@ export function isCaptchaError(error: { code?: string | null } | null | undefine
 }
 
 /*
- * Auth 프로젝트 메일 한도(rate_limit_email_sent)에 걸렸을 때 운영 경보용 태그 로그를 남긴다. Vercel 로그 경보가 이 태그를 본다.
- * 이메일·IP 원문은 싣지 않는다.
+ * Auth 프로젝트 메일 한도(rate_limit_email_sent)에 걸렸을 때의 운영 신호. 두 곳에 남긴다.
+ * 1) 태그 로그 — Vercel 로그 경보가 이 태그를 본다. 이메일·IP 원문은 싣지 않는다.
+ * 2) 운영 알림 원장(category system, 시간 단위로 한 줄) — 시스템 상태 화면·알림·요약 메일에 잡힌다. 실패해도 요청은 막지 않는다.
  */
 export const AUTH_MAIL_LIMIT_LOG_TAG = '[auth-mail-limit]';
-export function logAuthMailLimit(error: { code?: string | null; status?: number | null } | null | undefined, action: CaptchaScreen) {
+export async function logAuthMailLimit(
+  error: { code?: string | null; status?: number | null } | null | undefined,
+  action: CaptchaScreen,
+  deps: { service?: Pick<ReturnType<typeof createServiceClient>, 'rpc'> } = {},
+) {
   if (error?.code?.toLowerCase() !== 'over_email_send_rate_limit') return;
   console.error(`${AUTH_MAIL_LIMIT_LOG_TAG} Supabase Auth hourly mail limit reached`, { action, status: error.status ?? null });
+  try {
+    const service = deps.service ?? createServiceClient();
+    const { error: alertError } = await service.rpc('service_record_auth_mail_limit_alert');
+    if (alertError) console.error(`${AUTH_MAIL_LIMIT_LOG_TAG} could not record the operations alert`, alertError.message);
+  } catch (alertError) {
+    console.error(`${AUTH_MAIL_LIMIT_LOG_TAG} could not record the operations alert`, alertError instanceof Error ? alertError.message : alertError);
+  }
 }
 
 /** Vercel이 덮어쓰는 접속 IP 헤더(휴대폰 인증과 같은 선례). 없으면 이메일 한도만 적용된다. */

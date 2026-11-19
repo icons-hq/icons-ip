@@ -23,6 +23,7 @@
  *   TURNSTILE_SECRET_KEY·TURNSTILE_SITE_KEY 선택, 둘 다 있거나 둘 다 없어야 한다(하나만 있으면 실패). 있으면 Auth CAPTCHA를
  *                          Cloudflare Turnstile로 켜고 비밀 키를 PATCH한다. 비밀 키는 읽을 수 없어 매번 PATCH한다. 없으면 건드리지 않는다.
  *                          사이트 키는 앱(Vercel)의 NEXT_PUBLIC_TURNSTILE_SITE_KEY와 같은 값이다(공개 값) — 짝이 맞는지 보려고 받는다.
+ *                          앱 배포 전에 켜면 모든 로그인이 막히므로 파이프라인은 deploy-vercel의 배포·사이트 키 대조(scripts/verify-turnstile-site-key.mjs) 뒤에만 넘긴다.
  */
 
 import { readFile } from 'node:fs/promises';

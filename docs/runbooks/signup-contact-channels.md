@@ -481,16 +481,30 @@ CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/r
 
 1. Cloudflare 대시보드 → Turnstile → 위젯 추가(호스트 이름: `iconsip.com`, `xsquare.kr` 및 쓰는 preview 도메인, 모드 Managed). 사이트 키·비밀 키를 받는다.
    비밀 키는 채팅·로그에 남기지 않는다(사용자 스크립트로 등록).
-2. Vercel Production(·Preview) 환경 변수에 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`만 등록하고 **앱을 먼저 재배포**한다(사이트 키는 빌드에 박힌다). 이때는 위젯만
-   그려지고 보호는 아직 없다. 비밀 키를 Vercel에 넣지 않는다.
-3. GitHub 저장소에 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`(같은 사이트 키)와 secret `TURNSTILE_SECRET_KEY`를 등록하고 production 배포(또는 재실행)로
-   동기화 단계가 Supabase CAPTCHA를 켜게 한다. 둘 중 하나만 있으면 동기화가 실패한다.
+2. Vercel **Production** 환경 변수에 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`만 등록하고 **앱을 먼저 재배포**한다(사이트 키는 빌드에 박힌다). 이때는 위젯만
+   그려지고 보호는 아직 없다. 비밀 키를 Vercel에 넣지 않는다. **Preview·staging**은 운영 사이트 키를 쓰지 않는다 — 위젯 호스트 목록에 preview·staging 호스트를
+   넣을 수 없어 QA 로그인이 막힌다. Preview env에는 Cloudflare 공식 문서의 **항상 통과 테스트 사이트 키**(`1x00000000000000000000AA`)를 넣는다
+   (preview·staging의 Supabase GoTrue는 CAPTCHA를 켜지 않으므로 위젯 흐름만 보인다). 항상 실패 키(`2x00000000000000000000AB`)로는 거절 문구를 볼 수 있다.
+3. GitHub 저장소에 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`(2번에서 Production에 넣은 **같은** 사이트 키)와 secret `TURNSTILE_SECRET_KEY`를 등록하고
+   production 배포(push/main)를 돌린다. 파이프라인 순서는 `deploy-vercel`의 Vercel 배포 → "Verify Turnstile site key matches the deployed app"(Vercel production
+   env의 사이트 키와 GitHub 변수를 해시로 대조, 값은 로그에 안 찍힘, 다르면 실패해 CAPTCHA를 켜지 않는다) → "Activate recovery token-hash template in production"
+   (동기화 스크립트가 CAPTCHA를 켠다)다. migration·DB를 먹이는 `deploy-supabase` 동기화 단계는 CAPTCHA를 만지지 않는다 — 앱이 새 위젯으로 뜨기 전에 GoTrue가
+   먼저 켜지는 일이 없도록 한 순서다. 동기화는 secret·변수 중 하나만 있으면 실패한다. config-only 재배포(`production_redeploy`)는 Supabase를 건드리지 않으므로
+   CAPTCHA를 켜거나 바꾸지 못한다 — 켜기·교체는 push/main 실행으로만 한다.
+
+   **키 교체(회전) 절차**: ① Cloudflare에서 새 위젯을 만든다 ② Vercel Production의 사이트 키를 새 값으로 바꾸고 앱을 재배포한다 — 이 순간부터 새 위젯 토큰을
+   옛 비밀 키가 검증하게 되어 **로그인·가입·재설정이 막힌다**(어드민 포함) ③ 곧바로 GitHub 변수·secret을 새 값으로 바꾸고 push/main 실행을 돌린다(대조 단계가
+   ②가 반영됐는지 확인한 뒤에만 새 비밀 키를 넣는다). 막히는 시간(②→③ 완료)을 줄이려면 점검 시간에 ②와 ③을 연달아 한다. 대조 단계가 실패하면 CAPTCHA는
+   옛 비밀 키 그대로이므로 앱 배포 상태(②)를 먼저 맞춘다.
+
 4. 확인: 가입·로그인·재전송·재설정 정상 제출이 통과하는지, 위젯 토큰 없이 `curl -X POST <supabase>/auth/v1/signup`(publishable 키)이 `captcha_failed`로
    거절되는지(직접 호출 우회 차단), 코드 확인 → 자동 로그인이 되는지. Cloudflare 테스트 키(사이트 `1x00000000000000000000AA` / 비밀
    `1x0000000000000000000000000000000AA`)는 항상 통과, `2x…`는 항상 실패라 Preview에서 흐름만 볼 수 있다.
 5. **Resend 요금제 확인**: 시간당 300통이 Resend의 일·월 발송 한도를 감당하는지 확인한다(한도에 닿으면 SMTP가 실패해 가입 확인이 막힌다).
 6. **로그 경보**: Vercel 로그 경보에 태그 `[auth-mail-limit]`(Supabase Auth 시간당 메일 한도 도달, `over_email_send_rate_limit`)를 등록한다.
    `[auth-mail-abuse] rejected`는 한도 거절 추세 확인용이다.
+   같은 신호는 운영 알림(분류 시스템, '가입·재설정 메일 시간당 한도에 도달했습니다', 시간당 한 줄)으로도 남아 시스템 상태 화면·알림·요약 메일에 잡힌다
+   (`service_record_auth_mail_limit_alert`, 개인정보 없음).
 7. 운영 중 위젯이 안 뜨는 환경(광고 차단 등)에서는 가입·로그인이 막힌다 — 안내 문구가 새로고침을 권한다. 문의가 늘면 한도 로그부터 보고, 급하면
    Supabase 콘솔에서 CAPTCHA를 끈다.
 
