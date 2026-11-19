@@ -11,6 +11,18 @@ describe('gift payer projection', () => {
     expect(result.order.total).toBe(19200); expect(result.order.transaction.totals.volumeDiscountTotal).toBe(2000);
     expect(result.order.address).toBeNull(); expect(result.order.shipments[0].trackingNumber).toBeNull();
   });
+  it('accepts an item with or without the legacy type snapshot key while the type columns are retired', () => {
+    const withItems = (mutate: (item: Record<string, unknown>) => void) => {
+      const value = structuredClone(payer) as unknown as { order: { items: Record<string, unknown>[] } };
+      mutate(value.order.items[0]);
+      return value;
+    };
+    const parsed = parseGiftCheckoutOrder(withItems(item => { item.type = '문구'; }), id);
+    expect(parsed?.kind).toBe('gift');
+    if (parsed?.kind === 'gift') expect(parsed.order.items[0]).not.toHaveProperty('type');
+    expect(parseGiftCheckoutOrder(withItems(item => { delete item.type; }), id)?.kind).toBe('gift');
+    expect(parseGiftCheckoutOrder(withItems(item => { item.type = 1; }), id)).toBeNull();
+  });
   it('accepts a renamed catalog slug using immutable line/variant identity', () => {
     const value = structuredClone(payer); value.order.items[0].goodId = 'renamed-good';
     expect(parseGiftCheckoutOrder(value, id)?.kind).toBe('gift');

@@ -26,7 +26,6 @@ const good = (id: string, overrides: Partial<Good> = {}): Good => ({
   id,
   name: `굿즈 ${id}`,
   ip: 'rilakkuma',
-  type: '키링',
   price: 12000,
   badge: null,
   stock: 'ok',
@@ -75,7 +74,7 @@ function render(
 }
 
 describe('Search 헤딩과 굿즈 그리드', () => {
-  const items = [good('g1', { name: '리락쿠마 키링' }), good('g2', { name: '리락쿠마 인형', type: '인형', price: 30000 })];
+  const items = [good('g1', { name: '리락쿠마 키링' }), good('g2', { name: '리락쿠마 인형', price: 30000 })];
   const html = render('리락쿠마', items);
 
   it('질의어와 굿즈 건수를 헤딩에 쓴다', () => {
@@ -117,7 +116,7 @@ describe('Search 헤딩과 굿즈 그리드', () => {
 describe('Search 컬렉션 본문 (SR-01)', () => {
   const items = [
     good('g1', { name: '리락쿠마 키링', price: 20000 }),
-    good('g2', { name: '리락쿠마 인형', type: '인형', price: 10000 }),
+    good('g2', { name: '리락쿠마 인형', price: 10000 }),
     good('g3', { name: '리락쿠마 메이플 콜라보', ip: 'maple', price: 30000 }),
   ];
 

@@ -22,7 +22,7 @@ import { readGoodsClaimPolicy } from './goods-claim-policy';
 import { readAdminGoodsCustomInputs } from './goods-custom-inputs';
 import { EMPTY_GOODS_CUSTOM_INPUTS, parseGoodsCustomInputConfig } from '@/lib/goods-custom-inputs';
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
-export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'baseRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
+export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'baseRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
   ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`)];
 /**
  * 복구 안내를 두고 옵션 행이나 카테고리를 고치면 딸린 칸도 화면 값을 쓴다. 옵션 행과 축·동시편집 기준,
@@ -48,7 +48,7 @@ export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminF
     /* CAT-027: 편집 화면이 연 시점의 상품 기본 칸 버전. 새 상품·버전을 읽지 못한 기록은 비워 서버가 비교하지 않는다. */
     baseRevision: selected?.baseRevision === undefined ? '' : String(selected.baseRevision),
     id: selected?.id ?? '', code: selected?.code ?? '', ipId: selected?.ipId ?? initialIpId,
-    name: selected?.name ?? '', nameEn: selected?.nameEn ?? '', searchKeywords: selected?.searchKeywords?.join('\n') ?? '', displayOrder: selected?.displayOrder == null ? '' : String(selected.displayOrder), type: selected?.type ?? '', price: String(selected?.price ?? 0),
+    name: selected?.name ?? '', nameEn: selected?.nameEn ?? '', searchKeywords: selected?.searchKeywords?.join('\n') ?? '', displayOrder: selected?.displayOrder == null ? '' : String(selected.displayOrder), price: String(selected?.price ?? 0),
     compareAtPrice: selected?.compareAtPrice == null ? '' : String(selected.compareAtPrice),
     showDiscountRate: String(selected?.showDiscountRate ?? true),
     claimReturnAllowed: selected?.claimPolicy?.returnAllowed == null ? '' : String(selected.claimPolicy.returnAllowed),

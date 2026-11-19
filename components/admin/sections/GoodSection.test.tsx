@@ -87,7 +87,6 @@ const good: AdminGoodRecord = {
   archivedAt: null,
   ipId: 'hwasan',
   name: '화산강림 아크릴 스탠드',
-  type: '아크릴',
   price: 22000,
   compareAtPrice: 26000,
   badge: 'NEW',
@@ -196,9 +195,8 @@ describe('GoodSection', () => {
     }
     expect(html.match(/<select[^>]*name="ipId"[^>]*>/)?.[0]).toContain('disabled');
     expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="ipId"/);
-    /* 상품 유형은 입력칸도 표시도 없고, 저장된 type을 숨은 입력으로 그대로 제출한다(ADR-0044). */
-    expect(html).not.toMatch(/<select[^>]*name="type"/);
-    expect(html).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    /* 상품 유형은 입력칸도 숨은 입력도 없다(ADR-0044). */
+    expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
     expect(html).not.toContain('data-good-type-derived');
     expect(html).toContain('초안으로 전환 후 수정');
   });
@@ -513,7 +511,7 @@ describe('GoodSection', () => {
     });
 
     it('저장할 입력이 있고 공개 조건을 채웠을 때만 저장 후 공개가 보이고 저장하기가 주 행동이다', () => {
-      const values = { previousId: draft.id, name: draft.name, type: draft.type, ipId: draft.ipId, imagePath: draft.imagePath, regularPrice: '26000', price: '22000', originId: '11111111-1111-4111-8111-111111111111', noticeMaker: '주식회사 아이콘스', noticeOrigin: '대한민국', noticeMaterial: '아크릴', noticeSize: '80 x 60 x 20mm · 90g', noticeMadeOn: '2026-07', noticeAsManager: '아이콘스 고객센터', noticeAsContact: '02-000-0000' };
+      const values = { previousId: draft.id, name: draft.name, ipId: draft.ipId, imagePath: draft.imagePath, regularPrice: '26000', price: '22000', originId: '11111111-1111-4111-8111-111111111111', noticeMaker: '주식회사 아이콘스', noticeOrigin: '대한민국', noticeMaterial: '아크릴', noticeSize: '80 x 60 x 20mm · 90g', noticeMadeOn: '2026-07', noticeAsManager: '아이콘스 고객센터', noticeAsContact: '02-000-0000' };
       const variants = [{ id: '11111111-1111-4111-8111-111111111111', goodId: draft.id, name: '기본 옵션', code: 'HW-0100-01', price: draft.price, stockQty: 12, isDefault: true, archivedAt: null, attributes: {} }];
       const dirty = renderGoodSection(draft, { attempt: 1, values }, { readiness: ready, variants });
       expect(button(bar(dirty), '저장 후 공개')).toContain('value="publish"');
@@ -1036,29 +1034,18 @@ describe('GoodSection', () => {
     expect(html).toContain('name="compareAtPrice"');
     for (const badge of GOOD_BADGES) expect(html).toContain(`<option value="${badge}">`);
     expect(html).toContain('없음');
-    expect(html).not.toMatch(/<select[^>]*name="type"/);
+    expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
     expect(html).not.toContain('data-good-type-derived');
-    expect(html).toContain('<input type="hidden" name="type" value=""/>');
   });
 
-  /*
-   * ADR-0044 — 상품 유형은 화면 어디에도 없다. 숨은 type 입력은 저장된 값 그대로이고(새 상품은 ''), 카테고리를 옮겨도 값을 파생하지 않는다.
-   * 공개 중 상품의 카테고리 이동은 경고 없이 자유롭다.
-   */
-  it('상품 유형을 보이지 않고 저장된 type을 그대로 싣는다', () => {
-    const draft = { ...good, publishedAt: null, firstPublishedAt: null, type: '' };
-    const linked = renderGoodSection(draft);
-    expect(linked).not.toContain('상품 유형');
-    expect(linked).not.toContain('카테고리에서)');
-    expect(linked).toContain('<input type="hidden" name="type" value=""/>');
-    expect(linked).not.toMatch(/<(?:select|input)(?![^>]*type="hidden")[^>]*name="type"/);
-    const stored = renderGoodSection({ ...draft, type: '인형' });
-    expect(stored).toContain('<input type="hidden" name="type" value="인형"/>');
-    expect(stored).not.toContain('data-good-type-');
-    const published = renderGoodSection({ ...good, categoryId: dollCategory.id });
-    expect(published).toContain('<input type="hidden" name="type" value="아크릴"/>');
-    expect(published).not.toContain('data-good-type-mismatch');
-    expect(renderGoodSection({ ...good, categoryId: '' })).not.toContain('data-good-type-mismatch');
+  /* ADR-0044 — 상품 유형은 화면 어디에도 없고 숨은 입력으로도 싣지 않는다. */
+  it('상품 유형을 보이지 않고 type 입력도 싣지 않는다', () => {
+    const draft = { ...good, publishedAt: null, firstPublishedAt: null };
+    for (const html of [renderGoodSection(draft), renderGoodSection({ ...good, categoryId: dollCategory.id }), renderGoodSection({ ...good, categoryId: '' })]) {
+      expect(html).not.toContain('상품 유형');
+      expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
+      expect(html).not.toContain('data-good-type-');
+    }
   });
 
   it('previews the selected record values before any edit', () => {

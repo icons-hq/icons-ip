@@ -20,7 +20,7 @@ const detail: SmartStoreShipmentDetail = {
   orderNumber: '2026102010000001', productOrderNumber: '2026102020000001', shipmentNumber: '2026102030000001',
   itemId: '60000000-0000-4000-8000-000000000001', goodId: 'test-good', buyerName: '합성 구매자', buyerId: '60000000-0000-4000-8000-000000000002', buyerPhone: '',
   address1: '합성 기본 주소', address2: '합성 상세 주소', orderedAt: '2026-10-19T16:30:00Z', paidAt: '2026-10-19T16:35:00Z', confirmedAt: '2026-10-19T17:00:00Z',
-  expectedShipDate: '2026-10-21', shippedAt: null, exportedAt: null, goodType: 'keyring', paymentMethod: 'card', productPrice: null, optionPrice: null,
+  expectedShipDate: '2026-10-21', shippedAt: null, exportedAt: null, paymentMethod: 'card', productPrice: null, optionPrice: null,
   itemDiscount: 6000, sellerDiscount: 6000, itemTotal: 24000, regionalShippingFee: 0, shippingDiscount: 0,
 };
 const line = { shipmentId: '60000000-0000-4000-8000-000000000003', orderId: '60000000-0000-4000-8000-000000000004', recipient: '합성 수취인', phone: '01001234567',

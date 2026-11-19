@@ -18,7 +18,6 @@ export interface SmartStoreShipmentDetail {
   expectedShipDate: string | null;
   shippedAt: string | null;
   exportedAt: string | null;
-  goodType: string;
   paymentMethod: string;
   /** Null when the historical base/option split was not recorded. */
   productPrice: number | null;

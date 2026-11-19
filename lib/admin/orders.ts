@@ -123,7 +123,6 @@ export interface AdminOrderItemRecord {
   optionSaleMode?: GoodsOptionSaleMode;
   id: string;
   name: string;
-  type: string;
   qty: number;
   unitPrice: number;
 }

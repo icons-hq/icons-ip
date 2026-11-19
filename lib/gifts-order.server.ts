@@ -16,6 +16,7 @@ const nullableText = (v: unknown): v is string | null => v === null || text(v);
 const nullableInstant = (v: unknown): v is string | null => v === null || transactionInstant(v);
 const date = (v: unknown): v is string | null => v === null || typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const uuid = (v: unknown): v is string => typeof v === 'string' && isUuid(v);
+const GIFT_ORDER_ITEM_KEYS = ['id', 'goodId', 'variantId', 'variantName', 'variantCode', 'name', 'qty', 'unitPrice', 'customInputs', 'supplySource', 'preorderExpectedShipDate'];
 
 /** Every object is reconstructed from a strict whitelist before crossing RSC. */
 export function parseGiftCheckoutOrder(value: unknown, orderId: string): GiftCheckoutOrderResult | null {
@@ -34,16 +35,17 @@ export function parseGiftCheckoutOrder(value: unknown, orderId: string): GiftChe
     || receipt.display.totals.collectShippingTotal !== 0) return null;
   const items: CheckoutOrderItem[] = [], itemIds = new Set<string>();
   for (const item of row.items) {
-    if (!transactionRecord(item) || !transactionExactKeys(item, ['id', 'goodId', 'variantId', 'variantName', 'variantCode', 'name', 'type', 'qty', 'unitPrice', 'customInputs', 'supplySource', 'preorderExpectedShipDate'])
+    /* 상품 유형 칸 삭제(ADR-0044) 배포 사이에는 DB가 옛 'type' 키를 아직 실을 수 있다. 값은 읽지 않고, 다음 정리 PR이 이 허용을 걷는다. */
+    if (!transactionRecord(item) || !(transactionExactKeys(item, GIFT_ORDER_ITEM_KEYS) || transactionExactKeys(item, [...GIFT_ORDER_ITEM_KEYS, 'type']) && typeof item.type === 'string')
       || !uuid(item.id) || itemIds.has(item.id) || !text(item.goodId, 200) || !uuid(item.variantId) || !nullableText(item.variantName) || !nullableText(item.variantCode)
-      || !text(item.name) || !text(item.type) || !transactionInteger(item.qty, 1) || !transactionInteger(item.unitPrice)
+      || !text(item.name) || !transactionInteger(item.qty, 1) || !transactionInteger(item.unitPrice)
       || item.supplySource !== 'stock' && item.supplySource !== 'preorder' || !date(item.preorderExpectedShipDate)) return null;
     const customInputs = item.customInputs === null ? null : parseGoodsCustomInputSelection(item.customInputs);
     if (item.customInputs !== null && !customInputs) return null;
     const line = receipt.display.lines.find(candidate => candidate.lineId === item.id);
     if (!line || line.variantId !== item.variantId || line.qty !== item.qty || line.unitPrice !== item.unitPrice) return null;
     itemIds.add(item.id); items.push({ id: item.id, goodId: item.goodId, variantId: item.variantId, variantName: item.variantName, variantCode: item.variantCode,
-      name: item.name, type: item.type, qty: item.qty, unitPrice: item.unitPrice, customInputs, supplySource: item.supplySource, preorderExpectedShipDate: item.preorderExpectedShipDate });
+      name: item.name, qty: item.qty, unitPrice: item.unitPrice, customInputs, supplySource: item.supplySource, preorderExpectedShipDate: item.preorderExpectedShipDate });
   }
   if (items.length !== receipt.display.lines.length) return null;
   const shipments: ShipmentRecord[] = [], shipmentIds = new Set<string>();
