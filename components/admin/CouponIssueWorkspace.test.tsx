@@ -5,6 +5,7 @@ import type { CouponIssueBatch } from '@/lib/admin/coupon-issuance';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock('@/app/admin/coupon-issuance-actions', () => ({ executeCouponIssueAction: vi.fn(), findCouponIssueCustomersAction: vi.fn(), previewCouponIssueAction: vi.fn(), readCouponIssueAction: vi.fn() }));
+vi.mock('@/app/admin/coupon-revoke-actions', () => ({ revokeUserCouponsAction: vi.fn() }));
 vi.mock('@/app/admin/marketing-message-actions', () => ({ searchMarketingSegmentsAction: vi.fn() }));
 /* 같은 로그인 세션으로 연 화면이다(세션 잠금은 이 테스트의 관심이 아니다). */
 vi.mock('./GoodsGroupOperation', () => ({ useGoodsGroupSession: () => ({ blocked: false, current: () => true, deny: vi.fn() }) }));
@@ -47,4 +48,25 @@ it('저장하고 옮겨 왔으면 저장 결과를 맨 위에 보인다', () => 
   expect(html).toContain('VIP-1000 쿠폰을 저장했습니다. 고객지정 혜택은 아래에서 대상을 확인하고 발급을 확정해야 쿠폰함에 들어갑니다.');
   expect(html.indexOf('쿠폰을 저장했습니다')).toBeLessThan(html.indexOf('발급 대상 선택'));
   expect(render()).not.toContain('쿠폰을 저장했습니다');
+});
+
+/* PAY-034: 완료된 작업의 결과 표에서 미사용 쿠폰만 골라 회수한다. 사용 중·이미 회수한 줄은 고를 수 없다. */
+it('완료된 작업이면 미사용 보유 쿠폰만 회수 선택을 열어 둔다', () => {
+  const row = (n: number, extra: Partial<CouponIssueBatch['rows'][number]>) => ({ userId: `94000000-0000-4000-8000-0000000001${n}0`, userCouponId: `94000000-0000-4000-8000-0000000002${n}0`, nickname: `고객${n}`, reason: null, ...extra });
+  const html = render({ initial: batch({ status: 'completed', canExecute: false, plannedCount: 3, issuedCount: 3, existingCount: 0, targetCount: 3, finishedAt: '2026-11-12T01:01:00.000Z',
+    rows: [row(1, { heldStatus: 'active', revokedAt: null }), row(2, { heldStatus: 'used', revokedAt: null }), row(3, { heldStatus: 'active', revokedAt: '2026-11-12T02:00:00.000Z' })] }) });
+  expect(html).toContain('쿠폰 회수 선택 고객1');
+  expect(html).not.toContain('쿠폰 회수 선택 고객2');
+  expect(html).not.toContain('쿠폰 회수 선택 고객3');
+  expect(html).toContain('사용·결제 대기 주문 사용 중');
+  expect(html).toContain('>회수함<');
+  expect(html).toContain('선택한 쿠폰 회수');
+  /* 아무것도 고르지 않으면 회수 버튼은 잠겨 있다. */
+  expect(html.match(/<button[^>]*>(?:(?!<\/button>).)*선택한 쿠폰 회수<\/button>/s)?.[0]).toContain('disabled=""');
+});
+
+it('발급 전 확인 작업에는 회수 도구가 없다', () => {
+  const html = render({ initial: batch({ canExecute: true }) });
+  expect(html).not.toContain('선택한 쿠폰 회수');
+  expect(html).not.toContain('회수할 쿠폰 선택');
 });

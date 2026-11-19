@@ -226,6 +226,8 @@ describe('mapCouponActionError', () => {
     expect(mapCouponActionError('coupon_min_subtotal')).toContain('최소 주문 금액');
     expect(mapCouponActionError('coupon_not_owned')).toContain('보유하지 않은');
     expect(mapCouponActionError('coupon_already_used')).toContain('이미 사용한');
+    expect(mapCouponActionError('coupon_grade_required')).toContain('회원 등급');
+    expect(mapCouponActionError('coupon_revoked')).toContain('다시 받을 수 없');
   });
 
   it('folds unknown failures into the generic message', () => {

@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { executeCouponIssueAction, findCouponIssueCustomersAction, previewCouponIssueAction, readCouponIssueAction } from '@/app/admin/coupon-issuance-actions';
+import { revokeUserCouponsAction } from '@/app/admin/coupon-revoke-actions';
+import { COUPON_REVOKE_REASON_MAX, COUPON_REVOKE_REASON_MIN, couponRevokeSummary } from '@/lib/admin/coupon-revoke';
+import { adminPrompt } from '@/lib/admin/confirm';
 import { COUPON_ISSUE_PATH, couponIssueCustomerIds, couponIssueError, type CouponIssueBatch, type CouponIssueTargets } from '@/lib/admin/coupon-issuance';
 import { withoutAdminSavedFlag } from '@/lib/admin/saved-flag';
 import type { AdminCouponRecord } from '@/lib/admin/coupons';
@@ -41,13 +44,32 @@ export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = nul
   const [segment, setSegment] = useState<CustomerSegment | null>(null), [batch, setBatch] = useState(initial), [confirmed, setConfirmed] = useState(false), [error, setError] = useState(''), [uncertain, setUncertain] = useState(false);
   const [pending, start] = useTransition(), session = useGoodsGroupSession(actorId, sessionId), searchSequence = useRef(0), previewRequest = useRef<{ id: string; targets: CouponIssueTargets } | null>(null);
   const blocked = pending || uncertain || session.blocked;
+  /* 잘못 발급한 쿠폰 개별 회수(PAY-034): 완료된 작업의 결과 줄에서 미사용 쿠폰을 골라 회수한다. */
+  const [picked, setPicked] = useState<Set<string>>(new Set()), [revokeNotice, setRevokeNotice] = useState('');
+  const revocable = (row: CouponIssueBatch['rows'][number]) => row.userCouponId !== null && row.heldStatus === 'active' && !row.revokedAt;
+  function togglePick(id: string, on: boolean) { setPicked(current => { const next = new Set(current); if (on) next.add(id); else next.delete(id); return next; }); }
+  async function revoke() {
+    if (!batch || !picked.size || !session.current()) return;
+    const ids = [...picked], reason = await adminPrompt({
+      title: `쿠폰 ${ids.length}장 회수`, destructive: true, confirmLabel: '회수',
+      message: `선택한 ${ids.length}장은 고객 쿠폰함에서 사라지고 쓸 수 없게 됩니다. 되돌릴 수 없고, 같은 쿠폰을 같은 고객에게 다시 발급할 수도 없습니다. 이미 결제 대기 주문이 잡은 쿠폰은 회수되지 않습니다.`,
+      input: { label: '회수 사유', placeholder: '예: 다른 고객에게 잘못 발급', minLength: COUPON_REVOKE_REASON_MIN, maxLength: COUPON_REVOKE_REASON_MAX },
+    });
+    if (reason === null) return;
+    start(async () => {
+      const result = await revokeUserCouponsAction({ userCouponIds: ids, reason, operationId: crypto.randomUUID() }); if (!session.current()) return;
+      if (!result.ok) { setError(result.error); return; }
+      setError(''); setPicked(new Set()); setRevokeNotice(couponRevokeSummary(result.result));
+      const refreshed = await readCouponIssueAction(batch.id); if (refreshed.batch) setBatch(refreshed.batch);
+    });
+  }
   /* 저장 결과 문장은 이 화면에 머무는 동안만 보이고, 주소의 표시는 지워 새로고침에 다시 뜨지 않게 한다. */
   const [saved] = useState(justSaved);
   useEffect(() => {
     if (justSaved) window.history.replaceState(null, '', withoutAdminSavedFlag(`${window.location.pathname}${window.location.search}`));
   }, [justSaved]);
   const executeReason = batch && !pending && !session.blocked ? executeBlockedReason(batch, confirmed, uncertain) : null;
-  function changed() { setBatch(null); setConfirmed(false); setError(''); previewRequest.current = null; }
+  function changed() { setBatch(null); setConfirmed(false); setError(''); setPicked(new Set()); setRevokeNotice(''); previewRequest.current = null; }
   /* 세그먼트 작업을 다시 준비할 때 고를 세그먼트 이름(작업 조회로 화면이 새로 열리면 고른 세그먼트가 비어 있다). */
   const [segmentHint, setSegmentHint] = useState<{ name: string | null } | null>(null);
   const idsInput = useRef<HTMLTextAreaElement>(null), segmentBox = useRef<HTMLDivElement>(null);
@@ -106,7 +128,10 @@ export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = nul
       <p className="flex flex-wrap items-center gap-2">상태: <AdminStatusBadge tone={statusTone('couponIssue', batch.status)}>{{ prepared: batch.canExecute ? '발급 전 확인' : '유효 시간 지남·실행 불가', invalid: '입력 확인 필요', completed: '발급 완료', failed: '발급 실패' }[batch.status]}</AdminStatusBadge>{batch.segmentName ? <span>{batch.segmentName}</span> : null}</p>
       <div className={ADMIN_COUNT_CARD_GRID_CLASS}><AdminCountCard count={batch.targetCount} label="확인한 대상" unit="명" /><AdminCountCard count={batch.plannedCount} label="새 발급 예정" tone="info" unit="명" /><AdminCountCard count={batch.existingCount} label="기보유" unit="명" /><AdminCountCard count={batch.issuedCount} label="실제 새 발급" tone="success" unit="명" /></div>
       {batch.error ? <AdminNotice role="alert" tone="danger">{couponIssueError(batch.error)}</AdminNotice> : null}
-      <div className="min-w-0 overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&>[data-slot=table-container]]:overflow-visible" role="region" aria-label="발급 대상 결과" tabIndex={0}><Table className="min-w-[800px] text-xs"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead>현재 닉네임</TableHead><TableHead>고객 ID</TableHead><TableHead>확인 결과</TableHead><TableHead>쿠폰 발급 ID</TableHead></TableRow></TableHeader><TableBody>{batch.rows.map(row => <TableRow key={row.userId}><TableCell>{row.nickname}</TableCell><TableCell className="font-mono">{row.userId}</TableCell><TableCell>{row.reason ? couponIssueError(row.reason) : row.userCouponId ? '쿠폰 보유 확인' : '새 발급 대상'}</TableCell><TableCell className="font-mono">{row.userCouponId ?? '—'}</TableCell></TableRow>)}</TableBody></Table></div>
+      <div className="min-w-0 overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&>[data-slot=table-container]]:overflow-visible" role="region" aria-label="발급 대상 결과" tabIndex={0}><Table className="min-w-[800px] text-xs"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">{batch.status === 'completed' ? <TableHead className="w-10"><span className="sr-only">회수할 쿠폰 선택</span></TableHead> : null}<TableHead>현재 닉네임</TableHead><TableHead>고객 ID</TableHead><TableHead>확인 결과</TableHead><TableHead>쿠폰 발급 ID</TableHead></TableRow></TableHeader><TableBody>{batch.rows.map(row => <TableRow key={row.userId}>{batch.status === 'completed' ? <TableCell>{row.userCouponId && revocable(row) ? <input type="checkbox" aria-label={`쿠폰 회수 선택 ${row.nickname}`} checked={picked.has(row.userCouponId)} disabled={blocked} onChange={event => togglePick(row.userCouponId as string, event.target.checked)} /> : null}</TableCell> : null}<TableCell>{row.nickname}</TableCell><TableCell className="font-mono">{row.userId}</TableCell><TableCell>{row.reason ? couponIssueError(row.reason) : row.revokedAt ? '회수함' : row.heldStatus === 'used' ? '사용·결제 대기 주문 사용 중' : row.userCouponId ? '쿠폰 보유 확인' : '새 발급 대상'}</TableCell><TableCell className="font-mono">{row.userCouponId ?? '—'}</TableCell></TableRow>)}</TableBody></Table></div>
+      {batch.status === 'completed' ? <div className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5"><p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">잘못 발급한 쿠폰은 위 표에서 고객을 골라 회수합니다. 미사용 쿠폰만 회수되고 되돌릴 수 없습니다.</p>
+        <Button type="button" variant="outline" disabled={blocked || !picked.size} onClick={revoke}>선택한 쿠폰 회수{picked.size ? ` (${picked.size})` : ''}</Button></div> : null}
+      {revokeNotice ? <AdminNotice role="status" tone="success">{revokeNotice}</AdminNotice> : null}
       {batch.status === 'prepared' ? <><p className="leading-relaxed text-muted-foreground">{new Date(batch.validUntil).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}까지 {batch.canExecute ? '유효합니다' : '유효했던 확인 결과입니다(지금은 실행할 수 없습니다)'}. 실행 시 자격·세그먼트·쿠폰 한도를 다시 검사합니다. 확인 이후 새로 조건에 들어온 고객은 추가하지 않습니다.</p>
         <label className="flex items-center gap-2"><input type="checkbox" checked={confirmed} disabled={blocked} onChange={event => setConfirmed(event.target.checked)} /> 대상과 새 발급 수를 확인했습니다.</label></> : null}
       <div className="flex flex-wrap gap-2">
