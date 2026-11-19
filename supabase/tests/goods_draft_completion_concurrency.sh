@@ -69,7 +69,7 @@ set local statement_timeout='15s';
 set local application_name='goods-draft-completion-race-owner';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a9a90000-0000-4000-8000-000000000001',true);
-select public.admin_save_good_from_draft('{"id":"goods-draft-completion-race-good","ip_id":"goods-draft-completion-race","name":"동시 등록 합성 상품","type":"문구","price":1000,"stock":"ok","code":"GDRACE-0001"}',
+select public.admin_save_good_from_draft('{"id":"goods-draft-completion-race-good","ip_id":"goods-draft-completion-race","name":"동시 등록 합성 상품","price":1000,"stock":"ok","code":"GDRACE-0001"}',
  'a9a90000-0000-4000-8000-000000001001',1);
 reset role;
 \echo DRAFT_COMPLETION_READY

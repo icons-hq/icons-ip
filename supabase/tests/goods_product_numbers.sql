@@ -97,7 +97,7 @@ insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_a
 values ('00000000-0000-4000-8000-000000061303','goods-number-origin','TEST 번호 출고지',0,'TEST 주소',true);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000061301',true);
 set local role authenticated;
-select public.admin_save_good('{"id":"number-save","code":"NUMBER-SAVE","name":"저장 번호 검증","ip_id":"goods-number-save","type":"문구","price":5000,"origin_id":"00000000-0000-4000-8000-000000061303","publish":false,"variant_baseline":[],"variants":[{"code":"NUMBER-SAVE-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":4}]}');
+select public.admin_save_good('{"id":"number-save","code":"NUMBER-SAVE","name":"저장 번호 검증","ip_id":"goods-number-save","price":5000,"origin_id":"00000000-0000-4000-8000-000000061303","publish":false,"variant_baseline":[],"variants":[{"code":"NUMBER-SAVE-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":4}]}');
 reset role;
 select product_no as number_save from public.goods where id='number-save' \gset
 select last_value as seq_saved from private.goods_product_no_seq \gset
@@ -111,7 +111,7 @@ begin
     select * into v from public.goods_variants where good_id=g.id and is_default;
     execute 'set local role authenticated';
     perform public.admin_save_good(jsonb_build_object('id',g.id,'previous_id',g.id,'code',g.code,'name','저장 번호 수정 '||round,'ip_id',g.ip_id,
-      'type',g.type,'price',g.price,'origin_id',g.origin_id,'publish',false,'variant_baseline',jsonb_build_array(v.id),
+      'price',g.price,'origin_id',g.origin_id,'publish',false,'variant_baseline',jsonb_build_array(v.id),
       'variants',jsonb_build_array(jsonb_build_object('id',v.id,'name',v.name,'code',v.code,'attributes',v.attributes,'extraPrice',0,
         'stockQty',v.stock_qty,'expectedStockQty',v.stock_qty))));
     execute 'reset role';
@@ -167,7 +167,7 @@ select 1/case when (select last_value from private.goods_product_no_seq)=:seq_sa
  then 1 else 0 end as assert_denied_direct_inserts_do_not_consume_numbers;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000061301',true);
 set local role authenticated;
-select public.admin_save_good('{"id":"number-save-next","code":"NUMBER-SAVE-NEXT","name":"다음 새 상품","ip_id":"goods-number-save","type":"문구","price":5000,"origin_id":"00000000-0000-4000-8000-000000061303","publish":false,"variant_baseline":[],"variants":[{"code":"NUMBER-SAVE-NEXT-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":1}]}');
+select public.admin_save_good('{"id":"number-save-next","code":"NUMBER-SAVE-NEXT","name":"다음 새 상품","ip_id":"goods-number-save","price":5000,"origin_id":"00000000-0000-4000-8000-000000061303","publish":false,"variant_baseline":[],"variants":[{"code":"NUMBER-SAVE-NEXT-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":1}]}');
 reset role;
 select 1/case when (select product_no from public.goods where id='number-save-next')=:number_save+1
  and (select product_no from public.goods where id='number-save-next')=(select max(product_no) from public.goods)

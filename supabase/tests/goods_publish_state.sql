@@ -9,7 +9,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042101',true);
 select public.admin_save_good('{"ip_id":"goods-publish","name":"Minimal draft"}') as draft \gset
 select 1 / case when exists(select 1 from public.goods where id=:'draft'::jsonb->>'id'
- and published_at is null and first_published_at is null and notice_maker is null and type='')
+ and published_at is null and first_published_at is null and notice_maker is null)
 then 1 else 0 end as assert_name_and_ip_are_sufficient_for_draft;
 do $$ begin
   perform public.admin_set_good_published('minimal-draft',true);

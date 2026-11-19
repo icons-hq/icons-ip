@@ -25,7 +25,7 @@ select public.service_verify_admin_artwork_upload('00000000-0000-4000-8000-00000
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047801',true);
-select public.admin_save_good('{"id":"goods-html-source-0478","ip_id":"goods-html-0478","name":"HTML 상품","type":"문구","price":1000,"stock":"ok","description":"<h2>구성</h2><p>키링 &amp; 스티커</p><img src=\"public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp\" alt=\"구성품\" loading=\"lazy\" decoding=\"async\" />","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp"]}');
+select public.admin_save_good('{"id":"goods-html-source-0478","ip_id":"goods-html-0478","name":"HTML 상품","price":1000,"stock":"ok","description":"<h2>구성</h2><p>키링 &amp; 스티커</p><img src=\"public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp\" alt=\"구성품\" loading=\"lazy\" decoding=\"async\" />","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp"]}');
 select 1/case when exists(select 1 from public.goods where id='goods-html-source-0478' and description_format='html'
  and description like '<h2>구성</h2>%' and cardinality(description_image_paths)=1 and published_at is null)
  then 1 else 0 end as assert_html_draft_saved;
@@ -69,7 +69,7 @@ select public.admin_save_good(jsonb_build_object('id','goods-html-source-0478','
  'description_image_paths',jsonb_build_array('public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp'),'detail_image_path',null));
 select 1/case when exists(select 1 from public.goods where id='goods-html-source-0478' and detail_image_path is null and cardinality(description_image_paths)=1)
  then 1 else 0 end as assert_detail_to_html_removes_old_slot_atomically;
-select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-source-0478","previous_id":"goods-html-source-0478","ip_id":"goods-html-0478","name":"실패한 수정","type":"문구","price":1000,"stock":"ok","description":"<p>저장되면 안 됨</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp","public-media/catalog/good/00000000-0000-4000-8000-000000047899.webp"]}')$sql$,'unverified_artwork');
+select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-source-0478","previous_id":"goods-html-source-0478","ip_id":"goods-html-0478","name":"실패한 수정","price":1000,"stock":"ok","description":"<p>저장되면 안 됨</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp","public-media/catalog/good/00000000-0000-4000-8000-000000047899.webp"]}')$sql$,'unverified_artwork');
 select 1/case when exists(select 1 from public.goods where id='goods-html-source-0478' and name='상세에서 HTML로'
  and description='<img src="public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp" />')
  then 1 else 0 end as assert_failed_move_rolls_back_metadata_and_permission;
@@ -90,8 +90,8 @@ select public.admin_save_good(jsonb_build_object('id','goods-html-renamed-0478',
 select 1/case when exists(select 1 from public.goods where id='goods-html-renamed-0478' and cardinality(gallery_paths)=0 and cardinality(description_image_paths)=1)
  and not exists(select 1 from public.goods where id='goods-html-rename-0478') then 1 else 0 end as assert_draft_rename_and_image_move_share_the_locked_source;
 
-select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-stolen-0478","ip_id":"goods-html-0478","name":"무단 재사용","type":"문구","price":1000,"stock":"ok","description":"<p>무단 이미지</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp"]}')$sql$,'unverified_artwork');
-select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-unverified-0478","ip_id":"goods-html-0478","name":"미검증 이미지","type":"문구","price":1000,"stock":"ok","description":"<p>미검증</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047899.webp"]}')$sql$,'unverified_artwork');
+select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-stolen-0478","ip_id":"goods-html-0478","name":"무단 재사용","price":1000,"stock":"ok","description":"<p>무단 이미지</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp"]}')$sql$,'unverified_artwork');
+select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-unverified-0478","ip_id":"goods-html-0478","name":"미검증 이미지","price":1000,"stock":"ok","description":"<p>미검증</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047899.webp"]}')$sql$,'unverified_artwork');
 select 1/case when not exists(select 1 from public.goods where id in ('goods-html-stolen-0478','goods-html-unverified-0478')) then 1 else 0 end as assert_invalid_images_rollback_the_whole_draft;
 -- R17(MD-0002): 상세페이지 HTML 상한은 200,000자다(한글이면 UTF-8 약 600KB, 서버 액션 본문 3MB 안).
 select public.admin_save_good(jsonb_build_object('id','goods-html-long-0478','ip_id','goods-html-0478','name','긴 상세 HTML','type','문구','price',1000,'stock','ok',
@@ -101,7 +101,7 @@ select pg_temp.expect_html_error($sql$select public.admin_save_good(jsonb_build_
 select pg_temp.expect_html_error($sql$select public.admin_save_good('{"ip_id":"goods-html-0478","name":"잘못된 형식","price":0,"description_format":"css"}')$sql$,'goods_description_format');
 select pg_temp.expect_html_error($sql$select public.admin_save_good('{"ip_id":"goods-html-0478","name":"배열 오류","price":0,"description_format":"html","description_image_paths":[null]}')$sql$,'goods_description_images');
 
-select public.admin_save_good('{"id":"goods-html-clone-0478","previous_id":"goods-html-clone-0478","ip_id":"goods-html-0478","name":"일반 텍스트로 변경","type":"문구","price":1000,"stock":"ok","description":"<3 <strong>그대로인 원문</strong>","description_format":"plain","description_image_paths":[]}');
+select public.admin_save_good('{"id":"goods-html-clone-0478","previous_id":"goods-html-clone-0478","ip_id":"goods-html-0478","name":"일반 텍스트로 변경","price":1000,"stock":"ok","description":"<3 <strong>그대로인 원문</strong>","description_format":"plain","description_image_paths":[]}');
 select 1/case when exists(select 1 from public.goods where id='goods-html-clone-0478' and description_format='plain'
  and description='<3 <strong>그대로인 원문</strong>' and cardinality(description_image_paths)=0)
  then 1 else 0 end as assert_plain_transition_preserves_literal_source;

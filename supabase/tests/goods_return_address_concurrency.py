@@ -121,7 +121,7 @@ orders = ','.join(f"('{uid('order', n)}','{uid('user', 2)}','delivered',2000,0,'
                   for n in range(1, 5))
 items = [(1, 1, 'race-good-a'), (2, 2, 'race-good-a'), (3, 3, 'race-good-a'), (4, 4, 'race-good-a'), (5, 4, 'race-good-b')]
 item_rows = ','.join(
-    f"('{uid('item', i)}','{uid('order', o)}','{g}',(select id from public.goods_variants where good_id='{g}' and is_default),1,1000,'{g}','문구','race-ip')"
+    f"('{uid('item', i)}','{uid('order', o)}','{g}',(select id from public.goods_variants where good_id='{g}' and is_default),1,1000,'{g}','race-ip')"
     for i, o, g in items)
 shipment_rows = ','.join(
     f"('{uid('shipment', n)}','{uid('order', n)}','{uid('origin', 1)}','RACE 김포',0,'{{}}','delivered','hanjin','RACE{n:08d}',now()-interval '4 days',now()-interval '3 days')"
@@ -144,7 +144,7 @@ insert into public.return_addresses(name,address,phone) values('RACE 서울','RA
  ('RACE 부산','RACE 부산 반품로 2','051-000-0000'),('RACE 제주','RACE 제주 반품로 3','064-000-0000');
 update public.goods set return_address_id=(select id from public.return_addresses where name='RACE 서울') where id='race-good-a';
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at,created_at) values {orders};
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values {item_rows};
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) values {item_rows};
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at) values {shipment_rows};
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values {link_rows};
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type) values {claim_rows};

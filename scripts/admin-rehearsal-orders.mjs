@@ -45,7 +45,7 @@ do $$ begin
  end if;
 end $$;
 create temporary table rehearsal_inputs on commit drop as
-select batch.n,batch.order_id,batch.item_id,g.id good_id,g.name,g.type,g.ip_id,v.id variant_id,v.price,
+select batch.n,batch.order_id,batch.item_id,g.id good_id,g.name,g.ip_id,v.id variant_id,v.price,
  origin.id origin_id,quote.value fee
 from (values ${rows}) batch(n,order_id,item_id)
 join public.goods g on g.id='demo-goods-'||lpad((1+((batch.n-1)%20))::text,3,'0')

@@ -12,7 +12,7 @@ insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_a
 insert into public.ips(id,title,vertical_key,published_at) values('cart-snapshot','합성 카트 IP','character',now());
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000064501',true);
-select public.admin_save_good('{"id":"cart-snapshot-1001","code":"CART-SNAP","ip_id":"cart-snapshot","name":"합성 1001문구 상품","type":"문구","price":1000,"origin_id":"00000000-0000-4000-8000-000000064503","variant_baseline":[],"variants":[{"name":"기본 옵션","attributes":{},"code":"CART-SNAP-01","extraPrice":0,"stockQty":1200}],"custom_inputs":{"enabled":true,"fields":[{"id":"00000000-0000-4000-8000-000000064511","name":"각인 문구","active":true}]},"custom_inputs_expected_revision":0}');
+select public.admin_save_good('{"id":"cart-snapshot-1001","code":"CART-SNAP","ip_id":"cart-snapshot","name":"합성 1001문구 상품","price":1000,"origin_id":"00000000-0000-4000-8000-000000064503","variant_baseline":[],"variants":[{"name":"기본 옵션","attributes":{},"code":"CART-SNAP-01","extraPrice":0,"stockQty":1200}],"custom_inputs":{"enabled":true,"fields":[{"id":"00000000-0000-4000-8000-000000064511","name":"각인 문구","active":true}]},"custom_inputs_expected_revision":0}');
 reset role;
 select set_config('request.jwt.claim.sub','',true);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)

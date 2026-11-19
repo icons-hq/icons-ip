@@ -168,7 +168,7 @@ sql('drop trigger test_sale_period_final_wait on public.orders;drop function pri
 # Use a fresh unpublished clone so catalog identity locks are irrelevant to CAS.
 sql('begin;' + auth(admin) + f"select public.admin_clone_good('{key(301)}','sale-period-good','sale-period-cas','SALE-CAS','기간 CAS');commit;")
 revision = int(sql("select sale_period_revision from public.goods where id='sale-period-cas';"))
-payload = dict(id='sale-period-cas', previous_id='sale-period-cas', ip_id='sale-period-tests', name='기간 CAS', type='문구', price=10000,
+payload = dict(id='sale-period-cas', previous_id='sale-period-cas', ip_id='sale-period-tests', name='기간 CAS', price=10000,
                sale_period=dict(startsAt='2099-01-01T00:00:00Z', endsAt='2099-02-01T00:00:00Z', expectedRevision=revision))
 save = "select public.admin_save_good('" + json.dumps(payload, ensure_ascii=False) + "');"
 race('period-cas', auth(admin) + save, auth(admin) + save, 'goods_sale_period_changed')

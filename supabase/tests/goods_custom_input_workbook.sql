@@ -10,7 +10,7 @@ insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_a
 values ('00000000-0000-4000-8000-000000079903','custom-input-workbook-sql','TEST 엑셀 출고지',0,'TEST 주소',true);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000079901',true);
 set local role authenticated;
-select public.admin_save_good('{"id":"custom-input-workbook-sql-good","code":"CUSTOM-XLSX-SQL","name":"TEST 이전 상품","ip_id":"custom-input-workbook-sql","type":"문구","price":5000,"origin_id":"00000000-0000-4000-8000-000000079903","publish":false,"variant_baseline":[],"variants":[{"code":"CUSTOM-XLSX-SQL-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":4}],"custom_inputs":{"enabled":true,"fields":[{"id":"00000000-0000-4000-8000-000000079902","name":"TEST 이전 문구","active":true}]},"custom_inputs_expected_revision":0}');
+select public.admin_save_good('{"id":"custom-input-workbook-sql-good","code":"CUSTOM-XLSX-SQL","name":"TEST 이전 상품","ip_id":"custom-input-workbook-sql","price":5000,"origin_id":"00000000-0000-4000-8000-000000079903","publish":false,"variant_baseline":[],"variants":[{"code":"CUSTOM-XLSX-SQL-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":4}],"custom_inputs":{"enabled":true,"fields":[{"id":"00000000-0000-4000-8000-000000079902","name":"TEST 이전 문구","active":true}]},"custom_inputs_expected_revision":0}');
 reset role;
 insert into public.orders(id,user_id,status,total,address)
 values ('00000000-0000-4000-8000-000000079904','00000000-0000-4000-8000-000000079901','pending',5000,'{}');

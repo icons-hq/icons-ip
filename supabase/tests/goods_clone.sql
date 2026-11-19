@@ -141,7 +141,7 @@ select 1 / case when exists(
   ) then 1 else 0 end as assert_clone_safe_metadata_and_draft_state;
 
 select pg_temp.expect_error($sql$
-  select public.admin_save_good('{"id":"not-a-clone-0479","ip_id":"goods-clone-0479","name":"무단 이미지 재사용","type":"문구","price":1000,"stock":"ok","image_path":"public-media/goods-clone-0479/main.webp"}'::jsonb)
+  select public.admin_save_good('{"id":"not-a-clone-0479","ip_id":"goods-clone-0479","name":"무단 이미지 재사용","price":1000,"stock":"ok","image_path":"public-media/goods-clone-0479/main.webp"}'::jsonb)
 $sql$,'unverified_artwork','23514');
 select pg_temp.expect_error($sql$
   select public.admin_clone_good('00000000-0000-4000-8000-000000047985','source-good-0479','clone-good-0479','CLONE-ID-DUP','중복 URL')

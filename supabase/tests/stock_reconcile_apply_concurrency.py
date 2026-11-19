@@ -57,8 +57,8 @@ def place_order(n):
     address = json.dumps({'recipientName': 'TEST 수령인', 'phone': '01000000000', 'postalCode': '12345', 'address1': '합성 주소'}, ensure_ascii=False)
     return (f"select private.change_goods_variant_stock('{good}',{variant},-1);"
             f"insert into public.orders(id,user_id,status,total,address) values('{order_id}','{buyer}','paid',10000,'{address}');"
-            f"insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)"
-            f" values('{order_id}','{good}',1,10000,'TEST 재고대조 경합 굿즈','문구','stock-race-ip',{variant});")
+            f"insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)"
+            f" values('{order_id}','{good}',1,10000,'TEST 재고대조 경합 굿즈','stock-race-ip',{variant});")
 
 
 def stock():
