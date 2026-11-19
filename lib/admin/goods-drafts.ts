@@ -42,7 +42,7 @@ export function validateGoodsDraftValues(value: unknown): value is Record<string
     || new TextEncoder().encode(JSON.stringify(values)).length > GOODS_DRAFT_MAX_BYTES) return false;
   if (Object.entries(values).some(([key, item]) => !allowed.has(key) || typeof item !== 'string' || /^(?:\s*)(?:blob:|data:)/i.test(item))) return false;
   if ((values.variantBaseline ?? '[]') !== '[]' || (values.customInputsExpectedRevision ?? '0') !== '0') return false;
-  return Object.entries(values).every(([key, item]) => !['imagePath','detailImagePath','descriptionUploadPath'].includes(key) && !key.startsWith('galleryPath') || !item || image.test(String(item)));
+  return Object.entries(values).every(([key, item]) => !['imagePath','descriptionUploadPath'].includes(key) && !key.startsWith('galleryPath') && !key.startsWith('detailImagePath') || !item || image.test(String(item)));
 }
 export function parseGoodsDraftSummary(value: unknown): GoodsDraftSummary | null {
   if (!value || typeof value !== 'object') return null;

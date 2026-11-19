@@ -6,9 +6,10 @@ import {
   parseAdminArtworkUploadBlockReason,
   type AdminArtworkKind,
   type AdminArtworkMimeType,
+  type AdminArtworkRejection,
   type AdminArtworkUploadBlockReason,
 } from './artwork';
-import { normalizeAdminArtworkImage } from './artwork-image.server';
+import { inspectAdminArtworkImage } from './artwork-image.server';
 import { createServiceClient } from '@/lib/supabase/service';
 
 /*
@@ -33,6 +34,8 @@ interface AdminArtworkClaimInput {
   path: string;
   size: number;
 }
+
+type NormalizedImage = Extract<Awaited<ReturnType<typeof inspectAdminArtworkImage>>, { ok: true }>['image'];
 
 interface CleanupCandidate {
   actorId: string;
@@ -138,22 +141,49 @@ async function cleanupClaimObjects(
   return completeCleanup(service, input);
 }
 
-async function rejectWithClient(
+function errorText(error: unknown) {
+  if (!error) return null;
+  const message = typeof error === 'object' && error && 'message' in error ? String((error as { message: unknown }).message) : String(error);
+  return message.split('\n')[0].slice(0, 160);
+}
+
+async function recordRejection(
   service: ReturnType<typeof createServiceClient>,
-  input: { actorId: string; path: string },
-) {
+  input: { actorId: string; path: string; rejection?: AdminArtworkRejection },
+): Promise<boolean> {
+  if (input.rejection) {
+    try {
+      const { data, error } = await service.rpc('service_reject_admin_artwork_upload', {
+        p_actor_id: input.actorId,
+        p_path: input.path,
+        p_reason: input.rejection.reason,
+        p_detail: input.rejection.detail,
+      });
+      if (!error) return data === true;
+    } catch {
+      // 사유 기록 함수가 아직 없는 DB(배포 순서)에서는 이유 없이 거절한다.
+    }
+  }
   try {
     const { data, error } = await service.rpc('service_reject_admin_artwork_upload', {
       p_actor_id: input.actorId,
       p_path: input.path,
     });
-    if (error || data !== true) return;
+    return !error && data === true;
   } catch {
-    return;
+    return false;
   }
+}
+
+async function rejectWithClient(
+  service: ReturnType<typeof createServiceClient>,
+  input: { actorId: string; path: string; rejection?: AdminArtworkRejection },
+) {
+  if (!await recordRejection(service, input)) return;
 
   await cleanupClaimObjects(service, {
-    ...input,
+    actorId: input.actorId,
+    path: input.path,
     mode: 'all',
     stage: 'reject',
   });
@@ -238,10 +268,18 @@ export async function cancelAdminArtworkUpload(input: {
   });
 }
 
-/** 확인 시작이 운영자별 한도(동시 1건·1분 22건)에 걸리면 blockedReason, 그 밖의 실패는 null이다. */
+/**
+ * 확인 시작이 운영자별 한도(동시 1건·1분 한도)에 걸리면 blockedReason, 확인 단계에서 거절했으면 그 이유(rejection),
+ * 확인을 시작하지 못한 그 밖의 실패는 null이다.
+ */
 export async function verifyAndPromoteAdminArtwork(
   input: AdminArtworkClaimInput,
-): Promise<{ imagePath: string } | { blockedReason: AdminArtworkUploadBlockReason } | null> {
+): Promise<
+  | { imagePath: string }
+  | { blockedReason: AdminArtworkUploadBlockReason }
+  | { rejection: AdminArtworkRejection }
+  | null
+> {
   if (!validClaimInput(input)) return null;
 
   let service: ReturnType<typeof createServiceClient>;
@@ -262,45 +300,44 @@ export async function verifyAndPromoteAdminArtwork(
       || claim.mime_type !== input.mimeType
       || claim.source_size !== input.size
     ) {
-      await rejectWithClient(service, input);
-      return null;
+      const rejection: AdminArtworkRejection = { reason: 'claim_mismatch', detail: { kind: String(claim.kind), mimeType: String(claim.mime_type) } };
+      await rejectWithClient(service, { ...input, rejection });
+      return { rejection };
     }
   } catch {
     return null;
   }
 
-  let normalized: Awaited<ReturnType<typeof normalizeAdminArtworkImage>> = null;
+  const rejected = async (rejection: AdminArtworkRejection) => {
+    await rejectWithClient(service, { ...input, rejection });
+    return { rejection };
+  };
+
+  let normalized: NormalizedImage;
   try {
     const staging = service.storage.from(STAGING_BUCKET);
     const { data: info, error: infoError } = await staging.info(input.path);
-    if (!infoError && info) {
-      const metadata = normalizeAdminArtworkMetadata({
-        kind: input.kind,
-        mimeType: info.contentType,
-        size: info.size,
+    if (infoError || !info) return rejected({ reason: 'staging_missing', detail: { error: errorText(infoError) } });
+    const metadata = normalizeAdminArtworkMetadata({
+      kind: input.kind,
+      mimeType: info.contentType,
+      size: info.size,
+    });
+    if (!metadata.ok || metadata.value.mimeType !== input.mimeType || metadata.value.size !== input.size) {
+      return rejected({
+        reason: 'staging_metadata_mismatch',
+        detail: { contentType: typeof info.contentType === 'string' ? info.contentType.slice(0, 80) : null, size: typeof info.size === 'number' ? info.size : null },
       });
-      if (
-        metadata.ok
-        && metadata.value.mimeType === input.mimeType
-        && metadata.value.size === input.size
-      ) {
-        const { data: blob, error: downloadError } = await staging.download(input.path);
-        if (!downloadError && blob && typeof blob.arrayBuffer === 'function') {
-          normalized = await normalizeAdminArtworkImage(
-            new Uint8Array(await blob.arrayBuffer()),
-            input.mimeType,
-            input.kind,
-          );
-        }
-      }
     }
-  } catch {
-    normalized = null;
-  }
-
-  if (!normalized) {
-    await rejectWithClient(service, input);
-    return null;
+    const { data: blob, error: downloadError } = await staging.download(input.path);
+    if (downloadError || !blob || typeof blob.arrayBuffer !== 'function') {
+      return rejected({ reason: 'staging_download_failed', detail: { error: errorText(downloadError) } });
+    }
+    const inspected = await inspectAdminArtworkImage(new Uint8Array(await blob.arrayBuffer()), input.mimeType, input.kind);
+    if (!inspected.ok) return rejected({ reason: inspected.reason, detail: inspected.detail });
+    normalized = inspected.image;
+  } catch (error) {
+    return rejected({ reason: 'unexpected_error', detail: { stage: 'inspect', error: errorText(error) } });
   }
 
   try {
@@ -311,8 +348,7 @@ export async function verifyAndPromoteAdminArtwork(
         upsert: false,
       });
     if (uploadError) {
-      await rejectWithClient(service, input);
-      return null;
+      return rejected({ reason: 'public_upload_failed', detail: { error: errorText(uploadError), size: normalized.bytes.byteLength } });
     }
 
     const { data: verified, error: verifyError } = await service.rpc(
@@ -326,12 +362,13 @@ export async function verifyAndPromoteAdminArtwork(
       },
     );
     if (verifyError || verified !== true) {
-      await rejectWithClient(service, input);
-      return null;
+      return rejected({
+        reason: 'verify_rejected',
+        detail: { error: errorText(verifyError), size: normalized.bytes.byteLength, width: normalized.width, height: normalized.height },
+      });
     }
-  } catch {
-    await rejectWithClient(service, input);
-    return null;
+  } catch (error) {
+    return rejected({ reason: 'unexpected_error', detail: { stage: 'promote', error: errorText(error) } });
   }
 
   await cleanupClaimObjects(service, {

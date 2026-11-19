@@ -4,7 +4,13 @@ import {
   cancelAdminArtworkUploadAction,
   prepareAdminArtworkUploadAction,
 } from '@/app/admin/artwork-actions';
-import type { AdminArtworkKind } from './artwork';
+import {
+  ADMIN_ARTWORK_NOT_IMAGE_ERROR,
+  ADMIN_ARTWORK_SIGNATURE_BYTES,
+  detectAdminArtworkMimeType,
+  type AdminArtworkKind,
+  type AdminArtworkMimeType,
+} from './artwork';
 import { createClient } from '@/lib/supabase/client';
 
 /** 사진 보관함 자동 등록 결과. 실패해도 업로드(상품 이미지)는 성공이다. */
@@ -70,6 +76,19 @@ async function requestVerification(body: Record<string, unknown>, expectedImageP
   return { ok: false, error: ok === false && typeof error === 'string' ? error : ADMIN_ARTWORK_UPLOAD_ERROR };
 }
 
+/**
+ * 파일 내용(매직 바이트)으로 정한 형식. 확장자가 형식과 다른 파일(PNG를 .jpg로 저장한 상세 이미지)을 브라우저가
+ * File.type으로 잘못 신고하면 서버 검증이 형식 불일치로 거절한다(2026-11-19). 읽지 못하면 null이다.
+ */
+export async function resolveAdminArtworkMimeType(file: Blob): Promise<AdminArtworkMimeType | null> {
+  try {
+    const head = new Uint8Array(await file.slice(0, ADMIN_ARTWORK_SIGNATURE_BYTES).arrayBuffer());
+    return detectAdminArtworkMimeType(head);
+  } catch {
+    return null;
+  }
+}
+
 export async function uploadAdminArtwork(input: {
   kind: AdminArtworkKind;
   file: File;
@@ -81,9 +100,11 @@ export async function uploadAdminArtwork(input: {
   const actorBinding = expectedActorId === undefined ? {} : { expectedActorId };
   let preparedPath: string | null = null;
   try {
+    const mimeType = await resolveAdminArtworkMimeType(file);
+    if (!mimeType) return { ok: false, error: ADMIN_ARTWORK_NOT_IMAGE_ERROR };
     const grant = await prepareAdminArtworkUploadAction({
       kind,
-      mimeType: file.type,
+      mimeType,
       size: file.size,
       ...actorBinding,
     });
@@ -91,10 +112,14 @@ export async function uploadAdminArtwork(input: {
     preparedPath = grant.path;
 
     const supabase = createClient();
+    // supabase-js는 Blob 본문의 저장 형식을 contentType 옵션이 아니라 Blob 자체의 type으로 정한다. 확장자에서 온 File.type이
+    // 판별한 형식과 다르면 같은 바이트를 판별한 형식으로 다시 지정해 올린다(복사하지 않는다). 아니면 확인 단계가 저장소 형식
+    // 불일치(staging_metadata_mismatch)로 거절한다.
+    const body = file.type === mimeType ? file : new File([file], file.name, { type: mimeType });
     const { error } = await supabase.storage
       .from(STAGING_BUCKET)
-      .upload(grant.path, file, {
-        contentType: file.type,
+      .upload(grant.path, body, {
+        contentType: mimeType,
         upsert: false,
       });
 
@@ -105,7 +130,7 @@ export async function uploadAdminArtwork(input: {
 
     const result = await enqueueVerification(() => requestVerification({
       kind,
-      mimeType: file.type,
+      mimeType,
       path: grant.path,
       size: file.size,
       ...actorBinding,

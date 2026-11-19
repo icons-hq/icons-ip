@@ -853,13 +853,15 @@ export function planGoodsWorkbookImport(
       detail_image_path: null,
     };
     const galleries: string[] = [];
+    /* 엑셀의 상세 이미지 칸은 긴 상세 이미지의 첫 장이다. 2장 이상인 상품은 첫 장 주소를 그대로 둘 때만 받는다 — 한 장 칸으로
+       저장하면 DB가 목록을 그 한 장으로 줄이므로(20261119170100), 바꾸거나 비우면 둘째 장부터가 조용히 사라진다. */
+    const savedDetailCount = Array.isArray(record?.good.detail_image_paths) ? (record.good.detail_image_paths as unknown[]).length : 0;
     for (const [url, file, field] of imagePairs) {
       if (first[url] && first[file])
         errors.push(
           `${GOODS_WORKBOOK_HEADERS[url]}과 파일명 중 하나만 입력해주세요.`,
         );
       const reference = first[file] || first[url];
-      if (!reference) continue;
       const existingPath = field.startsWith('gallery_')
         ? (record?.good.gallery_paths as string[] | null)?.[galleryIndex(field)]
         : record?.good[field];
@@ -868,6 +870,11 @@ export function planGoodsWorkbookImport(
         !first[file] &&
         (context.mediaUrl(str(existingPath)) ?? str(existingPath)) ===
           reference;
+      if (field === 'detail_image_path' && savedDetailCount > 1 && !unchanged)
+        errors.push(
+          `${GOODS_WORKBOOK_HEADERS[url]}: 긴 상세 이미지가 ${savedDetailCount}장인 상품은 엑셀로 상세 이미지를 바꾸거나 비울 수 없습니다. 내려받은 첫 장 주소를 그대로 두고, 바꾸려면 어드민 상품 편집 화면을 써주세요.`,
+        );
+      if (!reference) continue;
       if (
         first[file] &&
         (!/^[^/\\\u0000-\u001f]+\.(png|jpe?g|webp)$/i.test(reference) ||
@@ -1033,7 +1040,7 @@ export function planGoodsWorkbookImport(
         descriptionFormat: value.descriptionFormat ?? 'plain',
         bg: record?.good.bg as string | null ?? null,
         imagePath: imageValues.image_path as string | null,
-        detailImagePath: imageValues.detail_image_path as string | null,
+        detailImagePaths: imageValues.detail_image_path ? [imageValues.detail_image_path as string] : [],
         galleryPaths: galleries,
         allowBankTransfer: first.allowBankTransfer !== '아니오',
         saleRestriction: (first.saleRestriction || 'none') as 'none' | 'adult',
@@ -1045,6 +1052,9 @@ export function planGoodsWorkbookImport(
       variants: parsedOptions.rows,
       variant_baseline: active.map((variant) => variant.id),
     };
+    /* 엑셀은 긴 상세 이미지 첫 장(한 장 칸)만 다룬다. 목록을 보내지 않으면 DB가 첫 장이 그대로일 때 둘째 장부터를 유지하고,
+       적용 단계가 바꾸는 자리 표시(import-image:detail_image_path)도 한 장 칸에만 있다. */
+    delete group.target.detail_image_paths;
     return group;
   });
   // 같은 파일 안에서 관리코드가 겹치면(한 상품 안이든 상품 사이든) 적용 때 DB 유일 제약으로 실패하므로 미리보기에서 막는다.

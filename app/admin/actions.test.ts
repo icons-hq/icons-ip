@@ -620,6 +620,7 @@ describe('admin catalog actions', () => {
       description: null,
       gallery_paths: [],
       detail_image_path: null,
+      detail_image_paths: [],
       previous_id: null,
       compare_at_price: 26000,
       code: null,
@@ -1319,6 +1320,8 @@ describe('admin catalog actions', () => {
     formData.set('galleryPath1', '');
     formData.set('galleryPath2', 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp');
     formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
+    formData.set('detailImagePath1', '');
+    formData.set('detailImagePath2', 'public-media/catalog/good/55555555-5555-4555-8555-555555555555.png');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       message: '상품을 저장했습니다.',
@@ -1332,7 +1335,20 @@ describe('admin catalog actions', () => {
         'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
       ],
       detail_image_path: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+      detail_image_paths: [
+        'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+        'public-media/catalog/good/55555555-5555-4555-8555-555555555555.png',
+      ],
     }) });
+  });
+
+  /* 2026-11-19: 긴 상세 이미지 상한(10장)·첫 장 불일치를 DB가 거절하면 운영자 언어로 알린다. */
+  it('maps a detail image list rejected by the admin RPC', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_detail_images' } });
+
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
+      errors: { form: expect.stringContaining('긴 상세 이미지는 최대 10장') },
+    });
   });
 
   /* #171 — 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락도 운영자 언어로 돌아온다. */

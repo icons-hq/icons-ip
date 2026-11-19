@@ -5,7 +5,7 @@ import type { AdminFormValuesState } from './form-state';
 import { preservedFormValues } from './form-state';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { goodCompareAtPrice } from '@/lib/goods-options';
-import { GOODS_GALLERY_MAX } from './catalog';
+import { GOODS_DETAIL_IMAGE_FIELD_NAMES, GOODS_GALLERY_MAX } from './catalog';
 import { DEFAULT_FULFILLMENT_ORIGIN_ID } from './fulfillment-origins';
 import { GOODS_CLAIM_POLICY_FIELDS } from './goods-claim-policy';
 import { GOODS_SALE_POLICY_FIELDS } from './goods-sale-policy';
@@ -23,7 +23,9 @@ import { readAdminGoodsCustomInputs } from './goods-custom-inputs';
 import { EMPTY_GOODS_CUSTOM_INPUTS, parseGoodsCustomInputConfig } from '@/lib/goods-custom-inputs';
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
 export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'baseRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
-  ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`)];
+  ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`),
+  /* 긴 상세 이미지 둘째 칸부터(첫 칸 detailImagePath는 위 목록에 있다). */
+  ...GOODS_DETAIL_IMAGE_FIELD_NAMES.slice(1)];
 /**
  * 복구 안내를 두고 옵션 행이나 카테고리를 고치면 딸린 칸도 화면 값을 쓴다. 옵션 행과 축·동시편집 기준,
  * 카테고리와 그 상품속성은 이전 기록과 섞이면 맞지 않는다. 축이나 사용 여부만 고칠 때는 이전 옵션 행을 남긴다.
@@ -63,7 +65,8 @@ export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminF
     shippingNoticeTemplate: selected?.shippingNoticeSnapshot ? `${selected.shippingNoticeSnapshot.code}@${selected.shippingNoticeSnapshot.version}` : '',
     badge: selected?.badge ?? '', stock: selected?.stock ?? 'ok', description: selected?.description ?? '',
     descriptionFormat: selected?.descriptionFormat ?? 'plain', descriptionUploadPath: '', descriptionImageAlt: '',
-    imagePath: selected?.imagePath ?? '', detailImagePath: selected?.detailImagePath ?? '',
+    imagePath: selected?.imagePath ?? '',
+    ...Object.fromEntries(GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name, i) => [name, selected?.detailImagePaths?.[i] ?? ''])),
     originId: selected ? selected.originId ?? '' : DEFAULT_FULFILLMENT_ORIGIN_ID,
     shippingFeeType: selected?.shippingFeeType ?? 'policy', individualFee: String(selected?.individualFee ?? 0),
     allowCardPayment: String(selected?.allowCardPayment ?? true), allowBankTransfer: String(selected?.allowBankTransfer ?? true),
@@ -97,7 +100,8 @@ export function createGoodEditorDraft(selected: AdminGoodRecord | null, state: A
     values: { ...initial, variants: JSON.stringify(rows), variantBaseline: JSON.stringify(baseline) },
     imageUrls: {
       imagePath: imageUrl('imagePath', selected?.imagePath, selected?.imageUrl),
-      detailImagePath: imageUrl('detailImagePath', selected?.detailImagePath, selected?.detailImageUrl),
+      ...Object.fromEntries(GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name, i) =>
+        [name, imageUrl(name, selected?.detailImagePaths?.[i], selected?.detailImageUrls?.[i])])),
       ...Object.fromEntries(Array.from({ length: GOODS_GALLERY_MAX }, (_, i) =>
         [`galleryPath${i}`, imageUrl(`galleryPath${i}`, selected?.galleryPaths[i], selected?.galleryUrls[i])])),
     } as Record<string, string | null>,

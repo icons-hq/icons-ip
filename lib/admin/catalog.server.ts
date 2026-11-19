@@ -105,8 +105,10 @@ export interface AdminGoodRecord {
   descriptionImagePaths?: string[];
   galleryPaths: string[];
   galleryUrls: string[];
-  detailImagePath: string | null;
-  detailImageUrl: string | null;
+  /** 긴 상세 이미지. 순서가 곧 상세 설명 아래 노출 순서다(첫 장은 goods.detail_image_path 거울). */
+  detailImagePaths: string[];
+  /** detailImagePaths와 같은 순서의 공개 주소. 주소를 만들 수 없는 경로는 null이다. */
+  detailImageUrls: (string | null)[];
 }
 
 export interface AdminCardRecord {
@@ -422,6 +424,7 @@ interface GoodRow {
   description_image_paths?: string[];
   gallery_paths: string[] | null;
   detail_image_path: string | null;
+  detail_image_paths?: string[] | null;
 }
 
 interface CardRow {
@@ -580,7 +583,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,base_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,return_address_id,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path')
+        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,base_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,return_address_id,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path,detail_image_paths')
         .order('id')
       : null;
   if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
@@ -781,8 +784,9 @@ export async function getAdminCatalogRecords(
       galleryUrls: (row.gallery_paths ?? [])
         .map((path) => imageUrlForPath(path))
         .filter((url): url is string => Boolean(url)),
-      detailImagePath: row.detail_image_path,
-      detailImageUrl: imageUrlForPath(row.detail_image_path),
+      // 목록 칸이 없는 옛 응답(배포 순간)은 한 장 칸으로 채운다.
+      detailImagePaths: row.detail_image_paths ?? (row.detail_image_path ? [row.detail_image_path] : []),
+      detailImageUrls: (row.detail_image_paths ?? (row.detail_image_path ? [row.detail_image_path] : [])).map((path) => imageUrlForPath(path)),
     })),
     cards,
     cardPools,

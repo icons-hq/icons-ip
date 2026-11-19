@@ -155,6 +155,8 @@ const catalog = [
   sql('goods_type_layer_retire', { kc: true }),
   // 상품 기본 칸 버전: 옛 편집 화면 저장이 다른 작업의 변경(19금·결제 수단·옵션 순서 포함)을 되돌리지 않는다.
   sql('goods_base_revision'),
+  // 긴 상세 이미지 여러 장(첫 장 거울·옛 한 장 저장·claim·복제·임시저장)과 업로드 확인 거절 사유 기록.
+  sql('goods_detail_image_paths'),
   // 공개 Data API의 상품·옵션 읽기 경계(초안·보관·19금 비노출, 고객 화면 좁은 읽기 RPC).
   sql('goods_public_read_visibility', { kc: true }),
   sql('admin_body_templates', { admin: true }),

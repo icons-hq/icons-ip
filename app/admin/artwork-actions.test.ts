@@ -411,6 +411,15 @@ describe('verifyAdminArtworkUploadAction', () => {
     mocks.verifyAndPromote.mockResolvedValue({ blockedReason });
     await expect(verifyAdminArtworkUploadAction(validInput)).resolves.toEqual({ ok: false, error });
   });
+
+  /* 2026-11-19: 확인 단계가 거절하면 이유(claim.reject_reason)에 맞는 안내를 보인다. 예전에는 모두 "확인하지 못했습니다"였다. */
+  it('maps a verification rejection to its specific message', async () => {
+    mocks.verifyAndPromote.mockResolvedValue({ rejection: { reason: 'format_mismatch', detail: { declared: 'image/png', detected: 'jpeg' } } });
+    await expect(verifyAdminArtworkUploadAction(validInput)).resolves.toEqual({
+      ok: false,
+      error: '파일 이름의 형식(PNG)과 실제 내용의 형식(JPEG)이 다릅니다. 이미지 편집 프로그램에서 JPEG·PNG로 다시 저장해 올려주세요.',
+    });
+  });
 });
 
 describe('verified goods upload → photo library (R20)', () => {

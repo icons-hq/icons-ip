@@ -14,13 +14,40 @@ export const GOODS_ARTWORK_MAX_DIMENSION = 30_000;
 export const ADMIN_ARTWORK_OUTPUT_MAX_EDGE = 2560;
 /**
  * 운영자별 1분 동안 시작할 수 있는 아트워크 검증 수. DB service_begin_admin_artwork_verification의
- * 남용 억제 창(20261007160000)과 같은 값이다 — 굿즈 폼 11칸(대표 1 + 추가 이미지 9 + 상세 1) × 2.
+ * 남용 억제 창(20261119170100)과 같은 값이다 — 굿즈 폼 20칸(대표 1 + 추가 이미지 9 + 긴 상세 이미지 10) × 2.
  */
-export const ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE = 22;
+export const ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE = 40;
 export const ADMIN_ARTWORK_ERROR =
   '이미지는 JPEG, PNG, WebP 형식의 5MB 이하, 가로·세로 8192px 이하 파일만 업로드할 수 있습니다.';
 export const GOODS_ARTWORK_ERROR =
   '이미지는 JPEG, PNG, WebP 형식의 20MB 이하, 가로·세로 30,000px 이하 파일만 업로드할 수 있습니다.';
+
+/** 사람이 읽는 형식 이름. 거절 안내에서 실제 형식과 확장자를 견줄 때 쓴다. */
+export const ADMIN_ARTWORK_FORMAT_LABELS: Record<AdminArtworkMimeType, string> = {
+  'image/jpeg': 'JPEG',
+  'image/png': 'PNG',
+  'image/webp': 'WebP',
+};
+export const ADMIN_ARTWORK_NOT_IMAGE_ERROR =
+  'JPEG, PNG, WebP 이미지 파일이 아닙니다. 파일 확장자와 관계없이 실제 내용으로 형식을 확인합니다. 이미지 편집 프로그램에서 JPEG·PNG로 다시 저장해 올려주세요.';
+/** 파일 앞부분(매직 바이트)을 읽을 길이. WebP는 RIFF 머리(12바이트)로 판별한다. */
+export const ADMIN_ARTWORK_SIGNATURE_BYTES = 12;
+
+/*
+ * 2026-11-19 긴 상세 이미지 거절 원인: 디자인팀이 PNG로 내보낸 파일의 이름이 `.jpg`였다. 브라우저는 File.type을
+ * 확장자로 정해 image/jpeg로 신고했고, 서버(sharp)는 내용을 PNG로 읽어 형식 불일치로 사유 없이 거절했다.
+ * 업로드는 확장자가 아니라 파일 내용으로 형식을 정한다. 세 형식 밖이면 null이다.
+ */
+export function detectAdminArtworkMimeType(bytes: Uint8Array): AdminArtworkMimeType | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((byte, index) => bytes[index] === byte)) return 'image/png';
+  if (
+    bytes.length >= 12
+    && String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF'
+    && String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP'
+  ) return 'image/webp';
+  return null;
+}
 
 export function adminArtworkLimits(kind: AdminArtworkKind): { maxBytes: number; maxDimension: number } {
   return kind === 'good'
@@ -47,6 +74,66 @@ export function parseAdminArtworkUploadBlockReason(value: unknown): AdminArtwork
   return typeof value === 'string' && Object.hasOwn(ADMIN_ARTWORK_BLOCK_MESSAGES, value)
     ? value as AdminArtworkUploadBlockReason
     : null;
+}
+
+/**
+ * 업로드 확인을 거절한 이유(admin_artwork_upload_claims.reject_reason). 앞의 일곱 개는 이미지 자체의 이유이고,
+ * 나머지는 저장소·DB 단계의 실패다. 운영자 안내(adminArtworkRejectMessage)와 운영 기록이 같은 값을 쓴다.
+ */
+export type AdminArtworkImageRejectReason =
+  | 'size_exceeded'
+  | 'format_mismatch'
+  | 'dimension_exceeded'
+  | 'pixel_limit_exceeded'
+  | 'animated'
+  | 'decode_failed'
+  | 'output_too_large';
+export type AdminArtworkRejectReason =
+  | AdminArtworkImageRejectReason
+  | 'claim_mismatch'
+  | 'staging_missing'
+  | 'staging_metadata_mismatch'
+  | 'staging_download_failed'
+  | 'public_upload_failed'
+  | 'verify_rejected'
+  | 'unexpected_error';
+export type AdminArtworkRejectDetail = Record<string, string | number | null>;
+export interface AdminArtworkRejection {
+  reason: AdminArtworkRejectReason;
+  detail: AdminArtworkRejectDetail;
+}
+
+const SHARP_FORMAT_LABELS: Record<string, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP', gif: 'GIF', heif: 'HEIC/HEIF', avif: 'AVIF', tiff: 'TIFF', svg: 'SVG' };
+const numberText = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('ko-KR') : null;
+
+/** 업로드 확인 거절 안내. 이미지 자체의 이유는 무엇을 고치면 되는지, 저장소 단계 실패는 다시 시도와 원인 코드를 알린다. */
+export function adminArtworkRejectMessage(kind: AdminArtworkKind, rejection: AdminArtworkRejection): string {
+  const { maxBytes, maxDimension } = adminArtworkLimits(kind);
+  const { detail } = rejection;
+  const size = numberText(detail.width) && numberText(detail.height) ? `${numberText(detail.width)}×${numberText(detail.height)}px` : null;
+  const split = kind === 'good' ? ' 긴 상세 이미지는 잘라서 여러 장으로 올려주세요.' : '';
+  switch (rejection.reason) {
+    case 'size_exceeded':
+      return kind === 'good' ? GOODS_ARTWORK_ERROR : ADMIN_ARTWORK_ERROR;
+    case 'format_mismatch': {
+      const declared = typeof detail.declared === 'string' && Object.hasOwn(ADMIN_ARTWORK_FORMAT_LABELS, detail.declared)
+        ? ADMIN_ARTWORK_FORMAT_LABELS[detail.declared as AdminArtworkMimeType] : null;
+      const detected = typeof detail.detected === 'string' ? SHARP_FORMAT_LABELS[detail.detected] ?? detail.detected.toUpperCase() : null;
+      return `파일 이름의 형식${declared ? `(${declared})` : ''}과 실제 내용의 형식${detected ? `(${detected})` : ''}이 다릅니다. 이미지 편집 프로그램에서 JPEG·PNG로 다시 저장해 올려주세요.`;
+    }
+    case 'dimension_exceeded':
+      return `가로·세로 ${maxDimension.toLocaleString('ko-KR')}px 이하 이미지만 올릴 수 있습니다${size ? `(올린 파일 ${size})` : ''}.${split}`;
+    case 'pixel_limit_exceeded':
+      return `이미지가 너무 큽니다${size ? `(${size})` : ''}. 가로×세로가 4,000만 픽셀 이하가 되게 줄여 주세요.${split}`;
+    case 'animated':
+      return '움직이는 이미지나 여러 장이 든 파일은 올릴 수 없습니다. 한 장짜리 JPEG·PNG·WebP로 저장해 올려주세요.';
+    case 'decode_failed':
+      return '이미지 파일을 읽지 못했습니다. 파일이 손상됐을 수 있으니 이미지 편집 프로그램에서 다시 저장해 올려주세요.';
+    case 'output_too_large':
+      return `변환한 이미지가 ${Math.round(maxBytes / (1024 * 1024))}MB를 넘습니다. 해상도를 줄이거나 JPEG로 저장해 올려주세요.${split}`;
+    default:
+      return `이미지를 저장소로 옮기지 못했습니다. 잠시 뒤 다시 시도해주세요. 계속되면 운영 담당자에게 알려주세요(원인 코드 ${rejection.reason}).`;
+  }
 }
 
 const ADMIN_ARTWORK_KINDS = new Set<AdminArtworkKind>(['ip', 'good', 'card', 'event', 'curation']);

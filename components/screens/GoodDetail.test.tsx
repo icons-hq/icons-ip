@@ -116,7 +116,7 @@ const detail: GoodDetailContent = {
     'url("https://cdn.example/g13-1.webp") center / cover no-repeat',
     'url("https://cdn.example/g13-2.webp") center / cover no-repeat',
   ],
-  detailImageUrl: 'https://cdn.example/g13-detail.webp',
+  detailImageUrls: ['https://cdn.example/g13-detail.webp'],
   notice: {
     maker: '주식회사 아이콘스',
     origin: '대한민국',
@@ -161,7 +161,7 @@ describe('GoodDetail', () => {
 
   /* 1027T-005: '상세 하단' 공지는 상세정보 탭의 상세설명(설명·상세 이미지) 바로 아래, 상단 공지는 지금처럼 탭 위다. */
   it('상세 하단 공지 슬롯은 상세설명 바로 아래에 두고 상단 공지 자리는 그대로다', () => {
-    const html = renderToStaticMarkup(<GoodDetail detail={{ ...detail, description: '상세설명-본문-표식', detailImageUrl: 'https://example.test/detail.jpg' }}
+    const html = renderToStaticMarkup(<GoodDetail detail={{ ...detail, description: '상세설명-본문-표식', detailImageUrls: ['https://example.test/detail.jpg'] }}
       announcements={<p>top-announcement-marker</p>} bottomAnnouncements={<p>bottom-announcement-marker</p>} />);
     const tabs = html.indexOf('class="wc-pdp-tabs"');
     expect(html.indexOf('top-announcement-marker')).toBeLessThan(tabs);
@@ -326,7 +326,7 @@ describe('GoodDetail', () => {
 
   /* #172 완료 조건 — 갤러리가 비어도 대표 이미지로 정상 렌더된다. */
   it('갤러리가 비면 대표 이미지 한 장만 남고 도트는 사라진다', () => {
-    const html = render({ gallery: [], detailImageUrl: null });
+    const html = render({ gallery: [], detailImageUrls: [] });
 
     expect(html).toContain('https://cdn.example/g13.webp');
     expect(html).toContain('wc-pdp-gallery__stage');
@@ -770,6 +770,17 @@ describe('GoodDetail', () => {
     expect(withArt).toMatch(/<a class="wc-pdp-ipcard" href="\/ip\/hong-sil-quest"><span aria-hidden="true" class="wc-pdp-ipcard__art" style="background:url\(&quot;https:\/\/cdn\.example\/hong-sil-key\.webp&quot;\) center \/ cover no-repeat"><\/span>/);
   });
 
+  /* 2026-11-19 MD 요청: 잘라 올린 긴 상세 이미지는 상세 설명 아래에 순서대로, 간격 없는 한 묶음으로 붙는다. */
+  it('긴 상세 이미지 여러 장을 순서대로 한 묶음에 붙인다', () => {
+    const html = render({ detailImageUrls: ['https://cdn.example/part-1.png', 'https://cdn.example/part-2.png', 'https://cdn.example/part-3.png'] });
+    const group = html.slice(html.indexOf('class="wc-pdp-panel__detail-images"'), html.indexOf('</div>', html.indexOf('class="wc-pdp-panel__detail-images"')));
+    expect(group.match(/<img /g)).toHaveLength(3);
+    expect(group.indexOf('part-1.png')).toBeLessThan(group.indexOf('part-2.png'));
+    expect(group.indexOf('part-2.png')).toBeLessThan(group.indexOf('part-3.png'));
+    expect(group).toContain('상세 이미지 3');
+    expect(render({ detailImageUrls: [] })).not.toContain('wc-pdp-panel__detail-images');
+  });
+
   /* PD-19 — 상세 이미지 다음에 IP 소개, 패널 끝에 같은 IP 카드. 데이터는 IP 에 있는 값만 쓴다. */
   it('상세 설명 패널에 상세 이미지 다음 IP 소개를, 패널 끝에 IP 카드를 둔다', () => {
     const html = render();
@@ -840,7 +851,7 @@ describe('GoodDetail', () => {
     expect(hongSil).toBeDefined();
 
     const html = renderToStaticMarkup(
-      <GoodDetail detail={{ ...detail, good: hongSil!, gallery: [], detailImageUrl: null }} />,
+      <GoodDetail detail={{ ...detail, good: hongSil!, gallery: [], detailImageUrls: [] }} />,
     );
 
     expect(html).toContain(hongSil!.name);
