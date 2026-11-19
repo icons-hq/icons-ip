@@ -109,6 +109,8 @@ begin
  end loop;
 end $$;
 
+-- END FIXTURE
+
 -- 0. 봉인·권한 -----------------------------------------------------------------------------------------------------------
 select pg_temp.pr_assert(
  has_function_privilege('service_role', 'public.request_order_partial_return(uuid,uuid,jsonb,text,text,text,text,text)', 'execute')

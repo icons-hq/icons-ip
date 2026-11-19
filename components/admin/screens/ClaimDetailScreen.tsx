@@ -37,6 +37,8 @@ import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
 import { ClaimTypeConversion } from '@/components/admin/ClaimTypeConversion';
 import { ClaimReasonChange } from '@/components/admin/ClaimReasonChange';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { ClaimPartialReturnPanel } from './ClaimPartialReturnPanel';
+import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
 import { ClaimPreviewFullScreenLink } from './ClaimPreviewDialog';
 import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
@@ -216,6 +218,8 @@ export function ClaimDetailScreen({
   detailHref,
   embedded = false,
   now = new Date(),
+  partialReturn = null,
+  partialReturnEnabled = false,
 }: {
   actorId?: string;
   backHref: string;
@@ -233,6 +237,10 @@ export function ClaimDetailScreen({
    */
   embedded?: boolean;
   now?: Date;
+  /** 부분 반품(ADR-0047) 칸. 주문 전체 클레임이면 null, 읽지 못했으면 undefined(경고를 보인다). */
+  partialReturn?: AdminClaimPartialReturn | null;
+  /** 부분 반품 스위치. 켜져 있으면 주문 상품 아래 안내가 반품의 일부 처리를 말한다. */
+  partialReturnEnabled?: boolean;
 }) {
   const { cardPacks, claim, order, payment, refund, refundAccount, timeline } = detail;
   /* 반품배송비 차감(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 아래 화면은 지금 그대로다. */
@@ -411,9 +419,11 @@ export function ClaimDetailScreen({
                       ))}
                     </ul>
                   </section>
+                  {claim.claimType === 'return' ? <ClaimPartialReturnPanel orderId={order.id} partialReturn={partialReturn} /> : null}
                   <p className="text-xs text-muted-foreground">
-                    {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품, 또는 교환에서
-                    하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내하고, 부분 환불을 약속하지 마세요.
+                    {partialReturnEnabled
+                      ? `반품은 고객이 고른 굿즈·수량만 회수·환불할 수 있습니다(부분 반품). 취소·교환은 주문 단위입니다. 일부 품목만 불량인 교환은 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내합니다.`
+                      : `${V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품, 또는 교환에서 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내하고, 부분 환불을 약속하지 마세요.`}
                   </p>
                   <Link className={OUTLINE_SM} data-slot="button" href={adminOrderSearchHref(order.id)}>
                     주문 통합검색에서 열기

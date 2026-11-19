@@ -72,8 +72,11 @@ export function ClaimQueueKitScreen({
   canViewRefundTransfers = false,
   data,
   now = new Date(),
+  partialReturnEnabled = false,
 }: {
   canViewRefundTransfers?: boolean;
+  /** 부분 반품(ADR-0047) 스위치. 켜져 있으면 반품 목록의 안내가 굿즈·수량 단위 처리를 말한다(취소·교환은 그대로 주문 단위). */
+  partialReturnEnabled?: boolean;
   data: AdminClaimConsoleData;
   /** SLA 기준 시각. 테스트 주입용. */
   now?: Date;
@@ -82,6 +85,9 @@ export function ClaimQueueKitScreen({
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const currentHref = adminClaimHref(claimType, filters);
   const collects = claimType !== 'cancel';
+  const scopeNotice = partialReturnEnabled && claimType === 'return'
+    ? '반품은 고객이 고른 굿즈·수량만 회수·환불할 수 있습니다(부분 반품: 고른 굿즈의 결제 몫과 비게 된 배송 묶음의 배송비, 단순 변심은 반품배송비 차감). 품목을 고르지 않은 요청은 주문 단위 전액입니다.'
+    : `${typeLabel} 요청은 주문 단위 전액으로만 처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.`;
   const stageFilterLabel = filters.stage === 'all' ? null : adminClaimStageOptions(claimType).find((option) => option.value === filters.stage)?.label ?? null;
   /* 오래 기다린 건부터 처리하는 것이 이 화면의 주 행동이다. 이미 그 조건이면 버튼 대신 맨 위부터 처리하라고 말한다. */
   const nextStage = NEXT_ACTION_STAGES[claimType].find((stage) => (counts[stage] ?? 0) > 0) ?? null;
@@ -171,10 +177,9 @@ export function ClaimQueueKitScreen({
       </div>
       {collects ? <p className="text-muted-foreground">
         환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기산점은 회수 확인 때
-        적은 실제 입고일(출고지가 여럿이면 가장 늦은 날)이며, 회수가 없는 취소 요청에는 기산점이 없습니다. {typeLabel} 요청은 주문 단위 전액으로만
-        처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.
+        적은 실제 입고일(출고지가 여럿이면 가장 늦은 날)이며, 회수가 없는 취소 요청에는 기산점이 없습니다. {scopeNotice}
       </p> : <p className="text-muted-foreground">
-        {typeLabel} 요청은 주문 단위 전액으로만 처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.
+        {scopeNotice}
       </p>}
     </div>
   );

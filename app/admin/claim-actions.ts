@@ -41,6 +41,9 @@ import {
   type OrderClaimType,
 } from '@/lib/orders/claims';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
+import { reconcileOrderPartialCancellation } from '@/lib/orders/partial-cancellation-orchestrator.server';
+import { loadAdminClaimPartialReturn } from '@/lib/orders/partial-return.server';
+import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import {
   automatedCancelProviderLabel,
@@ -97,6 +100,13 @@ const DECISION_MESSAGES: Record<string, string> = {
 /** DB가 던지는 message를 운영자 문구로 옮긴다. 원문을 그대로 노출하지 않는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   const value = (message ?? '').toLowerCase();
+  /* 부분 반품(ADR-0047) */
+  if (value.includes('partial_return_refund_method_mismatch')) return '이 부분 반품의 환불 수단과 다릅니다. 토스 결제는 결제사 부분 취소, 무통장은 계좌 송금입니다. 화면을 새로고침해주세요.';
+  if (value.includes('partial_return_state_changed')) return '부분 반품 품목의 배송·수량 상태가 바뀌었습니다. 최신 상태를 확인해주세요. 환불과 재고는 그대로입니다.';
+  if (value.includes('partial_return_uses_partial_refund')) return '부분 반품은 주문 전체 결제 취소가 아니라 고른 굿즈 몫의 부분 환불로만 처리합니다. 화면을 새로고침한 뒤 [환불 완료 확정]을 다시 눌러주세요.';
+  if (value.includes('defective_stock_item_not_in_claim')) return '이 부분 반품에서 고른 품목만 불량으로 고를 수 있습니다.';
+  if (value.includes('claim_conversion_partial_return')) return '부분 반품은 교환으로 바꿀 수 없습니다. 교환은 주문 전체로만 받습니다.';
+  if (value.includes('partial_return_')) return '부분 반품을 처리할 수 없는 상태입니다(결제 수단·배분·품목 상태). 클레임 상세의 부분 반품 칸에서 이유를 확인해주세요.';
   if (value.includes('defective_stock_claim_closed')) return '이미 환불이 확정된 요청이라 재고 처리를 바꿀 수 없습니다.';
   if (value.includes('defective_stock_item_in_other_claim') || value.includes('defective_stock_plan_conflict')) return '다른 반품·교환 요청에서 이미 불량으로 고른 품목입니다. 이력을 확인해주세요.';
   if (value.includes('defective_stock_item_not_in_order') || value.includes('defective_stock_return_only')) return '이 반품 요청의 품목이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
@@ -702,6 +712,22 @@ export async function recordOrderClaimRefundAction(
   }
   if (!current) return { error: '클레임을 찾을 수 없습니다.' };
 
+  /* 부분 반품(ADR-0047)은 주문 전체 결제 취소가 아니라 부분 환불 원장으로 간다 — 전액 정합화 경로를 부르지 않는다. */
+  if (current.claim.claimType === 'return') {
+    let partial: AdminClaimPartialReturn | null;
+    try {
+      partial = await loadAdminClaimPartialReturn(normalized.value.claimId);
+    } catch {
+      return { error: REFUND_FAILED };
+    }
+    if (partial) {
+      return recordPartialReturnRefund(supabase, {
+        actorId: access.userId, claimId: normalized.value.claimId, claimStage: current.claim.stage, formData,
+        method: normalized.value.method, note: normalized.value.note, partial, provider: current.payment?.provider ?? null, stage: normalized.value.stage,
+      });
+    }
+  }
+
   const derivedMethod: OrderClaimRefundMethod | null = current.refund?.method
     ?? orderClaimRefundMethodForProvider(current.payment?.provider ?? null);
   if (derivedMethod && derivedMethod !== normalized.value.method) {
@@ -848,6 +874,78 @@ export async function recordOrderClaimRefundAction(
     return done.message ? { message: `${done.message} 불량 ${recorded.recorded}개 품목은 판매 재고에 넣지 않고 불량 재고에 기록했습니다.` } : done;
   }
   return finishRefundMessage();
+}
+
+const PARTIAL_RETURN_BANK_COMPLETE = '무통장 부분 반품 환불은 송금한 뒤 주문 상세의 부분 환불 기록에서 송금 증빙으로 완료를 적습니다. 그때 반품 요청이 완료됩니다.';
+
+/**
+ * 부분 반품의 환불 접수·완료(ADR-0047). 접수는 DB가 금액을 한 번 정해 부분 환불 원장을 만든다. 토스 결제의 완료는 그 원장으로
+ * 결제사 부분 취소를 발행·조회로 확인하고(재고 부족 부분 취소와 같은 오케스트레이터), 확인되면 같은 트랜잭션에서 고른 수량만 재고 복원·
+ * 적립금·카드팩을 적용하고 요청을 완료한다. 결제사가 부분 취소를 받지 않으면 돈이 움직이지 않았으므로 전액 환불로 돌리지 않는다.
+ */
+async function recordPartialReturnRefund(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    actorId: string; claimId: string; claimStage: string; formData: FormData; method: OrderClaimRefundMethod; note: string | null;
+    partial: AdminClaimPartialReturn; provider: string | null; stage: 'filed' | 'completed';
+  },
+): Promise<AdminClaimActionState> {
+  const expectedMethod = orderClaimRefundMethodForProvider(input.provider);
+  if (expectedMethod && expectedMethod !== input.method) return { error: '이 부분 반품의 환불 수단과 다릅니다. 토스 결제는 결제사 부분 취소, 무통장은 계좌 송금입니다. 화면을 새로고침해주세요.' };
+  const live = input.partial.history.find((record) => record.id === input.partial.refundId) ?? null;
+  const dispositions = input.stage === 'completed' ? readStockDispositions(input.formData) : null;
+  if (dispositions && 'error' in dispositions) return { error: dispositions.error };
+
+  if (input.stage === 'completed') {
+    if (input.provider === 'bank_transfer') return { error: PARTIAL_RETURN_BANK_COMPLETE };
+    if (input.claimStage !== 'completed') {
+      if (!live) return { error: '먼저 [환불 접수]를 기록해주세요. 부분 반품 환불 금액은 환불 접수 때 정해집니다.' };
+      if (dispositions) {
+        const { error: planError } = await supabase.rpc('admin_plan_claim_defective_stock', { p_claim_id: input.claimId, p_order_item_ids: dispositions.defectiveIds });
+        if (planError) {
+          revalidateClaimSurfaces(input.claimId, 'return');
+          return { error: rpcErrorMessage(planError.message, DEFECTIVE_PLAN_FAILED) };
+        }
+      }
+      const result = await reconcileOrderPartialCancellation({ partialCancellationId: live.id, actorId: input.actorId });
+      revalidateClaimSurfaces(input.claimId, 'return');
+      if (!result.ok) {
+        return {
+          error: result.code === 'partial_cancel_rejected'
+            ? '결제사가 이 결제의 부분 취소를 받지 않아 환불하지 못했습니다(돈은 움직이지 않았습니다). 요청은 확인 필요로 남았습니다 — 전액 환불로 돌리지 말고 런북의 \'부분 반품 결제사 거절\' 절차를 따라주세요.'
+            : `결제사 부분 취소를 확인하지 못했습니다(${result.code}). 요청은 확인 필요로 남고, [환불 완료 확정]을 다시 누르면 이미 반영된 취소로 이어서 확인합니다.`,
+        };
+      }
+    }
+  }
+
+  const { error } = await supabase.rpc('admin_record_order_claim_refund', {
+    p_claim_id: input.claimId, p_method: input.method, p_note: input.note, p_stage: input.stage,
+  });
+  revalidateClaimSurfaces(input.claimId, 'return');
+  if (error) {
+    return {
+      error: input.stage === 'completed'
+        ? `결제사 부분 취소와 고른 굿즈의 재고 복원은 이미 확정됐습니다. 환불 기록만 실패했습니다 — 다시 환불하지 마세요. ${rpcErrorMessage(error.message, REFUND_FAILED)}`
+        : rpcErrorMessage(error.message, REFUND_FAILED),
+    };
+  }
+  if (input.stage === 'filed') {
+    const preview = input.partial.preview;
+    const amount = preview ? `${preview.returnFeeDeduction > 0 ? `반품배송비 ${krwAmountWords(preview.returnFeeDeduction)}을 뺀 ` : ''}${krwAmountWords(preview.refundAmount)}` : '고른 굿즈 몫';
+    return {
+      message: input.provider === 'bank_transfer'
+        ? `부분 반품 환불 접수를 기록했습니다. ${amount}을 환불계좌로 송금할 대기에 올리고 고른 굿즈의 재고를 복원했습니다. 송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.`
+        : `부분 반품 환불 접수를 기록했습니다. ${amount}을 [환불 완료 확정]을 누를 때 토스 부분 취소로 돌려줍니다.`,
+    };
+  }
+  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 굿즈만 재고 복원·적립금 되돌림·카드팩 판정이 함께 확정됐습니다.';
+  if (dispositions && dispositions.defectiveIds.length > 0) {
+    const recorded = await recordClaimDefectiveStock(input.claimId);
+    if (recorded.error) return { error: `부분 반품 환불과 재고 처리는 이미 확정됐습니다. 불량 재고 기록만 끝나지 않았습니다 — 환불은 다시 하지 마세요. ${recorded.error}` };
+    message += ` 불량 ${recorded.recorded}개 품목은 판매 재고에 넣지 않고 불량 재고에 기록했습니다.`;
+  }
+  return { message };
 }
 
 /** 환불 확정 전에 품목별 재고 처리 선택만 저장한다(무통장 환불처럼 확정이 다른 양식에서 일어나는 경로). 재고·환불에는 손대지 않는다. */

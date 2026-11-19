@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { loadAdminClaimPartialReturn, loadPartialReturnPolicy } from '@/lib/orders/partial-return.server';
+import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import { loadClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { getBusinessInfo } from '@/lib/legal/business-info.server';
@@ -26,6 +28,16 @@ export async function loadAdminClaimWorkspace(claimId: string) {
   const defectiveStock = detail.claim.claimType === 'return'
     ? (await loadClaimDefectiveStock([claimId]))[0] ?? null
     : null;
+  /* 부분 반품(ADR-0047): 고른 품목·환불 원장·미리보기. 주문 전체 클레임이면 null. 읽지 못하면 null이고 화면은 그 사실을 따로 알린다. */
+  let partialReturn: AdminClaimPartialReturn | null | undefined = null;
+  if (detail.claim.claimType === 'return') {
+    try {
+      partialReturn = await loadAdminClaimPartialReturn(claimId);
+    } catch {
+      partialReturn = undefined;
+    }
+  }
+  const partialReturnPolicy = await loadPartialReturnPolicy();
 
   const cancellationForm = detail.payment?.provider === 'korpay' && detail.order
     ? buildKorpayCancellationForm({
@@ -38,5 +50,5 @@ export async function loadAdminClaimWorkspace(claimId: string) {
     })
     : null;
 
-  return { detail, carriers, cancellationForm, defectiveStock };
+  return { detail, carriers, cancellationForm, defectiveStock, partialReturn, partialReturnEnabled: partialReturnPolicy.enabled };
 }

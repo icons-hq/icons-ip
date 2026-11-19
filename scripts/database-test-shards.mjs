@@ -114,6 +114,7 @@ const operators = [
   // 부분 반품(원장 #17·ADR-0047): 스위치 OFF 불변, 고른 품목만 회수, 결제사 확인 뒤 적용·클레임 완료, 배송 건 비움 배송비, 반품배송비
   // 편도·왕복 한 번, 남은 수량 전부 = 주문 전체 반품, 무통장 송금 대기, 결제사 거절 확인 필요, 불량 재고, 대리 접수. 경합은 아래 스크립트.
   sql('order_partial_return'),
+  script('order_partial_return_concurrency.sh', 'PARTIAL_RETURN_TEST_SCOPE'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
