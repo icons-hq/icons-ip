@@ -4,7 +4,8 @@ import { isUuid } from '@/lib/uuid';
 export const COUPON_ISSUE_PATH = '/admin/sales/coupons/issue';
 export type CouponIssueTargets = { kind: 'customers'; userIds: string[] } | { kind: 'segment'; segmentId: string; revision: number };
 /** 발급 작업 결과 줄. heldStatus·revokedAt 은 그 쿠폰의 지금 상태다(회수 화면이 쓴다 — 없으면 상태를 모르는 줄). */
-export interface CouponIssueRow { userId: string; userCouponId: string | null; nickname: string; reason: string | null; heldStatus?: 'active' | 'used' | null; revokedAt?: string | null }
+export interface CouponIssueRow { userId: string; userCouponId: string | null; nickname: string; reason: string | null; heldStatus?: 'active' | 'used' | null; revokedAt?: string | null;
+  /** 같은 쿠폰을 회수한 이력이 있어 새로 발급하지 않고(실행도 막지 않고) 건너뛰는 고객. */ excluded?: 'revoked' }
 export interface CouponIssueBatch { id: string; couponCode: string; couponName: string; couponRevision: number; targetKind: 'customers' | 'segment'; segmentName: string | null;
   status: 'prepared' | 'invalid' | 'completed' | 'failed'; targetCount: number; plannedCount: number; existingCount: number; invalidCount: number; issuedCount: number;
   createdAt: string; validUntil: string; finishedAt: string | null; error: string | null; rows: CouponIssueRow[]; canExecute: boolean }
@@ -17,7 +18,6 @@ export const COUPON_ISSUE_ERRORS: Record<string, string> = {
   coupon_first_purchase_only: '첫구매 대상이 아닙니다.', coupon_repeat_purchase_only: '구매 이력이 필요한 쿠폰입니다.',
   customer_segment_changed: '세그먼트가 수정·삭제됐거나 수집 설정이 꺼졌습니다.', coupon_issue_segment_changed: '확인한 고객의 세그먼트 조건이 바뀌었습니다.',
   coupon_issue_preview_stale: '확인 후 15분이 지났습니다. 대상을 다시 확인해주세요.', coupon_issue_policy_changed: '쿠폰 정책이 바뀌었습니다. 다시 확인해주세요.',
-  coupon_revoked: '이 고객은 같은 쿠폰을 회수한 이력이 있어 다시 발급할 수 없습니다. 대상에서 빼거나 새 쿠폰을 만들어주세요.',
   coupon_issue_failed: '발급을 완료하지 못했습니다. 이 작업에서 새로 발급한 쿠폰은 없습니다.', coupon_issue_batch_not_found: '현재 계정·세션에서 실행할 수 없는 작업입니다.',
 };
 export function couponIssueError(code: string | null | undefined) { return code ? COUPON_ISSUE_ERRORS[code] ?? '발급 조건과 현재 권한을 확인해주세요.' : ''; }
@@ -40,10 +40,23 @@ export function parseCouponIssueBatch(value: unknown): CouponIssueBatch | null {
     || ![value.targetCount,value.plannedCount,value.existingCount,value.invalidCount,value.issuedCount].every(count => transactionInteger(count, 0, 1000))
     || !Array.isArray(value.rows) || value.rows.length !== value.targetCount || new Set(value.rows.map(row => row?.userId)).size !== value.rows.length) return null;
   if (value.rows.some(row => !transactionRecord(row) || !isUuid(row.userId) || row.userCouponId !== null && !isUuid(row.userCouponId) || typeof row.nickname !== 'string' || row.reason !== null && typeof row.reason !== 'string'
-    || row.heldStatus != null && !['active', 'used'].includes(String(row.heldStatus)) || row.revokedAt != null && !transactionInstant(row.revokedAt))) return null;
+    || row.heldStatus != null && !['active', 'used'].includes(String(row.heldStatus)) || row.revokedAt != null && !transactionInstant(row.revokedAt) || row.excluded !== undefined && row.excluded !== 'revoked')) return null;
   if (Number(value.plannedCount) > Number(value.targetCount) || Number(value.existingCount) > Number(value.targetCount) || Number(value.invalidCount) > Number(value.targetCount)
     || value.status === 'completed' && (Number(value.issuedCount) + Number(value.existingCount) !== value.targetCount || value.invalidCount !== 0 || value.error !== null || !value.finishedAt)
     || value.status !== 'completed' && value.issuedCount !== 0 || value.status === 'failed' && (!value.error || !value.finishedAt)
     || value.canExecute && value.status !== 'prepared') return null;
   return value as unknown as CouponIssueBatch;
+}
+
+/** 쿠폰 상세에서 다시 열 수 있는 최근 발급 작업(admin_list_coupon_issues). */
+export interface CouponIssueSummary { id: string; status: 'completed' | 'failed'; createdAt: string; finishedAt: string | null; targetCount: number; issuedCount: number; revokedCount: number }
+export function parseCouponIssueSummaries(value: unknown): CouponIssueSummary[] | null {
+  if (!Array.isArray(value)) return null;
+  const rows: CouponIssueSummary[] = [];
+  for (const row of value) {
+    if (!transactionRecord(row) || !isUuid(row.id) || !['completed', 'failed'].includes(String(row.status)) || !transactionInstant(row.createdAt)
+      || row.finishedAt !== null && !transactionInstant(row.finishedAt) || ![row.targetCount, row.issuedCount, row.revokedCount].every(count => transactionInteger(count, 0, 1000))) return null;
+    rows.push(row as unknown as CouponIssueSummary);
+  }
+  return rows;
 }

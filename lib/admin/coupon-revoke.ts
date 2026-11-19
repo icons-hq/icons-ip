@@ -7,14 +7,15 @@ export const COUPON_REVOKE_MAX = 500;
 export const COUPON_REVOKE_REASON_MIN = 2;
 export const COUPON_REVOKE_REASON_MAX = 500;
 
-export type CouponRevokeLineStatus = 'revoked' | 'already_revoked' | 'in_use' | 'not_found';
+export type CouponRevokeLineStatus = 'revoked' | 'already_revoked' | 'in_use' | 'used' | 'not_found';
 export interface CouponRevokeLine { userCouponId: string; status: CouponRevokeLineStatus }
 export interface CouponRevokeResult { operationId: string; requestedCount: number; revokedCount: number; replayed: boolean; lines: CouponRevokeLine[] }
 
 export const COUPON_REVOKE_LINE_LABELS: Record<CouponRevokeLineStatus, string> = {
   revoked: '회수함',
   already_revoked: '이미 회수한 쿠폰',
-  in_use: '결제 대기 주문이 사용 중이라 회수하지 않았습니다. 주문이 취소된 뒤 다시 회수하세요.',
+  in_use: '결제를 마치지 않은 주문이 쿠폰을 잡고 있어 회수하지 않았습니다. 그 주문이 취소돼 쿠폰이 풀린 뒤 다시 회수하세요.',
+  used: '이미 사용한 쿠폰이라 회수하지 않았습니다.',
   not_found: '쿠폰을 찾을 수 없습니다.',
 };
 
@@ -33,7 +34,7 @@ export function couponRevokeError(message: string | null | undefined): string {
   return COUPON_REVOKE_FALLBACK;
 }
 
-const LINE_STATUSES: readonly string[] = ['revoked', 'already_revoked', 'in_use', 'not_found'];
+const LINE_STATUSES: readonly string[] = ['revoked', 'already_revoked', 'in_use', 'used', 'not_found'];
 
 export function parseCouponRevokeResult(value: unknown): CouponRevokeResult | null {
   if (!transactionRecord(value) || !isUuid(value.operationId) || !transactionInteger(value.requestedCount, 1, COUPON_REVOKE_MAX)

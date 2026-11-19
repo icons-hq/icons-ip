@@ -15,7 +15,7 @@ export function CustomerCouponRevoke({ userCouponId, couponLabel }: { userCoupon
   async function revoke() {
     const reason = await adminPrompt({
       title: `쿠폰 회수 · ${couponLabel}`, destructive: true, confirmLabel: '회수',
-      message: '이 쿠폰은 고객 쿠폰함에서 사라지고 쓸 수 없게 됩니다. 되돌릴 수 없고, 같은 쿠폰을 이 고객에게 다시 발급할 수도 없습니다. 이미 결제 대기 주문이 잡은 쿠폰은 회수되지 않습니다.',
+      message: '이 쿠폰은 고객 쿠폰함에서 사라지고 쓸 수 없게 됩니다. 되돌릴 수 없고, 지정·코드 발급으로는 같은 쿠폰을 같은 고객에게 다시 발급하지 않습니다(매월 지급하는 등급 쿠폰은 다음 달 지급분이 새로 들어갑니다). 결제 대기 주문이 잡은 쿠폰이나 이미 사용한 쿠폰은 회수되지 않습니다.',
       input: { label: '회수 사유', placeholder: '예: 다른 고객에게 잘못 발급', minLength: COUPON_REVOKE_REASON_MIN, maxLength: COUPON_REVOKE_REASON_MAX },
     });
     if (reason === null) return;

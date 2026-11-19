@@ -6,7 +6,7 @@ import { executeCouponIssueAction, findCouponIssueCustomersAction, previewCoupon
 import { revokeUserCouponsAction } from '@/app/admin/coupon-revoke-actions';
 import { COUPON_REVOKE_REASON_MAX, COUPON_REVOKE_REASON_MIN, couponRevokeSummary } from '@/lib/admin/coupon-revoke';
 import { adminPrompt } from '@/lib/admin/confirm';
-import { COUPON_ISSUE_PATH, couponIssueCustomerIds, couponIssueError, type CouponIssueBatch, type CouponIssueTargets } from '@/lib/admin/coupon-issuance';
+import { COUPON_ISSUE_PATH, couponIssueCustomerIds, couponIssueError, type CouponIssueBatch, type CouponIssueSummary, type CouponIssueTargets } from '@/lib/admin/coupon-issuance';
 import { withoutAdminSavedFlag } from '@/lib/admin/saved-flag';
 import type { AdminCouponRecord } from '@/lib/admin/coupons';
 import type { CustomerSegment } from '@/lib/admin/customer-segments';
@@ -34,8 +34,9 @@ function executeBlockedReason(batch: CouponIssueBatch, confirmed: boolean, uncer
   return null;
 }
 
-export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = null, justSaved = false }: {
+export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = null, justSaved = false, recent = [] }: {
   coupon: AdminCouponRecord; actorId: string; sessionId: string | null; initial?: CouponIssueBatch | null;
+  /** 이 쿠폰의 최근 발급 작업(완료·실패). 눌러서 결과 표를 다시 연다. */ recent?: CouponIssueSummary[];
   /** 혜택 등록에서 고객지정 혜택을 처음 저장하고 옮겨 왔다(주소의 한 번용 saved 표시). */
   justSaved?: boolean;
 }) {
@@ -52,7 +53,7 @@ export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = nul
     if (!batch || !picked.size || !session.current()) return;
     const ids = [...picked], reason = await adminPrompt({
       title: `쿠폰 ${ids.length}장 회수`, destructive: true, confirmLabel: '회수',
-      message: `선택한 ${ids.length}장은 고객 쿠폰함에서 사라지고 쓸 수 없게 됩니다. 되돌릴 수 없고, 같은 쿠폰을 같은 고객에게 다시 발급할 수도 없습니다. 이미 결제 대기 주문이 잡은 쿠폰은 회수되지 않습니다.`,
+      message: `선택한 ${ids.length}장은 고객 쿠폰함에서 사라지고 쓸 수 없게 됩니다. 되돌릴 수 없고, 지정·코드 발급으로는 같은 쿠폰을 같은 고객에게 다시 발급하지 않습니다(매월 지급하는 등급 쿠폰은 다음 달 지급분이 새로 들어갑니다). 결제 대기 주문이 잡은 쿠폰이나 이미 사용한 쿠폰은 회수되지 않습니다.`,
       input: { label: '회수 사유', placeholder: '예: 다른 고객에게 잘못 발급', minLength: COUPON_REVOKE_REASON_MIN, maxLength: COUPON_REVOKE_REASON_MAX },
     });
     if (reason === null) return;
@@ -126,9 +127,9 @@ export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = nul
     </AdminSectionCard>
     {batch ? <AdminSectionCard title="발급 확인 결과"><p className="[overflow-wrap:anywhere]">작업 ID <Link className="underline underline-offset-4" href={`${COUPON_ISSUE_PATH}?couponCode=${encodeURIComponent(coupon.code)}&batchId=${batch.id}`}>{batch.id}</Link></p>
       <p className="flex flex-wrap items-center gap-2">상태: <AdminStatusBadge tone={statusTone('couponIssue', batch.status)}>{{ prepared: batch.canExecute ? '발급 전 확인' : '유효 시간 지남·실행 불가', invalid: '입력 확인 필요', completed: '발급 완료', failed: '발급 실패' }[batch.status]}</AdminStatusBadge>{batch.segmentName ? <span>{batch.segmentName}</span> : null}</p>
-      <div className={ADMIN_COUNT_CARD_GRID_CLASS}><AdminCountCard count={batch.targetCount} label="확인한 대상" unit="명" /><AdminCountCard count={batch.plannedCount} label="새 발급 예정" tone="info" unit="명" /><AdminCountCard count={batch.existingCount} label="기보유" unit="명" /><AdminCountCard count={batch.issuedCount} label="실제 새 발급" tone="success" unit="명" /></div>
+      <div className={ADMIN_COUNT_CARD_GRID_CLASS}><AdminCountCard count={batch.targetCount} label="확인한 대상" unit="명" /><AdminCountCard count={batch.plannedCount} label="새 발급 예정" tone="info" unit="명" /><AdminCountCard count={batch.existingCount - batch.rows.filter(row => row.excluded === 'revoked').length} label="기보유" unit="명" />{batch.rows.some(row => row.excluded === 'revoked') ? <AdminCountCard count={batch.rows.filter(row => row.excluded === 'revoked').length} label="회수 이력 제외" tone="warning" unit="명" /> : null}<AdminCountCard count={batch.issuedCount} label="실제 새 발급" tone="success" unit="명" /></div>
       {batch.error ? <AdminNotice role="alert" tone="danger">{couponIssueError(batch.error)}</AdminNotice> : null}
-      <div className="min-w-0 overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&>[data-slot=table-container]]:overflow-visible" role="region" aria-label="발급 대상 결과" tabIndex={0}><Table className="min-w-[800px] text-xs"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">{batch.status === 'completed' ? <TableHead className="w-10"><span className="sr-only">회수할 쿠폰 선택</span></TableHead> : null}<TableHead>현재 닉네임</TableHead><TableHead>고객 ID</TableHead><TableHead>확인 결과</TableHead><TableHead>쿠폰 발급 ID</TableHead></TableRow></TableHeader><TableBody>{batch.rows.map(row => <TableRow key={row.userId}>{batch.status === 'completed' ? <TableCell>{row.userCouponId && revocable(row) ? <input type="checkbox" aria-label={`쿠폰 회수 선택 ${row.nickname}`} checked={picked.has(row.userCouponId)} disabled={blocked} onChange={event => togglePick(row.userCouponId as string, event.target.checked)} /> : null}</TableCell> : null}<TableCell>{row.nickname}</TableCell><TableCell className="font-mono">{row.userId}</TableCell><TableCell>{row.reason ? couponIssueError(row.reason) : row.revokedAt ? '회수함' : row.heldStatus === 'used' ? '사용·결제 대기 주문 사용 중' : row.userCouponId ? '쿠폰 보유 확인' : '새 발급 대상'}</TableCell><TableCell className="font-mono">{row.userCouponId ?? '—'}</TableCell></TableRow>)}</TableBody></Table></div>
+      <div className="min-w-0 overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&>[data-slot=table-container]]:overflow-visible" role="region" aria-label="발급 대상 결과" tabIndex={0}><Table className="min-w-[800px] text-xs"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">{batch.status === 'completed' ? <TableHead className="w-10"><span className="sr-only">회수할 쿠폰 선택</span></TableHead> : null}<TableHead>현재 닉네임</TableHead><TableHead>고객 ID</TableHead><TableHead>확인 결과</TableHead><TableHead>쿠폰 발급 ID</TableHead></TableRow></TableHeader><TableBody>{batch.rows.map(row => <TableRow key={row.userId}>{batch.status === 'completed' ? <TableCell>{row.userCouponId && revocable(row) ? <input type="checkbox" aria-label={`쿠폰 회수 선택 ${row.nickname}`} checked={picked.has(row.userCouponId)} disabled={blocked} onChange={event => togglePick(row.userCouponId as string, event.target.checked)} /> : null}</TableCell> : null}<TableCell>{row.nickname}</TableCell><TableCell className="font-mono">{row.userId}</TableCell><TableCell>{row.reason ? couponIssueError(row.reason) : row.excluded === 'revoked' ? '회수 이력으로 제외(발급하지 않음)' : row.revokedAt ? '회수함' : row.heldStatus === 'used' ? '사용·결제 대기 주문 사용 중' : row.userCouponId ? '쿠폰 보유 확인' : '새 발급 대상'}</TableCell><TableCell className="font-mono">{row.userCouponId ?? '—'}</TableCell></TableRow>)}</TableBody></Table></div>
       {batch.status === 'completed' ? <div className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5"><p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">잘못 발급한 쿠폰은 위 표에서 고객을 골라 회수합니다. 미사용 쿠폰만 회수되고 되돌릴 수 없습니다.</p>
         <Button type="button" variant="outline" disabled={blocked || !picked.size} onClick={revoke}>선택한 쿠폰 회수{picked.size ? ` (${picked.size})` : ''}</Button></div> : null}
       {revokeNotice ? <AdminNotice role="status" tone="success">{revokeNotice}</AdminNotice> : null}
@@ -142,6 +143,9 @@ export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = nul
       </div>
       {executeReason ? <p className="text-sm leading-relaxed text-muted-foreground" id="coupon-issue-execute-reason">{executeReason}</p> : null}
     </AdminSectionCard> : null}
+    {recent.length ? <AdminSectionCard title="최근 발급 작업"><ul className="grid gap-2">{recent.map(job => <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-sm" key={job.id}>
+      <span className="min-w-0 [overflow-wrap:anywhere]"><time dateTime={job.createdAt}>{new Date(job.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time> · 대상 {job.targetCount}명 · 새 발급 {job.issuedCount}명{job.revokedCount ? ` · 회수 ${job.revokedCount}장` : ''}{job.status === 'failed' ? ' · 발급 실패' : ''}</span>
+      <Link className="underline underline-offset-4" href={`${COUPON_ISSUE_PATH}?couponCode=${encodeURIComponent(coupon.code)}&batchId=${job.id}`}>결과 열기</Link></li>)}</ul></AdminSectionCard> : null}
     {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}{session.blocked ? <AdminNotice role="alert" tone="danger">로그인 상태가 바뀌었습니다. 현재 계정으로 다시 열어주세요.</AdminNotice> : null}
   </section>;
 }

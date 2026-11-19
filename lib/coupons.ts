@@ -196,7 +196,7 @@ const COUPON_ACTION_MESSAGES: Record<string, string> = {
   coupon_designated_recipient_required: '지정 고객에게 직접 발급하는 쿠폰이에요. 발급되면 쿠폰함에서 확인할 수 있어요.',
   coupon_category_changed: '굿즈 카테고리가 변경되고 있어요. 주문서를 새로고침한 뒤 할인 금액을 확인해주세요.',
   coupon_checkout_required: '배송비 쿠폰은 주문서에서 받을 방식과 배송지를 확인한 뒤 선택해주세요.',
-  coupon_grade_required: '더 높은 회원 등급부터 받을 수 있는 쿠폰이에요. 등급이 오르면 쿠폰함으로 자동 지급돼요.',
+  coupon_grade_required: '더 높은 회원 등급 이상에게 지급되는 쿠폰이에요. 등급별 혜택은 마이페이지의 회원 등급 혜택에서 확인할 수 있어요.',
   coupon_revoked: '이 쿠폰은 다시 받을 수 없어요. 궁금한 점은 고객센터로 문의해주세요.',
   coupon_not_found: '쿠폰 코드를 찾을 수 없어요. 다시 확인해주세요.',
   coupon_not_started: '아직 사용 기간이 시작되지 않은 쿠폰이에요.',

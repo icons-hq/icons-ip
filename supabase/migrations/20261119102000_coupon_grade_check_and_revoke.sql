@@ -28,8 +28,10 @@
 --   - 회원 잠금(결제와 같은 lock_goods_transaction_actor) → user_coupons FOR UPDATE(id 순)로 결제와 같은 방향이다.
 --     회수와 결제가 겹치면 한쪽이 먼저 끝나고 다른 쪽이 그 결과를 본다(결제가 먼저면 in_use, 회수가 먼저면 만료).
 --   - 회수한 쿠폰은 같은 코드로 다시 받을 수 없다: 보유 판정이 회수된 행을 만나면 coupon_revoked 로 거절하고,
---     운영자 지정 발급 확인도 그 고객을 '회수한 쿠폰'으로 막는다. 발급 장수(issued_count)는 돌려주지 않는다
---     (한도는 소비된 채 — 더 필요하면 쿠폰 발급 한도를 올린다). 정상 재발급이 필요하면 새 쿠폰을 만든다.
+--     운영자 지정 발급 확인은 그 고객을 막는 사유가 아니라 '제외' 줄(excluded='revoked')로 분류한다 — 새로 발급하지 않고
+--     실행도 막지 않는다(세그먼트 발급에서 한 명의 회수 이력이 나머지 전체의 발급을 막지 않게). 발급 장수(issued_count)는
+--     돌려주지 않는다(한도는 소비된 채 — 더 필요하면 쿠폰 발급 한도를 올린다). 정상 재발급이 필요하면 새 쿠폰을 만든다.
+--     매월 지급 등급 쿠폰은 직접 넣는 경로라 이번 달 몫을 회수해도 다음 달 지급은 새로 들어간다.
 --   - 회수한 쿠폰은 고객 쿠폰함·장바구니에서 사라진다(RLS: 본인 행은 revoked_at is null 만, 운영자는 전부).
 --     결제 대기 주문 안내(get_my_unpaid_order_coupons)는 used 만 보므로 영향이 없다.
 --   - 감사: 회수한 줄이 있으면 audit_log 'admin.coupon.revoked' 한 건(id = 작업 ID — 같은 작업 ID 재시도는
@@ -104,13 +106,14 @@ select private.o3b_patch_function('private.issue_coupon_code(text,uuid,text)',
 
 select private.o3b_patch_function('private.coupon_issue_rows(public.coupons,uuid[])',
   $a$order by (status='active') desc,issued_at desc,id limit 1) held_id,$a$,
-  $n$order by (revoked_at is null) desc,(status='active') desc,issued_at desc,id limit 1) held_id,$n$);
+  $n$order by (revoked_at is null) desc,(status='active') desc,issued_at desc,id limit 1) held_id,
+  coalesce((select revoked_at is not null from public.user_coupons where coupon_code=p_coupon.code and user_id=ids.id
+    order by (revoked_at is null) desc,(status='active') desc,issued_at desc,id limit 1),false) held_revoked,$n$);
 
+-- 회수 이력만 남은 고객은 막지 않고 '제외' 표시를 단다(새로 발급하지 않는 기보유와 같은 취급, 건수만 따로 센다).
 select private.o3b_patch_function('private.coupon_issue_rows(public.coupons,uuid[])',
-  $a$case when p.id is null or p.role not in$a$,
-  $n$case when exists(select 1 from public.user_coupons rv where rv.coupon_code=p_coupon.code and rv.user_id=ids.id and rv.revoked_at is not null
-      and not exists(select 1 from public.user_coupons ok where ok.coupon_code=rv.coupon_code and ok.user_id=rv.user_id and ok.revoked_at is null)) then 'coupon_revoked'
-    when p.id is null or p.role not in$n$);
+  $a$jsonb_build_object('userId',id,'userCouponId',held_id,'reason',reason)$a$,
+  $n$jsonb_build_object('userId',id,'userCouponId',held_id,'reason',reason)||case when held_revoked then jsonb_build_object('excluded','revoked') else '{}'::jsonb end$n$);
 
 -- 발급 작업 결과 줄에 그 쿠폰의 지금 상태(보유·사용·회수)를 싣는다.
 select private.o3b_patch_function('private.coupon_issue_batch_document(uuid)',
@@ -121,6 +124,11 @@ select private.o3b_patch_function('private.coupon_issue_batch_document(uuid)',
 select private.o3b_patch_function('private.coupon_issue_batch_document(uuid)',
   $a$row.value||jsonb_build_object('nickname',coalesce(p.nickname,'현재 고객 정보 없음'))$a$,
   $n$row.value||jsonb_build_object('nickname',coalesce(p.nickname,'현재 고객 정보 없음'),'heldStatus',held.status,'heldIssuedAt',held.issued_at,'revokedAt',held.revoked_at)$n$);
+
+-- 마케팅 캠페인 쿠폰 첨부 선택지에서 등급 혜택 쿠폰을 뺀다: 코드 입력은 등급을 묻기 때문에 하위 등급 수신자가 받지 못한다.
+select private.o3b_patch_function('public.admin_marketing_coupon_options(text,integer)',
+  $a$c.issuance_mode='code' and$a$,
+  $n$c.issuance_mode='code' and c.grade_benefit is null and$n$);
 
 -- ── 4. 고객 상세 쿠폰 탭: 회수됨 상태 ─────────────────────────────────────────
 
@@ -191,7 +199,10 @@ begin
     elsif held.revoked_at is not null then
       line := jsonb_build_object('userCouponId', target_id, 'status', 'already_revoked', 'couponCode', held.coupon_code, 'userId', held.user_id);
     elsif held.status = 'used' then
-      line := jsonb_build_object('userCouponId', target_id, 'status', 'in_use', 'couponCode', held.coupon_code, 'userId', held.user_id, 'usedOrderId', held.used_order_id);
+      -- 결제가 끝나지 않은 주문(pending)이 잡고 있으면 in_use(주문 취소 뒤 회수 가능), 그 밖은 이미 쓴 쿠폰(used)이다.
+      line := jsonb_build_object('userCouponId', target_id,
+        'status', case when exists(select 1 from public.orders o where o.id = held.used_order_id and o.status = 'pending') then 'in_use' else 'used' end,
+        'couponCode', held.coupon_code, 'userId', held.user_id, 'usedOrderId', held.used_order_id);
     else
       update public.user_coupons
       set revoked_at = revoke_at, revoked_by = actor, revoke_reason = reason,
@@ -201,10 +212,12 @@ begin
       revoked_count := revoked_count + 1;
       line := jsonb_build_object('userCouponId', target_id, 'status', 'revoked', 'couponCode', held.coupon_code, 'userId', held.user_id,
         'issuedSource', held.issued_source, 'issuedAt', held.issued_at,
-        'issueBatchId', (select b.id from private.coupon_issue_batches b
+        -- 그 고객에게 실제로 새로 발급한 작업만 가리킨다: 지정 발급(admin_grant)이고 발급 시각이 작업의 확인~완료 사이다(기보유로 건너뛴 작업 제외).
+        'issueBatchId', case when held.issued_source = 'admin_grant' then (select b.id from private.coupon_issue_batches b
           where b.coupon_code = held.coupon_code and b.status = 'completed'
+            and held.issued_at between b.created_at and b.finished_at
             and b.result->'rows' @> jsonb_build_array(jsonb_build_object('userCouponId', held.id::text))
-          order by b.finished_at, b.id limit 1));
+          order by b.finished_at, b.id limit 1) end);
     end if;
     lines := lines || jsonb_build_array(line);
   end loop;
@@ -222,9 +235,37 @@ revoke all on function public.admin_revoke_user_coupons(uuid[],text,uuid) from p
 grant execute on function public.admin_revoke_user_coupons(uuid[],text,uuid) to authenticated;
 select private.register_operator_rpc_contract('public.admin_revoke_user_coupons(uuid[],text,uuid)'::regprocedure, 'marketing.manage', 'write', false);
 
+-- ── 5-1. 최근 발급 작업 목록(완료한 작업 결과 화면으로 돌아가는 길) ──────────────
+
+create function public.admin_list_coupon_issues(p_coupon_code text, p_limit integer default 10)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.has_operator_capability('marketing.manage', false) then raise insufficient_privilege using message = 'operator_capability_required'; end if;
+  if p_coupon_code is null or p_coupon_code !~ '^[A-Z0-9][A-Z0-9-]{2,23}$' or p_limit is null or p_limit not between 1 and 50 then
+    raise invalid_parameter_value using message = 'coupon_issue_list_invalid';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'status', r.status, 'createdAt', r.created_at, 'finishedAt', r.finished_at,
+      'targetCount', r.target_count, 'issuedCount', r.issued_count, 'revokedCount', r.revoked_count) order by r.created_at desc, r.id desc)
+    from (select b.id, b.status, b.created_at, b.finished_at,
+        coalesce((b.result->>'targetCount')::integer, 0) as target_count, coalesce((b.result->>'issuedCount')::integer, 0) as issued_count,
+        (select count(*) from jsonb_array_elements(b.result->'rows') row
+          join public.user_coupons held on held.id = nullif(row.value->>'userCouponId', '')::uuid where held.revoked_at is not null) as revoked_count
+      from private.coupon_issue_batches b where b.coupon_code = p_coupon_code and b.status in ('completed', 'failed')
+      order by b.created_at desc, b.id desc limit p_limit) r), '[]'::jsonb);
+end $$;
+revoke all on function public.admin_list_coupon_issues(text,integer) from public, anon, authenticated, service_role;
+grant execute on function public.admin_list_coupon_issues(text,integer) to authenticated;
+select private.register_operator_rpc_contract('public.admin_list_coupon_issues(text,integer)'::regprocedure, 'marketing.manage', 'read', false);
+
 -- ── 6. 운영자 계약 지문 재등록(본문을 바꾼 등록 함수) ─────────────────────────
 
 select private.register_operator_internal_contract('private.issue_coupon_code(text,uuid,text)'::regprocedure);
+select private.register_operator_rpc_contract('public.admin_marketing_coupon_options(text,integer)'::regprocedure, 'marketing.manage', 'read', false);
 select private.register_operator_rpc_contract('public.admin_customer_detail(uuid,text,integer)'::regprocedure, 'platform.manage', 'read', false);
 
 notify pgrst, 'reload schema';

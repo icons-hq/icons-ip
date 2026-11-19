@@ -3,7 +3,7 @@ set -euo pipefail
 
 # 쿠폰 회수(PAY-034)와 결제의 쿠폰 사용이 같은 쿠폰을 두고 겹치는 경합.
 # 회수·결제는 같은 회원 잠금(lock_goods_transaction_actor) → user_coupons 행 순서라 한쪽이 먼저 끝나고 다른 쪽이 그 결과를 본다.
-#  1) 결제가 먼저: 회수는 줄을 서고, 결제가 커밋한 뒤 in_use 로 거절한다(쿠폰은 사용 상태 그대로).
+#  1) 결제가 먼저: 회수는 줄을 서고, 결제가 커밋한 뒤 used 로 거절한다(쿠폰은 사용 상태 그대로).
 #  2) 회수가 먼저: 결제는 줄을 서고, 회수가 커밋한 뒤에는 쿠폰이 만료로 평가되며 사용 처리(status=used)가 DB 제약으로 거절된다.
 
 db_container="${SUPABASE_DB_CONTAINER:?Select a CI or disposable local test container}"
@@ -105,8 +105,8 @@ wait_for_backend_wait "${test_prefix}-revoker" "Lock" "$revoker_pid" "$racer_log
 wait "$payer_pid"
 wait "$revoker_pid"
 state_one="$(psql_scalar "select status || ':' || (revoked_at is not null)::text from public.user_coupons where id = '${held_one}'::uuid")"
-if [[ "$state_one" != "used:false" ]] || ! grep -q '"status": "in_use"' "$racer_log"; then
-  echo "payment-first race: expected in_use rejection, got state=${state_one}" >&2; sed -n '1,80p' "$racer_log" >&2; exit 1
+if [[ "$state_one" != "used:false" ]] || ! grep -q '"status": "used"' "$racer_log"; then
+  echo "payment-first race: expected used rejection, got state=${state_one}" >&2; sed -n '1,80p' "$racer_log" >&2; exit 1
 fi
 psql_exec -q -c "delete from public.user_coupons where id = '${held_one}'::uuid" >/dev/null
 psql_exec -q -c "update public.coupons set issued_count = 0 where code = '${coupon_code}'" >/dev/null

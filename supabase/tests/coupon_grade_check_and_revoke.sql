@@ -87,7 +87,7 @@ select 1/case when not has_function_privilege('anon','public.admin_revoke_user_c
 select public.admin_revoke_user_coupons(array[:'held_a'::uuid,:'held_b'::uuid,:'held_c'::uuid,'bfc02800-0000-4000-8000-0000000000ff'::uuid],'엉뚱한 고객에게 발급',pg_temp.uid(701)) as revoked \gset
 select 1/case when :'revoked'::jsonb->>'revokedCount'='2' and :'revoked'::jsonb->>'requestedCount'='4'
  and (select count(*) from jsonb_array_elements(:'revoked'::jsonb->'lines') l where l->>'status'='revoked')=2
- and (select l->>'status' from jsonb_array_elements(:'revoked'::jsonb->'lines') l where l->>'userCouponId'=:'held_b')='in_use'
+ and (select l->>'status' from jsonb_array_elements(:'revoked'::jsonb->'lines') l where l->>'userCouponId'=:'held_b')='used'
  and (select l->>'status' from jsonb_array_elements(:'revoked'::jsonb->'lines') l where l->>'userCouponId'='bfc02800-0000-4000-8000-0000000000ff')='not_found'
  then 1 else 0 end as assert_revoke_line_results;
 reset role;
@@ -107,6 +107,14 @@ select pg_temp.expect(format('select public.admin_revoke_user_coupons(array[%L]:
 select 1/case when (select l->>'status' from jsonb_array_elements((public.admin_revoke_user_coupons(array[:'held_a'::uuid],'다시 시도',pg_temp.uid(702)))->'lines') l)='already_revoked' then 1 else 0 end as assert_already_revoked_line;
 reset role;
 select 1/case when (select count(*) from public.audit_log where action='admin.coupon.revoked')=1 then 1 else 0 end as assert_no_audit_without_revocation;
+
+-- 결제를 마치지 않은 주문(pending)이 잡은 쿠폰은 in_use(주문 취소 뒤 회수), 그 밖의 사용은 used 다.
+reset role;
+insert into public.orders(id,user_id,total,status) values('bfc02800-0000-4000-8000-0000000007d1',pg_temp.uid(9),10000,'pending');
+update public.user_coupons set used_order_id='bfc02800-0000-4000-8000-0000000007d1' where id=:'held_b';
+set local role authenticated;
+select 1/case when (select l->>'status' from jsonb_array_elements((public.admin_revoke_user_coupons(array[:'held_b'::uuid],'결제 대기 확인',pg_temp.uid(707)))->'lines') l)='in_use' then 1 else 0 end as assert_pending_order_is_in_use;
+reset role;
 
 -- 고객: 회수된 쿠폰은 쿠폰함에 보이지 않고, 운영자는 이력까지 본다.
 set local role authenticated;
@@ -156,10 +164,33 @@ select 1/case when (select count(*)=2 and bool_and(l->>'heldStatus'='active') an
 select public.admin_revoke_user_coupons(array[:'batch_held'::uuid],'작업 결과에서 회수',pg_temp.uid(704)) as batch_revoked \gset
 select 1/case when (:'batch_revoked'::jsonb->'lines'->0->>'issueBatchId')=pg_temp.uid(801)::text then 1 else 0 end as assert_audit_carries_issue_batch;
 select 1/case when (select (l->>'revokedAt') is not null and l->>'heldStatus'='active' from jsonb_array_elements(public.admin_get_coupon_issue(pg_temp.uid(801))->'rows') l where l->>'userId'=pg_temp.uid(2)::text) then 1 else 0 end as assert_batch_row_marked_revoked;
-select public.admin_preview_coupon_issue(pg_temp.uid(802),'RV-BATCH',:'targets',pg_temp.uid(1),pg_temp.uid(900)) as repreview \gset
-select 1/case when :'repreview'::jsonb->>'status'='invalid'
- and (select l->>'reason' from jsonb_array_elements(:'repreview'::jsonb->'rows') l where l->>'userId'=pg_temp.uid(2)::text)='coupon_revoked'
- and (select l->>'reason' is null from jsonb_array_elements(:'repreview'::jsonb->'rows') l where l->>'userId'=pg_temp.uid(3)::text) then 1 else 0 end as assert_reissue_blocked_for_revoked_customer;
+-- 회수 이력 고객은 막는 사유가 아니라 '제외' 줄이다: 나머지 대상은 그대로 발급되고 실행도 막히지 않는다.
+select jsonb_build_object('kind','customers','userIds',jsonb_build_array(pg_temp.uid(2),pg_temp.uid(3),pg_temp.uid(12))) as targets3 \gset
+select public.admin_preview_coupon_issue(pg_temp.uid(802),'RV-BATCH',:'targets3',pg_temp.uid(1),pg_temp.uid(900)) as repreview \gset
+select 1/case when :'repreview'::jsonb->>'status'='prepared' and :'repreview'::jsonb->>'plannedCount'='1' and :'repreview'::jsonb->>'invalidCount'='0'
+ and (select l->>'excluded' from jsonb_array_elements(:'repreview'::jsonb->'rows') l where l->>'userId'=pg_temp.uid(2)::text)='revoked'
+ and (select l->>'reason' is null from jsonb_array_elements(:'repreview'::jsonb->'rows') l where l->>'userId'=pg_temp.uid(2)::text)
+ and (select not (l ? 'excluded') from jsonb_array_elements(:'repreview'::jsonb->'rows') l where l->>'userId'=pg_temp.uid(3)::text) then 1 else 0 end as assert_revoked_customer_excluded_not_blocking;
+select 1/case when public.admin_execute_coupon_issue(pg_temp.uid(802),pg_temp.uid(1),pg_temp.uid(900))->>'issuedCount'='1' then 1 else 0 end as assert_others_issued_despite_exclusion;
+reset role;
+select 1/case when (select count(*)=1 and bool_and(revoked_at is not null) from public.user_coupons where user_id=pg_temp.uid(2) and coupon_code='RV-BATCH')
+ and exists(select 1 from public.user_coupons where user_id=pg_temp.uid(12) and coupon_code='RV-BATCH' and revoked_at is null) then 1 else 0 end as assert_excluded_customer_not_reissued;
+set local role authenticated;
+select set_config('request.jwt.claim.sub',pg_temp.uid(1)::text,true);
+select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.uid(1),'session_id',pg_temp.uid(900),'role','authenticated')::text,true);
+-- 기보유로 건너뛴 작업은 감사의 발급 작업으로 귀속되지 않는다(uid3 쿠폰은 작업 801이 발급, 802는 기보유 건너뜀).
+select (select l->>'userCouponId' from jsonb_array_elements(public.admin_get_coupon_issue(pg_temp.uid(802))->'rows') l where l->>'userId'=pg_temp.uid(3)::text) as held_u3 \gset
+select 1/case when (public.admin_revoke_user_coupons(array[:'held_u3'::uuid],'귀속 확인',pg_temp.uid(705)))->'lines'->0->>'issueBatchId'=pg_temp.uid(801)::text then 1 else 0 end as assert_audit_batch_is_issuing_job;
+select (select l->>'userCouponId' from jsonb_array_elements(public.admin_get_coupon_issue(pg_temp.uid(802))->'rows') l where l->>'userId'=pg_temp.uid(12)::text) as held_u12 \gset
+select 1/case when (public.admin_revoke_user_coupons(array[:'held_u12'::uuid],'귀속 확인 둘',pg_temp.uid(706)))->'lines'->0->>'issueBatchId'=pg_temp.uid(802)::text then 1 else 0 end as assert_audit_batch_is_new_issue_job;
+-- 최근 발급 작업 목록.
+select 1/case when (select count(*)=2 and bool_and(l->>'status'='completed') from jsonb_array_elements(public.admin_list_coupon_issues('RV-BATCH',10)) l)
+ and (select (l->>'revokedCount')::int from jsonb_array_elements(public.admin_list_coupon_issues('RV-BATCH',10)) l where l->>'id'=pg_temp.uid(801)::text)=2
+ and public.admin_list_coupon_issues('RV-BATCH',10)->0->>'id'=pg_temp.uid(802)::text then 1 else 0 end as assert_recent_issue_list;
+select pg_temp.expect('select public.admin_list_coupon_issues(''x'',10)','coupon_issue_list_invalid');
+-- 마케팅 쿠폰 첨부 선택지에는 등급 혜택 쿠폰이 없다.
+select 1/case when exists(select 1 from jsonb_array_elements(public.admin_marketing_coupon_options('',1)->'rows') l where l->>'code'='GR-NONE')
+ and not exists(select 1 from jsonb_array_elements(public.admin_marketing_coupon_options('',1)->'rows') l where l->>'code' in ('GR-GOLD','GR-SILVER')) then 1 else 0 end as assert_marketing_options_exclude_grade_coupons;
 
 -- 고객 상세 쿠폰 탭은 회수됨을 따로 보여 준다.
 select 1/case when exists(select 1 from jsonb_array_elements(public.admin_customer_detail(pg_temp.uid(8),'coupons',1)->'items') l where l->>'id'=:'held_a' and l->>'status'='revoked') then 1 else 0 end as assert_customer_detail_revoked_status;

@@ -70,3 +70,14 @@ it('발급 전 확인 작업에는 회수 도구가 없다', () => {
   expect(html).not.toContain('선택한 쿠폰 회수');
   expect(html).not.toContain('회수할 쿠폰 선택');
 });
+
+it('회수 이력 고객은 제외 줄과 별도 건수 카드로 보이고, 최근 발급 작업에서 결과를 다시 연다', () => {
+  const row = (n: number, extra: Partial<CouponIssueBatch['rows'][number]>) => ({ userId: `94000000-0000-4000-8000-0000000003${n}0`, userCouponId: `94000000-0000-4000-8000-0000000004${n}0`, nickname: `고객${n}`, reason: null, ...extra });
+  const html = render({ initial: batch({ rows: [row(1, { excluded: 'revoked', heldStatus: 'active', revokedAt: '2026-11-12T02:00:00.000Z' }), row(2, {}) ], targetCount: 2, existingCount: 2, plannedCount: 0, canExecute: true }),
+    recent: [{ id: '94000000-0000-4000-8000-000000000099', status: 'completed', createdAt: '2026-11-12T01:00:00.000Z', finishedAt: '2026-11-12T01:01:00.000Z', targetCount: 3, issuedCount: 2, revokedCount: 1 }] });
+  expect(html).toContain('회수 이력 제외');
+  expect(html).toContain('회수 이력으로 제외(발급하지 않음)');
+  expect(html).toContain('최근 발급 작업');
+  expect(html).toContain('batchId=94000000-0000-4000-8000-000000000099');
+  expect(html).toContain('회수 1장');
+});

@@ -17,7 +17,8 @@ describe('쿠폰 회수 결과 계약', () => {
   it('회수하지 않은 줄의 이유를 한 번씩 알린다', () => {
     const parsed = parseCouponRevokeResult(result)!;
     expect(couponRevokeSummary(parsed)).toContain('1장을 회수했고 1장은 회수하지 않았습니다');
-    expect(couponRevokeSummary(parsed)).toContain('결제 대기 주문이 사용 중');
+    expect(couponRevokeSummary(parsed)).toContain('결제를 마치지 않은 주문');
+    expect(couponRevokeSummary({ ...parsed, lines: [parsed.lines[0], { ...parsed.lines[1], status: 'used' }] })).toContain('이미 사용한 쿠폰');
     expect(couponRevokeSummary({ ...parsed, requestedCount: 1, revokedCount: 1, lines: [parsed.lines[0]] })).toBe('1장을 회수했습니다.');
   });
 
