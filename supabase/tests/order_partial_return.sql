@@ -152,8 +152,23 @@ select pg_temp.pr_assert(not exists(select 1 from public.order_claim_items where
   from public.order_claim_collections x where x.claim_id = (pg_temp.pr_claim(11)).id and x.shipment_id = pg_temp.pr_id('shipment-1', 11)),
  'whole_order_claim_unchanged');
 
--- 스위치 켜기(반품배송비 차감은 아직 꺼짐).
-update private.return_fee_deduction_settings set partial_return_enabled = true, partial_return_evidence = 'TEST 약관 개정 공지', partial_return_enabled_at = now() where singleton;
+-- 스위치 켜기(반품배송비 차감은 아직 꺼짐): 운영 스위치 화면의 저장 RPC — 근거 필수, 작업 ID 멱등, 낡은 리비전 거절, 감사 한 줄.
+create temp table pr_switch_rev on commit drop as select revision from private.return_fee_deduction_settings where singleton;
+grant select on pr_switch_rev to authenticated;
+set local role authenticated;
+select pg_temp.pr_auth(1);
+select pg_temp.pr_error(format('select public.admin_save_partial_return_switch(true, null, %s, %L)',
+ (select revision from pr_switch_rev), pg_temp.pr_id('switch', 1)), 'operations_switch_evidence_required');
+select pg_temp.pr_error(format('select public.admin_save_partial_return_switch(true, %L, 999, %L)', 'TEST 약관 개정 공지', pg_temp.pr_id('switch', 1)), 'PT409');
+select pg_temp.pr_assert((public.admin_save_partial_return_switch(true, 'TEST 약관 개정 공지', (select revision from pr_switch_rev), pg_temp.pr_id('switch', 1)))
+ #>> '{partialReturn,enabled}' = 'true', 'switch_saved');
+select pg_temp.pr_assert((public.admin_save_partial_return_switch(true, 'TEST 약관 개정 공지', (select revision from pr_switch_rev), pg_temp.pr_id('switch', 1)))
+ #>> '{partialReturn,enabled}' = 'true', 'switch_replayed');
+reset role;
+select pg_temp.pr_assert(private.order_partial_return_enabled()
+ and (select count(*) = 1 from public.audit_log where id = pg_temp.pr_id('switch', 1) and action = 'admin.operations_switch.partial_return')
+ and not exists(select 1 from public.audit_log where action = 'system.return_fee_deduction.settings_changed' and diff#>>'{after,partial_return_enabled}' = 'true'),
+ 'switch_audited_once');
 
 -- 2. 판정 -------------------------------------------------------------------------------------------------------------
 select pg_temp.pr_assert(pg_temp.pr_request('a:1@4') = 'partial_return_unavailable'

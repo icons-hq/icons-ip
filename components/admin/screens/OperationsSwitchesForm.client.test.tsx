@@ -23,6 +23,7 @@ const doc: OperationsSwitchesState = {
   delayNotice: { revision: 2, enabled: true, smsEnabled: false, evidence: 'TEST 근거', changedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자' },
   returnFee: { revision: 3, enabled: true, oneWayAmount: 3000, evidence: 'TEST 근거', enabledAt: '2026-11-19T01:00:00Z', updatedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자', inflightCount: 2 },
   partialCancel: { revision: 3, enabled: false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자' },
+  partialReturn: { revision: 3, enabled: false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자' },
 };
 const save = vi.fn(), onSaved = vi.fn();
 let confirm: ReturnType<typeof stubAdminConfirm>;
