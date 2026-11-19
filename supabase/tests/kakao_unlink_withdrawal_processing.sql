@@ -204,7 +204,8 @@ select 1/case when (:'processed3'::jsonb)->>'status' = 'processed'
   and ((:'processed3'::jsonb)->'kakaoUnlink'->>'accountClosed')::boolean
   and ((:'processed3'::jsonb)->>'suspended')::boolean
   and (:'processed3'::jsonb)->'erased' = jsonb_build_object('addressBookEntries', 1, 'phoneNumbers', 0, 'marketingConsents', 1,
-    'demographicConsents', 0, 'activityEvents', 0, 'activityConsents', 0, 'emailChangeRequests', 0, 'restockAlerts', 0, 'kakaoIdentities', 1)
+    'demographicConsents', 0, 'activityEvents', 0, 'activityConsents', 0, 'emailChangeRequests', 0, 'restockAlerts', 0, 'kakaoIdentities', 1,
+    'profileFields', jsonb_build_array('nickname', 'birthDate'), 'adultVerifications', 0)
   and ((:'processed3'::jsonb)->>'revokedSessions')::integer = 1
   then 1 else 0 end as kakao_process_result_shape;
 
@@ -231,7 +232,8 @@ select 1/case when (select count(*) = 1 and bool_and(basis = 'kakao_unlink' and 
   and (select actor_id = pg_temp.uid(1)
       and diff - 'kakaoUnlinkEventAt' = jsonb_build_object('basis', 'kakao_unlink', 'kakaoUnlinkReason', 'ACCOUNT_DELETE', 'suspended', true,
         'erased', jsonb_build_object('addressBookEntries', 1, 'phoneNumbers', 0, 'marketingConsents', 1, 'demographicConsents', 0,
-          'activityEvents', 0, 'activityConsents', 0, 'emailChangeRequests', 0, 'restockAlerts', 0, 'kakaoIdentities', 1),
+          'activityEvents', 0, 'activityConsents', 0, 'emailChangeRequests', 0, 'restockAlerts', 0, 'kakaoIdentities', 1,
+    'profileFields', jsonb_build_array('nickname', 'birthDate'), 'adultVerifications', 0),
         'revokedSessions', 1)
       and (diff->>'kakaoUnlinkEventAt')::timestamptz = (select event_at from private.kakao_unlink_events where event_id = 'wd-set-3')
     from public.audit_log where action = 'admin.member.withdrawal_processed' and target = 'profile:' || pg_temp.uid(3))
@@ -257,11 +259,20 @@ select 1/case when (:'replay3'::jsonb)->>'status' = 'already_processed'
   and (:'replay3'::jsonb)->>'basis' = 'kakao_unlink'
   and (:'replay3_inquiry'::jsonb)->>'status' = 'already_processed'
   and (:'replay3_inquiry'::jsonb)->>'basis' = 'kakao_unlink'
-  and (:'status3_after'::jsonb) - 'processedAt' - 'kakaoUnlink' = '{"processed":true,"inquiryReference":null,"signinBlocked":false,"signinBlockedAt":null,"basis":"kakao_unlink"}'::jsonb
+  and (:'status3_after'::jsonb) - 'processedAt' - 'kakaoUnlink' = '{"processed":true,"inquiryReference":null,"signinBlocked":false,"signinBlockedAt":null,"avatarErasePending":false,"basis":"kakao_unlink"}'::jsonb
   and (select count(*) from private.member_withdrawal_processings) = 1
   and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_processed') = 1
   and not exists (select 1 from auth.sessions where user_id = pg_temp.uid(3))
   then 1 else 0 end as kakao_replay_is_idempotent;
+
+-- 카카오 근거 처리도 프로필을 익명화한다(닉네임·생년월일; 사진이 없었으니 지울 사진 경로는 없다). 다른 회원은 그대로다.
+select 1/case when (select nickname = '탈퇴한 회원 ' || left(md5(pg_temp.uid(3)::text), 6) and birth_date is null and avatar_path is null
+    from public.profiles where id = pg_temp.uid(3))
+  and (select nickname = 'TEST 카카오 탈퇴 1' and birth_date = date '1990-01-01' from public.profiles where id = pg_temp.uid(1))
+  and (select not avatar_erase_pending and avatar_erased_at is null from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
+  and (select diff->'erased'->'profileFields' = jsonb_build_array('nickname', 'birthDate') from public.audit_log
+    where action = 'admin.member.withdrawal_processed' and target = 'profile:' || pg_temp.uid(3))
+  then 1 else 0 end as kakao_withdrawal_anonymizes_profile;
 
 update auth.users set banned_until = now() + interval '100 years' where id = pg_temp.uid(3);
 select pg_temp.as_actor(pg_temp.uid(1));
