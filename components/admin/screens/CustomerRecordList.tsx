@@ -4,6 +4,7 @@ import type { AdminCustomerRow, CustomerTab } from '@/lib/admin/customer-detail'
 import { statusTone, type AdminStatusDomain } from '@/lib/admin/status-tone';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { ADMIN_INQUIRY_STATUS_LABELS } from '@/lib/inquiries';
+import { CustomerCouponRevoke } from './CustomerCouponRevoke';
 import { isOrderClaimType, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 
 export const customerDateTime = (value: string) => new Date(value).toLocaleString('ko-KR', {
@@ -11,11 +12,11 @@ export const customerDateTime = (value: string) => new Date(value).toLocaleStrin
 });
 const labels: Partial<Record<CustomerTab, Record<string, string>>> = {
   orders: ADMIN_ORDER_STATUS_LABELS, inquiries: ADMIN_INQUIRY_STATUS_LABELS, claims: ORDER_CLAIM_STAGE_LABELS,
-  coupons: { active: '보유', used: '사용 완료', expired: '만료' },
+  coupons: { active: '보유', used: '사용 완료', expired: '만료', revoked: '회수됨' },
 };
 const toneDomains: Partial<Record<CustomerTab, AdminStatusDomain>> = { orders: 'order', inquiries: 'inquiry', claims: 'claim', coupons: 'coupon' };
 const RECORD_LINK_CLASS = 'text-sm font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground';
-export function CustomerRecordList({ tab, items }: { tab: CustomerTab; items: AdminCustomerRow[] }) {
+export function CustomerRecordList({ tab, items, canRevokeCoupons = false }: { tab: CustomerTab; items: AdminCustomerRow[]; canRevokeCoupons?: boolean }) {
   if (!items.length) return <p className="py-6 text-center text-sm text-muted-foreground">등록된 이력이 없습니다.</p>;
   return <ul className="flex flex-col divide-y">{items.map((row) => {
     const href = tab === 'orders' ? `/admin/sales/orders/${row.id}`
@@ -32,7 +33,8 @@ export function CustomerRecordList({ tab, items }: { tab: CustomerTab; items: Ad
       {row.amount != null ? <span className="tabular-nums">{row.amount.toLocaleString('ko-KR')}원{row.itemCount ? ` · ${row.itemCount}개 품목` : ''}</span> : null}
       {row.body ? <p className="leading-relaxed whitespace-pre-wrap">{row.body}</p> : null}
       {row.code ? <span>쿠폰 코드 · {row.code}</span> : null}
-      {row.expiresAt ? <span className="text-muted-foreground">만료 · {customerDateTime(row.expiresAt)}</span> : null}
+      {row.expiresAt && row.status !== 'revoked' ? <span className="text-muted-foreground">만료 · {customerDateTime(row.expiresAt)}</span> : null}
+      {tab === 'coupons' && canRevokeCoupons && row.status === 'active' ? <CustomerCouponRevoke userCouponId={row.id} couponLabel={row.title || row.code || '쿠폰'} /> : null}
       {href || (row.orderId && tab !== 'orders') ? <div className="flex flex-wrap gap-x-4 gap-y-1">
         {href ? <Link className={RECORD_LINK_CLASS} href={href}>상세 열기</Link> : null}
         {row.orderId && tab !== 'orders' ? <Link className={RECORD_LINK_CLASS} href={`/admin/sales/orders/${row.orderId}`}>연결 주문 열기</Link> : null}

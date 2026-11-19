@@ -73,6 +73,8 @@ describe('반품입고 회신 열 이름 대응표', () => {
     expect(parseReturnIntakeConfirmResult(result)).toEqual(result);
     expect(parseReturnIntakeConfirmResult({ ...result, recorded: 'x' })).toBeNull();
     expect(returnIntakeErrorText('claim_collection_conflict')).toContain('이미 다른 근거');
+    expect(returnIntakeErrorText('claim_collection_warehouse_already_shipped')).toContain('반송 입고');
+    expect(returnIntakeErrorText('claim_collection_warehouse_reply_required')).toContain('창고 회신');
   });
 });
 

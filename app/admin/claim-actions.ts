@@ -32,6 +32,7 @@ import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+import { warehouseStopErrorMessage } from '@/lib/admin/warehouse-stop';
 import {
   ORDER_CLAIM_TYPE_LABELS,
   isOrderClaimType,
@@ -107,6 +108,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_return_address_required')) return '회수 주소가 없는 상품이 있습니다. 상품의 반품/교환지를 고르거나 출고지 설정에 반품 주소를 등록한 뒤 다시 진행해주세요.';
   if (value.includes('claim_collection_bundle_required')) return '반품지가 둘 이상인 배송 건입니다. 반품지별 회수 확인에서 도착한 곳을 골라 확인해주세요.';
   if (value.includes('claim_collection_conflict')) return '이미 다른 근거로 회수 확인된 배송 건입니다. 이력을 확인해주세요.';
+  /* 출고지시가 나간 발송 전 배송 건의 창고 보관 확인은 창고 회신 기록이 근거다(ADR-0046). */
+  if (value.includes('claim_collection_warehouse_already_shipped') || value.includes('claim_collection_warehouse_reply_required')) return warehouseStopErrorMessage(value);
   if (value.includes('claim_collection_not_found')) return '이 클레임에 속한 회수 배송 건을 찾을 수 없습니다.';
   if (value.includes('invalid_collection_evidence')) return '회수 확인 근거를 500자 이내로 입력해주세요.';
   if (value.includes('invalid_collection_received_on')) return '실제 입고일은 주문일부터 오늘 사이의 날짜로 입력해주세요.';

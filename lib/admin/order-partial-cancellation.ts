@@ -58,7 +58,11 @@ const ITEM_BLOCKERS: Record<string, string> = {
 
 /** 시작·미리보기·송금 기록 RPC 거절 코드. */
 const START_ERRORS: Record<string, string> = {
-  warehouse_stop_confirmation_required: '출고지시가 나간 배송 건의 상품입니다. 창고에서 그 상품·수량의 출고 중단을 확인한 뒤 확인란을 체크해주세요.',
+  warehouse_stop_confirmation_required: '출고지시가 나간 배송 건의 상품입니다. 창고에 그 상품·수량의 출고 중단을 요청하고 회신을 주문 상세의 창고 회신 기록에 남긴 뒤 다시 시도해주세요.',
+  /* ADR-0046: 출고지시가 나간 배송 건은 확인란이 아니라 창고 회신 기록이 근거다. */
+  warehouse_stop_reply_required: '출고지시가 나간 배송 건의 상품입니다. 창고에 그 상품·수량의 출고 중단을 요청하고, 창고 회신(출고 중단 확인)을 이 화면 위 창고 회신 기록에 남긴 뒤 다시 시도해주세요.',
+  warehouse_already_shipped: '창고가 그 배송 건을 이미 출고했다고 회신했습니다. 부분 취소하지 말고 운송장 회신을 받아 발송 처리한 뒤 고객 반품으로 접수해주세요.',
+  warehouse_stop_reply_used: '그 배송 건의 출고 중단 회신은 이미 다른 취소에 쓰였습니다. 창고에 다시 확인하고 회신을 새로 기록해주세요.',
   partial_cancel_amount_changed: '확인창을 연 뒤 금액이 바뀌었습니다. 내용을 다시 확인해주세요.',
   partial_cancel_customer_decision_required: '고객 결정 기록을 2자 이상 입력해주세요(최대 500자).',
   invalid_partial_cancel_note: '메모는 500자 이내로 입력해주세요.',

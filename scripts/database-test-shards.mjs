@@ -42,6 +42,8 @@ const operators = [
   sql('operator_member_loyalty_projection'),
   // 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치(기본 꺼짐)와 platform.manage 감사 저장.
   sql('collectible_feature_control'),
+  // 운영 스위치(지연 안내 메일·반품배송비 차감·재고 부족 부분 취소) 어드민 읽기·저장·감사. platform.manage + sales.manage.
+  sql('operations_switches'),
   // 매월 등급 혜택 쿠폰(S36-062). 실행 월을 2031년으로 고정해 실제 매분 틱과 겹치지 않는다.
   sql('loyalty_monthly_grade_coupons'),
   sql('operator_manual_recovery_guards'),
@@ -65,9 +67,17 @@ const operators = [
   sql('order_shipment_extra_trackings'),
   // 운송장 무결성: 다른 주문 번호 재사용·택배사 형식·뒤바뀐 회신·맞바꾸기.
   sql('tracking_number_integrity'),
+  // 출고지시 뒤 취소: 창고 회신 판정·취소 뒤 출고 발견(네 반입 경로)·실물 기준 재고·처리와 그 경합(ADR-0046).
+  sql('warehouse_stop_replies'),
+  // 재고 부족 부분 취소가 닫은 배송 건의 취소 뒤 출고 발견(품목 줄이 지워진 배송 건의 재고·서원 대조 줄).
+  sql('warehouse_stop_partial_closed'),
+  script('warehouse_stop_replies_concurrency.sh', 'WAREHOUSE_STOP_TEST_SCOPE'),
   sql('delivery_tracking_auto_complete'),
   script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
   script('tracking_number_integrity_concurrency.sh', 'TRACKING_INTEGRITY_TEST_SCOPE'),
+  // 배송완료·발송 되돌리기와 택배사 도착 일시(ADR-0045), 되돌리기 대 자동 구매확정·반품 접수 경합.
+  sql('shipment_status_revert'),
+  script('shipment_status_revert_concurrency.sh', 'SHIPMENT_REVERT_TEST_SCOPE'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
@@ -239,6 +249,9 @@ const storefront = [
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
   sql('kakao_channel_friend_coupon'),
+  // 코드 입력 등급 확인(PAY-028)과 지정 발급 쿠폰 개별 회수(PAY-034). 회수 대 결제 경합은 별도 스크립트.
+  sql('coupon_grade_check_and_revoke'),
+  script('coupon_revoke_concurrency.sh', 'COUPON_REVOKE_TEST_SCOPE'),
   // 카카오 계정 상태 변경 웹훅(user-unlinked): 다른 수단 회원의 카카오 연결 끊기·카카오만 회원의 탈퇴 검토 대기.
   sql('kakao_account_unlink'),
   // 카카오 연결 해제 탈퇴 검토 대기의 어드민 처리: 카카오계정 탈퇴 사유만 해제 알림으로 처리, 연결만 끊은 회원은 1:1 문의 경로.
