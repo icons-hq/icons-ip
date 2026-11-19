@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parseAdminPreorderReservations, parseGoodsPreorderInput, parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderMutationError, preparePreorderAllocation } from './goods-preorders';
+import {
+  parseAdminPreorderReservations, parseGoodsPreorderInput, parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderApplyProblemLabels, preorderApplyProblems,
+  preorderCapacityProblem, preorderDraftOnlyVariantIds, preorderMutationError, preparePreorderAllocation,
+} from './goods-preorders';
 describe('preorder operation inputs', () => {
   it('retains unset drafts and requires supply evidence and all promised dates to activate', () => {
     expect(parseGoodsPreorderInput({ state: 'draft', capacityQty: '', startsAt: '', endsAt: '', expectedShipDate: '', approvalReference: '' }))
@@ -89,5 +92,47 @@ describe('출고 보류 예약 주문 표시', () => {
     expect(parseAdminPreorderReservations({ total: 1, hasMore: false, items: [row] })?.items[0].fulfillmentHold).toBeUndefined();
     expect(parseAdminPreorderReservations({ total: 1, hasMore: false, items: [{ ...row, fulfillmentHold: 'yes' }] })).toBeNull();
     expect(preorderMutationError('order fulfillment hold')).toContain('출고 보류');
+  });
+});
+
+/* 2026-11-19 사고: 기본값 '초안'으로 저장한 예약 6건이 판매에 적용되지 않았다. 적용은 칸별 이유를 보이고 막고, 임시저장만 남은 옵션을 찾는다. */
+describe('예약판매 적용 전 칸별 확인', () => {
+  const now = Date.parse('2026-11-19T05:00:00.000Z'); // 2026-11-19 14:00 KST
+  const filled = { capacityQty: '300', startsAt: '2026-11-20T10:00', endsAt: '2026-12-01T23:59', expectedShipDate: '2026-12-10', approvalReference: '협조전-20261119-0001' };
+  it('빈 칸은 칸마다 이유를 돌려주고, 이름은 화면 순서로 잇는다', () => {
+    const problems = preorderApplyProblems({ capacityQty: '', startsAt: '', endsAt: '', expectedShipDate: '', approvalReference: '  ' }, now);
+    expect(Object.keys(problems)).toEqual(['capacityQty', 'startsAt', 'endsAt', 'expectedShipDate', 'approvalReference']);
+    expect(problems.capacityQty).toBe('승인 예약 물량을 입력해주세요.');
+    expect(preorderApplyProblemLabels(problems)).toBe('승인 예약 물량·접수 시작·접수 종료·발송 예정일·승인 근거');
+    /* 사고 그대로: 물량·접수 종료·승인 근거만 비었다. */
+    expect(preorderApplyProblemLabels(preorderApplyProblems({ ...filled, capacityQty: '', endsAt: '', approvalReference: '' }, now))).toBe('승인 예약 물량·접수 종료·승인 근거');
+  });
+  it('모두 맞으면 빈 객체이고, DB와 같은 순서·시각 규칙을 미리 막는다', () => {
+    expect(preorderApplyProblems(filled, now)).toEqual({});
+    expect(preorderApplyProblems({ ...filled, capacityQty: '0' }, now).capacityQty).toContain('1 이상의 정수');
+    expect(preorderApplyProblems({ ...filled, endsAt: '2026-11-20T09:00' }, now).endsAt).toContain('접수 시작보다 뒤');
+    expect(preorderApplyProblems({ ...filled, startsAt: '2026-11-01T10:00', endsAt: '2026-11-19T13:59' }, now).endsAt).toContain('지금보다 뒤');
+    /* 발송 예정일은 접수 종료일(KST) 이상이다 — 12/1 23:59 KST 종료면 12/1은 되고 11/30은 안 된다. */
+    expect(preorderApplyProblems({ ...filled, expectedShipDate: '2026-12-01' }, now)).toEqual({});
+    expect(preorderApplyProblems({ ...filled, expectedShipDate: '2026-11-30' }, now).expectedShipDate).toContain('접수 종료일과 같거나 뒤');
+    expect(preorderApplyProblems({ ...filled, approvalReference: 'x'.repeat(2001) }, now).approvalReference).toContain('2,000자');
+  });
+  it('랜덤 판매의 공통 칸 확인은 물량을 빼고, 옵션별 물량은 따로 본다', () => {
+    const { capacityQty, ...common } = filled; void capacityQty;
+    expect(preorderApplyProblems(common, now)).toEqual({});
+    expect(preorderCapacityProblem('')).toBe('승인 예약 물량을 입력해주세요.');
+    expect(preorderCapacityProblem('1.5')).toContain('정수');
+    expect(preorderCapacityProblem(' 20 ')).toBeNull();
+  });
+  it('임시저장만 있고 적용 중인 예약이 없는 옵션만 찾는다(사용 옵션 범위)', () => {
+    const policies = [
+      { variantId: 'red', state: 'draft' as const }, { variantId: 'red', state: 'draft' as const },
+      { variantId: 'blue', state: 'draft' as const }, { variantId: 'blue', state: 'active' as const },
+      { variantId: 'green', state: 'stopped' as const }, { variantId: 'green', state: 'draft' as const },
+      { variantId: 'gone', state: 'draft' as const },
+    ];
+    expect(preorderDraftOnlyVariantIds(policies)).toEqual(['red', 'green', 'gone']);
+    expect(preorderDraftOnlyVariantIds(policies, ['green', 'red', 'blue'])).toEqual(['green', 'red']);
+    expect(preorderDraftOnlyVariantIds([{ variantId: 'red', state: 'active' }])).toEqual([]);
   });
 });

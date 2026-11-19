@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodsPreorder } from '@/lib/admin/goods-preorders';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
-import { PreorderReceipt, RandomPreorderBulkActions } from './GoodsPreordersPanel';
+import { PREORDER_DRAFT_NOTE, PREORDER_STAFF_DRAFT_NOTE } from '@/lib/admin/goods-preorders';
+import { PreorderEditor, PreorderReceipt, RandomPreorderBulkActions, RandomPreorderEditor } from './GoodsPreordersPanel';
 
 vi.mock('@/app/admin/goods-preorder-actions', () => ({
   allocateGoodsPreordersAction: vi.fn(), listGoodsPreorderReservationsAction: vi.fn(), listGoodsPreordersAction: vi.fn(),
@@ -45,5 +46,43 @@ describe('일반 재고 판매 전환 버튼', () => {
     const open = renderToStaticMarkup(<PreorderReceipt policy={current} variant={variants[0]} pendingQty={0} canActivate onSaved={() => {}} />);
     expect(stockButton(open, '일반 재고 판매로 전환')).not.toContain('disabled=""');
     expect(open).not.toContain('data-stock-supply-blocked');
+  });
+});
+
+/* 2026-11-19 사고: 저장 방식 기본값('초안')으로 저장한 예약이 판매에 적용되지 않았다. 적용 권한이 있으면 적용이 주 버튼이고 임시저장은 보조다. */
+describe('예약 저장 버튼', () => {
+  const buttons = (html: string) => [...html.matchAll(/<button[^>]*data-preorder-save-mode="(\w+)"[^>]*>([^<]+)<\/button>/g)].map((match) => [match[1], match[2]]);
+  it('적용 권한이 있으면 [예약판매 적용]이 주 버튼, [임시저장]이 보조 버튼이고 저장 방식 선택·초안 문구가 없다', () => {
+    const html = renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={variants} canActivate onSaved={() => {}} />);
+    expect(buttons(html)).toEqual([['active', '예약판매 적용'], ['draft', '임시저장']]);
+    expect(html).toMatch(/<button class="[^"]*\bbg-primary\b[^"]*"[^>]*data-preorder-save-mode="active"/);
+    expect(html).toMatch(/<button class="[^"]*\bborder-border\b[^"]*"[^>]*data-preorder-save-mode="draft"/);
+    expect(html).toContain(PREORDER_DRAFT_NOTE);
+    expect(html).not.toContain('저장 방식');
+    expect(html).not.toContain('초안');
+    expect(html.match(/ · 적용 필수/g)).toHaveLength(5);
+    /* 적용을 누르기 전에는 칸 오류를 그리지 않는다. */
+    expect(html).not.toContain('data-preorder-field-problem');
+    expect(html).not.toContain('aria-invalid="true"');
+  });
+  it('적용 권한이 없으면 임시저장만 하고, 판매에 반영되지 않는다는 문구를 버튼 옆에 둔다', () => {
+    const html = renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={variants} canActivate={false} onSaved={() => {}} />);
+    expect(buttons(html)).toEqual([['draft', '예약 조건 임시저장']]);
+    expect(html).toContain(PREORDER_STAFF_DRAFT_NOTE);
+    expect(html).not.toContain('예약판매 적용</button>');
+    expect(html).not.toContain('적용 필수');
+  });
+  it('랜덤 판매 예약도 [모든 옵션에 예약판매 적용]이 주 버튼이고, 권한이 없으면 임시저장만 한다', () => {
+    const admin = renderToStaticMarkup(<RandomPreorderEditor goodId="hsq" variants={variants} policies={[]} canActivate onSaved={() => {}} />);
+    expect(buttons(admin)).toEqual([['active', '모든 옵션에 예약판매 적용'], ['draft', '임시저장']]);
+    expect(admin).not.toContain('저장 방식');
+    expect(admin.match(/data-preorder-field="capacity:/g)).toHaveLength(2);
+    const staff = renderToStaticMarkup(<RandomPreorderEditor goodId="hsq" variants={variants} policies={[]} canActivate={false} onSaved={() => {}} />);
+    expect(buttons(staff)).toEqual([['draft', '예약 조건 임시저장']]);
+    expect(staff).toContain(PREORDER_STAFF_DRAFT_NOTE);
+  });
+  it('적용 중인 예약 조건은 "예약판매 적용됨"으로 보인다', () => {
+    const html = renderToStaticMarkup(<PreorderReceipt policy={policy(red, { state: 'active', stoppedAt: null })} variant={variants[0]} pendingQty={0} canActivate onSaved={() => {}} />);
+    expect(html).toContain('빨강 · 예약판매 적용됨');
   });
 });

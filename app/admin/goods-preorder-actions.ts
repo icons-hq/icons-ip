@@ -58,13 +58,13 @@ export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved
       return { ok: false, error: '예약 조건 저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.' };
     }
     revalidateGoodsSurfaces();
-    return { ok: true, message: policy.state === 'active' ? '승인 조건에 따라 예약 접수를 설정했습니다.'
-      : policy.state === 'stopped' ? '새 예약 접수를 중지했습니다. 기존 주문의 약속은 유지됩니다.' : '예약 조건을 초안으로 저장했습니다. 판매에는 반영되지 않습니다.' };
+    return { ok: true, message: policy.state === 'active' ? '예약판매를 적용했습니다. 접수 기간 동안 승인 예약 물량으로 판매합니다.'
+      : policy.state === 'stopped' ? '새 예약 접수를 중지했습니다. 기존 주문의 약속은 유지됩니다.' : '예약 조건을 임시저장했습니다. 아직 판매에 적용되지 않았습니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 조건을 저장하지 못했습니다.' }; }
 }
 const RANDOM_PREORDER_SAVED = {
-  draft: '모든 옵션의 예약 조건을 초안으로 저장했습니다. 판매에는 반영되지 않습니다.',
-  active: '모든 옵션을 같은 일정의 예약 접수로 설정했습니다. 주문할 때 남은 예약 물량에 비례해 옵션이 정해집니다.',
+  draft: '모든 옵션의 예약 조건을 임시저장했습니다. 아직 판매에 적용되지 않았습니다.',
+  active: '모든 옵션에 같은 일정으로 예약판매를 적용했습니다. 주문할 때 남은 예약 물량에 비례해 옵션이 정해집니다.',
   stopped: '모든 옵션의 새 예약 접수를 중지했습니다. 기존 주문의 약속은 유지됩니다.',
   stock: '모든 옵션을 현재 실제 재고 기준 일반 판매로 전환했습니다.',
 } as const;
