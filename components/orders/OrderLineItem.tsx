@@ -19,6 +19,11 @@ export function OrderLineItem({ line, children }: { line: OrderLineView; childre
   const thumbnail = goodsImageBackground(line.thumbnail);
   const canceledQty = line.canceledQty ?? 0;
   const fullyCanceled = line.qty < 1 && canceledQty > 0;
+  /* 부분 반품(ADR-0047)으로 돌아온 몫은 '반품됨'으로, 재고 부족 부분 취소 몫은 '취소됨'으로 나눠 말한다. */
+  const returnedQty = Math.min(line.returnedQty ?? 0, canceledQty);
+  const stockoutQty = canceledQty - returnedQty;
+  const removedLabel = [stockoutQty > 0 ? `${stockoutQty.toLocaleString('ko-KR')}개 취소됨` : null,
+    returnedQty > 0 ? `${returnedQty.toLocaleString('ko-KR')}개 반품됨` : null].filter(Boolean).join(' · ');
 
   return (
     <div className="wc-order-line">
@@ -38,7 +43,7 @@ export function OrderLineItem({ line, children }: { line: OrderLineView; childre
         {fullyCanceled ? null : <p className="wc-order-line__qty">{line.qty.toLocaleString('ko-KR')}개</p>}
         {canceledQty > 0 ? (
           <p className="wc-order-line__canceled" data-order-item-canceled={canceledQty}>
-            {`${fullyCanceled ? '' : '· '}${canceledQty.toLocaleString('ko-KR')}개 취소됨`}
+            {`${fullyCanceled ? '' : '· '}${removedLabel}`}
           </p>
         ) : null}
         {children}

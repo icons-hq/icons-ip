@@ -3,6 +3,7 @@
 - Status: accepted (2026-11-12) — 스위치 OFF로 배포, 게이트 5개 충족 뒤 켠다([런북](../runbooks/return-fee-deduction.md)). 켜는 것은 migration이 아니라 어드민 운영 스위치(`/admin/settings/switches`)에서 감사와 함께 한다(2026-11-19).
 - 일부 대체: [ADR-0017](./0017-order-claim-intake-and-origin-collections.md) 결정 절의 "취소·반품의 환급액은 기존 주문 결제금액 전액(최초 배송비 포함)"과 #491 절의 "환불액에서 차감하지 않으며" 중 **단순 변심 반품의 반품배송비**에 한한 부분. 취소·교환·하자 반품·운영 확인액은 그대로다.
 - 보완: [ADR-0010](./0010-bank-transfer-refund-finalize-order.md)(무통장 송금액은 '결제액 − 차감액')
+- 보완: 부분 반품([ADR-0047](./0047-partial-return.md), 2026-11-19)도 같은 규칙(편도, 최초 무료배송 주문은 왕복)으로 차감하되 나가는 쪽 운임은 주문당 한 번만 뺀다 — 앞선 부분 반품이 왕복을 뺐으면 뒤의 주문 전체 반품은 편도다. 부분 반품의 차감은 결제당 한 줄인 `claim_refund_deductions`가 아니라 부분 환불 원장 머리에 남는다.
 - 관련: QNA-033(서원 회신 E3), QNA-020(재고 부족 품목·수량 부분 취소 — 이 결정의 부분 취소 기반을 쓰는 후속 T12b), [배송비 청구 원장](../research/smartstore-admin/claim-fees.md)
 
 ## 맥락

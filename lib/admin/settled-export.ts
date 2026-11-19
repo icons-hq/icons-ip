@@ -26,6 +26,8 @@ export interface SettledPartialCancel {
 export interface SettledExportOrder {
   /** 적용된 재고 부족 부분 취소의 환불 합계(품목 결제 몫 + 닫힌 배송 건 배송비). 부분 취소가 없으면 없다. */
   partialRefundedAmount?: number;
+  /** 부분 반품(ADR-0047)에서 환불하지 않고 남긴 반품배송비 합계. 품목 금액이 아니라 따로 적는다. 없으면 없다. */
+  returnFeeRetained?: number;
   shippingCouponDiscount?: number; coupons?: { code: string; discountAmount: number; benefitKind: 'goods' | 'shipping'; applicationIndex: number }[];
   calculationVersion?: 1 | 2; volumeDiscount?: number; shippingCollectTotal?: number; shippingComponents?: SettledShippingComponent[];
   id: string; createdAt: string; doneAt: string | null; total: number; shippingFee: number; couponDiscount: number; storeCredits: number;
@@ -157,10 +159,12 @@ export function parseSettledExportSnapshot(value: unknown): SettledExportSnapsho
     if (coupons && (coupons.length > 6 || new Set(coupons.map(c => c.code)).size !== coupons.length || coupons.filter(c => c.benefitKind === 'shipping').length > 1)) invalid();
     const partialRefundedAmount = row.partialRefundedAmount === undefined ? undefined : money(row.partialRefundedAmount);
     if (partialRefundedAmount !== undefined && !v2) invalid();
+    const returnFeeRetained = row.returnFeeRetained === undefined ? undefined : money(row.returnFeeRetained);
+    if (returnFeeRetained !== undefined && (partialRefundedAmount === undefined || returnFeeRetained <= 0)) invalid();
     // 적용된 부분 취소가 있으면 취소된 품목이 반드시 있다. 닫힌 배송 건도 그 부분 취소의 결과다.
     if ((partialRefundedAmount !== undefined) !== items.some(item => item.partialCancel)
       || (partialRefundedAmount === undefined && shipments.some(shipment => shipment.closedByPartialCancel))) invalid();
-    return { ...(partialRefundedAmount === undefined ? {} : { partialRefundedAmount }), ...(row.shippingCouponDiscount === undefined ? {} : { shippingCouponDiscount: money(row.shippingCouponDiscount) }), ...(coupons ? { coupons } : {}), ...(v2 ? { calculationVersion, volumeDiscount: money(row.volumeDiscount), shippingCollectTotal: money(row.shippingCollectTotal), shippingComponents } : {}), id: text(row.id), createdAt: date(row.createdAt), doneAt: nullableDate(row.doneAt), total: money(row.total), shippingFee: money(row.shippingFee), couponDiscount: money(row.couponDiscount), storeCredits: money(row.storeCredits), coupon, items, shipments, payments };
+    return { ...(partialRefundedAmount === undefined ? {} : { partialRefundedAmount }), ...(returnFeeRetained === undefined ? {} : { returnFeeRetained }), ...(row.shippingCouponDiscount === undefined ? {} : { shippingCouponDiscount: money(row.shippingCouponDiscount) }), ...(coupons ? { coupons } : {}), ...(v2 ? { calculationVersion, volumeDiscount: money(row.volumeDiscount), shippingCollectTotal: money(row.shippingCollectTotal), shippingComponents } : {}), id: text(row.id), createdAt: date(row.createdAt), doneAt: nullableDate(row.doneAt), total: money(row.total), shippingFee: money(row.shippingFee), couponDiscount: money(row.couponDiscount), storeCredits: money(row.storeCredits), coupon, items, shipments, payments };
   }));
   if (!orders.length || orders.length > 1000 || orders.reduce((count, order) => count + order.items.length, 0) > 10000) invalid();
   return { schemaVersion: raw.schemaVersion as 1 | 2, receiptId: text(raw.receiptId), capturedAt: date(raw.capturedAt), filters, orders };
@@ -214,6 +218,8 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     const closedShipments = order.shipments.filter(shipment => shipment.closedByPartialCancel);
     const closedIds = new Set(closedShipments.map(shipment => shipment.id));
     const partialRefunded = order.partialRefundedAmount ?? 0;
+    /* 부분 반품의 반품배송비 차감은 환불하지 않은 돈이다 — 품목·배송비 배분에서 뺀 몫(취소분)과 맞추려면 환불액에 더해 본다. */
+    const retained = order.returnFeeRetained ?? 0;
     const qtyOf = (item: SettledExportItem, index: number) => remaining[index]?.qty ?? item.qty;
     const grossOf = (index: number) => remaining[index]?.gross ?? gross[index];
     const before = recorded ? saved.map((a, index) => remaining[index] ? remaining[index]!.gross - remaining[index]!.volume : a!.netSubtotal) : gross;
@@ -221,7 +227,8 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     if (order.partialRefundedAmount !== undefined) {
       const cuts = remaining.flatMap(entry => entry ? [entry.cut] : []);
       issues.push(`재고 부족 부분 취소 반영: 수량·금액은 남은 몫(취소 ${sum(cuts.map(cut => cut.canceledQty)).toLocaleString('ko-KR')}개 · 환불 ${partialRefunded.toLocaleString('ko-KR')}원 제외)`);
-      if (sum(cuts.map(cut => cut.paidAmount)) + sum(closedShipments.map(shipment => shipment.shippingFee)) !== partialRefunded) issues.push('부분 취소 환불 합계와 취소분 배분 불일치');
+      if (sum(cuts.map(cut => cut.paidAmount)) + sum(closedShipments.map(shipment => shipment.shippingFee)) !== partialRefunded + retained) issues.push('부분 취소 환불 합계와 취소분 배분 불일치');
+      if (retained > 0) issues.push(`부분 반품 반품배송비 ${retained.toLocaleString('ko-KR')}원 차감: 결제 잔액에 남은 수입이라 품목·배송비 금액에 넣지 않음(정산 별도 확인)`);
     }
     if (!order.doneAt) issues.push('거래확정 시각 미기록');
     const payment = order.payments.length === 1 ? order.payments[0] : null;
@@ -280,8 +287,8 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     if (collectDifference) issues.push('착불 배송비 품목 합계와 별도 지급 원장 불일치');
     const detailTotal = detailSales === null || detailShipping === null ? null : sum([detailSales, detailShipping]);
     // 부분 취소가 있으면 주문 금액·결제 원장 모두 환불한 몫을 뺀 남은 금액으로 대조한다.
-    const total = order.total - partialRefunded;
-    const paymentAmount = payment ? payment.amount - partialRefunded : null;
+    const total = order.total - partialRefunded - retained;
+    const paymentAmount = payment ? payment.amount - partialRefunded - retained : null;
     const detailDifference = detailTotal === null ? null : detailTotal - total;
     const ledgerDifference = paymentAmount === null ? null : paymentAmount - total;
     if (detailDifference) issues.push('품목·배송비 합계와 주문 금액 불일치');

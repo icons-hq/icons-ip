@@ -28,6 +28,8 @@ export interface RefundTransferPartialCancellationRow {
   orderId: string;
   orderNumber?: string;
   sequence: number;
+  /** 부분 환불 종류: out_of_stock = 재고 부족 부분 취소(ADR-0032), return = 부분 반품(ADR-0047). 옛 응답에 없으면 부분 취소로 읽는다. */
+  reasonCode: 'out_of_stock' | 'return';
   amount: number;
   /** 부분 취소 적용 시각(재고·배송 건 반영). */
   confirmedAt: string;
@@ -37,6 +39,11 @@ export interface RefundTransferPartialCancellationRow {
   payerName: string | null;
 }
 export type RefundTransferRow = RefundTransferClaimRow | RefundTransferPartialCancellationRow;
+/** 부분 환불 줄의 이름과 유형: 재고 부족 부분 취소는 'N차 부분 취소', 부분 반품은 'N차 부분 반품'. */
+export function refundTransferPartialLabel(row: RefundTransferPartialCancellationRow): { label: string; kind: string } {
+  const kind = row.reasonCode === 'return' ? '부분 반품' : '부분 취소';
+  return { label: `${row.sequence}차 ${kind}`, kind };
+}
 /** 목록·엑셀에서 한 줄을 가르는 키(요청 id 또는 부분 취소 id). */
 export function refundTransferRowKey(row: RefundTransferRow): string {
   return row.kind === 'partial_cancellation' ? `partial:${row.partialCancellationId}` : row.claimId;
@@ -66,13 +73,16 @@ export function parseRefundTransferPage(value: unknown, page: number): RefundTra
   const rows: RefundTransferRow[] = [];
   for (const row of value.rows) {
     if (transactionRecord(row) && row.kind === 'partial_cancellation') {
-      if (!transactionExactKeys(row, ['kind', 'partialCancellationId', 'orderId', 'orderNumber', 'sequence', 'amount', 'confirmedAt', 'filedAt', 'updatedAt', 'gift', 'payerName'])
+      if (!transactionExactKeys(row, ['kind', 'partialCancellationId', 'orderId', 'orderNumber', 'sequence', 'amount', 'confirmedAt', 'filedAt', 'updatedAt', 'gift', 'payerName',
+        ...(Object.hasOwn(row, 'reasonCode') ? ['reasonCode'] : [])])
+        || (Object.hasOwn(row, 'reasonCode') && row.reasonCode !== 'out_of_stock' && row.reasonCode !== 'return')
         || (row.orderNumber !== null && !isCommerceNumber(row.orderNumber, 'order'))
         || !isUuid(row.partialCancellationId) || !isUuid(row.orderId) || !transactionInteger(row.sequence, 1) || !transactionInteger(row.amount, 1)
         || !transactionInstant(row.confirmedAt) || !nullableInstant(row.filedAt) || !transactionInstant(row.updatedAt)
         || typeof row.gift !== 'boolean' || !name(row.payerName)) return null;
       rows.push({ kind: 'partial_cancellation', partialCancellationId: row.partialCancellationId, orderId: row.orderId,
-        ...(row.orderNumber ? { orderNumber: row.orderNumber as string } : {}), sequence: row.sequence, amount: row.amount,
+        ...(row.orderNumber ? { orderNumber: row.orderNumber as string } : {}), sequence: row.sequence,
+        reasonCode: row.reasonCode === 'return' ? 'return' : 'out_of_stock', amount: row.amount,
         confirmedAt: row.confirmedAt, filedAt: row.filedAt as string | null, updatedAt: row.updatedAt, gift: row.gift, payerName: row.payerName as string | null });
       continue;
     }
