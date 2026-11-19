@@ -79,7 +79,6 @@ function detailFor(id: string, name: string, price: number): CatalogGoodDetail {
       id,
       name,
       ip: 'hong-sil-quest',
-      type: name,
       price,
       badge: '신상',
       stock: 'ok',

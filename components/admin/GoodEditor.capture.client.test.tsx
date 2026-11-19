@@ -54,7 +54,7 @@ type Element = ReactElement<Record<string, unknown>>;
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []);
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 const originalFormData = FormData;
-const good: AdminGoodRecord = { id: 'capture-owner', code: 'CAPTURE-OWNER', ipId: 'capture-ip', name: 'TEST 배송비 owner', type: '문구', price: 10000, compareAtPrice: null, badge: null, allowBankTransfer: true, saleRestriction: 'none',
+const good: AdminGoodRecord = { id: 'capture-owner', code: 'CAPTURE-OWNER', ipId: 'capture-ip', name: 'TEST 배송비 owner', price: 10000, compareAtPrice: null, badge: null, allowBankTransfer: true, saleRestriction: 'none',
   publishedAt: null, firstPublishedAt: null, archivedAt: null, stock: 'ok', stockQty: 10, bg: null,
   imagePath: 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp', imageUrl: 'https://example.test/good.webp',
   galleryPaths: [], galleryUrls: [], detailImagePaths: [], detailImageUrls: [], description: '저장된 상세설명',
@@ -198,31 +198,26 @@ const category = (id: string, name: string, parentId: string | null = null): Adm
 /* 상품속성 제출은 카테고리 id 를 UUID 로만 받는다. */
 const FIGURE = '33333333-3333-4333-8333-333333333331', FIGURE_MINI = '33333333-3333-4333-8333-333333333332', DOLL = '33333333-3333-4333-8333-333333333333';
 const typeCategories = [category(FIGURE, '피규어'), category(FIGURE_MINI, '미니 피규어', FIGURE), category(DOLL, '인형')];
-const publishedGood: AdminGoodRecord = { ...good, categoryId: FIGURE, type: '피규어', publishedAt: '2026-11-01T00:00:00Z', firstPublishedAt: '2026-11-01T00:00:00Z' };
+const publishedGood: AdminGoodRecord = { ...good, categoryId: FIGURE, publishedAt: '2026-11-01T00:00:00Z', firstPublishedAt: '2026-11-01T00:00:00Z' };
 const switches = (tree: Element[]) => tree.filter(node => node.type === GoodDraftSwitch);
 const chooseCategory = (h: ReturnType<typeof setup>, id: string) => (h.render().find(node => node.type === GoodCategoryField)!.props.onPrimaryChange as (id: string) => void)(id);
 /* 상품속성 편집기가 새 카테고리의 조회를 마쳤다고 알린다. 끝나기 전에는 저장 전 검사가 속성 안내로 먼저 막는다. */
 const attributesReadyFor = (h: ReturnType<typeof setup>, id: string | null) => (h.render().find(node => node.type === GoodsAttributeEditor)!.props.onChange as (value: string, draft: string, initial: boolean, preview: unknown[]) => void)(
   JSON.stringify({ categoryId: id, schemaRevision: 0, expectedRevision: 0, values: {}, removeIds: [] }), '[]', true, []);
 const categoryError = (tree: Element[]) => tree.find(node => node.type === GoodCategoryField)!.props.error;
-const hiddenType = (tree: Element[]) => tree.find(node => node.type === 'input' && node.props.name === 'type' && node.props.type === 'hidden')!.props.value;
+const hasHiddenType = (tree: Element[]) => tree.some(node => node.type === 'input' && node.props.name === 'type' && node.props.type === 'hidden');
 const submitForm = (h: ReturnType<typeof setup>, extra: Record<string, unknown> = {}) => {
   const preventDefault = vi.fn();
   (h.render(extra).find(node => node.type === 'form')!.props.onSubmitCapture as (event: unknown) => void)({ currentTarget: h.form, preventDefault });
   return preventDefault;
 };
 
-it('숨은 type 입력은 저장된 값을 그대로 싣고, 카테고리를 바꿔도 파생하지 않는다', () => {
+it('type 숨은 입력을 싣지 않는다(상품 유형 폐기)', () => {
   const stored = setup(false, false, publishedGood, typeCategories);
-  expect(hiddenType(stored.render())).toBe('피규어');
+  expect(hasHiddenType(stored.render())).toBe(false);
   chooseCategory(stored, DOLL);
-  expect(hiddenType(stored.render())).toBe('피규어');
-  const created = setup(false, false, null, typeCategories);
-  chooseCategory(created, DOLL);
-  expect(hiddenType(created.render())).toBe('');
-  const draft = setup(false, false, { ...publishedGood, publishedAt: null, type: '키링' }, typeCategories);
-  chooseCategory(draft, DOLL);
-  expect(hiddenType(draft.render())).toBe('키링');
+  expect(hasHiddenType(stored.render())).toBe(false);
+  expect(hasHiddenType(setup(false, false, null, typeCategories).render())).toBe(false);
 });
 
 it('공개 중 상품의 카테고리를 다른 카테고리로 옮겨도 막지 않고 초안 전환 버튼도 없다', () => {

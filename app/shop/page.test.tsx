@@ -59,7 +59,7 @@ vi.mock('@/lib/catalog', () => ({
 }));
 
 function good(id: string, overrides: Partial<Good> = {}): Good {
-  return { id, ip: 'ip1', name: `굿즈 ${id}`, type: '키링', price: 10000, badge: null, stock: 'ok', stockQty: 5, img: 'none', ...overrides };
+  return { id, ip: 'ip1', name: `굿즈 ${id}`, price: 10000, badge: null, stock: 'ok', stockQty: 5, img: 'none', ...overrides };
 }
 
 function node(id: string, name: string, parentId: string | null): StorefrontCategoryNode {

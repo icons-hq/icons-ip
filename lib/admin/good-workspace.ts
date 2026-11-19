@@ -16,7 +16,7 @@ export const GOOD_OPTION_LIMIT_ERROR_FIELD = 'optionLimits';
  */
 export const GOOD_EDITOR_SECTIONS = [
   { key: 'category', label: '카테고리', fields: ['categoryId'] },
-  { key: 'basic', label: '상품명', fields: ['name', 'ipId', 'type'] },
+  { key: 'basic', label: '상품명', fields: ['name', 'ipId'] },
   { key: 'attributes', label: '상품속성', fields: ['productAttributes', 'productAttributeDraft'] },
   { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit', 'discountPeriodEnabled', 'discountStartsAt', 'discountEndsAt', 'discountPeriod', 'showDiscountRate'] },
   { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'] },

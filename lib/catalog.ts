@@ -196,7 +196,6 @@ export interface GoodRow {
   display_order?: number | null;
   category_id?: string | null;
   additional_good_ids?: string[];
-  type: string;
   price: number;
   /* #326 컬럼 2종은 옵셔널이다 — 기존 테스트 픽스처(리터럴 GoodRow)를 전부
      깨지 않으면서, select 에 포함된 실 쿼리에서는 값이 흐른다. */
@@ -681,7 +680,6 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
     displayOrder: row.display_order ?? null,
     categoryId: row.category_id ?? null,
     additionalGoodIds: Array.isArray(row.additional_good_ids) ? row.additional_good_ids.filter((id) => typeof id === 'string') : [],
-    type: row.type,
     price: row.price,
     ...(options?.length ? optionPriceRange(options) : {}),
     ...(options ? { options } : {}),
@@ -723,7 +721,6 @@ function toMaskedAdultGood(row: GoodRow): Good {
     displayOrder: row.display_order ?? null,
     categoryId: row.category_id ?? null,
     additionalGoodIds: [],
-    type: '',
     price: row.price,
     compareAtPrice: null,
     catalogPrice: row.price,
@@ -763,7 +760,7 @@ async function loadMaskedAdultGoodRows(supabase: CatalogSupabaseClient, goodId?:
       || typeof row.stock !== 'string' || typeof row.stock_qty !== 'number' || !Number.isSafeInteger(row.stock_qty)
       || !nullableInteger(row.display_order) || !nullableString(row.category_id) || !nullableString(row.created_at)) return [];
     return [{
-      id: row.id, ip_id: row.ip_id, name: ADULT_GOOD_LABEL, type: '', price: row.price, badge: null, stock: row.stock, stock_qty: row.stock_qty,
+      id: row.id, ip_id: row.ip_id, name: ADULT_GOOD_LABEL, price: row.price, badge: null, stock: row.stock, stock_qty: row.stock_qty,
       bg: null, image_path: null, allow_bank_transfer: null, display_order: row.display_order, category_id: row.category_id,
       created_at: row.created_at, sale_restriction: 'adult',
     }];
@@ -924,7 +921,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,shipping_fee_type,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,shipping_fee_type,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
@@ -1132,7 +1129,7 @@ async function readPublicGoodsByIds(
   if (selected.length > 1000 || selected.some(id => !/^[a-z0-9][a-z0-9-]{0,199}$/.test(id))) throw new Error('Invalid selected goods');
   const result = await readCompleteIdPages<GoodRow>((afterId, pageSize) => {
     let query = supabase.from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,shipping_fee_type,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,shipping_fee_type,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
       .in('id', selected).is('archived_at', null).not('published_at', 'is', null).in('sale_restriction', adultGoodsRestrictions(adultGoods))
       .is('ips.archived_at', null).not('ips.published_at', 'is', null).order('id').limit(pageSize);
     if (afterId) query = query.gt('id', afterId);

@@ -9,8 +9,8 @@ import { transactionExactKeys, transactionRecord } from '@/lib/goods-transaction
 import { isUuid } from '@/lib/uuid';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 
-export const GROUP_COMMON_FIELDS = ['ipId', 'type', 'categoryId', 'additionalCategoryIds', 'nameEn', 'searchKeywords', 'description', 'descriptionFormat', ...GOODS_NOTICE_FIELDS.map(field => field.formName)] as const;
-export const GROUP_COMMON_DB_FIELDS = ['ip_id','type','category_id','name_en','notice_maker','notice_origin','notice_material','notice_size','notice_made_on','notice_as_manager','notice_as_contact','description','description_format','description_image_paths','search_keywords'] as const;
+export const GROUP_COMMON_FIELDS = ['ipId', 'categoryId', 'additionalCategoryIds', 'nameEn', 'searchKeywords', 'description', 'descriptionFormat', ...GOODS_NOTICE_FIELDS.map(field => field.formName)] as const;
+export const GROUP_COMMON_DB_FIELDS = ['ip_id','category_id','name_en','notice_maker','notice_origin','notice_material','notice_size','notice_made_on','notice_as_manager','notice_as_contact','description','description_format','description_image_paths','search_keywords'] as const;
 export interface GoodsEditorOwnership { goodId: string; group: GoodsGroupSnapshot | null; aggregation: { ownerGoodId: string; aggregationId: string | null; shared: boolean; editable: boolean; sharedPolicy: Omit<GoodsAggregationSharedPolicy, 'originId'> & { originId: string | null } } }
 export interface GoodsGroupCommonSnapshot { group: GoodsGroupSnapshot; fields: Record<string, string>; afterSales: GoodsAfterSalesSnapshot; sizeChart: GoodsSizeChartSnapshot }
 export const goodsGroupCommonHref = (group: GoodsGroupSnapshot) => `/admin/catalog/goods?goodId=${encodeURIComponent(group.commonGoodId)}&groupCommon=${encodeURIComponent(group.id)}`;
@@ -36,13 +36,15 @@ export function parseGoodsGroupCommonSnapshot(value: unknown): GoodsGroupCommonS
   const group = parseGoodsGroupSnapshot(value.group), afterSales = parseGoodsAfterSalesSnapshot(value.afterSales), sizeChart = parseGoodsSizeChartSnapshot(value.sizeChart), common = value.common;
   if (!group || group.archivedAt || !afterSales || !sizeChart || afterSales.goodId !== group.commonGoodId || sizeChart.goodId !== group.commonGoodId
     || !transactionExactKeys(common, ['goods','attributes','additionalCategories','afterSales','sizeChart']) || !transactionRecord(common.goods)
-    || !transactionExactKeys(common.goods, [...GROUP_COMMON_DB_FIELDS]) || !Array.isArray(common.additionalCategories) || common.additionalCategories.some(id => !isUuid(id))) return null;
+    /* 상품 유형 칸 삭제(ADR-0044) 배포 사이에는 DB가 옛 'type' 키를 아직 실을 수 있다. 값은 읽지 않고, 다음 정리 PR이 이 허용을 걷는다. */
+    || !(transactionExactKeys(common.goods, GROUP_COMMON_DB_FIELDS) || transactionExactKeys(common.goods, [...GROUP_COMMON_DB_FIELDS, 'type']) && typeof common.goods.type === 'string')
+    || !Array.isArray(common.additionalCategories) || common.additionalCategories.some(id => !isUuid(id))) return null;
   const goods = common.goods;
   if (!validGoodsGroupGoodId(goods.ip_id) || goods.category_id !== null && !isUuid(goods.category_id) || !['plain','html'].includes(String(goods.description_format))
     || !Array.isArray(goods.search_keywords) || goods.search_keywords.some(word => typeof word !== 'string')
     || !Array.isArray(goods.description_image_paths) || goods.description_image_paths.some(path => typeof path !== 'string')
     || GROUP_COMMON_DB_FIELDS.filter(key => !['category_id','search_keywords','description_image_paths'].includes(key)).some(key => goods[key] !== null && typeof goods[key] !== 'string')) return null;
-  const fields = { ipId: goods.ip_id, type: String(goods.type ?? ''), categoryId: goods.category_id ?? '', additionalCategoryIds: JSON.stringify(common.additionalCategories),
+  const fields = { ipId: goods.ip_id, categoryId: goods.category_id ?? '', additionalCategoryIds: JSON.stringify(common.additionalCategories),
     nameEn: String(goods.name_en ?? ''), searchKeywords: goods.search_keywords.join('\n'), description: String(goods.description ?? ''), descriptionFormat: String(goods.description_format),
     ...Object.fromEntries(GOODS_NOTICE_FIELDS.map(field => [field.formName, goods[`notice_${field.key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)}`] ?? ''])) } as Record<string,string>;
   return { group, fields, afterSales, sizeChart };

@@ -103,7 +103,6 @@ const catalog: CatalogSnapshot = {
     id: 'g100',
     name: '화산강림 아크릴 스탠드',
     ip: 'hwasan',
-    type: '아크릴 스탠드',
     price: 22000,
     badge: null,
     stock: 'ok',
@@ -610,7 +609,6 @@ describe('admin catalog actions', () => {
       id: 'g100',
       ip_id: 'hwasan',
       name: '화산강림 아크릴 스탠드',
-      type: '아크릴 스탠드',
       price: 22000,
       badge: '신상',
       stock: 'ok',
@@ -1904,7 +1902,7 @@ describe('admin catalog actions', () => {
       expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_save_good', 'admin_read_goods_kc', 'admin_save_good', 'admin_read_goods_kc']);
       const [first, retry] = [mocks.rpc.mock.calls[0][1].target_good, mocks.rpc.mock.calls[2][1].target_good];
       // 첫 호출은 트랜잭션째 되돌려졌으므로 다시 저장은 부분 변경이 아니라 같은 전체 입력이고, 공개 전환만 뺀다.
-      expect(first).toMatchObject({ publish: true, type: '아크릴 스탠드' });
+      expect(first).toMatchObject({ publish: true });
       expect(retry).toEqual({ ...first, publish: null });
       expect(mocks.rpc.mock.calls[1][1]).toEqual({ p_good_id: 'g100' });
       expect(mocks.rpc.mock.calls[3][1]).toEqual({ p_good_id: 'g100' });
@@ -2082,7 +2080,7 @@ describe('상품 등록 원자 저장', () => {
   });
 
   /* ADR-0044: 공개 요청에 대표 카테고리가 없으면 저장하지 않고 카테고리 칸에 알린다. type은 폼이 싣는 값을 그대로 보낸다(패스스루). */
-  it('대표 카테고리 없는 공개 요청은 카테고리 칸 오류로 막고, type은 폼 값 그대로 보낸다', async () => {
+  it('대표 카테고리 없는 공개 요청은 카테고리 칸 오류로 막는다', async () => {
     const noCategory = workspaceForm({ kc: null, preorders: [] }); noCategory.set('intent', 'publish');
     noCategory.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
     const blocked = await upsertAdminGoodAction({}, noCategory);
@@ -2091,7 +2089,7 @@ describe('상품 등록 원자 저장', () => {
     const draft = workspaceForm({ kc: null, preorders: [] }); draft.set('type', '저장된 유형');
     mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100' }, error: null });
     await upsertAdminGoodAction({}, draft);
-    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_request.good.type).toBe('저장된 유형');
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_request.good).not.toHaveProperty('type');
   });
 
   it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID는 저장하지 않는다', async () => {

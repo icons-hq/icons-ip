@@ -38,6 +38,8 @@ describe('server registration drafts',()=>{
   it('rejects malformed readbacks instead of rendering false empty/saved states',()=>{
     expect(parseGoodsDraft({...summary,values:{name:'미완성 상품'}})?.revision).toBe(2);
     expect(parseGoodsDraft({...summary,values:{name:'미완성 상품',password:'bad'}})).toBeNull();
+    // 상품 유형 칸 삭제 전에 저장한 임시저장의 옛 'type'은 버리고 읽는다(ADR-0044).
+    expect(parseGoodsDraft({...summary,values:{name:'미완성 상품',type:'문구'}})?.values).toEqual({name:'미완성 상품'});
     expect(parseGoodsDraftPage({rows:[summary],total:1,page:1,pageSize:20})?.rows).toEqual([summary]);
     expect(parseGoodsDraftPage({rows:[{...summary,revision:0}],total:1,page:1,pageSize:20})).toBeNull();
   });

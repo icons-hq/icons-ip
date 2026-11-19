@@ -16,7 +16,6 @@ export function goodSaveFields(value: AdminGoodFormValue) {
     ...(value.nameEn !== undefined ? { name_en: value.nameEn } : {}),
     ...(value.searchKeywords !== undefined ? { search_keywords: value.searchKeywords } : {}),
     ...(value.displayOrder !== undefined ? { display_order: value.displayOrder } : {}),
-    type: value.type,
     price: value.price,
     compare_at_price: value.compareAtPrice,
     ...(value.showDiscountRate !== undefined ? { show_discount_rate: value.showDiscountRate } : {}),

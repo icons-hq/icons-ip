@@ -410,7 +410,6 @@ describe('admin catalog form normalization', () => {
         defaultVariantCode: null,
         publish: null,
         name: '화산강림 아크릴 스탠드',
-        type: '아크릴 스탠드',
         price: 22000,
         compareAtPrice: null,
         badge: '신상',

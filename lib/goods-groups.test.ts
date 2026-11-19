@@ -8,7 +8,7 @@ import type { GoodsTransactionOffer } from './goods-transaction-offers';
 const group = { id: 'a6140000-0000-4000-8000-000000000001', name: '색상 키링', optionNames: ['색상', '크기'], currentGoodId: 'red-small',
   members: [{ goodId: 'red-small', values: ['빨강', 'S'], sortOrder: 0 }, { goodId: 'red-large', values: ['빨강', 'L'], sortOrder: 1 },
     { goodId: 'blue-large', values: ['파랑', 'L'], sortOrder: 2 }] };
-const good = (id: string): Good => ({ id, name: id, ip: 'test-ip', type: '키링', price: 12000, stock: 'ok', stockQty: 3, img: '', badge: null });
+const good = (id: string): Good => ({ id, name: id, ip: 'test-ip', price: 12000, stock: 'ok', stockQty: 3, img: '', badge: null });
 
 describe('공개 그룹 판매옵션', () => {
   it('현재 상품·조합·순서를 검증하고 공개 재조회에서 사라진 상품을 제외한다', () => {

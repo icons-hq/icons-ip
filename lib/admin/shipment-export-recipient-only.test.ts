@@ -7,7 +7,7 @@ const detail = (n: number): SmartStoreShipmentDetail => ({
   orderNumber: `2026111110000${n}00`, productOrderNumber: `2026111120000${n}00`, shipmentNumber: `2026111130000${n}00`,
   itemId: `00000000-0000-4000-8000-00000000000${n}`, goodId: 'good', buyerName: '구매자', buyerId: '00000000-0000-4000-8000-0000000000aa',
   buyerPhone: '', address1: '주소', address2: `${n}층`, orderedAt: '2026-11-11T00:00:00Z', paidAt: '2026-11-11T00:01:00Z',
-  confirmedAt: '2026-11-11T01:00:00Z', expectedShipDate: null, shippedAt: null, exportedAt: null, goodType: '문구', paymentMethod: 'card',
+  confirmedAt: '2026-11-11T01:00:00Z', expectedShipDate: null, shippedAt: null, exportedAt: null, paymentMethod: 'card',
   productPrice: null, optionPrice: null, itemDiscount: 300, sellerDiscount: 300, itemTotal: 1700, regionalShippingFee: 3000, shippingDiscount: 500,
 });
 const line = (n: number) => ({ shipmentId: 'shipment', orderId: 'order', recipient: `수령인${n}`, phone: '01000000000', postalCode: '00123',
@@ -58,7 +58,7 @@ describe('recipient-only standard export (1014-084 수령인 정보만)', () => 
   });
   it('classifies every detail field: only references, address, handling dates and goods stay', () => {
     const remaining = Object.keys(detail(1)).filter(field => !(RECIPIENT_ONLY_DETAIL_FIELDS as readonly string[]).includes(field)).sort();
-    expect(remaining).toEqual(['address1', 'address2', 'buyerPhone', 'confirmedAt', 'expectedShipDate', 'exportedAt', 'goodId', 'goodType',
+    expect(remaining).toEqual(['address1', 'address2', 'buyerPhone', 'confirmedAt', 'expectedShipDate', 'exportedAt', 'goodId',
       'itemId', 'orderNumber', 'orderedAt', 'productOrderNumber', 'shipmentNumber', 'shippedAt']);
     // 구매자 연락처 칸은 DB가 늘 빈 문자열로 보낸다(admin_smartstore_shipment_export).
     expect(detail(1).buyerPhone).toBe('');

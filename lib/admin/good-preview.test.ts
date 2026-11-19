@@ -24,7 +24,6 @@ const values = {
   id: 'g13',
   ipId: 'hong-sil-quest',
   name: '  아크릴 블록  ',
-  type: '아크릴 블록',
   price: '12000',
   badge: '신상',
   stock: 'low',
@@ -114,7 +113,6 @@ describe('어드민 굿즈 미리보기', () => {
       orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null,
       memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null,
       ip: 'hong-sil-quest',
-      type: '아크릴 블록',
       price: 12000,
       catalogPrice: 12000,
       badge: '신상',
@@ -142,7 +140,6 @@ describe('어드민 굿즈 미리보기', () => {
     });
 
     expect(preview.good.name).toBe('(굿즈 이름 미입력)');
-    expect(preview.good.type).toBe('');
     expect(preview.good.price).toBe(0);
     expect(preview.good.stock).toBe('ok');
     expect(preview.good.img).toContain('linear-gradient');

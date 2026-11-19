@@ -37,7 +37,7 @@ function order(overrides: Partial<OrderDetail> = {}): OrderDetail {
     address: null,
     createdAt: '2026-11-17T05:05:00.000Z', // KST 14:05
     deliveredAt: null,
-    items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', variantName: '파랑', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 1, unitPrice: 27000 }],
+    items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', variantName: '파랑', goodId: 'g13', name: '홍실 아크릴 블록', qty: 1, unitPrice: 27000 }],
     payment: payment('toss'),
     refund: null,
     cancellationRequest: null,
@@ -55,7 +55,7 @@ function v2Order(display: GoodsTransactionDisplay = transactionDisplay, override
     shippingFee: display.totals.prepaidShippingTotal,
     discountTotal: display.totals.couponDiscountTotal,
     storeCreditTotal: display.totals.storeCreditTotal,
-    items: [{ id: transactionLineId, variantId: display.lines[0].variantId, variantName: '기본 옵션', goodId: display.lines[0].goodId, name: '트랜잭션 굿즈', type: '아크릴', qty: 2, unitPrice: 9000 }],
+    items: [{ id: transactionLineId, variantId: display.lines[0].variantId, variantName: '기본 옵션', goodId: display.lines[0].goodId, name: '트랜잭션 굿즈', qty: 2, unitPrice: 9000 }],
     ...overrides,
   });
 }
@@ -119,8 +119,8 @@ describe('buildOrderStatement 머리·공급자·공급받는자', () => {
 describe('buildOrderStatement 품목', () => {
   it('v1 주문은 주문 품목의 단가·주문 당시 수량·옵션명으로 줄을 만든다', () => {
     const model = build(order({ items: [
-      { id: 'a', variantId: 'v', variantName: '파랑', goodId: 'g1', name: '굿즈 A', type: 't', qty: 3, unitPrice: 5000 },
-      { id: 'b', variantId: 'v', variantName: null, goodId: 'g2', name: '굿즈 B', type: 't', qty: 1, unitPrice: 12000 },
+      { id: 'a', variantId: 'v', variantName: '파랑', goodId: 'g1', name: '굿즈 A', qty: 3, unitPrice: 5000 },
+      { id: 'b', variantId: 'v', variantName: null, goodId: 'g2', name: '굿즈 B', qty: 1, unitPrice: 12000 },
     ] }));
     expect(model.items).toEqual([
       { key: 'a', name: '굿즈 A', option: '파랑', qty: 3, unitPrice: 5000, amount: 15000 },
@@ -141,7 +141,7 @@ describe('buildOrderStatement 품목', () => {
   });
 
   it('v2에서 영수증 줄과 매칭이 안 되면 품목 단가를 쓰고, 굿즈 합계는 서버 영수증 합계를 그대로 둔다', () => {
-    const value = v2Order(transactionDisplay, { items: [{ id: 'unmatched', variantId: 'v', variantName: null, goodId: 'g', name: '굿즈', type: 't', qty: 2, unitPrice: 9000 }] });
+    const value = v2Order(transactionDisplay, { items: [{ id: 'unmatched', variantId: 'v', variantName: null, goodId: 'g', name: '굿즈', qty: 2, unitPrice: 9000 }] });
     const model = build(value);
     expect(model.items[0]).toMatchObject({ unitPrice: 9000, amount: 18000 });
     expect(amountOf(model.totals, 'goods')).toBe(transactionDisplay.totals.subtotal);
