@@ -23,6 +23,7 @@ export const CRON_JOBS = {
   'goods-media': { label: '이미지·디지털 파일 업로드 정리', intervalMinutes: 1440 },
   gifts: { label: '선물 만료·정리', intervalMinutes: 1 },
   subscriptions: { label: '정기구매 결제', intervalMinutes: 1 },
+  'ops-alert-digest': { label: '운영 알림 요약 메일', intervalMinutes: 5 },
   'stock-safety-digest': { label: '안전재고 요약 메일', intervalMinutes: 1 },
   'delivery-tracking': { label: '택배 추적 자동 배송완료', intervalMinutes: 10 },
   'return-pickups': { label: '반품 자동 회수 접수', intervalMinutes: 5 },
@@ -53,6 +54,9 @@ export const PG_CRON_JOB_LABELS: Readonly<Record<string, string>> = {
   'member-email-change-retention': '이메일 변경 인증 기록 정리',
   'goods-provider-cancellation-sweep': '결제사 취소 판정 대기 처리',
   'system-job-records-maintenance': '자동 작업 기록 정리',
+  'auth-mail-abuse-retention': '가입·재설정 요청 기록 정리',
+  'operator-pii-access-log-retention': '운영자 개인정보 접속기록 보존 정리',
+  'ops-alert-digest-retention': '운영 알림 요약 메일 기록 정리',
 };
 
 /** 운영자에게 보일 작업 이름. 모르는 잡은 잡 이름 그대로 보인다. */

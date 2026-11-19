@@ -98,6 +98,11 @@ const STATUS_TONES = {
    *  blocked는 사유를 모르는 화면(발송·배송현황의 배송 건)에서 아직 나가지 않은 배송 건의 보류, shipped는 이미 발송된
    *  주문의 보류(출고를 막지 않는 경고)다 */
   fulfillmentHold: { test_payment: 'danger', provider_canceled: 'danger', blocked: 'danger', shipped: 'warning' },
+  /** 출고지시 뒤 취소 전 창고 회신 판정 — lib/admin/warehouse-stop(ADR-0046). 회신이 없거나 이미 쓴 회신은 우리가 처리할 일,
+   *  이미 출고 회신은 취소를 막는 위험색이다 */
+  warehouseStop: { required: 'warning', stopped: 'success', already_shipped: 'danger', used: 'warning', not_applicable: 'neutral' },
+  /** 취소 뒤 출고 발견 — lib/admin/warehouse-stop. 처리 대기는 환불한 주문의 물건이 나간 상태라 위험색, 손실 처리는 끝난 일이다 */
+  canceledDispatch: { open: 'danger', returned: 'success', lost: 'neutral' },
   // [cs]
   /** 상담하기 대화 상태 — lib/admin/inquiry-chat CHAT_STATUS_OPTIONS. 답변 뒤 대화가 이어지는 '진행중'은 진행 색이고, 고객문의의 '답변 완료'와 뜻이 달라 별도 줄이다 */
   inquiryChat: { open: 'warning', answered: 'info', closed: 'neutral' },
@@ -113,6 +118,9 @@ const STATUS_TONES = {
   reviewEvent: { scheduled: 'info', active: 'success', closed: 'warning', ready: 'warning', announced: 'neutral', archived: 'neutral' },
   /** 회원 계정 */
   member: { active: 'success', suspended: 'danger' },
+  /** 카카오 연결 해제 탈퇴 검토 대기의 처리 방법 — lib/admin/kakao-unlink-withdrawal. 카카오계정 탈퇴는 알림으로 우리가 처리할 일,
+   *  연결만 끊은 회원은 회원의 1:1 문의를 기다리는 일이다 */
+  kakaoUnlinkWithdrawal: { account_closed: 'warning', member_request: 'neutral' },
   /** 회원 권한(profiles.role). 관리자만 눈에 띄게 한다 */
   memberRole: { admin: 'info', staff: 'neutral', user: 'neutral' },
   /** 매니저 역할 — lib/admin/access MANAGER_ROLES. 통합 매니저만 눈에 띄게 한다 */

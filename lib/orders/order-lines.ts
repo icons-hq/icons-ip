@@ -18,6 +18,8 @@ export interface OrderLineView {
   qty: number;
   /** 부분 취소로 빠진 수량. 부분 취소가 없으면 키 자체가 없다. `qty + canceledQty`가 주문 당시 수량이다. */
   canceledQty?: number;
+  /** canceledQty 가운데 부분 반품(ADR-0047)으로 돌아온 수량. 없으면 키가 없고 canceledQty는 모두 재고 부족 부분 취소다. */
+  returnedQty?: number;
   ipName: string | null;
   /** CSS background 원값. 렌더에서 `goodsImageBackground`를 거친다. 19금 가림 줄은 항상 null이다. */
   thumbnail: string | null;

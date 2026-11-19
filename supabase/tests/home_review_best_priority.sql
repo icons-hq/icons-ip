@@ -25,7 +25,9 @@ where oid in ('private.review_event_purchase_eligible(uuid,uuid,text)'::regproce
   'private.review_event_review_fingerprint(public.reviews)'::regprocedure,
   'private.review_best_problem(public.reviews)'::regprocedure,
   'public.get_good_selected_reviews(text)'::regprocedure);
-select pg_temp.hb_assert((select md5(prosrc)='7dd4b2594b429843867c0ce0b19aabf3'
+-- 2026-11-19 부분 반품(ADR-0047 결정 8): 구매 자격이 부분 반품 완료를 주문 전체 반품으로 세지 않고 그 굿즈의 살아 있는 수량을 본다 —
+-- 홈 BEST 거울(get_home_best_review_candidates)도 같은 migration(20261119109000 21-4)에서 함께 고쳤다.
+select pg_temp.hb_assert((select md5(prosrc)='755750252343fa6ab4d647f70db08899'
   from pg_proc where oid='private.review_event_purchase_eligible(uuid,uuid,text)'::regprocedure),
   'mirrored purchase source contract has not silently drifted');
 select pg_temp.hb_assert((select md5(prosrc)='cd3fd66480d98957eb4276f26c336678'

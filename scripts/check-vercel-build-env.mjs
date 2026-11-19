@@ -44,6 +44,10 @@ const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
 );
+/* 부분 반품·반품배송비 차감 약관 개정(ADR-0047)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
+const PARTIAL_RETURN_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/partial-return-terms-revision.json', import.meta.url),
+);
 
 /*
  * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
@@ -58,25 +62,27 @@ function isRealDate(value) {
   return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 
-export function validateLegalRevisionDates(source) {
+/** fileName은 오류 문구가 어느 날짜 파일인지 말하게 한다(약관 개정 날짜 파일이 둘 이상이다). */
+export function validateLegalRevisionDates(source, fileName = 'shipping-bundle-wording-revision.json') {
+  const prefix = `Invalid legal revision dates in ${fileName}`;
   let parsed;
   try {
     parsed = JSON.parse(source);
   } catch {
-    throw new Error('Invalid legal revision dates: shipping-bundle-wording-revision.json is not valid JSON');
+    throw new Error(`${prefix}: ${fileName} is not valid JSON`);
   }
   const announced = parsed?.announcedDate;
   const effective = parsed?.effectiveDate;
   if (announced === null && effective === null) return;
   if (typeof announced !== 'string' || typeof effective !== 'string' || !isRealDate(announced) || !isRealDate(effective)) {
-    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must both be null or both YYYY-MM-DD');
+    throw new Error(`${prefix}: announcedDate and effectiveDate must both be null or both YYYY-MM-DD`);
   }
   if (announced < LEGAL_FIRST_EDITION) {
-    throw new Error(`Invalid legal revision dates: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
+    throw new Error(`${prefix}: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
   }
   const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
   if (!(days >= 7)) {
-    throw new Error(`Invalid legal revision dates: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
+    throw new Error(`${prefix}: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
   }
 }
 
@@ -113,6 +119,8 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   }
   if (target === 'production') {
     validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
+    validateLegalRevisionDates(options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8'),
+      'partial-return-terms-revision.json');
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
@@ -326,6 +334,16 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   // 없다. 그래서 막지 않고, 대신 빌드 로그에 눈에 띄게 남긴다. 이 상태가 심사
   // 뒤까지 남으면 무과금 결제가 paid 주문을 만든다.
   const warnings = [];
+  // Turnstile 토큰은 앱이 아니라 GoTrue(Supabase Auth CAPTCHA)가 검증한다. 비밀 키는 GitHub Actions secret(TURNSTILE_SECRET_KEY)으로
+  // 배포 파이프라인이 Supabase 프로젝트에 넣고, 앱(Vercel)은 사이트 키(NEXT_PUBLIC_TURNSTILE_SITE_KEY)만 읽는다. Vercel에 비밀 키가
+  // 있으면 쓰이지 않는 비밀값이 서버 env에 퍼진 것이므로 알린다(빌드는 막지 않는다).
+  if (isPresent(environment.TURNSTILE_SECRET_KEY)) {
+    warnings.push(
+      'TURNSTILE_SECRET_KEY is set in the Vercel environment but the app never reads it: Turnstile tokens are verified by Supabase Auth. '
+      + 'Keep the secret only in the GitHub Actions secret used by scripts/sync-supabase-auth.mjs and remove it here: '
+      + 'docs/runbooks/signup-contact-channels.md',
+    );
+  }
   // 코페이는 drain 전용으로 은퇴했다 — 런타임은 이 gate·canary를 더는 읽지 않는다. 남아
   // 있으면 운영자가 "열려 있다"고 오해하지 않도록 빌드 로그에 남긴다(빌드는 막지 않는다).
   if (

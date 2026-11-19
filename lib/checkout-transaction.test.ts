@@ -45,3 +45,33 @@ it('바로구매 초안 id를 요청·복구에 싣고, 모양이 틀린 id는 �
   expect(parseCartTransactionInput(transactionInput)).not.toHaveProperty('draftId');
 });
 
+it('결제 전 확인 동의(PAY-015)는 true일 때만 요청·복구 표식에 실린다', () => {
+  const { quoteId, checkoutKey, paymentMethod } = transactionRecovery;
+  const order = { ...transactionInput, quoteId, checkoutKey, paymentMethod };
+  expect(parseCartTransactionOrderInput({ ...order, purchaseAcknowledged: true })).toMatchObject({ purchaseAcknowledged: true });
+  expect(parseCartTransactionOrderInput(order)).not.toHaveProperty('purchaseAcknowledged');
+  /* true가 아닌 값은 동의로 싣지 않는다 — 서버 액션이 acknowledgement_required로 거절한다. */
+  for (const value of [false, 'true', 1, null]) expect(parseCartTransactionOrderInput({ ...order, purchaseAcknowledged: value })).not.toHaveProperty('purchaseAcknowledged');
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true })).toEqual({ ...transactionRecovery, purchaseAcknowledged: true });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: false })).toBeNull();
+  expect(parseCartTransactionRecovery(transactionRecovery)).not.toHaveProperty('purchaseAcknowledged');
+  /* 견적 요청에는 동의가 없다. */
+  expect(parseCartTransactionInput({ ...transactionInput, purchaseAcknowledged: true })).toBeNull();
+});
+
+it('화면이 보인 제한 고지(claimNotice)는 목록 또는 unavailable만 싣는다', () => {
+  const { quoteId, checkoutKey, paymentMethod } = transactionRecovery;
+  const order = { ...transactionInput, quoteId, checkoutKey, paymentMethod, purchaseAcknowledged: true };
+  expect(parseCartTransactionOrderInput({ ...order, claimNotice: ['g1', 'g1'] })).toMatchObject({ claimNotice: ['g1'] });
+  expect(parseCartTransactionOrderInput({ ...order, claimNotice: 'unavailable' })).toMatchObject({ claimNotice: 'unavailable' });
+  expect(parseCartTransactionOrderInput(order)).not.toHaveProperty('claimNotice');
+  for (const value of ['x', 1, [1], null]) expect(parseCartTransactionOrderInput({ ...order, claimNotice: value })).not.toHaveProperty('claimNotice');
+  expect(parseCartTransactionInput({ ...transactionInput, claimNotice: [] })).toBeNull();
+});
+
+it('복구 표식은 화면이 보인 제한 고지를 보관하고 틀린 값은 거절한다', () => {
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true, claimNotice: ['g1'] })).toMatchObject({ claimNotice: ['g1'] });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true, claimNotice: 'unavailable' })).toMatchObject({ claimNotice: 'unavailable' });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true, claimNotice: 'x' })).toBeNull();
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true })).not.toHaveProperty('claimNotice');
+});

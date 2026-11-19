@@ -30,6 +30,7 @@ export const PII_ACCESS_SURFACE_LABELS = {
   'customer.store_credits': '고객 적립금',
   'member.search': '회원 검색',
   'member.detail': '회원 관리 상세',
+  'member.kakao_unlink_queue': '카카오 탈퇴 검토 대기',
   'order.detail': '주문 상세',
   'order.search': '주문 검색',
   'shipment.search': '발송·배송현황 검색',

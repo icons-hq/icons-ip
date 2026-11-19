@@ -5,7 +5,7 @@ import { CustomerDetailScreen } from './CustomerDetailScreen';
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useActionState: (_a: unknown, state: unknown) => [state, vi.fn(), false] }));
 vi.mock('@/app/admin/customer-actions', () => ({ addCustomerNoteAction: vi.fn(), loadCustomerHistoryAction: vi.fn() }));
 vi.mock('@/app/admin/member-actions', () => ({ suspendAdminMemberAction: vi.fn(), unsuspendAdminMemberAction: vi.fn(), adjustMemberLoyaltyAction: vi.fn(), recalculateMemberLoyaltyAction: vi.fn() }));
-vi.mock('@/app/admin/member-withdrawal-actions', () => ({ processMemberWithdrawalAction: vi.fn(), retryMemberWithdrawalSigninBlockAction: vi.fn() }));
+vi.mock('@/app/admin/member-withdrawal-actions', () => ({ processMemberWithdrawalAction: vi.fn(), processKakaoUnlinkWithdrawalAction: vi.fn(), retryMemberWithdrawalSigninBlockAction: vi.fn() }));
 const USER = '00000000-0000-4000-8000-000000004301';
 const detail: AdminCustomerDetail = {
   customer: { id: USER, nickname: '상담 고객', email: 'customer@example.test', role: 'user', createdAt: '2026-01-01T00:00:00Z',

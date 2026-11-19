@@ -175,8 +175,17 @@ export function claimRefundCompletionConfirmation(
   partialRefund: { refundAmount: number; deductionAmount: number } | null = null,
   /** 이미 일부 취소가 있어 남은 결제 금액만 취소하는 경우의 그 금액. 없으면 결제 전액이다. */
   remainderAmount: number | null = null,
+  /** 부분 반품(ADR-0047): 고른 굿즈 몫만 부분 취소한다. 금액을 아직 모르면(접수 전) refundAmount가 null이다. */
+  partialReturn: { refundAmount: number | null; deductionAmount: number } | null = null,
 ) {
   if (!finalizationPending) return '환불 완료를 원장에 기록할까요?';
+  if (partialReturn) {
+    const amount = partialReturn.refundAmount === null ? '고른 상품 몫' : krwAmountWords(partialReturn.refundAmount);
+    const deduction = partialReturn.deductionAmount > 0 ? `(반품배송비 ${krwAmountWords(partialReturn.deductionAmount)} 차감)` : '';
+    return autoCancelLabel
+      ? `${autoCancelLabel} 결제에서 부분 반품한 상품 몫 ${amount}${deduction}을 부분 취소하고, 고른 상품만 재고 복원·카드팩 판정을 확정할까요? 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`
+      : `부분 반품한 상품 몫 ${amount}${deduction}의 환불 완료를 기록할까요?`;
+  }
   if (autoCancelLabel && partialRefund) {
     return `${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`;
   }
@@ -186,6 +195,30 @@ export function claimRefundCompletionConfirmation(
   return autoCancelLabel
     ? `${autoCancelLabel} 결제 전액을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`
     : '결제사 원장에서 전액 취소를 확인했나요? 확정하면 주문 취소·재고 복원·카드팩 회수가 진행되고 되돌릴 수 없습니다.';
+}
+
+/**
+ * 부분 반품(ADR-0047)의 환불 접수 확인 문구. 무통장은 접수가 곧 재고 처리·송금 대기 적용, 0원은 접수가 곧 적용·완료, 결제사 부분 취소는
+ * 접수로 금액이 고정된다 — 어느 쪽이든 되돌릴 수 없다.
+ */
+export function partialReturnFilingConfirmation(
+  partialReturn: { refundAmount: number | null; deductionAmount: number; bank?: boolean },
+  autoCancelLabel: string | null,
+) {
+  if (partialReturn.bank) return partialReturnBankFilingConfirmation(partialReturn);
+  if (partialReturn.refundAmount === 0) {
+    return '부분 반품 환불 0원(고른 상품의 결제 몫이 적립금·할인으로 모두 덮였습니다)을 접수할까요? 접수하면 결제사를 부르지 않고 고른 상품의 재고를 지금 처리해(불량으로 고른 상품은 판매 재고 제외) 요청을 완료합니다. 되돌릴 수 없습니다.';
+  }
+  const amount = partialReturn.refundAmount === null ? '고른 상품 몫' : krwAmountWords(partialReturn.refundAmount);
+  const deduction = partialReturn.deductionAmount > 0 ? `(반품배송비 ${krwAmountWords(partialReturn.deductionAmount)} 차감)` : '';
+  return `부분 반품 환불 ${amount}${deduction}을 접수할까요? 접수하면 금액이 고정되고 바뀌지 않습니다.${autoCancelLabel ? ` ${autoCancelLabel} 부분 취소는 [환불 완료 확정]을 누를 때 요청됩니다.` : ''} 되돌릴 수 없습니다.`;
+}
+
+/** 무통장 부분 반품(ADR-0047)의 환불 접수 확인 문구. 접수가 곧 재고 처리·송금 대기 적용이라 되돌릴 수 없음을 말한다. */
+export function partialReturnBankFilingConfirmation(partialReturn: { refundAmount: number | null; deductionAmount: number }) {
+  const amount = partialReturn.refundAmount === null ? '고른 상품 몫' : krwAmountWords(partialReturn.refundAmount);
+  const deduction = partialReturn.deductionAmount > 0 ? `(반품배송비 ${krwAmountWords(partialReturn.deductionAmount)} 차감)` : '';
+  return `부분 반품 환불 ${amount}${deduction}을 접수할까요? 접수하면 고른 상품의 재고를 지금 처리하고(불량으로 고른 상품은 판매 재고 제외) 환불 송금 대기에 올립니다. 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`;
 }
 
 function Feedback({ state }: { state: AdminClaimActionState }) {
@@ -291,12 +324,18 @@ export interface ClaimActionPanelProps {
   returnCollectionContact?: ReactNode;
   returnRefundSummary?: ReactNode;
   collections: AdminClaimCollection[];
+  /** 클레임 리비전(배송 분실 기록의 동시성 가드). 없으면 그 기록 폼을 그리지 않는다. */
+  claimRevision?: number | null;
   /** 돈이 나가는 버튼 옆에 적는 금액. 환불 원장 금액, 없으면 차감 판정의 환불액, 그것도 없으면 주문 금액이다. 표시 전용이다. */
   refundAmount?: number | null;
   /** 결제(승인) 금액. 환불 원장 금액이 이보다 작으면 이미 일부 취소한 주문이라 남은 금액만 취소한다. 표시 전용이다. */
   paidAmount?: number | null;
   /** 반품배송비 차감 판정·결정(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 패널은 지금 그대로다. */
   refundDeduction?: ReturnFeeDeduction | null;
+  /** 부분 반품(ADR-0047)이면 고른 굿즈 몫의 환불액(접수 전 미리보기 또는 원장)과 반품배송비 차감. 주문 전체 반품이면 null — 패널은 지금 그대로다. */
+  partialReturn?: { refundAmount: number | null; deductionAmount: number; bank?: boolean; refileable?: boolean; convertible?: boolean } | null;
+  /** 반품인데 부분 반품 칸을 읽지 못했다. 주문 전체 환불 문구·흐름을 그리지 않도록 환불 단계를 열지 않고 경고만 보인다. */
+  partialReturnUnavailable?: boolean;
   /** 반품 품목별 재고 처리 선택(QNA-035). 반품이 아니거나 읽지 못하면 null — 선택 칸을 그리지 않고 지금처럼 전부 복원한다. */
   defectiveStock?: ClaimDefectiveStock | null;
   /** 교환: 회수를 확인했고 재출고 전인 출고지의 회수품 재고 처리(CLM-046). 하자·오배송 교환은 저장해야 재출고가 열린다. */
@@ -329,12 +368,15 @@ export function ClaimActionPanel({
   collectionPolicy,
   collectionComplete,
   collections,
+  claimRevision = null,
   collectedAt = null,
   returnCollectionContact,
   returnRefundSummary,
   refundAmount = null,
   paidAmount = null,
   refundDeduction = null,
+  partialReturn = null,
+  partialReturnUnavailable = false,
   defectiveStock = null,
   exchangeStockTargets = [],
   requestSummary = null,
@@ -368,8 +410,12 @@ export function ClaimActionPanel({
   const canRecordOrigin = originCollectionOpen && !collectionComplete;
   const canCollect = collectionPolicy === 'legacy' && claimType !== 'cancel' && stage === 'collecting';
   const canFileRefund = claimType !== 'exchange'
+    && !partialReturnUnavailable
+    /* 부분 반품은 살아 있는 원장이 생기면 금액이 고정된다 — 다시 접수해도 바뀌는 것이 없어 '접수 정보 갱신'을 그리지 않는다. */
+    && !(partialReturn && refundFiled)
     && collectionReady
-    && (stage === 'collected' || stage === 'processing');
+    /* 부분 반품은 결제사가 부분 취소를 받지 않아 확인 필요로 남은 뒤에도 다시 접수할 수 있다(새 원장으로 다시 시도). */
+    && (stage === 'collected' || stage === 'processing' || (Boolean(partialReturn?.refileable) && stage === 'needs_review'));
   /* 완료를 적을 수 있는지는 단계가 아니라 원장이 정한다. 레거시 경로로 종결된
      클레임은 stage가 completed여도 refunds.completed_at이 비어 있고, 반대로 원장
      행이 아예 없는 주문에는 적을 대상이 없다(RPC가 claim_refund_ledger_missing으로
@@ -378,6 +424,7 @@ export function ClaimActionPanel({
     || stage === 'needs_review'
     || stage === 'completed';
   const canCompleteRefund = claimType !== 'exchange'
+    && !partialReturnUnavailable
     && collectionReady
     && refundStageReached
     && refundLedgerOpen
@@ -407,17 +454,18 @@ export function ClaimActionPanel({
      운영자가 고른다. 서버 액션이 같은 규칙으로 다시 검사한다. */
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
   const panelTitle = `${ORDER_CLAIM_TYPE_LABELS[claimType]} 처리`;
-  const amountAtStake = refundAmount === null ? null : krw(refundAmount);
+  const amountAtStake = partialReturn ? (partialReturn.refundAmount === null ? null : krw(partialReturn.refundAmount))
+    : refundAmount === null ? null : krw(refundAmount);
   /* 반품배송비를 빼고 결제사 부분 취소로 돌려주는 반품(ADR-0031). 판정·결정이 없으면 지금처럼 전액 취소다. */
   const returnDeduction = claimType === 'return' ? refundDeduction : null;
   const partialRefund = returnDeduction?.applicable && returnDeduction.refundAmount !== null && autoCancelLabel
     ? { refundAmount: returnDeduction.refundAmount, deductionAmount: returnDeduction.deductionAmount }
     : null;
   /* 이미 일부 취소가 있어 원장 환불액이 결제 금액보다 작으면 결제사 취소는 남은 금액이다. 화면이 이미 가진 두 금액을 비교할 뿐이다. */
-  const remainderAmount = !partialRefund && autoCancelLabel && refundLedgerOpen && refundAmount !== null && paidAmount !== null && refundAmount < paidAmount
+  const remainderAmount = !partialReturn && !partialRefund && autoCancelLabel && refundLedgerOpen && refundAmount !== null && paidAmount !== null && refundAmount < paidAmount
     ? refundAmount
     : null;
-  const cancelScope = partialRefund ? '부분 취소' : remainderAmount !== null ? '남은 금액 취소' : '전액 취소';
+  const cancelScope = partialReturn || partialRefund ? '부분 취소' : remainderAmount !== null ? '남은 금액 취소' : '전액 취소';
   const deductionHeadline = returnFeeDeductionHeadline(returnDeduction);
   const deductionSkipped = returnFeeDeductionSkippedNotice(returnDeduction);
   const deductionNotice = returnDeduction && (deductionHeadline || deductionSkipped) && stage !== 'completed' ? (
@@ -465,7 +513,7 @@ export function ClaimActionPanel({
         {collections.length ? collections.map((collection) => <ClaimOriginCollection
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
           /* 회수 생략으로 결정한 출고지는 회수가 끝난 것으로 보지만, 요청이 열려 있는 동안 늦게 도착한 입고는 기록할 수 있다(재고 변화 없음). */
-          collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} />)
+          collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} claimRevision={claimRevision} />)
           : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
       </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
   </>;
@@ -632,7 +680,7 @@ export function ClaimActionPanel({
 
       {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} /> : null}
 
-      {bankTransfer && claimType === 'return' && defectiveStock && !defectiveStock.frozen && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected'
+      {(bankTransfer || partialReturn?.convertible) && claimType === 'return' && defectiveStock && !defectiveStock.frozen && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected'
         && defectiveStock.items.some((item) => item.state !== 'recorded') ? (
         <form action={panelAction} className={FORM_CLASS}>
           <PanelActionField kind="defectivePlan" />
@@ -640,13 +688,28 @@ export function ClaimActionPanel({
           <input name="claimType" type="hidden" value={claimType} />
           <ClaimDefectiveStockChoice idPrefix="claim-bank-stock-disposition" items={defectiveStock.items} />
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">품목별 재고 처리 저장</Button>
-          <p className={HINT_CLASS}>무통장 환불은 위 [취소 확정]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다. 그 전에 저장해주세요.</p>
+          <p className={HINT_CLASS}>{partialReturn?.convertible
+            ? '계좌 송금 부분 환불로 바꿀 때 고른 상품의 재고가 정해집니다. 불량 상품이 있으면 전환 전에 저장해주세요.'
+            : '무통장 환불은 위 [취소 확정]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다. 그 전에 저장해주세요.'}</p>
         </form>
       ) : null}
 
 
+      {partialReturnUnavailable && claimType === 'return' && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected' ? (
+        <AdminNotice tone="warning">부분 반품 정보를 읽지 못해 환불 단계를 열지 않았습니다. 고객이 일부 상품만 반품했을 수 있으니 화면을 새로고침한 뒤 진행해주세요.</AdminNotice>
+      ) : null}
+
       {canFileRefund && !bankTransfer ? (
-        <form action={panelAction} className={FORM_CLASS}>
+        /*
+         * 부분 반품(ADR-0047)의 접수는 되돌릴 수 없다 — 금액이 고정되고, 무통장·0원은 접수와 함께 적용(재고 처리)된다. 결제 수단과 무관하게
+         * 셸 확인창을 거치고, 품목별 재고 처리(불량 선택)를 이 양식에서 함께 저장한 뒤 접수한다(Codex 리뷰: 0원 반품이 선택 전에 재고를 복원).
+         */
+        <form
+          action={partialReturn ? ignoreUnconfirmedClaimSubmit : panelAction}
+          className={FORM_CLASS}
+          data-confirm={partialReturn ? partialReturnFilingConfirmation(partialReturn, autoCancelLabel) : undefined}
+          onSubmit={partialReturn ? submitConfirmed : undefined}
+        >
           <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
@@ -654,10 +717,20 @@ export function ClaimActionPanel({
           <input name="stage" type="hidden" value="filed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} cancelScope={cancelScope} />
           <SettlementNoteField id="claim-refund-note" placeholder="예: 정산 완료분이라 코페이 상계 처리" />
+          {partialReturn && claimType === 'return' && defectiveStock && !defectiveStock.frozen
+            ? <ClaimDefectiveStockChoice idPrefix="claim-refund-file-stock" items={defectiveStock.items} /> : null}
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant={refundFiled ? 'outline' : 'default'}>
             {refundFiled ? '환불 접수 정보 갱신' : '환불 접수 완료로 기록'}
           </Button>
-          {autoCancelLabel ? (
+          {partialReturn?.bank ? (
+            <p className={HINT_CLASS}>
+              무통장 부분 반품은 접수와 함께 고른 상품의 재고를 처리(위 선택 — 불량은 판매 재고 제외)하고 환불 송금 대기에 올립니다. 되돌릴 수 없습니다.
+            </p>
+          ) : partialReturn?.refundAmount === 0 ? (
+            <p className={HINT_CLASS}>
+              돌려줄 결제 금액이 0원(적립금·할인으로 모두 덮임)이라 접수와 함께 고른 상품의 재고를 처리(위 선택)하고 요청을 완료합니다. 되돌릴 수 없습니다.
+            </p>
+          ) : autoCancelLabel ? (
             <p className={HINT_CLASS}>
               접수만 기록합니다. {autoCancelLabel} {cancelScope}는 아래 [환불 완료 확정]을 누를 때 요청됩니다.
             </p>
@@ -665,11 +738,15 @@ export function ClaimActionPanel({
         </form>
       ) : null}
 
-      {canCompleteRefund && !bankTransfer ? (
+      {canCompleteRefund && partialReturn?.bank && stage !== 'completed' ? (
+        <AdminNotice tone="info">계좌 송금으로 돌려주는 부분 반품 환불은 송금 대기에 올라 있습니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적으면 이 요청이 완료됩니다.</AdminNotice>
+      ) : null}
+
+      {canCompleteRefund && !bankTransfer && !partialReturn?.bank ? (
         <form
           action={ignoreUnconfirmedClaimSubmit}
           className={FORM_CLASS}
-          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, autoCancelLabel, partialRefund, remainderAmount)}
+          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, autoCancelLabel, partialRefund, remainderAmount, partialReturn)}
           onSubmit={submitConfirmed}
         >
           <PanelActionField kind="refund" />
@@ -682,7 +759,11 @@ export function ClaimActionPanel({
           {refundFinalizationPending && claimType === 'return' && defectiveStock && !defectiveStock.frozen ? <ClaimDefectiveStockChoice idPrefix="claim-stock-disposition" items={defectiveStock.items} /> : null}
           {refundFinalizationPending ? (
             <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
-              {autoCancelLabel && partialRefund
+              {autoCancelLabel && partialReturn
+                ? `누르면 ${autoCancelLabel} 결제에서 부분 반품한 상품 몫${partialReturn.refundAmount === null ? '' : ` ${krwAmountWords(partialReturn.refundAmount)}`}만 부분 취소하고 결제사 잔액을 조회로 확인합니다. 확인되면 고른 상품만 재고 복원·카드팩 판정을 하고 남은 상품과 주문은 그대로 둡니다. 결제사가 부분 취소를 받지 않으면 전액 환불로 돌리지 않고 확인 필요로 남습니다.`
+                : partialReturn
+                ? '무통장 부분 반품은 환불 접수 때 송금 대기로 올라갑니다. 송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.'
+                : autoCancelLabel && partialRefund
                 ? `누르면 ${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}만 부분 취소하고 결제사 잔액을 조회로 확인합니다. 이미 취소된 금액이면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`
                 : autoCancelLabel && remainderAmount !== null
                 ? `누르면 ${autoCancelLabel} 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ${krwAmountWords(remainderAmount)}을 취소하고 결제사에 결과를 확인합니다. 이미 취소된 금액이면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`

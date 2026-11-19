@@ -7,6 +7,7 @@ import {
   claimEvidenceUrl, claimWaiverReasonValid, type ClaimEvidenceFile,
 } from '@/lib/admin/claim-evidence';
 import { uploadClaimEvidence } from '@/lib/admin/claim-evidence.client';
+import { confirmAdminSubmit, type AdminConfirmRequest } from '@/lib/admin/confirm';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -19,6 +20,16 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 여기서 사유와 근거 사진으로 회수 생략을 먼저 기록하면 그 출고지의 교환품 제작이 열리고, 주문 상세의 주문제작 처리에서
  * 제작을 마친 뒤 회수·재배송 연락처 처리에서 회수 확인 없이 재출고한다. 사유·사진·하자 교환 여부는 DB가 다시 검사한다.
  * 사유와 확인은 제어 입력이라 실패한 제출 뒤에도 그대로 남고, 올린 사진은 숨은 id로만 보낸다(사진 본문은 다시 보내지 않는다). */
+/** 회수 생략 결정 확인창. 결정은 되돌리는 기능이 없어(ADR-0041) 대상 출고지와 결과를 셸 확인창에서 다시 확인받는다. */
+export function collectionWaiverConfirmRequest(originName: string): AdminConfirmRequest {
+  return {
+    title: `${originName} 회수 없이 교환품 제작을 시작할까요?`,
+    message: `${originName} 배송 건의 회수 생략을 기록하고 교환품 제작을 엽니다. 결정은 되돌릴 수 없습니다 — 제작이 끝나면 회수 확인 없이 재출고하고, 회수 상품 재고는 복원하지 않습니다.`,
+    confirmLabel: '회수 없이 제작 시작',
+    destructive: true,
+  };
+}
+
 export function ClaimCollectionWaiverDecision({ claimId, shipmentId, originName }: { claimId: string; shipmentId: string; originName: string }) {
   const [state, action, pending] = useActionState(waiveOrderClaimCollectionAction, {});
   const [reason, setReason] = useState('');
@@ -44,7 +55,8 @@ export function ClaimCollectionWaiverDecision({ claimId, shipmentId, originName 
     } finally { setUploading(false); }
   }
   const ready = claimWaiverReasonValid(reason) && evidence.length > 0 && confirmed;
-  return <form action={action} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-waiver-decision={shipmentId}>
+  return <form action={action} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-waiver-decision={shipmentId}
+    onSubmit={event => { confirmAdminSubmit(event, collectionWaiverConfirmRequest(originName)); }}>
     <input type="hidden" name="claimId" value={claimId} />
     <input type="hidden" name="shipmentId" value={shipmentId} />
     {evidence.map(file => <input key={file.id} type="hidden" name="evidenceFileId" value={file.id} />)}

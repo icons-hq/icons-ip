@@ -27,6 +27,9 @@ vi.mock('@/lib/checkout.server', () => ({
   loadCheckoutAddressPrefill: async () => ({ address: null, source: null, book: [] }),
   loadLatestPendingCheckoutOrderId: async () => null,
 }));
+const restrictions = { g1: { goodId: 'g1', returnAllowed: false, exchangeAllowed: null, reason: '각인 주문 제작 상품' } };
+const claim = vi.hoisted(() => ({ load: vi.fn(), cart: vi.fn() }));
+vi.mock('@/lib/checkout-acknowledgement.server', () => ({ loadCheckoutClaimRestrictions: claim.load, loadUserCartGoodIds: claim.cart }));
 vi.mock('@/lib/coupons.server', () => ({ loadCartCouponState: async () => mocks.couponState }));
 vi.mock('@/lib/coupon-combinations.server', () => ({ loadCouponCombinationPolicy: async () => null }));
 vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: async () => mocks.transactionMode }));
@@ -45,6 +48,8 @@ const held = (id: string, name: string): UserCouponSummary => ({
 });
 
 beforeEach(() => {
+  claim.load.mockReset().mockResolvedValue(restrictions);
+  claim.cart.mockReset().mockResolvedValue(['g1', 'g2']);
   mocks.auth = {
     isConfigured: true,
     user: { id: '00000000-0000-4000-8000-000000001201', email: 'fan@icons.gg' },
@@ -158,3 +163,37 @@ describe('/checkout page — 주문서 초안', () => {
   });
 });
 
+/* 결제 전 확인 동의(PAY-015): 청약철회 제한 굿즈를 서버가 읽어 두 주문서에 넘긴다. */
+describe('/checkout page — 청약철회 제한 굿즈 고지', () => {
+  it('기본 주문서와 거래 주문서 모두 같은 제한 굿즈를 받는다', async () => {
+    renderToStaticMarkup(await Page({}));
+    expect(mocks.checkout.mock.calls.at(-1)?.[0].claimRestrictions).toBe(restrictions);
+    mocks.transactionMode = 'transaction';
+    renderToStaticMarkup(await Page({}));
+    expect(mocks.transactionCheckout.mock.calls.at(-1)?.[0].claimRestrictions).toBe(restrictions);
+  });
+
+  it('장바구니 주문서는 서버 장바구니의 굿즈로, 초안 주문서는 그 초안 줄로만 읽는다', async () => {
+    renderToStaticMarkup(await Page({}));
+    expect(claim.cart).toHaveBeenCalledWith('00000000-0000-4000-8000-000000001201');
+    expect(claim.load).toHaveBeenLastCalledWith(['g1', 'g2']);
+    const draftId = '00000000-0000-4000-8000-0000000000d1';
+    mocks.draft = { id: draftId, source: 'selection', baseGoodId: null, expiresAt: '2099-01-01T00:00:00Z', stale: false, usedOrderId: null,
+      lines: [{ goodId: 'g7', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 }] };
+    claim.cart.mockClear();
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }));
+    expect(claim.cart).not.toHaveBeenCalled();
+    expect(claim.load).toHaveBeenLastCalledWith(['g7']);
+  });
+
+  it('제한 굿즈를 읽지 못하면(null) 그대로 넘겨 화면이 일반 고지를 보인다', async () => {
+    claim.load.mockResolvedValue(null);
+    renderToStaticMarkup(await Page({}));
+    expect(mocks.checkout.mock.calls.at(-1)?.[0].claimRestrictions).toBeNull();
+    claim.cart.mockResolvedValue(null);
+    claim.load.mockClear();
+    renderToStaticMarkup(await Page({}));
+    expect(claim.load).not.toHaveBeenCalled();
+    expect(mocks.checkout.mock.calls.at(-1)?.[0].claimRestrictions).toBeNull();
+  });
+});

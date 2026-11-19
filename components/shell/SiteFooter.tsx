@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BUSINESS_INFO, businessInfoRows, type BusinessInfo as BusinessInfoData, type BusinessInfoRow } from '@/lib/legal/business-info';
+import { BUSINESS_INFO, businessInfoRows, businessRegistrationVerifyHref, type BusinessInfo as BusinessInfoData, type BusinessInfoRow } from '@/lib/legal/business-info';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import {
   FOOTER_BULK_PURCHASE_LABEL,
@@ -40,6 +40,8 @@ const LABEL_HIDDEN_KEYS: ReadonlyArray<BusinessInfoRow['key']> = ['companyName',
 
 function BusinessLines({ info }: { info: BusinessInfoData }) {
   const rows = businessInfoRows(info);
+  /* 공정위 통신판매사업자 정보 공개 조회 — 번호가 10자리가 아니면 링크가 없다. */
+  const verifyHref = businessRegistrationVerifyHref(info);
   return BUSINESS_LINES.map((line) => {
     const lineRows = line.keys.flatMap((key) => rows.filter((row) => row.key === key));
     if (lineRows.length === 0) return null;
@@ -48,7 +50,12 @@ function BusinessLines({ info }: { info: BusinessInfoData }) {
         {lineRows.map((row) => (
           <div key={row.key} className={`wc-x-footer__biz-row${LABEL_HIDDEN_KEYS.includes(row.key) ? ' wc-x-footer__biz-row--bare' : ''}`}>
             <dt>{row.label}</dt>
-            <dd>{row.value}</dd>
+            <dd>
+              {row.value}
+              {row.key === 'registrationNumber' && verifyHref ? (
+                <> <a className="wc-x-footer__biz-verify" href={verifyHref} rel="noopener noreferrer" target="_blank">사업자정보 확인<span className="wc-sr-only"> 새 창</span></a></>
+              ) : null}
+            </dd>
           </div>
         ))}
       </dl>

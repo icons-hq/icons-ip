@@ -4,6 +4,7 @@ import {
   BUSINESS_INFO_LABELS,
   businessContactRows,
   businessContactWords,
+  businessRegistrationVerifyHref,
   businessInfoRows,
   type BusinessInfo,
 } from './business-info';
@@ -117,5 +118,23 @@ describe('문의 창구 파생', () => {
 
   it('일부만 채워져도 채워진 항목만 창구로 드러난다', () => {
     expect(businessContactWords({ ...blank, email: 'help@icons.gg' })).toBe('이메일 help@icons.gg');
+  });
+});
+
+describe('공정위 사업자정보 확인 링크', () => {
+  it('사업자등록번호 10자리를 숫자만 남겨 조회 주소에 싣는다', () => {
+    expect(businessRegistrationVerifyHref({ ...filled, registrationNumber: '109-86-27576' })).toBe('https://www.ftc.go.kr/bizCommPop.do?wrkr_no=1098627576');
+    expect(businessRegistrationVerifyHref({ ...filled, registrationNumber: ' 1098627576 ' })).toBe('https://www.ftc.go.kr/bizCommPop.do?wrkr_no=1098627576');
+  });
+
+  it('번호가 비었거나 10자리가 아니거나 숫자가 아니면 링크가 없다', () => {
+    for (const registrationNumber of ['', '000-00', '109-86-275761', '109-86-2757', '10A-86-27576', '109-86-27576; drop']) {
+      expect(businessRegistrationVerifyHref({ ...filled, registrationNumber }), registrationNumber).toBeNull();
+    }
+    expect(businessRegistrationVerifyHref(blank)).toBeNull();
+  });
+
+  it('운영 기본 사업자 정보는 링크를 만든다', () => {
+    expect(businessRegistrationVerifyHref()).toMatch(/^https:\/\/www\.ftc\.go\.kr\/bizCommPop\.do\?wrkr_no=\d{10}$/);
   });
 });

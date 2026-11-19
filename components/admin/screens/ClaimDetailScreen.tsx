@@ -37,6 +37,8 @@ import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
 import { ClaimTypeConversion } from '@/components/admin/ClaimTypeConversion';
 import { ClaimReasonChange } from '@/components/admin/ClaimReasonChange';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { ClaimPartialReturnPanel } from './ClaimPartialReturnPanel';
+import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
 import { ClaimPreviewFullScreenLink } from './ClaimPreviewDialog';
 import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
@@ -202,6 +204,19 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+/**
+ * 부분 반품(ADR-0047)의 환불 단계 금액: 접수 뒤에는 원장, 접수 전에는 미리보기. 원장 줄의 환불액은 차감 뒤 금액이다. 송금 여부는 살아 있는
+ * 원장의 정산 경로가 정한다 — 무통장 결제, 또는 결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 카드 결제. 원장 전이면 결제 수단이다.
+ */
+function partialReturnRefund(partialReturn: AdminClaimPartialReturn, bankPayment: boolean) {
+  const live = partialReturn.history.find((record) => record.id === partialReturn.refundId);
+  const refileable = !live && partialReturn.history.some((record) => record.state === 'rejected');
+  const bank = partialReturn.settlement ? partialReturn.settlement === 'bank_transfer' : bankPayment;
+  const convertible = partialReturn.transferConvertible;
+  if (live) return { refundAmount: live.refundAmount, deductionAmount: live.returnFeeDeduction, bank, refileable, convertible };
+  return { refundAmount: partialReturn.preview?.refundAmount ?? null, deductionAmount: partialReturn.preview?.returnFeeDeduction ?? 0, bank, refileable, convertible };
+}
+
 function CardHeading({ children }: { children: string }) {
   return <CardHeader><h3 className="text-base leading-snug font-medium text-foreground">{children}</h3></CardHeader>;
 }
@@ -216,6 +231,8 @@ export function ClaimDetailScreen({
   detailHref,
   embedded = false,
   now = new Date(),
+  partialReturn,
+  partialReturnEnabled = false,
 }: {
   actorId?: string;
   backHref: string;
@@ -233,11 +250,20 @@ export function ClaimDetailScreen({
    */
   embedded?: boolean;
   now?: Date;
+  /**
+   * 부분 반품(ADR-0047) 칸. 주문 전체 클레임이면 null, 반품인데 읽지 못했으면 undefined — 경고를 보이고 환불 단계를 열지 않는다
+   * (주문 전체 환불 문구·무통장 전체 환불 흐름을 부분 반품에 그리지 않기 위해서다). 반품이 아니면 값과 무관하다.
+   */
+  partialReturn?: AdminClaimPartialReturn | null;
+  /** 부분 반품 스위치. 켜져 있으면 주문 상품 아래 안내가 반품의 일부 처리를 말한다. */
+  partialReturnEnabled?: boolean;
 }) {
   const { cardPacks, claim, order, payment, refund, refundAccount, timeline } = detail;
   /* 반품배송비 차감(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 아래 화면은 지금 그대로다. */
   const refundDeduction = detail.refundDeduction ?? null;
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
+  const partialLive = partialReturn ? partialReturn.history.find((record) => record.id === partialReturn.refundId) ?? null : null;
+  const partialReturnUnavailable = claim.claimType === 'return' && partialReturn === undefined;
   const sla = orderClaimSlaState(
     {
       claimType: claim.claimType,
@@ -411,9 +437,11 @@ export function ClaimDetailScreen({
                       ))}
                     </ul>
                   </section>
+                  {claim.claimType === 'return' ? <ClaimPartialReturnPanel claimId={claim.id} orderId={order.id} partialReturn={partialReturn} /> : null}
                   <p className="text-xs text-muted-foreground">
-                    {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품, 또는 교환에서
-                    하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내하고, 부분 환불을 약속하지 마세요.
+                    {partialReturnEnabled
+                      ? `반품은 고객이 고른 상품·수량만 회수·환불할 수 있습니다(부분 반품). 취소·교환은 주문 단위입니다. 일부 품목만 불량인 교환은 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내합니다.`
+                      : `${V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품, 또는 교환에서 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내하고, 부분 환불을 약속하지 마세요.`}
                   </p>
                   <Link className={OUTLINE_SM} data-slot="button" href={adminOrderSearchHref(order.id)}>
                     주문 통합검색에서 열기
@@ -479,10 +507,12 @@ export function ClaimDetailScreen({
                 refundAmount={refund?.amount ?? refundDeduction?.refundAmount ?? order?.total ?? null}
                 paidAmount={payment?.amount ?? null}
                 refundDeduction={refundDeduction}
+                partialReturn={partialReturn ? partialReturnRefund(partialReturn, payment?.provider === 'bank_transfer') : null}
+                partialReturnUnavailable={partialReturnUnavailable}
                 defectiveStock={defectiveStock}
                 exchangeStockTargets={claim.claimType === 'exchange' && claim.collectionPolicy !== null ? adminClaimExchangeStockTargets(claim, order?.items ?? []) : []}
                 requestSummary={exchangeRequest}
-                bankTransfer={payment?.provider === 'bank_transfer'}
+                bankTransfer={payment?.provider === 'bank_transfer' && !partialReturn && !partialReturnUnavailable}
                 key={claim.id}
                 cancellationForm={cancellationForm}
                 carriers={carriers}
@@ -494,14 +524,16 @@ export function ClaimDetailScreen({
                 returnCollectionContact={claim.claimType === 'return' ? collectionContact : undefined}
                 returnRefundSummary={claim.claimType === 'return' ? refundSummary : undefined}
                 collections={claim.collections}
+                claimRevision={claim.claimRevision ?? null}
                 heldFrom={claim.heldFrom}
                 reshipmentStarted={claim.reshippedAt !== null || (claim.reshipments ?? []).length > 0}
                 orderId={claim.orderId}
                 paymentProvider={payment?.provider ?? null}
                 recordedRefundMethod={refund?.method ?? null}
-                refundCompleted={Boolean(refund?.completedAt)}
-                refundFiled={Boolean(refund?.filedAt)}
-                refundLedgerOpen={Boolean(refund)}
+                /* 부분 반품(ADR-0047)은 주문 전체 환불 원장(refunds) 대신 부분 환불 원장의 살아 있는 줄이 접수·완료를 말한다. */
+                refundCompleted={partialLive ? partialLive.state === 'completed' : Boolean(refund?.completedAt)}
+                refundFiled={partialLive ? true : Boolean(refund?.filedAt)}
+                refundLedgerOpen={partialLive ? true : Boolean(refund)}
                 reshipItems={order?.items}
                 stage={claim.stage}
                 exchangeSteps={claim.claimType === 'exchange' ? <ClaimExchangeSteps claim={claim} /> : undefined}

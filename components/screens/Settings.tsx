@@ -21,6 +21,7 @@ import { CustomerDemographicConsent } from '@/components/account/CustomerDemogra
 import { EmailChangePanel, type EmailChangePanelView } from '@/components/screens/EmailChangePanel';
 import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { Icon } from '@/components/ui/Icon';
+import { TurnstileField } from '@/components/auth/TurnstileField';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
@@ -134,6 +135,7 @@ export function PasswordResetRow({ email, isConfigured }: { email: string; isCon
       >
         <input name="email" type="hidden" value={email} />
         <input name="next" type="hidden" value="/settings" />
+        <TurnstileField />
         <button
           className="wc-settings__link-row"
           aria-busy={pending || undefined}

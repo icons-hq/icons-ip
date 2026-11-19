@@ -415,3 +415,48 @@ describe('발송 대기 행 운송장·배송 방법 액션 (S36-072·S36-X04)',
     expect(mocks.rpc).toHaveBeenCalledWith('admin_dispatch_apply_delivery', expect.objectContaining({ p_method: 'parcel', p_reason: null, p_handoff: null }));
   });
 });
+
+describe('선택 배송완료의 택배사 배송완료 일시 (ADR-0045)', () => {
+  it('일시·사유를 도착 일시 RPC로 넘기고, 처음 값(null)은 처리 시각이다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true }], error: null });
+    expect(await completeShipmentsAction([ID])).toEqual({ message: '1건을 배송완료로 변경했습니다.', failed: [] });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_complete_shipments_at', { target_ids: [ID], p_delivered_at: null, p_reason: null });
+    const arrival = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true, affectedIds: [ID], arrivalIds: [ID] }, { id: SECOND, ok: false, error: 'delivered_at_before_shipped' }], error: null });
+    expect(await completeShipmentsAction([ID, SECOND], { deliveredAt: arrival, reason: '' })).toEqual({
+      message: '1건을 배송완료로 변경했습니다. 그중 1건은 입력한 택배사 배송완료 일시로 기록했습니다.',
+      failed: [{ id: SECOND, reason: expect.stringContaining('발송 등록 시각보다 이릅니다') }] });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_complete_shipments_at', { target_ids: [ID, SECOND], p_delivered_at: arrival, p_reason: null });
+    // 리뷰 R6: 이미 배송완료돼 있던 건은 일시가 기록되지 않았다고 말한다(DB가 돌려준 arrivalIds만 센다).
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true, affectedIds: [ID, SECOND], arrivalIds: [SECOND] }], error: null });
+    expect(await completeShipmentsAction([ID], { deliveredAt: arrival })).toEqual({ failed: [],
+      message: '2건을 배송완료로 변경했습니다. 그중 1건은 입력한 택배사 배송완료 일시로 기록했습니다. 이미 배송완료돼 있던 1건은 기존 배송완료 일시를 그대로 두었습니다.' });
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true, affectedIds: [ID], arrivalIds: [] }], error: null });
+    expect(await completeShipmentsAction([ID], { deliveredAt: arrival })).toEqual({ failed: [],
+      message: '1건을 배송완료로 변경했습니다. 모두 이미 배송완료돼 있던 건이라 입력한 일시를 기록하지 않았습니다(기존 배송완료 일시 그대로).' });
+  });
+  it('물류 계정(sales.dispatch)은 7일보다 이른 일시를 사유가 있어도 넣지 못한다(리뷰 R3)', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    mocks.rpc.mockClear();
+    const late = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    expect(await completeShipmentsAction([ID], { deliveredAt: late, reason: '택배사확인' })).toEqual({ error: expect.stringContaining('판매 관리 권한이 있는 운영자만') });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true, affectedIds: [ID], arrivalIds: [ID] }], error: null });
+    expect(await completeShipmentsAction([ID], { deliveredAt: new Date(Date.now() - 3 * 86_400_000).toISOString() })).toHaveProperty('message');
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'delivered_at_late_requires_manager' } });
+    expect(await completeShipmentsAction([ID], { deliveredAt: new Date(Date.now() - 6.9 * 86_400_000).toISOString() })).toEqual({ error: expect.stringContaining('판매 관리 권한이 있는 운영자만') });
+  });
+  it('미래 일시·사유 없는 7일보다 이른 일시·형식이 틀린 일시는 RPC 전에 막는다', async () => {
+    mocks.rpc.mockClear();
+    expect(await completeShipmentsAction([ID], { deliveredAt: new Date(Date.now() + 3_600_000).toISOString() })).toEqual({ error: expect.stringContaining('지금보다 뒤일 수 없습니다') });
+    const late = new Date(Date.now() - 8 * 86_400_000).toISOString();
+    expect(await completeShipmentsAction([ID], { deliveredAt: late, reason: ' ' })).toEqual({ error: expect.stringContaining('늦게 처리한 사유가 필요합니다') });
+    expect(await completeShipmentsAction([ID], { deliveredAt: '2026-11-18 10:00' })).toEqual({ error: '택배사 배송완료 일시를 확인해주세요.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true }], error: null });
+    await completeShipmentsAction([ID], { deliveredAt: late, reason: ' 택배사 조회로 확인했으나 처리를 놓침 ' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_complete_shipments_at', { target_ids: [ID], p_delivered_at: late, p_reason: '택배사 조회로 확인했으나 처리를 놓침' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'delivered_at_late_reason_required' } });
+    expect(await completeShipmentsAction([ID], { deliveredAt: late, reason: '택배사 조회 확인' })).toEqual({ error: expect.stringContaining('늦게 처리한 사유가 필요합니다') });
+  });
+});

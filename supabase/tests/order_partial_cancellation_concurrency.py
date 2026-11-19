@@ -102,8 +102,8 @@ race('same-order-twice', start(1, 101), start(1, 102, item='b', expected=10000),
 replayed = race('same-operation-twice', start(2, 103), start(2, 103))
 if '"replayed": true' not in replayed:
     raise RuntimeError(f'Expected replay: {replayed}')
-# 출고지시 전달이 먼저면 부분 취소는 창고 출고 중단 확인 없이 열리지 않는다.
-race('export-before-partial', mark_exported(5), start(5, 104), 'warehouse_stop_confirmation_required')
+# 출고지시 전달이 먼저면 부분 취소는 그 출고지시 뒤 창고 '출고 중단' 회신 기록 없이 열리지 않는다(ADR-0046).
+race('export-before-partial', mark_exported(5), start(5, 104, warehouse='true'), 'warehouse_stop_reply_required')
 # 부분 취소가 먼저면 결제사 확인이 끝날 때까지 출고지시 전달이 막힌다.
 race('partial-before-export', start(6, 105), mark_exported(6), 'order cancellation in progress')
 

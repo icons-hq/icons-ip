@@ -1816,6 +1816,12 @@
   border: 0;
 }
 
+/* 사업자등록번호 옆 공정위 사업자정보 확인 링크. */
+.wc-x-footer__biz-verify {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* 저작권 줄: 사업자 정보 아래 12px(Figma low 4). */
 .wc-x-footer__copy {
   margin: 12px 0 0;

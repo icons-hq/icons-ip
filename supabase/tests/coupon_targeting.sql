@@ -30,6 +30,8 @@ select public.admin_upsert_coupon_targeted(jsonb_build_object(
  'target_recipient_segment','repeat_purchase','target_goods_scope','selected_goods','target_good_ids',jsonb_build_array('coupon-target-one'),'target_expected_revision',null));
 select 1/case when (select total_count=2 and recipient_segment='first_purchase' and target_goods->0->>'name'='대상 상품' from public.admin_search_coupons('TARGET','all',1,0)) then 1 else 0 end as targeting_does_not_truncate_search_total;
 reset role;
+-- TARGETREPEAT 는 실버 등급 혜택 쿠폰이다. 코드 입력은 회원 등급을 확인하므로(PAY-028) 이 회원은 실버로 둔다.
+update public.profiles set loyalty_grade='silver' where id='00000000-0000-4000-8000-000000004872';
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004872',true);
 set local role authenticated;
@@ -78,6 +80,7 @@ do $$ declare attempt public.payment_attempts; begin
  perform public.claim_goods_payment_attempt('toss',attempt.provider_order_id,repeat('f',64),'20000000-0000-4000-8000-000000004872');
  perform public.finalize_goods_payment_attempt(attempt.id,'20000000-0000-4000-8000-000000004872','approved',null,'coupon-target-paid-key');
 end $$;
+update public.profiles set loyalty_grade='silver' where id='00000000-0000-4000-8000-000000004872';
 set local role authenticated;
 select public.apply_cart_coupon_code('TARGETREPEAT');
 select 1/case when (public.get_my_coupon_purchase_status()->>'hasValidPayment')::boolean then 1 else 0 end as verified_payment_enables_repeat_benefit;

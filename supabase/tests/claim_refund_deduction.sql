@@ -111,7 +111,7 @@ select 1/case when (select amount = 30000 and status = 'done' from public.refund
 -- 2. 스위치 켜기(운영에서는 후속 migration) -----------------------------------------------------------------------------
 select pg_temp.rd_error('update private.return_fee_deduction_settings set enabled = true where singleton', '23514');
 update private.return_fee_deduction_settings set enabled = true, one_way_amount = 3000, evidence = 'TEST 배송·반품 정책 개정 공지',
- enabled_at = clock_timestamp() where singleton;
+ enabled_at = clock_timestamp() - interval '10 days' where singleton; -- 합성 반품 요청(2일 전 접수)이 켠 시각 이후 접수로 읽히도록 과거로 둔다. 켠 시각 규칙은 아래 5-1에서 따로 고정한다.
 select pg_temp.rd_error('delete from private.return_fee_deduction_settings where singleton', 'return_fee_deduction_settings_required');
 select 1/case when (select revision = 2 from private.return_fee_deduction_settings)
  and exists(select 1 from public.audit_log where action = 'system.return_fee_deduction.settings_changed'
@@ -306,12 +306,22 @@ select 1/case when (select basis = 'one_way' and deduction_amount = 3000 and ref
  and not exists(select 1 from public.notifications where source_id = pg_temp.rd_id('claim', 10)::text and body like '%반품배송비%')
  then 1 else 0 end as collect_decision_one_way_and_billing_has_no_decision;
 
+-- 5-1. 켠 시각 이후 접수된 요청만 차감한다(2026-11-19). 켜기 전에 접수된 단순 변심 반품은 켠 뒤에 환불 접수해도 전액 환불이다.
+update private.return_fee_deduction_settings set enabled_at = clock_timestamp() - interval '1 day' where singleton;
+select 1/case when private.return_fee_deduction_plan(pg_temp.rd_id('claim', 2)) is null   -- 2일 전 접수 = 켠 시각(1일 전) 이전
+ then 1 else 0 end as claim_requested_before_switch_on_is_not_deducted;
+update public.order_cancellation_requests set requested_at = clock_timestamp() - interval '1 hour' where id = pg_temp.rd_id('claim', 2);
+select 1/case when private.return_fee_deduction_plan(pg_temp.rd_id('claim', 2)) @> '{"applicable": true}'
+ then 1 else 0 end as claim_requested_after_switch_on_is_deducted;
+update public.order_cancellation_requests set requested_at = clock_timestamp() - interval '2 days' where id = pg_temp.rd_id('claim', 2);
+update private.return_fee_deduction_settings set enabled_at = clock_timestamp() - interval '10 days' where singleton;
+
 -- 5. 스위치를 다시 꺼도 이미 정한 결정은 그대로, 새 판정은 없다 ------------------------------------------------------------
 update private.return_fee_deduction_settings set enabled = false where singleton;
 select 1/case when private.return_fee_deduction_plan(pg_temp.rd_id('claim', 2)) is null
  and private.claim_refund_deduction_view(pg_temp.rd_id('claim', 2)) is null
  and private.claim_refund_deduction_view(pg_temp.rd_id('claim', 1)) @> '{"source": "decision", "state": "applied", "refundAmount": 27000}'
- and (select revision = 3 from private.return_fee_deduction_settings)
+ and (select revision = 5 from private.return_fee_deduction_settings) -- 켜기 1 + 5-1의 켠 시각 조정 2 + 끄기 1 (바뀔 때마다 리비전이 오른다)
  then 1 else 0 end as switch_off_keeps_decisions_and_stops_new_plans;
 
 rollback;

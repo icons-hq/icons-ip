@@ -487,8 +487,8 @@ export const ADMIN_STAFF_CANCELLATION_NOTE_LIMIT = 500;
  * `staff_cancellation_toss_only`와 같게 맞춘다 — 실패가 아닌 결제가 하나 이상이고
  * 모두 취소 API가 있는 카드 결제사(토스·나이스페이)·결제완료일 때만 그린다. Korpay·무통장
  * 주문에 버튼을 그리면 누를 때마다
- * 거절되는 버튼이 된다. 출고지시 파일이 나간 배송 건이 있으면 창고의 출고 중단 확인을
- * 함께 받는다.
+ * 거절되는 버튼이 된다. 출고지시 파일이 나간 배송 건이 있으면(requiresWarehouseStop) 양식이 창고 회신 기록
+ * 상태를 함께 보인다 — 근거는 주문 상세의 창고 회신 기록이고 DB가 실행 때 판정한다(ADR-0046).
  */
 export function adminStaffCancellationAvailability(
   order: AdminOrderRecord,

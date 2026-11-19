@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { emailDispatcherFromEnvironment } from '@/lib/email/dispatcher.server';
+import { canOpenOperationsSwitches } from '@/lib/admin/operations-switches.server';
 import {
   orderDelayNoticeError,
   parseOrderDelayNotice,
@@ -27,6 +28,7 @@ async function run(name: string, args: Record<string, unknown>): Promise<OrderDe
     return {
       notice,
       emailConfigured: Boolean(emailDispatcherFromEnvironment()),
+      switchesLink: await canOpenOperationsSwitches(),
     };
   } catch {
     return { error: orderDelayNoticeError('connection_lost') };

@@ -1,6 +1,6 @@
 const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { previewMemberWithdrawalInquiryAction, processMemberWithdrawalAction, retryMemberWithdrawalSigninBlockAction } from './member-withdrawal-actions';
+import { previewMemberWithdrawalInquiryAction, processKakaoUnlinkWithdrawalAction, processMemberWithdrawalAction, retryMemberWithdrawalSigninBlockAction } from './member-withdrawal-actions';
 
 const MEMBER = '00000000-0000-4000-8000-000000000301';
 const PROCESSED_AT = '2026-11-18T10:00:00+00:00';
@@ -147,5 +147,64 @@ describe('탈퇴 요청 처리 액션', () => {
       operatorAccess: configuredOperatorAccessFixture('deputy') };
     expect(await previewMemberWithdrawalInquiryAction(MEMBER, '12')).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('카카오 알림으로 탈퇴 처리 액션', () => {
+  const UNLINK = { reason: 'ACCOUNT_DELETE', eventAt: '2026-11-19T01:00:00+00:00', accountClosed: true };
+  const KAKAO_STATUS = { ...STATUS, inquiryReference: null, basis: 'kakao_unlink', kakaoUnlink: UNLINK };
+  const kakaoForm = (note = '  카카오계정 탈퇴 알림 확인  ') => { const data = new FormData(); data.set('profileId', MEMBER); data.set('note', note); return data; };
+
+  beforeEach(() => {
+    mocks.auth = { isConfigured: true, user: { id: 'staff-1', email: 'staff@icons.gg' }, role: 'admin', isStaff: true,
+      operatorAccess: legacyOperatorAccessFixture() };
+    mocks.rpc.mockReset();
+    mocks.ban.mockReset();
+    mocks.revalidatePath.mockReset();
+    mocks.ban.mockResolvedValue(true);
+  });
+
+  it('권한·메모를 먼저 확인하고 RPC를 부르지 않는다', async () => {
+    expect((await processKakaoUnlinkWithdrawalAction({}, kakaoForm('가'))).errors?.note).toContain('2자 이상');
+    mocks.auth = { isConfigured: true, user: { id: 'staff-1', email: null }, role: 'staff', isStaff: true,
+      operatorAccess: configuredOperatorAccessFixture('deputy') };
+    await expect(processKakaoUnlinkWithdrawalAction({}, kakaoForm())).resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('처리한 뒤 재로그인을 막고 근거·카카오 연결 삭제를 결과에 보이며 대기 목록도 다시 그린다', async () => {
+    rpcResults({
+      admin_process_kakao_unlink_withdrawal: { data: { ...KAKAO_STATUS, status: 'processed', suspended: true,
+        erased: { ...ERASED, kakaoIdentities: 1 }, revokedSessions: 1 }, error: null },
+      admin_confirm_member_withdrawal_signin_block: { data: {}, error: null },
+    });
+    const state = await processKakaoUnlinkWithdrawalAction({}, kakaoForm());
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'admin_process_kakao_unlink_withdrawal', { target_profile_id: MEMBER, target_note: '카카오계정 탈퇴 알림 확인' });
+    expect(mocks.ban).toHaveBeenCalledWith(MEMBER);
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_confirm_member_withdrawal_signin_block', { target_profile_id: MEMBER });
+    expect(state).toEqual({ message: '탈퇴 요청(카카오 알림 · 카카오계정 탈퇴)을 처리했습니다 — 배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 1건 · 카카오 로그인 연결 1건 · 로그인 세션 1개 종료.' });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/community/members/kakao-unlinks');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/customers/${MEMBER}`);
+  });
+
+  it('남은 의무·연결만 끊은 회원·대기 목록에 없는 회원은 처리하지 않고 이유를 알린다', async () => {
+    rpcResults({ admin_process_kakao_unlink_withdrawal: { data: { status: 'blocked', blockers: [{ code: 'active_order', count: 1, path: '/orders' }] }, error: null } });
+    expect(await processKakaoUnlinkWithdrawalAction({}, kakaoForm())).toMatchObject({ blockers: [{ code: 'active_order', count: 1, path: '/orders' }] });
+    rpcResults({ admin_process_kakao_unlink_withdrawal: { data: null, error: { message: 'kakao_unlink_member_request_required' } } });
+    expect((await processKakaoUnlinkWithdrawalAction({}, kakaoForm())).errors?.form).toContain('회원이 쓴 1:1 문의 번호로 처리');
+    rpcResults({ admin_process_kakao_unlink_withdrawal: { data: null, error: { message: 'kakao_unlink_withdrawal_not_queued' } } });
+    expect((await processKakaoUnlinkWithdrawalAction({}, kakaoForm())).errors?.form).toContain('탈퇴 검토 대기 회원이 아닙니다');
+    rpcResults({ admin_process_kakao_unlink_withdrawal: { data: null, error: { message: 'invalid_member_withdrawal' } } });
+    expect((await processKakaoUnlinkWithdrawalAction({}, kakaoForm())).errors?.form).toBe('처리 메모를 다시 확인해주세요.');
+    expect(mocks.ban).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('이미 처리한 회원은 처음 근거로 알린다(문의 경로로 다시 눌러도 같다)', async () => {
+    const replay = { ...KAKAO_STATUS, signinBlocked: true, signinBlockedAt: PROCESSED_AT, status: 'already_processed', revokedSessions: 0 };
+    rpcResults({ admin_process_kakao_unlink_withdrawal: { data: replay, error: null }, admin_process_member_withdrawal: { data: replay, error: null } });
+    await expect(processKakaoUnlinkWithdrawalAction({}, kakaoForm())).resolves.toEqual({ message: '이미 탈퇴 처리한 회원입니다(카카오 알림 · 카카오계정 탈퇴).' });
+    await expect(processMemberWithdrawalAction({}, form())).resolves.toEqual({ message: '이미 탈퇴 처리한 회원입니다(카카오 알림 · 카카오계정 탈퇴).' });
+    expect(mocks.ban).not.toHaveBeenCalled();
   });
 });
