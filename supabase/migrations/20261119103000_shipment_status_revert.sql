@@ -120,7 +120,7 @@ revoke all on function private.shipment_revert_blocker(uuid,text) from public,an
 -- 배송완료 되돌리기. p_expected_delivered_at은 화면이 본 배송완료 시각이다(그 사이 다시 처리됐으면 PT409).
 create function public.admin_revert_shipment_delivery(p_shipment_id uuid, p_reason text, p_operation_id uuid, p_expected_delivered_at timestamptz)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); request jsonb; receipt jsonb; ids uuid[]; target public.order_shipments;
+declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); request jsonb; receipt jsonb; ids uuid[]; picked public.order_shipments;
   member public.order_shipments; related record; blocker text; at_value timestamptz; before_status jsonb; confirmation jsonb;
   removed_notification uuid; order_ids uuid[]; order_status public.order_status;
 begin
@@ -133,10 +133,10 @@ begin
   if receipt is not null then return receipt; end if;
   -- 주문 id 순 → 배송 건 id 순(운영 배송완료·강제 배송완료·자동 배송완료·반품 접수와 같은 순서).
   ids:=private.lock_shipment_pack_scope(array[p_shipment_id]);
-  select * into target from public.order_shipments where id=p_shipment_id;
+  select * into picked from public.order_shipments where id=p_shipment_id;
   if exists(select 1 from public.order_shipments where id=any(ids) and delivery_method<>'parcel') then raise check_violation using message='shipment_revert_parcel_only'; end if;
-  if target.status<>'delivered' then raise check_violation using message='shipment_revert_not_delivered'; end if;
-  if target.delivered_at is distinct from p_expected_delivered_at then raise sqlstate 'PT409' using message='shipment_revert_changed'; end if;
+  if picked.status<>'delivered' then raise check_violation using message='shipment_revert_not_delivered'; end if;
+  if picked.delivered_at is distinct from p_expected_delivered_at then raise sqlstate 'PT409' using message='shipment_revert_changed'; end if;
   if exists(select 1 from public.order_shipments where id=any(ids) and status<>'delivered') then raise check_violation using message='shipment_revert_pack_mixed'; end if;
   select array_agg(distinct order_id order by order_id) into order_ids from public.order_shipments where id=any(ids);
   for related in select unnest(order_ids) id loop
@@ -161,12 +161,12 @@ begin
     if before_status->>(related.id::text)='delivered' and related.status<>'delivered' then
       delete from public.notifications where user_id=related.user_id and dedupe_key='order:delivered:'||related.id returning id into removed_notification;
     end if;
-    if related.id=target.order_id then order_status:=related.status; end if;
+    if related.id=picked.order_id then order_status:=related.status; end if;
     update private.shipment_status_reverts set previous=previous||jsonb_build_object('purchaseConfirmation',confirmation,'deliveredNotificationRemoved',removed_notification is not null)
       where operation_id=p_operation_id and order_id=related.id;
-    if related.id<>target.order_id then
+    if related.id<>picked.order_id then
       insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.shipment.delivery_reverted','order:'||related.id,
-        jsonb_build_object('viaPackOf',target.order_id,'operationId',p_operation_id,'reason',reason_value,
+        jsonb_build_object('viaPackOf',picked.order_id,'operationId',p_operation_id,'reason',reason_value,
           'shipmentId',(select min(id::text) from public.order_shipments where id=any(ids) and order_id=related.id),
           'shipmentIds',(select to_jsonb(array_agg(id order by id)) from public.order_shipments where id=any(ids) and order_id=related.id),
           'previous',(select jsonb_agg(jsonb_build_object('shipmentId',r.shipment_id,'deliveredAt',r.previous->'deliveredAt') order by r.shipment_id)
@@ -174,15 +174,15 @@ begin
           'purchaseConfirmation',confirmation,'deliveredNotificationRemoved',removed_notification is not null));
     end if;
   end loop;
-  receipt:=jsonb_build_object('orderId',target.order_id,'shipmentId',target.id,'shipmentIds',to_jsonb(ids),'orderCount',cardinality(order_ids),
-    'orderStatus',order_status,'previousDeliveredAt',target.delivered_at,'revertedAt',at_value);
-  insert into public.audit_log(id,actor_id,action,target,diff) values(p_operation_id,actor,'admin.shipment.delivery_reverted','order:'||target.order_id,
-    jsonb_build_object('request',request,'result',receipt,'reason',reason_value,'shipmentId',target.id,'originName',target.origin_name_snapshot,
+  receipt:=jsonb_build_object('orderId',picked.order_id,'shipmentId',picked.id,'shipmentIds',to_jsonb(ids),'orderCount',cardinality(order_ids),
+    'orderStatus',order_status,'previousDeliveredAt',picked.delivered_at,'revertedAt',at_value);
+  insert into public.audit_log(id,actor_id,action,target,diff) values(p_operation_id,actor,'admin.shipment.delivery_reverted','order:'||picked.order_id,
+    jsonb_build_object('request',request,'result',receipt,'reason',reason_value,'shipmentId',picked.id,'originName',picked.origin_name_snapshot,
       'shipmentIds',to_jsonb(ids),
       'previous',(select jsonb_agg(jsonb_build_object('shipmentId',r.shipment_id,'deliveredAt',r.previous->'deliveredAt') order by r.shipment_id)
         from private.shipment_status_reverts r where r.operation_id=p_operation_id),
-      'purchaseConfirmation',(select r.previous->'purchaseConfirmation' from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=target.id),
-      'deliveredNotificationRemoved',(select (r.previous->>'deliveredNotificationRemoved')::boolean from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=target.id)));
+      'purchaseConfirmation',(select r.previous->'purchaseConfirmation' from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=picked.id),
+      'deliveredNotificationRemoved',(select (r.previous->>'deliveredNotificationRemoved')::boolean from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=picked.id)));
   return receipt;
 end $$;
 revoke all on function public.admin_revert_shipment_delivery(uuid,text,uuid,timestamptz) from public,anon,authenticated,service_role;
@@ -193,7 +193,7 @@ grant execute on function public.admin_revert_shipment_delivery(uuid,text,uuid,t
 create function public.admin_revert_shipment_dispatch(p_shipment_id uuid, p_reason text, p_operation_id uuid, p_expected_tracking_number text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); expected text:=nullif(upper(btrim(coalesce(p_expected_tracking_number,''))),'');
-  request jsonb; receipt jsonb; ids uuid[]; target public.order_shipments; member public.order_shipments; related record; extra public.order_shipment_extra_trackings;
+  request jsonb; receipt jsonb; ids uuid[]; picked public.order_shipments; member public.order_shipments; related record; extra public.order_shipment_extra_trackings;
   blocker text; at_value timestamptz; order_ids uuid[]; extras jsonb; job public.order_shipment_email_jobs; email_sent boolean:=false;
   removed_notification uuid; order_status public.order_status;
 begin
@@ -205,10 +205,10 @@ begin
   receipt:=private.operator_lifecycle_replay(actor,p_operation_id,'admin.shipment.dispatch_reverted',request);
   if receipt is not null then return receipt; end if;
   ids:=private.lock_shipment_pack_scope(array[p_shipment_id]);
-  select * into target from public.order_shipments where id=p_shipment_id;
+  select * into picked from public.order_shipments where id=p_shipment_id;
   if exists(select 1 from public.order_shipments where id=any(ids) and delivery_method<>'parcel') then raise check_violation using message='shipment_revert_parcel_only'; end if;
-  if target.status<>'shipping' then raise check_violation using message='shipment_revert_not_shipping'; end if;
-  if target.tracking_number is distinct from expected then raise sqlstate 'PT409' using message='shipment_revert_changed'; end if;
+  if picked.status<>'shipping' then raise check_violation using message='shipment_revert_not_shipping'; end if;
+  if picked.tracking_number is distinct from expected then raise sqlstate 'PT409' using message='shipment_revert_changed'; end if;
   if exists(select 1 from public.order_shipments where id=any(ids) and status<>'shipping') then raise check_violation using message='shipment_revert_pack_mixed'; end if;
   select array_agg(distinct order_id order by order_id) into order_ids from public.order_shipments where id=any(ids);
   for related in select unnest(order_ids) id loop
@@ -247,10 +247,10 @@ begin
       update public.orders set status='confirmed' where id=related.id;
       delete from public.notifications where user_id=related.user_id and dedupe_key='order:shipping:'||related.id returning id into removed_notification;
     end if;
-    if related.id=target.order_id then select status into order_status from public.orders where id=related.id; end if;
-    if related.id<>target.order_id then
+    if related.id=picked.order_id then select status into order_status from public.orders where id=related.id; end if;
+    if related.id<>picked.order_id then
       insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.shipment.dispatch_reverted','order:'||related.id,
-        jsonb_build_object('viaPackOf',target.order_id,'operationId',p_operation_id,'reason',reason_value,
+        jsonb_build_object('viaPackOf',picked.order_id,'operationId',p_operation_id,'reason',reason_value,
           'shipmentId',(select min(id::text) from public.order_shipments where id=any(ids) and order_id=related.id),
           'shipmentIds',(select to_jsonb(array_agg(id order by id)) from public.order_shipments where id=any(ids) and order_id=related.id),
           'previous',(select jsonb_agg(r.previous||jsonb_build_object('shipmentId',r.shipment_id) order by r.shipment_id)
@@ -258,10 +258,10 @@ begin
           'shippingNotificationRemoved',removed_notification is not null));
     end if;
   end loop;
-  receipt:=jsonb_build_object('orderId',target.order_id,'shipmentId',target.id,'shipmentIds',to_jsonb(ids),'orderCount',cardinality(order_ids),
-    'orderStatus',order_status,'previousTrackingNumber',target.tracking_number,'previousCarrier',target.carrier,'emailSent',email_sent,'revertedAt',at_value);
-  insert into public.audit_log(id,actor_id,action,target,diff) values(p_operation_id,actor,'admin.shipment.dispatch_reverted','order:'||target.order_id,
-    jsonb_build_object('request',request,'result',receipt,'reason',reason_value,'shipmentId',target.id,'originName',target.origin_name_snapshot,
+  receipt:=jsonb_build_object('orderId',picked.order_id,'shipmentId',picked.id,'shipmentIds',to_jsonb(ids),'orderCount',cardinality(order_ids),
+    'orderStatus',order_status,'previousTrackingNumber',picked.tracking_number,'previousCarrier',picked.carrier,'emailSent',email_sent,'revertedAt',at_value);
+  insert into public.audit_log(id,actor_id,action,target,diff) values(p_operation_id,actor,'admin.shipment.dispatch_reverted','order:'||picked.order_id,
+    jsonb_build_object('request',request,'result',receipt,'reason',reason_value,'shipmentId',picked.id,'originName',picked.origin_name_snapshot,
       'shipmentIds',to_jsonb(ids),
       'previous',(select jsonb_agg(r.previous||jsonb_build_object('shipmentId',r.shipment_id) order by r.shipment_id)
         from private.shipment_status_reverts r where r.operation_id=p_operation_id)));
