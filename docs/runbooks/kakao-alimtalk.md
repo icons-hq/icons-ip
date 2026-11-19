@@ -9,10 +9,10 @@
 
 | 항목 | 상태 |
 | --- | --- |
-| 코드 | 발송기(`lib/kakao/alimtalk/nhn.server.ts`), 주문 안내 2종(`lib/kakao/alimtalk/order-notices.server.ts`), 템플릿 정본(`lib/kakao/alimtalk/templates.ts`), 한 번만 보내기 장부·받는 사람 판정(`supabase/migrations/20261118160500_kakao_alimtalk_deliveries.sql`) |
-| 스위치 | `ICONS_KAKAO_ALIMTALK_ENABLED` **OFF**. 운영은 처리방침 개정 시행일(`KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE` = 2026-11-25 KST)부터 열린다 |
+| 코드 | 발송기(`lib/kakao/alimtalk/nhn.server.ts`), 주문 안내 2종(`lib/kakao/alimtalk/order-notices.server.ts`), 템플릿 정본(`lib/kakao/alimtalk/templates.ts`), 한 번만 보내기 장부·받는 사람 판정(`supabase/migrations/20261118180000_kakao_alimtalk_deliveries.sql`) |
+| 스위치 | `ICONS_KAKAO_ALIMTALK_ENABLED` **OFF**. 운영은 처리방침 개정 시행일(`KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE` = 2026-11-26 KST)부터 열린다 |
 | 채널 | 엑스 스퀘어 — 비즈니스 심사 완료((주)아이콘스, 우리 카카오 앱과 같은 사업자), 채널 공개·검색 허용 켜짐, 고객센터 연락처 `https://xsquare.kr`(2026-11-18 옛 Cafe24 주소에서 바꿈). 마스터는 플레이엑스 공용 카카오 계정 |
-| 처리방침 | 예약 개정 **2026-11-18 공지 · 2026-11-25 시행**(`lib/legal/alimtalk-privacy-revision.json`, 2026-11-18 사용자 결정 '오늘 시작'). 본문 변환은 `documents.ts`(§6) |
+| 처리방침 | 예약 개정 **2026-11-19 공지 · 2026-11-26 시행**(`lib/legal/alimtalk-privacy-revision.json`, 2026-11-18 사용자 결정 '오늘 시작' — 그날 배포하지 못해 공지일을 배포일 11-19로 옮김). 본문 변환은 `documents.ts`(§6) |
 | 사람 게이트 | NHN Cloud 가입(비밀번호·본인인증·결제 수단)·발신 프로필 인증 토큰(§4), env(§5) |
 
 **왜 NHN Cloud(딜러사)가 필요한가.** 카카오는 알림톡 발송 API를 가맹점에 직접 열지 않고 공식 딜러사를 통해서만 제공한다
@@ -113,7 +113,7 @@
    관리자 카카오 계정에 등록된 번호), 카테고리. 인증 토큰이 그 관리자 카카오톡으로 오면 입력한다. 등록되면 **발신 키**
    (40자)가 생긴다. 옛 Cafe24 몰이 이 채널을 다른 딜러사에 발신 프로필로 등록했더라도 NHN 등록은 따로 된다(추정 — 막히면 NHN에 문의).
 4. **템플릿 등록·심사.** §3의 두 템플릿을 그대로 등록하고 검수를 요청한다. 승인되면 템플릿 코드를 기록한다.
-5. ~~처리방침 개정 날짜~~ — 2026-11-18 공지·2026-11-25 시행으로 배포했다(§6). 시행일 0시(KST)부터 방침 본문이 바뀌고
+5. ~~처리방침 개정 날짜~~ — 2026-11-19 공지·2026-11-26 시행으로 배포했다(§6). 시행일 0시(KST)부터 방침 본문이 바뀌고
    운영 게이트가 같은 날 열린다. `/legal/*`은 300초 ISR이라 시행일 0시 직후 방침 화면을 한 번 열어 재생성한다.
 6. **env**(§5)를 Vercel Production·Preview에 넣고 마지막에 스위치를 켠 뒤 재배포한다.
 7. **확인.** 직원 테스트 계정(인증 휴대폰 등록)으로 실제 결제 → 주문 접수 알림톡 1통, 같은 결제 웹훅이 다시 와도 1통 →
