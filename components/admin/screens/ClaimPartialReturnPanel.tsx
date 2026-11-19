@@ -39,7 +39,7 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
   const preview = partialReturn.preview;
   return (
     <section aria-label="부분 반품" className="flex flex-col gap-2 text-sm" data-claim-partial-return>
-      <h4 className="text-xs font-medium text-muted-foreground">부분 반품 — 고객이 고른 굿즈만 회수·환불합니다</h4>
+      <h4 className="text-xs font-medium text-muted-foreground">부분 반품 — 고객이 고른 상품만 회수·환불합니다</h4>
       <ul className="flex flex-col gap-1">
         {partialReturn.items.map((item) => (
           <li className="flex items-baseline justify-between gap-3" key={item.orderItemId}>
@@ -58,7 +58,7 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
         </p>
       ) : preview ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-partial-return-preview>
-          <dt className="text-muted-foreground">굿즈 결제 몫</dt><dd className="tabular-nums">{krw(preview.goodsRefundAmount)}</dd>
+          <dt className="text-muted-foreground">상품 결제 몫</dt><dd className="tabular-nums">{krw(preview.goodsRefundAmount)}</dd>
           {preview.shippingRefundAmount > 0 ? <><dt className="text-muted-foreground">비게 된 배송 묶음 배송비</dt><dd className="tabular-nums">{krw(preview.shippingRefundAmount)}</dd></> : null}
           <dt className="text-muted-foreground">반품배송비</dt>
           <dd>{preview.returnFeeDeduction > 0
@@ -85,7 +85,7 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        환불 금액은 [환불 접수]를 기록할 때 정해지고 바뀌지 않습니다. 남은 굿즈는 주문에 그대로 남고, 남은 굿즈를 모두 반품하면 주문 전체 반품으로 받습니다.{' '}
+        환불 금액은 [환불 접수]를 기록할 때 정해지고 바뀌지 않습니다. 남은 상품은 주문에 그대로 남고, 남은 상품을 모두 반품하면 주문 전체 반품으로 받습니다.{' '}
         <Link className="underline" href={adminOrderSearchHref(orderId)}>주문 상세의 부분 환불 기록</Link>
       </p>
     </section>

@@ -180,11 +180,11 @@ export function claimRefundCompletionConfirmation(
 ) {
   if (!finalizationPending) return '환불 완료를 원장에 기록할까요?';
   if (partialReturn) {
-    const amount = partialReturn.refundAmount === null ? '고른 굿즈 몫' : krwAmountWords(partialReturn.refundAmount);
+    const amount = partialReturn.refundAmount === null ? '고른 상품 몫' : krwAmountWords(partialReturn.refundAmount);
     const deduction = partialReturn.deductionAmount > 0 ? `(반품배송비 ${krwAmountWords(partialReturn.deductionAmount)} 차감)` : '';
     return autoCancelLabel
-      ? `${autoCancelLabel} 결제에서 부분 반품한 굿즈 몫 ${amount}${deduction}을 부분 취소하고, 고른 굿즈만 재고 복원·카드팩 판정을 확정할까요? 남은 굿즈와 주문은 그대로 남습니다. 되돌릴 수 없습니다.`
-      : `부분 반품한 굿즈 몫 ${amount}${deduction}의 환불 완료를 기록할까요?`;
+      ? `${autoCancelLabel} 결제에서 부분 반품한 상품 몫 ${amount}${deduction}을 부분 취소하고, 고른 상품만 재고 복원·카드팩 판정을 확정할까요? 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`
+      : `부분 반품한 상품 몫 ${amount}${deduction}의 환불 완료를 기록할까요?`;
   }
   if (autoCancelLabel && partialRefund) {
     return `${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`;
@@ -199,9 +199,9 @@ export function claimRefundCompletionConfirmation(
 
 /** 무통장 부분 반품(ADR-0047)의 환불 접수 확인 문구. 접수가 곧 재고 복원·송금 대기 적용이라 되돌릴 수 없음을 말한다. */
 export function partialReturnBankFilingConfirmation(partialReturn: { refundAmount: number | null; deductionAmount: number }) {
-  const amount = partialReturn.refundAmount === null ? '고른 굿즈 몫' : krwAmountWords(partialReturn.refundAmount);
+  const amount = partialReturn.refundAmount === null ? '고른 상품 몫' : krwAmountWords(partialReturn.refundAmount);
   const deduction = partialReturn.deductionAmount > 0 ? `(반품배송비 ${krwAmountWords(partialReturn.deductionAmount)} 차감)` : '';
-  return `부분 반품 환불 ${amount}${deduction}을 접수할까요? 접수하면 고른 굿즈의 재고를 지금 복원하고 환불 송금 대기에 올립니다. 남은 굿즈와 주문은 그대로 남습니다. 되돌릴 수 없습니다.`;
+  return `부분 반품 환불 ${amount}${deduction}을 접수할까요? 접수하면 고른 상품의 재고를 지금 복원하고 환불 송금 대기에 올립니다. 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`;
 }
 
 function Feedback({ state }: { state: AdminClaimActionState }) {
@@ -672,16 +672,16 @@ export function ClaimActionPanel({
           <ClaimDefectiveStockChoice idPrefix="claim-bank-stock-disposition" items={defectiveStock.items} />
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">품목별 재고 처리 저장</Button>
           <p className={HINT_CLASS}>{partialReturn?.convertible
-            ? '계좌 송금 부분 환불로 바꿀 때 고른 굿즈의 재고가 정해집니다. 불량 굿즈가 있으면 전환 전에 저장해주세요.'
+            ? '계좌 송금 부분 환불로 바꿀 때 고른 상품의 재고가 정해집니다. 불량 상품이 있으면 전환 전에 저장해주세요.'
             : partialReturn?.bank
-            ? '무통장 부분 반품은 [환불 접수]를 기록할 때 고른 굿즈의 재고가 정해집니다. 그 전에 저장해주세요.'
+            ? '무통장 부분 반품은 [환불 접수]를 기록할 때 고른 상품의 재고가 정해집니다. 그 전에 저장해주세요.'
             : '무통장 환불은 위 [취소 확정]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다. 그 전에 저장해주세요.'}</p>
         </form>
       ) : null}
 
 
       {partialReturnUnavailable && claimType === 'return' && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected' ? (
-        <AdminNotice tone="warning">부분 반품 정보를 읽지 못해 환불 단계를 열지 않았습니다. 고객이 일부 굿즈만 반품했을 수 있으니 화면을 새로고침한 뒤 진행해주세요.</AdminNotice>
+        <AdminNotice tone="warning">부분 반품 정보를 읽지 못해 환불 단계를 열지 않았습니다. 고객이 일부 상품만 반품했을 수 있으니 화면을 새로고침한 뒤 진행해주세요.</AdminNotice>
       ) : null}
 
       {canFileRefund && !bankTransfer ? (
@@ -704,7 +704,7 @@ export function ClaimActionPanel({
           </Button>
           {partialReturn?.bank ? (
             <p className={HINT_CLASS}>
-              무통장 부분 반품은 접수와 함께 고른 굿즈의 재고를 복원하고 환불 송금 대기에 올립니다. 되돌릴 수 없습니다.
+              무통장 부분 반품은 접수와 함께 고른 상품의 재고를 복원하고 환불 송금 대기에 올립니다. 되돌릴 수 없습니다.
             </p>
           ) : autoCancelLabel ? (
             <p className={HINT_CLASS}>
@@ -736,7 +736,7 @@ export function ClaimActionPanel({
           {refundFinalizationPending ? (
             <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
               {autoCancelLabel && partialReturn
-                ? `누르면 ${autoCancelLabel} 결제에서 부분 반품한 굿즈 몫${partialReturn.refundAmount === null ? '' : ` ${krwAmountWords(partialReturn.refundAmount)}`}만 부분 취소하고 결제사 잔액을 조회로 확인합니다. 확인되면 고른 굿즈만 재고 복원·카드팩 판정을 하고 남은 굿즈와 주문은 그대로 둡니다. 결제사가 부분 취소를 받지 않으면 전액 환불로 돌리지 않고 확인 필요로 남습니다.`
+                ? `누르면 ${autoCancelLabel} 결제에서 부분 반품한 상품 몫${partialReturn.refundAmount === null ? '' : ` ${krwAmountWords(partialReturn.refundAmount)}`}만 부분 취소하고 결제사 잔액을 조회로 확인합니다. 확인되면 고른 상품만 재고 복원·카드팩 판정을 하고 남은 상품과 주문은 그대로 둡니다. 결제사가 부분 취소를 받지 않으면 전액 환불로 돌리지 않고 확인 필요로 남습니다.`
                 : partialReturn
                 ? '무통장 부분 반품은 환불 접수 때 송금 대기로 올라갑니다. 송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.'
                 : autoCancelLabel && partialRefund

@@ -83,6 +83,6 @@ describe('판매자 직접 접수 액션', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.rpc.mockResolvedValueOnce({ error: { code: '23514', message: 'partial_return_item_shipment_not_dispatched' } });
     expect(await submitSellerClaimIntakeAction({ ...sellerClaimInputFixture, items: [{ orderItemId: item, qty: 1 }] }))
-      .toMatchObject({ uncertain: false, error: expect.stringContaining('일부 반품할 수 없는 굿즈') });
+      .toMatchObject({ uncertain: false, error: expect.stringContaining('일부 반품할 수 없는 상품') });
   });
 });

@@ -440,7 +440,7 @@ export function ClaimDetailScreen({
                   {claim.claimType === 'return' ? <ClaimPartialReturnPanel claimId={claim.id} orderId={order.id} partialReturn={partialReturn} /> : null}
                   <p className="text-xs text-muted-foreground">
                     {partialReturnEnabled
-                      ? `반품은 고객이 고른 굿즈·수량만 회수·환불할 수 있습니다(부분 반품). 취소·교환은 주문 단위입니다. 일부 품목만 불량인 교환은 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내합니다.`
+                      ? `반품은 고객이 고른 상품·수량만 회수·환불할 수 있습니다(부분 반품). 취소·교환은 주문 단위입니다. 일부 품목만 불량인 교환은 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내합니다.`
                       : `${V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품, 또는 교환에서 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내하고, 부분 환불을 약속하지 마세요.`}
                   </p>
                   <Link className={OUTLINE_SM} data-slot="button" href={adminOrderSearchHref(order.id)}>

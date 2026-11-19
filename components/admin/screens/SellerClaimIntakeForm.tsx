@@ -86,7 +86,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
   async function submit(retry = false) {
     if (busy.current || receipt || (dispatched.current && !retry) || (uncertain ? !retry : Boolean(blocked))) return;
     /* 부분 반품: 아무것도 고르지 않았으면 주문 전체로 바꿔 보내지 않고 다시 고르게 한다. 수거 계획은 고른 굿즈의 출고지만 보낸다. */
-    if (!dispatched.current && partialScope && !partialSelection) { setError('일부 반품할 굿즈와 수량을 1개 이상 골라주세요.'); return; }
+    if (!dispatched.current && partialScope && !partialSelection) { setError('일부 반품할 상품과 수량을 1개 이상 골라주세요.'); return; }
     const original: SellerClaimSubmission = dispatched.current ?? (partialSelection
       ? { ...structuredClone(input), collections: input.collections.filter(row => selectedShipments.has(row.shipmentId)), items: partialSelection }
       : structuredClone(input));
@@ -142,9 +142,9 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
             <label className={`${FIELD} ${WIDE}`} htmlFor="seller-claim-reason"><span className={FIELD_LABEL}>접수 사유</span><textarea className="w-full" id="seller-claim-reason" required maxLength={200} rows={3} value={input.reason} onChange={event => change('reason', event.target.value)} /></label>
           </div>
           {input.claimType === 'return' && partialReturn.enabled ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" data-seller-partial-return={returnScope}>
-            <p className="font-medium">반품할 굿즈</p>
+            <p className="font-medium">반품할 상품</p>
             <label className="flex items-center gap-2"><input type="radio" name="seller-claim-return-scope" checked={!partialScope} onChange={() => setReturnScope('whole')} />주문 전체</label>
-            <label className="flex items-center gap-2"><input type="radio" name="seller-claim-return-scope" disabled={!partialOpen} checked={partialScope} onChange={() => setReturnScope('partial')} />고객이 고른 굿즈만(부분 반품)</label>
+            <label className="flex items-center gap-2"><input type="radio" name="seller-claim-return-scope" disabled={!partialOpen} checked={partialScope} onChange={() => setReturnScope('partial')} />고객이 고른 상품만(부분 반품)</label>
             {partialReturn.blocker ? <p className={HINT}>{partialReturnOrderBlockerLabel(partialReturn.blocker)}</p> : null}
             {partialScope ? <ul className="flex flex-col gap-2">{partialReturn.items.map(item => {
               const reason = partialReturnItemBlockerLabel(item.blocker);
@@ -152,10 +152,10 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
                 <span className="min-w-0 break-words">{item.goodName}{item.variantName ? ` (${item.variantName})` : ''} · 남은 {item.activeQty}개{item.originName ? ` · ${item.originName}` : ''}</span>
                 {reason ? <small className={HINT}>{reason}</small> : <input aria-label={`${item.goodName} 반품 수량`} className="w-20" type="number" min={0} max={item.activeQty} inputMode="numeric"
                   value={quantities[item.orderItemId] ?? 0} onChange={event => { const value = Number.parseInt(event.target.value || '0', 10); setQuantities(current => ({ ...current, [item.orderItemId]: Number.isFinite(value) ? Math.min(Math.max(value, 0), item.activeQty) : 0 })); setError(''); }} />}
-                {item.returnRestricted ? <small className={HINT}>반품 제한 굿즈{item.restrictionReason ? `(${item.restrictionReason})` : ''} — 단순 변심이면 사후 판단</small> : null}
+                {item.returnRestricted ? <small className={HINT}>반품 제한 상품{item.restrictionReason ? `(${item.restrictionReason})` : ''} — 단순 변심이면 사후 판단</small> : null}
               </li>;
             })}</ul> : null}
-            <p className={HINT}>고른 굿즈의 출고지만 수거하고, 고른 굿즈의 결제 몫(비게 된 배송 묶음 배송비 포함, 단순 변심은 반품배송비 차감)만 환불합니다. 남은 굿즈를 모두 고르면 주문 전체 반품으로 접수됩니다.</p>
+            <p className={HINT}>고른 상품의 출고지만 수거하고, 고른 상품의 결제 몫(비게 된 배송 묶음 배송비 포함, 단순 변심은 반품배송비 차감)만 환불합니다. 남은 상품을 모두 고르면 주문 전체 반품으로 접수됩니다.</p>
           </div> : null}
           {blocked ? <p className="text-destructive" role="status">{blocked}</p> : null}
           {context.activeClaim ? <Link className="w-fit underline underline-offset-4" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[context.activeClaim.claimType]}/${context.activeClaim.id}`}>현재 진행 중인 요청 열기</Link> : null}
@@ -183,7 +183,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
             const skipped = partialScope && !selectedShipments.has(target.shipmentId);
             return <div className="flex min-w-0 flex-col gap-2 border-t pt-3" key={target.shipmentId} data-seller-collection-skipped={skipped ? '' : undefined}>
               <h4 className="font-medium">{target.originName}</h4><p>{target.items.map(item => `${item.name} ${item.qty}개`).join(' · ')}</p>
-              {skipped ? <p className={HINT}>고른 굿즈가 없는 출고지라 이번 부분 반품에서는 수거하지 않습니다(수거 계획을 보내지 않습니다).</p> : null}
+              {skipped ? <p className={HINT}>고른 상품이 없는 출고지라 이번 부분 반품에서는 수거하지 않습니다(수거 계획을 보내지 않습니다).</p> : null}
               <p className={HINT}>현재 반송지: {target.returnAddress || '미설정 · 승인 전에 출고지 반송 주소를 등록해주세요.'}</p>
               <div className={FIELDS}>
                 <label className={FIELD} htmlFor={`seller-claim-method-${index}`}><span className={FIELD_LABEL}>수거 방법</span><select className="w-full" id={`seller-claim-method-${index}`} value={row.method} onChange={event => change('collections', input.collections.map((entry, position) => position === index ? { ...entry, method: event.target.value as SellerClaimInput['collections'][number]['method'], ...(event.target.value === 'not_requested' ? { carrier: null, trackingNumber: null } : {}) } : entry))}>{SELLER_CLAIM_COLLECTION_METHODS.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label>
@@ -202,7 +202,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
           <p className={HINT}>고객에게 확인한 계좌만 입력해주세요. 원 결제수단으로 환급하지 못할 때 사용하며, 처리 종결 후 기존 보관 기한에 따라 원문을 파기합니다.</p>
           <div className={FIELDS}>{([{ key: 'bankName', label: '은행', max: 40 }, { key: 'accountNumber', label: '환불계좌 번호', max: 30 }, { key: 'accountHolder', label: '예금주', max: 40 }] as const).map(field => <label className={FIELD} key={field.key} htmlFor={`seller-claim-${field.key}`}><span className={FIELD_LABEL}>{field.label}</span><input className="w-full" id={`seller-claim-${field.key}`} autoComplete="off" maxLength={field.max} value={input.refundAccount?.[field.key] ?? ''} onChange={event => change('refundAccount', { bankName: input.refundAccount?.bankName ?? '', accountNumber: input.refundAccount?.accountNumber ?? '', accountHolder: input.refundAccount?.accountHolder ?? '', [field.key]: event.target.value })} /></label>)}</div>
         </fieldset> : null}
-        <label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" required disabled={locked} checked={input.agreementConfirmed} onChange={event => change('agreementConfirmed', event.target.checked)} /><span>고객이 {partialScope ? '고른 굿즈' : '주문 전체'}의 {claimLabel}{input.claimType === 'cancel' ? '를' : '을'} 요청했고, 입력한 사유{input.claimType === 'cancel' ? '' : '와 수거 계획'}에 동의했음을 확인했습니다.</span></label>
+        <label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" required disabled={locked} checked={input.agreementConfirmed} onChange={event => change('agreementConfirmed', event.target.checked)} /><span>고객이 {partialScope ? '고른 상품' : '주문 전체'}의 {claimLabel}{input.claimType === 'cancel' ? '를' : '을'} 요청했고, 입력한 사유{input.claimType === 'cancel' ? '' : '와 수거 계획'}에 동의했음을 확인했습니다.</span></label>
         <div className="flex flex-wrap items-center gap-2">
           {uncertain ? <><button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void readback(); }}>같은 요청의 저장 결과 확인</button>
             <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void submit(true); }}>같은 내용으로 다시 접수</button></>
