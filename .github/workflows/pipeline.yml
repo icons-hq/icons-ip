@@ -1386,7 +1386,8 @@ jobs:
   smoke-production:
     name: smoke-production
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 최악: 경로 4 × (요청 10초 × 5회 + 대기 10초 × 4회) ≈ 6분 + 배포 id 조회 20초. 응답 없는 운영에서도 cancelled가 아니라 실패로 끝나도록 여유를 둔다.
+    timeout-minutes: 15
     needs:
       - deploy-vercel
     if: >-

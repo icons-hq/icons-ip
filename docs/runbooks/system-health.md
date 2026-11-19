@@ -83,6 +83,7 @@ pg_cron `system-job-records-maintenance`(10분마다)가 실패 기록 30일, 30
 
 - **배포 id 비교**: deploy-vercel이 `vercel deploy`가 출력한 배포 URL을 job output으로 넘기면 스모크가 Vercel API(`GET /v13/deployments/{host}`, `VERCEL_TOKEN`·`VERCEL_ORG_ID`)로 배포 id(`dpl_…`)를 찾아 `/api/health`의 `deploymentId`(런타임 시스템 변수 `VERCEL_DEPLOYMENT_ID`)와 맞춘다. 롤백 등으로 방금 올린 배포가 도메인에 붙지 않았는데 이전 배포가 200을 주는 경우를 잡는다. URL·토큰이 없거나 조회가 안 되면 경고(`Deployment id check skipped`)만 남기고 비교를 건너뛴다(조회 API 형식은 Vercel 문서 기준이며 첫 운영 배포에서 경고가 나오는지 확인한다).
 - **실패의 영향**: 스모크가 별도 job이라 실패해도 로그인 복구 템플릿 활성화·shared preview 동기화·staging 배포·PR preview 가드는 그대로 진행되고, 이 job만 빨갛게 되어 GitHub 실패 알림이 간다. 배포는 이미 올라간 뒤라 자동 롤백은 하지 않는다 — 운영 화면을 직접 확인하고 필요하면 Vercel에서 이전 배포로 되돌린다. run 전체 결론은 failure가 되지만 `production_redeploy`의 원본 run 검사는 smoke job 하나만 실패한 run을 허용한다(deploy-supabase·deploy-vercel 성공, 다른 job 실패 없음).
+- **옛 run 재실행 주의**: main이 앞서 나간 뒤 옛 run의 스모크를 `rerun --failed` 하면 그 run이 올린 배포 id와 지금 도메인에 붙은 배포가 달라 다시 실패한다(정상). 최신 run에서만 다시 돌린다.
 - **다시 돌리기**: 일시 실패면 해당 run에서 `gh run rerun <run-id> --failed`로 이 job만 다시 돌린다(배포·DB는 다시 실행하지 않는다).
 - staging 배포에는 붙이지 않았다(별칭이 보호 모드일 수 있고 운영 판단 근거가 아니다). `SMOKE_ORIGIN` 환경 변수로 다른 주소에 같은 스크립트를 돌릴 수는 있다.
 - 외부 가동 감시(UptimeRobot 등)가 필요하면 `/api/health`를 그대로 지정한다(사람 단계). 운영 알림 메일 cron이 멈추면 그 사실은 메일로 알릴 수 없으므로 이 외부 감시가 유일한 안전망이다.

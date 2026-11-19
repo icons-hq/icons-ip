@@ -210,6 +210,18 @@ select 1/case when (select count(*) from private.admin_operation_alerts where ev
 insert into public.email_deliveries(dedupe_key,template,recipient,subject,status,safe_error_code,claimed_at) values('ops-digest-test:mail2','order_confirmation','y@example.test','TEST','failed','provider_failure',now()+interval '6 hours');
 select private.raise_system_health_alerts(now()+interval '7 hours');
 select 1/case when (select count(*) from private.admin_operation_alerts where event_key like 'system_email_failures:%')=:'mail_rows'::integer+1 then 1 else 0 end as assert_new_mail_failure_added;
+-- 트랙 D의 '취소 뒤 출고 발견'·'발견 기록 실패' 알림(category='orders')은 시스템 장애로 세고, 일반 주문 알림은 세지 않는다.
+-- (뒤의 지연·시스템 시험과 섞이지 않게 별도 요약으로: 이 시점 이전 알림은 모두 표식이 찍혀 있다.)
+insert into private.admin_operation_alerts(event_key,category,title,href) values
+ ('canceled_shipment_dispatch:0a1e0000-0000-4000-8000-0000000000f1:created','orders','TEST 취소한 주문의 상품이 출고된 것으로 확인됐습니다.','/admin/sales/orders/x'),
+ ('canceled_shipment_dispatch_failed:0a1e0000-0000-4000-8000-0000000000f2:x','orders','TEST 취소 뒤 출고 기록을 남기지 못했습니다.','/admin/sales/orders/y'),
+ ('orders:0a1e0000-0000-4000-8000-0000000000f3:paid','orders','TEST 신규 결제 주문이 있습니다.','/admin/sales/orders/z');
+select private.prepare_ops_alert_digest(now()+interval '5 hours 50 minutes') as p6 \gset
+select 1/case when :'p6'::jsonb->>'status'='prepared'
+ and (select (counts->>'system')::integer>=2 and system_titles @> '["TEST 취소한 주문의 상품이 출고된 것으로 확인됐습니다.","TEST 취소 뒤 출고 기록을 남기지 못했습니다."]'::jsonb
+   from private.ops_alert_digest_runs where id=(:'p6'::jsonb->>'runId')::uuid)
+ then 1 else 0 end as assert_dispatch_alerts_counted_as_system;
+
 -- 요약 메일 자신의 발송 실패는 시스템 알림을 만들지 않는다(주소 하나가 계속 거절돼도 끝없이 반복하지 않게).
 select public.enqueue_email_intent('ops_alert_digest',repeat('7',64),repeat('8',64),'ops_alert_digest','ops_alert_digest_v1')->>'intentId' as own_intent \gset
 update private.email_intents set state='failed',updated_at=now()+interval '8 hours' where id=:'own_intent';

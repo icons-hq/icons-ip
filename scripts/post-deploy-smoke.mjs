@@ -52,7 +52,7 @@ export async function runSmoke({
   expectedDeploymentId = null,
   attempts = 5,
   delayMs = 10_000,
-  timeoutMs = 20_000,
+  timeoutMs = 10_000,
   fetchImpl = fetch,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   log = console.log,

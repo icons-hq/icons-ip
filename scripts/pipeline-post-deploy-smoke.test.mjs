@@ -16,7 +16,7 @@ describe('production post-deploy smoke contract', () => {
     expect(normalize(smoke.if)).toBe("!cancelled() && needs.deploy-vercel.result == 'success'");
     expect(smoke.steps.find((step) => step.name === 'Smoke-test production').run).toBe('node scripts/post-deploy-smoke.mjs');
     expect(smoke.steps.every((step) => step['continue-on-error'] === undefined)).toBe(true);
-    expect(smoke['timeout-minutes']).toBeLessThanOrEqual(10);
+    expect(smoke['timeout-minutes']).toBe(15);
   });
 
   it('is not a dependency of any other job', () => {

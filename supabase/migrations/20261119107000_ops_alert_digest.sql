@@ -14,6 +14,9 @@
 --   · 메일에는 건수·분류·어드민 링크·자동 작업 이름만 싣는다. 문의 제목·본문·고객 이름·연락처는 싣지 않는다.
 --   · 발송은 안전재고 요약 메일처럼 durable dispatcher(전용 gate = 이 설정의 '사용')와 (실행, 주소)당 한 행의 멱등 키를 쓴다.
 --   · 기본은 꺼짐이다. 이 migration은 메일을 보내지 않는다.
+-- 출고 이상: 취소한 주문의 상품이 출고된 것으로 확인된 알림(event_key 'canceled_shipment_dispatch:…'·'canceled_shipment_dispatch_failed:…', category='orders',
+-- 20261119104000)은 결제사 취소가 비동기로 끝나 아무도 화면을 안 볼 때 생길 수 있어 '시스템 장애' 요약에 같이 센다. orders 범주 전체는
+-- 신규 결제 알림 때문에 넣지 않는다.
 -- 시스템 장애: 앱 cron의 실행 중 실패(record_system_job_failure)만 category='system' 알림 행을 만든다(20261118162000). Vercel cron이
 -- 불리지 않거나 시간 초과·401, pg_cron 실패·멈춤, 메일 발송 실패, 미종결 결제는 시스템 상태 화면의 판정(system_health_report)에만 있었다.
 -- 그래서 요약을 만들 때(같은 잠금 안) 그 판정에서 실패 중·멈춘 작업, 메일 발송 실패, 미종결 결제를 시간 단위 event_key로
@@ -269,13 +272,13 @@ begin
   if cardinality(seen_ids)>0 then
     select count(*) filter(where a.category='inquiries' and 'inquiries'=any(s.categories)),
            count(*) filter(where a.category='questions' and 'questions'=any(s.categories)),
-           count(*) filter(where a.category='system' and 'system'=any(s.categories))
+           count(*) filter(where (a.category='system' or a.event_key like 'canceled_shipment_dispatch%') and 'system'=any(s.categories))
       into n_inquiries,n_questions,n_system
       from private.admin_operation_alerts a where a.id=any(seen_ids);
     if n_system>0 then
       select coalesce(jsonb_agg(picked.t order by picked.t),'[]'::jsonb) into titles from (
         select distinct a.title as t from private.admin_operation_alerts a
-        where a.category='system' and a.id=any(seen_ids) order by 1 limit 5) picked;
+        where (a.category='system' or a.event_key like 'canceled_shipment_dispatch%') and a.id=any(seen_ids) order by 1 limit 5) picked;
     end if;
   end if;
 
