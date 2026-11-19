@@ -94,6 +94,13 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 4. 처리한 계정은 정지를 해제할 수 없다(`member_withdrawn`). 이미 발급된 access token은 만료(기본 1시간)까지 PostgREST에서 유효하다. 그동안 정지를 확인하는 쓰기 — 구매·예매·작성·카드팩 개봉·게임, 마케팅 정보 수신 새 동의(직접 `consents.marketing` 쓰기 포함, 철회는 언제나 허용), 재입고 알림 신청, '계정' 유형이 아닌 문의 — 는 거절되지만, 위시처럼 정지를 확인하지 않는 본인 행 쓰기는 만료 전까지 될 수 있다.
 5. 문의에 처리 결과를 답변하고 문의를 닫는다.
 
+카카오로만 가입한 회원이 카카오계정을 탈퇴해(카카오 사유 `ACCOUNT_DELETE`·`FORCED_ACCOUNT_DELETE`) 로그인 수단이 영구히 없어진 경우는
+1:1 문의를 쓸 수 없으므로, 카카오 계정 상태 변경 웹훅의 해제 알림을 근거로 같은 처리를 한다(2026-11-19 결정,
+[runbooks/kakao-account-unlink.md](runbooks/kakao-account-unlink.md) §5.1). 어드민 고객 상세의 **카카오 알림으로 탈퇴 처리**
+(`admin_process_kakao_unlink_withdrawal`, 같은 `platform.manage`)가 위 2~4와 같은 확인·삭제·차단을 하고, 카카오 identity(회원번호·
+카카오 프로필)를 함께 지운다. 처리 기록의 근거는 `basis = kakao_unlink`와 해제 원장 행이다. 카카오 연결만 끊은 회원은 다시 로그인할 수
+있으므로 이 경로를 쓰지 않고, 확인 연락 뒤 회원이 쓴 1:1 문의로 위 절차를 따른다.
+
 이 처리는 hard delete가 아니다. §1·§2의 완전한 탈퇴(법정 snapshot 분리 → 메일 fence → hard delete → compliance tombstone)의 선행 조건이 아직 없어서 다음은 남긴다.
 
 | 남는 항목 | 이유 |
@@ -116,8 +123,8 @@ select has_table_privilege('postgres','auth.sessions','delete'), has_table_privi
 - Phase 1 readiness 값 4종(§2 끝): 거래 lookup 연락처 HMAC/key version, legacy 승인·환급·공급의 검증된 시각, immutable 티켓 계약 snapshot, 승인된 커뮤니티·권리사건 보존 seam.
 - #191 이메일 fence(durable outbox·Send Email Hook)와 탈퇴 notice producer·실수신 증거.
 - 삭제 worker(커뮤니티 연결 해제·Storage 전 bucket 인벤토리와 잔여 0건 확인·일반 DB 개인정보 삭제·전역 sign-out·Auth hard delete)와 restore replay.
-- 탈퇴 후 권리행사 창구(§7)와 개인정보처리방침·이용약관 개정(새 시행일·개정 이력). 지금 약관 제7조는 "탈퇴를 처리하면 개인정보를 지체 없이 파기"라고 적지만 이 임시 처리는 위 표의 항목을 남긴다.
-- 이 절차로 처리한 회원의 hard delete 백필 순서. 대상 목록은 `private.member_withdrawal_processings`다.
+- 탈퇴 후 권리행사 창구(§7)와 개인정보처리방침·이용약관 개정(새 시행일·개정 이력). 지금 약관 제7조는 "탈퇴를 처리하면 개인정보를 지체 없이 파기"라고 적지만 이 임시 처리는 위 표의 항목을 남긴다. 카카오계정 탈퇴 알림으로 하는 처리(회원의 요청이 아닌 경우)도 이 개정 때 명시를 검토한다.
+- 이 절차로 처리한 회원의 hard delete 백필 순서. 대상 목록은 `private.member_withdrawal_processings`다(문의·카카오 알림 근거 모두).
 
 ## 6. Secondary Supabase compliance ledger
 

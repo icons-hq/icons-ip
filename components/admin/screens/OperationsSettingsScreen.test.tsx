@@ -21,12 +21,14 @@ it('직원은 담당자 기록과 이력을 읽고 관리 전용 링크와 저�
   expect(html).toContain('readOnly');
   expect(html).not.toContain('담당자 정보 저장');
   expect(html).not.toContain('href="/admin/settings/store-credits"');
+  expect(html).not.toContain('href="/admin/settings/switches"');
 });
 it('관리자는 실제 입력 화면과 출고지별 저장 폼을 사용하며 참조는 텍스트로 렌더한다', () => {
   const html = renderToStaticMarkup(<OperationsSettingsScreen contacts={contacts} history={history} canEdit/>);
   expect(html).toContain('section=bank_transfer');
   expect(html).toContain('href="/admin/catalog/goods"');
   expect(html).toContain('href="/admin/settings/store-credits"');
+  expect(html).toContain('href="/admin/settings/switches"');
   expect(html).toContain('출고지 비활성');
   expect(html).toContain('담당자 정보 미입력');
   expect(html).toContain('정보 입력 3/4');

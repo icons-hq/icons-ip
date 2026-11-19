@@ -42,6 +42,8 @@ const operators = [
   sql('operator_member_loyalty_projection'),
   // 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치(기본 꺼짐)와 platform.manage 감사 저장.
   sql('collectible_feature_control'),
+  // 운영 스위치(지연 안내 메일·반품배송비 차감·재고 부족 부분 취소) 어드민 읽기·저장·감사. platform.manage + sales.manage.
+  sql('operations_switches'),
   // 매월 등급 혜택 쿠폰(S36-062). 실행 월을 2031년으로 고정해 실제 매분 틱과 겹치지 않는다.
   sql('loyalty_monthly_grade_coupons'),
   sql('operator_manual_recovery_guards'),
@@ -239,8 +241,13 @@ const storefront = [
   sql('kakao_channel_friend_coupon'),
   // 카카오 알림톡 주문 안내: 인증 번호 받는 사람 판정과 한 번만 보내기 클레임.
   sql('kakao_alimtalk_deliveries'),
+  // 코드 입력 등급 확인(PAY-028)과 지정 발급 쿠폰 개별 회수(PAY-034). 회수 대 결제 경합은 별도 스크립트.
+  sql('coupon_grade_check_and_revoke'),
+  script('coupon_revoke_concurrency.sh', 'COUPON_REVOKE_TEST_SCOPE'),
   // 카카오 계정 상태 변경 웹훅(user-unlinked): 다른 수단 회원의 카카오 연결 끊기·카카오만 회원의 탈퇴 검토 대기.
   sql('kakao_account_unlink'),
+  // 카카오 연결 해제 탈퇴 검토 대기의 어드민 처리: 카카오계정 탈퇴 사유만 해제 알림으로 처리, 연결만 끊은 회원은 1:1 문의 경로.
+  sql('kakao_unlink_withdrawal_processing'),
   sql('auto_order_confirmation'),
   // 출고 보류(테스트 키 결제·결제사 직접 취소)와 발송 경로 차단·해제.
   sql('order_fulfillment_holds'),

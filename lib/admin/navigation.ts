@@ -268,6 +268,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
       /* 운영하지 않는 카드 바인더·굿즈 마켓·카드 트레이드의 공개 스위치(기본 숨김). 켜고 끄기는 관리자만 한다. */
       { id: 'collectible-features', label: '기능 공개 관리', href: '/admin/settings/features', status: 'ready', adminOnly: true },
+      /* 지연 안내 메일·반품배송비 차감·부분 취소 스위치. 사이드바 상한(8)을 지키려고 숨기고 운영 준비 허브·지연 안내 화면에서 연다. */
+      { id: 'operations-switches', label: '운영 스위치', href: '/admin/settings/switches', status: 'ready', adminOnly: true, navHidden: true },
     ],
   },
   /* 카드 칸: 카드·카드풀·뽑기권·카드팩 발급과 카드 전시가 있는 팬 활동(커뮤니티). */
@@ -331,6 +333,7 @@ const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
   [/^\/admin\/sales\/subscriptions\/[^/]+$/, '정기구매 상세'],
   [/^\/admin\/cs\/inquiries\/[^/]+$/, '고객문의 상세'],
   [/^\/admin\/customers\/[^/]+$/, '고객 상세'],
+  [/^\/admin\/community\/members\/kakao-unlinks$/, '카카오 탈퇴 검토 대기'],
   [/^\/admin\/catalog\/goods\/export$/, '상품 엑셀 내보내기'],
   [/^\/admin\/catalog\/ips\/[^/]+$/, 'IP 상세'],
   [/^\/admin\/sales\/discount-promotions\/new$/, '새 할인 프로모션'],

@@ -16,6 +16,7 @@ vi.mock('react', async () => ({
 vi.mock('@/app/admin/member-withdrawal-actions', () => ({
   previewMemberWithdrawalInquiryAction: mocks.preview,
   processMemberWithdrawalAction: vi.fn(),
+  processKakaoUnlinkWithdrawalAction: vi.fn(),
   retryMemberWithdrawalSigninBlockAction: vi.fn(),
 }));
 import { setAdminConfirmHandler, type AdminConfirmRequest } from '@/lib/admin/confirm';
@@ -113,3 +114,27 @@ it('그 회원의 문의가 아니면 확인창 없이 멈추고 이유를 보�
   expect(target.requestSubmit).not.toHaveBeenCalled();
   expect(hooks.state).toContain('이 회원이 쓴 1:1 문의 번호가 아닙니다.');
 });
+
+it('카카오 알림 처리는 사유·수신 시각을 보인 확인창을 거친 뒤에만 같은 제출자로 다시 제출한다', async () => {
+  const kakaoCustomer: AdminMemberDetail = { ...customer, withdrawal: { ...customer.withdrawal!,
+    kakaoUnlink: { reason: 'FORCED_ACCOUNT_DELETE', eventAt: '2026-11-19T01:00:00Z', accountClosed: true } } };
+  hooks.stateIndex = 0; hooks.refIndex = 0;
+  const form = all(CustomerWithdrawalControl({ actor: { id: 'actor', role: 'admin' }, customer: kakaoCustomer }))
+    .filter((element) => element.type === 'form' && element.props.onSubmit)[0];
+  const target = { isConnected: true, requestSubmit: vi.fn() };
+  const event = { preventDefault: vi.fn(), currentTarget: target, nativeEvent: { submitter: 'kakao-submit' } };
+  answer = false;
+  form.props.onSubmit!(event);
+  await settle();
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(confirms[0]).toMatchObject({ title: '카카오 알림으로 탈퇴 처리', confirmLabel: '탈퇴 처리', destructive: true });
+  expect(confirms[0].message).toMatch(/^카카오 연결 해제 알림 · 카카오계정 강제 탈퇴/);
+  expect(target.requestSubmit).not.toHaveBeenCalled();
+  expect(mocks.preview).not.toHaveBeenCalled();
+
+  answer = true;
+  form.props.onSubmit!({ ...event, preventDefault: vi.fn() });
+  await settle();
+  expect(target.requestSubmit).toHaveBeenCalledWith('kakao-submit');
+});
+

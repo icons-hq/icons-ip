@@ -29,25 +29,30 @@ where published_at is not null and archived_at is null
 order by id;
 ```
 
-## 켜기(후속 migration)
+## 켜기(어드민 운영 스위치)
 
-운영 DB 직접 수정이 아니라 새 migration으로 켠다(감사 기록 `system.return_fee_deduction.settings_changed`가 남는다).
+게이트 5개가 채워지면 어드민 운영 준비 → 운영 스위치(`/admin/settings/switches`, 통합 매니저·계정 주매니저, 전환 전에는 admin)의 '반품배송비 차감'에서 켠다.
+확인 항목을 체크하고 편도 금액(게이트 3의 운영값)과 근거를 적으면 `admin_save_return_fee_deduction_switch`가 저장하고 감사 기록
+`admin.operations_switch.return_fee_deduction`(요청·이전 값·결과)을 남긴다(작업 ID 멱등, 낡은 리비전은 거절). 끄는 것도 같은 화면이다 — 금액·근거는 남는다.
+화면이 쓰는 SQL은 아래와 같고, SQL 편집기·migration으로 직접 바꾸면 `system.return_fee_deduction.settings_changed`가 남는다(이 경우만 — 화면 저장은 위 감사 한 줄만 남긴다).
 
 ```sql
 update private.return_fee_deduction_settings
 set enabled = true,
     one_way_amount = 3000,                       -- 게이트 3의 운영값
-    evidence = '배송·반품 정책 개정 공지 2026-MM-DD, 서원 운임 계약 2026-MM-DD',
-    enabled_at = now()
+    evidence = '배송·반품 정책 개정 공지 2026-MM-DD, 서원 반품 배송비 계약 2026-MM-DD',
+    enabled_at = now()                           -- 이 시각 이후 접수된 반품부터 차감
 where singleton;
 ```
 
-켜는 PR에서 함께 한다.
+**켠 시각 이후 접수된 요청부터 차감한다.** 켜기 전에 접수된 단순 변심 반품은 환불 접수가 켠 뒤여도 전액 환불이다(고객이 접수 때 안내받은 금액을 바꾸지 않는다). 운영 스위치 화면이 켜기 전 진행 중인 단순 변심 반품 건수를 보인다.
+
+켠 뒤 다음을 함께 한다.
 
 - 반품 접수 안내 연결: `components/orders/OrderClaimRequest.tsx`가 `ORDER_CLAIM_INTAKE_NOTICES.return` 대신
   `orderClaimIntakeNotice('return', policy)`를 쓰고, 정책은 `loadReturnFeeDeductionPolicy()`(공개 RPC
   `get_return_fee_deduction_policy`)로 읽는다. 상품 상세 '반품/교환 안내'(`components/shop/GoodAdditionalInfo.tsx`)의
-  반품비 문구도 같은 정책을 가리키게 한 줄 잇는다.
+  반품비 문구는 코드로 이어져 있다 — 차감이 켜져 있으면 `loadGoodShippingPolicy`가 템플릿의 고객 귀책 반품비(편도)·무료배송 후 반품비(왕복)를 정책 금액(편도·2배)으로 바꿔 싣고, 스위치를 저장하면 상품 상세를 다시 그린다. 템플릿 값이 정책과 달라도 켜진 동안은 정책 금액이 보인다.
 - 운영 가이드(`lib/admin/guide/topics/claims.ts`)·주간 변경 기록에 아래 '켤 때 넣을 문장'을 넣는다.
 
 ## 켠 뒤 처리 흐름
