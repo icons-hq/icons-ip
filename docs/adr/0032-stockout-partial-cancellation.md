@@ -4,6 +4,7 @@
 - 일부 대체: [부분 취소·부분 반품 제외 계약](../research/smartstore-admin/partial-claims-contract.md)(2026-10-12)과 [ADR-0017](./0017-order-claim-intake-and-origin-collections.md)의 "주문 전체·결제금액 전액" 중 **발송 전 재고 부족 품목·수량**에 한한 부분. 고객 직접 신청·반품·교환은 그대로 주문 전체다.
 - 보완: [ADR-0018](./0018-staff-initiated-order-cancellation.md)(운영자 전액 취소와 같은 발송 전 조건·창고 출고 중단 확인), [ADR-0031](./0031-return-fee-deduction-partial-refund.md)(결제사 부분 취소 기반을 여러 번 쓴다), [ADR-0010](./0010-bank-transfer-refund-finalize-order.md)(무통장은 송금 대기 → 송금 증빙)
 - 관련: QNA-020(서원 회신 C7·E1), T12a 반품배송비 차감
+- 보완: 부분 반품([ADR-0047](./0047-partial-return.md), 2026-11-19)은 같은 부분 환불 원장(`reason_code='return'`)·같은 누적 비례·같은 결제사 부분 취소 오케스트레이터를 쓴다. 결정 10의 읽는 쪽이 부분 반품을 함께 센다(재고 대조의 '창고를 떠난 수량'만 발송 전 부분 취소로 한정).
 
 ## 맥락
 
