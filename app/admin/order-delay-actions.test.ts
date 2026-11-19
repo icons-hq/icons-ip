@@ -21,8 +21,15 @@ describe('지연 안내 서버 액션',()=>{
  it('클라이언트 수신자를 받지 않고 선택한 배송 건과 별도 고객 문구만 DB에 전달한다',async()=>{
   mocks.rpc.mockResolvedValue({data:notice,error:null});
   const result=await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id,id],title:' 발송 지연 안내 ',body:' 별도 고객 문구 ',expectedShipDate:null});
-  expect(result).toEqual({notice,emailConfigured:true});
+  expect(result).toEqual({notice,emailConfigured:true,switchesLink:false});
   expect(mocks.rpc).toHaveBeenCalledWith('admin_prepare_order_delay_notice',{target_notice:id,target_shipments:[id],customer_title:'발송 지연 안내',customer_body:'별도 고객 문구',expected_ship_date:null});
+ });
+ it('이메일 스위치 화면을 열 수 있는 관리자에게만 꺼짐 안내용 링크 표시를 알린다',async()=>{
+  mocks.rpc.mockResolvedValue({data:notice,error:null});
+  const admin=await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id],title:'발송 지연 안내',body:'별도 고객 문구',expectedShipDate:null});
+  expect(admin).toMatchObject({switchesLink:false});
+  mocks.auth.mockResolvedValue({isConfigured:true,user:{id:'admin'},isStaff:true,role:'admin',operatorAccess:legacyOperatorAccessFixture()});
+  expect(await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id],title:'발송 지연 안내',body:'별도 고객 문구',expectedShipDate:null})).toMatchObject({switchesLink:true});
  });
  it('메일 설정이 없으면 두 채널 요청을 막고 준비 안 된 이유를 돌려준다',async()=>{
   mocks.rpc.mockResolvedValue({data:notice,error:null});mocks.dispatcher.mockReturnValue(null);
@@ -32,7 +39,7 @@ describe('지연 안내 서버 액션',()=>{
  it('요청 뒤 응답이 유실돼도 이미 저장된 영수증으로 복구하며 추가 채널 발송을 요청하지 않는다',async()=>{
   const requested={...notice,requestedAt:'2026-09-11T00:01:00Z',targets:notice.targets.map(target=>({...target,inAppStatus:'sent',emailStatus:'unknown'}))};
   mocks.rpc.mockResolvedValue({data:requested,error:null});mocks.dispatcher.mockReturnValue(null);
-  expect(await requestOrderDelayNoticeAction(id)).toEqual({notice:requested,emailConfigured:false});
+  expect(await requestOrderDelayNoticeAction(id)).toEqual({notice:requested,emailConfigured:false,switchesLink:false});
   expect(mocks.rpc.mock.calls.map(([name])=>name)).toEqual(['admin_get_order_delay_notice']);
  });
  it('부분 영수증을 성공으로 표시하지 않고 stale 원인을 고객 정보 없이 돌려준다',async()=>{

@@ -32,6 +32,7 @@ import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+import { warehouseStopErrorMessage } from '@/lib/admin/warehouse-stop';
 import {
   ORDER_CLAIM_TYPE_LABELS,
   isOrderClaimType,
@@ -107,6 +108,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_return_address_required')) return '회수 주소가 없는 상품이 있습니다. 상품의 반품/교환지를 고르거나 출고지 설정에 반품 주소를 등록한 뒤 다시 진행해주세요.';
   if (value.includes('claim_collection_bundle_required')) return '반품지가 둘 이상인 배송 건입니다. 반품지별 회수 확인에서 도착한 곳을 골라 확인해주세요.';
   if (value.includes('claim_collection_conflict')) return '이미 다른 근거로 회수 확인된 배송 건입니다. 이력을 확인해주세요.';
+  /* 출고지시가 나간 발송 전 배송 건의 창고 보관 확인은 창고 회신 기록이 근거다(ADR-0046). */
+  if (value.includes('claim_collection_warehouse_already_shipped') || value.includes('claim_collection_warehouse_reply_required')) return warehouseStopErrorMessage(value);
   if (value.includes('claim_collection_not_found')) return '이 클레임에 속한 회수 배송 건을 찾을 수 없습니다.';
   if (value.includes('invalid_collection_evidence')) return '회수 확인 근거를 500자 이내로 입력해주세요.';
   if (value.includes('invalid_collection_received_on')) return '실제 입고일은 주문일부터 오늘 사이의 날짜로 입력해주세요.';
@@ -143,6 +146,12 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
   if (value.includes('reshipment_shipment_required')) return '출고지가 둘 이상인 교환은 배송 건마다 재출고·배송완료를 확인해주세요.';
   if (value.includes('reshipment_shipment_not_found')) return '이 교환의 재출고 대상 출고지가 아닙니다. 최신 정보를 다시 확인해주세요.';
+  /* 배송 분실(택배사 확인, 원장 #15) 기록. */
+  if (value.includes('carrier_loss_return_only')) return '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 생략 재출고를 쓰세요.';
+  if (value.includes('carrier_loss_shipment_not_dispatched')) return '아직 발송되지 않은 배송 건은 분실로 기록할 수 없습니다. 발송 전 몫은 재고 부족 부분 취소로 처리해주세요.';
+  if (value.includes('invalid_carrier_accident_number')) return '택배사 사고 번호를 앞뒤 공백 없이 2~60자로 입력해주세요.';
+  if (value.includes('invalid_carrier_loss')) return '배송 분실 기록 내용을 확인해주세요. 새로고침한 뒤 다시 시도해주세요.';
+  if (value.includes('claim_changed')) return '다른 처리로 요청이 바뀌었습니다. 새로고침한 뒤 최신 상태로 다시 확인해주세요.';
   if (value.includes('collection_waiver_conflict')) return '이 출고지는 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.';
   if (value.includes('collection_waiver_not_allowed')) return '회수 생략은 하자·오배송 교환에서만 쓸 수 있습니다.';
   if (value.includes('collection_waiver_not_needed')) return '이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.';
@@ -548,6 +557,50 @@ export async function waiveOrderClaimCollectionAction(
   return { message: result.productionPending === true
     ? '회수 생략을 기록했습니다. 주문 상세의 주문제작 처리에서 교환품 제작을 마치면 회수 없이 재출고합니다.'
     : '회수 생략을 기록했습니다. 회수·재배송 연락처 처리에서 회수 없이 재출고합니다.' };
+}
+
+/**
+ * 배송 분실을 기록한다(택배사가 분실을 확인한 배송 건, 원장 #15 SHP-095·ADR-0018 보완 2026-11-19).
+ *
+ * 반품(접수 사유와 무관 — 분실은 회사·택배 귀책이라 반품배송비를 빼지 않는다)에서 발송된 배송 건의 회수를 사고 번호·메모·근거 사진으로 대신한다. 모든 출고지가 입고되거나 분실로 기록되면
+ * 회수가 끝나 환불을 진행할 수 있고, 분실 품목은 환불 확정 때 판매 재고로 되돌리지 않는다. 반품·사유·발송 여부·리비전은 DB
+ * (admin_record_order_claim_carrier_loss)가 다시 검사하고, 같은 작업 번호의 재전송은 같은 결과다.
+ */
+export async function recordOrderClaimCarrierLossAction(
+  previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const failureMessage = '배송 분실을 기록하지 못했습니다. 최신 상태를 확인해주세요.';
+  const fail = (error: string) => withPreservedFormValues({ error }, previous, formData, { exclude: ['evidenceFileId'] });
+  const access = await requireStaffAction();
+  if (access.error) return fail(access.error.error ?? failureMessage);
+  const claimId = formData.get('claimId'), shipmentId = formData.get('shipmentId'), operationId = formData.get('operationId');
+  const revisionValue = formData.get('claimRevision');
+  const revision = typeof revisionValue === 'string' && /^\d{1,9}$/u.test(revisionValue) ? Number(revisionValue) : Number.NaN;
+  if (!isUuid(claimId) || !isUuid(shipmentId) || !isUuid(operationId) || !Number.isSafeInteger(revision) || revision < 0) return fail(failureMessage);
+  if (formData.get('confirmed') !== 'on') return fail('택배사가 분실을 확인했고 회수 없이 환불한다는 확인에 체크해주세요.');
+  const accidentNumber = String(formData.get('accidentNumber') ?? '').trim();
+  if (accidentNumber.length < 2 || accidentNumber.length > 60) return fail('택배사 사고 번호를 2~60자로 입력해주세요.');
+  const reason = normalizeClaimWaiverReason(String(formData.get('reason') ?? ''));
+  if (!claimWaiverReasonValid(reason)) return fail(`분실 확인 메모를 ${CLAIM_WAIVER_REASON_MIN}~${CLAIM_WAIVER_REASON_MAX}자로 적어주세요.`);
+  const evidenceValues = formData.getAll('evidenceFileId');
+  const evidenceFileIds = evidenceValues.filter(isUuid);
+  if (evidenceFileIds.length !== evidenceValues.length || evidenceFileIds.length < 1 || evidenceFileIds.length > CLAIM_EVIDENCE_MAX_FILES
+    || new Set(evidenceFileIds).size !== evidenceFileIds.length) {
+    return fail(`분실 근거 사진(택배사 회신·사고 접수 화면)을 1~${CLAIM_EVIDENCE_MAX_FILES}장 올려주세요.`);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_record_order_claim_carrier_loss', {
+    p_claim_id: claimId, p_shipment_id: shipmentId, p_loss: { reason, evidenceFileIds, accidentNumber },
+    p_expected_revision: revision, p_operation_id: operationId,
+  });
+  if (error) return fail(rpcErrorMessage(error.message, failureMessage));
+  const result = typeof data === 'object' && data !== null && !Array.isArray(data) ? data as Record<string, unknown> : null;
+  if (!result || result.claimId !== claimId || result.shipmentId !== shipmentId) return fail(failureMessage);
+  revalidateClaimSurfaces(claimId, 'return');
+  return { message: result.collectionComplete === true
+    ? '배송 분실을 기록했습니다. 모든 출고지의 회수가 끝나 환불을 진행할 수 있습니다. 분실 상품은 판매 재고로 되돌리지 않습니다.'
+    : '배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.' };
 }
 
 interface ManualRecoveryAttemptRow {

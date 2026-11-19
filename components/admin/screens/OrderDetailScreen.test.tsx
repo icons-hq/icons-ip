@@ -209,3 +209,37 @@ it('embedded(목록 위 팝업)에서는 머리의 목록 버튼을 그리지 �
   expect(embedded).not.toContain('>발주·발송 목록<');
   expect(embedded).toContain('>강제 배송완료<');
 });
+
+/* ADR-0045(SHP-048): 판매 관리 권한의 주문 상세는 택배 배송 건마다 한 단계 되돌리기를 두고, 끝난 주문·조회 권한에는 두지 않는다. 타임라인은 되돌리기·도착 일시 기록을 이름으로 적는다. */
+it('배송 상태 정정 패널은 택배 배송 건의 발송·배송완료 되돌리기를 두고 감사 기록에 이름을 붙인다', () => {
+  const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, shipments: [shipmentFixture(), shipmentFixture({ id: '00000000-0000-4000-8000-000000044702', status: 'delivered', deliveredAt: '2026-09-09T00:00:00Z' })],
+    timeline: [...detail.timeline, { id: 'six', source: 'shipment', occurredAt: '2026-09-10T00:00:00Z', action: 'admin.shipment.delivery_reverted', actorName: '수민' },
+      { id: 'seven', source: 'shipment', occurredAt: '2026-09-11T00:00:00Z', action: 'admin.shipment.arrival_recorded', actorName: '지우' }] }} noteOperationId="operation" />);
+  expect(html).toContain('aria-label="배송 상태 정정"');
+  expect(html).toContain('>발송 되돌리기<'); expect(html).toContain('>배송완료 되돌리기<'); expect(html).toContain('한진택배 123456789012');
+  expect(html).toContain('>배송완료 되돌리기</h3>'); expect(html).toContain('>택배사 배송완료 일시 기록</h3>');
+  expect(renderToStaticMarkup(<OrderDetailScreen detail={detail} canManage={false} noteOperationId="operation" />)).not.toContain('배송 상태 정정');
+  expect(renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'done' } }} noteOperationId="operation" />)).not.toContain('배송 상태 정정');
+});
+
+describe('주문 상세 — 결제 전 확인 동의', () => {
+  /* 결제 전 확인 동의(PAY-015) — 운영자가 주문 상세에서 동의 일시와 제한 굿즈를 본다. */
+  it('결제 전 확인 동의 기록이 있으면 일시·문구 버전·청약철회 제한 굿즈를 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" acknowledgement={{ orderId: ORDER, acknowledgedAt: '2026-11-19T01:02:03+00:00', noticeVersion: '2026-11-19',
+      restrictedGoods: [{ goodId: 'g1', name: '각인 키링', returnAllowed: false, exchangeAllowed: null, reason: '각인 주문 제작' }] }} />);
+    expect(html).toContain('결제 전 확인 동의');
+    expect(html).toContain('data-order-acknowledgement="recorded"');
+    expect(html).toContain('동의 일시');
+    expect(html).toContain('청약철회·교환 제한 상품');
+    expect(html).toContain('2026-11-19');
+    expect(html).toContain('각인 키링 — 각인 주문 제작');
+  });
+  it('동의 기록이 없는 주문은 기록 없음으로 알리고 읽지 못했으면 칸을 그리지 않는다', () => {
+    const missing = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" acknowledgement={null} />);
+    expect(missing).toContain('data-order-acknowledgement="missing"');
+    expect(missing).toContain('동의 기록이 없습니다');
+    expect(missing).toContain('정기구매 주문(정기구매 약관 동의로 받습니다)');
+    const unread = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    expect(unread).not.toContain('결제 전 확인 동의');
+  });
+});

@@ -252,3 +252,33 @@ describe('서원 회신 대조', () => {
     expect(crossed.issues.map(issue => issue.reason)).toEqual(Array(3).fill(SEOWON_REPLY_REASONS.trackingSharedAcrossRecipients));
   });
 });
+
+/* ADR-0046: 출고지시 뒤 취소된 배송 건의 회신 줄은 실패로 버리지 않고 그 배송 건으로 보낸다(DB가 취소 뒤 출고 발견으로 남긴다). */
+describe('서원 회신 대조 — 출고지시 뒤 취소된 배송 건', () => {
+  it('같은 내용의 발송 대기 건이 없으면 취소된 배송 건으로 보내고, 배송건번호가 있으면 그 배송 건으로 보낸다', () => {
+    const match = matchSeowonReply([reply(2, 'T1')], [candidate('x', { status: 'canceled' })]);
+    expect(match.commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['x', 'T1']]);
+    expect(match.issues).toEqual([]);
+    const numbered = matchSeowonReply([reply(2, 'T1', { shipmentNumber: '2026102730000009' })],
+      [candidate('x', { status: 'canceled', shipmentNumber: '2026102730000009' })]);
+    expect(numbered.commands.map(command => command.shipmentId)).toEqual(['x']);
+  });
+  it('같은 내용의 발송 대기 건이 있으면 그 건이 먼저이고, 접미사가 취소 건의 기록과 정확히 맞을 때만 취소 건으로 보낸다', () => {
+    const live = candidate('b', { seowonLabel: { batch: 'file-1', suffix: '02' } });
+    const gone = candidate('a', { status: 'canceled', seowonLabel: { batch: 'file-1', suffix: '01' } });
+    const match = matchSeowonReply([reply(2, 'T1', { recipient: '합성 수취인01' }), reply(3, 'T2', { recipient: '합성 수취인02' })], [live, gone]);
+    expect(match.commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['a', 'T1'], ['b', 'T2']]);
+    // 기록이 없는 취소 건은 발송 대기 건과 겹치면 넘겨짚지 않는다.
+    const unlabeled = matchSeowonReply([reply(2, 'T1', { recipient: '합성 수취인01' })], [live, candidate('a', { status: 'canceled' })]);
+    expect(unlabeled.issues.map(issue => issue.reason)).toEqual([SEOWON_REPLY_REASONS.suffixMismatch]);
+  });
+  it('같은 내용의 취소 건이 여럿이면 넘겨짚지 않고, 송장번호가 여럿이면 그 배송 건을 멈춘다', () => {
+    const ambiguous = matchSeowonReply([reply(2, 'T1')], [candidate('x', { status: 'canceled' }), candidate('y', { status: 'canceled' })]);
+    expect(ambiguous.commands).toEqual([]);
+    expect(ambiguous.issues.map(issue => issue.reason)).toEqual([SEOWON_REPLY_REASONS.splitIdentical]);
+    const lines = [line, { ...line, goodName: '합성 엽서', optionName: '', qty: 1 }];
+    const split = matchSeowonReply([reply(2, 'T1'), reply(3, 'T2', { items: '합성 엽서_', quantity: 1 })], [candidate('x', { status: 'canceled', lines })]);
+    expect(split.commands).toEqual([]);
+    expect(split.issues.map(issue => issue.reason)).toEqual(Array(2).fill(SEOWON_REPLY_REASONS.canceledMultiple));
+  });
+});

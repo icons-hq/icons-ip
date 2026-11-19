@@ -46,6 +46,16 @@ import { checkoutDraftReturnHref, directCheckoutCopy, type CheckoutDraft } from 
 import { useDirectCheckoutQuote, useDraftStoreCreditQuote } from './CheckoutDraftQuotes';
 import { CheckoutDirectCoupon } from './CheckoutDirectCoupon';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
+import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
+import {
+  CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
+  CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
+  EMPTY_CHECKOUT_CLAIM_RESTRICTIONS,
+  checkoutRestrictionNotice,
+  claimNoticeOf,
+  restrictedCheckoutGoods,
+  type CheckoutClaimRestrictions,
+} from '@/lib/checkout-acknowledgement';
 import { mergePendingOrderCauses, pendingOrderCausesFromQuote, quoteMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
 
 /* 결제 대기 주문의 최소 결제 금액. DB 트리거(orders_korpay_minimum_amount)가 같은 값으로
@@ -95,6 +105,10 @@ export const checkoutActionErrorCopy = {
   checkout_draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 장바구니에서 다시 주문해주세요.',
   /* 같은 주문서(초안)로 이미 무통장 접수·결제한 주문이 있다 — 다른 탭·뒤로 가기의 재제출(ADR-0030). */
   checkout_draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
+  /* 결제 전 확인 동의(PAY-015) — 화면 체크를 거치지 않은 요청을 서버가 거절했다. 버튼이 체크 전에는 잠겨 있어 정상 화면에서는 나오지 않는다. */
+  acknowledgement_required: CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
+  /* 화면이 보인 제한 고지와 주문 직전 서버 재조회가 달랐다 — 주문서를 새로 읽어 고지를 다시 보인다. */
+  claim_notice_changed: CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 const actionErrors = checkoutActionErrorCopy;
@@ -129,6 +143,10 @@ interface CheckoutProps {
    * 없으면 지금처럼 계정 장바구니 전체다.
    */
   draft?: CheckoutDraft | null;
+  /** 청약철회·교환이 제한된 굿즈(서버가 읽은 값) — 품목 줄에 다시 고지하고 동의 문구에 더한다(PAY-015). */
+  claimRestrictions?: CheckoutClaimRestrictions | null;
+  /** 동의 체크의 시작값. 화면은 항상 false로 시작한다 — 서버 렌더 시험이 체크 뒤 상태를 보려고만 쓴다. */
+  initialAcknowledged?: boolean;
 }
 
 const addressFieldOrder: CheckoutAddressField[] = [
@@ -200,6 +218,8 @@ export function Checkout({
   couponState,
   paymentFailCode = null,
   draft = null,
+  claimRestrictions = EMPTY_CHECKOUT_CLAIM_RESTRICTIONS,
+  initialAcknowledged = false,
 }: CheckoutProps) {
   const router = useRouter();
   const { items: cartItems, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
@@ -217,6 +237,8 @@ export function Checkout({
   const [directCouponId, setDirectCouponId] = useState<string | null>(null);
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015). 주문서를 열 때마다 새로 받는다 — 저장하지 않으므로 재시도로 돌아와도 다시 체크한다. */
+  const [acknowledged, setAcknowledged] = useState(initialAcknowledged);
   /* 쿠폰 칸의 변경 액션이 진행 중이면 결제를 잠근다(R25) — 끝나기 전의 주문은 이전 쿠폰으로 나가 거절된다. */
   const [couponPending, setCouponPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -279,6 +301,9 @@ export function Checkout({
         optionLimitMessage: good ? quoteLineOptionLimitMessage(quoteLine, optionName ?? good.name) : null };
     });
   }, [catalog.goods, catalog.ips, items, shipping.sales]);
+  const restrictedGoods = restrictedCheckoutGoods(lines.map((line) => line.goodId), claimRestrictions ?? EMPTY_CHECKOUT_CLAIM_RESTRICTIONS);
+  /* 화면이 실제로 보인 제한 고지 — 서버가 주문 직전에 다시 읽어 이 목록에 없던 제한 굿즈가 있으면 주문을 만들지 않는다. */
+  const claimNotice = claimNoticeOf(claimRestrictions, lines.map((line) => line.goodId));
   const subtotal = shipping.sales?.subtotal ?? lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
   /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
   const shippingFee = shipping.quote?.totalFee ?? 0;
@@ -377,7 +402,7 @@ export function Checkout({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || salePeriodNotice || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged || draftStale || blockingOrderId) return;
+    if (!acknowledged || submitting || cartPending || couponPending || mode !== 'server' || unavailable || salePeriodNotice || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged || draftStale || blockingOrderId) return;
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -400,14 +425,17 @@ export function Checkout({
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
       result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits,
-        direct ? directCouponId : shipping.sales.coupon?.userCouponId ?? null, items, draft?.id);
+        direct ? directCouponId : shipping.sales.coupon?.userCouponId ?? null, items, draft?.id, acknowledged, claimNotice);
     } catch {
       setSubmitError(actionErrors.unavailable);
       setSubmitting(false);
       return;
     }
     if (!result.ok) {
+      /* 거절된 주문은 품목·금액이 바뀌었을 수 있다 — 바뀐 내용을 다시 확인하고 동의하게 한다. */
+      setAcknowledged(false);
       if(result.error==='cart_changed') await refresh();
+      if (result.error === 'claim_notice_changed') router.refresh();
       setSubmitErrorCode(result.error);
       /* 주문서를 연 뒤 판매기간이 바뀌었으면 카탈로그를 다시 읽어 그 굿즈 이름을 알린다. */
       if (SALE_PERIOD_REJECTIONS.has(result.error)) router.refresh();
@@ -567,6 +595,7 @@ export function Checkout({
                   {good && goodsCustomInputProblem(good.customInputs,customInputs) && <span>{goodsCustomInputProblem(good.customInputs,customInputs)}</span>}
                   {supply?.mode === 'preorder' ? <span>예약판매 · {goodsShipDateLabel(supply.expectedShipDate)}</span> : null}
                   {optionLimitMessage ? <span>{optionLimitMessage}</span> : null}
+                  {claimRestrictions && Object.hasOwn(claimRestrictions, goodId) ? <span className="checkout-item__restriction">{checkoutRestrictionNotice(claimRestrictions[goodId])}</span> : null}
                   {saleBlock ? <span role="status"><strong>{saleBlock === 'ended' ? '판매기간이 끝나 지금은 주문할 수 없어요' : '아직 판매 전이라 지금은 주문할 수 없어요'}</strong></span> : null}
                 </div>
                 <span className="mono">{qty} × {krw(good?.price ?? 0)}</span>
@@ -689,7 +718,8 @@ export function Checkout({
               결제를 끊지 않으므로 실제로 찾았을 때만 그 주문을 알리고, 고객이 확인했을 때만 닫는다(ADR-0030). 경고 글과 나눈 상자다. */}
           <CheckoutPendingOrderRelease causes={pendingOrderCauses} onReleased={retryAfterRelease} />
           {/* 판매기간 밖 굿즈 안내(salePeriodNotice)가 떠 있으면 서버 재견적을 기다리지 않고 함께 잠근다 — 안내와 버튼이 어긋나지 않게(원장 재작업 후속 7). */}
-          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || Boolean(salePeriodNotice) || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
+          <PurchaseAcknowledgement checked={acknowledged} disabled={submitting} hasRestrictedGoods={restrictedGoods.length > 0} claimUnavailable={claimRestrictions === null} onChange={setAcknowledged} />
+          <button className="btn btn-holo checkout-submit" disabled={!acknowledged || submitting || cartPending || couponPending || unavailable || Boolean(salePeriodNotice) || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
             {submitting
               ? '재고를 확인하는 중'
               : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}

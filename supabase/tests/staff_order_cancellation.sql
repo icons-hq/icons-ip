@@ -8,7 +8,7 @@ begin;
 -- 이 스모크가 DB 안에 고정하는 것:
 --   · 시작 RPC는 staff 세션 전용이고 구매자·익명·service_role은 실행할 수 없다
 --   · 모든 배송 건이 발송 전인 paid·confirmed 토스·나이스페이 결제 주문만 열린다(Korpay·무통장은 거절)
---   · 출고지시가 나간 배송 건이 있으면 창고 출고 중단 확인을 요구한다
+--   · 출고지시가 나간 배송 건이 있으면 그 출고지시 뒤 창고 '출고 중단' 회신 기록을 요구한다(ADR-0046)
 --   · 사유·메모·운영자·확인 여부가 요청과 감사 로그에 남고, 구매자에게 알린다
 --   · 고객 취소와 같은 원장 구조를 만들고 같은 완료 RPC로 재고·결제를 정확히 한 번 닫는다
 --   · 고객 직접 신청 정책(ADR-0017)은 바뀌지 않는다
@@ -140,7 +140,8 @@ declare
   v_expected text[] := array[
     'invalid_staff_cancellation_reason',
     'invalid_staff_cancellation_note',
-    'warehouse_stop_confirmation_required',
+    'warehouse_stop_reply_required',
+    'warehouse_stop_reply_required',
     'shipment_already_dispatched',
     'staff_cancellation_toss_only',
     'order_claim_in_progress'
@@ -152,6 +153,9 @@ begin
   begin perform public.admin_start_order_cancellation('61000000-0000-4000-8000-0000000c5d02', 'other', null, false);
   exception when check_violation then get stacked diagnostics v_code = message_text; v_actual := v_actual || v_code; end;
   begin perform public.admin_start_order_cancellation('61000000-0000-4000-8000-0000000c5d01', 'out_of_stock', null, false);
+  exception when check_violation then get stacked diagnostics v_code = message_text; v_actual := v_actual || v_code; end;
+  -- 확인란(운영자 진술)만으로는 열리지 않는다. 출고지시 뒤 창고 '출고 중단' 회신 기록이 근거다(ADR-0046).
+  begin perform public.admin_start_order_cancellation('61000000-0000-4000-8000-0000000c5d01', 'out_of_stock', null, true);
   exception when check_violation then get stacked diagnostics v_code = message_text; v_actual := v_actual || v_code; end;
   begin perform public.admin_start_order_cancellation('61000000-0000-4000-8000-0000000c5d03', 'out_of_stock', null, true);
   exception when check_violation then get stacked diagnostics v_code = message_text; v_actual := v_actual || v_code; end;
@@ -181,10 +185,18 @@ select 1 / case when not exists (
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000c5d02', true);
+select public.admin_record_warehouse_stop_reply(
+  array(select id from public.order_shipments where order_id = '61000000-0000-4000-8000-0000000c5d01'),
+  'stopped', 'phone', clock_timestamp(), '창고 담당 통화 — 출고 중단 확인', '63000000-0000-4000-8000-0000000c5d01'
+) as staff_reply_e \gset
 select public.admin_start_order_cancellation(
   '61000000-0000-4000-8000-0000000c5d01', 'out_of_stock', '창고 재고 불일치로 출고 불가 확인', true
 ) as staff_request_e \gset
 reset role;
+select 1 / case when (
+  select count(*) = 1 and bool_and(r.used_kind = 'staff_cancellation' and r.used_ref = :'staff_request_e'::uuid)
+  from private.warehouse_stop_replies r where r.operation_id = '63000000-0000-4000-8000-0000000c5d01'
+) then 1 else 0 end as assert_staff_start_consumes_the_warehouse_reply;
 
 select 1 / case when (
   select r.origin = 'staff' and r.claim_type = 'cancel' and r.stage = 'processing' and r.status = 'processing'
@@ -208,6 +220,7 @@ select 1 / case when (
     and bool_and(a.diff->>'reasonCode' = 'out_of_stock')
     and bool_and((a.diff->>'exportedShipmentCount')::int = 1)
     and bool_and((a.diff->>'warehouseStopConfirmed')::boolean)
+    and bool_and(jsonb_array_length(a.diff->'warehouseStopReplyIds') = 1)
   from public.audit_log a
   where a.target = 'order:61000000-0000-4000-8000-0000000c5d01' and a.action = 'admin.order.staff_cancellation_started'
 ) then 1 else 0 end as assert_staff_start_is_audited;

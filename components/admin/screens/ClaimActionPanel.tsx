@@ -291,6 +291,8 @@ export interface ClaimActionPanelProps {
   returnCollectionContact?: ReactNode;
   returnRefundSummary?: ReactNode;
   collections: AdminClaimCollection[];
+  /** 클레임 리비전(배송 분실 기록의 동시성 가드). 없으면 그 기록 폼을 그리지 않는다. */
+  claimRevision?: number | null;
   /** 돈이 나가는 버튼 옆에 적는 금액. 환불 원장 금액, 없으면 차감 판정의 환불액, 그것도 없으면 주문 금액이다. 표시 전용이다. */
   refundAmount?: number | null;
   /** 결제(승인) 금액. 환불 원장 금액이 이보다 작으면 이미 일부 취소한 주문이라 남은 금액만 취소한다. 표시 전용이다. */
@@ -329,6 +331,7 @@ export function ClaimActionPanel({
   collectionPolicy,
   collectionComplete,
   collections,
+  claimRevision = null,
   collectedAt = null,
   returnCollectionContact,
   returnRefundSummary,
@@ -465,7 +468,7 @@ export function ClaimActionPanel({
         {collections.length ? collections.map((collection) => <ClaimOriginCollection
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
           /* 회수 생략으로 결정한 출고지는 회수가 끝난 것으로 보지만, 요청이 열려 있는 동안 늦게 도착한 입고는 기록할 수 있다(재고 변화 없음). */
-          collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} />)
+          collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} claimRevision={claimRevision} />)
           : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
       </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
   </>;

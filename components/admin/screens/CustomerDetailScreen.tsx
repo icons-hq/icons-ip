@@ -21,8 +21,8 @@ function ConsentRow({ label, agreed, required = false }: { label: string; agreed
 }
 
 /* 템플릿 룩(ADR-0028): 고객 머리 카드(누구인지·상태·동작) → 탭(밑줄형) → 개요(건수 카드 + 카드 두 칸) 또는 탭별 이력 카드. 정지·탈퇴 요청 처리·등급 보정은 접어 둔다 — 고객을 보러 들어온 화면이다. */
-export function CustomerDetailScreen({ detail, actor, noteOperationId, canManageCredits = false }: {
-  detail: AdminCustomerDetail; actor: { id: string; role: AdminMemberRole }; noteOperationId: string; canManageCredits?: boolean;
+export function CustomerDetailScreen({ detail, actor, noteOperationId, canManageCredits = false, canRevokeCoupons = false }: {
+  detail: AdminCustomerDetail; actor: { id: string; role: AdminMemberRole }; noteOperationId: string; canManageCredits?: boolean; canRevokeCoupons?: boolean;
 }) {
   const { customer, counts, tab } = detail;
   return <div className="flex min-w-0 flex-col gap-6 max-sm:gap-4" data-customer-detail="">
@@ -70,7 +70,7 @@ export function CustomerDetailScreen({ detail, actor, noteOperationId, canManage
       </div>
     </> : <AdminSectionCard title={CUSTOMER_TAB_LABELS[tab]}>
       {tab === 'notes' ? <CustomerNoteForm key={customer.id} userId={customer.id} initialOperationId={noteOperationId} /> : null}
-      <CustomerRecordList tab={tab} items={detail.items} />
+      <CustomerRecordList tab={tab} items={detail.items} canRevokeCoupons={canRevokeCoupons} />
       <ConsolePagination page={detail.page} pageSize={detail.pageSize} total={detail.total}
         hrefForPage={(page) => customerDetailHref(customer.id, tab, page)} />
     </AdminSectionCard>}

@@ -27,6 +27,7 @@ import { ShipmentConsoleGrid } from './ShipmentConsoleGrid';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 type Element = ReactElement<Record<string, unknown>>;
 /* 처리 막대·팝업은 kit 버튼·셀렉트·입력(ADR-0028)이다 — 렌더 전 요소 트리에서는 그 부품 자체가 요소 종류다. */
 const isButton = (node: Element) => node.type === 'button' || node.type === Button;
@@ -52,7 +53,7 @@ it('선택한 합포장의 보이지 않는 구성 건을 포함해 확인하고
   (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: true } });
   // A background selection change cannot replace the batch the operator reviewed.
   select([ids[2]]); click('2건 배송완료 처리'); await Promise.all(mocks.work);
-  expect(mocks.complete).toHaveBeenCalledOnce(); expect(mocks.complete).toHaveBeenCalledWith([ids[0]]);
+  expect(mocks.complete).toHaveBeenCalledOnce(); expect(mocks.complete).toHaveBeenCalledWith([ids[0]], { deliveredAt: null, reason: '' });
   expect(mocks.refresh).toHaveBeenCalledOnce();
   expect(nodes(render()).some(node => node.type === CustomerServiceDialog)).toBe(false);
 });
@@ -328,3 +329,48 @@ it('재고 부족 옵션이 있으면 출고지시 내려받기 확인 단계(�
 });
 
 afterEach(()=>{setAdminConfirmHandler(null);});
+
+/* ADR-0045(SHP-050·SHP-086): 선택 배송완료는 택배사 조회의 배송완료 일시를 받는다. 처음 값(창을 연 시각)을 그대로 두면 처리 시각(null)이고,
+   7일보다 이른 일시는 늦게 처리한 사유가 있어야 누를 수 있으며, 미래 일시는 막는다. 입력은 KST이고 서버에는 ISO로 보낸다. */
+it('선택 배송완료는 택배사 배송완료 일시를 KST로 받아 ISO로 보내고, 7일보다 이르면 사유를 받는다', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-19T03:00:00Z'));
+  try {
+    select([ids[2]]); click('선택 배송완료');
+    const field = () => nodes(render()).find(node => isInput(node) && node.props.name === 'deliveredAt')!;
+    expect(field().props.value).toBe('2026-11-19T12:00');
+    expect(text(render())).toContain('택배사 조회의 배송완료 일시를 넣으세요');
+    const check = nodes(render()).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
+    (check.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    // 미래 일시는 막는다.
+    (field().props.onChange as (event: unknown) => void)({ target: { value: '2026-11-19T15:00' } });
+    expect(text(render())).toContain('지금보다 뒤일 수 없습니다'); expect(button('1건 배송완료 처리').props.disabled).toBe(true);
+    // 8일 전 도착: 사유 칸이 보이고 사유 없이는 누를 수 없다.
+    (field().props.onChange as (event: unknown) => void)({ target: { value: '2026-11-11T09:30' } });
+    expect(button('1건 배송완료 처리').props.disabled).toBe(true);
+    const reason = nodes(render()).find(node => node.type === Textarea && node.props.name === 'arrivalReason')!;
+    expect(reason).toBeTruthy();
+    (reason.props.onChange as (event: unknown) => void)({ target: { value: ' 택배사 조회로 확인했으나 처리를 놓침 ' } });
+    expect(button('1건 배송완료 처리').props.disabled).toBe(false);
+    click('1건 배송완료 처리'); await Promise.all(mocks.work);
+    expect(mocks.complete).toHaveBeenCalledWith([ids[2]], { deliveredAt: '2026-11-11T00:30:00.000Z', reason: '택배사 조회로 확인했으나 처리를 놓침' });
+  } finally { vi.useRealTimers(); }
+});
+
+/* 리뷰 R3(ADR-0045): 판매 관리 권한이 없으면(물류 계정) 7일보다 이른 일시는 사유 칸 없이 막고 이유를 보인다. */
+it('물류 계정은 7일보다 이른 배송완료 일시를 넣지 못하고 판매 관리 권한이 필요하다고 본다', () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-19T03:00:00Z'));
+  try {
+    const logistics = () => { mocks.index = 0; return ShipmentConsoleGrid({ ...props, canManageSales: false }); };
+    const grid = nodes(logistics()).find(node => node.type === ConsoleGrid)!;
+    (grid.props.onSelectionChange as (ids: string[]) => void)([ids[2]]);
+    (nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '선택 배송완료')!.props.onClick as () => void)();
+    const check = nodes(logistics()).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
+    (check.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    (nodes(logistics()).find(node => isInput(node) && node.props.name === 'deliveredAt')!.props.onChange as (event: unknown) => void)({ target: { value: '2026-11-01T09:00' } });
+    expect(text(logistics())).toContain('판매 관리 권한이 있는 운영자만 사유와 함께 넣을 수 있습니다');
+    expect(nodes(logistics()).some(node => node.type === Textarea)).toBe(false);
+    expect(nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '1건 배송완료 처리')!.props.disabled).toBe(true);
+    (nodes(logistics()).find(node => isInput(node) && node.props.name === 'deliveredAt')!.props.onChange as (event: unknown) => void)({ target: { value: '2026-11-15T09:00' } });
+    expect(nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '1건 배송완료 처리')!.props.disabled).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
