@@ -540,6 +540,10 @@ begin
   if settings.enabled_at is null or claim.requested_at < settings.enabled_at then
     return jsonb_build_object('applicable', false, 'reason', 'requested_before_enabled', 'deductionAmount', 0);
   end if;
+  -- 효력 있는 배송 분실 기록(택배사 확인)이 있으면 차감하지 않는다(주문 전체 반품과 같은 규칙, 트랙 E).
+  if private.claim_has_effective_carrier_loss(claim.id) then
+    return jsonb_build_object('applicable', false, 'reason', 'carrier_loss', 'deductionAmount', 0);
+  end if;
   select * into purchase from public.orders where id = claim.order_id;
   outbound := coalesce(purchase.shipping_fee, 0) = 0 and coalesce(purchase.shipping_collect_total, 0) = 0
     and not private.order_outbound_leg_charged(claim.order_id);
