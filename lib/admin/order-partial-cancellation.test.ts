@@ -37,6 +37,9 @@ describe('부분 취소 운영 문구', () => {
 
   it('DB 거절 코드를 운영 문구로 옮기고 원문 코드는 노출하지 않는다', () => {
     expect(orderPartialCancellationErrorMessage('warehouse_stop_confirmation_required')).toContain('출고 중단');
+    expect(orderPartialCancellationErrorMessage('warehouse_stop_reply_required')).toContain('창고 회신 기록');
+    expect(orderPartialCancellationErrorMessage('warehouse_already_shipped')).toContain('반품');
+    expect(orderPartialCancellationErrorMessage('warehouse_stop_reply_used')).toContain('다른 취소');
     expect(orderPartialCancellationErrorMessage('partial_cancel_leaves_nothing')).toContain('운영자 전액 취소');
     expect(orderPartialCancellationErrorMessage('partial_cancel_unsupported')).toContain('전액 환불로 돌리지 않습니다');
     expect(orderPartialCancellationErrorMessage('partial_cancel_item_preorder_item')).toContain('예약 판매 상품');

@@ -11,6 +11,7 @@ import {
   viewOrderPartialCancellationRefundAccountAction,
 } from '@/app/admin/order-partial-cancellation-actions';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { WarehouseStopRequirementNote } from '@/components/admin/OrderWarehouseStopPanel';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -138,7 +139,6 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
   const [draft, setDraft] = useState<Draft>({});
   const [decision, setDecision] = useState('');
   const [note, setNote] = useState('');
-  const [warehouseStop, setWarehouseStop] = useState(false);
   const [bank, setBank] = useState({ bankName: '', accountNumber: '', accountHolder: '' });
   const [plan, setPlan] = useState<OrderPartialCancellationPlan | null>(null);
   /* 확인창이 닫히는 동안(퇴장 애니메이션)에도 마지막 내용을 그대로 보여 제목 금액이 비는 깜박임을 없앤다. */
@@ -153,6 +153,9 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
   const bankTransfer = context.provider === 'bank_transfer';
   const selection = useMemo(() => Object.entries(draft).filter(([, qty]) => qty > 0).map(([orderItemId, qty]) => ({ orderItemId, qty })), [draft]);
   const exportedSelected = context.items.some(item => (draft[item.orderItemId] ?? 0) > 0 && item.exported);
+  /* 출고지시가 나간 배송 건의 상품이면 그 배송 건의 창고 '출고 중단' 회신 기록이 근거다(ADR-0046) — 확인란이 아니다. */
+  const exportedShipmentIds = [...new Set(context.items.filter(item => (draft[item.orderItemId] ?? 0) > 0 && item.exported && item.shipmentId)
+    .map(item => item.shipmentId as string))];
   const ready = selection.length > 0 && decision.trim().length >= 2;
   // 무통장 환불계좌는 환불액이 있을 때만 받는다(0원이면 송금이 없어 DB가 계좌를 받지 않는다).
   const bankReady = Boolean(bank.bankName.trim() && /^[0-9-]{8,30}$/.test(bank.accountNumber.replace(/\s+/g, '')) && bank.accountHolder.trim());
@@ -175,11 +178,11 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
     try {
       const result = await startOrderPartialCancellationAction({
         orderId, items: selection, customerDecision: decision.trim(), note: note.trim() || null,
-        warehouseStopConfirmed: warehouseStop, expectedRefundAmount: plan.refundAmount, operationId: operationId.current,
+        warehouseStopConfirmed: exportedSelected, expectedRefundAmount: plan.refundAmount, operationId: operationId.current,
         refundAccount: needsAccount ? bank : null,
       });
       if (!result.ok) { setError(result.error); setPlan(null); return; }
-      setPlan(null); setDraft({}); setDecision(''); setNote(''); setWarehouseStop(false); setBank({ bankName: '', accountNumber: '', accountHolder: '' });
+      setPlan(null); setDraft({}); setDecision(''); setNote(''); setBank({ bankName: '', accountNumber: '', accountHolder: '' });
       operationId.current = null;
       onReload(result.value.message);
     } catch {
@@ -229,12 +232,9 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
         </div>
         <small className={HINT}>고객이 알려준 계좌입니다. 마스킹해 보관하고 송금 완료 30일 뒤 원문을 지웁니다. 환불액이 0원이면 받지 않습니다.</small>
       </fieldset> : null}
-      {exportedSelected ? <label className="flex items-start gap-2">
-        <input checked={warehouseStop} disabled={pending} onChange={event => setWarehouseStop(event.target.checked)} type="checkbox" />
-        <span>출고지시가 나간 배송 건입니다. 창고에 그 상품·수량의 출고 중단을 확인했습니다.</span>
-      </label> : null}
+      {exportedSelected ? <WarehouseStopRequirementNote detailHref={`/admin/sales/orders/${orderId}`} orderId={orderId} shipmentIds={exportedShipmentIds} /> : null}
       {error ? <p className="text-destructive" role="alert">{error}</p> : null}
-      <Button className="w-fit" disabled={!ready || pending || (exportedSelected && !warehouseStop)} type="submit">{pending && !plan ? '확인 중…' : '취소 내용 확인'}</Button>
+      <Button className="w-fit" disabled={!ready || pending} type="submit">{pending && !plan ? '확인 중…' : '취소 내용 확인'}</Button>
     </form> : null}
     {context.history.length ? <div className="flex flex-col gap-2">
       <h4 className="font-medium">부분 취소 기록</h4>
@@ -257,7 +257,7 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
           <p className="flex justify-between gap-2 border-t pt-2 font-semibold"><span>환불액</span><span className="tabular-nums">{krw(shown.refundAmount)}</span></p>
           <p className="text-muted-foreground">결제 {krw(shown.paymentAmount)} · 환불 전 남은 금액 {krw(shown.balanceBefore)} → 환불 뒤 {krw(shown.balanceAfter)}{shown.storeCreditRestoreAmount > 0 ? ` · 적립금 ${krw(shown.storeCreditRestoreAmount)}은 적립금으로 되돌림` : ''}</p>
           {shown.balanceAfter === 0 && shown.refundAmount > 0 ? <p className="text-muted-foreground">이 취소로 남은 결제 금액이 0원이 됩니다. 남은 상품은 그대로 출고합니다.</p> : null}
-          <p className="text-muted-foreground">남은 주문의 쿠폰 조건은 다시 판정하지 않습니다.{shown.warehouseStopRequired ? ' 출고지시가 나간 배송 건이라 창고 출고 중단 확인이 필요합니다.' : ''}</p>
+          <p className="text-muted-foreground">남은 주문의 쿠폰 조건은 다시 판정하지 않습니다.{shown.warehouseStopRequired ? ' 출고지시가 나간 배송 건이라 그 배송 건의 창고 출고 중단 회신 기록이 있어야 하고, 확정하면 그 회신은 이 부분 취소에 쓰입니다.' : ''}</p>
           {needsAccount && !bankReady ? <p className="text-destructive" role="alert">무통장 주문은 환불받을 계좌(은행·계좌번호·예금주)를 모두 입력해야 확정할 수 있습니다.</p> : null}
         </div> : null}
         {error ? <p className="text-destructive" role="alert">{error}</p> : null}
