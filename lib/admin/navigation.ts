@@ -255,8 +255,16 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'grid',
     screens: [
       { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
+      /* 자동 작업 실패·멈춤, 미종결 결제, 메일 발송 실패(원장 OPS-039·PAY-067). 운영 할 일 '시스템 점검'이 여기로 온다. */
+      { id: 'system-health', label: '시스템 상태', href: '/admin/settings/system', status: 'ready' },
       { id: 'store-settings', label: '판매자 정보 관리', href: '/admin/settings/store', status: 'ready' },
       { id: 'roles', label: '매니저 관리', href: '/admin/community/roles', status: 'ready', adminOnly: true },
+      /* 운영자 2단계 인증(OPS-006): 요구 스위치·운영자별 등록 현황·기기 분실 초기화는 매니저 관리 권한, 본인 인증 앱은 운영자 누구나. */
+      { id: 'operator-mfa', label: '2단계 인증 관리', href: '/admin/settings/mfa', status: 'ready', adminOnly: true },
+      /* 본인 설정이라 오른쪽 위 계정 메뉴에서 연다 — 판매자 정보 그룹의 사이드바 상한(8)을 지키려고 사이드바에서는 숨긴다. */
+      { id: 'my-security', label: '내 보안 설정', href: '/admin/settings/security', status: 'ready', navHidden: true },
+      /* 개인정보 접속기록 점검(CUS-084·OPS-014): 운영자 IP·열람 대상을 모아 보는 화면이라 매니저 관리 권한만 연다. */
+      { id: 'pii-access-log', label: '개인정보 접속기록', href: '/admin/settings/access-log', status: 'ready', adminOnly: true },
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
       /* 운영하지 않는 카드 바인더·굿즈 마켓·카드 트레이드의 공개 스위치(기본 숨김). 켜고 끄기는 관리자만 한다. */
       { id: 'collectible-features', label: '기능 공개 관리', href: '/admin/settings/features', status: 'ready', adminOnly: true },

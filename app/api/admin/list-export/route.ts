@@ -18,6 +18,15 @@ import { SHIPMENT_CONSOLE_TABS } from '@/lib/admin/shipment-dispatch';
 import { encryptAdminWorkbook } from '@/lib/admin/encrypted-workbook.server';
 import { recordEncryptedListExport } from '@/lib/admin/encrypted-export-audit.server';
 import { ExportRequestError, readExportPassword } from '@/lib/admin/export-request.server';
+import { PiiAccessLogError, recordPiiAccess } from '@/lib/admin/pii-access-log.server';
+import type { PiiAccessSubjectKind } from '@/lib/admin/pii-access-log';
+import type { AdminListExportScreenId } from '@/lib/admin/list-export';
+
+/** 목록 엑셀 한 건이 무엇을 세는지(화면 기준 건수). */
+const LIST_EXPORT_SUBJECTS: Record<AdminListExportScreenId, PiiAccessSubjectKind> = {
+  orders: 'order', unpaid: 'order', dispatch: 'shipment', shipping: 'shipment',
+  'claims-cancels': 'claim', 'claims-returns': 'claim', 'claims-exchanges': 'claim', 'refund-transfers': 'claim',
+};
 
 export const runtime = 'nodejs';
 /* 상한(10,000행)까지 여러 페이지를 읽는다. 플랫폼 기본 시한에 맡기지 않는다. */
@@ -61,6 +70,10 @@ export async function POST(request: Request) {
     finally { plain.fill(0); }
     const { bytes, sha256 } = encrypted;
     const auditId = await recordEncryptedListExport(auth.user.id, sheet, sha256);
+    // 개인정보 접속기록(내려받기). 조건·파일 해시는 위 감사 기록에 있고, 여기에는 화면·건수와 그 감사 번호를 남긴다.
+    await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.list', path: '/api/admin/list-export',
+      subjectKind: LIST_EXPORT_SUBJECTS[definition.id], subjectCount: sheet.recordCount,
+      detail: { screen: definition.id, rowCount: sheet.rows.length, auditId } });
     const tab = definition.id === 'dispatch' || definition.id === 'shipping'
       ? SHIPMENT_CONSOLE_TABS[definition.id].find((item) => item.id === sheet.filters.tab)?.label
       : undefined;
@@ -85,7 +98,7 @@ export async function POST(request: Request) {
     if (error instanceof ExportRequestError) return errorResponse(error.message, error.status);
     if (error instanceof AdminListExportLimitError) return errorResponse(error.message, 400);
     if (error instanceof AdminListExportChangedError) return errorResponse(error.message, 409);
-    if (error instanceof AdminListExportAuditError) return errorResponse(error.message, 500);
+    if (error instanceof AdminListExportAuditError || error instanceof PiiAccessLogError) return errorResponse(error.message, 500);
     return errorResponse(
       error instanceof Error && /[가-힣]/.test(error.message)
         ? error.message

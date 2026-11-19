@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import {
+  carrierTrackingNumberIssue,
   findShippingCarrier,
   isTrackingNumber,
   normalizeTrackingNumber,
@@ -19,6 +20,9 @@ export interface TrackingImportRow {
   referenceId: string | null;
   carrier: string;
   trackingNumber: string;
+  /** ICONS 표준 양식 회신의 수취인·연락처(값이 있으면). DB가 주문 배송지와 대조한다. 세 칸 회신에는 없다. */
+  recipientName?: string;
+  recipientPhone?: string;
 }
 
 export interface TrackingImportIssue {
@@ -151,6 +155,11 @@ export function parseTrackingImport(
         reference,
         reason: '운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.',
       });
+      return;
+    }
+    const formatIssue = carrierTrackingNumberIssue(carrier, trackingNumber);
+    if (formatIssue) {
+      issues.push({ line, reference, reason: formatIssue });
       return;
     }
 

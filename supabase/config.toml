@@ -317,9 +317,11 @@ auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
+# 운영자 2단계 인증(OPS-006). 로컬 전용 값이다 — 호스티드 프로젝트는 이 파일을 push하지 않으므로
+# docs/runbooks/operator-access.md의 '2단계 인증' 절차로 대시보드 설정을 확인한다. 고객에게는 요구하지 않는다.
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]

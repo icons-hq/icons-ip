@@ -7,7 +7,8 @@ const ID = '00000000-0000-4000-8000-000000000001';
 const SECOND = '00000000-0000-4000-8000-000000000002';
 const STAMP = '2026-09-08T00:00:00Z';
 const credentials = { password: '1234', passwordConfirmation: '1234' };
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), build: vi.fn(), encrypt: vi.fn(), refresh: vi.fn(), carriers: vi.fn(), enqueue: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), build: vi.fn(), encrypt: vi.fn(), refresh: vi.fn(), carriers: vi.fn(), enqueue: vi.fn(), access: vi.fn() }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ recordPiiAccess: mocks.access }));
 vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: mocks.carriers }));
 vi.mock('@/lib/email/order-shipment-jobs.server', () => ({ enqueueOrderShippedEmails: mocks.enqueue }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -22,6 +23,21 @@ beforeEach(() => {
     ? { shipments: [{ id: ID, updatedAt: STAMP }] } : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
   mocks.build.mockResolvedValue({ bytes: Buffer.from('workbook'), mime: 'test/workbook', extension: 'xlsx', name: 'icons-출고지시-남양주-20261012-0900.xlsx' });
   mocks.encrypt.mockReturnValue({ bytes: Buffer.from('encrypted-workbook'), sha256: 'a'.repeat(64) });
+  mocks.access.mockResolvedValue('11');
+});
+
+describe('출고지시 파일의 개인정보 접속기록', () => {
+  it('창고 전달 표시 전에 배송 건 ID·양식으로 남기고, 실패하면 배송 상태를 바꾸지 않고 파일도 주지 않는다', async () => {
+    expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ message: '1건의 출고지시를 내려받았습니다.' });
+    expect(mocks.access).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff', action: 'export', surface: 'export.shipment', path: '/admin/sales/dispatch',
+      subjectKind: 'shipment', subjectIds: [ID], subjectCount: 1, detail: { layout: 'warehouse', format: 'xlsx' } });
+    const markAt = mocks.rpc.mock.calls.findIndex(([name]) => name === 'admin_mark_shipments_exported');
+    expect(mocks.access.mock.invocationCallOrder[0]).toBeLessThan(mocks.rpc.mock.invocationCallOrder[markAt]);
+    mocks.rpc.mockClear(); mocks.access.mockRejectedValueOnce(new Error('pii log down'));
+    const failed = await exportShipmentsAction([ID], 'xlsx', 'warehouse');
+    expect(failed).toEqual({ error: expect.stringContaining('개인정보 접속기록을 남기지 못해') });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('admin_mark_shipments_exported');
+  });
 });
 
 describe('shipment action boundaries', () => {
@@ -352,6 +368,18 @@ describe('발송 대기 행 운송장·배송 방법 액션 (S36-072·S36-X04)',
     expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toMatchObject({ ok: true, queueWarning: true });
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'shipment_pack_incomplete' } });
     expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toMatchObject({ ok: false });
+  });
+
+  /* SHP-030: 다른 주문의 번호로 거절된 행은 사유 코드를 함께 돌려줘 화면이 '중복 확인 후 등록'을 연다. 택배사 형식은 DB 전에 본다. */
+  it('다른 주문의 번호로 거절된 행은 사유 코드를 싣고, 택배사 형식이 틀리면 DB를 부르지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: [{ line: 1, reference: ID, ok: false, error: 'tracking_number_in_use' }], error: null });
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }]))
+      .toMatchObject({ ok: true, failed: [{ shipmentId: ID, code: 'tracking_number_in_use', reason: expect.stringContaining('중복 확인 후 등록') }] });
+    mocks.rpc.mockClear();
+    mocks.carriers.mockResolvedValue([{ ...carriers[0], trackingNumberPattern: '^[0-9]{10,14}$', trackingNumberRule: '숫자 10~14자리' }]);
+    expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012345' }]))
+      .toEqual({ ok: false, error: expect.stringContaining('한진택배 운송장번호는 숫자 10~14자리') });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('배송 방법 팝업 정보는 1~100건만 읽고 응답 형식이 어긋나면 열지 않는다', async () => {

@@ -8,6 +8,7 @@ import { readExportPassword, ExportRequestError } from '@/lib/admin/export-reque
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { isUuid } from '@/lib/uuid';
+import { recordPiiAccess } from '@/lib/admin/pii-access-log.server';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 const HEADERS = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
     const service = createServiceClient(), audit = await service.rpc('service_record_gift_export', { p_actor_id: auth.user.id,
       p_receipt_id: data.receiptId, p_fingerprint: data.fingerprint, p_file_sha256: encrypted.sha256 });
     if (audit.error || !isUuid(audit.data)) throw new Error('gift_export_audit_unavailable');
+    // 개인정보 접속기록(내려받기): 보낸 사람·받는 사람 이름이 담긴 파일이다. 선물 ID(최대 1,000개)·건수·감사 번호만 남긴다.
+    await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.gifts', path: '/api/admin/gifts/export',
+      subjectKind: 'gift', subjectIds: rows.map(row => row.id), subjectCount: rows.length, detail: { auditId: audit.data } });
     return new Response(new Uint8Array(encrypted.bytes), { headers: { ...HEADERS, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': adminListExportContentDisposition(`icons-선물수락대기-${stamp}.xlsx`, `icons-gifts-${stamp}.xlsx`), 'X-ICONS-Export-Audit': audit.data,
       'X-ICONS-Export-Rows': String(rows.length), 'X-ICONS-Export-Records': String(rows.length), 'X-ICONS-Export-Encryption': 'ECMA-376-Agile' } });

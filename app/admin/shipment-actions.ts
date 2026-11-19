@@ -13,8 +13,9 @@ import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipmen
 import {parseShipmentExportColumns,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
+import {recordPiiAccess} from '@/lib/admin/pii-access-log.server';
 import {unstable_rethrow} from 'next/navigation';
-import {findShippingCarrier,isTrackingNumber,normalizeTrackingNumber} from '@/lib/orders/shipment';
+import {carrierTrackingNumberIssue,findShippingCarrier,isTrackingNumber,normalizeTrackingNumber} from '@/lib/orders/shipment';
 import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
 import {enqueueOrderShippedEmails} from '@/lib/email/order-shipment-jobs.server';
 import {DISPATCH_HANDOFF_METHODS,DISPATCH_METHODS,DISPATCH_REASON_MAX_LENGTH,DISPATCH_TARGET_LIMIT,dispatchDeliveryError,parseDispatchDeliveryOptions,parseDispatchDeliveryReceipt,
@@ -44,7 +45,7 @@ function exportInputError(format:unknown,layout:unknown,credentials?:ExportCrede
  return layout==='smartstore'&&format==='xlsx'?exportPasswordError(credentials?.password,credentials?.passwordConfirmation):null;
 }
 /** Build and encrypt successfully before recording a warehouse handover. */
-async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',layout:ShipmentExportLayout,credentials?:ExportCredentials,note='',readsOrderAmounts=true):Promise<ExportResult>{
+async function exportShipments(actorId:string,client:Client,keys:string[],format:'xlsx'|'csv',layout:ShipmentExportLayout,credentials?:ExportCredentials,note='',readsOrderAmounts=true):Promise<ExportResult>{
  const result=await client.rpc(layout==='smartstore'?'admin_smartstore_shipment_export':'admin_shipment_export',{p_ids:keys});
  const exportError=result.error?.message??'';
  if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):exportError==='order cancellation in progress'?'재고 부족 부분 취소 또는 취소 요청이 진행 중인 주문이 포함되어 있어 출고지시를 만들지 못했습니다. 취소 처리가 끝난 뒤 다시 시도해주세요.':exportError==='order fulfillment hold'?'출고 보류 주문(테스트 결제 또는 결제사 취소)이 포함되어 있어 출고지시를 만들지 못했습니다. 해당 주문을 빼거나 주문 상세에서 보류를 확인한 뒤 다시 시도해주세요.':'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
@@ -65,6 +66,10 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
    try{const protectedFile=encryptAdminWorkbook(plain,credentials!.password);file={...file,bytes:protectedFile.bytes};sha256=protectedFile.sha256;}
    finally{plain.fill(0);}
   }
+  // 개인정보 접속기록(내려받기): 수령인·연락처·배송지가 담긴 출고지시 파일이다. 창고 전달 표시 전에 남겨, 기록이 없으면
+  // 배송 상태를 바꾸지 않고 파일도 내보내지 않는다(전달 표시 뒤에 실패하면 파일 없이 '전달됨'만 남는다). 배송 건 ID·양식만 남긴다.
+  try{await recordPiiAccess({actorId,action:'export',surface:'export.shipment',path:'/admin/sales/dispatch',subjectKind:'shipment',subjectIds:keys,subjectCount:keys.length,detail:{layout,format}});}
+  catch{return {error:'개인정보 접속기록을 남기지 못해 출고지시 파일을 만들지 않았습니다. 배송 상태는 바뀌지 않았습니다. 잠시 후 다시 내려받아 주세요.'};}
   const versions=data.shipments.map(shipment=>({id:shipment.id,updatedAt:shipment.updatedAt}));
   // 서원 원형 양식의 이름 접미사는 파일 구성으로 정해진다. 전달 표시와 같은 트랜잭션에서 배송 건별로 기록해 회신과 정확히 맞춘다.
   const labels=layout==='warehouse'?seowonExportLabels(data.shipments.map(shipment=>({id:shipment.id,shipmentNumber:shipment.shipmentNumber??null,packId:shipment.pack?.id??null,originId:shipment.originId,template:shipment.template,lines:shipment.lines}))):[];
@@ -88,7 +93,7 @@ export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv',layo
  const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
  if(!keys)return {error:'내보낼 배송 건을 1~1,000개 선택해주세요.'};
  const invalid=exportInputError(format,layout,credentials);if(invalid)return {error:invalid};
- return exportShipments(await createClient(),keys,format,layout,credentials,'',hasAdminCapability(auth,'sales.read'));
+ return exportShipments(auth.user.id,await createClient(),keys,format,layout,credentials,'',hasAdminCapability(auth,'sales.read'));
 }
 /** The origin batch has the same selected layout and password contract as a selected-row export. */
 export async function exportPendingOriginShipmentsAction(originId:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
@@ -103,7 +108,7 @@ export async function exportPendingOriginShipmentsAction(originId:unknown,format
  if(!keys)return {error:'발송 대기 배송 건을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'};
  if(!keys.length)return {error:'이 출고지에 아직 전달하지 않은 발송 대기 배송 건이 없습니다. 발주확인과 예약 재고 할당·제작·취소 요청을 확인해주세요.'};
  const rest=Number(value.total)-keys.length;
- return exportShipments(client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'',hasAdminCapability(auth,'sales.read'));
+ return exportShipments(auth.user.id,client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'',hasAdminCapability(auth,'sales.read'));
 }
 /**
  * 내보내기 전 경고(10/27 회의 D10): 선택한 배송 건에서 고른 양식의 출고 파일 바코드 칸이 비는 옵션 수.
@@ -149,7 +154,7 @@ export async function saveShipmentExportColumnsAction(id:string,columns:unknown,
 }
 
 export type ShipmentTrackingRowInput={shipmentId:string;carrier:string;trackingNumber:string};
-export type ShipmentTrackingRowResult={ok:true;message:string;registered:string[];unchanged:string[];failed:{shipmentId:string;reason:string}[];queueWarning:boolean}|{ok:false;error:string};
+export type ShipmentTrackingRowResult={ok:true;message:string;registered:string[];unchanged:string[];failed:{shipmentId:string;reason:string;code?:string}[];queueWarning:boolean}|{ok:false;error:string};
 type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
 /**
  * 발송 대기 행의 택배사·운송장 칸(S36-072). 창고 회신 파일과 같은 일괄 등록 RPC에 1~100건을 그대로 넘긴다 —
@@ -166,6 +171,9 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   if(!selected?.active)return {ok:false,error:shipmentMutationError('inactive_shipping_carrier')};
   const tracking=typeof trackingNumber==='string'?normalizeTrackingNumber(trackingNumber):'';
   if(!isTrackingNumber(tracking))return {ok:false,error:'운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.'};
+  // 택배사별 형식(레지스트리). DB 등록 판정이 다시 본다.
+  const formatIssue=carrierTrackingNumberIssue(selected,tracking);
+  if(formatIssue)return {ok:false,error:formatIssue};
   rows.push({line:index+1,reference:shipmentId.toLowerCase(),carrier:selected.code,trackingNumber:tracking});
  }
  try{
@@ -175,7 +183,8 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   const data=result.data as TrackingBatchRow[];
   const registered=data.filter(row=>row.ok&&row.dispatched!==false).map(row=>row.reference);
   const unchanged=data.filter(row=>row.ok&&row.dispatched===false).map(row=>row.reference);
-  const failed=data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??'')}));
+  // 사유 코드도 넘긴다 — 다른 주문의 번호로 거절된 행은 화면이 '중복 확인 후 등록'을 연다.
+  const failed=data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??''),...(row.error?{code:row.error}:{})}));
   const deliveries=data.filter(row=>row.ok&&row.dispatched!==false&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
   let queueWarning=false;
   if(deliveries.length){try{await enqueueOrderShippedEmails([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);}catch{queueWarning=true;}}

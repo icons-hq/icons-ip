@@ -19,7 +19,66 @@ DB·앱과 기존 운영자의 호환 상태를 확인하는 전체 배포 순�
 - 계정 주매니저는 다른 주매니저를 직접 회수할 수 없다. 업무 범위에 맞는 다른 역할로 변경한 다음 회수한다.
 - 통합 매니저만 이용 중인 다른 계정 주매니저에게 승계한다. 한 트랜잭션에서 기존 소유자는 주매니저, 대상자는 통합 매니저가 된다. 통합 매니저는 정확히 한 명이며, 승계 전 정지·일반회원 전환·탈퇴는 차단된다.
 - 담당업무는 표시용이다. 대표는 통합 매니저에 고정되며 다른 업무 표시는 접근 권한을 추가하지 않는다.
-- 회수 후 기존 로그인 세션도 다음 서버 요청부터 제한된다. 이미 승인·완료된 외부 결제 처리를 반영하는 수신 경로는 기존 요청·실행자·공급자 증거에 결속된 완료 작업만 허용한다.
+- 회수 후 기존 로그인 세션도 다음 서버 요청부터 제한된다. 역할 회수(`admin_change_operator_role`의 회수)와 최초 전환에서 권한 회수를 고른 운영자는 같은 트랜잭션에서 Auth 세션(`auth.sessions`, refresh token은 cascade)이 모두 지워져 refresh와 `getUser`가 실패하고 로그인으로 돌아간다. 이미 발급된 access token은 만료(기본 1시간)까지 서명이 유효하지만 운영자 능력이 없어 DB가 거절한다. 이미 승인·완료된 외부 결제 처리를 반영하는 수신 경로는 기존 요청·실행자·공급자 증거에 결속된 완료 작업만 허용한다.
+
+## 2단계 인증(운영자 MFA)
+
+원장 OPS-006·OPS-005. 운영자 비밀번호 하나로 환불·개인정보 엑셀·설정 변경이 열리지 않도록 Supabase Auth TOTP(인증 앱)를 쓴다. 고객에게는 요구하지 않는다.
+
+- **스위치:** `private.operator_mfa_policy.required`(기본 꺼짐, migration `20261118163000_operator_mfa_requirement.sql`). 화면은 판매자 정보 → 2단계 인증 관리(`/admin/settings/mfa`, 매니저 관리 권한)이고, 본인 등록은 계정 메뉴·판매자 정보의 내 보안 설정(`/admin/settings/security`, 운영자 누구나)이다.
+- **켜졌을 때 DB 강제:** 운영자 판정 공통 진입(`private.has_operator_capability` → `public.has_operator_capability`·`private.require_*_operator_capability`·RLS, 역할 기반 `public.is_staff`)이 "지금 요청 JWT의 `aal`이 `aal2`이고 그 JWT의 `session_id` 세션 행이 아직 살아 있으며 행의 `aal`도 `aal2`인" 운영자만 운영자로 본다. 거절은 `operator_mfa_required`다. 판정 대상이 지금 요청의 로그인 사용자이고 JWT 역할이 `authenticated`일 때만 따지므로 service_role·cron·JWT 없는 트리거·다른 사람 권한 확인 경로와 고객 RPC는 바뀌지 않는다.
+- **service_role 경로:** 앱 서버가 사용자 JWT를 검증한 뒤 사용자·세션을 인자로 넘겨 service client로 부르는 운영자 경로(클레임 연락처 열람·변경·재출고, 상담 첨부 올리기·내려받기, 디지털 자산, 환불 계좌 내려받기, 부분취소 정리, 리뷰 내보내기)는 넘겨받은 세션 행이 `aal2`여야 운영자로 본다. 세션 행의 `aal`은 GoTrue가 인증 앱 확인 때 올리고 요소 삭제 때 내리므로, 지운 인증 앱의 토큰은 만료 전에도 거절된다.
+- **켜졌을 때 앱:** 어드민 화면·서버 액션 가드가 aal2가 아닌 운영자를 `/admin/mfa?next=<원래 경로>`로 보낸다. 등록한 인증 앱이 있으면 코드를 받고, 없으면 그 자리에서 등록한다(켠 뒤 새로 들어온 운영자의 첫 등록은 비밀번호만으로 이뤄진다 — 아래 남은 위험).
+
+### 호스티드 Auth 설정(사람)
+
+`supabase/config.toml`의 `[auth.mfa.totp]`는 로컬 전용이다. CI는 호스티드 `config.toml`을 push하지 않고 `scripts/sync-supabase-auth.mjs`도 MFA를 다루지 않는다. 호스티드 프로젝트는 TOTP가 기본으로 켜져 있지만, 스위치를 켜기 전에 운영(필요하면 preview) 프로젝트에서 직접 확인한다.
+
+1. Supabase Dashboard → Authentication → Multi-Factor(MFA)에서 Authenticator app(TOTP)이 **Enabled**인지 본다. `Verification Disabled`·`Disabled`면 운영자가 등록·인증할 수 없다.
+2. 또는 Management API read-back: `GET /v1/projects/{ref}/config/auth`의 `mfa_totp_enroll_enabled`·`mfa_totp_verify_enabled`가 둘 다 `true`인지 본다. 아니면 그 두 키만 `PATCH`하고 다시 읽는다(다른 Auth 키를 함께 보내지 않는다). 운영 설정 변경은 명시 승인 범위에서 한다.
+
+### 배포 전 확인(사람)
+
+운영 Supabase SQL editor에서 migration을 올리기 **전에** 읽기만 한다.
+
+```sql
+select has_table_privilege('postgres','auth.sessions','delete') as sessions_delete,
+       has_table_privilege('postgres','auth.refresh_tokens','delete') as refresh_tokens_delete;
+```
+
+둘 다 `true`여야 한다. 권한이 없으면 세션 끊기(`private.operator_revoke_auth_sessions`)가 실패해 **운영자 권한 회수(매니저 관리의 회수·최초 역할 설정)가 통째로 실패하고**, 2단계 인증 초기화도 실패한다. `false`면 배포를 멈추고 보고한다(로컬 격리 스택은 둘 다 `true`).
+
+### 켜는 순서
+
+1. 운영 배포(migration·앱)와 위 Auth 설정 read-back을 확인한다.
+2. 모든 운영자가 내 보안 설정에서 인증 앱을 등록한다. 2단계 인증 관리의 **미등록 0명**을 확인한다. 쓰지 않는 운영자 계정은 매니저 관리에서 권한을 회수한다. 미등록 운영자가 있으면 DB가 켜기를 거절한다(`operator_mfa_unenrolled`).
+3. 켜는 사람(통합 매니저·계정 주매니저, 전환 전 admin)이 내 보안 설정의 **이 세션 확인**으로 지금 세션을 aal2로 만든 뒤 2단계 인증 관리에서 켠다. aal1 세션은 거절된다(`operator_mfa_self_required`) — 켜는 사람이 스스로 잠기지 않게 한다.
+4. 확인: 다른 브라우저(시크릿 창)에서 운영자로 로그인해 `/admin`이 `/admin/mfa`로 가는지, 코드 입력 뒤 원래 화면이 열리는지 본다. `select required,revision,updated_at from private.operator_mfa_policy;`와 감사 기록 `admin.operator.mfa_policy`를 읽는다.
+
+### 끄는 법
+
+- 평소: 2단계 인증 관리에서 끈다(켜진 동안에는 aal2 세션만 가능). 등록한 인증 앱은 지워지지 않는다.
+- 비상(켜는 권한이 있는 모든 사람이 인증 앱을 잃은 경우 등): 명시 승인을 받아 운영 DB SQL로 끄고 기록을 남긴다.
+
+```sql
+begin;
+update private.operator_mfa_policy set required=false,revision=revision+1,updated_by=null,updated_at=clock_timestamp() where singleton;
+insert into public.audit_log(actor_id,action,target,diff)
+values(null,'admin.operator.mfa_policy','operator_mfa_policy',jsonb_build_object('emergency',true,'reason','<사유>','result',jsonb_build_object('required',false)));
+commit;
+```
+
+### 기기 분실 초기화
+
+- 통합 매니저(전환 전에는 admin)가 본인에게 직접 분실을 확인한 뒤 2단계 인증 관리에서 그 운영자를 **초기화**한다. DB(`admin_reset_operator_mfa`)가 권한을 판정하고 대상의 로그인 세션을 모두 끊고 `admin.operator.mfa_reset` 감사 기록을 남긴 뒤, 앱 서버가 Supabase Auth admin API(`auth.admin.mfa.deleteFactor`)로 인증 앱 등록을 지우고 같은 요청으로 한 번 더 불러 그 사이 생긴 세션까지 끊는다. 실패하면 화면의 **같은 요청 결과 확인**으로 다시 시도한다(재시도도 세션을 다시 끊는다).
+- 계정 주매니저는 초기화할 수 없다. 본인 초기화는 내 보안 설정에서 직접 한다.
+- 통합 매니저 본인이 분실했고 스위치가 켜져 있으면: 명시 승인을 받아 Supabase Dashboard → Authentication → Users → 해당 사용자에서 MFA factor를 지우고(또는 Management/Admin API), 위 비상 SQL처럼 `audit_log`에 사유를 남긴다.
+
+### 남은 위험
+
+- 켠 뒤 새로 초대된 운영자의 **첫 등록**은 비밀번호만으로 된다(첫 사용 신뢰). 초대 직후 본인이 바로 등록하도록 안내한다.
+- 세션 끊기는 `auth.sessions` 행 삭제다(supabase-js `auth.admin.signOut`은 대상 사용자의 JWT가 있어야 해 사용자 ID로 쓸 수 없다). 로컬 격리 스택에서 `postgres` 소유 함수의 삭제 권한과 GoTrue의 refresh 거절을 확인했다. 호스티드는 위 배포 전 확인으로 권한을 보고, 첫 회수 뒤 대상 계정이 로그인으로 돌아가는지 한 번 본다.
+- 사용자·세션 없이 사용자 ID만 넘기는 service_role 운영자 경로(어드민 이미지·상품 미디어 올리기, 티켓 검표, 일부 엑셀 기록, 초대 메일 준비 등)는 DB가 세션을 알 수 없어 앱 가드(2단계 인증 대기면 운영자 아님)가 막는다.
 
 ## 이메일 초대
 
@@ -46,8 +105,42 @@ HMAC 키가 바뀌어 기존 미발송 초대의 해시와 토큰이 일치하�
 
 문의/리뷰관리 → 운영자별 처리 이력은 운영자 활동 기록이라 매니저 관리 권한(통합·주매니저, 전환 전 호환 단계는 admin)만 열고, 조회할 때마다 `admin.operator.inquiry_history_viewed` 감사 기록이 남는다. 문의 하나의 처리 이력은 그 문의를 여는 운영자 누구나 고객문의 상세·상담하기에서 본다.
 
+## 개인정보 접속기록과 월 점검
+
+개인정보의 안전성 확보조치 기준 제8조(접속기록의 보관 및 점검)에 따라 운영자가 고객 개인정보를 처리한 기록을 남기고 점검한다. 원장은 `private.operator_pii_access_log`이고 2년 보관 뒤 cron `operator-pii-access-log-retention`(매일 03:37 UTC)이 지운다. 운영자·서비스 키를 포함해 누구도 표를 직접 읽거나 고치지 못하며(트리거가 UPDATE·TRUNCATE와 보관 기간 안의 DELETE를 막는다), 보관 기간을 바꾸면 `private.pii_access_log_retention()`과 앱 상수 `PII_ACCESS_LOG_RETENTION_YEARS`를 함께 바꾼다.
+
+**남는 것:** 운영자 ID·기록 시점의 역할, 시각, 접속지 IP(Vercel이 덮어쓰는 `x-real-ip`·`x-forwarded-for`), 업무(열람·검색·내려받기·원문 확인·정정), 화면 경로(쿼리 문자열 없음), 대상(회원·주문·클레임·배송 건·선물·리뷰 ID 최대 1,000개와 건수, 그 대상의 회원 ID — 주문·클레임·배송 건은 구매자와 선물 받는 사람, 선물은 보낸·받는 사람, 리뷰는 작성자). 이름·연락처·주소·검색어 원문은 남기지 않는다. 대량 목록 엑셀은 ID 대신 건수와 기존 내려받기 감사 번호(`audit_log`의 조건·파일 해시)를 남긴다.
+
+**대상 업무:** 고객 상세·고객 적립금, 회원 관리의 회원 상세(전체 이메일·동의) 열람과 회원 목록·검색, 주문 상세(목록 위 팝업 포함)·클레임 상세 열람, 이름·이메일·연락처가 검색어가 될 수 있는 목록 검색(주문통합검색의 구매자명·이메일·수령인·수령인 연락처, 클레임의 구매자·구매자 이메일·수령인명, 발주·발송과 배송현황의 구매자명·수령인명, 유형을 고르지 않은 전체 검색 포함 — 주문·클레임·배송건 번호, 운송장, 상품 검색은 제외), 클레임 회수지·재배송지 원문 확인·정정, 환불계좌 원문 확인, 목록 엑셀(주문·미결제·발주·배송현황·취소·반품·교환·환불 송금), 거래확정·선물·정기구매·적립금(원장)·리뷰·리뷰이벤트 응모 엑셀, 출고지시 파일, 접속기록 점검 화면 열람·엑셀. 통계·상품·카테고리·PG 정산·혜택 리포트 엑셀은 고객 식별 정보가 없어 대상이 아니다.
+
+**실패 정책:** 내려받기·원문 확인과 점검 화면은 기록이 남아야 응답한다(출고지시 파일은 창고 전달 표시 전에 기록하므로 실패하면 배송 상태도 바뀌지 않는다). 화면 열람·검색은 업무가 멈추지 않게 기록 실패를 서버 로그(`[pii-access-log]`)에만 남기고 연다. 같은 운영자·화면·대상·접속지의 열람·검색을 10분 안에 다시 그리면 한 번만 남는다.
+
+**월 1회 점검(통합 매니저 또는 계정 주매니저):**
+
+1. 판매자 정보 → 개인정보 접속기록에서 지난달 1일~말일(KST)을 조회한다.
+2. 이상 징후 카드의 건수를 확인한다 — 근무시간 외(평일 08~21시 밖·주말), 대량(한 번에 대상 1,000건 이상), 몰아보기(같은 운영자가 같은 1시간에 상세·원문 50건 이상).
+3. 이상 징후 기록마다 담당 운영자에게 업무 경위(주문 처리·CS·출고·정산)를 확인한다. 특정 고객의 요청(열람 문의·민원)이 있으면 대상 ID에 회원 ID를 넣어 그 회원의 주문·클레임 열람까지 함께 찾는다.
+4. 경위가 확인되지 않거나 업무 밖 열람이면 [역할 변경·회수](#역할-변경회수승계)로 권한을 줄이고, 개인정보 유출 의심이면 내부 보고·처리방침의 유출 통지 절차를 따른다.
+5. 점검 기간·이상 징후 건수·확인 결과·조치를 목록 엑셀(비밀번호 설정)과 함께 내부 점검 기록으로 보관한다. 엑셀 내려받기도 접속기록에 남는다.
+
+**한계:** 기록은 앱 경로에서 남긴다. 운영자 세션으로 PostgREST RPC를 직접 부른 읽기, 반품·교환 근거 사진 보기, 문의 상세·상담하기의 고객 메시지 열람은 이 원장에 남지 않는다. 카드팩 수동 발급 화면의 회원 검색은 같은 회원 검색 기록으로 남되 경로는 회원 관리로 적힌다(상담 구매이력·운영자별 처리 이력 열람은 `audit_log`에 남는다). 처리방침의 개인정보 안전성 확보조치 항목에 접속기록 보관·점검이 적혀 있는지는 법정 문서 담당이 확인한다.
+
+### 감사 기록 SQL 조회(범용 화면이 생기기 전)
+
+환불·취소·정지 같은 처리 기록(`public.audit_log`)을 행위자·대상·기간으로 찾는 범용 화면은 아직 없다. 사고 조사에는 Supabase SQL 편집기에서 읽기 전용 조회만 한다(수정·삭제 금지, 결과 공유 시 개인정보 가림).
+
+```sql
+-- 기간·행위자·대상으로 처리 기록 찾기(최신순 200건). 대상 형식은 'order:<주문 ID>', 'claim:<클레임 ID>', 'inquiries:<문의 ID>' 등이다.
+select a.created_at at time zone 'Asia/Seoul' as kst, a.actor_id, p.nickname, a.action, a.target, a.diff
+from public.audit_log a left join public.profiles p on p.id = a.actor_id
+where a.created_at >= timestamptz '2026-11-01 00:00+09' and a.created_at < timestamptz '2026-12-01 00:00+09'
+  and (a.target like 'order:%' or a.action like 'admin.order.%')   -- 필요에 맞게 바꾼다
+  -- and a.actor_id = '<운영자 ID>'
+order by a.created_at desc limit 200;
+```
+
 ## 검증
 
-운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), `inquiry_purchase_history_scope.sql`·`operator_inquiry_history.sql`(상담 구매이력 범위·처리 이력 권한과 열람 감사), `erp_linked_goods_apply.sql`(부매니저의 ERP 품목 반입·연결 상품 반영과 삭제 차단), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
+운영 수신자에게 시험 메일을 보내지 않는다. 격리 DB에서 `operator_manager_lifecycle.sql`, `operator_mfa_requirement.sql`(2단계 인증 스위치 off/on·aal1 거절·aal2 허용·끊긴 세션 거절·고객·service_role 무영향·초기화·회수 세션 끊기), `operator_email_invitations.sql`, `operator_logistics_dispatch.sql`(물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변), `inquiry_purchase_history_scope.sql`·`operator_inquiry_history.sql`(상담 구매이력 범위·처리 이력 권한과 열람 감사), `erp_linked_goods_apply.sql`(부매니저의 ERP 품목 반입·연결 상품 반영과 삭제 차단), `operator_pii_access_log.sql`(접속기록 기록 권한·append-only·점검 권한·이상 징후·보관 정리·ERP 제외), 권한 coverage 테스트를 실행하고 fake provider로 생성·접수·실패·중복·비활성 상태를 확인한다. 대표 지정, 역할별 메뉴/직접 URL/RPC 차단, 권한 회수 후 기존 세션, 초대 취소·만료·재초대·인증 이메일 불일치, 수락 경쟁과 인원 제한을 각각 검증한다.
 
 초대 동시성 검증은 `SUPABASE_DB_CONTAINER=<격리 컨테이너> OPERATOR_INVITATION_TEST_SCOPE=isolated-local bash supabase/tests/operator_email_invitation_concurrency.sh`로 실행한다. CI의 scope 값은 `ci`다. 스크립트는 원본 DB를 덤프해 별도 DB로 복제하고, cron 작업을 제외한 복제본에서만 역할 fixture를 구성한 뒤 종료 시 제거한다. Python 테스트를 기존 `postgres` DB에 직접 실행하지 않는다.

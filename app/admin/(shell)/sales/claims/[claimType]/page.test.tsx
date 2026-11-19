@@ -10,8 +10,9 @@ import Page, { maxDuration } from './page';
 
 const CLAIM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-const mocks = vi.hoisted(() => ({ gate: vi.fn(), list: vi.fn(), workspace: vi.fn() }));
+const mocks = vi.hoisted(() => ({ gate: vi.fn(), list: vi.fn(), workspace: vi.fn(), note: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.gate }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 vi.mock('@/lib/admin/claims.server', () => ({ getAdminClaimConsoleData: mocks.list }));
 vi.mock('@/lib/admin/claim-preview.server', () => ({ loadAdminClaimWorkspace: mocks.workspace }));
 /* 반품 자동 회수 접수·반품입고 회신 칸(QNA-032·QNA-034)은 스위치가 꺼진 상태로 읽는다 — 목록은 지금과 같다. */
@@ -75,6 +76,8 @@ it('claimId가 있으면 상세 라우트와 같은 로더로 읽어 팝업 안�
     backHref: '/admin/sales/claims/returns?stage=open&page=2',
     detailHref: `/admin/sales/claims/returns/${CLAIM_ID}?back=${encodeURIComponent('stage=open&page=2')}`,
   });
+  expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff-1', action: 'view', surface: 'claim.detail',
+    path: `/admin/sales/claims/returns/${CLAIM_ID}`, subjectKind: 'claim', subjectIds: [CLAIM_ID], detail: { via: 'popup' } });
 });
 
 it('다른 유형으로 바뀐 요청은 그 유형의 목록 팝업으로 보낸다', async () => {
@@ -94,6 +97,20 @@ it('찾을 수 없는 요청은 팝업 안에서 알린다', async () => {
   expect(named(tree, 'ClaimQueueKitScreen')).toBeDefined();
   expect(named(tree, 'ClaimDetailScreen')).toBeUndefined();
   expect(JSON.stringify(dialog?.props.children)).toContain('요청을 찾을 수 없습니다');
+  expect(mocks.note).not.toHaveBeenCalled();
+});
+
+it('구매자·수령인 검색은 원문 없이 클레임 검색 기록을 남기고, 주문번호 검색·검색어 없는 목록은 남기지 않는다', async () => {
+  const other = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac';
+  mocks.list.mockResolvedValue({ claimType: 'return', counts: {}, filters: {}, pageSize: 20, rows: [{ id: CLAIM_ID }, { id: other }], total: 5 });
+  await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ field: 'buyer', query: '홍길동' }) } as never);
+  expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff-1', action: 'search', surface: 'claim.search', path: '/admin/sales/claims/returns',
+    subjectKind: 'claim', subjectIds: [CLAIM_ID, other], subjectCount: 5, detail: { field: 'buyer', page: 1 } });
+  expect(JSON.stringify(mocks.note.mock.calls)).not.toContain('홍길동');
+  mocks.note.mockClear();
+  await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ field: 'order', query: 'C00012' }) } as never);
+  await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ stage: 'open' }) } as never);
+  expect(mocks.note).not.toHaveBeenCalled();
 });
 
 it('형식이 아닌 claimId는 무시한다', async () => {

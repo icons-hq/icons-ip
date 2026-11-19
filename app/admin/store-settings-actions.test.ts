@@ -5,7 +5,7 @@ vi.mock('@/lib/auth/admin',()=>({getCurrentAdminAuthState:async()=>({ ...mocks.a
 vi.mock('@/lib/supabase/server',()=>({createClient:async()=>({rpc:mocks.rpc})}));
 vi.mock('next/cache',()=>({updateTag:mocks.updateTag,revalidatePath:mocks.revalidatePath}));
 vi.mock('next/navigation',()=>({redirect:(path:string)=>{throw new Error(`redirect:${path}`);},unstable_rethrow:(e:unknown)=>{if(e instanceof Error&&e.message.startsWith('redirect:'))throw e;}}));
-import { saveStoreSettingsAction,saveShippingCarrierAction,saveInquiryAutoRepliesAction } from './store-settings-actions';
+import { saveStoreSettingsAction,saveShippingCarrierAction,saveShippingCarrierFormatAction,saveInquiryAutoRepliesAction } from './store-settings-actions';
 const stamp='2026-09-08T01:00:00.000001Z';
 function form(fields:Record<string,string>={}) { const data=new FormData(); for(const [k,v] of Object.entries({section:'business',updatedAt:stamp,email:'cs@example.test',phone:'02-000-0000',...fields}))data.set(k,v);return data;}
 beforeEach(()=>{Reflect.deleteProperty(mocks.auth,'operatorAccess');mocks.auth.role='admin';mocks.auth.isStaff=true;mocks.auth.isConfigured=true;mocks.rpc.mockReset().mockResolvedValue({data:'2026-09-08T02:00:00.000001Z',error:null});mocks.updateTag.mockClear();mocks.revalidatePath.mockClear();});
@@ -100,4 +100,34 @@ it('스토어 관리 권한이 없는 계정은 문의 안내를 저장하지 �
   expect(result.errors?.form).not.toContain('최고 관리자');
   expect(result.values?.['order.body']).toBe('합성 문의 안내');
   expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+describe('택배사 운송장 형식 저장 (SHP-032)', () => {
+  const formatForm = (fields: Record<string, string> = {}) => form({ code: 'hanjin', trackingNumberPattern: '^[0-9]{10,14}$', trackingNumberRule: '숫자 10~14자리',
+    trackingNumberSample: '1234-5678-9012-34', ...fields });
+  it('최고 관리자만 저장하고, 현재 버전과 정규화한 확인용 번호를 DB로 보낸다', async () => {
+    mocks.auth.role = 'staff';
+    expect((await saveShippingCarrierFormatAction({}, formatForm())).errors?.form).toContain('최고 관리자');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.auth.role = 'admin';
+    const result = await saveShippingCarrierFormatAction({}, formatForm());
+    expect(result.message).toContain('운송장 형식을 저장했습니다');
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_shipping_carrier_tracking_format', { target_code: 'hanjin', target_pattern: '^[0-9]{10,14}$',
+      target_rule: '숫자 10~14자리', target_sample: '12345678901234', expected_updated_at: stamp });
+    expect(mocks.updateTag).toHaveBeenCalledWith('store-settings');
+  });
+  it('입력 오류는 DB 전에, DB의 형식·확인용 번호·충돌 거절은 칸·폼 오류로 돌려준다', async () => {
+    expect((await saveShippingCarrierFormatAction({}, formatForm({ trackingNumberSample: '123' }))).errors?.trackingNumberSample).toBeDefined();
+    expect((await saveShippingCarrierFormatAction({}, formatForm({ updatedAt: '' }))).errors?.form).toContain('다시 열어');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'tracking_number_format_sample_mismatch' } });
+    expect((await saveShippingCarrierFormatAction({}, formatForm())).errors?.trackingNumberSample).toContain('맞지 않습니다');
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'store_settings_conflict' } });
+    expect((await saveShippingCarrierFormatAction({}, formatForm())).errors?.form).toContain('다른 관리자');
+  });
+  it('형식과 안내 문구를 함께 비우면 공통 형식만 본다고 알린다', async () => {
+    const result = await saveShippingCarrierFormatAction({}, formatForm({ trackingNumberPattern: '', trackingNumberRule: '', trackingNumberSample: '' }));
+    expect(result.message).toContain('공통 형식');
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_shipping_carrier_tracking_format', expect.objectContaining({ target_pattern: '', target_rule: '' }));
+  });
 });

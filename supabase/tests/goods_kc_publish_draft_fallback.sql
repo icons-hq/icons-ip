@@ -31,12 +31,12 @@ insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_ma
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000'),
  ('kc-fallback-none','kc-fallback-tests','합성 미검토 상품','문구',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000');
--- SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이다. 두 상품을 '문구'가 연결된 합성 카테고리에 붙이고,
--- 유형을 바꾸는 저장은 '키링'이 연결된 카테고리로 옮기는 것으로 한다(유형은 입력하지 않는다).
+-- 두 상품을 합성 대표 카테고리에 붙인다(공개 조건). ADR-0044로 상품 유형은 카테고리에서 파생되지 않으므로
+-- 다른 카테고리로 옮겨도 유형·KC 맥락은 그대로이고, KC 맥락은 고시정보 변경으로 바꾼다.
 select pg_temp.link_goods_type_category_fixture('kc-fallback-good');
 select pg_temp.link_goods_type_category_fixture('kc-fallback-none');
-insert into public.catalog_categories(id,code,name,depth,sort_order,good_type)
- values('00000000-0000-4000-8000-000000100840','kc-fallback-keyring','합성 키링 분류',1,0,'키링');
+insert into public.catalog_categories(id,code,name,depth,sort_order)
+ values('00000000-0000-4000-8000-000000100840','kc-fallback-keyring','합성 키링 분류',1,0);
 -- 어드민 상품 폼과 같은 전체 저장 입력(상품 + 옵션 + 기준값)을 만든다.
 create function pg_temp.kc_fallback_payload(target_id text) returns jsonb language sql as $$
   select record->'good'||jsonb_build_object('previous_id',target_id,
@@ -59,7 +59,7 @@ select public.admin_save_goods_kc('kc-fallback-good',jsonb_build_array(jsonb_bui
 select pg_temp.kc_fallback_payload('kc-fallback-good')||jsonb_build_object('category_id','00000000-0000-4000-8000-000000100840','notice_maker','바뀐 합성 제조자')
  as fb_changed \gset
 
--- KC 검토 뒤 대표 카테고리(→ 유형)·고시정보를 바꾸고 저장 후 공개: 마지막 공개 전환이 거절하고 저장 전체가 되돌려진다.
+-- KC 검토 뒤 대표 카테고리·고시정보를 바꾸고 저장 후 공개: 마지막 공개 전환이 거절하고 저장 전체가 되돌려진다.
 select pg_temp.kc_fallback_expect_error(format('select public.admin_save_good(%L::jsonb)',
  (:'fb_changed'::jsonb||'{"publish":true}')::text),'goods_kc_review_required','23514');
 select 1/case when (select type='문구' and notice_maker='합성 제조자' and published_at is null from public.goods where id='kc-fallback-good')
@@ -69,24 +69,25 @@ select 1/case when (select type='문구' and notice_maker='합성 제조자' and
  then 1 else 0 end as assert_publish_refusal_rolls_back_save_and_invalidation;
 
 -- 같은 입력을 공개 전환 없이 다시 저장하면 초안으로 저장되고 검토가 무효화된 이유가 남는다.
--- 고시정보(상품 저장)와 카테고리 유형(카테고리 단계)은 저장의 다른 단계라 무효화 이력이 두 번(버전 2·3) 남는다.
+-- 카테고리 이동은 KC 맥락을 바꾸지 않으므로(ADR-0044) 고시정보 변경 한 번만 무효화된다(버전 2). 유형은 그대로다.
 select public.admin_save_good(:'fb_changed'::jsonb||'{"publish":null}')->>'id' as fb_retry_id \gset
 select 1/case when :'fb_retry_id'='kc-fallback-good'
- and (select type='키링' and notice_maker='바뀐 합성 제조자' and published_at is null from public.goods where id='kc-fallback-good')
+ and (select type='문구' and category_id='00000000-0000-4000-8000-000000100840' and notice_maker='바뀐 합성 제조자' and published_at is null
+   from public.goods where id='kc-fallback-good')
  and public.admin_read_goods_kc('kc-fallback-good')->>'status'='unreviewed'
- and public.admin_read_goods_kc('kc-fallback-good')->>'revision'='3'
+ and public.admin_read_goods_kc('kc-fallback-good')->>'revision'='2'
  and public.admin_read_goods_kc('kc-fallback-good')#>>'{history,0,reason}'='goods_context_changed'
- and public.admin_read_goods_kc('kc-fallback-good')#>>'{history,0,revision}'='3'
- and public.admin_read_goods_kc('kc-fallback-good')#>>'{history,1,reason}'='goods_context_changed'
- and public.admin_read_goods_kc('kc-fallback-good')#>>'{history,1,revision}'='2'
+ and public.admin_read_goods_kc('kc-fallback-good')#>>'{history,0,revision}'='2'
+ and jsonb_array_length(public.admin_read_goods_kc('kc-fallback-good')->'history')=2
+ and public.admin_read_goods_kc('kc-fallback-good')#>>'{history,1,reason}'='review_completed'
  then 1 else 0 end as assert_draft_retry_saves_and_records_invalidation;
 
 -- 같은 공개 요청과 다시 저장을 반복해도 KC 버전이 오르지 않는다(맥락이 이미 같다).
 select pg_temp.kc_fallback_expect_error(format('select public.admin_save_good(%L::jsonb)',
  (:'fb_changed'::jsonb||'{"publish":true}')::text),'goods_kc_review_required','23514');
 select public.admin_save_good(:'fb_changed'::jsonb||'{"publish":null}') is not null as fb_retry_again;
-select 1/case when public.admin_read_goods_kc('kc-fallback-good')->>'revision'='3'
- and (select count(*)=2 from public.audit_log where target='goods:kc-fallback-good' and action='admin.good.kc_invalidated')
+select 1/case when public.admin_read_goods_kc('kc-fallback-good')->>'revision'='2'
+ and (select count(*)=1 from public.audit_log where target='goods:kc-fallback-good' and action='admin.good.kc_invalidated')
  and (select published_at is null from public.goods where id='kc-fallback-good')
  then 1 else 0 end as assert_repeated_publish_and_retry_are_idempotent;
 
@@ -105,6 +106,6 @@ select public.admin_read_goods_kc('kc-fallback-good') as fb_current \gset
 select public.admin_save_goods_kc('kc-fallback-good',:'fb_current'::jsonb->'models','reviewed',
  (:'fb_current'::jsonb->>'revision')::integer,:'fb_current'::jsonb->>'contextFingerprint',true) is not null as fb_rereviewed;
 select public.admin_save_good(pg_temp.kc_fallback_payload('kc-fallback-good')||'{"publish":true}') is not null as fb_published;
-select 1/case when (select published_at is not null and type='키링' from public.goods where id='kc-fallback-good')
+select 1/case when (select published_at is not null and type='문구' from public.goods where id='kc-fallback-good')
  then 1 else 0 end as assert_publish_after_rereview;
 rollback;

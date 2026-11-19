@@ -833,7 +833,7 @@ export function AboutLegacy({
     };
     const addGood = (id: string, meta?: string) => {
       const good = catalog.goods.find((item) => item.id === id);
-      if (good) items.push({ id: `good-${good.id}`, tag: 'GOODS', title: good.name, meta: meta ?? `${good.badge ?? good.type} · ${krw(good.price)}`, background: good.img, href: '/shop' });
+      if (good) items.push({ id: `good-${good.id}`, tag: 'GOODS', title: good.name, meta: meta ?? [good.badge ?? good.type, krw(good.price)].filter(Boolean).join(' · '), background: good.img, href: '/shop' });
     };
     const addCard = (id: string) => {
       if (!cardRewardsEnabled) return;
@@ -854,7 +854,7 @@ export function AboutLegacy({
     const good = catalog.goods.find((item) => item.ip === selectedIp.id);
     const event = catalog.events.find((item) => item.ip === selectedIp.id);
     const card = catalog.cards.find((item) => item.ip === selectedIp.id);
-    if (good) items.push({ id: `good-${good.id}`, tag: good.badge ?? 'GOODS', title: good.name, meta: `${krw(good.price)} · ${good.type}`, background: good.img, href: '/shop' });
+    if (good) items.push({ id: `good-${good.id}`, tag: good.badge ?? 'GOODS', title: good.name, meta: [krw(good.price), good.type].filter(Boolean).join(' · '), background: good.img, href: '/shop' });
     if (event) items.push({ id: `event-${event.id}`, tag: `${event.mode} · ${event.status}`, title: event.title, meta: `${event.date} · ${event.loc}`, background: event.img, href: `/offline-popups/${event.id}` });
     if (cardRewardsEnabled && card) items.push({ id: `card-${card.id}`, tag: `${card.rarity} · CARD`, title: card.name, meta: `${RARITY_META[card.rarity].label} · ${card.no}`, background: card.bg, href: '/packs' });
     return items;

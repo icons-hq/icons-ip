@@ -7,6 +7,7 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { isOrderDetailId } from '@/lib/admin/order-detail';
 import { getAdminOrderDetail } from '@/lib/admin/order-detail.server';
 import { adminOrderBackHref } from '@/lib/admin/orders';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 
 export default async function AdminOrderDetailPage({
   params,
@@ -21,6 +22,9 @@ export default async function AdminOrderDetailPage({
   if (!isOrderDetailId(orderId)) notFound();
   const [detail, production, downloads] = await Promise.all([getAdminOrderDetail(orderId, canManage), loadAdminOrderProduction(orderId), loadAdminOrderDownloads(orderId)]);
   if (!detail) notFound();
+  /* 배송지·연락처·구매자를 보여 주는 화면 — 개인정보 접속기록(실패해도 화면은 연다). */
+  await notePiiAccess({ actorId: auth.user.id, action: 'view', surface: 'order.detail', path: `/admin/sales/orders/${orderId}`,
+    subjectKind: 'order', subjectIds: [orderId], detail: { via: 'page' } });
   const query = await searchParams;
   const requestedBack = adminOrderBackHref(query.back);
   const backHref = canManage || requestedBack.startsWith('/admin/sales/orders?') ? requestedBack : '/admin/sales/orders';

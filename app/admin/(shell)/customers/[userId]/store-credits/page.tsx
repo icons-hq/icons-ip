@@ -8,16 +8,19 @@ import { StoreCreditBalance, StoreCreditHistoryList } from '@/components/screens
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { isCustomerId } from '@/lib/admin/customer-detail';
 import { loadAdminStoreCreditHistory } from '@/lib/admin/store-credits.server';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 
 export default async function Page({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { userId } = await params;
   if (!isCustomerId(userId)) notFound();
   const path = `/admin/customers/${userId}/store-credits`;
-  await requireAdminScreenAccess(path, { adminOnly: true });
+  const auth = await requireAdminScreenAccess(path, { adminOnly: true });
   const query = await searchParams;
   const value = Number(typeof query.page === 'string' ? query.page : 1);
   const page = Number.isSafeInteger(value) && value > 0 && value <= 1_000_000 ? value : 1;
   const history = await loadAdminStoreCreditHistory(userId, page);
+  /* 한 회원의 적립금 잔액·이력 열람도 개인정보 접속기록에 남긴다(실패해도 화면은 연다). */
+  await notePiiAccess({ actorId: auth.user.id, action: 'view', surface: 'customer.store_credits', path, subjectKind: 'member', subjectIds: [userId], detail: { page } });
   /* 템플릿 룩(ADR-0028): 화면 머리와 세 카드. 잔액·이력은 고객 화면과 같은 부품이다. */
   return <div className="flex min-w-0 flex-col gap-4" data-customer-store-credits="">
     <AdminPageHeader title="고객 적립금" description="지급·차감 정정은 사유와 함께 기록합니다. 사용 대기 금액과 만료된 금액은 차감할 수 없습니다." actions={<Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={`/admin/customers/${userId}`}><ArrowLeft aria-hidden="true" />고객 상세로 돌아가기</Link>} />

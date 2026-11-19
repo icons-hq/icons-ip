@@ -1,10 +1,12 @@
 export const ADMIN_ALERT_CATEGORIES = [
   ['all', '전체'], ['orders', '주문'], ['claims', '취소·반품·교환'],
   ['inquiries', '고객문의'], ['questions', '상품문의'], ['reviews', '리뷰'],
+  /* 자동 작업 실패(같은 작업은 한 시간에 하나). DB private.operator_alert_capability와 같은 권한이다. */
+  ['system', '시스템'],
 ] as const;
 export type AdminAlertCategory = typeof ADMIN_ALERT_CATEGORIES[number][0];
 const ALERT_CAPABILITIES: Record<Exclude<AdminAlertCategory, 'all'>, AdminCapability> = {
-  orders: 'sales.read', claims: 'sales.manage', inquiries: 'cs.manage', questions: 'cs.manage', reviews: 'cs.manage',
+  orders: 'sales.read', claims: 'sales.manage', inquiries: 'cs.manage', questions: 'cs.manage', reviews: 'cs.manage', system: 'platform.manage',
 };
 export function allowedAdminAlertCategories(access: AdminAccessSource) {
   return ADMIN_ALERT_CATEGORIES.filter(([category]) => category === 'all' || hasAdminCapability(access, ALERT_CAPABILITIES[category]));

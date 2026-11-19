@@ -12,6 +12,7 @@ import {
 import { getAdminMemberDetail, getAdminMemberSummaries } from '@/lib/admin/members.server';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
+import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 
 export interface AdminMemberSearchActionState {
   members: AdminMemberSummary[];
@@ -34,6 +35,13 @@ async function requireStaffAction(): Promise<AdminMemberMutationActionState | nu
   return null;
 }
 
+/** 검색·상세 읽기는 개인정보 접속기록에 운영자를 남겨야 해서 권한 확인 결과의 계정을 쓴다. */
+async function requireStaffActor(): Promise<string | null> {
+  const auth = await requireAdminActionAccess('/admin/community/members', { capability: 'platform.manage' });
+  return auth ? auth.user.id : null;
+}
+const MEMBERS_PATH = '/admin/community/members';
+
 function revalidateMemberViews(profileId: string) {
   revalidatePath('/admin');
   revalidatePath('/admin/community/members');
@@ -44,14 +52,17 @@ export async function searchAdminMembersAction(
   state: AdminMemberSearchActionState,
   formData: FormData,
 ): Promise<AdminMemberSearchActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return { members: [], query: state.query, errors: authError.errors };
+  const actorId = await requireStaffActor();
+  if (!actorId) return { members: [], query: state.query, errors: { form: '관리자 권한이 필요합니다.' } };
 
   const result = normalizeAdminMemberSearchForm(formData);
   if (!result.ok) return { members: [], query: state.query, errors: result.errors };
 
   try {
     const members = await getAdminMemberSummaries(result.value.query);
+    /* 닉네임·이메일로 찾은 회원 목록(가린 이메일)도 개인정보 접속기록(검색)에 남긴다 — 검색어 원문 없이 보인 회원 ID만. 실패해도 결과는 보인다. */
+    await notePiiAccess({ actorId, action: 'search', surface: 'member.search', path: MEMBERS_PATH, subjectKind: 'member',
+      subjectIds: members.map(member => member.id), subjectCount: members.length, detail: { queried: Boolean(result.value.query) } });
     return { members, query: result.value.query };
   } catch {
     return {
@@ -66,17 +77,18 @@ export async function loadAdminMemberDetailAction(
   state: AdminMemberDetailActionState,
   formData: FormData,
 ): Promise<AdminMemberDetailActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return { member: null, errors: authError.errors };
+  const actorId = await requireStaffActor();
+  if (!actorId) return { member: null, errors: { form: '관리자 권한이 필요합니다.' } };
 
   const result = normalizeAdminMemberDetailForm(formData);
   if (!result.ok) return { member: null, errors: result.errors };
 
   try {
     const member = await getAdminMemberDetail(result.value.profileId);
-    return member
-      ? { member }
-      : { member: null, errors: { form: '회원을 찾을 수 없습니다.' } };
+    if (!member) return { member: null, errors: { form: '회원을 찾을 수 없습니다.' } };
+    /* 전체 이메일·동의 상태를 보여 주는 카드라 고객 상세와 같은 열람 기록을 남긴다(실패해도 연다). */
+    await notePiiAccess({ actorId, action: 'view', surface: 'member.detail', path: MEMBERS_PATH, subjectKind: 'member', subjectIds: [member.id] });
+    return { member };
   } catch {
     return { member: null, errors: { form: '회원 상세를 불러오지 못했습니다. 다시 시도해주세요.' } };
   }
@@ -92,6 +104,7 @@ function suspensionRpcError(message: string): string {
   if (message.includes('cannot_unsuspend_self') || message.includes('cannot_unsuspend_admin')) {
     return '본인 또는 admin 계정은 정지 해제할 수 없습니다.';
   }
+  if (message.includes('member_withdrawn')) return '탈퇴 요청을 처리한 계정은 정지를 해제할 수 없습니다.';
   if (message.includes('profile_not_found')) return '회원을 찾을 수 없습니다.';
   if (message.includes('forbidden') || message.includes('account_suspended')) {
     return '이 계정을 제재할 권한이 없습니다.';

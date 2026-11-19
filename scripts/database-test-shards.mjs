@@ -34,6 +34,8 @@ const operators = [
   sql('operator_capability_coverage'),
   sql('operator_capability_guards'),
   sql('operator_manager_lifecycle'),
+  // 운영자 2단계 인증 스위치·DB 강제·초기화·회수 세션 끊기.
+  sql('operator_mfa_requirement'),
   // 1014-084 물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변.
   sql('operator_logistics_dispatch'),
   sql('operator_email_invitations'),
@@ -61,8 +63,11 @@ const operators = [
   sql('warehouse_reply_order_numbers'),
   // QNA-019 배송 건 추가 운송장(서원 회신 대표+추가, 운영자 추가·삭제)과 QNA-028 택배 추적 자동 배송완료(스위치 기본 꺼짐).
   sql('order_shipment_extra_trackings'),
+  // 운송장 무결성: 다른 주문 번호 재사용·택배사 형식·뒤바뀐 회신·맞바꾸기.
+  sql('tracking_number_integrity'),
   sql('delivery_tracking_auto_complete'),
   script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
+  script('tracking_number_integrity_concurrency.sh', 'TRACKING_INTEGRITY_TEST_SCOPE'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
@@ -132,8 +137,8 @@ const catalog = [
   // 카테고리 전시 굿즈 투영의 카드 칩 필드(배송비 유형·옵션 판매 방식, migration 20261117130300).
   sql('category_display_card_chips'),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),
-  // 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값(SHEET-003·ADR-0037). 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
-  sql('goods_type_from_category', { kc: true }),
+  // 상품 유형 층 걷어내기(ADR-0044): 공개 조건은 대표 카테고리, 유형은 파생·판정하지 않는다. 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
+  sql('goods_type_layer_retire', { kc: true }),
   // 상품 기본 칸 버전: 옛 편집 화면 저장이 다른 작업의 변경(19금·결제 수단·옵션 순서 포함)을 되돌리지 않는다.
   sql('goods_base_revision'),
   // 공개 Data API의 상품·옵션 읽기 경계(초안·보관·19금 비노출, 고객 화면 좁은 읽기 RPC).
@@ -209,6 +214,8 @@ const storefront = [
   sql('inquiry_chat_console'),
   sql('inquiry_purchase_history_scope'),
   sql('operator_inquiry_history'),
+  // 운영자 개인정보 접속기록 원장·기록·점검·보관 정리.
+  sql('operator_pii_access_log'),
   sql('admin_sales_read_contract_gaps', { admin: true }),
   script('admin_sales_read_contract_gaps_concurrency.sh', 'SALES_READ_GAP_TEST_SCOPE'),
   sql('admin_claim_detail_search', { admin: true }),
@@ -224,6 +231,8 @@ const storefront = [
   sql('member_phone_verification'),
   // 온보딩 완료는 서버(service_role)만 기록하고 휴대폰 인증을 쓰기 시점에 다시 확인한다.
   sql('onboarding_completion_server_only'),
+  // 문의로 받은 탈퇴의 어드민 처리(정지·개인정보 삭제·세션 종료·감사)와 정지 회원 계정 문의.
+  sql('member_withdrawal_processing'),
   // 2026-11-17: 로그인 이메일이 쓸 수 없는 주소(Apple 릴레이·빈 값)인 회원의 이메일 변경 코드·프로필 이메일 동기화.
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
@@ -233,6 +242,8 @@ const storefront = [
   sql('auto_order_confirmation'),
   // 출고 보류(테스트 키 결제·결제사 직접 취소)와 발송 경로 차단·해제.
   sql('order_fulfillment_holds'),
+  // 시스템 상태: cron 실행 기록·멈춤 판정·미종결 결제 재확인·운영 알림 시스템 분류.
+  sql('system_health_alerts'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
   sql('stock_reconcile_safety_digest'),
   // QA1 S-T07-01: 재고 대조 반영과 같은 옵션 주문의 재고 차감이 겹칠 때(주문 먼저 → 거절, 반영 먼저 → 주문이 반영 값에서 뺌).

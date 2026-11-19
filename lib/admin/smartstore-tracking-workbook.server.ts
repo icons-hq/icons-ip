@@ -1,14 +1,15 @@
 import 'server-only';
 import type ExcelJS from 'exceljs';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
-import { isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
+import { carrierTrackingNumberIssue, isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { parseDelimitedText } from './spreadsheet-text';
 import type { TrackingImportParseResult } from './tracking-import';
 import { readSafeWorkbookCell } from './workbook-safety';
 import {
-  ICONS_REPLY_CARRIER_HEADER, ICONS_REPLY_ITEM_HEADER, ICONS_REPLY_METHOD_HEADER, ICONS_REPLY_PARCEL_METHODS, ICONS_REPLY_TRACKING_HEADERS,
+  ICONS_REPLY_CARRIER_HEADER, ICONS_REPLY_ITEM_HEADER, ICONS_REPLY_METHOD_HEADER, ICONS_REPLY_PARCEL_METHODS, ICONS_REPLY_PHONE_HEADER,
+  ICONS_REPLY_RECIPIENT_HEADER, ICONS_REPLY_TRACKING_HEADERS,
 } from './smartstore-shipment-workbook';
 
 export interface SmartStoreTrackingParseResult extends TrackingImportParseResult {
@@ -108,6 +109,8 @@ function parseReplyTable(table: ReplyTable, carriers: ShippingCarrierRegistry): 
   const columnsNamed = (names: readonly string[]) => headers.flatMap((header, index) => names.includes(header) ? [index + 1] : []);
   const itemColumns = columnsNamed([ICONS_REPLY_ITEM_HEADER]), carrierColumns = columnsNamed([ICONS_REPLY_CARRIER_HEADER]);
   const trackingColumns = columnsNamed(ICONS_REPLY_TRACKING_HEADERS), methodColumns = columnsNamed([ICONS_REPLY_METHOD_HEADER]);
+  // 받는 분 대조(뒤바뀐 회신 감지)용. 열이 하나일 때만 읽고, 없거나 겹치면 대조하지 않는다.
+  const recipientColumns = columnsNamed([ICONS_REPLY_RECIPIENT_HEADER]), phoneColumns = columnsNamed([ICONS_REPLY_PHONE_HEADER]);
   if (itemColumns.length !== 1 || carrierColumns.length !== 1 || trackingColumns.length !== 1 || methodColumns.length > 1) {
     throw new Error('상품주문번호·택배사·운송장번호 열이 각각 하나씩 있어야 합니다.');
   }
@@ -137,9 +140,14 @@ function parseReplyTable(table: ReplyTable, carriers: ShippingCarrierRegistry): 
     if (!reason && !rawTracking) { skipped.push({ line, reference }); continue; }
     const lateReason = reason
       ?? (!rawCarrier ? '택배사가 비어 있습니다.' : undefined)
-      ?? (!rawTracking ? '운송장번호가 비어 있습니다.' : !isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(trackingCell.value) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
-    if (lateReason) issues.push({ line, reference, reason: lateReason });
-    else rows.push({ line, reference, referenceId: isUuid(reference) ? reference : null, carrier: carrier!.code, trackingNumber });
+      ?? (!rawTracking ? '운송장번호가 비어 있습니다.' : !isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(trackingCell.value) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined)
+      ?? (carrier ? carrierTrackingNumberIssue(carrier, trackingNumber) ?? undefined : undefined);
+    if (lateReason) { issues.push({ line, reference, reason: lateReason }); continue; }
+    const recipientName = recipientColumns.length === 1 ? table.cell(line, recipientColumns[0]) : null;
+    const recipientPhone = phoneColumns.length === 1 ? table.cell(line, phoneColumns[0]) : null;
+    rows.push({ line, reference, referenceId: isUuid(reference) ? reference : null, carrier: carrier!.code, trackingNumber,
+      ...(recipientName && !recipientName.error && recipientName.value.trim() ? { recipientName: recipientName.value.trim() } : {}),
+      ...(recipientPhone && !recipientPhone.error && recipientPhone.value.trim() ? { recipientPhone: recipientPhone.value.trim() } : {}) });
   }
   return { kind: 'smartstore', rows, issues, skipped };
 }

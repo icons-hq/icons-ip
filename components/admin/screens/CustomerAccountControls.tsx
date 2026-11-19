@@ -35,7 +35,9 @@ export function CustomerSuspensionControl({ actor, customer }: { actor: { id: st
     {customer.suspendedAt
       ? <AdminNotice title="정지된 계정입니다." tone="danger">{customer.suspensionReason ? <span className="wrap-anywhere">내부 사유 · {customer.suspensionReason}</span> : null}</AdminNotice>
       : <p className="text-sm">이용 중인 계정입니다.</p>}
-    {!allowed ? <p className="text-sm text-muted-foreground">이 계정은 현재 권한으로 제재할 수 없습니다.</p> : customer.suspendedAt ?
+    {!allowed ? <p className="text-sm text-muted-foreground">이 계정은 현재 권한으로 제재할 수 없습니다.</p>
+      : customer.suspendedAt && customer.withdrawal?.processed ? <p className="text-sm text-muted-foreground">탈퇴 요청을 처리한 계정이라 정지를 해제할 수 없습니다.</p>
+      : customer.suspendedAt ?
       <form action={unsuspend} className={FORM_CLASS}><input type="hidden" name="profileId" value={customer.id} />
         <Button className="self-start" disabled={unsuspending} type="submit" variant="outline">{unsuspending ? '처리 중' : '정지 해제'}</Button><Feedback state={unsuspendState} />
       </form> :

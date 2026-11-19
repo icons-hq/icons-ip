@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 begin;
+-- 합성 운송장번호를 쓴다. 택배사별 번호 형식(한진·우체국)은 tracking_number_integrity.sql이 보므로 이 트랜잭션에서만 끈다.
+update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 load 'safeupdate';
 create function pg_temp.cc_id(kind text,n integer) returns uuid language sql immutable as $$select md5('claim-contact:'||kind||':'||n)::uuid$$;
 create function pg_temp.cc_assert(ok boolean,label text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'claim contact assertion: %',label;end if;end$$;

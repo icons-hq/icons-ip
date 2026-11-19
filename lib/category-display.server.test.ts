@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseCategoryDisplayGood, parseCategoryDisplayPage, hydrateCategoryDisplayPage, loadCategoryDisplayPage } from './category-display.server';
+import { categoryDisplaySqlQuery, parseCategoryDisplayGood, parseCategoryDisplayPage, hydrateCategoryDisplayPage, loadCategoryDisplayPage } from './category-display.server';
 import { toGood, type GoodRow } from './catalog';
 import { initialGoodOption, purchasableOptionQty } from './goods-options';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -24,6 +24,14 @@ function page() { return { category: { id, name: '전시' }, checkedAt: now, tok
   rows: [row()], ipFacets: [{ value: 'ip1', label: 'IP', count: 1 }], typeFacets: [{ value: '문구', label: '문구', count: 1 }], banner: null, video: null, recommendations: null }; }
 beforeEach(() => { vi.clearAllMocks(); mocks.appearance.mockResolvedValue(new Map()); mocks.rewards.mockResolvedValue(true); mocks.summaries.mockResolvedValue({}); });
 describe('전시 공개 DTO', () => {
+  it('RPC typeFacets 의 옛 유형 값은 거르고 예약판매만 남긴다', () => {
+    const source = page(); source.typeFacets = [{ value: '문구', label: '문구', count: 1 }, { value: '예약판매', label: '예약판매', count: 1 }];
+    expect(parseCategoryDisplayPage(source, query)?.result.typeFacets).toEqual([{ value: '예약판매', label: '예약판매', count: 1 }]);
+    expect(parseCategoryDisplayPage(page(), query)?.result.typeFacets).toEqual([]);
+  });
+  it('RPC 에 보내는 types 는 예약판매만이다', () => {
+    expect(categoryDisplaySqlQuery({ ...query, types: ['키링', '예약판매'] }).types).toEqual(['예약판매']);
+  });
   it('기간 할인가·예약판매 물량을 기존 toGood와 같은 옵션 변환으로 표시한다', () => {
     const source = row(), result = parseCategoryDisplayGood(source);
     expect(result).toEqual(toGood(source as unknown as GoodRow, () => ''));

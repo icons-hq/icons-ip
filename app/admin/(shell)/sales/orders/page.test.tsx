@@ -23,7 +23,9 @@ const mocks = vi.hoisted(() => ({
   insights: vi.fn(async () => ({})),
   moderation: vi.fn(async () => ({ reports: [] })),
   preview: vi.fn(async () => ({ kind: 'not_found' })),
+  note: vi.fn(async () => undefined),
 }));
+vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 
 vi.mock('@/components/admin/sections/Orders', () => ({ OrdersSection: mocks.ordersSection }));
 vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
@@ -160,4 +162,21 @@ it('`?orderId=`가 있으면 주문 목록·상품주문 목록 위에 같은 �
   expect(listOf(items).type).toBe(mocks.orderItemsScreen);
   expect(popupOf(items)?.props).toMatchObject({ closeHref: '/admin/sales/orders?page=1&view=items' });
   expect(popupOf(await AdminSalesOrdersPage({ searchParams: Promise.resolve({ orderId: 'x' }) }))).toBeNull();
+});
+
+it('이름·연락처 같은 개인정보 검색은 검색어 원문 없이 접속기록을 남기고, 주문번호 검색·검색어 없는 목록은 남기지 않는다', async () => {
+  staffSession(); vi.clearAllMocks();
+  const first = '50000000-0000-4000-8000-000000000011', second = '50000000-0000-4000-8000-000000000012';
+  mocks.orders.mockResolvedValueOnce({ items: [{ id: first }, { id: second }], filters: {}, pageSize: 20, total: 7 } as never);
+  await AdminSalesOrdersPage({ searchParams: Promise.resolve({ field: 'phone', query: '01012345678', page: '1' }) });
+  expect(mocks.note).toHaveBeenCalledExactlyOnceWith({ actorId: mocks.authState.user?.id, action: 'search', surface: 'order.search',
+    path: '/admin/sales/orders', subjectKind: 'order', subjectIds: [first, second], subjectCount: 7, detail: { field: 'phone', view: 'orders', page: 1 } });
+  expect(JSON.stringify(mocks.note.mock.calls)).not.toContain('01012345678');
+  mocks.orderItems.mockResolvedValueOnce({ rows: [{ orderId: first }, { orderId: first }], total: 2, orderCount: 1 } as never);
+  await AdminSalesOrdersPage({ searchParams: Promise.resolve({ view: 'items', field: 'recipient', query: '홍길동' }) });
+  expect(mocks.note).toHaveBeenLastCalledWith(expect.objectContaining({ subjectIds: [first, first], subjectCount: 1, detail: { field: 'recipient', view: 'items', page: 1 } }));
+  mocks.note.mockClear();
+  await AdminSalesOrdersPage({ searchParams: Promise.resolve({ field: 'order', query: '2026111800001' }) });
+  await AdminSalesOrdersPage({ searchParams: Promise.resolve({ status: 'paid' }) });
+  expect(mocks.note).not.toHaveBeenCalled();
 });

@@ -2,6 +2,7 @@ import 'server-only';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
+import { recordPiiAccess } from '@/lib/admin/pii-access-log.server';
 import { normalizeClaimRefundAccountIdentity } from '@/lib/orders/claim-refund-account';
 import { isUuid } from '@/lib/uuid';
 import { transactionExactKeys, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
@@ -27,6 +28,11 @@ export async function viewBankRefundAccount(input: unknown): Promise<{ account: 
     const account = parseBankRefundAccountView(data);
     if (!account || account.viewId !== input.viewId || account.actorId !== identity.actorId || account.orderId !== identity.orderId
       || account.claimId !== identity.claimId || account.revision !== input.revision) return { error: '감사 기록이 확인된 계좌정보를 받지 못했습니다. 다시 확인해주세요.' };
+    /* 계좌 원문 확인은 개인정보 접속기록(원문 확인)이 남아야 돌려준다. 같은 확인 번호로 다시 열면 DB 열람 영수증은 그대로다. */
+    try {
+      await recordPiiAccess({ actorId: identity.actorId, action: 'reveal', surface: 'refund_account', path: '/api/admin/bank-transfer-refund-account',
+        subjectKind: 'claim', subjectIds: [identity.claimId], detail: { viewId: input.viewId } });
+    } catch { return { error: '개인정보 접속기록을 남기지 못해 계좌정보를 보여 주지 않았습니다. 잠시 후 다시 확인해주세요.' }; }
     return { account };
   } catch (error) { unstable_rethrow(error); return { error: '환불계좌를 확인하지 못했습니다. 다시 확인해주세요.' }; }
 }

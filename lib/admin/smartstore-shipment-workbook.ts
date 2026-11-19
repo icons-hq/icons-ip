@@ -124,4 +124,7 @@ export const ICONS_REPLY_ITEM_HEADER = '상품주문번호';
 export const ICONS_REPLY_CARRIER_HEADER = '택배사';
 export const ICONS_REPLY_TRACKING_HEADERS = ['운송장번호', '송장번호'] as const;
 export const ICONS_REPLY_METHOD_HEADER = '배송방법';
+/** 회신의 받는 분 대조(뒤바뀐 회신 감지)에 쓰는 열. 값을 고치지 않고 돌려받으면 주문 배송지와 같아야 한다. */
+export const ICONS_REPLY_RECIPIENT_HEADER = '수취인';
+export const ICONS_REPLY_PHONE_HEADER = '연락처';
 export const ICONS_REPLY_PARCEL_METHODS: readonly string[] = ['택배', '택배,등기,소포'];

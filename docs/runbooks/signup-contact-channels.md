@@ -140,6 +140,7 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 | 동의·만 14세 | 요청·확인 두 번 확인, 미충족이면 번호를 남기지 않음 | DB `private.member_phone_onboarding_ready` |
 | 한 번호 한 계정 | 다른 계정이 인증하면 번호를 옮기고 이전 계정은 재인증 필요(이력 `released`) | DB + 앱 온보딩 게이트 |
 | 탈퇴 신청(계정 봉인) | 같은 트랜잭션에서 번호·진행 중 요청·인증 이력 삭제 | DB 트리거 |
+| 문의로 받은 탈퇴(운영자 처리) | 정지와 같은 트랜잭션에서 번호·진행 중 요청·인증 이력 삭제 | 어드민 고객 상세 '탈퇴 요청 처리'(`admin_process_member_withdrawal`, [탈퇴 정책](../account-deletion-retention-policy.md) §5) |
 | 보관 | 결과가 정해진 요청은 번호 원문 삭제, 매시 작업이 만료 요청을 닫고 이틀 지난 요청 행과 1년 지난 인증·해제 이력 삭제 | pg_cron `member-phone-verification-retention` |
 
 저장: `private.member_phone_numbers`(회원당 1행 — 인증 번호(E.164) 또는 재인증 필요 표시), `private.member_phone_verification_challenges`

@@ -8,6 +8,7 @@ import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath, updateTag } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
+import { goodCategoryFailure } from '@/lib/admin/good-workspace';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
@@ -31,7 +32,6 @@ export interface AdminCategoryActionState extends AdminFormValuesState {
     code?: string;
     name?: string;
     parentId?: string;
-    goodType?: string;
     categoryId?: string;
     erpCode?: string;
     erpName?: string;
@@ -45,7 +45,6 @@ export interface AdminCategoryActionState extends AdminFormValuesState {
 const GOOD_ID = /^[a-z0-9][a-z0-9-]*$/;
 const OPERATION_ID = 'operationId';
 const RETRY = '카테고리 저장을 완료하지 못했습니다. 입력값은 유지됩니다. 다시 시도해주세요.';
-const GOOD_TYPE_INVALID = '상품 유형은 정해진 분류 중에서 고르거나 연결 안 함으로 두세요.';
 
 function operationId(formData: FormData): string {
   const value = formData.get(OPERATION_ID);
@@ -73,10 +72,9 @@ function mapRpcError(error: { code?: unknown; message?: unknown }): string {
   if (descriptor.includes('category_has_active_children')) return '활성 하위 카테고리를 먼저 정리해주세요.';
   if (descriptor.includes('category_erp_code_taken')) return '이미 연결된 ERP 코드입니다.';
   if (descriptor.includes('category_activation_unready')) return '실제 분류·ERP 값과 운영 확인 근거를 채운 뒤 활성화해주세요.';
-  if (descriptor.includes('invalid_category_good_type')) return GOOD_TYPE_INVALID;
-  /* SHEET-003(ADR-0037): 공개 중 상품의 대표 카테고리는 상품 유형이 그대로인 카테고리로만 바꾼다. */
-  if (descriptor.includes('goods_type_category_locked')) return '공개 중인 상품은 상품 유형이 다른 카테고리로 옮길 수 없습니다. 상품을 초안으로 전환한 뒤 바꾸고 KC를 다시 검토해주세요.';
-  if (descriptor.includes('goods_type_category_required')) return '상품 유형이 연결되지 않은 카테고리입니다. 공개 중인 상품은 상품 유형이 같은 카테고리로만 옮길 수 있습니다. 카테고리에 상품 유형을 먼저 연결해주세요.';
+  /* ADR-0044: 대표 분류 적용은 공개 중 상품의 대표 카테고리를 비우지 못한다. */
+  const goodCategoryMessage = goodCategoryFailure(descriptor);
+  if (goodCategoryMessage) return goodCategoryMessage;
   if (descriptor.includes('category_not_found') || descriptor.includes('goods_not_found')) return '최신 카테고리 목록을 확인한 뒤 다시 시도해주세요.';
   if (descriptor.includes('category_changed') || descriptor.includes('pt409')) return '다른 운영자가 카테고리를 변경했습니다. 새로고침 후 다시 시도해주세요.';
   if (descriptor.includes('invalid_category_paths')) return `경로 목록을 확인하세요. 한 줄은 1,000자, 한 번에 ${CATEGORY_BULK_LINE_LIMIT.toLocaleString('ko-KR')}줄까지 등록할 수 있습니다.`;
@@ -104,8 +102,6 @@ export async function saveAdminCategoryAction(
   const normalized = normalizeCategoryForm({
     id: formData.get('id'), code: formData.get('code'), name: formData.get('name'),
     parentId: formData.get('parentId'), sortOrder: formData.get('sortOrder'), expectedUpdatedAt: formData.get('expectedUpdatedAt'),
-    /* 이 칸 없이 온 요청(이전 화면)은 저장된 연결을 그대로 둔다. */
-    goodType: formData.has('goodType') ? formData.get('goodType') : null,
   });
   if (!normalized.ok) {
     return preserve(state, formData, {
@@ -113,7 +109,6 @@ export async function saveAdminCategoryAction(
       ...(normalized.errors.invalid_code ? { code: normalized.errors.invalid_code } : {}),
       ...(normalized.errors.invalid_name ? { name: normalized.errors.invalid_name } : {}),
       ...(normalized.errors.invalid_parent ? { parentId: normalized.errors.invalid_parent } : {}),
-      ...(normalized.errors.invalid_good_type ? { goodType: normalized.errors.invalid_good_type } : {}),
       ...(normalized.errors.invalid_sort_order ? { form: normalized.errors.invalid_sort_order } : {}),
       ...(normalized.errors.missing_expected_version ? { form: normalized.errors.missing_expected_version } : {}),
     });
@@ -129,7 +124,6 @@ export async function saveAdminCategoryAction(
       target_parent_id: normalized.value.parentId,
       target_sort_order: normalized.value.sortOrder,
       target_expected_updated_at: normalized.value.expectedUpdatedAt,
-      target_good_type: normalized.value.goodType,
     });
     if (error) return preserve(state, formData, { form: mapRpcError(error) });
     revalidateCategorySurfaces();
@@ -304,34 +298,6 @@ export async function assignAdminGoodCategoryAction(
     if (error) return preserve(state, formData, { form: mapRpcError(error) });
     revalidateCategorySurfaces();
     return { message: categoryId ? adminGoodsCopy('굿즈의 기본 카테고리를 저장했습니다.') : adminGoodsCopy('굿즈를 미분류로 되돌렸습니다.'), changed: data !== false };
-  } catch (error) {
-    unstable_rethrow(error);
-    return preserve(state, formData, { form: RETRY });
-  }
-}
-
-export async function saveAdminCategoryTypeMigrationAction(
-  state: AdminCategoryActionState,
-  formData: FormData,
-): Promise<AdminCategoryActionState> {
-  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff('platform.manage'); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
-  if ('error' in access) return preserve(state, formData, { form: access.error });
-  const type = typeof formData.get('type') === 'string' ? String(formData.get('type')).trim() : '';
-  const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';
-  const status = String(formData.get('status') ?? 'suggested');
-  if (!type) return preserve(state, formData, { form: '기존 유형을 입력해주세요.' });
-  if (categoryId && !isCategoryId(categoryId)) return preserve(state, formData, { categoryId: '카테고리를 선택해주세요.' });
-  if (!['suggested', 'confirmed', 'rejected'].includes(status)) return preserve(state, formData, { form: '이관 상태가 올바르지 않습니다.' });
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.rpc('admin_set_category_type_migration', {
-      target_operation_id: operationId(formData), target_type: type, target_category_id: categoryId || null,
-      target_status: status, target_note: String(formData.get('note') ?? '').trim() || null,
-    });
-    if (error) return preserve(state, formData, { form: mapRpcError(error) });
-    revalidatePath(CATEGORY_PATH);
-    return { message: '기존 유형 이관 메모를 저장했습니다.', changed: data !== false };
   } catch (error) {
     unstable_rethrow(error);
     return preserve(state, formData, { form: RETRY });

@@ -5,6 +5,8 @@ import {
   authNextCookieValue,
   authNextPathFromCookie,
   authSignUpErrorMessage,
+  ACCOUNT_INQUIRY_PATH,
+  isAccountDeletionEntryPath,
   isAccountSuspended,
   isOnboarded,
   nextPathWithSearch,
@@ -147,6 +149,26 @@ describe('postAuthenticationPath', () => {
   it('keeps onboarding mandatory for every other protected destination', () => {
     expect(postAuthenticationPath(null, 'fan@icons.gg', '/orders')).toBe(
       '/onboarding?next=%2Forders',
+    );
+  });
+
+  /* 탈퇴 요청은 1:1 계정 문의로 받는다(원장 CUS-035) — 온보딩·정지 게이트를 건너뛰는 경로는 탈퇴 화면과 계정 문의 작성뿐이다. */
+  it('also returns to the account inquiry route used for withdrawal requests, and nothing broader', () => {
+    expect(ACCOUNT_INQUIRY_PATH).toBe('/my/inquiries/new?category=account');
+    expect(postAuthenticationPath(null, 'fan@icons.gg', ACCOUNT_INQUIRY_PATH)).toBe(ACCOUNT_INQUIRY_PATH);
+    expect(isAccountDeletionEntryPath('/settings/delete-account')).toBe(true);
+    for (const other of ['/my/inquiries/new', '/my/inquiries/new?category=order', '/my/inquiries/new?category=account&orderId=x', '/my/inquiries']) {
+      expect(isAccountDeletionEntryPath(other)).toBe(false);
+    }
+    /* 답변 알림 메일의 문의 스레드 링크 — 정확한 uuid 경로만. 유형 판정은 스레드 화면이 한다. */
+    const thread = '/my/inquiries/11111111-1111-4111-8111-111111111111';
+    expect(isAccountDeletionEntryPath(thread)).toBe(true);
+    expect(postAuthenticationPath(null, 'fan@icons.gg', thread)).toBe(thread);
+    for (const other of ['/my/inquiries/not-a-uuid', `${thread}/edit`, `${thread}?x=1`, `${thread}#reply`, '/my/inquiries/11111111-1111-4111-8111-11111111111']) {
+      expect(isAccountDeletionEntryPath(other)).toBe(false);
+    }
+    expect(postAuthenticationPath(null, 'fan@icons.gg', '/my/inquiries/new?category=order')).toBe(
+      '/onboarding?next=%2Fmy%2Finquiries%2Fnew%3Fcategory%3Dorder',
     );
   });
 });

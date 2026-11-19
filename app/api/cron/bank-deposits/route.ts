@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { ingestBankDeposits } from '@/lib/payments/bank-deposit-feed.server';
+import { startCronRun } from '@/lib/system-health/cron-run.server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -39,14 +40,15 @@ function response(
 export async function GET(request: Request) {
   if (!authorized(request)) return response({ ok: false }, 401);
 
+  const run = startCronRun('bank-deposits');
   try {
     const result = await ingestBankDeposits();
-    if (!result) return response({ ok: true, configured: false }, 200);
-    return response(
+    if (!result) return run.finish(response({ ok: true, configured: false }, 200));
+    return run.finish(response(
       { ok: true, configured: true, fetched: result.fetched, inserted: result.inserted },
       200,
-    );
-  } catch {
-    return response({ ok: false }, 503);
+    ));
+  } catch (error) {
+    return run.fail(error, response({ ok: false }, 503));
   }
 }

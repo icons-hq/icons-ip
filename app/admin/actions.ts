@@ -52,7 +52,7 @@ import { createClient } from '@/lib/supabase/server';
 import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
 import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 import { IP_PUBLIC_SLUG_ERROR_MESSAGES } from '@/lib/ip-identity';
-import { GOOD_OPTION_LIMIT_ERROR_FIELD, GOOD_TYPE_CATEGORY_MESSAGES } from '@/lib/admin/good-workspace';
+import { GOOD_OPTION_LIMIT_ERROR_FIELD, goodCategoryFailure } from '@/lib/admin/good-workspace';
 import { GOODS_BASE_REVISION_INVALID_MESSAGE, goodBaseRevisionFailure, readGoodBaseRevision } from '@/lib/admin/goods-base-revision';
 
 /*
@@ -519,8 +519,8 @@ async function saveAdminGood(
     if (/goods_custom_inputs_changed/.test(error.message)) return { errors:{customInputs:'다른 작업에서 직접입력형 옵션 설정이 바뀌었습니다. 입력값은 유지됩니다. 새로고침 후 설정을 확인해주세요.'} };
     if (/invalid_goods_custom_input/.test(error.message)) return { errors:{customInputs:'직접입력형 옵션명과 사용여부를 확인해주세요.'} };
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
-    const typeFailure = goodTypeCategoryFailure(error.message);
-    if (typeFailure) return { errors: { categoryId: `${typeFailure} 입력값은 유지됩니다.` } };
+    const categoryFailure = goodCategoryFailure(error.message);
+    if (categoryFailure) return { errors: { categoryId: `${categoryFailure} 입력값은 유지됩니다.` } };
     if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지 형식과 정리 후 길이, 업로드한 HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
     const randomOptionFailure = randomOptionSaleModeFailure(error.message);
     if (randomOptionFailure) return randomOptionFailure;
@@ -534,7 +534,7 @@ async function saveAdminGood(
     if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고·옵션별 구매 제한(양의 정수)을 확인해주세요.' } };
     if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
     if (/invalid_good_shipping|invalid_individual_fee/.test(error.message)) return { errors: { shippingFeeType: '배송비 유형과 금액을 확인해주세요.' } };
-    if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
+    if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
     if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 판매자상품코드입니다.' } };
     if (error.message.includes('goods_variants_code_key')) return { errors: { [formData.has('variants') ? 'variants' : 'defaultVariantCode']: '이미 사용 중인 옵션코드입니다.' } };
     const erpIdentityError = erpIdentityTakenFailure(error, optionRows, formData.has('variants') ? 'variants' : 'form');
@@ -574,16 +574,6 @@ function instantDiscountPeriodFailure(message: string): AdminFieldErrors | null 
   if (message.includes('instant_discount_period_price_invalid')) return { discountValue: '기간 할인 금액은 가장 낮은 옵션 판매 금액보다 작아야 합니다(옵션마다 같은 금액을 뺍니다).' };
   if (message.includes('invalid_instant_discount_period')) return { discountPeriod: '할인 시작·종료를 KST으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' };
   if (message.includes('price_period_overlap')) return { discountPeriod: '같은 기간에 걸린 다른 기간 할인(끝난 할인 포함)과 겹칩니다. 시작을 지금 이후로 바꾸거나 기간을 다시 확인해주세요.' };
-  return null;
-}
-
-/**
- * SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이다. 저장·공개 RPC가 이 규칙으로 거절한 이유를 고른다.
- */
-function goodTypeCategoryFailure(message: string): string | null {
-  if (message.includes('goods_type_category_locked')) return GOOD_TYPE_CATEGORY_MESSAGES.locked;
-  if (message.includes('goods_type_category_required')) return GOOD_TYPE_CATEGORY_MESSAGES.required;
-  if (message.includes('goods_type_category_changed')) return GOOD_TYPE_CATEGORY_MESSAGES.changed;
   return null;
 }
 

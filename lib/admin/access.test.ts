@@ -70,6 +70,20 @@ describe('manager authorization contract', () => {
     expect(canAccessAdminScreen({ role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') }, screen)).toBe(false);
     expect(canAccessAdminScreen(NO_OPERATOR_ACCESS, screen)).toBe(false);
   });
+
+  /* CUS-084·OPS-014: 개인정보 접속기록 점검은 운영자 IP·열람 대상을 모아 보는 화면이라 매니저 관리 권한(통합·주매니저, 호환 단계 admin)만 연다. */
+  it('개인정보 접속기록 점검은 매니저 관리 권한으로만 접근한다', () => {
+    const screen = adminScreenForPath('/admin/settings/access-log');
+    expect(screen).toMatchObject({ id: 'pii-access-log', label: '개인정보 접속기록', adminOnly: true });
+    for (const role of ['owner', 'primary'] as const) expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen), role).toBe(true);
+    for (const role of ['deputy', 'influencer', 'agency', 'logistics'] as const) {
+      expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen), role).toBe(false);
+      expect(visibleAdminNavGroups('staff', configuredOperatorAccessFixture(role)).flatMap(group => group.screens).map(item => item.id), role).not.toContain('pii-access-log');
+    }
+    expect(canAccessAdminScreen({ role: 'admin', operatorAccess: legacyOperatorAccessFixture('admin') }, screen)).toBe(true);
+    expect(canAccessAdminScreen({ role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') }, screen)).toBe(false);
+    expect(canAccessAdminScreen(NO_OPERATOR_ACCESS, screen)).toBe(false);
+  });
   /* 1027T-016(사용자 결정 2026-11-11 "MD 권한"): ERP 품목 화면 읽기·반입·분류 연결은 상품 관리 권한이다. 품목 삭제는 화면이 따로 platform.manage를 본다. */
   it('ERP 품목 화면은 상품 관리 권한을 가진 MD·인플루언서·대행사에게 열리고, 물류출고관리에게는 닫힌다', () => {
     const screen = adminScreenForPath('/admin/catalog/erp-items');
@@ -93,6 +107,8 @@ describe('manager authorization contract', () => {
     const logistics = configuredOperatorAccessFixture('logistics');
     const screens = visibleAdminNavGroups('staff', logistics).flatMap(group => group.screens.map(screen => screen.id));
     expect(screens).toEqual(['overview', 'dispatch', 'shipping', 'announcements', 'guide']);
+    // 내 보안 설정(본인 인증 앱 등록, OPS-006)은 모든 운영자의 화면이다 — 사이드바가 아니라 계정 메뉴에서 연다.
+    expect(canAccessAdminScreen(logistics, adminScreenForPath('/admin/settings/security'))).toBe(true);
     for (const path of ['/admin/sales/dispatch', '/admin/sales/shipping']) {
       expect(canAccessAdminScreen(logistics, adminScreenForPath(path)), path).toBe(true);
       expect(canAccessAdminScreen(logistics, adminScreenForPath(path), { intent: 'write' }), path).toBe(true);
@@ -110,6 +126,11 @@ describe('manager authorization contract', () => {
     expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('logistics')).map(([key]) => key)).toEqual(['all']);
     expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('agency')).map(([key]) => key)).toEqual(['all', 'inquiries', 'questions', 'reviews']);
     expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('influencer')).map(([key]) => key)).toEqual(['all', 'orders', 'inquiries', 'questions', 'reviews']);
+    /* '시스템'(자동 작업 실패)과 시스템 상태 화면은 DB private.operator_alert_capability와 같은 platform.manage다. */
+    expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('primary')).map(([key]) => key)).toContain('system');
+    expect(allowedAdminAlertCategories(configuredOperatorAccessFixture('deputy')).map(([key]) => key)).not.toContain('system');
+    expect(canAccessAdminScreen({ role: 'staff', operatorAccess: configuredOperatorAccessFixture('primary') }, adminScreenForPath('/admin/settings/system'))).toBe(true);
+    expect(canAccessAdminScreen({ role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') }, adminScreenForPath('/admin/settings/system'))).toBe(false);
   });
   it('legacy admin-only restrictions survive while primary configured authority is capability-based', () => {
     const screen = adminScreenForPath('/admin/marketing/customer-grades');
