@@ -1,7 +1,7 @@
 /*
  * 안전재고 하루 1회 요약 메일 본문(QNA-014). 순수 함수 — 네트워크·DB·env를 모른다.
  *
- * 받는 사람은 운영자와 창고(출고지) 담당자다. 창고 담당자가 품목을 찾을 수 있게 판매자상품코드·관리코드와 함께
+ * 받는 사람은 운영자와 창고(출고지) 담당자다. 창고 담당자가 품목을 찾을 수 있게 상품 자동코드·옵션 자동코드와 함께
  * 등록된 ERP 코드·바코드를 싣는다. 어드민 링크는 운영자 메일에만 넣는다(창고는 어드민 계정이 없다).
  * 한 주소가 여러 출고지 담당이면 한 통에 그 출고지들의 옵션을 담고 제목·인사말에 출고지 이름을, 표에 출고지 열을 둔다.
  */
@@ -67,7 +67,7 @@ export function renderStockSafetyDigestEmail(job: StockSafetyDigestJobContent, s
     + `<td style="${cell};text-align:right">${item.threshold.toLocaleString('ko-KR')}</td>`
     + (withOrigin ? `<td style="${cell}">${escapeHtml(item.originName ?? '')}</td>` : '')
     + '</tr>').join('');
-  const head = ['상품·옵션', '판매자상품코드·관리코드', 'ERP 코드·바코드', '재고수량', '안전재고 기준', ...(withOrigin ? ['출고지'] : [])]
+  const head = ['상품·옵션', '상품 자동코드·옵션 자동코드', 'ERP 코드·바코드', '재고수량', '안전재고 기준', ...(withOrigin ? ['출고지'] : [])]
     .map((label) => `<th style="${cell}">${label}</th>`).join('');
   const html = `<h1 style="font-size:18px">${escapeHtml(subject)}</h1><p>${escapeHtml(`${job.digestDate} 기준 ${intro}`)}</p>`
     + `<table style="border-collapse:collapse;font-size:13px"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`

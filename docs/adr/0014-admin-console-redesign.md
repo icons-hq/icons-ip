@@ -1,6 +1,6 @@
 # 어드민 운영 콘솔 재설계 — 워크플로 표면 재설계와 White Catalog 편입
 
-- Status: accepted (2026-09-07) · 결정 3(룩)은 [ADR-0028](./0028-admin-template-look.md)이 대체한다(2026-11-05)
+- Status: accepted (2026-09-07) · 결정 3(룩)은 [ADR-0028](./0028-admin-template-look.md)이 대체한다(2026-11-05) · 스마트스토어 라벨 중 판매자상품코드·관리코드는 [ADR-0048](./0048-auto-generated-code-labels.md)이 상품 자동코드·옵션 자동코드로 바꾼다(2026-11-19)
 - 관련: [ADR-0011](./0011-lfs-storefront-redesign.md)(공개 표면 White Catalog), [ADR-0005](./0005-icons-allocated-inventory.md)(할당 재고), [ADR-0015](./0015-goods-variants.md), [ADR-0016](./0016-fulfillment-origins-and-shipments.md)
 
 ## 맥락

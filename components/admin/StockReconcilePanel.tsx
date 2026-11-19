@@ -130,7 +130,7 @@ export function StockReconcileResult({ snapshot, showSame, onToggleSame }: { sna
           {onToggleSame ? <> · <button className="underline underline-offset-4" type="button" onClick={onToggleSame}>{showSame ? '바뀌는 옵션만 보기' : `같은 옵션 ${count(items.length - changed.length)}개도 보기`}</button></> : null}
         </caption>
         <TableHeader><TableRow>
-          <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col">관리코드</TableHead><TableHead scope="col">찾은 코드</TableHead>
+          <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col">옵션 자동코드</TableHead><TableHead scope="col">찾은 코드</TableHead>
           <TableHead scope="col" className="text-right">파일 수량</TableHead>
           <TableHead scope="col" className="text-right">기준 시각 뒤 출고</TableHead><TableHead scope="col" className="text-right">기준 시각 뒤 회수</TableHead>
           <TableHead scope="col" className="text-right">출고 대기</TableHead><TableHead scope="col" className="text-right">회수 뒤 미반영</TableHead>
@@ -185,7 +185,7 @@ export function StockReconcileConflictNotice({ conflicts, onRepreview, onRestart
         <table className="w-full min-w-[760px] text-sm" data-slot="table">
           <caption className="sr-only">미리보기 뒤 바뀐 옵션{conflicts.length > 20 ? ` · 앞 20개만 표시` : ''}</caption>
           <TableHeader><TableRow>
-            <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col">관리코드</TableHead>
+            <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col">옵션 자동코드</TableHead>
             <TableHead scope="col" className="text-right">미리보기 재고수량 → 맞춘 뒤</TableHead>
             <TableHead scope="col" className="text-right">지금 재고수량 → 맞춘 뒤</TableHead>
             <TableHead scope="col" className="text-right">출고 대기 미리보기 → 지금</TableHead>
@@ -363,7 +363,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
         <Textarea className="min-h-32 font-mono text-[13px] field-sizing-fixed" id="stock-reconcile-paste" rows={5} value={pasted} disabled={busy}
           aria-describedby="stock-reconcile-paste-hint" placeholder={'품번\t품명\t바코드\t재고수량\n000123\t아크릴 키링\t8801234567890\t42'}
           onChange={(event) => setPasted(event.target.value)} />
-        <p className={HINT} id="stock-reconcile-paste-hint">관리코드·ERP 코드(품번)·바코드·판매자상품코드 중 하나와 재고 수량 열이 있어야 합니다. 머리글 행까지 복사하면 열을 자동으로 짝짓습니다.</p>
+        <p className={HINT} id="stock-reconcile-paste-hint">옵션 자동코드·ERP 코드(품번)·바코드·상품 자동코드 중 하나와 재고 수량 열이 있어야 합니다. 머리글 행까지 복사하면 열을 자동으로 짝짓습니다.</p>
         <div><Button variant={source ? 'outline' : 'default'} type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
       </div>
       <div className="flex min-w-0 flex-col gap-2">

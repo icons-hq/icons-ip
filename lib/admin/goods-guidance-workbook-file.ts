@@ -1,6 +1,7 @@
 import 'server-only';
 import type ExcelJS from 'exceljs';
 import { readSafeWorkbookCell } from './workbook-safety';
+import { goodsWorkbookHeaderMatches } from './goods-workbook-headers';
 import {
   GOODS_AFTER_SALES_WORKBOOK_HEADERS, GOODS_AFTER_SALES_WORKBOOK_LEGACY_HEADERS, GOODS_AFTER_SALES_WORKBOOK_SHEET,
   GOODS_SIZE_WORKBOOK_HEADERS, GOODS_SIZE_WORKBOOK_LEGACY_HEADERS, GOODS_SIZE_WORKBOOK_SHEET,
@@ -48,7 +49,7 @@ export function addGoodsGuidanceWorksheets(book: ExcelJS.Workbook, version: stri
     { mode: '편집,표시 중지', enabled: '예,아니오', unit: 'cm,mm' });
 }
 
-/** v7 파일의 안내 시트는 판매자상품코드 열 이름이 '상품코드'다(뜻·순서는 같다). v6 이하에는 안내 시트가 없다. */
+/** v7 파일의 안내 시트는 상품 자동코드 열 이름이 '상품코드'다(뜻·순서는 같다). v6 이하에는 안내 시트가 없다. */
 const GUIDANCE_LEGACY_VERSION = 'ICONS 상품 일괄 등록 v7';
 function readSheet<T extends Record<string, string> & { goodCode: string }>(book: ExcelJS.Workbook, version: string, latest: string, name: string, currentHeaders: Record<keyof T, string>, legacyHeaders: Record<keyof T, string>, empty: () => T, limit: number, codes: string[]) {
   const sheet = book.getWorksheet(name);
@@ -56,7 +57,7 @@ function readSheet<T extends Record<string, string> & { goodCode: string }>(book
   if (version !== latest && version !== GUIDANCE_LEGACY_VERSION) throw new Error(name + ' 시트는 v7·v8 상품 양식에서만 편집할 수 있습니다. 최신 양식을 내려받아주세요.');
   const headers = version === latest ? currentHeaders : legacyHeaders;
   const keys = Object.keys(headers) as (keyof T)[];
-  if (sheet.getCell('A1').text !== version || keys.some((key, index) => sheet.getCell(4, index + 1).text !== headers[key])) throw new Error(name + ' 시트의 버전·열 이름·순서를 유지해주세요.');
+  if (sheet.getCell('A1').text !== version || keys.some((key, index) => !goodsWorkbookHeaderMatches(sheet.getCell(4, index + 1).text, headers[key]))) throw new Error(name + ' 시트의 버전·열 이름·순서를 유지해주세요.');
   const rows: { row: number; values: T; errors: string[] }[] = [];
   sheet.eachRow((row, number) => {
     if (number < 5) return;

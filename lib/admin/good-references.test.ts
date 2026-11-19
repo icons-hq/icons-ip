@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GOOD_REFERENCE_LIMIT, isGoodReferenceHeader, isGoodReferenceKeyHeader, isSystemProductNumberHeader, parseGoodReferenceLines } from './good-references';
 
 describe('전시 상품 여러 줄 붙여넣기(1014-112)', () => {
-  it('주소는 상품 URL 값(주소 끝)으로, 판매자상품코드·상품 URL 값은 그대로 입력 순서대로 읽는다', () => {
+  it('주소는 상품 URL 값(주소 끝)으로, 상품 자동코드·상품 URL 값은 그대로 입력 순서대로 읽는다', () => {
     const parsed = parseGoodReferenceLines(['https://iconsip.com/shop/maple-keyring', 'GC-0001', '/shop/hongsil-card?x=1', 'plain-good-id'].join('\n'));
     expect(parsed.refs).toEqual(['maple-keyring', 'GC-0001', 'hongsil-card', 'plain-good-id']);
     expect(parsed.invalid).toEqual([]);
@@ -12,7 +12,7 @@ describe('전시 상품 여러 줄 붙여넣기(1014-112)', () => {
     expect(parsed.refs).toEqual(['GC-0001', 'GC-0002', 'GC-0003', 'GC-0004', 'GC-0005']);
   });
   it('첫 줄 머리글은 건너뛰고, 같은 값은 한 번만, 틀린 주소는 줄 번호와 이유로 남긴다', () => {
-    const parsed = parseGoodReferenceLines('판매자상품코드\nGC-0001\nGC-0001\nhttps://example.com/shop/a\n/shop/best', 'localhost:3000');
+    const parsed = parseGoodReferenceLines('상품 자동코드\nGC-0001\nGC-0001\nhttps://example.com/shop/a\n/shop/best', 'localhost:3000');
     expect(parsed.headerSkipped).toBe(true);
     expect(parsed.refs).toEqual(['GC-0001']);
     expect(parsed.duplicates).toBe(1);
@@ -32,10 +32,10 @@ describe('전시 상품 여러 줄 붙여넣기(1014-112)', () => {
     expect(parsed.refs).toEqual([]);
     expect(parsed.invalid).toEqual([]);
     expect(parsed.systemNumberColumn).toBe(true);
-    expect(parseGoodReferenceLines('판매자상품코드\nGC-1').systemNumberColumn).toBe(false);
+    expect(parseGoodReferenceLines('상품 자동코드\nGC-1').systemNumberColumn).toBe(false);
     expect(isSystemProductNumberHeader('상품번호')).toBe(true);
     expect(isSystemProductNumberHeader('상품 번호')).toBe(true);
-    expect(isGoodReferenceKeyHeader('판매자상품코드')).toBe(true);
+    expect(isGoodReferenceKeyHeader('상품 자동코드')).toBe(true);
     expect(isGoodReferenceKeyHeader('상품번호')).toBe(false);
   });
   it('머리글은 흔한 열 이름만 알아본다', () => {

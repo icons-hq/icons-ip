@@ -35,7 +35,7 @@ export async function buildRehearsalWorkbooks({
     for (let product = 1; product <= count; product++)
       for (const option of [0, 1]) {
         const fields = {
-          판매자상품코드: `${run.toUpperCase()}-${String(product).padStart(2, '0')}`,
+          '상품 자동코드': `${run.toUpperCase()}-${String(product).padStart(2, '0')}`,
           상품명: `[연습] ${run} 상품 ${product}`,
           'IP ID': ipId,
           '게시 상태': mode === 'publish' ? '공개' : '초안',
@@ -50,7 +50,7 @@ export async function buildRehearsalWorkbooks({
           '출고지 코드': originCode,
           '배송비 유형': 'policy',
           '개별 배송비': 0,
-          관리코드: `${run.toUpperCase()}-${String(product).padStart(2, '0')}-${option ? 'B' : 'A'}`,
+          '옵션 자동코드': `${run.toUpperCase()}-${String(product).padStart(2, '0')}-${option ? 'B' : 'A'}`,
           옵션명: option ? '파랑' : '빨강',
           '옵션 축 1': '색상',
           '옵션 값 1': option ? '파랑' : '빨강',

@@ -539,7 +539,7 @@ async function saveAdminGood(
     if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
     if (/invalid_good_shipping|invalid_individual_fee/.test(error.message)) return { errors: { shippingFeeType: '배송비 유형과 금액을 확인해주세요.' } };
     if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
-    if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 판매자상품코드입니다.' } };
+    if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 상품 자동코드입니다.' } };
     if (error.message.includes('goods_variants_code_key')) return { errors: { [formData.has('variants') ? 'variants' : 'defaultVariantCode']: '이미 사용 중인 옵션코드입니다.' } };
     const erpIdentityError = erpIdentityTakenFailure(error, optionRows, formData.has('variants') ? 'variants' : 'form');
     if (erpIdentityError) return erpIdentityError;

@@ -143,7 +143,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
            줄이고 날짜 칸은 실측 최소 폭(93px)으로 둬 1440 화면에서 표가 가로로 넘치지 않는다(T22g·QA2 수정 A2 통합). */
         columns={[
         { key: 'productNo', label: '상품번호', width: '64px' },
-        { key: 'name', label: '상품명 · 판매자상품코드', width: '192px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
+        { key: 'name', label: '상품명 · 상품 자동코드', width: '192px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
         { key: 'readiness', label: '전시상태 · 판매 준비', width: '176px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
         { key: 'ip', label: 'IP · 카테고리', width: '92px' }, { key: 'createdAt', label: '상품등록일', width: '93px' }, { key: 'updatedAt', label: '상품수정일', width: '93px' }, { key: 'goodId', label: '상품 URL', width: '88px' },
       ]} rows={goods.map(good => {

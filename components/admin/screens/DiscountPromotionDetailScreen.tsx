@@ -80,7 +80,7 @@ export function DiscountPromotionDetailScreen({ promotion, identity, canManage }
       {promotion.stoppedAt ? <div className={ROW}><span className={TERM}>중지</span><span className="tabular-nums">{formatOrderDateTime(promotion.stoppedAt)}{promotion.stoppedByName ? ` · ${promotion.stoppedByName}` : ''}{promotion.stopReceipt ? ` · 할인 ${promotion.stopReceipt.disabledCount.toLocaleString('ko-KR')}건을 껐습니다` : ''}</span></div> : null}
     </section>
     {message && !dialog ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}
-    <GroupTable label="프로모션 상품" layout="fixed"><TableHeader><TableRow><TableHead className="w-[34%]">상품명·판매자상품코드</TableHead><TableHead className="w-[18%]">할인 규칙</TableHead><TableHead className="w-[16%]">현재 판매가</TableHead><TableHead className="w-[14%]">할인가</TableHead><TableHead>할인 상태</TableHead></TableRow></TableHeader>
+    <GroupTable label="프로모션 상품" layout="fixed"><TableHeader><TableRow><TableHead className="w-[34%]">상품명·상품 자동코드</TableHead><TableHead className="w-[18%]">할인 규칙</TableHead><TableHead className="w-[16%]">현재 판매가</TableHead><TableHead className="w-[14%]">할인가</TableHead><TableHead>할인 상태</TableHead></TableRow></TableHeader>
       <TableBody>{promotion.goods.map(row => {
         const state = goodDiscountState(row);
         return <TableRow className="data-[skipped]:text-muted-foreground" data-skipped={row.skip ? 'true' : undefined} key={row.id}>

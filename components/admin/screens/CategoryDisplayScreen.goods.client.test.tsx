@@ -44,7 +44,7 @@ const row = (id: string, visibility = 'public', name = `이름 ${id}`) => ({ id,
 beforeEach(() => { hooks.values = []; hooks.index = 0; hooks.effects.clear(); hooks.jobs = []; vi.clearAllMocks(); });
 afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); });
 
-it('다시 열어도 연결 상품을 이름·판매자상품코드로 보이고, 고객 화면에 안 보이는 상품은 이유(초안·IP 초안·찾을 수 없음)와 함께 미리보기에서 빠진다고 알린다(QA1 MD)', async () => {
+it('다시 열어도 연결 상품을 이름·상품 자동코드로 보이고, 고객 화면에 안 보이는 상품은 이유(초안·IP 초안·찾을 수 없음)와 함께 미리보기에서 빠진다고 알린다(QA1 MD)', async () => {
   /* 가벼운 읽기(admin_goods_display_visibility)는 없는 상품 URL을 결과에서 뺀다 — 화면은 그 값을 찾을 수 없음으로 본다. */
   mocks.resolve.mockResolvedValueOnce({ ok: true, goods: [row('qa-pr1'), row('qa-pr9', 'draft', 'QA 초안 상품'), row('qa-ip', 'ip_draft', 'QA IP 준비 상품')] });
   const before = render();

@@ -260,7 +260,7 @@ describe('goods list screen', () => {
     expect(widths.reduce((sum, width) => sum + width, 40)).toBeLessThanOrEqual(1100);
     const headers = [...html.matchAll(/<th[^>]*scope="col"[^>]*>([^<]+)<\/th>/g)].map(match => match[1]);
     expect(headers[0]).toBe('상품번호');
-    expect(headers[1]).toBe('상품명 · 판매자상품코드');
+    expect(headers[1]).toBe('상품명 · 상품 자동코드');
     expect(headers.at(-1)).toBe('상품 URL');
     expect(html).toContain('아직 등록한 상품이 없습니다');
   });
@@ -433,7 +433,7 @@ describe('goods list screen', () => {
       goods:[{id:'g100',code:'ICONS-100',name:'운영 상품',ipId:'hwasan',ipTitle:'화산강림',publishedAt:null,archivedAt:null,stock:'ok',noticeComplete: true, stockQty:0,activeStockQty:0,lowStockOptionCount:0}],
     }}/>);
     expect(html).toContain('data-slot="table"');
-    expect(html).toContain('상품코드'); expect(html).toContain('상품명');
+    expect(html).toContain('상품 자동코드'); expect(html).toContain('상품명');
     expect(html).toContain('ERP 코드·품명');
     expect(html).toContain('바코드');
     expect(html).toContain('name="categoryId"'); expect(html).toContain('name="readiness"');

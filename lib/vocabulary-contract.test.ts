@@ -34,8 +34,8 @@ const PUBLIC_COPY_EXCEPTIONS = [
     reason: '토스페이먼츠가 돌려주는 상품권 결제수단의 공식 이름이라 굿즈 어휘로 바꾸지 않는다.' })),
   /* 공용 모듈에 도메인 로직과 함께 있는 운영자 전용 문구. 쪼개면 저장 검증 규칙이 두 곳에 갈라져 예외로 둔다. */
   { file: 'lib/review-events.ts', text: '이벤트 대상 상품을', reason: '리뷰이벤트 등록 화면(어드민)에서만 쓰는 저장 전 검증 문구이며 같은 모듈의 저장 규칙(parseReviewEventValues)과 한 벌로 맞춘다.' },
-  ...['에서 출고하는 ICONS 상품 중', '상품·옵션', '판매자상품코드·관리코드'].map(text => ({ file: 'lib/email/stock-safety-digest.ts', text,
-    reason: '출고지 담당자와 운영자가 받는 안전재고 메일이라 어드민 운영 어휘(상품·옵션·판매자상품코드)를 쓴다. 고객에게 가지 않는다.' })),
+  ...['에서 출고하는 ICONS 상품 중', '상품·옵션', '상품 자동코드·옵션 자동코드'].map(text => ({ file: 'lib/email/stock-safety-digest.ts', text,
+    reason: '출고지 담당자와 운영자가 받는 안전재고 메일이라 어드민 운영 어휘(상품·옵션·상품 자동코드)를 쓴다. 고객에게 가지 않는다.' })),
 ] as const;
 const MAPPED_GUIDE_SOURCES = {
   'lib/admin/guide/topics/goods-sales.ts': 'topics.ts의 operatorTopic이 모든 정적 제목·본문·표를 변환한다.',
