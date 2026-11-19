@@ -24,7 +24,7 @@ export const PARTIAL_RETURN_TRANSFER_REASON_MAX = 500;
 export function partialReturnTransferConfirmRequest(refundAmount: number): AdminConfirmRequest {
   return {
     title: '계좌 송금 부분 환불로 바꿀까요?',
-    message: `결제사 대신 고객 계좌로 ${krwAmountWords(refundAmount)}을 송금하는 환불로 바꿉니다. 되돌릴 수 없습니다 — 고른 굿즈의 재고를 지금 복원하고 환불 송금 대기에 올립니다. 이 결제는 결제사 잔액과 원장이 달라져, 이후 이 주문의 일부 반품은 받지 않고 남은 굿즈 환불은 결제 담당이 개발 요청으로 맞춰 처리합니다.`,
+    message: `결제사 대신 고객 계좌로 ${krwAmountWords(refundAmount)}을 송금하는 환불로 바꿉니다. 되돌릴 수 없습니다 — 고른 상품의 재고를 지금 복원하고 환불 송금 대기에 올립니다. 이 결제는 결제사 잔액과 원장이 달라져, 이후 이 주문의 일부 반품은 받지 않고 남은 상품 환불은 결제 담당이 개발 요청으로 맞춰 처리합니다.`,
     confirmLabel: '계좌 송금으로 전환',
     destructive: true,
   };
@@ -57,7 +57,7 @@ export function ClaimPartialReturnTransfer({ claimId, refundAmount }: { claimId:
     <input type="hidden" name="claimId" value={claimId} />
     <input type="hidden" name="operationId" value={operationId} />
     <AdminNotice tone="warning" title={`계좌 송금 부분 환불 — ${krwAmountWords(refundAmount)}`}>
-      결제사로 돌려줄 수 없는 고른 굿즈 몫을 고객 계좌로 송금합니다. 전액 환불로 돌리지 않습니다. 전환하면 고른 굿즈의 재고를 복원하고 환불 송금 대기에 올리며,
+      결제사로 돌려줄 수 없는 고른 상품 몫을 고객 계좌로 송금합니다. 전액 환불로 돌리지 않습니다. 전환하면 고른 상품의 재고를 복원하고 환불 송금 대기에 올리며,
       송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적으면 이 요청이 완료됩니다.
     </AdminNotice>
     <div className="flex flex-col gap-1.5">

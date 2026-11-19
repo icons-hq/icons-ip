@@ -115,7 +115,7 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
       {record.reasonCode === 'return' ? (
         /* 부분 반품 환불의 결제사 확인은 반품 상세의 [환불 완료 확정]이 맡는다 — 품목별 재고 처리(불량 선택)를 거쳐야 해서 여기서 다시 부르지 않는다. */
         <AdminNotice tone={record.state === 'needs_review' ? 'danger' : 'info'}>
-          결제사 부분 취소 확인 전입니다. 반품 요청 상세에서 [환불 완료 확정]으로 확인합니다. 그동안 반품한 굿즈의 배송 건과 이 주문의 다른 취소가 막힙니다.{staff?.lastErrorCode ? ` 확인 코드: ${staff.lastErrorCode}` : ''}
+          결제사 부분 취소 확인 전입니다. 반품 요청 상세에서 [환불 완료 확정]으로 확인합니다. 그동안 반품한 상품의 배송 건과 이 주문의 다른 취소가 막힙니다.{staff?.lastErrorCode ? ` 확인 코드: ${staff.lastErrorCode}` : ''}
         </AdminNotice>
       ) : <>
         <AdminNotice tone={record.state === 'needs_review' ? 'danger' : 'info'}>

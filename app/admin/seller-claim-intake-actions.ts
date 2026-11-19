@@ -18,7 +18,7 @@ function inputError(message: string): string {
   /* 부분 반품(ADR-0047) */
   if (message.includes('partial_return_disabled')) return '부분 반품이 꺼져 있습니다. 주문 전체로 접수하거나 운영 스위치를 확인해주세요.';
   if (message.includes('partial_return_qty_exceeds_remaining')) return '고른 수량이 남은 수량보다 많습니다. 주문을 다시 열어 확인해주세요.';
-  if (message.includes('partial_return_item_')) return '고른 굿즈 가운데 일부 반품할 수 없는 굿즈가 있습니다(발송 전·디지털·주문제작·교환 이력 등). 주문을 다시 열어 확인해주세요.';
+  if (message.includes('partial_return_item_')) return '고른 상품 가운데 일부 반품할 수 없는 상품이 있습니다(발송 전·디지털·주문제작·교환 이력 등). 주문을 다시 열어 확인해주세요.';
   if (message.includes('partial_return_')) return '이 주문은 일부 반품을 받을 수 없습니다(선물·결제 수단·배분). 주문 전체로 접수해주세요.';
   if (message.includes('collections_changed')) return '주문의 출고지 구성이 변경되었습니다. 최신 주문에서 전체 수거 계획을 다시 확인해주세요.';
   if (message.includes('request_conflict')) return '같은 접수 요청의 저장 내용이 다릅니다. 해당 요청의 결과를 먼저 확인해주세요.';
@@ -51,7 +51,7 @@ export async function loadSellerPartialReturnContextAction(orderId: string): Pro
 export async function readSellerClaimIntakeAction(input: unknown): Promise<{ receipt: SellerClaimReceipt | null } | { error: string }> {
   if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
   const split = splitSellerClaimItems(input);
-  if (split.invalid) return { error: '일부 반품할 굿즈와 수량을 다시 확인해주세요.' };
+  if (split.invalid) return { error: '일부 반품할 상품과 수량을 다시 확인해주세요.' };
   const parsed = parseSellerClaimInput(split.input); if (!parsed.ok) return { error: parsed.error };
   try {
     const client = await createClient();
@@ -68,7 +68,7 @@ export async function submitSellerClaimIntakeAction(input: unknown): Promise<Sel
   if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
   /* 부분 반품(ADR-0047): 고른 굿즈·수량은 따로 떼어 부분 반품 대리 접수로 보낸다(본문·재확인 대조는 지금 모양). */
   const split = splitSellerClaimItems(input);
-  if (split.invalid) return { error: '일부 반품할 굿즈와 수량을 다시 확인해주세요.' };
+  if (split.invalid) return { error: '일부 반품할 상품과 수량을 다시 확인해주세요.' };
   const parsed = parseSellerClaimInput(split.input); if (!parsed.ok) return { error: parsed.error };
   try {
     const client = await createClient();

@@ -193,10 +193,10 @@ export function OperationsSwitchesForm({ initial, emailConfigured }: { initial: 
       save={(input) => savePartialCancelSwitchAction(input.enabled, input.evidence, input.revision, input.id)}
       onSaved={setState} />
     <SwitchSection kind="partialReturn" title="부분 반품" enabled={partialReturn.enabled} revision={partialReturn.revision}
-      description="고객과 운영자 대리 접수가 반품할 굿즈·수량을 고를 수 있게 합니다. 고른 굿즈만 회수하고 그 결제 몫(비게 된 배송 묶음 배송비 포함)을 결제사 부분 취소·계좌 송금으로 돌려줍니다. 취소·교환은 그대로 주문 전체입니다."
+      description="고객과 운영자 대리 접수가 반품할 상품·수량을 고를 수 있게 합니다. 고른 상품만 회수하고 그 결제 몫(비게 된 배송 묶음 배송비 포함)을 결제사 부분 취소·계좌 송금으로 돌려줍니다. 취소·교환은 그대로 주문 전체입니다."
       evidence={partialReturn.evidence} updatedBy={partialReturn.updatedBy} updatedAt={partialReturn.updatedBy ? partialReturn.updatedAt : null}
       evidenceMax={SWITCH_EVIDENCE_MAX}
-      confirmOn="켜면 고객 주문 상세의 반품 신청과 운영자 대리 접수에서 굿즈·수량을 골라 반품할 수 있습니다. 켤까요?"
+      confirmOn="켜면 고객 주문 상세의 반품 신청과 운영자 대리 접수에서 상품·수량을 골라 반품할 수 있습니다. 켤까요?"
       confirmOff="끄면 새 반품은 주문 전체로만 받습니다. 이미 접수한 부분 반품은 회수·환불까지 그대로 처리됩니다. 끌까요?"
       save={(input) => savePartialReturnSwitchAction(input.enabled, input.evidence, input.revision, input.id)}
       onSaved={setState} />

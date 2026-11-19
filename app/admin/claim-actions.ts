@@ -107,7 +107,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   /* 부분 반품(ADR-0047) */
   if (value.includes('partial_return_refund_method_mismatch')) return '이 부분 반품의 환불 수단과 다릅니다. 토스 결제는 결제사 부분 취소, 무통장은 계좌 송금입니다. 화면을 새로고침해주세요.';
   if (value.includes('partial_return_state_changed')) return '부분 반품 품목의 배송·수량 상태가 바뀌었습니다. 최신 상태를 확인해주세요. 환불과 재고는 그대로입니다.';
-  if (value.includes('partial_return_uses_partial_refund')) return '부분 반품은 주문 전체 결제 취소가 아니라 고른 굿즈 몫의 부분 환불로만 처리합니다. 화면을 새로고침한 뒤 [환불 완료 확정]을 다시 눌러주세요.';
+  if (value.includes('partial_return_uses_partial_refund')) return '부분 반품은 주문 전체 결제 취소가 아니라 고른 상품 몫의 부분 환불로만 처리합니다. 화면을 새로고침한 뒤 [환불 완료 확정]을 다시 눌러주세요.';
   if (value.includes('partial_return_transfer_reason_required')) return `계좌 송금으로 바꾸는 사유를 ${PARTIAL_RETURN_TRANSFER_REASON_MIN}~${PARTIAL_RETURN_TRANSFER_REASON_MAX}자로 적어주세요.`;
   if (value.includes('partial_return_transfer_account_required')) return '고객에게 받은 환불계좌(은행·계좌번호 숫자와 - 8~30자·예금주)를 확인해주세요.';
   if (value.includes('partial_return_transfer_operation_conflict')) return '같은 작업 번호로 다른 요청이 처리됐습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
@@ -979,20 +979,20 @@ async function recordPartialReturnRefund(
   if (error) {
     return {
       error: input.stage === 'completed'
-        ? `결제사 부분 취소와 고른 굿즈의 재고 복원은 이미 확정됐습니다. 환불 기록만 실패했습니다 — 다시 환불하지 마세요. ${rpcErrorMessage(error.message, REFUND_FAILED)}`
+        ? `결제사 부분 취소와 고른 상품의 재고 복원은 이미 확정됐습니다. 환불 기록만 실패했습니다 — 다시 환불하지 마세요. ${rpcErrorMessage(error.message, REFUND_FAILED)}`
         : rpcErrorMessage(error.message, REFUND_FAILED),
     };
   }
   if (input.stage === 'filed') {
     const preview = input.partial.preview;
-    const amount = preview ? `${preview.returnFeeDeduction > 0 ? `반품배송비 ${krwAmountWords(preview.returnFeeDeduction)}을 뺀 ` : ''}${krwAmountWords(preview.refundAmount)}` : '고른 굿즈 몫';
+    const amount = preview ? `${preview.returnFeeDeduction > 0 ? `반품배송비 ${krwAmountWords(preview.returnFeeDeduction)}을 뺀 ` : ''}${krwAmountWords(preview.refundAmount)}` : '고른 상품 몫';
     return {
       message: input.provider === 'bank_transfer'
-        ? `부분 반품 환불 접수를 기록했습니다. ${amount}을 환불계좌로 송금할 대기에 올리고 고른 굿즈의 재고를 복원했습니다. 송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.`
+        ? `부분 반품 환불 접수를 기록했습니다. ${amount}을 환불계좌로 송금할 대기에 올리고 고른 상품의 재고를 복원했습니다. 송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.`
         : `부분 반품 환불 접수를 기록했습니다. ${amount}을 [환불 완료 확정]을 누를 때 토스 부분 취소로 돌려줍니다.`,
     };
   }
-  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 굿즈만 재고 복원·적립금 되돌림·카드팩 판정이 함께 확정됐습니다.';
+  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 상품만 재고 복원·적립금 되돌림·카드팩 판정이 함께 확정됐습니다.';
   if (dispositions && dispositions.defectiveIds.length > 0) {
     const recorded = await recordClaimDefectiveStock(input.claimId);
     if (recorded.error) return { error: `부분 반품 환불과 재고 처리는 이미 확정됐습니다. 불량 재고 기록만 끝나지 않았습니다 — 환불은 다시 하지 마세요. ${recorded.error}` };
