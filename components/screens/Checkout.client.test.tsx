@@ -33,6 +33,7 @@ vi.mock('@/components/shell/CartProvider', () => ({
 }));
 
 import { CouponPicker } from '@/components/checkout/CouponPicker';
+import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
 import { Checkout } from './Checkout';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -49,6 +50,8 @@ const couponB = held('22222222-2222-4222-8222-222222222222', '3천원 할인');
 let props: Parameters<typeof Checkout>[0];
 const render = () => { hooks.si = hooks.ri = 0; return Checkout(props); };
 const picker = () => all(render()).find((node) => node.type === CouponPicker)!;
+const acknowledgement = () => all(render()).find((node) => node.type === PurchaseAcknowledgement)!;
+const acknowledge = (checked = true) => (acknowledgement().props.onChange as (checked: boolean) => void)(checked);
 const submitButton = () => all(render()).find((node) => node.type === 'button' && String(node.props.className).includes('checkout-submit'))!;
 const submit = () => (all(render()).find((node) => node.type === 'form')!.props.onSubmit as (event: { preventDefault(): void }) => Promise<void>)({ preventDefault() {} });
 
@@ -75,6 +78,8 @@ beforeEach(() => {
     paymentAvailable: true, bankTransferAvailable: true, resumeOrderId: null,
     appliedCoupon: couponA, couponState: { selectedUserCouponId: couponA.id, coupons: [couponA, couponB] },
   };
+  /* 결제 전 확인 동의(PAY-015) — 아래 시험은 체크한 뒤의 흐름이다. 체크 전은 맨 아래 'Checkout 결제 전 확인 동의'가 본다. */
+  acknowledge();
 });
 
 /* 쿠폰 변경 서버 액션이 끝나기 전에 결제를 누르면 이전 쿠폰으로 주문이 큐에 들어가고, DB 가 coupon_selection_changed 로
@@ -168,5 +173,66 @@ describe('Checkout 재견적으로 주문 불가가 된 줄의 판매기간 안�
     unavailableSales();
     props = { ...props, catalog: { goods: [{ ...good, salePeriod: ended }], ips: [] } };
     expect(all(render()).find((node) => node.type === QuoteUnavailableRefresh)!.props.signature).toBeNull();
+  });
+});
+
+/* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015) — 체크 전에는 결제 버튼이 잠기고 제출해도 주문을 만들지 않으며, 체크하면 서버 액션에 true로 넘긴다. */
+describe('Checkout 결제 전 확인 동의', () => {
+  it('체크 전에는 버튼이 잠기고 제출해도 주문을 만들지 않는다', async () => {
+    acknowledge(false);
+    expect(acknowledgement().props.checked).toBe(false);
+    expect(submitButton().props.disabled).toBe(true);
+    await submit();
+    expect(mocks.place).not.toHaveBeenCalled();
+  });
+
+  it('체크하면 주문을 만들고 서버 액션에 동의 true를 8번째 인자로 넘긴다', async () => {
+    expect(submitButton().props.disabled).toBe(false);
+    await submit();
+    expect(mocks.place).toHaveBeenCalledTimes(1);
+    expect(mocks.place.mock.calls[0][7]).toBe(true);
+  });
+
+  it('주문이 거절되면 바뀐 내용을 다시 확인하도록 체크를 풀고 버튼을 잠근다', async () => {
+    await submit();
+    expect(acknowledgement().props.checked).toBe(false);
+    expect(submitButton().props.disabled).toBe(true);
+    acknowledge();
+    expect(submitButton().props.disabled).toBe(false);
+  });
+
+  it('주문을 만드는 동안에는 체크박스도 잠근다', async () => {
+    let resolve!: (value: unknown) => void;
+    mocks.place.mockReturnValueOnce(new Promise((yes) => { resolve = yes; }));
+    const work = submit();
+    expect(acknowledgement().props.disabled).toBe(true);
+    resolve({ ok: false, error: 'unavailable' });
+    await work;
+  });
+});
+
+/* 화면이 실제로 보인 제한 고지를 서버 액션 9번째 인자로 보내고, 서버가 안내가 바뀌었다고 거절하면 체크를 풀고 주문서를 새로 읽는다. */
+describe('Checkout 제한 고지 대조', () => {
+  it('보인 제한 굿즈 id 목록을 9번째 인자로 보낸다(제한 없으면 빈 목록)', async () => {
+    await submit();
+    expect(mocks.place.mock.calls[0][8]).toEqual([]);
+    acknowledge();
+    props = { ...props, claimRestrictions: { g13: { goodId: 'g13', returnAllowed: false, exchangeAllowed: null, reason: '각인' }, other: { goodId: 'other', returnAllowed: false, exchangeAllowed: null, reason: 'x' } } };
+    await submit();
+    expect(mocks.place.mock.calls[1][8]).toEqual(['g13']);
+  });
+
+  it('읽지 못한 화면은 unavailable 표식을 보낸다', async () => {
+    props = { ...props, claimRestrictions: null };
+    await submit();
+    expect(mocks.place.mock.calls[0][8]).toBe('unavailable');
+  });
+
+  it('안내가 바뀌었다는 거절이면 안내 문구를 보이고 체크를 푼다', async () => {
+    mocks.place.mockResolvedValueOnce({ ok: false, error: 'claim_notice_changed' });
+    await submit();
+    expect(acknowledgement().props.checked).toBe(false);
+    expect(submitButton().props.disabled).toBe(true);
+    expect(all(render()).some((node) => node.props.role === 'alert' && Children.toArray(node.props.children as ReactNode).some((child) => typeof child === 'string' && child.includes('제한 안내가 바뀌었어요')))).toBe(true);
   });
 });
