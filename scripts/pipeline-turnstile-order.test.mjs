@@ -35,9 +35,10 @@ describe('Auth CAPTCHA(Turnstile)는 앱 배포 뒤에만 켠다', () => {
     expect(activate).toBeGreaterThan(verify);
 
     const steps = workflow.jobs['deploy-vercel'].steps;
-    for (const index of [verify, activate]) {
-      expect(steps[index].if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
-    }
+    // 대조는 키를 관리할 때(변수가 있을 때)만 운영 env를 내려받는다. 켜기 단계는 스크립트가 두 값이 다 있을 때만 CAPTCHA를 건드린다.
+    expect(steps[verify].if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY != ''");
+    expect(steps[verify].run).toContain("trap 'rm -f \"$env_file\"' EXIT");
+    expect(steps[activate].if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
     expect(steps[activate].env).toMatchObject({
       TURNSTILE_SECRET_KEY: '${{ secrets.TURNSTILE_SECRET_KEY }}',
       TURNSTILE_SITE_KEY: '${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}',
