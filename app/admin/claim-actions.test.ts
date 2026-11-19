@@ -472,7 +472,6 @@ describe('recordOrderClaimCarrierLossAction', () => {
   });
   it('DB 거절을 운영자 문구로 옮긴다', async () => {
     for (const [code, message] of [
-      ['carrier_loss_requires_seller_fault', '배송 분실은 판매자 귀책(하자·오배송) 반품에서만 기록합니다. 먼저 요청 사유를 하자·오배송으로 정정해주세요.'],
       ['carrier_loss_shipment_not_dispatched', '아직 발송되지 않은 배송 건은 분실로 기록할 수 없습니다. 발송 전 몫은 재고 부족 부분 취소로 처리해주세요.'],
       ['carrier_loss_return_only', '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 생략 재출고를 쓰세요.'],
       ['claim_changed', '다른 처리로 요청이 바뀌었습니다. 새로고침한 뒤 최신 상태로 다시 확인해주세요.'],

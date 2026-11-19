@@ -38,7 +38,10 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
   claimRevision?: number | null;
 }) {
   const waived = collection.collectionWaived === true;
-  const lost = collection.carrierLoss ?? null;
+  /* 효력 있는 분실 기록만 '배송 분실'로 그린다(교환 사유 정정 등으로 효력을 잃으면 DB도 싣지 않는다, 리뷰 P2). */
+  const lost = waived ? collection.carrierLoss ?? null : null;
+  /* 일부 발송 주문의 주문 전체 반품·교환: 아직 발송 전인 배송 건은 창고에 그대로 있는지 확인해 회수를 끝낸다(창고 보관 확인). */
+  const unsent = collection.shipmentDispatched === false && !collection.collectedAt && !waived;
   const canRecordLoss = claimType === 'return' && canRecord && !collection.collectedAt && !waived && collection.shipmentDispatched === true && claimRevision !== null
     && !(collection.bundles ?? []).some((bundle) => bundle.collectedAt);
   const bundles = collection.bundles ?? [];
@@ -80,7 +83,10 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
       {collection.collectedAt ? <>
         <CollectedRecord collectedAt={collection.collectedAt} collectorName={collection.collectorName} evidence={collection.evidence} receivedOn={collection.receivedOn} />
         {waived ? <p className="text-xs text-muted-foreground">회수 생략으로 결정한 뒤 늦게 도착한 입고입니다. 재고는 바뀌지 않았습니다.</p> : null}
-      </> : canRecord ? <CollectionRecordForm claimId={claimId} claimType={claimType} label={collection.originName} shipmentId={collection.shipmentId} waived={waived} /> : null}
+      </> : canRecord ? <>
+        {unsent ? <AdminNotice tone="info">아직 발송 전인 배송 건입니다. 창고에 그대로 보관 중인지 확인하고 보관 확인 근거를 적어 회수 확인합니다(실제 입고일은 확인한 날).</AdminNotice> : null}
+        <CollectionRecordForm claimId={claimId} claimType={claimType} label={collection.originName} shipmentId={collection.shipmentId} unsent={unsent} waived={waived} />
+      </> : null}
     </>}
     {canRecordLoss && claimRevision !== null ? <ClaimCarrierLossDecision claimId={claimId} claimRevision={claimRevision} originName={collection.originName} shipmentId={collection.shipmentId} /> : null}
   </section>;
@@ -140,8 +146,8 @@ function CollectedRecord({ collectedAt, collectorName, evidence, receivedOn }: {
 }
 
 /* 회수 확인 폼. 묶음이 갈린 배송 건은 묶음 키(bundleId)로, 아니면 배송 건 키로 보낸다. */
-function CollectionRecordForm({ bundle, claimId, claimType, label, shipmentId, waived }: {
-  bundle?: AdminClaimCollectionBundle; claimId: string; claimType: OrderClaimType; label: string; shipmentId: string; waived: boolean;
+function CollectionRecordForm({ bundle, claimId, claimType, label, shipmentId, unsent = false, waived }: {
+  bundle?: AdminClaimCollectionBundle; claimId: string; claimType: OrderClaimType; label: string; shipmentId: string; unsent?: boolean; waived: boolean;
 }) {
   const [state, action, pending] = useActionState(recordOrderClaimOriginCollectionAction, {});
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
@@ -167,9 +173,9 @@ function CollectionRecordForm({ bundle, claimId, claimType, label, shipmentId, w
       <Label htmlFor={evidenceId}>회수 확인 근거</Label>
       <Textarea id={evidenceId} name="evidence" required maxLength={500} rows={3}
         defaultValue={restored?.claimId === claimId ? restored.evidence : ''}
-        placeholder="창고 회신 번호와 반송 상품·수량 대조 결과" disabled={pending} />
+        placeholder={unsent ? '창고 보관 확인 회신과 상품·수량 대조 결과' : '창고 회신 번호와 반송 상품·수량 대조 결과'} disabled={pending} />
     </div>
-    <Button className="w-fit" size="sm" type="submit" disabled={pending}>{label} {waived ? '늦은 입고 확인' : '회수 확인'}</Button>
+    <Button className="w-fit" size="sm" type="submit" disabled={pending}>{label} {waived ? '늦은 입고 확인' : unsent ? '창고 보관 확인' : '회수 확인'}</Button>
     {state.error ? <p className="text-destructive" role="alert">{adminClaimCopy(state.error)}</p> : null}
     {state.message ? <p className="text-muted-foreground" role="status">{adminClaimCopy(state.message)}</p> : null}
   </form>;

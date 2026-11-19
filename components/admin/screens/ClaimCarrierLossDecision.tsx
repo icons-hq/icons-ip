@@ -17,8 +17,8 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 /* 반품의 배송 분실 기록(원장 #15 SHP-095, ADR-0018 보완 2026-11-19).
  *
  * 택배사가 분실을 확인한 배송 건은 돌아올 물건이 없으므로 회수 확인 대신 사고 번호·메모·근거 사진으로 회수를 끝낸다. 모든 출고지가
- * 입고되거나 분실로 기록되면 환불을 진행하고, 분실 상품은 판매 재고로 되돌리지 않는다. 판매자 귀책(하자·오배송) 반품만 받고,
- * 발송 여부·리비전은 DB가 다시 검사한다. 작업 번호는 처음 그릴 때 정해 실패 뒤 재시도에도 같아 이중 기록이 생기지 않는다. */
+ * 입고되거나 분실로 기록되면 환불을 진행하고, 분실 상품은 판매 재고로 되돌리지 않는다. 반품 사유와 무관하게 받고(회사·택배 귀책이라
+ * 반품배송비를 빼지 않는다), 발송 여부·리비전은 DB가 다시 검사한다. 작업 번호는 처음 그릴 때 정해 실패 뒤 재시도에도 같아 이중 기록이 생기지 않는다. */
 export function ClaimCarrierLossDecision({ claimId, claimRevision, shipmentId, originName }: {
   claimId: string; claimRevision: number; shipmentId: string; originName: string;
 }) {
@@ -63,8 +63,8 @@ export function ClaimCarrierLossDecision({ claimId, claimRevision, shipmentId, o
     <input type="hidden" name="operationId" value={operationId} />
     {evidence.map(file => <input key={file.id} type="hidden" name="evidenceFileId" value={file.id} />)}
     <AdminNotice tone="warning" title={`${originName} 배송 분실 — 회수 없이 환불`}>
-      택배사가 분실을 확인한 배송 건의 회수를 끝냅니다. 모든 출고지가 입고되거나 분실로 기록되면 환불을 진행하고, 분실 상품은 판매 재고로
-      되돌리지 않습니다. 분실된 상품을 다시 보내려면 반품 대신 하자·오배송 교환으로 접수해 회수 생략 재출고를 씁니다.
+      택배사가 분실을 확인한 배송 건의 회수를 끝냅니다. 모든 출고지가 입고되거나 분실로 기록되면 환불을 진행하고(반품배송비를 빼지 않음),
+      분실 상품은 판매 재고로 되돌리지 않습니다. 분실된 상품을 다시 보내려면 반품 대신 하자·오배송 교환으로 접수해 회수 생략 재출고를 씁니다.
     </AdminNotice>
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={accidentId}>택배사 사고 번호</Label>

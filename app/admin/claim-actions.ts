@@ -145,7 +145,6 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_shipment_not_found')) return '이 교환의 재출고 대상 출고지가 아닙니다. 최신 정보를 다시 확인해주세요.';
   /* 배송 분실(택배사 확인, 원장 #15) 기록. */
   if (value.includes('carrier_loss_return_only')) return '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 생략 재출고를 쓰세요.';
-  if (value.includes('carrier_loss_requires_seller_fault')) return '배송 분실은 판매자 귀책(하자·오배송) 반품에서만 기록합니다. 먼저 요청 사유를 하자·오배송으로 정정해주세요.';
   if (value.includes('carrier_loss_shipment_not_dispatched')) return '아직 발송되지 않은 배송 건은 분실로 기록할 수 없습니다. 발송 전 몫은 재고 부족 부분 취소로 처리해주세요.';
   if (value.includes('invalid_carrier_accident_number')) return '택배사 사고 번호를 앞뒤 공백 없이 2~60자로 입력해주세요.';
   if (value.includes('invalid_carrier_loss')) return '배송 분실 기록 내용을 확인해주세요. 새로고침한 뒤 다시 시도해주세요.';
@@ -560,7 +559,7 @@ export async function waiveOrderClaimCollectionAction(
 /**
  * 배송 분실을 기록한다(택배사가 분실을 확인한 배송 건, 원장 #15 SHP-095·ADR-0018 보완 2026-11-19).
  *
- * 판매자 귀책 반품에서 발송된 배송 건의 회수를 사고 번호·메모·근거 사진으로 대신한다. 모든 출고지가 입고되거나 분실로 기록되면
+ * 반품(접수 사유와 무관 — 분실은 회사·택배 귀책이라 반품배송비를 빼지 않는다)에서 발송된 배송 건의 회수를 사고 번호·메모·근거 사진으로 대신한다. 모든 출고지가 입고되거나 분실로 기록되면
  * 회수가 끝나 환불을 진행할 수 있고, 분실 품목은 환불 확정 때 판매 재고로 되돌리지 않는다. 반품·사유·발송 여부·리비전은 DB
  * (admin_record_order_claim_carrier_loss)가 다시 검사하고, 같은 작업 번호의 재전송은 같은 결과다.
  */
