@@ -109,8 +109,11 @@ GoTrue v2.192.0 `internal/api/user.go` 기준이다. 현재 비밀번호 검사�
   비밀번호 재로그인 세션은 `password`였다([런북](signup-contact-channels.md) §3).
 - **admin API.** service role 경로는 가드와 알림을 모두 우회한다. service role은 서버 신뢰 경계 안에서만
   쓴다는 기존 규칙이 경계다.
-- **메일 한도.** 재설정을 마칠 때마다 알림 메일이 한 통 늘어 운영 `rate_limit_email_sent`(30통/시간)를
-  가입 확인·재설정 메일과 나눠 쓴다. 알림 발송이 한도에 걸려도 비밀번호 변경은 성공한다.
+- **메일 한도.** 재설정을 마칠 때마다 알림 메일이 한 통 늘어 운영 `rate_limit_email_sent`
+  (`scripts/sync-supabase-auth.mjs`의 `AUTH_EMAIL_RATE_LIMIT_PER_HOUR`, 현재 30통/시간 — 값은 그 상수 한 곳이 정한다)를
+  가입 확인·재설정 메일과 나눠 쓴다. 알림 발송이 한도에 걸려도 비밀번호 변경은 성공한다. 봇이 이 한도를 먼저 쓰지 못하게
+  앱 서버가 IP·이메일 시도 한도와 Turnstile을 건다([signup-contact-channels.md](signup-contact-channels.md) §13).
+  로컬 `supabase/config.toml`의 `email_sent`는 로컬 스택 개발·시험용이라 운영 값과 맞추지 않는다(배포 파이프라인이 운영 값을 강제한다).
 - **앞으로 만들 로그인 상태 비밀번호 변경 화면.** 현재 앱에는 없다. 만든다면 `current_password`가 필수이고,
   24시간 지난 세션은 `reauthenticate()`의 nonce를 같은 요청에 실어야 한다(nonce는 실패해도 소비된다).
 - **로컬과의 차이.** CLI 2.109.1 `config.toml`에는 현재 비밀번호 키가 없어 로컬은 재인증과 알림만 운영과
