@@ -26,7 +26,7 @@ describe('발주 화면의 자동 발주확인 패널', () => {
     expect(html).toContain('발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다');
     expect(html).toContain('전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다');
     expect(html).toContain('/admin/sales/orders/a0c00000-0000-4001-8000-000000000005');
-    expect(html).toContain('취소 요청 진행 중'); expect(html).toContain('예약 재고 할당 전');
+    expect(html).toContain('취소 요청 진행 중'); expect(html).toContain('예약 입고 확인 전');
     expect(html).toContain('type="time"'); expect(html).toContain('value="16:30"');
     /* 저장은 양식 제출(onSubmit)로 간다 — kit Button은 type이 없으면 button이 된다. */
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>설정 저장</);

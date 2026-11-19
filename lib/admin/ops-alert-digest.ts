@@ -21,7 +21,7 @@ export const OPS_ALERT_DIGEST_CATEGORY_HINTS: Record<OpsAlertDigestCategory, str
   inquiries: '고객이 새로 남기거나 다시 연 1:1 문의가 있으면 건수만 알립니다.',
   questions: '상품 상세에 새 상품 문의가 올라오면 건수만 알립니다.',
   delay: '답변을 기다리는 문의가 아래 기준 시간을 넘기면 문의당 한 번만 알립니다.',
-  system: '자동 작업 실패·멈춤(앱 자동 작업과 DB 작업 모두), 메일 발송 실패, 미종결 결제를 건수·작업 이름으로 알립니다(시스템 상태 화면의 판정과 같고, 작업 실패·멈춤과 미종결 결제는 이어지면 한 시간에 한 번씩 다시, 메일 발송 실패는 새 실패가 생길 때만 알립니다).',
+  system: '자동 작업 실패·멈춤(앱 자동 작업과 DB 작업 모두), 메일 발송 실패, 미종결 결제를 건수와 작업 이름으로 알립니다. 시스템 상태 화면과 같은 기준입니다. 작업 실패·멈춤과 미종결 결제는 이어지면 한 시간에 한 번씩 다시 알리고, 메일 발송 실패는 새 실패가 생길 때만 알립니다.',
 };
 
 export interface OpsAlertDigestDelivery { recipient: string; status: StockDigestDeliveryStatus; errorCode: string | null; attempts: number; updatedAt: string }
@@ -87,8 +87,8 @@ export function opsAlertDigestErrorMessage(error: { code?: unknown; message?: un
   if (code === '42501' || code === '28000' || message.includes('operator_capability_required')) return '운영 알림 메일 설정은 계정 주매니저 이상만 바꿀 수 있습니다.';
   if (code === 'PT409' || message.includes('ops_alert_digest_changed')) return '다른 운영자가 먼저 설정을 바꿨습니다. 새로고침한 뒤 다시 저장해주세요.';
   if (message.includes('operation_conflict')) return '같은 요청이 다른 내용으로 이미 처리됐습니다. 새로고침한 뒤 다시 저장해주세요.';
-  if (message.includes('ops_alert_recipient_limit')) return '받는 주소가 너무 많습니다.';
-  if (message.includes('invalid_ops_alert_recipient')) return '메일 주소 형식을 확인해주세요.';
+  if (message.includes('ops_alert_recipient_limit')) return `받는 주소는 최대 ${OPS_ALERT_DIGEST_RECIPIENT_LIMIT}개까지 넣을 수 있습니다. 주소를 줄여 다시 저장해주세요.`;
+  if (message.includes('invalid_ops_alert_recipient')) return '형식이 맞지 않는 메일 주소가 있습니다. name@example.com처럼 한 줄에 하나씩 넣어 다시 저장해주세요.';
   if (message.includes('invalid_ops_alert_category')) return '알릴 범주를 하나 이상 골라주세요.';
   if (message.includes('invalid_ops_alert_digest')) return `답변 지연 기준 시간은 ${OPS_ALERT_DIGEST_MIN_DELAY_HOURS}~${OPS_ALERT_DIGEST_MAX_DELAY_HOURS}시간 사이로 넣어주세요.`;
   return '운영 알림 메일 설정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.';

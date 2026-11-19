@@ -204,7 +204,7 @@ export function preorderScheduleError(code: string): string {
     preorder_schedule_stale: '미리보기 뒤 예약 주문이나 예약 조건이 바뀌었습니다(새 주문·배송 건 변경 등). 대상을 다시 미리 본 뒤 확정해주세요.',
     preorder_schedule_no_targets: '바꿀 예약 배송 건이 없습니다. 제외 사유를 확인해주세요.',
     preorder_schedule_too_many: `한 번에 바꿀 수 있는 배송 건은 ${PREORDER_SCHEDULE_LIMIT.toLocaleString('ko-KR')}건까지입니다. 앞의 건부터 나누어 바꿔주세요.`,
-    preorder_schedule_idempotency_conflict: '같은 요청의 내용이 바뀌었습니다. 대상을 다시 미리 본 뒤 확정해주세요.',
+    preorder_schedule_idempotency_conflict: '다시 보낸 확정의 내용이 처음 보낸 내용과 다릅니다. 대상을 다시 미리 본 뒤 확정해주세요.',
     preorder_schedule_change_not_found: '일정 변경 기록을 찾을 수 없습니다.',
     preorder_schedule_policy_decision_required: '접수 중인 예약 조건을 새 날짜로 바꿀지, 그대로 둘지 골라주세요.',
     preorder_schedule_policy_not_replaceable: '접수 중인 예약 조건을 새 날짜로 바꿀 수 없습니다. 그대로 두기를 확인하거나 예약 조건을 먼저 조정해주세요.',
@@ -214,7 +214,7 @@ export function preorderScheduleError(code: string): string {
     delay_notice_delivery_disabled: '지연 안내 이메일 발송 설정이 꺼져 있어 일정 변경과 안내를 진행할 수 없습니다.',
     delay_notice_not_found: '안내 기록을 찾을 수 없습니다.',
   };
-  return errors[code] ?? '처리 결과를 확인하지 못했습니다. 같은 요청의 결과를 확인한 뒤 다시 시도해주세요.';
+  return errors[code] ?? '처리하지 못했습니다. [최근 일정 변경·안내 이력]에서 이미 처리됐는지 먼저 확인한 뒤 다시 시도해주세요.';
 }
 
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);

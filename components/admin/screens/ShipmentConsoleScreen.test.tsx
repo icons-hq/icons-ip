@@ -136,7 +136,7 @@ describe('배송 건 콘솔',()=>{
  it('재고 부족 부분 취소가 진행 중인 배송 건은 발송 대기 행에 표시하고 선택을 막되 주문 확인은 유지한다(QA2)',()=>{
   const held={...row,partialCancelInProgress:true};
   const ready=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[held]}}/>);
-  expect(ready).toContain('부분 취소 진행 중');expect(ready).toContain('부분 취소 처리가 끝난 뒤');expect(ready).not.toContain('예약 재고 할당·제작 완료 뒤');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  expect(ready).toContain('부분 취소 진행 중');expect(ready).toContain('부분 취소 처리가 끝난 뒤');expect(ready).not.toContain('예약 입고 확인·제작 완료 뒤');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
   expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>)).not.toContain('부분 취소 진행 중');
   const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[held]}}/>);
   expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
@@ -144,7 +144,7 @@ describe('배송 건 콘솔',()=>{
  it('실재고가 미할당된 예약 배송 건은 출고 파일 선택을 막고 주문 확인은 유지한다',()=>{
   const held={...row,preorderReady:false};
   const ready=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[held]}}/>);
-  expect(ready).toContain('예약 재고 할당 필요');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  expect(ready).toContain('예약 입고 확인 필요');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
   const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[held]}}/>);
   expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);expect(incoming).toContain('발주확인');
  });
@@ -268,9 +268,9 @@ describe('발송처리 화면의 행 운송장·배송 방법 (S36-072·S36-X04)
   const delayed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...withCarrier,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);
   expect(delayed).toContain('data-shipment-row-tracking=""');expect(delayed).toContain('택배 외 발송처리');
  });
- it('예약 재고 할당 전·택배 외 행은 운송장 칸 대신 이유를 적고, 신규주문·배송현황에는 칸을 두지 않는다',()=>{
+ it('예약 입고 확인 전·택배 외 행은 운송장 칸 대신 이유를 적고, 신규주문·배송현황에는 칸을 두지 않는다',()=>{
   const held=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,preorderReady:false}]}}/>);
-  expect(held).not.toContain('data-shipment-row-tracking=""');expect(held).toContain('예약 재고 할당·제작 완료 뒤 입력합니다.');
+  expect(held).not.toContain('data-shipment-row-tracking=""');expect(held).toContain('예약 입고 확인·제작 완료 뒤 입력합니다.');
   /* 택배 외 행은 같은 칸의 인계·수령 확인으로 처리한다 — 따로 '주문 상세에서 처리' 안내를 두지 않는다(QA 라운드 1 m7). */
   const pickup=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture()}]}}/>);
   expect(pickup).not.toContain('택배 외 배송 — 배송 방법·주문 상세에서 처리합니다.');expect(pickup).toContain('방문수령 인계·수령 확인');

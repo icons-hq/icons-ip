@@ -142,8 +142,8 @@ const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippi
   return (
       <div className="flex min-w-0 flex-col gap-4 border-t px-4 py-4 sm:px-5 sm:py-5">
         <p className="text-sm text-muted-foreground">
-          지금 폼에 입력된 값으로 그린 화면입니다. 저장하기 전 모습이며, 미리보기는 카탈로그를 바꾸지 않습니다.
-          KC 표는 마지막으로 저장해 검토를 완료한 자료만 표시합니다. 모델 관련 기본 정보·옵션을 저장해 검토가 무효화되면 KC를 다시 검토해야 합니다.
+          지금 폼에 입력된 값으로 그린 화면입니다. 저장하기 전 모습이며, 미리보기를 열어도 저장된 상품은 바뀌지 않습니다.
+          KC 표는 마지막으로 저장해 검토를 완료한 자료만 표시합니다. 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션을 바꿔 저장하면 KC 검토가 풀려 다시 검토해야 합니다.
         </p>
         <div className="flex min-w-0 flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground">고객 화면 목록 카드</span>
@@ -434,7 +434,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       const name = input.name || artworkName || input.dataset.errorField || (input.closest('[data-option-editor]') ? 'variants' : 'form');
       const label = input.labels?.[0]?.textContent?.trim() || input.getAttribute('aria-label')?.trim() || name;
       /* 같은 칸에 오류가 여럿이면 포커스가 가는 첫 입력의 안내를 보인다. */
-      fieldErrors[name] ??= input.validity.customError ? input.validationMessage : `${label} 입력값을 확인해주세요. ${input.validationMessage}`;
+      fieldErrors[name] ??= input.validity.customError ? input.validationMessage : `${label} 칸을 확인해주세요. ${input.validationMessage}`;
     }
     setClientErrors(fieldErrors);
     for (const input of invalid) {
@@ -539,7 +539,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   /* T15b: 새 상품의 저장 후 공개가 KC 밖의 공개 조건에 막혔다. 저장은 끝났고 공개는 판매 준비에서 이어서 한다. */
   const publishBlockedVisible = Boolean(state.publishBlocked && state.message && !published && !draftSaved);
   const statusLabel = pending ? '저장 중…' : draftSaved ? '임시저장 완료' : Object.keys(errors).some((key) => errors[key]) ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음'
-    : kcBlockedVisible || publishBlockedVisible ? '초안 저장 완료 · 공개 보류' : state.kcPublishBlocked || state.publishBlocked ? (published ? '저장된 내용과 같음' : '기본 상품 저장 완료') : state.message ? '기본 상품 저장 완료' : selected ? '저장된 내용과 같음' : '새 초안 · 아직 저장 전';
+    : kcBlockedVisible || publishBlockedVisible ? '초안 저장 완료 · 공개 보류' : state.kcPublishBlocked || state.publishBlocked ? (published ? '저장된 내용과 같음' : '기본 상품 저장 완료') : state.message ? '기본 상품 저장 완료' : selected ? '저장된 내용과 같음' : '새 상품 · 아직 저장 전';
   /* 저장 다음에 무엇을 하는지 저장 안내를 열지 않아도 보이게 한다. */
   const kcLink = <a className="text-foreground underline underline-offset-4" href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보로 이동</a>;
   const kcIsNextStep = Boolean(selected && readiness && !kcDone);
@@ -585,7 +585,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <OwnedFields locked={groupOwned} fields={['categoryId']} values={initial}><GoodCategoryField categories={categories} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId} /></OwnedFields>
         </div>
         {/* TKT-009: 잠금 안내의 버튼 하나 → 확인창 1회 → 바로 초안 전환·잠금 해제. 판매 준비 카드의 초안으로 되돌리기와 같은 서버 계약이다. */}
-        {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중 잠금: 상품명·연결 IP·제조자·제조국·소재·크기" tone="neutral">실제 모델과 검토 근거를 일치시키기 위한 잠금입니다. 초안으로 전환 후 수정하고 KC를 재검토해야 재공개할 수 있습니다.</AdminNotice>
+        {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중 잠금: 상품명·연결 IP·제조자·제조국·소재·크기" tone="neutral">KC 검토를 받은 실제 상품과 화면 정보가 달라지지 않게 잠가 둡니다. 고치려면 [초안으로 전환 후 수정]을 누른 뒤 수정하고, KC를 다시 검토해야 다시 공개할 수 있습니다.</AdminNotice>
           <div><GoodDraftSwitch id={selected.id} disabled={pending || draftBusy || Boolean(selected.archivedAt)} /></div></div>}
         {justUnpublished && !locked ? <div data-good-unlocked=""><AdminNotice tone="info" title="초안으로 전환했습니다"><span role="status">고객 화면에서 내려갔고 잠긴 항목을 고칠 수 있습니다. 저장한 뒤 KC를 다시 검토해야 공개할 수 있습니다.</span></AdminNotice></div> : null}
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -659,7 +659,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? `상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)` : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? undefined : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
           {descriptionWarnings.length > 0 && <div data-good-html-review=""><AdminNotice role="status" title="저장 전 확인: 입력 원문은 편집기에 남아 있으며 아래 미리보기의 결과가 저장됩니다." tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5 wrap-anywhere">{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></AdminNotice></div>}
           <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" data-good-html-tools="" disabled={!htmlDescription} hidden={!htmlDescription}>
-            <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
+            <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 확인이 끝나면 대체 설명을 적고 [업로드한 이미지를 설명에 넣기]를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
             <Field defaultValue={initial.descriptionImageAlt} label="HTML 이미지 대체 설명" name="descriptionImageAlt" maxLength={300} />
             <button className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" onClick={() => insertDescription()} type="button">업로드한 이미지를 설명에 넣기</button>
             <p className="text-sm text-muted-foreground">호스팅 이미지 주소(https://…)는 업로드 없이 HTML에 그대로 쓰면 됩니다. http 주소는 https로 바꿔 저장합니다. 호스팅하지 않은 이미지만 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
@@ -725,7 +725,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             <div className="absolute bottom-[calc(100%+1.25rem)] left-0 z-30 flex w-[min(32.5rem,calc(100vw-2rem))] flex-col gap-2 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-md [&>p]:text-muted-foreground"><p>{atomicSections ? '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정(판매 방식·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·할인·배송비·묶음그룹·정기배송·수령 방식·제작·공급가)을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 재고 조정·옵션 사용·복사·보관만 저장 뒤 같은 자리에서 합니다.'
               : '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.'}</p>
             <p>{selected ? '입력 임시저장은 현재 브라우저에 보관합니다.' : '임시저장은 내 계정에 최대 40건을 보관합니다. 업로드를 마친 이미지와 입력값을 불러올 수 있으며, 상품 등록·공개는 저장하기에서 따로 확정합니다.'} 브라우저 자동 복구도 함께 유지됩니다.</p>
-            {dirty && <p>브라우저 복구 기록은 서버 저장이 아닙니다. KC·예약판매·함께 저장할 설정 입력은 복구되지 않습니다.</p>}
+            {dirty && <p>브라우저 복구 기록은 이 브라우저에만 남는 기록이라 저장한 것이 아닙니다. KC·예약판매·함께 저장할 설정 입력은 복구되지 않습니다.</p>}
             {selected?.publishedAt && <p>저장하면 공개 중인 상품 화면에 반영됩니다.</p>}
             {/* ADM-004(복잡도 표 25·27행): 등록 화면의 순서 안내는 한 문장으로 줄이고, 저장된 초안의 순서는 판매 준비 카드(다음 할 일·판매 준비 안내)가 말한다. */}
             {atomicSections ? <p>공개 조건과 KC까지 채우면 저장 후 공개로 저장과 함께 공개하고(막히면 저장만 하고 판매 준비에서 공개), KC를 검토 완료로 저장했더라도 그 뒤 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p> : null}
@@ -734,7 +734,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           {nextStep ? <p className="text-xs text-muted-foreground" data-good-next-step="">{nextStep}</p> : null}
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2 xl:justify-end">
-          {showRemainingCount ? <button className={`inline-flex items-center rounded-md px-1 text-xs font-medium tabular-nums underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 ${selected ? 'text-warning' : 'text-muted-foreground'}`} data-good-publish-remaining={remaining.length} onClick={() => focusGoodWorkspaceTarget(remaining[0].anchor, remaining[0].field)} title={`${remaining.map((item) => item.label).join(', ')} · 공개할 때 서버가 다시 확인합니다.`} type="button">공개까지 필수 {remaining.length}개 남음</button> : null}
+          {showRemainingCount ? <button className={`inline-flex items-center rounded-md px-1 text-xs font-medium tabular-nums underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 ${selected ? 'text-warning' : 'text-muted-foreground'}`} data-good-publish-remaining={remaining.length} onClick={() => focusGoodWorkspaceTarget(remaining[0].anchor, remaining[0].field)} title={`${remaining.map((item) => item.label).join(', ')} · 공개할 때 한 번 더 확인합니다.`} type="button">공개까지 필수 {remaining.length}개 남음</button> : null}
           <button className={`${buttonVariants({ variant: 'outline' })} ${SAVE_BAR_BUTTON_CLASS} max-md:[&>svg]:hidden`} data-slot="button" type="button" onClick={() => { const preview = document.getElementById('good-preview'); if (preview instanceof HTMLDetailsElement) { preview.open = true; preview.scrollIntoView({ block: 'start', behavior: 'instant' }); preview.querySelector('summary')?.focus(); } }}><Eye aria-hidden="true" />미리보기</button>
           {selected ? <button className={`${buttonVariants({ variant: 'ghost' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" data-good-draft-button="" type="button" disabled={pending} onClick={() => { if (editorRef.current) { const saved = onSaveLocalDraft(editorRef.current); setLocalSaveMessage({ text: saved ? '입력 내용을 이 브라우저에 임시저장했습니다.' : '브라우저에 임시저장할 수 없습니다. 저장하기를 이용해주세요.', ok: saved }); } }}>입력 임시저장</button> : <span className="inline-flex" role="group" aria-label="임시저장">
             <button className={`${buttonVariants({ variant: 'ghost' })} ${SAVE_BAR_BUTTON_CLASS} rounded-r-none`} data-slot="button" data-good-draft-button="" type="button" disabled={pending || draftBusy} onClick={() => { void saveServerDraft(); }}>{draftBusy ? '임시저장 중…' : '임시저장'}</button>

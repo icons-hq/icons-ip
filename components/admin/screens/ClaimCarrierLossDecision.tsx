@@ -24,7 +24,7 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 export function carrierLossConfirmRequest(originName: string, accidentNumber: string): AdminConfirmRequest {
   return {
     title: `${originName} 배송 분실로 기록할까요?`,
-    message: `택배사 사고 번호 ${accidentNumber}로 ${originName} 배송 건의 분실을 기록합니다. 기록은 되돌릴 수 없습니다 — 이 출고지의 회수가 끝난 것으로 보고(모든 출고지가 끝나면 환불을 진행), 분실 상품은 판매 재고로 되돌리지 않으며 반품배송비를 빼지 않습니다.`,
+    message: `택배사 사고 번호 ${accidentNumber}로 ${originName} 배송 건의 분실을 기록합니다. 기록하면 되돌릴 수 없습니다. 이 출고지의 회수는 끝난 것으로 보고, 모든 출고지의 회수가 끝나면 환불을 진행합니다. 분실 상품은 판매 재고로 되돌리지 않고, 반품배송비도 빼지 않습니다.`,
     confirmLabel: '배송 분실 기록',
     destructive: true,
   };
@@ -76,7 +76,7 @@ export function ClaimCarrierLossDecision({ claimId, claimRevision, shipmentId, o
     {evidence.map(file => <input key={file.id} type="hidden" name="evidenceFileId" value={file.id} />)}
     <AdminNotice tone="warning" title={`${originName} 배송 분실 — 회수 없이 환불`}>
       택배사가 분실을 확인한 배송 건의 회수를 끝냅니다. 모든 출고지가 입고되거나 분실로 기록되면 환불을 진행하고(반품배송비를 빼지 않음),
-      분실 상품은 판매 재고로 되돌리지 않습니다. 분실된 상품을 다시 보내려면 반품 대신 하자·오배송 교환으로 접수해 회수 생략 재출고를 씁니다.
+      분실 상품은 판매 재고로 되돌리지 않습니다. 분실된 상품을 다시 보내려면 반품 대신 하자·오배송 교환으로 접수해 회수 없이 재출고합니다.
     </AdminNotice>
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={accidentId}>택배사 사고 번호</Label>

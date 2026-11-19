@@ -179,13 +179,13 @@ it('이름 없는 옵션별 제한 입력의 브라우저 검증 오류를 구�
   const invalid = (tree: Element[], elements: FakeElement[]) => (tree.find(node => node.type === 'form')!.props.onInvalidCapture as (event: unknown) => void)({ preventDefault: vi.fn(), currentTarget: { elements } });
   invalid(h.render(), [first, second]);
   let tree = h.render();
-  expect(errors(tree)).toMatchObject({ optionLimits: '빨강 최대 구매수량(주문당) 입력값을 확인해주세요. 값은 1 이상이어야 합니다.' });
+  expect(errors(tree)).toMatchObject({ optionLimits: '빨강 최대 구매수량(주문당) 칸을 확인해주세요. 값은 1 이상이어야 합니다.' });
   expect(errors(tree)).not.toHaveProperty('form');
   expect(first.focus).toHaveBeenCalled();
   /* 이름도 오류 칸도 없는 입력은 지금처럼 form으로 남는다. */
   invalid(tree, [unnamed]);
   tree = h.render();
-  expect(errors(tree)).toMatchObject({ form: 'form 입력값을 확인해주세요. 값을 입력하세요.' });
+  expect(errors(tree)).toMatchObject({ form: 'form 칸을 확인해주세요. 값을 입력하세요.' });
 });
 
 /*

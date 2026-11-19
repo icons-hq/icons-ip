@@ -115,7 +115,7 @@ describe('ClaimActionPanel — 품목별 재고 처리', () => {
   it('무통장 환불은 확정 양식이 따로라 선택만 저장하는 양식을 보인다', () => {
     const html = render({ bankTransfer: true, actorId: 'staff-1', paymentProvider: 'bank_transfer', defectiveStock: stock() });
     expect(html).toContain('품목별 재고 처리 저장');
-    expect(html).toContain('[취소 확정]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다');
+    expect(html).toContain('[취소 확정 · 재고 복원]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다');
   });
 });
 

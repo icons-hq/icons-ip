@@ -40,23 +40,23 @@ function parsePromise(value: unknown): ShipmentPreorderPromise | null {
     updatedAt: value.updatedAt, changes };
 }
 export async function readShipmentPreorderPromiseAction(shipmentId: unknown, orderId?: string): Promise<{ ok: true; promise: ShipmentPreorderPromise } | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(orderId), { capability: 'sales.read' })) return { ok: false, error: '예약 발송 일정은 운영자가 확인할 수 있습니다.' };
-  if (!isUuid(shipmentId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(orderId), { capability: 'sales.read' })) return { ok: false, error: '예약 발송 일정을 볼 권한이 없습니다. 주문 조회 권한이 있는 계정으로 로그인해주세요.' };
+  if (!isUuid(shipmentId)) return { ok: false, error: '배송 건 정보를 읽지 못했습니다. 주문 상세를 새로고침해주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_read_shipment_preorder_promise', { p_shipment_id: shipmentId });
     const promise = error ? null : parsePromise(data);
-    return promise ? { ok: true, promise } : { ok: false, error: '예약 발송 일정을 불러오지 못했습니다.' };
-  } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 발송 일정을 불러오지 못했습니다.' }; }
+    return promise ? { ok: true, promise } : { ok: false, error: '예약 발송 일정을 불러오지 못했습니다. [예약 발송 일정 새로고침]을 눌러주세요.' };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 발송 일정을 불러오지 못했습니다. [예약 발송 일정 새로고침]을 눌러주세요.' }; }
 }
 export async function changeShipmentPreorderDateAction(formData: FormData): Promise<{ ok: true; message: string } | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(formData.get('orderId')), { capability: 'sales.manage' })) return { ok: false, error: '예약 발송 일정은 운영자가 변경할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(formData.get('orderId')), { capability: 'sales.manage' })) return { ok: false, error: '예약 발송 일정을 바꿀 권한이 없습니다. 주문 관리 권한이 있는 계정으로 로그인해주세요.' };
   const shipmentId = formData.get('shipmentId');
   const date = formData.get('expectedShipDate');
   const expectedVersion = formData.get('updatedAt');
   const reason = String(formData.get('reason') ?? '').trim();
   if (!isUuid(shipmentId) || !isGoodsShipDate(date) || !timestamp(expectedVersion) || !reason || reason.length > 2000) {
-    return { ok: false, error: '새 발송 예정일과 변경 사유를 입력해주세요.' };
+    return { ok: false, error: '새 발송 예정일과 변경 사유(2,000자까지)를 입력해주세요.' };
   }
   try {
     const client = await createClient();
@@ -64,12 +64,12 @@ export async function changeShipmentPreorderDateAction(formData: FormData): Prom
       p_shipment_id: shipmentId, p_expected_ship_date: date, p_reason: reason, p_expected_updated_at: expectedVersion,
     });
     if (error) return { ok: false, error: error.message === 'shipment_promise_changed'
-      ? '배송 건 정보가 변경되었습니다. 일정을 새로고침한 뒤 다시 확인해주세요.'
-      : error.message === 'preorder_shipment_already_dispatched' ? '발송 준비 중인 배송 건만 예정일을 변경할 수 있습니다.'
-        : '발송 예정일을 변경하지 못했습니다. 새 예정일과 배송 상태를 확인해주세요.' };
-    if (!record(data) || typeof data.changed !== 'boolean') return { ok: false, error: '일정 변경 결과를 확인하지 못했습니다. 일정을 새로고침해주세요.' };
+      ? '다른 화면에서 이 배송 건이 먼저 바뀌었습니다. [예약 발송 일정 새로고침]을 누른 뒤 다시 기록해주세요.'
+      : error.message === 'preorder_shipment_already_dispatched' ? '발송 대기 중인 배송 건만 예정일을 바꿀 수 있습니다. 이 배송 건은 이미 발송됐거나 주문이 취소·완료됐습니다.'
+        : '발송 예정일을 바꾸지 못했습니다. [예약 발송 일정 새로고침]으로 배송 건 상태를 확인한 뒤 다시 기록해주세요.' };
+    if (!record(data) || typeof data.changed !== 'boolean') return { ok: false, error: '발송 예정일이 바뀌었는지 확인하지 못했습니다. [예약 발송 일정 새로고침]을 눌러 변경 이력에 남았는지 먼저 확인해주세요.' };
     for (const path of ['/admin/sales/orders', '/admin/sales/dispatch', '/admin/sales/shipping', '/orders']) revalidatePath(path);
     revalidatePath('/orders/[orderId]', 'page'); revalidatePath('/admin/sales/orders/[orderId]', 'page');
-    return { ok: true, message: data.changed ? '발송 예정일과 변경 사유를 기록했습니다. 주문 당시 예정일은 보존됩니다.' : '이미 같은 발송 예정일로 설정되어 있습니다.' };
-  } catch (error) { unstable_rethrow(error); return { ok: false, error: '일정 변경 결과를 확인하지 못했습니다. 일정을 새로고침해주세요.' }; }
+    return { ok: true, message: data.changed ? '발송 예정일과 변경 사유를 기록했습니다. 주문 당시 예정일은 그대로 남습니다.' : '이미 같은 발송 예정일로 설정되어 있습니다.' };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: '발송 예정일이 바뀌었는지 확인하지 못했습니다. [예약 발송 일정 새로고침]을 눌러 변경 이력에 남았는지 먼저 확인해주세요.' }; }
 }

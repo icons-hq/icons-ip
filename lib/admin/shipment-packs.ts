@@ -31,7 +31,7 @@ export function shipmentPackError(message?: string, code?: string) {
  const errors: Record<string, string> = {
   shipment_pack_changed: '고른 뒤 배송 정보나 합포장이 바뀌었습니다. 목록을 새로고침해 다시 확인해주세요.',
   shipment_pack_conflict: '같은 요청 번호로 다른 내용이 이미 처리됐습니다. 목록을 새로고침해 합포장 상태를 확인해주세요.',
-  shipment_pack_ineligible: '구매자·수령인·주소·출고지가 모두 같은 발송 대기 건만 합포장할 수 있습니다. 취소 요청이 열려 있거나, 결제가 끝나지 않았거나, 예약 재고 할당 전인 건은 묶을 수 없습니다.',
+  shipment_pack_ineligible: '구매자·수령인·주소·출고지가 모두 같은 발송 대기 건만 합포장할 수 있습니다. 취소 요청이 열려 있거나, 결제가 끝나지 않았거나, 예약 입고 확인 전인 건은 묶을 수 없습니다.',
   shipment_pack_release_blocked: '출고지시를 전달하거나 발송한 합포장은 해제할 수 없습니다.',
   shipment_pack_address_changed: '합포장 이후 수취 정보가 바뀌었습니다. 출고 전 합포장을 해제하고 다시 구성해주세요.',
   shipment_pack_selection_required: '같은 합포장의 모든 배송 건을 선택해주세요.',

@@ -8,7 +8,7 @@ export const AUTO_ORDER_CONFIRMATION_DEFAULT_TIME = '16:30';
 export const AUTO_ORDER_CONFIRMATION_EXCLUSIONS = {
   cancellation_in_progress: '취소 요청 진행 중',
   fulfillment_hold: '출고 보류(테스트 결제·결제사 취소)',
-  preorder_unallocated: '예약 재고 할당 전',
+  preorder_unallocated: '예약 입고 확인 전',
   locked: '다른 처리와 겹쳐 다음 실행으로 넘김',
   failed: '처리 확인 필요',
 } as const;

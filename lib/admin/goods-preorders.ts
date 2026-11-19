@@ -110,8 +110,8 @@ export function preorderCapacityStockNote(capacity: string, stockQty: number | n
   const stock = typeof stockQty === 'number' && Number.isSafeInteger(stockQty) && stockQty > 0 ? stockQty : 0;
   if (Number(qty) === stock) return null;
   return stock === 0
-    ? '재고수량이 0입니다. 물건이 들어오면 재고 조정으로 입고 수량을 더한 뒤 입고 확인(예약 주문 할당)을 합니다.'
-    : `재고수량 ${stock.toLocaleString('ko-KR')}개와 다릅니다. 입고 확인(예약 주문 할당)은 재고수량 안에서만 되므로, 실제 입고 수량과 다르면 재고 조정으로 맞춘 뒤 할당합니다.`;
+    ? '재고수량이 0입니다. 물건이 들어오면 재고 조정으로 들어온 수량을 더한 뒤, 아래 예약 주문 목록에서 입고 확인을 합니다.'
+    : `재고수량 ${stock.toLocaleString('ko-KR')}개와 다릅니다. 입고 확인은 재고수량 안에서만 할 수 있어, 실제로 들어온 수량과 다르면 재고 조정으로 재고수량을 맞춘 뒤 입고 확인을 합니다.`;
 }
 
 /** 예약 물량 한 칸의 저장 전 확인. 문제가 없으면 null. */
@@ -276,22 +276,22 @@ export function preorderMutationError(message: string): string {
   if (RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code))) return goodsOptionSaleModeErrorMessage(message);
   const errors: Record<string, string> = {
     preorder_admin_required: '접수 중인 예약 조건 교체는 계정 주매니저·통합 매니저만 할 수 있습니다.',
-    preorder_policy_changed: '예약 조건이 변경되었습니다. 목록을 새로고침한 뒤 다시 확인해주세요.',
+    preorder_policy_changed: '다른 화면에서 예약 조건이 먼저 바뀌었습니다. [저장된 예약 조건 새로고침]을 누른 뒤 다시 처리해주세요.',
     preorder_policy_not_configured: '예약 물량·접수 기간(종료는 지금 이후)·발송 예정일(접수 종료일과 같거나 뒤)을 모두 입력해야 저장할 수 있습니다.',
-    invalid_preorder_policy: '예약 물량·접수 기간·발송 예정일을 확인해주세요. 화면을 새로고침한 뒤 다시 저장해주세요.',
-    preorder_policy_already_active: '이 옵션에 이미 적용 중인 예약이 있습니다. 기존 예약 접수를 먼저 중지해주세요.',
-    preorder_policy_immutable: '저장한 예약 조건은 바꿀 수 없습니다. 접수를 중지하고 새 예약 조건을 저장해주세요.',
+    invalid_preorder_policy: '예약 물량은 1 이상의 정수, 접수 종료는 접수 시작보다 뒤여야 합니다. 화면을 새로고침한 뒤 다시 입력해 저장해주세요.',
+    preorder_policy_already_active: '이 옵션에 이미 적용 중인 예약이 있습니다. 기존 예약 조건의 [새 예약 접수 중지]를 누른 뒤 새로 저장해주세요.',
+    preorder_policy_immutable: '저장한 예약 조건은 바꿀 수 없습니다. [새 예약 접수 중지]를 누른 뒤 새 예약 조건을 저장해주세요.',
     preorder_runtime_not_ready: '예약판매 기능을 준비 중입니다. 아직 저장할 수 없습니다.',
-    preorder_allocations_pending: '아직 실물 재고를 할당하지 않은 예약 주문이 있습니다. 해당 주문을 먼저 처리해주세요.',
-    preorder_physical_stock_changed: '실물 재고가 변경되었습니다. 예약 주문 목록을 새로고침하고 다시 확인해주세요.',
-    preorder_physical_stock_shortfall: '선택한 예약 주문을 할당할 실제 옵션 재고가 부족합니다.',
-    preorder_payment_required: '입금·결제가 확인된 예약 주문에만 실물 재고를 할당할 수 있습니다.',
-    preorder_reservation_released: '취소된 예약 품목은 재고 할당 대상에서 제외해주세요.',
-    random_preorder_options_mismatch: '판매 중인 옵션이나 예약 상태가 바뀌었습니다. 예약 조건을 새로고침한 뒤 모든 옵션을 다시 확인해주세요.',
+    preorder_allocations_pending: '입고 확인 전인 예약 주문이 남아 있어 일반 재고 판매로 전환할 수 없습니다. 예약 주문 목록에서 입고 확인을 하거나 주문을 취소한 뒤 다시 전환해주세요.',
+    preorder_physical_stock_changed: '그사이 옵션 재고수량이 바뀌었습니다. [예약 주문 새로고침]을 누른 뒤 재고수량을 확인하고 다시 입고 확인해주세요.',
+    preorder_physical_stock_shortfall: '선택한 예약 주문 수량이 옵션 재고수량보다 많습니다. 선택을 줄이거나 재고 조정으로 재고수량을 맞춘 뒤 다시 입고 확인해주세요.',
+    preorder_payment_required: '입금·결제가 확인된 예약 주문만 입고 확인할 수 있습니다. 결제 대기 주문은 빼고 다시 눌러주세요.',
+    preorder_reservation_released: '취소된 예약 품목이 선택에 있습니다. [예약 주문 새로고침]을 누른 뒤 취소된 품목을 빼고 다시 입고 확인해주세요.',
+    random_preorder_options_mismatch: '판매 중인 옵션이나 예약 상태가 바뀌었습니다. [저장된 예약 조건 새로고침]을 누른 뒤 모든 옵션을 다시 확인해주세요.',
     random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
-    invalid_random_preorder: '예약 물량·접수 기간·발송 예정일을 확인해주세요.',
-    'order cancellation in progress': '취소·클레임이 진행 중인 주문은 해당 처리를 먼저 확인해주세요.',
-    'order fulfillment hold': '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 할당해주세요.',
+    invalid_random_preorder: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
+    'order cancellation in progress': '취소·반품·교환 요청이 진행 중인 주문이 선택에 있습니다. 그 요청을 먼저 처리하거나 그 주문을 빼고 다시 입고 확인해주세요.',
+    'order fulfillment hold': '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 입고 확인해주세요.',
   };
-  return errors[message] ?? '예약판매 처리를 완료하지 못했습니다. 입력과 현재 상품 상태를 확인해주세요.';
+  return errors[message] ?? '예약판매 처리를 완료하지 못했습니다. [저장된 예약 조건 새로고침]으로 지금 상태를 확인한 뒤 다시 시도해주세요.';
 }

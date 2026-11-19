@@ -74,7 +74,7 @@ describe('예약 일정 일괄 변경 미리보기', () => {
 
   it('권한이 없거나 교체할 수 없으면 그대로 둔다는 확인을 받아야 확정할 수 있다', () => {
     const denied = preview({ canReplacePolicies: false });
-    expect(denied).not.toContain('새 버전으로 적용');
+    expect(denied).not.toContain('발송 예정일만 바꿔 다시 저장');
     expect(denied).toContain('접수 중 조건은 계정 주매니저·통합 매니저가 새 날짜로 바꿔야 새 주문에도 같은 날짜가 안내됩니다.');
     expect(confirmButton(denied)).toContain('disabled=""');
     const blocked = preview({ policyBlockReason: 'before_sale_end' });
@@ -96,10 +96,10 @@ describe('예약 일정 일괄 변경 미리보기', () => {
 
   it('이메일 채널이 준비되지 않으면 이유를 보이고 확정을 막는다', () => {
     const off = preview({ emailEnabled: false });
-    expect(off).toContain('지연 안내 이메일 발송 설정이 꺼져 있습니다.');
+    expect(off).toContain('지연 안내 이메일 발송 설정(운영 스위치의 주문 지연 안내 이메일)이 꺼져 있습니다.');
     expect(confirmButton(off)).toContain('disabled=""');
     const env = preview({}, { emailConfigured: false });
-    expect(env).toContain('이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.');
+    expect(env).toContain('메일 발송 서비스 연결(발송 키·서명 설정)이 운영 환경에 준비되지 않았습니다.');
     expect(confirmButton(env)).toContain('disabled=""');
   });
 
@@ -148,7 +148,7 @@ describe('예약 일정 일괄 변경 결과', () => {
   it('접수 중 조건을 바꿨는지, 그대로 두기로 확인했는지 남긴다', () => {
     const policies = [{ variantName: '기본 옵션', expectedShipDate: '2026-12-02' }];
     expect(renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange({ policyAction: 'replaced', policies })} />))
-      .toContain('접수 중이던 예약 조건(기본 옵션 2026년 12월 2일)을 2026년 12월 9일 새 버전으로 바꿨습니다.');
+      .toContain('접수 중이던 예약 조건(기본 옵션 2026년 12월 2일)을 2026년 12월 9일 발송으로 바꿔 다시 저장했습니다.');
     expect(renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange({ policyAction: 'acknowledged', policies })} />))
       .toContain('접수 중인 예약 조건(기본 옵션 2026년 12월 2일)은 바꾸지 않았습니다.');
   });

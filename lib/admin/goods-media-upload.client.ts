@@ -17,7 +17,7 @@ export async function uploadGoodsMedia(kind: GoodsMediaKind, file: File, id = cr
     const verified = await verifyGoodsMediaAction(id); return { ...verified, uploadId: id };
   } catch {
     if (prepared && !uploaded) { try { await cancelGoodsMediaAction(id); } catch { /* Expiry cleanup remains available. */ } }
-    return uploaded ? { ok: false, error: '영상 확인 결과를 아직 알 수 없습니다. 같은 업로드 결과를 다시 확인해주세요.', uncertain: true, uploadId: id }
+    return uploaded ? { ok: false, error: '영상 확인이 아직 끝나지 않았습니다. 잠시 뒤 [같은 업로드 결과 확인]을 눌러주세요. 다시 올리지 않아도 됩니다.', uncertain: true, uploadId: id }
       : { ok: false, error: '영상 전송을 완료하지 못했습니다. 다시 업로드해주세요.' };
   }
 }

@@ -25,7 +25,7 @@ import { isUuid } from '@/lib/uuid';
  */
 const SCREEN = '/admin/catalog/goods';
 const STAFF_REQUIRED = '예약 주문 일정 변경은 주문 관리 권한이 있는 운영자 계정에서 할 수 있습니다.';
-const EMAIL_NOT_CONFIGURED = '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다. 두 채널이 준비되어야 일정 변경과 안내를 진행할 수 있습니다.';
+const EMAIL_NOT_CONFIGURED = '메일 발송 서비스 연결(발송 키·서명 설정)이 운영 환경에 준비되지 않았습니다. 앱 알림과 이메일을 함께 보내야 해서 일정도 바꾸지 않았습니다. 개발 담당자에게 메일 발송 설정을 요청해주세요.';
 
 type Failure = { ok: false; error: string };
 export type PreorderSchedulePreviewResult = { ok: true; preview: PreorderSchedulePreview; emailConfigured: boolean; smsAvailable: boolean; switchesLink: boolean } | Failure;
@@ -66,10 +66,10 @@ export async function previewPreorderScheduleChangeAction(input: unknown): Promi
     if (error) return { ok: false, error: preorderScheduleError(error.message) };
     const preview = parsePreorderSchedulePreview(data);
     if (!preview || preview.goodId !== request.goodId || preview.expectedShipDate !== request.expectedShipDate) {
-      return { ok: false, error: '예약 주문 미리보기를 확인하지 못했습니다. 다시 미리 봐주세요.' };
+      return { ok: false, error: '미리보기 결과를 읽지 못했습니다. [대상 미리보기]를 다시 눌러주세요.' };
     }
     return { ok: true, preview, emailConfigured: Boolean(emailDispatcherFromEnvironment()), smsAvailable: Boolean(smsNotificationConfig()), switchesLink: await canOpenOperationsSwitches() };
-  } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 주문 미리보기를 불러오지 못했습니다.' }; }
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 주문 미리보기를 불러오지 못했습니다. [대상 미리보기]를 다시 눌러주세요.' }; }
 }
 
 function applyInput(input: unknown): PreorderScheduleApplyInput | null {
@@ -116,14 +116,14 @@ export async function applyPreorderScheduleChangeAction(input: unknown): Promise
     });
     if (error) return { ok: false, error: preorderScheduleError(error.message), stale: ['preorder_schedule_stale', 'preorder_policy_changed'].includes(error.message) };
     const change = parsePreorderScheduleChange(data);
-    if (!change || change.id !== request.requestId) return { ok: false, error: '일정 변경 결과를 확인하지 못했습니다. 같은 요청의 결과를 확인해주세요.', uncertain: true };
+    if (!change || change.id !== request.requestId) return { ok: false, error: '일정이 바뀌었는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러주세요. 같은 요청은 다시 확정해도 일정이 두 번 바뀌거나 안내가 두 번 가지 않습니다.', uncertain: true };
     revalidateOrderSurfaces();
     /* 접수 중 조건을 새 날짜로 바꿨으면 공개 상세·목록의 발송 예정일도 새로 읽는다. */
     if (change.policyAction === 'replaced') revalidateGoodsSurfaces();
     return { ok: true, change };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: '연결이 끊겨 일정 변경이 반영됐는지 모릅니다. 같은 요청의 결과를 먼저 확인해주세요.', uncertain: true };
+    return { ok: false, error: '연결이 끊겨 일정이 바뀌었는지 모릅니다. [같은 요청 결과 확인]을 먼저 눌러주세요. 같은 요청은 다시 확정해도 일정이 두 번 바뀌거나 안내가 두 번 가지 않습니다.', uncertain: true };
   }
 }
 
@@ -133,8 +133,8 @@ async function readChange(id: string): Promise<PreorderScheduleChangeResult> {
     const { data, error } = await client.rpc('admin_read_goods_preorder_schedule_change', { p_change_id: id });
     if (error) return { ok: false, error: preorderScheduleError(error.message) };
     const change = parsePreorderScheduleChange(data);
-    return change && change.id === id ? { ok: true, change } : { ok: false, error: '일정 변경 결과를 확인하지 못했습니다.', uncertain: true };
-  } catch (error) { unstable_rethrow(error); return { ok: false, error: '일정 변경 결과를 불러오지 못했습니다.', uncertain: true }; }
+    return change && change.id === id ? { ok: true, change } : { ok: false, error: '일정 변경 결과를 확인하지 못했습니다. 잠시 뒤 다시 확인해주세요.', uncertain: true };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: '일정 변경 결과를 불러오지 못했습니다. 잠시 뒤 다시 확인해주세요.', uncertain: true }; }
 }
 
 export async function readPreorderScheduleChangeAction(id: unknown): Promise<PreorderScheduleChangeResult> {
@@ -146,7 +146,7 @@ export async function readPreorderScheduleChangeAction(id: unknown): Promise<Pre
 export async function listPreorderScheduleChangesAction(goodIdValue: unknown): Promise<{ ok: true; changes: PreorderScheduleChangeSummary[] } | Failure> {
   if (!await requireAdminActionAccess(SCREEN, { capability: 'sales.manage' })) return { ok: false, error: STAFF_REQUIRED };
   const id = goodId(goodIdValue);
-  if (!id) return { ok: false, error: '상품을 다시 선택해주세요.' };
+  if (!id) return { ok: false, error: '상품 정보를 읽지 못했습니다. 상품 목록에서 상품을 다시 열어주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_list_goods_preorder_schedule_changes', { p_good_id: id });
@@ -166,7 +166,7 @@ export async function retryPreorderScheduleEmailsAction(id: unknown): Promise<Pr
     const client = await createClient();
     const { error } = await client.rpc('admin_retry_order_delay_notice', { target_notice: current.change.noticeId });
     if (error) return { ok: false, error: preorderScheduleError(error.message) };
-  } catch (error) { unstable_rethrow(error); return { ok: false, error: '재시도 결과를 확인하지 못했습니다. 결과를 새로고침해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: '이메일 재시도가 처리됐는지 확인하지 못했습니다. [안내 결과 새로고침]을 눌러 확인해주세요. 이미 보낸 이메일은 다시 보내지 않습니다.', uncertain: true }; }
   revalidatePath('/admin/sales/dispatch');
   return readChange(current.change.id);
 }

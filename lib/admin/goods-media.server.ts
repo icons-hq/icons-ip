@@ -22,7 +22,7 @@ export async function loadAdminGoodsMediaSettings(): Promise<GoodsMediaSettingsS
 }
 
 export type GoodsMediaVerification = { ok: true; asset: GoodsMediaAsset } | { ok: false; error: string; uncertain?: boolean };
-const uncertainVerification = (): GoodsMediaVerification => ({ ok: false, error: '영상 확인 결과를 아직 알 수 없습니다. 같은 업로드 결과를 다시 확인해주세요.', uncertain: true });
+const uncertainVerification = (): GoodsMediaVerification => ({ ok: false, error: '영상 확인이 아직 끝나지 않았습니다. 잠시 뒤 [같은 업로드 결과 확인]을 눌러주세요. 다시 올리지 않아도 됩니다.', uncertain: true });
 export async function cancelGoodsMediaUpload(actorId: string, id: string): Promise<void> {
   try { const service = createServiceClient(); await service.rpc('service_cancel_goods_media_upload', { p_actor_id: actorId, p_id: id }); }
   catch { /* The bounded expiry and cleanup job are the fallback. */ }
@@ -72,9 +72,9 @@ export async function verifyAndPromoteGoodsMedia(actorId: string, id: string): P
     try { verification = await service.rpc('service_verify_goods_media_upload', { p_actor_id: actorId, p_id: id, p_metadata: normalized.metadata }); }
     catch { return uncertainVerification(); }
     // An unknown receipt must keep the asset: the verified transaction may have committed.
-    if (verification.error?.code === '42501') { await cancelGoodsMediaUpload(actorId, id); return { ok: false, error: '영상 확인 중 상품 관리 권한이 변경되었습니다. 현재 권한을 다시 확인해주세요.' }; }
+    if (verification.error?.code === '42501') { await cancelGoodsMediaUpload(actorId, id); return { ok: false, error: '영상을 확인하는 사이 상품 관리 권한이 바뀌었습니다. 상품 관리 권한이 있는 계정으로 다시 로그인한 뒤 올려주세요.' }; }
     if (verification.error) return uncertainVerification();
-    if (verification.data !== true) { await cancelGoodsMediaUpload(actorId, id); return { ok: false, error: '영상 확인 중 권한이나 업로드 상태가 변경되었습니다. 다시 업로드해주세요.' }; }
+    if (verification.data !== true) { await cancelGoodsMediaUpload(actorId, id); return { ok: false, error: '영상을 확인하는 사이 권한이나 업로드 상태가 바뀌었습니다. 파일을 다시 올려주세요.' }; }
     const removed = await service.storage.from(GOODS_MEDIA_STAGING_BUCKET).remove([claim.path]);
     if (!removed.error) await service.rpc('service_complete_goods_media_cleanup', { p_id: id, p_mode: 'staging' });
     const asset = verifiedAsset(claim, normalized.metadata); return asset ? { ok: true, asset } : uncertainVerification();

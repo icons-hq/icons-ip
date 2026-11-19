@@ -29,7 +29,7 @@ describe('일반 재고 판매 전환 버튼', () => {
     const previous = policy(red, { selected: false, revision: 3, reservedQty: 2, remainingQty: 8 });
     const html = renderToStaticMarkup(<RandomPreorderBulkActions goodId="hsq" variants={variants} policies={[...current, previous]} onSaved={() => {}} />);
     expect(stockButton(html, '모든 옵션 일반 재고 판매로 전환')).toContain('disabled=""');
-    expect(html).toContain('이전 예약 조건에 남은 예약도 포함합니다. 남은 미할당 예약: 빨강 2개');
+    expect(html).toContain('이전에 중지한 예약 조건에 남은 주문도 셉니다. 입고 확인 전 수량: 빨강 2개');
     expect(html).not.toContain('파랑 0개');
 
     const clear = renderToStaticMarkup(<RandomPreorderBulkActions goodId="hsq" variants={variants} policies={[...current, { ...previous, reservedQty: 0, allocatedQty: 2 }]} onSaved={() => {}} />);
@@ -41,7 +41,7 @@ describe('일반 재고 판매 전환 버튼', () => {
     const current = policy(red);
     const blocked = renderToStaticMarkup(<PreorderReceipt policy={current} variant={variants[0]} pendingQty={3} onSaved={() => {}} />);
     expect(stockButton(blocked, '일반 재고 판매로 전환')).toContain('disabled=""');
-    expect(blocked).toContain('남은 미할당 예약: 빨강 3개');
+    expect(blocked).toContain('입고 확인 전 수량: 빨강 3개');
     const open = renderToStaticMarkup(<PreorderReceipt policy={current} variant={variants[0]} pendingQty={0} onSaved={() => {}} />);
     expect(stockButton(open, '일반 재고 판매로 전환')).not.toContain('disabled=""');
     expect(open).not.toContain('data-stock-supply-blocked');

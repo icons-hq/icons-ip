@@ -107,7 +107,7 @@ export async function exportPendingOriginShipmentsAction(originId:unknown,format
  if(pending.error||!value||!Array.isArray(value.ids)||!Number.isSafeInteger(value.total)||Number(value.total)<value.ids.length)return {error:'발송 대기 배송 건을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'};
  const keys=value.ids.length?selection(value.ids):[];
  if(!keys)return {error:'발송 대기 배송 건을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'};
- if(!keys.length)return {error:'이 출고지에 아직 창고로 보내지 않은 발송 대기 배송 건이 없습니다. 신규주문은 먼저 발주확인해야 하고, 예약 재고 할당이나 주문제작 완료 전인 건, 취소 요청이 열린 건은 대상에 들어가지 않습니다.'};
+ if(!keys.length)return {error:'이 출고지에 아직 창고로 보내지 않은 발송 대기 배송 건이 없습니다. 신규주문은 먼저 발주확인해야 하고, 예약 입고 확인이나 주문제작 완료 전인 건, 취소 요청이 열린 건은 대상에 들어가지 않습니다.'};
  const rest=Number(value.total)-keys.length;
  return exportShipments(auth.user.id,client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'',hasAdminCapability(auth,'sales.read'));
 }
