@@ -72,9 +72,10 @@ function integerInput(value: string): number | null {
 export function goodsTermsDraft(terms: GoodsTransactionAdminTerms): GoodsTermsDraft {
   const volume = terms.volume, v = volume?.terms, delivery = terms.delivery, d = delivery?.quantityTerms;
   const result: GoodsTermsDraft = {
-    volume: { status: volume?.status ?? 'draft', fields: { condition: 'quantity', threshold: '', discountKind: 'fixed', discountValue: '', startsAt: '', endsAt: '',
+    /* 2026-11-19: 초안 선택은 없다. 정책이 없거나 예전 초안이면 '사용 안 함'으로 시작한다. */
+    volume: { status: volume?.status === 'active' ? 'active' : 'disabled', fields: { condition: 'quantity', threshold: '', discountKind: 'fixed', discountValue: '', startsAt: '', endsAt: '',
       ...(v ? { condition: v.condition, threshold: String(v.threshold), discountKind: v.discountKind, discountValue: String(v.discountValue), startsAt: kstInput(v.startsAt), endsAt: kstInput(v.endsAt) } : {}), ...volume?.draftValues } },
-    delivery: { status: delivery?.status ?? 'draft', fields: { kind: d?.kind ?? 'existing', baseFee: d ? String(d.baseFee) : '', interval: d?.kind === 'repeat' ? String(d.interval) : '',
+    delivery: { status: delivery?.status === 'active' ? 'active' : 'disabled', fields: { kind: d?.kind ?? 'existing', baseFee: d ? String(d.baseFee) : '', interval: d?.kind === 'repeat' ? String(d.interval) : '',
       firstLimit: d && d.kind !== 'repeat' ? String(d.firstLimit) : '', secondLimit: d?.kind === 'tier3' ? String(d.secondLimit) : '',
       extra1: d && d.kind !== 'repeat' ? String(d.extra1) : '', extra2: d?.kind === 'tier3' ? String(d.extra2) : '', paymentMode: delivery?.paymentMode ?? 'prepaid', ...delivery?.draftValues } },
   };
@@ -138,12 +139,17 @@ export function parseGoodsTermsRecovery(value: unknown): GoodsTermsRecovery | nu
   const base = parseGoodsTransactionAdminTerms(value.base), draft = parseGoodsTermsDraft(value.draft), retry = value.retry === null ? null : parseGoodsTermsRequest(value.retry);
   if (!base || !draft || (value.retry !== null && !retry) || (retry && (retry.goodId !== base.goodId || retry.expectedRevision !== base.revision
     || !sameGoodsTerms(retry.expectedGoodUpdatedAt, base.goodUpdatedAt)))) return null;
-  return { version: 1, sessionId: value.sessionId, base, draft, retry };
+  /* 2026-11-19: 초안 선택은 없다. 배포 전에 보관된 복구본의 '초안'은 같은 의미(적용 안 함)인 '사용 안 함'으로 읽는다. */
+  const normalized: GoodsTermsDraft = {
+    volume: draft.volume.status === 'draft' ? { ...draft.volume, status: 'disabled' } : draft.volume,
+    delivery: draft.delivery.status === 'draft' ? { ...draft.delivery, status: 'disabled' } : draft.delivery,
+  };
+  return { version: 1, sessionId: value.sessionId, base, draft: normalized, retry };
 }
 export function goodsTermsError(message?: string): string {
   const messages: Record<string, string> = {
     goods_transaction_terms_changed: '상품 또는 할인·배송 설정이 변경됐습니다. 입력을 유지한 채 최신 저장본을 비교해주세요.',
-    checkout_contract_upgrade_required: '주문·결제 기능 준비가 끝나야 \'사용\'으로 저장할 수 있습니다. 지금은 상태를 \'대기\'로 두고 저장해주세요.',
+    checkout_contract_upgrade_required: '주문·결제 기능 준비가 끝난 뒤 사용으로 저장할 수 있습니다. 지금은 사용 안 함으로 저장해주세요.',
     collect_contract_not_ready: '출고지의 착불 수납 계약·수납 방법·분쟁 연락처를 먼저 준비해주세요.',
     operator_operation_conflict: '같은 요청 번호에 다른 내용이 있습니다. 최신 저장본을 확인해주세요.',
     auth_context_changed: '로그인한 계정이 바뀌었습니다. 지금 계정으로 화면을 새로고침해주세요.',

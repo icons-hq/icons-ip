@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- 랜덤 판매 + 예약판매·같은 옵션 배정 상한(20261111100000, 12/2 홍실 퀘스트 2차 예약 판매).
--- 일정이 섞인 랜덤 예약 거절·일괄 RPC(초안·활성화·중지·일반 재고 전환)·풀 공급 은닉·예약 물량 비례 배정·예약 기록·취소 복원·
--- 입고 할당·같은 옵션 배정 상한(조건·정적 견적 한도·결정적 배정·가능 수량 거절)을 확인한다.
+-- 일정이 섞인 랜덤 예약 거절·일괄 RPC(저장 = 적용·중지·일반 재고 전환, 초안 없음)·풀 공급 은닉·예약 물량 비례 배정·예약 기록·
+-- 취소 복원·입고 할당·같은 옵션 배정 상한(조건·정적 견적 한도·결정적 배정·가능 수량 거절)을 확인한다.
 -- Prepend supabase/tests/helpers/goods_kc_fixture.sql in the same psql session.
 begin;
 select set_config('request.jwt.claim.sub','',true);
@@ -12,7 +12,6 @@ begin
   begin
     execute statement;
   exception when others then
-    if sqlstate='42501' and sqlerrm='operator_capability_required' and expected_message='preorder_admin_required' then return; end if;
     if position(expected_message in sqlerrm)=0 or (expected_code is not null and sqlstate<>expected_code) then raise; end if;
     return;
   end;
@@ -108,39 +107,42 @@ reset role;
 select 1/case when not exists(select 1 from public.goods_variants where good_id='rp-main' and preorder_policy_id is not null)
  then 1 else 0 end as assert_mixed_selection_rolled_back;
 
--- 2. 일괄 RPC 입력·대상 검증과 초안 저장(운영자). 초안은 판매에 반영되지 않는다.
+-- 2. 일괄 RPC 입력·대상 검증(운영자). 예약은 저장하면 적용되므로 초안이나 필수값이 빈 저장은 옵션마다 거절되고
+-- 아무것도 남지 않는다(2026-11-19).
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000211102',true);
-select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','draft',
+select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','active',
  pg_temp.rp_values()::text,jsonb_build_array(jsonb_build_object('variantId','not-a-uuid','capacityQty',1))::text),'invalid_random_preorder','22023');
-select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','draft',
+select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','active',
  (pg_temp.rp_values()||'{"state":"active"}')::text,jsonb_build_array(jsonb_build_object('variantId',:'rp_a','capacityQty',1))::text),'invalid_random_preorder','22023');
-select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','draft',
- pg_temp.rp_values()::text,jsonb_build_array(jsonb_build_object('variantId',:'rp_a','capacityQty',2),
-   jsonb_build_object('variantId',:'rp_b','capacityQty',3))::text),'random_preorder_options_mismatch','23514');
-select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-limit','draft',
- pg_temp.rp_values()::text,jsonb_build_array(jsonb_build_object('variantId',:'rl_a','capacityQty',2),
-   jsonb_build_object('variantId',:'rl_b','capacityQty',2),jsonb_build_object('variantId',:'rl_c','capacityQty',2))::text),'random_option_required','23514');
 select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','active',
  pg_temp.rp_values()::text,jsonb_build_array(jsonb_build_object('variantId',:'rp_a','capacityQty',2),
-   jsonb_build_object('variantId',:'rp_b','capacityQty',3),jsonb_build_object('variantId',:'rp_c','capacityQty',5))::text),'preorder_admin_required','42501');
-select public.admin_save_random_goods_preorders('rp-main','draft',pg_temp.rp_values(),jsonb_build_array(
- jsonb_build_object('variantId',:'rp_a','capacityQty',2),jsonb_build_object('variantId',:'rp_b','capacityQty',3),
- jsonb_build_object('variantId',:'rp_c','capacityQty',5))) as draft_result \gset
+   jsonb_build_object('variantId',:'rp_b','capacityQty',3))::text),'random_preorder_options_mismatch','23514');
+select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-limit','active',
+ pg_temp.rp_values()::text,jsonb_build_array(jsonb_build_object('variantId',:'rl_a','capacityQty',2),
+   jsonb_build_object('variantId',:'rl_b','capacityQty',2),jsonb_build_object('variantId',:'rl_c','capacityQty',2))::text),'random_option_required','23514');
+select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','draft',
+ pg_temp.rp_values()::text,jsonb_build_array(jsonb_build_object('variantId',:'rp_a','capacityQty',2),
+   jsonb_build_object('variantId',:'rp_b','capacityQty',3),jsonb_build_object('variantId',:'rp_c','capacityQty',5))::text),'invalid_preorder_policy','23514');
+select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','active',
+ (pg_temp.rp_values()-'endsAt')::text,jsonb_build_array(jsonb_build_object('variantId',:'rp_a','capacityQty',2),
+   jsonb_build_object('variantId',:'rp_b','capacityQty',3),jsonb_build_object('variantId',:'rp_c','capacityQty',5))::text),'preorder_policy_not_configured','23514');
+select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,%L::jsonb,%L::jsonb)','rp-main','active',
+ pg_temp.rp_values()::text,jsonb_build_array(jsonb_build_object('variantId',:'rp_a','capacityQty',2),
+   jsonb_build_object('variantId',:'rp_b','capacityQty',3),jsonb_build_object('variantId',:'rp_c'))::text),'preorder_policy_not_configured','23514');
 reset role;
-select 1/case when jsonb_array_length(:'draft_result'::jsonb->'results')=3
- and (select count(*) from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id
-   where v.good_id='rp-main' and p.state='draft' and p.approval_reference='TEST-ONLY 랜덤 예약 승인')=3
+select 1/case when not exists(select 1 from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id where v.good_id='rp-main')
  and not exists(select 1 from public.goods_variants where good_id='rp-main' and preorder_policy_id is not null)
+ and not exists(select 1 from public.audit_log where target='goods:rp-main' and action in ('admin.good.preorder_saved','admin.good.random_preorders_saved'))
  and (select public.goods_variant_supply(v)->>'mode' from public.goods_variants v where v.id=:'rp_a')='stock'
- then 1 else 0 end as assert_bulk_draft_has_no_sales_effect;
+ then 1 else 0 end as assert_rejected_bulk_saves_leave_nothing;
 
--- 3. 일괄 활성화(관리자): 저장된 초안을 이어 쓰고, 한 트랜잭션에서 모든 옵션이 같은 일정으로 예약을 선택한다.
-select jsonb_agg(jsonb_build_object('variantId',p.variant_id,'policyId',p.id,'expectedRevision',p.revision,'capacityQty',p.capacity_qty)) as activation_options
- from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id where v.good_id='rp-main' and p.state='draft' \gset
+-- 3. 일괄 적용(운영자, 상품 관리 권한): 저장하면 한 트랜잭션에서 모든 옵션이 같은 일정으로 예약을 선택한다.
 set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000211101',true);
-select public.admin_save_random_goods_preorders('rp-main','active',pg_temp.rp_values(),:'activation_options'::jsonb);
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000211102',true);
+select public.admin_save_random_goods_preorders('rp-main','active',pg_temp.rp_values(),jsonb_build_array(
+ jsonb_build_object('variantId',:'rp_a','capacityQty',2),jsonb_build_object('variantId',:'rp_b','capacityQty',3),
+ jsonb_build_object('variantId',:'rp_c','capacityQty',5)));
 reset role;
 select pg_temp.random_guards('immediate');
 select pg_temp.random_guards('deferred');
@@ -152,7 +154,9 @@ select 1/case when (select count(*) from public.goods_variants v join private.go
  and (select array_agg(p.capacity_qty order by v.code) from public.goods_variants v join private.goods_preorder_policies p on p.id=v.preorder_policy_id
    where v.good_id='rp-main')='{2,3,5}'::integer[]
  and exists(select 1 from public.audit_log where target='goods:rp-main' and action='admin.good.random_preorders_saved' and diff->>'state'='active')
- and (select count(*) from public.audit_log where target='goods:rp-main' and action='admin.good.preorder_saved')=6
+ and (select count(*) from public.audit_log where target='goods:rp-main' and action='admin.good.preorder_saved')=3
+ and (select bool_and(p.activated_by='00000000-0000-4000-8000-000000211102' and p.approval_reference='TEST-ONLY 랜덤 예약 승인' and p.revision=1)
+   from public.goods_variants v join private.goods_preorder_policies p on p.id=v.preorder_policy_id where v.good_id='rp-main')
  and private.goods_random_option_problem('rp-main') is null
  then 1 else 0 end as assert_bulk_activation_selects_all_options;
 select (now() at time zone 'Asia/Seoul')::date+7 as ship_date \gset
@@ -174,7 +178,7 @@ reset role;
 -- 옵션 하나의 접수를 멈추면(선택은 그대로) 풀에서만 빠지고, 다른 일정으로 다시 열면 거절된다. 같은 일정이면 허용된다.
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000211102',true);
-select public.admin_save_goods_preorder('rp-main',:'rp_c',:'rp_policy_c','{"state":"stopped"}',2);
+select public.admin_save_goods_preorder('rp-main',:'rp_c',:'rp_policy_c','{"state":"stopped"}',1);
 reset role;
 select 1/case when (select public.goods_variant_supply(v) from public.goods_variants v where v.id=:'rp_a')
    @>jsonb_build_object('availableQty',5,'state','open')
@@ -269,6 +273,18 @@ set local role service_role;
 select pg_temp.expect_error($sql$select pg_temp.place('00000000-0000-4000-8000-000000211103','00000000-0000-4000-8000-000000211142')$sql$,
  'preorder_capacity_exceeded','23514');
 reset role;
+-- 접수 중인 예약도 일반 재고로 바로 돌릴 수 있지만, 미할당 예약이 남아 있으면 일괄 전환 전체를 거절하고 아무것도 바꾸지 않는다.
+select jsonb_agg(jsonb_build_object('variantId',v.id,'policyId',p.id,'expectedRevision',p.revision)) as pending_stock_options
+ from public.goods_variants v join private.goods_preorder_policies p on p.id=v.preorder_policy_id where v.good_id='rp-main' \gset
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000211102',true);
+select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,null,%L::jsonb)','rp-main','stock',:'pending_stock_options'),
+ 'preorder_allocations_pending','23514');
+reset role;
+select 1/case when (select count(*) from public.goods_variants v join private.goods_preorder_policies p on p.id=v.preorder_policy_id
+   where v.good_id='rp-main' and p.state='active')=3
+ and not exists(select 1 from public.audit_log where target='goods:rp-main' and action='admin.good.stock_supply_selected')
+ then 1 else 0 end as assert_pending_reservations_block_bulk_stock_switch;
 
 -- 9. 결제 뒤 옵션별 입고를 할당하면 배정 옵션의 실물 재고로 출고할 수 있다.
 select pg_temp.approve_fixture(:'full_order','00000000-0000-4000-8000-000000211103','00000000-0000-4000-8000-000000211150','TEST-RANDOM-PREORDER-FULL');
@@ -289,7 +305,7 @@ select 1/case when (select count(*) from private.goods_preorder_reservations whe
  and (select sum(stock_qty) from public.goods_variants where good_id='rp-main')=0
  then 1 else 0 end as assert_receipt_allocation_by_allocated_option;
 
--- 10. 일괄 중지: 새 접수는 멈추고(풀 0, stopped) 주문은 접수 중이 아님으로 거절된다. 일괄 일반 재고 전환은 관리자만 한다.
+-- 10. 일괄 중지: 새 접수는 멈추고(풀 0, stopped) 주문은 접수 중이 아님으로 거절된다. 일괄 일반 재고 전환도 상품 관리 권한이면 된다.
 select jsonb_agg(jsonb_build_object('variantId',v.id,'policyId',p.id,'expectedRevision',p.revision)) as stop_options
  from public.goods_variants v join private.goods_preorder_policies p on p.id=v.preorder_policy_id where v.good_id='rp-main' and p.state='active' \gset
 set local role authenticated;
@@ -308,15 +324,14 @@ select jsonb_agg(jsonb_build_object('variantId',v.id,'policyId',p.id,'expectedRe
  from public.goods_variants v join private.goods_preorder_policies p on p.id=v.preorder_policy_id where v.good_id='rp-main' \gset
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000211102',true);
-select pg_temp.expect_error(format('select public.admin_save_random_goods_preorders(%L,%L,null,%L::jsonb)','rp-main','stock',:'stock_options'),
- 'preorder_admin_required','42501');
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000211101',true);
 select public.admin_save_random_goods_preorders('rp-main','stock',null,:'stock_options'::jsonb);
 reset role;
 select pg_temp.random_guards('immediate');
 select pg_temp.random_guards('deferred');
 select 1/case when not exists(select 1 from public.goods_variants where good_id='rp-main' and preorder_policy_id is not null)
  and (select public.goods_variant_supply(v) from public.goods_variants v where v.id=:'rp_c')@>'{"mode":"stock","availableQty":0,"state":"stock"}'
+ and (select count(*) from public.audit_log where target='goods:rp-main' and action='admin.good.stock_supply_selected'
+   and actor_id='00000000-0000-4000-8000-000000211102' and not (diff->>'stoppedPolicy')::boolean)=3
  then 1 else 0 end as assert_bulk_stock_switch;
 
 -- 11. 같은 옵션 배정 상한: 옵션마다 값이 다르면 랜덤으로 바꿀 수 없고, 같으면 바꿀 수 있다.

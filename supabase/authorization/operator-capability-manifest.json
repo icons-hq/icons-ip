@@ -1940,8 +1940,8 @@
   {
     "guardKind": "write",
     "signature": "public.admin_use_stock_supply(text,uuid,uuid,integer)",
-    "capability": "platform.manage",
-    "legacyAdminOnly": true
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
   },
   {
     "guardKind": "service_start",
