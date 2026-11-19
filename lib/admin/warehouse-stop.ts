@@ -6,6 +6,8 @@
  * (`admin_record_warehouse_stop_reply`, `private.warehouse_stop_gate`)이고 이 모듈은 화면 문구·입력 정리·읽기 해석만 한다.
  */
 
+import { isUuid } from '@/lib/uuid';
+
 export const WAREHOUSE_STOP_OUTCOMES = ['stopped', 'already_shipped'] as const;
 export type WarehouseStopOutcome = typeof WAREHOUSE_STOP_OUTCOMES[number];
 export const WAREHOUSE_STOP_OUTCOME_LABELS: Record<WarehouseStopOutcome, string> = {
@@ -228,8 +230,6 @@ export function isoToKstLocal(value: string | Date): string {
   return Number.isFinite(milliseconds) ? new Date(milliseconds + 9 * 3_600_000).toISOString().slice(0, 16) : '';
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export interface WarehouseStopReplyInput {
   orderId: string;
   shipmentIds: string[];
@@ -248,9 +248,9 @@ export function normalizeWarehouseStopReplyInput(input: unknown): { ok: true; va
   const outcome = oneOf(WAREHOUSE_STOP_OUTCOMES, input.outcome), channel = oneOf(WAREHOUSE_STOP_CHANNELS, input.channel);
   const repliedAt = typeof input.repliedAt === 'string' ? kstLocalToIso(input.repliedAt) : null;
   const note = (text(input.note) ?? '').trim();
-  if (!UUID.test(orderId) || !UUID.test(operationId)) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
+  if (!isUuid(orderId) || !isUuid(operationId)) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   if (!ids.length) return { ok: false, error: '회신을 기록할 배송 건을 하나 이상 골라주세요.' };
-  if (ids.length > 20 || ids.some(id => !UUID.test(id)) || new Set(ids).size !== ids.length) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
+  if (ids.length > 20 || ids.some(id => !isUuid(id)) || new Set(ids).size !== ids.length) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   if (!outcome) return { ok: false, error: '창고 회신 결과(출고 중단 확인·이미 출고)를 골라주세요.' };
   if (!channel) return { ok: false, error: '회신 경로를 골라주세요.' };
   if (!repliedAt) return { ok: false, error: '창고가 회신한 시각을 입력해주세요.' };
@@ -272,7 +272,7 @@ export function normalizeCanceledDispatchResolution(input: unknown): { ok: true;
   const orderId = text(input.orderId)?.toLowerCase() ?? '', dispatchId = text(input.dispatchId)?.toLowerCase() ?? '';
   const operationId = text(input.operationId)?.toLowerCase() ?? '';
   const outcome = oneOf(CANCELED_DISPATCH_RESOLUTIONS, input.outcome), note = (text(input.note) ?? '').trim();
-  if (!UUID.test(orderId) || !UUID.test(dispatchId) || !UUID.test(operationId)) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
+  if (!isUuid(orderId) || !isUuid(dispatchId) || !isUuid(operationId)) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   const length = [...note].length;
   if (!outcome || length < CANCELED_DISPATCH_NOTE_MIN || length > WAREHOUSE_STOP_NOTE_LIMIT) {
     return { ok: false, error: warehouseStopErrorMessage('invalid_canceled_dispatch_resolution') };
