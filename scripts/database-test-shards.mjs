@@ -239,6 +239,7 @@ const storefront = [
   sql('kakao_channel_friend_coupon'),
   // 코드 입력 등급 확인(PAY-028)과 지정 발급 쿠폰 개별 회수(PAY-034). 회수 대 결제 경합은 별도 스크립트.
   sql('coupon_grade_check_and_revoke'),
+  script('coupon_revoke_concurrency.sh', 'COUPON_REVOKE_TEST_SCOPE'),
   sql('auto_order_confirmation'),
   // 출고 보류(테스트 키 결제·결제사 직접 취소)와 발송 경로 차단·해제.
   sql('order_fulfillment_holds'),

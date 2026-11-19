@@ -75,6 +75,8 @@ create policy user_coupons_select_own_or_staff on public.user_coupons for select
     (user_id = (select auth.uid()) and revoked_at is null)
     or (select public.has_operator_capability('marketing.manage'))
   );
+-- 운영자 정책 지문(정책 본문이 바뀌면 다시 적는다).
+select private.register_operator_policy_contract('public.user_coupons'::regclass, 'user_coupons_select_own_or_staff', 'marketing.manage');
 
 -- ── 2. 코드 입력 등급 확인 + 회수된 보유 쿠폰 ────────────────────────────────
 
