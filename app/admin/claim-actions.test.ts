@@ -5,6 +5,7 @@ import {
   recordOrderClaimCollectionAction,
   recordOrderClaimOriginCollectionAction,
   recordOrderClaimReshipmentDeliveryAction,
+  recordOrderClaimCarrierLossAction,
   waiveOrderClaimCollectionAction,
   type AdminClaimActionState,
 } from './claim-actions';
@@ -435,6 +436,59 @@ describe('waiveOrderClaimCollectionAction', () => {
     expect((await waiveOrderClaimCollectionAction({}, waiverForm())).error).toBe('이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.');
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'collection_waiver_partially_received' } });
     expect((await waiveOrderClaimCollectionAction({}, waiverForm())).error).toBe('이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다. 남은 반품지의 입고를 확인하고, 도착하지 않으면 고객에게 확인한 뒤 판단하세요.');
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+/* 배송 분실(택배사 확인, 원장 #15): 반품의 발송된 배송 건 회수를 사고 번호·메모·근거 사진으로 끝낸다. */
+describe('recordOrderClaimCarrierLossAction', () => {
+  const EVIDENCE_ID = 'abcdef03-1234-4123-8123-123456789abc';
+  const OPERATION_ID = 'abcdef04-1234-4123-8123-123456789abc';
+  function lossForm() {
+    const form = new FormData();
+    form.set('claimId', CLAIM_ID); form.set('shipmentId', SHIPMENT_ID); form.set('claimRevision', '7'); form.set('operationId', OPERATION_ID);
+    form.set('accidentNumber', ' HJ-ACC-20261119-01 ');
+    form.set('reason', '한진 고객센터\n분실 확인 회신(11/19)'); form.append('evidenceFileId', EVIDENCE_ID); form.set('confirmed', 'on');
+    return form;
+  }
+  it('기록을 RPC로 보내고 회수가 끝나면 환불 진행을 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, collectionComplete: true, replayed: false }, error: null });
+    expect(await recordOrderClaimCarrierLossAction({}, lossForm())).toEqual({
+      message: '배송 분실을 기록했습니다. 모든 출고지의 회수가 끝나 환불을 진행할 수 있습니다. 분실 상품은 판매 재고로 되돌리지 않습니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_record_order_claim_carrier_loss', {
+      p_claim_id: CLAIM_ID, p_shipment_id: SHIPMENT_ID,
+      p_loss: { reason: '한진 고객센터 분실 확인 회신(11/19)', evidenceFileIds: [EVIDENCE_ID], accidentNumber: 'HJ-ACC-20261119-01' },
+      p_expected_revision: 7, p_operation_id: OPERATION_ID,
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/sales/claims/returns/${CLAIM_ID}`);
+  });
+  it('다른 출고지가 남았으면 그 입고를 기다린다고 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, collectionComplete: false, replayed: false }, error: null });
+    expect((await recordOrderClaimCarrierLossAction({}, lossForm())).message).toBe('배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.');
+  });
+  it('확인·사고 번호·메모·사진·리비전이 모자라면 RPC를 부르지 않는다', async () => {
+    const unconfirmed = lossForm(); unconfirmed.delete('confirmed');
+    expect((await recordOrderClaimCarrierLossAction({}, unconfirmed)).error).toBe('택배사가 분실을 확인했고 회수 없이 환불한다는 확인에 체크해주세요.');
+    const noAccident = lossForm(); noAccident.set('accidentNumber', ' ');
+    expect((await recordOrderClaimCarrierLossAction({}, noAccident)).error).toBe('택배사 사고 번호를 2~60자로 입력해주세요.');
+    const short = lossForm(); short.set('reason', '짧음');
+    expect((await recordOrderClaimCarrierLossAction({}, short)).error).toBe('분실 확인 메모를 10~500자로 적어주세요.');
+    const noPhoto = lossForm(); noPhoto.delete('evidenceFileId');
+    expect((await recordOrderClaimCarrierLossAction({}, noPhoto)).error).toBe('분실 근거 사진(택배사 회신·사고 접수 화면)을 1~5장 올려주세요.');
+    const noRevision = lossForm(); noRevision.set('claimRevision', '');
+    expect((await recordOrderClaimCarrierLossAction({}, noRevision)).error).toBe('배송 분실을 기록하지 못했습니다. 최신 상태를 확인해주세요.');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('DB 거절을 운영자 문구로 옮긴다', async () => {
+    for (const [code, message] of [
+      ['carrier_loss_shipment_not_dispatched', '아직 발송되지 않은 배송 건은 분실로 기록할 수 없습니다. 발송 전 몫은 재고 부족 부분 취소로 처리해주세요.'],
+      ['carrier_loss_return_only', '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 생략 재출고를 쓰세요.'],
+      ['claim_changed', '다른 처리로 요청이 바뀌었습니다. 새로고침한 뒤 최신 상태로 다시 확인해주세요.'],
+    ] as const) {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: code } });
+      expect((await recordOrderClaimCarrierLossAction({}, lossForm())).error).toBe(message);
+    }
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

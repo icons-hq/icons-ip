@@ -50,6 +50,8 @@ const operators = [
   sql('admin_operator_directory'),
   sql('readable_order_numbers'),
   sql('order_number_time'),
+  // 결제 전 주문 내용 확인·구매 조건 동의 기록(PAY-015): service_role 멱등 기록·제한 굿즈 스냅샷·운영자 읽기.
+  sql('order_purchase_acknowledgement'),
   sql('erp_read'),
   // MD(catalog.manage) ERP 품목 반입 권한과 연결 상품 판매가·바코드 반영(1027T-016·1027T-X04).
   sql('erp_linked_goods_apply', { kc: true }),
@@ -111,10 +113,18 @@ const operators = [
   // 반품 자동 회수 접수(QNA-032)·반품입고 파일 반영(QNA-034·ADR-0034): 스위치 OFF 불변, 회수 묶음별 접수 큐·재시도·취소, 파일 매칭·확정.
   sql('claim_return_pickup', { admin: true }),
   sql('claim_return_intake_import', { admin: true }),
+  // 배송 분실(택배사 확인) 회수 없는 반품 환불(원장 #15): 반품·판매자 귀책·발송 건만, 회수 완료·환급 기산일, 분실 품목 재고 미복원, 사유 정정 되돌림.
+  sql('claim_carrier_loss'),
   // 재고 부족 품목·수량 부분 취소(QNA-020·ADR-0032): 스위치 OFF 불변, 결제사 확인 뒤 적용, 다회 잔액 누적, 무통장 송금 대기, 출고 경합.
   sql('order_partial_cancellation'),
   // 버전 1 주문의 부분 취소(ADR-0032 보완): 첫 부분 취소 때 얼리는 파생 배분 원장, 합계 보존·결정성·막힘·기존 경로 불변. 경합은 아래 스크립트가 함께 본다.
   sql('order_partial_cancellation_v1'),
+  // 혼합 출고지 일부 발송 뒤 발송 전 배송 건 몫의 부분 취소(원장 #15): 토스·무통장·버전 1·수량 일부·해소, 주문 상태 재계산·구매확정 포착.
+  sql('order_partial_cancellation_mixed_dispatch'),
+  // 부분 반품(원장 #17·ADR-0047): 스위치 OFF 불변, 고른 품목만 회수, 결제사 확인 뒤 적용·클레임 완료, 배송 건 비움 배송비, 반품배송비
+  // 편도·왕복 한 번, 남은 수량 전부 = 주문 전체 반품, 무통장 송금 대기, 결제사 거절 확인 필요, 불량 재고, 대리 접수. 경합은 아래 스크립트.
+  sql('order_partial_return'),
+  script('order_partial_return_concurrency.sh', 'PARTIAL_RETURN_TEST_SCOPE'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
@@ -239,6 +249,8 @@ const storefront = [
   sql('home_xsquare_blocks', { admin: true, kc: true }),
   sql('customer_marketing_consents'),
   sql('member_phone_verification'),
+  // 가입·확인 메일 재전송·재설정 요청의 IP·이메일 시도 한도(CUS-003).
+  sql('auth_mail_abuse_limits'),
   // 온보딩 완료는 서버(service_role)만 기록하고 휴대폰 인증을 쓰기 시점에 다시 확인한다.
   sql('onboarding_completion_server_only'),
   // 문의로 받은 탈퇴의 어드민 처리(정지·개인정보 삭제·세션 종료·감사)와 정지 회원 계정 문의.
@@ -261,6 +273,8 @@ const storefront = [
   sql('order_fulfillment_holds'),
   // 시스템 상태: cron 실행 기록·멈춤 판정·미종결 결제 재확인·운영 알림 시스템 분류.
   sql('system_health_alerts'),
+  // 운영 알림 요약 메일: 새 문의·답변 지연·시스템 장애를 한 통으로(커서·지연 1회·범주·전용 dispatcher gate).
+  sql('ops_alert_digest'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
   sql('stock_reconcile_safety_digest'),
   // QA1 S-T07-01: 재고 대조 반영과 같은 옵션 주문의 재고 차감이 겹칠 때(주문 먼저 → 거절, 반영 먼저 → 주문이 반영 값에서 뺌).

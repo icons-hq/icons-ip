@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
-  saveOrderDelayNoticeSwitchAction, savePartialCancelSwitchAction, saveReturnFeeDeductionSwitchAction, type OperationsSwitchResult,
+  saveOrderDelayNoticeSwitchAction, savePartialCancelSwitchAction, savePartialReturnSwitchAction, saveReturnFeeDeductionSwitchAction, type OperationsSwitchResult,
 } from '@/app/admin/operations-switches-actions';
 import { AdminNotice, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
@@ -157,10 +157,10 @@ export function SwitchSection(props: SectionProps) {
   </AdminSectionCard>;
 }
 
-/** 어드민에서 켜고 끄는 운영 스위치 세 개. 저장 결과 문서는 세 칸이 함께 받는다(반품배송비와 부분 취소는 한 행의 같은 리비전을 쓴다). */
+/** 어드민에서 켜고 끄는 운영 스위치 네 개. 저장 결과 문서는 네 칸이 함께 받는다(반품배송비·부분 취소·부분 반품은 한 행의 같은 리비전을 쓴다). */
 export function OperationsSwitchesForm({ initial, emailConfigured }: { initial: OperationsSwitchesState; emailConfigured: boolean }) {
   const [state, setState] = useState(initial);
-  const { delayNotice, returnFee, partialCancel } = state;
+  const { delayNotice, returnFee, partialCancel, partialReturn } = state;
   return <div className="flex min-w-0 flex-col gap-4">
     <SwitchSection kind="delayNotice" title="주문 지연 안내 이메일" enabled={delayNotice.enabled} revision={delayNotice.revision}
       description="꺼져 있으면 배송 지연 안내 요청과 예약 주문 발송일 일괄 변경이 진행되지 않습니다. 켜면 앱 알림과 함께 이메일을 보냅니다."
@@ -191,6 +191,14 @@ export function OperationsSwitchesForm({ initial, emailConfigured }: { initial: 
       confirmOn="켜면 주문 상세에서 재고 부족 품목·수량을 골라 부분 취소할 수 있고, 결제사 부분 취소가 나갑니다. 켤까요?"
       confirmOff="끄면 새 부분 취소를 시작할 수 없습니다. 이미 진행 중인 부분 취소는 그대로 처리됩니다. 끌까요?"
       save={(input) => savePartialCancelSwitchAction(input.enabled, input.evidence, input.revision, input.id)}
+      onSaved={setState} />
+    <SwitchSection kind="partialReturn" title="부분 반품" enabled={partialReturn.enabled} revision={partialReturn.revision}
+      description="고객과 운영자 대리 접수가 반품할 상품·수량을 고를 수 있게 합니다. 고른 상품만 회수하고 그 결제 몫(비게 된 배송 묶음 배송비 포함)을 결제사 부분 취소·계좌 송금으로 돌려줍니다. 취소·교환은 그대로 주문 전체입니다."
+      evidence={partialReturn.evidence} updatedBy={partialReturn.updatedBy} updatedAt={partialReturn.updatedBy ? partialReturn.updatedAt : null}
+      evidenceMax={SWITCH_EVIDENCE_MAX}
+      confirmOn="켜면 고객 주문 상세의 반품 신청과 운영자 대리 접수에서 상품·수량을 골라 반품할 수 있습니다. 켤까요?"
+      confirmOff="끄면 새 반품은 주문 전체로만 받습니다. 이미 접수한 부분 반품은 회수·환불까지 그대로 처리됩니다. 끌까요?"
+      save={(input) => savePartialReturnSwitchAction(input.enabled, input.evidence, input.revision, input.id)}
       onSaved={setState} />
   </div>;
 }

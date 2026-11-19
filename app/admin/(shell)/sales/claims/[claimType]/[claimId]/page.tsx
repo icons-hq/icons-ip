@@ -32,7 +32,7 @@ export default async function AdminSalesClaimDetailPage({
   /* 목록 위 팝업(?claimId=)과 같은 로더다(R8). */
   const workspace = await loadAdminClaimWorkspace(claimId);
   if (!workspace) notFound();
-  const { cancellationForm, carriers, defectiveStock, detail } = workspace;
+  const { cancellationForm, carriers, defectiveStock, detail, partialReturn, partialReturnEnabled } = workspace;
   /* 유형 전환 전의 링크도 현재 요청의 큐로 연결한다. */
   if (detail.claim.claimType !== claimType) redirect(`${adminClaimBasePath(detail.claim.claimType)}/${claimId}`);
   /* 고객이 쓴 요청·선물 요청자·환불 정보를 보여 주는 화면 — 개인정보 접속기록(실패해도 화면은 연다). */
@@ -47,6 +47,8 @@ export default async function AdminSalesClaimDetailPage({
       carriers={carriers}
       defectiveStock={defectiveStock}
       detail={detail}
+      partialReturn={partialReturn}
+      partialReturnEnabled={partialReturnEnabled}
     />
   );
 }

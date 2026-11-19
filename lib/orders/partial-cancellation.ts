@@ -25,10 +25,17 @@ export interface OrderPartialCancellationClosedShipment {
   shippingFeeRefund: number;
 }
 
+/** 부분 환불 원장의 종류: 발송 전 재고 부족 부분 취소(ADR-0032) 또는 부분 반품(ADR-0047). */
+export type OrderPartialCancellationReason = 'out_of_stock' | 'return';
+
 /** 한 번의 부분 취소. staff 필드는 운영자 문맥에서만 있다. */
 export interface OrderPartialCancellationRecord {
   id: string;
   sequence: number;
+  /** 부분 반품 줄이면 'return'과 그 반품 클레임 id·반품배송비 차감이 있다. 옛 응답(키 없음)은 재고 부족 부분 취소다. */
+  reasonCode: OrderPartialCancellationReason;
+  claimId: string | null;
+  returnFeeDeduction: number;
   state: OrderPartialCancellationState;
   provider: OrderPartialCancellationProvider;
   refundAmount: number;
@@ -140,6 +147,8 @@ export interface OrderPartialCancellationServiceRow {
   paymentKey: string | null;
   paymentStatus: string;
   paymentLiveAmount: number;
+  /** 부분 반품이면 'return'(결제사 취소 사유 문구가 다르다). 옛 응답은 재고 부족 부분 취소다. */
+  reasonCode: OrderPartialCancellationReason;
 }
 
 export interface OrderPartialCancellationSelection {
@@ -203,6 +212,9 @@ export function parseOrderPartialCancellationRecord(value: unknown): OrderPartia
   const parsed: OrderPartialCancellationRecord = {
     id: uuid(row.id),
     sequence: amount(row.sequence),
+    reasonCode: row.reasonCode === 'return' ? 'return' : 'out_of_stock',
+    claimId: row.claimId === null || row.claimId === undefined ? null : uuid(row.claimId),
+    returnFeeDeduction: row.returnFeeDeduction === undefined ? 0 : amount(row.returnFeeDeduction),
     state: state(row.state),
     provider: provider(row.provider),
     refundAmount: amount(row.refundAmount),
@@ -220,7 +232,8 @@ export function parseOrderPartialCancellationRecord(value: unknown): OrderPartia
     }),
     closedShipmentCount: amount(row.closedShipmentCount),
   };
-  if (parsed.refundAmount !== parsed.goodsRefundAmount + parsed.shippingRefundAmount) throw new Error('invalid partial cancellation');
+  if (parsed.refundAmount !== parsed.goodsRefundAmount + parsed.shippingRefundAmount - parsed.returnFeeDeduction) throw new Error('invalid partial cancellation');
+  if ((parsed.reasonCode === 'return') !== (parsed.claimId !== null)) throw new Error('invalid partial cancellation');
   if ('customerDecision' in row) {
     const account = row.refundAccount === null || row.refundAccount === undefined ? null : record(row.refundAccount);
     parsed.staff = {
@@ -324,6 +337,7 @@ export function parseOrderPartialCancellationServiceRow(value: unknown): OrderPa
     id: uuid(row.id), orderId: uuid(row.orderId), paymentId: uuid(row.paymentId), provider: provider(row.provider), state: state(row.state),
     paymentAmount: amount(row.paymentAmount), balanceBefore: amount(row.balanceBefore), refundAmount: amount(row.refundAmount),
     paymentKey: optionalText(row.paymentKey), paymentStatus: text(row.paymentStatus), paymentLiveAmount: amount(row.paymentLiveAmount),
+    reasonCode: row.reasonCode === 'return' ? 'return' : 'out_of_stock',
   };
   return parsed;
 }
@@ -355,11 +369,17 @@ export function orderPartialCancellationItemsLabel(items: readonly Pick<OrderPar
   return items.map((item) => `${item.goodName}${item.variantName ? ` (${item.variantName})` : ''} ${KRW.format(item.qty)}개`).join(', ');
 }
 
-/** 구매자 주문 상세 한 줄: 'A 1개 취소 · 환불 N원' (+ 배송비 함께 환불) (+ · 적립금 N원 되돌림). 알림 문장과 같은 사실을 말한다. */
-export function orderPartialCancellationSummary(record: Pick<OrderPartialCancellationRecord, 'items' | 'refundAmount' | 'shippingRefundAmount' | 'storeCreditRestoreAmount'>) {
+/**
+ * 구매자 주문 상세 한 줄: 'A 1개 취소 · 환불 N원' (+ 배송비 함께 환불) (+ · 적립금 N원 되돌림). 알림 문장과 같은 사실을 말한다.
+ * 부분 반품(ADR-0047)은 'A 1개 반품 · 환불 N원 (반품배송비 N원 차감)'이다.
+ */
+export function orderPartialCancellationSummary(record: Pick<OrderPartialCancellationRecord, 'items' | 'refundAmount' | 'shippingRefundAmount' | 'storeCreditRestoreAmount'>
+  & Partial<Pick<OrderPartialCancellationRecord, 'reasonCode' | 'returnFeeDeduction'>>) {
   const shipping = record.shippingRefundAmount > 0 ? ` (배송비 ${won(record.shippingRefundAmount)} 포함)` : '';
+  const deduction = (record.returnFeeDeduction ?? 0) > 0 ? ` (반품배송비 ${won(record.returnFeeDeduction ?? 0)} 차감)` : '';
   const credit = record.storeCreditRestoreAmount > 0 ? ` · 적립금 ${won(record.storeCreditRestoreAmount)} 되돌림` : '';
-  return `${orderPartialCancellationItemsLabel(record.items)} 취소 · 환불 ${won(record.refundAmount)}${shipping}${credit}`;
+  const verb = record.reasonCode === 'return' ? '반품' : '취소';
+  return `${orderPartialCancellationItemsLabel(record.items)} ${verb} · 환불 ${won(record.refundAmount)}${shipping}${deduction}${credit}`;
 }
 
 /** 주문 품목별 부분 취소된 수량 합계(고객 주문 상세가 남은 수량을 말하는 근거). 적용된 건만 서버가 돌려준다. */

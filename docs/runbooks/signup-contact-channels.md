@@ -409,3 +409,115 @@ App Store 심사 가이드라인 4.8(로그인 서비스는 이메일을 숨길 
   주소로의 변경을 하루 막을 수 있다(메일함 보호와의 거래). 코드 확인 뒤 Admin API가 일시 실패하면 코드가 소모돼 처음부터 다시 받는다.
 - 이메일을 바꾼 Apple 회원에게 비밀번호 재설정 메일을 보내면 비밀번호 로그인이 생긴다. 소셜 계정 비밀번호 설정 제한
   (`PASSWORD_UNAVAILABLE_FOR_SOCIAL_ACCOUNT_MESSAGE`)과의 관계는 따로 보지 않았다.
+
+## 13. 가입·로그인·확인 메일 재전송·비밀번호 재설정 봇 차단(2026-11-19, 원장 CUS-002·003·OPS-084·085)
+
+### 문제
+
+가입·확인 메일 재전송·비밀번호 재설정은 공개 서버 액션이고 모두 Supabase Auth 메일을 보낸다. 운영 Auth는 `rate_limit_email_sent`
+(시간당 300통, `scripts/sync-supabase-auth.mjs`의 `AUTH_EMAIL_RATE_LIMIT_PER_HOUR`)를 프로젝트 전체가 나눠 쓴다. 앱의 재전송 창(10분 3회)은
+서명 쿠키라 쿠키를 버리면 매번 새 창이고, GoTrue의 IP 한도는 서버 액션이 Vercel 함수 IP로 부르므로 공격자 IP별로 걸리지 않는다.
+**더 근본적으로, 공개 publishable 키만 있으면 누구나 `POST <supabase>/auth/v1/signup`·`/recover`·`/resend`·`/otp`를 앱을 거치지 않고 직접 부를 수 있다.**
+앱 서버의 IP·이메일 한도와 Turnstile은 이 우회를 볼 수 없다(2026-11-19 적대적 리뷰 재현: 한 IP에서 서로 다른 이메일 31통 발송, 앱 원장 0행).
+그래서 방어선은 두 층이다 — 우회까지 막는 **GoTrue(Supabase Auth CAPTCHA)**가 1차, 앱 서버 한도가 겹 방어다.
+
+### 방어 두 겹
+
+1. **Cloudflare Turnstile → Supabase Auth CAPTCHA**(키는 사람 단계). 사이트 키 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`가 있으면 폼에 위젯
+   (`components/auth/TurnstileField.tsx`, `interaction-only` — 평소엔 보이지 않는다)이 그려지고, 서버 액션은 토큰을 **검증하지 않고**
+   `options.captchaToken`으로 GoTrue에 그대로 넘긴다. Turnstile 토큰은 1회용이라 앱 siteverify와 GoTrue 검증을 함께 할 수 없고, 직접
+   호출 우회를 막으려면 검증이 GoTrue에 있어야 한다. 비밀 키는 앱(Vercel)이 읽지 않는다 — GitHub Actions secret `TURNSTILE_SECRET_KEY`를
+   배포 파이프라인(`scripts/sync-supabase-auth.mjs`)이 production Supabase 프로젝트에 `security_captcha_enabled=true`·provider `turnstile`·secret으로
+   PATCH하고 읽어 확인한다(비밀 키는 읽을 수 없어 키가 있으면 매 배포 PATCH). 키가 없으면 CAPTCHA 설정을 건드리지 않는다.
+   - GoTrue가 토큰을 요구하는 엔드포인트(supabase/auth `internal/api/api.go`의 `verifyCaptcha`): `/signup`, `/recover`, `/resend`, `/magiclink`,
+     `/otp`, `/token`(grant_type `password`·`web3`; `pkce`·`refresh_token`·`id_token`은 `isIgnoreCaptchaRoute`로 면제), `/sso`, 패스키 options.
+     `/verify`·`/user`·`/authorize`·로그아웃은 아니다. 관리자 JWT 요청은 면제.
+   - 그래서 토큰을 넘기는 곳: 가입(`signUp`)·확인 메일 재전송(`resend`)·비밀번호 재설정(`resetPasswordForEmail`)·**로그인 폼**(`signInWithPassword`, 어드민도
+     같은 로그인 화면)·**가입 코드 확인 뒤 비밀번호 재로그인**(토큰이 1회용이라 코드 확인 폼에도 위젯이 있다 — 없으면 로그인 화면으로 보낸다).
+     소셜·이메일 링크 콜백·코드 교환(pkce)은 토큰이 필요 없다.
+   - 가입 중 "이미 가입한 이메일" 오류 뒤 앱이 하던 `resend`는 토큰이 이미 쓰여 CAPTCHA로 실패하고, 앱은 그 실패를 무시한 채 같은 안내를 보인다
+     (가입을 새로 못 시작해도 그 계정으로 로그인하면 되는 경로).
+   - 토큰이 없거나 검증이 실패하면 GoTrue가 `captcha_failed`를 돌려주고 앱은 화면별 문구("자동 가입/요청/로그인 방지 확인을 완료하지 못했습니다…")로
+     안내한다. 토큰 없이 들어온 요청은 GoTrue를 부르기 전에 앱이 먼저 거절한다.
+2. **접속 IP·이메일 시도 한도**(키 없이 지금 켜짐, 겹 방어). DB 원장 `private.auth_mail_abuse_attempts`와 `service_role` 전용 RPC
+   `service_consume_auth_mail_attempt`(`supabase/migrations/20261119106000_auth_mail_abuse_limits.sql`)가 판정한다. 앱 서버를 거치는 가입·재전송·
+   재설정만 센다. 접속 IP(`x-real-ip` → `x-forwarded-for` 첫 값)와 이메일은 **원문을 저장하지 않고** 앱 서버 HMAC 다이제스트만 보낸다.
+   쿠키 3회 창에 막힌 요청은 이 한도를 소비하지 않는다(창 검사가 먼저). 이틀 지난 행은 매시 정리 작업(`auth-mail-abuse-retention`, pg_cron이 있는 배포만)이 지운다.
+
+| 범위 | 시간당 | 하루 | 근거 |
+|---|---|---|---|
+| 접속 IP(세 요청 합산) | 15 | 40 | 세 요청이 모두 메일을 보내므로 합쳐 센다. 15는 Auth 한도(300)의 5%라 한 IP가 프로젝트 한도를 독점하지 못한다. 가입 1건이 메일 1~2통이라 학교·통신사 NAT 뒤 동시 가입 7~8명/시간까지 통과한다. |
+| 이메일(세 요청 합산) | 5 | 없음 | 남의 주소로 메일을 반복해 보내는 메일 폭탄을 막는다. **하루 한도를 두지 않는다** — 두면 공격자가 피해자 이메일의 하루 한도를 채워 그 사람의 재설정을 반나절 넘게 막을 수 있다(적대적 리뷰 재현: 약 21시간). 최악의 차단은 1시간이다. |
+
+- 막힌 시도는 기록하지 않는다. 걸리면 사용자 문구는 앱 쿠키 한도와 같은 형태이고 IP 때문인지 이메일 때문인지는 밝히지 않는다(운영 로그
+  `[auth-mail-abuse] rejected`에만 `action`·사유 종류(`rate_limited`+`scope` ip|email, `turnstile_token_missing`)를 남긴다 — 원문 IP·이메일 없음).
+- 한도 값을 바꾸려면 migration의 `service_consume_auth_mail_attempt` 안 숫자(15·40·5)를 새 migration에서 앵커 치환하고 이 표를 고친다.
+  Auth 시간당 한도 상수를 바꾸면 IP 시간 한도를 그 5% 이하로 다시 본다.
+- 이메일 별칭(`+tag`·gmail 점)은 정규화하지 않는다(소문자·공백 제거만).
+
+### 결정과 근거
+
+- **HMAC 비밀값은 `AUTH_SIGNUP_RESEND_SECRET` 재사용**(새 env 없음). 이 값은 production·preview 빌드 가드의 필수 env라 운영에 이미 있고, 새 env를
+  요구하면 등록 전까지 방어가 꺼진다. 메시지 앞에 도메인 접두(`icons-auth-mail-abuse-v1` + 종류)를 붙여 쿠키 서명과 충돌하지 않는다.
+- **가용성 우선(fail open).** 비밀값이 없거나(로컬) 한도 DB 호출이 실패하면 앱 한도를 건너뛰고 경고·오류 로그만 남긴다. GoTrue CAPTCHA는 반대로
+  켜져 있으면 fail closed다(Cloudflare가 응답하지 않으면 GoTrue가 500). 막힘이 의심되면 GitHub secret을 지우고 Supabase 콘솔에서 CAPTCHA를 끈다
+  (sync는 키가 없으면 끄지 않고 건드리지 않으므로 콘솔에서 직접 끈다).
+- **CSP.** 이 저장소는 `Content-Security-Policy` 헤더를 두지 않아(`next.config.ts`·`proxy.ts` 확인) `challenges.cloudflare.com` 허용 목록을 바꿀 곳이
+  없다. CSP를 도입하면 `script-src`·`frame-src`·`connect-src`에 `https://challenges.cloudflare.com`을 넣어야 한다.
+- **빌드 가드.** `scripts/check-vercel-build-env.mjs`는 Vercel에 `TURNSTILE_SECRET_KEY`가 있으면(앱이 읽지 않는 비밀값) 경고한다. 동기화 스크립트는
+  `TURNSTILE_SECRET_KEY`와 `TURNSTILE_SITE_KEY`(GitHub 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`) 중 하나만 있으면 실패한다(Supabase CAPTCHA만 켜지고
+  위젯이 없으면 모든 로그인이 막히므로).
+- **Auth 시간당 메일 한도 300**(2026-11-19 사용자 결정)은 `AUTH_EMAIL_RATE_LIMIT_PER_HOUR` 한 상수가 정한다. 로컬 `supabase/config.toml`의 `email_sent`는
+  로컬 스택용이라 바꾸지 않는다.
+
+### 키가 없는 동안 남는 위험
+
+CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/recover`·`/resend`·`/otp`를 직접 부르는 우회가 **그대로 남는다**. 앱 한도는 이 직접
+호출을 세지 못한다. 그 사이에는 Supabase의 시간당 한도(300통)와 `over_request_rate_limit`(IP별 가입·로그인·메일 요청 한도)만 방어선이다.
+키는 오픈 전에 넣는 것을 전제로 한다.
+
+### 사람 단계(Turnstile 켜기 — 코드·파이프라인은 이미 있고 키만 넣으면 된다)
+
+순서가 중요하다. GoTrue CAPTCHA를 먼저 켜면 위젯이 없는 앱이 모든 로그인·가입을 막는다.
+
+1. Cloudflare 대시보드 → Turnstile → 위젯 추가(호스트 이름: `iconsip.com`, `xsquare.kr` 및 쓰는 preview 도메인, 모드 Managed). 사이트 키·비밀 키를 받는다.
+   비밀 키는 채팅·로그에 남기지 않는다(사용자 스크립트로 등록).
+2. Vercel **Production** 환경 변수에 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`만 등록하고 **앱을 먼저 재배포**한다(사이트 키는 빌드에 박힌다). 이때는 위젯만
+   그려지고 보호는 아직 없다. 비밀 키를 Vercel에 넣지 않는다. **Preview·staging**은 운영 사이트 키를 쓰지 않는다 — 위젯 호스트 목록에 preview·staging 호스트를
+   넣을 수 없어 QA 로그인이 막힌다. Preview env에는 Cloudflare 공식 문서의 **항상 통과 테스트 사이트 키**(`1x00000000000000000000AA`)를 넣는다
+   (preview·staging의 Supabase GoTrue는 CAPTCHA를 켜지 않으므로 위젯 흐름만 보인다). 항상 실패 키(`2x00000000000000000000AB`)로는 거절 문구를 볼 수 있다.
+3. GitHub 저장소에 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`(2번에서 Production에 넣은 **같은** 사이트 키)와 secret `TURNSTILE_SECRET_KEY`를 등록하고
+   production 배포(push/main)를 돌린다. 파이프라인 순서는 `deploy-vercel`의 Vercel 배포 → "Verify Turnstile site key matches the deployed app"(Vercel production
+   env의 사이트 키와 GitHub 변수를 해시로 대조, 값은 로그에 안 찍힘, 다르면 실패해 CAPTCHA를 켜지 않는다) → "Activate recovery token-hash template in production"
+   (동기화 스크립트가 CAPTCHA를 켠다)다. migration·DB를 먹이는 `deploy-supabase` 동기화 단계는 CAPTCHA를 만지지 않는다 — 앱이 새 위젯으로 뜨기 전에 GoTrue가
+   먼저 켜지는 일이 없도록 한 순서다. 동기화는 secret·변수 중 하나만 있으면 실패한다. config-only 재배포(`production_redeploy`)는 Supabase를 건드리지 않으므로
+   CAPTCHA를 켜거나 바꾸지 못한다 — 켜기·교체는 push/main 실행으로만 한다.
+
+   **키 교체(회전) 절차**: ① Cloudflare에서 새 위젯을 만든다 ② Vercel Production의 사이트 키를 새 값으로 바꾸고 앱을 재배포한다 — 이 순간부터 새 위젯 토큰을
+   옛 비밀 키가 검증하게 되어 **로그인·가입·재설정이 막힌다**(어드민 포함) ③ 곧바로 GitHub 변수·secret을 새 값으로 바꾸고 push/main 실행을 돌린다(대조 단계가
+   ②가 반영됐는지 확인한 뒤에만 새 비밀 키를 넣는다). 막히는 시간(②→③ 완료)을 줄이려면 점검 시간에 ②와 ③을 연달아 한다. 대조 단계가 실패하면 CAPTCHA는
+   옛 비밀 키 그대로이므로 앱 배포 상태(②)를 먼저 맞춘다.
+
+4. 확인: 가입·로그인·재전송·재설정 정상 제출이 통과하는지, 위젯 토큰 없이 `curl -X POST <supabase>/auth/v1/signup`(publishable 키)이 `captcha_failed`로
+   거절되는지(직접 호출 우회 차단), 코드 확인 → 자동 로그인이 되는지. Cloudflare 테스트 키(사이트 `1x00000000000000000000AA` / 비밀
+   `1x0000000000000000000000000000000AA`)는 항상 통과, `2x…`는 항상 실패라 Preview에서 흐름만 볼 수 있다.
+5. **Resend 요금제 확인**: 시간당 300통이 Resend의 일·월 발송 한도를 감당하는지 확인한다(한도에 닿으면 SMTP가 실패해 가입 확인이 막힌다).
+6. **로그 경보**: Vercel 로그 경보에 태그 `[auth-mail-limit]`(Supabase Auth 시간당 메일 한도 도달, `over_email_send_rate_limit`)를 등록한다.
+   `[auth-mail-abuse] rejected`는 한도 거절 추세 확인용이다.
+   같은 신호는 운영 알림(분류 시스템, '가입·재설정 메일 시간당 한도에 도달했습니다', 시간당 한 줄)으로도 남아 시스템 상태 화면·알림·요약 메일에 잡힌다
+   (`service_record_auth_mail_limit_alert`, 개인정보 없음).
+7. 운영 중 위젯이 안 뜨는 환경(광고 차단 등)에서는 가입·로그인이 막힌다 — 안내 문구가 새로고침을 권한다. 문의가 늘면 한도 로그부터 보고, 급하면
+   Supabase 콘솔에서 CAPTCHA를 끈다.
+
+### 후속(이 PR 밖)
+
+- 개인정보처리방침 고지: 앱 한도의 가명 다이제스트(IP·이메일 HMAC) 2일 보관, Turnstile을 켜면 Cloudflare가 접속 정보를 처리한다는 점. 처리방침 파일
+  (`lib/legal/documents.ts`)이 PR #684와 겹쳐 이 작업에서 고치지 않았다 — 키를 켜기 전에 별도로 개정·공지해야 한다.
+
+### 시험
+
+- DB: `supabase/tests/auth_mail_abuse_limits.sql`(봉인·다이제스트만 저장·IP 시간/일 한도·이메일 시간 한도와 하루 한도 없음·사유 scope·IP 없음·막힌 시도 미기록·
+  입력 검증·보관 기한).
+- 앱: `app/login/actions.test.ts`(한도 초과 문구·쿠키 버리기·쿠키 창이 먼저·IP 헤더 없음·비밀값 없음·DB 실패 시 열림·경고 로그·Turnstile 켜짐/꺼짐·captchaToken 전달·captcha_failed 문구·
+  로그인·코드 확인 재로그인), `lib/auth/mail-abuse.server.test.ts`, `components/auth/TurnstileField.test.tsx`, `scripts/check-vercel-build-env.test.mjs`,
+  `scripts/sync-supabase-auth.test.mjs`.

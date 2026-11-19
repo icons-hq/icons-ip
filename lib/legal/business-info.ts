@@ -49,6 +49,20 @@ export function businessInfoRows(info: BusinessInfo = BUSINESS_INFO): BusinessIn
 }
 
 /*
+ * 공정거래위원회 통신판매사업자 정보 공개 조회(사업자등록번호 10자리로 조회, 원장 CUS-092·CAT-066).
+ * 이 형식은 공정위 사이트(www.ftc.go.kr/bizCommPop.do?wrkr_no=)가 사업자등록번호를 받는 조회 팝업 주소이고,
+ * 2026-11-19 해당 주소가 '통신판매 사업자정보 조회' 화면으로 열리는 것을 확인했다. 저장소·공식 문서에는 이 주소 형식의 근거가 없어
+ * 공정위 제공 코드의 공개 사용 예를 따른 것이므로, 공정위가 주소를 바꾸면 이 한 곳만 고친다.
+ * 번호가 숫자 10자리가 아니면 null이다 — 링크를 숨긴다(잘못된 번호로 남의 사업자를 조회시키지 않는다).
+ */
+const FTC_BUSINESS_VERIFY_URL = 'https://www.ftc.go.kr/bizCommPop.do';
+
+export function businessRegistrationVerifyHref(info: BusinessInfo = BUSINESS_INFO): string | null {
+  const digits = info.registrationNumber.replace(/[\s-]/g, '');
+  return /^\d{10}$/.test(digits) ? `${FTC_BUSINESS_VERIFY_URL}?wrkr_no=${digits}` : null;
+}
+
+/*
  * 이용자가 실제로 연락을 **닿게** 할 수 있는 항목만이다.
  * 대표자명은 창구가 아니라 창구의 이름표다 — 사업자등록증에 먼저 확정되므로
  * 여기 넣으면 전화·이메일이 비어 있는 중간 상태에서 "창구가 있다"로 잘못 뒤집힌다.

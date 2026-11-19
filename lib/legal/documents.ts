@@ -26,6 +26,12 @@ import {
   shippingBundleWordingRevisionAnnounced,
   shippingBundleWordingRevisionInEffect,
 } from './shipping-bundle-wording-revision';
+import {
+  PARTIAL_RETURN_TERMS_REVISION,
+  partialReturnTermsRevisionAnnounced,
+  partialReturnTermsRevisionInEffect,
+  type PartialReturnTermsRevision,
+} from './partial-return-terms-revision';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -160,6 +166,125 @@ function replaceInArticles(articles: LegalArticle[], from: string, to: string): 
     })),
     count,
   };
+}
+
+/* 2026-11 예약 개정(이용약관·배송·반품 정책) — 부분 반품과 단순 변심 반품배송비 차감(ADR-0047, 원장 #17).
+ * '출고지' 표기 개정 뒤에 얹는다(그 개정이 바꾸는 문장은 앵커로 쓰지 않는다). 각 `from`은 그 문서 본문에 정확히 한 번 나와야 한다. */
+const PARTIAL_RETURN_EDITS: ReadonlyArray<{ slug: 'terms' | 'shipping'; from: string; to: string }> = [
+  {
+    slug: 'terms',
+    from: '청약철회의 경우 반환에 필요한 비용은 이용자가 부담합니다. 다만 굿즈의 하자, 오배송 등 계약내용과 다르게 이행된 경우에는 회사가 부담합니다.',
+    to: '청약철회의 경우 반환에 필요한 비용은 이용자가 부담하며, 단순 변심에 따른 반품의 반환 비용(반품배송비)은 환급액에서 차감할 수 있습니다. 다만 굿즈의 하자, 오배송 등 계약내용과 다르게 이행된 경우에는 회사가 부담합니다.',
+  },
+  {
+    slug: 'terms',
+    from: '청약철회는 주문 단위로 처리됩니다. 승인되면 그 주문의 결제금액 전액이 취소되며, 한 주문에 담긴 굿즈 중 일부만 환급하는 처리는 제공하지 않습니다.',
+    to: '청약철회는 주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다. 주문 전체를 청약철회하면 그 주문의 결제금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고, 일부 굿즈만 청약철회하면 그 굿즈에 배분된 결제금액(할인·쿠폰·적립금 배분 반영)과 그 굿즈만 담긴 배송 묶음의 배송비를 환급합니다. 남은 굿즈에 쿠폰·할인 조건을 다시 적용해 환급액을 줄이지 않습니다.',
+  },
+  {
+    slug: 'terms',
+    from: '청약철회가 처리되면 그 주문으로 대가 없이 지급된 카드팩은 제17조에 따라 회수됩니다.',
+    to: '청약철회가 처리되면 그 주문으로 대가 없이 지급된 카드팩은 제17조에 따라 회수됩니다. 일부 굿즈만 청약철회한 경우에는 남은 굿즈가 카드팩 지급 조건을 계속 채우면 회수하지 않고, 채우지 못하면 열지 않은 카드팩만 회수합니다.',
+  },
+  {
+    slug: 'terms',
+    from: '주문 상세의 직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다.',
+    to: '주문 상세의 직접 반품 신청은 배송 중부터 주문 전체 또는 고른 굿즈·수량을, 직접 교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다.',
+  },
+  {
+    slug: 'terms',
+    from: '반품과 교환도 주문 단위로 처리됩니다. 한 주문에 담긴 굿즈 중 일부만 반품하고 나머지 대금을 그대로 두는 처리는 제공하지 않습니다. 일부 굿즈에만 하자가 있는 경우에는 해당 굿즈의 재발송 또는 주문 전체의 반품 중에서 선택할 수 있습니다.',
+    to: '반품은 한 주문에 담긴 굿즈 중 일부 굿즈·수량만 신청할 수 있고, 교환은 주문 단위로 처리됩니다. 일부 굿즈에만 하자가 있는 경우에는 해당 굿즈의 재발송 또는 그 굿즈의 반품 중에서 선택할 수 있습니다. 결제수단이 일부 금액의 취소를 지원하지 않는 경우(선물 주문 포함)에는 주문 전체로만 반품을 신청할 수 있으며, 신청 화면에서 그 사실을 안내합니다. 신청 뒤 결제대행사가 일부 취소를 받지 않으면 회사는 전액을 임의로 환급하지 않고 이용자와 환급 방법을 따로 정합니다.',
+  },
+  {
+    slug: 'shipping',
+    from: '직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 발주확인은',
+    to: '직접 반품 신청은 배송 중부터 주문 전체 또는 고른 굿즈·수량을, 직접 교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 발주확인은',
+  },
+];
+
+/* 표 칸·마무리처럼 문장 치환으로 바꾸기 어려운 곳은 조문 단위로 바꾼다(제목으로 찾는다). */
+const PARTIAL_RETURN_FEE_ROW = ['단순 변심, 색상·구성 착오 등 이용자 사정', '이용자',
+  '이용자가 반송하고, 반품배송비(편도 3,000원)를 환급액에서 차감합니다. 최초 배송비가 무료였던 주문은 처음 반품할 때 한 번 왕복 6,000원을 차감하고, 같은 주문의 다음 반품부터는 편도만 차감합니다.'];
+const PARTIAL_RETURN_FEE_CLOSING = [
+  '주문 전체를 청약철회하면 결제한 금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고, 단순 변심이면 위 표의 반품배송비만 차감합니다. 이미 받은 최초 배송비를 따로 공제하지 않습니다.',
+  '일부 굿즈만 반품해 남은 굿즈가 무료 배송 조건에 못 미치게 되어도 최초 배송비를 따로 청구하지 않습니다. 반품배송비가 그 반품의 환급액 이상이면 차감하지 않고 따로 안내합니다.',
+  '결제수단이 일부 금액의 취소를 지원하지 않으면 주문 전체 반품은 결제 금액 전액을 환급하고 반품배송비를 따로 안내하며, 일부 굿즈 반품은 주문 전체로만 신청할 수 있습니다. 카드 일부 취소는 카드사 처리에 영업일 기준 3~4일이 걸릴 수 있습니다.',
+];
+const PARTIAL_RETURN_SECTION_EDITS: ReadonlyArray<{ from: string; to: string }> = [
+  { from: '배송 중부터 전체 반품·교환을 신청할 수 있습니다.', to: '배송 중부터 전체 또는 일부 굿즈의 반품과 전체 교환을 신청할 수 있습니다.' },
+  { from: '회사가 신청 내용과 주문 전체의 굿즈·수량을 확인하고', to: '회사가 신청 내용과 반품·교환 대상 굿즈·수량을 확인하고' },
+  { from: '주문 전체의 입고가 완료된 것으로 표시하지 않습니다.', to: '신청한 반품·교환 대상 전체의 입고가 완료된 것으로 표시하지 않습니다.' },
+  {
+    from: '청약철회는 주문 단위로만 신청할 수 있습니다. 승인되면 배송비를 포함한 그 주문의 결제금액 전액이 취소되고, 주문에 담긴 굿즈 전부가 반품 대상이 됩니다. 한 주문에서 일부 굿즈만 반품하고 나머지 대금은 그대로 두는 처리는 제공하지 않습니다.',
+    to: '청약철회는 주문 전체 또는 고른 굿즈·수량 단위로 신청할 수 있습니다. 주문 전체를 청약철회하면 배송비를 포함한 그 주문의 결제금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고 남은 굿즈 전부가 반품 대상이 됩니다. 일부 굿즈만 청약철회하면 그 굿즈에 배분된 결제금액과 그 굿즈만 담긴 배송 묶음의 배송비를 환급하고, 고른 굿즈만 반품 대상이 됩니다. 단순 변심이면 5. 반송비 부담의 반품배송비를 차감합니다.',
+  },
+  {
+    from: '일부만 반송하고 싶다면 주문 전체에 대해 청약철회를 신청해 전액을 환급받은 뒤, 계속 갖고 싶은 굿즈를 새로 주문해주세요.',
+    to: '일부만 반송하고 싶다면 주문 상세의 반품 신청에서 반송할 굿즈와 수량을 골라주세요.',
+  },
+  { from: '재발송 대신 청약철회를 선택해 주문 전체를 반품하는 경우', to: '재발송 대신 청약철회를 선택해 그 굿즈나 주문 전체를 반품하는 경우' },
+];
+
+const PARTIAL_RETURN_REASON =
+  '개정 사유 — 한 주문에 담긴 굿즈 중 일부만 반품할 수 있게 하고(전자상거래법 제17조·제35조), 단순 변심 반품의 반품배송비를 환급액에서 차감하는 기준을 밝힙니다.';
+
+const PARTIAL_RETURN_CHANGES: Record<'terms' | 'shipping', string[]> = {
+  terms: [
+    PARTIAL_RETURN_REASON,
+    '제16조(청약철회 등의 효과): 주문 전체 또는 고른 굿즈·수량 단위로 청약철회할 수 있고, 일부 청약철회는 그 굿즈에 배분된 결제금액과 그 굿즈만 담긴 배송 묶음의 배송비를 환급합니다. 단순 변심 반품의 반품배송비를 환급액에서 차감할 수 있습니다. 일부 청약철회 뒤 카드팩은 남은 굿즈가 지급 조건을 채우는지에 따라 회수합니다.',
+    '제16조의2(반품과 교환): 반품은 일부 굿즈·수량만 신청할 수 있고 교환은 주문 단위입니다. 결제수단이 일부 취소를 지원하지 않으면 주문 전체로만 반품을 신청할 수 있습니다.',
+  ],
+  shipping: [
+    PARTIAL_RETURN_REASON,
+    '3. 청약철회 기간·6. 취소·반품·교환 절차·8. 환급: 직접 반품 신청에서 굿즈·수량을 고를 수 있고, 일부 반품의 환급 범위를 밝힙니다.',
+    '5. 반송비 부담: 단순 변심 반품은 반품배송비(편도 3,000원, 최초 배송비가 무료였던 주문은 처음 반품할 때 한 번 왕복 6,000원)를 환급액에서 차감합니다. 하자·오배송은 회사가 부담합니다.',
+  ],
+};
+
+/** 부분 반품 개정의 바뀐 본문(현행 본문 위에 얹는다). 앵커가 정확히 한 번이 아니면 던진다 — 시행일 상태를 만드는 순간 실패한다. */
+function revisePartialReturnArticles(slug: 'terms' | 'shipping', articles: LegalArticle[]): LegalArticle[] {
+  let next = articles;
+  const edits = slug === 'terms'
+    ? PARTIAL_RETURN_EDITS.filter((edit) => edit.slug === 'terms')
+    : [...PARTIAL_RETURN_EDITS.filter((edit) => edit.slug === 'shipping'), ...PARTIAL_RETURN_SECTION_EDITS];
+  for (const edit of edits) {
+    const result = replaceInArticles(next, edit.from, edit.to);
+    if (result.count !== 1) throw new Error(`partial_return_terms_anchor_changed:${slug}:${edit.from}`);
+    next = result.articles;
+  }
+  if (slug === 'shipping') {
+    const index = next.findIndex((article) => article.heading === '5. 반송비 부담');
+    const article = next[index];
+    const row = article?.table?.rows.findIndex((cells) => cells[0] === PARTIAL_RETURN_FEE_ROW[0]) ?? -1;
+    if (index < 0 || !article.table || row < 0 || !article.closing || article.closing.length !== 2) throw new Error('partial_return_terms_anchor_changed:shipping:5. 반송비 부담');
+    const rows = article.table.rows.map((cells, at) => (at === row ? PARTIAL_RETURN_FEE_ROW : cells));
+    next = next.map((value, at) => (at === index ? { ...value, table: { ...article.table!, rows }, closing: PARTIAL_RETURN_FEE_CLOSING } : value));
+  }
+  return next;
+}
+
+/** 부분 반품 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
+function applyPartialReturnTermsRevision(
+  document: LegalDocument,
+  slug: 'terms' | 'shipping',
+  today: string,
+  revision: PartialReturnTermsRevision | null,
+): void {
+  if (revision && partialReturnTermsRevisionInEffect(today, revision)) {
+    const articles = revisePartialReturnArticles(slug, document.articles);
+    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
+    document.articles = articles;
+    document.effectiveDate = revision.effectiveDate;
+    document.revisionChanges = PARTIAL_RETURN_CHANGES[slug];
+  } else if (revision && partialReturnTermsRevisionAnnounced(today, revision)) {
+    document.pendingRevision = {
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
+      heading: '일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내',
+      changes: PARTIAL_RETURN_CHANGES[slug],
+    };
+  }
 }
 
 /** 예약 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
@@ -419,7 +544,14 @@ export function createLegalDocuments(
   today: string = kstToday(),
   shippingBundleRevision: ShippingBundleWordingRevision | null = SHIPPING_BUNDLE_WORDING_REVISION,
   contactChannelsPrivacyRevision: ContactChannelsPrivacyRevision | null = CONTACT_CHANNELS_PRIVACY_REVISION,
-  alimtalkPrivacyRevision: AlimtalkPrivacyRevision | null = ALIMTALK_PRIVACY_REVISION,
+  /*
+   * 이 뒤의 예약 개정은 위치 인자가 아니라 이름으로 받는다 — 같은 시기에 다른 작업이 개정 인자를 더해도 순서가 엇갈려 다른 개정의
+   * 날짜가 들어가지 않게(위치 인자 네 개는 기존 호출 그대로). 키를 생략하면 운영 날짜 파일, null이면 예약 없음이다.
+   */
+  {
+    partialReturnRevision = PARTIAL_RETURN_TERMS_REVISION,
+    alimtalkPrivacyRevision = ALIMTALK_PRIVACY_REVISION,
+  }: { partialReturnRevision?: PartialReturnTermsRevision | null; alimtalkPrivacyRevision?: AlimtalkPrivacyRevision | null } = {},
 ) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
@@ -1081,6 +1213,9 @@ applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision
 applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
 applyAlimtalkPrivacyRevision(privacy, today, alimtalkPrivacyRevision);
+/* 부분 반품 개정은 '출고지' 표기 개정 뒤에 얹는다(시행일이 그 뒤다). */
+applyPartialReturnTermsRevision(terms, 'terms', today, partialReturnRevision);
+applyPartialReturnTermsRevision(shipping, 'shipping', today, partialReturnRevision);
 
 return {terms,privacy,shipping};
 }

@@ -57,6 +57,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/ops-alert-digest",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/stock-safety-digest",
       "schedule": "* * * * *"
     },

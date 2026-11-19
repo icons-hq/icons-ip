@@ -329,3 +329,32 @@ describe('SiteFooter 관리자 페이지 바로가기', () => {
     expect(html.indexOf('aria-label="스태프 시연 메뉴"')).toBeLessThan(html.indexOf('aria-label="스태프 전용 커뮤니티 메뉴"'));
   });
 });
+
+/* 공정위 통신판매사업자 정보 공개 조회 링크(원장 CUS-092·CAT-066) — 사업자등록번호 10자리일 때만 사업자등록번호 값 옆에 건다. */
+describe('SiteFooter 사업자정보 확인 링크', () => {
+  const anchorOf = (html: string) => html.match(/<a[^>]*wc-x-footer__biz-verify[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
+
+  it('사업자등록번호 줄에 공정위 조회 주소로 새 창 링크를 단다', () => {
+    const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, registrationNumber: '109-86-27576' }} copyrightYear={2026} />);
+    const anchor = anchorOf(html);
+
+    expect(anchor).toContain('href="https://www.ftc.go.kr/bizCommPop.do?wrkr_no=1098627576"');
+    expect(anchor).toContain('target="_blank"');
+    expect(anchor).toContain('rel="noopener noreferrer"');
+    expect(anchor).toContain('사업자정보 확인');
+    expect(anchor).toContain('새 창');
+    /* 링크는 사업자등록번호 행 안에 있다. */
+    const row = html.slice(html.indexOf('<dt>사업자등록번호</dt>'), html.indexOf('</div>', html.indexOf('<dt>사업자등록번호</dt>')));
+    expect(row).toContain('109-86-27576');
+    expect(row).toContain('wc-x-footer__biz-verify');
+    expect(html.match(/wc-x-footer__biz-verify/g)).toHaveLength(1);
+  });
+
+  it('번호가 10자리가 아니거나 비어 있으면 링크를 숨긴다', () => {
+    for (const registrationNumber of ['', '109-86', '109-86-275761', 'abc-de-fghij']) {
+      const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, registrationNumber }} copyrightYear={2026} />);
+      expect(html, registrationNumber).not.toContain('wc-x-footer__biz-verify');
+      expect(html, registrationNumber).not.toContain('ftc.go.kr');
+    }
+  });
+});

@@ -42,6 +42,7 @@ import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { carrierTrackingNumberIssue, trackingFormatRulesNote, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 import { FULFILLMENT_HOLD_BLOCKED_MESSAGE, isFulfillmentHoldError } from '@/lib/admin/fulfillment-holds';
+import { STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE } from '@/lib/admin/order-partial-cancellation';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
@@ -403,9 +404,8 @@ function staffCancellationError(message: string | null | undefined) {
   if (/warehouse_stop_reply_required|warehouse_already_shipped|warehouse_stop_reply_used|warehouse_stop_confirmation_required/.test(value)) {
     return warehouseStopErrorMessage(value);
   }
-  if (value.includes('shipment_already_dispatched')) {
-    return '이미 발송된 배송 건이 있어 전액 취소할 수 없습니다. 배송 완료 뒤 반품으로 처리하거나 담당자에게 넘겨주세요.';
-  }
+  /* 일부 발송 주문(원장 #15): 발송 전 몫은 재고 부족 부분 취소, 발송된 몫은 반품으로 안내한다. */
+  if (value.includes('shipment_already_dispatched')) return STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE;
   if (value.includes('order_not_staff_cancelable')) return '결제완료·발주확인 상태의 발송 전 주문만 전액 취소할 수 있습니다.';
   if (value.includes('order_claim_in_progress')) {
     return '이미 진행 중인 취소·반품·교환 요청이 있습니다. 취소·반품·교환 관리에서 그 요청을 처리해주세요.';

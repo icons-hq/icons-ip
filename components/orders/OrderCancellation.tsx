@@ -37,6 +37,12 @@ export const WITHDRAWAL_REASON_LABELS: Record<OrderWithdrawalReasonType, string>
    LEGAL_WITHDRAWAL_NOTICE(메일·약관과 같은 문구)에만 남긴다. */
 export const DEADLINE_EXPIRED_MESSAGE = '신청 기한이 지난 주문입니다. 하자나 오배송이라면 1:1 문의로 알려주세요.';
 export const CANCELLATION_BLOCKED_MESSAGE = '주문 상태가 변경되어 취소를 신청할 수 없습니다. 취소는 발주확인 전, 반품은 배송 중부터 주문 전체를 직접 신청할 수 있습니다. 그 밖의 취소·반품 요청은 1:1 문의로 알려주세요.';
+/** 부분 반품(ADR-0047) 스위치가 켜져 있으면 반품은 굿즈·수량을 골라 신청할 수 있다고 말한다. 꺼져 있으면 지금 문구 그대로다. */
+export function cancellationBlockedMessage(partialReturnEnabled = false) {
+  return partialReturnEnabled
+    ? '주문 상태가 변경되어 취소를 신청할 수 없습니다. 취소는 발주확인 전, 반품은 배송 중부터 직접 신청할 수 있습니다(반품은 굿즈·수량을 골라 일부만 신청할 수도 있습니다). 그 밖의 취소·반품 요청은 1:1 문의로 알려주세요.'
+    : CANCELLATION_BLOCKED_MESSAGE;
+}
 
 type CancellationSubmissionResult =
   | 'requested'
@@ -267,6 +273,8 @@ interface OrderCancellationProps {
   deliveredAt: string | null;
   /** 무통장 주문이면 입금 대기 주문 취소로 부른다(T22i). */
   paymentMethod?: 'card' | 'bank_transfer' | null;
+  /** 부분 반품(ADR-0047) 스위치. 취소를 신청할 수 없을 때의 안내가 반품의 일부 신청을 말한다. */
+  partialReturnEnabled?: boolean;
 }
 
 type SubmissionState =
@@ -287,6 +295,7 @@ export function OrderCancellation({
   status,
   refund,
   paymentMethod,
+  partialReturnEnabled = false,
 }: OrderCancellationProps) {
   const router = useRouter();
   const [submission, setSubmission] = useState<SubmissionState>('idle');
@@ -377,7 +386,7 @@ export function OrderCancellation({
           ) : submission === 'expired' ? (
             <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{DEADLINE_EXPIRED_MESSAGE}</p>
           ) : submission === 'blocked' ? (
-            <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{CANCELLATION_BLOCKED_MESSAGE}</p>
+            <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{cancellationBlockedMessage(partialReturnEnabled)}</p>
           ) : (
             <>
               {submission === 'error' && <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{CANCELLATION_FAILURE_MESSAGE}</p>}

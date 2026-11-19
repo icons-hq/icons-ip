@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { saveOrderDelayNoticeSwitchAction, savePartialCancelSwitchAction, saveReturnFeeDeductionSwitchAction } from './operations-switches-actions';
+import { saveOrderDelayNoticeSwitchAction, savePartialCancelSwitchAction, savePartialReturnSwitchAction, saveReturnFeeDeductionSwitchAction } from './operations-switches-actions';
 
 const mocks = vi.hoisted(() => ({ access: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn(), dispatcher: vi.fn(), surfaces: vi.fn() }));
 vi.mock('@/lib/admin/action-access.server', () => ({ requireAdminActionAccess: mocks.access }));
@@ -11,10 +11,11 @@ vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 
 const id = 'c3a00000-0000-4000-9000-0000000000a1';
 const stamp = { updatedBy: '운영자' };
-const state = (over: { delay?: boolean; fee?: boolean; partial?: boolean } = {}) => ({
+const state = (over: { delay?: boolean; fee?: boolean; partial?: boolean; returns?: boolean } = {}) => ({
   delayNotice: { revision: 2, enabled: over.delay ?? false, smsEnabled: false, evidence: null, changedAt: '2026-11-19T01:00:00Z', ...stamp },
   returnFee: { revision: 2, enabled: over.fee ?? false, oneWayAmount: over.fee ? 3000 : null, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', inflightCount: 0, ...stamp },
   partialCancel: { revision: 2, enabled: over.partial ?? false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', ...stamp },
+  partialReturn: { revision: 2, enabled: over.returns ?? false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', ...stamp },
 });
 beforeEach(() => {
   vi.clearAllMocks();
@@ -79,6 +80,15 @@ describe('운영 스위치 저장 액션', () => {
     });
     expect(mocks.surfaces).toHaveBeenCalledOnce();
     expect(await saveReturnFeeDeductionSwitchAction(true, 4000, 'TEST 약관 개정 공지', 2, id)).toHaveProperty('uncertain', true);
+  });
+
+  it('부분 반품(ADR-0047)은 정확한 매개변수로 저장하고, 응답의 부분 반품 칸이 요청과 같을 때만 성공이다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: state({ returns: true }), error: null });
+    expect(await savePartialReturnSwitchAction(true, 'TEST 약관 개정 공지', 2, id)).toHaveProperty('state');
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_partial_return_switch', { p_enabled: true, p_evidence: 'TEST 약관 개정 공지', p_expected_revision: 2, p_operation_id: id });
+    mocks.rpc.mockResolvedValueOnce({ data: state({ returns: false }), error: null });
+    expect(await savePartialReturnSwitchAction(true, 'TEST 약관 개정 공지', 2, id)).toEqual(expect.objectContaining({ uncertain: true }));
+    expect(await savePartialReturnSwitchAction(true, '', 2, id)).toEqual({ error: '켜려면 근거를 적어주세요.' });
   });
 
   it('잘못된 요청 번호·리비전·불리언은 저장하지 않는다', async () => {
