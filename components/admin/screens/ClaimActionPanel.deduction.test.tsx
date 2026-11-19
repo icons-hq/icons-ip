@@ -134,3 +134,29 @@ describe('ClaimActionPanel — 반품배송비 차감', () => {
     expect(html).not.toContain('data-claim-refund-deduction');
   });
 });
+
+describe('부분 반품 환불 단계(ADR-0047)', () => {
+  it('부분 반품은 고른 굿즈 몫만 부분 취소한다고 말하고 주문 전체 취소 문구를 쓰지 않는다', () => {
+    const html = render({ partialReturn: { refundAmount: 6500, deductionAmount: 3000 }, refundAmount: 30000, paidAmount: 40000, stage: 'processing',
+      refundLedgerOpen: true, refundFiled: true });
+    expect(html).toContain('환불 완료 확정 (토스 부분 취소)');
+    expect(html).toContain('부분 반품한 굿즈 몫 6,500원만 부분 취소하고');
+    expect(html).toContain('₩6,500');
+    expect(html).not.toContain('결제 전액을 취소하고');
+    expect(html).not.toContain('남은 결제 금액');
+    expect(claimRefundCompletionConfirmation(true, '토스', null, null, { refundAmount: 6500, deductionAmount: 3000 }))
+      .toBe('토스 결제에서 부분 반품한 굿즈 몫 6,500원(반품배송비 3,000원 차감)을 부분 취소하고, 고른 굿즈만 재고 복원·카드팩 판정을 확정할까요? 남은 굿즈와 주문은 그대로 남습니다. 되돌릴 수 없습니다.');
+  });
+});
+
+describe('부분 반품 무통장·다시 접수(ADR-0047)', () => {
+  it('무통장 부분 반품은 완료 확정 대신 송금 대기 안내를 보이고, 결제사가 받지 않아 확인 필요인 토스 부분 반품은 다시 접수할 수 있다', () => {
+    const bank = render({ paymentProvider: 'bank_transfer', partialReturn: { refundAmount: 6500, deductionAmount: 3000, bank: true }, stage: 'processing',
+      refundLedgerOpen: true, refundFiled: true });
+    expect(bank).toContain('무통장 부분 반품 환불은 송금 대기에 올라 있습니다');
+    expect(bank).not.toContain('환불 완료 확정');
+    const refile = render({ partialReturn: { refundAmount: 9500, deductionAmount: 0, refileable: true }, stage: 'needs_review', refundLedgerOpen: false, refundFiled: false });
+    expect(refile).toContain('환불 접수 완료로 기록');
+  });
+});
+

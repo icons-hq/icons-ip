@@ -564,6 +564,13 @@ select private.j47_patch_function('private.return_fee_deduction_plan(uuid)',
   $a$basis := case when coalesce(purchase.shipping_fee, 0) = 0 and coalesce(purchase.shipping_collect_total, 0) = 0
     and not private.order_outbound_leg_charged(claim.order_id) then 'round_trip' else 'one_way' end;$a$);
 
+-- 부분 반품 클레임에는 주문 전체 반품의 차감 판정을 쓰지 않는다(운영 환불 단계·고객 안내가 주문 전체 금액을 보이지 않게). 부분 반품의 차감은
+-- 아래 계산이 정한다.
+select private.j47_patch_function('private.return_fee_deduction_plan(uuid)',
+  '  select * into purchase from public.orders where id = claim.order_id;',
+  '  if private.claim_is_partial_return(claim.id) then return null; end if;
+  select * into purchase from public.orders where id = claim.order_id;');
+
 -- 8. 계산(읽기 전용). 운영 화면 미리보기와 환불 접수가 같은 함수를 쓴다.
 create function private.order_partial_return_plan(p_claim_id uuid) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$

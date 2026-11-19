@@ -204,6 +204,14 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+/** 부분 반품(ADR-0047)의 환불 단계 금액: 접수 뒤에는 원장, 접수 전에는 미리보기. 원장 줄의 환불액은 차감 뒤 금액이다. */
+function partialReturnRefund(partialReturn: AdminClaimPartialReturn, bank: boolean) {
+  const live = partialReturn.history.find((record) => record.id === partialReturn.refundId);
+  const refileable = !live && partialReturn.history.some((record) => record.state === 'rejected');
+  if (live) return { refundAmount: live.refundAmount, deductionAmount: live.returnFeeDeduction, bank, refileable };
+  return { refundAmount: partialReturn.preview?.refundAmount ?? null, deductionAmount: partialReturn.preview?.returnFeeDeduction ?? 0, bank, refileable };
+}
+
 function CardHeading({ children }: { children: string }) {
   return <CardHeader><h3 className="text-base leading-snug font-medium text-foreground">{children}</h3></CardHeader>;
 }
@@ -246,6 +254,7 @@ export function ClaimDetailScreen({
   /* 반품배송비 차감(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 아래 화면은 지금 그대로다. */
   const refundDeduction = detail.refundDeduction ?? null;
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
+  const partialLive = partialReturn ? partialReturn.history.find((record) => record.id === partialReturn.refundId) ?? null : null;
   const sla = orderClaimSlaState(
     {
       claimType: claim.claimType,
@@ -489,10 +498,11 @@ export function ClaimDetailScreen({
                 refundAmount={refund?.amount ?? refundDeduction?.refundAmount ?? order?.total ?? null}
                 paidAmount={payment?.amount ?? null}
                 refundDeduction={refundDeduction}
+                partialReturn={partialReturn ? partialReturnRefund(partialReturn, payment?.provider === 'bank_transfer') : null}
                 defectiveStock={defectiveStock}
                 exchangeStockTargets={claim.claimType === 'exchange' && claim.collectionPolicy !== null ? adminClaimExchangeStockTargets(claim, order?.items ?? []) : []}
                 requestSummary={exchangeRequest}
-                bankTransfer={payment?.provider === 'bank_transfer'}
+                bankTransfer={payment?.provider === 'bank_transfer' && !partialReturn}
                 key={claim.id}
                 cancellationForm={cancellationForm}
                 carriers={carriers}
@@ -510,9 +520,10 @@ export function ClaimDetailScreen({
                 orderId={claim.orderId}
                 paymentProvider={payment?.provider ?? null}
                 recordedRefundMethod={refund?.method ?? null}
-                refundCompleted={Boolean(refund?.completedAt)}
-                refundFiled={Boolean(refund?.filedAt)}
-                refundLedgerOpen={Boolean(refund)}
+                /* 부분 반품(ADR-0047)은 주문 전체 환불 원장(refunds) 대신 부분 환불 원장의 살아 있는 줄이 접수·완료를 말한다. */
+                refundCompleted={partialLive ? partialLive.state === 'completed' : Boolean(refund?.completedAt)}
+                refundFiled={partialLive ? true : Boolean(refund?.filedAt)}
+                refundLedgerOpen={partialLive ? true : Boolean(refund)}
                 reshipItems={order?.items}
                 stage={claim.stage}
                 exchangeSteps={claim.claimType === 'exchange' ? <ClaimExchangeSteps claim={claim} /> : undefined}
