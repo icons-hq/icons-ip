@@ -25,6 +25,8 @@
 --   public.admin_import_seowon_tracking_batch(uuid,jsonb)
 --   public.admin_origin_tracking_candidates(uuid,text[],text[])
 --   private.stock_reconcile_flows(uuid[],timestamp with time zone)
+--   private.tracking_number_conflict(text,text,uuid[],uuid)
+-- 결제사 취소 처리 중에 기록한 '이미 출고' 회신은 취소 완료(배송 건 취소) 때 트리거가 발견으로 남긴다.
 -- ============================================================================
 begin;
 
@@ -208,10 +210,11 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function private.canceled_shipment_dispatch_document(uuid) from public, anon, authenticated, service_role;
 
-create function private.record_canceled_shipment_dispatch(p_shipment_id uuid, p_carrier text, p_tracking text, p_source text, p_reply_id uuid)
+-- p_actor는 기록하는 운영자다(반입·회신 기록은 로그인한 운영자, 취소 완료 때 자동 기록은 그 '이미 출고' 회신을 남긴 운영자).
+create function private.record_canceled_shipment_dispatch(p_shipment_id uuid, p_carrier text, p_tracking text, p_source text, p_reply_id uuid, p_actor uuid)
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
 declare
-  actor uuid := (select auth.uid());
+  actor uuid := p_actor;
   shipment public.order_shipments;
   existing private.canceled_shipment_dispatches;
   v_id uuid;
@@ -229,6 +232,8 @@ begin
     raise invalid_parameter_value using message = 'invalid_canceled_dispatch';
   end if;
   if (carrier_value is null) <> (tracking_value is null) then raise check_violation using message = 'invalid_tracking_input'; end if;
+  -- 운송장 회신에서 온 발견은 택배사·운송장이 있어야 한다(빈 줄·받는 분 불일치 줄은 발견이 아니다).
+  if p_source = 'tracking_reply' and tracking_value is null then raise check_violation using message = 'invalid_tracking_input'; end if;
   select * into shipment from public.order_shipments where id = p_shipment_id for update;
   if not found then raise no_data_found using message = 'shipment_not_found'; end if;
   if shipment.status <> 'canceled' or shipment.exported_at is null or shipment.shipped_at is not null or shipment.delivery_method <> 'parcel' then
@@ -268,17 +273,23 @@ begin
 
   -- 실물 기준: 이 배송 건의 취소가 되돌린 재고(전액 취소의 품목별 복원, 이 배송 건을 닫은 부분 취소의 복원)를 다시 뺀다.
   -- 그사이 다시 팔려 재고가 모자라면 남은 만큼만 빼고 모자란 수량을 기록한다(과판매 — 운영자 확인 대상).
+  -- 재고 부족 부분 취소가 닫은 배송 건은 품목 줄이 지워졌으므로 적용된 부분 취소 원장의 그 배송 건 품목도 함께 본다.
   begin
     perform private.lock_goods_stock_successor_topology();
     for entry in
       select si.order_item_id, a.diff->>'goodId' as good_id, (a.diff->>'variantId')::uuid as variant_id,
         sum((a.diff->>'delta')::integer)::integer as qty
-      from public.order_shipment_items si
+      from (
+        select l.order_item_id, l.order_id from public.order_shipment_items l where l.shipment_id = shipment.id
+        union
+        select p.order_item_id, p.order_id from private.order_partial_cancellation_items p
+          join private.order_partial_cancellations pc on pc.id = p.partial_cancellation_id and pc.applied_at is not null
+        where p.shipment_id = shipment.id
+      ) si
       join public.audit_log a on a.target = 'order:' || si.order_id::text and a.diff->>'orderItemId' = si.order_item_id::text
         and (a.action = 'order.option_stock_restored'
           or (a.action = 'order.option_stock_partially_restored' and (a.diff->>'partialCancellationId')::uuid in (
             select c.partial_cancellation_id from private.order_partial_cancellation_shipments c where c.shipment_id = shipment.id)))
-      where si.shipment_id = shipment.id
       group by 1, 2, 3 having sum((a.diff->>'delta')::integer) > 0
       order by 1, 3
     loop
@@ -319,7 +330,35 @@ begin
   return jsonb_build_object('shipmentId', shipment.id, 'orderId', shipment.order_id, 'dispatched', false,
     'canceledAfterExport', true, 'discoveryId', v_id, 'replayed', false);
 end $$;
-revoke all on function private.record_canceled_shipment_dispatch(uuid, text, text, text, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.record_canceled_shipment_dispatch(uuid, text, text, text, uuid, uuid) from public, anon, authenticated, service_role;
+
+-- 결제사 취소가 처리 중일 때 기록한 '이미 출고' 회신(ADR-0046): 그 취소가 끝나 배송 건이 취소되는 순간 발견으로 남긴다.
+-- 취소 완료(재고 복원 뒤 배송 건 취소)를 막지 않도록 실패하면 운영 알림만 남긴다 — 운영자가 '이미 출고'를 다시 기록하면 발견이 생긴다.
+create function private.record_dispatch_from_already_shipped_reply() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare reply private.warehouse_stop_replies;
+begin
+  if new.exported_at is null or new.shipped_at is not null or new.delivery_method <> 'parcel' then return null; end if;
+  select r.* into reply from private.warehouse_stop_replies r
+  where r.shipment_id = new.id and r.exported_at = new.exported_at
+  order by r.replied_at desc, r.recorded_at desc, r.id desc limit 1;
+  if not found or reply.outcome <> 'already_shipped' then return null; end if;
+  begin
+    perform private.record_canceled_shipment_dispatch(new.id, null, null, 'warehouse_reply', reply.id, reply.recorded_by);
+  exception when others then
+    insert into private.admin_operation_alerts(event_key, category, title, href)
+    values ('canceled_shipment_dispatch_failed:' || new.id::text || ':' || reply.id::text, 'orders',
+      '이미 출고 회신이 있는 배송 건이 취소됐지만 취소 뒤 출고 기록을 남기지 못했습니다. 주문 상세에서 이미 출고 회신을 다시 기록해주세요.',
+      '/admin/sales/orders/' || new.order_id::text)
+    on conflict (event_key) do nothing;
+  end;
+  return null;
+end $$;
+revoke all on function private.record_dispatch_from_already_shipped_reply() from public, anon, authenticated, service_role;
+create trigger order_shipments_canceled_after_already_shipped_reply
+  after update of status on public.order_shipments
+  for each row when (new.status = 'canceled' and old.status is distinct from 'canceled')
+  execute function private.record_dispatch_from_already_shipped_reply();
 
 -- ---------------------------------------------------------------------------
 -- 5. 운영자 RPC
@@ -340,6 +379,7 @@ declare
   reply_ids uuid[] := '{}';
   discovery jsonb;
   discovery_ids uuid[] := '{}';
+  in_flight boolean;
 begin
   actor := private.require_operator_capability('sales.dispatch', false);
   if p_operation_id is null or p_shipment_ids is null or cardinality(p_shipment_ids) not between 1 and 20
@@ -400,12 +440,16 @@ begin
         'exportedAt', shipment.exported_at, 'note', v_note, 'operationId', p_operation_id));
     -- 이미 취소된 배송 건에 '이미 출고' 회신이 오면 취소 뒤 출고 발견이다(운송장은 회신 반입이 나중에 붙인다).
     if shipment.status = 'canceled' and p_outcome = 'already_shipped' then
-      discovery := private.record_canceled_shipment_dispatch(shipment.id, null, null, 'warehouse_reply', reply_id);
+      discovery := private.record_canceled_shipment_dispatch(shipment.id, null, null, 'warehouse_reply', reply_id, actor);
       discovery_ids := discovery_ids || (discovery->>'discoveryId')::uuid;
     end if;
   end loop;
+  -- 결제사 취소·부분 취소가 처리 중이면 돈이 이미 움직였을 수 있다. 화면은 '취소가 끝나면 발견으로 남는다'고 안내한다.
+  in_flight := exists(select 1 from public.order_cancellation_requests q where q.order_id = v_order and q.status in ('requested', 'processing', 'needs_review'))
+    or exists(select 1 from public.order_cancellation_claims c where c.order_id = v_order)
+    or private.order_partial_cancel_in_flight(v_order);
   return jsonb_build_object('orderId', v_order, 'outcome', p_outcome, 'replayed', false,
-    'replyIds', to_jsonb(reply_ids), 'discoveryIds', to_jsonb(discovery_ids));
+    'replyIds', to_jsonb(reply_ids), 'discoveryIds', to_jsonb(discovery_ids), 'cancellationInFlight', in_flight);
 end $$;
 revoke all on function public.admin_record_warehouse_stop_reply(uuid[], text, text, timestamptz, text, uuid) from public, anon, authenticated, service_role;
 grant execute on function public.admin_record_warehouse_stop_reply(uuid[], text, text, timestamptz, text, uuid) to authenticated;
@@ -572,8 +616,11 @@ $a$  -- 출고지시가 나간 배송 건의 품목이면 그 배송 건마다 �
 select private.o3d_patch_function('public.admin_import_shipment_tracking(text,text,text)'::regprocedure, array[
 $a$ changed:=shipment.status='ready';$a$,
 $a$ -- 출고지시 뒤 취소된 배송 건의 운송장 회신은 오류로 버리지 않고 '취소 뒤 출고 발견'으로 남긴다(ADR-0046).
+ -- 택배사·운송장이 모두 있는 줄만 발견이다. 표준 양식의 오류 줄(빈칸·받는 분 불일치·엇갈린 운송장)은 합포장 사전 검사용으로
+ -- 빈 값을 싣고 오므로 지금처럼 거절한다.
  if shipment.status='canceled' and shipment.exported_at is not null and shipment.shipped_at is null and shipment.delivery_method='parcel' then
-  return private.record_canceled_shipment_dispatch(shipment.id,carrier_value,tracking_value,'tracking_reply',null);
+  if carrier_value is null or tracking_value is null then raise check_violation using message='invalid_tracking_input';end if;
+  return private.record_canceled_shipment_dispatch(shipment.id,carrier_value,tracking_value,'tracking_reply',null,(select auth.uid()));
  end if;
  changed:=shipment.status='ready';$a$
 ]);
@@ -591,7 +638,35 @@ $a$  elsif shipment.status='canceled' and shipment.exported_at is not null and s
 select private.o3d_patch_function('public.admin_origin_tracking_candidates(uuid,text[],text[])'::regprocedure, array[
 $a$     or(s.status in('shipping','delivered') and o.status<>'canceled' and s.shipped_at>=now()-interval '45 days'))$a$,
 $a$     or(s.status in('shipping','delivered') and o.status<>'canceled' and s.shipped_at>=now()-interval '45 days')
-     or(s.status='canceled' and s.exported_at is not null and s.shipped_at is null and s.exported_at>=now()-interval '45 days'))$a$
+     or(s.status='canceled' and s.exported_at is not null and s.shipped_at is null and s.exported_at>=now()-interval '45 days'))$a$,
+-- 재고 부족 부분 취소가 닫은 배송 건은 품목 줄이 지워졌다. 적용된 부분 취소 원장의 그 배송 건 품목·수량으로 출고지시 때 줄을 되살린다.
+$a$    from public.order_shipment_items link join public.order_items i on i.id=link.order_item_id
+    where link.shipment_id=c.id),'[]'))$a$,
+$a$    from (select l.order_item_id,l.qty from public.order_shipment_items l where l.shipment_id=c.id
+      union all
+      select p.order_item_id,sum(p.qty)::integer from private.order_partial_cancellation_items p
+       join private.order_partial_cancellations pc on pc.id=p.partial_cancellation_id and pc.applied_at is not null
+       where c.status='canceled' and p.shipment_id=c.id and not exists(select 1 from public.order_shipment_items l2 where l2.shipment_id=c.id)
+       group by p.order_item_id) link join public.order_items i on i.id=link.order_item_id),'[]'))$a$,
+-- 취소 뒤 출고 발견의 운송장도 쓰인 번호다(살아 있는 배송 건에 붙이지 않는다).
+$a$     union select x.tracking_number,x.shipment_id from public.order_shipment_extra_trackings x where x.carrier=origin.default_carrier and x.tracking_number=any(target_tracking_numbers)) s),'[]'))$a$,
+$a$     union select x.tracking_number,x.shipment_id from public.order_shipment_extra_trackings x where x.carrier=origin.default_carrier and x.tracking_number=any(target_tracking_numbers)
+     union select d.tracking_number,d.shipment_id from private.canceled_shipment_dispatches d where d.carrier=origin.default_carrier and d.tracking_number=any(target_tracking_numbers)) s),'[]'))$a$
+]);
+
+-- 운송장 번호 판정(모든 등록 경로가 지나는 private.tracking_number_conflict)에 취소 뒤 출고 발견의 번호를 넣는다.
+-- 그 주문은 취소됐어도 상자는 그 번호로 나갔다 — 같은 번호를 살아 있는 다른 주문에 붙이지 않는다.
+select private.o3d_patch_function('private.tracking_number_conflict(text,text,uuid[],uuid)'::regprocedure, array[
+$a$      and not exists(select 1 from public.order_claim_reshipments r where r.claim_id = q.id)
+  )$a$,
+$a$      and not exists(select 1 from public.order_claim_reshipments r where r.claim_id = q.id)
+    union all
+    select 'canceled_dispatch', d.order_id, d.shipment_id, s.origin_id, s.delivery_method, 'canceled_dispatch', null
+    from private.canceled_shipment_dispatches d join public.order_shipments s on s.id = d.shipment_id
+    where d.carrier = p_carrier and d.tracking_number = p_tracking
+  )$a$,
+$a$    and uo.status <> 'canceled'$a$,
+$a$    and (uo.status <> 'canceled' or u.source = 'canceled_dispatch')$a$
 ]);
 
 -- ---------------------------------------------------------------------------
@@ -625,7 +700,8 @@ do $$declare fn regprocedure; contract record; begin
     'public.admin_import_shipment_tracking(text,text,text)'::regprocedure,
     'public.admin_import_seowon_tracking_batch(uuid,jsonb)'::regprocedure,
     'public.admin_origin_tracking_candidates(uuid,text[],text[])'::regprocedure,
-    'private.stock_reconcile_flows(uuid[],timestamp with time zone)'::regprocedure] loop
+    'private.stock_reconcile_flows(uuid[],timestamp with time zone)'::regprocedure,
+    'private.tracking_number_conflict(text,text,uuid[],uuid)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

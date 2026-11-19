@@ -16,6 +16,8 @@ begin;
 --   · 재고는 실물 기준: 발견 때 취소가 되돌린 수량을 다시 빼고(모자라면 남은 만큼만, 모자란 수량 기록), 회수 입고면 되돌리고 손실이면 그대로.
 --     재고 파일 대조 흐름이 발견을 출고·회수 입고를 회수로 센다
 --   · 처리(sales.manage): 사유 필수, 한 번만, 같은 요청번호 재요청은 처음 결과. 운영 알림·감사·화면 읽기
+--   · (리뷰 보완) 표준 양식의 오류 줄(운송장 빈칸·받는 분 불일치)은 취소된 배송 건이어도 발견을 만들지 않는다.
+--     결제사 취소 처리 중에 기록한 '이미 출고' 회신은 취소 완료 때 발견이 된다. 발견의 운송장은 살아 있는 다른 주문에 쓸 수 없다
 --   · 권한 봉인
 -- ============================================================================
 
@@ -29,8 +31,10 @@ select 1/case when (
   and has_function_privilege('authenticated','public.admin_order_warehouse_stop_context(uuid)','execute')
   and not has_function_privilege('anon','public.admin_order_warehouse_stop_context(uuid)','execute')
   and not has_function_privilege('service_role','public.admin_order_warehouse_stop_context(uuid)','execute')
-  and not has_function_privilege('authenticated','private.record_canceled_shipment_dispatch(uuid,text,text,text,uuid)','execute')
-  and not has_function_privilege('service_role','private.record_canceled_shipment_dispatch(uuid,text,text,text,uuid)','execute')
+  and not has_function_privilege('authenticated','private.record_canceled_shipment_dispatch(uuid,text,text,text,uuid,uuid)','execute')
+  and not has_function_privilege('service_role','private.record_canceled_shipment_dispatch(uuid,text,text,text,uuid,uuid)','execute')
+  and not has_function_privilege('service_role','private.record_dispatch_from_already_shipped_reply()','execute')
+  and exists(select 1 from pg_trigger where tgname='order_shipments_canceled_after_already_shipped_reply' and tgrelid='public.order_shipments'::regclass)
   and not has_function_privilege('authenticated','private.warehouse_stop_gate(uuid[])','execute')
   and not has_function_privilege('service_role','private.consume_warehouse_stop_replies(uuid[],text,uuid,uuid)','execute')
   and not has_table_privilege('authenticated','private.warehouse_stop_replies','select,insert,update,delete')
@@ -115,7 +119,8 @@ grant execute on function pg_temp.stock(integer),pg_temp.reply(uuid[],text,times
 
 select pg_temp.wsr_order(1,array[3]),pg_temp.wsr_order(2,array[3,1]),pg_temp.wsr_order(3,array[2]),pg_temp.wsr_order(4,array[2]),
  pg_temp.wsr_order(5,array[3]),pg_temp.wsr_order(6,array[3]),pg_temp.wsr_order(7,array[3],false),pg_temp.wsr_order(8,array[3],true,'shipping'),
- pg_temp.wsr_order(9,array[1]),pg_temp.wsr_order(10,array[3]);
+ pg_temp.wsr_order(9,array[1]),pg_temp.wsr_order(10,array[3]),pg_temp.wsr_order(11,array[3]),pg_temp.wsr_order(12,array[3]),
+ pg_temp.wsr_order(13,array[3]),pg_temp.wsr_order(14,array[3]);
 -- END FIXTURE
 
 -- ---------------------------------------------------------------------------
@@ -352,5 +357,66 @@ select 1/case when (select returned_since_qty=1 and shipped_since_qty=1 from pri
  and (select returned_since_qty=0 and shipped_since_qty=1 from private.stock_reconcile_flows(
    array[(select id from public.goods_variants where good_id='wsr-goods-10' and is_default)],:'before_discovery'::timestamptz))
  then 1 else 0 end as assert_reconcile_counts_returned_dispatch;
+
+-- ---------------------------------------------------------------------------
+-- 5. 리뷰 보완
+-- ---------------------------------------------------------------------------
+-- (1) 표준 양식의 오류 줄은 합포장 사전 검사용으로 빈 택배사·운송장을 싣고 온다. 취소된 배송 건이어도 발견이 아니다.
+select pg_temp.as_actor(1);
+set local role authenticated;
+select pg_temp.reply(array[pg_temp.wsr_id('shipment-11',1)],'stopped',clock_timestamp(),11);
+select public.admin_start_order_cancellation(pg_temp.wsr_id('order',11),'customer_request',null,false) as request_11 \gset
+select pg_temp.reply(array[pg_temp.wsr_id('shipment-12',1)],'stopped',clock_timestamp(),12);
+select public.admin_start_order_cancellation(pg_temp.wsr_id('order',12),'customer_request',null,false) as request_12 \gset
+reset role;
+select pg_temp.complete(:'request_11',11),pg_temp.complete(:'request_12',12);
+select pg_temp.as_actor(1);
+set local role authenticated;
+select public.admin_import_item_tracking_batch(jsonb_build_array(
+ jsonb_build_object('line',1,'reference',(select id from public.order_items where order_id=pg_temp.wsr_id('order',11))::text,'carrier','','trackingNumber',''),
+ jsonb_build_object('line',2,'reference',(select id from public.order_items where order_id=pg_temp.wsr_id('order',12))::text,'carrier','hanjin','trackingNumber','4100000012',
+   'recipientName','다른 사람','recipientPhone','01099998888'))) as blank_rows \gset
+select pg_temp.expect_error(format('select public.admin_import_shipment_tracking(%L,%L,%L)',pg_temp.wsr_id('shipment-11',1),'',''),'invalid_tracking_input');
+reset role;
+select pg_temp.expect_error(format('select private.record_canceled_shipment_dispatch(%L,null,null,%L,null,%L)',pg_temp.wsr_id('shipment-11',1),'tracking_reply',pg_temp.wsr_id('user',1)),'invalid_tracking_input');
+select 1/case when (select bool_and(not (value->>'ok')::boolean) and count(*)=2 from jsonb_array_elements(:'blank_rows'::jsonb))
+ and :'blank_rows'::jsonb->1->>'error'='tracking_reply_recipient_mismatch'
+ and not exists(select 1 from private.canceled_shipment_dispatches where shipment_id in (pg_temp.wsr_id('shipment-11',1),pg_temp.wsr_id('shipment-12',1)))
+ and pg_temp.stock(11)=11 and pg_temp.stock(12)=11
+ and not exists(select 1 from private.admin_operation_alerts where href in ('/admin/sales/orders/'||pg_temp.wsr_id('order',11),'/admin/sales/orders/'||pg_temp.wsr_id('order',12)))
+ then 1 else 0 end as assert_error_rows_make_no_discovery;
+
+-- (2) 결제사 취소 처리 중에 창고가 '이미 나갔다'고 회신하면 기록은 받고, 취소가 끝나 배송 건이 취소되는 순간 발견이 된다.
+select pg_temp.as_actor(1);
+set local role authenticated;
+select pg_temp.reply(array[pg_temp.wsr_id('shipment-13',1)],'stopped',clock_timestamp()-interval '1 minute',13);
+select public.admin_start_order_cancellation(pg_temp.wsr_id('order',13),'customer_request',null,false) as request_13 \gset
+select pg_temp.reply(array[pg_temp.wsr_id('shipment-13',1)],'already_shipped',clock_timestamp(),14,'messenger',null) as inflight_reply \gset
+reset role;
+select 1/case when (:'inflight_reply'::jsonb->>'cancellationInFlight')::boolean and jsonb_array_length(:'inflight_reply'::jsonb->'discoveryIds')=0
+ and private.warehouse_stop_status(pg_temp.wsr_id('shipment-13',1))='already_shipped'
+ then 1 else 0 end as assert_inflight_reply_is_recorded;
+select pg_temp.complete(:'request_13',13);
+select 1/case when (select o.status='canceled' from public.orders o where o.id=pg_temp.wsr_id('order',13))
+ and (select source='warehouse_reply' and reply_id=(:'inflight_reply'::jsonb->'replyIds'->>0)::uuid and discovered_by=pg_temp.wsr_id('user',1)
+   and restored_qty=1 and withdrawn_qty=1 and state='open'
+   from private.canceled_shipment_dispatches where shipment_id=pg_temp.wsr_id('shipment-13',1))
+ and pg_temp.stock(13)=10
+ and exists(select 1 from private.admin_operation_alerts where href='/admin/sales/orders/'||pg_temp.wsr_id('order',13) and event_key like 'canceled_shipment_dispatch:%:created')
+ then 1 else 0 end as assert_inflight_already_shipped_becomes_discovery_on_completion;
+
+-- (3) 발견의 운송장은 살아 있는 다른 주문의 배송 건에 쓸 수 없다(번호 판정·서원 대조의 쓰인 번호).
+select pg_temp.as_actor(1);
+set local role authenticated;
+select pg_temp.expect_error(format('select public.admin_import_shipment_tracking(%L,%L,%L)',pg_temp.wsr_id('shipment-14',1),'hanjin','4100000001'),'tracking_number_in_use');
+select 1/case when exists(select 1 from jsonb_array_elements(public.admin_origin_tracking_candidates(pg_temp.wsr_id('origin',2),array['6000000000003'],'{}')->'usedTracking') u
+   where u->>'trackingNumber'='6000000000003' and u->>'shipmentId'=pg_temp.wsr_id('shipment-3',1)::text)
+ then 1 else 0 end as assert_seowon_used_tracking_includes_discovery;
+-- 같은 발견의 같은 운송장 재반입은 여전히 멱등이다.
+select 1/case when (public.admin_import_shipment_tracking(pg_temp.wsr_id('shipment-1',1)::text,'hanjin','4100000001')->>'replayed')::boolean
+ then 1 else 0 end as assert_discovery_waybill_replay_still_allowed;
+reset role;
+select 1/case when (select status='ready' and tracking_number is null from public.order_shipments where id=pg_temp.wsr_id('shipment-14',1))
+ then 1 else 0 end as assert_live_order_not_dispatched_with_discovery_waybill;
 
 rollback;
