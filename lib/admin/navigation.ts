@@ -333,6 +333,7 @@ const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
   [/^\/admin\/sales\/subscriptions\/[^/]+$/, '정기구매 상세'],
   [/^\/admin\/cs\/inquiries\/[^/]+$/, '고객문의 상세'],
   [/^\/admin\/customers\/[^/]+$/, '고객 상세'],
+  [/^\/admin\/community\/members\/kakao-unlinks$/, '카카오 탈퇴 검토 대기'],
   [/^\/admin\/catalog\/goods\/export$/, '상품 엑셀 내보내기'],
   [/^\/admin\/catalog\/ips\/[^/]+$/, 'IP 상세'],
   [/^\/admin\/sales\/discount-promotions\/new$/, '새 할인 프로모션'],

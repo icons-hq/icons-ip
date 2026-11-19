@@ -243,6 +243,10 @@ const storefront = [
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
   sql('kakao_channel_friend_coupon'),
+  // 카카오 계정 상태 변경 웹훅(user-unlinked): 다른 수단 회원의 카카오 연결 끊기·카카오만 회원의 탈퇴 검토 대기.
+  sql('kakao_account_unlink'),
+  // 카카오 연결 해제 탈퇴 검토 대기의 어드민 처리: 카카오계정 탈퇴 사유만 해제 알림으로 처리, 연결만 끊은 회원은 1:1 문의 경로.
+  sql('kakao_unlink_withdrawal_processing'),
   sql('auto_order_confirmation'),
   // 출고 보류(테스트 키 결제·결제사 직접 취소)와 발송 경로 차단·해제.
   sql('order_fulfillment_holds'),
