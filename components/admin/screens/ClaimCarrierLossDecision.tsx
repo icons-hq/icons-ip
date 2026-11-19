@@ -7,6 +7,7 @@ import {
   claimEvidenceUrl, claimWaiverReasonValid, type ClaimEvidenceFile,
 } from '@/lib/admin/claim-evidence';
 import { uploadClaimEvidence } from '@/lib/admin/claim-evidence.client';
+import { confirmAdminSubmit, type AdminConfirmRequest } from '@/lib/admin/confirm';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -19,6 +20,16 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 택배사가 분실을 확인한 배송 건은 돌아올 물건이 없으므로 회수 확인 대신 사고 번호·메모·근거 사진으로 회수를 끝낸다. 모든 출고지가
  * 입고되거나 분실로 기록되면 환불을 진행하고, 분실 상품은 판매 재고로 되돌리지 않는다. 반품 사유와 무관하게 받고(회사·택배 귀책이라
  * 반품배송비를 빼지 않는다), 발송 여부·리비전은 DB가 다시 검사한다. 작업 번호는 처음 그릴 때 정해 실패 뒤 재시도에도 같아 이중 기록이 생기지 않는다. */
+/** 배송 분실 기록 확인창. 되돌릴 수 없는 결정이라 대상 출고지·사고 번호와 그 결과를 셸 확인창에서 다시 확인받는다. */
+export function carrierLossConfirmRequest(originName: string, accidentNumber: string): AdminConfirmRequest {
+  return {
+    title: `${originName} 배송 분실로 기록할까요?`,
+    message: `택배사 사고 번호 ${accidentNumber}로 ${originName} 배송 건의 분실을 기록합니다. 기록은 되돌릴 수 없습니다 — 이 출고지의 회수가 끝난 것으로 보고(모든 출고지가 끝나면 환불을 진행), 분실 상품은 판매 재고로 되돌리지 않으며 반품배송비를 빼지 않습니다.`,
+    confirmLabel: '배송 분실 기록',
+    destructive: true,
+  };
+}
+
 export function ClaimCarrierLossDecision({ claimId, claimRevision, shipmentId, originName }: {
   claimId: string; claimRevision: number; shipmentId: string; originName: string;
 }) {
@@ -56,7 +67,8 @@ export function ClaimCarrierLossDecision({ claimId, claimRevision, shipmentId, o
   }
   const trimmedAccident = accident.trim();
   const ready = trimmedAccident.length >= 2 && trimmedAccident.length <= 60 && claimWaiverReasonValid(reason) && evidence.length > 0 && confirmed;
-  return <form action={action} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-carrier-loss={shipmentId}>
+  return <form action={action} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-carrier-loss={shipmentId}
+    onSubmit={event => { confirmAdminSubmit(event, carrierLossConfirmRequest(originName, trimmedAccident)); }}>
     <input type="hidden" name="claimId" value={claimId} />
     <input type="hidden" name="shipmentId" value={shipmentId} />
     <input type="hidden" name="claimRevision" value={claimRevision} />
