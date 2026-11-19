@@ -80,7 +80,7 @@ begin
  end loop;
 end $$;
 
--- 계약: 정확히 이 30개 출고 RPC만 sales.dispatch를 쓴다(택배 외 인계·수령 기록과 그 읽기 포함).
+-- 계약: 정확히 이 31개 출고 RPC만 sales.dispatch를 쓴다(택배 외 인계·수령 기록과 그 읽기 포함).
 -- 앞 22개는 T05가 sales.manage에서 옮겼고, 다음 4개는 같은 웨이브의 새 출고 RPC를 통합 migration(20261112200000)이 맞췄다:
 -- 발송처리 화면의 배송 방법·택배 외 일괄 인계(T04), ICONS 표준 양식 바코드 경고(T03), 출고지시 전 재고 차이 경고(T07).
 -- 1개는 발송·배송현황 화면의 착불 요약(20261112200400, 2026-11-12 "착불 금액은 보이게")이다.
@@ -93,7 +93,9 @@ insert into ld_dispatch_contracts(signature,before_capability) values
  ('public.admin_dispatch_delivery_options(uuid[])','sales.manage'),('public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)','sales.manage'),
  ('public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)','sales.manage'),('public.admin_stock_dispatch_warnings(uuid,integer)','sales.read'),
  ('public.admin_add_shipment_extra_tracking(uuid,text,text,text,uuid)','sales.manage'),('public.admin_remove_shipment_extra_tracking(uuid,text,uuid)','sales.manage'),
- ('public.admin_shipment_tracking_summaries(uuid[])','sales.manage');
+ ('public.admin_shipment_tracking_summaries(uuid[])','sales.manage'),
+ -- 출고지시 뒤 취소 전 창고 회신 기록(ADR-0046, 2026-11-19). 새 RPC라 이전 능력은 없고 판정 비교는 출고 RPC와 같다.
+ ('public.admin_record_warehouse_stop_reply(uuid[],text,text,timestamp with time zone,text,uuid)','sales.manage');
 insert into ld_dispatch_contracts(signature) values
  ('public.admin_search_shipments_notice_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text,text)'),
  ('public.admin_search_shipments_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text)'),

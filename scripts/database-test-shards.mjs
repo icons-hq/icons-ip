@@ -65,6 +65,9 @@ const operators = [
   sql('order_shipment_extra_trackings'),
   // 운송장 무결성: 다른 주문 번호 재사용·택배사 형식·뒤바뀐 회신·맞바꾸기.
   sql('tracking_number_integrity'),
+  // 출고지시 뒤 취소: 창고 회신 판정·취소 뒤 출고 발견(네 반입 경로)·실물 기준 재고·처리와 그 경합(ADR-0046).
+  sql('warehouse_stop_replies'),
+  script('warehouse_stop_replies_concurrency.sh', 'WAREHOUSE_STOP_TEST_SCOPE'),
   sql('delivery_tracking_auto_complete'),
   script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
   script('tracking_number_integrity_concurrency.sh', 'TRACKING_INTEGRITY_TEST_SCOPE'),
