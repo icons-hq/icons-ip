@@ -1,6 +1,6 @@
 # 단순 변심 반품은 반품배송비를 뺀 금액을 결제사 부분 취소로 돌려준다(스위치로 켠다)
 
-- Status: accepted (2026-11-12) — 스위치 OFF로 배포, 게이트 5개 충족 뒤 켠다([런북](../runbooks/return-fee-deduction.md))
+- Status: accepted (2026-11-12) — 스위치 OFF로 배포, 게이트 5개 충족 뒤 켠다([런북](../runbooks/return-fee-deduction.md)). 켜는 것은 migration이 아니라 어드민 운영 스위치(`/admin/settings/switches`)에서 감사와 함께 한다(2026-11-19).
 - 일부 대체: [ADR-0017](./0017-order-claim-intake-and-origin-collections.md) 결정 절의 "취소·반품의 환급액은 기존 주문 결제금액 전액(최초 배송비 포함)"과 #491 절의 "환불액에서 차감하지 않으며" 중 **단순 변심 반품의 반품배송비**에 한한 부분. 취소·교환·하자 반품·운영 확인액은 그대로다.
 - 보완: [ADR-0010](./0010-bank-transfer-refund-finalize-order.md)(무통장 송금액은 '결제액 − 차감액')
 - 관련: QNA-033(서원 회신 E3), QNA-020(재고 부족 품목·수량 부분 취소 — 이 결정의 부분 취소 기반을 쓰는 후속 T12b), [배송비 청구 원장](../research/smartstore-admin/claim-fees.md)

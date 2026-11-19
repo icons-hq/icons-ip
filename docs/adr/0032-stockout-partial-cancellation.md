@@ -1,6 +1,6 @@
 # 재고 부족 품목·수량은 운영자가 고객 결정대로 부분 취소하고 나머지를 출고한다(스위치로 켠다)
 
-- Status: accepted (2026-11-12), 보완 (2026-11-13: [버전 1 주문의 파생 배분 원장](#보완-2026-11-13-버전-1-주문의-파생-배분-원장)) — 스위치 OFF로 배포, 게이트 충족 뒤 켠다([클레임 런북](../runbooks/order-claim-intake.md) "재고 부족 부분 취소")
+- Status: accepted (2026-11-12), 보완 (2026-11-13: [버전 1 주문의 파생 배분 원장](#보완-2026-11-13-버전-1-주문의-파생-배분-원장)) — 스위치 OFF로 배포, 게이트 충족 뒤 켠다([클레임 런북](../runbooks/order-claim-intake.md) "재고 부족 부분 취소"). 켜는 것은 어드민 운영 스위치(`/admin/settings/switches`)에서 감사와 함께 한다(2026-11-19)
 - 일부 대체: [부분 취소·부분 반품 제외 계약](../research/smartstore-admin/partial-claims-contract.md)(2026-10-12)과 [ADR-0017](./0017-order-claim-intake-and-origin-collections.md)의 "주문 전체·결제금액 전액" 중 **발송 전 재고 부족 품목·수량**에 한한 부분. 고객 직접 신청·반품·교환은 그대로 주문 전체다.
 - 보완: [ADR-0018](./0018-staff-initiated-order-cancellation.md)(운영자 전액 취소와 같은 발송 전 조건·창고 출고 중단 확인), [ADR-0031](./0031-return-fee-deduction-partial-refund.md)(결제사 부분 취소 기반을 여러 번 쓴다), [ADR-0010](./0010-bank-transfer-refund-finalize-order.md)(무통장은 송금 대기 → 송금 증빙)
 - 관련: QNA-020(서원 회신 C7·E1), T12a 반품배송비 차감
