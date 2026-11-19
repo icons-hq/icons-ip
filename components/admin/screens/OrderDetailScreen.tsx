@@ -38,6 +38,7 @@ import { OrderAddressButton } from './OrderAddressEditor';
 import { ShippingCollectPanel } from '@/components/admin/ShippingCollectPanel';
 import { OrderPartialCancellationPanel } from '@/components/admin/OrderPartialCancellationPanel';
 import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldNotice } from '@/components/admin/OrderFulfillmentHoldNotice';
+import { OrderWarehouseStopPanel } from '@/components/admin/OrderWarehouseStopPanel';
 
 const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
   order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·운송장',
@@ -85,6 +86,13 @@ const ACTION_LABELS: Record<string, string> = {
   'system.order.fulfillment_hold_placed': '출고 보류 (테스트 결제·결제사 취소)',
   'admin.order.fulfillment_hold_released': '출고 보류 해제',
   'system.order.fulfillment_hold_released': '출고 보류 종료 (주문 취소)',
+  /* 출고지시 뒤 취소의 창고 회신과 취소 뒤 출고 발견(ADR-0046). */
+  'admin.shipment.warehouse_stop_reply_recorded': '창고 회신 기록',
+  'admin.shipment.canceled_dispatch_discovered': '취소 뒤 출고 발견',
+  'admin.shipment.canceled_dispatch_tracking_recorded': '취소 뒤 출고 운송장 기록',
+  'admin.shipment.canceled_dispatch_resolved': '취소 뒤 출고 처리',
+  'order.canceled_dispatch_stock_withdrawn': '취소 뒤 출고 재고 차감',
+  'order.canceled_dispatch_stock_returned': '취소 뒤 출고 회수 재고 복원',
 };
 /** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
 const TRIGGER_LABELS: Record<string, Record<string, string>> = {
@@ -284,6 +292,8 @@ export function OrderDetailScreen({
     </div> : null}
     {/* 출고 보류(테스트 결제·결제사 취소)는 출고를 막는 상태라 머리 바로 아래에서 다음 행동과 함께 보인다. */}
     <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} />
+    {/* 출고지시가 나간 배송 건의 창고 회신과 취소 뒤 출고 발견(ADR-0046). 해당 배송 건·발견이 없으면 그리지 않는다. */}
+    <OrderWarehouseStopPanel key={`warehouse-stop:${order.id}`} orderId={order.id} />
     {/* 운송장이 빠졌다는 경고는 눌러야 할 일이라 머리 바로 아래에 둔다. 등록은 바로 위 주 버튼 하나로 간다 — 같은 일을 하는 버튼이 둘이면 다른 일인지 망설인다. */}
     {trackingMissing ? <AdminNotice role="status" tone="warning" title={`배송 중인데 운송장이 없는 배송 건이 ${trackingMissing}건 있습니다`}>
       배송완료로 처리하기 전에 택배사와 운송장번호를 등록해주세요.

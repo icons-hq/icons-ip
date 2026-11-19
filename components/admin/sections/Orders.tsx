@@ -74,6 +74,7 @@ import { OrderViewTabs } from '@/components/admin/sales/OrderViewTabs';
 import { OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldList, OrderFulfillmentHoldNotice } from '@/components/admin/OrderFulfillmentHoldNotice';
+import { WarehouseStopRequirementNote } from '@/components/admin/OrderWarehouseStopPanel';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -308,19 +309,13 @@ export async function planOrderCancellationSubmit(
 }
 
 /**
- * 운영자 전액 취소 입력 검사. 서버 액션과 같은 규칙(normalizeAdminStaffCancellationForm)에
- * 화면만 아는 조건 — 출고지시가 나간 배송 건의 창고 중단 확인 — 을 더한다.
+ * 운영자 전액 취소 입력 검사. 서버 액션과 같은 규칙(normalizeAdminStaffCancellationForm)이다.
+ * 출고지시가 나간 배송 건의 창고 출고 중단은 확인란이 아니라 주문 상세의 창고 회신 기록이 근거이고
+ * DB가 실행 때 판정한다(ADR-0046) — 화면은 양식 안에 회신 상태를 보인다.
  */
-export function staffCancellationClientErrors(
-  formData: FormData,
-  requiresWarehouseStop: boolean,
-): AdminOrderFieldErrors | null {
+export function staffCancellationClientErrors(formData: FormData): AdminOrderFieldErrors | null {
   const normalized = normalizeAdminStaffCancellationForm(formData);
-  const errors: AdminOrderFieldErrors = normalized.ok ? {} : { ...normalized.errors };
-  if (requiresWarehouseStop && formData.get('warehouseStopConfirmed') !== 'confirmed') {
-    errors.warehouseStopConfirmed = '창고에 출고 중단을 확인한 뒤 확인란을 체크해주세요.';
-  }
-  return Object.keys(errors).length ? errors : null;
+  return normalized.ok ? null : { ...normalized.errors };
 }
 
 /** 한 양식이 볼 결과 조각. 필드 오류는 그 양식이 보낸 결과일 때만 붙인다. */
@@ -691,16 +686,18 @@ function ReconcileCancellationForm({
  *
  * 발송 전 주문의 결제 전액을 바로 취소한다 — 누르면 DB가 사유와 함께 취소 요청을
  * 열고 서버가 토스 전액 취소를 발행·확인한 뒤 주문·재고·쿠폰·적립금을 정리한다.
- * 출고지시 파일이 나간 배송 건이 있으면 창고 출고 중단 확인을 체크해야 한다.
- * 결과가 나오면 이 양식은 사라진다(요청이 생기거나 주문이 취소된다) — 결과는
+ * 출고지시 파일이 나간 배송 건이 있으면 주문 상세에 창고의 출고 중단 회신이 기록돼 있어야 한다(ADR-0046) —
+ * 양식은 확인란 대신 그 회신 상태와 기록 링크를 보인다. 결과가 나오면 이 양식은 사라진다(요청이 생기거나 주문이 취소된다) — 결과는
  * 주문 패널의 취소 처리 결과에 남는다.
  */
 function StaffCancellationForm({
   cancellation,
+  detailHref,
   orderId,
   requiresWarehouseStop,
 }: {
   cancellation: OrderCancellationConsole;
+  detailHref: string;
   orderId: string;
   requiresWarehouseStop: boolean;
 }) {
@@ -708,7 +705,6 @@ function StaffCancellationForm({
   const confirmation = '이 주문 전체를 취소하고 결제 금액 전액을 결제사에서 취소할까요? 되돌릴 수 없고 구매자에게 취소 알림이 갑니다.';
   const reasonId = `admin-order-staff-cancel-reason-${orderId}`;
   const noteId = `admin-order-staff-cancel-note-${orderId}`;
-  const stopId = `admin-order-staff-cancel-stop-${orderId}`;
 
   return (
     <form
@@ -722,7 +718,7 @@ function StaffCancellationForm({
         confirmation,
         'staffCancel',
         orderId,
-        (formData) => staffCancellationClientErrors(formData, requiresWarehouseStop),
+        staffCancellationClientErrors,
       )}
     >
       <CancellationIntentFields intent="staffCancel" orderId={orderId} />
@@ -756,25 +752,8 @@ function StaffCancellationForm({
         rows={2}
       />
       {errors?.note ? <span className={FIELD_ERROR_CLASS} id={`${noteId}-error`} role="alert">{errors.note}</span> : null}
-      {requiresWarehouseStop ? (
-        <label className="flex items-start gap-2 text-sm" htmlFor={stopId}>
-          <input
-            className="mt-0.5"
-            aria-describedby={errors?.warehouseStopConfirmed ? `${stopId}-error` : undefined}
-            aria-invalid={errors?.warehouseStopConfirmed ? true : undefined}
-            disabled={pending}
-            id={stopId}
-            name="warehouseStopConfirmed"
-            required
-            type="checkbox"
-            value="confirmed"
-          />
-          <span>출고지시 파일이 나간 배송 건이 있습니다. 창고에 출고 중단을 확인했습니다.</span>
-        </label>
-      ) : null}
-      {errors?.warehouseStopConfirmed ? (
-        <span className={FIELD_ERROR_CLASS} id={`${stopId}-error`} role="alert">{errors.warehouseStopConfirmed}</span>
-      ) : null}
+      {/* 출고지시가 나간 배송 건은 확인란(운영자 진술)이 아니라 창고 회신 기록이 근거다(ADR-0046). */}
+      {requiresWarehouseStop ? <WarehouseStopRequirementNote detailHref={detailHref} orderId={orderId} /> : null}
       <small className="text-xs text-muted-foreground">
         발송 전 주문의 결제 금액 전액을 바로 취소합니다. 품절·출고 불가, 1:1 문의로 받은 취소 요청, 라이브 전환 전 심사용 테스트 결제 정리에 씁니다.
       </small>
@@ -1173,6 +1152,7 @@ function OrderDetail({
         {staffCancellation.available ? (
           <StaffCancellationForm
             cancellation={cancellation}
+            detailHref={adminOrderDetailHref(order.id, filters)}
             orderId={order.id}
             requiresWarehouseStop={staffCancellation.requiresWarehouseStop}
           />
