@@ -15,7 +15,7 @@ function record(id: string, name = '합성 KC 상품'): AdminGoodRecord {
   return { id, code: 'FIXTURE-GOOD', name, ipId: ip.id, firstPublishedAt: null, publishedAt: null, archivedAt: null,
     price: 1000, compareAtPrice: null, badge: null, stock: 'ok', stockQty: 0, allowBankTransfer: true,
     saleRestriction: 'none', bg: null, imagePath: null, notice: fixtureNoticePreset.notice, description: null,
-    galleryPaths: [], galleryUrls: [], detailImagePath: null, detailImageUrl: null };
+    galleryPaths: [], galleryUrls: [], detailImagePaths: [], detailImageUrls: [] };
 }
 
 export function KcPresetFixture() {

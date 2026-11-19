@@ -1108,6 +1108,7 @@ interface GoodDetailRow {
   description_image_paths?: string[];
   gallery_paths: string[] | null;
   detail_image_path: string | null;
+  detail_image_paths?: string[] | null;
   notice_maker: string | null;
   notice_origin: string | null;
   notice_material: string | null;
@@ -1194,7 +1195,7 @@ export async function getCatalogGoodDetail(
       additionalGoods: (good.additionalGoodIds ?? []).flatMap(id => {
         const additional = catalog.goods.find(item => item.id === id);
         return additional && additional.id !== good.id ? [additional] : [];
-      }), description: null, gallery: [], detailImageUrl: null, notice: EMPTY_GOODS_NOTICE };
+      }), description: null, gallery: [], detailImageUrls: [], notice: EMPTY_GOODS_NOTICE };
   }
   if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return null;
   const supabase = await createClient();
@@ -1203,7 +1204,7 @@ export async function getCatalogGoodDetail(
   const detailQuery = supabase
     .from('goods')
     /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-    .select('description,description_format,description_image_paths,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,ips!inner(id)')
+    .select('description,description_format,description_image_paths,gallery_paths,detail_image_path,detail_image_paths,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,ips!inner(id)')
     .eq('id', goodId)
     .is('archived_at', null)
     .not('published_at', 'is', null)
@@ -1270,7 +1271,10 @@ export async function getCatalogGoodDetail(
     kcDisclosures,
     otherCertifications,
     gallery: (row.gallery_paths ?? []).map((path) => imageBg(imageUrlForPath(path))),
-    detailImageUrl: row.detail_image_path ? imageUrlForPath(row.detail_image_path) : null,
+    // 목록 칸이 없는 옛 응답(배포 순간)은 한 장 칸으로 채운다.
+    detailImageUrls: (row.detail_image_paths ?? (row.detail_image_path ? [row.detail_image_path] : []))
+      .map((path) => imageUrlForPath(path))
+      .filter((url): url is string => Boolean(url)),
     notice: {
       maker: row.notice_maker,
       origin: row.notice_origin,

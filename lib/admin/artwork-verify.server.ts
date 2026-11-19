@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   ADMIN_ARTWORK_BLOCK_MESSAGES,
+  adminArtworkRejectMessage,
   normalizeAdminArtworkMetadata,
   parseAdminArtworkPath,
   type AdminArtworkKind,
@@ -139,6 +140,9 @@ export async function verifyAdminArtworkUploadRequest(
   if (!result) return { ok: false, error: ADMIN_ARTWORK_VERIFY_ERROR, status: 422 };
   if ('blockedReason' in result) {
     return { ok: false, error: ADMIN_ARTWORK_BLOCK_MESSAGES[result.blockedReason], status: 429 };
+  }
+  if ('rejection' in result) {
+    return { ok: false, error: adminArtworkRejectMessage(metadata.value.kind, result.rejection), status: 422 };
   }
   if (!library) return { ok: true, imagePath: result.imagePath };
   return { ok: true, imagePath: result.imagePath, library: await registerVerifiedGoodsPhoto(auth, result.imagePath, library.name) };
