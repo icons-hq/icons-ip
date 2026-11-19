@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { INQUIRY_WITHDRAWAL_SCOPE } from '@/lib/account-deletion';
 import {
+  kakaoUnlinkWithdrawalConfirmMessage,
   MEMBER_WITHDRAWAL_RETAINED,
+  memberWithdrawalBasisLabel,
+  normalizeKakaoUnlinkWithdrawalForm,
   MEMBER_WITHDRAWAL_UNCONFIRMED,
   memberWithdrawalConfirmMessage,
   memberWithdrawalErasedSummary,
@@ -123,5 +126,54 @@ describe('남는 정보 고지의 원천', () => {
     for (const item of INQUIRY_WITHDRAWAL_SCOPE.retained) expect(text).toContain(item);
     expect(text).toContain(INQUIRY_WITHDRAWAL_SCOPE.transactionRecords);
     expect(text).toContain('같은 이메일로 다시 가입할 수 없습니다');
+  });
+});
+
+describe('카카오 알림 근거', () => {
+  const UNLINK = { reason: 'ACCOUNT_DELETE', eventAt: '2026-11-19T01:00:00.5+00:00', accountClosed: true };
+  const PENDING = { processed: false, processedAt: null, inquiryReference: null, signinBlocked: false, signinBlockedAt: null };
+  const KAKAO = { ...STATUS, inquiryReference: null, basis: 'kakao_unlink', kakaoUnlink: UNLINK };
+
+  it('처리 전 대기 중이면 해제를, 카카오 알림으로 처리했으면 근거를 함께 받는다', () => {
+    expect(parseMemberWithdrawalStatus({ ...PENDING, kakaoUnlink: { ...UNLINK, accountClosed: false } }))
+      .toEqual({ ...PENDING, kakaoUnlink: { ...UNLINK, accountClosed: false } });
+    expect(parseMemberWithdrawalStatus(KAKAO)).toEqual(KAKAO);
+    for (const broken of [
+      { ...KAKAO, inquiryReference: 1234 }, { ...KAKAO, kakaoUnlink: undefined }, { ...KAKAO, basis: 'email' },
+      { ...STATUS, kakaoUnlink: UNLINK }, { ...PENDING, basis: 'kakao_unlink' }, { ...PENDING, kakaoUnlink: { reason: 'x' } },
+    ]) expect(parseMemberWithdrawalStatus(broken)).toBeNull();
+  });
+
+  it('카카오 알림 처리 결과는 카카오 연결 삭제 수를 갖고, 문의 처리 결과에는 없어야 한다', () => {
+    const erased = { ...ERASED, kakaoIdentities: 1 };
+    expect(parseMemberWithdrawalOutcome({ ...KAKAO, status: 'processed', suspended: true, erased, revokedSessions: 1 }))
+      .toEqual({ status: 'processed', withdrawal: KAKAO, erased, revokedSessions: 1 });
+    expect(parseMemberWithdrawalOutcome({ ...KAKAO, status: 'processed', erased: ERASED, revokedSessions: 1 })).toBeNull();
+    expect(parseMemberWithdrawalOutcome({ ...STATUS, status: 'processed', erased, revokedSessions: 1 })).toBeNull();
+    expect(memberWithdrawalErasedSummary({ ...ERASED, addressBookEntries: 0, phoneNumbers: 0, marketingConsents: 0, restockAlerts: 0, kakaoIdentities: 1 }, 0))
+      .toBe('카카오 로그인 연결 1건');
+  });
+
+  it('근거 표시는 문의 번호 또는 카카오 해제 사유다', () => {
+    expect(memberWithdrawalBasisLabel(STATUS)).toBe('문의 #1234');
+    expect(memberWithdrawalBasisLabel(KAKAO as never)).toBe('카카오 알림 · 카카오계정 탈퇴');
+  });
+
+  it('입력은 회원과 메모뿐이고 확인 문구는 사유·수신 시각·되돌릴 수 없음을 말한다', () => {
+    expect(normalizeKakaoUnlinkWithdrawalForm(form({ profileId: MEMBER.toUpperCase(), note: '  카카오 알림 확인  ' })))
+      .toEqual({ ok: true, value: { profileId: MEMBER, note: '카카오 알림 확인' } });
+    const invalid = normalizeKakaoUnlinkWithdrawalForm(form({ profileId: 'nope', note: '가' }));
+    expect(invalid.ok ? [] : Object.keys(invalid.errors).sort()).toEqual(['note', 'profileId']);
+    const message = kakaoUnlinkWithdrawalConfirmMessage(UNLINK);
+    expect(message).toMatch(/^카카오 연결 해제 알림 · 카카오계정 탈퇴 · 2026\. 11\. 19\./);
+    expect(message).toContain('카카오 로그인 연결');
+    expect(message).toContain('되돌릴 수 없고');
+  });
+
+  it('카카오 처리 거절 사유를 운영자 문구로 바꾼다', () => {
+    expect(memberWithdrawalRpcError('kakao_unlink_member_request_required', 'kakao_unlink')).toContain('확인 연락 뒤');
+    expect(memberWithdrawalRpcError('kakao_unlink_withdrawal_not_queued', 'kakao_unlink')).toContain('탈퇴 검토 대기 회원이 아닙니다');
+    expect(memberWithdrawalRpcError('invalid_member_withdrawal', 'kakao_unlink')).toBe('처리 메모를 다시 확인해주세요.');
+    expect(memberWithdrawalRpcError('invalid_member_withdrawal')).toBe('문의 번호와 처리 메모를 다시 확인해주세요.');
   });
 });
