@@ -29,6 +29,9 @@ import { OrderNoteForm } from './OrderNoteForm';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import { ShipmentPreorderPromisePanel } from '@/components/admin/ShipmentPreorderPromisePanel';
 import { ShipmentDeliveryPanel } from '@/components/admin/ShipmentDeliveryPanel';
+import { ShipmentStatusRevertPanel } from '@/components/admin/ShipmentStatusRevertPanel';
+import { shipmentRevertKind } from '@/lib/admin/shipment-revert';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 import { SellerClaimIntakeButton } from './SellerClaimIntakeForm';
 import { OrderAddressButton } from './OrderAddressEditor';
@@ -51,6 +54,8 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.shipment.preorder_promise_changed': '예약 발송 일정 변경',
   'admin.shipment.delivery_method_selected': '배송 방식 변경', 'admin.shipment.delivery_evidence_recorded': '인계·수령 근거 기록',
   'admin.order.forced_delivered': '강제 배송완료',
+  'admin.shipment.delivery_reverted': '배송완료 되돌리기', 'admin.shipment.dispatch_reverted': '발송 되돌리기',
+  'admin.shipment.arrival_recorded': '택배사 배송완료 일시 기록',
   'admin.order.address_changed': '배송지 변경',
   'admin.order.status_updated': '주문 상태 변경', 'admin.order.tracking_updated': '운송장 수정',
   'admin.order.note': '운영자 메모', 'admin.order.dispatch_delay_noted': '발송 지연 기록',
@@ -347,6 +352,13 @@ export function OrderDetailScreen({
       <div className={shipmentItemsRedundant ? '[&_section>ul]:hidden' : undefined}><ShipmentDetails admin shipments={detail.shipments} items={items} transactionShipping={order.transaction?.shipping} /></div>
       {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}
       {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} key={shipment.id} />) : null}
+      {/* 배송 상태 정정(ADR-0045): 엉뚱한 배송 건의 발송·배송완료를 한 단계 되돌린다. 끝난 주문(거래확정·취소)은 DB가 막으므로 그리지 않는다. */}
+      {canManage && !['done', 'canceled'].includes(order.status) ? <ShipmentStatusRevertPanel targets={detail.shipments.flatMap(shipment => {
+        const kind = shipmentRevertKind(shipment.status, isParcelShipment(shipment));
+        return kind ? [{ id: shipment.id, reference: commerceReferenceLabel(shipment.id, shipment.shipmentNumber), originName: shipment.originName, kind,
+          expected: kind === 'delivery' ? shipment.deliveredAt : shipment.trackingNumber,
+          trackingLabel: shipment.trackingNumber ? `${shipment.carrierLabel ?? shipment.carrier ?? ''} ${shipment.trackingNumber}`.trim() : null }] : [];
+      })} /> : null}
       {canManage ? detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel orderId={order.id} shipmentId={shipment.id} key={shipment.id} />) : null}
       {canManage && detail.emailJobs.length ? <section className="flex flex-col gap-2 border-t pt-4" aria-label="배송 메일 처리 상태">
         <h3 className="text-sm font-medium text-foreground">배송 안내 메일</h3>

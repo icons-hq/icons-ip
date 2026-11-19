@@ -75,6 +75,9 @@ const operators = [
   sql('delivery_tracking_auto_complete'),
   script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
   script('tracking_number_integrity_concurrency.sh', 'TRACKING_INTEGRITY_TEST_SCOPE'),
+  // 배송완료·발송 되돌리기와 택배사 도착 일시(ADR-0045), 되돌리기 대 자동 구매확정·반품 접수 경합.
+  sql('shipment_status_revert'),
+  script('shipment_status_revert_concurrency.sh', 'SHIPMENT_REVERT_TEST_SCOPE'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),

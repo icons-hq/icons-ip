@@ -94,6 +94,16 @@ describe('배송 건 콘솔',()=>{
   expect(html).toContain('target="_blank"');expect(html).toContain('rel="noopener noreferrer"');
   expect(html).toContain('주문 00000001 상세 열기 (새 탭)');expect(html).toContain('back=%2Fadmin%2Fsales%2Fdispatch');
  });
+ it('배송현황의 택배 행에 판매 관리 권한만 한 단계 되돌리기를 둔다: 배송 중은 발송 되돌리기, 배송완료는 배송완료 되돌리기(ADR-0045)',()=>{
+  const transit={...row,status:'shipping' as const,carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'};
+  const delivered={...transit,id:'20000000-0000-4000-8000-000000000999',status:'delivered' as const,deliveredAt:'2026-09-09T02:00:00Z'};
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[transit,delivered]}}/>);
+  expect(html).toContain('>발송 되돌리기<');expect(html).toContain('>배송완료 되돌리기<');expect(html).toContain('data-shipment-revert="dispatch"');
+  const logistics=renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[transit,delivered]}}/>);
+  expect(logistics).not.toContain('되돌리기');
+  const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'ready'},rows:[{...row,status:'ready' as const}]}}/>);
+  expect(dispatch).not.toContain('되돌리기');
+ });
  it('배송완료는 배송 건 선택으로 처리하고 개별 운송장 링크를 보여준다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'}]}}/>);
   expect(html).toContain('선택 배송완료');expect(html).toContain('https://example.test/12345678');
