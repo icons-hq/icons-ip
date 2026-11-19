@@ -841,7 +841,11 @@ describe('legal revision date guard', () => {
 
   it('checks the partial return terms revision dates (ADR-0047) with the same rules in production builds', () => {
     expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: source('2026-11-20', '2026-11-26') }))
-      .toThrow(/at least 7 days/);
+      .toThrow(/in partial-return-terms-revision\.json: effectiveDate .* at least 7 days/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: '{ not json' }))
+      .toThrow(/partial-return-terms-revision\.json is not valid JSON/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { revisionSource: '{ not json' }))
+      .toThrow(/shipping-bundle-wording-revision\.json is not valid JSON/);
     expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: source(null, null) })).not.toThrow();
   });
 });

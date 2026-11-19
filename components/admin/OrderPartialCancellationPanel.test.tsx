@@ -153,3 +153,21 @@ describe('부분 반품 환불 줄(ADR-0047)', () => {
     expect(html).toContain('반품 요청:');
   });
 });
+
+describe('부분 반품 환불 줄의 결제사 확인(ADR-0047, 적대적 리뷰 2026-11-19)', () => {
+  it('결제사 확인 전인 부분 반품 줄은 \'결제사 확인 다시 하기\'를 두지 않고 반품 상세의 [환불 완료 확정]을 가리킨다', () => {
+    const html = view(context({ history: [record({ reasonCode: 'return', claimId: 'dddddddd-0000-4000-8000-00000000000d', state: 'processing',
+      appliedAt: null, completedAt: null })] }));
+    expect(html).not.toContain('결제사 확인 다시 하기');
+    expect(html).toContain('반품 요청 상세에서 [환불 완료 확정]으로 확인합니다');
+    const stockout = view(context({ history: [record({ state: 'processing', appliedAt: null, completedAt: null })] }));
+    expect(stockout).toContain('결제사 확인 다시 하기');
+  });
+
+  it('결제사가 받지 않아 닫힌 부분 반품 줄은 계좌 송금 전환을 가리킨다', () => {
+    const html = view(context({ history: [record({ reasonCode: 'return', claimId: 'dddddddd-0000-4000-8000-00000000000d', state: 'rejected',
+      appliedAt: null, completedAt: null })] }));
+    expect(html).toContain('계좌 송금 부분 환불로 전환합니다');
+  });
+});
+

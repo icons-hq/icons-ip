@@ -529,37 +529,48 @@ export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
 /**
  * 접수 안내. 반품배송비 차감(ADR-0031)이 꺼져 있으면 위 문구 그대로다. 켜져 있으면 반품 안내의 '전액' 문장을
  * 단순 변심 반품의 차감 규칙(편도, 최초 무료배송이면 왕복, 하자·오배송은 차감 없음)으로 바꾼다.
- * 재고 부족 부분 취소(ADR-0032)가 적용된 주문이면 취소·반품 안내의 '결제금액 전액'을 '남은 결제 금액'으로 바꾼다
- * (이미 일부 취소한 금액은 다시 돌려주지 않는다). 부분 취소가 없으면 문구는 그대로다.
+ * 부분 환불(재고 부족 부분 취소 ADR-0032·부분 반품 ADR-0047)이 적용된 주문이면 취소·반품 안내의 '결제금액 전액'을 '남은 결제 금액'으로
+ * 바꾼다(이미 일부 취소·반품으로 환불한 금액은 다시 돌려주지 않는다). 부분 환불이 없으면 문구는 그대로다.
  * 부분 반품(ADR-0047)이 켜져 있으면 반품 안내의 '일부 굿즈만 반품하는 처리는 제공하지 않습니다'를 굿즈·수량을 골라 반품하는
- * 문장과 그 환불액 규칙으로 바꾼다. 꺼져 있으면 문구는 그대로다.
+ * 문장과 그 환불액 규칙으로 바꾸고, '전체 회수'·'결제금액 전액'을 주문 전체 반품에만 걸리게 말한다. 차감이 켜져 있으면 부분 취소를 받지
+ * 않는 결제의 일부 반품은 전액 환불이 아니라 계좌 송금이라고 말한다. 꺼져 있으면 문구는 그대로다.
  */
 export function orderClaimIntakeNotice(
   claimType: OrderClaimType,
   deduction: { enabled: boolean; oneWayAmount: number | null } | null = null,
   { partiallyCanceled = false, partialReturn = false }: { partiallyCanceled?: boolean; partialReturn?: boolean } = {},
 ): string {
-  const notice = claimType === 'return' && partialReturn
-    ? ORDER_CLAIM_INTAKE_NOTICES.return.replace(
-      '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다.',
-      `배송 중부터 반품을 직접 신청할 수 있고, ${PARTIAL_RETURN_INTAKE_SENTENCE}`,
-    )
+  const partial = claimType === 'return' && partialReturn;
+  const notice = partial
+    ? ORDER_CLAIM_INTAKE_NOTICES.return
+      .replace(
+        '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다.',
+        `배송 중부터 반품을 직접 신청할 수 있고, ${PARTIAL_RETURN_INTAKE_SENTENCE}`,
+      )
+      .replace('안내된 배송 묶음별 반송지에서 전체 회수를 확인하며', '안내된 배송 묶음별 반송지에서 반품하신 굿즈의 회수를 확인하며')
     : ORDER_CLAIM_INTAKE_NOTICES[claimType];
   const fullRefund = '승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.';
-  const amount = partiallyCanceled ? '이미 일부 취소한 금액을 뺀 남은 결제 금액' : '최초 선결제 배송비를 포함한 결제금액';
+  const amount = partiallyCanceled ? '이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액' : '최초 선결제 배송비를 포함한 결제금액';
+  /* 부분 반품이 켜져 있으면 '결제금액 전액'은 주문 전체 반품의 환불이다(일부 반품은 위 문장의 고른 굿즈 몫). */
+  const refundSubject = partial ? '주문 전체 반품의 환불은' : '승인된 환불은';
   if (claimType === 'cancel') {
     return partiallyCanceled
-      ? notice.replace('승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고', '승인되면 이미 일부 취소한 금액을 뺀 남은 결제 금액이 취소되고')
+      ? notice.replace('승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고', '승인되면 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액이 취소되고')
       : notice;
   }
   if (claimType !== 'return') return notice;
   if (!deduction?.enabled || !deduction.oneWayAmount) {
-    return partiallyCanceled ? notice.replace(fullRefund, `승인된 환불은 ${amount}으로 처리합니다.`) : notice;
+    return partiallyCanceled || partial
+      ? notice.replace(fullRefund, `${refundSubject} ${amount}${partiallyCanceled ? '' : ' 전액'}으로 처리합니다.`)
+      : notice;
   }
   const oneWay = `${deduction.oneWayAmount.toLocaleString('ko-KR')}원`;
   const roundTrip = `${(deduction.oneWayAmount * 2).toLocaleString('ko-KR')}원`;
+  const unsupported = partial
+    ? `결제 수단이 부분 취소를 지원하지 않으면 주문 전체 반품은 ${partiallyCanceled ? '남은 결제 금액을 모두' : '전액'} 환불하고 반품배송비는 따로 안내하며, 일부 반품은 담당자가 연락드려 계좌로 송금해 환불합니다.`
+    : `결제 수단이 부분 취소를 지원하지 않으면 ${partiallyCanceled ? '남은 결제 금액을 모두' : '전액'} 환불하고 반품배송비는 따로 안내합니다.`;
   return notice.replace(
     fullRefund,
-    `승인된 환불은 ${amount}으로 처리하며, 단순 변심 반품은 반품배송비 ${oneWay}(최초 무료배송 주문은 왕복 ${roundTrip})을 빼고 환불합니다. 굿즈 하자·오배송은 빼지 않습니다. 결제 수단이 부분 취소를 지원하지 않으면 ${partiallyCanceled ? '남은 결제 금액을 모두' : '전액'} 환불하고 반품배송비는 따로 안내합니다.`,
+    `${refundSubject} ${amount}으로 처리하며, 단순 변심 반품은 반품배송비 ${oneWay}(최초 무료배송 주문은 왕복 ${roundTrip})을 빼고 환불합니다. 굿즈 하자·오배송은 빼지 않습니다. ${unsupported}`,
   );
 }

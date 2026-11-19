@@ -465,7 +465,11 @@ export function createLegalDocuments(
   today: string = kstToday(),
   shippingBundleRevision: ShippingBundleWordingRevision | null = SHIPPING_BUNDLE_WORDING_REVISION,
   contactChannelsPrivacyRevision: ContactChannelsPrivacyRevision | null = CONTACT_CHANNELS_PRIVACY_REVISION,
-  partialReturnRevision: PartialReturnTermsRevision | null = PARTIAL_RETURN_TERMS_REVISION,
+  /*
+   * 이 뒤의 예약 개정은 위치 인자가 아니라 이름으로 받는다 — 같은 시기에 다른 작업이 개정 인자를 더해도 순서가 엇갈려 다른 개정의
+   * 날짜가 들어가지 않게(위치 인자 네 개는 기존 호출 그대로). 키를 생략하면 운영 날짜 파일, null이면 예약 없음이다.
+   */
+  { partialReturnRevision = PARTIAL_RETURN_TERMS_REVISION }: { partialReturnRevision?: PartialReturnTermsRevision | null } = {},
 ) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는

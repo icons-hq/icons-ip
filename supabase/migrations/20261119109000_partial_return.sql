@@ -1342,6 +1342,25 @@ select private.j47_patch_function('public.guard_order_transition_during_cancella
           and request.status in ('requested', 'processing', 'needs_review')
           and not (new.status in ('shipping', 'delivered') and private.claim_is_partial_return(request.id))$a$);
 
+-- 결제사 확인을 기다리는 부분 환불 원장도 출고를 막는다(ADR-0032). 부분 반품 원장은 이미 나간 배송 건의 환불이라 출고 판정에서 빼고 —
+-- 고른 품목의 배송 건은 진행 중 클레임이 막는다 — 재고 부족 부분 취소만 남긴다. 주문 단위의 다른 판정(전체 취소·반품 접수·부분 취소
+-- 시작·결제사 직접 취소)은 order_partial_cancel_in_flight 그대로 부분 반품 원장도 막는다(같은 결제의 돈이 움직이는 중).
+create function private.order_partial_cancel_blocks_dispatch(p_order_id uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists(select 1 from private.order_partial_cancellations head
+    where head.order_id = p_order_id and head.state in ('processing', 'needs_review') and head.reason_code <> 'return');
+$$;
+revoke all on function private.order_partial_cancel_blocks_dispatch(uuid) from public, anon, authenticated, service_role;
+select private.j47_patch_function(fn, 'private.order_partial_cancel_in_flight(', 'private.order_partial_cancel_blocks_dispatch(')
+from unnest(array['private.assert_order_dispatch_allowed(uuid)', 'private.admin_shipment_export_before_preorder(uuid[])',
+  'public.admin_origin_pending_export_ids(uuid)', 'private.shipment_pack_ready(uuid)', 'private.guard_shipment_dispatch_during_partial_cancel()',
+  'public.admin_shipment_partial_cancel_flags(uuid[])', 'public.guard_order_transition_during_cancellation()']) fn;
+
+-- 환불 송금 대기 목록의 부분 환불 줄에 종류(재고 부족 부분 취소·부분 반품)를 싣는다 — 목록·엑셀이 'N차 부분 반품'으로 가른다.
+select private.j47_patch_function('public.admin_list_bank_transfer_refunds_numbered(integer,integer)',
+  $a$'orderNumber',purchase.order_number,'sequence',head.sequence,$a$,
+  $a$'orderNumber',purchase.order_number,'sequence',head.sequence,'reasonCode',head.reason_code,$a$);
+
 -- 21-4. 리뷰 이벤트 구매 자격: 부분 반품 완료는 주문 전체 반품 완료가 아니다(결정 8). 그 굿즈의 살아 있는 수량이 남아 있어야 한다.
 select private.j47_patch_function('private.review_event_purchase_eligible(uuid,uuid,text)',
   $a$and exists(select 1 from public.order_items item where item.order_id=o.id and item.good_id=p_good_id)$a$,
@@ -1436,7 +1455,10 @@ do $$declare fn regprocedure; contract record; begin
     'public.get_product_detail_experience(text)'::regprocedure,
     'public.get_product_detail_presentation(text)'::regprocedure,
     'public.admin_search_shopping_story_goods_filtered(text,integer,jsonb)'::regprocedure,
-    'public.admin_resolve_goods_references(text[])'::regprocedure] loop
+    'public.admin_resolve_goods_references(text[])'::regprocedure,
+    'private.guard_shipment_dispatch_during_partial_cancel()'::regprocedure,
+    'public.admin_shipment_partial_cancel_flags(uuid[])'::regprocedure,
+    'public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only); end if;
     if exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

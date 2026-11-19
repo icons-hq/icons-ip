@@ -9,6 +9,11 @@ const mocks = vi.hoisted(() => ({
   order: { id: 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c', user_id: 'user-1' } as Record<string, unknown> | null,
   rpc: vi.fn(),
   scheduleApprovedOrderCancellation: vi.fn(),
+  partialReturnEnabled: true,
+}));
+
+vi.mock('@/lib/orders/partial-return.server', () => ({
+  loadPartialReturnPolicy: async () => ({ enabled: mocks.partialReturnEnabled }),
 }));
 
 vi.mock('@/lib/gifts-order.server', () => ({ loadGiftCheckoutOrder: async () => ({ kind: 'ordinary' }) }));
@@ -120,6 +125,7 @@ describe('POST /api/orders/[orderId]/claims — 부분 반품(ADR-0047)', () => 
     mocks.order = { id: ORDER_UUID, user_id: USER_ID };
     mocks.rpc.mockReset();
     mocks.scheduleApprovedOrderCancellation.mockReset();
+    mocks.partialReturnEnabled = true;
   });
 
   it('품목을 보낸 반품은 부분 반품 접수 함수로 보낸다', async () => {
@@ -137,7 +143,18 @@ describe('POST /api/orders/[orderId]/claims — 부분 반품(ADR-0047)', () => 
     expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
   });
 
-  it('스위치가 꺼져 있으면(partial_return_disabled) 지금처럼 invalid_body로 거부한다 — 주문 전체로 바꿔 접수하지 않는다', async () => {
+  it('스위치가 꺼져 있으면 품목이 든 요청은 예전처럼 인증·주문 조회 전에 invalid_body다 — 주문 전체로 바꿔 접수하지 않는다', async () => {
+    mocks.partialReturnEnabled = false;
+    mocks.user = null;
+
+    const response = await POST(request({ claimType: 'return', items: [{ orderItemId: ITEM, qty: 1 }] }), context);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'invalid_body' } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('켜져 있다가 접수 사이 꺼지면(partial_return_disabled) 같은 invalid_body로 거부한다', async () => {
     mocks.rpc.mockResolvedValue({ data: 'partial_return_disabled', error: null });
 
     const response = await POST(request({ claimType: 'return', items: [{ orderItemId: ITEM, qty: 1 }] }), context);

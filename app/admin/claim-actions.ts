@@ -97,6 +97,10 @@ const DECISION_MESSAGES: Record<string, string> = {
   resume: '보류를 해제했습니다.',
 };
 
+/** 결제사가 부분 취소를 받지 않은 부분 반품을 계좌 송금으로 바꾸는 사유 길이(DB와 같다). */
+const PARTIAL_RETURN_TRANSFER_REASON_MIN = 5;
+const PARTIAL_RETURN_TRANSFER_REASON_MAX = 500;
+
 /** DB가 던지는 message를 운영자 문구로 옮긴다. 원문을 그대로 노출하지 않는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   const value = (message ?? '').toLowerCase();
@@ -104,6 +108,12 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('partial_return_refund_method_mismatch')) return '이 부분 반품의 환불 수단과 다릅니다. 토스 결제는 결제사 부분 취소, 무통장은 계좌 송금입니다. 화면을 새로고침해주세요.';
   if (value.includes('partial_return_state_changed')) return '부분 반품 품목의 배송·수량 상태가 바뀌었습니다. 최신 상태를 확인해주세요. 환불과 재고는 그대로입니다.';
   if (value.includes('partial_return_uses_partial_refund')) return '부분 반품은 주문 전체 결제 취소가 아니라 고른 굿즈 몫의 부분 환불로만 처리합니다. 화면을 새로고침한 뒤 [환불 완료 확정]을 다시 눌러주세요.';
+  if (value.includes('partial_return_transfer_reason_required')) return `계좌 송금으로 바꾸는 사유를 ${PARTIAL_RETURN_TRANSFER_REASON_MIN}~${PARTIAL_RETURN_TRANSFER_REASON_MAX}자로 적어주세요.`;
+  if (value.includes('partial_return_transfer_account_required')) return '고객에게 받은 환불계좌(은행·계좌번호 숫자와 - 8~30자·예금주)를 확인해주세요.';
+  if (value.includes('partial_return_transfer_operation_conflict')) return '같은 작업 번호로 다른 요청이 처리됐습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
+  if (value.includes('partial_return_transfer_unavailable')) return '결제사가 부분 취소를 받지 않아 닫힌 부분 반품만 계좌 송금으로 바꿀 수 있습니다. 이미 바꿨거나 상태가 달라졌습니다 — 화면을 새로고침해주세요.';
+  if (value.includes('partial_return_transfer_remainder_manual')) return '앞선 부분 반품 환불을 계좌로 송금한 결제라 이 금액(결제액 기준)으로 계좌 송금을 기록하면 같은 돈을 두 번 돌려줍니다. 결제 담당과 개발 요청으로 남은 환불액을 맞춰 처리해주세요.';
+  if (value.includes('bank_refund_permission_required')) return '계좌 송금 환불 권한(결제 담당)이 필요합니다. 대표 또는 계정 주매니저에게 요청해주세요.';
   if (value.includes('defective_stock_item_not_in_claim')) return '이 부분 반품에서 고른 품목만 불량으로 고를 수 있습니다.';
   if (value.includes('claim_conversion_partial_return')) return '부분 반품은 교환으로 바꿀 수 없습니다. 교환은 주문 전체로만 받습니다.';
   if (value.includes('partial_return_')) return '부분 반품을 처리할 수 없는 상태입니다(결제 수단·배분·품목 상태). 클레임 상세의 부분 반품 칸에서 이유를 확인해주세요.';
@@ -610,6 +620,49 @@ export async function recordOrderClaimCarrierLossAction(
     : '배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.' };
 }
 
+/**
+ * 결제사가 부분 취소를 받지 않아 닫힌 부분 반품(ADR-0047)을 계좌 송금 부분 환불로 바꾼다. 결제 담당(무통장 송금 담당과 같은 판정 —
+ * DB가 세션까지 다시 본다)만, 사유와 고객에게 받은 환불계좌가 필요하다. 같은 계산을 송금 대기로 적용하고(고른 굿즈 재고 복원 포함),
+ * 송금 완료는 주문 상세의 부분 환불 기록(또는 환불 송금 대기 목록)에서 증빙으로 적는다. 전액 환불로 돌리지 않는다.
+ */
+export async function convertPartialReturnToTransferAction(
+  _previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const failure = '계좌 송금으로 바꾸지 못했습니다. 환불과 재고는 그대로입니다. 최신 상태를 확인해주세요.';
+  const access = await requireStaffAction();
+  if (access.error || !access.userId) return access.error ?? { error: failure };
+  if (!access.canManagePayments) return { error: '계좌 송금 환불 권한(결제 담당)이 필요합니다. 대표 또는 계정 주매니저에게 요청해주세요.' };
+  const claimId = formData.get('claimId'), operationId = formData.get('operationId');
+  if (!isUuid(claimId) || !isUuid(operationId)) return { error: failure };
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (reason.length < PARTIAL_RETURN_TRANSFER_REASON_MIN || reason.length > PARTIAL_RETURN_TRANSFER_REASON_MAX) {
+    return { error: `계좌 송금으로 바꾸는 사유를 ${PARTIAL_RETURN_TRANSFER_REASON_MIN}~${PARTIAL_RETURN_TRANSFER_REASON_MAX}자로 적어주세요.` };
+  }
+  const bankName = String(formData.get('bankName') ?? '').trim();
+  const accountNumber = String(formData.get('accountNumber') ?? '').trim();
+  const accountHolder = String(formData.get('accountHolder') ?? '').trim();
+  if (!bankName || bankName.length > 40 || !/^[0-9-]{8,30}$/u.test(accountNumber) || !accountHolder || accountHolder.length > 40) {
+    return { error: '고객에게 받은 환불계좌(은행·계좌번호 숫자와 - 8~30자·예금주)를 확인해주세요.' };
+  }
+  if (formData.get('confirmed') !== 'on') return { error: '고객과 계좌 송금 환불을 확인했다는 항목에 체크해주세요.' };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_convert_partial_return_refund_to_transfer', {
+    p_claim_id: claimId, p_reason: reason,
+    p_refund_account: { bankName, accountNumber, accountHolder }, p_operation_id: operationId,
+  });
+  if (error) return { error: rpcErrorMessage(error.message, failure) };
+  const result = typeof data === 'object' && data !== null && !Array.isArray(data) ? data as Record<string, unknown> : null;
+  if (!result || typeof result.refundAmount !== 'number' || (result.state !== 'awaiting_transfer' && result.state !== 'completed')) {
+    return { error: failure };
+  }
+  revalidateClaimSurfaces(claimId, 'return');
+  revalidatePath('/admin/sales/claims/refund-transfers');
+  return { message: result.state === 'completed'
+    ? '이미 송금까지 끝난 부분 반품입니다.'
+    : `계좌 송금 부분 환불(${krwAmountWords(result.refundAmount)})로 바꿨습니다. 환불 송금 대기에 올랐습니다 — 송금한 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.` };
+}
+
 interface ManualRecoveryAttemptRow {
   order_id: string;
   request_id: string;
@@ -896,7 +949,8 @@ async function recordPartialReturnRefund(
   if (dispositions && 'error' in dispositions) return { error: dispositions.error };
 
   if (input.stage === 'completed') {
-    if (input.provider === 'bank_transfer') return { error: PARTIAL_RETURN_BANK_COMPLETE };
+    /* 무통장 결제, 또는 결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 카드 결제(정산 경로 bank_transfer)는 송금 증빙이 완료를 정한다. */
+    if (input.provider === 'bank_transfer' || input.partial.settlement === 'bank_transfer') return { error: PARTIAL_RETURN_BANK_COMPLETE };
     if (input.claimStage !== 'completed') {
       if (!live) return { error: '먼저 [환불 접수]를 기록해주세요. 부분 반품 환불 금액은 환불 접수 때 정해집니다.' };
       if (dispositions) {

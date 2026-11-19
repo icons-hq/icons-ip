@@ -38,19 +38,19 @@ function shiftDay(date: string, days: number): string {
 /* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
 const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
 const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, null);
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, null);
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, null);
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, null);
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, { partialReturnRevision: null });
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, { partialReturnRevision: null });
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, { partialReturnRevision: null });
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: null });
 
 /* 방침 개정(휴대폰 번호 인증·이메일 변경)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 끄고(null) 2026-11-06 최초 판을 고정한다.
    BASE_LEGAL 은 실제 시계와 무관하게 방침 최초 판을 고정한 현행 문서 셋이다(방침 본문 문구를 검사하는 시험이 시행일 뒤에도 같은 본문을 본다). */
-const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, null);
+const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, { partialReturnRevision: null });
 /* 방침 개정 상태 — 날짜는 개정 상수에서 파생한다. 표기 개정은 꺼서(null) terms·shipping 을 건드리지 않게 한다. */
 const PRIVACY_NOW = CONTACT_CHANNELS_PRIVACY_REVISION;
-const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, null);
-const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, null);
-const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, null);
+const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, { partialReturnRevision: null });
+const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, { partialReturnRevision: null });
+const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, { partialReturnRevision: null });
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
@@ -237,7 +237,7 @@ describe('법정 문서 레지스트리', () => {
     expect(shippingBundleWordingRevisionAnnounced('2026-12-31', null)).toBe(false);
     expect(shippingBundleWordingRevisionInEffect('2099-01-01', null)).toBe(false);
     for (const today of ['2026-11-20', '2026-12-31', '2099-01-01']) {
-      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, null);
+      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, { partialReturnRevision: null });
       for (const slug of ['terms', 'shipping'] as const) {
         expect(set[slug].pendingRevision, `${slug} ${today}`).toBeUndefined();
         expect(set[slug].previousVersion, `${slug} ${today}`).toBeUndefined();
@@ -706,7 +706,7 @@ describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·�
     expect(contactChannelsPrivacyRevisionInEffect('2026-11-18', PRIVACY_NOW)).toBe(true);
     expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
     expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, null).privacy).toEqual(base);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, { partialReturnRevision: null }).privacy).toEqual(base);
   });
 });
 
@@ -764,9 +764,9 @@ it("설정 연락처 변경을 모든 법정 문서에 반영한다",()=>{for(co
 describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·반품배송비 차감(ADR-0047)', () => {
   /* '출고지' 표기 개정(BUNDLE_REVISION)이 이미 시행된 뒤에 얹는다 — 날짜는 시험이 주입한다(운영 날짜는 머지 직전에 JSON으로 정한다). */
   const REVISION: PartialReturnTermsRevision = { announcedDate: shiftDay(BUNDLE_EFFECTIVE, 1), effectiveDate: shiftDay(BUNDLE_EFFECTIVE, 8) };
-  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, REVISION);
-  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, REVISION);
-  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, REVISION);
+  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: REVISION });
+  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION });
+  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION });
 
   it('공지 전에는 본문·공지가 그대로다', () => {
     expect(before.terms).toEqual(AFTER_BUNDLE.terms);
@@ -809,7 +809,7 @@ describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·�
     expect(partialReturnTermsRevisionAnnounced(REVISION.announcedDate, REVISION)).toBe(true);
     expect(partialReturnTermsRevisionInEffect(shiftDay(REVISION.effectiveDate, -1), REVISION)).toBe(false);
     expect(partialReturnTermsRevisionInEffect(REVISION.effectiveDate, REVISION)).toBe(true);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, null).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, { partialReturnRevision: null }).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
   });
 });
 

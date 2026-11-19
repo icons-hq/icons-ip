@@ -46,6 +46,7 @@ export const PARTIAL_RETURN_ORDER_BLOCKER_LABELS: Record<string, string> = {
   legacy_order: '이전 방식으로 계산된 주문이라 주문 전체로만 반품을 신청할 수 있습니다.',
   v1_allocation_mismatch: '할인·적립금 배분을 확정할 수 없는 주문이라 주문 전체로만 반품을 신청할 수 있습니다.',
   v1_allocation_unavailable: '할인·적립금 배분을 확정할 수 없는 주문이라 주문 전체로만 반품을 신청할 수 있습니다.',
+  payment_refunded_by_transfer: '앞선 반품 환불을 계좌로 송금한 결제라 일부 반품은 1:1 문의로 신청해 주세요.',
   order_not_found: '주문을 찾을 수 없습니다.',
 };
 
@@ -196,6 +197,10 @@ export interface AdminClaimPartialReturn {
   preview: AdminClaimPartialReturnPreview | null;
   /** 미리보기를 계산하지 못한 이유 코드(DB 거절 문구). */
   previewError: string | null;
+  /** 살아 있는 원장의 정산 경로: toss = 결제사 부분 취소, bank_transfer = 계좌 송금(무통장 결제 또는 계좌 송금 전환). 원장이 없으면 null. */
+  settlement: 'toss' | 'bank_transfer' | null;
+  /** 결제사가 부분 취소를 받지 않아 닫힌 뒤 계좌 송금 부분 환불로 바꿀 수 있는지(결제 담당에게만 true). */
+  transferConvertible: boolean;
 }
 
 export function parseAdminClaimPartialReturn(value: unknown): AdminClaimPartialReturn | null {
@@ -236,6 +241,8 @@ export function parseAdminClaimPartialReturn(value: unknown): AdminClaimPartialR
     history: parseOrderPartialCancellationRecords(row.history),
     preview,
     previewError,
+    settlement: row.settlement === 'toss' || row.settlement === 'bank_transfer' ? row.settlement : null,
+    transferConvertible: row.transferConvertible === true,
   };
 }
 

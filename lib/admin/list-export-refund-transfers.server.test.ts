@@ -107,7 +107,7 @@ describe('환불 송금 대기 목록 시트 로더', () => {
   });
   it('무통장 부분 취소 송금 대기는 요청 계좌 열람(요약 기록) 뒤 같은 내려받기 번호로 열고, 시트에 부분 취소 행으로 싣는다', async () => {
     const partial: RefundTransferRow = { kind: 'partial_cancellation', partialCancellationId: 'f0000000-0000-4000-8000-000000000001', orderId: row(1).orderId,
-      sequence: 2, amount: 9500, confirmedAt: '2026-11-08T05:00:00Z', filedAt: '2026-11-08T05:00:00Z', updatedAt: '2026-11-08T05:00:00Z', gift: false, payerName: '결제자1' };
+      sequence: 2, reasonCode: 'out_of_stock', amount: 9500, confirmedAt: '2026-11-08T05:00:00Z', filedAt: '2026-11-08T05:00:00Z', updatedAt: '2026-11-08T05:00:00Z', gift: false, payerName: '결제자1' };
     mocks.loadRefundTransfers.mockResolvedValue({ rows: [row(1), partial], total: 2, page: 1, pageSize: 50 });
     mocks.serviceRpc.mockImplementation(async (name: string, args: { p_export_id: string; p_claims?: { claimId: string }[]; p_items?: { partialCancellationId: string }[] }) => ({ data: {
       exportId: args.p_export_id,

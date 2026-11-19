@@ -460,6 +460,18 @@ select pg_temp.pr_assert((select status = 'delivered' from public.order_shipment
  and (select state = 'allocated' from private.goods_preorder_reservations where order_item_id = pg_temp.pr_id('item-partial-return-c', 8))
  and (pg_temp.pr_claim(8)).status = 'requested' and (pg_temp.pr_claim(8)).stage = 'requested', 'other_shipment_dispatched_claim_intact');
 
+-- 환불 접수 뒤 결제사 확인을 기다리는 부분 반품 원장(processing)도 다른 배송 건의 출고를 막지 않는다(주문 15). 주문 단위 판정은 그대로 본다.
+select pg_temp.pr_order(15, 'toss', 3000, true);
+select pg_temp.pr_request('a:1@15');
+select pg_temp.pr_collect((pg_temp.pr_claim(15)).id);
+select public.admin_record_order_claim_refund((pg_temp.pr_claim(15)).id, 'pg_cancel', 'filed', null);
+select pg_temp.pr_assert((pg_temp.pr_head((pg_temp.pr_claim(15)).id)).state = 'processing'
+ and private.order_partial_cancel_in_flight(pg_temp.pr_id('order', 15)) and not private.order_partial_cancel_blocks_dispatch(pg_temp.pr_id('order', 15))
+ and private.shipment_pack_ready(pg_temp.pr_id('shipment-2', 15)), 'return_refund_in_flight_leaves_other_shipment');
+select private.assert_order_dispatch_allowed(pg_temp.pr_id('order', 15), array[pg_temp.pr_id('shipment-2', 15)]);
+select pg_temp.pr_error(format('select private.assert_order_dispatch_allowed(%L::uuid, %L::uuid[])', pg_temp.pr_id('order', 15),
+ array[pg_temp.pr_id('shipment-1', 15)]), 'order cancellation in progress');
+
 -- 14. 리뷰 이벤트 자격·판매 집계: 부분 반품 완료(주문 6: B 1개)는 주문 전체 반품 완료가 아니다. 남은 굿즈(A·C)는 자격·판매 수량에
 --     남고, 모두 반품된 B만 빠진다. 결제 증빙이 있는 합성 주문은 6뿐이다.
 insert into private.payment_provider_evidence(payment_attempt_id, evidence_kind, provider_payment_key, payment_method, approved_at)
@@ -501,7 +513,11 @@ select pg_temp.pr_request('b:1@14');
 select pg_temp.pr_collect((pg_temp.pr_claim(14)).id);
 select public.admin_record_order_claim_refund((pg_temp.pr_claim(14)).id, 'pg_cancel', 'filed', null);
 select public.service_reject_order_partial_cancellation((pg_temp.pr_head((pg_temp.pr_claim(14)).id)).id, 'provider_partial_cancel_unavailable', pg_temp.pr_id('user', 1));
-create temp table pr_convert on commit drop as select jsonb_build_object('bankName', 'TEST 합성은행', 'accountNumber', '000000001414', 'accountHolder', 'TEST 구매자') as account;
+-- 전환 전에 고른 품목의 불량 재고를 고를 수 있고, 전환(적용) 때 불량 품목은 판매 재고로 되돌리지 않는다.
+select pg_temp.pr_auth(1);
+select public.admin_plan_claim_defective_stock((pg_temp.pr_claim(14)).id, array[pg_temp.pr_id('item-partial-return-b', 14)]);
+create temp table pr_convert on commit drop as select jsonb_build_object('bankName', 'TEST 합성은행', 'accountNumber', '000000001414', 'accountHolder', 'TEST 구매자') as account,
+ pg_temp.pr_stock('partial-return-b') as b_stock;
 grant select on pr_convert to authenticated;
 set local role authenticated;
 select pg_temp.pr_auth(1);
@@ -528,7 +544,10 @@ select pg_temp.pr_assert((select provider = 'bank_transfer' and payment_id = pg_
    and diff->>'maskedAccount' like '%1414' and diff->>'refusedPartialCancellationId' is not null)
  and exists(select 1 from public.notifications where dedupe_key = 'partial-return:applied:'||(pg_temp.pr_head((pg_temp.pr_claim(14)).id)).id
    and body like '%결제사가 이 결제의 부분 취소를 받지 않아%')
- and private.order_partial_return_order_blocker(pg_temp.pr_id('order', 14)) = 'payment_refunded_by_transfer', 'transfer_conversion_state');
+ and private.order_partial_return_order_blocker(pg_temp.pr_id('order', 14)) = 'payment_refunded_by_transfer'
+ and pg_temp.pr_stock('partial-return-b') = (select b_stock from pr_convert)
+ and not exists(select 1 from public.order_shipment_items where order_item_id = pg_temp.pr_id('item-partial-return-b', 14)),
+ 'transfer_conversion_state');
 set local role authenticated;
 select pg_temp.pr_auth(1);
 select public.admin_record_order_partial_cancellation_transfer((pg_temp.pr_head(pg_temp.pr_claim_id(14))).id, 'TEST 이체확인 1414', 'TEST-ONLY 합성 송금. 실제 송금 없음.', pg_temp.pr_id('transfer', 14));

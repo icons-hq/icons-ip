@@ -4,6 +4,7 @@ import { krw } from '@/lib/format';
 import { orderPartialCancellationSummary } from '@/lib/orders/partial-cancellation';
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import { adminOrderSearchHref } from '@/lib/admin/orders';
+import { ClaimPartialReturnTransfer } from './ClaimPartialReturnTransfer';
 
 const STATE_LABELS: Record<string, string> = {
   processing: '결제사 부분 취소 대기 — [환불 완료 확정]을 누르면 발행합니다',
@@ -26,7 +27,9 @@ const FEE_REASON_LABELS: Record<string, string> = {
  * 클레임 상세의 부분 반품 칸(ADR-0047). 고른 굿즈·수량, 환불 접수 전에는 계산 미리보기(DB가 같은 함수로 접수 때 정한다), 접수 뒤에는
  * 부분 환불 원장의 상태와 금액을 보인다. 주문 전체 클레임이면 그리지 않는다.
  */
-export function ClaimPartialReturnPanel({ partialReturn, orderId }: { partialReturn: AdminClaimPartialReturn | null | undefined; orderId: string }) {
+export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
+  partialReturn: AdminClaimPartialReturn | null | undefined; orderId: string; claimId?: string;
+}) {
   if (partialReturn === undefined) {
     return <AdminNotice tone="warning">부분 반품 정보를 읽지 못했습니다. 환불을 진행하기 전에 화면을 새로고침해주세요.</AdminNotice>;
   }
@@ -69,9 +72,17 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId }: { partialRet
       ) : null}
       {refused.length && !live ? (
         <AdminNotice tone="warning">
-          결제사가 이 결제의 부분 취소를 받지 않았습니다(돈은 움직이지 않았습니다). 전액 환불로 돌리지 마세요 — 결제 담당이 고객과 처리 방법을 정한 뒤,
-          결제사 설정이 바뀌었으면 [환불 접수]를 다시 기록해 새로 시도합니다.
+          결제사가 이 결제의 부분 취소를 받지 않았습니다(돈은 움직이지 않았습니다). 전액 환불로 돌리지 마세요 — 결제 담당이 고객에게 환불계좌를 받아
+          [계좌 송금 부분 환불로 전환]으로 환급 기한(입고 확인 뒤 3영업일) 안에 송금합니다. 결제사 설정이 바뀌었으면 [환불 접수]를 다시 기록해 새로 시도할 수 있습니다.
         </AdminNotice>
+      ) : null}
+      {!live && partialReturn.transferConvertible && claimId && preview ? (
+        <ClaimPartialReturnTransfer claimId={claimId} refundAmount={preview.refundAmount} />
+      ) : null}
+      {live && live.state === 'awaiting_transfer' && partialReturn.history.some((record) => record.state === 'rejected') ? (
+        <p className="text-xs text-muted-foreground" data-partial-return-converted="">
+          결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 환불입니다. 이 결제는 결제사 잔액과 원장이 달라 이후 이 주문의 일부 반품은 받지 않습니다.
+        </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
         환불 금액은 [환불 접수]를 기록할 때 정해지고 바뀌지 않습니다. 남은 굿즈는 주문에 그대로 남고, 남은 굿즈를 모두 반품하면 주문 전체 반품으로 받습니다.{' '}

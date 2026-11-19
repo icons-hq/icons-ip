@@ -62,25 +62,27 @@ function isRealDate(value) {
   return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 
-export function validateLegalRevisionDates(source) {
+/** fileName은 오류 문구가 어느 날짜 파일인지 말하게 한다(약관 개정 날짜 파일이 둘 이상이다). */
+export function validateLegalRevisionDates(source, fileName = 'shipping-bundle-wording-revision.json') {
+  const prefix = `Invalid legal revision dates in ${fileName}`;
   let parsed;
   try {
     parsed = JSON.parse(source);
   } catch {
-    throw new Error('Invalid legal revision dates: shipping-bundle-wording-revision.json is not valid JSON');
+    throw new Error(`${prefix}: ${fileName} is not valid JSON`);
   }
   const announced = parsed?.announcedDate;
   const effective = parsed?.effectiveDate;
   if (announced === null && effective === null) return;
   if (typeof announced !== 'string' || typeof effective !== 'string' || !isRealDate(announced) || !isRealDate(effective)) {
-    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must both be null or both YYYY-MM-DD');
+    throw new Error(`${prefix}: announcedDate and effectiveDate must both be null or both YYYY-MM-DD`);
   }
   if (announced < LEGAL_FIRST_EDITION) {
-    throw new Error(`Invalid legal revision dates: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
+    throw new Error(`${prefix}: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
   }
   const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
   if (!(days >= 7)) {
-    throw new Error(`Invalid legal revision dates: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
+    throw new Error(`${prefix}: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
   }
 }
 
@@ -117,7 +119,8 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   }
   if (target === 'production') {
     validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
-    validateLegalRevisionDates(options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8'));
+    validateLegalRevisionDates(options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8'),
+      'partial-return-terms-revision.json');
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 

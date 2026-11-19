@@ -116,7 +116,11 @@ export async function submitOrderClaim(
  * 섞여 있으면 방문 회수와 함께 회수 송장이 없는 묶음의 회수 주소 발송을, 방문 회수 묶음이 없으면 지금 반송 안내를 그대로 말한다.
  */
 export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null,
-  { collectionWaived = false, returnPickup = NO_RETURN_PICKUP, giftSender = false }: { collectionWaived?: boolean; returnPickup?: OrderReturnPickup; giftSender?: boolean } = {}): string {
+  { collectionWaived = false, returnPickup = NO_RETURN_PICKUP, giftSender = false, partialReturn = false }: {
+    collectionWaived?: boolean; returnPickup?: OrderReturnPickup; giftSender?: boolean;
+    /** 고른 굿즈만 반품하는 요청(ADR-0047). 환급 단계 문장이 주문 전체 결제 취소가 아니라 고른 굿즈 몫의 환불을 말한다. */
+    partialReturn?: boolean;
+  } = {}): string {
   if (claim.claimType !== 'exchange' && refund?.status === 'awaiting_transfer') {
     return '주문 취소와 재고 복원이 끝났으며 결제자 계좌로 환불 송금을 준비하고 있습니다. 실제 송금이 확인되면 환불 완료로 표시됩니다.';
   }
@@ -144,9 +148,14 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
          사유는 보류 시점의 알림 본문으로 이미 전달된다. */
       return '처리가 보류됐습니다. 보류 사유는 알림으로 안내해드렸습니다. 추가로 궁금한 점은 1:1 문의로 알려주세요.';
     case 'processing':
-      return '환급 절차를 진행하고 있습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.';
+      return partialReturn
+        ? '반품하신 굿즈의 환급 절차를 진행하고 있습니다. 결제사 부분 취소 또는 계좌 송금으로 환불하며, 결제수단에 따라 반영 시점이 다를 수 있습니다.'
+        : '환급 절차를 진행하고 있습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.';
     case 'needs_review':
-      return '결제 취소 결과를 안전하게 확인하고 있습니다. 중복 처리는 진행하지 않습니다.';
+      /* 부분 반품은 결제사가 부분 취소를 받지 않으면 여기 머문다 — 결제 담당이 계좌 송금으로 환불한다(전액 취소로 돌리지 않는다). */
+      return partialReturn
+        ? '반품하신 굿즈의 환불 방법을 담당자가 확인하고 있습니다. 결제 수단이 일부 금액 취소를 받지 않으면 담당자가 연락드려 계좌로 송금해 드리며, 반환받은 날부터 영업일 기준 3일 이내 환급 기한은 그대로입니다.'
+        : '결제 취소 결과를 안전하게 확인하고 있습니다. 중복 처리는 진행하지 않습니다.';
     case 'completed':
       return claim.claimType === 'exchange'
         ? claim.reshipDeliveredAt
@@ -316,7 +325,7 @@ export function OrderClaimRequest({
         </dl>
       ) : null}
 
-      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund, { collectionWaived, returnPickup, giftSender })}</p> : null}
+      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund, { collectionWaived, returnPickup, giftSender, partialReturn: selectedClaimItems.length > 0 })}</p> : null}
 
       {canRequest ? (
         submission === 'form' ? (

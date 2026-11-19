@@ -530,6 +530,7 @@ export function OrderDetail({
               refund={order.refund}
               status={order.status}
               paymentMethod={order.paymentMethod}
+              partialReturnEnabled={partialReturn.enabled}
             />
           ) : null}
 

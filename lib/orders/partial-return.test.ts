@@ -8,7 +8,9 @@ import {
   partialReturnItemBlockerLabel,
   partialReturnSelectionFromQuantities,
   partialReturnItemsLabel,
+  partialReturnOrderBlockerLabel,
 } from './partial-return';
+import { ORDER_CLAIM_INTAKE_NOTICES, orderClaimIntakeNotice } from './claims';
 import { orderPartialCancellationSummary, parseOrderPartialCancellationRecord } from './partial-cancellation';
 
 const ITEM_A = 'aaaaaaaa-0000-4000-8000-00000000000a';
@@ -80,3 +82,42 @@ describe('부분 반품 문맥·선택(ADR-0047)', () => {
     expect(parseMyOrderClaimItems([{ claimId: 'bad' }])).toEqual([]);
   });
 });
+
+describe('적대적 리뷰 반영(2026-11-19)', () => {
+  it('운영 상세 칸은 정산 경로와 계좌 송금 전환 가능 여부를 읽는다(모르는 값은 null·false)', () => {
+    const parsed = parseAdminClaimPartialReturn({ items: [], refundId: null, history: [], preview: null, settlement: 'bank_transfer', transferConvertible: true });
+    expect(parsed?.settlement).toBe('bank_transfer');
+    expect(parsed?.transferConvertible).toBe(true);
+    const unknown = parseAdminClaimPartialReturn({ items: [], refundId: null, history: [], preview: null, settlement: 'cash', transferConvertible: 'yes' });
+    expect(unknown?.settlement).toBeNull();
+    expect(unknown?.transferConvertible).toBe(false);
+  });
+
+  it('계좌 송금으로 환불한 결제의 다음 일부 반품은 1:1 문의로 안내한다', () => {
+    expect(partialReturnOrderBlockerLabel('payment_refunded_by_transfer')).toContain('1:1 문의');
+  });
+
+  it('부분 반품이 켜지면 반품 안내의 \'전체 회수\'·\'결제금액 전액\'은 주문 전체 반품에만 걸리고, 꺼지면 지금 문구 그대로다', () => {
+    const off = orderClaimIntakeNotice('return');
+    expect(off).toBe(ORDER_CLAIM_INTAKE_NOTICES.return);
+    const on = orderClaimIntakeNotice('return', null, { partialReturn: true });
+    expect(on).toContain('반품하신 굿즈의 회수를 확인하며');
+    expect(on).not.toContain('전체 회수를 확인');
+    expect(on).toContain('주문 전체 반품의 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.');
+    expect(on).not.toContain('승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액');
+  });
+
+  it('차감이 켜지면 부분 취소를 받지 않는 결제의 일부 반품은 전액 환불이 아니라 계좌 송금이라고 말한다', () => {
+    const on = orderClaimIntakeNotice('return', { enabled: true, oneWayAmount: 3000 }, { partialReturn: true });
+    expect(on).toContain('주문 전체 반품은 전액 환불하고 반품배송비는 따로 안내하며, 일부 반품은 담당자가 연락드려 계좌로 송금해 환불합니다.');
+    const off = orderClaimIntakeNotice('return', { enabled: true, oneWayAmount: 3000 });
+    expect(off).toContain('결제 수단이 부분 취소를 지원하지 않으면 전액 환불하고 반품배송비는 따로 안내합니다.');
+    expect(off).not.toContain('일부 반품');
+  });
+
+  it('부분 환불(취소·반품) 뒤의 남은 금액 안내는 반품도 함께 말한다', () => {
+    expect(orderClaimIntakeNotice('return', null, { partiallyCanceled: true, partialReturn: true }))
+      .toContain('주문 전체 반품의 환불은 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액으로 처리합니다.');
+  });
+});
+

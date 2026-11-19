@@ -54,7 +54,7 @@ import { shipmentStatusLabel, type ShipmentRecord, type ShipmentStatus } from '@
 import { bankTransferDepositNameWithCode } from '@/lib/payments/bank-transfer';
 import type { OrderItemAllocation } from './item-allocation';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel, type ShipmentDeliverySummary } from '@/lib/shipment-delivery';
-import { refundTransferRowKey, type RefundTransferRow } from './refund-transfers';
+import { refundTransferPartialLabel, refundTransferRowKey, type RefundTransferRow } from './refund-transfers';
 
 interface ColumnSpec<Row> extends ListExportColumn {
   value: (row: Row) => ListExportCellValue | undefined;
@@ -466,7 +466,7 @@ export function refundTransfersListExportSheet(input: {
   }
   const lines = input.rows.map<RefundTransferLine>(row => ({ row, account: includeAccount ? accounts?.get(refundTransferRowKey(row)) ?? null : null }));
   const columns: ColumnSpec<RefundTransferLine>[] = [
-    column(V.claimNumber, 'code', 10, ({ row }) => (row.kind === 'partial_cancellation' ? `${row.sequence}차 부분 취소` : orderClaimReferenceLabel(row.reference))),
+    column(V.claimNumber, 'code', 10, ({ row }) => (row.kind === 'partial_cancellation' ? refundTransferPartialLabel(row).label : orderClaimReferenceLabel(row.reference))),
     column('송금 대기 금액', 'amount', 14, ({ row }) => row.amount),
     column('결제자', 'text', 16, ({ row }) => row.payerName || '이름 미등록'),
     ...(includeAccount ? [
@@ -476,7 +476,7 @@ export function refundTransfersListExportSheet(input: {
       column<RefundTransferLine>('계좌 상태', 'text', 18, ({ account }) => (account ? REFUND_TRANSFER_ACCOUNT_STATUS_LABELS[account.status] : null)),
     ] : []),
     column('대기 일수', 'count', 10, ({ row }) => refundTransferWaitingDays(row.confirmedAt, input.now)),
-    column('유형', 'text', 12, ({ row }) => `${row.gift ? '선물 · ' : ''}${row.kind === 'partial_cancellation' ? '부분 취소' : row.claimType === 'cancel' ? '취소' : '반품'}`),
+    column('유형', 'text', 12, ({ row }) => `${row.gift ? '선물 · ' : ''}${row.kind === 'partial_cancellation' ? refundTransferPartialLabel(row).kind : row.claimType === 'cancel' ? '취소' : '반품'}`),
     column('주문번호', 'code', 22, ({ row }) => orderReferenceLabel(row.orderId, row.orderNumber)),
     column('취소 확정일', 'text', 17, ({ row }) => nullable(kstDateTimeText(row.confirmedAt))),
     column('환불 접수일', 'text', 17, ({ row }) => (row.filedAt ? nullable(kstDateTimeText(row.filedAt)) : '미접수')),

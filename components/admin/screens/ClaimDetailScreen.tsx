@@ -204,12 +204,17 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-/** 부분 반품(ADR-0047)의 환불 단계 금액: 접수 뒤에는 원장, 접수 전에는 미리보기. 원장 줄의 환불액은 차감 뒤 금액이다. */
-function partialReturnRefund(partialReturn: AdminClaimPartialReturn, bank: boolean) {
+/**
+ * 부분 반품(ADR-0047)의 환불 단계 금액: 접수 뒤에는 원장, 접수 전에는 미리보기. 원장 줄의 환불액은 차감 뒤 금액이다. 송금 여부는 살아 있는
+ * 원장의 정산 경로가 정한다 — 무통장 결제, 또는 결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 카드 결제. 원장 전이면 결제 수단이다.
+ */
+function partialReturnRefund(partialReturn: AdminClaimPartialReturn, bankPayment: boolean) {
   const live = partialReturn.history.find((record) => record.id === partialReturn.refundId);
   const refileable = !live && partialReturn.history.some((record) => record.state === 'rejected');
-  if (live) return { refundAmount: live.refundAmount, deductionAmount: live.returnFeeDeduction, bank, refileable };
-  return { refundAmount: partialReturn.preview?.refundAmount ?? null, deductionAmount: partialReturn.preview?.returnFeeDeduction ?? 0, bank, refileable };
+  const bank = partialReturn.settlement ? partialReturn.settlement === 'bank_transfer' : bankPayment;
+  const convertible = partialReturn.transferConvertible;
+  if (live) return { refundAmount: live.refundAmount, deductionAmount: live.returnFeeDeduction, bank, refileable, convertible };
+  return { refundAmount: partialReturn.preview?.refundAmount ?? null, deductionAmount: partialReturn.preview?.returnFeeDeduction ?? 0, bank, refileable, convertible };
 }
 
 function CardHeading({ children }: { children: string }) {
@@ -226,7 +231,7 @@ export function ClaimDetailScreen({
   detailHref,
   embedded = false,
   now = new Date(),
-  partialReturn = null,
+  partialReturn,
   partialReturnEnabled = false,
 }: {
   actorId?: string;
@@ -245,7 +250,10 @@ export function ClaimDetailScreen({
    */
   embedded?: boolean;
   now?: Date;
-  /** 부분 반품(ADR-0047) 칸. 주문 전체 클레임이면 null, 읽지 못했으면 undefined(경고를 보인다). */
+  /**
+   * 부분 반품(ADR-0047) 칸. 주문 전체 클레임이면 null, 반품인데 읽지 못했으면 undefined — 경고를 보이고 환불 단계를 열지 않는다
+   * (주문 전체 환불 문구·무통장 전체 환불 흐름을 부분 반품에 그리지 않기 위해서다). 반품이 아니면 값과 무관하다.
+   */
   partialReturn?: AdminClaimPartialReturn | null;
   /** 부분 반품 스위치. 켜져 있으면 주문 상품 아래 안내가 반품의 일부 처리를 말한다. */
   partialReturnEnabled?: boolean;
@@ -255,6 +263,7 @@ export function ClaimDetailScreen({
   const refundDeduction = detail.refundDeduction ?? null;
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
   const partialLive = partialReturn ? partialReturn.history.find((record) => record.id === partialReturn.refundId) ?? null : null;
+  const partialReturnUnavailable = claim.claimType === 'return' && partialReturn === undefined;
   const sla = orderClaimSlaState(
     {
       claimType: claim.claimType,
@@ -428,7 +437,7 @@ export function ClaimDetailScreen({
                       ))}
                     </ul>
                   </section>
-                  {claim.claimType === 'return' ? <ClaimPartialReturnPanel orderId={order.id} partialReturn={partialReturn} /> : null}
+                  {claim.claimType === 'return' ? <ClaimPartialReturnPanel claimId={claim.id} orderId={order.id} partialReturn={partialReturn} /> : null}
                   <p className="text-xs text-muted-foreground">
                     {partialReturnEnabled
                       ? `반품은 고객이 고른 굿즈·수량만 회수·환불할 수 있습니다(부분 반품). 취소·교환은 주문 단위입니다. 일부 품목만 불량인 교환은 하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내합니다.`
@@ -499,10 +508,11 @@ export function ClaimDetailScreen({
                 paidAmount={payment?.amount ?? null}
                 refundDeduction={refundDeduction}
                 partialReturn={partialReturn ? partialReturnRefund(partialReturn, payment?.provider === 'bank_transfer') : null}
+                partialReturnUnavailable={partialReturnUnavailable}
                 defectiveStock={defectiveStock}
                 exchangeStockTargets={claim.claimType === 'exchange' && claim.collectionPolicy !== null ? adminClaimExchangeStockTargets(claim, order?.items ?? []) : []}
                 requestSummary={exchangeRequest}
-                bankTransfer={payment?.provider === 'bank_transfer' && !partialReturn}
+                bankTransfer={payment?.provider === 'bank_transfer' && !partialReturn && !partialReturnUnavailable}
                 key={claim.id}
                 cancellationForm={cancellationForm}
                 carriers={carriers}
