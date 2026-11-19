@@ -266,6 +266,17 @@ describe('cancelAdminArtworkUploadAction', () => {
     });
   });
 
+  /* 스테이징 업로드 실패의 진단 값은 형식이 맞을 때만 claim 기록으로 넘긴다. */
+  it('passes a well-formed staging failure and drops a malformed one', async () => {
+    const failure = { status: 413, message: 'The object exceeded the maximum allowed size', tooLarge: 1 };
+    await cancelAdminArtworkUploadAction({ path: OBJECT_PATH, failure });
+    expect(mocks.cancelUpload).toHaveBeenLastCalledWith({ actorId: 'staff-1', path: OBJECT_PATH, failure });
+    await cancelAdminArtworkUploadAction({ path: OBJECT_PATH, failure: { ...failure, message: 'x'.repeat(161) } });
+    expect(mocks.cancelUpload).toHaveBeenLastCalledWith({ actorId: 'staff-1', path: OBJECT_PATH });
+    await cancelAdminArtworkUploadAction({ path: OBJECT_PATH, failure: { ...failure, extra: 'nope' } });
+    expect(mocks.cancelUpload).toHaveBeenLastCalledWith({ actorId: 'staff-1', path: OBJECT_PATH });
+  });
+
   it('allows a signed-in actor to release their claim after losing staff eligibility', async () => {
     mocks.adminState = {
       isConfigured: true,
@@ -410,6 +421,15 @@ describe('verifyAdminArtworkUploadAction', () => {
   ])('maps a %s block to a specific message', async (blockedReason, error) => {
     mocks.verifyAndPromote.mockResolvedValue({ blockedReason });
     await expect(verifyAdminArtworkUploadAction(validInput)).resolves.toEqual({ ok: false, error });
+  });
+
+  /* 2026-11-19: 확인 단계가 거절하면 이유(claim.reject_reason)에 맞는 안내를 보인다. 예전에는 모두 "확인하지 못했습니다"였다. */
+  it('maps a verification rejection to its specific message', async () => {
+    mocks.verifyAndPromote.mockResolvedValue({ rejection: { reason: 'format_mismatch', detail: { declared: 'image/png', detected: 'jpeg' } } });
+    await expect(verifyAdminArtworkUploadAction(validInput)).resolves.toEqual({
+      ok: false,
+      error: '파일 이름의 형식(PNG)과 실제 내용의 형식(JPEG)이 다릅니다. 이미지 편집 프로그램에서 JPEG·PNG로 다시 저장해 올려주세요.',
+    });
   });
 });
 

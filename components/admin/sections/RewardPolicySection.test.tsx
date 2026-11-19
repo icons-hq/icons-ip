@@ -50,8 +50,8 @@ const goods: AdminGoodRecord[] = [
     description: null,
     galleryPaths: [],
     galleryUrls: [],
-    detailImagePath: null,
-    detailImageUrl: null,
+    detailImagePaths: [],
+    detailImageUrls: [],
   },
   {
     id: 'good-b',
@@ -73,8 +73,8 @@ const goods: AdminGoodRecord[] = [
     description: null,
     galleryPaths: [],
     galleryUrls: [],
-    detailImagePath: null,
-    detailImageUrl: null,
+    detailImagePaths: [],
+    detailImageUrls: [],
   },
 ];
 

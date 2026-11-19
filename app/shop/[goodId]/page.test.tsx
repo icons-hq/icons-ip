@@ -88,7 +88,7 @@ function detailFor(id: string, name: string, price: number): CatalogGoodDetail {
     ip: null,
     description: null,
     gallery: [],
-    detailImageUrl: null,
+    detailImageUrls: [],
     notice: {
       maker: null,
       origin: null,
