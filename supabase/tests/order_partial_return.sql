@@ -271,6 +271,11 @@ select pg_temp.pr_assert((pg_temp.pr_claim(1)).stage = 'completed'
  and private.payment_partial_refunded_amount(pg_temp.pr_id('payment', 1)) = 29000
  and exists(select 1 from public.notifications where dedupe_key = 'partial-return:applied:'||(pg_temp.pr_head((pg_temp.pr_claim(1)).id)).id and body like '%반품배송비 3,000원을 뺀%'),
  'second_partial_applied');
+-- 정산(거래확정 엑셀): 비게 된 배송 건은 닫힌 배송 건처럼 세고, 남긴 반품배송비는 따로 싣는다.
+select pg_temp.pr_assert(private.shipment_emptied_by_partial_return(pg_temp.pr_id('shipment-1', 1))
+ and not private.shipment_emptied_by_partial_return(pg_temp.pr_id('shipment-2', 1))
+ and private.order_partial_cancel_report_fields(pg_temp.pr_id('order', 1)) @> '{"partialRefundedAmount": 29000, "returnFeeRetained": 3000}'
+ and not (private.order_partial_cancel_report_fields(pg_temp.pr_id('order', 7)) ? 'returnFeeRetained'), 'settlement_fields');
 -- 재고 대조: 합성 주문 11건의 A 22개가 창고를 떠났고(부분 반품은 이 수량을 줄이지 않는다) 주문 1의 2개가 회수로 돌아와 복원됐다.
 select pg_temp.pr_assert((select shipped_since_qty = 22 and returned_since_qty = 2 and awaiting_return_qty = 0
  from private.stock_reconcile_flows(array[pg_temp.pr_variant('partial-return-a')], now() - interval '10 days')), 'stock_reconcile_counts_return');

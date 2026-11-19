@@ -625,7 +625,8 @@ export function OrderDetail({
               <div className="checkout-total"><dt>총 결제 금액</dt><dd>{krw(order.total)}</dd></div>
             </dl>}
             {partialRefundTotal > 0 ? <dl className="checkout-totals" data-order-partial-refund-summary="">
-              <div><dt>부분 취소 환불 합계</dt><dd>−{krw(partialRefundTotal)}</dd></div>
+              {/* 재고 부족 부분 취소와 부분 반품(ADR-0047)은 같은 부분 환불 원장이다 — 반품 몫이 있으면 이름에 함께 적는다. */}
+              <div><dt>{partialCancellations.some(record => record.reasonCode === 'return') ? '부분 취소·반품 환불 합계' : '부분 취소 환불 합계'}</dt><dd>−{krw(partialRefundTotal)}</dd></div>
               <div className="checkout-total"><dt>남은 결제 금액</dt><dd>{krw(Math.max(0, paidAmount - partialRefundTotal))}</dd></div>
             </dl> : null}
             {order.payment ? (

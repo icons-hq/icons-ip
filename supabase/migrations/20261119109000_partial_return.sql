@@ -1017,6 +1017,29 @@ select private.j47_patch_function('public.service_order_partial_cancellation(uui
   $a$'paymentKey', pay.payment_key,$a$,
   $a$'reasonCode', head.reason_code, 'claimId', head.claim_id, 'paymentKey', pay.payment_key,$a$);
 
+-- 거래확정 엑셀(정산): 부분 반품으로 비게 된 배송 건은 배송비를 환불했으므로 닫힌 배송 건처럼 센다(품목·배송비 배분에서 뺀다).
+-- 반품배송비 차감액은 결제 잔액에 남은 수입이라 품목 금액에 넣지 않고 따로 싣는다(returnFeeRetained — 부분 반품이 있을 때만 키가 있다).
+create function private.shipment_emptied_by_partial_return(p_shipment_id uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists(select 1 from private.order_partial_return_shipments r
+    join private.order_partial_cancellations h on h.id = r.partial_cancellation_id
+    where r.shipment_id = p_shipment_id and h.applied_at is not null);
+$$;
+revoke all on function private.shipment_emptied_by_partial_return(uuid) from public, anon, authenticated, service_role;
+select private.j47_patch_function('private.collect_settled_export_for_search(date,date,text,text,text)',
+  $a$case when private.shipment_closed_by_partial_cancel(s.id) then jsonb_build_object('closedByPartialCancel', true)$a$,
+  $a$case when private.shipment_closed_by_partial_cancel(s.id) or private.shipment_emptied_by_partial_return(s.id) then jsonb_build_object('closedByPartialCancel', true)$a$);
+select private.j47_patch_function('private.order_partial_cancel_report_fields(uuid)',
+  $a$          'shippingRefundAmount', h.shipping_refund_amount, 'appliedAt', h.applied_at) order by h.sequence)
+        from private.order_partial_cancellations h where h.order_id = p_order_id and h.applied_at is not null))$a$,
+  $a$          'shippingRefundAmount', h.shipping_refund_amount, 'appliedAt', h.applied_at) order by h.sequence)
+        from private.order_partial_cancellations h where h.order_id = p_order_id and h.applied_at is not null))
+      || case when exists(select 1 from private.order_partial_cancellations h where h.order_id = p_order_id and h.applied_at is not null
+          and h.reason_code = 'return' and h.return_fee_deduction > 0)
+        then jsonb_build_object('returnFeeRetained', (select sum(h.return_fee_deduction)::bigint from private.order_partial_cancellations h
+          where h.order_id = p_order_id and h.applied_at is not null and h.reason_code = 'return'))
+        else '{}'::jsonb end$a$);
+
 -- 운영 클레임 상세의 부분 반품 칸: 고른 품목, 환불 원장(가장 최근 살아 있는 줄과 이력), 환불 접수 전이면 계산 미리보기.
 create function public.admin_order_claim_partial_return(p_claim_id uuid) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
@@ -1130,7 +1153,9 @@ do $$declare fn regprocedure; contract record; begin
     'private.review_best_purchase_changed()'::regprocedure,
     'private.order_partial_cancellation_json(uuid,text)'::regprocedure,
     'public.service_order_partial_cancellation(uuid)'::regprocedure,
-    'private.operations_switches_document()'::regprocedure] loop
+    'private.operations_switches_document()'::regprocedure,
+    'private.collect_settled_export_for_search(date,date,text,text,text)'::regprocedure,
+    'private.order_partial_cancel_report_fields(uuid)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only); end if;
     if exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

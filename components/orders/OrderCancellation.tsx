@@ -36,7 +36,7 @@ export const WITHDRAWAL_REASON_LABELS: Record<OrderWithdrawalReasonType, string>
    배송 후는 '반품·교환'(10/14 회의 S19). 법정 용어 '청약철회'는 접힌 법정 안내의
    LEGAL_WITHDRAWAL_NOTICE(메일·약관과 같은 문구)에만 남긴다. */
 export const DEADLINE_EXPIRED_MESSAGE = '신청 기한이 지난 주문입니다. 하자나 오배송이라면 1:1 문의로 알려주세요.';
-export const CANCELLATION_BLOCKED_MESSAGE = '주문 상태가 변경되어 취소를 신청할 수 없습니다. 취소는 발주확인 전, 반품은 배송 중부터 주문 전체를 직접 신청할 수 있습니다. 그 밖의 취소·반품 요청은 1:1 문의로 알려주세요.';
+export const CANCELLATION_BLOCKED_MESSAGE = '주문 상태가 변경되어 취소를 신청할 수 없습니다. 취소는 발주확인 전, 반품은 배송 중부터 직접 신청할 수 있습니다. 그 밖의 취소·반품 요청은 1:1 문의로 알려주세요.';
 
 type CancellationSubmissionResult =
   | 'requested'
