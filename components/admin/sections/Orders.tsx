@@ -73,6 +73,7 @@ import { SellerClaimIntakeButton } from '@/components/admin/screens/SellerClaimI
 import { OrderViewTabs } from '@/components/admin/sales/OrderViewTabs';
 import { OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE, orderHasUnsentShipmentAfterDispatch } from '@/lib/admin/order-partial-cancellation';
 import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldList, OrderFulfillmentHoldNotice } from '@/components/admin/OrderFulfillmentHoldNotice';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -1176,6 +1177,10 @@ function OrderDetail({
             orderId={order.id}
             requiresWarehouseStop={staffCancellation.requiresWarehouseStop}
           />
+        ) : null}
+        {/* 일부 발송 주문(원장 #15): 전액 취소 버튼이 없는 이유와 발송 전 몫·발송된 몫의 처리 경로를 알린다. */}
+        {!staffCancellation.available && orderHasUnsentShipmentAfterDispatch(order) ? (
+          <AdminNotice className="sm:col-span-2" role="status" tone="info">{STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE}</AdminNotice>
         ) : null}
         {manualRecoveryAttempt?.manualRecoveryAvailable ? (
           <ManualKorpayCancellationForm
