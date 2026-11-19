@@ -64,7 +64,6 @@ export interface AdminGoodFormValue extends AdminGoodsSalePolicyInput, GoodsLink
   nameEn?: string | null;
   searchKeywords?: string[];
   displayOrder?: number | null;
-  type: string;
   price: number;
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고, 아니면 null 이다. */
   compareAtPrice: number | null;
@@ -537,7 +536,6 @@ export function normalizeAdminGoodForm(
   if (defaultVariantCode && defaultVariantCode.length>120) errors.defaultVariantCode='옵션코드는 120자 이내로 입력해주세요.';
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
-  const type = readString(formData, 'type');
   const stock = (readString(formData, 'stock') || 'ok') as Stock;
   const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');
   const compareAtPrice = nullableNonNegativeInteger(
@@ -582,7 +580,7 @@ export function normalizeAdminGoodForm(
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
 
   if (!name) errors.name = adminGoodsCopy('굿즈 이름을 입력해주세요.');
-  /* ADR-0044: 상품 유형은 없다. 공개하려면 대표 카테고리가 있어야 하고, type은 저장된 값을 그대로 다시 보낸다(폼 패스스루). */
+  /* ADR-0044: 상품 유형은 없다. 공개하려면 대표 카테고리가 있어야 한다. */
   if (publish && !options.skipPublishCategory && !errors.categoryId && !readString(formData, 'categoryId')) errors.categoryId = GOOD_CATEGORY_PUBLISH_REQUIRED;
   if (publish && !nullableString(formData, 'imagePath')) errors.imagePath = '대표 이미지를 업로드한 뒤 공개해주세요.';
   if (!STOCK_VALUES.has(stock)) errors.stock = '재고 상태를 선택해주세요.';
@@ -607,7 +605,6 @@ export function normalizeAdminGoodForm(
       ...salePolicy.value,
       ...linkedMetadata.value,
       ...(claimPolicy.value ? { claimPolicy: claimPolicy.value } : {}),
-      type,
       price,
       code,
       defaultVariantCode,

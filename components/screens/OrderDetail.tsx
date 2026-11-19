@@ -257,7 +257,7 @@ function snapshotOrderLine(item: RemainingOrderItem, receipt: OrderDetailData['t
  */
 function displayedOrderLine(item: RemainingOrderItem, linesByKey: ReadonlyMap<string, OrderLineView>, receipt: OrderDetailData['transaction']): OrderLineView {
   const base = linesByKey.get(item.id) ?? snapshotOrderLine(item, receipt);
-  const line: OrderLineView = { ...base, ipName: base.ipName ?? (item.type || null) };
+  const line: OrderLineView = { ...base, ipName: base.ipName ?? null };
   if (item.canceledQty === 0) return line;
   return {
     ...line,

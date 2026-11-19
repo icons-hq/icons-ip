@@ -11,7 +11,7 @@ import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
  * `option_sale_mode`='random'(그 밖의 행은 'select'). `shipment_id` = 그 줄의 배송 건(고객은 배송 건 품목의 랜덤 행을 읽지
  * 못하므로 `attachRandomItemsToShipments`로 붙인다). 본인 주문만 돌려준다(선물 수령 주문은 제외 — 기존 직접 읽기와 같은 범위).
  */
-export const MY_ORDER_ITEM_COLUMNS = 'id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,'
+export const MY_ORDER_ITEM_COLUMNS = 'id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,'
   + 'variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id';
 
 export interface MyOrderItemRow {
@@ -22,7 +22,6 @@ export interface MyOrderItemRow {
   qty: number;
   unit_price: number;
   good_name_snapshot: string;
-  good_type_snapshot: string;
   variant_id: string | null;
   variant_name_snapshot: string | null;
   variant_code_snapshot: string | null;

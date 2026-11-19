@@ -347,14 +347,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const priceResult = resolveGoodsPrice(priceDraft);
   /* ERP 품목 선택이 비어 있는 대표 카테고리를 채울 수 있도록 대표 카테고리는 이 폼이 제어한다. */
   const [categoryId, setCategoryId] = useState(initial.categoryId);
-  /*
-   * ADR-0044: 상품 유형은 없다. 폼은 저장된 type을 그대로 다시 보낸다(패스스루, 새 상품은 ''). DB 저장이 type을 payload 값으로 쓰므로
-   * 빼거나 바꾸면 기존 값이 지워지거나 KC 지문이 달라져 검토가 되돌아간다. 카테고리에서 파생하지 않는다.
-   */
-  const storedType = selected?.type ?? '';
   /* 공개 중 상품의 대표 카테고리를 비웠다는 오류는 카테고리를 다시 고르면 다음 제출을 기다리지 않고 지운다. */
   const errors = attributesCleared.categoryId === GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE && categoryId ? { ...attributesCleared, categoryId: undefined } : attributesCleared;
-  const typedValues = useMemo<Record<string, string>>(() => ({ ...values, type: storedType }), [values, storedType]);
   /* 고시 템플릿 제안: 대표 카테고리 이름을 말단에서 위로 올라가며 맞는 템플릿을 찾는다(GoodNoticePicker). */
   const suggestNames = useMemo(() => (categoryId ? categoryPath(categories, categoryId).reverse() : NO_SUGGEST_NAMES), [categories, categoryId]);
   const attributesReady = groupOwned || goodsAttributeSubmissionReady(values.productAttributes, categoryId);
@@ -493,7 +487,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
    * 공개 미리보기·상세 HTML 정리는 무겁다(R19). 입력과 무관한 상태 변화(오류·안내·업로드 진행)에는 다시 계산하지 않고,
    * 입력 변화도 지연 값으로 받아 입력칸 응답을 먼저 그린 뒤 미리보기를 낮은 우선순위로 다시 그린다.
    */
-  const previewValues = useDeferredValue(typedValues);
+  const previewValues = useDeferredValue(values);
   const previewImageUrls = useDeferredValue(imageUrls);
   const { ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
     values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions,
@@ -515,14 +509,14 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const kcDone = selected ? readiness?.publicReview === 'current' : Boolean(atomicSections?.sections.kc.attested && atomicSections.sections.kc.models.length);
   const published = Boolean(selected?.publishedAt);
   /* 공개 중인 상품은 공개 조건을 이미 통과했다. 재고 0(품절)과 기존 공개 · KC 미기록은 미입력이 아니고, 서버가 KC 재검토를 요구할 때만 남은 칸으로 센다. */
-  const requirements = goodPublishRequirements({ values: { ...typedValues, categoryId }, regularPrice: priceResult.regularPrice, hasStock: published || rows.some((row) => row.isActive !== false && row.stockQty > 0), kcDone: published ? readiness?.publicReview !== 'required' : kcDone, missingAttributes });
+  const requirements = goodPublishRequirements({ values: { ...values, categoryId }, regularPrice: priceResult.regularPrice, hasStock: published || rows.some((row) => row.isActive !== false && row.stockQty > 0), kcDone: published ? readiness?.publicReview !== 'required' : kcDone, missingAttributes });
   const remainingByCard = goodRemainingByCard(requirements);
   const remaining = requirements.filter((item) => !item.done);
   const showPublishProgress = !published && !selected?.archivedAt;
   /* 필수 입력 진행은 섹션 이동 띠 한 곳에서 보인다. 입력 완료 표시는 초안과 공개 중인 상품이 같다. */
   const showCardProgress = !selected?.archivedAt;
   /* 저장 후 공개는 이름대로 공개될 때만 보인다: 저장할 입력이 있고, 공개 조건을 채웠고, 이번 저장이 KC 검토를 되돌리지 않을 때. 나머지 공개는 판매 준비 카드가 맡는다. */
-  const kcContextChanged = Boolean(selected && !published && kcDone && dirty && goodKcContextChanged(lockedValues, typedValues, initialGoodsOptionRows(variants, Number(lockedValues.price)), rows));
+  const kcContextChanged = Boolean(selected && !published && kcDone && dirty && goodKcContextChanged(lockedValues, values, initialGoodsOptionRows(variants, Number(lockedValues.price)), rows));
   /*
    * T15b(0901-008): 새 상품도 공개 조건과 KC(함께 저장할 입력)를 채우면 저장 막대에 '저장 후 공개'가 나온다. 래퍼가 저장을 끝낸 뒤 같은 요청에서
    * 기존 공개 경로로 공개를 시도하고, 거절되면 저장은 남기고 이유를 알린다. 화면의 남은 필수 표시는 안내일 뿐 판정은 서버가 한다.
@@ -599,8 +593,6 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         <div className={locked || groupOwned ? GOOD_LOCKED_SELECTS_CLASS : 'min-w-0'}><AdminFormGrid>
           <SelectField defaultValue={initial.ipId} error={errors.ipId} label={locked ? "연결 IP · 공개 중 잠금" : "연결 IP (필수)"} disabled={locked || groupOwned} name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
           {(locked || groupOwned) && <input type="hidden" name="ipId" value={initial.ipId} />}
-          {/* ADR-0044: 상품 유형은 없다. 저장된 type을 그대로 싣는다(새 상품은 빈 값). */}
-          <input type="hidden" name="type" value={storedType} />
         </AdminFormGrid></div>
         {/*
           ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·대표 카테고리가 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"
