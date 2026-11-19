@@ -29,12 +29,16 @@ import { OrderNoteForm } from './OrderNoteForm';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import { ShipmentPreorderPromisePanel } from '@/components/admin/ShipmentPreorderPromisePanel';
 import { ShipmentDeliveryPanel } from '@/components/admin/ShipmentDeliveryPanel';
+import { ShipmentStatusRevertPanel } from '@/components/admin/ShipmentStatusRevertPanel';
+import { shipmentRevertKind } from '@/lib/admin/shipment-revert';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 import { SellerClaimIntakeButton } from './SellerClaimIntakeForm';
 import { OrderAddressButton } from './OrderAddressEditor';
 import { ShippingCollectPanel } from '@/components/admin/ShippingCollectPanel';
 import { OrderPartialCancellationPanel } from '@/components/admin/OrderPartialCancellationPanel';
 import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldNotice } from '@/components/admin/OrderFulfillmentHoldNotice';
+import { OrderWarehouseStopPanel } from '@/components/admin/OrderWarehouseStopPanel';
 
 const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
   order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·운송장',
@@ -50,6 +54,8 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.shipment.preorder_promise_changed': '예약 발송 일정 변경',
   'admin.shipment.delivery_method_selected': '배송 방식 변경', 'admin.shipment.delivery_evidence_recorded': '인계·수령 근거 기록',
   'admin.order.forced_delivered': '강제 배송완료',
+  'admin.shipment.delivery_reverted': '배송완료 되돌리기', 'admin.shipment.dispatch_reverted': '발송 되돌리기',
+  'admin.shipment.arrival_recorded': '택배사 배송완료 일시 기록',
   'admin.order.address_changed': '배송지 변경',
   'admin.order.status_updated': '주문 상태 변경', 'admin.order.tracking_updated': '운송장 수정',
   'admin.order.note': '운영자 메모', 'admin.order.dispatch_delay_noted': '발송 지연 기록',
@@ -80,6 +86,13 @@ const ACTION_LABELS: Record<string, string> = {
   'system.order.fulfillment_hold_placed': '출고 보류 (테스트 결제·결제사 취소)',
   'admin.order.fulfillment_hold_released': '출고 보류 해제',
   'system.order.fulfillment_hold_released': '출고 보류 종료 (주문 취소)',
+  /* 출고지시 뒤 취소의 창고 회신과 취소 뒤 출고 발견(ADR-0046). */
+  'admin.shipment.warehouse_stop_reply_recorded': '창고 회신 기록',
+  'admin.shipment.canceled_dispatch_discovered': '취소 뒤 출고 발견',
+  'admin.shipment.canceled_dispatch_tracking_recorded': '취소 뒤 출고 운송장 기록',
+  'admin.shipment.canceled_dispatch_resolved': '취소 뒤 출고 처리',
+  'order.canceled_dispatch_stock_withdrawn': '취소 뒤 출고 재고 차감',
+  'order.canceled_dispatch_stock_returned': '취소 뒤 출고 회수 재고 복원',
 };
 /** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
 const TRIGGER_LABELS: Record<string, Record<string, string>> = {
@@ -279,6 +292,8 @@ export function OrderDetailScreen({
     </div> : null}
     {/* 출고 보류(테스트 결제·결제사 취소)는 출고를 막는 상태라 머리 바로 아래에서 다음 행동과 함께 보인다. */}
     <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} />
+    {/* 출고지시가 나간 배송 건의 창고 회신과 취소 뒤 출고 발견(ADR-0046). 해당 배송 건·발견이 없으면 그리지 않는다. */}
+    <OrderWarehouseStopPanel key={`warehouse-stop:${order.id}`} orderId={order.id} />
     {/* 운송장이 빠졌다는 경고는 눌러야 할 일이라 머리 바로 아래에 둔다. 등록은 바로 위 주 버튼 하나로 간다 — 같은 일을 하는 버튼이 둘이면 다른 일인지 망설인다. */}
     {trackingMissing ? <AdminNotice role="status" tone="warning" title={`배송 중인데 운송장이 없는 배송 건이 ${trackingMissing}건 있습니다`}>
       배송완료로 처리하기 전에 택배사와 운송장번호를 등록해주세요.
@@ -337,6 +352,13 @@ export function OrderDetailScreen({
       <div className={shipmentItemsRedundant ? '[&_section>ul]:hidden' : undefined}><ShipmentDetails admin shipments={detail.shipments} items={items} transactionShipping={order.transaction?.shipping} /></div>
       {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}
       {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} key={shipment.id} />) : null}
+      {/* 배송 상태 정정(ADR-0045): 엉뚱한 배송 건의 발송·배송완료를 한 단계 되돌린다. 끝난 주문(거래확정·취소)은 DB가 막으므로 그리지 않는다. */}
+      {canManage && !['done', 'canceled'].includes(order.status) ? <ShipmentStatusRevertPanel targets={detail.shipments.flatMap(shipment => {
+        const kind = shipmentRevertKind(shipment.status, isParcelShipment(shipment));
+        return kind ? [{ id: shipment.id, reference: commerceReferenceLabel(shipment.id, shipment.shipmentNumber), originName: shipment.originName, kind,
+          expected: kind === 'delivery' ? shipment.deliveredAt : shipment.trackingNumber,
+          trackingLabel: shipment.trackingNumber ? `${shipment.carrierLabel ?? shipment.carrier ?? ''} ${shipment.trackingNumber}`.trim() : null }] : [];
+      })} /> : null}
       {canManage ? detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel orderId={order.id} shipmentId={shipment.id} key={shipment.id} />) : null}
       {canManage && detail.emailJobs.length ? <section className="flex flex-col gap-2 border-t pt-4" aria-label="배송 메일 처리 상태">
         <h3 className="text-sm font-medium text-foreground">배송 안내 메일</h3>

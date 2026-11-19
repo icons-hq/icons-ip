@@ -109,7 +109,11 @@ export interface SeowonReplyRow extends RowIdentity {
   shipmentNumber?: string;
 }
 export interface SeowonReplyCandidate {
-  id: string; shipmentNumber?: string | null; orderId: string; status: 'ready' | 'shipping' | 'delivered';
+  /**
+   * canceled는 출고지시 파일이 나간 뒤 취소된 배송 건이다(ADR-0046). 같은 내용의 발송 대기 건이 없을 때만 회신 줄을 붙이고,
+   * DB가 그 줄을 '취소 뒤 출고 발견'으로 남긴다.
+   */
+  id: string; shipmentNumber?: string | null; orderId: string; status: 'ready' | 'shipping' | 'delivered' | 'canceled';
   trackingNumber: string | null; lines: SeowonLine[];
   /** 이미 붙은 추가(연결) 운송장(QNA-019). 같은 회신을 다시 올렸는지 볼 때 대표 운송장과 함께 본다. */
   extraTrackingNumbers?: readonly string[];
@@ -150,6 +154,7 @@ export const SEOWON_REPLY_REASONS = {
   suffixMismatch: '받는분성명 뒤의 번호(01·02 등)가 이 배송 건을 마지막으로 내보낸 출고지시 파일과 다릅니다. 내려받은 파일의 값은 그대로 두거나 주문 통합검색에서 배송 건별로 등록해주세요.',
   packIncomplete: '합포장의 다른 배송 건 줄이 회신에 없거나 송장번호가 다릅니다. 합포장 전체를 같은 송장번호로 올리거나 주문 통합검색에서 처리해주세요.',
   fulfillmentHold: '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)의 배송 건이라 등록하지 않았습니다. 창고에서 이미 나갔다면 주문 상세에서 보류를 확인한 뒤(해제 또는 반품 접수) 처리해주세요.',
+  canceledMultiple: '출고지시 뒤 취소된 배송 건의 줄에 송장번호가 여럿입니다. 취소 뒤 출고는 송장번호 하나로 기록하니 그 배송 건의 줄에 대표 송장번호만 남겨 다시 올려주세요.',
 } as const;
 
 const label = (row: RowIdentity) => `전화 끝 ${digits(row.phone).slice(-4) || '없음'} · ${squash(row.items).slice(0, 40) || '품목명 없음'}`;
@@ -232,9 +237,23 @@ export function matchSeowonReply(
   const byId = new Map(candidates.map(candidate => [candidate.id, candidate]));
   const byNumber = new Map(candidates.flatMap(candidate => candidate.shipmentNumber ? [[candidate.shipmentNumber, candidate.id] as const] : []));
   const shortId = (id: string) => commerceReferenceLabel(id, byId.get(id)?.shipmentNumber);
-  const ready = new Map<string, Set<string>>(), shipped = new Map<string, Set<string>>();
+  const ready = new Map<string, Set<string>>(), shipped = new Map<string, Set<string>>(), canceled = new Map<string, Set<string>>();
   for (const candidate of candidates) for (const row of seowonExportRows(candidate.lines))
-    add(candidate.status === 'ready' ? ready : shipped, seowonRowKey(row), candidate.id);
+    add(candidate.status === 'ready' ? ready : candidate.status === 'canceled' ? canceled : shipped, seowonRowKey(row), candidate.id);
+  /*
+   * 출고지시 뒤 취소된 배송 건(ADR-0046). 같은 내용의 취소 건이 여럿이면 내보낼 때 기록한 접미사가 정확히 맞는 하나만 고르고,
+   * 하나뿐이어도 기록과 접미사가 다르면 붙이지 않는다. strict이면(같은 내용의 발송 대기 건이 접미사로 어긋난 경우) 기록이 맞는 건만 받는다.
+   */
+  const canceledFor = (row: SeowonReplyRow, key: string, strict = false): string | 'mismatch' | 'ambiguous' | null => {
+    const ids = [...(canceled.get(key) ?? [])].sort();
+    if (!ids.length || row.error) return null;
+    const labeled = ids.filter(id => { const label = byId.get(id)!.seowonLabel; return label && replySuffix(row, byId.get(id)!) === label.suffix; });
+    if (labeled.length === 1) return labeled[0];
+    if (strict) return null;
+    if (ids.length > 1) return 'ambiguous';
+    const only = byId.get(ids[0])!, suffix = replySuffix(row, only);
+    return only.seowonLabel && suffix !== null && suffix !== only.seowonLabel.suffix ? 'mismatch' : only.id;
+  };
   const issues = new Map<string, SeowonReplyMatch['issues'][number]>();
   const issue = (row: SeowonReplyRow, reason: string, reference = label(row)) => issues.set(`${row.line}:${reason}`, { line: row.line, reference, reason });
   const assigned = new Map<string, SeowonReplyRow[]>(), shared = new Map<string, { ids: string[]; rows: SeowonReplyRow[] }>();
@@ -247,6 +266,7 @@ export function matchSeowonReply(
       const id = byNumber.get(row.shipmentNumber), candidate = id ? byId.get(id)! : null;
       if (!id || !candidate) { issue(row, row.error ?? SEOWON_REPLY_REASONS.notFound, row.shipmentNumber); continue; }
       if (!seowonExportRows(candidate.lines).some(exported => seowonRowKey(exported) === key)) { issue(row, row.error ?? SEOWON_REPLY_REASONS.numberMismatch, row.shipmentNumber); continue; }
+      if (candidate.status === 'canceled') { assign(id, row); continue; }
       if (candidate.status !== 'ready') {
         if (!row.error && hasTracking(candidate, row.trackingNumber)) resend(id, row);
         else issue(row, row.error ?? SEOWON_REPLY_REASONS.alreadyShipped, row.shipmentNumber);
@@ -261,14 +281,27 @@ export function matchSeowonReply(
     if (readyIds.length === 1) {
       // 내보낼 때 기록한 접미사와 회신의 접미사가 다르면 다른 배송 건(취소·다른 파일)의 줄이다. 넘겨짚지 않는다.
       const candidate = byId.get(readyIds[0])!, suffix = replySuffix(row, candidate);
-      if (!row.error && candidate.seowonLabel && suffix !== null && suffix !== candidate.seowonLabel.suffix) { issue(row, SEOWON_REPLY_REASONS.suffixMismatch); continue; }
+      if (!row.error && candidate.seowonLabel && suffix !== null && suffix !== candidate.seowonLabel.suffix) {
+        // 그 접미사가 출고지시 뒤 취소된 같은 내용의 배송 건 기록과 정확히 맞으면 그 취소 건의 회신이다.
+        const canceledId = canceledFor(row, key, true);
+        if (canceledId && canceledId !== 'mismatch' && canceledId !== 'ambiguous') assign(canceledId, row);
+        else issue(row, SEOWON_REPLY_REASONS.suffixMismatch);
+        continue;
+      }
       assign(readyIds[0], row);
     }
     else if (readyIds.length) {
       const group = `${readyIds.join(',')}\u001e${key}`;
       shared.set(group, { ids: readyIds, rows: [...(shared.get(group)?.rows ?? []), row] });
     }
-    else issue(row, row.error ?? (shippedIds.length ? SEOWON_REPLY_REASONS.alreadyShipped : SEOWON_REPLY_REASONS.notFound));
+    else {
+      // 같은 내용의 발송 대기 건이 없으면 출고지시 뒤 취소된 배송 건의 회신인지 본다.
+      const canceledId = canceledFor(row, key);
+      if (canceledId === 'mismatch') issue(row, SEOWON_REPLY_REASONS.suffixMismatch);
+      else if (canceledId === 'ambiguous') issue(row, SEOWON_REPLY_REASONS.splitIdentical);
+      else if (canceledId) assign(canceledId, row);
+      else issue(row, row.error ?? (shippedIds.length ? SEOWON_REPLY_REASONS.alreadyShipped : SEOWON_REPLY_REASONS.notFound));
+    }
   }
   for (const group of shared.values()) {
     // 내려받은 같은 줄이 배송 건마다 하나씩이다. 회신 줄 수가 그 합과 같아야 모두 실린 합배송이다.
@@ -294,6 +327,8 @@ export function matchSeowonReply(
     // 분리배송(QNA-019): 한 배송 건의 줄에 송장번호가 여럿이면 가장 앞 줄의 번호가 대표, 나머지는 나온 순서대로 추가 운송장이다.
     const [trackingNumber, ...extraTrackingNumbers] = [...new Set([...matched].sort((a, b) => a.line - b.line).map(row => row.trackingNumber))];
     if (extraTrackingNumbers.length >= SEOWON_REPLY_TRACKING_LIMIT) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.tooManyTrackings, shortId(id)); continue; }
+    // 취소된 배송 건에는 추가 운송장을 붙이지 않는다(DB가 파일 전체를 거절한다).
+    if (byId.get(id)!.status === 'canceled' && extraTrackingNumbers.length) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.canceledMultiple, shortId(id)); continue; }
     // 배송 건은 송장 하나로 통째로 발송처리된다. 회신에 빠진 품목 줄이 있으면 일부 출고일 수 있어 멈춘다.
     // 같은 내용의 품목 줄이 여럿일 수 있으므로 줄의 개수로 비교한다.
     const replied = countKeys([...new Map(matched.map(row => [row.line, row])).values()]);

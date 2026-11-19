@@ -34,6 +34,17 @@ describe('claim collection corrections', () => {
    expect(parseClaimCollectionDocument({ ...doc, rows: [{ ...row, ...bad }] })).toBeNull();
   }
  });
+ /* 배송 분실(택배사 확인, 원장 #15): 분실 배송 건은 회수 생략과 함께 carrierLoss가 true로만 온다. */
+ it('accepts the carrier loss marker only on a waived row', () => {
+  const row = { shipmentId: '00000000-0000-4000-8000-000000000003', originName: 'TEST 남양주', revision: 0, method: 'not_requested', carrier: null, trackingNumber: null,
+   evidence: '', requestedOnce: true, collectedAt: null, updatedAt: null };
+  const doc = { claimId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002', claimRevision: 3, editable: true,
+   rows: [{ ...row, collectionWaived: true, carrierLoss: true }], history: [] };
+  expect(parseClaimCollectionDocument(doc)?.rows[0]).toMatchObject({ collectionWaived: true, carrierLoss: true });
+  for (const bad of [{ carrierLoss: true }, { collectionWaived: true, carrierLoss: false }, { collectionWaived: true, carrierLoss: 'yes' }]) {
+   expect(parseClaimCollectionDocument({ ...doc, rows: [{ ...row, ...bad }] })).toBeNull();
+  }
+ });
  /* 배포 창 호환: 승인 뒤 회수 문서의 행 키는 이전 앱의 정확 키 파서가 아는 집합 그대로이고(returnBundles 없음), 회수 주소는 별도 응답으로 합친다. */
  it('keeps the approved collection document row keys readable by the previous exact-key parser and merges bundles from a separate response', () => {
   const previousRowKeys = ['shipmentId', 'originName', 'revision', 'method', 'carrier', 'trackingNumber', 'evidence', 'requestedOnce', 'collectedAt', 'updatedAt'];

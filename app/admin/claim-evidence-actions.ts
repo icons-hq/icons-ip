@@ -28,11 +28,11 @@ const UPLOAD_FAILED = '사진을 올리지 못했습니다. 다시 시도해주�
 
 function registrationError(message: string | undefined) {
   const value = (message ?? '').toLowerCase();
-  if (value.includes('claim_evidence_limit')) return '이 교환에는 근거 사진을 20장까지 올릴 수 있습니다.';
-  if (value.includes('claim_evidence_unavailable')) return '교환 요청에만 근거 사진을 올릴 수 있습니다.';
+  if (value.includes('claim_evidence_limit')) return '이 요청에는 근거 사진을 20장까지 올릴 수 있습니다.';
+  if (value.includes('claim_evidence_unavailable')) return '반품·교환 요청에만 근거 사진을 올릴 수 있습니다.';
   if (value.includes('claim_evidence_conflict')) return '같은 사진 번호로 다른 파일이 이미 등록됐습니다. 사진을 다시 골라주세요.';
   if (value.includes('claim_evidence_unverified')) return '저장한 사진을 확인하지 못했습니다. 다시 시도해주세요.';
-  if (value.includes('claim_not_found')) return '교환 요청을 찾을 수 없습니다.';
+  if (value.includes('claim_not_found')) return '반품·교환 요청을 찾을 수 없습니다.';
   if (value.includes('operator_capability_required') || value.includes('staff required')) return '교환 처리 권한이 필요합니다.';
   return UPLOAD_FAILED;
 }

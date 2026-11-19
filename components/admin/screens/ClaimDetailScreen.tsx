@@ -494,6 +494,7 @@ export function ClaimDetailScreen({
                 returnCollectionContact={claim.claimType === 'return' ? collectionContact : undefined}
                 returnRefundSummary={claim.claimType === 'return' ? refundSummary : undefined}
                 collections={claim.collections}
+                claimRevision={claim.claimRevision ?? null}
                 heldFrom={claim.heldFrom}
                 reshipmentStarted={claim.reshippedAt !== null || (claim.reshipments ?? []).length > 0}
                 orderId={claim.orderId}
