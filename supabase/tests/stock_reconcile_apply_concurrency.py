@@ -111,8 +111,8 @@ update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key) values('stock-race-ip','TEST 재고대조 경합 IP','character');
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
  values('5a0d0000-0000-4000-8000-0000000000a1','stock-race-a','TEST 재고대조 경합 창고',0,'합성 반송 주소');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('{good}','stock-race-ip','TEST 재고대조 경합 굿즈','문구',10000,'ok',10,'5a0d0000-0000-4000-8000-0000000000a1');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('{good}','stock-race-ip','TEST 재고대조 경합 굿즈',10000,'ok',10,'5a0d0000-0000-4000-8000-0000000000a1');
 commit;
 """)
 assert stock() == 10

@@ -47,14 +47,14 @@ insert into private.operator_memberships(profile_id,manager_role) values ('{uid(
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values ('{uid('origin')}','defective-race-origin','TEST 불량재고 출고지','hanjin',3000,'TEST 반품 주소',true);
 insert into public.ips(id,title,vertical_key) values ('defective-race-ip','TEST 불량재고 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- select 'defective-race-good-'||n,'defective-race-ip','TEST 불량재고 상품 '||n,'문구',10000,'ok',10,'{uid('origin')}' from generate_series(1,2) n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ select 'defective-race-good-'||n,'defective-race-ip','TEST 불량재고 상품 '||n,10000,'ok',10,'{uid('origin')}' from generate_series(1,2) n;
 insert into public.orders(id,user_id,status,total,shipping_fee,address,payment_method,created_at,delivered_at,shipped_at)
  values ('{uid('order')}','{uid('user', 2)}','delivered',50000,0,
   '{{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}}','card',
   clock_timestamp()-interval '3 days',clock_timestamp()-interval '1 day',clock_timestamp()-interval '2 days');
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price)
- select ('{ITEM_DEFECT}'::uuid), '{uid('order')}'::uuid, 'defective-race-good-1', v.id, 'TEST 불량재고 상품 1', '문구', 'defective-race-ip', 2, 10000
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price)
+ select ('{ITEM_DEFECT}'::uuid), '{uid('order')}'::uuid, 'defective-race-good-1', v.id, 'TEST 불량재고 상품 1', 'defective-race-ip', 2, 10000
  from public.goods_variants v where v.good_id='defective-race-good-1' and v.is_default
  union all
  select ('{ITEM_KEPT}'::uuid), '{uid('order')}'::uuid, 'defective-race-good-2', v.id, 'TEST 불량재고 상품 2', '문구', 'defective-race-ip', 3, 10000

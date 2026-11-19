@@ -138,8 +138,8 @@ update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key) values('race-ip','RACE 반품지','character');
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('{uid('origin', 1)}','race-gimpo','RACE 김포','hanjin',0,'RACE 김포 출고지 반품 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('race-good-a','race-ip','RACE A','문구',1000,'ok',20,'{uid('origin', 1)}'),('race-good-b','race-ip','RACE B','문구',1000,'ok',20,'{uid('origin', 1)}');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('race-good-a','race-ip','RACE A',1000,'ok',20,'{uid('origin', 1)}'),('race-good-b','race-ip','RACE B',1000,'ok',20,'{uid('origin', 1)}');
 insert into public.return_addresses(name,address,phone) values('RACE 서울','RACE 서울 반품로 1','02-0000-0000'),
  ('RACE 부산','RACE 부산 반품로 2','051-000-0000'),('RACE 제주','RACE 제주 반품로 3','064-000-0000');
 update public.goods set return_address_id=(select id from public.return_addresses where name='RACE 서울') where id='race-good-a';

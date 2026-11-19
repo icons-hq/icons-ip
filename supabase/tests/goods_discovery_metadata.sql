@@ -92,11 +92,11 @@ update public.goods set search_keywords=array['여름 굿즈'], display_order=7,
 where id='goods-discovery-good';
 select pg_temp.publish_goods_kc_fixture('goods-discovery-good');
 insert into public.goods(
-  id,ip_id,name,type,price,stock,search_keywords,published_at,sale_restriction
+  id,ip_id,name,price,stock,search_keywords,published_at,sale_restriction
 ) values (
-  'goods-discovery-adult','goods-discovery','성인 키링','키링',1000,'ok',array['여름 굿즈'],null,'adult'
+  'goods-discovery-adult','goods-discovery','성인 키링',1000,'ok',array['여름 굿즈'],null,'adult'
 ), (
-  'goods-discovery-draft','goods-discovery','초안 키링','키링',1000,'ok',array['여름 굿즈'],null,'none'
+  'goods-discovery-draft','goods-discovery','초안 키링',1000,'ok',array['여름 굿즈'],null,'none'
 );
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('goods-discovery-adult');

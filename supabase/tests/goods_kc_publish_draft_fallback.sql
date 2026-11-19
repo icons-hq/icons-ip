@@ -25,11 +25,11 @@ insert into public.verticals(key,label,color) values('kc-fallback-tests','KC 초
 insert into public.ips(id,title,vertical_key,published_at) values('kc-fallback-tests','KC 초안 전환 합성검증','kc-fallback-tests',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
  values('00000000-0000-4000-8000-000000100830','kc-fallback-tests','합성 출고지','hanjin',3000,30000,'배송 금지 검증 주소',true);
-insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('kc-fallback-good','kc-fallback-tests','합성 초안 전환 상품','문구',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
+ ('kc-fallback-good','kc-fallback-tests','합성 초안 전환 상품',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000'),
- ('kc-fallback-none','kc-fallback-tests','합성 미검토 상품','문구',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
+ ('kc-fallback-none','kc-fallback-tests','합성 미검토 상품',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000');
 -- 두 상품을 합성 대표 카테고리에 붙인다(공개 조건). ADR-0044로 상품 유형은 카테고리에서 파생되지 않으므로
 -- 다른 카테고리로 옮겨도 유형·KC 맥락은 그대로이고, KC 맥락은 고시정보 변경으로 바꾼다.

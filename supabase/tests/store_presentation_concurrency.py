@@ -69,7 +69,7 @@ insert into private.operator_memberships(profile_id,manager_role) values('{uid(1
 update private.operator_access_state set configured=true where id;
 update private.store_presentation_settings set revision=0;
 insert into public.ips(id,title,vertical_key) select 'presentation-race-ip','동시성 합성 IP',key from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price) select 'presentation-race-'||n,'presentation-race-ip','동시성 합성 상품 '||n,'문구',1000 from generate_series(1,2)n;
+insert into public.goods(id,ip_id,name,price) select 'presentation-race-'||n,'presentation-race-ip','동시성 합성 상품 '||n,1000 from generate_series(1,2)n;
 commit;""")
 race('same-section-cas', save('common', 0, 101), save('common', 0, 102, 2), 'store_presentation_conflict')
 race('same-operation-replay', save('common', 1, 103), save('common', 1, 103))

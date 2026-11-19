@@ -50,8 +50,8 @@ values ('withdrawal-deadline-ip', '청약철회 기한 IP', 'character');
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
 values ('00000000-0000-4000-8000-000000000811','withdrawal-deadline-origin','기한 검증 출고지','hanjin',0,'합성 반품 주소 811',true);
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, origin_id)
-values ('withdrawal-deadline-goods', 'withdrawal-deadline-ip', '기한 판정 굿즈', '문구', 10000, 'ok', 9,
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, origin_id)
+values ('withdrawal-deadline-goods', 'withdrawal-deadline-ip', '기한 판정 굿즈', 10000, 'ok', 9,
   '00000000-0000-4000-8000-000000000811');
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
@@ -62,11 +62,11 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '40000000-0000-4000-8000-000000000801', 'withdrawal-deadline-goods', 1, 10000,
-  '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip',
+  '기한 판정 굿즈', 'withdrawal-deadline-ip',
   (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
 
 -- #428/#446: manual order fixtures explicitly include their single shipment.
@@ -172,13 +172,13 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
-  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
-  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
-  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
 
 -- #428/#446: manual order fixtures explicitly include their single shipment.
 insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
@@ -278,11 +278,11 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
-  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
 
 -- #428/#446: manual order fixtures explicitly include their single shipment.
 insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,

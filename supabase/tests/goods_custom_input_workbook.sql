@@ -14,9 +14,9 @@ select public.admin_save_good('{"id":"custom-input-workbook-sql-good","code":"CU
 reset role;
 insert into public.orders(id,user_id,status,total,address)
 values ('00000000-0000-4000-8000-000000079904','00000000-0000-4000-8000-000000079901','pending',5000,'{}');
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,
  origin_id_snapshot,shipping_fee_type_snapshot,individual_fee_snapshot,custom_inputs_snapshot)
-select '00000000-0000-4000-8000-000000079904',g.id,v.id,1,5000,g.name,g.type,g.ip_id,g.origin_id,'policy',0,
+select '00000000-0000-4000-8000-000000079904',g.id,v.id,1,5000,g.name,g.ip_id,g.origin_id,'policy',0,
  '{"revision":1,"fields":[{"id":"00000000-0000-4000-8000-000000079902","name":"TEST 이전 문구","value":"TEST 주문 당시 문구"}]}'::jsonb
 from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='custom-input-workbook-sql-good';
 do $$

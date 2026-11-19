@@ -44,8 +44,8 @@ values (
 on conflict (id) do update set nickname = excluded.nickname;
 
 insert into public.ips (id, title, vertical_key) values ('expired-prepared-ip', '만료 결제 취소 IP', 'character');
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('expired-prepared-goods', 'expired-prepared-ip', '만료 결제 취소 굿즈', '문구', 10000, 'ok', 20);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
+values ('expired-prepared-goods', 'expired-prepared-ip', '만료 결제 취소 굿즈', 10000, 'ok', 20);
 
 create temporary table expired_prepared_case (
   label text primary key,
@@ -76,8 +76,8 @@ select c.order_id, '00000000-0000-4000-8000-0000000e9e01', c.order_status, 10000
   case when c.order_status = 'pending' then now() + interval '30 minutes' end
 from expired_prepared_case c;
 
-insert into public.order_items (order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id)
-select c.order_id, 'expired-prepared-goods', 1, 10000, '만료 결제 취소 굿즈', '문구', 'expired-prepared-ip',
+insert into public.order_items (order_id, good_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot, variant_id)
+select c.order_id, 'expired-prepared-goods', 1, 10000, '만료 결제 취소 굿즈', 'expired-prepared-ip',
   (select id from public.goods_variants where good_id = 'expired-prepared-goods' and is_default)
 from expired_prepared_case c;
 

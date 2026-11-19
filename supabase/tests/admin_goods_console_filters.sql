@@ -7,11 +7,11 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
 update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000061201';
 insert into public.verticals(key,label,color) values('goods-console-test','상품콘솔 검증','#000');
 insert into public.ips(id,title,vertical_key,published_at) values('goods-console-test','콘솔 검증','goods-console-test',now());
-insert into public.goods(id,code,ip_id,name,type,price,stock,created_at) values
- ('console-a','CONSOLE-A','goods-console-test','키링 검증 A','문구',1000,'ok','2026-10-01T03:00:00Z'),
- ('console-b','CONSOLE-B','goods-console-test','키링 검증 B','문구',2500,'ok','2026-10-01T14:59:59Z'),
- ('console-c','CONSOLE-C','goods-console-test','인형 검증 C','문구',1500,'ok','2026-09-30T03:00:00Z'),
- ('console-d','CONSOLE-D','goods-console-test','키링 검증 D','문구',3000,'ok','2026-10-01T15:00:00Z');
+insert into public.goods(id,code,ip_id,name,price,stock,created_at) values
+ ('console-a','CONSOLE-A','goods-console-test','키링 검증 A',1000,'ok','2026-10-01T03:00:00Z'),
+ ('console-b','CONSOLE-B','goods-console-test','키링 검증 B',2500,'ok','2026-10-01T14:59:59Z'),
+ ('console-c','CONSOLE-C','goods-console-test','인형 검증 C',1500,'ok','2026-09-30T03:00:00Z'),
+ ('console-d','CONSOLE-D','goods-console-test','키링 검증 D',3000,'ok','2026-10-01T15:00:00Z');
 update public.goods set image_path='public-media/console-fixture.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026',notice_as_manager='합성 CS',notice_as_contact='02-000'
  where id='console-a';
 update public.goods set image_path='public-media/console-fixture.webp',sale_restriction='adult' where id='console-d';
@@ -76,10 +76,10 @@ select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-te
 reset role;
 -- 품절·소량 재고 칸의 건수. A=전시·품절, B=임시·판매중지, C=보관·소량(재고 4), D=임시·판매중지(재고 0),
 -- E=임시·소량(재고 3), F=임시·소량 지정인데 재고 0(품절로 센다), G=보관·품절.
-insert into public.goods(id,code,ip_id,name,type,price,stock,created_at) values
- ('console-e','CONSOLE-E','goods-console-test','소량 검증 E','문구',1000,'low','2026-10-02T03:00:00Z'),
- ('console-f','CONSOLE-F','goods-console-test','소량 검증 F','문구',1000,'low','2026-10-02T04:00:00Z'),
- ('console-g','CONSOLE-G','goods-console-test','품절 검증 G','문구',1000,'ok','2026-10-02T05:00:00Z');
+insert into public.goods(id,code,ip_id,name,price,stock,created_at) values
+ ('console-e','CONSOLE-E','goods-console-test','소량 검증 E',1000,'low','2026-10-02T03:00:00Z'),
+ ('console-f','CONSOLE-F','goods-console-test','소량 검증 F',1000,'low','2026-10-02T04:00:00Z'),
+ ('console-g','CONSOLE-G','goods-console-test','품절 검증 G',1000,'ok','2026-10-02T05:00:00Z');
 update public.goods_variants set stock_qty=3 where good_id='console-e';
 update public.goods_variants set stock_qty=0 where good_id in ('console-f','console-g');
 update public.goods set stock='low' where id='console-c';

@@ -10,7 +10,7 @@ insert into private.operator_memberships(profile_id,manager_role) values
  ('87000000-0000-4000-8000-000000000001','primary'),('87000000-0000-4000-8000-000000000002','deputy'),
  ('87000000-0000-4000-8000-000000000003','influencer'),('87000000-0000-4000-8000-000000000004','agency'),('87000000-0000-4000-8000-000000000005','logistics');
 insert into public.ips(id,title,vertical_key,published_at,public_slug) select 'presentation-test-ip','전시 합성 IP',key,now(),'presentation-test-ip' from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price,published_at) values('presentation-test-good','presentation-test-ip','전시 합성 상품','문구',1000,null),('presentation-test-draft','presentation-test-ip','초안 합성 상품','문구',1000,null);
+insert into public.goods(id,ip_id,name,price,published_at) values('presentation-test-good','presentation-test-ip','전시 합성 상품',1000,null),('presentation-test-draft','presentation-test-ip','초안 합성 상품',1000,null);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  values(('47c47700'||left(md5('presentation-test-good'),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5('presentation-test-good')||'@example.test',now(),'{"testFixture":"goods-kc"}','{}',now(),now());
 update public.profiles set role='staff' where id=('47c47700'||left(md5('presentation-test-good'),24))::uuid;

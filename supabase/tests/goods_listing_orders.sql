@@ -21,8 +21,8 @@ insert into public.ips(id, title, vertical_key, published_at) values
  ('lo-ip', '정렬 검증 IP', 'character', now()),
  ('lo-draft-ip', '미공개 IP', 'character', null);
 -- 대상 13개(lo-ip, 게시) + 제외 4개(초안·미공개 IP·성인·보관). created_at 은 동률 규칙을 고정하려고 일부러 하루씩 벌린다.
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, created_at)
-select 'lo-' || g.key, case when g.key = 'draftip' then 'lo-draft-ip' else 'lo-ip' end, '정렬 검증 ' || g.key, '문구', 1000, 'ok', 100,
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, created_at)
+select 'lo-' || g.key, case when g.key = 'draftip' then 'lo-draft-ip' else 'lo-ip' end, '정렬 검증 ' || g.key, 1000, 'ok', 100,
  timestamptz '2026-03-01 00:00:00+00' + (g.day || ' days')::interval
 from (values ('now', 10), ('hot', 9), ('old', 8), ('recent', 7), ('w1', 6), ('w2', 5), ('w3', 4), ('wish', 3), ('r3a', 2), ('r3b', 1), ('r1', 0),
   ('plain1', -1), ('plain2', -2), ('cancel', -3), ('draft', 11), ('draftip', 12), ('adult', 13), ('archived', 14)) g(key, day);
@@ -47,8 +47,8 @@ begin
  insert into public.orders(id, user_id, status, total, address, created_at, payment_method)
  values(purchase, pg_temp.lo_uid(1), order_state, quantity::bigint * 1000, '{}', now() - interval '90 days',
    case when bank then 'bank_transfer'::public.order_payment_method else 'card'::public.order_payment_method end);
- insert into public.order_items(order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
- select purchase, 'lo-' || good_key, id, quantity, 1000, '합성 집계 상품', '문구', 'lo-ip'
+ insert into public.order_items(order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot)
+ select purchase, 'lo-' || good_key, id, quantity, 1000, '합성 집계 상품', 'lo-ip'
  from public.goods_variants where good_id = 'lo-' || good_key and is_default;
  insert into public.payments(id, user_id, purpose, ref_id, provider, amount, status, idempotency_key)
  values(payment, pg_temp.lo_uid(1), 'order', purchase,

@@ -14,7 +14,7 @@ insert into public.catalog_categories(id,code,name,depth,sort_order) values(pg_t
 insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order)
  select pg_temp.ct_id(100+n),'qa-cat-template-'||n,'QA 분류 템플릿 '||n,pg_temp.ct_id(100),2,n from generate_series(1,22)n;
 insert into public.ips(id,title,vertical_key) values('qa-category-template-ip','QA 분류 템플릿 IP','character');
-insert into public.goods(id,ip_id,name,type,price,category_id) values('qa-category-template-good','qa-category-template-ip','QA 분류 템플릿 상품','문구',1000,pg_temp.ct_id(101));
+insert into public.goods(id,ip_id,name,price,category_id) values('qa-category-template-good','qa-category-template-ip','QA 분류 템플릿 상품',1000,pg_temp.ct_id(101));
 create temp table ct_good_before as select to_jsonb(g) original from public.goods g where id='qa-category-template-good';
 set local role authenticated;
 select set_config('request.jwt.claim.sub',pg_temp.ct_id(1)::text,true);

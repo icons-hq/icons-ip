@@ -17,7 +17,7 @@ select 1/case when (select configured from private.operator_access_state where i
  and (select count(*)=1 from private.operator_memberships where manager_role='owner') then 1 else 0 end as assert_single_configured_owner;
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after) values('a6140000-0000-4000-8000-000000000002','a6140000-0000-4000-8000-000000000001',now(),now(),now()+interval '1 hour');
 insert into public.ips(id,title,vertical_key,published_at) values('group-conversion-ip','TEST 그룹 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('group-conversion-source','group-conversion-ip','TEST 원상품','문구',10000,'ok',7);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('group-conversion-source','group-conversion-ip','TEST 원상품',10000,'ok',7);
 select id as first_variant from public.goods_variants where good_id='group-conversion-source' and is_default \gset
 insert into public.goods_variants(id,good_id,name,attributes,price,stock_qty,sort_order,is_default) values
  ('a6140000-0000-4000-8000-000000000003','group-conversion-source','파랑','{"색상":"파랑"}',12000,11,1,false),
@@ -27,9 +27,9 @@ insert into private.goods_variant_external_identity(variant_id,erp_code,erp_name
 insert into public.orders(id,user_id,status,total,address,created_at,delivered_at)
  select ('a6140000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'a6140000-0000-4000-8000-000000000001','delivered',12000,'{}',now()-interval '2 days',now()-interval '1 day'
  from generate_series(100,101) n;
-insert into public.order_items(order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_name_snapshot,qty,unit_price)
+insert into public.order_items(order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,variant_name_snapshot,qty,unit_price)
  select ('a6140000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'group-conversion-source','a6140000-0000-4000-8000-000000000003',
- 'TEST 전환 전 구매명','문구','group-conversion-ip','TEST 파랑 구매옵션',1,12000 from generate_series(100,101) n;
+ 'TEST 전환 전 구매명','group-conversion-ip','TEST 파랑 구매옵션',1,12000 from generate_series(100,101) n;
 insert into public.reviews(id,user_id,good_id,order_id,rating,body,status,hidden_reason,hidden_at) values
  ('a6140000-0000-4000-8000-000000000102','a6140000-0000-4000-8000-000000000001','group-conversion-source','a6140000-0000-4000-8000-000000000100',4,'TEST 이전 구매 리뷰','visible',null,null),
  ('a6140000-0000-4000-8000-000000000103','a6140000-0000-4000-8000-000000000001','group-conversion-source','a6140000-0000-4000-8000-000000000101',1,'TEST 숨김 리뷰','hidden','TEST 검증',clock_timestamp());

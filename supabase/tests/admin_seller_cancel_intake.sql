@@ -11,13 +11,13 @@ insert into private.operator_memberships(profile_id,manager_role) values
 insert into public.ips(id,title,vertical_key)select 'seller-cancel-ip','취소 접수 합성 IP',key from public.verticals limit 1;
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_active)
 values(pg_temp.cancel_id('origin',1),'seller-cancel-origin','합성 출고지',0,'합성 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
-values('seller-cancel-good','seller-cancel-ip','취소 접수 합성 상품','문구',1000,'ok',20,pg_temp.cancel_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+values('seller-cancel-good','seller-cancel-ip','취소 접수 합성 상품',1000,'ok',20,pg_temp.cancel_id('origin',1));
 insert into public.orders(id,user_id,status,total,address,created_at)
 select pg_temp.cancel_id('order',n),pg_temp.cancel_id('user',2),case when n=2 then 'pending'::public.order_status else 'paid'::public.order_status end,1000,
  '{"recipientName":"합성 구매자","phone":"01000000000","postalCode":"00000","address1":"합성 배송지","address2":"검수 전용"}',now()-interval '1 hour' from generate_series(1,6)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.cancel_id('item',n),pg_temp.cancel_id('order',n),'seller-cancel-good',(select id from public.goods_variants where good_id='seller-cancel-good' and is_default),1,1000,'합성 상품','문구','seller-cancel-ip' from generate_series(1,6)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.cancel_id('item',n),pg_temp.cancel_id('order',n),'seller-cancel-good',(select id from public.goods_variants where good_id='seller-cancel-good' and is_default),1,1000,'합성 상품','seller-cancel-ip' from generate_series(1,6)n;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
 select pg_temp.cancel_id('shipment',n),pg_temp.cancel_id('order',n),pg_temp.cancel_id('origin',1),'합성 출고지',0,'{}' from generate_series(1,6)n;
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id)

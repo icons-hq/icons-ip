@@ -38,13 +38,13 @@ insert into private.operator_memberships(profile_id,manager_role) values
 
 -- 주문: 1·2·4 남양주(서원) 발주확인·출고지시 전달, 3 김포. 1·3·4는 구매자 4, 2는 구매자 5.
 insert into public.ips(id,title,vertical_key) values('extra-tracking-ip','합성 추가 운송장 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('extra-tracking-good','extra-tracking-ip','합성 대형 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('extra-tracking-good','extra-tracking-ip','합성 대형 상품',1000,'ok',100);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select pg_temp.xt_id(2,n),pg_temp.xt_id(1,case when n=2 then 5 else 4 end),'confirmed'::public.order_status,5000,3000,
  jsonb_build_object('recipientName','합성수령인'||n,'phone','0109876543'||n,'postalCode','00123','address1','합성 주소','address2',n||'층','deliveryNote',''),now()
 from generate_series(1,4) n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.xt_id(3,n),pg_temp.xt_id(2,n),'extra-tracking-good',v.id,1,1000,'합성 대형 상품','문구','extra-tracking-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.xt_id(3,n),pg_temp.xt_id(2,n),'extra-tracking-good',v.id,1,1000,'합성 대형 상품','extra-tracking-ip'
 from generate_series(1,4) n cross join (select id from public.goods_variants where good_id='extra-tracking-good' and is_default) v;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,exported_at)
 select pg_temp.xt_id(4,n),pg_temp.xt_id(2,n),

@@ -13,16 +13,16 @@ insert into private.operator_memberships(profile_id,manager_role) values
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
 select pg_temp.item_test_id('origin',n),'item-console-'||n,'합성 출고지 '||n,0,'합성 반송 주소' from generate_series(1,2)n;
 insert into public.ips(id,title,vertical_key) values('item-console-ip','상품주문 검증 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
-select 'item-console-good-'||n,'item-console-ip','현재 이름 '||n,'문구',1000,'ok',10000,pg_temp.item_test_id('origin',n) from generate_series(1,2)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+select 'item-console-good-'||n,'item-console-ip','현재 이름 '||n,1000,'ok',10000,pg_temp.item_test_id('origin',n) from generate_series(1,2)n;
 insert into public.orders(id,user_id,status,total,address,created_at,confirmed_at,payment_method)
 values (pg_temp.item_test_id('order',1),pg_temp.item_test_id('user',6),'paid',5000,'{"recipientName":"합성 수취인","phone":"010-0000-0101"}','2026-09-01T14:59:59Z',null,'card'),
  (pg_temp.item_test_id('order',2),pg_temp.item_test_id('user',6),'confirmed',1000,'{"recipientName":"합성 수취인"}','2026-09-01T15:00:00Z','2026-09-04T15:00:00Z','bank_transfer'),
  (pg_temp.item_test_id('order',3),pg_temp.item_test_id('user',6),'pending',0,'{"recipientName":"합성 수취인"}','2026-09-02T15:00:00Z',null,'bank_transfer');
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_name_snapshot,variant_code_snapshot,qty,unit_price)
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,variant_name_snapshot,variant_code_snapshot,qty,unit_price)
 select pg_temp.item_test_id('item',n),pg_temp.item_test_id('order',case when n<=2 then 1 else n-1 end),
  'item-console-good-'||case when n=2 then 2 else 1 end,v.id,
- case when n=1 then '주문 당시 100% 코튼' else '주문 당시 기본 상품' end,'문구','item-console-ip','선택 옵션 '||n,'ITEM-OPTION-'||n,
+ case when n=1 then '주문 당시 100% 코튼' else '주문 당시 기본 상품' end,'item-console-ip','선택 옵션 '||n,'ITEM-OPTION-'||n,
  case when n=1 then 2 else 1 end,case when n=2 then 3000 when n=4 then 0 else 1000 end
 from generate_series(1,4)n join public.goods_variants v on v.good_id='item-console-good-'||case when n=2 then 2 else 1 end and v.is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at)
@@ -72,8 +72,8 @@ select 1/case when not exists((select document from item_console_before) except 
  and not has_function_privilege('anon','public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)','EXECUTE')
  and not has_function_privilege('service_role','public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)','EXECUTE') then 1 else 0 end as no_mutation_and_sealed_roles;
 -- A result over PostgREST's normal 1,000-row cap is paged inside a single JSON envelope.
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price)
-select pg_temp.item_test_id('large',n),pg_temp.item_test_id('order',3),'item-console-good-1',v.id,'대량 전용 합성 상품','문구','item-console-ip',1,1000
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price)
+select pg_temp.item_test_id('large',n),pg_temp.item_test_id('order',3),'item-console-good-1',v.id,'대량 전용 합성 상품','item-console-ip',1,1000
 from generate_series(1,1005)n cross join public.goods_variants v where v.good_id='item-console-good-1' and v.is_default;
 set local role authenticated;
 select set_config('request.jwt.claim.sub',pg_temp.item_test_id('user',1)::text,true);

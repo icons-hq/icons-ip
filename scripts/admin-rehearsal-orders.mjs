@@ -59,9 +59,9 @@ select order_id,'${customerId}','paid',price+(fee->>'totalFee')::bigint,
  jsonb_build_object('recipientName','데모 ${run}','phone','01000000000','postalCode','00000','address1','가상 주소 - 배송 금지','address2','${run}','deliveryNote','운영 연습 데이터 / 실제 출고 금지'),
  (fee->>'totalFee')::bigint,fee->'groups','card'
 from rehearsal_inputs on conflict(id) do nothing;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,
  origin_id_snapshot,shipping_fee_type_snapshot,individual_fee_snapshot)
-select item_id,order_id,good_id,variant_id,1,price,name,type,ip_id,origin_id,'policy',0 from rehearsal_inputs on conflict(id) do nothing;
+select item_id,order_id,good_id,variant_id,1,price,name,ip_id,origin_id,'policy',0 from rehearsal_inputs on conflict(id) do nothing;
 select private.create_order_shipments(order_id) from rehearsal_inputs;
 commit;
 `,

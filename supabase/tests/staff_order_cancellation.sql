@@ -52,8 +52,8 @@ on conflict (id) do update set role = excluded.role, nickname = excluded.nicknam
 insert into private.operator_memberships(profile_id,manager_role) values('00000000-0000-4000-8000-0000000c5d02','primary');
 
 insert into public.ips (id, title, vertical_key) values ('staff-cancel-ip', '운영자 취소 IP', 'character');
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('staff-cancel-goods', 'staff-cancel-ip', '운영자 취소 굿즈', '문구', 10000, 'ok', 20);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
+values ('staff-cancel-goods', 'staff-cancel-ip', '운영자 취소 굿즈', 10000, 'ok', 20);
 
 insert into public.orders (id, user_id, status, total, address, confirmed_at)
 values
@@ -72,8 +72,8 @@ values
   -- V: 나이스페이 결제 paid — 취소 API가 있어 토스처럼 운영자 전액 취소를 연다(2026-11-06)
   ('61000000-0000-4000-8000-0000000c5d07', '00000000-0000-4000-8000-0000000c5d01', 'paid', 10000, '{}'::jsonb, null);
 
-insert into public.order_items (order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id)
-select o.id, 'staff-cancel-goods', 1, 10000, '운영자 취소 굿즈', '문구', 'staff-cancel-ip',
+insert into public.order_items (order_id, good_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot, variant_id)
+select o.id, 'staff-cancel-goods', 1, 10000, '운영자 취소 굿즈', 'staff-cancel-ip',
   (select id from public.goods_variants where good_id = 'staff-cancel-goods' and is_default)
 from public.orders o where o.user_id = '00000000-0000-4000-8000-0000000c5d01';
 

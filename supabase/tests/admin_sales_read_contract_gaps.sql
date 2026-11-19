@@ -21,8 +21,8 @@ update public.profiles set nickname='검색 이메일 고객',email='GAP1530@exa
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,default_carrier)
  values(pg_temp.sales_gap_id('origin',1),'sales-read-gap-origin','조회 조건 합성 출고지',0,'합성 반송 주소','hanjin');
 insert into public.ips(id,title,vertical_key) values('sales-read-gap-ip','조회 조건 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('sales-read-gap-good','sales-read-gap-ip','조회 조건 합성 상품','문구',1000,'ok',100,pg_temp.sales_gap_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('sales-read-gap-good','sales-read-gap-ip','조회 조건 합성 상품',1000,'ok',100,pg_temp.sales_gap_id('origin',1));
 insert into public.goods_variants(id,good_id,name,code,attributes,price,stock_qty)
  values(pg_temp.sales_gap_id('variant',1),'sales-read-gap-good','GAP1530 옵션','GAP1530','{"색상":"합성"}',1000,10);
 insert into public.orders(id,user_id,status,total,address,created_at,confirmed_at,shipped_at,delivered_at,done_at,payment_method)
@@ -63,9 +63,9 @@ insert into public.orders(id,user_id,status,total,address,created_at,confirmed_a
   'phone',case when n=105 then '01015301234' else '01000001530' end,'postalCode','12345','address1','합성시 검증로 1530'),
  '2026-09-15T00:00:00Z'::timestamptz+n*interval '1 minute','2026-09-16T00:00:00Z','2026-09-17T00:00:00Z','2026-09-18T00:00:00Z','2026-10-02T01:00:00Z','card'
  from generate_series(101,108)n;
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price,variant_name_snapshot,variant_code_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price,variant_name_snapshot,variant_code_snapshot)
  select pg_temp.sales_gap_id('item',n),pg_temp.sales_gap_id('order',n),'sales-read-gap-good',v.id,
- case when n=103 then 'GAP1530 상품명' else '조회 조건 합성 상품' end,'문구','sales-read-gap-ip',1,1000,
+ case when n=103 then 'GAP1530 상품명' else '조회 조건 합성 상품' end,'sales-read-gap-ip',1,1000,
  case when n=106 then 'GAP1530 옵션' else '기본 옵션' end,case when n=106 then 'GAP1530' else 'NORMAL1530' end
  from generate_series(101,108)n cross join public.goods_variants v where v.good_id='sales-read-gap-good' and v.is_default=(n<>106);
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)

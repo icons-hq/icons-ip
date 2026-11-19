@@ -11,9 +11,9 @@ insert into private.operator_memberships(profile_id,manager_role) values
  ('86000000-0000-4000-8000-000000000001','primary'),('86000000-0000-4000-8000-000000000002','deputy'),
  ('86000000-0000-4000-8000-000000000003','influencer'),('86000000-0000-4000-8000-000000000004','agency'),('86000000-0000-4000-8000-000000000005','logistics');
 insert into public.ips(id,title,vertical_key,published_at,public_slug) select 'marketing-test-ip','마케팅 합성 IP',key,now(),'marketing-test-ip' from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price,published_at) values
- ('marketing-test-good','marketing-test-ip','마케팅 합성 상품','문구',1000,null),('marketing-test-soldout','marketing-test-ip','품절 합성 상품','문구',1000,null),
- ('marketing-test-draft','marketing-test-ip','초안 합성 상품','문구',1000,null),('marketing-test-delete','marketing-test-ip','삭제 합성 상품','문구',1000,null);
+insert into public.goods(id,ip_id,name,price,published_at) values
+ ('marketing-test-good','marketing-test-ip','마케팅 합성 상품',1000,null),('marketing-test-soldout','marketing-test-ip','품절 합성 상품',1000,null),
+ ('marketing-test-draft','marketing-test-ip','초안 합성 상품',1000,null),('marketing-test-delete','marketing-test-ip','삭제 합성 상품',1000,null);
 -- Configure each deterministic KC fixture reviewer without broadening legacy access.
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(good_id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(good_id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}',now(),now()
@@ -100,7 +100,7 @@ update public.category_activation_control set customer_enabled=true where id='ca
 select 1/case when public.resolve_marketing_link(:'category_token') is not null then 1 else 0 end as category_reactivation;
 select pg_temp.cleanup_goods_kc_fixture('marketing-test-delete');
 delete from public.goods where id='marketing-test-delete';
-insert into public.goods(id,ip_id,name,type,price,published_at) values('marketing-test-delete','marketing-test-ip','새 합성 상품','문구',1000,null);
+insert into public.goods(id,ip_id,name,price,published_at) values('marketing-test-delete','marketing-test-ip','새 합성 상품',1000,null);
 select 1/case when public.resolve_marketing_link(:'delete_token') is null then 1 else 0 end as deleted_identity_never_rebinds;
 -- All three source managers may issue but may not read the integrated ledger.
 set local role authenticated;

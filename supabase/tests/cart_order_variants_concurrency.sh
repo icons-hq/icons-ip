@@ -62,8 +62,8 @@ update public.profiles set nickname=case when id='${first_user}' then 'cart_opti
  where id in ('${first_user}','${second_user}');
 insert into public.verticals(key,label,color) values ('cart-option-race','옵션 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('cart-option-race','옵션 경합','cart-option-race',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('cart-option-race','cart-option-race','마지막 옵션 상품','문구',12000,'ok',9,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
+values ('cart-option-race','cart-option-race','마지막 옵션 상품',12000,'ok',9,null);
 insert into public.goods_variants(id,good_id,name,price,stock_qty) values('00000000-0000-4000-8000-000000043930','cart-option-race','파랑 마지막 한 개',15000,1);
 select pg_temp.publish_goods_kc_fixture('cart-option-race');
 insert into public.cart_items(user_id,good_id,variant_id,qty) values

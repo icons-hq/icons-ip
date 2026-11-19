@@ -15,7 +15,7 @@ insert into private.operator_memberships(profile_id,manager_role) values
  (pg_temp.gi_id(1),'primary'),(pg_temp.gi_id(2),'deputy'),(pg_temp.gi_id(3),'logistics'),(pg_temp.gi_id(6),'primary');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('guidance-import-ip','안내 XLSX 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,code) select 'guidance-import-'||n,'guidance-import-ip','안내 XLSX 합성 '||n,'문구',1000,'GI-'||n from generate_series(1,7)n;
+insert into public.goods(id,ip_id,name,price,code) select 'guidance-import-'||n,'guidance-import-ip','안내 XLSX 합성 '||n,1000,'GI-'||n from generate_series(1,7)n;
 update public.goods_variants set stock_qty=4 where good_id like 'guidance-import-%';
 -- Legacy plain descriptions remain valid in storage beyond the current 2000-character editor limit.
 update public.goods set description=repeat('기',2100),description_format='plain' where id='guidance-import-2';

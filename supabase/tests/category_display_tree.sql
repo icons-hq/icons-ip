@@ -17,7 +17,7 @@ insert into public.catalog_categories(id,code,name,parent_id,sort_order) values
  (pg_temp.dt_id(10),'independent-source-a','생활/문구 상품분류',null,0),(pg_temp.dt_id(11),'independent-source-b','예약 상품분류',null,1);
 select pg_temp.dt_assert(not exists(select 1 from private.category_display_nodes where id in(pg_temp.dt_id(10),pg_temp.dt_id(11))),'new merchandise categories do not create display nodes');
 insert into public.ips(id,title,vertical_key,published_at) values('display-tree-ip','독립 전시 검증','character',now());
-insert into public.goods(id,ip_id,name,type,price,category_id) values('display-tree-good','display-tree-ip','전시 연결 상품','문구',4900,pg_temp.dt_id(10));
+insert into public.goods(id,ip_id,name,price,category_id) values('display-tree-good','display-tree-ip','전시 연결 상품',4900,pg_temp.dt_id(10));
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
 values(('47c47700'||left(md5('display-tree-good'),24))::uuid,'authenticated','authenticated','kc-display-tree@example.test',now(),'{"testFixture":"goods-kc"}','{}');
 insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('display-tree-good'),24))::uuid,'primary');

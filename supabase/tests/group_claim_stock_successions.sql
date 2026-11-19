@@ -38,8 +38,8 @@ select set_config('request.jwt.claim.sub',pg_temp.gs_id('actor',1)::text,true);
 insert into public.ips(id,title,vertical_key) values('gs-ip','TEST 재고승계','character');
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values(pg_temp.gs_id('origin',1),'gs-origin','TEST 반품지','hanjin',0,'TEST 반품 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- select 'gs-good-'||n,'gs-ip','TEST 실제상품 '||n,'문구',1000,'ok',10,pg_temp.gs_id('origin',1) from generate_series(1,8)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ select 'gs-good-'||n,'gs-ip','TEST 실제상품 '||n,1000,'ok',10,pg_temp.gs_id('origin',1) from generate_series(1,8)n;
 -- Historical source options remain archived while the product keeps a live default.
 insert into public.goods_variants(id,good_id,name,code,price,stock_qty,sort_order,archived_at)
  values(pg_temp.gs_id('old',1),'gs-good-1','전환 전 파랑','GS-OLD-1',1000,0,1,now()),
@@ -57,8 +57,8 @@ insert into private.goods_group_members(group_id,good_id,variant_id,option_value
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at)
  select pg_temp.gs_id('order',n),pg_temp.gs_id('actor',2),case when n=1 then 'pending'::public.order_status else 'delivered'::public.order_status end,
  2000,0,'{}',case when n>1 then now()-interval '2 days' end,case when n>1 then now()-interval '1 day' end from generate_series(1,8)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.gs_id('item',n),pg_temp.gs_id('order',n),'gs-good-1',pg_temp.gs_id('old',1),2,1000,'TEST 구매시 상품','문구','gs-ip' from generate_series(1,8)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.gs_id('item',n),pg_temp.gs_id('order',n),'gs-good-1',pg_temp.gs_id('old',1),2,1000,'TEST 구매시 상품','gs-ip' from generate_series(1,8)n;
 create temp table gs_purchase_before as select id,to_jsonb(oi) payload from public.order_items oi where good_id='gs-good-1';
 select 1/case when good_id='gs-good-3' and variant_id=pg_temp.gs_variant(3) and hop_count=2 and cardinality(operation_path)=2 then 1 else 0 end as assert_two_hop_resolution
  from private.resolve_goods_stock_successor('gs-good-1',pg_temp.gs_id('old',1));
@@ -122,9 +122,9 @@ insert into private.goods_preorder_policies(id,variant_id,state,capacity_qty,sta
  'TEST 과거 공급승인',pg_temp.gs_id('actor',1),pg_temp.gs_id('actor',1),now()-interval '7 days',pg_temp.gs_id('actor',1),now());
 insert into public.orders(id,user_id,status,total,address)
  select pg_temp.gs_id('order',n),pg_temp.gs_id('actor',2),'pending',2000,'{}' from generate_series(10,11)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,
  supply_source,preorder_policy_id,preorder_expected_ship_date,preorder_snapshot)
- select pg_temp.gs_id('item',n),pg_temp.gs_id('order',n),'gs-good-1',pg_temp.gs_id('old',1),2,1000,'TEST 예약 구매','문구','gs-ip',
+ select pg_temp.gs_id('item',n),pg_temp.gs_id('order',n),'gs-good-1',pg_temp.gs_id('old',1),2,1000,'TEST 예약 구매','gs-ip',
  'preorder',p.id,p.expected_ship_date,jsonb_build_object('policyId',p.id,'policyRevision',p.revision,'startsAt',p.starts_at,'endsAt',p.ends_at,'expectedShipDate',p.expected_ship_date)
  from generate_series(10,11)n cross join private.goods_preorder_policies p where p.id=pg_temp.gs_id('preorder',1);
 insert into private.goods_preorder_reservations(order_item_id,order_id,policy_id,qty,state,allocated_at,allocated_by,allocation_reference)
@@ -156,8 +156,8 @@ select pg_temp.gs_error(format('select private.apply_group_physical_stock_deltas
 -- outgoing quantities before applying any movement; no spare stock is needed.
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at)
  values(pg_temp.gs_id('order',9),pg_temp.gs_id('actor',2),'delivered',4000,0,'{}',now()-interval '2 days',now()-interval '1 day');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.gs_id('swap-item',n),pg_temp.gs_id('order',9),'gs-good-'||n,pg_temp.gs_variant(n),2,1000,'TEST 스왑 구매 '||n,'문구','gs-ip' from generate_series(3,4)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.gs_id('swap-item',n),pg_temp.gs_id('order',9),'gs-good-'||n,pg_temp.gs_variant(n),2,1000,'TEST 스왑 구매 '||n,'gs-ip' from generate_series(3,4)n;
 update public.goods_variants set stock_qty=0 where id in(pg_temp.gs_variant(3),pg_temp.gs_variant(4));
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,collection_policy,collected_at)
  values(pg_temp.gs_id('claim',9),pg_temp.gs_id('order',9),pg_temp.gs_id('actor',2),'TEST 재고0 스왑','exchange','collected','legacy',now());
@@ -203,8 +203,8 @@ do $$begin begin
  perform private.resolve_goods_stock_successor('gs-good-1',pg_temp.gs_id('old',1));
  raise exception 'cycle accepted';
  exception when check_violation then if sqlerrm<>'goods_stock_successor_invalid' then raise;end if;end;end$$;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
- select 'gs-chain-'||n,'gs-ip','TEST 승계 체인 '||n,'문구',1000,'soldout',0 from generate_series(1,130)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+ select 'gs-chain-'||n,'gs-ip','TEST 승계 체인 '||n,1000,'soldout',0 from generate_series(1,130)n;
 insert into private.goods_stock_successors(source_variant_id,source_good_id,target_variant_id,target_good_id,operation_id,moved_qty,actor_id)
  select s.id,s.good_id,t.id,t.good_id,pg_temp.gs_id('operation',1),0,pg_temp.gs_id('actor',1)
  from generate_series(1,129)n join public.goods_variants s on s.good_id='gs-chain-'||n and s.is_default

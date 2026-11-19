@@ -29,8 +29,8 @@ insert into private.operator_memberships(profile_id, manager_role) values (pg_te
 insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
  values (pg_temp.rd_id('origin', 1), 'refund-deduction-origin', 'TEST 반품배송비 출고지', 'hanjin', 3000, 'TEST 반품 주소', true);
 insert into public.ips(id, title, vertical_key) values ('refund-deduction-ip', 'TEST 반품배송비 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id)
- select 'refund-deduction-good-'||n, 'refund-deduction-ip', 'TEST 반품배송비 상품 '||n, '문구', 13500, 'ok', 10, pg_temp.rd_id('origin', 1)
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id)
+ select 'refund-deduction-good-'||n, 'refund-deduction-ip', 'TEST 반품배송비 상품 '||n, 13500, 'ok', 10, pg_temp.rd_id('origin', 1)
  from generate_series(1, 9) n;
 
 -- 주문 n: 1 토스 30,000원(배송비 3,000원) · 2 토스 무료배송 30,000원 · 3 토스 하자 반품 · 4 무통장 30,000원
@@ -41,8 +41,8 @@ insert into public.orders(id, user_id, status, total, shipping_fee, address, pay
   '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
   (case when n = 4 then 'bank_transfer' else 'card' end)::public.order_payment_method,
   clock_timestamp() - interval '3 days', clock_timestamp() - interval '1 day' from generate_series(1, 8) n;
-insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
- select pg_temp.rd_id('item', n), pg_temp.rd_id('order', n), 'refund-deduction-good-'||n, v.id, 'TEST 반품배송비 상품', '문구', 'refund-deduction-ip', 2, 13500
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.rd_id('item', n), pg_temp.rd_id('order', n), 'refund-deduction-good-'||n, v.id, 'TEST 반품배송비 상품', 'refund-deduction-ip', 2, 13500
  from generate_series(1, 8) n join public.goods_variants v on v.good_id = 'refund-deduction-good-'||n and v.is_default;
 create function pg_temp.rd_shipments(n integer) returns void language plpgsql as $$declare lines jsonb; quote jsonb; begin
  select jsonb_agg(jsonb_build_object('origin_id', origin_id_snapshot, 'good_id', good_id, 'qty', qty, 'unit_price', unit_price,
@@ -269,8 +269,8 @@ insert into public.orders(id, user_id, status, total, shipping_fee, shipping_col
  select pg_temp.rd_id('order', n), pg_temp.rd_id('user', 2), 'delivered'::public.order_status, 27000, 0, case when n = 9 then 3000 else 0 end,
   '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}', 'card'::public.order_payment_method,
   clock_timestamp() - interval '3 days', clock_timestamp() - interval '1 day' from generate_series(9, 10) n;
-insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
- select pg_temp.rd_id('item', n), pg_temp.rd_id('order', n), 'refund-deduction-good-9', v.id, 'TEST 반품배송비 상품', '문구', 'refund-deduction-ip', 2, 13500
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.rd_id('item', n), pg_temp.rd_id('order', n), 'refund-deduction-good-9', v.id, 'TEST 반품배송비 상품', 'refund-deduction-ip', 2, 13500
  from generate_series(9, 10) n join public.goods_variants v on v.good_id = 'refund-deduction-good-9' and v.is_default;
 insert into public.payments(id, user_id, provider, purpose, ref_id, amount, status, payment_key, idempotency_key, created_at)
  select pg_temp.rd_id('payment', n), pg_temp.rd_id('user', 2), 'toss'::public.payment_provider, 'order', pg_temp.rd_id('order', n), 27000,

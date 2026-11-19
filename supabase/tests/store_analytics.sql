@@ -15,8 +15,8 @@ insert into private.operator_memberships(profile_id,manager_role) values(('47c47
 insert into public.ips(id,title,vertical_key,published_at) select 'analytics-test-ip','방문 분석 합성 IP',key,now() from public.verticals limit 1;
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_active)
  values(pg_temp.analytics_id(10),'analytics-origin','방문 분석 합성 출고지',0,'실제 주소가 아닌 합성 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('analytics-test-good','analytics-test-ip','방문 분석 합성 상품','문구',1000,'ok',20,pg_temp.analytics_id(10));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('analytics-test-good','analytics-test-ip','방문 분석 합성 상품',1000,'ok',20,pg_temp.analytics_id(10));
 select pg_temp.publish_goods_kc_fixture('analytics-test-good');
 insert into private.marketing_links(id,token,source,original_target_id,original_title,good_id)
  values(pg_temp.analytics_id(11),repeat('a',32),'good','analytics-test-good','합성 링크','analytics-test-good');
@@ -47,8 +47,8 @@ reset role;
 insert into public.orders(id,user_id,status,total,shipping_fee,address,created_at,expires_at,payment_method)
  values(pg_temp.analytics_id(201),pg_temp.analytics_id(2),'pending',1000,0,
  '{"recipientName":"합성 구매자","phone":"01000000000","postalCode":"00000","address1":"합성 배송지","address2":"검수 전용"}',clock_timestamp(),clock_timestamp()+interval '15 minutes','card');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.analytics_id(202),pg_temp.analytics_id(201),'analytics-test-good',id,1,1000,'방문 분석 합성 상품','문구','analytics-test-ip' from public.goods_variants where good_id='analytics-test-good' and is_default;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.analytics_id(202),pg_temp.analytics_id(201),'analytics-test-good',id,1,1000,'방문 분석 합성 상품','analytics-test-ip' from public.goods_variants where good_id='analytics-test-good' and is_default;
 set local role service_role;
 select 1/case when public.bind_store_analytics_order(repeat('1',64),pg_temp.analytics_id(201),pg_temp.analytics_id(2)) then 1 else 0 end as own_order_bound;
 select pg_temp.analytics_expect($q$select public.bind_store_analytics_order(repeat('1',64),pg_temp.analytics_id(201),pg_temp.analytics_id(3))$q$,'analytics_order_unavailable');
@@ -152,8 +152,8 @@ reset role;
 insert into public.orders(id,user_id,status,total,shipping_fee,address,created_at,expires_at,payment_method)
 select pg_temp.analytics_id(n),pg_temp.analytics_id(2),'pending',1000,0,
  '{"recipientName":"합성 구매자","phone":"01000000000","postalCode":"00000","address1":"합성 배송지"}',clock_timestamp(),clock_timestamp()+interval '24 hours','bank_transfer' from unnest(array[401,403])n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.analytics_id(n+1),pg_temp.analytics_id(n),'analytics-test-good',v.id,1,1000,'방문 분석 합성 상품','문구','analytics-test-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.analytics_id(n+1),pg_temp.analytics_id(n),'analytics-test-good',v.id,1,1000,'방문 분석 합성 상품','analytics-test-ip'
  from unnest(array[401,403])n cross join public.goods_variants v where v.good_id='analytics-test-good' and v.is_default;
 set local role service_role;
 select public.prepare_goods_payment_attempt(pg_temp.analytics_id(2),pg_temp.analytics_id(401),'bank_transfer');

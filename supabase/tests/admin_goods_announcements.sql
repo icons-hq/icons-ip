@@ -7,10 +7,10 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
 update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000062201';
 insert into public.verticals(key,label,color) values('announcement-test','공지검증','#000');
 insert into public.ips(id,title,vertical_key,published_at) values('announcement-ip','공지검증','announcement-test',now());
-insert into public.goods(id,code,ip_id,name,type,price,stock) values
- ('announcement-good-a','ANNOUNCEMENT-A','announcement-ip','공지 상품 A','문구',1000,'ok'),
- ('announcement-good-b','ANNOUNCEMENT-B','announcement-ip','공지 상품 B','문구',2000,'ok'),
- ('announcement-good-draft','ANNOUNCEMENT-DRAFT','announcement-ip','비공개 상품','문구',1000,'ok');
+insert into public.goods(id,code,ip_id,name,price,stock) values
+ ('announcement-good-a','ANNOUNCEMENT-A','announcement-ip','공지 상품 A',1000,'ok'),
+ ('announcement-good-b','ANNOUNCEMENT-B','announcement-ip','공지 상품 B',2000,'ok'),
+ ('announcement-good-draft','ANNOUNCEMENT-DRAFT','announcement-ip','비공개 상품',1000,'ok');
 update public.goods set image_path='public-media/announcement-fixture.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026',notice_as_manager='합성 CS',notice_as_contact='02-000' where id like 'announcement-good-%';
 select pg_temp.publish_goods_kc_fixture('announcement-good-a');
 select pg_temp.publish_goods_kc_fixture('announcement-good-b');

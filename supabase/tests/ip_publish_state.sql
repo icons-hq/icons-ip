@@ -136,10 +136,10 @@ values
   ('publish-archived-ip', '게시스모크 보관 IP', 'ip-publish-test', null, now()),
   ('publish-blank-ip', '   ', 'ip-publish-test', null, null);
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
 values
-  ('publish-draft-good', 'publish-draft-ip', '게시스모크 초안 굿즈', '문구', 1000, 'ok', 1,null),
-  ('publish-live-good', 'publish-live-ip', '게시스모크 공개 굿즈', '문구', 1000, 'ok', 1,null);
+  ('publish-draft-good', 'publish-draft-ip', '게시스모크 초안 굿즈', 1000, 'ok', 1,null),
+  ('publish-live-good', 'publish-live-ip', '게시스모크 공개 굿즈', 1000, 'ok', 1,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('publish-draft-good');
 select pg_temp.publish_goods_kc_fixture('publish-live-good');

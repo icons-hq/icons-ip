@@ -183,13 +183,12 @@ begin
   ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴', 26000, null, 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
     ) as fixtures(id,ip_id,name,type,price,badge,stock,stock_qty,bg)
   loop
-    insert into public.goods(id,ip_id,name,type,price,badge,stock,stock_qty,bg,published_at)
-    values(seed_good.id,seed_good.ip_id,seed_good.name,seed_good.type,seed_good.price,
+    insert into public.goods(id,ip_id,name,price,badge,stock,stock_qty,bg,published_at)
+    values(seed_good.id,seed_good.ip_id,seed_good.name,seed_good.price,
       seed_good.badge,seed_good.stock,seed_good.stock_qty,seed_good.bg,null)
     on conflict (id) do update set
       ip_id = excluded.ip_id,
       name = excluded.name,
-      type = excluded.type,
       price = excluded.price,
       badge = excluded.badge,
       stock = excluded.stock,
@@ -277,7 +276,6 @@ insert into public.games (id, type, title, event_id, config, reward_pool_id, per
     1
   )
 on conflict (id) do update set
-  type = excluded.type,
   title = excluded.title,
   event_id = excluded.event_id,
   config = excluded.config,

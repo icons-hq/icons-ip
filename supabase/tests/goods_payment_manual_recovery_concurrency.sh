@@ -152,12 +152,12 @@ values (
   'goods-manual-recovery-race'
 );
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
 values (
   'goods-manual-recovery-race-good',
   'goods-manual-recovery-race-ip',
   '굿즈 수동 복구 경합 상품',
-  '문구', 28000, 'ok', 10
+  28000, 'ok', 10
 );
 
 insert into public.orders (
@@ -171,12 +171,11 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '${order_id}', 'goods-manual-recovery-race-good', 1, 28000,
-  '굿즈 수동 복구 경합 상품', '문구',
-  'goods-manual-recovery-race-ip',
+  '굿즈 수동 복구 경합 상품', 'goods-manual-recovery-race-ip',
   (select id from public.goods_variants where good_id='goods-manual-recovery-race-good' and is_default));
 
 insert into public.payment_attempts (

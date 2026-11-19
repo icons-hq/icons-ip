@@ -47,10 +47,10 @@ on conflict (id) do update set
 insert into public.fulfillment_origins (id, code, name, default_carrier, base_fee, return_address, is_active)
 values ('00000000-0000-4000-8000-000000002210', 'item-display-origin', 'TEST 표시값 출고지', 'hanjin', 3000, 'TEST 반품 주소', true);
 insert into public.ips (id, title, vertical_key) values ('item-display-ip', 'TEST 표시값 IP', 'character');
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, origin_id) values
-  ('item-display-a', 'item-display-ip', 'TEST 표시값 굿즈 A', '문구', 10000, 'ok', 50, '00000000-0000-4000-8000-000000002210'),
-  ('item-display-b', 'item-display-ip', 'TEST 표시값 굿즈 B', '문구', 5000, 'ok', 50, '00000000-0000-4000-8000-000000002210'),
-  ('item-display-c', 'item-display-ip', 'TEST 표시값 랜덤 굿즈 C', '문구', 9000, 'ok', 50, '00000000-0000-4000-8000-000000002210');
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, origin_id) values
+  ('item-display-a', 'item-display-ip', 'TEST 표시값 굿즈 A', 10000, 'ok', 50, '00000000-0000-4000-8000-000000002210'),
+  ('item-display-b', 'item-display-ip', 'TEST 표시값 굿즈 B', 5000, 'ok', 50, '00000000-0000-4000-8000-000000002210'),
+  ('item-display-c', 'item-display-ip', 'TEST 표시값 랜덤 굿즈 C', 9000, 'ok', 50, '00000000-0000-4000-8000-000000002210');
 -- 랜덤 판매 굿즈의 옵션 셋(배정 행이 서로 다른 옵션을 가리킨다). 랜덤 조건 검증은 커밋에서 도는 지연 제약이라 이 시험은 되돌리므로 닿지 않는다.
 insert into public.goods_variants (id, good_id, name, price, code) values
   ('00000000-0000-4000-8000-000000002221', 'item-display-c', 'TEST 옵션 X', 9000, 'ITEM-DISPLAY-C-X'),
@@ -86,12 +86,12 @@ create function pg_temp.fixture_item(
 begin
   insert into public.order_items (
     id, order_id, good_id, variant_id, qty, unit_price, regular_unit_price_snapshot, volume_unit_discount, volume_discount_total,
-    good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, option_sale_mode_snapshot)
+    good_name_snapshot, good_ip_id_snapshot, option_sale_mode_snapshot)
   values (
     ('50000000-0000-4000-8000-00000000' || lpad(item_no::text, 4, '0'))::uuid,
     ('20000000-0000-4000-8000-00000000' || lpad(order_no::text, 4, '0'))::uuid,
     good, variant, quantity, unit, regular, volume, quantity::bigint * volume,
-    'TEST ' || good, '문구', 'item-display-ip', case when random_row then 'random' end);
+    'TEST ' || good, 'item-display-ip', case when random_row then 'random' end);
 end $$;
 
 select pg_temp.fixture_item(2301, 2231, 'item-display-a', (select id from public.goods_variants where good_id = 'item-display-a' and is_default), 3, 8000, 10000, 1000);

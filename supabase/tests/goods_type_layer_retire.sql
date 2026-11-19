@@ -78,9 +78,9 @@ insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order) v
  ('00000000-0000-4000-8000-000000190110','gr-plain','봉투류',null,1,1),
  ('00000000-0000-4000-8000-000000190120','gr-other','다른분류',null,1,2);
 -- 공개 조건(대표 이미지·고시 7칸·출고지)은 채운다. 합성 이미지 경로는 시스템 입력으로 넣는다.
-insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,category_id,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,price,image_path,origin_id,category_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact)
- select id,'goods-type-retire','합성 '||id,type,1000,'public-media/goods-type-test.webp','00000000-0000-4000-8000-000000190030',category_id,
+ select id,'goods-type-retire','합성 '||id,1000,'public-media/goods-type-test.webp','00000000-0000-4000-8000-000000190030',category_id,
   '합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000'
  from (values
   ('gr-plain-good','','00000000-0000-4000-8000-000000190110'::uuid),

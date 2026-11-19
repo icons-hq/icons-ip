@@ -110,7 +110,7 @@ update private.operator_access_state set configured=true where id;
 insert into public.catalog_categories(id,code,name,parent_id,sort_order) values('{category}','cd-concurrency-root','동시성 검증',null,0);
 insert into private.category_display_nodes(id,name,sort_order,legacy_category_id) values('{category}','동시성 검증',0,'{category}');
 insert into public.ips(id,title,vertical_key) values('cd-concurrency-ip','동시성 검증 IP','character');
-insert into public.goods(id,ip_id,name,type,price,category_id) values('{good}','cd-concurrency-ip','비공개 동시성 검증','문구',1000,'{category}');
+insert into public.goods(id,ip_id,name,price,category_id) values('{good}','cd-concurrency-ip','비공개 동시성 검증',1000,'{category}');
 """, 'fixture')
 raw = run(f"begin;{auth}select public.admin_get_category_display('{category}')->'values';rollback;", 'default')
 values = next(json.loads(line) for line in raw.splitlines() if line.startswith('{'))

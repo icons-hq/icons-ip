@@ -34,12 +34,12 @@ insert into public.shipping_carriers(code,label,tracking_url_template,is_active)
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active) values
  ('97190000-0000-4000-8000-000000000101','t19-managed','합성 지역 출고지','hanjin',3000,30000,'배송 금지 합성 주소 A',true),
  ('97190000-0000-4000-8000-000000000102','t19-legacy','합성 미도입 출고지','hanjin',3000,null,'배송 금지 합성 주소 B',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('t19-policy','t19-ip','정책 굿즈','문구',10000,'ok',100,'97190000-0000-4000-8000-000000000101','policy',0),
- ('t19-free','t19-ip','무료 굿즈','문구',7000,'ok',100,'97190000-0000-4000-8000-000000000101','free',0),
- ('t19-individual','t19-ip','개별 굿즈','문구',5000,'ok',100,'97190000-0000-4000-8000-000000000101','individual',1200),
- ('t19-legacy','t19-ip','미도입 굿즈','문구',10000,'ok',100,'97190000-0000-4000-8000-000000000102','policy',0),
- ('t19-hidden','t19-ip','비공개 굿즈','문구',10000,'ok',100,'97190000-0000-4000-8000-000000000101','policy',0);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('t19-policy','t19-ip','정책 굿즈',10000,'ok',100,'97190000-0000-4000-8000-000000000101','policy',0),
+ ('t19-free','t19-ip','무료 굿즈',7000,'ok',100,'97190000-0000-4000-8000-000000000101','free',0),
+ ('t19-individual','t19-ip','개별 굿즈',5000,'ok',100,'97190000-0000-4000-8000-000000000101','individual',1200),
+ ('t19-legacy','t19-ip','미도입 굿즈',10000,'ok',100,'97190000-0000-4000-8000-000000000102','policy',0),
+ ('t19-hidden','t19-ip','비공개 굿즈',10000,'ok',100,'97190000-0000-4000-8000-000000000101','policy',0);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}'
  from public.goods where id in ('t19-policy','t19-free','t19-individual','t19-legacy');

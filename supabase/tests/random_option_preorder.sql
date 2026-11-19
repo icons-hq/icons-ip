@@ -91,7 +91,7 @@ select id as rl_c from public.goods_variants where code='RL-C' \gset
 select 1/case when exists(select 1 from public.goods_variants where id=:'rp_a' and is_default)
  and exists(select 1 from public.goods_variants where id=:'rl_a' and is_default) then 1 else 0 end as assert_first_option_is_cart_key;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/random-preorder-fixture.webp',
+update public.goods set image_path='public-media/random-preorder-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-11',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000211130'
  where id in ('rp-main','rp-limit');

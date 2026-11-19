@@ -130,10 +130,10 @@ on conflict (id) do update set role = excluded.role;
 insert into public.ips (id, title, vertical_key, published_at)
 values ('commerce-smoke-ip', '커머스 스모크 IP', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
 values
-  ('commerce-smoke-good', 'commerce-smoke-ip', '커머스 스모크 굿즈', '키링', 12000, 'soldout', 0,null),
-  ('commerce-smoke-good-b', 'commerce-smoke-ip', '커머스 스모크 굿즈 B', '문구', 8000, 'ok', 5,null);
+  ('commerce-smoke-good', 'commerce-smoke-ip', '커머스 스모크 굿즈', 12000, 'soldout', 0,null),
+  ('commerce-smoke-good-b', 'commerce-smoke-ip', '커머스 스모크 굿즈 B', 8000, 'ok', 5,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('commerce-smoke-good');
 

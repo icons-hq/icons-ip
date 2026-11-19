@@ -84,7 +84,7 @@ variant = sql("select id from public.goods_variants where good_id='sale-period-g
 clone_variant = sql("select id from public.goods_variants where good_id='sale-period-clone';")
 # The clone begins unpublished with zero stock; make a second explicit test good.
 sql((base / 'helpers/goods_kc_fixture.sql').read_text() + """begin;
-update public.goods set type='문구',image_path='public-media/sale-period-test.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='합성 CS',notice_as_contact='02-0000' where id='sale-period-clone';
+update public.goods set image_path='public-media/sale-period-test.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='합성 CS',notice_as_contact='02-0000' where id='sale-period-clone';
 update public.goods_variants set stock_qty=20 where good_id='sale-period-clone';
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at) values(('47c47700'||left(md5('sale-period-clone'),24))::uuid,'authenticated','authenticated','sale-period-clone-kc@example.test','{"testFixture":"goods-kc"}',now(),now());
 insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('sale-period-clone'),24))::uuid,'primary');

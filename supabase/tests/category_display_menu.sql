@@ -31,13 +31,13 @@ update public.category_activation_control set customer_enabled=true where id='ca
 insert into public.catalog_categories(id,code,name,parent_id,sort_order) values
  (pg_temp.cm_id(10),'cm-menu-source','메뉴 원천 분류',null,0),(pg_temp.cm_id(11),'cm-menu-empty','상품 없는 원천',null,1);
 insert into public.ips(id,title,vertical_key,published_at) values('cm-menu-ip','메뉴 검증 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,category_id,created_at) values
- ('cm-menu-g-1','cm-menu-ip','나 피규어','피규어',3000,pg_temp.cm_id(10),'2026-01-03T00:00:00Z'),
- ('cm-menu-g-2','cm-menu-ip','가 피규어','피규어',5000,pg_temp.cm_id(10),'2026-01-01T00:00:00Z'),
- ('cm-menu-g-3','cm-menu-ip','B figure','키링',1000,pg_temp.cm_id(10),'2026-01-05T00:00:00Z'),
- ('cm-menu-g-4','cm-menu-ip','10번 굿즈','키링',4000,pg_temp.cm_id(10),'2026-01-02T00:00:00Z'),
- ('cm-menu-g-5','cm-menu-ip','2번 굿즈','기타',2000,pg_temp.cm_id(10),'2026-01-04T00:00:00Z'),
- ('cm-menu-draft','cm-menu-ip','공개 전 상품','문구',2000,pg_temp.cm_id(11),now());
+insert into public.goods(id,ip_id,name,price,category_id,created_at) values
+ ('cm-menu-g-1','cm-menu-ip','나 피규어',3000,pg_temp.cm_id(10),'2026-01-03T00:00:00Z'),
+ ('cm-menu-g-2','cm-menu-ip','가 피규어',5000,pg_temp.cm_id(10),'2026-01-01T00:00:00Z'),
+ ('cm-menu-g-3','cm-menu-ip','B figure',1000,pg_temp.cm_id(10),'2026-01-05T00:00:00Z'),
+ ('cm-menu-g-4','cm-menu-ip','10번 굿즈',4000,pg_temp.cm_id(10),'2026-01-02T00:00:00Z'),
+ ('cm-menu-g-5','cm-menu-ip','2번 굿즈',2000,pg_temp.cm_id(10),'2026-01-04T00:00:00Z'),
+ ('cm-menu-draft','cm-menu-ip','공개 전 상품',2000,pg_temp.cm_id(11),now());
 update public.goods_variants set stock_qty=5 where good_id like 'cm-menu-g-%';
 insert into private.goods_preorder_policies(id,variant_id,state,capacity_qty,starts_at,ends_at,expected_ship_date,approval_reference,created_by,activated_by,activated_at)
 select pg_temp.cm_id(90),id,'active',3,now()-interval '1 day',now()+interval '1 day',current_date+30,'synthetic QA',pg_temp.cm_id(1),pg_temp.cm_id(1),now()

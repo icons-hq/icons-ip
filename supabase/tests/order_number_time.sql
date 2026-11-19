@@ -50,12 +50,12 @@ insert into auth.sessions(id,user_id,created_at,updated_at,not_after) values(pg_
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values(pg_temp.tid(0,10),'order-number-time-origin','합성 출고지','hanjin',0,'합성 반송 주소',true);
 insert into public.ips(id,title,vertical_key) values('order-number-time-ip','합성 번호 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('order-number-time-goods','order-number-time-ip','합성 번호 굿즈','문구',1000,'ok',1000,pg_temp.tid(0,10));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('order-number-time-goods','order-number-time-ip','합성 번호 굿즈',1000,'ok',1000,pg_temp.tid(0,10));
 create function pg_temp.add_item(item uuid,purchase uuid) returns text language plpgsql as $$
 declare number text;begin
-  insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-    select item,purchase,good_id,id,1,1000,'합성 번호 굿즈','문구','order-number-time-ip'
+  insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+    select item,purchase,good_id,id,1,1000,'합성 번호 굿즈','order-number-time-ip'
     from public.goods_variants where good_id='order-number-time-goods' and is_default
     returning product_order_number into number;
   return number;

@@ -17,7 +17,7 @@ insert into private.operator_memberships(profile_id,manager_role) values(helpful
 update private.operator_access_state set configured=true where id;
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after) select helpful_test.id(100+n),helpful_test.id(n),now(),now(),now()+interval '2 hours' from generate_series(1,8)n;
 insert into public.ips(id,title,vertical_key,published_at) values('helpful-ip','TEST 도움 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) select 'helpful-'||g,'helpful-ip','TEST 도움 상품 '||g,'문구',10000,'ok',10 from unnest(array['a','b','c'])g;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) select 'helpful-'||g,'helpful-ip','TEST 도움 상품 '||g,10000,'ok',10 from unnest(array['a','b','c'])g;
 select helpful_test.actor(1);
 set local role authenticated;
 select public.admin_save_goods_group(helpful_test.id(501),0,'{"name":"TEST 도움 그룹","optionNames":["색상"],"members":[{"goodId":"helpful-a","values":["빨강"]},{"goodId":"helpful-b","values":["파랑"]}]}',helpful_test.id(502),helpful_test.id(1),helpful_test.id(101));

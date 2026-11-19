@@ -131,11 +131,11 @@ insert into cron.job_run_details(jobid,runid,job_pid,database,username,command,s
 -- 2. 결제 기한 만료 sweep: 한 주문의 오류가 다른 주문의 만료를 되돌리지 않는다
 -- ---------------------------------------------------------------------------
 insert into public.ips(id,title,vertical_key) values('t7-health-ip','TEST 시스템 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('t7-health-goods','t7-health-ip','TEST 시스템 굿즈','문구',10000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('t7-health-goods','t7-health-ip','TEST 시스템 굿즈',10000,'ok',100);
 create function pg_temp.pending_order(oid uuid) returns uuid language plpgsql as $$begin
  insert into public.orders(id,user_id,status,total,expires_at) values(oid,'a7000000-0000-4000-8000-000000000003','pending',10000,now()-interval '30 minutes');
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(oid,'t7-health-goods',1,10000,'TEST 시스템 굿즈','문구','t7-health-ip',(select id from public.goods_variants where good_id='t7-health-goods' and is_default));
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,'t7-health-goods',1,10000,'TEST 시스템 굿즈','t7-health-ip',(select id from public.goods_variants where good_id='t7-health-goods' and is_default));
  return oid;
 end $$;
 select pg_temp.pending_order('a7000000-0000-4001-8000-000000000001'), pg_temp.pending_order('a7000000-0000-4001-8000-000000000002');

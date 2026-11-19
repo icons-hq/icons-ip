@@ -106,7 +106,7 @@ select 1/case when exists(select 1 from public.goods where id='goods-html-clone-
  and description='<3 <strong>그대로인 원문</strong>' and cardinality(description_image_paths)=0)
  then 1 else 0 end as assert_plain_transition_preserves_literal_source;
 reset role;
-insert into public.goods(id,ip_id,name,type,price,description) values('goods-html-legacy-0478','goods-html-0478','긴 기존 설명','문구',1000,repeat('가',3000));
+insert into public.goods(id,ip_id,name,price,description) values('goods-html-legacy-0478','goods-html-0478','긴 기존 설명',1000,repeat('가',3000));
 set local role authenticated;
 select public.admin_clone_good('00000000-0000-4000-8000-000000047805','goods-html-legacy-0478','goods-html-legacy-copy-0478','HTML-LEGACY-0478','긴 설명 복사');
 select 1/case when exists(select 1 from public.goods where id='goods-html-legacy-copy-0478' and description_format='plain' and description=repeat('가',3000))

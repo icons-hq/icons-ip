@@ -59,9 +59,9 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
  ('$coupon_user','authenticated','authenticated','coupon-target-race-user@example.test',now(),'{}','{}',now(),now());
 update public.profiles set email='coupon-race-'||right(id::text,4)||'@example.test',nickname='coupon_race_'||right(id::text,4),birth_date='2000-01-01',consents='{"terms":true,"privacy":true}',onboarded_at=now(),role=case when id='$coupon_staff' then 'staff'::public.user_role else 'user'::public.user_role end where id in ('$coupon_staff','$coupon_user');
 insert into public.ips(id,title,vertical_key,published_at) values('coupon-target-race-ip','쿠폰 동시성 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values
- ('coupon-target-race-one','coupon-target-race-ip','쿠폰 동시성 상품1','문구',10000,'ok',20),
- ('coupon-target-race-two','coupon-target-race-ip','쿠폰 동시성 상품2','문구',20000,'ok',20);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values
+ ('coupon-target-race-one','coupon-target-race-ip','쿠폰 동시성 상품1',10000,'ok',20),
+ ('coupon-target-race-two','coupon-target-race-ip','쿠폰 동시성 상품2',20000,'ok',20);
 select pg_temp.publish_goods_kc_fixture('coupon-target-race-one');
 select pg_temp.publish_goods_kc_fixture('coupon-target-race-two');
 insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,starts_at,status,recipient_segment) values

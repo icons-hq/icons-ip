@@ -18,9 +18,9 @@ update private.goods_transaction_runtime set enabled=true where singleton;
 insert into public.ips(id,title,vertical_key,published_at) values('review-types-ip','TEST 거래 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('c7160750-0000-4000-8000-000000000010','review-types-origin','TEST 출고지','hanjin',3000,'TEST 합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('review-types-a','review-types-ip','TEST 상품 A','문구',10000,'ok',100,'c7160750-0000-4000-8000-000000000010','policy',0),
- ('review-types-b','review-types-ip','TEST 상품 B','문구',5000,'ok',100,'c7160750-0000-4000-8000-000000000010','individual',2000);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('review-types-a','review-types-ip','TEST 상품 A',10000,'ok',100,'c7160750-0000-4000-8000-000000000010','policy',0),
+ ('review-types-b','review-types-ip','TEST 상품 B',5000,'ok',100,'c7160750-0000-4000-8000-000000000010','individual',2000);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','confirmation-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now()
  from public.goods where ip_id='review-types-ip';
@@ -41,8 +41,8 @@ begin
  insert into public.orders(id,user_id,status,total,address,store_credit_policy_snapshot) values(oid,'c7160750-0000-4000-8000-000000000002','confirmed',10000,
  '{"recipientName":"TEST 합포장","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
  '{"enabled":true,"earnKind":"fixed","earnValue":100,"earnMaxPerOrder":1000,"maxBalance":100000,"validityDays":30,"minUse":100,"maxUse":1000,"restoreGraceDays":3,"refundEarnedCreditMode":"offset_future_credits"}');
- insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select oid,g.id,v.id,1,10000,g.name,g.type,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='review-types-a' returning id into item;
+ insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select oid,g.id,v.id,1,10000,g.name,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='review-types-a' returning id into item;
  insert into public.payments(user_id,purpose,ref_id,provider,amount,status,idempotency_key) values('c7160750-0000-4000-8000-000000000002','order',oid,'toss',10000,'paid','review-types-payment-'||n);
  insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
  values(sid,oid,'c7160750-0000-4000-8000-000000000010','TEST 출고지',0,'{}');

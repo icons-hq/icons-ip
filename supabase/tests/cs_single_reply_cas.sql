@@ -7,7 +7,7 @@ update public.profiles set role='staff' where id in ('00000000-0000-4000-8000-00
 insert into private.operator_memberships(profile_id,manager_role) values
  ('00000000-0000-4000-8000-000000063501','primary'),('00000000-0000-4000-8000-000000063502','primary'),('00000000-0000-4000-8000-000000063504','logistics');
 insert into public.ips(id,title,vertical_key) values('cs-single-reply','합성 단건 답변 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('cs-single-reply','cs-single-reply','합성 답변 상품','문구',1000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('cs-single-reply','cs-single-reply','합성 답변 상품',1000,'ok',10);
 insert into public.orders(id,user_id,status,total,address,delivered_at) values
  ('00000000-0000-4000-8000-000000063541','00000000-0000-4000-8000-000000063503','delivered',1000,'{}',now()),
  ('00000000-0000-4000-8000-000000063542','00000000-0000-4000-8000-000000063503','delivered',1000,'{}',now());

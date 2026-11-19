@@ -78,7 +78,7 @@ select public.admin_save_goods_preorder('schedule-race-good',(select id from pub
  'expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7,'approvalReference','TEST-ONLY 일정 경쟁 승인'));
 reset role;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/schedule-race-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',
+update public.goods set image_path='public-media/schedule-race-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',
  notice_size='A5',notice_made_on='2026-09',notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000071430'
  where id='schedule-race-good';
 -- KC 합성 검토자도 레거시 fixture 없이 운영자 멤버십으로 검토한다(helpers/goods_kc_fixture.sql의 같은 식별자).

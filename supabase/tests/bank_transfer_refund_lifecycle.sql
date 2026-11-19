@@ -25,16 +25,16 @@ insert into private.operator_memberships(profile_id,manager_role) values(pg_temp
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values(pg_temp.br_id('origin',1),'bank-refund-origin','TEST 은행환불 출고지','hanjin',0,'TEST 반품 주소',true);
 insert into public.ips(id,title,vertical_key) values('bank-refund-ip','TEST 은행환불 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- select 'bank-refund-good-'||n,'bank-refund-ip','TEST 은행환불 상품 '||n,'문구',5000,'ok',98,pg_temp.br_id('origin',1) from generate_series(1,44)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ select 'bank-refund-good-'||n,'bank-refund-ip','TEST 은행환불 상품 '||n,5000,'ok',98,pg_temp.br_id('origin',1) from generate_series(1,44)n;
 insert into public.orders(id,user_id,status,total,shipping_fee,address,payment_method,created_at,delivered_at)
  select pg_temp.br_id('order',n),pg_temp.br_id('user',2),case when n in(3,4) then 'delivered'::public.order_status
   when n in(10,11) then 'pending'::public.order_status else 'paid'::public.order_status end,10000,0,
  '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
  (case when n in(8,9) then 'card' else 'bank_transfer' end)::public.order_payment_method,
  clock_timestamp()-interval '2 days',case when n in(3,4) then clock_timestamp()-interval '1 day' else null end from generate_series(1,44)n;
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price)
- select pg_temp.br_id('item',n),pg_temp.br_id('order',n),'bank-refund-good-'||n,v.id,'TEST 은행환불 상품','문구','bank-refund-ip',2,5000
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price)
+ select pg_temp.br_id('item',n),pg_temp.br_id('order',n),'bank-refund-good-'||n,v.id,'TEST 은행환불 상품','bank-refund-ip',2,5000
  from generate_series(1,44)n join public.goods_variants v on v.good_id='bank-refund-good-'||n and v.is_default;
 create function pg_temp.br_shipments(n integer) returns void language plpgsql as $$declare lines jsonb;quote jsonb;begin
  select jsonb_agg(jsonb_build_object('origin_id',origin_id_snapshot,'good_id',good_id,'qty',qty,'unit_price',unit_price,'fee_type',shipping_fee_type_snapshot,'individual_fee',individual_fee_snapshot)) into lines

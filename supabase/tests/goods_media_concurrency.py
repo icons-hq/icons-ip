@@ -66,7 +66,7 @@ update public.profiles set role=case when id='{uid(1)}' then 'admin'::public.use
 insert into private.operator_memberships(profile_id,manager_role) values('{uid(1)}','owner'),('{uid(2)}','deputy');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key) select 'media-race-ip','미디어 경합',key from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price) values('media-race-good','media-race-ip','미디어 경합 상품','문구',1000);
+insert into public.goods(id,ip_id,name,price) values('media-race-good','media-race-ip','미디어 경합 상품',1000);
 insert into private.goods_media_assets(id,actor_id,kind,path,source_size,status,expires_at,metadata,verified_at,staging_cleaned_at)
 select ('92900000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'{uid(1)}','video','video/92900000-0000-4000-8000-'||lpad(n::text,12,'0')||'.mp4',4001,'verified',clock_timestamp()+interval '1 hour',
 jsonb_build_object('width',160,'height',120,'durationMs',2000,'byteSize',4001,'sha256',repeat('a',64),'videoCodec','avc1.64000a','audioCodec',null),clock_timestamp(),clock_timestamp() from generate_series(201,203)n;

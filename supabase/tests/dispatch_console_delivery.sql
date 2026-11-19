@@ -38,7 +38,7 @@ create function pg_temp.as_actor(p uuid) returns void language plpgsql as $$begi
  perform set_config('request.jwt.claims',jsonb_build_object('sub',p,'role','authenticated')::text,true);
 end $$;
 insert into public.ips(id,title,vertical_key) values('dispatch-console-ip','TEST 발송처리 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('dispatch-console-goods','dispatch-console-ip','TEST 발송처리 굿즈','문구',10000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('dispatch-console-goods','dispatch-console-ip','TEST 발송처리 굿즈',10000,'ok',100);
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_active) values
  ('d15a0000-0000-4000-8000-0000000000f1','dispatch-console-quick','TEST 퀵·방문 출고지',0,'합성 반송 주소',true),
  ('d15a0000-0000-4000-8000-0000000000f2','dispatch-console-parcel','TEST 택배 전용 출고지',0,'합성 반송 주소',true);
@@ -55,8 +55,8 @@ declare oid uuid:=('d15a0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;item 
 begin
  insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at) values(oid,'d15a0000-0000-4000-8000-000000000002',status,13000,3000,
   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',case when status<>'paid' then now() end);
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(oid,'dispatch-console-goods',1,10000,'TEST 발송처리 굿즈','문구','dispatch-console-ip',(select id from public.goods_variants where good_id='dispatch-console-goods' and is_default))
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,'dispatch-console-goods',1,10000,'TEST 발송처리 굿즈','dispatch-console-ip',(select id from public.goods_variants where good_id='dispatch-console-goods' and is_default))
   returning id into item;
  insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status)
   values(sid,oid,origin,'TEST 출고지',3000,'{}','ready');

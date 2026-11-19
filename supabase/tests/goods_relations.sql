@@ -6,9 +6,9 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) v
 update public.profiles set role='staff' where id='73000000-0000-4000-8000-000000000001';
 insert into public.ips(id,title,vertical_key,published_at) values
  ('goods-relations-qa','연관상품 검증','character',now()),('goods-relations-private-qa','비공개 연관 검증','character',null);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
 select 'goods-relations-qa-'||key,case when key='private' then 'goods-relations-private-qa' else 'goods-relations-qa' end,
-  '연관 검수 상품 '||key,'문구',1000,'ok',10,null
+  '연관 검수 상품 '||key,1000,'ok',10,null
 from unnest(array['a','b','c','draft','private','adult','archived']||array(select 'limit-'||i from generate_series(1,11) i)) key;
 select pg_temp.publish_goods_kc_fixture(id) from public.goods where id like 'goods-relations-qa-%' and id<>'goods-relations-qa-draft';
 update public.goods set sale_restriction='adult' where id='goods-relations-qa-adult';

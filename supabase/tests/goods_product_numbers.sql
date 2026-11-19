@@ -38,12 +38,12 @@ select 1/case when (select is_nullable='NO' and is_identity='NO' and column_defa
 
 -- 2. 새 상품은 등록 순서대로 이어지는 번호를 받는다(값을 지정해 넣을 수 없다). 발급 트리거는 BEFORE INSERT 중 맨 뒤라 다른 검사가 먼저 거절하면 번호를 쓰지 않는다.
 select coalesce(max(product_no),0) as before_max from public.goods \gset
-insert into public.goods(id,code,ip_id,name,type,price,stock,created_at) values
- ('number-a','NUMBER-A','goods-number-test','번호 검증 A','문구',1000,'ok','2026-10-01T03:00:00Z');
-insert into public.goods(id,code,ip_id,name,type,price,stock,created_at) values
- ('number-b','NUMBER-B','goods-number-test','번호 검증 B','문구',2000,'ok','2026-09-01T03:00:00Z');
-insert into public.goods(id,code,ip_id,name,type,price,stock,created_at) values
- ('number-c','NUMBER-C','goods-number-test','번호 검증 C','문구',3000,'ok','2026-11-01T03:00:00Z');
+insert into public.goods(id,code,ip_id,name,price,stock,created_at) values
+ ('number-a','NUMBER-A','goods-number-test','번호 검증 A',1000,'ok','2026-10-01T03:00:00Z');
+insert into public.goods(id,code,ip_id,name,price,stock,created_at) values
+ ('number-b','NUMBER-B','goods-number-test','번호 검증 B',2000,'ok','2026-09-01T03:00:00Z');
+insert into public.goods(id,code,ip_id,name,price,stock,created_at) values
+ ('number-c','NUMBER-C','goods-number-test','번호 검증 C',3000,'ok','2026-11-01T03:00:00Z');
 select product_no as number_a from public.goods where id='number-a' \gset
 select product_no as number_b from public.goods where id='number-b' \gset
 select product_no as number_c from public.goods where id='number-c' \gset
@@ -51,7 +51,7 @@ select 1/case when :number_a > :before_max and :number_b = :number_a + 1 and :nu
  then 1 else 0 end as assert_new_goods_get_next_numbers;
 do $$ begin
  begin
-  insert into public.goods(id,code,ip_id,name,type,price,stock,product_no) values('number-x','NUMBER-X','goods-number-test','지정 번호','문구',1,'ok',1);
+  insert into public.goods(id,code,ip_id,name,price,stock,product_no) values('number-x','NUMBER-X','goods-number-test','지정 번호',1,'ok',1);
   raise exception 'explicit product number accepted';
  exception when invalid_parameter_value then
   if sqlerrm <> 'goods_product_no_system_assigned' then raise; end if;
@@ -76,16 +76,16 @@ select 1/case when (select product_no from public.goods where id='number-a') = :
 -- 4. 지운 상품의 번호는 다시 쓰지 않는다.
 savepoint reuse;
 delete from public.goods where id='number-c';
-insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-d','NUMBER-D','goods-number-test','번호 검증 D','문구',4000,'ok');
+insert into public.goods(id,code,ip_id,name,price,stock) values('number-d','NUMBER-D','goods-number-test','번호 검증 D',4000,'ok');
 select 1/case when (select product_no from public.goods where id='number-d') > :number_c
  then 1 else 0 end as assert_deleted_number_is_not_reused;
 rollback to savepoint reuse;
 
 -- 4-1. 수정 저장은 번호를 쓰지 않는다(리뷰 T17a-RV ②). 상품 저장은 수정도 INSERT … ON CONFLICT (id) DO UPDATE다.
 select last_value as seq_before, is_called as seq_called from private.goods_product_no_seq \gset
-insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-a','NUMBER-A','goods-number-test','번호 검증 A 다시 저장 1','문구',1000,'ok')
+insert into public.goods(id,code,ip_id,name,price,stock) values('number-a','NUMBER-A','goods-number-test','번호 검증 A 다시 저장 1',1000,'ok')
  on conflict (id) do update set name=excluded.name;
-insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-a','NUMBER-A','goods-number-test','번호 검증 A 다시 저장 2','문구',1000,'ok')
+insert into public.goods(id,code,ip_id,name,price,stock) values('number-a','NUMBER-A','goods-number-test','번호 검증 A 다시 저장 2',1000,'ok')
  on conflict (id) do update set name=excluded.name;
 select 1/case when (select last_value from private.goods_product_no_seq)=:seq_before
  and (select product_no from public.goods where id='number-a')=:number_a
@@ -141,20 +141,20 @@ begin
   perform set_config('request.jwt.claim.sub','',true);
   execute 'set local role anon';
   begin
-    insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-anon','NUMBER-ANON','goods-number-save','익명 직접 등록','문구',1,'ok');
+    insert into public.goods(id,code,ip_id,name,price,stock) values('number-anon','NUMBER-ANON','goods-number-save','익명 직접 등록',1,'ok');
     raise exception 'anon direct insert accepted';
   exception when insufficient_privilege then null; end;
   execute 'reset role';
   perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000061302',true);
   execute 'set local role authenticated';
   begin
-    insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-member','NUMBER-MEMBER','goods-number-save','회원 직접 등록','문구',1,'ok');
+    insert into public.goods(id,code,ip_id,name,price,stock) values('number-member','NUMBER-MEMBER','goods-number-save','회원 직접 등록',1,'ok');
     raise exception 'member direct insert accepted';
   exception when insufficient_privilege then null; end;
   execute 'reset role';
   execute 'set local role service_role';
   begin
-    insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-service','NUMBER-SERVICE','goods-number-save','서비스 직접 등록','문구',1,'ok');
+    insert into public.goods(id,code,ip_id,name,price,stock) values('number-service','NUMBER-SERVICE','goods-number-save','서비스 직접 등록',1,'ok');
     raise exception 'service role direct insert of a new product accepted';
   exception when insufficient_privilege then null; end;
   execute 'reset role';

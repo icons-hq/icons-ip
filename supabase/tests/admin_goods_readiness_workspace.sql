@@ -11,8 +11,8 @@ insert into public.ips(id,title,vertical_key,published_at) values('readiness-tes
 insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order) values
  ('00000000-0000-4000-8000-000000052810','readiness-parent','테스트 상위',null,1,0),
  ('00000000-0000-4000-8000-000000052811','readiness-child','테스트 하위','00000000-0000-4000-8000-000000052810',2,0);
-insert into public.goods(id,code,ip_id,name,type,price,stock,category_id)
- select 'readiness-'||lpad(n::text,3,'0'),'READINESS-'||lpad(n::text,3,'0'),'readiness-test','동일 상품명','문구',1000,'ok','00000000-0000-4000-8000-000000052811'::uuid
+insert into public.goods(id,code,ip_id,name,price,stock,category_id)
+ select 'readiness-'||lpad(n::text,3,'0'),'READINESS-'||lpad(n::text,3,'0'),'readiness-test','동일 상품명',1000,'ok','00000000-0000-4000-8000-000000052811'::uuid
  from generate_series(1,25) n;
 update public.goods set image_path='public-media/readiness-fixture.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026',notice_as_manager='합성 CS',notice_as_contact='02-000'
  where id like 'readiness-%';
@@ -73,8 +73,8 @@ select 1/case when public.admin_read_goods_readiness('workspace-price-case')->>'
 update public.goods_variants set archived_at=now() where good_id='workspace-price-case' and not is_default;
 select 1/case when public.admin_read_goods_readiness('workspace-price-case')->>'priceMax'='10001' then 1 else 0 end as assert_stopped_option_is_not_price_range;
 explain (analyze,costs off,timing off) select public.admin_search_goods_workspace(p_query=>'READINESS-',p_readiness=>'review_required',p_limit=>20);
-insert into public.goods(id,code,ip_id,name,type,price,stock)
- select 'workspace-scale-'||lpad(n::text,4,'0'),'WS-SCALE-'||lpad(n::text,4,'0'),'readiness-test','대량 목록 검증','문구',1000,'ok'
+insert into public.goods(id,code,ip_id,name,price,stock)
+ select 'workspace-scale-'||lpad(n::text,4,'0'),'WS-SCALE-'||lpad(n::text,4,'0'),'readiness-test','대량 목록 검증',1000,'ok'
  from generate_series(1,1001) n;
 select 1/case when (public.admin_search_goods_workspace(p_query=>'WS-SCALE-',p_readiness=>'review_required',p_limit=>0)->>'total')::int=1001
  and jsonb_array_length(public.admin_search_goods_workspace(p_query=>'WS-SCALE-',p_readiness=>'review_required',p_limit=>20,p_offset=>1000)->'rows')=1

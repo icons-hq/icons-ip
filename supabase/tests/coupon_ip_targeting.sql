@@ -21,9 +21,9 @@ insert into public.ips(id,title,vertical_key,published_at) values
 update public.ips set archived_at=now() where id='coupon-ip-check-archived';
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('c7170930-0000-4000-8000-000000000010','coupon-ip-check-origin','TEST 출고지','hanjin',3000,'TEST 합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('coupon-ip-check-a','coupon-ip-check-main','TEST 상품 A','문구',10000,'ok',100,'c7170930-0000-4000-8000-000000000010','policy',0),
- ('coupon-ip-check-b','coupon-ip-check-other','TEST 상품 B','문구',5000,'ok',100,'c7170930-0000-4000-8000-000000000010','policy',0);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('coupon-ip-check-a','coupon-ip-check-main','TEST 상품 A',10000,'ok',100,'c7170930-0000-4000-8000-000000000010','policy',0),
+ ('coupon-ip-check-b','coupon-ip-check-other','TEST 상품 B',5000,'ok',100,'c7170930-0000-4000-8000-000000000010','policy',0);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','transaction-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now()
  from public.goods where id in('coupon-ip-check-a','coupon-ip-check-b');
@@ -77,7 +77,7 @@ select public.admin_upsert_coupon_scheduled(pg_temp.ip_coupon('IP-COUPON',15000)
 reset role;
 select pg_temp.transaction_expect_error('update public.coupons set target_ip_ids=''{}'' where code=''IP-COUPON''','coupon_goods_scope_ready');
 select pg_temp.transaction_expect_error('update public.coupons set target_good_ids=''{coupon-ip-check-a}'' where code=''IP-COUPON''','coupon_goods_scope_ready');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('coupon-ip-check-new','coupon-ip-check-main','TEST 나중에 추가한 상품','문구',1000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('coupon-ip-check-new','coupon-ip-check-main','TEST 나중에 추가한 상품',1000,'ok',10);
 select 1/case when private.coupon_good_matches('selected_ips','{}','{}',array['coupon-ip-check-main'],'coupon-ip-check-new')
  and not private.coupon_good_matches('selected_ips','{}','{}',array['coupon-ip-check-main'],'coupon-ip-check-b')
  and not private.coupon_good_matches('selected_ips','{}','{}','coupon-ip-check-new')

@@ -18,8 +18,8 @@ update private.goods_subscription_runtime set public_enabled=true,charge_enabled
 insert into public.ips(id,title,vertical_key,published_at) values('subscription-tx-ip','TEST 정기배송 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('b1714000-0000-4000-8000-000000000010','subscription-tx-origin','TEST 출고지','hanjin',3000,'TEST 합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('subscription-tx-good','subscription-tx-ip','TEST 정기배송 상품','문구',10000,'ok',100,'b1714000-0000-4000-8000-000000000010','policy',0);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('subscription-tx-good','subscription-tx-ip','TEST 정기배송 상품',10000,'ok',100,'b1714000-0000-4000-8000-000000000010','policy',0);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','subscription-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now()
  from public.goods where ip_id='subscription-tx-ip';

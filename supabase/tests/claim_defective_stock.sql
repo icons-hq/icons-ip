@@ -32,8 +32,8 @@ insert into private.operator_memberships(profile_id, manager_role) values (pg_te
 insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
  values (pg_temp.ds_id('origin', 1), 'defective-stock-origin', 'TEST 불량재고 출고지', 'hanjin', 3000, 'TEST 반품 주소', true);
 insert into public.ips(id, title, vertical_key) values ('defective-stock-ip', 'TEST 불량재고 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id)
- select 'defective-stock-good-'||n, 'defective-stock-ip', 'TEST 불량재고 상품 '||n, '문구', 10000, 'ok', 10, pg_temp.ds_id('origin', 1)
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id)
+ select 'defective-stock-good-'||n, 'defective-stock-ip', 'TEST 불량재고 상품 '||n, 10000, 'ok', 10, pg_temp.ds_id('origin', 1)
  from generate_series(1, 4) n;
 
 -- 주문 1: 반품(상품1 ×2 · 상품2 ×3) 카드 결제 5만원 · 주문 2: 반품(상품3 ×1) · 주문 3: 교환(상품4 ×1) · 주문 4: 반품(상품1 ×2, 같은 품목 중복 선택용)
@@ -42,8 +42,8 @@ insert into public.orders(id, user_id, status, total, shipping_fee, address, pay
   '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
   'card'::public.order_payment_method, clock_timestamp() - interval '3 days', clock_timestamp() - interval '1 day' from generate_series(1, 4) n;
 update public.orders set shipped_at = clock_timestamp() - interval '2 days' where id in (select pg_temp.ds_id('order', n) from generate_series(1, 4) n);
-insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
- select pg_temp.ds_id('item', k.item), pg_temp.ds_id('order', k.ord), 'defective-stock-good-'||k.good, v.id, 'TEST 불량재고 상품 '||k.good, '문구', 'defective-stock-ip', k.qty, 10000
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.ds_id('item', k.item), pg_temp.ds_id('order', k.ord), 'defective-stock-good-'||k.good, v.id, 'TEST 불량재고 상품 '||k.good, 'defective-stock-ip', k.qty, 10000
  from (values (1, 1, 1, 2), (2, 1, 2, 3), (3, 2, 3, 1), (4, 3, 4, 1), (5, 4, 1, 2)) k(item, ord, good, qty)
  join public.goods_variants v on v.good_id = 'defective-stock-good-'||k.good and v.is_default;
 insert into public.payments(id, user_id, provider, purpose, ref_id, amount, status, payment_key, idempotency_key, created_at)
@@ -194,8 +194,8 @@ select 1/case when pg_temp.ds_stock(1) = 12 then 1 else 0 end as rejected_claim_
 
 
 -- 10~15. 리뷰 수정: 무통장 얼림·기록 전제, 이중 복원 방어선, 미출고 거절, 교환 전환, 교환 뒤 반품 재고 대조 ------------------------------------
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id)
- select 'defective-stock-good-'||n, 'defective-stock-ip', 'TEST 불량재고 상품 '||n, '문구', 10000, 'ok', 10, pg_temp.ds_id('origin', 1)
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id)
+ select 'defective-stock-good-'||n, 'defective-stock-ip', 'TEST 불량재고 상품 '||n, 10000, 'ok', 10, pg_temp.ds_id('origin', 1)
  from generate_series(5, 10) n;
 -- 주문 5(무통장 얼림: 상품5 ×2·상품6 ×1) · 6(이중 복원 방어: 상품7) · 7(미출고: 상품8) · 8(교환 전환: 상품5 ×1) · 9(교환 뒤 반품: 상품9→상품10 ×2)
 insert into public.orders(id, user_id, status, total, shipping_fee, address, payment_method, created_at, delivered_at, shipped_at)
@@ -203,8 +203,8 @@ insert into public.orders(id, user_id, status, total, shipping_fee, address, pay
   '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
   'card'::public.order_payment_method, clock_timestamp() - interval '3 days', clock_timestamp() - interval '1 day',
   case when n = 7 then null else clock_timestamp() - interval '2 days' end from generate_series(5, 9) n;
-insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
- select pg_temp.ds_id('item', k.item), pg_temp.ds_id('order', k.ord), 'defective-stock-good-'||k.good, v.id, 'TEST 불량재고 상품 '||k.good, '문구', 'defective-stock-ip', k.qty, 10000
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.ds_id('item', k.item), pg_temp.ds_id('order', k.ord), 'defective-stock-good-'||k.good, v.id, 'TEST 불량재고 상품 '||k.good, 'defective-stock-ip', k.qty, 10000
  from (values (6, 5, 5, 2), (7, 5, 6, 1), (8, 6, 7, 1), (9, 7, 8, 1), (10, 8, 5, 1), (11, 9, 9, 2)) k(item, ord, good, qty)
  join public.goods_variants v on v.good_id = 'defective-stock-good-'||k.good and v.is_default;
 insert into public.payments(id, user_id, provider, purpose, ref_id, amount, status, payment_key, idempotency_key, created_at)
@@ -270,8 +270,8 @@ select 1/case when jsonb_array_length(public.admin_claim_defective_items(array[p
 reset role;
 
 -- 13. 반품 → 교환 전환: 낡은 선택은 복원을 막지 않고 기록 필요에도 뜨지 않으며, 같은 주문의 새 반품을 막지 않는다 -------------------------
-insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
- select pg_temp.ds_id('item', 12), pg_temp.ds_id('order', 8), 'defective-stock-good-6', v.id, 'TEST 불량재고 상품 6', '문구', 'defective-stock-ip', 1, 10000
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.ds_id('item', 12), pg_temp.ds_id('order', 8), 'defective-stock-good-6', v.id, 'TEST 불량재고 상품 6', 'defective-stock-ip', 1, 10000
  from public.goods_variants v where v.good_id = 'defective-stock-good-6' and v.is_default;
 set local role authenticated;
 select pg_temp.ds_auth(1);
@@ -354,10 +354,10 @@ insert into private.operator_memberships(profile_id, manager_role) values (pg_te
 insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
  select pg_temp.pc_id('origin', n), 'partial-cancel-origin-'||n, 'TEST 부분취소 출고지 '||n, 'hanjin', 3000, 'TEST 반품 주소', true from generate_series(1, 2) n;
 insert into public.ips(id, title, vertical_key) values ('partial-cancel-ip', 'TEST 부분취소 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id) values
- ('partial-cancel-a', 'partial-cancel-ip', 'TEST 품절 상품 A', '문구', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
- ('partial-cancel-b', 'partial-cancel-ip', 'TEST 남는 상품 B', '문구', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
- ('partial-cancel-c', 'partial-cancel-ip', 'TEST 다른 출고지 상품 C', '문구', 5000, 'ok', 10, pg_temp.pc_id('origin', 2));
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id) values
+ ('partial-cancel-a', 'partial-cancel-ip', 'TEST 품절 상품 A', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
+ ('partial-cancel-b', 'partial-cancel-ip', 'TEST 남는 상품 B', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
+ ('partial-cancel-c', 'partial-cancel-ip', 'TEST 다른 출고지 상품 C', 5000, 'ok', 10, pg_temp.pc_id('origin', 2));
 create function pg_temp.pc_stock(good text) returns integer language sql as $$
  select stock_qty from public.goods_variants where good_id = good and is_default$$;
 
@@ -377,9 +377,9 @@ begin
    (case when provider = 'bank_transfer' then 'bank_transfer' else 'card' end)::public.order_payment_method,
    case when n = 2 then '2031-04-01T03:00:00Z'::timestamptz else '2031-03-01T03:00:00Z'::timestamptz end,
    case when initial = 'confirmed' then clock_timestamp() - interval '1 hour' end);
- insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot)
  select pg_temp.pc_id('item-'||g.id, n), pg_temp.pc_id('order', n), g.id, v.id, case when g.id = 'partial-cancel-a' then 2 else 1 end, g.price,
-   g.name, '문구', 'partial-cancel-ip'
+   g.name, 'partial-cancel-ip'
  from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id like 'partial-cancel-%';
  if version = 2 then
   -- 버전 2 주문은 거래 계약 묶음이 있어야 품목을 넣을 수 있다. 합성 주문은 품목을 넣은 뒤 버전을 올린다(배분 원장만 쓴다).

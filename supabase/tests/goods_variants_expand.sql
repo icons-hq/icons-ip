@@ -9,8 +9,8 @@ select 1 / case when not exists (
 
 insert into public.verticals(key,label,color) values ('variant-expand','옵션 확장','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('variant-expand','옵션 확장','variant-expand',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('variant-expand','variant-expand','기본 옵션 상품','문구',10000,'ok',7,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
+values ('variant-expand','variant-expand','기본 옵션 상품',10000,'ok',7,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('variant-expand');
 select 1 / case when exists (
@@ -26,9 +26,9 @@ update public.profiles set nickname='variant_buyer',birth_date='2000-01-01',
  consents='{"terms":true,"privacy":true}',onboarded_at=now() where id='00000000-0000-4000-8000-000000041902';
 
 insert into public.ips(id,title,vertical_key) values ('variant-expand-draft','비공개 옵션','variant-expand');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,sale_restriction) values
- ('variant-expand-draft','variant-expand-draft','비공개 상품','문구',1000,'ok',2,'none'),
- ('variant-expand-restricted','variant-expand','판매 제한 상품','문구',1000,'ok',2,'adult');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,sale_restriction) values
+ ('variant-expand-draft','variant-expand-draft','비공개 상품',1000,'ok',2,'none'),
+ ('variant-expand-restricted','variant-expand','판매 제한 상품',1000,'ok',2,'adult');
 set local role anon;
 select 1 / case when (select count(*) from public.goods_variants where good_id like 'variant-expand%') = 1
  then 1 else 0 end as assert_public_options_follow_catalog_visibility;

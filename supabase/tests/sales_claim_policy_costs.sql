@@ -26,8 +26,8 @@ update public.profiles set role = 'staff', nickname = '비용 확인 CS' where i
 insert into public.verticals(key, label, color) values ('claim-cost-tests', '클레임 비용 검증', '#000000') on conflict (key) do nothing;
 insert into public.ips(id, title, vertical_key, published_at)
 values ('claim-cost-tests', '클레임 비용 검증', 'claim-cost-tests', now()) on conflict (id) do nothing;
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id, shipping_fee_type, individual_fee)
-values ('claim-cost-good', 'claim-cost-tests', '클레임 비용 상품', '키링', 1000, 'ok', 1,
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id, shipping_fee_type, individual_fee)
+values ('claim-cost-good', 'claim-cost-tests', '클레임 비용 상품', 1000, 'ok', 1,
   '00000000-0000-4000-8000-000000042201', 'policy', 0) on conflict (id) do nothing;
 insert into public.orders(id, user_id, status, total, address)
 values ('00000000-0000-4000-8000-000000049112', '00000000-0000-4000-8000-000000049111', 'delivered', 1000, '{}'::jsonb)

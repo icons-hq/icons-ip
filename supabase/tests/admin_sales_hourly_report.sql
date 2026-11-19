@@ -39,15 +39,15 @@ insert into sh_results select 'baseline',public.admin_sales_hourly_report(compar
 reset role;
 
 insert into public.ips(id,title,vertical_key) values('sh-qa-one','시간대 검증 IP','character'),('sh-qa-other','시간대 다른 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
-select 'sh-qa-'||lpad(n::text,2,'0'),'sh-qa-one','현재 상품명 '||n,'문구',1000,'ok',100 from generate_series(1,13)n;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('sh-qa-other','sh-qa-other','혼합 IP 상품','문구',3000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+select 'sh-qa-'||lpad(n::text,2,'0'),'sh-qa-one','현재 상품명 '||n,1000,'ok',100 from generate_series(1,13)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('sh-qa-other','sh-qa-other','혼합 IP 상품',3000,'ok',100);
 -- 1,001 independent orders in the last complete hour, even at KST midnight.
 insert into public.orders(id,user_id,status,total,created_at)
 select pg_temp.sh_id(1,n),pg_temp.sh_id(0,4),'paid',1000,c.cutoff-interval '30 minutes'
 from generate_series(1,1001)n cross join sh_clock c;
-insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-select pg_temp.sh_id(1,n),'sh-qa-01',1,1000,'주문 당시 상품 01','문구','sh-qa-one',v.id
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+select pg_temp.sh_id(1,n),'sh-qa-01',1,1000,'주문 당시 상품 01','sh-qa-one',v.id
 from generate_series(1,1001)n cross join public.goods_variants v where v.good_id='sh-qa-01' and v.is_default;
 insert into public.orders(id,user_id,status,total,shipping_fee,discount_total,store_credit_total,created_at)
 select pg_temp.sh_id(2,n),pg_temp.sh_id(0,4),
@@ -64,17 +64,17 @@ select pg_temp.sh_id(2,n),pg_temp.sh_id(0,4),
   when 16 then c.cutoff-interval '7 days 30 minutes' when 17 then c.cutoff-interval '7 days 30 minutes'
   when 18 then c.starts_at-interval '7 days' else c.cutoff-interval '30 minutes' end
 from generate_series(1,20)n cross join sh_clock c where n<>19;
-insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
 select pg_temp.sh_id(2,n),g.id,case when n in(1,2,16) then 2 when n=14 then 3 else 1 end,
  case n when 8 then 1500 when 9 then 1600 when 10 then 1700 when 12 then 1800 when 14 then 2000 when 16 then 1388 when 17 then 99000 else 1000 end,
- '주문 당시 '||g.id,'문구','sh-qa-one',v.id
+ '주문 당시 '||g.id,'sh-qa-one',v.id
 from generate_series(1,18)n join public.goods g on g.id='sh-qa-'||lpad((case n when 1 then 2 when 2 then 3 when 8 then 4 when 9 then 5 when 10 then 6 when 12 then 8 when 14 then 1 when 16 then 2 when 17 then 13 else 7 end)::text,2,'0')
 join public.goods_variants v on v.good_id=g.id and v.is_default;
-insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-select pg_temp.sh_id(2,1),'sh-qa-other',1,3000,'혼합 IP 스냅샷','문구','sh-qa-other',id
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+select pg_temp.sh_id(2,1),'sh-qa-other',1,3000,'혼합 IP 스냅샷','sh-qa-other',id
 from public.goods_variants where good_id='sh-qa-other' and is_default;
-insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-select pg_temp.sh_id(2,20),g.id,1,1000,'주문 당시 '||g.id,'문구','sh-qa-one',v.id
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+select pg_temp.sh_id(2,20),g.id,1,1000,'주문 당시 '||g.id,'sh-qa-one',v.id
 from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default
 where g.id between 'sh-qa-02' and 'sh-qa-12';
 insert into public.payments(id,user_id,purpose,ref_id,amount,status,payment_key,idempotency_key,provider,created_at)

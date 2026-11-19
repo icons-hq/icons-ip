@@ -15,16 +15,16 @@ insert into public.ips(id,title,vertical_key,published_at) values
  ('l4-summary-ip','목록 별점 검증','character',now()),
  ('l4-summary-draft-ip','목록 별점 초안 IP','character',null);
 
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,sale_restriction) values
- ('l4-sum-solo','l4-summary-ip','별점 단독 굿즈','문구',1000,'ok',10,null,'none'),
- ('l4-sum-group-a','l4-summary-ip','별점 묶음 레드','문구',1000,'ok',10,null,'none'),
- ('l4-sum-group-b','l4-summary-ip','별점 묶음 블루','문구',1000,'ok',10,null,'none'),
- ('l4-sum-none','l4-summary-ip','리뷰 없는 굿즈','문구',1000,'ok',10,null,'none'),
- ('l4-sum-hidden','l4-summary-ip','숨김 리뷰만 있는 굿즈','문구',1000,'ok',10,null,'none'),
- ('l4-sum-draft','l4-summary-ip','초안 굿즈','문구',1000,'ok',10,null,'none'),
- ('l4-sum-archived','l4-summary-ip','보관 굿즈','문구',1000,'soldout',0,null,'none'),
- ('l4-sum-restricted','l4-summary-ip','판매 제한 굿즈','문구',1000,'ok',10,null,'adult'),
- ('l4-sum-draft-ip','l4-summary-draft-ip','초안 IP 굿즈','문구',1000,'ok',10,null,'none');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,sale_restriction) values
+ ('l4-sum-solo','l4-summary-ip','별점 단독 굿즈',1000,'ok',10,null,'none'),
+ ('l4-sum-group-a','l4-summary-ip','별점 묶음 레드',1000,'ok',10,null,'none'),
+ ('l4-sum-group-b','l4-summary-ip','별점 묶음 블루',1000,'ok',10,null,'none'),
+ ('l4-sum-none','l4-summary-ip','리뷰 없는 굿즈',1000,'ok',10,null,'none'),
+ ('l4-sum-hidden','l4-summary-ip','숨김 리뷰만 있는 굿즈',1000,'ok',10,null,'none'),
+ ('l4-sum-draft','l4-summary-ip','초안 굿즈',1000,'ok',10,null,'none'),
+ ('l4-sum-archived','l4-summary-ip','보관 굿즈',1000,'soldout',0,null,'none'),
+ ('l4-sum-restricted','l4-summary-ip','판매 제한 굿즈',1000,'ok',10,null,'adult'),
+ ('l4-sum-draft-ip','l4-summary-draft-ip','초안 IP 굿즈',1000,'ok',10,null,'none');
 
 select pg_temp.publish_goods_kc_fixture(id)
 from public.goods where id like 'l4-sum-%' and id<>'l4-sum-draft' order by id;
@@ -47,8 +47,8 @@ declare purchase uuid:=('41000000-0000-4000-8000-'||lpad(p_order::text,12,'0')):
 begin
  insert into public.orders(id,user_id,status,total,address,payment_method)
  values(purchase,'00000000-0000-4000-8000-000000056902','done',1000,'{}','card');
- insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select purchase,p_good,v.id,1,1000,'별점 합성 상품','문구',g.ip_id
+ insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select purchase,p_good,v.id,1,1000,'별점 합성 상품',g.ip_id
  from public.goods_variants v join public.goods g on g.id=v.good_id where v.good_id=p_good and v.is_default;
  if p_hidden then
   insert into public.reviews(user_id,good_id,order_id,rating,body,status,hidden_reason,hidden_at)

@@ -12,8 +12,8 @@ update public.profiles set role='staff' where id::text like '99000000-0000-4000-
 insert into private.operator_memberships(profile_id,manager_role) values
  ('99000000-0000-4000-8000-000000000001','primary'),('99000000-0000-4000-8000-000000000002','deputy'),('99000000-0000-4000-8000-000000000003','logistics');
 insert into public.ips(id,title,vertical_key,published_at) select 'relation-visual-ip','이미지 연관 검수',key,now() from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
-select 'relation-visual-'||k,'relation-visual-ip','이미지 연관 상품 '||k,'문구',1000,'ok',10 from unnest(array['a','b','c','draft','adult','archived'])k;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+select 'relation-visual-'||k,'relation-visual-ip','이미지 연관 상품 '||k,1000,'ok',10 from unnest(array['a','b','c','draft','adult','archived'])k;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
 select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}'
 from public.goods where id in ('relation-visual-a','relation-visual-b','relation-visual-c','relation-visual-adult','relation-visual-archived');
