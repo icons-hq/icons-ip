@@ -48,6 +48,8 @@ const operators = [
   sql('admin_operator_directory'),
   sql('readable_order_numbers'),
   sql('order_number_time'),
+  // 결제 전 주문 내용 확인·구매 조건 동의 기록(PAY-015): service_role 멱등 기록·제한 굿즈 스냅샷·운영자 읽기.
+  sql('order_purchase_acknowledgement'),
   sql('erp_read'),
   // MD(catalog.manage) ERP 품목 반입 권한과 연결 상품 판매가·바코드 반영(1027T-016·1027T-X04).
   sql('erp_linked_goods_apply', { kc: true }),
