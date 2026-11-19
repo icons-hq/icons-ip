@@ -27,7 +27,7 @@ export class CategoryDisplayStaleError extends Error { constructor() { super('ì 
  * exact option price, stock, custom-input and purchase-constraint normalizer. */
 export function parseCategoryDisplayGood(value: unknown): Good | null {
   if (!record(value) || !isCategoryDisplayGoodId(value.id) || typeof value.name !== 'string' || typeof value.ip_id !== 'string'
-    || typeof value.type !== 'string' || !number(value.price) || !number(value.stock_qty) || typeof value.stock !== 'string'
+    || !number(value.price) || !number(value.stock_qty) || typeof value.stock !== 'string'
     || !nullableString(value.image_path) || !nullableString(value.bg) || !nullableString(value.badge)
     || !Array.isArray(value.goods_variants) || typeof value.custom_inputs_enabled !== 'boolean' || !number(value.custom_inputs_revision)
     || !Array.isArray(value.custom_input_fields) || (value.sale_restriction !== 'none' && value.sale_restriction !== 'adult')) return null;

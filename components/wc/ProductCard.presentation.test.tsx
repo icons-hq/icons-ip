@@ -5,7 +5,7 @@ import { ProductCard } from './ProductCard';
 import { StorePresentationProvider } from '@/components/shell/StorePresentationProvider';
 import { DEFAULT_STORE_PRESENTATION } from '@/lib/store-presentation';
 import type { Good } from '@/lib/data';
-const good: Good = { id: 'good', ip: 'ip', name: '실제 상품', price: 1000, badge: 'NEW', type: '문구', stock: 'ok', stockQty: 5, img: 'url("/a.webp") center/cover',
+const good: Good = { id: 'good', ip: 'ip', name: '실제 상품', price: 1000, badge: 'NEW', stock: 'ok', stockQty: 5, img: 'url("/a.webp") center/cover',
   options: [{ id: 'option', name: '단일', code: 'single', price: 1000, stockQty: 5, isDefault: true, attributes: {} }],
   listingAppearance: { gallery: ['url("/b.webp") center/cover'], colors: [{ label: '검정', hex: '#000000' }], description: '<script>상품 텍스트</script>' } };
 function render(surface: 'standard' | 'best' | 'story' | 'preview') {

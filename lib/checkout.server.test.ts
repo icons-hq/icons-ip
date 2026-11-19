@@ -161,14 +161,13 @@ describe('loadCheckoutOrder', () => {
       variantName: '파랑',
       variantCode: 'BLUE',
       name: '주문 당시 이름',
-      type: '아크릴',
       qty: 1,
       unitPrice: 27000,
       supplySource: 'stock',
       preorderExpectedShipDate: null,
     }]);
     expect(records.find((record) => record.table === 'order_items')).toMatchObject({ rpc: 'my_order_items', in: [['order_id', [orderId]]],
-      select: 'id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id' });
+      select: 'id,good_id,qty,unit_price,good_name_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id' });
     expect(records.some((record) => record.table === 'goods')).toBe(false);
   });
 

@@ -117,8 +117,8 @@ describe('/ip/[id] page', () => {
     mocks.detail = {
       source: 'mock', ip, cards: [], events: [], posts: [],
       goods: [
-        { id: 'g1', name: '화산 키링', ip: 'ip-1', type: '키링', price: 12000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },
-        { id: 'g2', name: '화산 인형', ip: 'ip-1', type: '인형', price: 30000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },
+        { id: 'g1', name: '화산 키링', ip: 'ip-1', price: 12000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },
+        { id: 'g2', name: '화산 인형', ip: 'ip-1', price: 30000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },
       ],
     };
     renderToStaticMarkup(await Page({

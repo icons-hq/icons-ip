@@ -54,7 +54,6 @@ function good(id: string, overrides: Partial<Good> = {}): Good {
     id,
     ip: 'ip1',
     name: `굿즈 ${id}`,
-    type: '키링',
     price: 10000,
     badge: null,
     stock: 'ok',
@@ -122,7 +121,7 @@ describe('/shop/new page', () => {
   it('필터 쿼리(?ip·?min·?type)는 읽지 않는다 — 결과가 같다', async () => {
     mocks.goods = [
       good('a', { name: '싼 신상', badge: 'NEW', price: 10000 }),
-      good('b', { name: '비싼 신상', badge: 'NEW', price: 30000, type: '피규어' }),
+      good('b', { name: '비싼 신상', badge: 'NEW', price: 30000, }),
     ];
     const filtered = await render({ ip: 'ghost', min: '20000', type: '피규어' });
 

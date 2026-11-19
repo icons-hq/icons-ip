@@ -131,7 +131,6 @@ export interface OrderDetailItem {
   variantCode?: string | null;
   goodId: string;
   name: string;
-  type: string;
   qty: number;
   unitPrice: number;
   supplySource?: 'stock' | 'preorder';

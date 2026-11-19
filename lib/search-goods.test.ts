@@ -24,7 +24,6 @@ const good = (id: string, overrides: Partial<Good> = {}): Good => ({
   id,
   name: `굿즈 ${id}`,
   ip: 'rilakkuma',
-  type: '키링',
   price: 12000,
   badge: null,
   stock: 'ok',
@@ -72,7 +71,7 @@ describe('searchGoods 매칭 축', () => {
   });
 
   it('옛 상품 유형 값으로는 찾지 않는다(ADR-0044)', () => {
-    const catalog = catalogOf([good('g1', { name: '이름에 없음', type: '쿠션' })]);
+    const catalog = catalogOf([good('g1', { name: '이름에 없음', })]);
 
     expect(searchGoods(catalog, '쿠션', 1).total).toBe(0);
   });
@@ -170,7 +169,7 @@ describe('selectSearchGoods (SR-01)', () => {
   const catalog = catalogOf([
     good('rest', { name: '무관', ip: 'maple', categoryId: 'cat-rilakkuma-set', price: 7000 }),
     good('ipGood', { name: '무관2', price: 5000 }),
-    good('name', { name: '리락쿠마 인형', type: '인형', price: 30000 }),
+    good('name', { name: '리락쿠마 인형', price: 30000 }),
     good('name2', { name: '리락쿠마 키링', price: 9000 }),
     good('other', { name: '관계없음', ip: 'maple' }),
   ]);

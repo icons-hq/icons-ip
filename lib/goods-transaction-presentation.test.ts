@@ -6,7 +6,7 @@ const offer: GoodsTransactionOffer = { goodId: 'one', volume: { id: '00000000-00
   terms: { condition: 'quantity', threshold: 3, discountKind: 'fixed', discountValue: 1000, startsAt: null, endsAt: null } },
   delivery: { id: '00000000-0000-4000-8000-000000000002', goodId: 'one', revision: 1, status: 'active', draftValues: {}, paymentMode: 'collect', quantityTerms: { kind: 'tier3', baseFee: 3000, firstLimit: 2, secondLimit: 4, extra1: 1000, extra2: 2500 } },
   collectReady: false, collector: null };
-const good: Good = { id: 'one', name: 'TEST 상품', ip: 'test', type: '문구', price: 8000, stockQty: 100, stock: 'ok', badge: null, img: '',
+const good: Good = { id: 'one', name: 'TEST 상품', ip: 'test', price: 8000, stockQty: 100, stock: 'ok', badge: null, img: '',
   transactionOffer: offer, transactionCalculatedAt: '2026-10-14T00:00:00Z' };
 const option = { id: '00000000-0000-4000-8000-000000000003', price: 8000,
   pricing: { regularPrice: 10000, effectivePrice: 8000, calculatedAt: '2026-10-14T00:00:00Z' } } as GoodOption;

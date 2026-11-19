@@ -13,7 +13,7 @@ const ip: Ip = { id: 'fixture-ip', title: '합성 IP', sub: '', v: { key: 'chara
   glyph: 'IP', bg: '#eee', fans: 0, goods: 0, cards: 0, featured: false, tagline: '', synopsis: '' };
 function record(id: string, name = '합성 KC 상품'): AdminGoodRecord {
   return { id, code: 'FIXTURE-GOOD', name, ipId: ip.id, firstPublishedAt: null, publishedAt: null, archivedAt: null,
-    type: '문구', price: 1000, compareAtPrice: null, badge: null, stock: 'ok', stockQty: 0, allowBankTransfer: true,
+    price: 1000, compareAtPrice: null, badge: null, stock: 'ok', stockQty: 0, allowBankTransfer: true,
     saleRestriction: 'none', bg: null, imagePath: null, notice: fixtureNoticePreset.notice, description: null,
     galleryPaths: [], galleryUrls: [], detailImagePath: null, detailImageUrl: null };
 }

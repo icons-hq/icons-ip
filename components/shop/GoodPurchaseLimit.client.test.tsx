@@ -41,9 +41,9 @@ import { purchaseBlockReason, useGoodPurchase } from './GoodPurchasePanel';
 
 const limited: GoodOption = { id: 'a', name: '파랑', code: 'A', price: 12000, stockQty: 10, isDefault: true, attributes: {}, orderMaxQty: 2, memberMaxQty: null };
 const free: GoodOption = { id: 'b', name: '빨강', code: 'B', price: 12000, stockQty: 10, isDefault: false, attributes: {}, orderMaxQty: null, memberMaxQty: null };
-const good: Good = { id: 'g1', name: '키링', ip: 'ip', type: '키링', price: 12000, badge: null, stock: 'ok', stockQty: 20, img: '', options: [limited, free] };
+const good: Good = { id: 'g1', name: '키링', ip: 'ip', price: 12000, badge: null, stock: 'ok', stockQty: 20, img: '', options: [limited, free] };
 const extraOption: GoodOption = { id: 'x', name: '기본 옵션', code: 'X', price: 3000, stockQty: 5, isDefault: true, attributes: {}, orderMaxQty: 1, memberMaxQty: null };
-const extra: Good = { id: 'g2', name: '스티커', ip: 'ip', type: '스티커', price: 3000, badge: null, stock: 'ok', stockQty: 5, img: '', options: [extraOption] };
+const extra: Good = { id: 'g2', name: '스티커', ip: 'ip', price: 3000, badge: null, stock: 'ok', stockQty: 5, img: '', options: [extraOption] };
 
 /* 훅을 부르는 자리는 컴포넌트 함수로 감싸고, 렌더마다 훅 순번을 되돌리는 일은 바깥 함수가 한다. */
 function Purchase(props: Parameters<typeof useGoodPurchase>[0]) {

@@ -50,7 +50,6 @@ function good(id: string, ipId: string, overrides: Partial<Good> = {}): Good {
     id,
     ip: ipId,
     name: `굿즈 ${id}`,
-    type: '키링',
     price: 10000,
     badge: null,
     stock: 'ok' as Stock,
@@ -63,10 +62,10 @@ function good(id: string, ipId: string, overrides: Partial<Good> = {}): Good {
 const catalog = {
   ips: [ip('ip1', '홍실'), ip('ip2', '메이플')],
   goods: [
-    good('a', 'ip1', { name: '홍실 피규어', price: 30000, type: '피규어', badge: 'NEW' }),
+    good('a', 'ip1', { name: '홍실 피규어', price: 30000, badge: 'NEW' }),
     good('b', 'ip1', { name: '홍실 키링', price: 10000 }),
     good('c', 'ip2', { name: '메이플 키링', price: 20000, stock: 'soldout', stockQty: 0 }),
-    good('d', 'ip2', { name: '메이플 인형', price: 50000, type: '인형', compareAtPrice: 60000 }),
+    good('d', 'ip2', { name: '메이플 인형', price: 50000, compareAtPrice: 60000 }),
   ],
 };
 

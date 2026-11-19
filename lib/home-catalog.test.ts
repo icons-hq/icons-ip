@@ -187,7 +187,6 @@ function good(id: string, ipId: string): Good {
     id,
     ip: ipId,
     name: `Good ${id}`,
-    type: '아크릴',
     price: 12000,
     badge: null,
     stock: 'ok',

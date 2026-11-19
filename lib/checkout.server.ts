@@ -56,7 +56,6 @@ interface OrderItemRow {
   qty: number;
   unit_price: number;
   good_name_snapshot: string;
-  good_type_snapshot: string;
   variant_id: string;
   variant_name_snapshot?: string | null;
   custom_inputs_snapshot?: unknown;
@@ -77,7 +76,6 @@ export interface CheckoutOrderItem {
   variantCode?: string | null;
   goodId: string;
   name: string;
-  type: string;
   qty: number;
   unitPrice: number;
   supplySource?: 'stock' | 'preorder';
@@ -309,7 +307,7 @@ export async function loadCheckoutOrder(
   ] = await Promise.all([
     /* 결제 전 주문서도 랜덤 판매 굿즈의 배정 옵션을 보이지 않는다 — 결제 전에 보이면 미결제 주문을 닫고 다시 뽑을 수 있다. */
     readMyOrderItems<OrderItemRow>(supabase, [orderId],
-      'id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
+      'id,good_id,qty,unit_price,good_name_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
     supabase
       .from('payment_summaries')
       .select('status,created_at')
@@ -365,7 +363,6 @@ export async function loadCheckoutOrder(
       name: item.good_name_snapshot,
       ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),
       variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
-      type: item.good_type_snapshot,
       qty: item.qty,
       unitPrice: item.unit_price,
       supplySource: item.supply_source ?? 'stock',
