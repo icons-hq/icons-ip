@@ -169,42 +169,14 @@ select private.register_operator_internal_contract('private.admin_save_good_befo
 -- --------------------------------------------------------------------------
 -- 3. 이미지 소유 검사
 -- --------------------------------------------------------------------------
-create or replace function public.enforce_admin_goods_content_artwork_claim()
-returns trigger language plpgsql volatile security definer set search_path='' as $$
-declare
-  v_actor_id uuid:=(select auth.uid());
-  old_paths text[]:='{}';
-  new_paths text[];
-  candidate text;
-begin
-  if tg_op='UPDATE' then
-    old_paths:=array_remove(array[old.image_path,old.detail_image_path]
-      || coalesce(old.detail_image_paths,'{}') || coalesce(old.gallery_paths,'{}') || coalesce(old.description_image_paths,'{}'),null);
-  end if;
-  select coalesce(array_agg(distinct path),'{}') into new_paths
-    from unnest(array_remove(array[new.detail_image_path]
-      || coalesce(new.detail_image_paths,'{}') || coalesce(new.gallery_paths,'{}') || coalesce(new.description_image_paths,'{}'),null)) path;
-  foreach candidate in array new_paths loop
-    continue when candidate=any(old_paths);
-    -- The existing main-image AFTER trigger validates this same row's image.
-    continue when candidate=new.image_path;
-    continue when private.can_copy_goods_artwork(new.id::text,candidate);
-    continue when private.can_reuse_shared_goods_artwork(candidate);
-    if v_actor_id is null then
-      if session_user='postgres' then continue; end if;
-      raise check_violation using message='unverified_artwork';
-    end if;
-    if not public.is_staff() or candidate !~ '^public-media/catalog/good/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp)$' then
-      raise check_violation using message='unverified_artwork';
-    end if;
-    update public.admin_artwork_upload_claims claim set status='attached',attached_at=clock_timestamp(),resolved_at=clock_timestamp()
-      where claim.actor_id=v_actor_id and claim.path=substring(candidate from length('public-media/')+1)
-        and claim.kind='good' and claim.status='verified' and claim.verified_at is not null
-        and claim.final_size is not null and claim.attached_at is null and claim.expires_at>clock_timestamp();
-    if not found then raise check_violation using message='unverified_artwork'; end if;
-  end loop;
-  return new;
-end $$;
+-- 전문을 다시 쓰지 않는다. 임시저장 migration(20261020085201)이 덧붙인 "내 임시저장 이미지 재사용" 예외 같은 뒤 패치를 지우지 않게,
+-- 현재 정의의 기존·새 경로 목록에만 detail_image_paths를 더한다.
+select private.detail_images_patch_function('public.enforce_admin_goods_content_artwork_claim()'::regprocedure, array[
+$a$array[old.image_path,old.detail_image_path]$a$,
+$a$array[old.image_path,old.detail_image_path] || coalesce(old.detail_image_paths,'{}')$a$,
+$a$array_remove(array[new.detail_image_path]$a$,
+$a$array_remove(array[new.detail_image_path] || coalesce(new.detail_image_paths,'{}')$a$
+]);
 revoke all on function public.enforce_admin_goods_content_artwork_claim() from public,anon,authenticated,service_role;
 drop trigger enforce_admin_goods_content_artwork_claim on public.goods;
 create trigger enforce_admin_goods_content_artwork_claim
