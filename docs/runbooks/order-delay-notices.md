@@ -34,7 +34,7 @@
 
 ## 활성화와 설정
 
-- `private.order_delay_notice_delivery_control.enabled`는 기본 `false`다. 일반 Data API 사용자·staff·service role의 직접 조회/변경과 공개 활성화 RPC는 없다. 별도 승인된 운영 변경으로만 활성화한다.
+- `private.order_delay_notice_delivery_control.enabled`는 기본 `false`다. 일반 Data API 사용자·staff·service role의 직접 조회/변경은 없다. 켜고 끄는 길은 어드민 운영 준비 → 운영 스위치(`/admin/settings/switches`, 통합 매니저·계정 주매니저, 전환 전에는 admin)뿐이다 — 켜기 전 확인 항목(승인된 발신자·webhook·보존 절차·cron, 이 절 마지막 항목)을 체크하고 근거(2~500자)를 적으며, 이메일 공급자·서명 설정(`emailDispatcherFromEnvironment()`)이 운영 환경에 없으면 서버가 켜기를 거절한다. 변경은 `admin_save_order_delay_notice_switch`(작업 ID 멱등·리비전 충돌 PT409)가 감사 기록 `admin.operations_switch.delay_notice`로 남기고, SQL 편집기 같은 직접 변경은 `system.order_delay_notice.delivery_changed`로 남는다. 켜는 migration은 만들지 않는다 — 켜는 것은 사람 결정이다.
 - 주문 지연 안내는 이 전용 gate를 사용한다. `private.email_dispatch_control`의 Auth Hook·탈퇴 알림 전환 gate와 5개 readiness는 변경하지 않는다. 지연 안내 활성화를 위해 해당 readiness를 사실과 다르게 바꾸지 않는다.
 - 기존 `emailDispatcherFromEnvironment()`의 service role, `EMAIL_DISPATCH_HMAC_SECRET` 설정 검사와 Resend provider를 재사용한다. `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`·`RESEND_API_ENDPOINT`가 모두 비어 있으면 기존 앱의 `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`·`EMAIL_REPLY_TO`를 그대로 사용한다. 기존 endpoint는 미설정 또는 `https://api.resend.com/emails`여야 한다. 전용 설정을 하나라도 입력했다면 `RESEND_API_KEY`·`RESEND_FROM` 두 값이 모두 필요하며 기존 계정과 섞지 않는다. webhook 수신과 서명 검증은 기존 `/api/webhooks/resend` 경로를 따른다. 환경 미구성 또는 전용 gate가 꺼져 있으면 화면에서 이유를 표시하고 두 채널 최초 요청을 막는다.
 - 작업 cron은 `GET /api/cron/order-delay-notices`, 기존 `CRON_SECRET` 인증, 매분, 최대 25건 claim·5건 병렬 발송이다. 요청에는 수신자·문구를 받지 않으며 응답은 집계만 반환한다. 일부 실패·결과 불명·저장 실패는 HTTP 503으로 관측한다.
@@ -45,7 +45,7 @@
 
 예약 일정 변경 안내만 SMS를 함께 보낼 수 있다(발송 지연 안내는 지금처럼 앱 알림·이메일). 회원 SMS 알림 seam(`sendMemberSms`, [가입·연락 수단 runbook](./signup-contact-channels.md) §5)의 첫 생산자다.
 
-- 켜는 조건은 둘 다다: DB 설정 `private.order_delay_notice_delivery_control.sms_enabled`(기본 `false`, 공개 RPC 없음 — 별도 승인된 운영 변경)와 앱의 SMS 알림 스위치(`ICONS_SMS_NOTIFICATIONS_ENABLED`·발송사·처리방침 시행일). 확정 때 둘 다 켜져 있어야 대상마다 `private.order_delay_notice_sms_jobs` 한 줄이 생긴다. 하나라도 꺼져 있으면 화면에 SMS가 나오지 않고 대기열도 없다.
+- 켜는 조건은 둘 다다: DB 설정 `private.order_delay_notice_delivery_control.sms_enabled`(기본 `false`. 운영 스위치 화면은 상태만 보이고 바꾸지 않는다 — 별도 승인된 운영 변경)와 앱의 SMS 알림 스위치(`ICONS_SMS_NOTIFICATIONS_ENABLED`·발송사·처리방침 시행일). 확정 때 둘 다 켜져 있어야 대상마다 `private.order_delay_notice_sms_jobs` 한 줄이 생긴다. 하나라도 꺼져 있으면 화면에 SMS가 나오지 않고 대기열도 없다.
 - `GET /api/cron/order-delay-sms`(매분, `CRON_SECRET`)가 최대 25건을 꺼낸다. 꺼낼 때 DB가 대상 변경(배송 건 출고·일정 재변경)과 SMS 수신 동의(`customer_marketing_consents`의 sms)를 다시 보고, 보낼 때 seam이 인증된 휴대폰 번호를 확인한다. 거래 안내라 '(광고)'를 붙이지 않는다. 앱 스위치가 꺼져 있으면 cron은 DB를 읽지 않는다.
 - SMS 발송사에는 멱등 키가 없어 대상마다 한 번만 시도한다. 처리 중 결과를 잃은 작업(10분 lease 만료)은 다시 보내지 않고 결과 불명(`lease_expired`)으로 둔다. 하루 지난 대기 작업은 보내지 않는다(`expired`). 실패한 SMS 재시도는 없다.
 - 기록에는 대상·상태·사유·시각만 남고 번호·본문은 남기지 않는다(본문은 안내 대상 행의 고객 문구). 감사는 `system.order.delay_notice_sms_result`.
@@ -68,4 +68,5 @@
 - `supabase/tests/order_delay_notice_recovery.sql`: 전용 gate 격리, 공급자 접수·응답 유실, 수신자 변경 후 제외/불명, 24시간 만료와 재시도 제한.
 - `supabase/tests/order_delay_notices_concurrency.sh`: 격리된 테스트 DB에서 동시 요청·동시 worker·오래된 claim 결과 거절.
 - `supabase/tests/goods_preorder_schedule_bulk.sql`: 예약 일정 변경 안내(`kind='preorder_schedule'`)의 대상 변경 판정, 지연 탭 안내 결과에서 제외, SMS 대기열·수신 동의·lease 만료·설정 꺼짐.
+- `supabase/tests/operations_switches.sql`, `app/admin/operations-switches-actions.test.ts`: 운영 스위치 읽기·저장 권한·근거 필수·리비전 충돌·멱등·감사 한 줄, 기존 게이트가 같은 칸을 읽는지.
 - `app/admin/order-delay-actions.test.ts`, `lib/email/order-delay-jobs.server.test.ts`, cron route 및 배송 콘솔 테스트: 권한·불완전 응답·설정 미완료·로컬 fake provider 계약·이메일 재시도·기존 출고 선택 보존.

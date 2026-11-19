@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useId, useMemo, useState, useTransition } from 'react';
 import {
   applyPreorderScheduleChangeAction, listPreorderScheduleChangesAction, previewPreorderScheduleChangeAction, readPreorderScheduleChangeAction,
@@ -15,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import { kstDay } from '@/lib/admin/kst';
+import { OPERATIONS_SWITCHES_PATH } from '@/lib/admin/operations-switches';
 import { ORDER_DELAY_ERROR_LABELS, ORDER_DELAY_STATUS_LABELS } from '@/lib/admin/order-delay-notices';
 import {
   PREORDER_SCHEDULE_BODY_MAX, PREORDER_SCHEDULE_EXCLUSION_LABELS, PREORDER_SCHEDULE_EXCLUSION_REASONS, PREORDER_SCHEDULE_POLICY_BLOCK_LABELS,
@@ -64,12 +66,14 @@ export interface PreorderScheduleResultContext {
 
 type Step =
   | { kind: 'form' }
-  | { kind: 'preview'; preview: PreorderSchedulePreview; emailConfigured: boolean; smsAvailable: boolean }
+  | { kind: 'preview'; preview: PreorderSchedulePreview; emailConfigured: boolean; smsAvailable: boolean; switchesLink: boolean }
   | { kind: 'result'; change: PreorderScheduleChange; context?: PreorderScheduleResultContext };
 
 /** 미리보기: 대상·제외 사유·접수 중 조건·고객 문구를 확인하고 확정한다. */
-export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvailable, initialReason = '', onReasonChange, onBack, onApplied, onStale }: {
+export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvailable, switchesLink = false, initialReason = '', onReasonChange, onBack, onApplied, onStale }: {
   preview: PreorderSchedulePreview; emailConfigured: boolean; smsAvailable: boolean; initialReason?: string;
+  /** 운영 스위치 화면을 열 수 있는 운영자에게만 '이메일 설정이 꺼져 있음' 안내에 링크를 단다. */
+  switchesLink?: boolean;
   /** 조건으로 돌아갔다 다시 미리봐도 입력한 사유를 잃지 않게 바깥에 맡긴다. */
   onReasonChange?: (reason: string) => void;
   onBack: () => void; onApplied: (change: PreorderScheduleChange) => void; onStale: () => void;
@@ -146,7 +150,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
         주문 {selection.orders.toLocaleString('ko-KR')}건의 구매자(선물 주문은 받는 분 포함)에게 앱 알림·이메일을 보냅니다. 주문 당시 예정일은 보존하고 배송 건마다 변경 이력이 남습니다.
       </p> : preview.targets.length ? <p className="text-muted-foreground">아래 표에서 바꿀 배송 건을 하나 이상 선택해주세요.</p> : null}
     </div>
-    {!emailReady ? <AdminNotice role="status" tone="danger">{!preview.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널이 준비되어야 일정 변경과 안내를 진행할 수 있습니다.</AdminNotice> : null}
+    {!emailReady ? <AdminNotice role="status" tone="danger">{!preview.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널이 준비되어야 일정 변경과 안내를 진행할 수 있습니다.{!preview.emailEnabled && switchesLink ? <> <Link className="font-medium underline underline-offset-4" data-operations-switches-link="" href={OPERATIONS_SWITCHES_PATH}>운영 스위치에서 켜기</Link></> : null}</AdminNotice> : null}
 
     {preview.openPolicies.length ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" data-preorder-schedule-policies="">
       <p className="font-medium">접수 중인 예약 조건 · {openPolicySummary(preview.openPolicies)}</p>
@@ -372,7 +376,7 @@ export function GoodsPreorderSchedulePanel({ goodId, variants, randomSale = fals
     setError(null);
     startTransition(async () => {
       const result = await previewPreorderScheduleChangeAction({ goodId, variantId: randomSale ? null : next.variantId || null, expectedShipDate: next.date });
-      if (result.ok) setStep({ kind: 'preview', preview: result.preview, emailConfigured: result.emailConfigured, smsAvailable: result.smsAvailable });
+      if (result.ok) setStep({ kind: 'preview', preview: result.preview, emailConfigured: result.emailConfigured, smsAvailable: result.smsAvailable, switchesLink: result.switchesLink });
       else setError(result.error);
     });
   }
@@ -430,7 +434,7 @@ export function GoodsPreorderSchedulePanel({ goodId, variants, randomSale = fals
         </DialogHeader>
         {step.kind === 'form' ? <PreorderScheduleConditions variants={scopeVariants} randomSale={randomSale} variantId={conditions.variantId} date={conditions.date}
           pending={pending} error={error} onChange={(changes) => { setError(null); setConditions((current) => ({ ...current, ...changes })); }} onPreview={() => runPreview(conditions)} />
-          : step.kind === 'preview' ? <PreorderSchedulePreviewStep key={step.preview.fingerprint} preview={step.preview} emailConfigured={step.emailConfigured} smsAvailable={step.smsAvailable}
+          : step.kind === 'preview' ? <PreorderSchedulePreviewStep key={step.preview.fingerprint} preview={step.preview} emailConfigured={step.emailConfigured} smsAvailable={step.smsAvailable} switchesLink={step.switchesLink}
             initialReason={reason} onReasonChange={setReason} onBack={() => setStep({ kind: 'form' })} onStale={() => runPreview(conditions)} onApplied={(change) => setStep({ kind: 'result', change, context: { excludedTotal: step.preview.excludedTotal, canReplacePolicies: step.preview.canReplacePolicies, policyBlocked: Boolean(step.preview.policyBlockReason) } })} />
             : <PreorderScheduleResultView key={step.change.id} change={step.change} context={step.context} />}
       </DialogContent>
