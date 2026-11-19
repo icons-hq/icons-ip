@@ -36,6 +36,21 @@ describe('출고지 회수 칸의 배송 분실', () => {
     const props = { canRecord: true, claimId: CLAIM, claimRevision: 4 as number | null, claimType: 'return' as const, collection: collection(), ...override };
     expect(renderToStaticMarkup(<ClaimOriginCollection {...props} />)).not.toContain('배송 분실로 기록');
   });
+  it('효력을 잃은 분실 기록(회수 생략 아님)은 배송 분실로 그리지 않는다', () => {
+    const html = renderToStaticMarkup(<ClaimOriginCollection canRecord claimId={CLAIM} claimRevision={5} claimType="exchange" collection={collection({
+      collectionWaived: false,
+      carrierLoss: { accidentNumber: 'HJ-ACC-20261119-01', reason: 'TEST 한진 고객센터 분실 확인 회신', evidenceFileIds: ['f1'], recordedAt: '2026-11-19T02:00:00Z', recordedByName: 'TEST 운영자' },
+    })} />);
+    expect(html).not.toContain('HJ-ACC-20261119-01');
+    expect(html).not.toContain('배송 분실</span>');
+    expect(html).toContain('회수 대기');
+  });
+  it('일부 발송 주문의 발송 전 배송 건은 창고 보관 확인으로 회수를 끝낸다', () => {
+    const html = renderToStaticMarkup(<ClaimOriginCollection canRecord claimId={CLAIM} claimRevision={4} claimType="return" collection={collection({ shipmentDispatched: false })} />);
+    expect(html).toContain('아직 발송 전인 배송 건입니다. 창고에 그대로 보관 중인지 확인하고');
+    expect(html).toContain('TEST 남양주 창고 보관 확인');
+    expect(html).not.toContain('배송 분실로 기록');
+  });
   it('기록한 배송 건은 배송 분실 배지와 사고 번호·메모를 보인다', () => {
     const html = renderToStaticMarkup(<ClaimOriginCollection canRecord claimId={CLAIM} claimRevision={5} claimType="return" collection={collection({
       collectionWaived: true,

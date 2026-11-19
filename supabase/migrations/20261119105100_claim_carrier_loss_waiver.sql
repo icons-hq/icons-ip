@@ -8,9 +8,12 @@
 --  * 회수 생략 결정 표(public.order_claim_collection_waivers, ADR-0041 진실원)에 종류(kind)를 더한다. 기존 결정은 'defect'(하자·
 --    오배송 교환 회수 생략)이고, 새 'carrier_loss'는 택배사가 분실을 확인한 배송 건의 회수 생략이다. 택배사 사고 번호·메모(사유
 --    10~500자)·근거 사진 1~5장이 필요하고 감사 기록에 남는다. 결정은 고칠 수 없다(배송 건마다 한 번).
---  * 배송 분실 결정은 반품 클레임(고객 접수·운영자 대리 접수 모두)에서, 판매자 귀책 사유(reason_type='defect')일 때만, 발송된
---    배송 건(배송중·배송완료)의 아직 입고되지 않은 회수에만 기록한다. 판매자 귀책이라 반품배송비 차감(ADR-0031, 단순 변심만)은
---    걸리지 않는다. 분실 결정은 반품·교환(하자) 어느 쪽이든 효력이 있어 반품→교환 전환(분실 재발송)에서도 그대로 회수를 대신한다.
+--  * 배송 분실 결정은 반품 클레임(고객 접수·운영자 대리 접수 모두)에서, 접수 사유와 상관없이(고객이 받지 못한 회사·택배 귀책
+--    이므로 — 고객 반품의 기본 사유는 단순 변심이고 반품에는 사유 정정이 없다, 리뷰 P1), 발송된 배송 건(배송중·배송완료)의 아직
+--    입고되지 않은 회수에만 기록한다. 효력 있는 분실 결정이 있는 반품에는 반품배송비 차감(ADR-0031)을 판정·결정·미리보기 모두
+--    적용하지 않는다(return_fee_deduction_plan). 효력: 반품이면 사유와 상관없이, 교환이면 하자·오배송(판매자 귀책)일 때 — 교환의
+--    회수 생략 재출고는 판매자 귀책 교환에서만 정의돼 있다(ADR-0041). 그래서 반품→교환 전환(분실 재발송)은 하자 교환이면 그대로
+--    회수를 대신하고, 단순 변심 교환이면 효력을 잃어 수거중으로 돌아간다(교환 사유를 하자로 정정하면 다시 완료).
 --  * 회수 완료 판정(claim_collections_complete)·재고 대조·일괄 회수·자동 회수 접수는 지금처럼 claim_collection_waived 하나를 읽는다.
 --    효력 판정만 종류별로 넓힌다(private.claim_collection_waiver_effective). 유형·사유 정정으로 효력을 잃으면 기존 되돌림
 --    트리거가 입고완료를 수거중으로 되돌리고, 다시 효력을 얻으면 회수 완료를 다시 적는다.
@@ -47,12 +50,12 @@ alter table public.order_claim_collection_waivers
       and char_length(carrier_accident_number) between 2 and 60 and carrier_accident_number !~ '[[:cntrl:]]')));
 create unique index order_claim_collection_waivers_operation on public.order_claim_collection_waivers(operation_id) where operation_id is not null;
 
--- 2. 효력: 하자 결정은 하자·오배송 교환인 동안만, 배송 분실 결정은 판매자 귀책 반품·교환인 동안 회수를 대신한다.
+-- 2. 효력: 하자 결정은 하자·오배송 교환인 동안만, 배송 분실 결정은 반품(사유 무관)·하자·오배송 교환인 동안 회수를 대신한다.
 create function private.claim_collection_waiver_effective(p_kind text, p_claim_type text, p_reason_type text) returns boolean
 language sql immutable set search_path = '' as $$
   select case p_kind
     when 'defect' then p_claim_type = 'exchange' and p_reason_type = 'defect'
-    when 'carrier_loss' then p_claim_type in ('return', 'exchange') and p_reason_type = 'defect'
+    when 'carrier_loss' then p_claim_type = 'return' or (p_claim_type = 'exchange' and p_reason_type = 'defect')
     else false end;
 $$;
 revoke all on function private.claim_collection_waiver_effective(text, text, text) from public, anon, authenticated, service_role;
@@ -90,17 +93,17 @@ $a$ if old.claim_type='exchange' and old.reason_type='defect' and not(new.claim_
   where w.claim_id=new.id and x.collected_at is null;$a$,
 $a$ if (old.claim_type,old.reason_type) is distinct from (new.claim_type,new.reason_type)
   and(new.stage='collected' or new.stage='on_hold' and new.held_from='collected') then
-  -- 2026-11-19: 결정 종류마다 효력이 다르다(하자 = 하자 교환, 배송 분실 = 판매자 귀책 반품·교환). 효력을 잃는 결정만 센다.
+  -- 2026-11-19: 결정 종류마다 효력이 다르다(하자 = 하자 교환, 배송 분실 = 반품(사유 무관)·하자 교환). 효력을 잃는 결정만 센다.
   select array_agg(x.shipment_id order by x.shipment_id) into pending
   from public.order_claim_collection_waivers w join public.order_claim_collections x on x.claim_id=w.claim_id and x.shipment_id=w.shipment_id
   where w.claim_id=new.id and x.collected_at is null
    and private.claim_collection_waiver_effective(w.kind,old.claim_type,old.reason_type)
    and not private.claim_collection_waiver_effective(w.kind,new.claim_type,new.reason_type);$a$);
 
--- 다시 효력을 얻는 정정(판매자 귀책 반품으로 되돌림 포함)도 회수 완료를 다시 적는다. 완료 함수가 모든 조건을 다시 본다.
+-- 다시 효력을 얻는 정정(교환→반품 되돌림 포함)도 회수 완료를 다시 적는다. 완료 함수가 모든 조건을 다시 본다.
 drop trigger sync_claim_collection_completion on public.order_cancellation_requests;
 create trigger sync_claim_collection_completion after update of claim_type,reason_type on public.order_cancellation_requests
- for each row when(new.claim_type in ('exchange','return') and new.reason_type='defect' and new.collected_at is null
+ for each row when((new.claim_type='exchange' and new.reason_type='defect' or new.claim_type='return') and new.collected_at is null
   and(old.claim_type is distinct from new.claim_type or old.reason_type is distinct from new.reason_type))
  execute function private.sync_claim_collection_completion();
 
@@ -153,6 +156,14 @@ $a$ -- 배송 분실(택배사 확인, 2026-11-19): 회수 없이 환불한 배�
  end if;
  affected:=target.hop_count>0 or physical.good_id<>item.good_id or exists(select 1 from private.group_claim_reshipment_allocations where order_item_id=item.id);$a$);
 
+-- 5-2. 반품배송비 차감(ADR-0031): 효력 있는 배송 분실 결정이 있는 반품은 회사·택배 귀책이라 차감하지 않는다. 판정 하나가 결정 기록
+--      (record_return_fee_deduction)·미리보기(claim_refund_deduction_view)를 모두 받치므로 여기서 차감 대상이 아니라고 돌려준다.
+--      앵커는 켠 시각 판정(20261119101000)이 고친 줄이 아니라 그 다음 줄이다.
+select private.o3e_patch_function('private.return_fee_deduction_plan(uuid)',
+$a$  select * into purchase from public.orders where id = claim.order_id;$a$,
+$a$  if private.claim_has_effective_carrier_loss(claim.id) then return null; end if;
+  select * into purchase from public.orders where id = claim.order_id;$a$);
+
 -- 6. 근거 사진: 반품도 올린다(배송 분실 근거). 경로·형식·한도는 같다.
 select private.o3e_patch_function('public.admin_register_claim_evidence_file(uuid,uuid,text,integer,text)',
 $a$ if claim.claim_type<>'exchange' then raise check_violation using message='claim_evidence_unavailable';end if;$a$,
@@ -167,7 +178,9 @@ $a$  'collectionWaived',private.claim_collection_waived(x.claim_id,x.shipment_id
    and (s.shipped_at is not null or s.delivered_at is not null)),
   'carrierLoss',(select jsonb_build_object('accidentNumber',w.carrier_accident_number,'reason',w.reason,'evidenceFileIds',to_jsonb(w.evidence_file_ids),
    'recordedAt',w.waived_at,'recordedByName',(select nickname from public.profiles where id=w.waived_by))
-   from public.order_claim_collection_waivers w where w.claim_id=x.claim_id and w.shipment_id=x.shipment_id and w.kind='carrier_loss'),$a$);
+   from public.order_claim_collection_waivers w where w.claim_id=x.claim_id and w.shipment_id=x.shipment_id and w.kind='carrier_loss'
+    -- 효력을 잃은 분실 기록(단순 변심 교환으로 전환 등)은 '배송 분실·회수 없이 환불'로 보이지 않는다(리뷰 P2).
+    and private.claim_collection_waived(w.claim_id,w.shipment_id)),$a$);
 
 select private.o3e_patch_function('private.claim_collection_document(uuid)',
 $a$then jsonb_build_object('collectionWaived',true) else '{}'::jsonb end order by s.id)$a$,
@@ -226,7 +239,6 @@ begin
   end if;
   if claim.claim_revision <> p_expected_revision then raise sqlstate 'PT409' using message = 'claim_changed'; end if;
   if claim.claim_type <> 'return' then raise check_violation using message = 'carrier_loss_return_only'; end if;
-  if claim.reason_type <> 'defect' then raise check_violation using message = 'carrier_loss_requires_seller_fault'; end if;
   if claim.collection_policy <> 'origin' or not claim.collection_required then raise check_violation using message = 'collection_waiver_unavailable'; end if;
   if claim.stage not in ('collecting', 'collected') or order_state not in ('shipping', 'delivered', 'done')
     or exists(select 1 from public.order_cancellation_claims where order_id = order_key) then
@@ -272,6 +284,7 @@ do $$declare fn regprocedure; contract record; begin
     'private.reopen_ineffective_collection_waivers()'::regprocedure,
     'private.complete_order_claim_collection(uuid,text)'::regprocedure,
     'private.claim_collection_received_on(uuid)'::regprocedure,
+    'private.return_fee_deduction_plan(uuid)'::regprocedure,
     'private.restore_order_item_supply(uuid,text)'::regprocedure,
     'public.admin_register_claim_evidence_file(uuid,uuid,text,integer,text)'::regprocedure,
     'private.claim_collection_records(uuid)'::regprocedure,
