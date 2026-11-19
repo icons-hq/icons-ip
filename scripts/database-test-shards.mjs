@@ -242,6 +242,8 @@ const storefront = [
   sql('order_fulfillment_holds'),
   // 시스템 상태: cron 실행 기록·멈춤 판정·미종결 결제 재확인·운영 알림 시스템 분류.
   sql('system_health_alerts'),
+  // 운영 알림 요약 메일: 새 문의·답변 지연·시스템 장애를 한 통으로(커서·지연 1회·범주·전용 dispatcher gate).
+  sql('ops_alert_digest'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
   sql('stock_reconcile_safety_digest'),
   // QA1 S-T07-01: 재고 대조 반영과 같은 옵션 주문의 재고 차감이 겹칠 때(주문 먼저 → 거절, 반영 먼저 → 주문이 반영 값에서 뺌).
