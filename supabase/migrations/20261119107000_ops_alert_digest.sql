@@ -17,7 +17,7 @@
 -- 시스템 장애: 앱 cron의 실행 중 실패(record_system_job_failure)만 category='system' 알림 행을 만든다(20261118162000). Vercel cron이
 -- 불리지 않거나 시간 초과·401, pg_cron 실패·멈춤, 메일 발송 실패, 미종결 결제는 시스템 상태 화면의 판정(system_health_report)에만 있었다.
 -- 그래서 요약을 만들 때(같은 잠금 안) 그 판정에서 실패 중·멈춘 작업, 메일 발송 실패, 미종결 결제를 시간 단위 event_key로
--- category='system' 알림 행에 올린 뒤 요약에 담는다(작업 이름·건수만, 개인정보 없음). 문제가 계속되면 한 시간에 한 번씩 다시 알린다.
+-- category='system' 알림 행에 올린 뒤 요약에 담는다(작업 이름·건수만, 개인정보 없음). 멈춘·실패한 작업과 미종결 결제는 문제가 계속되면 한 시간에 한 번씩 다시 알리고, 메일 발송 실패는 새 실패가 생겼을 때만 올린다.
 -- 앱의 notifySystemIncident는 메일을 직접 보내지 않는다.
 begin;
 
@@ -185,11 +185,12 @@ revoke all on function public.admin_save_ops_alert_digest(boolean,text[],text[],
 grant execute on function public.admin_save_ops_alert_digest(boolean,text[],text[],integer,bigint,uuid) to authenticated;
 
 -- 시스템 상태 판정을 운영 알림 '시스템' 행으로 올린다. 같은 사건은 한 시간에 하나(event_key에 시각 포함).
+-- 메일 발송 실패만 새 실패가 있을 때 한 번(가장 늦은 실패 시각이 키)이고, 멈춘 작업·미종결 결제는 이어지는 동안 시간당 재알림이다.
 -- 앱 cron 실패의 기존 event_key('system_job:<작업>:<시각>')와 같은 키를 써서 이미 올라온 실패와 겹치지 않는다.
 create function private.raise_system_health_alerts(p_now timestamptz)
 returns integer language plpgsql volatile security definer set search_path='' as $$
 declare report jsonb;hour_key text:=to_char(date_trunc('hour',p_now at time zone 'UTC'),'YYYYMMDDHH24');job record;made integer:=0;rows integer;
-  mail_failed integer;unresolved integer;
+  mail_failed integer;unresolved integer;last_mail_failure timestamptz;
 begin
   report:=private.system_health_report();
   for job in select e->>'jobKey' as job_key,coalesce(nullif(e->>'label',''),e->>'jobKey') as label,
@@ -210,10 +211,17 @@ begin
   end loop;
   mail_failed:=coalesce((report->'counts'->>'emailFailures')::integer,0);
   if mail_failed>0 then
+    -- 메일 실패는 새 실패가 생겼을 때만 올린다: 키가 가장 늦은 실패 시각(마이크로초)이라 같은 실패는 24시간 창 동안 다시 올라오지 않는다.
+    select greatest(
+      (select max(d.claimed_at) from public.email_deliveries d where d.status='failed' and d.claimed_at>p_now-interval '24 hours'),
+      (select max(i.updated_at) from private.email_intents i where i.state in ('failed','unknown','needs_review') and i.updated_at>p_now-interval '24 hours'))
+      into last_mail_failure;
+    if last_mail_failure is not null then
     insert into private.admin_operation_alerts(event_key,category,title,href)
-      values('system_email_failures:'||hour_key,'system','메일 발송 실패가 '||mail_failed||'건 있습니다(24시간)','/admin/settings/system')
+      values('system_email_failures:'||(extract(epoch from last_mail_failure)*1000000)::bigint,'system','메일 발송 실패가 '||mail_failed||'건 있습니다(24시간)','/admin/settings/system')
       on conflict(event_key) do nothing;
     get diagnostics rows=row_count;made:=made+rows;
+    end if;
   end if;
   unresolved:=coalesce((report->'counts'->>'unresolvedPayments')::integer,0);
   if unresolved>0 then

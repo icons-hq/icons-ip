@@ -203,6 +203,13 @@ select 1/case when :'p5'::jsonb->>'status'='prepared'
    from private.ops_alert_digest_runs where id=(:'p5'::jsonb->>'runId')::uuid)
  and exists(select 1 from private.admin_operation_alerts where event_key like 'system_email_failures:%')
  then 1 else 0 end as assert_system_health_in_digest;
+-- 메일 실패는 새 실패가 생겼을 때만 올린다: 다음 시간에 같은 실패로 다시 올려도 늘지 않고, 새 실패가 생기면 한 건 늘어난다.
+select count(*) as mail_rows from private.admin_operation_alerts where event_key like 'system_email_failures:%' \gset
+select private.raise_system_health_alerts(now()+interval '6 hours 30 minutes');
+select 1/case when (select count(*) from private.admin_operation_alerts where event_key like 'system_email_failures:%')=:'mail_rows' then 1 else 0 end as assert_same_mail_failure_not_repeated;
+insert into public.email_deliveries(dedupe_key,template,recipient,subject,status,safe_error_code,claimed_at) values('ops-digest-test:mail2','order_confirmation','y@example.test','TEST','failed','provider_failure',now()+interval '6 hours');
+select private.raise_system_health_alerts(now()+interval '7 hours');
+select 1/case when (select count(*) from private.admin_operation_alerts where event_key like 'system_email_failures:%')=:'mail_rows'::integer+1 then 1 else 0 end as assert_new_mail_failure_added;
 -- 같은 시간 안에 다시 올려도 중복 행이 늘지 않는다.
 select count(*) as before_rows from private.admin_operation_alerts where event_key like 'system_job%' or event_key like 'system_email%' \gset
 select private.raise_system_health_alerts(now()+interval '5 hours 30 minutes');
