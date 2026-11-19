@@ -73,27 +73,37 @@ describe('startAdminOrderCancellationAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/sales/claims/cancels');
   });
 
-  it('창고 출고 중단 확인이 없으면 DB 거절을 운영자 문구로 옮기고 결제사를 부르지 않는다', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'warehouse_stop_confirmation_required' } });
+  /* ADR-0046: 출고지시가 나간 배송 건은 확인란이 아니라 주문 상세의 창고 회신 기록이 근거다. */
+  it('창고 회신 기록이 없으면 DB 거절을 회신 기록 안내로 옮기고 결제사를 부르지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'warehouse_stop_reply_required' } });
 
-    const state = await startAdminOrderCancellationAction({}, form());
+    const state = await startAdminOrderCancellationAction({}, form({ warehouseStopConfirmed: 'confirmed' }));
 
-    expect(state.errors?.form).toContain('창고에서 출고 중단을 확인한 뒤');
+    expect(state.errors?.form).toContain('창고 회신 기록');
+    expect(state.errors?.form).not.toContain('확인란');
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
-  /* 2026-10-12 브라우저 QA R2-2: 양식을 연 뒤 출고지시가 나가면 열 때의 패널에는 확인란이
-     없다. 서버가 거절하면 주문 패널을 다시 그려 확인란이 나타나게 하고, 안 보이면
-     새로고침하라고 안내한다. */
-  it('서버가 거절하면 주문 패널을 최신 상태로 다시 그리고 확인란 위치를 안내한다', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'warehouse_stop_confirmation_required' } });
+  it('창고가 이미 출고했다고 회신했으면 취소 대신 발송 처리·반품 접수를 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'warehouse_already_shipped' } });
+
+    const state = await startAdminOrderCancellationAction({}, form());
+
+    expect(state.errors?.form).toContain('이미 출고했다고 회신');
+    expect(state.errors?.form).toContain('반품');
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  /* 2026-10-12 브라우저 QA R2-2: 양식을 연 뒤 출고지시가 나가면 열 때의 패널에는 회신 안내가
+     없다. 서버가 거절하면 주문 패널을 다시 그려 회신 상태가 나타나게 한다. */
+  it('서버가 거절하면 주문 패널을 최신 상태로 다시 그린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'warehouse_stop_reply_used' } });
 
     const state = await startAdminOrderCancellationAction({}, form());
 
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/sales/orders');
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/orders/${ORDER_ID}`);
-    expect(state.errors?.form).toContain('창고 출고 중단 확인란');
-    expect(state.errors?.form).toContain('새로고침');
+    expect(state.errors?.form).toContain('다른 취소에 쓰였습니다');
   });
 
   it.each([

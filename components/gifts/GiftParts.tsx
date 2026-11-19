@@ -2,16 +2,18 @@ import type { CheckoutAddress } from '@/lib/checkout';
 import type { GiftFailure, GiftItem } from '@/lib/gifts';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { publicMediaUrl } from '@/lib/media';
+import { checkoutRestrictionNotice, type CheckoutClaimRestrictions } from '@/lib/checkout-acknowledgement';
 
 export const EMPTY_GIFT_ADDRESS: CheckoutAddress = { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: '' };
-export function GiftItems({ items }: { items: readonly GiftItem[] }) {
+/** restrictions가 있으면 주문서와 같은 줄별 청약철회·교환 제한 고지를 그린다 — 결제 전 동의가 보인 고지로 기록하는 목록이다. */
+export function GiftItems({ items, restrictions }: { items: readonly GiftItem[]; restrictions?: CheckoutClaimRestrictions | null }) {
   return <ul className="wc-gifts__items">{items.map((item, index) => {
     const image = item.imagePath ? publicMediaUrl(item.imagePath) : null;
     return <li key={`${item.variantId}:${index}`}>
       {image ? <span className="wc-gifts__item-image">{/* Existing verified catalog media. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={image} alt="" loading="lazy" width={80} height={80} /></span> : null}
-      <div><strong>{item.name}</strong><p>{item.variantName} · {item.qty.toLocaleString()}개</p><GoodsCustomInputsSummary selection={item.customInputs} /></div>
+      <div><strong>{item.name}</strong><p>{item.variantName} · {item.qty.toLocaleString()}개</p><GoodsCustomInputsSummary selection={item.customInputs} />{restrictions && Object.hasOwn(restrictions, item.goodId) ? <p className="wc-gifts__restriction" data-claim-restriction=""><strong>{checkoutRestrictionNotice(restrictions[item.goodId])}</strong></p> : null}</div>
     </li>;
   })}</ul>;
 }

@@ -6,7 +6,7 @@ import type { OrderPartialCancellationRecord } from '@/lib/orders/partial-cancel
 
 function record(overrides: Partial<OrderPartialCancellationRecord> = {}): OrderPartialCancellationRecord {
   return {
-    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed', provider: 'toss', refundAmount: 9_500, goodsRefundAmount: 9_500,
+    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, reasonCode: 'out_of_stock', claimId: null, returnFeeDeduction: 0, state: 'completed', provider: 'toss', refundAmount: 9_500, goodsRefundAmount: 9_500,
     shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z',
     completedAt: '2026-11-12T05:00:05Z', transferredAt: null, closedShipmentCount: 0,
     items: [{ orderItemId: 'aaaaaaaa-0000-4000-8000-00000000000a', goodName: '품절 굿즈 A', variantName: null, qty: 1, goodsRefundAmount: 9_500 }],

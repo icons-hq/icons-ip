@@ -20,6 +20,10 @@
  *   PASSWORD_CHANGED_SUBJECT 위 경로를 줄 때 필수. 알림 메일 제목.
  *   CONFIRMATION_TEMPLATE_PATH 선택. 가입 확인 메일(6자리 코드 + 확인 링크, 1014-004) 본문을 파일과 일치시키고 read-back한다.
  *   CONFIRMATION_SUBJECT     위 경로를 줄 때 필수. 가입 확인 메일 제목.
+ *   TURNSTILE_SECRET_KEY·TURNSTILE_SITE_KEY 선택, 둘 다 있거나 둘 다 없어야 한다(하나만 있으면 실패). 있으면 Auth CAPTCHA를
+ *                          Cloudflare Turnstile로 켜고 비밀 키를 PATCH한다. 비밀 키는 읽을 수 없어 매번 PATCH한다. 없으면 건드리지 않는다.
+ *                          사이트 키는 앱(Vercel)의 NEXT_PUBLIC_TURNSTILE_SITE_KEY와 같은 값이다(공개 값) — 짝이 맞는지 보려고 받는다.
+ *                          앱 배포 전에 켜면 모든 로그인이 막히므로 파이프라인은 deploy-vercel의 배포·사이트 키 대조(scripts/verify-turnstile-site-key.mjs) 뒤에만 넘긴다.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -85,12 +89,34 @@ export function missingSmtpSettings(config) {
   return missing;
 }
 
+/*
+ * 운영 Auth가 한 시간에 보낼 수 있는 메일(가입 확인·재설정·변경 알림) 수. 프로젝트 전체가 나눠 쓴다.
+ * 배포 파이프라인이 이 값으로 강제하고 검증한다 — 값을 바꿀 곳은 여기 한 곳이다.
+ * 앱 서버의 IP 시도 한도(supabase/migrations/20261119106000_auth_mail_abuse_limits.sql, IP당 시간 15)는 이 값의 5%라
+ * 접속 IP 하나가 한도를 독점하지 못한다. 이 값을 올리거나 내리면 런북(docs/runbooks/signup-contact-channels.md 봇 차단 절)과 같이 본다.
+ */
+export const AUTH_EMAIL_RATE_LIMIT_PER_HOUR = 300;
+
+/*
+ * Auth CAPTCHA(Turnstile). GoTrue는 /signup·/recover·/resend·/magiclink·/otp·/token(password·web3)·/sso·패스키 options에서
+ * 토큰을 요구한다(supabase/auth internal/api/api.go의 verifyCaptcha; /token의 pkce·refresh_token·id_token은 면제).
+ * 켜면 공개 publishable 키로 이 엔드포인트를 직접 부르는 우회도 막힌다 — 앱 서버 한도는 그 우회를 못 막는다.
+ */
+export function captchaPatch({ captcha }) {
+  if (captcha === null) return {};
+  return {
+    security_captcha_enabled: true,
+    security_captcha_provider: 'turnstile',
+    security_captcha_secret: captcha.secret,
+  };
+}
+
 export function mailerPatch({ enforceMailer }) {
   if (!enforceMailer) return {};
   return {
     mailer_autoconfirm: false,
     mailer_secure_email_change_enabled: true,
-    rate_limit_email_sent: 30,
+    rate_limit_email_sent: AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
   };
 }
 
@@ -162,6 +188,7 @@ export function isSatisfied({
   enforcePasswordGuards = false,
   passwordChanged = null,
   confirmation = null,
+  captcha = null,
 }) {
   if ((config.site_url ?? '') !== siteUrl) return false;
   if ((config.uri_allow_list ?? '') !== allowList) return false;
@@ -190,12 +217,16 @@ export function isSatisfied({
     && ((config.mailer_subjects_confirmation ?? '') !== confirmation.subject
       || normalizedTemplate(config.mailer_templates_confirmation_content) !== confirmation.template)
   ) return false;
+  if (
+    captcha !== null
+    && (config.security_captcha_enabled !== true || config.security_captcha_provider !== 'turnstile')
+  ) return false;
   if (!enforceMailer) return true;
   /* 갓 만든 프로젝트는 mailer_autoconfirm을 아예 돌려주지 않는다 — 빈 값은 통과시킨다. */
   const autoconfirm = config.mailer_autoconfirm;
   if (autoconfirm !== false && autoconfirm !== null && autoconfirm !== undefined) return false;
   if (config.mailer_secure_email_change_enabled !== true) return false;
-  if (Number(config.rate_limit_email_sent) !== 30) return false;
+  if (Number(config.rate_limit_email_sent) !== AUTH_EMAIL_RATE_LIMIT_PER_HOUR) return false;
   return true;
 }
 
@@ -278,6 +309,16 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     );
   }
 
+  const turnstileSecret = env.TURNSTILE_SECRET_KEY?.trim() ?? '';
+  const turnstileSiteKey = env.TURNSTILE_SITE_KEY?.trim() ?? '';
+  if (Boolean(turnstileSecret) !== Boolean(turnstileSiteKey)) {
+    throw new Error(
+      'TURNSTILE_SECRET_KEY and TURNSTILE_SITE_KEY must be set together: Auth CAPTCHA without the app widget blocks every sign-in, '
+      + 'and the widget without Auth CAPTCHA protects nothing (docs/runbooks/signup-contact-channels.md)',
+    );
+  }
+  const captcha = turnstileSecret ? { secret: turnstileSecret } : null;
+
   const config = await readConfig({ token, projectRef });
 
   if (requireSmtp) {
@@ -303,8 +344,10 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     enforcePasswordGuards,
     passwordChanged,
     confirmation,
+    captcha,
   };
-  if (isSatisfied({ config, ...desired })) {
+  /* 비밀 키는 읽어 볼 수 없다 — 키가 있으면 교체(회전)를 놓치지 않도록 매번 PATCH한다. */
+  if (captcha === null && isSatisfied({ config, ...desired })) {
     log(`Supabase Auth configuration for ${projectRef} is already up to date.`);
     return { patched: false };
   }
@@ -313,6 +356,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     site_url: siteUrl,
     uri_allow_list: allow.list,
     ...mailerPatch({ enforceMailer }),
+    ...captchaPatch({ captcha }),
     ...(emailOtpExpirySeconds === null ? {} : { mailer_otp_exp: emailOtpExpirySeconds }),
     ...(recoveryTemplate === null ? {} : { mailer_templates_recovery_content: recoveryTemplate }),
     ...passwordGuardPatch({ enforcePasswordGuards }),
@@ -360,7 +404,8 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `
     + `mailer_notifications_password_changed_enabled=${final.mailer_notifications_password_changed_enabled}, `
     + `password_changed_template=${passwordChanged === null ? 'not-managed' : 'mismatch'}, `
-    + `confirmation_template=${confirmation === null ? 'not-managed' : 'mismatch'}`,
+    + `confirmation_template=${confirmation === null ? 'not-managed' : 'mismatch'}, `
+    + `security_captcha=${captcha === null ? 'not-managed' : `${final.security_captcha_enabled}/${final.security_captcha_provider}`}`,
   );
 }
 

@@ -136,7 +136,7 @@ function actionMarker(label: string) {
 
 describe('OrdersSection', () => {
   // ADR-0018: 발송 전 주문만 운영자 전액 취소를 시작할 수 있다. 출고지시가 나간
-  // 배송 건이 있으면 창고 출고 중단 확인을 함께 받는다.
+  // 배송 건이 있으면 확인란 대신 창고 회신 기록 상태와 기록 링크를 보인다(ADR-0046).
   describe('운영자 전액 취소', () => {
     const readyShipment = (exportedAt: string | null) => shipmentFixture({
       orderId: ORDER_ID, status: 'ready', carrier: null, carrierLabel: null, trackingNumber: null,
@@ -156,12 +156,16 @@ describe('OrdersSection', () => {
       expect(html).toMatch(/<button[^>]*type="submit"[^>]*>선택 주문 발주확인</);
     });
 
-    it('출고지시가 나간 발주확인 주문은 창고 출고 중단 확인을 필수로 받는다', () => {
+    it('출고지시가 나간 발주확인 주문은 확인란 대신 창고 회신 기록으로 잇는다', () => {
       const html = renderToStaticMarkup(<OrdersSection data={orderData({
         status: 'confirmed', shipments: [readyShipment('2026-10-12T01:00:00Z')],
       })} />);
-      expect(html).toContain('name="warehouseStopConfirmed"');
-      expect(html).toContain('창고에 출고 중단을 확인했습니다.');
+      /* 운영자 진술(확인란)은 근거가 아니다 — 창고 회신 기록이 근거이고 DB가 실행 때 판정한다. */
+      expect(html).not.toContain('name="warehouseStopConfirmed"');
+      expect(html).toContain('data-warehouse-stop-requirement="loading"');
+      expect(html).toContain('창고의 출고 중단 회신 기록이 있어야 취소됩니다.');
+      expect(html).toContain(`/admin/sales/orders/${ORDER_ID}`);
+      expect(html).toContain('#warehouse-stop');
     });
 
     it('발송된 배송 건이 있거나 진행 중인 요청이 있으면 그리지 않는다', () => {
@@ -175,6 +179,19 @@ describe('OrdersSection', () => {
       expect(pending).not.toContain('aria-label="운영자 전액 취소"');
       const unpaid = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'pending', shipments: [] })} />);
       expect(unpaid).not.toContain('aria-label="운영자 전액 취소"');
+    });
+
+    /* 원장 #15: 일부만 발송된 주문은 전액 취소 대신 발송 전 몫(재고 부족 부분 취소)·발송된 몫(반품)의 경로를 알린다. */
+    it('일부만 발송된 주문은 전액 취소 대신 부분 취소·반품 경로를 알린다', () => {
+      const mixed = renderToStaticMarkup(<OrdersSection data={orderData({
+        status: 'shipping', shipments: [shipmentFixture({ orderId: ORDER_ID, status: 'shipping' }), { ...readyShipment(null), id: 'shipment-ready', orderItemIds: ['item-ready'] }],
+      })} />);
+      expect(mixed).not.toContain('aria-label="운영자 전액 취소"');
+      expect(mixed).toContain('아직 발송 전인 배송 건 몫은 주문 상세의 재고 부족 부분 취소(설정이 켜져 있을 때)로 취소·환불하고, 발송된 몫은 반품으로 처리해주세요.');
+      const allShipped = renderToStaticMarkup(<OrdersSection data={orderData({
+        status: 'shipping', shipments: [shipmentFixture({ orderId: ORDER_ID, status: 'shipping' })],
+      })} />);
+      expect(allShipped).not.toContain('재고 부족 부분 취소(설정이 켜져 있을 때)');
     });
 
     // DB staff_cancellation_toss_only와 같은 조건 — 누르면 항상 거절되는 버튼을 그리지 않는다.
@@ -1118,33 +1135,33 @@ describe('운영자 전액 취소 제출 순서', () => {
       staffForm({ reasonCode: 'other', note: '짧음' }),
       confirmation,
       confirm,
-      (form) => staffCancellationClientErrors(form, false),
+      staffCancellationClientErrors,
     );
 
     expect(plan).toEqual({ kind: 'invalid', errors: { note: '기타 사유는 메모를 5자 이상 입력해주세요.' } });
     expect(confirm).not.toHaveBeenCalled();
   });
 
-  it('출고지시가 나간 주문은 창고 중단 확인 없이 확인 창으로 가지 않는다', async () => {
+  it('창고 출고 중단은 화면 확인란이 아니라 DB의 창고 회신 판정이 막는다', async () => {
     const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
     const confirm = vi.fn(() => true);
 
+    /* 확인란을 보내지 않아도 입력 검사는 통과한다 — 회신 기록이 없으면 실행 때 DB가 warehouse_stop_reply_required로 거절한다. */
     const plan = await planOrderCancellationSubmit(
       staffForm({ reasonCode: 'out_of_stock', note: '' }),
       confirmation,
       confirm,
-      (form) => staffCancellationClientErrors(form, true),
+      staffCancellationClientErrors,
     );
 
-    expect(plan).toMatchObject({ kind: 'invalid', errors: { warehouseStopConfirmed: expect.stringContaining('창고') } });
-    expect(confirm).not.toHaveBeenCalled();
-    expect(staffCancellationClientErrors(staffForm({ reasonCode: '' }), false)).toEqual({ reasonCode: '취소 사유를 선택해주세요.' });
+    expect(plan).toEqual({ kind: 'dispatch' });
+    expect(staffCancellationClientErrors(staffForm({ reasonCode: '' }))).toEqual({ reasonCode: '취소 사유를 선택해주세요.' });
   });
 
   it('유효한 입력만 확인 창을 거쳐 보낸다', async () => {
     const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
-    const validate = (form: FormData) => staffCancellationClientErrors(form, true);
-    const form = staffForm({ reasonCode: 'test_payment_cleanup', warehouseStopConfirmed: 'confirmed' });
+    const validate = (form: FormData) => staffCancellationClientErrors(form);
+    const form = staffForm({ reasonCode: 'test_payment_cleanup' });
 
     const accepted = vi.fn(() => true);
     expect(await planOrderCancellationSubmit(form, confirmation, accepted, validate)).toEqual({ kind: 'dispatch' });
@@ -1161,7 +1178,7 @@ describe('운영자 전액 취소 제출 순서', () => {
     expect(confirm).toHaveBeenCalledOnce();
   });
 
-  it('양식은 브라우저 기본 검사 대신 같은 화면 오류로 사유·메모·창고 확인을 알린다', async () => {
+  it('양식은 브라우저 기본 검사 대신 같은 화면 오류로 사유·메모를 알린다', async () => {
     vi.resetModules();
     vi.doMock('react', async () => {
       const actual = await vi.importActual<typeof import('react')>('react');
@@ -1173,7 +1190,7 @@ describe('운영자 전액 취소 제출 순서', () => {
             : {
               intent: 'staffCancel',
               orderId: ORDER_ID,
-              errors: { warehouseStopConfirmed: '창고에 출고 중단을 확인한 뒤 확인란을 체크해주세요.' },
+              errors: { note: '기타 사유는 메모를 5자 이상 입력해주세요.' },
             },
           () => {},
           false,
@@ -1189,11 +1206,11 @@ describe('운영자 전액 취소 제출 순서', () => {
           trackingUrl: null, shippedAt: null, exportedAt: '2026-10-12T01:00:00Z',
         })],
       })} />);
-      const stopId = `admin-order-staff-cancel-stop-${ORDER_ID}`;
+      const noteId = `admin-order-staff-cancel-note-${ORDER_ID}`;
 
       expect(html).toMatch(/aria-label="운영자 전액 취소"[^>]*novalidate=""/i);
-      expect(html).toContain(`id="${stopId}-error" role="alert"`);
-      expect(html).toContain(`aria-describedby="${stopId}-error"`);
+      expect(html).toContain(`id="${noteId}-error" role="alert"`);
+      expect(html).toContain(`aria-describedby="${noteId}-error"`);
     } finally {
       vi.doUnmock('react');
       vi.resetModules();

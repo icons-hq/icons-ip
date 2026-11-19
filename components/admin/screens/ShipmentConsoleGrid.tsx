@@ -7,7 +7,7 @@ import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/componen
 import {isParcelShipment,shipmentConsoleNonParcelBatch,shipmentConsoleRowSelectable,shipmentConsoleSelectable,type ShipmentConsoleOrigin,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
 import {DISPATCH_TARGET_LIMIT} from '@/lib/admin/dispatch-delivery';
 import type {FulfillmentMethod} from '@/lib/goods-fulfillment';
-import {ShipmentConsoleActionsContext,type ShipmentConsoleActions,type ShipmentConsoleNotice,type ShipmentDeliveryDialogMode} from './ShipmentConsoleContext';
+import {ShipmentConsoleActionsContext,ShipmentConsoleNoticeContext,type ShipmentConsoleActions,type ShipmentConsoleNotice,type ShipmentDeliveryDialogMode} from './ShipmentConsoleContext';
 import {ShipmentConsoleDeliveryDialog,type DispatchTargetSummary} from './ShipmentConsoleDeliveryDialog';
 import {shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENGTH,exportPasswordError} from '@/lib/admin/export-password';
@@ -22,6 +22,9 @@ import {Label} from '@/components/admin/kit/ui/label';
 import {directionParticle} from '@/lib/korean-particle';
 import {NativeSelect} from '@/components/admin/kit/ui/native-select';
 import { adminConfirm } from '@/lib/admin/confirm';
+import {Textarea} from '@/components/admin/kit/ui/textarea';
+import {kstDateTimeLocalToIso,kstDateTimeLocalValue} from '@/lib/admin/stock-reconcile';
+import {SHIPMENT_ARRIVAL_LATE_DAYS,SHIPMENT_REVERT_REASON_MAX,shipmentArrivalError,shipmentArrivalNeedsReason} from '@/lib/admin/shipment-revert';
 /* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
 const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
 const CONTROL='flex min-w-0 max-w-full items-center gap-1.5';
@@ -70,7 +73,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const [partial,setPartial]=useState(false);
  const [packSelection,setPackSelection]=useState<string[]|null>(null);
  const [noticeSelection,setNoticeSelection]=useState<string[]|null>(null);
- const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean}|null>(null);
+ /* 선택 배송완료 확인(ADR-0045): 택배사 조회의 배송완료 일시(KST, 처음 값은 연 시각)와 7일보다 이른 일시의 늦은 처리 사유. 처음 값 그대로면 처리 시각으로 기록한다. */
+ const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean;arrival:string;initialArrival:string;reason:string}|null>(null);
  const [exportRequest,setExportRequest]=useState<ExportRequest|null>(null);
  const [downloadedIds,setDownloadedIds]=useState<Set<string>>(()=>new Set());
  // 이 화면의 처리(발주확인·내보내기·배송완료)가 끝날 때마다 오른다. 성공·실패와 관계없이 바코드 경고를 지금 값으로 다시 센다(리뷰 M27-SHIP-1).
@@ -125,11 +129,17 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  },[originBarcodeKey,dataRound]);
  const selectionBarcodeGap=barcodeKey&&barcodeGaps?.key===`${barcodeKey}#${dataRound}`?barcodeGaps.missing:0;
  const originBarcodeGap=(id:string)=>originBarcodeKey&&originBarcodeGaps?.key===`${originBarcodeKey}#${dataRound}`?originBarcodeGaps.counts[id]??0:0;
+ const completionArrivalIso=completion?completion.arrival===completion.initialArrival?null:kstDateTimeLocalToIso(completion.arrival):null;
+ const completionArrivalInvalid=Boolean(completion&&completion.arrival!==completion.initialArrival&&!completionArrivalIso);
+ const completionNeedsReason=shipmentArrivalNeedsReason(completionArrivalIso);
+ // 7일보다 이른 일시는 판매 관리 권한만 넣는다(물류 계정은 7일 이내, ADR-0045). 권한이 없으면 사유 칸 대신 이유를 보인다.
+ const completionError=completion?completionArrivalInvalid?'택배사 배송완료 일시를 확인해주세요.':shipmentArrivalError(completionArrivalIso,completion.reason,new Date(),canManageSales):null;
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
  function reviewCompletion(){
   if(!ids.length||pending)return;
   const expanded=new Set(rows.filter(row=>ids.includes(row.id)).flatMap(row=>row.pack?.shipmentIds??[row.id]));
-  setCompletion({ids:[...ids],total:expanded.size,acknowledged:false});
+  const opened=kstDateTimeLocalValue(new Date());
+  setCompletion({ids:[...ids],total:expanded.size,acknowledged:false,arrival:opened,initialArrival:opened,reason:''});
  }
  async function requestExport(){
   if(pending||!exportEligible)return;
@@ -150,7 +160,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   const exportBatch=kind==='export'?(requestedExport??exportRequest):null;
   const targetIds=kind==='complete'?completion?.ids:exportBatch?.kind==='selection'?exportBatch.ids:ids;
   if(pending||(kind==='export'?!exportBatch:!targetIds?.length))return;
-  if(kind==='complete'&&!completion?.acknowledged)return;
+  if(kind==='complete'&&(!completion?.acknowledged||completionError))return;
+  const arrival=kind==='complete'&&completion?{deliveredAt:completion.arrival===completion.initialArrival?null:kstDateTimeLocalToIso(completion.arrival),reason:completion.reason.trim()}:null;
   setMessage('');setError('');setFailures([]);setPartial(false);
   startTransition(async()=>{
    try{
@@ -167,7 +178,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
       }
      }
     }else if(kind==='complete'){
-     const result=await completeShipmentsAction(targetIds!);if(result.error)setError(result.error);else{setMessage(result.message??'');setFailures(result.failed??[]);setPartial(Boolean(result.failed?.length));setSelected((result.failed??[]).map(row=>row.id));}setCompletion(null);
+     const result=await completeShipmentsAction(targetIds!,arrival!);if(result.error)setError(result.error);else{setMessage(result.message??'');setFailures(result.failed??[]);setPartial(Boolean(result.failed?.length));setSelected((result.failed??[]).map(row=>row.id));}setCompletion(null);
     }else{
      const request=exportBatch!;
      const result=request.kind==='origin'
@@ -197,7 +208,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    <Button type="button" size="xs" variant="ghost" onClick={()=>setFailures([])}>닫기</Button></span></AdminNotice>:null}
  </div>:null;
  const exportNeedsPassword=exportRequest?needsExportPassword(exportRequest):false;
- return <ShipmentConsoleActionsContext.Provider value={consoleActions}><div className="flex min-w-0 flex-col gap-3" data-shipment-console-grid="">
+ return <ShipmentConsoleActionsContext.Provider value={consoleActions}><ShipmentConsoleNoticeContext.Provider value={report}><div className="flex min-w-0 flex-col gap-3" data-shipment-console-grid="">
   {notices}
   <ConsoleGrid caption="출고지별 배송 건 목록" preferencesKey={`sales-${tab==='transit'||tab==='delivered'?'shipping':'dispatch'}`} columns={columns} rows={gridRows} emptyLabel="조건에 맞는 배송 건이 없습니다."
    selectable={tab!=='delivered'&&hasBatchActions} selectedIds={ids} onSelectionChange={select}>
@@ -235,11 +246,17 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   {completion?<CustomerServiceDialog title="배송완료 확인" busy={pending} onClose={()=>setCompletion(null)}>
    <div className="flex flex-col gap-3 text-sm leading-relaxed">
     <p>선택한 {completion.ids.length}건{completion.total>completion.ids.length?`과 같은 합포장에 포함된 배송 건을 합쳐 총 ${completion.total}건`:''}을 배송완료로 처리합니다.</p>
-    <p className="text-muted-foreground">배송완료 시각부터 철회 기간이 시작됩니다. 합포장에 포함된 모든 상품의 실제 도착을 확인해주세요.</p>
+    <p className="text-muted-foreground">합포장에 포함된 모든 상품의 실제 도착을 택배사 조회로 확인해주세요.</p>
+    <label className={FIELD}><span>택배사 배송완료 일시 (KST)</span><Input type="datetime-local" name="deliveredAt" value={completion.arrival} max={kstDateTimeLocalValue(new Date())} disabled={pending} required
+     onChange={event=>setCompletion({...completion,arrival:event.target.value})}/></label>
+    <p className="text-muted-foreground" data-arrival-hint="">택배사 조회의 배송완료 일시를 넣으세요. 청약철회 기간과 구매확정 기한은 처리한 시각이 아니라 이 일시부터 셉니다 — 늦게 처리할수록 철회 기간이 뒤로 밀리지 않도록 실제 일시를 기준으로 합니다. 처음 값(이 창을 연 시각)을 그대로 두면 처리 시각으로 기록합니다. 발송 등록 시각보다 이른 일시는 그 배송 건만 처리하지 않습니다.</p>
+    {completionNeedsReason&&canManageSales?<label className={FIELD}><span>늦게 처리한 사유 ({SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 일시 · 감사 기록에 남습니다)</span><Textarea name="arrivalReason" rows={2} maxLength={SHIPMENT_REVERT_REASON_MAX} value={completion.reason} disabled={pending}
+     placeholder="예: 택배사 조회로 확인했으나 배송완료 처리를 놓침" onChange={event=>setCompletion({...completion,reason:event.target.value})}/></label>:null}
+    {completionError?<p role="alert" className="text-destructive">{completionError}</p>:null}
     <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" checked={completion.acknowledged} disabled={pending} onChange={event=>setCompletion({...completion,acknowledged:event.target.checked})}/><span>모든 상품이 실제 도착한 것을 확인했습니다.</span></label>
     <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
      <Button type="button" variant="outline" disabled={pending} onClick={()=>setCompletion(null)}>취소</Button>
-     <Button type="button" disabled={pending||!completion.acknowledged} onClick={()=>run('complete')}>{pending?'처리 중…':`${completion.total}건 배송완료 처리`}</Button>
+     <Button type="button" disabled={pending||!completion.acknowledged||Boolean(completionError)} onClick={()=>run('complete')}>{pending?'처리 중…':`${completion.total}건 배송완료 처리`}</Button>
     </div>
    </div>
   </CustomerServiceDialog>:null}
@@ -274,5 +291,5 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    </form>
   </CustomerServiceDialog>:null}
   {deliveryDialog?<ShipmentConsoleDeliveryDialog key={`${deliveryDialog.mode}:${deliveryDialog.ids.join(',')}`} mode={deliveryDialog.mode} onClose={()=>setDeliveryDialog(null)} onDone={report} canReadOrders={canReadOrders} shipmentIds={deliveryDialog.ids} summaries={targetSummaries}/>:null}
- </div></ShipmentConsoleActionsContext.Provider>;
+ </div></ShipmentConsoleNoticeContext.Provider></ShipmentConsoleActionsContext.Provider>;
 }

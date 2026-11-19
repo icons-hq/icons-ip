@@ -227,8 +227,21 @@ export interface AdminClaimCollection {
   receivedOn?: string | null;
   /** 회수 생략(ADR-0041)으로 이미 재출고한 배송 건. 늦게 도착한 입고 확인은 재고를 바꾸지 않는다. */
   collectionWaived?: boolean;
+  /** 배송 건이 이미 나갔는가(배송중·배송완료). 배송 분실 기록은 나간 배송 건에만 쓴다. */
+  shipmentDispatched?: boolean;
+  /** 배송 분실(택배사 확인, 2026-11-19) 기록. 반품의 회수를 대신하고 분실 품목은 재고로 되돌리지 않는다. 없으면 null이다. */
+  carrierLoss?: AdminClaimCarrierLoss | null;
   /** 회수 묶음(배송 건 × 반품지, S36-040). 승인 때 상품 우선으로 고정한 회수 주소마다 입고를 따로 확인한다. */
   bundles?: AdminClaimCollectionBundle[];
+}
+
+/** 배송 건 하나의 배송 분실 기록(택배사 사고 번호·메모·근거 사진·처리자). */
+export interface AdminClaimCarrierLoss {
+  accidentNumber: string;
+  reason: string;
+  evidenceFileIds: string[];
+  recordedAt: string;
+  recordedByName: string | null;
 }
 
 /** 회수 묶음 하나. returnAddressId가 null이면 출고지 반품 주소를 쓰는 묶음이다(이름·연락처 없음). */
@@ -308,6 +321,17 @@ export interface AdminClaimReshipment {
   items: { orderItemId: string; name: string; variantName: string; variantCode: string; qty: number }[];
 }
 
+function parseAdminClaimCarrierLoss(value: unknown): AdminClaimCarrierLoss | null {
+  if (!isRecord(value) || typeof value.accidentNumber !== 'string' || typeof value.reason !== 'string' || typeof value.recordedAt !== 'string') return null;
+  return {
+    accidentNumber: value.accidentNumber,
+    reason: value.reason,
+    evidenceFileIds: Array.isArray(value.evidenceFileIds) ? value.evidenceFileIds.filter((id): id is string => typeof id === 'string') : [],
+    recordedAt: value.recordedAt,
+    recordedByName: typeof value.recordedByName === 'string' ? value.recordedByName : null,
+  };
+}
+
 export interface AdminClaimDetail {
   gift?: { giftId: string; requesterRole: 'payer' | 'recipient'; requesterName: string } | null;
   sellerIntake?: SellerClaimReceipt | null;
@@ -336,6 +360,8 @@ export interface AdminClaimDetail {
     collectedAt: string | null;
     /** 회수 완료일(실제 입고일, KST 날짜). 환급 기한은 이 날부터 센다. 옛 기록은 null이라 collectedAt을 쓴다. */
     collectionReceivedOn?: string | null;
+    /** 클레임 리비전(배송 분실 기록의 동시성 가드). 읽지 못하면 null이라 그 기록 폼을 그리지 않는다. */
+    claimRevision?: number | null;
     collectionPolicy: 'origin' | 'legacy' | null;
     collectionComplete: boolean;
     collections: AdminClaimCollection[];
@@ -521,6 +547,7 @@ export async function loadAdminClaimDetail(
       collectingAt: text(claim.collectingAt),
       collectedAt: text(claim.collectedAt),
       collectionReceivedOn: text(claim.collectionReceivedOn),
+      claimRevision: Number.isSafeInteger(claim.claimRevision) && (claim.claimRevision as number) >= 0 ? claim.claimRevision as number : null,
       collectionPolicy: claim.collectionPolicy === 'origin' || claim.collectionPolicy === 'legacy' ? claim.collectionPolicy : null,
       collectionComplete: claim.collectionComplete === true,
       collections: (Array.isArray(claim.collections) ? claim.collections : []).filter(isRecord).map((collection) => ({
@@ -532,6 +559,8 @@ export async function loadAdminClaimDetail(
         collectedAt: text(collection.collectedAt), collectedBy: text(collection.collectedBy),
         collectorName: text(collection.collectorName), evidence: text(collection.evidence),
         receivedOn: text(collection.receivedOn), collectionWaived: collection.collectionWaived === true,
+        shipmentDispatched: collection.shipmentDispatched === true,
+        carrierLoss: parseAdminClaimCarrierLoss(collection.carrierLoss),
         bundles: (Array.isArray(collection.bundles) ? collection.bundles : []).filter(isRecord).map((bundle) => ({
           bundleId: String(bundle.bundleId ?? ''), returnAddressId: text(bundle.returnAddressId),
           returnName: String(bundle.returnName ?? ''), returnAddress: String(bundle.returnAddress ?? ''), returnPhone: String(bundle.returnPhone ?? ''),

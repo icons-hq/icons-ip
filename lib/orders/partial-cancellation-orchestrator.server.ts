@@ -8,6 +8,8 @@ import { parseOrderPartialCancellationServiceRow, type OrderPartialCancellationS
 
 /** 토스 cancelReason(≤200자). */
 export const ORDER_PARTIAL_CANCEL_REFUND_REASON = 'ICONS 재고 부족 부분 취소';
+/** 부분 반품(ADR-0047)의 토스 cancelReason. 같은 부분 환불 원장·같은 확인 경로를 쓰고 사유 문구만 다르다. */
+export const ORDER_PARTIAL_RETURN_REFUND_REASON = 'ICONS 부분 반품 환불';
 
 /**
  * 결제사 취소 결과로 닫지 못한 사유. 게이트웨이 사유 코드(`provider_*`)는 그대로 남기고(운영자가 런북 조치를 고른다),
@@ -40,6 +42,8 @@ export interface OrderPartialCancellationDependencies {
     paymentKey: string;
     refundAmount: number;
     expectedBalanceBefore: number;
+    /** 부분 반품이면 'return'(결제사 취소 사유 문구만 다르다). */
+    reasonCode?: 'out_of_stock' | 'return';
   }): Promise<RefundOutcome>;
   complete(input: { id: string; actorId: string; refundedAmount: number; paymentKey: string; transactionKey: string }): Promise<void>;
   reject(input: { id: string; actorId: string }): Promise<void>;
@@ -63,13 +67,13 @@ export function orderPartialCancellationIdempotencyKey(attemptId: string, partia
 
 /** 결제사 부분 취소 요청 조립(기본 의존성이 쓰는 순수 함수 — 시험이 같은 조립을 쓴다). */
 export function orderPartialCancellationRefundRequest(attempt: PaymentAttempt, input: {
-  partialCancellationId: string; paymentKey: string; refundAmount: number; expectedBalanceBefore: number;
+  partialCancellationId: string; paymentKey: string; refundAmount: number; expectedBalanceBefore: number; reasonCode?: 'out_of_stock' | 'return';
 }): PaymentRefundRequest {
   return {
     attempt,
     idempotencyKey: orderPartialCancellationIdempotencyKey(attempt.id, input.partialCancellationId),
     amount: input.refundAmount,
-    reason: ORDER_PARTIAL_CANCEL_REFUND_REASON,
+    reason: input.reasonCode === 'return' ? ORDER_PARTIAL_RETURN_REFUND_REASON : ORDER_PARTIAL_CANCEL_REFUND_REASON,
     providerPaymentKey: input.paymentKey,
     partial: { expectedBalanceBefore: input.expectedBalanceBefore },
   };
@@ -125,10 +129,10 @@ function createDefaultDependencies(): OrderPartialCancellationDependencies {
   const service = createServiceClient();
   return {
     load: (id) => loadServiceRow(service, id),
-    async refund({ partialCancellationId, paymentId, paymentAmount, paymentKey, refundAmount, expectedBalanceBefore }) {
+    async refund({ partialCancellationId, paymentId, paymentAmount, paymentKey, refundAmount, expectedBalanceBefore, reasonCode }) {
       const attempt = await loadTossAttempt(service, paymentId, paymentAmount);
       const gateway = createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss'));
-      return gateway.refund(orderPartialCancellationRefundRequest(attempt, { partialCancellationId, paymentKey, refundAmount, expectedBalanceBefore }));
+      return gateway.refund(orderPartialCancellationRefundRequest(attempt, { partialCancellationId, paymentKey, refundAmount, expectedBalanceBefore, reasonCode }));
     },
     async complete({ id, actorId, refundedAmount, paymentKey, transactionKey }) {
       const { error } = await service.rpc('service_complete_order_partial_cancellation', {
@@ -224,6 +228,7 @@ export async function reconcileOrderPartialCancellation(
       paymentKey: row.paymentKey,
       refundAmount: row.refundAmount,
       expectedBalanceBefore: row.balanceBefore,
+      reasonCode: row.reasonCode,
     });
   } catch {
     return needsReview(dependencies, target, 'provider_unavailable');

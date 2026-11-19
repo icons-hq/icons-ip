@@ -1,7 +1,9 @@
 'use client';
 
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import Link from 'next/link';
 import { statusTone } from '@/lib/admin/status-tone';
+import { OPERATIONS_SWITCHES_PATH } from '@/lib/admin/operations-switches';
 import { useRef, useState, useTransition, type FormEvent } from 'react';
 import {
   listOrderDelayNoticesAction,
@@ -211,6 +213,7 @@ export function OrderDelayNoticePanel({ shipmentIds, onClose }: { shipmentIds: s
             <AdminNotice role="status" tone="danger">
               {!notice.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두
               채널의 준비가 완료되어야 발송을 요청할 수 있습니다.
+              {!notice.emailEnabled && receipt.switchesLink ? <> <Link className="font-medium underline underline-offset-4" data-operations-switches-link="" href={OPERATIONS_SWITCHES_PATH}>운영 스위치에서 켜기</Link></> : null}
             </AdminNotice>
           ) : null}
           {!notice.requestedAt && notice.targets.some((target) => target.errorCode === 'recipient_missing') ? (

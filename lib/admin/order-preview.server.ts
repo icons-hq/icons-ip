@@ -4,9 +4,11 @@ import { canAccessAdminScreen, hasAdminCapability, type AdminAccessSource } from
 import { adminScreenForPath } from './navigation';
 import { getAdminOrderDetail } from './order-detail.server';
 import { loadAdminOrderDownloads } from './order-downloads.server';
+import { loadAdminOrderAcknowledgement } from './order-acknowledgement.server';
 import { loadAdminOrderProduction } from '@/lib/order-production.server';
 import type { AdminOrderDetail } from './order-detail';
 import type { AdminOrderDownloads } from './order-downloads';
+import type { AdminOrderAcknowledgement } from './order-acknowledgement';
 import type { OrderProduction } from '@/lib/order-production';
 import { notePiiAccess } from './pii-access-log.server';
 
@@ -16,7 +18,7 @@ function actorOf(auth: AdminAccessSource): string | null {
 }
 
 export type AdminOrderPreview =
-  | { kind: 'loaded'; detail: AdminOrderDetail; production: OrderProduction | null; downloads: AdminOrderDownloads | null; canManage: boolean; canViewCustomer: boolean }
+  | { kind: 'loaded'; detail: AdminOrderDetail; production: OrderProduction | null; downloads: AdminOrderDownloads | null; acknowledgement?: AdminOrderAcknowledgement | null; canManage: boolean; canViewCustomer: boolean }
   | { kind: 'forbidden' | 'not_found' | 'error' };
 
 /**
@@ -27,7 +29,7 @@ export async function loadAdminOrderPreview(auth: AdminAccessSource, orderId: st
   if (!canAccessAdminScreen(auth, adminScreenForPath(`/admin/sales/orders/${orderId}`))) return { kind: 'forbidden' };
   const canManage = hasAdminCapability(auth, 'sales.manage');
   try {
-    const [detail, production, downloads] = await Promise.all([getAdminOrderDetail(orderId, canManage), loadAdminOrderProduction(orderId), loadAdminOrderDownloads(orderId)]);
+    const [detail, production, downloads, acknowledgement] = await Promise.all([getAdminOrderDetail(orderId, canManage), loadAdminOrderProduction(orderId), loadAdminOrderDownloads(orderId), loadAdminOrderAcknowledgement(orderId)]);
     if (!detail) return { kind: 'not_found' };
     /* 팝업도 주문 상세 화면이다 — 주문·발송·배송현황·거래확정 목록 어디서 열었든 같은 개인정보 접속기록을 남긴다(실패해도 연다). */
     const actorId = actorOf(auth);
@@ -35,7 +37,7 @@ export async function loadAdminOrderPreview(auth: AdminAccessSource, orderId: st
       await notePiiAccess({ actorId, action: 'view', surface: 'order.detail', path: `/admin/sales/orders/${orderId}`,
         subjectKind: 'order', subjectIds: [orderId], detail: { via: 'popup' } });
     }
-    return { kind: 'loaded', detail, production, downloads, canManage, canViewCustomer: hasAdminCapability(auth, 'platform.manage') };
+    return { kind: 'loaded', detail, production, downloads, ...(acknowledgement !== undefined ? { acknowledgement } : {}), canManage, canViewCustomer: hasAdminCapability(auth, 'platform.manage') };
   } catch (error) {
     unstable_rethrow(error);
     return { kind: 'error' };
