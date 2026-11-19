@@ -5,6 +5,7 @@ import {
   requestPasswordResetAction,
   resendSignupCodeAction,
   signOutAction,
+  signInWithEmailAction,
   signInWithSocialAction,
   signUpWithEmailAction,
   verifySignupCodeAction,
@@ -1205,100 +1206,140 @@ describe('가입·재전송·재설정 메일 방어(CUS-003)', () => {
     expect(mocks.signUp).toHaveBeenCalledTimes(2);
   });
 
-  describe('Turnstile', () => {
-    const verifyResponse = (success: boolean) => ({ ok: true, json: async () => ({ success }) });
+  it('쿠키 3회 창에 막힌 재전송은 서버 한도를 소비하지 않는다', async () => {
+    await submitSignup('Fan@Icons.gg');
+    await resendSignupCodeAction({}, resendForm());
+    await resendSignupCodeAction({}, resendForm());
+    await resendSignupCodeAction({}, resendForm());
+    mocks.abuseRpc.mockClear();
 
-    it('키가 없으면 꺼져 있다 — 토큰 없이도 지금처럼 동작하고 Cloudflare를 부르지 않는다', async () => {
+    expect((await resendSignupCodeAction({}, resendForm())).errors?.form).toContain('너무 많습니다. 10분 후');
+    expect((await submitSignup('Fan@Icons.gg')).errors?.form).toContain('너무 많습니다. 10분 후');
+    expect(mocks.abuseRpc).not.toHaveBeenCalled();
+  });
+
+  it('서버 한도로 거절하면 사유 종류만 담은 경고 로그를 남기고 원문 IP·이메일은 남기지 않는다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mocks.abuseRpc.mockResolvedValue({ data: { ok: false, reason: 'rate_limited', scope: 'ip', retryAfterSeconds: 60 }, error: null });
+    await submitSignup('Fan@Icons.gg');
+    expect(warn).toHaveBeenCalledWith('[auth-mail-abuse] rejected', { action: 'signup', reason: 'rate_limited', scope: 'ip' });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('203.0.113.7');
+    expect(JSON.stringify(warn.mock.calls).toLowerCase()).not.toContain('icons.gg');
+  });
+
+  it('Auth 프로젝트 메일 한도(over_email_send_rate_limit)를 받으면 태그 로그를 남긴다', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.signUp.mockResolvedValue({ data: { user: null, session: null }, error: { code: 'over_email_send_rate_limit', status: 429, message: 'x' } });
+    await submitSignup('Fan@Icons.gg');
+    expect(error.mock.calls.some((call) => String(call[0]).startsWith('[auth-mail-limit]'))).toBe(true);
+    expect(JSON.stringify(error.mock.calls).toLowerCase()).not.toContain('icons.gg');
+  });
+
+  describe('Turnstile(토큰은 앱이 아니라 GoTrue가 검증한다)', () => {
+    const withToken = (data: FormData, token = 'token-1') => {
+      data.set('cf-turnstile-response', token);
+      return data;
+    };
+
+    it('사이트 키가 없으면 꺼져 있다 — 토큰 없이 지금처럼 동작하고 captchaToken도 보내지 않는다', async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
       await submitSignup();
       expect(fetchMock).not.toHaveBeenCalled();
       expect(mocks.signUp).toHaveBeenCalledTimes(1);
+      expect(mocks.signUp.mock.calls[0][0].options).not.toHaveProperty('captchaToken');
     });
 
-    it('비밀 키만 있으면 켜지지 않는다(사이트 키 없이는 위젯이 없어 모두 막히므로)', async () => {
+    it('비밀 키만 있으면 켜지지 않는다(앱은 비밀 키를 읽지 않는다)', async () => {
       process.env.TURNSTILE_SECRET_KEY = 'secret';
-      const fetchMock = vi.fn();
-      vi.stubGlobal('fetch', fetchMock);
       await submitSignup();
-      expect(fetchMock).not.toHaveBeenCalled();
       expect(mocks.signUp).toHaveBeenCalledTimes(1);
     });
 
-    describe('두 키가 모두 있을 때', () => {
+    describe('사이트 키가 있을 때', () => {
       beforeEach(() => {
         process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'site';
-        process.env.TURNSTILE_SECRET_KEY = 'secret';
       });
 
-      const withToken = (data: FormData, token = 'token-1') => {
-        data.set('cf-turnstile-response', token);
-        return data;
-      };
+      it('가입: 토큰이 없으면 DB 한도도 Supabase도 부르지 않고 화면별 문구로 거절한다', async () => {
+        const state = await submitSignup();
+        expect(state.errors?.form).toBe('자동 가입 방지 확인을 완료하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+        expect(mocks.abuseRpc).not.toHaveBeenCalled();
+        expect(mocks.signUp).not.toHaveBeenCalled();
+      });
 
-      it('토큰이 없으면 Cloudflare도 DB 한도도 Supabase도 부르지 않고 거절한다', async () => {
+      it('가입: 토큰을 siteverify하지 않고 options.captchaToken으로 GoTrue에 그대로 넘긴다', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const state = await submitSignup();
-        expect(state.errors?.form).toContain('자동 가입 방지');
-        expect(fetchMock).not.toHaveBeenCalled();
-        expect(mocks.abuseRpc).not.toHaveBeenCalled();
-        expect(mocks.signUp).not.toHaveBeenCalled();
-      });
-
-      it('검증이 통과하면 토큰·비밀 키·접속 IP를 siteverify로 보내고 가입을 이어 간다', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(verifyResponse(true));
-        vi.stubGlobal('fetch', fetchMock);
         await signUpWithEmailAction({}, withToken(formData()));
-
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify');
-        expect(init.method).toBe('POST');
-        expect(init.signal).toBeInstanceOf(AbortSignal);
-        const body = init.body as URLSearchParams;
-        expect(Object.fromEntries(body)).toEqual({ secret: 'secret', response: 'token-1', remoteip: '203.0.113.7' });
+        expect(fetchMock).not.toHaveBeenCalled();
         expect(mocks.signUp).toHaveBeenCalledTimes(1);
+        expect(mocks.signUp.mock.calls[0][0].options).toMatchObject({ captchaToken: 'token-1' });
       });
 
-      it('검증이 실패하면 거절하고 시도 한도도 소비하지 않는다', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(false)));
-        const state = await signUpWithEmailAction({}, withToken(formData()));
-        expect(state.errors?.form).toContain('자동 가입 방지');
-        expect(mocks.abuseRpc).not.toHaveBeenCalled();
-        expect(mocks.signUp).not.toHaveBeenCalled();
-      });
-
-      it('Cloudflare가 오류를 주거나 응답하지 않아도 거절한다', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+      it('GoTrue가 captcha_failed를 돌려주면 화면별 문구로 안내한다', async () => {
+        mocks.signUp.mockResolvedValue({ data: { user: null, session: null }, error: { code: 'captcha_failed', message: 'captcha protection: request disallowed' } });
         expect((await signUpWithEmailAction({}, withToken(formData()))).errors?.form).toContain('자동 가입 방지');
-        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('timeout', 'TimeoutError')));
-        expect((await signUpWithEmailAction({}, withToken(formData()))).errors?.form).toContain('자동 가입 방지');
-        expect(mocks.signUp).not.toHaveBeenCalled();
+
+        mocks.resetPasswordForEmail.mockResolvedValue({ data: {}, error: { code: 'captcha_failed', message: 'x' } });
+        expect((await requestPasswordResetAction({}, withToken(resetFormData()))).errors?.form)
+          .toBe('자동 요청 방지 확인을 완료하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
       });
 
-      it('코드 재받기는 이메일을 유지한 채 거절하고, 재설정도 같은 검증을 거친다', async () => {
-        await signUpWithEmailAction({}, (() => {
-          vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(true)));
-          return withToken(formData());
-        })());
+      it('재설정: 토큰이 없으면 거절하고 메일을 보내지 않으며, 있으면 captchaToken을 넘긴다', async () => {
+        expect((await requestPasswordResetAction({}, resetFormData())).errors?.form).toContain('자동 요청 방지');
+        expect(mocks.resetPasswordForEmail).not.toHaveBeenCalled();
+        await requestPasswordResetAction({}, withToken(resetFormData(), 'reset-token'));
+        expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', expect.objectContaining({ captchaToken: 'reset-token' }));
+      });
+
+      it('코드 재받기: 토큰이 없으면 이메일을 유지한 채 거절하고, 있으면 resend에 captchaToken을 넘긴다', async () => {
+        await signUpWithEmailAction({}, withToken(formData()));
         mocks.resend.mockClear();
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(false)));
-
-        expect(await resendSignupCodeAction({}, withToken(resendForm()))).toEqual({
+        expect(await resendSignupCodeAction({}, resendForm())).toEqual({
           errors: { form: expect.stringContaining('자동 가입 방지') },
           pendingSignupEmail: 'fan@icons.gg',
         });
         expect(mocks.resend).not.toHaveBeenCalled();
-
-        expect((await requestPasswordResetAction({}, resetFormData())).errors?.form).toContain('자동 가입 방지');
-        expect(mocks.resetPasswordForEmail).not.toHaveBeenCalled();
+        await resendSignupCodeAction({}, withToken(resendForm(), 'resend-token'));
+        expect(mocks.resend.mock.calls[0][0].options).toMatchObject({ captchaToken: 'resend-token' });
       });
 
-      it('재설정은 검증을 통과하면 메일을 보낸다', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(verifyResponse(true)));
-        await requestPasswordResetAction({}, withToken(resetFormData()));
-        expect(mocks.resetPasswordForEmail).toHaveBeenCalledTimes(1);
+      it('로그인: 토큰이 없으면 Supabase를 부르지 않고, 있으면 captchaToken을 넘기며, captcha_failed는 로그인 실패와 다른 문구다', async () => {
+        mocks.signInWithPassword.mockReset();
+        const login = (token?: string) => {
+          const data = new FormData();
+          data.set('email', 'fan@icons.gg');
+          data.set('password', 'password1234');
+          if (token) data.set('cf-turnstile-response', token);
+          return data;
+        };
+        expect((await signInWithEmailAction({}, login())).errors?.form).toContain('자동 로그인 방지');
+        expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+
+        mocks.signInWithPassword.mockResolvedValue({ data: { user: null, session: null }, error: { code: 'captcha_failed', message: 'x' } });
+        expect((await signInWithEmailAction({}, login('t1'))).errors?.form).toContain('자동 로그인 방지');
+        expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: 'fan@icons.gg', password: 'password1234', options: { captchaToken: 't1' } });
+      });
+
+      it('가입 코드 확인: 뒤따르는 비밀번호 재로그인에 폼의 토큰을 쓰고, 토큰이 없으면 로그인 화면으로 보낸다', async () => {
+        mocks.signInWithPassword.mockReset();
+        mocks.verifyOtp.mockResolvedValue({ data: { user: { id: 'u1' }, session: { access_token: 'x' } }, error: null });
+        mocks.signOut.mockResolvedValue({ error: null });
+        const verify = (token?: string) => {
+          const data = new FormData();
+          data.set('email', 'fan@icons.gg');
+          data.set('code', '123456');
+          data.set('password', 'password1234');
+          data.set('next', '/');
+          if (token) data.set('cf-turnstile-response', token);
+          return data;
+        };
+        mocks.signInWithPassword.mockResolvedValue({ data: { user: null, session: null }, error: { message: 'x' } });
+        await expect(verifySignupCodeAction({}, verify())).rejects.toThrow('NEXT_REDIRECT:');
+        expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+        await expect(verifySignupCodeAction({}, verify('code-token'))).rejects.toThrow('NEXT_REDIRECT:');
+        expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: 'fan@icons.gg', password: 'password1234', options: { captchaToken: 'code-token' } });
       });
     });
   });

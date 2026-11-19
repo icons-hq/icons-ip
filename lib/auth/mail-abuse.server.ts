@@ -5,13 +5,17 @@ import { headers } from 'next/headers';
 import { createServiceClient } from '@/lib/supabase/service';
 
 /*
- * 가입·확인 메일 재전송·비밀번호 재설정 요청의 서버 측 방어(원장 CUS-003·OPS-085).
+ * 가입·로그인·확인 메일 재전송·비밀번호 재설정 요청의 서버 측 방어(원장 CUS-003·OPS-085).
  *
- * 1) Cloudflare Turnstile — NEXT_PUBLIC_TURNSTILE_SITE_KEY와 TURNSTILE_SECRET_KEY가 둘 다 있을 때만 켜진다.
- *    Supabase Auth 자체 CAPTCHA는 쓰지 않는다: 켜면 이 세 요청뿐 아니라 모든 Auth 호출(로그인·소셜·콜백 교환)에
- *    토큰이 필요해지고, 앱 서버가 이 세 요청의 유일한 메일 발송 경로이므로 서버 검증으로 충분하다.
- * 2) 접속 IP·이메일 시도 한도 — DB 원장(private.auth_mail_abuse_attempts)이 판정하고 메일을 보내기 전에 거절한다.
- *    IP·이메일 원문은 저장하지 않고 HMAC 다이제스트만 보낸다.
+ * 1) Cloudflare Turnstile — NEXT_PUBLIC_TURNSTILE_SITE_KEY가 있으면 폼에 위젯이 그려지고, 앱은 토큰을 siteverify하지 않고
+ *    `options.captchaToken`으로 GoTrue에 그대로 넘긴다. 토큰은 1회용이라 앱과 GoTrue가 함께 검증할 수 없고, 공개 publishable 키로
+ *    `/auth/v1/signup`·`/recover`·`/resend`·`/otp`·`/magiclink`·`/token`(password)을 직접 부르는 우회는 앱 서버가 볼 수 없으므로
+ *    방어선은 GoTrue에 둔다(Supabase Auth CAPTCHA, 비밀 키는 배포 파이프라인 scripts/sync-supabase-auth.mjs가 프로젝트에 PATCH).
+ *    GoTrue가 토큰을 요구하는 엔드포인트: supabase/auth internal/api/api.go의 verifyCaptcha — /signup, /recover, /resend, /magiclink,
+ *    /otp, /token(grant_type password·web3; pkce·refresh_token·id_token은 면제), /sso, 패스키 options. /verify·/user·/authorize는 아니다.
+ *    사이트 키만 있고 프로젝트 CAPTCHA가 꺼져 있으면 위젯만 그려지고 보호는 없다 — 둘의 짝은 런북 §13 순서로 맞춘다.
+ * 2) 접속 IP·이메일 시도 한도 — DB 원장(private.auth_mail_abuse_attempts)이 판정하고 메일을 보내기 전에 거절한다. 앱 서버를
+ *    거치는 요청만 센다(직접 호출 우회는 위 1이 막는다). IP·이메일 원문은 저장하지 않고 HMAC 다이제스트만 보낸다.
  *
  * 비밀값은 이미 운영 필수 env인 AUTH_SIGNUP_RESEND_SECRET을 재사용한다(빌드 가드가 production·preview에서 요구).
  * 쿠키 서명과 키가 같아도 메시지 앞에 도메인 접두를 붙여 서로의 값을 위조·충돌시킬 수 없다. 비밀값이 없으면(로컬 등)
@@ -20,13 +24,21 @@ import { createServiceClient } from '@/lib/supabase/service';
  */
 
 const DIGEST_DOMAIN = 'icons-auth-mail-abuse-v1';
-const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
-const TURNSTILE_TIMEOUT_MS = 5000;
 export const TURNSTILE_RESPONSE_FIELD = 'cf-turnstile-response';
 
 export type AuthMailAction = 'signup' | 'resend' | 'reset';
+export type CaptchaScreen = AuthMailAction | 'signin';
 
-export const TURNSTILE_FAILED_MESSAGE = '자동 가입 방지 확인을 완료하지 못했습니다. 잠시 후 화면을 새로고침하고 다시 시도해주세요.';
+const CAPTCHA_FAILED_MESSAGES: Record<CaptchaScreen, string> = {
+  signup: '자동 가입 방지 확인을 완료하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
+  resend: '자동 가입 방지 확인을 완료하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
+  reset: '자동 요청 방지 확인을 완료하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
+  signin: '자동 로그인 방지 확인을 완료하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
+};
+
+export function captchaFailedMessage(screen: CaptchaScreen): string {
+  return CAPTCHA_FAILED_MESSAGES[screen];
+}
 
 type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -34,41 +46,31 @@ function envValue(env: RuntimeEnvironment, name: string) {
   return env[name]?.trim() || null;
 }
 
-/** 둘 다 있을 때만 켜진다. 하나만 있으면 꺼진 채로 둔다(빌드 가드가 그 설정을 막는다). */
-export function turnstileSecretFromEnvironment(env: RuntimeEnvironment = process.env): string | null {
-  return envValue(env, 'NEXT_PUBLIC_TURNSTILE_SITE_KEY') && envValue(env, 'TURNSTILE_SECRET_KEY')
-    ? envValue(env, 'TURNSTILE_SECRET_KEY')
-    : null;
+/** 사이트 키가 있으면 폼에 위젯이 있고 서버 액션은 토큰을 요구한다. */
+export function turnstileEnabled(env: RuntimeEnvironment = process.env): boolean {
+  return envValue(env, 'NEXT_PUBLIC_TURNSTILE_SITE_KEY') !== null;
 }
 
-type FetchLike = (input: string, init: RequestInit) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
-
-/** Turnstile이 꺼져 있으면 항상 통과한다. 켜져 있으면 토큰이 없거나 검증이 실패·시간 초과여도 거절한다. */
-export async function verifyTurnstileToken(
-  formData: FormData,
-  ip: string | null,
-  deps: { env?: RuntimeEnvironment; fetch?: FetchLike } = {},
-): Promise<boolean> {
-  const secret = turnstileSecretFromEnvironment(deps.env ?? process.env);
-  if (!secret) return true;
-
+/** 폼의 Turnstile 토큰. 꺼져 있으면 undefined(GoTrue에 보내지 않는다), 켜져 있는데 비었거나 이상하면 null(거절). */
+export function captchaTokenFromForm(formData: FormData, env: RuntimeEnvironment = process.env): string | undefined | null {
+  if (!turnstileEnabled(env)) return undefined;
   const token = formData.get(TURNSTILE_RESPONSE_FIELD);
-  if (typeof token !== 'string' || token.length === 0 || token.length > 2048) return false;
+  return typeof token === 'string' && token.length > 0 && token.length <= 2048 ? token : null;
+}
 
-  const body = new URLSearchParams({ secret, response: token });
-  if (ip) body.set('remoteip', ip);
-  try {
-    const response = await (deps.fetch ?? fetch)(TURNSTILE_VERIFY_URL, {
-      method: 'POST',
-      body,
-      signal: AbortSignal.timeout(TURNSTILE_TIMEOUT_MS),
-    });
-    if (!response.ok) return false;
-    const result = await response.json() as { success?: unknown };
-    return result?.success === true;
-  } catch {
-    return false;
-  }
+/** GoTrue의 CAPTCHA 검증 실패(captcha_failed). 토큰이 없거나 이미 쓰였거나 만료된 경우. */
+export function isCaptchaError(error: { code?: string | null } | null | undefined): boolean {
+  return error?.code?.toLowerCase() === 'captcha_failed';
+}
+
+/*
+ * Auth 프로젝트 메일 한도(rate_limit_email_sent)에 걸렸을 때 운영 경보용 태그 로그를 남긴다. Vercel 로그 경보가 이 태그를 본다.
+ * 이메일·IP 원문은 싣지 않는다.
+ */
+export const AUTH_MAIL_LIMIT_LOG_TAG = '[auth-mail-limit]';
+export function logAuthMailLimit(error: { code?: string | null; status?: number | null } | null | undefined, action: CaptchaScreen) {
+  if (error?.code?.toLowerCase() !== 'over_email_send_rate_limit') return;
+  console.error(`${AUTH_MAIL_LIMIT_LOG_TAG} Supabase Auth hourly mail limit reached`, { action, status: error.status ?? null });
 }
 
 /** Vercel이 덮어쓰는 접속 IP 헤더(휴대폰 인증과 같은 선례). 없으면 이메일 한도만 적용된다. */
@@ -82,7 +84,9 @@ export function authMailDigest(secret: string, kind: 'ip' | 'email', value: stri
   return createHmac('sha256', secret).update(DIGEST_DOMAIN).update('\0').update(kind).update('\0').update(value).digest('base64url');
 }
 
-export type AuthMailAttemptResult = { ok: true } | { ok: false; retryAfterSeconds: number | null };
+export type AuthMailAttemptResult =
+  | { ok: true }
+  | { ok: false; retryAfterSeconds: number | null; scope: 'ip' | 'email' | null };
 
 let warnedMissingSecret = false;
 
@@ -115,7 +119,11 @@ export async function consumeAuthMailAttempt(
     if (result?.ok === true) return { ok: true };
     if (result?.ok === false) {
       const seconds = result.retryAfterSeconds;
-      return { ok: false, retryAfterSeconds: typeof seconds === 'number' && Number.isFinite(seconds) ? seconds : null };
+      return {
+        ok: false,
+        retryAfterSeconds: typeof seconds === 'number' && Number.isFinite(seconds) ? seconds : null,
+        scope: result.scope === 'ip' || result.scope === 'email' ? result.scope : null,
+      };
     }
     console.error('[auth-mail-abuse] unexpected limit check response; allowing the request');
     return { ok: true };

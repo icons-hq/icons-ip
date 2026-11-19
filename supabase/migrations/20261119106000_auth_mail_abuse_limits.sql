@@ -14,7 +14,8 @@ begin;
 -- 종류를 가리지 않고 합쳐 센다 — 종류별로 따로 세면 한 IP가 합산으로 프로젝트 메일 한도를 혼자 쓸 수 있다.
 --   · IP당 시간 15·일 40. 한 사람의 가입은 보통 메일 1~2통(가입 + 코드 재받기)이라 학교·통신사 NAT 뒤 동시 가입
 --     7~8명/시간까지 통과한다. 15는 운영 Auth 시간당 한도(300)의 5%라 IP 하나가 한도를 독점하지 못한다.
---   · 이메일당 시간 5·일 12. 남의 이메일로 확인·재설정 메일을 반복해 보내는 메일 폭탄을 막는다(앱 쿠키는 3회/10분).
+--   · 이메일당 시간 5, 하루 한도는 두지 않는다. 남의 이메일로 확인·재설정 메일을 반복해 보내는 메일 폭탄을 막는다(앱 쿠키는 3회/10분).
+--     하루 한도를 두면 공격자가 피해자 이메일의 하루 한도를 채워 그 사람의 재설정을 반나절 넘게 막을 수 있어, 최악의 차단을 1시간으로 줄인다.
 -- 막힌 시도는 기록하지 않는다(거절이 창을 늘리지 않는다).
 
 create table private.auth_mail_abuse_attempts (
@@ -38,6 +39,7 @@ alter table private.auth_mail_abuse_attempts enable row level security;
 revoke all on private.auth_mail_abuse_attempts from public, anon, authenticated, service_role;
 
 -- 한 범위(ip·email)의 시간·일 시도 수를 세어 한도를 넘었으면 다시 시도할 수 있기까지 남은 초를, 아니면 null을 돌려준다.
+-- p_day_limit이 null이면 하루 한도는 보지 않는다.
 create function private.auth_mail_abuse_retry_after(p_column text, p_value text, p_hour_limit integer, p_day_limit integer)
 returns integer
 language plpgsql
@@ -66,7 +68,7 @@ begin
     raise invalid_parameter_value using message = 'auth_mail_abuse_column';
   end if;
 
-  if day_count >= p_day_limit then
+  if p_day_limit is not null and day_count >= p_day_limit then
     select min(a.created_at) into oldest from private.auth_mail_abuse_attempts a
       where a.created_at > now_at - interval '24 hours'
         and ((p_column = 'ip' and a.ip_digest = p_value) or (p_column = 'email' and a.email_digest = p_value));
@@ -93,6 +95,7 @@ set search_path = ''
 as $$
 declare
   retry_after integer;
+  scope text := 'ip';
 begin
   if p_action is null or p_action not in ('signup', 'resend', 'reset')
     or (p_ip_digest is not null and p_ip_digest !~ '^[A-Za-z0-9_-]{32,128}$')
@@ -106,12 +109,14 @@ begin
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('auth-mail:email:' || p_email_digest, 0));
 
-  retry_after := coalesce(
-    private.auth_mail_abuse_retry_after('ip', p_ip_digest, 15, 40),
-    private.auth_mail_abuse_retry_after('email', p_email_digest, 5, 12)
-  );
+  retry_after := private.auth_mail_abuse_retry_after('ip', p_ip_digest, 15, 40);
+  if retry_after is null then
+    scope := 'email';
+    retry_after := private.auth_mail_abuse_retry_after('email', p_email_digest, 5, null);
+  end if;
   if retry_after is not null then
-    return jsonb_build_object('ok', false, 'reason', 'rate_limited', 'retryAfterSeconds', retry_after);
+    -- scope는 운영 로그용이다(앱은 사용자에게 IP 때문인지 이메일 때문인지 밝히지 않는다).
+    return jsonb_build_object('ok', false, 'reason', 'rate_limited', 'scope', scope, 'retryAfterSeconds', retry_after);
   end if;
 
   insert into private.auth_mail_abuse_attempts (action, ip_digest, email_digest)

@@ -45,5 +45,6 @@ describe('자동 작업 목록', () => {
     expect(systemJobLabel('renamed-job', 'vercel_cron', '옛 이름')).toBe('옛 이름');
     expect(Object.values(CRON_JOBS).every(job => job.label.length <= 60)).toBe(true);
     expect(Object.keys(PG_CRON_JOB_LABELS)).toContain('system-job-records-maintenance');
+    expect(systemJobLabel('auth-mail-abuse-retention', 'pg_cron', null)).toBe('가입·재설정 요청 기록 정리');
   });
 });

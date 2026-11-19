@@ -7,8 +7,11 @@ import {
   authMailDigest,
   authMailLimitedWait,
   consumeAuthMailAttempt,
-  turnstileSecretFromEnvironment,
-  verifyTurnstileToken,
+  captchaFailedMessage,
+  captchaTokenFromForm,
+  isCaptchaError,
+  logAuthMailLimit,
+  turnstileEnabled,
 } from './mail-abuse.server';
 
 const SECRET = 'test-signup-resend-secret-with-enough-entropy';
@@ -36,49 +39,57 @@ describe('authMailDigest', () => {
   });
 });
 
-describe('turnstileSecretFromEnvironment', () => {
-  it('두 키가 모두 있을 때만 비밀 키를 돌려준다', () => {
-    expect(turnstileSecretFromEnvironment({})).toBeNull();
-    expect(turnstileSecretFromEnvironment({ TURNSTILE_SECRET_KEY: 's' })).toBeNull();
-    expect(turnstileSecretFromEnvironment({ NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'k' })).toBeNull();
-    expect(turnstileSecretFromEnvironment({ NEXT_PUBLIC_TURNSTILE_SITE_KEY: ' ', TURNSTILE_SECRET_KEY: 's' })).toBeNull();
-    expect(turnstileSecretFromEnvironment({ NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'k', TURNSTILE_SECRET_KEY: ' s ' })).toBe('s');
-  });
-});
-
-describe('verifyTurnstileToken', () => {
-  const env = { NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'k', TURNSTILE_SECRET_KEY: 's' };
+describe('Turnstile(토큰은 GoTrue가 검증한다)', () => {
+  const on = { NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'k' };
   const form = (token?: string) => {
     const data = new FormData();
     if (token !== undefined) data.set('cf-turnstile-response', token);
     return data;
   };
 
-  it('꺼져 있으면 토큰 없이 통과하고 fetch를 부르지 않는다', async () => {
-    const fetchMock = vi.fn();
-    expect(await verifyTurnstileToken(form(), null, { env: {}, fetch: fetchMock })).toBe(true);
-    expect(fetchMock).not.toHaveBeenCalled();
+  it('사이트 키가 있을 때만 켜진다(비밀 키는 앱이 읽지 않는다)', () => {
+    expect(turnstileEnabled({})).toBe(false);
+    expect(turnstileEnabled({ NEXT_PUBLIC_TURNSTILE_SITE_KEY: ' ' })).toBe(false);
+    expect(turnstileEnabled({ TURNSTILE_SECRET_KEY: 's' })).toBe(false);
+    expect(turnstileEnabled(on)).toBe(true);
   });
 
-  it('IP가 없으면 remoteip를 보내지 않는다', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
-    expect(await verifyTurnstileToken(form('t'), null, { env, fetch: fetchMock })).toBe(true);
-    expect(Object.fromEntries((fetchMock.mock.calls[0][1] as RequestInit).body as URLSearchParams)).toEqual({ secret: 's', response: 't' });
+  it('꺼져 있으면 토큰이 있어도 undefined(GoTrue에 보내지 않는다)', () => {
+    expect(captchaTokenFromForm(form('t'), {})).toBeUndefined();
+    expect(captchaTokenFromForm(form(), {})).toBeUndefined();
   });
 
-  it('토큰이 비었거나 너무 길면 Cloudflare를 부르지 않고 거절한다', async () => {
-    const fetchMock = vi.fn();
-    expect(await verifyTurnstileToken(form(''), null, { env, fetch: fetchMock })).toBe(false);
-    expect(await verifyTurnstileToken(form('x'.repeat(2049)), null, { env, fetch: fetchMock })).toBe(false);
-    expect(await verifyTurnstileToken(form(), null, { env, fetch: fetchMock })).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
+  it('켜져 있으면 토큰을 돌려주고, 없거나 비었거나 너무 길면 null이다', () => {
+    expect(captchaTokenFromForm(form('t'), on)).toBe('t');
+    expect(captchaTokenFromForm(form(), on)).toBeNull();
+    expect(captchaTokenFromForm(form(''), on)).toBeNull();
+    expect(captchaTokenFromForm(form('x'.repeat(2049)), on)).toBeNull();
   });
 
-  it('success가 정확히 true일 때만 통과한다', async () => {
-    for (const body of [{}, { success: 'true' }, { success: 1 }, null]) {
-      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => body });
-      expect(await verifyTurnstileToken(form('t'), null, { env, fetch: fetchMock })).toBe(false);
-    }
+  it('GoTrue의 captcha_failed만 CAPTCHA 오류로 본다', () => {
+    expect(isCaptchaError({ code: 'captcha_failed' })).toBe(true);
+    expect(isCaptchaError({ code: 'over_request_rate_limit' })).toBe(false);
+    expect(isCaptchaError(null)).toBe(false);
+  });
+
+  it('안내 문구가 화면별로 다르다', () => {
+    expect(captchaFailedMessage('signup')).toContain('가입');
+    expect(captchaFailedMessage('reset')).not.toContain('가입');
+    expect(captchaFailedMessage('signin')).toContain('로그인');
+  });
+});
+
+describe('logAuthMailLimit', () => {
+  it('프로젝트 메일 한도 오류만 태그 로그를 남기고 이메일·IP는 싣지 않는다', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    logAuthMailLimit({ code: 'over_request_rate_limit' }, 'signup');
+    logAuthMailLimit(null, 'signup');
+    expect(spy).not.toHaveBeenCalled();
+    logAuthMailLimit({ code: 'over_email_send_rate_limit', status: 429 }, 'reset');
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String(spy.mock.calls[0][0])).toContain('[auth-mail-limit]');
+    expect(JSON.stringify(spy.mock.calls[0])).toContain('reset');
+    spy.mockRestore();
   });
 });
 
@@ -100,7 +111,8 @@ describe('consumeAuthMailAttempt', () => {
       { secret: SECRET, service: { rpc: vi.fn().mockResolvedValue({ data, error: null }) } as never },
     );
     expect(await call(null)).toEqual({ ok: true });
-    expect(await call({ ok: false, reason: 'rate_limited', retryAfterSeconds: 90 })).toEqual({ ok: false, retryAfterSeconds: 90 });
-    expect(await call({ ok: false, reason: 'rate_limited' })).toEqual({ ok: false, retryAfterSeconds: null });
+    expect(await call({ ok: false, reason: 'rate_limited', retryAfterSeconds: 90 })).toEqual({ ok: false, retryAfterSeconds: 90, scope: null });
+    expect(await call({ ok: false, reason: 'rate_limited', scope: 'email', retryAfterSeconds: 5 })).toEqual({ ok: false, retryAfterSeconds: 5, scope: 'email' });
+    expect(await call({ ok: false, reason: 'rate_limited' })).toEqual({ ok: false, retryAfterSeconds: null, scope: null });
   });
 });

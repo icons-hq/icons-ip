@@ -414,6 +414,8 @@ jobs:
           SITE_URL: https://iconsip.com
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
           PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html
@@ -1371,5 +1373,7 @@ jobs:
           SITE_URL: https://iconsip.com
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
         run: node scripts/sync-supabase-auth.mjs

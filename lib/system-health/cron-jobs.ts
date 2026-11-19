@@ -53,6 +53,7 @@ export const PG_CRON_JOB_LABELS: Readonly<Record<string, string>> = {
   'member-email-change-retention': '이메일 변경 인증 기록 정리',
   'goods-provider-cancellation-sweep': '결제사 취소 판정 대기 처리',
   'system-job-records-maintenance': '자동 작업 기록 정리',
+  'auth-mail-abuse-retention': '가입·재설정 요청 기록 정리',
 };
 
 /** 운영자에게 보일 작업 이름. 모르는 잡은 잡 이름 그대로 보인다. */

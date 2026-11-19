@@ -128,17 +128,6 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     throw new Error(`Invalid Vercel ${target} SUPABASE_SERVICE_ROLE_KEY: use a Supabase secret key (sb_secret_), not a legacy service_role JWT`);
   }
 
-  // Cloudflare Turnstile(가입·재설정·재전송 봇 차단)은 사이트 키와 비밀 키가 둘 다 있을 때만 켜진다. 하나만 있으면
-  // 운영자가 방어가 켜졌다고 오해한 채 꺼져 있거나(비밀 키만), 위젯만 그려지고 서버가 검증하지 않으므로(사이트 키만) 빌드를 멈춘다.
-  const turnstileSiteKey = isPresent(environment.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
-  const turnstileSecretKey = isPresent(environment.TURNSTILE_SECRET_KEY);
-  if (turnstileSiteKey !== turnstileSecretKey) {
-    throw new Error(
-      `Incomplete Vercel ${target} Turnstile environment: set both NEXT_PUBLIC_TURNSTILE_SITE_KEY and `
-      + 'TURNSTILE_SECRET_KEY, or neither (docs/runbooks/signup-contact-channels.md)',
-    );
-  }
-
   const korpayOrderCheckoutEnabled = parseBooleanGate(
     environment,
     target,
@@ -337,6 +326,16 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   // 없다. 그래서 막지 않고, 대신 빌드 로그에 눈에 띄게 남긴다. 이 상태가 심사
   // 뒤까지 남으면 무과금 결제가 paid 주문을 만든다.
   const warnings = [];
+  // Turnstile 토큰은 앱이 아니라 GoTrue(Supabase Auth CAPTCHA)가 검증한다. 비밀 키는 GitHub Actions secret(TURNSTILE_SECRET_KEY)으로
+  // 배포 파이프라인이 Supabase 프로젝트에 넣고, 앱(Vercel)은 사이트 키(NEXT_PUBLIC_TURNSTILE_SITE_KEY)만 읽는다. Vercel에 비밀 키가
+  // 있으면 쓰이지 않는 비밀값이 서버 env에 퍼진 것이므로 알린다(빌드는 막지 않는다).
+  if (isPresent(environment.TURNSTILE_SECRET_KEY)) {
+    warnings.push(
+      'TURNSTILE_SECRET_KEY is set in the Vercel environment but the app never reads it: Turnstile tokens are verified by Supabase Auth. '
+      + 'Keep the secret only in the GitHub Actions secret used by scripts/sync-supabase-auth.mjs and remove it here: '
+      + 'docs/runbooks/signup-contact-channels.md',
+    );
+  }
   // 코페이는 drain 전용으로 은퇴했다 — 런타임은 이 gate·canary를 더는 읽지 않는다. 남아
   // 있으면 운영자가 "열려 있다"고 오해하지 않도록 빌드 로그에 남긴다(빌드는 막지 않는다).
   if (

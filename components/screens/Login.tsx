@@ -281,6 +281,7 @@ export function SignupCodeStep({
       <form action={verifyAction} className="wc-auth__form" onSubmit={handleVerify}>
         <input type="hidden" name="email" value={email} />
         <input type="hidden" name="next" value={next} />
+        <TurnstileField />
         <Field
           autoComplete="one-time-code"
           error={verifyState.errors?.code}
@@ -442,7 +443,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
               placeholder="이메일"
               type="email"
             />
-            {(isSignUp || isReset) && <TurnstileField />}
+            <TurnstileField />
             {!isReset && (
               <Field
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}

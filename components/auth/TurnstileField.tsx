@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'react';
 
 /*
  * Cloudflare Turnstile 위젯. NEXT_PUBLIC_TURNSTILE_SITE_KEY가 없으면 아무것도 그리지 않는다(꺼짐).
- * 토큰은 form 안의 숨은 입력 cf-turnstile-response로 서버 액션에 실리고, 서버가 siteverify로 검증한다
- * (lib/auth/mail-abuse.server.ts). 토큰은 한 번만 쓸 수 있어, React가 액션이 끝난 뒤 폼을 reset하면 위젯도 새로 받는다.
+ * 토큰은 form 안의 숨은 입력 cf-turnstile-response로 서버 액션에 실리고, 서버 액션은 검증하지 않고 GoTrue(Supabase Auth CAPTCHA)에
+ * captchaToken으로 넘긴다(lib/auth/mail-abuse.server.ts). 가입·로그인·재전송·재설정 폼과 가입 코드 확인 폼(확인 뒤 비밀번호 재로그인)에 둔다. 토큰은 한 번만 쓸 수 있어, React가 액션이 끝난 뒤 폼을 reset하면 위젯도 새로 받는다.
  * 'interaction-only'라 사람이 풀어야 할 때만 보이고, 평소에는 가입·재설정 화면의 모양을 바꾸지 않는다.
  */
 

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
+  captchaPatch,
   isSatisfied,
   isSafeConfirmationTemplate,
   isSafePasswordChangedTemplate,
@@ -477,6 +478,61 @@ describe('mailerPatch', () => {
  * production 배포가 이 흐름에 걸려 있다. bash에서 옮겨온 부분이라 read → patch → verify
  * 순서와 실패 조건을 테스트로 고정한다.
  */
+describe('Auth CAPTCHA(Turnstile)', () => {
+  const synced = { site_url: 'https://iconsip.com', uri_allow_list: 'https://iconsip.com/auth/callback' };
+  const args = { siteUrl: 'https://iconsip.com', allowList: 'https://iconsip.com/auth/callback', enforceMailer: false };
+
+  it('키가 없으면 CAPTCHA 설정을 건드리지도 요구하지도 않는다', () => {
+    expect(captchaPatch({ captcha: null })).toEqual({});
+    expect(isSatisfied({ ...args, config: { ...synced, security_captcha_enabled: true } })).toBe(true);
+  });
+
+  it('키가 있으면 켜고 turnstile 제공자와 비밀 키를 담는다', () => {
+    expect(captchaPatch({ captcha: { secret: 's' } })).toEqual({
+      security_captcha_enabled: true,
+      security_captcha_provider: 'turnstile',
+      security_captcha_secret: 's',
+    });
+  });
+
+  it('꺼져 있거나 다른 제공자면 통과하지 않는다', () => {
+    const captcha = { secret: 's' };
+    expect(isSatisfied({ ...args, captcha, config: synced })).toBe(false);
+    expect(isSatisfied({ ...args, captcha, config: { ...synced, security_captcha_enabled: true, security_captcha_provider: 'hcaptcha' } })).toBe(false);
+    expect(isSatisfied({ ...args, captcha, config: { ...synced, security_captcha_enabled: true, security_captcha_provider: 'turnstile' } })).toBe(true);
+  });
+
+  const baseEnv = {
+    SUPABASE_ACCESS_TOKEN: 'pat',
+    PROJECT_REF: 'projref',
+    SITE_URL: 'https://iconsip.com',
+    REDIRECT_URLS: 'https://iconsip.com/auth/callback',
+  };
+
+  it('비밀 키와 사이트 키 중 하나만 있으면 네트워크 전에 실패한다', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(syncSupabaseAuth({ ...baseEnv, TURNSTILE_SECRET_KEY: 's' }, () => {})).rejects.toThrow('must be set together');
+    await expect(syncSupabaseAuth({ ...baseEnv, TURNSTILE_SITE_KEY: 'k' }, () => {})).rejects.toThrow('must be set together');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('이미 켜져 있어도 비밀 키는 읽을 수 없으므로 PATCH하고 켜짐을 확인한다', async () => {
+    const on = { ...synced, security_captcha_enabled: true, security_captcha_provider: 'turnstile' };
+    const calls = [];
+    const responses = [on, {}, on];
+    vi.stubGlobal('fetch', async (url, options = {}) => {
+      calls.push({ method: options.method ?? 'GET', body: options.body });
+      const body = responses.shift();
+      return { ok: true, status: 200, json: async () => body };
+    });
+    await expect(syncSupabaseAuth({ ...baseEnv, TURNSTILE_SECRET_KEY: 's', TURNSTILE_SITE_KEY: 'k' }, () => {}))
+      .resolves.toEqual({ patched: true });
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'PATCH', 'GET']);
+    expect(JSON.parse(calls[1].body)).toMatchObject({ security_captcha_enabled: true, security_captcha_provider: 'turnstile', security_captcha_secret: 's' });
+  });
+});
+
 describe('syncSupabaseAuth', () => {
   const baseEnv = {
     SUPABASE_ACCESS_TOKEN: 'pat',

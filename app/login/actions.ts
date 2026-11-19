@@ -32,10 +32,12 @@ import {
 } from '@/lib/auth/recovery.server';
 import {
   authMailLimitedWait,
+  captchaFailedMessage,
+  captchaTokenFromForm,
   consumeAuthMailAttempt,
+  isCaptchaError,
+  logAuthMailLimit,
   requestClientIp,
-  TURNSTILE_FAILED_MESSAGE,
-  verifyTurnstileToken,
   type AuthMailAction,
 } from '@/lib/auth/mail-abuse.server';
 import { getProfileForUser } from '@/lib/auth/server';
@@ -404,12 +406,17 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 로그인할 수 있습니다.' } };
 
   /* 이 응답에서 표시 쿠키를 막 바꾸므로 요청의 표시 대신 이번 선택으로 세션 쿠키 속성을 정한다. */
+  const captchaToken = captchaTokenFromForm(formData);
+  if (captchaToken === null) return { errors: { form: captchaFailedMessage('signin') } };
+
   const supabase = await createClient({ sessionOnly: !keepSignedIn });
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
+    ...(captchaToken ? { options: { captchaToken } } : {}),
   });
 
+  if (isCaptchaError(error)) return { errors: { form: captchaFailedMessage('signin') } };
   if (error || !data.user) {
     return { errors: { form: '이메일 또는 비밀번호를 확인해주세요.' } };
   }
@@ -426,32 +433,41 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 /*
  * 메일을 보내는 세 요청(가입·확인 메일 재전송·비밀번호 재설정)의 공통 방어. Supabase를 부르기 전에 먼저 거친다.
- * 1) Turnstile(키가 둘 다 있을 때만) 2) 접속 IP·이메일 DB 한도. 거절이면 사용자에게 보일 상태를, 통과면 null을 돌려준다.
- * 한도 문구는 앱 쿠키 한도와 같은 형태이고, IP 때문인지 이메일 때문인지는 밝히지 않는다.
+ * 1) Turnstile 토큰 확인 — 사이트 키가 있으면 토큰이 있어야 한다. 토큰 검증은 앱이 아니라 GoTrue가 한다(captchaToken으로 넘긴다,
+ *    lib/auth/mail-abuse.server.ts). 2) 접속 IP·이메일 DB 한도.
+ * 거절이면 사용자에게 보일 상태를, 통과면 GoTrue에 넘길 토큰(꺼져 있으면 undefined)을 돌려준다. 한도 문구는 앱 쿠키 한도와 같은
+ * 형태이고 IP 때문인지 이메일 때문인지는 밝히지 않는다(운영 로그에만 사유 종류를 남긴다 — 원문 IP·이메일은 남기지 않는다).
  */
-async function rejectAbusiveAuthMail(input: {
+type AuthMailGuard = { ok: true; captchaToken: string | undefined } | { ok: false; state: AuthActionState };
+
+async function guardAuthMail(input: {
   action: AuthMailAction;
   email: string;
   formData: FormData;
   pendingSignupEmail?: string;
-}): Promise<AuthActionState | null> {
+}): Promise<AuthMailGuard> {
   const withPending = (state: AuthActionState): AuthActionState => (
     input.pendingSignupEmail ? { ...state, pendingSignupEmail: input.pendingSignupEmail } : state
   );
-  const ip = await requestClientIp();
-  if (!await verifyTurnstileToken(input.formData, ip)) {
-    return withPending({ errors: { form: TURNSTILE_FAILED_MESSAGE } });
+  const captchaToken = captchaTokenFromForm(input.formData);
+  if (captchaToken === null) {
+    console.warn('[auth-mail-abuse] rejected', { action: input.action, reason: 'turnstile_token_missing' });
+    return { ok: false, state: withPending({ errors: { form: captchaFailedMessage(input.action) } }) };
   }
-  const attempt = await consumeAuthMailAttempt({ action: input.action, email: input.email, ip });
-  if (attempt.ok) return null;
+  const attempt = await consumeAuthMailAttempt({ action: input.action, email: input.email, ip: await requestClientIp() });
+  if (attempt.ok) return { ok: true, captchaToken };
+  console.warn('[auth-mail-abuse] rejected', { action: input.action, reason: 'rate_limited', scope: attempt.scope });
   const wait = authMailLimitedWait(attempt.retryAfterSeconds);
-  return withPending({
-    errors: {
-      form: input.action === 'reset'
-        ? `비밀번호 재설정 요청이 너무 많습니다. ${wait} 다시 시도해주세요.`
-        : `확인 메일 재요청이 너무 많습니다. ${wait} 다시 시도해주세요.`,
-    },
-  });
+  return {
+    ok: false,
+    state: withPending({
+      errors: {
+        form: input.action === 'reset'
+          ? `비밀번호 재설정 요청이 너무 많습니다. ${wait} 다시 시도해주세요.`
+          : `확인 메일 재요청이 너무 많습니다. ${wait} 다시 시도해주세요.`,
+      },
+    }),
+  };
 }
 
 /*
@@ -468,20 +484,29 @@ async function resendSignupConfirmation(input: {
   now: number;
   secret: string | null;
   state: SignupResendState | null;
+  action: 'signup' | 'resend';
+  formData: FormData;
 }): Promise<AuthActionState> {
   const { supabase, cookieStore, origin, email, next, now, secret, state } = input;
   const signupEmailHash = secret ? emailHash(email, secret) : null;
 
-  if (signupEmailHash) {
-    const window = state?.emailHash === signupEmailHash
+  const window = signupEmailHash
+    ? state?.emailHash === signupEmailHash
       ? currentSignupResendWindow(state, now)
-      : { emailHash: signupEmailHash, resendCount: 0, windowStartedAt: now };
-    if (isSignupResendWindowActive(window, now) && window.resendCount >= AUTH_SIGNUP_RESEND_MAX_ATTEMPTS) {
-      return {
-        errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' },
-        pendingSignupEmail: email,
-      };
-    }
+      : { emailHash: signupEmailHash, resendCount: 0, windowStartedAt: now }
+    : null;
+  if (window && isSignupResendWindowActive(window, now) && window.resendCount >= AUTH_SIGNUP_RESEND_MAX_ATTEMPTS) {
+    return {
+      errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' },
+      pendingSignupEmail: email,
+    };
+  }
+
+  /* 쿠키 창 검사를 통과한 요청만 서버 한도를 소비한다 — 창에 막힌 요청이 IP·이메일 한도를 갉아먹지 않게. */
+  const guard = await guardAuthMail({ action: input.action, email, formData: input.formData, pendingSignupEmail: email });
+  if (!guard.ok) return guard.state;
+
+  if (signupEmailHash && window) {
     setSignupResendState(cookieStore, origin, {
       emailHash: signupEmailHash,
       resendCount: window.resendCount + 1,
@@ -495,10 +520,17 @@ async function resendSignupConfirmation(input: {
     email,
     options: {
       emailRedirectTo: authCallbackUrl(origin),
+      ...(guard.captchaToken ? { captchaToken: guard.captchaToken } : {}),
     },
   });
 
-  if (error) return { errors: { form: authSignUpErrorMessage(error) }, pendingSignupEmail: email };
+  logAuthMailLimit(error, 'resend');
+  if (error) {
+    return {
+      errors: { form: isCaptchaError(error) ? captchaFailedMessage('resend') : authSignUpErrorMessage(error) },
+      pendingSignupEmail: email,
+    };
+  }
 
   return { message: SIGNUP_CONFIRMATION_RESENT_MESSAGE, pendingSignupEmail: email };
 }
@@ -512,9 +544,6 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 가입할 수 있습니다.' } };
 
   const normalizedSignupEmail = normalizedEmail(email);
-  const rejected = await rejectAbusiveAuthMail({ action: 'signup', email: normalizedSignupEmail, formData });
-  if (rejected) return rejected;
-
   const supabase = await createClient();
   const origin = await requestOrigin();
   const emailRedirectTo = authCallbackUrl(origin);
@@ -538,18 +567,26 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
       now,
       secret: resendSecret,
       state: signupResendState,
+      action: 'signup',
+      formData,
     });
   }
+
+  const guard = await guardAuthMail({ action: 'signup', email: normalizedSignupEmail, formData });
+  if (!guard.ok) return guard.state;
 
   const { data, error } = await supabase.auth.signUp({
     email: normalizedSignupEmail,
     password,
     options: {
       emailRedirectTo,
+      ...(guard.captchaToken ? { captchaToken: guard.captchaToken } : {}),
     },
   });
 
+  logAuthMailLimit(error, 'signup');
   if (error) {
+    if (isCaptchaError(error)) return { errors: { form: captchaFailedMessage('signup') } };
     if (isExistingAccountSignUpError(error)) {
       await rememberAuthNextPath(origin, next, 'signup', now, resendSecret);
       if (signupEmailHash) {
@@ -624,12 +661,9 @@ export async function resendSignupCodeAction(_state: AuthActionState, formData: 
     return { errors: { form: SIGNUP_CODE_RESTART_MESSAGE }, pendingSignupEmail: email };
   }
 
-  const rejected = await rejectAbusiveAuthMail({ action: 'resend', email, formData, pendingSignupEmail: email });
-  if (rejected) return rejected;
-
   const supabase = await createClient();
   const origin = await requestOrigin();
-  return resendSignupConfirmation({ supabase, cookieStore, origin, email, next, now, secret, state });
+  return resendSignupConfirmation({ supabase, cookieStore, origin, email, next, now, secret, state, action: 'resend', formData });
 }
 
 /* Supabase SSR 세션 쿠키(sb-<ref>-auth-token, 큰 세션은 .0·.1 조각). */
@@ -681,9 +715,15 @@ export async function verifySignupCodeAction(_state: AuthActionState, formData: 
   }
 
   await closeSignupCodeSession(supabase);
-  if (!password) redirect(signupConfirmedLoginPath(next));
+  /* 비밀번호 재로그인도 CAPTCHA 토큰이 필요하다(1회용이라 이 폼의 위젯 토큰을 쓴다). 없으면 로그인 화면으로 보낸다. */
+  const captchaToken = captchaTokenFromForm(formData);
+  if (!password || captchaToken === null) redirect(signupConfirmedLoginPath(next));
 
-  const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    ...(captchaToken ? { options: { captchaToken } } : {}),
+  });
   if (signInError || !signIn.user || !isPasswordSessionAccessToken(signIn.session?.access_token)) {
     if (!signInError && signIn.session) await closeSignupCodeSession(supabase);
     redirect(signupConfirmedLoginPath(next));
@@ -732,8 +772,8 @@ export async function requestPasswordResetAction(
     return { errors: { form: '비밀번호 재설정 요청이 너무 많습니다. 10분 후 다시 시도해주세요.' } };
   }
 
-  const rejected = await rejectAbusiveAuthMail({ action: 'reset', email, formData });
-  if (rejected) return rejected;
+  const guard = await guardAuthMail({ action: 'reset', email, formData });
+  if (!guard.ok) return guard.state;
 
   // 로그인 화면과 설정 화면이 같은 action을 쓰므로 어느 쪽에서 보내도 같은 쿠키를 읽고 쓴다.
   cookieStore.set(AUTH_PASSWORD_RESET_COOKIE_NAME, attempt.cookieValue, {
@@ -748,7 +788,10 @@ export async function requestPasswordResetAction(
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: authRecoveryCallbackUrl(origin),
+    ...(guard.captchaToken ? { captchaToken: guard.captchaToken } : {}),
   });
+  logAuthMailLimit(error, 'reset');
+  if (isCaptchaError(error)) return { errors: { form: captchaFailedMessage('reset') } };
   const operationalError = passwordResetOperationalErrorMessage(error);
   if (operationalError) return { errors: { form: operationalError } };
 
