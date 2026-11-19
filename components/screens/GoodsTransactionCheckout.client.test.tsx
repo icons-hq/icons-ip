@@ -50,7 +50,7 @@ afterEach(() => { for (const effect of hooks.effects) effect.cleanup?.(); vi.uns
 it('중복 클릭은 한 요청이며 응답 불명 복구에는 원 식별자만 저장·전송한다', async () => {
   const pending = deferred(); mocks.place.mockReturnValueOnce(pending.promise);
   const first = submit(), second = submit(); expect(mocks.place).toHaveBeenCalledTimes(1); await second; await flush();
-  const saved = JSON.parse([...storage.values()][0]); expect(Object.keys(saved).sort()).toEqual(['checkoutKey', 'expectedActorId', 'paymentMethod', 'purchaseAcknowledged', 'quoteId', 'sessionId', 'version']);
+  const saved = JSON.parse([...storage.values()][0]); expect(Object.keys(saved).sort()).toEqual(['checkoutKey', 'claimNotice', 'expectedActorId', 'paymentMethod', 'purchaseAcknowledged', 'quoteId', 'sessionId', 'version']);
   expect([...storage.values()][0]).not.toContain('123호'); expect([...storage.values()][0]).not.toContain('transaction-good');
   pending.resolve({ ok: false, error: 'unavailable', uncertain: true }); await first; await flush();
   expect(button('결제하기')).toBeUndefined();

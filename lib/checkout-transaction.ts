@@ -39,18 +39,22 @@ export interface CartTransactionRecovery {
   draftId?: string;
   /** 주문 요청 때 동의를 받았다. 없으면(동의 기능 이전 복구 표식) 같은 키의 기존 주문만 돌려받고 새 주문은 만들지 않는다. */
   purchaseAcknowledged?: true;
+  /** 그때 화면이 실제로 보인 제한 고지. 복구가 새 주문을 만들 수 있을 때 서버가 이것과 다시 대조한다. 없으면 새 주문을 만들지 않는다. */
+  claimNotice?: CheckoutClaimNotice;
 }
 
 export function parseCartTransactionRecovery(value: unknown): CartTransactionRecovery | null {
-  if (!transactionRecord(value) || !transactionExactKeys(value, ['version', 'expectedActorId', 'sessionId', 'quoteId', 'checkoutKey', 'paymentMethod', ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : []), ...(Object.hasOwn(value, 'purchaseAcknowledged') ? ['purchaseAcknowledged'] : [])]) || value.version !== 1) return null;
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['version', 'expectedActorId', 'sessionId', 'quoteId', 'checkoutKey', 'paymentMethod', ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : []), ...(Object.hasOwn(value, 'purchaseAcknowledged') ? ['purchaseAcknowledged'] : []), ...(Object.hasOwn(value, 'claimNotice') ? ['claimNotice'] : [])]) || value.version !== 1) return null;
   const expectedActorId = normalizeCheckoutKey(value.expectedActorId), sessionId = normalizeCheckoutKey(value.sessionId);
   const quoteId = normalizeCheckoutKey(value.quoteId), checkoutKey = normalizeCheckoutKey(value.checkoutKey), paymentMethod = normalizeCheckoutPaymentMethod(value.paymentMethod);
   const draftId = Object.hasOwn(value, 'draftId') ? normalizeCheckoutKey(value.draftId) : undefined;
   if (draftId === null) return null;
   if (Object.hasOwn(value, 'purchaseAcknowledged') && value.purchaseAcknowledged !== true) return null;
+  const claimNotice = Object.hasOwn(value, 'claimNotice') ? normalizeClaimNotice(value.claimNotice) : undefined;
+  if (claimNotice === null) return null;
   return expectedActorId && sessionId && quoteId && checkoutKey && paymentMethod
     ? { version: 1, expectedActorId, sessionId, quoteId, checkoutKey, paymentMethod, ...(draftId ? { draftId } : {}),
-      ...(value.purchaseAcknowledged === true ? { purchaseAcknowledged: true as const } : {}) } : null;
+      ...(value.purchaseAcknowledged === true ? { purchaseAcknowledged: true as const } : {}), ...(claimNotice ? { claimNotice } : {}) } : null;
 }
 
 /** The request carries intentions only; every price and allocation comes from the DB. */

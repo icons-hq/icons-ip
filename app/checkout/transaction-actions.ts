@@ -15,7 +15,7 @@ import type { GoodsTransactionOffer } from '@/lib/goods-transaction-offers';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 import { isClosedCheckoutDraft } from '@/lib/checkout-draft';
-import { recordOrderPurchaseAcknowledgement, verifyClaimNotice } from '@/lib/checkout-acknowledgement.server';
+import { loadUserCartGoodIds, recordOrderPurchaseAcknowledgement, verifyClaimNotice } from '@/lib/checkout-acknowledgement.server';
 
 export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'payment_in_progress'
   /** 바로구매 초안(ADR-0030)이 만료됐거나 이 계정의 것이 아니다. */
@@ -149,8 +149,16 @@ export async function resumeCartTransactionAction(value: unknown): Promise<CartT
     const draft = loaded && loaded !== 'error' && !isClosedCheckoutDraft(loaded) ? loaded : null;
     const provider = draft ? await deriveGoodsCartProvider(draft.lines.map(line => line.goodId)) : await deriveUserCartProvider(input.expectedActorId);
     /* 동의를 받지 않은 복구 표식은 같은 키의 기존 주문만 돌려받는다 — 새 주문을 만들지 않는다. */
-    const allowNew = runtimeReady && input.purchaseAcknowledged === true && (!input.draftId || draft !== null) && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
+    let allowNew = runtimeReady && input.purchaseAcknowledged === true && input.claimNotice !== undefined && (!input.draftId || draft !== null) && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
       : goodsCheckoutPaymentsEnabled(input.expectedActorId, provider));
+    /* 복구가 새 주문을 만들 수 있을 때만 화면이 보인 제한 고지와 다시 대조한다(기존 주문 돌려받기는 대조 없이). 대조에 실패하면
+       새 주문을 만들지 않고 주문서를 다시 확인하게 한다 — 같은 키의 기존 주문이 있으면 그대로 돌려준다. */
+    let noticeBlock: 'claim_notice_changed' | 'unavailable' | null = null;
+    if (allowNew && input.claimNotice !== undefined) {
+      const goodIds = draft ? draft.lines.map(line => line.goodId) : await loadUserCartGoodIds(input.expectedActorId);
+      const verdict = goodIds ? await verifyClaimNotice(goodIds, input.claimNotice) : 'unavailable';
+      if (verdict !== 'ok') { noticeBlock = verdict === 'changed' ? 'claim_notice_changed' : 'unavailable'; allowNew = false; }
+    }
     const { data, error } = input.draftId
       ? await createServiceClient().rpc('resume_direct_goods_transaction', {
         p_user_id: input.expectedActorId, p_draft_id: input.draftId, p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey,
@@ -160,9 +168,11 @@ export async function resumeCartTransactionAction(value: unknown): Promise<CartT
         p_user_id: input.expectedActorId, p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey,
         p_payment_method: input.paymentMethod, p_allow_new: allowNew,
       });
+    if (error && noticeBlock) return { ok: false, error: noticeBlock, uncertain: false };
     if (error) return { ok: false, error: rpcError(error.message), uncertain: !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0001)$/.test(error.code ?? ''), ...usedOrder(error) };
     const orderId = normalizeOrderReference(data);
-    if (orderId && input.purchaseAcknowledged === true) await recordOrderPurchaseAcknowledgement(input.expectedActorId, orderId);
+    if (!orderId && noticeBlock) return { ok: false, error: noticeBlock, uncertain: false };
+    if (orderId && input.purchaseAcknowledged === true) await recordOrderPurchaseAcknowledgement(input.expectedActorId, orderId, input.claimNotice ?? null);
     return orderId ? { ok: true, orderId } : { ok: false, error: 'unavailable', uncertain: true };
   } catch { return { ok: false, error: 'unavailable', uncertain: true }; }
 }

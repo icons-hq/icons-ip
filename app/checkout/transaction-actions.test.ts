@@ -12,18 +12,18 @@ vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({ deriveGoodsCart
 vi.mock('@/lib/payments/bank-transfer.server', () => ({ bankTransferCheckoutEnabled: () => mocks.bank }));
 vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: () => mocks.runtime }));
 const drafts = vi.hoisted(() => ({ load: vi.fn() }));
-const acknowledgement = vi.hoisted(() => ({ record: vi.fn(), verify: vi.fn() }));
-vi.mock('@/lib/checkout-acknowledgement.server', () => ({ recordOrderPurchaseAcknowledgement: acknowledgement.record, verifyClaimNotice: acknowledgement.verify }));
+const acknowledgement = vi.hoisted(() => ({ record: vi.fn(), verify: vi.fn(), cart: vi.fn() }));
+vi.mock('@/lib/checkout-acknowledgement.server', () => ({ recordOrderPurchaseAcknowledgement: acknowledgement.record, verifyClaimNotice: acknowledgement.verify, loadUserCartGoodIds: acknowledgement.cart }));
 vi.mock('@/lib/checkout-draft.server', () => ({ loadCheckoutDraft: drafts.load }));
 import { placeCartTransactionAction, quoteCartTransactionAction, resumeCartTransactionAction } from './transaction-actions';
 const placeInput = { ...transactionInput, quoteId: transactionRecovery.quoteId, checkoutKey: transactionRecovery.checkoutKey, paymentMethod: transactionRecovery.paymentMethod, purchaseAcknowledged: true, claimNotice: [] };
 /* 결제 전 확인 동의(PAY-015)를 받은 복구 표식 — 동의 없는 표식은 새 주문을 만들지 못한다. */
-const recovery = { ...transactionRecovery, purchaseAcknowledged: true as const };
+const recovery = { ...transactionRecovery, purchaseAcknowledged: true as const, claimNotice: [] as string[] };
 beforeEach(() => {
   vi.clearAllMocks(); mocks.card = true; mocks.bank = true; mocks.runtime = 'transaction'; mocks.cardProviders = [];
   mocks.cartProvider.mockResolvedValue('toss'); mocks.userCartProvider.mockResolvedValue('toss');
   mocks.auth = { isConfigured: true, user: { id: transactionActor, email: 'qa@example.test' }, profile: { email: 'qa@example.test', nickname: '구매자', birth_date: '2000-01-01', consents: { terms: true, privacy: true }, onboarded_at: '2026-01-01T00:00:00Z' }, isStaff: false };
-  acknowledgement.record.mockResolvedValue(true); acknowledgement.verify.mockResolvedValue('ok');
+  acknowledgement.record.mockResolvedValue(true); acknowledgement.verify.mockResolvedValue('ok'); acknowledgement.cart.mockResolvedValue(['transaction-good']);
   mocks.rpc.mockResolvedValue({ data: transactionOrder, error: null }); mocks.offers.mockResolvedValue([]); mocks.analytics.mockResolvedValue(undefined);
 });
 it('서버 인증된 계정과 일치하지 않는 요청은 RPC 전에 거절한다', async () => {
@@ -196,4 +196,38 @@ it('주문 직전 재조회가 화면에 없던 제한 굿즈를 찾으면 주�
   expect(await placeCartTransactionAction(placeInput)).toEqual({ ok: false, error: 'unavailable', uncertain: false });
   expect(mocks.rpc).not.toHaveBeenCalled();
   expect(acknowledgement.verify).toHaveBeenLastCalledWith(transactionInput.items.map(item => item.goodId), []);
+});
+
+/* 복구가 새 주문을 만들 수 있을 때만 화면이 보인 제한 고지와 다시 대조한다(P2). */
+it('복구가 새 주문을 만들 수 있으면 서버 장바구니 굿즈로 대조하고 통과하면 allow_new로 만든다', async () => {
+  expect(await resumeCartTransactionAction({ ...recovery, claimNotice: ['transaction-good'] })).toEqual({ ok: true, orderId: transactionOrder });
+  expect(acknowledgement.verify).toHaveBeenCalledWith(['transaction-good'], ['transaction-good']);
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: true }));
+  expect(acknowledgement.record).toHaveBeenCalledWith(transactionActor, transactionOrder, ['transaction-good']);
+});
+it('대조에 실패하면 새 주문을 만들 수 없게 하고(allow_new=false), 주문이 없으면 안내가 바뀌었다고 돌려준다', async () => {
+  acknowledgement.verify.mockResolvedValueOnce('changed');
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'resume_order_not_found' } });
+  expect(await resumeCartTransactionAction(recovery)).toEqual({ ok: false, error: 'claim_notice_changed', uncertain: false });
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: false }));
+  acknowledgement.verify.mockResolvedValueOnce('unavailable');
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'resume_order_not_found' } });
+  expect(await resumeCartTransactionAction(recovery)).toEqual({ ok: false, error: 'unavailable', uncertain: false });
+});
+it('대조에 실패해도 같은 키의 기존 주문은 대조 없이 돌려받는다', async () => {
+  acknowledgement.verify.mockResolvedValueOnce('changed');
+  expect(await resumeCartTransactionAction(recovery)).toEqual({ ok: true, orderId: transactionOrder });
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: false }));
+});
+it('서버 장바구니를 못 읽으면 새 주문을 만들지 않는다', async () => {
+  acknowledgement.cart.mockResolvedValueOnce(null);
+  await resumeCartTransactionAction(recovery);
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: false }));
+  expect(acknowledgement.verify).not.toHaveBeenCalled();
+});
+it('화면 고지가 없는 복구 표식은 새 주문을 만들지 않고 대조도 하지 않는다', async () => {
+  const { claimNotice: _omitted, ...withoutNotice } = recovery; void _omitted;
+  await resumeCartTransactionAction(withoutNotice);
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: false }));
+  expect(acknowledgement.verify).not.toHaveBeenCalled();
 });

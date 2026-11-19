@@ -53,7 +53,7 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext,
   const receipt = gift.order;
   return <MypageShell active={routes.gifts()}><div className="wc-gifts"><header><Link href={routes.gifts()}>선물함</Link><h1>{request.blocked ? '선물 상세' : gift.party === 'sender' ? '보낸 선물' : `${gift.senderLabel}님의 선물`}</h1>
     <p>{giftStateLabel(gift.state, gift.order?.status)}</p></header>{!request.blocked ? <>
-      <GiftItems items={gift.items} />{gift.message ? <blockquote>{gift.message}</blockquote> : null}
+      <GiftItems items={gift.items} restrictions={claimRestrictions} />{gift.message ? <blockquote>{gift.message}</blockquote> : null}
       {gift.party === 'sender' && gift.state === 'awaiting_acceptance' ? <section><h2>선물 링크 전달</h2><p>링크를 받은 사람이 로그인한 뒤 수락할 수 있어요. 필요한 사람에게만 전달해주세요.</p>
         <button type="button" disabled={request.locked} onClick={() => {
           const token = newGiftToken(), operationId = crypto.randomUUID(), revision = gift.revision;

@@ -68,3 +68,10 @@ it('화면이 보인 제한 고지(claimNotice)는 목록 또는 unavailable만 
   for (const value of ['x', 1, [1], null]) expect(parseCartTransactionOrderInput({ ...order, claimNotice: value })).not.toHaveProperty('claimNotice');
   expect(parseCartTransactionInput({ ...transactionInput, claimNotice: [] })).toBeNull();
 });
+
+it('복구 표식은 화면이 보인 제한 고지를 보관하고 틀린 값은 거절한다', () => {
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true, claimNotice: ['g1'] })).toMatchObject({ claimNotice: ['g1'] });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true, claimNotice: 'unavailable' })).toMatchObject({ claimNotice: 'unavailable' });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true, claimNotice: 'x' })).toBeNull();
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true })).not.toHaveProperty('claimNotice');
+});

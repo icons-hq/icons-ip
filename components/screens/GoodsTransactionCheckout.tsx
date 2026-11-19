@@ -195,9 +195,9 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     if (Date.parse(quote.expiresAt) <= Date.now()) { quotes.refresh(); setError(cartTransactionErrorCopy.quote_changed); return; }
     lane.current = true; setBusy(true); setError(''); const capturedEpoch = epoch.current;
     const marker: CartTransactionRecovery = { version: 1, expectedActorId: accountId, sessionId: session, quoteId: quote.quoteId, checkoutKey: crypto.randomUUID(), paymentMethod: effectiveMethod,
-      ...(input.draftId ? { draftId: input.draftId } : {}), purchaseAcknowledged: true };
+      ...(input.draftId ? { draftId: input.draftId } : {}), purchaseAcknowledged: true, claimNotice: claimNoticeOf(claimRestrictions, input.items.map(item => item.goodId)) };
     remember(marker); setFrozen({ display: quote.display, items: input.items });
-    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod, purchaseAcknowledged: true, claimNotice: claimNoticeOf(claimRestrictions, input.items.map(item => item.goodId)) }), capturedEpoch, marker.paymentMethod); }
+    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod, purchaseAcknowledged: true, claimNotice: marker.claimNotice }), capturedEpoch, marker.paymentMethod); }
     catch { if (capturedEpoch === epoch.current) setError('주문 생성 결과를 확인하지 못했어요. 같은 주문 다시 확인을 눌러주세요.'); }
     finally { lane.current = false; if (capturedEpoch === epoch.current) setBusy(false); }
   }
