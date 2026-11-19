@@ -195,7 +195,7 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); expected text:=nullif(upper(btrim(coalesce(p_expected_tracking_number,''))),'');
   request jsonb; receipt jsonb; ids uuid[]; picked public.order_shipments; member public.order_shipments; related record; extra public.order_shipment_extra_trackings;
   blocker text; at_value timestamptz; order_ids uuid[]; extras jsonb; job public.order_shipment_email_jobs; email_sent boolean:=false;
-  removed_notification uuid; order_status public.order_status;
+  removed_notification uuid; order_status public.order_status; delivery_state text;
 begin
   actor:=private.require_operator_capability('sales.manage',false);
   if p_shipment_id is null or p_operation_id is null then raise invalid_parameter_value using message='invalid_shipment_revert'; end if;
@@ -215,20 +215,23 @@ begin
     blocker:=private.shipment_revert_blocker(related.id,'dispatch');
     if blocker is not null then raise check_violation using message=blocker; end if;
   end loop;
-  -- 발송 안내 메일을 지금 보내는 중이면(임대 중) 끝난 뒤 다시 한다. 보내는 중인 메일이 옛 운송장으로 나갔는지 알 수 없게 되지 않도록.
-  if exists(select 1 from public.order_shipment_email_jobs j where j.shipment_id=any(ids) and j.status='processing' and j.lease_until>clock_timestamp()) then
-    raise sqlstate 'PT409' using message='shipment_revert_email_sending'; end if;
   at_value:=clock_timestamp();
   for member in select * from public.order_shipments where id=any(ids) order by id loop
     select coalesce(jsonb_agg(jsonb_build_object('id',x.id,'carrier',x.carrier,'trackingNumber',x.tracking_number,'source',x.source,'createdAt',x.created_at) order by x.created_at,x.id),'[]'::jsonb)
       into extras from public.order_shipment_extra_trackings x where x.shipment_id=member.id;
     job:=null;
     select * into job from public.order_shipment_email_jobs where shipment_id=member.id for update;
-    if job.status='completed' then email_sent:=true; end if;
+    -- 발송 안내 메일을 지금 보내는 중이면(작업 임대 중·메일 원장 발송 중) 끝난 뒤 다시 한다. 보내는 중인 메일이 옛 운송장으로
+    -- 나갔는지 알 수 없게 되지 않도록 작업 행을 잠근 뒤 본다. 보냈거나 결과를 모르는 메일은 고객 안내가 필요하다고 알린다.
+    delivery_state:=private.shipment_email_delivery_state(member.order_id,member.id);
+    if job.status='processing' and job.lease_until>clock_timestamp() or delivery_state='busy' then
+      raise sqlstate 'PT409' using message='shipment_revert_email_sending'; end if;
+    if job.status='completed' or delivery_state in ('sent','unknown') then email_sent:=true; end if;
     insert into private.shipment_status_reverts(operation_id,kind,shipment_id,order_id,previous,reason,actor_id,created_at)
     values(p_operation_id,'dispatch',member.id,member.order_id,jsonb_build_object('status',member.status,'carrier',member.carrier,'trackingNumber',member.tracking_number,
       'shippedAt',member.shipped_at,'exportedAt',member.exported_at,'extraTrackings',extras,
-      'emailJob',case when job.shipment_id is not null then jsonb_build_object('status',job.status,'attempts',job.attempts,'completedAt',job.completed_at) end),
+      'emailJob',case when job.shipment_id is not null then jsonb_build_object('status',job.status,'attempts',job.attempts,'completedAt',job.completed_at) end,
+      'emailDelivery',delivery_state),
       reason_value,actor,at_value);
     -- 추가 운송장도 비운다. 이력(private.order_shipment_tracking_changes)에 운영자 삭제로 남긴다(작업 ID는 배송 건·번호마다 파생).
     for extra in select * from public.order_shipment_extra_trackings where shipment_id=member.id order by created_at,id for update loop
