@@ -61,7 +61,7 @@
 
 ## 외부 알림: 운영 알림 요약 메일
 
-시스템 장애는 운영 알림 메일로 나간다(설정 화면: 시스템 상태 → 운영 알림 메일, `platform.manage`). 앱 자동 작업 실패는 `service_record_system_job_run`이, DB 안 pg_cron 실패는 시스템 점검이 `private.admin_operation_alerts`의 `category='system'` 행으로 남기고, 5분마다 도는 `/api/cron/ops-alert-digest`가 그 원장을 커서로 읽어 한 통의 요약 메일로 보낸다(같은 작업은 한 시간에 하나, 요약은 10분에 한 통까지). 구현은 `supabase/migrations/20261119107000_ops_alert_digest.sql`, `lib/email/ops-alert-digest*.ts`다.
+시스템 장애는 운영 알림 메일로 나간다(설정 화면: 시스템 상태 → 운영 알림 메일, `platform.manage`). 원장 `private.admin_operation_alerts`의 `category='system'` 행에는 원래 앱 cron의 실행 중 실패(`record_system_job_failure`)만 올라왔고, Vercel cron 미호출·시간 초과·401, pg_cron 실패·멈춤, 메일 발송 실패, 미종결 결제는 이 화면의 판정(`system_health_report`)에만 있었다. 그래서 `private.prepare_ops_alert_digest`가 요약을 만들 때(같은 잠금 안) `private.raise_system_health_alerts`로 판정의 실패 중·멈춘 작업, 메일 발송 실패 건수, 미종결 결제 건수를 시간 단위 event_key(`system_job:<작업>:<시각>`·`system_job_stalled:…`·`system_email_failures:<시각>`·`system_unresolved_payments:<시각>`)로 '시스템' 알림 행에 올린 뒤 요약에 담는다(운영 알림 벨에도 보인다). 문제가 이어지는 동안은 한 시간에 한 번씩 다시 알린다. 5분마다 도는 `/api/cron/ops-alert-digest`가 한 통의 요약 메일로 보낸다(10분에 한 통까지). 구현은 `supabase/migrations/20261119107000_ops_alert_digest.sql`, `lib/email/ops-alert-digest*.ts`다.
 
 `lib/system-health/alert-sink.server.ts`의 `notifySystemIncident`는 로그 한 줄만 남기고 **메일을 직접 보내지 않는다.** 서버리스 함수는 응답 뒤 끊겨 즉시 발송이 사라질 수 있고, DB 알림 행과 중복 메일이 나기 때문이다. 메일 말고 다른 채널(메신저 등)을 붙일 때만 이 함수를 바꾼다. 켜는 절차·확인·장애 대응은 [inquiry-realtime.md의 운영 알림 요약 메일](./inquiry-realtime.md)을 따른다.
 

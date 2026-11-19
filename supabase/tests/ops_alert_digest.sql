@@ -7,9 +7,12 @@ begin;
 -- 이 스모크가 DB 안에 고정하는 것:
 --   · 설정 저장은 platform.manage만(고객·무권한 거절), 수신자 정규화·10개 상한·범주 검증·지연 시간 범위, 같은 요청 재전송은 같은 결과,
 --     다른 버전은 PT409, 감사 기록. 기본은 꺼짐·4시간·네 범주 전부
---   · 켤 때 커서를 지금으로 옮겨 꺼져 있던 동안의 알림이 쏟아지지 않는다
---   · 새 문의·새 상품 문의·시스템 알림을 한 요약으로 세고(주문 알림은 세지 않음) 커서는 한 번씩만 센다. 10분에 한 통까지(throttle)
---   · 답변 지연: 설정 시간을 넘긴 open 문의·미답변 상품 문의를 문의당 한 번만, 다시 열려 또 늦으면 다시, 답변되면 빼고, 7일 넘게 묵은 건 세지 않는다
+--   · 켤 때 기준 시각을 지금으로 옮겨 꺼져 있던 동안의 알림이 쏟아지지 않는다
+--   · 새 문의·새 상품 문의·시스템 알림을 한 요약으로 세고(주문 알림은 세지 않음) 센 알림 표식으로 한 번씩만 센다. 10분에 한 통까지(throttle).
+--     높은 수위 커서가 아니라서 뒤늦게 커밋돼 더 이른 created_at으로 보이는 알림도 6시간 안이면 센다
+--   · 시스템 장애: 앱 cron 실패 행뿐 아니라 시스템 상태 판정(멈춤·pg_cron 실패·메일 발송 실패)도 알림 행으로 올려 요약에 든다
+--   · 답변 지연: 설정 시간을 넘긴 open 문의(기준은 waiting_since — 고객 재촉 메시지가 시계를 되돌리지 않는다)·미답변 상품 문의를
+--     문의당 한 번만, 다시 열려 또 늦으면 다시, 답변되면 빼고, 7일 넘게 묵은 건 세지 않는다
 --   · 범주를 좁히면 고른 범주만 센다(지연 범주를 빼면 지연도 표식 없이 건너뜀)
 --   · 요약·선점 결과에 문의 제목·본문이 들어가지 않는다
 --   · 선점·결속·완료·만료·재시도와 전용 dispatcher gate(다른 출처 gate와 분리, 꺼지면 선점 없음)
@@ -79,8 +82,8 @@ select pg_temp.expect_error(format('select public.admin_save_ops_alert_digest(tr
 reset role;
 
 -- 켜기 전에 쌓인 알림(백로그)은 켠 뒤에도 세지 않는다.
-insert into public.inquiries(id,user_id,category,title,status) values
- ('0a1e0000-0000-4000-8000-0000000000b0','0a1e0000-0000-4000-8000-000000000002','etc','TEST 백로그 문의 제목','open');
+insert into public.inquiries(id,user_id,category,title,status,created_at,last_message_at) values
+ ('0a1e0000-0000-4000-8000-0000000000b0','0a1e0000-0000-4000-8000-000000000002','etc','TEST 백로그 문의 제목','open',now()-interval '8 days',now()-interval '8 days');
 select pg_sleep(0.05);
 
 set local role authenticated;
@@ -125,14 +128,25 @@ select 1/case when not exists(select 1 from private.ops_alert_digest_runs
 
 -- 10분 안에는 새 요약을 만들지 않고, 이미 센 알림은 다시 세지 않는다.
 select 1/case when private.prepare_ops_alert_digest(now()+interval '1 hour 5 minutes')->>'status'='throttled'
- and private.prepare_ops_alert_digest(now()+interval '1 hour 11 minutes')->>'status'='nothing_to_send' then 1 else 0 end as assert_throttle_and_cursor_once;
+ and private.prepare_ops_alert_digest(now()+interval '1 hour 11 minutes')->>'status'='nothing_to_send' then 1 else 0 end as assert_throttle_and_counted_once;
+
+-- 늦게 커밋돼 앞선 요약보다 이른 created_at으로 보이는 알림도 6시간 안이면 다음 요약에 센다(높은 수위 커서였다면 영영 건너뛴다).
+insert into private.admin_operation_alerts(event_key,category,title,href,created_at) values
+ ('ops-digest-test:system:late','system','자동 작업이 실패했습니다 · TEST 늦은 커밋','/admin/settings/system',now()+interval '59 minutes');
+select private.prepare_ops_alert_digest(now()+interval '1 hour 30 minutes') as p1b \gset
+select 1/case when :'p1b'::jsonb->>'status'='prepared'
+ and (select counts->>'system'='1' and system_titles='["자동 작업이 실패했습니다 · TEST 늦은 커밋"]'::jsonb
+   from private.ops_alert_digest_runs where id=(:'p1b'::jsonb->>'runId')::uuid)
+ then 1 else 0 end as assert_late_committed_alert_counted;
 
 -- ---------------------------------------------------------------------------
 -- 답변 지연: 4시간 넘긴 open 문의와 미답변 상품 문의를 문의당 한 번만
 -- ---------------------------------------------------------------------------
 -- (백로그 문의도 open이지만 7일 넘게 묵은 것은 세지 않는다 — 아래에서 따로 확인)
-update public.inquiries set last_message_at=now()-interval '8 days' where id='0a1e0000-0000-4000-8000-0000000000b0';
-select private.prepare_ops_alert_digest(now()+interval '5 hours') as p2 \gset
+-- 고객이 재촉 메시지를 보내(last_message_at이 늦어져도) 기다린 시각은 처음 그대로다.
+update public.inquiries set last_message_at=now()+interval '3 hours' where id='0a1e0000-0000-4000-8000-0000000000b1';
+select 1/case when (select waiting_since<now()+interval '1 minute' from public.inquiries where id='0a1e0000-0000-4000-8000-0000000000b1') then 1 else 0 end as assert_waiting_since_unchanged_by_nudge;
+select private.prepare_ops_alert_digest(now()+interval '4 hours 30 minutes') as p2 \gset
 select 1/case when :'p2'::jsonb->>'status'='prepared'
  and (select counts=jsonb_build_object('inquiries',0,'questions',0,'delayedInquiries',1,'delayedQuestions',1,'system',0)
    and jsonb_array_length(delayed)=2 and delayed @> '[{"kind":"inquiry","href":"/admin/cs/inquiries/0a1e0000-0000-4000-8000-0000000000b1"}]'::jsonb
@@ -140,15 +154,16 @@ select 1/case when :'p2'::jsonb->>'status'='prepared'
    from private.ops_alert_digest_runs where id=(:'p2'::jsonb->>'runId')::uuid)
  and (select count(*)=2 from private.ops_alert_digest_delay_marks where run_id=(:'p2'::jsonb->>'runId')::uuid)
  then 1 else 0 end as assert_delay_counted_once_and_old_ignored;
-select 1/case when private.prepare_ops_alert_digest(now()+interval '5 hours 15 minutes')->>'status'='nothing_to_send'
+select 1/case when private.prepare_ops_alert_digest(now()+interval '4 hours 45 minutes')->>'status'='nothing_to_send'
  then 1 else 0 end as assert_delay_not_repeated;
 
 -- 고객이 다시 문의해(새 활동 시각) 또 늦으면 다시 센다. 상품 문의는 답변되면 센 적이 있어도 더는 늘지 않는다.
-update public.inquiries set last_message_at=now()+interval '5 hours' where id='0a1e0000-0000-4000-8000-0000000000b1';
+update public.inquiries set status='answered',answered_at=now() where id='0a1e0000-0000-4000-8000-0000000000b1';
+update public.inquiries set status='open',answered_at=null,last_message_at=now()+interval '30 minutes' where id='0a1e0000-0000-4000-8000-0000000000b1';
 update public.product_questions set answer_body='TEST 답변',answered_at=now(),answered_by='0a1e0000-0000-4000-8000-000000000001' where id='0a1e0000-0000-4000-8000-0000000000d1';
-select private.prepare_ops_alert_digest(now()+interval '10 hours') as p3 \gset
+select private.prepare_ops_alert_digest(now()+interval '5 hours') as p3 \gset
 select 1/case when :'p3'::jsonb->>'status'='prepared'
- and (select counts->>'delayedInquiries'='1' and counts->>'delayedQuestions'='0' from private.ops_alert_digest_runs where id=(:'p3'::jsonb->>'runId')::uuid)
+ and (select counts->>'delayedInquiries'='1' and counts->>'delayedQuestions'='0' and counts->>'inquiries'='1' from private.ops_alert_digest_runs where id=(:'p3'::jsonb->>'runId')::uuid)
  then 1 else 0 end as assert_reopened_inquiry_counted_again;
 
 -- ---------------------------------------------------------------------------
@@ -161,12 +176,11 @@ select public.admin_save_ops_alert_digest(true,array['ops@example.test'],array['
 reset role;
 select 1/case when :'saved2'::jsonb->'categories'='["system"]'::jsonb and (:'saved2'::jsonb->>'delayHours')::integer=2
  and (select cursor_at<now()+interval '1 minute' from private.ops_alert_digest_settings where singleton) then 1 else 0 end as assert_category_saved_cursor_kept;
-insert into public.inquiries(id,user_id,category,title,status) values
- ('0a1e0000-0000-4000-8000-0000000000b2','0a1e0000-0000-4000-8000-000000000002','etc','TEST 두번째','open');
+insert into public.inquiries(id,user_id,category,title,status,created_at,last_message_at) values
+ ('0a1e0000-0000-4000-8000-0000000000b2','0a1e0000-0000-4000-8000-000000000002','etc','TEST 두번째','open',now()-interval '3 hours',now()-interval '3 hours');
 insert into private.admin_operation_alerts(event_key,category,title,href) values
  ('ops-digest-test:system:2','system','자동 작업이 실패했습니다 · TEST 작업2','/admin/settings/system');
-update public.inquiries set last_message_at=now()-interval '3 hours' where id='0a1e0000-0000-4000-8000-0000000000b2';
-select private.prepare_ops_alert_digest(now()+interval '20 hours') as p4 \gset
+select private.prepare_ops_alert_digest(now()+interval '5 hours 15 minutes') as p4 \gset
 select 1/case when :'p4'::jsonb->>'status'='prepared' and (:'p4'::jsonb->>'deliveries')::integer=1
  and (select counts=jsonb_build_object('inquiries',0,'questions',0,'delayedInquiries',0,'delayedQuestions',0,'system',1)
    from private.ops_alert_digest_runs where id=(:'p4'::jsonb->>'runId')::uuid)
@@ -174,17 +188,37 @@ select 1/case when :'p4'::jsonb->>'status'='prepared' and (:'p4'::jsonb->>'deliv
  then 1 else 0 end as assert_only_chosen_categories;
 
 -- ---------------------------------------------------------------------------
+-- 시스템 장애: 시스템 상태 판정(멈춘 앱 cron·실패한 pg_cron·메일 발송 실패)이 요약에 든다
+-- ---------------------------------------------------------------------------
+insert into private.system_job_status(job_key,label,expected_interval_minutes,last_started_at,last_finished_at,last_success_at,last_status_code)
+ values('subscriptions','TEST 정기구매 결제',1,now()-interval '3 hours',now()-interval '3 hours',now()-interval '3 hours',200)
+ on conflict(job_key) do update set last_started_at=excluded.last_started_at,last_finished_at=excluded.last_finished_at,last_success_at=excluded.last_success_at;
+insert into public.email_deliveries(dedupe_key,template,recipient,subject,status,safe_error_code) values('ops-digest-test:mail','order_confirmation','x@example.test','TEST','failed','provider_failure');
+-- 앱 cron 하나가 멈췄다(실행 기록이 끊김). 앱 cron이 실행 중 실패를 기록하는 경로(record_system_job_failure)는 이 상황에 쓰이지 않는다.
+select 1/case when (private.system_health_report()->'counts'->>'stalledJobs')::integer>=1
+ and (private.system_health_report()->'counts'->>'emailFailures')::integer>=1 then 1 else 0 end as assert_health_sees_problems;
+select private.prepare_ops_alert_digest(now()+interval '5 hours 30 minutes') as p5 \gset
+select 1/case when :'p5'::jsonb->>'status'='prepared'
+ and (select (counts->>'system')::integer>=2 and system_titles @> '["자동 작업이 멈췄습니다 · TEST 정기구매 결제"]'::jsonb
+   from private.ops_alert_digest_runs where id=(:'p5'::jsonb->>'runId')::uuid)
+ and exists(select 1 from private.admin_operation_alerts where event_key like 'system_email_failures:%')
+ then 1 else 0 end as assert_system_health_in_digest;
+-- 같은 시간 안에 다시 올려도 중복 행이 늘지 않는다.
+select count(*) as before_rows from private.admin_operation_alerts where event_key like 'system_job%' or event_key like 'system_email%' \gset
+select private.raise_system_health_alerts(now()+interval '5 hours 30 minutes');
+select 1/case when (select count(*) from private.admin_operation_alerts where event_key like 'system_job%' or event_key like 'system_email%')=:'before_rows' then 1 else 0 end as assert_raise_idempotent_within_hour;
+
+-- ---------------------------------------------------------------------------
 -- 선점·결속·완료·만료·gate
 -- ---------------------------------------------------------------------------
-delete from private.ops_alert_digest_runs where id<>(:'p4'::jsonb->>'runId')::uuid; -- 요약 하나(수신자 1)만 남겨 선점을 본다
+delete from private.ops_alert_digest_runs where id<>(:'p5'::jsonb->>'runId')::uuid; -- 요약 하나(수신자 1)만 남겨 선점을 본다
 update private.ops_alert_digest_runs set created_at=clock_timestamp()-interval '1 hour';
 set local role service_role;
 select public.claim_ops_alert_digest_jobs(25) as jobs \gset
 reset role;
 select 1/case when jsonb_array_length(:'jobs'::jsonb)=1
  and (:'jobs'::jsonb->0->>'recipient')='ops@example.test'
- and (:'jobs'::jsonb->0->'counts'->>'system')='1'
- and :'jobs'::jsonb->0->'systemTitles'='["자동 작업이 실패했습니다 · TEST 작업2"]'::jsonb
+ and (:'jobs'::jsonb->0->'counts'->>'system')::integer>=2
  and (:'jobs'::jsonb::text) not like '%TEST 개인정보%'
  and (select email_status='processing' and attempts=1 from private.ops_alert_digest_deliveries) then 1 else 0 end as assert_claim_contents;
 select :'jobs'::jsonb->0->>'id' as job_id,:'jobs'::jsonb->0->>'claimToken' as claim_id \gset
