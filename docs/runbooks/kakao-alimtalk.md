@@ -9,7 +9,7 @@
 
 | 항목 | 상태 |
 | --- | --- |
-| 코드 | 발송기(`lib/kakao/alimtalk/nhn.server.ts`), 주문 안내 2종(`lib/kakao/alimtalk/order-notices.server.ts`), 템플릿 정본(`lib/kakao/alimtalk/templates.ts`), 한 번만 보내기 장부·받는 사람 판정(`supabase/migrations/20261119102500_kakao_alimtalk_deliveries.sql`) |
+| 코드 | 발송기(`lib/kakao/alimtalk/nhn.server.ts`), 주문 안내 2종(`lib/kakao/alimtalk/order-notices.server.ts`), 템플릿 정본(`lib/kakao/alimtalk/templates.ts`), 한 번만 보내기 장부·받는 사람 판정(`supabase/migrations/20261119103500_kakao_alimtalk_deliveries.sql`) |
 | 스위치 | `ICONS_KAKAO_ALIMTALK_ENABLED` **OFF**. 운영은 처리방침 개정 시행일(`KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE` = 2026-11-26 KST)부터 열린다 |
 | 채널 | 엑스 스퀘어 — 비즈니스 심사 완료((주)아이콘스, 우리 카카오 앱과 같은 사업자), 채널 공개·검색 허용 켜짐, 고객센터 연락처 `https://xsquare.kr`(2026-11-18 옛 Cafe24 주소에서 바꿈). 마스터는 플레이엑스 공용 카카오 계정 |
 | 처리방침 | 예약 개정 **2026-11-19 공지 · 2026-11-26 시행**(`lib/legal/alimtalk-privacy-revision.json`, 2026-11-18 사용자 결정 '오늘 시작' — 그날 배포하지 못해 공지일을 배포일 11-19로 옮김). 본문 변환은 `documents.ts`(§6) |
@@ -176,3 +176,5 @@ limit 50;
   대체 발송을 끈다 — NHN 콘솔에서 대체 발송을 켜 두면 이 값이 없는 요청에도 적용되기 때문이다. 알림톡이 실패한 회원은 이메일만 받는다.
 - 해외 휴대폰 번호, 인증 번호가 없는 회원.
 - 어드민 발송 이력 화면·재발송 버튼(메일의 발송 이력 화면 같은 것).
+- 발송 되돌리기(ADR-0045) 뒤 같은 배송 건을 다시 발송해도 발송 알림톡은 다시 가지 않는다 — 장부가 (안내, 주문, 배송 건)마다
+  한 번이라 발송 메일 원장과 같다. 잘못된 운송장이 담긴 알림톡은 회수할 수 없으니 되돌리기 결과 문구대로 고객에게 직접 안내한다.
