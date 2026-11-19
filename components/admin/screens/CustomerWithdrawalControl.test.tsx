@@ -10,7 +10,7 @@ vi.mock('react', async () => ({
   useActionState: () => [mocks.state, vi.fn(), false],
 }));
 vi.mock('@/app/admin/member-withdrawal-actions', () => ({
-  processMemberWithdrawalAction: vi.fn(), retryMemberWithdrawalSigninBlockAction: vi.fn(),
+  processMemberWithdrawalAction: vi.fn(), processKakaoUnlinkWithdrawalAction: vi.fn(), retryMemberWithdrawalSigninBlockAction: vi.fn(),
 }));
 
 const MEMBER = '00000000-0000-4000-8000-000000000301';
@@ -71,4 +71,44 @@ describe('고객 상세 · 탈퇴 요청 처리', () => {
     expect(blocked).toContain('재로그인 차단 · ');
     expect(blocked).not.toContain('재로그인 차단 다시 적용');
   });
+
+  describe('카카오 연결 해제 탈퇴 검토 대기', () => {
+    const UNLINK = { reason: 'ACCOUNT_DELETE', eventAt: '2026-11-19T01:00:00Z', accountClosed: true };
+    const pending = { processed: false, processedAt: null, inquiryReference: null, signinBlocked: false, signinBlockedAt: null };
+
+    it('카카오계정 탈퇴 알림이면 알림 근거 처리 폼(메모·카카오 연결 삭제 포함)을 문의 처리 위에 둔다', () => {
+      const html = render({ ...customer, withdrawal: { ...pending, kakaoUnlink: UNLINK } });
+      expect(html).toContain('카카오계정 탈퇴 알림을 받은 회원입니다');
+      expect(html).toContain('카카오계정 탈퇴 · 2026. 11. 19.');
+      expect(html).toContain('카카오 로그인 연결 삭제(카카오 회원번호');
+      expect(html).toContain('href="/admin/community/members/kakao-unlinks"');
+      expect(html).toMatch(/<textarea(?=[^>]*required)(?=[^>]*maxLength="200")[^>]*name="note"/);
+      expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>카카오 알림으로 탈퇴 처리<\/button>/);
+      expect(html.indexOf('data-member-withdrawal="kakao-unlink"')).toBeLessThan(html.indexOf('data-member-withdrawal="pending"'));
+      expect(html).toContain('name="inquiryReference"');
+    });
+
+    it('연결만 끊었으면 회원 확인(1:1 문의)을 안내하고 알림 근거 폼은 그리지 않는다', () => {
+      const html = render({ ...customer, withdrawal: { ...pending, kakaoUnlink: { ...UNLINK, reason: 'UNLINK_FROM_APPS', accountClosed: false } } });
+      expect(html).toContain('카카오 연결을 끊은 회원입니다');
+      expect(html).toContain('카카오계정 페이지에서 연결 해제');
+      expect(html).toContain('회원에게 탈퇴 의사를 확인하고');
+      expect(html).not.toContain('카카오 알림으로 탈퇴 처리');
+      expect(html).toContain('name="inquiryReference"');
+    });
+
+    it('제재할 수 없는 계정에는 카카오 처리 폼도 그리지 않는다', () => {
+      const html = render({ ...customer, moderation: { managerRole: 'primary', canModerate: false }, withdrawal: { ...pending, kakaoUnlink: UNLINK } });
+      expect(html).not.toContain('카카오 알림으로 탈퇴 처리');
+    });
+
+    it('카카오 알림으로 처리한 계정은 근거(사유·알림 시각)를 보인다', () => {
+      const html = render({ ...customer, suspendedAt: '2026-11-19T02:00:00Z', withdrawal: { processed: true, processedAt: '2026-11-19T02:00:00Z',
+        inquiryReference: null, signinBlocked: true, signinBlockedAt: '2026-11-19T02:00:05Z', basis: 'kakao_unlink', kakaoUnlink: UNLINK } });
+      expect(html).toContain('탈퇴 요청을 처리한 계정입니다');
+      expect(html).toContain('카카오 알림 · 카카오계정 탈퇴 (2026. 11. 19.');
+      expect(html).not.toContain('문의 #');
+    });
+  });
 });
+

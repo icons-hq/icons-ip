@@ -3,14 +3,18 @@
 import { revalidatePath } from 'next/cache';
 import type { AccountDeletionBlocker } from '@/lib/account-deletion';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { KAKAO_UNLINK_QUEUE_PATH } from '@/lib/admin/kakao-unlink-withdrawal';
 import {
+  memberWithdrawalBasisLabel,
   memberWithdrawalErasedSummary,
   memberWithdrawalRpcError,
+  normalizeKakaoUnlinkWithdrawalForm,
   normalizeMemberWithdrawalForm,
   parseInquiryReference,
   parseMemberWithdrawalInquiry,
   parseMemberWithdrawalOutcome,
   type MemberWithdrawalInquiry,
+  type MemberWithdrawalOutcome,
 } from '@/lib/admin/member-withdrawal';
 import { banWithdrawnMemberSignin, getMemberWithdrawalStatus } from '@/lib/admin/member-withdrawal.server';
 import { normalizeAdminMemberDetailForm } from '@/lib/admin/members';
@@ -29,6 +33,7 @@ const SIGNIN_BLOCK_FAILED = '정지·삭제는 끝났지만 재로그인 차단�
 function revalidateMemberViews(profileId: string) {
   revalidatePath('/admin');
   revalidatePath('/admin/community/members');
+  revalidatePath(KAKAO_UNLINK_QUEUE_PATH);
   revalidatePath(`/admin/customers/${profileId}`);
 }
 
@@ -89,18 +94,54 @@ export async function processMemberWithdrawalAction(
     target_note: input.value.note,
   });
   if (error) return { errors: { form: memberWithdrawalRpcError(error.message) } };
-  const outcome = parseMemberWithdrawalOutcome(data);
+  return finishWithdrawal(supabase, input.value.profileId, parseMemberWithdrawalOutcome(data));
+}
+
+/**
+ * 처리 RPC 결과를 화면 상태로 바꾼다(문의·카카오 알림 공통). 처리됐으면 재로그인 차단을 걸고 회원 화면들을 다시 그린다.
+ * 진행 중 의무가 남았으면 아무것도 바뀌지 않았으므로 남은 의무만 돌려준다.
+ */
+async function finishWithdrawal(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  profileId: string,
+  outcome: MemberWithdrawalOutcome | null,
+): Promise<MemberWithdrawalActionState> {
   if (!outcome) return { errors: { form: '처리 결과를 확인하지 못했습니다. 화면을 새로고침해 상태를 확인해주세요.' } };
   if (outcome.status === 'blocked') {
     return { blockers: outcome.blockers, errors: { form: '진행 중인 거래·운영 권한이 남아 있어 처리하지 않았습니다. 아래 항목을 먼저 끝내주세요.' } };
   }
 
-  const blocked = outcome.withdrawal.signinBlocked || await applySigninBlock(supabase, input.value.profileId);
-  revalidateMemberViews(input.value.profileId);
+  const blocked = outcome.withdrawal.signinBlocked || await applySigninBlock(supabase, profileId);
+  revalidateMemberViews(profileId);
+  const basis = memberWithdrawalBasisLabel(outcome.withdrawal);
   const done = outcome.status === 'processed'
-    ? `탈퇴 요청(문의 #${outcome.withdrawal.inquiryReference})을 처리했습니다 — ${memberWithdrawalErasedSummary(outcome.erased, outcome.revokedSessions)}.`
-    : `이미 탈퇴 처리한 회원입니다(문의 #${outcome.withdrawal.inquiryReference}).`;
+    ? `탈퇴 요청(${basis})을 처리했습니다 — ${memberWithdrawalErasedSummary(outcome.erased, outcome.revokedSessions)}.`
+    : `이미 탈퇴 처리한 회원입니다(${basis}).`;
   return blocked ? { message: done } : { message: done, errors: { form: SIGNIN_BLOCK_FAILED } };
+}
+
+/**
+ * 카카오로만 가입한 회원의 카카오계정 탈퇴 알림을 근거로 탈퇴를 처리한다(2026-11-19 결정). DB가 그 회원이 지금 탈퇴 검토 대기에 있고
+ * 마지막 해제가 카카오계정이 없어진 사유인지 다시 확인한다 — 연결만 끊은 회원은 거절되고 1:1 문의 경로로 처리한다.
+ * 처리 범위는 문의 탈퇴와 같고 카카오 로그인 연결 삭제를 더한다. 처리 뒤 재로그인 차단은 문의 탈퇴와 같다.
+ */
+export async function processKakaoUnlinkWithdrawalAction(
+  _state: MemberWithdrawalActionState,
+  formData: FormData,
+): Promise<MemberWithdrawalActionState> {
+  if (!await requireAdminActionAccess('/admin/community/members', { capability: 'platform.manage' })) {
+    return { errors: { form: '관리자 권한이 필요합니다.' } };
+  }
+  const input = normalizeKakaoUnlinkWithdrawalForm(formData);
+  if (!input.ok) return { errors: input.errors };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_process_kakao_unlink_withdrawal', {
+    target_profile_id: input.value.profileId,
+    target_note: input.value.note,
+  });
+  if (error) return { errors: { form: memberWithdrawalRpcError(error.message, 'kakao_unlink') } };
+  return finishWithdrawal(supabase, input.value.profileId, parseMemberWithdrawalOutcome(data));
 }
 
 /** 처리 뒤 재로그인 차단만 실패했을 때 다시 건다. 처리 기록이 있는 회원에게만 건다. */
