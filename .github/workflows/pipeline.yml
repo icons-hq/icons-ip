@@ -267,24 +267,36 @@ jobs:
         # 꺼진 설정이면 틱은 잠금 없이 끝난다. 자동 발주확인 스모크는 자기 트랜잭션 안에서 설정을 켜고 검증한다.
         run: docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c "update private.auto_order_confirmation_settings set enabled=false, revision=revision+1 where singleton"
 
-      - name: Verify operations switches are on, then pause them in the CI database
+      - name: Verify operations switches are on, then restore their pre-switch defaults in the CI database
         # 20261119110000이 운영에서 지연 안내 메일·반품배송비 차감·재고 부족 부분 취소·부분 반품을 켠다(2026-11-19 사용자 결정).
-        # 기존 스모크는 꺼진 기본값을 전제로 쓰였고 켠 동작은 각 시험이 자기 트랜잭션에서 켜고 검증하므로,
-        # migration이 실제로 켰는지 확인한 뒤 CI DB에서만 다시 끈다.
+        # 기존 스모크는 그 migration 전의 기본값(꺼짐·금액/근거/켠 시각 없음·revision 1)을 고정하고, 켠 동작은 각 시험이
+        # 자기 트랜잭션에서 켜고 검증한다. 그래서 migration이 실제로 켰는지 확인한 뒤 CI DB에서만 두 행을 그 기본값으로
+        # 되돌린다(행 트리거를 잠시 끄고 revision까지 맞춘다 — 감사 행은 남는다).
         run: |
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           do $$
           begin
             if not (select enabled from private.order_delay_notice_delivery_control where singleton)
-              or not (select enabled and partial_cancel_enabled and partial_return_enabled
+              or not (select enabled and one_way_amount = 3000 and partial_cancel_enabled and partial_return_enabled
                         from private.return_fee_deduction_settings where singleton) then
               raise exception 'operations switches were not turned on by migrations';
             end if;
           end $$;
-          update private.order_delay_notice_delivery_control set enabled = false where singleton;
-          update private.return_fee_deduction_settings
-             set enabled = false, partial_cancel_enabled = false, partial_return_enabled = false
+          begin;
+          alter table private.order_delay_notice_delivery_control disable trigger user;
+          update private.order_delay_notice_delivery_control
+             set enabled = false, evidence = null, updated_by = null, revision = 1
            where singleton;
+          alter table private.order_delay_notice_delivery_control enable trigger user;
+          alter table private.return_fee_deduction_settings disable trigger user;
+          update private.return_fee_deduction_settings
+             set enabled = false, one_way_amount = null, evidence = null, enabled_at = null,
+                 partial_cancel_enabled = false, partial_cancel_evidence = null, partial_cancel_enabled_at = null,
+                 partial_return_enabled = false, partial_return_evidence = null, partial_return_enabled_at = null,
+                 updated_by = null, revision = 1
+           where singleton;
+          alter table private.return_fee_deduction_settings enable trigger user;
+          commit;
           SQL
 
       - name: Install database smoke test tools
