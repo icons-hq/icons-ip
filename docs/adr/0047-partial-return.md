@@ -1,6 +1,6 @@
 # 반품은 굿즈·수량을 골라 신청할 수 있고, 고른 몫만 회수·환불한다(스위치로 켠다)
 
-- Status: accepted (2026-11-19) — 스위치 OFF로 배포. 켜는 것은 어드민 운영 스위치(`/admin/settings/switches`)의 '부분 반품'에서 감사와 함께 한다.
+- Status: accepted (2026-11-19) — 스위치 OFF로 배포. 켜는 것은 어드민 운영 스위치(`/admin/settings/switches`)의 '부분 반품'에서 감사와 함께 한다. **2026-11-19 사용자 결정으로 켬**(migration `20261119110000_operations_switches_on`).
 - 일부 대체: [부분 취소·부분 반품 제외 계약](../research/smartstore-admin/partial-claims-contract.md)(2026-10-12)과 [ADR-0017](./0017-order-claim-intake-and-origin-collections.md)의 "주문 전체 클레임" 중 **반품**. 취소·교환은 그대로 주문 전체다.
 - 보완: [ADR-0032](./0032-stockout-partial-cancellation.md)(부분 취소 원장·배분 seam·결제사 부분 취소를 같은 결제에 여러 번), [ADR-0031](./0031-return-fee-deduction-partial-refund.md)(반품배송비 차감), [ADR-0010](./0010-bank-transfer-refund-finalize-order.md)(무통장 송금 대기 → 송금 증빙), [ADR-0041](./0041-claim-reshipments-per-origin.md)(출고지별 회수 묶음)
 - 관련: 원장 CLM-025·CLM-083·CLM-085, 운영 시나리오 #17
