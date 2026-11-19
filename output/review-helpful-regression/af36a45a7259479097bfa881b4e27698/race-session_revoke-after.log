@@ -1,3 +1,0 @@
-
-ERROR:  review_helpful_auth_required
-CONTEXT:  PL/pgSQL function public.set_review_helpful(text,uuid,boolean) line 7 at RAISE

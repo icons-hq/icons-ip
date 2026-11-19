@@ -1,6 +1,0 @@
-a6c01490-0000-4000-8000-000000000001
-{"goodId": "guidance-race-good", "values": {"chart": {"note": "", "unit": "cm", "sizes": ["단일"], "measurements": [{"name": "가로", "values": ["3.5"]}]}, "enabled": true}, "goodName": "동시성 상품", "revision": 1, "updatedAt": "2026-11-19T01:14:24.321368+00:00"}
-
-
-B: {"code": "PT409", "error": "goods_size_chart_changed", "status": "failed"}
-blockedSeconds: 2.4274282080004923

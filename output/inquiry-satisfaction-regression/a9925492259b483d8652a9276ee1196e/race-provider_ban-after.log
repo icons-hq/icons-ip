@@ -1,4 +1,0 @@
-
-ERROR:  inquiry_satisfaction_account_unavailable
-CONTEXT:  PL/pgSQL function private.inquiry_satisfaction_request(uuid,uuid,uuid,uuid,uuid,bigint,text,boolean) line 17 at RAISE
-PL/pgSQL function public.set_my_inquiry_satisfaction(uuid,uuid,uuid,uuid,uuid,bigint,text) line 5 at assignment

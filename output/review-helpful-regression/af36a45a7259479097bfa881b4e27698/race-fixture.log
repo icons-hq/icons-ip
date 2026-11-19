@@ -1,6 +1,0 @@
-
-{"group": {"id": "a7180000-0000-4000-8000-000000000501", "name": "TEST 도움 그룹", "members": [{"code": "HI-0001", "name": "TEST 도움 그룹 빨강", "price": 10000, "goodId": "helpful-a", "values": ["빨강"], "stockQty": 10, "sortOrder": 0, "variantId": "effd6a82-c0a6-4e4b-9614-9a4563bfbe06", "archivedAt": null, "publishedAt": null}, {"code": "HI-0002", "name": "TEST 도움 그룹 파랑", "price": 10000, "goodId": "helpful-b", "values": ["파랑"], "stockQty": 10, "sortOrder": 1, "variantId": "54a1e201-68e7-49b1-b117-4407042a8c43", "archivedAt": null, "publishedAt": null}], "revision": 1, "archivedAt": null, "optionNames": ["색상"], "commonGoodId": "helpful-a"}, "state": "completed", "operationId": "a7180000-0000-4000-8000-000000000502"}
-
-
-
-
