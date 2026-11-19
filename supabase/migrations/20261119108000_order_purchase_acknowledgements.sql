@@ -44,13 +44,14 @@ begin
     coalesce((
       select jsonb_agg(jsonb_build_object(
         'goodId', g.id,
+        'name', r.name,
         'returnAllowed', g.claim_return_allowed,
         'exchangeAllowed', g.claim_exchange_allowed,
         'reason', g.claim_restriction_reason
       ) order by g.id)
-      from public.goods g
-      where g.id in (select i.good_id from public.order_items i where i.order_id = p_order_id)
-        and (g.claim_return_allowed is false or g.claim_exchange_allowed is false)
+      from (select i.good_id, min(i.good_name_snapshot) as name from public.order_items i where i.order_id = p_order_id group by i.good_id) r
+      join public.goods g on g.id = r.good_id
+      where g.claim_return_allowed is false or g.claim_exchange_allowed is false
     ), '[]'::jsonb)
   )
   on conflict (order_id) do nothing;

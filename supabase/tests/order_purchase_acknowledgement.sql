@@ -61,6 +61,7 @@ select pg_temp.ack_assert((select count(*)=1 and min(notice_version)='2026-11-19
 select pg_temp.ack_assert((select jsonb_array_length(restricted_goods)=1
    and restricted_goods->0->>'goodId'='order-purchase-ack-limited'
    and restricted_goods->0->>'reason'='각인 주문 제작 상품'
+   and restricted_goods->0->>'name'='제한 있는 상품'
    and (restricted_goods->0->>'returnAllowed')::boolean is false
   from private.order_purchase_acknowledgements where order_id=pg_temp.ack_id('order',1)),'restricted snapshot');
 select pg_temp.ack_assert(public.record_order_purchase_acknowledgement(pg_temp.ack_id('actor',1),pg_temp.ack_id('order',2),'2026-11-19') is true,'second order records');
