@@ -1,0 +1,39 @@
+{
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "child-size-cas-and-earlier-as-rollback",
+      "blockedSeconds": 2.427,
+      "result": {
+        "code": "PT409",
+        "error": "goods_size_chart_changed",
+        "status": "failed"
+      }
+    },
+    {
+      "case": "same-batch-concurrent-retry",
+      "blockedSeconds": 2.428,
+      "result": {
+        "id": "guidance-race-good",
+        "code": "GI-RACE",
+        "status": "success"
+      }
+    },
+    {
+      "case": "parent-row-fingerprint-cas",
+      "blockedSeconds": 2.433,
+      "result": {
+        "code": "PT409",
+        "error": "import_product_changed",
+        "status": "failed"
+      }
+    }
+  ],
+  "scope": "Committed fixtures only in disposable clone; clone deletion removes all fixtures.",
+  "cloneRemoved": true,
+  "temporaryDumpRemoved": true,
+  "container": "supabase_db_icons-admin-release-6a7e1c2d",
+  "sourcePort": "47622",
+  "database": "icons_guidance_race_4ddd03063a254ea3",
+  "sourceDatabaseModified": false
+}

@@ -1,0 +1,13 @@
+
+ RUN  v4.1.9 /Users/sangwopark19/icons/icons-ip/.claude/worktrees/goods-type-columns
+
+ ✓ supabase/tests/inquiry_satisfaction_contract.live.ts > parses the actual legacy SQL context without manufacturing a revision 1ms
+ ✓ supabase/tests/inquiry_satisfaction_contract.live.ts > parses the actual frozen SQL receipt and current context 0ms
+ ✓ supabase/tests/inquiry_satisfaction_contract.live.ts > parses bounded admin history without exposing session IDs 0ms
+ ✓ supabase/tests/inquiry_satisfaction_contract.live.ts > feeds actual console JSON through the production loader and uses evaluated-response denominator 1ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  10:15:25
+   Duration  217ms (transform 60ms, setup 0ms, import 147ms, tests 3ms, environment 0ms)
+

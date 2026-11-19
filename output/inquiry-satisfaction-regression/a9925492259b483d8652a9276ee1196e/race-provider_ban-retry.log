@@ -1,0 +1,3 @@
+
+ERROR:  inquiry_satisfaction_retry
+CONTEXT:  PL/pgSQL function public.set_my_inquiry_satisfaction(uuid,uuid,uuid,uuid,uuid,bigint,text) line 42 at RAISE

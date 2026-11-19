@@ -7,6 +7,7 @@
 --   2. KC 맥락(private.goods_kc_context)과 KC 가드가 유형을 보지 않는다. 저장된 KC 검토 기록은 고치지 않고,
 --      현재 여부를 비교할 때 기록의 옛 'type' 키를 빼고 비교한다(공개 중 상품의 KC 검토가 풀리지 않는다).
 --   3. 그룹 공통정보 저장은 'type' 키를 받아도 되고 안 받아도 된다(이전 앱은 보내고, 새 앱은 보내지 않는다).
+--      그룹 공통정보 일치 판정은 유형을 비교하지 않는다(공통정보 읽기의 'type'은 늘 '').
 -- 읽는 쪽(카테고리 진열·주문 조회·스마트스토어 출고·탈퇴 법정 기록)은 이전 앱이 그 응답 키를 아직 읽으므로 그대로 두고,
 -- 2단계에서 칸과 함께 걷는다.
 
@@ -115,6 +116,14 @@ $a$, $a$    'name_en', source_good.name_en,
 $a$)
 ));
 
+-- 그룹 공통정보 일치 판정(그룹 만들기·전환·공통정보 저장)이 유형을 비교하지 않게 'type'을 늘 ''로 둔다. 그룹 상품 만들기가 유형을
+-- 복사하지 않으므로, 비교하면 유형이 있는 원상품으로 만든 그룹이 공통정보 불일치로 막힌다. 키는 남긴다(이전 앱이 공통정보 읽기에서
+-- 'type'을 필수로 본다). 2단계에서 키를 걷는다.
+select private.goods_type_column_patch('private.goods_group_common_identity(text)'::regprocedure, jsonb_build_array(
+  jsonb_build_array($a$(select jsonb_object_agg(k,v) from jsonb_each(to_jsonb(g)) e(k,v)$a$,
+    $a$(select jsonb_object_agg(k,v) from jsonb_each(to_jsonb(g)||'{"type":""}'::jsonb) e(k,v)$a$)
+));
+
 -- 그룹 공통정보: 필수 키에서 'type'을 빼고, 배포 사이 이전 앱이 보내는 'type'은 받아 둔다(저장은 무시된다).
 select private.goods_type_column_patch('private.validate_goods_group_common_values(jsonb)'::regprocedure, jsonb_build_array(
   jsonb_build_array($a$array['ip_id','type','category_id',$a$, $a$array['ip_id','category_id',$a$),
@@ -162,6 +171,7 @@ select private.register_operator_rpc_contract(
   'catalog.manage', 'write', false);
 select private.register_operator_internal_contract('private.admin_clone_good_before_discount_display(uuid,text,text,text,text)'::regprocedure);
 select private.register_operator_internal_contract('private.create_goods_group_product(text,uuid,text,uuid)'::regprocedure);
+select private.register_operator_internal_contract('private.goods_group_common_identity(text)'::regprocedure);
 select private.register_operator_internal_contract('private.validate_goods_group_common_values(jsonb)'::regprocedure);
 select private.register_operator_internal_contract(
   'private.calculate_goods_transaction_locked(uuid,jsonb,jsonb,jsonb,uuid,bigint,timestamp with time zone,jsonb,uuid)'::regprocedure);

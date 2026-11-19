@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "finalCount": 0,
+      "name": "same_actor_desired_state",
+      "observed": "active|Lock",
+      "result": "PASS"
+    },
+    {
+      "name": "account_fence",
+      "observed": "active|Lock",
+      "result": "PASS"
+    },
+    {
+      "name": "review_hide",
+      "observed": "idle in transaction|Client",
+      "result": "PASS"
+    },
+    {
+      "name": "goods_unpublish",
+      "observed": "idle in transaction|Client",
+      "result": "PASS"
+    },
+    {
+      "name": "group_detach",
+      "observed": "idle in transaction|Client",
+      "result": "PASS"
+    },
+    {
+      "name": "provider_ban",
+      "observed": "idle in transaction|Client",
+      "result": "PASS"
+    },
+    {
+      "name": "session_revoke",
+      "observed": "idle in transaction|Client",
+      "result": "PASS"
+    },
+    {
+      "name": "ip_unpublish",
+      "observed": "idle in transaction|Client",
+      "result": "PASS"
+    }
+  ],
+  "finalVoteCount": 0,
+  "status": "PASS"
+}

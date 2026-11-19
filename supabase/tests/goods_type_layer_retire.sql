@@ -298,6 +298,11 @@ select 1/case when (select type='인형' and price=1700 from public.goods where 
  then 1 else 0 end as save_ignores_given_type;
 reset role;
 
+-- 그룹 공통정보 일치 판정은 유형을 비교하지 않는다: 유형 값이 달라도 공통정보 읽기의 'type'은 늘 ''이다.
+select 1/case when (select type from public.goods where id='gr-legacy-good')<>''
+ and private.goods_group_common_identity('gr-legacy-good')#>>'{goods,type}'=''
+ then 1 else 0 end as group_common_identity_ignores_type;
+
 -- 그룹 공통정보 입력은 'type' 키가 있어도(이전 앱) 없어도(새 앱) 받고, 모르는 키는 거절한다.
 create function pg_temp.gr_group_values(extra jsonb) returns jsonb language sql as $$
   select jsonb_build_object('goods',jsonb_build_object('ip_id','goods-type-retire','category_id',null,'name_en',null,'notice_maker',null,

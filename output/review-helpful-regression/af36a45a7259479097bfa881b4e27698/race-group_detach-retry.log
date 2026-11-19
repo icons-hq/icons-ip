@@ -1,0 +1,3 @@
+
+ERROR:  review_helpful_retry
+CONTEXT:  PL/pgSQL function public.set_review_helpful(text,uuid,boolean) line 22 at RAISE

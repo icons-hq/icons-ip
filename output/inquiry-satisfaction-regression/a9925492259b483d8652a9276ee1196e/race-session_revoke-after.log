@@ -1,0 +1,4 @@
+
+ERROR:  inquiry_satisfaction_auth_required
+CONTEXT:  PL/pgSQL function private.inquiry_satisfaction_request(uuid,uuid,uuid,uuid,uuid,bigint,text,boolean) line 9 at RAISE
+PL/pgSQL function public.set_my_inquiry_satisfaction(uuid,uuid,uuid,uuid,uuid,bigint,text) line 5 at assignment

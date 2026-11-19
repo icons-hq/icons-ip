@@ -1,0 +1,6 @@
+a6c01490-0000-4000-8000-000000000001
+{"id": "guidance-race-good", "code": "GI-RACE", "attributesRevision": 0, "customInputsRevision": 0, "default_variant_code": "GI-RACE-01", "shippingNoticeTemplateCode": null, "shippingNoticeTemplateVersion": null}
+
+
+B: {"code": "PT409", "error": "import_product_changed", "status": "failed"}
+blockedSeconds: 2.4332022499875166

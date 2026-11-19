@@ -1,0 +1,3 @@
+
+ERROR:  review_helpful_review_unavailable
+CONTEXT:  PL/pgSQL function public.set_review_helpful(text,uuid,boolean) line 30 at RAISE
