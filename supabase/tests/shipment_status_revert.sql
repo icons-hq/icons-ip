@@ -4,12 +4,15 @@ begin;
 -- ============================================================================
 -- ICONS · 배송 상태 오처리 정정과 실제 도착 시각 (원장 #14, ADR-0045)
 --
---   · 선택 배송완료에 택배사 배송완료 일시를 넣는다: 발송 등록 시각 이후·지금 이전(10분 시계 차이는 지금으로), 7일보다 이르면 사유 필수.
+--   · 선택 배송완료에 택배사 배송완료 일시를 넣는다: 발송 등록 시각 이후·지금 이전(10분 시계 차이는 지금으로), 처리 시각보다 7일 넘게 이르면
+--     판매 관리 권한 + 사유(물류 계정은 7일 이내만). 건별로 실제 기록한 배송 건(arrivalIds)을 돌려준다.
 --     주문 배송완료 시각·구매확정 기한·청약철회 기한이 그 시각을 따른다. 옛 일괄 함수(admin_complete_shipments)는 그대로 처리 시각이다.
 --   · 배송완료 되돌리기(sales.manage): 배송 중으로, 합포장 묶음 전체. 구매확정·리뷰·클레임(진행·완료)·부분 취소 진행 중·택배 외는 막는다.
---     구매확정 기한 행과 "배송이 완료됐어요" 알림을 지우고 다음 배송완료 때 새로 잡는다. 사유·작업 ID 재전송·화면이 본 시각 대조·감사.
+--     구매확정 기한 행과 "배송이 완료됐어요"·구매확정 요청 알림을 지우고 다음 배송완료 때 새로 잡는다. 구매확정 보류 중이면 막는다.
+--     운송장 없이 강제 배송완료한 건은 발송 대기(주문 발주확인)로 되돌리고 배송 시작 알림을 만들지 않는다. 사유·작업 ID 재전송·화면이 본 시각 대조·감사.
 --   · 발송 되돌리기(sales.manage): 발송 대기로, 대표·추가 운송장·발송 시각을 비워 번호를 다른 배송 건에 다시 쓸 수 있다. 출고지시 전달은
 --     그대로, 주문은 발주확인으로 돌아간다. 보내지 않은 발송 메일 작업은 지우고(다시 발송하면 새로), 보낸 메일은 남기고 알린다.
+--     중복 등록 승인도 지워, 승인으로 등록했던 다른 주문의 번호를 되돌린 뒤 승인 없이 다시 등록할 수 없다(#679).
 --   · 택배 추적 자동 배송완료는 되돌린 배송 건을 같은 발송 동안 다시 완료하지 않는다.
 -- ============================================================================
 
@@ -78,9 +81,10 @@ create function pg_temp.sid(n integer) returns uuid language sql immutable as $$
 create function pg_temp.oid(n integer) returns uuid language sql immutable as $$select ('c3a00000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid$$;
 -- 1 기본 흐름 · 2 거래확정 · 3 리뷰 · 4 반품 진행 · 5 거절된 반품(허용) · 6 부분 취소 진행 · 7 택배 외 · 8·9 합포장
 -- 10 발송 되돌리기 · 11 번호 재사용 대상 · 12 보낸 발송 메일 · 13 자동 배송완료 · 14 배송 중 반품(발송 되돌리기 막음) · 15 늦은 처리
+-- 16 운송장 없는 강제 배송완료 · 17 구매확정 요청 알림 · 18 구매확정 보류 · 19·20 중복 승인 번호 · 21 이미 배송완료된 건에 일시
 do $$begin
- perform pg_temp.order_with(n,'shipping','shipping') from unnest(array[1,2,3,4,5,6,7,8,9,13,14,15]) n;
- perform pg_temp.order_with(n,'confirmed') from unnest(array[10,11,12]) n;
+ perform pg_temp.order_with(n,'shipping','shipping') from unnest(array[1,2,3,4,5,6,7,8,9,13,14,15,17,18,20,21]) n;
+ perform pg_temp.order_with(n,'confirmed') from unnest(array[10,11,12,16,19]) n;
 end $$;
 -- 합포장(8·9). 둘 다 배송 중이고 같은 묶음이다.
 insert into private.shipment_packs(id,created_by) values('c3a00000-0000-4005-8000-000000000001','c3a00000-0000-4000-8000-000000000001');
@@ -93,7 +97,9 @@ update public.order_shipments set tracking_number='1000000008' where id=pg_temp.
 select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
 set local role authenticated;
 select pg_temp.expect_error(format('select public.admin_complete_shipments_at(array[%L]::uuid[],now()+interval %L,null)',pg_temp.sid(1),'1 hour'),'delivered_at_in_future');
-select pg_temp.expect_error(format('select public.admin_complete_shipments_at(array[%L]::uuid[],now()-interval %L,null)',pg_temp.sid(1),'8 days'),'delivered_at_late_reason_required');
+-- 처리 시각보다 7일 넘게 이른 일시는 물류 계정이 사유를 적어도 받지 않는다(판매 관리 권한만, 리뷰 R3).
+select pg_temp.expect_error(format('select public.admin_complete_shipments_at(array[%L]::uuid[],now()-interval %L,null)',pg_temp.sid(1),'8 days'),'delivered_at_late_requires_manager');
+select pg_temp.expect_error(format('select public.admin_complete_shipments_at(array[%L]::uuid[],now()-interval %L,%L)',pg_temp.sid(1),'30 days','택배사확인'),'delivered_at_late_requires_manager');
 select pg_temp.expect_error(format('select public.admin_complete_shipments_at(array[%L]::uuid[],now()-interval %L,%L)',pg_temp.sid(1),'8 days','짧음'),'delivered_at_reason_invalid');
 -- 발송 등록(3일 전)보다 이른 도착은 그 배송 건만 실패로 돌려준다(일괄 처리의 건별 결과).
 select public.admin_complete_shipments_at(array[pg_temp.sid(1)],now()-interval '4 days','택배사 조회 결과 확인') as early \gset
@@ -103,7 +109,7 @@ select public.admin_complete_shipments_at(array[pg_temp.sid(1)],:'arrival_one',n
 -- 시계 차이로 몇 분 앞선 값은 지금으로 맞춘다(10분 이내).
 select public.admin_complete_shipments_at(array[pg_temp.sid(15)],now()+interval '3 minutes',null)->0->>'ok' as skew_ok \gset
 reset role;
-select pg_temp.check((:'completed'::jsonb->0->>'ok')='true','arrival completion succeeded');
+select pg_temp.check((:'completed'::jsonb->0->>'ok')='true' and :'completed'::jsonb->0->'arrivalIds'=to_jsonb(array[pg_temp.sid(1)]),'arrival completion succeeded and reports the recorded shipment');
 select 1/count(*) as one_row from (select pg_temp.check(s.status='delivered' and s.delivered_at=:'arrival_one'::timestamptz and o.status='delivered' and o.delivered_at=:'arrival_one'::timestamptz,'shipment and order use the carrier arrival time')
  from public.order_shipments s join public.orders o on o.id=s.order_id where s.id=pg_temp.sid(1)) checked;
 select 1/count(*) as one_row from (select pg_temp.check(c.auto_due_at=:'arrival_one'::timestamptz+interval '7 days' and c.confirmed_at is null,'purchase confirmation due follows the arrival time')
@@ -159,8 +165,9 @@ update private.purchase_confirmation_policy set auto_after_days=10,revision=revi
 -- 실제로는 12일 전에 발송했고 9일 전에 도착했는데 처리를 놓친 경우(SHP-051·CLM-028).
 update public.order_shipments set shipped_at=now()-interval '12 days' where id=pg_temp.sid(1);
 select (now()-interval '9 days')::timestamptz as arrival_late \gset
-select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000001');
 set local role authenticated;
+select pg_temp.expect_error(format('select public.admin_complete_shipments_at(array[%L]::uuid[],%L,null)',pg_temp.sid(1),:'arrival_late'),'delivered_at_late_reason_required');
 select public.admin_complete_shipments_at(array[pg_temp.sid(1)],:'arrival_late','고객 확인 결과 9일 전에 받음')->0->>'ok' as redelivered \gset
 reset role;
 select 1/count(*) as one_row from (select pg_temp.check(:'redelivered'='true' and c.auto_due_at=:'arrival_late'::timestamptz+interval '10 days' and (c.policy_snapshot->>'autoAfterDays')='10'
@@ -173,9 +180,12 @@ update private.purchase_confirmation_policy set auto_after_days=7,revision=revis
 -- ---------------------------------------------------------------------------
 -- 3. 막는 조건. 2 거래확정 · 3 리뷰 · 4 반품 진행 · 5 거절된 반품(허용) · 6 부분 취소 진행 · 7 택배 외.
 update public.order_shipments set shipped_at=now()-interval '10 days' where id=pg_temp.sid(2);
-select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000001');
 set local role authenticated;
 select public.admin_complete_shipments_at(array[pg_temp.sid(2)],now()-interval '8 days','택배사 조회 결과 8일 전 도착') is not null as done_ready \gset
+reset role;
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+set local role authenticated;
 select public.admin_complete_shipments_at(array(select pg_temp.sid(n) from generate_series(3,7) n),null,null) is not null as others_ready \gset
 reset role;
 select public.settle_delivered_orders() as settled \gset
@@ -327,5 +337,105 @@ select public.admin_complete_shipments_at(array[pg_temp.sid(13)],now()-interval 
 select public.admin_shipment_tracking_summaries(array[pg_temp.sid(13)])->'shipments'->(pg_temp.sid(13)::text)->>'deliveredBy' as delivered_by \gset
 reset role;
 select pg_temp.check(:'manual_ok'='true' and :'delivered_by'='manual','manual completion after revert is shown as manual');
+
+-- ---------------------------------------------------------------------------
+-- 7. 적대적 리뷰 고정(R1·R2·R4·R5·R6). 구매확정 요청·보류는 세션이 있는 운영자만 한다.
+insert into auth.sessions(id,user_id,created_at,updated_at) values('c3a00000-0000-4000-9000-000000000001','c3a00000-0000-4000-8000-000000000001',now(),now());
+create function pg_temp.as_manager() returns void language plpgsql as $$begin
+ perform set_config('request.jwt.claim.sub','c3a00000-0000-4000-8000-000000000001',true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub','c3a00000-0000-4000-8000-000000000001','role','authenticated','session_id','c3a00000-0000-4000-9000-000000000001')::text,true);
+end $$;
+-- 구매확정 행의 revision은 postgres로 읽어 넘긴다(앱 롤은 private 표를 읽지 못한다).
+create function pg_temp.confirmation(kind text,n integer,rev bigint,note text default '') returns jsonb language sql as $$
+ select public.admin_change_purchase_confirmation(pg_temp.oid(n),kind,note,rev,gen_random_uuid(),
+  'c3a00000-0000-4000-8000-000000000001','c3a00000-0000-4000-9000-000000000001')$$;
+-- R1: 운송장 없이 강제 배송완료(발주확인 → 배송완료)한 건은 발송 대기·발주확인으로 되돌리고 배송 시작 알림을 만들지 않는다. 그 뒤 일반 발송·배송완료가 된다.
+select pg_temp.as_manager();
+set local role authenticated;
+select public.admin_force_order_delivered((select order_number from public.orders where id=pg_temp.oid(16)),'시험 주문 강제 배송완료',gen_random_uuid())->>'status' as forced_status \gset
+select public.admin_revert_shipment_delivery(pg_temp.sid(16),'강제 배송완료를 잘못 누름',gen_random_uuid(),(select delivered_at from public.order_shipments where id=pg_temp.sid(16))) as forced_revert \gset
+reset role;
+select pg_temp.check(:'forced_status'='delivered' and (:'forced_revert'::jsonb->>'shipmentStatus')='ready' and (:'forced_revert'::jsonb->>'orderStatus')='confirmed'
+ and (select status='ready' and tracking_number is null and shipped_at is null and delivered_at is null and exported_at is not null from public.order_shipments where id=pg_temp.sid(16))
+ and (select status='confirmed' and delivered_at is null and shipped_at is null from public.orders where id=pg_temp.oid(16))
+ and not exists(select 1 from public.notifications where dedupe_key in('order:shipping:'||pg_temp.oid(16),'order:delivered:'||pg_temp.oid(16))),
+ 'tracking-less forced delivery returns to ready without a shipping notification');
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+set local role authenticated;
+select public.admin_update_shipment_status(pg_temp.sid(16),'shipping','hanjin','1000000016');
+select public.admin_complete_shipments_at(array[pg_temp.sid(16)],null,null)->0->>'ok' as forced_recomplete \gset
+reset role;
+select pg_temp.check(:'forced_recomplete'='true' and (select status='delivered' from public.orders where id=pg_temp.oid(16)),'reverted forced delivery can be dispatched and delivered normally');
+-- R2: 운영자의 구매확정 요청 알림을 지워, 다시 배송완료한 뒤의 재요청이 다시 간다.
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+set local role authenticated;
+select public.admin_complete_shipments_at(array[pg_temp.sid(17)],null,null)->0->>'ok' as r2_delivered \gset
+reset role;
+select revision as rev from private.order_purchase_confirmations where order_id=pg_temp.oid(17) \gset
+select pg_temp.as_manager();
+set local role authenticated;
+select pg_temp.confirmation('request',17,:rev)->>'requestedAt' is not null as r2_requested \gset
+select public.admin_revert_shipment_delivery(pg_temp.sid(17),'엉뚱한 배송 건 배송완료',gen_random_uuid(),(select delivered_at from public.order_shipments where id=pg_temp.sid(17))) is not null as r2_reverted \gset
+reset role;
+select pg_temp.check(:'r2_requested'::boolean and not exists(select 1 from public.notifications where dedupe_key='purchase-confirmation:'||pg_temp.oid(17))
+ and (select (previous->>'confirmationRequestNotificationRemoved')::boolean and previous->'purchaseConfirmation'->>'requested_at' is not null from private.shipment_status_reverts where shipment_id=pg_temp.sid(17)),
+ 'confirmation request notification is removed and kept in the ledger');
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+set local role authenticated;
+select public.admin_complete_shipments_at(array[pg_temp.sid(17)],null,null)->0->>'ok' as r2_redelivered \gset
+reset role;
+select revision as rev from private.order_purchase_confirmations where order_id=pg_temp.oid(17) \gset
+select pg_temp.as_manager();
+set local role authenticated;
+select pg_temp.confirmation('request',17,:rev) is not null as r2_rerequested \gset
+reset role;
+select pg_temp.check(exists(select 1 from public.notifications where dedupe_key='purchase-confirmation:'||pg_temp.oid(17) and read_at is null),'re-request after re-delivery notifies again');
+-- R4: 구매확정 보류 중이면 되돌리지 않는다(보류가 조용히 풀리지 않게). 해제하면 되돌릴 수 있다.
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+set local role authenticated;
+select public.admin_complete_shipments_at(array[pg_temp.sid(18)],null,null)->0->>'ok' as r4_delivered \gset
+reset role;
+select revision as rev from private.order_purchase_confirmations where order_id=pg_temp.oid(18) \gset
+select pg_temp.as_manager();
+set local role authenticated;
+select pg_temp.confirmation('hold',18,:rev,'고객 분쟁 조사 중') is not null as r4_held \gset
+select pg_temp.expect_error(format('select public.admin_revert_shipment_delivery(%L,%L,gen_random_uuid(),%L)',pg_temp.sid(18),'엉뚱한 배송 건 배송완료',
+ (select delivered_at from public.order_shipments where id=pg_temp.sid(18))),'shipment_revert_confirmation_held');
+reset role;
+select revision as rev from private.order_purchase_confirmations where order_id=pg_temp.oid(18) \gset
+select pg_temp.as_manager();
+set local role authenticated;
+select pg_temp.confirmation('resume',18,:rev) is not null as r4_resumed \gset
+select public.admin_revert_shipment_delivery(pg_temp.sid(18),'엉뚱한 배송 건 배송완료',gen_random_uuid(),(select delivered_at from public.order_shipments where id=pg_temp.sid(18)))->>'orderStatus' as r4_reverted \gset
+reset role;
+select pg_temp.check(:'r4_reverted'='shipping','revert works after the hold is released');
+-- R5: 중복 확인 승인으로 등록한 다른 주문의 번호를 발송 되돌리기하면 승인도 지워져, 다시 등록하려면 다시 승인을 받아야 한다.
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+set local role authenticated;
+select pg_temp.expect_error(format('select public.admin_update_shipment_status(%L,%L,%L,%L)',pg_temp.sid(19),'shipping','hanjin','1000000020'),'tracking_number_in_use');
+select public.admin_register_shipment_tracking_duplicate(pg_temp.sid(19),'hanjin','1000000020','회신 파일 그대로 등록') is not null as dup_registered \gset
+reset role;
+select pg_temp.check((select status='shipping' and tracking_number='1000000020' from public.order_shipments where id=pg_temp.sid(19))
+ and exists(select 1 from private.tracking_duplicate_approvals where shipment_id=pg_temp.sid(19)),'duplicate approval registered');
+select pg_temp.as_manager();
+set local role authenticated;
+select public.admin_revert_shipment_dispatch(pg_temp.sid(19),'다른 주문의 운송장을 등록함','c3a00000-0000-4009-8000-000000000019','1000000020')->>'orderStatus' as r5_reverted \gset
+reset role;
+select pg_temp.check(:'r5_reverted'='confirmed' and not exists(select 1 from private.tracking_duplicate_approvals where shipment_id=pg_temp.sid(19))
+ and (select previous->'duplicateApprovals'->0->>'trackingNumber'='1000000020' and previous->'duplicateApprovals'->0->>'reason'='회신 파일 그대로 등록'
+  from private.shipment_status_reverts where operation_id='c3a00000-0000-4009-8000-000000000019')
+ and exists(select 1 from public.audit_log where id='c3a00000-0000-4009-8000-000000000019' and diff->'previous'->0->'duplicateApprovals'->0->>'trackingNumber'='1000000020'),
+ 'dispatch revert clears and records duplicate approvals');
+select pg_temp.as_actor('c3a00000-0000-4000-8000-000000000003');
+set local role authenticated;
+select pg_temp.expect_error(format('select public.admin_update_shipment_status(%L,%L,%L,%L)',pg_temp.sid(19),'shipping','hanjin','1000000020'),'tracking_number_in_use');
+-- R6: 이미 배송완료된 건에 일시를 넣어 다시 처리하면 성공으로 보이지만 일시는 기록되지 않았다고 돌려주고 감사도 남기지 않는다.
+select public.admin_complete_shipments_at(array[pg_temp.sid(21)],null,null)->0->>'ok' as r6_first \gset
+select public.admin_complete_shipments_at(array[pg_temp.sid(21)],now()-interval '2 days',null) as r6_second \gset
+reset role;
+select pg_temp.check(:'r6_first'='true' and (:'r6_second'::jsonb->0->>'ok')='true' and :'r6_second'::jsonb->0->'arrivalIds'='[]'::jsonb
+ and (select delivered_at>now()-interval '1 minute' from public.order_shipments where id=pg_temp.sid(21))
+ and not exists(select 1 from public.audit_log where action='admin.shipment.arrival_recorded' and target='order:'||pg_temp.oid(21)),
+ 'arrival time is reported only for shipments it was actually recorded on');
 
 rollback;

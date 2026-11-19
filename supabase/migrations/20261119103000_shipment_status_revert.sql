@@ -3,14 +3,17 @@ begin;
 --
 -- 1) 배송완료 되돌리기 admin_revert_shipment_delivery: 엉뚱한 배송 건을 배송완료로 누른 것을 배송 중으로 되돌린다. 합포장은 묶음 전체.
 --    구매확정(주문 done)·리뷰·진행 중이거나 끝난 취소·반품·교환·부분 취소 진행 중이면 막는다(그 뒤의 돈·적립금·재고 흐름을 되감지 않는다).
+--    운송장 없이 강제 배송완료한 택배 건은 발송된 적이 없어 발송 대기(주문 발주확인)로 되돌린다. 구매확정 보류 중이면 막는다(보류가 조용히 풀리지 않게).
 --    구매확정 기한 행(order_purchase_confirmations)은 지운다 — 다음 배송완료 때 그 시각과 그때 정책으로 새로 잡힌다(포착 트리거가
 --    `on conflict do nothing`이라 남겨 두면 잘못 누른 시각의 기한이 그대로 남는다). 지운 행은 되돌리기 원장과 감사에 남는다.
 --    고객 앱의 "배송이 완료됐어요" 알림은 받은편지함에서 지운다(다음 배송완료 때 다시 간다). 이미 본 알림은 회수할 수 없어 화면이 연락을 안내한다.
 -- 2) 발송 되돌리기 admin_revert_shipment_dispatch: 잘못 발송 처리한 배송 건을 발송 대기로 되돌린다. 대표·추가 운송장과 발송 시각을 비워
---    그 번호를 올바른 배송 건에 다시 쓸 수 있게 하고 이전 값은 원장·감사에 남긴다. 출고지시 전달(exported_at)은 그대로다.
+--    그 번호를 올바른 배송 건에 다시 쓸 수 있게 하고 이전 값은 원장·감사에 남긴다. 그 배송 건의 중복 등록 승인(tracking_duplicate_approvals)도
+--    지운다 — 남기면 승인으로 등록했던 다른 주문의 번호를 되돌린 뒤 승인 없이 다시 등록할 수 있다(#679 가드 우회). 출고지시 전달(exported_at)은 그대로다.
 --    아직 보내지 않은 발송 안내 메일 작업은 지우고(다시 발송하면 새로 쌓인다), 이미 보낸 메일은 회수할 수 없어 화면이 알린다.
 -- 3) 실제 도착 시각 admin_complete_shipments_at: 선택 배송완료 때 택배사 조회의 배송완료 일시를 넣는다(기본은 처리 시각).
---    발송 등록 시각 이후·지금 이전만 받고, 7일(단순 변심 청약철회 기간)보다 이른 시각은 사유를 받는다. 기존 일괄 함수는 그대로 두고
+--    발송 등록 시각 이후·지금 이전만 받고, 처리 시각보다 7일(단순 변심 청약철회 기간) 넘게 이른 시각은 판매 관리 권한 + 사유로만 받는다.
+--    건별로 입력한 일시가 실제로 기록됐는지(arrivalIds) 돌려준다. 기존 일괄 함수는 그대로 두고
 --    이 함수가 트랜잭션 로컬 값으로 넘긴 시각을 안쪽 전이 함수가 읽는다(앵커 치환 한 줄).
 -- 4) 택배 추적 자동 배송완료는 운영자가 배송완료를 되돌린 배송 건을 같은 발송(shipped_at) 동안 다시 자동 완료하지 않는다.
 --
@@ -76,17 +79,25 @@ begin
   if reason_value is not null and char_length(reason_value) not between 5 and 500 then raise invalid_parameter_value using message='delivered_at_reason_invalid'; end if;
   if p_delivered_at is not null and p_delivered_at>now_value+interval '10 minutes' then raise check_violation using message='delivered_at_in_future'; end if;
   at_value:=least(coalesce(p_delivered_at,now_value),now_value);
-  -- 단순 변심 청약철회 기간(7일)이 처리 시점에 이미 지나는 시각은 사유를 받는다(늦게 처리한 만큼 고객의 철회 기간이 사라진다).
-  if at_value<now_value-interval '7 days' and reason_value is null then raise check_violation using message='delivered_at_late_reason_required'; end if;
+  -- 처리 시각보다 7일(단순 변심 청약철회 기간) 넘게 이른 일시는 처리하는 순간 고객의 철회 기간을 지운다. 판매 관리 권한(되돌리기와 같은 권한)이
+  -- 사유와 함께 넣을 때만 받는다 — SHP-086 원장의 "처리 지연은 고객 유리": 늦게 처리한 만큼의 고객 권리를 출고 담당이 소급해 지우지 않는다(ADR-0045).
+  if at_value<now_value-interval '7 days' then
+    if not public.has_operator_capability('sales.manage',false) then raise insufficient_privilege using message='delivered_at_late_requires_manager'; end if;
+    if reason_value is null then raise check_violation using message='delivered_at_late_reason_required'; end if;
+  end if;
   perform set_config('icons.shipment_delivered_at',at_value::text,true);
   results:=public.admin_complete_shipments(target_ids);
   perform set_config('icons.shipment_delivered_at','',true);
   if p_delivered_at is not null then
-    select coalesce(array_agg(distinct affected.id::uuid),'{}'::uuid[]) into touched
-      from jsonb_array_elements(results) item cross join lateral jsonb_array_elements_text(item->'affectedIds') affected(id)
-      where (item->>'ok')::boolean;
+    -- 건별로 입력한 일시가 실제로 기록된 배송 건(arrivalIds). 이미 배송완료돼 있던 건은 같은 상태 재처리라 일시를 바꾸지 않으므로 빠진다.
+    select coalesce(jsonb_agg(entry.item||jsonb_build_object('arrivalIds',coalesce((select jsonb_agg(s.id order by s.id) from public.order_shipments s
+        where s.id in(select value::uuid from jsonb_array_elements_text(coalesce(entry.item->'affectedIds','[]'::jsonb)))
+          and s.status='delivered' and s.delivered_at=at_value),'[]'::jsonb)) order by entry.ord),'[]'::jsonb)
+      into results from jsonb_array_elements(results) with ordinality as entry(item,ord);
+    select coalesce(array_agg(distinct arrived.id::uuid),'{}'::uuid[]) into touched
+      from jsonb_array_elements(results) item cross join lateral jsonb_array_elements_text(item->'arrivalIds') arrived(id);
     for related in select s.order_id, array_agg(s.id order by s.id) ids from public.order_shipments s
-      where s.id=any(touched) and s.status='delivered' and s.delivered_at=at_value group by s.order_id order by s.order_id loop
+      where s.id=any(touched) group by s.order_id order by s.order_id loop
       insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.shipment.arrival_recorded','order:'||related.order_id,
         jsonb_build_object('shipmentIds',to_jsonb(related.ids),'deliveredAt',at_value,'processedAt',now_value,'reason',reason_value));
     end loop;
@@ -106,6 +117,8 @@ language sql stable security definer set search_path='' as $$
     when o.status='done' or exists(select 1 from private.order_purchase_confirmations c where c.order_id=o.id and c.confirmed_at is not null)
       then 'shipment_revert_purchase_confirmed'
     when exists(select 1 from public.reviews r where r.order_id=o.id) then 'shipment_revert_review_exists'
+    -- 구매확정 보류(분쟁 조사 등)는 되돌리면 기한 행과 함께 사라져 다시 배송완료한 뒤 조용히 자동 확정될 수 있다. 보류를 먼저 해제하게 한다.
+    when exists(select 1 from private.order_purchase_confirmations c where c.order_id=o.id and c.held) then 'shipment_revert_confirmation_held'
     when exists(select 1 from public.order_cancellation_claims k where k.order_id=o.id)
       or exists(select 1 from public.order_cancellation_requests q where q.order_id=o.id and q.stage not in ('rejected','withdrawn'))
       then 'shipment_revert_claim_exists'
@@ -122,7 +135,7 @@ create function public.admin_revert_shipment_delivery(p_shipment_id uuid, p_reas
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); request jsonb; receipt jsonb; ids uuid[]; picked public.order_shipments;
   member public.order_shipments; related record; blocker text; at_value timestamptz; before_status jsonb; confirmation jsonb;
-  removed_notification uuid; order_ids uuid[]; order_status public.order_status;
+  removed_notification uuid; removed_request uuid; removed_shipping uuid; order_ids uuid[]; order_status public.order_status; status_now public.order_status;
 begin
   actor:=private.require_operator_capability('sales.manage',false);
   if p_shipment_id is null or p_operation_id is null or p_expected_delivered_at is null then raise invalid_parameter_value using message='invalid_shipment_revert'; end if;
@@ -151,18 +164,30 @@ begin
       'shippedAt',member.shipped_at,'carrier',member.carrier,'trackingNumber',member.tracking_number,
       'autoDelivery',(select jsonb_build_object('state',a.state,'deliveredAt',a.delivered_at,'provider',a.provider) from private.shipment_auto_deliveries a where a.shipment_id=member.id),
       'orderStatus',before_status->>(member.order_id::text)),reason_value,actor,at_value);
-    update public.order_shipments set status='shipping',delivered_at=null,updated_at=at_value where id=member.id;
+    -- 운송장 없이 강제 배송완료한 택배 건은 발송된 적이 없다. 배송 중으로 두면 운송장 없이 다시 배송완료할 수 없으므로 발송 대기로 되돌린다.
+    update public.order_shipments set status=case when member.tracking_number is null then 'ready' else 'shipping' end,
+      shipped_at=case when member.tracking_number is null then null else shipped_at end,delivered_at=null,updated_at=at_value where id=member.id;
   end loop;
-  -- 주문 상태는 배송 건 트리거(refresh_order_fulfillment)가 배송 중으로 다시 계산했다. 구매확정 기한과 배송완료 알림을 정리한다.
+  -- 주문 상태는 배송 건 트리거(refresh_order_fulfillment)가 다시 계산했다. 배송 건이 모두 발송 대기가 된 주문은 트리거가 상태를 그대로 두므로
+  -- 발주확인으로 되돌린다(배송 시작 알림을 만들지 않는다). 구매확정 기한·구매확정 요청 알림·배송완료 알림을 정리한다.
   for related in select o.id,o.user_id,o.status from public.orders o where o.id=any(order_ids) order by o.id loop
+    removed_shipping:=null;
+    if related.status in ('shipping','delivered') and not exists(select 1 from public.order_shipments s where s.order_id=related.id and s.status in ('shipping','delivered')) then
+      update public.orders set status='confirmed' where id=related.id;
+      delete from public.notifications where user_id=related.user_id and dedupe_key='order:shipping:'||related.id returning id into removed_shipping;
+    end if;
+    select status into status_now from public.orders where id=related.id;
     select to_jsonb(c) into confirmation from private.order_purchase_confirmations c where c.order_id=related.id;
     delete from private.order_purchase_confirmations where order_id=related.id and confirmed_at is null;
-    removed_notification:=null;
-    if before_status->>(related.id::text)='delivered' and related.status<>'delivered' then
+    removed_notification:=null; removed_request:=null;
+    if before_status->>(related.id::text)='delivered' and status_now<>'delivered' then
       delete from public.notifications where user_id=related.user_id and dedupe_key='order:delivered:'||related.id returning id into removed_notification;
     end if;
-    if related.id=picked.order_id then order_status:=related.status; end if;
-    update private.shipment_status_reverts set previous=previous||jsonb_build_object('purchaseConfirmation',confirmation,'deliveredNotificationRemoved',removed_notification is not null)
+    -- 운영자의 구매확정 요청 알림도 지운다. 남기면 다시 배송완료한 뒤의 재요청이 같은 dedupe 키로 가지 않는다.
+    delete from public.notifications where user_id=related.user_id and dedupe_key='purchase-confirmation:'||related.id returning id into removed_request;
+    if related.id=picked.order_id then order_status:=status_now; end if;
+    update private.shipment_status_reverts set previous=previous||jsonb_build_object('purchaseConfirmation',confirmation,'deliveredNotificationRemoved',removed_notification is not null,
+      'confirmationRequestNotificationRemoved',removed_request is not null,'shippingNotificationRemoved',removed_shipping is not null,'orderStatusAfter',status_now)
       where operation_id=p_operation_id and order_id=related.id;
     if related.id<>picked.order_id then
       insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.shipment.delivery_reverted','order:'||related.id,
@@ -171,18 +196,22 @@ begin
           'shipmentIds',(select to_jsonb(array_agg(id order by id)) from public.order_shipments where id=any(ids) and order_id=related.id),
           'previous',(select jsonb_agg(jsonb_build_object('shipmentId',r.shipment_id,'deliveredAt',r.previous->'deliveredAt') order by r.shipment_id)
             from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.order_id=related.id),
-          'purchaseConfirmation',confirmation,'deliveredNotificationRemoved',removed_notification is not null));
+          'purchaseConfirmation',confirmation,'deliveredNotificationRemoved',removed_notification is not null,
+          'confirmationRequestNotificationRemoved',removed_request is not null,'shippingNotificationRemoved',removed_shipping is not null));
     end if;
   end loop;
   receipt:=jsonb_build_object('orderId',picked.order_id,'shipmentId',picked.id,'shipmentIds',to_jsonb(ids),'orderCount',cardinality(order_ids),
-    'orderStatus',order_status,'previousDeliveredAt',picked.delivered_at,'revertedAt',at_value);
+    'orderStatus',order_status,'shipmentStatus',(select status from public.order_shipments where id=picked.id),
+    'previousDeliveredAt',picked.delivered_at,'revertedAt',at_value);
   insert into public.audit_log(id,actor_id,action,target,diff) values(p_operation_id,actor,'admin.shipment.delivery_reverted','order:'||picked.order_id,
     jsonb_build_object('request',request,'result',receipt,'reason',reason_value,'shipmentId',picked.id,'originName',picked.origin_name_snapshot,
       'shipmentIds',to_jsonb(ids),
       'previous',(select jsonb_agg(jsonb_build_object('shipmentId',r.shipment_id,'deliveredAt',r.previous->'deliveredAt') order by r.shipment_id)
         from private.shipment_status_reverts r where r.operation_id=p_operation_id),
       'purchaseConfirmation',(select r.previous->'purchaseConfirmation' from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=picked.id),
-      'deliveredNotificationRemoved',(select (r.previous->>'deliveredNotificationRemoved')::boolean from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=picked.id)));
+      'deliveredNotificationRemoved',(select (r.previous->>'deliveredNotificationRemoved')::boolean from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=picked.id),
+      'confirmationRequestNotificationRemoved',(select (r.previous->>'confirmationRequestNotificationRemoved')::boolean from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=picked.id),
+      'shippingNotificationRemoved',(select (r.previous->>'shippingNotificationRemoved')::boolean from private.shipment_status_reverts r where r.operation_id=p_operation_id and r.shipment_id=picked.id)));
   return receipt;
 end $$;
 revoke all on function public.admin_revert_shipment_delivery(uuid,text,uuid,timestamptz) from public,anon,authenticated,service_role;
@@ -195,7 +224,7 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare actor uuid; reason_value text:=btrim(coalesce(p_reason,'')); expected text:=nullif(upper(btrim(coalesce(p_expected_tracking_number,''))),'');
   request jsonb; receipt jsonb; ids uuid[]; picked public.order_shipments; member public.order_shipments; related record; extra public.order_shipment_extra_trackings;
   blocker text; at_value timestamptz; order_ids uuid[]; extras jsonb; job public.order_shipment_email_jobs; email_sent boolean:=false;
-  removed_notification uuid; order_status public.order_status; delivery_state text;
+  removed_notification uuid; order_status public.order_status; delivery_state text; approvals jsonb;
 begin
   actor:=private.require_operator_capability('sales.manage',false);
   if p_shipment_id is null or p_operation_id is null then raise invalid_parameter_value using message='invalid_shipment_revert'; end if;
@@ -219,6 +248,8 @@ begin
   for member in select * from public.order_shipments where id=any(ids) order by id loop
     select coalesce(jsonb_agg(jsonb_build_object('id',x.id,'carrier',x.carrier,'trackingNumber',x.tracking_number,'source',x.source,'createdAt',x.created_at) order by x.created_at,x.id),'[]'::jsonb)
       into extras from public.order_shipment_extra_trackings x where x.shipment_id=member.id;
+    select coalesce(jsonb_agg(jsonb_build_object('carrier',a.carrier,'trackingNumber',a.tracking_number,'reason',a.reason,'conflict',a.conflict,'actorId',a.actor_id,'createdAt',a.created_at)
+      order by a.created_at,a.id),'[]'::jsonb) into approvals from private.tracking_duplicate_approvals a where a.shipment_id=member.id;
     job:=null;
     select * into job from public.order_shipment_email_jobs where shipment_id=member.id for update;
     -- 발송 안내 메일을 지금 보내는 중이면(작업 임대 중·메일 원장 발송 중) 끝난 뒤 다시 한다. 보내는 중인 메일이 옛 운송장으로
@@ -231,7 +262,7 @@ begin
     values(p_operation_id,'dispatch',member.id,member.order_id,jsonb_build_object('status',member.status,'carrier',member.carrier,'trackingNumber',member.tracking_number,
       'shippedAt',member.shipped_at,'exportedAt',member.exported_at,'extraTrackings',extras,
       'emailJob',case when job.shipment_id is not null then jsonb_build_object('status',job.status,'attempts',job.attempts,'completedAt',job.completed_at) end,
-      'emailDelivery',delivery_state),
+      'emailDelivery',delivery_state,'duplicateApprovals',approvals),
       reason_value,actor,at_value);
     -- 추가 운송장도 비운다. 이력(private.order_shipment_tracking_changes)에 운영자 삭제로 남긴다(작업 ID는 배송 건·번호마다 파생).
     for extra in select * from public.order_shipment_extra_trackings where shipment_id=member.id order by created_at,id for update loop
@@ -239,6 +270,8 @@ begin
       insert into private.order_shipment_tracking_changes(order_id,shipment_id,action,carrier,tracking_number,source,reason,actor_id,operation_id)
       values(extra.order_id,extra.shipment_id,'removed',extra.carrier,extra.tracking_number,'operator',reason_value,actor,extensions.uuid_generate_v5(p_operation_id,'extra:'||extra.id::text));
     end loop;
+    -- 이 배송 건의 중복 등록 승인(대표·추가 번호)도 지운다. 다시 등록할 때 다른 주문의 번호면 다시 승인을 받아야 한다(#679).
+    delete from private.tracking_duplicate_approvals where shipment_id=member.id;
     -- 아직 보내지 않은 메일 작업은 지운다(다시 발송 처리하면 올바른 운송장으로 새로 쌓인다). 보낸 작업은 남긴다 — 같은 배송 건 메일은 다시 보내지 않는다.
     if job.shipment_id is not null and job.status<>'completed' then delete from public.order_shipment_email_jobs where shipment_id=member.id; end if;
     update public.order_shipments set status='ready',carrier=null,tracking_number=null,shipped_at=null,delivered_at=null,updated_at=at_value where id=member.id;
