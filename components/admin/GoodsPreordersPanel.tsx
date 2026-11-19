@@ -8,7 +8,7 @@ import {
 import { toKstDateTimeInput } from '@/lib/admin/goods-price-periods';
 import {
   ADMIN_PREORDER_RESERVATION_PAGE_SIZE, PREORDER_APPLY_FIELD_LABELS, PREORDER_DRAFT_NOTE, PREORDER_STAFF_DRAFT_NOTE, pendingPreorderReservationsByVariant, preorderApplyProblemLabels, preorderApplyProblems,
-  preorderCapacityProblem, preorderDraftOnlyVariantIds, preparePreorderAllocation, type AdminGoodsPreorder, type AdminPreorderReservationPage, type PreorderApplyField,
+  preorderCapacityFromStock, preorderCapacityProblem, preorderDraftOnlyVariantIds, preparePreorderAllocation, type AdminGoodsPreorder, type AdminPreorderReservationPage, type PreorderApplyField,
 } from '@/lib/admin/goods-preorders';
 import { adminConfirm } from '@/lib/admin/confirm';
 import { AdminNotice } from './console/AdminKit';
@@ -21,6 +21,7 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
 import { GOOD_DETACHED_FORM_ID, GoodWorkspaceDetails, reportDetachedValidity, useGoodWorkspaceStash } from './GoodWorkspace';
 import { GoodsPreorderSchedulePanel, type PreorderScheduleSuggestion } from './GoodsPreorderSchedulePanel';
+import { PreorderCapacityStockHint } from './PreorderCapacityStockHint';
 
 /* 템플릿 룩(ADR-0028). 라벨이 입력을 감싸므로 라벨 글자만 굵게 한다. */
 const FIELD_CLASS = 'flex min-w-0 flex-col gap-2 text-sm';
@@ -33,7 +34,8 @@ const SUMMARY_CLASS = 'cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium
  * 입력 중인 예약 조건은 키 밖에 맡긴다(useGoodWorkspaceStash).
  */
 const form = GOOD_DETACHED_FORM_ID;
-type PreorderEditorDraft = { variantId: string; capacityQty: string; startsAt: string; endsAt: string; expectedShipDate: string; approvalReference: string };
+/** `capacityFromStock`: 예약 물량이 옵션 재고수량을 따라가는 중(직접 고치기 전). 옛 보관 입력에는 없어 직접 입력으로 본다. */
+type PreorderEditorDraft = { variantId: string; capacityQty: string; capacityFromStock?: boolean; startsAt: string; endsAt: string; expectedShipDate: string; approvalReference: string };
 type SaveMode = 'draft' | 'active';
 
 /*
@@ -89,11 +91,16 @@ export function PreorderEditor({ goodId, variants, policy, canActivate, onSaved,
 }) {
   const [draft, setDraft, forget] = useGoodWorkspaceStash<PreorderEditorDraft>(`preorder:${goodId}:${policy?.id ?? 'new'}:${policy?.revision ?? 0}`, () => ({
     variantId: policy?.variantId ?? variants.find((variant) => !variant.archivedAt)?.id ?? '', capacityQty: String(policy?.capacityQty ?? ''),
+    capacityFromStock: policy?.capacityQty == null,
     startsAt: toKstDateTimeInput(policy?.startsAt ?? null), endsAt: toKstDateTimeInput(policy?.endsAt ?? null),
     expectedShipDate: policy?.expectedShipDate ?? '', approvalReference: policy?.approvalReference ?? '',
   }));
-  const { variantId, capacityQty, startsAt, endsAt, expectedShipDate, approvalReference } = draft;
+  const { variantId, startsAt, endsAt, expectedShipDate, approvalReference } = draft;
   const change = (changes: Partial<PreorderEditorDraft>) => setDraft((current) => ({ ...current, ...changes }));
+  /* 예약 물량은 기본으로 고른 옵션의 재고수량을 따라간다(옵션을 바꿔도 따라간다). 직접 고치면 그 값을 쓴다. */
+  const stockQty = variants.find((variant) => variant.id === variantId)?.stockQty;
+  const fromStock = draft.capacityFromStock === true;
+  const capacityQty = fromStock ? preorderCapacityFromStock(stockQty) : draft.capacityQty;
   const [error, setError] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState<SaveMode | null>(null);
@@ -139,8 +146,9 @@ export function PreorderEditor({ goodId, variants, policy, canActivate, onSaved,
     <div className="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr))]">
       <div className={FIELD_CLASS}><label className="font-medium" htmlFor={`${id}-capacityQty`}>승인 예약 물량<ApplyRequired show={canActivate} /></label>
         <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} id={`${id}-capacityQty`} type="number" min={1} max={2147483647} step={1} inputMode="numeric" value={capacityQty}
-          onChange={(event) => change({ capacityQty: event.target.value })} placeholder="미설정" disabled={pending} {...field('capacityQty')} />
+          onChange={(event) => change({ capacityQty: event.target.value, capacityFromStock: false })} placeholder="미설정" disabled={pending} {...field('capacityQty')} />
         <FieldProblem id={`${id}-capacityQty-problem`} message={problems.capacityQty} />
+        <PreorderCapacityStockHint fromStock={fromStock} capacity={capacityQty} stockQty={stockQty} disabled={pending} onUseStock={() => change({ capacityFromStock: true })} />
       </div>
       <div className={FIELD_CLASS}><label className="font-medium" htmlFor={`${id}-startsAt`}>접수 시작 (KST)<ApplyRequired show={canActivate} /></label>
         <input className={GOOD_INPUT_CLASS} data-slot="input" form={form} id={`${id}-startsAt`} type="datetime-local" value={startsAt} onChange={(event) => change({ startsAt: event.target.value })} disabled={pending} {...field('startsAt')} />
@@ -184,11 +192,19 @@ export function RandomPreorderEditor({ goodId, variants, policies, canActivate, 
   const draftVersion = [...drafts.values()].map((draft) => `${draft.id}@${draft.revision}`).join(',');
   const [values, setValues, forget] = useGoodWorkspaceStash(`random-preorder:${goodId}:${draftVersion}`, () => ({
     capacities: Object.fromEntries(variants.map((variant) => [variant.id, String(drafts.get(variant.id)?.capacityQty ?? '')])) as Record<string, string>,
+    /* 옵션별 예약 물량은 기본으로 그 옵션의 재고수량을 따라간다(임시저장에 물량이 있으면 그 값). 직접 고친 옵션만 빠진다. */
+    capacityFromStock: Object.fromEntries(variants.map((variant) => [variant.id, drafts.get(variant.id)?.capacityQty == null])) as Record<string, boolean>,
     startsAt: toKstDateTimeInput(sample?.startsAt ?? null), endsAt: toKstDateTimeInput(sample?.endsAt ?? null),
     expectedShipDate: sample?.expectedShipDate ?? '', approvalReference: sample?.approvalReference ?? '',
   }));
-  const { capacities, startsAt, endsAt, expectedShipDate, approvalReference } = values;
+  const { startsAt, endsAt, expectedShipDate, approvalReference } = values;
   const change = (changes: Partial<typeof values>) => setValues((current) => ({ ...current, ...changes }));
+  const followsStock = (variantId: string) => values.capacityFromStock?.[variantId] === true;
+  const capacities = Object.fromEntries(variants.map((variant) => [variant.id,
+    followsStock(variant.id) ? preorderCapacityFromStock(variant.stockQty) : values.capacities[variant.id] ?? ''])) as Record<string, string>;
+  const setCapacity = (variantId: string, capacity: string | null) => setValues((current) => ({ ...current,
+    capacities: capacity === null ? current.capacities : { ...current.capacities, [variantId]: capacity },
+    capacityFromStock: { ...current.capacityFromStock, [variantId]: capacity === null } }));
   const [error, setError] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState<SaveMode | null>(null);
@@ -251,18 +267,20 @@ export function RandomPreorderEditor({ goodId, variants, policies, canActivate, 
     <div className="flex min-w-0 flex-col gap-2">
       <span className="font-medium">옵션별 승인 예약 물량<ApplyRequired show={canActivate} /></span>
       <div className="min-w-0 overflow-x-auto rounded-lg border" role="region" aria-label="옵션별 승인 예약 물량 표" tabIndex={0}>
-        <table className="w-full min-w-[22rem] text-sm">
-          <thead className="bg-muted/50"><tr><th scope="col" className="px-3 py-2 text-left font-medium">옵션</th><th scope="col" className="px-3 py-2 text-left font-medium">승인 예약 물량</th></tr></thead>
+        <table className="w-full min-w-[30rem] text-sm">
+          <thead className="bg-muted/50"><tr><th scope="col" className="px-3 py-2 text-left font-medium">옵션</th><th scope="col" className="px-3 py-2 text-right font-medium">재고수량</th><th scope="col" className="px-3 py-2 text-left font-medium">승인 예약 물량</th></tr></thead>
           <tbody className="divide-y">{variants.map((variant) => <tr key={variant.id} data-variant-id={variant.id}>
             <td className="px-3 py-2 wrap-anywhere">{variant.name} · {variant.code}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{variant.stockQty.toLocaleString('ko-KR')}개</td>
             <td className="px-3 py-2"><div className="flex flex-col gap-1"><input className={`${GOOD_NUMBER_INPUT_CLASS} max-w-40`} data-slot="input" data-preorder-field={`capacity:${variant.id}`} form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric"
               aria-label={`${variant.name} 승인 예약 물량`} placeholder="미설정" value={capacities[variant.id] ?? ''} disabled={pending} {...invalidProps(capacityIssues[variant.id], `${id}-capacity-${variant.id}-problem`)}
-              onChange={(event) => change({ capacities: { ...capacities, [variant.id]: event.target.value } })} />
-              <FieldProblem id={`${id}-capacity-${variant.id}-problem`} message={capacityIssues[variant.id]} /></div></td>
+              onChange={(event) => setCapacity(variant.id, event.target.value)} />
+              <FieldProblem id={`${id}-capacity-${variant.id}-problem`} message={capacityIssues[variant.id]} />
+              <PreorderCapacityStockHint fromStock={followsStock(variant.id)} capacity={capacities[variant.id]} stockQty={variant.stockQty} disabled={pending} onUseStock={() => setCapacity(variant.id, null)} /></div></td>
           </tr>)}</tbody>
         </table>
       </div>
-      <small className="text-xs text-muted-foreground tabular-nums">합계 {total.toLocaleString('ko-KR')}개 · 주문할 때 옵션별 남은 예약 물량에 비례해 무작위로 정해집니다.</small>
+      <small className="text-xs text-muted-foreground tabular-nums">합계 {total.toLocaleString('ko-KR')}개 · 주문할 때 옵션별 남은 예약 물량에 비례해 무작위로 정해집니다. 예약 물량은 기본으로 옵션 재고수량과 같습니다.</small>
     </div>
     <div className={FIELD_CLASS}><label className="font-medium" htmlFor={`${id}-approvalReference`}>승인 문서·확인 근거<ApplyRequired show={canActivate} /></label>
       <textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" form={form} id={`${id}-approvalReference`} value={approvalReference} maxLength={2000} rows={3} onChange={(event) => change({ approvalReference: event.target.value })}
@@ -389,8 +407,9 @@ function ReservationSelection({ goodId, page, onSaved, canAllocate }: { goodId: 
       </li>)}
     </ul>}
     {canAllocate && page.items.some((item) => item.state === 'reserved') && <>
-      <p className="text-sm text-muted-foreground">입고를 확인하고 옵션 재고에 실제 수량을 반영한 뒤, 결제가 확인된 예약 주문을 선택해주세요.
-        선택한 품목 수량만 실제 옵션 재고에서 예약 주문으로 할당합니다.</p>
+      <p className="text-sm text-muted-foreground" data-preorder-allocation-guide="">물건이 들어오면 결제가 확인된 예약 주문을 선택하고 입고 확인 근거를 적어 할당합니다.
+        재고수량을 미리 넣어 둔 옵션은 재고를 다시 더하지 않습니다(더하면 재고가 두 번 잡힙니다). 재고수량이 0이거나 실제 입고 수량과 다르면 재고 조정으로 먼저 맞춥니다.
+        선택한 품목 수량만큼 옵션 재고에서 차감해 예약 주문에 할당합니다.</p>
       {totals.size > 0 && <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-sm tabular-nums">{[...totals.entries()].map(([id, total]) => <li key={id}>
         {total.name}: 할당 {total.qty.toLocaleString('ko-KR')}개 / 실제 재고 {total.available.toLocaleString('ko-KR')}개
       </li>)}</ul>}
@@ -399,7 +418,7 @@ function ReservationSelection({ goodId, page, onSaved, canAllocate }: { goodId: 
         <textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" form={form} rows={2} maxLength={2000} value={receipt} onChange={(event) => setReceipt(event.target.value)} disabled={pending} required
           placeholder="입고 내역을 확인할 수 있는 문서 번호 또는 자료 위치" />
       </label>
-      <button className={`${buttonVariants()} self-start`} data-slot="button" form={form} type="button" disabled={pending || !selected.length || shortage || !receipt.trim()} onClick={allocate}>{pending ? '할당 중…' : '선택한 예약 품목에 실제 재고 할당'}</button>
+      <button className={`${buttonVariants()} self-start`} data-slot="button" form={form} type="button" disabled={pending || !selected.length || shortage || !receipt.trim()} onClick={allocate}>{pending ? '할당 중…' : '입고 확인 · 선택한 예약 주문 할당'}</button>
     </>}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
   </div>;
@@ -466,6 +485,9 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false, can
   const randomOpen = Boolean(visible?.policies?.some((policy) => policy.state === 'active' && activeVariants.some((variant) => variant.id === policy.variantId)));
   /* 2026-11-19 사고: 임시저장만 하고 적용하지 않은 예약은 판매에 반영되지 않는다. 사용 중인 옵션 중 그런 옵션을 패널 맨 위에 알린다. */
   const draftOnly = preorderDraftOnlyVariantIds(visible?.policies ?? [], activeVariants.map((variant) => variant.id));
+  /* 그중 선택된 예약 조건이 없는 옵션은 일반 재고 판매 상태다 — 재고수량을 미리 넣었으면 공개 상품에서 그 수량이 예약 안내 없이 팔린다. */
+  const stockSelling = activeVariants.filter((variant) => draftOnly.includes(variant.id) && variant.stockQty > 0
+    && !visible?.policies?.some((policy) => policy.variantId === variant.id && policy.selected));
   const pendingByVariant = pendingPreorderReservationsByVariant(visible?.policies ?? []);
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
@@ -484,7 +506,8 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false, can
       {!visible.policies?.length && <p className="text-sm text-muted-foreground">등록된 예약 조건이 없습니다.</p>}
       {draftOnly.length ? <AdminNotice tone="warning" title="판매에 적용되지 않은 예약이 있습니다" role="status">
         <span data-preorder-draft-only="">{randomSale && draftOnly.length === activeVariants.length ? '모든 옵션' : draftOnly.map((variantId) => activeVariants.find((variant) => variant.id === variantId)?.name ?? '이전 옵션').join(' · ')}의 예약 조건이 임시저장 상태입니다.
-          고객 화면에 예약판매로 보이지 않고 예약 주문도 받지 않습니다. {canActivate
+          고객 화면에 예약판매로 보이지 않고 예약 주문도 받지 않습니다. {stockSelling.length ? <strong className="font-semibold" data-preorder-draft-stock="">
+            재고수량을 넣어 둔 옵션({stockSelling.map((variant) => `${variant.name} ${variant.stockQty.toLocaleString('ko-KR')}개`).join(' · ')})은 지금 일반 재고 판매 상태라, 공개된 상품이면 발송 예정일 안내 없이 바로 팔립니다. </strong> : null}{canActivate
             ? `아래 임시저장한 예약 조건을 열어 적용 필수 칸을 채우고 [${randomSale ? '모든 옵션에 예약판매 적용' : '예약판매 적용'}]을 눌러야 판매에 적용됩니다.`
             : '계정 주매니저·통합 매니저에게 예약판매 적용을 요청해주세요.'}</span>
       </AdminNotice> : null}

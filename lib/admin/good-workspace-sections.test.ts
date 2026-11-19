@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { emptyGoodsKcModel, goodsKcProductNotApplicableModel } from './goods-kc';
-import type { GoodsOptionRow } from './goods-option-editor';
+import { goodsOptionRowKey, type GoodsOptionRow } from './goods-option-editor';
 import {
-  EMPTY_GOOD_WORKSPACE_SECTIONS, goodWorkspaceKcVariants, goodWorkspaceKcWithTemplate, goodWorkspaceSectionFailure, goodWorkspaceVariantId,
+  EMPTY_GOOD_WORKSPACE_SECTIONS, goodWorkspaceKcVariants, goodWorkspaceKcWithTemplate, goodWorkspacePreorderCapacity, goodWorkspaceSectionFailure, goodWorkspaceVariantId,
   parseGoodWorkspaceSections, prepareGoodWorkspaceSections, type GoodWorkspaceSectionsDraft,
 } from './good-workspace-sections';
 
@@ -142,6 +142,22 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [active] }, rows, true, { now })).toMatchObject({ ok: true });
     expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [{ ...preorder, capacityQty: '', endsAt: '', approvalReference: '' }] }, rows, true, { now }))
       .toMatchObject({ ok: true, value: { preorders: [{ values: { state: 'draft' } }] } });
+  });
+
+  /* 11/19 예약 물량 = 재고수량 — 재고수량을 따라가는 조건은 제출 시점의 옵션 행 재고수량을 물량으로 싣는다. */
+  it('재고수량을 따라가는 예약 조건은 제출 시점의 옵션 재고수량을 물량으로 싣고, 직접 고친 값은 그대로 싣는다', () => {
+    const now = Date.parse('2099-11-05T00:00:00.000Z');
+    const target = rows.find((row) => goodsOptionRowKey(row) === preorder.optionKey)!;
+    const stocked = rows.map((row) => row === target ? { ...row, stockQty: 600 } : row);
+    const following = { ...preorder, state: 'active' as const, capacityQty: '', capacityFromStock: true };
+    expect(goodWorkspacePreorderCapacity(following, stocked)).toBe('600');
+    const prepared = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [following] }, stocked, true, { now });
+    expect(prepared).toMatchObject({ ok: true, value: { preorders: [{ values: { state: 'active', capacityQty: '600' } }] } });
+    /* 재고수량이 0이면 물량이 비어 적용 필수 칸으로 막힌다(기존 흐름: 물량을 직접 입력). */
+    const empty = rows.map((row) => row === target ? { ...row, stockQty: 0 } : row);
+    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [following] }, empty, true, { now }))
+      .toMatchObject({ ok: false, error: expect.stringContaining('승인 예약 물량') });
+    expect(goodWorkspacePreorderCapacity({ ...following, capacityFromStock: false, capacityQty: '300' }, stocked)).toBe('300');
   });
 
   it('판매기간을 설정했으면 예약판매 적용을 저장 전에 막고, 임시저장은 그대로 둔다', () => {

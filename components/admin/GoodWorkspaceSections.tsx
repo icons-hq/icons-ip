@@ -6,7 +6,8 @@ import {
   MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcChoice, goodsKcReviewProblems, goodsKcSoleNotApplicable, goodsKcSubjectModel,
   goodsKcProductNotApplicableConfirm, planGoodsKcProductNotApplicable, publicGoodsKcDisclosures, type GoodsKcChoice, type GoodsKcModelInput,
 } from '@/lib/admin/goods-kc';
-import { goodWorkspaceKcVariants, type GoodWorkspaceKcDraft, type GoodWorkspacePreorderDraft } from '@/lib/admin/good-workspace-sections';
+import { goodWorkspaceKcVariants, goodWorkspacePreorderCapacity, type GoodWorkspaceKcDraft, type GoodWorkspacePreorderDraft } from '@/lib/admin/good-workspace-sections';
+import { PreorderCapacityStockHint } from './PreorderCapacityStockHint';
 import { goodsOptionRowKey } from '@/lib/admin/goods-option-editor';
 import {
   GOODS_KC_SUBJECT_ATTESTATION, GOODS_KC_SUBJECT_GUIDE, GOODS_OTHER_CERTIFICATIONS_GUIDE, GoodsKcSubjectChoice, GoodsOtherCertificationsFields,
@@ -100,7 +101,7 @@ let draftSequence = 0;
 /** 새 예약 조건. 적용 권한이 있으면 '판매에 적용'이 기본이다(2026-11-19 사고 — 예전 기본값 '초안'으로 저장한 예약이 판매에 반영되지 않았다). */
 export function emptyGoodWorkspacePreorder(optionKey: string, canActivate: boolean): GoodWorkspacePreorderDraft {
   draftSequence += 1;
-  return { key: `preorder-${draftSequence}`, optionKey, state: canActivate ? 'active' : 'draft', capacityQty: '', startsAt: '', endsAt: '', expectedShipDate: '', approvalReference: '' };
+  return { key: `preorder-${draftSequence}`, optionKey, state: canActivate ? 'active' : 'draft', capacityQty: '', capacityFromStock: true, startsAt: '', endsAt: '', expectedShipDate: '', approvalReference: '' };
 }
 
 /*
@@ -127,7 +128,10 @@ export function GoodWorkspacePreorderCard({ canActivate, serverError, disabled =
     {entries.map((entry, index) => {
       /* 저장을 시도해 섹션 오류가 났을 때만 칸별 안내를 보인다. 칸을 고치면 다음 그리기에서 바로 사라진다. */
       const apply = entry.state === 'active';
-      const problems: PreorderApplyProblems = apply && error ? preorderApplyProblems(entry) : {};
+      /* 승인 예약 물량은 기본으로 대상 옵션의 재고수량을 따라간다(재고수량을 나중에 넣거나 바꿔도 따라간다). 직접 고치면 그 값을 쓴다. */
+      const stockQty = optionRows.find((row) => goodsOptionRowKey(row) === entry.optionKey)?.stockQty;
+      const capacityQty = goodWorkspacePreorderCapacity(entry, optionRows);
+      const problems: PreorderApplyProblems = apply && error ? preorderApplyProblems({ ...entry, capacityQty }) : {};
       const problemId = (field: keyof PreorderApplyProblems) => `${entry.key}-${field}-problem`;
       const invalid = (field: keyof PreorderApplyProblems) => problems[field] ? { 'aria-invalid': true, 'aria-describedby': problemId(field) } as const : {};
       const hint = (field: keyof PreorderApplyProblems) => problems[field]
@@ -150,8 +154,10 @@ export function GoodWorkspacePreorderCard({ canActivate, serverError, disabled =
             <span><span className="font-medium">임시저장</span><span className="text-muted-foreground"> — 판매에 반영하지 않고 조건만 보관합니다. 나중에 상품 편집에서 [예약판매 적용]을 눌러야 판매됩니다.</span></span></label>
         </fieldset> : <p className="text-xs text-muted-foreground" data-preorder-draft-note="">{PREORDER_STAFF_DRAFT_NOTE}</p>}
         <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr))]">
-          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>승인 예약 물량{required}</span><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" value={entry.capacityQty} placeholder="미설정"
-            onChange={(event) => update(entry.key, { capacityQty: event.target.value })} {...invalid('capacityQty')} /></label>{hint('capacityQty')}</div>
+          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>승인 예약 물량{required}</span><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" value={capacityQty} placeholder="미설정"
+            onChange={(event) => update(entry.key, { capacityQty: event.target.value, capacityFromStock: false })} {...invalid('capacityQty')} /></label>{hint('capacityQty')}
+            <PreorderCapacityStockHint fromStock={entry.capacityFromStock === true} capacity={capacityQty} stockQty={Number.isFinite(stockQty) ? stockQty : 0} disabled={disabled}
+              onUseStock={() => update(entry.key, { capacityFromStock: true })} /></div>
           <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>접수 시작 (KST){required}</span><input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.startsAt} onChange={(event) => update(entry.key, { startsAt: event.target.value })} {...invalid('startsAt')} /></label>{hint('startsAt')}</div>
           <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>접수 종료 (KST){required}</span><input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.endsAt} onChange={(event) => update(entry.key, { endsAt: event.target.value })} {...invalid('endsAt')} /></label>{hint('endsAt')}</div>
           <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>발송 예정일{required}</span><input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="date" value={entry.expectedShipDate} min={entry.endsAt.slice(0, 10) || undefined} onChange={(event) => update(entry.key, { expectedShipDate: event.target.value })} {...invalid('expectedShipDate')} /></label>{hint('expectedShipDate')}</div>

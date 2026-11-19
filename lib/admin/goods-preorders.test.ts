@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseAdminPreorderReservations, parseGoodsPreorderInput, parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderApplyProblemLabels, preorderApplyProblems,
-  preorderCapacityProblem, preorderDraftOnlyVariantIds, preorderMutationError, preparePreorderAllocation,
+  preorderCapacityFromStock, preorderCapacityProblem, preorderCapacityStockNote, preorderDraftOnlyVariantIds, preorderMutationError, preparePreorderAllocation,
 } from './goods-preorders';
 describe('preorder operation inputs', () => {
   it('retains unset drafts and requires supply evidence and all promised dates to activate', () => {
@@ -134,5 +134,21 @@ describe('예약판매 적용 전 칸별 확인', () => {
     expect(preorderDraftOnlyVariantIds(policies)).toEqual(['red', 'green', 'gone']);
     expect(preorderDraftOnlyVariantIds(policies, ['green', 'red', 'blue'])).toEqual(['green', 'red']);
     expect(preorderDraftOnlyVariantIds([{ variantId: 'red', state: 'active' }])).toEqual([]);
+  });
+});
+
+/* 11/19 "예약상품도 그냥 재고수량 미리 입력할 수 있게" — 예약 물량 기본값은 옵션 재고수량이고, 다르면 경고만 한다. */
+describe('예약 물량 = 재고수량', () => {
+  it('재고수량이 1 이상이면 그 수를, 0·미입력이면 빈 값을 기본 물량으로 쓴다', () => {
+    expect(preorderCapacityFromStock(500)).toBe('500');
+    for (const stock of [0, -1, Number.NaN, 1.5, null, undefined]) expect(preorderCapacityFromStock(stock)).toBe('');
+  });
+  it('물량이 재고수량과 같으면 안내가 없고, 다르면 입고 때 맞추라고 안내한다(막지 않는다)', () => {
+    expect(preorderCapacityStockNote('500', 500)).toBeNull();
+    expect(preorderCapacityStockNote('', 500)).toBeNull();
+    expect(preorderCapacityStockNote('300', 500)).toContain('재고수량 500개와 다릅니다');
+    /* 재고 0에서 입고 때 더하는 기존 흐름. */
+    expect(preorderCapacityStockNote('300', 0)).toContain('재고 조정으로 입고 수량을 더한 뒤');
+    expect(preorderCapacityStockNote('300', Number.NaN)).toContain('재고수량이 0입니다');
   });
 });

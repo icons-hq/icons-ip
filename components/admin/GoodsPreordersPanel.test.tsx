@@ -86,3 +86,31 @@ describe('예약 저장 버튼', () => {
     expect(html).toContain('빨강 · 예약판매 적용됨');
   });
 });
+
+/* 11/19 예약 물량 = 재고수량 — 예약 물량 칸은 옵션 재고수량을 따라가고, 다르면 경고만 한다. */
+describe('예약 물량 기본값', () => {
+  const stocked = [{ ...variants[0], stockQty: 500 }, { ...variants[1], stockQty: 1000 }];
+  const input = (html: string, field: string) => html.match(new RegExp(`<input[^>]*data-preorder-field="${field}"[^>]*>`))?.[0] ?? '';
+  it('새 예약 조건과 물량이 빈 임시저장은 옵션 재고수량을 물량으로 보이고 따라간다고 알린다', () => {
+    const html = renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={stocked} canActivate onSaved={() => {}} />);
+    expect(input(html, 'capacityQty')).toContain('value="500"');
+    expect(html).toContain('재고수량 500개를 예약 물량으로 씁니다. 재고수량을 바꾸면 따라 바뀝니다.');
+    const draft = policy(blue, { state: 'draft', selected: false, capacityQty: null, startsAt: null, endsAt: null, expectedShipDate: null, approvalReference: null, remainingQty: null, activatedAt: null, stoppedAt: null });
+    expect(input(renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={stocked} policy={draft} canActivate onSaved={() => {}} />), 'capacityQty')).toContain('value="1000"');
+  });
+  it('임시저장한 물량이 재고수량과 다르면 그 값을 쓰고 경고와 [재고수량과 같게]를 보인다', () => {
+    const draft = policy(red, { state: 'draft', selected: false, capacityQty: 300, activatedAt: null, stoppedAt: null, remainingQty: 300 });
+    const html = renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={stocked} policy={draft} canActivate onSaved={() => {}} />);
+    expect(input(html, 'capacityQty')).toContain('value="300"');
+    expect(html).toContain('data-preorder-capacity-stock="differs"');
+    expect(html).toContain('재고수량 500개와 다릅니다');
+    expect(html).toContain('재고수량과 같게</button>');
+  });
+  it('랜덤 판매 예약 표는 옵션 재고수량 열을 보이고 물량 기본값으로 쓴다', () => {
+    const html = renderToStaticMarkup(<RandomPreorderEditor goodId="hsq" variants={stocked} policies={[]} canActivate onSaved={() => {}} />);
+    expect(html).toContain('>재고수량</th>');
+    expect(input(html, `capacity:${red}`)).toContain('value="500"');
+    expect(input(html, `capacity:${blue}`)).toContain('value="1000"');
+    expect(html).toContain('합계 1,500개');
+  });
+});

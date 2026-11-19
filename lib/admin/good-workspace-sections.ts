@@ -10,7 +10,7 @@ import {
   goodsOtherCertificationProblems, goodsOtherCertificationsSaveError, normalizeGoodsOtherCertifications, type GoodsOtherCertificationInput,
 } from './goods-kc-other-certifications';
 import { goodsOptionRowKey, type GoodsOptionRow } from './goods-option-editor';
-import { parseGoodsPreorderInput, preorderApplyProblemLabels, preorderApplyProblems, type GoodsPreorderInput } from './goods-preorders';
+import { parseGoodsPreorderInput, preorderApplyProblemLabels, preorderApplyProblems, preorderCapacityFromStock, type GoodsPreorderInput } from './goods-preorders';
 import {
   GOOD_WORKSPACE_EXTRA_ERROR_SECTIONS, GOOD_WORKSPACE_EXTRA_KEYS, goodWorkspaceExtraSectionFailure, parseGoodWorkspaceExtraSections,
   prepareGoodWorkspaceExtraSections, type GoodWorkspaceExtraDraft, type GoodWorkspaceExtraSubmission,
@@ -47,6 +47,8 @@ export interface GoodWorkspacePreorderDraft {
   optionKey: string;
   state: 'draft' | 'active';
   capacityQty: string;
+  /** 승인 예약 물량이 대상 옵션의 재고수량을 따라가는 중(직접 고치기 전, 11/19 '예약 물량 = 재고수량'). 이때 capacityQty는 쓰지 않는다. */
+  capacityFromStock?: boolean;
   startsAt: string;
   endsAt: string;
   expectedShipDate: string;
@@ -115,6 +117,11 @@ function variantRef(row: GoodsOptionRow): GoodWorkspaceVariantRef {
   return row.id && isUuid(row.id) ? { id: row.id.toLowerCase() } : { attributes: { ...row.attributes } };
 }
 
+/** 예약 조건의 승인 예약 물량: 재고수량을 따라가는 중이면 지금 옵션 행의 재고수량(1 이상), 아니면 입력값. */
+export function goodWorkspacePreorderCapacity(entry: Pick<GoodWorkspacePreorderDraft, 'optionKey' | 'capacityQty' | 'capacityFromStock'>, rows: readonly GoodsOptionRow[]): string {
+  return entry.capacityFromStock ? preorderCapacityFromStock(rows.find((row) => goodsOptionRowKey(row) === entry.optionKey)?.stockQty) : entry.capacityQty;
+}
+
 export type GoodWorkspaceSectionsResult =
   | { ok: true; value: GoodWorkspaceSectionsSubmission }
   | { ok: false; field: GoodWorkspaceErrorField; error: string };
@@ -164,7 +171,7 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
     used.add(entry.optionKey);
     if (entry.state === 'active' && !canActivate) return { ok: false, field: 'workspacePreorders', error: `${label}: ${GOOD_WORKSPACE_PREORDER_ADMIN_REQUIRED}` };
     if (entry.state === 'active' && salePeriodEnabled) return { ok: false, field: 'workspacePreorders', error: `${label}: ${GOOD_WORKSPACE_SALE_PERIOD_PREORDER_CONFLICT}` };
-    const values = { state: entry.state, capacityQty: entry.capacityQty.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt,
+    const values = { state: entry.state, capacityQty: goodWorkspacePreorderCapacity(entry, rows).trim(), startsAt: entry.startsAt, endsAt: entry.endsAt,
       expectedShipDate: entry.expectedShipDate, approvalReference: entry.approvalReference };
     const missing = entry.state === 'active' ? preorderApplyProblemLabels(preorderApplyProblems(values, now)) : '';
     if (missing) {

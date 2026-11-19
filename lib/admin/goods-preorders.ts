@@ -97,6 +97,27 @@ export interface PreorderApplyValues {
 }
 export type PreorderApplyProblems = Partial<Record<PreorderApplyField, string>>;
 
+/*
+ * 예약 물량 = 재고수량(2026-11-19 "예약상품도 그냥 재고수량 미리 입력할 수 있게"). MD는 옵션 재고수량 하나만 입력하고, 예약 물량 칸은
+ * 기본으로 그 값을 따라간다(재고수량을 바꾸면 같이 바뀐다). 직접 고치면 그 값을 쓰고, 재고수량과 다르면 경고만 하고 막지 않는다.
+ * DB 장부는 그대로다 — 예약이 선택된 옵션은 예약 물량으로만 팔리고(resolve_goods_variant_supply) 주문이 재고를 깎지 않으며,
+ * 입고 확인(admin_allocate_goods_preorders)이 선택 합계 ≤ 실재고일 때 그만큼 재고를 차감한다. 그래서 미리 넣은 재고로 바로 할당한다.
+ */
+/** 예약 물량 기본값: 그 옵션의 재고수량(1 이상일 때). 0·미입력이면 빈 값이라 직접 입력한다. */
+export function preorderCapacityFromStock(stockQty: number | null | undefined): string {
+  return typeof stockQty === 'number' && Number.isSafeInteger(stockQty) && stockQty > 0 ? String(stockQty) : '';
+}
+/** 예약 물량이 재고수량과 다를 때의 안내(막지 않는다). 같거나 물량이 형식에 맞지 않으면 null. */
+export function preorderCapacityStockNote(capacity: string, stockQty: number | null | undefined): string | null {
+  const qty = capacity.trim();
+  if (!/^[1-9]\d*$/.test(qty)) return null;
+  const stock = typeof stockQty === 'number' && Number.isSafeInteger(stockQty) && stockQty > 0 ? stockQty : 0;
+  if (Number(qty) === stock) return null;
+  return stock === 0
+    ? '재고수량이 0입니다. 물건이 들어오면 재고 조정으로 입고 수량을 더한 뒤 입고 확인(예약 주문 할당)을 합니다.'
+    : `재고수량 ${stock.toLocaleString('ko-KR')}개와 다릅니다. 입고 확인(예약 주문 할당)은 재고수량 안에서만 되므로, 실제 입고 수량과 다르면 재고 조정으로 맞춘 뒤 할당합니다.`;
+}
+
 /** 승인 예약 물량 한 칸의 적용 전 확인. 문제가 없으면 null. */
 export function preorderCapacityProblem(value: string): string | null {
   const qty = value.trim();
