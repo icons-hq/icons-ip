@@ -54,6 +54,7 @@ export const PG_CRON_JOB_LABELS: Readonly<Record<string, string>> = {
   'member-email-change-retention': '이메일 변경 인증 기록 정리',
   'goods-provider-cancellation-sweep': '결제사 취소 판정 대기 처리',
   'system-job-records-maintenance': '자동 작업 기록 정리',
+  'auth-mail-abuse-retention': '가입·재설정 요청 기록 정리',
   'operator-pii-access-log-retention': '운영자 개인정보 접속기록 보존 정리',
   'ops-alert-digest-retention': '운영 알림 요약 메일 기록 정리',
 };

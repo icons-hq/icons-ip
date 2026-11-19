@@ -243,6 +243,8 @@ const storefront = [
   sql('home_xsquare_blocks', { admin: true, kc: true }),
   sql('customer_marketing_consents'),
   sql('member_phone_verification'),
+  // 가입·확인 메일 재전송·재설정 요청의 IP·이메일 시도 한도(CUS-003).
+  sql('auth_mail_abuse_limits'),
   // 온보딩 완료는 서버(service_role)만 기록하고 휴대폰 인증을 쓰기 시점에 다시 확인한다.
   sql('onboarding_completion_server_only'),
   // 문의로 받은 탈퇴의 어드민 처리(정지·개인정보 삭제·세션 종료·감사)와 정지 회원 계정 문의.

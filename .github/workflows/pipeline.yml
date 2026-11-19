@@ -1366,6 +1366,21 @@ jobs:
           echo "Production deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
+      # Auth CAPTCHA(Turnstile)는 앱 배포 뒤에만 켜거나 바꾼다. 앱이 새 사이트 키로 위젯을 그리기 전에 GoTrue가 새 비밀 키로 검증하면
+      # 로그인·가입·재설정(어드민 포함)이 모두 막힌다. 그래서 deploy-supabase의 동기화 단계에는 키를 넘기지 않고, 켜기 직전에 Vercel production env의
+      # 사이트 키가 GitHub 변수와 같은지 해시로 대조한다(값은 로그에 찍지 않는다). 다르면 여기서 실패해 CAPTCHA를 켜지 않는다.
+      # config-only 재배포(production_redeploy)는 Supabase 원격 설정을 바꾸지 않으므로 이 대조도 건너뛴다 — 키 교체는 push/main 실행으로만 한다.
+      - name: Verify Turnstile site key matches the deployed app
+        # 키를 관리하지 않는 동안(변수 비어 있음)은 운영 env를 내려받지 않는다 — 배포마다 실패 지점을 늘리지 않는다.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY != ''
+        env:
+          EXPECTED_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+        run: |
+          env_file="$RUNNER_TEMP/vercel-production.env"
+          trap 'rm -f "$env_file"' EXIT
+          vercel env pull "$env_file" --environment=production --yes
+          node scripts/verify-turnstile-site-key.mjs "$env_file"
+
       # handler와 기존 PKCE 호환 경로가 production에 먼저 올라간 뒤에만 새 링크를 발급한다.
       - name: Activate recovery token-hash template in production
         # config-only 재배포는 Supabase 원격 설정도 변경하지 않는다.
@@ -1376,6 +1391,8 @@ jobs:
           SITE_URL: https://iconsip.com
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
         run: node scripts/sync-supabase-auth.mjs
 
