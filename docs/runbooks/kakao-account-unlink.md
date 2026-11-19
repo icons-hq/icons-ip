@@ -93,16 +93,23 @@
 
 ## 3. 사람 단계: env와 콘솔 등록
 
-카카오 앱 오너는 회사 공용 계정 `playxmd@kakao.com`이다(2026-11-18 소유권 이전, 앱 키는 그대로). 사용자 개인 계정은 Editor다. 카카오 문서상
-Editor는 오너 전용 항목(앱 삭제·플랫폼 키 삭제·어드민 키 관리·대표 키 변경)을 뺀 설정을 바꿀 수 있어 웹훅 등록도 될 것으로
-보이지만, 문서에 웹훅 권한이 명시돼 있지 않다. 저장이 막히면 오너 계정으로 한다. 이 웹훅은 어드민 키가 필요 없다.
+카카오 앱 오너는 회사 공용 계정 `playxmd@kakao.com`이다(2026-11-18 소유권 이전, 앱 키는 그대로). 사용자 개인 계정은 Editor다.
+Editor 계정으로 웹훅 등록과 웹훅 테스트가 된다(2026-11-19 실측). 이 웹훅은 어드민 키가 필요 없다.
+
+> **2026-11-19 운영 반영 완료.** 아래 1~5번을 마쳤다.
+> - 대표 REST API 키는 'Default Rest API Key'다. 로그인용 'ICONS Web' 키와 다른 키다.
+> - Vercel production env에 sensitive로 넣고, #687 머지 배포에 실었다.
+> - `curl` 400을 확인하고, `https://iconsip.com/api/webhooks/kakao/account-status`에 User Unlinked만 등록했다.
+> - 웹훅 테스트(User Linked)는 202를 받았다. 테스트 SET의 `aud`가 대표 키였고, 페이로드 모양(최상위 `sub`·`txm`·`app_id`, `events.*.subject`의 `iss-sub`)도 코드가 읽는 모양과 같았다.
 
 **순서를 지킨다 — env와 배포가 먼저, 콘솔 등록이 나중.** 등록한 뒤 경로가 404를 돌려주면 카카오가 실패로 세고 3시간 뒤
 웹훅을 끈다.
 
-1. 카카오 콘솔 [앱] > [플랫폼 키]에서 **대표 REST API 키**를 확인한다. SET의 `aud`는 대표 키다. Supabase 카카오
-   provider가 쓰는 'ICONS Web' REST API 키(README)가 대표인지 함께 확인하고, 다르면 대표 키 값을 쓴다.
-2. Vercel production env `KAKAO_REST_API_KEY`에 그 값을 넣고 재배포한다(비밀값은 아니지만 서버 env로만 둔다).
+1. 카카오 콘솔 [앱] > [플랫폼 키]에서 **대표 REST API 키**를 확인한다. SET의 `aud`는 대표 키다. ICONS는 대표 키
+   'Default Rest API Key'와 Supabase 카카오 provider가 쓰는 'ICONS Web' 키가 **다르다** — 대표 키 값을 쓴다.
+2. Vercel production env `KAKAO_REST_API_KEY`에 그 값을 넣고 재배포한다(REST API 키는 `KakaoAK` 인증에도 쓰이므로
+   sensitive 서버 env로만 둔다). 콘솔 키 옆 복사 버튼과 `pbpaste | vercel env add KAKAO_REST_API_KEY production --sensitive`를
+   쓰면 값이 화면·기록에 남지 않는다.
 3. 경로가 열렸는지 확인한다. 404면 env가 반영되지 않은 것이다.
 
    ```bash
@@ -114,8 +121,13 @@ Editor는 오너 전용 항목(앱 삭제·플랫폼 키 삭제·어드민 키 �
    - 상태: 사용함
    - 웹훅 URL: `https://iconsip.com/api/webhooks/kakao/account-status` (전환 뒤 주소는 §4)
    - 변경 이벤트: OAUTH 카테고리의 **User Unlinked**만
-5. 콘솔 [도구] > [웹훅 테스트]에서 계정 상태 변경 웹훅을 보내 202를 확인하고, 원장에 행이 생겼는지 본다(테스트 회원번호는
-   ICONS 회원이 아니라 `no_member`일 것이다).
+5. 콘솔 [도구] > [웹훅 테스트]에서 계정 상태 변경 웹훅을 보내 202를 확인한다. 테스트 화면은 응답 상태와 보낸 SET을
+   그대로 보여 준다.
+
+   **테스트는 팀원의 실제 카카오계정으로 보낸다.** 그 계정이 ICONS 회원이면 User Unlinked 테스트가 실제 해제로
+   처리된다(§2: 카카오 identity 삭제 또는 탈퇴 검토 대기). 2026-11-19 테스트 계정은 운영 스태프 계정이었다. 그래서
+   DB를 바꾸지 않는 **User Linked**로 서명·발급자·대상 검증만 확인했다(202). User Unlinked로 원장까지 보려면 ICONS
+   회원이 아닌 팀원 계정을 고르고 `no_member` 행을 확인한다.
 
    ```sql
    select outcome, reason, event_at, received_at
