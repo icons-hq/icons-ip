@@ -1361,6 +1361,12 @@ jobs:
           deployment_url="$(vercel deploy --yes --prod --archive=tgz)"
           echo "Production deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
 
+      # 배포는 이미 올라간 뒤라 실패해도 되돌리지는 못한다. 다만 job이 실패해 GitHub 실패 알림이 가고,
+      # 사람이 운영 화면을 보고 되돌릴지 정한다(OPS-060). 복구 템플릿 활성화보다 앞에 두어 앱이 죽은 채로
+      # 새 링크를 발급하지 않는다. 운영 주소는 lib/site-domains.mjs의 정규 주소를 따른다.
+      - name: Smoke-test production
+        run: node scripts/post-deploy-smoke.mjs
+
       # handler와 기존 PKCE 호환 경로가 production에 먼저 올라간 뒤에만 새 링크를 발급한다.
       - name: Activate recovery token-hash template in production
         # config-only 재배포는 Supabase 원격 설정도 변경하지 않는다.

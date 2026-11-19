@@ -74,3 +74,11 @@ migration이 `cron.schedule`로 잡을 더하면 정리 잡이 10분 안에 처�
 ## 보존
 
 pg_cron `system-job-records-maintenance`(10분마다)가 실패 기록 30일, 30일 동안 실행이 없던 앱 작업 상태 행, 미종결이 아니게 된 시도의 자동 재확인 표식을 지우고, 없어진 pg_cron 잡의 처음 본 기록을 지운다. `cron.job_run_details` 자체의 정리는 이 작업 범위가 아니다.
+
+## 배포 뒤 스모크(OPS-060)
+
+`pipeline.yml`의 `deploy-vercel`은 Vercel 배포 직후 `scripts/post-deploy-smoke.mjs`로 운영 주소(`lib/site-domains.mjs`의 `CANONICAL_SITE_ORIGIN`, 도메인 전환 3단계에서 정규 주소가 바뀌면 같이 따라간다)의 홈·`/shop`·`/login`·`/api/health`를 익명으로 부른다. 경로마다 10초 간격 5회까지 재시도하고, 상태 200 외에 앱 셸(`<html lang>`)과 soft 404·오류 표지가 없는지 본문까지 확인한다(Next 16은 `notFound()`도 200). `/api/health`는 비밀 없이 `{ ok, database, commit }`만 돌려주고 DB 공개 읽기(`get_storefront_settings`) 하나가 닿는지로 503을 낸다.
+
+- 실패하면 `deploy-vercel` job이 실패해 GitHub 실패 알림이 간다. 배포는 이미 올라간 뒤라 자동 롤백은 하지 않는다 — 운영 화면을 직접 확인하고 필요하면 Vercel에서 이전 배포로 되돌린다. 로그인 복구 템플릿 활성화 단계는 스모크 뒤에 있어 앱이 죽은 채 새 링크가 나가지 않는다.
+- staging 배포에는 붙이지 않았다(별칭이 보호 모드일 수 있고 운영 판단 근거가 아니다). `SMOKE_ORIGIN` 환경 변수로 다른 주소에 같은 스크립트를 돌릴 수는 있다.
+- 외부 가동 감시(UptimeRobot 등)가 필요하면 `/api/health`를 그대로 지정하면 된다.
