@@ -52,6 +52,12 @@ describe('창고 회신 기록·취소 뒤 출고 처리 액션', () => {
     expect(result).toEqual({ ok: true, value: { message: expect.stringContaining('취소 뒤 출고 발견') } });
   });
 
+  it('결제사 취소가 진행 중인 주문의 이미 출고 회신은 취소가 끝나면 발견으로 남는다고 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { orderId: ORDER_ID, outcome: 'already_shipped', replayed: false, replyIds: ['r1'], discoveryIds: [], cancellationInFlight: true }, error: null });
+    const result = await recordWarehouseStopReplyAction({ ...reply, outcome: 'already_shipped' });
+    expect(result).toEqual({ ok: true, value: { message: expect.stringContaining('취소가 끝나 배송 건이 취소되면') } });
+  });
+
   it('물류출고관리(sales.dispatch)는 회신을 기록하고, 출고 권한이 없는 매니저는 RPC 전에 막는다', async () => {
     mocks.adminState.operatorAccess = configuredOperatorAccessFixture('logistics');
     mocks.rpc.mockResolvedValue({ data: { orderId: ORDER_ID, outcome: 'stopped', replayed: false, replyIds: ['r1'], discoveryIds: [] }, error: null });

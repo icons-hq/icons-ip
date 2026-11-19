@@ -547,11 +547,12 @@ export interface AdminTrackingImportState {
   };
 }
 
-/** 취소 뒤 출고 발견으로 기록된 회신 줄. */
+/** 취소 뒤 출고 발견으로 기록된 회신 줄. alreadyRecorded는 같은 회신을 다시 올려 이미 기록된 발견을 그대로 둔 줄이다. */
 export interface AdminTrackingCanceledAfterExport {
   line: number;
   reference: string;
   orderId: string | null;
+  alreadyRecorded: boolean;
 }
 
 /** 등록 전 확인(QA 라운드 1 m2): 파일·붙여넣기를 읽기만 하고 아무것도 바꾸지 않은 결과. */
@@ -574,7 +575,7 @@ const BLANK_SIBLING_TRACKING_REASON = '같은 배송 건에 운송장이 빈 줄
 
 const isSmartStoreReply = (parsed: TrackingWorkbookParseResult): parsed is Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }> => 'kind' in parsed && parsed.kind === 'smartstore';
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
-type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[];extraTrackingsAdded?:number;canceledAfterExport?:boolean};
+type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[];extraTrackingsAdded?:number;canceledAfterExport?:boolean;replayed?:boolean};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
 const REPLY_TEMPLATE_LABEL: Record<ReplyTemplate, string> = { wms_csv: '김포 WMS 21열', seowon_xlsx: '남양주(서원) 송장양식' };
 
@@ -599,7 +600,8 @@ function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFa
   const extras=extraTrackings?` 분리배송 추가 운송장 ${extraTrackings}개를 함께 저장했습니다.`:'';
   const skipped=`${unchanged?` 같은 운송장으로 이미 발송된 ${unchanged}건은 그대로 두었습니다.`:''}${blankLines?` 운송장 칸을 비운 ${blankLines}줄은 아직 출고하지 않은 것으로 보고 건너뛰었습니다.`:''}`;
   /* ADR-0046: 취소한 주문의 배송 건 회신은 발송처리하지 않고 취소 뒤 출고 발견으로 남는다. 성공·실패와 따로 알린다. */
-  const canceledNote=canceled.length?` 취소한 주문의 배송 건 ${canceled.length}건은 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다. 주문 상세에서 고객 연락·회수를 처리해주세요.`:'';
+  const fresh=canceled.filter(row=>!row.alreadyRecorded).length, again=canceled.length-fresh;
+  const canceledNote=`${fresh?` 취소한 주문의 배송 건 ${fresh}건은 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다. 주문 상세에서 고객 연락·회수를 처리해주세요.`:''}${again?` 이미 '취소 뒤 출고 발견'으로 기록된 ${again}건은 그대로 두었습니다.`:''}`;
   if(!succeeded.length){
     if((unchanged||blankLines||canceled.length)&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}${canceledNote}`,report};
     return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}${canceledNote}`},report};
@@ -754,7 +756,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
       // 실제로 새로 붙은 추가 운송장 수(합포장 구성원이 묶음으로 먼저 발송돼 '그대로'로 끝난 행도 이번 회신의 번호를 붙인다).
       if(outcome?.ok&&Number.isSafeInteger(outcome.extraTrackingsAdded))extraTrackings+=outcome.extraTrackingsAdded!;
       // 출고지시 뒤 취소된 배송 건(ADR-0046): DB가 취소 뒤 출고 발견으로 남겼다. 발송처리·배송 메일은 없다.
-      if(outcome?.ok&&outcome.canceledAfterExport){canceledAfterExport.push({line:command.line,reference,orderId:command.orderId});continue;}
+      if(outcome?.ok&&outcome.canceledAfterExport){canceledAfterExport.push({line:command.line,reference,orderId:command.orderId,alreadyRecorded:outcome.replayed===true});continue;}
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:trackingRowReason(outcome?.error??'',registry)});
@@ -803,7 +805,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
       if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:isSmartStoreReply(parsed)&&parsed.skipped.length&&row.error==='invalid_tracking_input'?BLANK_SIBLING_TRACKING_REASON:trackingRowReason(row.error??'',registry)});}
       else if(row.duplicate)continue;
       // 출고지시 뒤 취소된 배송 건(ADR-0046): 취소 뒤 출고 발견으로 기록됐다. 성공도 실패도 아니다.
-      else if(row.canceledAfterExport)canceledAfterExport.push({line:row.line,reference:row.reference,orderId:row.orderId??null});
+      else if(row.canceledAfterExport)canceledAfterExport.push({line:row.line,reference:row.reference,orderId:row.orderId??null,alreadyRecorded:row.replayed===true});
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);
     }

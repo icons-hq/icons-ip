@@ -58,12 +58,14 @@ export async function recordWarehouseStopReplyAction(input: unknown): Promise<Wa
       p_shipment_ids: shipmentIds, p_outcome: outcome, p_channel: channel, p_replied_at: repliedAt, p_note: note, p_operation_id: operationId,
     });
     if (error) return { ok: false, error: warehouseStopErrorMessage(error.message) };
-    const result = data as { orderId?: unknown; discoveryIds?: unknown } | null;
+    const result = data as { orderId?: unknown; discoveryIds?: unknown; cancellationInFlight?: unknown } | null;
     if (!result || result.orderId !== orderId) return { ok: false, error: '기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록을 확인해주세요.' };
     refresh(orderId);
     const discovered = Array.isArray(result.discoveryIds) ? result.discoveryIds.length : 0;
     return { ok: true, value: { message: discovered
       ? `창고 회신을 기록했습니다. 이미 취소된 배송 건 ${discovered}건을 취소 뒤 출고 발견으로 남기고 재고를 다시 뺐습니다. 고객 연락과 회수를 진행해주세요.`
+      : outcome === 'already_shipped' && result.cancellationInFlight === true
+        ? '창고의 이미 출고 회신을 기록했습니다. 이 주문은 결제사 취소가 진행 중이라 돈이 이미 돌아갔을 수 있습니다. 취소가 끝나 배송 건이 취소되면 이 회신으로 취소 뒤 출고 발견이 자동으로 남고 재고를 다시 뺍니다. 고객 연락과 회수를 준비해주세요.'
       : outcome === 'stopped'
         ? '창고의 출고 중단 회신을 기록했습니다. 이 회신을 근거로 전액·부분 취소를 한 번 실행할 수 있습니다.'
         : '창고의 이미 출고 회신을 기록했습니다. 이 배송 건은 취소하지 말고 운송장 회신을 받아 발송 처리한 뒤 고객 반품으로 접수해주세요.' } };
