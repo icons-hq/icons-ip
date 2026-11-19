@@ -132,4 +132,96 @@ select 1/case when (:'discovery'::jsonb->>'canceledAfterExport')::boolean
  and pg_temp.pc_stock('partial-cancel-c') = 10
  then 1 else 0 end as assert_closed_shipment_discovery_withdraws_stock;
 
+-- ---------------------------------------------------------------------------
+-- PR #693 리뷰: 출고지시 뒤의 모든 부분 취소를 센다(배송 건을 닫은 것만이 아니다). 출고지시 전 부분 취소는 파일에 없었다.
+-- ---------------------------------------------------------------------------
+create function pg_temp.wsp_partial(spec text, op integer, reply_op integer) returns void language plpgsql as $$
+declare amount bigint; n integer := split_part(spec, '@', 2)::integer;
+begin
+  perform pg_temp.pc_auth();
+  execute 'set local role authenticated';
+  if exists(select 1 from public.order_shipments where order_id = pg_temp.pc_id('order', n) and status = 'ready' and exported_at is not null) then
+    perform public.admin_record_warehouse_stop_reply(array(select id from public.order_shipments where order_id = pg_temp.pc_id('order', n)
+      and status = 'ready' and exported_at is not null), 'stopped', 'phone', clock_timestamp(), 'TEST 창고 출고 중단', pg_temp.pc_id('wr', reply_op));
+  end if;
+  amount := (public.admin_preview_order_partial_cancellation(pg_temp.pc_id('order', n), pg_temp.pc_items(spec))->>'refundAmount')::bigint;
+  perform pg_temp.pc_start(spec, op, amount);
+  execute 'reset role';
+  perform public.service_complete_order_partial_cancellation((pg_temp.pc_head(op)).id, amount, 'TEST-PC-KEY-' || n, 'TEST-PC-TX-' || op, pg_temp.pc_id('user', 1));
+end $$;
+create function pg_temp.wsp_full_cancel(n integer, reply_op integer) returns void language plpgsql as $$
+declare request uuid;
+begin
+  perform pg_temp.pc_auth();
+  execute 'set local role authenticated';
+  perform public.admin_record_warehouse_stop_reply(array(select id from public.order_shipments where order_id = pg_temp.pc_id('order', n)
+    and status = 'ready' and exported_at is not null), 'stopped', 'phone', clock_timestamp(), 'TEST 창고 출고 중단', pg_temp.pc_id('wr', reply_op));
+  request := public.admin_start_order_cancellation(pg_temp.pc_id('order', n), 'out_of_stock', null, false);
+  execute 'reset role';
+  perform public.complete_order_cancellation_request(request, array['TEST-PC-KEY-' || n], pg_temp.pc_id('user', 1));
+end $$;
+create function pg_temp.wsp_discover(n integer, tracking text) returns jsonb language plpgsql as $$
+declare result jsonb;
+begin
+  perform pg_temp.pc_auth();
+  execute 'set local role authenticated';
+  result := public.admin_import_shipment_tracking(pg_temp.pc_id('shipment-1', n)::text, 'hanjin', tracking);
+  execute 'reset role';
+  return result;
+end $$;
+create function pg_temp.wsp_lines(n integer) returns jsonb language plpgsql as $$
+declare result jsonb;
+begin
+  perform pg_temp.pc_auth();
+  execute 'set local role authenticated';
+  select c->'lines' into result from jsonb_array_elements(public.admin_origin_tracking_candidates(pg_temp.pc_id('origin', 1), '{}', array['01000000000'])->'shipments') c
+  where c->>'id' = pg_temp.pc_id('shipment-1', n)::text;
+  execute 'reset role';
+  return (select jsonb_object_agg(line->>'goodName', (line->>'qty')::integer) from jsonb_array_elements(result) line);
+end $$;
+create function pg_temp.wsp_restored(n integer) returns jsonb language sql as $$
+ select jsonb_object_agg(i.good_id, x.restored_qty) from private.canceled_shipment_dispatch_stock x
+  join private.canceled_shipment_dispatches d on d.id = x.dispatch_id join public.order_items i on i.id = x.order_item_id
+ where d.shipment_id = pg_temp.pc_id('shipment-1', n)$$;
+
+-- 주문 12: 출고지시(A 2·B 1) → A 2개 부분 취소 → B 1개 부분 취소(배송 건 닫힘) → 창고가 A+B를 내보냄. A·B 모두 다시 뺀다.
+update public.order_shipments set exported_at = now() - interval '30 minutes', exported_by = pg_temp.pc_id('user', 1) where id = pg_temp.pc_id('shipment-1', 12);
+select pg_temp.wsp_partial('a:2@12', 1201, 1201), pg_temp.wsp_partial('b:1@12', 1202, 1202);
+select pg_temp.pc_stock('partial-cancel-a') as a_before_12, pg_temp.pc_stock('partial-cancel-b') as b_before_12 \gset
+select pg_temp.wsp_lines(12) as lines_12 \gset
+select pg_temp.wsp_discover(12, 'TESTPC00009012') as discovery_12 \gset
+select 1/case when (select status = 'canceled' from public.order_shipments where id = pg_temp.pc_id('shipment-1', 12))
+ and (:'discovery_12'::jsonb->>'canceledAfterExport')::boolean
+ and pg_temp.wsp_restored(12) = '{"partial-cancel-a": 2, "partial-cancel-b": 1}'::jsonb
+ and pg_temp.pc_stock('partial-cancel-a') = :a_before_12 - 2 and pg_temp.pc_stock('partial-cancel-b') = :b_before_12 - 1
+ and :'lines_12'::jsonb = '{"TEST 남는 상품 B": 1, "TEST 품절 상품 A": 2}'::jsonb
+ then 1 else 0 end as assert_every_partial_after_export_is_withdrawn;
+
+-- 주문 13: 출고지시(A 2·B 1) → A 1개 부분 취소 → 전액 취소(남은 A 1·B 1 복원, 품목 줄은 남는다). 대조 후보는 출고지시 때 A 2·B 1이고
+-- 발견은 A 2·B 1을 다시 뺀다.
+update public.order_shipments set exported_at = now() - interval '30 minutes', exported_by = pg_temp.pc_id('user', 1) where id = pg_temp.pc_id('shipment-1', 13);
+select pg_temp.wsp_partial('a:1@13', 1301, 1301);
+select pg_temp.wsp_full_cancel(13, 1302);
+select pg_temp.pc_stock('partial-cancel-a') as a_before_13, pg_temp.pc_stock('partial-cancel-b') as b_before_13 \gset
+select pg_temp.wsp_lines(13) as lines_13 \gset
+select pg_temp.wsp_discover(13, 'TESTPC00009013') as discovery_13 \gset
+select 1/case when (select status = 'canceled' from public.orders where id = pg_temp.pc_id('order', 13))
+ and exists(select 1 from public.order_shipment_items where shipment_id = pg_temp.pc_id('shipment-1', 13))
+ and :'lines_13'::jsonb = '{"TEST 남는 상품 B": 1, "TEST 품절 상품 A": 2}'::jsonb
+ and pg_temp.wsp_restored(13) = '{"partial-cancel-a": 2, "partial-cancel-b": 1}'::jsonb
+ and pg_temp.pc_stock('partial-cancel-a') = :a_before_13 - 2 and pg_temp.pc_stock('partial-cancel-b') = :b_before_13 - 1
+ then 1 else 0 end as assert_partial_then_full_cancel_reconstructs_export;
+
+-- 주문 14: A 1개 부분 취소(출고지시 전) → 출고지시(A 1·B 1) → 전액 취소. 출고지시 전 부분 취소는 파일에 없었으므로 A 1·B 1만 본다.
+select pg_temp.wsp_partial('a:1@14', 1401, 1401);
+update public.order_shipments set exported_at = clock_timestamp(), exported_by = pg_temp.pc_id('user', 1) where id = pg_temp.pc_id('shipment-1', 14);
+select pg_temp.wsp_full_cancel(14, 1402);
+select pg_temp.pc_stock('partial-cancel-a') as a_before_14 \gset
+select pg_temp.wsp_lines(14) as lines_14 \gset
+select pg_temp.wsp_discover(14, 'TESTPC00009014') as discovery_14 \gset
+select 1/case when :'lines_14'::jsonb = '{"TEST 남는 상품 B": 1, "TEST 품절 상품 A": 1}'::jsonb
+ and pg_temp.wsp_restored(14) = '{"partial-cancel-a": 1, "partial-cancel-b": 1}'::jsonb
+ and pg_temp.pc_stock('partial-cancel-a') = :a_before_14 - 1
+ then 1 else 0 end as assert_partial_before_export_is_not_counted;
+
 rollback;

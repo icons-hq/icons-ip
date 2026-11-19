@@ -271,9 +271,10 @@ begin
     case when tracking_value is not null then clock_timestamp() end, actor)
   returning id into v_id;
 
-  -- 실물 기준: 이 배송 건의 취소가 되돌린 재고(전액 취소의 품목별 복원, 이 배송 건을 닫은 부분 취소의 복원)를 다시 뺀다.
-  -- 그사이 다시 팔려 재고가 모자라면 남은 만큼만 빼고 모자란 수량을 기록한다(과판매 — 운영자 확인 대상).
-  -- 재고 부족 부분 취소가 닫은 배송 건은 품목 줄이 지워졌으므로 적용된 부분 취소 원장의 그 배송 건 품목도 함께 본다.
+  -- 실물 기준: 출고지시 파일에 실렸던 이 배송 건의 내용 가운데 취소가 되돌린 재고를 다시 뺀다 — 전액 취소의 품목별 복원과,
+  -- 이 배송 건 품목에 출고지시 뒤 적용된 모든 재고 부족 부분 취소의 복원(배송 건을 닫은 것만이 아니다). 출고지시 전에 적용된
+  -- 부분 취소의 품목은 파일에 없었으므로 빼지 않는다. 그사이 다시 팔려 재고가 모자라면 남은 만큼만 빼고 모자란 수량을 기록한다.
+  -- 부분 취소로 품목 줄이 지워진 품목도 적용된 부분 취소 원장의 이 배송 건 품목으로 찾는다.
   begin
     perform private.lock_goods_stock_successor_topology();
     for entry in
@@ -288,8 +289,11 @@ begin
       ) si
       join public.audit_log a on a.target = 'order:' || si.order_id::text and a.diff->>'orderItemId' = si.order_item_id::text
         and (a.action = 'order.option_stock_restored'
-          or (a.action = 'order.option_stock_partially_restored' and (a.diff->>'partialCancellationId')::uuid in (
-            select c.partial_cancellation_id from private.order_partial_cancellation_shipments c where c.shipment_id = shipment.id)))
+          or (a.action = 'order.option_stock_partially_restored' and exists(
+            select 1 from private.order_partial_cancellation_items p
+              join private.order_partial_cancellations pc on pc.id = p.partial_cancellation_id
+            where p.partial_cancellation_id = (a.diff->>'partialCancellationId')::uuid and p.order_item_id = si.order_item_id
+              and p.shipment_id = shipment.id and pc.applied_at is not null and pc.applied_at >= shipment.exported_at)))
       group by 1, 2, 3 having sum((a.diff->>'delta')::integer) > 0
       order by 1, 3
     loop
@@ -639,15 +643,18 @@ select private.o3d_patch_function('public.admin_origin_tracking_candidates(uuid,
 $a$     or(s.status in('shipping','delivered') and o.status<>'canceled' and s.shipped_at>=now()-interval '45 days'))$a$,
 $a$     or(s.status in('shipping','delivered') and o.status<>'canceled' and s.shipped_at>=now()-interval '45 days')
      or(s.status='canceled' and s.exported_at is not null and s.shipped_at is null and s.exported_at>=now()-interval '45 days'))$a$,
--- 재고 부족 부분 취소가 닫은 배송 건은 품목 줄이 지워졌다. 적용된 부분 취소 원장의 그 배송 건 품목·수량으로 출고지시 때 줄을 되살린다.
+-- 출고지시 뒤 취소된 배송 건은 출고지시 파일에 실렸던 내용으로 대조한다: 남은 품목 줄 + 그 출고지시 뒤 적용된 재고 부족 부분 취소의
+-- 품목·수량(배송 건을 닫은 부분 취소, 일부 부분 취소 뒤 전액 취소 모두). 발송 대기·발송 건은 지금처럼 남은 품목 줄만 본다.
 $a$    from public.order_shipment_items link join public.order_items i on i.id=link.order_item_id
     where link.shipment_id=c.id),'[]'))$a$,
-$a$    from (select l.order_item_id,l.qty from public.order_shipment_items l where l.shipment_id=c.id
-      union all
-      select p.order_item_id,sum(p.qty)::integer from private.order_partial_cancellation_items p
-       join private.order_partial_cancellations pc on pc.id=p.partial_cancellation_id and pc.applied_at is not null
-       where c.status='canceled' and p.shipment_id=c.id and not exists(select 1 from public.order_shipment_items l2 where l2.shipment_id=c.id)
-       group by p.order_item_id) link join public.order_items i on i.id=link.order_item_id),'[]'))$a$,
+$a$    from (select x.order_item_id,sum(x.qty)::integer qty from (
+       select l.order_item_id,l.qty from public.order_shipment_items l where l.shipment_id=c.id
+       union all
+       select p.order_item_id,p.qty from private.order_partial_cancellation_items p
+        join private.order_partial_cancellations pc on pc.id=p.partial_cancellation_id
+        join public.order_shipments es on es.id=p.shipment_id
+        where c.status='canceled' and p.shipment_id=c.id and pc.applied_at is not null and pc.applied_at>=es.exported_at) x
+      group by x.order_item_id) link join public.order_items i on i.id=link.order_item_id),'[]'))$a$,
 -- 취소 뒤 출고 발견의 운송장도 쓰인 번호다(살아 있는 배송 건에 붙이지 않는다).
 $a$     union select x.tracking_number,x.shipment_id from public.order_shipment_extra_trackings x where x.carrier=origin.default_carrier and x.tracking_number=any(target_tracking_numbers)) s),'[]'))$a$,
 $a$     union select x.tracking_number,x.shipment_id from public.order_shipment_extra_trackings x where x.carrier=origin.default_carrier and x.tracking_number=any(target_tracking_numbers)
