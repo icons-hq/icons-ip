@@ -197,7 +197,7 @@ select 1/case when (select category_id='00000000-0000-4000-8000-000000190120' fr
 -- 공개 중 상품도 저장 입력의 type은 쓰지 않는다(칸 삭제 1단계). KC 맥락이 바뀌지 않으므로 재검토로 막히지도 않는다.
 select public.admin_save_good(pg_temp.gr_payload('gr-legacy-good')||'{"type":"인형"}') is not null as gr_legacy_published_type_ignored;
 select 1/case when (select type='문구' and published_at is not null from public.goods where id='gr-legacy-good')
- and private.goods_kc_review_current('gr-legacy-good')
+ and public.admin_read_goods_kc('gr-legacy-good')->>'status'='reviewed'
  then 1 else 0 end as published_save_ignores_type;
 
 -- 대표 카테고리가 없는 공개 상품(이전 데이터)은 category_missing을 검토 사유로만 알린다.
