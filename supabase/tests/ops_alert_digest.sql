@@ -210,6 +210,12 @@ select 1/case when (select count(*) from private.admin_operation_alerts where ev
 insert into public.email_deliveries(dedupe_key,template,recipient,subject,status,safe_error_code,claimed_at) values('ops-digest-test:mail2','order_confirmation','y@example.test','TEST','failed','provider_failure',now()+interval '6 hours');
 select private.raise_system_health_alerts(now()+interval '7 hours');
 select 1/case when (select count(*) from private.admin_operation_alerts where event_key like 'system_email_failures:%')=:'mail_rows'::integer+1 then 1 else 0 end as assert_new_mail_failure_added;
+-- 요약 메일 자신의 발송 실패는 시스템 알림을 만들지 않는다(주소 하나가 계속 거절돼도 끝없이 반복하지 않게).
+select public.enqueue_email_intent('ops_alert_digest',repeat('7',64),repeat('8',64),'ops_alert_digest','ops_alert_digest_v1')->>'intentId' as own_intent \gset
+update private.email_intents set state='failed',updated_at=now()+interval '8 hours' where id=:'own_intent';
+select count(*) as mail_rows2 from private.admin_operation_alerts where event_key like 'system_email_failures:%' \gset
+select private.raise_system_health_alerts(now()+interval '8 hours');
+select 1/case when (select count(*) from private.admin_operation_alerts where event_key like 'system_email_failures:%')=:'mail_rows2' then 1 else 0 end as assert_own_digest_failure_not_alerted;
 -- 같은 시간 안에 다시 올려도 중복 행이 늘지 않는다.
 select count(*) as before_rows from private.admin_operation_alerts where event_key like 'system_job%' or event_key like 'system_email%' \gset
 select private.raise_system_health_alerts(now()+interval '5 hours 30 minutes');

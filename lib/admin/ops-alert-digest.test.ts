@@ -31,3 +31,13 @@ describe('운영 알림 요약 메일 설정', () => {
     expect(opsAlertDigestErrorMessage({ message: 'boom secret' })).not.toContain('secret');
   });
 });
+
+describe('설정 화면 이탈 보호', () => {
+  it('고친 입력과 결과 불명 저장은 묻고, 저장 중에는 막는다', async () => {
+    const { opsAlertDigestLeaveGuard } = await import('./ops-alert-digest');
+    expect(opsAlertDigestLeaveGuard({ changed: false, uncertain: false, pending: false })).toEqual({ dirty: false, blocked: false });
+    expect(opsAlertDigestLeaveGuard({ changed: true, uncertain: false, pending: false })).toEqual({ dirty: true, blocked: false });
+    expect(opsAlertDigestLeaveGuard({ changed: false, uncertain: true, pending: false })).toEqual({ dirty: true, blocked: false });
+    expect(opsAlertDigestLeaveGuard({ changed: true, uncertain: false, pending: true })).toEqual({ dirty: true, blocked: true });
+  });
+});

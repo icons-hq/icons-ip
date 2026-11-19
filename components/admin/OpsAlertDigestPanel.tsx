@@ -6,6 +6,7 @@ import { AdminField, AdminNotice, AdminStatusBadge } from '@/components/admin/co
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   OPS_ALERT_DIGEST_CATEGORIES,
@@ -17,6 +18,7 @@ import {
   OPS_ALERT_DIGEST_RECIPIENT_LIMIT,
   OPS_ALERT_DIGEST_STATUS_LABELS,
   isOpsAlertDigestDelayHours,
+  opsAlertDigestLeaveGuard,
   parseRecipientList,
   type OpsAlertDigestCategory,
   type OpsAlertDigestSettings,
@@ -44,6 +46,7 @@ export function OpsAlertDigestPanel({ initial }: { initial: OpsAlertDigestSettin
   const hours = Number(delayHours);
   const changed = enabled !== state.enabled || !parsed.ok || parsed.recipients.join('\n') !== state.recipients.join('\n')
     || categories.join() !== state.categories.join() || hours !== state.delayHours;
+  useAdminLeaveGuard({ ...opsAlertDigestLeaveGuard({ changed, uncertain, pending }), message: '저장하지 않은 운영 알림 메일 설정을 두고 이동할까요?' });
   const toggle = (category: OpsAlertDigestCategory, on: boolean) => setCategories(OPS_ALERT_DIGEST_CATEGORIES.filter((entry) => entry === category ? on : categories.includes(entry)));
 
   async function save() {

@@ -72,6 +72,11 @@ export function parseOpsAlertDigestSettings(value: unknown): OpsAlertDigestSetti
     updatedByName: row.updatedByName as string | null, runs: runs as OpsAlertDigestRun[] };
 }
 
+/** 설정 화면을 떠날 때의 보호: 고친 입력·결과 불명 저장은 묻고, 저장 요청이 진행 중이면 묻지 않고 막는다(재시도용 요청 ID 보존). */
+export function opsAlertDigestLeaveGuard({ changed, uncertain, pending }: { changed: boolean; uncertain: boolean; pending: boolean }) {
+  return { dirty: changed || uncertain, blocked: pending };
+}
+
 export function isOpsAlertDigestDelayHours(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= OPS_ALERT_DIGEST_MIN_DELAY_HOURS && value <= OPS_ALERT_DIGEST_MAX_DELAY_HOURS;
 }

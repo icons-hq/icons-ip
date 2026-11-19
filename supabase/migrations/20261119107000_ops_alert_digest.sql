@@ -209,12 +209,16 @@ begin
       get diagnostics rows=row_count;made:=made+rows;
     end if;
   end loop;
-  mail_failed:=coalesce((report->'counts'->>'emailFailures')::integer,0);
+  -- 이 요약 메일 자신의 발송 실패(출처 ops_alert_digest)는 세지 않는다. 한 주소가 계속 거절되면 실패 → 시스템 알림 → 요약 →
+  -- 같은 주소 실패가 새 실패 시각을 만들며 끝없이 반복한다. 요약 발송 실패는 설정 화면의 최근 발송 기록에서 본다.
+  mail_failed:=(select count(*) from public.email_deliveries d where d.status='failed' and d.claimed_at>p_now-interval '24 hours')::integer
+    +(select count(*) from private.email_intents i where i.source<>'ops_alert_digest' and i.state in ('failed','unknown','needs_review')
+      and i.updated_at>p_now-interval '24 hours')::integer;
   if mail_failed>0 then
     -- 메일 실패는 새 실패가 생겼을 때만 올린다: 키가 가장 늦은 실패 시각(마이크로초)이라 같은 실패는 24시간 창 동안 다시 올라오지 않는다.
     select greatest(
       (select max(d.claimed_at) from public.email_deliveries d where d.status='failed' and d.claimed_at>p_now-interval '24 hours'),
-      (select max(i.updated_at) from private.email_intents i where i.state in ('failed','unknown','needs_review') and i.updated_at>p_now-interval '24 hours'))
+      (select max(i.updated_at) from private.email_intents i where i.source<>'ops_alert_digest' and i.state in ('failed','unknown','needs_review') and i.updated_at>p_now-interval '24 hours'))
       into last_mail_failure;
     if last_mail_failure is not null then
     insert into private.admin_operation_alerts(event_key,category,title,href)
