@@ -56,9 +56,10 @@ function SelectRow({ label, value, onChange, children, className = '' }: { label
     <NativeSelect className="w-full" id={id} value={value} onChange={event => onChange(event.target.value)}>{children}</NativeSelect>
   </div>;
 }
-function PolicyStatus({ label, value, onChange }: { label: string; value: string; onChange: (value: 'draft' | 'active' | 'disabled') => void }) {
-  return <SelectRow className="sm:max-w-xs" label={label} value={value} onChange={next => onChange(next as 'draft' | 'active' | 'disabled')}>
-    <option value="draft">초안 · 가격·배송비에 미적용</option><option value="active">사용</option><option value="disabled">사용 안 함</option>
+/* 2026-11-19: 초안 선택은 없다 — '사용'은 저장하면 바로 적용되고, '사용 안 함'은 적용하지 않는다. 예전 초안은 '사용 안 함'으로 보인다. */
+function PolicyStatus({ label, value, onChange }: { label: string; value: string; onChange: (value: 'active' | 'disabled') => void }) {
+  return <SelectRow className="sm:max-w-xs" label={label} value={value === 'active' ? 'active' : 'disabled'} onChange={next => onChange(next === 'active' ? 'active' : 'disabled')}>
+    <option value="active">사용</option><option value="disabled">사용 안 함</option>
   </SelectRow>;
 }
 function NumberField({ label, value, onChange, min = 0, max = 2147483647 }: { label: string; value: string; onChange: (value: string) => void; min?: number; max?: number }) {

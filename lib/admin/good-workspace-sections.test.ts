@@ -11,8 +11,8 @@ const rows: GoodsOptionRow[] = [
   { id: SAVED, name: '빨강', code: 'GOOD-01', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 3, expectedStockQty: 3 },
   { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 0 },
 ];
-const preorder = { key: 'p1', optionKey: 'new:[["색상","파랑"]]', state: 'draft' as const, capacityQty: '5', startsAt: '2099-11-01T10:00',
-  endsAt: '2099-11-10T18:00', expectedShipDate: '2099-11-20', approvalReference: '승인 문서 A-1' };
+const preorder = { key: 'p1', optionKey: 'new:[["색상","파랑"]]', capacityQty: '5', startsAt: '2099-11-01T10:00',
+  endsAt: '2099-11-10T18:00', expectedShipDate: '2099-11-20' };
 
 describe('등록 화면 원자 저장 섹션', () => {
   it('입력이 없으면 KC는 빼고 예약 조건도 비워 기존 저장과 같은 결과를 낸다', () => {
@@ -37,13 +37,13 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(prepared.value.kc).toMatchObject({ status: 'reviewed', attested: true });
     expect(prepared.value.kc?.models[0]).not.toHaveProperty('variantIds');
     expect(prepared.value.kc?.models[0].variantRefs).toEqual(expect.arrayContaining([{ id: SAVED }, { attributes: { 색상: '파랑' } }]));
-    expect(prepared.value.preorders).toEqual([{ variant: { attributes: { 색상: '파랑' } }, values: expect.objectContaining({ state: 'draft', capacityQty: '5' }) }]);
+    expect(prepared.value.preorders).toEqual([{ variant: { attributes: { 색상: '파랑' } }, values: expect.objectContaining({ state: 'active', capacityQty: '5' }) }]);
 
     const parsed = parseGoodWorkspaceSections(JSON.stringify(prepared.value), false);
     if (!parsed.ok) throw new Error(parsed.error);
     expect(parsed.sections.kc).toMatchObject({ status: 'reviewed', attested: true, expectedRevision: null, expectedContextFingerprint: null });
     expect(parsed.sections.preorders?.[0]).toEqual({ variant: { attributes: { 색상: '파랑' } }, policyId: null, expectedRevision: null,
-      values: { state: 'draft', capacityQty: 5, startsAt: '2099-11-01T01:00:00.000Z', endsAt: '2099-11-10T09:00:00.000Z', expectedShipDate: '2099-11-20', approvalReference: '승인 문서 A-1' } });
+      values: { state: 'active', capacityQty: 5, startsAt: '2099-11-01T01:00:00.000Z', endsAt: '2099-11-10T09:00:00.000Z', expectedShipDate: '2099-11-20', approvalReference: null } });
   });
 
   it('확인 체크 없는 KC 입력은 미검토로 보내고, 체크했는데 대상 모델의 연결이 빠지면 저장하지 않는다', () => {
@@ -90,20 +90,18 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(result.value.kc?.models[0].variantRefs).toHaveLength(rows.filter((row) => row.isActive !== false).length);
   });
 
-  it('예약판매 적용은 계정 주매니저·통합 매니저만, 한 옵션에 하나, 적용 필수 칸을 모두 갖춰야 한다', () => {
-    const active = { ...preorder, state: 'active' as const };
-    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [active] }, rows, false))
-      .toMatchObject({ ok: false, field: 'workspacePreorders', error: expect.stringContaining('계정 주매니저·통합 매니저') });
+  /* 2026-11-19: 예약 조건은 권한 구분 없이 저장하면 적용된다. 승인 근거는 없고 초안(state 'draft')은 서버가 받지 않는다. */
+  it('예약판매는 권한 구분 없이 한 옵션에 하나, 필요한 칸만 갖추면 적용으로 싣는다', () => {
+    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [preorder] }, rows, false))
+      .toMatchObject({ ok: true, value: { preorders: [{ values: { state: 'active' } }] } });
     expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [preorder, { ...preorder, key: 'p2' }] }, rows, true))
       .toMatchObject({ ok: false, field: 'workspacePreorders', error: expect.stringContaining('하나만') });
-    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [{ ...active, approvalReference: '' }] }, rows, true))
-      .toMatchObject({ ok: false, field: 'workspacePreorders', error: expect.stringContaining('승인 근거') });
     expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [{ ...preorder, optionKey: 'gone' }] }, rows, true))
       .toMatchObject({ ok: false, field: 'workspacePreorders' });
-    const { key, optionKey, ...activeValues } = active; void key; void optionKey;
-    const json = JSON.stringify({ preorders: [{ variant: { id: SAVED }, values: activeValues }] });
-    expect(parseGoodWorkspaceSections(json, false)).toMatchObject({ ok: false, field: 'workspacePreorders' });
-    expect(parseGoodWorkspaceSections(json, true)).toMatchObject({ ok: true, sections: { preorders: [{ values: { state: 'active' } }] } });
+    const { key, optionKey, ...values } = preorder; void key; void optionKey;
+    const json = (state: string) => JSON.stringify({ preorders: [{ variant: { id: SAVED }, values: { ...values, state } }] });
+    expect(parseGoodWorkspaceSections(json('active'), false)).toMatchObject({ ok: true, sections: { preorders: [{ values: { state: 'active', approvalReference: null } }] } });
+    expect(parseGoodWorkspaceSections(json('draft'), true)).toMatchObject({ ok: false, field: 'workspacePreorders' });
   });
 
   it('서버는 조작된 제출(검토 완료인데 확인 없음·옵션 참조 형식·모르는 키)을 거절한다', () => {
@@ -118,30 +116,29 @@ describe('등록 화면 원자 저장 섹션', () => {
       .toMatchObject({ ok: true, sections: { kc: { models: [{ variantRefs: [{ id: SAVED }] }] } } });
   });
 
-  /* 리뷰 T3a-1 — 사용 중지 새 옵션도 KC 모델 연결·예약 초안 대상으로 고를 수 있다. 화면은 옵션값 조합으로 보내고 DB가 이번 저장이 만든 옵션으로 해석한다. */
-  it('사용 중지 새 옵션은 옵션값 조합 참조로 KC·예약 초안에 싣는다', () => {
+  /* 리뷰 T3a-1 — 사용 중지 새 옵션도 KC 모델 연결 대상으로 고를 수 있다. 화면은 옵션값 조합으로 보내고 DB가 이번 저장이 만든 옵션으로 해석한다.
+     예약판매는 저장하면 적용되므로(2026-11-19) 사용 중지 옵션에는 저장 전에 막는다(DB goods_variant_inactive). */
+  it('사용 중지 새 옵션은 옵션값 조합 참조로 KC에 싣고, 예약 조건은 저장 전에 막는다', () => {
     const inactive: GoodsOptionRow[] = [rows[0], { ...rows[1], isActive: false }];
     /* 대상 모델은 옵션을 직접 고른다(상품 전체 해당 없음은 사용 옵션 전체로 다시 맞추므로 대상 모델로 확인한다). */
     const model = { ...emptyGoodsKcModel(), family: 'living' as const, scheme: 'safety_confirmation' as const, variantIds: goodWorkspaceKcVariants(inactive).map((variant) => variant.id) };
-    const prepared = prepareGoodWorkspaceSections({ kc: { models: [model], attested: false }, preorders: [preorder] }, inactive, false);
+    const prepared = prepareGoodWorkspaceSections({ kc: { models: [model], attested: false }, preorders: [] }, inactive, false);
     if (!prepared.ok) throw new Error(prepared.error);
     expect(prepared.value.kc?.models[0].variantRefs).toEqual([{ id: SAVED }, { attributes: { 색상: '파랑' } }]);
-    expect(prepared.value.preorders[0].variant).toEqual({ attributes: { 색상: '파랑' } });
+    expect(prepareGoodWorkspaceSections({ kc: { models: [model], attested: false }, preorders: [preorder] }, inactive, false))
+      .toMatchObject({ ok: false, field: 'workspacePreorders', error: expect.stringContaining('사용 중지한 옵션') });
   });
 
   /* 리뷰 T3a-9 — 판매기간을 설정한 상품은 예약을 활성화할 수 없다(DB goods_sale_period_preorder_conflict). 저장 전에 막는다. */
-  /* 2026-11-19 사고 — '판매에 적용'으로 둔 조건은 빈 칸 이름을 모두 알리고 상품을 저장하지 않는다. 임시저장은 빈 칸이 있어도 저장한다. */
-  it('판매에 적용으로 둔 예약 조건은 비거나 지난 칸 이름을 모두 알리고 막는다', () => {
+  /* 2026-11-19 — 예약 조건은 빈 칸 이름을 모두 알리고 상품을 저장하지 않는다(임시저장으로 빠져나가는 길은 없다 — 예약을 안 하려면 조건을 뺀다). */
+  it('예약 조건은 비거나 지난 칸 이름을 모두 알리고 막는다', () => {
     const now = Date.parse('2099-11-05T00:00:00.000Z');
-    const active = { ...preorder, state: 'active' as const };
-    const missing = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [{ ...active, capacityQty: '', endsAt: '', approvalReference: '' }] }, rows, true, { now });
+    const missing = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [{ ...preorder, capacityQty: '', endsAt: '' }] }, rows, true, { now });
     expect(missing).toMatchObject({ ok: false, field: 'workspacePreorders' });
-    expect(missing.ok ? '' : missing.error).toBe("예약 조건 1: 승인 예약 물량·접수 종료·승인 근거 칸을 확인해주세요. 판매에 적용하지 않으려면 '임시저장'을 고르세요.");
-    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [active] }, rows, true, { now: Date.parse('2099-11-11T00:00:00.000Z') }))
+    expect(missing.ok ? '' : missing.error).toBe("예약 조건 1: 예약 물량·접수 종료 칸을 확인해주세요. 예약판매를 하지 않으려면 '이 예약 조건 빼기'를 누르세요.");
+    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [preorder] }, rows, true, { now: Date.parse('2099-11-11T00:00:00.000Z') }))
       .toMatchObject({ ok: false, error: expect.stringContaining('접수 종료') });
-    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [active] }, rows, true, { now })).toMatchObject({ ok: true });
-    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [{ ...preorder, capacityQty: '', endsAt: '', approvalReference: '' }] }, rows, true, { now }))
-      .toMatchObject({ ok: true, value: { preorders: [{ values: { state: 'draft' } }] } });
+    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [preorder] }, rows, true, { now })).toMatchObject({ ok: true });
   });
 
   /* 11/19 예약 물량 = 재고수량 — 재고수량을 따라가는 조건은 제출 시점의 옵션 행 재고수량을 물량으로 싣는다. */
@@ -149,24 +146,22 @@ describe('등록 화면 원자 저장 섹션', () => {
     const now = Date.parse('2099-11-05T00:00:00.000Z');
     const target = rows.find((row) => goodsOptionRowKey(row) === preorder.optionKey)!;
     const stocked = rows.map((row) => row === target ? { ...row, stockQty: 600 } : row);
-    const following = { ...preorder, state: 'active' as const, capacityQty: '', capacityFromStock: true };
+    const following = { ...preorder, capacityQty: '', capacityFromStock: true };
     expect(goodWorkspacePreorderCapacity(following, stocked)).toBe('600');
     const prepared = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [following] }, stocked, true, { now });
     expect(prepared).toMatchObject({ ok: true, value: { preorders: [{ values: { state: 'active', capacityQty: '600' } }] } });
     /* 재고수량이 0이면 물량이 비어 적용 필수 칸으로 막힌다(기존 흐름: 물량을 직접 입력). */
     const empty = rows.map((row) => row === target ? { ...row, stockQty: 0 } : row);
     expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [following] }, empty, true, { now }))
-      .toMatchObject({ ok: false, error: expect.stringContaining('승인 예약 물량') });
+      .toMatchObject({ ok: false, error: expect.stringContaining('예약 물량') });
     expect(goodWorkspacePreorderCapacity({ ...following, capacityFromStock: false, capacityQty: '300' }, stocked)).toBe('300');
   });
 
-  it('판매기간을 설정했으면 예약판매 적용을 저장 전에 막고, 임시저장은 그대로 둔다', () => {
-    const active = { ...preorder, state: 'active' as const };
-    const blocked = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [active] }, rows, true, { salePeriodEnabled: true });
+  it('판매기간을 설정했으면 예약 조건을 저장 전에 막는다', () => {
+    const blocked = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [preorder] }, rows, true, { salePeriodEnabled: true });
     expect(blocked).toMatchObject({ ok: false, field: 'workspacePreorders', error: expect.stringContaining('판매기간') });
-    expect(blocked.ok ? '' : blocked.error).toContain('임시저장');
-    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [preorder] }, rows, true, { salePeriodEnabled: true })).toMatchObject({ ok: true });
-    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [active] }, rows, true, { salePeriodEnabled: false })).toMatchObject({ ok: true });
+    expect(blocked.ok ? '' : blocked.error).toContain('예약 조건을 빼거나');
+    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [preorder] }, rows, true, { salePeriodEnabled: false })).toMatchObject({ ok: true });
   });
 
   /* 리뷰 T3a-3·T3a-8·T3a-9 — 옵션 해석 실패는 섹션별 코드로, 다른 요청이 끝낸 임시저장·판매기간 충돌은 등록 화면에 맞는 안내로 옮긴다. */
@@ -179,7 +174,8 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(skipped?.form).toContain('이미 상품으로 등록');
     expect(skipped?.form).toContain('KC·예약판매·추가 설정 입력과 공개 요청은 처리되지 않았');
     const conflict = goodWorkspaceSectionFailure('goods_sale_period_preorder_conflict');
-    expect(conflict?.workspacePreorders).toContain('임시저장');
+    expect(conflict?.workspacePreorders).toContain('예약 조건을 빼거나');
+    expect(JSON.stringify(conflict)).not.toContain('임시저장');
     expect(conflict?.saleStartsAt).toContain('판매기간');
     expect(JSON.stringify(conflict)).not.toContain('일반재고로 전환');
     expect(goodWorkspaceSectionFailure('goods_sale_period_changed')).toBeNull();
@@ -234,7 +230,7 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(goodWorkspaceSectionFailure('goods_kc_attestation_required')?.workspaceKc).toContain('확인');
     expect(goodWorkspaceSectionFailure('goods_kc_review_incomplete')?.workspaceKc).toContain('인증·신고번호');
     expect(goodWorkspaceSectionFailure('goods_kc_review_incomplete')?.workspaceKc).not.toContain('증빙');
-    expect(goodWorkspaceSectionFailure('preorder_admin_required')?.workspacePreorders).toContain('계정 주매니저·통합 매니저');
+    expect(goodWorkspaceSectionFailure('preorder_policy_not_configured')?.workspacePreorders).toContain('예약 물량·접수 기간·발송 예정일');
     expect(goodWorkspaceSectionFailure('goods_kc_review_changed')?.workspaceKc).toContain('KC');
     expect(goodWorkspaceSectionFailure('goods_type_category_changed')).toBeNull();
     expect(goodWorkspaceSectionFailure('goods_compare_at_price_invalid')).toBeNull();

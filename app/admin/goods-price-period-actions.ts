@@ -45,7 +45,7 @@ export async function saveGoodsPricePeriodAction(formData: FormData): Promise<Mu
   if (!goodId || goodId.length > 200 || !isUuid(variantId) || (periodId !== null && !isUuid(periodId))
     || (periodId !== null && (!revisionText || !/^[1-9]\d*$/.test(revisionText) || !Number.isSafeInteger(revision) || revision! > 2147483647))
     || (periodId === null && revision !== null) || !period) {
-    return { ok: false, error: '옵션·할인가·KST 기준 시작과 종료를 확인해주세요. 활성화에는 모든 값이 필요합니다.' };
+    return { ok: false, error: '옵션·할인가·KST 기준 시작과 종료를 모두 입력해주세요.' };
   }
   try {
     const client = await createClient();
@@ -59,11 +59,11 @@ export async function saveGoodsPricePeriodAction(formData: FormData): Promise<Mu
       const messages: Record<string, string> = {
         price_period_changed: '기간 할인 정보가 변경되었습니다. 목록을 새로고침하고 다시 확인해주세요.',
         price_period_overlap: '같은 옵션에 시간이 겹치는 활성 기간 할인이 있습니다.',
-        price_period_not_configured: '할인가와 시작·종료 시각을 모두 입력한 뒤 활성화해주세요.',
-        price_period_requires_new_version: '활성화했던 할인은 금액과 기간을 수정할 수 없습니다. 중지 후 새 할인을 등록해주세요.',
-        price_period_regular_price_changed: '옵션 판매가가 변경되었습니다. 새 가격으로 할인 초안을 다시 확인해주세요.',
+        price_period_not_configured: '할인가와 시작·종료 시각을 모두 입력한 뒤 저장해주세요.',
+        price_period_requires_new_version: '저장한 할인은 금액과 기간을 수정할 수 없습니다. 중지 후 새 할인을 등록해주세요.',
+        price_period_regular_price_changed: '옵션 판매가가 변경되었습니다. 새 가격으로 할인가를 다시 확인해주세요.',
         instant_discount_period_conflict: '기간 없는 즉시할인이 걸린 상품에는 기간 할인을 함께 걸 수 없습니다. 상품 수정에서 즉시할인을 \'특정기간만 할인\'으로 바꾸거나 설정안함으로 바꾼 뒤 다시 시도해주세요.',
-        price_period_variant_inactive: '사용 중지된 옵션입니다. 옵션을 복원한 뒤 할인을 활성화해주세요.',
+        price_period_variant_inactive: '사용 중지된 옵션입니다. 옵션을 복원한 뒤 할인을 저장해주세요.',
       };
       return { ok: false, error: Object.entries(messages).find(([code]) => error.message.includes(code))?.[1]
         ?? '기간 할인을 저장하지 못했습니다. 할인가가 옵션 판매가보다 낮은지 확인해주세요.' };

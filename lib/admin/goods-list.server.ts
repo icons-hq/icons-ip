@@ -67,7 +67,7 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
     loadGoodsFulfillmentOptions().then(rows => rows.map(origin => ({ id: origin.id, name: origin.name, active: origin.active }))),
   ]);
   const pageIds = (result.data.rows as WorkspaceRow[]).map(good => good.id);
-  const [inline, customerVisible, preorderDraftOnly] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds), loadGoodsListPreorderDraftOnly(pageIds)]);
+  const [inline, customerVisible] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds)]);
   return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), saleStateCounts: parseGoodsSaleStateCounts(result.data.saleStateCounts),
     ips, categories, origins, checkedAt: result.data.checkedAt,
     goods: (result.data.rows as WorkspaceRow[]).map(good => {
@@ -78,28 +78,9 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
         activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
         saleAvailableQty: readiness.availableQty ?? undefined, noticeComplete: good.readiness.noticeComplete,
         imageUrl: good.imagePath ? publicMediaUrl(good.imagePath) : null, categoryName: good.categoryName,
-        priceMin: good.readiness.priceMin, priceMax: good.readiness.priceMax, readiness, customerVisible: customerVisible.has(good.id),
-        preorderDraftOnlyOptionCount: preorderDraftOnly.get(good.id) ?? 0 };
+        priceMin: good.readiness.priceMin, priceMax: good.readiness.priceMax, readiness, customerVisible: customerVisible.has(good.id) };
     }),
   };
-}
-
-/* 2026-11-19: 예약 조건을 임시저장만 하고 적용하지 않은 상품(사용 옵션 중 임시저장만 있고 적용 중인 예약이 없는 옵션 수).
-   한 페이지만 읽는다. 앱이 DB보다 먼저 배포되었거나 읽기에 실패하면 표시만 빼고 목록은 그대로 연다. */
-async function loadGoodsListPreorderDraftOnly(ids: string[]) {
-  const counts = new Map<string, number>();
-  if (!ids.length) return counts;
-  try {
-    const client = await createClient();
-    const result = await client.rpc('admin_goods_list_preorder_states', { p_good_ids: ids });
-    if (result.error || !Array.isArray(result.data)) return counts;
-    for (const row of result.data as { id?: unknown; draftOnlyOptionCount?: unknown }[]) {
-      if (typeof row.id === 'string' && ids.includes(row.id) && Number.isSafeInteger(row.draftOnlyOptionCount) && (row.draftOnlyOptionCount as number) > 0) {
-        counts.set(row.id, row.draftOnlyOptionCount as number);
-      }
-    }
-  } catch { counts.clear(); }
-  return counts;
 }
 
 /* 상품 URL 링크(R15)의 목적지. 고객 상세(`getCatalogGoodDetail`)와 같은 공개 조건으로 한 페이지만 읽는다.

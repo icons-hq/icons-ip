@@ -80,55 +80,39 @@ describe('등록 화면 KC 카드 — 자가 신고·기타 인증·KC 틀', () 
   });
 });
 
-/* 2026-11-19 사고: 등록 화면도 적용 권한이 있으면 '판매에 적용'이 기본이고, 저장이 막히면 빈 칸 옆에 이유를 보인다. */
-describe('등록 화면 예약 조건 카드 — 판매에 적용 기본', () => {
+/* 2026-11-19 사용자·MD 결정: 등록 화면의 예약 조건도 상품을 저장하면 바로 적용된다. 임시저장·승인 근거·권한 구분이 없고, 저장이 막히면 빈 칸 옆에 이유를 보인다. */
+describe('등록 화면 예약 조건 카드 — 저장하면 적용', () => {
   const key = goodWorkspaceKcVariants(rows).length ? 'new:[]' : '';
-  const renderPreorder = (canActivate: boolean, preorders: GoodWorkspaceSectionsDraft['preorders'], sectionErrors: Record<string, string> = {}) => {
+  const renderPreorder = (preorders: GoodWorkspaceSectionsDraft['preorders'], sectionErrors: Record<string, string> = {}) => {
     workspace.sections = { ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders };
     workspace.sectionErrors = sectionErrors;
-    try { return renderToStaticMarkup(<GoodWorkspacePreorderCard canActivate={canActivate} />); } finally { workspace.sectionErrors = {}; }
+    try { return renderToStaticMarkup(<GoodWorkspacePreorderCard />); } finally { workspace.sectionErrors = {}; }
   };
-  const checkedMode = (html: string) => html.match(/<input class="mt-0\.5" form="[^"]+" type="radio" name="[^"]+" checked="" value="(\w+)"/)?.[1] ?? null;
-  it('새 예약 조건은 적용 권한이 있으면 판매에 적용, 없으면 임시저장으로 시작한다', () => {
-    expect(emptyGoodWorkspacePreorder(key, true).state).toBe('active');
-    expect(emptyGoodWorkspacePreorder(key, false).state).toBe('draft');
+  it('요약은 조건 수와 저장하면 적용된다는 것만 보인다', () => {
     expect(goodWorkspacePreorderSummary([])).toBe('설정안함');
-    expect(goodWorkspacePreorderSummary([{ state: 'active' }, { state: 'draft' }])).toBe('판매에 적용 1개 · 임시저장 1개(판매 미반영)');
+    expect(goodWorkspacePreorderSummary([emptyGoodWorkspacePreorder(key), emptyGoodWorkspacePreorder(key)])).toBe('예약 조건 2개 · 저장하면 적용');
   });
-  it('적용 권한이 있으면 저장할 때 판매에 적용/임시저장을 고르고, 적용 필수 칸을 표시한다', () => {
-    const html = renderPreorder(true, [emptyGoodWorkspacePreorder(key, true)]);
-    expect(checkedMode(html)).toBe('active');
-    expect(html).toContain('상품을 저장할 때');
-    expect(html.match(/ · 적용 필수/g)).toHaveLength(5);
-    expect(html).not.toContain('초안');
+  it('저장 방식 선택·임시저장·승인 근거 칸이 없다', () => {
+    const html = renderPreorder([emptyGoodWorkspacePreorder(key)]);
+    for (const gone of ['상품을 저장할 때', '임시저장', '승인', '적용 필수', '초안', 'type="radio"', '<textarea']) expect(html).not.toContain(gone);
+    expect(html).toContain('상품을 저장하면 바로 예약판매로 적용되고');
     expect(html).not.toContain('data-preorder-field-problem');
   });
-  it('저장이 막히면 판매에 적용으로 둔 조건의 빈 칸 옆에 이유를 보인다', () => {
+  it('저장이 막히면 빈 칸 옆에 이유를 보인다', () => {
     /* 물량은 직접 비운 경우(재고수량을 따라가지 않음). */
-    const html = renderPreorder(true, [{ ...emptyGoodWorkspacePreorder(key, true), capacityFromStock: false }], { workspacePreorders: '예약 조건 1: 승인 예약 물량·접수 시작·접수 종료·발송 예정일·승인 근거 칸을 확인해주세요.' });
-    expect(html.match(/data-preorder-field-problem=""/g)).toHaveLength(5);
-    expect(html.match(/aria-invalid="true"/g)).toHaveLength(5);
-    expect(html).toContain('승인 예약 물량을 입력해주세요.');
-    expect(html).toContain('승인 문서 번호나 확인 근거를 입력해주세요.');
-    /* 임시저장으로 둔 조건은 빈 칸이 있어도 표시하지 않는다. */
-    const draft = renderPreorder(true, [{ ...emptyGoodWorkspacePreorder(key, true), state: 'draft' }], { workspacePreorders: '다른 오류' });
-    expect(draft).not.toContain('data-preorder-field-problem');
-    expect(checkedMode(draft)).toBe('draft');
+    const html = renderPreorder([{ ...emptyGoodWorkspacePreorder(key), capacityFromStock: false }], { workspacePreorders: '예약 조건 1: 예약 물량·접수 시작·접수 종료·발송 예정일 칸을 확인해주세요.' });
+    expect(html.match(/data-preorder-field-problem=""/g)).toHaveLength(4);
+    expect(html.match(/aria-invalid="true"/g)).toHaveLength(4);
+    expect(html).toContain('예약 물량을 입력해주세요.');
   });
   /* 11/19 예약 물량 = 재고수량 — 새 예약 조건의 물량은 옵션 행 재고수량(시험 행 1개)을 따라간다. */
-  it('새 예약 조건의 승인 예약 물량은 옵션 재고수량을 따라가고, 다르게 고치면 경고만 보인다', () => {
-    const following = renderPreorder(true, [emptyGoodWorkspacePreorder(key, true)]);
+  it('새 예약 조건의 예약 물량은 옵션 재고수량을 따라가고, 다르게 고치면 경고만 보인다', () => {
+    const following = renderPreorder([emptyGoodWorkspacePreorder(key)]);
     expect(following).toMatch(/<input[^>]*type="number"[^>]*value="1"/);
     expect(following).toContain('재고수량 1개를 예약 물량으로 씁니다.');
-    const differs = renderPreorder(true, [{ ...emptyGoodWorkspacePreorder(key, true), capacityFromStock: false, capacityQty: '30' }]);
+    const differs = renderPreorder([{ ...emptyGoodWorkspacePreorder(key), capacityFromStock: false, capacityQty: '30' }]);
     expect(differs).toMatch(/<input[^>]*type="number"[^>]*value="30"/);
     expect(differs).toContain('재고수량 1개와 다릅니다');
     expect(differs).toContain('재고수량과 같게</button>');
-  });
-  it('적용 권한이 없으면 저장 방식 선택 없이 임시저장 안내만 보인다', () => {
-    const html = renderPreorder(false, [emptyGoodWorkspacePreorder(key, false)]);
-    expect(checkedMode(html)).toBeNull();
-    expect(html).toContain('임시저장 — 계정 주매니저·통합 매니저가 적용하기 전까지 판매에 반영되지 않습니다.');
-    expect(html).not.toContain('적용 필수');
   });
 });

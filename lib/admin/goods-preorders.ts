@@ -3,13 +3,15 @@ import { isGoodsShipDate } from '@/lib/goods-preorders';
 import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
 import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 
-export type GoodsPreorderState = 'draft' | 'active' | 'stopped';
+/** 예약 조건 상태. 2026-11-19부터 임시저장(초안)은 없다 — 저장하면 적용(active)이고, 접수를 중지하면 stopped다. */
+export type GoodsPreorderState = 'active' | 'stopped';
 export interface GoodsPreorderInput {
   state: GoodsPreorderState;
   capacityQty: number | null;
   startsAt: string | null;
   endsAt: string | null;
   expectedShipDate: string | null;
+  /** 선택 메모. 예전 '승인 근거' 칸이고 지금은 일정 일괄 변경이 변경 사유를 붙일 때만 채워진다. 화면에서 입력받지 않는다. */
   approvalReference: string | null;
 }
 export interface AdminGoodsPreorder extends GoodsPreorderInput {
@@ -48,7 +50,7 @@ function optionalInstant(value: unknown): string | null | false {
   return value;
 }
 export function parseGoodsPreorderInput(value: unknown): GoodsPreorderInput | null {
-  if (!object(value) || !['draft', 'active', 'stopped'].includes(String(value.state))
+  if (!object(value) || !['active', 'stopped'].includes(String(value.state))
     || Object.keys(value).some((key) => !['state', 'capacityQty', 'startsAt', 'endsAt', 'expectedShipDate', 'approvalReference'].includes(key))) return null;
   if (value.state === 'stopped') return { state: 'stopped', capacityQty: null, startsAt: null, endsAt: null, expectedShipDate: null, approvalReference: null };
   let capacityQty: number | null = null;
@@ -66,25 +68,20 @@ export function parseGoodsPreorderInput(value: unknown): GoodsPreorderInput | nu
   const approvalReference = typeof value.approvalReference === 'string' ? value.approvalReference.trim() || null : null;
   if (approvalReference && approvalReference.length > 2000) return null;
   if (value.state === 'active') {
-    if (capacityQty === null || startsAt === null || endsAt === null || expectedShipDate === null || approvalReference === null) return null;
+    if (capacityQty === null || startsAt === null || endsAt === null || expectedShipDate === null) return null;
     const lastSaleDate = new Date(Date.parse(endsAt) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
     if (expectedShipDate < lastSaleDate) return null;
   }
   return { state: value.state as GoodsPreorderState, capacityQty, startsAt, endsAt, expectedShipDate: expectedShipDate as string | null, approvalReference };
 }
 /*
- * 예약판매 '적용'(DB state='active')과 '임시저장'(state='draft').
- * 2026-11-19 사고: 운영자가 저장 방식 기본값('초안')으로 저장한 예약 6건이 판매에 적용되지 않았다. 화면은 적용 권한이 있으면
- * 적용을 기본 동작으로 두고, 적용에 필요한 칸이 비면 그 칸 옆에 이유를 보이고 저장을 막는다. 규칙은 DB
- * (admin_save_goods_preorder의 invalid_preorder_policy·preorder_policy_not_configured)와 같다 — DB가 다시 막는다.
+ * 예약판매는 저장하면 적용된다(2026-11-19 사용자·MD 결정 — "그냥 MD가 등록하면 완료", "초안 저장도 그냥 없애구 다른 작성 항목이랑
+ * 동일하게"). 임시저장(초안)·승인 근거·적용 권한 분리는 없다. 필요한 칸이 비거나 DB가 거절할 값이면 저장할 때 그 칸 옆에 이유를
+ * 보이고 저장하지 않는다. 규칙은 DB(admin_save_goods_preorder의 invalid_preorder_policy·preorder_policy_not_configured)와 같다.
  */
-/** 적용 권한이 있는 계정의 임시저장 안내(버튼 옆). */
-export const PREORDER_DRAFT_NOTE = '임시저장은 판매에 반영되지 않습니다. 예약판매로 팔려면 적용 필수 칸을 채우고 [예약판매 적용]을 눌러주세요.';
-/** 적용 권한이 없는 계정의 안내. 이 계정은 임시저장만 할 수 있다. */
-export const PREORDER_STAFF_DRAFT_NOTE = '임시저장 — 계정 주매니저·통합 매니저가 적용하기 전까지 판매에 반영되지 않습니다.';
-export type PreorderApplyField = 'capacityQty' | 'startsAt' | 'endsAt' | 'expectedShipDate' | 'approvalReference';
+export type PreorderApplyField = 'capacityQty' | 'startsAt' | 'endsAt' | 'expectedShipDate';
 export const PREORDER_APPLY_FIELD_LABELS: Record<PreorderApplyField, string> = {
-  capacityQty: '승인 예약 물량', startsAt: '접수 시작', endsAt: '접수 종료', expectedShipDate: '발송 예정일', approvalReference: '승인 근거',
+  capacityQty: '예약 물량', startsAt: '접수 시작', endsAt: '접수 종료', expectedShipDate: '발송 예정일',
 };
 const PREORDER_APPLY_FIELDS = Object.keys(PREORDER_APPLY_FIELD_LABELS) as PreorderApplyField[];
 export interface PreorderApplyValues {
@@ -93,7 +90,6 @@ export interface PreorderApplyValues {
   startsAt: string;
   endsAt: string;
   expectedShipDate: string;
-  approvalReference: string;
 }
 export type PreorderApplyProblems = Partial<Record<PreorderApplyField, string>>;
 
@@ -118,14 +114,14 @@ export function preorderCapacityStockNote(capacity: string, stockQty: number | n
     : `재고수량 ${stock.toLocaleString('ko-KR')}개와 다릅니다. 입고 확인(예약 주문 할당)은 재고수량 안에서만 되므로, 실제 입고 수량과 다르면 재고 조정으로 맞춘 뒤 할당합니다.`;
 }
 
-/** 승인 예약 물량 한 칸의 적용 전 확인. 문제가 없으면 null. */
+/** 예약 물량 한 칸의 저장 전 확인. 문제가 없으면 null. */
 export function preorderCapacityProblem(value: string): string | null {
   const qty = value.trim();
-  if (!qty) return '승인 예약 물량을 입력해주세요.';
-  return /^[1-9]\d*$/.test(qty) && integer(Number(qty), 1) ? null : '승인 예약 물량은 1 이상의 정수로 입력해주세요.';
+  if (!qty) return '예약 물량을 입력해주세요.';
+  return /^[1-9]\d*$/.test(qty) && integer(Number(qty), 1) ? null : '예약 물량은 1 이상의 정수로 입력해주세요.';
 }
 
-/** 예약판매 적용 전 칸별 확인. 비었거나 DB가 거절할 값이면 칸 이름을 키로 이유를 돌려준다. 빈 객체면 적용할 수 있다. */
+/** 예약판매 저장 전 칸별 확인. 비었거나 DB가 거절할 값이면 칸 이름을 키로 이유를 돌려준다. 빈 객체면 저장(적용)할 수 있다. */
 export function preorderApplyProblems(values: PreorderApplyValues, now = Date.now()): PreorderApplyProblems {
   const problems: PreorderApplyProblems = {};
   if (values.capacityQty !== undefined) {
@@ -144,25 +140,12 @@ export function preorderApplyProblems(values: PreorderApplyValues, now = Date.no
   else if (ends && values.expectedShipDate < new Date(Date.parse(ends) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)) {
     problems.expectedShipDate = '발송 예정일은 접수 종료일과 같거나 뒤여야 합니다.';
   }
-  const reference = values.approvalReference.trim();
-  if (!reference) problems.approvalReference = '승인 문서 번호나 확인 근거를 입력해주세요.';
-  else if (reference.length > 2000) problems.approvalReference = '승인 근거는 2,000자까지 입력할 수 있습니다.';
   return problems;
 }
 
-/** 문제가 있는 칸 이름을 화면 순서대로 잇는다(예: '승인 예약 물량·접수 종료·승인 근거'). 저장 오류 요약에 쓴다. */
+/** 문제가 있는 칸 이름을 화면 순서대로 잇는다(예: '예약 물량·접수 종료'). 저장 오류 요약에 쓴다. */
 export function preorderApplyProblemLabels(problems: PreorderApplyProblems): string {
   return PREORDER_APPLY_FIELDS.filter((field) => problems[field]).map((field) => PREORDER_APPLY_FIELD_LABELS[field]).join('·');
-}
-
-/**
- * 판매에 적용되지 않은 임시저장만 있는 옵션. 임시저장(draft) 조건이 있는데 적용 중(active)인 조건이 없는 옵션이다 — 이 옵션은
- * 실제 재고 기준으로 판매되고 예약 주문을 받지 않는다. `variantIds`를 주면 그 옵션(사용 중인 옵션)만 본다.
- */
-export function preorderDraftOnlyVariantIds(policies: readonly Pick<AdminGoodsPreorder, 'variantId' | 'state'>[], variantIds?: readonly string[]): string[] {
-  const active = new Set(policies.filter((policy) => policy.state === 'active').map((policy) => policy.variantId));
-  const drafts = [...new Set(policies.filter((policy) => policy.state === 'draft' && !active.has(policy.variantId)).map((policy) => policy.variantId))];
-  return variantIds ? variantIds.filter((id) => drafts.includes(id)) : drafts;
 }
 
 export function parseAdminGoodsPreorders(value: unknown): AdminGoodsPreorder[] | null {
@@ -170,15 +153,14 @@ export function parseAdminGoodsPreorders(value: unknown): AdminGoodsPreorder[] |
   const result: AdminGoodsPreorder[] = [];
   for (const row of value) {
     if (!object(row) || !isUuid(row.id) || !isUuid(row.variantId) || typeof row.goodId !== 'string' || !row.goodId
-      || !['draft', 'active', 'stopped'].includes(String(row.state)) || !integer(row.revision, 1) || typeof row.selected !== 'boolean'
+      || !['active', 'stopped'].includes(String(row.state)) || !integer(row.revision, 1) || typeof row.selected !== 'boolean'
       || !integer(row.reservedQty) || !integer(row.allocatedQty) || !timestamp(row.createdAt)
       || (row.activatedAt !== null && !timestamp(row.activatedAt)) || (row.stoppedAt !== null && !timestamp(row.stoppedAt))) return null;
-    const input = parseGoodsPreorderInput({ state: row.state === 'stopped' ? 'active' : row.state, capacityQty: row.capacityQty,
+    const input = parseGoodsPreorderInput({ state: 'active', capacityQty: row.capacityQty,
       startsAt: row.startsAt, endsAt: row.endsAt, expectedShipDate: row.expectedShipDate, approvalReference: row.approvalReference });
     if (!input || (input.capacityQty === null ? row.remainingQty !== null : !integer(row.remainingQty)
       || row.remainingQty !== input.capacityQty - row.reservedQty - row.allocatedQty)
-      || (row.state !== 'draft' && row.activatedAt === null) || (row.state === 'stopped' && row.stoppedAt === null)
-      || (row.state === 'draft' && row.selected)) return null;
+      || row.activatedAt === null || (row.state === 'stopped' && row.stoppedAt === null)) return null;
     result.push({ ...input, state: row.state as GoodsPreorderState, id: row.id, variantId: row.variantId, goodId: row.goodId,
       revision: row.revision, selected: row.selected, remainingQty: row.remainingQty as number | null,
       reservedQty: row.reservedQty, allocatedQty: row.allocatedQty, createdAt: row.createdAt,
@@ -234,15 +216,15 @@ export function pendingPreorderReservationsByVariant(policies: readonly Pick<Adm
 
 /**
  * 랜덤 판매 상품의 일괄 예약 저장(`admin_save_random_goods_preorders`). 모든 판매 중 옵션이 같은 접수 기간·발송 예정일을 쓰고
- * 승인 예약 물량만 옵션별이다. 중지·일반 재고 전환도 모든 옵션을 한 트랜잭션으로 바꾼다(옵션 하나만 바꾸면 커밋에서 거절된다).
+ * 예약 물량만 옵션별이다. 중지·일반 재고 전환도 모든 옵션을 한 트랜잭션으로 바꾼다(옵션 하나만 바꾸면 커밋에서 거절된다).
  */
-export type RandomPreorderBulkState = 'draft' | 'active' | 'stopped' | 'stock';
+export type RandomPreorderBulkState = 'active' | 'stopped' | 'stock';
 export interface RandomPreorderOptionInput {
   variantId: string;
-  /** 이어 쓸 초안(초안·활성화) 또는 지금 선택된 정책(중지·일반 재고 전환). 새로 만들면 null. */
+  /** 지금 선택된 정책(중지·일반 재고 전환). 적용(새로 저장)은 null. */
   policyId: string | null;
   expectedRevision: number | null;
-  /** 초안·활성화만. 활성화는 모든 옵션에 필요하다. */
+  /** 적용만. 모든 옵션에 필요하다. */
   capacityQty?: number | null;
 }
 export interface RandomPreorderRequest {
@@ -257,15 +239,15 @@ function capacityValue(value: unknown): number | null | false {
   return integer(number, 1) ? number : false;
 }
 export function parseRandomPreorderRequest(stateValue: unknown, valuesValue: unknown, optionsValue: unknown): RandomPreorderRequest | null {
-  if (!['draft', 'active', 'stopped', 'stock'].includes(String(stateValue)) || !Array.isArray(optionsValue)
+  if (!['active', 'stopped', 'stock'].includes(String(stateValue)) || !Array.isArray(optionsValue)
     || !optionsValue.length || optionsValue.length > 100) return null;
   const state = stateValue as RandomPreorderBulkState;
-  const schedule = state === 'draft' || state === 'active';
+  const schedule = state === 'active';
   let values: RandomPreorderRequest['values'] = null;
   if (schedule) {
     if (!object(valuesValue)) return null;
-    /* 활성화는 옵션별 물량을 따로 검사하므로 공통 값 검사에는 자리 값 1을 넣는다. */
-    const parsed = parseGoodsPreorderInput({ state, capacityQty: state === 'active' ? 1 : null, startsAt: valuesValue.startsAt,
+    /* 옵션별 물량은 따로 검사하므로 공통 값 검사에는 자리 값 1을 넣는다. */
+    const parsed = parseGoodsPreorderInput({ state, capacityQty: 1, startsAt: valuesValue.startsAt,
       endsAt: valuesValue.endsAt, expectedShipDate: valuesValue.expectedShipDate, approvalReference: valuesValue.approvalReference });
     if (!parsed) return null;
     values = { startsAt: parsed.startsAt, endsAt: parsed.endsAt, expectedShipDate: parsed.expectedShipDate, approvalReference: parsed.approvalReference };
@@ -283,7 +265,7 @@ export function parseRandomPreorderRequest(stateValue: unknown, valuesValue: unk
       continue;
     }
     const capacityQty = capacityValue(row.capacityQty);
-    if (capacityQty === false || (state === 'active' && capacityQty === null)) return null;
+    if (capacityQty === false || capacityQty === null || base.policyId !== null) return null;
     options.push({ ...base, capacityQty });
   }
   return { state, values, options };
@@ -293,21 +275,21 @@ export function preorderMutationError(message: string): string {
   /* D5② 랜덤 판매 상품은 모든 옵션이 같은 일정으로 예약해야 한다 — 커밋 시점 지연 제약이 random_option_*로 거절한다. */
   if (RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code))) return goodsOptionSaleModeErrorMessage(message);
   const errors: Record<string, string> = {
-    preorder_admin_required: '예약판매 적용과 일반 재고 판매 전환은 계정 주매니저·통합 매니저만 할 수 있습니다. 예약 조건은 임시저장으로 저장해주세요.',
+    preorder_admin_required: '접수 중인 예약 조건 교체는 계정 주매니저·통합 매니저만 할 수 있습니다.',
     preorder_policy_changed: '예약 조건이 변경되었습니다. 목록을 새로고침한 뒤 다시 확인해주세요.',
-    preorder_policy_not_configured: '승인 물량·접수 기간(종료는 지금 이후)·발송 예정일(접수 종료일 이후)·승인 근거를 모두 입력해야 판매에 적용할 수 있습니다.',
+    preorder_policy_not_configured: '예약 물량·접수 기간(종료는 지금 이후)·발송 예정일(접수 종료일과 같거나 뒤)을 모두 입력해야 저장할 수 있습니다.',
+    invalid_preorder_policy: '예약 물량·접수 기간·발송 예정일을 확인해주세요. 화면을 새로고침한 뒤 다시 저장해주세요.',
     preorder_policy_already_active: '이 옵션에 이미 적용 중인 예약이 있습니다. 기존 예약 접수를 먼저 중지해주세요.',
-    preorder_policy_immutable: '판매에 적용한 예약 조건은 변경할 수 없습니다. 접수를 중지하고 새 승인 건을 등록해주세요.',
-    preorder_runtime_not_ready: '예약판매 기능을 준비 중입니다. 아직 판매에 적용할 수 없습니다.',
+    preorder_policy_immutable: '저장한 예약 조건은 바꿀 수 없습니다. 접수를 중지하고 새 예약 조건을 저장해주세요.',
+    preorder_runtime_not_ready: '예약판매 기능을 준비 중입니다. 아직 저장할 수 없습니다.',
     preorder_allocations_pending: '아직 실물 재고를 할당하지 않은 예약 주문이 있습니다. 해당 주문을 먼저 처리해주세요.',
-    stop_preorder_before_stock_supply: '예약 접수를 먼저 중지한 뒤 일반 재고 판매로 전환해주세요.',
     preorder_physical_stock_changed: '실물 재고가 변경되었습니다. 예약 주문 목록을 새로고침하고 다시 확인해주세요.',
     preorder_physical_stock_shortfall: '선택한 예약 주문을 할당할 실제 옵션 재고가 부족합니다.',
     preorder_payment_required: '입금·결제가 확인된 예약 주문에만 실물 재고를 할당할 수 있습니다.',
     preorder_reservation_released: '취소된 예약 품목은 재고 할당 대상에서 제외해주세요.',
     random_preorder_options_mismatch: '판매 중인 옵션이나 예약 상태가 바뀌었습니다. 예약 조건을 새로고침한 뒤 모든 옵션을 다시 확인해주세요.',
     random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
-    invalid_random_preorder: '승인 물량·접수 기간·발송 예정일·승인 근거를 확인해주세요.',
+    invalid_random_preorder: '예약 물량·접수 기간·발송 예정일을 확인해주세요.',
     'order cancellation in progress': '취소·클레임이 진행 중인 주문은 해당 처리를 먼저 확인해주세요.',
     'order fulfillment hold': '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 할당해주세요.',
   };

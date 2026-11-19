@@ -207,9 +207,6 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
               {editable && inlineIdentity && sale.showsSaleValue ? <div className="-ml-1.5 w-full"><GoodsInlineSale compact goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} display={saleBadge} valueText={sale.label} /></div> : saleBadge}
               {editable && inlineIdentity && !sale.showsSaleValue ? <div className="min-w-0 [&_[data-inline-edit=value]_svg]:hidden"><GoodsInlineSale compact goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} valueText={`${good.publishedAt ? '판매상태 ' : '공개 시 '}${good.stock === 'soldout' ? '판매중지' : '판매중'}`} display={<span className="text-xs whitespace-nowrap"><span className="text-muted-foreground">{good.publishedAt ? '판매상태 ' : '공개 시 '}</span>{good.stock === 'soldout' ? '판매중지' : '판매중'}</span>} /></div> : null}
             </div>
-            {/* 2026-11-19: 예약 조건을 임시저장만 하고 적용하지 않은 상품은 예약판매로 팔리지 않는다 — 편집기 예약판매 자리로 바로 보낸다. */}
-            {good.preorderDraftOnlyOptionCount ? <Link className={REASON_LINK} data-goods-list="preorder-draft-only" href={`${editorHref}#good-operation-preorders`}
-              title={`옵션 ${good.preorderDraftOnlyOptionCount}개의 예약 조건이 임시저장 상태라 판매에 적용되지 않았습니다.`}><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />예약 임시저장 · 판매 미적용 →</Link> : null}
             {saleDetail || reasons.length ? <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
               {saleDetail ? <small className={SECONDARY}>{saleDetail}</small> : null}
               {reasons.length === 1 ? reasonLink(reasons[0]) : null}

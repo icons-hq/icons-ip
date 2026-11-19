@@ -110,10 +110,31 @@ select set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-000000000003'
 do $$ begin
  if not public.can_stage_admin_artwork('catalog/good/bfc01350-0000-4000-8000-000000000001.webp') then
   raise exception 'owned allowed upload cannot stage';end if;
- begin perform public.admin_save_goods_preorder(null,null,null,'{"state":"active"}',null);raise exception 'deputy preorder activation allowed';
- exception when insufficient_privilege then if sqlerrm<>'preorder_admin_required' then raise;end if;end;
 end $$;
 reset role;
+-- 예약 적용·일반 재고 전환은 상품 관리 권한(catalog.manage)이면 된다(2026-11-19). platform.manage가 없는 부매니저도
+-- 저장하면 바로 적용하고, 미할당 예약이 없으면 접수 중인 정책을 한 번에 중지하며 일반 재고로 돌린다.
+insert into public.verticals(key,label,color) values('operator-cap-preorder','운영자 예약 권한','#000000');
+insert into public.ips(id,title,vertical_key) values('operator-cap-preorder','운영자 예약 권한','operator-cap-preorder');
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('operator-cap-preorder','operator-cap-preorder','운영자 예약 권한','문구',10000,'ok',0);
+select id as cap_preorder_variant from public.goods_variants where good_id='operator-cap-preorder' and is_default \gset
+set local role authenticated;
+select set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-000000000003',true);
+select 1/case when public.has_operator_capability('catalog.manage') and not public.has_operator_capability('platform.manage')
+ then 1 else 0 end as assert_deputy_is_catalog_manager_without_platform;
+select public.admin_save_goods_preorder('operator-cap-preorder',:'cap_preorder_variant',null,jsonb_build_object('state','active','capacityQty',3,
+ 'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour','expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7))->>'id' as cap_preorder_policy \gset
+select public.admin_use_stock_supply('operator-cap-preorder',:'cap_preorder_variant',:'cap_preorder_policy',1)->>'changed' as cap_stock_switch \gset
+reset role;
+select 1/case when :'cap_stock_switch'::boolean
+ and (select state='stopped' and revision=2 and activated_by='bfc01300-0000-4000-8000-000000000003' and stopped_by='bfc01300-0000-4000-8000-000000000003'
+   from private.goods_preorder_policies where id=:'cap_preorder_policy')
+ and (select preorder_policy_id is null from public.goods_variants where id=:'cap_preorder_variant')
+ and exists(select 1 from private.operator_rpc_contracts where to_regprocedure(signature)='public.admin_save_goods_preorder(text,uuid,uuid,jsonb,integer)'::regprocedure
+   and capability='catalog.manage' and guard_kind='write' and not legacy_admin_only)
+ and exists(select 1 from private.operator_rpc_contracts where to_regprocedure(signature)='public.admin_use_stock_supply(text,uuid,uuid,integer)'::regprocedure
+   and capability='catalog.manage' and guard_kind='write' and not legacy_admin_only)
+ then 1 else 0 end as assert_deputy_applies_preorder_and_switches_stock;
 set local role service_role;
 do $$ begin
  if not exists(select 1 from public.service_begin_admin_artwork_verification('bfc01300-0000-4000-8000-000000000003',

@@ -2017,14 +2017,21 @@ describe('상품 등록 원자 저장', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good_workspace', { p_request: expect.objectContaining({ operationId: OPERATION, draft: null, sections: {} }) });
   });
 
-  it('적용 권한이 없으면 예약판매 적용을 RPC 전에 막고 입력을 보존한다', async () => {
-    const values = { state: 'active', capacityQty: '3', startsAt: '2026-11-01T10:00', endsAt: '2026-11-10T18:00', expectedShipDate: '2026-11-20', approvalReference: '승인' };
-    const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [{ variant: { id: VARIANT }, values }] }));
-    expect(result.errors?.workspacePreorders).toContain('계정 주매니저·통합 매니저');
+  /* 2026-11-19: 예약판매는 권한 구분 없이 저장하면 적용된다. 초안(state 'draft')은 RPC 전에 막고 입력을 보존한다. */
+  it('상품 관리 운영자의 예약 조건은 적용(active)으로 래퍼에 보내고, 초안은 RPC 전에 막는다', async () => {
+    mocks.adminState = { ...mocks.adminState, operatorAccess: legacyOperatorAccessFixture('staff') };
+    const values = { state: 'active', capacityQty: '3', startsAt: '2099-11-01T10:00', endsAt: '2099-11-10T18:00', expectedShipDate: '2099-11-20' };
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100', created: true, kc: null, preorders: [{ id: VARIANT }] }, error: null });
+    await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [{ variant: { id: VARIANT }, values }] }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good_workspace', { p_request: expect.objectContaining({
+      sections: { preorders: [{ variant: { id: VARIANT }, policyId: null, expectedRevision: null, values: expect.objectContaining({ state: 'active', capacityQty: 3, approvalReference: null }) }] } }) });
+    mocks.rpc.mockClear();
+    const draft = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [{ variant: { id: VARIANT }, values: { ...values, state: 'draft' } }] }));
+    expect(draft.errors?.workspacePreorders).toEqual(expect.any(String));
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good_workspace', expect.anything());
-    expect(result.values?.name).toBe('화산강림 아크릴 스탠드');
-    expect(result.values).not.toHaveProperty('workspaceSections');
-    expect(result.values).not.toHaveProperty('workspaceOperationId');
+    expect(draft.values?.name).toBe('화산강림 아크릴 스탠드');
+    expect(draft.values).not.toHaveProperty('workspaceSections');
+    expect(draft.values).not.toHaveProperty('workspaceOperationId');
   });
 
   it.each([
@@ -2054,7 +2061,7 @@ describe('상품 등록 원자 저장', () => {
   it('판매기간과 예약 활성화 충돌은 예약판매 카드와 판매기간 칸에 등록 화면 안내를 붙인다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_sale_period_preorder_conflict' } });
     const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
-    expect(result.errors?.workspacePreorders).toContain('예약 조건을 임시저장으로 바꾸거나 판매기간을 설정안함으로');
+    expect(result.errors?.workspacePreorders).toContain('예약 조건을 빼거나 판매기간을 설정안함으로');
     expect(result.errors?.saleStartsAt).toContain('판매기간');
     expect(JSON.stringify(result.errors)).not.toContain('일반재고로 전환');
   });

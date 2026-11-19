@@ -175,20 +175,6 @@ describe('goods list screen', () => {
     // 상품번호·상품 URL은 열로 있으므로 접힌 추가 정보에 다시 두지 않는다.
     expect(html).not.toMatch(/<dt[^>]*>상품번호<\/dt>/);
   });
-  /* 2026-11-19 사고: 예약을 임시저장만 하고 적용하지 않은 상품을 목록에서 찾아 편집기 예약판매 자리로 바로 간다. */
-  it('예약을 임시저장만 하고 적용하지 않은 상품은 상태 칸에 경고 링크로 보이고, 없으면 보이지 않는다', () => {
-    const base = { code: 'A', name: '상품', ipId: 'ip', ipTitle: 'IP', stock: 'ok' as const, stockQty: 0, activeStockQty: 0, lowStockOptionCount: 0, noticeComplete: true, archivedAt: null, publishedAt: null, customerVisible: false };
-    const filters = normalizeGoodsListFilters({});
-    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters, total: 2, ips: [], goods: [
-      { ...base, id: 'hsq-draft-only', preorderDraftOnlyOptionCount: 2 },
-      { ...base, id: 'hsq-applied', preorderDraftOnlyOptionCount: 0 },
-    ] }} />);
-    const links = [...html.matchAll(/<a [^>]*data-goods-list="preorder-draft-only"[^>]*>/g)].map((match) => match[0]);
-    expect(links).toHaveLength(1);
-    expect(links[0]).toContain(`href="${goodEditorHref(filters, 'hsq-draft-only').replaceAll('&', '&amp;')}#good-operation-preorders"`);
-    expect(links[0]).toContain('옵션 2개의 예약 조건이 임시저장 상태라 판매에 적용되지 않았습니다.');
-    expect(html).toContain('예약 임시저장 · 판매 미적용 →');
-  });
   it('상품번호 보조 문구는 고객 화면에 안 보이는 사유와 같은 행의 상태 배지와 어긋나지 않는다', () => {
     // 리뷰 T4-R15-1: 보관·전시 중 성인·IP 비공개 상품에 '공개 전'이라고 쓰면 '보관'·'공개' 배지와 모순된다.
     const base = { code: 'A', name: '상품', ipId: 'ip', ipTitle: 'IP', stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true, customerVisible: false };
