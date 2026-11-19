@@ -251,7 +251,7 @@ update public.order_shipments set status = 'delivered', delivered_at = now() whe
 select pg_temp.pc_assert((select status = 'delivered' and delivered_at is not null from public.orders where id = pg_temp.pc_id('order', 2))
  and private.order_all_items_delivered(pg_temp.pc_id('order', 2)) and private.order_return_intake_eligible(pg_temp.pc_id('order', 2)),
  'delivered_ignores_closed_shipment_and_canceled_quantity');
-update private.return_fee_deduction_settings set enabled = true, one_way_amount = 3000, evidence = 'TEST 반품배송비', enabled_at = clock_timestamp() where singleton;
+update private.return_fee_deduction_settings set enabled = true, one_way_amount = 3000, evidence = 'TEST 반품배송비', enabled_at = clock_timestamp() - interval '10 days' where singleton;
 insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at)
  values (pg_temp.pc_id('claim', 2), pg_temp.pc_id('order', 2), pg_temp.pc_id('user', 2), 'TEST 단순 변심 반품', 'change_of_mind', 'return', 'collected', 'legacy',
   clock_timestamp() - interval '10 minutes', clock_timestamp() - interval '1 hour');
