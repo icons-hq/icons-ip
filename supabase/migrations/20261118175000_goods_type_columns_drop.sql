@@ -126,6 +126,7 @@ comment on function public.my_order_items(uuid[]) is
 -- 4. 그룹 공통정보 공통 칸·상품 임시저장 허용 칸에서 'type'을 뺀다. 상품 저장은 type 키를 넘기지 않는다.
 -- --------------------------------------------------------------------------
 select private.goods_type_column_patch('private.goods_group_common_identity(text)'::regprocedure, jsonb_build_array(
+  jsonb_build_array($a$jsonb_each(to_jsonb(g)||'{"type":""}'::jsonb)$a$, $a$jsonb_each(to_jsonb(g))$a$),
   jsonb_build_array($a$array['ip_id','type','category_id',$a$, $a$array['ip_id','category_id',$a$)
 ));
 select private.goods_type_column_patch('private.goods_group_common_public_fields(jsonb)'::regprocedure, jsonb_build_array(

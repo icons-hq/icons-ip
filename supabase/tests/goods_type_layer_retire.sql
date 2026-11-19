@@ -294,6 +294,10 @@ select 1/case when (select price=1700 and published_at is not null from public.g
  then 1 else 0 end as save_ignores_given_type;
 reset role;
 
+-- 그룹 공통정보 일치 판정·공통정보 읽기에 'type' 키가 없다.
+select 1/case when not (private.goods_group_common_identity('gr-legacy-good')->'goods' ? 'type')
+ then 1 else 0 end as group_common_identity_has_no_type;
+
 -- 그룹 공통정보 입력은 공통 칸만 받는다('type'도 이제 모르는 키다).
 create function pg_temp.gr_group_values(extra jsonb) returns jsonb language sql as $$
   select jsonb_build_object('goods',jsonb_build_object('ip_id','goods-type-retire','category_id',null,'name_en',null,'notice_maker',null,
