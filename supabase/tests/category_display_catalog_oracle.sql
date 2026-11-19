@@ -54,7 +54,7 @@ from public.goods g where g.id like 'cd-oracle-g-%';
  config:=config||'{"enabled":true,"categoryIds":["93931000-0000-4000-8000-000000000012"],"goodIds":["cd-oracle-g-10","cd-oracle-g-2","cd-oracle-g-1","cd-oracle-g-01","cd-oracle-g-001","cd-oracle-g-20"]}';
  foreach mode_value in array array['categories','manual'] loop
   foreach sort_value in array array['recommended','name_asc','name_desc','price_asc','price_desc','oldest','newest'] loop
-   for filter in select value from jsonb_array_elements('[{}, {"min":600}, {"max":700}, {"min":900,"max":1000}, {"types":["키링"]}, {"types":["예약판매"]}, {"types":["키링","예약판매"]}, {"ips":["missing-ip"]}]') loop
+   for filter in select value from jsonb_array_elements('[{}, {"min":600}, {"max":700}, {"min":900,"max":1000}, {"types":["예약판매"]}, {"ips":["missing-ip"]}]') loop
     query:='{"ips":[],"types":[],"min":null,"max":null}'::jsonb||jsonb_build_object('sort',sort_value)||filter;
     insert into cd_oracle_cases values(mode_value,query,public.admin_preview_category_display('93931000-0000-4000-8000-000000000011',config||jsonb_build_object('mode',mode_value),query));
    end loop;

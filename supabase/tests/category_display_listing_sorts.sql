@@ -108,8 +108,8 @@ begin
  page := public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"reviews"}'));
  perform pg_temp.cl_assert(pg_temp.cl_ids(page) = array['cl-4', 'cl-5', 'cl-1', 'cl-2', 'cl-3', 'cl-6'], 'reviews: visible review count: ' || array_to_string(pg_temp.cl_ids(page), ','));
 
- -- 필터와 함께: 유형 필터가 걸러도 정렬은 남은 굿즈 안에서 같은 기준이다. 합계 필드는 정렬과 무관하다.
- page := public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"sales","types":["문구"]}'));
+ -- 필터와 함께: 가격 필터가 걸러도 정렬은 남은 굿즈 안에서 같은 기준이다. 합계 필드는 정렬과 무관하다.
+ page := public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"sales","max":5000}'));
  perform pg_temp.cl_assert(pg_temp.cl_ids(page) = array['cl-3', 'cl-1', 'cl-2', 'cl-4', 'cl-5'] and page->>'filteredTotal' = '5' and page->>'total' = '6', 'filters compose with the new sorts');
  page := public.get_category_display_page(pg_temp.cl_uid(20), pg_temp.cl_query('{"sort":"reviews","min":3000,"max":5000}'));
  perform pg_temp.cl_assert(pg_temp.cl_ids(page) = array['cl-4', 'cl-5', 'cl-3'], 'price range plus reviews sort: ' || array_to_string(pg_temp.cl_ids(page), ','));

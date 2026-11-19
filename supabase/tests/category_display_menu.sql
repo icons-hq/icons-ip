@@ -150,18 +150,11 @@ do $$declare page jsonb;facets jsonb;begin
  page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"sort":"newest"}'));
  perform pg_temp.cm_assert(pg_temp.cm_page_ids(page)=array['cm-menu-g-3','cm-menu-g-5','cm-menu-g-1','cm-menu-g-4','cm-menu-g-2'],'newest first');
  facets:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query())->'typeFacets';
- perform pg_temp.cm_assert(facets=jsonb_build_array(
-   jsonb_build_object('value','피규어','label','피규어','count',2),jsonb_build_object('value','키링','label','키링','count',2),
-   jsonb_build_object('value','기타','label','기타','count',1),jsonb_build_object('value','예약판매','label','예약판매','count',1)),'type facets follow the taxonomy order (기타 last) and end with 예약판매: '||facets::text);
+ perform pg_temp.cm_assert(facets=jsonb_build_array(jsonb_build_object('value','예약판매','label','예약판매','count',1)),'type facets are only 예약판매 (ADR-0044): '||facets::text);
  page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["예약판매"]}'));
  perform pg_temp.cm_assert(page->>'filteredTotal'='1' and pg_temp.cm_page_ids(page)=array['cm-menu-g-2'] and page->>'total'='5','예약판매 filters preorder goods inside the same scope');
- page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["키링","예약판매"]}'));
- perform pg_temp.cm_assert(page->>'filteredTotal'='3','type values combine with OR including 예약판매');
- page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["피규어","인형","키링","아크릴","문구","쿠션","파우치","세트","기타","예약판매"]}'));
- perform pg_temp.cm_assert(page->>'filteredTotal'='5','every taxonomy value (기타 포함) plus 예약판매 is accepted');
- page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["기타"]}'));
- perform pg_temp.cm_assert(page->>'filteredTotal'='1' and pg_temp.cm_page_ids(page)=array['cm-menu-g-5'],'기타 filters its goods');
- begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["피규어","인형","키링","아크릴","문구","쿠션","파우치","세트","기타","예약판매","피규어"]}'));raise exception 'eleven type values accepted';exception when invalid_parameter_value then null;end;
+ -- 상품 유형은 없다(ADR-0044). 옛 유형 값은 모르는 값으로 거절한다.
+ begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["키링"]}'));raise exception 'retired goods type accepted';exception when invalid_parameter_value then null;end;
  begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"sort":"rating"}'));raise exception 'unknown sort accepted';exception when invalid_parameter_value then null;end;
  begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["중고"]}'));raise exception 'unknown type accepted';exception when invalid_parameter_value then null;end;
  -- 수동 전시의 동률·정렬도 같은 규칙이다(가격 동률 없음 — 이름순만 확인).
