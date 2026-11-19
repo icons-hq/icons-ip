@@ -41,7 +41,7 @@ export const WAREHOUSE_STOP_ANCHOR = 'warehouse-stop';
 
 const shipmentLabel = (shipment: { originName: string; shipmentId: string; shipmentNumber: string | null }) =>
   `${shipment.originName} · ${commerceReferenceLabel(shipment.shipmentId, shipment.shipmentNumber)}`;
-const USED_LABELS = { staff_cancellation: '운영자 전액 취소에 씀', partial_cancellation: '재고 부족 부분 취소에 씀' } as const;
+const USED_LABELS = { staff_cancellation: '운영자 전액 취소에 씀', partial_cancellation: '재고 부족 부분 취소에 씀', claim_collection: '반품·교환 회수 확인에 씀' } as const;
 const SOURCE_LABELS = { tracking_reply: '운송장 회신 반입', warehouse_reply: '창고 이미 출고 회신' } as const;
 
 function ReplyHistory({ shipment }: { shipment: WarehouseStopShipment }) {
@@ -52,7 +52,7 @@ function ReplyHistory({ shipment }: { shipment: WarehouseStopShipment }) {
       <span className="tabular-nums">회신 {formatOrderDateTime(reply.repliedAt)}</span>
       <span className="text-muted-foreground">· {WAREHOUSE_STOP_CHANNEL_LABELS[reply.channel]}</span>
       {reply.usedKind ? <AdminStatusBadge>{USED_LABELS[reply.usedKind]}</AdminStatusBadge> : null}
-      {reply.current ? null : <AdminStatusBadge>예전 출고지시의 회신</AdminStatusBadge>}
+      {reply.supersededAt ? <AdminStatusBadge>발송돼 무효</AdminStatusBadge> : reply.current ? null : <AdminStatusBadge>예전 출고지시의 회신</AdminStatusBadge>}
     </span>
     {reply.note ? <span className="wrap-anywhere">{reply.note}</span> : null}
     <span className={HINT}>기록 {formatOrderDateTime(reply.recordedAt)}{reply.recordedByName ? ` · ${reply.recordedByName}` : ''}</span>
@@ -109,10 +109,11 @@ function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipme
     </fieldset>
     <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0" disabled={pending}>
       <legend className="p-0 text-sm font-medium">창고 회신 결과</legend>
-      {(['stopped', 'already_shipped'] as const).map(value => <label className="flex items-start gap-2" key={value}>
+      {(['stopped', 'already_shipped', 'returned'] as const).map(value => <label className="flex items-start gap-2" key={value}>
         <input checked={outcome === value} name={`${id}-outcome`} onChange={() => { operationId.current = null; setOutcome(value); }} type="radio" value={value} />
         <span>{value === 'stopped' ? '출고 중단 확인 — 창고가 이 배송 건(부분 취소면 그 상품·수량)을 내보내지 않기로 확인했습니다'
-          : '이미 출고 — 창고가 이미 내보냈다고 알렸습니다'}</span>
+          : value === 'already_shipped' ? '이미 출고 — 창고가 이미 내보냈다고 알렸습니다'
+            : '반송 입고 — 이미 나간 상품을 고객이 돌려보내 창고에 다시 들어왔습니다(이미 출고 회신 뒤에만)'}</span>
       </label>)}
     </fieldset>
     <div className="grid gap-3 sm:grid-cols-2">

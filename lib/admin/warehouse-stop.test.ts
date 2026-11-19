@@ -19,7 +19,7 @@ const raw = {
   shipments: [
     { shipmentId: SHIPMENT_A, shipmentNumber: '2026111930000001', originName: '김포', status: 'ready', exportedAt: '2026-11-19T01:00:00Z', stopStatus: 'stopped',
       replies: [{ id: 'r1', outcome: 'stopped', channel: 'phone', repliedAt: '2026-11-19T02:00:00Z', note: null, recordedAt: '2026-11-19T02:01:00Z',
-        recordedByName: '운영자', current: true, usedKind: null, usedAt: null }] },
+        recordedByName: '운영자', current: true, usedKind: null, usedAt: null, supersededAt: null }] },
     { shipmentId: SHIPMENT_B, shipmentNumber: null, originName: '남양주', status: 'ready', exportedAt: '2026-11-19T01:00:00Z', stopStatus: 'required', replies: [] },
   ],
   discoveries: [{ id: 'd1', shipmentId: SHIPMENT_B, shipmentNumber: null, originName: '남양주', source: 'warehouse_reply', carrier: null, trackingNumber: null,
@@ -38,6 +38,9 @@ describe('창고 회신 문맥 읽기 (ADR-0046)', () => {
     expect(parseOrderWarehouseStopContext({ ...raw, shipments: [{ ...raw.shipments[0], stopStatus: 'maybe' }] })).toBeNull();
     expect(parseOrderWarehouseStopContext({ ...raw, discoveries: [{ ...raw.discoveries[0], state: 'gone' }] })).toBeNull();
     expect(parseOrderWarehouseStopContext({ ...raw, shipments: [{ ...raw.shipments[0], replies: [{ ...raw.shipments[0].replies[0], usedKind: 'other' }] }] })).toBeNull();
+    const used = parseOrderWarehouseStopContext({ ...raw, shipments: [{ ...raw.shipments[0], replies: [{ ...raw.shipments[0].replies[0], outcome: 'returned',
+      usedKind: 'claim_collection', usedAt: '2026-11-19T03:00:00Z', supersededAt: '2026-11-19T04:00:00Z' }] }] })!;
+    expect(used.shipments[0].replies[0]).toMatchObject({ outcome: 'returned', usedKind: 'claim_collection', supersededAt: '2026-11-19T04:00:00Z' });
   });
 
   it('취소 양식의 판정은 DB와 같은 순서(이미 출고 → 회신 필요 → 이미 씀)로 가장 막는 상태를 고른다', () => {
@@ -55,6 +58,9 @@ describe('창고 회신 문맥 읽기 (ADR-0046)', () => {
     expect(warehouseStopErrorMessage('warehouse_stop_reply_used')).toContain('다른 취소');
     expect(warehouseStopErrorMessage('warehouse_stop_reply_before_export')).toContain('출고지시 파일을 보낸 시각');
     expect(warehouseStopErrorMessage('canceled_dispatch_already_resolved')).toContain('이미 처리');
+    expect(warehouseStopErrorMessage('claim_collection_warehouse_already_shipped')).toContain('반송 입고');
+    expect(warehouseStopErrorMessage('claim_collection_warehouse_reply_required')).toContain('창고 회신 기록');
+    expect(warehouseStopErrorMessage('warehouse_stop_reply_returned_without_shipped')).toContain('이미 출고했다고 회신한');
     expect(warehouseStopErrorMessage('something_else')).toContain('새로고침');
   });
 });

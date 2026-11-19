@@ -66,8 +66,10 @@ export async function recordWarehouseStopReplyAction(input: unknown): Promise<Wa
       ? `창고 회신을 기록했습니다. 이미 취소된 배송 건 ${discovered}건을 취소 뒤 출고 발견으로 남기고 재고를 다시 뺐습니다. 고객 연락과 회수를 진행해주세요.`
       : outcome === 'already_shipped' && result.cancellationInFlight === true
         ? '창고의 이미 출고 회신을 기록했습니다. 이 주문은 결제사 취소가 진행 중이라 돈이 이미 돌아갔을 수 있습니다. 취소가 끝나 배송 건이 취소되면 이 회신으로 취소 뒤 출고 발견이 자동으로 남고 재고를 다시 뺍니다. 고객 연락과 회수를 준비해주세요.'
+      : outcome === 'returned'
+        ? '창고의 반송 입고 회신을 기록했습니다. 이 회신을 근거로 반품·교환의 회수를 확인할 수 있습니다.'
       : outcome === 'stopped'
-        ? '창고의 출고 중단 회신을 기록했습니다. 이 회신을 근거로 전액·부분 취소를 한 번 실행할 수 있습니다.'
+        ? '창고의 출고 중단 회신을 기록했습니다. 이 회신을 근거로 전액·부분 취소나 반품·교환의 창고 보관 확인을 한 번 할 수 있습니다.'
         : '창고의 이미 출고 회신을 기록했습니다. 이 배송 건은 취소하지 말고 운송장 회신을 받아 발송 처리한 뒤 고객 반품으로 접수해주세요.' } };
   } catch (error) {
     unstable_rethrow(error);

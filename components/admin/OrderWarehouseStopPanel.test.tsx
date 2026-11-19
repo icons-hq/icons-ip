@@ -52,15 +52,20 @@ describe('주문 상세 창고 회신·취소 뒤 출고 (ADR-0046)', () => {
   it('회신 기록은 결과·경로·회신 시각·사용 여부와 예전 출고지시의 회신을 구분해 보인다', () => {
     const html = render(context({ shipments: [shipment({ stopStatus: 'used', replies: [
       { id: 'r2', outcome: 'stopped', channel: 'phone', repliedAt: '2026-11-19T02:00:00Z', note: '서원 담당 통화', recordedAt: '2026-11-19T02:01:00Z',
-        recordedByName: '운영자', current: true, usedKind: 'staff_cancellation', usedAt: '2026-11-19T02:05:00Z' },
+        recordedByName: '운영자', current: true, usedKind: 'staff_cancellation', usedAt: '2026-11-19T02:05:00Z', supersededAt: null },
       { id: 'r1', outcome: 'already_shipped', channel: 'warehouse_system', repliedAt: '2026-11-18T02:00:00Z', note: null, recordedAt: '2026-11-18T02:01:00Z',
-        recordedByName: null, current: false, usedKind: null, usedAt: null },
+        recordedByName: null, current: false, usedKind: null, usedAt: null, supersededAt: null },
+      { id: 'r0', outcome: 'stopped', channel: 'phone', repliedAt: '2026-11-18T01:00:00Z', note: null, recordedAt: '2026-11-18T01:01:00Z',
+        recordedByName: null, current: false, usedKind: null, usedAt: null, supersededAt: '2026-11-18T03:00:00Z' },
     ] })] }));
     expect(html).toContain('회신을 이미 다른 취소에 씀');
     expect(html).toContain('운영자 전액 취소에 씀');
     expect(html).toContain('서원 담당 통화');
     expect(html).toContain('창고 시스템');
     expect(html).toContain('예전 출고지시의 회신');
+    /* 발송으로 반박된 회신은 무효로 보인다(ADR-0046 통합 리뷰). */
+    expect(html).toContain('발송돼 무효');
+    expect(html).toContain('반송 입고 — 이미 나간 상품을');
   });
 
   it('이미 출고 회신이면 취소하지 말고 발송 처리·반품으로 안내한다', () => {

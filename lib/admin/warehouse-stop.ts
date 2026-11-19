@@ -8,11 +8,13 @@
 
 import { isUuid } from '@/lib/uuid';
 
-export const WAREHOUSE_STOP_OUTCOMES = ['stopped', 'already_shipped'] as const;
+/** stopped = 창고가 내보내지 않기로 확인(보관), already_shipped = 이미 내보냄, returned = 이미 나간 상품이 고객 반송으로 창고에 다시 들어옴. */
+export const WAREHOUSE_STOP_OUTCOMES = ['stopped', 'already_shipped', 'returned'] as const;
 export type WarehouseStopOutcome = typeof WAREHOUSE_STOP_OUTCOMES[number];
 export const WAREHOUSE_STOP_OUTCOME_LABELS: Record<WarehouseStopOutcome, string> = {
   stopped: '출고 중단 확인',
   already_shipped: '이미 출고',
+  returned: '반송 입고',
 };
 
 export const WAREHOUSE_STOP_CHANNELS = ['phone', 'messenger', 'email', 'warehouse_system', 'other'] as const;
@@ -29,7 +31,7 @@ export const WAREHOUSE_STOP_CHANNEL_LABELS: Record<WarehouseStopChannel, string>
 export type WarehouseStopStatus = 'not_applicable' | 'required' | 'stopped' | 'already_shipped' | 'used';
 export const WAREHOUSE_STOP_STATUS_LABELS: Record<Exclude<WarehouseStopStatus, 'not_applicable'>, string> = {
   required: '창고 회신 기록 필요',
-  stopped: '출고 중단 회신 있음',
+  stopped: '창고 보관 회신 있음',
   already_shipped: '이미 출고 회신',
   used: '회신을 이미 다른 취소에 씀',
 };
@@ -57,9 +59,14 @@ export interface WarehouseStopReply {
   recordedByName: string | null;
   /** 지금 출고지시에 대한 회신인가(다시 출고지시하면 예전 회신은 false). */
   current: boolean;
-  usedKind: 'staff_cancellation' | 'partial_cancellation' | null;
+  usedKind: WarehouseStopReplyUse | null;
   usedAt: string | null;
+  /** 발송으로 반박돼 무효가 된 회신(배송 건이 실제로 발송됨). 판정에서 빠진다. */
+  supersededAt: string | null;
 }
+
+export const WAREHOUSE_STOP_REPLY_USES = ['staff_cancellation', 'partial_cancellation', 'claim_collection'] as const;
+export type WarehouseStopReplyUse = typeof WAREHOUSE_STOP_REPLY_USES[number];
 
 export interface WarehouseStopShipment {
   shipmentId: string;
@@ -122,11 +129,11 @@ function parseReply(value: unknown): WarehouseStopReply | null {
   if (!record(value)) return null;
   const outcome = oneOf(WAREHOUSE_STOP_OUTCOMES, value.outcome), channel = oneOf(WAREHOUSE_STOP_CHANNELS, value.channel);
   const id = text(value.id), repliedAt = text(value.repliedAt), recordedAt = text(value.recordedAt);
-  const usedKind = value.usedKind == null ? null : oneOf(['staff_cancellation', 'partial_cancellation'] as const, value.usedKind);
+  const usedKind = value.usedKind == null ? null : oneOf(WAREHOUSE_STOP_REPLY_USES, value.usedKind);
   if (!id || !outcome || !channel || !repliedAt || !recordedAt || typeof value.current !== 'boolean') return null;
   if (value.usedKind != null && !usedKind) return null;
   return { id, outcome, channel, repliedAt, note: text(value.note), recordedAt, recordedByName: text(value.recordedByName),
-    current: value.current, usedKind, usedAt: text(value.usedAt) };
+    current: value.current, usedKind, usedAt: text(value.usedAt), supersededAt: text(value.supersededAt) };
 }
 
 function parseShipment(value: unknown): WarehouseStopShipment | null {
@@ -189,6 +196,9 @@ export function warehouseStopRequirement(context: OrderWarehouseStopContext, shi
 export function warehouseStopErrorMessage(code: string | null | undefined): string {
   const value = code ?? '';
   const messages: [string, string][] = [
+    // 회수 확인 코드는 취소 코드(warehouse_already_shipped)를 품고 있어 먼저 본다.
+    ['claim_collection_warehouse_already_shipped', '창고가 이 배송 건을 이미 출고했다고 회신했습니다. 창고 보관 확인이 아닙니다 — 고객이 받은 상품을 돌려보내 창고에 다시 들어오면 주문 상세의 창고 회신 기록에 반송 입고를 남긴 뒤 회수를 확인해주세요.'],
+    ['claim_collection_warehouse_reply_required', '출고지시가 나간 발송 전 배송 건입니다. 창고에 보관(출고 중단)을 확인하고 주문 상세의 창고 회신 기록에 남긴 뒤 회수를 확인해주세요. 이미 다른 취소에 쓴 회신은 다시 쓰지 않습니다.'],
     ['warehouse_stop_reply_required', '출고지시가 나간 배송 건입니다. 창고에 출고 중단을 요청하고, 창고의 회신(출고 중단 확인)을 주문 상세의 창고 회신 기록에 남긴 뒤 다시 실행해주세요.'],
     ['warehouse_already_shipped', '창고가 이미 출고했다고 회신한 배송 건입니다. 취소하지 말고 창고의 운송장 회신을 받아 발송 처리한 뒤 고객 반품으로 접수해주세요. 회신을 잘못 기록했다면 바른 회신을 새로 기록해주세요.'],
     ['warehouse_stop_reply_used', '이 배송 건의 출고 중단 회신은 이미 다른 취소에 쓰였습니다. 창고에 다시 확인하고 회신을 새로 기록해주세요.'],
@@ -198,6 +208,7 @@ export function warehouseStopErrorMessage(code: string | null | undefined): stri
     ['warehouse_stop_reply_not_exported', '출고지시 파일이 나가지 않은 택배 배송 건은 창고 회신을 기록하지 않습니다.'],
     ['warehouse_stop_reply_shipment_dispatched', '이미 발송된 배송 건입니다. 고객 반품으로 처리해주세요.'],
     ['warehouse_stop_reply_single_order', '한 번에 한 주문의 배송 건만 기록할 수 있습니다.'],
+    ['warehouse_stop_reply_returned_without_shipped', '반송 입고는 창고가 이미 출고했다고 회신한 발송 대기 배송 건에만 기록합니다. 취소된 배송 건은 취소 뒤 출고 처리의 회수 입고로 닫습니다.'],
     ['warehouse_stop_reply_operation_conflict', '같은 요청이 다른 내용으로 이미 처리됐습니다. 새로고침한 뒤 기록을 확인해주세요.'],
     ['invalid_warehouse_stop_reply', '회신 결과·경로·회신 시각을 확인해주세요. 경로가 기타이면 메모를 적어주세요(메모는 500자까지).'],
     ['canceled_dispatch_already_resolved', '이미 처리한 발견입니다. 새로고침해 결과를 확인해주세요.'],
@@ -251,7 +262,7 @@ export function normalizeWarehouseStopReplyInput(input: unknown): { ok: true; va
   if (!isUuid(orderId) || !isUuid(operationId)) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   if (!ids.length) return { ok: false, error: '회신을 기록할 배송 건을 하나 이상 골라주세요.' };
   if (ids.length > 20 || ids.some(id => !isUuid(id)) || new Set(ids).size !== ids.length) return { ok: false, error: '주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
-  if (!outcome) return { ok: false, error: '창고 회신 결과(출고 중단 확인·이미 출고)를 골라주세요.' };
+  if (!outcome) return { ok: false, error: '창고 회신 결과(출고 중단 확인·이미 출고·반송 입고)를 골라주세요.' };
   if (!channel) return { ok: false, error: '회신 경로를 골라주세요.' };
   if (!repliedAt) return { ok: false, error: '창고가 회신한 시각을 입력해주세요.' };
   if ([...note].length > WAREHOUSE_STOP_NOTE_LIMIT) return { ok: false, error: `메모는 ${WAREHOUSE_STOP_NOTE_LIMIT}자 이내로 입력해주세요.` };

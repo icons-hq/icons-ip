@@ -186,6 +186,8 @@ export function returnIntakeErrorText(code: string | undefined): string {
     case 'invalid_collection_received_on': return '입고일은 주문일부터 오늘 사이여야 합니다.';
     case 'claim_not_collectable': return '지금 단계에서는 입고를 확인할 수 없습니다.';
     case 'claim_return_address_required': return '회수 주소가 없는 출고지입니다. 출고지 반품 주소를 등록해주세요.';
+    case 'claim_collection_warehouse_already_shipped': return '창고가 이미 출고했다고 회신한 배송 건입니다. 반송 입고 회신을 남긴 뒤 상세에서 확인해주세요.';
+    case 'claim_collection_warehouse_reply_required': return '출고지시가 나간 발송 전 배송 건입니다. 창고 회신(출고 중단 확인)을 남긴 뒤 상세에서 확인해주세요.';
     default: return '기록하지 못했습니다. 상세에서 확인해주세요.';
   }
 }
