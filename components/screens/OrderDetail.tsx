@@ -19,6 +19,7 @@ import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
 import { OrderRefundDeduction } from '@/components/orders/OrderRefundDeduction';
 import { OrderPartialCancellations } from '@/components/orders/OrderPartialCancellations';
 import { partialCanceledQtyByItem, partialCancellationRefundTotal, type OrderPartialCancellationRecord } from '@/lib/orders/partial-cancellation';
+import { DISABLED_PARTIAL_RETURN, type MyOrderClaimItem, type OrderPartialReturnContext } from '@/lib/orders/partial-return';
 import type { MyOrderRefundDeduction, ReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import {
@@ -225,7 +226,7 @@ function WithdrawalDeadlineNotice({
   );
 }
 
-type RemainingOrderItem = OrderDetailData['items'][number] & { canceledQty: number };
+type RemainingOrderItem = OrderDetailData['items'][number] & { canceledQty: number; returnedQty: number };
 
 /** 줄 금액을 남은 수량으로 줄인다. 줄 금액은 단가 × 수량이라 나누어떨어지지만, 아니면 틀린 금액을 말하지 않고 비운다. */
 function scaleLineAmount(amount: number | null, from: number, to: number): number | null {
@@ -263,6 +264,7 @@ function displayedOrderLine(item: RemainingOrderItem, linesByKey: ReadonlyMap<st
     ...line,
     qty: item.qty,
     canceledQty: item.canceledQty,
+    ...(item.returnedQty > 0 ? { returnedQty: item.returnedQty } : {}),
     purchaseAmount: scaleLineAmount(base.purchaseAmount, base.qty, item.qty),
     regularAmount: scaleLineAmount(base.regularAmount, base.qty, item.qty),
   };
@@ -284,6 +286,8 @@ export function OrderDetail({
   returnFeePolicy = null,
   returnPickup = NO_RETURN_PICKUP,
   partialCancellations = [],
+  partialReturn = DISABLED_PARTIAL_RETURN,
+  claimItems = [],
   orderer = null,
   paymentDisplay = null,
   receiptNotice = false,
@@ -313,6 +317,10 @@ export function OrderDetail({
   returnPickup?: OrderReturnPickup;
   /** 적용된 재고 부족 부분 취소(ADR-0032). 없으면 아무것도 그리지 않는다. */
   partialCancellations?: readonly OrderPartialCancellationRecord[];
+  /** 부분 반품 문맥(ADR-0047). 꺼져 있으면(기본) 반품 폼은 주문 전체만 받는다. */
+  partialReturn?: OrderPartialReturnContext;
+  /** 부분 반품 클레임에 고른 굿즈. */
+  claimItems?: readonly MyOrderClaimItem[];
   /** 주문자 정보(MD-0037). 주문 시점 스냅샷이 없어 현재 회원 정보다. 없으면(읽지 못함·미전달) 주문자 정보 카드를 그리지 않는다. */
   orderer?: OrdererInfo | null;
   /** 결제수단 표시 근거(`get_my_order_payment_display`). 없으면 대체 라벨('카드·간편결제')로 그린다. */
@@ -323,7 +331,10 @@ export function OrderDetail({
   const at = now ?? new Date();
   /* 부분 취소(재고 부족) 뒤에는 주문 품목 수량이 원 수량 그대로다 — 고객에게는 남은 수량을 말하고 취소된 몫을 따로 적는다. */
   const canceledQtyByItem = partialCanceledQtyByItem(partialCancellations);
-  const remainingItems: RemainingOrderItem[] = order.items.map(item => ({ ...item, canceledQty: Math.min(item.qty, canceledQtyByItem.get(item.id) ?? 0) }))
+  /* 부분 반품(ADR-0047)도 같은 원장이다 — 수량 계산은 합쳐서, 표시는 '반품됨'으로 나눈다. */
+  const returnedQtyByItem = partialCanceledQtyByItem(partialCancellations.filter(record => record.reasonCode === 'return'));
+  const remainingItems: RemainingOrderItem[] = order.items.map(item => ({ ...item, canceledQty: Math.min(item.qty, canceledQtyByItem.get(item.id) ?? 0),
+    returnedQty: Math.min(item.qty, returnedQtyByItem.get(item.id) ?? 0) }))
     .map(item => ({ ...item, qty: item.qty - item.canceledQty }));
   const partialRefundTotal = partialCancellationRefundTotal(partialCancellations);
   /* 배분 표는 주문 당시 원장 그대로 두고, 굿즈의 모든 줄이 전부 취소된 경우에만 '취소·환불됨' 표시를 붙인다(QA2b minor 2). */
@@ -535,6 +546,8 @@ export function OrderDetail({
               giftSender={Boolean(order.giftId)}
               orderId={order.id}
               partiallyCanceled={partialCancellations.length > 0}
+              partialReturn={partialReturn}
+              claimItems={claimItems}
               returnFeePolicy={returnFeePolicy}
               returnPickup={returnPickup}
               status={order.status}

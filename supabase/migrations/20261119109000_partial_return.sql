@@ -351,6 +351,14 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function private.order_partial_return_items_json(uuid, boolean) from public, anon, authenticated, service_role;
 
+-- 5-0. 공개 정책: 부분 반품을 받는지(접수 안내·운영 화면 문구가 스위치 상태에 맞는 문장을 고른다). 반품배송비 정책 읽기와 같은 모양.
+create function public.get_partial_return_policy() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object('enabled', private.order_partial_return_enabled());
+$$;
+revoke all on function public.get_partial_return_policy() from public, anon, authenticated, service_role;
+grant execute on function public.get_partial_return_policy() to anon, authenticated, service_role;
+
 -- 5-1. 구매자 문맥(주문 상세 반품 폼). 스위치가 꺼져 있으면 {enabled:false} — 화면은 지금처럼 주문 전체만 보인다.
 create function public.get_my_order_partial_return_context(p_order_id uuid) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$

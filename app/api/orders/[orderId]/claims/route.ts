@@ -13,6 +13,7 @@ import {
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
+import { normalizeOrderPartialReturnSelection } from '@/lib/orders/partial-return';
 
 /*
  * 클레임 접수(#252) — 취소·반품·교환.
@@ -24,6 +25,10 @@ import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/servic
  *
  * 환불계좌는 요청 본문으로 받아 service_role RPC로 바로 넘긴다. 앱은 값을 저장하지
  * 않고 로그에도 남기지 않는다.
+ *
+ * 부분 반품(ADR-0047): 반품에만 `items`(품목·수량)를 받는다. 스위치(DB partial_return_enabled)가 꺼져 있으면 DB가
+ * partial_return_disabled를 돌려주고 이 라우트는 지금처럼 invalid_body로 거부한다 — 품목을 무시하고 주문 전체를 접수하지 않는다.
+ * 고른 품목이 남은 수량 전부면 DB가 주문 전체 반품으로 접수한다.
  *
  * 취소가 접수되면 응답을 보낸 뒤 서버가 결제사 전액 취소까지 이어서 실행한다
  * (scheduleApprovedOrderCancellation). 자동 승인된 취소는 곧바로, 결제 승인 확인 중에
@@ -77,12 +82,15 @@ export async function POST(
   if (!body || typeof body !== 'object' || Array.isArray(body)) return errorJson(400, 'invalid_body');
 
   const payload = body as Record<string, unknown>;
-  // The product contract is whole-order cancellation/return. Never silently
-  // ignore a requested item, quantity or partial amount and refund everything.
-  const allowedKeys = new Set(['claimType', 'reasonType', 'accountHolder', 'accountNumber', 'bankName']);
+  // Never silently ignore a requested item, quantity or partial amount and
+  // refund everything: only `items` (partial return, ADR-0047) is accepted and
+  // only for returns; the DB rejects it while the switch is off.
+  const allowedKeys = new Set(['claimType', 'reasonType', 'accountHolder', 'accountNumber', 'bankName', 'items']);
   if (Object.keys(payload).some((key) => !allowedKeys.has(key))) return errorJson(400, 'invalid_body');
   const claimType = payload.claimType;
   if (!isOrderClaimType(claimType)) return errorJson(400, 'invalid_claim_type');
+  const items = payload.items === undefined ? null : normalizeOrderPartialReturnSelection(payload.items);
+  if (payload.items !== undefined && (claimType !== 'return' || !items)) return errorJson(400, 'invalid_body');
 
   /* 사유를 생략한 요청은 기한이 가장 짧은 단순 변심으로 본다. 기본값이 관대한
      쪽이면 폼을 비우는 것만으로 3개월 기한을 얻는다(#189의 판단을 계승한다). */
@@ -123,20 +131,35 @@ export async function POST(
   }
 
   const service = createServiceClient();
-  const { data, error } = await service.rpc('request_order_claim', {
-    p_account_holder: account.value?.accountHolder ?? null,
-    p_account_number: account.value?.accountNumber ?? null,
-    p_bank_name: account.value?.bankName ?? null,
-    p_claim_type: claimType,
-    p_order_id: orderId,
-    p_reason: reason,
-    p_reason_type: reasonType,
-    p_user_id: user.id,
-  });
+  const { data, error } = items
+    ? await service.rpc('request_order_partial_return', {
+      p_account_holder: account.value?.accountHolder ?? null,
+      p_account_number: account.value?.accountNumber ?? null,
+      p_bank_name: account.value?.bankName ?? null,
+      p_items: items,
+      p_order_id: orderId,
+      p_reason: reason,
+      p_reason_type: reasonType,
+      p_user_id: user.id,
+    })
+    : await service.rpc('request_order_claim', {
+      p_account_holder: account.value?.accountHolder ?? null,
+      p_account_number: account.value?.accountNumber ?? null,
+      p_bank_name: account.value?.bankName ?? null,
+      p_claim_type: claimType,
+      p_order_id: orderId,
+      p_reason: reason,
+      p_reason_type: reasonType,
+      p_user_id: user.id,
+    });
   if (error) {
     console.error('[orders/claims] claim request failed');
     return errorJson(502, 'claim_failed');
   }
+
+  /* 스위치가 꺼져 있으면 품목을 보낸 요청은 지금과 같은 거절이다. */
+  if (data === 'partial_return_disabled') return errorJson(400, 'invalid_body');
+  if (data === 'partial_return_unavailable' || data === 'partial_return_item_unavailable') return errorJson(409, data);
 
   if (data === 'not_found') return errorJson(404, 'not_found');
   if (data === 'not_cancelable' || data === 'not_claimable') {

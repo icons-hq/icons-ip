@@ -513,7 +513,13 @@ export function orderClaimAvailability(input: {
   });
 }
 
-/** 유형별 접수 안내. 부분 환불을 약속하지 않는 문구를 한 곳에 모아 둔다. */
+/**
+ * 부분 반품(ADR-0047)을 받을 때의 접수 문장. 고른 굿즈의 결제 몫(할인·쿠폰·적립금 배분 반영)만 환불하고, 남는 굿즈가 없어진 배송 묶음의
+ * 배송비를 함께 돌려준다. 남은 굿즈를 모두 고르면 주문 전체 반품으로 접수한다.
+ */
+export const PARTIAL_RETURN_INTAKE_SENTENCE = '굿즈와 수량을 골라 일부만 반품할 수도 있습니다. 일부 반품은 고른 굿즈의 결제 금액(할인·쿠폰·적립금 배분 반영)과 남는 굿즈가 없어진 배송 묶음의 배송비를 환불하며, 남은 굿즈를 모두 고르면 주문 전체 반품으로 접수합니다.';
+
+/** 유형별 접수 안내. 부분 환불을 약속하지 않는 문구를 한 곳에 모아 둔다(부분 반품 스위치가 켜졌을 때의 문장은 위 상수). */
 export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
   cancel: '일반 배송 굿즈는 발주확인 전에 직접 취소할 수 있습니다. 주문제작·배송없음·디지털 굿즈는 현재 이행 상태에 따라 주문 전체 취소 검토를 요청합니다. 일부 굿즈나 수량만 취소하는 처리는 제공하지 않습니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
   return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 굿즈는 안내된 배송 묶음별 반송지에서 전체 회수를 확인하며, 디지털 굿즈는 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
@@ -525,13 +531,20 @@ export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
  * 단순 변심 반품의 차감 규칙(편도, 최초 무료배송이면 왕복, 하자·오배송은 차감 없음)으로 바꾼다.
  * 재고 부족 부분 취소(ADR-0032)가 적용된 주문이면 취소·반품 안내의 '결제금액 전액'을 '남은 결제 금액'으로 바꾼다
  * (이미 일부 취소한 금액은 다시 돌려주지 않는다). 부분 취소가 없으면 문구는 그대로다.
+ * 부분 반품(ADR-0047)이 켜져 있으면 반품 안내의 '일부 굿즈만 반품하는 처리는 제공하지 않습니다'를 굿즈·수량을 골라 반품하는
+ * 문장과 그 환불액 규칙으로 바꾼다. 꺼져 있으면 문구는 그대로다.
  */
 export function orderClaimIntakeNotice(
   claimType: OrderClaimType,
   deduction: { enabled: boolean; oneWayAmount: number | null } | null = null,
-  { partiallyCanceled = false }: { partiallyCanceled?: boolean } = {},
+  { partiallyCanceled = false, partialReturn = false }: { partiallyCanceled?: boolean; partialReturn?: boolean } = {},
 ): string {
-  const notice = ORDER_CLAIM_INTAKE_NOTICES[claimType];
+  const notice = claimType === 'return' && partialReturn
+    ? ORDER_CLAIM_INTAKE_NOTICES.return.replace(
+      '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다.',
+      `배송 중부터 반품을 직접 신청할 수 있고, ${PARTIAL_RETURN_INTAKE_SENTENCE}`,
+    )
+    : ORDER_CLAIM_INTAKE_NOTICES[claimType];
   const fullRefund = '승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.';
   const amount = partiallyCanceled ? '이미 일부 취소한 금액을 뺀 남은 결제 금액' : '최초 선결제 배송비를 포함한 결제금액';
   if (claimType === 'cancel') {

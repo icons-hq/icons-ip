@@ -111,3 +111,72 @@ describe('POST /api/orders/[orderId]/claims — 승인된 취소의 결제사 �
     expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /api/orders/[orderId]/claims — 부분 반품(ADR-0047)', () => {
+  const ITEM = 'c3a9b2d5-4e6f-4a7b-8c9d-0e1f2a3b4c5d';
+
+  beforeEach(() => {
+    mocks.user = { id: USER_ID };
+    mocks.order = { id: ORDER_UUID, user_id: USER_ID };
+    mocks.rpc.mockReset();
+    mocks.scheduleApprovedOrderCancellation.mockReset();
+  });
+
+  it('품목을 보낸 반품은 부분 반품 접수 함수로 보낸다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'requested', error: null });
+
+    const response = await POST(request({ claimType: 'return', reasonType: 'change_of_mind', items: [{ orderItemId: ITEM, qty: 1 }] }), context);
+
+    expect(response.status).toBe(202);
+    expect(mocks.rpc).toHaveBeenCalledWith('request_order_partial_return', expect.objectContaining({
+      p_items: [{ orderItemId: ITEM, qty: 1 }],
+      p_order_id: ORDER_UUID,
+      p_reason_type: 'change_of_mind',
+      p_user_id: USER_ID,
+    }));
+    expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
+  });
+
+  it('스위치가 꺼져 있으면(partial_return_disabled) 지금처럼 invalid_body로 거부한다 — 주문 전체로 바꿔 접수하지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'partial_return_disabled', error: null });
+
+    const response = await POST(request({ claimType: 'return', items: [{ orderItemId: ITEM, qty: 1 }] }), context);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'invalid_body' } });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['partial_return_unavailable', 'partial_return_item_unavailable'])('%s는 409로 그 사유를 돌려준다', async (result) => {
+    mocks.rpc.mockResolvedValue({ data: result, error: null });
+
+    const response = await POST(request({ claimType: 'return', items: [{ orderItemId: ITEM, qty: 1 }] }), context);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: { code: result } });
+  });
+
+  it.each([
+    ['교환에 품목', { claimType: 'exchange', items: [{ orderItemId: ITEM, qty: 1 }] }],
+    ['취소에 품목', { claimType: 'cancel', items: [{ orderItemId: ITEM, qty: 1 }] }],
+    ['빈 품목', { claimType: 'return', items: [] }],
+    ['수량 0', { claimType: 'return', items: [{ orderItemId: ITEM, qty: 0 }] }],
+    ['같은 품목 두 번', { claimType: 'return', items: [{ orderItemId: ITEM, qty: 1 }, { orderItemId: ITEM, qty: 1 }] }],
+    ['금액 키', { claimType: 'return', refundAmount: 1000 }],
+    ['품목 단수 키', { claimType: 'return', orderItemId: ITEM }],
+  ])('%s는 DB에 닿기 전에 invalid_body다', async (_label, body) => {
+    const response = await POST(request(body), context);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'invalid_body' } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('품목이 없는 반품은 지금처럼 주문 전체 접수 함수로 간다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'requested', error: null });
+
+    await POST(request({ claimType: 'return' }), context);
+
+    expect(mocks.rpc).toHaveBeenCalledWith('request_order_claim', expect.objectContaining({ p_claim_type: 'return' }));
+  });
+});
