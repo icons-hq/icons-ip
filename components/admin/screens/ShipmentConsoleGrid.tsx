@@ -73,7 +73,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const [partial,setPartial]=useState(false);
  const [packSelection,setPackSelection]=useState<string[]|null>(null);
  const [noticeSelection,setNoticeSelection]=useState<string[]|null>(null);
- /* 선택 배송완료 확인(ADR-0045): 택배사 조회의 배송완료 일시(한국 시간, 처음 값은 연 시각)와 7일보다 이른 일시의 늦은 처리 사유. 처음 값 그대로면 처리 시각으로 기록한다. */
+ /* 선택 배송완료 확인(ADR-0045): 택배사 조회의 배송완료 일시(KST, 처음 값은 연 시각)와 7일보다 이른 일시의 늦은 처리 사유. 처음 값 그대로면 처리 시각으로 기록한다. */
  const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean;arrival:string;initialArrival:string;reason:string}|null>(null);
  const [exportRequest,setExportRequest]=useState<ExportRequest|null>(null);
  const [downloadedIds,setDownloadedIds]=useState<Set<string>>(()=>new Set());
@@ -132,7 +132,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const completionArrivalIso=completion?completion.arrival===completion.initialArrival?null:kstDateTimeLocalToIso(completion.arrival):null;
  const completionArrivalInvalid=Boolean(completion&&completion.arrival!==completion.initialArrival&&!completionArrivalIso);
  const completionNeedsReason=shipmentArrivalNeedsReason(completionArrivalIso);
- const completionError=completion?completionArrivalInvalid?'택배사 배송완료 일시를 확인해주세요.':shipmentArrivalError(completionArrivalIso,completion.reason):null;
+ // 7일보다 이른 일시는 판매 관리 권한만 넣는다(물류 계정은 7일 이내, ADR-0045). 권한이 없으면 사유 칸 대신 이유를 보인다.
+ const completionError=completion?completionArrivalInvalid?'택배사 배송완료 일시를 확인해주세요.':shipmentArrivalError(completionArrivalIso,completion.reason,new Date(),canManageSales):null;
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
  function reviewCompletion(){
   if(!ids.length||pending)return;
@@ -246,10 +247,10 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    <div className="flex flex-col gap-3 text-sm leading-relaxed">
     <p>선택한 {completion.ids.length}건{completion.total>completion.ids.length?`과 같은 합포장에 포함된 배송 건을 합쳐 총 ${completion.total}건`:''}을 배송완료로 처리합니다.</p>
     <p className="text-muted-foreground">합포장에 포함된 모든 상품의 실제 도착을 택배사 조회로 확인해주세요.</p>
-    <label className={FIELD}><span>택배사 배송완료 일시 (한국 시간)</span><Input type="datetime-local" name="deliveredAt" value={completion.arrival} max={kstDateTimeLocalValue(new Date())} disabled={pending} required
+    <label className={FIELD}><span>택배사 배송완료 일시 (KST)</span><Input type="datetime-local" name="deliveredAt" value={completion.arrival} max={kstDateTimeLocalValue(new Date())} disabled={pending} required
      onChange={event=>setCompletion({...completion,arrival:event.target.value})}/></label>
     <p className="text-muted-foreground" data-arrival-hint="">택배사 조회의 배송완료 일시를 넣으세요. 청약철회 기간과 구매확정 기한은 처리한 시각이 아니라 이 일시부터 셉니다 — 늦게 처리할수록 철회 기간이 뒤로 밀리지 않도록 실제 일시를 기준으로 합니다. 처음 값(이 창을 연 시각)을 그대로 두면 처리 시각으로 기록합니다. 발송 등록 시각보다 이른 일시는 그 배송 건만 처리하지 않습니다.</p>
-    {completionNeedsReason?<label className={FIELD}><span>늦게 처리한 사유 ({SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 일시 · 감사 기록에 남습니다)</span><Textarea name="arrivalReason" rows={2} maxLength={SHIPMENT_REVERT_REASON_MAX} value={completion.reason} disabled={pending}
+    {completionNeedsReason&&canManageSales?<label className={FIELD}><span>늦게 처리한 사유 ({SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 일시 · 감사 기록에 남습니다)</span><Textarea name="arrivalReason" rows={2} maxLength={SHIPMENT_REVERT_REASON_MAX} value={completion.reason} disabled={pending}
      placeholder="예: 택배사 조회로 확인했으나 배송완료 처리를 놓침" onChange={event=>setCompletion({...completion,reason:event.target.value})}/></label>:null}
     {completionError?<p role="alert" className="text-destructive">{completionError}</p>:null}
     <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" checked={completion.acknowledged} disabled={pending} onChange={event=>setCompletion({...completion,acknowledged:event.target.checked})}/><span>모든 상품이 실제 도착한 것을 확인했습니다.</span></label>

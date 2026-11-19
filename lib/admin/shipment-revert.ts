@@ -7,7 +7,10 @@ import { shipmentMutationError } from './shipment-dispatch';
 
 export const SHIPMENT_REVERT_REASON_MIN = 5;
 export const SHIPMENT_REVERT_REASON_MAX = 500;
-/** 이 날수보다 이른 택배사 배송완료 일시는 사유를 받는다 — 단순 변심 청약철회 기간(7일)이 처리 시점에 이미 지나기 때문이다. */
+/**
+ * 처리 시각보다 이 날수 넘게 이른 택배사 배송완료 일시는 판매 관리 권한(되돌리기와 같은 권한) + 사유로만 받는다 — 단순 변심 청약철회 기간(7일)이
+ * 처리 순간 이미 지나 고객의 권리를 소급해 지우기 때문이다(SHP-086 "처리 지연은 고객 유리", ADR-0045). 물류 계정은 7일 이내만 넣는다.
+ */
 export const SHIPMENT_ARRIVAL_LATE_DAYS = 7;
 /** 운영자 PC 시계 차이로 받아 주는 미래 시각(분). DB가 지금으로 맞춘다. */
 export const SHIPMENT_ARRIVAL_FUTURE_MINUTES = 10;
@@ -29,8 +32,9 @@ export function shipmentRevertPrompt(kind: ShipmentRevertKind, { reference, pack
   if (kind === 'delivery') return {
     title: SHIPMENT_REVERT_LABELS.delivery,
     message: `배송 건 ${reference}${objectParticle(reference)} 배송 중으로 되돌립니다.${pack} 배송완료 일시와 구매확정 기한이 지워지고, 청약철회 기간은 다시 배송완료할 때 넣는 택배사 배송완료 일시부터 셉니다. `
-      + '고객 앱의 "배송이 완료됐어요" 알림은 받은편지함에서 지우지만 이미 본 알림은 회수할 수 없으니 필요하면 고객에게 연락해주세요. '
-      + '구매확정·리뷰·취소·반품·교환 요청이 있는 주문은 되돌리지 않습니다.',
+      + '운송장 없이 강제 배송완료한 배송 건은 발송된 적이 없어 발송 대기로(주문은 발주확인으로) 되돌아갑니다. '
+      + '고객 앱의 "배송이 완료됐어요"·구매확정 요청 알림은 받은편지함에서 지우지만 이미 본 알림은 회수할 수 없으니 필요하면 고객에게 연락해주세요. '
+      + '구매확정·리뷰·취소·반품·교환 요청이 있는 주문은 되돌리지 않고, 구매확정 보류 중이면 보류를 먼저 해제한 뒤 되돌리고 다시 배송완료한 뒤 다시 보류해주세요.',
     confirmLabel: '배송 중으로 되돌리기',
   };
   return {
@@ -53,6 +57,7 @@ const ERRORS: Record<string, string> = {
   shipment_revert_claim_exists: '취소·반품·교환 요청이 있는 주문은 되돌릴 수 없습니다. 요청 처리 화면에서 먼저 정리해주세요.',
   shipment_revert_partial_cancel_in_progress: '재고 부족 부분 취소가 처리 중인 주문입니다. 처리가 끝난 뒤 다시 시도해주세요.',
   shipment_revert_order_canceled: '취소된 주문은 되돌릴 수 없습니다.',
+  shipment_revert_confirmation_held: '구매확정 보류 중인 주문입니다. 보류를 먼저 해제한 뒤 되돌리고, 다시 배송완료한 뒤 다시 보류해주세요.',
   shipment_revert_order_state: '주문 상태가 바뀌어 되돌릴 수 없습니다. 새로고침해주세요.',
   shipment_revert_email_sending: '발송 안내 메일을 보내는 중입니다. 몇 분 뒤 다시 시도해주세요.',
   invalid_shipment_revert: '되돌릴 배송 건을 다시 선택해주세요.',
@@ -62,6 +67,7 @@ const ERRORS: Record<string, string> = {
   delivered_at_before_shipped: '택배사 배송완료 일시가 발송 등록 시각보다 이릅니다. 발송 등록 시각 이후로 넣어주세요.',
   delivered_at_in_future: '택배사 배송완료 일시는 지금보다 뒤일 수 없습니다.',
   delivered_at_late_reason_required: `${SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 배송완료 일시는 늦게 처리한 사유가 필요합니다. 사유는 감사 기록에 남습니다.`,
+  delivered_at_late_requires_manager: `${SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 배송완료 일시는 고객의 철회 기간을 소급해 지우므로 판매 관리 권한이 있는 운영자만 사유와 함께 넣을 수 있습니다. 일시를 처음 값(처리 시각)으로 두고 처리하거나 판매 관리 담당에게 요청해주세요.`,
   delivered_at_reason_invalid: `사유는 ${SHIPMENT_REVERT_REASON_MIN}자 이상 ${SHIPMENT_REVERT_REASON_MAX}자 이내로 적어주세요.`,
 };
 
@@ -77,16 +83,19 @@ export function shipmentCompletionFailure(code: string): string {
 
 /**
  * 택배사 배송완료 일시 검증(DB와 같은 범위). iso가 null이면 처리 시각으로 기록하므로 문제없다.
- * 미래는 시계 차이 10분까지만, 7일보다 이른 일시는 사유(5~500자)가 있어야 한다. 사유를 적었다면 길이를 본다.
+ * 미래는 시계 차이 10분까지만, 7일보다 이른 일시는 판매 관리 권한(canManageLate)과 사유(5~500자)가 있어야 한다. 사유를 적었다면 길이를 본다.
  */
-export function shipmentArrivalError(iso: string | null, reason: string, now = new Date()): string | null {
+export function shipmentArrivalError(iso: string | null, reason: string, now = new Date(), canManageLate = true): string | null {
   const trimmed = reason.trim();
   if (trimmed && (trimmed.length < SHIPMENT_REVERT_REASON_MIN || trimmed.length > SHIPMENT_REVERT_REASON_MAX)) return ERRORS.delivered_at_reason_invalid;
   if (iso === null) return null;
   const time = Date.parse(iso);
   if (Number.isNaN(time)) return '택배사 배송완료 일시를 확인해주세요.';
   if (time > now.getTime() + SHIPMENT_ARRIVAL_FUTURE_MINUTES * 60_000) return ERRORS.delivered_at_in_future;
-  if (time < now.getTime() - SHIPMENT_ARRIVAL_LATE_DAYS * DAY_MS && !trimmed) return ERRORS.delivered_at_late_reason_required;
+  if (time < now.getTime() - SHIPMENT_ARRIVAL_LATE_DAYS * DAY_MS) {
+    if (!canManageLate) return ERRORS.delivered_at_late_requires_manager;
+    if (!trimmed) return ERRORS.delivered_at_late_reason_required;
+  }
   return null;
 }
 

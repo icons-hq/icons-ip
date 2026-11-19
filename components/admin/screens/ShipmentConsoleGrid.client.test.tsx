@@ -331,8 +331,8 @@ it('재고 부족 옵션이 있으면 출고지시 내려받기 확인 단계(�
 afterEach(()=>{setAdminConfirmHandler(null);});
 
 /* ADR-0045(SHP-050·SHP-086): 선택 배송완료는 택배사 조회의 배송완료 일시를 받는다. 처음 값(창을 연 시각)을 그대로 두면 처리 시각(null)이고,
-   7일보다 이른 일시는 늦게 처리한 사유가 있어야 누를 수 있으며, 미래 일시는 막는다. 입력은 한국 시간이고 서버에는 ISO로 보낸다. */
-it('선택 배송완료는 택배사 배송완료 일시를 한국 시간으로 받아 ISO로 보내고, 7일보다 이르면 사유를 받는다', async () => {
+   7일보다 이른 일시는 늦게 처리한 사유가 있어야 누를 수 있으며, 미래 일시는 막는다. 입력은 KST이고 서버에는 ISO로 보낸다. */
+it('선택 배송완료는 택배사 배송완료 일시를 KST로 받아 ISO로 보내고, 7일보다 이르면 사유를 받는다', async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-19T03:00:00Z'));
   try {
     select([ids[2]]); click('선택 배송완료');
@@ -353,5 +353,24 @@ it('선택 배송완료는 택배사 배송완료 일시를 한국 시간으로 
     expect(button('1건 배송완료 처리').props.disabled).toBe(false);
     click('1건 배송완료 처리'); await Promise.all(mocks.work);
     expect(mocks.complete).toHaveBeenCalledWith([ids[2]], { deliveredAt: '2026-11-11T00:30:00.000Z', reason: '택배사 조회로 확인했으나 처리를 놓침' });
+  } finally { vi.useRealTimers(); }
+});
+
+/* 리뷰 R3(ADR-0045): 판매 관리 권한이 없으면(물류 계정) 7일보다 이른 일시는 사유 칸 없이 막고 이유를 보인다. */
+it('물류 계정은 7일보다 이른 배송완료 일시를 넣지 못하고 판매 관리 권한이 필요하다고 본다', () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-19T03:00:00Z'));
+  try {
+    const logistics = () => { mocks.index = 0; return ShipmentConsoleGrid({ ...props, canManageSales: false }); };
+    const grid = nodes(logistics()).find(node => node.type === ConsoleGrid)!;
+    (grid.props.onSelectionChange as (ids: string[]) => void)([ids[2]]);
+    (nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '선택 배송완료')!.props.onClick as () => void)();
+    const check = nodes(logistics()).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
+    (check.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    (nodes(logistics()).find(node => isInput(node) && node.props.name === 'deliveredAt')!.props.onChange as (event: unknown) => void)({ target: { value: '2026-11-01T09:00' } });
+    expect(text(logistics())).toContain('판매 관리 권한이 있는 운영자만 사유와 함께 넣을 수 있습니다');
+    expect(nodes(logistics()).some(node => node.type === Textarea)).toBe(false);
+    expect(nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '1건 배송완료 처리')!.props.disabled).toBe(true);
+    (nodes(logistics()).find(node => isInput(node) && node.props.name === 'deliveredAt')!.props.onChange as (event: unknown) => void)({ target: { value: '2026-11-15T09:00' } });
+    expect(nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '1건 배송완료 처리')!.props.disabled).toBe(false);
   } finally { vi.useRealTimers(); }
 });

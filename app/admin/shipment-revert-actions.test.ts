@@ -25,6 +25,10 @@ describe('배송 상태 되돌리기 서버 액션 (ADR-0045)', () => {
     expect(result).toEqual({ ok: true, tone: 'success', message: expect.stringContaining('배송 건 2026111930000001을 배송 중으로 되돌렸습니다(합포장으로 주문 2건 함께)') });
     expect(mocks.revalidate).toHaveBeenCalledWith(`/admin/sales/orders/${orderId}`);
     expect(mocks.revalidate).toHaveBeenCalledWith('/admin/sales/shipping');
+    // 리뷰 R1: 운송장 없이 강제 배송완료한 건은 발송 대기·발주확인으로 돌아갔다고 알린다.
+    mocks.rpc.mockResolvedValueOnce({ data: { orderId, shipmentId, orderCount: 1, orderStatus: 'confirmed', shipmentStatus: 'ready' }, error: null });
+    expect(await revertShipmentDeliveryAction({ shipmentId, reason: '강제 배송완료를 잘못 누름', operationId, expectedDeliveredAt: deliveredAt, reference: '2026111930000001' }))
+      .toEqual({ ok: true, tone: 'success', message: expect.stringContaining('발송 대기로 되돌렸습니다. 운송장 없이 강제 배송완료한 건이라 주문은 발주확인으로') });
   });
 
   it('발송 되돌리기는 화면이 본 대표 운송장(없으면 빈 값)을 넘기고, 이미 나간 메일은 주의로 알린다', async () => {

@@ -141,17 +141,22 @@ async function barcodeGaps(client:Client,target:string[]|{p_origin_id:string},la
  * 늦게 처리한 사유를 받는다. DB(admin_complete_shipments_at)가 같은 범위와 발송 등록 시각 하한을 배송 건마다 다시 본다.
  */
 export async function completeShipmentsAction(ids:unknown,arrival:{deliveredAt?:unknown;reason?:unknown}|null=null){
- if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
+ const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
  if(!keys)return {error:'배송완료 처리할 배송 건을 1~1,000개 선택해주세요.'};
  const deliveredAt=arrival?.deliveredAt??null;const reason=typeof arrival?.reason==='string'?arrival.reason.trim():'';
  if(deliveredAt!==null&&(typeof deliveredAt!=='string'||!INSTANT.test(deliveredAt)))return {error:'택배사 배송완료 일시를 확인해주세요.'};
- const invalid=shipmentArrivalError(deliveredAt,reason);if(invalid)return {error:invalid};
+ // 7일보다 이른 일시는 판매 관리 권한만(물류 계정은 7일 이내). DB가 같은 권한을 다시 본다.
+ const invalid=shipmentArrivalError(deliveredAt,reason,new Date(),hasAdminCapability(auth,'sales.manage'));if(invalid)return {error:invalid};
  const client=await createClient();const result=await client.rpc('admin_complete_shipments_at',{target_ids:keys,p_delivered_at:deliveredAt,p_reason:reason||null});
  if(result.error?.message?.startsWith('delivered_at_'))return {error:shipmentCompletionFailure(result.error.message)};
  if(result.error||!Array.isArray(result.data))return {error:'배송완료를 처리하지 못했습니다. 최신 상태를 확인해주세요.'};
- const rows=result.data as {id:string;ok:boolean;error?:string;affectedIds?:string[]}[];refresh();
+ const rows=result.data as {id:string;ok:boolean;error?:string;affectedIds?:string[];arrivalIds?:string[]}[];refresh();
  const completed=new Set(rows.filter(row=>row.ok).flatMap(row=>row.affectedIds??[row.id]));
- return {message:`${completed.size}건을 배송완료로 변경했습니다.${deliveredAt&&completed.size?' 배송완료 일시는 입력한 택배사 배송완료 일시로 기록했습니다.':''}`,failed:rows.filter(row=>!row.ok).map(row=>({id:row.id,reason:shipmentCompletionFailure(row.error??'')}))};
+ // 입력한 일시는 DB가 건별로 실제 기록한 배송 건(arrivalIds)만 센다. 이미 배송완료돼 있던 건은 기존 일시를 그대로 둔다.
+ const arrived=new Set(rows.filter(row=>row.ok).flatMap(row=>row.arrivalIds??[]));const kept=[...completed].filter(id=>!arrived.has(id)).length;
+ const arrivalNote=deliveredAt&&completed.size?arrived.size?` 그중 ${arrived.size}건은 입력한 택배사 배송완료 일시로 기록했습니다.${kept?` 이미 배송완료돼 있던 ${kept}건은 기존 배송완료 일시를 그대로 두었습니다.`:''}`
+  :' 모두 이미 배송완료돼 있던 건이라 입력한 일시를 기록하지 않았습니다(기존 배송완료 일시 그대로).':'';
+ return {message:`${completed.size}건을 배송완료로 변경했습니다.${arrivalNote}`,failed:rows.filter(row=>!row.ok).map(row=>({id:row.id,reason:shipmentCompletionFailure(row.error??'')}))};
 }
 export async function saveShipmentExportColumnsAction(id:string,columns:unknown,updatedAt:string){
  const auth=await staff();if(!auth||!canAccessAdminScreen(auth,null,{capability:'platform.manage',adminOnly:true}))return {error:'관리자 권한이 필요합니다.'};
