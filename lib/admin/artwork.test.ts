@@ -6,10 +6,12 @@ import {
   GOODS_ARTWORK_ERROR,
   GOODS_ARTWORK_MAX_BYTES,
   adminArtworkRejectMessage,
+  adminArtworkStagingFailure,
   buildAdminArtworkPath,
   detectAdminArtworkMimeType,
   normalizeAdminArtworkMetadata,
   parseAdminArtworkPath,
+  parseAdminArtworkStagingFailure,
 } from './artwork';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -144,5 +146,22 @@ describe('adminArtworkRejectMessage', () => {
       .toBe('이미지를 저장소로 옮기지 못했습니다. 잠시 뒤 다시 시도해주세요. 계속되면 운영 담당자에게 알려주세요(원인 코드 public_upload_failed).');
     expect(adminArtworkRejectMessage('good', { reason: 'size_exceeded', detail: {} })).toBe(GOODS_ARTWORK_ERROR);
     expect(adminArtworkRejectMessage('ip', { reason: 'size_exceeded', detail: {} })).toBe(ADMIN_ARTWORK_ERROR);
+  });
+});
+
+describe('staging upload failure', () => {
+  it('recognizes a storage size rejection and keeps only a short diagnostic', () => {
+    expect(adminArtworkStagingFailure({ statusCode: '413', message: 'The object exceeded the maximum allowed size\nstack' })).toEqual({
+      message: '저장소가 파일 크기로 업로드를 거절했습니다. 운영 담당자에게 알려주세요(원인 코드 staging_upload_too_large).',
+      detail: { status: 413, message: 'The object exceeded the maximum allowed size', tooLarge: 1 },
+    });
+    expect(adminArtworkStagingFailure(new Error('network down')).detail).toEqual({ status: null, message: 'network down', tooLarge: 0 });
+  });
+
+  it('accepts only the diagnostic shape the browser builds', () => {
+    expect(parseAdminArtworkStagingFailure({ status: null, message: null, tooLarge: 0 })).toEqual({ status: null, message: null, tooLarge: 0 });
+    expect(parseAdminArtworkStagingFailure({ status: '413', message: null, tooLarge: 1 })).toBeNull();
+    expect(parseAdminArtworkStagingFailure({ status: 413, message: null, tooLarge: 2 })).toBeNull();
+    expect(parseAdminArtworkStagingFailure([1])).toBeNull();
   });
 });

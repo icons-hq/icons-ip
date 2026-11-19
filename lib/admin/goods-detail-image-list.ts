@@ -80,3 +80,11 @@ export function goodsDetailImageFileAcceptable(file: Pick<File, 'size' | 'type'>
 export function goodsDetailImageSubmitValues(tiles: GoodsDetailImageTiles<unknown>): Record<string, string> {
   return Object.fromEntries(GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name, index) => [name, tiles[index]?.path ?? '']));
 }
+
+/**
+ * 제출되는 경로 목록의 지문. 순서 변경·빼기는 타일(DOM 노드)을 옮기거나 지울 뿐 hidden 칸의 value를 바꾸지 않아,
+ * 편집기의 자동복구·이탈 경고(value 변경·input/change 이벤트 감시)가 놓친다. 지문이 바뀌면 목록이 폼에 change를 알린다.
+ */
+export function goodsDetailImageSignature(tiles: GoodsDetailImageTiles<unknown>) {
+  return tiles.map((tile) => tile.path).join('\n');
+}

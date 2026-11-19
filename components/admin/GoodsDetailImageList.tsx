@@ -13,6 +13,7 @@ import {
   goodsDetailImageFileAcceptable,
   goodsDetailImageLabel,
   goodsDetailImageObjectParticle,
+  goodsDetailImageSignature,
   moveGoodsDetailImage,
   removeGoodsDetailImage,
   replaceGoodsDetailImageTile,
@@ -70,6 +71,8 @@ export function GoodsDetailImageList({ errors = {}, initialPaths, initialUrls, o
   const keyCounter = useRef(0);
   const uploadQueue = useRef<Promise<void>>(Promise.resolve());
   const mounted = useRef(false);
+  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
+  const submittedSignature = useRef(goodsDetailImageSignature(tiles));
 
   useEffect(() => {
     mounted.current = true;
@@ -86,6 +89,13 @@ export function GoodsDetailImageList({ errors = {}, initialPaths, initialUrls, o
   /* 업로드 중·실패한 새 이미지는 제출할 경로가 없다. 그 타일의 파일 입력이 폼 저장을 막는다. */
   useEffect(() => {
     inputRefs.current.forEach((input, index) => input?.setCustomValidity(goodsImageBlockingMessage(tiles[index])));
+    // 순서 변경·빼기는 hidden 칸의 value를 바꾸지 않고 노드를 옮기거나 지운다. 제출 경로가 바뀌었으면 커밋된 DOM에서
+    // change를 알려 자동복구·이탈 경고·편집기 값이 새 순서를 읽게 한다(Codex 리뷰 P1).
+    const signature = goodsDetailImageSignature(tiles);
+    if (signature !== submittedSignature.current) {
+      submittedSignature.current = signature;
+      fieldsetRef.current?.querySelector('input[type="hidden"][name]')?.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     const focus = pendingFocus.current;
     if (!focus) return;
     pendingFocus.current = null;
@@ -302,7 +312,7 @@ export function GoodsDetailImageList({ errors = {}, initialPaths, initialUrls, o
   }
 
   const addName = GOODS_DETAIL_IMAGE_FIELD_NAMES[tiles.length];
-  return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-detail-image-list="">
+  return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-detail-image-list="" ref={fieldsetRef}>
     <legend className="float-left w-full p-0 text-sm font-medium text-foreground">긴 상세 이미지 · 최대 {GOODS_DETAIL_IMAGE_MAX}장</legend>
     <p className="text-sm wrap-anywhere" id={GOODS_DETAIL_IMAGE_GUIDANCE_ID}>
       상세페이지(상세 설명) 아래에 이 순서대로 원래 비율 그대로 이어 붙습니다. 세로로 아주 긴 통이미지는 3,000~5,000px 높이로 잘라 여러 장으로 올리면

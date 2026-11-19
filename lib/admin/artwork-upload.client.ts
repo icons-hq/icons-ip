@@ -7,7 +7,9 @@ import {
 import {
   ADMIN_ARTWORK_NOT_IMAGE_ERROR,
   ADMIN_ARTWORK_SIGNATURE_BYTES,
+  adminArtworkStagingFailure,
   detectAdminArtworkMimeType,
+  type AdminArtworkRejectDetail,
   type AdminArtworkKind,
   type AdminArtworkMimeType,
 } from './artwork';
@@ -38,9 +40,9 @@ function enqueueVerification<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
-async function cancelPreparedUpload(path: string) {
+async function cancelPreparedUpload(path: string, failure?: AdminArtworkRejectDetail) {
   try {
-    await cancelAdminArtworkUploadAction({ path });
+    await cancelAdminArtworkUploadAction(failure ? { path, failure } : { path });
   } catch {
     // Cleanup is best-effort; the scheduled cleanup will retry durable claims.
   }
@@ -124,8 +126,10 @@ export async function uploadAdminArtwork(input: {
       });
 
     if (error) {
-      await cancelPreparedUpload(grant.path);
-      return { ok: false, error: ADMIN_ARTWORK_UPLOAD_ERROR };
+      // 스테이징 업로드 실패도 이유를 claim에 남긴다(취소와 함께). 저장소가 크기로 거절했으면 그 사실을 알린다.
+      const failure = adminArtworkStagingFailure(error);
+      await cancelPreparedUpload(grant.path, failure.detail);
+      return { ok: false, error: failure.message };
     }
 
     const result = await enqueueVerification(() => requestVerification({

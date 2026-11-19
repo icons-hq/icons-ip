@@ -266,6 +266,17 @@ describe('cancelAdminArtworkUploadAction', () => {
     });
   });
 
+  /* 스테이징 업로드 실패의 진단 값은 형식이 맞을 때만 claim 기록으로 넘긴다. */
+  it('passes a well-formed staging failure and drops a malformed one', async () => {
+    const failure = { status: 413, message: 'The object exceeded the maximum allowed size', tooLarge: 1 };
+    await cancelAdminArtworkUploadAction({ path: OBJECT_PATH, failure });
+    expect(mocks.cancelUpload).toHaveBeenLastCalledWith({ actorId: 'staff-1', path: OBJECT_PATH, failure });
+    await cancelAdminArtworkUploadAction({ path: OBJECT_PATH, failure: { ...failure, message: 'x'.repeat(161) } });
+    expect(mocks.cancelUpload).toHaveBeenLastCalledWith({ actorId: 'staff-1', path: OBJECT_PATH });
+    await cancelAdminArtworkUploadAction({ path: OBJECT_PATH, failure: { ...failure, extra: 'nope' } });
+    expect(mocks.cancelUpload).toHaveBeenLastCalledWith({ actorId: 'staff-1', path: OBJECT_PATH });
+  });
+
   it('allows a signed-in actor to release their claim after losing staff eligibility', async () => {
     mocks.adminState = {
       isConfigured: true,

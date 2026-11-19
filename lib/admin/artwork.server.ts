@@ -6,6 +6,7 @@ import {
   parseAdminArtworkUploadBlockReason,
   type AdminArtworkKind,
   type AdminArtworkMimeType,
+  type AdminArtworkRejectDetail,
   type AdminArtworkRejection,
   type AdminArtworkUploadBlockReason,
 } from './artwork';
@@ -246,6 +247,8 @@ export async function rejectAdminArtworkUpload(input: {
 export async function cancelAdminArtworkUpload(input: {
   actorId: string;
   path: string;
+  /** 브라우저 → 스테이징 업로드 실패로 취소하면 그 진단 값. claim에 staging_upload_failed로 남긴다. */
+  failure?: AdminArtworkRejectDetail;
 }): Promise<void> {
   if (!input.actorId || !parseAdminArtworkPath(input.path)) return;
 
@@ -259,6 +262,19 @@ export async function cancelAdminArtworkUpload(input: {
     if (error || data !== true) return;
   } catch {
     return;
+  }
+  if (input.failure) {
+    try {
+      // 취소로 rejected가 된 같은 claim에 처음 이유만 남긴다(service_reject 4인자는 이미 남긴 이유를 덮지 않는다).
+      await service.rpc('service_reject_admin_artwork_upload', {
+        p_actor_id: input.actorId,
+        p_path: input.path,
+        p_reason: 'staging_upload_failed',
+        p_detail: input.failure,
+      });
+    } catch {
+      // 이유 기록은 진단용이다. 취소·정리는 그대로 진행한다.
+    }
   }
 
   await cleanupClaimObjects(service, {

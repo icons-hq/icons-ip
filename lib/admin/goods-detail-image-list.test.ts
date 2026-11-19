@@ -6,6 +6,7 @@ import {
   goodsDetailImageFileAcceptable,
   goodsDetailImageLabel,
   goodsDetailImageObjectParticle,
+  goodsDetailImageSignature,
   goodsDetailImageSubmitValues,
   moveGoodsDetailImage,
   removeGoodsDetailImage,
@@ -53,5 +54,13 @@ describe('긴 상세 이미지 목록', () => {
   it('라벨과 조사', () => {
     expect(goodsDetailImageLabel(0)).toBe('상세 이미지 1');
     expect([0, 1, 3, 9].map(goodsDetailImageObjectParticle)).toEqual(['을', '를', '를', '을']);
+  });
+
+  it('순서 변경·빼기는 제출 지문을 바꾸고, 미리보기·상태만 바뀐 커밋은 바꾸지 않는다', () => {
+    const tiles = createGoodsDetailImageTiles([path(1), path(2)], ['u1', 'u2']);
+    const signature = goodsDetailImageSignature(tiles);
+    expect(goodsDetailImageSignature(moveGoodsDetailImage(tiles, 1, 0))).not.toBe(signature);
+    expect(goodsDetailImageSignature(removeGoodsDetailImage(tiles, 1))).not.toBe(signature);
+    expect(goodsDetailImageSignature(replaceGoodsDetailImageTile(tiles, tiles[0].key, (tile) => ({ ...tile, url: 'blob:x', error: '오류' })))).toBe(signature);
   });
 });

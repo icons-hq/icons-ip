@@ -439,6 +439,16 @@ describe('cancelAdminArtworkUpload', () => {
     });
   });
 
+  it('records a staging upload failure on the cancelled claim before cleaning up', async () => {
+    const failure = { status: 413, message: 'The object exceeded the maximum allowed size', tooLarge: 1 };
+    await cancelAdminArtworkUpload({ actorId: ACTOR_ID, path: PATH, failure });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('service_reject_admin_artwork_upload', {
+      p_actor_id: ACTOR_ID, p_path: PATH, p_reason: 'staging_upload_failed', p_detail: failure,
+    });
+    expect(mocks.stagingRemove).toHaveBeenCalledWith([PATH]);
+  });
+
   it.each([
     ['already resolved claim', { data: false, error: null }],
     ['provider error', { data: null, error: { message: 'private cancel detail' } }],

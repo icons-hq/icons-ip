@@ -96,6 +96,7 @@ export type AdminArtworkRejectReason =
   | 'staging_download_failed'
   | 'public_upload_failed'
   | 'verify_rejected'
+  | 'staging_upload_failed'
   | 'unexpected_error';
 export type AdminArtworkRejectDetail = Record<string, string | number | null>;
 export interface AdminArtworkRejection {
@@ -105,6 +106,35 @@ export interface AdminArtworkRejection {
 
 const SHARP_FORMAT_LABELS: Record<string, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP', gif: 'GIF', heif: 'HEIC/HEIF', avif: 'AVIF', tiff: 'TIFF', svg: 'SVG' };
 const numberText = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('ko-KR') : null;
+
+/**
+ * 브라우저 → 스테이징(admin-artwork-staging) 업로드 실패. 서버 확인 전 단계라 예전에는 취소만 하고 이유가 남지 않았다.
+ * 저장소가 크기로 거절하면(413·"maximum allowed size") 저장소 한도 문제로 알린다 — 버킷 한도(20MB)보다 낮은 프로젝트 한도 등.
+ */
+export function adminArtworkStagingFailure(error: unknown): { message: string; detail: AdminArtworkRejectDetail } {
+  const value = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const rawStatus = value.statusCode ?? value.status;
+  const status = typeof rawStatus === 'number' ? rawStatus : typeof rawStatus === 'string' && /^\d{3}$/.test(rawStatus) ? Number(rawStatus) : null;
+  const message = typeof value.message === 'string' ? value.message.split('\n')[0].slice(0, 160) : null;
+  const tooLarge = status === 413 || /maximum allowed size|payload too large|too large/i.test(message ?? '');
+  return {
+    message: tooLarge
+      ? '저장소가 파일 크기로 업로드를 거절했습니다. 운영 담당자에게 알려주세요(원인 코드 staging_upload_too_large).'
+      : '이미지를 업로드하지 못했습니다. 다시 시도해주세요. 계속되면 운영 담당자에게 알려주세요(원인 코드 staging_upload_failed).',
+    detail: { status, message, tooLarge: tooLarge ? 1 : 0 },
+  };
+}
+
+/** 취소 요청에 실려 오는 업로드 실패 진단 값. 숫자 상태와 160자 이하 문구만 받는다. */
+export function parseAdminArtworkStagingFailure(value: unknown): AdminArtworkRejectDetail | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { status, message, tooLarge } = value as Record<string, unknown>;
+  if (Object.keys(value).some((key) => !['status', 'message', 'tooLarge'].includes(key))) return null;
+  if (status !== null && !(typeof status === 'number' && Number.isInteger(status) && status >= 0 && status < 1000)) return null;
+  if (message !== null && !(typeof message === 'string' && message.length <= 160)) return null;
+  if (tooLarge !== 0 && tooLarge !== 1) return null;
+  return { status: status as number | null, message: message as string | null, tooLarge };
+}
 
 /** 업로드 확인 거절 안내. 이미지 자체의 이유는 무엇을 고치면 되는지, 저장소 단계 실패는 다시 시도와 원인 코드를 알린다. */
 export function adminArtworkRejectMessage(kind: AdminArtworkKind, rejection: AdminArtworkRejection): string {

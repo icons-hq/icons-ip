@@ -210,11 +210,22 @@ describe('uploadAdminArtwork', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: '이미지를 업로드하지 못했습니다. 다시 시도해주세요.',
+      error: '이미지를 업로드하지 못했습니다. 다시 시도해주세요. 계속되면 운영 담당자에게 알려주세요(원인 코드 staging_upload_failed).',
     });
     expect(JSON.stringify(result)).not.toContain('private');
-    expect(mocks.cancel).toHaveBeenCalledWith({ path: OBJECT_PATH });
+    // 화면에는 내보내지 않는 저장소 문구는 취소와 함께 서버(claim 진단 값)로만 보낸다.
+    expect(mocks.cancel).toHaveBeenCalledWith({ path: OBJECT_PATH, failure: { status: null, message: 'private storage detail', tooLarge: 0 } });
     expect(mocks.verify).not.toHaveBeenCalled();
+  });
+
+  /* 2026-11-19 다른 세션의 의심(프로젝트 전역 Storage 한도가 버킷 한도보다 낮음)이 맞다면 이 경로로 드러난다. */
+  it('names a storage size rejection during the staging upload', async () => {
+    mocks.upload.mockResolvedValue({ data: null, error: { statusCode: '413', message: 'The object exceeded the maximum allowed size' } });
+    await expect(uploadAdminArtwork({ kind: 'good', file: imageFile('image', 'detail.png', { type: 'image/png' }) })).resolves.toEqual({
+      ok: false,
+      error: '저장소가 파일 크기로 업로드를 거절했습니다. 운영 담당자에게 알려주세요(원인 코드 staging_upload_too_large).',
+    });
+    expect(mocks.cancel).toHaveBeenCalledWith({ path: expect.any(String), failure: { status: 413, message: 'The object exceeded the maximum allowed size', tooLarge: 1 } });
   });
 
   it('returns a post-upload verification error without exposing or accepting the path', async () => {
