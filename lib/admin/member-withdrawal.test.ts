@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INQUIRY_WITHDRAWAL_SCOPE } from '@/lib/account-deletion';
 import {
   kakaoUnlinkWithdrawalConfirmMessage,
+  MEMBER_WITHDRAWAL_EFFECTS,
   MEMBER_WITHDRAWAL_RETAINED,
   memberWithdrawalBasisLabel,
   normalizeKakaoUnlinkWithdrawalForm,
@@ -175,5 +176,36 @@ describe('카카오 알림 근거', () => {
     expect(memberWithdrawalRpcError('kakao_unlink_withdrawal_not_queued', 'kakao_unlink')).toContain('탈퇴 검토 대기 회원이 아닙니다');
     expect(memberWithdrawalRpcError('invalid_member_withdrawal', 'kakao_unlink')).toBe('처리 메모를 2~200자로 다시 적어주세요.');
     expect(memberWithdrawalRpcError('invalid_member_withdrawal')).toBe('문의 번호(숫자)와 처리 메모(2~200자)를 다시 확인해주세요.');
+  });
+});
+
+describe('프로필 익명화 계약(2026-11-19)', () => {
+  it('처리 상태는 지울 프로필 사진 여부를 조건부로 받는다. 처리 전에는 true일 수 없다', () => {
+    expect(parseMemberWithdrawalStatus({ ...STATUS, avatarErasePending: true })).toEqual({ ...STATUS, avatarErasePending: true });
+    expect(parseMemberWithdrawalStatus({ ...STATUS, avatarErasePending: false })).toMatchObject({ avatarErasePending: false });
+    expect(parseMemberWithdrawalStatus(STATUS)).not.toHaveProperty('avatarErasePending');
+    expect(parseMemberWithdrawalStatus({ ...STATUS, avatarErasePending: 'yes' })).toBeNull();
+    expect(parseMemberWithdrawalStatus({ processed: false, processedAt: null, inquiryReference: null, signinBlocked: false, signinBlockedAt: null, avatarErasePending: true })).toBeNull();
+  });
+
+  it('처리 결과는 익명화한 칸 이름을 받고 모르는 이름은 거절하며 옛 응답(칸 없음)도 받는다', () => {
+    const base = { ...STATUS, status: 'processed', suspended: true, revokedSessions: 0 };
+    const parsed = parseMemberWithdrawalOutcome({ ...base, avatarErasePending: true, erased: { ...ERASED, profileFields: ['nickname', 'avatar'], adultVerifications: 2 } });
+    expect(parsed).toMatchObject({ status: 'processed', withdrawal: { avatarErasePending: true }, erased: { profileFields: ['nickname', 'avatar'] } });
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: { ...ERASED, profileFields: ['email'] } })).toBeNull();
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: { ...ERASED, adultVerifications: -1 } })).toBeNull();
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: ERASED })).toMatchObject({ status: 'processed' });
+    if (parsed?.status !== 'processed') throw new Error('processed expected');
+    expect(memberWithdrawalErasedSummary(parsed.erased, 0)).toContain('프로필 익명화(닉네임·프로필 사진)');
+    expect(memberWithdrawalErasedSummary(parsed.erased, 0)).toContain('성인 인증 기록 2건');
+  });
+
+  it('고객 안내와 어드민 범위가 같은 원천에서 닉네임 익명화·생년월일·사진 삭제를 말한다', () => {
+    expect(INQUIRY_WITHDRAWAL_SCOPE.erased.join(' ')).toContain('생년월일·프로필 사진');
+    expect(INQUIRY_WITHDRAWAL_SCOPE.erased).toContain('성인 인증 기록');
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain('성인 인증 기록');
+    expect(INQUIRY_WITHDRAWAL_SCOPE.retained.join(' ')).not.toMatch(/닉네임|생년월일|프로필 사진/);
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain(`닉네임은 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}'과 구분 번호로 바뀌고 생년월일·프로필 사진 파일은 삭제`);
+    expect(memberWithdrawalConfirmMessage({ reference: 1, category: 'account', title: 't', createdAt: PROCESSED_AT })).toContain('닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운');
   });
 });

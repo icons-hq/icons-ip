@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '@/components/admin/console/AdminCountCard';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { OpsAlertDigestPanel } from '@/components/admin/OpsAlertDigestPanel';
 import { PaymentAttemptReconcileButton } from '@/components/admin/PaymentAttemptReconcileButton';
+import type { OpsAlertDigestSettings } from '@/lib/admin/ops-alert-digest';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   PAYMENT_PROVIDER_LABELS,
@@ -28,11 +30,13 @@ const time = (value: string | null) => value ? <time className="tabular-nums" da
  * 시스템 상태(원장 OPS-039·OPS-040·PAY-067·PAY-063·CUS-066). 자동 작업의 실패·멈춤, 미종결 결제 시도, 메일 발송 실패를 한 화면에서 본다.
  * 판정은 DB(admin_system_health)가 하고 화면은 고르지 않는다. 미종결 결제 목록·재확인은 주문 관리 권한(sales.manage)이 있을 때만 보인다.
  */
-export function SystemHealthScreen({ health, payments, canReconcile }: {
+export function SystemHealthScreen({ health, payments, canReconcile, digest }: {
   health: SystemHealthReport | null;
   /** sales.manage가 없으면 undefined(목록을 읽지 않는다), 읽지 못하면 null. */
   payments: UnresolvedPaymentAttemptList | null | undefined;
   canReconcile: boolean;
+  /** 운영 알림 메일 설정(platform.manage). 읽지 못하면 null — 설정 칸 대신 안내를 보인다. */
+  digest?: OpsAlertDigestSettings | null;
 }) {
   return <div className="flex min-w-0 flex-col gap-4" data-system-health="">
     <AdminPageHeader title="시스템 상태"
@@ -41,6 +45,11 @@ export function SystemHealthScreen({ health, payments, canReconcile }: {
       : <AdminNotice role="alert" title="시스템 상태를 불러오지 못했습니다" tone="danger">
         새로고침 후 다시 확인해주세요. 계속 열리지 않으면 데이터 저장소 연결에 문제가 있을 수 있으니 개발팀에 알려주세요.
       </AdminNotice>}
+    <AdminSectionCard id="ops-alert-digest" title="운영 알림 메일"
+      summary="어드민을 열어 두지 않아도 새 문의·답변 지연·자동 작업 멈춤을 메일 한 통으로 받습니다.">
+      {digest ? <OpsAlertDigestPanel initial={digest} />
+        : <AdminNotice tone="danger" role="alert">운영 알림 메일 설정을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</AdminNotice>}
+    </AdminSectionCard>
   </div>;
 }
 

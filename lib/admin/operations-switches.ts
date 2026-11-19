@@ -1,6 +1,6 @@
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 
-/** 지연 안내 메일·반품배송비 차감·재고 부족 부분 취소 운영 스위치 화면(통합·계정 주매니저, 권한 전환 전에는 admin). */
+/** 지연 안내 메일·반품배송비 차감·재고 부족 부분 취소·부분 반품 운영 스위치 화면(통합·계정 주매니저, 권한 전환 전에는 admin). */
 export const OPERATIONS_SWITCHES_PATH = '/admin/settings/switches';
 
 export const DELAY_NOTICE_EVIDENCE_MAX = 500;
@@ -31,12 +31,15 @@ export interface PartialCancelSwitch extends SwitchStamp {
   enabledAt: string | null;
   updatedAt: string;
 }
+/** 부분 반품(ADR-0047). 반품배송비·부분 취소와 같은 행의 별도 칸이라 리비전을 함께 쓴다. */
+export type PartialReturnSwitch = PartialCancelSwitch;
 export interface OperationsSwitchesState {
   delayNotice: DelayNoticeSwitch;
   returnFee: ReturnFeeSwitch;
   partialCancel: PartialCancelSwitch;
+  partialReturn: PartialReturnSwitch;
 }
-export type OperationsSwitchKind = 'delayNotice' | 'returnFee' | 'partialCancel';
+export type OperationsSwitchKind = 'delayNotice' | 'returnFee' | 'partialCancel' | 'partialReturn';
 
 const nullableText = (value: unknown): value is string | null => value === null || (typeof value === 'string' && [...value].length <= SWITCH_EVIDENCE_MAX);
 const nullableInstant = (value: unknown): value is string | null => value === null || transactionInstant(value);
@@ -49,11 +52,12 @@ function section(value: unknown, keys: readonly string[]): Record<string, unknow
 
 /** DB 문서를 그대로 믿지 않고 화면이 쓰는 모양만 통과시킨다. */
 export function parseOperationsSwitches(value: unknown): OperationsSwitchesState | null {
-  if (!transactionRecord(value) || !transactionExactKeys(value, ['delayNotice', 'returnFee', 'partialCancel'])) return null;
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['delayNotice', 'returnFee', 'partialCancel', 'partialReturn'])) return null;
   const delay = section(value.delayNotice, ['revision', 'enabled', 'smsEnabled', 'evidence', 'changedAt', 'updatedBy']);
   const fee = section(value.returnFee, ['revision', 'enabled', 'oneWayAmount', 'evidence', 'enabledAt', 'updatedAt', 'updatedBy', 'inflightCount']);
   const partial = section(value.partialCancel, ['revision', 'enabled', 'evidence', 'enabledAt', 'updatedAt', 'updatedBy']);
-  if (!delay || !fee || !partial || typeof delay.smsEnabled !== 'boolean' || !nullableText(delay.evidence) || !transactionInstant(delay.changedAt)
+  const returns = section(value.partialReturn, ['revision', 'enabled', 'evidence', 'enabledAt', 'updatedAt', 'updatedBy']);
+  if (!delay || !fee || !partial || !returns || !nullableText(returns.evidence) || !nullableInstant(returns.enabledAt) || !transactionInstant(returns.updatedAt) || typeof delay.smsEnabled !== 'boolean' || !nullableText(delay.evidence) || !transactionInstant(delay.changedAt)
     || !(fee.oneWayAmount === null || transactionInteger(fee.oneWayAmount, 1, RETURN_FEE_AMOUNT_MAX)) || !nullableText(fee.evidence)
     || !nullableInstant(fee.enabledAt) || !transactionInstant(fee.updatedAt) || !transactionInteger(fee.inflightCount, 0)
     || !nullableText(partial.evidence) || !nullableInstant(partial.enabledAt) || !transactionInstant(partial.updatedAt)) return null;
@@ -64,6 +68,8 @@ export function parseOperationsSwitches(value: unknown): OperationsSwitchesState
       enabledAt: fee.enabledAt, updatedAt: fee.updatedAt, updatedBy: fee.updatedBy as string | null, inflightCount: fee.inflightCount as number },
     partialCancel: { revision: partial.revision as number, enabled: partial.enabled as boolean, evidence: partial.evidence, enabledAt: partial.enabledAt,
       updatedAt: partial.updatedAt, updatedBy: partial.updatedBy as string | null },
+    partialReturn: { revision: returns.revision as number, enabled: returns.enabled as boolean, evidence: returns.evidence, enabledAt: returns.enabledAt,
+      updatedAt: returns.updatedAt, updatedBy: returns.updatedBy as string | null },
   };
 }
 
@@ -97,6 +103,13 @@ export const OPERATIONS_SWITCH_CHECKLISTS: Record<OperationsSwitchKind, readonly
     '서원(물류)에서 품절을 통보받는 경로(고객 정보 전달 방식·시한)를 운영 합의했습니다.',
     '개발팀이 운영 주문의 금액 배분 점검(런북 \'재고 부족 부분 취소\' 게이트 ⑤)을 돌려, 부분 취소가 막힐 주문(amount_mismatch 등)을 확인했습니다.',
     '결제사가 부분 취소를 받지 않는 결제(가상계좌·코페이 등)는 부분 취소가 막히고(전액 환불로 돌리지 않음), 그 주문은 운영자 전액 취소로 처리하는 것을 확인했습니다.',
+  ],
+  partialReturn: [
+    '이용약관 제16조와 배송·반품 정책의 부분 반품 개정(일부 상품 반품 허용·반품배송비 차감 규칙)을 7일 이상 공지했고 시행일이 지났습니다.',
+    '토스페이먼츠 상점의 부분 취소 사용을 확인하고, 테스트 키로 한 결제에 부분 반품 환불 두 번 뒤 남은 상품 주문 전체 반품까지 리허설했습니다.',
+    '결제사가 부분 취소를 받지 않는 카드(부분 취소 불가·과세 제외 금액)의 부분 반품은 전액 환불로 돌리지 않고 확인 필요로 남는다는 것과, 그때 결제 담당이 고객 환불계좌를 받아 계좌 송금 부분 환불로 전환하는 절차를 CS에 공지했습니다.',
+    '나이스페이·코페이·토스 가상계좌·정기배송·선물 주문은 부분 반품을 열지 않고 주문 전체 반품만 받는다는 것을 CS에 공지했습니다.',
+    '반품배송비 차감을 함께 켤 때의 금액(편도 3,000원, 최초 무료배송 주문은 첫 변심 반품에 한 번 왕복)과 상품 상세 반품비 표기를 대조했습니다.',
   ],
 };
 

@@ -59,9 +59,11 @@
 
 화면의 '메일 발송 실패(24시간)'는 `public.email_deliveries`(주문 확인·배송 안내 등)의 `failed`와 발송 의도(`private.email_intents`, 지연 안내·안전재고 요약·초대 등)의 `failed`·`unknown`·`needs_review`, '반송'은 발송 의도의 `bounced`·`complained`·`suppressed`다(Resend 웹훅 `/api/webhooks/resend`가 기록). 실패가 이어지면 Resend 키·발신 도메인·`RESEND_WEBHOOK_SECRET`을 확인하고, 건별 결과는 혜택/마케팅 → 메일 발송 이력(`/admin/messaging/emails`)에서 본다.
 
-## 외부 알림을 붙일 때
+## 외부 알림: 운영 알림 요약 메일
 
-메일·메신저 알림은 아직 붙이지 않았다. 붙일 자리는 `lib/system-health/alert-sink.server.ts`의 `notifySystemIncident` 한 함수다 — 앱 자동 작업 실패 중 DB가 새 사건이라고 답한 것(같은 작업의 그 시간 첫 실패)에서만 불린다. 이 함수는 throw하지 않아야 하고(cron 응답 계약 유지), 받는 값에는 비밀·개인정보가 없다. DB 안의 pg_cron 실패는 앱을 거치지 않으므로, 그것까지 외부로 보내려면 운영 알림 `category = 'system'`을 주기적으로 읽는 별도 작업이 필요하다.
+시스템 장애는 운영 알림 메일로 나간다(설정 화면: 시스템 상태 → 운영 알림 메일, `platform.manage`). 원장 `private.admin_operation_alerts`의 `category='system'` 행에는 원래 앱 cron의 실행 중 실패(`record_system_job_failure`)만 올라왔고, Vercel cron 미호출·시간 초과·401, pg_cron 실패·멈춤, 메일 발송 실패, 미종결 결제는 이 화면의 판정(`system_health_report`)에만 있었다. 그래서 `private.prepare_ops_alert_digest`가 요약을 만들 때(같은 잠금 안) `private.raise_system_health_alerts`로 판정의 실패 중·멈춘 작업, 메일 발송 실패 건수, 미종결 결제 건수를 시간 단위 event_key(`system_job:<작업>:<시각>`·`system_job_stalled:…`·`system_unresolved_payments:<시각>`, 메일 발송 실패는 `system_email_failures:<가장 늦은 실패 시각>`)로 '시스템' 알림 행에 올린 뒤 요약에 담는다(운영 알림 벨에도 보인다). 멈춘·실패한 작업과 미종결 결제는 문제가 이어지는 동안 한 시간에 한 번씩 다시 알린다(돈·정지 상태라 반복이 맞다). 메일 발송 실패는 새 실패가 생겼을 때만 올린다(같은 실패가 24시간 창 동안 매시간 다시 올라오지 않는다). 5분마다 도는 `/api/cron/ops-alert-digest`가 한 통의 요약 메일로 보낸다(10분에 한 통까지). 구현은 `supabase/migrations/20261119107000_ops_alert_digest.sql`, `lib/email/ops-alert-digest*.ts`다.
+
+`lib/system-health/alert-sink.server.ts`의 `notifySystemIncident`는 로그 한 줄만 남기고 **메일을 직접 보내지 않는다.** 서버리스 함수는 응답 뒤 끊겨 즉시 발송이 사라질 수 있고, DB 알림 행과 중복 메일이 나기 때문이다. 메일 말고 다른 채널(메신저 등)을 붙일 때만 이 함수를 바꾼다. 켜는 절차·확인·장애 대응은 [inquiry-realtime.md의 운영 알림 요약 메일](./inquiry-realtime.md)을 따른다.
 
 ## 새 pg_cron 잡을 더할 때
 
@@ -74,3 +76,14 @@ migration이 `cron.schedule`로 잡을 더하면 정리 잡이 10분 안에 처�
 ## 보존
 
 pg_cron `system-job-records-maintenance`(10분마다)가 실패 기록 30일, 30일 동안 실행이 없던 앱 작업 상태 행, 미종결이 아니게 된 시도의 자동 재확인 표식을 지우고, 없어진 pg_cron 잡의 처음 본 기록을 지운다. `cron.job_run_details` 자체의 정리는 이 작업 범위가 아니다.
+
+## 배포 뒤 스모크(OPS-060)
+
+`pipeline.yml`의 별도 job `smoke-production`(`needs: deploy-vercel`, 결과가 success일 때만 실행)이 `scripts/post-deploy-smoke.mjs`로 운영 주소(`lib/site-domains.mjs`의 `CANONICAL_SITE_ORIGIN`, 도메인 전환 3단계에서 정규 주소가 바뀌면 같이 따라간다)의 홈·`/shop`·`/login`·`/api/health`를 익명으로 부른다. 경로마다 10초 간격 5회까지 재시도하고, 상태 200 외에 앱 셸(`<html lang>`)과 soft 404·오류 표지가 없는지 본문까지 확인한다(Next 16은 `notFound()`도 200). 정상 페이지도 RSC 페이로드(`<script>`)에 404 화면 문구를 싣기 때문에 문구 표지는 `<script>`를 걷어낸 본문에서만 찾는다(실제 운영 HTML 표본이 `scripts/fixtures/post-deploy-smoke/`에 고정돼 있다). `/api/health`는 비밀 없이 `{ ok, database, commit, deploymentId }`만 돌려주고 DB 공개 읽기(`get_storefront_settings`) 하나가 닿는지로 503을 낸다.
+
+- **배포 id 비교**: deploy-vercel이 `vercel deploy`가 출력한 배포 URL을 job output으로 넘기면 스모크가 Vercel API(`GET /v13/deployments/{host}`, `VERCEL_TOKEN`·`VERCEL_ORG_ID`)로 배포 id(`dpl_…`)를 찾아 `/api/health`의 `deploymentId`(런타임 시스템 변수 `VERCEL_DEPLOYMENT_ID`)와 맞춘다. 롤백 등으로 방금 올린 배포가 도메인에 붙지 않았는데 이전 배포가 200을 주는 경우를 잡는다. URL·토큰이 없거나 조회가 안 되면 경고(`Deployment id check skipped`)만 남기고 비교를 건너뛴다(조회 API 형식은 Vercel 문서 기준이며 첫 운영 배포에서 경고가 나오는지 확인한다).
+- **실패의 영향**: 스모크가 별도 job이라 실패해도 로그인 복구 템플릿 활성화·shared preview 동기화·staging 배포·PR preview 가드는 그대로 진행되고, 이 job만 빨갛게 되어 GitHub 실패 알림이 간다. 배포는 이미 올라간 뒤라 자동 롤백은 하지 않는다 — 운영 화면을 직접 확인하고 필요하면 Vercel에서 이전 배포로 되돌린다. run 전체 결론은 failure가 되지만 `production_redeploy`의 원본 run 검사는 smoke job 하나만 실패한 run을 허용한다(deploy-supabase·deploy-vercel 성공, 다른 job 실패 없음).
+- **옛 run 재실행 주의**: main이 앞서 나간 뒤 옛 run의 스모크를 `rerun --failed` 하면 그 run이 올린 배포 id와 지금 도메인에 붙은 배포가 달라 다시 실패한다(정상). 최신 run에서만 다시 돌린다.
+- **다시 돌리기**: 일시 실패면 해당 run에서 `gh run rerun <run-id> --failed`로 이 job만 다시 돌린다(배포·DB는 다시 실행하지 않는다).
+- staging 배포에는 붙이지 않았다(별칭이 보호 모드일 수 있고 운영 판단 근거가 아니다). `SMOKE_ORIGIN` 환경 변수로 다른 주소에 같은 스크립트를 돌릴 수는 있다.
+- 외부 가동 감시(UptimeRobot 등)가 필요하면 `/api/health`를 그대로 지정한다(사람 단계). 운영 알림 메일 cron이 멈추면 그 사실은 메일로 알릴 수 없으므로 이 외부 감시가 유일한 안전망이다.

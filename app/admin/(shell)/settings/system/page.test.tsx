@@ -1,12 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), health: vi.fn(), payments: vi.fn(), reconcile: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), health: vi.fn(), payments: vi.fn(), digest: vi.fn(), reconcile: vi.fn(), refresh: vi.fn(), saveDigest: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
 vi.mock('@/lib/admin/system-health.server', () => ({ loadSystemHealth: mocks.health, loadUnresolvedPaymentAttempts: mocks.payments }));
+vi.mock('@/lib/admin/ops-alert-digest.server', () => ({ loadOpsAlertDigest: mocks.digest }));
+vi.mock('@/app/admin/ops-alert-digest-actions', () => ({ saveOpsAlertDigestAction: mocks.saveDigest }));
 vi.mock('@/app/admin/system-health-actions', () => ({ reconcilePaymentAttemptAction: mocks.reconcile }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 import Page from './page';
+import { parseOpsAlertDigestSettings } from '@/lib/admin/ops-alert-digest';
 import { parseSystemHealthReport, parseUnresolvedPaymentAttempts } from '@/lib/admin/system-health';
 
 const asOf = '2026-11-18T03:00:00.000Z';
@@ -42,8 +45,16 @@ const payments = parseUnresolvedPaymentAttempts({
   }],
 });
 
+const digest = parseOpsAlertDigestSettings({
+  revision: 2, enabled: true, recipients: ['cs@example.test'], categories: ['inquiries', 'delay', 'system'], delayHours: 4,
+  enabledAt: asOf, updatedAt: asOf, updatedByName: '운영자',
+  runs: [{ runId: 'run-1', createdAt: asOf, counts: { inquiries: 2, questions: 0, delayedInquiries: 1, delayedQuestions: 0, system: 1 },
+    deliveries: [{ recipient: 'cs@example.test', status: 'sent', errorCode: null, attempts: 1, updatedAt: asOf }] }],
+});
+
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.digest.mockResolvedValue(digest);
   mocks.guard.mockResolvedValue(access(['home', 'platform.manage', 'sales.read', 'sales.manage']));
   mocks.health.mockResolvedValue(health);
   mocks.payments.mockResolvedValue(payments);
@@ -100,4 +111,18 @@ it('문제가 없으면 정상 안내를, 읽지 못하면 정상처럼 보이�
   html = renderToStaticMarkup(await Page());
   expect(html).toContain('시스템 상태를 불러오지 못했습니다');
   expect(html).not.toContain('지금 확인할 문제가 없습니다');
+});
+
+it('운영 알림 메일 설정과 최근 발송 기록을 같은 화면에 보이고, 읽지 못하면 안내한다', async () => {
+  let html = renderToStaticMarkup(await Page());
+  expect(html).toContain('id="ops-alert-digest"');
+  expect(html).toContain('운영 알림 메일 보내기');
+  expect(html).toContain('새 1:1 문의');
+  expect(html).toContain('시스템 장애');
+  expect(html).toContain('cs@example.test');
+  expect(html).toContain('>보냄<');
+  expect(html).not.toContain('운영 알림 메일 설정을 불러오지 못했습니다');
+  mocks.digest.mockResolvedValue(null);
+  html = renderToStaticMarkup(await Page());
+  expect(html).toContain('운영 알림 메일 설정을 불러오지 못했습니다');
 });

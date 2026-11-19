@@ -7,7 +7,7 @@ import { cn } from 'cn';
 import { formatKrwExact } from '@/components/admin/format';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { orderClaimReferenceLabel } from '@/lib/orders/claims';
-import { REFUND_TRANSFERS_PATH, refundTransferDetailHref, refundTransferRowKey, refundTransfersHref, type RefundTransferPage } from '@/lib/admin/refund-transfers';
+import { REFUND_TRANSFERS_PATH, refundTransferDetailHref, refundTransferPartialLabel, refundTransferRowKey, refundTransfersHref, type RefundTransferPage } from '@/lib/admin/refund-transfers';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import { adminListExportHref } from '@/lib/admin/list-export';
 
@@ -68,14 +68,15 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
         const days = waitingDays(row.confirmedAt, now);
         const waiting = days === 0 ? '오늘' : `${days.toLocaleString('ko-KR')}일째`;
         const partial = row.kind === 'partial_cancellation';
-        const label = partial ? `${row.sequence}차 부분 취소` : orderClaimReferenceLabel(row.reference);
+        const partialName = row.kind === 'partial_cancellation' ? refundTransferPartialLabel(row) : null;
+        const label = row.kind === 'partial_cancellation' ? refundTransferPartialLabel(row).label : orderClaimReferenceLabel(row.reference);
         return { id: refundTransferRowKey(row), href: detailHref,
           cells: [<span className="tabular-nums" key="claim">{label}</span>,
             <span className="font-semibold tabular-nums" key="amount">{formatKrwExact(row.amount)}</span>,
             row.payerName || <AdminStatusBadge key="payer" tone="warning">이름 미등록</AdminStatusBadge>,
             days >= LONG_WAIT_DAYS ? <AdminStatusBadge key="waiting" tone="warning">{waiting}</AdminStatusBadge> : <span className="tabular-nums" key="waiting">{waiting}</span>,
             <Link aria-label={partial ? `송금 처리 · 주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} ${label} 계좌 확인·송금 기록 열기` : `송금 처리 · 요청 ${label} 계좌 확인·송금 기록 열기`} className={cn(buttonVariants({ size: 'sm', variant: 'soft' }))} data-slot="button" href={processHref} key="action">송금 처리</Link>,
-            `${row.gift ? '선물 · ' : ''}${partial ? '부분 취소' : row.claimType === 'cancel' ? '취소' : '반품'}`,
+            `${row.gift ? '선물 · ' : ''}${row.kind === 'partial_cancellation' ? partialName?.kind : row.claimType === 'cancel' ? '취소' : '반품'}`,
             <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>,
             formatOrderDateTime(row.confirmedAt), row.filedAt ? formatOrderDateTime(row.filedAt) : <AdminStatusBadge key="filed" tone="warning">미접수</AdminStatusBadge>,
             partial ? <span className="text-muted-foreground" key="requester">운영자 처리</span> : row.requesterName || <span className="text-muted-foreground" key="requester">이름 미등록</span>],

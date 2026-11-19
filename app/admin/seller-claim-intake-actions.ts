@@ -6,14 +6,20 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 import { SELLER_CLAIM_PATH, parseSellerClaimContext, parseSellerClaimInput, parseSellerClaimReceipt, sellerClaimBlockMessage,
-  sellerClaimReceiptMatchesInput,
+  sellerClaimReceiptMatchesInput, splitSellerClaimItems,
   type SellerClaimContext, type SellerClaimReceipt } from '@/lib/admin/seller-claim-intake';
+import { DISABLED_PARTIAL_RETURN, parseOrderPartialReturnContext, type OrderPartialReturnContext } from '@/lib/orders/partial-return';
 
 export type SellerClaimSubmitResult = { receipt: SellerClaimReceipt } | { error: string; uncertain?: boolean };
 function inputError(message: string): string {
   if (['not_claimable','not_cancelable','deadline_expired','already_requested','reconciliation_in_progress','already_canceled','order_not_found'].includes(message)) return sellerClaimBlockMessage(message)!;
   if (message.includes('inquiry_mismatch') || message.includes('invalid_seller_claim_inquiry')) return '주문 고객과 주문번호가 일치하는 문의를 선택해주세요.';
   if (message.includes('customer_time')) return '고객 요청 시각은 주문 시각 이후, 지금 이전으로 입력해주세요. 이 시각은 근거로만 남고, 신청 기한은 실제 접수 시각으로 계산합니다.';
+  /* 부분 반품(ADR-0047) */
+  if (message.includes('partial_return_disabled')) return '부분 반품이 꺼져 있습니다. 주문 전체로 접수하거나 운영 스위치를 확인해주세요.';
+  if (message.includes('partial_return_qty_exceeds_remaining')) return '고른 수량이 남은 수량보다 많습니다. 주문을 다시 열어 확인해주세요.';
+  if (message.includes('partial_return_item_')) return '고른 상품 가운데 일부 반품할 수 없는 상품이 있습니다(발송 전·디지털·주문제작·교환 이력 등). 주문을 다시 열어 확인해주세요.';
+  if (message.includes('partial_return_')) return '이 주문은 일부 반품을 받을 수 없습니다(선물·결제 수단·배분). 주문 전체로 접수해주세요.';
   if (message.includes('collections_changed')) return '주문의 출고지 구성이 변경되었습니다. 최신 주문에서 전체 수거 계획을 다시 확인해주세요.';
   if (message.includes('request_conflict')) return '처음 보낸 접수와 내용이 달라 저장하지 않았습니다. [같은 요청의 저장 결과 확인]으로 처음 접수의 결과를 먼저 확인해주세요.';
   if (message.includes('unknown_shipping_carrier')) return '현재 사용할 수 있는 택배사를 선택해주세요.';
@@ -34,9 +40,19 @@ export async function loadSellerClaimContextAction(orderId: string): Promise<{ c
     return { context };
   } catch (error) { unstable_rethrow(error); return { error: '주문을 불러오지 못했습니다. 다시 시도해주세요.' }; }
 }
+/** 대리 접수 폼의 부분 반품 품목 선택 문맥(ADR-0047). 꺼져 있거나 읽지 못하면 주문 전체 접수만 보인다. */
+export async function loadSellerPartialReturnContextAction(orderId: string): Promise<OrderPartialReturnContext> {
+  if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' }) || !isUuid(orderId)) return DISABLED_PARTIAL_RETURN;
+  try {
+    const { data, error } = await (await createClient()).rpc('admin_order_partial_return_context', { p_order_id: orderId });
+    return error ? DISABLED_PARTIAL_RETURN : parseOrderPartialReturnContext(data);
+  } catch (error) { unstable_rethrow(error); return DISABLED_PARTIAL_RETURN; }
+}
 export async function readSellerClaimIntakeAction(input: unknown): Promise<{ receipt: SellerClaimReceipt | null } | { error: string }> {
   if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
-  const parsed = parseSellerClaimInput(input); if (!parsed.ok) return { error: parsed.error };
+  const split = splitSellerClaimItems(input);
+  if (split.invalid) return { error: '일부 반품할 상품과 수량을 다시 확인해주세요.' };
+  const parsed = parseSellerClaimInput(split.input); if (!parsed.ok) return { error: parsed.error };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_read_seller_claim_intake', {
@@ -50,12 +66,19 @@ export async function readSellerClaimIntakeAction(input: unknown): Promise<{ rec
 }
 export async function submitSellerClaimIntakeAction(input: unknown): Promise<SellerClaimSubmitResult> {
   if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
-  const parsed = parseSellerClaimInput(input); if (!parsed.ok) return { error: parsed.error };
+  /* 부분 반품(ADR-0047): 고른 굿즈·수량은 따로 떼어 부분 반품 대리 접수로 보낸다(본문·재확인 대조는 지금 모양). */
+  const split = splitSellerClaimItems(input);
+  if (split.invalid) return { error: '일부 반품할 상품과 수량을 다시 확인해주세요.' };
+  const parsed = parseSellerClaimInput(split.input); if (!parsed.ok) return { error: parsed.error };
   try {
     const client = await createClient();
-    const { error } = await client.rpc('admin_submit_seller_claim_intake', {
-      p_request_id: parsed.requestId, p_payload: parsed.payload, p_refund_account: parsed.refundAccount,
-    });
+    const { error } = split.items
+      ? await client.rpc('admin_submit_seller_partial_return_intake', {
+        p_request_id: parsed.requestId, p_payload: parsed.payload, p_items: split.items, p_refund_account: parsed.refundAccount,
+      })
+      : await client.rpc('admin_submit_seller_claim_intake', {
+        p_request_id: parsed.requestId, p_payload: parsed.payload, p_refund_account: parsed.refundAccount,
+      });
     if (error) return { error: inputError(error.message), uncertain: !error.code || !['22023','22007','22008','23514','PT409','42501','P0002'].includes(error.code) || error.message.includes('request_conflict') };
     const { data, error: readError } = await client.rpc('admin_read_seller_claim_intake', {
       p_request_id: parsed.requestId, p_payload: parsed.payload, p_refund_account: parsed.refundAccount,

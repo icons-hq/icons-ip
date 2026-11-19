@@ -486,7 +486,7 @@ describe('OrderDetail 다시 결제 진입', () => {
 
 describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
   const partial = {
-    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed' as const, provider: 'toss' as const, refundAmount: 9_500, goodsRefundAmount: 9_500,
+    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, reasonCode: 'out_of_stock' as const, claimId: null, returnFeeDeduction: 0, state: 'completed' as const, provider: 'toss' as const, refundAmount: 9_500, goodsRefundAmount: 9_500,
     shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z',
     completedAt: '2026-11-12T05:00:05Z', transferredAt: null, closedShipmentCount: 0,
     items: [{ orderItemId: 'item-1', goodName: '홍실 아크릴 블록', variantName: null, qty: 1, goodsRefundAmount: 9_500 }],
@@ -743,7 +743,7 @@ describe('OrderDetail 품목 줄(MD-0036·0037 OrderLineItem 재사용)', () => 
   });
 
   it('부분 취소 뒤에는 남은 수량의 구매가격(정가 포함)을 말하고 취소 수량을 줄 아래에 적는다', () => {
-    const partial = { id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed' as const, provider: 'toss' as const, refundAmount: 24000, goodsRefundAmount: 24000,
+    const partial = { id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, reasonCode: 'out_of_stock' as const, claimId: null, returnFeeDeduction: 0, state: 'completed' as const, provider: 'toss' as const, refundAmount: 24000, goodsRefundAmount: 24000,
       shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z', completedAt: '2026-11-12T05:00:05Z',
       transferredAt: null, closedShipmentCount: 0, items: [{ orderItemId: 'item-1', goodName: '홍실 아크릴 블록', variantName: null, qty: 1, goodsRefundAmount: 24000 }] };
     const html = renderToStaticMarkup(<OrderDetail order={order({ items: [{ ...ORDER_ITEM, qty: 2 }], lines: [{ ...line, qty: 2, purchaseAmount: 48000, regularAmount: 54000 }] })} partialCancellations={[partial]} />);

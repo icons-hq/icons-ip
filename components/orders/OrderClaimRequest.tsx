@@ -23,6 +23,17 @@ import {
   type OrderClaimEligibility,
   type OrderClaimType,
 } from '@/lib/orders/claims';
+import {
+  DISABLED_PARTIAL_RETURN,
+  partialReturnItemBlockerLabel,
+  partialReturnItemsLabel,
+  partialReturnOrderBlockerLabel,
+  partialReturnSelectionFromQuantities,
+  selectablePartialReturnItems,
+  type MyOrderClaimItem,
+  type OrderPartialReturnContext,
+  type OrderPartialReturnSelection,
+} from '@/lib/orders/partial-return';
 
 /*
  * 반품·교환 접수와 클레임 진행 상태(#252).
@@ -39,6 +50,8 @@ import {
 export const CLAIM_FAILURE_MESSAGE = '요청을 접수하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.';
 export const CLAIM_DEADLINE_MESSAGE = '신청 기한이 지난 주문입니다. 하자나 오배송이라면 1:1 문의로 알려주세요.';
 export const CLAIM_NOT_AVAILABLE_MESSAGE = '지금은 신청할 수 없는 주문입니다. 최신 상태를 확인해주세요.';
+export const PARTIAL_RETURN_BLOCKED_MESSAGE = '고른 굿즈 가운데 지금 반품할 수 없는 굿즈가 있습니다. 최신 상태를 확인한 뒤 다시 골라주세요.';
+export const PARTIAL_RETURN_SELECTION_REQUIRED = '반품할 굿즈와 수량을 1개 이상 골라주세요.';
 
 type ClaimFetch = (
   input: string,
@@ -52,6 +65,7 @@ type ClaimSubmissionResult =
   | 'already_canceled'
   | 'deadline_expired'
   | 'not_claimable'
+  | 'partial_return_unavailable'
   | false;
 
 export async function submitOrderClaim(
@@ -62,6 +76,8 @@ export async function submitOrderClaim(
     bankName?: string;
     accountNumber?: string;
     accountHolder?: string;
+    /** 부분 반품(ADR-0047)일 때만 — 반품에서 고른 굿즈·수량. 없으면 주문 전체. */
+    items?: OrderPartialReturnSelection[];
   },
   fetcher: ClaimFetch = fetch,
 ): Promise<ClaimSubmissionResult> {
@@ -77,6 +93,7 @@ export async function submitOrderClaim(
     const code = (failure as { error?: { code?: unknown } } | null)?.error?.code;
     if (code === 'deadline_expired') return 'deadline_expired';
     if (code === 'not_claimable') return 'not_claimable';
+    if (code === 'partial_return_unavailable' || code === 'partial_return_item_unavailable') return 'partial_return_unavailable';
     return false;
   }
 
@@ -99,7 +116,11 @@ export async function submitOrderClaim(
  * 섞여 있으면 방문 회수와 함께 회수 송장이 없는 묶음의 회수 주소 발송을, 방문 회수 묶음이 없으면 지금 반송 안내를 그대로 말한다.
  */
 export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null,
-  { collectionWaived = false, returnPickup = NO_RETURN_PICKUP, giftSender = false }: { collectionWaived?: boolean; returnPickup?: OrderReturnPickup; giftSender?: boolean } = {}): string {
+  { collectionWaived = false, returnPickup = NO_RETURN_PICKUP, giftSender = false, partialReturn = false }: {
+    collectionWaived?: boolean; returnPickup?: OrderReturnPickup; giftSender?: boolean;
+    /** 고른 굿즈만 반품하는 요청(ADR-0047). 환급 단계 문장이 주문 전체 결제 취소가 아니라 고른 굿즈 몫의 환불을 말한다. */
+    partialReturn?: boolean;
+  } = {}): string {
   if (claim.claimType !== 'exchange' && refund?.status === 'awaiting_transfer') {
     return '주문 취소와 재고 복원이 끝났으며 결제자 계좌로 환불 송금을 준비하고 있습니다. 실제 송금이 확인되면 환불 완료로 표시됩니다.';
   }
@@ -127,9 +148,14 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
          사유는 보류 시점의 알림 본문으로 이미 전달된다. */
       return '처리가 보류됐습니다. 보류 사유는 알림으로 안내해드렸습니다. 추가로 궁금한 점은 1:1 문의로 알려주세요.';
     case 'processing':
-      return '환급 절차를 진행하고 있습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.';
+      return partialReturn
+        ? '반품하신 굿즈의 환급 절차를 진행하고 있습니다. 결제사 부분 취소 또는 계좌 송금으로 환불하며, 결제수단에 따라 반영 시점이 다를 수 있습니다.'
+        : '환급 절차를 진행하고 있습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.';
     case 'needs_review':
-      return '결제 취소 결과를 안전하게 확인하고 있습니다. 중복 처리는 진행하지 않습니다.';
+      /* 부분 반품은 결제사가 부분 취소를 받지 않으면 여기 머문다 — 결제 담당이 계좌 송금으로 환불한다(전액 취소로 돌리지 않는다). */
+      return partialReturn
+        ? '반품하신 굿즈의 환불 방법을 담당자가 확인하고 있습니다. 결제 수단이 일부 금액 취소를 받지 않으면 담당자가 연락드려 계좌로 송금해 드리며, 반환받은 날부터 영업일 기준 3일 이내 환급 기한은 그대로입니다.'
+        : '결제 취소 결과를 안전하게 확인하고 있습니다. 중복 처리는 진행하지 않습니다.';
     case 'completed':
       return claim.claimType === 'exchange'
         ? claim.reshipDeliveredAt
@@ -143,21 +169,25 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
   }
 }
 
-type SubmissionState = 'idle' | 'form' | 'submitting' | 'done' | 'expired' | 'blocked' | 'error';
+type SubmissionState = 'idle' | 'form' | 'submitting' | 'done' | 'expired' | 'blocked' | 'partial_blocked' | 'error';
 
 export function OrderClaimRequest({
   claim,
+  claimItems = [],
   collectionWaived = false,
   eligibility,
   giftSender = false,
   orderId,
   partiallyCanceled = false,
+  partialReturn = DISABLED_PARTIAL_RETURN,
   refund = null,
   returnFeePolicy = null,
   returnPickup = NO_RETURN_PICKUP,
   status,
 }: {
   claim: OrderCancellationRequestSummary | null;
+  /** 부분 반품 클레임에 고른 굿즈(ADR-0047). 주문 전체 클레임이면 그 클레임 id의 줄이 없다. */
+  claimItems?: readonly MyOrderClaimItem[];
   /** 이 요청에 회수 없이 다시 보낸 소포가 있는지(주문 상세 '교환 배송'의 소포에서 센다). */
   collectionWaived?: boolean;
   eligibility: OrderClaimEligibility | null;
@@ -166,6 +196,8 @@ export function OrderClaimRequest({
   orderId: string;
   /** 재고 부족 부분 취소(ADR-0032)가 적용된 주문인지. 그러면 접수 안내의 '결제금액 전액'이 '남은 결제 금액'이 된다. */
   partiallyCanceled?: boolean;
+  /** 부분 반품 문맥(ADR-0047). 꺼져 있으면(기본) 반품 폼은 지금처럼 주문 전체만 받는다. */
+  partialReturn?: OrderPartialReturnContext;
   refund?: OrderRefundSummary | null;
   returnFeePolicy?: { enabled: boolean; oneWayAmount: number | null } | null;
   /** 방문 회수(반품 자동 회수 접수, QNA-032)·직접 발송 묶음 수. 둘 다 0이면 지금 반송 안내 그대로다. */
@@ -180,6 +212,13 @@ export function OrderClaimRequest({
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [returnScope, setReturnScope] = useState<'whole' | 'partial'>('whole');
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [selectionError, setSelectionError] = useState<string | null>(null);
+  const selectable = selectablePartialReturnItems(partialReturn);
+  const partialOpen = claimType === 'return' && partialReturn.enabled && selectable.length > 0;
+  const partialScope = partialOpen && returnScope === 'partial';
+  const selectedClaimItems = claim ? claimItems.filter((item) => item.claimId === claim.id) : [];
 
   const awaitingTransfer = claim?.claimType !== 'exchange' && refund?.status === 'awaiting_transfer';
   const activeClaim = claim && isOpenOrderClaimStage(claim.stage)
@@ -206,6 +245,13 @@ export function OrderClaimRequest({
     /* 반품은 환불로 끝난다. 계좌를 받아 두면 카드 접수가 막혔을 때 송금으로
        전환할 수 있고, 무통장 주문(#256)에서는 유일한 경로가 된다. */
     setAccountError(null);
+    /* 부분 반품은 고른 굿즈·수량만 보낸다. 아무것도 고르지 않았으면 주문 전체로 바꿔 보내지 않고 다시 고르게 한다. */
+    const items = partialScope ? partialReturnSelectionFromQuantities(partialReturn, quantities) : null;
+    if (partialScope && !items) {
+      setSelectionError(PARTIAL_RETURN_SELECTION_REQUIRED);
+      return;
+    }
+    setSelectionError(null);
     setSubmission('submitting');
 
     let result: ClaimSubmissionResult = false;
@@ -216,6 +262,7 @@ export function OrderClaimRequest({
         bankName: account.value?.bankName,
         claimType,
         reasonType,
+        ...(items ? { items } : {}),
       });
     } catch {
       result = false;
@@ -223,6 +270,7 @@ export function OrderClaimRequest({
 
     if (result === 'deadline_expired') setSubmission('expired');
     else if (result === 'not_claimable') setSubmission('blocked');
+    else if (result === 'partial_return_unavailable') setSubmission('partial_blocked');
     else if (!result) setSubmission('error');
     else setSubmission('done');
 
@@ -264,6 +312,12 @@ export function OrderClaimRequest({
               </dd>
             </div>
           ) : null}
+          {selectedClaimItems.length ? (
+            <div>
+              <dt>반품 굿즈</dt>
+              <dd>{partialReturnItemsLabel(selectedClaimItems)}</dd>
+            </div>
+          ) : null}
           {claim.reshipDeliveredAt ? <div>
             <dt>교환품 배송완료 확인</dt>
             <dd><time dateTime={claim.reshipDeliveredAt}>{formatOrderDateTime(claim.reshipDeliveredAt)}</time></dd>
@@ -271,7 +325,7 @@ export function OrderClaimRequest({
         </dl>
       ) : null}
 
-      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund, { collectionWaived, returnPickup, giftSender })}</p> : null}
+      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund, { collectionWaived, returnPickup, giftSender, partialReturn: selectedClaimItems.length > 0 })}</p> : null}
 
       {canRequest ? (
         submission === 'form' ? (
@@ -291,7 +345,66 @@ export function OrderClaimRequest({
                 </label>
               ))}
             </fieldset>
-            <p className="money-caption">{orderClaimIntakeNotice(claimType, returnFeePolicy, { partiallyCanceled })}</p>
+            <p className="money-caption">{orderClaimIntakeNotice(claimType, returnFeePolicy, { partiallyCanceled, partialReturn: claimType === 'return' && partialReturn.enabled })}</p>
+
+            {claimType === 'return' && partialReturn.enabled ? (
+              <fieldset className="order-cancellation-reason" data-partial-return-scope={returnScope}>
+                <legend>반품할 굿즈</legend>
+                <label>
+                  <input checked={!partialScope} name="order-claim-return-scope" onChange={() => setReturnScope('whole')} type="radio" value="whole" />
+                  주문 전체
+                </label>
+                <label>
+                  <input
+                    checked={partialScope}
+                    disabled={!partialOpen}
+                    name="order-claim-return-scope"
+                    onChange={() => setReturnScope('partial')}
+                    type="radio"
+                    value="partial"
+                  />
+                  일부 굿즈만 고르기
+                </label>
+                {partialReturn.blocker ? <p className="money-caption">{partialReturnOrderBlockerLabel(partialReturn.blocker)}</p> : null}
+                {partialScope ? (
+                  <ul className="order-partial-return-items">
+                    {partialReturn.items.map((item) => {
+                      const blocked = partialReturnItemBlockerLabel(item.blocker);
+                      const inputId = `order-partial-return-${item.orderItemId}`;
+                      return (
+                        <li data-partial-return-item={item.orderItemId} key={item.orderItemId}>
+                          <label htmlFor={inputId}>
+                            <span>{item.goodName}{item.variantName ? ` (${item.variantName})` : ''}</span>
+                            <span className="money-caption"> 남은 수량 {item.activeQty}개</span>
+                          </label>
+                          {blocked ? <p className="money-caption">{blocked}</p> : (
+                            <input
+                              aria-label={`${item.goodName} 반품 수량`}
+                              id={inputId}
+                              inputMode="numeric"
+                              max={item.activeQty}
+                              min={0}
+                              onChange={(event) => {
+                                const value = Number.parseInt(event.target.value || '0', 10);
+                                setQuantities((current) => ({ ...current, [item.orderItemId]: Number.isFinite(value) ? Math.min(Math.max(value, 0), item.activeQty) : 0 }));
+                              }}
+                              type="number"
+                              value={quantities[item.orderItemId] ?? 0}
+                            />
+                          )}
+                          {item.returnRestricted ? (
+                            <p className="money-caption">반품 제한 굿즈입니다{item.restrictionReason ? `(${item.restrictionReason})` : ''}. 단순 변심 반품은 담당자 확인 뒤 거절될 수 있고, 하자·오배송은 제한 없이 받습니다.</p>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+                {selectionError ? (
+                  <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{selectionError}</p>
+                ) : null}
+              </fieldset>
+            ) : null}
 
             <fieldset className="order-cancellation-reason">
               <legend>신청 사유</legend>
@@ -386,6 +499,11 @@ export function OrderClaimRequest({
                 {submission === 'blocked' ? (
                   <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">
                     {CLAIM_NOT_AVAILABLE_MESSAGE}
+                  </p>
+                ) : null}
+                {submission === 'partial_blocked' ? (
+                  <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">
+                    {PARTIAL_RETURN_BLOCKED_MESSAGE}
                   </p>
                 ) : null}
                 {submission === 'error' ? (

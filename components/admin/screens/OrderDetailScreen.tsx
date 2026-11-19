@@ -3,6 +3,7 @@ import { OrderProductionPanel } from '@/components/admin/OrderProductionPanel';
 import { AdminOrderDownloads } from '@/components/admin/AdminOrderDownloads';
 import type { AdminOrderDownloads as DownloadDocument } from '@/lib/admin/order-downloads';
 import type { OrderProduction } from '@/lib/order-production';
+import type { AdminOrderAcknowledgement } from '@/lib/admin/order-acknowledgement';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
@@ -219,6 +220,7 @@ export function OrderDetailScreen({
   noteOperationId,
   production,
   downloads,
+  acknowledgement,
   canManage = true,
   canViewCustomer = true,
   actorId,
@@ -230,6 +232,8 @@ export function OrderDetailScreen({
   noteOperationId: string;
   production?: OrderProduction | null;
   downloads?: DownloadDocument | null;
+  /** 결제 전 확인 동의 기록(PAY-015). null이면 기록 없음, undefined면 읽지 못해 칸을 그리지 않는다. */
+  acknowledgement?: AdminOrderAcknowledgement | null;
   canManage?: boolean;
   canViewCustomer?: boolean;
   actorId?: string;
@@ -348,6 +352,15 @@ export function OrderDetailScreen({
       </AdminSectionCard>
     </div>
     {downloads !== undefined && <AdminOrderDownloads document={downloads} />}
+    {acknowledgement !== undefined ? <AdminSectionCard title="결제 전 확인 동의">
+      {acknowledgement ? <dl className={FACTS} data-order-acknowledgement="recorded">
+        <div className={FACT_ROW}><dt className={FACT_TERM}>동의 일시</dt><dd className={FACT_VALUE}><time className="tabular-nums" dateTime={acknowledgement.acknowledgedAt}>{dateTime(acknowledgement.acknowledgedAt)}</time></dd></div>
+        <div className={FACT_ROW}><dt className={FACT_TERM}>고지 문구 버전</dt><dd className={FACT_VALUE}>{acknowledgement.noticeVersion}</dd></div>
+        <div className={FACT_ROW}><dt className={FACT_TERM}>청약철회·교환 제한 상품</dt><dd className={FACT_VALUE}>{acknowledgement.restrictedGoods.length
+          ? <ul className="flex flex-col gap-1">{acknowledgement.restrictedGoods.map(good => <li key={good.goodId}>{good.name || good.goodId}{good.reason ? ` — ${good.reason}` : ''}</li>)}</ul>
+          : '없음'}</dd></div>
+      </dl> : <p className="text-muted-foreground" data-order-acknowledgement="missing">동의 기록이 없습니다. 동의 기록을 도입하기 전에 만든 주문, 기록에 실패한 주문, 정기구매 주문(정기구매 약관 동의로 받습니다)이 해당합니다.</p>}
+    </AdminSectionCard> : null}
     <AdminSectionCard title="배송 건별 현황">
       <div className={shipmentItemsRedundant ? '[&_section>ul]:hidden' : undefined}><ShipmentDetails admin shipments={detail.shipments} items={items} transactionShipping={order.transaction?.shipping} /></div>
       {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}

@@ -19,6 +19,12 @@ vi.mock('@/lib/legal/contact-channels-privacy-revision', async (importOriginal) 
   CONTACT_CHANNELS_PRIVACY_REVISION: null,
 }));
 
+/* 부분 반품·반품배송비 차감 개정(ADR-0047)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
+vi.mock('@/lib/legal/partial-return-terms-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/partial-return-terms-revision')>()),
+  PARTIAL_RETURN_TERMS_REVISION: null,
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');

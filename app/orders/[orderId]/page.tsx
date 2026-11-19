@@ -15,6 +15,7 @@ import { loadMyOrderClaimReasonHistory } from '@/lib/orders/claim-reason-change.
 import { loadMyOrderRefundDeduction, loadReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction.server';
 import { loadMyOrderReturnPickup } from '@/lib/orders/return-pickup.server';
 import { loadMyOrderPartialCancellations } from '@/lib/orders/partial-cancellation.server';
+import { loadMyOrderClaimItems, loadMyOrderPartialReturnContext } from '@/lib/orders/partial-return.server';
 import { loadOrdererInfo } from '@/lib/orders/orderer.server';
 import { loadMyOrderPaymentDisplay } from '@/lib/orders/payment-display.server';
 import { ORDER_RECEIPT_NOTICE_PARAM, ORDER_RECEIPT_NOTICE_UNAVAILABLE } from '@/lib/orders/receipt';
@@ -38,7 +39,7 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
 
   /* 리뷰 대상은 배송완료 이상 주문에서만 행이 돌아온다(#254). 그 판정을 화면이
      다시 하지 않도록 RPC 결과를 그대로 넘긴다. */
-  const [order, cardRewardsEnabled, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads, refundDeduction, returnFeePolicy, returnPickup, partialCancellations, orderer, paymentDisplay] = await Promise.all([
+  const [order, cardRewardsEnabled, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads, refundDeduction, returnFeePolicy, returnPickup, partialCancellations, orderer, paymentDisplay, partialReturn, claimItems] = await Promise.all([
     loadOrderDetail(auth.user.id, orderId),
     readCardRewardsEnabled(),
     loadOrderReviewTargets(orderId),
@@ -53,6 +54,9 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
     /* 주문자 정보(MD-0037)와 결제수단 표시는 보강이다 — 읽지 못해도 주문 상세는 열리고 해당 칸만 비거나 대체 라벨이 된다. */
     loadOrdererInfo(auth),
     loadMyOrderPaymentDisplay(orderId),
+    /* 부분 반품(ADR-0047): 스위치가 꺼져 있거나 읽지 못하면 반품 폼은 주문 전체만 받는다. */
+    loadMyOrderPartialReturnContext(orderId),
+    loadMyOrderClaimItems(orderId),
   ]);
   if (!order) notFound();
 
@@ -87,6 +91,8 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
       returnFeePolicy={returnFeePolicy}
       returnPickup={returnPickup}
       partialCancellations={partialCancellations}
+      partialReturn={partialReturn}
+      claimItems={claimItems}
       orderer={orderer}
       paymentDisplay={paymentDisplay}
       receiptNotice={receiptNotice}

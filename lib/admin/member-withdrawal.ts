@@ -28,6 +28,8 @@ export interface MemberWithdrawalStatus {
   inquiryReference: number | null;
   signinBlocked: boolean;
   signinBlockedAt: string | null;
+  /** 처리했고 아직 Storage에서 지우지 못한 프로필 사진이 있는가. 처리 전이거나 DB가 이 키를 주지 않는 옛 응답이면 없다. */
+  avatarErasePending?: boolean;
   /** 카카오계정 탈퇴 알림으로 처리했으면 'kakao_unlink'. 문의로 처리했거나 처리 전이면 없다(DB 문서와 같은 조건부 키). */
   basis?: 'kakao_unlink';
   /** 처리 전이면 대기 중인 카카오 연결 해제, 카카오 알림으로 처리했으면 그 근거. 없으면 키가 없다. */
@@ -38,7 +40,15 @@ export const MEMBER_WITHDRAWAL_ERASED_KEYS = [
   'addressBookEntries', 'phoneNumbers', 'marketingConsents', 'demographicConsents',
   'activityEvents', 'activityConsents', 'emailChangeRequests', 'restockAlerts',
 ] as const;
+/** 익명화한 프로필 칸 이름(값은 기록하지 않는다). */
+export const MEMBER_WITHDRAWAL_PROFILE_FIELDS = ['nickname', 'birthDate', 'avatar'] as const;
+export type MemberWithdrawalProfileField = (typeof MEMBER_WITHDRAWAL_PROFILE_FIELDS)[number];
+
 export type MemberWithdrawalErased = Record<(typeof MEMBER_WITHDRAWAL_ERASED_KEYS)[number], number> & {
+  /** 익명화한 프로필 칸. DB가 주지 않는 옛 응답이면 없다. */
+  profileFields?: MemberWithdrawalProfileField[];
+  /** 지운 성인 인증 기록 행 수(인증 요청 세션 포함). DB가 주지 않는 옛 응답이면 없다. */
+  adultVerifications?: number;
   /** 카카오 알림으로 처리했을 때만 — 지운 카카오 로그인 연결(identity) 수. */
   kakaoIdentities?: number;
 };
@@ -55,6 +65,8 @@ export const MEMBER_WITHDRAWAL_EFFECTS = [
   '인증한 휴대폰 번호와 인증 요청·이력 삭제',
   '마케팅 정보 수신 동의 전 수단 철회',
   '성별(고객 통계 동의)·활동 기록 동의와 기록 삭제, 진행 중인 이메일 변경 요청·대기 중인 재입고 알림 신청 삭제',
+  `프로필 익명화(닉네임은 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}'과 구분 번호로 바뀌고 생년월일·프로필 사진 파일은 삭제, 이메일은 남김)`,
+  '성인 인증 기록(19금 구매 확인 증빙) 삭제',
   '모든 기기 로그아웃과 재로그인 차단',
 ] as const;
 
@@ -91,6 +103,8 @@ export const MEMBER_WITHDRAWAL_BLOCKER_LABELS: Record<AccountDeletionBlockerCode
   not_available: '처리할 수 있는지 확인하지 못함(잠시 뒤 다시 시도)',
 };
 
+const PROFILE_FIELD_LABELS: Record<MemberWithdrawalProfileField, string> = { nickname: '닉네임', birthDate: '생년월일', avatar: '프로필 사진' };
+
 const ERASED_LABELS: Record<(typeof MEMBER_WITHDRAWAL_ERASED_KEYS)[number], string> = {
   addressBookEntries: '배송지',
   phoneNumbers: '휴대폰 번호',
@@ -114,6 +128,8 @@ export function memberWithdrawalBasisLabel(status: Pick<MemberWithdrawalStatus, 
 export function memberWithdrawalErasedSummary(erased: MemberWithdrawalErased, revokedSessions: number): string {
   const parts = MEMBER_WITHDRAWAL_ERASED_KEYS.filter((key) => erased[key] > 0).map((key) => `${ERASED_LABELS[key]} ${erased[key]}건`);
   if (erased.kakaoIdentities) parts.push(`카카오 로그인 연결 ${erased.kakaoIdentities}건`);
+  if (erased.adultVerifications) parts.push(`성인 인증 기록 ${erased.adultVerifications}건`);
+  if (erased.profileFields?.length) parts.push(`프로필 익명화(${erased.profileFields.map((field) => PROFILE_FIELD_LABELS[field]).join('·')})`);
   if (revokedSessions > 0) parts.push(`로그인 ${revokedSessions}건 종료`);
   return parts.length ? parts.join(' · ') : '지울 정보가 없었습니다';
 }
@@ -173,6 +189,7 @@ export function parseMemberWithdrawalStatus(value: unknown): MemberWithdrawalSta
   if (kakaoUnlink === null) return null;
   const kakaoBasis = value.basis === 'kakao_unlink';
   if (value.basis !== undefined && !kakaoBasis) return null;
+  if (value.avatarErasePending !== undefined && (typeof value.avatarErasePending !== 'boolean' || (!value.processed && value.avatarErasePending))) return null;
   if (value.processed) {
     if (value.processedAt === null || value.signinBlocked !== (value.signinBlockedAt !== null)) return null;
     if (kakaoBasis ? value.inquiryReference !== null || !kakaoUnlink : !transactionInteger(value.inquiryReference, 1) || kakaoUnlink) return null;
@@ -185,6 +202,7 @@ export function parseMemberWithdrawalStatus(value: unknown): MemberWithdrawalSta
     inquiryReference: value.processed && !kakaoBasis ? value.inquiryReference as number : null,
     signinBlocked: value.signinBlocked,
     signinBlockedAt: value.signinBlockedAt,
+    ...(value.avatarErasePending !== undefined ? { avatarErasePending: value.avatarErasePending } : {}),
     ...(kakaoBasis ? { basis: 'kakao_unlink' as const } : {}),
     ...(kakaoUnlink ? { kakaoUnlink } : {}),
   };
@@ -204,6 +222,16 @@ function parseErased(value: unknown, kakaoBasis: boolean): MemberWithdrawalErase
   } else if (value.kakaoIdentities !== undefined) {
     return null;
   }
+  /* 익명화한 칸 이름. 옛 응답에는 없을 수 있어 없으면 생략하고, 있는데 모르는 이름이면 모양이 다른 것으로 본다. */
+  if (value.adultVerifications !== undefined) {
+    if (!transactionInteger(value.adultVerifications)) return null;
+    erased.adultVerifications = value.adultVerifications;
+  }
+  if (value.profileFields !== undefined) {
+    const known: readonly unknown[] = MEMBER_WITHDRAWAL_PROFILE_FIELDS;
+    if (!Array.isArray(value.profileFields) || !value.profileFields.every((field) => known.includes(field))) return null;
+    erased.profileFields = value.profileFields as MemberWithdrawalProfileField[];
+  }
   return erased;
 }
 
@@ -216,6 +244,7 @@ export function parseMemberWithdrawalOutcome(value: unknown): MemberWithdrawalOu
   const withdrawal = parseMemberWithdrawalStatus({
     processed: value.processed, processedAt: value.processedAt, inquiryReference: value.inquiryReference,
     signinBlocked: value.signinBlocked, signinBlockedAt: value.signinBlockedAt,
+    ...(value.avatarErasePending !== undefined ? { avatarErasePending: value.avatarErasePending } : {}),
     ...(value.basis !== undefined ? { basis: value.basis } : {}),
     ...(value.kakaoUnlink !== undefined ? { kakaoUnlink: value.kakaoUnlink } : {}),
   });
@@ -248,13 +277,13 @@ export function memberWithdrawalConfirmMessage(inquiry: MemberWithdrawalInquiry)
   const warning = isRestrictedMemberInquiryCategory(inquiry.category)
     ? ''
     : `주의: 이 문의는 '계정' 유형이 아닙니다(${inquiryCategoryLabel(inquiry.category)}). 탈퇴를 요청한 문의가 맞는지 다시 확인해주세요.\n\n`;
-  return `${warning}${summary}\n\n이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지운 뒤 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 위 문의의 탈퇴 요청을 처리할까요?`;
+  return `${warning}${summary}\n\n이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지우고 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 위 문의의 탈퇴 요청을 처리할까요?`;
 }
 
 /** 카카오 알림으로 처리하기 직전의 확인 문구. */
 export function kakaoUnlinkWithdrawalConfirmMessage(unlink: KakaoUnlinkSummary): string {
   return `카카오 연결 해제 알림 · ${kakaoUnlinkReasonLabel(unlink.reason)} · ${formatInquiryDateTime(unlink.eventAt)} 수신\n\n`
-    + '이 회원은 카카오로만 가입해 다시 로그인할 수 없습니다. 이 알림을 근거로 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의·카카오 로그인 연결 등을 지운 뒤 '
+    + '이 회원은 카카오로만 가입해 다시 로그인할 수 없습니다. 이 알림을 근거로 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의·카카오 로그인 연결 등을 지우고 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤 '
     + '모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 탈퇴를 처리할까요?';
 }
 

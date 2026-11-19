@@ -144,6 +144,19 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
     expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
   });
 
+  it('부분 반품(ADR-0047)의 반품배송비 차감은 환불하지 않은 수입이라 품목 금액에 넣지 않고 따로 적으며 대조는 0이다', () => {
+    const snapshot = settledExportV2Fixture(); const order = snapshot.orders[0];
+    cut(order.items[2], { ...cancelC, shipmentId: null });
+    cut(order.shipments[1], { closedByPartialCancel: true });
+    cut(order, { partialRefundedAmount: 7600, returnFeeRetained: 3000 });
+    const model = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
+    expect(model.orders[0]).toMatchObject({ total: 19401, detailTotal: 19401, paymentAmount: 19401, detailDifference: 0, ledgerDifference: 0 });
+    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
+    expect(model.orders[0].issues.join(' / ')).toContain('부분 반품 반품배송비 3,000원 차감');
+    const bad = settledExportV2Fixture(); cut(bad.orders[0], { returnFeeRetained: 3000 });
+    expect(() => parseSettledExportSnapshot(bad)).toThrow();
+  });
+
   it('부분 취소가 없으면 배송비 쿠폰 요약은 저장된 주문 값 그대로다(구성요소에 칸이 없어도 0으로 바뀌지 않는다)', () => {
     const snapshot = settledExportFixture(); const order = snapshot.orders[0];
     cut(order, { shippingCouponDiscount: 700 });

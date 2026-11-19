@@ -3,6 +3,7 @@ import { isCommerceNumber } from '@/lib/commerce-number';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { ORDER_CLAIM_BUYER_REASON_TYPES, isOrderClaimStage, isOrderClaimType, normalizeRefundAccount, type OrderClaimStage, type OrderClaimType, type RefundAccountInput } from '@/lib/orders/claims';
 import { isShippingCarrierCodeFormat, isTrackingNumber, normalizeTrackingNumber, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
+import { normalizeOrderPartialReturnSelection, type OrderPartialReturnSelection } from '@/lib/orders/partial-return';
 
 export const SELLER_CLAIM_PATH = '/admin/sales/orders';
 export const SELLER_CLAIM_SOURCES = [
@@ -50,6 +51,18 @@ export interface SellerClaimInput {
   collectionAddress: SellerClaimAddress | null; collections: SellerClaimCollectionInput[]; refundAccount: RefundAccountInput | null;
 }
 export type SellerClaimPayload = Omit<SellerClaimInput, 'requestId' | 'refundAccount'>;
+
+/**
+ * 부분 반품(ADR-0047) 대리 접수: 접수 입력에 고른 굿즈·수량(`items`)을 붙여 보낸다. 접수 본문(payload)·재확인 대조는 지금 모양 그대로이고
+ * 품목은 따로 떼어 `admin_submit_seller_partial_return_intake`로 보낸다. 반품이 아니거나 모양이 틀리면 `invalid`.
+ */
+export function splitSellerClaimItems(input: unknown): { input: unknown; items: OrderPartialReturnSelection[] | null; invalid: boolean } {
+  if (!record(input) || !('items' in input)) return { input, items: null, invalid: false };
+  const rest: Record<string, unknown> = { ...input };
+  delete rest.items;
+  const items = normalizeOrderPartialReturnSelection(input.items);
+  return { input: rest, items, invalid: !items || input.claimType !== 'return' };
+}
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const string = (value: unknown) => typeof value === 'string' ? value.trim() : '';
@@ -168,7 +181,7 @@ export function parseSellerClaimReceipt(value: unknown): SellerClaimReceipt | nu
 
 /** Check the receipt projection as well as the DB's complete payload binding. */
 export function sellerClaimReceiptMatchesInput(receipt: SellerClaimReceipt, input: unknown): boolean {
-  const parsed = parseSellerClaimInput(input);
+  const parsed = parseSellerClaimInput(splitSellerClaimItems(input).input);
   if (!parsed.ok) return false;
   const payload = parsed.payload;
   if (receipt.requestId !== parsed.requestId || receipt.claimId !== parsed.requestId || receipt.orderId !== payload.orderId

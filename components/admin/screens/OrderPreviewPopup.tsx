@@ -29,6 +29,6 @@ export function OrderPreviewPopup({ preview, orderId, closeHref, actorId, canMan
   const { detail } = preview;
   return <OrderPreviewDialog closeHref={closeHref} detailHref={detailHref} title={`주문 ${orderReferenceLabel(detail.order.id, detail.order.orderNumber)} 상세`}>
     <OrderDetailScreen actorId={actorId} backHref={closeHref} canManage={preview.canManage && canManageSales} canViewCustomer={preview.canViewCustomer}
-      detail={detail} downloads={preview.downloads} embedded noteOperationId={crypto.randomUUID()} production={preview.production} />
+      detail={detail} acknowledgement={preview.acknowledgement} downloads={preview.downloads} embedded noteOperationId={crypto.randomUUID()} production={preview.production} />
   </OrderPreviewDialog>;
 }
