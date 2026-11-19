@@ -14,6 +14,7 @@ import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-avai
 import { deriveGoodsCartProvider, deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { checkoutDraftHref, checkoutDraftReturnHref, isClosedCheckoutDraft, normalizeCheckoutDraftId, type CheckoutDraft } from '@/lib/checkout-draft';
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
+import { loadCheckoutClaimRestrictions } from '@/lib/checkout-acknowledgement.server';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 import { GoodsTransactionCheckout } from '@/components/screens/GoodsTransactionCheckout';
 import Link from 'next/link';
@@ -83,13 +84,15 @@ export default async function Page({ searchParams }: PageProps) {
   if (draftView && isClosedCheckoutDraft(draftView)) return <DraftUnavailable draft={draftView} error={false} />;
   const draft = draftView;
 
-  const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy] = await Promise.all([
+  const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy, claimRestrictions] = await Promise.all([
     getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods })),
     loadCheckoutAddressPrefill(auth.user.id, addressBookOpenFor(auth)),
     loadLatestPendingCheckoutOrderId(auth.user.id),
     loadCartCouponState(),
     loadGoodsTransactionRuntimeMode(),
     loadCouponCombinationPolicy(),
+    /* 청약철회·교환이 제한된 굿즈 — 주문서 품목 줄 고지와 동의 문구(PAY-015). 못 읽으면 빈 값이고 주문은 막지 않는다. */
+    loadCheckoutClaimRestrictions(),
   ]);
 
   /* 카드 결제 가능 여부는 이 주문서 품목으로 파생한 provider의 gate다 — 19금 굿즈가
@@ -107,7 +110,7 @@ export default async function Page({ searchParams }: PageProps) {
   if (transactionMode === 'unavailable') return <main className="wc-root checkout-page"><div className="wrap card"><h1>주문 조건을 확인하지 못했어요</h1><p>잠시 후 다시 확인해주세요.</p><Link href="/cart">장바구니로 돌아가기</Link></div></main>;
   if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: catalog.goods, ips: catalog.ips }} addressPrefill={addressPrefill}
     resumeOrderId={resumeOrderId} paymentAvailable={paymentAvailable} bankTransferAvailable={await bankTransferCheckoutEnabled()}
-    userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} draft={draft} />;
+    userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} draft={draft} claimRestrictions={claimRestrictions} />;
 
   return (
     <Checkout
@@ -122,6 +125,7 @@ export default async function Page({ searchParams }: PageProps) {
       couponState={couponState}
       paymentFailCode={paymentFailCode}
       draft={draft}
+      claimRestrictions={claimRestrictions}
     />
   );
 }

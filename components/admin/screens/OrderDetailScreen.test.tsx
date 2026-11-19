@@ -209,3 +209,23 @@ it('embedded(목록 위 팝업)에서는 머리의 목록 버튼을 그리지 �
   expect(embedded).not.toContain('>발주·발송 목록<');
   expect(embedded).toContain('>강제 배송완료<');
 });
+
+describe('주문 상세 — 결제 전 확인 동의', () => {
+  /* 결제 전 확인 동의(PAY-015) — 운영자가 주문 상세에서 동의 일시와 제한 굿즈를 본다. */
+  it('결제 전 확인 동의 기록이 있으면 일시·문구 버전·청약철회 제한 굿즈를 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" acknowledgement={{ orderId: ORDER, acknowledgedAt: '2026-11-19T01:02:03+00:00', noticeVersion: '2026-11-19',
+      restrictedGoods: [{ goodId: 'g1', name: '각인 키링', returnAllowed: false, exchangeAllowed: null, reason: '각인 주문 제작' }] }} />);
+    expect(html).toContain('결제 전 확인 동의');
+    expect(html).toContain('data-order-acknowledgement="recorded"');
+    expect(html).toContain('동의 일시');
+    expect(html).toContain('2026-11-19');
+    expect(html).toContain('각인 키링 — 각인 주문 제작');
+  });
+  it('동의 기록이 없는 주문은 기록 없음으로 알리고 읽지 못했으면 칸을 그리지 않는다', () => {
+    const missing = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" acknowledgement={null} />);
+    expect(missing).toContain('data-order-acknowledgement="missing"');
+    expect(missing).toContain('동의 기록이 없습니다');
+    const unread = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    expect(unread).not.toContain('결제 전 확인 동의');
+  });
+});

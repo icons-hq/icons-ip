@@ -8,6 +8,7 @@ import type { UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import { Checkout, checkoutMethodAvailable, checkoutSubcopy, checkoutSubmitCaption } from './Checkout';
 import type { CheckoutDraft } from '@/lib/checkout-draft';
+import type { CheckoutClaimRestrictions } from '@/lib/checkout-acknowledgement';
 
 const mocks = vi.hoisted(() => ({ items: [] as CartItem[], sales: null as AddressGoodsSalesQuote | null }));
 
@@ -91,7 +92,11 @@ function render({
   quote = {},
   addressPrefill = EMPTY_CHECKOUT_ADDRESS_PREFILL,
   couponState = { selectedUserCouponId: null, coupons: [] },
+  acknowledged = true,
+  claimRestrictions,
 }: {
+  acknowledged?: boolean;
+  claimRestrictions?: CheckoutClaimRestrictions;
   addressPrefill?: CheckoutAddressPrefill;
   couponState?: CartCouponState;
   paymentAvailable: boolean;
@@ -121,6 +126,8 @@ function render({
       appliedCoupon={couponState.coupons.find(held => held.id === couponState.selectedUserCouponId) ?? null}
       couponState={couponState}
       paymentFailCode={paymentFailCode}
+      claimRestrictions={claimRestrictions}
+      initialAcknowledged={acknowledged}
     />,
   );
 }
@@ -442,7 +449,7 @@ describe('Checkout 주문서 초안', () => {
       paymentMethods: { card: true, bankTransfer: true } };
     return renderToStaticMarkup(
       <Checkout catalog={{ goods, ips: [] }} addressPrefill={EMPTY_CHECKOUT_ADDRESS_PREFILL} paymentAvailable bankTransferAvailable
-        resumeOrderId={null} appliedCoupon={null} couponState={{ selectedUserCouponId: null, coupons: [] }} draft={draft} />,
+        resumeOrderId={null} appliedCoupon={null} couponState={{ selectedUserCouponId: null, coupons: [] }} draft={draft} initialAcknowledged />,
     );
   }
 
@@ -568,5 +575,73 @@ describe('Checkout 판매기간이 끝난 굿즈가 섞인 주문서(원장 재�
     expect(totals).toContain('₩3,000');
     expect(totals).toContain('₩15,000');
     expect(totals).not.toContain('주문할 수 없는 굿즈를 뺀 뒤 표시');
+  });
+});
+
+/* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015). */
+describe('Checkout 결제 전 확인 동의', () => {
+  const restrictions: CheckoutClaimRestrictions = {
+    g13: { goodId: 'g13', returnAllowed: false, exchangeAllowed: false, reason: '각인 주문 제작 상품' },
+  };
+  const ackCheckbox = (html: string) => html.match(/<input[^>]*name="purchaseAcknowledgement"[^>]*>/)?.[0] ?? '';
+
+  it('동의 체크박스는 결제 버튼 바로 위에 있고 체크 전에는 결제 버튼이 잠긴다(카드·무통장 모두)', () => {
+    for (const paymentAvailable of [true, false]) {
+      const html = render({ paymentAvailable, bankTransferAvailable: true, acknowledged: false });
+      expect(ackCheckbox(html)).not.toBe('');
+      expect(ackCheckbox(html)).not.toContain('checked');
+      expect(html).toContain('주문 굿즈·수량·결제 금액·배송지를 확인했으며, 구매 조건과 결제에 동의합니다.');
+      expect(html.indexOf('name="purchaseAcknowledgement"')).toBeLessThan(html.indexOf('checkout-submit'));
+      expect(submitButton(html)).toContain('disabled');
+    }
+  });
+
+  it('체크하면 다른 막을 이유가 없는 결제 버튼이 열린다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: true });
+    expect(ackCheckbox(html)).toContain('checked');
+    expect(submitButton(html)).not.toContain('disabled');
+  });
+
+  it('체크해도 다른 사유(견적 미확인)로 막힌 버튼은 열리지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: null, acknowledged: true });
+    expect(submitButton(html)).toContain('disabled');
+  });
+
+  it('약관·배송·반품 정책 링크를 새 창으로 건다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false });
+    expect(html).toContain('href="/legal/terms"');
+    expect(html).toContain('href="/legal/shipping"');
+    expect(html).toContain('rel="noopener"');
+  });
+
+  it('청약철회 제한 굿즈가 있으면 품목 줄에 사유를 고지하고 동의 문구에 그 사실을 더한다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: restrictions });
+    expect(html).toContain('청약철회·교환 제한 — 각인 주문 제작 상품');
+    expect(html).toContain('청약철회가 제한되는 굿즈가 포함되어 있음을 확인하고');
+    expect(html).toContain('data-restricted="true"');
+  });
+
+  it('제한 굿즈가 주문서 품목에 없으면 고지도 문구 변경도 없다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: { g14: { goodId: 'g14', returnAllowed: false, exchangeAllowed: null, reason: '개봉 후 반품 불가' } } });
+    expect(html).not.toContain('개봉 후 반품 불가');
+    expect(html).not.toContain('청약철회가 제한되는 굿즈가 포함되어');
+  });
+
+  it('반품만 제한이면 교환은 가능하다고 밝힌다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, claimRestrictions: { g13: { goodId: 'g13', returnAllowed: false, exchangeAllowed: null, reason: '개봉 후 반품 불가' } } });
+    expect(html).toContain('청약철회 제한 · 교환 가능 — 개봉 후 반품 불가');
+  });
+
+  it('선택·바로구매 초안 주문서에도 같은 동의가 있다', () => {
+    const draft: CheckoutDraft = { id: '00000000-0000-4000-8000-0000000000d1', source: 'direct', baseGoodId: 'g13', expiresAt: '2026-11-12T10:00:00Z', stale: false, usedOrderId: null,
+      lines: [{ goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 }] };
+    mocks.items = [];
+    mocks.sales = { calculatedAt: '2026-09-10T00:00:00Z', subtotal: 12000, lines: [{ ...draft.lines[0], regularPrice: 12000, effectivePrice: 12000, pricePeriodId: null, startsAt: null, endsAt: null, available: true }],
+      goods: [{ goodId: 'g13', qty: 1, orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null, memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null, memberReservedQty: null, memberRemainingQty: null, reason: null }],
+      shipping: { totalFee: 3000, groups: [], checkoutAllowed: true, finalTotalFee: 3000, destination: null, nextChangeAt: null }, paymentMethods: { card: true, bankTransfer: true } };
+    const html = renderToStaticMarkup(<Checkout catalog={{ goods, ips: [] }} addressPrefill={EMPTY_CHECKOUT_ADDRESS_PREFILL} paymentAvailable bankTransferAvailable
+      resumeOrderId={null} appliedCoupon={null} couponState={{ selectedUserCouponId: null, coupons: [] }} draft={draft} />);
+    expect(ackCheckbox(html)).not.toBe('');
+    expect(submitButton(html)).toContain('disabled');
   });
 });

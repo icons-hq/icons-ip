@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminOrderDetailPage from './page';
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: { id: 'staff' } as { id: string } | null, isStaff: true, role: 'staff' },
-  load: vi.fn(), production: vi.fn(), downloads: vi.fn(), note: vi.fn(),
+  load: vi.fn(), production: vi.fn(), downloads: vi.fn(), note: vi.fn(), acknowledgement: vi.fn(),
 }));
 vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => ({ ...mocks.auth, operatorAccess: 'operatorAccess' in mocks.auth && mocks.auth.operatorAccess || legacyOperatorAccessFixture() })) }));
 vi.mock('@/lib/admin/order-detail.server', () => ({ getAdminOrderDetail: mocks.load }));
 vi.mock('@/lib/order-production.server', () => ({ loadAdminOrderProduction: mocks.production }));
 vi.mock('@/lib/admin/order-downloads.server', () => ({ loadAdminOrderDownloads: mocks.downloads }));
+vi.mock('@/lib/admin/order-acknowledgement.server', () => ({ loadAdminOrderAcknowledgement: mocks.acknowledgement }));
 vi.mock('@/components/admin/screens/OrderDetailScreen', () => ({
   OrderDetailScreen: () => null,
 }));
@@ -22,6 +23,7 @@ const visit = (orderId = ORDER) => AdminOrderDetailPage({ params: Promise.resolv
 beforeEach(() => {
   mocks.auth.user = { id: 'staff' }; mocks.auth.isStaff = true;
   mocks.production.mockReset().mockResolvedValue(null);
+  mocks.acknowledgement.mockReset().mockResolvedValue(null);
   mocks.load.mockReset().mockResolvedValue({ order: { id: ORDER }, items: [], timeline: [] });
 });
 describe('정확한 주문 상세 라우트', () => {
@@ -83,5 +85,15 @@ describe('정확한 주문 상세 라우트', () => {
       backHref: '/admin/sales/settled?to=2026-09-10&query=buyer&page=2',
       backLabel: '거래확정 목록',
     }) });
+  });
+});
+
+describe('주문 상세 라우트의 결제 전 확인 동의 기록', () => {
+  it('같은 주문의 동의 기록을 읽어 화면에 넘긴다', async () => {
+    const recorded = { orderId: ORDER, acknowledgedAt: '2026-11-19T01:02:03+00:00', noticeVersion: '2026-11-19', restrictedGoods: [] };
+    mocks.acknowledgement.mockResolvedValue(recorded);
+    const element = await visit() as { props: Record<string, unknown> };
+    expect(mocks.acknowledgement).toHaveBeenCalledWith(ORDER);
+    expect(element.props.acknowledgement).toBe(recorded);
   });
 });

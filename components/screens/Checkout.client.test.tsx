@@ -33,6 +33,7 @@ vi.mock('@/components/shell/CartProvider', () => ({
 }));
 
 import { CouponPicker } from '@/components/checkout/CouponPicker';
+import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
 import { Checkout } from './Checkout';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -49,6 +50,8 @@ const couponB = held('22222222-2222-4222-8222-222222222222', '3천원 할인');
 let props: Parameters<typeof Checkout>[0];
 const render = () => { hooks.si = hooks.ri = 0; return Checkout(props); };
 const picker = () => all(render()).find((node) => node.type === CouponPicker)!;
+const acknowledgement = () => all(render()).find((node) => node.type === PurchaseAcknowledgement)!;
+const acknowledge = (checked = true) => (acknowledgement().props.onChange as (checked: boolean) => void)(checked);
 const submitButton = () => all(render()).find((node) => node.type === 'button' && String(node.props.className).includes('checkout-submit'))!;
 const submit = () => (all(render()).find((node) => node.type === 'form')!.props.onSubmit as (event: { preventDefault(): void }) => Promise<void>)({ preventDefault() {} });
 
@@ -75,6 +78,8 @@ beforeEach(() => {
     paymentAvailable: true, bankTransferAvailable: true, resumeOrderId: null,
     appliedCoupon: couponA, couponState: { selectedUserCouponId: couponA.id, coupons: [couponA, couponB] },
   };
+  /* 결제 전 확인 동의(PAY-015) — 아래 시험은 체크한 뒤의 흐름이다. 체크 전은 맨 아래 'Checkout 결제 전 확인 동의'가 본다. */
+  acknowledge();
 });
 
 /* 쿠폰 변경 서버 액션이 끝나기 전에 결제를 누르면 이전 쿠폰으로 주문이 큐에 들어가고, DB 가 coupon_selection_changed 로
@@ -168,5 +173,40 @@ describe('Checkout 재견적으로 주문 불가가 된 줄의 판매기간 안�
     unavailableSales();
     props = { ...props, catalog: { goods: [{ ...good, salePeriod: ended }], ips: [] } };
     expect(all(render()).find((node) => node.type === QuoteUnavailableRefresh)!.props.signature).toBeNull();
+  });
+});
+
+/* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015) — 체크 전에는 결제 버튼이 잠기고 제출해도 주문을 만들지 않으며, 체크하면 서버 액션에 true로 넘긴다. */
+describe('Checkout 결제 전 확인 동의', () => {
+  it('체크 전에는 버튼이 잠기고 제출해도 주문을 만들지 않는다', async () => {
+    acknowledge(false);
+    expect(acknowledgement().props.checked).toBe(false);
+    expect(submitButton().props.disabled).toBe(true);
+    await submit();
+    expect(mocks.place).not.toHaveBeenCalled();
+  });
+
+  it('체크하면 주문을 만들고 서버 액션에 동의 true를 8번째 인자로 넘긴다', async () => {
+    expect(submitButton().props.disabled).toBe(false);
+    await submit();
+    expect(mocks.place).toHaveBeenCalledTimes(1);
+    expect(mocks.place.mock.calls[0][7]).toBe(true);
+  });
+
+  it('주문이 거절되면 바뀐 내용을 다시 확인하도록 체크를 풀고 버튼을 잠근다', async () => {
+    await submit();
+    expect(acknowledgement().props.checked).toBe(false);
+    expect(submitButton().props.disabled).toBe(true);
+    acknowledge();
+    expect(submitButton().props.disabled).toBe(false);
+  });
+
+  it('주문을 만드는 동안에는 체크박스도 잠근다', async () => {
+    let resolve!: (value: unknown) => void;
+    mocks.place.mockReturnValueOnce(new Promise((yes) => { resolve = yes; }));
+    const work = submit();
+    expect(acknowledgement().props.disabled).toBe(true);
+    resolve({ ok: false, error: 'unavailable' });
+    await work;
   });
 });

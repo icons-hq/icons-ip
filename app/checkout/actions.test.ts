@@ -6,7 +6,7 @@ import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { placeOrderAction as placeOrderActionRaw, prepareGoodsPaymentAction } from './actions';
 
 const seenCart=[{goodId:'g1',variantId:'00000000-0000-4000-8000-000000000001',qty:1}];
-const placeOrderAction=(address:unknown,key:unknown,method:unknown='card',credits:unknown=0,coupon:unknown=undefined)=>placeOrderActionRaw(address,key,method,credits,coupon,seenCart);
+const placeOrderAction=(address:unknown,key:unknown,method:unknown='card',credits:unknown=0,coupon:unknown=undefined)=>placeOrderActionRaw(address,key,method,credits,coupon,seenCart,undefined,true);
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -22,11 +22,13 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   rpc: vi.fn(),
   loadDraft: vi.fn(),
+  recordAcknowledgement: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/checkout.server', () => ({ loadCheckoutOrder: mocks.loadOrder }));
 vi.mock('@/lib/checkout-draft.server', () => ({ loadCheckoutDraft: mocks.loadDraft }));
+vi.mock('@/lib/checkout-acknowledgement.server', () => ({ recordOrderPurchaseAcknowledgement: mocks.recordAcknowledgement }));
 vi.mock('@/lib/payments/goods-checkout-availability', () => ({
   goodsCheckoutPaymentsEnabled: (userId?: string, provider?: string) => {
     mocks.availabilityUserIds.push(userId);
@@ -170,8 +172,8 @@ describe('placeOrderAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('고객이 본 전체 장바구니가 빠지거나 중복된 기대값이면 주문 RPC에 닿지 않는다',async()=>{
-    expect(await placeOrderActionRaw(address,checkoutKey)).toEqual({ok:false,error:'invalid_request'});
-    expect(await placeOrderActionRaw(address,checkoutKey,'card',0,null,[seenCart[0],seenCart[0]])).toEqual({ok:false,error:'invalid_request'});
+    expect(await placeOrderActionRaw(address,checkoutKey,'card',0,undefined,undefined,undefined,true)).toEqual({ok:false,error:'invalid_request'});
+    expect(await placeOrderActionRaw(address,checkoutKey,'card',0,null,[seenCart[0],seenCart[0]],undefined,true)).toEqual({ok:false,error:'invalid_request'});
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('원본 카트가 변경되면 재확인 오류를 반환한다',async()=>{
@@ -446,7 +448,7 @@ describe('placeOrderAction — 주문서 초안', () => {
   });
 
   it('선택 주문 초안은 선택 주문 RPC로 초안 id만 넘기고, 화면이 보낸 장바구니 줄은 쓰지 않는다', async () => {
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 500, couponId, seenCart, draftId)).resolves.toEqual({ ok: true, orderId });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 500, couponId, seenCart, draftId, true)).resolves.toEqual({ ok: true, orderId });
     expect(mocks.loadDraft).toHaveBeenCalledWith(userId, draftId);
     expect(mocks.rpc).toHaveBeenCalledWith('place_order_with_cart_selection', expect.objectContaining({
       p_user_id: userId, p_draft_id: draftId, p_checkout_key: checkoutKey, p_payment_method: 'card', p_store_credit_amount: 500,
@@ -458,35 +460,35 @@ describe('placeOrderAction — 주문서 초안', () => {
 
   it('바로구매 초안은 바로구매 RPC로 주문서에서 고른 쿠폰을 넘긴다', async () => {
     mocks.loadDraft.mockResolvedValue({ ...selectionDraft, source: 'direct', baseGoodId: 'g2' });
-    await placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId);
+    await placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true);
     expect(mocks.rpc).toHaveBeenCalledWith('place_direct_order', expect.objectContaining({
       p_user_id: userId, p_draft_id: draftId, p_payment_method: 'card', p_user_coupon_id: null }));
   });
 
   it('만료되거나 남의 초안이면 주문 RPC에 닿지 않고, 초안을 못 읽으면 다시 시도로 안내한다', async () => {
     mocks.loadDraft.mockResolvedValue(null);
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId)).resolves.toEqual({ ok: false, error: 'checkout_draft_expired' });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: false, error: 'checkout_draft_expired' });
     mocks.loadDraft.mockResolvedValue('error');
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId)).resolves.toEqual({ ok: false, error: 'unavailable' });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, 'not-a-draft')).resolves.toEqual({ ok: false, error: 'invalid_request' });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: false, error: 'unavailable' });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, 'not-a-draft', true)).resolves.toEqual({ ok: false, error: 'invalid_request' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('DB가 초안 만료·고른 줄 변경을 알리면 주문서 오류로 바꾼다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'checkout_draft_expired' } });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId)).resolves.toEqual({ ok: false, error: 'checkout_draft_expired' });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: false, error: 'checkout_draft_expired' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'cart_snapshot_changed' } });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId)).resolves.toEqual({ ok: false, error: 'cart_changed' });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: false, error: 'cart_changed' });
   });
 
   /* 다른 탭·뒤로 가기로 같은 주문서를 새 키로 다시 내면 DB가 원 주문 id(detail)와 함께 거절한다(완료 기준 5). */
   it('같은 주문서로 이미 접수·결제한 주문이 있으면 원 주문을 돌려준다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'checkout_draft_used', details: orderId.toUpperCase() } });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true))
       .resolves.toEqual({ ok: false, error: 'checkout_draft_used', orderId });
     /* detail 모양이 틀리면 원 주문 없이 안내만 한다. */
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'checkout_draft_used', details: 'x' } });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true))
       .resolves.toEqual({ ok: false, error: 'checkout_draft_used' });
   });
 
@@ -494,19 +496,19 @@ describe('placeOrderAction — 주문서 초안', () => {
      주문서는 그 주문으로 안내하고 결제 버튼을 잠근다(같은 주문서로 두 번 청구되지 않게). */
   it('결제 확인 중인 주문이 있으면 그 주문을 돌려준다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'checkout_payment_in_progress', details: orderId } });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true))
       .resolves.toEqual({ ok: false, error: 'checkout_payment_in_progress', orderId });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'checkout_payment_in_progress', details: null } });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true))
       .resolves.toEqual({ ok: false, error: 'checkout_payment_in_progress' });
   });
 
   it('만료된 주문서는 RPC에 닿지 않고, 이미 주문했으면 원 주문으로 안내한다', async () => {
     mocks.loadDraft.mockResolvedValue({ id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: orderId });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true))
       .resolves.toEqual({ ok: false, error: 'checkout_draft_used', orderId });
     mocks.loadDraft.mockResolvedValue({ id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: null });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true))
       .resolves.toEqual({ ok: false, error: 'checkout_draft_expired' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -514,16 +516,65 @@ describe('placeOrderAction — 주문서 초안', () => {
   /* 살아 있는 주문서는 이미 주문했어도 DB에 맡긴다 — 같은 checkout key의 재요청은 원래 주문을 돌려받아야 한다. */
   it('이미 주문한 살아 있는 주문서도 같은 키의 재요청은 DB가 원래 주문으로 돌려준다', async () => {
     mocks.loadDraft.mockResolvedValue({ ...selectionDraft, usedOrderId: orderId });
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId)).resolves.toEqual({ ok: true, orderId });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: true, orderId });
     expect(mocks.rpc).toHaveBeenCalledWith('place_order_with_cart_selection', expect.objectContaining({ p_checkout_key: checkoutKey }));
   });
 
   it('로그인·프로필·정지·결제 gate는 초안 주문에도 같다', async () => {
     mocks.paymentAvailable = false;
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId)).resolves.toEqual({ ok: false, error: 'payment_unavailable' });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: false, error: 'payment_unavailable' });
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
-    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId)).resolves.toEqual({ ok: false, error: 'auth_required' });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: false, error: 'auth_required' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
 
+/* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015) — 카드·무통장·장바구니·초안 주문 모두 서버가 true를 확인하고, 주문 생성 직후 기록을 부른다. */
+describe('결제 전 확인 동의', () => {
+  beforeEach(() => {
+    mocks.auth = onboardedAuth();
+    mocks.paymentAvailable = true;
+    mocks.recordAcknowledgement.mockReset();
+    mocks.recordAcknowledgement.mockResolvedValue(true);
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValue({ data: orderId, error: null });
+    mocks.loadDraft.mockReset();
+    mocks.loadDraft.mockResolvedValue({ id: '00000000-0000-4000-8000-0000000000d1', source: 'selection', baseGoodId: null, expiresAt: '2099-01-01T00:00:00Z', stale: false,
+      lines: [{ goodId: 'g2', variantId: '00000000-0000-4000-8000-000000000002', qty: 1 }] });
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
+  });
+
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+
+  it.each([undefined, null, false, 'true', 1, 0, 'on', {}])('동의가 정확히 true가 아니면(%s) 주문을 만들지 않는다 — 장바구니 주문', async (value) => {
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, seenCart, undefined, value)).resolves.toEqual({ ok: false, error: 'acknowledgement_required' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.recordAcknowledgement).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, false, 'true'])('초안 주문도 같다(%s)', async (value) => {
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, value)).resolves.toEqual({ ok: false, error: 'acknowledgement_required' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.loadDraft).not.toHaveBeenCalled();
+  });
+
+  it('무통장도 동의가 없으면 접수하지 않는다', async () => {
+    await expect(placeOrderActionRaw(address, checkoutKey, 'bank_transfer', 0, null, seenCart, undefined, false)).resolves.toEqual({ ok: false, error: 'acknowledgement_required' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('동의가 있으면 주문을 만들고 그 주문의 동의를 기록한다(장바구니·초안)', async () => {
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, seenCart, undefined, true)).resolves.toEqual({ ok: true, orderId });
+    expect(mocks.recordAcknowledgement).toHaveBeenLastCalledWith(userId, orderId);
+    mocks.recordAcknowledgement.mockClear();
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true)).resolves.toEqual({ ok: true, orderId });
+    expect(mocks.recordAcknowledgement).toHaveBeenLastCalledWith(userId, orderId);
+  });
+
+  it('주문이 거절되면 동의를 기록하지 않는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'out_of_stock' } });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, seenCart, undefined, true)).resolves.toMatchObject({ ok: false });
+    expect(mocks.recordAcknowledgement).not.toHaveBeenCalled();
+  });
+});

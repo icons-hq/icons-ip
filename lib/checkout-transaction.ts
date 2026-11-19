@@ -23,6 +23,8 @@ export interface CartTransactionOrderInput extends CartTransactionInput {
   quoteId: string;
   checkoutKey: string;
   paymentMethod: CheckoutPaymentMethod;
+  /** 결제 전 주문 내용 확인·구매 조건 동의(PAY-015). 정확히 true일 때만 주문을 만든다(서버 액션이 거절한다). */
+  purchaseAcknowledged?: true;
 }
 export interface CheckoutTransactionReceipt { orderId: string; quoteId: string; display: GoodsTransactionDisplay }
 export function cartTransactionRequestTooLarge(value: unknown): boolean {
@@ -32,16 +34,20 @@ export interface CartTransactionRecovery {
   version: 1; expectedActorId: string; sessionId: string; quoteId: string; checkoutKey: string; paymentMethod: CheckoutPaymentMethod;
   /** 바로구매 초안 주문의 복구(ADR-0030). 없으면 장바구니 주문이다. */
   draftId?: string;
+  /** 주문 요청 때 동의를 받았다. 없으면(동의 기능 이전 복구 표식) 같은 키의 기존 주문만 돌려받고 새 주문은 만들지 않는다. */
+  purchaseAcknowledged?: true;
 }
 
 export function parseCartTransactionRecovery(value: unknown): CartTransactionRecovery | null {
-  if (!transactionRecord(value) || !transactionExactKeys(value, ['version', 'expectedActorId', 'sessionId', 'quoteId', 'checkoutKey', 'paymentMethod', ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : [])]) || value.version !== 1) return null;
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['version', 'expectedActorId', 'sessionId', 'quoteId', 'checkoutKey', 'paymentMethod', ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : []), ...(Object.hasOwn(value, 'purchaseAcknowledged') ? ['purchaseAcknowledged'] : [])]) || value.version !== 1) return null;
   const expectedActorId = normalizeCheckoutKey(value.expectedActorId), sessionId = normalizeCheckoutKey(value.sessionId);
   const quoteId = normalizeCheckoutKey(value.quoteId), checkoutKey = normalizeCheckoutKey(value.checkoutKey), paymentMethod = normalizeCheckoutPaymentMethod(value.paymentMethod);
   const draftId = Object.hasOwn(value, 'draftId') ? normalizeCheckoutKey(value.draftId) : undefined;
   if (draftId === null) return null;
+  if (Object.hasOwn(value, 'purchaseAcknowledged') && value.purchaseAcknowledged !== true) return null;
   return expectedActorId && sessionId && quoteId && checkoutKey && paymentMethod
-    ? { version: 1, expectedActorId, sessionId, quoteId, checkoutKey, paymentMethod, ...(draftId ? { draftId } : {}) } : null;
+    ? { version: 1, expectedActorId, sessionId, quoteId, checkoutKey, paymentMethod, ...(draftId ? { draftId } : {}),
+      ...(value.purchaseAcknowledged === true ? { purchaseAcknowledged: true as const } : {}) } : null;
 }
 
 /** The request carries intentions only; every price and allocation comes from the DB. */
@@ -65,10 +71,12 @@ export function parseCartTransactionInput(value: unknown): CartTransactionInput 
 
 export function parseCartTransactionOrderInput(value: unknown): CartTransactionOrderInput | null {
   if (!transactionRecord(value) || !transactionExactKeys(value, ['expectedActorId', 'items', 'address', 'deliveryChoices', 'userCouponId', 'storeCreditAmount', 'quoteId', 'checkoutKey', 'paymentMethod',
-    ...(Object.hasOwn(value, 'userCouponIds') ? ['userCouponIds'] : []), ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : [])])) return null;
-  const { quoteId: rawQuoteId, checkoutKey: rawKey, paymentMethod: rawMethod, ...rest } = value;
+    ...(Object.hasOwn(value, 'userCouponIds') ? ['userCouponIds'] : []), ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : []),
+    ...(Object.hasOwn(value, 'purchaseAcknowledged') ? ['purchaseAcknowledged'] : [])])) return null;
+  const { quoteId: rawQuoteId, checkoutKey: rawKey, paymentMethod: rawMethod, purchaseAcknowledged, ...rest } = value;
   const input = parseCartTransactionInput(rest), quoteId = normalizeCheckoutKey(rawQuoteId), checkoutKey = normalizeCheckoutKey(rawKey), paymentMethod = normalizeCheckoutPaymentMethod(rawMethod);
-  return input && quoteId && checkoutKey && paymentMethod ? { ...input, quoteId, checkoutKey, paymentMethod } : null;
+  return input && quoteId && checkoutKey && paymentMethod
+    ? { ...input, quoteId, checkoutKey, paymentMethod, ...(purchaseAcknowledged === true ? { purchaseAcknowledged: true as const } : {}) } : null;
 }
 
 export function cartTransactionSnapshot(items: readonly CartItem[]) {

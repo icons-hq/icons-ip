@@ -45,3 +45,16 @@ it('바로구매 초안 id를 요청·복구에 싣고, 모양이 틀린 id는 �
   expect(parseCartTransactionInput(transactionInput)).not.toHaveProperty('draftId');
 });
 
+it('결제 전 확인 동의(PAY-015)는 true일 때만 요청·복구 표식에 실린다', () => {
+  const { quoteId, checkoutKey, paymentMethod } = transactionRecovery;
+  const order = { ...transactionInput, quoteId, checkoutKey, paymentMethod };
+  expect(parseCartTransactionOrderInput({ ...order, purchaseAcknowledged: true })).toMatchObject({ purchaseAcknowledged: true });
+  expect(parseCartTransactionOrderInput(order)).not.toHaveProperty('purchaseAcknowledged');
+  /* true가 아닌 값은 동의로 싣지 않는다 — 서버 액션이 acknowledgement_required로 거절한다. */
+  for (const value of [false, 'true', 1, null]) expect(parseCartTransactionOrderInput({ ...order, purchaseAcknowledged: value })).not.toHaveProperty('purchaseAcknowledged');
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: true })).toEqual({ ...transactionRecovery, purchaseAcknowledged: true });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, purchaseAcknowledged: false })).toBeNull();
+  expect(parseCartTransactionRecovery(transactionRecovery)).not.toHaveProperty('purchaseAcknowledged');
+  /* 견적 요청에는 동의가 없다. */
+  expect(parseCartTransactionInput({ ...transactionInput, purchaseAcknowledged: true })).toBeNull();
+});

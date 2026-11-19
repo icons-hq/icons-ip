@@ -26,10 +26,14 @@ import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
 import { goodsCustomInputValues } from '@/lib/goods-custom-inputs';
 import { isClosedCheckoutDraft, normalizeCheckoutDraftId } from '@/lib/checkout-draft';
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
+import { isCheckoutAcknowledged } from '@/lib/checkout-acknowledgement';
+import { recordOrderPurchaseAcknowledgement } from '@/lib/checkout-acknowledgement.server';
 
 type PlaceOrderActionError =
   | PlaceOrderErrorCode
   | 'invalid_request'
+  /** 결제 전 주문 내용 확인·구매 조건 동의(PAY-015)가 true로 오지 않았다 — 화면 체크를 거치지 않은 요청이다. */
+  | 'acknowledgement_required'
   | 'auth_required'
   | 'onboarding_required'
   | 'payment_unavailable';
@@ -130,9 +134,10 @@ export async function placeOrderAction(
   expectedUserCouponIdValue: unknown = undefined,
   expectedCartValue?: unknown,
   draftIdValue?: unknown,
+  acknowledgedValue?: unknown,
 ): Promise<PlaceOrderActionResult> {
   if (draftIdValue !== undefined && draftIdValue !== null) {
-    return placeDraftOrder(addressValue, checkoutKeyValue, paymentMethodValue, storeCreditAmountValue, expectedUserCouponIdValue, draftIdValue);
+    return placeDraftOrder(addressValue, checkoutKeyValue, paymentMethodValue, storeCreditAmountValue, expectedUserCouponIdValue, draftIdValue, acknowledgedValue);
   }
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
@@ -140,6 +145,8 @@ export async function placeOrderAction(
   if (!isOnboarded(auth.profile, auth.user.email)) {
     return { ok: false, error: 'onboarding_required' };
   }
+  /* 결제 전 확인 동의(PAY-015) — 화면 체크를 건너뛴 요청은 주문을 만들기 전에 거절한다. 카드·무통장 공통이다. */
+  if (!isCheckoutAcknowledged(acknowledgedValue)) return { ok: false, error: 'acknowledgement_required' };
 
   const address = normalizeCheckoutAddress(addressValue);
   if (!address) return { ok: false, error: 'invalid_address' };
@@ -200,6 +207,7 @@ export async function placeOrderAction(
   const orderId = normalizeOrderReference(data);
   if (!orderId) return { ok: false, error: 'unavailable' };
   await bindStoreAnalyticsOrder(orderId, auth.user.id);
+  await recordOrderPurchaseAcknowledgement(auth.user.id, orderId);
   return { ok: true, orderId };
 }
 
@@ -220,11 +228,13 @@ async function placeDraftOrder(
   storeCreditAmountValue: unknown,
   userCouponIdValue: unknown,
   draftIdValue: unknown,
+  acknowledgedValue: unknown,
 ): Promise<PlaceOrderActionResult> {
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
   if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
   if (!isOnboarded(auth.profile, auth.user.email)) return { ok: false, error: 'onboarding_required' };
+  if (!isCheckoutAcknowledged(acknowledgedValue)) return { ok: false, error: 'acknowledgement_required' };
 
   const draftId = normalizeCheckoutDraftId(draftIdValue);
   const address = normalizeCheckoutAddress(addressValue);
@@ -295,5 +305,6 @@ async function placeDraftOrder(
   const orderId = normalizeOrderReference(data);
   if (!orderId) return { ok: false, error: 'unavailable' };
   await bindStoreAnalyticsOrder(orderId, auth.user.id);
+  await recordOrderPurchaseAcknowledgement(auth.user.id, orderId);
   return { ok: true, orderId };
 }

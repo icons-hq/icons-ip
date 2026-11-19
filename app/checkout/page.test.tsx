@@ -27,6 +27,8 @@ vi.mock('@/lib/checkout.server', () => ({
   loadCheckoutAddressPrefill: async () => ({ address: null, source: null, book: [] }),
   loadLatestPendingCheckoutOrderId: async () => null,
 }));
+const restrictions = { g1: { goodId: 'g1', returnAllowed: false, exchangeAllowed: null, reason: '각인 주문 제작 상품' } };
+vi.mock('@/lib/checkout-acknowledgement.server', () => ({ loadCheckoutClaimRestrictions: async () => restrictions }));
 vi.mock('@/lib/coupons.server', () => ({ loadCartCouponState: async () => mocks.couponState }));
 vi.mock('@/lib/coupon-combinations.server', () => ({ loadCouponCombinationPolicy: async () => null }));
 vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: async () => mocks.transactionMode }));
@@ -158,3 +160,13 @@ describe('/checkout page — 주문서 초안', () => {
   });
 });
 
+/* 결제 전 확인 동의(PAY-015): 청약철회 제한 굿즈를 서버가 읽어 두 주문서에 넘긴다. */
+describe('/checkout page — 청약철회 제한 굿즈 고지', () => {
+  it('기본 주문서와 거래 주문서 모두 같은 제한 굿즈를 받는다', async () => {
+    renderToStaticMarkup(await Page({}));
+    expect(mocks.checkout.mock.calls.at(-1)?.[0].claimRestrictions).toBe(restrictions);
+    mocks.transactionMode = 'transaction';
+    renderToStaticMarkup(await Page({}));
+    expect(mocks.transactionCheckout.mock.calls.at(-1)?.[0].claimRestrictions).toBe(restrictions);
+  });
+});

@@ -3412,6 +3412,54 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   color: var(--wc-ink-tertiary);
 }
 
+/* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015) — 결제 버튼 바로 위. */
+.wc-receipt .checkout-acknowledgement {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt .checkout-acknowledgement[data-restricted] {
+  border-color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-acknowledgement__label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.wc-receipt .checkout-acknowledgement__label input {
+  flex: none;
+  margin-top: 3px;
+}
+
+.wc-receipt .checkout-acknowledgement__label em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-acknowledgement__links {
+  margin: 6px 0 0 26px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-acknowledgement__links a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 품목 줄의 청약철회·교환 제한 고지. */
+.wc-receipt .checkout-item__restriction {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
 .wc-receipt .checkout-submit {
   width: 100%;
   margin-top: 14px;
