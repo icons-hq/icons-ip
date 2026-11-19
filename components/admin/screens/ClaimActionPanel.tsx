@@ -394,6 +394,8 @@ export function ClaimActionPanel({
   const canCollect = collectionPolicy === 'legacy' && claimType !== 'cancel' && stage === 'collecting';
   const canFileRefund = claimType !== 'exchange'
     && !partialReturnUnavailable
+    /* 부분 반품은 살아 있는 원장이 생기면 금액이 고정된다 — 다시 접수해도 바뀌는 것이 없어 '접수 정보 갱신'을 그리지 않는다. */
+    && !(partialReturn && refundFiled)
     && collectionReady
     /* 부분 반품은 결제사가 부분 취소를 받지 않아 확인 필요로 남은 뒤에도 다시 접수할 수 있다(새 원장으로 다시 시도). */
     && (stage === 'collected' || stage === 'processing' || (Boolean(partialReturn?.refileable) && stage === 'needs_review'));

@@ -1369,6 +1369,17 @@ select private.j47_patch_function('private.review_event_purchase_eligible(uuid,u
   $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed'))$a$,
   $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed') and not private.claim_is_partial_return(c.id))$a$);
 
+-- 홈 대표 리뷰(BEST)는 같은 구매 자격을 문장 안에 거울로 들고 있다(소유자 섞임 때문에 함수를 부르지 않는다 — 20261020085337).
+-- 두 읽기가 같은 계약이어야 하므로 거울도 같이 고친다(시험 home_review_best_priority가 원본 지문으로 대조한다).
+select private.j47_patch_function('public.get_home_best_review_candidates(text[])',
+  $a$and exists(select 1 from public.order_items item where item.order_id=o.id and item.good_id=r.good_id)$a$,
+  $a$and exists(select 1 from public.order_items item where item.order_id=o.id and item.good_id=r.good_id
+            and private.order_item_active_qty(item.id)>0)$a$);
+select private.j47_patch_function('public.get_home_best_review_candidates(text[])',
+  $a$              and (claim.status='completed' or claim.stage='completed'))$a$,
+  $a$              and (claim.status='completed' or claim.stage='completed')
+              and not private.claim_is_partial_return(claim.id))$a$);
+
 -- 21-5. 판매 순위·집계: 부분 반품 완료 주문을 통째로 빼지 않고 반품 수량만 뺀다(결정 5). 살아 있는 수량을 세는 집계는 이미 반품을 뺀다.
 select private.j47_patch_function('private.goods_effective_sales(timestamp with time zone,timestamp with time zone)',
   $a$and c.claim_type in ('cancel', 'return') and (c.status = 'completed' or c.stage = 'completed'))$a$,
@@ -1449,6 +1460,7 @@ do $$declare fn regprocedure; contract record; begin
     'private.order_delay_notice_snapshot(uuid,uuid[])'::regprocedure,
     'public.guard_order_transition_during_cancellation()'::regprocedure,
     'private.review_event_purchase_eligible(uuid,uuid,text)'::regprocedure,
+    'public.get_home_best_review_candidates(text[])'::regprocedure,
     'private.goods_effective_sales(timestamp with time zone,timestamp with time zone)'::regprocedure,
     'public.get_home_sales_rankings()'::regprocedure,
     'private.product_detail_paid_orders(timestamp with time zone,timestamp with time zone)'::regprocedure,
