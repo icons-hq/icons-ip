@@ -167,7 +167,9 @@ select pg_temp.pr_assert((public.admin_save_partial_return_switch(true, 'TEST �
 reset role;
 select pg_temp.pr_assert(private.order_partial_return_enabled()
  and (select count(*) = 1 from public.audit_log where id = pg_temp.pr_id('switch', 1) and action = 'admin.operations_switch.partial_return')
- and not exists(select 1 from public.audit_log where action = 'system.return_fee_deduction.settings_changed' and diff#>>'{after,partial_return_enabled}' = 'true'),
+ -- 이 시험 트랜잭션에서 생긴 행만 본다: 스위치를 켜는 migration(20261119110000)이 남긴 시스템 감사는 이 저장과 무관하다.
+ and not exists(select 1 from public.audit_log where action = 'system.return_fee_deduction.settings_changed' and diff#>>'{after,partial_return_enabled}' = 'true'
+   and created_at >= transaction_timestamp()),
  'switch_audited_once');
 
 -- 2. 판정 -------------------------------------------------------------------------------------------------------------
