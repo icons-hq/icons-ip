@@ -40,7 +40,6 @@ function good(id: string, ipId: string, overrides: Partial<Good> = {}): Good {
     id,
     ip: ipId,
     name: `굿즈 ${id}`,
-    type: '키링',
     price: 10000,
     badge: null,
     stock: 'ok' as Stock,
@@ -53,10 +52,10 @@ function good(id: string, ipId: string, overrides: Partial<Good> = {}): Good {
 const ips = [ip('ip1', '홍실'), ip('ip2', '메이플'), ip('ip3', '빈 IP')];
 
 const goods = [
-  good('a', 'ip1', { price: 30000, type: '피규어', badge: 'NEW', createdAt: '2026-08-01T00:00:00Z' }),
-  good('b', 'ip1', { price: 10000, type: '키링', createdAt: '2026-08-20T00:00:00Z' }),
-  good('c', 'ip2', { price: 20000, type: '키링', badge: 'NEW', stock: 'soldout', stockQty: 0 }),
-  good('d', 'ip2', { price: 50000, type: '인형', compareAtPrice: 60000, createdAt: '2026-07-01T00:00:00Z' }),
+  good('a', 'ip1', { price: 30000, badge: 'NEW', createdAt: '2026-08-01T00:00:00Z' }),
+  good('b', 'ip1', { price: 10000, createdAt: '2026-08-20T00:00:00Z' }),
+  good('c', 'ip2', { price: 20000, badge: 'NEW', stock: 'soldout', stockQty: 0 }),
+  good('d', 'ip2', { price: 50000, compareAtPrice: 60000, createdAt: '2026-07-01T00:00:00Z' }),
 ];
 
 const catalog = { ips, goods };
@@ -366,7 +365,6 @@ describe('예약판매 타입 값 (11 §3 Δ6 · CL-11)', () => {
     calculatedAt: '2026-10-20T00:00:00Z', nextChangeAt: '2026-11-01T00:00:00Z',
   };
   const preorder = good('p1', 'ip1', {
-    type: '피규어',
     options: [{ id: 'v1', name: '기본', code: 'P1', price: 10000, stockQty: 5, isDefault: true, attributes: {}, supply: preorderSupply }],
   });
   const scoped = { ips, goods: [...goods, preorder] };

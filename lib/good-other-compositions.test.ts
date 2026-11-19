@@ -4,7 +4,7 @@ import { goodOtherCompositionsNextChange, parseGoodOtherCompositionReferences, r
 
 const groupId = '99000000-0000-4000-8000-000000000301';
 const secondGroupId = '99000000-0000-4000-8000-000000000302';
-const good = (id: string, overrides: Partial<Good> = {}): Good => ({ id, name: id, ip: 'public-ip', type: '굿즈', price: 3000, priceMax: 4500,
+const good = (id: string, overrides: Partial<Good> = {}): Good => ({ id, name: id, ip: 'public-ip', price: 3000, priceMax: 4500,
   compareAtPrice: 5000, badge: null, stock: 'ok', stockQty: 1, img: '#fff', ...overrides });
 const reference = (): GoodOtherCompositionReferences => ({ groups: [{ id: groupId, title: '다른 구성도 살펴보세요',
   goods: [{ goodId: 'good-c', compositionLabel: '300mL' }, { goodId: 'good-b', compositionLabel: null }] }], nextChangeAt: '2026-10-16T00:00:00+00:00' });

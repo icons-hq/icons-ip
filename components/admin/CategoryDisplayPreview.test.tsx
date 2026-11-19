@@ -17,7 +17,7 @@ const CATEGORY_ID = '00000000-0000-4000-8000-000000000001';
 
 function good(id: string, overrides: Partial<Good> = {}): Good {
   return {
-    id, ip: 'ip1', name: `전시 굿즈 ${id}`, type: '키링', price: 10000, badge: null, stock: 'ok' as Stock, stockQty: 10,
+    id, ip: 'ip1', name: `전시 굿즈 ${id}`, price: 10000, badge: null, stock: 'ok' as Stock, stockQty: 10,
     img: 'linear-gradient(#111, #222)', ...overrides,
   };
 }

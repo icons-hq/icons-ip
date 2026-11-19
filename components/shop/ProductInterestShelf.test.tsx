@@ -37,7 +37,7 @@ function cardProps(node: unknown): Record<string, unknown>[] {
   visit(node);
   return found;
 }
-const good = (id: string): Good => ({ id, name: `관심 ${id}`, ip: 'ip', type: '문구', price: 1000, badge: null, img: '', stock: 'ok', stockQty: 3 });
+const good = (id: string): Good => ({ id, name: `관심 ${id}`, ip: 'ip', price: 1000, badge: null, img: '', stock: 'ok', stockQty: 3 });
 function deferred() { let resolve!: (value: InterestCollection) => void; const promise = new Promise<InterestCollection>(done => { resolve = done; }); return { promise, resolve }; }
 async function flush() { await Promise.resolve(); await Promise.resolve(); }
 beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; hooks.effects = []; mocks.authCallback = null; mocks.read.mockReturnValue(null); vi.stubGlobal('window', { localStorage: { getItem: mocks.read, setItem: mocks.write, removeItem: mocks.remove } }); });

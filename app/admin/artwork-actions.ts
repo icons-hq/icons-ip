@@ -7,6 +7,7 @@ import {
   buildAdminArtworkPath,
   normalizeAdminArtworkMetadata,
   parseAdminArtworkPath,
+  parseAdminArtworkStagingFailure,
 } from '@/lib/admin/artwork';
 import {
   cancelAdminArtworkUpload,
@@ -44,6 +45,8 @@ export interface VerifyAdminArtworkUploadInput extends PrepareAdminArtworkUpload
 
 export interface CancelAdminArtworkUploadInput {
   path: unknown;
+  /** 브라우저 → 스테이징 업로드가 실패해 취소할 때의 진단 값(adminArtworkStagingFailure). 형식이 틀리면 무시한다. */
+  failure?: unknown;
 }
 
 export type VerifyAdminArtworkUploadResult =
@@ -91,9 +94,11 @@ export async function cancelAdminArtworkUploadAction(
   }
 
   if (!auth.user) return;
+  const failure = parseAdminArtworkStagingFailure(input.failure);
   await cancelAdminArtworkUpload({
     actorId: auth.user.id,
     path: parsedPath.path,
+    ...(failure ? { failure } : {}),
   });
 }
 

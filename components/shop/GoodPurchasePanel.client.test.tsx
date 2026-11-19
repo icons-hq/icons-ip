@@ -47,7 +47,7 @@ import { GoodBuyBars, GoodPurchasePanel, type GoodPurchaseController } from './G
 const STALE = '판매 상태가 바뀌었어요. 지금 상태를 확인해주세요.';
 const optionA: GoodOption = { id: 'a', name: '옵션 A', code: 'A', price: 26000, stockQty: 20, isDefault: true, attributes: {} };
 const optionB: GoodOption = { id: 'b', name: '옵션 B', code: 'B', price: 28000, stockQty: 0, isDefault: false, attributes: {} };
-const good: Good = { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'ip', type: '아크릴', price: 26000, priceMax: 28000, badge: null, stock: 'ok', stockQty: 20, img: '', options: [optionA, optionB] };
+const good: Good = { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'ip', price: 26000, priceMax: 28000, badge: null, stock: 'ok', stockQty: 20, img: '', options: [optionA, optionB] };
 
 function controller(overrides: Partial<GoodPurchaseController> = {}): GoodPurchaseController {
   return {

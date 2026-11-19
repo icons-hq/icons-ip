@@ -210,7 +210,7 @@ export function preorderScheduleError(code: string): string {
     preorder_schedule_policy_not_replaceable: '접수 중인 예약 조건을 새 날짜로 바꿀 수 없습니다. 그대로 두기를 확인하거나 예약 조건을 먼저 조정해주세요.',
     preorder_admin_required: '접수 중인 예약 조건은 계정 주매니저·통합 매니저만 바꿀 수 있습니다. 그대로 두기를 확인해주세요.',
     preorder_policy_changed: '예약 조건이 다른 화면에서 바뀌었습니다. 대상을 다시 미리 본 뒤 확정해주세요.',
-    preorder_policy_not_configured: '예약 조건을 새 날짜로 활성화할 수 없습니다. 접수 기간과 발송 예정일을 확인해주세요.',
+    preorder_policy_not_configured: '예약 조건을 새 날짜로 적용할 수 없습니다. 접수 기간과 발송 예정일을 확인해주세요.',
     delay_notice_delivery_disabled: '지연 안내 이메일 발송 설정이 꺼져 있어 일정 변경과 안내를 진행할 수 없습니다.',
     delay_notice_not_found: '안내 기록을 찾을 수 없습니다.',
   };

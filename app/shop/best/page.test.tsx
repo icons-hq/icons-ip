@@ -40,7 +40,6 @@ function good(id: string, name: string, price: number): Good {
     id,
     ip: 'ip1',
     name,
-    type: '키링',
     price,
     badge: null,
     stock: 'ok',

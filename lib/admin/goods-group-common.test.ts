@@ -9,6 +9,15 @@ describe('그룹 공통정보의 읽기·저장 경계', () => {
     expect(parseGoodsGroupCommonSnapshot({ ...commonTestRaw, sizeChart: { ...commonTestRaw.sizeChart, goodId: 'another-good' } })).toBeNull();
     expect(parseGoodsGroupCommonSnapshot({ ...commonTestRaw, common: { ...commonTestRaw.common, goods: { ...commonTestRaw.common.goods, price: 2 } } })).toBeNull();
   });
+  it('상품 유형 칸 삭제 사이에는 옛 type 키가 있어도 없어도 읽고, 값은 쓰지 않는다', () => {
+    const goods = commonTestRaw.common.goods as Record<string, unknown>;
+    expect(goods).toHaveProperty('type');
+    expect(parseGoodsGroupCommonSnapshot(commonTestRaw)?.fields).not.toHaveProperty('type');
+    const withoutType = { ...goods }; delete withoutType.type;
+    expect(parseGoodsGroupCommonSnapshot({ ...commonTestRaw, common: { ...commonTestRaw.common, goods: withoutType } })).not.toBeNull();
+    expect(parseGoodsGroupCommonSnapshot({ ...commonTestRaw, common: { ...commonTestRaw.common, goods: { ...goods, type: 1 } } })).toBeNull();
+    expect(GROUP_COMMON_DB_FIELDS).not.toContain('type');
+  });
   it('그룹 전체 공통 입력만 RPC에 전달하고 개별 가격·재고·이미지·결제·배송은 버린다', () => {
     const form = commonTestForm();
     for (const key of ['name', 'price', 'variants', 'imagePath', 'allowCardPayment', 'originId', 'published', 'intent', 'id']) form.set(key, 'attacker-value');

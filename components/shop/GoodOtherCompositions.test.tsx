@@ -10,7 +10,7 @@ vi.mock('@/components/wc/ProductCard', () => ({ ProductCard: (props: ProductCard
   mocks.card(props);
   return <a href={props.href}>{props.name}</a>;
 } }));
-const good: Good = { id: 'good-b', name: '라벤더 세트', ip: 'public-ip', type: '굿즈', price: 3000, priceMax: 5000, compareAtPrice: 6000,
+const good: Good = { id: 'good-b', name: '라벤더 세트', ip: 'public-ip', price: 3000, priceMax: 5000, compareAtPrice: 6000,
   showDiscountRate: false, stock: 'soldout', stockQty: 0, badge: null, img: '#fff' };
 const data: PublicGoodOtherCompositions = { groups: [{ id: '99000000-0000-4000-8000-000000000301', title: '다른 구성도 살펴보세요',
   goods: [{ good, compositionLabel: '2개 세트' }, { good: { ...good, id: 'good-c' }, compositionLabel: null }] }], nextChangeAt: null };

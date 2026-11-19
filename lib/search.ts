@@ -156,14 +156,14 @@ function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions):
       score: mockScore(query, ip.title),
     })),
     ...DATA.GOODS.filter((good) =>
-      matchesQuery(query, [good.name, good.type, good.badge, ipsById.get(good.ip)?.title]),
+      matchesQuery(query, [good.name, good.badge, ipsById.get(good.ip)?.title]),
     ).map((good) => {
       const ip = ipsById.get(good.ip);
       return {
         kind: 'good' as const,
         id: good.id,
         label: good.name,
-        subtitle: [ip?.title, good.type].filter(Boolean).join(' · '),
+        subtitle: ip?.title ?? '',
         ipId: good.ip,
         ipTitle: ip?.title ?? null,
         imagePath: null,

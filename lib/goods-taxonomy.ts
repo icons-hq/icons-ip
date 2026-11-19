@@ -1,34 +1,13 @@
-/* 굿즈 배지의 표준 값과 폐기된 상품 유형 목록 (#326 migration 20260828100000).
+/* 굿즈 배지의 표준 값 (#326 migration 20260828100000).
  *
  * 배지는 DB CHECK(goods_badge_check)와 같은 목록이어야 한다 — 여기가 어드민 폼 select 옵션의
  * 진실원이고, DB 는 마지막 방어선이다.
  *
- * 상품 유형(GOOD_TYPES)은 ADR-0044로 폐기됐다. 운영·고객 화면은 쓰지 않고(굿즈의 종류는 대표
- * 카테고리), 후속 migration이 goods.type 칸을 지울 때까지 남은 DB CHECK(goods_type_check)의 값
- * 목록과 목업 카탈로그만 이 목록을 쓴다. 새 화면·필터 축에 다시 쓰지 않는다.
+ * 상품 유형은 ADR-0044로 폐기됐다. 굿즈의 종류는 대표 카테고리이고, 상품은 유형 값을 쓰지 않는다.
  *
  * SALE 배지는 여기 없다 — 저장 값이 아니라 compare_at_price > price 에서
  * 파생된다(할인 없는 SALE 배지라는 모순을 스키마가 금지한다).
  */
-
-export const GOOD_TYPES = [
-  '피규어',
-  '인형',
-  '키링',
-  '아크릴',
-  '문구',
-  '쿠션',
-  '파우치',
-  '세트',
-  /* MD-0003(R10): 위 분류에 맞지 않는 상품. 20261028131000_goods_type_other.sql에서 CHECK·필터 RPC와 함께 추가했다. */
-  '기타',
-] as const;
-
-export type GoodType = (typeof GOOD_TYPES)[number];
-
-export function isGoodType(value: unknown): value is GoodType {
-  return typeof value === 'string' && (GOOD_TYPES as readonly string[]).includes(value);
-}
 
 export const GOOD_BADGES = ['NEW', 'EXCLUSIVE'] as const;
 

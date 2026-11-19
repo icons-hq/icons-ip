@@ -103,7 +103,6 @@ const catalog: CatalogSnapshot = {
     id: 'g100',
     name: '화산강림 아크릴 스탠드',
     ip: 'hwasan',
-    type: '아크릴 스탠드',
     price: 22000,
     badge: null,
     stock: 'ok',
@@ -610,7 +609,6 @@ describe('admin catalog actions', () => {
       id: 'g100',
       ip_id: 'hwasan',
       name: '화산강림 아크릴 스탠드',
-      type: '아크릴 스탠드',
       price: 22000,
       badge: '신상',
       stock: 'ok',
@@ -620,6 +618,7 @@ describe('admin catalog actions', () => {
       description: null,
       gallery_paths: [],
       detail_image_path: null,
+      detail_image_paths: [],
       previous_id: null,
       compare_at_price: 26000,
       code: null,
@@ -1319,6 +1318,8 @@ describe('admin catalog actions', () => {
     formData.set('galleryPath1', '');
     formData.set('galleryPath2', 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp');
     formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
+    formData.set('detailImagePath1', '');
+    formData.set('detailImagePath2', 'public-media/catalog/good/55555555-5555-4555-8555-555555555555.png');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       message: '상품을 저장했습니다.',
@@ -1332,7 +1333,20 @@ describe('admin catalog actions', () => {
         'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
       ],
       detail_image_path: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+      detail_image_paths: [
+        'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+        'public-media/catalog/good/55555555-5555-4555-8555-555555555555.png',
+      ],
     }) });
+  });
+
+  /* 2026-11-19: 긴 상세 이미지 상한(10장)·첫 장 불일치를 DB가 거절하면 운영자 언어로 알린다. */
+  it('maps a detail image list rejected by the admin RPC', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_detail_images' } });
+
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
+      errors: { form: expect.stringContaining('긴 상세 이미지는 최대 10장') },
+    });
   });
 
   /* #171 — 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락도 운영자 언어로 돌아온다. */
@@ -1888,7 +1902,7 @@ describe('admin catalog actions', () => {
       expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_save_good', 'admin_read_goods_kc', 'admin_save_good', 'admin_read_goods_kc']);
       const [first, retry] = [mocks.rpc.mock.calls[0][1].target_good, mocks.rpc.mock.calls[2][1].target_good];
       // 첫 호출은 트랜잭션째 되돌려졌으므로 다시 저장은 부분 변경이 아니라 같은 전체 입력이고, 공개 전환만 뺀다.
-      expect(first).toMatchObject({ publish: true, type: '아크릴 스탠드' });
+      expect(first).toMatchObject({ publish: true });
       expect(retry).toEqual({ ...first, publish: null });
       expect(mocks.rpc.mock.calls[1][1]).toEqual({ p_good_id: 'g100' });
       expect(mocks.rpc.mock.calls[3][1]).toEqual({ p_good_id: 'g100' });
@@ -2017,14 +2031,21 @@ describe('상품 등록 원자 저장', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good_workspace', { p_request: expect.objectContaining({ operationId: OPERATION, draft: null, sections: {} }) });
   });
 
-  it('관리자가 아니면 예약 활성화를 RPC 전에 막고 입력을 보존한다', async () => {
-    const values = { state: 'active', capacityQty: '3', startsAt: '2026-11-01T10:00', endsAt: '2026-11-10T18:00', expectedShipDate: '2026-11-20', approvalReference: '승인' };
-    const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [{ variant: { id: VARIANT }, values }] }));
-    expect(result.errors?.workspacePreorders).toContain('관리자');
+  /* 2026-11-19: 예약판매는 권한 구분 없이 저장하면 적용된다. 초안(state 'draft')은 RPC 전에 막고 입력을 보존한다. */
+  it('상품 관리 운영자의 예약 조건은 적용(active)으로 래퍼에 보내고, 초안은 RPC 전에 막는다', async () => {
+    mocks.adminState = { ...mocks.adminState, operatorAccess: legacyOperatorAccessFixture('staff') };
+    const values = { state: 'active', capacityQty: '3', startsAt: '2099-11-01T10:00', endsAt: '2099-11-10T18:00', expectedShipDate: '2099-11-20' };
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100', created: true, kc: null, preorders: [{ id: VARIANT }] }, error: null });
+    await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [{ variant: { id: VARIANT }, values }] }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good_workspace', { p_request: expect.objectContaining({
+      sections: { preorders: [{ variant: { id: VARIANT }, policyId: null, expectedRevision: null, values: expect.objectContaining({ state: 'active', capacityQty: 3, approvalReference: null }) }] } }) });
+    mocks.rpc.mockClear();
+    const draft = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [{ variant: { id: VARIANT }, values: { ...values, state: 'draft' } }] }));
+    expect(draft.errors?.workspacePreorders).toEqual(expect.any(String));
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good_workspace', expect.anything());
-    expect(result.values?.name).toBe('화산강림 아크릴 스탠드');
-    expect(result.values).not.toHaveProperty('workspaceSections');
-    expect(result.values).not.toHaveProperty('workspaceOperationId');
+    expect(draft.values?.name).toBe('화산강림 아크릴 스탠드');
+    expect(draft.values).not.toHaveProperty('workspaceSections');
+    expect(draft.values).not.toHaveProperty('workspaceOperationId');
   });
 
   it.each([
@@ -2054,7 +2075,7 @@ describe('상품 등록 원자 저장', () => {
   it('판매기간과 예약 활성화 충돌은 예약판매 카드와 판매기간 칸에 등록 화면 안내를 붙인다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_sale_period_preorder_conflict' } });
     const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
-    expect(result.errors?.workspacePreorders).toContain('예약 조건을 초안으로 바꾸거나 판매기간을 설정안함으로');
+    expect(result.errors?.workspacePreorders).toContain('예약 조건을 빼거나 판매기간을 설정안함으로');
     expect(result.errors?.saleStartsAt).toContain('판매기간');
     expect(JSON.stringify(result.errors)).not.toContain('일반재고로 전환');
   });
@@ -2066,7 +2087,7 @@ describe('상품 등록 원자 저장', () => {
   });
 
   /* ADR-0044: 공개 요청에 대표 카테고리가 없으면 저장하지 않고 카테고리 칸에 알린다. type은 폼이 싣는 값을 그대로 보낸다(패스스루). */
-  it('대표 카테고리 없는 공개 요청은 카테고리 칸 오류로 막고, type은 폼 값 그대로 보낸다', async () => {
+  it('대표 카테고리 없는 공개 요청은 카테고리 칸 오류로 막는다', async () => {
     const noCategory = workspaceForm({ kc: null, preorders: [] }); noCategory.set('intent', 'publish');
     noCategory.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
     const blocked = await upsertAdminGoodAction({}, noCategory);
@@ -2075,7 +2096,7 @@ describe('상품 등록 원자 저장', () => {
     const draft = workspaceForm({ kc: null, preorders: [] }); draft.set('type', '저장된 유형');
     mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100' }, error: null });
     await upsertAdminGoodAction({}, draft);
-    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_request.good.type).toBe('저장된 유형');
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_request.good).not.toHaveProperty('type');
   });
 
   it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID는 저장하지 않는다', async () => {

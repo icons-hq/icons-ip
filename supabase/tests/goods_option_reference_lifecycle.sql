@@ -26,8 +26,11 @@ select id as unused_variant from public.goods_variants where good_id='option-ref
 select public.admin_save_goods_price_period('option-reference-lifecycle',:'price_variant',null,
  '{"state":"draft","discountPrice":null,"startsAt":null,"endsAt":null}')->>'id' as price_period \gset
 select public.admin_save_goods_variant_purchase_cost('option-reference-lifecycle',:'cost_variant',0,'included',null);
+-- 예약은 저장하면 적용된다(초안 없음). 적용한 뒤 일반 재고로 돌리면(미할당 예약 0 → 한 번에 중지) 선택은 풀리고 정책 이력만 옵션을 참조한다.
 select public.admin_save_goods_preorder('option-reference-lifecycle',:'preorder_variant',null,
- '{"state":"draft","capacityQty":null,"startsAt":null,"endsAt":null,"expectedShipDate":null,"approvalReference":null}')->>'id' as preorder_policy \gset
+ jsonb_build_object('state','active','capacityQty',2,'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 day',
+ 'expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7))->>'id' as preorder_policy \gset
+select public.admin_use_stock_supply('option-reference-lifecycle',:'preorder_variant',:'preorder_policy',1);
 select jsonb_build_object('previous_id',good.id,'id',good.id,'ip_id',good.ip_id,'name','제거 후 보존 검증','price',good.price,
  'variant_baseline',(select jsonb_agg(id::text order by id) from public.goods_variants where good_id=good.id and archived_at is null),
  'variants',(select jsonb_agg(jsonb_build_object('id',variant.id,'name',variant.name,'code',variant.code,'attributes',variant.attributes,
@@ -46,6 +49,6 @@ reset role;
 select 1/case when exists(select 1 from private.goods_variant_price_periods where id=:'price_period' and variant_id=:'price_variant')
  and exists(select 1 from private.goods_variant_purchase_costs where variant_id=:'cost_variant' and unit_cost_krw=0 and tax_basis='included' and revision=1)
  and (select count(*) from private.goods_variant_purchase_cost_changes where variant_id=:'cost_variant')=1
- and exists(select 1 from private.goods_preorder_policies where id=:'preorder_policy' and variant_id=:'preorder_variant' and state='draft')
+ and exists(select 1 from private.goods_preorder_policies where id=:'preorder_policy' and variant_id=:'preorder_variant' and state='stopped')
  then 1 else 0 end as assert_all_reference_records_survive_failed_delete_subtransactions;
 rollback;

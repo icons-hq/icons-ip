@@ -22,7 +22,7 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { ProductShippingSavings } from './ProductShippingSavings';
 
 const option: GoodOption = { id: '92200000-0000-4000-8000-000000000001', name: '기본', code: 'BASE', price: 12000, stockQty: 5, isDefault: true, attributes: {} };
-const candidate = (id: string): Good => ({ id, name: `후보 ${id}`, ip: 'ip', type: '문구', price: 3000, badge: null, img: '', stock: 'ok', stockQty: 9,
+const candidate = (id: string): Good => ({ id, name: `후보 ${id}`, ip: 'ip', price: 3000, badge: null, img: '', stock: 'ok', stockQty: 9,
   options: [{ id: id === 's1' ? '92200000-0000-4000-8000-000000000011' : '92200000-0000-4000-8000-000000000012', name: '기본', code: 'BASE', price: 3000, stockQty: 9, isDefault: true, attributes: {} }] });
 const savings: ShippingSavings = { nextChangeAt: null, items: ['s1', 's2'].map((id) => ({
   goodId: id, variantId: candidate(id).options![0].id, variantName: '기본', qty: 1, separateFee: 3000, combinedFee: 0, savings: 3000, good: candidate(id),

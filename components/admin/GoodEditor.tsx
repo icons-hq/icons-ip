@@ -11,7 +11,8 @@ import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShipping
 
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type Dispatch, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
-import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
+import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_DETAIL_IMAGE_FIELD_NAMES, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
+import { GoodsDetailImageList } from './GoodsDetailImageList';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
@@ -75,7 +76,7 @@ import { DEFAULT_FULFILLMENT_ORIGIN_ID } from '@/lib/admin/fulfillment-origins';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRemainingByCard, GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
-import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
+import { ActionNotice, Field, SelectField, TextArea } from './fields';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/admin/kit/ui/dropdown-menu';
 import { adminConfirm, confirmAdminSubmit } from '@/lib/admin/confirm';
@@ -205,7 +206,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   canSearchErp?: boolean;
   /** 연결 IP 상세(공개 상태 확인) 링크. IP 화면은 platform.manage라 ERP 품명 제안(catalog.manage)과 따로 게이트한다. */
   canOpenIp?: boolean;
-  /** 등록 화면 예약판매 활성화 권한(platform.manage+admin). 서버·DB가 다시 검사한다. */
+  /** 등록 화면 나머지 설정의 매입단가 입력 권한(platform.manage+admin, 예전 이름 그대로). 예약판매는 권한 구분 없이 저장하면 적용된다. 서버·DB가 다시 검사한다. */
   canActivatePreorders?: boolean;
   initialIpId?: string; variants: AdminGoodsVariant[]; origins: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
   /** 반품/교환지 주소록(S36-040). 비운 상품은 출고지 반품 주소를 쓴다. */
@@ -347,14 +348,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const priceResult = resolveGoodsPrice(priceDraft);
   /* ERP 품목 선택이 비어 있는 대표 카테고리를 채울 수 있도록 대표 카테고리는 이 폼이 제어한다. */
   const [categoryId, setCategoryId] = useState(initial.categoryId);
-  /*
-   * ADR-0044: 상품 유형은 없다. 폼은 저장된 type을 그대로 다시 보낸다(패스스루, 새 상품은 ''). DB 저장이 type을 payload 값으로 쓰므로
-   * 빼거나 바꾸면 기존 값이 지워지거나 KC 지문이 달라져 검토가 되돌아간다. 카테고리에서 파생하지 않는다.
-   */
-  const storedType = selected?.type ?? '';
   /* 공개 중 상품의 대표 카테고리를 비웠다는 오류는 카테고리를 다시 고르면 다음 제출을 기다리지 않고 지운다. */
   const errors = attributesCleared.categoryId === GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE && categoryId ? { ...attributesCleared, categoryId: undefined } : attributesCleared;
-  const typedValues = useMemo<Record<string, string>>(() => ({ ...values, type: storedType }), [values, storedType]);
   /* 고시 템플릿 제안: 대표 카테고리 이름을 말단에서 위로 올라가며 맞는 템플릿을 찾는다(GoodNoticePicker). */
   const suggestNames = useMemo(() => (categoryId ? categoryPath(categories, categoryId).reverse() : NO_SUGGEST_NAMES), [categories, categoryId]);
   const attributesReady = groupOwned || goodsAttributeSubmissionReady(values.productAttributes, categoryId);
@@ -493,7 +488,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
    * 공개 미리보기·상세 HTML 정리는 무겁다(R19). 입력과 무관한 상태 변화(오류·안내·업로드 진행)에는 다시 계산하지 않고,
    * 입력 변화도 지연 값으로 받아 입력칸 응답을 먼저 그린 뒤 미리보기를 낮은 우선순위로 다시 그린다.
    */
-  const previewValues = useDeferredValue(typedValues);
+  const previewValues = useDeferredValue(values);
   const previewImageUrls = useDeferredValue(imageUrls);
   const { ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
     values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions,
@@ -501,6 +496,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
+  const detailImageCount = GOODS_DETAIL_IMAGE_FIELD_NAMES.filter((name) => values[name]).length;
   const previewHtmlDescription = previewValues.descriptionFormat === 'html';
   const previewDescription = previewValues.description;
   const descriptionCheck = useMemo(() => previewHtmlDescription ? sanitizeGoodsDescription(previewDescription ?? '') : null, [previewHtmlDescription, previewDescription]);
@@ -515,14 +511,14 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const kcDone = selected ? readiness?.publicReview === 'current' : Boolean(atomicSections?.sections.kc.attested && atomicSections.sections.kc.models.length);
   const published = Boolean(selected?.publishedAt);
   /* 공개 중인 상품은 공개 조건을 이미 통과했다. 재고 0(품절)과 기존 공개 · KC 미기록은 미입력이 아니고, 서버가 KC 재검토를 요구할 때만 남은 칸으로 센다. */
-  const requirements = goodPublishRequirements({ values: { ...typedValues, categoryId }, regularPrice: priceResult.regularPrice, hasStock: published || rows.some((row) => row.isActive !== false && row.stockQty > 0), kcDone: published ? readiness?.publicReview !== 'required' : kcDone, missingAttributes });
+  const requirements = goodPublishRequirements({ values: { ...values, categoryId }, regularPrice: priceResult.regularPrice, hasStock: published || rows.some((row) => row.isActive !== false && row.stockQty > 0), kcDone: published ? readiness?.publicReview !== 'required' : kcDone, missingAttributes });
   const remainingByCard = goodRemainingByCard(requirements);
   const remaining = requirements.filter((item) => !item.done);
   const showPublishProgress = !published && !selected?.archivedAt;
   /* 필수 입력 진행은 섹션 이동 띠 한 곳에서 보인다. 입력 완료 표시는 초안과 공개 중인 상품이 같다. */
   const showCardProgress = !selected?.archivedAt;
   /* 저장 후 공개는 이름대로 공개될 때만 보인다: 저장할 입력이 있고, 공개 조건을 채웠고, 이번 저장이 KC 검토를 되돌리지 않을 때. 나머지 공개는 판매 준비 카드가 맡는다. */
-  const kcContextChanged = Boolean(selected && !published && kcDone && dirty && goodKcContextChanged(lockedValues, typedValues, initialGoodsOptionRows(variants, Number(lockedValues.price)), rows));
+  const kcContextChanged = Boolean(selected && !published && kcDone && dirty && goodKcContextChanged(lockedValues, values, initialGoodsOptionRows(variants, Number(lockedValues.price)), rows));
   /*
    * T15b(0901-008): 새 상품도 공개 조건과 KC(함께 저장할 입력)를 채우면 저장 막대에 '저장 후 공개'가 나온다. 래퍼가 저장을 끝낸 뒤 같은 요청에서
    * 기존 공개 경로로 공개를 시도하고, 거절되면 저장은 남기고 이유를 알린다. 화면의 남은 필수 표시는 안내일 뿐 판정은 서버가 한다.
@@ -599,8 +595,6 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         <div className={locked || groupOwned ? GOOD_LOCKED_SELECTS_CLASS : 'min-w-0'}><AdminFormGrid>
           <SelectField defaultValue={initial.ipId} error={errors.ipId} label={locked ? "연결 IP · 공개 중 잠금" : "연결 IP (필수)"} disabled={locked || groupOwned} name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
           {(locked || groupOwned) && <input type="hidden" name="ipId" value={initial.ipId} />}
-          {/* ADR-0044: 상품 유형은 없다. 저장된 type을 그대로 싣는다(새 상품은 빈 값). */}
-          <input type="hidden" name="type" value={storedType} />
         </AdminFormGrid></div>
         {/*
           ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·대표 카테고리가 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"
@@ -671,9 +665,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             <p className="text-sm text-muted-foreground">호스팅 이미지 주소(https://…)는 업로드 없이 HTML에 그대로 쓰면 됩니다. http 주소는 https로 바꿔 저장합니다. 호스팅하지 않은 이미지만 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
           </fieldset>
         </OwnedFields>
-        <GoodOptionalFields id="good-optional-detail-image" title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
-          <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지(상세 설명) 아래에 원래 비율로 붙는 이미지 파일 1장입니다. 호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
-          <ErrorText>{errors.detailImagePath}</ErrorText>
+        {/* 2026-11-19 MD 요청: 긴 상세 이미지는 썸네일처럼 여러 장(최대 10장)을 올리고 순서를 바꾼다. 첫 칸 이름은 옛 한 장 칸(detailImagePath) 그대로다. */}
+        <GoodOptionalFields id="good-optional-detail-image" title="긴 상세 이미지 (선택)" summary={detailImageCount ? `${detailImageCount}장` : '이미지 없음'} hasErrors={GOODS_DETAIL_IMAGE_FIELD_NAMES.some((name) => errors[name])}>
+          <GoodsDetailImageList errors={errors} initialPaths={GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />
         </GoodOptionalFields>
       </GoodEditorSection>
 

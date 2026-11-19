@@ -41,11 +41,11 @@ select public.service_verify_admin_artwork_upload('00000000-0000-4000-8000-00000
 select 1/case when public.service_admin_artwork_upload_block_reason('00000000-0000-4000-8000-000000110301','verify') is null
   then 1 else 0 end as in_progress_cleared;
 
--- 1분에 22건을 확인하면 23번째는 막히고, 사유는 verification_rate_limited다.
+-- 1분에 40건(굿즈 폼 20칸 × 2, 20261119170100)을 확인하면 41번째는 막히고, 사유는 verification_rate_limited다.
 do $$
 declare n integer;
 begin
-  for n in 2..22 loop
+  for n in 2..40 loop
     if n > 2 and not public.service_prepare_admin_artwork_upload('00000000-0000-4000-8000-000000110301',pg_temp.claim_path(1,n),'good','image/webp',100,now()+interval '10 minutes') then
       raise exception 'prepare % should pass', n;
     end if;
@@ -55,8 +55,8 @@ begin
     end if;
   end loop;
 end $$;
-select 1/case when public.service_prepare_admin_artwork_upload('00000000-0000-4000-8000-000000110301',pg_temp.claim_path(1,23),'good','image/webp',100,now()+interval '10 minutes')
-  and not exists(select 1 from public.service_begin_admin_artwork_verification('00000000-0000-4000-8000-000000110301',pg_temp.claim_path(1,23)))
+select 1/case when public.service_prepare_admin_artwork_upload('00000000-0000-4000-8000-000000110301',pg_temp.claim_path(1,41),'good','image/webp',100,now()+interval '10 minutes')
+  and not exists(select 1 from public.service_begin_admin_artwork_verification('00000000-0000-4000-8000-000000110301',pg_temp.claim_path(1,41)))
   and public.service_admin_artwork_upload_block_reason('00000000-0000-4000-8000-000000110301','verify')='verification_rate_limited'
   then 1 else 0 end as rate_limited_reason;
 

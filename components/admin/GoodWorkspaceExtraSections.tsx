@@ -117,14 +117,14 @@ export function GoodWorkspacePurchaseCostsSection({ serverError }: { serverError
 }
 
 let periodSequence = 0;
-/** 기간 할인. 옵션목록의 지금 옵션을 대상으로 초안 또는 활성 할인을 넣는다. */
+/** 기간 할인. 옵션목록의 지금 옵션을 대상으로 넣고, 상품을 저장하면 바로 적용된다(2026-11-19 — 초안 선택 없음). */
 export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?: string }) {
   const { value, set, error, workspace } = useExtra('pricePeriods');
   const rows = workspace?.optionRows ?? [];
   const options = rows.map((row, index) => ({ key: goodsOptionRowKey(row), label: `${row.name.trim() || `옵션 ${index + 1}`}${row.isActive === false ? ' (사용 중지)' : ''}` }));
   const update = (key: string, patch: Partial<GoodWorkspacePricePeriodDraft>) => set((current) => current.map((entry) => entry.key === key ? { ...entry, ...patch } : entry));
   return <DraftBody testId="prices">
-    <p className="text-muted-foreground">옵션별 기간 할인을 상품과 함께 저장합니다. 사용 상태가 &lsquo;대기&rsquo;면 가격에 반영되지 않고, &lsquo;적용&rsquo;이면 시작~종료 동안 기간 할인가로 판매합니다. 같은 옵션에 적용하는 할인끼리는 기간이 겹칠 수 없습니다.</p>
+    <p className="text-muted-foreground">옵션별 기간 할인을 함께 저장합니다. 저장하면 시작~종료 동안 기간 할인가로 판매합니다. 같은 옵션의 할인 기간은 겹칠 수 없습니다.</p>
     {!value.length ? <p className="text-muted-foreground">입력한 기간 할인이 없습니다. 필요 없으면 비워 두세요.</p> : null}
     {value.map((entry, index) => <fieldset key={entry.key} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4">
       <legend className="float-left w-full p-0 text-sm font-medium">기간 할인 {index + 1}</legend>
@@ -138,14 +138,10 @@ export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?
         <label className={FIELD_LABEL_CLASS}>시작 (KST)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={entry.startsAt} onChange={(event) => update(entry.key, { startsAt: event.target.value })} /></label>
         <label className={FIELD_LABEL_CLASS}>종료 (KST)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={entry.endsAt} onChange={(event) => update(entry.key, { endsAt: event.target.value })} /></label>
       </div>
-      <div className={FIELD_LABEL_CLASS}><label htmlFor={`${entry.key}-state`}>사용 상태</label>
-        <NativeSelect className="w-full sm:w-fit" id={`${entry.key}-state`} value={entry.state} onChange={(event) => update(entry.key, { state: event.target.value === 'active' ? 'active' : 'draft' })}>
-          <option value="draft">대기 · 가격에 반영 안 함</option><option value="active">적용 · 기간 중 할인가로 판매</option>
-        </NativeSelect></div>
       <div><button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => set((current) => current.filter((item) => item.key !== entry.key))}>이 기간 할인 빼기</button></div>
     </fieldset>)}
     <div><button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={!options.length || value.length >= 100}
-      onClick={() => { periodSequence += 1; set((current) => [...current, { key: `period-${periodSequence}`, optionKey: options[0]?.key ?? '', state: 'draft', discountPrice: '', startsAt: '', endsAt: '' }]); }}>기간 할인 추가</button></div>
+      onClick={() => { periodSequence += 1; set((current) => [...current, { key: `period-${periodSequence}`, optionKey: options[0]?.key ?? '', state: 'active', discountPrice: '', startsAt: '', endsAt: '' }]); }}>기간 할인 추가</button></div>
     <SectionError message={error ?? serverError} />
   </DraftBody>;
 }
@@ -261,11 +257,11 @@ export function GoodWorkspaceListingColorsSection({ serverError }: { serverError
   </DraftBody>;
 }
 
-/** 복수구매 할인·착불·수량별 배송비. 초안은 결제에 적용되지 않는다. */
+/** 복수구매 할인·착불·수량별 배송비. '사용'으로 둔 항목만 결제에 적용된다(2026-11-19 — 초안 선택 없음). */
 export function GoodWorkspaceTransactionTermsSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('transactionTerms');
   return <DraftBody testId="transaction-terms">
-    <p className="text-muted-foreground">입력한 복수구매 할인·확장 배송비를 상품과 함께 저장합니다. 상태가 &lsquo;대기&rsquo;면 결제에 적용되지 않습니다.</p>
+    <p className="text-muted-foreground">입력한 할인·확장 배송비를 상품과 함께 저장합니다. &apos;사용&apos;으로 둔 항목은 저장하면 바로 결제에 적용됩니다.</p>
     <section aria-label="복수구매 할인" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">복수구매 할인</h3>
       <GoodsVolumeDiscountFields value={value.volume} onChange={(volume) => set((current) => ({ ...current, volume }))} /></section>
     <section aria-label="착불·수량별 배송비" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">착불·수량별 배송비</h3>

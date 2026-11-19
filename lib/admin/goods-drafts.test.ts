@@ -12,6 +12,11 @@ describe('server registration drafts',()=>{
     expect(validateGoodsDraftValues({...values,price:500})).toBe(false);
     expect(validateGoodsDraftValues({...values,imagePath:'blob:temporary'})).toBe(false);
     expect(validateGoodsDraftValues({...values,variantBaseline:'["existing-option"]'})).toBe(false);
+    /* 2026-11-19: 긴 상세 이미지 둘째 칸 이후(detailImagePath1…9)도 검증된 공개 경로만 담는다. 10번째 너머 칸은 받지 않는다. */
+    const detail='public-media/catalog/good/123e4567-e89b-42d3-a456-426614174000.png';
+    expect(validateGoodsDraftValues({...values,detailImagePath:detail,detailImagePath9:detail})).toBe(true);
+    expect(validateGoodsDraftValues({...values,detailImagePath3:'https://example.test/a.png'})).toBe(false);
+    expect(validateGoodsDraftValues({...values,detailImagePath10:detail})).toBe(false);
     /* R17: 상세 HTML 상한(200,000자, 한글 약 600KB)을 담은 작성 내용도 서버 임시저장된다. 상한은 2MB(DB와 같다). */
     expect(GOODS_DRAFT_MAX_BYTES).toBe(2 * 1024 * 1024);
     expect(validateGoodsDraftValues({...values,descriptionFormat:'html',description:'한'.repeat(200000)})).toBe(true);
@@ -33,6 +38,8 @@ describe('server registration drafts',()=>{
   it('rejects malformed readbacks instead of rendering false empty/saved states',()=>{
     expect(parseGoodsDraft({...summary,values:{name:'미완성 상품'}})?.revision).toBe(2);
     expect(parseGoodsDraft({...summary,values:{name:'미완성 상품',password:'bad'}})).toBeNull();
+    // 상품 유형 칸 삭제 전에 저장한 임시저장의 옛 'type'은 버리고 읽는다(ADR-0044).
+    expect(parseGoodsDraft({...summary,values:{name:'미완성 상품',type:'문구'}})?.values).toEqual({name:'미완성 상품'});
     expect(parseGoodsDraftPage({rows:[summary],total:1,page:1,pageSize:20})?.rows).toEqual([summary]);
     expect(parseGoodsDraftPage({rows:[{...summary,revision:0}],total:1,page:1,pageSize:20})).toBeNull();
   });
