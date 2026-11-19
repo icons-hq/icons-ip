@@ -762,6 +762,9 @@ begin
         and reward_policy_id = policy.id and consumed_at is null and revoked_at is null;
     end if;
   end loop;
+  -- 남는 굿즈가 없어진 배송 건은 배송 건 기록을 그대로 두고 주문 상태 계산에서만 뺀다(배송중이던 분실 배송 건 등) — 나머지가 모두
+  -- 도착했으면 주문이 배송완료로 넘어가 구매확정이 열린다(derive_order_shipment_status·refresh_order_fulfillment 21-6).
+  perform private.refresh_order_fulfillment(head.order_id);
   insert into public.audit_log(actor_id, action, target, diff)
   values (p_actor, 'admin.order.partial_return_applied', 'order:' || head.order_id::text,
     jsonb_build_object('partialCancellationId', p_id, 'claimId', head.claim_id, 'state', p_next_state, 'provider', head.provider,
@@ -1041,13 +1044,45 @@ select private.j47_patch_function('public.admin_record_claim_defective_stock(uui
         or exists(select 1 from public.audit_log a where a.target = 'order:' || claim.order_id::text and a.action = 'order.option_stock_partially_restored'
           and a.diff->>'orderItemId' = item.id::text and a.diff->>'claimId' = p_claim_id::text) then$a$);
 
--- 17. 부분 반품 완료는 주문 전체 취소·반품 완료가 아니다 — 리뷰 이벤트 보상 회수·베스트 리뷰 무효화를 주문 전체에 걸지 않는다.
+-- 17. 부분 반품 완료는 주문 전체 취소·반품 완료가 아니다 — 리뷰 이벤트 보상 회수·베스트 리뷰 무효화를 주문 전체에 걸지 않고, 리뷰한 굿즈의
+--     살아 있는 수량이 0이 된(그 굿즈를 모두 반품한) 리뷰의 보상·베스트만 회수·무효화한다. 남은 굿즈의 보상·베스트는 지킨다(Codex 리뷰).
+create function private.reverse_review_event_returned_awards(p_order_id uuid, p_reason text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare award record;
+begin
+  for award in select a.entry_id from private.review_event_awards a join private.review_event_entries e on e.id = a.entry_id
+    where a.order_id = p_order_id and a.revoked_at is null
+      and not exists(select 1 from public.order_items i where i.order_id = p_order_id and i.good_id = e.good_id
+        and private.order_item_active_qty(i.id) > 0)
+    order by a.user_id, a.entry_id loop
+    perform private.reverse_review_event_award(award.entry_id, p_reason, null);
+  end loop;
+end $$;
+revoke all on function private.reverse_review_event_returned_awards(uuid, text) from public, anon, authenticated, service_role;
 select private.j47_patch_function('private.review_event_purchase_revocation()',
   $a$and (new.status='completed' or new.stage='completed') then$a$,
   $a$and (new.status='completed' or new.stage='completed') and not private.claim_is_partial_return(new.id) then$a$);
+select private.j47_patch_function('private.review_event_purchase_revocation()',
+  $a$perform private.reverse_review_event_order_awards(new.order_id,'원주문 취소·반품 완료');
+ end if;$a$,
+  $a$perform private.reverse_review_event_order_awards(new.order_id,'원주문 취소·반품 완료');
+ elsif new.claim_type='return' and (new.status='completed' or new.stage='completed') and private.claim_is_partial_return(new.id) then
+  perform 1 from public.orders where id=new.order_id for update;
+  perform private.reverse_review_event_returned_awards(new.order_id,'리뷰한 굿즈 부분 반품 완료');
+ end if;$a$);
 select private.j47_patch_function('private.review_best_purchase_changed()',
   $a$and (new.status='completed' or new.stage='completed') then$a$,
   $a$and (new.status='completed' or new.stage='completed') and not private.claim_is_partial_return(new.id) then$a$);
+select private.j47_patch_function('private.review_best_purchase_changed()',
+  $a$ end if;
+ if changed_order_id is not null then$a$,
+  $a$ elsif new.claim_type='return' and (new.status='completed' or new.stage='completed') and private.claim_is_partial_return(new.id) then
+  perform pg_advisory_xact_lock(hashtextextended('review-best-order:'||new.order_id::text,0));
+  perform private.invalidate_review_best(array(select r.id from public.reviews r where r.order_id=new.order_id
+    and not exists(select 1 from public.order_items i where i.order_id=r.order_id and i.good_id=r.good_id and private.order_item_active_qty(i.id)>0)),
+    'purchase_changed');
+ end if;
+ if changed_order_id is not null then$a$);
 
 -- 18. 읽기. 부분 환불 원장 JSON은 부분 반품 줄에만 종류·클레임·차감 칸을 더한다(재고 부족 부분 취소 줄의 모양은 그대로).
 select private.j47_patch_function('private.order_partial_cancellation_json(uuid,text)',
@@ -1407,6 +1442,18 @@ select private.j47_patch_function('public.admin_resolve_goods_references(text[])
   $a$select item.good_id,sum(item.qty::bigint) quantity from paid_orders p$a$,
   $a$select item.good_id,sum((item.qty-private.order_item_returned_qty(item.id))::bigint) quantity from paid_orders p$a$);
 
+-- 21-6. 부분 반품으로 남는 굿즈가 없어진 배송 건(배송 건 기록은 보존)은 주문 상태 계산에서 뺀다 — 재고 부족 부분 취소로 닫힌 배송 건과 같다.
+--       배송중이던 배송 건(분실 등)의 굿즈를 모두 부분 반품하면 그 배송 건이 배송중으로 남아 나머지가 다 도착해도 주문이 배송중에 머물렀다(Codex 리뷰).
+--       배송완료였던 배송 건은 배송완료 그대로라 계산에 남는다(배송완료 시각에 포함).
+select private.j47_patch_function('private.derive_order_shipment_status(uuid)',
+  $a$s.status<>'delivered' and not private.shipment_closed_by_partial_cancel(s.id)) then 'delivered'$a$,
+  $a$s.status<>'delivered' and not private.shipment_closed_by_partial_cancel(s.id)
+      and not private.shipment_emptied_by_partial_return(s.id)) then 'delivered'$a$);
+select private.j47_patch_function('private.refresh_order_fulfillment(uuid)',
+  $a$case when bool_and(status='delivered' and delivered_at is not null) then max(delivered_at) end$a$,
+  $a$case when bool_and(status='delivered' and delivered_at is not null)
+      filter (where status='delivered' or not private.shipment_emptied_by_partial_return(id)) then max(delivered_at) end$a$);
+
 -- 20. 운영자 계약. 새 RPC는 분류를 적고, 본문을 바꾼 함수는 등록된 분류값 그대로 지문을 다시 적는다. 새 RLS 정책도 등록한다.
 select private.register_operator_rpc_contract('public.admin_order_partial_return_context(uuid)'::regprocedure, 'sales.manage', 'read', false);
 select private.register_operator_rpc_contract('public.admin_submit_seller_partial_return_intake(uuid,jsonb,jsonb,jsonb)'::regprocedure, 'sales.manage', 'write', false);
@@ -1470,7 +1517,9 @@ do $$declare fn regprocedure; contract record; begin
     'public.admin_resolve_goods_references(text[])'::regprocedure,
     'private.guard_shipment_dispatch_during_partial_cancel()'::regprocedure,
     'public.admin_shipment_partial_cancel_flags(uuid[])'::regprocedure,
-    'public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure] loop
+    'public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure,
+    'private.derive_order_shipment_status(uuid)'::regprocedure,
+    'private.refresh_order_fulfillment(uuid)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only); end if;
     if exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

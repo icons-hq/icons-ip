@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { ReturnFeeDeduction } from '@/lib/claims/return-fee-deduction';
-import { ClaimActionPanel, claimRefundCompletionConfirmation, partialReturnBankFilingConfirmation, type ClaimActionPanelProps } from './ClaimActionPanel';
+import { ClaimActionPanel, claimRefundCompletionConfirmation, partialReturnBankFilingConfirmation, partialReturnFilingConfirmation, type ClaimActionPanelProps } from './ClaimActionPanel';
 
 /*
  * 반품배송비 차감(ADR-0031). 단순 변심 반품의 환불 단계에 '반품배송비 3,000원 차감, 환불 27,000원'이 보이고, 결제사 버튼은
@@ -166,10 +166,10 @@ describe('부분 반품 적대적 리뷰 반영(2026-11-19)', () => {
     expect(html).toContain('환불 접수 완료로 기록');
     expect(html).toContain(`data-confirm="${partialReturnBankFilingConfirmation({ refundAmount: 6500, deductionAmount: 3000 })}"`);
     expect(partialReturnBankFilingConfirmation({ refundAmount: 6500, deductionAmount: 3000 }))
-      .toBe('부분 반품 환불 6,500원(반품배송비 3,000원 차감)을 접수할까요? 접수하면 고른 상품의 재고를 지금 복원하고 환불 송금 대기에 올립니다. 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.');
+      .toBe('부분 반품 환불 6,500원(반품배송비 3,000원 차감)을 접수할까요? 접수하면 고른 상품의 재고를 지금 처리하고(불량으로 고른 상품은 판매 재고 제외) 환불 송금 대기에 올립니다. 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.');
     const toss = render({ partialReturn: { refundAmount: 6500, deductionAmount: 3000 }, stage: 'collected' });
     expect(toss).toContain('환불 접수 완료로 기록');
-    expect(toss).not.toContain('data-confirm="부분 반품 환불');
+    expect(toss).toContain(`data-confirm="${partialReturnFilingConfirmation({ refundAmount: 6500, deductionAmount: 3000 }, '토스')}"`);
   });
 
   it('부분 반품 칸을 읽지 못하면 환불 단계를 열지 않고 경고만 보인다 — 주문 전체 환불 문구를 그리지 않는다', () => {
@@ -185,6 +185,32 @@ describe('부분 반품 적대적 리뷰 반영(2026-11-19)', () => {
       defectiveStock: { claimId: CLAIM_ID, frozen: false, pending: 0,
         items: [{ orderItemId: '22222222-2222-4222-8222-222222222222', name: 'TEST 굿즈', variantName: null, qty: 1, defective: false, state: null }] } });
     expect(html).toContain('계좌 송금 부분 환불로 바꿀 때 고른 상품의 재고가 정해집니다');
+  });
+});
+
+describe('부분 반품 접수의 재고 처리·확인(Codex 리뷰)', () => {
+  const stock = { claimId: CLAIM_ID, frozen: false, pending: 0,
+    items: [{ orderItemId: '22222222-2222-4222-8222-222222222222', name: 'TEST 상품', variantName: null, qty: 1, defective: false, state: null as null }] };
+
+  it('0원 부분 반품의 [환불 접수]는 결제 수단과 무관하게 확인창을 거치고 재고 처리(불량 선택)를 같은 양식에 싣는다', () => {
+    const html = render({ partialReturn: { refundAmount: 0, deductionAmount: 0 }, stage: 'collected', defectiveStock: stock });
+    expect(html).toContain(`data-confirm="${partialReturnFilingConfirmation({ refundAmount: 0, deductionAmount: 0 }, '토스')}"`);
+    expect(partialReturnFilingConfirmation({ refundAmount: 0, deductionAmount: 0 }, '토스')).toContain('불량으로 고른 상품은 판매 재고 제외');
+    expect(html).toContain('claim-refund-file-stock');
+    expect(html).toContain('돌려줄 결제 금액이 0원');
+  });
+
+  it('토스 부분 반품의 [환불 접수]도 금액이 고정된다고 확인받고, 재고 처리를 함께 저장할 수 있다', () => {
+    expect(partialReturnFilingConfirmation({ refundAmount: 6500, deductionAmount: 0 }, '토스'))
+      .toBe('부분 반품 환불 6,500원을 접수할까요? 접수하면 금액이 고정되고 바뀌지 않습니다. 토스 부분 취소는 [환불 완료 확정]을 누를 때 요청됩니다. 되돌릴 수 없습니다.');
+    const html = render({ partialReturn: { refundAmount: 6500, deductionAmount: 0 }, stage: 'collected', defectiveStock: stock });
+    expect(html).toContain('claim-refund-file-stock');
+  });
+
+  it('주문 전체 반품의 [환불 접수]는 지금 그대로다(확인창·재고 선택 없음)', () => {
+    const html = render({ stage: 'collected', defectiveStock: stock });
+    expect(html).not.toContain('claim-refund-file-stock');
+    expect(html).not.toContain('data-confirm="부분 반품');
   });
 });
 

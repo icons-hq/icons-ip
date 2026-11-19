@@ -560,6 +560,72 @@ select pg_temp.pr_collect((pg_temp.pr_claim(14)).id);
 select pg_temp.pr_error(format('select public.admin_record_order_claim_refund(%L, ''bank_transfer'', ''filed'', null)', (pg_temp.pr_claim(14)).id), 'partial_return_transfer_remainder_manual');
 select pg_temp.pr_assert((public.service_order_payment_partial_refunds(pg_temp.pr_id('order', 14)))->0->>'refundedAmount' = '10000', 'remainder_counts_transfer');
 
+-- 17. 배송중 배송 건의 굿즈를 모두 부분 반품(분실 등)하면 그 빈 배송 건은 기록을 그대로 두고 주문 상태 계산에서만 빠진다 — 나머지가 배송완료면
+--     주문이 배송완료로 넘어가고 구매확정이 잡는다(Codex 리뷰). 주문 17: 배송 건 1(A·B) 배송완료, 배송 건 2(C) 배송중에 C 1개 부분 반품.
+select pg_temp.pr_order(17, 'toss', 3000, true);
+select pg_temp.pr_auth(1);
+select public.admin_update_shipment_status(pg_temp.pr_id('shipment-2', 17), 'shipping', 'hanjin', 'PRTEST17SHIPMENT2');
+select pg_temp.pr_assert((select status = 'shipping' from public.orders where id = pg_temp.pr_id('order', 17)), 'order_shipping_before_return');
+select pg_temp.pr_assert(pg_temp.pr_request('c:1@17') = 'requested', 'in_transit_partial_return');
+select pg_temp.pr_assert(private.claim_is_partial_return((pg_temp.pr_claim(17)).id), 'in_transit_claim_is_partial');
+select pg_temp.pr_auth(1);
+select pg_temp.pr_collect((pg_temp.pr_claim(17)).id);
+select public.admin_record_order_claim_refund((pg_temp.pr_claim(17)).id, 'pg_cancel', 'filed', null);
+select public.service_complete_order_partial_cancellation((pg_temp.pr_head((pg_temp.pr_claim(17)).id)).id, (pg_temp.pr_head((pg_temp.pr_claim(17)).id)).refund_amount,
+ 'TEST-PR-KEY-17', 'TEST-PR-TX-17', pg_temp.pr_id('user', 1));
+select pg_temp.pr_assert((pg_temp.pr_claim(17)).stage = 'completed'
+ and (select status = 'shipping' and delivered_at is null from public.order_shipments where id = pg_temp.pr_id('shipment-2', 17))
+ and private.shipment_emptied_by_partial_return(pg_temp.pr_id('shipment-2', 17))
+ and (select status = 'delivered' and delivered_at = (select delivered_at from public.order_shipments where id = pg_temp.pr_id('shipment-1', 17))
+   from public.orders where id = pg_temp.pr_id('order', 17))
+ and private.order_all_items_delivered(pg_temp.pr_id('order', 17))
+ and private.purchase_confirmation_candidate(pg_temp.pr_id('order', 17))
+ and private.purchase_confirmation_block_reason(pg_temp.pr_id('order', 17)) is null, 'emptied_in_transit_shipment_releases_delivery');
+
+-- 18. 리뷰 이벤트 보상: 보상을 받은 굿즈 A를 모두 부분 반품하면 A의 보상만 회수하고(쓸 수 있는 적립금 회수·당첨 철회), 남은 굿즈 B의 보상은 지킨다.
+--     A를 일부만 반품하면 아무것도 회수하지 않는다(Codex 리뷰). 주문 16: A×2·B×1·C×1, A·B 리뷰가 각각 다른 이벤트에서 보상을 받았다.
+select pg_temp.pr_order(16, 'toss');
+insert into private.review_events(id, title, description, target_type, starts_on, ends_on, announces_on, planned_winners, credit_amount,
+  credit_validity_days, banner_style, created_by)
+select pg_temp.pr_id('event', n), 'TEST 이벤트 '||n, 'TEST 부분반품 보상', 'all', current_date - 10, current_date - 5, current_date - 1, 10, 1000, 30,
+  'basic', pg_temp.pr_id('user', 1) from generate_series(1, 2) n;
+create function pg_temp.pr_award(n integer, good text) returns void language plpgsql as $$
+declare lot uuid;
+begin
+  lot := private.issue_store_credit_lot(pg_temp.pr_id('user', 2), 1000, clock_timestamp() + interval '30 days', 'admin', null, pg_temp.pr_id('user', 1),
+    pg_temp.pr_id('award-op', n), 'TEST 리뷰 이벤트 보상', null);
+  insert into private.review_event_entries(id, event_id, source_review_id, user_id, order_id, good_id, entered_at, event_revision, credit_amount,
+    credit_validity_days, target_snapshot)
+  values (pg_temp.pr_id('entry', n), pg_temp.pr_id('event', n), pg_temp.pr_id('review', n), pg_temp.pr_id('user', 2), pg_temp.pr_id('order', 16), good,
+    clock_timestamp(), 1, 1000, 30, '{}');
+  insert into private.review_event_awards(entry_id, event_id, user_id, source_review_id, order_id, lot_id, amount, expires_at, granted_by, grant_operation_id)
+  values (pg_temp.pr_id('entry', n), pg_temp.pr_id('event', n), pg_temp.pr_id('user', 2), pg_temp.pr_id('review', n), pg_temp.pr_id('order', 16), lot, 1000,
+    clock_timestamp() + interval '30 days', pg_temp.pr_id('user', 1), pg_temp.pr_id('award-grant', n));
+end $$;
+select pg_temp.pr_award(1, 'partial-return-a'), pg_temp.pr_award(2, 'partial-return-b');
+-- A 1개만 반품: A가 남아 있어 회수 없음.
+select pg_temp.pr_request('a:1@16');
+select pg_temp.pr_auth(1);
+select pg_temp.pr_collect((pg_temp.pr_claim(16)).id);
+select public.admin_record_order_claim_refund((pg_temp.pr_claim(16)).id, 'pg_cancel', 'filed', null);
+select public.service_complete_order_partial_cancellation((pg_temp.pr_head((pg_temp.pr_claim(16)).id)).id, (pg_temp.pr_head((pg_temp.pr_claim(16)).id)).refund_amount,
+ 'TEST-PR-KEY-16', 'TEST-PR-TX-16A', pg_temp.pr_id('user', 1));
+select pg_temp.pr_assert((pg_temp.pr_claim(16)).stage = 'completed'
+ and not exists(select 1 from private.review_event_awards where order_id = pg_temp.pr_id('order', 16) and revoked_at is not null), 'partial_good_keeps_awards');
+-- 남은 A 1개 반품: A의 보상만 회수, B는 그대로.
+select pg_temp.pr_request('a:1@16');
+select pg_temp.pr_auth(1);
+select pg_temp.pr_collect((pg_temp.pr_claim(16)).id);
+select public.admin_record_order_claim_refund((pg_temp.pr_claim(16)).id, 'pg_cancel', 'filed', null);
+select public.service_complete_order_partial_cancellation((pg_temp.pr_head((pg_temp.pr_claim(16)).id)).id, (pg_temp.pr_head((pg_temp.pr_claim(16)).id)).refund_amount,
+ 'TEST-PR-KEY-16', 'TEST-PR-TX-16B', pg_temp.pr_id('user', 1));
+select pg_temp.pr_assert((pg_temp.pr_claim(16)).stage = 'completed'
+ and (select revoked_at is not null and revoke_reason = '리뷰한 굿즈 부분 반품 완료' from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 1))
+ and (select available_amount = 0 from private.store_credit_lots where id = (select lot_id from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 1)))
+ and (select revoked_at is null from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 2))
+ and (select available_amount = 1000 from private.store_credit_lots where id = (select lot_id from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 2))),
+ 'returned_good_award_reversed_remaining_kept');
+
 -- 12. 원장 불변: 부분 반품 줄의 클레임·차감 칸도 바뀌지 않는다. 클레임 품목은 고칠 수 없다.
 select pg_temp.pr_error(format('update private.order_partial_cancellations set return_fee_deduction = 0 where id = %L', (pg_temp.pr_head((pg_temp.pr_claim(3)).id)).id), 'partial_cancellation_immutable');
 select pg_temp.pr_error(format('update public.order_claim_items set qty = 2 where claim_id = %L', pg_temp.pr_id('request', 10)), 'order_claim_items_immutable');

@@ -945,8 +945,16 @@ async function recordPartialReturnRefund(
   const expectedMethod = orderClaimRefundMethodForProvider(input.provider);
   if (expectedMethod && expectedMethod !== input.method) return { error: '이 부분 반품의 환불 수단과 다릅니다. 토스 결제는 결제사 부분 취소, 무통장은 계좌 송금입니다. 화면을 새로고침해주세요.' };
   const live = input.partial.history.find((record) => record.id === input.partial.refundId) ?? null;
-  const dispositions = input.stage === 'completed' ? readStockDispositions(input.formData) : null;
+  /* 품목별 재고 처리(불량 선택)는 접수 양식에도 실린다 — 무통장·0원 부분 반품은 접수와 함께 적용(재고 처리)되므로 접수 전에 저장한다(Codex 리뷰). */
+  const dispositions = readStockDispositions(input.formData);
   if (dispositions && 'error' in dispositions) return { error: dispositions.error };
+  if (input.stage === 'filed' && dispositions && !input.partial.refundId) {
+    const { error: planError } = await supabase.rpc('admin_plan_claim_defective_stock', { p_claim_id: input.claimId, p_order_item_ids: dispositions.defectiveIds });
+    if (planError) {
+      revalidateClaimSurfaces(input.claimId, 'return');
+      return { error: rpcErrorMessage(planError.message, DEFECTIVE_PLAN_FAILED) };
+    }
+  }
 
   if (input.stage === 'completed') {
     /* 무통장 결제, 또는 결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 카드 결제(정산 경로 bank_transfer)는 송금 증빙이 완료를 정한다. */
