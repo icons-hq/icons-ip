@@ -144,6 +144,12 @@ select pg_temp.md_assert(public.admin_order_partial_cancellation_context(pg_temp
  and public.admin_order_partial_cancellation_context(pg_temp.md_id('order', 7))->'blockers' ? 'order_not_partial_cancelable', 'fully_dispatched_orders_stay_blocked');
 select pg_temp.md_error($$select public.admin_preview_order_partial_cancellation(pg_temp.md_id('order', 6), pg_temp.md_items('c:1@6'))$$, 'shipment_already_dispatched');
 
+-- 배송 중 반품·교환은 발송 전 배송 건이 남아도 주문 전체로 열려 있다(2026-11-11 사용자 확정 "배송 중부터", 미출고 품목은 창고
+-- 보관 확인으로 회수를 끝낸다 — in_transit_claim_intake). 부분 취소가 필요한 고객은 반품을 접수하지 않고 부분 취소를 먼저 한다.
+select pg_temp.md_auth(2);
+select pg_temp.md_assert(public.order_claim_eligibility(pg_temp.md_id('order', 1)) @> '{"return": true, "exchange": true}', 'whole_order_in_transit_claim_stays_open');
+select pg_temp.md_auth();
+
 -- 2. 토스: 처리 중 → 확인 → 김포 배송완료 ----------------------------------------------------------------------------------------
 select pg_temp.md_assert(pg_temp.md_start('c:1@1', 1, 8000) @> '{"state": "processing", "refundAmount": 8000, "replayed": false}', 'start_processing_after_partial_dispatch');
 reset role;
