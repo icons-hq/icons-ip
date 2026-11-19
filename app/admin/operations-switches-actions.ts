@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import {
   DELAY_NOTICE_EVIDENCE_MAX, EMAIL_NOT_CONFIGURED_MESSAGE, OPERATIONS_SWITCHES_PATH, RETURN_FEE_AMOUNT_MAX, SWITCH_EVIDENCE_MAX,
   operationsSwitchEvidenceProblem, operationsSwitchesError, parseOperationsSwitches, type OperationsSwitchesState,
@@ -34,6 +35,8 @@ async function call(rpc: string, args: Record<string, unknown>, matches: (state:
     const state = parseOperationsSwitches(data);
     if (!state || !matches(state)) return { error: operationsSwitchesError(), uncertain: true };
     revalidatePath(OPERATIONS_SWITCHES_PATH);
+    /* 상품 상세 '고객 귀책 반품비'가 차감 정책 금액을 따르므로 반품배송비 스위치를 바꾸면 상세를 다시 그린다. */
+    if (rpc === 'admin_save_return_fee_deduction_switch') revalidateGoodsSurfaces();
     return { state };
   } catch (error) { unstable_rethrow(error); return { error: operationsSwitchesError(), uncertain: true }; }
 }

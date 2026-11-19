@@ -21,7 +21,7 @@ async function settle() { for (let n = 0; n < 8; n++) await Promise.resolve(); }
 
 const doc: OperationsSwitchesState = {
   delayNotice: { revision: 2, enabled: true, smsEnabled: false, evidence: 'TEST 근거', changedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자' },
-  returnFee: { revision: 3, enabled: true, oneWayAmount: 3000, evidence: 'TEST 근거', enabledAt: '2026-11-19T01:00:00Z', updatedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자' },
+  returnFee: { revision: 3, enabled: true, oneWayAmount: 3000, evidence: 'TEST 근거', enabledAt: '2026-11-19T01:00:00Z', updatedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자', inflightCount: 2 },
   partialCancel: { revision: 3, enabled: false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: '운영자' },
 };
 const save = vi.fn(), onSaved = vi.fn();
@@ -120,4 +120,17 @@ it('결과가 불확실하면 같은 요청 ID로만 다시 확인하고 확정 
   hooks.state = []; hooks.refs = [];
   submit(render(p)); await settle();
   expect(text(result(render(p)))).toContain('다른 관리자');
+});
+
+it('결과가 불확실한 동안 입력은 잠기지만 [같은 요청 결과 확인] 버튼은 눌러 다시 확인할 수 있다', async () => {
+  const p = props({ enabled: true, evidence: 'TEST 근거', amountInitial: 3000 });
+  save.mockResolvedValueOnce({ error: '결과 불명', uncertain: true });
+  submit(render(p)); await settle();
+  const tree = render(p);
+  const retry = all(tree).find((element) => element.props.type === 'submit')!;
+  expect(text(retry)).toBe('같은 요청 결과 확인');
+  expect(retry.props.disabled).toBe(false);
+  expect(all(tree).find((element) => element.type === 'fieldset')!.props.disabled).toBe(true);
+  const off = all(tree).find((element) => element.props.onClick && text(element) === '끄기')!;
+  expect(off.props.disabled).toBe(true);
 });

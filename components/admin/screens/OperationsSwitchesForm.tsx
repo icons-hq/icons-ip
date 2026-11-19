@@ -63,6 +63,7 @@ export function SwitchSection(props: SectionProps) {
   });
   const hasAmount = props.amountInitial !== undefined;
   const allChecked = checks.every(Boolean);
+  /* 입력은 결과가 불확실한 동안에도 잠그지만 [같은 요청 결과 확인] 버튼은 눌러야 하므로 버튼은 저장 중에만 막는다. */
   const locked = pending || uncertain;
 
   function fail(text: string) { setMessage(text); setError(true); focusResult.current = true; }
@@ -140,7 +141,7 @@ export function SwitchSection(props: SectionProps) {
         </div>
       </fieldset>
       <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={locked} type="submit">{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : enabled ? '근거·금액 변경 저장' : '켜기'}</Button>
+        <Button disabled={pending} type="submit">{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : enabled ? '근거·금액 변경 저장' : '켜기'}</Button>
         {enabled ? <Button disabled={locked} type="button" variant="outline" onClick={() => { void submit(false); }}>끄기</Button> : null}
         {message ? <p className={`text-sm outline-none ${error ? 'text-destructive' : 'text-success'}`} ref={resultRef} role={error ? 'alert' : 'status'} tabIndex={-1}>{message}</p> : null}
       </div>
@@ -163,18 +164,18 @@ export function OperationsSwitchesForm({ initial, emailConfigured }: { initial: 
         <li>예약 일정 변경 SMS: {delayNotice.smsEnabled ? '켜짐' : '꺼짐'} (이 화면에서 바꾸지 않습니다. 앱의 SMS 알림 스위치도 함께 켜져야 문자가 나갑니다.)</li>
       </ul>}
       confirmOn="켜면 지연 안내와 예약 일정 변경 안내가 고객에게 이메일로 나갈 수 있습니다. 켤까요?"
-      confirmOff="끄면 지연 안내 요청과 예약 주문 발송일 일괄 변경이 다시 막힙니다. 이미 대기 중인 이메일 발송은 그대로 처리됩니다. 끌까요?"
+      confirmOff="끄면 지연 안내 요청과 예약 주문 발송일 일괄 변경이 다시 막힙니다. 대기 중인 이메일도 보내지 않고 실패(재시도 가능)로 남습니다. 다시 켠 뒤 재시도해야 합니다. 끌까요?"
       save={(input) => saveOrderDelayNoticeSwitchAction(input.enabled, input.evidence, input.revision, input.id)}
       onSaved={setState} />
     <SwitchSection kind="returnFee" title="반품배송비 차감" enabled={returnFee.enabled} revision={returnFee.revision}
       description="단순 변심 반품의 환불금에서 반품배송비를 차감하고 결제사 부분 취소로 나머지를 돌려줍니다. 정책(금액·약관 개정)은 사람이 정한 뒤에 켭니다."
       evidence={returnFee.evidence} updatedBy={returnFee.updatedBy} updatedAt={returnFee.updatedBy ? returnFee.updatedAt : null}
       evidenceMax={SWITCH_EVIDENCE_MAX} amountInitial={returnFee.oneWayAmount}
-      confirmOn="켜면 이후 접수하는 단순 변심 반품의 환불금에서 반품배송비가 차감됩니다. 이미 접수한 요청은 바뀌지 않습니다. 켤까요?"
+      confirmOn="켠 시각 이후 접수된 단순 변심 반품부터 환불금에서 반품배송비가 차감됩니다. 켜기 전에 접수된 반품은 환불 접수가 켠 뒤여도 전액 환불입니다. 켤까요?"
       confirmOff="끄면 새 반품 접수에서 차감하지 않습니다. 이미 차감을 결정한 요청은 그대로 진행됩니다. 끌까요?"
       save={(input) => saveReturnFeeDeductionSwitchAction(input.enabled, input.amount, input.evidence, input.revision, input.id)}
       onSaved={setState}
-      extra={<p className="text-xs text-muted-foreground">반품배송비 정책 배경은 <Link className="underline underline-offset-4" href="/admin/guide/claims">클레임 가이드</Link>를 참고하세요.</p>} />
+      extra={<><p className="text-sm" data-return-fee-inflight="">지금 진행 중인 단순 변심 반품 <strong className="tabular-nums">{returnFee.inflightCount.toLocaleString('ko-KR')}건</strong> — {returnFee.enabled ? '켠 시각 전에 접수된 건은 차감하지 않습니다.' : '켜도 이 건들은 차감하지 않고 전액 환불합니다(켠 시각 이후 접수된 반품부터 차감).'}</p><p className="text-xs text-muted-foreground">반품배송비 정책 배경은 <Link className="underline underline-offset-4" href="/admin/guide/claims">클레임 가이드</Link>를 참고하세요.</p></>} />
     <SwitchSection kind="partialCancel" title="재고 부족 부분 취소" enabled={partialCancel.enabled} revision={partialCancel.revision}
       description="재고 부족으로 주문 일부 품목·수량만 취소할 때 결제사 부분 취소를 사용합니다. 반품배송비 차감과 따로 켜고 끕니다."
       evidence={partialCancel.evidence} updatedBy={partialCancel.updatedBy} updatedAt={partialCancel.updatedBy ? partialCancel.updatedAt : null}

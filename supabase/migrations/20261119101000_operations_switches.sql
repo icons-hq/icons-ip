@@ -38,6 +38,8 @@ begin
   if tg_when = 'BEFORE' then
     new.revision := old.revision + 1;
     new.changed_at := clock_timestamp();
+    -- 이 RPC가 아닌 직접 변경은 변경자를 알 수 없다 — 마지막 어드민에게 잘못 귀속하지 않는다.
+    if current_setting('icons.operations_switch_tx', true) is distinct from txid_current()::text then new.updated_by := null; end if;
     return new;
   end if;
   if current_setting('icons.operations_switch_tx', true) = txid_current()::text then return new; end if;
@@ -71,7 +73,10 @@ language sql stable security definer set search_path = '' as $$
       from private.order_delay_notice_delivery_control d where d.singleton),
     'returnFee', (select jsonb_build_object('revision', r.revision, 'enabled', r.enabled, 'oneWayAmount', r.one_way_amount,
         'evidence', r.evidence, 'enabledAt', r.enabled_at, 'updatedAt', r.updated_at,
-        'updatedBy', (select p.nickname from public.profiles p where p.id = r.updated_by))
+        'updatedBy', (select p.nickname from public.profiles p where p.id = r.updated_by),
+        -- 지금 진행 중인 단순 변심 반품. 켜기 전에 접수된 요청은 켠 뒤에도 차감하지 않는다.
+        'inflightCount', (select count(*) from public.order_cancellation_requests c
+          where c.claim_type = 'return' and c.reason_type = 'change_of_mind' and c.status in ('requested', 'processing', 'needs_review')))
       from private.return_fee_deduction_settings r where r.singleton),
     'partialCancel', (select jsonb_build_object('revision', r.revision, 'enabled', r.partial_cancel_enabled,
         'evidence', r.partial_cancel_evidence, 'enabledAt', r.partial_cancel_enabled_at, 'updatedAt', r.updated_at,
@@ -193,6 +198,16 @@ select private.register_operator_rpc_contract('public.admin_get_operations_switc
 select private.register_operator_rpc_contract('public.admin_save_order_delay_notice_switch(boolean,text,bigint,uuid)'::regprocedure, 'platform.manage', 'write', true);
 select private.register_operator_rpc_contract('public.admin_save_return_fee_deduction_switch(boolean,integer,text,integer,uuid)'::regprocedure, 'platform.manage', 'write', true);
 select private.register_operator_rpc_contract('public.admin_save_partial_cancel_switch(boolean,text,integer,uuid)'::regprocedure, 'platform.manage', 'write', true);
+
+-- 2-1. 반품배송비 차감은 스위치를 켠 시각(enabled_at) 이후 접수한 요청부터다. 꺼져 있을 때 '결제금액 전액'으로 안내받고
+--      접수한 단순 변심 반품을 켠 뒤 환불 접수한다고 차감하면 고객 불리 변경이라(ADR-0032 결정 5와 같은 원칙) 판정이 null이다.
+--      환불 접수 안내·판정 미리보기·환불 접수 때 결정 기록이 모두 이 함수 하나를 지난다.
+select private.o3a_patch_function('private.return_fee_deduction_plan(uuid)',
+  'if not found or claim.claim_type <> ''return'' or claim.reason_type <> ''change_of_mind'' then return null; end if;',
+  E'if not found or claim.claim_type <> ''return'' or claim.reason_type <> ''change_of_mind'' then return null; end if;\n  if settings.enabled_at is null or claim.requested_at < settings.enabled_at then return null; end if;');
+select private.o3a_patch_function('private.audit_return_fee_deduction_settings()',
+  'new.updated_at := clock_timestamp();',
+  E'new.updated_at := clock_timestamp();\n    if current_setting(''icons.operations_switch_tx'', true) is distinct from txid_current()::text then new.updated_by := null; end if;');
 
 drop function private.o3a_patch_function(text, text, text);
 commit;

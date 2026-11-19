@@ -22,6 +22,8 @@ export interface ReturnFeeSwitch extends SwitchStamp {
   evidence: string | null;
   enabledAt: string | null;
   updatedAt: string;
+  /** 지금 진행 중인 단순 변심 반품 수. 켜기 전에 접수된 요청은 켠 뒤에도 차감하지 않는다. */
+  inflightCount: number;
 }
 export interface PartialCancelSwitch extends SwitchStamp {
   enabled: boolean;
@@ -36,7 +38,7 @@ export interface OperationsSwitchesState {
 }
 export type OperationsSwitchKind = 'delayNotice' | 'returnFee' | 'partialCancel';
 
-const nullableText = (value: unknown): value is string | null => value === null || (typeof value === 'string' && value.length <= SWITCH_EVIDENCE_MAX);
+const nullableText = (value: unknown): value is string | null => value === null || (typeof value === 'string' && [...value].length <= SWITCH_EVIDENCE_MAX);
 const nullableInstant = (value: unknown): value is string | null => value === null || transactionInstant(value);
 
 function section(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
@@ -49,17 +51,17 @@ function section(value: unknown, keys: readonly string[]): Record<string, unknow
 export function parseOperationsSwitches(value: unknown): OperationsSwitchesState | null {
   if (!transactionRecord(value) || !transactionExactKeys(value, ['delayNotice', 'returnFee', 'partialCancel'])) return null;
   const delay = section(value.delayNotice, ['revision', 'enabled', 'smsEnabled', 'evidence', 'changedAt', 'updatedBy']);
-  const fee = section(value.returnFee, ['revision', 'enabled', 'oneWayAmount', 'evidence', 'enabledAt', 'updatedAt', 'updatedBy']);
+  const fee = section(value.returnFee, ['revision', 'enabled', 'oneWayAmount', 'evidence', 'enabledAt', 'updatedAt', 'updatedBy', 'inflightCount']);
   const partial = section(value.partialCancel, ['revision', 'enabled', 'evidence', 'enabledAt', 'updatedAt', 'updatedBy']);
   if (!delay || !fee || !partial || typeof delay.smsEnabled !== 'boolean' || !nullableText(delay.evidence) || !transactionInstant(delay.changedAt)
     || !(fee.oneWayAmount === null || transactionInteger(fee.oneWayAmount, 1, RETURN_FEE_AMOUNT_MAX)) || !nullableText(fee.evidence)
-    || !nullableInstant(fee.enabledAt) || !transactionInstant(fee.updatedAt)
+    || !nullableInstant(fee.enabledAt) || !transactionInstant(fee.updatedAt) || !transactionInteger(fee.inflightCount, 0)
     || !nullableText(partial.evidence) || !nullableInstant(partial.enabledAt) || !transactionInstant(partial.updatedAt)) return null;
   return {
     delayNotice: { revision: delay.revision as number, enabled: delay.enabled as boolean, smsEnabled: delay.smsEnabled, evidence: delay.evidence,
       changedAt: delay.changedAt, updatedBy: delay.updatedBy as string | null },
     returnFee: { revision: fee.revision as number, enabled: fee.enabled as boolean, oneWayAmount: fee.oneWayAmount as number | null, evidence: fee.evidence,
-      enabledAt: fee.enabledAt, updatedAt: fee.updatedAt, updatedBy: fee.updatedBy as string | null },
+      enabledAt: fee.enabledAt, updatedAt: fee.updatedAt, updatedBy: fee.updatedBy as string | null, inflightCount: fee.inflightCount as number },
     partialCancel: { revision: partial.revision as number, enabled: partial.enabled as boolean, evidence: partial.evidence, enabledAt: partial.enabledAt,
       updatedAt: partial.updatedAt, updatedBy: partial.updatedBy as string | null },
   };
@@ -79,6 +81,7 @@ export const OPERATIONS_SWITCH_CHECKLISTS: Record<OperationsSwitchKind, readonly
     '발신 도메인·발신자와 Resend API 키가 승인된 값으로 운영 환경에 등록돼 있습니다.',
     '발송 결과 웹훅(/api/webhooks/resend) 서명 검증이 설정돼 있습니다.',
     '메일 본문·수신자 보존·접근·파기 절차를 확인했습니다.',
+    'EMAIL_DISPATCH_HMAC_SECRET을 임의로 교체하지 않는 것을 확인했습니다(교체하면 기존 발송 기록의 멱등 확인이 끊깁니다).',
     '지연 안내 작업 cron(CRON_SECRET)이 운영 환경에서 매분 돌고 있습니다.',
   ],
   returnFee: [
@@ -88,9 +91,12 @@ export const OPERATIONS_SWITCH_CHECKLISTS: Record<OperationsSwitchKind, readonly
     '서원 착불·불량 반품 배송비 계약 내용을 확인했습니다.',
   ],
   partialCancel: [
-    '토스페이먼츠 상점의 부분 취소 사용을 확인했습니다.',
-    '서원(물류)에서 품절을 통보받는 경로를 확인했습니다.',
-    '결제사가 부분 취소를 받지 않는 결제(가상계좌·코페이)는 무통장 송금 대기로 처리되는 것을 확인했습니다.',
+    '토스페이먼츠 상점의 부분 취소 사용을 확인하고, 테스트 키로 한 결제에 부분 취소 두 번 뒤 남은 잔액 전액 취소까지 리허설했습니다(운영 주문과 같은 계산 버전 1 주문).',
+    '나이스페이 부분 취소 계약을 확인했습니다. 계약 전에는 나이스페이 결제의 부분 취소가 막힙니다.',
+    '배송·반품 정책 문서에 재고 부족 시 일부 취소·부분 환불을 고지하고 7일 공지했습니다.',
+    '서원(물류)에서 품절을 통보받는 경로(고객 정보 전달 방식·시한)를 운영 합의했습니다.',
+    '운영 주문 배분 점검 쿼리(런북 \'재고 부족 부분 취소\' 게이트 ⑤)를 돌려 막힐 주문(amount_mismatch 등)을 확인했습니다.',
+    '결제사가 부분 취소를 받지 않는 결제(가상계좌·코페이 등)는 부분 취소가 막히고(전액 환불로 돌리지 않음), 그 주문은 운영자 전액 취소로 처리하는 것을 확인했습니다.',
   ],
 };
 

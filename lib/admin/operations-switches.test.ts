@@ -8,7 +8,7 @@ import {
 
 const doc = {
   delayNotice: { revision: 1, enabled: false, smsEnabled: false, evidence: null, changedAt: '2026-11-19T01:00:00Z', updatedBy: null },
-  returnFee: { revision: 1, enabled: false, oneWayAmount: null, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: null },
+  returnFee: { revision: 1, enabled: false, oneWayAmount: null, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: null, inflightCount: 0 },
   partialCancel: { revision: 1, enabled: false, evidence: null, enabledAt: null, updatedAt: '2026-11-19T01:00:00Z', updatedBy: null },
 };
 
@@ -17,6 +17,10 @@ describe('운영 스위치 문서', () => {
     expect(parseOperationsSwitches(doc)).toEqual(doc);
     const on = { ...doc, returnFee: { ...doc.returnFee, enabled: true, oneWayAmount: 3000, evidence: 'TEST 근거', enabledAt: '2026-11-19T02:00:00Z', updatedBy: '운영자' } };
     expect(parseOperationsSwitches(on)?.returnFee.oneWayAmount).toBe(3000);
+    expect(parseOperationsSwitches({ ...doc, returnFee: { ...doc.returnFee, inflightCount: -1 } })).toBeNull();
+    // 코드포인트 1000자(이모지 포함)는 UTF-16으로는 1000을 넘지만 DB·서버 기준으로 유효하다.
+    expect(parseOperationsSwitches({ ...doc, partialCancel: { ...doc.partialCancel, evidence: '😀'.repeat(1000) } })).not.toBeNull();
+    expect(parseOperationsSwitches({ ...doc, partialCancel: { ...doc.partialCancel, evidence: '😀'.repeat(1001) } })).toBeNull();
     expect(parseOperationsSwitches(null)).toBeNull();
     expect(parseOperationsSwitches({ ...doc, extra: 1 })).toBeNull();
     expect(parseOperationsSwitches({ ...doc, delayNotice: { ...doc.delayNotice, revision: 0 } })).toBeNull();
