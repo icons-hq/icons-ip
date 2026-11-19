@@ -118,6 +118,9 @@ const STATUS_TONES = {
   reviewEvent: { scheduled: 'info', active: 'success', closed: 'warning', ready: 'warning', announced: 'neutral', archived: 'neutral' },
   /** 회원 계정 */
   member: { active: 'success', suspended: 'danger' },
+  /** 카카오 연결 해제 탈퇴 검토 대기의 처리 방법 — lib/admin/kakao-unlink-withdrawal. 카카오계정 탈퇴는 알림으로 우리가 처리할 일,
+   *  연결만 끊은 회원은 회원의 1:1 문의를 기다리는 일이다 */
+  kakaoUnlinkWithdrawal: { account_closed: 'warning', member_request: 'neutral' },
   /** 회원 권한(profiles.role). 관리자만 눈에 띄게 한다 */
   memberRole: { admin: 'info', staff: 'neutral', user: 'neutral' },
   /** 매니저 역할 — lib/admin/access MANAGER_ROLES. 통합 매니저만 눈에 띄게 한다 */
