@@ -79,7 +79,7 @@ describe('고객 상세 · 탈퇴 요청 처리', () => {
     expect(html).toContain('프로필 사진 파일이 아직 지워지지 않았습니다');
     expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>프로필 사진 삭제 다시 적용<\/button>/);
     expect(render({ ...customer, suspendedAt: '2026-11-18T01:00:00Z', withdrawal: { ...processed, avatarErasePending: false } })).not.toContain('다시 적용');
-    expect(render()).toContain('프로필 익명화(닉네임은 &#x27;탈퇴한 회원&#x27; 이름으로 바뀌고 생년월일·프로필 사진은 삭제');
+    expect(render()).toContain('프로필 익명화(닉네임은 &#x27;탈퇴한 회원&#x27;과 구분 번호로 바뀌고 생년월일·프로필 사진 파일은 삭제');
   });
 
   describe('카카오 연결 해제 탈퇴 검토 대기', () => {

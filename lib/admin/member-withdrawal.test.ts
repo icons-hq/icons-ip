@@ -190,18 +190,22 @@ describe('프로필 익명화 계약(2026-11-19)', () => {
 
   it('처리 결과는 익명화한 칸 이름을 받고 모르는 이름은 거절하며 옛 응답(칸 없음)도 받는다', () => {
     const base = { ...STATUS, status: 'processed', suspended: true, revokedSessions: 0 };
-    const parsed = parseMemberWithdrawalOutcome({ ...base, avatarErasePending: true, erased: { ...ERASED, profileFields: ['nickname', 'avatar'] } });
+    const parsed = parseMemberWithdrawalOutcome({ ...base, avatarErasePending: true, erased: { ...ERASED, profileFields: ['nickname', 'avatar'], adultVerifications: 2 } });
     expect(parsed).toMatchObject({ status: 'processed', withdrawal: { avatarErasePending: true }, erased: { profileFields: ['nickname', 'avatar'] } });
     expect(parseMemberWithdrawalOutcome({ ...base, erased: { ...ERASED, profileFields: ['email'] } })).toBeNull();
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: { ...ERASED, adultVerifications: -1 } })).toBeNull();
     expect(parseMemberWithdrawalOutcome({ ...base, erased: ERASED })).toMatchObject({ status: 'processed' });
     if (parsed?.status !== 'processed') throw new Error('processed expected');
     expect(memberWithdrawalErasedSummary(parsed.erased, 0)).toContain('프로필 익명화(닉네임·프로필 사진)');
+    expect(memberWithdrawalErasedSummary(parsed.erased, 0)).toContain('성인 인증 기록 2건');
   });
 
   it('고객 안내와 어드민 범위가 같은 원천에서 닉네임 익명화·생년월일·사진 삭제를 말한다', () => {
     expect(INQUIRY_WITHDRAWAL_SCOPE.erased.join(' ')).toContain('생년월일·프로필 사진');
+    expect(INQUIRY_WITHDRAWAL_SCOPE.erased).toContain('성인 인증 기록');
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain('성인 인증 기록');
     expect(INQUIRY_WITHDRAWAL_SCOPE.retained.join(' ')).not.toMatch(/닉네임|생년월일|프로필 사진/);
-    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain(`닉네임은 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}' 이름으로 바뀌고 생년월일·프로필 사진은 삭제`);
-    expect(memberWithdrawalConfirmMessage({ reference: 1, category: 'account', title: 't', createdAt: PROCESSED_AT })).toContain('닉네임·생년월일·프로필 사진을 익명화');
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain(`닉네임은 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}'과 구분 번호로 바뀌고 생년월일·프로필 사진 파일은 삭제`);
+    expect(memberWithdrawalConfirmMessage({ reference: 1, category: 'account', title: 't', createdAt: PROCESSED_AT })).toContain('닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운');
   });
 });

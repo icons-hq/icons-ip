@@ -97,7 +97,7 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
             남겨주시면, 운영자가 진행 중인 거래가 없는지 확인한 뒤 처리하고 문의 답변으로 알려드려요.
           </p>
           <ul className="account-deletion-facts">
-            <li>처리되면 이 계정으로 다시 로그인할 수 없고, {INQUIRY_WITHDRAWAL_SCOPE.erased.join('·')}은 바로 지워지고, 닉네임은 &lsquo;{INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}&rsquo;으로 바뀌어요.</li>
+            <li>처리되면 이 계정으로 다시 로그인할 수 없고, {INQUIRY_WITHDRAWAL_SCOPE.erased.join('·')}은 바로 지워지고, 닉네임은 &lsquo;{INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}&rsquo;에 구분 번호가 붙은 이름으로 바뀌어요.</li>
             <li>
               {INQUIRY_WITHDRAWAL_SCOPE.retained.join(', ')}은 완전 삭제 절차가 준비될 때까지 이용할 수 없는 상태로 남아요.
               {' '}{INQUIRY_WITHDRAWAL_SCOPE.rejoin}.
