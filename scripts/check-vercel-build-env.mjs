@@ -44,6 +44,10 @@ const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
 );
+/* 부분 반품·반품배송비 차감 약관 개정(ADR-0047)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
+const PARTIAL_RETURN_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/partial-return-terms-revision.json', import.meta.url),
+);
 
 /*
  * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
@@ -113,6 +117,7 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   }
   if (target === 'production') {
     validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
+    validateLegalRevisionDates(options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8'));
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 

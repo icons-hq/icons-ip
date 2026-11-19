@@ -838,4 +838,10 @@ describe('legal revision date guard', () => {
     expect(() => validateVercelBuildEnvironment(baseEnvironment, { revisionSource: source('2026-11-20', '2026-11-26') })).not.toThrow();
     expect(validateVercelBuildEnvironment(productionEnvironment()).checked).toBe(true);
   });
+
+  it('checks the partial return terms revision dates (ADR-0047) with the same rules in production builds', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: source('2026-11-20', '2026-11-26') }))
+      .toThrow(/at least 7 days/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: source(null, null) })).not.toThrow();
+  });
 });
