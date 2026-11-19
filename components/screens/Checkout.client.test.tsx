@@ -210,3 +210,29 @@ describe('Checkout 결제 전 확인 동의', () => {
     await work;
   });
 });
+
+/* 화면이 실제로 보인 제한 고지를 서버 액션 9번째 인자로 보내고, 서버가 안내가 바뀌었다고 거절하면 체크를 풀고 주문서를 새로 읽는다. */
+describe('Checkout 제한 고지 대조', () => {
+  it('보인 제한 굿즈 id 목록을 9번째 인자로 보낸다(제한 없으면 빈 목록)', async () => {
+    await submit();
+    expect(mocks.place.mock.calls[0][8]).toEqual([]);
+    acknowledge();
+    props = { ...props, claimRestrictions: { g13: { goodId: 'g13', returnAllowed: false, exchangeAllowed: null, reason: '각인' }, other: { goodId: 'other', returnAllowed: false, exchangeAllowed: null, reason: 'x' } } };
+    await submit();
+    expect(mocks.place.mock.calls[1][8]).toEqual(['g13']);
+  });
+
+  it('읽지 못한 화면은 unavailable 표식을 보낸다', async () => {
+    props = { ...props, claimRestrictions: null };
+    await submit();
+    expect(mocks.place.mock.calls[0][8]).toBe('unavailable');
+  });
+
+  it('안내가 바뀌었다는 거절이면 안내 문구를 보이고 체크를 푼다', async () => {
+    mocks.place.mockResolvedValueOnce({ ok: false, error: 'claim_notice_changed' });
+    await submit();
+    expect(acknowledgement().props.checked).toBe(false);
+    expect(submitButton().props.disabled).toBe(true);
+    expect(all(render()).some((node) => node.props.role === 'alert' && Children.toArray(node.props.children as ReactNode).some((child) => typeof child === 'string' && child.includes('제한 안내가 바뀌었어요')))).toBe(true);
+  });
+});

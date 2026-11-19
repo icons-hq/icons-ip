@@ -36,7 +36,7 @@ export function restrictedCheckoutGoods(goodIds: readonly string[], restrictions
 /** 체크박스 문구. 제한 굿즈가 있으면 그 사실을 같은 동의에 더한다. */
 export function checkoutAcknowledgementText(hasRestrictedGoods: boolean): string {
   return hasRestrictedGoods
-    ? '주문 굿즈·수량·결제 금액·배송지를 확인했으며, 청약철회가 제한되는 굿즈가 포함되어 있음을 확인하고 구매 조건과 결제에 동의합니다.'
+    ? '주문 굿즈·수량·결제 금액·배송지를 확인했으며, 청약철회 또는 교환이 제한되는 굿즈가 포함되어 있음을 확인하고 구매 조건과 결제에 동의합니다.'
     : '주문 굿즈·수량·결제 금액·배송지를 확인했으며, 구매 조건과 결제에 동의합니다.';
 }
 
@@ -63,4 +63,31 @@ export function parseCheckoutClaimRestrictions(rows: unknown): CheckoutClaimRest
     }]);
   }
   return Object.fromEntries(entries);
+}
+
+/** 읽기 실패로 제한 고지를 보이지 못했을 때 주문서가 대신 보이는 일반 고지. 같은 서버 판정을 그대로 탄다. */
+export const CHECKOUT_CLAIM_NOTICE_UNAVAILABLE_COPY = '청약철회·교환 제한 안내를 불러오지 못했어요. 주문 전에 굿즈 상세의 교환·반품 안내를 확인해주세요.';
+/** 화면에 보인 제한 고지와 서버가 주문 직전에 다시 읽은 제한이 달라 주문을 만들지 않았다. */
+export const CHECKOUT_CLAIM_NOTICE_CHANGED_COPY = '청약철회·교환 제한 안내가 바뀌었어요. 주문서를 다시 확인해주세요.';
+
+/** 화면이 실제로 보인 제한 굿즈 id 목록. 읽기 실패로 일반 고지만 보였으면 'unavailable'. */
+export type CheckoutClaimNotice = readonly string[] | 'unavailable';
+
+/** 주문서 품목 기준으로 화면이 보인 고지. restrictions가 null이면 읽지 못한 것이다. */
+export function claimNoticeOf(restrictions: CheckoutClaimRestrictions | null, goodIds: readonly string[]): CheckoutClaimNotice {
+  return restrictions === null ? 'unavailable' : restrictedCheckoutGoods(goodIds, restrictions).map((restriction) => restriction.goodId);
+}
+
+/** 서버 액션이 받은 고지 값 검증. 형식이 틀리면 null이고 호출자는 주문을 거절한다(fail-closed). */
+export function normalizeClaimNotice(value: unknown): CheckoutClaimNotice | null {
+  if (value === 'unavailable') return 'unavailable';
+  if (!Array.isArray(value) || value.length > 200) return null;
+  if (value.some((id) => typeof id !== 'string' || id === '' || id.length > 200)) return null;
+  return [...new Set(value as string[])];
+}
+
+/** record RPC의 p_screen_notice 모양. */
+export function claimNoticeRecord(notice: CheckoutClaimNotice | null | undefined): { goodIds: string[] } | { unavailable: true } | null {
+  if (notice === null || notice === undefined) return null;
+  return notice === 'unavailable' ? { unavailable: true } : { goodIds: [...notice] };
 }

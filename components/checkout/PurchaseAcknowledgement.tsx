@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { checkoutAcknowledgementText } from '@/lib/checkout-acknowledgement';
+import { CHECKOUT_CLAIM_NOTICE_UNAVAILABLE_COPY, checkoutAcknowledgementText } from '@/lib/checkout-acknowledgement';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 
 /*
@@ -11,15 +11,19 @@ export function PurchaseAcknowledgement({
   checked,
   disabled = false,
   hasRestrictedGoods,
+  claimUnavailable = false,
   onChange,
 }: {
   checked: boolean;
   disabled?: boolean;
   hasRestrictedGoods: boolean;
+  /** 제한 고지를 읽지 못했다 — 일반 고지를 보이고 서버가 주문 직전에 같은 판정을 다시 한다. */
+  claimUnavailable?: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="checkout-acknowledgement" data-restricted={hasRestrictedGoods ? 'true' : undefined}>
+    <div className="checkout-acknowledgement" data-restricted={hasRestrictedGoods ? 'true' : undefined} data-claim-unavailable={claimUnavailable ? 'true' : undefined}>
+      {claimUnavailable ? <p className="checkout-acknowledgement__unavailable" role="status">{CHECKOUT_CLAIM_NOTICE_UNAVAILABLE_COPY}</p> : null}
       <label className="checkout-acknowledgement__label">
         <input
           type="checkbox"

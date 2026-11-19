@@ -218,6 +218,7 @@ describe('주문 상세 — 결제 전 확인 동의', () => {
     expect(html).toContain('결제 전 확인 동의');
     expect(html).toContain('data-order-acknowledgement="recorded"');
     expect(html).toContain('동의 일시');
+    expect(html).toContain('청약철회·교환 제한 상품');
     expect(html).toContain('2026-11-19');
     expect(html).toContain('각인 키링 — 각인 주문 제작');
   });
@@ -225,6 +226,7 @@ describe('주문 상세 — 결제 전 확인 동의', () => {
     const missing = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" acknowledgement={null} />);
     expect(missing).toContain('data-order-acknowledgement="missing"');
     expect(missing).toContain('동의 기록이 없습니다');
+    expect(missing).toContain('정기구매 주문(정기구매 약관 동의로 받습니다)');
     const unread = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
     expect(unread).not.toContain('결제 전 확인 동의');
   });

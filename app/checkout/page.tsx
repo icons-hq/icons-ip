@@ -14,7 +14,7 @@ import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-avai
 import { deriveGoodsCartProvider, deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { checkoutDraftHref, checkoutDraftReturnHref, isClosedCheckoutDraft, normalizeCheckoutDraftId, type CheckoutDraft } from '@/lib/checkout-draft';
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
-import { loadCheckoutClaimRestrictions } from '@/lib/checkout-acknowledgement.server';
+import { loadCheckoutClaimRestrictions, loadUserCartGoodIds } from '@/lib/checkout-acknowledgement.server';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 import { GoodsTransactionCheckout } from '@/components/screens/GoodsTransactionCheckout';
 import Link from 'next/link';
@@ -84,6 +84,7 @@ export default async function Page({ searchParams }: PageProps) {
   if (draftView && isClosedCheckoutDraft(draftView)) return <DraftUnavailable draft={draftView} error={false} />;
   const draft = draftView;
 
+  const userId = auth.user.id;
   const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy, claimRestrictions] = await Promise.all([
     getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods })),
     loadCheckoutAddressPrefill(auth.user.id, addressBookOpenFor(auth)),
@@ -91,8 +92,12 @@ export default async function Page({ searchParams }: PageProps) {
     loadCartCouponState(),
     loadGoodsTransactionRuntimeMode(),
     loadCouponCombinationPolicy(),
-    /* 청약철회·교환이 제한된 굿즈 — 주문서 품목 줄 고지와 동의 문구(PAY-015). 못 읽으면 빈 값이고 주문은 막지 않는다. */
-    loadCheckoutClaimRestrictions(),
+    /* 청약철회·교환이 제한된 굿즈 — 이 주문서 품목으로 한정해 사용자 세션으로 읽는다(PAY-015). 못 읽으면 null(확인 불가)이고
+       화면은 일반 고지를 보이며 서버가 주문 직전에 같은 판정을 한다. */
+    (async () => {
+      const goodIds = draft ? draft.lines.map(line => line.goodId) : await loadUserCartGoodIds(userId);
+      return goodIds ? loadCheckoutClaimRestrictions(goodIds) : null;
+    })(),
   ]);
 
   /* 카드 결제 가능 여부는 이 주문서 품목으로 파생한 provider의 gate다 — 19금 굿즈가

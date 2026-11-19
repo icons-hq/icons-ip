@@ -11,6 +11,8 @@ import { parseGoodsTransactionSelection, parseGoodsTransactionQuote, type GoodsT
 import { isUuid } from '@/lib/uuid';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
+import { isCheckoutAcknowledged, normalizeClaimNotice } from '@/lib/checkout-acknowledgement';
+import { recordOrderPurchaseAcknowledgement, verifyClaimNotice } from '@/lib/checkout-acknowledgement.server';
 
 type GiftResult = { gift: GiftDetail; receipt?: GiftReceipt } | GiftFailure;
 const invalid = (): GiftFailure => ({ error: '입력과 선물 정보를 확인해주세요.' });
@@ -86,7 +88,7 @@ export async function quoteGiftAction(id: string, revision: number, userCouponId
     const quote = parseGoodsTransactionQuote(data); return quote ? { quote } : { error: '선물 금액을 확인하지 못했습니다. 다시 확인해주세요.' };
   } catch (error) { unstable_rethrow(error); return { error: '선물 금액을 확인하지 못했습니다. 다시 확인해주세요.' }; }
 }
-export async function placeGiftAction(id: string, quoteId: string, checkoutKey: string, methodValue: string, expectedActorId: string): Promise<{ orderId: string } | GiftFailure> {
+export async function placeGiftAction(id: string, quoteId: string, checkoutKey: string, methodValue: string, expectedActorId: string, acknowledgedValue?: unknown, claimNoticeValue?: unknown): Promise<{ orderId: string } | GiftFailure> {
   const identity = await actor(expectedActorId, false); if (typeof identity !== 'string') return identity;
   const method = normalizeCheckoutPaymentMethod(methodValue);
   if (!isUuid(id) || !isUuid(quoteId) || !isUuid(checkoutKey) || !method) return invalid();
@@ -99,9 +101,18 @@ export async function placeGiftAction(id: string, quoteId: string, checkoutKey: 
     const qualified = await actor(expectedActorId); if (typeof qualified !== 'string') return qualified;
     const available = method === 'bank_transfer' ? await bankTransferCheckoutEnabled() : goodsCheckoutPaymentsEnabled(identity);
     if (!available) return { error: '현재 선택한 결제수단을 사용할 수 없습니다.' };
+    /* 선물 결제도 일반 주문서와 같은 결제 전 확인 동의(PAY-015)가 있어야 주문을 만든다. 이미 만든 주문의 재확인(replay)은 위에서 끝난다. */
+    const claimNotice = normalizeClaimNotice(claimNoticeValue);
+    if (!isCheckoutAcknowledged(acknowledgedValue) || !claimNotice) return { error: '주문 내용 확인과 구매 조건 동의에 체크한 뒤 결제해주세요.' };
+    const gift = await loadGift(id); if (!gift) return invalid();
+    const verdict = await verifyClaimNotice(gift.items.map(item => item.goodId), claimNotice);
+    if (verdict === 'changed') return { error: '청약철회·교환 제한 안내가 바뀌었어요. 화면을 새로 열어 다시 확인해주세요.' };
+    if (verdict !== 'ok') return { error: '청약철회·교환 제한 안내를 확인하지 못했어요. 잠시 후 다시 시도해주세요.' };
     const { data, error } = await client.rpc('place_my_gift', { p_id: id, p_quote_id: quoteId, p_checkout_key: checkoutKey, p_payment_method: method, p_expected_actor_id: identity });
     if (error) return giftError(error);
     if (typeof data !== 'string' || !isUuid(data)) return giftError();
+    /* 기록 실패가 이미 만든 주문을 되돌리지 않는다(한 번 재시도 뒤 로그, 함수 안에서 처리). */
+    await recordOrderPurchaseAcknowledgement(identity, data, claimNotice);
     revalidatePath('/gifts'); return { orderId: data };
   } catch (error) { unstable_rethrow(error); return giftError(); }
 }

@@ -16,7 +16,9 @@ create table private.order_purchase_acknowledgements (
   user_id uuid not null,
   acknowledged_at timestamptz not null default now(),
   notice_version text not null check (char_length(notice_version) between 1 and 40),
-  restricted_goods jsonb not null default '[]'::jsonb check (jsonb_typeof(restricted_goods) = 'array')
+  restricted_goods jsonb not null default '[]'::jsonb check (jsonb_typeof(restricted_goods) = 'array'),
+  -- 고객 화면이 실제로 보인 제한 고지: {"goodIds":[...]} 또는 읽기 실패로 일반 고지만 보인 {"unavailable":true}. 알 수 없으면 null(거래 복구 경로).
+  screen_notice jsonb check (screen_notice is null or jsonb_typeof(screen_notice) = 'object')
 );
 alter table private.order_purchase_acknowledgements enable row level security;
 revoke all on private.order_purchase_acknowledgements from public, anon, authenticated, service_role;
@@ -25,7 +27,7 @@ comment on table private.order_purchase_acknowledgements is
 
 -- 주문 생성 직후 서버가 부른다. 같은 주문의 재호출은 첫 기록을 그대로 두고 false를 돌려준다(멱등).
 -- 제한 굿즈는 주문 품목과 굿즈 행에서 지금 읽어 스냅샷으로 남긴다.
-create function public.record_order_purchase_acknowledgement(p_user_id uuid, p_order_id uuid, p_notice_version text)
+create function public.record_order_purchase_acknowledgement(p_user_id uuid, p_order_id uuid, p_notice_version text, p_screen_notice jsonb default null)
 returns boolean
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -38,7 +40,10 @@ begin
   if not exists (select 1 from public.orders o where o.id = p_order_id and o.user_id = p_user_id) then
     raise exception 'order_not_found' using errcode = 'P0002';
   end if;
-  insert into private.order_purchase_acknowledgements (order_id, user_id, notice_version, restricted_goods)
+  if p_screen_notice is not null and jsonb_typeof(p_screen_notice) <> 'object' then
+    raise exception 'invalid_acknowledgement_request' using errcode = '22023';
+  end if;
+  insert into private.order_purchase_acknowledgements (order_id, user_id, notice_version, restricted_goods, screen_notice)
   values (
     p_order_id, p_user_id, p_notice_version,
     coalesce((
@@ -52,14 +57,15 @@ begin
       from (select i.good_id, min(i.good_name_snapshot) as name from public.order_items i where i.order_id = p_order_id group by i.good_id) r
       join public.goods g on g.id = r.good_id
       where g.claim_return_allowed is false or g.claim_exchange_allowed is false
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    p_screen_notice
   )
   on conflict (order_id) do nothing;
   get diagnostics inserted = row_count;
   return inserted = 1;
 end $$;
-revoke all on function public.record_order_purchase_acknowledgement(uuid, uuid, text) from public, anon, authenticated, service_role;
-grant execute on function public.record_order_purchase_acknowledgement(uuid, uuid, text) to service_role;
+revoke all on function public.record_order_purchase_acknowledgement(uuid, uuid, text, jsonb) from public, anon, authenticated, service_role;
+grant execute on function public.record_order_purchase_acknowledgement(uuid, uuid, text, jsonb) to service_role;
 
 -- 운영자 주문 상세용 읽기. 기록이 없으면(이 기능 이전 주문·기록 실패) null이다.
 create function public.admin_order_purchase_acknowledgement(p_order uuid) returns jsonb

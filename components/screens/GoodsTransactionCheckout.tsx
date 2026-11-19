@@ -33,8 +33,10 @@ import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
 import {
   CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
+  CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
   EMPTY_CHECKOUT_CLAIM_RESTRICTIONS,
   checkoutRestrictionNotice,
+  claimNoticeOf,
   restrictedCheckoutGoods,
   type CheckoutClaimRestrictions,
 } from '@/lib/checkout-acknowledgement';
@@ -51,6 +53,7 @@ export const cartTransactionErrorCopy: Record<CartTransactionError, string> = {
   draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.',
   draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
   acknowledgement_required: CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
+  claim_notice_changed: CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
 };
 
 interface Props {
@@ -66,7 +69,7 @@ interface Props {
    */
   draft?: CheckoutDraft | null;
   /** 청약철회·교환이 제한된 굿즈(서버가 읽은 값) — 품목 줄에 다시 고지하고 동의 문구에 더한다(PAY-015). */
-  claimRestrictions?: CheckoutClaimRestrictions;
+  claimRestrictions?: CheckoutClaimRestrictions | null;
 }
 
 export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode, draft = null, claimRestrictions = EMPTY_CHECKOUT_CLAIM_RESTRICTIONS }: Props) {
@@ -183,6 +186,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
       remember(null); setFrozen(null); setAcknowledged(false); setError(copyFor(cartTransactionErrorCopy[result.error])); quotes.refresh();
       if (result.error === 'draft_used' || result.error === 'payment_in_progress') setBlockingOrderId(result.orderId ?? null);
       if (result.error === 'cart_changed') await cart.refresh();
+      if (result.error === 'claim_notice_changed') router.refresh();
     }
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -193,7 +197,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     const marker: CartTransactionRecovery = { version: 1, expectedActorId: accountId, sessionId: session, quoteId: quote.quoteId, checkoutKey: crypto.randomUUID(), paymentMethod: effectiveMethod,
       ...(input.draftId ? { draftId: input.draftId } : {}), purchaseAcknowledged: true };
     remember(marker); setFrozen({ display: quote.display, items: input.items });
-    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod, purchaseAcknowledged: true }), capturedEpoch, marker.paymentMethod); }
+    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod, purchaseAcknowledged: true, claimNotice: claimNoticeOf(claimRestrictions, input.items.map(item => item.goodId)) }), capturedEpoch, marker.paymentMethod); }
     catch { if (capturedEpoch === epoch.current) setError('주문 생성 결과를 확인하지 못했어요. 같은 주문 다시 확인을 눌러주세요.'); }
     finally { lane.current = false; if (capturedEpoch === epoch.current) setBusy(false); }
   }
@@ -255,7 +259,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
       <aside className="checkout-receipt card" aria-label="주문 내역과 결제금액">
         <h2>주문 내역</h2><div className="checkout-items">{visibleItems.map(item => {
           const price = display?.lines.find(line => line.goodId === item.goodId && line.variantId === item.variantId)?.unitPrice;
-          return <div className="checkout-item" key={cartItemKey(item.goodId, item.variantId, item.customInputs)}><div><strong>{names[item.goodId] ?? '굿즈'}</strong><span>{catalog.goods.find(good => good.id === item.goodId)?.options?.find(option => option.id === item.variantId)?.name}</span><GoodsCustomInputsSummary selection={item.customInputs} />{Object.hasOwn(claimRestrictions, item.goodId) ? <span className="checkout-item__restriction">{checkoutRestrictionNotice(claimRestrictions[item.goodId])}</span> : null}</div><span>{item.qty}개{price !== undefined ? ` × ${krw(price)}` : ''}</span></div>;
+          return <div className="checkout-item" key={cartItemKey(item.goodId, item.variantId, item.customInputs)}><div><strong>{names[item.goodId] ?? '굿즈'}</strong><span>{catalog.goods.find(good => good.id === item.goodId)?.options?.find(option => option.id === item.variantId)?.name}</span><GoodsCustomInputsSummary selection={item.customInputs} />{claimRestrictions && Object.hasOwn(claimRestrictions, item.goodId) ? <span className="checkout-item__restriction">{checkoutRestrictionNotice(claimRestrictions[item.goodId])}</span> : null}</div><span>{item.qty}개{price !== undefined ? ` × ${krw(price)}` : ''}</span></div>;
         })}</div>
         {display && <GoodsTransactionSummary display={display} names={names} />}
         {quotes.loading && <p role="status">할인과 배송비를 확인하고 있어요.</p>}
@@ -282,7 +286,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
             </span>
           </label>)}</fieldset>
           <button type="button" className="btn btn-ghost" disabled={!input || busy || cart.pending} onClick={quotes.refresh}>금액 다시 확인</button>
-          <PurchaseAcknowledgement checked={acknowledged} disabled={busy} hasRestrictedGoods={restrictedCheckoutGoods(visibleItems.map(item => item.goodId), claimRestrictions).length > 0} onChange={setAcknowledged} />
+          <PurchaseAcknowledgement checked={acknowledged} disabled={busy} hasRestrictedGoods={restrictedCheckoutGoods(visibleItems.map(item => item.goodId), claimRestrictions ?? EMPTY_CHECKOUT_CLAIM_RESTRICTIONS).length > 0} claimUnavailable={claimRestrictions === null} onChange={setAcknowledged} />
           <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}</button>
         </>}
         {recovery && <section aria-label="주문 요청 복구"><p>앞서 요청한 주문을 확인한 뒤 진행해주세요.</p><button type="button" className="btn btn-holo" disabled={busy} onClick={() => void resume()}>{busy ? '같은 주문 확인 중' : '같은 주문 다시 확인'}</button><Link href="/orders?pending=1">진행 중인 주문 보기</Link></section>}

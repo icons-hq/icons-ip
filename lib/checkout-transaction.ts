@@ -5,6 +5,7 @@ import { goodsCustomInputValues } from './goods-custom-inputs';
 import { GOODS_TRANSACTION_MAX_LINES, parseGoodsTransactionDisplay, type GoodsTransactionDisplay, type GoodsTransactionIssueCode } from './goods-transaction';
 import { GOODS_TRANSACTION_SELECTION_MAX_BYTES, transactionExactKeys, transactionRecord } from './goods-transaction-values';
 import { normalizeStoreCreditAmount } from './store-credits';
+import { normalizeClaimNotice, type CheckoutClaimNotice } from './checkout-acknowledgement';
 
 export type CheckoutDeliveryChoice = 'prepaid' | 'collect' | { method: FulfillmentMethod; paymentMode: 'prepaid' | 'collect' };
 export type CheckoutDeliveryChoices = Record<string, CheckoutDeliveryChoice>;
@@ -25,6 +26,8 @@ export interface CartTransactionOrderInput extends CartTransactionInput {
   paymentMethod: CheckoutPaymentMethod;
   /** 결제 전 주문 내용 확인·구매 조건 동의(PAY-015). 정확히 true일 때만 주문을 만든다(서버 액션이 거절한다). */
   purchaseAcknowledged?: true;
+  /** 화면이 실제로 보인 청약철회·교환 제한 굿즈 id(읽기 실패면 'unavailable'). 서버가 주문 직전 재조회와 대조한다. */
+  claimNotice?: CheckoutClaimNotice;
 }
 export interface CheckoutTransactionReceipt { orderId: string; quoteId: string; display: GoodsTransactionDisplay }
 export function cartTransactionRequestTooLarge(value: unknown): boolean {
@@ -72,11 +75,13 @@ export function parseCartTransactionInput(value: unknown): CartTransactionInput 
 export function parseCartTransactionOrderInput(value: unknown): CartTransactionOrderInput | null {
   if (!transactionRecord(value) || !transactionExactKeys(value, ['expectedActorId', 'items', 'address', 'deliveryChoices', 'userCouponId', 'storeCreditAmount', 'quoteId', 'checkoutKey', 'paymentMethod',
     ...(Object.hasOwn(value, 'userCouponIds') ? ['userCouponIds'] : []), ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : []),
-    ...(Object.hasOwn(value, 'purchaseAcknowledged') ? ['purchaseAcknowledged'] : [])])) return null;
-  const { quoteId: rawQuoteId, checkoutKey: rawKey, paymentMethod: rawMethod, purchaseAcknowledged, ...rest } = value;
+    ...(Object.hasOwn(value, 'purchaseAcknowledged') ? ['purchaseAcknowledged'] : []),
+    ...(Object.hasOwn(value, 'claimNotice') ? ['claimNotice'] : [])])) return null;
+  const { quoteId: rawQuoteId, checkoutKey: rawKey, paymentMethod: rawMethod, purchaseAcknowledged, claimNotice: rawNotice, ...rest } = value;
+  const claimNotice = normalizeClaimNotice(rawNotice);
   const input = parseCartTransactionInput(rest), quoteId = normalizeCheckoutKey(rawQuoteId), checkoutKey = normalizeCheckoutKey(rawKey), paymentMethod = normalizeCheckoutPaymentMethod(rawMethod);
   return input && quoteId && checkoutKey && paymentMethod
-    ? { ...input, quoteId, checkoutKey, paymentMethod, ...(purchaseAcknowledged === true ? { purchaseAcknowledged: true as const } : {}) } : null;
+    ? { ...input, quoteId, checkoutKey, paymentMethod, ...(purchaseAcknowledged === true ? { purchaseAcknowledged: true as const } : {}), ...(claimNotice ? { claimNotice } : {}) } : null;
 }
 
 export function cartTransactionSnapshot(items: readonly CartItem[]) {

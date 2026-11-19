@@ -15,7 +15,7 @@ import type { GoodsTransactionOffer } from '@/lib/goods-transaction-offers';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 import { isClosedCheckoutDraft } from '@/lib/checkout-draft';
-import { recordOrderPurchaseAcknowledgement } from '@/lib/checkout-acknowledgement.server';
+import { recordOrderPurchaseAcknowledgement, verifyClaimNotice } from '@/lib/checkout-acknowledgement.server';
 
 export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'payment_in_progress'
   /** 바로구매 초안(ADR-0030)이 만료됐거나 이 계정의 것이 아니다. */
@@ -26,7 +26,9 @@ export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth
    */
   | 'draft_used' | 'unavailable'
   /** 결제 전 주문 내용 확인·구매 조건 동의(PAY-015)가 true로 오지 않았다. */
-  | 'acknowledgement_required';
+  | 'acknowledgement_required'
+  /** 화면이 보인 청약철회·교환 제한 고지와 주문 직전 서버 재조회가 달랐다(fail-closed). */
+  | 'claim_notice_changed';
 export type CartTransactionQuoteResult = { ok: true; quote: GoodsTransactionQuote; offers: GoodsTransactionOffer[] } | { ok: false; error: CartTransactionError; orderId?: string };
 export type CartTransactionPlaceResult = { ok: true; orderId: string } | { ok: false; error: CartTransactionError; uncertain: boolean; orderId?: string };
 
@@ -102,7 +104,7 @@ export async function placeCartTransactionAction(value: unknown): Promise<CartTr
   const input = parseCartTransactionOrderInput(value); if (!input) return { ok: false, error: 'invalid_request', uncertain: false };
   const denied = await authorize(input.expectedActorId); if (denied) return { ok: false, error: denied, uncertain: false };
   /* 결제 전 확인 동의(PAY-015) — 화면 체크를 건너뛴 요청은 주문을 만들기 전에 거절한다. 카드·무통장 공통이다. */
-  if (input.purchaseAcknowledged !== true) return { ok: false, error: 'acknowledgement_required', uncertain: false };
+  if (input.purchaseAcknowledged !== true || !input.claimNotice) return { ok: false, error: 'acknowledgement_required', uncertain: false };
   if (await loadGoodsTransactionRuntimeMode() !== 'transaction') return { ok: false, error: 'checkout_unavailable', uncertain: false };
   let available: boolean;
   try {
@@ -111,6 +113,9 @@ export async function placeCartTransactionAction(value: unknown): Promise<CartTr
       : goodsCheckoutPaymentsEnabled(input.expectedActorId, await deriveGoodsCartProvider(input.items.map(item => item.goodId)));
   } catch { return { ok: false, error: 'unavailable', uncertain: false }; }
   if (!available) return { ok: false, error: 'payment_unavailable', uncertain: false };
+  /* 화면이 보인 제한 고지에 없던 제한 굿즈가 주문 직전에 생겼으면 주문하지 않는다. */
+  const noticeVerdict = await verifyClaimNotice(input.items.map(item => item.goodId), input.claimNotice);
+  if (noticeVerdict !== 'ok') return { ok: false, error: noticeVerdict === 'changed' ? 'claim_notice_changed' : 'unavailable', uncertain: false };
   try {
     const { data, error } = input.draftId
       ? await createServiceClient().rpc('place_direct_goods_transaction', {
@@ -127,7 +132,7 @@ export async function placeCartTransactionAction(value: unknown): Promise<CartTr
     // Analytics must never turn an already committed order into a failed request.
     try { await bindStoreAnalyticsOrder(orderId, input.expectedActorId); } catch { /* order remains committed */ }
     /* 동의 기록도 같다 — 실패해도 이미 만든 주문을 되돌리지 않는다(한 번 재시도 뒤 오류 로그, 함수 안에서 처리). */
-    await recordOrderPurchaseAcknowledgement(input.expectedActorId, orderId);
+    await recordOrderPurchaseAcknowledgement(input.expectedActorId, orderId, input.claimNotice);
     return { ok: true, orderId };
   } catch { return { ok: false, error: 'unavailable', uncertain: true }; }
 }

@@ -96,7 +96,7 @@ function render({
   claimRestrictions,
 }: {
   acknowledged?: boolean;
-  claimRestrictions?: CheckoutClaimRestrictions;
+  claimRestrictions?: CheckoutClaimRestrictions | null;
   addressPrefill?: CheckoutAddressPrefill;
   couponState?: CartCouponState;
   paymentAvailable: boolean;
@@ -617,14 +617,14 @@ describe('Checkout 결제 전 확인 동의', () => {
   it('청약철회 제한 굿즈가 있으면 품목 줄에 사유를 고지하고 동의 문구에 그 사실을 더한다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: restrictions });
     expect(html).toContain('청약철회·교환 제한 — 각인 주문 제작 상품');
-    expect(html).toContain('청약철회가 제한되는 굿즈가 포함되어 있음을 확인하고');
+    expect(html).toContain('청약철회 또는 교환이 제한되는 굿즈가 포함되어 있음을 확인하고');
     expect(html).toContain('data-restricted="true"');
   });
 
   it('제한 굿즈가 주문서 품목에 없으면 고지도 문구 변경도 없다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: { g14: { goodId: 'g14', returnAllowed: false, exchangeAllowed: null, reason: '개봉 후 반품 불가' } } });
     expect(html).not.toContain('개봉 후 반품 불가');
-    expect(html).not.toContain('청약철회가 제한되는 굿즈가 포함되어');
+    expect(html).not.toContain('제한되는 굿즈가 포함되어');
   });
 
   it('반품만 제한이면 교환은 가능하다고 밝힌다', () => {
@@ -643,5 +643,26 @@ describe('Checkout 결제 전 확인 동의', () => {
       resumeOrderId={null} appliedCoupon={null} couponState={{ selectedUserCouponId: null, coupons: [] }} draft={draft} />);
     expect(ackCheckbox(html)).not.toBe('');
     expect(submitButton(html)).toContain('disabled');
+  });
+});
+
+describe('Checkout 제한 고지를 읽지 못한 경우·교환만 제한', () => {
+  it('읽지 못했으면(null) 일반 고지를 보이고 제한 문구는 보이지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: null });
+    expect(html).toContain('청약철회·교환 제한 안내를 불러오지 못했어요');
+    expect(html).toContain('data-claim-unavailable="true"');
+    expect(html).not.toContain('제한되는 굿즈가 포함되어');
+  });
+
+  it('읽었으면 일반 고지는 없다', () => {
+    expect(render({ paymentAvailable: true, bankTransferAvailable: true })).not.toContain('불러오지 못했어요. 주문 전에');
+  });
+
+  it('교환만 제한된 굿즈(b 행)도 체크박스가 청약철회 또는 교환 제한을 말한다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false,
+      claimRestrictions: { g13: { goodId: 'g13', returnAllowed: null, exchangeAllowed: false, reason: '교환 불가 상품' } } });
+    expect(html).toContain('교환 제한 · 청약철회 가능 — 교환 불가 상품');
+    expect(html).toContain('청약철회 또는 교환이 제한되는 굿즈가 포함되어 있음을 확인하고');
+    expect(html).not.toContain('청약철회가 제한되는 굿즈가 포함');
   });
 });

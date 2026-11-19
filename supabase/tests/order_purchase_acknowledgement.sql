@@ -15,10 +15,10 @@ end $$;
 
 -- ── 봉인(선언) ─────────────────────────────────────────────────────────
 select pg_temp.ack_assert(
-  has_function_privilege('service_role','public.record_order_purchase_acknowledgement(uuid,uuid,text)','execute')
-  and not has_function_privilege('authenticated','public.record_order_purchase_acknowledgement(uuid,uuid,text)','execute')
-  and not has_function_privilege('anon','public.record_order_purchase_acknowledgement(uuid,uuid,text)','execute')
-  and not has_function_privilege('public','public.record_order_purchase_acknowledgement(uuid,uuid,text)','execute'),
+  has_function_privilege('service_role','public.record_order_purchase_acknowledgement(uuid,uuid,text,jsonb)','execute')
+  and not has_function_privilege('authenticated','public.record_order_purchase_acknowledgement(uuid,uuid,text,jsonb)','execute')
+  and not has_function_privilege('anon','public.record_order_purchase_acknowledgement(uuid,uuid,text,jsonb)','execute')
+  and not has_function_privilege('public','public.record_order_purchase_acknowledgement(uuid,uuid,text,jsonb)','execute'),
   'record rpc is service_role only');
 select pg_temp.ack_assert(
   has_function_privilege('authenticated','public.admin_order_purchase_acknowledgement(uuid)','execute')
@@ -47,10 +47,11 @@ update public.goods set claim_return_allowed=false,claim_restriction_reason='각
 
 insert into public.orders(id,user_id,status,total)
  values(pg_temp.ack_id('order',1),pg_temp.ack_id('actor',1),'pending',2000),
-        (pg_temp.ack_id('order',2),pg_temp.ack_id('actor',1),'pending',1000);
+        (pg_temp.ack_id('order',2),pg_temp.ack_id('actor',1),'pending',1000),
+        (pg_temp.ack_id('order',3),pg_temp.ack_id('actor',1),'pending',1000);
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
  select pg_temp.ack_id('item',x.n),pg_temp.ack_id('order',x.o),g.id,v.id,1,1000,g.name,g.type,g.ip_id
- from (values(1,1,'order-purchase-ack-free'),(2,1,'order-purchase-ack-limited'),(3,2,'order-purchase-ack-free'))x(n,o,gid)
+ from (values(1,1,'order-purchase-ack-free'),(2,1,'order-purchase-ack-limited'),(3,2,'order-purchase-ack-free'),(4,3,'order-purchase-ack-limited'))x(n,o,gid)
  join public.goods g on g.id=x.gid join public.goods_variants v on v.good_id=g.id and v.is_default;
 
 -- ── 기록: 첫 호출 true, 재호출 false(첫 기록 유지) ─────────────────────
@@ -67,6 +68,11 @@ select pg_temp.ack_assert((select jsonb_array_length(restricted_goods)=1
 select pg_temp.ack_assert(public.record_order_purchase_acknowledgement(pg_temp.ack_id('actor',1),pg_temp.ack_id('order',2),'2026-11-19') is true,'second order records');
 select pg_temp.ack_assert((select restricted_goods='[]'::jsonb from private.order_purchase_acknowledgements where order_id=pg_temp.ack_id('order',2)),'no restricted goods -> empty array');
 
+-- 화면이 보인 고지는 그대로 남는다(알 수 없으면 null).
+select pg_temp.ack_assert((select screen_notice is null from private.order_purchase_acknowledgements where order_id=pg_temp.ack_id('order',1)),'screen notice null by default');
+select pg_temp.ack_assert(public.record_order_purchase_acknowledgement(pg_temp.ack_id('actor',1),pg_temp.ack_id('order',3),'2026-11-19','{"goodIds":["order-purchase-ack-limited"]}') is true,'record with screen notice');
+select pg_temp.ack_assert((select screen_notice->'goodIds'->>0='order-purchase-ack-limited' from private.order_purchase_acknowledgements where order_id=pg_temp.ack_id('order',3)),'screen notice kept');
+select pg_temp.ack_expect(format('select public.record_order_purchase_acknowledgement(%L,%L,%L,%L::jsonb)',pg_temp.ack_id('actor',1),pg_temp.ack_id('order',1),'2026-11-19','[1]'),'22023');
 -- 남의 주문·없는 주문·잘못된 입력은 거절한다.
 select pg_temp.ack_expect(format('select public.record_order_purchase_acknowledgement(%L,%L,%L)',pg_temp.ack_id('actor',2),pg_temp.ack_id('order',1),'2026-11-19'),'P0002');
 select pg_temp.ack_expect(format('select public.record_order_purchase_acknowledgement(%L,%L,%L)',pg_temp.ack_id('actor',1),pg_temp.ack_id('order',99),'2026-11-19'),'P0002');

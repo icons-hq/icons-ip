@@ -3443,6 +3443,13 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   color: var(--wc-ink-tertiary);
 }
 
+.wc-receipt .checkout-acknowledgement__unavailable {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
 .wc-receipt .checkout-acknowledgement__links {
   margin: 6px 0 0 26px;
   font-size: 12px;

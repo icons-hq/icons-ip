@@ -58,3 +58,13 @@ it('결제 전 확인 동의(PAY-015)는 true일 때만 요청·복구 표식에
   /* 견적 요청에는 동의가 없다. */
   expect(parseCartTransactionInput({ ...transactionInput, purchaseAcknowledged: true })).toBeNull();
 });
+
+it('화면이 보인 제한 고지(claimNotice)는 목록 또는 unavailable만 싣는다', () => {
+  const { quoteId, checkoutKey, paymentMethod } = transactionRecovery;
+  const order = { ...transactionInput, quoteId, checkoutKey, paymentMethod, purchaseAcknowledged: true };
+  expect(parseCartTransactionOrderInput({ ...order, claimNotice: ['g1', 'g1'] })).toMatchObject({ claimNotice: ['g1'] });
+  expect(parseCartTransactionOrderInput({ ...order, claimNotice: 'unavailable' })).toMatchObject({ claimNotice: 'unavailable' });
+  expect(parseCartTransactionOrderInput(order)).not.toHaveProperty('claimNotice');
+  for (const value of ['x', 1, [1], null]) expect(parseCartTransactionOrderInput({ ...order, claimNotice: value })).not.toHaveProperty('claimNotice');
+  expect(parseCartTransactionInput({ ...transactionInput, claimNotice: [] })).toBeNull();
+});

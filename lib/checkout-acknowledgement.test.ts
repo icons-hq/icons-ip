@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   CHECKOUT_ACKNOWLEDGEMENT_VERSION,
   checkoutAcknowledgementText,
+  claimNoticeOf,
+  claimNoticeRecord,
+  normalizeClaimNotice,
   checkoutRestrictionNotice,
   isCheckoutAcknowledged,
   parseCheckoutClaimRestrictions,
@@ -21,7 +24,7 @@ describe('결제 전 확인 동의 값', () => {
 
   it('제한 굿즈가 있으면 문구가 그 사실을 더한다', () => {
     expect(checkoutAcknowledgementText(false)).toBe('주문 굿즈·수량·결제 금액·배송지를 확인했으며, 구매 조건과 결제에 동의합니다.');
-    expect(checkoutAcknowledgementText(true)).toContain('청약철회가 제한되는 굿즈가 포함되어 있음을 확인하고');
+    expect(checkoutAcknowledgementText(true)).toContain('청약철회 또는 교환이 제한되는 굿즈가 포함되어 있음을 확인하고');
     expect(checkoutAcknowledgementText(true)).toContain('구매 조건과 결제에 동의합니다.');
   });
 
@@ -58,5 +61,36 @@ describe('제한 굿즈 읽기', () => {
     ]);
     expect(restrictedCheckoutGoods(['b', 'x', 'a', 'b'], restrictions).map((r) => r.goodId)).toEqual(['b', 'a']);
     expect(restrictedCheckoutGoods(['constructor', '__proto__', 'toString'], restrictions)).toEqual([]);
+  });
+});
+
+describe('화면이 보인 제한 고지', () => {
+  const restrictions = parseCheckoutClaimRestrictions([
+    { id: 'a', claim_return_allowed: false, claim_restriction_reason: 'r' },
+    { id: 'b', claim_exchange_allowed: false, claim_restriction_reason: 'r' },
+  ]);
+
+  it('교환만 제한된 굿즈(b)도 문구가 청약철회 또는 교환 제한을 말한다', () => {
+    expect(checkoutRestrictionNotice(restrictions.b)).toBe('교환 제한 · 청약철회 가능 — r');
+    expect(checkoutAcknowledgementText(restrictedCheckoutGoods(['b'], restrictions).length > 0)).toContain('청약철회 또는 교환이 제한되는 굿즈');
+  });
+
+  it('품목 기준 보인 목록, 읽기 실패면 unavailable 표식이다', () => {
+    expect(claimNoticeOf(restrictions, ['b', 'z', 'a', 'b'])).toEqual(['b', 'a']);
+    expect(claimNoticeOf({}, ['a'])).toEqual([]);
+    expect(claimNoticeOf(null, ['a'])).toBe('unavailable');
+  });
+
+  it('서버가 받은 값은 목록 또는 unavailable만 인정한다', () => {
+    expect(normalizeClaimNotice('unavailable')).toBe('unavailable');
+    expect(normalizeClaimNotice(['a', 'a', 'b'])).toEqual(['a', 'b']);
+    expect(normalizeClaimNotice([])).toEqual([]);
+    for (const value of [undefined, null, 'a', 1, [1], [''], {}, new Array(201).fill('x')]) expect(normalizeClaimNotice(value), String(value)).toBeNull();
+  });
+
+  it('기록 모양', () => {
+    expect(claimNoticeRecord(['a'])).toEqual({ goodIds: ['a'] });
+    expect(claimNoticeRecord('unavailable')).toEqual({ unavailable: true });
+    expect(claimNoticeRecord(null)).toBeNull();
   });
 });

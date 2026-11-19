@@ -10,6 +10,8 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import { EMPTY_GIFT_ADDRESS, GiftAddressFields, GiftItems, GiftRequestFeedback } from '@/components/gifts/GiftParts';
 import { useGiftRequest, useGiftUnsaved } from '@/components/gifts/useGiftRequest';
 import { customerConfirm } from '@/lib/customer-confirm';
+import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
+import { EMPTY_CHECKOUT_CLAIM_RESTRICTIONS, claimNoticeOf, restrictedCheckoutGoods, type CheckoutClaimRestrictions } from '@/lib/checkout-acknowledgement';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { normalizeCheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
 import { couponDisplayState, type UserCouponSummary } from '@/lib/coupons';
@@ -28,11 +30,13 @@ function GiftTrackingLine({ carriers, carrier, trackingNumber }: { carriers: Shi
   return <p>{label} · {found?.trackingUrl ? <a aria-label={`${label} ${trackingNumber} 배송조회`} href={found.trackingUrl} rel="noreferrer" target="_blank">{trackingNumber}</a> : trackingNumber}</p>;
 }
 function newGiftToken() { const bytes = crypto.getRandomValues(new Uint8Array(32)); return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', ''); }
-export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext, carriers = [], returnPickup = NO_RETURN_PICKUP }: { actorId: string; initialGift: GiftDetailValue; coupons: readonly UserCouponSummary[] | null; initialClaimContext: GiftClaimContext | null; carriers?: ShippingCarrierRegistry; returnPickup?: OrderReturnPickup }) {
+export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext, carriers = [], returnPickup = NO_RETURN_PICKUP, claimRestrictions = EMPTY_CHECKOUT_CLAIM_RESTRICTIONS }: { claimRestrictions?: CheckoutClaimRestrictions | null; actorId: string; initialGift: GiftDetailValue; coupons: readonly UserCouponSummary[] | null; initialClaimContext: GiftClaimContext | null; carriers?: ShippingCarrierRegistry; returnPickup?: OrderReturnPickup }) {
   const router = useRouter(), [gift, setGift] = useState(initialGift), [address, setAddress] = useState(initialGift.address ?? { ...EMPTY_GIFT_ADDRESS });
   const [link, setLink] = useState<string | null>(null), [copyStatus, setCopyStatus] = useState(''), [quote, setQuote] = useState<GoodsTransactionQuote | null>(null);
   const [couponId, setCouponId] = useState(''), [credit, setCredit] = useState('0'), [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('card');
   const [quoteExpired, setQuoteExpired] = useState(false), [message, setMessage] = useState('');
+  /* 선물 결제도 결제 전 주문 내용 확인·구매 조건 동의를 받는다(PAY-015). 저장하지 않고 견적이 바뀌면 다시 받는다. */
+  const [acknowledged, setAcknowledged] = useState(false);
   const lost = useCallback(() => { setGift(previous => ({ ...previous, senderLabel: '', recipientLabel: null, message: '', items: [], address: null, addressRevision: null, order: null, shipments: [] })); setAddress({ ...EMPTY_GIFT_ADDRESS }); setLink(null); setQuote(null); setCouponId(''); setCredit('0'); setMessage(''); }, []);
   const request = useGiftRequest(actorId, lost);
   const addressDirty = gift.isRecipient && gift.state === 'accepted' && JSON.stringify(address) !== JSON.stringify(gift.address);
@@ -78,9 +82,10 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext,
         {quote?.state === 'quoted' ? <><GoodsTransactionSummary display={quote.display} names={Object.fromEntries(gift.items.map(item => [item.goodId, item.name]))} /><p>사용 가능한 적립금: {krw(quote.display.storeCreditMaximum)}</p>
           <fieldset disabled={request.locked || quoteExpired}><legend>결제수단</legend>{quote.display.paymentMethods.card ? <label className="wc-gifts__check"><input type="radio" name="gift-payment" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} />카드 결제</label> : null}
             {quote.display.paymentMethods.bankTransfer ? <label className="wc-gifts__check"><input type="radio" name="gift-payment" checked={paymentMethod === 'bank_transfer'} onChange={() => setPaymentMethod('bank_transfer')} />무통장 입금</label> : null}
-            <button type="button" disabled={paymentMethod === 'card' ? !quote.display.paymentMethods.card : !quote.display.paymentMethods.bankTransfer} onClick={() => {
-              const quoteId = quote.quoteId, checkoutKey = crypto.randomUUID(), method = paymentMethod;
-              request.run(() => placeGiftAction(gift.id, quoteId, checkoutKey, method, actorId), result => { setQuote(null); router.push(`/checkout/${result.orderId}`); });
+            <PurchaseAcknowledgement checked={acknowledged} disabled={request.locked || quoteExpired} hasRestrictedGoods={restrictedCheckoutGoods(gift.items.map(item => item.goodId), claimRestrictions ?? EMPTY_CHECKOUT_CLAIM_RESTRICTIONS).length > 0} claimUnavailable={claimRestrictions === null} onChange={setAcknowledged} />
+            <button type="button" disabled={!acknowledged || (paymentMethod === 'card' ? !quote.display.paymentMethods.card : !quote.display.paymentMethods.bankTransfer)} onClick={() => {
+              const quoteId = quote.quoteId, checkoutKey = crypto.randomUUID(), method = paymentMethod, notice = claimNoticeOf(claimRestrictions, gift.items.map(item => item.goodId));
+              request.run(async () => { const result = await placeGiftAction(gift.id, quoteId, checkoutKey, method, actorId, acknowledged, notice); if ('error' in result) setAcknowledged(false); return result; }, result => { setQuote(null); router.push(`/checkout/${result.orderId}`); });
             }}>{krwAmountWords(quote.display.totals.onlineTotal)} 결제 진행</button></fieldset>
           {quoteExpired ? <p role="status">견적 시간이 지났어요. 최종 결제금액을 다시 확인해주세요.</p> : <p>결제를 진행할 때 가격·재고·배송지를 한 번 더 확인해요.</p>}</> : null}
       </section> : null}

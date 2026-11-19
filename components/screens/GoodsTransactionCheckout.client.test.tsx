@@ -200,3 +200,17 @@ it('청약철회 제한 굿즈가 있으면 품목 줄 고지와 동의 문구�
   expect(text(render())).toContain('청약철회·교환 제한 — 각인 주문 제작 상품');
   expect(acknowledgement()!.props.hasRestrictedGoods).toBe(true);
 });
+
+it('화면이 보인 제한 고지를 주문 요청에 싣고, 읽지 못했으면 unavailable 표식을 보낸다', async () => {
+  await submit(); await flush();
+  expect(mocks.place.mock.calls[0][0]).toMatchObject({ claimNotice: [] });
+  props = { ...props, claimRestrictions: { 'transaction-good': { goodId: 'transaction-good', returnAllowed: null, exchangeAllowed: false, reason: '교환 불가' } } };
+  storage.clear(); for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  await submit(); await flush();
+  expect(mocks.place.mock.calls.at(-1)?.[0]).toMatchObject({ claimNotice: ['transaction-good'] });
+  props = { ...props, claimRestrictions: null };
+  storage.clear(); for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  expect(acknowledgement()!.props.claimUnavailable).toBe(true);
+  await submit(); await flush();
+  expect(mocks.place.mock.calls.at(-1)?.[0]).toMatchObject({ claimNotice: 'unavailable' });
+});
