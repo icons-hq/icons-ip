@@ -70,6 +70,11 @@ Production dark deploy → masked env/readback → webhook → Auth 4개 흐름�
 #191 Auth gate·주문 지연 안내 gate와 분리한다. 수신자는 운영자·창고 담당자 업무 주소이고 dispatcher에는
 digest만 남는다. 운영 절차는 [재고 파일 대조·안전재고 요약 메일 운영](./runbooks/stock-reconcile-safety-digest.md).
 
+2026-11-19 운영 알림 요약 메일(`ops_alert_digest`)도 같은 dispatcher를 쓴다. 전용 gate는
+`private.ops_alert_digest_settings.enabled`(시스템 상태 화면의 '운영 알림 메일 보내기', 기본 꺼짐)이며 다른 gate와 분리한다.
+수신자는 운영자 업무 주소이고 본문에는 건수·어드민 링크·자동 작업 이름만 싣는다. 운영 절차는
+[문의 실시간 연결 검증의 운영 알림 요약 메일](./runbooks/inquiry-realtime.md).
+
 legacy `email_deliveries`는 `legacy_unverified`로 분류한다. migration 이후 새 legacy 행은
 recipient·subject·오류를 즉시 redaction하며 staff 조회도 masked 값만 반환한다. migration 전
 평문 행의 retry/completion은 기존 recipient·subject·오류를 보존하고, 기존 오류가 null인 경우에만
