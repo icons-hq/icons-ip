@@ -96,8 +96,8 @@ describe('재고 파일 대조 액션', () => {
     expect(await readStockReconcileFileAction(form(new File(['a'], 'stock.xls')))).toMatchObject({ ok: false, error: expect.stringContaining('XLSX로 다시 저장') });
     expect(await readStockReconcileFileAction(form(new File(['a'], 'stock.pdf')))).toMatchObject({ ok: false });
     expect(mocks.readFile).not.toHaveBeenCalled();
-    mocks.readFile.mockResolvedValue({ table: [['관리코드', '재고수량']], numericColumns: [], warnings: [], sheetName: 'Sheet1' });
-    expect(await readStockReconcileFileAction(form(new File(['a,b'], 'stock.csv')))).toEqual({ ok: true, fileName: 'stock.csv', table: [['관리코드', '재고수량']],
+    mocks.readFile.mockResolvedValue({ table: [['옵션 자동코드', '재고수량']], numericColumns: [], warnings: [], sheetName: 'Sheet1' });
+    expect(await readStockReconcileFileAction(form(new File(['a,b'], 'stock.csv')))).toEqual({ ok: true, fileName: 'stock.csv', table: [['옵션 자동코드', '재고수량']],
       numericColumns: [], warnings: [], sheetName: 'Sheet1' });
     mocks.readFile.mockRejectedValue(new Error('한 번에 5,000행까지 반입할 수 있습니다. 파일을 나누어 반입해주세요.'));
     expect(await readStockReconcileFileAction(form(new File(['a,b'], 'stock.csv')))).toMatchObject({ ok: false, error: expect.stringContaining('대조할 수 있습니다') });

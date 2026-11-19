@@ -157,10 +157,10 @@ export function GoodsGroupProductPicker({ identity, disabled, onSelect, title = 
     });
   }
   return <AdminSectionCard title={title}><div className="flex flex-wrap items-end gap-2" role="search">
-    <div className="min-w-[min(100%,20rem)] flex-1"><AdminField label="상품명·판매자상품코드·상품 URL" inputId="group-product-search"><Input id="group-product-search" type="search" value={query} maxLength={100} disabled={disabled || pending}
+    <div className="min-w-[min(100%,20rem)] flex-1"><AdminField label="상품명·상품 자동코드·상품 URL" inputId="group-product-search"><Input id="group-product-search" type="search" value={query} maxLength={100} disabled={disabled || pending}
       onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); search(); } }} /></AdminField></div>
     <Button variant="soft" type="button" disabled={disabled || pending || !identity} onClick={() => search()}>상품 검색</Button>
-  </div>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}{page ? <><GroupTable label="상품 검색 결과" className="min-w-[480px]"><TableHeader><TableRow><TableHead>상품</TableHead><TableHead>판매자상품코드</TableHead><TableHead>선택</TableHead></TableRow></TableHeader><TableBody>
+  </div>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}{page ? <><GroupTable label="상품 검색 결과" className="min-w-[480px]"><TableHeader><TableRow><TableHead>상품</TableHead><TableHead>상품 자동코드</TableHead><TableHead>선택</TableHead></TableRow></TableHeader><TableBody>
     {page.rows.map(row => <TableRow key={row.id}><TableCell className="whitespace-normal">{row.name}<small className="block text-xs text-muted-foreground">{row.id}</small></TableCell><TableCell>{row.code ?? '—'}</TableCell><TableCell><Button size="xs" variant="outline" type="button" disabled={disabled || pending} onClick={() => select(row.id)}>{row.name} 선택</Button></TableCell></TableRow>)}
     {!page.rows.length ? <TableRow><TableCell className="h-24 text-center text-muted-foreground" colSpan={3}>검색 결과가 없습니다.</TableCell></TableRow> : null}</TableBody></GroupTable>
     <GroupPager {...page} disabled={disabled || pending} onChange={number => search(number, applied)} /></> : <p className="text-sm text-muted-foreground">검색어를 비우고 조회하면 등록된 상품을 확인할 수 있습니다.</p>}</AdminSectionCard>;

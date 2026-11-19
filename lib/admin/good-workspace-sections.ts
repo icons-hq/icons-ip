@@ -105,7 +105,7 @@ export function goodWorkspaceKcWithTemplate(kc: GoodWorkspaceKcDraft, template: 
   return kc.models.length >= MAX_GOODS_KC_MODELS ? null : { models: [...kc.models, model], attested: false };
 }
 
-/** KC 편집기·옵션 선택에 쓰는 옵션 목록(화면 id·이름·관리코드·사용 여부). */
+/** KC 편집기·옵션 선택에 쓰는 옵션 목록(화면 id·이름·옵션 자동코드·사용 여부). */
 export function goodWorkspaceKcVariants(rows: readonly GoodsOptionRow[]): GoodsKcVariant[] {
   return rows.map((row, index) => ({ id: goodWorkspaceVariantId(row), code: row.code.trim() || '저장 시 생성',
     name: row.name.trim() || `옵션 ${index + 1}`, active: row.isActive !== false }));

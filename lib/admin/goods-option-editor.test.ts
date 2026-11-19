@@ -220,8 +220,8 @@ describe('옵션목록 선택·일괄수정·재고 합계', () => {
   });
 });
 
-/* 2026-10-07 QA: 옵션목록 적용 직후 관리코드 칸은 RIL-0001-01/-02로 보였지만, 저장하면 교체된 기본 옵션이 -01을 이미 써서 -02/-03이 붙었다. */
-describe('관리코드 칸의 저장 시 코드 예상', () => {
+/* 2026-10-07 QA: 옵션목록 적용 직후 옵션 자동코드 칸은 RIL-0001-01/-02로 보였지만, 저장하면 교체된 기본 옵션이 -01을 이미 써서 -02/-03이 붙었다. */
+describe('옵션 자동코드 칸의 저장 시 코드 예상', () => {
   const DEFAULT = '33333333-3333-4333-8333-333333333333';
   const RED = '44444444-4444-4444-8444-444444444444';
   const ARCHIVED = '55555555-5555-4555-8555-555555555555';
@@ -235,13 +235,13 @@ describe('관리코드 칸의 저장 시 코드 예상', () => {
       .toEqual(['RIL-0001-02', 'RIL-0001-03']);
   });
 
-  it('보관된 옵션·위 옵션의 관리코드를 피하고, 저장된 옵션은 비워도 기존 코드를 유지한다', () => {
+  it('보관된 옵션·위 옵션의 옵션 자동코드를 피하고, 저장된 옵션은 비워도 기존 코드를 유지한다', () => {
     const saved = { goodCode: 'GOOD', options: [{ id: RED, code: 'GOOD-01' }, { id: ARCHIVED, code: 'GOOD-03' }] };
     expect(predictGoodsOptionCodes([kept(RED), fresh(' good-02 '), fresh(), fresh()], 'GOOD', saved))
       .toEqual(['GOOD-01', 'GOOD-02', 'GOOD-04', 'GOOD-05']);
   });
 
-  it('저장된 옵션의 관리코드를 바꾸면 이전 코드는 아래 옵션이 받을 수 있다', () => {
+  it('저장된 옵션의 옵션 자동코드를 바꾸면 이전 코드는 아래 옵션이 받을 수 있다', () => {
     expect(predictGoodsOptionCodes([kept(RED, 'red-x'), fresh()], 'GOOD', { goodCode: 'GOOD', options: [{ id: RED, code: 'GOOD-01' }] }))
       .toEqual(['RED-X', 'GOOD-01']);
   });

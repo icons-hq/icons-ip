@@ -34,7 +34,7 @@ export type GoodsOptionAxis = { name: string; values: string };
 export const GOODS_OPTION_AXIS_LIMIT = 3;
 export const GOODS_OPTION_ROW_LIMIT = 100;
 type Result = { ok: true; rows: GoodsOptionRow[] } | { ok: false; error: string };
-const INVALID = '옵션명·관리코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한(1 이상의 정수)을 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
+const INVALID = '옵션명·옵션 자동코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한(1 이상의 정수)을 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
 /** 0901-015: 재고수량 칸을 비운 채로는 저장하지 않는다. 재고가 없으면 0을 직접 입력한다. 화면 검증과 서버 정규화가 같은 문구를 쓴다. */
 export const GOODS_OPTION_STOCK_REQUIRED = '재고수량을 입력해주세요. 재고가 없으면 0을 입력합니다.';
 const signature = (attributes: Record<string, string>) => JSON.stringify(Object.entries(attributes).sort(([a], [b]) => a.localeCompare(b)));
@@ -201,11 +201,11 @@ export type GoodsOptionSavedCodes = {
 const optionCode = (value: string | null | undefined) => (value ?? '').trim().toUpperCase();
 
 /**
- * 관리코드 칸이 보여 줄 저장 시 코드(예상). 행마다 코드 또는 예상할 수 없으면 null.
- * 서버(private.save_goods_options → private.set_goods_variant_code)는 옵션을 위에서부터 저장하며, 빈 관리코드에
- * `상품코드-01`부터 아직 쓰이지 않은 첫 번호를 붙인다(관리코드는 앞뒤 공백을 지우고 대문자로 저장한다).
+ * 옵션 자동코드 칸이 보여 줄 저장 시 코드(예상). 행마다 코드 또는 예상할 수 없으면 null.
+ * 서버(private.save_goods_options → private.set_goods_variant_code)는 옵션을 위에서부터 저장하며, 빈 옵션 자동코드에
+ * `상품코드-01`부터 아직 쓰이지 않은 첫 번호를 붙인다(옵션 자동코드는 앞뒤 공백을 지우고 대문자로 저장한다).
  * 목록에서 뺀 옵션·보관된 옵션의 코드는 저장이 끝날 때까지 남아 있어 건너뛰고, 위 옵션이 받거나 입력한 코드도 피한다.
- * 저장된 옵션은 관리코드를 비우면 기존 코드를 유지한다. 새 상품의 첫 저장은 옵션을 다시 만들어 -01부터 붙인다.
+ * 저장된 옵션은 옵션 자동코드를 비우면 기존 코드를 유지한다. 새 상품의 첫 저장은 옵션을 다시 만들어 -01부터 붙인다.
  * 저장된 옵션 정보가 없거나 상품코드를 이번 저장에서 바꾸면(기본 옵션 코드가 함께 바뀐다) 예상하지 않는다.
  * 다른 상품이 이 상품코드로 시작하는 옵션코드를 직접 쓰는 경우는 화면에서 알 수 없다.
  */
@@ -283,7 +283,7 @@ export function removeGoodsOptionRows(rows: readonly GoodsOptionRow[], keys: Rea
 }
 
 /**
- * 옵션 사용 → 설정안함. 첫 행(기본 옵션 id·관리코드·재고·ERP 정보)을 남기고 옵션값을 지운다.
+ * 옵션 사용 → 설정안함. 첫 행(기본 옵션 id·옵션 자동코드·재고·ERP 정보)을 남기고 옵션값을 지운다.
  * 옵션 없이 파는 상품 화면에는 옵션별 사용여부 칸이 없으므로, 중지된 첫 옵션은 사용으로 되돌린다.
  */
 export function collapseGoodsOptionRows(rows: readonly GoodsOptionRow[]): GoodsOptionRow[] {
@@ -296,7 +296,7 @@ export function collapseGoodsOptionRows(rows: readonly GoodsOptionRow[]): GoodsO
 export function goodsOptionCollapseNotice(rows: readonly GoodsOptionRow[]): string {
   const [first] = rows;
   const removed = Math.max(0, rows.length - 1);
-  return `옵션 사용을 설정안함으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 기본 옵션으로 남습니다. 관리코드·재고수량·ERP 정보는 유지됩니다.`
+  return `옵션 사용을 설정안함으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 기본 옵션으로 남습니다. 옵션 자동코드·재고수량·ERP 정보는 유지됩니다.`
     + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 기본 정보의 운영 상태를 판매 중지로 바꿔주세요.' : '')
     + (removed ? ` 나머지 옵션 ${removed}개는 옵션목록에서 빠지고, 주문·장바구니에 쓰인 옵션은 저장할 때 삭제 대신 보관됩니다.` : '')
     + ' 계속할까요?';

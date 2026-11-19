@@ -237,7 +237,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
             <div className="flex flex-wrap items-center gap-2"><Button onClick={() => setPicker(true)} size="sm" type="button" variant="outline">상품 선택</Button>
               <span className="text-sm tabular-nums">선택 {goods.length.toLocaleString('ko-KR')} / {DISCOUNT_PROMOTION_GOODS_LIMIT.toLocaleString('ko-KR')}개</span>
               {goods.length ? <Button onClick={() => { setGoods([]); setDrafts({}); }} size="sm" type="button" variant="ghost">선택 비우기</Button> : null}</div>
-            <p className={NOTE}>검색으로 고르거나, 선택 창의 ‘여러 상품 한 번에 추가’에 상품 URL·판매자상품코드를 여러 줄로 붙이거나 엑셀 한 열을 올려 담습니다.</p>
+            <p className={NOTE}>검색으로 고르거나, 선택 창의 ‘여러 상품 한 번에 추가’에 상품 URL·상품 자동코드를 여러 줄로 붙이거나 엑셀 한 열을 올려 담습니다.</p>
             {goods.length ? <ul className="flex max-h-56 flex-col overflow-auto rounded-lg border text-sm">{goods.map(good => <li className="flex items-center gap-2 border-b px-3 py-1.5 last:border-b-0" key={good.id}>
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{good.name}<small className="ml-1 text-xs text-muted-foreground">{good.id}</small></span>
               <Button aria-label={`${good.name} 빼기`} onClick={() => { setGoods(current => current.filter(item => item.id !== good.id)); setDrafts(current => Object.fromEntries(Object.entries(current).filter(([goodId]) => goodId !== good.id))); }} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></li>)}</ul> : null}
@@ -258,7 +258,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
         <p className="text-sm tabular-nums">{kst(preview.request.startsAt)} ~ {kst(preview.request.endsAt)} (KST) · {DISCOUNT_PROMOTION_TARGET_LABELS[preview.target.kind]}{preview.target.label ? ` · ${preview.target.label}` : ''} · 일괄 {discountRuleLabel(preview.request.rule)}</p>
         <p className="text-sm tabular-nums">대상 {preview.goods.length.toLocaleString('ko-KR')}개 · 적용 {applied.toLocaleString('ko-KR')}개 · 건너뜀 {(preview.goods.length - applied).toLocaleString('ko-KR')}개 · 예외 {preview.request.exceptions.length.toLocaleString('ko-KR')}개</p>
       </div>
-      <GroupTable label="할인 프로모션 대상" layout="fixed"><TableHeader><TableRow><TableHead className="w-[32%]">상품명·판매자상품코드</TableHead><TableHead className="w-[16%]">현재 판매가</TableHead><TableHead className="w-[26%]">할인 규칙</TableHead><TableHead>할인 후</TableHead></TableRow></TableHeader>
+      <GroupTable label="할인 프로모션 대상" layout="fixed"><TableHeader><TableRow><TableHead className="w-[32%]">상품명·상품 자동코드</TableHead><TableHead className="w-[16%]">현재 판매가</TableHead><TableHead className="w-[26%]">할인 규칙</TableHead><TableHead>할인 후</TableHead></TableRow></TableHeader>
         <TableBody>{preview.goods.map(row => {
           const draft = drafts[row.id] ?? { mode: 'default', value: '' };
           /* 기간이 겹치거나 판매 중인 옵션이 없어 건너뛴 줄은 규칙을 바꿔도 결과가 같다 — 고를 수 있는 것처럼 보이지 않게 잠근다(QA1 MD). */
