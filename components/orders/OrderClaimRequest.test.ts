@@ -206,3 +206,14 @@ it('회수 접수·회수 생략·반품배송비 정책·부분 취소를 함�
   expect(html).toContain('회수 송장이 없는 묶음은 회수 정보의 회수 주소로 보내주세요.');
   expect(html).toContain('회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.');
 });
+
+describe('부분 반품 안내(ADR-0047, 적대적 리뷰 2026-11-19)', () => {
+  it('부분 반품이 결제사 확인 필요에 머물면 결제 취소 확인 대신 환불 방법(계좌 송금)을 확인한다고 말한다', () => {
+    const review = claim({ claimType: 'return', stage: 'needs_review' });
+    expect(claimStageNotice(review, null, { partialReturn: true })).toContain('계좌로 송금해 드리며');
+    expect(claimStageNotice(review, null, { partialReturn: true })).not.toContain('결제 취소 결과');
+    expect(claimStageNotice(review)).toContain('결제 취소 결과를 안전하게 확인하고 있습니다');
+    expect(claimStageNotice(claim({ claimType: 'return', stage: 'processing' }), null, { partialReturn: true })).toContain('반품하신 굿즈의 환급 절차');
+  });
+});
+

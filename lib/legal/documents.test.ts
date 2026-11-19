@@ -23,6 +23,7 @@ import {
   shippingBundleWordingRevisionAnnounced,
   shippingBundleWordingRevisionInEffect,
 } from './shipping-bundle-wording-revision';
+import { partialReturnTermsRevisionAnnounced, partialReturnTermsRevisionInEffect, type PartialReturnTermsRevision } from './partial-return-terms-revision';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
 
 /** KST 달력 날짜(`YYYY-MM-DD`)를 하루 단위로 옮긴다. */
@@ -37,19 +38,19 @@ function shiftDay(date: string, days: number): string {
 /* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
 const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
 const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null);
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null);
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null);
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null);
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, { partialReturnRevision: null });
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, { partialReturnRevision: null });
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, { partialReturnRevision: null });
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: null });
 
 /* 방침 개정(휴대폰 번호 인증·이메일 변경)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 끄고(null) 2026-11-06 최초 판을 고정한다.
    BASE_LEGAL 은 실제 시계와 무관하게 방침 최초 판을 고정한 현행 문서 셋이다(방침 본문 문구를 검사하는 시험이 시행일 뒤에도 같은 본문을 본다). */
-const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null);
+const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, { partialReturnRevision: null });
 /* 방침 개정 상태 — 날짜는 개정 상수에서 파생한다. 표기 개정은 꺼서(null) terms·shipping 을 건드리지 않게 한다. */
 const PRIVACY_NOW = CONTACT_CHANNELS_PRIVACY_REVISION;
-const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW);
-const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW);
-const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW);
+const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, { partialReturnRevision: null });
+const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, { partialReturnRevision: null });
+const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, { partialReturnRevision: null });
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
@@ -236,7 +237,7 @@ describe('법정 문서 레지스트리', () => {
     expect(shippingBundleWordingRevisionAnnounced('2026-12-31', null)).toBe(false);
     expect(shippingBundleWordingRevisionInEffect('2099-01-01', null)).toBe(false);
     for (const today of ['2026-11-20', '2026-12-31', '2099-01-01']) {
-      const set = createLegalDocuments(BUSINESS_INFO, today, null);
+      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, { partialReturnRevision: null });
       for (const slug of ['terms', 'shipping'] as const) {
         expect(set[slug].pendingRevision, `${slug} ${today}`).toBeUndefined();
         expect(set[slug].previousVersion, `${slug} ${today}`).toBeUndefined();
@@ -705,7 +706,7 @@ describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·�
     expect(contactChannelsPrivacyRevisionInEffect('2026-11-18', PRIVACY_NOW)).toBe(true);
     expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
     expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null).privacy).toEqual(base);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, { partialReturnRevision: null }).privacy).toEqual(base);
   });
 });
 
@@ -759,3 +760,56 @@ describe('배송·반품 정책', () => {
 });
 
 it("설정 연락처 변경을 모든 법정 문서에 반영한다",()=>{for(const slug of LEGAL_DOCUMENT_SLUGS){const rendered=JSON.stringify(getLegalDocument(slug,{...BUSINESS_INFO,phone:"",email:"current@example.test"}));expect(rendered).toContain("current@example.test");expect(rendered).not.toContain(BUSINESS_INFO.phone);}});
+
+describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·반품배송비 차감(ADR-0047)', () => {
+  /* '출고지' 표기 개정(BUNDLE_REVISION)이 이미 시행된 뒤에 얹는다 — 날짜는 시험이 주입한다(운영 날짜는 머지 직전에 JSON으로 정한다). */
+  const REVISION: PartialReturnTermsRevision = { announcedDate: shiftDay(BUNDLE_EFFECTIVE, 1), effectiveDate: shiftDay(BUNDLE_EFFECTIVE, 8) };
+  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: REVISION });
+  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION });
+  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION });
+
+  it('공지 전에는 본문·공지가 그대로다', () => {
+    expect(before.terms).toEqual(AFTER_BUNDLE.terms);
+    expect(before.shipping).toEqual(AFTER_BUNDLE.shipping);
+  });
+
+  it('공지 기간에는 현행 본문을 두고 개정 예정 안내만 붙인다', () => {
+    for (const slug of ['terms', 'shipping'] as const) {
+      expect(during[slug].articles).toEqual(AFTER_BUNDLE[slug].articles);
+      expect(during[slug].pendingRevision).toMatchObject({ announcedDate: REVISION.announcedDate, effectiveDate: REVISION.effectiveDate,
+        heading: '일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내' });
+    }
+    expect(during.privacy).toEqual(AFTER_BUNDLE.privacy);
+  });
+
+  it('시행일부터 일부 굿즈 반품·반품배송비 차감 본문이 현행이 되고 직전 본문(배송 묶음 표기)을 이전 판으로 보존한다', () => {
+    const terms = plainText(after.terms);
+    const shipping = plainText(after.shipping);
+    expect(after.terms.effectiveDate).toBe(REVISION.effectiveDate);
+    expect(after.terms.previousVersion).toEqual({ effectiveDate: BUNDLE_EFFECTIVE, articles: AFTER_BUNDLE.terms.articles });
+    expect(after.shipping.previousVersion).toEqual({ effectiveDate: BUNDLE_EFFECTIVE, articles: AFTER_BUNDLE.shipping.articles });
+    expect(terms).not.toContain('일부만 환급하는 처리는 제공하지 않습니다');
+    expect(terms).not.toContain('나머지 대금을 그대로 두는 처리는 제공하지 않습니다');
+    expect(terms).toContain('주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
+    expect(terms).toContain('반품배송비)은 환급액에서 차감할 수 있습니다');
+    expect(terms).toContain('배송 묶음별 실물 회수');
+    expect(shipping).not.toContain('일부 굿즈만 반품하고 나머지 대금은 그대로 두는 처리는 제공하지 않습니다');
+    expect(shipping).not.toContain('착불로 반송합니다');
+    expect(shipping).toContain('반품배송비(편도 3,000원)를 환급액에서 차감합니다');
+    expect(shipping).toContain('처음 반품할 때 한 번 왕복 6,000원');
+    expect(shipping).toContain('굿즈의 하자·파손, 오배송 등 계약내용과 다른 이행');
+    expect(shipping).toContain('일부 굿즈 반품은 주문 전체로만 신청할 수 있습니다');
+    expect(shipping).toContain('일부만 반송하고 싶다면 주문 상세의 반품 신청에서');
+    expect(after.terms.revisionChanges?.[0]).toContain('전자상거래법 제17조·제35조');
+    expect(after.privacy).toEqual(AFTER_BUNDLE.privacy);
+  });
+
+  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 현행 본문이다', () => {
+    expect(partialReturnTermsRevisionAnnounced(shiftDay(REVISION.announcedDate, -1), REVISION)).toBe(false);
+    expect(partialReturnTermsRevisionAnnounced(REVISION.announcedDate, REVISION)).toBe(true);
+    expect(partialReturnTermsRevisionInEffect(shiftDay(REVISION.effectiveDate, -1), REVISION)).toBe(false);
+    expect(partialReturnTermsRevisionInEffect(REVISION.effectiveDate, REVISION)).toBe(true);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, { partialReturnRevision: null }).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
+  });
+});
+

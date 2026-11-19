@@ -9,6 +9,8 @@ import { cancellationRefundRequest, reconcileOrderCancellation, type Cancellatio
 import type { OrderPartialCancellationServiceRow } from './partial-cancellation';
 import {
   inspectOrderPartialCancellationResolution,
+  ORDER_PARTIAL_CANCEL_REFUND_REASON,
+  ORDER_PARTIAL_RETURN_REFUND_REASON,
   orderPartialCancellationIdempotencyKey,
   orderPartialCancellationRefundRequest,
   reconcileOrderPartialCancellation,
@@ -28,7 +30,7 @@ const PAYMENT_KEY = 'tviva20261112000000abcDEF123456789';
 function row(overrides: Partial<OrderPartialCancellationServiceRow> = {}): OrderPartialCancellationServiceRow {
   return {
     id: ID, orderId: ORDER_ID, paymentId: PAYMENT_ID, provider: 'toss', state: 'processing',
-    paymentAmount: 40_000, balanceBefore: 40_000, refundAmount: 9_500, paymentKey: PAYMENT_KEY, paymentStatus: 'paid', paymentLiveAmount: 40_000,
+    paymentAmount: 40_000, balanceBefore: 40_000, refundAmount: 9_500, paymentKey: PAYMENT_KEY, paymentStatus: 'paid', paymentLiveAmount: 40_000, reasonCode: 'out_of_stock',
     ...overrides,
   };
 }
@@ -59,9 +61,24 @@ describe('재고 부족 부분 취소 오케스트레이터', () => {
     await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, d)).resolves.toEqual({ ok: true, status: 'completed' });
     expect(d.refund).toHaveBeenCalledWith({
       partialCancellationId: ID, paymentId: PAYMENT_ID, paymentAmount: 40_000, paymentKey: PAYMENT_KEY, refundAmount: 9_500, expectedBalanceBefore: 40_000,
+      reasonCode: 'out_of_stock',
     });
     expect(d.complete).toHaveBeenCalledWith({ id: ID, actorId: ACTOR, refundedAmount: 9_500, paymentKey: PAYMENT_KEY, transactionKey: 'CANCEL0001' });
     expect(d.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('부분 반품(ADR-0047) 원장은 같은 경로로 확인하고 결제사 취소 사유만 반품 문구다', async () => {
+    const d = deps({}, row({ reasonCode: 'return' }));
+    await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, d)).resolves.toEqual({ ok: true, status: 'completed' });
+    expect(d.refund).toHaveBeenCalledWith(expect.objectContaining({ reasonCode: 'return', refundAmount: 9_500, expectedBalanceBefore: 40_000 }));
+  });
+
+  it('결제사 요청 조립: 부분 반품은 반품 사유, 재고 부족 부분 취소는 지금 사유, 멱등키는 같은 원장 id 규칙', () => {
+    const attempt = { id: 'attempt-1' } as Parameters<typeof orderPartialCancellationRefundRequest>[0];
+    const base = { partialCancellationId: ID, paymentKey: PAYMENT_KEY, refundAmount: 9_500, expectedBalanceBefore: 40_000 };
+    expect(orderPartialCancellationRefundRequest(attempt, { ...base, reasonCode: 'return' })).toMatchObject({ reason: ORDER_PARTIAL_RETURN_REFUND_REASON,
+      idempotencyKey: `refund:attempt-1:partial:${ID}`, partial: { expectedBalanceBefore: 40_000 } });
+    expect(orderPartialCancellationRefundRequest(attempt, base).reason).toBe(ORDER_PARTIAL_CANCEL_REFUND_REASON);
   });
 
   it('두 번째 부분 취소는 시작 때 정한 잔액 기대값(앞 취소 뒤 잔액)을 그대로 넘긴다', async () => {
