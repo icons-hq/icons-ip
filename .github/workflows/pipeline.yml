@@ -89,7 +89,7 @@ jobs:
             .event == "push"
             and .head_branch == "main"
             and .head_sha == $sha
-            and .conclusion == "success"
+            and .status == "completed"
             and .path == ".github/workflows/pipeline.yml"
           ' <<<"$run_json" >/dev/null; then
             echo "::error title=Unsafe Production source::The run must be a successful push/main deployment for this exact SHA"
@@ -104,6 +104,7 @@ jobs:
           if ! jq -e '
             any(.jobs[]; .name == "deploy-supabase" and .conclusion == "success")
             and any(.jobs[]; .name == "deploy-vercel" and .conclusion == "success")
+            and all(.jobs[]; .name == "smoke-production" or .conclusion == "success" or .conclusion == "skipped")
           ' <<<"$jobs_json" >/dev/null; then
             echo "::error title=Incomplete Production source::Supabase and Vercel must both have succeeded"
             exit 1
@@ -1291,6 +1292,8 @@ jobs:
     name: deploy-vercel
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
     needs:
       - validate
       - deploy-supabase
@@ -1357,15 +1360,11 @@ jobs:
           printf '%s' "$CRON_SECRET" | vercel env add CRON_SECRET production --sensitive --force --yes
 
       - name: Deploy Vercel production
+        id: deploy
         run: |
           deployment_url="$(vercel deploy --yes --prod --archive=tgz)"
           echo "Production deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
-
-      # 배포는 이미 올라간 뒤라 실패해도 되돌리지는 못한다. 다만 job이 실패해 GitHub 실패 알림이 가고,
-      # 사람이 운영 화면을 보고 되돌릴지 정한다(OPS-060). 복구 템플릿 활성화보다 앞에 두어 앱이 죽은 채로
-      # 새 링크를 발급하지 않는다. 운영 주소는 lib/site-domains.mjs의 정규 주소를 따른다.
-      - name: Smoke-test production
-        run: node scripts/post-deploy-smoke.mjs
+          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
       # handler와 기존 PKCE 호환 경로가 production에 먼저 올라간 뒤에만 새 링크를 발급한다.
       - name: Activate recovery token-hash template in production
@@ -1379,3 +1378,32 @@ jobs:
           ENFORCE_MAILER: "true"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
         run: node scripts/sync-supabase-auth.mjs
+
+  # 배포 직후 운영 익명 스모크(OPS-060). deploy-vercel 안에 두면 일시 실패 하나가 복구 템플릿 활성화·shared preview 동기화·
+  # staging 배포·production_redeploy 가드를 모두 skip시키므로 별도 job으로 뺀다. 이 job은 아무 job의 needs에도 넣지 않는다 —
+  # 실패해도 GitHub 실패 알림만 가고 배포 사슬은 그대로다. 되돌리지는 않으니 운영 화면을 보고 사람이 판단한다.
+  # 실패하면 이 job만 `gh run rerun --failed`로 다시 돌린다(배포는 다시 하지 않는다).
+  smoke-production:
+    name: smoke-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - deploy-vercel
+    if: >-
+      !cancelled()
+      && needs.deploy-vercel.result == 'success'
+    env:
+      DEPLOYMENT_URL: ${{ needs.deploy-vercel.outputs.deployment_url }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Smoke-test production
+        run: node scripts/post-deploy-smoke.mjs

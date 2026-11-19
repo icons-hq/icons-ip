@@ -12,6 +12,7 @@ describe('GET /api/health', () => {
     rpc.mockReset();
     config.mockReturnValue({ url: 'http://db', key: 'k', isConfigured: true });
     vi.stubEnv('VERCEL_GIT_COMMIT_SHA', 'abcdef0123456789');
+    vi.stubEnv('VERCEL_DEPLOYMENT_ID', 'dpl_test123');
   });
 
   it('answers 200 without secrets when the public read works', async () => {
@@ -19,7 +20,7 @@ describe('GET /api/health', () => {
     const response = await GET();
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('no-store');
-    expect(await response.json()).toEqual({ ok: true, database: 'ok', commit: 'abcdef012345' });
+    expect(await response.json()).toEqual({ ok: true, database: 'ok', commit: 'abcdef012345', deploymentId: 'dpl_test123' });
     expect(rpc).toHaveBeenCalledWith('get_storefront_settings');
   });
 

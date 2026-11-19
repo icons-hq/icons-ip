@@ -5,7 +5,9 @@ import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CANONICAL_SITE_ORIGIN } from '../lib/site-domains.mjs';
 
-const SOFT_404_MARKERS = ['페이지를 찾을 수 없습니다', 'NEXT_HTTP_ERROR_FALLBACK;404', 'NEXT_NOT_FOUND'];
+// 문구 표지는 <script>를 걷어낸 본문에서만 찾는다. 정상 페이지도 RSC 페이로드(self.__next_f.push)에 404 화면의 문구를 실어 보낸다(운영 실측).
+const SOFT_404_TEXT_MARKERS = ['페이지를 찾을 수 없습니다'];
+const SOFT_404_RAW_MARKERS = ['NEXT_HTTP_ERROR_FALLBACK;404', 'NEXT_NOT_FOUND'];
 const ERROR_MARKERS = ['Application error: a server-side exception', 'NEXT_REDIRECT'];
 
 /** 확인할 경로. html은 앱 셸이 렌더된 응답, health는 /api/health의 JSON이다. */
@@ -16,17 +18,27 @@ export const SMOKE_TARGETS = Object.freeze([
   { path: '/api/health', kind: 'health' },
 ]);
 
-/** 본문 검사. 통과하면 null, 아니면 사람이 읽을 사유. */
-export function inspectResponse(target, status, contentType, body) {
+export function stripScripts(body) {
+  return body.replace(/<script\b[\s\S]*?<\/script>/gi, '');
+}
+
+/** 본문 검사. 통과하면 null, 아니면 사람이 읽을 사유. expectedDeploymentId가 있으면 health의 배포 id와 맞춰 본다. */
+export function inspectResponse(target, status, contentType, body, expectedDeploymentId = null) {
   if (status !== 200) return `HTTP ${status}`;
   if (target.kind === 'health') {
     let parsed;
     try { parsed = JSON.parse(body); } catch { return 'health 응답이 JSON이 아님'; }
-    return parsed?.ok === true && parsed?.database === 'ok' ? null : 'health ok가 아님';
+    if (parsed?.ok !== true || parsed?.database !== 'ok') return 'health ok가 아님';
+    // 롤백 등으로 새 배포가 도메인에 붙지 않았으면 다른 배포가 200을 돌려준다. 비교할 값이 없으면 경고만(아래 runSmoke).
+    if (expectedDeploymentId && parsed.deploymentId && parsed.deploymentId !== expectedDeploymentId) {
+      return `다른 배포가 응답함(기대 ${expectedDeploymentId}, 실제 ${parsed.deploymentId})`;
+    }
+    return null;
   }
   if (!/text\/html/i.test(contentType ?? '')) return `HTML이 아님(${contentType ?? '없음'})`;
   if (!/<html[^>]*\blang=/i.test(body)) return '앱 셸(<html lang>)이 없음';
-  const soft = SOFT_404_MARKERS.find((marker) => body.includes(marker));
+  const visible = stripScripts(body);
+  const soft = SOFT_404_TEXT_MARKERS.find((marker) => visible.includes(marker)) ?? SOFT_404_RAW_MARKERS.find((marker) => body.includes(marker));
   if (soft) return `soft 404 표지 발견(${soft})`;
   const failed = ERROR_MARKERS.find((marker) => body.includes(marker));
   if (failed) return `오류 표지 발견(${failed})`;
@@ -37,6 +49,7 @@ export function inspectResponse(target, status, contentType, body) {
 export async function runSmoke({
   origin = CANONICAL_SITE_ORIGIN,
   targets = SMOKE_TARGETS,
+  expectedDeploymentId = null,
   attempts = 5,
   delayMs = 10_000,
   timeoutMs = 20_000,
@@ -57,7 +70,7 @@ export async function runSmoke({
           headers: { 'user-agent': 'iconsip-post-deploy-smoke/1' },
           signal: AbortSignal.timeout(timeoutMs),
         });
-        reason = inspectResponse(target, response.status, response.headers.get('content-type'), await response.text());
+        reason = inspectResponse(target, response.status, response.headers.get('content-type'), await response.text(), expectedDeploymentId);
       } catch (error) {
         reason = `요청 실패(${error?.name ?? 'Error'})`;
       }
@@ -82,9 +95,32 @@ export function summaryMarkdown(origin, { results }) {
   ].join('\n');
 }
 
+/**
+ * 방금 배포한 배포의 id(dpl_…)를 Vercel API로 찾는다. 배포 URL·토큰이 없거나 조회가 안 되면 null — 비교를 건너뛰고 경고만 남긴다.
+ * (/api/health는 런타임 시스템 변수 VERCEL_DEPLOYMENT_ID를 돌려준다.)
+ */
+export async function resolveDeploymentId({ deploymentUrl, token, teamId, fetchImpl = fetch, log = console.log }) {
+  if (!deploymentUrl || !token) { log('::warning title=Deployment id check skipped::배포 URL 또는 토큰이 없어 배포 id 비교를 건너뜁니다.'); return null; }
+  try {
+    const host = new URL(deploymentUrl.trim()).host;
+    const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
+    const response = await fetchImpl(`https://api.vercel.com/v13/deployments/${encodeURIComponent(host)}${query}`, {
+      headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000),
+    });
+    const body = response.ok ? await response.json() : null;
+    if (typeof body?.id === 'string' && body.id.startsWith('dpl_')) return body.id;
+  } catch { /* 아래 경고 */ }
+  log('::warning title=Deployment id check skipped::배포 id를 조회하지 못해 비교를 건너뜁니다.');
+  return null;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const origin = process.env.SMOKE_ORIGIN || CANONICAL_SITE_ORIGIN;
-  const outcome = await runSmoke({ origin });
+  const expectedDeploymentId = await resolveDeploymentId({
+    deploymentUrl: process.env.DEPLOYMENT_URL, token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_ORG_ID,
+  });
+  const outcome = await runSmoke({ origin, expectedDeploymentId });
+  if (outcome.ok && expectedDeploymentId) console.log(`배포 id 일치: ${expectedDeploymentId}`);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summaryMarkdown(origin, outcome));
   if (!outcome.ok) {
     console.error(`::error title=Post-deploy smoke failed::${outcome.results.filter((r) => !r.ok).map((r) => r.path).join(', ')} — 배포는 이미 올라갔다. 운영 화면을 확인하고 필요하면 이전 배포로 되돌린다.`);

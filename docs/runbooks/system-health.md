@@ -79,8 +79,10 @@ pg_cron `system-job-records-maintenance`(10분마다)가 실패 기록 30일, 30
 
 ## 배포 뒤 스모크(OPS-060)
 
-`pipeline.yml`의 `deploy-vercel`은 Vercel 배포 직후 `scripts/post-deploy-smoke.mjs`로 운영 주소(`lib/site-domains.mjs`의 `CANONICAL_SITE_ORIGIN`, 도메인 전환 3단계에서 정규 주소가 바뀌면 같이 따라간다)의 홈·`/shop`·`/login`·`/api/health`를 익명으로 부른다. 경로마다 10초 간격 5회까지 재시도하고, 상태 200 외에 앱 셸(`<html lang>`)과 soft 404·오류 표지가 없는지 본문까지 확인한다(Next 16은 `notFound()`도 200). `/api/health`는 비밀 없이 `{ ok, database, commit }`만 돌려주고 DB 공개 읽기(`get_storefront_settings`) 하나가 닿는지로 503을 낸다.
+`pipeline.yml`의 별도 job `smoke-production`(`needs: deploy-vercel`, 결과가 success일 때만 실행)이 `scripts/post-deploy-smoke.mjs`로 운영 주소(`lib/site-domains.mjs`의 `CANONICAL_SITE_ORIGIN`, 도메인 전환 3단계에서 정규 주소가 바뀌면 같이 따라간다)의 홈·`/shop`·`/login`·`/api/health`를 익명으로 부른다. 경로마다 10초 간격 5회까지 재시도하고, 상태 200 외에 앱 셸(`<html lang>`)과 soft 404·오류 표지가 없는지 본문까지 확인한다(Next 16은 `notFound()`도 200). 정상 페이지도 RSC 페이로드(`<script>`)에 404 화면 문구를 싣기 때문에 문구 표지는 `<script>`를 걷어낸 본문에서만 찾는다(실제 운영 HTML 표본이 `scripts/fixtures/post-deploy-smoke/`에 고정돼 있다). `/api/health`는 비밀 없이 `{ ok, database, commit, deploymentId }`만 돌려주고 DB 공개 읽기(`get_storefront_settings`) 하나가 닿는지로 503을 낸다.
 
-- 실패하면 `deploy-vercel` job이 실패해 GitHub 실패 알림이 간다. 배포는 이미 올라간 뒤라 자동 롤백은 하지 않는다 — 운영 화면을 직접 확인하고 필요하면 Vercel에서 이전 배포로 되돌린다. 로그인 복구 템플릿 활성화 단계는 스모크 뒤에 있어 앱이 죽은 채 새 링크가 나가지 않는다.
+- **배포 id 비교**: deploy-vercel이 `vercel deploy`가 출력한 배포 URL을 job output으로 넘기면 스모크가 Vercel API(`GET /v13/deployments/{host}`, `VERCEL_TOKEN`·`VERCEL_ORG_ID`)로 배포 id(`dpl_…`)를 찾아 `/api/health`의 `deploymentId`(런타임 시스템 변수 `VERCEL_DEPLOYMENT_ID`)와 맞춘다. 롤백 등으로 방금 올린 배포가 도메인에 붙지 않았는데 이전 배포가 200을 주는 경우를 잡는다. URL·토큰이 없거나 조회가 안 되면 경고(`Deployment id check skipped`)만 남기고 비교를 건너뛴다(조회 API 형식은 Vercel 문서 기준이며 첫 운영 배포에서 경고가 나오는지 확인한다).
+- **실패의 영향**: 스모크가 별도 job이라 실패해도 로그인 복구 템플릿 활성화·shared preview 동기화·staging 배포·PR preview 가드는 그대로 진행되고, 이 job만 빨갛게 되어 GitHub 실패 알림이 간다. 배포는 이미 올라간 뒤라 자동 롤백은 하지 않는다 — 운영 화면을 직접 확인하고 필요하면 Vercel에서 이전 배포로 되돌린다. run 전체 결론은 failure가 되지만 `production_redeploy`의 원본 run 검사는 smoke job 하나만 실패한 run을 허용한다(deploy-supabase·deploy-vercel 성공, 다른 job 실패 없음).
+- **다시 돌리기**: 일시 실패면 해당 run에서 `gh run rerun <run-id> --failed`로 이 job만 다시 돌린다(배포·DB는 다시 실행하지 않는다).
 - staging 배포에는 붙이지 않았다(별칭이 보호 모드일 수 있고 운영 판단 근거가 아니다). `SMOKE_ORIGIN` 환경 변수로 다른 주소에 같은 스크립트를 돌릴 수는 있다.
-- 외부 가동 감시(UptimeRobot 등)가 필요하면 `/api/health`를 그대로 지정하면 된다.
+- 외부 가동 감시(UptimeRobot 등)가 필요하면 `/api/health`를 그대로 지정한다(사람 단계). 운영 알림 메일 cron이 멈추면 그 사실은 메일로 알릴 수 없으므로 이 외부 감시가 유일한 안전망이다.
