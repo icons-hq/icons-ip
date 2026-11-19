@@ -54,6 +54,16 @@ select 1/case when (
   and not has_function_privilege('anon','public.admin_member_withdrawal_inquiry(uuid,bigint)','execute')
   and not has_function_privilege('service_role','public.admin_member_withdrawal_inquiry(uuid,bigint)','execute')
   and (select provolatile = 's' from pg_proc where oid = 'public.admin_member_withdrawal_inquiry(uuid,bigint)'::regprocedure)
+  and has_function_privilege('authenticated','public.admin_member_withdrawal_avatar_path(uuid)','execute')
+  and has_function_privilege('authenticated','public.admin_confirm_member_withdrawal_avatar_erased(uuid)','execute')
+  and not has_function_privilege('anon','public.admin_member_withdrawal_avatar_path(uuid)','execute')
+  and not has_function_privilege('anon','public.admin_confirm_member_withdrawal_avatar_erased(uuid)','execute')
+  and not has_function_privilege('service_role','public.admin_member_withdrawal_avatar_path(uuid)','execute')
+  and not has_function_privilege('service_role','public.admin_confirm_member_withdrawal_avatar_erased(uuid)','execute')
+  and (select count(*) from private.operator_rpc_contracts where capability = 'platform.manage' and not legacy_admin_only and (
+    (signature = 'public.admin_member_withdrawal_avatar_path(uuid)' and guard_kind = 'read')
+    or (signature = 'public.admin_confirm_member_withdrawal_avatar_erased(uuid)' and guard_kind = 'write'))) = 2
+  and to_regproc('private.o3i_patch_function') is null
   and to_regproc('private.t10_withdrawal_patch_function') is null
   and to_regproc('private.t10_followup_patch_function') is null
 ) then 1 else 0 end as assert_sealed_acl_and_contracts;
@@ -92,6 +102,12 @@ set nickname = 'TEST 탈퇴 처리 ' || right(id::text, 1), birth_date = '1990-0
   role = case when id = pg_temp.uid(1) then 'admin'::public.user_role
     when id in (pg_temp.uid(2), pg_temp.uid(5)) then 'staff'::public.user_role else 'user'::public.user_role end
 where id in (select pg_temp.uid(n) from generate_series(1, 8) n);
+-- 프로필 익명화 시험: 3(탈퇴 회원)과 7(다른 회원)은 프로필 사진이 있고(3은 Storage 객체도), 6은 3의 익명 닉네임 첫 후보와 겹치는 닉네임을 쓴다.
+update public.profiles set avatar_path = id::text || '/profile/aaaaaaaa-0000-4000-8000-00000000000' || right(id::text, 1) || '.png'
+where id in (pg_temp.uid(3), pg_temp.uid(7));
+insert into storage.objects (bucket_id, name, owner_id)
+values ('user-uploads', pg_temp.uid(3)::text || '/profile/aaaaaaaa-0000-4000-8000-000000000003.png', pg_temp.uid(3)::text);
+update public.profiles set nickname = '탈퇴한 회원 ' || left(md5(pg_temp.uid(3)::text), 6) where id = pg_temp.uid(6);
 insert into private.operator_memberships(profile_id, manager_role) values
   (pg_temp.uid(1), 'primary'), (pg_temp.uid(2), 'deputy'), (pg_temp.uid(6), 'logistics');
 update private.operator_access_state set configured = true where id;
@@ -218,7 +234,8 @@ select 1/case when (:'processed'::jsonb)->>'status' = 'processed'
   and not ((:'processed'::jsonb)->>'signinBlocked')::boolean
   and ((:'processed'::jsonb)->>'suspended')::boolean
   and (:'processed'::jsonb)->'erased' = jsonb_build_object('addressBookEntries', 2, 'phoneNumbers', 1, 'marketingConsents', 2,
-    'demographicConsents', 1, 'activityEvents', 2, 'activityConsents', 1, 'emailChangeRequests', 1, 'restockAlerts', 1)
+    'demographicConsents', 1, 'activityEvents', 2, 'activityConsents', 1, 'emailChangeRequests', 1, 'restockAlerts', 1,
+    'profileFields', jsonb_build_array('nickname', 'birthDate', 'avatar'))
   and ((:'processed'::jsonb)->>'revokedSessions')::integer = 2
   then 1 else 0 end as process_result_shape;
 
@@ -256,6 +273,21 @@ select 1/case when exists (select 1 from public.address_book_entries where user_
   and (select suspended_at is null from public.profiles where id = pg_temp.uid(7))
   then 1 else 0 end as other_member_untouched;
 
+-- 프로필 익명화: 닉네임(다른 회원과 겹치면 한 자리 늘림)·생년월일·프로필 사진만 바뀌고 이메일은 남는다. public_profiles도 따라간다.
+-- 처리 기록은 지울 사진 경로를 갖고, 감사에는 칸 이름만 남는다. 다른 회원(7)의 프로필은 그대로다.
+select 1/case when (select nickname = '탈퇴한 회원 ' || left(md5(pg_temp.uid(3)::text), 7) and birth_date is null and avatar_path is null
+    and email = 'withdrawal-3@example.test' from public.profiles where id = pg_temp.uid(3))
+  and (select nickname = '탈퇴한 회원 ' || left(md5(pg_temp.uid(3)::text), 7) and avatar_path is null from public.public_profiles where id = pg_temp.uid(3))
+  and (select nickname = '탈퇴한 회원 ' || left(md5(pg_temp.uid(3)::text), 6) from public.profiles where id = pg_temp.uid(6))
+  and (select nickname = 'TEST 탈퇴 처리 7' and birth_date = date '1990-01-01' and avatar_path is not null from public.profiles where id = pg_temp.uid(7))
+  and (select avatar_erase_path = pg_temp.uid(3)::text || '/profile/aaaaaaaa-0000-4000-8000-000000000003.png' and avatar_erased_at is null
+    from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
+  and ((:'processed'::jsonb)->>'avatarErasePending')::boolean
+  and (select diff->'erased'->'profileFields' = jsonb_build_array('nickname', 'birthDate', 'avatar')
+    and diff::text not like '%1990%' and diff::text not like '%TEST 탈퇴 처리 3%' and diff::text not like '%aaaaaaaa%'
+    from public.audit_log where action = 'admin.member.withdrawal_processed' and target = 'profile:' || pg_temp.uid(3))
+  then 1 else 0 end as profile_anonymized_and_other_member_untouched;
+
 -- 처리 기록·감사: 문의 번호·처리자·개수만 남고 메모·개인정보 원문은 없다. 정지 감사도 같은 운영자로 남는다.
 select 1/case when (select count(*) = 1 and min(inquiry_reference) = :ref3 and bool_and(processed_by = pg_temp.uid(1))
     and bool_and(signin_blocked_at is null) from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
@@ -263,7 +295,8 @@ select 1/case when (select count(*) = 1 and min(inquiry_reference) = :ref3 and b
   and (select actor_id = pg_temp.uid(1)
       and diff = jsonb_build_object('inquiryReference', :ref3, 'suspended', true,
         'erased', jsonb_build_object('addressBookEntries', 2, 'phoneNumbers', 1, 'marketingConsents', 2, 'demographicConsents', 1,
-          'activityEvents', 2, 'activityConsents', 1, 'emailChangeRequests', 1, 'restockAlerts', 1),
+          'activityEvents', 2, 'activityConsents', 1, 'emailChangeRequests', 1, 'restockAlerts', 1,
+    'profileFields', jsonb_build_array('nickname', 'birthDate', 'avatar')),
         'revokedSessions', 2)
     from public.audit_log where action = 'admin.member.withdrawal_processed' and target = 'profile:' || pg_temp.uid(3))
   and (select count(*) from public.audit_log where action = 'admin.member.suspended' and target = 'profile:' || pg_temp.uid(3) and actor_id = pg_temp.uid(1)) = 1
@@ -361,6 +394,42 @@ select 1/case when ((:'blocked'::jsonb)->>'signinBlocked')::boolean
   and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_signin_blocked' and target = 'profile:' || pg_temp.uid(3)
     and actor_id = pg_temp.uid(1) and diff = jsonb_build_object('inquiryReference', :ref3, 'revokedSessions', 1)) = 1
   then 1 else 0 end as signin_block_confirmed_once;
+
+-- ---------------------------------------------------------------------------
+-- 프로필 사진 삭제 확인: 경로는 platform.manage만 읽고, 객체가 남아 있으면 기록하지 않으며, 사라진 뒤에는 경로를 비우고 한 번만 감사한다.
+-- ---------------------------------------------------------------------------
+select pg_temp.as_actor(pg_temp.uid(2));
+set local role authenticated;
+select pg_temp.expect_error(format('select public.admin_member_withdrawal_avatar_path(%L)', pg_temp.uid(3)), 'operator_capability_required');
+select pg_temp.expect_error(format('select public.admin_confirm_member_withdrawal_avatar_erased(%L)', pg_temp.uid(3)), 'operator_capability_required');
+reset role;
+select pg_temp.as_actor(pg_temp.uid(1));
+set local role authenticated;
+select public.admin_member_withdrawal_avatar_path(pg_temp.uid(3)) as avatar_path_before \gset
+select public.admin_member_withdrawal_avatar_path(pg_temp.uid(7)) is null as other_member_has_no_pending_avatar \gset
+select pg_temp.expect_error(format('select public.admin_confirm_member_withdrawal_avatar_erased(%L)', pg_temp.uid(3)), 'member_withdrawal_avatar_not_erased');
+select pg_temp.expect_error(format('select public.admin_confirm_member_withdrawal_avatar_erased(%L)', pg_temp.uid(7)), 'member_withdrawal_not_processed');
+reset role;
+select set_config('storage.allow_delete_query', 'true', true);
+delete from storage.objects where bucket_id = 'user-uploads' and name = :'avatar_path_before';
+select pg_temp.as_actor(pg_temp.uid(1));
+set local role authenticated;
+select public.admin_confirm_member_withdrawal_avatar_erased(pg_temp.uid(3)) as avatar_erased \gset
+select public.admin_confirm_member_withdrawal_avatar_erased(pg_temp.uid(3)) as avatar_erased_again \gset
+select public.admin_member_withdrawal_status(pg_temp.uid(3)) as status_avatar_done \gset
+select public.admin_member_withdrawal_avatar_path(pg_temp.uid(3)) is null as avatar_path_after \gset
+reset role;
+select 1/case when :'avatar_path_before' = pg_temp.uid(3)::text || '/profile/aaaaaaaa-0000-4000-8000-000000000003.png'
+  and :'other_member_has_no_pending_avatar'::boolean
+  and not ((:'avatar_erased'::jsonb)->>'avatarErasePending')::boolean and not ((:'avatar_erased'::jsonb)->>'replayed')::boolean
+  and ((:'avatar_erased_again'::jsonb)->>'replayed')::boolean
+  and not ((:'status_avatar_done'::jsonb)->>'avatarErasePending')::boolean
+  and :'avatar_path_after'::boolean
+  and (select avatar_erase_path is null and avatar_erased_at >= processed_at and avatar_erased_by = pg_temp.uid(1)
+    from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
+  and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_avatar_erased' and target = 'profile:' || pg_temp.uid(3)
+    and actor_id = pg_temp.uid(1) and diff = jsonb_build_object('inquiryReference', :ref3)) = 1
+  then 1 else 0 end as avatar_erase_confirmed_once;
 
 -- ---------------------------------------------------------------------------
 -- 처리 전 대조(문의 요약): 그 회원의 문의만, platform.manage만
