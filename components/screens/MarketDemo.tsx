@@ -27,6 +27,8 @@ import {
  * mock 초기값으로 돌아오고, 서버·DB·PG 는 어떤 경로로도 호출되지 않는다. */
 
 const CONDITIONS: ListingCondition[] = ['미개봉', '미사용', 'A급', 'B급', '개봉/전시'];
+/* 시연 매물의 종류 선택지. 굿즈 상품에는 유형 칸이 없고(ADR-0044), 이 목록은 mock 시연 폼에만 쓴다. */
+const LISTING_KINDS = ['피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트', '기타'] as const;
 const MY_SELLER = 'me';
 
 type Dialog = { type: 'buy'; listing: MarketListing } | { type: 'sell' } | null;
@@ -269,7 +271,7 @@ export function SellDialog({
 }) {
   const [name, setName] = useState('');
   const [ip, setIp] = useState(DATA.IPS[0]?.id ?? '');
-  const [type, setType] = useState<string>(DATA.GOODS_TYPES[0] ?? '');
+  const [type, setType] = useState<string>(LISTING_KINDS[0]);
   const [cond, setCond] = useState<ListingCondition>('미개봉');
   const [price, setPrice] = useState('');
   const amount = Number(price);
@@ -309,7 +311,7 @@ export function SellDialog({
           <label className="wc-c2c__field">
             <span>종류</span>
             <select onChange={(event) => setType(event.target.value)} value={type}>
-              {DATA.GOODS_TYPES.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}
+              {LISTING_KINDS.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}
             </select>
           </label>
           <label className="wc-c2c__field">

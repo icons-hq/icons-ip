@@ -15,7 +15,7 @@ vi.mock('@/components/shell/CartProvider', () => ({
 }));
 
 const VARIANT = '00000000-0000-4000-8000-0000000005a1';
-const good = (overrides: Partial<Good>): Good => ({ id: 'g13', name: '홍실 아크릴 블록', ip: 'hong-sil-quest', type: '아크릴', price: 12000, badge: null,
+const good = (overrides: Partial<Good>): Good => ({ id: 'g13', name: '홍실 아크릴 블록', ip: 'hong-sil-quest', price: 12000, badge: null,
   stock: 'ok', stockQty: 20, img: 'none', options: [{ id: VARIANT, name: '기본', code: 'G13', price: 12000, stockQty: 20, isDefault: true, attributes: {} }],
   ...overrides });
 

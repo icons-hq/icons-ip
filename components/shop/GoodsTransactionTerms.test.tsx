@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import type { Good } from '@/lib/data';
 import { GoodsTransactionTerms } from './GoodsTransactionTerms';
 
-const good = { id: 'g13', name: '아크릴 블록', ip: 'hong-sil-quest', type: '아크릴', price: 12000, badge: null, stock: 'ok' as const, stockQty: 8, img: '' } satisfies Good;
+const good = { id: 'g13', name: '아크릴 블록', ip: 'hong-sil-quest', price: 12000, badge: null, stock: 'ok' as const, stockQty: 8, img: '' } satisfies Good;
 
 /* R26: 고객 화면은 '출고지'를 말하지 않는다 — 묶음배송 조건도 배송 묶음으로 말한다. */
 it('묶음배송 조건은 출고지 대신 배송 묶음으로 말한다', () => {

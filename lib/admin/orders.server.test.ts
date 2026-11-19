@@ -240,7 +240,7 @@ describe('getAdminOrderRecords', () => {
         buyerEmail: 'fan@example.test',
         status: 'paid',
         total: 32000,
-        items: [{ id: 'item-1', name: '화산강림 아크릴 스탠드', type: '아크릴 스탠드', qty: 1, unitPrice: 32000 }],
+        items: [{ id: 'item-1', name: '화산강림 아크릴 스탠드', qty: 1, unitPrice: 32000 }],
         payments: [{ id: 'payment-1', provider: 'toss', amount: 32000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' }],
         refunds: [{ id: 'refund-1', amount: 32000, status: 'requested', createdAt: '2026-07-14T07:00:00.000Z' }],
         cancellationRequest: {

@@ -7,7 +7,7 @@ const options: GoodOption[] = [
   { id:'00000000-0000-4000-8000-000000000001', name:'파랑', code:'BLUE', price:12000, stockQty:0, isDefault:true, attributes:{} },
   { id:'00000000-0000-4000-8000-000000000002', name:'빨강', code:'RED', price:15000, stockQty:3, isDefault:false, attributes:{} },
 ];
-const good: Good={id:'g1',name:'키링',ip:'ip',type:'키링',price:12000,stockQty:3,stock:'ok',badge:null,img:'',options};
+const good: Good={id:'g1',name:'키링',ip:'ip',price:12000,stockQty:3,stock:'ok',badge:null,img:'',options};
 
 describe('public goods options',()=>{
   it('재고 초과 수량은 품절로 바꾸지 않아 남은 수량으로 줄일 수 있다', () => {

@@ -71,7 +71,6 @@ interface OrderDetailItemRow extends OrderListItemRow {
   id: string;
   good_id: string;
   unit_price: number;
-  good_type_snapshot: string;
   variant_id: string;
   custom_inputs_snapshot?: unknown;
   variant_code_snapshot?: string | null;
@@ -309,7 +308,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult, reshipmentResult] = await Promise.all([
     /* 랜덤 판매 굿즈(D5②)는 옵션명 '랜덤'·장바구니 키 옵션으로만 보인다. 배정 옵션은 고객에게 내려오지 않는다. */
     readMyOrderItems<OrderDetailItemRow>(supabase, [orderId],
-      'id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
+      'id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
     supabase
       .from('payment_summaries')
       .select('id,amount,status,created_at,provider')
@@ -432,7 +431,6 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       name: item.good_name_snapshot,
       ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),
       variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
-      type: item.good_type_snapshot,
       qty: item.qty,
       unitPrice: item.unit_price,
       supplySource: item.supply_source ?? 'stock',

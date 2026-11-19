@@ -40,7 +40,6 @@ const goods: Good[] = [
     id: 'g13',
     name: '홍실 아크릴 블록',
     ip: 'hong-sil-quest',
-    type: '아크릴',
     price: 12000,
     badge: null,
     stock: 'ok',
@@ -52,7 +51,6 @@ const goods: Good[] = [
     id: 'g14',
     name: '홍실 한정 피규어',
     ip: 'hong-sil-quest',
-    type: '피규어',
     price: 30000,
     badge: null,
     stock: 'ok',
@@ -63,20 +61,20 @@ const goods: Good[] = [
   },
   /* D5② 랜덤 판매 — 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접은 모양. */
   {
-    id: 'g15', name: '랜덤 포토카드', ip: 'hong-sil-quest', type: '포토카드', price: 5000, badge: null, stock: 'ok', stockQty: 6, optionSaleMode: 'random',
+    id: 'g15', name: '랜덤 포토카드', ip: 'hong-sil-quest', price: 5000, badge: null, stock: 'ok', stockQty: 6, optionSaleMode: 'random',
     options: [{id:'00000000-0000-4000-8000-000000000015',name:'랜덤',price:5000,stockQty:6,code:'',isDefault:true,attributes:{},orderMaxQty:null,memberMaxQty:null}],
     img: 'none',
   },
   /* 원장 재작업 후속 7: 판매기간이 끝난 굿즈(카탈로그 판정 ended). */
   {
-    id: 'g17', name: '판매 끝난 스티커', ip: 'hong-sil-quest', type: '스티커', price: 5000, badge: null, stock: 'ok', stockQty: 9,
+    id: 'g17', name: '판매 끝난 스티커', ip: 'hong-sil-quest', price: 5000, badge: null, stock: 'ok', stockQty: 9,
     options: [{id:'00000000-0000-4000-8000-000000000018',name:'기본 옵션',price:5000,stockQty:9,code:'G17',isDefault:true,attributes:{}}],
     img: 'none',
     salePeriod: { startsAt: '2026-01-01T00:00:00Z', endsAt: '2026-02-01T00:00:00Z', state: 'ended', calculatedAt: '2026-03-01T00:00:00Z', nextChangeAt: null },
   },
   /* D7② 옵션별 구매 제한. */
   {
-    id: 'g16', name: '아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 7000, badge: null, stock: 'ok', stockQty: 9,
+    id: 'g16', name: '아크릴 키링', ip: 'hong-sil-quest', price: 7000, badge: null, stock: 'ok', stockQty: 9,
     options: [{id:'00000000-0000-4000-8000-000000000016',name:'파랑',price:7000,stockQty:9,code:'BLUE',isDefault:true,attributes:{},orderMaxQty:2,memberMaxQty:3},
       {id:'00000000-0000-4000-8000-000000000017',name:'빨강',price:7000,stockQty:9,code:'RED',isDefault:false,attributes:{}}],
     img: 'none',
