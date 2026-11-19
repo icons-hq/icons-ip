@@ -10,8 +10,8 @@ vi.mock('@/app/admin/preorder-schedule-actions', () => ({
 }));
 
 const noop = () => {};
-const preview = (overrides: Parameters<typeof schedulePreview>[0] = {}, props: { emailConfigured?: boolean; smsAvailable?: boolean; reason?: string } = {}) => renderToStaticMarkup(
-  <PreorderSchedulePreviewStep preview={schedulePreview(overrides)} emailConfigured={props.emailConfigured ?? true} smsAvailable={props.smsAvailable ?? false}
+const preview = (overrides: Parameters<typeof schedulePreview>[0] = {}, props: { emailConfigured?: boolean; smsAvailable?: boolean; reason?: string; switchesLink?: boolean } = {}) => renderToStaticMarkup(
+  <PreorderSchedulePreviewStep preview={schedulePreview(overrides)} emailConfigured={props.emailConfigured ?? true} smsAvailable={props.smsAvailable ?? false} switchesLink={props.switchesLink}
     initialReason={props.reason ?? '공급처 입고 일정 변경'} onBack={noop} onApplied={noop} onStale={noop} />);
 const confirmButton = (html: string) => html.match(/<button[^>]*>일정 변경하고 주문[^<]*<\/button>/)?.[0] ?? '';
 const rowCheckbox = (html: string, shipmentId: string) => html.match(new RegExp(`<tr[^>]*data-shipment-id="${shipmentId}"[^>]*>.*?<input[^>]*>`))?.[0] ?? '';
@@ -101,6 +101,14 @@ describe('예약 일정 일괄 변경 미리보기', () => {
     const env = preview({}, { emailConfigured: false });
     expect(env).toContain('이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.');
     expect(confirmButton(env)).toContain('disabled=""');
+  });
+
+  it('이메일 발송 설정이 꺼져 있을 때만, 운영 스위치를 열 수 있는 운영자에게 스위치 화면 링크를 보인다', () => {
+    expect(preview({ emailEnabled: false })).not.toContain('/admin/settings/switches');
+    const linked = preview({ emailEnabled: false }, { switchesLink: true });
+    expect(linked).toMatch(/<a[^>]*href="\/admin\/settings\/switches"[^>]*>운영 스위치에서 켜기<\/a>/);
+    expect(preview({}, { emailConfigured: false, switchesLink: true })).not.toContain('/admin/settings/switches');
+    expect(preview({}, { switchesLink: true })).not.toContain('/admin/settings/switches');
   });
 
   it('대상이 없으면 확정할 수 없다', () => {
