@@ -59,9 +59,11 @@
 
 화면의 '메일 발송 실패(24시간)'는 `public.email_deliveries`(주문 확인·배송 안내 등)의 `failed`와 발송 의도(`private.email_intents`, 지연 안내·안전재고 요약·초대 등)의 `failed`·`unknown`·`needs_review`, '반송'은 발송 의도의 `bounced`·`complained`·`suppressed`다(Resend 웹훅 `/api/webhooks/resend`가 기록). 실패가 이어지면 Resend 키·발신 도메인·`RESEND_WEBHOOK_SECRET`을 확인하고, 건별 결과는 혜택/마케팅 → 메일 발송 이력(`/admin/messaging/emails`)에서 본다.
 
-## 외부 알림을 붙일 때
+## 외부 알림: 운영 알림 요약 메일
 
-메일·메신저 알림은 아직 붙이지 않았다. 붙일 자리는 `lib/system-health/alert-sink.server.ts`의 `notifySystemIncident` 한 함수다 — 앱 자동 작업 실패 중 DB가 새 사건이라고 답한 것(같은 작업의 그 시간 첫 실패)에서만 불린다. 이 함수는 throw하지 않아야 하고(cron 응답 계약 유지), 받는 값에는 비밀·개인정보가 없다. DB 안의 pg_cron 실패는 앱을 거치지 않으므로, 그것까지 외부로 보내려면 운영 알림 `category = 'system'`을 주기적으로 읽는 별도 작업이 필요하다.
+시스템 장애는 운영 알림 메일로 나간다(설정 화면: 시스템 상태 → 운영 알림 메일, `platform.manage`). 앱 자동 작업 실패는 `service_record_system_job_run`이, DB 안 pg_cron 실패는 시스템 점검이 `private.admin_operation_alerts`의 `category='system'` 행으로 남기고, 5분마다 도는 `/api/cron/ops-alert-digest`가 그 원장을 커서로 읽어 한 통의 요약 메일로 보낸다(같은 작업은 한 시간에 하나, 요약은 10분에 한 통까지). 구현은 `supabase/migrations/20261119107000_ops_alert_digest.sql`, `lib/email/ops-alert-digest*.ts`다.
+
+`lib/system-health/alert-sink.server.ts`의 `notifySystemIncident`는 로그 한 줄만 남기고 **메일을 직접 보내지 않는다.** 서버리스 함수는 응답 뒤 끊겨 즉시 발송이 사라질 수 있고, DB 알림 행과 중복 메일이 나기 때문이다. 메일 말고 다른 채널(메신저 등)을 붙일 때만 이 함수를 바꾼다. 켜는 절차·확인·장애 대응은 [inquiry-realtime.md의 운영 알림 요약 메일](./inquiry-realtime.md)을 따른다.
 
 ## 새 pg_cron 잡을 더할 때
 
