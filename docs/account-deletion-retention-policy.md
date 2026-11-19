@@ -72,13 +72,14 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 | 탈퇴 후 거래 lookup | 거래 시점 정규화 이메일·전화의 purpose-separated keyed HMAC, key version, 거래 ref | 연결된 거래 record와 같은 기간 | 전용 권리행사 verifier | 원문 연락처·프로필·DOB를 보존하지 않음 |
 | 소비자 불만·분쟁 | case ID, 정규화 category, 거래 ref, 접수·조치·결과 시각과 최소 증거 hash | 각 처리기록 생성일부터 3년 | 배정 CS와 승인된 법무 reviewer | 모든 신고·운영 메모 일괄 복제 금지 |
 | 표시·광고 | 실제 노출한 고시·가격·조건의 version/hash와 노출 시각 | 각 노출 기록 6개월 | 상품·법무 reviewer | 회원과 연결하지 않음 |
-| 배송 운영 개인정보 | 발송·반품에 필요한 수령인명·우편번호·실사용 주소, 신규 회수·교환 연락처 계획의 전화는 필드별 암호화 | 배송 완료·반품·분쟁 종료 중 늦은 시각부터 30일 이내 | fulfillment 최소 역할 | 배송메모 제외; 전화·주소 원문은 법정 장기 거래 snapshot에 복제하지 않음; 명시적 legal hold 외 연장 금지 |
+| 주문 배송지(수령인 이름·연락처·우편번호·주소·배송 요청사항) | 이미 한 주문의 배송지 사본 전체. 주문 정보의 일부로 거래 기록과 함께 보관 | 연결된 계약·공급 기록과 같은 기간(생성일부터 5년) 뒤 파기 | fulfillment·분쟁 담당자 | 2026-11-19 사용자 결정: 공개 개인정보처리방침 제3조('이미 한 주문의 배송지는 … 거래 기록 보존 기간 동안 따로 보관')·제5조의 배송지 정의와 같은 기준이다. 배송 완료 30일 파기 배치는 두지 않는다. 전화 원문을 법정 장기 snapshot(위 '계약·청약철회' 등)에 따로 복제하지는 않는다 |
+| 회수·교환 연락처 계획 | 신규 회수·교환 연락처 계획의 이름·전화·주소(필드별 암호화) | 배송 완료·반품·분쟁 종료 중 늦은 시각부터 30일 이내 | fulfillment 최소 역할 | 구현됨(runbooks/claim-contact-corrections.md). 전화·주소 원문은 법정 장기 거래 snapshot에 복제하지 않음; 명시적 legal hold 외 연장 금지 |
 | 커뮤니티 일반 신고 | case ID, category, content ref/hash, 당사자 keyed ref, 접수·조치·통지·이의 시각과 결과 | 최종 조치·이의 종료부터 90일 내부 상한 | 배정 staff의 redacted view | 자유서술·원본 첨부는 30일 안에 최소화 |
 | 법정 권리 사건 | case ID, 권리 유형, content ref/hash, 서류 검증 결과, 중단·통지·재개·종료 시각 | 사건별 법적 근거·승인된 `retain_until`; 종료 후 불필요 PII 즉시 파기 | 사건별 reviewer; 반출 별도 승인 | 일반 신고라는 이유로 자동 장기보존 금지 |
 
 법정 snapshot은 `private` schema의 service-only 원장에 저장하고 `public`, `anon`, `authenticated`, 일반 `service_role` 직접 권한을 모두 회수한다. `legal_basis`, `retain_until`, 접근 목적, 사건별 hold와 파기 결과가 없는 record는 생성할 수 없다. 매일 만료 batch가 legal hold 없는 record를 파기하고 PII 없는 category·건수·시각만 감사한다.
 
-주소록(`public.address_book_entries`)은 법정 보존 대상이 아니다. 탈퇴 신청으로 계정 fence가 생기는 트랜잭션에서 그 회원의 주소록을 지운다. 이미 한 주문의 배송지는 주문 정보로서 위 '배송 운영 개인정보'·거래 기록 기준을 따른다. 주문이 있는 회원은 `orders.user_id` 제약 때문에 Auth 삭제의 cascade로 지워지지 않는다. 그래서 Phase 1이 OFF인 동안 문의로 받은 탈퇴는 아래 운영자 절차로 처리한다.
+주소록(`public.address_book_entries`)은 법정 보존 대상이 아니다. 탈퇴 신청으로 계정 fence가 생기는 트랜잭션에서 그 회원의 주소록을 지운다. 이미 한 주문의 배송지는 주문 정보로서 위 '주문 배송지'·거래 기록 기준(5년)을 따른다 — 2026-11-19 사용자 결정으로 배송 완료 30일 파기를 두지 않고 공개 처리방침 문장에 맞춘다. 주문이 있는 회원은 `orders.user_id` 제약 때문에 Auth 삭제의 cascade로 지워지지 않는다. 그래서 Phase 1이 OFF인 동안 문의로 받은 탈퇴는 아래 운영자 절차로 처리한다.
 
 ### 문의로 받은 탈퇴의 운영자 처리 (Phase 1 OFF 동안)
 
@@ -88,9 +89,9 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 2. DB `admin_process_member_withdrawal`이 한 트랜잭션에서 처리한다.
    - 문의 번호가 그 회원이 쓴 1:1 문의인지 확인한다.
    - §3 진행 중 의무(`private.account_deletion_blockers` — 탈퇴 신청과 같은 판정)와 운영 권한(프로필 staff/admin·매니저 소속)이 남아 있으면 아무것도 바꾸지 않고 남은 항목·건수를 돌려준다. 해당 거래를 끝내거나 권한을 회수한 뒤 다시 처리한다.
-   - 계정을 정지한다(`admin_suspend_user`, 정지 감사 포함). 주소록, 인증한 휴대폰 번호와 인증 요청·이력, 마케팅 정보 수신 동의(동의 중인 모든 수단 철회 — 원장 출처 `member_withdrawal`, 파생값 `consents.marketing=false`), 성별(고객 통계 동의), 활동 기록과 그 동의, 진행 중인 이메일 변경 요청, 대기 중인 재입고 알림 신청을 지운다(탈퇴 봉인 트리거의 삭제 범위와 같고, 재입고 알림은 정지와 무관하게 알림·메일을 보내므로 더한다). 모든 로그인 세션(`auth.sessions`, refresh token)을 지운다.
-   - 처리 기록 `private.member_withdrawal_processings`와 감사 로그 `admin.member.withdrawal_processed`(문의 번호·처리자·시각·지운 개수 — 메모·개인정보 원문 없음)를 남긴다. 다시 처리해도 처음 기록을 돌려주고(멱등) 그 사이 생긴 세션만 다시 끊는다.
-3. 이어서 앱 서버가 Supabase Auth 관리 API로 재로그인을 막는다(`ban_duration` 876000h — 로그인·토큰 갱신 거절). 관리 API에는 사용자 id로 세션을 끊는 호출이 없어(`signOut`은 그 사용자의 JWT가 필요하다) 세션 삭제는 2의 RPC가 한다. `admin_confirm_member_withdrawal_signin_block`이 `auth.users.banned_until`을 직접 읽어 장기 차단을 확인한 뒤 감사 로그 `admin.member.withdrawal_signin_blocked`를 남긴다. 차단이 실패하면 정지·삭제는 이미 끝난 상태로 고객 상세에 '재로그인 차단 다시 적용'이 보인다.
+   - 계정을 정지한다(`admin_suspend_user`, 정지 감사 포함). 주소록, 인증한 휴대폰 번호와 인증 요청·이력, 마케팅 정보 수신 동의(동의 중인 모든 수단 철회 — 원장 출처 `member_withdrawal`, 파생값 `consents.marketing=false`), 성별(고객 통계 동의), 활동 기록과 그 동의, 진행 중인 이메일 변경 요청, 대기 중인 재입고 알림 신청을 지우고, 프로필의 닉네임은 '탈퇴한 회원 <구분 번호>'로 바꾸며 생년월일과 프로필 사진 경로는 비우고 성인 인증 기록(`private.adult_verifications`·`adult_verification_sessions` — 공개 처리방침 제3조가 탈퇴 시 파기를 약속하고 법정 snapshot이 보존하지 않는다)과 프로필 사진 후보 기록을 지운다(2026-11-19 사용자 결정, 아래 처리 기록의 사진 파일 삭제 참고). 처리 뒤에는 그 회원의 프로필 닉네임·생년월일·사진·동의 쓰기를 DB가 거절한다(`member_withdrawn`, 마케팅 철회만 허용)(탈퇴 봉인 트리거의 삭제 범위와 같고, 재입고 알림은 정지와 무관하게 알림·메일을 보내므로 더한다). 모든 로그인 세션(`auth.sessions`, refresh token)을 지운다.
+   - 처리 기록 `private.member_withdrawal_processings`와 감사 로그 `admin.member.withdrawal_processed`(문의 번호·처리자·시각·지운 개수와 익명화한 프로필 칸 이름 `profileFields` — 메모·개인정보 원문·값 없음)를 남긴다. 다시 처리해도 처음 기록을 돌려주고(멱등) 그 사이 생긴 세션만 다시 끊는다.
+3. 이어서 앱 서버가 프로필 사진 파일을 지운다(`user-uploads` 버킷의 객체는 SQL로 지울 수 없어, 처리 기록의 `avatar_erase_pending`이 켜진 회원의 `<id>/profile/` 접두 아래 객체 전체 — 현재 사진뿐 아니라 교체 때 정리에 실패한 이전 파일·저장하지 않은 후보 포함 — 를 Storage API로 삭제하고, `admin_confirm_member_withdrawal_avatar_erased`가 `storage.objects`에 그 접두 객체가 0개인지 직접 확인해 감사 `admin.member.withdrawal_avatar_erased`를 남긴다). 사진 파일이 없던 회원은 이 단계가 없다. 실패하면 고객 상세의 '다시 적용'으로 재시도한다. 같은 방식으로 앱 서버가 Supabase Auth 관리 API로 재로그인을 막는다(`ban_duration` 876000h — 로그인·토큰 갱신 거절). 관리 API에는 사용자 id로 세션을 끊는 호출이 없어(`signOut`은 그 사용자의 JWT가 필요하다) 세션 삭제는 2의 RPC가 한다. `admin_confirm_member_withdrawal_signin_block`이 `auth.users.banned_until`을 직접 읽어 장기 차단을 확인한 뒤 감사 로그 `admin.member.withdrawal_signin_blocked`를 남긴다. 차단이 실패하면 정지·삭제는 이미 끝난 상태로 고객 상세에 '재로그인 차단 다시 적용'이 보인다.
 4. 처리한 계정은 정지를 해제할 수 없다(`member_withdrawn`). 이미 발급된 access token은 만료(기본 1시간)까지 PostgREST에서 유효하다. 그동안 정지를 확인하는 쓰기 — 구매·예매·작성·카드팩 개봉·게임, 마케팅 정보 수신 새 동의(직접 `consents.marketing` 쓰기 포함, 철회는 언제나 허용), 재입고 알림 신청, '계정' 유형이 아닌 문의 — 는 거절되지만, 위시처럼 정지를 확인하지 않는 본인 행 쓰기는 만료 전까지 될 수 있다.
 5. 문의에 처리 결과를 답변하고 문의를 닫는다.
 
@@ -101,11 +102,13 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 카카오 프로필)를 함께 지운다. 처리 기록의 근거는 `basis = kakao_unlink`와 해제 원장 행이다. 카카오 연결만 끊은 회원은 다시 로그인할 수
 있으므로 이 경로를 쓰지 않고, 확인 연락 뒤 회원이 쓴 1:1 문의로 위 절차를 따른다.
 
+2026-11-19 이전에 이미 처리한 회원은 migration `20261119109500`이 같은 익명화·파기로 백필하고, 재처리 요청(`already_processed`)도 아직 익명화되지 않은 프로필이면 같은 규칙을 한 번 적용한다(감사 `admin.member.withdrawal_profile_anonymized`).
+
 이 처리는 hard delete가 아니다. §1·§2의 완전한 탈퇴(법정 snapshot 분리 → 메일 fence → hard delete → compliance tombstone)의 선행 조건이 아직 없어서 다음은 남긴다.
 
 | 남는 항목 | 이유 |
 |---|---|
-| 프로필 이메일·닉네임·생년월일·아바타, Auth 사용자(정지·재로그인 차단 상태) | Auth hard delete는 법정 snapshot 분리·Storage 정리·compliance tombstone 뒤에만 한다(§2 4~5단계). 주문이 있는 회원은 `orders.user_id` 제약으로 Auth 삭제가 막힌다. 같은 이메일로 다시 가입할 수 없다 |
+| 프로필 이메일(닉네임은 '탈퇴한 회원 <구분 번호>'로 익명화, 생년월일·프로필 사진은 처리 때 삭제), Auth 사용자(정지·재로그인 차단 상태) | Auth hard delete는 법정 snapshot 분리·Storage 정리·compliance tombstone 뒤에만 한다(§2 4~5단계). 주문이 있는 회원은 `orders.user_id` 제약으로 Auth 삭제가 막힌다. 같은 이메일로 다시 가입할 수 없다. 이메일은 재가입 차단과 거래 조회 때문에 남긴다 |
 | 주문·결제·환불·티켓·클레임 기록과 주문 배송지 사본 | 법정 거래 기록(위 매트릭스). 분리 보존 원장이 활성화되기 전에는 운영 DB에 그대로 둔다 |
 | 1:1 문의·리뷰·커뮤니티 작성물·업로드 이미지 | 작성자 연결 해제·이미지 삭제는 hard delete 단계(§4) |
 | 보유 카드·카드팩·코인, 위시·알림함·팔로우, 알린 재입고 알림 기록 등 | 개인화 데이터 삭제는 hard delete 단계(§1 3항) |
