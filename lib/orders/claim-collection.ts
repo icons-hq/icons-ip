@@ -15,11 +15,12 @@ export type ClaimReturnBundle = { bundleId: string; returnName: string; returnAd
 export type ClaimReturnPickup = { carrier: string; carrierLabel: string | null; trackingNumber: string; requestedAt: string };
 /**
  * reshipped는 그 배송 건을 이미 재출고해 회수 정보 정정이 잠긴 행에만 온다(TKT-166). 남은 출고지는 계속 정정한다.
- * collectionWaived는 회수 생략 결정이 있는 배송 건에만 온다. returnBundles는 DB의 회수 문서 행에 없다 — 별도 읽기 RPC
+ * collectionWaived는 회수 생략 결정이 있는 배송 건에만 온다. carrierLoss는 그 결정이 배송 분실(택배사 확인, 2026-11-19)일 때만 함께 온다
+ * — 분실 결정은 이 앱이 배포된 뒤에야 기록되므로 이전 앱의 정확 키 파서가 그 키를 만나는 일은 없다. returnBundles는 DB의 회수 문서 행에 없다 — 별도 읽기 RPC
  * (read_my_claim_return_bundles·admin_read_claim_return_bundles)의 응답을 서버 액션이 행에 합쳐 화면에 넘긴다.
  * 문서에 키를 더하면 배포 순간 이전 앱의 정확 키 파서가 승인된 모든 클레임의 회수 정보를 읽지 못하기 때문이다.
  */
-export type ClaimCollectionRow = { shipmentId: string; originName: string; revision: number; method: CollectionMethod; carrier: string | null; carrierLabel?: string | null; trackingNumber: string | null; evidence: string; requestedOnce: boolean; collectedAt: string | null; updatedAt: string | null; reshipped?: true; returnBundles?: ClaimReturnBundle[]; collectionWaived?: true };
+export type ClaimCollectionRow = { shipmentId: string; originName: string; revision: number; method: CollectionMethod; carrier: string | null; carrierLabel?: string | null; trackingNumber: string | null; evidence: string; requestedOnce: boolean; collectedAt: string | null; updatedAt: string | null; reshipped?: true; returnBundles?: ClaimReturnBundle[]; collectionWaived?: true; carrierLoss?: true };
 export type ClaimCollectionDocument = { claimId: string; orderId: string; claimRevision: number; editable: boolean; rows: ClaimCollectionRow[]; history: { id: string; shipmentId: string; createdAt: string; method: CollectionMethod; carrier: string | null; trackingNumber: string | null; evidence: string }[] };
 const nullableText = (v: unknown) => v === null || typeof v === 'string';
 const returnPickup = (v: unknown): v is ClaimReturnPickup => transactionRecord(v) && transactionExactKeys(v, ['carrier', 'carrierLabel', 'trackingNumber', 'requestedAt'])
@@ -43,8 +44,9 @@ export function parseClaimCollectionDocument(v: unknown): ClaimCollectionDocumen
   if (!transactionRecord(v) || !transactionExactKeys(v, ['claimId', 'orderId', 'claimRevision', 'editable', 'rows', 'history']) || !isUuid(v.claimId) || !isUuid(v.orderId)
     || !transactionInteger(v.claimRevision, 0) || typeof v.editable !== 'boolean' || !Array.isArray(v.rows) || !Array.isArray(v.history)) return null;
   if (v.rows.some(r => !transactionRecord(r) || !transactionExactKeys(r, ['shipmentId', 'originName', 'revision', 'method', 'carrier', 'trackingNumber', 'evidence', 'requestedOnce', 'collectedAt', 'updatedAt',
-      ...['carrierLabel', 'reshipped', 'returnBundles', 'collectionWaived'].filter(key => Object.hasOwn(r, key))])
+      ...['carrierLabel', 'reshipped', 'returnBundles', 'collectionWaived', 'carrierLoss'].filter(key => Object.hasOwn(r, key))])
     || (Object.hasOwn(r, 'reshipped') && r.reshipped !== true) || (Object.hasOwn(r, 'collectionWaived') && r.collectionWaived !== true)
+    || (Object.hasOwn(r, 'carrierLoss') && (r.carrierLoss !== true || r.collectionWaived !== true))
     || (Object.hasOwn(r, 'returnBundles') && (!Array.isArray(r.returnBundles) || r.returnBundles.length === 0 || !r.returnBundles.every(returnBundle)))
     || !isUuid(r.shipmentId) || !transactionInteger(r.revision, 0) || typeof r.originName !== 'string' || !method(r.method) || !nullableText(r.carrier) || !nullableText(r.trackingNumber)
     || (r.carrierLabel !== undefined && !nullableText(r.carrierLabel)) || typeof r.evidence !== 'string' || typeof r.requestedOnce !== 'boolean' || !nullableText(r.collectedAt) || !nullableText(r.updatedAt))) return null;

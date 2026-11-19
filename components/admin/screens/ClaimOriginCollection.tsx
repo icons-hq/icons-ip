@@ -17,6 +17,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { useClaimPreviewBusy } from './ClaimPreviewDialog';
+import { ClaimCarrierLossDecision } from './ClaimCarrierLossDecision';
 
 /*
  * 출고지(배송 건) 하나의 회수 확인. 근거와 함께 실제 입고일(기본 오늘, 미래 불가)을 받는다 — 확인 버튼을 늦게 누른
@@ -26,25 +27,37 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 회수 묶음(S36-040): 한 배송 건 안에서 상품별 반품지가 갈리면 반품지마다 묶음이 나뉘고, 묶음마다 입고를 확인한다. 배송 건의
  * 모든 묶음이 입고돼야 그 배송 건이 회수 완료다. 묶음이 하나면 지금까지처럼 배송 건 하나로 확인한다.
  * 반품 자동 회수 접수(QNA-032): 스위치를 켠 뒤 접수 큐에 들어간 묶음에만 접수 상태·회수 운송장이 보이고, 자동 수거 실패는 다시 접수한다.
+ * 배송 분실(원장 #15): 반품의 발송된 배송 건은 택배사 사고 번호·메모·근거 사진으로 회수를 끝낼 수 있고, 기록하면 '배송 분실'로 보인다.
  */
-export function ClaimOriginCollection({ claimId, claimType, collection, canRecord }: {
+export function ClaimOriginCollection({ claimId, claimType, collection, canRecord, claimRevision = null }: {
   claimId: string;
   claimType: OrderClaimType;
   collection: AdminClaimCollection;
   canRecord: boolean;
+  /** 클레임 리비전. 없으면 배송 분실 기록 폼을 그리지 않는다. */
+  claimRevision?: number | null;
 }) {
   const waived = collection.collectionWaived === true;
+  const lost = collection.carrierLoss ?? null;
+  const canRecordLoss = claimType === 'return' && canRecord && !collection.collectedAt && !waived && collection.shipmentDispatched === true && claimRevision !== null
+    && !(collection.bundles ?? []).some((bundle) => bundle.collectedAt);
   const bundles = collection.bundles ?? [];
   const split = bundles.length > 1;
   const single = bundles.length === 1 ? bundles[0] : null;
   const badge = collection.collectedAt
     ? <AdminStatusBadge tone="success">회수 확인 완료</AdminStatusBadge>
+    : lost ? <AdminStatusBadge tone={statusTone('claimReshipment', 'waived')}>배송 분실</AdminStatusBadge>
     : waived ? <AdminStatusBadge tone={statusTone('claimReshipment', 'waived')}>회수 생략</AdminStatusBadge>
       : split && bundles.some((bundle) => bundle.collectedAt) ? <AdminStatusBadge tone="warning">{`일부 입고 ${bundles.filter((bundle) => bundle.collectedAt).length}/${bundles.length}`}</AdminStatusBadge>
         : <AdminStatusBadge tone="warning">회수 대기</AdminStatusBadge>;
   /* 처리 칸 안의 또 다른 상자로 그리지 않는다 — 출고지 사이는 구분선과 여백으로 나눈다. */
   return <section className="flex min-w-0 flex-col gap-2 border-t pt-3 text-sm" aria-label={`${collection.originName} 회수 현황`} data-claim-origin-collection="" data-collection-waived={waived ? '' : undefined}>
     <h4 className="flex flex-wrap items-center gap-2 font-medium">{collection.originName} {badge}</h4>
+    {lost ? <div className="flex flex-col gap-0.5" data-claim-carrier-loss-record="">
+      <p className="text-xs text-muted-foreground">택배사 사고 번호 <span className="tabular-nums">{lost.accidentNumber}</span> · 기록 {formatOrderDateTime(lost.recordedAt)}{lost.recordedByName ? ` · ${lost.recordedByName}` : ''}</p>
+      <p className="break-words whitespace-pre-wrap">{lost.reason}</p>
+      <p className="text-xs text-muted-foreground">회수 없이 환불합니다. 분실 상품은 판매 재고로 되돌리지 않습니다.</p>
+    </div> : null}
     {split ? <>
       <p className="text-xs text-muted-foreground">상품마다 반품지가 달라 반품지 {bundles.length}곳으로 나눠 회수합니다. 반품지마다 도착한 입고를 확인해주세요.</p>
       {waived ? <AdminNotice tone="info">회수 생략으로 결정한 출고지입니다. 상품이 늦게 도착했을 때만 입고를 확인하세요. 재고는 바뀌지 않으니, 다시 팔 수 있으면 재고 조정에서 반영해주세요.</AdminNotice> : null}
@@ -69,6 +82,7 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
         {waived ? <p className="text-xs text-muted-foreground">회수 생략으로 결정한 뒤 늦게 도착한 입고입니다. 재고는 바뀌지 않았습니다.</p> : null}
       </> : canRecord ? <CollectionRecordForm claimId={claimId} claimType={claimType} label={collection.originName} shipmentId={collection.shipmentId} waived={waived} /> : null}
     </>}
+    {canRecordLoss && claimRevision !== null ? <ClaimCarrierLossDecision claimId={claimId} claimRevision={claimRevision} originName={collection.originName} shipmentId={collection.shipmentId} /> : null}
   </section>;
 }
 
