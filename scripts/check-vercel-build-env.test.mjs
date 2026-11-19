@@ -103,6 +103,15 @@ describe('validateVercelBuildEnvironment', () => {
     expect(validateVercelBuildEnvironment({})).toEqual({ checked: false });
   });
 
+  it('accepts the Turnstile site key alone and warns when the unused secret key is in the Vercel environment', () => {
+    const site = { NEXT_PUBLIC_TURNSTILE_SITE_KEY: '0x4AAAAAAA-site' };
+    expect(validateVercelBuildEnvironment({ ...baseEnvironment, ...site })).toMatchObject({ checked: true, warnings: [] });
+    const withSecret = validateVercelBuildEnvironment({ ...baseEnvironment, ...site, TURNSTILE_SECRET_KEY: '0x4AAAAAAA-secret' });
+    expect(withSecret.warnings).toHaveLength(1);
+    expect(withSecret.warnings[0]).toContain('TURNSTILE_SECRET_KEY');
+    expect(JSON.stringify(withSecret)).not.toContain('0x4AAAAAAA-secret');
+  });
+
   it('accepts a Fake-only preview and keeps checkout closed', () => {
     expect(validateVercelBuildEnvironment({ ...baseEnvironment })).toEqual({
       checked: true,

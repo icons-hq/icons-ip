@@ -50,6 +50,8 @@ const operators = [
   sql('admin_operator_directory'),
   sql('readable_order_numbers'),
   sql('order_number_time'),
+  // 결제 전 주문 내용 확인·구매 조건 동의 기록(PAY-015): service_role 멱등 기록·제한 굿즈 스냅샷·운영자 읽기.
+  sql('order_purchase_acknowledgement'),
   sql('erp_read'),
   // MD(catalog.manage) ERP 품목 반입 권한과 연결 상품 판매가·바코드 반영(1027T-016·1027T-X04).
   sql('erp_linked_goods_apply', { kc: true }),
@@ -67,9 +69,17 @@ const operators = [
   sql('order_shipment_extra_trackings'),
   // 운송장 무결성: 다른 주문 번호 재사용·택배사 형식·뒤바뀐 회신·맞바꾸기.
   sql('tracking_number_integrity'),
+  // 출고지시 뒤 취소: 창고 회신 판정·취소 뒤 출고 발견(네 반입 경로)·실물 기준 재고·처리와 그 경합(ADR-0046).
+  sql('warehouse_stop_replies'),
+  // 재고 부족 부분 취소가 닫은 배송 건의 취소 뒤 출고 발견(품목 줄이 지워진 배송 건의 재고·서원 대조 줄).
+  sql('warehouse_stop_partial_closed'),
+  script('warehouse_stop_replies_concurrency.sh', 'WAREHOUSE_STOP_TEST_SCOPE'),
   sql('delivery_tracking_auto_complete'),
   script('delivery_tracking_concurrency.sh', 'DELIVERY_TRACKING_TEST_SCOPE'),
   script('tracking_number_integrity_concurrency.sh', 'TRACKING_INTEGRITY_TEST_SCOPE'),
+  // 배송완료·발송 되돌리기와 택배사 도착 일시(ADR-0045), 되돌리기 대 자동 구매확정·반품 접수 경합.
+  sql('shipment_status_revert'),
+  script('shipment_status_revert_concurrency.sh', 'SHIPMENT_REVERT_TEST_SCOPE'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
@@ -239,6 +249,8 @@ const storefront = [
   sql('home_xsquare_blocks', { admin: true, kc: true }),
   sql('customer_marketing_consents'),
   sql('member_phone_verification'),
+  // 가입·확인 메일 재전송·재설정 요청의 IP·이메일 시도 한도(CUS-003).
+  sql('auth_mail_abuse_limits'),
   // 온보딩 완료는 서버(service_role)만 기록하고 휴대폰 인증을 쓰기 시점에 다시 확인한다.
   sql('onboarding_completion_server_only'),
   // 문의로 받은 탈퇴의 어드민 처리(정지·개인정보 삭제·세션 종료·감사)와 정지 회원 계정 문의.
@@ -247,6 +259,9 @@ const storefront = [
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
   sql('kakao_channel_friend_coupon'),
+  // 코드 입력 등급 확인(PAY-028)과 지정 발급 쿠폰 개별 회수(PAY-034). 회수 대 결제 경합은 별도 스크립트.
+  sql('coupon_grade_check_and_revoke'),
+  script('coupon_revoke_concurrency.sh', 'COUPON_REVOKE_TEST_SCOPE'),
   // 카카오 계정 상태 변경 웹훅(user-unlinked): 다른 수단 회원의 카카오 연결 끊기·카카오만 회원의 탈퇴 검토 대기.
   sql('kakao_account_unlink'),
   // 카카오 연결 해제 탈퇴 검토 대기의 어드민 처리: 카카오계정 탈퇴 사유만 해제 알림으로 처리, 연결만 끊은 회원은 1:1 문의 경로.
@@ -256,6 +271,8 @@ const storefront = [
   sql('order_fulfillment_holds'),
   // 시스템 상태: cron 실행 기록·멈춤 판정·미종결 결제 재확인·운영 알림 시스템 분류.
   sql('system_health_alerts'),
+  // 운영 알림 요약 메일: 새 문의·답변 지연·시스템 장애를 한 통으로(커서·지연 1회·범주·전용 dispatcher gate).
+  sql('ops_alert_digest'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
   sql('stock_reconcile_safety_digest'),
   // QA1 S-T07-01: 재고 대조 반영과 같은 옵션 주문의 재고 차감이 겹칠 때(주문 먼저 → 거절, 반영 먼저 → 주문이 반영 값에서 뺌).

@@ -63,3 +63,29 @@ describe('선물 받는 분의 방문 회수 안내', () => {
     expect(render('requested', { pickupBundles: 1, directBundles: 0 })).not.toContain('택배 기사가 방문해');
   });
 });
+
+/* 선물 결제도 주문서와 같은 줄별 청약철회·교환 제한 고지를 보인 뒤에만 그 목록을 보인 고지로 보낸다(P2). */
+describe('선물 결제 품목의 청약철회·교환 제한 고지', () => {
+  const VARIANT = '10000000-0000-4000-8000-000000000031';
+  const item = (goodId: string, name: string) => ({ goodId, variantId: VARIANT, name, variantName: '기본', qty: 1, imagePath: null, customInputs: null });
+  const payable = (): GiftValue => ({ ...gift('sender', {}), state: 'accepted', order: null, shipments: [], items: [item('g1', '각인 키링'), item('g2', '일반 스티커'), item('g3', '교환 불가 포토')] });
+  const restrictions = {
+    g1: { goodId: 'g1', returnAllowed: false, exchangeAllowed: false, reason: '각인 주문 제작' },
+    g3: { goodId: 'g3', returnAllowed: null, exchangeAllowed: false, reason: '교환 불가 사유' },
+  };
+  const render = (claimRestrictions?: Record<string, { goodId: string; returnAllowed: boolean | null; exchangeAllowed: boolean | null; reason: string }> | null) =>
+    renderToStaticMarkup(<GiftDetail actorId={actorId} coupons={[]} initialClaimContext={null} initialGift={payable()} claimRestrictions={claimRestrictions} />);
+
+  it('제한 굿즈 줄에만 사유와 반품·교환 구분을 보인다', () => {
+    const html = render(restrictions);
+    expect(html).toContain('청약철회·교환 제한 — 각인 주문 제작');
+    expect(html).toContain('교환 제한 · 청약철회 가능 — 교환 불가 사유');
+    expect(html.match(/data-claim-restriction/g)).toHaveLength(2);
+    expect(html.slice(html.indexOf('일반 스티커'), html.indexOf('교환 불가 포토'))).not.toContain('data-claim-restriction');
+  });
+
+  it('제한이 없거나 읽지 못했으면(null) 줄 고지가 없다', () => {
+    expect(render({})).not.toContain('data-claim-restriction');
+    expect(render(null)).not.toContain('data-claim-restriction');
+  });
+});

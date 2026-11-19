@@ -131,6 +131,16 @@ describe('recordOrderClaimOriginCollectionAction 회수 묶음', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_record_order_claim_origin_collection', expect.anything());
     expectPreservedFailure(state, form, '반품지가 둘 이상인 배송 건입니다. 반품지별 회수 확인에서 도착한 곳을 골라 확인해주세요.');
   });
+  /* ADR-0046: 출고지시가 나간 발송 전 배송 건의 창고 보관 확인은 창고 회신 기록이 근거다. */
+  it('창고가 이미 출고했다고 회신한 배송 건의 보관 확인은 반송 입고 회신을 남기라고 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'claim_collection_warehouse_already_shipped' } });
+    const form = receiptForm('return');
+    const state = await recordOrderClaimOriginCollectionAction({ attempt: 3 }, form);
+    expectPreservedFailure(state, form, expect.stringContaining('반송 입고'));
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'claim_collection_warehouse_reply_required' } });
+    const again = await recordOrderClaimOriginCollectionAction({ attempt: 3 }, form);
+    expectPreservedFailure(again, form, expect.stringContaining('창고 회신 기록'));
+  });
 });
 
 describe.each(receiptActions)('$name', (contract) => {

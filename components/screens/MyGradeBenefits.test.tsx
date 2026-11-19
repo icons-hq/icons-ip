@@ -109,7 +109,7 @@ describe('MyGradeBenefits', () => {
     expect(html).toContain('지금은 이 등급에 지급 중인 혜택이 없어요.');
   });
 
-  /* 코드 입력 발급은 회원 등급을 묻지 않는다 — 오르지 않은 등급은 쿠폰 이름·금액 대신 종류별 장수만 보여 준다. */
+  /* 오르지 않은 등급은 쿠폰 이름·금액 대신 종류별 장수만 보여 준다(코드 입력은 이제 등급을 확인하지만 화면 계약은 그대로다). */
   it('shows only coupon counts for grades the member has not reached', () => {
     const html = render();
 

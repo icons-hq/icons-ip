@@ -7,8 +7,8 @@ import { loyaltyProgressNote, parseLoyaltyPolicy, type LoyaltyCriterion } from '
  *
  * 등급별 혜택은 public.get_loyalty_grade_benefits()가 정본이다 — 지금 지급되는 등급 혜택 쿠폰(지급 방식: 승급할 때
  * 한 번 또는 매월 1일)과 등급 적립률(bps)만 돌려주고 쿠폰 코드는 싣지 않는다. 쿠폰 내용(이름·금액·조건·기간)은 내가 오른 등급까지만
- * 오고, 아직 오르지 않은 등급은 종류별 장수(couponCounts)만 온다 — 코드 입력 발급이 회원 등급을 묻지 않아
- * 상위 등급 쿠폰 목록을 펼치면 코드 추측 대상이 되기 때문이다. 등급 조건과 내 등급은 get_my_loyalty_status()가
+ * 오고, 아직 오르지 않은 등급은 종류별 장수(couponCounts)만 온다 — 코드 입력 발급이 이제 회원 등급을 묻지만
+ * 상위 등급 쿠폰 목록을 펼치면 여전히 코드 추측 대상이 되기 때문이다. 등급 조건과 내 등급은 get_my_loyalty_status()가
  * 따로 돌려준다(loyalty-benefits.server). 이 모듈은 응답 검증과 화면 문구만 만든다 — 순수 함수라 단위 테스트한다. */
 
 export type GradeBenefitKind = 'goods' | 'shipping';
@@ -113,7 +113,7 @@ function parseCoupon(value: unknown): GradeBenefitCoupon | null {
   if (value.validDays !== null && !wholeNumber(value.validDays, 1, 365)) return null;
   /* 지급 방식이 없으면 도입 전 응답(승급할 때 한 번)이다. 알 수 없는 값은 계약 위반이라 쓰지 않는다. */
   if (value.cadence !== undefined && !isGradeBenefitCadence(value.cadence)) return null;
-  /* 코드는 응답에 없어야 한다 — 실려 오면 계약이 깨진 것이다(코드 입력 발급은 등급을 묻지 않는다). */
+  /* 코드는 응답에 없어야 한다 — 실려 오면 계약이 깨진 것이다(코드 입력은 등급을 묻지만 코드 자체는 응답에 담지 않는다). */
   if ('code' in value) return null;
   return {
     name,

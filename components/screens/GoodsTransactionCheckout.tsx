@@ -30,6 +30,16 @@ import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycl
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import { createClient } from '@/lib/supabase/client';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
+import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
+import {
+  CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
+  CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
+  EMPTY_CHECKOUT_CLAIM_RESTRICTIONS,
+  checkoutRestrictionNotice,
+  claimNoticeOf,
+  restrictedCheckoutGoods,
+  type CheckoutClaimRestrictions,
+} from '@/lib/checkout-acknowledgement';
 
 export const cartTransactionErrorCopy: Record<CartTransactionError, string> = {
   order_too_large: '한 번에 처리할 수 있는 주문 정보 크기를 초과했어요. 장바구니 품목을 나누어 주문해주세요.',
@@ -42,6 +52,8 @@ export const cartTransactionErrorCopy: Record<CartTransactionError, string> = {
   payment_in_progress: '결제 확인 중인 주문이 있어요. 그 주문의 결제 결과를 확인한 뒤 다시 시도해주세요.',
   draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.',
   draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
+  acknowledgement_required: CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
+  claim_notice_changed: CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
 };
 
 interface Props {
@@ -56,9 +68,11 @@ interface Props {
    * 바로구매 원본으로 견적·주문한다. 없으면 지금처럼 장바구니 전체다.
    */
   draft?: CheckoutDraft | null;
+  /** 청약철회·교환이 제한된 굿즈(서버가 읽은 값) — 품목 줄에 다시 고지하고 동의 문구에 더한다(PAY-015). */
+  claimRestrictions?: CheckoutClaimRestrictions | null;
 }
 
-export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode, draft = null }: Props) {
+export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode, draft = null, claimRestrictions = EMPTY_CHECKOUT_CLAIM_RESTRICTIONS }: Props) {
   const router = useRouter(), cart = useCart();
   const direct = draft?.source === 'direct';
   /* 바로구매 주문서의 안내는 장바구니가 아니라 굿즈 상세(쿠폰은 이 주문서)로 돌려보낸다(ADR-0030). */
@@ -77,6 +91,8 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   const [session, setSession] = useState<string | null>(null), [authBlocked, setAuthBlocked] = useState(false);
   const [recovery, setRecovery] = useState<CartTransactionRecovery | null>(null), [frozen, setFrozen] = useState<{ display: GoodsTransactionDisplay; items: CartItem[] } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  /* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015). 저장하지 않는다 — 주문서를 열 때마다 새로 받는다. */
+  const [acknowledged, setAcknowledged] = useState(false);
   /* 주문을 막은 주문(ADR-0030): 같은 주문서로 이미 접수·결제한 주문이거나 결제 승인을 확인하고 있는 주문. 있으면 그 주문으로
      안내하고 결제 버튼을 잠근다. */
   const [blockingOrderId, setBlockingOrderId] = useState<string | null>(null);
@@ -141,7 +157,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   const quotedBlockingOrder = quotes.result && !quotes.result.ok && (quotes.result.error === 'draft_used' || quotes.result.error === 'payment_in_progress')
     ? quotes.result.orderId ?? null : null;
   const blockingOrder = blockingOrderId ?? quotedBlockingOrder;
-  const canSubmit = Boolean(session && !authBlocked && input && quote?.state === 'quoted' && selectable[effectiveMethod] && !cart.pending && !busy && !recovery && !blockingOrder);
+  const canSubmit = Boolean(acknowledged && session && !authBlocked && input && quote?.state === 'quoted' && selectable[effectiveMethod] && !cart.pending && !busy && !recovery && !blockingOrder);
   const addressErrors = needsAddress ? checkoutAddressErrors(address) : {};
   /* 미리 채운 배송지를 그대로 두는 동안만 출처를 안내한다(S6a — 두 주문서 모두 사실대로). */
   const prefillNotice = addressPrefill.address && sameCheckoutDestination(addressPrefill.address, address) ? checkoutAddressPrefillNotice(addressPrefill.source) : null;
@@ -166,20 +182,22 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     }
     if (result.uncertain) setError('주문 생성 결과를 확인 중이에요. 아래 버튼으로 같은 주문을 다시 확인해주세요.');
     else {
-      remember(null); setFrozen(null); setError(copyFor(cartTransactionErrorCopy[result.error])); quotes.refresh();
+      /* 거절된 주문은 품목·금액이 바뀌었을 수 있다 — 바뀐 내용을 다시 확인하고 동의하게 한다. */
+      remember(null); setFrozen(null); setAcknowledged(false); setError(copyFor(cartTransactionErrorCopy[result.error])); quotes.refresh();
       if (result.error === 'draft_used' || result.error === 'payment_in_progress') setBlockingOrderId(result.orderId ?? null);
       if (result.error === 'cart_changed') await cart.refresh();
+      if (result.error === 'claim_notice_changed') router.refresh();
     }
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit || !input || !session || quote?.state !== 'quoted' || lane.current) return;
+    if (!acknowledged || !canSubmit || !input || !session || quote?.state !== 'quoted' || lane.current) return;
     if (Date.parse(quote.expiresAt) <= Date.now()) { quotes.refresh(); setError(cartTransactionErrorCopy.quote_changed); return; }
     lane.current = true; setBusy(true); setError(''); const capturedEpoch = epoch.current;
     const marker: CartTransactionRecovery = { version: 1, expectedActorId: accountId, sessionId: session, quoteId: quote.quoteId, checkoutKey: crypto.randomUUID(), paymentMethod: effectiveMethod,
-      ...(input.draftId ? { draftId: input.draftId } : {}) };
+      ...(input.draftId ? { draftId: input.draftId } : {}), purchaseAcknowledged: true, claimNotice: claimNoticeOf(claimRestrictions, input.items.map(item => item.goodId)) };
     remember(marker); setFrozen({ display: quote.display, items: input.items });
-    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod }), capturedEpoch, marker.paymentMethod); }
+    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod, purchaseAcknowledged: true, claimNotice: marker.claimNotice }), capturedEpoch, marker.paymentMethod); }
     catch { if (capturedEpoch === epoch.current) setError('주문 생성 결과를 확인하지 못했어요. 같은 주문 다시 확인을 눌러주세요.'); }
     finally { lane.current = false; if (capturedEpoch === epoch.current) setBusy(false); }
   }
@@ -241,7 +259,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
       <aside className="checkout-receipt card" aria-label="주문 내역과 결제금액">
         <h2>주문 내역</h2><div className="checkout-items">{visibleItems.map(item => {
           const price = display?.lines.find(line => line.goodId === item.goodId && line.variantId === item.variantId)?.unitPrice;
-          return <div className="checkout-item" key={cartItemKey(item.goodId, item.variantId, item.customInputs)}><div><strong>{names[item.goodId] ?? '굿즈'}</strong><span>{catalog.goods.find(good => good.id === item.goodId)?.options?.find(option => option.id === item.variantId)?.name}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div><span>{item.qty}개{price !== undefined ? ` × ${krw(price)}` : ''}</span></div>;
+          return <div className="checkout-item" key={cartItemKey(item.goodId, item.variantId, item.customInputs)}><div><strong>{names[item.goodId] ?? '굿즈'}</strong><span>{catalog.goods.find(good => good.id === item.goodId)?.options?.find(option => option.id === item.variantId)?.name}</span><GoodsCustomInputsSummary selection={item.customInputs} />{claimRestrictions && Object.hasOwn(claimRestrictions, item.goodId) ? <span className="checkout-item__restriction">{checkoutRestrictionNotice(claimRestrictions[item.goodId])}</span> : null}</div><span>{item.qty}개{price !== undefined ? ` × ${krw(price)}` : ''}</span></div>;
         })}</div>
         {display && <GoodsTransactionSummary display={display} names={names} />}
         {quotes.loading && <p role="status">할인과 배송비를 확인하고 있어요.</p>}
@@ -268,6 +286,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
             </span>
           </label>)}</fieldset>
           <button type="button" className="btn btn-ghost" disabled={!input || busy || cart.pending} onClick={quotes.refresh}>금액 다시 확인</button>
+          <PurchaseAcknowledgement checked={acknowledged} disabled={busy} hasRestrictedGoods={restrictedCheckoutGoods(visibleItems.map(item => item.goodId), claimRestrictions ?? EMPTY_CHECKOUT_CLAIM_RESTRICTIONS).length > 0} claimUnavailable={claimRestrictions === null} onChange={setAcknowledged} />
           <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}</button>
         </>}
         {recovery && <section aria-label="주문 요청 복구"><p>앞서 요청한 주문을 확인한 뒤 진행해주세요.</p><button type="button" className="btn btn-holo" disabled={busy} onClick={() => void resume()}>{busy ? '같은 주문 확인 중' : '같은 주문 다시 확인'}</button><Link href="/orders?pending=1">진행 중인 주문 보기</Link></section>}

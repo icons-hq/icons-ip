@@ -18,6 +18,7 @@ import { GoodsTransactionCheckout } from './GoodsTransactionCheckout';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { CheckoutAddressBook } from '@/components/checkout/CheckoutAddressBook';
 import { PostcodeField } from '@/components/checkout/PostcodeField';
+import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap(child => isValidElement<Record<string, unknown>>(child) ? [child, ...all(child.props.children as ReactNode)] : []);
 const text = (node: ReactNode): string => Children.toArray(node).map(child => isValidElement<Record<string, unknown>>(child) ? text(child.props.children as ReactNode) : String(child)).join('');
@@ -25,13 +26,20 @@ const deferred = () => { let resolve!: (value: unknown) => void; const promise =
 let props: Parameters<typeof GoodsTransactionCheckout>[0], storage: Map<string, string>;
 function render() { hooks.si = hooks.ri = hooks.mi = hooks.ei = 0; return GoodsTransactionCheckout(props); }
 function effects() { for (const i of hooks.changed.splice(0)) { const effect = hooks.effects[i]; effect.cleanup?.(); effect.cleanup = effect.effect() || undefined; } }
-async function flush() { for (let i = 0; i < 6; i++) { await Promise.resolve(); render(); effects(); } }
+/* 결제 전 확인 동의(PAY-015) — 기존 시험은 체크한 뒤의 흐름이라 flush가 체크박스를 자동으로 켠다. 체크 전 시험은 autoAcknowledge=false로 끈다. */
+let autoAcknowledge = true;
+const acknowledgement = () => all(render()).find(node => node.type === PurchaseAcknowledgement);
+async function flush() {
+  for (let i = 0; i < 6; i++) { await Promise.resolve(); render(); effects(); }
+  const box = autoAcknowledge ? acknowledgement() : undefined;
+  if (box && !box.props.checked) (box.props.onChange as (checked: boolean) => void)(true);
+}
 function authenticate(actor = transactionActor, session = transactionSession) { mocks.auth?.('SIGNED_IN', { user: { id: actor }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` }); }
 function button(label: string) { return all(render()).find(node => node.type === 'button' && text(node) === label)!; }
 function submit() { const form = all(render()).find(node => node.type === 'form')!; return (form.props.onSubmit as (event: { preventDefault(): void }) => Promise<void>)({ preventDefault() {} }); }
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.changed = []; }
 beforeEach(async () => {
-  resetHooks(); vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-14T03:05:00Z')); storage = new Map();
+  autoAcknowledge = true; resetHooks(); vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-14T03:05:00Z')); storage = new Map();
   vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('sessionStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) });
   mocks.cart = { items: transactionInput.items, ready: true, mode: 'server', pending: false, refresh: mocks.refresh }; mocks.refresh.mockResolvedValue(undefined);
   mocks.quote = { ok: true, quote: transactionQuote, offers: [] }; mocks.place.mockResolvedValue({ ok: false, error: 'unavailable', uncertain: true }); mocks.resume.mockResolvedValue({ ok: false, error: 'unavailable', uncertain: true });
@@ -42,7 +50,7 @@ afterEach(() => { for (const effect of hooks.effects) effect.cleanup?.(); vi.uns
 it('중복 클릭은 한 요청이며 응답 불명 복구에는 원 식별자만 저장·전송한다', async () => {
   const pending = deferred(); mocks.place.mockReturnValueOnce(pending.promise);
   const first = submit(), second = submit(); expect(mocks.place).toHaveBeenCalledTimes(1); await second; await flush();
-  const saved = JSON.parse([...storage.values()][0]); expect(Object.keys(saved).sort()).toEqual(['checkoutKey', 'expectedActorId', 'paymentMethod', 'quoteId', 'sessionId', 'version']);
+  const saved = JSON.parse([...storage.values()][0]); expect(Object.keys(saved).sort()).toEqual(['checkoutKey', 'claimNotice', 'expectedActorId', 'paymentMethod', 'purchaseAcknowledged', 'quoteId', 'sessionId', 'version']);
   expect([...storage.values()][0]).not.toContain('123호'); expect([...storage.values()][0]).not.toContain('transaction-good');
   pending.resolve({ ok: false, error: 'unavailable', uncertain: true }); await first; await flush();
   expect(button('결제하기')).toBeUndefined();
@@ -163,4 +171,46 @@ it('쿠폰 중복 사용이 켜져도 같은 쿠폰 정의의 두 번째 장은 
   const options = all(select('굿즈 쿠폰 2').props.children as ReactNode).filter(node => node.type === 'option' && node.props.value);
   expect(Object.fromEntries(options.map(option => [option.props.value as string, Boolean(option.props.disabled)]))).toEqual({ [first]: true, [second]: true, [other]: false });
   expect(text(render())).toContain('같은 쿠폰을 여러 장 가지고 있어도 한 주문에는 1장만 씁니다.');
+});
+/* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015) */
+it('동의 체크 전에는 결제 버튼이 잠기고 제출해도 서버 요청을 보내지 않는다', async () => {
+  autoAcknowledge = false;
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  expect(acknowledgement()!.props.checked).toBe(false);
+  expect(button('결제하기').props.disabled).toBe(true);
+  await submit(); await flush();
+  expect(mocks.place).not.toHaveBeenCalled();
+  (acknowledgement()!.props.onChange as (checked: boolean) => void)(true); await flush();
+  expect(button('결제하기').props.disabled).toBe(false);
+});
+it('동의하면 서버 액션 입력과 복구 식별자에 동의가 실린다', async () => {
+  await submit(); await flush();
+  expect(mocks.place.mock.calls[0][0]).toMatchObject({ purchaseAcknowledged: true });
+  expect(JSON.parse([...storage.values()][0])).toMatchObject({ purchaseAcknowledged: true });
+});
+it('주문이 거절되면 바뀐 내용을 다시 확인하도록 체크를 푼다', async () => {
+  autoAcknowledge = true;
+  mocks.place.mockResolvedValueOnce({ ok: false, error: 'quote_changed', uncertain: false });
+  await submit();
+  expect(acknowledgement()!.props.checked).toBe(false);
+});
+it('청약철회 제한 굿즈가 있으면 품목 줄 고지와 동의 문구가 달라진다', async () => {
+  props = { ...props, claimRestrictions: { 'transaction-good': { goodId: 'transaction-good', returnAllowed: false, exchangeAllowed: false, reason: '각인 주문 제작 상품' } } };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  expect(text(render())).toContain('청약철회·교환 제한 — 각인 주문 제작 상품');
+  expect(acknowledgement()!.props.hasRestrictedGoods).toBe(true);
+});
+
+it('화면이 보인 제한 고지를 주문 요청에 싣고, 읽지 못했으면 unavailable 표식을 보낸다', async () => {
+  await submit(); await flush();
+  expect(mocks.place.mock.calls[0][0]).toMatchObject({ claimNotice: [] });
+  props = { ...props, claimRestrictions: { 'transaction-good': { goodId: 'transaction-good', returnAllowed: null, exchangeAllowed: false, reason: '교환 불가' } } };
+  storage.clear(); for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  await submit(); await flush();
+  expect(mocks.place.mock.calls.at(-1)?.[0]).toMatchObject({ claimNotice: ['transaction-good'] });
+  props = { ...props, claimRestrictions: null };
+  storage.clear(); for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  expect(acknowledgement()!.props.claimUnavailable).toBe(true);
+  await submit(); await flush();
+  expect(mocks.place.mock.calls.at(-1)?.[0]).toMatchObject({ claimNotice: 'unavailable' });
 });
