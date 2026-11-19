@@ -5,6 +5,7 @@ import {
   saveOrderDelayNoticeSwitchAction, savePartialCancelSwitchAction, saveReturnFeeDeductionSwitchAction, type OperationsSwitchResult,
 } from '@/app/admin/operations-switches-actions';
 import { AdminNotice, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -62,6 +63,13 @@ export function SwitchSection(props: SectionProps) {
     resultRef.current?.focus();
   });
   const hasAmount = props.amountInitial !== undefined;
+  /* 고치던 근거·금액·체크는 저장하지 않고 떠나면 사라지고(비밀이 아닌 값이라 보관은 하지 않는다), 저장 중에는 떠나지 못하며,
+     결과가 불확실한 동안은 이동하면 같은 요청 ID를 잃어 결과를 다시 확인할 수 없으므로 묻는다. */
+  const savedAmount = props.amountInitial == null ? '' : String(props.amountInitial);
+  const dirty = evidence !== (props.evidence ?? '') || (hasAmount && amount !== savedAmount) || checks.some(Boolean) || uncertain;
+  useAdminLeaveGuard({ dirty, blocked: pending, message: uncertain
+    ? `${props.title} 저장 결과를 아직 확인하지 못했습니다. 나가면 같은 요청으로 다시 확인할 수 없습니다. 화면을 나가시겠습니까?`
+    : `저장하지 않은 ${props.title} 입력이 있습니다. 화면을 나가시겠습니까?`, recover: false });
   const allChecked = checks.every(Boolean);
   /* 입력은 결과가 불확실한 동안에도 잠그지만 [같은 요청 결과 확인] 버튼은 눌러야 하므로 버튼은 저장 중에만 막는다. */
   const locked = pending || uncertain;

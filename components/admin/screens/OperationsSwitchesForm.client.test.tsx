@@ -6,6 +6,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = typeof initial === 'function' ? (initial as () => unknown)() : initial;
     return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; },
 }));
+const guard = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/useAdminLeaveGuard', () => ({ useAdminLeaveGuard: guard }));
 vi.mock('@/app/admin/operations-switches-actions', () => ({
   saveOrderDelayNoticeSwitchAction: vi.fn(), savePartialCancelSwitchAction: vi.fn(), saveReturnFeeDeductionSwitchAction: vi.fn(),
 }));
@@ -133,4 +135,32 @@ it('결과가 불확실한 동안 입력은 잠기지만 [같은 요청 결과 �
   expect(all(tree).find((element) => element.type === 'fieldset')!.props.disabled).toBe(true);
   const off = all(tree).find((element) => element.props.onClick && text(element) === '끄기')!;
   expect(off.props.disabled).toBe(true);
+});
+
+it('고치던 입력·체크·저장 중·결과 불확실 상태를 이동 가드에 등록한다', async () => {
+  const last = () => guard.mock.calls.at(-1)![0] as { dirty: boolean; blocked: boolean; message: string };
+  const p = props({ enabled: true, evidence: 'TEST 근거', amountInitial: 3000 });
+  render(p);
+  expect(last()).toMatchObject({ dirty: false, blocked: false });
+  evidence(render(p)).props.onChange?.({ target: { value: 'TEST 근거 수정' } });
+  render(p);
+  expect(last().dirty).toBe(true);
+  evidence(render(p)).props.onChange?.({ target: { value: 'TEST 근거' } });
+  render(p);
+  expect(last().dirty).toBe(false);
+  amount(render(p)).props.onChange?.({ target: { value: '4000' } });
+  render(p);
+  expect(last().dirty).toBe(true);
+  amount(render(p)).props.onChange?.({ target: { value: '3000' } });
+  save.mockResolvedValueOnce({ error: '결과 불명', uncertain: true });
+  submit(render(p)); await settle();
+  render(p);
+  expect(last().dirty).toBe(true);
+  expect(last().message).toContain('같은 요청으로 다시 확인할 수 없습니다');
+  // 꺼진 스위치의 확인 체크만 해도 저장하지 않은 입력이다.
+  hooks.state = []; hooks.refs = [];
+  const off = props();
+  checkboxes(render(off))[0].props.onChange?.({ target: { checked: true } });
+  render(off);
+  expect(last().dirty).toBe(true);
 });
