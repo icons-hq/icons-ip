@@ -426,6 +426,7 @@ Production Auth 설정:
 - workflow가 Supabase Management API로 Site URL, 두 callback의 redirect allow-list, `mailer_otp_exp=3600`, secure email change와 email rate limit, 비밀번호 변경 가드(`security_update_password_require_current_password`·`security_update_password_require_reauthentication`)와 변경 알림 템플릿을 먼저 PATCH 후 read-back한다. 가드는 preview·staging에도 같은 sync 단계로 적용하고, 알림은 production에만 켠다. Shared preview main의 Auth 설정은 production 앱·Supabase가 성공한 main sync에서 갱신하고 isolated branch는 생성 workflow에서 같은 preview URL 계약을 적용한다. 각 Vercel handler가 성공한 뒤 `supabase/templates/recovery.html` 원문을 production/shared/isolated 대상에 활성화·read-back한다. custom SMTP 필수 필드가 비어 있으면 production 배포를 실패시킨다.
 - 외부 OAuth callback은 세 공급자 모두 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. Google은 production 공개 앱, Apple은 `com.iconsip.app` primary App ID와 `com.iconsip.web` Services ID, Kakao는 앱 ID `1520482`의 REST API 키를 사용한다. Apple secret은 2027-01-18 이전에 교체한다.
 - Kakao 앱은 `(주) 아이콘스` 비즈 앱이고 `account_email`을 필수 동의·계정 정보 수집으로 요청한다. Supabase provider의 이메일 없는 사용자 허용은 꺼서 현재 `isOnboarded()`의 profile/auth email 필수 조건과 맞춘다.
+- 회원이 카카오 쪽에서 앱 연결을 끊으면 카카오 계정 상태 변경 웹훅(SSF `user-unlinked`, `/api/webhooks/kakao/account-status`)으로 받는다. 재전송이 없는 연결 해제 웹훅 대신 카카오가 서명한 SET(RS256, 공개키 검증, `aud`=대표 REST API 키 `KAKAO_REST_API_KEY`)을 쓰고, 처리를 응답 전에 끝내고, 처리 실패·공개키 미확인·서명된 SET의 낯선 모양은 500으로 재전송을 받는다(400은 서명 전 판정 실패만). DB `service_record_kakao_unlink`가 이벤트(`jti`)당 한 번 처리한다: 알림 뒤 다시 로그인했으면 그대로 두고, 다른 로그인 수단(다른 공급자 identity·비밀번호 있는 이메일)이 있는 회원은 카카오 identity만 지우며(공급자 목록·카카오 값 user metadata 정리), 그 밖의 회원은 계정을 두고 탈퇴 검토 대기(`private.kakao_unlink_withdrawal_queue`)로 남긴다([런북](runbooks/kakao-account-unlink.md)).
 
 연령 상태: 현재 온보딩의 `profiles.birth_date`는 자가신고 프로필 값이며 연령보증 증거가 아니다. v1 14+ 강제 seam·경계일·기존 계정 처리·법정 문서는 [#188](https://github.com/icons-hq/icons-ip/issues/188)이 승인·구현될 때까지 미완료다. `minimum_age_14`와 `adult_19` purpose는 분리되며, 결제사 인증은 어느 purpose도 대체하지 않는다. `adult_19`는 NHN KCP 휴대폰 본인확인 V2로 확인한다([ADR-0024](./adr/0024-adult-verification-kcp.md)) — 서버 액션이 KCP 거래등록 후 인증창을 열고, Ret_URL 콜백(`/api/identity/kcp/return/[nonce]`, 교차 사이트 POST라 쿠키 없음)은 경로 nonce 다이제스트 + 거래등록키로 세션을 선점해 KCP 결과조회·복호화로 판정만 보류하며, 콜백을 선점한 브라우저에만 확정 티켓 쿠키를 준다. 같은 브라우저의 GET(`/api/identity/adult/complete`)에서 로그인 세션이 그 티켓으로 `complete_my_adult_verification`을 불러 증거를 확정한다. TTL(30분)이 지난 미종결 세션은 pg_cron sweeper가 닫는다. 증거(`private.adult_verifications`)는 판정·1년 만료·정책 버전과 DI·KCP 거래번호의 HMAC만 남기고, 활성 증거는 계정당·명의당 하나다. 노출·구매 경계는 `private.adult_verification_valid(uuid)`만 본다. 설정·gate·롤아웃은 `docs/runbooks/kcp-adult-verification.md`, 19금 상품 gate는 #210에서 추적한다.
 
@@ -575,6 +576,7 @@ app/
   admin/                              # 역할 게이트 백오피스 + 공지 발송 action
   api/
     webhooks/tosspayments/route.ts    # 결제 확정 웹훅(재조회 검증)
+    webhooks/kakao/account-status/route.ts # 카카오 연결 해제(SSF SET 서명 검증)
     payments/confirm/route.ts         # 결제 승인 서버 경로 (만료 정리는 pg_cron)
 lib/
   auth/                               # 온보딩·next/error helper, signed auth/recovery cookie, auth server state

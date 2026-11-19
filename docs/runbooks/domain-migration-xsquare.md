@@ -68,6 +68,8 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
       운영 도메인 목록의 `iconsip.com`을 유지한다.
 - [ ] **카카오 developers**: 플랫폼 Web 사이트 도메인에 `https://xsquare.kr` 추가(로그인·공유).
       카카오 채널 웹훅 `https://xsquare.kr/api/webhooks/kakao/channel`. [signup-contact-channels.md](signup-contact-channels.md).
+      계정 상태 변경 웹훅(연결 해제)은 전환 전에는 `iconsip.com` 주소로 두고, 전환 직후
+      `https://xsquare.kr/api/webhooks/kakao/account-status`로 바꾼다. [kakao-account-unlink.md](kakao-account-unlink.md).
 - [ ] **Google OAuth**: 동의 화면의 승인된 도메인에 `xsquare.kr` 추가.
 - [ ] **Apple**: Services ID의 도메인, Sign in with Apple 이메일 릴레이 발신 도메인 등록. 릴레이는 발신 도메인
       루트의 SPF를 요구하므로 Resend 검증 뒤 루트 SPF 레코드를 함께 넣는다.
