@@ -192,7 +192,7 @@ select 1/case when (select category_id='00000000-0000-4000-8000-000000190120' fr
 -- 공개 중 상품에 이전 앱처럼 type 키를 실어 저장해도 무시하고, KC 재검토로 막히지 않는다.
 select public.admin_save_good(pg_temp.gr_payload('gr-legacy-good')||'{"type":"인형"}') is not null as gr_legacy_published_type_ignored;
 select 1/case when (select published_at is not null from public.goods where id='gr-legacy-good')
- and private.goods_kc_review_current('gr-legacy-good')
+ and public.admin_read_goods_kc('gr-legacy-good')->>'status'='reviewed'
  then 1 else 0 end as published_save_ignores_type;
 
 -- 대표 카테고리가 없는 공개 상품(이전 데이터)은 category_missing을 검토 사유로만 알린다.
@@ -290,7 +290,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','98190000-0000-4000-8000-000000000001',true);
 select public.admin_save_good(pg_temp.gr_payload('gr-legacy-good')||'{"type":"피규어","price":1700,"publish":true}') is not null as gr_legacy_type_ignored;
 select 1/case when (select price=1700 and published_at is not null from public.goods where id='gr-legacy-good')
- and private.goods_kc_review_current('gr-legacy-good')
+ and public.admin_read_goods_kc('gr-legacy-good')->>'status'='reviewed'
  then 1 else 0 end as save_ignores_given_type;
 reset role;
 
