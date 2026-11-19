@@ -157,7 +157,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
       <p className="text-muted-foreground">이 조건 그대로면 이후 새 주문은 옛 날짜로 약속됩니다.</p>
       {policyReplaceable ? <label className="flex items-start gap-2">
         <input form={form} type="checkbox" checked={replacePolicies} disabled={pending || frozen} onChange={(event) => { edit(); setReplacePolicies(event.target.checked); }} />
-        <span>접수 중 예약 조건도 {dateLabel(preview.expectedShipDate)}로 교체 — 남은 물량·접수 기간을 이어받은 새 버전으로 활성화합니다{preview.randomSale ? '(랜덤 판매는 모든 옵션)' : ''}.</span>
+        <span>접수 중 예약 조건도 {dateLabel(preview.expectedShipDate)}로 교체 — 남은 물량·접수 기간을 이어받은 새 버전으로 적용합니다{preview.randomSale ? '(랜덤 판매는 모든 옵션)' : ''}.</span>
       </label> : null}
       {preview.policyBlockReason ? <p className="text-warning">{PREORDER_SCHEDULE_POLICY_BLOCK_LABELS[preview.policyBlockReason]}</p> : null}
       {!policyReplaceable || !replacePolicies ? <label className="flex items-start gap-2" data-preorder-schedule-policy-ack="">
@@ -409,7 +409,7 @@ export function GoodsPreorderSchedulePanel({ goodId, variants, randomSale = fals
     <h3 className="text-sm font-medium">예약 주문 발송 일정 변경·고객 안내</h3>
     <p className="text-sm text-muted-foreground">발송 예정일이 바뀌면 이 상품의 미출고 예약 주문 일정을 한 번에 바꾸고, 대상과 제외 사유를 미리 본 뒤 고객에게 앱 알림·이메일로 안내합니다.
       출고지시·발송된 배송 건은 바꾸지 않습니다. 배송 건 하나만 바꿀 때는 주문 상세의 예약 발송 일정을 씁니다.</p>
-    {activeSuggestion ? <AdminNotice tone="info" title={`예약 조건을 ${dateLabel(activeSuggestion.expectedShipDate)} 발송으로 활성화했습니다`}>
+    {activeSuggestion ? <AdminNotice tone="info" title={`예약판매를 ${dateLabel(activeSuggestion.expectedShipDate)} 발송으로 적용했습니다`}>
       <span>이미 받은 예약 주문의 일정도 이 날짜로 바꾸고 안내할까요? </span>
       <span className="mt-2 flex flex-wrap gap-2">
         <Button form={form} type="button" size="sm" disabled={pending} onClick={() => openSuggestion(activeSuggestion)}>예약 주문도 이 날짜로 미리보기</Button>
