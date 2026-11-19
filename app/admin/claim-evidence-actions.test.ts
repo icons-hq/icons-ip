@@ -66,8 +66,8 @@ describe('회수 생략 근거 사진 올리기', () => {
 
   it('원장 등록 거절은 운영자 문구로 옮긴다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'claim_evidence_limit' } });
-    expect(await uploadClaimEvidenceAction(form())).toEqual({ ok: false, error: '이 교환에는 근거 사진을 20장까지 올릴 수 있습니다.' });
+    expect(await uploadClaimEvidenceAction(form())).toEqual({ ok: false, error: '이 요청에는 근거 사진을 20장까지 올릴 수 있습니다.' });
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'claim_evidence_unavailable' } });
-    expect(await uploadClaimEvidenceAction(form())).toEqual({ ok: false, error: '교환 요청에만 근거 사진을 올릴 수 있습니다.' });
+    expect(await uploadClaimEvidenceAction(form())).toEqual({ ok: false, error: '반품·교환 요청에만 근거 사진을 올릴 수 있습니다.' });
   });
 });

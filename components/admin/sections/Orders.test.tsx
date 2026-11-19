@@ -182,6 +182,19 @@ describe('OrdersSection', () => {
       expect(unpaid).not.toContain('aria-label="운영자 전액 취소"');
     });
 
+    /* 원장 #15: 일부만 발송된 주문은 전액 취소 대신 발송 전 몫(재고 부족 부분 취소)·발송된 몫(반품)의 경로를 알린다. */
+    it('일부만 발송된 주문은 전액 취소 대신 부분 취소·반품 경로를 알린다', () => {
+      const mixed = renderToStaticMarkup(<OrdersSection data={orderData({
+        status: 'shipping', shipments: [shipmentFixture({ orderId: ORDER_ID, status: 'shipping' }), { ...readyShipment(null), id: 'shipment-ready', orderItemIds: ['item-ready'] }],
+      })} />);
+      expect(mixed).not.toContain('aria-label="운영자 전액 취소"');
+      expect(mixed).toContain('아직 발송 전인 배송 건 몫은 주문 상세의 재고 부족 부분 취소(설정이 켜져 있을 때)로 취소·환불하고, 발송된 몫은 반품으로 처리해주세요.');
+      const allShipped = renderToStaticMarkup(<OrdersSection data={orderData({
+        status: 'shipping', shipments: [shipmentFixture({ orderId: ORDER_ID, status: 'shipping' })],
+      })} />);
+      expect(allShipped).not.toContain('재고 부족 부분 취소(설정이 켜져 있을 때)');
+    });
+
     // DB staff_cancellation_toss_only와 같은 조건 — 누르면 항상 거절되는 버튼을 그리지 않는다.
     it('토스 결제완료가 아닌 결제가 걸린 주문에는 그리지 않는다', () => {
       const payment = (provider: string, status = 'paid') => ({

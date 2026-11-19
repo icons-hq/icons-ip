@@ -111,10 +111,14 @@ const operators = [
   // 반품 자동 회수 접수(QNA-032)·반품입고 파일 반영(QNA-034·ADR-0034): 스위치 OFF 불변, 회수 묶음별 접수 큐·재시도·취소, 파일 매칭·확정.
   sql('claim_return_pickup', { admin: true }),
   sql('claim_return_intake_import', { admin: true }),
+  // 배송 분실(택배사 확인) 회수 없는 반품 환불(원장 #15): 반품·판매자 귀책·발송 건만, 회수 완료·환급 기산일, 분실 품목 재고 미복원, 사유 정정 되돌림.
+  sql('claim_carrier_loss'),
   // 재고 부족 품목·수량 부분 취소(QNA-020·ADR-0032): 스위치 OFF 불변, 결제사 확인 뒤 적용, 다회 잔액 누적, 무통장 송금 대기, 출고 경합.
   sql('order_partial_cancellation'),
   // 버전 1 주문의 부분 취소(ADR-0032 보완): 첫 부분 취소 때 얼리는 파생 배분 원장, 합계 보존·결정성·막힘·기존 경로 불변. 경합은 아래 스크립트가 함께 본다.
   sql('order_partial_cancellation_v1'),
+  // 혼합 출고지 일부 발송 뒤 발송 전 배송 건 몫의 부분 취소(원장 #15): 토스·무통장·버전 1·수량 일부·해소, 주문 상태 재계산·구매확정 포착.
+  sql('order_partial_cancellation_mixed_dispatch'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),

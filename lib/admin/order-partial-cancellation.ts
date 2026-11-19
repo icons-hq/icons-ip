@@ -15,8 +15,8 @@ export const ORDER_PARTIAL_CANCELLATION_STATE_LABELS: Record<OrderPartialCancell
 const ORDER_BLOCKERS: Record<string, string> = {
   partial_cancel_disabled: '재고 부족 부분 취소 설정이 꺼져 있습니다.',
   order_not_found: '주문을 찾을 수 없습니다.',
-  order_not_partial_cancelable: '결제완료·발주확인 상태의 발송 전 주문만 부분 취소할 수 있습니다.',
-  shipment_already_dispatched: '이미 발송된 배송 건이 있어 부분 취소할 수 없습니다. 배송 완료 뒤 반품으로 처리해주세요.',
+  order_not_partial_cancelable: '결제완료·발주확인·배송중(일부 발송) 주문의 발송 전 배송 건만 부분 취소할 수 있습니다. 배송완료·구매확정 주문은 반품으로 처리해주세요.',
+  shipment_already_dispatched: '모든 배송 건이 이미 발송돼 부분 취소할 몫이 없습니다. 발송된 상품은 반품으로 처리해주세요.',
   order_claim_in_progress: '진행 중인 취소·반품·교환 요청이 있습니다. 그 요청을 먼저 처리해주세요.',
   partial_cancel_in_progress: '결제사 확인을 기다리는 부분 취소가 있습니다. 아래 기록에서 결과를 먼저 확인해주세요.',
   payment_reconciliation_required: '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.',
@@ -52,6 +52,7 @@ const ITEM_BLOCKERS: Record<string, string> = {
   digital_item: '디지털·배송없음 상품',
   allocation_missing: '금액 배분 기록 없음',
   shipment_missing: '배송 건 확인 필요',
+  shipment_dispatched: '이미 발송된 배송 건(반품으로 처리)',
   stock_topology_changed: '상품 통합·교환 재출고 이력 있음',
   order_item_not_found: '품목 없음',
 };
@@ -117,6 +118,18 @@ export const ORDER_PARTIAL_CANCELLATION_RESOLUTION_LABELS: Record<'not_moved' | 
   not_moved: '결제사 잔액 그대로(돈이 움직이지 않음) — 진행하지 않음',
   already_canceled: '결제사 취소 확인 — 그 거래로 적용',
 };
+
+/**
+ * 운영자 전액 취소를 쓸 수 없는 일부 발송 주문의 안내(ADR-0018 보완 2026-11-19, 원장 #15). 배송중이고 발송 전 배송 건이 남은 주문이다.
+ * 발송 전 몫은 재고 부족 부분 취소(스위치가 켜져 있을 때)로, 발송된 몫은 반품으로, 배송 중 분실은 반품 접수 뒤 배송 분실 기록으로 처리한다.
+ */
+export const STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE =
+  '이미 발송된 배송 건이 있어 운영자 전액 취소는 쓸 수 없습니다. 아직 발송 전인 배송 건 몫은 주문 상세의 재고 부족 부분 취소(설정이 켜져 있을 때)로 취소·환불하고, 발송된 몫은 반품으로 처리해주세요.';
+
+/** 배송중이면서 품목이 남은 발송 전 배송 건이 있는 주문인가(일부 발송). */
+export function orderHasUnsentShipmentAfterDispatch(order: { status: string; shipments: readonly { status: string; orderItemIds: readonly string[] }[] }) {
+  return order.status === 'shipping' && order.shipments.some(shipment => shipment.status === 'ready' && shipment.orderItemIds.length > 0);
+}
 
 /* 발송 전이 아닌 주문(이미 발송·취소 등)만 막는 이유. 기록이 없으면 패널을 그리지 않는다 — 모든 주문 상세에 막힘 안내를 띄우지 않는다. */
 const HIDDEN_WHEN_ONLY = new Set(['order_not_partial_cancelable', 'shipment_already_dispatched', 'order_not_found']);
