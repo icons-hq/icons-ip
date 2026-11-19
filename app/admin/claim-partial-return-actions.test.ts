@@ -198,3 +198,39 @@ describe('결제사 거절 뒤 계좌 송금 부분 환불로 전환(ADR-0047, �
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_record_order_claim_refund', expect.anything());
   });
 });
+
+describe('부분 반품 접수 때 재고 처리 저장(Codex 리뷰: 0원 반품이 불량 선택 전에 재고를 복원)', () => {
+  const ITEM = 'abcdef05-1234-4123-8123-123456789abc';
+  function fileForm() {
+    const form = refundForm('filed', 'pg_cancel');
+    form.set(`stockDisposition:${ITEM}`, 'defective');
+    return form;
+  }
+
+  it('접수 양식에 실린 불량 선택을 접수 RPC보다 먼저 저장한다', async () => {
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail('toss', 'collected'));
+    mocks.loadAdminClaimPartialReturn.mockResolvedValue({ ...partial(null), settlement: null, transferConvertible: false });
+    mocks.rpc.mockResolvedValue({ data: 'filed', error: null });
+
+    const state = await recordOrderClaimRefundAction({}, fileForm());
+
+    const names = mocks.rpc.mock.calls.map(([name]) => name);
+    expect(names.indexOf('admin_plan_claim_defective_stock')).toBeGreaterThanOrEqual(0);
+    expect(names.indexOf('admin_plan_claim_defective_stock')).toBeLessThan(names.indexOf('admin_record_order_claim_refund'));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_plan_claim_defective_stock', { p_claim_id: CLAIM_ID, p_order_item_ids: [ITEM] });
+    expect(state.error).toBeUndefined();
+  });
+
+  it('불량 선택 저장이 실패하면 접수하지 않는다', async () => {
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail('toss', 'collected'));
+    mocks.loadAdminClaimPartialReturn.mockResolvedValue({ ...partial(null), settlement: null, transferConvertible: false });
+    mocks.rpc.mockImplementation(async (name: string) => (name === 'admin_plan_claim_defective_stock'
+      ? { data: null, error: { message: 'defective_stock_claim_closed' } } : { data: 'filed', error: null }));
+
+    const state = await recordOrderClaimRefundAction({}, fileForm());
+
+    expect(state.error).toBeTruthy();
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_record_order_claim_refund', expect.anything());
+  });
+});
+
