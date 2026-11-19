@@ -112,7 +112,14 @@ set local role authenticated;
 select public.admin_shipment_export(array[pg_temp.sid(4),pg_temp.sid(5)]) as export_b \gset
 select public.admin_mark_shipments_exported((select jsonb_agg(jsonb_build_object('id',value->'id','updatedAt',value->'updatedAt')) from jsonb_array_elements(:'export_b'::jsonb->'shipments')));
 reset role;
-select pg_temp.transaction_expect_error('select pg_temp.staff_cancel(5,false)','warehouse_stop_confirmation_required');
+select pg_temp.transaction_expect_error('select pg_temp.staff_cancel(5,false)','warehouse_stop_reply_required');
+reset role;
+-- 확인란만으로는 열리지 않는다. 그 배송 건의 출고지시 뒤 창고 '출고 중단' 회신 기록이 근거다(ADR-0046).
+select pg_temp.transaction_expect_error('select pg_temp.staff_cancel(5,true)','warehouse_stop_reply_required');
+reset role;
+select pg_temp.as_actor(1);
+set local role authenticated;
+select public.admin_record_warehouse_stop_reply(array[pg_temp.sid(5)],'stopped','phone',clock_timestamp(),'TEST 창고 통화 출고 중단 확인','bf170000-0000-4002-8000-0000000000b5');
 reset role;
 select pg_temp.staff_cancel(5,true) as request_b \gset
 select 1/case when pg_temp.pack(4) is null and pg_temp.pack(5) is null
