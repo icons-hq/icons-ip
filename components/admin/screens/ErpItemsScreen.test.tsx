@@ -45,13 +45,14 @@ describe('ERP 품목 화면', () => {
   it('반입·분류 연결·목록을 한 화면에 두고 MD가 쓰는 용어로 안내한다', () => {
     const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
     expect(html).toContain('ERP 품목');
-    expect(html).toContain('ERP와 자동으로 연동되지 않으니 신제품이 생기면 다시 반입해주세요.');
+    expect(html).toContain('ERP 프로그램과 자동으로 이어져 있지 않으니 신제품이 생기면 ERP에서 받은 품목 표를 다시 올려주세요.');
     expect(html).toContain('id="erp-item-paste"');
     expect(html).toContain('type="file"');
     expect(html).toContain('accept=".xlsx,.csv');
     expect(html).toContain('붙여넣은 표 확인');
     expect(html).toContain('ERP 분류 ↔ 고객 카테고리 연결');
-    expect(html).toContain('반입된 품목');
+    expect(html).toContain('올린 품목');
+    expect(html).not.toContain('반입');
     expect(html).not.toMatch(/슬롯|가챠|충전/);
   });
 
@@ -73,11 +74,11 @@ describe('ERP 품목 화면', () => {
 
   it('품목 반입이 접혀 있으면 화면 머리의 주 행동 버튼이 펼치는 길이고, 펼쳐 있으면 외곽선으로 물러난다', () => {
     const closed = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
-    expect(closed).toMatch(/data-admin-kit="page-header"[\s\S]*?<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
+    expect(closed).toMatch(/data-admin-kit="page-header"[\s\S]*?<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 올리기<\/button>/);
     expect(closed).toMatch(/<details(?![^>]*open)[^>]*id="erp-item-import"/);
     const empty = renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 0, items: [] } })} />);
     expect(empty).toMatch(/<details[^>]*id="erp-item-import"[^>]*open=""/);
-    expect(empty).not.toMatch(/<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
+    expect(empty).not.toMatch(/<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 올리기<\/button>/);
   });
 
   it('ERP 분류마다 활성 말단 경로를 고르고, 같은 경로 말단이 있으면 한 번에 연결하게 한다', () => {
@@ -177,8 +178,8 @@ describe('ERP 품목 화면', () => {
 
   it('빈 목록과 분류 없음 상태를 안내한다', () => {
     const empty = renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 0, items: [] }, erpCategories: [] })} />);
-    expect(empty).toContain('아직 반입한 ERP 품목이 없습니다. 위에서 품목 생성 데이터를 반입해주세요.');
-    expect(empty).toContain('반입한 품목에 ERP 분류가 없습니다. 반입할 때 ERP 분류 열을 골라주세요.');
+    expect(empty).toContain('아직 올린 ERP 품목이 없습니다. 위의 품목 올리기에서 ERP의 품목 생성 데이터를 붙여넣거나 파일로 올려주세요.');
+    expect(empty).toContain('올린 품목에 ERP 분류가 없습니다. 품목 올리기의 열 표에서 ERP 분류 열을 골라 다시 올려주세요.');
     const searched = renderToStaticMarkup(<ErpItemsScreen data={data({ filters: { query: '없는 품목', page: 1 }, page: { total: 0, items: [] } })} />);
     expect(searched).toContain('조건에 맞는 ERP 품목이 없습니다.');
     expect(searched).toContain('전체 품목 보기');

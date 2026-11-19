@@ -52,7 +52,7 @@ select has_table_privilege('postgres','auth.sessions','delete') as sessions_dele
 
 1. 운영 배포(migration·앱)와 위 Auth 설정 read-back을 확인한다.
 2. 모든 운영자가 내 보안 설정에서 인증 앱을 등록한다. 2단계 인증 관리의 **미등록 0명**을 확인한다. 쓰지 않는 운영자 계정은 매니저 관리에서 권한을 회수한다. 미등록 운영자가 있으면 DB가 켜기를 거절한다(`operator_mfa_unenrolled`).
-3. 켜는 사람(통합 매니저·계정 주매니저, 전환 전 admin)이 내 보안 설정의 **이 세션 확인**으로 지금 세션을 aal2로 만든 뒤 2단계 인증 관리에서 켠다. aal1 세션은 거절된다(`operator_mfa_self_required`) — 켜는 사람이 스스로 잠기지 않게 한다.
+3. 켜는 사람(통합 매니저·계정 주매니저, 전환 전 admin)이 내 보안 설정의 **지금 로그인 확인**(화면 이름, 옛 이름 '이 세션 확인')으로 지금 세션을 aal2로 만든 뒤 2단계 인증 관리에서 켠다. aal1 세션은 거절된다(`operator_mfa_self_required`) — 켜는 사람이 스스로 잠기지 않게 한다.
 4. 확인: 다른 브라우저(시크릿 창)에서 운영자로 로그인해 `/admin`이 `/admin/mfa`로 가는지, 코드 입력 뒤 원래 화면이 열리는지 본다. `select required,revision,updated_at from private.operator_mfa_policy;`와 감사 기록 `admin.operator.mfa_policy`를 읽는다.
 
 ### 끄는 법

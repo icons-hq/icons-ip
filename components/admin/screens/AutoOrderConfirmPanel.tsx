@@ -14,7 +14,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 /** KST 날짜·시간을 한 덩어리(줄바꿈 없음)로 보인다. */
 const dateTimeText = (value: string) => <span className="whitespace-nowrap tabular-nums">{formatOrderDateTime(value)}</span>;
 
-const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+const UNKNOWN = '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 저장됐는지 확인해주세요.';
 /* 주문 표 위 단계 이름 줄의 켜짐·꺼짐이 이 자리로 내려온다. */
 const AUTO_ORDER_CONFIRM_ANCHOR = 'auto-order-confirm';
 

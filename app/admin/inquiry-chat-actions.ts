@@ -12,7 +12,7 @@ export async function updateInquiryChatTagAction(input: { accountId: string; inq
     const auth = await requireAdminActionAccess(ADMIN_INQUIRY_CHAT_PATH, { capability: 'cs.manage' });
     if (!auth) return { error: '상담 권한이 필요합니다.' };
     if (!input || input.accountId !== auth.user.id) return { error: '로그인 계정이 바뀌었습니다. 화면을 새로고침해주세요.' };
-    if (!isUuid(input.inquiryId) || typeof input.label !== 'string' || typeof input.present !== 'boolean') return { error: '태그 정보를 다시 확인해주세요.' };
+    if (!isUuid(input.inquiryId) || typeof input.label !== 'string' || typeof input.present !== 'boolean') return { error: '태그를 저장할 대화를 찾지 못했습니다. 화면을 새로고침해주세요.' };
     const label = input.label.trim();
     if (!label || [...label].length > 20 || /[\u0000-\u001f\u007f]/.test(label)) return { error: '태그를 1~20자 이내의 한 줄로 입력해주세요.' };
     const client = await createClient();
@@ -24,5 +24,5 @@ export async function updateInquiryChatTagAction(input: { accountId: string; inq
     if (!context || context.inquiryId !== input.inquiryId || context.tags.includes(label) !== input.present) return { error: '태그를 저장하지 못했습니다. 최신 상태를 확인하고 다시 시도해주세요.' };
     revalidatePath(ADMIN_INQUIRY_CHAT_PATH);
     return {};
-  } catch (error) { unstable_rethrow(error); return { error: '태그 저장 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도할 수 있습니다.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: '태그가 저장됐는지 확인하지 못했습니다. 같은 태그로 다시 시도해도 두 번 추가되지 않습니다.' }; }
 }

@@ -66,7 +66,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
         {draft.sourceError ? <p className="bg-transparent text-destructive" role="alert">{draft.sourceError}</p> : null}
         {draft.value !== null || draft.sourceError ? <Button className="self-start" disabled={busy || draft.blocked} onClick={draft.refreshSource} size="sm" type="button" variant="outline">최신 저장본 다시 확인</Button> : null}
         {changedSource ? <section className={RECORD_CHANGED_CLASS} aria-label="현재 저장된 답변 비교">
-          <p className="bg-transparent font-medium text-warning" role="alert">초안 작성 이후 답변 또는 문의 상태가 바뀌었습니다. 현재 저장본과 문의 원문을 확인한 뒤 작성 문구를 다시 검토해주세요.</p>
+          <p className="bg-transparent font-medium text-warning" role="alert">답변을 쓰기 시작한 뒤 저장된 답변이나 문의 상태가 바뀌었습니다. 아래 현재 저장된 답변과 문의 내용을 확인하고 작성 문구를 고친 뒤 [현재 저장본 확인 · 작성 문구 유지]를 누르면 다시 저장할 수 있습니다.</p>
           <h3>현재 저장된 답변</h3><p>{draft.source.reply || '아직 등록된 답변이 없습니다.'}</p>
           <Button className="self-start" disabled={editingLocked} onClick={draft.acknowledge} size="sm" type="button" variant="outline">현재 저장본 확인 · 작성 문구 유지</Button>
         </section> : null}
@@ -80,7 +80,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
           <Feedback state={answerState} />
           {draft.hasUnresolvedOperation && draft.recovery === null ? <AdminNotice role="status" tone="warning">
             <div className="flex flex-wrap items-center gap-2">
-              <p>앞선 저장 결과를 확인하기 전까지 작성 문구를 유지합니다.</p>
+              <p>앞서 누른 저장이 됐는지 아직 확인하지 못해 작성 문구를 고칠 수 없습니다. [같은 요청으로 결과 확인]을 눌러주세요. 다시 눌러도 두 번 저장되지 않습니다.</p>
               <Button disabled={busy || draft.blocked} onClick={draft.retry} size="sm" type="button" variant="outline">같은 요청으로 결과 확인</Button>
             </div>
           </AdminNotice> : null}

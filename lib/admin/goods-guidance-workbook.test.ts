@@ -168,6 +168,6 @@ describe('actual v7 guidance workbook files', () => {
   });
   it('does not deliver compressed files whose expanded contents cannot be read back', async () => {
     const rows = Array.from({ length: 500 }, (_, i) => ({ ...product, code: String(i), description: String(i) + '가'.repeat(29000) }));
-    await expect(buildGoodsWorkbook(rows)).rejects.toThrow('읽기 상한');
+    await expect(buildGoodsWorkbook(rows)).rejects.toThrow('너무 많아 파일을 만들 수 없습니다');
   });
 });

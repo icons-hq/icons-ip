@@ -20,7 +20,7 @@ export function SettledExportForm({ filters, requestId, initialReceiptId }: { fi
     {filters.field ? <input type="hidden" name="field" value={filters.field} /> : null}
     <div className="flex flex-col items-end gap-1">
       <Button size="sm" type="submit" variant="outline" disabled={pending}><Download aria-hidden="true" />{pending ? '엑셀 기록 생성 중…' : ADMIN_LIST_EXPORT_BUTTON_LABEL}</Button>
-      <span className="max-w-md text-right text-xs leading-snug text-muted-foreground" title="현재 조회 조건의 전체 페이지를 담습니다. 생성한 기록은 이후 변경과 무관하게 유지됩니다.">주문 1,000건·품목 10,000행까지 담습니다.</span>
+      <span className="max-w-md text-right text-xs leading-snug text-muted-foreground" title="지금 조회 조건의 모든 페이지를 담습니다. 만든 시각의 내용으로 보존되어, 나중에 주문이 바뀌어도 파일 내용은 달라지지 않습니다.">주문 1,000건·품목 10,000행까지 담습니다.</span>
     </div>
     {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
   </form>

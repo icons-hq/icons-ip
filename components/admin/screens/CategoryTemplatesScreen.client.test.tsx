@@ -51,7 +51,7 @@ it('says the category already exists when a new registration conflicts, and leav
   mocks.save.mockResolvedValue({ ok: false, conflict: true, error: '다른 저장 결과가 있습니다. 선택은 유지했습니다. 최신 목록을 다시 확인해주세요.' });
   button('자주 쓰는 카테고리 등록').props.onClick?.();
   button('등록').props.onClick?.(); await settle();
-  expect(hooks.state[9]).toBe('이미 등록됐거나 보관된 카테고리입니다. 보관된 항목은 보관 상태를 보관됨으로 조회해 복구해주세요.');
+  expect(hooks.state[9]).toBe('이미 자주 쓰는 카테고리로 등록됐거나 보관된 카테고리입니다. 보관된 것이면 조회 조건의 보관 상태를 보관됨으로 바꿔 찾은 뒤 복구해주세요.');
   expect(hooks.state[10]).toBe(true);
   expect(hooks.state[8]).toBe(false);
   expect(hooks.state[11]).toBe(true);

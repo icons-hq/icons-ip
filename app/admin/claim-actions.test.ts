@@ -100,7 +100,7 @@ const receiptActions = [
     rpcName: 'admin_record_order_claim_origin_collection',
     fallback: '수거 상태를 기록하지 못했습니다. 최신 상태를 확인해주세요.',
     rejectedState: 'claim_not_collectable',
-    rejectedMessage: '수거 단계가 아닙니다. 최신 상태를 확인해주세요.',
+    rejectedMessage: '수거 단계가 아닙니다. 새로고침해 현재 단계를 확인해주세요.',
   },
   {
     name: 'recordOrderClaimReshipmentDeliveryAction',
@@ -183,7 +183,7 @@ describe.each(receiptActions)('$name', (contract) => {
   it.each([
     ['공백뿐인 근거', '  \n\t  ', '확인 근거를 500자 이내로 입력해주세요.'],
     ['500자를 초과한 근거', `  ${'가'.repeat(501)}\n`, '확인 근거를 500자 이내로 입력해주세요.'],
-    ['금지된 제어문자', '  확인\u0001근거\n ', '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.'],
+    ['금지된 제어문자', '  확인\u0001근거\n ', '확인 근거에 눈에 보이지 않는 특수 문자가 섞여 있습니다. 다른 곳에서 복사해 붙였다면 지우고 직접 다시 입력해주세요.'],
   ])('%s는 RPC 전에 거절하고 원문을 보존한다', async (_name, evidence, error) => {
     const form = receiptForm(contract.claimType, evidence);
 

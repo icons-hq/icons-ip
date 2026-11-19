@@ -155,11 +155,11 @@ describe('contact edit and immutable recovery', () => {
   it('requires successful journal persistence before sending any mutation', async () => {
     await load(); fillChange(); vi.spyOn(sessionStorage, 'setItem').mockImplementation(() => { throw new Error('storage blocked'); });
     submit(); await flush(); expect(mocks.change).not.toHaveBeenCalled(); expect(storage.size).toBe(0);
-    expect(screen()).toContain('요청번호를 보관할 수 없습니다');
+    expect(screen()).toContain('처리 번호를 저장하지 못해 보내지 않았습니다');
   });
   it('sanitizes an unexpected context exception and releases the pending state', async () => {
     mocks.context.mockRejectedValueOnce(new Error('synthetic private contact detail')); await load();
-    expect(screen()).toContain('현재 주소를 읽지 못했습니다'); expect(screen()).not.toContain('synthetic private contact detail');
+    expect(screen()).toContain('현재 주소를 불러오지 못했습니다'); expect(screen()).not.toContain('synthetic private contact detail');
     expect(button('회수지 연락처 확인')?.props.disabled).toBe(false); expect(storage.size).toBe(0);
   });
   it('keeps the fixed body and journal after an unexpected mutation exception', async () => {
@@ -203,7 +203,7 @@ describe('contact edit and immutable recovery', () => {
       return { ...result, receipt: { ...result.receipt, [fieldName]: fieldName in values ? values[fieldName as keyof typeof values] : other } };
     });
     await load(); fillChange(); submit(); await flush();
-    expect(storage.size).toBe(1); expect(mocks.refresh).not.toHaveBeenCalled(); expect(screen()).toContain('현재 요청과 다른 결과');
+    expect(storage.size).toBe(1); expect(mocks.refresh).not.toHaveBeenCalled(); expect(screen()).toContain('이 처리와 맞지 않습니다');
   });
   it('a late original commit after null lookup can still resolve the fixed request exactly once', async () => {
     const waiting = deferred(); mocks.change.mockReturnValueOnce(waiting.promise);

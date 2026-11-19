@@ -29,11 +29,11 @@ export function PgSettlementImportControl({ query, enabled, connectedMode, initi
   const consume = (result: PgSettlementActionResult): PgSettlementJob | null => {
     if (!mounted.current) return null;
     if (!result.ok) { setMessage(result.error); setUncertain(Boolean(result.uncertain)); setRecoveryRequired(Boolean(result.recoveryRequired)); return null; }
-    if (!jobMatchesQuery(result.job, query)) { setMessage('조회 기간과 수집 결과가 달라 현재 상태를 다시 확인해야 합니다.'); setUncertain(true); return null; }
+    if (!jobMatchesQuery(result.job, query)) { setMessage('조회 기간과 수집 결과가 맞지 않습니다. [현재 상태 확인]을 눌러 수집 상태를 다시 확인해주세요.'); setUncertain(true); return null; }
     setJob(result.job); setUncertain(false); setRecoveryRequired(false);
     if (result.kind === 'failed') setMessage(settlementFailureLabel(result.job.errorCode));
     else if (result.kind === 'paused') setMessage(settlementFailureLabel(result.job.errorCode) ?? '저장된 지점에서 같은 작업을 이어서 수집할 수 있습니다.');
-    else if (result.kind === 'busy') setMessage('다른 요청에서 자료를 조회하고 있습니다. 잠시 뒤 현재 상태를 확인해주세요.');
+    else if (result.kind === 'busy') setMessage('다른 창이나 다른 담당자가 같은 자료를 가져오는 중입니다. 잠시 뒤 [현재 상태 확인]을 눌러주세요.');
     else setMessage(null);
     if (result.kind === 'complete') router.refresh();
     return result.job;
@@ -54,7 +54,7 @@ export function PgSettlementImportControl({ query, enabled, connectedMode, initi
         result = await advancePgSettlementImportAction(current.id);
         current = consume(result);
       }
-    } catch { if (mounted.current) { setMessage('응답을 확인하지 못했습니다. 현재 수집 상태부터 확인해주세요.'); setUncertain(true); } }
+    } catch { if (mounted.current) { setMessage('처리 결과를 확인하지 못했습니다. [현재 상태 확인](작업이 아직 없으면 [같은 수집 요청 확인])을 눌러 같은 수집 작업의 상태부터 확인해주세요.'); setUncertain(true); } }
     finally { active.current = false; continuing.current = false; if (mounted.current) setRunning(false); }
   };
   const completedOrFailed = job && (job.state === 'complete' || job.state === 'failed');

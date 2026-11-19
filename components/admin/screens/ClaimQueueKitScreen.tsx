@@ -120,9 +120,9 @@ export function ClaimQueueKitScreen({
         <ul className="list-disc space-y-1 pl-5">
           {collects ? <li>별도 배송비 청구는 <Link href="/admin/sales/claims/returns/fee-policy">반품·교환 배송비 정책</Link>을 설정한 뒤 각 요청 상세에서 처리합니다. <Link href="/admin/sales/claims/returns/fees">배송비 입금·반환 대기 목록</Link></li> : null}
           {canViewRefundTransfers && claimType !== 'exchange' ? <li>실제 송금이 남은 무통장 환불은 <a href={REFUND_TRANSFERS_PATH}>환불 송금 대기</a>에서 확인합니다.</li> : null}
-          <li>요청번호를 누르면 목록 위에 상세가 열리고 그 자리에서 {typeLabel} 처리를 진행합니다.{collects ? ' 회수·결제사 확인이 필요한 단계는 해당 근거를 확인해야 완료할 수 있습니다.' : ''}</li>
+          <li>요청번호를 누르면 목록 위에 상세가 열리고 그 자리에서 {typeLabel} 처리를 진행합니다.{collects ? ' 회수 확인이나 결제사 취소 확인이 필요한 단계는 그 확인이 끝나야 완료할 수 있습니다.' : ''}</li>
           <li>{adminClaimBulkGuideText(claimType)}</li>
-          <li>수령인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품 URL은 등록 상품의 식별값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
+          <li>수령인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품 URL은 고객 화면 상품 주소 끝의 영문 값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
         </ul>
       </SalesGuide>
       <nav aria-label="단계별 건수" className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-stretch">
@@ -170,8 +170,8 @@ export function ClaimQueueKitScreen({
         />
       </div>
       {collects ? <p className="text-muted-foreground">
-        환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기산점은 회수 확인 때
-        적은 실제 입고일(출고지가 여럿이면 가장 늦은 날)이며, 회수가 없는 취소 요청에는 기산점이 없습니다. {typeLabel} 요청은 주문 단위 전액으로만
+        환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기한은 회수 확인 때
+        적은 실제 입고일(출고지가 여럿이면 가장 늦은 날)부터 셉니다. 상품을 돌려받지 않는 취소 요청에는 이 기한이 없습니다. {typeLabel} 요청은 주문 단위 전액으로만
         처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.
       </p> : <p className="text-muted-foreground">
         {typeLabel} 요청은 주문 단위 전액으로만 처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.

@@ -42,7 +42,7 @@ it('같은 렌더의 연속 제출을 한 번으로 제한하고 다른 주문 �
  change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); const form = all(render()).find(e => e.type === 'form')!;
  form.props.onSubmit?.({ preventDefault: () => {} }); form.props.onSubmit?.({ preventDefault: () => {} }); expect(mocks.save).toHaveBeenCalledOnce();
  finish({ receipt: { ...receipt, id: mocks.save.mock.calls[0][0].id, orderId: receipt.claimId } }); await settle();
- expect(text(render())).toContain('현재 요청과 다른 저장 결과'); expect(mocks.refresh).not.toHaveBeenCalled();
+ expect(text(render())).toContain('이 요청과 맞지 않습니다'); expect(mocks.refresh).not.toHaveBeenCalled();
 });
 it('목록 위 팝업(R8)에서 전환하면 전환된 유형의 목록 위 팝업으로 다시 연다', async () => {
  embedded = true; mocks.save.mockImplementationOnce(async (request: { id: string }) => ({ receipt: { ...receipt, id: request.id } }));

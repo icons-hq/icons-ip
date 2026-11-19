@@ -87,13 +87,13 @@ export function shipmentMutationError(code:string):string{
   warehouse_template_required:'선택한 출고지의 양식을 김포 WMS로 설정한 뒤 다시 올려주세요.',
   warehouse_carrier_required:'출고지 설정에서 기본 택배사를 먼저 선택해주세요.',
   invalid_tracking_batch:'운송장은 한 번에 1~1,000줄까지 등록할 수 있습니다.',
-  invalid_tracking_row:'회신 행의 주문번호와 운송장번호를 확인해주세요.',
+  invalid_tracking_row:'회신 파일에 주문번호나 운송장번호가 비었거나 형식이 맞지 않는 줄이 있습니다. 그 줄을 고쳐 다시 올려주세요.',
   invalid_warehouse_order_reference:'주문번호(쇼핑몰)에 ICONS 출고 파일의 전체 주문번호를 그대로 유지해주세요.',
   invalid_item_order_reference:'상품주문번호에 ICONS 출고 파일의 전체 상품주문번호를 유지해주세요.',
-  shipment_item_not_found:'상품주문번호에 연결된 배송 건을 찾을 수 없습니다.',
+  shipment_item_not_found:'상품주문번호에 연결된 배송 건을 찾을 수 없습니다. ICONS에서 내려받은 출고 파일의 상품주문번호를 고치지 않고 올렸는지 확인해주세요.',
   item_tracking_identity_unresolved:'상품주문번호를 확인할 수 없는 행이 있습니다. 파일의 모든 상품주문번호를 고친 뒤 다시 등록해주세요.',
-  shipment_item_export_mismatch:'상품주문과 배송 품목이 일치하지 않습니다. 목록을 새로고침해주세요.',
-  shipment_price_allocation_missing:'주문 당시 금액 배분 기록을 확인하지 못했습니다. 주문 상세를 확인해주세요.',
+  shipment_item_export_mismatch:'상품주문과 배송 품목이 맞지 않습니다. 그 사이 주문이 바뀌었을 수 있으니 목록을 새로고침한 뒤 다시 처리해주세요.',
+  shipment_price_allocation_missing:'주문 당시 상품별 금액 배분 기록을 찾지 못했습니다. 주문 상세의 할인·적립금 배분을 확인하고, 비어 있으면 개발 담당자에게 알려주세요.',
   conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
   shipment_tracking_conflict:'이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
   // 운송장 중복·형식(SHP-030~032). DB 등록 판정(private.assert_tracking_registrable)이 모든 진입 경로에서 같은 코드를 낸다.
@@ -121,7 +121,7 @@ export function shipmentMutationError(code:string):string{
  if(warehouseErrors[code])return warehouseErrors[code];
  if(code.startsWith('production_'))return productionError(undefined,code);
  if(code.startsWith('shipment_pack_'))return shipmentPackError(code);
- const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다.',invalid_shipment_reference:'배송건번호 형식을 확인해주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'발주확인 또는 현재 배송 상태를 확인해주세요.',tracking_required:'택배사와 운송장번호가 필요합니다.',invalid_tracking_input:'운송장번호 형식을 확인해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.','order fulfillment hold':'출고 보류 중인 주문입니다(테스트 결제 또는 결제사 취소). 주문 상세의 출고 보류 안내를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목에 실제 입고 물량을 먼저 할당해주세요.'};
+ const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다. 배송건번호를 확인하거나 목록을 새로고침해주세요.',invalid_shipment_reference:'배송건번호 형식이 맞지 않습니다. 화면에 보이는 16자리 배송건번호를 그대로 넣어주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'지금 상태에서는 처리할 수 없는 배송 건입니다. 신규주문이면 먼저 발주확인하고, 이미 발송·배송완료·취소된 건인지 목록을 새로고침해 확인해주세요.',tracking_required:'택배사와 운송장번호를 모두 입력해주세요.',invalid_tracking_input:'운송장번호 형식이 맞지 않습니다. 하이픈을 뺀 8~30자리 영숫자로 입력해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.','order fulfillment hold':'출고 보류 중인 주문입니다(테스트 결제 또는 결제사 취소). 주문 상세의 출고 보류 안내를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목에 아직 실제 재고가 할당되지 않았습니다. 상품 편집의 예약판매에서 이 주문에 실제 재고를 먼저 할당해주세요.'};
  return known[code]??'처리하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
 }
 /** Older in-process projections may omit delivery; a present invalid value fails closed. */

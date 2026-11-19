@@ -253,8 +253,8 @@ describe('admin curation action', () => {
       linkPath: 'https://attacker.example',
     }))).resolves.toEqual({
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        linkPath: '1~2048자의 안전한 내부 경로를 입력해주세요.',
+        operationId: '저장 요청 정보가 맞지 않습니다. 새로고침한 뒤 다시 저장해주세요.',
+        linkPath: '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.',
       },
     });
     expect(mocks.getCurrentAdminAuthState).not.toHaveBeenCalled();
@@ -298,7 +298,7 @@ describe('admin curation action', () => {
 
     expect(result).toEqual(_label === 'auth read rejection' ? {
       errors: { form: '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.' },
-    } : { errors: { form: '저장 결과를 확인하지 못했습니다. 입력한 내용을 유지한 채 같은 요청 결과를 확인해주세요.' }, uncertain: true });
+    } : { errors: { form: '저장 결과를 확인하지 못했습니다. 입력한 내용은 유지됩니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.' }, uncertain: true });
     expect(JSON.stringify(result)).not.toContain('private');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
     expect(mocks.updateTag).not.toHaveBeenCalled();

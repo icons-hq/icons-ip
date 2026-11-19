@@ -99,7 +99,7 @@ describe('재고 파일 대조 액션', () => {
     mocks.readFile.mockResolvedValue({ table: [['옵션 자동코드', '재고수량']], numericColumns: [], warnings: [], sheetName: 'Sheet1' });
     expect(await readStockReconcileFileAction(form(new File(['a,b'], 'stock.csv')))).toEqual({ ok: true, fileName: 'stock.csv', table: [['옵션 자동코드', '재고수량']],
       numericColumns: [], warnings: [], sheetName: 'Sheet1' });
-    mocks.readFile.mockRejectedValue(new Error('한 번에 5,000행까지 반입할 수 있습니다. 파일을 나누어 반입해주세요.'));
-    expect(await readStockReconcileFileAction(form(new File(['a,b'], 'stock.csv')))).toMatchObject({ ok: false, error: expect.stringContaining('대조할 수 있습니다') });
+    mocks.readFile.mockRejectedValue(new Error('한 번에 5,000줄까지 올릴 수 있습니다. 파일을 나누어 올려주세요.'));
+    expect(await readStockReconcileFileAction(form(new File(['a,b'], 'stock.csv')))).toMatchObject({ ok: false, error: expect.stringContaining('5,000줄까지 올릴 수 있습니다') });
   });
 });

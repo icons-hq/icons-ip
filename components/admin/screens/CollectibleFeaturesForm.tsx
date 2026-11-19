@@ -9,7 +9,7 @@ import { adminConfirm } from '@/lib/admin/confirm';
 import { statusTone } from '@/lib/admin/status-tone';
 import { COLLECTIBLE_FEATURE_IDS, COLLECTIBLE_FEATURE_LABELS, type CollectibleFeature, type CollectibleFeatures } from '@/lib/collectible-features';
 
-const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+const UNKNOWN = '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.';
 
 const pick = (state: CollectibleFeatures): CollectibleFeatures => ({ binder: state.binder, market: state.market, exchange: state.exchange });
 

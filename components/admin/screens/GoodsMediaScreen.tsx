@@ -20,7 +20,7 @@ export function GoodsMediaScreen({ initial }: { initial: GoodMediaSnapshot }) {
     request.current ??= { values, revision: snapshot.revision, operationId: crypto.randomUUID() };
     setPending(true); setMessage(''); let result: GoodMediaSaveResult;
     try { result = await saveGoodMediaAction(initial.goodId, request.current.values, request.current.revision, request.current.operationId); }
-    catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+    catch { result = { error: '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true }; }
     setPending(false);
     if ('error' in result) { setMessage(result.error); setError(true); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; }
     else { setSnapshot(result.snapshot); setAssets({ video: result.snapshot.video, shortclip: result.snapshot.shortclip }); setMessage('저장했습니다. 상품상세에 적용되었습니다.'); setError(false); setUncertain(false); request.current = null; }

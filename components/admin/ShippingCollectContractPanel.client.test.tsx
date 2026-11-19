@@ -46,7 +46,7 @@ it('연락처·계약 입력은 sessionStorage에 남기지 않고 불명확 요
 it('조회 null은 자동 재저장하지 않으며 최신값을 명시적으로 채택한 다음 새 편집을 시작한다', async () => {
   change('계약-CANARY'); click('착불 운영 조건 저장'); await flush(); remount(); await flush();
   expect(button('같은 입력으로 결과 확인')).toBeUndefined(); click('이전 저장 결과 확인'); await flush(); expect(mocks.save).toHaveBeenCalledTimes(1);
-  expect(text(render())).toContain('미처리로 단정하지 않습니다'); click('현재 저장값으로 편집 시작'); await flush();
+  expect(text(render())).toContain('저장되지 않았다고 볼 수 없으니'); click('현재 저장값으로 편집 시작'); await flush();
   expect(data.size).toBe(0); expect(button('착불 운영 조건 저장').props.disabled).toBe(false); expect(all(render()).find(node => node.type === 'input')!.props.value).toBe('');
 });
 it('새로고침 이후 원래 영수증과 최신 저장본을 확인하면 중복 write 없이 pending을 해제한다', async () => {

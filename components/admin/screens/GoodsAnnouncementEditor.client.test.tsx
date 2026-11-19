@@ -115,7 +115,7 @@ it('이전 저장 성공 뒤 새 요청의 통신이 실패하면 성공 문구�
 
 it('요청 보관 실패 시 RPC를 보내지 않고 입력을 유지한다', async () => {
   failStorage = true; render().editor.action(form()); await settle();
-  expect(mocks.save).not.toHaveBeenCalled(); expect(render().editor.state.errors?.form).toContain('서버에 보내지 않았습니다');
+  expect(mocks.save).not.toHaveBeenCalled(); expect(render().editor.state.errors?.form).toContain('보관할 수 없어 저장하지 않았습니다');
   expect(render().editor.uncertain).toBe(false); expect(store.getSnapshot().value).toBeNull();
 });
 

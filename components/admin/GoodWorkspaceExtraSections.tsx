@@ -103,11 +103,11 @@ export function GoodWorkspacePurchaseCostsSection({ serverError }: { serverError
       return <div key={key} className="grid min-w-0 gap-3 border-t pt-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-end">
         <strong className="min-w-0 font-medium wrap-anywhere">{label}{row.isActive === false ? ' · 사용 중지' : ''}</strong>
         <label className={FIELD_LABEL_CLASS}>공급가(매입단가) (원)<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" type="number" min={0} max={2147483647} step={1}
-          aria-label={`${label} 공급가(매입단가)`} value={entry.unitCostKrw} placeholder="미설정" onChange={(event) => update(key, { unitCostKrw: event.target.value })} /></label>
+          aria-label={`${label} 공급가(매입단가)`} value={entry.unitCostKrw} placeholder="비우면 정하지 않음" onChange={(event) => update(key, { unitCostKrw: event.target.value })} /></label>
         <div className={FIELD_LABEL_CLASS}><label htmlFor={`cost-basis-${index}`}>세금 구분</label>
           <NativeSelect className="w-full" id={`cost-basis-${index}`} aria-label={`${label} 공급가(매입단가) 세금 구분`} value={entry.taxBasis}
             onChange={(event) => update(key, { taxBasis: event.target.value as '' | PurchaseTaxBasis })}>
-            <option value="">미설정</option>
+            <option value="">선택 안 함</option>
             {Object.entries(PURCHASE_TAX_BASIS_LABELS).map(([basis, text]) => <option key={basis} value={basis}>{text}</option>)}
           </NativeSelect></div>
       </div>;
@@ -124,7 +124,7 @@ export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?
   const options = rows.map((row, index) => ({ key: goodsOptionRowKey(row), label: `${row.name.trim() || `옵션 ${index + 1}`}${row.isActive === false ? ' (사용 중지)' : ''}` }));
   const update = (key: string, patch: Partial<GoodWorkspacePricePeriodDraft>) => set((current) => current.map((entry) => entry.key === key ? { ...entry, ...patch } : entry));
   return <DraftBody testId="prices">
-    <p className="text-muted-foreground">옵션별 기간 할인을 함께 저장합니다. 초안은 가격에 반영되지 않고, 활성은 시작~종료 동안 기간 할인가로 판매합니다. 같은 옵션의 활성 기간은 겹칠 수 없습니다.</p>
+    <p className="text-muted-foreground">옵션별 기간 할인을 상품과 함께 저장합니다. 사용 상태가 &lsquo;대기&rsquo;면 가격에 반영되지 않고, &lsquo;적용&rsquo;이면 시작~종료 동안 기간 할인가로 판매합니다. 같은 옵션에 적용하는 할인끼리는 기간이 겹칠 수 없습니다.</p>
     {!value.length ? <p className="text-muted-foreground">입력한 기간 할인이 없습니다. 필요 없으면 비워 두세요.</p> : null}
     {value.map((entry, index) => <fieldset key={entry.key} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4">
       <legend className="float-left w-full p-0 text-sm font-medium">기간 할인 {index + 1}</legend>
@@ -140,7 +140,7 @@ export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?
       </div>
       <div className={FIELD_LABEL_CLASS}><label htmlFor={`${entry.key}-state`}>사용 상태</label>
         <NativeSelect className="w-full sm:w-fit" id={`${entry.key}-state`} value={entry.state} onChange={(event) => update(entry.key, { state: event.target.value === 'active' ? 'active' : 'draft' })}>
-          <option value="draft">초안 · 가격 미반영</option><option value="active">활성 · 기간 할인 적용</option>
+          <option value="draft">대기 · 가격에 반영 안 함</option><option value="active">적용 · 기간 중 할인가로 판매</option>
         </NativeSelect></div>
       <div><button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => set((current) => current.filter((item) => item.key !== entry.key))}>이 기간 할인 빼기</button></div>
     </fieldset>)}
@@ -265,7 +265,7 @@ export function GoodWorkspaceListingColorsSection({ serverError }: { serverError
 export function GoodWorkspaceTransactionTermsSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('transactionTerms');
   return <DraftBody testId="transaction-terms">
-    <p className="text-muted-foreground">입력한 할인·확장 배송비를 상품과 함께 저장합니다. 초안은 결제에 적용되지 않습니다.</p>
+    <p className="text-muted-foreground">입력한 복수구매 할인·확장 배송비를 상품과 함께 저장합니다. 상태가 &lsquo;대기&rsquo;면 결제에 적용되지 않습니다.</p>
     <section aria-label="복수구매 할인" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">복수구매 할인</h3>
       <GoodsVolumeDiscountFields value={value.volume} onChange={(volume) => set((current) => ({ ...current, volume }))} /></section>
     <section aria-label="착불·수량별 배송비" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">착불·수량별 배송비</h3>
@@ -284,7 +284,7 @@ export function GoodWorkspaceShippingChargeGroupSection({ accountId, serverError
     {identity ? <ShippingChargeGroupField identity={identity} originId={originId} value={value?.id ?? null}
       selectedGroup={(value?.display as ShippingChargeGroupSummaryValue | undefined) ?? null}
       onChange={(id, group) => set(id && group ? { id, revision: group.revision, originId: group.originId, display: group } : null)} />
-      : <p className={blocked ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>}
+      : <p className={blocked ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인한 계정이 바뀌었거나 다시 로그인했습니다. 지금 계정으로 화면을 새로고침해주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>}
     {value && originId && value.originId !== originId ? <p className="text-sm text-[var(--wc-warning)]" role="status">고른 묶음그룹의 출고지가 지금 출고지와 다릅니다. 출고지를 맞추거나 묶음그룹을 다시 골라주세요.</p> : null}
     <SectionError message={error ?? serverError} />
   </DraftBody>;
@@ -324,9 +324,9 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
       prepared = true; setPendingFile(candidate);
       const sent = await createClient().storage.from(DIGITAL_BUCKET).upload(grant.path, file, { contentType: candidate.mimeType, upsert: false });
       if (!scope.canApply(ticket)) return;
-      if (sent.error) { setMessage('전송 결과를 확인하지 못했습니다. 같은 파일의 업로드 결과를 확인해주세요.'); return; }
+      if (sent.error) { setMessage('파일이 올라갔는지 확인하지 못했습니다. 아래 같은 업로드 결과 확인을 눌러주세요.'); return; }
       await verify(candidate);
-    } catch { if (scope.canApply(ticket)) setMessage(prepared ? '전송 결과를 확인하지 못했습니다. 같은 파일의 업로드 결과를 확인해주세요.' : '업로드 준비에 실패했습니다. 다시 선택해주세요.'); }
+    } catch { if (scope.canApply(ticket)) setMessage(prepared ? '파일이 올라갔는지 확인하지 못했습니다. 아래 같은 업로드 결과 확인을 눌러주세요.' : '업로드 준비에 실패했습니다. 다시 선택해주세요.'); }
     finally { busy.current = false; setPending(false); }
   }
   async function verify(candidate = pendingFile) {
@@ -341,7 +341,7 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
       <legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 제공 방식</legend>
       <GoodsFulfillmentDraftFields draft={value} onChange={(draft) => set(draft as GoodWorkspaceExtraDraft['fulfillment'])} onUpload={(file) => { void upload(file); }} fieldId={fieldId} />
     </fieldset>
-    {pendingFile ? <p className="flex flex-wrap items-center gap-2 text-sm" role="status">{pendingFile.name}의 전송·검증 결과를 확인해주세요. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
+    {pendingFile ? <p className="flex flex-wrap items-center gap-2 text-sm" role="status">{pendingFile.name}이(가) 올라갔는지 아직 확인하지 못했습니다. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
     {message ? <p className="text-sm font-medium" role="status">{message}</p> : null}
     <SectionError message={error ?? serverError} />
   </DraftBody>;

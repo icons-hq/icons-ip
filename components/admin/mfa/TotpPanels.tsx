@@ -61,7 +61,7 @@ export function TotpEnrollPanel({ supabase, factors, onVerified, startLabel = '�
   return <div className="flex flex-col gap-4">
     <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
       <li>인증 앱에서 QR 코드 스캔을 고르고 아래 QR을 비춥니다.</li>
-      <li>스캔할 수 없으면 설정 키를 직접 입력합니다(계정 이름은 자유, 시간 기준).</li>
+      <li>스캔할 수 없으면 설정 키를 직접 입력합니다. 계정 이름은 아무거나 써도 되고, 키 유형은 시간 기준으로 고릅니다.</li>
       <li>앱에 나온 6자리 코드를 입력해 등록을 마칩니다.</li>
     </ol>
     <div className="flex flex-wrap items-start gap-4">

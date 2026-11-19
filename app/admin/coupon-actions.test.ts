@@ -120,7 +120,7 @@ describe('upsertAdminCouponAction', () => {
   it('maps a rejected grade benefit cadence to its field', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'invalid_coupon_grade_cadence' } });
     const state = await upsertAdminCouponAction({}, form({ gradeBenefit: 'gold', gradeBenefitCadence: 'monthly' }));
-    expect(state.errors?.gradeBenefitCadence).toBe('등급 혜택 지급 방식을 확인해주세요.');
+    expect(state.errors?.gradeBenefitCadence).toBe('등급 혜택 지급 방식(승급 시 1회·매월 1일)을 골라주세요.');
   });
 
   it('does not call the write RPC for a non-staff session', async () => {

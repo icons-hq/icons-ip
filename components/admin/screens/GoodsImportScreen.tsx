@@ -544,7 +544,7 @@ export function GoodsImportScreen({
           <>
             <p className="text-sm text-muted-foreground">
               .xlsx 또는 .csv · 2MB · 상품 최대 500개(옵션 조합을 펼쳐 500행까지). 위쪽 안내 행은 건너뛰고 열
-              이름 행을 찾습니다. .xls 파일은 엑셀에서 .xlsx로 저장해 올려 주세요. 이미지 주소는 서버가 내려받아
+              이름 행을 찾습니다. .xls 파일은 엑셀에서 .xlsx로 저장해 올려 주세요. 이미지 주소는 ICONS가 직접 내려받아
               확인하며, 한 번에 최대 {SABANGNET_IMAGE_LIMIT}장까지 가져옵니다. 이미 등록된 상품 자동코드는 수정하지 않고 오류로 표시합니다.
             </p>
             <AdminField label="사방넷 상품 파일" inputId="sabangnet-workbook">

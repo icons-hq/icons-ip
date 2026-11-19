@@ -158,7 +158,7 @@ export const goodsGroupConversionHref = (sourceGoodId?: string) => `${GOODS_GROU
 export function goodsGroupBlockerLabel(value: string): string {
   const messages: Record<string, string> = { source_unavailable: '상품이 없거나 보관되어 있습니다.', already_grouped: '이미 그룹상품에 포함된 상품입니다.', preorder_policy_attached: '예약판매 설정을 연결 해제한 뒤 전환할 수 있습니다.',
     subscription_active: '정기배송 설정 또는 진행 중인 정기배송이 있습니다.', gift_pending: '아직 주문되지 않은 선물이 진행 중입니다.', payment_pending: '결제 대기 주문이 있습니다.',
-    purchase_cost_permission_required: '원가를 보존하려면 원가 관리 권한이 있는 관리자가 전환해야 합니다.', category_review_required: '상품분류를 현재 사용할 수 있는 최하위 분류로 확인해주세요.' };
+    purchase_cost_permission_required: '원가를 보존하려면 원가 관리 권한이 있는 관리자가 전환해야 합니다.', category_review_required: '카테고리를 지금 쓸 수 있는 맨 아래 단계 카테고리로 다시 골라주세요.' };
   return messages[value] ?? '현재 상품 상태에서는 처리할 수 없습니다. 상품 관리 화면에서 상태를 확인해주세요.';
 }
 export function goodsGroupError(codeValue?: string, message?: string, dispatched = false): GoodsGroupFailure {
@@ -171,6 +171,6 @@ export function goodsGroupError(codeValue?: string, message?: string, dispatched
   const randomOption = message && RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code)) ? goodsOptionSaleModeErrorMessage(message) : undefined;
   const known = randomOption ?? Object.entries(messages).find(([key]) => message?.includes(key))?.[1];
   const rejected = ['22023', '23514', '23503', '23505', 'P0002', 'PT404', 'PT409'].includes(codeValue ?? '');
-  return { error: known ?? (rejected ? '입력값과 현재 상품 상태를 확인해주세요.' : '처리 결과를 확인하지 못했습니다. 입력을 유지하고 진행 내역을 확인해주세요.'),
+  return { error: known ?? (rejected ? '처리하지 못했습니다. 입력한 그룹명·옵션명·옵션값과 상품 상태를 확인한 뒤 다시 시도해주세요.' : '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'진행 내역 확인\'을 눌러 결과를 확인해주세요. 입력은 그대로 둡니다.'),
     ...(!rejected && dispatched ? { uncertain: true } : {}), ...(codeValue === 'PT409' || codeValue === '23505' ? { conflict: true } : {}) };
 }

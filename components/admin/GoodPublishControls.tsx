@@ -129,7 +129,7 @@ export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, un
           <p>공개·초안 전환은 저장된 내용의 게시 상태만 바꿉니다. 저장하지 않은 입력은 함께 저장되지 않고 화면에 그대로 남습니다.</p>
           <p>모델·옵션·고시정보를 수정하면 실제 상품과 검토 근거가 달라질 수 있어 초안 전환과 KC 재검토가 필요합니다. 수정 후 KC 검토를 완료하고 다시 공개해주세요.</p>
           <p>해당 없음도 확인 체크가 필요합니다. KC 정보에서 KC 인증 대상 여부를 고르고, 대상이면 인증 종류·번호와 모델·사업자·적용 옵션을 확인해 검토를 완료합니다. 내부 검토 근거는 선택입니다.</p>
-          <p>기존 공개 · KC 미기록 상품은 자동 승인이나 자동 공개 중지로 처리하지 않습니다. 초안으로 전환한 뒤 재공개하려면 현재 KC 검토 요건을 충족해야 합니다.</p>
+          <p>KC 기록 없이 예전에 공개된 상품(기존 공개 · KC 미기록)은 자동으로 검토 완료하거나 공개를 내리지 않습니다. 초안으로 돌린 뒤 다시 공개하려면 지금 기준의 KC 검토를 마쳐야 합니다.</p>
           {readiness ? <small className="text-xs">확인 시각 {readiness.checkedAt ? new Date(readiness.checkedAt).toLocaleString('ko-KR') : '확인 필요'} · 저장하지 않은 입력은 저장한 뒤 판정에 반영됩니다.</small> : null}
         </div>
       </details>

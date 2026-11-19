@@ -34,7 +34,7 @@ export type GoodsOptionAxis = { name: string; values: string };
 export const GOODS_OPTION_AXIS_LIMIT = 3;
 export const GOODS_OPTION_ROW_LIMIT = 100;
 type Result = { ok: true; rows: GoodsOptionRow[] } | { ok: false; error: string };
-const INVALID = '옵션명·옵션 자동코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한(1 이상의 정수)을 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
+const INVALID = '저장할 수 없는 옵션 값이 있습니다. 옵션명·옵션 자동코드·ERP 코드·바코드·ERP 품명·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한을 확인해주세요. 옵션 자동코드와 옵션값 조합은 옵션끼리 겹칠 수 없습니다. 옵션가·재고수량·안전재고는 0 이상, 옵션별 구매 제한은 1 이상의 정수로 넣습니다. 옵션은 1~100개까지 저장할 수 있습니다.';
 /** 0901-015: 재고수량 칸을 비운 채로는 저장하지 않는다. 재고가 없으면 0을 직접 입력한다. 화면 검증과 서버 정규화가 같은 문구를 쓴다. */
 export const GOODS_OPTION_STOCK_REQUIRED = '재고수량을 입력해주세요. 재고가 없으면 0을 입력합니다.';
 const signature = (attributes: Record<string, string>) => JSON.stringify(Object.entries(attributes).sort(([a], [b]) => a.localeCompare(b)));
@@ -297,7 +297,7 @@ export function goodsOptionCollapseNotice(rows: readonly GoodsOptionRow[]): stri
   const [first] = rows;
   const removed = Math.max(0, rows.length - 1);
   return `옵션 사용을 설정안함으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 기본 옵션으로 남습니다. 옵션 자동코드·재고수량·ERP 정보는 유지됩니다.`
-    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 기본 정보의 운영 상태를 판매 중지로 바꿔주세요.' : '')
+    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 기본 정보의 판매상태를 판매 중지로 바꿔주세요.' : '')
     + (removed ? ` 나머지 옵션 ${removed}개는 옵션목록에서 빠지고, 주문·장바구니에 쓰인 옵션은 저장할 때 삭제 대신 보관됩니다.` : '')
     + ' 계속할까요?';
 }

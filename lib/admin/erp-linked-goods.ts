@@ -97,11 +97,11 @@ export const ERP_LINKED_GOODS_BARCODE_WARNING = '출고 파일·창고 대조에
 /** 확정·미리보기 RPC 오류 → 운영자 문구. 모르는 오류면 null. */
 export function erpLinkedGoodsErrorLabel(descriptor: string, detail?: string | null): string | null {
   if (descriptor.includes('erp_goods_apply_partial_price')) {
-    return `같은 상품${detail ? `(‘${detail}’)` : ''}의 판매가 행을 일부만 고르면 옵션 판매 금액이 상품 판매가보다 낮아집니다. 그 상품의 판매가 행을 함께 고르거나 함께 빼 주세요.`;
+    return `같은 상품${detail ? `(‘${detail}’)` : ''}의 판매가 줄을 일부만 고르면 옵션 판매 금액이 상품 판매가보다 낮아집니다. 그 상품의 판매가 줄을 모두 고르거나 모두 빼 주세요.`;
   }
   if (descriptor.includes('erp_goods_apply_busy')) return '다른 작업이 같은 상품을 저장하고 있습니다. 잠시 뒤 다시 반영해주세요.';
   if (descriptor.includes('erp_goods_apply_unavailable')) return '이 미리보기를 찾을 수 없습니다. 다시 비교해주세요.';
-  if (descriptor.includes('invalid_erp_goods_apply_keys')) return '반영할 행을 다시 골라주세요.';
+  if (descriptor.includes('invalid_erp_goods_apply_keys')) return '반영할 줄을 다시 골라주세요.';
   if (descriptor.includes('invalid_erp_goods_apply_request')) return '비교할 ERP 품목을 다시 확인해주세요.';
   return null;
 }
@@ -124,7 +124,7 @@ const FAILURE_LABELS: Record<string, string> = {
 
 /** 상품 저장 규칙에 막혀 반영하지 못한 행의 사유. */
 export function erpLinkedGoodsFailureLabel(error: string): string {
-  return FAILURE_LABELS[error] ?? '상품 저장 규칙에 막혔습니다. 상품 화면에서 저장해 보고 사유를 확인해주세요.';
+  return FAILURE_LABELS[error] ?? '상품 저장 규칙에 막혔습니다. 상품 화면에서 직접 저장해 보면 막힌 사유가 나옵니다.';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -210,7 +210,7 @@ export function erpLinkedGoodsReceiptMessage(receipt: ErpLinkedGoodsReceipt): st
     parts.push(`상품 ${count(goods)}개에 ${fields}을 반영했습니다.`);
   }
   if (receipt.failed.length) parts.push(`${count(receipt.failed.length)}건은 상품 저장 규칙에 막혀 반영하지 못했습니다. 아래 사유를 확인해주세요.`);
-  return parts.join(' ') || '반영한 행이 없습니다.';
+  return parts.join(' ') || '반영한 줄이 없습니다.';
 }
 
 /** 미리보기 요약 숫자. 판매가·바코드는 반영할 수 있는 행 수다. */
@@ -233,7 +233,7 @@ export function erpLinkedGoodsConfirmation(rows: readonly ErpLinkedGoodsRow[]): 
   const fields = [price ? `판매가 ${count(price)}건` : '', barcode ? `바코드 ${count(barcode)}건` : ''].filter(Boolean).join('·');
   return `연결 상품 ${count(goods)}개에 ${fields}을 반영할까요?`
     + (price ? ' 바뀐 판매가는 저장하는 즉시 고객 화면과 새 주문에 적용됩니다.' : '')
-    + (changes ? ` 이미 있던 바코드가 바뀌는 행이 ${count(changes)}건입니다. 창고에 등록된 바코드와 같은지 확인해주세요.` : '')
+    + (changes ? ` 이미 있던 바코드가 바뀌는 줄이 ${count(changes)}건입니다. 창고에 등록된 바코드와 같은지 확인해주세요.` : '')
     + ' 반영 내역은 감사 기록에 남습니다.'
     + erpLinkedGoodsPriceGuard(rows);
 }

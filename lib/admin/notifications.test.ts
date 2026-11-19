@@ -58,8 +58,8 @@ describe('normalizeAdminNotificationForm', () => {
     }))).toEqual({
       ok: false,
       errors: {
-        operationId: '올바른 발송 요청 ID가 필요합니다.',
-        scope: '허용된 발송 대상을 선택해주세요.',
+        operationId: '발송 요청 정보가 맞지 않습니다. 새로고침한 뒤 다시 발송해주세요.',
+        scope: '발송 대상을 목록에서 다시 골라주세요.',
         title: '제목은 1자 이상 120자 이하로 입력해주세요.',
         body: '본문은 1자 이상 500자 이하로 입력해주세요.',
       },

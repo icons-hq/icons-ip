@@ -51,7 +51,7 @@ function refresh(orderId: string) {
 export async function loadOrderPartialCancellationAction(orderId: unknown): Promise<PartialCancellationActionResult<OrderPartialCancellationContext>> {
   if (!await staff('sales.read')) return { ok: false, error: '관리자 권한이 필요합니다.' };
   const id = uuid(orderId);
-  if (!id) return { ok: false, error: '주문을 확인해주세요.' };
+  if (!id) return { ok: false, error: '주문 정보를 확인하지 못했습니다. 주문 화면을 새로고침해주세요.' };
   const { data, error } = await (await createClient()).rpc('admin_order_partial_cancellation_context', { p_order_id: id });
   if (error) return { ok: false, error: orderPartialCancellationErrorMessage(error.message) };
   try {
@@ -66,7 +66,7 @@ export async function previewOrderPartialCancellationAction(input: { orderId: un
   if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
   const id = uuid(input.orderId);
   const items = normalizeOrderPartialCancellationSelection(input.items);
-  if (!id || !items) return { ok: false, error: '취소할 상품과 수량을 확인해주세요.' };
+  if (!id || !items) return { ok: false, error: '취소할 상품을 고르고 수량을 남은 수량 안에서 입력해주세요.' };
   const { data, error } = await (await createClient()).rpc('admin_preview_order_partial_cancellation', { p_order_id: id, p_items: items });
   if (error) return { ok: false, error: orderPartialCancellationErrorMessage(error.message) };
   try {
@@ -114,7 +114,7 @@ export async function startOrderPartialCancellationAction(input: StartOrderParti
   if (!orderId || !operationId || !items || account === undefined
     || typeof input.customerDecision !== 'string' || (input.note !== null && input.note !== undefined && typeof input.note !== 'string')
     || typeof input.expectedRefundAmount !== 'number' || !Number.isSafeInteger(input.expectedRefundAmount) || input.expectedRefundAmount < 0) {
-    return { ok: false, error: '부분 취소 입력을 확인해주세요.' };
+    return { ok: false, error: '취소할 상품·수량과 고객 결정 기록을 확인하고, 무통장 주문이면 환불받을 계좌까지 입력한 뒤 다시 확정해주세요.' };
   }
   const { data, error } = await (await createClient()).rpc('admin_start_order_partial_cancellation', {
     p_order_id: orderId,
@@ -171,7 +171,7 @@ export async function retryOrderPartialCancellationAction(input: { orderId: unkn
   if (!auth?.user) return { ok: false, error: '관리자 권한이 필요합니다.' };
   const orderId = uuid(input.orderId);
   const id = uuid(input.partialCancellationId);
-  if (!orderId || !id) return { ok: false, error: '부분 취소 기록을 확인해주세요.' };
+  if (!orderId || !id) return { ok: false, error: '부분 취소 기록을 찾지 못했습니다. 주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   return reconcile(orderId, id, auth.user.id);
 }
 
@@ -185,7 +185,7 @@ export async function resolveOrderPartialCancellationAction(input: { orderId: un
   const orderId = uuid(input.orderId);
   const id = uuid(input.partialCancellationId);
   const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
-  if (!orderId || !id) return { ok: false, error: '부분 취소 기록을 확인해주세요.' };
+  if (!orderId || !id) return { ok: false, error: '부분 취소 기록을 찾지 못했습니다. 주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   if (reason.length < 5 || reason.length > 500) return { ok: false, error: orderPartialCancellationErrorMessage('partial_cancel_resolution_reason_required') };
   let evidence: Awaited<ReturnType<typeof inspectOrderPartialCancellationResolution>>;
   try {
@@ -238,7 +238,7 @@ export async function recordOrderPartialCancellationTransferAction(input: { orde
 export async function viewOrderPartialCancellationRefundAccountAction(partialCancellationId: unknown): Promise<PartialCancellationActionResult<{ bankName: string; accountNumber: string; accountHolder: string; amount: number }>> {
   if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
   const id = uuid(partialCancellationId);
-  if (!id) return { ok: false, error: '부분 취소 기록을 확인해주세요.' };
+  if (!id) return { ok: false, error: '부분 취소 기록을 찾지 못했습니다. 주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   const { data, error } = await (await createClient()).rpc('admin_view_order_partial_cancellation_refund_account', { p_id: id });
   if (error) return { ok: false, error: orderPartialCancellationErrorMessage(error.message) };
   const row = data as Record<string, unknown> | null;

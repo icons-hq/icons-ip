@@ -126,7 +126,7 @@ export function shippingRegionPolicyProblems(policy: ShippingRegionPolicyInput):
   if (!policy.name.trim()) problems.push('정책 이름을 입력해주세요.');
   if (!policy.sourceEvidence.trim()) problems.push('실제 물류사 회신·계약 문서를 찾을 수 있는 근거 참조를 입력해주세요.');
   if (!policy.startsAt) problems.push('적용 시작 일시를 입력해주세요.');
-  if (policy.openEnded === null || (policy.openEnded === false && !policy.endsAt) || (policy.openEnded && policy.endsAt)) problems.push('적용 종료 일시 또는 무기한 적용을 명시해주세요.');
+  if (policy.openEnded === null || (policy.openEnded === false && !policy.endsAt) || (policy.openEnded && policy.endsAt)) problems.push('적용 종료 방식에서 ‘무기한’ 또는 ‘종료 일시 지정’을 골라주세요. 종료 일시 지정이면 적용 종료 일시도 넣어주세요.');
   if (policy.startsAt && policy.endsAt && Date.parse(policy.startsAt) >= Date.parse(policy.endsAt)) problems.push('종료 일시는 시작 일시보다 뒤여야 합니다.');
   if (!policy.unlistedDisposition) problems.push('표에 없는 지역의 처리 방법을 확인해주세요.');
   if (!policy.feeUnit || [policy.chargePolicyGoods, policy.waivePolicyThreshold, policy.chargeFreeGoods, policy.chargeIndividualGoods].includes(null)) {
@@ -137,17 +137,17 @@ export function shippingRegionPolicyProblems(policy: ShippingRegionPolicyInput):
   for (const [index, rule] of policy.rules.entries()) {
     if (!/^\d{5}$/.test(rule.postalFrom) || !/^\d{5}$/.test(rule.postalTo) || rule.postalFrom > rule.postalTo
       || !rule.regionLabel.trim() || !rule.disposition || (rule.disposition === 'surcharge' ? rule.amount === null : rule.amount !== null)) {
-      problems.push(`지역표 ${index + 1}행의 우편번호 구간·지역명·처리·추가료를 확인해주세요. 추가료 부과 행의 0원과 미입력은 구분됩니다.`);
+      problems.push(`지역표 ${index + 1}번째 줄의 우편번호(5자리, 시작 ≤ 끝)·지역명·처리·추가료를 확인해주세요. 처리가 ‘추가료 부과’인 줄은 추가료를 꼭 적고(0원이면 0), 다른 처리인 줄은 추가료 칸을 비워 둡니다.`);
     }
     for (let before = 0; before < index; before++) {
       const other = policy.rules[before];
       if (rule.postalFrom && rule.postalTo && other.postalFrom && other.postalTo && rule.postalFrom <= other.postalTo && other.postalFrom <= rule.postalTo
         && (!rule.addressPrefix || !other.addressPrefix || rule.addressPrefix === other.addressPrefix
           || rule.addressPrefix.startsWith(`${other.addressPrefix} `) || other.addressPrefix.startsWith(`${rule.addressPrefix} `))) {
-        problems.push(`지역표 ${before + 1}행과 ${index + 1}행의 적용 범위가 겹칩니다.`); break;
+        problems.push(`지역표 ${before + 1}번째 줄과 ${index + 1}번째 줄의 우편번호·주소 범위가 겹칩니다. 한 주소가 한 줄에만 해당하도록 고쳐주세요.`); break;
       }
     }
-    if (problems.length >= 25) { problems.push('표의 나머지 행도 같은 기준으로 확인해주세요.'); break; }
+    if (problems.length >= 25) { problems.push('표의 나머지 줄도 같은 기준으로 확인해주세요.'); break; }
   }
   return problems;
 }
@@ -160,14 +160,14 @@ export function parseShippingRegionRulesTsv(value: string, previous: readonly Sh
   if (value.length > 500000) return { error: '지역표는 500,000자 이내로 입력해주세요.' };
   const rows = value.replace(/^\uFEFF/, '').split(/\r?\n/).filter((row) => row.trim());
   if (rows[0] === SHIPPING_REGION_TSV_HEADER) rows.shift();
-  if (rows.length > MAX_SHIPPING_REGION_RULES) return { error: `지역표는 ${MAX_SHIPPING_REGION_RULES.toLocaleString()}행 이내로 입력해주세요.` };
+  if (rows.length > MAX_SHIPPING_REGION_RULES) return { error: `지역표는 ${MAX_SHIPPING_REGION_RULES.toLocaleString()}줄 이내로 입력해주세요.` };
   const rules: ShippingRegionRuleInput[] = [];
   for (const [index, row] of rows.entries()) {
     const cells = row.split('\t').map((cell) => cell.trim());
-    if (cells.length !== 6) return { error: `${index + 1}행은 탭으로 구분한 6개 열이어야 합니다.` };
+    if (cells.length !== 6) return { error: `${index + 1}번째 줄의 열이 6개가 아닙니다. 스프레드시트에서 6개 열(우편번호 시작·끝, 주소 시작문구, 지역명, 처리, 추가료)을 그대로 복사해 붙여넣어 주세요.` };
     const [postalFrom, postalTo, addressPrefix, regionLabel, label, fee] = cells;
     const disposition = label ? Object.entries(REGION_DISPOSITION_LABELS).find(([, title]) => title === label)?.[0] as RegionRuleDisposition | undefined : '';
-    if (disposition === undefined || (fee && !/^\d{1,7}$/.test(fee)) || (fee && Number(fee) > 1000000)) return { error: `${index + 1}행의 처리 문구·추가료를 확인해주세요.` };
+    if (disposition === undefined || (fee && !/^\d{1,7}$/.test(fee)) || (fee && Number(fee) > 1000000)) return { error: `${index + 1}번째 줄의 처리·추가료를 확인해주세요. 처리는 ‘추가료 없음’·‘추가료 부과’·‘배송 불가’·‘개별 확인 필요’ 중 하나이고, 추가료는 1,000,000원 이하 숫자만 씁니다.` };
     const rule: ShippingRegionRuleInput = { id: null, postalFrom, postalTo, addressPrefix: normalizeShippingAddress(addressPrefix), regionLabel,
       disposition, amount: fee ? Number(fee) : null };
     const previousRule = previous[index];

@@ -143,11 +143,11 @@ export function parseGoodsTermsRecovery(value: unknown): GoodsTermsRecovery | nu
 export function goodsTermsError(message?: string): string {
   const messages: Record<string, string> = {
     goods_transaction_terms_changed: '상품 또는 할인·배송 설정이 변경됐습니다. 입력을 유지한 채 최신 저장본을 비교해주세요.',
-    checkout_contract_upgrade_required: '주문·결제 기능 준비가 끝난 뒤 활성화할 수 있습니다. 지금은 초안으로 저장해주세요.',
+    checkout_contract_upgrade_required: '주문·결제 기능 준비가 끝나야 \'사용\'으로 저장할 수 있습니다. 지금은 상태를 \'대기\'로 두고 저장해주세요.',
     collect_contract_not_ready: '출고지의 착불 수납 계약·수납 방법·분쟁 연락처를 먼저 준비해주세요.',
     operator_operation_conflict: '같은 요청 번호에 다른 내용이 있습니다. 최신 저장본을 확인해주세요.',
-    auth_context_changed: '로그인 계정이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.',
+    auth_context_changed: '로그인한 계정이 바뀌었습니다. 지금 계정으로 화면을 새로고침해주세요.',
     operator_capability_required: '상품관리 권한이 필요합니다.', good_not_found: '상품이 없거나 보관됐습니다. 상품 목록에서 다시 확인해주세요.',
   };
-  return Object.entries(messages).find(([code]) => message?.includes(code))?.[1] ?? '할인·배송 설정을 저장하지 못했습니다. 입력값과 현재 권한을 확인해주세요.';
+  return Object.entries(messages).find(([code]) => message?.includes(code))?.[1] ?? '할인·배송 설정을 저장하지 못했습니다. 입력한 조건·금액을 확인한 뒤 다시 저장해주세요. 계속 안 되면 상품관리 권한이 있는 계정인지 확인해주세요.';
 }

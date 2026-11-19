@@ -17,7 +17,7 @@ const INPUT_LINKS: { label: string; description: string; href: string; adminOnly
   { label: '택배사', description: '계약 택배사와 배송조회 주소', href: '/admin/settings/carriers', readiness: 'carriers' },
   { label: '배송·반품 안내', description: '상품에 적용할 배송 안내 템플릿', href: '/admin/settings/shipping-notices', readiness: 'notices' },
   { label: '상품·ERP·공급가(매입단가)·KC', description: '상품을 선택해 옵션 정보와 증빙을 입력', href: '/admin/catalog/goods' },
-  { label: '카테고리·ERP 분류', description: '고객 카테고리와 ERP 분류 매핑', href: '/admin/catalog/categories' },
+  { label: '카테고리·ERP 분류', description: '고객 카테고리와 ERP 분류 연결', href: '/admin/catalog/categories' },
   { label: '쿠폰', description: '지급·사용 조건과 적용 상품', href: '/admin/sales/coupons' },
   { label: '적립금 정책', description: '적립·사용 기준과 정책 승인 근거', href: '/admin/settings/store-credits', adminOnly: true, readiness: 'storeCredits' },
   { label: '운영 스위치', description: '지연 안내 메일·반품배송비 차감·재고 부족 부분 취소를 켜고 끕니다', href: '/admin/settings/switches', adminOnly: true },
@@ -75,7 +75,7 @@ export function OperationsSettingsScreen({ contacts, history, canEdit, shippingR
       return <AdminSectionCard id={contactAnchor(contact)} key={`${contact.scope}:${contact.originId ?? 'general'}`} title={contactTitle(contact)}>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <AdminStatusBadge tone={filled === 4 ? 'success' : filled ? 'neutral' : 'warning'}>{filled ? `정보 입력 ${filled}/4` : '담당자 정보 미입력'}</AdminStatusBadge>
-          {contact.scope === 'origin' ? <AdminStatusBadge tone={contact.originActive ? 'success' : 'warning'}>{contact.originActive ? '출고지 사용 중' : '출고지 비활성'}</AdminStatusBadge> : null}
+          {contact.scope === 'origin' ? <AdminStatusBadge tone={contact.originActive ? 'success' : 'warning'}>{contact.originActive ? '출고지 사용 중' : '출고지 사용 안 함'}</AdminStatusBadge> : null}
           {contact.updatedAt ? <span>최근 저장 <time className="tabular-nums" dateTime={contact.updatedAt}>{formatOrderDateTime(contact.updatedAt)}</time> · {contact.updatedByName ?? '삭제된 운영자'}</span> : null}
         </div>
         <OperationsContactForm contact={contact} canEdit={canEdit}/>

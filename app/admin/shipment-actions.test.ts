@@ -185,7 +185,7 @@ describe('shipment action boundaries', () => {
   });
   it('does not build a file when a warehouse has nothing new to hand over', async () => {
     mocks.rpc.mockResolvedValue({ error: null, data: { ids: [], total: 0 } });
-    expect((await exportPendingOriginShipmentsAction(SECOND, 'xlsx', 'warehouse')).error).toContain('아직 전달하지 않은 발송 대기 배송 건이 없습니다');
+    expect((await exportPendingOriginShipmentsAction(SECOND, 'xlsx', 'warehouse')).error).toContain('아직 창고로 보내지 않은 발송 대기 배송 건이 없습니다');
     expect(await exportPendingOriginShipmentsAction('not-a-uuid', 'xlsx')).toEqual({ error: '출고지를 선택해주세요.' });
     expect(mocks.build).not.toHaveBeenCalled();
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
@@ -193,7 +193,7 @@ describe('shipment action boundaries', () => {
   });
   it('keeps successful completions and reports failed shipment IDs', async () => {
     mocks.rpc.mockResolvedValue({ data: [{ id: ID, ok: true }, { id: SECOND, ok: false, error: 'invalid_shipment_transition' }], error: null });
-    expect(await completeShipmentsAction([ID, SECOND])).toEqual({ message: '1건을 배송완료로 변경했습니다.', failed: [{ id: SECOND, reason: '발주확인 또는 현재 배송 상태를 확인해주세요.' }] });
+    expect(await completeShipmentsAction([ID, SECOND])).toEqual({ message: '1건을 배송완료로 변경했습니다.', failed: [{ id: SECOND, reason: '지금 상태에서는 처리할 수 없는 배송 건입니다. 신규주문이면 먼저 발주확인하고, 이미 발송·배송완료·취소된 건인지 목록을 새로고침해 확인해주세요.' }] });
   });
   it('keeps the existing warehouse format available with the current RPC argument', async () => {
     expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toHaveProperty('file');

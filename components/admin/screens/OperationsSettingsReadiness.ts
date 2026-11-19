@@ -41,17 +41,17 @@ export function operationsReadiness(source: OperationsReadinessSources): Operati
   }
   if (source.regions !== undefined) {
     const active = source.regions.filter(policy => policy.status === 'active').length;
-    readiness.regions = active ? { done: true, detail: `활성 정책 ${active}개` } : { done: false, detail: '활성 정책 없음' };
+    readiness.regions = active ? { done: true, detail: `사용 중인 정책 ${active}개` } : { done: false, detail: '사용 중인 정책 없음' };
   }
   if (source.carriers !== undefined) {
     const active = source.carriers.filter(carrier => carrier.active).length;
     readiness.carriers = active ? { done: true, detail: `${active}곳 사용 중` } : { done: false, detail: '사용 중인 택배사 없음' };
   }
   if (source.activeNoticeTemplates !== undefined) {
-    readiness.notices = source.activeNoticeTemplates ? { done: true, detail: `활성 템플릿 ${source.activeNoticeTemplates}개` } : { done: false, detail: '활성 템플릿 없음' };
+    readiness.notices = source.activeNoticeTemplates ? { done: true, detail: `사용 중인 템플릿 ${source.activeNoticeTemplates}개` } : { done: false, detail: '사용 중인 템플릿 없음' };
   }
   if (source.storeCreditsEnabled !== undefined) {
-    readiness.storeCredits = source.storeCreditsEnabled ? { done: true, detail: '정책 사용 중' } : { done: false, detail: '정책 비활성' };
+    readiness.storeCredits = source.storeCreditsEnabled ? { done: true, detail: '정책 사용 중' } : { done: false, detail: '정책 사용 안 함' };
   }
   return readiness;
 }

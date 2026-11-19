@@ -95,7 +95,7 @@ describe('review event editor guidance (R6)', () => {
   });
 
   it('maps a rejected value check to the input guidance instead of a generic permission message', () => {
-    expect(reviewEventError('invalid_review_event')).toContain('입력값');
+    expect(reviewEventError('invalid_review_event')).toContain('입력한 조건이 맞지 않습니다');
     expect(reviewEventError('invalid_review_event')).not.toContain('권한');
   });
 });

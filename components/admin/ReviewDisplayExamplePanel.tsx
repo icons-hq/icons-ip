@@ -82,7 +82,7 @@ export function ReviewDisplayExamplePanel({ children, defaultOpen = false }: { c
     </summary>
     {open ? <div className="flex min-w-0 flex-col gap-3 border-t px-4 py-4">
       <p className="text-sm leading-relaxed text-muted-foreground">
-        실제 고객 화면과 같은 부품을 <strong className="font-medium text-foreground">가짜(예시) 리뷰</strong>로 그린 화면입니다. 예시 리뷰는 저장되지 않으며 고객 화면·리뷰 집계·엑셀에 나오지 않습니다.
+        실제 고객 화면을 그대로 쓰고 리뷰만 <strong className="font-medium text-foreground">가짜(예시) 리뷰</strong>로 채운 화면입니다. 예시 리뷰는 저장되지 않으며 고객 화면·리뷰 집계·엑셀에 나오지 않습니다.
         상품 목록 카드, 상품 상세 대표이미지의 BEST 리뷰, 가격 아래 별점 줄, 상단 리뷰 요약, &ldquo;리뷰 (N)&rdquo; 탭 순서로 보여 줍니다. 예시 안의 버튼과 링크는 눌리지 않습니다.
       </p>
       <p className="text-sm leading-relaxed text-muted-foreground">

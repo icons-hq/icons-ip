@@ -38,7 +38,7 @@ function Panel({ initial, identity, scope, canManage }: Props & { identity: Clai
   try { const result = await changeOrderProductionAction(document.orderId, request.jobId, request.kind, request.revision, request.operation, request.evidence, identity); if (!alive.current || !scope.canApply(ticket)) return;
    if ('document' in result && result.document) { setDocument(result.document); dispatched.current = null; setUncertain(false); setEvidence(''); setConfirmed(false); setMessage(request.kind === 'start' ? '제작 시작을 기록했습니다.' : '제작 완료를 기록했습니다. 실제 발송은 배송 처리에서 진행해주세요.'); router.refresh(); }
    else { setMessage(result.error ?? '결과를 확인하지 못했습니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) dispatched.current = null; }
-  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
+  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. [같은 요청으로 결과 확인]을 눌러 기록됐는지 확인해주세요.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  if (!document) return <AdminNotice role="status" tone="danger">주문제작 현황을 읽지 못했습니다. 화면을 새로고침해주세요.</AdminNotice>;

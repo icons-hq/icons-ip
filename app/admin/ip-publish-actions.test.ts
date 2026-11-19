@@ -67,7 +67,7 @@ describe('admin IP publish actions', () => {
     const form = publishForm();
     form.delete('confirmUnpublish');
     await expect(unpublishAdminIpAction({}, form)).resolves.toEqual({
-      errors: { form: '초안 전환의 영향을 확인한 뒤 다시 시도해주세요.' },
+      errors: { form: '초안으로 되돌리기 전에 ‘초안 전환의 영향을 확인했습니다’를 체크해주세요.' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -121,7 +121,7 @@ describe('admin IP publish actions', () => {
     ['spaced id', publishForm('hwa san')],
   ])('rejects %s before auth or RPC access', async (_label, formData) => {
     await expect(publishAdminIpAction({}, formData)).resolves.toEqual({
-      errors: { id: '올바른 IP ID가 필요합니다.' },
+      errors: { id: 'IP를 찾지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' },
     });
 
     expect(mocks.getCurrentAdminAuthState).not.toHaveBeenCalled();
@@ -158,7 +158,7 @@ describe('admin IP publish actions', () => {
     ['catalog_item_archived', '보관된 IP는 게시 상태를 바꿀 수 없습니다. 먼저 복원해주세요.'],
     ['ip_publish_incomplete', 'IP 이름을 채운 뒤 공개해주세요.'],
     ['forbidden', '관리자 권한이 필요합니다.'],
-    ['something else', 'IP 게시 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.'],
+    ['something else', 'IP 게시 상태를 변경하지 못했습니다. 새로고침해 지금 게시 상태를 확인한 뒤 다시 시도해주세요.'],
   ])('maps the RPC guard %s to operator language', async (token, message) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'P0001', message: token } });
 

@@ -119,16 +119,16 @@ export function parseBankRefundAccountView(value: unknown): BankRefundAccountVie
   return value as unknown as BankRefundAccountView;
 }
 export function bankRefundError(code?: string, message?: string): BankRefundFailure {
-  if (code === '42501' || code === '28000') return { error: '로그인 세션 또는 결제 처리 권한이 바뀌었습니다. 현재 계정으로 요청을 다시 열어주세요.', authChanged: true };
-  if (code === 'PT409') return { error: '요청 상태나 금액이 바뀌었습니다. 최신 상태를 확인해주세요.', conflict: true };
+  if (code === '42501' || code === '28000') return { error: '로그인 상태나 결제 처리 권한이 바뀌었습니다. 새로고침해 현재 계정으로 요청을 다시 열어주세요.', authChanged: true };
+  if (code === 'PT409') return { error: '다른 처리로 요청 상태나 금액이 바뀌었습니다. [최신 환불 상태 확인]을 눌러 바뀐 내용을 확인한 뒤 다시 입력해주세요.', conflict: true };
   const errors: Record<string, string> = {
     claim_not_found: '주문에 연결된 요청을 찾을 수 없습니다.',
-    invalid_bank_refund_operation: '확인 일시, 증빙, 메모와 확인 항목을 모두 입력해주세요.',
-    bank_refund_occurred_at_invalid: '확인 일시는 결제와 선행 처리 이후이며 현재 시각 이전이어야 합니다.',
-    bank_refund_payment_unavailable: '전액 무통장 결제 1건이 확인되지 않아 처리할 수 없습니다.',
-    bank_refund_gift_parties_invalid: '선물 구매자와 요청자 기록을 확인해야 합니다.',
+    invalid_bank_refund_operation: '확인 일시·확인 증빙·처리 메모를 모두 입력하고 확인 칸에 체크해주세요.',
+    bank_refund_occurred_at_invalid: '확인 일시는 결제 시각과 앞 단계 기록(취소 확정·계좌 송금 접수) 시각보다 늦고, 지금보다 이르게 입력해주세요.',
+    bank_refund_payment_unavailable: '이 주문의 결제가 무통장 전액 결제 1건으로 확인되지 않아 이 화면에서 처리할 수 없습니다. 주문 통합검색에서 결제 내역을 확인해주세요.',
+    bank_refund_gift_parties_invalid: '선물 주문의 결제한 분·요청한 분 기록이 맞지 않아 처리할 수 없습니다. 요청 상세의 주문정보에서 선물 정보를 확인해주세요.',
     bank_refund_claim_unavailable: '현재 요청 단계에서는 처리할 수 없습니다. 최신 상태를 확인해주세요.',
-    bank_refund_ledger_unavailable: '환불 기록의 금액·수단·요청 연결을 확인해야 합니다.',
+    bank_refund_ledger_unavailable: '환불 기록(금액·환불 수단)이 이 요청과 맞지 않아 처리할 수 없습니다. 요청 상세의 환불 기록을 확인해주세요.',
     bank_refund_confirmation_required: '먼저 취소를 확정하고 재고 복원을 확인해주세요.',
     bank_refund_filing_required: '먼저 계좌 송금 접수를 기록해주세요.',
     bank_refund_approval_required: '승인된 취소 요청이 필요합니다.',
@@ -139,9 +139,9 @@ export function bankRefundError(code?: string, message?: string): BankRefundFail
     claim_refund_account_missing: '구매자의 환불계좌가 필요합니다. 결제한 분이 주문 또는 선물 요청 화면에서 등록해주세요.',
     claim_collections_incomplete: '모든 출고지의 상품 회수를 확인한 뒤 진행해주세요.',
     order_not_cancelable: '현재 배송 상태에서는 취소를 확정할 수 없습니다.',
-    bank_refund_request_sealed: '종료한 처리 요청입니다. 최신 상태를 확인한 뒤 다시 입력해주세요.',
-    bank_refund_request_conflict: '처음 보낸 요청과 내용이 다릅니다. 이전 처리 결과를 확인해주세요.',
+    bank_refund_request_sealed: '이미 종료한 처리입니다. [최신 환불 상태 확인]을 누른 뒤 다시 입력해주세요.',
+    bank_refund_request_conflict: '처음 보낸 내용과 달라 처리하지 않았습니다. [이전 처리 결과 확인]으로 처음 보낸 처리의 결과를 확인해주세요.',
   };
   if (message && Object.hasOwn(errors, message)) return { error: errors[message], ...(message === 'bank_refund_request_conflict' ? { uncertain: true } : {}) };
-  return { error: '처리 결과를 확인하지 못했습니다. 이전 처리 결과를 먼저 확인해주세요.', uncertain: true };
+  return { error: '처리됐는지 확인하지 못했습니다. [이전 처리 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true };
 }

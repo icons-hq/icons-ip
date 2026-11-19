@@ -88,7 +88,7 @@ describe('탈퇴 처리 응답 검증', () => {
   });
 
   it('처리 결과 요약은 지운 것만 말한다', () => {
-    expect(memberWithdrawalErasedSummary(ERASED, 2)).toBe('배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 2건 · 대기 중인 재입고 알림 신청 1건 · 로그인 세션 2개 종료');
+    expect(memberWithdrawalErasedSummary(ERASED, 2)).toBe('배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 2건 · 대기 중인 재입고 알림 신청 1건 · 로그인 2건 종료');
     expect(memberWithdrawalErasedSummary({ ...ERASED, addressBookEntries: 0, phoneNumbers: 0, marketingConsents: 0, restockAlerts: 0 }, 0))
       .toBe('지울 정보가 없었습니다');
   });
@@ -173,7 +173,7 @@ describe('카카오 알림 근거', () => {
   it('카카오 처리 거절 사유를 운영자 문구로 바꾼다', () => {
     expect(memberWithdrawalRpcError('kakao_unlink_member_request_required', 'kakao_unlink')).toContain('확인 연락 뒤');
     expect(memberWithdrawalRpcError('kakao_unlink_withdrawal_not_queued', 'kakao_unlink')).toContain('탈퇴 검토 대기 회원이 아닙니다');
-    expect(memberWithdrawalRpcError('invalid_member_withdrawal', 'kakao_unlink')).toBe('처리 메모를 다시 확인해주세요.');
-    expect(memberWithdrawalRpcError('invalid_member_withdrawal')).toBe('문의 번호와 처리 메모를 다시 확인해주세요.');
+    expect(memberWithdrawalRpcError('invalid_member_withdrawal', 'kakao_unlink')).toBe('처리 메모를 2~200자로 다시 적어주세요.');
+    expect(memberWithdrawalRpcError('invalid_member_withdrawal')).toBe('문의 번호(숫자)와 처리 메모(2~200자)를 다시 확인해주세요.');
   });
 });

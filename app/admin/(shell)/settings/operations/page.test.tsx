@@ -37,5 +37,5 @@ it('카드 상태를 읽지 못해도 화면은 열리고 그 카드만 상태�
   mocks.carriers.mockRejectedValue(new Error('denied'));
   const result = await Page();
   expect(result.props.readiness.carriers).toBeUndefined();
-  expect(result.props.readiness.regions).toEqual({ done: false, detail: '활성 정책 없음' });
+  expect(result.props.readiness.regions).toEqual({ done: false, detail: '사용 중인 정책 없음' });
 });

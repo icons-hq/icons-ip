@@ -34,13 +34,13 @@ function Panel({ identity, scope }: { identity: ClaimContactIdentity; scope: Cla
  }
  async function save() {
   if (busy.current || !draft || !policy || !draft.confirmed) return; const ticket = scope.capture(); if (!ticket) return;
-  if ([draft.startDays, draft.endDays, draft.maxOrderDays].some(value => value && !/^[1-9][0-9]*$/.test(value))) { setMessage('기간은 일 단위 정수로 입력해주세요.'); return; }
+  if ([draft.startDays, draft.endDays, draft.maxOrderDays].some(value => value && !/^[1-9][0-9]*$/.test(value))) { setMessage('기간은 소수점 없이 1 이상의 일 수로 입력해주세요.'); return; }
   const request = dispatched.current ?? { values: { ...draft, startDays: draft.startDays ? Number(draft.startDays) : null, endDays: draft.endDays ? Number(draft.endDays) : null, maxOrderDays: draft.maxOrderDays ? Number(draft.maxOrderDays) : null }, revision: policy.revision, operation: crypto.randomUUID() };
   dispatched.current = request; busy.current = true; setPending(true);
   try { const result = await saveReviewTypePolicyAction(request.values, request.revision, request.operation, identity); if (!alive.current || !scope.canApply(ticket)) return;
    if ('policy' in result && result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); setUncertain(false); dispatched.current = null; setMessage('한달사용 리뷰 설정을 저장했습니다.'); }
    else { setMessage(result.error ?? '저장 결과를 확인하지 못했습니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) dispatched.current = null; }
-  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
+  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장됐는지 확인하지 못했습니다. [같은 요청으로 저장 결과 확인]을 눌러주세요. 다시 눌러도 두 번 저장되지 않습니다.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  return <div className="flex flex-col items-start gap-4"><p className={NOTE_CLASS}>일반 리뷰는 배송완료 후 90일까지 유지합니다. 한달사용 리뷰는 주문·상품별로 일반 리뷰와 별도로 1회 작성할 수 있습니다. 재구매는 작성 시점의 최근 180일 내 동일 상품 배송완료 이력으로 표시합니다.</p>
@@ -52,9 +52,9 @@ function Panel({ identity, scope }: { identity: ClaimContactIdentity; scope: Cla
     <AdminField label="기준일 후 작성 마감 (일)" inputId="review-type-end"><Input id="review-type-end" type="number" min="30" max="730" value={draft.endDays} onChange={e => setDraft({ ...draft, endDays: e.target.value })} required={draft.enabled} /></AdminField>
     <AdminField label="주문일 후 최대 기간 (일, 선택)" inputId="review-type-order"><Input id="review-type-order" type="number" min="1" max="1095" value={draft.maxOrderDays} onChange={e => setDraft({ ...draft, maxOrderDays: e.target.value })} /></AdminField></AdminFormGrid>
    <label className={CHECK_CLASS}><input type="checkbox" checked={draft.rewardEligible} onChange={e => setDraft({ ...draft, rewardEligible: e.target.checked })} />한달사용 리뷰도 BEST 보상·리뷰이벤트 대상에 포함</label>
-   <p className={NOTE_CLASS}>보상 여부 변경에는 마케팅 권한이 필요합니다. 실제 지급은 별도 활성 정책과 선정 조건을 따르며, 리뷰 작성만으로 지급하지 않습니다.</p>
+   <p className={NOTE_CLASS}>보상 여부를 바꾸려면 마케팅 권한이 필요합니다. 실제 지급은 따로 켜 둔 보상 정책과 선정 조건을 따르고, 리뷰를 쓰기만 해서는 지급하지 않습니다.</p>
    <AdminField label="설정 근거" inputId="review-type-evidence"><Textarea id="review-type-evidence" minLength={2} maxLength={1000} value={draft.evidence} onChange={e => setDraft({ ...draft, evidence: e.target.value })} required /></AdminField>
-   <p className={NOTE_CLASS}>저장한 설정은 기존 주문을 포함한 신규 한달사용 리뷰 작성에 즉시 적용됩니다. 이미 작성한 리뷰의 수정 기한과 보상 자격은 작성 당시 값을 유지합니다. 공개된 일반·한달사용 리뷰는 모두 평점에 포함합니다.</p>
+   <p className={NOTE_CLASS}>저장하면 바로 적용됩니다. 이미 받은 주문도 앞으로 쓰는 한달사용 리뷰는 새 설정을 따릅니다. 이미 작성한 리뷰의 수정 기한과 보상 자격은 작성할 때 값 그대로입니다. 공개된 일반·한달사용 리뷰는 모두 평점에 포함합니다.</p>
    <label className={CHECK_CLASS}><input type="checkbox" checked={draft.confirmed} onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} required />작성 기간과 기존 주문 적용 범위, 보상 조건을 확인했습니다.</label>
   </fieldset><Button disabled={pending || !draft.confirmed} type="submit">{uncertain ? '같은 요청으로 저장 결과 확인' : '한달사용 리뷰 설정 저장'}</Button></form> : null}
   {message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}

@@ -32,7 +32,7 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
     loadOrderFulfillmentHolds([orderId], supabase)]);
   const delivery = deliveries.get(orderId), transaction = transactions.get(orderId)?.display;
   if (!delivery || transaction && (transaction.totals.onlineTotal !== detail.order.total || transaction.lines.length !== detail.items.length
-    || transaction.lines.some(line => !detail.items.some(item => item.id === line.lineId && item.variantId === line.variantId && item.qty === line.qty && item.unitPrice === line.unitPrice)))) throw new Error('주문 배송·금액 원장을 확인하지 못했습니다.');
+    || transaction.lines.some(line => !detail.items.some(item => item.id === line.lineId && item.variantId === line.variantId && item.qty === line.qty && item.unitPrice === line.unitPrice)))) throw new Error('주문의 배송·금액 기록이 서로 맞지 않아 주문 상세를 열지 못했습니다. 잠시 뒤 새로고침하고, 계속되면 개발 담당자에게 알려주세요.');
   return { ...detail, items: detail.items.map(item => ({ ...item, optionSaleMode: adminOrderItemOptionSaleMode(item.optionSaleMode) })), shipments: detail.shipments.map(shipment => {
     const extraTrackings = shipmentExtraTrackings(extraRows.filter(row => row.shipment_id === shipment.id), carriers, shipment);
     return { ...shipment, regionalShipping: parseRegionalShippingSnapshot(shipment.regionalShipping), ...(extraTrackings.length ? { extraTrackings } : {}) };

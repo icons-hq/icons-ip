@@ -17,16 +17,16 @@ export async function saveFulfillmentOriginAction(previous: FulfillmentActionSta
     if (!await requireAdminActionAccess(FULFILLMENT_ORIGINS_PATH, { capability: 'platform.manage', adminOnly: true })) return fail({ form: '출고지 설정 변경은 최고 관리자만 할 수 있습니다.' });
     const result = parseFulfillmentOriginInput(values);
     if (!result.ok) return fail(result.errors);
-    if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) return fail({ form: '최신 출고지 설정을 다시 열어주세요.' });
+    if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) return fail({ form: '출고지 설정 화면을 새로고침한 뒤 다시 저장해주세요.' });
     const client = await createClient();
     const { data: saved, error } = await client.rpc('admin_save_fulfillment_origin', {
       target_id: values.id || null, target_values: result.value, expected_updated_at: values.updatedAt || null,
     });
     if (error) {
-      if (error.message.includes('conflict')) return fail({ form: '다른 관리자가 설정을 변경했습니다. 입력값을 복사한 뒤 새로고침해주세요.' });
+      if (error.message.includes('conflict')) return fail({ form: '다른 관리자가 이 출고지 설정을 먼저 바꿨습니다. 입력한 내용을 따로 적어 둔 뒤 새로고침해 최신 설정에 다시 입력해주세요.' });
       if (error.message.includes('carrier')) return fail({ defaultCarrier: '사용 중인 기본 택배사를 선택해주세요.' });
       if (error.message.includes('code_key')) return fail({ code: '이미 사용 중인 출고지 코드입니다.' });
-      return fail({ form: '출고지 설정을 저장하지 못했습니다. 입력값을 확인하고 다시 시도해주세요.' });
+      return fail({ form: '출고지 설정을 저장하지 못했습니다. 입력은 그대로 있습니다. 잠시 뒤 다시 저장하고, 같은 오류가 계속되면 개발 담당자에게 알려주세요.' });
     }
     for (const path of [FULFILLMENT_ORIGINS_PATH, '/admin/settings/store', '/admin/catalog/goods', '/cart', '/checkout', '/legal/shipping']) revalidatePath(path);
     revalidateGoodsSurfaces();
@@ -35,6 +35,6 @@ export async function saveFulfillmentOriginAction(previous: FulfillmentActionSta
     return { message: '출고지 설정을 저장했습니다.', attempt: (previous.attempt ?? 0) + 1, ...(values.id ? { updatedAt: saved.updatedAt } : {}) };
   } catch (error) {
     unstable_rethrow(error);
-    return fail({ form: '출고지 설정을 저장하지 못했습니다. 입력값은 유지됩니다.' });
+    return fail({ form: '출고지 설정을 저장하지 못했습니다. 입력은 그대로 있습니다. 잠시 뒤 다시 저장해주세요.' });
   }
 }

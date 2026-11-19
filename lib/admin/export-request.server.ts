@@ -27,10 +27,10 @@ export async function readExportPassword(request: Request, allowedQuery: readonl
     throw new ExportRequestError('현재 관리자 화면에서 다시 내려받아 주세요.', 403);
   }
   if ([...url.searchParams.keys()].some(key => !allowedQuery.includes(key) || url.searchParams.getAll(key).length !== 1)) {
-    throw new ExportRequestError('다운로드 조건을 확인해주세요.');
+    throw new ExportRequestError('다운로드 조건이 맞지 않습니다. 목록 화면을 새로고침한 뒤 다시 내려받아 주세요.');
   }
   if (request.headers.get('content-type')?.split(';')[0].trim() !== 'application/json') {
-    throw new ExportRequestError('다운로드 요청 형식을 확인해주세요.', 415);
+    throw new ExportRequestError('다운로드 요청을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 내려받아 주세요.', 415);
   }
   const reader = request.body?.getReader();
   if (!reader) throw new ExportRequestError('비밀번호를 입력해주세요.');
@@ -41,15 +41,15 @@ export async function readExportPassword(request: Request, allowedQuery: readonl
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 4096) { await reader.cancel(); throw new ExportRequestError('다운로드 요청이 너무 큽니다.', 413); }
+      if (size > 4096) { await reader.cancel(); throw new ExportRequestError('다운로드 요청을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 내려받아 주세요.', 413); }
       chunks.push(value);
     }
     let body: unknown;
     try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
-    catch { throw new ExportRequestError('다운로드 요청 형식을 확인해주세요.'); }
+    catch { throw new ExportRequestError('다운로드 요청을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 내려받아 주세요.'); }
     if (!body || typeof body !== 'object' || Array.isArray(body)
       || Object.keys(body).some(key => !['password', 'passwordConfirmation'].includes(key))) {
-      throw new ExportRequestError('다운로드 요청 형식을 확인해주세요.');
+      throw new ExportRequestError('다운로드 요청을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 내려받아 주세요.');
     }
     const values = body as Record<string, unknown>;
     const error = exportPasswordError(values.password, values.passwordConfirmation);

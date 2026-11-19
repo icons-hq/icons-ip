@@ -25,7 +25,7 @@ import { AdminNotice } from '@/components/admin/console/AdminKit';
 function PolicySummary({ settings, effective, origins }: { settings: ShippingSettings; effective: ShippingSettingsEffective; origins: GoodsFulfillmentOrigin[] }) {
   const flag = (value: boolean | null) => value === null ? '미검토' : value ? '기본 정책에 따라 가능' : '제한 사유 개별 확인';
   return <dl className="grid min-w-60 gap-1 text-xs leading-relaxed [&_dd]:mb-1.5 [&_dd]:whitespace-pre-wrap [&_dd]:[overflow-wrap:anywhere] [&_dt]:font-medium">
-    <dt>출고지·실제 배송비 규칙</dt><dd>{origins.find(origin => origin.id === effective.originId)?.name ?? '출고지 미설정'}<ShippingSettingsDeliverySummary effective={effective} /></dd>
+    <dt>출고지·실제 배송비 규칙</dt><dd>{origins.find(origin => origin.id === effective.originId)?.name ?? '출고지 없음'}<ShippingSettingsDeliverySummary effective={effective} /></dd>
     {Object.hasOwn(effective, 'chargeGroup') ? <><dt>배송비 묶음그룹</dt><dd><ShippingChargeGroupSummary group={effective.chargeGroup} /></dd></> : null}
     {effective.fulfillment ? <><dt>고객 수령 방식</dt><dd><ShippingSettingsFulfillmentSummary value={effective.fulfillment} /></dd></> : null}
     <dt>반품·교환</dt><dd>반품 {flag(settings.claimPolicy.returnAllowed)} / 교환 {flag(settings.claimPolicy.exchangeAllowed)}</dd>
@@ -131,12 +131,12 @@ export function ShippingSettingsApplyDialog({ template, origins, identity, scope
         </TableRow>)}</TableBody></Table>{!pending && candidates?.total === 0 ? <p className="px-4 py-8 text-center text-sm text-muted-foreground">조건에 맞는 상품이 없습니다.</p> : null}</div>
         <ConsolePagination label="배송정보 적용 상품 페이지" page={candidates?.page ?? 1} pageSize={candidates?.pageSize ?? 20} total={candidates?.total ?? 0} unit="개" disabled={locked || !candidates} onPageChange={page => { void search(page); }} />
       </> : <>
-        <div className={INFO_PANEL}><strong className="font-medium">{preview.origin.name} · 현재 출고지 정책</strong><p className="text-muted-foreground">기본 배송비 {shippingSettingsMoney(preview.origin.baseFee)} · {preview.origin.freeThreshold === null ? '무료 기준 없음' : `${shippingSettingsMoney(preview.origin.freeThreshold)} 이상 무료`} · 기본 택배사 {preview.origin.defaultCarrier ?? '미설정'}</p><p className="text-muted-foreground">반송 주소: {preview.origin.returnAddress || '미설정'}</p>
+        <div className={INFO_PANEL}><strong className="font-medium">{preview.origin.name} · 현재 출고지 정책</strong><p className="text-muted-foreground">기본 배송비 {shippingSettingsMoney(preview.origin.baseFee)} · {preview.origin.freeThreshold === null ? '무료 기준 없음' : `${shippingSettingsMoney(preview.origin.freeThreshold)} 이상 무료`} · 기본 택배사 {preview.origin.defaultCarrier ?? '지정 안 됨'}</p><p className="text-muted-foreground">반송 주소: {preview.origin.returnAddress || '등록 안 함'}</p>
           <p className="text-muted-foreground">착불 수납 조건 {preview.origin.collectReady ? `준비됨${preview.origin.collectorName ? ` · ${preview.origin.collectorName}` : ''}` : '준비되지 않음'}</p></div>
         <p className={NOTE}>{preview.goods.length}개 선택 상품의 출고지·기본 배송비·반품 및 교환 조건을 바꿉니다. {delivery.mode === 'preserve'
           ? '상품의 기존 수량별·착불 설정은 유지합니다. 사용 중인 수량별 배송비가 기본 배송비보다 우선합니다.'
           : '확장 배송비는 이 템플릿에 저장된 상태와 조건으로 변경합니다.'}</p>
-        <p className={NOTE}>묶음그룹은 {chargeGroup.mode === 'preserve' ? '현재 배정을 유지합니다.' : chargeGroup.mode === 'clear' ? '배정을 명시적으로 해제합니다.' : `${preview.targetGroup?.name ?? '선택한 그룹'}으로 지정합니다.`} 그룹에 지정된 상품은 실제 주문의 묶음 대상 수량·금액으로 함께 계산합니다.</p>
+        <p className={NOTE}>묶음그룹은 {chargeGroup.mode === 'preserve' ? '현재 배정을 유지합니다.' : chargeGroup.mode === 'clear' ? '배정을 해제합니다(그룹 없이 상품·출고지 배송비로 계산).' : `${preview.targetGroup?.name ?? '선택한 그룹'}으로 지정합니다.`} 그룹에 지정된 상품은 실제 주문의 묶음 대상 수량·금액으로 함께 계산합니다.</p>
         <p className={NOTE}>{preview.template.settings.fulfillment?.mode === 'replace' ? '선택한 상품의 수령 방식·배송비·설치비·수령 안내를 이 템플릿으로 변경합니다. 기존 디지털 파일 연결은 새 주문에서 해제됩니다.' : '상품별 수령 방식·설치비·다운로드 파일·수령 안내는 유지합니다.'} 이미 확정된 주문의 수령 조건과 파일은 유지됩니다.</p>
         <p className={NOTE}>기존 배송 안내문구와 주문에 확정된 배송비·회수 주소는 유지됩니다. 복수구매 할인과 합산군 구성은 변경하지 않으며 지역 추가료와 최종 배송비는 주문 시 확인합니다.</p>
         {preview.goods.some(good => good.familyGoodIds.length > 1) ? <p className={NOTE}>원상품의 출고지·기본 배송비와 확장 배송 정책은 합산군 전체의 배송비 계산에 사용됩니다. 수령 방식·반품 및 교환 안내·템플릿 연결은 직접 선택한 상품에 저장합니다.</p> : null}

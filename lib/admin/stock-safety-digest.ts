@@ -39,12 +39,12 @@ export const STOCK_DIGEST_STATUS_LABELS: Record<StockDigestDeliveryStatus, strin
 export const STOCK_DIGEST_ERROR_LABELS: Record<string, string> = {
   provider_not_configured: '메일 발송 설정 전',
   delivery_disabled: '요약 메일이 꺼져 있음',
-  provider_retryable: '메일 서버 일시 오류(다시 시도)',
-  provider_rejected: '메일 서버가 거절',
+  provider_retryable: '메일 발송 일시 오류(자동으로 다시 시도)',
+  provider_rejected: '메일 반송·발송 거절(주소 확인 필요)',
   provider_suppressed: '수신 거부 주소',
   delivery_in_progress: '발송 처리 중',
   delivery_needs_review: '결과 확인 필요',
-  delivery_outcome_unknown: '발송 결과 불명',
+  delivery_outcome_unknown: '발송 결과를 확인하지 못함',
   digest_expired: '하루가 지나 보내지 않음',
 };
 

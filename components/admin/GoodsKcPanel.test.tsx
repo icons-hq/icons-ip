@@ -22,7 +22,7 @@ describe('KC 모델 검토 화면', () => {
   it('프리셋은 검토된 상품에도 새 미검토 모델만 추가하고 이전 검토 표기를 숨긴다', () => {
     const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, status: 'reviewed', reviewedAt: '2026-09-01T00:00:00Z', reviewerName: '이전 검토자' }} onSaved={() => {}}
       templateRequest={{ id: 'preset-request', template: { family: 'living', scheme: 'not_applicable', publicNote: '합성 해당 없음 안내' } }} />);
-    expect(html).toContain('KC 미검토 초안 · 미저장');
+    expect(html).toContain('KC 미검토 · 저장하지 않은 입력 있음');
     expect(html).toContain('합성 해당 없음 안내');
     expect(html).toContain('모델 1 모델명');
     expect(html).not.toContain('모델 2 모델명');
@@ -141,7 +141,7 @@ describe('KC 모델 검토 화면', () => {
     const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 2, status: 'reviewed',
       reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자', models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}}
       templateRequest={{ id: 'preset-request', template: { family: 'living', scheme: 'safety_confirmation', publicNote: '' } }} />);
-    expect(html).toContain('<p role="status">KC 미검토 초안 · 미저장');
+    expect(html).toContain('<p role="status">KC 미검토 · 저장하지 않은 입력 있음');
     const details = html.match(/<details([^>]*)><summary[^>]*>모델 상세 보기·고치기<\/summary>/);
     expect(details?.[1]).toContain('data-kc-model-details=""');
     expect(details?.[1]).toContain('open=""');

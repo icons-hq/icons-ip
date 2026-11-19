@@ -53,7 +53,7 @@ export function ShippingSettingsTemplatesScreen({ data, origins, regions, accoun
       <ConsoleFilterActions><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={withSelection(SHIPPING_SETTINGS_PATH)}>초기화</Link><button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">검색</button></ConsoleFilterActions>
     </form>
     {message ? <AdminNotice role="status" tone="neutral">{message}</AdminNotice> : null}
-    {blocked ? <AdminNotice role="alert" tone="danger">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 이 화면을 다시 열어주세요.</AdminNotice> : null}
+    {blocked ? <AdminNotice role="alert" tone="danger">로그인 계정이 바뀌었거나 로그인이 끊겼습니다. 지금 로그인한 계정으로 이 화면을 새로고침해주세요.</AdminNotice> : null}
     {identity ? pending.map(context => <PendingOperation key={context.operationId} context={context} identity={identity} scope={scope} onReceipt={receipt => {
       setMessage(receipt.state === 'sealed' ? '미처리 요청을 종료했습니다. 최신 내용을 확인하고 다시 진행해주세요.'
         : receipt.state === 'saved' ? `‘${receipt.template?.name}’ 버전 ${receipt.template?.revision}의 저장 결과를 확인했습니다.` : `${receipt.appliedCount}개 상품의 적용 결과를 확인했습니다.`);

@@ -105,8 +105,8 @@ export function StatsTrafficScreen({report,filters,marketing=false,noticeReport,
     <li>링크 유입은 발급된 링크의 목적지 화면을 연 횟수입니다. 새로고침도 열람이며 HTTP 리다이렉트·프리패치는 세지 않습니다.</li>
     <li>주문 생성 때 마지막으로 관측한 외부·링크 경로를 고정하고, 해당 주문이 7일 내 카드 승인 또는 무통장 입금 확인으로 확정되면 방문일에 귀속합니다. 전액 적립금 등 결제금액 0원 주문과 티켓은 제외합니다.</li>
     <li>실제 결제금액에는 할인·적립금·배송비가 반영됩니다. 총액은 이후 환불에도 유지하고 완료 환불금액을 별도로 차감합니다. 상품·IP·카테고리별 주문은 방문한 상품을 실제 구매한 경우이며 금액을 임의 배분하지 않습니다.</li>
-    <li>하나의 방문이 여러 항목에 포함될 수 있어 항목별 세션·전환을 더한 값은 전체와 다릅니다. 광고비 원장이 없어 광고비와 ROAS는 미제공입니다.</li>
-    <li>원자료·주문 연결은 90일, 식별자를 제거한 일별 합계는 13개월 보존합니다. 보존 합계는 최종 관측 시점 이후의 환불을 반영하지 않습니다. 수집 전·중단·관측 공백·보존 만료는 0으로 표시하지 않습니다.</li>
+    <li>하나의 방문이 여러 항목에 포함될 수 있어 항목별 세션·전환을 더한 값은 전체와 다릅니다. 광고비 기록이 없어 광고비와 ROAS는 보여 주지 않습니다.</li>
+    <li>원자료·주문 연결은 90일, 누구인지 알 수 있는 정보를 지운 일별 합계는 13개월 보존합니다. 보존 합계는 최종 관측 시점 이후의 환불을 반영하지 않습니다. 수집 전·중단·관측 공백·보존 만료는 0으로 표시하지 않습니다.</li>
    </ul></details>
    <details className={DETAILS}><summary className={DETAILS_SUMMARY}>날짜별 집계 상태</summary><ul className={DETAILS_LIST}><li>조회 기간: {coverageText(report.coverage)}</li>{report.comparisonCoverage?<li>비교 기간: {coverageText(report.comparisonCoverage)}</li>:null}{report.trend.map(row=><li key={row.date}>{statsDateLabel(row.date)}: {row.states.map(state=>TRAFFIC_STATE_LABELS[state]||state).join(', ')}{row.archived?' · 합계만 보존':''}</li>)}</ul></details>
   </>}

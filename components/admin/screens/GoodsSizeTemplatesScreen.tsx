@@ -45,7 +45,7 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
     local.capture({ baseRevision: fixed.revision, name: fixed.name, chart: fixed.chart, request: fixed }, true);
     let result: GoodsSizeResult<GoodsSizeTemplate>;
     try { result = await saveGoodsSizeTemplateAction(fixed.id, fixed.name, fixed.chart, fixed.archived, fixed.revision, fixed.operationId); }
-    catch { result = { ok: false, uncertain: true, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }; }
+    catch { result = { ok: false, uncertain: true, error: '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.' }; }
     busy.current = false; if (!mounted.current) return; setPending(false);
     if (!result.ok) {
       setMessageError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); setConflict(Boolean(result.conflict));

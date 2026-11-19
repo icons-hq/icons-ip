@@ -8,7 +8,7 @@ import { loadGoodsPhotos } from '@/lib/admin/goods-photo-library.server';
 
 export async function findGoodsPhotosAction(query: string, archived: boolean, page: number): Promise<{ data: GoodsPhotoPage } | { error: string }> {
   if (!await requireAdminActionAccess(GOODS_PHOTOS_PATH)) return { error: '관리자 권한이 필요합니다.' };
-  if (typeof query !== 'string' || query.length > 100 || typeof archived !== 'boolean' || !Number.isSafeInteger(page) || page < 1 || page > 100000) return { error: '검색 조건을 확인해주세요.' };
+  if (typeof query !== 'string' || query.length > 100 || typeof archived !== 'boolean' || !Number.isSafeInteger(page) || page < 1 || page > 100000) return { error: '검색 조건을 읽지 못했습니다. 검색어를 100자 이내로 줄이거나 초기화한 뒤 다시 검색해주세요.' };
   // R20: 저장된 이름(NFC)과 같은 형태로 찾는다. macOS에서 붙여 넣은 NFD 검색어도 걸린다.
   try { return { data: await loadGoodsPhotos(normalizeGoodsPhotoQuery(query), archived, page) }; }
   catch (error) { unstable_rethrow(error); return { error: '사진 보관함을 불러오지 못했습니다. 다시 조회해주세요.' }; }
@@ -20,7 +20,7 @@ export async function findGoodsPhotosAction(query: string, archived: boolean, pa
 export async function saveGoodsPhotoAction(input: GoodsPhotoInput, options?: { revalidate?: boolean }): Promise<{ id: string; revision: number } | { error: string }> {
   if (!await requireAdminActionAccess(GOODS_PHOTOS_PATH)) return { error: '관리자 권한이 필요합니다.' };
   const photo = input && typeof input === 'object' && typeof input.name === 'string' ? { ...input, name: input.name.normalize('NFC') } : input;
-  if (!validGoodsPhotoInput(photo)) return { error: '사진 이름(1~100자)과 업로드 상태를 확인해주세요.' };
+  if (!validGoodsPhotoInput(photo)) return { error: '사진 이름을 1~100자로 입력해주세요. 이름이 맞는데도 이 안내가 나오면 사진을 다시 올려주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_goods_photo', { p_id: photo.id, p_image_path: photo.imagePath, p_name: photo.name.trim(), p_expected_revision: photo.revision, p_archived: photo.archived });

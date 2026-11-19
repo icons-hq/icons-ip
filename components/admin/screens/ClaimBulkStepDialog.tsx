@@ -201,7 +201,7 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{session.step === 'collect'
           ? '고른 요청의 출고지 입고를 한 번에 확인합니다. 환급 기한은 실제 입고일부터 셉니다.'
-          : '결제사 취소가 겹치지 않게 한 건씩 순서대로 확정합니다. 금액과 제외 사유는 서버가 지금 다시 읽은 값입니다.'}</DialogDescription>
+          : '결제사 취소가 겹치지 않게 한 건씩 순서대로 확정합니다. 금액과 제외 사유는 이 창을 열 때 새로 불러온 값입니다.'}</DialogDescription>
       </DialogHeader>
       {result ? <>
         {result.error ? <AdminNotice role="alert" tone="danger">{adminClaimCopy(result.error)}</AdminNotice> : null}

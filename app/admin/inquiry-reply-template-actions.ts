@@ -11,17 +11,17 @@ import { INQUIRY_TEMPLATE_CATEGORIES, INQUIRY_TEMPLATE_PAGE_SIZE, INQUIRY_TEMPLA
 
 type Failure = { error: string; uncertain?: boolean };
 function failure(message: string): string {
-  if (message.includes('inquiry_template_changed')) return '다른 작업에서 템플릿을 변경했습니다. 입력을 유지했으니 최신 저장본과 비교해주세요.';
-  if (message.includes('inquiry_template_archived')) return '삭제된 템플릿입니다. 삭제한 템플릿에서 복구한 뒤 수정해주세요.';
+  if (message.includes('inquiry_template_changed')) return '다른 사람이 먼저 템플릿을 바꿨습니다. 입력을 유지했으니 [최신 저장본 비교]로 바뀐 내용을 보거나 [검색]으로 목록을 새로 확인해주세요.';
+  if (message.includes('inquiry_template_archived')) return '삭제된 템플릿입니다. [삭제한 템플릿]을 체크하고 검색해 복구한 뒤 수정해주세요.';
   if (message.includes('inquiry_template_not_found')) return '템플릿을 찾을 수 없습니다. 입력을 유지하고 목록을 다시 확인해주세요.';
-  if (message.includes('staff_required')) return '관리자 권한을 확인해주세요.';
+  if (message.includes('staff_required')) return '관리자 권한이 필요합니다.';
   return '템플릿을 저장하지 못했습니다. 입력과 최신 상태를 확인해주세요.';
 }
 export async function listInquiryReplyTemplatesAction(input: { query: string; category: string; archived: boolean; page: number }): Promise<{ data: InquiryTemplateList } | Failure> {
   if (!await requireAdminActionAccess(INQUIRY_TEMPLATE_PATH)) return { error: '관리자 권한이 필요합니다.' };
   if (!input || typeof input.query !== 'string' || input.query.length > 100 || typeof input.archived !== 'boolean'
     || !Number.isSafeInteger(input.page) || input.page < 1 || input.page > 100000
-    || (input.category !== '' && !INQUIRY_TEMPLATE_CATEGORIES.some(option => option.value === input.category))) return { error: '검색 조건을 확인해주세요.' };
+    || (input.category !== '' && !INQUIRY_TEMPLATE_CATEGORIES.some(option => option.value === input.category))) return { error: '검색 조건을 확인해주세요. 제목은 100자까지 검색할 수 있습니다.' };
   try {
     const client = await createClient();
     let request = client.from('inquiry_reply_templates').select('id,category,title,body,revision,archived_at,updated_at', { count: 'exact' });
@@ -37,7 +37,7 @@ export async function listInquiryReplyTemplatesAction(input: { query: string; ca
 }
 export async function readInquiryReplyTemplateAction(id: string): Promise<{ template: InquiryReplyTemplate | null } | Failure> {
   if (!await requireAdminActionAccess(INQUIRY_TEMPLATE_PATH)) return { error: '관리자 권한이 필요합니다.' };
-  if (!isUuid(id)) return { error: '템플릿을 확인해주세요.' };
+  if (!isUuid(id)) return { error: '템플릿을 찾지 못했습니다. 목록에서 다시 선택해주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.from('inquiry_reply_templates').select('id,category,title,body,revision,archived_at,updated_at').eq('id', id).maybeSingle();
@@ -48,15 +48,15 @@ export async function readInquiryReplyTemplateAction(id: string): Promise<{ temp
 }
 export async function readInquiryTemplateOperationAction(operationId: string): Promise<{ receipt: InquiryTemplateReceipt | null } | Failure> {
   if (!await requireAdminActionAccess(INQUIRY_TEMPLATE_PATH)) return { error: '관리자 권한이 필요합니다.' };
-  if (!isUuid(operationId)) return { error: '저장 요청을 확인해주세요.' };
+  if (!isUuid(operationId)) return { error: '확인할 저장 기록을 찾지 못했습니다. 화면을 새로고침해주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_get_inquiry_reply_template_operation', { p_operation_id: operationId });
-    if (error) return { error: '저장 결과를 확인하지 못했습니다. 같은 요청을 다시 조회해주세요.' };
+    if (error) return { error: '저장 결과를 불러오지 못했습니다. [같은 요청의 저장 결과 확인]을 다시 눌러주세요.' };
     const receipt = data === null ? null : parseInquiryTemplateReceipt(data);
-    if (data !== null && receipt?.operationId !== operationId) return { error: '저장 결과의 요청 정보를 확인하지 못했습니다.' };
+    if (data !== null && receipt?.operationId !== operationId) return { error: '저장 결과가 이 편집과 맞지 않습니다. 화면을 새로고침한 뒤 목록에서 템플릿을 확인해주세요.' };
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 확인하지 못했습니다. 같은 요청을 다시 조회해주세요.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 불러오지 못했습니다. [같은 요청의 저장 결과 확인]을 다시 눌러주세요.' }; }
 }
 export async function mutateInquiryReplyTemplateAction(input: unknown): Promise<{ receipt: InquiryTemplateReceipt } | Failure> {
   if (!await requireAdminActionAccess(INQUIRY_TEMPLATE_PATH)) return { error: '관리자 권한이 필요합니다.' };
@@ -70,9 +70,9 @@ export async function mutateInquiryReplyTemplateAction(input: unknown): Promise<
     const { data, error: readError } = await client.rpc('admin_get_inquiry_reply_template_operation', { p_operation_id: value.operationId });
     const receipt = parseInquiryTemplateReceipt(data);
     if (readError || !receipt || receipt.operationId !== value.operationId || receipt.templateId !== value.templateId || receipt.action !== value.action) {
-      return { error: '저장 결과가 불확실합니다. 같은 요청의 결과를 먼저 확인해주세요.', uncertain: true };
+      return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 먼저 눌러주세요. 결과만 확인하므로 두 번 저장되지 않습니다.', uncertain: true };
     }
     revalidatePath(INQUIRY_TEMPLATE_PATH);
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과가 불확실합니다. 같은 요청의 결과를 먼저 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 먼저 눌러주세요. 결과만 확인하므로 두 번 저장되지 않습니다.', uncertain: true }; }
 }

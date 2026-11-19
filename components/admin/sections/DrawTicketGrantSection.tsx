@@ -61,15 +61,15 @@ export function DrawTicketGrantSection({
   return (
     <section className="flex min-w-0 flex-col gap-4">
       <p className="max-w-prose text-sm text-muted-foreground">
-        특정 회원에게 카드팩을 직접 발급합니다. 사유와 실행자가 감사 로그에 남고, 같은 요청을
-        두 번 보내도 중복 발급되지 않습니다. 자동 발급(주문 결제 완료)과 집계가 분리됩니다.
+        특정 회원에게 카드팩을 직접 발급합니다. 사유와 발급한 사람이 감사 기록에 남습니다.
+        발급 버튼을 여러 번 눌러도 한 번만 발급됩니다. 주문 결제 완료로 자동 발급된 카드팩과는 따로 집계합니다.
       </p>
 
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {!poolOptions.length ? (
             <AdminNotice role="status" title="발급할 수 있는 카드풀이 없습니다." tone="warning">
-              카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
+              카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 연결한 뒤 다시 시도해주세요.
             </AdminNotice>
           ) : (
             <>

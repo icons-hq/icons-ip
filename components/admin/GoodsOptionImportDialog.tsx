@@ -89,7 +89,7 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
     if (!canContinue(captured.fingerprint, sequence) || captured.includePrices !== live.current.includePrices) { setError(STALE); return; }
     if (!result.ok) { setError(result.error); return; }
     if (result.accountId !== captured.context.accountId || result.source.id !== sourceId) { setError('현재 계정과 불러올 상품을 확인하지 못했습니다. 다시 비교해주세요.'); return; }
-    if (result.targetVersion !== goodsOptionImportTargetVersion(captured.context.target)) { setError('상품을 연 뒤 서버의 옵션·가격·재고가 바뀌었습니다. 작성 문구를 보관하고 상품 화면을 새로고침해주세요.'); return; }
+    if (result.targetVersion !== goodsOptionImportTargetVersion(captured.context.target)) { setError('이 상품 화면을 연 뒤 다른 곳에서 옵션·가격·재고가 바뀌었습니다. 입력하던 내용을 따로 적어 둔 뒤 상품 화면을 새로고침해주세요.'); return; }
     const planned = planGoodsOptionImport({ current: captured.currentRows, source: result.source, basePrice: captured.basePrice, includePrices: captured.includePrices });
     if (!planned.ok) { setError(planned.error); return; }
     setComparison({ source: result.source, targetVersion: result.targetVersion, fingerprint: captured.fingerprint, includePrices: captured.includePrices, plan: planned.plan });
@@ -112,7 +112,7 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
   const blocked = Boolean(context.blockedReason) || context.pending;
   return <CustomerServiceDialog title="다른 상품 옵션 불러오기" onClose={onClose} wide>
     <section className="flex min-w-0 flex-col gap-4 text-sm" data-good-option-import-dialog="">
-      <p className="text-muted-foreground">상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·옵션 자동코드를 유지하고, 새 조합은 재고 칸을 비워 두니 저장 전에 직접 입력해주세요(재고가 없으면 0). 적용 후 상품을 저장해야 반영됩니다.</p>
+      <p className="text-muted-foreground">상품 하나의 선택형 옵션을 지금 작성 중인 상품에 가져옵니다. 이미 있는 조합은 기존 옵션을 그대로 쓰고 재고·옵션 자동코드도 그대로 둡니다. 새 조합은 재고 칸이 비어 있으니 저장 전에 직접 입력해주세요(재고가 없으면 0). 적용한 뒤 상품을 저장해야 반영됩니다.</p>
       {context.blockedReason && <p className="text-destructive" role="alert">{context.blockedReason}</p>}
       <div className="grid min-w-0 items-end gap-3 sm:grid-cols-[9.5rem_minmax(0,1fr)_minmax(0,1fr)_auto]" role="search" aria-label="옵션을 가져올 상품 검색">
         <div className="flex min-w-0 flex-col gap-2">
@@ -144,12 +144,12 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
       </div>
       <ConsolePagination label="옵션 원본 상품 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} unit="개" disabled={busy || blocked} onPageChange={page => void run(sequence => search({ ...appliedFilters, page }, sequence))} />
       <label className="inline-flex w-fit cursor-pointer items-center gap-2 font-medium has-disabled:cursor-not-allowed has-disabled:opacity-50"><input type="checkbox" checked={includePrices} disabled={busy || blocked} onChange={event => setIncludePrices(event.target.checked)} />옵션가도 불러오기</label>
-      <p className="text-muted-foreground">선택하면 원본의 일반 저장 기준가와 옵션 금액의 차액을 적용합니다. 현재 상품의 판매가·할인·판매기간은 유지합니다. 원본 재고·옵션 자동코드·ERP·KC 정보와 직접입력형 옵션은 가져오지 않습니다.</p>
+      <p className="text-muted-foreground">체크하면 원본 상품의 옵션가(옵션 판매가에서 원본 판매가를 뺀 금액)를 그대로 가져옵니다. 지금 상품의 판매가·할인·판매기간은 바뀌지 않습니다. 원본 재고·옵션 자동코드·ERP·KC 정보와 직접입력형 옵션은 가져오지 않습니다.</p>
       {stale && <p className="text-destructive" role="alert">{STALE}</p>}
       {comparison && <section className="flex min-w-0 flex-col gap-3 border-t pt-4" aria-label="옵션 적용 전 비교">
         <h3 className="text-base leading-snug font-medium">{comparison.source.name} · 적용 전 비교</h3>
         <p>기존 조합 {comparison.plan.retained}개 유지 · 새 옵션 {comparison.plan.added}개 · 기존 옵션 {comparison.plan.stopped}개 사용 중지 · 기존 옵션가 {comparison.plan.priceChanged}개 변경</p>
-        <p className="text-muted-foreground">원본에 없는 기존 옵션은 ID·재고·주문 기록을 보존하며 사용 중지합니다. 이미 중지된 옵션은 자동으로 사용 상태가 되지 않습니다. 옵션 구성이 바뀌면 저장 후 KC를 다시 검토해주세요.</p>
+        <p className="text-muted-foreground">원본에 없는 기존 옵션은 지우지 않고 사용 중지합니다. 재고·주문 기록은 그대로 남습니다. 이미 중지된 옵션은 자동으로 다시 사용 상태가 되지 않습니다. 옵션 구성이 바뀌면 저장 후 KC를 다시 검토해주세요.</p>
         <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="불러올 옵션과 보존할 기존 옵션" tabIndex={0}>
           <Table className="min-w-[41rem]"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col" className={HEAD_CLASS}>옵션</TableHead><TableHead scope="col" className={HEAD_CLASS}>처리</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>현재 옵션가</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>적용 옵션가</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>적용 판매금액</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>재고수량</TableHead></TableRow></TableHeader>
             <TableBody>{comparison.plan.changes.map((row, index) => <TableRow key={index}><TableCell className="px-3 whitespace-normal wrap-anywhere">{row.name}</TableCell><TableCell className="px-3">{row.kind === 'added' ? '새 옵션' : row.kind === 'stopped' ? '사용 중지·보존' : row.active ? '기존 유지' : '기존 중지 유지'}</TableCell>

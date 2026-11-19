@@ -18,27 +18,27 @@ export async function parseTrackingWorkbook(upload:Buffer,carriers:ShippingCarri
  const sheets=workbook.worksheets.filter(sheet=>sheet.name!=='배송 운영 안내'&&sheet.name!==WORKBOOK_INFO_SHEET_NAME&&sheet.actualRowCount>0);
  const supplement=workbook.getWorksheet('배송 운영 안내');
  const info=workbook.getWorksheet(WORKBOOK_INFO_SHEET_NAME);
- if(sheets.length!==1)throw new Error('운송장 양식은 내용이 있는 시트 하나로 올려주세요.');
+ if(sheets.length!==1)throw new Error('운송장 파일에는 내용이 있는 시트가 하나만 있어야 합니다. 다른 시트를 지우거나 비운 뒤 다시 올려주세요(내려받을 때 함께 온 안내 시트는 그대로 둬도 됩니다).');
  if(supplement){
   if(supplement.columnCount!==WAREHOUSE_OPERATION_HEADERS.length||supplement.rowCount>TRACKING_IMPORT_ROW_LIMIT+1
    ||!WAREHOUSE_OPERATION_HEADERS.every((header,index)=>{const cell=readSafeWorkbookCell(supplement.getCell(1,index+1));return !cell.error&&cell.value===header;}))
-   throw new Error('배송 운영 안내 시트의 형식을 확인해주세요.');
-  supplement.eachRow(row=>row.eachCell(cell=>{if(readSafeWorkbookCell(cell).error)throw new Error('배송 운영 안내 시트에 허용되지 않는 셀이 있습니다.');}));
+   throw new Error('배송 운영 안내 시트가 내려받은 모양과 다릅니다. 이 시트는 고치지 말고 그대로 두거나 시트째 지운 뒤 다시 올려주세요.');
+  supplement.eachRow(row=>row.eachCell(cell=>{if(readSafeWorkbookCell(cell).error)throw new Error('배송 운영 안내 시트에 수식·오류 값·날짜가 든 칸이 있습니다. 이 시트는 고치지 말고 그대로 두거나 시트째 지운 뒤 다시 올려주세요.');}));
  }
  if(info){
   // ICONS 표준 양식 맨 뒤의 안내 시트다. 내용을 읽지는 않지만 수식이 든 파일은 거절한다.
-  if(info.columnCount>2||info.rowCount>TRACKING_IMPORT_ROW_LIMIT)throw new Error('내려받기 정보 시트의 형식을 확인해주세요.');
-  info.eachRow(row=>row.eachCell(cell=>{if(readSafeWorkbookCell(cell).error)throw new Error('내려받기 정보 시트에 허용되지 않는 셀이 있습니다.');}));
+  if(info.columnCount>2||info.rowCount>TRACKING_IMPORT_ROW_LIMIT)throw new Error('내려받기 정보 시트가 내려받은 모양과 다릅니다. 이 시트는 고치지 말고 그대로 두거나 시트째 지운 뒤 다시 올려주세요.');
+  info.eachRow(row=>row.eachCell(cell=>{if(readSafeWorkbookCell(cell).error)throw new Error('내려받기 정보 시트에 수식·오류 값·날짜가 든 칸이 있습니다. 이 시트는 고치지 말고 그대로 두거나 시트째 지운 뒤 다시 올려주세요.');}));
  }
  const sheet=sheets[0];
  // 옛 출고지시 파일은 안내 1행이 머리글 위에 있어 그만큼 행이 하나 많다.
  if(sheet.rowCount>TRACKING_IMPORT_ROW_LIMIT+(smartStoreHeaderRow(sheet)??1))throw new Error('운송장은 한 번에 1,000줄까지 등록할 수 있습니다.');
  const smartStoreReply=parseSmartStoreReply(sheet,carriers);
  if(smartStoreReply)return smartStoreReply;
- if(info?.actualRowCount&&sheet.columnCount<=3)throw new Error('운송장 양식은 내용이 있는 시트 하나로 올려주세요.');
+ if(info?.actualRowCount&&sheet.columnCount<=3)throw new Error('운송장 파일에는 내용이 있는 시트가 하나만 있어야 합니다. 다른 시트를 지우거나 비운 뒤 다시 올려주세요(내려받을 때 함께 온 안내 시트는 그대로 둬도 됩니다).');
  const nativeReply=parseWarehouseReply(sheet)??parseSeowonReply(sheet);
  if(nativeReply)return nativeReply;
- if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 컬럼만 올려주세요. ICONS 표준 양식은 상품주문번호 머리글을, 김포 21열·남양주 송장양식 회신은 내려받은 헤더를 바꾸지 말고 올려주세요.');
+ if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 열만 올려주세요. ICONS 표준 양식은 상품주문번호 머리글을, 김포 21열·남양주 송장양식 회신은 내려받은 머리글을 바꾸지 말고 올려주세요.');
  const issues:TrackingImportParseResult['issues']=[];const lines:string[]=[];
  for(let index=1;index<=sheet.rowCount;index++){
   const row=sheet.getRow(index);const cells=[1,2,3].map(column=>readSafeWorkbookCell(row.getCell(column),column!==2));

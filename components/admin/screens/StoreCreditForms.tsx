@@ -15,8 +15,8 @@ import { SettingsFormGroup, SettingsSaveBar } from './StoreSettingsFormGroup';
 import { WonInput } from './StoreSettingsWonInput';
 
 /* 지급·사용·만료 기준을 구역별로 나눈다. name·검증은 칸마다 그대로다. */
-const EARN_FIELDS = [['earnMaxPerOrder', '주문당 적립 상한 (원)'], ['maxBalance', '보유 적립금 상한 (원)']] as const;
-const USE_FIELDS = [['minUse', '1회 사용 하한 (원)'], ['maxUse', '1회 사용 상한 (원)']] as const;
+const EARN_FIELDS = [['earnMaxPerOrder', '주문당 최대 적립 (원)'], ['maxBalance', '최대 보유 적립금 (원)']] as const;
+const USE_FIELDS = [['minUse', '1회 최소 사용 (원)'], ['maxUse', '1회 최대 사용 (원)']] as const;
 const EXPIRY_FIELDS = [['validityDays', '적립금 유효기간 (일)'], ['restoreGraceDays', '만료 후 복원 유효기간 (일)']] as const;
 const WON_FIELDS = new Set<string>(['earnMaxPerOrder', 'maxBalance', 'minUse', 'maxUse']);
 
@@ -57,17 +57,17 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
     <input type="hidden" name="operationId" value={state.operationId ?? operationId} />
     <input type="hidden" name="version" value={state.policy?.version ?? policy.version} />
     {/* 돈이 걸린 화면이다 — 저장하면 무엇이 언제 바뀌는지를 입력칸보다 먼저 말한다. */}
-    <AdminNotice title="저장하면 새 주문부터 바로 적용됩니다" tone="warning">기존 주문에 약속한 적립과 사용분 복원, 기존 원장은 바뀌지 않습니다.</AdminNotice>
+    <AdminNotice title="저장하면 새 주문부터 바로 적용됩니다" tone="warning">이미 들어온 주문의 적립 예정 금액, 그 주문을 취소할 때 돌려줄 적립금 기준, 지금까지의 적립금 내역은 바뀌지 않습니다.</AdminNotice>
     {/* 지금 켜져 있는지가 이 화면에서 제일 중요하다 — 맨 위 상자에 둔다(제출 값은 그대로다). */}
     <label className="flex items-start gap-2.5 rounded-lg border bg-muted/40 p-3 text-sm">
       <input className="mt-0.5" type="checkbox" name="enabled" checked={values.enabled === 'true'} onChange={event => set('enabled', String(event.target.checked))} />
-      <span className="flex min-w-0 flex-col gap-1"><span className="font-semibold">적립금 지급과 주문 사용 활성화</span>
-        <span className={NOTE}>활성화하려면 모든 수치와 정책 근거를 입력해주세요. 비활성 초안은 빈 값으로 저장할 수 있습니다.</span></span>
+      <span className="flex min-w-0 flex-col gap-1"><span className="font-semibold">적립금 지급과 주문 사용 켜기</span>
+        <span className={NOTE}>켜려면 아래 수치와 정책 승인 근거를 모두 입력해야 합니다. 꺼 둔 상태에서는 빈 칸이 있어도 저장할 수 있습니다.</span></span>
     </label>
     <SettingsFormGroup title="지급 기준">
       <AdminFormGrid>
         <AdminField label="거래확정 시 적립 방식" inputId="credit-earnKind"><NativeSelect className="w-full" id="credit-earnKind" name="earnKind" value={values.earnKind} onChange={event => changeEarnKind(event.target.value)}>
-          <option value="">미설정</option><option value="rate_bps">{adminGoodsCopy("할인 후 굿즈 금액의 정률")}</option><option value="fixed">거래확정 주문당 정액</option>
+          <option value="">선택 안 함</option><option value="rate_bps">{adminGoodsCopy("할인 후 굿즈 금액의 정률")}</option><option value="fixed">거래확정 주문당 정액</option>
         </NativeSelect></AdminField>
         <AdminField label={rateEarn ? '적립률 (%)' : '적립 금액 (원)'} inputId="credit-earnValue"
           error={rateInvalid ? '적립률은 0~100 사이, 소수 둘째 자리까지 입력해주세요.' : undefined}
@@ -81,17 +81,17 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
         {EARN_FIELDS.map(([key, label]) => policyField(key, label))}
       </AdminFormGrid>
     </SettingsFormGroup>
-    <SettingsFormGroup title="사용 기준" description={adminGoodsCopy("상품 쿠폰을 순서대로 적용한 뒤 남은 굿즈 금액에 적립금을 사용합니다. 배송비 사용은 제외하고 기존 최소 유상 결제액을 유지합니다. 현금 청구·환불액 차감은 발생하지 않습니다.")}>
+    <SettingsFormGroup title="사용 기준" description={adminGoodsCopy("고객은 상품 쿠폰을 적용하고 남은 굿즈 금액에만 적립금을 쓸 수 있습니다. 배송비에는 쓸 수 없고, 기존 최소 결제 금액 기준은 그대로 지킵니다. 적립금 사용으로 현금 청구나 환불액 차감은 생기지 않습니다.")}>
       <AdminFormGrid>{USE_FIELDS.map(([key, label]) => policyField(key, label))}</AdminFormGrid>
     </SettingsFormGroup>
     <SettingsFormGroup title="만료 기준">
-      <AdminFormGrid>{EXPIRY_FIELDS.map(([key, label]) => policyField(key, label, key === 'restoreGraceDays' ? '명시적으로 0일을 설정하면 이미 만료된 사용분은 복원 시에도 사용할 수 없습니다.' : undefined))}</AdminFormGrid>
+      <AdminFormGrid>{EXPIRY_FIELDS.map(([key, label]) => policyField(key, label, key === 'restoreGraceDays' ? '주문에 쓴 적립금을 취소·환불로 돌려줄 때 원래 만료일이 이미 지났으면, 돌려준 때부터 이 일수만큼 더 쓸 수 있습니다. 0을 넣으면 만료된 적립금은 돌려줘도 쓸 수 없습니다. 주문할 때의 값이 적용됩니다.' : undefined))}</AdminFormGrid>
     </SettingsFormGroup>
     <SettingsFormGroup title="환불 기준">
       <AdminFormGrid>
         <AdminField label="환불 주문에서 이미 사용한 원적립금" inputId="credit-refundEarnedCreditMode">
           <NativeSelect className="w-full" id="credit-refundEarnedCreditMode" name="refundEarnedCreditMode" value={values.refundEarnedCreditMode} onChange={event => set('refundEarnedCreditMode', event.target.value)}>
-            <option value="">미설정</option><option value="offset_future_credits">이후 적립·복원 금액에서 상계</option>
+            <option value="">선택 안 함</option><option value="offset_future_credits">이후 적립·복원 금액에서 상계</option>
           </NativeSelect>
         </AdminField>
       </AdminFormGrid>
@@ -127,7 +127,7 @@ export function StoreCreditAdjustmentForm({ userId, available, enabled, operatio
       <AdminField label="조정 사유" inputId="credit-reason" hint="고객의 적립금 이력에도 표시됩니다. 고객에게 안내할 수 있는 근거만 적어주세요."><Textarea id="credit-reason" name="reason" required maxLength={1000} rows={3} value={reason} onChange={event => setReason(event.target.value)} /></AdminField>
       <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '적립금 조정 저장'}</Button>
     </fieldset>
-    {!enabled ? <AdminNotice tone="warning">적립금 정책이 비활성 상태입니다. 정책을 설정하고 활성화해야 조정할 수 있습니다.</AdminNotice> : null}
+    {!enabled ? <AdminNotice tone="warning">적립금 정책이 꺼져 있어 조정할 수 없습니다. &lsquo;적립금 정책&rsquo; 화면에서 정책을 켠 뒤 조정해주세요.</AdminNotice> : null}
     {state.error ? <AdminNotice role="alert" tone="danger">{state.error}</AdminNotice> : null}{state.message ? <AdminNotice role="status" tone="success">{state.message} 현재 사용 가능 적립금: {state.available?.toLocaleString('ko-KR')}원</AdminNotice> : null}
   </form>;
 }

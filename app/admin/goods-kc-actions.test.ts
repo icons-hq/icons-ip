@@ -82,7 +82,7 @@ describe('KC 조회·저장 서버 경계', () => {
   });
   it('모호한 성공 응답으로 입력이 사라지지 않게 성공을 반환하지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: { changed: true }, error: null });
-    expect(await saveGoodsKcAction('g1', input)).toMatchObject({ ok: false, error: expect.stringContaining('결과를 확인하지 못했습니다') });
+    expect(await saveGoodsKcAction('g1', input)).toMatchObject({ ok: false, error: expect.stringContaining('저장됐는지 확인하지 못했습니다') });
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
 });

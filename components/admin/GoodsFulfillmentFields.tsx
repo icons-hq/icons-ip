@@ -18,7 +18,7 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
     <AdminField inputId="good-origin" label="출고지 (필수)" error={errors.originId}>
       <NativeSelect className="w-full" id="good-origin" name="originId" value={originId} onChange={(event) => setOriginId(event.target.value)} aria-invalid={Boolean(errors.originId)} aria-describedby={errors.originId ? "good-origin-error" : undefined}>
         <option value="">설정 전</option>
-        {origins.map((origin) => <option key={origin.id} value={origin.id} disabled={!origin.active && origin.id !== originId}>{origin.name}{origin.active ? '' : ' · 비활성'}</option>)}
+        {origins.map((origin) => <option key={origin.id} value={origin.id} disabled={!origin.active && origin.id !== originId}>{origin.name}{origin.active ? '' : ' · 사용 중지'}</option>)}
       </NativeSelect>
     </AdminField>
     <AdminField inputId="good-shipping-type" label="배송비 유형" error={errors.shippingFeeType}>
@@ -35,7 +35,7 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
     <div className={`${GOOD_NOTE_CLASS} col-span-full flex min-w-0 flex-col gap-1.5`} aria-live="polite" data-good-shipping-policy="">
       {feeType === 'policy' ? <>
         <strong className="font-medium">출고지 정책 적용</strong>
-        {origin ? <p className="text-muted-foreground wrap-anywhere">{origin.name} · 기본 배송비 {won(origin.baseFee)} · {origin.freeThreshold === null ? '무료배송 기준 없음' : `${won(origin.freeThreshold)} 이상 무료`}{!origin.active ? ' · 비활성 출고지, 확인 필요' : ''}</p> : <p className="text-muted-foreground">출고지 정책 확인 필요 · 출고지를 선택해주세요. 미확인 값은 0원으로 표시하지 않습니다.</p>}
+        {origin ? <p className="text-muted-foreground wrap-anywhere">{origin.name} · 기본 배송비 {won(origin.baseFee)} · {origin.freeThreshold === null ? '무료배송 기준 없음' : `${won(origin.freeThreshold)} 이상 무료`}{!origin.active ? ' · 사용 중지된 출고지, 확인 필요' : ''}</p> : <p className="text-muted-foreground">출고지 정책 확인 필요 · 출고지를 선택해주세요. 미확인 값은 0원으로 표시하지 않습니다.</p>}
         <a className="w-fit underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">출고지 정책 확인 (새 탭)</a>
       </> : <p className="text-muted-foreground">{feeType === 'free' ? '상품 기본 배송비 0원 · 지역 추가료는 별도 정책을 따릅니다.' : '상품 예외 배송비 · 같은 상품의 수량·옵션과 관계없이 한 번 부과합니다.'}</p>}
       <p className="text-muted-foreground wrap-anywhere">{region?.label ?? '지역 추가료 적용 상태 확인 필요'} · {region?.detail ?? '지역 정책에서 현재 적용 상태를 확인해주세요.'} <a className="text-foreground underline underline-offset-4" href="/admin/settings/shipping-regions" target="_blank" rel="noreferrer">지역 배송 정책 (새 탭)</a></p>

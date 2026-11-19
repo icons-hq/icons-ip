@@ -8,9 +8,9 @@ import { dispatchOperatorInvitations, prepareOperatorInvitationEntry } from '@/l
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 
-const uncertain = () => ({ error: '초대 처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true });
+const uncertain = () => ({ error: '초대 처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 초대는 한 번만 등록됩니다.', uncertain: true });
 function invitationError(error: { code?: string; message?: string }) {
-  if (error.code === 'PT409') return { error: '매니저 또는 초대 정보가 바뀌었습니다. 목록을 새로고침해주세요.' };
+  if (error.code === 'PT409') return { error: '다른 관리자가 먼저 매니저·초대 정보를 바꿨습니다. 목록을 새로고침해 현재 정보를 확인한 뒤 다시 처리해주세요.' };
   if (['22023', '23505', '23514', '42501'].includes(error.code ?? '')) {
     const messages: Record<string, string> = {
       operator_invitation_batch_limit: '한 번에 최대 10명까지 초대할 수 있습니다.',
@@ -21,7 +21,7 @@ function invitationError(error: { code?: string; message?: string }) {
       operator_invitation_not_pending: '수락 대기 중인 초대만 취소할 수 있습니다.',
       operator_setup_required: '먼저 기존 운영자의 매니저 역할 설정을 완료해주세요.',
       operator_limit: '매니저와 수락 대기 중인 초대를 합해 최대 1,000명까지 등록할 수 있습니다.',
-      operation_conflict: '다른 작업에 사용된 요청입니다. 목록을 새로고침해주세요.',
+      operation_conflict: '이 요청은 이미 다른 내용으로 처리됐습니다. 목록을 새로고침해 현재 상태를 확인한 뒤 다시 시도해주세요.',
     };
     return { error: messages[error.message ?? ''] ?? '현재 권한과 초대할 이름·이메일·역할을 확인해주세요.' };
   }
@@ -30,7 +30,7 @@ function invitationError(error: { code?: string; message?: string }) {
 async function deliver(ids: string[], actorId: string) {
   try {
     const result = await dispatchOperatorInvitations(ids, actorId);
-    return `발송 접수 ${result.accepted}명 · 발송 대기 ${result.pending}명 · 결과 확인 필요 ${result.needsReview}명${result.unavailable ? ` · 유효하지 않은 초대 ${result.unavailable}명` : ''}`;
+    return `발송 접수 ${result.accepted}명 · 발송 대기 ${result.pending}명 · 결과 확인 필요 ${result.needsReview}명${result.unavailable ? ` · 발송할 수 없는 초대 ${result.unavailable}명` : ''}`;
   } catch { return '초대는 등록되었습니다. 초대 내역에서 발송 상태를 확인하고 다시 시도해주세요.'; }
 }
 async function createInvitations(name: string, args: Record<string, unknown>, expectedIds: string[], accessRevision: number, actorId: string): Promise<OperatorInvitationWriteResult> {
@@ -54,7 +54,7 @@ export async function createOperatorInvitationsAction(inputs: OperatorInvitation
     const normalized = rows as OperatorInvitationInput[];
     if (new Set(normalized.map(row => row.id)).size !== normalized.length || new Set(normalized.map(row => row.email)).size !== normalized.length) return { error: '같은 이메일은 한 번만 입력해주세요.' };
     let entries: ReturnType<typeof prepareOperatorInvitationEntry>[];
-    try { entries = normalized.map(prepareOperatorInvitationEntry); } catch { return { error: '초대 이메일 발송 설정이 완료되지 않았습니다. 설정을 확인해주세요.' }; }
+    try { entries = normalized.map(prepareOperatorInvitationEntry); } catch { return { error: '초대 메일 발송 설정이 준비되지 않아 초대를 등록하지 않았습니다. 개발팀에 메일 발송 설정 확인을 요청해주세요.' }; }
     return await createInvitations('admin_create_operator_invitations', { p_entries: entries, p_expected_access_revision: accessRevision, p_operation_id: operationId }, normalized.map(row => row.id), accessRevision, auth.user.id);
   } catch (error) { unstable_rethrow(error); return uncertain(); }
 }
@@ -65,7 +65,7 @@ export async function reissueOperatorInvitationAction(invitationId: string, inpu
     const normalized = normalizeOperatorInvitationInput(input);
     if (!normalized || !isUuid(invitationId) || !isUuid(operationId) || normalized.id === invitationId || !Number.isSafeInteger(revision) || revision < 1 || !Number.isSafeInteger(accessRevision) || accessRevision < 1) return { error: '재초대할 이름·이메일·역할을 확인해주세요.' };
     let entry: ReturnType<typeof prepareOperatorInvitationEntry>;
-    try { entry = prepareOperatorInvitationEntry(normalized); } catch { return { error: '초대 이메일 발송 설정이 완료되지 않았습니다. 설정을 확인해주세요.' }; }
+    try { entry = prepareOperatorInvitationEntry(normalized); } catch { return { error: '초대 메일 발송 설정이 준비되지 않아 초대를 등록하지 않았습니다. 개발팀에 메일 발송 설정 확인을 요청해주세요.' }; }
     return await createInvitations('admin_reissue_operator_invitation', { p_invitation_id: invitationId, p_entry: entry, p_expected_revision: revision, p_expected_access_revision: accessRevision, p_operation_id: operationId }, [normalized.id], accessRevision, auth.user.id);
   } catch (error) { unstable_rethrow(error); return uncertain(); }
 }

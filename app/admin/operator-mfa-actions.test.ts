@@ -89,13 +89,13 @@ describe('기기 분실 2단계 인증 초기화', () => {
   it('삭제 뒤 세션 정리를 확인하지 못하면 같은 요청으로 다시 시도하게 한다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { profileId: target, factorCount: 2, sessionsRevoked: 3 }, error: null })
       .mockResolvedValueOnce({ data: null, error: { code: '08006', message: 'connection lost' } });
-    expect(await resetOperatorMfaAction(target, op)).toEqual({ error: expect.stringContaining('마지막 세션 정리'), uncertain: true });
+    expect(await resetOperatorMfaAction(target, op)).toEqual({ error: expect.stringContaining('마지막 로그아웃 처리'), uncertain: true });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it('삭제가 실패하면 같은 요청으로 다시 시도하게 한다', async () => {
     mocks.deleteFactor.mockResolvedValueOnce({ data: null, error: { message: 'unavailable' } });
-    expect(await resetOperatorMfaAction(target, op)).toEqual({ error: expect.stringContaining('같은 요청으로 다시 시도'), uncertain: true });
+    expect(await resetOperatorMfaAction(target, op)).toEqual({ error: expect.stringContaining('결과 확인 버튼을 눌러'), uncertain: true });
     mocks.listFactors.mockResolvedValueOnce({ data: null, error: { message: 'unavailable' } });
     expect(await resetOperatorMfaAction(target, op)).toHaveProperty('uncertain', true);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

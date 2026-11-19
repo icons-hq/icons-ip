@@ -74,7 +74,7 @@ const DECIDE_FAILED = '클레임을 처리하지 못했습니다. 최신 상태�
 const COLLECTION_FAILED = '수거 상태를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const REFUND_FAILED = '환불 기록을 남기지 못했습니다. 최신 상태를 확인해주세요.';
 const RESHIP_FAILED = '재출고를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
-const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다. 최신 클레임을 다시 확인해주세요.';
+const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다. 새로고침한 뒤 최신 요청에서 다시 저장해주세요.';
 const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 결제사 확인 오류를 확인한 뒤 다시 시도해주세요.';
 /** 정합화 결과 코드가 있는 실패. 코드별 조치를 찾을 수 있게 그대로 싣는다(QA-10). */
 function finalizeFailed(code: string) {
@@ -135,8 +135,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_refund_account_missing')) {
     return '등록된 환불계좌가 없습니다. 무통장 주문은 결제한 분이 주문 상세에서 환불계좌를 등록한 뒤 다시 진행해주세요. 선물 주문은 선물 요청 화면에서 등록합니다.';
   }
-  if (value.includes('claim_not_decidable')) return '지금 단계에서는 처리할 수 없습니다. 최신 상태를 확인해주세요.';
-  if (value.includes('claim_not_collectable')) return '수거 단계가 아닙니다. 최신 상태를 확인해주세요.';
+  if (value.includes('claim_not_decidable')) return '지금 단계에서는 처리할 수 없습니다. 다른 담당자가 먼저 처리했을 수 있으니 새로고침해 현재 단계를 확인해주세요.';
+  if (value.includes('claim_not_collectable')) return '수거 단계가 아닙니다. 새로고침해 현재 단계를 확인해주세요.';
   if (value.includes('claim_not_refundable')) return '환불을 접수할 수 있는 단계가 아닙니다.';
   if (value.includes('claim_not_reshippable')) return '입고 확인이 끝난 교환만 재출고할 수 있습니다.';
   if (value.includes('goods_group_retry')) return '상품 전환이나 재고 처리가 진행 중입니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
@@ -167,9 +167,9 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('invalid hold reason')) return '보류 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
-  if (value.includes('claim_operational_fee_conflict')) return '다른 운영자가 금액을 변경했습니다. 최신 클레임을 다시 열어주세요.';
-  if (value.includes('invalid_claim_operational_fee')) return '운영 확인액·비용 유형·메모·근거를 확인해주세요.';
-  if (value.includes('unknown shipping carrier')) return '등록되지 않은 택배사입니다.';
+  if (value.includes('claim_operational_fee_conflict')) return '다른 담당자가 먼저 금액을 바꿨습니다. 새로고침해 바뀐 금액을 확인한 뒤 다시 저장해주세요.';
+  if (value.includes('invalid_claim_operational_fee')) return '운영 확인액(0~1,000,000원)·비용 유형·금액 의미·메모(1~500자)·확인 근거(1~1,000자)를 확인해주세요.';
+  if (value.includes('unknown shipping carrier')) return '쓸 수 없는 택배사입니다. 택배사를 다시 골라주세요.';
   /* 운송장 등록 판정(SHP-030~032). 재출고·일괄 재출고 결과표가 같은 문구를 쓴다. */
   if (value.includes('tracking_number_in_use')) return '다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 교환품 상자의 운송장번호를 다시 확인해주세요.';
   if (value.includes('tracking_number_format_mismatch')) return '택배사의 운송장번호 형식(자릿수)과 맞지 않습니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.';
@@ -424,7 +424,7 @@ export async function recordOrderClaimCollectionAction(
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return {
     message: normalized.value.stage === 'collected'
-      ? adminGoodsCopy(`반송 굿즈 입고를 확인했습니다. 환급 기한은 실제 입고일(${normalized.value.receivedOn ?? '오늘'})부터 셉니다.`)
+      ? adminGoodsCopy(`반송 상품 입고를 확인했습니다. 환급 기한은 실제 입고일(${normalized.value.receivedOn ?? '오늘'})부터 셉니다.`)
       : '수거중으로 표시했습니다.',
   };
 }
@@ -638,7 +638,7 @@ async function finalizeClaimPayment(
     if (!input.canManagePayments) {
       return {
         ok: false,
-        error: '코페이 결제 취소 확인 권한이 없습니다. 대표 또는 계정 주매니저에게 요청해주세요. 권한 전환 전에는 기존 관리자에게 요청해주세요.',
+        error: '코페이 결제 취소를 확인할 권한(결제 관리)이 없습니다. 대표나 계정 주매니저에게 요청해주세요. 아직 새 권한 체계로 바뀌기 전이면 기존 관리자에게 요청해주세요.',
       };
     }
     try {
@@ -650,7 +650,7 @@ async function finalizeClaimPayment(
         operatorAttested: true,
       });
       if (result.outcome === 'in_progress') {
-        return { ok: false, error: '다른 운영 확인이 진행 중입니다. 잠시 뒤 다시 시도해주세요.' };
+        return { ok: false, error: '다른 담당자가 같은 결제의 취소 확인을 진행하고 있습니다. 잠시 뒤 다시 눌러주세요.' };
       }
       return { ok: true };
     } catch {
@@ -795,20 +795,20 @@ export async function recordOrderClaimRefundAction(
         const amounts = `반품배송비 ${krwAmountWords(deduction.deductionAmount)}을 뺀 ${krwAmountWords(deduction.refundAmount ?? 0)}`;
         return {
           message: cancelLabel
-            ? `환불 접수를 기록했습니다. ${amounts}을 환불합니다. ${cancelLabel} 부분 취소는 [환불 완료 확정]을 누를 때 발행됩니다.`
+            ? `환불 접수를 기록했습니다. ${amounts}을 환불합니다. ${cancelLabel} 부분 취소는 [환불 완료 확정]을 누를 때 결제사에 요청됩니다.`
             : `환불 접수를 기록했습니다. ${amounts}을 환불합니다.`,
         };
       }
       return {
         message: cancelLabel
-          ? `환불 접수를 기록했습니다. ${cancelLabel} 전액 취소는 [환불 완료 확정]을 누를 때 발행됩니다.`
+          ? `환불 접수를 기록했습니다. ${cancelLabel} 전액 취소는 [환불 완료 확정]을 누를 때 결제사에 요청됩니다.`
           : '환불 접수를 기록했습니다.',
       };
     }
     /* 이미 종결된 클레임에는 재고 복원·카드팩 회수가 방금 일어나지 않았다. 문구가
        일어나지 않은 일을 보고하면 운영자가 그 주문을 다시 확인할 근거를 잃는다. */
     if (!finalizationRan) {
-      return { message: '환불 완료를 원장에 기록했습니다. 주문 취소와 재고 복원은 이미 확정된 상태였습니다.' };
+      return { message: '환불 완료를 기록했습니다. 주문 취소와 재고 복원은 이미 끝나 있던 상태라 다시 하지 않았습니다.' };
     }
     if (deduction && cancelLabel) {
       /* 결제사가 부분 취소를 받지 않으면 정합화가 전액 환불로 돌렸을 수 있다 — 방금 확정된 결정을 다시 읽어 일어난 일만 말한다. */

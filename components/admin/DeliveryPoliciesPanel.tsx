@@ -50,11 +50,11 @@ function PolicyForm({ originId, policy, onSaved }: { originId: string; policy?: 
           maxLength={key === 'contactPhone' ? 40 : 100} /> : <Textarea className="font-normal" name={key} rows={2} maxLength={2000} defaultValue={policy?.[key] ?? ''} />}
       </label>)}
       <label className={FIELD_LABEL}>대리수령 허용 여부<NativeSelect className="w-full font-normal" name="allowDelegate" defaultValue={policy?.allowDelegate == null ? '' : String(policy.allowDelegate)}>
-        <option value="">미설정</option><option value="true">안내 조건에 따라 허용</option><option value="false">허용하지 않음</option>
+        <option value="">아직 정하지 않음</option><option value="true">안내 조건에 따라 허용</option><option value="false">허용하지 않음</option>
       </NativeSelect></label>
     </fieldset>
-    <p className="text-sm text-muted-foreground">활성화하려면 모든 실제 운영 조건과 근거가 필요합니다. 수령은 주문자의 일회 확인값과 운영자의 인계 기록을 함께 확인합니다.
-      발주확인 이후의 취소·반품은 기존 CS/클레임 검토를 따릅니다.</p>
+    <p className="text-sm text-muted-foreground">[근거 확인 후 활성화]를 누르려면 위 칸을 모두 실제 운영 조건과 근거로 채워야 합니다. 고객이 받았는지는 주문자의 1회용 확인값과 운영자의 인계 기록을 함께 보고 판단합니다.
+      발주확인 이후의 취소·반품은 지금처럼 CS와 취소·반품·교환 요청 처리 절차를 따릅니다.</p>
     {error && <p className={ALERT} role="alert">{error}</p>}
     <div className="flex flex-wrap gap-2">
       <Button disabled={pending} name="state" type="submit" value="draft" variant="outline">초안 저장</Button>
@@ -75,8 +75,8 @@ function SavedPolicy({ policy, canEdit, onSaved }: { policy: AdminDeliveryPolicy
   }
   return <div className="flex min-w-0 flex-col gap-2 border-t p-3">
     <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-      {DELIVERY_POLICY_TEXT_FIELDS.map((key) => <div className="flex min-w-0 flex-col gap-0.5" key={key}><dt className="text-xs text-muted-foreground">{LABELS[key]}</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{policy[key] ?? '미설정'}</dd></div>)}
-      <div className="flex min-w-0 flex-col gap-0.5"><dt className="text-xs text-muted-foreground">대리수령</dt><dd>{policy.allowDelegate === null ? '미설정' : policy.allowDelegate ? '안내 조건에 따라 허용' : '허용하지 않음'}</dd></div>
+      {DELIVERY_POLICY_TEXT_FIELDS.map((key) => <div className="flex min-w-0 flex-col gap-0.5" key={key}><dt className="text-xs text-muted-foreground">{LABELS[key]}</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{policy[key] ?? '입력 안 됨'}</dd></div>)}
+      <div className="flex min-w-0 flex-col gap-0.5"><dt className="text-xs text-muted-foreground">대리수령</dt><dd>{policy.allowDelegate === null ? '아직 정하지 않음' : policy.allowDelegate ? '안내 조건에 따라 허용' : '허용하지 않음'}</dd></div>
     </dl>
     {canEdit && policy.state === 'active' ? <Button className="w-fit" disabled={pending} onClick={stop} type="button" variant="outline">새 선택 중지</Button> : null}
     {error && <p className={ALERT} role="alert">{error}</p>}
@@ -99,7 +99,7 @@ export function DeliveryPoliciesPanel({ originId, canEdit = false }: { originId:
   const saved = (text: string) => { setNotice({ originId, text }); reload(); };
   return <section aria-labelledby={`delivery-policies-${originId}`} className="flex min-w-0 flex-col gap-3 border-t pt-4" data-delivery-policies="">
     <h3 className="text-sm font-medium" id={`delivery-policies-${originId}`}>배송·직접전달 운영 조건</h3>
-    <p className="text-sm text-muted-foreground">상품에서 허용한 방식은 주문서에서 선택할 수 있습니다. 결제 이후에는 고객 요청과 기존 비용 유지 동의를 기록해 변경합니다. 활성 정책의 조건은 보존되며, 변경은 새 버전으로 등록합니다.</p>
+    <p className="text-sm text-muted-foreground">상품에서 허용한 방식은 고객이 주문서에서 고를 수 있습니다. 결제한 뒤 수령 방식을 바꿀 때는 고객 요청과 &lsquo;이미 낸 비용 그대로&rsquo; 동의를 기록한 뒤 바꿉니다. 활성 상태인 조건은 고칠 수 없으니, 바꾸려면 새 운영 조건으로 등록합니다.</p>
     {notice?.originId === originId && <AdminNotice role="status" tone="success">{notice.text}</AdminNotice>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">운영 조건을 불러오는 중입니다…</p> : visible.error ? <p className={ALERT} role="alert">{visible.error}</p> : <>
       {visible.policies?.length ? visible.policies.map((policy) => <details className={DETAILS} key={`${policy.id}:${policy.revision}`}>

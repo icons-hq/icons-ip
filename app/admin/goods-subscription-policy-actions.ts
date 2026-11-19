@@ -29,7 +29,7 @@ export async function readGoodsSubscriptionPolicyAction(context: GoodsSubscripti
 
 export async function saveGoodsSubscriptionPolicyAction(raw: GoodsSubscriptionPolicyRequest): Promise<GoodsSubscriptionPolicyResult<GoodsSubscriptionPolicy>> {
   const request = parseGoodsSubscriptionPolicyRequest(raw);
-  if (!request) return { ok: false, error: '상품·저장 기준·정기배송 주기와 안내 문구를 확인해주세요.' };
+  if (!request) return { ok: false, error: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 정기배송 주기와 안내 문구를 다시 확인하고 저장해주세요.' };
   if (!await authorized(request)) return denied();
   let response;
   try {
@@ -38,16 +38,16 @@ export async function saveGoodsSubscriptionPolicyAction(raw: GoodsSubscriptionPo
       p_good_id: request.goodId, p_expected_revision: request.expectedRevision, p_expected_good_updated_at: request.expectedGoodUpdatedAt,
       p_operation_id: request.operationId, p_enabled: request.enabled, p_intervals: request.intervals, p_message: request.message });
   } catch (error) {
-    unstable_rethrow(error); return { ok: false, uncertain: true, error: '저장 결과가 불명확합니다. 같은 요청으로 결과를 확인해주세요.' };
+    unstable_rethrow(error); return { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' };
   }
   if (response.error) {
     const { code, message } = response.error;
     const rejected = ['22023', '42501', '28000', '23514', '23503', 'P0002', 'PT409', '23505'].includes(code ?? '');
     return { ok: false, uncertain: !rejected, conflict: code === 'PT409' || code === '23505',
-      error: rejected ? goodsSubscriptionPolicyError(message) : '저장 결과가 불명확합니다. 같은 요청으로 다시 확인해주세요.' };
+      error: rejected ? goodsSubscriptionPolicyError(message) : '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' };
   }
   const receipt = parseGoodsSubscriptionPolicyReceipt(response.data);
-  if (!receipt || !goodsSubscriptionReceiptMatches(receipt, request)) return { ok: false, uncertain: true, error: '저장 응답을 대조하지 못했습니다. 같은 요청으로 다시 확인해주세요.' };
+  if (!receipt || !goodsSubscriptionReceiptMatches(receipt, request)) return { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' };
   const saved: GoodsSubscriptionPolicy = { goodId: receipt.goodId, revision: receipt.revision, goodUpdatedAt: receipt.goodUpdatedAt,
     enabled: receipt.enabled, intervals: receipt.intervals, message: receipt.message };
   const latest = await readGoodsSubscriptionPolicyAction(request);

@@ -51,21 +51,21 @@ function campaignWriteFailure(
   details: string | null | undefined,
 ): AdminCampaignActionState | null {
   if (message.includes('catalog_id_taken')) {
-    return { errors: { id: '이미 사용 중인 ID예요(오프라인 팝업 ID와도 겹칠 수 없어요).' } };
+    return { errors: { id: '이미 쓰고 있는 캠페인 주소입니다(오프라인 팝업 주소와도 겹칠 수 없습니다). 다른 주소를 입력해주세요.' } };
   }
   if (message.includes('catalog_record_missing')) {
     return { errors: { form: '수정할 캠페인을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' } };
   }
   if (message.includes('catalog_id_immutable')) {
-    return { errors: { id: '등록된 캠페인 ID는 변경할 수 없습니다.' } };
+    return { errors: { id: '캠페인 주소는 등록 후 바꿀 수 없습니다.' } };
   }
   if (message.includes('invalid_sections')) {
     const hint = details?.trim();
     return {
       errors: {
         sections: hint
-          ? `랜딩 구성 JSON이 스키마에 맞지 않아요 (${hint}).`
-          : '랜딩 구성 JSON이 스키마에 맞지 않아요.',
+          ? `구성 코드의 형식이 맞지 않습니다(${hint}). ‘구성 코드 작성 방법’을 보고 고쳐주세요.`
+          : '구성 코드의 형식이 맞지 않습니다. ‘구성 코드 작성 방법’을 보고 고쳐주세요.',
       },
     };
   }
@@ -75,7 +75,7 @@ function campaignWriteFailure(
     return { errors: { sections: '쿠폰 섹션의 코드가 혜택으로 등록되어 있지 않아요.' } };
   }
   if (message.includes('invalid_campaign_id')) {
-    return { errors: { id: 'ID는 소문자·숫자·하이픈 2~64자로 입력해주세요.' } };
+    return { errors: { id: '캠페인 주소는 영문 소문자·숫자·하이픈으로 2~64자를 입력해주세요.' } };
   }
   if (message.includes('invalid_campaign_kind')) {
     return { errors: { kind: '캠페인 종류를 선택해주세요.' } };

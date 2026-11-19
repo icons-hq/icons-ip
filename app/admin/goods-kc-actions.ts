@@ -60,7 +60,7 @@ export async function saveGoodsKcAction(goodIdValue: unknown, inputValue: unknow
     });
     if (error) return { ok: false, error: saveError(error.message) };
     const configuration = data && typeof data.changed === 'boolean' ? parseAdminGoodsKc(data.configuration) : null;
-    if (!configuration) return { ok: false, error: 'KC 저장 결과를 확인하지 못했습니다. 저장된 정보를 다시 불러와주세요.' };
+    if (!configuration) return { ok: false, error: 'KC 정보가 저장됐는지 확인하지 못했습니다. 저장된 KC 정보 다시 불러오기를 눌러 저장 여부를 확인한 뒤 이어서 입력해주세요.' };
     revalidateGoodsSurfaces();
     return { ok: true, configuration, message: input.status === 'reviewed'
       ? 'KC 검토를 완료했습니다. 상품 공개는 게시 상태에서 별도로 진행해주세요.'

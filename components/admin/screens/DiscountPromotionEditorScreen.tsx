@@ -146,7 +146,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
         /* 대상이 바뀌어 사라진 상품의 예외는 버린다(서버는 대상 밖 예외를 거절한다). */
         const present = new Set(result.value.goods.map(row => row.id));
         setDrafts(current => Object.fromEntries(Object.entries(current).filter(([goodId]) => present.has(goodId))));
-      } catch { if (session.current()) setMessage('대상 상품을 불러오지 못했습니다. 다시 확인해주세요.'); }
+      } catch { if (session.current()) setMessage('대상 상품을 불러오지 못했습니다. ‘대상·할인 확인’을 다시 눌러주세요.'); }
       finally { busy.current = false; }
     });
   }
@@ -154,23 +154,23 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
     if (!session.current()) return;
     if ('error' in result) { setMessage(result.error); if (result.authChanged) session.deny(); return; }
     const value = result.value;
-    if (value.state === 'unresolved') { setMessage('완료 기록이 없습니다. 다시 조회하거나 미처리 요청을 종료해주세요.'); return; }
+    if (value.state === 'unresolved') { setMessage('아직 등록된 기록이 없습니다. 잠시 뒤 ‘처리 결과 조회’를 다시 누르거나, 등록하지 않을 거라면 ‘미처리 요청 종료’를 눌러주세요.'); return; }
     try { if (prefix) localStorage.removeItem(`${prefix}${value.operationId}`); setRecovery(savedOperation()); }
-    catch { setStorageBroken(true); setMessage('결과는 확인했지만 진행 기록을 정리하지 못했습니다. 화면을 다시 열어주세요.'); return; }
+    catch { setStorageBroken(true); setMessage('결과는 확인했지만 이 브라우저에 남긴 진행 기록을 지우지 못했습니다. 화면을 새로고침해주세요.'); return; }
     if (value.state === 'completed') { setReceipt(value); setPreview(null); setMessage(''); return; }
     setPreview(null);
-    setMessage(value.state === 'sealed' ? '미처리 요청을 종료했습니다. 최신 내용으로 다시 비교해주세요.' : discountPromotionError(value.error));
+    setMessage(value.state === 'sealed' ? '처리되지 않은 요청을 종료했습니다. 이 요청은 나중에도 등록되지 않습니다. ‘대상·할인 확인’으로 최신 내용을 다시 비교한 뒤 등록해주세요.' : discountPromotionError(value.error));
   }
   function commit() {
     if (!preview || stale || !acknowledged || locked || busy.current || !identity || !session.current() || !prefix) return;
     try {
-      const saved = savedOperation(); if (saved) { setRecovery(saved); setMessage('먼저 이전 요청의 결과를 확인해주세요.'); return; }
+      const saved = savedOperation(); if (saved) { setRecovery(saved); setMessage('앞서 보낸 등록 요청의 결과를 아직 모릅니다. 위 ‘처리 결과 조회’를 먼저 눌러주세요.'); return; }
       localStorage.setItem(`${prefix}${preview.operationId}`, preview.operationId);
       if (localStorage.getItem(`${prefix}${preview.operationId}`) !== preview.operationId) throw new Error('promotion journal');
-    } catch { setStorageBroken(true); setMessage('진행 내역을 보관하지 못해 등록하지 않았습니다. 브라우저 저장공간을 확인해주세요.'); return; }
+    } catch { setStorageBroken(true); setMessage('이 브라우저에 진행 기록을 남기지 못해 등록하지 않았습니다. 시크릿 창이거나 사이트 데이터 저장이 막혀 있는지 확인한 뒤 다시 시도해주세요.'); return; }
     setRecovery(preview.operationId); busy.current = true; setMessage(''); startTransition(async () => {
       try { accept(await commitDiscountPromotionAction(preview.operationId, identity)); }
-      catch { if (session.current()) setMessage('결과가 불명확합니다. 같은 요청의 결과를 조회해주세요.'); }
+      catch { if (session.current()) setMessage('등록됐는지 확인하지 못했습니다. ‘처리 결과 조회’를 눌러 결과를 확인해주세요. 조회는 다시 등록하지 않습니다.'); }
       finally { busy.current = false; }
     });
   }
@@ -178,7 +178,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
     if (!recovery || pending || busy.current || !identity || !session.current()) return;
     busy.current = true; startTransition(async () => {
       try { accept(await readDiscountPromotionAction(recovery, identity, seal)); }
-      catch { if (session.current()) setMessage('처리 결과를 불러오지 못했습니다. 다시 조회해주세요.'); }
+      catch { if (session.current()) setMessage('처리 결과를 불러오지 못했습니다. ‘처리 결과 조회’를 다시 눌러주세요.'); }
       finally { busy.current = false; }
     });
   }
@@ -188,11 +188,11 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
   }
 
   const status = <>{message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}
-    {recovery ? <AdminNotice role="alert" title="처리 결과 확인이 남아 있습니다." tone="warning"><p>재실행하지 않고 저장된 결과를 확인합니다.</p><div className="mt-2 flex flex-wrap items-center gap-2">
+    {recovery ? <AdminNotice role="alert" title="처리 결과 확인이 남아 있습니다." tone="warning"><p>앞서 보낸 등록 요청의 결과를 아직 모릅니다. &lsquo;처리 결과 조회&rsquo;는 다시 등록하지 않고 결과만 확인합니다. 등록하지 않을 거라면 &lsquo;미처리 요청 종료&rsquo;로 그 요청이 나중에 처리되지 않게 닫습니다.</p><div className="mt-2 flex flex-wrap items-center gap-2">
       <Button disabled={pending || session.blocked} onClick={() => recover()} size="sm" type="button">처리 결과 조회</Button>
       <Button disabled={pending || session.blocked} onClick={() => recover(true)} size="sm" type="button" variant="outline">미처리 요청 종료</Button></div></AdminNotice> : null}
-    {!identity || session.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션을 확인하지 못했습니다. 화면을 다시 열어주세요.</p> : null}
-    {storageBroken ? <p className="text-sm text-destructive" role="alert">진행 기록을 확인하지 못했습니다. 브라우저 저장공간을 확인하고 화면을 다시 열어주세요.</p> : null}</>;
+    {!identity || session.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정을 확인하지 못했습니다(다른 계정으로 바뀌었거나 로그아웃됨). 화면을 새로고침해주세요.</p> : null}
+    {storageBroken ? <p className="text-sm text-destructive" role="alert">이 브라우저에 남긴 진행 기록을 읽지 못했습니다. 시크릿 창이거나 사이트 데이터 저장이 막혀 있는지 확인한 뒤 화면을 새로고침해주세요.</p> : null}</>;
 
   const back = <Link className={buttonVariants({ variant: 'outline' })} data-return-to="" data-slot="button" href={returnTo.href}>{returnTo.label}</Link>;
   if (receipt) {
@@ -217,7 +217,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
             <AdminField inputId={endsId} label="할인 종료"><Input id={endsId} onChange={event => setEndsAt(event.target.value)} required type="datetime-local" value={endsAt} /></AdminField>
           </AdminFormGrid>
         </AdminSectionCard>
-        <AdminSectionCard summary="대상 상품은 비교할 때 고정됩니다. 보관한 상품은 할인하지 않습니다." title="대상">
+        <AdminSectionCard summary="대상 상품은 &lsquo;대상·할인 확인&rsquo;을 누른 때의 목록으로 정해집니다. 보관한 상품은 할인하지 않습니다." title="대상">
           <fieldset className="flex flex-wrap gap-4"><legend className="sr-only">대상 종류</legend>
             {(['campaign', 'ip', 'goods'] as DiscountPromotionTargetKind[]).map(value => <label className={CHOICE} key={value}><input checked={kind === value} name="target-kind" onChange={() => { setKind(value); setDrafts({}); }} type="radio" value={value} />{DISCOUNT_PROMOTION_TARGET_LABELS[value]}</label>)}
           </fieldset>
@@ -243,7 +243,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
               <Button aria-label={`${good.name} 빼기`} onClick={() => { setGoods(current => current.filter(item => item.id !== good.id)); setDrafts(current => Object.fromEntries(Object.entries(current).filter(([goodId]) => goodId !== good.id))); }} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></li>)}</ul> : null}
           </div> : null}
         </AdminSectionCard>
-        <AdminSectionCard summary="모든 대상 상품의 판매 중인 옵션에 같은 율·금액을 적용합니다. 율 계산의 원 미만은 버립니다. 한두 상품만 다르게 하려면 비교 표에서 그 상품만 바꿉니다." title="일괄 할인">
+        <AdminSectionCard summary="모든 대상 상품의 판매 중인 옵션에 같은 율·금액을 적용합니다. 정률 할인은 계산한 할인액의 1원 미만을 버립니다. 한두 상품만 다르게 하려면 비교 표에서 그 상품만 바꿉니다." title="일괄 할인">
           <AdminFormGrid>
             <AdminField inputId={modeId} label="할인 방식"><AdminSelect id={modeId} onChange={event => setRuleMode(event.target.value as DiscountPromotionRuleMode)} value={ruleMode} wrapperClassName="w-full">
               <option value="rate">정률 할인 (%)</option><option value="amount">정액 할인 (원)</option></AdminSelect></AdminField>
@@ -276,7 +276,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
           </TableRow>;
         })}</TableBody></GroupTable>
       {stale ? <AdminNotice tone="warning">{exceptions === null ? '예외 할인율은 1~99%, 금액·예외가는 1원 이상으로 입력해주세요.' : '바꾼 예외가 아직 계산되지 않았습니다. 다시 계산을 눌러 할인 후 가격을 확인해주세요.'}</AdminNotice> : null}
-      <p className={NOTE}>예외가는 기본 판매가를 그 가격으로 내리는 금액을 옵션마다 같게 뺍니다. 비교 이후 상품의 옵션·가격·기간 할인이 바뀌면 등록을 중단하고(판매로 인한 재고 변동은 영향 없음), 비교 결과는 15분 동안 유효합니다.</p>
+      <p className={NOTE}>예외가는 기본 판매가가 그 가격이 되도록 깎는 금액을 구해, 모든 옵션에서 같은 금액만큼 뺍니다. 비교한 뒤 상품의 옵션·가격·기간 할인이 바뀌면 등록하지 않습니다(판매로 재고가 줄어든 것은 상관없습니다). 비교한 뒤 15분 안에 등록해야 합니다.</p>
       <label className={CHOICE}><input checked={acknowledged} disabled={locked || stale} onChange={event => setAcknowledged(event.target.checked)} type="checkbox" />대상 상품과 할인 후 가격을 확인했습니다.</label>
       <div className="flex flex-wrap justify-end gap-2">
         <Button disabled={locked} onClick={() => { setPreview(null); setAcknowledged(false); }} type="button" variant="outline">입력으로 돌아가기</Button>

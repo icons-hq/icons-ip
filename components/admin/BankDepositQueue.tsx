@@ -85,8 +85,8 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
         </form>
       ) : (
         <p className="text-muted-foreground">
-          대조되는 미입금 주문을 찾지 못했습니다. 위 목록에서 주문을 직접 확인해 확정하거나,
-          미아 입금이면 사유를 남기고 내려주세요.
+          제안할 미입금 주문을 찾지 못했습니다. 위 목록에서 맞는 주문을 직접 찾아 입금 확인하거나,
+          맞는 주문이 없는 입금(미아 입금)이면 보류 사유를 적고 [목록에서 내리기]를 눌러주세요.
         </p>
       )}
 
@@ -102,7 +102,7 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
           />
         </label>
         <Button disabled={ignorePending} type="submit" variant="outline">
-          {ignorePending ? '내리는 중' : '큐에서 내리기'}
+          {ignorePending ? '내리는 중' : '목록에서 내리기'}
         </Button>
         <ActionResult state={ignoreState} />
       </form>
@@ -112,17 +112,17 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
 
 export function BankDepositQueue({ deposits }: { deposits: AdminBankDepositRow[] }) {
   return (
-    <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" aria-label="미매칭 입금 내역">
+    <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" aria-label="주문과 연결하지 않은 입금 내역">
       <header className="flex flex-col gap-1">
         <h3 className="text-base font-medium text-foreground">입금 내역</h3>
         <p className="text-muted-foreground">
-          계좌수집 서비스가 가져온 미매칭 입금입니다. 매칭은 제안이며 확정은 직접 눌러야 합니다.
+          계좌수집 서비스가 가져온 입금 중 아직 주문과 연결하지 않은 건입니다. 맞을 만한 주문을 제안하지만, 제안을 보고 확정 버튼을 직접 눌러야 입금 확인이 됩니다.
         </p>
       </header>
       {deposits.length === 0 ? (
         <p className="py-6 text-center text-muted-foreground">
-          미매칭 입금이 없습니다. 계좌수집 연동 전이라면 이 목록은 항상 비어 있고, 입금 확인은
-          위 목록에서 수동으로 처리합니다.
+          주문과 연결할 입금이 없습니다. 계좌수집 서비스를 연결하기 전에는 이 목록이 늘 비어 있으니,
+          입금 확인은 위 목록에서 주문을 골라 직접 처리합니다.
         </p>
       ) : (
         <ul className="grid gap-3 lg:grid-cols-2">

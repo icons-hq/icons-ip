@@ -39,13 +39,13 @@ function CostEditor({ cost, variant, onSaved }: {
     <div className="grid min-w-0 gap-3 sm:grid-cols-2">
       <label className={FIELD_LABEL_CLASS}>공급가(매입단가) (원)
         <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" name="unitCostKrw" aria-label={`${variant.name} 공급가(매입단가)`} type="number" min={0} max={2147483647} step={1}
-          value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="미설정" disabled={pending} />
+          value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="비우면 정하지 않음" disabled={pending} />
       </label>
       <div className={FIELD_LABEL_CLASS}>
         <label htmlFor={basisId}>세금 구분</label>
         <NativeSelect className="w-full" id={basisId} name="taxBasis" aria-label={`${variant.name} 공급가(매입단가) 세금 구분`} value={basis}
           onChange={(event) => setBasis(event.target.value)} disabled={pending}>
-          <option value="">미설정</option>
+          <option value="">선택 안 함</option>
           {Object.entries(PURCHASE_TAX_BASIS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </NativeSelect>
       </div>
@@ -113,7 +113,7 @@ export function GoodsPurchaseCostsPanel({ goodId, variants }: { goodId: string; 
     <div className="flex flex-col gap-1">
       <h2 id={`purchase-costs-${goodId}`} className="text-base leading-snug font-medium">공급가(매입단가) · 관리자 전용</h2>
       <p className="text-sm text-muted-foreground">공급처에서 사오는 옵션 1개의 공급가(매입단가)를 원 단위로 입력합니다.
-        금액과 세금 구분을 함께 저장하며, 실제 0원도 기록할 수 있습니다. 금액을 정하지 않은 옵션은 두 값을 모두 비워 미설정으로 두세요.</p>
+        금액과 세금 구분을 함께 저장하며, 실제 0원도 기록할 수 있습니다. 금액을 정하지 않은 옵션은 금액과 세금 구분을 모두 비워 두세요.</p>
     </div>
     {notice?.goodId === goodId && <p className="text-sm text-[var(--wc-success)]" role="status">{notice.message}</p>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">공급가(매입단가)를 불러오는 중입니다…</p> : visible.error ? <div className="flex flex-col items-start gap-2">

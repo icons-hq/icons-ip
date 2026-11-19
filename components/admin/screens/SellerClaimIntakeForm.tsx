@@ -63,7 +63,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
   const change = <K extends keyof SellerClaimInput>(key: K, value: SellerClaimInput[K]) => update({ [key]: value });
   function acceptReceipt(saved: SellerClaimReceipt, original: SellerClaimInput) {
     if (!sellerClaimReceiptMatchesInput(saved, original)) {
-      setUncertain(true); setError('접수 결과와 처음 전송한 내용이 일치하지 않습니다. 담당자에게 확인해주세요.'); return;
+      setUncertain(true); setError('저장된 접수가 처음 보낸 내용과 일치하지 않습니다. 새로 접수하지 말고 개발 담당자에게 알려주세요.'); return;
     }
     dispatched.current = null; setReceipt(saved); setUncertain(false);
     setInput(previous => ({ ...previous, refundAccount: null })); router.refresh();
@@ -84,7 +84,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
           dispatched.current = null; setInput(previous => ({ ...previous, requestId: crypto.randomUUID() }));
         }
       } else acceptReceipt(result.receipt, original);
-    } catch { setUncertain(true); setError('접수 결과가 불확실합니다. 같은 요청의 저장 결과부터 확인해주세요.'); }
+    } catch { setUncertain(true); setError('접수됐는지 확인하지 못했습니다. 새로 접수하지 말고 [같은 요청의 저장 결과 확인]을 먼저 눌러주세요.'); }
     finally { busy.current = false; setPending(false); }
   }
   async function readback() {
@@ -96,8 +96,8 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
       const result = await readSellerClaimIntakeAction(original);
       if ('error' in result) { setError(result.error); return; }
       if (result.receipt) acceptReceipt(result.receipt, original);
-      else setMessage('아직 저장된 접수를 확인하지 못했습니다. 처음 전송한 내용을 보존하며, 같은 내용으로 다시 접수할 수 있습니다.');
-    } catch { setError('접수 결과를 확인하지 못했습니다. 같은 요청을 다시 조회해주세요.'); }
+      else setMessage('아직 저장된 접수가 없습니다. 처음 보낸 내용 그대로 [같은 내용으로 다시 접수]를 누르면 됩니다(두 번 접수되지 않습니다).');
+    } catch { setError('접수 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청의 저장 결과 확인]을 다시 눌러주세요.'); }
     finally { busy.current = false; setPending(false); }
   }
   return <CustomerServiceDialog title={cancellation ? "판매자 직접 취소 접수" : "판매자 직접 반품·교환 접수"} onClose={close} busy={pending || uncertain} wide>
@@ -133,7 +133,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
             {input.source === 'inquiry' ? <label className={`${FIELD} ${WIDE}`} htmlFor="seller-claim-inquiry"><span className={FIELD_LABEL}>이 주문에 연결된 고객문의</span><select className="w-full" id="seller-claim-inquiry" required value={input.inquiryId ?? ''} onChange={event => change('inquiryId', event.target.value || null)}><option value="">고객문의를 선택해주세요</option>{context.inquiries.map(inquiry => <option key={inquiry.id} value={inquiry.id}>#{inquiry.reference} · {inquiry.title}</option>)}</select>{!context.inquiries.length ? <small className={HINT}>이 주문과 구매자가 일치하는 문의가 없습니다. 실제 확인한 다른 경로를 선택해주세요.</small> : null}</label> : null}
             <label className={`${FIELD} ${WIDE}`} htmlFor="seller-claim-evidence"><span className={FIELD_LABEL}>고객 합의 근거</span><textarea className="w-full" id="seller-claim-evidence" required maxLength={1000} rows={3} value={input.agreementEvidence} onChange={event => change('agreementEvidence', event.target.value)} placeholder="상담 참조번호와 고객이 동의한 주문 전체 처리 내용을 적어주세요." /></label>
           </div>
-          <p className={HINT}>고객 요청 시각은 근거로 보관합니다. 실제 접수 시각과 신청 기한을 소급하지 않습니다.</p>
+          <p className={HINT}>고객 요청 시각은 근거로만 남습니다. 접수 시각과 신청 기한은 이 시각이 아니라 실제로 접수하는 지금을 기준으로 정합니다.</p>
         </fieldset>
         {input.claimType !== 'cancel' ? <><fieldset className={FIELDSET} disabled={locked}>
           <legend className={LEGEND}>수거 주소</legend>
@@ -142,12 +142,12 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
         </fieldset>
         <fieldset className={FIELDSET} disabled={locked}>
           <legend className={LEGEND}>출고지별 수거 계획</legend>
-          <p className="text-muted-foreground">택배사 예약이나 입고 확인을 실행하지 않습니다. 승인 이후 실제 수거와 출고지별 입고를 별도로 확인해주세요.</p>
+          <p className="text-muted-foreground">이 접수 화면은 택배사에 수거를 예약하거나 입고를 확인하지 않습니다. 승인한 뒤 실제 수거와 출고지별 입고는 요청 상세에서 따로 확인해주세요.</p>
           {context.collections.map((target, index) => {
             const row = input.collections[index];
             return <div className="flex min-w-0 flex-col gap-2 border-t pt-3" key={target.shipmentId}>
               <h4 className="font-medium">{target.originName}</h4><p>{target.items.map(item => `${item.name} ${item.qty}개`).join(' · ')}</p>
-              <p className={HINT}>현재 반송지: {target.returnAddress || '미설정 · 승인 전에 출고지 반송 주소를 등록해주세요.'}</p>
+              <p className={HINT}>현재 반송지: {target.returnAddress || '없음 · 승인 전에 출고지 설정에서 반품 주소를 등록해주세요.'}</p>
               <div className={FIELDS}>
                 <label className={FIELD} htmlFor={`seller-claim-method-${index}`}><span className={FIELD_LABEL}>수거 방법</span><select className="w-full" id={`seller-claim-method-${index}`} value={row.method} onChange={event => change('collections', input.collections.map((entry, position) => position === index ? { ...entry, method: event.target.value as SellerClaimInput['collections'][number]['method'], ...(event.target.value === 'not_requested' ? { carrier: null, trackingNumber: null } : {}) } : entry))}>{SELLER_CLAIM_COLLECTION_METHODS.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label>
                 {row.method !== 'not_requested' ? <>
@@ -162,7 +162,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
         </> : null}
         {input.claimType !== 'exchange' ? <fieldset className={FIELDSET} disabled={locked}>
           <legend className={LEGEND}>환불계좌 (선택)</legend>
-          <p className={HINT}>고객에게 확인한 계좌만 입력해주세요. 원 결제수단으로 환급하지 못할 때 사용하며, 처리 종결 후 기존 보관 기한에 따라 원문을 파기합니다.</p>
+          <p className={HINT}>고객에게 직접 확인한 계좌만 입력해주세요. 원래 결제수단으로 환불할 수 없을 때 이 계좌로 송금합니다. 요청이 끝나면 정해진 보관 기간이 지난 뒤 계좌번호 원문을 지웁니다.</p>
           <div className={FIELDS}>{([{ key: 'bankName', label: '은행', max: 40 }, { key: 'accountNumber', label: '환불계좌 번호', max: 30 }, { key: 'accountHolder', label: '예금주', max: 40 }] as const).map(field => <label className={FIELD} key={field.key} htmlFor={`seller-claim-${field.key}`}><span className={FIELD_LABEL}>{field.label}</span><input className="w-full" id={`seller-claim-${field.key}`} autoComplete="off" maxLength={field.max} value={input.refundAccount?.[field.key] ?? ''} onChange={event => change('refundAccount', { bankName: input.refundAccount?.bankName ?? '', accountNumber: input.refundAccount?.accountNumber ?? '', accountHolder: input.refundAccount?.accountHolder ?? '', [field.key]: event.target.value })} /></label>)}</div>
         </fieldset> : null}
         <label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" required disabled={locked} checked={input.agreementConfirmed} onChange={event => change('agreementConfirmed', event.target.checked)} /><span>고객이 주문 전체의 {claimLabel}{input.claimType === 'cancel' ? '를' : '을'} 요청했고, 입력한 사유{input.claimType === 'cancel' ? '' : '와 수거 계획'}에 동의했음을 확인했습니다.</span></label>
@@ -175,7 +175,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
       </form>}
       {error ? <p ref={errorRef} tabIndex={-1} className="text-destructive outline-none" role="alert">{error}</p> : null}
       {message ? <p className="text-muted-foreground" role="status">{message}</p> : null}
-      {uncertain ? <p className="text-muted-foreground">확인 전까지 처음 전송한 내용과 요청 번호를 보존합니다. 저장 결과를 확인하거나 같은 내용으로 재시도해주세요.</p> : null}
+      {uncertain ? <p className="text-muted-foreground">결과를 확인할 때까지 처음 보낸 내용을 그대로 둡니다. [같은 요청의 저장 결과 확인]을 먼저 누르고, 저장된 결과가 없으면 [같은 내용으로 다시 접수]를 눌러주세요(두 번 접수되지 않습니다).</p> : null}
     </div>
   </CustomerServiceDialog>;
 }

@@ -67,7 +67,7 @@ export async function saveGoodsPurchaseCostAction(formData: FormData): Promise<{
   const cost = parsePurchaseCostInput({ unitCostKrw: formData.get('unitCostKrw'), taxBasis: formData.get('taxBasis') });
   if (!id || !isUuid(variantId) || !cost || (rawRevision && (!/^[1-9]\d*$/.test(rawRevision)
     || !Number.isSafeInteger(revision) || revision! > 2147483647))) {
-    return { ok: false, error: '공급가(매입단가) 금액(원 단위 정수)과 세금 구분을 함께 입력해주세요. 해제하려면 두 값을 모두 비워주세요.' };
+    return { ok: false, error: '공급가(매입단가) 금액(원 단위 정수)과 세금 구분을 함께 입력해주세요. 공급가를 지우려면 금액과 세금 구분을 모두 비워주세요.' };
   }
   try {
     const client = await createClient();
@@ -83,7 +83,7 @@ export async function saveGoodsPurchaseCostAction(formData: FormData): Promise<{
     }
     if (!data || typeof data.changed !== 'boolean') return { ok: false, error: '저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.' };
     revalidatePath('/admin/catalog/goods');
-    return { ok: true, message: cost.unitCostKrw === null ? '공급가(매입단가)를 미설정 상태로 저장했습니다.' : '공급가(매입단가)와 세금 구분을 저장했습니다.' };
+    return { ok: true, message: cost.unitCostKrw === null ? '공급가(매입단가)를 비워 정하지 않은 상태로 저장했습니다.' : '공급가(매입단가)와 세금 구분을 저장했습니다.' };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '공급가(매입단가)를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.' };

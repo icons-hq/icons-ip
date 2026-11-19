@@ -51,8 +51,8 @@ export function OrderAddressEditor({ initial, onClose }: { initial: OrderAddress
         setError(result.error); setConflict(!mustStayFrozen && Boolean(result.conflict)); setUncertain(mustStayFrozen);
         if (!mustStayFrozen) { dispatched.current = null; setFrozen(null); }
       } else if (result.receipt) accept(result.receipt, request);
-      else { setUncertain(true); setError('저장 결과를 확인하지 못했습니다. 같은 요청을 조회해주세요.'); }
-    } catch { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청을 조회해주세요.'); }
+      else { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.'); }
+    } catch { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
   async function readback() {
@@ -63,8 +63,8 @@ export function OrderAddressEditor({ initial, onClose }: { initial: OrderAddress
       const result = await readOrderAddressChangeAction(request.id);
       if ('error' in result) setError(result.error);
       else if (result.receipt) accept(result.receipt, request);
-      else setMessage('아직 저장 결과가 없습니다. 입력은 고정한 채 같은 요청을 다시 시도할 수 있습니다.');
-    } catch { setError('저장 결과를 읽지 못했습니다. 같은 요청을 다시 확인해주세요.'); }
+      else setMessage('아직 저장되지 않았습니다. 입력을 바꾸지 않고 [같은 내용으로 다시 저장]을 누를 수 있습니다.');
+    } catch { setError('저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청의 저장 결과 확인]을 다시 눌러주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
   async function refreshContext() {

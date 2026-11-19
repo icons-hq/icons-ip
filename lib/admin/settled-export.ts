@@ -75,12 +75,12 @@ export function parseSettledExportFilters(value: Record<string, unknown>): Settl
 export function settledExportErrorMessage(message?: string | null) {
   if (message?.includes('settled_export_empty')) return '현재 조건에 해당하는 거래확정 주문이 없습니다.';
   if (message?.includes('settled_export_limit')) return '한 파일은 주문 1,000건·품목 10,000행까지 담습니다. 조회 기간을 줄여주세요.';
-  if (message?.includes('settled_export_invalid_filters')) return '날짜와 검색어를 확인해주세요.';
+  if (message?.includes('settled_export_invalid_filters')) return '조회 날짜와 검색어를 읽지 못했습니다. 조회 조건을 다시 정해 검색한 뒤 파일을 만들어주세요.';
   if (message?.includes('settled_export_request_conflict')) return '조회 조건이 바뀌었습니다. 목록을 새로 열고 파일을 만들어주세요.';
-  if (message?.includes('settled_export_not_found')) return '직접 생성한 엑셀 기록을 찾을 수 없습니다. 목록에서 다시 만들어주세요.';
+  if (message?.includes('settled_export_not_found')) return '내가 만든 거래확정 엑셀 기록을 찾을 수 없습니다. 목록에서 [거래확정 엑셀 다운로드]를 눌러 다시 만들어주세요.';
   return '거래확정 엑셀을 만들지 못했습니다. 다시 시도해주세요.';
 }
-function invalid(): never { throw new Error('거래확정 기록의 형식 또는 금액을 확인해주세요.'); }
+function invalid(): never { throw new Error('거래확정 기록을 읽지 못해 파일을 만들지 않았습니다. 다시 시도하고, 계속되면 개발 담당자에게 알려주세요.'); }
 function record(value: unknown): Record<string, unknown> { if (!value || typeof value !== 'object' || Array.isArray(value)) invalid(); return value as Record<string, unknown>; }
 function text(value: unknown): string { if (typeof value !== 'string' || value.length > 32767) invalid(); return value; }
 function nullableText(value: unknown): string | null { return value === null ? null : text(value); }
@@ -245,7 +245,7 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
       if (shipment && !shipment.trackingNumber) rowIssues.push('운송장 미기록 또는 운송장 없는 수령 방식');
       if (shipment && shipment.status !== 'delivered') rowIssues.push(`배송 상태 확인 필요: ${shipment.status}`);
       if (!item.erpCapturedAt) rowIssues.push('주문 당시 ERP 기록 미기록');
-      else if (!item.erpName) rowIssues.push('주문 당시 ERP 품명 미설정');
+      else if (!item.erpName) rowIssues.push('주문 당시 ERP 품명 없음');
       const qty = qtyOf(item, index);
       const regularAmount = item.regularUnitPrice === null ? null : multiply(qty, item.regularUnitPrice);
       if (regularAmount === null) rowIssues.push('주문 당시 할인 전 정가 미기록');

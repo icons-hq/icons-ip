@@ -45,7 +45,7 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
   try { const result = await saveGoodsProductionAction(goodId, request.values, request.revision, request.operation, identity); if (!alive.current || !scope.canApply(ticket)) return;
    if ('policy' in result && result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); dispatched.current = null; setUncertain(false); setMessage('주문제작 설정을 저장했습니다. 새 주문부터 적용됩니다.'); }
    else { setMessage(result.error ?? '결과를 확인하지 못했습니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) dispatched.current = null; }
-  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
+  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. [같은 요청으로 저장 결과 확인]을 눌러 저장됐는지 확인해주세요.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  return <div className="flex min-w-0 flex-col gap-4" data-goods-production=""><p className="text-sm text-muted-foreground">주문 후 제작하는 상품의 발송 예정 기간을 설정합니다. 실제 제작 시작·완료는 결제된 주문 상세에서 기록하며, 제작 완료 전에는 출고지시와 발송을 처리할 수 없습니다.</p>

@@ -225,7 +225,7 @@ describe('RewardPolicySection', () => {
     expect(html).toContain('value="30000"');
     expect(html).toContain('value="2"');
     expect(html).toContain('value="2026-07-15T12:04"');
-    expect(html).toContain('현재 카드풀을 사용할 수 없습니다. 정책을 비활성화한 뒤 저장해주세요.');
+    expect(html).toContain('현재 카드풀을 쓸 수 없습니다. ‘정책 활성화’를 끄고 저장해주세요.');
     expect(html).toContain('disabled=""');
     expect(html).toContain('저장 실패');
   });
@@ -249,8 +249,8 @@ describe('RewardPolicySection', () => {
     expect(html).toContain('주문 6');
     expect(html).toContain('최근 발급 2026-07-15 11:00 KST');
     expect(html).toContain('data-admin-summary="reward-policy"');
-    expect(html).toContain('조건이 겹치는 활성 정책은 누적 적용');
-    expect(html).toContain('정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외');
+    expect(html).toContain('조건이 겹치는 정책이 여러 개 켜져 있으면 하나만 고르지 않고 모두 적용');
+    expect(html).toContain('어느 정책으로 발급됐는지 기록이 없는 예전 카드팩은 집계에서 빠집');
   });
 
   it('disables creation with an explicit reason when prerequisites are missing', () => {

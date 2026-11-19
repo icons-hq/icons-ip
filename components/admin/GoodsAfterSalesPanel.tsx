@@ -41,7 +41,7 @@ export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
     const fixed = request.current;
     let result: GoodsAfterSalesResult<GoodsAfterSalesSnapshot>;
     try { result = await saveGoodsAfterSalesAction(goodId, fixed.values, fixed.revision, fixed.id); }
-    catch { result = { ok: false, uncertain: true, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }; }
+    catch { result = { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' }; }
     busy.current = false; if (!mounted.current) return; setPending(false);
     if (result.ok) { accept(result.value); setError(false); setMessage(result.value.phone ? 'A/S 안내와 판매자 특이사항을 저장했습니다.' : '상품 상세의 A/S 안내와 판매자 특이사항을 해제했습니다.'); }
     else { setError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; if (result.conflict) setConflict(true); }

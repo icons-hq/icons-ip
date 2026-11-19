@@ -77,14 +77,14 @@ const START_ERRORS: Record<string, string> = {
   partial_cancel_not_needs_review: '결제확인필요 상태가 아닙니다. 새로고침해주세요.',
   partial_cancel_resolution_evidence_mismatch: '결제사 잔액이 해소 근거와 맞지 않습니다. 다시 조회해주세요.',  partial_cancel_qty_exceeds_remaining: '남은 수량보다 많이 고를 수 없습니다.',
   partial_cancel_item_not_found: '이 주문의 상품이 아닙니다. 새로고침해주세요.',
-  invalid_partial_cancel_items: '취소할 상품과 수량을 확인해주세요.',
+  invalid_partial_cancel_items: '취소할 상품을 고르고 수량을 남은 수량 안에서 입력해주세요.',
   partial_cancel_operation_conflict: '같은 요청 번호가 다른 주문에 쓰였습니다. 새로고침해주세요.',
   partial_cancel_transfer_evidence_required: '송금 근거와 확인 메모를 각각 2~300자로 입력해주세요.',
   partial_cancel_transfer_already_recorded: '이미 다른 송금 완료가 기록됐습니다.',
   partial_cancel_not_awaiting_transfer: '송금 대기 상태가 아닙니다. 새로고침해주세요.',
   partial_cancel_not_bank_transfer: '무통장 주문의 부분 취소가 아닙니다.',
   partial_cancel_refund_account_missing: '환불계좌 원문이 없습니다(파기됨). 고객에게 계좌를 다시 받아 담당자에게 넘겨주세요.',
-  bank_refund_permission_required: '송금 담당 권한(관리자 로그인 세션)이 필요합니다.',
+  bank_refund_permission_required: '송금 담당 권한이 필요합니다. 송금 권한이 있는 관리자 계정으로 로그인했는지 확인해주세요.',
   refund_account_auth_changed: '로그인 상태나 송금 담당 권한이 바뀌었습니다. 새로고침 뒤 다시 시도해주세요.',
   operator_capability_required: '관리자 권한이 필요합니다.',
 };
@@ -92,12 +92,12 @@ const START_ERRORS: Record<string, string> = {
 /** 결제사 확인 결과 사유(오케스트레이터 코드). */
 const RECONCILE_ERRORS: Record<string, string> = {
   partial_cancel_rejected: '결제사가 이 결제의 부분 취소를 받지 않아 품목 부분 취소를 진행하지 않았습니다. 돈은 움직이지 않았고 주문·재고도 그대로입니다. 전액 환불로 돌리지 않으니 고객과 다시 상의해주세요.',
-  provider_unavailable: '결제사 응답을 확인하지 못했습니다. 잠시 뒤 [결제사 확인 다시 하기]를 눌러주세요. 그동안 이 주문은 출고되지 않습니다.',
-  provider_cancel_ambiguous: '결제사 응답을 확인하지 못했습니다. 잠시 뒤 [결제사 확인 다시 하기]를 눌러주세요.',
-  provider_balance_mismatch: '결제사 잔액이 예상과 다릅니다(다른 취소가 끼어들었을 수 있음). 상점관리자에서 취소하지 말고 결제 담당 admin에게 넘겨주세요.',
-  local_finalize_failed: '결제사 부분 취소는 확인됐지만 주문에 적용하지 못했습니다. [결제사 확인 다시 하기]를 눌러주세요. 같은 오류가 반복되면 결제 담당 admin에게 넘겨주세요.',
-  payment_evidence_invalid: '결제 원장이 시작 때와 달라 결제사를 부르지 않았습니다. 결제 담당 admin에게 넘겨주세요.',
-  provider_mismatch: '결제사가 확인한 결제가 원장의 결제와 다릅니다. 결제 담당 admin에게 넘겨주세요.',
+  provider_unavailable: '결제사 처리 결과를 확인하지 못했습니다. 잠시 뒤 [결제사 확인 다시 하기]를 눌러주세요. 그동안 이 주문은 출고되지 않습니다.',
+  provider_cancel_ambiguous: '결제사 처리 결과를 확인하지 못했습니다. 잠시 뒤 [결제사 확인 다시 하기]를 눌러주세요.',
+  provider_balance_mismatch: '결제사 잔액이 예상과 다릅니다(다른 취소가 끼어들었을 수 있음). 상점관리자에서 취소하지 말고 결제 담당자에게 넘겨주세요.',
+  local_finalize_failed: '결제사 부분 취소는 확인됐지만 주문에 적용하지 못했습니다. [결제사 확인 다시 하기]를 눌러주세요. 같은 오류가 반복되면 결제 담당자에게 넘겨주세요.',
+  payment_evidence_invalid: 'ICONS의 결제 기록이 부분 취소를 시작할 때와 달라져 결제사에 취소를 요청하지 않았습니다. 결제 담당자에게 넘겨주세요.',
+  provider_mismatch: '결제사가 확인한 결제가 ICONS에 기록된 결제와 다릅니다. 결제 담당자에게 넘겨주세요.',
   local_state_unavailable: '부분 취소 상태를 읽지 못했습니다. 잠시 뒤 다시 시도해주세요.',
   not_found: '부분 취소 기록을 찾을 수 없습니다.',
   not_ready: '결제사 확인을 기다리는 부분 취소가 아닙니다. 새로고침해주세요.',
@@ -109,7 +109,7 @@ const RESOLUTION_ERRORS: Record<string, string> = {
   not_needs_review: '결제확인필요 상태가 아닙니다. 새로고침해주세요.',
   local_state_unavailable: '부분 취소 상태를 읽지 못했습니다. 잠시 뒤 다시 시도해주세요.',
   provider_unavailable: '결제사 잔액을 조회하지 못했습니다. 잠시 뒤 다시 시도해주세요.',
-  provider_mismatch: '결제사가 돌려준 결제가 원장의 결제와 다릅니다. 해소하지 않았습니다. 결제사 상점관리자와 원장을 대조해주세요.',
+  provider_mismatch: '결제사가 알려 준 결제가 ICONS에 기록된 결제와 다릅니다. 아무것도 바꾸지 않았습니다. 결제사 상점관리자의 결제 내역과 주문 상세의 결제 내역을 맞춰 봐 주세요.',
   balance_unexplained: '결제사 잔액이 시작 때 잔액도, 이 취소를 뺀 잔액도 아닙니다(다른 취소가 끼었을 수 있음). 해소하지 않았습니다. 상점관리자의 취소 내역을 대조해주세요.',
 };
 
@@ -176,10 +176,10 @@ export function orderPartialCancellationErrorMessage(message: string | null | un
 
 export function orderPartialCancellationReconcileMessage(code: string) {
   if (RECONCILE_ERRORS[code]) return RECONCILE_ERRORS[code];
-  if (code.startsWith('provider_')) return `결제사 확인이 끝나지 않았습니다(${code}). 런북의 결제확인필요 조치를 따라주세요. 그동안 이 주문은 출고되지 않습니다.`;
-  return '결제사 확인을 마치지 못했습니다. 최신 상태를 확인해주세요.';
+  if (code.startsWith('provider_')) return `결제사 확인이 끝나지 않았습니다(${code}). 잠시 뒤 [결제사 확인 다시 하기]를 누르고, 계속 같으면 이 코드와 함께 결제 담당자에게 넘겨주세요. 그동안 이 주문은 출고되지 않습니다.`;
+  return '결제사 확인을 마치지 못했습니다. 새로고침해 아래 부분 취소 기록의 상태를 확인한 뒤 다시 시도해주세요.';
 }
 
 export function orderPartialCancellationResolutionMessage(code: string) {
-  return RESOLUTION_ERRORS[code] ?? '결제확인필요를 해소하지 못했습니다. 최신 상태를 확인해주세요.';
+  return RESOLUTION_ERRORS[code] ?? '결제확인필요를 해소하지 못했습니다. 새로고침해 아래 부분 취소 기록의 상태를 확인한 뒤 다시 시도해주세요.';
 }

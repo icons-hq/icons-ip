@@ -435,7 +435,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('Korpay 만료·취소 처리');
     expect(html).toContain(
-      'Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.',
+      'Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW 결제가 유효 시간을 넘겨 만료됐는지 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 바로 끝납니다.',
     );
     expect(html).toContain(`name="requestId" value="${request.id}"`);
     expect(html).not.toContain('Korpay 전액 취소 반영');
@@ -771,7 +771,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('운송장 수정');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 저장</);
     expect(html).toMatch(/<details[^>]*data-tracking-edit=""><summary[^>]*>운송장 수정<svg/);
-    expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
+    expect(html).toContain('data-confirm="운송장번호를 수정할까요? 바꾼 내용이 감사 기록에 남습니다."');
   });
 
   it('운송장 수정 아래에서 배송 건의 추가 운송장을 보고 고친다(QNA-019)', () => {

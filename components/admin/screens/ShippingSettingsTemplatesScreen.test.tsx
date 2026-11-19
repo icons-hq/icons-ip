@@ -28,7 +28,7 @@ it('템플릿의 3구간·선불/착불 선택은 기존 공용 입력 필드를
   const html = renderToStaticMarkup(<ShippingSettingsTemplateForm template={{ ...template, settings: { ...template.settings, delivery: { mode: 'replace', policy } } }}
     identity={shippingIdentity} scope={createGoodsDescriptionToolScope(shippingIds.actor)} origins={[]} regions={[]} onClose={() => {}} onSaved={() => {}} />);
   for (const label of ['2구간 배송비', '3구간 배송비', '두 번째 수량 한도', '두 번째 한도 초과 추가금', '구매자 선택 · 선결제 또는 착불']) expect(html).toContain(label);
-  expect(html).toContain('value="4"'); expect(html).toContain('기존 확장 배송비를 명시적으로 비활성화'); expect(html).not.toContain('복수구매 할인 상태');
+  expect(html).toContain('value="4"'); expect(html).toContain('상품에 있던 확장 배송비(수량별·착불)를 끄고'); expect(html).not.toContain('복수구매 할인 상태');
   /* kit 버튼의 기본 type은 button이다 — 새 버전 저장만 폼 제출이고 불러오기·취소는 제출하지 않는다. */
   expect(html).toMatch(/<button[^>]*type="submit"[^>]*>새 버전 저장<\/button>/);
   expect(html).toMatch(/<button[^>]*type="button"[^>]*>최신 저장본 불러오기<\/button>/);

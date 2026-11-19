@@ -20,8 +20,8 @@ export async function saveGoodsGroupCommonAction(input: unknown, form: FormData)
       p_values: normalized.values, p_operation_id: recovery.operationId, p_expected_actor_id: recovery.actorId, p_expected_session_id: recovery.sessionId });
     if (error) return goodsGroupError(error.code, error.message, true);
     const receipt = parseGoodsGroupReceipt(data, recovery);
-    if (!receipt || receipt.state === 'unresolved') return { error: '저장 결과를 확인하지 못했습니다. 같은 진행 내역을 조회해주세요.', uncertain: true };
+    if (!receipt || receipt.state === 'unresolved') return { error: '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'진행 내역 확인\'을 눌러 결과를 확인해주세요.', uncertain: true };
     if (receipt.state === 'completed') { try { revalidateGoodsSurfaces(); revalidatePath(GOODS_GROUPS_PATH); } catch (error) { unstable_rethrow(error); } }
     return { value: receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과가 불명확합니다. 진행 내역을 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'진행 내역 확인\'을 눌러 결과를 확인해주세요.', uncertain: true }; }
 }

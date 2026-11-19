@@ -139,7 +139,7 @@ export function adminClaimRejectionPresets(claimType: OrderClaimType): readonly 
 
 export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'all', label: '전체' },
-  { value: 'order', label: '주문·클레임번호' },
+  { value: 'order', label: '주문·요청번호' },
   { value: 'buyer', label: '구매자' },
   { value: 'email', label: '구매자 이메일' },
   { value: 'recipient', label: '수령인명' },
@@ -400,7 +400,7 @@ export function normalizeAdminClaimDecisionForm(
 
   if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!(ADMIN_CLAIM_DECISIONS as readonly string[]).includes(decision)) {
-    return { ok: false, error: '처리할 수 없는 결정입니다.' };
+    return { ok: false, error: '처리할 수 없는 작업입니다. 화면을 새로고침한 뒤 다시 눌러주세요.' };
   }
   if ((decision === 'reject' || decision === 'hold') && (note.length < 10 || note.length > 200)) {
     return {
@@ -439,7 +439,7 @@ export function normalizeAdminClaimRefundForm(
     return { ok: false, error: '환불 수단을 선택해주세요.' };
   }
   if (stage !== 'filed' && stage !== 'completed') {
-    return { ok: false, error: '처리할 수 없는 환불 단계입니다.' };
+    return { ok: false, error: '처리할 수 없는 환불 단계입니다. 화면을 새로고침한 뒤 다시 눌러주세요.' };
   }
   if (note.length > 300) {
     return { ok: false, error: '상계·정산 메모는 300자 이내로 입력해주세요.' };
@@ -513,7 +513,7 @@ function collectionEvidenceProblem(evidence: string) {
   if (Array.from(evidence).some((character) => {
     const code = character.charCodeAt(0);
     return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
-  })) return '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.';
+  })) return '확인 근거에 눈에 보이지 않는 특수 문자가 섞여 있습니다. 다른 곳에서 복사해 붙였다면 지우고 직접 다시 입력해주세요.';
   return null;
 }
 
@@ -528,7 +528,7 @@ export function normalizeAdminClaimCollectionForm(
 
   if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (stage !== 'collecting' && stage !== 'collected') {
-    return { ok: false, error: '처리할 수 없는 수거 단계입니다.' };
+    return { ok: false, error: '처리할 수 없는 수거 단계입니다. 화면을 새로고침한 뒤 다시 눌러주세요.' };
   }
   const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
   if (!receivedOn.ok) return receivedOn;
@@ -549,7 +549,7 @@ export function normalizeAdminClaimEvidenceForm(
   if (Array.from(evidence).some((character) => {
     const code = character.charCodeAt(0);
     return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
-  })) return { ok: false, error: '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.' };
+  })) return { ok: false, error: '확인 근거에 눈에 보이지 않는 특수 문자가 섞여 있습니다. 다른 곳에서 복사해 붙였다면 지우고 직접 다시 입력해주세요.' };
   return { ok: true, value: { claimId, evidence } };
 }
 
@@ -570,7 +570,7 @@ export function normalizeAdminClaimOperationalFeeForm(
   const evidence = readString(formData, 'evidence');
   const expectedUpdatedAt = readString(formData, 'expectedUpdatedAt');
   if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
-  if (!expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) return { ok: false, error: '최신 클레임을 다시 열어주세요.' };
+  if (!expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) return { ok: false, error: '화면을 새로고침한 뒤 다시 저장해주세요.' };
   if (!amountText) {
     if (kind || note || evidence) return { ok: false, error: '금액을 비우면 비용 유형·메모·근거도 비워야 합니다.' };
     return { ok: true, value: { claimId, feeKind: null, amount: null, note: null, evidence: null, expectedUpdatedAt } };
@@ -578,15 +578,15 @@ export function normalizeAdminClaimOperationalFeeForm(
   if (!(ADMIN_CLAIM_OPERATIONAL_FEE_KINDS as readonly string[]).includes(kind)) {
     return { ok: false, error: '운영 확인액의 비용 유형을 선택해주세요.' };
   }
-  if (!/^(0|[1-9][0-9]*)$/.test(amountText)) return { ok: false, error: '운영 확인액은 0~1,000,000원의 정수입니다.' };
+  if (!/^(0|[1-9][0-9]*)$/.test(amountText)) return { ok: false, error: '운영 확인액은 0~1,000,000원 사이로, 소수점 없이 입력해주세요.' };
   const amount = Number(amountText);
-  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1000000) return { ok: false, error: '운영 확인액은 0~1,000,000원의 정수입니다.' };
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1000000) return { ok: false, error: '운영 확인액은 0~1,000,000원 사이로, 소수점 없이 입력해주세요.' };
   if (!note || note.length > 500) return { ok: false, error: '비용 메모는 1~500자로 입력해주세요.' };
   if (!evidence || evidence.length > 1000) return { ok: false, error: '운영 확인 근거는 1~1,000자로 입력해주세요.' };
   if ([note, evidence].some((value) => Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
     return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
-  }))) return { ok: false, error: '메모와 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.' };
+  }))) return { ok: false, error: '메모나 확인 근거에 눈에 보이지 않는 특수 문자가 섞여 있습니다. 다른 곳에서 복사해 붙였다면 지우고 직접 다시 입력해주세요.' };
   return { ok: true, value: { claimId, feeKind: kind as AdminClaimOperationalFeeKind, amount, note, evidence, expectedUpdatedAt } };
 }
 

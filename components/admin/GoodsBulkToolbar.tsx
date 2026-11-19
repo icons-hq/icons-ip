@@ -103,7 +103,7 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
     if (command === 'period' || command === 'discount') {
       const unlimited = command === 'period' && form.get('unlimited') === 'true';
       const parsed = parseGoodsPricePeriodInput({ state: 'draft', discountPrice: null, startsAt: unlimited ? null : form.get('startsAt'), endsAt: unlimited ? null : form.get('endsAt') });
-      if (!parsed || !unlimited && (!parsed.startsAt || !parsed.endsAt)) { setMessage('KST 기준 시작·종료를 입력해주세요. 종료는 시작보다 늦어야 합니다.'); return; }
+      if (!parsed || !unlimited && (!parsed.startsAt || !parsed.endsAt)) { setMessage('시작·종료 일시(KST)를 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.'); return; }
       values.startsAt = parsed.startsAt; values.endsAt = parsed.endsAt;
     }
     const request = parseGoodsBulkRequest({ kind, ids: dialog.ids, command, values });
@@ -141,13 +141,13 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
   function apply(target: GoodsBulkPreview) {
     if (busy.current || !session.current()) return;
     try {
-      const saved = savedOperation(); if (saved) { setRecovery(saved); setMessage('먼저 이전 요청의 결과를 확인해주세요.'); return; }
+      const saved = savedOperation(); if (saved) { setRecovery(saved); setMessage('이전 요청이 처리됐는지 아직 모릅니다. 처리 결과 조회를 눌러 먼저 확인해주세요.'); return; }
       localStorage.setItem(`${prefix}${target.operationId}`, target.operationId);
       if (localStorage.getItem(`${prefix}${target.operationId}`) !== target.operationId) throw new Error('bulk journal');
     } catch { setStorageBroken(true); setMessage('진행 내역을 보관하지 못해 실행하지 않았습니다. 브라우저 저장공간을 확인해주세요.'); return; }
     setRecovery(target.operationId); busy.current = true; setMessage(''); startTransition(async () => {
       try { accept(await commitGoodsBulkAction(target.operationId, identity)); }
-      catch { if (session.current()) setMessage('결과가 불명확합니다. 같은 요청의 결과를 조회해주세요.'); }
+      catch { if (session.current()) setMessage('처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'처리 결과 조회\'를 눌러 결과를 확인해주세요.'); }
       finally { busy.current = false; }
     });
   }
@@ -190,7 +190,7 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
       </details>}
       {selectionActions ? <><span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />{selectionActions}</> : null}
     </div>}
-    {session.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 변경되었습니다. 화면을 다시 열어주세요.</p> : null}
+    {session.blocked ? <p className="text-sm text-destructive" role="alert">로그인한 계정이 바뀌었거나 다시 로그인했습니다. 화면을 새로고침해주세요.</p> : null}
     {storageBroken ? <p className="text-sm text-destructive" role="alert">진행 기록을 확인하지 못했습니다. 브라우저 저장공간을 확인하고 화면을 다시 열어주세요.</p> : null}
     {!dialog ? resultStatus : null}
     {dialog ? <CustomerServiceDialog title={preview ? '일괄 변경 내용 확인' : GOODS_BULK_LABELS[dialog.command]} busy={pending || Boolean(recovery)} onClose={() => { if (!pending && !recovery) setDialog(null); }}>
@@ -204,10 +204,10 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
             {dialog.command === 'price' || dialog.command === 'discount' ? <div className="grid gap-3 sm:grid-cols-2"><label className={FIELD}>변경 방식<AdminSelect name="mode" aria-label="변경 방식" defaultValue={dialog.command === 'price' ? 'set' : 'amount'} wrapperClassName="w-full">
               {(dialog.command === 'price' ? [['set', '기본 판매가 지정 (원)'], ['increase', '기본 판매가 인상 (원)'], ['decrease', '기본 판매가 인하 (원)'], ['percent_increase', '기본 판매가 인상 (%)'], ['percent_decrease', '기본 판매가 인하 (%)']] : [['amount', '옵션별 정액 할인 (원)'], ['rate', '옵션별 정률 할인 (%)']]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </AdminSelect></label><label className={FIELD}>금액 또는 비율<Input className="text-right tabular-nums" name="value" type="number" min={1} max={2147483647} step={1} required /></label></div> : null}
-            {dialog.command === 'price' ? <p className={NOTE}>기본 판매가를 변경하며 옵션 추가금액과 재고수량은 유지합니다. 비율 계산 시 원 미만은 버립니다.</p> : null}
+            {dialog.command === 'price' ? <p className={NOTE}>기본 판매가를 바꾸고 옵션가와 재고수량은 그대로 둡니다. 비율로 계산할 때 1원 미만은 버립니다.</p> : null}
             {dialog.command === 'period' ? <label className={CHECK}><input type="checkbox" name="unlimited" value="true" />판매기간 제한 해제</label> : null}
             {dialog.command === 'period' || dialog.command === 'discount' ? <div className="grid gap-3 sm:grid-cols-2"><label className={FIELD}>시작 (KST)<Input name="startsAt" type="datetime-local" /></label><label className={FIELD}>종료 (KST)<Input name="endsAt" type="datetime-local" /></label></div> : null}
-            {dialog.command === 'discount' ? <p className={NOTE}>사용 중인 모든 옵션에 기간 할인을 등록합니다. 기존 활성 할인과 시간이 겹치거나 할인가가 맞지 않는 상품은 건너뛰고, 비교 결과와 저장 후에 그 목록을 보여 드립니다. 기획전·IP 단위로 묶어 걸고 한두 상품만 다른 할인율로 정하거나 묶음으로 중지하려면 <Link className="font-medium text-primary underline-offset-4 hover:underline" href={newDiscountPromotionHref(kind === 'ip' ? { ip: dialog.ids[0] } : {})}>할인 프로모션</Link>을 쓰세요.</p> : null}
+            {dialog.command === 'discount' ? <p className={NOTE}>사용 중인 모든 옵션에 기간 할인을 등록합니다. 이미 걸린 할인과 기간이 겹치거나 할인가가 맞지 않는 상품은 건너뛰고, 비교 결과와 저장 후에 그 목록을 보여 드립니다. 기획전·IP 단위로 묶어 걸고 한두 상품만 다른 할인율로 정하거나 묶음으로 중지하려면 <Link className="font-medium text-primary underline-offset-4 hover:underline" href={newDiscountPromotionHref(kind === 'ip' ? { ip: dialog.ids[0] } : {})}>할인 프로모션</Link>을 쓰세요.</p> : null}
             {dialog.command === 'discount_stop' ? <p className={NOTE}>{kind === 'ip' ? '이 IP의 보관하지 않은 전체 상품에서 진행 중이거나 예정된 기간 할인을 모두 중지합니다. IP 전체 할인뿐 아니라 상품별로 따로 걸어 둔 할인과 할인 프로모션이 건 할인도 함께 중지되니, 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'
               : '선택 상품의 진행 중이거나 예정된 기간 할인(할인 프로모션이 건 할인 포함)을 모두 중지합니다. 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'} 진행 중이거나 예정된 할인이 없는 상품은 건너뜁니다. 이미 끝난 기간의 할인은 이력으로 남고(중지로 바뀌지 않음) 기존 주문 금액도 바뀌지 않습니다. 한 프로모션의 할인만 끄려면 할인 프로모션 상세에서 중지하세요.</p> : null}
             {dialog.command === 'archive' ? <p className={NOTE}>재고·진행 중 거래 등 보관 조건을 확인합니다. 보관된 상품은 목록에서 복원할 수 있습니다.</p> : null}

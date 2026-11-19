@@ -8,7 +8,7 @@ import { ConsoleGrid, type ConsoleGridColumn, type ConsoleGridRow } from '@/comp
 import { adminConfirm } from '@/lib/admin/confirm';
 
 function deleteConfirmation(count: number) {
-  return `선택한 ERP 품목 ${count.toLocaleString('ko-KR')}건을 지울까요? 지운 품목은 옵션 ERP 품명 제안에 나오지 않습니다. 이미 상품 옵션에 넣은 ERP 코드·품명은 바뀌지 않습니다. 같은 품목을 다시 반입하면 되살릴 수 있습니다.`;
+  return `선택한 ERP 품목 ${count.toLocaleString('ko-KR')}건을 지울까요? 지운 품목은 옵션 ERP 품명 제안에 나오지 않습니다. 이미 상품 옵션에 넣은 ERP 코드·품명은 바뀌지 않습니다. 같은 품목을 다시 올리면 되살릴 수 있습니다.`;
 }
 
 /**
@@ -46,7 +46,7 @@ export function ErpItemListGrid({ columns, rows, emptyLabel, canDelete = true }:
 
   return <form className="flex min-w-0 flex-col gap-2" onSubmit={remove}>
     <ConsoleGrid
-      caption="반입된 ERP 품목"
+      caption="올린 ERP 품목"
       className="[&_table]:min-w-[880px] [&_thead_th:first-child]:min-w-10"
       columns={columns}
       rows={rows}

@@ -46,7 +46,7 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
 
   function accept(saved: ClaimHoldReceipt, request: ClaimHoldRequest) {
     if (!claimHoldReceiptMatches(saved, request) || saved.orderId !== context.orderId) {
-      setUncertain(true); setError('현재 요청과 다른 저장 결과입니다. 같은 요청의 결과를 다시 확인해주세요.');
+      setUncertain(true); setError('불러온 저장 결과가 이 요청과 맞지 않습니다. [같은 요청 결과 확인]을 다시 누르고, 같은 안내가 반복되면 새로고침해 처리 이력을 확인해주세요.');
       return;
     }
     dispatched.current = null; setReceipt(saved); setUncertain(false); setError(''); setMessage('');
@@ -60,7 +60,7 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
       claimType: context.claimType, revision: context.revision, decision,
       note: decision === 'hold' ? note : null, confirmed,
     });
-    if (!request) { setError('보류 사유는 10~200자로 입력하고 현재 요청의 처리 내용을 확인해주세요.'); return; }
+    if (!request) { setError('보류할 때는 보류 사유를 10~200자로 입력하고, 아래 확인 칸에 체크해주세요.'); return; }
     const wasUncertain = uncertain;
     dispatched.current = request; inFlight.current = true; setPending(true); setError(''); setMessage('');
     try {
@@ -70,8 +70,8 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
         setUncertain(keep); setConflict(!keep && Boolean(result.conflict)); setError(result.error);
         if (!keep) dispatched.current = null;
       } else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.'); }
-    } catch { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.'); }
+      else { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
+    } catch { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
 
@@ -83,8 +83,8 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
       const result = await readClaimHoldAction(request.id);
       if ('error' in result) setError(result.error);
       else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else setMessage('확인된 저장 결과가 없습니다. 같은 내용으로 재시도할 수 있습니다.');
-    } catch { setError('결과를 읽지 못했습니다. 같은 요청을 다시 확인해주세요.'); }
+      else setMessage('아직 저장된 결과가 없습니다. 입력한 내용 그대로 [같은 내용으로 재시도]를 누르면 됩니다(두 번 처리되지 않습니다).');
+    } catch { setError('저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
 
@@ -100,14 +100,14 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
         setContext(result.context); setConflict(false); setConfirmed(false);
         if (changedType || changedActor) setNote('');
         setMessage(changedType || changedActor
-          ? '요청 유형 또는 계정이 바뀌어 이전 입력과 확인을 초기화했습니다. 현재 요청을 다시 확인해주세요.'
-          : '최신 상태를 읽었습니다. 입력은 보존했으며 처리 내용을 다시 확인해주세요.');
+          ? '요청 유형이나 로그인 계정이 바뀌어 입력한 내용과 체크를 지웠습니다. 현재 요청을 확인하고 다시 입력해주세요.'
+          : '최신 상태를 다시 불러왔습니다. 입력한 내용은 그대로 두었습니다. 처리 내용을 확인하고 확인 칸에 다시 체크해주세요.');
         if (changedType) {
           router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[result.context.claimType]}/${context.claimId}`);
           router.refresh();
         }
-      } else setError('현재 요청의 상태를 읽지 못했습니다.');
-    } catch { setError('최신 요청을 읽지 못했습니다.'); }
+      } else setError('이 요청의 최신 상태를 불러오지 못했습니다. 새로고침한 뒤 다시 열어주세요.');
+    } catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
 
@@ -152,8 +152,8 @@ export function ClaimHoldControl({ claimId, claimType, held }: { claimId: string
       const result = await loadClaimHoldContextAction(claimId);
       if ('error' in result) setError(result.error);
       else if ('context' in result && result.context.claimId === claimId) setContext(result.context);
-      else setError('현재 요청의 상태를 읽지 못했습니다.');
-    } catch { setError('최신 요청을 읽지 못했습니다.'); }
+      else setError('이 요청의 최신 상태를 불러오지 못했습니다. 새로고침한 뒤 다시 열어주세요.');
+    } catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); }
     finally { loading.current = false; setPending(false); }
   }
   return context ? <ClaimHoldPanel initial={context} onClose={() => setContext(null)} />

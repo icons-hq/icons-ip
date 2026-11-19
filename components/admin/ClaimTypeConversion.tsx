@@ -29,7 +29,7 @@ export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }:
   const locked = pending || uncertain || Boolean(receipt); const editable = () => !inFlight.current && !dispatched.current && !receipt;
   const accountRequired = toType === 'return' && context.bankRequired && !context.savedAccount;
   function accept(saved: ClaimTypeReceipt, request: ClaimTypeRequest) {
-    if (!claimTypeReceiptMatches(saved, request) || saved.orderId !== context.orderId || saved.fromType !== context.claimType) { setError('현재 요청과 다른 저장 결과입니다. 같은 요청의 결과를 다시 확인해주세요.'); setUncertain(true); return; }
+    if (!claimTypeReceiptMatches(saved, request) || saved.orderId !== context.orderId || saved.fromType !== context.claimType) { setError('불러온 저장 결과가 이 요청과 맞지 않습니다. [같은 요청 결과 확인]을 다시 누르고, 같은 안내가 반복되면 새로고침해 처리 이력을 확인해주세요.'); setUncertain(true); return; }
     dispatched.current = null; setReceipt(saved); setUncertain(false); setError(''); setMessage('');
     setBankName(''); setAccountNumber(''); setAccountHolder('');
     const destination = embedded ? `/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}?claimId=${saved.claimId}` : `/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}/${saved.claimId}`;
@@ -42,31 +42,31 @@ export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }:
     if (inFlight.current || receipt || !context.allowed || conflict && !uncertain) return;
     const request = normalizeClaimTypeRequest(dispatched.current ?? { id: crypto.randomUUID(), claimId: context.claimId, revision: context.revision,
       toType, agreement, confirmed, refundAccount: toType === 'return' ? { bankName, accountNumber, accountHolder } : null });
-    if (!request) { setError('고객 합의 근거, 동의와 환불계좌 입력을 확인해주세요.'); return; }
+    if (!request) { setError('고객 합의 근거를 2~500자로 적고 합의 확인에 체크해주세요. 환불계좌는 은행명·환불계좌번호·예금주를 모두 입력하거나 모두 비워 주세요.'); return; }
     if (accountRequired && !request.refundAccount) { setError(claimTypeError(undefined, 'claim_conversion_account_required')); return; }
     const wasUncertain = uncertain; dispatched.current = request; inFlight.current = true; setPending(true); setError(''); setMessage('');
     try {
       const result = await convertClaimTypeAction(request);
       if ('error' in result) { const keep = wasUncertain || Boolean(result.uncertain); setUncertain(keep); setConflict(!keep && Boolean(result.conflict)); setError(result.error); if (!keep) dispatched.current = null; }
       else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.'); }
-    } catch { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.'); }
+      else { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
+    } catch { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
   async function readback() {
     const request = dispatched.current; if (!request || inFlight.current) return; inFlight.current = true; setPending(true); setError(''); setMessage('');
     try { const result = await readClaimTypeChangeAction(request.id); if ('error' in result) setError(result.error); else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else setMessage('확인된 저장 결과가 없습니다. 입력을 고정한 채 같은 요청을 재시도할 수 있습니다.'); }
-    catch { setError('결과를 읽지 못했습니다. 같은 요청을 다시 확인해주세요.'); }
+      else setMessage('아직 저장된 결과가 없습니다. 입력한 내용 그대로 [같은 내용으로 재시도]를 누르면 됩니다(두 번 처리되지 않습니다).'); }
+    catch { setError('저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.'); }
     finally { inFlight.current = false; setPending(false); }
   }
   async function reload() {
     if (inFlight.current || dispatched.current) return; inFlight.current = true; setPending(true); setError('');
     try { const result = await loadClaimTypeContextAction(context.claimId); if ('error' in result) setError(result.error);
       else if ('context' in result && result.context.claimId === context.claimId && result.context.orderId === context.orderId) {
-        setContext(result.context); setConflict(false); setConfirmed(false); setMessage('최신 요청을 읽었습니다. 입력은 보존했으며 전환할 유형과 고객 동의를 다시 확인해주세요.');
-      } else setError('현재 요청의 상태를 읽지 못했습니다.'); }
-    catch { setError('최신 요청을 읽지 못했습니다.'); } finally { inFlight.current = false; setPending(false); }
+        setContext(result.context); setConflict(false); setConfirmed(false); setMessage('최신 요청을 다시 불러왔습니다. 입력한 내용은 그대로 두었습니다. 전환할 유형을 확인하고 고객 합의 확인에 다시 체크해주세요.');
+      } else setError('이 요청의 최신 상태를 불러오지 못했습니다. 새로고침한 뒤 다시 열어주세요.'); }
+    catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); } finally { inFlight.current = false; setPending(false); }
   }
   return <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" aria-label="반품·교환 전환" data-claim-panel="type-conversion">
     <h3 className="text-base leading-snug font-medium">{sourceLabel} → {targetLabel} 전환</h3>
@@ -97,7 +97,7 @@ export function ClaimTypeConversion({ claimId, embedded = false }: { claimId: st
   const [context, setContext] = useState<ClaimTypeContext | null>(null); const [pending, setPending] = useState(false); const [error, setError] = useState(''); const loading = useRef(false);
   async function open() { if (loading.current) return; loading.current = true; setPending(true); setError('');
     try { const result = await loadClaimTypeContextAction(claimId); if ('error' in result) setError(result.error); else if ('context' in result) setContext(result.context); }
-    catch { setError('최신 요청을 읽지 못했습니다.'); } finally { loading.current = false; setPending(false); }
+    catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); } finally { loading.current = false; setPending(false); }
   }
   return context ? <ClaimTypeConversionPanel embedded={embedded} initial={context} onClose={() => setContext(null)} /> : <div className="flex min-w-0 flex-col items-start gap-2" data-claim-panel-entry="type-conversion"><button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : '반품·교환 전환 및 이력'}</button>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}</div>;
 }

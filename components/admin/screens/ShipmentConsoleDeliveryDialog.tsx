@@ -125,7 +125,7 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
             {policiesFor.length ? <ul className={`${NOTE} flex list-disc flex-col gap-0.5 pl-5`}>{policiesFor.map((policy) => <li key={policy.id}>
               {options.shipments.find((shipment) => shipment.originId === policy.originId)?.originName ?? '출고지'} · 운영 조건 버전 {policy.revision} · {policy.contactName} · {policy.handoffLocation}
             </li>)}</ul> : null}
-          </div> : <AdminNotice role="status" tone="warning">고른 배송 건의 출고지에서 운영 조건이 켜진 택배 외 방법이 없습니다. 배송정보 관리에서 운영 조건을 등록·활성화한 뒤 사용할 수 있습니다.</AdminNotice>}
+          </div> : <AdminNotice role="status" tone="warning">고른 배송 건의 출고지에서 운영 조건이 켜진 택배 외 방법이 없습니다. 배송정보 관리에서 운영 조건을 등록하고 [근거 확인 후 활성화]를 누른 뒤 사용할 수 있습니다.</AdminNotice>}
           {handoffMethod ? <label className="flex items-start gap-2"><input checked={handoff} className="mt-1" disabled={pending} onChange={(event) => setHandoff(event.target.checked)} type="checkbox" />
             <span>실제 인계(발송)까지 지금 기록합니다. 기록하면 배송 중으로 바뀌고 고객 주문 화면에 업체가 표시됩니다.</span></label> : null}
           {plan.length ? <div className="min-w-0 overflow-x-auto rounded-lg border">

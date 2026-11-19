@@ -74,6 +74,6 @@ export function parsePurchaseCostHistory(value: unknown): PurchaseCostChange[] |
 }
 
 export function purchaseCostLabel(cost: PurchaseCostInput | null): string {
-  return cost?.unitCostKrw == null || cost.taxBasis === null ? '미설정'
+  return cost?.unitCostKrw == null || cost.taxBasis === null ? '정하지 않음'
     : `${cost.unitCostKrw.toLocaleString('ko-KR')}원 · ${PURCHASE_TAX_BASIS_LABELS[cost.taxBasis]}`;
 }

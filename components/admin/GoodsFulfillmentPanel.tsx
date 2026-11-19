@@ -32,7 +32,7 @@ export function GoodsFulfillmentDraftFields({ draft, onChange, onUpload, fieldId
     <ul className="flex min-w-0 flex-col gap-1.5 text-sm">{draft.files.map(f => <li className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 wrap-anywhere" key={f.id}>{f.name} · <span className="tabular-nums">{(f.size / 1024).toFixed(1)}KB</span> <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => onChange({ ...draft, files: draft.files.filter(item => item.id !== f.id) })}>새 주문에서 제외</button></li>)}</ul>
     <p className="text-sm text-muted-foreground">PDF·ZIP·PNG·JPG·MP3·MP4·TXT 파일을 개당 50MB, 최대 10개까지 등록할 수 있습니다. 구매자에게 제공할 원본 파일을 선택해주세요.</p>
    </div> : <p className="text-sm text-muted-foreground">배송비 0원으로 주문하며 실제 직접전달 후 주문자의 일회 수령 확인값과 전달 근거를 기록합니다.</p>}
-   {draft.mode !== 'digital' ? <p className="text-sm text-muted-foreground">택배 이외 수령 방식은 배송정보 관리에서 해당 출고지의 연락처·인계 장소·수령 절차를 먼저 활성화해야 주문할 수 있습니다. 추가 배송비는 설정한 금액으로 선결제하며 현장 추가 청구는 없습니다.</p> : null}
+   {draft.mode !== 'digital' ? <p className="text-sm text-muted-foreground">택배 이외 수령 방식은 배송정보 관리에서 해당 출고지의 연락처·인계 장소·수령 절차를 먼저 켜 두어야 주문할 수 있습니다. 추가 배송비는 설정한 금액으로 선결제하며 현장 추가 청구는 없습니다.</p> : null}
    <label className={FIELD_LABEL_CLASS}>고객 안내<input className={GOOD_INPUT_CLASS} data-slot="input" maxLength={1000} value={draft.publicNote} onChange={e => onChange({ ...draft, publicNote: e.target.value })} /></label>
    <label className={FIELD_LABEL_CLASS}>설정 근거<input className={GOOD_INPUT_CLASS} data-slot="input" minLength={2} maxLength={1000} required value={draft.evidence} onChange={e => onChange({ ...draft, evidence: e.target.value })} /></label>
    <label className={CHECK_LABEL_CLASS}><input type="checkbox" checked={draft.confirmed} onChange={e => onChange({ ...draft, confirmed: e.target.checked })} required />수령 방식·금액·파일 제공 조건을 확인했습니다.</label>
@@ -63,11 +63,11 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
    if (!grant.ok) { setMessage(grant.error); return; } prepared = true; setPendingFile(candidate);
    const sent = await createClient().storage.from(DIGITAL_BUCKET).upload(grant.path, file, { contentType: candidate.mimeType, upsert: false });
    if (!alive.current || !scope.canApply(ticket)) return;
-   if (sent.error) { setMessage('전송 결과를 확인하지 못했습니다. 같은 파일의 업로드 결과를 확인해주세요.'); return; }
+   if (sent.error) { setMessage('파일이 올라갔는지 확인하지 못했습니다. 아래 같은 업로드 결과 확인을 눌러주세요.'); return; }
    const result = await verifyDigitalAssetAction(candidate.id, identity); if (!alive.current || !scope.canApply(ticket)) return;
    if (result.ok) { setDraft(d => d ? { ...d, files: [...d.files.filter(f => f.id !== result.file.id), result.file] } : d); setPendingFile(null); setMessage('파일을 확인했습니다. 상품 설정을 저장하면 새 주문에 적용됩니다.'); }
    else { setMessage(result.error); if (!result.uncertain) setPendingFile(null); }
-  } catch { if (alive.current && scope.canApply(ticket)) setMessage(prepared ? '전송 결과를 확인하지 못했습니다. 같은 파일의 업로드 결과를 확인해주세요.' : '업로드 준비에 실패했습니다. 다시 선택해주세요.'); }
+  } catch { if (alive.current && scope.canApply(ticket)) setMessage(prepared ? '파일이 올라갔는지 확인하지 못했습니다. 아래 같은 업로드 결과 확인을 눌러주세요.' : '업로드 준비에 실패했습니다. 다시 선택해주세요.'); }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  async function verify() {
@@ -87,7 +87,7 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
   try { const result = await saveGoodsFulfillmentAction(goodId, request.values, request.revision, request.operation, identity); if (!alive.current || !scope.canApply(ticket)) return;
    if ('settings' in result && result.settings) { setSettings(result.settings); setDraft(draftOf(result.settings)); dispatched.current = null; setUncertain(false); setMessage('배송·제공 설정을 저장했습니다. 기존 주문의 방식·금액·파일은 유지됩니다.'); }
    else { setMessage(result.error ?? '결과를 확인하지 못했습니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) dispatched.current = null; }
-  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
+  } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 저장 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  return <div className="flex min-w-0 flex-col gap-4" data-goods-fulfillment=""><p className="text-sm text-muted-foreground">고객이 주문서에서 선택할 수령 방식과 선결제 비용을 설정합니다. 택배 배송비는 기존 배송비 정책을 사용하며 설치비는 별도로 선결제합니다.</p>
@@ -95,7 +95,7 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
   {draft ? <form className="flex min-w-0 flex-col gap-4" onSubmit={e => { e.preventDefault(); void save(); }}><fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || uncertain || Boolean(pendingFile) || Boolean(disabledReason)}><legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 제공 방식</legend>
    <GoodsFulfillmentDraftFields draft={draft} onChange={setDraft} onUpload={file => { void upload(file); }} fieldId={fieldId} />
   </fieldset><button type="submit" className={`${buttonVariants()} self-start`} data-slot="button" disabled={pending || !draft.confirmed || Boolean(pendingFile) || Boolean(disabledReason)}>{uncertain ? '같은 요청으로 저장 결과 확인' : '배송·제공 설정 저장'}</button></form> : null}
-  {pendingFile ? <p className={`${GOOD_NOTE_CLASS} flex flex-wrap items-center gap-2`} role="status">{pendingFile.name}의 전송·검증 결과를 확인해주세요. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
+  {pendingFile ? <p className={`${GOOD_NOTE_CLASS} flex flex-wrap items-center gap-2`} role="status">{pendingFile.name}이(가) 올라갔는지 아직 확인하지 못했습니다. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
   {settings ? <p className="text-sm text-muted-foreground wrap-anywhere">저장된 방식: {settings.methods.map(m => `${FULFILLMENT_METHOD_LABELS[m.method]}${m.feeAmount === null ? '' : ` ${krw(m.feeAmount)}`}`).join(', ')}</p> : null}
   {showDisabledReason && disabledReason ? <p className={GOOD_NOTE_CLASS} role="status">{disabledReason}</p> : null}{message ? <p className="text-sm font-medium" role="status">{message}</p> : null}
  </div>;

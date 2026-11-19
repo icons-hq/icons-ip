@@ -165,7 +165,7 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
     display={display} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing && !discounted} setEditing={setEditing}>
     <label htmlFor={inputId} className="sr-only">기본 판매가 (원)</label>
     <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus onFocus={selectAllOnFocus} className={INLINE_INPUT_CLASS} data-slot="input" />
-    <small className="text-xs text-muted-foreground">{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
+    <small className="text-xs text-muted-foreground">{hasOptions ? '기본 판매가 · 옵션가는 그대로' : '판매가'}</small>
   </InlineEditor>;
 }
 

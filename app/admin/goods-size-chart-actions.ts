@@ -9,7 +9,7 @@ import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
 
 export type GoodsSizeResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
 const unread = <T,>(): GoodsSizeResult<T> => ({ ok: false, error: '저장된 사이즈 안내를 불러오지 못했습니다. 다시 조회해주세요.' });
-const unknown = <T,>(): GoodsSizeResult<T> => ({ ok: false, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.', uncertain: true });
+const unknown = <T,>(): GoodsSizeResult<T> => ({ ok: false, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.', uncertain: true });
 const validGoodId = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(value);
 const validRevision = (revision: number) => Number.isInteger(revision) && revision >= 0 && revision < 2147483647;
 const knownFailure = (code?: string) => ['PT409', '23505', '23514', '22023', '42501', 'P0002'].includes(code ?? '');

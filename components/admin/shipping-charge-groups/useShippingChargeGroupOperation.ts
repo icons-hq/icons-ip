@@ -126,7 +126,7 @@ export function useShippingChargeGroupOperation({ identity, scope, groupId, comm
       }
       const receipt = parseShippingChargeGroupOperationReceipt(result.data);
       if (!receipt || !shippingChargeGroupReceiptMatches(receipt, operation)) {
-        error = '현재 계정·세션·요청과 다른 결과입니다. 같은 요청의 결과를 다시 확인해주세요.';
+        error = '지금 계정·로그인·요청과 맞지 않는 결과입니다. 같은 요청의 결과를 다시 확인해주세요.';
         return;
       }
       try { if (readJournal(key)?.operationId === operation.operationId) sessionStorage.removeItem(key); } catch { /* A retained receipt can be read again. */ }
@@ -151,7 +151,7 @@ export function useShippingChargeGroupOperation({ identity, scope, groupId, comm
       sessionStorage.setItem(key, serialized);
       if (sessionStorage.getItem(key) !== serialized) throw new Error('checkpoint unavailable');
     } catch {
-      update({ busy: false, error: '이 탭에 요청번호를 보관할 수 없어 전송하지 않았습니다. 브라우저 저장 설정을 확인해주세요.', message: '' });
+      update({ busy: false, error: '이 브라우저 탭에 처리 번호를 남길 수 없어 요청을 보내지 않았습니다. 시크릿 창이 아닌 일반 창에서 열거나, 브라우저 설정에서 사이트 데이터 저장을 허용해주세요.', message: '' });
       return;
     }
     notify();

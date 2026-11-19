@@ -21,7 +21,7 @@ describe('Office Agile 파일 암호화', { timeout: CRYPTO_TEST_TIMEOUT }, () =
     await expect(officeCrypto.decrypt(first.bytes, { password: 'IncorrectPassword!' })).rejects.toThrow();
   });
   it('평문 형식과 허용 길이 밖의 암호는 파일 생성 전에 거부한다', () => {
-    expect(() => encryptAdminWorkbook(Buffer.from('not zip'), '1234')).toThrow('파일 형식');
+    expect(() => encryptAdminWorkbook(Buffer.from('not zip'), '1234')).toThrow('엑셀 파일을 만들지 못했습니다');
     for (const password of ['123', 'A'.repeat(17)]) {
       expect(() => encryptAdminWorkbook(Buffer.from('PK\u0003\u0004'), password)).toThrow('비밀번호');
     }
@@ -105,7 +105,7 @@ describe('업로드한 비밀번호 파일 복호화', { timeout: CRYPTO_TEST_TI
   it('복호화 전에도 파일 크기 한도를 적용한다', async () => {
     const sealed = encryptAdminWorkbook(await plain(), '1234').bytes;
     const decrypt = vi.spyOn(officeCrypto, 'decrypt');
-    await expect(decryptUploadedWorkbook(sealed, '1234', sealed.length - 1)).rejects.toThrow('용량이 상한을 초과');
+    await expect(decryptUploadedWorkbook(sealed, '1234', sealed.length - 1)).rejects.toThrow('최대 크기보다 큽니다');
     expect(decrypt).not.toHaveBeenCalled();
   });
 });

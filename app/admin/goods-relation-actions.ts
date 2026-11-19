@@ -14,7 +14,7 @@ export async function saveGoodsRelationAction(input: unknown): Promise<{ saved: 
   const parsed = parseGoodsRelationInput(input);
   if (!parsed.ok) return { error: parsed.error };
   const suppliedOperation = (input as { operationId?: unknown }).operationId;
-  if (suppliedOperation !== undefined && !isUuid(suppliedOperation)) return { error: '저장 요청을 다시 확인해주세요.' };
+  if (suppliedOperation !== undefined && !isUuid(suppliedOperation)) return { error: '저장 요청을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 저장해주세요.' };
   const operationId = typeof suppliedOperation === 'string' ? suppliedOperation : randomUUID();
   let savedId: string | undefined;
   try {
@@ -30,7 +30,7 @@ export async function saveGoodsRelationAction(input: unknown): Promise<{ saved: 
     return { saved };
   } catch (error) {
     unstable_rethrow(error);
-    return { error: savedId ? '저장 후 다시 읽지 못했습니다. 편성을 다시 열어 저장 여부를 확인해주세요.' : '저장 결과를 확인하지 못했습니다. 입력은 유지됩니다. 같은 요청으로 결과를 확인해주세요.', savedId, ...(!savedId && suppliedOperation ? { retrySameOperation: true } : {}) };
+    return { error: savedId ? '저장 후 다시 읽지 못했습니다. 편성을 다시 열어 저장 여부를 확인해주세요.' : '저장됐는지 확인하지 못했습니다. 입력은 그대로 둡니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요.', savedId, ...(!savedId && suppliedOperation ? { retrySameOperation: true } : {}) };
   }
 }
 export async function findGoodsForRelationAction(query: string, page: number): Promise<{ data: GoodsRelationCandidates } | { error: string }> {

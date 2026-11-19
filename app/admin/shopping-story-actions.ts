@@ -23,7 +23,7 @@ export async function saveShoppingStoryAction(request: ShoppingStorySaveRequest)
   try {
     const client = await createClient();
     result = await client.rpc('admin_save_shopping_story', { p_id: request.id, p_expected_revision: request.expectedRevision, p_operation_id: request.operationId, p_values: normalized.value });
-  } catch { return { ok: false, error: '저장 결과를 확인하지 못했습니다. 같은 내용으로 다시 확인하거나 목록에서 저장 여부를 확인해주세요.', retrySameOperation: true }; }
+  } catch { return { ok: false, error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 입력을 바꾸지 말고 ‘같은 요청으로 저장 결과 확인’을 누르거나, 목록에서 저장됐는지 확인해주세요.', retrySameOperation: true }; }
   if (result.error) {
     let latestStory: AdminShoppingStory | undefined;
     if (result.error.code === 'PT409') { try { latestStory = await loadAdminShoppingStory(request.id) ?? undefined; } catch {} }
@@ -44,7 +44,7 @@ export async function deleteShoppingStoriesAction(operationId: string, entries: 
     const client = await createClient(); const { error } = await client.rpc('admin_delete_shopping_stories', { p_operation_id: operationId, p_entries: entries });
     if (error) return { ok: false, error: shoppingStoryError(error.message) };
     refreshStories(entries.map(entry => entry.id)); return { ok: true };
-  } catch { return { ok: false, error: '삭제 결과를 확인하지 못했습니다. 같은 선택으로 다시 확인해주세요.', retrySameOperation: true }; }
+  } catch { return { ok: false, error: '삭제 결과를 확인하지 못했습니다. 이미 삭제됐을 수 있으니 선택을 바꾸지 말고 ‘같은 요청으로 삭제 결과 확인’을 눌러주세요.', retrySameOperation: true }; }
 }
 export async function searchShoppingStoryGoodsAction(query: string, page: number, filters: StoryGoodFilters = DEFAULT_STORY_GOOD_FILTERS) {
   if (!await requireAdminActionAccess(ADMIN_SHOPPING_STORIES_PATH, { capability: 'store.manage' })) return { ok: false as const, error: '쇼핑스토리 관리 권한이 필요합니다.' };

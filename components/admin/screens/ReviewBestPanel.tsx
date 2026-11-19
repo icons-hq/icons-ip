@@ -21,7 +21,7 @@ export function ReviewBestPanel({ initial, disabled, onBusyChange }: { initial?:
     setPending(true); onBusyChange(true); setMessage('');
     let result: BestReviewResult;
     try { result = await setBestReviewAction(request.current); }
-    catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+    catch { result = { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러주세요. 다시 눌러도 두 번 저장되지 않습니다.', uncertain: true }; }
     setPending(false);
     if ('error' in result) {
       setError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); onBusyChange(Boolean(result.uncertain));
@@ -33,16 +33,16 @@ export function ReviewBestPanel({ initial, disabled, onBusyChange }: { initial?:
   }
   return <section className="flex min-w-0 flex-col gap-3 rounded-lg border p-4" aria-labelledby={`review-best-${initial?.reviewId}`}>
     <h3 className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground" id={`review-best-${initial?.reviewId}`}>BEST 리뷰 선정 <AdminStatusBadge tone={statusTone('reviewBest', state?.state)}>{state ? REVIEW_BEST_LABELS[state.state] : '확인 불가'}</AdminStatusBadge></h3>
-    <p className="text-xs leading-relaxed text-muted-foreground">별점과 무관하게 구체적인 사용 후기를 선정합니다. 상품별 유효한 선정 리뷰가 3개 이상이면 대표 이미지 영역에 3개를 무작위로 표시합니다.</p>
-    <p className="text-xs leading-relaxed text-muted-foreground">홈 베스트리뷰에서는 유효한 선정 리뷰를 해당 상품의 대표 후기로 우선 사용하며, 상품상세 이미지 영역의 표시 설정·최소 3개 조건과는 별개입니다.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">별점과 무관하게 구체적인 사용 후기를 선정합니다. 상품별로 지금 보여 줄 수 있는 선정 리뷰가 3개 이상이면 대표 이미지 영역에 3개를 무작위로 표시합니다.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">홈 베스트리뷰는 지금 보여 줄 수 있는 선정 리뷰를 그 상품의 대표 후기로 먼저 씁니다. 상품상세 이미지 영역의 표시 설정·최소 3개 조건과는 상관없습니다.</p>
     {!state ? <p className="bg-transparent text-sm text-destructive" role="alert">선정 상태를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : <>
       {state.problem ? <AdminNotice role="status" tone="warning">{REVIEW_BEST_PROBLEM_LABELS[state.problem]}</AdminNotice> : null}
       {state.reason ? <p className="text-sm text-muted-foreground wrap-anywhere">최근 선정·해제 사유: {state.reason}</p> : null}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`best-reason-${state.reviewId}`}>선정·해제 사유 (운영 기록에 남습니다)</Label>
+        <Label htmlFor={`best-reason-${state.reviewId}`}>선정·해제 사유 (감사 기록에 남습니다)</Label>
         <Textarea className="min-h-20" id={`best-reason-${state.reviewId}`} rows={3} maxLength={1000} value={reason} disabled={disabled || pending || uncertain} onChange={event => setReason([...event.target.value].slice(0,500).join(''))} />
       </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">활성화한 BEST 보상 정책이 있으면 리뷰당 최초 1회 적립금을 지급합니다. 리뷰 내용·공개 상태·구매 내역이 변경되면 재확인 후 다시 선정합니다.</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">BEST 보상 정책을 켜 두었으면 리뷰 한 건에 처음 한 번만 적립금을 지급합니다. 리뷰 내용·공개 상태·구매 내역이 바뀌면 다시 확인한 뒤 [다시 선정]을 눌러야 다시 보입니다.</p>
       <div className="flex flex-wrap gap-2">{uncertain ? <Button disabled={disabled || pending} onClick={() => void save(request.current!.selected)} size="sm" type="button" variant="soft">같은 요청 결과 확인</Button> : <>
         {(!state.selected || state.state === 'needs_review') ? <Button disabled={disabled || pending || !canSelectBestReview(state) || [...reason.trim()].length < 2} onClick={() => void save(true)} size="sm" type="button" variant="soft">{pending ? '처리 중…' : state.selected ? '다시 선정' : 'BEST 리뷰 선정'}</Button> : null}
         {state.selected ? <Button disabled={disabled || pending || [...reason.trim()].length < 2} onClick={() => void save(false)} size="sm" type="button" variant="outline">{pending ? '처리 중…' : '선정 해제'}</Button> : null}

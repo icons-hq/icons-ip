@@ -138,7 +138,7 @@ describe('ModerationSection', () => {
     await vi.waitFor(() => expect(confirm).toHaveBeenCalled());
 
     expect(confirm).toHaveBeenCalledWith(
-      '이 댓글을 숨기고 연결된 신고를 해결합니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?',
+      '이 댓글을 숨기고 연결된 신고를 처리완료로 바꿉니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?',
     );
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(form.requestSubmit).not.toHaveBeenCalled();

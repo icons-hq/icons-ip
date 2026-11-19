@@ -76,7 +76,7 @@ export function GoodsBenefitsPanel({ goodId }: { goodId: string }) {
     const fixed = request.current;
     let result: GoodsBenefitsResult<GoodsBenefitSnapshot>;
     try { result = await saveGoodsBenefitsAction(goodId, fixed.values, fixed.revision, fixed.id); }
-    catch { result = { ok: false, uncertain: true, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }; }
+    catch { result = { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' }; }
     busy.current = false; if (!mounted.current) return; setPending(false);
     if (result.ok) { accept(result.value); setError(false); setMessage('사은품 안내와 이벤트 문구를 저장했습니다.'); }
     else { setError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; if (result.conflict) setConflict(true); }

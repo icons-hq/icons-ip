@@ -130,7 +130,7 @@ it('확정 오류도 같은 요청번호를 유지하고 새 UUID로 우회하�
 it('원문 전체 parser가 거부하거나 checkpoint가 실패하면 전송하지 않는다', async () => {
   operation(); effects(); await operation().send({ ...chargeAdminFixtures().assign, goods: [] }); expect(mocks.assign).not.toHaveBeenCalled(); expect(storageValues.size).toBe(0);
   vi.spyOn(sessionStorage, 'setItem').mockImplementationOnce(() => { throw new Error('unavailable'); });
-  await operation().send(chargeAdminFixtures().assign); expect(mocks.assign).not.toHaveBeenCalled(); expect(operation().error).toContain('전송하지 않았습니다');
+  await operation().send(chargeAdminFixtures().assign); expect(mocks.assign).not.toHaveBeenCalled(); expect(operation().error).toContain('요청을 보내지 않았습니다');
 });
 it('미확정 요청은 beforeunload 경고와 목록 recovery 대상으로 남는다', async () => {
   command = 'save'; operation(); effects(); await operation().send(chargeAdminFixtures().save); await flush();
@@ -203,7 +203,7 @@ it('배정 상품이 있으면 사용 중지·보관 handler 우회도 전송되
 });
 it('지역 설정 변경은 지역 관리 권한과 명시적 확인을 모두 요구한다', async () => {
   mode = 'editor'; editorProps.canManageRegional = false; render(); effects(); change('지역 추가료 적용 방식', 'override'); await submit();
-  expect(mocks.save).not.toHaveBeenCalled(); expect(text(node())).toContain('별도 관리 권한과 명시적인 확인');
+  expect(mocks.save).not.toHaveBeenCalled(); expect(text(node())).toContain('별도 관리 권한이 필요하고, 아래 확인 칸도 체크해야');
 });
 it('기존 그룹 지역 정책을 유지한 이름 변경은 일반 상품관리 권한으로 저장한다', async () => {
   mode = 'editor'; editorProps.canManageRegional = false; editorProps.start.data!.group.regional = { mode: 'override', policy: chargeAdminFixtures().region };

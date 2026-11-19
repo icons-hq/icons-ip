@@ -36,7 +36,7 @@ function DutyEditor({ profile }: { profile: OperatorRecord }) {
       const result = await saveOperatorDutyAction(profile.id, active.duty, active.revision, active.id);
       if ('error' in result) { setError(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) setRequest(null); return; }
       setSaved({ duty: active.duty, revision: result.revision }); setRequest(null); setUncertain(false); setMessage('담당업무를 저장했습니다. 접근 권한은 바뀌지 않습니다.');
-    } catch { setError('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); setUncertain(true); }
+    } catch { setError('저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.'); setUncertain(true); }
     finally { setPending(false); }
   }
   return <div className="flex flex-wrap items-center gap-1.5">
@@ -68,7 +68,7 @@ function useOperatorRequest(onSuccess: () => void) {
       const result = await active.task(active.operationId);
       if ('error' in result) { setError(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) setRequest(null); return; }
       setRequest(null); setUncertain(false); onSuccess();
-    } catch { setError('처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); setUncertain(true); }
+    } catch { setError('처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 처리됩니다.'); setUncertain(true); }
     finally { setPending(false); }
   }
   return { run, pending, uncertain, error };

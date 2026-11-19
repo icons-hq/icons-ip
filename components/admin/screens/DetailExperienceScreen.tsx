@@ -40,7 +40,7 @@ function ExperienceForm({ snapshot, section }: { snapshot: DetailExperienceSnaps
     request.current ??= { id: crypto.randomUUID(), values: values[section], revision };
     setPending(true); setMessage(''); let result: ExperienceSaveResult;
     try { result = await saveDetailExperienceAction(section, request.current.values, request.current.revision, request.current.id); }
-    catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+    catch { result = { error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.', uncertain: true }; }
     setPending(false);
     if ('error' in result) { setMessage(result.error); setError(true); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; }
     else { setValues(current => ({ ...current, [section]: result.values })); setRevision(result.revision); request.current = null; setUncertain(false); setError(false); setMessage('저장했습니다. 상품상세에 적용되었습니다.'); }
@@ -57,11 +57,11 @@ function ExperienceForm({ snapshot, section }: { snapshot: DetailExperienceSnaps
           <label className={NUMBER}>재구매자수 노출 기준<Input aria-label="재구매자수 노출 기준" className="w-24" type="number" min="10" max="1000" value={messages.minRepeatBuyers} onChange={event => change('minRepeatBuyers', Number(event.target.value))} />명 이상</label>
           <label className={CHECK}><input type="checkbox" checked={messages.bestSeller} onChange={event => change('bestSeller', event.target.checked)} /><span>베스트 상품 표시<small className={HINT}>오늘을 제외한 KST 직전 3일의 확정 판매수량으로 공개 상품 상위 10개에 실제 순위를 표시합니다. 동률은 상품 자동코드 순입니다.</small></span></label>
           <label className={CHECK}><input type="checkbox" checked={messages.newProduct} onChange={event => change('newProduct', event.target.checked)} /><span>신상품 표시<small className={HINT}>최초 등록 시각부터 7일 동안 표시합니다.</small></span></label>
-          <p className={NOTE}>서버 결제 확정과 완료 취소·반품을 반영합니다. 방문수·장바구니 수를 구매자로 계산하지 않으며, 조건이 부족한 문구는 숨깁니다.</p>
+          <p className={NOTE}>결제가 확정된 주문과 완료된 취소·반품을 반영합니다. 방문수·장바구니 수를 구매자로 계산하지 않으며, 조건이 부족한 문구는 숨깁니다.</p>
         </> : <>
           <label className={CHECK}><input type="checkbox" checked={values.discovery.shippingSavings} onChange={event => setValues(current => ({ ...current, discovery: { ...current.discovery, shippingSavings: event.target.checked } }))} /><span>배송비 절약상품 표시<small className={HINT}>상품상세에서 옵션·수량을 선택하면 실제 주문서 계산으로 개별 주문 대비 묶음 배송비가 줄어드는 상품을 보여줍니다. 지역 추가배송비와 쿠폰은 제외한 비교입니다.</small></span></label>
           <label className={CHECK}><input type="checkbox" checked={values.discovery.interests} onChange={event => setValues(current => ({ ...current, discovery: { ...current.discovery, interests: event.target.checked } }))} /><span>관심상품 모아보기 표시<small className={HINT}>본인의 재구매·장바구니·찜과 이 브라우저의 최근 본 상품입니다. 끄면 상품상세와 별도 모아보기 진입점을 함께 숨깁니다.</small></span></label>
-          <p className={NOTE}>재구매는 최근 2년 내 확정 주문 2건 이상인 상품입니다. 최근 본 상품은 계정별로 이 브라우저에 상품 자동코드 최대 30개만 저장하며 분석·마케팅 원장에 기록하지 않습니다.</p>
+          <p className={NOTE}>재구매는 최근 2년 내 확정 주문 2건 이상인 상품입니다. 최근 본 상품은 계정별로 이 브라우저에 상품 자동코드 최대 30개만 저장하며 분석·마케팅 기록에 남기지 않습니다.</p>
         </>}
       </fieldset>
     </AdminSectionCard>

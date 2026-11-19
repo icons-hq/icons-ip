@@ -19,7 +19,7 @@ function PendingAssignment({ context, identity, scope, disabled, onReceipt }: {
   /* 결과를 확인해야 하는 요청이라 경고 톤으로 둔다. */
   return <div className="flex min-w-0 flex-col items-start gap-2 rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_40%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_8%,transparent)] px-3 py-2.5 text-sm" data-shipping-charge-pending="">
     <strong className="font-medium">미확정 묶음배송 요청</strong>
-    <p className="text-muted-foreground">이 계정·세션에서 진행한 요청의 결과를 먼저 확인해주세요. 조회 결과가 없으면 요청을 종료한 뒤 최신 상태로 다시 미리보기합니다.</p>
+    <p className="text-muted-foreground">이 계정으로 이번 로그인 중에 보낸 요청의 결과를 먼저 확인해주세요. 조회 결과가 없으면 요청을 종료한 뒤 최신 상태로 다시 미리보기합니다.</p>
     <div className="flex flex-wrap gap-2">
       <button className={buttonVariants({ size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(); }}>저장 결과 확인</button>
       <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(true); }}>미처리 요청 종료</button>
@@ -86,7 +86,7 @@ export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scop
       const value = result.data;
       if (value.actorId !== expectedActorId || value.sessionId !== expectedSessionId || (value.group?.id ?? null) !== targetId
         || value.goods.length !== 1 || value.goods[0].id !== goodId) {
-        setError('현재 상품·대상 그룹·세션과 다른 미리보기입니다. 최신 배정을 확인해주세요.'); return;
+        setError('지금 상품·대상 그룹·로그인과 맞지 않는 미리보기입니다. 새로 미리보기를 만들어 최신 배정을 확인해주세요.'); return;
       }
       setPreview(value);
       if (value.canAssign && value.runtimeEnabled && value.goods.every(good => good.editable && good.id === good.ownerGoodId && good.blocker === null)) {
@@ -132,5 +132,5 @@ export function GoodShippingChargeGroupPanel({ goodId, accountId, disabledReason
   const { identity, scope, blocked } = useShippingChargeGroupSession(accountId);
   return identity ? <GoodShippingChargeGroupAssignmentEditor key={`${identity.expectedActorId}:${identity.expectedSessionId}:${goodId}`} goodId={goodId} identity={identity}
     scope={scope} disabledReason={disabledReason} showDisabledReason={showDisabledReason} onBusyChange={onBusyChange} />
-    : <p className={blocked ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>;
+    : <p className={blocked ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인 계정이 바뀌었거나 로그인이 끊겼습니다. 지금 로그인한 계정으로 이 화면을 새로고침해주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>;
 }

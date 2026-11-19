@@ -12,7 +12,7 @@ import { NOTICE_STRIP_CACHE_TAG } from '@/lib/notice-strip.server';
 import { createClient } from '@/lib/supabase/server';
 
 const SAVE_ERROR = '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.';
-const UNCERTAIN_ERROR = '저장 결과를 확인하지 못했습니다. 입력한 내용을 유지한 채 같은 요청 결과를 확인해주세요.';
+const UNCERTAIN_ERROR = '저장 결과를 확인하지 못했습니다. 입력한 내용은 유지됩니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.';
 
 /*
  * X SQUARE 홈이 새로 거는 저장 규칙 두 가지. 공용 정규화(`normalizeAdminCurationForm`)는 종류마다 이미지·개수 범위만 알고,
@@ -90,7 +90,7 @@ export async function upsertAdminCurationAction(
     if (message.includes('invalid_curation_collection_banner')) return { errors: { form: '컬렉션 배너의 문구(40자)·부제(80자)·이미지 대체텍스트(100자)와 딤·텍스트 색상을 확인해주세요.' } };
     if (message.includes('invalid_curation_search_terms')) return { errors: { searchTerms: '추천 검색어는 줄바꿈 없이 1~20자로, 겹치지 않게 1~10개 입력해주세요.' } };
     if (message.includes('invalid_curation_slot')) return { errors: { slot: '배너를 보일 컬렉션 또는 상품 모음 위치를 다시 선택해주세요.' } };
-    if (/forbidden|auth_required|operator_/.test(message)) return { errors: { form: '현재 스토어 관리 권한을 확인해주세요.' } };
+    if (/forbidden|auth_required|operator_/.test(message)) return { errors: { form: '스토어 관리 권한이 없어 저장하지 못했습니다. 권한이 필요하면 계정 주매니저에게 요청해주세요.' } };
     if (/invalid_|unverified_artwork|curation_image_required|catalog_item_archived|curation_ip_not_found/.test(message)) return { errors: { form: SAVE_ERROR } };
     return { errors: { form: UNCERTAIN_ERROR }, uncertain: true };
   }

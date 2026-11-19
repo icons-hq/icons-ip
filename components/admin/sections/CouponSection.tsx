@@ -93,7 +93,7 @@ function GradeBenefitFields({ grade, cadence, errors }: { grade: string; cadence
       </SelectField>
       <ul className="flex list-disc flex-col gap-1 pl-5 text-xs leading-relaxed text-muted-foreground [grid-column:1/-1]" data-grade-cadence-help="">
         <li>승급 시 1회: 이 등급에 오를 때(건너뛰어 오를 때 포함) 한 번 발급하고, 이미 받은 회원에게는 다시 발급하지 않습니다.</li>
-        <li>매월 1일: 매월 1일 0시(KST)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다. 지난달 몫은 소급하지 않으며, 이번 달 지급이 끝난 뒤 바꾸면 다음 달 1일부터 발급합니다. 발급 한도는 모든 달을 합친 장수입니다.</li>
+        <li>매월 1일: 매월 1일 0시(KST)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다. 지난달에 받지 못한 몫은 나중에 채워 주지 않습니다. 이번 달 지급이 끝난 뒤 이 방식으로 바꾸면 다음 달 1일부터 발급합니다. 발급 한도는 모든 달을 합친 장수입니다.</li>
       </ul>
     </> : null}
   </>;
@@ -202,7 +202,7 @@ function CouponEditor({
       />
       <div hidden={step === 1} className="border-t">
       <h3 className="border-b px-4 py-5 text-base font-medium outline-none sm:px-6" tabIndex={-1}>할인·발급 조건</h3>
-      <p className="border-b bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground sm:px-6">{loyaltyBasisSummary()} 등급 혜택은 고른 지급 방식에 따라 승급할 때 한 번 또는 매월 1일에 자동 발급됩니다. 중복 사용은 스토어 정책과 각 쿠폰의 허용 조건을 모두 따릅니다. 발급 후 상품·배송비 할인 구분과 중복 사용 조건, 발급 방식은 변경할 수 없습니다. 배송비 쿠폰은 대상 상품이 포함된 배송 묶음의 선결제 운송비에 적용하며 설치비·착불 비용은 제외합니다.</p>
+      <p className="border-b bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground sm:px-6">{loyaltyBasisSummary()} 등급 혜택은 고른 지급 방식에 따라 승급할 때 한 번 또는 매월 1일에 자동 발급됩니다. 중복 사용은 쿠폰 중복 사용·배송비 할인 정책과 각 쿠폰의 허용 조건을 모두 따릅니다. 한 장이라도 발급한 뒤에는 상품·배송비 할인 구분, 중복 사용 조건, 발급 방식을 바꿀 수 없습니다. 배송비 쿠폰은 대상 상품이 들어 있는 배송 묶음의 미리 내는 배송비(선결제 운송비)에만 쓰이고, 설치비·착불 비용에는 쓰이지 않습니다.</p>
       <div className="p-4 sm:p-6"><AdminFormGrid>
         <Field
           defaultValue={value('code', defaults?.code)}
@@ -217,7 +217,7 @@ function CouponEditor({
           <option value="goods">상품 금액</option><option value="shipping">선결제 배송비</option>
         </SelectField>
         <SelectField defaultValue={value('stackable', String(defaults?.stackable ?? false)) as string} label="다른 쿠폰과 중복 사용" name="stackable" error={state.errors?.stackable}>
-          <option value="false">허용 안 함</option><option value="true">허용 · 스토어 중복 정책 적용</option>
+          <option value="false">허용 안 함</option><option value="true">허용 · 쿠폰 중복 사용 정책을 따름</option>
         </SelectField>
         <SelectField
           defaultValue={value('discountType', defaults?.discountType ?? 'fixed') as string}

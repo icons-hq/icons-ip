@@ -107,7 +107,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
     const timeout = window.setTimeout(() => { setContext(null); setDraft(blank()); setError('주소 확인 시간이 지났습니다. 최신 주소를 다시 확인해주세요.'); }, Math.max(0, Date.parse(context.expiresAt) - Date.now()));
     return () => window.clearTimeout(timeout);
   }, [context?.expiresAt, recovery]);
-  useAdminLeaveGuard({ dirty, message: '입력한 연락처는 보관하지 않습니다. 미확정 요청은 다시 열어 처리 결과를 확인할 수 있습니다. 이동할까요?' });
+  useAdminLeaveGuard({ dirty, message: '입력한 연락처는 저장되지 않고 사라집니다. 결과를 아직 확인하지 못한 처리는 이 화면을 다시 열어 [저장 결과 확인]으로 확인할 수 있습니다. 이동할까요?' });
 
   function begin() {
     const ticket = scope.capture(); if (busy.current || !ticket) return null;
@@ -125,10 +125,10 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
     // metadata until a receipt or an explicit server seal is read back.
   }
   function accept(receipt: OperationReceipt, original: ClaimContactJournal) {
-    if (!receiptMatches(receipt, original)) { setError('현재 요청과 다른 결과입니다. 저장 결과를 다시 확인해주세요.'); return; }
+    if (!receiptMatches(receipt, original)) { setError('불러온 결과가 이 처리와 맞지 않습니다. [저장 결과 확인]을 다시 눌러주세요.'); return; }
     try { sessionStorage.removeItem(key); } catch { /* A retained journal can only recover this completed operation. */ }
     setRecovery(null); clearPrivate(); setError('');
-    setMessage(receipt.state === 'sealed' ? '미처리 요청을 종료했습니다. 최신 주소를 확인한 뒤 다시 입력해주세요.'
+    setMessage(receipt.state === 'sealed' ? '미처리 요청을 종료했습니다. 저장된 변경은 없습니다. 최신 주소를 다시 불러와 새로 입력해주세요.'
       : receipt.state === 'noop' ? '변경할 내용이 없어 기존 연락처를 유지했습니다.'
         : receipt.command === 'reshipment' ? '확인한 재배송지와 이 배송 건의 실제 재출고를 기록했습니다.' : `${targetLabel(receipt.target)} 연락처를 수정했습니다.`);
     router.refresh();
@@ -146,7 +146,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
           carrier: carriers.find(carrier => carrier.active)?.code ?? '', items: Object.fromEntries(reshipItems.map(item => [item.id, item.currentVariantId])),
           waiveCollection: command === 'reshipment' && shipment !== null && !shipment.collected && !shipment.waived });
       }
-    } catch { if (run.valid()) setError('현재 주소를 읽지 못했습니다. 다시 확인해주세요.'); }
+    } catch { if (run.valid()) setError('현재 주소를 불러오지 못했습니다. 버튼을 다시 눌러주세요.'); }
     finally { end(); }
   }
   async function save(retry = false) {
@@ -174,15 +174,15 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
         items: targetItems.map(item => ({ orderItemId: item.id, variantId: draft.items[item.id] })),
         collectionWaiver: draft.waiveCollection ? { reason: normalizeClaimWaiverReason(draft.waiverReason), evidenceFileIds: draft.evidence.map(file => file.id) } : null,
         destinationConfirmed: draft.destinationConfirmed, dispatchConfirmed: draft.dispatchConfirmed });
-    if (!request) { setError('연락처·합의 근거 또는 재출고 정보와 확인 항목을 모두 확인해주세요.'); return; }
+    if (!request) { setError(context!.command === 'change' ? '받는 분·연락처(숫자 8~15자리)·우편번호(5자리)·주소·고객 합의 근거(2~500자)를 확인하고 확인 칸 두 개에 모두 체크해주세요.' : '택배사·재출고 운송장번호(영문과 숫자 8~30자)·재출고할 상품을 확인하고 확인 칸 두 개에 모두 체크해주세요.'); return; }
     const command = retry ? dispatched.current!.command : context!.command;
     const journal = retry ? recovery : parseClaimContactJournal({ operationId: request.operationId, orderId, claimId, command,
       target: context!.target, expectedClaimType: context!.claimType, expectedClaimRevision: context!.claimRevision,
       actorId: identity.actorId, sessionId: identity.sessionId, startedAt: new Date().toISOString() });
-    if (!journal) { setError('요청 상태를 확인하지 못했습니다. 최신 주소를 다시 확인해주세요.'); return; }
+    if (!journal) { setError('처리 정보를 만들지 못했습니다. [연락처 닫기]를 누른 뒤 최신 주소를 다시 불러와주세요.'); return; }
     const run = begin(); if (!run) return;
     try {
-      try { sessionStorage.setItem(key, JSON.stringify(journal)); } catch { setError('요청번호를 보관할 수 없습니다. 브라우저 저장소를 확인해주세요.'); return; }
+      try { sessionStorage.setItem(key, JSON.stringify(journal)); } catch { setError('이 탭에 처리 번호를 저장하지 못해 보내지 않았습니다. 브라우저 설정에서 사이트 데이터 저장이 막혀 있지 않은지 확인한 뒤 새로고침해주세요.'); return; }
       dispatched.current = { command, request }; setRecovery(journal); setCanRetry(true);
       const result = command === 'change' ? await changeClaimContact(request, run.options) : await recordClaimReshipmentV2(request, run.options);
       if (!run.valid()) return;
@@ -203,7 +203,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
       if (!run.valid()) return;
       if ('code' in result) fail(result);
       else if (result.receipt) accept(result.receipt, original);
-      else setMessage('아직 저장 결과가 없습니다. 같은 내용으로 다시 요청하거나 미처리 요청을 종료한 뒤 새로 입력해주세요.');
+      else setMessage('아직 저장된 결과가 없습니다. [같은 내용으로 다시 요청]을 누르거나(두 번 처리되지 않습니다), [미처리 요청 종료]를 누른 뒤 새로 입력해주세요.');
     } catch { if (run.valid()) setError(claimContactError('claim_contact_outcome_unknown').message); }
     finally { end(); }
   }
@@ -233,7 +233,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
   const waivedDispatch = draft.waiveCollection || Boolean(reshipTarget?.waived);
   return <section aria-label="회수·재배송 연락처 처리" className="flex min-w-0 flex-col gap-3 text-sm break-words" data-claim-contact="">
     <h3 className="text-sm leading-snug font-medium text-foreground">회수·재배송 연락처</h3>
-    <p className="text-muted-foreground">수거·재배송을 시작하기 전에 받는 분, 연락처와 주소 전체를 수정합니다. 지역 요금이 달라지거나 요금 근거를 확인할 수 없는 변경은 저장하지 않습니다.</p>
+    <p className="text-muted-foreground">택배사 수거나 교환품 발송을 시작하기 전에 받는 분·연락처·주소를 고칩니다. 새 주소로 배송비가 달라지거나 새 주소의 배송비를 확인할 수 없으면 저장되지 않습니다.</p>
     <div className="flex flex-wrap gap-2">
       <button className={OUTLINE} data-slot="button" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('collection', 'change'); }}>회수지 연락처 확인</button>
       <button className={OUTLINE} data-slot="button" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('reshipment', 'change'); }}>재배송지 연락처 확인</button>
@@ -310,7 +310,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
       <button className={`${OUTLINE} w-fit`} data-slot="button" type="button" onClick={closePrivate}>연락처 닫기</button>
     </div> : null}
     {recovery ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-      <p className="text-destructive" role="alert">{targetLabel(recovery.target)} {recovery.command === 'reshipment' ? '재출고' : '연락처 수정'} 요청의 결과를 먼저 확인해주세요. 주소 원문 없이 요청번호만 이 탭에 보관합니다.</p>
+      <p className="text-destructive" role="alert">{targetLabel(recovery.target)} {recovery.command === 'reshipment' ? '재출고' : '연락처 수정'} 처리 결과를 먼저 확인해주세요. 이 탭에는 주소 없이 처리 번호만 남겨 둡니다.</p>
       <p className="text-muted-foreground">요청 시각 {formatOrderDateTime(recovery.startedAt)}</p>
       <div className="flex flex-wrap gap-2">
         <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void check(); }}>저장 결과 확인</button>

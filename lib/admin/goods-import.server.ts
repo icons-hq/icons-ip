@@ -284,7 +284,7 @@ export function goodsImportErrorMessage(error?: string) {
   const categoryFailure = goodCategoryFailure(error);
   if (categoryFailure) return categoryFailure;
   if (error?.includes('category') || error?.includes('additional_categories'))
-    return '대표·추가 카테고리의 코드와 활성 말단 상태를 확인하고 다시 검증해주세요.';
+    return '대표·추가 카테고리 코드가 맞는지, 보관되지 않은 마지막 단계 카테고리인지 확인하고 다시 검증해주세요.';
   if (error?.includes('stock_changed'))
     return '미리보기 이후 재고가 바뀌었습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('changed') || error?.includes('conflict'))
@@ -294,7 +294,7 @@ export function goodsImportErrorMessage(error?: string) {
   if (error?.includes('artwork') || error?.includes('images'))
     return '이미지를 저장하지 못했습니다. URL·ZIP 파일을 확인하고 다시 올려주세요.';
   if (error?.includes('publish') || error?.includes('origin'))
-    return '공개 필수 정보·이미지·출고지 설정을 확인해주세요.';
+    return '공개에 필요한 정보(대표 이미지·대표 카테고리·고시정보·출고지·KC 검토)와 출고지 설정을 확인하고 다시 검증해주세요.';
   return '상품 정보를 저장하지 못했습니다. 실패 행의 필수 정보와 옵션 구성을 확인하고 다시 올려주세요.';
 }
 export function goodsImportView(batch: GoodsImportBatch) {

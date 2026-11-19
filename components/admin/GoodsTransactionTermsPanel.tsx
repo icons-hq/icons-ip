@@ -23,10 +23,10 @@ function browserStorage() { try { return window.localStorage; } catch { return n
 const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
 /** 결과 확인이 필요한 저장 요청(경고 톤). */
 const RETRY_NOTE_CLASS = 'flex flex-col items-start gap-2 rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_40%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_8%,transparent)] px-3 py-2.5 text-sm text-foreground';
-const stateLabel = (value: string | undefined) => ({ draft: '초안 · 미적용', active: '사용 중', disabled: '사용 안 함' }[value ?? ''] ?? '미설정');
+const stateLabel = (value: string | undefined) => ({ draft: '대기 · 결제에 적용 안 함', active: '사용 중', disabled: '사용 안 함' }[value ?? ''] ?? '설정 없음');
 function comparisonValues(draft: GoodsTermsDraft): Array<[string, string]> {
   const v = draft.volume.fields, d = draft.delivery.fields;
-  const shown = (value: string, unit = '') => value ? `${value}${unit}` : '미입력';
+  const shown = (value: string, unit = '') => value ? `${value}${unit}` : '비어 있음';
   return [
     ['복수구매 할인 상태', stateLabel(draft.volume.status)], ['할인 조건', v.condition === 'quantity' ? '같은 상품 구매 수량' : '같은 상품 정상가 합계'],
     ['최소 구매 조건', shown(v.threshold, v.condition === 'quantity' ? '개' : '원')], ['개당 할인', shown(v.discountValue, v.discountKind === 'percent' ? '%' : '원')],
@@ -58,7 +58,7 @@ function SelectRow({ label, value, onChange, children, className = '' }: { label
 }
 function PolicyStatus({ label, value, onChange }: { label: string; value: string; onChange: (value: 'draft' | 'active' | 'disabled') => void }) {
   return <SelectRow className="sm:max-w-xs" label={label} value={value} onChange={next => onChange(next as 'draft' | 'active' | 'disabled')}>
-    <option value="draft">초안 · 가격·배송비에 미적용</option><option value="active">사용</option><option value="disabled">사용 안 함</option>
+    <option value="draft">대기 · 가격·배송비에 적용 안 함</option><option value="active">사용</option><option value="disabled">사용 안 함</option>
   </SelectRow>;
 }
 function NumberField({ label, value, onChange, min = 0, max = 2147483647 }: { label: string; value: string; onChange: (value: string) => void; min?: number; max?: number }) {
@@ -195,7 +195,7 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
       const serverDraft = goodsTermsDraft(result.value), draft = { ...workspace.draft, [kind]: serverDraft[kind] };
       const next = { base: result.value, draft, retry: null, latest: null, recoveryPending: false };
       setWorkspace(next); persist(next, true); setMessage(`${kind === 'volume' ? '복수구매 할인' : '확장 배송비'} 설정을 저장하고 다시 확인했습니다.`);
-    } catch { if (scope.canApply(ticket) && sequence === generation.current) setError('저장 결과가 불명확합니다. 같은 요청으로 다시 확인해주세요.'); }
+    } catch { if (scope.canApply(ticket) && sequence === generation.current) setError('저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.'); }
     finally { requestBusy.current = false; setBusy(false); }
   }
   function restore() {
@@ -212,16 +212,16 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
   const locked = !ready || busy || Boolean(workspace?.retry) || Boolean(workspace?.recoveryPending);
   const recoveryValid = recovery?.sessionId === sessionId && recovery?.base.goodId === goodId && (!recovery.retry || recovery.retry.expectedActorId === accountId);
   return <div className="flex min-w-0 flex-col gap-4" data-goods-transaction-terms="" ref={root}>
-    <p className="text-sm text-muted-foreground">할인과 확장 배송비는 각각 저장합니다. 초안은 결제에 적용되지 않으며, 기본 상품의 가격·배송 정보를 먼저 저장해야 합니다.</p>
-    {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 상품 화면을 다시 열어주세요.</p> : <>
+    <p className="text-sm text-muted-foreground">복수구매 할인과 확장 배송비(착불·수량별 배송비)는 각자의 저장 버튼으로 따로 저장합니다. 상태가 &lsquo;대기&rsquo;면 결제에 적용되지 않고, &lsquo;사용&rsquo;으로 저장해야 적용됩니다. 위 상품의 가격·배송 정보를 먼저 저장해야 합니다.</p>
+    {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인한 계정이 바뀌었거나 다시 로그인했습니다. 지금 계정으로 상품 화면을 새로고침해주세요.</p> : <>
       {error && <p className="text-sm text-destructive" role="alert">{error}</p>}{message && <p className="text-sm font-medium" role="status">{message}</p>}
       {stored.unavailable && <p className="text-sm text-muted-foreground" role="status">입력 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 설정을 저장해주세요.</p>}
-      {workspace?.recoveryPending && <div className={`${GOOD_NOTE_CLASS} flex flex-col items-start gap-2`}><p>{recoveryValid ? '같은 로그인 세션에서 저장하지 않은 할인·배송 입력이 있습니다.' : '이전 로그인 세션이거나 형식을 확인할 수 없는 임시 입력입니다.'}</p>
+      {workspace?.recoveryPending && <div className={`${GOOD_NOTE_CLASS} flex flex-col items-start gap-2`}><p>{recoveryValid ? '이 브라우저에 저장하지 않은 할인·배송 입력이 남아 있습니다. 이어서 쓰려면 임시 입력 복원을 누르세요.' : '이전 로그인 때 남았거나 읽을 수 없는 임시 입력이라 복원할 수 없습니다. 임시 입력 버리기를 눌러 지워주세요.'}</p>
         <div className="flex flex-wrap gap-2">{recoveryValid && <button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" onClick={restore} disabled={busy}>임시 입력 복원</button>}
         <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy} onClick={() => { storage.discard(); setWorkspace({ ...workspace, recoveryPending: false }); }}>임시 입력 버리기</button></div></div>}
       {showDisabledReason && disabledReason && <p className={GOOD_NOTE_CLASS} role="status">{disabledReason}</p>}
       {!workspace ? <button className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" type="button" onClick={() => void readLatest()} disabled={busy}>설정 다시 불러오기</button> : <>
-        {workspace.retry && <div className={RETRY_NOTE_CLASS} role="alert"><p>이전 저장의 결과가 아직 확인되지 않았습니다. 입력과 요청 번호를 보존했습니다.</p><button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy || Boolean(disabledReason)} onClick={() => void save(workspace.retry!.volume ? 'volume' : 'delivery', workspace.retry!)}>같은 요청으로 결과 확인</button></div>}
+        {workspace.retry && <div className={RETRY_NOTE_CLASS} role="alert"><p>직전 저장이 처리됐는지 아직 모릅니다. 입력은 그대로 두었습니다. 아래 버튼을 누르면 같은 요청의 결과를 확인하며, 두 번 저장되지 않습니다.</p><button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy || Boolean(disabledReason)} onClick={() => void save(workspace.retry!.volume ? 'volume' : 'delivery', workspace.retry!)}>같은 요청으로 결과 확인</button></div>}
         {workspace.latest && <section className={GOOD_SUBPANEL_CLASS} aria-label="할인·배송 최신 저장본 비교">
           <strong className="text-sm font-medium">최신 저장본 · 버전 {workspace.latest.revision}</strong>
           <p className="text-sm text-muted-foreground">복수구매 할인: {stateLabel(workspace.latest.volume?.status)} · 확장 배송비: {stateLabel(workspace.latest.delivery?.status)}</p>

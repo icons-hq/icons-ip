@@ -6,7 +6,7 @@ import { isUuid } from '@/lib/uuid';
 import { CATEGORY_TEMPLATES_PATH, categoryTemplateError, parseCategoryTemplateChanges, parseCategoryTemplatePage, parseCategoryTemplateRows, type CategoryTemplate, type CategoryTemplateChange, type CategoryTemplatePage } from '@/lib/admin/category-templates';
 
 export type CategoryTemplateResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
-const unknown = <T,>(): CategoryTemplateResult<T> => ({ ok: false, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.', uncertain: true });
+const unknown = <T,>(): CategoryTemplateResult<T> => ({ ok: false, error: '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true });
 export async function listCategoryTemplatesAction(query: string, archived: boolean, page: number): Promise<CategoryTemplateResult<CategoryTemplatePage>> {
   if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: '상품 관리 권한이 필요합니다.' };
   const failure = { ok: false as const, error: '자주 쓰는 카테고리를 불러오지 못했습니다. 다시 조회해주세요.' };
@@ -20,7 +20,7 @@ export async function listCategoryTemplatesAction(query: string, archived: boole
 export async function saveCategoryTemplatesAction(changes: CategoryTemplateChange[], archived: boolean, operationId: string): Promise<CategoryTemplateResult<CategoryTemplate[]>> {
   if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: '상품 관리 권한이 필요합니다.' };
   const items = parseCategoryTemplateChanges(changes);
-  if (!items || typeof archived !== 'boolean' || !isUuid(operationId)) return { ok: false, error: '카테고리와 저장 버전을 확인해주세요. 한 번에 100개까지 처리할 수 있습니다.' };
+  if (!items || typeof archived !== 'boolean' || !isUuid(operationId)) return { ok: false, error: '저장할 카테고리를 다시 골라주세요. 한 번에 100개까지 처리할 수 있습니다.' };
   try {
     const client = await createClient(), { data, error } = await client.rpc('admin_save_catalog_category_templates', { p_items: items, p_archived: archived, p_operation_id: operationId });
     if (error) return ['PT409', '23505', '23514', '22023', '42501', 'P0002'].includes(error.code ?? '') ? { ok: false, error: categoryTemplateError(error.message), conflict: error.code === 'PT409' || error.code === '23505' } : unknown();

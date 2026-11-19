@@ -8,7 +8,7 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { normalizePublicMediaPath } from '@/lib/media';
 import { createClient } from '@/lib/supabase/server';
 
-const FORBIDDEN = '현재 스토어 관리 권한을 확인해주세요.';
+const FORBIDDEN = '스토어 관리 권한이 없어 처리하지 못했습니다. 권한이 필요하면 계정 주매니저에게 요청해주세요.';
 const FAILED = '배너 요청을 처리하지 못했습니다. 다시 확인해주세요.';
 
 async function authorized() {
@@ -45,16 +45,16 @@ export async function setHeroBannerArchivedAction(form: FormData): Promise<Admin
       target_operation_id: value.operationId, target_curation_id: value.id,
       target_expected_updated_at: value.expectedUpdatedAt, archive_requested: value.archive,
     }));
-  } catch { return { errors: { form: '처리 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }, uncertain: true }; }
+  } catch { return { errors: { form: '처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 처리됩니다.' }, uncertain: true }; }
   if (error) {
     const message = typeof error === 'object' && error !== null && 'message' in error ? String(error.message) : '';
     if (/curation_conflict|operation_conflict/.test(message)) return { errors: { form: '다른 변경이 먼저 반영되었습니다. 최신 저장본을 불러와 다시 확인해주세요.' }, conflict: true };
     if (message.includes('home_hero_limit')) return { errors: { form: '등록된 배너가 10개여서 복구할 수 없습니다. 기존 배너를 삭제한 뒤 다시 복구해주세요.' } };
     if (/forbidden|auth_required|operator_/.test(message)) return { errors: { form: FORBIDDEN } };
     if (/invalid_|curation_not_found|curation_archive_state|curation_archive_hero_only/.test(message)) return { errors: { form: FAILED } };
-    return { errors: { form: '처리 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }, uncertain: true };
+    return { errors: { form: '처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 처리됩니다.' }, uncertain: true };
   }
-  if (data !== value.id) return { errors: { form: '처리 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }, uncertain: true };
+  if (data !== value.id) return { errors: { form: '처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 처리됩니다.' }, uncertain: true };
   revalidatePath('/');
   revalidatePath('/admin');
   revalidatePath('/admin/display/curations');

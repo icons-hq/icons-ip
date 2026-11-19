@@ -65,9 +65,9 @@ export function BodyTemplateTools({ accountId, surface, disabled, captureEditor,
     update(ticket, value => requests.current(sequence) ? change(value) : value);
   }
   async function loadList(ticket: GoodsDescriptionToolTicket, archived: boolean, sequence: number) {
-    const result = await listBodyTemplatesAction({ ...context, archived }).catch(() => ({ ok: false as const, error: '목록을 불러오지 못했습니다. 다시 시도해주세요.' }));
+    const result = await listBodyTemplatesAction({ ...context, archived }).catch(() => ({ ok: false as const, error: '목록을 불러오지 못했습니다. [목록 다시 읽기]를 눌러주세요.' }));
     updateRequest(ticket, sequence, value => result.ok ? { ...value, list: result.value, archived, busy: false }
-      : { ...value, busy: false, error: value.message ? `${value.message} 목록은 다시 불러와주세요.` : result.error });
+      : { ...value, busy: false, error: value.message ? `${value.message} 목록은 [목록 다시 읽기]로 다시 불러와주세요.` : result.error });
     finishRequest(sequence);
   }
   function refreshList(archived: boolean) {
@@ -82,7 +82,7 @@ export function BodyTemplateTools({ accountId, surface, disabled, captureEditor,
     const previous = workspace?.scope === scope ? workspace : null;
     setWorkspace({ scope, ticket, target, open: true, list: previous?.list ?? null, archived: previous?.archived ?? false,
       draft: previous?.draft ?? null, baseline: previous?.baseline ?? null, latest: previous?.latest ?? null,
-      retry: previous?.retry ?? null, busy: true, error: '', message: previous?.retry ? '이전 요청의 결과를 같은 요청으로 확인해주세요.' : '', replace: false, nextId: null });
+      retry: previous?.retry ?? null, busy: true, error: '', message: previous?.retry ? '앞서 누른 저장·보관이 됐는지 아직 확인하지 못했습니다. [같은 요청으로 결과 확인]을 눌러주세요.' : '', replace: false, nextId: null });
     setOutsideMessage(''); const sequence = beginRequest(); if (sequence) void loadList(ticket, previous?.archived ?? false, sequence);
   }
   function close() {
@@ -115,10 +115,10 @@ export function BodyTemplateTools({ accountId, surface, disabled, captureEditor,
     const sequence = beginRequest(); if (!sequence) return;
     update(ticket, value => ({ ...value, retry: request, busy: true, error: '', message: '' }));
     const result: BodyTemplateResult<BodyTemplate> = await (request.kind === 'save' ? saveBodyTemplateAction(request.request) : archiveBodyTemplateAction(request.request))
-      .catch(() => ({ ok: false as const, error: '요청 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }));
+      .catch(() => ({ ok: false as const, error: '처리됐는지 확인하지 못했습니다. [같은 요청으로 결과 확인]을 눌러주세요. 다시 눌러도 두 번 처리되지 않습니다.', uncertain: true }));
     if (!result.ok) {
       updateRequest(ticket, sequence, value => ({ ...value, busy: false, retry: result.uncertain ? request : null, error: result.error,
-        message: result.committed ? '요청 처리는 확인됐습니다. 최신 저장본을 읽어 비교해주세요.' : '' })); finishRequest(sequence); return;
+        message: result.committed ? '처리는 됐습니다. [최신 저장본 확인]을 누르거나 목록에서 템플릿을 다시 열어 저장된 내용과 비교해주세요.' : '' })); finishRequest(sequence); return;
     }
     const next = asDraft(result.value);
     updateRequest(ticket, sequence, value => ({ ...value, busy: true, retry: null, draft: next, baseline: next, latest: null,
@@ -189,7 +189,7 @@ export function BodyTemplateTools({ accountId, surface, disabled, captureEditor,
               <div className="flex min-w-0 flex-wrap items-center gap-2 border-t pt-3"><button className={buttonVariants()} data-slot="button" type="button" disabled={editingBlocked || !preview?.ok || draft.archived} onClick={() => apply('insert')}>{insertLabel}</button><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked || !preview?.ok || draft.archived} onClick={() => apply('replace')}>본문 전체 바꾸기</button></div>
             </div> : <p className="text-sm text-muted-foreground">저장한 템플릿을 선택하거나 현재 본문으로 새 템플릿을 만드세요.</p>}
           </div>
-          {active.nextId ? <div className={NOTICE_CLASS}><p>현재 템플릿의 미저장 편집을 버리고 다른 항목을 열까요? 문서 본문은 바뀌지 않습니다.</p><div className="flex flex-wrap gap-2"><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked} onClick={() => void select(active.nextId!, true)}>편집 버리고 열기</button><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked} onClick={() => update(active.ticket, value => ({ ...value, nextId: null }))}>편집 계속하기</button></div></div> : null}
+          {active.nextId ? <div className={NOTICE_CLASS}><p>현재 템플릿에서 저장하지 않은 편집을 버리고 다른 항목을 열까요? 문서 본문은 바뀌지 않습니다.</p><div className="flex flex-wrap gap-2"><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked} onClick={() => void select(active.nextId!, true)}>편집 버리고 열기</button><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked} onClick={() => update(active.ticket, value => ({ ...value, nextId: null }))}>편집 계속하기</button></div></div> : null}
           {active.replace ? <div className={NOTICE_CLASS}><p>현재 문서 본문 전체를 이 템플릿의 글과 서식으로 바꿉니다. 현재 본문의 이미지도 빠지며 직전 적용 되돌리기로 복구할 수 있습니다.</p><div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'destructive' })} data-slot="button" type="button" disabled={editingBlocked} onClick={() => apply('replace', true)}>확인하고 본문 전체 바꾸기</button><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked} onClick={() => update(active.ticket, value => ({ ...value, replace: false }))}>취소</button></div></div> : null}
           {active.latest ? <div className={NOTICE_CLASS}><h3 className="text-sm font-medium">최신 저장본 · {active.latest.name} · 버전 {active.latest.revision}</h3><pre className="max-h-44 overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap wrap-anywhere">{active.latest.bodyHtml}</pre><div className="flex flex-wrap gap-2"><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked} onClick={() => update(active.ticket, value => value.latest ? { ...value, draft: asDraft(value.latest), baseline: asDraft(value.latest), latest: null, error: '' } : value)}>편집 내용을 최신 저장본으로 바꾸기</button><button className={BUTTON_CLASS} data-slot="button" type="button" disabled={editingBlocked} onClick={() => update(active.ticket, value => value.draft && value.latest ? { ...value, draft: { ...value.draft, revision: value.latest.revision, archived: value.latest.archivedAt !== null }, baseline: asDraft(value.latest), latest: null, error: '' } : value)}>최신 버전 기준으로 현재 편집 유지</button></div></div> : null}
           {active.error ? <p className="text-sm text-destructive" role="alert">{active.error}</p> : null}{active.message ? <p className="text-sm text-muted-foreground" role="status">{active.message}</p> : null}
