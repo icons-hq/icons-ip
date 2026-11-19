@@ -111,6 +111,9 @@ const operators = [
   sql('order_partial_cancellation_v1'),
   // 혼합 출고지 일부 발송 뒤 발송 전 배송 건 몫의 부분 취소(원장 #15): 토스·무통장·버전 1·수량 일부·해소, 주문 상태 재계산·구매확정 포착.
   sql('order_partial_cancellation_mixed_dispatch'),
+  // 부분 반품(원장 #17·ADR-0047): 스위치 OFF 불변, 고른 품목만 회수, 결제사 확인 뒤 적용·클레임 완료, 배송 건 비움 배송비, 반품배송비
+  // 편도·왕복 한 번, 남은 수량 전부 = 주문 전체 반품, 무통장 송금 대기, 결제사 거절 확인 필요, 불량 재고, 대리 접수. 경합은 아래 스크립트.
+  sql('order_partial_return'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),

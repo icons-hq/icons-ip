@@ -95,7 +95,7 @@ create function pg_temp.pr_request(spec text, reason_type text default 'change_o
  select public.request_order_partial_return(pg_temp.pr_id('order', split_part(spec, '@', 2)::integer), pg_temp.pr_id('user', 2), pg_temp.pr_items(spec),
   case when reason_type = 'defect' then '굿즈 하자·오배송 반품' else '단순 변심 반품' end, reason_type,
   case when bank then 'TEST 합성은행' end, case when bank then '000000005678' end, case when bank then 'TEST 구매자' end)$$;
-create function pg_temp.pr_claim(n integer) returns public.order_cancellation_requests language sql as $$
+create function pg_temp.pr_claim(n integer) returns public.order_cancellation_requests language sql security definer as $$
  select * from public.order_cancellation_requests where order_id = pg_temp.pr_id('order', n) order by requested_at desc, reference desc limit 1$$;
 create function pg_temp.pr_head(claim uuid) returns private.order_partial_cancellations language sql security definer as $$
  select * from private.order_partial_cancellations where claim_id = claim order by created_at desc, sequence desc limit 1$$;
@@ -232,7 +232,7 @@ select pg_temp.pr_assert((select x @> '{"reasonCode": "return", "refundAmount": 
 reset role;
 
 -- 4. 두 번째 부분 반품(A 나머지 + B)이 배송 건 1을 비운다 + 반품배송비 편도 차감 -----------------------------------------
-update private.return_fee_deduction_settings set enabled = true, one_way_amount = 3000, evidence = 'TEST 반품배송비', enabled_at = now() where singleton;
+update private.return_fee_deduction_settings set enabled = true, one_way_amount = 3000, evidence = 'TEST 반품배송비', enabled_at = now() - interval '10 days' where singleton;
 select pg_temp.pr_assert(pg_temp.pr_request('a:1,b:1@1') = 'requested', 'second_partial_requested');
 select pg_temp.pr_auth(1);
 select pg_temp.pr_collect((pg_temp.pr_claim(1)).id);
@@ -254,8 +254,8 @@ select pg_temp.pr_assert((pg_temp.pr_claim(1)).stage = 'completed'
  and private.payment_partial_refunded_amount(pg_temp.pr_id('payment', 1)) = 29000
  and exists(select 1 from public.notifications where dedupe_key = 'partial-return:applied:'||(pg_temp.pr_head((pg_temp.pr_claim(1)).id)).id and body like '%반품배송비 3,000원을 뺀%'),
  'second_partial_applied');
--- 재고 대조: A는 2개가 창고를 떠났고 2개가 회수로 돌아와 복원됐다.
-select pg_temp.pr_assert((select shipped_since_qty = 2 and returned_since_qty = 2 and awaiting_return_qty = 0
+-- 재고 대조: 합성 주문 11건의 A 22개가 창고를 떠났고(부분 반품은 이 수량을 줄이지 않는다) 주문 1의 2개가 회수로 돌아와 복원됐다.
+select pg_temp.pr_assert((select shipped_since_qty = 22 and returned_since_qty = 2 and awaiting_return_qty = 0
  from private.stock_reconcile_flows(array[pg_temp.pr_variant('partial-return-a')], now() - interval '10 days')), 'stock_reconcile_counts_return');
 
 -- 5. 남은 C를 고르면 주문 전체 반품으로 접수된다 ----------------------------------------------------------------------------
@@ -342,13 +342,14 @@ select pg_temp.pr_assert((pg_temp.pr_claim(6)).stage = 'needs_review' and (pg_te
  and (select qty = 1 from public.order_shipment_items where order_item_id = pg_temp.pr_id('item-partial-return-b', 6))
  and exists(select 1 from public.audit_log where action = 'admin.order.partial_return_provider_refused' and diff->>'claimId' = (pg_temp.pr_claim(6)).id::text),
  'refused_needs_review_no_full_refund');
-select pg_temp.pr_assert(public.admin_record_order_claim_refund((pg_temp.pr_claim(6)).id, 'pg_cancel', 'filed', null) = 'filed'
- and (select count(*) = 2 from private.order_partial_cancellations where claim_id = (pg_temp.pr_claim(6)).id)
+select pg_temp.pr_assert(public.admin_record_order_claim_refund((pg_temp.pr_claim(6)).id, 'pg_cancel', 'filed', null) = 'filed', 'refile_returns_filed');
+select pg_temp.pr_assert((select count(*) = 2 from private.order_partial_cancellations where claim_id = (pg_temp.pr_claim(6)).id)
  and (pg_temp.pr_head((pg_temp.pr_claim(6)).id)).state = 'processing' and (pg_temp.pr_claim(6)).stage = 'processing', 'refile_after_refusal');
 select public.service_mark_order_partial_cancellation_needs_review((pg_temp.pr_head((pg_temp.pr_claim(6)).id)).id, 'provider_unavailable', pg_temp.pr_id('user', 1));
 select pg_temp.pr_assert((pg_temp.pr_claim(6)).stage = 'needs_review' and (pg_temp.pr_claim(6)).last_error_code = 'provider_unavailable', 'needs_review_synced');
 select public.service_complete_order_partial_cancellation((pg_temp.pr_head((pg_temp.pr_claim(6)).id)).id, 10000, 'TEST-PR-KEY-6', 'TEST-PR-TX-7', pg_temp.pr_id('user', 1));
-select pg_temp.pr_assert((pg_temp.pr_claim(6)).stage = 'completed' and pg_temp.pr_stock('partial-return-b') = 12, 'completed_after_review');
+-- B: 주문 1·5의 부분 반품으로 12, 이번 반품으로 13.
+select pg_temp.pr_assert((pg_temp.pr_claim(6)).stage = 'completed' and pg_temp.pr_stock('partial-return-b') = 13, 'completed_after_review');
 
 -- 9. 불량 재고: 고른 품목만·반품 수량, 적용 때 판매 재고 제외, 적용 뒤 기록 ---------------------------------------------------
 select pg_temp.pr_request('a:1@7', 'defect');
@@ -358,11 +359,12 @@ select public.admin_plan_claim_defective_stock((pg_temp.pr_claim(7)).id, array[p
 select pg_temp.pr_assert((select qty = 1 and state = 'planned' from private.claim_defective_stock where claim_id = (pg_temp.pr_claim(7)).id), 'defective_qty_is_return_qty');
 select public.admin_record_order_claim_refund((pg_temp.pr_claim(7)).id, 'pg_cancel', 'filed', null);
 select public.service_complete_order_partial_cancellation((pg_temp.pr_head((pg_temp.pr_claim(7)).id)).id, 9500, 'TEST-PR-KEY-7', 'TEST-PR-TX-8', pg_temp.pr_id('user', 1));
-select pg_temp.pr_assert(pg_temp.pr_stock('partial-return-a') = 12 and (pg_temp.pr_claim(7)).stage = 'completed'
+-- A: 주문 1(2개)·5·3의 부분 반품으로 14. 불량으로 고른 이번 반품은 판매 재고에 넣지 않는다.
+select pg_temp.pr_assert(pg_temp.pr_stock('partial-return-a') = 14 and (pg_temp.pr_claim(7)).stage = 'completed'
  and (select qty = 1 from public.order_shipment_items where order_item_id = pg_temp.pr_id('item-partial-return-a', 7)), 'defective_not_restocked');
 select pg_temp.pr_error(format('select public.admin_plan_claim_defective_stock(%L, %L::uuid[])', (pg_temp.pr_claim(7)).id, array[pg_temp.pr_id('item-partial-return-a', 7)]), 'defective_stock_claim_closed');
-select pg_temp.pr_assert((public.admin_record_claim_defective_stock((pg_temp.pr_claim(7)).id))->>'recorded' = '1'
- and (select state = 'recorded' from private.claim_defective_stock where claim_id = (pg_temp.pr_claim(7)).id), 'defective_recorded_after_apply');
+select pg_temp.pr_assert((public.admin_record_claim_defective_stock((pg_temp.pr_claim(7)).id))->>'recorded' = '1', 'defective_record_call');
+select pg_temp.pr_assert((select state = 'recorded' from private.claim_defective_stock where claim_id = (pg_temp.pr_claim(7)).id), 'defective_recorded_after_apply');
 
 -- 10. 부분 반품 진행 중에는 재고 부족 부분 취소·다른 클레임이 막힌다(발송 전 배송 건이 있는 주문 8) --------------------------
 update private.return_fee_deduction_settings set partial_cancel_enabled = true, partial_cancel_evidence = 'TEST', partial_cancel_enabled_at = now() where singleton;
@@ -400,6 +402,12 @@ select public.admin_decide_order_claim(pg_temp.pr_id('request', 10), 'approve', 
 select pg_temp.pr_assert((select count(*) = 1 from public.order_claim_collections where claim_id = pg_temp.pr_id('request', 10) and shipment_id = pg_temp.pr_id('shipment-2', 10))
  and not exists(select 1 from public.order_claim_collections where claim_id = pg_temp.pr_id('request', 10) and shipment_id = pg_temp.pr_id('shipment-1', 10)),
  'staff_partial_collections');
+
+-- 선물 주문은 부분 반품을 열지 않는다(받는 분·보낸 분 클레임 흐름이 따로다). 주문 2를 선물 주문으로 바꿔 판정만 본다.
+insert into private.gift_intents(id, sender_id, recipient_id, state, sender_label, recipient_label, expires_at, order_id, ordered_source_revision)
+values (pg_temp.pr_id('gift', 2), pg_temp.pr_id('user', 2), pg_temp.pr_id('user', 3), 'ordered', 'TEST 보낸 분', 'TEST 받는 분', now() + interval '7 days', pg_temp.pr_id('order', 2), 1);
+select pg_temp.pr_assert(private.order_partial_return_order_blocker(pg_temp.pr_id('order', 2)) = 'gift_order'
+ and pg_temp.pr_request('a:1@2') = 'partial_return_unavailable', 'gift_partial_unavailable');
 
 -- 12. 원장 불변: 부분 반품 줄의 클레임·차감 칸도 바뀌지 않는다. 클레임 품목은 고칠 수 없다.
 select pg_temp.pr_error(format('update private.order_partial_cancellations set return_fee_deduction = 0 where id = %L', (pg_temp.pr_head((pg_temp.pr_claim(3)).id)).id), 'partial_cancellation_immutable');

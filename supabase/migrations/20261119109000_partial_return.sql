@@ -528,6 +528,10 @@ begin
   if claim.reason_type <> 'change_of_mind' then
     return jsonb_build_object('applicable', false, 'reason', 'seller_fault', 'deductionAmount', 0);
   end if;
+  -- 스위치를 켠 시각 이전에 '결제금액 전액'으로 안내받고 접수한 반품은 차감하지 않는다(주문 전체 반품과 같은 규칙, 트랙 A 2-1).
+  if settings.enabled_at is null or claim.requested_at < settings.enabled_at then
+    return jsonb_build_object('applicable', false, 'reason', 'requested_before_enabled', 'deductionAmount', 0);
+  end if;
   select * into purchase from public.orders where id = claim.order_id;
   outbound := coalesce(purchase.shipping_fee, 0) = 0 and coalesce(purchase.shipping_collect_total, 0) = 0
     and not private.order_outbound_leg_charged(claim.order_id);
