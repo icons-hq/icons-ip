@@ -181,7 +181,7 @@ it('동의 없는 복구 표식은 새 주문을 만들 수 없고(allow_new=fal
   expect(acknowledgement.record).not.toHaveBeenCalled();
   expect(await resumeCartTransactionAction(recovery)).toEqual({ ok: true, orderId: transactionOrder });
   expect(mocks.rpc).toHaveBeenLastCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: true }));
-  expect(acknowledgement.record).toHaveBeenCalledWith(transactionActor, transactionOrder);
+  expect(acknowledgement.record).toHaveBeenCalledWith(transactionActor, transactionOrder, []);
 });
 it('화면이 보인 제한 고지 없이 동의만 있으면 주문하지 않는다', async () => {
   const { claimNotice: _omitted, ...withoutNotice } = placeInput; void _omitted;
