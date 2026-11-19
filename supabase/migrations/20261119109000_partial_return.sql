@@ -238,6 +238,12 @@ begin
       where a.purpose = 'order' and a.ref_id = p_order_id and (e.payment_method = '가상계좌' or e.result_code = 'DONE_virtual_account')) then
     return 'unsupported_payment';
   end if;
+  -- 결제사가 부분 취소를 받지 않아 계좌 송금으로 돌려준 토스 결제는 결제사 잔액이 원장보다 크다(송금은 결제사 밖) — 그 뒤의 부분 반품은
+  -- 결제사 잔액 대조에서 멈추므로 받지 않는다(고객센터 처리, ADR-0047).
+  if pay.provider <> 'bank_transfer' and exists(select 1 from private.order_partial_cancellations h
+      where h.payment_id = pay.id and h.provider = 'bank_transfer') then
+    return 'payment_refunded_by_transfer';
+  end if;
   v1 := private.order_v1_allocation_blockers(p_order_id);
   if cardinality(v1) > 0 then
     return case v1[1] when 'partial_cancel_v1_allocation_mismatch' then 'v1_allocation_mismatch' else 'v1_allocation_unavailable' end;
@@ -788,6 +794,9 @@ begin
     title := case when head.state = 'completed' then '반품 환불이 완료됐어요' else '반품 환불 송금을 접수했어요' end;
     body := format('반품하신 %s의 확인을 마쳤습니다. %s%s나머지 굿즈는 그대로 유지됩니다.', label,
       case when head.refund_amount = 0 then '돌려드릴 결제 금액은 없습니다. '
+        when head.provider = 'bank_transfer' and purchase.payment_method <> 'bank_transfer'
+        then format('결제사가 이 결제의 부분 취소를 받지 않아 %s환불 %s은 알려 주신 계좌로 송금해 드립니다. ', deduction,
+          private.format_krw(head.refund_amount))
         when head.provider = 'bank_transfer'
         then format('%s환불 %s은 등록하신 환불계좌로 송금해 드립니다. ', deduction, private.format_krw(head.refund_amount))
         else format('%s%s을 결제사에서 부분 취소했습니다(카드사 처리에 영업일 기준 3~4일). ', deduction, private.format_krw(head.refund_amount)) end,
@@ -844,10 +853,14 @@ create trigger order_partial_cancellations_return_claim after update of state on
 -- 13. 환불 접수·완료 기록(부분 반품). admin_record_order_claim_refund가 주문·클레임을 잠그고 회수 완료를 확인한 뒤 여기로 보낸다.
 --     filed: 계산을 한 번 정해 부분 환불 원장을 만든다(토스 processing → [환불 완료 확정]의 결제사 부분 취소, 무통장은 바로 적용해 송금 대기,
 --     0원은 바로 완료). completed: 원장·클레임이 완료됐는지 확인하고 기록만 남긴다(환불은 결제사 확인·송금 증빙이 끝냈다).
-create function private.record_partial_return_refund(p_claim_id uuid, p_method text, p_stage text, p_note text, p_actor uuid) returns text
+--     p_transfer(계좌 송금 전환, 21-1): 결제사가 부분 취소를 받지 않아 닫힌 원장 뒤에만 — 같은 계산을 계좌 송금 원장(provider
+--     bank_transfer, 결제는 토스 그대로)으로 열어 송금 대기로 적용한다. {operationId, reason, account{bankName,accountNumber,accountHolder}}.
+create function private.record_partial_return_refund(p_claim_id uuid, p_method text, p_stage text, p_note text, p_actor uuid,
+  p_transfer jsonb default null) returns text
 language plpgsql security definer set search_path = '' as $$
 declare claim public.order_cancellation_requests; plan jsonb; head private.order_partial_cancellations; v_id uuid; v_sequence integer;
   v_state text; zero boolean; line jsonb; emptied jsonb; account private.claim_refund_accounts; fee jsonb; expected_method text;
+  settlement text;
 begin
   select * into claim from public.order_cancellation_requests where id = p_claim_id for update;
   perform a.id from public.payment_attempts a where a.purpose = 'order' and a.ref_id = claim.order_id order by a.id for update;
@@ -869,18 +882,29 @@ begin
   end if;
   -- 이미 접수한 원장이 살아 있으면 같은 결과다(다시 누름).
   select * into head from private.order_partial_cancellations where claim_id = p_claim_id and state <> 'rejected';
-  if found then return 'filed'; end if;
+  if found then
+    if p_transfer is not null then raise check_violation using message = 'partial_return_transfer_unavailable'; end if;
+    return 'filed';
+  end if;
   -- 입고완료, 또는 결제사가 부분 취소를 받지 않아 닫힌 원장 뒤의 다시 접수만.
   if not (claim.stage = 'collected' or claim.stage = 'needs_review'
       and exists(select 1 from private.order_partial_cancellations h where h.claim_id = p_claim_id and h.state = 'rejected')) then
     raise exception using message = 'claim_not_refundable';
   end if;
+  -- 계좌 송금 전환은 결제사가 부분 취소를 받지 않아 닫힌 원장 뒤에만(돈이 움직이지 않았다고 결제사 조회로 확인한 상태).
+  if p_transfer is not null and not (claim.stage = 'needs_review' and claim.last_error_code = 'partial_return_provider_refused') then
+    raise check_violation using message = 'partial_return_transfer_unavailable';
+  end if;
   -- 버전 1 주문은 첫 부분 환불 때 배분을 얼린다(ADR-0032 보완 — 얼린 뒤에는 다시 계산하지 않는다).
   perform private.freeze_order_v1_allocation(claim.order_id, p_actor, extensions.gen_random_uuid());
   plan := private.order_partial_return_plan(p_claim_id);
-  expected_method := case when plan->>'provider' = 'bank_transfer' then 'bank_transfer' else 'pg_cancel' end;
+  if p_transfer is not null and plan->>'provider' <> 'toss' then raise check_violation using message = 'partial_return_transfer_unavailable'; end if;
+  settlement := case when p_transfer is not null then 'bank_transfer' else plan->>'provider' end;
+  expected_method := case when settlement = 'bank_transfer' then 'bank_transfer' else 'pg_cancel' end;
   if p_method <> expected_method then raise check_violation using message = 'partial_return_refund_method_mismatch'; end if;
   zero := (plan->>'refundAmount')::bigint = 0;
+  -- 0원이면 결제사를 부르지 않고 다시 접수로 바로 끝난다 — 송금으로 바꿀 돈이 없다.
+  if p_transfer is not null and zero then raise check_violation using message = 'partial_return_transfer_unavailable'; end if;
   if plan->>'provider' = 'bank_transfer' then
     -- 무통장 송금 담당(ADR-0010·T03과 같은 판정).
     perform private.require_operator_capability('sales.manage', true);
@@ -893,16 +917,16 @@ begin
   end if;
   fee := plan->'returnFee';
   select coalesce(max(sequence), 0) + 1 into v_sequence from private.order_partial_cancellations where order_id = claim.order_id;
-  v_state := case when zero then 'completed' when plan->>'provider' = 'bank_transfer' then 'awaiting_transfer' else 'processing' end;
+  v_state := case when zero then 'completed' when settlement = 'bank_transfer' then 'awaiting_transfer' else 'processing' end;
   insert into private.order_partial_cancellations(order_id, payment_id, provider, sequence, reason_code, customer_decision, note,
     warehouse_stop_confirmed, payment_amount, balance_before, goods_refund_amount, shipping_refund_amount, refund_amount,
     store_credit_restore_amount, state, operation_id, created_by, filed_at, filed_by, claim_id,
     return_fee_deduction, return_fee_basis, return_fee_one_way_amount, return_fee_settings_revision)
-  values (claim.order_id, (plan->>'paymentId')::uuid, (plan->>'provider')::public.payment_provider, v_sequence, 'return',
-    left(format('반품 클레임 #%s · %s', claim.reference, claim.reason), 500), p_note, false,
+  values (claim.order_id, (plan->>'paymentId')::uuid, settlement::public.payment_provider, v_sequence, 'return',
+    left(format('반품 클레임 #%s · %s', claim.reference, claim.reason), 500), coalesce(p_transfer->>'reason', p_note), false,
     (plan->>'paymentAmount')::bigint, (plan->>'balanceBefore')::bigint, (plan->>'goodsRefundAmount')::bigint,
     (plan->>'shippingRefundAmount')::bigint, (plan->>'refundAmount')::bigint, (plan->>'storeCreditRestoreAmount')::bigint,
-    'processing', extensions.gen_random_uuid(), p_actor,
+    'processing', coalesce((p_transfer->>'operationId')::uuid, extensions.gen_random_uuid()), p_actor,
     case when v_state = 'awaiting_transfer' then clock_timestamp() end, case when v_state = 'awaiting_transfer' then p_actor end, p_claim_id,
     (plan->>'returnFeeDeduction')::bigint,
     case when (plan->>'returnFeeDeduction')::bigint > 0 then fee->>'basis' end,
@@ -920,7 +944,13 @@ begin
     insert into private.order_partial_return_shipments(partial_cancellation_id, order_id, shipment_id, shipping_fee_refund)
     values (v_id, claim.order_id, (emptied->>'shipmentId')::uuid, (emptied->>'shippingFeeRefund')::bigint);
   end loop;
-  if v_state = 'awaiting_transfer' then
+  if v_state = 'awaiting_transfer' and p_transfer is not null then
+    -- 계좌 송금 전환: 결제 담당이 고객에게 받은 계좌(마스킹 보관, 원문 열람은 감사 기록 — ADR-0032 결정 7과 같은 원장).
+    insert into private.order_partial_cancellation_refund_accounts(partial_cancellation_id, bank_name, account_number, account_holder, masked_account, masked_holder)
+    values (v_id, p_transfer#>>'{account,bankName}', p_transfer#>>'{account,accountNumber}', p_transfer#>>'{account,accountHolder}',
+      (p_transfer#>>'{account,bankName}') || ' ' || public.mask_refund_account_number(p_transfer#>>'{account,accountNumber}'),
+      public.mask_refund_account_holder(p_transfer#>>'{account,accountHolder}'));
+  elsif v_state = 'awaiting_transfer' then
     -- 고객이 반품 신청 때 낸 환불계좌를 부분 환불 원장 계좌로 옮긴다(송금 대기 목록·엑셀·송금 완료가 이 원장을 읽는다).
     insert into private.order_partial_cancellation_refund_accounts(partial_cancellation_id, bank_name, account_number, account_holder, masked_account, masked_holder)
     values (v_id, account.bank_name, account.account_number, account.account_holder, account.masked_account, account.masked_holder);
@@ -930,7 +960,8 @@ begin
   insert into public.audit_log(actor_id, action, target, diff)
   values (p_actor, 'admin.order.claim_refund_filed', 'order:' || claim.order_id::text,
     jsonb_build_object('claimId', p_claim_id, 'claimType', claim.claim_type, 'method', p_method, 'from', claim.stage, 'to', 'processing',
-      'partialReturn', true, 'partialCancellationId', v_id, 'provider', plan->>'provider', 'balanceBefore', (plan->>'balanceBefore')::bigint,
+      'partialReturn', true, 'partialCancellationId', v_id, 'provider', settlement, 'transferConversion', p_transfer is not null,
+      'balanceBefore', (plan->>'balanceBefore')::bigint,
       'goodsRefundAmount', (plan->>'goodsRefundAmount')::bigint, 'shippingRefundAmount', (plan->>'shippingRefundAmount')::bigint,
       'returnFee', fee, 'refundAmount', (plan->>'refundAmount')::bigint, 'lines', plan->'lines', 'emptiedShipments', plan->'emptiedShipments'));
   if v_state in ('awaiting_transfer', 'completed') then
@@ -944,7 +975,7 @@ begin
   end if;
   return 'filed';
 end $$;
-revoke all on function private.record_partial_return_refund(uuid, text, text, text, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.record_partial_return_refund(uuid, text, text, text, uuid, jsonb) from public, anon, authenticated, service_role;
 
 select private.j47_patch_function('public.admin_record_order_claim_refund(uuid,text,text,text)',
   '  perform private.assert_claim_collections_complete(p_claim_id);
@@ -954,6 +985,12 @@ select private.j47_patch_function('public.admin_record_order_claim_refund(uuid,t
   if private.claim_is_partial_return(p_claim_id) then
     if v_claim.claim_type <> ''return'' then raise exception using message = ''claim_not_refundable''; end if;
     return private.record_partial_return_refund(p_claim_id, p_method, p_stage, p_note, v_actor);
+  end if;
+  -- 앞선 부분 반품 환불을 결제사 밖 계좌 송금으로 돌려준 카드 결제(21-1)는 주문 전체 환불 원장(결제액 − 차감)이 이미 송금한 몫을
+  -- 모른다. 그 금액으로 계좌 송금을 적으면 같은 돈을 두 번 돌려준다 — 결제 담당이 원장을 맞춘 뒤(개발 요청) 처리한다.
+  if p_method = ''bank_transfer'' and exists(select 1 from public.payments pay join private.order_partial_cancellations h on h.payment_id = pay.id
+      where pay.purpose = ''order'' and pay.ref_id = v_claim.order_id and pay.provider <> ''bank_transfer'' and h.provider = ''bank_transfer'') then
+    raise check_violation using message = ''partial_return_transfer_remainder_manual'';
   end if;
 ');
 
@@ -1074,7 +1111,12 @@ begin
       preview := jsonb_build_object('error', sqlerrm);
     end;
   end if;
-  return jsonb_build_object('items', coalesce(items, '[]'::jsonb), 'refundId', live, 'history', history, 'preview', preview);
+  -- 결제사가 부분 취소를 받지 않아 닫힌 뒤의 출구(21-1): 결제 담당(무통장 송금 담당 판정)에게만, 돌려줄 돈이 있는 토스 결제일 때.
+  return jsonb_build_object('items', coalesce(items, '[]'::jsonb), 'refundId', live, 'history', history, 'preview', preview,
+    'settlement', (select h.provider from private.order_partial_cancellations h where h.id = live),
+    'transferConvertible', live is null and level = 'legacy' and claim.stage = 'needs_review'
+      and claim.last_error_code = 'partial_return_provider_refused' and preview->>'provider' = 'toss'
+      and coalesce((preview->>'refundAmount')::bigint, 0) > 0);
 end $$;
 revoke all on function public.admin_order_claim_partial_return(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.admin_order_claim_partial_return(uuid) to authenticated;
@@ -1133,11 +1175,214 @@ end $$;
 revoke all on function public.admin_save_partial_return_switch(boolean, text, integer, uuid) from public, anon, authenticated, service_role;
 grant execute on function public.admin_save_partial_return_switch(boolean, text, integer, uuid) to authenticated;
 
+-- 21. 적대적 리뷰 반영(2026-11-19).
+-- 21-1. 결제사가 부분 취소를 받지 않아 닫힌 부분 반품의 출구: 계좌 송금 부분 환불로 전환한다. 결제 담당(무통장 송금 담당 판정 —
+--       레거시 관리자 sales.manage·세션)이 사유(5~500자)와 고객에게 받은 환불계좌를 적으면 같은 계산을 계좌 송금 원장(provider
+--       bank_transfer, 결제는 토스 그대로)으로 열고 송금 대기로 적용한다. 송금은 ADR-0032 결정 7의 송금 대기 목록·계좌 열람(감사)·
+--       송금 증빙으로 끝나고, 증빙이 원장을 완료하면 클레임도 완료된다. 전액 환불로 돌리지 않는다(결정 4 그대로).
+--       결제사 잔액은 원장보다 그만큼 크게 남는다 — 그 뒤 이 결제의 결제사 부분·나머지 취소는 기대 잔액 대조에서 멈추고(돈을 움직이지
+--       않는다), 이 주문의 다음 부분 반품은 받지 않으며(payment_refunded_by_transfer), 주문 전체 환불의 계좌 송금 기록은 막는다.
+create function public.admin_convert_partial_return_refund_to_transfer(p_claim_id uuid, p_reason text, p_refund_account jsonb, p_operation_id uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid := (select auth.uid()); v_session uuid; claim public.order_cancellation_requests; head private.order_partial_cancellations;
+  reason text := btrim(coalesce(p_reason, '')); refused uuid;
+begin
+  begin v_session := (auth.jwt()->>'session_id')::uuid;
+  exception when invalid_text_representation then raise insufficient_privilege using message = 'bank_refund_permission_required'; end;
+  perform private.require_bank_transfer_refund_identity(v_actor, v_session);
+  if p_claim_id is null or p_operation_id is null then raise invalid_parameter_value using message = 'partial_return_transfer_operation_required'; end if;
+  -- 다시 누름: 같은 작업 ID로 만든 원장이면 그 결과다.
+  select * into head from private.order_partial_cancellations where operation_id = p_operation_id;
+  if found then
+    if head.claim_id is distinct from p_claim_id or head.provider <> 'bank_transfer' then
+      raise sqlstate 'PT409' using message = 'partial_return_transfer_operation_conflict';
+    end if;
+    return jsonb_build_object('id', head.id, 'state', head.state, 'refundAmount', head.refund_amount, 'replayed', true);
+  end if;
+  if char_length(reason) not between 5 and 500 or translate(reason, E'\n\t', '') ~ '[[:cntrl:]]' then
+    raise check_violation using message = 'partial_return_transfer_reason_required';
+  end if;
+  if p_refund_account is null or jsonb_typeof(p_refund_account) <> 'object' or (select count(*) from jsonb_object_keys(p_refund_account)) <> 3
+    or not p_refund_account ?& array['bankName', 'accountNumber', 'accountHolder']
+    or exists(select 1 from jsonb_each(p_refund_account) x where jsonb_typeof(x.value) <> 'string')
+    or coalesce(p_refund_account->>'bankName', '') !~ '^\S(.{0,38}\S)?$' or coalesce(p_refund_account->>'accountNumber', '') !~ '^[0-9-]{8,30}$'
+    or coalesce(p_refund_account->>'accountHolder', '') !~ '^\S(.{0,38}\S)?$'
+    or (p_refund_account->>'bankName') ~ '[[:cntrl:]]' or (p_refund_account->>'accountHolder') ~ '[[:cntrl:]]' then
+    raise check_violation using message = 'partial_return_transfer_account_required';
+  end if;
+  -- 잠금 순서는 환불 접수(admin_record_order_claim_refund)와 같다: 주문 → 클레임 → 결제 시도 → 결제.
+  select * into claim from public.order_cancellation_requests where id = p_claim_id;
+  if not found then raise no_data_found using message = 'claim_not_found'; end if;
+  perform 1 from public.orders where id = claim.order_id for update;
+  select * into claim from public.order_cancellation_requests where id = p_claim_id for update;
+  if claim.claim_type <> 'return' or not private.claim_is_partial_return(p_claim_id) then
+    raise check_violation using message = 'partial_return_transfer_unavailable';
+  end if;
+  select h.id into refused from private.order_partial_cancellations h where h.claim_id = p_claim_id and h.state = 'rejected'
+    order by h.sequence desc limit 1;
+  perform private.record_partial_return_refund(p_claim_id, 'bank_transfer', 'filed', null, v_actor,
+    jsonb_build_object('operationId', p_operation_id, 'reason', reason, 'account', p_refund_account));
+  select * into head from private.order_partial_cancellations where operation_id = p_operation_id;
+  insert into public.audit_log(actor_id, action, target, diff)
+  values (v_actor, 'admin.order.partial_return_transfer_converted', 'order:' || claim.order_id::text,
+    jsonb_build_object('claimId', p_claim_id, 'partialCancellationId', head.id, 'refusedPartialCancellationId', refused,
+      'refundAmount', head.refund_amount, 'reason', reason,
+      'maskedAccount', (select a.masked_account from private.order_partial_cancellation_refund_accounts a where a.partial_cancellation_id = head.id)));
+  return jsonb_build_object('id', head.id, 'state', head.state, 'refundAmount', head.refund_amount, 'replayed', false);
+end $$;
+revoke all on function public.admin_convert_partial_return_refund_to_transfer(uuid, text, jsonb, uuid) from public, anon, authenticated, service_role;
+grant execute on function public.admin_convert_partial_return_refund_to_transfer(uuid, text, jsonb, uuid) to authenticated;
+
+-- 21-2. 부분 반품 원장이 반품배송비를 뺐으면(살아 있는 줄) 같은 요청에 배송비 청구를 또 발행하지 않는다(이중 청구). 반대 방향
+--       (청구가 먼저 있으면 차감 없음)은 partial_return_fee_deduction이 이미 본다. 발행 판정(change_claim_fee issue)이 이 칸을 읽는다.
+select private.j47_patch_function('private.claim_fee_document(uuid,uuid,boolean)',
+  $a$and not exists(select 1 from private.claim_refund_deductions d where d.claim_id=c.id and d.state in('planned','provider_confirmed','applied')),$a$,
+  $a$and not exists(select 1 from private.claim_refund_deductions d where d.claim_id=c.id and d.state in('planned','provider_confirmed','applied'))
+   and not exists(select 1 from private.order_partial_cancellations h where h.claim_id=c.id and h.state<>'rejected' and h.return_fee_deduction>0),$a$);
+
+-- 21-3. 진행 중 클레임이 부분 반품뿐이면 고른 품목이 없는 배송 건의 출고·발송·운송장·배송완료·예약 할당은 막지 않는다(배송 건 단위).
+--       고른 품목이 든 배송 건과 주문 단위 동작(강제 배송완료·결제 확정)은 지금처럼 막는다.
+create function private.order_claim_blocks_shipment(p_claim_id uuid, p_shipment_id uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_shipment_id is null or not private.claim_is_partial_return(p_claim_id)
+    or exists(select 1 from public.order_claim_items ci where ci.claim_id = p_claim_id and ci.shipment_id = p_shipment_id);
+$$;
+revoke all on function private.order_claim_blocks_shipment(uuid, uuid) from public, anon, authenticated, service_role;
+
+-- 출고 판정(assert_order_dispatch_allowed)은 주문만 받는다. 배송 건 문맥이 있는 호출부는 2인자 판정으로 그 배송 건을 트랜잭션
+-- 설정(icons.dispatch_shipments)에 실어 주문 판정을 부르고, 주문 판정의 진행 중 클레임 조건이 그 설정을 읽는다(설정이 비면 주문 단위 그대로).
+create function private.order_claim_blocks_dispatch(p_claim_id uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce(current_setting('icons.dispatch_shipments', true), '') = ''
+    or exists(select 1 from unnest(string_to_array(current_setting('icons.dispatch_shipments', true), ',')) scope(id)
+      where private.order_claim_blocks_shipment(p_claim_id, scope.id::uuid));
+$$;
+revoke all on function private.order_claim_blocks_dispatch(uuid) from public, anon, authenticated, service_role;
+
+create function private.assert_order_dispatch_allowed(target_order uuid, target_shipments uuid[]) returns void
+language plpgsql set search_path = '' as $$
+declare previous text := coalesce(current_setting('icons.dispatch_shipments', true), '');
+begin
+  perform set_config('icons.dispatch_shipments', coalesce(array_to_string(target_shipments, ','), ''), true);
+  perform private.assert_order_dispatch_allowed(target_order);
+  perform set_config('icons.dispatch_shipments', previous, true);
+end $$;
+revoke all on function private.assert_order_dispatch_allowed(uuid, uuid[]) from public, anon, authenticated, service_role;
+
+select private.j47_patch_function('private.assert_order_dispatch_allowed(uuid)',
+  $a$if exists(select 1 from public.order_cancellation_requests where order_id=target_order and status in ('requested','processing','needs_review'))$a$,
+  $a$if exists(select 1 from public.order_cancellation_requests where order_id=target_order and status in ('requested','processing','needs_review')
+      and private.order_claim_blocks_dispatch(id))$a$);
+select private.j47_patch_function('private.admin_update_shipment_status_before_delivery_methods(uuid,text,text,text)',
+  $a$if p_status<>'delivered' then perform private.assert_order_dispatch_allowed(purchase.id);end if;$a$,
+  $a$if p_status<>'delivered' then perform private.assert_order_dispatch_allowed(purchase.id,array[p_shipment_id]);end if;$a$);
+select private.j47_patch_function('public.admin_allocate_goods_preorders(text,uuid[],jsonb,text)',
+  $a$      perform private.assert_order_dispatch_allowed(order_key);$a$,
+  $a$      perform private.assert_order_dispatch_allowed(order_key,array(select link.shipment_id from public.order_shipment_items link
+        where link.order_id=order_key and link.order_item_id=any(p_order_item_ids) order by link.shipment_id));$a$);
+select private.j47_patch_function('public.admin_change_shipment_preorder_date(uuid,date,text,timestamp with time zone)',
+  $a$perform private.assert_order_dispatch_allowed(purchase.id);$a$,
+  $a$perform private.assert_order_dispatch_allowed(purchase.id,array[p_shipment_id]);$a$);
+select private.j47_patch_function('public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)',
+  $a$perform private.assert_order_dispatch_allowed(purchase.id);$a$,
+  $a$perform private.assert_order_dispatch_allowed(purchase.id,array[shipment.id]);$a$, 2);
+select private.j47_patch_function('public.admin_import_seowon_tracking_batch(uuid,jsonb)',
+  $a$perform private.assert_order_dispatch_allowed(shipment.order_id);$a$,
+  $a$perform private.assert_order_dispatch_allowed(shipment.order_id,array[shipment.id]);$a$);
+select private.j47_patch_function('public.admin_mark_shipments_exported(jsonb)',
+  $a$perform private.assert_order_dispatch_allowed(shipment.order_id);$a$,
+  $a$perform private.assert_order_dispatch_allowed(shipment.order_id,array[shipment.id]);$a$);
+select private.j47_patch_function('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)',
+  $a$then perform private.assert_order_dispatch_allowed(purchase.id);end if;$a$,
+  $a$then perform private.assert_order_dispatch_allowed(purchase.id,array[p_shipment_id]);end if;$a$);
+select private.j47_patch_function('public.admin_select_shipment_delivery_method(uuid,text,uuid,text,text,boolean,timestamp with time zone,uuid)',
+  $a$perform private.assert_order_dispatch_allowed(purchase.id);$a$,
+  $a$perform private.assert_order_dispatch_allowed(purchase.id,array[p_shipment_id]);$a$);
+select private.j47_patch_function('public.issue_shipment_receipt_confirmation(uuid)',
+  $a$perform private.assert_order_dispatch_allowed(purchase.id);$a$,
+  $a$perform private.assert_order_dispatch_allowed(purchase.id,array[p_shipment_id]);$a$);
+-- 같은 판정을 읽는 출고 화면·묶음 판정(출고 목록·합포장·출고 파일·배송 방법 선택지·수령 확인·예약 출고일 계획·지연 안내).
+select private.j47_patch_function('public.admin_origin_pending_export_ids(uuid)',
+  $a$r.order_id=o.id and r.status in('requested','processing','needs_review'))$a$,
+  $a$r.order_id=o.id and r.status in('requested','processing','needs_review') and private.order_claim_blocks_shipment(r.id,s.id))$a$);
+select private.j47_patch_function('private.shipment_pack_ready(uuid)',
+  $a$exists(select 1 from public.order_cancellation_requests where order_id=o.id and status in('requested','processing','needs_review'))$a$,
+  $a$exists(select 1 from public.order_cancellation_requests where order_id=o.id and status in('requested','processing','needs_review')
+    and private.order_claim_blocks_shipment(id,s.id))$a$);
+select private.j47_patch_function('private.admin_shipment_export_before_preorder(uuid[])',
+  $a$where s.id=any(target_ids) and r.status in ('requested','processing','needs_review'))$a$,
+  $a$where s.id=any(target_ids) and r.status in ('requested','processing','needs_review') and private.order_claim_blocks_shipment(r.id,s.id))$a$);
+select private.j47_patch_function('private.shipment_delivery_summary(uuid)',
+  $a$request.order_id=purchase.id and request.status in ('requested','processing','needs_review'))$a$,
+  $a$request.order_id=purchase.id and request.status in ('requested','processing','needs_review')
+        and private.order_claim_blocks_shipment(request.id,shipment.id))$a$);
+select private.j47_patch_function('public.admin_read_shipment_delivery(uuid)',
+  $a$from public.order_cancellation_requests where order_id=purchase.id and status in ('requested','processing','needs_review'))$a$,
+  $a$from public.order_cancellation_requests where order_id=purchase.id and status in ('requested','processing','needs_review')
+    and private.order_claim_blocks_shipment(id,shipment.id))$a$);
+select private.j47_patch_function('public.admin_dispatch_delivery_options(uuid[])',
+  $a$r.order_id=o.id and r.status in ('requested','processing','needs_review'))$a$,
+  $a$r.order_id=o.id and r.status in ('requested','processing','needs_review') and private.order_claim_blocks_shipment(r.id,s.id))$a$);
+select private.j47_patch_function('private.goods_preorder_schedule_plan(text,uuid,date)',
+  $a$c.order_id=o.id and c.status in ('requested','processing','needs_review'))$a$,
+  $a$c.order_id=o.id and c.status in ('requested','processing','needs_review') and private.order_claim_blocks_shipment(c.id,s.id))$a$);
+select private.j47_patch_function('private.preorder_schedule_notice_snapshot(uuid,uuid[])',
+  $a$c.order_id=o.id and c.status in ('requested','processing','needs_review'))$a$,
+  $a$c.order_id=o.id and c.status in ('requested','processing','needs_review')
+    and exists(select 1 from unnest(target_shipments) scope(id) where private.order_claim_blocks_shipment(c.id,scope.id)))$a$);
+select private.j47_patch_function('private.order_delay_notice_snapshot(uuid,uuid[])',
+  $a$c.order_id=o.id and c.status in ('requested','processing','needs_review'))$a$,
+  $a$c.order_id=o.id and c.status in ('requested','processing','needs_review')
+    and exists(select 1 from unnest(target_shipments) scope(id) where private.order_claim_blocks_shipment(c.id,scope.id)))$a$);
+-- 주문 상태가 배송 건을 따라 배송중·배송완료로 넘어가는 것도 부분 반품만으로는 막지 않는다(구매확정 'done'은 그대로 막는다).
+select private.j47_patch_function('public.guard_order_transition_during_cancellation()',
+  $a$        where request.order_id = old.id
+          and request.status in ('requested', 'processing', 'needs_review')$a$,
+  $a$        where request.order_id = old.id
+          and request.status in ('requested', 'processing', 'needs_review')
+          and not (new.status in ('shipping', 'delivered') and private.claim_is_partial_return(request.id))$a$);
+
+-- 21-4. 리뷰 이벤트 구매 자격: 부분 반품 완료는 주문 전체 반품 완료가 아니다(결정 8). 그 굿즈의 살아 있는 수량이 남아 있어야 한다.
+select private.j47_patch_function('private.review_event_purchase_eligible(uuid,uuid,text)',
+  $a$and exists(select 1 from public.order_items item where item.order_id=o.id and item.good_id=p_good_id)$a$,
+  $a$and exists(select 1 from public.order_items item where item.order_id=o.id and item.good_id=p_good_id and private.order_item_active_qty(item.id)>0)$a$);
+select private.j47_patch_function('private.review_event_purchase_eligible(uuid,uuid,text)',
+  $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed'))$a$,
+  $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed') and not private.claim_is_partial_return(c.id))$a$);
+
+-- 21-5. 판매 순위·집계: 부분 반품 완료 주문을 통째로 빼지 않고 반품 수량만 뺀다(결정 5). 살아 있는 수량을 세는 집계는 이미 반품을 뺀다.
+select private.j47_patch_function('private.goods_effective_sales(timestamp with time zone,timestamp with time zone)',
+  $a$and c.claim_type in ('cancel', 'return') and (c.status = 'completed' or c.stage = 'completed'))$a$,
+  $a$and c.claim_type in ('cancel', 'return') and (c.status = 'completed' or c.stage = 'completed') and not private.claim_is_partial_return(c.id))$a$);
+select private.j47_patch_function('public.get_home_sales_rankings()',
+  $a$and c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed'))$a$,
+  $a$and c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed') and not private.claim_is_partial_return(c.id))$a$);
+select private.j47_patch_function('private.product_detail_paid_orders(timestamp with time zone,timestamp with time zone)',
+  $a$and c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed'))$a$,
+  $a$and c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed') and not private.claim_is_partial_return(c.id))$a$);
+select private.j47_patch_function('public.get_product_detail_experience(text)',
+  $a$sum(item.qty::bigint)$a$, $a$sum((item.qty-private.order_item_returned_qty(item.id))::bigint)$a$);
+select private.j47_patch_function('public.get_product_detail_presentation(text)',
+  $a$sum(item.qty::bigint)$a$, $a$sum((item.qty-private.order_item_returned_qty(item.id))::bigint)$a$, 2);
+select private.j47_patch_function('public.admin_search_shopping_story_goods_filtered(text,integer,jsonb)',
+  $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed'))$a$,
+  $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed') and not private.claim_is_partial_return(c.id))$a$);
+select private.j47_patch_function('public.admin_search_shopping_story_goods_filtered(text,integer,jsonb)',
+  $a$select item.good_id,sum(item.qty::bigint) quantity from paid_orders p$a$,
+  $a$select item.good_id,sum((item.qty-private.order_item_returned_qty(item.id))::bigint) quantity from paid_orders p$a$);
+select private.j47_patch_function('public.admin_resolve_goods_references(text[])',
+  $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed'))$a$,
+  $a$c.claim_type in ('cancel','return') and (c.status='completed' or c.stage='completed') and not private.claim_is_partial_return(c.id))$a$);
+select private.j47_patch_function('public.admin_resolve_goods_references(text[])',
+  $a$select item.good_id,sum(item.qty::bigint) quantity from paid_orders p$a$,
+  $a$select item.good_id,sum((item.qty-private.order_item_returned_qty(item.id))::bigint) quantity from paid_orders p$a$);
+
 -- 20. 운영자 계약. 새 RPC는 분류를 적고, 본문을 바꾼 함수는 등록된 분류값 그대로 지문을 다시 적는다. 새 RLS 정책도 등록한다.
 select private.register_operator_rpc_contract('public.admin_order_partial_return_context(uuid)'::regprocedure, 'sales.manage', 'read', false);
 select private.register_operator_rpc_contract('public.admin_submit_seller_partial_return_intake(uuid,jsonb,jsonb,jsonb)'::regprocedure, 'sales.manage', 'write', false);
 select private.register_operator_rpc_contract('public.admin_order_claim_partial_return(uuid)'::regprocedure, 'sales.read', 'read', false);
 select private.register_operator_rpc_contract('public.admin_save_partial_return_switch(boolean,text,integer,uuid)'::regprocedure, 'platform.manage', 'write', true);
+select private.register_operator_rpc_contract('public.admin_convert_partial_return_refund_to_transfer(uuid,text,jsonb,uuid)'::regprocedure, 'sales.manage', 'write', true);
 select private.register_operator_policy_contract('public.order_claim_items'::regclass, 'order_claim_items_owner_staff_read', 'sales.read');
 do $$declare fn regprocedure; contract record; begin
   foreach fn in array array[
@@ -1162,7 +1407,36 @@ do $$declare fn regprocedure; contract record; begin
     'public.service_order_partial_cancellation(uuid)'::regprocedure,
     'private.operations_switches_document()'::regprocedure,
     'private.collect_settled_export_for_search(date,date,text,text,text)'::regprocedure,
-    'private.order_partial_cancel_report_fields(uuid)'::regprocedure] loop
+    'private.order_partial_cancel_report_fields(uuid)'::regprocedure,
+    'private.claim_fee_document(uuid,uuid,boolean)'::regprocedure,
+    'private.assert_order_dispatch_allowed(uuid)'::regprocedure,
+    'private.admin_update_shipment_status_before_delivery_methods(uuid,text,text,text)'::regprocedure,
+    'public.admin_allocate_goods_preorders(text,uuid[],jsonb,text)'::regprocedure,
+    'public.admin_change_shipment_preorder_date(uuid,date,text,timestamp with time zone)'::regprocedure,
+    'public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)'::regprocedure,
+    'public.admin_import_seowon_tracking_batch(uuid,jsonb)'::regprocedure,
+    'public.admin_mark_shipments_exported(jsonb)'::regprocedure,
+    'public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)'::regprocedure,
+    'public.admin_select_shipment_delivery_method(uuid,text,uuid,text,text,boolean,timestamp with time zone,uuid)'::regprocedure,
+    'public.issue_shipment_receipt_confirmation(uuid)'::regprocedure,
+    'public.admin_origin_pending_export_ids(uuid)'::regprocedure,
+    'private.shipment_pack_ready(uuid)'::regprocedure,
+    'private.admin_shipment_export_before_preorder(uuid[])'::regprocedure,
+    'private.shipment_delivery_summary(uuid)'::regprocedure,
+    'public.admin_read_shipment_delivery(uuid)'::regprocedure,
+    'public.admin_dispatch_delivery_options(uuid[])'::regprocedure,
+    'private.goods_preorder_schedule_plan(text,uuid,date)'::regprocedure,
+    'private.preorder_schedule_notice_snapshot(uuid,uuid[])'::regprocedure,
+    'private.order_delay_notice_snapshot(uuid,uuid[])'::regprocedure,
+    'public.guard_order_transition_during_cancellation()'::regprocedure,
+    'private.review_event_purchase_eligible(uuid,uuid,text)'::regprocedure,
+    'private.goods_effective_sales(timestamp with time zone,timestamp with time zone)'::regprocedure,
+    'public.get_home_sales_rankings()'::regprocedure,
+    'private.product_detail_paid_orders(timestamp with time zone,timestamp with time zone)'::regprocedure,
+    'public.get_product_detail_experience(text)'::regprocedure,
+    'public.get_product_detail_presentation(text)'::regprocedure,
+    'public.admin_search_shopping_story_goods_filtered(text,integer,jsonb)'::regprocedure,
+    'public.admin_resolve_goods_references(text[])'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only); end if;
     if exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then
