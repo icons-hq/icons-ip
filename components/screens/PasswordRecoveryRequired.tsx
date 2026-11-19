@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { requestPasswordResetAction, type AuthActionState } from '@/app/login/actions';
+import { TurnstileField } from '@/components/auth/TurnstileField';
 import { WcButton } from '@/components/wc/WcButton';
 
 const emptyState: AuthActionState = {};
@@ -31,6 +32,7 @@ export function PasswordRecoveryRequired({ email, next }: { email: string | null
           <form action={action} className="wc-auth__form">
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="next" value={next} />
+            <TurnstileField />
             <p className="wc-auth__lede">받는 주소: {email}</p>
             {error && (
               <div className="wc-auth__alert" role="alert">

@@ -50,6 +50,8 @@ export interface PrepareOrderDelayNotice {
 export interface OrderDelayNoticeActionResult {
   notice?: OrderDelayNotice;
   emailConfigured?: boolean;
+  /** 이메일 스위치 화면(운영 스위치)을 열 수 있는 운영자인가 — 꺼짐 안내에 링크를 단다. */
+  switchesLink?: boolean;
   error?: string;
 }
 export const ORDER_DELAY_STATUS_LABELS: Record<OrderDelayChannelStatus, string> = {
