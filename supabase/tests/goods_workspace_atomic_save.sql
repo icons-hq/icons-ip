@@ -70,12 +70,17 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000120002'
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000002',pg_temp.workspace_good('workspace-publish','공개 요청')||'{"publish":true,"previous_id":"workspace-publish"}','{}')::text),
   'goods_workspace_publish_unsupported','23514');
--- 롤백: 운영자(관리자 아님)의 예약 활성화가 거절되면 기본 상품과 KC도 남지 않는다.
+-- 롤백: 예약 초안(2026-11-19 폐지)이나 필수값이 빈 예약이 거절되면 기본 상품과 KC도 남지 않는다.
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000003',pg_temp.workspace_good('workspace-rollback','롤백 상품'),
     jsonb_build_object('kc',pg_temp.workspace_kc('reviewed',true,null,null,'[{"attributes":{"색상":"빨강"}},{"attributes":{"색상":"파랑"}}]'),
-      'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active'))))::text),
-  'preorder_admin_required','42501');
+      'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','draft'))))::text),
+  'invalid_preorder_policy','23514');
+select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
+  pg_temp.workspace_payload('12000000-0000-4000-8000-00000000000a',pg_temp.workspace_good('workspace-rollback','롤백 상품'),
+    jsonb_build_object('kc',pg_temp.workspace_kc('reviewed',true,null,null,'[{"attributes":{"색상":"빨강"}},{"attributes":{"색상":"파랑"}}]'),
+      'preorders',jsonb_build_array(jsonb_set(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active'),'{values,capacityQty}','null'))))::text),
+  'preorder_policy_not_configured','23514');
 -- 롤백: 확인 체크 없는 검토 완료, 해석되지 않는 옵션 참조.
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000004',pg_temp.workspace_good('workspace-rollback','롤백 상품'),
@@ -83,7 +88,7 @@ select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::
   'goods_kc_attestation_required','23514');
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000005',pg_temp.workspace_good('workspace-rollback','롤백 상품'),
-    jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"초록"}}','draft'))))::text),
+    jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"초록"}}','active'))))::text),
   'goods_workspace_preorder_variant_unresolved','23514');
 -- 옵션 참조 해석 실패는 어느 섹션의 참조인지 오류 코드로 구분한다(화면이 그 카드에 안내한다).
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
@@ -96,7 +101,7 @@ select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::
   'invalid_goods_workspace_kc_variant','23514');
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000009',pg_temp.workspace_good('workspace-rollback','롤백 상품'),
-    jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":[]}','draft'))))::text),
+    jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":[]}','active'))))::text),
   'invalid_goods_workspace_preorder_variant','23514');
 -- 신규 등록인데 화면이 KC 버전을 가졌다면 다른 작업의 결과이므로 거절한다.
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
@@ -109,12 +114,13 @@ select 1/case when not exists(select 1 from public.goods where id in ('workspace
   and not exists(select 1 from public.audit_log where action='admin.good.workspace_saved')
   then 1 else 0 end as assert_failures_roll_back_everything;
 
--- 신규 등록: 기본 상품·옵션 + KC 검토 완료(확인 체크) + 새 옵션의 예약 초안을 한 번에 저장한다.
+-- 신규 등록: 기본 상품·옵션 + KC 검토 완료(확인 체크) + 새 옵션의 예약 적용을 한 번에 저장한다.
+-- 예약은 저장하면 바로 적용되고, 상품 관리 권한(관리자 아님)이면 된다(2026-11-19).
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000120002',true);
 select pg_temp.workspace_payload('12000000-0000-4000-8000-000000000010',pg_temp.workspace_good('workspace-new','원자 저장 상품'),
   jsonb_build_object('kc',pg_temp.workspace_kc('reviewed',true,null,null,'[{"attributes":{"색상":"빨강"}},{"attributes":{"색상":"파랑"}}]'),
-    'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','draft')))) as new_request \gset
+    'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active')))) as new_request \gset
 select public.admin_save_good_workspace(:'new_request'::jsonb) as new_result \gset
 reset role;
 select 1/case when :'new_result'::jsonb->>'id'='workspace-new' and (:'new_result'::jsonb->>'created')::boolean
@@ -123,7 +129,8 @@ select 1/case when :'new_result'::jsonb->>'id'='workspace-new' and (:'new_result
     and models#>'{0,variantIds}'=(select jsonb_agg(id::text order by id) from public.goods_variants where good_id='workspace-new')
     from private.goods_kc_reviews where good_id='workspace-new')
   and (select count(*)=1 from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id
-    where v.good_id='workspace-new' and v.attributes='{"색상":"파랑"}' and p.state='draft' and p.capacity_qty=5)
+    where v.good_id='workspace-new' and v.attributes='{"색상":"파랑"}' and p.state='active' and p.capacity_qty=5
+      and v.preorder_policy_id=p.id and p.activated_by='00000000-0000-4000-8000-000000120002')
   and (select published_at is null from public.goods where id='workspace-new')
   and (select count(*)=1 from private.goods_workspace_operations where good_id='workspace-new')
   and (select count(*)=1 from public.audit_log where id='12000000-0000-4000-8000-000000000010' and action='admin.good.workspace_saved')
@@ -176,13 +183,13 @@ select 1/case when (select name='원자 저장 상품 수정' from public.goods 
   and (select revision=3 from private.goods_kc_reviews where good_id='workspace-new')
   then 1 else 0 end as assert_stale_kc_rolls_back_goods;
 
--- 관리자는 등록과 함께 예약을 활성화할 수 있다(판매기간 없음, 승인 조건 완비).
+-- 관리자도 등록과 함께 예약을 적용한다(판매기간 없음). 승인 근거는 선택 메모라 없이 보내도 적용된다.
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000120001',true);
 select public.admin_save_good_workspace(pg_temp.workspace_payload('12000000-0000-4000-8000-000000000020',pg_temp.workspace_good('workspace-active','예약 활성 상품'),
-  jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active'))))) as active_result \gset
+  jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active')#-'{values,approvalReference}')))) as active_result \gset
 reset role;
-select 1/case when (select p.state='active' and v.preorder_policy_id=p.id from private.goods_preorder_policies p
+select 1/case when (select p.state='active' and v.preorder_policy_id=p.id and p.approval_reference is null from private.goods_preorder_policies p
     join public.goods_variants v on v.id=p.variant_id where v.good_id='workspace-active')
   and not exists(select 1 from private.goods_kc_reviews where good_id='workspace-active')
   then 1 else 0 end as assert_admin_activates_preorder_with_new_good;
@@ -193,12 +200,12 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000120002',true);
 select public.admin_save_goods_draft('12000000-0000-4000-8000-0000000000d1','{"name":"임시저장 원자 상품"}',0);
 select public.admin_save_good_workspace(pg_temp.workspace_payload('12000000-0000-4000-8000-000000000030',pg_temp.workspace_good('workspace-draft','임시저장 원자 상품'),
-  jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"빨강"}}','draft'))),
+  jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"빨강"}}','active'))),
   '{"id":"12000000-0000-4000-8000-0000000000d1","revision":1}')) as draft_result \gset
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000031',pg_temp.workspace_good('workspace-draft','임시저장 원자 상품'),
     jsonb_build_object('kc',pg_temp.workspace_kc('unreviewed',false,null,null,'[{"attributes":{"색상":"빨강"}}]'),
-      'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','draft'))),
+      'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active'))),
     '{"id":"12000000-0000-4000-8000-0000000000d1","revision":1}')::text),
   'goods_workspace_draft_completed_sections_skipped','PT409');
 select public.admin_save_good_workspace(pg_temp.workspace_payload('12000000-0000-4000-8000-000000000032',pg_temp.workspace_good('workspace-draft','임시저장 원자 상품'),
@@ -208,32 +215,43 @@ select 1/case when :'draft_result'::jsonb->>'id'='workspace-draft' and (:'draft_
   and :'draft_replay'::jsonb->>'id'='workspace-draft'
   and (select completed_good_id='workspace-draft' and archived_at is not null from public.admin_goods_drafts where id='12000000-0000-4000-8000-0000000000d1')
   and (select count(*)=1 from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id where v.good_id='workspace-draft')
-  and (select v.attributes='{"색상":"빨강"}' from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id where v.good_id='workspace-draft')
+  and (select v.attributes='{"색상":"빨강"}' and p.state='active' and v.preorder_policy_id=p.id
+    from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id where v.good_id='workspace-draft')
   and not exists(select 1 from private.goods_kc_reviews where good_id='workspace-draft')
   and not exists(select 1 from private.goods_workspace_operations where operation_id='12000000-0000-4000-8000-000000000031')
   and (select count(*)=1 from public.goods where name='임시저장 원자 상품')
   then 1 else 0 end as assert_draft_completion_is_atomic_and_idempotent;
 
--- 사용 중지 새 옵션: 저장과 함께 보관되지만 기존 독립 패널처럼 KC 모델 연결·예약 초안 대상으로 해석한다.
+-- 사용 중지 새 옵션: 저장과 함께 보관되지만 기존 독립 패널처럼 KC 모델 연결·예약 대상으로 해석한다.
+-- 예약은 저장하면 적용되므로(초안 없음) 해석된 사용 중지 옵션에는 예약을 적용하지 않고, 전체 저장을 되돌린다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000120002',true);
+select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
+  pg_temp.workspace_payload('12000000-0000-4000-8000-000000000042',pg_temp.workspace_good_inactive('workspace-inactive','사용 중지 옵션 상품'),
+    jsonb_build_object('kc',pg_temp.workspace_kc('unreviewed',false,null,null,'[{"attributes":{"색상":"빨강"}},{"attributes":{"색상":"파랑"}}]'),
+      'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active'))))::text),
+  'goods_variant_inactive','23514');
+reset role;
+select 1/case when not exists(select 1 from public.goods where id='workspace-inactive')
+  and not exists(select 1 from private.goods_workspace_operations where operation_id='12000000-0000-4000-8000-000000000042')
+  then 1 else 0 end as assert_inactive_new_option_preorder_rolls_back;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000120002',true);
 select public.admin_save_good_workspace(pg_temp.workspace_payload('12000000-0000-4000-8000-000000000040',pg_temp.workspace_good_inactive('workspace-inactive','사용 중지 옵션 상품'),
-  jsonb_build_object('kc',pg_temp.workspace_kc('unreviewed',false,null,null,'[{"attributes":{"색상":"빨강"}},{"attributes":{"색상":"파랑"}}]'),
-    'preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','draft'))))) as inactive_result \gset
+  jsonb_build_object('kc',pg_temp.workspace_kc('unreviewed',false,null,null,'[{"attributes":{"색상":"빨강"}},{"attributes":{"색상":"파랑"}}]')))) as inactive_result \gset
 reset role;
 select 1/case when :'inactive_result'::jsonb->>'id'='workspace-inactive'
   and (select archived_at is not null from public.goods_variants where good_id='workspace-inactive' and attributes='{"색상":"파랑"}')
   and (select models#>'{0,variantIds}'=(select jsonb_agg(id::text order by id) from public.goods_variants where good_id='workspace-inactive')
     from private.goods_kc_reviews where good_id='workspace-inactive')
-  and (select count(*)=1 from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id
-    where v.good_id='workspace-inactive' and v.attributes='{"색상":"파랑"}' and p.state='draft')
+  and not exists(select 1 from private.goods_preorder_policies p join public.goods_variants v on v.id=p.variant_id where v.good_id='workspace-inactive')
   then 1 else 0 end as assert_inactive_new_option_resolves_for_sections;
 -- 이전 저장에서 보관된 옵션은 옵션값 조합으로 찾지 않는다(저장된 옵션은 id로만 가리킨다).
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000120002',true);
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000041',pg_temp.workspace_edit_good('workspace-inactive'),
-    jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','draft'))))::text),
+    jsonb_build_object('preorders',jsonb_build_array(pg_temp.workspace_preorder('{"attributes":{"색상":"파랑"}}','active'))))::text),
   'goods_workspace_preorder_variant_unresolved','23514');
 reset role;
 

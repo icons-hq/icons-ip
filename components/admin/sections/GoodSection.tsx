@@ -202,9 +202,9 @@ export function GoodSection({
    * 별도 저장 패널이다 — "등록 화면을 떠나지 않고 같은 자리에서"(10/27 R13). 보관된 상품은 예약판매를 다루지 않는다.
    */
   const preorderSlot: ReactNode = !selected
-    ? <GoodWorkspacePreorderRow title={OPERATION.preorders[0]} canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
+    ? <GoodWorkspacePreorderRow title={OPERATION.preorders[0]} serverError={state.errors?.workspacePreorders} disabled={pending} />
     : selected.archivedAt ? null
-    : <GoodSavedPreorderSection title={OPERATION.preorders[0]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} randomSale={selected.optionSaleMode === 'random'} key={`preorders-${selected.id}`} /></GoodSavedPreorderSection>;
+    : <GoodSavedPreorderSection title={OPERATION.preorders[0]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canReadOrders={canReadOrders} canAllocate={canManageSales} randomSale={selected.optionSaleMode === 'random'} key={`preorders-${selected.id}`} /></GoodSavedPreorderSection>;
   /*
    * T15b(11/11 묶음 10 1027T-024 "저장 전 전부 입력"): 등록 화면은 상태를 바꾸는 항목(재고 조정·옵션 사용·복사·보관)만 저장 뒤에 두고,
    * 나머지 설정은 저장된 상품과 같은 묶음·같은 순서·같은 자리(같은 id)에서 입력해 기본 입력과 함께 한 번에 저장한다. 게시 상태는 저장 막대의

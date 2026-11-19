@@ -2,7 +2,6 @@
 
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 
-import { canAccessAdminScreen } from '@/lib/admin/access';
 import { isUuid } from '@/lib/uuid';
 
 import { revalidatePath } from 'next/cache';
@@ -45,9 +44,8 @@ export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved
   if (!goodId || !isUuid(variantId) || (policyId !== null && !isUuid(policyId)) || !policy
     || (rawRevision && (!/^[1-9]\d*$/.test(rawRevision) || !integer(revision, 1)))
     || (policyId === null) !== (revision === null)) {
-    return { ok: false, error: '승인 물량·접수 기간·발송 예정일·승인 근거와 저장된 조건을 확인해주세요.' };
+    return { ok: false, error: '예약 물량·접수 기간·발송 예정일과 저장된 조건을 확인해주세요.' };
   }
-  if (policy.state === 'active' && !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) return { ok: false, error: preorderMutationError('preorder_admin_required') };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_goods_preorder', {
@@ -58,25 +56,22 @@ export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved
       return { ok: false, error: '예약 조건 저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.' };
     }
     revalidateGoodsSurfaces();
-    return { ok: true, message: policy.state === 'active' ? '승인 조건에 따라 예약 접수를 설정했습니다.'
-      : policy.state === 'stopped' ? '새 예약 접수를 중지했습니다. 기존 주문의 약속은 유지됩니다.' : '예약 조건을 초안으로 저장했습니다. 판매에는 반영되지 않습니다.' };
+    return { ok: true, message: policy.state === 'active' ? '예약판매를 저장했습니다. 접수 기간 동안 예약 물량으로 판매합니다.'
+      : '새 예약 접수를 중지했습니다. 기존 주문의 약속은 유지됩니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 조건을 저장하지 못했습니다.' }; }
 }
 const RANDOM_PREORDER_SAVED = {
-  draft: '모든 옵션의 예약 조건을 초안으로 저장했습니다. 판매에는 반영되지 않습니다.',
-  active: '모든 옵션을 같은 일정의 예약 접수로 설정했습니다. 주문할 때 남은 예약 물량에 비례해 옵션이 정해집니다.',
+  active: '모든 옵션에 같은 일정으로 예약판매를 저장했습니다. 주문할 때 남은 예약 물량에 비례해 옵션이 정해집니다.',
   stopped: '모든 옵션의 새 예약 접수를 중지했습니다. 기존 주문의 약속은 유지됩니다.',
   stock: '모든 옵션을 현재 실제 재고 기준 일반 판매로 전환했습니다.',
 } as const;
-/** 랜덤 판매 상품: 모든 판매 중 옵션의 예약을 한 번에 저장한다(초안·활성화·중지·일반 재고 전환). */
+/** 랜덤 판매 상품: 모든 판매 중 옵션의 예약을 한 번에 저장한다(적용·중지·일반 재고 전환). */
 export async function saveRandomGoodsPreordersAction(goodIdValue: unknown, stateValue: unknown, valuesValue: unknown, optionsValue: unknown): Promise<Saved | Failure> {
   const auth = await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' });
   if (!auth) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(goodIdValue);
   const request = parseRandomPreorderRequest(stateValue, valuesValue, optionsValue);
-  if (!goodId || !request) return { ok: false, error: '승인 물량·접수 기간·발송 예정일·승인 근거와 저장된 조건을 확인해주세요.' };
-  if ((request.state === 'active' || request.state === 'stock')
-    && !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) return { ok: false, error: preorderMutationError('preorder_admin_required') };
+  if (!goodId || !request) return { ok: false, error: '예약 물량·접수 기간·발송 예정일과 저장된 조건을 확인해주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_random_goods_preorders', {
@@ -92,8 +87,7 @@ export async function saveRandomGoodsPreordersAction(goodIdValue: unknown, state
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 조건을 저장하지 못했습니다.' }; }
 }
 export async function switchToStockSupplyAction(goodIdValue: unknown, variantId: unknown, policyId: unknown, revision: unknown): Promise<Saved | Failure> {
-  const auth = await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' });
-  if (!auth || !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) return { ok: false, error: preorderMutationError('preorder_admin_required') };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(goodIdValue);
   if (!goodId || !isUuid(variantId) || !isUuid(policyId) || !integer(revision, 1)) return { ok: false, error: '현재 선택된 예약 조건을 다시 확인해주세요.' };
   try {
@@ -104,7 +98,7 @@ export async function switchToStockSupplyAction(goodIdValue: unknown, variantId:
     if (error) return { ok: false, error: preorderMutationError(error.message) };
     if (!record(data) || typeof data.changed !== 'boolean') return { ok: false, error: '판매 방식 변경 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.' };
     revalidateGoodsSurfaces();
-    return { ok: true, message: '현재 실제 재고를 기준으로 일반 판매하도록 전환했습니다.' };
+    return { ok: true, message: '예약 접수를 마치고 현재 재고수량으로 일반 판매하도록 전환했습니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '판매 방식을 변경하지 못했습니다.' }; }
 }
 export async function listGoodsPreorderReservationsAction(goodIdValue: unknown, state: string | null = 'reserved', page = 1):
