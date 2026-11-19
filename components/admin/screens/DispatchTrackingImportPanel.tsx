@@ -50,7 +50,9 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
       // 제출 뒤 양식(비밀번호 칸)이 비워지므로, 다시 올리려면 확인부터 다시 한다.
       setPreview(null);
       // 운송장 칸을 비워 건너뛴 줄이 있으면 그 사실을 이 자리에서 보이도록 배송현황으로 넘어가지 않는다.
-      if (result.report?.succeeded.length && !result.report.failed.length && !result.report.skipped && !result.errors?.form && !result.queueWarning) {
+      // 취소 뒤 출고 발견(ADR-0046) 줄이 있으면 그 안내를 이 자리에서 보이도록 배송현황으로 넘어가지 않는다.
+      if (result.report?.succeeded.length && !result.report.failed.length && !result.report.skipped && !result.report.canceledAfterExport?.length
+        && !result.errors?.form && !result.queueWarning) {
         const [path, query] = shippingHref.split('?');
         const params = new URLSearchParams(query);
         params.set('registered', String(result.report.succeeded.length));
@@ -187,6 +189,22 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         </Table>
         </div>
         </div>
+      ) : null}
+
+      {state.report?.canceledAfterExport?.length ? (
+        <AdminNotice role="status" tone="danger" title={`취소한 주문의 배송 건에 운송장 회신이 왔습니다 · ${state.report.canceledAfterExport.length}건`}>
+          <div className="flex flex-col gap-1.5" data-tracking-canceled-after-export="">
+            <p>발송처리하지 않고 &lsquo;취소 뒤 출고 발견&rsquo;으로 기록했고, 취소 때 되돌린 재고를 다시 뺐습니다. 환불이 끝난 주문이니 주문 상세에서 고객 연락·회수를 처리해주세요.</p>
+            <ul className="flex flex-col gap-1">
+              {state.report.canceledAfterExport.map((row) => (
+                <li className="flex flex-wrap items-center gap-2 tabular-nums" key={`${row.line}:${row.reference}`}>
+                  <span>{row.line}줄 · {row.reference || '-'}</span>
+                  {row.orderId ? <Link className="underline underline-offset-4" href={`/admin/sales/orders/${row.orderId}#warehouse-stop`}>주문 상세에서 처리</Link> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </AdminNotice>
       ) : null}
 
       {state.report && state.report.succeeded.length > 0 ? (

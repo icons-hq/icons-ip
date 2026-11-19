@@ -69,6 +69,21 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('배송 건을 찾을 수 없습니다.');
   });
 
+  /* ADR-0046: 출고지시 뒤 취소된 배송 건의 회신 줄은 성공·실패와 따로, 주문 상세의 처리로 잇는다. */
+  it('취소한 주문의 배송 건 회신 줄은 취소 뒤 출고 발견으로 따로 보이고 주문 상세로 잇는다', () => {
+    const orderId = '11111111-1111-4111-8111-111111111111';
+    mocks.state = {
+      message: "새로 등록할 운송장이 없습니다. 취소한 주문의 배송 건 1건은 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다.",
+      report: { succeeded: [], failed: [], canceledAfterExport: [{ line: 4, reference: '2026111930000001', orderId }] },
+    };
+    const html = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
+    expect(html).toContain('data-tracking-canceled-after-export=""');
+    expect(html).toContain('취소한 주문의 배송 건에 운송장 회신이 왔습니다 · 1건');
+    expect(html).toContain('4줄 · 2026111930000001');
+    expect(html).toContain(`href="/admin/sales/orders/${orderId}#warehouse-stop"`);
+    expect(html).not.toContain('실패 행 내려받기');
+  });
+
   it('전부 등록되고 메일 큐 경고가 없으면 건수만 담아 배송현황으로 바로 이동한다', async () => {
     const result = { report: { succeeded: Array.from({ length: 100 }, (_, i) => String(i)), failed: [] } };
     mocks.register.mockResolvedValue(result);
@@ -81,7 +96,8 @@ describe('운송장 업로드 후속 동선', () => {
     { report: { succeeded: ['00000001'], failed: [{ line: 2, reference: '00000002', reason: '처리 실패' }] } },
     { report: { succeeded: ['00000001'], failed: [] }, queueWarning: true },
     { errors: { form: '등록 결과를 확인하지 못했습니다.' } },
-  ])('부분 실패·큐 경고·미확정 응답은 자동 이동 없이 보고서를 유지한다', async result => {
+    { report: { succeeded: ['00000001'], failed: [], canceledAfterExport: [{ line: 3, reference: '00000003', orderId: null }] } },
+  ])('부분 실패·큐 경고·미확정 응답·취소 뒤 출고 발견은 자동 이동 없이 보고서를 유지한다', async result => {
     mocks.register.mockResolvedValue(result);
     renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
     expect(await mocks.submit!({}, new FormData())).toBe(result);

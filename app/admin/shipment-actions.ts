@@ -155,7 +155,7 @@ export async function saveShipmentExportColumnsAction(id:string,columns:unknown,
 
 export type ShipmentTrackingRowInput={shipmentId:string;carrier:string;trackingNumber:string};
 export type ShipmentTrackingRowResult={ok:true;message:string;registered:string[];unchanged:string[];failed:{shipmentId:string;reason:string;code?:string}[];queueWarning:boolean}|{ok:false;error:string};
-type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
+type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];canceledAfterExport?:boolean};
 /**
  * 발송 대기 행의 택배사·운송장 칸(S36-072). 창고 회신 파일과 같은 일괄 등록 RPC에 1~100건을 그대로 넘긴다 —
  * 합포장은 묶음 전체에 적용되고, 이미 발송된 배송 건의 운송장은 덮어쓰지 않는다(같은 번호는 그대로, 다르면 실패).
@@ -182,9 +182,12 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   if(result.error||!Array.isArray(result.data)||result.data.length!==rows.length)return {ok:false,error:'등록 결과를 확인하지 못했습니다. 목록을 새로고침해 배송 상태를 확인해주세요.'};
   const data=result.data as TrackingBatchRow[];
   const registered=data.filter(row=>row.ok&&row.dispatched!==false).map(row=>row.reference);
-  const unchanged=data.filter(row=>row.ok&&row.dispatched===false).map(row=>row.reference);
+  const unchanged=data.filter(row=>row.ok&&row.dispatched===false&&!row.canceledAfterExport).map(row=>row.reference);
   // 사유 코드도 넘긴다 — 다른 주문의 번호로 거절된 행은 화면이 '중복 확인 후 등록'을 연다.
-  const failed=data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??''),...(row.error?{code:row.error}:{})}));
+  // 출고지시 뒤 취소된 배송 건(ADR-0046)은 발송처리되지 않고 취소 뒤 출고 발견으로 남았다 — 등록되지 않은 행으로 알린다.
+  const failed=[...data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??''),...(row.error?{code:row.error}:{})})),
+   ...data.filter(row=>row.ok&&row.canceledAfterExport).map(row=>({shipmentId:row.reference,code:'canceled_after_export',
+    reason:"취소한 주문의 배송 건이라 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다. 주문 상세에서 고객 연락·회수를 처리해주세요."}))];
   const deliveries=data.filter(row=>row.ok&&row.dispatched!==false&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
   let queueWarning=false;
   if(deliveries.length){try{await enqueueOrderShippedEmails([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);}catch{queueWarning=true;}}

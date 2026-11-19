@@ -291,6 +291,31 @@ describe('bulk tracking action', () => {
     expect(result.errors).toBeUndefined(); expect(result.message).toContain('이미 발송된 1건은 그대로');
     expect(result.report).toEqual({ succeeded: [], failed: [], unchanged: 1 }); expect(mocks.enqueue).not.toHaveBeenCalled();
   });
+  /* ADR-0046: 출고지시 뒤 취소된 배송 건에 온 회신 줄은 성공·실패와 따로 '취소 뒤 출고 발견'으로 보고하고 메일을 만들지 않는다. */
+  it('취소한 주문의 배송 건 회신 줄은 취소 뒤 출고 발견으로 따로 세고 다른 줄은 그대로 등록한다', async () => {
+    mocks.rpc.mockResolvedValue({ error: null, data: [
+      { line: 1, reference: '00000001', ok: true, orderId: 'order-one', shipmentId: 'shipment-one', dispatched: false, canceledAfterExport: true, discoveryId: 'd-1' },
+      { line: 2, reference: '00000002', ok: true, orderId: 'order-two', shipmentId: 'shipment-two', dispatched: true },
+    ] });
+    const result = await bulkRegisterAdminOrderTrackingAction({}, form('00000001,hanjin,12345678\n00000002,hanjin,12345679'));
+    expect(result.errors).toBeUndefined();
+    expect(result.report).toEqual({ succeeded: ['00000002'], failed: [], canceledAfterExport: [{ line: 1, reference: '00000001', orderId: 'order-one' }] });
+    expect(result.message).toContain("취소한 주문의 배송 건 1건은 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다");
+    expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: 'order-two', shipmentId: 'shipment-two' }]);
+  });
+  it('서원 회신이 출고지시 뒤 취소된 배송 건과 맞으면 그 배송 건으로 보내고 발견으로 센다', async () => {
+    mocks.rpc.mockImplementation(async (name: string, args: { target_rows?: { line: number; reference: string }[] }) => name === 'admin_origin_tracking_candidates'
+      ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [seowonCandidate({ status: 'canceled' })], usedTracking: [] } }
+      : { error: null, data: args.target_rows!.map(row => ({ ...row, ok: true, dispatched: false, canceledAfterExport: true, orderId: seowonOrder, shipmentId: seowonShipment })) });
+    const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, '6012345678901')]));
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_import_seowon_tracking_batch', { target_origin_id: seowonOrigin, target_rows: [
+      { line: 2, reference: seowonShipment, carrier: 'epost', trackingNumber: '6012345678901' },
+    ] });
+    expect(result.errors).toBeUndefined();
+    expect(result.report?.canceledAfterExport).toEqual([{ line: 2, reference: '000000A1', orderId: seowonOrder }]);
+    expect(result.report?.succeeded).toEqual([]);
+    expect(mocks.enqueue).not.toHaveBeenCalled();
+  });
   it('서원 회신은 출고지 후보를 읽어 줄 내용으로 배송 건을 찾고 배송 건마다 한 번 등록한다', async () => {
     mocks.rpc.mockImplementation(async (name: string, args: { target_rows?: { line: number; reference: string }[] }) => name === 'admin_origin_tracking_candidates'
       ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [seowonCandidate()], usedTracking: [] } }
