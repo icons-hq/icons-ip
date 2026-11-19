@@ -10,6 +10,7 @@ import {recipientOnlyShipmentExport} from '@/lib/admin/shipment-export-recipient
 import {seowonExportLabels} from '@/lib/admin/seowon-exchange';
 import {randomUUID} from 'node:crypto';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
+import {shipmentArrivalError,shipmentCompletionFailure} from '@/lib/admin/shipment-revert';
 import {parseShipmentExportColumns,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
@@ -135,14 +136,22 @@ async function barcodeGaps(client:Client,target:string[]|{p_origin_id:string},la
   return !result.error&&Number.isSafeInteger(result.data)&&Number(result.data)>=0?Number(result.data):null;
  }catch{return null;}
 }
-export async function completeShipmentsAction(ids:unknown){
+/**
+ * 선택 배송완료(ADR-0045). arrival.deliveredAt은 택배사 조회의 배송완료 일시(ISO)이고 null이면 처리 시각이다. 7일보다 이른 일시는
+ * 늦게 처리한 사유를 받는다. DB(admin_complete_shipments_at)가 같은 범위와 발송 등록 시각 하한을 배송 건마다 다시 본다.
+ */
+export async function completeShipmentsAction(ids:unknown,arrival:{deliveredAt?:unknown;reason?:unknown}|null=null){
  if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
  if(!keys)return {error:'배송완료 처리할 배송 건을 1~1,000개 선택해주세요.'};
- const client=await createClient();const result=await client.rpc('admin_complete_shipments',{target_ids:keys});
+ const deliveredAt=arrival?.deliveredAt??null;const reason=typeof arrival?.reason==='string'?arrival.reason.trim():'';
+ if(deliveredAt!==null&&(typeof deliveredAt!=='string'||!INSTANT.test(deliveredAt)))return {error:'택배사 배송완료 일시를 확인해주세요.'};
+ const invalid=shipmentArrivalError(deliveredAt,reason);if(invalid)return {error:invalid};
+ const client=await createClient();const result=await client.rpc('admin_complete_shipments_at',{target_ids:keys,p_delivered_at:deliveredAt,p_reason:reason||null});
+ if(result.error?.message?.startsWith('delivered_at_'))return {error:shipmentCompletionFailure(result.error.message)};
  if(result.error||!Array.isArray(result.data))return {error:'배송완료를 처리하지 못했습니다. 최신 상태를 확인해주세요.'};
  const rows=result.data as {id:string;ok:boolean;error?:string;affectedIds?:string[]}[];refresh();
  const completed=new Set(rows.filter(row=>row.ok).flatMap(row=>row.affectedIds??[row.id]));
- return {message:`${completed.size}건을 배송완료로 변경했습니다.`,failed:rows.filter(row=>!row.ok).map(row=>({id:row.id,reason:shipmentMutationError(row.error??'')}))};
+ return {message:`${completed.size}건을 배송완료로 변경했습니다.${deliveredAt&&completed.size?' 배송완료 일시는 입력한 택배사 배송완료 일시로 기록했습니다.':''}`,failed:rows.filter(row=>!row.ok).map(row=>({id:row.id,reason:shipmentCompletionFailure(row.error??'')}))};
 }
 export async function saveShipmentExportColumnsAction(id:string,columns:unknown,updatedAt:string){
  const auth=await staff();if(!auth||!canAccessAdminScreen(auth,null,{capability:'platform.manage',adminOnly:true}))return {error:'관리자 권한이 필요합니다.'};
