@@ -16,7 +16,7 @@ import {
   type MemberWithdrawalInquiry,
   type MemberWithdrawalOutcome,
 } from '@/lib/admin/member-withdrawal';
-import { banWithdrawnMemberSignin, getMemberWithdrawalStatus } from '@/lib/admin/member-withdrawal.server';
+import { banWithdrawnMemberSignin, eraseWithdrawnMemberAvatar, getMemberWithdrawalStatus } from '@/lib/admin/member-withdrawal.server';
 import { normalizeAdminMemberDetailForm } from '@/lib/admin/members';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
@@ -29,6 +29,7 @@ export interface MemberWithdrawalActionState {
 }
 
 const SIGNIN_BLOCK_FAILED = '정지·삭제는 끝났지만 재로그인 차단을 적용하지 못했습니다. 아래 \'재로그인 차단 다시 적용\'을 눌러주세요.';
+const AVATAR_ERASE_FAILED = '정지·삭제는 끝났지만 프로필 사진 파일을 지우지 못했습니다. 아래 다시 적용 버튼을 눌러주세요.';
 
 function revalidateMemberViews(profileId: string) {
   revalidatePath('/admin');
@@ -112,12 +113,15 @@ async function finishWithdrawal(
   }
 
   const blocked = outcome.withdrawal.signinBlocked || await applySigninBlock(supabase, profileId);
+  /* 프로필 사진 파일은 DB가 지울 수 없어 처리 뒤 앱 서버가 지운다. 실패해도 처리는 끝났으므로 다시 적용으로 재시도한다. */
+  const avatarErased = !outcome.withdrawal.avatarErasePending || await eraseWithdrawnMemberAvatar(supabase, profileId);
   revalidateMemberViews(profileId);
   const basis = memberWithdrawalBasisLabel(outcome.withdrawal);
   const done = outcome.status === 'processed'
     ? `탈퇴 요청(${basis})을 처리했습니다 — ${memberWithdrawalErasedSummary(outcome.erased, outcome.revokedSessions)}.`
     : `이미 탈퇴 처리한 회원입니다(${basis}).`;
-  return blocked ? { message: done } : { message: done, errors: { form: SIGNIN_BLOCK_FAILED } };
+  if (!blocked) return { message: done, errors: { form: SIGNIN_BLOCK_FAILED } };
+  return avatarErased ? { message: done } : { message: done, errors: { form: AVATAR_ERASE_FAILED } };
 }
 
 /**
@@ -144,7 +148,7 @@ export async function processKakaoUnlinkWithdrawalAction(
   return finishWithdrawal(supabase, input.value.profileId, parseMemberWithdrawalOutcome(data));
 }
 
-/** 처리 뒤 재로그인 차단만 실패했을 때 다시 건다. 처리 기록이 있는 회원에게만 건다. */
+/** 처리 뒤 재로그인 차단이나 프로필 사진 삭제만 실패했을 때 다시 한다. 처리 기록이 있는 회원에게만 건다. */
 export async function retryMemberWithdrawalSigninBlockAction(
   _state: MemberWithdrawalActionState,
   formData: FormData,
@@ -158,12 +162,16 @@ export async function retryMemberWithdrawalSigninBlockAction(
   const status = await getMemberWithdrawalStatus(input.value.profileId);
   if (!status) return { errors: { form: '탈퇴 처리 상태를 확인하지 못했습니다. 다시 시도해주세요.' } };
   if (!status.processed) return { errors: { form: '탈퇴 요청을 처리한 회원이 아닙니다.' } };
-  if (!status.signinBlocked) {
-    const supabase = await createClient();
-    if (!await applySigninBlock(supabase, input.value.profileId)) {
-      return { errors: { form: '재로그인 차단을 적용하지 못했습니다. 잠시 뒤 다시 시도해주세요.' } };
-    }
+  const supabase = await createClient();
+  if (!status.signinBlocked && !await applySigninBlock(supabase, input.value.profileId)) {
+    return { errors: { form: '재로그인 차단을 적용하지 못했습니다. 잠시 뒤 다시 시도해주세요.' } };
+  }
+  if (status.avatarErasePending && !await eraseWithdrawnMemberAvatar(supabase, input.value.profileId)) {
+    revalidateMemberViews(input.value.profileId);
+    return { errors: { form: '프로필 사진 파일을 지우지 못했습니다. 잠시 뒤 다시 시도해주세요.' } };
   }
   revalidateMemberViews(input.value.profileId);
-  return { message: '재로그인 차단을 적용했습니다.' };
+  const avatar = status.avatarErasePending === true;
+  if (status.signinBlocked && avatar) return { message: '프로필 사진 삭제를 적용했습니다.' };
+  return { message: avatar ? '재로그인 차단과 프로필 사진 삭제를 적용했습니다.' : '재로그인 차단을 적용했습니다.' };
 }
