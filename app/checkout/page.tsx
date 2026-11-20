@@ -69,6 +69,7 @@ export default async function Page({ searchParams }: PageProps) {
   const draftId = typeof params.draft === 'string' ? normalizeCheckoutDraftId(params.draft) : null;
   const returnPath = draftId ? checkoutDraftHref(draftId) : '/checkout';
   const auth = await getCurrentAuthState();
+  if (auth.authUnavailable) throw new Error('Checkout authentication temporarily unavailable');
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(returnPath)}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(returnPath));
 
