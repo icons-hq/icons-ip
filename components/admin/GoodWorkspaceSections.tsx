@@ -143,7 +143,7 @@ export function GoodWorkspacePreorderCard({ serverError, disabled = false }: { s
           </NativeSelect>
         </div>
         <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr))]">
-          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>예약 물량</span><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" value={capacityQty} placeholder="미설정"
+          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>예약 물량</span><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" value={capacityQty} placeholder="예: 100"
             onChange={(event) => update(entry.key, { capacityQty: event.target.value, capacityFromStock: false })} {...invalid('capacityQty')} /></label>{hint('capacityQty')}
             <PreorderCapacityStockHint fromStock={entry.capacityFromStock === true} capacity={capacityQty} stockQty={Number.isFinite(stockQty) ? stockQty : 0} disabled={disabled}
               onUseStock={() => update(entry.key, { capacityFromStock: true })} /></div>

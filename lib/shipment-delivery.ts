@@ -194,7 +194,7 @@ export function deliveryErrorMessage(code?: string): string {
     delivery_receipt_code_unavailable: '수령 확인값이 만료되었거나 이미 사용되었습니다. 주문 화면에서 다시 발급해주세요.',
     delivery_delegate_not_allowed: '이 출고지의 현재 인계 조건에서는 대리수령을 허용하지 않습니다.',
     invalid_delivery_evidence: '실제 인계 담당자·시각과 방식에 맞는 근거를 모두 입력해주세요.',
-    preorder_allocation_required: '예약 품목에 실제 입고 물량을 먼저 할당해주세요.',
+    preorder_allocation_required: '예약 품목의 입고 확인을 먼저 해주세요(예약판매의 [선택한 예약 주문 입고 확인]).',
     'order cancellation in progress': '진행 중인 취소·클레임을 먼저 확인해주세요.',
     'order fulfillment hold': '출고 보류 중인 주문입니다(테스트 결제 또는 결제사 취소). 주문 상세의 출고 보류 안내를 확인해주세요.',
   };

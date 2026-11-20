@@ -159,7 +159,7 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
               <label className={FIELD}><span>실제 인계 담당자</span><Input maxLength={100} onChange={(event) => setEvidence({ ...evidence, operatorName: event.target.value })} required value={evidence.operatorName} /></label>
               <label className={FIELD}><span>배송 업체·담당</span><Input maxLength={100} onChange={(event) => setEvidence({ ...evidence, providerName: event.target.value })} required value={evidence.providerName} /></label>
               <label className={FIELD}><span>배송 담당 연락처</span><Input maxLength={40} onChange={(event) => setEvidence({ ...evidence, providerPhone: event.target.value })} required type="tel" value={evidence.providerPhone} /></label>
-              <div className={FIELD}><Label htmlFor={`${fieldId}-occurred`}>실제 인계 시각 (한국)</Label>
+              <div className={FIELD}><Label htmlFor={`${fieldId}-occurred`}>실제 인계 시각 (KST)</Label>
                 <div className="flex flex-wrap items-center gap-2"><Input className="w-auto" id={`${fieldId}-occurred`} onChange={(event) => setEvidence({ ...evidence, occurredAt: event.target.value })} required type="datetime-local" value={evidence.occurredAt} />
                   <Button onClick={() => setEvidence({ ...evidence, occurredAt: kstNow() })} size="sm" type="button" variant="outline">현재 시각</Button></div></div>
             </div>

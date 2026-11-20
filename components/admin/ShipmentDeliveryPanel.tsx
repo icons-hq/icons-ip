@@ -92,7 +92,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
     <fieldset disabled={pending || !shipment.preorderReady} className={FIELDSET_CLASS}>
       <legend className="sr-only">실제 인계·수령 증거</legend>
       <label className={FIELD_CLASS}><span className={LABEL_TEXT}>실제 인계·확인 담당자</span><Input name="operatorName" maxLength={100} required /></label>
-      <label className={FIELD_CLASS}><span className={LABEL_TEXT}>실제 {deliveryIsHandoff(kind) ? '인계' : '수령'} 시각 (한국)</span><Input type="datetime-local" name="occurredAt" step="0.001" value={occurredAt}
+      <label className={FIELD_CLASS}><span className={LABEL_TEXT}>실제 {deliveryIsHandoff(kind) ? '인계' : '수령'} 시각 (KST)</span><Input type="datetime-local" name="occurredAt" step="0.001" value={occurredAt}
         onChange={(event) => setOccurredAt(event.target.value)} required /></label>
       <Button variant="outline" size="sm" type="button" onClick={() => setOccurredAt(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 23))}>현재 시각 입력</Button>
       {deliveryIsHandoff(kind) ? <>
@@ -107,7 +107,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
         <small className={NOTE_CLASS}>주문자는 주문 화면에서 10분 동안 유효한 확인값을 발급합니다. 5회 틀리거나 재발급하면 이전 값은 사용할 수 없습니다.</small>
       </>}
     </fieldset>
-    {!shipment.preorderReady ? <AdminNotice role="status" tone="warning">예약 품목에 아직 실제 재고가 할당되지 않았습니다. 상품 편집의 예약판매에서 이 주문에 실제 재고를 먼저 할당해주세요.</AdminNotice> : null}
+    {!shipment.preorderReady ? <AdminNotice role="status" tone="warning">예약 품목의 입고 확인이 아직 끝나지 않았습니다. 상품 편집의 예약판매에서 이 주문을 골라 [선택한 예약 주문 입고 확인]을 먼저 눌러주세요.</AdminNotice> : null}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     <Button type="submit" disabled={pending || !shipment.preorderReady}>{pending ? '확인 중…' : deliveryIsHandoff(kind) ? '배송 인계 확인' : '수령 완료 확인'}</Button>
   </form>;

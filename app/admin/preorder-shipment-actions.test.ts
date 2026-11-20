@@ -30,7 +30,7 @@ describe('shipment promise changes', () => {
   });
   it('returns a refresh prompt after a conflict without reporting a changed promise', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'shipment_promise_changed' } });
-    expect(await changeShipmentPreorderDateAction(form())).toMatchObject({ ok: false, error: expect.stringContaining('변경되었습니다') });
+    expect(await changeShipmentPreorderDateAction(form())).toMatchObject({ ok: false, error: expect.stringContaining('먼저 바뀌었습니다') });
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
 });

@@ -11,7 +11,7 @@ export type FulfillmentHoldReleaseResult = { ok: true; message: string } | { ok:
 
 /**
  * 출고 보류 해제(sales.manage). 사유는 5~500자이고 감사 기록에 남는다. 같은 요청번호의 재요청은 처음 결과를 돌려준다.
- * 해제해도 DB의 다른 출고 조건(취소 요청·예약 할당 등)은 그대로다.
+ * 해제해도 DB의 다른 출고 조건(취소 요청·예약 입고 확인 등)은 그대로다.
  */
 export async function releaseOrderFulfillmentHoldAction(input: {
   orderId: string; reason: FulfillmentHoldReason; note: string; operationId: string;
@@ -40,5 +40,5 @@ export async function releaseOrderFulfillmentHoldAction(input: {
   }
   for (const path of ['/admin/sales/orders', '/admin/sales/dispatch', `/admin/sales/orders/${orderId}`]) revalidatePath(path);
   revalidatePath('/admin');
-  return { ok: true, message: '출고 보류를 해제했습니다. 다른 출고 조건(취소 요청·예약 할당 등)은 그대로 확인됩니다.' };
+  return { ok: true, message: '출고 보류를 해제했습니다. 다른 출고 조건(취소 요청·예약 입고 확인 등)은 그대로 확인됩니다.' };
 }

@@ -106,18 +106,18 @@ const PARTIAL_RETURN_TRANSFER_REASON_MAX = 500;
 function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   const value = (message ?? '').toLowerCase();
   /* 부분 반품(ADR-0047) */
-  if (value.includes('partial_return_refund_method_mismatch')) return '이 부분 반품의 환불 수단과 다릅니다. 토스 결제는 결제사 부분 취소, 무통장은 계좌 송금입니다. 화면을 새로고침해주세요.';
-  if (value.includes('partial_return_state_changed')) return '부분 반품 품목의 배송·수량 상태가 바뀌었습니다. 최신 상태를 확인해주세요. 환불과 재고는 그대로입니다.';
+  if (value.includes('partial_return_refund_method_mismatch')) return '이 부분 반품의 환불 수단과 맞지 않는 처리입니다. 토스 결제는 결제사 부분 취소로, 무통장 결제는 계좌 송금으로 환불합니다. 화면을 새로고침한 뒤 이 요청에 보이는 버튼으로 다시 처리해주세요.';
+  if (value.includes('partial_return_state_changed')) return '부분 반품한 상품의 배송 상태나 수량이 그사이 바뀌어 처리하지 않았습니다. 환불과 재고는 바뀌지 않았습니다. 화면을 새로고침해 바뀐 내용을 확인한 뒤 다시 처리해주세요.';
   if (value.includes('partial_return_uses_partial_refund')) return '부분 반품은 주문 전체 결제 취소가 아니라 고른 상품 몫의 부분 환불로만 처리합니다. 화면을 새로고침한 뒤 [환불 완료 확정]을 다시 눌러주세요.';
   if (value.includes('partial_return_transfer_reason_required')) return `계좌 송금으로 바꾸는 사유를 ${PARTIAL_RETURN_TRANSFER_REASON_MIN}~${PARTIAL_RETURN_TRANSFER_REASON_MAX}자로 적어주세요.`;
-  if (value.includes('partial_return_transfer_account_required')) return '고객에게 받은 환불계좌(은행·계좌번호 숫자와 - 8~30자·예금주)를 확인해주세요.';
-  if (value.includes('partial_return_transfer_operation_conflict')) return '같은 작업 번호로 다른 요청이 처리됐습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
-  if (value.includes('partial_return_transfer_unavailable')) return '결제사가 부분 취소를 받지 않아 닫힌 부분 반품만 계좌 송금으로 바꿀 수 있습니다. 이미 바꿨거나 상태가 달라졌습니다 — 화면을 새로고침해주세요.';
-  if (value.includes('partial_return_transfer_remainder_manual')) return '앞선 부분 반품 환불을 계좌로 송금한 결제라 이 금액(결제액 기준)으로 계좌 송금을 기록하면 같은 돈을 두 번 돌려줍니다. 결제 담당과 개발 요청으로 남은 환불액을 맞춰 처리해주세요.';
+  if (value.includes('partial_return_transfer_account_required')) return '고객에게 받은 환불계좌의 은행·계좌번호·예금주를 모두 입력해주세요. 계좌번호는 숫자와 - 만 써서 8~30자로 넣습니다.';
+  if (value.includes('partial_return_transfer_operation_conflict')) return '이 화면의 처리 번호로 다른 요청이 이미 처리돼 저장하지 않았습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
+  if (value.includes('partial_return_transfer_unavailable')) return '계좌 송금으로 바꿀 수 있는 것은 결제사가 부분 취소를 받지 않은 부분 반품뿐입니다. 이미 계좌 송금으로 바꿨거나 요청 상태가 바뀌었을 수 있으니 화면을 새로고침해 확인해주세요.';
+  if (value.includes('partial_return_transfer_remainder_manual')) return '이 결제는 앞선 부분 반품 환불을 이미 계좌로 송금했습니다. 지금 환불 금액은 그 송금액을 빼지 않은 결제 금액 기준이라, 그대로 계좌 송금을 기록하면 같은 돈을 두 번 돌려주게 됩니다. 결제 담당이 개발팀에 요청해 남은 환불액을 맞춘 뒤 처리해주세요.';
   if (value.includes('bank_refund_permission_required')) return '계좌 송금 환불 권한(결제 담당)이 필요합니다. 대표 또는 계정 주매니저에게 요청해주세요.';
   if (value.includes('defective_stock_item_not_in_claim')) return '이 부분 반품에서 고른 품목만 불량으로 고를 수 있습니다.';
   if (value.includes('claim_conversion_partial_return')) return '부분 반품은 교환으로 바꿀 수 없습니다. 교환은 주문 전체로만 받습니다.';
-  if (value.includes('partial_return_')) return '부분 반품을 처리할 수 없는 상태입니다(결제 수단·배분·품목 상태). 클레임 상세의 부분 반품 칸에서 이유를 확인해주세요.';
+  if (value.includes('partial_return_')) return '부분 반품을 처리할 수 없는 상태입니다(결제 수단, 상품별 결제 금액 기록, 품목 상태 가운데 맞지 않는 것이 있음). 요청 상세의 부분 반품 칸에서 이유를 확인해주세요.';
   if (value.includes('defective_stock_claim_closed')) return '이미 환불이 확정된 요청이라 재고 처리를 바꿀 수 없습니다.';
   if (value.includes('defective_stock_item_in_other_claim') || value.includes('defective_stock_plan_conflict')) return '다른 반품·교환 요청에서 이미 불량으로 고른 품목입니다. 이력을 확인해주세요.';
   if (value.includes('defective_stock_item_not_in_order') || value.includes('defective_stock_return_only')) return '이 반품 요청의 품목이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
@@ -167,11 +167,11 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_shipment_required')) return '출고지가 둘 이상인 교환은 배송 건마다 재출고·배송완료를 확인해주세요.';
   if (value.includes('reshipment_shipment_not_found')) return '이 교환의 재출고 대상 출고지가 아닙니다. 최신 정보를 다시 확인해주세요.';
   /* 배송 분실(택배사 확인, 원장 #15) 기록. */
-  if (value.includes('carrier_loss_return_only')) return '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 생략 재출고를 쓰세요.';
+  if (value.includes('carrier_loss_return_only')) return '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 없이 재출고해주세요.';
   if (value.includes('carrier_loss_shipment_not_dispatched')) return '아직 발송되지 않은 배송 건은 분실로 기록할 수 없습니다. 발송 전 몫은 재고 부족 부분 취소로 처리해주세요.';
   if (value.includes('invalid_carrier_accident_number')) return '택배사 사고 번호를 앞뒤 공백 없이 2~60자로 입력해주세요.';
-  if (value.includes('invalid_carrier_loss')) return '배송 분실 기록 내용을 확인해주세요. 새로고침한 뒤 다시 시도해주세요.';
-  if (value.includes('claim_changed')) return '다른 처리로 요청이 바뀌었습니다. 새로고침한 뒤 최신 상태로 다시 확인해주세요.';
+  if (value.includes('invalid_carrier_loss')) return '배송 분실 기록 내용을 읽지 못했습니다. 화면을 새로고침한 뒤 사고 번호·분실 확인 메모·근거 사진을 다시 넣어 기록해주세요.';
+  if (value.includes('claim_changed')) return '그사이 요청 상태가 바뀌어 처리하지 않았습니다. 새로고침해 최신 상태를 확인한 뒤 다시 처리해주세요.';
   if (value.includes('collection_waiver_conflict')) return '이 출고지는 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.';
   if (value.includes('collection_waiver_not_allowed')) return '회수 생략은 하자·오배송 교환에서만 쓸 수 있습니다.';
   if (value.includes('collection_waiver_not_needed')) return '이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.';
@@ -590,7 +590,7 @@ export async function recordOrderClaimCarrierLossAction(
   previous: AdminClaimActionState,
   formData: FormData,
 ): Promise<AdminClaimActionState> {
-  const failureMessage = '배송 분실을 기록하지 못했습니다. 최신 상태를 확인해주세요.';
+  const failureMessage = '배송 분실을 기록하지 못했습니다. 새로고침해 이 출고지가 이미 배송 분실로 기록됐는지 확인하고, 아니면 다시 기록해주세요.';
   const fail = (error: string) => withPreservedFormValues({ error }, previous, formData, { exclude: ['evidenceFileId'] });
   const access = await requireStaffAction();
   if (access.error) return fail(access.error.error ?? failureMessage);
@@ -632,7 +632,7 @@ export async function convertPartialReturnToTransferAction(
   _previous: AdminClaimActionState,
   formData: FormData,
 ): Promise<AdminClaimActionState> {
-  const failure = '계좌 송금으로 바꾸지 못했습니다. 환불과 재고는 그대로입니다. 최신 상태를 확인해주세요.';
+  const failure = '계좌 송금으로 바꾸지 못했습니다. 환불과 재고는 그대로입니다. 새로고침해 요청 상태를 확인한 뒤 다시 시도해주세요.';
   const access = await requireStaffAction();
   if (access.error || !access.userId) return access.error ?? { error: failure };
   if (!access.canManagePayments) return { error: '계좌 송금 환불 권한(결제 담당)이 필요합니다. 대표 또는 계정 주매니저에게 요청해주세요.' };
@@ -646,7 +646,7 @@ export async function convertPartialReturnToTransferAction(
   const accountNumber = String(formData.get('accountNumber') ?? '').trim();
   const accountHolder = String(formData.get('accountHolder') ?? '').trim();
   if (!bankName || bankName.length > 40 || !/^[0-9-]{8,30}$/u.test(accountNumber) || !accountHolder || accountHolder.length > 40) {
-    return { error: '고객에게 받은 환불계좌(은행·계좌번호 숫자와 - 8~30자·예금주)를 확인해주세요.' };
+    return { error: '고객에게 받은 환불계좌의 은행·계좌번호·예금주를 모두 입력해주세요. 계좌번호는 숫자와 - 만 써서 8~30자로 넣습니다.' };
   }
   if (formData.get('confirmed') !== 'on') return { error: '고객과 계좌 송금 환불을 확인했다는 항목에 체크해주세요.' };
   const supabase = await createClient();
@@ -663,7 +663,7 @@ export async function convertPartialReturnToTransferAction(
   revalidatePath('/admin/sales/claims/refund-transfers');
   return { message: result.state === 'completed'
     ? '이미 송금까지 끝난 부분 반품입니다.'
-    : `계좌 송금 부분 환불(${krwAmountWords(result.refundAmount)})로 바꿨습니다. 환불 송금 대기에 올랐습니다 — 송금한 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.` };
+    : `계좌 송금 부분 환불(${krwAmountWords(result.refundAmount)})로 바꿨습니다. 환불 송금 대기에 올렸습니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 [송금 완료 기록]을 눌러주세요.` };
 }
 
 interface ManualRecoveryAttemptRow {
@@ -931,7 +931,7 @@ export async function recordOrderClaimRefundAction(
   return finishRefundMessage();
 }
 
-const PARTIAL_RETURN_BANK_COMPLETE = '무통장 부분 반품 환불은 송금한 뒤 주문 상세의 부분 환불 기록에서 송금 증빙으로 완료를 적습니다. 그때 반품 요청이 완료됩니다.';
+const PARTIAL_RETURN_BANK_COMPLETE = '계좌 송금으로 돌려주는 부분 반품 환불은 여기서 완료하지 않습니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 송금 근거를 적고 [송금 완료 기록]을 누르면 반품 요청도 완료됩니다.';
 
 /**
  * 부분 반품의 환불 접수·완료(ADR-0047). 접수는 DB가 금액을 한 번 정해 부분 환불 원장을 만든다. 토스 결제의 완료는 그 원장으로
@@ -946,7 +946,7 @@ async function recordPartialReturnRefund(
   },
 ): Promise<AdminClaimActionState> {
   const expectedMethod = orderClaimRefundMethodForProvider(input.provider);
-  if (expectedMethod && expectedMethod !== input.method) return { error: '이 부분 반품의 환불 수단과 다릅니다. 토스 결제는 결제사 부분 취소, 무통장은 계좌 송금입니다. 화면을 새로고침해주세요.' };
+  if (expectedMethod && expectedMethod !== input.method) return { error: '이 부분 반품의 환불 수단과 맞지 않는 처리입니다. 토스 결제는 결제사 부분 취소로, 무통장 결제는 계좌 송금으로 환불합니다. 화면을 새로고침한 뒤 이 요청에 보이는 버튼으로 다시 처리해주세요.' };
   const live = input.partial.history.find((record) => record.id === input.partial.refundId) ?? null;
   /* 품목별 재고 처리(불량 선택)는 접수 양식에도 실린다 — 무통장·0원 부분 반품은 접수와 함께 적용(재고 처리)되므로 접수 전에 저장한다(Codex 리뷰). */
   const dispositions = readStockDispositions(input.formData);
@@ -976,8 +976,8 @@ async function recordPartialReturnRefund(
       if (!result.ok) {
         return {
           error: result.code === 'partial_cancel_rejected'
-            ? '결제사가 이 결제의 부분 취소를 받지 않아 환불하지 못했습니다(돈은 움직이지 않았습니다). 요청은 확인 필요로 남았습니다 — 전액 환불로 돌리지 말고 런북의 \'부분 반품 결제사 거절\' 절차를 따라주세요.'
-            : `결제사 부분 취소를 확인하지 못했습니다(${result.code}). 요청은 확인 필요로 남고, [환불 완료 확정]을 다시 누르면 이미 반영된 취소로 이어서 확인합니다.`,
+            ? '결제사가 이 결제의 부분 취소를 받지 않아 환불하지 못했습니다. 돈은 움직이지 않았고 요청은 확인 필요로 남았습니다. 전액 환불로 돌리지 마세요. 결제 담당이 고객에게 환불계좌를 받아 부분 반품 칸의 [계좌 송금 부분 환불로 전환]으로 처리합니다.'
+            : `결제사에서 부분 취소 결과를 확인하지 못했습니다(확인 코드: ${result.code}). 요청은 확인 필요로 남았습니다. 잠시 뒤 [환불 완료 확정]을 다시 눌러주세요. 같은 부분 취소로 다시 확인하므로 두 번 취소되지 않습니다.`,
         };
       }
     }
@@ -999,11 +999,11 @@ async function recordPartialReturnRefund(
     const amount = preview ? `${preview.returnFeeDeduction > 0 ? `반품배송비 ${krwAmountWords(preview.returnFeeDeduction)}을 뺀 ` : ''}${krwAmountWords(preview.refundAmount)}` : '고른 상품 몫';
     return {
       message: input.provider === 'bank_transfer'
-        ? `부분 반품 환불 접수를 기록했습니다. ${amount}을 환불계좌로 송금할 대기에 올리고 고른 상품의 재고를 복원했습니다. 송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적어주세요.`
-        : `부분 반품 환불 접수를 기록했습니다. ${amount}을 [환불 완료 확정]을 누를 때 토스 부분 취소로 돌려줍니다.`,
+        ? `부분 반품 환불 접수를 기록했습니다. ${amount}을 환불 송금 대기에 올리고 고른 상품의 재고를 복원했습니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 [송금 완료 기록]을 눌러주세요.`
+        : `부분 반품 환불 접수를 기록했습니다. [환불 완료 확정]을 누르면 ${amount}을 토스 부분 취소로 돌려줍니다.`,
     };
   }
-  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 상품만 재고 복원·적립금 되돌림·카드팩 판정이 함께 확정됐습니다.';
+  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 상품의 재고 복원과 적립금 되돌림이 함께 확정됐고, 카드팩은 남은 주문 금액으로 지급 조건을 다시 확인했습니다(조건에 못 미치면 개봉하지 않은 카드팩을 회수).';
   if (dispositions && dispositions.defectiveIds.length > 0) {
     const recorded = await recordClaimDefectiveStock(input.claimId);
     if (recorded.error) return { error: `부분 반품 환불과 재고 처리는 이미 확정됐습니다. 불량 재고 기록만 끝나지 않았습니다 — 환불은 다시 하지 마세요. ${recorded.error}` };

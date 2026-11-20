@@ -227,7 +227,7 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     if (order.partialRefundedAmount !== undefined) {
       const cuts = remaining.flatMap(entry => entry ? [entry.cut] : []);
       issues.push(`재고 부족 부분 취소 반영: 수량·금액은 남은 몫(취소 ${sum(cuts.map(cut => cut.canceledQty)).toLocaleString('ko-KR')}개 · 환불 ${partialRefunded.toLocaleString('ko-KR')}원 제외)`);
-      if (sum(cuts.map(cut => cut.paidAmount)) + sum(closedShipments.map(shipment => shipment.shippingFee)) !== partialRefunded + retained) issues.push('부분 취소 환불 합계와 취소분 배분 불일치');
+      if (sum(cuts.map(cut => cut.paidAmount)) + sum(closedShipments.map(shipment => shipment.shippingFee)) !== partialRefunded + retained) issues.push('부분 취소 환불 합계가 취소한 상품 결제 몫·배송비 합계와 다름(정산 확인 필요)');
       if (retained > 0) issues.push(`부분 반품 반품배송비 ${retained.toLocaleString('ko-KR')}원 차감: 결제 잔액에 남은 수입이라 품목·배송비 금액에 넣지 않음(정산 별도 확인)`);
     }
     if (!order.doneAt) issues.push('거래확정 시각 미기록');

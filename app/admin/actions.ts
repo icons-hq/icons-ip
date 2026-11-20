@@ -160,7 +160,7 @@ function rpcFailure(message: string): AdminCatalogActionState {
 
 function artworkClaimFailure(message: string): AdminCatalogActionState | null {
   if (message.includes('goods_detail_images')) {
-    return rpcFailure(`긴 상세 이미지는 최대 ${GOODS_DETAIL_IMAGE_MAX}장까지 저장할 수 있습니다. 긴 상세 이미지 목록을 확인한 뒤 다시 저장해주세요.`);
+    return rpcFailure(`긴 상세 이미지는 최대 ${GOODS_DETAIL_IMAGE_MAX}장까지 저장할 수 있습니다. 긴 상세 이미지 목록에서 남는 이미지를 빼고 다시 저장해주세요.`);
   }
   return message.includes('unverified_artwork')
     ? rpcFailure('검증된 이미지를 다시 업로드한 뒤 저장해주세요.')

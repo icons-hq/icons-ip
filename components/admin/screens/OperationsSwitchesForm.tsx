@@ -166,7 +166,7 @@ export function OperationsSwitchesForm({ initial, emailConfigured }: { initial: 
       description="꺼져 있으면 배송 지연 안내 요청과 예약 주문 발송일 일괄 변경이 진행되지 않습니다. 켜면 앱 알림과 함께 이메일을 보냅니다."
       evidence={delayNotice.evidence} updatedBy={delayNotice.updatedBy} updatedAt={delayNotice.updatedBy ? delayNotice.changedAt : null}
       evidenceMax={DELAY_NOTICE_EVIDENCE_MAX}
-      blocked={emailConfigured ? undefined : '이메일 공급자 또는 발송 서명 설정이 운영 환경에 준비되지 않아 지금은 켤 수 없습니다. 설정을 마치면 켤 수 있습니다.'}
+      blocked={emailConfigured ? undefined : '메일 발송 서비스 연결(발송 키·서명 설정)이 운영 환경에 준비되지 않아 지금은 켤 수 없습니다. 설정을 마치면 켤 수 있습니다.'}
       extra={<ul className="flex flex-col gap-1 text-xs text-muted-foreground">
         <li>이메일 설정: {emailConfigured ? '운영 환경에 준비됨' : '준비되지 않음'}</li>
         <li>예약 일정 변경 SMS: {delayNotice.smsEnabled ? '켜짐' : '꺼짐'} (이 화면에서 바꾸지 않습니다. 앱의 SMS 알림 스위치도 함께 켜져야 문자가 나갑니다.)</li>
@@ -193,7 +193,7 @@ export function OperationsSwitchesForm({ initial, emailConfigured }: { initial: 
       save={(input) => savePartialCancelSwitchAction(input.enabled, input.evidence, input.revision, input.id)}
       onSaved={setState} />
     <SwitchSection kind="partialReturn" title="부분 반품" enabled={partialReturn.enabled} revision={partialReturn.revision}
-      description="고객과 운영자 대리 접수가 반품할 상품·수량을 고를 수 있게 합니다. 고른 상품만 회수하고 그 결제 몫(비게 된 배송 묶음 배송비 포함)을 결제사 부분 취소·계좌 송금으로 돌려줍니다. 취소·교환은 그대로 주문 전체입니다."
+      description="고객 반품 신청과 운영자 대리 접수에서 반품할 상품·수량을 고를 수 있게 합니다. 고른 상품만 회수하고, 그 결제 몫(상품이 모두 빠진 배송 묶음의 배송비 포함)을 결제사 부분 취소나 계좌 송금으로 돌려줍니다. 취소·교환은 그대로 주문 전체로만 받습니다."
       evidence={partialReturn.evidence} updatedBy={partialReturn.updatedBy} updatedAt={partialReturn.updatedBy ? partialReturn.updatedAt : null}
       evidenceMax={SWITCH_EVIDENCE_MAX}
       confirmOn="켜면 고객 주문 상세의 반품 신청과 운영자 대리 접수에서 상품·수량을 골라 반품할 수 있습니다. 켤까요?"

@@ -141,7 +141,7 @@ describe('예약 물량 = 재고수량', () => {
     expect(preorderCapacityStockNote('', 500)).toBeNull();
     expect(preorderCapacityStockNote('300', 500)).toContain('재고수량 500개와 다릅니다');
     /* 재고 0에서 입고 때 더하는 기존 흐름. */
-    expect(preorderCapacityStockNote('300', 0)).toContain('재고 조정으로 입고 수량을 더한 뒤');
+    expect(preorderCapacityStockNote('300', 0)).toContain('재고 조정으로 들어온 수량을 더한 뒤');
     expect(preorderCapacityStockNote('300', Number.NaN)).toContain('재고수량이 0입니다');
   });
 });

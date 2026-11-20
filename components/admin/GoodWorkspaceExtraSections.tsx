@@ -261,7 +261,7 @@ export function GoodWorkspaceListingColorsSection({ serverError }: { serverError
 export function GoodWorkspaceTransactionTermsSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('transactionTerms');
   return <DraftBody testId="transaction-terms">
-    <p className="text-muted-foreground">입력한 할인·확장 배송비를 상품과 함께 저장합니다. &apos;사용&apos;으로 둔 항목은 저장하면 바로 결제에 적용됩니다.</p>
+    <p className="text-muted-foreground">입력한 복수구매 할인과 착불·수량별 배송비를 상품과 함께 저장합니다. &apos;사용&apos;으로 둔 항목은 저장하면 바로 결제에 적용됩니다.</p>
     <section aria-label="복수구매 할인" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">복수구매 할인</h3>
       <GoodsVolumeDiscountFields value={value.volume} onChange={(volume) => set((current) => ({ ...current, volume }))} /></section>
     <section aria-label="착불·수량별 배송비" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">착불·수량별 배송비</h3>
