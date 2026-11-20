@@ -317,7 +317,7 @@ export function GoodOptionalFields({ id, title, summary, children, hasErrors = f
 export const GOOD_OPERATION_PLACEHOLDER_COPY = '재고 조정·옵션 사용·복사·보관은 상품의 상태를 바꾸는 일이라, 상품을 저장한 뒤 이 자리에서 합니다.';
 export const GOOD_UNSAVED_BASE_COPY = '위 기본 정보에 저장하지 않은 변경이 있습니다. 먼저 저장하세요.';
 
-/** 고정 저장 영역의 저장하기 버튼으로 포커스를 옮긴다(Enter로 바로 저장할 수 있게). */
+/** 고정 저장 영역에서 공개 없이 저장하는 버튼(초안은 [임시저장], 공개 중인 상품은 [실제 등록])으로 포커스를 옮긴다(Enter로 바로 저장할 수 있게). */
 export function focusGoodWorkspaceSave() {
   const button = document.querySelector<HTMLButtonElement>('[data-good-workspace-save] button[name="intent"][value="save"]');
   if (!button) return;

@@ -256,17 +256,17 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canMa
 
 /**
  * T15b(0901-008): 새 상품 원자 저장의 공개 결과(영수증 publish). 공개됐으면 null, 거절됐으면 저장은 끝났다는 문장과 이유.
- * 이유는 기존 '저장 후 공개' 오류 안내와 같은 문장을 쓴다(판정은 서버 공개 경로 그대로). 결과가 없으면 공개 여부를 모르므로 거절로 다룬다.
+ * 이유는 기존 [실제 등록] 공개 오류 안내와 같은 문장을 쓴다(판정은 서버 공개 경로 그대로). 결과가 없으면 공개 여부를 모르므로 거절로 다룬다.
  */
 export function goodWorkspacePublishRejection(publish: unknown): { message: string; kc: boolean } | null {
   const result = record(publish) ? publish as { published?: unknown; error?: unknown } : null;
   if (result?.published === true) return null;
   const reason = typeof result?.error === 'string' ? result.error : '';
-  const saved = adminGoodsCopy('굿즈를 저장했지만 공개하지 않았습니다.');
-  if (reason.includes('goods_kc_')) return { kc: true, message: `${saved} KC 검토를 마쳐야 공개할 수 있습니다. KC 정보에서 검토를 완료한 뒤 판매 준비에서 공개해주세요.` };
-  const why = reason.includes('goods_publish_incomplete') ? '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 판매 준비에서 공개해주세요.'
-    : /invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(reason) ? '활성 출고지를 고른 뒤 판매 준비에서 공개해주세요.'
-    : goodCategoryFailure(reason) ?? '공개 조건을 확인한 뒤 판매 준비에서 공개해주세요.';
+  const saved = adminGoodsCopy('굿즈를 초안으로 저장했고 아직 공개하지 않았습니다(고객 화면에는 보이지 않습니다).');
+  if (reason.includes('goods_kc_')) return { kc: true, message: `${saved} KC 검토를 마쳐야 공개할 수 있습니다. KC 정보에서 검토를 완료한 뒤 [실제 등록]을 다시 눌러주세요.` };
+  const why = reason.includes('goods_publish_incomplete') ? '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 [실제 등록]을 다시 눌러주세요.'
+    : /invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(reason) ? '활성 출고지를 고른 뒤 [실제 등록]을 다시 눌러주세요.'
+    : goodCategoryFailure(reason) ?? '공개 조건을 확인한 뒤 [실제 등록]을 다시 눌러주세요.';
   return { kc: false, message: `${saved} ${why}` };
 }
 

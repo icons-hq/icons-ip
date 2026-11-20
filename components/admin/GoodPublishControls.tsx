@@ -78,7 +78,7 @@ export function GoodDraftSwitch({ id, disabled = false, label = '초안으로 �
 
 /*
  * 템플릿 룩(ADR-0028). 게시 상태만 바꾸는 독립 작업 — 기본 상품 폼 밖, 판매 준비 카드 안에 둔다.
- * 초안에서 주 행동은 하나다: 막는 항목이 남으면 다음 할 일, 없으면 공개로 전환, 저장하지 않은 입력이 있으면 저장 막대의 저장 후 공개.
+ * 초안에서 주 행동은 하나다: 막는 항목이 남으면 다음 할 일, 없으면 공개로 전환, 저장하지 않은 입력이 있으면 저장 막대의 [실제 등록].
  * 공개 중인 상품을 내리는 작업은 빨간 글자의 보조 버튼으로 접어 두고, 펼친 뒤 확인을 거친다(`#good-operation-publish` 링크는 열어서 들어온다).
  */
 export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, unsaved = false, publishOnSave = false, priceZero = false }: {
@@ -87,7 +87,7 @@ export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, un
   readiness?: AdminGoodsReadiness | null;
   /** 저장하지 않은 입력이 있다. 여기서 공개하면 그 입력이 빠지므로 공개 버튼을 저장 막대로 넘긴다. */
   unsaved?: boolean;
-  /** 저장 막대에 저장 후 공개가 보인다(저장하지 않은 입력까지 공개 조건을 채웠다). */
+  /** 저장 막대의 [실제 등록]이 저장하지 않은 입력까지 공개한다(공개 조건을 채웠다). */
   publishOnSave?: boolean;
   /** 저장된 판매가가 0원이다. 서버 공개 조건은 아니지만 실수면 0원에 공개되므로 주 행동으로 권하지 않는다. */
   priceZero?: boolean;
@@ -103,7 +103,7 @@ export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, un
     {archivedAt ? <p className="text-muted-foreground">복원하면 초안으로 돌아옵니다. 공개하려면 필수 항목을 확인해주세요.</p>
       : published ? (plan.next ? <GoodReadinessStep others={plan.others} reason={plan.next} title="확인 필요" variant="outline" /> : null)
       : plan.next ? <GoodReadinessStep note={unsaved ? '저장하면 다시 확인합니다.' : undefined} others={plan.others} reason={plan.next} title="다음 할 일" variant={unsaved ? 'soft' : 'default'}>{plan.publish && !unsaved ? publishForm('outline') : null}</GoodReadinessStep>
-      : unsaved ? <AdminNotice title="저장하지 않은 입력이 있습니다" tone="info">{publishOnSave ? '저장 막대의 저장 후 공개를 누르면 수정한 내용까지 함께 공개됩니다.' : '저장한 뒤 공개할 수 있습니다.'}</AdminNotice>
+      : unsaved ? <AdminNotice title="저장하지 않은 입력이 있습니다" tone="info">{publishOnSave ? '저장 막대의 [실제 등록]을 누르면 수정한 내용까지 함께 공개됩니다.' : '공개하려면 저장 막대의 [실제 등록]을 누릅니다. 막는 항목이 있으면 그때 알려 드립니다. 보관만 하려면 [임시저장]을 누릅니다.'}</AdminNotice>
       : plan.publish === 'primary' ? <div className="flex min-w-0 flex-wrap items-center gap-2">
         {priceZero ? <AdminNotice className="min-w-[min(100%,16rem)] flex-1" title="판매가가 0원입니다" tone="warning">공개하면 0원으로 판매됩니다. 판매가를 확인해주세요.</AdminNotice> : <AdminNotice className="min-w-[min(100%,16rem)] flex-1" title="공개할 수 있습니다" tone="success">공개하면 고객 화면에 바로 보입니다.</AdminNotice>}
         {publishForm(priceZero ? 'outline' : 'default')}

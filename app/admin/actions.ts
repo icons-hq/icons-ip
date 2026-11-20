@@ -64,9 +64,9 @@ export interface AdminCatalogActionState extends AdminFormValuesState {
   savedGoodId?: string;
   /** 새 IP 등록이 발급한 내부 ID. 등록 화면은 이 IP 상세로 옮겨 간다. */
   savedIpId?: string;
-  /** 저장 후 공개가 KC 검토에 막혀 같은 입력을 초안으로만 저장했다. `message`가 그 이유다. */
+  /** [실제 등록](intent=publish)이 KC 검토에 막혀 같은 입력을 초안으로만 저장했다. `message`가 그 이유다. */
   kcPublishBlocked?: true;
-  /** 새 상품의 저장 후 공개가 KC 밖의 공개 조건에 막혀 저장만 했다(T15b). `message`가 그 이유다. */
+  /** 새 상품의 [실제 등록]이 KC 밖의 공개 조건에 막혀 저장만 했다(T15b). `message`가 그 이유다. */
   publishBlocked?: true;
   /** 등록 화면 원자 저장이 KC 섹션을 함께 저장했다. 첫 저장 뒤 KC 유형 틀을 다시 얹지 않는다. */
   workspaceKcSaved?: true;
@@ -469,7 +469,7 @@ async function saveAdminGood(
   /*
    * 등록 화면(R13·D6②·T15b)은 작업 ID와 KC·예약판매·나머지 설정 섹션을 함께 보낸다. 작업 ID가 있으면 기본 입력과 섹션을
    * admin_save_good_workspace 한 트랜잭션으로 저장한다(재시도 중복 방지 영수증 포함). 작업 ID가 없는
-   * 수정 화면·이전 화면은 지금처럼 admin_save_good으로 저장한다. 새 상품의 '저장 후 공개'(0901-008)는 래퍼가 저장을 끝낸 뒤
+   * 수정 화면·이전 화면은 지금처럼 admin_save_good으로 저장한다. 새 상품의 [실제 등록](0901-008)은 래퍼가 저장을 끝낸 뒤
    * 같은 요청에서 기존 공개 경로로 시도하고, 거절되면 저장은 남기고 거절 이유를 영수증(publish)에 싣는다.
    */
   const workspaceOperation = formData.get(GOOD_WORKSPACE_OPERATION_FIELD);
@@ -560,7 +560,7 @@ async function saveAdminGood(
   if (data?.draftAlreadyCompleted) return { message: '이미 상품으로 등록한 임시저장입니다. 저장된 상품을 확인해주세요.', savedGoodId: savedId };
   if (kcPublishBlocked) return { message: kcPublishBlocked, kcPublishBlocked: true, savedGoodId: savedId };
   const workspaceKcSaved = workspaceSections && data?.kc ? { workspaceKcSaved: true as const } : {};
-  /* T15b: 새 상품의 저장 후 공개가 거절되면 저장은 끝났다. 성공으로 알리지 않고 저장만 했다는 것과 공개를 막은 이유를 보인다. */
+  /* T15b: 새 상품의 [실제 등록]이 거절되면 저장은 끝났다. 성공으로 알리지 않고 저장만 했다는 것과 공개를 막은 이유를 보인다. */
   const publishRejection = workspaceSections && value.publish ? goodWorkspacePublishRejection(data?.publish) : null;
   if (publishRejection) return { message: publishRejection.message, savedGoodId: savedId, ...workspaceKcSaved,
     ...(publishRejection.kc ? { kcPublishBlocked: true as const } : { publishBlocked: true as const }) };
@@ -599,7 +599,7 @@ async function readGoodsKcState(supabase: AdminSupabase, goodId: string | null) 
 }
 
 /*
- * "저장 후 공개"의 KC 거절(goods_kc_review_required)은 admin_save_good 안에서 저장을 마친 뒤
+ * [실제 등록](intent=publish)의 KC 거절(goods_kc_review_required)은 admin_save_good 안에서 저장을 마친 뒤
  * 마지막 공개 전환이 낸다. RPC 하나가 트랜잭션이라 첫 호출은 저장까지 모두 되돌려졌으므로,
  * 공개 전환만 뺀 같은 전체 입력을 초안으로 다시 저장해 입력을 잃지 않게 한다. 저장 전 KC 상태는
  * 첫 호출이 되돌려진 지금 읽어야 이번 저장이 검토를 무효화했는지 구분할 수 있다.

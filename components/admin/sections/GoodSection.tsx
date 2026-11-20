@@ -208,7 +208,7 @@ export function GoodSection({
   /*
    * T15b(11/11 묶음 10 1027T-024 "저장 전 전부 입력"): 등록 화면은 상태를 바꾸는 항목(재고 조정·옵션 사용·복사·보관)만 저장 뒤에 두고,
    * 나머지 설정은 저장된 상품과 같은 묶음·같은 순서·같은 자리(같은 id)에서 입력해 기본 입력과 함께 한 번에 저장한다. 게시 상태는 저장 막대의
-   * '저장 후 공개'가 맡는다(0901-008). 보이는 항목은 저장된 상품과 같은 조건(계정 권한·그룹 소속)을 따른다.
+   * [실제 등록]이 맡는다(0901-008, 2026-11-19 저장 버튼 둘). 보이는 항목은 저장된 상품과 같은 조건(계정 권한·그룹 소속)을 따른다.
    */
   const inline = (id: OperationId, body: ReactNode) => <GoodOperationSection key={id} id={id} title={OPERATION[id][0]} mode="inline">{body}</GoodOperationSection>;
   const draftPanels: Partial<Record<OperationId, ReactNode>> = selected ? {} : {

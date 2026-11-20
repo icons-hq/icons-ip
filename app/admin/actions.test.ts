@@ -1894,7 +1894,7 @@ describe('admin catalog actions', () => {
           { revision: 1, reason: 'review_completed', status: 'reviewed' }]), error: null });
 
       await expect(upsertAdminGoodAction({}, publishForm())).resolves.toEqual({
-        message: "초안으로 저장했습니다. 상품명·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+        message: "초안으로 저장했습니다(고객 화면에는 보이지 않습니다). 상품명·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 [실제 등록]을 눌러주세요.",
         kcPublishBlocked: true,
         savedGoodId: 'g100',
         attempt: 1,
@@ -1918,7 +1918,7 @@ describe('admin catalog actions', () => {
         .mockResolvedValueOnce({ data: kcRead('unreviewed', null), error: null });
 
       await expect(upsertAdminGoodAction({}, publishForm())).resolves.toMatchObject({
-        message: "초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+        message: "초안으로 저장했습니다(고객 화면에는 보이지 않습니다). KC 정보에서 검토를 완료한 뒤 [실제 등록]을 눌러주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
         kcPublishBlocked: true,
         savedGoodId: 'g100',
       });
@@ -1932,7 +1932,7 @@ describe('admin catalog actions', () => {
         .mockResolvedValueOnce({ data: null, error: { message: 'staff required' } });
 
       await expect(upsertAdminGoodAction({}, publishForm())).resolves.toMatchObject({
-        message: expect.stringContaining('초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤'),
+        message: expect.stringContaining('초안으로 저장했습니다(고객 화면에는 보이지 않습니다). KC 정보에서 검토를 완료한 뒤'),
         kcPublishBlocked: true,
         savedGoodId: 'g100',
       });
@@ -2121,7 +2121,7 @@ describe('상품 등록 원자 저장', () => {
 
     mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: false, error: 'goods_publish_incomplete', code: '23514' } }, error: null });
     const incomplete = await upsertAdminGoodAction({}, publish());
-    expect(incomplete).toMatchObject({ savedGoodId: 'new-good', publishBlocked: true, message: expect.stringContaining('저장했지만 공개하지 않았습니다') });
+    expect(incomplete).toMatchObject({ savedGoodId: 'new-good', publishBlocked: true, message: expect.stringContaining('초안으로 저장했고 아직 공개하지 않았습니다') });
     expect(incomplete.message).toContain('대표 이미지');
     expect(incomplete.errors).toBeUndefined();
 
