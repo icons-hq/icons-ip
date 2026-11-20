@@ -58,6 +58,21 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     for (const jargon of ['반입', '선행 0', '미설정', '관리코드']) expect(details, jargon).not.toContain(jargon);
   });
 
+  it('잠긴 옵션 자동코드에 바코드 형식 값이 들어 있으면 바코드 칸으로 경고만 한다', () => {
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
+      rows={[
+        { id: savedA, name: '홍기훈', code: '8800353086155', attributes: { 캐릭터: '홍기훈' }, extraPrice: 0, stockQty: 2, barcode: '8800353086155' },
+        { id: savedB, name: '이연', code: 'HSQ-0033-01', attributes: { 캐릭터: '이연' }, extraPrice: 0, stockQty: 2, barcode: '8800353086148' },
+      ]}
+      baseline={[savedA, savedB]}
+      basePrice={1000}
+    />);
+    expect(html.match(/data-good-option-code-barcode=/g)).toHaveLength(1);
+    expect(html).toContain('바코드 형식입니다 · 바코드는 바코드 칸에 넣습니다');
+    expect(html).toMatch(/<input(?=[^>]*aria-label="옵션 1 옵션 자동코드")(?=[^>]*readOnly)(?=[^>]*aria-describedby="goods-option-code-barcode-0")/);
+    expect(html).not.toMatch(/<input(?=[^>]*aria-label="옵션 2 옵션 자동코드")(?=[^>]*aria-describedby)/);
+  });
+
   it('옵션 미사용 상품은 재고수량 입력 하나와 옵션 자동코드만 보이고 옵션은 설정안함이다', () => {
     const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
       rows={[{

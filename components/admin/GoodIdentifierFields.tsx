@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { suggestGoodsIdentifiersAction } from '@/app/admin/goods-identifier-actions';
+import { autoCodeBarcodeWarning, looksLikeBarcode } from '@/lib/admin/goods-code-hint';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { ErrorText } from './fields';
@@ -58,6 +59,8 @@ export function GoodIdentifierFields({ ipId, name, code='', defaultVariantCode='
       const key=field.key;
       const open=unlocked[key];
       const expected=field.placeholder;
+      /* 잠긴 칸에 이미 들어간 바코드도 열어 보지 않고 알아보게 한다. 창고 품번일 수 있어 막지는 않는다. */
+      const barcodeWarning=looksLikeBarcode(values[key]);
       return <div className="flex min-w-0 flex-col gap-2" key={key} data-good-auto-code={key} data-locked={open?undefined:''}>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <label className="text-sm leading-snug font-medium text-foreground" htmlFor={inputId}>{field.label}</label>
@@ -68,7 +71,7 @@ export function GoodIdentifierFields({ ipId, name, code='', defaultVariantCode='
               setUnlocked((current)=>({...current,[key]:!open}));
             }}>{open?'자동코드로 두기':'직접 바꾸기'}</button>
         </div>
-        <input id={inputId} aria-describedby={`${key}-help`} aria-invalid={Boolean(errors[key])} className={GOOD_INPUT_CLASS} data-slot="input"
+        <input id={inputId} aria-describedby={barcodeWarning?`${key}-help ${key}-barcode`:`${key}-help`} aria-invalid={Boolean(errors[key])} className={GOOD_INPUT_CLASS} data-slot="input"
           maxLength={field.limit} name={key} onChange={(event)=>setValues((current)=>({...current,[key]:event.target.value}))}
           placeholder={open?'창고 품번처럼 정해진 코드':expected?`저장 시 자동 생성 · 예상 ${expected}`:'저장 시 자동 생성'} readOnly={!open} value={values[key]} />
         <span className="text-sm text-muted-foreground" id={`${key}-help`}>
@@ -76,6 +79,7 @@ export function GoodIdentifierFields({ ipId, name, code='', defaultVariantCode='
             ? `창고 품번처럼 정해진 코드가 있거나 잘못 들어간 값을 고칠 때만 바꿉니다. 상품 엑셀은 이 코드로 수정할 상품을 찾습니다. ${AUTO_CODE_HELP}`
             : `저장할 때 시스템이 만드는 코드라 입력할 필요가 없습니다. 출고지시 엑셀(기본 양식)의 '${key==='code'?'상품코드':'옵션코드'}' 열에 찍힙니다. ${AUTO_CODE_HELP}`}
         </span>
+        {barcodeWarning?<span className="text-sm text-warning" data-good-code-barcode-warning="" id={`${key}-barcode`} role="status">{autoCodeBarcodeWarning(key==='code'?'goods':'option',open)}</span>:null}
         <ErrorText>{errors[key]}</ErrorText>
       </div>;
     })}
