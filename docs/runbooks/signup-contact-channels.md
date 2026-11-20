@@ -96,7 +96,8 @@ ADR-0024(성인 인증)와 같은 선택을 따른다: 원문 대신 서버 비�
    (제목 `ICONS 가입 확인 코드`)이다.
 2. 반영은 `scripts/sync-supabase-auth.mjs`가 한다(`CONFIRMATION_TEMPLATE_PATH`·`CONFIRMATION_SUBJECT`). production은
    `deploy-supabase`의 Auth sync 단계(앱 배포 job보다 먼저)에서, isolated PR preview·shared preview·staging은 각자의 Auth sync
-   단계에서 Management API `mailer_subjects_confirmation`·`mailer_templates_confirmation_content`를 맞추고 읽어 확인한다.
+   단계에서 Management API의 메일 제목·본문과 발급 자릿수(`mailer_otp_length=6`)를 함께 맞추고 다시 읽어 확인한다.
+   변경 전에 받은 8자리 코드는 가입 화면의 [코드 다시 받기]로 새로 발급받거나 같은 브라우저에서 메일의 [이메일 확인하기]를 누른다.
    템플릿은 코드 하나·확인 링크 하나만 허용하는 검사(`isSafeConfirmationTemplate`)를 통과해야 반영된다.
 3. 사람 확인(배포 뒤): 운영 직원 테스트 계정으로 가입 → 메일에 6자리 코드와 버튼이 함께 있는지 → 코드 입력으로 온보딩까지 가는지 본다.
 4. Send Email Hook(#191, 기본 OFF)을 켜기 전에는 `lib/email/auth-hook.ts`의 signup 메일에도 6자리 코드를 넣어야 한다.

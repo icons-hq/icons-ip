@@ -96,6 +96,7 @@ export function missingSmtpSettings(config) {
  * 접속 IP 하나가 한도를 독점하지 못한다. 이 값을 올리거나 내리면 런북(docs/runbooks/signup-contact-channels.md 봇 차단 절)과 같이 본다.
  */
 export const AUTH_EMAIL_RATE_LIMIT_PER_HOUR = 300;
+const SIGNUP_EMAIL_CODE_LENGTH = 6;
 
 /*
  * Auth CAPTCHA(Turnstile). GoTrue는 /signup·/recover·/resend·/magiclink·/otp·/token(password·web3)·/sso·패스키 options에서
@@ -214,7 +215,8 @@ export function isSatisfied({
   ) return false;
   if (
     confirmation !== null
-    && ((config.mailer_subjects_confirmation ?? '') !== confirmation.subject
+    && (Number(config.mailer_otp_length) !== SIGNUP_EMAIL_CODE_LENGTH
+      || (config.mailer_subjects_confirmation ?? '') !== confirmation.subject
       || normalizedTemplate(config.mailer_templates_confirmation_content) !== confirmation.template)
   ) return false;
   if (
@@ -366,6 +368,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
       mailer_templates_password_changed_notification_content: passwordChanged.template,
     }),
     ...(confirmation === null ? {} : {
+      mailer_otp_length: SIGNUP_EMAIL_CODE_LENGTH,
       mailer_subjects_confirmation: confirmation.subject,
       mailer_templates_confirmation_content: confirmation.template,
     }),
@@ -399,6 +402,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `mailer_secure_email_change_enabled=${final.mailer_secure_email_change_enabled}, `
     + `rate_limit_email_sent=${final.rate_limit_email_sent}, `
     + `mailer_otp_exp=${final.mailer_otp_exp}, `
+    + `mailer_otp_length=${final.mailer_otp_length}, `
     + `recovery_template=${recoveryTemplate === null ? 'not-managed' : 'mismatch'}, `
     + `security_update_password_require_current_password=${final.security_update_password_require_current_password}, `
     + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `
