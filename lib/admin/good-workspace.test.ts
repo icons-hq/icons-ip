@@ -38,7 +38,10 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(done).toHaveLength(15);
     expect(goodRemainingByCard(done)).toEqual({ basic: 0, sales: 0, images: 0, notice: 0, delivery: 0 });
 
-    const missing = goodPublishRequirements({ values: { ...values, categoryId: ' ', imagePath: '', noticeMaker: '' }, regularPrice: 0, hasStock: false, kcDone: false });
+    /* 0원은 의도한 금액(사은품)일 수 있어 남은 칸이 아니다 — [실제 등록] 때 판매가 확인창이 묻는다. 빈 칸·잘못된 값(null)만 남은 칸이다. */
+    const zeroPrice = goodPublishRequirements({ values, regularPrice: 0, hasStock: true, kcDone: true });
+    expect(zeroPrice.filter((item) => !item.done)).toEqual([]);
+    const missing = goodPublishRequirements({ values: { ...values, categoryId: ' ', imagePath: '', noticeMaker: '' }, regularPrice: null, hasStock: false, kcDone: false });
     expect(missing.filter((item) => !item.done).map((item) => item.key)).toEqual(['category', 'regularPrice', 'stock', 'imagePath', 'noticeMaker', 'kc']);
     expect(goodRemainingByCard(missing)).toEqual({ basic: 1, sales: 2, images: 1, notice: 2, delivery: 0 });
     /* 필수 항목이 없는 카드는 표시하지 않는다. */

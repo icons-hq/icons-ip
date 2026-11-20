@@ -537,7 +537,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   /* 저장된 상품은 판매 준비 판정의 판매 가능 수량(예약 물량 포함)도 본다 — 예약판매 패널은 저장 막대와 따로 저장된다. */
   const hasStock = published || rows.some((row) => row.isActive !== false && row.stockQty > 0) || Boolean(atomicSections?.sections.preorders.length)
     || Boolean(selected && (readiness?.availableQty ?? 0) > 0);
-  const requirements = goodPublishRequirements({ values: { ...values, categoryId }, regularPrice: priceResult.regularPrice, hasStock, kcDone: published ? readiness?.publicReview !== 'required' : kcDone, missingAttributes });
+  /* 판매가 빈 칸은 resolveGoodsPrice가 0원으로 읽으므로 남은 칸 판정에는 빈 칸을 null로 넘긴다. 직접 넣은 0원은 [실제 등록] 때 판매가 확인창이 묻는다. */
+  const requirements = goodPublishRequirements({ values: { ...values, categoryId }, regularPrice: priceDraft.regularPrice.trim() ? priceResult.regularPrice : null, hasStock, kcDone: published ? readiness?.publicReview !== 'required' : kcDone, missingAttributes });
   const remainingByCard = goodRemainingByCard(requirements);
   const remaining = requirements.filter((item) => !item.done);
   const showPublishProgress = !published && !selected?.archivedAt;

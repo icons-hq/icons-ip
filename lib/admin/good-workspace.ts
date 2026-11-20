@@ -73,7 +73,12 @@ export interface GoodPublishRequirement { key: string; label: string; card: Good
  * 판매가·재고는 서버 공개 조건은 아니지만 없으면 팔 수 없어 함께 센다.
  */
 export function goodPublishRequirements({ values, regularPrice, hasStock, kcDone, missingAttributes = [] }: {
-  values: Record<string, string | undefined>; regularPrice: number | null; hasStock: boolean; kcDone: boolean;
+  values: Record<string, string | undefined>;
+  /**
+   * 입력한 판매가. 빈 칸이거나 잘못된 값이면 null이다. 0원은 사은품처럼 의도한 금액일 수 있어 채운 것으로 센다 —
+   * [실제 등록] 때 판매가 확인창(CAT-007, goodEditorPriceConfirmation)이 한 번 더 묻고, 막지는 않는다.
+   */
+  regularPrice: number | null; hasStock: boolean; kcDone: boolean;
   /** 고른 대표 카테고리에서 아직 안 채운 필수 상품속성 이름. 서버가 저장을 막는 칸이라 함께 센다. */
   missingAttributes?: readonly string[];
 }): GoodPublishRequirement[] {
@@ -84,7 +89,7 @@ export function goodPublishRequirements({ values, regularPrice, hasStock, kcDone
     /* ADR-0044: 공개하려면 대표 카테고리가 있어야 한다(상품 유형은 없다). values.categoryId에 고른 대표 카테고리를 싣는다. */
     { key: 'category', label: '대표 카테고리', card: 'basic', anchor: 'good-section-category', field: 'categoryId', done: filled('categoryId') },
     ...missingAttributes.map((name) => ({ key: `attribute:${name}`, label: name, card: 'basic' as const, anchor: 'good-section-attributes', field: 'productAttributes', done: false })),
-    { key: 'regularPrice', label: '판매가', card: 'sales', anchor: 'good-section-price', field: 'regularPrice', done: Boolean(regularPrice && regularPrice > 0) },
+    { key: 'regularPrice', label: '판매가', card: 'sales', anchor: 'good-section-price', field: 'regularPrice', done: regularPrice !== null && regularPrice >= 0 },
     { key: 'stock', label: '재고수량', card: 'sales', anchor: 'good-section-variants', field: 'variants', done: hasStock },
     { key: 'imagePath', label: '대표 이미지', card: 'images', anchor: 'good-section-images', field: 'imagePath', done: filled('imagePath') },
     ...GOODS_NOTICE_FIELDS.map((field) => ({ key: field.formName, label: field.label, card: 'notice' as const, anchor: 'good-section-notice', field: field.formName, done: filled(field.formName) })),
