@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { sendOrderShippedAlimtalk } from '@/lib/kakao/alimtalk/order-notices.server';
 import { sendOrderShippedEmail, type TransactionalEmailResult } from './transactional.server';
 
 export interface ShipmentEmailReference { orderId: string; shipmentId: string }
@@ -61,6 +62,9 @@ export async function processOrderShipmentEmails() {
           else delivery = deliveryOutcome(await sendOrderShippedEmail({ orderId: job.order_id, shipmentId: job.shipment_id }));
         }
         catch { delivery = { outcome: 'review', error_code: 'delivery_outcome_unknown' }; }
+        /* 카카오 알림톡 발송 안내(기본 꺼짐)는 메일 작업 결과와 무관한 부수효과다 — 자체 클레임으로 한 번만 가고,
+           실패해도 이 작업을 다시 돌리지 않는다. 작업이 재시도돼 다시 불려도 이미 보낸 안내는 건너뛴다. */
+        await sendOrderShippedAlimtalk({ orderId: job.order_id, shipmentId: job.shipment_id });
         const finished = await service.rpc('finish_shipment_email_job', {
           target_shipment: job.shipment_id, target_claim: job.claim_token, ...delivery,
         });

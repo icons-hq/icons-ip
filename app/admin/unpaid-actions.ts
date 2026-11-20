@@ -7,6 +7,7 @@ import {
 } from '@/lib/admin/unpaid';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
+import { sendOrderConfirmationAlimtalk } from '@/lib/kakao/alimtalk/order-notices.server';
 import { createClient } from '@/lib/supabase/server';
 
 /*
@@ -68,7 +69,7 @@ async function finalizationResult(
   successMessage: string,
 ): Promise<AdminUnpaidActionState> {
   if (outcome === 'approved') {
-    await sendOrderConfirmationEmail(orderId);
+    await Promise.all([sendOrderConfirmationEmail(orderId), sendOrderConfirmationAlimtalk(orderId)]);
     return { message: successMessage };
   }
   return {
@@ -91,7 +92,7 @@ async function recoverConfirmationEmailOnReplay(
 ): Promise<void> {
   const value = (message ?? '').toLowerCase();
   if (value.includes('order_not_unpaid') || value.includes('deposit_already_decided')) {
-    await sendOrderConfirmationEmail(orderId);
+    await Promise.all([sendOrderConfirmationEmail(orderId), sendOrderConfirmationAlimtalk(orderId)]);
   }
 }
 
