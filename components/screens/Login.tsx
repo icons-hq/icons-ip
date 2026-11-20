@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { MAX_SIGNUP_CODE_LENGTH } from '@/lib/auth/signup-code.mjs';
 import { startTransition, useActionState, useEffect, useId, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   requestPasswordResetAction,
@@ -209,7 +210,7 @@ function SocialMark({ provider }: { provider: 'google' | 'apple' | 'kakao' }) {
 }
 
 /*
- * 가입 확인 코드 단계(10/14 회의 1014-004). 확인 메일 링크를 새 창에서 여는 대신, 가입한 이 화면에서 메일의 6자리
+ * 가입 확인 코드 단계(10/14 회의 1014-004). 확인 메일 링크를 새 창에서 여는 대신, 가입한 이 화면에서 메일의 숫자
  * 코드를 입력해 가입을 이어 간다. 메일의 링크도 그대로 동작한다. 코드를 다시 받는 것은 회원가입 폼 재제출과
  * 같은 10분 3회 창을 쓴다(app/login/actions.ts).
  */
@@ -269,13 +270,13 @@ export function SignupCodeStep({
         <p className="wc-auth__lede">
           <strong>{email}</strong>로 보낸 확인 코드를 입력해주세요.
           <br />
-          코드는 다시 보내지 않았어요. 가장 최근 메일의 6자리를 입력해주세요.
+          코드는 다시 보내지 않았어요. 가장 최근 메일의 확인 코드를 입력해주세요.
         </p>
       ) : (
         <p className="wc-auth__lede">
           <strong>{email}</strong>로 확인 메일을 보냈어요.
           <br />
-          메일에 적힌 6자리 확인 코드를 입력하면 이 화면에서 바로 가입이 이어져요.
+          메일에 적힌 확인 코드를 입력하면 이 화면에서 바로 가입이 이어져요.
         </p>
       )}
       <form action={verifyAction} className="wc-auth__form" onSubmit={handleVerify}>
@@ -287,9 +288,9 @@ export function SignupCodeStep({
           error={verifyState.errors?.code}
           inputMode="numeric"
           label="확인 코드"
-          maxLength={6}
+          maxLength={MAX_SIGNUP_CODE_LENGTH}
           name="code"
-          placeholder="확인 코드 6자리"
+          placeholder="메일에 적힌 숫자"
         />
         {formError && (
           <div className="wc-auth__alert" role="alert">
@@ -402,7 +403,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
           </p>
         ) : null}
         {isSignUp && !pendingSignupEmail ? (
-          <p className="wc-auth__lede">가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.</p>
+          <p className="wc-auth__lede">가입하면 입력한 이메일로 확인 코드를 보내 드려요.</p>
         ) : null}
         {/* 새로고침·메일 앱 전환 뒤 이어서 가입하는 길 — 가입 폼보다 먼저 눈에 띄게 상자와 버튼으로 둔다(QA1 S-T02-02:
             작은 한 줄이라 이메일을 다시 입력할 뻔했다). */}
@@ -410,7 +411,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
           <div className="wc-auth__resume" data-signup-code-resume role="group" aria-labelledby="signup-code-resume-title">
             <p className="wc-auth__resume-title" id="signup-code-resume-title">가입을 이어서 하시겠어요?</p>
             <p className="wc-auth__resume-body">
-              <strong>{resumableSignupEmail}</strong>로 확인 코드를 보냈어요. 메일의 6자리 코드를 입력하면 가입이 이어져요.
+              <strong>{resumableSignupEmail}</strong>로 확인 코드를 보냈어요. 메일의 확인 코드를 입력하면 가입이 이어져요.
             </p>
             <WcButton onClick={() => setReopenedSignupEmail(resumableSignupEmail)}>
               받은 코드 입력하기

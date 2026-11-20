@@ -18,7 +18,7 @@
  *   PASSWORD_UPDATE_GUARDS  'true'면 비밀번호 변경에 현재 비밀번호·24시간 재인증을 요구한다.
  *   PASSWORD_CHANGED_TEMPLATE_PATH 선택. 비밀번호 변경 알림을 켜고 본문을 파일과 일치시킨다.
  *   PASSWORD_CHANGED_SUBJECT 위 경로를 줄 때 필수. 알림 메일 제목.
- *   CONFIRMATION_TEMPLATE_PATH 선택. 가입 확인 메일(6자리 코드 + 확인 링크, 1014-004) 본문을 파일과 일치시키고 read-back한다.
+ *   CONFIRMATION_TEMPLATE_PATH 선택. 가입 확인 메일(코드 + 확인 링크, 1014-004) 본문을 파일과 일치시키고 read-back한다.
  *   CONFIRMATION_SUBJECT     위 경로를 줄 때 필수. 가입 확인 메일 제목.
  *   TURNSTILE_SECRET_KEY·TURNSTILE_SITE_KEY 선택, 둘 다 있거나 둘 다 없어야 한다(하나만 있으면 실패). 있으면 Auth CAPTCHA를
  *                          Cloudflare Turnstile로 켜고 비밀 키를 PATCH한다. 비밀 키는 읽을 수 없어 매번 PATCH한다. 없으면 건드리지 않는다.
@@ -27,6 +27,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { supportsSignupCodeLength } from '../lib/auth/signup-code.mjs';
 
 const API_ROOT = 'https://api.supabase.com/v1/projects';
 
@@ -214,7 +215,8 @@ export function isSatisfied({
   ) return false;
   if (
     confirmation !== null
-    && ((config.mailer_subjects_confirmation ?? '') !== confirmation.subject
+    && (!supportsSignupCodeLength(Number(config.mailer_otp_length))
+      || (config.mailer_subjects_confirmation ?? '') !== confirmation.subject
       || normalizedTemplate(config.mailer_templates_confirmation_content) !== confirmation.template)
   ) return false;
   if (
@@ -320,6 +322,10 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
   const captcha = turnstileSecret ? { secret: turnstileSecret } : null;
 
   const config = await readConfig({ token, projectRef });
+  // 발급 길이는 비밀번호 복구와 공유한다. 가입 UI와의 호환성만 검사한다.
+  if (confirmation && !supportsSignupCodeLength(Number(config.mailer_otp_length))) {
+    throw new Error('Unsupported signup email OTP length. Expected mailer_otp_length between 6 and 10.');
+  }
 
   if (requireSmtp) {
     const missing = missingSmtpSettings(config);
@@ -399,6 +405,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `mailer_secure_email_change_enabled=${final.mailer_secure_email_change_enabled}, `
     + `rate_limit_email_sent=${final.rate_limit_email_sent}, `
     + `mailer_otp_exp=${final.mailer_otp_exp}, `
+    + `mailer_otp_length=${final.mailer_otp_length}, `
     + `recovery_template=${recoveryTemplate === null ? 'not-managed' : 'mismatch'}, `
     + `security_update_password_require_current_password=${final.security_update_password_require_current_password}, `
     + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `

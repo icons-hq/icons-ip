@@ -292,7 +292,7 @@ describe('Login 이메일 저장', () => {
   });
 });
 
-/* 1014-004 — 확인 메일 링크를 새 창에서 여는 대신 같은 화면에서 6자리 코드를 입력한다. 링크도 그대로 동작한다. */
+/* 1014-004 — 확인 메일 링크를 새 창에서 여는 대신 같은 화면에서 코드를 입력한다. 링크도 그대로 동작한다. */
 describe('Login 가입 확인 코드 단계', () => {
   beforeEach(() => {
     mocks.signInState = {};
@@ -306,14 +306,14 @@ describe('Login 가입 확인 코드 단계', () => {
   });
 
   const sentState = {
-    message: '가입 확인 메일을 보냈습니다. 메일에 적힌 6자리 확인 코드를 아래에 입력해주세요.',
+    message: '가입 확인 메일을 보냈습니다. 메일에 적힌 확인 코드를 아래에 입력해주세요.',
     pendingSignupEmail: 'fan@icons.gg',
   };
 
   it('가입 전에는 코드가 메일로 간다는 사실만 알리고 기존 가입 폼을 그대로 둔다', () => {
     const html = render({ initialMode: 'signup' });
 
-    expect(html).toContain('가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.');
+    expect(html).toContain('가입하면 입력한 이메일로 확인 코드를 보내 드려요.');
     expect(html).toContain('name="password"');
     expect(html).not.toContain('name="code"');
     expect(html).not.toContain('data-signup-code-step');
@@ -328,7 +328,7 @@ describe('Login 가입 확인 코드 단계', () => {
     expect(html).toContain('<strong>fan@icons.gg</strong>로 확인 메일을 보냈어요.');
     expect(codeInput).toContain('autoComplete="one-time-code"');
     expect(codeInput).toContain('inputMode="numeric"');
-    expect(codeInput).toContain('maxLength="6"');
+    expect(codeInput).toContain('maxLength="10"');
     expect(html.match(/<input type="hidden" name="email" value="fan@icons.gg"\/>/g)).toHaveLength(2);
     expect(html.match(/<input type="hidden" name="next" value="\/community\?sort=hot"\/>/g)).toHaveLength(2);
     expect(html).toContain('role="status"');
@@ -340,7 +340,7 @@ describe('Login 가입 확인 코드 단계', () => {
     /* 단계에서는 비밀번호 폼과 SNS 가입을 접어 코드 입력에 집중한다. */
     expect(html).not.toContain('name="password"');
     expect(html).not.toContain('name="provider"');
-    expect(html).not.toContain('가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.');
+    expect(html).not.toContain('가입하면 입력한 이메일로 확인 코드를 보내 드려요.');
   });
 
   it('틀린 코드와 다시 받기 결과를 단계 안에서 보여 준다', () => {
@@ -390,7 +390,7 @@ describe('Login 가입 확인 코드 단계', () => {
     expect(html).toContain('data-signup-code-resume');
     /* QA1 S-T02-02: 작은 한 줄이 아니라 가입 폼 위의 상자와 버튼이다. */
     expect(html).toContain('가입을 이어서 하시겠어요?');
-    expect(html).toContain('<strong>fan@icons.gg</strong>로 확인 코드를 보냈어요. 메일의 6자리 코드를 입력하면 가입이 이어져요.');
+    expect(html).toContain('<strong>fan@icons.gg</strong>로 확인 코드를 보냈어요. 메일의 확인 코드를 입력하면 가입이 이어져요.');
     expect(html).toMatch(/<button class="wc-btn" type="button">받은 코드 입력하기<\/button>/);
     expect(html.indexOf('data-signup-code-resume')).toBeLessThan(html.indexOf('name="password"'));
     /* 누르기 전에는 가입 폼 그대로다 — 이미 가입을 마친 이메일이어도 새 가입을 막지 않는다. */
@@ -446,7 +446,7 @@ describe('SignupCodeStep', () => {
 
     expect(html).toContain('data-signup-code-step="restored"');
     expect(html).toContain('<strong>fan@icons.gg</strong>로 보낸 확인 코드를 입력해주세요.');
-    expect(html).toContain('코드는 다시 보내지 않았어요. 가장 최근 메일의 6자리를 입력해주세요.');
+    expect(html).toContain('코드는 다시 보내지 않았어요. 가장 최근 메일의 확인 코드를 입력해주세요.');
     expect(html).toContain('확인을 마치면 로그인 화면으로 이동해요. 가입한 이메일과 비밀번호로 로그인해주세요.');
     expect(html).not.toContain('로 확인 메일을 보냈어요.');
     expect(html).toContain('코드 다시 받기');
