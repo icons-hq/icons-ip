@@ -30,7 +30,7 @@ export function PurchaseRestrictionsScreen({ data, initialBatch = null, batchMis
       <p>{adminGoodsCopy('구매제한은 신규 굿즈 주문에 적용됩니다. 기존 주문의 결제·배송·취소·환불은 정상 처리하며, 로그인·공개 탐색·티켓 예매·게임 이용은 각 서비스의 기존 기준을 따릅니다.')}</p>
       <p>계정 전체 정지는 고객 관리의 별도 조치입니다. 등록 사유와 근거를 확인한 뒤 필요한 고객에 한해 등록하고, 해제 시에도 사유를 남깁니다.</p>
     </SalesGuide>
-    <SalesFilterPanel currentHref={currentHref} id="purchase-restrictions" hiddenFieldExclusions={['pageSize']} search={{ value: filters.query, placeholder: '고객명 · 고객 ID · 정확한 이메일 · 근거 주문번호' }}>
+    <SalesFilterPanel currentHref={currentHref} id="purchase-restrictions" hiddenFieldExclusions={['pageSize']} search={{ value: filters.query, placeholder: '고객명 · 회원번호 · 정확한 이메일 · 근거 주문번호' }}>
       <SalesFilterField label="처리상태" htmlFor="purchase-restriction-state"><SalesSelect id="purchase-restriction-state" name="state" value={filters.state} options={[{ value: 'active', label: '구매제한 중' }, { value: 'released', label: '해제' }, { value: 'all', label: '전체' }]} /></SalesFilterField>
       <SalesFilterField label="목록 수" htmlFor="purchase-restriction-size"><SalesSelect id="purchase-restriction-size" name="pageSize" value={String(filters.pageSize)} options={[20,50,100].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} /></SalesFilterField>
     </SalesFilterPanel>

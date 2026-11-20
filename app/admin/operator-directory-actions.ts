@@ -15,18 +15,18 @@ export async function saveOperatorDutyAction(profileId: string, duty: string, re
     if (error) {
       if (error.code === 'PT409') return { error: '다른 관리자가 담당업무를 변경했습니다. 입력을 확인하고 목록을 새로고침해주세요.' };
       if (['22023', '42501', '23505'].includes(error.code ?? '')) return { error: '저장하지 못했습니다. 통합 매니저의 업무는 대표로 고정됩니다. 현재 권한을 확인해주세요.' };
-      return { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true };
+      return { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true };
     }
-    if (!data || !Number.isSafeInteger(data.revision) || data.revision <= revision || data.duty !== duty) return { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true };
+    if (!data || !Number.isSafeInteger(data.revision) || data.revision <= revision || data.duty !== duty) return { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true };
     revalidatePath(OPERATOR_DIRECTORY_PATH);
     return { revision: data.revision };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true }; }
 }
 
 const validRevision = (value: number) => Number.isSafeInteger(value) && value >= 1;
-const uncertainResult = (): OperatorMutationResult => ({ error: '처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true });
+const uncertainResult = (): OperatorMutationResult => ({ error: '처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 처리됩니다.', uncertain: true });
 function mutationError(error: { code?: string; message?: string }): OperatorMutationResult {
-  if (error.code === 'PT409') return { error: '매니저 정보가 변경되었습니다. 입력을 확인하고 목록을 새로고침해주세요.' };
+  if (error.code === 'PT409') return { error: '다른 관리자가 먼저 매니저 정보를 바꿨습니다. 목록을 새로고침해 현재 정보를 확인한 뒤 다시 처리해주세요.' };
   const messages: Record<string, string> = {
     operator_setup_incomplete: '기존 운영자를 빠짐없이 한 번씩 배정해주세요. 정지 계정은 권한 회수를 선택해주세요.',
     operator_owner_required: '이용 중인 기존 관리자 중 통합 매니저 한 명을 선택해주세요.',
@@ -38,9 +38,9 @@ function mutationError(error: { code?: string; message?: string }): OperatorMuta
     operator_suspended_target: '정지된 계정에는 역할을 부여하거나 통합 매니저를 승계할 수 없습니다.',
     operator_primary_target_required: '이용 중인 계정 주매니저를 승계 대상으로 선택해주세요.',
     operator_limit: '통합 매니저를 제외하고 최대 1,000명까지 배정할 수 있습니다.',
-    operation_conflict: '이미 다른 작업에 사용된 요청입니다. 목록을 새로고침해주세요.',
+    operation_conflict: '이 요청은 이미 다른 내용으로 처리됐습니다. 목록을 새로고침해 현재 상태를 확인한 뒤 다시 시도해주세요.',
   };
-  if (['22023', '42501', '23505'].includes(error.code ?? '')) return { error: messages[error.message ?? ''] ?? '매니저 권한과 입력값을 확인해주세요. 현재 권한으로 처리할 수 없습니다.' };
+  if (['22023', '42501', '23505'].includes(error.code ?? '')) return { error: messages[error.message ?? ''] ?? '처리하지 못했습니다. 고른 매니저와 역할이 맞는지 확인해주세요. 지금 계정의 권한으로 할 수 없는 변경이면 통합 매니저에게 요청해주세요.' };
   return uncertainResult();
 }
 async function writeManagerMutation(name: string, args: Record<string, unknown>, expectedAccessRevision: number): Promise<OperatorMutationResult> {

@@ -70,7 +70,7 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
       const result = await sendInquiryChatMessageAction(state, formData);
       // A failure must not look like another successful reset after an earlier send.
       return { ...result, resultKey: result.resultKey ?? state.resultKey };
-    } catch { return { resultKey: state.resultKey, uncertain: true, errors: { form: '전송 결과를 확인하지 못했습니다. 같은 메시지로 다시 시도해주세요.' } }; }
+    } catch { return { resultKey: state.resultKey, uncertain: true, errors: { form: '전송됐는지 확인하지 못했습니다. [전송 결과 다시 확인]을 눌러주세요. 다시 눌러도 두 번 보내지지 않습니다.' } }; }
   }, EMPTY);
   const [closeState, closeAction, closePending] = useActionState(closeInquiryAction, EMPTY);
   const draft = useInquiryDraft(accountId, inquiry.id, 'reply', answerState.resultKey);

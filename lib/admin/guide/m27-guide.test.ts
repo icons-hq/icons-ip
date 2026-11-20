@@ -162,7 +162,8 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('상품과 함께 저장할 설정');
     expect(text).toContain('상품과 함께 저장할 설정 카드의 입력');
     expect(text).toContain('재고 조정·옵션 사용·복사·보관만 저장한 뒤 같은 자리에서 합니다.');
-    expect(text).toContain('저장 막대에 저장 후 공개가 나오고');
+    expect(text).toContain('저장 막대에는 [임시저장]과 [실제 등록] 두 버튼만 있습니다.');
+    expect(text).not.toContain('저장 막대에 저장 후 공개가 나오고');
     expect(text).not.toContain('저장하면 이어서 설정할 수 있어요');
     expect(text).not.toContain('자리표시');
     expect(text).not.toContain('초안 저장 → KC 검토 → 공개');

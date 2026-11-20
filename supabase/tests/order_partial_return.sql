@@ -441,7 +441,10 @@ select pg_temp.pr_error(format('select private.assert_order_dispatch_allowed(%L:
 select private.assert_order_dispatch_allowed(pg_temp.pr_id('order', 8), array[pg_temp.pr_id('shipment-2', 8)]);
 select pg_temp.pr_assert(coalesce(current_setting('icons.dispatch_shipments', true), '') = ''
  and private.shipment_pack_ready(pg_temp.pr_id('shipment-2', 8)) and not private.shipment_pack_ready(pg_temp.pr_id('shipment-1', 8)), 'dispatch_scope_per_shipment');
-insert into private.goods_preorder_policies(id, variant_id, created_by) values (pg_temp.pr_id('policy', 8), pg_temp.pr_variant('partial-return-c'), pg_temp.pr_id('user', 1));
+-- 예약 정책에는 초안이 없다(2026-11-19). 옵션이 선택하지 않은(접수를 마친) 완전한 정책에 예약을 걸어 둔다.
+insert into private.goods_preorder_policies(id, variant_id, state, capacity_qty, starts_at, ends_at, expected_ship_date, created_by, activated_by, activated_at, stopped_by, stopped_at)
+values (pg_temp.pr_id('policy', 8), pg_temp.pr_variant('partial-return-c'), 'stopped', 10, now() - interval '2 days', now() - interval '1 day', current_date + 7,
+ pg_temp.pr_id('user', 1), pg_temp.pr_id('user', 1), now() - interval '2 days', pg_temp.pr_id('user', 1), now() - interval '1 day');
 insert into private.goods_preorder_reservations(order_item_id, order_id, policy_id, qty)
 values (pg_temp.pr_id('item-partial-return-c', 8), pg_temp.pr_id('order', 8), pg_temp.pr_id('policy', 8), 1);
 create temp table pr_dispatch on commit drop as select pg_temp.pr_stock('partial-return-c') as c_stock;

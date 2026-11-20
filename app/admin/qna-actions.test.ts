@@ -154,7 +154,7 @@ describe('answerProductQuestionAction', () => {
       answer: '답변',
     }));
 
-    expect(state.errors?.form).toContain('저장 결과를 확인하지 못했습니다');
+    expect(state.errors?.form).toContain('저장됐는지 확인하지 못했습니다');
   });
 });
 

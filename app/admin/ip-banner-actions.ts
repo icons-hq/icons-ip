@@ -22,7 +22,7 @@ export interface AdminIpHallBannerActionState {
 }
 
 const CATALOG_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const PATH_ERROR = '검증된 IP 이미지를 업로드해주세요.';
+const PATH_ERROR = 'IP관 배너는 이 화면의 업로드로 올린 이미지만 쓸 수 있습니다. 이미지를 다시 업로드해주세요.';
 const SAVE_ERROR = 'IP관 배너를 저장하지 못했습니다. 다시 시도해주세요.';
 
 function readPath(formData: FormData, key: string): string | null | false {
@@ -50,7 +50,7 @@ export async function saveAdminIpHallBannerAction(
   const ipId = typeof rawId === 'string' ? rawId.trim() : '';
   const imagePath = readPath(formData, 'hallBannerImagePath');
   const mobileImagePath = readPath(formData, 'hallBannerMobileImagePath');
-  if (!CATALOG_ID_PATTERN.test(ipId)) return { errors: { form: '올바른 IP ID가 필요합니다.' } };
+  if (!CATALOG_ID_PATTERN.test(ipId)) return { errors: { form: '배너를 저장할 IP를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' } };
   if (imagePath === false || mobileImagePath === false) {
     return {
       errors: {

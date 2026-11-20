@@ -317,8 +317,8 @@ describe('GameSection', () => {
     const html = renderGameSection({ records: [selected], selected });
 
     expect(html).toContain('읽기 전용');
-    expect(html).toContain('현 로드맵에서 활성화하지 않으며');
-    expect(html).toContain('신규 실물 쿠지에 재사용하지 않습니다');
+    expect(html).toContain('지금 운영하지 않으며 다시 켜지 않습니다');
+    expect(html).toContain('새 실물 쿠지에도 쓰지 않습니다');
     expect(html).not.toContain('issues/115');
     expect(html).not.toContain('name="title"');
     expect(html).not.toContain('지금 종료');

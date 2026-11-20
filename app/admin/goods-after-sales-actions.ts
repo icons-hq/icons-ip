@@ -8,7 +8,7 @@ import { goodsAfterSalesError } from '@/lib/admin/goods-after-sales-messages';
 
 export type GoodsAfterSalesResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
 const unread = <T,>(): GoodsAfterSalesResult<T> => ({ ok: false, error: '저장된 내용을 불러오지 못했습니다. 다시 조회해주세요.' });
-const unknown = <T,>(): GoodsAfterSalesResult<T> => ({ ok: false, error: '저장 결과를 확인하지 못했습니다. 같은 요청의 결과부터 확인해주세요.', uncertain: true });
+const unknown = <T,>(): GoodsAfterSalesResult<T> => ({ ok: false, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.', uncertain: true });
 const validGoodId = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(value);
 export async function loadGoodsAfterSalesAction(goodId: string): Promise<GoodsAfterSalesResult<GoodsAfterSalesSnapshot>> {
   if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: '상품 관리 권한이 필요합니다.' };

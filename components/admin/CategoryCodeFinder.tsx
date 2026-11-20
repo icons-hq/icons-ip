@@ -51,7 +51,7 @@ export function CategoryCodeFinder({ onClose }: { onClose: () => void }) {
         <a className={buttonVariants({ variant: 'outline' })} data-slot="button" href={CATEGORY_EXPORT_API_PATH}><Download aria-hidden="true" />전체코드 CSV 다운로드</a>
         <Button variant="outline" type="button" disabled={pending} onClick={() => void load()}>최신 카테고리 다시 조회</Button>
       </div>
-      <p className="text-sm text-muted-foreground">ICONS 자체 양식에 사용하는 코드입니다. 새로 연결할 수 있는 사용 중인 마지막 단계 카테고리만 선택하며, 전체코드 CSV에는 상위·보관 분류와 상태도 포함합니다.</p>
+      <p className="text-sm text-muted-foreground">ICONS 상품 엑셀의 고객 카테고리 코드·추가 카테고리 코드 칸에 넣는 코드입니다. 여기서는 상품에 새로 연결할 수 있는(보관되지 않은) 마지막 단계 카테고리만 고를 수 있습니다. 전체코드 CSV에는 상위·보관 카테고리와 상태까지 모두 들어 있습니다.</p>
       <div className="inline-flex w-fit flex-wrap rounded-lg bg-muted p-0.5" role="group" aria-label="카테고리 찾기 방식">
         {([['search', '카테고리명 검색'], ['tree', '카테고리 선택'], ['templates', '자주 쓰는 카테고리']] as const).map(([value, label]) => <Button key={value} variant="ghost" size="sm" type="button" className={MODE} aria-pressed={mode === value} disabled={pending || !categories} onClick={() => setMode(value)}>{label}</Button>)}
       </div>

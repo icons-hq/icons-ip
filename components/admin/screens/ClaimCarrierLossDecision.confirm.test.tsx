@@ -51,7 +51,7 @@ describe('배송 분실 기록 확인창', () => {
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(confirm).toHaveBeenCalledOnce();
     expect(confirm.mock.calls[0][0]).toBe(carrierLossConfirmRequest('TEST 남양주', 'HJ-ACC-20261119-01').message);
-    expect(confirm.mock.calls[0][0]).toContain('택배사 사고 번호 HJ-ACC-20261119-01로 TEST 남양주 배송 건의 분실을 기록합니다. 기록은 되돌릴 수 없습니다');
+    expect(confirm.mock.calls[0][0]).toContain('택배사 사고 번호 HJ-ACC-20261119-01로 TEST 남양주 배송 건의 분실을 기록합니다. 기록하면 되돌릴 수 없습니다');
     expect(target.requestSubmit).toHaveBeenCalledWith(submitter);
   });
   it('확인창에서 취소하면 제출하지 않는다', async () => {

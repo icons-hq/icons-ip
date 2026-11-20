@@ -180,8 +180,11 @@ select pg_temp.order_with(5,:'v1','stock-rc-g1',5,'paid') as o_pre_reserved \gse
 select pg_temp.order_with(6,:'v1','stock-rc-g1',6,'confirmed') as o_pre_allocated \gset
 select pg_temp.order_with(7,:'v4','stock-rc-g3',1,'paid') as o_other_origin \gset
 set local session_replication_role=replica;
-insert into private.goods_preorder_policies(id,variant_id,state,created_by)
- values('5a0c0000-0000-4000-8000-0000000000e1',:'v1','draft','5a0c0000-0000-4000-8000-000000000001');
+-- 예약 정책에는 초안이 없다(2026-11-19). 옵션이 선택하지 않은(접수를 마친) 정책을 품목 스냅샷과 같은 값으로 둔다.
+insert into private.goods_preorder_policies(id,variant_id,state,capacity_qty,starts_at,ends_at,expected_ship_date,
+  created_by,activated_by,activated_at,stopped_by,stopped_at)
+ values('5a0c0000-0000-4000-8000-0000000000e1',:'v1','stopped',20,'2031-01-01T00:00:00Z','2031-02-01T00:00:00Z','2031-04-01',
+  '5a0c0000-0000-4000-8000-000000000001','5a0c0000-0000-4000-8000-000000000001',now(),'5a0c0000-0000-4000-8000-000000000001',now());
 update public.order_items set supply_source='preorder',preorder_policy_id='5a0c0000-0000-4000-8000-0000000000e1',preorder_expected_ship_date='2031-04-01',
  preorder_snapshot='{"policyId":"5a0c0000-0000-4000-8000-0000000000e1","policyRevision":1,"startsAt":"2031-01-01T00:00:00Z","endsAt":"2031-02-01T00:00:00Z","expectedShipDate":"2031-04-01"}'
  where order_id in(:'o_pre_reserved',:'o_pre_allocated');

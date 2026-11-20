@@ -110,7 +110,7 @@ it('확정 오류도 기존 요청번호를 버리지 않고 읽기와 봉인을
 });
 it('요청번호 보관 실패면 서버에 전송하지 않는다', async () => {
   vi.spyOn(sessionStorage, 'setItem').mockImplementationOnce(() => { throw new Error('unavailable'); }); operation(); effects();
-  await operation().send(shippingFixtures().apply); expect(mocks.apply).not.toHaveBeenCalled(); expect(operation().error).toContain('전송하지 않았습니다');
+  await operation().send(shippingFixtures().apply); expect(mocks.apply).not.toHaveBeenCalled(); expect(operation().error).toContain('요청을 보내지 않았습니다');
 });
 it('불명확한 요청이 있는 동안 새로고침을 경고한다', async () => {
   operation(); effects(); await operation().send(shippingFixtures().apply); await flush();

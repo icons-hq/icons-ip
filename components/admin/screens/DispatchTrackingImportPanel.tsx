@@ -153,7 +153,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           </Button>
           {!preview && !pending ? <span className={NOTE}>[등록 전 확인]으로 읽은 내용을 본 뒤 등록할 수 있습니다.</span> : null}
         </div>
-        <p className={NOTE}>등록에 성공한 배송 건은 배송 중으로 바뀌고 배송 메일이 대기열에 등록됩니다.</p>
+        <p className={NOTE}>등록에 성공한 배송 건은 배송 중으로 바뀌고, 고객에게 배송 안내 메일이 차례로 발송됩니다.</p>
       </form>
 
       {previewError ? <AdminNotice role="alert" tone="danger">{previewError}</AdminNotice> : null}

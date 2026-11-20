@@ -39,7 +39,8 @@ export const GOODS_IMAGES_ZIP_BYTES_LIMIT = 50 * 1024 * 1024;
 export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
 /**
- * v8(ADR-0038·S36-012): 첫 열 상품번호, 열 이름을 상품 수정 화면과 맞춘다 — 판매자상품코드·관리코드·재고수량·상품 표시문구·판매상태,
+ * v8(ADR-0038·S36-012): 첫 열 상품번호, 열 이름을 상품 수정 화면과 맞춘다 — 상품 자동코드·옵션 자동코드(2026-11-19 전 판매자상품코드·관리코드,
+ * 옛 이름도 읽는다 — goods-workbook-headers.ts, ADR-0048)·재고수량·상품 표시문구·판매상태,
  * 가격은 화면처럼 판매가(할인 전)·즉시할인(원)·옵션가(추가금액), 매입단가는 공급가(매입단가). v3~v7 파일도 읽는다(아래 구형 열).
  */
 export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v8';
@@ -51,7 +52,7 @@ export const GOODS_WORKBOOK_V4_VERSION = 'ICONS 상품 일괄 등록 v4';
 export const GOODS_WORKBOOK_V3_VERSION = 'ICONS 상품 일괄 등록 v3';
 export const GOODS_WORKBOOK_HEADERS = {
   productNo: '상품번호',
-  code: '판매자상품코드',
+  code: '상품 자동코드',
   name: '상품명',
   ipId: 'IP ID',
   id: '상품 URL',
@@ -67,7 +68,7 @@ export const GOODS_WORKBOOK_HEADERS = {
   originCode: '출고지 코드',
   shippingFeeType: '배송비 유형',
   individualFee: '개별 배송비',
-  variantCode: '관리코드',
+  variantCode: '옵션 자동코드',
   variantName: '옵션명',
   axis1: '옵션 축 1',
   value1: '옵션 값 1',
@@ -268,7 +269,7 @@ export type GoodsWorkbookContext = {
   /** 대표·추가 카테고리 코드. */
   categories?: { id: string; code: string; archived_at: string | null }[];
   imageNames?: string[];
-  /** 읽은 관리코드(옵션코드)의 소유 상품(관리코드는 전체에서 유일). 새 행의 중복 관리코드를 적용 전에 미리보기에서 잡는다. */
+  /** 읽은 옵션 자동코드(옵션코드)의 소유 상품(옵션 자동코드는 전체에서 유일). 새 행의 중복 옵션 자동코드를 적용 전에 미리보기에서 잡는다. */
   variantCodeOwners?: Record<string, string>;
   kcRows?: GoodsKcWorkbookInputRow[] | null;
   customInputRows?: GoodsCustomInputWorkbookInputRow[] | null;
@@ -559,11 +560,11 @@ function noticeFromPreset(
 }
 /** 상품번호는 1부터 매기는 양의 정수다(상품 목록·내보내기 그대로). */
 const PRODUCT_NO_PATTERN = /^[1-9]\d{0,15}$/;
-const MATCHED_BY_NUMBER_ONLY = '판매자상품코드가 비어 있어 상품번호로 찾은 기존 상품을 수정합니다.';
+const MATCHED_BY_NUMBER_ONLY = '상품 자동코드가 비어 있어 상품번호로 찾은 기존 상품을 수정합니다.';
 /**
- * 반입 키(ADR-0038): 상품번호 → 판매자상품코드 순서로 수정할 기존 상품을 찾는다. 찾으면 그 상품의 판매자상품코드·상품번호를
- * 행에 채워 같은 상품의 행끼리 묶이고, 내려받은 파일과 같으면 '변경 없음'이 된다. 상품번호와 판매자상품코드가 서로 다른 상품을
- * 가리키면 덮어쓰지 않고 오류다(판매자상품코드는 상품 수정 화면에서 바꾼다).
+ * 반입 키(ADR-0038): 상품번호 → 상품 자동코드 순서로 수정할 기존 상품을 찾는다. 찾으면 그 상품의 상품 자동코드·상품번호를
+ * 행에 채워 같은 상품의 행끼리 묶이고, 내려받은 파일과 같으면 '변경 없음'이 된다. 상품번호와 상품 자동코드가 서로 다른 상품을
+ * 가리키면 덮어쓰지 않고 오류다(상품 자동코드는 상품 수정 화면의 '직접 바꾸기'로 바꾼다).
  * 상품 URL은 키가 아니다(구형 파일도 같다). 번호·코드가 모두 빈 행은 새 상품이고, 그 상품 URL을 이미 다른 상품이 쓰면 오류다 —
  * 기존 행을 복사해 새 상품을 만들며 URL만 남긴 행이 원래 상품을 덮지 않게 한다.
  */
@@ -580,11 +581,11 @@ function resolveGoodsWorkbookTarget(row: GoodsWorkbookInputRow, existing: readon
     if (!PRODUCT_NO_PATTERN.test(number)) errors.push('상품번호는 내려받은 숫자 그대로 두거나, 새 상품이면 비워 주세요.');
     else if (!byNumber) errors.push(`상품번호 ${number}인 상품을 찾을 수 없습니다. 새 상품은 상품번호를 비워 주세요.`);
     else if (code && str(byNumber.good.code).toUpperCase() !== code)
-      errors.push(`상품번호 ${number}${conjunctionParticle(number)} 판매자상품코드 ${code}${subjectParticle(code)} 서로 다른 상품을 가리킵니다. 판매자상품코드는 상품 수정 화면에서 바꿔 주세요.`);
+      errors.push(`상품번호 ${number}${conjunctionParticle(number)} 상품 자동코드 ${code}${subjectParticle(code)} 서로 다른 상품을 가리킵니다. 내려받은 파일의 두 값을 그대로 두거나, 상품 자동코드를 바꿔야 하면 상품 수정 화면의 '직접 바꾸기'로 바꿔 주세요.`);
     else { record = byNumber; matchedByNumberOnly = !code; }
   } else if (code) record = existing.find((item) => str(item.good.code).toUpperCase() === code);
   else if (url && existing.some((item) => str(item.good.id) === url))
-    errors.push(`이미 쓰는 상품 URL입니다(${url}). 기존 상품을 고치려면 상품번호나 판매자상품코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.`);
+    errors.push(`이미 쓰는 상품 URL입니다(${url}). 기존 상품을 고치려면 상품번호나 상품 자동코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.`);
   values.code = record ? str(record.good.code).toUpperCase() : code;
   if (record) values.productNo = str(record.good.product_no);
   return { row: { ...row, values, errors }, matchedByNumberOnly };
@@ -738,7 +739,7 @@ export function planGoodsWorkbookImport(
       first.preset &&
       !context.presets.some((preset) => preset.name === first.preset)
     )
-      errors.push('고시 프리셋 이름을 찾을 수 없습니다.');
+      errors.push('고시 프리셋 칸의 이름과 같은 상품정보제공고시 템플릿이 없습니다. 템플릿 관리에 등록된 이름을 그대로 넣거나 칸을 비워 주세요.');
     if (!['', '초안', '공개'].includes(first.publish))
       errors.push('게시 상태는 초안 또는 공개로 입력해주세요.');
     if (!['', '예', '아니오'].includes(first.allowBankTransfer))
@@ -750,7 +751,7 @@ export function planGoodsWorkbookImport(
       errors.push('판매 제한은 none 또는 adult입니다.');
     const searchKeywordsError = validateGoodsSearchKeywords(first.searchKeywords);
     if (searchKeywordsError) errors.push(searchKeywordsError);
-    if (first.code.length > 100) errors.push('판매자상품코드는 100자 이내입니다.');
+    if (first.code.length > 100) errors.push('상품 자동코드는 100자 이내입니다.');
     const origin = context.origins.find(
       (origin) => origin.code === first.originCode,
     );
@@ -850,13 +851,15 @@ export function planGoodsWorkbookImport(
       detail_image_path: null,
     };
     const galleries: string[] = [];
+    /* 엑셀의 상세 이미지 칸은 긴 상세 이미지의 첫 장이다. 2장 이상인 상품은 첫 장 주소를 그대로 둘 때만 받는다 — 한 장 칸으로
+       저장하면 DB가 목록을 그 한 장으로 줄이므로(20261119170100), 바꾸거나 비우면 둘째 장부터가 조용히 사라진다. */
+    const savedDetailCount = Array.isArray(record?.good.detail_image_paths) ? (record.good.detail_image_paths as unknown[]).length : 0;
     for (const [url, file, field] of imagePairs) {
       if (first[url] && first[file])
         errors.push(
           `${GOODS_WORKBOOK_HEADERS[url]}과 파일명 중 하나만 입력해주세요.`,
         );
       const reference = first[file] || first[url];
-      if (!reference) continue;
       const existingPath = field.startsWith('gallery_')
         ? (record?.good.gallery_paths as string[] | null)?.[galleryIndex(field)]
         : record?.good[field];
@@ -865,6 +868,11 @@ export function planGoodsWorkbookImport(
         !first[file] &&
         (context.mediaUrl(str(existingPath)) ?? str(existingPath)) ===
           reference;
+      if (field === 'detail_image_path' && savedDetailCount > 1 && !unchanged)
+        errors.push(
+          `${GOODS_WORKBOOK_HEADERS[url]}: 긴 상세 이미지가 ${savedDetailCount}장인 상품은 엑셀로 상세 이미지를 바꾸거나 비울 수 없습니다. 내려받은 첫 장 주소를 그대로 두고, 바꾸려면 어드민 상품 편집 화면을 써주세요.`,
+        );
+      if (!reference) continue;
       if (
         first[file] &&
         (!/^[^/\\\u0000-\u001f]+\.(png|jpe?g|webp)$/i.test(reference) ||
@@ -916,7 +924,7 @@ export function planGoodsWorkbookImport(
       const ownCode = value.variantCode.trim().toUpperCase();
       const codeOwner = ownCode ? context.variantCodeOwners?.[ownCode] : undefined;
       if (codeOwner !== undefined && !variant && codeOwner !== (record ? str(record.good.code).toUpperCase() : '')) {
-        errors.push(`${row.row}행: 관리코드 ${ownCode}${topicParticle(ownCode)} 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 기존 행을 복사해 새 상품을 만들 때는 관리코드도 비우거나 새 값으로 바꿔 주세요.`);
+        errors.push(`${row.row}행: 옵션 자동코드 ${ownCode}${topicParticle(ownCode)} 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 기존 행을 복사해 새 상품을 만들 때는 옵션 자동코드도 비우거나 새 값으로 바꿔 주세요.`);
       }
       const attributes: Record<string, string> = Object.create(null);
       for (const [axis, optionValue] of [[value.axis1, value.value1], [value.axis2, value.value2], [value.axis3, value.value3]]) {
@@ -1030,7 +1038,7 @@ export function planGoodsWorkbookImport(
         descriptionFormat: value.descriptionFormat ?? 'plain',
         bg: record?.good.bg as string | null ?? null,
         imagePath: imageValues.image_path as string | null,
-        detailImagePath: imageValues.detail_image_path as string | null,
+        detailImagePaths: imageValues.detail_image_path ? [imageValues.detail_image_path as string] : [],
         galleryPaths: galleries,
         allowBankTransfer: first.allowBankTransfer !== '아니오',
         saleRestriction: (first.saleRestriction || 'none') as 'none' | 'adult',
@@ -1042,9 +1050,12 @@ export function planGoodsWorkbookImport(
       variants: parsedOptions.rows,
       variant_baseline: active.map((variant) => variant.id),
     };
+    /* 엑셀은 긴 상세 이미지 첫 장(한 장 칸)만 다룬다. 목록을 보내지 않으면 DB가 첫 장이 그대로일 때 둘째 장부터를 유지하고,
+       적용 단계가 바꾸는 자리 표시(import-image:detail_image_path)도 한 장 칸에만 있다. */
+    delete group.target.detail_image_paths;
     return group;
   });
-  // 같은 파일 안에서 관리코드가 겹치면(한 상품 안이든 상품 사이든) 적용 때 DB 유일 제약으로 실패하므로 미리보기에서 막는다.
+  // 같은 파일 안에서 옵션 자동코드가 겹치면(한 상품 안이든 상품 사이든) 적용 때 DB 유일 제약으로 실패하므로 미리보기에서 막는다.
   const seenVariantCodes = new Map<string, { group: GoodsImportGroup; row: number }>();
   for (const group of planned) {
     for (const row of group.source) {
@@ -1052,7 +1063,7 @@ export function planGoodsWorkbookImport(
       if (!code) continue;
       const previous = seenVariantCodes.get(code);
       if (previous) {
-        const message = `관리코드 ${code}${subjectParticle(code)} ${previous.row}행과 ${row.row}행에서 겹칩니다. 관리코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
+        const message = `옵션 자동코드 ${code}${subjectParticle(code)} ${previous.row}행과 ${row.row}행에서 겹칩니다. 옵션 자동코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
         for (const target of new Set([previous.group, group])) {
           if (!target.errors.includes(message)) target.errors.push(message);
           target.kind = 'error';

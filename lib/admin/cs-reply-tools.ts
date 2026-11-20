@@ -52,8 +52,8 @@ export function parseReviewBatchResult(value:unknown):ReviewBatchResult|null {
 }
 export function reviewBatchFailureLabel(code:string|null) {
   if(code==='review_not_found') return '리뷰가 삭제되었거나 찾을 수 없습니다.';
-  if(code==='review_changed') return '리뷰 또는 답글이 변경되었습니다. 최신 내용을 확인해주세요.';
-  if(code==='staff_required') return '관리자 권한을 다시 확인해주세요.';
+  if(code==='review_changed') return '그사이 리뷰나 답글이 바뀌어 등록하지 않았습니다. 리뷰를 열어 최신 내용을 확인한 뒤 따로 답글을 달아주세요.';
+  if(code==='staff_required') return '관리자 권한이 없어 등록하지 않았습니다.';
   if(code==='invalid_review_reply') return '답글 길이를 확인해주세요.';
   return '저장하지 못했습니다. 최신 상태를 확인해주세요.';
 }

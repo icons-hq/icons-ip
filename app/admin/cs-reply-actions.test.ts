@@ -25,7 +25,7 @@ describe('CS reply actions',()=>{
  });
  it('다른 payload 재사용과 불확실한 결과를 성공으로 표시하지 않는다',async()=>{
    mocks.rpc.mockResolvedValue({data:null,error:{message:'review_batch_request_changed'}});
-   expect(await replyReviewsBatchAction(request)).toMatchObject({ok:false,error:expect.stringContaining('이미 사용한 요청')});
+   expect(await replyReviewsBatchAction(request)).toMatchObject({ok:false,error:expect.stringContaining('앞서 다른 내용으로 이미 등록됐습니다')});
    expect(mocks.revalidatePath).not.toHaveBeenCalled();
    mocks.rpc.mockResolvedValue({data:null,error:null});
    expect(await readReviewReplyBatchAction(id)).toEqual({ok:true,result:null});

@@ -43,7 +43,7 @@ function normalizeIdentityForm(formData: FormData):
   const expectedPublicSlug = normalizeIpPublicSlug(formData.get('expectedPublicSlug'));
   const errors: NonNullable<AdminIpIdentityActionState['errors']> = {};
 
-  if (!INTERNAL_ID_PATTERN.test(id)) errors.id = '올바른 내부 IP ID가 필요합니다.';
+  if (!INTERNAL_ID_PATTERN.test(id)) errors.id = 'IP를 찾지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.';
   const slugError = validateIpPublicSlug(publicSlug);
   if (slugError) errors.publicSlug = IP_PUBLIC_SLUG_ERROR_MESSAGES[slugError];
   /* expectedPublicSlug is a concurrency token, not a newly chosen slug. Keep

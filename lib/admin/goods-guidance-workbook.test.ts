@@ -105,7 +105,7 @@ describe('goods guidance workbook planning', () => {
   it('plans new explicitly coded goods and rejects side rows without a matching product', () => {
     expect(planGoodsWorkbookImport([{ row: 5, values: product }], { ...context, existing: [], afterSalesRows: [asRow({ revision: '0' })] })[0])
       .toMatchObject({ kind: 'new', guidance: { afterSales: { expectedRevision: 0 } }, target: { code: '001' } });
-    expect(() => planGoodsWorkbookImport([{ row: 5, values: product }], { ...context, afterSalesRows: [asRow({ goodCode: 'OTHER' })] })).toThrow('같은 판매자상품코드');
+    expect(() => planGoodsWorkbookImport([{ row: 5, values: product }], { ...context, afterSalesRows: [asRow({ goodCode: 'OTHER' })] })).toThrow('같은 상품 자동코드');
   });
   it('keeps empty zero-revision snapshots absent and exports cleared revisions explicitly', () => {
     expect(exportGoodsAfterSalesWorkbookRows([{ goodCode: '001', snapshot: { ...afterSales, ...EMPTY_GOODS_AFTER_SALES, revision: 0, updatedAt: null } }])).toEqual([]);
@@ -156,11 +156,11 @@ describe('actual v7 guidance workbook files', () => {
     expect(parsed.afterSalesRows?.[0].errors?.join()).toContain('수식'); expect(parsed.sizeRows?.[0].errors?.join()).toContain('수식');
     expect(parsed.afterSalesRows?.[0].errors?.join()).toContain('전화번호는 숫자 대신 텍스트');
     book.getWorksheet(GOODS_AFTER_SALES_WORKBOOK_SHEET)!.getCell('A5').value = 1;
-    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 판매자상품코드');
+    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 상품 자동코드');
   });
   it('rejects orphan side rows, modified headers and excess row counts', async () => {
     const book = await bookWithGuidance(); book.getWorksheet(GOODS_SIZE_WORKBOOK_SHEET)!.getCell('A5').value = 'ORPHAN';
-    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 판매자상품코드');
+    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 상품 자동코드');
     book.getWorksheet(GOODS_SIZE_WORKBOOK_SHEET)!.getCell('A4').value = '다른 열';
     await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('열 이름');
     await expect(buildGoodsWorkbook([product], undefined, [], [], Array.from({ length: 501 }, () => asValues[0]))).rejects.toThrow('500');
@@ -168,6 +168,6 @@ describe('actual v7 guidance workbook files', () => {
   });
   it('does not deliver compressed files whose expanded contents cannot be read back', async () => {
     const rows = Array.from({ length: 500 }, (_, i) => ({ ...product, code: String(i), description: String(i) + '가'.repeat(29000) }));
-    await expect(buildGoodsWorkbook(rows)).rejects.toThrow('읽기 상한');
+    await expect(buildGoodsWorkbook(rows)).rejects.toThrow('너무 많아 파일을 만들 수 없습니다');
   });
 });

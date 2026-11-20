@@ -40,18 +40,18 @@ function refresh() {
 
 export async function previewDiscountPromotionAction(id: unknown, input: unknown, rawIdentity: unknown): Promise<GoodsGroupResult<DiscountPromotionPreview>> {
   const request = parseDiscountPromotionRequest(input);
-  if (!isUuid(id) || !request) return { error: '프로모션 이름·기간·대상·할인 값을 확인해주세요.' };
+  if (!isUuid(id) || !request) return { error: '프로모션 이름·기간·대상·할인 값 중 비었거나 쓸 수 없는 값이 있습니다. 할인율은 1~99%, 할인 금액은 1원 이상이고 종료는 시작보다 늦어야 합니다.' };
   const identity = await access(rawIdentity); if (!identity) return failure('operator_capability_required', '42501');
   try {
     const { data, error } = await (await createClient()).rpc('admin_preview_discount_promotion', { p_id: id, p_request: request, p_actor: identity.actorId, p_session: identity.sessionId });
     if (error) return failure(error.message, error.code);
     const preview = parseDiscountPromotionPreview(data, id, request);
-    return preview ? { value: preview } : { error: '입력과 비교 결과가 일치하지 않습니다. 다시 확인해주세요.' };
+    return preview ? { value: preview } : { error: '비교 결과가 지금 입력과 맞지 않습니다. ‘대상·할인 확인’을 다시 눌러주세요.' };
   } catch (error) { unstable_rethrow(error); return { error: '대상 상품을 불러오지 못했습니다. 입력을 확인하고 다시 시도해주세요.' }; }
 }
 
 async function receipt(id: unknown, rawIdentity: unknown, mode: 'commit' | 'read', seal = false): Promise<GoodsGroupResult<DiscountPromotionReceipt>> {
-  if (!isUuid(id) || typeof seal !== 'boolean') return { error: '요청번호를 확인하지 못했습니다.', uncertain: true };
+  if (!isUuid(id) || typeof seal !== 'boolean') return { error: '요청 번호가 올바르지 않습니다. 화면을 새로고침해주세요.', uncertain: true };
   const identity = await access(rawIdentity); if (!identity) return failure('operator_capability_required', '42501', true);
   try {
     const args = { p_id: id, p_actor: identity.actorId, p_session: identity.sessionId };
@@ -59,17 +59,17 @@ async function receipt(id: unknown, rawIdentity: unknown, mode: 'commit' | 'read
       mode === 'read' ? { ...args, p_seal: seal } : args);
     if (error) return failure(error.message, error.code, true);
     const result = parseDiscountPromotionReceipt(data, id);
-    if (!result) return { error: '처리 결과를 확인하지 못했습니다. 같은 요청의 결과를 조회해주세요.', uncertain: true };
+    if (!result) return { error: '등록됐는지 확인하지 못했습니다. ‘처리 결과 조회’를 눌러 결과를 확인해주세요. 조회는 다시 등록하지 않습니다.', uncertain: true };
     if (result.state === 'completed') refresh();
     return { value: result };
-  } catch (error) { unstable_rethrow(error); return { error: '처리 결과가 불명확합니다. 같은 요청의 결과를 조회해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '등록됐는지 확인하지 못했습니다. ‘처리 결과 조회’를 눌러 결과를 확인해주세요. 조회는 다시 등록하지 않습니다.', uncertain: true }; }
 }
 export async function commitDiscountPromotionAction(id: unknown, identity: unknown) { return receipt(id, identity, 'commit'); }
 export async function readDiscountPromotionAction(id: unknown, identity: unknown, seal = false) { return receipt(id, identity, 'read', seal); }
 
 /** 같은 요청번호로 다시 부르면 저장된 중지 영수증을 돌려준다(응답이 끊겨도 같은 번호로 다시 누르면 된다). */
 export async function stopDiscountPromotionAction(promotionId: unknown, operationId: unknown, rawIdentity: unknown): Promise<GoodsGroupResult<DiscountPromotionStopReceipt>> {
-  if (!isUuid(promotionId) || !isUuid(operationId)) return { error: '중지할 프로모션을 확인하지 못했습니다.' };
+  if (!isUuid(promotionId) || !isUuid(operationId)) return { error: '중지할 프로모션을 찾지 못했습니다. 화면을 새로고침한 뒤 다시 눌러주세요.' };
   const identity = await access(rawIdentity); if (!identity) return failure('operator_capability_required', '42501');
   try {
     const { data, error } = await (await createClient()).rpc('admin_stop_discount_promotion', {
@@ -77,8 +77,8 @@ export async function stopDiscountPromotionAction(promotionId: unknown, operatio
     });
     if (error) return failure(error.message, error.code, true);
     const result = parseDiscountPromotionStopReceipt(data, { promotionId, operationId });
-    if (!result) return { error: '중지 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true };
+    if (!result) return { error: '중지됐는지 확인하지 못했습니다. ‘프로모션 중지’를 다시 누르면 같은 요청으로 결과만 확인합니다. 두 번 처리되지 않습니다.', uncertain: true };
     refresh();
     return { value: result };
-  } catch (error) { unstable_rethrow(error); return { error: '중지 결과가 불명확합니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '중지됐는지 확인하지 못했습니다. ‘프로모션 중지’를 다시 누르면 같은 요청으로 결과만 확인합니다. 두 번 처리되지 않습니다.', uncertain: true }; }
 }

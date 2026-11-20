@@ -100,7 +100,7 @@ it('편집기 안 선택 입력 영역도 키 밖 펼침 상태를 따르고 사
   hooks.context = { open: { 'good-optional-description': true }, setOpen };
   const description = details(GoodOptionalFields({ id: 'good-optional-description', title: '상세설명 편집', summary: 'HTML', children: null }));
   expect(description.props.open).toBe(true);
-  const search = mount(details(GoodOptionalFields({ id: 'good-optional-search', title: '검색설정·판매자상품코드', summary: '', children: null })));
+  const search = mount(details(GoodOptionalFields({ id: 'good-optional-search', title: '검색설정·상품 자동코드', summary: '', children: null })));
   expect(search.dom.open).toBe(false);
   search.click();
   expect(setOpen).toHaveBeenLastCalledWith('good-optional-search', true);

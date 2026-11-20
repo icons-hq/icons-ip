@@ -55,10 +55,10 @@ function MethodSelection({ shipment, onSaved }: { shipment: AdminShipmentDeliver
         <option value="parcel">택배</option><option value="quick">퀵</option><option value="pickup">방문수령</option><option value="direct">직접배송</option><option value="freight">화물배송</option></NativeSelect>
       </div>
       {method !== 'parcel' ? <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-policy`}>확인한 운영 조건</Label><NativeSelect className="w-full" id={`${fieldId}-policy`} value={policyId} onChange={(event) => setPolicyId(event.target.value)} required>
-        <option value="">활성 운영 조건을 선택해주세요</option>
+        <option value="">켜진 운영 조건을 선택해주세요</option>
         {policies.map((policy) => <option key={policy.id} value={policy.id}>버전 {policy.revision} · {policy.contactName} · {policy.handoffLocation}</option>)}
       </NativeSelect></div> : null}
-      {method !== 'parcel' && !policies.length ? <AdminNotice role="status" tone="warning">이 출고지의 활성 운영 조건이 없습니다. 실제 운영 조건을 등록한 뒤 선택할 수 있습니다.</AdminNotice> : null}
+      {method !== 'parcel' && !policies.length ? <AdminNotice role="status" tone="warning">이 출고지에 켜진 운영 조건이 없습니다. 배송정보 관리에서 운영 조건을 등록하고 [근거 확인 후 활성화]를 누른 뒤 선택할 수 있습니다.</AdminNotice> : null}
       <label className={FIELD_CLASS}><span className={LABEL_TEXT}>고객의 방식 변경 요청 근거</span><Textarea name="customerRequestReference" rows={2} maxLength={2000} required /></label>
       <label className={FIELD_CLASS}><span className={LABEL_TEXT}>기존 배송비 유지 동의 근거</span><Textarea name="feeConsentReference" rows={2} maxLength={2000} required /></label>
       <label className="flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="feeUnchanged" required /><span>고객과 확인한 기존 배송비 {krw(shipment.shippingFee)}를 유지합니다.</span></label>
@@ -92,7 +92,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
     <fieldset disabled={pending || !shipment.preorderReady} className={FIELDSET_CLASS}>
       <legend className="sr-only">실제 인계·수령 증거</legend>
       <label className={FIELD_CLASS}><span className={LABEL_TEXT}>실제 인계·확인 담당자</span><Input name="operatorName" maxLength={100} required /></label>
-      <label className={FIELD_CLASS}><span className={LABEL_TEXT}>실제 {deliveryIsHandoff(kind) ? '인계' : '수령'} 시각 (한국)</span><Input type="datetime-local" name="occurredAt" step="0.001" value={occurredAt}
+      <label className={FIELD_CLASS}><span className={LABEL_TEXT}>실제 {deliveryIsHandoff(kind) ? '인계' : '수령'} 시각 (KST)</span><Input type="datetime-local" name="occurredAt" step="0.001" value={occurredAt}
         onChange={(event) => setOccurredAt(event.target.value)} required /></label>
       <Button variant="outline" size="sm" type="button" onClick={() => setOccurredAt(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 23))}>현재 시각 입력</Button>
       {deliveryIsHandoff(kind) ? <>
@@ -107,7 +107,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
         <small className={NOTE_CLASS}>주문자는 주문 화면에서 10분 동안 유효한 확인값을 발급합니다. 5회 틀리거나 재발급하면 이전 값은 사용할 수 없습니다.</small>
       </>}
     </fieldset>
-    {!shipment.preorderReady ? <AdminNotice role="status" tone="warning">예약 품목에 실제 입고 물량을 먼저 할당해주세요.</AdminNotice> : null}
+    {!shipment.preorderReady ? <AdminNotice role="status" tone="warning">예약 품목의 입고 확인이 아직 끝나지 않았습니다. 상품 편집의 예약판매에서 이 주문을 골라 [선택한 예약 주문 입고 확인]을 먼저 눌러주세요.</AdminNotice> : null}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     <Button type="submit" disabled={pending || !shipment.preorderReady}>{pending ? '확인 중…' : deliveryIsHandoff(kind) ? '배송 인계 확인' : '수령 완료 확인'}</Button>
   </form>;

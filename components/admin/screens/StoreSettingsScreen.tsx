@@ -17,7 +17,7 @@ const SETTINGS_TABS = 'inline-flex w-fit max-w-full flex-wrap items-center round
 
 /** 택배사 카드 머리의 사용 상태. */
 function carrierStatus(active: boolean) {
-  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '비활성'}</AdminStatusBadge>;
+  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '사용 안 함'}</AdminStatusBadge>;
 }
 
 /* 택배사 목록의 칸 나누기. 머리 줄과 각 줄이 같은 틀을 쓴다. */

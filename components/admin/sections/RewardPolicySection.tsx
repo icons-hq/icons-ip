@@ -200,7 +200,7 @@ function RewardPolicyForm({
     : noPool
       ? '확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.'
       : unavailableActivePool
-        ? '현재 카드풀을 사용할 수 없습니다. 정책을 비활성화한 뒤 저장해주세요.'
+        ? '현재 카드풀을 쓸 수 없습니다. ‘정책 활성화’를 끄고 저장해주세요.'
         : null;
 
   return (
@@ -329,7 +329,7 @@ function RewardPolicyForm({
         />
       </AdminFormGrid>
       <ErrorText id={state.errors?.active ? 'active-error' : undefined}>{state.errors?.active}</ErrorText>
-      {active ? <AdminNotice role="status" tone="warning">조건이 겹치는 활성 정책은 누적 적용됩니다.</AdminNotice> : null}
+      {active ? <AdminNotice role="status" tone="warning">조건이 겹치는 정책이 여러 개 켜져 있으면 하나만 고르지 않고 모두 적용됩니다.</AdminNotice> : null}
       </FormGroup>
       {disabledReason && <AdminNotice role={unavailableActivePool ? 'alert' : 'status'} tone={unavailableActivePool ? 'danger' : 'warning'}>{disabledReason}</AdminNotice>}
       <FormShell disabled={Boolean(disabledReason)} pending={pending} state={state} />
@@ -340,7 +340,7 @@ function RewardPolicyForm({
 function RewardPolicySummary({ selected }: { selected: AdminRewardPolicyRecord }) {
   return (
     <section aria-labelledby="reward-policy-summary-title" className={SECTION_CARD}>
-      <SectionHeading description="정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외됩니다." id="reward-policy-summary-title" title="발급 현황" />
+      <SectionHeading description="어느 정책으로 발급됐는지 기록이 없는 예전 카드팩은 집계에서 빠집니다." id="reward-policy-summary-title" title="발급 현황" />
       <ul className={SECTION_STATS} data-admin-summary="reward-policy">
         <li className={SECTION_STAT}>발급 {selected.issuedCount.toLocaleString('ko-KR')}</li>
         <li className={SECTION_STAT}>사용 가능 {selected.availableCount.toLocaleString('ko-KR')}</li>

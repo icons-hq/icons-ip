@@ -53,7 +53,7 @@ export function normalizeBodyTemplateSave(raw: unknown): BodyTemplateResult<Body
     || !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0
     || typeof raw.name !== 'string' || !raw.name.trim() || bodyTemplateLength(raw.name.trim()) > BODY_TEMPLATE_NAME_MAX || /[\u0000-\u001f\u007f]/.test(raw.name)
     || Object.keys(raw).some(key => !['surface', 'expectedActorId', 'id', 'expectedRevision', 'operationId', 'name', 'bodyHtml'].includes(key)))
-    return { ok: false, error: '템플릿 이름은 1~50자로 입력하고 저장 요청을 다시 확인해주세요.' };
+    return { ok: false, error: '템플릿 이름을 1~50자로 입력한 뒤 다시 저장해주세요.' };
   const body = normalizeBodyTemplateBody(raw.surface, raw.bodyHtml);
   if (!body.ok) return body;
   return { ok: true, value: { surface: raw.surface, expectedActorId: raw.expectedActorId.toLowerCase(), id: raw.id.toLowerCase(),
@@ -91,11 +91,11 @@ export function parseBodyTemplateReceipt(value: unknown, expectedId: string): { 
   return { id: expectedId, revision: Number(value.revision), archivedAt: value.archivedAt, updatedAt: value.updatedAt };
 }
 export function bodyTemplateError(message: string | undefined): string {
-  if (message?.includes('body_template_conflict')) return '다른 탭에서 이 템플릿을 변경했습니다. 현재 입력을 유지했으니 최신 저장본을 확인해주세요.';
-  if (message?.includes('operation_conflict')) return '이 요청 번호로 다른 내용이 처리됐습니다. 현재 입력을 유지하고 최신 저장본을 확인해주세요.';
+  if (message?.includes('body_template_conflict')) return '다른 탭에서 이 템플릿을 먼저 바꿨습니다. 현재 입력은 그대로 있으니 [최신 저장본 확인]을 눌러 바뀐 내용을 확인해주세요.';
+  if (message?.includes('operation_conflict')) return '이 저장은 다른 내용으로 이미 처리됐습니다. 현재 입력은 그대로 있으니 [최신 저장본 확인]을 누르거나 목록에서 템플릿을 다시 열어 저장된 내용을 확인해주세요.';
   if (message?.includes('body_template_limit')) return '보관한 항목을 포함해 개인 템플릿은 50개까지입니다. 기존 템플릿의 이름과 본문을 수정해 재사용해주세요.';
   if (message?.includes('body_template_actor_changed')) return '로그인 상태가 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.';
   if (message?.includes('body_template_not_found')) return '내 템플릿을 찾을 수 없습니다. 목록을 다시 불러와주세요.';
   if (message?.includes('operator_capability_required')) return '이 편집기의 템플릿을 관리할 권한이 필요합니다.';
-  return '템플릿 요청을 처리하지 못했습니다. 입력을 유지하고 다시 확인해주세요.';
+  return '템플릿 작업을 처리하지 못했습니다. 입력은 그대로 있으니 잠시 후 다시 시도해주세요.';
 }

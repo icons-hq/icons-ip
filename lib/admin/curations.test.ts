@@ -229,7 +229,7 @@ describe('admin curation form normalization', () => {
   ])('rejects an unsafe internal link: %s', (_label, linkPath) => {
     expect(normalizeAdminCurationForm(curationForm({ linkPath }))).toEqual({
       ok: false,
-      errors: { linkPath: '1~2048자의 안전한 내부 경로를 입력해주세요.' },
+      errors: { linkPath: '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.' },
     });
   });
 
@@ -248,7 +248,7 @@ describe('admin curation form normalization', () => {
   ])('rejects an ambiguous raw or once-decoded internal link: %s', (_label, linkPath) => {
     expect(normalizeAdminCurationForm(curationForm({ linkPath }))).toEqual({
       ok: false,
-      errors: { linkPath: '1~2048자의 안전한 내부 경로를 입력해주세요.' },
+      errors: { linkPath: '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.' },
     });
   });
 
@@ -269,7 +269,7 @@ describe('admin curation form normalization', () => {
   ])('rejects artwork outside the verified curation path contract: %s', (imagePath) => {
     expect(normalizeAdminCurationForm(curationForm({ imagePath }))).toEqual({
       ok: false,
-      errors: { imagePath: '검증된 큐레이션 이미지를 사용해주세요.' },
+      errors: { imagePath: '이 화면의 업로드로 올린 이미지만 쓸 수 있습니다. 이미지를 다시 업로드해주세요.' },
     });
   });
 
@@ -283,8 +283,8 @@ describe('admin curation form normalization', () => {
     }))).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        id: '유효한 큐레이션 ID가 필요합니다.',
+        operationId: '저장 요청 정보가 맞지 않습니다. 새로고침한 뒤 다시 저장해주세요.',
+        id: '수정할 구성을 확인하지 못했습니다. 왼쪽 목록에서 다시 골라주세요.',
         kind: '큐레이션 유형을 선택해주세요.',
         title: '제목은 1자 이상 120자 이하로 입력해주세요.',
         displayOrder: '노출 순서는 0 이상의 정수여야 합니다.',
@@ -301,10 +301,10 @@ describe('admin curation form normalization', () => {
 
   it.each([
     ['missing start', { activeFrom: '' }, { activeFrom: '노출 시작 일시를 선택해주세요.' }],
-    ['impossible date', { activeFrom: '2026-02-30T10:30' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
-    ['year zero', { activeFrom: '0000-07-21T10:30' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
-    ['KST rollover before positive ISO years', { activeFrom: '0001-01-01T00:00' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
-    ['invalid hour', { activeFrom: '2026-07-21T24:00' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
+    ['impossible date', { activeFrom: '2026-02-30T10:30' }, { activeFrom: '날짜와 시각을 모두 입력해주세요(예: 2026-11-19 14:00).' }],
+    ['year zero', { activeFrom: '0000-07-21T10:30' }, { activeFrom: '날짜와 시각을 모두 입력해주세요(예: 2026-11-19 14:00).' }],
+    ['KST rollover before positive ISO years', { activeFrom: '0001-01-01T00:00' }, { activeFrom: '날짜와 시각을 모두 입력해주세요(예: 2026-11-19 14:00).' }],
+    ['invalid hour', { activeFrom: '2026-07-21T24:00' }, { activeFrom: '날짜와 시각을 모두 입력해주세요(예: 2026-11-19 14:00).' }],
     ['equal window', { activeTo: '2026-07-21T10:30' }, { activeTo: '노출 종료는 시작보다 늦어야 합니다.' }],
     ['reversed window', { activeTo: '2026-07-21T10:29' }, { activeTo: '노출 종료는 시작보다 늦어야 합니다.' }],
   ])('rejects an invalid calendar or active window: %s', (_label, entries, errors) => {
@@ -381,15 +381,15 @@ describe('admin curation form normalization', () => {
       ok: false,
       errors: {
         slot: '상품 모음 위치를 선택해주세요.',
-        goodIds: '상품 ID 를 1개 이상 등록해주세요.',
+        goodIds: '상품을 1개 이상 골라주세요.',
       },
     });
   });
 
   it.each([
-    ['형식 위반', { kind: 'best_tab', slot: 'category', goodIds: 'g13, bad id' }, '상품 ID 형식이 올바르지 않습니다.'],
-    ['BEST 탭 상한', { kind: 'best_tab', slot: 'category', goodIds: Array.from({ length: 13 }, (_, index) => `g${index}`).join(',') }, '상품 ID 는 최대 12개까지 등록할 수 있습니다.'],
-    ['기획전 상한', { kind: 'band_banner', goodIds: 'g1,g2,g3,g4,g5' }, '상품 ID 는 최대 4개까지 등록할 수 있습니다.'],
+    ['형식 위반', { kind: 'best_tab', slot: 'category', goodIds: 'g13, bad id' }, '고른 상품 중 확인할 수 없는 상품이 있습니다. 상품을 다시 골라주세요.'],
+    ['BEST 탭 상한', { kind: 'best_tab', slot: 'category', goodIds: Array.from({ length: 13 }, (_, index) => `g${index}`).join(',') }, '상품은 최대 12개까지 고를 수 있습니다.'],
+    ['기획전 상한', { kind: 'band_banner', goodIds: 'g1,g2,g3,g4,g5' }, '상품은 최대 4개까지 고를 수 있습니다.'],
   ])('연결 상품 ID 의 %s 을 막는다', (_label, entries, message) => {
     expect(normalizeAdminCurationForm(curationForm(entries))).toEqual({
       ok: false,
@@ -454,7 +454,7 @@ describe('admin curation form normalization', () => {
       ok: false,
       errors: {
         subtitle: '내용은 150자 이하, 최대 3줄로 입력해주세요. 기존 내용은 그대로 유지할 수 있습니다.',
-        mobileImagePath: '검증된 큐레이션 이미지를 사용해주세요.',
+        mobileImagePath: '이 화면의 업로드로 올린 이미지만 쓸 수 있습니다. 이미지를 다시 업로드해주세요.',
       },
     });
   });

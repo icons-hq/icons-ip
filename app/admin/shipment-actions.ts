@@ -42,14 +42,14 @@ type Client=Awaited<ReturnType<typeof createClient>>;
 type ExportCredentials={password:string;passwordConfirmation:string};
 type ExportResult={error:string;file?:undefined;message?:undefined}|{file:{base64:string;mime:string;name:string;encryption?:'ECMA-376-Agile';sha256?:string};message:string;error?:undefined};
 function exportInputError(format:unknown,layout:unknown,credentials?:ExportCredentials){
- if(!['xlsx','csv'].includes(String(format))||!['smartstore','warehouse'].includes(String(layout)))return '파일 형식과 양식을 확인해주세요.';
+ if(!['xlsx','csv'].includes(String(format))||!['smartstore','warehouse'].includes(String(layout)))return '파일 형식(XLSX·CSV)과 내려받을 양식을 다시 골라주세요.';
  return layout==='smartstore'&&format==='xlsx'?exportPasswordError(credentials?.password,credentials?.passwordConfirmation):null;
 }
 /** Build and encrypt successfully before recording a warehouse handover. */
 async function exportShipments(actorId:string,client:Client,keys:string[],format:'xlsx'|'csv',layout:ShipmentExportLayout,credentials?:ExportCredentials,note='',readsOrderAmounts=true):Promise<ExportResult>{
  const result=await client.rpc(layout==='smartstore'?'admin_smartstore_shipment_export':'admin_shipment_export',{p_ids:keys});
  const exportError=result.error?.message??'';
- if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):exportError==='order cancellation in progress'?'재고 부족 부분 취소 또는 취소 요청이 진행 중인 주문이 포함되어 있어 출고지시를 만들지 못했습니다. 취소 처리가 끝난 뒤 다시 시도해주세요.':exportError==='order fulfillment hold'?'출고 보류 주문(테스트 결제 또는 결제사 취소)이 포함되어 있어 출고지시를 만들지 못했습니다. 해당 주문을 빼거나 주문 상세에서 보류를 확인한 뒤 다시 시도해주세요.':'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
+ if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):exportError==='order cancellation in progress'?'재고 부족 부분 취소 또는 취소 요청이 진행 중인 주문이 포함되어 있어 출고지시를 만들지 못했습니다. 취소 처리가 끝난 뒤 다시 시도해주세요.':exportError==='order fulfillment hold'?'출고 보류 주문(테스트 결제 또는 결제사 취소)이 포함되어 있어 출고지시를 만들지 못했습니다. 해당 주문을 빼거나 주문 상세에서 보류를 확인한 뒤 다시 시도해주세요.':'출고지시를 만들지 못했습니다. 발송 대기가 아니거나 취소 요청이 열린 배송 건이 섞였을 수 있습니다. 목록을 새로고침해 상태를 확인한 뒤 다시 내려받아 주세요.'};
  let data=result.data as ShipmentExportData;
  // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
  // 1014-084 사용자 결정 "수령인 정보만": 주문 조회 권한(sales.read)이 없는 출고 전용 운영자가 받는 출고지시 파일은 어느 양식이든
@@ -107,7 +107,7 @@ export async function exportPendingOriginShipmentsAction(originId:unknown,format
  if(pending.error||!value||!Array.isArray(value.ids)||!Number.isSafeInteger(value.total)||Number(value.total)<value.ids.length)return {error:'발송 대기 배송 건을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'};
  const keys=value.ids.length?selection(value.ids):[];
  if(!keys)return {error:'발송 대기 배송 건을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'};
- if(!keys.length)return {error:'이 출고지에 아직 전달하지 않은 발송 대기 배송 건이 없습니다. 발주확인과 예약 재고 할당·제작·취소 요청을 확인해주세요.'};
+ if(!keys.length)return {error:'이 출고지에 아직 창고로 보내지 않은 발송 대기 배송 건이 없습니다. 신규주문은 먼저 발주확인해야 하고, 예약 입고 확인이나 주문제작 완료 전인 건, 취소 요청이 열린 건은 대상에 들어가지 않습니다.'};
  const rest=Number(value.total)-keys.length;
  return exportShipments(auth.user.id,client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'',hasAdminCapability(auth,'sales.read'));
 }
@@ -149,7 +149,7 @@ export async function completeShipmentsAction(ids:unknown,arrival:{deliveredAt?:
  const invalid=shipmentArrivalError(deliveredAt,reason,new Date(),hasAdminCapability(auth,'sales.manage'));if(invalid)return {error:invalid};
  const client=await createClient();const result=await client.rpc('admin_complete_shipments_at',{target_ids:keys,p_delivered_at:deliveredAt,p_reason:reason||null});
  if(result.error?.message?.startsWith('delivered_at_'))return {error:shipmentCompletionFailure(result.error.message)};
- if(result.error||!Array.isArray(result.data))return {error:'배송완료를 처리하지 못했습니다. 최신 상태를 확인해주세요.'};
+ if(result.error||!Array.isArray(result.data))return {error:'배송완료를 처리하지 못했습니다. 목록을 새로고침해 배송 건 상태를 확인한 뒤 다시 처리해주세요.'};
  const rows=result.data as {id:string;ok:boolean;error?:string;affectedIds?:string[];arrivalIds?:string[]}[];refresh();
  const completed=new Set(rows.filter(row=>row.ok).flatMap(row=>row.affectedIds??[row.id]));
  // 입력한 일시는 DB가 건별로 실제 기록한 배송 건(arrivalIds)만 센다. 이미 배송완료돼 있던 건은 기존 일시를 그대로 둔다.
@@ -161,9 +161,9 @@ export async function completeShipmentsAction(ids:unknown,arrival:{deliveredAt?:
 export async function saveShipmentExportColumnsAction(id:string,columns:unknown,updatedAt:string){
  const auth=await staff();if(!auth||!canAccessAdminScreen(auth,null,{capability:'platform.manage',adminOnly:true}))return {error:'관리자 권한이 필요합니다.'};
  const parsed=parseShipmentExportColumns(columns);
- if(!isUuid(id)||!parsed||!updatedAt)return {error:'모든 표준 컬럼의 헤더와 순서를 확인해주세요.'};
+ if(!isUuid(id)||!parsed||!updatedAt)return {error:'표준 12개 항목의 머리글을 모두 채워주세요. 머리글은 항목마다 다르게, 80자 이내 한 줄로 적습니다.'};
  const client=await createClient();const result=await client.rpc('admin_save_origin_export_columns',{target_id:id,target_columns:parsed,expected_updated_at:updatedAt});
- if(result.error)return {error:'다른 변경이 먼저 저장됐거나 양식이 올바르지 않습니다. 최신 출고지 설정을 확인해주세요.'};
+ if(result.error)return {error:'저장하지 못했습니다. 다른 사람이 이 출고지 설정을 먼저 바꿨거나 머리글 형식이 맞지 않습니다. 입력한 머리글을 따로 적어 둔 뒤 새로고침해 최신 양식을 확인하고 다시 저장해주세요.'};
  revalidatePath('/admin/settings/origins');return {message:'출고지시 양식을 저장했습니다.',updatedAt:result.data as string};
 }
 
@@ -176,11 +176,11 @@ type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shi
  */
 export async function registerShipmentTrackingAction(input:unknown):Promise<ShipmentTrackingRowResult>{
  if(!await dispatchStaff())return {ok:false,error:'직원 권한이 필요합니다.'};
- if(!Array.isArray(input)||!input.length||input.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:'운송장을 등록할 배송 건을 다시 확인해주세요.'};
+ if(!Array.isArray(input)||!input.length||input.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:'운송장을 등록할 배송 건을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 입력해주세요.'};
  const carriers=await getShippingCarrierRegistry();const rows:{line:number;reference:string;carrier:string;trackingNumber:string}[]=[];
  for(const [index,value] of input.entries()){
   const {shipmentId,carrier,trackingNumber}=(typeof value==='object'&&value!==null?value:{}) as Record<string,unknown>;
-  if(typeof shipmentId!=='string'||!isUuid(shipmentId)||rows.some(row=>row.reference===shipmentId.toLowerCase()))return {ok:false,error:'운송장을 등록할 배송 건을 다시 확인해주세요.'};
+  if(typeof shipmentId!=='string'||!isUuid(shipmentId)||rows.some(row=>row.reference===shipmentId.toLowerCase()))return {ok:false,error:'운송장을 등록할 배송 건을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 입력해주세요.'};
   const selected=typeof carrier==='string'?findShippingCarrier(carriers,carrier):null;
   if(!selected?.active)return {ok:false,error:shipmentMutationError('inactive_shipping_carrier')};
   const tracking=typeof trackingNumber==='string'?normalizeTrackingNumber(trackingNumber):'';
@@ -206,7 +206,7 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   let queueWarning=false;
   if(deliveries.length){try{await enqueueOrderShippedEmails([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);}catch{queueWarning=true;}}
   if(registered.length||unchanged.length)refreshDispatched();
-  const message=registered.length?`운송장 ${registered.length}건을 등록해 배송 중으로 옮겼습니다.${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 주문 상세의 배송 안내 메일에서 확인해주세요.':' 배송 메일은 대기열에서 처리됩니다.'}`
+  const message=registered.length?`운송장 ${registered.length}건을 등록해 배송 중으로 옮겼습니다.${queueWarning?' 배송 안내 메일 발송 예약을 확인하지 못했습니다. 주문 상세의 배송 메일 처리 상태에서 확인해주세요.':' 배송 안내 메일은 잠시 뒤 차례로 발송됩니다.'}`
    :unchanged.length?'같은 운송장으로 이미 발송된 배송 건입니다. 그대로 두었습니다.':'운송장을 등록하지 못했습니다.';
   return {ok:true,message,registered,unchanged,failed,queueWarning};
  }catch(error){unstable_rethrow(error);return {ok:false,error:'등록 결과를 확인하지 못했습니다. 목록을 새로고침해 배송 상태를 확인해주세요.'};}

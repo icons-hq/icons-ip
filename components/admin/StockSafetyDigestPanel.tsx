@@ -21,7 +21,7 @@ import {
 import { formatOrderDateTime } from '@/lib/orders';
 
 const HINT = 'text-sm text-muted-foreground';
-const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+const UNKNOWN = '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.';
 const count = (value: number) => value.toLocaleString('ko-KR');
 
 /**

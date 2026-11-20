@@ -61,7 +61,7 @@ function safeError(error: unknown) {
 const SABANGNET_XLS_MESSAGE =
   'XLS(Excel 97-2003) 파일은 읽을 수 없습니다. 엑셀에서 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.';
 const SABANGNET_EXISTING_MESSAGE =
-  '이미 등록된 판매자상품코드입니다. 사방넷 양식은 새 상품 초안만 만들어 이 행은 실패 행 파일에 넣지 않습니다. 기존 상품은 상품 목록에서 내보낸 엑셀로 수정해 주세요.';
+  '이미 등록된 상품 자동코드입니다. 사방넷 양식은 새 상품 초안만 만들어 이 행은 실패 행 파일에 넣지 않습니다. 기존 상품은 상품 목록에서 내보낸 엑셀로 수정해 주세요.';
 async function cleanupExpired() {
   const service = createServiceClient();
   const { data } = await service
@@ -157,7 +157,7 @@ async function downloadSource(
     .download(`${batch.actor_id}/${batch.id}/${file}`);
   if (error || !data)
     throw new Error('업로드 파일을 읽지 못했습니다. 파일을 다시 올려주세요.');
-  if (data.size > max) throw new Error('업로드 파일 용량이 상한을 초과합니다.');
+  if (data.size > max) throw new Error('올린 파일이 너무 큽니다. 상품 양식은 2MB, 이미지 ZIP은 50MB 이하로 다시 올려주세요.');
   return Buffer.from(await data.arrayBuffer());
 }
 export async function previewGoodsImport(id: string) {

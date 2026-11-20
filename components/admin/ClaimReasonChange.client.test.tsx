@@ -52,12 +52,12 @@ it('계정이나 유형이 바뀌면 이전 계정의 내부 근거와 확인을
 it('연속 제출과 타 주문 결과를 막고 기존 비용 확인 없이 보내지 않는다', async () => {
   context.fee = { kind: 'exchange_shipping', amount: 3000, note: '기존 합성 비용 기록', confirmedAt: context.requestedAt };
   fill(); await submit(); expect(mocks.save).not.toHaveBeenCalled(); expect(text(render())).toContain('기존 비용 기록과 정정할 사유');
-  change('기존 비용 기록과', true);
+  change('기존 비용 기록이', true);
   let finish!: (value: unknown) => void; mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const form = all(render()).find(element => element.type === 'form')!; form.props.onSubmit?.({ preventDefault: () => {} }); form.props.onSubmit?.({ preventDefault: () => {} });
   expect(mocks.save).toHaveBeenCalledOnce();
   finish({ receipt: { ...receipt, id: mocks.save.mock.calls[0][0].id, feeReviewed: true, orderId: context.claimId } }); await settle();
-  expect(text(render())).toContain('현재 요청과 다른 저장 결과'); expect(mocks.refresh).not.toHaveBeenCalled();
+  expect(text(render())).toContain('이 요청과 맞지 않습니다'); expect(mocks.refresh).not.toHaveBeenCalled();
 });
 it('무변경 저장은 알림 없이 완료되며 오래된 기한 분류는 선택할 수 없다', async () => {
   context.canUseChangeOfMind = false; context.reasonType = 'defect'; context.originalReasonType = 'defect';

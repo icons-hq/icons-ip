@@ -8,23 +8,23 @@ import { claimReasonError, claimReasonReceiptMatches, normalizeClaimReasonReques
 const access = () => requireAdminActionAccess('/admin/sales/claims/exchanges', { capability: 'sales.manage' });
 export async function loadClaimReasonContextAction(claimId: string): Promise<ClaimReasonResult> {
   const actor = await access(); if (!actor) return { error: claimReasonError('42501') };
-  if (!isUuid(claimId)) return { error: '요청번호를 확인해주세요.' };
+  if (!isUuid(claimId)) return { error: '요청을 찾지 못했습니다. 화면을 새로고침한 뒤 다시 열어주세요.' };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_order_claim_reason_context', { p_claim_id: claimId });
     const context = parseClaimReasonContext(data);
     return !error && context?.claimId === claimId && context.actorId === actor.user.id ? { context } : { error: claimReasonError(error?.code, error?.message) };
-  } catch (error) { unstable_rethrow(error); return { error: '최신 요청을 읽지 못했습니다.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: '최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.' }; }
 }
 export async function readClaimReasonChangeAction(id: string): Promise<ClaimReasonResult> {
   const actor = await access(); if (!actor) return { error: claimReasonError('42501'), uncertain: true };
-  if (!isUuid(id)) return { error: '변경 요청번호를 확인해주세요.', uncertain: true };
+  if (!isUuid(id)) return { error: '저장 결과를 확인할 번호가 올바르지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_read_order_claim_reason_change', { p_operation_id: id });
     if (error) return { error: claimReasonError(error.code, error.message), uncertain: true };
     if (data === null) return { receipt: null };
     const receipt = parseClaimReasonReceipt(data);
-    return receipt?.id === id && receipt.actorId === actor.user.id ? { receipt } : { error: '해당 요청의 저장 결과를 확인하지 못했습니다.', uncertain: true };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 읽지 못했습니다.', uncertain: true }; }
+    return receipt?.id === id && receipt.actorId === actor.user.id ? { receipt } : { error: '불러온 저장 결과가 이 요청과 맞지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
+  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.', uncertain: true }; }
 }
 export async function changeClaimReasonAction(input: unknown): Promise<ClaimReasonResult> {
   const actor = await access(); if (!actor) return { error: claimReasonError('42501') };
@@ -38,10 +38,10 @@ export async function changeClaimReasonAction(input: unknown): Promise<ClaimReas
     if (error) return { error: claimReasonError(error.code, error.message), conflict: error.code === 'PT409',
       uncertain: !['PT409', '42501', '22023', '23514', 'P0002'].includes(error.code ?? '') };
     const receipt = parseClaimReasonReceipt(data);
-    if (!receipt || !claimReasonReceiptMatches(receipt, request)) return { error: '저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.', uncertain: true };
+    if (!receipt || !claimReasonReceiptMatches(receipt, request)) return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true };
     if (receipt.changed) for (const path of ['/admin/sales/claims', '/admin/sales/orders', `/admin/sales/orders/${receipt.orderId}`, `/orders/${receipt.orderId}`]) {
       revalidatePath(path, path === '/admin/sales/claims' ? 'layout' : 'page');
     }
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true }; }
 }

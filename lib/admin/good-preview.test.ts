@@ -96,6 +96,7 @@ describe('어드민 굿즈 미리보기', () => {
         galleryPath0: 'blob:selected-gallery-0',
         galleryPath2: 'blob:selected-gallery-2',
         detailImagePath: 'https://cdn.example/detail.webp',
+        detailImagePath2: 'https://cdn.example/detail-2.webp',
       },
       fallbackBg: null,
       ip,
@@ -123,7 +124,7 @@ describe('어드민 굿즈 미리보기', () => {
       'url("blob:selected-gallery-0") center / cover no-repeat',
       'url("blob:selected-gallery-2") center / cover no-repeat',
     ]);
-    expect(preview.detailImageUrl).toBe('https://cdn.example/detail.webp');
+    expect(preview.detailImageUrls).toEqual(['https://cdn.example/detail.webp', 'https://cdn.example/detail-2.webp']);
     expect(preview.description).toBe('붉은 실을 따라 놓인 아크릴 블록입니다.');
     expect(preview.notice.maker).toBe('주식회사 아이콘스');
     expect(preview.ip).toBe(ip);

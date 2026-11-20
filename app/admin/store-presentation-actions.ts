@@ -9,15 +9,15 @@ type Failure = { error: string; uncertain?: boolean };
 export type StorePresentationSaveResult = { section: StorePresentationSection; values: StorePresentation[StorePresentationSection]; revision: number } | Failure;
 export type GoodsListingColorsResult = { colors: GoodsColorChip[]; revision: number } | Failure;
 function failure(error?: { code?: string; message?: string }): Failure {
-  if (error?.code === 'PT409') return { error: '다른 관리자가 수정했습니다. 입력값을 보관한 뒤 최신 설정을 다시 불러와주세요.' };
-  if (['22023', '42501', 'P0002', '23505'].includes(error?.code ?? '')) return { error: '현재 권한과 입력값을 확인해주세요. 대상이 삭제·보관되었을 수 있습니다.' };
-  return { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true };
+  if (error?.code === 'PT409') return { error: '다른 관리자가 먼저 수정했습니다. 지금 입력은 따로 적어 둔 뒤 최신 설정을 다시 불러와주세요.' };
+  if (['22023', '42501', 'P0002', '23505'].includes(error?.code ?? '')) return { error: '저장하지 못했습니다. 이 설정을 바꿀 권한이 있는지 확인해주세요. 입력한 값이 저장 조건에 맞지 않거나, 연결한 상품이 그사이 삭제·보관됐을 수 있습니다. 입력을 확인한 뒤 다시 저장해주세요.' };
+  return { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true };
 }
 export async function saveStorePresentationAction(section: StorePresentationSection, input: unknown, expectedRevision: number, operationId: string): Promise<StorePresentationSaveResult> {
   try {
     if (!await requireAdminActionAccess(STORE_PRESENTATION_PATH, { capability: 'store.manage' })) return { error: '스토어 관리 권한이 필요합니다.' };
     const values = parseStorePresentationSection(section, input);
-    if (!values || !isUuid(operationId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return { error: '설정값과 저장 기준을 확인해주세요.' };
+    if (!values || !isUuid(operationId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return { error: '저장할 수 없는 값이 있습니다. 입력을 확인한 뒤 다시 저장하고, 계속되면 새로고침한 뒤 다시 저장해주세요.' };
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_store_presentation', { p_section: section, p_values: values, p_expected_revision: expectedRevision, p_operation_id: operationId });
     if (error) return failure(error);

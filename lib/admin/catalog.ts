@@ -78,7 +78,8 @@ export interface AdminGoodFormValue extends AdminGoodsSalePolicyInput, GoodsLink
   descriptionImagePaths?: string[];
   /** 순서가 곧 노출 순서다. 빈 슬롯은 빠진 채로 온다. */
   galleryPaths: string[];
-  detailImagePath: string | null;
+  /** 긴 상세 이미지. 순서가 곧 상세 설명 아래 노출 순서이고, 빈 칸은 빠진 채로 온다. */
+  detailImagePaths: string[];
 }
 
 export interface AdminStockAdjustmentFormValue {
@@ -196,6 +197,14 @@ const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
  * (#172 · 계획 D6, 2026-10-07 MD 요청으로 4장에서 확대). DB check 제약 goods_gallery_paths_limit과
  * admin_upsert_good 검사(20261007160000)와 같은 값이다. */
 export const GOODS_GALLERY_MAX = 9;
+/*
+ * 긴 상세 이미지(상세 설명 아래에 원래 비율로 이어 붙는 이미지)는 최대 10장이다(2026-11-19 MD 요청: 세로 9,000px가 넘는
+ * 통이미지를 잘라 여러 장으로 올린다). DB goods_detail_image_paths_limit·admin_save_good(20261119170100)과 같은 값이다.
+ * 첫 칸은 옛 한 장 칸 이름(detailImagePath)을 그대로 써서, 저장된 브라우저 자동복구·서버 임시저장이 첫 장으로 이어진다.
+ */
+export const GOODS_DETAIL_IMAGE_MAX = 10;
+export const GOODS_DETAIL_IMAGE_FIELD_NAMES: readonly string[] = Array.from({ length: GOODS_DETAIL_IMAGE_MAX },
+  (_, index) => (index === 0 ? 'detailImagePath' : `detailImagePath${index}`));
 export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
 export const GOODS_SEARCH_KEYWORDS_MAX_COUNT = 50;
 export const GOODS_SEARCH_KEYWORD_MAX_LENGTH = 80;
@@ -203,7 +212,7 @@ const RARITY_VALUES = new Set<RarityKey>(['N', 'R', 'SR', 'SSR', 'HOLO']);
 const EVENT_MODES = new Set(['온라인', '오프라인']);
 const EVENT_STATUSES = new Set(['예매중', '예정', '진행중', '종료']);
 const ADMIN_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
-const ADMIN_DATE_TIME_ERROR = '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.';
+const ADMIN_DATE_TIME_ERROR = '일시는 날짜와 시각(시·분)까지 모두 골라주세요.';
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -383,6 +392,21 @@ function readGoodsNotice(formData: FormData, errors: AdminFieldErrors, required 
  * 추가 이미지는 번호가 붙은 칸 GOODS_GALLERY_MAX개다 (#172). 운영자는 칸 순서로 노출 순서를 정하고,
  * 비운 칸은 배열에서 빠진다 — 배열 인덱스가 그대로 노출 순서가 된다.
  */
+/* 긴 상세 이미지 칸(GOODS_DETAIL_IMAGE_FIELD_NAMES)도 칸 순서가 노출 순서이고 비운 칸은 빠진다. */
+function readGoodsDetailImagePaths(formData: FormData, errors: AdminFieldErrors): string[] {
+  const paths: string[] = [];
+  for (const key of GOODS_DETAIL_IMAGE_FIELD_NAMES) {
+    const path = readString(formData, key);
+    if (!path) continue;
+    if (paths.includes(path)) {
+      errors[key] = '같은 이미지를 긴 상세 이미지에 두 번 넣을 수 없습니다.';
+      continue;
+    }
+    paths.push(path);
+  }
+  return paths;
+}
+
 function readGoodsGalleryPaths(formData: FormData, errors: AdminFieldErrors): string[] {
   const paths: string[] = [];
 
@@ -532,7 +556,7 @@ export function normalizeAdminGoodForm(
   if (previousId && !SLUG_PATTERN.test(previousId)) errors.id='수정 대상을 확인할 수 없습니다. 목록에서 다시 선택해주세요.';
   const code=nullableString(formData,'code')?.toUpperCase() ?? null;
   const defaultVariantCode=nullableString(formData,'defaultVariantCode')?.toUpperCase() ?? null;
-  if (code && code.length>100) errors.code='판매자상품코드는 100자 이내로 입력해주세요.';
+  if (code && code.length>100) errors.code='상품 자동코드는 100자 이내로 입력해주세요.';
   if (defaultVariantCode && defaultVariantCode.length>120) errors.defaultVariantCode='옵션코드는 120자 이내로 입력해주세요.';
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
@@ -578,6 +602,7 @@ export function normalizeAdminGoodForm(
   const salePolicy = readAdminGoodsSalePolicy(formData);
   Object.assign(errors, salePolicy.errors);
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
+  const detailImagePaths = readGoodsDetailImagePaths(formData, errors);
 
   if (!name) errors.name = adminGoodsCopy('굿즈 이름을 입력해주세요.');
   /* ADR-0044: 상품 유형은 없다. 공개하려면 대표 카테고리가 있어야 한다. */
@@ -622,7 +647,7 @@ export function normalizeAdminGoodForm(
       ...(formData.has('descriptionFormat') ? { descriptionFormat: descriptionFormat as GoodsDescriptionFormat, descriptionImagePaths: htmlContent?.imagePaths ?? [] } : {}),
       ...(formData.has('nameEn') ? { nameEn } : {}),
       galleryPaths,
-      detailImagePath: nullableString(formData, 'detailImagePath'),
+      detailImagePaths,
     },
   };
 }
@@ -639,7 +664,7 @@ export function normalizeAdminStockAdjustmentForm(
   const reason = readString(formData, 'reason');
 
   if (!isUuid(adjustmentId)) {
-    errors.adjustmentId = '유효한 재고 조정 요청이 아닙니다.';
+    errors.adjustmentId = '재고 조정 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.';
   }
   if (!isUuid(variantId)) errors.variantId = '재고를 조정할 옵션을 선택해주세요.';
 
@@ -656,7 +681,7 @@ export function normalizeAdminStockAdjustmentForm(
   if (!INTEGER_PATTERN.test(deltaRaw) || !Number.isInteger(delta) || delta === 0) {
     errors.delta = '조정 수량은 0이 아닌 정수여야 합니다.';
   } else if (delta < INT32_MIN || delta > INT32_MAX) {
-    errors.delta = '조정 수량은 32비트 정수 범위여야 합니다.';
+    errors.delta = '조정 수량이 너무 큽니다. -2,147,483,648~2,147,483,647 안의 정수로 입력해주세요.';
   }
 
   if (!reason) {
@@ -690,7 +715,7 @@ export function normalizeAdminCardForm(
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const rarity = readString(formData, 'rarity') as RarityKey;
-  const poolId = readNullableUuid(formData, 'poolId', errors, '유효한 카드풀을 선택해주세요.');
+  const poolId = readNullableUuid(formData, 'poolId', errors, '등록된 카드풀을 골라주세요.');
 
   if (!name) errors.name = '카드 이름을 입력해주세요.';
   if (!RARITY_VALUES.has(rarity)) errors.rarity = '등급을 선택해주세요.';
@@ -718,8 +743,8 @@ export function normalizeAdminCardPoolForm(
   context: AdminCatalogContext,
 ): AdminFormResult<AdminCardPoolFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const id = readUuid(formData, 'id', errors, '유효한 카드풀이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const id = readUuid(formData, 'id', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const activeFromRaw = readString(formData, 'activeFrom');
@@ -768,8 +793,8 @@ export function normalizeAdminPoolOddsForm(
   formData: FormData,
 ): AdminFormResult<AdminPoolOddsFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const poolId = readUuid(formData, 'poolId', errors, '유효한 카드풀이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const poolId = readUuid(formData, 'poolId', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const milliPercents = Object.fromEntries(
     ODDS_FIELDS.map(([rarity, key]) => [rarity, probabilityFromPercent(formData, key, errors)]),
   ) as Record<RarityKey, number>;
@@ -798,9 +823,9 @@ export function normalizeAdminRewardPolicyForm(
   context: AdminCatalogContext,
 ): AdminFormResult<AdminRewardPolicyFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const id = readUuid(formData, 'id', errors, '유효한 발급 정책이 아닙니다.');
-  const poolId = readUuid(formData, 'poolId', errors, '유효한 카드풀이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const id = readUuid(formData, 'id', errors, '발급 정책을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
+  const poolId = readUuid(formData, 'poolId', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const trigger = readString(formData, 'trigger');
   const targetIpId = readString(formData, 'targetIpId');
   const targetGoodId = nullableString(formData, 'targetGoodId');
@@ -870,11 +895,11 @@ export function normalizeAdminGameForm(
   context: AdminGameContext,
 ): AdminFormResult<AdminGameFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
   const previousGameId = nullableString(formData, 'previousGameId');
   const id = readSlug(formData, 'id', errors, '게임 ID를 입력해주세요.');
   const title = readString(formData, 'title');
-  const rewardPoolId = readUuid(formData, 'rewardPoolId', errors, '유효한 카드풀을 선택해주세요.');
+  const rewardPoolId = readUuid(formData, 'rewardPoolId', errors, '등록된 카드풀을 골라주세요.');
   const eventId = nullableString(formData, 'eventId');
   const perUserDailyLimitRaw = readString(formData, 'perUserDailyLimit');
   const activeFromRaw = readString(formData, 'activeFrom');
@@ -946,7 +971,7 @@ export function normalizeAdminGameEndForm(
   formData: FormData,
 ): AdminFormResult<AdminGameEndFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 종료 요청이 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '종료 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.');
   const gameId = readSlug(formData, 'gameId', errors, '게임을 선택해주세요.');
 
   if (Object.keys(errors).length) return { ok: false, errors };
@@ -998,8 +1023,8 @@ export function normalizeAdminTicketTypeForm(
   context: AdminCatalogContext,
 ): AdminFormResult<AdminTicketTypeFormValue> {
   const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
-  const id = readUuid(formData, 'id', errors, '유효한 티켓 회차가 아닙니다.');
+  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
+  const id = readUuid(formData, 'id', errors, '티켓 회차를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
   const eventId = readString(formData, 'eventId');
   const name = readString(formData, 'name');
   const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');

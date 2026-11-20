@@ -145,7 +145,7 @@ describe('admin member actions', () => {
   it('DB 오류 원문을 숨기고 stale/권한 오류를 안전한 문구로 매핑한다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'cannot_suspend_admin: private detail' } });
     await expect(suspendAdminMemberAction({}, form())).resolves.toEqual({
-      errors: { form: '본인 또는 admin 계정은 정지할 수 없습니다.' },
+      errors: { form: '본인 계정과 관리자 계정은 정지할 수 없습니다.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });

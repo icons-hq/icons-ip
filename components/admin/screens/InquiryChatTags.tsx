@@ -20,7 +20,7 @@ export function InquiryChatTags({ accountId, inquiryId, tags }: { accountId: str
         if (result.error) { setError(result.error); return; }
         if (present) setDraft('');
         router.refresh();
-      } catch { setError('태그 저장 결과를 확인하지 못했습니다. 입력은 유지됩니다. 같은 내용으로 다시 시도해주세요.'); }
+      } catch { setError('태그가 저장됐는지 확인하지 못했습니다. 입력은 유지됩니다. 같은 태그로 다시 시도해도 두 번 추가되지 않습니다.'); }
     });
   }
   /* 입력은 네이티브 input(kit 모양)이다 — 비제어 재시도·값 보존을 그대로 지킨다. */

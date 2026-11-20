@@ -185,7 +185,7 @@ export function GoodsDiscountStopPriceDialog({ flow }: {
       </AdminNotice> : null}
       <fieldset className="m-0 grid min-w-0 gap-1.5 border-0 p-0" disabled={locked}><legend className="sr-only">판매가</legend>
         <p className="text-sm">현재 판매가 <strong className="font-semibold tabular-nums">{won(flow.seenBasePrice)}</strong>
-          <small className="ml-1.5 text-xs text-muted-foreground">{target.hasOptions ? '할인 전 기본 판매가 · 옵션 추가금 유지' : '할인 전 판매가'}</small></p>
+          <small className="ml-1.5 text-xs text-muted-foreground">{target.hasOptions ? '할인 전 기본 판매가 · 옵션가는 그대로' : '할인 전 판매가'}</small></p>
         <label className="text-sm font-medium" htmlFor={inputId}>새 판매가 (원)</label>
         <input id={inputId} ref={inputRef} name="price" inputMode="numeric" value={flow.input} onChange={event => flow.setInput(event.target.value)}
           className={`${GOOD_NUMBER_INPUT_CLASS} sm:max-w-48`} data-slot="input" data-dialog-autofocus="" onFocus={event => event.currentTarget.select()}

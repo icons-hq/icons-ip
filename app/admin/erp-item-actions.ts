@@ -93,7 +93,7 @@ export async function readErpItemFileAction(formData: FormData): Promise<ErpItem
   try {
     if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
     const file = formData.get('file');
-    if (!(file instanceof File) || file.size === 0) return { ok: false, error: '반입할 파일을 선택해주세요.' };
+    if (!(file instanceof File) || file.size === 0) return { ok: false, error: '올릴 파일을 선택해주세요.' };
     if (/\.xls$/i.test(file.name)) {
       return { ok: false, error: 'XLS 파일은 엑셀에서 XLSX로 다시 저장하거나, 표를 복사해 붙여넣어 주세요.' };
     }
@@ -149,7 +149,7 @@ export async function importErpItemsAction(rowsValue: unknown): Promise<ErpItemI
   try {
     if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
     if (!Array.isArray(rowsValue) || rowsValue.length === 0 || rowsValue.length > ERP_ITEM_IMPORT_CHUNK_SIZE) {
-      return { ok: false, error: '반입할 행을 확인한 뒤 다시 시도해주세요.' };
+      return { ok: false, error: '올릴 품목이 없거나 한 번에 보낸 줄이 너무 많습니다. 새로고침한 뒤 표를 다시 붙여넣어 올려주세요.' };
     }
     const rejected: ErpImportIssue[] = [];
     const payload: Record<string, string | number | null>[] = [];
@@ -165,17 +165,17 @@ export async function importErpItemsAction(rowsValue: unknown): Promise<ErpItemI
       const { code, descriptor } = rpcCode(error);
       if (isPermissionError(code, descriptor)) return { ok: false, error: STAFF_ONLY };
       if (descriptor.includes('invalid_erp_item_rows')) {
-        return { ok: false, error: `한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지 반입할 수 있습니다.` };
+        return { ok: false, error: `한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 올릴 수 있습니다. 파일을 나누어 올려주세요.` };
       }
-      return { ok: false, error: 'ERP 품목을 반입하지 못했습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.' };
+      return { ok: false, error: 'ERP 품목을 올리지 못했습니다. 같은 내용으로 다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다.' };
     }
     const parsed = parseImportResult(data);
     revalidatePath(ERP_ITEMS_PATH);
-    if (!parsed) return { ok: false, error: '반입 결과를 확인하지 못했습니다. 목록을 확인하고 같은 내용으로 다시 반입해주세요.' };
+    if (!parsed) return { ok: false, error: '올린 결과를 확인하지 못했습니다. 아래 올린 품목 목록에서 들어갔는지 먼저 확인하고, 빠진 품목이 있으면 같은 내용으로 다시 올려주세요.' };
     return { ok: true, ...parsed, rejected: [...rejected, ...parsed.rejected].sort((left, right) => left.row - right.row) };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: 'ERP 품목을 반입하지 못했습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.' };
+    return { ok: false, error: 'ERP 품목을 올리지 못했습니다. 같은 내용으로 다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다.' };
   }
 }
 
@@ -232,7 +232,7 @@ export async function setErpCategoryMappingAction(input: { erpCategory: unknown;
   try {
     if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
     const erpCategory = typeof input?.erpCategory === 'string' ? normalizeErpText(input.erpCategory, true) : '';
-    if (!erpCategory || erpCategory.length > ERP_ITEM_LIMITS.category) return { ok: false, error: 'ERP 분류 이름을 확인해주세요.' };
+    if (!erpCategory || erpCategory.length > ERP_ITEM_LIMITS.category) return { ok: false, error: 'ERP 분류 이름이 비어 있거나 너무 깁니다. 새로고침한 뒤 다시 연결해주세요.' };
     const rawCategoryId = typeof input?.categoryId === 'string' ? input.categoryId.trim() : input?.categoryId ?? null;
     if (rawCategoryId !== null && rawCategoryId !== '' && !isCategoryId(rawCategoryId)) {
       return { ok: false, error: '연결할 고객 카테고리를 다시 골라주세요.' };
@@ -359,7 +359,7 @@ export type ErpLinkedGoodsCommitResult =
   | { ok: true; receipt: ErpLinkedGoodsReceipt; message: string }
   | { ok: false; error: string };
 
-const COMMIT_FAILED = '반영 결과를 확인하지 못했습니다. 같은 미리보기에서 다시 반영하면 이미 반영한 행은 다시 바꾸지 않습니다.';
+const COMMIT_FAILED = '반영 결과를 확인하지 못했습니다. 같은 미리보기에서 다시 반영해도 이미 반영된 줄은 다시 바꾸지 않습니다.';
 const ROW_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(price|barcode)$/i;
 
 /**
@@ -372,7 +372,7 @@ export async function commitErpLinkedGoodsAction(input: { operationId: unknown; 
     const keys = Array.isArray(input?.keys) ? [...new Set(input.keys)] : [];
     if (!isUuid(input?.operationId) || !keys.length || keys.length > ERP_LINKED_GOODS_PREVIEW_LIMIT
       || keys.some((key) => typeof key !== 'string' || !ROW_KEY.test(key))) {
-      return { ok: false, error: '반영할 행을 다시 골라주세요.' };
+      return { ok: false, error: '반영할 줄을 다시 골라주세요.' };
     }
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_commit_erp_linked_goods', { p_operation_id: input.operationId, p_keys: keys as string[] });

@@ -30,7 +30,7 @@ export interface AdminReviewActionState {
   replyOutcome?: CsReplyOutcome;
 }
 
-const STATUS_FAILED = '리뷰 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
+const STATUS_FAILED = '리뷰 상태를 변경하지 못했습니다. 화면을 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.';
 
 
 function readString(formData: FormData, name: string) {
@@ -54,7 +54,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('review_not_found')) return '리뷰를 찾을 수 없습니다. 작성자가 삭제했을 수 있습니다.';
   if (value.includes('report_not_found')) return '연결된 신고를 찾을 수 없습니다.';
   if (value.includes('report_target_mismatch')) {
-    return '이 신고는 이 리뷰를 가리키지 않습니다. 모더레이션 큐에서 대상을 다시 확인해주세요.';
+    return '이 신고는 이 리뷰를 가리키지 않습니다. 커뮤니티 관리 화면에서 신고 대상을 다시 확인해주세요.';
   }
   if (value.includes('review_hide_reason_required')) return '블라인드 사유를 입력해주세요.';
   if (value.includes('invalid_review_reply')) return '답글은 2자 이상 1000자 이내로 입력해주세요.';

@@ -62,9 +62,9 @@ export function AdminNavigationIndicators() {
       {stage === 'slow' && href ? (
         /* 본문을 가리지 않게 오른쪽 아래 구석에 띄운다. */
         <div className="fixed right-4 bottom-4 left-4 flex justify-end sm:left-auto sm:max-w-sm" data-admin-nav-slow="">
-          <AdminNotice className="pointer-events-auto shadow-md" title="응답이 늦어지고 있습니다" tone="warning">
+          <AdminNotice className="pointer-events-auto shadow-md" title="화면을 불러오는 데 시간이 걸리고 있습니다" tone="warning">
             <div className="flex flex-wrap items-center gap-2">
-              <span>새로 고쳐 다시 불러올 수 있습니다.</span>
+              <span>다시 시도를 누르면 이 화면을 처음부터 다시 불러옵니다.</span>
               <Button onClick={() => window.location.assign(href)} size="sm" type="button" variant="outline">다시 시도</Button>
             </div>
           </AdminNotice>

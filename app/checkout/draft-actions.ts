@@ -37,6 +37,7 @@ const MAX_SELECTION_LINES = 19239;
 
 async function draftOwner(): Promise<{ userId: string } | { error: CheckoutDraftActionError }> {
   const auth = await getCurrentAuthState();
+  if (auth.authUnavailable) return { error: 'unavailable' };
   if (!auth.isConfigured || !auth.user) return { error: 'auth_required' };
   if (isAccountSuspended(auth.profile)) return { error: 'account_suspended' };
   if (!isOnboarded(auth.profile, auth.user.email)) return { error: 'onboarding_required' };

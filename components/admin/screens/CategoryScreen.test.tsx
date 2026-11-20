@@ -48,7 +48,7 @@ it('basic category managers keep CRUD and assignment without platform configurat
   expect(html).toContain('카테고리 추가'); expect(html).toContain('대표 분류 저장'); expect(html).toContain('분류 CSV');
   // kit 버튼은 type을 주지 않으면 button이 된다 — 서버 액션 폼의 제출 버튼은 submit이어야 한다.
   for (const label of ['카테고리 추가', '대표 분류 저장', '보관']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
-  for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '분류·ERP CSV']) expect(html).not.toContain(text);
+  for (const text of ['ERP 매핑 저장', '사용 설정 저장', '분류·ERP CSV']) expect(html).not.toContain(text);
 });
 
 it('기본 카테고리 적용 칸의 자주 쓰는 카테고리는 등록된 게 있을 때만 보인다', () => {
@@ -83,7 +83,7 @@ it('카테고리가 없을 때 이 화면의 기본 카테고리 적용 카드�
 
 it('한 화면의 저장은 고르는 항목 하나다 — 새 등록·ERP 매핑은 접혀 있고, 트리 한 줄에는 단계 분수 대신 상품 수만 있다', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
-  for (const title of ['새 카테고리 등록', 'ERP 분류 매핑', '활성화 상태']) expect(html).toMatch(new RegExp(`<details[^>]*data-fold-card=""(?![^>]*open)[^>]*><summary[^>]*>(?:(?!</summary>)[\\s\\S])*${title}`));
+  for (const title of ['새 카테고리 등록', 'ERP 분류 매핑', '고객 화면·ERP 사용 설정']) expect(html).toMatch(new RegExp(`<details[^>]*data-fold-card=""(?![^>]*open)[^>]*><summary[^>]*>(?:(?!</summary>)[\\s\\S])*${title}`));
   expect(html).toContain('>상품 2개</a>');
   expect(html).not.toMatch(/\d\/4/);
   // 영어 내부어 대신 운영팀 말로 쓴다.
@@ -94,7 +94,7 @@ it('한 화면의 저장은 고르는 항목 하나다 — 새 등록·ERP 매�
 
 it('고객 화면 미적용이면 접힌 줄에 켜는 곳을 버튼 모양으로 알리고, 적용 중이면 알리지 않는다', () => {
   const render = (customerEnabled: boolean) => renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], activation: { customerEnabled, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
-  expect(render(false)).toMatch(/<summary[^>]*>(?:(?!<\/summary>)[\s\S])*활성화 상태(?:(?!<\/summary>)[\s\S])*펼쳐서 켜기/);
+  expect(render(false)).toMatch(/<summary[^>]*>(?:(?!<\/summary>)[\s\S])*고객 화면·ERP 사용 설정(?:(?!<\/summary>)[\s\S])*펼쳐서 켜기/);
   expect(render(true)).not.toContain('펼쳐서 켜기');
 });
 
@@ -114,9 +114,9 @@ it('ERP 분류 매핑 입력 묶음은 펼치기 전에는 그리지 않고 안�
 it('ERP 분류 매핑은 검색되는 표 한 벌이고, 여기서 하는 일과 ERP 품목 화면에서 하는 일을 구분해 알려 준다', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
   expect(html).toContain('id="category-erp-mapping"');
-  expect(html).toContain('맨 아래 단계 1개 · 미설정 1개');
+  expect(html).toContain('맨 아래 단계 1개 · ERP 값 없음 1개');
   expect(html).not.toContain('ERP 매핑 저장');
-  expect(html).toContain('분류·ERP CSV와 ERP 활성화에 쓰이고, 상품은 바뀌지 않습니다.');
+  expect(html).toContain('분류·ERP CSV와 ERP 분류 사용 켜기에 쓰이고, 상품은 바뀌지 않습니다.');
   expect(html).toContain('href="/admin/catalog/erp-items#erp-category-mapping"');
   expect(html).toContain('ERP 품목 화면의 연결 표');
 });

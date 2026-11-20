@@ -197,7 +197,7 @@ export function warehouseStopErrorMessage(code: string | null | undefined): stri
   const value = code ?? '';
   const messages: [string, string][] = [
     // 회수 확인 코드는 취소 코드(warehouse_already_shipped)를 품고 있어 먼저 본다.
-    ['claim_collection_warehouse_already_shipped', '창고가 이 배송 건을 이미 출고했다고 회신했습니다. 창고 보관 확인이 아닙니다 — 고객이 받은 상품을 돌려보내 창고에 다시 들어오면 주문 상세의 창고 회신 기록에 반송 입고를 남긴 뒤 회수를 확인해주세요.'],
+    ['claim_collection_warehouse_already_shipped', '창고가 이 배송 건을 이미 출고했다고 회신해 [창고 보관 확인]으로 회수를 끝낼 수 없습니다. 고객이 받은 상품을 돌려보내 창고에 다시 들어오면, 주문 상세의 창고 회신 기록에 반송 입고를 남긴 뒤 회수를 확인해주세요.'],
     ['claim_collection_warehouse_reply_required', '출고지시가 나간 발송 전 배송 건입니다. 창고에 보관(출고 중단)을 확인하고 주문 상세의 창고 회신 기록에 남긴 뒤 회수를 확인해주세요. 이미 다른 취소에 쓴 회신은 다시 쓰지 않습니다.'],
     ['warehouse_stop_reply_required', '출고지시가 나간 배송 건입니다. 창고에 출고 중단을 요청하고, 창고의 회신(출고 중단 확인)을 주문 상세의 창고 회신 기록에 남긴 뒤 다시 실행해주세요.'],
     ['warehouse_already_shipped', '창고가 이미 출고했다고 회신한 배송 건입니다. 취소하지 말고 창고의 운송장 회신을 받아 발송 처리한 뒤 고객 반품으로 접수해주세요. 회신을 잘못 기록했다면 바른 회신을 새로 기록해주세요.'],
@@ -211,14 +211,14 @@ export function warehouseStopErrorMessage(code: string | null | undefined): stri
     ['warehouse_stop_reply_returned_without_shipped', '반송 입고는 창고가 이미 출고했다고 회신한 발송 대기 배송 건에만 기록합니다. 취소된 배송 건은 취소 뒤 출고 처리의 회수 입고로 닫습니다.'],
     ['warehouse_stop_reply_operation_conflict', '같은 요청이 다른 내용으로 이미 처리됐습니다. 새로고침한 뒤 기록을 확인해주세요.'],
     ['invalid_warehouse_stop_reply', '회신 결과·경로·회신 시각을 확인해주세요. 경로가 기타이면 메모를 적어주세요(메모는 500자까지).'],
-    ['canceled_dispatch_already_resolved', '이미 처리한 발견입니다. 새로고침해 결과를 확인해주세요.'],
+    ['canceled_dispatch_already_resolved', '이미 처리한 취소 뒤 출고 건입니다. 새로고침해 결과를 확인해주세요.'],
     ['canceled_dispatch_operation_conflict', '같은 요청이 다른 처리로 이미 기록됐습니다. 새로고침한 뒤 확인해주세요.'],
     ['canceled_dispatch_not_found', '취소 뒤 출고 기록을 찾을 수 없습니다. 새로고침해주세요.'],
     ['invalid_canceled_dispatch_resolution', `처리 결과를 고르고 근거 메모를 ${CANCELED_DISPATCH_NOTE_MIN}자 이상 적어주세요(최대 500자).`],
     ['goods_group_retry', '다른 작업이 같은 상품 재고를 바꾸는 중입니다. 잠시 뒤 다시 시도해주세요.'],
     ['shipment_not_found', '배송 건을 찾을 수 없습니다. 새로고침해주세요.'],
-    ['operator_capability_required', '이 작업을 할 권한이 없습니다.'],
-    ['staff required', '이 작업을 할 권한이 없습니다.'],
+    ['operator_capability_required', '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.'],
+    ['staff required', '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.'],
   ];
   const found = messages.find(([key]) => value.includes(key));
   return found ? found[1] : '처리하지 못했습니다. 새로고침해 최신 상태를 확인해주세요.';

@@ -7,7 +7,7 @@ export async function loadGoodsRelation(id: string): Promise<GoodsRelation | nul
   if (error) throw new Error('연관상품 편성을 불러오지 못했습니다. 다시 시도해주세요.');
   if (data === null) return null;
   const parsed = parseGoodsRelation(data);
-  if (!parsed) throw new Error('연관상품 응답을 확인하지 못했습니다.');
+  if (!parsed) throw new Error('연관상품 편성을 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
   return parsed;
 }
 export async function loadGoodsRelations(filters: GoodsRelationFilters): Promise<GoodsRelationList> {
@@ -16,7 +16,7 @@ export async function loadGoodsRelations(filters: GoodsRelationFilters): Promise
   });
   if (error || !isObject(data) || !Array.isArray(data.rows) || !Number.isSafeInteger(data.total) || Number(data.total) < 0) throw new Error('연관상품 목록을 불러오지 못했습니다.');
   const rows = data.rows.map(parseGoodsRelation);
-  if (rows.some(row => row === null)) throw new Error('연관상품 목록 응답을 확인하지 못했습니다.');
+  if (rows.some(row => row === null)) throw new Error('연관상품 목록을 불러왔지만 내용을 읽지 못했습니다. 새로고침해주세요.');
   const lastPage = Math.max(1, Math.ceil(Number(data.total) / filters.pageSize));
   if (filters.page > lastPage) return loadGoodsRelations({ ...filters, page: lastPage });
   return { rows: rows as GoodsRelation[], total: Number(data.total), filters };

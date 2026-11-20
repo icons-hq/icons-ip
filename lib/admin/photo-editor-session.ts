@@ -85,7 +85,7 @@ export async function createPhotoEditSession(sourcePath: string, signal: AbortSi
   if (typeof createImageBitmap !== 'function') throw new Error('이 브라우저에서는 사진 편집을 사용할 수 없습니다. 최신 브라우저에서 다시 열어주세요.');
   let bitmap: ImageBitmap;
   try { bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' }); }
-  catch { checkAbort(signal); throw new Error('이미지를 해석하지 못했습니다. 원래 사진은 유지됩니다.'); }
+  catch { checkAbort(signal); throw new Error('이미지를 읽지 못했습니다. 원래 사진은 유지됩니다.'); }
   if (signal.aborted) { bitmap.close(); throw abortError(); }
   const swaps = (metadata.orientation ?? 1) >= 5;
   const expected = swaps ? { width: metadata.height, height: metadata.width } : metadata;

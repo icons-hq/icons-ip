@@ -10,17 +10,17 @@ export interface CouponIssueBatch { id: string; couponCode: string; couponName: 
   status: 'prepared' | 'invalid' | 'completed' | 'failed'; targetCount: number; plannedCount: number; existingCount: number; invalidCount: number; issuedCount: number;
   createdAt: string; validUntil: string; finishedAt: string | null; error: string | null; rows: CouponIssueRow[]; canExecute: boolean }
 export const COUPON_ISSUE_ERRORS: Record<string, string> = {
-  coupon_issue_auth_changed: '현재 관리자 로그인으로 다시 열어주세요.', coupon_issue_operation_conflict: '같은 작업 ID의 내용이 달라졌습니다. 저장된 결과를 확인해주세요.',
+  coupon_issue_auth_changed: '로그인 계정이 바뀌었습니다. 지금 로그인한 관리자 계정으로 화면을 새로고침해주세요.', coupon_issue_operation_conflict: '앞서 보낸 발급 요청과 내용이 달라 처리하지 않았습니다. ‘현재 작업 결과 조회’로 저장된 결과를 확인해주세요.',
   coupon_issue_target_limit: '세그먼트가 1,000명을 넘습니다. 조건을 좁혀서 다시 확인해주세요.', coupon_issue_no_targets: '조건에 맞는 고객이 없습니다.',
   coupon_issue_invalid_targets: '발급 조건을 충족하지 않는 고객이 있습니다. 대상을 수정해주세요.', coupon_exhausted: '쿠폰 잔여 발급 한도가 부족합니다.',
   coupon_not_found: '쿠폰이 없거나 발급·사용이 중단됐습니다.', coupon_issue_not_started: '쿠폰 발급 시작 전입니다.', coupon_not_started: '쿠폰 시작 전입니다.',
   coupon_issue_ended: '쿠폰 발급기간이 끝났습니다.', coupon_expired: '쿠폰 사용기간이 끝났습니다.', coupon_customer_unavailable: '현재 발급할 수 없는 고객 계정입니다.',
   coupon_first_purchase_only: '첫구매 대상이 아닙니다.', coupon_repeat_purchase_only: '구매 이력이 필요한 쿠폰입니다.',
-  customer_segment_changed: '세그먼트가 수정·삭제됐거나 수집 설정이 꺼졌습니다.', coupon_issue_segment_changed: '확인한 고객의 세그먼트 조건이 바뀌었습니다.',
-  coupon_issue_preview_stale: '확인 후 15분이 지났습니다. 대상을 다시 확인해주세요.', coupon_issue_policy_changed: '쿠폰 정책이 바뀌었습니다. 다시 확인해주세요.',
-  coupon_issue_failed: '발급을 완료하지 못했습니다. 이 작업에서 새로 발급한 쿠폰은 없습니다.', coupon_issue_batch_not_found: '현재 계정·세션에서 실행할 수 없는 작업입니다.',
+  customer_segment_changed: '세그먼트가 수정·삭제됐거나 회원 방문·영상 분석 수집이 꺼졌습니다. 세그먼트를 다시 골라 확인해주세요.', coupon_issue_segment_changed: '대상을 확인한 뒤 이 고객의 세그먼트 조건이 바뀌었습니다.',
+  coupon_issue_preview_stale: '대상을 확인한 지 15분이 지났습니다. ‘대상 다시 확인’으로 새로 확인해주세요.', coupon_issue_policy_changed: '대상을 확인한 뒤 쿠폰 내용이 바뀌었습니다. ‘대상 다시 확인’으로 새로 확인해주세요.',
+  coupon_issue_failed: '발급을 완료하지 못했습니다. 이 작업에서 새로 발급한 쿠폰은 없습니다.', coupon_issue_batch_not_found: "지금 로그인에서 실행할 수 없는 작업입니다(다른 운영자나 다른 로그인에서 만든 작업). '대상 다시 확인'으로 새로 확인해주세요.",
 };
-export function couponIssueError(code: string | null | undefined) { return code ? COUPON_ISSUE_ERRORS[code] ?? '발급 조건과 현재 권한을 확인해주세요.' : ''; }
+export function couponIssueError(code: string | null | undefined) { return code ? COUPON_ISSUE_ERRORS[code] ?? '발급하지 못했습니다. 쿠폰의 발급 기간·남은 발급 한도와 쿠폰 발급 권한이 있는지 확인한 뒤 다시 시도해주세요.' : ''; }
 export function parseCouponIssueTargets(value: unknown): CouponIssueTargets | null {
   if (!transactionRecord(value)) return null;
   if (value.kind === 'customers' && Object.keys(value).length === 2 && Array.isArray(value.userIds) && value.userIds.length >= 1 && value.userIds.length <= 1000

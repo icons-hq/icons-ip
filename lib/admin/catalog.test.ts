@@ -202,7 +202,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminGameForm(formData, gameContext)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
         previousGameId: '이전 게임 ID를 확인해주세요.',
         id: 'ID는 소문자 영어, 숫자, 하이픈만 사용할 수 있습니다.',
         title: '게임 제목을 입력해주세요.',
@@ -427,7 +427,7 @@ describe('admin catalog form normalization', () => {
         },
         description: null,
         galleryPaths: [],
-        detailImagePath: null,
+        detailImagePaths: [],
       },
     });
 
@@ -535,8 +535,37 @@ describe('admin catalog form normalization', () => {
           'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp',
           'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
         ],
-        detailImagePath: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+        detailImagePaths: ['public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp'],
       },
+    });
+  });
+
+  /* 2026-11-19 — 긴 상세 이미지는 detailImagePath(첫 칸)·detailImagePath1~9를 칸 순서대로 읽고 빈 칸은 뺀다. 같은 이미지를 두 번 넣으면 칸 오류다. */
+  it('reads ordered long detail images, skipping blanks and rejecting a duplicate', () => {
+    const formData = setGoodsNotice(new FormData());
+    formData.set('id', 'g200');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '랜덤 티켓 세트');
+    formData.set('type', '문구');
+    formData.set('price', '12000');
+    formData.set('stock', 'ok');
+    formData.set('detailImagePath', '');
+    formData.set('detailImagePath1', 'public-media/catalog/good/55555555-5555-4555-8555-555555555555.png');
+    formData.set('detailImagePath4', 'public-media/catalog/good/66666666-6666-4666-8666-666666666666.png');
+    formData.set('detailImagePath10', 'public-media/catalog/good/77777777-7777-4777-8777-777777777777.png');
+
+    expect(normalizeAdminGoodForm(formData, context)).toMatchObject({
+      ok: true,
+      value: { detailImagePaths: [
+        'public-media/catalog/good/55555555-5555-4555-8555-555555555555.png',
+        'public-media/catalog/good/66666666-6666-4666-8666-666666666666.png',
+      ] },
+    });
+
+    formData.set('detailImagePath5', 'public-media/catalog/good/55555555-5555-4555-8555-555555555555.png');
+    expect(normalizeAdminGoodForm(formData, context)).toMatchObject({
+      ok: false,
+      errors: { detailImagePath5: '같은 이미지를 긴 상세 이미지에 두 번 넣을 수 없습니다.' },
     });
   });
 
@@ -603,7 +632,7 @@ describe('admin catalog form normalization', () => {
   it.each([
     { delta: '0', reason: '재고 조사', errors: { delta: '조정 수량은 0이 아닌 정수여야 합니다.' } },
     { delta: '1.5', reason: '재고 조사', errors: { delta: '조정 수량은 0이 아닌 정수여야 합니다.' } },
-    { delta: '2147483648', reason: '재고 조사', errors: { delta: '조정 수량은 32비트 정수 범위여야 합니다.' } },
+    { delta: '2147483648', reason: '재고 조사', errors: { delta: '조정 수량이 너무 큽니다. -2,147,483,648~2,147,483,647 안의 정수로 입력해주세요.' } },
     { delta: '1', reason: '   ', errors: { reason: '조정 사유를 입력해주세요.' } },
     { delta: '1', reason: '가'.repeat(201), errors: { reason: '조정 사유는 200자 이하로 입력해주세요.' } },
   ])('rejects an invalid stock adjustment: $errors', ({ delta, reason, errors }) => {
@@ -630,7 +659,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminStockAdjustmentForm(formData)).toEqual({
       ok: false,
       errors: {
-        adjustmentId: '유효한 재고 조정 요청이 아닙니다.',
+        adjustmentId: '재고 조정 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.',
         expectedStockQty: '현재 실재고를 확인해주세요.',
       },
     });
@@ -684,7 +713,7 @@ describe('admin catalog form normalization', () => {
 
     expect(normalizeAdminCardForm(invalid, context)).toEqual({
       ok: false,
-      errors: { poolId: '유효한 카드풀을 선택해주세요.' },
+      errors: { poolId: '등록된 카드풀을 골라주세요.' },
     });
   });
 
@@ -722,8 +751,8 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminCardPoolForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        id: '유효한 카드풀이 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
+        id: '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
         ipId: '등록된 IP를 선택해주세요.',
         name: '카드풀 이름을 입력해주세요.',
         activeTo: '운영 종료는 시작보다 뒤여야 합니다.',
@@ -827,8 +856,8 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminEventForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        startsAt: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.',
-        endsAt: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.',
+        startsAt: '일시는 날짜와 시각(시·분)까지 모두 골라주세요.',
+        endsAt: '일시는 날짜와 시각(시·분)까지 모두 골라주세요.',
       },
     });
   });
@@ -870,8 +899,8 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminTicketTypeForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        id: '유효한 티켓 회차가 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
+        id: '티켓 회차를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
         eventId: '등록된 이벤트를 선택해주세요.',
         name: '회차명을 입력해주세요.',
         price: '가격은 0 이상의 정수여야 합니다.',
@@ -981,9 +1010,9 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminRewardPolicyForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        id: '유효한 발급 정책이 아닙니다.',
-        poolId: '유효한 카드풀이 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
+        id: '발급 정책을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
+        poolId: '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
         trigger: '지원하지 않는 발급 조건입니다.',
         targetGoodId: '선택한 IP의 굿즈만 지정할 수 있습니다.',
         minAmount: '최소 결제 금액은 0 이상의 정수여야 합니다.',

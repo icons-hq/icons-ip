@@ -1,7 +1,11 @@
 /** ADR-0014: operator labels only. Domain code, public copy and card/ticket screens keep their vocabulary. */
 export const ADMIN_VOCABULARY = Object.freeze({
   goods: '상품',
-  goodsCode: '판매자상품코드',
+  /**
+   * 시스템이 저장할 때 만드는 상품 코드(goods.code, ADR-0048). 스마트스토어의 '판매자상품코드'는 바코드·ERP 코드를 넣을 칸으로
+   * 읽혀(2026-11-19 사고) 이름에 '자동'을 넣었다. 사람이 넣는 ERP 코드·바코드와 같은 '○○ 코드' 꼴이고 앞말이 출처다.
+   */
+  goodsCode: '상품 자동코드',
   /** 시스템이 매기는 바뀌지 않는 숫자(goods.product_no, ADR-0038). */
   goodsNumber: '상품번호',
   /** 고객 화면 주소 끝의 영문 값(goods.id). 상품번호와 다르다. */
@@ -19,7 +23,8 @@ export const ADMIN_VOCABULARY = Object.freeze({
   discountedPrice: '할인가',
   optionPrice: '옵션가',
   stockQuantity: '재고수량',
-  optionCode: '관리코드',
+  /** 옵션마다 시스템이 만드는 코드(goods_variants.code, ADR-0048). 출고지시 엑셀의 '옵션코드' 열이 이 값이다. */
+  optionCode: '옵션 자동코드',
   noticeInfo: '상품정보제공고시',
   saleStatus: '판매상태',
   displayStatus: '전시상태',

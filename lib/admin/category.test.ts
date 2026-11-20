@@ -51,7 +51,7 @@ describe('category domain contract', () => {
       errors: { invalid_code: expect.any(String), invalid_name: expect.any(String), invalid_sort_order: expect.any(String) },
     });
     expect(categoryActivationLabel({ customerEnabled: true, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null }))
-      .toContain('ERP 미설정');
+      .toContain('ERP 분류 꺼짐');
   });
 });
 

@@ -34,7 +34,7 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
   const [selected, setSelected] = useState<CouponTargetGood[]>(() => {
     try {
       const ids: unknown = JSON.parse(targetIds);
-      return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string').map(id => targetGoods.find(good => good.id === id) ?? { id, code: '정보 미확인', name: '상품 정보를 확인해주세요.' }) : [];
+      return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string').map(id => targetGoods.find(good => good.id === id) ?? { id, code: '정보 미확인', name: '상품 정보를 불러오지 못했습니다.' }) : [];
     } catch { return []; }
   });
   const [query, setQuery] = useState(''); const [result, setResult] = useState<CouponTargetSearch | null>(null);
@@ -56,13 +56,13 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
     </AdminFormGrid>
     <input type="hidden" name="targetGoodIds" value={JSON.stringify(scope === 'selected_goods' ? selected.map(item => item.id) : [])} />
     {segment === 'targeted' ? <AdminNotice tone="info">저장 후 고객이나 세그먼트를 선택하고 발급 대상을 확인합니다. 직접 발급된 고객만 사용할 수 있으며, 코드 입력으로 새로 받을 수 없습니다.</AdminNotice> : null}
-    <p className="text-xs leading-relaxed text-muted-foreground">{adminGoodsCopy("첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 스토어 정책과 각 쿠폰의 중복 사용 조건을 따릅니다.")}</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">{adminGoodsCopy("첫구매·재구매는 굿즈 결제 이력으로 판단하며, 전액 취소가 끝난 주문은 빼고 셉니다. 누가 받을 수 있는지(타겟팅 대상)와 어떤 상품에 할인되는지(할인 대상 상품)는 따로 정합니다. 등급 혜택 쿠폰도 쿠폰 중복 사용 정책과 각 쿠폰의 중복 사용 조건을 따릅니다.")}</p>
     {scope === 'selected_goods' ? <>
-      <AdminField inputId="coupon-goods-query" label="대상 상품명·판매자상품코드 검색" error={errors?.targetGoodIds}>
+      <AdminField inputId="coupon-goods-query" label="대상 상품명·상품 자동코드 검색" error={errors?.targetGoodIds}>
         <Input id="coupon-goods-query" type="search" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} />
       </AdminField>
       <Button className="self-start" type="button" variant="outline" disabled={pending} onClick={() => search()}>상품 찾기</Button>
-      <p className="text-xs leading-relaxed text-muted-foreground">선택 {selected.length}개 · 이 상품들의 기간 할인 후 소계에만 최소금액과 할인을 적용합니다.</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">선택 {selected.length}개 · 최소 주문 금액과 할인은 이 상품들의 기간 할인 후 금액 합계에만 적용합니다.</p>
       {selected.length ? <ul className="grid gap-2">{selected.map(good => <li className={ROW} key={good.id}><span className="min-w-0 [overflow-wrap:anywhere]">{good.code} · {good.name}{good.archivedAt ? ' (보관 상품)' : ''}</span> <Button className="shrink-0" type="button" size="xs" variant="outline" onClick={() => setSelected(items => items.filter(item => item.id !== good.id))}>제외</Button></li>)}</ul> : null}
       {result?.ok ? <>
         <p className="text-xs text-muted-foreground" role="status">검색 결과 전체 {result.total}개 · {result.page}페이지{selected.length >= GOODS_LIMIT ? ` · 상품은 ${GOODS_LIMIT.toLocaleString('ko-KR')}개까지 고를 수 있습니다.` : ''}</p>

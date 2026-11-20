@@ -16,7 +16,7 @@ import {
 import { parseShippingSettingsPreview, parseShippingSettingsTemplate, searchShippingSettingsGoods } from '@/lib/admin/shipping-settings-templates.server';
 
 export type ShippingSettingsActionResult<T> = { data: T } | { error: string; uncertain?: boolean; conflict?: boolean; authChanged?: boolean };
-const invalid = () => ({ error: '입력값과 현재 작업의 저장 기준을 확인해주세요.' });
+const invalid = () => ({ error: '입력한 값이나 화면의 기준 버전이 맞지 않아 처리하지 않았습니다. 새로고침해 최신 내용을 확인한 뒤 다시 시도해주세요.' });
 const denied = () => ({ error: '로그인 상태나 상품관리 권한이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.', authChanged: true });
 const unknown = () => ({ error: '처리 결과가 불확실합니다. 같은 요청의 저장 결과를 확인해주세요.', uncertain: true });
 async function authorize(identity: ShippingSettingsIdentity) {
@@ -33,7 +33,7 @@ function failure(code: string | undefined, message: string): Exclude<ShippingSet
     ['shipping_charge_group_unavailable', '묶음그룹을 사용할 수 없습니다. 그룹의 사용 상태와 출고지를 확인해주세요.'],
     ['shipping_charge_group_changed', '묶음그룹이 변경되었습니다. 기존 요청의 결과를 확인한 뒤 미리보기를 다시 만들어주세요.'],
     ['shipping_settings_preview_upgrade_required', '수령 방식과 묶음배송 설정을 확인할 수 있도록 화면을 새로 열고 미리보기를 다시 만들어주세요.'],
-    ['origin_unavailable', '선택한 출고지가 없거나 비활성 상태입니다. 활성 출고지를 확인해주세요.'],
+    ['origin_unavailable', '선택한 출고지가 없거나 사용 중지 상태입니다. 배송정보 관리에서 사용 중인 출고지인지 확인해주세요.'],
     ['origin_changed', '출고지 정책이 변경되었습니다. 기존 요청을 확인한 뒤 미리보기를 다시 만들어주세요.'],
     ['template_changed', '템플릿이 변경되었습니다. 기존 요청을 확인한 뒤 최신 저장본과 비교해주세요.'],
     ['template_unavailable', '사용 가능한 템플릿이 아닙니다. 사용 상태를 확인해주세요.'],
@@ -48,7 +48,7 @@ function failure(code: string | undefined, message: string): Exclude<ShippingSet
     ['feature_disabled', '확장 배송비를 적용할 수 없습니다. 현재 상품 거래 설정을 확인해주세요.'],
     ['checkout_contract_upgrade_required', '현재 상품 거래 경로에서 확장 배송비를 사용할 수 없습니다. 운영 설정을 확인해주세요.'],
   ];
-  return { error: messages.find(([key]) => message.includes(key))?.[1] ?? '처리하지 못했습니다. 입력값과 최신 상태를 확인해주세요.',
+  return { error: messages.find(([key]) => message.includes(key))?.[1] ?? '처리하지 못했습니다. 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.',
     uncertain: false, conflict: code === 'PT409' || code === '23505' };
 }
 function refresh(receipt: ShippingSettingsOperationReceipt) {
@@ -79,7 +79,7 @@ export async function readShippingSettingsTemplateAction(templateId: string, ide
     if (data === null) return { data: null };
     const template = parseShippingSettingsTemplate({ id: data.id, name: data.name, revision: data.revision, enabled: data.enabled,
       settings: data.settings, createdAt: data.created_at, updatedAt: data.updated_at });
-    return template?.id === templateId ? { data: template } : { error: '최신 템플릿 응답을 확인하지 못했습니다. 현재 입력은 유지됩니다.' };
+    return template?.id === templateId ? { data: template } : { error: '최신 템플릿 내용을 확인하지 못했습니다. 현재 입력은 유지됩니다. 잠시 뒤 다시 불러와주세요.' };
   } catch (error) { unstable_rethrow(error); return { error: '최신 템플릿을 읽지 못했습니다. 현재 입력은 유지됩니다.' }; }
 }
 export async function findShippingSettingsGoodsAction(query: string, page: number, identity: ShippingSettingsIdentity): Promise<ShippingSettingsActionResult<ShippingSettingsCandidates>> {
@@ -100,7 +100,7 @@ export async function previewShippingSettingsTemplateAction(templateId: string, 
     const preview = parseShippingSettingsPreview(data);
     if (!preview || preview.actorId !== identity.expectedActorId || preview.sessionId !== identity.expectedSessionId || preview.template.id !== templateId
       || preview.goods.length !== goodIds.length || new Set(preview.goods.map(row => row.id)).size !== goodIds.length || preview.goods.some(row => !goodIds.includes(row.id))) {
-      return { error: '미리보기 응답을 확인하지 못했습니다. 다시 확인해주세요.' };
+      return { error: '미리보기 결과를 확인하지 못했습니다. 미리보기를 다시 만들어주세요.' };
     }
     return { data: preview };
   } catch (error) { unstable_rethrow(error); return { error: '미리보기를 불러오지 못했습니다. 다시 확인해주세요.' }; }

@@ -31,7 +31,7 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'mapped', label: '고객 카테고리', width: '180px' },
   { key: 'salePrice', label: '판매가', align: 'end', width: '110px' },
   { key: 'barcode', label: '바코드', width: '150px' },
-  { key: 'importedAt', label: '최근 반입', width: '110px' },
+  { key: 'importedAt', label: '최근 올린 날', width: '110px' },
 ];
 
 /**
@@ -67,7 +67,7 @@ export function ErpItemsScreen({ data, canManagePlatform = false }: { data: ErpI
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="erp-items"><ErpItemsWorkspace>
     <AdminPageHeader
       title="ERP 품목"
-      description="반입해 둔 품목은 상품 옵션에 ERP 품명을 입력할 때 코드·바코드·카테고리·판매가로 제안됩니다. ERP와 자동으로 연동되지 않으니 신제품이 생기면 다시 반입해주세요."
+      description="여기에 올려 둔 품목은 상품 옵션의 ERP 품명 칸에 이름을 입력할 때 목록으로 뜨고, 고르면 ERP 코드·바코드가 채워지고 카테고리·판매가를 추천합니다. ERP 프로그램과 자동으로 이어져 있지 않으니 신제품이 생기면 ERP에서 받은 품목 표를 다시 올려주세요."
       actions={<ErpItemsImportButton defaultOpen={importOpen} />}
     />
 
@@ -77,14 +77,14 @@ export function ErpItemsScreen({ data, canManagePlatform = false }: { data: ErpI
     <AdminSectionCard
       title="연결 상품 반영"
       id={ERP_LINKED_GOODS_SECTION_ID}
-      summary="반입한 ERP 판매가·바코드를 같은 ERP 코드의 상품 옵션과 비교해, 확인한 행만 상품에 반영합니다."
+      summary="올린 ERP 판매가·바코드를 같은 ERP 코드를 넣은 상품 옵션과 비교합니다. 확인하고 고른 줄만 상품에 반영합니다."
     >
       <ErpLinkedGoodsPanel />
     </AdminSectionCard>
 
     {/* 반입 결과 목록을 먼저 보이고 분류 연결(설정)은 그 아래에 둔다. */}
     <AdminSectionCard
-      title="반입된 품목"
+      title="올린 품목"
       id="erp-item-list"
       summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순.${canDelete ? ' 지울 품목은 줄 왼쪽 칸을 체크하면 삭제 버튼이 나타납니다.' : ''}`}
     >
@@ -99,7 +99,7 @@ export function ErpItemsScreen({ data, canManagePlatform = false }: { data: ErpI
         canDelete={canDelete}
         columns={COLUMNS}
         rows={rows}
-        emptyLabel={filters.query ? '조건에 맞는 ERP 품목이 없습니다.' : '아직 반입한 ERP 품목이 없습니다. 위에서 품목 생성 데이터를 반입해주세요.'}
+        emptyLabel={filters.query ? '조건에 맞는 ERP 품목이 없습니다.' : '아직 올린 ERP 품목이 없습니다. 위의 품목 올리기에서 ERP의 품목 생성 데이터를 붙여넣거나 파일로 올려주세요.'}
       />
       <ConsolePagination page={filters.page} pageSize={ERP_ITEMS_PAGE_SIZE} total={page.total} hrefForPage={(next) => erpItemsHref(filters, next)} label="ERP 품목 페이지" />
     </AdminSectionCard>

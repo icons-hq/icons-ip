@@ -161,6 +161,12 @@ describe('/checkout page — 주문서 초안', () => {
     await expect(Page({ searchParams: Promise.resolve({ draft: draftId }) })).rejects.toThrow(
       `NEXT_REDIRECT:/login?next=${encodeURIComponent(`/checkout?draft=${draftId}`)}`);
   });
+
+  it('인증 서버가 응답하지 않으면 주문서를 유지하고 오류 화면에서 재시도할 수 있다', async () => {
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false, authUnavailable: true };
+    await expect(Page({ searchParams: Promise.resolve({ draft: draftId }) })).rejects.toThrow('Checkout authentication temporarily unavailable');
+    expect(mocks.loadDraft).not.toHaveBeenCalled();
+  });
 });
 
 /* 결제 전 확인 동의(PAY-015): 청약철회 제한 굿즈를 서버가 읽어 두 주문서에 넘긴다. */

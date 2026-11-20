@@ -157,7 +157,7 @@ it('고치던 입력·체크·저장 중·결과 불확실 상태를 이동 가�
   submit(render(p)); await settle();
   render(p);
   expect(last().dirty).toBe(true);
-  expect(last().message).toContain('같은 요청으로 다시 확인할 수 없습니다');
+  expect(last().message).toContain('이 화면에서 다시 확인할 수 없습니다');
   // 꺼진 스위치의 확인 체크만 해도 저장하지 않은 입력이다.
   hooks.state = []; hooks.refs = [];
   const off = props();

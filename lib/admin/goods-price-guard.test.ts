@@ -32,9 +32,9 @@ describe('판매가 오입력 확인 기준(CAT-007·CAT-008)', () => {
     expect(discount?.message).not.toContain('판매가: 3,000원');
     /* 새 상품(저장된 값 없음)의 0원은 저장에서도, 등록 화면의 저장 후 공개에서도 묻는다. */
     const fresh = goodEditorPriceConfirmation({ saved: null, next: { regularPrice: 0, salePrice: 0 }, publish: true });
-    expect(fresh).toMatchObject({ confirmLabel: '이대로 저장 후 공개' });
+    expect(fresh).toMatchObject({ confirmLabel: '이대로 실제 등록' });
     expect(fresh?.message).toContain('판매가: 0원 (0원)');
-    expect(fresh?.message).toContain('맞으면 저장 후 공개를 계속합니다.');
+    expect(fresh?.message).toContain('맞으면 실제 등록을 계속합니다.');
     expect(goodEditorPriceConfirmation({ saved: null, next: { regularPrice: 0, salePrice: 0 }, publish: false })).not.toBeNull();
     const kept = { saved: { regularPrice: 0, salePrice: 0 }, next: { regularPrice: 0, salePrice: 0 } };
     expect(goodEditorPriceConfirmation({ ...kept, publish: false })).toBeNull();

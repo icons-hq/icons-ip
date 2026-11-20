@@ -72,7 +72,7 @@ export function IpDraftDeleteControl({ canDelete, readiness }: { canDelete: bool
       <h2 className="text-base leading-snug font-medium" id={titleId}>미사용 초안 삭제</h2>
       <p className="text-sm text-muted-foreground">
         공개된 적이 없고 연결된 항목이 없는 테스트 초안만 완전히 지울 수 있습니다. 지우면 되돌릴 수 없고,
-        내부 ID <code className={CODE}>{readiness.id}</code>는 다시 쓰지 않습니다. 삭제 기록은 감사 로그에 남습니다.
+        내부 ID <code className={CODE}>{readiness.id}</code>는 다시 쓰지 않습니다. 삭제 기록은 감사 기록에 남습니다.
       </p>
       <DeletionEvidence readiness={readiness} />
       {blockers.length ? (
@@ -95,7 +95,7 @@ export function IpDraftDeleteControl({ canDelete, readiness }: { canDelete: bool
             <AlertDialogTitle>‘{readiness.title}’ IP를 삭제할까요?</AlertDialogTitle>
             <AlertDialogDescription>
               되돌릴 수 없습니다. 공개된 적이 없고 연결된 항목이 0건인 것을 확인했습니다.
-              내부 ID {readiness.id}는 다시 발급하지 않고, 삭제한 내용은 감사 로그에 남습니다.
+              내부 ID {readiness.id}는 다시 발급하지 않고, 삭제한 내용은 감사 기록에 남습니다.
               {readiness.aliases.length ? ` 공개된 적 없는 이전 공개 URL ${readiness.aliases.length}개(${readiness.aliases.join(', ')})도 함께 지웁니다.` : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>

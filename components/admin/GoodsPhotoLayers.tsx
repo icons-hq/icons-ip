@@ -111,7 +111,7 @@ export function GoodsPhotoLayers({ kind, size, recipe, selection, select, edit, 
       {'text' in selected && <label className={PHOTO_LABEL_CLASS}>텍스트 내용<textarea className={PHOTO_TEXTAREA_CLASS} data-slot="textarea" value={selected.text} maxLength={decorated ? undefined : PHOTO_TEXT_LIMIT} rows={3} onChange={event => {
         const value = event.target.value.replace(/\r\n?/g, '\n');
         if (value.length <= textLimit && value.split('\n').length <= lineLimit) patch({ text: value });
-        else reportError?.(`문구는 ${textLimit}자·${lineLimit}줄까지 입력할 수 있습니다. 마지막 유효 문구를 유지했습니다.`);
+        else reportError?.(`문구는 ${textLimit}자·${lineLimit}줄까지 입력할 수 있습니다. 마지막으로 맞게 입력한 문구를 유지했습니다.`);
       }} /></label>}
       {decorated && <>
         <p className="text-sm">현재 스타일: {PHOTO_TEXT_STYLES.find(item => item.value === selectedText.style)?.label}. 일반 텍스트·말풍선·서명은 8개 한도를 함께 사용합니다.</p>

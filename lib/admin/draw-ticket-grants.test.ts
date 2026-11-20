@@ -121,7 +121,7 @@ describe('mapAdminDrawTicketGrantError', () => {
     expect(mapAdminDrawTicketGrantError('recipient_suspended')).toContain('정지');
     expect(mapAdminDrawTicketGrantError('grant_conflict')).toContain('다시');
     expect(mapAdminDrawTicketGrantError('forbidden')).toContain('권한');
-    expect(mapAdminDrawTicketGrantError('card_rewards_disabled')).toBe('카드 리워드는 현재 비활성화되어 있습니다.');
+    expect(mapAdminDrawTicketGrantError('card_rewards_disabled')).toBe('카드 리워드가 중지되어 있어 지금은 카드팩을 발급할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.');
     expect(mapAdminDrawTicketGrantError('boom')).toBeTruthy();
   });
 

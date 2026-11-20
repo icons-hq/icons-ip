@@ -5,10 +5,10 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { isMarketingLinkSource, marketingSourceCapability, validMarketingTarget, parseMarketingLinkRows, MARKETING_LINKS_PATH, MARKETING_LINK_ORIGINS, type MarketingLinkSource, type IssueMarketingLinksResult } from '@/lib/admin/marketing-links';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-const uncertain = (): IssueMarketingLinksResult => ({ error: '링크 생성 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true });
+const uncertain = (): IssueMarketingLinksResult => ({ error: '링크가 만들어졌는지 확인하지 못했습니다. [같은 요청으로 다시 확인]을 눌러주세요. 다시 눌러도 링크가 두 번 만들어지지 않습니다.', uncertain: true });
 export async function issueMarketingLinksAction(source: MarketingLinkSource, targetIds: string[], operationId: string): Promise<IssueMarketingLinksResult> {
   try {
-    if (!isMarketingLinkSource(source)) return { error: '링크 대상을 확인해주세요.' };
+    if (!isMarketingLinkSource(source)) return { error: '링크를 만들 대상을 알 수 없습니다. 화면을 새로고침해주세요.' };
     // Home issue uses the store surface guard: a ledger reader alone cannot issue.
     const path = source === 'home' ? '/admin/display/curations' : MARKETING_LINK_ORIGINS[source];
     const auth = await requireAdminActionAccess(path, { capability: marketingSourceCapability(source) });

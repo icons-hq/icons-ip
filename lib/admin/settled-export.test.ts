@@ -141,7 +141,7 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
       detailDifference: 0, ledgerDifference: 0, shippingCollectTotal: 0, collectDifference: 0 });
     expect(model.orders[0].issues.join(' / ')).toContain('재고 부족 부분 취소 반영');
     expect(model.orders[0].issues).not.toContain('품목이 없는 배송 건: 배송비 배분 확인 필요');
-    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
+    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계가 취소한 상품 결제 몫·배송비 합계와 다름(정산 확인 필요)');
   });
 
   it('부분 반품(ADR-0047)의 반품배송비 차감은 환불하지 않은 수입이라 품목 금액에 넣지 않고 따로 적으며 대조는 0이다', () => {
@@ -151,7 +151,7 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
     cut(order, { partialRefundedAmount: 7600, returnFeeRetained: 3000 });
     const model = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
     expect(model.orders[0]).toMatchObject({ total: 19401, detailTotal: 19401, paymentAmount: 19401, detailDifference: 0, ledgerDifference: 0 });
-    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
+    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계가 취소한 상품 결제 몫·배송비 합계와 다름(정산 확인 필요)');
     expect(model.orders[0].issues.join(' / ')).toContain('부분 반품 반품배송비 3,000원 차감');
     const bad = settledExportV2Fixture(); cut(bad.orders[0], { returnFeeRetained: 3000 });
     expect(() => parseSettledExportSnapshot(bad)).toThrow();
@@ -213,7 +213,7 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
 
   it('버전 1 주문도 얼린 배분 원장이 있으면 그 값을 쓰고, 공통 배분으로 나눈 값과 한 칸도 다르지 않다', () => {
     const { baseline, copy } = frozen(legacyV1Snapshot());
-    expect(baseline.orders[0].issues).toEqual(expect.not.arrayContaining(['쿠폰 대상·금액의 주문 당시 기록 미기록 또는 불일치']));
+    expect(baseline.orders[0].issues).toEqual(expect.not.arrayContaining(['쿠폰 대상·금액의 주문 당시 기록이 없거나 맞지 않음']));
     const model = buildSettledExportModel(parseSettledExportSnapshot(copy));
     expect(model.lines).toEqual(baseline.lines);
     expect(model.orders).toEqual(baseline.orders);
@@ -233,7 +233,7 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
     expect(model.lines.map(entry => entry.itemId)).toEqual([order.items[0].id, order.items[1].id]);
     expect(model.lines.map(entry => entry.salesAmount)).toEqual(baseline.lines.slice(0, 2).map(entry => entry.salesAmount));
     expect(model.orders[0]).toMatchObject({ itemCount: 2, total: 32001 - line.salesAmount! - 2000, detailDifference: 0, ledgerDifference: 0 });
-    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
+    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계가 취소한 상품 결제 몫·배송비 합계와 다름(정산 확인 필요)');
   });
 
   it('수량이 맞지 않거나 이전 계산 버전이거나 환불 합계가 빠진 부분 취소 기록은 거절한다', () => {

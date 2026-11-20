@@ -54,6 +54,6 @@ describe('배송 상태 정정·택배사 도착 일시 (ADR-0045)', () => {
     expect(shipmentRevertError('shipment_revert_confirmation_held')).toContain('보류를 먼저 해제한 뒤 되돌리고');
     expect(shipmentRevertError('unknown_code')).toContain('되돌리지 못했습니다');
     expect(shipmentCompletionFailure('delivered_at_before_shipped')).toContain('발송 등록 시각보다 이릅니다');
-    expect(shipmentCompletionFailure('invalid_shipment_transition')).toBe('발주확인 또는 현재 배송 상태를 확인해주세요.');
+    expect(shipmentCompletionFailure('invalid_shipment_transition')).toBe('지금 상태에서는 처리할 수 없는 배송 건입니다. 신규주문이면 먼저 발주확인하고, 이미 발송·배송완료·취소된 건인지 목록을 새로고침해 확인해주세요.');
   });
 });

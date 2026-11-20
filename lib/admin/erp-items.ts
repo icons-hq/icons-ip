@@ -50,7 +50,7 @@ export type ErpItemRejectReason =
   | 'duplicate_code';
 
 export const ERP_ITEM_REJECT_REASON_LABELS: Record<ErpItemRejectReason, string> = {
-  invalid_row: '행 형식을 읽을 수 없습니다.',
+  invalid_row: '이 줄의 값을 읽지 못했습니다. 표를 다시 붙여넣어 올려주세요.',
   missing_code: 'ERP 코드(품번)가 비어 있습니다.',
   invalid_code: `ERP 코드는 ${ERP_ITEM_LIMITS.code}자 이하로, 줄바꿈·탭 없이 입력해주세요.`,
   missing_name: 'ERP 품명이 비어 있습니다.',
@@ -58,7 +58,7 @@ export const ERP_ITEM_REJECT_REASON_LABELS: Record<ErpItemRejectReason, string> 
   invalid_category: `ERP 분류는 ${ERP_ITEM_LIMITS.category}자 이하로 입력해주세요.`,
   invalid_sale_price: '판매가는 0 이상의 원 단위 숫자로 입력해주세요.',
   invalid_barcode: `바코드는 ${ERP_ITEM_LIMITS.barcode}자 이하로, 줄바꿈·탭 없이 입력해주세요.`,
-  duplicate_code: '같은 ERP 코드가 뒤에 다시 있어 마지막 행으로 반입했습니다.',
+  duplicate_code: '같은 ERP 코드가 아래에 다시 있어 마지막 줄의 값으로 올렸습니다.',
 };
 
 export function isErpItemRejectReason(value: unknown): value is ErpItemRejectReason {
@@ -66,7 +66,7 @@ export function isErpItemRejectReason(value: unknown): value is ErpItemRejectRea
 }
 
 export function erpItemRejectReasonLabel(reason: string): string {
-  return isErpItemRejectReason(reason) ? ERP_ITEM_REJECT_REASON_LABELS[reason] : '반입하지 못한 행입니다. 값을 확인해주세요.';
+  return isErpItemRejectReason(reason) ? ERP_ITEM_REJECT_REASON_LABELS[reason] : '올리지 못한 줄입니다. ERP 코드·품명·판매가·바코드 칸에 빠지거나 잘못 들어간 값이 없는지 확인한 뒤 다시 올려주세요.';
 }
 
 function textOrNull(value: unknown): string | null | undefined {
@@ -188,7 +188,7 @@ const ERP_CATEGORY_MAPPING_ERRORS: Record<string, string> = {
   category_archived: '보관된 카테고리에는 연결할 수 없습니다.',
   category_not_leaf: '하위 카테고리가 있는 분류에는 연결할 수 없습니다. 마지막 단계 카테고리를 골라주세요.',
   category_not_found: '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
-  invalid_erp_category: 'ERP 분류 이름을 확인해주세요.',
+  invalid_erp_category: 'ERP 분류 이름이 비어 있거나 너무 깁니다. 새로고침한 뒤 다시 연결해주세요.',
   invalid_category_id: '연결할 고객 카테고리를 다시 골라주세요.',
   duplicate_erp_category: '같은 ERP 분류가 두 번 들어 있습니다. 다시 시도해주세요.',
 };

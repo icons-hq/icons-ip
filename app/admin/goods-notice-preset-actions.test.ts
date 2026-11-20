@@ -85,7 +85,7 @@ describe('상품정보제공고시 프리셋 저장 액션', () => {
     expect(JSON.stringify(conflict)).not.toContain('do-not-reflect');
     mocks.rpc.mockRejectedValue(new Error('connection_private_detail'));
     const failed = await saveGoodsNoticePresetAction({}, input);
-    expect(failed.errors?.form).toContain('입력값은 유지');
+    expect(failed.errors?.form).toContain('입력한 내용은 그대로 있습니다');
     expect(failed.values?.noticeMaterial).toBe('아크릴');
     expect(failed.values?.noticeMadeOn).toBe('2026-09');
     expect(failed.message).toBeUndefined();

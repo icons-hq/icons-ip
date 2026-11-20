@@ -72,7 +72,7 @@ function toCouponRecord(row: CouponRow, usedCount = toCount(row.used_count)): Ad
   const schedule = parseCouponIssueSchedule({ ...row });
   if (!coupon || !targetGoods || !targetCategories || !targetIps || !schedule || !Number.isSafeInteger(row.terms_revision) || row.terms_revision < 1
     || !Number.isSafeInteger(row.issued_count) || row.issued_count < 0
-    || !(row.issue_limit === null || Number.isSafeInteger(row.issue_limit) && row.issue_limit > 0)) throw new Error('쿠폰 응답의 금액과 대상 조건을 확인할 수 없습니다.');
+    || !(row.issue_limit === null || Number.isSafeInteger(row.issue_limit) && row.issue_limit > 0)) throw new Error('저장된 쿠폰의 금액과 대상 조건을 읽지 못했습니다.');
   return {
     ...coupon,
     ...schedule,

@@ -71,7 +71,7 @@ export function adminDefectClaimWindow(
 
 /** 그리드 셀 문구. 기산점이 없으면 남은 기간을 지어내지 않는다. */
 export function adminDefectClaimLabel(window: AdminDefectClaimWindow) {
-  if (window.daysRemaining === null) return '공급일 미기록 · 원장 확인 필요';
+  if (window.daysRemaining === null) return '공급일 기록 없음 · 주문 기록 확인 필요';
   return window.open ? `가능 · ${window.daysRemaining}일 남음` : '기한 종료';
 }
 

@@ -23,7 +23,7 @@ export async function decodePhotoLogo(file: File, signal: AbortSignal): Promise<
   const assetId = crypto.randomUUID();
   let bitmap: ImageBitmap;
   try { bitmap = await createImageBitmap(new Blob([bytes], { type: metadata.mimeType }), { imageOrientation: 'from-image' }); }
-  catch { checkAbort(signal); throw new Error('로고 이미지를 해석하지 못했습니다. 기존 로고는 유지됩니다.'); }
+  catch { checkAbort(signal); throw new Error('로고 이미지를 읽지 못했습니다. 기존 로고는 유지됩니다.'); }
   try {
     checkAbort(signal);
     const swaps = (metadata.orientation ?? 1) >= 5;

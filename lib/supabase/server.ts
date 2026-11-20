@@ -11,6 +11,22 @@ export interface ServerClientOptions {
    * 없으면 요청에 실린 표시 쿠키(AUTH_SESSION_ONLY_COOKIE)를 따른다 — 로그인 액션처럼 같은 응답에서 표시를 막 바꾼 곳만 넘긴다.
    */
   sessionOnly?: boolean;
+  /** 첫 사용자 확인 GET에만 적용한다. 두 번째 확인과 토큰 갱신은 SDK의 시간을 그대로 쓴다. */
+  firstUserLookupTimeoutMs?: number;
+}
+
+function fetchWithFirstUserLookupDeadline(url: string, timeoutMs: number): typeof fetch {
+  const userUrl = `${url.replace(/\/$/, '')}/auth/v1/user`;
+  let used = false;
+  return (input, init) => {
+    const request = input instanceof Request ? input : undefined;
+    const method = init?.method ?? request?.method ?? 'GET';
+    if (used || method !== 'GET' || (request?.url ?? String(input)) !== userUrl) return fetch(input, init);
+    used = true;
+    const signal = init?.signal ?? request?.signal;
+    const deadline = AbortSignal.timeout(timeoutMs);
+    return fetch(input, { ...init, signal: signal ? AbortSignal.any([signal, deadline]) : deadline });
+  };
 }
 
 /** Supabase client for Server Components, Route Handlers and Server Actions. */
@@ -23,6 +39,9 @@ export async function createClient(options: ServerClientOptions = {}) {
     url,
     key,
     {
+      global: options.firstUserLookupTimeoutMs === undefined ? undefined : {
+        fetch: fetchWithFirstUserLookupDeadline(url, options.firstUserLookupTimeoutMs),
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();

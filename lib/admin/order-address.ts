@@ -48,17 +48,17 @@ export function orderAddressReceiptMatches(receipt: OrderAddressReceipt, request
     && (Object.keys(emptyAddress()) as (keyof CheckoutAddress)[]).every(key => (receipt.address[key] ?? '') === (request.address[key] ?? ''));
 }
 export function normalizeOrderAddressRequest(value: unknown): { request: OrderAddressRequest } | { error: string } {
-  if (!record(value) || !isUuid(value.id) || !isUuid(value.orderId) || !integer(value.revision)) return { error: '주문과 변경 요청을 확인해주세요.' };
+  if (!record(value) || !isUuid(value.id) || !isUuid(value.orderId) || !integer(value.revision)) return { error: '주문 정보를 확인하지 못했습니다. 주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   const address = normalizeCheckoutAddress(value.address);
-  if (!address || Object.values(address).some(text => control.test(text))) return { error: '수령자·연락처·우편번호·주소를 확인해주세요.' };
+  if (!address || Object.values(address).some(text => control.test(text))) return { error: '수령자·연락처·우편번호·주소 중 비었거나 형식이 맞지 않는 칸이 있습니다. 칸을 고친 뒤 다시 저장해주세요.' };
   if (typeof value.reason !== 'string' || !value.reason.trim() || value.reason.trim().length > 500 || control.test(value.reason)) return { error: '고객 요청의 확인 근거를 500자 이내로 입력해주세요.' };
   if (value.agreed !== true) return { error: '고객이 동의한 주문 전체 배송지인지 확인해주세요.' };
   return { request: { id: value.id.toLowerCase(), orderId: value.orderId.toLowerCase(), revision: value.revision,
     address: { ...address, address2: address.address2 ?? '', deliveryNote: address.deliveryNote ?? '' }, reason: value.reason.trim(), agreed: true } };
 }
 export function orderAddressError(code: string | undefined, message: string | undefined): string {
-  if (code === '42501') return '현재 매니저 권한을 확인해주세요.';
-  if (code === 'PT409') return '다른 담당자가 배송지를 변경했습니다. 입력을 보존한 채 최신 배송지를 다시 확인해주세요.';
+  if (code === '42501') return '배송지를 수정할 권한(판매 관리)이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.';
+  if (code === 'PT409') return '다른 담당자가 배송지를 먼저 바꿨습니다. 입력은 그대로 있습니다. [최신 배송지와 비교]를 눌러 확인해주세요.';
   if (code === '23505') return '이 요청번호에 다른 변경 내용이 저장되어 있습니다. 저장 결과를 확인해주세요.';
   const messages: Record<string, string> = {
     order_not_ready: '결제완료 또는 발주확인 단계의 주문만 수정할 수 있습니다.',
@@ -69,9 +69,9 @@ export function orderAddressError(code: string | undefined, message: string | un
     order_address_region_unavailable: '변경한 지역의 배송 가능 여부를 확인할 수 없습니다. 배송정보와 지역 정책을 확인해주세요.',
     order_address_shipping_fee_changed: '변경한 지역은 배송비가 달라집니다. 기존 결제금액을 유지한 배송지 수정은 할 수 없습니다.',
     order_address_unchanged: '변경된 배송 정보가 없습니다.',
-    invalid_order_address: '수령자·연락처·우편번호·주소를 확인해주세요.',
-    invalid_order_address_change: '고객 동의와 변경 근거를 확인해주세요.',
+    invalid_order_address: '수령자·연락처·우편번호·주소 중 비었거나 형식이 맞지 않는 칸이 있습니다. 칸을 고친 뒤 다시 저장해주세요.',
+    invalid_order_address_change: '고객 요청 확인 근거를 적고 고객 동의 확인란을 체크해주세요.',
     order_not_found: '주문을 찾을 수 없습니다.',
   };
-  return messages[message ?? ''] ?? '저장 결과를 확인하지 못했습니다. 같은 요청의 결과를 조회해주세요.';
+  return messages[message ?? ''] ?? '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.';
 }

@@ -52,9 +52,9 @@ export function PurchaseRestrictionReleaseGrid({ columns, rows, currentHref, ini
       try {
         const result = readOnly ? await readRestrictionReleaseAction(operation.id) : await releaseRestrictionsAction(request.value.id, request.value.ids, request.value.reason, confirmed);
         if ('error' in result) { setError(result.error); setUncertain(Boolean(result.uncertain)); }
-        else if (!result.receipt) { setUncertain(false); setError('이 요청으로 저장된 해제 결과가 없습니다. 같은 대상과 사유로 다시 실행할 수 있습니다.'); }
+        else if (!result.receipt) { setUncertain(false); setError('이 요청으로 해제된 기록이 없습니다. 같은 대상과 사유로 다시 해제해도 됩니다.'); }
         else { setReceipt(result.receipt); setUncertain(false); setOperation(null); setSelected([]); router.refresh(); }
-      } catch { setError('연결이 끊겨 결과를 확인하지 못했습니다. 같은 요청의 결과를 조회해주세요.'); setUncertain(true); }
+      } catch { setError('연결이 끊겨 해제됐는지 확인하지 못했습니다. ‘같은 요청 결과 조회’를 눌러 결과를 확인해주세요.'); setUncertain(true); }
       finally { dispatching.current = false; }
     });
   }

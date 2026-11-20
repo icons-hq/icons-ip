@@ -64,7 +64,7 @@ describe('admin category actions', () => {
 
   it('does not enable ERP without real evidence', async () => {
     const result = await setAdminCategoryActivationAction({}, form({ erpEnabled: 'on' }));
-    expect(result).toMatchObject({ errors: { form: 'ERP 실제 분류와 검증 근거를 입력해주세요.' } });
+    expect(result).toMatchObject({ errors: { form: 'ERP 분류를 켜려면 ERP 근거 출처·참조·검증 시각을 모두 입력해주세요.' } });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -73,7 +73,7 @@ describe('admin category actions', () => {
     mocks.getAuth.mockResolvedValue({ ...mocks.auth, role: 'admin' });
     const evidence = { customerEvidenceSource: '운영 분류표', customerEvidenceReference: 'LG-3', customerEvidenceVerifiedAt: '2026-10-26T00:00:00Z' };
     await expect(setAdminCategoryActivationAction({}, form({ customerEnabled: 'on', ...evidence }))).resolves.toEqual({
-      message: '카테고리 활성화 상태를 저장했습니다.', changed: true,
+      message: '카테고리 사용 설정을 저장했습니다.', changed: true,
     });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_set_category_activation', expect.objectContaining({ target_customer_enabled: true }));
     expect(mocks.updateTag).toHaveBeenCalledWith(STOREFRONT_MEGA_MENU_CACHE_TAG);
@@ -90,7 +90,7 @@ describe('admin category actions', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'category_activation_unready' } });
     const evidence = { customerEvidenceSource: '운영 분류표', customerEvidenceReference: 'LG-3', customerEvidenceVerifiedAt: '2026-10-26T00:00:00Z' };
     await expect(setAdminCategoryActivationAction({}, form({ customerEnabled: 'on', ...evidence }))).resolves.toMatchObject({
-      errors: { form: '실제 분류·ERP 값과 운영 확인 근거를 채운 뒤 활성화해주세요.' },
+      errors: { form: '켜려는 쪽의 실제 카테고리·ERP 값과 근거 칸(출처·참조·검증 시각)을 모두 채운 뒤 켜주세요.' },
     });
     await setAdminCategoryActivationAction({}, form({ customerEnabled: 'on' }));
     expect(mocks.updateTag).not.toHaveBeenCalled();

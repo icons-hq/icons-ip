@@ -5,18 +5,18 @@ import { EMPTY_GOOD_WORKSPACE_SECTIONS, goodWorkspaceKcVariants, goodWorkspaceKc
 import type { GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 
 /* 등록 화면 KC 카드는 폼 키 밖 provider의 섹션 입력을 그린다. 정적 렌더에서는 provider 상태를 직접 넣는다. */
-const workspace = vi.hoisted(() => ({ sections: null as unknown }));
+const workspace = vi.hoisted(() => ({ sections: null as unknown, sectionErrors: {} as Record<string, string> }));
 vi.mock('./GoodWorkspace', async () => {
   const actual = await vi.importActual<typeof import('./GoodWorkspace')>('./GoodWorkspace');
   return { ...actual, useGoodWorkspaceSections: () => ({
-    sections: workspace.sections, setSections: vi.fn(), optionRows: rows, publishOptionRows: vi.fn(), sectionErrors: {}, setSectionErrors: vi.fn(),
+    sections: workspace.sections, setSections: vi.fn(), optionRows: rows, publishOptionRows: vi.fn(), sectionErrors: workspace.sectionErrors, setSectionErrors: vi.fn(),
     operationId: () => 'op', readKcPanelStash: () => null, rememberKcPanel: vi.fn(), readPanelStash: () => undefined, rememberPanel: vi.fn(),
   }) };
 });
 vi.mock('@/app/admin/goods-kc-actions', () => ({ readGoodsKcAction: vi.fn(), saveGoodsKcAction: vi.fn(),
   readGoodsOtherCertificationsAction: vi.fn(), saveGoodsOtherCertificationsAction: vi.fn() }));
 const rows: GoodsOptionRow[] = [{ name: '기본', code: '', attributes: {}, extraPrice: 0, stockQty: 1 }];
-const { GOOD_WORKSPACE_KC_ATTESTATION, GoodWorkspaceKcCard } = await import('./GoodWorkspaceSections');
+const { GOOD_WORKSPACE_KC_ATTESTATION, GoodWorkspaceKcCard, GoodWorkspacePreorderCard, emptyGoodWorkspacePreorder, goodWorkspacePreorderSummary } = await import('./GoodWorkspaceSections');
 
 function render(sections: GoodWorkspaceSectionsDraft) {
   workspace.sections = sections;
@@ -77,5 +77,42 @@ describe('등록 화면 KC 카드 — 자가 신고·기타 인증·KC 틀', () 
     const preview = html.slice(html.indexOf('고객 상세 미리보기'));
     expect(preview).toContain('R-R-TEST-0001');
     expect(preview).not.toContain('INTERNAL-1');
+  });
+});
+
+/* 2026-11-19 사용자·MD 결정: 등록 화면의 예약 조건도 상품을 저장하면 바로 적용된다. 임시저장·승인 근거·권한 구분이 없고, 저장이 막히면 빈 칸 옆에 이유를 보인다. */
+describe('등록 화면 예약 조건 카드 — 저장하면 적용', () => {
+  const key = goodWorkspaceKcVariants(rows).length ? 'new:[]' : '';
+  const renderPreorder = (preorders: GoodWorkspaceSectionsDraft['preorders'], sectionErrors: Record<string, string> = {}) => {
+    workspace.sections = { ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders };
+    workspace.sectionErrors = sectionErrors;
+    try { return renderToStaticMarkup(<GoodWorkspacePreorderCard />); } finally { workspace.sectionErrors = {}; }
+  };
+  it('요약은 조건 수와 저장하면 적용된다는 것만 보인다', () => {
+    expect(goodWorkspacePreorderSummary([])).toBe('설정안함');
+    expect(goodWorkspacePreorderSummary([emptyGoodWorkspacePreorder(key), emptyGoodWorkspacePreorder(key)])).toBe('예약 조건 2개 · 저장하면 적용');
+  });
+  it('저장 방식 선택·임시저장·승인 근거 칸이 없다', () => {
+    const html = renderPreorder([emptyGoodWorkspacePreorder(key)]);
+    for (const gone of ['상품을 저장할 때', '임시저장', '승인', '적용 필수', '초안', 'type="radio"', '<textarea']) expect(html).not.toContain(gone);
+    expect(html).toContain('상품을 저장하면 바로 예약판매로 적용되고');
+    expect(html).not.toContain('data-preorder-field-problem');
+  });
+  it('저장이 막히면 빈 칸 옆에 이유를 보인다', () => {
+    /* 물량은 직접 비운 경우(재고수량을 따라가지 않음). */
+    const html = renderPreorder([{ ...emptyGoodWorkspacePreorder(key), capacityFromStock: false }], { workspacePreorders: '예약 조건 1: 예약 물량·접수 시작·접수 종료·발송 예정일 칸을 확인해주세요.' });
+    expect(html.match(/data-preorder-field-problem=""/g)).toHaveLength(4);
+    expect(html.match(/aria-invalid="true"/g)).toHaveLength(4);
+    expect(html).toContain('예약 물량을 입력해주세요.');
+  });
+  /* 11/19 예약 물량 = 재고수량 — 새 예약 조건의 물량은 옵션 행 재고수량(시험 행 1개)을 따라간다. */
+  it('새 예약 조건의 예약 물량은 옵션 재고수량을 따라가고, 다르게 고치면 경고만 보인다', () => {
+    const following = renderPreorder([emptyGoodWorkspacePreorder(key)]);
+    expect(following).toMatch(/<input[^>]*type="number"[^>]*value="1"/);
+    expect(following).toContain('재고수량 1개를 예약 물량으로 씁니다.');
+    const differs = renderPreorder([{ ...emptyGoodWorkspacePreorder(key), capacityFromStock: false, capacityQty: '30' }]);
+    expect(differs).toMatch(/<input[^>]*type="number"[^>]*value="30"/);
+    expect(differs).toContain('재고수량 1개와 다릅니다');
+    expect(differs).toContain('재고수량과 같게</button>');
   });
 });

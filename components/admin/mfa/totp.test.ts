@@ -41,7 +41,7 @@ describe('인증 앱 브라우저 흐름', () => {
     const { client } = fakeSupabase({ challengeAndVerify: vi.fn().mockResolvedValue({ data: null, error: { code: 'mfa_verification_failed', message: 'Invalid TOTP code entered' } }) });
     expect(await verifyTotp(client, 'v1', '123456')).toEqual({ ok: false, error: expect.stringContaining('인증 코드가 맞지 않습니다') });
     const enrollOff = fakeSupabase({ enroll: vi.fn().mockResolvedValue({ data: null, error: { code: 'mfa_totp_enroll_not_enabled' } }) });
-    expect(await startTotpEnrollment(enrollOff.client, [])).toEqual({ ok: false, error: expect.stringContaining('꺼져 있습니다') });
+    expect(await startTotpEnrollment(enrollOff.client, [])).toEqual({ ok: false, error: expect.stringContaining('인증 앱 사용이 꺼져 있어') });
   });
 
   it('붙여넣은 코드의 공백·하이픈을 지우고 6자리로 자른다', () => {

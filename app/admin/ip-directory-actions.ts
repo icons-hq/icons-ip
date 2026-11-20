@@ -31,9 +31,9 @@ export async function saveIpDirectoryAction(previous: IpDirectoryActionState, da
       expected_order: order, expected_featured: expectedFeatured === 'true',
     });
     if (error) {
-      if (error.message.includes('ip_featured_limit')) return fail('피처드 IP는 최대 5개입니다. 다른 IP의 피처드를 해제한 뒤 다시 저장해주세요.');
+      if (error.message.includes('ip_featured_limit')) return fail('추천 IP는 최대 5개까지 지정할 수 있습니다. 다른 IP의 추천 IP로 노출을 끈 뒤 다시 저장해주세요.');
       if (error.message.includes('ip_directory_conflict')) return fail('다른 운영자가 노출 설정을 변경했습니다. 새로고침한 뒤 다시 시도해주세요.');
-      if (error.message.includes('catalog_item_archived')) return fail('보관된 IP는 피처드로 지정할 수 없습니다. 먼저 복원해주세요.');
+      if (error.message.includes('catalog_item_archived')) return fail('보관된 IP는 추천 IP로 노출할 수 없습니다. 먼저 복원해주세요.');
       return fail('IP 노출 설정을 저장하지 못했습니다. 다시 시도해주세요.');
     }
     revalidatePath('/ip');

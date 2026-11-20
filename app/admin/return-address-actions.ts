@@ -27,7 +27,7 @@ export async function saveReturnAddressAction(previous: ReturnAddressActionState
     const parsed = normalizeReturnAddressInput(values);
     if (!parsed.ok) return fail(parsed.errors as Record<string, string>);
     const id = values.id || null;
-    if (id && (!isUuid(id) || !validStamp(values.updatedAt))) return fail({ form: '최신 반품지 정보를 다시 열어주세요.' });
+    if (id && (!isUuid(id) || !validStamp(values.updatedAt))) return fail({ form: '화면 정보가 오래됐습니다. 새로고침해 최신 반품지 정보를 다시 열어주세요.' });
     const { data: saved, error } = await (await createClient()).rpc('admin_save_return_address', {
       p_id: id, p_values: parsed.value, p_expected_updated_at: id ? values.updatedAt : null,
     });
@@ -48,7 +48,7 @@ export async function deleteReturnAddressAction(previous: ReturnAddressActionSta
   const id = value(data, 'id'), updatedAt = value(data, 'updatedAt');
   try {
     if (!await requireAdminActionAccess(RETURN_ADDRESSES_PATH, { adminOnly: true, capability: 'platform.manage' })) return { errors: { form: FORBIDDEN }, attempt };
-    if (!isUuid(id) || !validStamp(updatedAt)) return { errors: { form: '최신 반품지 정보를 다시 열어주세요.' }, attempt };
+    if (!isUuid(id) || !validStamp(updatedAt)) return { errors: { form: '화면 정보가 오래됐습니다. 새로고침해 최신 반품지 정보를 다시 열어주세요.' }, attempt };
     const { data: deleted, error } = await (await createClient()).rpc('admin_delete_return_address', { p_id: id, p_expected_updated_at: updatedAt });
     if (error || deleted !== true) return { errors: { form: returnAddressErrorMessage(error) }, attempt };
     refresh();

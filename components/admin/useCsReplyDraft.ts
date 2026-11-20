@@ -45,7 +45,7 @@ export function useCsReplyDraft({ accountId, initialSource, enabled, saveAction 
       }
       setLatest({ key: sourceKey, source: result.source });
       if (restore) restoreStoredDraft();
-    } catch { if (isActive() && sequence === readSequence.current) setSourceError('현재 저장본을 읽지 못했습니다. 초안을 유지했으니 다시 확인해주세요.'); }
+    } catch { if (isActive() && sequence === readSequence.current) setSourceError('현재 저장된 내용을 불러오지 못했습니다. 작성 중인 문구는 그대로 있습니다. [최신 저장본 다시 확인]을 눌러주세요.'); }
     finally { if (sequence === readSequence.current) setChecking(false); }
   }, [accountId, initialSource.id, initialSource.surface, isActive, restoreStoredDraft, sourceKey, targetKey]);
   useEffect(() => {
@@ -72,7 +72,7 @@ export function useCsReplyDraft({ accountId, initialSource, enabled, saveAction 
         const readback = await readCsReplyOperationAction(operation);
         if (!stillActive()) return;
         if (!readback.ok || readback.accountId !== accountId) {
-          setState({ errors: { form: readback.ok ? '현재 계정의 저장 결과가 아닙니다.' : readback.error } }); return;
+          setState({ errors: { form: readback.ok ? '로그인한 계정이 바뀌어 저장 결과를 확인할 수 없습니다. 화면을 새로고침해주세요.' : readback.error } }); return;
         }
         if (readback.receipt) result = { replyOutcome: { kind: 'saved', receipt: readback.receipt }, message: '앞서 요청한 답변이 저장된 것을 확인했습니다.' };
         else result = await dispatch(operation); // Keep the frozen ID/body: the first request may still be running.
@@ -80,7 +80,7 @@ export function useCsReplyDraft({ accountId, initialSource, enabled, saveAction 
       if (!stillActive()) return;
       const outcome = result.replyOutcome;
       if (outcome?.kind === 'saved') {
-        if (!parseCsReplyReceipt(outcome.receipt, operation)) { setState({ errors: { form: '저장 결과가 요청과 일치하지 않습니다. 같은 요청으로 결과를 다시 확인해주세요.' } }); return; }
+        if (!parseCsReplyReceipt(outcome.receipt, operation)) { setState({ errors: { form: '저장 결과가 보낸 문구와 맞지 않습니다. [같은 요청으로 결과 확인]을 다시 눌러주세요. 다시 눌러도 두 번 저장되지 않습니다.' } }); return; }
         draft.discard(); setState(result); await readCurrent();
       } else if (recover || outcome?.kind === 'uncertain') setState(result);
       else {
@@ -88,7 +88,7 @@ export function useCsReplyDraft({ accountId, initialSource, enabled, saveAction 
         setState(result); await readCurrent();
       }
     } catch {
-      if (stillActive()) setState({ errors: { form: '연결이 끊겨 저장 결과를 확인하지 못했습니다. 같은 요청으로 결과를 확인해주세요.' } });
+      if (stillActive()) setState({ errors: { form: '연결이 끊겨 저장됐는지 확인하지 못했습니다. [같은 요청으로 결과 확인]을 눌러주세요. 다시 눌러도 두 번 저장되지 않습니다.' } });
     } finally { inFlight.current = false; setSubmitting(false); }
   }
   async function dispatch(operation: CsReplyOperation) {
@@ -105,7 +105,7 @@ export function useCsReplyDraft({ accountId, initialSource, enabled, saveAction 
     if (!operation || !draft.change({ body, sourceVersion: source.sourceVersion, pending: operation })) return;
     if (!draft.getCurrentSnapshot().saved) {
       draft.change({ body, sourceVersion: source.sourceVersion });
-      setState({ errors: { form: '이 브라우저에 저장 요청을 보관할 수 없습니다. 문구를 복사한 뒤 브라우저 저장 공간을 확인해주세요. 답변은 전송하지 않았습니다.' } });
+      setState({ errors: { form: '이 브라우저에 작성 내용을 보관할 수 없어 답변은 전송하지 않았습니다. 문구를 복사해 두고 브라우저 저장 공간(사이트 데이터 허용·남은 용량)을 확인해주세요.' } });
       return;
     }
     await send(operation, false);

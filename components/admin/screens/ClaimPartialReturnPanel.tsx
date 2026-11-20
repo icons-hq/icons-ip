@@ -7,9 +7,9 @@ import { adminOrderSearchHref } from '@/lib/admin/orders';
 import { ClaimPartialReturnTransfer } from './ClaimPartialReturnTransfer';
 
 const STATE_LABELS: Record<string, string> = {
-  processing: '결제사 부분 취소 대기 — [환불 완료 확정]을 누르면 발행합니다',
-  needs_review: '결제확인필요 — [환불 완료 확정]으로 다시 확인하거나 주문 상세의 부분 환불 기록에서 해소합니다',
-  awaiting_transfer: '환불 송금 대기 — 송금 뒤 주문 상세의 부분 환불 기록에서 송금 완료를 적습니다',
+  processing: '결제사 부분 취소 전 — [환불 완료 확정]을 누르면 결제사에 부분 취소를 요청하고 결과를 확인합니다',
+  needs_review: '결제확인필요 — [환불 완료 확정]을 다시 눌러 확인합니다. 그래도 끝나지 않으면 결제 담당이 주문 상세의 부분 환불 기록에서 [결제사 잔액 조회해 해소]를 누릅니다',
+  awaiting_transfer: '환불 송금 대기 — 송금한 뒤 주문 상세의 부분 환불 기록에서 [송금 완료 기록]을 누릅니다',
   completed: '환불 완료',
   rejected: '결제사가 부분 취소를 받지 않음(돈은 움직이지 않음)',
 };
@@ -68,7 +68,7 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
           {preview.storeCreditRestoreAmount > 0 ? <><dt className="text-muted-foreground">적립금 되돌림</dt><dd className="tabular-nums">{krw(preview.storeCreditRestoreAmount)}</dd></> : null}
         </dl>
       ) : partialReturn.previewError ? (
-        <AdminNotice tone="warning">부분 반품 환불을 계산할 수 없습니다({partialReturn.previewError}). 결제 수단·배분·품목 상태를 확인해주세요.</AdminNotice>
+        <AdminNotice tone="warning">부분 반품 환불 금액을 계산하지 못했습니다(사유 코드: {partialReturn.previewError}). 결제 수단, 상품별 결제 금액 기록, 품목 상태 가운데 맞지 않는 것이 있습니다. 새로고침해도 같으면 요청번호와 사유 코드를 개발팀에 알려주세요.</AdminNotice>
       ) : null}
       {refused.length && !live ? (
         <AdminNotice tone="warning">
@@ -81,7 +81,7 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
       ) : null}
       {live && live.state === 'awaiting_transfer' && partialReturn.history.some((record) => record.state === 'rejected') ? (
         <p className="text-xs text-muted-foreground" data-partial-return-converted="">
-          결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 환불입니다. 이 결제는 결제사 잔액과 원장이 달라 이후 이 주문의 일부 반품은 받지 않습니다.
+          결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 환불입니다. 송금한 금액은 결제사에 남은 결제 금액에서 빠지지 않아 결제사와 우리 기록이 달라졌으므로, 이후 이 주문의 일부 반품은 받지 않습니다.
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">

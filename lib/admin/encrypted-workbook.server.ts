@@ -14,7 +14,7 @@ const AGILE_PARAMETER_LIMITS: Record<string, number> = { spinCount: 1_000_000, k
 /** Encrypt the unchanged ExcelJS ZIP buffer using ECMA-376 Agile defaults. */
 export function encryptAdminWorkbook(plain: Buffer, password: string): { bytes: Buffer; sha256: string } {
   if (exportPasswordError(password, password)) throw new Error('엑셀 비밀번호 형식을 확인해주세요.');
-  if (!plain.subarray(0, 4).equals(ZIP_SIGNATURE)) throw new Error('엑셀 파일 형식을 확인해주세요.');
+  if (!plain.subarray(0, 4).equals(ZIP_SIGNATURE)) throw new Error('엑셀 파일을 만들지 못했습니다. 잠시 후 다시 내려받아 주세요.');
   try {
     const bytes = officeCrypto.encrypt(plain, { password });
     if (!Buffer.isBuffer(bytes) || !bytes.subarray(0, 8).equals(OLE_SIGNATURE) || !officeCrypto.isEncrypted(bytes)) {
@@ -45,7 +45,7 @@ function assertAgileParametersBounded(encryptionInfo: Buffer): void {
  * 라이브러리 오류에는 인자가 섞일 수 있어 아래의 정해진 문구만 밖으로 내보낸다.
  */
 export async function decryptUploadedWorkbook(bytes: Buffer, password: string, maxFileBytes: number): Promise<Buffer> {
-  if (bytes.length > maxFileBytes) throw new Error('XLSX 파일 용량이 상한을 초과합니다.');
+  if (bytes.length > maxFileBytes) throw new Error('XLSX 파일이 올릴 수 있는 최대 크기보다 큽니다. 줄을 나눠 여러 파일로 올려주세요.');
   let encryptionInfo: Buffer | null;
   try {
     const entry = CFB.find(CFB.read(bytes, { type: 'buffer' }), '/EncryptionInfo');

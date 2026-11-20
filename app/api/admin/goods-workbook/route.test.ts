@@ -71,7 +71,7 @@ describe('downloadable goods XLSX', () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(Buffer.from(await response.arrayBuffer()) as never);
     expect(book.getWorksheet('상품')?.getCell('A4').text).toBe('상품번호');
-    expect(book.getWorksheet('상품')?.getCell('B4').text).toBe('판매자상품코드');
+    expect(book.getWorksheet('상품')?.getCell('B4').text).toBe('상품 자동코드');
     expect(book.getWorksheet('작성 안내')).toBeTruthy();
     expect(book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)?.getCell('G4').text).toBe('정의 버전');
   });

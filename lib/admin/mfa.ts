@@ -110,20 +110,20 @@ export function parseOperatorMfaResetReceipt(value: unknown): OperatorMfaResetRe
 export function operatorMfaError(code?: string | null, message?: string | null): string {
   const text = message ?? '';
   if (text.includes('operator_mfa_self_required')) {
-    return '켜려면 먼저 내 보안 설정에서 인증 앱을 등록하고, 지금 로그인 세션을 인증 앱 코드로 확인해야 합니다.';
+    return '켜려면 먼저 내 보안 설정에서 인증 앱을 등록하고, 지금 로그인을 인증 앱 코드로 확인해야 합니다.';
   }
   if (text.includes('operator_mfa_unenrolled')) return '아직 인증 앱을 등록하지 않은 운영자가 있어 켤 수 없습니다. 아래 목록의 미등록 운영자가 먼저 등록하거나, 쓰지 않는 계정은 매니저 관리에서 권한을 회수하세요.';
   if (text.includes('operator_mfa_reset_owner_only')) return '2단계 인증 초기화는 통합 매니저만 할 수 있습니다.';
   if (text.includes('operator_self_change_denied')) return '본인의 인증 앱은 내 보안 설정에서 직접 바꿉니다.';
   if (text.includes('operator_mfa_reset_target_invalid')) return '운영자 계정만 초기화할 수 있습니다. 목록을 새로고침해 주세요.';
-  if (text.includes('operator_mfa_required')) return '이 작업은 2단계 인증을 마친 세션에서만 할 수 있습니다. 새로고침해 인증 앱 코드를 입력해 주세요.';
+  if (text.includes('operator_mfa_required')) return '이 작업은 인증 앱 코드까지 확인한 로그인에서만 할 수 있습니다. 새로고침해 인증 앱 코드를 입력해 주세요.';
   if (code === 'PT409' || text.includes('operator_mfa_policy_changed')) return '다른 관리자가 먼저 설정을 바꿨습니다. 새로고침해 현재 설정을 확인해 주세요.';
-  if (code === '23505' || text.includes('operation_conflict')) return '이미 다른 내용으로 처리된 요청입니다. 새로고침 후 다시 시도해 주세요.';
+  if (code === '23505' || text.includes('operation_conflict')) return '이 요청은 이미 다른 내용으로 처리됐습니다. 새로고침해 현재 설정을 확인한 뒤 다시 시도해 주세요.';
   if (['42501', '28000'].includes(code ?? '') || text.includes('operator_capability_required') || text.includes('auth_required')) {
     return '현재 로그인 계정과 관리자 권한을 확인해 주세요.';
   }
   if (code === '22023') return '저장할 값이 올바르지 않습니다. 새로고침 후 다시 시도해 주세요.';
-  return '처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해 주세요.';
+  return '처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러 주세요. 여러 번 눌러도 한 번만 처리됩니다.';
 }
 
 /** GoTrue MFA 오류 → 운영자 문구(인증 화면·내 보안 설정 공용). */
@@ -132,9 +132,9 @@ export function totpErrorMessage(error: { code?: string; message?: string } | nu
   if (code === 'mfa_verification_failed' || code === 'mfa_challenge_expired' || /invalid totp code/i.test(error?.message ?? '')) {
     return '인증 코드가 맞지 않습니다. 인증 앱의 지금 코드를 다시 입력해 주세요.';
   }
-  if (code === 'mfa_totp_enroll_not_enabled' || code === 'mfa_totp_verify_not_enabled') return '인증 앱 사용이 꺼져 있습니다. 개발 담당자에게 Supabase 인증 설정을 확인해 달라고 요청해 주세요.';
+  if (code === 'mfa_totp_enroll_not_enabled' || code === 'mfa_totp_verify_not_enabled') return '인증 앱 사용이 꺼져 있어 등록·확인할 수 없습니다. 개발팀에 Supabase 인증 설정에서 인증 앱(TOTP)을 켜 달라고 요청해 주세요.';
   if (code === 'too_many_enrolled_mfa_factors') return '등록한 인증 앱이 너무 많습니다. 쓰지 않는 인증 앱을 지운 뒤 다시 등록해 주세요.';
-  if (code === 'insufficient_aal') return '먼저 등록한 인증 앱의 코드로 지금 세션을 확인해 주세요.';
+  if (code === 'insufficient_aal') return '먼저 등록한 인증 앱의 코드로 지금 로그인을 확인해 주세요.';
   if (code === 'over_request_rate_limit' || code === 'mfa_verification_rejected') return '잠시 뒤 다시 시도해 주세요.';
   return '인증 앱 처리에 실패했습니다. 잠시 뒤 다시 시도해 주세요.';
 }

@@ -61,7 +61,7 @@ it('취소 뒤 늦게 성공한 업로드는 원래 타일을 교체하지 않�
 });
 it('열어둔 편집의 계정이 바뀌면 옛 callback으로 새 업로드를 시작하지 않는다', async () => {
   button('대표 이미지 사진 편집').props.onClick?.(); const stale = editor(); auth('99000000-0000-4000-8000-000000000099');
-  stale.props.onApply?.(file()); await settle(); expect(mocks.upload).not.toHaveBeenCalled(); expect(path()).toBe(original); expect(text(render())).toContain('로그인 계정 또는 세션이 변경');
+  stale.props.onApply?.(file()); await settle(); expect(mocks.upload).not.toHaveBeenCalled(); expect(path()).toBe(original); expect(text(render())).toContain('로그인한 계정이 바뀌었거나 다시 로그인해서 사진 편집을 중단');
 });
 it('폼을 떠난 뒤 업로드 성공은 미리보기와 새 폼에 적용하지 않는다', async () => {
   let finish!: (value: unknown) => void; mocks.upload.mockImplementation(() => new Promise(resolve => { finish = resolve; }));

@@ -24,7 +24,7 @@ export function ReviewBestRewardStatus({ reviewId, process, disabled }: { review
       const result = await readBestReviewRewardAction(reviewId, true);
       if (sequence.current !== current) return;
       if ('reward' in result && result.reward) setReward(result.reward); else setError(result.error ?? '보상 상태를 조회하지 못했습니다.');
-    } catch { if (sequence.current === current) setError('보상 상태를 조회하지 못했습니다. 선정 결과는 유지됩니다.'); }
+    } catch { if (sequence.current === current) setError('보상 상태를 조회하지 못했습니다. 선정 결과는 그대로 있습니다. [보상 처리 결과 확인]을 다시 눌러주세요.'); }
     finally { if (sequence.current === current) setPending(false); }
   }
   return <div className="flex flex-col items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm" role="group" aria-label="BEST 보상 처리 상태">

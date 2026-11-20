@@ -205,7 +205,7 @@ export function InquiryDetailScreen({
           <InquiryInternalNotesPanel key={`${accountId}:${inquiry.id}:note`} accountId={accountId} inquiryId={inquiry.id} notes={notes} />
         </div>
         {embedded ? <section className="flex min-w-0 flex-col gap-3.5" aria-label="판매자 답변 처리"><h3 className="border-b pb-2 text-sm font-medium text-muted-foreground">판매자 답변 처리</h3>{replyPanel}</section> : null}
-        <aside aria-label="문의 컨텍스트" className={`grid min-w-0 content-start gap-3 ${embedded ? '@3xl/inquiry:col-span-2 @3xl/inquiry:grid-cols-2' : ''}`}>
+        <aside aria-label="문의 관련 정보" className={`grid min-w-0 content-start gap-3 ${embedded ? '@3xl/inquiry:col-span-2 @3xl/inquiry:grid-cols-2' : ''}`}>
           {canReadOrders ? <ContextCard title="연결 주문">
             {order ? (
               <>

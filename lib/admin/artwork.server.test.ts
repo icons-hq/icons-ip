@@ -29,7 +29,7 @@ vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: mocks.createServiceClient,
 }));
 vi.mock('./artwork-image.server', () => ({
-  normalizeAdminArtworkImage: mocks.decode,
+  inspectAdminArtworkImage: mocks.decode,
 }));
 
 beforeEach(() => {
@@ -38,9 +38,12 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-07-17T00:00:00.000Z'));
 
   mocks.decode.mockResolvedValue({
-    bytes: NORMALIZED_BYTES,
-    height: 1,
-    width: 1,
+    ok: true,
+    image: {
+      bytes: NORMALIZED_BYTES,
+      height: 1,
+      width: 1,
+    },
   });
   mocks.info.mockResolvedValue({
     data: { contentType: 'image/png', size: SOURCE_BYTES.byteLength },
@@ -248,29 +251,36 @@ describe('verifyAndPromoteAdminArtwork', () => {
       error: null,
     });
 
-    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toBeNull();
+    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toEqual({
+      rejection: { reason: 'claim_mismatch', detail: { kind: 'ip', mimeType: 'image/png' } },
+    });
 
     expect(mocks.info).not.toHaveBeenCalled();
     expect(mocks.rpc).toHaveBeenCalledWith('service_reject_admin_artwork_upload', {
       p_actor_id: ACTOR_ID,
       p_path: PATH,
+      p_reason: 'claim_mismatch',
+      p_detail: { kind: 'ip', mimeType: 'image/png' },
     });
   });
 
   it.each([
-    ['invalid Storage info', () => mocks.info.mockResolvedValue({ data: { contentType: 'image/jpeg', size: 4 }, error: null })],
-    ['download error', () => mocks.download.mockResolvedValue({ data: null, error: { message: 'private download' } })],
-    ['decode failure', () => mocks.decode.mockResolvedValue(null)],
-  ])('does not publish and rejects a %s candidate', async (_label, arrange) => {
+    ['invalid Storage info', 'staging_metadata_mismatch', () => mocks.info.mockResolvedValue({ data: { contentType: 'image/jpeg', size: 4 }, error: null })],
+    ['missing Storage object', 'staging_missing', () => mocks.info.mockResolvedValue({ data: null, error: { message: 'Object not found' } })],
+    ['download error', 'staging_download_failed', () => mocks.download.mockResolvedValue({ data: null, error: { message: 'private download' } })],
+    ['decode failure', 'decode_failed', () => mocks.decode.mockResolvedValue({ ok: false, reason: 'decode_failed', detail: { stage: 'metadata' } })],
+    ['format mismatch', 'format_mismatch', () => mocks.decode.mockResolvedValue({ ok: false, reason: 'format_mismatch', detail: { declared: 'image/png', detected: 'jpeg' } })],
+  ])('does not publish and rejects a %s candidate with its reason', async (_label, reason, arrange) => {
     arrange();
 
-    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toBeNull();
+    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toMatchObject({ rejection: { reason } });
 
     expect(mocks.publicUpload).not.toHaveBeenCalled();
-    expect(mocks.rpc).toHaveBeenCalledWith('service_reject_admin_artwork_upload', {
+    expect(mocks.rpc).toHaveBeenCalledWith('service_reject_admin_artwork_upload', expect.objectContaining({
       p_actor_id: ACTOR_ID,
       p_path: PATH,
-    });
+      p_reason: reason,
+    }));
     expect(mocks.stagingRemove).toHaveBeenCalledWith([PATH]);
     expect(mocks.publicRemove).toHaveBeenCalledWith([PATH]);
   });
@@ -287,9 +297,28 @@ describe('verifyAndPromoteAdminArtwork', () => {
       throw new Error(`Unexpected RPC ${name}`);
     });
 
-    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toBeNull();
+    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toMatchObject({ rejection: { reason: 'verify_rejected' } });
 
     expect(mocks.publicRemove).toHaveBeenCalledWith([PATH]);
+    expect(mocks.stagingRemove).toHaveBeenCalledWith([PATH]);
+  });
+
+  /* 배포 순서: 사유를 받는 거절 함수가 아직 없는 DB면 옛 2인자 거절로 되돌아가 정리는 그대로 한다. */
+  it('falls back to the two-argument reject when the reason function is missing', async () => {
+    mocks.decode.mockResolvedValue({ ok: false, reason: 'decode_failed', detail: {} });
+    mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'service_begin_admin_artwork_verification') {
+        return { data: [{ kind: 'ip', mime_type: 'image/png', source_size: 4 }], error: null };
+      }
+      if (name === 'service_reject_admin_artwork_upload') {
+        return 'p_reason' in args ? { data: null, error: { message: 'Could not find the function' } } : { data: true, error: null };
+      }
+      if (name === 'service_complete_admin_artwork_cleanup') return { data: true, error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toMatchObject({ rejection: { reason: 'decode_failed' } });
+    expect(mocks.rpc).toHaveBeenCalledWith('service_reject_admin_artwork_upload', { p_actor_id: ACTOR_ID, p_path: PATH });
     expect(mocks.stagingRemove).toHaveBeenCalledWith([PATH]);
   });
 
@@ -408,6 +437,16 @@ describe('cancelAdminArtworkUpload', () => {
       p_mode: 'all',
       p_path: PATH,
     });
+  });
+
+  it('records a staging upload failure on the cancelled claim before cleaning up', async () => {
+    const failure = { status: 413, message: 'The object exceeded the maximum allowed size', tooLarge: 1 };
+    await cancelAdminArtworkUpload({ actorId: ACTOR_ID, path: PATH, failure });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('service_reject_admin_artwork_upload', {
+      p_actor_id: ACTOR_ID, p_path: PATH, p_reason: 'staging_upload_failed', p_detail: failure,
+    });
+    expect(mocks.stagingRemove).toHaveBeenCalledWith([PATH]);
   });
 
   it.each([

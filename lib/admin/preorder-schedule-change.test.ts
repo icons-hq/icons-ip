@@ -83,7 +83,7 @@ describe('고객 안내 문구', () => {
     expect(preorderScheduleError('preorder_schedule_random_whole_good')).toContain('랜덤 판매');
     expect(preorderScheduleError('preorder_schedule_policy_decision_required')).toContain('그대로 둘지');
     expect(preorderScheduleError('preorder_admin_required')).toContain('계정 주매니저·통합 매니저');
-    expect(preorderScheduleError('unexpected')).toContain('같은 요청의 결과를 확인');
+    expect(preorderScheduleError('unexpected')).toContain('이미 처리됐는지 먼저 확인');
   });
 });
 

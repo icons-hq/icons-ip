@@ -27,7 +27,7 @@ export function GoodsListingColorsPanel({ goodId }: { goodId: string }) {
     request.current ??= { colors: parsed, revision, id: crypto.randomUUID() }; setPending(true);
     let result: GoodsListingColorsResult;
     try { result = await saveGoodsListingColorsAction(goodId, request.current.colors, request.current.revision, request.current.id); }
-    catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+    catch { result = { error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.', uncertain: true }; }
     setPending(false);
     if ('error' in result) { setError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; }
     else { setColors(result.colors); setRevision(result.revision); setError(false); setMessage('목록 색상칩을 저장했습니다.'); setUncertain(false); request.current = null; }

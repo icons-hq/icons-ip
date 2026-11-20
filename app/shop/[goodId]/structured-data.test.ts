@@ -29,7 +29,7 @@ const detail: GoodDetailContent = {
   description: '<p>붉은 실 &amp; 아크릴</p><script>alert(1)</script><p>두 번째   문단</p>',
   descriptionFormat: 'html',
   gallery: ['url("https://cdn.example/g13-1.webp") center / cover no-repeat', 'linear-gradient(#000, #fff)', 'url("/generated/goods/g13.png")'],
-  detailImageUrl: null,
+  detailImageUrls: [],
   notice: EMPTY_GOODS_NOTICE,
 };
 

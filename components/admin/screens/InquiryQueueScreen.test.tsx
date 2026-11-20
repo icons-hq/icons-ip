@@ -82,7 +82,7 @@ describe('InquiryQueueScreen', () => {
     const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
     expect(html).toContain('name="satisfaction"');
     expect(html).toContain('평가 응답 중 만족 비율 75%');
-    expect(html).toContain('만족도 선택을 제외한 현재 조회 조건');
+    expect(html).toContain('지금 조회 조건으로 센 값입니다(만족도 조건은 빼고 셉니다)');
     const empty = renderToStaticMarkup(<InquiryQueueScreen data={data({ satisfactionSummary: { satisfied: 0, dissatisfied: 0, unrated: 10 } })} now={NOW} />);
     expect(empty).toContain('평가 응답 중 만족 비율 —'); expect(empty).toContain('평가 응답 없음');
   });

@@ -14,7 +14,7 @@ import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 
 const PAGE_SIZE = 50;
 const EMPTY: AdminCategoryActionState = {};
-const LEAVE_MESSAGE = '저장하지 않은 ERP 분류 매핑이 있습니다. 이 화면을 떠나면 입력이 사라집니다. 이동할까요?';
+const LEAVE_MESSAGE = '저장하지 않은 ERP 값이 있습니다. 이 화면을 떠나면 입력이 사라집니다. 이동할까요?';
 
 interface MappingDraft {
   erpCode: string;
@@ -122,13 +122,13 @@ export function CategoryErpMappingTable({ categories, mappings }: {
   const pageRows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
   const unset = rows.filter((row) => !row.mapping).length;
 
-  if (!rows.length) return <p className="text-sm text-muted-foreground">ERP 분류를 매핑할 마지막 단계 카테고리가 없습니다. 위에서 카테고리를 먼저 등록해주세요.</p>;
+  if (!rows.length) return <p className="text-sm text-muted-foreground">ERP 값을 적을 마지막 단계 카테고리가 없습니다. 위에서 카테고리를 먼저 등록해주세요.</p>;
   return <div className="flex min-w-0 flex-col gap-3" data-category-erp-mapping="table">
-    <p className="text-sm text-muted-foreground">마지막 단계 카테고리 {rows.length.toLocaleString('ko-KR')}개 중 {(rows.length - unset).toLocaleString('ko-KR')}개 입력됨 · {unset ? <strong className="font-semibold text-warning">미설정 {unset.toLocaleString('ko-KR')}개</strong> : '미설정 0개'}</p>
+    <p className="text-sm text-muted-foreground">마지막 단계 카테고리 {rows.length.toLocaleString('ko-KR')}개 중 {(rows.length - unset).toLocaleString('ko-KR')}개 입력됨 · {unset ? <strong className="font-semibold text-warning">ERP 값 없음 {unset.toLocaleString('ko-KR')}개</strong> : 'ERP 값 없음 0개'}</p>
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <label className="text-sm font-medium" htmlFor="category-erp-mapping-filter">카테고리·ERP 코드 찾기</label>
       <Input className="w-full sm:w-64" id="category-erp-mapping-filter" maxLength={100} onChange={(event) => { setQuery(event.target.value); goToPage(1); }} placeholder="예: 문구 > 키링, ERP-001" type="search" value={query} />
-      <label className="flex cursor-pointer items-center gap-2 text-sm"><input checked={unsetOnly} onChange={(event) => { setUnsetOnly(event.target.checked); goToPage(1); }} type="checkbox" /> 미설정만</label>
+      <label className="flex cursor-pointer items-center gap-2 text-sm"><input checked={unsetOnly} onChange={(event) => { setUnsetOnly(event.target.checked); goToPage(1); }} type="checkbox" /> ERP 값 없는 것만</label>
     </div>
     <div ref={tableScroller} className="relative max-h-[520px] min-w-0 overflow-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 print:max-h-none print:overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted" role="region" aria-label="카테고리별 ERP 분류 매핑" tabIndex={0}>
       <table className="w-full min-w-[1040px] table-fixed caption-top text-sm" data-slot="table">

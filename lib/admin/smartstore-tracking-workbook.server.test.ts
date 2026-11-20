@@ -76,7 +76,7 @@ describe('ICONS 표준 양식 회신', () => {
     await expect(parseTrackingWorkbook(await bytes([], '목록', ['상품주문번호', '운송장번호']), carriers)).rejects.toThrow('각각 하나');
     await expect(parseTrackingWorkbook(await bytes([], '목록', ['상품주문번호', '택배사', '운송장번호', '배송방법', '배송방법']), carriers)).rejects.toThrow('각각 하나');
     const book = new ExcelJS.Workbook(); book.addWorksheet('목록').addRow([...headers, { formula: '1+1' }]);
-    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('헤더의 수식');
+    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('머리글 줄의 수식');
   });
   it('내려받기 정보 시트는 표준 양식에서만 건너뛰고 수식이 있으면 거절한다', async () => {
     const book = new ExcelJS.Workbook();
@@ -84,14 +84,14 @@ describe('ICONS 표준 양식 회신', () => {
     const info = book.addWorksheet('내려받기 정보'); info.addRow(['화면', '발주(주문)확인/발송관리']);
     expect((await parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rows).toHaveLength(1);
     info.getCell('B1').value = { formula: '1+1' };
-    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('허용되지 않는 셀');
+    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('수식·오류 값·날짜가 든 칸');
     info.getCell('B1').value = '일반 문구';
     info.getCell('C1').value = '세 번째 칸';
-    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('내려받기 정보 시트의 형식');
+    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('내려받기 정보 시트가 내려받은 모양과 다릅니다');
     const plain = new ExcelJS.Workbook();
     plain.addWorksheet('운송장').addRows([['배송건번호', '택배사', '운송장번호'], ['00000001', 'hanjin', '12345678']]);
     plain.addWorksheet('내려받기 정보').addRow(['화면', '목록']);
-    await expect(parseTrackingWorkbook(Buffer.from(await plain.xlsx.writeBuffer()), carriers)).rejects.toThrow('시트 하나');
+    await expect(parseTrackingWorkbook(Buffer.from(await plain.xlsx.writeBuffer()), carriers)).rejects.toThrow('시트가 하나만');
   });
 });
 
@@ -205,7 +205,7 @@ describe('이미 내려받은 옛 파일 회신 호환', () => {
   });
   it('안내 행의 수식은 받지 않는다', async () => {
     const file = await legacyInstruction((sheet, column) => { fillRow(3, item)(sheet, column); sheet.getCell('G1').value = { formula: '1+1' }; });
-    await expect(parseTrackingWorkbook(file, carriers)).rejects.toThrow('안내 행의 수식');
+    await expect(parseTrackingWorkbook(file, carriers)).rejects.toThrow('안내 줄의 수식');
   });
   it('53열 목록을 시트 이름 그대로 받고 다른 칸의 날짜 값을 거절하지 않는다', async () => {
     const delivery = ['상품주문번호', '주문번호', '발송처리일', '주문상태', '배송속성', '풀필먼트사(주문 기준)', '배송방법', '택배사', '송장번호', '구매확정연장 상태', '판매채널', '구매자명'];

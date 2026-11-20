@@ -76,7 +76,7 @@ export function ShippingNoticeTemplatesScreen({ data, focusId }: { data: Shippin
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">교환·반품 안내</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{template.returnExchangeNotice || '아직 입력되지 않았습니다.'}</dd></div>
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">고객센터</dt><dd>{[template.csName, template.csPhone, template.csEmail].filter(Boolean).join(' · ') || '아직 입력되지 않았습니다.'}</dd></div>
               </dl>
-              <p className={NOTE}>상품에 적용하면 공개 배송 정책에서 출고지의 현재 반송 주소와 이 스냅샷이 함께 조회됩니다.</p>
+              <p className={NOTE}>상품에 적용하면 고객이 보는 배송 안내에 이 버전의 안내문과 출고지의 지금 반품 주소가 함께 나옵니다.</p>
             </AdminSectionCard>
             {template.status === 'draft' ? <AdminSectionCard title="활성화" summary="활성화 전 실제 운영 자료와 안내 문구를 확인하세요. 저장된 초안에는 실제 주소·연락처를 자동으로 채우지 않습니다.">
               <ShippingNoticeTemplateActivationForm template={template} />
@@ -86,7 +86,7 @@ export function ShippingNoticeTemplatesScreen({ data, focusId }: { data: Shippin
                 <span className="min-w-0 [overflow-wrap:anywhere]">{good.name} ({good.id}) · <span className="text-muted-foreground">{good.templateId === template.id ? `현재 v${good.templateVersion}` : '다른 템플릿 또는 미적용'}</span></span>
                 <ShippingNoticeTemplateApplyForm template={template} good={good} />
               </li>)}</ul> : <p className={NOTE}>상품 ID 또는 이름으로 검색해 적용 대상을 찾으세요.</p>}
-              <p className={NOTE}>적용 시 상품의 최신 변경 시각을 확인합니다. 동시에 수정된 상품에는 적용하지 않습니다.</p>
+              <p className={NOTE}>검색한 뒤 다른 사람이 수정한 상품에는 적용하지 않습니다. 그럴 때는 다시 검색해 적용해주세요.</p>
             </AdminSectionCard> : null}
             {assigned.length ? <p className={NOTE}>현재 이 버전을 적용한 상품 {assigned.length}건이 검색 결과에 포함되어 있습니다.</p> : null}
           </div>

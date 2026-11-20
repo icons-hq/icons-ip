@@ -19,7 +19,7 @@ export function ClaimFeesScreen({ data }: { data: ClaimFeeQueue }) {
  const count = (state: string) => state === 'all' ? Object.values(data.counts).reduce((a, b) => a + (b ?? 0), 0) : state === 'open' ? (data.counts.unpaid ?? 0) + (data.counts.reported ?? 0) + (data.counts.refund_due ?? 0) : data.counts[state as keyof typeof data.counts] ?? 0;
  return <section className="flex min-w-0 flex-col gap-4 text-sm text-foreground" aria-label="반품·교환 배송비 청구" data-admin-kit="claim-fees">
   <SalesGuide title="반품·교환 배송비 청구와 반환을 확인하세요.">
-   <p>고객 입금 알림은 수납 확인 전입니다. 요청 상세에서 실제 거래 내역을 확인하고 입금·반환 결과를 기록합니다. 주문 결제·환불 금액은 이 목록의 별도 배송비와 구분됩니다.</p>
+   <p>고객이 보낸 입금 알림만으로는 입금이 확인된 것이 아닙니다. 법인계좌 거래 내역에서 실제 입금을 확인한 뒤 요청 상세에서 입금·반환 결과를 기록합니다. 이 목록의 배송비는 주문 결제·환불 금액과 따로 주고받는 돈입니다.</p>
    <p><Link href={CLAIM_FEE_POLICY_PATH}>배송비 청구 정책</Link> · <Link href="/admin/sales/claims/returns">반품 관리</Link> · <Link href="/admin/sales/claims/exchanges">교환 관리</Link></p>
   </SalesGuide>
   <ConsoleCountChips label="배송비 처리 상태" chips={Object.entries(CLAIM_FEE_FILTERS).map(([state, label]) => ({ label, active: data.state === state, count: count(state),

@@ -87,7 +87,7 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
       label: '환불 기록',
       value: refund?.status === 'awaiting_transfer' ? '환불 송금 대기' : refund?.completedAt ? '환불 완료 기록됨' : refund?.status === 'done' ? '환불 완료 시각 미기록' : refund?.filedAt ? '환불 접수 기록됨' : refund ? '환불 확인 전' : '환불 기록 없음',
       detail: refund?.status === 'awaiting_transfer' ? '주문 취소·재고 복원 완료 · 실제 송금 확인 전' : refund?.completedAt ? `완료 ${formatOrderDateTime(refund.completedAt)}`
-        : refund ? `원장 상태 ${refundStatusLabel(refund.status)} · 완료 시각 없음` : '환불 접수·완료 기록을 확인해주세요.',
+        : refund ? `환불 기록 상태 ${refundStatusLabel(refund.status)} · 완료 시각 없음` : '환불 접수·완료 기록을 확인해주세요.',
       href: '#claim-refund', link: '환불 내역 보기',
     };
   const facts: Fact[] = [
@@ -103,7 +103,7 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
   ];
 
   /* 처리 현황은 한 줄 요약이다 — 카드 세 개로 키우면 지금 할 일(처리 칸)이 첫 화면 아래로 밀린다. */
-  return <section aria-label="클레임 처리 현황" className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card px-4 py-3 text-sm text-card-foreground" data-admin-kit="claim-progress">
+  return <section aria-label="취소·반품·교환 처리 현황" className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card px-4 py-3 text-sm text-card-foreground" data-admin-kit="claim-progress">
     <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3 sm:divide-x">{facts.map(fact => <div className="flex min-w-0 flex-col gap-1 sm:pl-6 sm:first:pl-0" key={fact.label}>
       <dt className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">{fact.label}<a className="shrink-0 underline underline-offset-4 hover:text-foreground" href={fact.href}>{fact.link}</a></dt>
       <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 break-words">

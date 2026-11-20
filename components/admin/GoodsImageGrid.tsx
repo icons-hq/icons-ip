@@ -345,7 +345,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     pendingFocus.current = { position, control: 'input' };
     const label = goodsImageLabel(position);
     commit(removeGoodsImage(slotsRef.current, position), tile.path
-      ? `${label}${goodsImageObjectParticle(position)} 삭제했습니다. 상품을 저장하면 연결이 제거됩니다. 저장소 원본은 별도 보존됩니다.`
+      ? `${label}${goodsImageObjectParticle(position)} 뺐습니다. 상품을 저장하면 상품에서 빠집니다. 올린 원본 파일은 지우지 않고 보관합니다.`
       : `${label} 업로드를 취소했습니다.`);
   }
 
@@ -566,7 +566,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       ? null
       : <input key={`hidden-${position}`} name={GOODS_IMAGE_FIELD_NAMES[position]} readOnly type="hidden" value="" />)}
     {notice ? <p className="text-xs font-medium text-destructive" role="alert">{notice}</p> : null}
-    {photoScope.blocked ? <p className="text-xs font-medium text-destructive" role="alert">로그인 계정 또는 세션이 변경되어 사진 편집을 중단했습니다. 현재 계정에서 상품을 다시 열어주세요.</p> : null}
+    {photoScope.blocked ? <p className="text-xs font-medium text-destructive" role="alert">로그인한 계정이 바뀌었거나 다시 로그인해서 사진 편집을 중단했습니다. 지금 계정으로 상품 화면을 새로고침해주세요.</p> : null}
     {photoEdit && photoGuard.isCurrent(photoEdit) ? <GoodsPhotoEditor sourcePath={photoEdit.sourcePath} onCancel={() => closePhotoEdit(photoEdit)} onApply={file => applyPhotoEdit(photoEdit, file)} /> : null}
     <p aria-atomic="true" aria-live="polite" className="sr-only" role="status">{announcement}</p>
   </fieldset>;

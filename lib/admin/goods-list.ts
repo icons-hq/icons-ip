@@ -13,7 +13,7 @@ export const GOODS_LIST_PAGE_SIZES = [20, 50, 100] as const;
  */
 export const GOODS_LIST_SEARCH_FIELDS = [
   { value: 'all', label: '전체' }, { value: 'name', label: '상품명' }, { value: 'number', label: '상품번호' }, { value: 'id', label: '상품 URL' },
-  { value: 'code', label: '판매자상품코드·관리코드' }, { value: 'erp', label: 'ERP 코드·품명' }, { value: 'barcode', label: '바코드' },
+  { value: 'code', label: '상품 자동코드·옵션 자동코드' }, { value: 'erp', label: 'ERP 코드·품명' }, { value: 'barcode', label: '바코드' },
 ] as const;
 /**
  * 검색어 칸의 안내(TKT-074). 고른 검색 대상에 맞춰 입력 칸 안내(placeholder)와 말풍선(title)을 바꾼다.
@@ -22,11 +22,11 @@ export const GOODS_LIST_SEARCH_FIELDS = [
  */
 export const GOODS_LIST_SEARCH_HINTS: Record<(typeof GOODS_LIST_SEARCH_FIELDS)[number]['value'], { placeholder: string; title: string }> = {
   all: { placeholder: '상품명·번호·코드·ERP 품명·바코드',
-    title: '전체 검색은 상품명·영문명·상품번호·상품 URL·판매자상품코드·검색 키워드와 옵션의 관리코드·ERP 코드·ERP 품명·바코드에서 찾습니다. 상품번호는 숫자 전체가 같아야 찾습니다.' },
+    title: '전체 검색은 상품명·영문명·상품번호·상품 URL·상품 자동코드·검색 키워드와 옵션의 옵션 자동코드·ERP 코드·ERP 품명·바코드에서 찾습니다. 상품번호는 숫자 전체가 같아야 찾습니다.' },
   name: { placeholder: '상품명 또는 영문명 일부', title: '상품명이나 영문 상품명에 입력한 글자가 들어간 상품을 찾습니다.' },
   number: { placeholder: '상품번호(쉼표로 여러 개)', title: '상품번호는 숫자 전체가 같은 상품을 찾습니다. 쉼표나 공백으로 구분해 여러 개를 한 번에 조회할 수 있습니다.' },
   id: { placeholder: '상품 URL(쉼표로 여러 개)', title: '상품 URL은 주소 끝의 영문 값 전체가 같은 상품을 찾습니다. 쉼표나 공백으로 구분해 여러 개를 한 번에 조회할 수 있습니다.' },
-  code: { placeholder: '판매자상품코드·관리코드 일부', title: '판매자상품코드나 옵션의 관리코드에 입력한 글자가 들어간 상품을 찾습니다.' },
+  code: { placeholder: '상품 자동코드·옵션 자동코드 일부', title: '상품 자동코드나 옵션 자동코드에 입력한 글자가 들어간 상품을 찾습니다.' },
   erp: { placeholder: 'ERP 코드·품명 일부', title: '옵션에 연결한 ERP 코드나 ERP 품명에 입력한 글자가 들어간 상품을 찾습니다.' },
   barcode: { placeholder: '바코드 일부(앞자리 0 포함)', title: '옵션에 등록한 바코드에 입력한 글자가 들어간 상품을 찾습니다. 앞자리 0도 그대로 입력합니다.' },
 };

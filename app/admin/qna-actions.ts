@@ -28,7 +28,7 @@ export interface AdminQnaActionState {
   replyOutcome?: CsReplyOutcome;
 }
 
-const VISIBILITY_FAILED = '노출 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
+const VISIBILITY_FAILED = '노출 상태를 변경하지 못했습니다. 화면을 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.';
 const ANSWER_MAX_LENGTH = 2000;
 
 

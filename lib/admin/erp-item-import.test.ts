@@ -165,7 +165,7 @@ describe('반입 계획', () => {
     ]);
     expect(plan).toMatchObject({ dataRowCount: 6, skippedRowCount: 1, duplicateCount: 1, duplicateCodes: ['000123'], blocking: null });
     expect(plan.warnings.join('\n')).toContain('ERP 코드(품번) 열에 숫자 형식 셀이 있습니다');
-    expect(plan.warnings.join('\n')).toContain('마지막 행으로 반입합니다: 000123');
+    expect(plan.warnings.join('\n')).toContain('마지막 줄의 값으로 올립니다: 000123');
   });
 
   it('열을 직접 바꾸면 지정하지 않은 항목은 키를 보내지 않는다', () => {
@@ -177,8 +177,8 @@ describe('반입 계획', () => {
   it('머리글이 없으면 직접 고르도록 안내하고, ERP 코드·품명 열이 없으면 반입을 막는다', () => {
     const plan = buildErpImportPlan([['A-1', '키링'], ['A-2', '거치대']]);
     expect(plan.headerIndex).toBe(-1);
-    expect(plan.blocking).toBe('ERP 코드(품번)·ERP 품명 열을 골라야 반입할 수 있습니다.');
-    expect(plan.warnings[0]).toContain('머리글 행을 찾지 못했습니다');
+    expect(plan.blocking).toBe('ERP 코드(품번)·ERP 품명 열을 골라야 올릴 수 있습니다. 아래 열 표의 가져올 항목에서 골라주세요.');
+    expect(plan.warnings[0]).toContain('머리글 줄(품번·품명 같은 열 이름)을 찾지 못했습니다');
     const chosen = buildErpImportPlan([['A-1', '키링'], ['A-2', '거치대']], { headerIndex: -1, mapping: ['code', 'name'] });
     expect(chosen.rows.map((row) => row.row)).toEqual([1, 2]);
     expect(chosen.columns.map((column) => column.label)).toEqual(['A열', 'B열']);
@@ -186,7 +186,7 @@ describe('반입 계획', () => {
 
   it(`한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행을 넘으면 나누어 반입하도록 막는다`, () => {
     const rows = [['품번', '품명'], ...Array.from({ length: ERP_ITEM_IMPORT_ROW_LIMIT + 1 }, (_, index) => [`C${index}`, `품목 ${index}`])];
-    expect(buildErpImportPlan(rows).blocking).toContain('5,000행까지');
-    expect(buildErpImportPlan([['품번', '품명']]).blocking).toBe('반입할 행이 없습니다.');
+    expect(buildErpImportPlan(rows).blocking).toContain('5,000줄까지');
+    expect(buildErpImportPlan([['품번', '품명']]).blocking).toBe('올릴 품목이 없습니다. 품목이 든 표를 붙여넣거나 파일을 골라주세요.');
   });
 });

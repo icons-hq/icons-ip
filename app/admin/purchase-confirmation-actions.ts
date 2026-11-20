@@ -20,7 +20,7 @@ export async function savePurchaseConfirmationPolicyAction(values: unknown, revi
   if (!identity || !transactionInteger(revision, 1) || !isUuid(operationId) || !transactionRecord(values)
     || !transactionExactKeys(values, ['autoEnabled', 'autoAfterDays', 'buyerExtensionDays', 'evidence', 'acknowledged']) || typeof values.autoEnabled !== 'boolean'
     || [values.autoAfterDays, values.buyerExtensionDays].some(v => v !== null && !transactionInteger(v, 1, 36500))
-    || values.autoEnabled && values.autoAfterDays === null || values.acknowledged !== true || typeof values.evidence !== 'string' || !values.evidence.trim() || values.evidence.length > 2000) return { error: '기간과 정책 근거·적용 확인을 입력해주세요.' };
+    || values.autoEnabled && values.autoAfterDays === null || values.acknowledged !== true || typeof values.evidence !== 'string' || !values.evidence.trim() || values.evidence.length > 2000) return { error: '자동 확정을 켜면 자동 확정까지 기간(1~36,500일)을 입력해야 합니다. 정책 근거·운영 메모를 적고 확인란을 체크해주세요.' };
   const auth = await requireAdminActionAccess(PURCHASE_CONFIRMATION_POLICY_PATH, { capability: 'sales.manage' });
   if (!auth || auth.user.id !== identity.actorId) return { error: purchaseConfirmationError('42501') };
   try {

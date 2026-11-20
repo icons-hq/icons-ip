@@ -21,7 +21,7 @@ describe('운송장 xlsx',()=>{
  });
  it('1,001줄·추가 컬럼을 거절한다',async()=>{
   await expect(parseTrackingWorkbook(await bytes(Array.from({length:1002},()=>['00000001','hanjin','12345678'])),carriers)).rejects.toThrow('1,000줄');
-  await expect(parseTrackingWorkbook(await bytes([['00000001','hanjin','12345678','extra']]),carriers)).rejects.toThrow('세 컬럼');
+  await expect(parseTrackingWorkbook(await bytes([['00000001','hanjin','12345678','extra']]),carriers)).rejects.toThrow('세 열만');
  });
 });
 
@@ -64,7 +64,7 @@ describe('김포 원본 운송장 회신',()=>{
  });
  it('일부 헤더가 바뀐 파일과 1,001행을 거절한다',async()=>{
   const headers:string[]=[...GIMPO_EXPORT_HEADERS];headers[8]='알 수 없는 주문번호';
-  await expect(parseTrackingWorkbook(await bytes([headers,warehouseRow()]),carriers)).rejects.toThrow('세 컬럼');
+  await expect(parseTrackingWorkbook(await bytes([headers,warehouseRow()]),carriers)).rejects.toThrow('세 열만');
   await expect(parseTrackingWorkbook(await bytes([[...GIMPO_EXPORT_HEADERS],...Array.from({length:1001},()=>warehouseRow())]),carriers)).rejects.toThrow('1,000줄');
  });
  it('수식 셀을 고객 정보로 출력하지 않고 안전하게 실패 처리한다',async()=>{
@@ -104,7 +104,7 @@ describe('남양주(서원) 송장양식 회신',()=>{
  });
  it('송장번호 열이 없거나 내용이 있는 시트가 둘이면 파일 단계에서 거절한다',async()=>{
   await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS],seowon('010','1','6012345678901').slice(0,13)]),carriers)).rejects.toThrow('송장번호 열');
-  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'송장번호']],[[['다른 내용']]]),carriers)).rejects.toThrow('시트 하나');
+  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'송장번호']],[[['다른 내용']]]),carriers)).rejects.toThrow('시트가 하나만');
  });
 });
 
@@ -143,7 +143,7 @@ describe('비밀번호를 건 회신 파일',{timeout:20_000},()=>{
  });
  it('1,001줄과 추가 컬럼은 복호화한 내용에서도 거절한다',async()=>{
   await expect(parseTrackingWorkbook(sealed(await bytes(Array.from({length:1002},()=>['00000001','hanjin','12345678']))),carriers,password)).rejects.toThrow('1,000줄');
-  await expect(parseTrackingWorkbook(sealed(await bytes([['00000001','hanjin','12345678','extra']])),carriers,password)).rejects.toThrow('세 컬럼');
+  await expect(parseTrackingWorkbook(sealed(await bytes([['00000001','hanjin','12345678','extra']])),carriers,password)).rejects.toThrow('세 열만');
  });
  it('압축 폭탄은 복호화한 뒤 압축 해제 한도에서 막는다',async()=>{
   const bomb=new JSZip();bomb.file('xl/worksheets/sheet1.xml',Buffer.alloc(5*1024*1024,0x20));
@@ -159,7 +159,7 @@ describe('비밀번호를 건 회신 파일',{timeout:20_000},()=>{
  it('한도를 넘는 암호 파일은 복호화하지 않는다',async()=>{
   const decrypt=vi.spyOn(officeCrypto,'decrypt');
   const oversized=Buffer.concat([Buffer.from('d0cf11e0a1b11ae1','hex'),Buffer.alloc(1024*1024)]);
-  await expect(parseTrackingWorkbook(oversized,carriers,password)).rejects.toThrow('XLSX 파일 용량이 상한을 초과');
+  await expect(parseTrackingWorkbook(oversized,carriers,password)).rejects.toThrow('최대 크기보다 큽니다');
   expect(decrypt).not.toHaveBeenCalled();
  });
 });

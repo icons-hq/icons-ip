@@ -97,7 +97,7 @@ it('세션이 바뀐 임시 입력은 복원을 막고 상품 전환 시 이전 
   change({ message: '내 입력' }); click('정기배송 설정 저장'); await flush();
   for (const effect of hooks.effects) effect.cleanup?.(); hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.changed = [];
   render(); effects(); authenticate(actor, '91000000-0000-4000-8000-000000000003'); await flush();
-  expect(button('임시 입력 복원')).toBeUndefined(); expect(text(render())).toContain('이전 로그인 세션');
+  expect(button('임시 입력 복원')).toBeUndefined(); expect(text(render())).toContain('이전 로그인 때 남았거나');
   props = { ...props, goodId: 'another-good' }; const pending = deferred<unknown>(); mocks.read.mockReturnValueOnce(pending.promise); render(); effects(); authenticate(); await flush();
   expect(all(render()).find(node => node.type === GoodsSubscriptionPolicyFields)).toBeUndefined();
   pending.resolve({ ok: true, value: { ...base, goodId: 'another-good' } }); await flush();

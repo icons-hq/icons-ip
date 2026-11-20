@@ -121,7 +121,7 @@ export function parseAdminDrawTicketGrantRecord(value: unknown): AdminDrawTicket
 
 export function mapAdminDrawTicketGrantError(message: string): string {
   if (message.includes('card_rewards_disabled')) {
-    return '카드 리워드는 현재 비활성화되어 있습니다.';
+    return '카드 리워드가 중지되어 있어 지금은 카드팩을 발급할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.';
   }
   if (message.includes('reward_pool_not_ready') || message.includes('pool_not_found')) {
     return '지금 발급할 수 없는 카드풀입니다. 운영 기간과 등급별 확률·카드 구성을 확인해주세요.';
@@ -133,7 +133,7 @@ export function mapAdminDrawTicketGrantError(message: string): string {
     return '회원을 찾을 수 없습니다. 다시 검색해주세요.';
   }
   if (message.includes('grant_conflict')) {
-    return '이미 처리된 발급 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
+    return '이 발급 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 최근 수동 발급에서 확인한 뒤, 더 발급해야 할 때만 다시 발급해주세요.';
   }
   if (message.includes('forbidden') || message.includes('auth_required')) {
     return '카드팩을 발급할 권한이 없습니다.';
@@ -144,5 +144,5 @@ export function mapAdminDrawTicketGrantError(message: string): string {
   if (message.includes('invalid_grant_reason')) {
     return '발급 사유는 1자 이상 200자 이하로 입력해주세요.';
   }
-  return '카드팩을 발급하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
+  return '카드팩을 발급하지 못했습니다. 화면을 새로고침해 최근 수동 발급에 이번 발급이 없는지 확인한 뒤 다시 시도해주세요.';
 }

@@ -64,7 +64,7 @@ describe('연결 상품 반영 확정 계약', () => {
   it('확정 확인창은 상품 수·항목 수와 바뀌는 바코드를 함께 묻는다', () => {
     const text = erpLinkedGoodsConfirmation([row('price'), row('barcode', { current: '0088', warning: 'barcode_changed' })]);
     expect(text).toBe('연결 상품 1개에 판매가 1건·바코드 1건을 반영할까요? 바뀐 판매가는 저장하는 즉시 고객 화면과 새 주문에 적용됩니다. '
-      + '이미 있던 바코드가 바뀌는 행이 1건입니다. 창고에 등록된 바코드와 같은지 확인해주세요. 반영 내역은 감사 기록에 남습니다.');
+      + '이미 있던 바코드가 바뀌는 줄이 1건입니다. 창고에 등록된 바코드와 같은지 확인해주세요. 반영 내역은 감사 기록에 남습니다.');
     expect(erpLinkedGoodsConfirmation([row('barcode')])).toBe('연결 상품 1개에 바코드 1건을 반영할까요? 반영 내역은 감사 기록에 남습니다.');
   });
   /* CAT-008: 상품 편집·목록 일괄 변경과 같은 기준으로 크게 바뀌거나 1,000원 미만인 판매가를 이전 → 새 값으로 함께 묻는다. */
@@ -92,9 +92,9 @@ describe('연결 상품 반영 확정 계약', () => {
 
   it('상품 저장 규칙 오류와 확정 요청 오류를 운영자 문구로 바꾼다', () => {
     expect(erpLinkedGoodsFailureLabel('goods_notice_required')).toBe('상품정보제공고시가 빈 공개 상품이라 저장할 수 없습니다.');
-    expect(erpLinkedGoodsFailureLabel('goods_save_rejected')).toContain('상품 화면에서 저장해 보고');
-    expect(erpLinkedGoodsErrorLabel('erp_goods_apply_partial_price', '아크릴 키링')).toContain('같은 상품(‘아크릴 키링’)의 판매가 행을 일부만 고르면');
-    expect(erpLinkedGoodsErrorLabel('erp_goods_apply_partial_price')).toContain('같은 상품의 판매가 행을 일부만 고르면');
+    expect(erpLinkedGoodsFailureLabel('goods_save_rejected')).toContain('상품 화면에서 직접 저장해 보면');
+    expect(erpLinkedGoodsErrorLabel('erp_goods_apply_partial_price', '아크릴 키링')).toContain('같은 상품(‘아크릴 키링’)의 판매가 줄을 일부만 고르면');
+    expect(erpLinkedGoodsErrorLabel('erp_goods_apply_partial_price')).toContain('같은 상품의 판매가 줄을 일부만 고르면');
     expect(erpLinkedGoodsErrorLabel('something else')).toBeNull();
   });
 

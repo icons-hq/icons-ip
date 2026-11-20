@@ -123,7 +123,7 @@ export async function buildSettledWorkbook(value: unknown, readNumbers?: (snapsh
   const detailKinds = columnKinds(SETTLED_EXPORT_HEADERS.length, [1, 8], [5, 6, 7, 9, 10, 11, 12, 13, 22, 23, 25, 26, 27]);
   const detail = createSheet(workbook, '거래확정 품목', SETTLED_EXPORT_HEADERS,
     [17, 22, 24, 31, 9, 18, 16, 17, 20, 17, 21, 17, 18, 23, 23, 31, 25, 22, 22, 22, 64, 20, 21, 28, 14, 23, 23], detailKinds, model,
-    '판매금액은 기간·복수구매 할인·쿠폰·적립금 차감 후 금액입니다. 선결제 배송비와 착불 별도 지급은 배송 건 첫 품목에 기록합니다. 설치비는 선결제 배송비에 포함되며 별도 열은 포함 금액입니다. 배송비 쿠폰 열은 배송비에서 이미 차감된 금액입니다. 착불은 온라인 결제합계에서 제외합니다. 공란은 미기록입니다.');
+    '판매금액은 기간·복수구매 할인·쿠폰·적립금 차감 후 금액입니다. 선결제 배송비와 착불 별도 지급은 배송 건 첫 품목에 기록합니다. 설치비는 선결제 배송비에 들어 있고, "배송비에 포함된 설치비" 열은 그중 설치비만 따로 보여 줍니다. "배송비 쿠폰 차감" 열은 배송비에서 이미 뺀 금액입니다. 착불은 온라인 결제합계에서 뺍니다. 빈칸은 기록이 없다는 뜻입니다.');
   for (const row of model.lines) addDataRow(detail, [
     excelKstDate(row.doneAt), displayNumber(numbers.orders, row.orderId), row.trackingNumber, row.erpName, row.qty, row.salesAmount, row.shippingFee, excelKstDate(row.paidAt),
     row.regularAmount, row.productDiscount, row.beforeCouponAmount, row.couponAmount, row.creditAmount, row.erpCode, row.barcode,
@@ -134,7 +134,7 @@ export async function buildSettledWorkbook(value: unknown, readNumbers?: (snapsh
   const orderKinds = columnKinds(ORDER_HEADERS.length, [2, 3], [...orderTotalColumns, 23]);
   const orderSheet = createSheet(workbook, '주문 대조', ORDER_HEADERS,
     [22, 17, 17, 10, 10, 22, 17, 17, 20, 22, 24, 24, 22, 23, 24, 24, 18, 72, 20, 24, 22, 24, 14, 23, 23], orderKinds, model,
-    '주문 원장과 품목 배분·결제 원장을 대조합니다. 차이 0원은 금액 일치이며, 시각·ERP 미기록 여부는 미기록·확인 사유 열에서 확인합니다. 공란은 확인할 기록이 없는 상태입니다.');
+    '주문 금액을 품목 배분 합계·결제 원장 금액과 맞춰 봅니다. 차이 열이 0원이면 금액이 맞습니다. 시각·ERP 기록이 빠졌는지는 "미기록·확인 사유" 열에서 봅니다. 빈칸은 맞춰 볼 기록이 없다는 뜻입니다.');
   for (const row of model.orders) addDataRow(orderSheet, [
     displayNumber(numbers.orders, row.id), excelKstDate(row.doneAt), excelKstDate(row.paidAt), row.itemCount, row.qty, row.beforeCouponAmount, row.couponDiscount, row.storeCredits,
     row.shippingFee, row.total, row.detailSales, row.detailShipping, row.detailTotal, row.paymentAmount, row.detailDifference, row.ledgerDifference,
@@ -143,7 +143,7 @@ export async function buildSettledWorkbook(value: unknown, readNumbers?: (snapsh
   totals(orderSheet, orderTotalColumns, model.orders.map(row => [row.itemCount, row.qty, row.beforeCouponAmount, row.couponDiscount, row.storeCredits, row.shippingFee, row.total, row.detailSales, row.detailShipping, row.detailTotal, row.paymentAmount, row.detailDifference, row.ledgerDifference, row.volumeDiscount, row.shippingCollectTotal, row.detailShippingCollect, row.collectDifference, row.installationFee, row.shippingCouponDiscount]));
   if (model.snapshot.orders.some(o => o.coupons?.length)) {
     const couponKinds = columnKinds(5, [], [2, 5]);
-    const couponSheet = createSheet(workbook, '쿠폰 사용', ['주문번호', '적용 순서', '쿠폰 코드', '할인 대상', '할인액 (원)'], [22, 14, 27, 18, 20], couponKinds, model, '주문 당시 적용한 쿠폰 순서와 할인액입니다. 상품 할인과 배송비 할인은 각각의 원장에 반영됩니다.');
+    const couponSheet = createSheet(workbook, '쿠폰 사용', ['주문번호', '적용 순서', '쿠폰 코드', '할인 대상', '할인액 (원)'], [22, 14, 27, 18, 20], couponKinds, model, '주문 당시 적용한 쿠폰 순서와 할인액입니다. 상품 금액 할인은 거래확정 품목 시트의 "쿠폰 배분" 열에, 배송비 할인은 "배송비 쿠폰 차감" 열에 반영됩니다.');
     for (const order of model.snapshot.orders) for (const coupon of order.coupons ?? []) addDataRow(couponSheet, [displayNumber(numbers.orders, order.id), coupon.applicationIndex, coupon.code, coupon.benefitKind === 'shipping' ? '선결제 배송비' : '상품 금액', coupon.discountAmount], couponKinds, 0);
     totals(couponSheet, [5], model.snapshot.orders.flatMap(o => (o.coupons ?? []).map(c => [c.discountAmount])));
   }
@@ -155,7 +155,7 @@ export async function buildSettledWorkbook(value: unknown, readNumbers?: (snapsh
     ['보존 시각 (KST)', kstDateTimeText(snapshot.capturedAt)], ['영수증', snapshot.receiptId],
     ['건수', `주문 ${model.orders.length.toLocaleString('ko-KR')}건 · 품목 ${model.lines.length.toLocaleString('ko-KR')}행`],
     ['안내', '보존 시각의 주문·품목·배송·쿠폰·결제 기록입니다. 같은 영수증은 다시 받아도 같은 내용입니다.'],
-    ['안내', '주문번호·배송 건 번호·주문 품목 번호는 화면과 같은 16자리 또는 주문 시각을 넣은 20자리 번호입니다(배송 건 번호는 16자리). 번호가 없는 옛 기록은 내부 식별값으로 표시합니다.'],
+    ['안내', '주문번호·배송 건 번호·주문 품목 번호는 화면과 같은 16자리 또는 주문 시각을 넣은 20자리 번호입니다(배송 건 번호는 16자리). 번호가 없는 옛 기록은 시스템 내부 번호(36자리)로 표시합니다.'],
     ['개인정보', ADMIN_LIST_EXPORT_PRIVACY_NOTICE],
   ]);
   return Buffer.from(await workbook.xlsx.writeBuffer());

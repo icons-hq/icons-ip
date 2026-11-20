@@ -63,10 +63,10 @@ function normalizeArchiveForm(formData: FormData):
   const id = typeof rawId === 'string' ? rawId.trim() : '';
 
   if (!ARCHIVE_KINDS.has(kind as AdminCatalogArchiveKind)) {
-    errors.kind = '지원하지 않는 카탈로그 유형입니다.';
+    errors.kind = '보관할 항목의 종류를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.';
   }
   if (!CATALOG_ID_PATTERN.test(id)) {
-    errors.id = '올바른 카탈로그 ID가 필요합니다.';
+    errors.id = '보관할 항목을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.';
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };

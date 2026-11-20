@@ -10,7 +10,7 @@ export async function readStoreCreditTargetsFile(name: string, bytes: Buffer) {
     const workbook = await loadSafeWorkbook(bytes,{ fileBytes: STORE_CREDIT_FILE_BYTES, totalBytes: 4 * 1024 * 1024, entryBytes: 2 * 1024 * 1024 });
     if (workbook.worksheets.length !== 1) throw new Error('대상 목록 시트 하나만 포함해주세요.');
     const sheet = workbook.worksheets[0];
-    if (sheet.rowCount > 1001 || sheet.columnCount > 1) throw new Error('첫 번째 열에 고객 ID 또는 이메일을 최대 1,000행까지 입력해주세요.');
+    if (sheet.rowCount > 1001 || sheet.columnCount > 1) throw new Error('첫 번째 열에만 회원번호 또는 이메일을 최대 1,000행까지 넣어주세요.');
     rows = [];
     for (let row = 1; row <= sheet.rowCount; row++) {
       const cell = readSafeWorkbookCell(sheet.getCell(row,1),true);
@@ -24,6 +24,6 @@ export async function readStoreCreditTargetsFile(name: string, bytes: Buffer) {
   } else throw new Error('XLSX 또는 CSV 파일만 읽을 수 있습니다.');
   rows = rows.filter(row => row.some(value => value.trim()));
   if (['고객 ID 또는 이메일','고객ID','고객 ID','이메일','userId','email'].includes(rows[0]?.[0]?.trim())) rows.shift();
-  if (rows.length > 1000 || rows.some(row => row.length !== 1 || /[\s,;]/.test(row[0].trim()))) throw new Error('한 열에 고객 ID 또는 이메일을 하나씩, 최대 1,000행까지 입력해주세요.');
+  if (rows.length > 1000 || rows.some(row => row.length !== 1 || /[\s,;]/.test(row[0].trim()))) throw new Error('한 열에 회원번호 또는 이메일을 한 칸에 하나씩, 최대 1,000행까지 넣어주세요.');
   return parseStoreCreditTargets(rows.map(row => row[0]).join('\n'));
 }

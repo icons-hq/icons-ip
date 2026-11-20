@@ -8,7 +8,7 @@ create function pg_temp.expect_error(statement text,expected_message text,expect
 returns void language plpgsql as $$ begin
   begin execute statement;
   exception when others then
-    if sqlstate='42501' and sqlerrm='operator_capability_required' and expected_message in ('preorder_admin_required','staff required') then return;end if;
+    if sqlstate='42501' and sqlerrm='operator_capability_required' and expected_message='staff required' then return;end if;
     if position(expected_message in sqlerrm)=0 or (expected_code is not null and sqlstate<>expected_code) then raise; end if;
     return;
   end;
@@ -49,23 +49,56 @@ select id as base_variant from public.goods_variants where good_id='preorder-sup
 select id as later_variant from public.goods_variants where good_id='preorder-supply' and not is_default \gset
 select id as normal_variant from public.goods_variants where good_id='preorder-normal' \gset
 select id as separate_variant from public.goods_variants where good_id='preorder-separate' \gset
-select public.admin_save_goods_preorder('preorder-supply',:'base_variant',null,
- '{"state":"draft","capacityQty":null,"startsAt":null,"endsAt":null,"expectedShipDate":null,"approvalReference":null}')->>'id' as base_policy \gset
-select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,%L,%L::jsonb,1)',
- 'preorder-supply',:'base_variant',:'base_policy','{"state":"active"}'),'preorder_admin_required','42501');
+-- 예약은 저장하면 바로 적용된다(2026-11-19). 초안 저장은 없고, 필수값(물량·접수 시작·종료·발송 예정일)이 비면
+-- 아무것도 남기지 않고 거절한다. 적용은 상품 관리 권한(catalog.manage)이면 된다 — 이 운영자에게는 예전 활성화 문턱
+-- (관리자 전용 platform.manage)이 없다.
+select 1/case when public.has_operator_capability('catalog.manage') and not public.has_operator_capability('platform.manage',true)
+ then 1 else 0 end as assert_staff_is_catalog_manager_without_admin_gate;
+select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,null,%L::jsonb)','preorder-supply',:'base_variant',
+ '{"state":"draft","capacityQty":null,"startsAt":null,"endsAt":null,"expectedShipDate":null,"approvalReference":null}'),
+ 'invalid_preorder_policy','23514');
+select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,null,%L::jsonb)','preorder-supply',:'base_variant',
+ jsonb_build_object('state','draft','capacityQty',3,'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour',
+ 'expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7)),'invalid_preorder_policy','23514');
+select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,null,%L::jsonb)','preorder-supply',:'base_variant',
+ '{"state":"active"}'),'preorder_policy_not_configured','23514');
+select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,null,%L::jsonb)','preorder-supply',:'base_variant',
+ jsonb_build_object('state','active','capacityQty',3,'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour',
+ 'expectedShipDate',null)),'preorder_policy_not_configured','23514');
+select 1/case when public.admin_list_goods_preorders('preorder-supply')='[]'::jsonb
+ and (select preorder_policy_id is null from public.goods_variants where id=:'base_variant')
+ then 1 else 0 end as assert_rejected_preorder_saves_leave_nothing;
+-- 승인 근거는 선택 메모다: 없이 저장해도 바로 적용된다.
+select public.admin_save_goods_preorder('preorder-supply',:'base_variant',null,jsonb_build_object('state','active','capacityQty',3,
+ 'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour','expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7))->>'id' as base_policy \gset
+-- 적용한 정책은 이어 쓰지 않고(조건을 바꾸려면 중지 후 새로 적용), 같은 옵션에 접수 중인 정책을 하나 더 열지도 않는다.
+select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,%L,%L::jsonb,1)','preorder-supply',:'base_variant',:'base_policy',
+ jsonb_build_object('state','active','capacityQty',5,'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour',
+ 'expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7)),'preorder_policy_immutable','23514');
+select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,null,%L::jsonb)','preorder-supply',:'base_variant',
+ jsonb_build_object('state','active','capacityQty',5,'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour',
+ 'expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7)),'preorder_policy_already_active','23514');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048501',true);
-select pg_temp.expect_error(format('select public.admin_save_goods_preorder(%L,%L,%L,%L::jsonb,1)',
- 'preorder-supply',:'base_variant',:'base_policy','{"state":"active"}'),'preorder_policy_not_configured','23514');
-select 1/case when public.admin_list_goods_preorders('preorder-supply')#>'{0,capacityQty}'='null'::jsonb
- and public.admin_list_goods_preorders('preorder-supply')#>'{0,remainingQty}'='null'::jsonb
- then 1 else 0 end as assert_missing_supply_is_not_zero_or_unlimited;
-select public.admin_save_goods_preorder('preorder-supply',:'base_variant',:'base_policy',jsonb_build_object('state','active','capacityQty',3,
- 'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour','expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7,
- 'approvalReference','TEST-ONLY 공급 승인 3개'),1);
 select public.admin_save_goods_preorder('preorder-supply',:'later_variant',null,jsonb_build_object('state','active','capacityQty',2,
  'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour','expectedShipDate',(now() at time zone 'Asia/Seoul')::date+10,
  'approvalReference','TEST-ONLY 공급 승인 2개'))->>'id' as later_policy \gset
 reset role;
+select 1/case when (select state='active' and revision=1 and capacity_qty=3 and approval_reference is null
+   and created_by='00000000-0000-4000-8000-000000048502' and activated_by='00000000-0000-4000-8000-000000048502' and activated_at is not null
+   from private.goods_preorder_policies where id=:'base_policy')
+ and (select preorder_policy_id=:'base_policy'::uuid from public.goods_variants where id=:'base_variant')
+ and (select state='active' and approval_reference='TEST-ONLY 공급 승인 2개' from private.goods_preorder_policies where id=:'later_policy')
+ and (select count(*) from private.goods_preorder_policies policy join public.goods_variants variant on variant.id=policy.variant_id
+   where variant.good_id='preorder-supply')=2
+ and (select count(*) from public.audit_log where target='goods:preorder-supply' and action='admin.good.preorder_saved')=2
+ then 1 else 0 end as assert_catalog_manager_save_applies_without_approval;
+-- 테이블 규칙도 같다: 초안 상태나 필수값이 빈 정책 행은 직접 넣어도 남지 않는다.
+select pg_temp.expect_error(format($sql$insert into private.goods_preorder_policies(variant_id,state,capacity_qty,starts_at,ends_at,expected_ship_date,
+ created_by,activated_by,activated_at) values(%L,'draft',3,now(),now()+interval '1 hour',current_date+7,%L,%L,now())$sql$,
+ :'normal_variant','00000000-0000-4000-8000-000000048501','00000000-0000-4000-8000-000000048501'),'goods_preorder_policies_state_check','23514');
+select pg_temp.expect_error(format($sql$insert into private.goods_preorder_policies(variant_id,state,created_by,stopped_by,stopped_at)
+ values(%L,'stopped',%L,%L,now())$sql$,:'normal_variant','00000000-0000-4000-8000-000000048501','00000000-0000-4000-8000-000000048501'),
+ 'goods_preorder_policies_complete','23514');
 -- Latest artwork claims require verified, single-use catalog paths even for
 -- fixtures. Exercise that boundary instead of assigning an unclaimed path.
 do $$declare good_id text;image_id uuid;path text;begin
@@ -171,13 +204,18 @@ select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8
 set local role authenticated;
 select public.set_cart_item_quantity('preorder-supply',:'base_variant',0);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048502',true);
-select public.admin_save_goods_preorder('preorder-supply',:'base_variant',:'base_policy','{"state":"stopped"}',2);
-select pg_temp.expect_error(format('select public.admin_use_stock_supply(%L,%L,%L,3)','preorder-supply',:'base_variant',:'base_policy'),
- 'preorder_admin_required','42501');
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048501',true);
-select pg_temp.expect_error(format('select public.admin_use_stock_supply(%L,%L,%L,3)','preorder-supply',:'base_variant',:'base_policy'),
+-- 접수 중인 정책도 일반 재고로 바로 돌릴 수 있지만, 이 옵션에 미할당 예약이 남아 있으면 거절하고 아무것도 바꾸지 않는다.
+select pg_temp.expect_error(format('select public.admin_use_stock_supply(%L,%L,%L,1)','preorder-supply',:'base_variant',:'base_policy'),
+ 'preorder_allocations_pending','23514');
+select public.admin_save_goods_preorder('preorder-supply',:'base_variant',:'base_policy','{"state":"stopped"}',1);
+select pg_temp.expect_error(format('select public.admin_use_stock_supply(%L,%L,%L,2)','preorder-supply',:'base_variant',:'base_policy'),
  'preorder_allocations_pending','23514');
 reset role;
+select 1/case when (select state='stopped' and revision=2 and stopped_by='00000000-0000-4000-8000-000000048502'
+   from private.goods_preorder_policies where id=:'base_policy')
+ and (select preorder_policy_id=:'base_policy'::uuid from public.goods_variants where id=:'base_variant')
+ and not exists(select 1 from public.audit_log where target='goods:preorder-supply' and action='admin.good.stock_supply_selected')
+ then 1 else 0 end as assert_pending_reservations_block_stock_switch;
 select pg_temp.approve_preorder_fixture(:'mixed_order','00000000-0000-4000-8000-000000048503','00000000-0000-4000-8000-000000048540','TEST-PREORDER-MIXED');
 select 1/case when (select status='paid' from public.orders where id=:'mixed_order')
  and private.goods_order_snapshot_matches(:'mixed_order',50000,7000)
@@ -256,11 +294,22 @@ select 1/case when private.goods_preorder_remaining(:'later_policy')=0 and (sele
  and exists(select 1 from private.goods_preorder_reservations where order_id=:'refund_order' and state='returned')
  and (select public.goods_variant_supply(variant)->>'availableQty' from public.goods_variants variant where id=:'later_variant')='0'
  then 1 else 0 end as assert_allocated_refund_never_double_restores_supply;
+-- 미할당 예약이 없으면 접수 중인 정책을 한 번에 중지하고 일반 재고로 돌린다([새 예약 접수 중지]를 따로 누르지 않는다).
+-- 상품 관리 권한이면 되고, 화면이 본 정책 버전이 낡았으면 거절한다.
 set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048501',true);
-select public.admin_save_goods_preorder('preorder-supply',:'later_variant',:'later_policy','{"state":"stopped"}',1);
-select public.admin_use_stock_supply('preorder-supply',:'later_variant',:'later_policy',2);
-select 1/case when (select public.goods_variant_supply(variant)->>'mode' from public.goods_variants variant where id=:'later_variant')='stock'
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048502',true);
+select pg_temp.expect_error(format('select public.admin_use_stock_supply(%L,%L,%L,2)','preorder-supply',:'later_variant',:'later_policy'),
+ 'preorder_policy_changed','PT409');
+select public.admin_use_stock_supply('preorder-supply',:'later_variant',:'later_policy',1)->>'changed' as later_stock_switch \gset
+select 1/case when :'later_stock_switch'::boolean
+ and (select public.goods_variant_supply(variant)->>'mode' from public.goods_variants variant where id=:'later_variant')='stock'
  and (select public.goods_variant_supply(variant)->>'availableQty' from public.goods_variants variant where id=:'later_variant')='1'
- then 1 else 0 end as assert_only_explicit_admin_switch_resumes_physical_sales;
+ then 1 else 0 end as assert_explicit_switch_resumes_physical_sales;
+reset role;
+select 1/case when (select state='stopped' and revision=2 and stopped_by='00000000-0000-4000-8000-000000048502' and stopped_at is not null
+   from private.goods_preorder_policies where id=:'later_policy')
+ and (select preorder_policy_id is null from public.goods_variants where id=:'later_variant')
+ and (select count(*)=1 from public.audit_log where target='goods:preorder-supply' and action='admin.good.stock_supply_selected'
+   and actor_id='00000000-0000-4000-8000-000000048502' and diff->>'previousPolicyId'=:'later_policy' and (diff->>'stoppedPolicy')::boolean)
+ then 1 else 0 end as assert_active_policy_stops_and_switches_in_one_call;
 rollback;

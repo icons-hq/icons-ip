@@ -23,10 +23,10 @@ export const COUPON_REVOKE_ERRORS: Record<string, string> = {
   operator_capability_required: '쿠폰 회수 권한(마케팅 관리)이 필요합니다.',
   coupon_revoke_reason_invalid: `회수 사유를 ${COUPON_REVOKE_REASON_MIN}~${COUPON_REVOKE_REASON_MAX}자로 적어주세요.`,
   coupon_revoke_targets_invalid: `회수할 쿠폰을 1~${COUPON_REVOKE_MAX}개 골라주세요.`,
-  coupon_revoke_operation_conflict: '같은 작업 ID로 다른 내용이 요청됐습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
-  coupon_revoke_operation_required: '작업 ID가 없어 회수하지 않았습니다. 다시 시도해주세요.',
+  coupon_revoke_operation_conflict: '앞서 보낸 회수 요청과 내용이 달라 회수하지 않았습니다. 화면을 새로고침한 뒤 쿠폰을 다시 골라 회수해주세요.',
+  coupon_revoke_operation_required: '요청 번호가 없어 회수하지 않았습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
 };
-export const COUPON_REVOKE_FALLBACK = '쿠폰을 회수하지 못했습니다. 잠시 후 다시 시도해주세요.';
+export const COUPON_REVOKE_FALLBACK = '쿠폰을 회수하지 못했습니다. 화면을 새로고침해 쿠폰 상태를 확인한 뒤 다시 시도해주세요.';
 
 export function couponRevokeError(message: string | null | undefined): string {
   const normalized = typeof message === 'string' ? message : '';

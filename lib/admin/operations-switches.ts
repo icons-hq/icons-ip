@@ -87,7 +87,7 @@ export const OPERATIONS_SWITCH_CHECKLISTS: Record<OperationsSwitchKind, readonly
     '발신 도메인·발신자와 Resend API 키가 승인된 값으로 운영 환경에 등록돼 있습니다.',
     '발송 결과 웹훅(/api/webhooks/resend) 서명 검증이 설정돼 있습니다.',
     '메일 본문·수신자 보존·접근·파기 절차를 확인했습니다.',
-    'EMAIL_DISPATCH_HMAC_SECRET을 임의로 교체하지 않는 것을 확인했습니다(교체하면 기존 발송 기록의 멱등 확인이 끊깁니다).',
+    'EMAIL_DISPATCH_HMAC_SECRET을 임의로 교체하지 않는 것을 확인했습니다(바꾸면 이미 보낸 메일인지 알아보는 확인이 끊겨 같은 안내가 다시 나갈 수 있습니다).',
     '지연 안내 작업 cron(CRON_SECRET)이 운영 환경에서 매분 돌고 있습니다.',
   ],
   returnFee: [
@@ -101,7 +101,7 @@ export const OPERATIONS_SWITCH_CHECKLISTS: Record<OperationsSwitchKind, readonly
     '나이스페이 부분 취소 계약을 확인했습니다. 계약 전에는 나이스페이 결제의 부분 취소가 막힙니다.',
     '배송·반품 정책 문서에 재고 부족 시 일부 취소·부분 환불을 고지하고 7일 공지했습니다.',
     '서원(물류)에서 품절을 통보받는 경로(고객 정보 전달 방식·시한)를 운영 합의했습니다.',
-    '운영 주문 배분 점검 쿼리(런북 \'재고 부족 부분 취소\' 게이트 ⑤)를 돌려 막힐 주문(amount_mismatch 등)을 확인했습니다.',
+    '개발팀이 운영 주문의 금액 배분 점검(런북 \'재고 부족 부분 취소\' 게이트 ⑤)을 돌려, 부분 취소가 막힐 주문(amount_mismatch 등)을 확인했습니다.',
     '결제사가 부분 취소를 받지 않는 결제(가상계좌·코페이 등)는 부분 취소가 막히고(전액 환불로 돌리지 않음), 그 주문은 운영자 전액 취소로 처리하는 것을 확인했습니다.',
   ],
   partialReturn: [
@@ -120,8 +120,8 @@ export function operationsSwitchesError(code?: string, message?: string): string
   }
   if (message?.includes('operations_switch_evidence_required')) return '켜려면 근거(반품배송비는 편도 금액도)가 필요합니다. 입력 내용을 확인해주세요.';
   if (code === '22023' || message?.includes('invalid_operations_switch')) return '저장할 값이 올바르지 않습니다. 근거 길이와 금액을 확인한 뒤 다시 시도해주세요.';
-  return '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+  return '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.';
 }
 
 export const EMAIL_NOT_CONFIGURED_MESSAGE =
-  '이메일 공급자 또는 발송 서명 설정이 운영 환경에 준비되지 않아 켤 수 없습니다. 설정을 마친 뒤 다시 시도해주세요.';
+  '메일 발송 서비스 연결(발송 키·서명 설정)이 운영 환경에 준비되지 않아 켤 수 없습니다. 설정을 마친 뒤 다시 시도해주세요.';

@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
+  adminArtworkRejectMessage,
   ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE,
   GOODS_ARTWORK_MAX_BYTES,
   buildAdminArtworkPath,
@@ -53,7 +54,7 @@ async function verificationWait(actorId: string) {
     .gte('processing_started_at', new Date(Date.now() - 60000).toISOString())
     .order('processing_started_at')
     .limit(ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE);
-  if (error) throw new Error('이미지 검증 상태를 읽지 못했습니다.');
+  if (error) throw new Error('이미지 확인 상태를 읽지 못했습니다.');
   return (data?.length ?? 0) >= ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE
     ? Math.max(
         1000,
@@ -131,6 +132,8 @@ async function promoteImage(
       .upload(path, bytes, { contentType: mimeType, upsert: false });
     if (uploaded.error) throw new Error('이미지를 저장하지 못했습니다.');
     const promoted = await verifyAndPromoteAdminArtwork(input);
+    // 확인이 이미지를 거절했으면 그 이유를 알린다(claim에도 같은 이유가 남는다).
+    if (promoted && 'rejection' in promoted) throw new Error(adminArtworkRejectMessage('good', promoted.rejection));
     // 운영자별 확인 한도(blockedReason)도 예전처럼 1분 창 대기 여부로 판정한다.
     if (!promoted || 'blockedReason' in promoted) {
       const retry = await verificationWait(batch.actor_id);
@@ -138,7 +141,7 @@ async function promoteImage(
         await rejectAdminArtworkUpload({ actorId: batch.actor_id, path });
         return { retryAfter: retry };
       }
-      throw new Error('이미지 크기·형식·내용을 확인해주세요.');
+      throw new Error('이미지를 확인하지 못했습니다. 파일 형식(JPEG·PNG·WebP)과 크기가 규격에 맞는지 확인한 뒤 상품 편집에서 직접 올려주세요.');
     }
     await save(promoted.imagePath);
     return { done: true };
@@ -241,7 +244,7 @@ export async function prefetchGoodsImportImages(
         continue;
       }
       const label = IMAGE_LABELS[image.field] ?? `추가 이미지 ${Number(image.field.split('_')[1]) + 1}`;
-      group.warnings.push(`${label}: ${result.error} 이 이미지는 빼고 초안을 만듭니다. 상품 편집에서 올려 주세요.`);
+      group.warnings.push(`${label}: ${result.error} 이 이미지는 빼고 상품을 저장합니다. 상품 편집에서 직접 올려 주세요.`);
       dropGoodsImportImage(group, image.field);
     }
   }

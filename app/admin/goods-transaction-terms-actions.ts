@@ -8,7 +8,7 @@ import { parseGoodsTransactionAdminReceipt, parseGoodsTransactionAdminTerms, typ
 import { goodsTermsError, goodsTermsReceiptMatches, parseGoodsTermsRequest, sameGoodsTerms, validGoodsTermsContext,
   type GoodsTermsContext, type GoodsTermsRequest, type GoodsTermsResult } from '@/lib/admin/goods-transaction-terms';
 
-const denied = (): GoodsTermsResult<never> => ({ ok: false, error: '로그인 상태나 상품관리 권한이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.' });
+const denied = (): GoodsTermsResult<never> => ({ ok: false, error: '로그인한 계정이나 상품관리 권한이 바뀌었습니다. 지금 계정으로 화면을 새로고침해주세요.' });
 async function authorize(context: GoodsTermsContext) {
   const auth = await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' });
   return auth && auth.user.id === context.expectedActorId.toLowerCase();
@@ -24,7 +24,7 @@ export async function readGoodsTransactionTermsAction(context: GoodsTermsContext
 }
 export async function saveGoodsTransactionTermsAction(raw: GoodsTermsRequest): Promise<GoodsTermsResult<GoodsTransactionAdminTerms>> {
   const request = parseGoodsTermsRequest(raw);
-  if (!request) return { ok: false, error: '상품·저장 기준과 할인·배송 입력을 확인해주세요.' };
+  if (!request) return { ok: false, error: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 할인·배송 입력을 다시 확인하고 저장해주세요.' };
   if (!await authorize(request)) return denied();
   let response;
   try {
@@ -35,16 +35,16 @@ export async function saveGoodsTransactionTermsAction(raw: GoodsTermsRequest): P
     });
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, uncertain: true, error: '저장 결과가 불명확합니다. 입력을 바꾸지 말고 같은 요청으로 결과를 확인해주세요.' };
+    return { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' };
   }
   if (response.error) {
     const { code, message } = response.error;
     const rejected = ['22023', '42501', '28000', '23514', '23503', 'P0002', 'PT409', '23505'].includes(code ?? '');
     return { ok: false, uncertain: !rejected, conflict: code === 'PT409' || code === '23505', error: rejected ? goodsTermsError(message)
-      : '저장 결과가 불명확합니다. 같은 요청으로 다시 확인해주세요.' };
+      : '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' };
   }
   const receipt = parseGoodsTransactionAdminReceipt(response.data);
-  if (!receipt || !goodsTermsReceiptMatches(receipt, request)) return { ok: false, uncertain: true, error: '저장 응답을 대조하지 못했습니다. 같은 요청으로 다시 확인해주세요.' };
+  if (!receipt || !goodsTermsReceiptMatches(receipt, request)) return { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' };
   // Read again under a fresh authorization check. A newer revision is a real
   // conflict after a successful commit, never proof that the mutation failed.
   const latest = await readGoodsTransactionTermsAction(request);

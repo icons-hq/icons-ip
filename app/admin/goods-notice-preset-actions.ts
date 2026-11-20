@@ -21,8 +21,8 @@ export interface GoodsNoticePresetActionState extends AdminFormValuesState {
   message?: string;
 }
 const VALUE_FIELDS = ['id', 'name', 'updatedAt', ...GOODS_NOTICE_FIELDS.map((field) => field.formName)];
-const SAVE_FAILED = '프리셋을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
-const DELETE_FAILED = '프리셋을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
+const SAVE_FAILED = '템플릿을 저장하지 못했습니다. 입력한 내용은 그대로 있습니다. 잠시 후 다시 저장해주세요.';
+const DELETE_FAILED = '템플릿을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
 
 async function staffError(): Promise<string | null> {
   try {
@@ -34,11 +34,11 @@ async function staffError(): Promise<string | null> {
 }
 
 function rpcError(error: { code?: string; message: string }, fallback = SAVE_FAILED): Record<string, string> {
-  if (error.code === '23505') return { name: '이미 사용 중인 프리셋 이름입니다. 다른 이름을 입력해주세요.' };
+  if (error.code === '23505') return { name: '이미 사용 중인 템플릿 이름입니다. 다른 이름을 입력해주세요.' };
   if (error.message.includes('goods_notice_preset_conflict')) {
     return { form: '다른 운영자가 수정했습니다. 입력값을 복사한 뒤 새로고침해 최신 내용을 확인해주세요.' };
   }
-  if (error.message.includes('goods_notice_preset_not_found')) return { form: '프리셋을 찾을 수 없습니다. 삭제되었을 수 있습니다.' };
+  if (error.message.includes('goods_notice_preset_not_found')) return { form: '템플릿을 찾을 수 없습니다. 다른 사람이 삭제했을 수 있으니 새로고침해 목록을 확인해주세요.' };
   if (error.message.includes('staff_required')) return { form: '관리자 권한이 필요합니다.' };
   return { form: fallback };
 }
@@ -65,7 +65,7 @@ export async function saveGoodsNoticePresetAction(
   const name = values.name.trim();
   if (!name || name.length > GOODS_NOTICE_PRESET_NAME_MAX) errors.name = `이름은 1~${GOODS_NOTICE_PRESET_NAME_MAX}자로 입력해주세요.`;
   if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
-    errors.form = '최신 프리셋을 다시 열어주세요.';
+    errors.form = '화면 정보가 오래됐습니다. 새로고침해 최신 템플릿을 다시 열어주세요.';
   }
   for (const field of GOODS_NOTICE_FIELDS) {
     const value = values[field.formName].trim();
@@ -86,7 +86,7 @@ export async function saveGoodsNoticePresetAction(
   }
   revalidatePath(GOODS_NOTICE_PRESETS_PATH);
   revalidatePath('/admin/catalog/goods');
-  return { attempt, message: '상품정보제공고시 프리셋을 저장했습니다.' };
+  return { attempt, message: '상품정보제공고시 템플릿을 저장했습니다.' };
 }
 
 export async function deleteGoodsNoticePresetAction(
@@ -99,7 +99,7 @@ export async function deleteGoodsNoticePresetAction(
   if (accessError) return fail({ form: accessError });
   const id = typeof data.get('id') === 'string' ? data.get('id') as string : '';
   const updatedAt = typeof data.get('updatedAt') === 'string' ? data.get('updatedAt') as string : '';
-  if (!isUuid(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) return fail({ form: '최신 프리셋을 다시 열어주세요.' });
+  if (!isUuid(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) return fail({ form: '화면 정보가 오래됐습니다. 새로고침해 최신 템플릿을 다시 열어주세요.' });
   if (data.get('confirmed') !== 'true') return fail({ form: '삭제 확인을 선택해주세요.' });
   try {
     const supabase = await createClient();
@@ -112,5 +112,5 @@ export async function deleteGoodsNoticePresetAction(
   }
   revalidatePath(GOODS_NOTICE_PRESETS_PATH);
   revalidatePath('/admin/catalog/goods');
-  return { attempt, message: '프리셋을 삭제했습니다. 이미 입력된 상품정보제공고시는 유지됩니다.' };
+  return { attempt, message: '템플릿을 삭제했습니다. 이 템플릿으로 이미 채운 상품의 상품정보제공고시는 그대로 남습니다.' };
 }

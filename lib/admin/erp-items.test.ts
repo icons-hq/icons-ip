@@ -54,7 +54,7 @@ describe('ERP 품목 RPC 행 해석', () => {
 
   it('거부 사유를 안내 문구로 바꾸고 모르는 사유도 빈칸으로 두지 않는다', () => {
     expect(erpItemRejectReasonLabel('missing_code')).toBe('ERP 코드(품번)가 비어 있습니다.');
-    expect(erpItemRejectReasonLabel('weird')).toBe('반입하지 못한 행입니다. 값을 확인해주세요.');
+    expect(erpItemRejectReasonLabel('weird')).toBe('올리지 못한 줄입니다. ERP 코드·품명·판매가·바코드 칸에 빠지거나 잘못 들어간 값이 없는지 확인한 뒤 다시 올려주세요.');
     expect(formatErpSalePrice(12000)).toBe('12,000원');
     expect(formatErpSalePrice(null)).toBe('없음');
   });

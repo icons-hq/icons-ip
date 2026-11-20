@@ -111,11 +111,11 @@ describe('admin catalog archive actions', () => {
   });
 
   it.each([
-    ['missing kind', archiveForm('', RECORD_ID), { kind: '지원하지 않는 카탈로그 유형입니다.' }],
-    ['unknown kind', archiveForm('banner', RECORD_ID), { kind: '지원하지 않는 카탈로그 유형입니다.' }],
-    ['missing id', archiveForm('ip', ''), { id: '올바른 카탈로그 ID가 필요합니다.' }],
-    ['uppercase id', archiveForm('ip', 'Catalog-1'), { id: '올바른 카탈로그 ID가 필요합니다.' }],
-    ['spaced id', archiveForm('ip', 'catalog record'), { id: '올바른 카탈로그 ID가 필요합니다.' }],
+    ['missing kind', archiveForm('', RECORD_ID), { kind: '보관할 항목의 종류를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
+    ['unknown kind', archiveForm('banner', RECORD_ID), { kind: '보관할 항목의 종류를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
+    ['missing id', archiveForm('ip', ''), { id: '보관할 항목을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
+    ['uppercase id', archiveForm('ip', 'Catalog-1'), { id: '보관할 항목을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
+    ['spaced id', archiveForm('ip', 'catalog record'), { id: '보관할 항목을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
   ])('rejects %s before auth or RPC access', async (_label, formData, errors) => {
     await expect(archiveAdminCatalogRecordAction({}, formData)).resolves.toEqual({ errors });
 

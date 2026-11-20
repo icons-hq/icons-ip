@@ -32,7 +32,7 @@ const CHECK = 'flex w-fit items-center gap-2 text-sm';
 const HELP = 'text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]';
 const FIELDSET = 'grid min-w-0 gap-3';
 const SEGMENT = 'h-7 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm';
-/* 다시 열어도 상품 URL만 보이지 않게 저장된 상품의 이름·판매자상품코드·공개 여부를 불러와 보인다(QA1 MD). 확인 전이면 상품 URL로 보인다. */
+/* 다시 열어도 상품 URL만 보이지 않게 저장된 상품의 이름·상품 자동코드·공개 여부를 불러와 보인다(QA1 MD). 확인 전이면 상품 URL로 보인다. */
 function SelectedGoods({ ids, info, disabled, onChange }: { ids: string[]; info: ReadonlyMap<string, DisplayGoodInfo>; disabled: boolean; onChange: (ids: string[]) => void }) {
   const [page, setPage] = useState(1), currentPage = Math.min(page, Math.max(1, Math.ceil(ids.length / 20)));
   function move(index: number, delta: number) { const next = [...ids], target = index + delta; if (target < 0 || target >= ids.length) return; [next[index], next[target]] = [next[target], next[index]]; onChange(next); }
@@ -88,12 +88,12 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
   async function save() {
     if (pending || conflict || blocked || busy.pc || busy.mobile) return;
     const parsed = parseCategoryDisplayValues(values);
-    if (!request.current && !parsed) { setMessage('입력값을 확인해주세요. 켠 배너에는 PC 이미지, 영상에는 상품 선택이 필요합니다.'); setError(true); return; }
+    if (!request.current && !parsed) { setMessage('저장할 수 없는 칸이 있습니다. 켠 배너에는 PC 이미지를, 켠 동영상에는 상품을, 켠 추천상품에는 제목(15자 이내)을 넣어주세요. 상품을 카테고리로 모으는 경우 카테고리를 1개 이상 골라야 하고, 배너 제목은 40자·내용은 150자(3줄)까지입니다.'); setError(true); return; }
     request.current ??= { values: parsed!, revision: stored.revision, id: crypto.randomUUID() };
     setPending(true); setMessage('');
     let result: CategoryDisplaySaveResult;
     try { result = await saveCategoryDisplayAction(initial.category.id, request.current.values, request.current.revision, request.current.id, actorId); }
-    catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+    catch { result = { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true }; }
     if (!alive.current || blockedRef.current) return;
     setPending(false);
     if ('error' in result) { setMessage(result.error); setError(true); setUncertain(Boolean(result.uncertain)); setConflict(Boolean(result.conflict)); if (!result.uncertain) request.current = null; return; }
@@ -104,7 +104,7 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
     setPending(true); setMessage('');
     let result: CategoryDisplaySaveResult;
     try { result = await reloadCategoryDisplayAction(initial.category.id); }
-    catch { result = { error: '최신 저장본을 불러오지 못했습니다. 입력은 유지됩니다. 다시 조회해주세요.' }; }
+    catch { result = { error: '최신 저장본을 불러오지 못했습니다. 입력은 유지됩니다. 최신 저장본 불러오기를 다시 눌러주세요.' }; }
     if (!alive.current || blockedRef.current) return;
     setPending(false);
     if ('error' in result) { setMessage(result.error); setError(true); return; }

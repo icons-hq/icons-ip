@@ -41,7 +41,7 @@ export async function setGoodBankTransferAction(
     return {
       error: error.message.includes('catalog_record_missing')
         ? adminGoodsCopy('굿즈를 찾을 수 없습니다.')
-        : '무통장 설정을 바꾸지 못했습니다.',
+        : '무통장 설정을 바꾸지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
     };
   }
 
@@ -52,7 +52,7 @@ export async function setGoodBankTransferAction(
   if (allowed) after(() => sendRestockAlertEmails(id));
   return {
     message: allowed
-      ? adminGoodsCopy('이 굿즈로 무통장 입금 주문을 받습니다.')
+      ? adminGoodsCopy('이 굿즈는 카드 결제와 함께 무통장 입금 주문도 받습니다.')
       : adminGoodsCopy('이 굿즈는 무통장 입금을 받지 않습니다. 카드 결제만 열립니다.'),
   };
 }

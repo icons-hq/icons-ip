@@ -20,14 +20,14 @@ export function GoodsMediaUploadField({ kind, asset, disabled, onAsset, onBusy }
       const result = retry && uncertainId ? { ...await verifyGoodsMediaAction(uncertainId), uploadId: uncertainId } : await uploadGoodsMedia(kind, file!);
       if (result.ok) { onAsset(result.asset); setFile(null); setUncertainId(null); setMessage('파일 확인을 마쳤습니다. 저장하면 상품에 적용됩니다.'); if (field.current) field.current.value = ''; onBusy(false); }
       else { setMessage(result.error); const uncertain = result.uncertain && result.uploadId ? result.uploadId : null; setUncertainId(uncertain); onBusy(Boolean(uncertain)); }
-    } catch { setMessage('업로드 결과를 확인하지 못했습니다. 다시 확인해주세요.'); onBusy(Boolean(uncertainId)); }
+    } catch { setMessage('업로드 결과를 확인하지 못했습니다. 아래 버튼을 다시 눌러 확인해주세요.'); onBusy(Boolean(uncertainId)); }
     finally { setPending(false); }
   }
   async function cancelUncertain() {
     if (!uncertainId || pending || disabled) return;
     setPending(true);
-    try { await cancelGoodsMediaAction(uncertainId); setUncertainId(null); setFile(null); if (field.current) field.current.value = ''; onBusy(false); setMessage('업로드 연결을 취소했습니다. 기존 저장 영상은 유지됩니다.'); }
-    catch { setMessage('취소 결과를 확인하지 못했습니다. 다시 확인해주세요.'); }
+    try { await cancelGoodsMediaAction(uncertainId); setUncertainId(null); setFile(null); if (field.current) field.current.value = ''; onBusy(false); setMessage('방금 올린 영상을 쓰지 않도록 취소했습니다. 전에 저장한 영상은 그대로입니다.'); }
+    catch { setMessage('업로드 취소가 처리됐는지 확인하지 못했습니다. [업로드 취소]를 다시 눌러주세요.'); }
     finally { setPending(false); }
   }
   return <section className="flex min-w-0 flex-col gap-3" aria-labelledby={`goods-media-${kind}-heading`}>
@@ -38,7 +38,7 @@ export function GoodsMediaUploadField({ kind, asset, disabled, onAsset, onBusy }
       onChange={event => { const value = event.target.files?.[0] ?? null; setFile(value); setMessage(value && !validGoodsMediaUpload({ kind, mimeType: value.type, size: value.size }) ? 'MP4 50MB 이하 파일을 선택해주세요.' : ''); }} /></label>
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" type="button" disabled={disabled || pending || (!uncertainId && (!file || !validGoodsMediaUpload({ kind, mimeType: file.type, size: file.size })))} onClick={() => void upload(Boolean(uncertainId))}>{pending ? '영상 확인 중…' : uncertainId ? '같은 업로드 결과 확인' : '파일 업로드·확인'}</Button>
-      {uncertainId ? <Button variant="outline" type="button" disabled={disabled || pending} onClick={() => void cancelUncertain()}>업로드 취소</Button> : asset ? <Button variant="ghost" type="button" disabled={disabled || pending} onClick={() => { onAsset(null); setMessage('저장하면 이 상품의 영상 연결을 해제합니다.'); }}>영상 연결 해제</Button> : null}
+      {uncertainId ? <Button variant="outline" type="button" disabled={disabled || pending} onClick={() => void cancelUncertain()}>업로드 취소</Button> : asset ? <Button variant="ghost" type="button" disabled={disabled || pending} onClick={() => { onAsset(null); setMessage('저장하면 이 상품에서 영상이 빠집니다.'); }}>영상 연결 해제</Button> : null}
     </div>
     {message ? <p className="text-sm" role="status">{message}</p> : null}
   </section>;

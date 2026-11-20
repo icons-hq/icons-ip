@@ -76,12 +76,12 @@ export function reviewEventExportSheet(snapshot: ReviewEventExportSnapshot) {
     columns = [column('응모 ID', 'code', 40), column('리뷰 ID', 'code', 40), column('닉네임', 'text', 24), column('상품코드', 'code', 20), column('상품명', 'text', 42), column('별점', 'count', 10), column('사진 수', 'count', 12), column('응모 시각', 'text', 18), column('리뷰 수정 시각', 'text', 18),
       column('저장된 선정', 'text', 18), column('선정 후 리뷰 변경', 'text', 22), column('현재 선정 자격', 'text', 36), column('혜택 처리 상태', 'text', 20), column('선정 혜택', 'amount', 14), column('유효기간 (일)', 'count', 18), column('지급 시각', 'text', 18), column('유효기한', 'text', 18), column('회수 시각', 'text', 18), column('응모 당시 이벤트 버전', 'count', 26)];
     rows = (snapshot.rows as ReviewEventExportEntry[]).map(row => [row.id, row.reviewId, row.nickname, row.goodCode || row.goodId, row.goodName, row.rating, row.imageCount, kstDateTimeText(row.enteredAt), kstDateTimeText(row.reviewUpdatedAt),
-      row.selected ? '선정됨' : '미선정', row.selectionChanged ? '재확인 필요' : '없음', row.grantedAt ? '기지급 · 재선정 불가' : reviewEventProblemLabel(row.problem), row.revokedAt ? '회수 완료' : row.grantedAt ? '지급 완료' : '미지급', row.creditAmount, row.creditValidityDays,
+      row.selected ? '선정됨' : '미선정', row.selectionChanged ? '재확인 필요' : '없음', row.grantedAt ? '이미 지급 · 다시 선정 불가' : reviewEventProblemLabel(row.problem), row.revokedAt ? '회수 완료' : row.grantedAt ? '지급 완료' : '미지급', row.creditAmount, row.creditValidityDays,
       kstDateTimeText(row.grantedAt), kstDateTimeText(row.expiresAt), kstDateTimeText(row.revokedAt), row.eventRevision]);
   }
   return { screenLabel: '리뷰이벤트', title: filters.mode === 'events' ? '리뷰이벤트 목록' : '리뷰이벤트 응모', columns, rows, recordCount: snapshot.total, conditions,
-    notes: [filters.mode === 'events' ? '한 행은 이벤트 한 건입니다. 누적 지급 수에는 이후 회수된 지급도 포함합니다.' : '한 행은 응모 리뷰 한 건입니다. 화면에서 수정 중인 선택은 포함하지 않으며 저장된 선정 상태를 표시합니다.',
-      '조회 시점의 확인용 파일이며 선정·발표·지급·회수 작업을 실행하지 않습니다.',
+    notes: [filters.mode === 'events' ? '한 줄은 이벤트 한 건입니다. 누적 지급 수에는 나중에 회수한 지급도 들어 있습니다.' : '한 줄은 응모 리뷰 한 건입니다. 저장된 선정 상태만 들어 있고, 화면에서 바꾸고 아직 저장하지 않은 선택은 들어 있지 않습니다.',
+      '내려받은 때의 내용을 확인하는 파일입니다. 내려받아도 선정·발표·지급·회수는 일어나지 않습니다.',
       '리뷰 본문·사진 주소·회원번호·주문번호·이메일·연락처·선정 및 회수 사유를 제외합니다. 검색어 자체에 고객 정보를 입력했다면 내려받기 정보 시트에 포함될 수 있습니다.'],
     filters: { ...filters, fingerprint: snapshot.fingerprint } as Record<string, string | null> };
 }

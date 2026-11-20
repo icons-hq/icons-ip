@@ -33,7 +33,7 @@ describe('지연 안내 서버 액션',()=>{
  });
  it('메일 설정이 없으면 두 채널 요청을 막고 준비 안 된 이유를 돌려준다',async()=>{
   mocks.rpc.mockResolvedValue({data:notice,error:null});mocks.dispatcher.mockReturnValue(null);
-  expect(await requestOrderDelayNoticeAction(id)).toMatchObject({emailConfigured:false,error:'이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'});
+  expect(await requestOrderDelayNoticeAction(id)).toMatchObject({emailConfigured:false,error:'메일 발송 서비스 연결(발송 키·서명 설정)이 아직 준비되지 않았습니다. 개발 담당자에게 메일 발송 설정을 요청해주세요.'});
   expect(mocks.rpc.mock.calls.map(([name])=>name)).toEqual(['admin_get_order_delay_notice']);
  });
  it('요청 뒤 응답이 유실돼도 이미 저장된 영수증으로 복구하며 추가 채널 발송을 요청하지 않는다',async()=>{

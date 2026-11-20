@@ -2,7 +2,7 @@ import type { GoodOption, Ip, Stock } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import { imageBg } from '@/lib/media';
-import { GOODS_GALLERY_MAX, normalizeGoodsSearchKeywords } from './catalog';
+import { GOODS_DETAIL_IMAGE_FIELD_NAMES, GOODS_GALLERY_MAX, normalizeGoodsSearchKeywords } from './catalog';
 import { restoreGoodsOptionRows, type GoodsOptionRow } from './goods-option-editor';
 import { collapseRandomGoodOptions, optionPriceRange } from '@/lib/goods-options';
 import type { GoodsOptionLimitPolicy, GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
@@ -134,7 +134,7 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
     descriptionFormat,
     descriptionImagePaths: htmlContent?.imagePaths ?? [],
     gallery,
-    detailImageUrl: imageUrls.detailImagePath ?? null,
+    detailImageUrls: GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name) => imageUrls[name]).filter((url): url is string => Boolean(url)),
     notice: previewNotice(values),
     kcDisclosures: parseGoodsKcDisclosures(input.kcDisclosures ?? []) ?? [],
     otherCertifications: parseGoodsOtherCertificationDisclosures(input.otherCertifications ?? []) ?? [],

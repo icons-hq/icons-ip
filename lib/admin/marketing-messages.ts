@@ -41,7 +41,7 @@ export function parseMarketingSchedule(value:unknown):MarketingSchedule|null {
  return null;
 }
 export function marketingScheduleError(schedule:MarketingSchedule,at=new Date()):string|null {
- if(schedule.kind==='immediate'){const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(at));return hour<8||hour>=20?'즉시 등록은 KST 08:00–20:00에 가능합니다.':null;}
+ if(schedule.kind==='immediate'){const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(at));return hour<8||hour>=20?'즉시 등록은 KST 08:00–20:00에만 할 수 있습니다. 이 시간이 아니면 일시 예약으로 바꿔주세요.':null;}
  if(schedule.kind==='once'){const date=new Date(schedule.at),hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(date));if(date<=at||date.getTime()>at.getTime()+366*86400000||hour<8||hour>=20)return '예약은 1년 이내의 미래 시각, KST 08:00–20:00로 설정해주세요.';return null;}
  const start=new Date(`${schedule.startDate}T${schedule.time}:00+09:00`),end=new Date(`${schedule.endDate}T${schedule.time}:00+09:00`),days=(end.getTime()-start.getTime())/86400000;
  if(!Number.isFinite(days)||days<0||days>365)return '반복 기간은 시작일부터 최대 1년으로 설정해주세요.';

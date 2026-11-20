@@ -124,10 +124,10 @@ export function normalizeAdminNotificationForm(
   const body = readString(formData, 'body');
 
   if (!isUuid(operationId)) {
-    errors.operationId = '올바른 발송 요청 ID가 필요합니다.';
+    errors.operationId = '발송 요청 정보가 맞지 않습니다. 새로고침한 뒤 다시 발송해주세요.';
   }
   if (!scope) {
-    errors.scope = '허용된 발송 대상을 선택해주세요.';
+    errors.scope = '발송 대상을 목록에서 다시 골라주세요.';
   }
   if (scope === 'ip_followers' && !IP_ID_PATTERN.test(ipId ?? '')) {
     errors.ipId = '발송할 IP를 선택해주세요.';

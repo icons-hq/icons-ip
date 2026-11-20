@@ -26,7 +26,7 @@ export async function loadAdminReviewEvent(id: string, page = 1, query = '', fil
   if (error) throw new Error('리뷰이벤트를 불러오지 못했습니다.');
   if (data === null) return null;
   const workspace = parseReviewEventWorkspace(data);
-  if (!workspace) throw new Error('리뷰이벤트 응답을 확인하지 못했습니다.');
+  if (!workspace) throw new Error('리뷰이벤트 내용을 읽지 못했습니다. 새로고침해 다시 열어주세요.');
   const lastPage = Math.max(1, Math.ceil(workspace.total / 50));
   if (page > lastPage) return loadAdminReviewEvent(id, lastPage, query, filter);
   const paths = [...new Set(workspace.rows.flatMap(row => row.imagePaths))];

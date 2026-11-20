@@ -202,8 +202,9 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
       const label = `기간 할인 ${index + 1}`;
       const row = rowFor(entry.optionKey);
       if (!row) return fail('pricePeriods', `${label}: 대상 옵션을 다시 선택해주세요.`);
-      const period = parseGoodsPricePeriodInput({ state: entry.state, discountPrice: entry.discountPrice.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt });
-      if (!period) return fail('pricePeriods', `${label}: 할인가(1원 이상)와 KST 기준 시작·종료를 확인해주세요. 활성에는 모든 값이 필요합니다.`);
+      /* 2026-11-19: 기간 할인은 저장하면 적용된다(초안 선택 없음). 배포 전 브라우저에 보관된 초안 입력도 적용으로 싣는다. */
+      const period = parseGoodsPricePeriodInput({ state: 'active', discountPrice: entry.discountPrice.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt });
+      if (!period) return fail('pricePeriods', `${label}: 할인가(1원 이상)와 KST 기준 시작·종료를 모두 입력해주세요.`);
       entries.push({ variant: variantRef(row), period });
     }
     value.pricePeriods = entries;
@@ -396,10 +397,10 @@ function pricePeriodError(message: string) {
   if (message.includes('variant_unresolved') || message.includes('invalid_goods_workspace_price_period_variant')) return '할인 대상 옵션을 저장된 옵션목록에서 찾지 못했습니다. 대상 옵션을 다시 선택해주세요.';
   if (RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code))) return goodsOptionSaleModeErrorMessage(message);
   const messages: Record<string, string> = {
-    price_period_overlap: '같은 옵션에 시간이 겹치는 활성 기간 할인이 있습니다.',
-    price_period_not_configured: '할인가와 시작·종료 시각을 모두 입력한 뒤 활성화해주세요.',
+    price_period_overlap: '같은 옵션에 기간이 겹치는 기간 할인이 이미 적용되어 있습니다. 기존 할인을 중지하거나 기간이 겹치지 않게 바꿔주세요.',
+    price_period_not_configured: '기간 할인가와 시작·종료 시각을 모두 입력한 뒤 \'적용\'으로 저장해주세요.',
     instant_discount_period_conflict: '기간 없는 즉시할인을 건 상품에는 기간 할인을 함께 걸 수 없습니다. 판매가의 즉시할인을 \'특정기간만 할인\'으로 바꾸거나 설정안함으로 바꿔주세요.',
-    price_period_variant_inactive: '사용 중지한 옵션에는 기간 할인을 활성화할 수 없습니다.',
+    price_period_variant_inactive: '사용 중지한 옵션에는 기간 할인을 적용할 수 없습니다. 사용 상태를 \'대기\'로 두거나 다른 옵션을 고르세요.',
   };
   return Object.entries(messages).find(([code]) => message.includes(code))?.[1] ?? '기간 할인을 저장하지 못했습니다. 할인가가 옵션 판매가보다 낮은지 확인해주세요.';
 }

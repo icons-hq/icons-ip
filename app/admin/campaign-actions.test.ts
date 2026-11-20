@@ -139,7 +139,7 @@ describe('upsertAdminCampaignAction', () => {
 
     const state = await upsertAdminCampaignAction({}, campaignForm());
 
-    expect(state.errors?.id).toContain('오프라인 팝업 ID와도 겹칠 수 없어요');
+    expect(state.errors?.id).toContain('오프라인 팝업 주소와도 겹칠 수 없습니다');
   });
 
   it('ID 변경 시도는 변경 불가로 옮긴다', async () => {
@@ -147,7 +147,7 @@ describe('upsertAdminCampaignAction', () => {
 
     const state = await upsertAdminCampaignAction({}, campaignForm({ previousId: 'autumn-attendance' }));
 
-    expect(state.errors?.id).toContain('변경할 수 없습니다');
+    expect(state.errors?.id).toContain('등록 후 바꿀 수 없습니다');
   });
 
   /* DB 는 사유를 invalid_sections 하나로 답하고 위치는 DETAIL 에 싣는다.
@@ -160,7 +160,7 @@ describe('upsertAdminCampaignAction', () => {
 
     const state = await upsertAdminCampaignAction({}, campaignForm());
 
-    expect(state.errors?.sections).toContain('랜딩 구성 JSON이 스키마에 맞지 않아요');
+    expect(state.errors?.sections).toContain('구성 코드의 형식이 맞지 않습니다');
     expect(state.errors?.sections).toContain('sections[2].offer_id');
   });
 

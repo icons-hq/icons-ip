@@ -38,7 +38,7 @@ export function GoodsKcPresetFields({template,raw,error}:{template?:GoodsKcPrese
       </NativeSelect></div>
       {draft.scheme==='not_applicable'?<label className="flex min-w-0 flex-col gap-2 text-sm sm:col-span-2"><span className="font-medium">해당 없음 고객 안내 (선택)</span><textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" rows={3} maxLength={1000} value={draft.publicNote} onChange={event=>setDraft({...draft,publicNote:event.target.value})}/></label>:null}
     </div>:null}
-    <p className="text-sm text-muted-foreground">제품군·제도와 해당 없음 안내만 새 모델 초안으로 복사합니다. 옵션·인증번호·증빙·검토 완료 상태는 복사하지 않습니다.</p>
+    <p className="text-sm text-muted-foreground">제품군·제도와 해당 없음 안내만 KC 정보의 새 미검토 모델로 복사합니다. 옵션·인증번호·증빙·검토 완료 상태는 복사하지 않습니다.</p>
     {error?<p className="text-sm text-destructive" role="alert">{error}</p>:null}
   </fieldset>;
 }

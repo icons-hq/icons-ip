@@ -138,6 +138,56 @@ select 1 / case when (
 reset role;
 
 -- ---------------------------------------------------------------------------
+-- 전체 숨김은 KCP 인증을 유지하면서 공개 상품·가림 카드·신규 구매를 닫는다.
+update private.adult_goods_storefront_settings set enabled=true, revision=1 where singleton;
+insert into public.wishlists(user_id,good_id) values
+  ('a0190000-0000-4000-8000-000000000002','adult-gate-adult'),
+  ('a0190000-0000-4000-8000-000000000002','adult-gate-plain');
+insert into public.cart_items(user_id,good_id,variant_id,qty) values
+  ('a0190000-0000-4000-8000-000000000002','adult-gate-adult',:'adult_variant',1),
+  ('a0190000-0000-4000-8000-000000000002','adult-gate-plain',:'plain_variant',1);
+select pg_temp.adult_gate_actor(3);
+set local role authenticated;
+select pg_temp.adult_gate_expect_error('select public.admin_set_adult_goods_visibility(false,1)', 'operator_capability_required');
+reset role;
+select pg_temp.adult_gate_actor(1);
+set local role authenticated;
+select public.admin_set_adult_goods_visibility(false,1);
+select public.admin_set_adult_goods_visibility(false,1);
+select pg_temp.adult_gate_expect_error('select public.admin_set_adult_goods_visibility(true,1)', 'adult_goods_visibility_changed');
+reset role;
+select 1 / case when (select count(*) from public.audit_log where action='admin.adult_goods.visibility' and actor_id='a0190000-0000-4000-8000-000000000001') = 1
+  and private.adult_verification_valid('a0190000-0000-4000-8000-000000000002') then 1 else 0 end as assert_one_audit_and_valid_identity;
+set local role anon;
+select 1 / case when not exists(select 1 from public.get_masked_adult_goods()) then 1 else 0 end as assert_no_masked_cards;
+reset role;
+select pg_temp.adult_gate_actor(2);
+set local role authenticated;
+select 1 / case when not exists(select 1 from public.goods where id='adult-gate-adult')
+  and exists(select 1 from public.goods where id='adult-gate-plain')
+  and public.get_good_media('adult-gate-adult') is null
+  and not exists(select 1 from public.search_public_content('성인게이트',6) where kind='good' and id='adult-gate-adult')
+  and not exists(select 1 from public.cart_items where good_id='adult-gate-adult')
+  and not exists(select 1 from public.wishlists where good_id='adult-gate-adult')
+  and exists(select 1 from public.cart_items where good_id='adult-gate-plain')
+  and exists(select 1 from public.wishlists where good_id='adult-gate-plain')
+  then 1 else 0 end as assert_verified_customer_cannot_discover_hidden_product;
+reset role;
+select 1 / case when not private.goods_selection_base_available('adult-gate-adult','a0190000-0000-4000-8000-000000000002')
+  then 1 else 0 end as assert_hidden_direct_and_cart_selection_closed;
+select pg_temp.adult_gate_actor(1);
+set local role authenticated;
+select public.admin_set_adult_goods_visibility(true,2);
+select 1 / case when exists(select 1 from public.get_masked_adult_goods('adult-gate-adult'))
+  then 1 else 0 end as assert_masked_cards_restored;
+select pg_temp.adult_gate_actor(2);
+select 1 / case when exists(select 1 from public.cart_items where good_id='adult-gate-adult' and qty=1)
+  and exists(select 1 from public.wishlists where good_id='adult-gate-adult')
+  then 1 else 0 end as assert_saved_items_restored;
+reset role;
+delete from public.cart_items where user_id='a0190000-0000-4000-8000-000000000002';
+delete from public.wishlists where user_id='a0190000-0000-4000-8000-000000000002';
+
 -- 장바구니 — 미인증은 성인 인증 오류로, 인증 성인은 담긴다
 -- ---------------------------------------------------------------------------
 select pg_temp.adult_gate_actor(3);

@@ -700,7 +700,7 @@ describe('sign-out actions', () => {
   });
 });
 
-/* 1014-004 — 가입 확인을 메일 링크 대신 같은 화면의 6자리 코드로 끝낸다. */
+/* 1014-004 — 가입 확인을 메일 링크 대신 같은 화면의 코드로 끝낸다. */
 describe('signup confirmation code', () => {
   const ONBOARDED_PROFILE = {
     email: 'fan@icons.gg', nickname: 'fan_abcd1234', birth_date: '2000-01-01', avatar_path: null,
@@ -789,6 +789,11 @@ describe('signup confirmation code', () => {
     expect(mocks.signOut.mock.invocationCallOrder[0]).toBeLessThan(mocks.signInWithPassword.mock.invocationCallOrder[0]);
   });
 
+  it.each(['01234567', '1234567890'])('passes the complete issued code %s to Auth, including leading zeros', async (code) => {
+    await expect(verifySignupCodeAction({}, codeForm(code, 'fan@icons.gg', '/', null))).rejects.toThrow('NEXT_REDIRECT:');
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ email: 'fan@icons.gg', token: code, type: 'email' });
+  });
+
   it('sends the member to the sign-in screen when the password is not in screen memory (reload)', async () => {
     await expect(verifySignupCodeAction({}, codeForm('123456', 'Fan@Icons.gg', '/community?sort=hot', null))).rejects.toThrow(
       'NEXT_REDIRECT:/login?mode=signin&signup_confirmed=1&next=%2Fcommunity%3Fsort%3Dhot',
@@ -840,9 +845,9 @@ describe('signup confirmation code', () => {
     await expect(verifySignupCodeAction({}, codeForm('123456'))).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
   });
 
-  it.each(['12345', '1234567', 'abcdef', ''])('rejects %j as a code before calling Supabase', async (code) => {
+  it.each(['12345', '12345678901', 'abcdef', ''])('rejects %j as a code before calling Supabase', async (code) => {
     await expect(verifySignupCodeAction({}, codeForm(code))).resolves.toEqual({
-      errors: { code: '메일로 받은 6자리 숫자를 입력해주세요.' },
+      errors: { code: '메일로 받은 확인 코드 전체를 숫자로 입력해주세요.' },
       pendingSignupEmail: 'fan@icons.gg',
     });
     expect(mocks.verifyOtp).not.toHaveBeenCalled();
@@ -881,7 +886,7 @@ describe('signup confirmation code', () => {
 
     await submitSignup('Fan@Icons.gg');
     expect(await resendSignupCodeAction({}, resendForm())).toEqual({
-      message: '새 확인 메일을 보냈습니다. 가장 최근에 받은 메일의 6자리 확인 코드를 입력해주세요.',
+      message: '새 확인 메일을 보냈습니다. 가장 최근에 받은 메일의 확인 코드를 입력해주세요.',
       pendingSignupEmail: 'fan@icons.gg',
     });
     expect(mocks.resend).toHaveBeenLastCalledWith({

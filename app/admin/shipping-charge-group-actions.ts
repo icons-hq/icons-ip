@@ -19,7 +19,7 @@ import { loadGoodShippingChargeGroup, loadShippingChargeGroup, loadShippingCharg
   searchShippingChargeGroupGoods, ShippingChargeGroupReadError } from '@/lib/admin/shipping-charge-groups.server';
 
 export type ShippingChargeGroupActionResult<T> = { data: T } | { error: string; uncertain?: boolean; conflict?: boolean; authChanged?: boolean };
-const invalid = () => ({ error: '입력값과 현재 작업의 저장 기준을 확인해주세요.' });
+const invalid = () => ({ error: '입력한 값이나 화면의 기준 버전이 맞지 않아 처리하지 않았습니다. 새로고침해 최신 내용을 확인한 뒤 다시 시도해주세요.' });
 const denied = () => ({ error: '로그인 상태나 상품관리 권한이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.', authChanged: true });
 const unknown = () => ({ error: '처리 결과가 불확실합니다. 같은 요청의 저장 결과를 확인해주세요.', uncertain: true });
 const readFailed = () => ({ error: '배송비 묶음그룹 정보를 확인하지 못했습니다. 다시 불러와주세요.' });
@@ -42,7 +42,7 @@ function failure(code: string | undefined, message: string): Exclude<ShippingCha
     ['group_changed', '배송비 묶음그룹이 변경되었습니다. 기존 요청 결과를 확인한 뒤 최신 내용과 비교해주세요.'],
     ['default_changed', '기본 묶음그룹이 변경되었습니다. 최신 출고지 정보를 다시 확인해주세요.'],
     ['origin_changed', '출고지 정보가 변경되었습니다. 기존 요청 결과를 확인한 뒤 다시 확인해주세요.'],
-    ['origin_unavailable', '선택한 출고지가 없거나 비활성 상태입니다. 활성 출고지를 확인해주세요.'],
+    ['origin_unavailable', '선택한 출고지가 없거나 사용 중지 상태입니다. 배송정보 관리에서 사용 중인 출고지인지 확인해주세요.'],
     ['origin_mismatch', '상품과 배송비 묶음그룹의 출고지가 다릅니다. 같은 출고지의 그룹을 선택해주세요.'],
     ['group_in_use', '연결된 상품이 있어 사용 중지하거나 보관할 수 없습니다. 상품 배정을 먼저 해제하거나 이동해주세요.'],
     ['has_assignments', '연결된 상품이 있어 사용 중지하거나 보관할 수 없습니다. 상품 배정을 먼저 해제하거나 이동해주세요.'],
@@ -50,7 +50,7 @@ function failure(code: string | undefined, message: string): Exclude<ShippingCha
     ['group_unavailable', '사용 가능한 배송비 묶음그룹이 아닙니다. 그룹 상태를 확인해주세요.'],
     ['goods_changed', '상품이나 공유 배송 조건이 변경되었습니다. 기존 요청 결과를 확인한 뒤 미리보기를 다시 만들어주세요.'],
     ['goods_unavailable', '삭제되었거나 보관된 상품이 포함되어 있습니다. 선택 상품을 다시 확인해주세요.'],
-    ['owner', '합산군의 다른 상품은 개별 변경할 수 없습니다. 표시된 원상품에서 배정을 변경해주세요.'],
+    ['owner', '합산군에 묶인 상품은 하나씩 바꿀 수 없습니다. 화면에 표시된 원상품에서 배정을 바꿔주세요.'],
     ['collect', '출고지의 착불 수납 조건을 확인해주세요. 준비된 수납 계약이 필요합니다.'],
     ['operation_conflict', '같은 요청번호에 다른 입력이 연결되어 있습니다. 원래 요청의 저장 결과를 확인해주세요.'],
     ['request_conflict', '같은 요청번호에 다른 입력이 연결되어 있습니다. 원래 요청의 저장 결과를 확인해주세요.'],
@@ -60,7 +60,7 @@ function failure(code: string | undefined, message: string): Exclude<ShippingCha
     ['runtime', '현재 상품 거래 설정에서는 이 변경을 적용할 수 없습니다. 운영 설정을 확인해주세요.'],
     ['checkout_contract_upgrade_required', '현재 상품 거래 경로에서는 배송비 묶음그룹을 적용할 수 없습니다.'],
   ];
-  return { error: messages.find(([key]) => message.includes(key))?.[1] ?? '처리하지 못했습니다. 입력값과 최신 상태를 확인해주세요.',
+  return { error: messages.find(([key]) => message.includes(key))?.[1] ?? '처리하지 못했습니다. 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.',
     uncertain: false, conflict: code === 'PT409' || code === '23505' };
 }
 function readFailure(error: unknown): Exclude<ShippingChargeGroupActionResult<never>, { data: never }> {

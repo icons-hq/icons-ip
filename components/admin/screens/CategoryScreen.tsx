@@ -100,7 +100,7 @@ function ActivationForm({ activation }: { activation: AdminCategoryActivation })
     <input name="operationId" type="hidden" value="" />
     <label className="flex cursor-pointer items-center gap-2 text-sm"><input defaultChecked={activation.customerEnabled} name="customerEnabled" type="checkbox" /> 고객 화면 카테고리 조회·검색 사용</label>
     <label className="flex cursor-pointer items-center gap-2 text-sm"><input defaultChecked={activation.erpEnabled} name="erpEnabled" type="checkbox" /> ERP 분류 조회·내보내기 사용</label>
-    <p className="text-sm text-muted-foreground">현재 상태: {categoryActivationLabel(activation)}. 실제 이름·코드와 카테고리 구조, 운영 확인 근거가 없으면 켜지지 않습니다.</p>
+    <p className="text-sm text-muted-foreground">현재 상태: {categoryActivationLabel(activation)}. 켜려면 카테고리 트리를 실제 이름·코드로 다 만들고, 켜는 쪽의 근거 칸(출처·참조·검증 시각)을 모두 채워야 합니다.</p>
     <div className={FIELD_GRID}>
       <Labeled label="고객 분류 근거 출처"><Input defaultValue={activation.customerEvidence?.source ?? ''} name="customerEvidenceSource" /></Labeled>
       <Labeled label="고객 분류 근거 참조"><Input defaultValue={activation.customerEvidence?.reference ?? ''} name="customerEvidenceReference" /></Labeled>
@@ -110,7 +110,7 @@ function ActivationForm({ activation }: { activation: AdminCategoryActivation })
       <Labeled label="ERP 검증 시각"><Input defaultValue={activation.erpEvidence?.verifiedAt ?? ''} name="erpEvidenceVerifiedAt" type="datetime-local" /></Labeled>
     </div>
     <Notice state={state} />
-    <Button className="self-start" disabled={pending} type="submit">{pending ? '저장 중' : '활성화 상태 저장'}</Button>
+    <Button className="self-start" disabled={pending} type="submit">{pending ? '저장 중' : '사용 설정 저장'}</Button>
   </form>;
 }
 
@@ -165,7 +165,7 @@ export function CategoryScreen({ data, canManagePlatform = true, hasCategoryTemp
   }
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="categories">
     <AdminPageHeader title="카테고리 관리" description="카테고리를 최대 4단계로 구성하고 상품에 대표·추가 분류로 연결합니다. 상품은 대표 카테고리가 있어야 공개할 수 있습니다." actions={/* 파일 내려받기 API라 Link(미리 가져오기·화면 이동)가 아니라 일반 링크다. */<a className={buttonVariants({ variant: 'outline' })} data-slot="button" href={categoryExportHref()}><Download aria-hidden="true" />{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</a>} />
-    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<AdminStatusBadge tone={data.activation.customerEnabled ? statusTone('display', 'active') : 'warning'}>{data.activation.customerEnabled ? '고객 화면 적용 중' : '고객 화면 미적용'}</AdminStatusBadge>} cue={data.activation.customerEnabled ? undefined : '펼쳐서 켜기'} summary={data.activation.customerEnabled ? categoryActivationLabel(data.activation) : '고객 화면에는 아직 카테고리가 보이지 않습니다. 트리를 다 만든 뒤 펼쳐서 켜주세요.'}><ActivationForm activation={data.activation} /></FoldCard> : null}
+    {canManagePlatform ? <FoldCard title="고객 화면·ERP 사용 설정" badge={<AdminStatusBadge tone={data.activation.customerEnabled ? statusTone('display', 'active') : 'warning'}>{data.activation.customerEnabled ? '고객 화면 적용 중' : '고객 화면 미적용'}</AdminStatusBadge>} cue={data.activation.customerEnabled ? undefined : '펼쳐서 켜기'} summary={data.activation.customerEnabled ? categoryActivationLabel(data.activation) : '고객 화면에는 아직 카테고리가 보이지 않습니다. 트리를 다 만든 뒤 펼쳐서 켜주세요.'}><ActivationForm activation={data.activation} /></FoldCard> : null}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(17rem,0.45fr)_minmax(0,1fr)]" data-category-screen="master-detail">
       <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`} summary="이름을 누르면 오른쪽에서 수정합니다."><CategoryTree activeId={selected?.id ?? null} categories={data.categories} onSelect={selectCategory} /></AdminSectionCard>
       {/* 트리가 길어도 고르는 동안 입력 묶음이 함께 보이게 붙어 따라온다. 새 등록은 접어 저장 버튼이 한 화면에 하나만 보이게 한다. */}
@@ -178,12 +178,12 @@ export function CategoryScreen({ data, canManagePlatform = true, hasCategoryTemp
       </div>
     </div>
     <FoldCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></FoldCard>
-    {canManagePlatform ? <FoldCard id="category-erp-mapping" title="ERP 분류 매핑" summary={`맨 아래 단계 ${activeLeaves.length}개 · 미설정 ${activeLeaves.filter((category) => !mappedIds.has(category.id)).length}개`}>
+    {canManagePlatform ? <FoldCard id="category-erp-mapping" title="ERP 분류 매핑" summary={`맨 아래 단계 ${activeLeaves.length}개 · ERP 값 없음 ${activeLeaves.filter((category) => !mappedIds.has(category.id)).length}개`}>
       {/* 이름이 비슷한 ERP 품목 화면의 연결과 헷갈리지 않게 여기서 하는 일과 저기서 하는 일을 함께 말한다. */}
-      <p className="text-sm text-muted-foreground">카테고리마다 ERP 코드·품명을 근거와 함께 적어 두는 곳입니다. 분류·ERP CSV와 ERP 활성화에 쓰이고, 상품은 바뀌지 않습니다. 실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 쓰지 않습니다. 매핑이 없으면 내보내기에서 미설정으로 표시합니다.</p>
-      <p className="text-sm text-muted-foreground">반입한 ERP 분류를 고객 카테고리에 잇는 일(상품 옵션의 카테고리 제안)은 <Link className="text-foreground underline underline-offset-4" href={`${ERP_ITEMS_PATH}#erp-category-mapping`}>ERP 품목 화면의 연결 표</Link>에서 합니다.</p>
+      <p className="text-sm text-muted-foreground">카테고리마다 ERP 코드·품명을 근거와 함께 적어 두는 곳입니다. 여기 적은 값은 분류·ERP CSV와 ERP 분류 사용 켜기에 쓰이고, 상품은 바뀌지 않습니다. 실제 ERP 코드·품명·출처·검증 시각을 모두 채워야 저장되며, 짐작한 값은 넣지 않습니다. 값을 적지 않은 카테고리는 CSV에 &lsquo;없음&rsquo;으로 나옵니다.</p>
+      <p className="text-sm text-muted-foreground">ERP 품목 메뉴에 올린 품목의 ERP 분류를 고객 카테고리에 잇는 일(상품 옵션의 카테고리 추천)은 <Link className="text-foreground underline underline-offset-4" href={`${ERP_ITEMS_PATH}#erp-category-mapping`}>ERP 품목 화면의 연결 표</Link>에서 합니다.</p>
       <RenderOnFirstOpen><CategoryErpMappingTable categories={data.categories} mappings={data.mappings} /></RenderOnFirstOpen>
     </FoldCard> : null}
-    <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><CategoryTemplatesAvailableProvider available={hasCategoryTemplates}><AssignmentForm categories={data.categories} /></CategoryTemplatesAvailableProvider></AdminSectionCard>
+    <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">고른 상품의 대표 카테고리 하나를 바로 바꿉니다. 추가 카테고리는 상품 수정 화면에서 확인하고 저장합니다. ERP에는 대표 카테고리가 쓰입니다.</p><CategoryTemplatesAvailableProvider available={hasCategoryTemplates}><AssignmentForm categories={data.categories} /></CategoryTemplatesAvailableProvider></AdminSectionCard>
   </section>;
 }

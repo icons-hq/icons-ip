@@ -100,7 +100,7 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
     <p className="wrap-anywhere">{orderPartialCancellationItemsLabel(record.items)} {record.reasonCode === 'return' ? '반품' : '취소'}</p>
     <p className="tabular-nums">환불 {krw(record.refundAmount)}{record.shippingRefundAmount > 0 ? ` (상품 ${krw(record.goodsRefundAmount)} + 배송비 ${krw(record.shippingRefundAmount)})` : ''}
       {record.returnFeeDeduction > 0 ? ` · 반품배송비 ${krw(record.returnFeeDeduction)} 차감` : ''}
-      {record.refundAmount === 0 ? ' (결제 배분액 0원 — 결제사를 부르지 않고 적용)' : ''}
+      {record.refundAmount === 0 ? ' (상품별 결제 금액 0원 — 결제사에 취소를 요청하지 않고 적용)' : ''}
       {record.storeCreditRestoreAmount > 0 ? ` · 적립금 ${krw(record.storeCreditRestoreAmount)} 되돌림` : ''}</p>
     {staff ? <>
       <p className="text-muted-foreground wrap-anywhere">{record.reasonCode === 'return' ? '반품 요청' : '고객 결정'}: {staff.customerDecision}{staff.note ? ` · 메모: ${staff.note}` : ''}</p>
@@ -110,7 +110,7 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
         {staff.resolvedAt ? ` · ${formatOrderDateTime(staff.resolvedAt)}` : ''}{staff.resolutionReason ? ` · 사유: ${staff.resolutionReason}` : ''}</p> : null}
     </> : null}
     {record.state === 'rejected' && !staff?.resolution ? <AdminNotice tone="neutral">{record.reasonCode === 'return'
-      ? '결제사가 이 결제의 부분 취소를 받지 않아 부분 반품 환불을 진행하지 않았습니다. 돈은 움직이지 않았습니다(전액 환불로 돌리지 않습니다). 결제 담당이 반품 요청 상세에서 계좌 송금 부분 환불로 전환합니다.'
+      ? '결제사가 이 결제의 부분 취소를 받지 않아 부분 반품 환불을 진행하지 않았습니다. 돈은 움직이지 않았습니다(전액 환불로 돌리지 않습니다). 결제 담당이 반품 요청 상세의 [계좌 송금 부분 환불로 전환]으로 처리합니다.'
       : '결제사가 이 결제의 부분 취소를 받지 않아 진행하지 않았습니다. 돈·주문·재고는 그대로입니다.'}</AdminNotice> : null}
     {(record.state === 'processing' || record.state === 'needs_review') ? <div className="flex flex-col gap-2">
       {record.reasonCode === 'return' ? (
@@ -126,8 +126,8 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
       </>}
     </div> : null}
     {record.state === 'needs_review' && record.provider === 'toss' && canManage ? <form className="flex flex-col gap-2 border-t pt-3" onSubmit={event => { event.preventDefault(); void resolve(); }}>
-      <p className="font-medium">결제확인필요 해소 (결제 담당 admin)</p>
-      <p className={HINT}>다시 확인해도 닫히지 않을 때 씁니다. 서버가 결제사 잔액을 조회만 해서, 시작 때 잔액 그대로면 진행하지 않음으로 닫고, 이 취소만큼 줄어 있으면 그 결제사 취소 거래로 적용합니다. 둘 다 아니면 아무것도 바꾸지 않습니다.</p>
+      <p className="font-medium">결제확인필요 해소 (결제 담당자)</p>
+      <p className={HINT}>[결제사 확인 다시 하기]로도 끝나지 않을 때 씁니다. 결제사에 취소를 새로 요청하지 않고 잔액만 조회합니다. 잔액이 시작 때 그대로면 이 부분 취소를 &lsquo;진행하지 않음&rsquo;으로 닫고, 이 취소 금액만큼 줄어 있으면 결제사에서 이미 취소된 것으로 보고 적용합니다. 둘 다 아니면 아무것도 바꾸지 않습니다.</p>
       <label className={FIELD}><span className="font-medium">해소 사유</span>
         <input className="w-full" disabled={pending} maxLength={500} onChange={event => setResolveReason(event.target.value)} required value={resolveReason} /></label>
       <Button className="w-fit" disabled={pending || resolveReason.trim().length < 5} type="submit" variant="outline">{pending ? '조회 중…' : '결제사 잔액 조회해 해소'}</Button>
@@ -203,7 +203,7 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
   return <section aria-label="재고 부족 부분 취소" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-partial-cancellation-panel="" id="partial-cancellation">
     <div className="flex flex-col gap-1">
       <h3 className="text-base leading-snug font-medium">재고 부족 부분 취소</h3>
-      <p className="text-muted-foreground">창고 재고가 모자란 상품을 고객이 결정한 대로 일부만 취소하고 나머지를 출고합니다. 그 상품·수량의 결제 배분액(할인·쿠폰·적립금 반영)만 환불하고, 남는 상품이 없어진 배송 건의 배송비는 함께 환불합니다.</p>
+      <p className="text-muted-foreground">창고 재고가 모자란 상품을 고객이 결정한 대로 일부만 취소하고 나머지를 출고합니다. 그 상품·수량의 결제 금액(할인·쿠폰·적립금을 상품별로 나눈 금액)만 환불하고, 남는 상품이 없어진 배송 건의 배송비는 함께 환불합니다.</p>
     </div>
     {context.enabled && context.canManage && context.gift ? <AdminNotice role="status" tone="info">선물 주문입니다. 환불은 결제한 분에게 돌아가고, 고객 결정은 결제한 분의 결정으로 기록합니다.</AdminNotice> : null}
     {context.enabled && context.canManage && context.blockers.length ? <AdminNotice role="status" tone="warning">
@@ -255,7 +255,7 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
       <AlertDialogContent className="data-[size=default]:sm:max-w-lg">
         <AlertDialogHeader>
           <AlertDialogTitle>{shown?.refundAmount === 0 ? '이 상품만 취소할까요? (환불 0원)' : `이 상품만 취소하고 ${shown ? krw(shown.refundAmount) : ''}을 환불할까요?`}</AlertDialogTitle>
-          <AlertDialogDescription>되돌릴 수 없습니다. {shown?.refundAmount === 0 ? '고른 상품의 결제 배분액이 0원(전액 할인)이라 결제사를 부르지 않고 바로 재고를 되돌리고 배송 건에서 뺍니다.' : shown?.provider === 'bank_transfer' ? '확정하면 바로 재고를 되돌리고 배송 건에서 빼며, 환불은 송금 대기로 남습니다.' : '확정하면 토스에서 이 금액만 부분 취소하고, 결제사 확인 뒤 재고를 되돌리고 배송 건에서 뺍니다. 결제사가 부분 취소를 받지 않는 결제면 아무것도 바꾸지 않습니다.'}</AlertDialogDescription>
+          <AlertDialogDescription>되돌릴 수 없습니다. {shown?.refundAmount === 0 ? '고른 상품의 결제 금액이 0원(전액 할인)이라 결제사에 취소를 요청하지 않고 바로 재고를 되돌리고 배송 건에서 뺍니다.' : shown?.provider === 'bank_transfer' ? '확정하면 바로 재고를 되돌리고 배송 건에서 빼며, 환불은 송금 대기로 남습니다.' : '확정하면 토스에서 이 금액만 부분 취소하고, 결제사 확인 뒤 재고를 되돌리고 배송 건에서 뺍니다. 결제사가 부분 취소를 받지 않는 결제면 아무것도 바꾸지 않습니다.'}</AlertDialogDescription>
         </AlertDialogHeader>
         {shown ? <div className="flex flex-col gap-2 text-sm">
           <ul className="flex flex-col gap-1">{shown.lines.map(line => <li className="flex flex-wrap justify-between gap-2" key={line.orderItemId}>
@@ -268,7 +268,7 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
           <p className="flex justify-between gap-2 border-t pt-2 font-semibold"><span>환불액</span><span className="tabular-nums">{krw(shown.refundAmount)}</span></p>
           <p className="text-muted-foreground">결제 {krw(shown.paymentAmount)} · 환불 전 남은 금액 {krw(shown.balanceBefore)} → 환불 뒤 {krw(shown.balanceAfter)}{shown.storeCreditRestoreAmount > 0 ? ` · 적립금 ${krw(shown.storeCreditRestoreAmount)}은 적립금으로 되돌림` : ''}</p>
           {shown.balanceAfter === 0 && shown.refundAmount > 0 ? <p className="text-muted-foreground">이 취소로 남은 결제 금액이 0원이 됩니다. 남은 상품은 그대로 출고합니다.</p> : null}
-          <p className="text-muted-foreground">남은 주문의 쿠폰 조건은 다시 판정하지 않습니다.{shown.warehouseStopRequired ? ' 출고지시가 나간 배송 건이라 그 배송 건의 창고 출고 중단 회신 기록이 있어야 하고, 확정하면 그 회신은 이 부분 취소에 쓰입니다.' : ''}</p>
+          <p className="text-muted-foreground">남은 주문이 쿠폰 사용 조건을 채우는지는 다시 확인하지 않습니다.{shown.warehouseStopRequired ? ' 출고지시가 나간 배송 건이라 창고의 출고 중단 회신 기록이 있어야 확정할 수 있습니다. 확정하면 그 회신은 이 부분 취소에 쓰여 다른 취소에 다시 쓸 수 없습니다.' : ''}</p>
           {needsAccount && !bankReady ? <p className="text-destructive" role="alert">무통장 주문은 환불받을 계좌(은행·계좌번호·예금주)를 모두 입력해야 확정할 수 있습니다.</p> : null}
         </div> : null}
         {error ? <p className="text-destructive" role="alert">{error}</p> : null}

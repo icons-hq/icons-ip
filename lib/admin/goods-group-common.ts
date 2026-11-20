@@ -62,7 +62,7 @@ export function normalizeGoodsGroupCommonForm(input: FormData) {
   if (!attributes.ok || !attributes.fields.product_attributes) return { ok: false as const, errors: { productAttributes: '카테고리의 상품속성 조회를 마친 뒤 저장해주세요.' } };
   let afterSales, sizeChart;
   try { afterSales = parseGoodsAfterSalesValues(JSON.parse(String(input.get('groupAfterSales'))), true); sizeChart = parseGoodsSizeChartValues(JSON.parse(String(input.get('groupSizeChart')))); } catch { /* Invalid JSON cannot reach the RPC. */ }
-  if (!afterSales || !sizeChart) return { ok: false as const, errors: { groupCommon: 'A/S 안내와 사이즈 안내 입력값을 확인해주세요.' } };
+  if (!afterSales || !sizeChart) return { ok: false as const, errors: { groupCommon: 'A/S 안내나 사이즈 안내 입력을 읽지 못했습니다. 두 안내의 칸을 확인하고, 계속되면 화면을 새로고침한 뒤 다시 입력해주세요.' } };
   const fields = goodSaveFields(normalized.value) as Record<string, unknown>;
   return { ok: true as const, values: { goods: Object.fromEntries([...GROUP_COMMON_DB_FIELDS,'additional_category_ids'].map(key => [key, fields[key]])),
     attributes: attributes.fields.product_attributes, afterSales, sizeChart } };

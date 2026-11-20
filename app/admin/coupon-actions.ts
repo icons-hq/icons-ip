@@ -38,11 +38,11 @@ function couponWriteIntentFailure(message: string): AdminCouponActionState | nul
   }
   if (message.includes('coupon_issued_benefit_immutable')) return { errors: { form: '발급된 쿠폰의 상품·배송비 할인 구분, 중복 사용 조건과 발급 방식은 바꿀 수 없습니다. 새 혜택으로 복사해주세요.' } };
   if (message.includes('coupon_targeted_grade_exclusive')) return { errors: { gradeBenefit: '고객 지정 쿠폰은 등급 자동 발급과 함께 설정할 수 없습니다.' } };
-  if (message.includes('invalid_coupon_grade_cadence')) return { errors: { gradeBenefitCadence: '등급 혜택 지급 방식을 확인해주세요.' } };
-  if (message.includes('coupon_target_category_unavailable') || message.includes('coupon_category_scope_ready') || message.includes('coupon_category_changed')) return { errors: { targetCategoryIds: '할인 대상 카테고리의 설정과 현재 상태를 다시 확인해주세요.' } };
-  if (message.includes('coupon_target_ip_unavailable') || message.includes('coupon_ip_scope_ready') || message.includes('invalid_coupon_ip_targeting')) return { errors: { targetIpIds: '할인 대상 IP의 설정과 현재 상태를 다시 확인해주세요. 보관한 IP는 새로 지정할 수 없습니다.' } };
-  if (message.includes('coupon_terms_changed')) return { errors: { form: '다른 작업에서 쿠폰 조건이 변경됐습니다. 목록을 새로고침한 뒤 다시 확인해주세요.' } };
-  if (message.includes('coupon_target_good_unavailable') || message.includes('coupon_goods_scope_ready')) return { errors: { targetGoodIds: '할인 대상 상품의 설정과 현재 상태를 다시 확인해주세요.' } };
+  if (message.includes('invalid_coupon_grade_cadence')) return { errors: { gradeBenefitCadence: '등급 혜택 지급 방식(승급 시 1회·매월 1일)을 골라주세요.' } };
+  if (message.includes('coupon_target_category_unavailable') || message.includes('coupon_category_scope_ready') || message.includes('coupon_category_changed')) return { errors: { targetCategoryIds: '할인 대상 카테고리를 저장하지 못했습니다. 고른 카테고리가 보관됐거나 그사이 바뀌었을 수 있으니 카테고리를 다시 골라 저장해주세요.' } };
+  if (message.includes('coupon_target_ip_unavailable') || message.includes('coupon_ip_scope_ready') || message.includes('invalid_coupon_ip_targeting')) return { errors: { targetIpIds: '할인 대상 IP를 저장하지 못했습니다. 고른 IP가 보관됐거나 그사이 바뀌었을 수 있으니 IP를 다시 골라 저장해주세요. 보관한 IP는 새로 지정할 수 없습니다.' } };
+  if (message.includes('coupon_terms_changed')) return { errors: { form: '다른 작업에서 먼저 쿠폰 조건을 바꿔 저장하지 않았습니다. 목록을 새로고침해 바뀐 내용을 확인한 뒤 다시 수정해주세요.' } };
+  if (message.includes('coupon_target_good_unavailable') || message.includes('coupon_goods_scope_ready')) return { errors: { targetGoodIds: '할인 대상 상품을 저장하지 못했습니다. 고른 상품이 보관됐거나 그사이 바뀌었을 수 있으니 상품을 다시 골라 저장해주세요.' } };
   return null;
 }
 
@@ -114,13 +114,13 @@ export async function setAdminCouponStatusAction(_state: AdminCouponActionState,
   const revision = Number(formData.get('revision'));
   const status = String(formData.get('status') ?? '');
   if (!/^[A-Z0-9][A-Z0-9-]{2,23}$/.test(code) || !Number.isSafeInteger(revision) || revision < 1 || !['active', 'archived'].includes(status)) {
-    return { errors: { form: '쿠폰 상태와 버전을 확인해주세요.' } };
+    return { errors: { form: '혜택 상태를 바꾸지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' } };
   }
   try {
     const supabase = await createClient();
     const { error } = await supabase.rpc('admin_set_coupon_status', { p_code: code, p_expected_revision: revision, p_status: status });
-    if (error) return couponWriteIntentFailure(error.message) ?? { errors: { form: '혜택 상태를 변경하지 못했습니다.' } };
+    if (error) return couponWriteIntentFailure(error.message) ?? { errors: { form: '혜택 상태를 바꾸지 못했습니다. 목록을 새로고침해 현재 상태를 확인한 뒤 다시 시도해주세요.' } };
     revalidatePath('/admin/sales/coupons'); revalidatePath('/my/coupons'); revalidatePath('/cart'); revalidatePath('/checkout');
     return { message: status === 'archived' ? '혜택을 중지했습니다.' : '혜택을 다시 적용했습니다.' };
-  } catch (error) { unstable_rethrow(error); return { errors: { form: '혜택 상태를 변경하지 못했습니다.' } }; }
+  } catch (error) { unstable_rethrow(error); return { errors: { form: '혜택 상태를 바꾸지 못했습니다. 목록을 새로고침해 현재 상태를 확인한 뒤 다시 시도해주세요.' } }; }
 }

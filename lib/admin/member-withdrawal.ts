@@ -67,7 +67,7 @@ export const MEMBER_WITHDRAWAL_EFFECTS = [
   '성별(고객 통계 동의)·활동 기록 동의와 기록 삭제, 진행 중인 이메일 변경 요청·대기 중인 재입고 알림 신청 삭제',
   `프로필 익명화(닉네임은 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}'과 구분 번호로 바뀌고 생년월일·프로필 사진 파일은 삭제, 이메일은 남김)`,
   '성인 인증 기록(19금 구매 확인 증빙) 삭제',
-  '모든 기기의 로그인 세션 종료와 재로그인 차단',
+  '모든 기기 로그아웃과 재로그인 차단',
 ] as const;
 
 /** 카카오 알림으로 처리할 때 위 범위에 더하는 것. 카카오계정이 없어져 카카오 로그인이라는 목적이 영구히 끝났다. */
@@ -91,16 +91,16 @@ export const MEMBER_WITHDRAWAL_BLOCKER_LABELS: Record<AccountDeletionBlockerCode
   billing_registration_pending: '정기결제 카드 등록 확인',
   billing_card_cleanup: '정기결제 카드 해지',
   active_cancellation: '취소 요청·취소 처리',
-  active_order_payment: '주문 결제 정합화',
-  active_ticket_payment: '티켓 결제 정합화',
-  active_payment_attempt: '결제 시도 정합화',
+  active_order_payment: '결과가 확정되지 않은 주문 결제(결제 중·결제사 확인 필요)',
+  active_ticket_payment: '결과가 확정되지 않은 티켓 결제(결제 중·결제사 확인 필요)',
+  active_payment_attempt: '결과가 확정되지 않은 기타 결제(결제 중·결제사 확인 필요)',
   active_order_refund: '주문 환불·송금 대기',
   active_ticket_refund: '티켓 환급 처리',
   active_refund: '환불·송금 확인',
   active_ticket: '이용 전 티켓·결제 대기 예매',
   active_ticket_cancellation: '티켓 취소·환급 처리',
   staff_handover: '운영 권한(관리자·매니저) — 권한 회수 뒤 처리',
-  not_available: '처리 준비',
+  not_available: '처리할 수 있는지 확인하지 못함(잠시 뒤 다시 시도)',
 };
 
 const PROFILE_FIELD_LABELS: Record<MemberWithdrawalProfileField, string> = { nickname: '닉네임', birthDate: '생년월일', avatar: '프로필 사진' };
@@ -130,7 +130,7 @@ export function memberWithdrawalErasedSummary(erased: MemberWithdrawalErased, re
   if (erased.kakaoIdentities) parts.push(`카카오 로그인 연결 ${erased.kakaoIdentities}건`);
   if (erased.adultVerifications) parts.push(`성인 인증 기록 ${erased.adultVerifications}건`);
   if (erased.profileFields?.length) parts.push(`프로필 익명화(${erased.profileFields.map((field) => PROFILE_FIELD_LABELS[field]).join('·')})`);
-  if (revokedSessions > 0) parts.push(`로그인 세션 ${revokedSessions}개 종료`);
+  if (revokedSessions > 0) parts.push(`로그인 ${revokedSessions}건 종료`);
   return parts.length ? parts.join(' · ') : '지울 정보가 없었습니다';
 }
 
@@ -277,13 +277,13 @@ export function memberWithdrawalConfirmMessage(inquiry: MemberWithdrawalInquiry)
   const warning = isRestrictedMemberInquiryCategory(inquiry.category)
     ? ''
     : `주의: 이 문의는 '계정' 유형이 아닙니다(${inquiryCategoryLabel(inquiry.category)}). 탈퇴를 요청한 문의가 맞는지 다시 확인해주세요.\n\n`;
-  return `${warning}${summary}\n\n이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지우고 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 위 문의의 탈퇴 요청을 처리할까요?`;
+  return `${warning}${summary}\n\n이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지웁니다. 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤, 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 위 문의의 탈퇴 요청을 처리할까요?`;
 }
 
 /** 카카오 알림으로 처리하기 직전의 확인 문구. */
 export function kakaoUnlinkWithdrawalConfirmMessage(unlink: KakaoUnlinkSummary): string {
   return `카카오 연결 해제 알림 · ${kakaoUnlinkReasonLabel(unlink.reason)} · ${formatInquiryDateTime(unlink.eventAt)} 수신\n\n`
-    + '이 회원은 카카오로만 가입해 다시 로그인할 수 없습니다. 이 알림을 근거로 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의·카카오 로그인 연결 등을 지우고 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤 '
+    + '이 회원은 카카오로만 가입해 다시 로그인할 수 없습니다. 이 알림을 근거로 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의·카카오 로그인 연결 등을 지웁니다. 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤, '
     + '모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 탈퇴를 처리할까요?';
 }
 
@@ -300,11 +300,11 @@ export function memberWithdrawalRpcError(message: string | null | undefined, bas
   if (value.includes('cannot_withdraw_self')) return '본인 계정은 탈퇴 처리할 수 없습니다.';
   if (value.includes('operator_manager_change_required')) return '통합 매니저와 계정 주매니저는 먼저 매니저 관리에서 승계 또는 역할 변경을 진행해주세요.';
   if (value.includes('profile_not_found')) return '회원을 찾을 수 없습니다.';
-  if (value.includes('invalid_member_withdrawal')) return basis === 'kakao_unlink' ? '처리 메모를 다시 확인해주세요.' : '문의 번호와 처리 메모를 다시 확인해주세요.';
+  if (value.includes('invalid_member_withdrawal')) return basis === 'kakao_unlink' ? `처리 메모를 ${MEMBER_WITHDRAWAL_NOTE_MIN}~${MEMBER_WITHDRAWAL_NOTE_MAX}자로 다시 적어주세요.` : `문의 번호(숫자)와 처리 메모(${MEMBER_WITHDRAWAL_NOTE_MIN}~${MEMBER_WITHDRAWAL_NOTE_MAX}자)를 다시 확인해주세요.`;
   if (value.includes('operator_capability_required') || value.includes('forbidden') || value.includes('auth_required')) {
     return '이 계정을 탈퇴 처리할 권한이 없습니다.';
   }
-  return '탈퇴 요청을 처리하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
+  return '탈퇴 요청을 처리하지 못했습니다. 화면을 새로고침해 처리됐는지와 남은 일을 확인한 뒤 다시 시도해주세요.';
 }
 
 /** 카카오 알림 처리 입력: 회원과 처리 메모(문의 탈퇴와 같은 2~200자, 제어 문자 없음). */

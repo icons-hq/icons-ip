@@ -45,7 +45,7 @@ export function VariantStockAdjustmentForm({ adjustmentId, good, variants }: {
   const [selectedId, setSelectedId] = useState(active.find((variant) => variant.isDefault)?.id ?? active[0]?.id);
   const selected = active.find((variant) => variant.id === selectedId) ?? active[0];
   return <AdminSectionCard title="실재고 조정">
-    <p className="text-sm text-muted-foreground">ICONS 할당 재고를 옵션별로 조정합니다. 상품 합계 {good.stockQty.toLocaleString('ko-KR')}개는 옵션 재고에서 계산합니다.</p>
+    <p className="text-sm text-muted-foreground">ICONS 몰에 배정한 재고수량을 옵션별로 조정합니다. 상품 합계 {good.stockQty.toLocaleString('ko-KR')}개는 옵션별 재고수량을 더한 값입니다.</p>
     {!selected ? <p className="text-sm text-muted-foreground">조정할 수 있는 옵션이 없습니다.</p> : <>
       {active.length > 1 ? <AdminField inputId={`stock-option-${good.id}`} label="재고를 조정할 옵션">
         <NativeSelect className="w-full sm:max-w-md" id={`stock-option-${good.id}`} value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>

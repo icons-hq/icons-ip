@@ -91,7 +91,7 @@ describe('탈퇴 요청 처리 액션', () => {
     });
     expect(mocks.ban).toHaveBeenCalledWith(MEMBER);
     expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_confirm_member_withdrawal_signin_block', { target_profile_id: MEMBER });
-    expect(state).toEqual({ message: '탈퇴 요청(문의 #1234)을 처리했습니다 — 배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 1건 · 로그인 세션 2개 종료.' });
+    expect(state).toEqual({ message: '탈퇴 요청(문의 #1234)을 처리했습니다 — 배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 1건 · 로그인 2건 종료.' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/customers/${MEMBER}`);
   });
 
@@ -220,7 +220,7 @@ describe('카카오 알림으로 탈퇴 처리 액션', () => {
     expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'admin_process_kakao_unlink_withdrawal', { target_profile_id: MEMBER, target_note: '카카오계정 탈퇴 알림 확인' });
     expect(mocks.ban).toHaveBeenCalledWith(MEMBER);
     expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_confirm_member_withdrawal_signin_block', { target_profile_id: MEMBER });
-    expect(state).toEqual({ message: '탈퇴 요청(카카오 알림 · 카카오계정 탈퇴)을 처리했습니다 — 배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 1건 · 카카오 로그인 연결 1건 · 로그인 세션 1개 종료.' });
+    expect(state).toEqual({ message: '탈퇴 요청(카카오 알림 · 카카오계정 탈퇴)을 처리했습니다 — 배송지 2건 · 휴대폰 번호 1건 · 마케팅 수신 동의 철회 1건 · 카카오 로그인 연결 1건 · 로그인 1건 종료.' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/community/members/kakao-unlinks');
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/customers/${MEMBER}`);
   });
@@ -233,7 +233,7 @@ describe('카카오 알림으로 탈퇴 처리 액션', () => {
     rpcResults({ admin_process_kakao_unlink_withdrawal: { data: null, error: { message: 'kakao_unlink_withdrawal_not_queued' } } });
     expect((await processKakaoUnlinkWithdrawalAction({}, kakaoForm())).errors?.form).toContain('탈퇴 검토 대기 회원이 아닙니다');
     rpcResults({ admin_process_kakao_unlink_withdrawal: { data: null, error: { message: 'invalid_member_withdrawal' } } });
-    expect((await processKakaoUnlinkWithdrawalAction({}, kakaoForm())).errors?.form).toBe('처리 메모를 다시 확인해주세요.');
+    expect((await processKakaoUnlinkWithdrawalAction({}, kakaoForm())).errors?.form).toBe('처리 메모를 2~200자로 다시 적어주세요.');
     expect(mocks.ban).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });

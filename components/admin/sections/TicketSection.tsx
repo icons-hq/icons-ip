@@ -116,7 +116,7 @@ function TicketForm({
       {selected && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
           <AdminStatusBadge tone={statusTone('ticketAllocation', allocationState(selected))}>{ALLOCATION_LABELS[allocationState(selected)]}</AdminStatusBadge>
-          <span className="tabular-nums">할당 {selected.sold} / {selected.capacity}</span>
+          <span className="tabular-nums">예매 {selected.sold} / {selected.capacity}</span>
           <span className="tabular-nums">잔여 {Math.max(0, selected.capacity - selected.sold)}</span>
           <span className="text-xs text-muted-foreground">결제 대기 포함</span>
         </div>
@@ -180,7 +180,7 @@ function TicketForm({
         />
       </AdminFormGrid>
 
-      {metadataLocked && <AdminNotice tone="info">예매 이력이 있어 이벤트·회차명·가격은 잠겼습니다. 정원만 현재 할당 수량 이상으로 조정할 수 있습니다.</AdminNotice>}
+      {metadataLocked && <AdminNotice tone="info">예매 이력이 있어 이벤트·회차명·가격은 잠겼습니다. 정원만 지금까지 예매된 수량(결제 대기 포함) 이상으로 바꿀 수 있습니다.</AdminNotice>}
       {/* 새 회차의 연결 이벤트는 목록 첫 이벤트가 미리 골라져 있다(기본값은 그대로). 예매가 시작되면 이벤트를 못 바꾸므로 저장 직전에 확인시킨다. */}
       {!selected && !noEvents && <AdminNotice tone="warning">연결 이벤트가 목록의 첫 이벤트로 미리 선택되어 있습니다. 예매가 시작되면 바꿀 수 없으니 저장 전에 맞는 이벤트인지 확인해주세요.</AdminNotice>}
       <FormShell disabled={noEvents && !selected} pending={pending} state={state} />
