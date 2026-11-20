@@ -19,9 +19,18 @@ export function stagingDeployArgs(environment) {
   ]), ...Object.entries(buildChecks).flatMap(([name, value]) => ['--build-env', `${name}=${value}`])];
 }
 
+// The dry-run manifest lists every uploaded file and outgrew spawnSync's 1 MiB default (ENOBUFS).
+const VERCEL_OUTPUT_LIMIT = 64 * 1024 * 1024;
+
 function vercel(args) {
-  const result = spawnSync('vercel', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  if (result.error || result.status !== 0) throw new Error(`Vercel ${args[0]} failed; inspect the Vercel deployment log`);
+  const result = spawnSync('vercel', args, {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: VERCEL_OUTPUT_LIMIT,
+  });
+  // Report only the failure kind: provider output can echo credential material.
+  if (result.error || result.status !== 0) {
+    const reason = result.error?.code ?? `exit ${result.status ?? result.signal}`;
+    throw new Error(`Vercel ${args[0]} failed (${reason}); inspect the Vercel deployment log`);
+  }
   return result.stdout.trim();
 }
 
