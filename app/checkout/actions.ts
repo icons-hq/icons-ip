@@ -92,6 +92,7 @@ export async function prepareGoodsPaymentAction(
   if (!orderId) return { error: 'not_found' };
 
   const auth = await getCurrentAuthState();
+  if (auth.authUnavailable) return { error: 'payment_unavailable' };
   if (!auth.isConfigured || !auth.user) return { error: 'auth_required' };
   if (
     isAccountSuspended(auth.profile)
@@ -143,6 +144,7 @@ export async function placeOrderAction(
     return placeDraftOrder(addressValue, checkoutKeyValue, paymentMethodValue, storeCreditAmountValue, expectedUserCouponIdValue, draftIdValue, acknowledgedValue, claimNoticeValue);
   }
   const auth = await getCurrentAuthState();
+  if (auth.authUnavailable) return { ok: false, error: 'unavailable' };
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
   if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
   if (!isOnboarded(auth.profile, auth.user.email)) {
@@ -239,6 +241,7 @@ async function placeDraftOrder(
   claimNoticeValue: unknown,
 ): Promise<PlaceOrderActionResult> {
   const auth = await getCurrentAuthState();
+  if (auth.authUnavailable) return { ok: false, error: 'unavailable' };
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
   if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
   if (!isOnboarded(auth.profile, auth.user.email)) return { ok: false, error: 'onboarding_required' };

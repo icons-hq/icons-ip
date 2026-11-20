@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from '@supabase/supabase-js';
 import { signedPasswordRecoveryProofValue } from './recovery.server';
 import { getCurrentAuthState, getPasswordUpdateState } from './server';
 
@@ -71,6 +72,44 @@ describe('getCurrentAuthState', () => {
     );
     expect(state.profile?.suspended_at).toBe('2026-07-17T00:00:00.000Z');
     expect(state.isStaff).toBe(false);
+  });
+
+  it('keeps a valid user signed in when the first Auth lookup is temporarily unavailable', async () => {
+    mocks.getUser.mockResolvedValueOnce({
+      data: { user: null }, error: new AuthRetryableFetchError('Auth temporarily unavailable', 503),
+    });
+    const state = await getCurrentAuthState();
+    expect(state.user?.id).toBe('user-1');
+    expect(mocks.getUser).toHaveBeenCalledTimes(2);
+    expect(state.isStaff).toBe(false);
+  });
+
+  it('keeps verification closed after two transport failures', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError('fetch failed', 0) });
+    await expect(getCurrentAuthState()).resolves.toMatchObject({ user: null, authUnavailable: true });
+    expect(mocks.getUser).toHaveBeenCalledTimes(2);
+    expect(mocks.select).not.toHaveBeenCalled();
+  });
+
+  it('honors a revoked session even when the first verification call failed', async () => {
+    mocks.getUser
+      .mockResolvedValueOnce({ data: { user: null }, error: new AuthRetryableFetchError('fetch failed', 0) })
+      .mockResolvedValue({ data: { user: null }, error: new AuthApiError('revoked', 403, 'session_not_found') });
+    await expect(getCurrentAuthState()).resolves.toEqual({ isConfigured: true, user: null, profile: null, isStaff: false });
+    expect(mocks.select).not.toHaveBeenCalled();
+  });
+
+  it('preserves the login prompt for an absent session without a second lookup', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() });
+    await expect(getCurrentAuthState()).resolves.toEqual({ isConfigured: true, user: null, profile: null, isStaff: false });
+    expect(mocks.getUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports rate limiting as unavailable and respects the limit', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('rate limited', 429, 'over_request_rate_limit') });
+    await expect(getCurrentAuthState()).resolves.toMatchObject({ user: null, authUnavailable: true });
+    expect(mocks.getUser).toHaveBeenCalledTimes(1);
+    expect(mocks.select).not.toHaveBeenCalled();
   });
 });
 
