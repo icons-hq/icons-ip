@@ -116,7 +116,7 @@ reset role;
 -- 저장하면 바로 적용하고, 미할당 예약이 없으면 접수 중인 정책을 한 번에 중지하며 일반 재고로 돌린다.
 insert into public.verticals(key,label,color) values('operator-cap-preorder','운영자 예약 권한','#000000');
 insert into public.ips(id,title,vertical_key) values('operator-cap-preorder','운영자 예약 권한','operator-cap-preorder');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('operator-cap-preorder','operator-cap-preorder','운영자 예약 권한','문구',10000,'ok',0);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('operator-cap-preorder','operator-cap-preorder','운영자 예약 권한',10000,'ok',0);
 select id as cap_preorder_variant from public.goods_variants where good_id='operator-cap-preorder' and is_default \gset
 set local role authenticated;
 select set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-000000000003',true);
