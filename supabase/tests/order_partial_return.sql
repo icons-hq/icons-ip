@@ -36,10 +36,10 @@ insert into private.operator_memberships(profile_id, manager_role) values (pg_te
 insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
  select pg_temp.pr_id('origin', n), 'partial-return-origin-'||n, 'TEST 부분반품 출고지 '||n, 'hanjin', 3000, 'TEST 반품 주소 '||n, true from generate_series(1, 2) n;
 insert into public.ips(id, title, vertical_key) values ('partial-return-ip', 'TEST 부분반품 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id) values
- ('partial-return-a', 'partial-return-ip', 'TEST 반품 상품 A', '문구', 10000, 'ok', 10, pg_temp.pr_id('origin', 1)),
- ('partial-return-b', 'partial-return-ip', 'TEST 반품 상품 B', '문구', 10000, 'ok', 10, pg_temp.pr_id('origin', 1)),
- ('partial-return-c', 'partial-return-ip', 'TEST 다른 출고지 상품 C', '문구', 5000, 'ok', 10, pg_temp.pr_id('origin', 2));
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id) values
+ ('partial-return-a', 'partial-return-ip', 'TEST 반품 상품 A', 10000, 'ok', 10, pg_temp.pr_id('origin', 1)),
+ ('partial-return-b', 'partial-return-ip', 'TEST 반품 상품 B', 10000, 'ok', 10, pg_temp.pr_id('origin', 1)),
+ ('partial-return-c', 'partial-return-ip', 'TEST 다른 출고지 상품 C', 5000, 'ok', 10, pg_temp.pr_id('origin', 2));
 create function pg_temp.pr_stock(good text) returns integer language sql as $$select stock_qty from public.goods_variants where good_id = good and is_default$$;
 create function pg_temp.pr_variant(good text) returns uuid language sql as $$select id from public.goods_variants where good_id = good and is_default$$;
 
@@ -54,9 +54,9 @@ begin
    '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
    (case when provider = 'bank_transfer' then 'bank_transfer' else 'card' end)::public.order_payment_method,
    clock_timestamp() - interval '4 days', clock_timestamp() - interval '4 days');
- insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot)
  select pg_temp.pr_id('item-'||g.id, n), pg_temp.pr_id('order', n), g.id, v.id, case when g.id = 'partial-return-a' then 2 else 1 end, g.price,
-   g.name, '문구', 'partial-return-ip'
+   g.name, 'partial-return-ip'
  from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id like 'partial-return-%';
  update public.orders set calculation_version = 2 where id = pg_temp.pr_id('order', n);
  insert into private.order_price_allocations(order_item_id, order_id, calculation_version, subtotal, volume_discount, net_subtotal, coupon_discount, store_credit_discount, paid_goods_total)

@@ -70,8 +70,8 @@ update public.profiles set role='staff',nickname='HTML경합검증'||right(id::t
 insert into public.verticals(key,label,color) values('goods-html-race','HTML 경합 검증','#000000');
 insert into public.ips(id,title,vertical_key) values('goods-html-race','HTML 경합 검증','goods-html-race');
 insert into public.catalog_categories(id,code,name,sort_order) values('00000000-0000-4000-8000-000000478112','goods-html-race','HTML 경합 분류',1);
-insert into public.goods(id,ip_id,name,type,price,stock,description,description_format)
- values('goods-html-race-source','goods-html-race','HTML 경합 상품','문구',1000,'ok','<h2>원본 설명</h2>','html');
+insert into public.goods(id,ip_id,name,price,stock,description,description_format)
+ values('goods-html-race-source','goods-html-race','HTML 경합 상품',1000,'ok','<h2>원본 설명</h2>','html');
 commit;
 SQL
 html_fixture_created=true

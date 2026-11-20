@@ -15,8 +15,8 @@ insert into private.category_display_nodes(id,parent_id,name,sort_order,archived
 update public.category_activation_control set customer_enabled=true where id='catalog';
 insert into public.ips(id,title,vertical_key,published_at) values('cd-oracle-ip','가격 공급 비교','character',now());
 -- 등록 시각을 일부만 달리 둔다 — 오래된순·최신순의 시각 비교와 동률(추천 순서) 처리를 함께 본다.
-insert into public.goods(id,ip_id,name,type,price,category_id,display_order,created_at)
-select 'cd-oracle-g-'||suffix,'cd-oracle-ip','비교 상품 '||suffix,'문구',1000,'93931000-0000-4000-8000-000000000012',case when suffix='20' then 0 else null end,
+insert into public.goods(id,ip_id,name,price,category_id,display_order,created_at)
+select 'cd-oracle-g-'||suffix,'cd-oracle-ip','비교 상품 '||suffix,1000,'93931000-0000-4000-8000-000000000012',case when suffix='20' then 0 else null end,
  case suffix when '10' then now()-interval '2 days' when '2' then now()-interval '1 day' else now() end
 from unnest(array['1','01','001','2','10','20']) suffix;
 
@@ -54,7 +54,7 @@ from public.goods g where g.id like 'cd-oracle-g-%';
  config:=config||'{"enabled":true,"categoryIds":["93931000-0000-4000-8000-000000000012"],"goodIds":["cd-oracle-g-10","cd-oracle-g-2","cd-oracle-g-1","cd-oracle-g-01","cd-oracle-g-001","cd-oracle-g-20"]}';
  foreach mode_value in array array['categories','manual'] loop
   foreach sort_value in array array['recommended','name_asc','name_desc','price_asc','price_desc','oldest','newest'] loop
-   for filter in select value from jsonb_array_elements('[{}, {"min":600}, {"max":700}, {"min":900,"max":1000}, {"types":["키링"]}, {"types":["예약판매"]}, {"types":["키링","예약판매"]}, {"ips":["missing-ip"]}]') loop
+   for filter in select value from jsonb_array_elements('[{}, {"min":600}, {"max":700}, {"min":900,"max":1000}, {"types":["예약판매"]}, {"ips":["missing-ip"]}]') loop
     query:='{"ips":[],"types":[],"min":null,"max":null}'::jsonb||jsonb_build_object('sort',sort_value)||filter;
     insert into cd_oracle_cases values(mode_value,query,public.admin_preview_category_display('93931000-0000-4000-8000-000000000011',config||jsonb_build_object('mode',mode_value),query));
    end loop;

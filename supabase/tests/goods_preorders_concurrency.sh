@@ -115,7 +115,7 @@ select public.admin_save_goods_preorder('preorder-race-allocation-4273',(select 
  'expectedShipDate',(now() at time zone 'Asia/Seoul')::date+7,'approvalReference','TEST-ONLY:preorder-race:allocation'));
 reset role;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/preorder-race-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',
+update public.goods set image_path='public-media/preorder-race-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',
  notice_size='A5',notice_made_on='2026-09',notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000048630'
  where id in ('preorder-race-capacity-4273','preorder-race-allocation-4273');
 select pg_temp.publish_goods_kc_fixture('preorder-race-capacity-4273');

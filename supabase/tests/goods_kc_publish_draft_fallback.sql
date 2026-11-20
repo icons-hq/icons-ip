@@ -25,11 +25,11 @@ insert into public.verticals(key,label,color) values('kc-fallback-tests','KC 초
 insert into public.ips(id,title,vertical_key,published_at) values('kc-fallback-tests','KC 초안 전환 합성검증','kc-fallback-tests',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
  values('00000000-0000-4000-8000-000000100830','kc-fallback-tests','합성 출고지','hanjin',3000,30000,'배송 금지 검증 주소',true);
-insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('kc-fallback-good','kc-fallback-tests','합성 초안 전환 상품','문구',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
+ ('kc-fallback-good','kc-fallback-tests','합성 초안 전환 상품',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000'),
- ('kc-fallback-none','kc-fallback-tests','합성 미검토 상품','문구',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
+ ('kc-fallback-none','kc-fallback-tests','합성 미검토 상품',1000,'public-media/kc-fallback-test.webp','00000000-0000-4000-8000-000000100830',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000');
 -- 두 상품을 합성 대표 카테고리에 붙인다(공개 조건). ADR-0044로 상품 유형은 카테고리에서 파생되지 않으므로
 -- 다른 카테고리로 옮겨도 유형·KC 맥락은 그대로이고, KC 맥락은 고시정보 변경으로 바꾼다.
@@ -62,7 +62,7 @@ select pg_temp.kc_fallback_payload('kc-fallback-good')||jsonb_build_object('cate
 -- KC 검토 뒤 대표 카테고리·고시정보를 바꾸고 저장 후 공개: 마지막 공개 전환이 거절하고 저장 전체가 되돌려진다.
 select pg_temp.kc_fallback_expect_error(format('select public.admin_save_good(%L::jsonb)',
  (:'fb_changed'::jsonb||'{"publish":true}')::text),'goods_kc_review_required','23514');
-select 1/case when (select type='문구' and notice_maker='합성 제조자' and published_at is null from public.goods where id='kc-fallback-good')
+select 1/case when (select notice_maker='합성 제조자' and published_at is null from public.goods where id='kc-fallback-good')
  and public.admin_read_goods_kc('kc-fallback-good')->>'status'='reviewed'
  and public.admin_read_goods_kc('kc-fallback-good')->>'revision'='1'
  and not exists(select 1 from public.audit_log where target='goods:kc-fallback-good' and action='admin.good.kc_invalidated')
@@ -72,7 +72,7 @@ select 1/case when (select type='문구' and notice_maker='합성 제조자' and
 -- 카테고리 이동은 KC 맥락을 바꾸지 않으므로(ADR-0044) 고시정보 변경 한 번만 무효화된다(버전 2). 유형은 그대로다.
 select public.admin_save_good(:'fb_changed'::jsonb||'{"publish":null}')->>'id' as fb_retry_id \gset
 select 1/case when :'fb_retry_id'='kc-fallback-good'
- and (select type='문구' and category_id='00000000-0000-4000-8000-000000100840' and notice_maker='바뀐 합성 제조자' and published_at is null
+ and (select category_id='00000000-0000-4000-8000-000000100840' and notice_maker='바뀐 합성 제조자' and published_at is null
    from public.goods where id='kc-fallback-good')
  and public.admin_read_goods_kc('kc-fallback-good')->>'status'='unreviewed'
  and public.admin_read_goods_kc('kc-fallback-good')->>'revision'='2'
@@ -106,6 +106,6 @@ select public.admin_read_goods_kc('kc-fallback-good') as fb_current \gset
 select public.admin_save_goods_kc('kc-fallback-good',:'fb_current'::jsonb->'models','reviewed',
  (:'fb_current'::jsonb->>'revision')::integer,:'fb_current'::jsonb->>'contextFingerprint',true) is not null as fb_rereviewed;
 select public.admin_save_good(pg_temp.kc_fallback_payload('kc-fallback-good')||'{"publish":true}') is not null as fb_published;
-select 1/case when (select published_at is not null and type='문구' from public.goods where id='kc-fallback-good')
+select 1/case when (select published_at is not null from public.goods where id='kc-fallback-good')
  then 1 else 0 end as assert_publish_after_rereview;
 rollback;

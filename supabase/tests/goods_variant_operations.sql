@@ -65,7 +65,7 @@ reset role;
 select set_config('request.jwt.claim.sub','',true);
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('00000000-0000-4000-8000-000000046830','variant-operations','옵션 검증 출고지','hanjin',3000,'합성 반송 주소',true);
-update public.goods set type='문구',image_path='public-media/variant-operations-fixture.webp',
+update public.goods set image_path='public-media/variant-operations-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000046830'
  where id='variant-operations';

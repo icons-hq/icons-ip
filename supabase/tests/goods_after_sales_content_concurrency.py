@@ -45,7 +45,7 @@ def actor(number=2):
 
 def new_good(label):
     good = 'after-sales-race-' + label
-    sql(f"insert into public.goods(id,ip_id,name,type,price) values('{good}','after-sales-race-ip','TEST-ONLY {label}','문구',1000);")
+    sql(f"insert into public.goods(id,ip_id,name,price) values('{good}','after-sales-race-ip','TEST-ONLY {label}',1000);")
     return good
 
 

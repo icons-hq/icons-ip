@@ -23,8 +23,8 @@ update public.profiles set role = 'staff' where id in (pg_temp.seller_claim_id('
 insert into public.ips(id,title,vertical_key) values('seller-claim-test','대리 접수 합성 IP','character');
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_active)
 select pg_temp.seller_claim_id('origin',n),'seller-claim-'||n,'합성 출고지 '||n,0,'실제 주소가 아닌 검수 반송지 '||n,true from generate_series(1,2)n;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
-select 'seller-claim-good-'||n,'seller-claim-test','대리 접수 합성 상품 '||n,'문구',1000,'ok',20,pg_temp.seller_claim_id('origin',n) from generate_series(1,2)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+select 'seller-claim-good-'||n,'seller-claim-test','대리 접수 합성 상품 '||n,1000,'ok',20,pg_temp.seller_claim_id('origin',n) from generate_series(1,2)n;
 create function pg_temp.seed_seller_claim_order(n integer, age_days integer default 1) returns uuid language plpgsql as $$
 declare target uuid := pg_temp.seller_claim_id('order',n); item uuid; shipment uuid; variant uuid; i integer;
 begin
@@ -33,8 +33,8 @@ begin
   for i in 1..2 loop
     item:=pg_temp.seller_claim_id('item-'||n,i); shipment:=pg_temp.seller_claim_id('shipment-'||n,i);
     select id into variant from public.goods_variants where good_id='seller-claim-good-'||i and is_default;
-    insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-      values(item,target,'seller-claim-good-'||i,variant,1,1000,'대리 접수 합성 상품 '||i,'문구','seller-claim-test');
+    insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+      values(item,target,'seller-claim-good-'||i,variant,1,1000,'대리 접수 합성 상품 '||i,'seller-claim-test');
     insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
       values(shipment,target,pg_temp.seller_claim_id('origin',i),'합성 출고지 '||i,0,'{}');
     insert into public.order_shipment_items(order_id,shipment_id,order_item_id) values(target,shipment,item);

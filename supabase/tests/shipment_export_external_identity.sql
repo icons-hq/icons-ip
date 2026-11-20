@@ -7,7 +7,7 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,cr
 update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000052801';
 insert into public.verticals(key,label,color) values('export-identity','출고 식별값','#000000');
 insert into public.ips(id,title,vertical_key) values('export-identity','출고 식별값','export-identity');
-insert into public.goods(id,ip_id,name,type,price,code) values('export-identity','export-identity','식별값 상품','문구',1000,'EXPORT-528');
+insert into public.goods(id,ip_id,name,price,code) values('export-identity','export-identity','식별값 상품',1000,'EXPORT-528');
 update public.goods_variants set name='빨강',code='528-RED' where good_id='export-identity';
 insert into public.goods_variants(good_id,name,code,price,sort_order) values
  ('export-identity','파랑','528-BLUE',1000,1),('export-identity','노랑','528-YELLOW',1000,2),('export-identity','초록','528-GREEN',1000,3);
@@ -20,8 +20,8 @@ select id,'ERP-GREEN','ERP 초록','0880000000044' from public.goods_variants wh
 
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
  values('50000000-0000-4000-8000-000000052801','00000000-0000-4000-8000-000000052801','confirmed',7000,3000,'{"recipientName":"출고 식별값","phone":"01000000000","postalCode":"00123","address1":"테스트 주소"}',now());
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,variant_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select '50000000-0000-4000-8000-000000052801',good_id,id,1,price,'식별값 상품',name,'문구','export-identity' from public.goods_variants where good_id='export-identity';
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,variant_name_snapshot,good_ip_id_snapshot)
+ select '50000000-0000-4000-8000-000000052801',good_id,id,1,price,'식별값 상품',name,'export-identity' from public.goods_variants where good_id='export-identity';
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
  values('60000000-0000-4000-8000-000000052801','50000000-0000-4000-8000-000000052801','00000000-0000-4000-8000-000000042201','김포',3000,'{}');
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id)

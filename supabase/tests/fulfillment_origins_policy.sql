@@ -37,12 +37,12 @@ end $$;
 select set_config('request.jwt.claim.sub','',true);
 insert into public.verticals(key,label,color) values ('shipping-origins','출고지 검증','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('shipping-origins','출고지 검증','shipping-origins',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id,shipping_fee_type,individual_fee)
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id,shipping_fee_type,individual_fee)
 values
- ('shipping-origin-a','shipping-origins','김포 정책 상품','키링',25000,'ok',20,null,'00000000-0000-4000-8000-000000042201','policy',0),
- ('shipping-origin-b','shipping-origins','남양주 정책 상품','키링',60000,'ok',20,null,'00000000-0000-4000-8000-000000042202','policy',0),
- ('shipping-origin-c','shipping-origins','김포 무료 상품','키링',100000,'ok',20,null,'00000000-0000-4000-8000-000000042201','free',0),
- ('shipping-origin-d','shipping-origins','남양주 개별 상품','키링',9000,'ok',20,null,'00000000-0000-4000-8000-000000042202','individual',2500);
+ ('shipping-origin-a','shipping-origins','김포 정책 상품',25000,'ok',20,null,'00000000-0000-4000-8000-000000042201','policy',0),
+ ('shipping-origin-b','shipping-origins','남양주 정책 상품',60000,'ok',20,null,'00000000-0000-4000-8000-000000042202','policy',0),
+ ('shipping-origin-c','shipping-origins','김포 무료 상품',100000,'ok',20,null,'00000000-0000-4000-8000-000000042201','free',0),
+ ('shipping-origin-d','shipping-origins','남양주 개별 상품',9000,'ok',20,null,'00000000-0000-4000-8000-000000042202','individual',2500);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('shipping-origin-a');
 select pg_temp.publish_goods_kc_fixture('shipping-origin-b');
@@ -100,8 +100,8 @@ end $$;
 insert into public.orders(id,user_id,status,total,shipping_fee,address,expires_at)
  values ('00000000-0000-4000-8000-000000042221','00000000-0000-4000-8000-000000042211','pending',0,0,
  '{"recipientName":"배송 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 테스트 주소"}',now()+interval '1 hour');
-insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot, variant_id)
- select '00000000-0000-4000-8000-000000042221',id,case when id='shipping-origin-d' then 5 else 1 end,price,name,type,ip_id, (select id from public.goods_variants where good_id=public.goods.id and is_default) from public.goods where ip_id='shipping-origins';
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot, variant_id)
+ select '00000000-0000-4000-8000-000000042221',id,case when id='shipping-origin-d' then 5 else 1 end,price,name,ip_id, (select id from public.goods_variants where good_id=public.goods.id and is_default) from public.goods where ip_id='shipping-origins';
 -- Admin save carries shipping atomically and omission preserves existing policy.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042212',true);
 set local role authenticated;
@@ -115,7 +115,7 @@ select 1 / case when exists(select 1 from public.goods where id='no-shipping-dra
  then 1 else 0 end as assert_empty_shipping_draft_saved;
 reset role;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',price=1000,image_path='public-media/origins.webp',
+update public.goods set price=1000,image_path='public-media/origins.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',notice_as_manager='CS',notice_as_contact='02-000-0000'
  where id='no-shipping-draft';
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042212',true);

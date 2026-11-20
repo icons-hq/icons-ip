@@ -10,13 +10,13 @@ insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_a
 values ('00000000-0000-4000-8000-000000079903','custom-input-workbook-sql','TEST 엑셀 출고지',0,'TEST 주소',true);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000079901',true);
 set local role authenticated;
-select public.admin_save_good('{"id":"custom-input-workbook-sql-good","code":"CUSTOM-XLSX-SQL","name":"TEST 이전 상품","ip_id":"custom-input-workbook-sql","type":"문구","price":5000,"origin_id":"00000000-0000-4000-8000-000000079903","publish":false,"variant_baseline":[],"variants":[{"code":"CUSTOM-XLSX-SQL-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":4}],"custom_inputs":{"enabled":true,"fields":[{"id":"00000000-0000-4000-8000-000000079902","name":"TEST 이전 문구","active":true}]},"custom_inputs_expected_revision":0}');
+select public.admin_save_good('{"id":"custom-input-workbook-sql-good","code":"CUSTOM-XLSX-SQL","name":"TEST 이전 상품","ip_id":"custom-input-workbook-sql","price":5000,"origin_id":"00000000-0000-4000-8000-000000079903","publish":false,"variant_baseline":[],"variants":[{"code":"CUSTOM-XLSX-SQL-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":4}],"custom_inputs":{"enabled":true,"fields":[{"id":"00000000-0000-4000-8000-000000079902","name":"TEST 이전 문구","active":true}]},"custom_inputs_expected_revision":0}');
 reset role;
 insert into public.orders(id,user_id,status,total,address)
 values ('00000000-0000-4000-8000-000000079904','00000000-0000-4000-8000-000000079901','pending',5000,'{}');
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,
  origin_id_snapshot,shipping_fee_type_snapshot,individual_fee_snapshot,custom_inputs_snapshot)
-select '00000000-0000-4000-8000-000000079904',g.id,v.id,1,5000,g.name,g.type,g.ip_id,g.origin_id,'policy',0,
+select '00000000-0000-4000-8000-000000079904',g.id,v.id,1,5000,g.name,g.ip_id,g.origin_id,'policy',0,
  '{"revision":1,"fields":[{"id":"00000000-0000-4000-8000-000000079902","name":"TEST 이전 문구","value":"TEST 주문 당시 문구"}]}'::jsonb
 from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='custom-input-workbook-sql-good';
 do $$

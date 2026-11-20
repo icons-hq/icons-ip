@@ -12,10 +12,10 @@ insert into public.ips(id,title,vertical_key,published_at) values('settled-expor
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  ('00000000-0000-4000-8000-000000004951','settled-export-origin-a','합성 출고지 A','hanjin',3000,'합성 반품 주소 A',true),
  ('00000000-0000-4000-8000-000000004952','settled-export-origin-b','합성 출고지 B','hanjin',2000,'합성 반품 주소 B',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('settled-export-a','settled-export-ip','합성 A','문구',10001,'ok',100,'00000000-0000-4000-8000-000000004951'),
- ('settled-export-b','settled-export-ip','합성 B','문구',10001,'ok',100,'00000000-0000-4000-8000-000000004951'),
- ('settled-export-c','settled-export-ip','합성 C','문구',9000,'ok',100,'00000000-0000-4000-8000-000000004952');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('settled-export-a','settled-export-ip','합성 A',10001,'ok',100,'00000000-0000-4000-8000-000000004951'),
+ ('settled-export-b','settled-export-ip','합성 B',10001,'ok',100,'00000000-0000-4000-8000-000000004951'),
+ ('settled-export-c','settled-export-ip','합성 C',9000,'ok',100,'00000000-0000-4000-8000-000000004952');
 select pg_temp.publish_goods_kc_fixture('settled-export-a');
 select pg_temp.publish_goods_kc_fixture('settled-export-b');
 select pg_temp.publish_goods_kc_fixture('settled-export-c');

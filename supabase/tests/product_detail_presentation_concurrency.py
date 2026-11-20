@@ -71,7 +71,7 @@ update private.product_detail_settings set revision=0;
 delete from private.product_detail_banner_goods;delete from private.product_detail_banner_categories;
 update private.product_detail_settings set values='{{"enabled":false,"style":"light","title":"","text":"","periodEnabled":false,"startsOn":null,"endsOn":null,"targetType":"all"}}' where section='banner';
 insert into public.ips(id,title,vertical_key) select 'detail-race-ip','동시성 합성 IP',key from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price) select 'detail-race-'||n,'detail-race-ip','동시성 합성 상품 '||n,'문구',1000 from generate_series(1,2)n;
+insert into public.goods(id,ip_id,name,price) select 'detail-race-'||n,'detail-race-ip','동시성 합성 상품 '||n,1000 from generate_series(1,2)n;
 commit;""")
 race('same-section-cas', save('modules', 0, 101), save('modules', 0, 102, 2), 'product_detail_conflict')
 race('same-operation-replay', save('modules', 1, 103), save('modules', 1, 103))

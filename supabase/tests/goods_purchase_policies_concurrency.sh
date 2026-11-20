@@ -72,10 +72,10 @@ insert into public.verticals(key,label,color) values('sales-quota-race-4273','�
 insert into public.ips(id,title,vertical_key,published_at) values('sales-quota-race-4273','동시 주문 검증','sales-quota-race-4273',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('00000000-0000-4000-8000-000000048430','sales-quota-race-4273','동시 검증 출고지','hanjin',3000,'배송 금지 검증 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id,
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id,
  image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,
  order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit)
- values('sales-quota-race-4273','sales-quota-race-4273','동시 주문 검증','문구',10000,'ok',10,null,
+ values('sales-quota-race-4273','sales-quota-race-4273','동시 주문 검증',10000,'ok',10,null,
  '00000000-0000-4000-8000-000000048430','public-media/sales-quota-race-fixture.webp',
  '제조사','한국','종이','A5','2026-09','CS','02-000',true,1,5,true,3);
 select pg_temp.publish_goods_kc_fixture('sales-quota-race-4273');

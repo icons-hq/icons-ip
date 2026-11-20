@@ -9,7 +9,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042101',true);
 select public.admin_save_good('{"ip_id":"goods-publish","name":"Minimal draft"}') as draft \gset
 select 1 / case when exists(select 1 from public.goods where id=:'draft'::jsonb->>'id'
- and published_at is null and first_published_at is null and notice_maker is null and type='')
+ and published_at is null and first_published_at is null and notice_maker is null)
 then 1 else 0 end as assert_name_and_ip_are_sufficient_for_draft;
 do $$ begin
   perform public.admin_set_good_published('minimal-draft',true);
@@ -20,7 +20,7 @@ end $$;
 select 1 / case when not exists(select 1 from public.search_public_content('Minimal',20) where kind='good') then 1 else 0 end as assert_draft_absent_from_search;
 reset role;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',price=12000,image_path='public-media/publish-fixture.webp',
+update public.goods set price=12000,image_path='public-media/publish-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',notice_as_manager='CS',notice_as_contact='02-000-0000'
 where id='minimal-draft';
 update public.goods_variants set stock_qty=5 where good_id='minimal-draft';
@@ -84,7 +84,7 @@ select 1 / case when not has_function_privilege('anon','public.admin_set_good_pu
  and has_function_privilege('authenticated','public.admin_set_good_published(text,boolean)','execute')
  then 1 else 0 end as assert_publish_acl;
 select set_config('request.jwt.claim.sub','',true);
-insert into public.goods(id,ip_id,name,type,price,published_at) values('archive-published-good','goods-publish','보관 검증','문구',1000,null);
+insert into public.goods(id,ip_id,name,price,published_at) values('archive-published-good','goods-publish','보관 검증',1000,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('archive-published-good');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042101',true);

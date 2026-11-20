@@ -16,9 +16,9 @@ update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at,public_slug) select 'detail-test-ip','상세표시 합성 IP',key,now(),'detail-test-ip' from public.verticals limit 1;
 insert into public.catalog_categories(id,code,name) values('91000000-0000-4000-8000-000000010001','detail-test-root','상세 대분류');
 insert into public.catalog_categories(id,code,name,parent_id) values('91000000-0000-4000-8000-000000010002','detail-test-leaf','상세 하위분류','91000000-0000-4000-8000-000000010001');
-insert into public.goods(id,ip_id,name,type,price,category_id,created_at)
- select 'detail-test-'||n,'detail-test-ip','상세 합성 상품 '||n,'문구',1000,'91000000-0000-4000-8000-000000010002',now()-n*interval '1 hour' from generate_series(0,35)n;
-insert into public.goods(id,ip_id,name,type,price) values('detail-test-draft','detail-test-ip','상세 초안','문구',1000);
+insert into public.goods(id,ip_id,name,price,category_id,created_at)
+ select 'detail-test-'||n,'detail-test-ip','상세 합성 상품 '||n,1000,'91000000-0000-4000-8000-000000010002',now()-n*interval '1 hour' from generate_series(0,35)n;
+insert into public.goods(id,ip_id,name,price) values('detail-test-draft','detail-test-ip','상세 초안',1000);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}',now(),now() from public.goods where id like 'detail-test-%' and id<>'detail-test-draft';
 update public.profiles set role='staff' where id in(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id like 'detail-test-%' and id<>'detail-test-draft');
@@ -90,8 +90,8 @@ declare purchase uuid:=('91000000-0000-4000-8001-'||lpad(n::text,12,'0'))::uuid;
  payment uuid:=('91000000-0000-4000-8002-'||lpad(n::text,12,'0'))::uuid;attempt uuid:=('91000000-0000-4000-8003-'||lpad(n::text,12,'0'))::uuid;total bigint:=(cardinality(partners)+1)*1000000;
 begin
  insert into public.orders(id,user_id,status,total,address,payment_method) values(purchase,'91000000-0000-4000-8000-000000000007',order_state,total,'{}',case when bank then 'bank_transfer'::public.order_payment_method else 'card'::public.order_payment_method end);
- insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select purchase,g.id,v.id,1000,1000,g.name,g.type,g.ip_id from unnest(array_prepend(0,partners)) number join public.goods g on g.id='detail-test-'||number join public.goods_variants v on v.good_id=g.id and v.is_default;
+ insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select purchase,g.id,v.id,1000,1000,g.name,g.ip_id from unnest(array_prepend(0,partners)) number join public.goods g on g.id='detail-test-'||number join public.goods_variants v on v.good_id=g.id and v.is_default;
  insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key) values(payment,'91000000-0000-4000-8000-000000000007','order',purchase,case when bank then 'bank_transfer'::public.payment_provider else 'korpay'::public.payment_provider end,total,payment_state,'detail-payment-'||n);
  insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
  values(attempt,case when bank then 'bank_transfer'::public.payment_provider else 'korpay'::public.payment_provider end,'91000000-0000-4000-8000-000000000007','order',purchase,total,'approved','detail-attempt-'||n,'detail-order-'||n,'detail-product-'||n,payment,now()+interval '10 minutes');

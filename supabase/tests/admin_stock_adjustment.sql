@@ -47,11 +47,11 @@ insert into public.ips (id, title, vertical_key)
 values ('admin-stock-test-ip', '재고 테스트 IP', 'admin-stock-test')
 on conflict (id) do nothing;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
 values
-  ('admin-stock-test-good', 'admin-stock-test-ip', '재고 테스트 굿즈', '문구', 1000, 'low', 10),
-  ('admin-stock-manual-stop', 'admin-stock-test-ip', '판매 중지 굿즈', '문구', 1000, 'soldout', 2),
-  ('admin-stock-max', 'admin-stock-test-ip', '최대 재고 굿즈', '문구', 1000, 'ok', 2147483647)
+  ('admin-stock-test-good', 'admin-stock-test-ip', '재고 테스트 굿즈', 1000, 'low', 10),
+  ('admin-stock-manual-stop', 'admin-stock-test-ip', '판매 중지 굿즈', 1000, 'soldout', 2),
+  ('admin-stock-max', 'admin-stock-test-ip', '최대 재고 굿즈', 1000, 'ok', 2147483647)
 on conflict (id) do update set
   stock = excluded.stock,
   stock_qty = excluded.stock_qty;

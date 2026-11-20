@@ -10,14 +10,14 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data)
 update public.profiles set role=case when id=pg_temp.export_id(4) then 'user'::public.user_role else 'staff'::public.user_role end,nickname='내보내기 합성 '||right(id::text,2) where id in(select pg_temp.export_id(n) from generate_series(1,4)n);
 insert into private.operator_memberships(profile_id,manager_role) values(pg_temp.export_id(1),'primary'),(pg_temp.export_id(2),'deputy'),(pg_temp.export_id(3),'logistics');
 insert into public.ips(id,title,vertical_key,published_at) select 'review-export-ip','내보내기 합성 IP',key,now() from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price) values('review-export-good','review-export-ip','001 내보내기 합성 상품','문구',1000);
+insert into public.goods(id,ip_id,name,price) values('review-export-good','review-export-ip','001 내보내기 합성 상품',1000);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data)
  values(('47c47700'||left(md5('review-export-good'),24))::uuid,'authenticated','authenticated','export-kc@example.test','{"testFixture":"goods-kc"}','{}');
 insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('review-export-good'),24))::uuid,'primary');
 select pg_temp.publish_goods_kc_fixture('review-export-good');
 insert into public.orders(id,user_id,status,total,address,delivered_at) values(pg_temp.export_id(20),pg_temp.export_id(4),'delivered',1000,'{}',clock_timestamp()-interval '2 days');
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.export_id(20),g.id,v.id,1,1000,g.name,g.type,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='review-export-good';
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.export_id(20),g.id,v.id,1,1000,g.name,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='review-export-good';
 insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key) values(pg_temp.export_id(21),pg_temp.export_id(4),'order',pg_temp.export_id(20),'korpay',1000,'paid','review-export-payment');
 insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
  values(pg_temp.export_id(22),'korpay',pg_temp.export_id(4),'order',pg_temp.export_id(20),1000,'approved','review-export-attempt','review-export-order','review-export-product',pg_temp.export_id(21),now()+interval '1 hour');

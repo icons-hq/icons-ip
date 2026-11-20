@@ -78,7 +78,7 @@ create function pg_temp.as_actor(p uuid) returns void language plpgsql as $$begi
 end $$;
 
 insert into public.ips(id,title,vertical_key) values('hold-ip','TEST 출고 보류 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('hold-goods','hold-ip','TEST 출고 보류 굿즈','문구',10000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('hold-goods','hold-ip','TEST 출고 보류 굿즈',10000,'ok',100);
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
  values('a1d00000-0000-4000-8000-0000000000f1','hold-origin','TEST 출고 보류 창고',0,'합성 반송 주소'),
        ('a1d00000-0000-4000-8000-0000000000f2','hold-origin-2','TEST 출고 보류 창고 2',0,'합성 반송 주소');
@@ -95,8 +95,8 @@ declare oid uuid:=pg_temp.hold_id('order',n);item uuid;
 begin
  insert into public.orders(id,user_id,status,total,address,confirmed_at) values(oid,'a1d00000-0000-4000-8000-000000000002',status,10000,
   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',case when status<>'paid' then now() end);
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(oid,'hold-goods',1,10000,'TEST 출고 보류 굿즈','문구','hold-ip',(select id from public.goods_variants where good_id='hold-goods' and is_default))
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,'hold-goods',1,10000,'TEST 출고 보류 굿즈','hold-ip',(select id from public.goods_variants where good_id='hold-goods' and is_default))
   returning id into item;
  insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
   values(pg_temp.hold_id('shipment',n),oid,'a1d00000-0000-4000-8000-0000000000f1','TEST 출고 보류 창고',0,'{}');
@@ -266,8 +266,8 @@ select pg_temp.expect_error($$update public.orders set status='shipping' where i
 -- 발송 뒤 보류(13번: 배송 건 하나가 발송됨, 14번: 하나는 발송·하나는 발송 전). 배송완료는 막지 않고, 발송 전 배송 건의 발송만 막는다.
 select pg_temp.hold_order(13,'confirmed'),pg_temp.hold_order(14,'confirmed');
 select pg_temp.approve(13),pg_temp.approve(14);
-insert into public.order_items(id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
- values('a1d00000-0000-4005-8000-000000000141',pg_temp.hold_id('order',14),'hold-goods',1,0,'TEST 출고 보류 굿즈','문구','hold-ip',
+insert into public.order_items(id,order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+ values('a1d00000-0000-4005-8000-000000000141',pg_temp.hold_id('order',14),'hold-goods',1,0,'TEST 출고 보류 굿즈','hold-ip',
   (select id from public.goods_variants where good_id='hold-goods' and is_default));
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
  values('a1d00000-0000-4004-8000-000000000141',pg_temp.hold_id('order',14),'a1d00000-0000-4000-8000-0000000000f2','TEST 출고 보류 창고 2',0,'{}');
@@ -481,8 +481,8 @@ select 1/case when (select status='delivered' from public.order_shipments where 
 
 -- 수령 확인 코드: 일부만 나간 보류 주문(16번: 퀵 배송 건은 인계 끝, 택배 배송 건은 발송 전)에서 인계된 배송 건의 수령 코드는 발급한다.
 select pg_temp.hold_order(16,'confirmed');
-insert into public.order_items(id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
- values('a1d00000-0000-4005-8000-000000000161',pg_temp.hold_id('order',16),'hold-goods',1,0,'TEST 출고 보류 굿즈','문구','hold-ip',
+insert into public.order_items(id,order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+ values('a1d00000-0000-4005-8000-000000000161',pg_temp.hold_id('order',16),'hold-goods',1,0,'TEST 출고 보류 굿즈','hold-ip',
   (select id from public.goods_variants where good_id='hold-goods' and is_default));
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
  values('a1d00000-0000-4004-8000-000000000161',pg_temp.hold_id('order',16),'a1d00000-0000-4000-8000-0000000000f2','TEST 출고 보류 창고 2',0,'{}');

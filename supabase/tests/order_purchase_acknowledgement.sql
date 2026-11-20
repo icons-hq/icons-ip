@@ -40,17 +40,17 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
 update public.profiles set role='staff' where id=pg_temp.ack_id('actor',3);
 insert into private.operator_memberships(profile_id,manager_role) values(pg_temp.ack_id('actor',3),'primary');
 insert into public.ips(id,title,vertical_key) values('order-purchase-ack-ip','동의 기록 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
- values('order-purchase-ack-free','order-purchase-ack-ip','제한 없는 상품','문구',1000,'ok',100),
-        ('order-purchase-ack-limited','order-purchase-ack-ip','제한 있는 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+ values('order-purchase-ack-free','order-purchase-ack-ip','제한 없는 상품',1000,'ok',100),
+        ('order-purchase-ack-limited','order-purchase-ack-ip','제한 있는 상품',1000,'ok',100);
 update public.goods set claim_return_allowed=false,claim_restriction_reason='각인 주문 제작 상품' where id='order-purchase-ack-limited';
 
 insert into public.orders(id,user_id,status,total)
  values(pg_temp.ack_id('order',1),pg_temp.ack_id('actor',1),'pending',2000),
         (pg_temp.ack_id('order',2),pg_temp.ack_id('actor',1),'pending',1000),
         (pg_temp.ack_id('order',3),pg_temp.ack_id('actor',1),'pending',1000);
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ack_id('item',x.n),pg_temp.ack_id('order',x.o),g.id,v.id,1,1000,g.name,g.type,g.ip_id
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ack_id('item',x.n),pg_temp.ack_id('order',x.o),g.id,v.id,1,1000,g.name,g.ip_id
  from (values(1,1,'order-purchase-ack-free'),(2,1,'order-purchase-ack-limited'),(3,2,'order-purchase-ack-free'),(4,3,'order-purchase-ack-limited'))x(n,o,gid)
  join public.goods g on g.id=x.gid join public.goods_variants v on v.good_id=g.id and v.is_default;
 

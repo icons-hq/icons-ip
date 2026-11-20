@@ -10,15 +10,15 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,fre
  ('00000000-0000-4000-8000-000000042972','warehouse-other','합성 다른 출고지','hanjin',3000,50000,'standard',true);
 insert into public.verticals(key,label,color) values('warehouse-native','물류 회신','#000000');
 insert into public.ips(id,title,vertical_key) values('warehouse-native','물류 회신','warehouse-native');
-insert into public.goods(id,ip_id,name,type,price,origin_id) values
- ('warehouse-native','warehouse-native','주문 당시 이름','문구',1234,'00000000-0000-4000-8000-000000042971');
+insert into public.goods(id,ip_id,name,price,origin_id) values
+ ('warehouse-native','warehouse-native','주문 당시 이름',1234,'00000000-0000-4000-8000-000000042971');
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select ('50000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,
  '00000000-0000-4000-8000-000000042971',case when n=42974 then 'pending'::public.order_status else 'confirmed'::public.order_status end,
  6234,5000,'{"recipientName":"합성 받는분","phone":"01000000000","postalCode":"00123","address1":"합성 주소"}',now()
 from generate_series(42971,42975) n;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select '50000000-0000-4000-8000-000000042971',good_id,id,1,1234,'주문 당시 이름','문구','warehouse-native'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select '50000000-0000-4000-8000-000000042971',good_id,id,1,1234,'주문 당시 이름','warehouse-native'
 from public.goods_variants where good_id='warehouse-native' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
 select ('60000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,

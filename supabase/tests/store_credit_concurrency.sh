@@ -55,7 +55,7 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
 update public.profiles set email='credit-race-'||right(id::text,4)||'@example.test',nickname='credit_race_'||right(id::text,4),birth_date='2000-01-01',consents='{"terms":true,"privacy":true}',onboarded_at=now(),role=case when id='$credit_admin' then 'admin'::public.user_role else 'user'::public.user_role end where id in ('$credit_admin','$credit_user');
 update private.store_credit_policy set enabled=true,earn_kind='rate_bps',earn_value=1000,earn_max_per_order=10000,max_balance=100000,validity_days=30,min_use=100,max_use=10000,restore_grace_days=3,refund_earned_credit_mode='offset_future_credits',evidence='synthetic concurrency fixture';
 insert into public.ips(id,title,vertical_key,published_at) values('store-credit-race-ip','동시성 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values('store-credit-race-good','store-credit-race-ip','동시성 합성 굿즈','문구',10000,'ok',20,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at) values('store-credit-race-good','store-credit-race-ip','동시성 합성 굿즈',10000,'ok',20,null);
 select pg_temp.publish_goods_kc_fixture('store-credit-race-good');
 SQL
 

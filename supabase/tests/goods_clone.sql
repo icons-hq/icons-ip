@@ -37,11 +37,11 @@ insert into public.shipping_notice_templates(
 
 set local session authorization postgres;
 insert into public.goods(
-  id, code, ip_id, name, type, price, compare_at_price, badge, stock, bg, image_path,
+  id, code, ip_id, name, price, compare_at_price, badge, stock, bg, image_path,
   notice_maker, notice_origin, notice_material, notice_size, notice_made_on, notice_as_manager, notice_as_contact,
   description, gallery_paths, detail_image_path, name_en, search_keywords, category_id
 ) values (
-  'source-good-0479', 'SRC-0479', 'goods-clone-0479', '원본 복제 상품', '문구', 1000, 1500, 'NEW', 'ok', '#fff',
+  'source-good-0479', 'SRC-0479', 'goods-clone-0479', '원본 복제 상품', 1000, 1500, 'NEW', 'ok', '#fff',
   'public-media/goods-clone-0479/main.webp',
   '제조사', '한국', '종이', 'A5', '2026-09', 'CS', '02-0000',
   '원본 설명', '{"public-media/goods-clone-0479/gallery-1.webp"}'::text[], 'public-media/goods-clone-0479/detail.webp',
@@ -84,8 +84,8 @@ insert into private.goods_variant_price_periods(
 
 insert into public.orders(id, user_id, status, total, address)
 values ('00000000-0000-4000-8000-000000047993', '00000000-0000-4000-8000-000000047492', 'pending', 1000, '{}'::jsonb);
-insert into public.order_items(order_id, good_id, qty, unit_price, variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select '00000000-0000-4000-8000-000000047993',id,1,1000,:'source_default_variant'::uuid,name,type,ip_id from public.goods where id='source-good-0479';
+insert into public.order_items(order_id, good_id, qty, unit_price, variant_id,good_name_snapshot,good_ip_id_snapshot)
+select '00000000-0000-4000-8000-000000047993',id,1,1000,:'source_default_variant'::uuid,name,ip_id from public.goods where id='source-good-0479';
 
 select count(*)::integer as source_variant_count,
        coalesce(sum(stock_qty), 0)::integer as source_stock_total
@@ -141,7 +141,7 @@ select 1 / case when exists(
   ) then 1 else 0 end as assert_clone_safe_metadata_and_draft_state;
 
 select pg_temp.expect_error($sql$
-  select public.admin_save_good('{"id":"not-a-clone-0479","ip_id":"goods-clone-0479","name":"무단 이미지 재사용","type":"문구","price":1000,"stock":"ok","image_path":"public-media/goods-clone-0479/main.webp"}'::jsonb)
+  select public.admin_save_good('{"id":"not-a-clone-0479","ip_id":"goods-clone-0479","name":"무단 이미지 재사용","price":1000,"stock":"ok","image_path":"public-media/goods-clone-0479/main.webp"}'::jsonb)
 $sql$,'unverified_artwork','23514');
 select pg_temp.expect_error($sql$
   select public.admin_clone_good('00000000-0000-4000-8000-000000047985','source-good-0479','clone-good-0479','CLONE-ID-DUP','중복 URL')
@@ -197,7 +197,7 @@ select pg_temp.expect_error($sql$
 $sql$, 'goods_clone_operation_conflict', '23505');
 
 select set_config('request.jwt.claim.sub','',true);
-insert into public.goods(id,ip_id,name,type,price,stock,archived_at) values('archived-source-0479','goods-clone-0479','보관 원본','문구',1000,'ok',now());
+insert into public.goods(id,ip_id,name,price,stock,archived_at) values('archived-source-0479','goods-clone-0479','보관 원본',1000,'ok',now());
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047491',true);
 select pg_temp.expect_error($sql$

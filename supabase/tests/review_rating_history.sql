@@ -23,8 +23,8 @@ update public.profiles set role=case when id=pg_temp.rrh_id(1) then 'admin'::pub
 insert into private.operator_memberships(profile_id,manager_role) values(pg_temp.rrh_id(1),'primary'),(pg_temp.rrh_id(3),'logistics');
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after) select pg_temp.rrh_id(n+100),pg_temp.rrh_id(n),now(),now(),now()+interval '2 hours' from generate_series(1,3)n;
 insert into public.ips(id,title,vertical_key,published_at) values('review-rating-history-ip','TEST 평점 이력 a722 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
- select 'review-rating-history-'||suffix,'review-rating-history-ip','TEST 평점 이력 a722 상품 '||suffix,'문구',10000,'ok',10 from unnest(array['a','b','empty','draft','adult','archived'])suffix;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+ select 'review-rating-history-'||suffix,'review-rating-history-ip','TEST 평점 이력 a722 상품 '||suffix,10000,'ok',10 from unnest(array['a','b','empty','draft','adult','archived'])suffix;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id in('review-rating-history-a','review-rating-history-b','review-rating-history-empty','review-rating-history-draft','review-rating-history-adult','review-rating-history-archived');
 insert into private.operator_memberships(profile_id,manager_role)

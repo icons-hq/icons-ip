@@ -45,17 +45,17 @@ update public.profiles set suspended_at=now(),suspension_reason='합성 구매�
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
   values(inquiry_purchase_test.id(500),'inquiry-purchase-origin','구매이력 합성 출고지',0,'합성 반송 주소');
 insert into public.ips(id,title,vertical_key) values('inquiry-purchase-ip','구매이력 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
-  values('inquiry-purchase-good','inquiry-purchase-ip','구매이력 합성 키링','문구',6000,'ok',100,inquiry_purchase_test.id(500));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+  values('inquiry-purchase-good','inquiry-purchase-ip','구매이력 합성 키링',6000,'ok',100,inquiry_purchase_test.id(500));
 -- 고객 A 주문 23건(2페이지), 고객 B 주문 2건. A의 101번 주문에 품목 두 줄(수량 2+1).
 insert into public.orders(id,user_id,status,total,address,created_at)
 select inquiry_purchase_test.id(100+n),inquiry_purchase_test.id(1),case when n=1 then 'delivered'::public.order_status else 'paid'::public.order_status end,
   1000*n,'{}','2026-09-01T00:00:00Z'::timestamptz+n*interval '1 hour' from generate_series(1,23)n;
 insert into public.orders(id,user_id,status,total,address,created_at)
 select inquiry_purchase_test.id(200+n),inquiry_purchase_test.id(2),'paid',77000+n,'{}','2026-09-02T00:00:00Z'::timestamptz+n*interval '1 hour' from generate_series(1,2)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
 select inquiry_purchase_test.id(300+n),inquiry_purchase_test.id(101),'inquiry-purchase-good',v.id,case when n=1 then 2 else 1 end,1000,
-  case when n=1 then '구매이력 합성 키링' else '구매이력 합성 키링 두번째' end,'문구','inquiry-purchase-ip'
+  case when n=1 then '구매이력 합성 키링' else '구매이력 합성 키링 두번째' end,'inquiry-purchase-ip'
 from generate_series(1,2)n join public.goods_variants v on v.good_id='inquiry-purchase-good' and v.is_default;
 -- 401: A의 문의(A의 101번 주문 연결), 402: A의 문의에 B의 주문이 연결된 이상 자료(연결 요약을 싣지 않는다), 403: B의 문의.
 insert into public.inquiries(id,user_id,category,title,order_id) values

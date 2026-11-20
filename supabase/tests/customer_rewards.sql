@@ -12,7 +12,7 @@ insert into private.operator_memberships(profile_id,manager_role)
  select ('93500000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,role from unnest(array['primary','deputy','logistics']) with ordinality r(role,n);
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) select 'review-best-ip','선정 리뷰 합성 IP',key,now() from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price) values('review-best-good','review-best-ip','선정 리뷰 합성 상품','문구',10000);
+insert into public.goods(id,ip_id,name,price) values('review-best-good','review-best-ip','선정 리뷰 합성 상품',10000);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id='review-best-good';
 update public.profiles set role='staff' where id=(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id='review-best-good');
@@ -24,8 +24,8 @@ declare purchase uuid:=('93500000-0000-4000-8001-'||lpad(n::text,12,'0'))::uuid;
 begin
  -- 리뷰는 구매확정된 주문에만 남는다(1014-079). 리뷰 등록과 함께 확정하는 길은 purchase_confirmation.sql이 본다.
  insert into public.orders(id,user_id,status,total,address,delivered_at,done_at) values(purchase,buyer,'done',10000,'{}',clock_timestamp()-interval '2 days',clock_timestamp()-interval '1 day');
- insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select purchase,g.id,v.id,1,10000,g.name,g.type,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='review-best-good';
+ insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select purchase,g.id,v.id,1,10000,g.name,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='review-best-good';
  insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key) values(payment,buyer,'order',purchase,'korpay',10000,'paid','review-best-payment-'||n);
  insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
  values(attempt,'korpay',buyer,'order',purchase,10000,'approved','review-best-attempt-'||n,'review-best-order-'||n,'review-best-product-'||n,payment,now()+interval '1 hour');

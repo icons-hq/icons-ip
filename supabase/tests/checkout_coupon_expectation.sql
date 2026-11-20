@@ -8,8 +8,8 @@ where id='00000000-0000-4000-8000-000000005091';
 insert into public.ips(id,title,vertical_key,published_at) values('coupon-expect-ip','쿠폰 선택 합성 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
 values('00000000-0000-4000-8000-000000005091','coupon-expect-origin','합성 출고지','hanjin',0,'합성 반품 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
-values('coupon-expect-good','coupon-expect-ip','쿠폰 선택 합성 상품','문구',10000,'ok',20,'00000000-0000-4000-8000-000000005091');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+values('coupon-expect-good','coupon-expect-ip','쿠폰 선택 합성 상품',10000,'ok',20,'00000000-0000-4000-8000-000000005091');
 select pg_temp.publish_goods_kc_fixture('coupon-expect-good');
 insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,starts_at,status) values
  ('EXPECT-A','선택 합성 A','fixed',1000,0,now()-interval '1 day','active'),

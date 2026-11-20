@@ -10,8 +10,8 @@ update public.profiles set nickname='restriction_buyer',email='restriction-buyer
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_active) values
  ('00000000-0000-4000-8000-000000061301','restriction-test','합성 출고지',0,'합성 반송 주소',true);
 insert into public.ips(id,title,vertical_key,published_at) values('restriction-test','합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('restriction-good','restriction-test','합성 상품','문구',10000,'ok',100,'00000000-0000-4000-8000-000000061301');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('restriction-good','restriction-test','합성 상품',10000,'ok',100,'00000000-0000-4000-8000-000000061301');
 select pg_temp.publish_goods_kc_fixture('restriction-good');
 insert into public.cart_items(user_id,good_id,variant_id,qty)
  select '00000000-0000-4000-8000-000000061302',good_id,id,1 from public.goods_variants where good_id='restriction-good' and is_default;

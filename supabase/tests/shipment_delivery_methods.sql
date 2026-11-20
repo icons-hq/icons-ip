@@ -29,11 +29,11 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,fre
  ('00000000-0000-4000-8000-000000049230','delivery-quick-tests','퀵 검증 출고지','hanjin',1000,null,'배송 금지 검증 주소 1',true),
  ('00000000-0000-4000-8000-000000049231','delivery-pickup-tests','방문 검증 출고지','hanjin',2000,null,'배송 금지 검증 주소 2',true),
  ('00000000-0000-4000-8000-000000049232','delivery-parcel-tests','택배 검증 출고지','hanjin',3000,null,'배송 금지 검증 주소 3',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id) values
- ('delivery-quick','delivery-method-tests','퀵 상품','문구',10000,'ok',5,null,'00000000-0000-4000-8000-000000049230'),
- ('delivery-pickup','delivery-method-tests','방문수령 상품','문구',10000,'ok',5,null,'00000000-0000-4000-8000-000000049231'),
- ('delivery-parcel','delivery-method-tests','택배 상품','문구',10000,'ok',5,null,'00000000-0000-4000-8000-000000049232'),
- ('delivery-preorder','delivery-method-tests','방문수령 예약 상품','문구',10000,'ok',0,null,'00000000-0000-4000-8000-000000049231');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id) values
+ ('delivery-quick','delivery-method-tests','퀵 상품',10000,'ok',5,null,'00000000-0000-4000-8000-000000049230'),
+ ('delivery-pickup','delivery-method-tests','방문수령 상품',10000,'ok',5,null,'00000000-0000-4000-8000-000000049231'),
+ ('delivery-parcel','delivery-method-tests','택배 상품',10000,'ok',5,null,'00000000-0000-4000-8000-000000049232'),
+ ('delivery-preorder','delivery-method-tests','방문수령 예약 상품',10000,'ok',0,null,'00000000-0000-4000-8000-000000049231');
 select id as preorder_variant from public.goods_variants where good_id='delivery-preorder' and is_default \gset
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000049201',true);

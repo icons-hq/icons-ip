@@ -10,9 +10,9 @@ where id in ('00000000-0000-4000-8000-000000004871','00000000-0000-4000-8000-000
 insert into public.ips(id,title,vertical_key,published_at) values('coupon-target-ip','쿠폰 대상 검증','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
 values('00000000-0000-4000-8000-000000004870','coupon-target-origin','합성 출고지','hanjin',3000,'합성 반품 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('coupon-target-one','coupon-target-ip','대상 상품','문구',10000,'ok',100,'00000000-0000-4000-8000-000000004870'),
- ('coupon-target-two','coupon-target-ip','비대상 상품','문구',20000,'ok',100,'00000000-0000-4000-8000-000000004870');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('coupon-target-one','coupon-target-ip','대상 상품',10000,'ok',100,'00000000-0000-4000-8000-000000004870'),
+ ('coupon-target-two','coupon-target-ip','비대상 상품',20000,'ok',100,'00000000-0000-4000-8000-000000004870');
 select pg_temp.publish_goods_kc_fixture('coupon-target-one');
 select pg_temp.publish_goods_kc_fixture('coupon-target-two');
 

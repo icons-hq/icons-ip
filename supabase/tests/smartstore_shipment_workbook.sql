@@ -26,18 +26,18 @@ insert into auth.sessions(id,user_id,created_at,updated_at,not_after)
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
   values(pg_temp.ss_id(4000,10),'smartstore-workbook-origin','합성 출고지','hanjin',2000,'합성 반송 주소',true);
 insert into public.ips(id,title,vertical_key) values('smartstore-workbook-ip','합성 엑셀 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
-  ('smartstore-workbook-a','smartstore-workbook-ip','합성 상품 A','문구',1000,'ok',100,pg_temp.ss_id(4000,10)),
-  ('smartstore-workbook-b','smartstore-workbook-ip','합성 상품 B','문구',500,'ok',100,pg_temp.ss_id(4000,10));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+  ('smartstore-workbook-a','smartstore-workbook-ip','합성 상품 A',1000,'ok',100,pg_temp.ss_id(4000,10)),
+  ('smartstore-workbook-b','smartstore-workbook-ip','합성 상품 B',500,'ok',100,pg_temp.ss_id(4000,10));
 create function pg_temp.ss_order(n integer) returns void language plpgsql as $$begin
   insert into public.orders(id,user_id,status,total,shipping_fee,address,created_at,confirmed_at)
     values(pg_temp.ss_id(4001,n),pg_temp.ss_id(4000,2),'confirmed',5000,2000,
       '{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"00123","address1":"합성 기본 주소","address2":"합성 상세 주소","deliveryNote":"합성 요청"}',
       '2026-10-18T03:00:00Z','2026-10-19T03:00:00Z');
-  insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,regular_unit_price_snapshot,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+  insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,regular_unit_price_snapshot,good_name_snapshot,good_ip_id_snapshot)
     select pg_temp.ss_id(4003,n*10+case when good_id='smartstore-workbook-a' then 1 else 2 end),pg_temp.ss_id(4001,n),good_id,id,2,price,
       case when good_id='smartstore-workbook-a' then 1500 else 700 end,
-      case when good_id='smartstore-workbook-a' then '주문 당시 상품 A' else '주문 당시 상품 B' end,'문구','smartstore-workbook-ip'
+      case when good_id='smartstore-workbook-a' then '주문 당시 상품 A' else '주문 당시 상품 B' end,'smartstore-workbook-ip'
     from public.goods_variants where good_id in('smartstore-workbook-a','smartstore-workbook-b') and is_default;
   insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key)
     values(pg_temp.ss_id(4004,n),pg_temp.ss_id(4000,2),'order',pg_temp.ss_id(4001,n),'toss',5000,'paid','smartstore-workbook-payment-'||n);

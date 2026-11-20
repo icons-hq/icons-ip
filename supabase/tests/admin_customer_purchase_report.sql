@@ -24,8 +24,8 @@ insert into private.operator_memberships(profile_id,manager_role) values
  (pg_temp.purchase_report_id('actor',3),'influencer'),(pg_temp.purchase_report_id('actor',4),'deputy'),
  (pg_temp.purchase_report_id('actor',5),'logistics');
 insert into public.ips(id,title,vertical_key) values('customer-purchase-report-ip','구매 분석 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
- values('customer-purchase-report-good','customer-purchase-report-ip','구매 분석 합성 상품','문구',1000,'ok',1000);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+ values('customer-purchase-report-good','customer-purchase-report-ip','구매 분석 합성 상품',1000,'ok',1000);
 
 create temp table purchase_report_fixture(
  n integer primary key,customer integer,paid_at timestamptz,created_at timestamptz,
@@ -75,15 +75,15 @@ insert into public.orders(id,user_id,status,total,shipping_fee,discount_total,st
   coalesce(override_total,subtotal+shipping-coupon-credit),shipping,coupon,credit,created_at,
   case when channel='bank' then 'bank_transfer'::public.order_payment_method else 'card'::public.order_payment_method end
  from purchase_report_fixture;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
  select pg_temp.purchase_report_id('item',f.n),pg_temp.purchase_report_id('order',f.n),g.id,v.id,
   case when f.n=106 then 3 when f.n=107 then 5000000 else 1 end,
   case when f.n=106 then 1000 when f.n=107 then 2000000000 else f.subtotal end,
-  g.name,g.type,g.ip_id
+  g.name,g.ip_id
  from purchase_report_fixture f cross join public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default
  where g.id='customer-purchase-report-good' and f.n<>104;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.purchase_report_id('item',206),pg_temp.purchase_report_id('order',106),g.id,v.id,2,1500,g.name,g.type,g.ip_id
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.purchase_report_id('item',206),pg_temp.purchase_report_id('order',106),g.id,v.id,2,1500,g.name,g.ip_id
  from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='customer-purchase-report-good';
 insert into public.payments(id,user_id,purpose,ref_id,amount,status,payment_key,idempotency_key,provider,created_at)
  select pg_temp.purchase_report_id('payment',n),pg_temp.purchase_report_id('actor',customer),

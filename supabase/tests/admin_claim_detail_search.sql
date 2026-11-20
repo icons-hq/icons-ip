@@ -22,10 +22,10 @@ update public.profiles set nickname='클레임검색_받는이' where id=pg_temp
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
  values(pg_temp.claim_search_id('origin',1),'claim-detail-search-origin','상세검색 합성 출고지',0,'합성 반송 주소');
 insert into public.ips(id,title,vertical_key) values('claim-detail-search-ip','클레임 상세검색 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('claim-detail-search-product','claim-detail-search-ip','product-name-only','문구',1000,'ok',1000,pg_temp.claim_search_id('origin',1)),
- ('claim-detail-search-product-extra','claim-detail-search-ip','접두사가 같은 다른 상품','문구',1000,'ok',1000,pg_temp.claim_search_id('origin',1)),
- ('claim-detail-search-other','claim-detail-search-ip','같은 주문의 다른 상품','문구',1000,'ok',1000,pg_temp.claim_search_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('claim-detail-search-product','claim-detail-search-ip','product-name-only',1000,'ok',1000,pg_temp.claim_search_id('origin',1)),
+ ('claim-detail-search-product-extra','claim-detail-search-ip','접두사가 같은 다른 상품',1000,'ok',1000,pg_temp.claim_search_id('origin',1)),
+ ('claim-detail-search-other','claim-detail-search-ip','같은 주문의 다른 상품',1000,'ok',1000,pg_temp.claim_search_id('origin',1));
 insert into public.goods_variants(id,good_id,name,code,attributes,price,stock_qty)
  values(pg_temp.claim_search_id('variant',1),'claim-detail-search-product','추가 합성 옵션','CLAIM-DETAIL-ALT','{"색상":"합성"}',1000,100);
 insert into public.orders(id,user_id,status,total,address,created_at,delivered_at,payment_method)
@@ -35,15 +35,15 @@ insert into public.orders(id,user_id,status,total,address,created_at,delivered_a
  case when n=104 then null when n=105 then '{}'::jsonb else jsonb_build_object('recipientName',
    case when n<=101 or n>=109 then '클레임검색_받는이' when n=102 then 'Alpha_One% literal' when n=103 then 'ALPHA_OneX wildcard' else '별도 합성 수취인' end) end,
  '2026-09-01T00:00:00Z','2026-09-12T00:00:00Z','card' from generate_series(1,112)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.claim_search_id('item',n),pg_temp.claim_search_id('order',n),g.id,v.id,1,1000,g.name,g.type,g.ip_id
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.claim_search_id('item',n),pg_temp.claim_search_id('order',n),g.id,v.id,1,1000,g.name,g.ip_id
  from generate_series(1,112)n
  join public.goods g on g.id=case when n<=101 or n>=109 then 'claim-detail-search-product' when n=102 then 'claim-detail-search-product-extra' else 'claim-detail-search-other' end
  join public.goods_variants v on v.good_id=g.id and v.is_default;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- values(pg_temp.claim_search_id('item',201),pg_temp.claim_search_id('order',1),'claim-detail-search-product',pg_temp.claim_search_id('variant',1),1,1000,'product-name-only','문구','claim-detail-search-ip');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.claim_search_id('item',202),pg_temp.claim_search_id('order',1),'claim-detail-search-other',v.id,1,1000,'같은 주문의 다른 상품','문구','claim-detail-search-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ values(pg_temp.claim_search_id('item',201),pg_temp.claim_search_id('order',1),'claim-detail-search-product',pg_temp.claim_search_id('variant',1),1,1000,'product-name-only','claim-detail-search-ip');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.claim_search_id('item',202),pg_temp.claim_search_id('order',1),'claim-detail-search-other',v.id,1,1000,'같은 주문의 다른 상품','claim-detail-search-ip'
  from public.goods_variants v where v.good_id='claim-detail-search-other' and v.is_default;
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,reason_type,claim_type,stage,requested_at,collected_at,held_from,hold_reason,held_at,withdrawn_at)
  select pg_temp.claim_search_id('claim',n),pg_temp.claim_search_id('order',n),pg_temp.claim_search_id('actor',case when n=107 then 3 else 2 end),

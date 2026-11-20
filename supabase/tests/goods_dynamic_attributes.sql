@@ -44,8 +44,8 @@ insert into public.catalog_categories(id,code,name,parent_id,sort_order) values
  ('00000000-0000-4000-8000-000000713531','attributes-root','속성 상위',null,0),
  ('00000000-0000-4000-8000-000000713532','attributes-a','속성 A','00000000-0000-4000-8000-000000713531',0),
  ('00000000-0000-4000-8000-000000713533','attributes-b','속성 B','00000000-0000-4000-8000-000000713531',1);
-insert into public.goods(id,ip_id,name,type,price,stock,category_id,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('attributes-legacy','attributes-7135','합성 속성 상품','문구',1000,'ok','00000000-0000-4000-8000-000000713532',
+insert into public.goods(id,ip_id,name,price,stock,category_id,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
+ ('attributes-legacy','attributes-7135','합성 속성 상품',1000,'ok','00000000-0000-4000-8000-000000713532',
  '합성 제조자','합성 국가','합성 소재','합성 규격','2026-10','합성 CS','02-000');
 select pg_temp.publish_goods_kc_fixture('attributes-legacy');
 

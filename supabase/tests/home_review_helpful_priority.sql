@@ -32,7 +32,7 @@ insert into private.operator_memberships(profile_id,manager_role) values(pg_temp
 update private.operator_access_state set configured=true where id;
 update private.review_best_settings set enabled=false where id;
 insert into public.ips(id,title,vertical_key,published_at) values('hb-qa-ip','홈 대표 후기 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price) values('hb-qa-main','hb-qa-ip','홈 대표 후기 합성 상품','문구',1000);
+insert into public.goods(id,ip_id,name,price) values('hb-qa-main','hb-qa-ip','홈 대표 후기 합성 상품',1000);
 -- The existing helper creates its own synthetic KC reviewer; give only that
 -- reviewer an explicit local membership before it invokes the public writer.
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
@@ -49,8 +49,8 @@ grant select on hb_clock to anon,authenticated;
 insert into public.orders(id,user_id,status,total,address,created_at,delivered_at)
 select pg_temp.hb_id(1,n),pg_temp.hb_id(0,case when n=1001 then 4 else 3 end),'delivered',1000,'{}',
   c.today-interval '30 days',c.today-interval '25 days' from generate_series(1,1001)n cross join hb_clock c;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.hb_id(1,n),'hb-qa-main',v.id,1,1000,'홈 대표 후기 합성 상품','문구','hb-qa-ip'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.hb_id(1,n),'hb-qa-main',v.id,1,1000,'홈 대표 후기 합성 상품','hb-qa-ip'
 from generate_series(1,1001)n cross join public.goods_variants v where v.good_id='hb-qa-main' and v.is_default;
 insert into public.reviews(id,user_id,good_id,order_id,rating,body,created_at)
 select pg_temp.hb_id(2,n),pg_temp.hb_id(0,case when n=1001 then 4 else 3 end),'hb-qa-main',pg_temp.hb_id(1,n),
@@ -83,8 +83,8 @@ end$$;
 create function pg_temp.hh_assert(ok boolean,label text) returns void language plpgsql as $$begin
  if ok is distinct from true then raise exception 'Home helpful assertion: %',label;end if;raise notice 'PASS %',label;end$$;
 create function pg_temp.hh_ids() returns text[] language sql stable as $$select array_agg(id order by id) from public.goods where id='hb-qa-main' or id like 'hh-rank-%'$$;
-insert into public.goods(id,ip_id,name,type,price)
-select 'hh-rank-'||lpad(n::text,2,'0'),'hb-qa-ip','홈 도움 순위 합성 '||n,'문구',1000 from generate_series(1,21)n;
+insert into public.goods(id,ip_id,name,price)
+select 'hh-rank-'||lpad(n::text,2,'0'),'hb-qa-ip','홈 도움 순위 합성 '||n,1000 from generate_series(1,21)n;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
 select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id like 'hh-rank-%';
 insert into private.operator_memberships(profile_id,manager_role)

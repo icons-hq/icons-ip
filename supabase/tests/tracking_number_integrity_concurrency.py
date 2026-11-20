@@ -74,14 +74,14 @@ update public.profiles set nickname='TEST 운송장 경합 '||right(id::text,1),
  role=case when id='{operator}' then 'staff'::public.user_role else 'user'::public.user_role end where id in('{operator}','{buyer}');
 insert into private.operator_memberships(profile_id,manager_role) values('{operator}','primary');
 insert into public.ips(id,title,vertical_key) values('tracking-integrity-race-ip','TEST 운송장 경합 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('tracking-integrity-race-good','tracking-integrity-race-ip','TEST 운송장 경합 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('tracking-integrity-race-good','tracking-integrity-race-ip','TEST 운송장 경합 상품',1000,'ok',100);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select ('f13d0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid,'{buyer}','confirmed'::public.order_status,4000,3000,
  jsonb_build_object('recipientName','TEST 수령인'||n,'phone','0107777000'||n,'postalCode','00123','address1','합성 주소','address2',n||'층','deliveryNote',''),now()-interval '3 days'
 from generate_series(1,{SHIPMENTS}) n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
 select ('f13d0000-0000-4003-8000-'||lpad(n::text,12,'0'))::uuid,('f13d0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid,'tracking-integrity-race-good',v.id,1,1000,
- 'TEST 운송장 경합 상품','문구','tracking-integrity-race-ip'
+ 'TEST 운송장 경합 상품','tracking-integrity-race-ip'
 from generate_series(1,{SHIPMENTS}) n cross join (select id from public.goods_variants where good_id='tracking-integrity-race-good' and is_default) v;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,exported_at)
 select ('f13d0000-0000-4002-8000-'||lpad(n::text,12,'0'))::uuid,('f13d0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid,

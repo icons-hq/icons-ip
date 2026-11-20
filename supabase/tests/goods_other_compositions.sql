@@ -36,8 +36,8 @@ insert into private.operator_memberships(profile_id,manager_role)select other_co
 update private.operator_access_state set configured=true where id;
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after)select other_comp_test.id(1000+n),other_comp_test.id(n),now(),now(),now()+interval '2 hours' from generate_series(1,4)n;
 insert into public.ips(id,title,vertical_key,published_at)values('oc-fixture-ip','다른구성 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,code,type,price,stock,stock_qty)
-select 'oc-fixture-'||key,'oc-fixture-ip','다른구성 합성 '||key,'OC-A71C-'||upper(key),'문구',1000,'ok',10 from unnest(array['a','b','c','d','e','f','g','h','i','j','k','draft'])key;
+insert into public.goods(id,ip_id,name,code,price,stock,stock_qty)
+select 'oc-fixture-'||key,'oc-fixture-ip','다른구성 합성 '||key,'OC-A71C-'||upper(key),1000,'ok',10 from unnest(array['a','b','c','d','e','f','g','h','i','j','k','draft'])key;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
 select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id like 'oc-fixture-%' and id<>'oc-fixture-draft';
 insert into private.operator_memberships(profile_id,manager_role)

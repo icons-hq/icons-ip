@@ -176,8 +176,8 @@ update public.profiles set role = 'admin', nickname = 'restock_variant_op'
 where id = '00000000-0000-4000-8000-000000056704';
 
 -- 굿즈 1: 옵션 A 판매 중(20) · B 품절(0) · C 품절(0) · 보관 옵션 Z.
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restock-variant-good', 'restock-variant-ip', '옵션 재입고 굿즈', '키링', 10000, 'ok', 20, null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('restock-variant-good', 'restock-variant-ip', '옵션 재입고 굿즈', 10000, 'ok', 20, null);
 update public.goods_variants set name = '옵션 A'
 where good_id = 'restock-variant-good' and is_default;
 insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order)
@@ -189,8 +189,8 @@ values ('00000000-0000-4000-8000-000000056719', 'restock-variant-good', '옵션 
 select pg_temp.publish_goods_kc_fixture('restock-variant-good');
 
 -- 굿즈 2: 모든 옵션 품절(D 기본 0 · E 0).
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restock-variant-soldout', 'restock-variant-ip', '전부 품절 굿즈', '키링', 9000, 'ok', 0, null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('restock-variant-soldout', 'restock-variant-ip', '전부 품절 굿즈', 9000, 'ok', 0, null);
 update public.goods_variants set name = '옵션 D'
 where good_id = 'restock-variant-soldout' and is_default;
 insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order)
@@ -199,8 +199,8 @@ select pg_temp.publish_goods_kc_fixture('restock-variant-soldout');
 
 -- 굿즈 3: 사용 중 옵션 F 품절(0) + 보관 옵션 G 재고 3. 캐시(goods.stock_qty=3)는 판매 가능처럼 보이지만
 -- 공개 화면은 품절이다.
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restock-variant-archived-stock', 'restock-variant-ip', '보관 재고 굿즈', '키링', 8000, 'ok', 0, null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('restock-variant-archived-stock', 'restock-variant-ip', '보관 재고 굿즈', 8000, 'ok', 0, null);
 update public.goods_variants set name = '옵션 F'
 where good_id = 'restock-variant-archived-stock' and is_default;
 insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order, archived_at)
@@ -521,8 +521,8 @@ select 1 / case when (
 ) then 1 else 0 end as assert_service_option_names_sealed;
 
 -- ── 10. 굿즈 URL 변경·옵션 삭제가 옵션 신청을 따라간다 ───────────────
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restock-variant-draft', 'restock-variant-ip', '초안 굿즈', '키링', 7000, 'ok', 0, null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('restock-variant-draft', 'restock-variant-ip', '초안 굿즈', 7000, 'ok', 0, null);
 insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order)
 values
   ('00000000-0000-4000-8000-000000056741', 'restock-variant-draft', '옵션 H', 7000, 0, 1),
@@ -567,8 +567,8 @@ select 1 / case when (
 
 -- ── 11. 예약판매 옵션의 실물 입고는 재입고가 아니다 — 재고 판매로 바꿀 때 깨운다 ─
 -- 굿즈 5: 옵션 A(기본) 재고 0 · 옵션 B 재고 0. 모든 옵션이 품절이다.
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restock-variant-preorder', 'restock-variant-ip', '예약 전환 굿즈', '키링', 10000, 'ok', 0, null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('restock-variant-preorder', 'restock-variant-ip', '예약 전환 굿즈', 10000, 'ok', 0, null);
 update public.goods_variants set name = '옵션 A'
 where good_id = 'restock-variant-preorder' and is_default;
 insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order)
@@ -649,8 +649,8 @@ select 1 / case when (
 -- ── 12. 사용 중지 옵션의 복원도 재고로 살 수 있게 되는 전이다 ─────────
 -- 굿즈 6: 기본 옵션 A 재고 0(사용 중) · 옵션 B 재고 5. B 를 사용 중지(재고 보존)하면 공개 화면은 품절이다.
 -- 사용 중지·복원은 admin_set_goods_variant_active 의 쓰기(archived_at)와 같다. 복원 뒤 메일은 앱이 보낸다.
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restock-variant-restore', 'restock-variant-ip', '복원 재입고 굿즈', '키링', 10000, 'ok', 0, null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('restock-variant-restore', 'restock-variant-ip', '복원 재입고 굿즈', 10000, 'ok', 0, null);
 update public.goods_variants set name = '옵션 A'
 where good_id = 'restock-variant-restore' and is_default;
 insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order)
@@ -677,8 +677,8 @@ select 1 / case when (
 -- 다시 열릴 때 깨어나는지 본다.
 insert into public.ips (id, title, vertical_key, published_at)
 values ('restock-variant-gate-ip', '옵션 재입고 게이트 IP', 'character', now());
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restock-variant-gate', 'restock-variant-gate-ip', '게이트 재입고 굿즈', '키링', 10000, 'ok', 0, null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('restock-variant-gate', 'restock-variant-gate-ip', '게이트 재입고 굿즈', 10000, 'ok', 0, null);
 update public.goods_variants set name = '옵션 A'
 where good_id = 'restock-variant-gate' and is_default;
 select pg_temp.publish_goods_kc_fixture('restock-variant-gate');

@@ -27,7 +27,7 @@ insert into private.operator_memberships(profile_id,manager_role) values
  (pg_temp.gift_console_id('actor',1),'primary'),(pg_temp.gift_console_id('actor',4),'primary'),(pg_temp.gift_console_id('actor',5),'deputy');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key) values('gift-console-ip','TEST 선물 운영 IP','character');
-insert into public.goods(id,ip_id,name,type,price) values('gift-console-good','gift-console-ip','TEST 선물 운영 상품','문구',981237654);
+insert into public.goods(id,ip_id,name,price) values('gift-console-good','gift-console-ip','TEST 선물 운영 상품',981237654);
 insert into public.orders(id,user_id,status,total,address,payment_method,checkout_key,expires_at)
  values(pg_temp.gift_console_id('order',1),pg_temp.gift_console_id('actor',2),'pending',981237654,null,'card',pg_temp.gift_console_id('checkout',1),clock_timestamp()+interval '1 hour');
 insert into private.gift_intents(id,sender_id,recipient_id,state,message,sender_label,recipient_label,expires_at,accepted_at,closed_at,order_id,ordered_source_revision,created_at)

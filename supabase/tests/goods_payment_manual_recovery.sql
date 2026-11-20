@@ -139,12 +139,11 @@ insert into public.ips (id, title, vertical_key)
 values ('goods-manual-recovery-ip', '굿즈 수동 복구 IP', 'goods-manual-recovery')
 on conflict (id) do update set title = excluded.title;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
 values (
   'goods-manual-recovery-good',
   'goods-manual-recovery-ip',
   '굿즈 수동 복구 상품',
-  '문구',
   107000,
   'ok',
   10
@@ -173,7 +172,7 @@ from (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 select
   order_record.id,
@@ -181,7 +180,6 @@ select
   1,
   107000,
   '굿즈 수동 복구 상품',
-  '문구',
   'goods-manual-recovery-ip', (select id from public.goods_variants where good_id='goods-manual-recovery-good' and is_default)
 from public.orders as order_record
 where order_record.id between

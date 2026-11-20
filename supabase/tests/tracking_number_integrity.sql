@@ -77,7 +77,7 @@ insert into private.operator_memberships(profile_id,manager_role) values(pg_temp
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values(pg_temp.ti_id('origin',3),'ti-standard','TEST 기타 출고지','hanjin',0,'TEST 반송지',true);
 insert into public.ips(id,title,vertical_key) values('tracking-integrity-ip','TEST 운송장 판정 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('tracking-integrity-good','tracking-integrity-ip','TEST 운송장 판정 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('tracking-integrity-good','tracking-integrity-ip','TEST 운송장 판정 상품',1000,'ok',100);
 
 -- 받는 분: A(합성가)·B(합성나)·C(합성다)·D(합성라). A2는 A와 전화·주소가 같은 가족(이름만 다르다) — 한 상자의 받는 분이다.
 -- E(합성마)는 전화번호가 국가번호 82로 저장된 주문이다.
@@ -104,8 +104,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed
 select pg_temp.ti_id('order',n),pg_temp.ti_id('user',buyer),order_status,1000,0,pg_temp.ti_address(dest),now()-interval '3 days',
  case when order_status in('shipping','delivered') then now()-interval '2 days' end,case when order_status='delivered' then now()-interval '1 day' end
 from ti_orders;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.ti_id('item',n),pg_temp.ti_id('order',n),'tracking-integrity-good',v.id,1,1000,'TEST 운송장 판정 상품','문구','tracking-integrity-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.ti_id('item',n),pg_temp.ti_id('order',n),'tracking-integrity-good',v.id,1,1000,'TEST 운송장 판정 상품','tracking-integrity-ip'
 from ti_orders cross join (select id from public.goods_variants where good_id='tracking-integrity-good' and is_default) v;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,exported_at,status,carrier,tracking_number,shipped_at,delivered_at)
 select pg_temp.ti_id('shipment',n),pg_temp.ti_id('order',n),
@@ -117,8 +117,8 @@ from ti_orders;
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
 select pg_temp.ti_id('order',n),pg_temp.ti_id('shipment',n),pg_temp.ti_id('item',n),1 from ti_orders;
 -- 주문 4는 기타 출고지에도 배송 건이 있다(같은 주문의 분할 배송 건 40).
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.ti_id('item',40),pg_temp.ti_id('order',4),'tracking-integrity-good',v.id,1,1000,'TEST 운송장 판정 상품','문구','tracking-integrity-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.ti_id('item',40),pg_temp.ti_id('order',4),'tracking-integrity-good',v.id,1,1000,'TEST 운송장 판정 상품','tracking-integrity-ip'
 from public.goods_variants v where v.good_id='tracking-integrity-good' and v.is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,exported_at)
 values(pg_temp.ti_id('shipment',40),pg_temp.ti_id('order',4),pg_temp.ti_id('origin',3),'TEST 기타 출고지',0,'{}',now());
@@ -391,8 +391,8 @@ select pg_temp.ti_assert((select tracking_number_pattern is null and tracking_nu
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select pg_temp.ti_id('order',n),pg_temp.ti_id('user',5),'confirmed',1000,0,case when n=29 then pg_temp.ti_address('A') end,now()-interval '3 days'
 from unnest(array[27,28,29]) n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.ti_id('item',n),pg_temp.ti_id('order',n),'tracking-integrity-good',v.id,1,1000,'TEST 운송장 판정 상품','문구','tracking-integrity-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.ti_id('item',n),pg_temp.ti_id('order',n),'tracking-integrity-good',v.id,1,1000,'TEST 운송장 판정 상품','tracking-integrity-ip'
 from unnest(array[27,28,29]) n cross join (select id from public.goods_variants where good_id='tracking-integrity-good' and is_default) v;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,exported_at)
 select pg_temp.ti_id('shipment',n),pg_temp.ti_id('order',n),'00000000-0000-4000-8000-000000042201'::uuid,'김포',0,'{}',now()-interval '2 days'

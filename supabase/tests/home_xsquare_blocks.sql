@@ -38,7 +38,7 @@ update public.profiles set role='staff' where id='97000000-0000-4000-8000-000000
 insert into private.operator_memberships(profile_id,manager_role) values('97000000-0000-4000-8000-000000000001','primary');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('xsquare-ip-a','엑스스퀘어 합성 IP A','character',now()),('xsquare-ip-b','엑스스퀘어 합성 IP B','character',now());
-insert into public.goods(id,ip_id,name,type,price) select 'xsquare-good-'||n,case when n<=10 then 'xsquare-ip-a' else 'xsquare-ip-b' end,'엑스스퀘어 합성 '||n,'문구',1000 from generate_series(1,12)n;
+insert into public.goods(id,ip_id,name,price) select 'xsquare-good-'||n,case when n<=10 then 'xsquare-ip-a' else 'xsquare-ip-b' end,'엑스스퀘어 합성 '||n,1000 from generate_series(1,12)n;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id like 'xsquare-good-%';
 update public.profiles set role='staff' where id in(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id like 'xsquare-good-%');

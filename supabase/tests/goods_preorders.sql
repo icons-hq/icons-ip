@@ -115,8 +115,7 @@ do $$declare good_id text;image_id uuid;path text;begin
  end loop;
 end $$;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',
- notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',
+update public.goods set notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id=case when id='preorder-separate'
  then '00000000-0000-4000-8000-000000048531'::uuid else '00000000-0000-4000-8000-000000048530'::uuid end
  where id in ('preorder-supply','preorder-normal','preorder-separate');

@@ -31,9 +31,9 @@ insert into public.ips(id,title,vertical_key) values('sc-ip','TEST 재고 대조
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  (pg_temp.sc_id('origin',1),'sc-gimpo','TEST 대조 김포','hanjin',0,'TEST 김포 반송지',true),
  (pg_temp.sc_id('origin',2),'sc-namyangju','TEST 대조 남양주','hanjin',0,'TEST 남양주 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('sc-good-1','sc-ip','TEST 대조 김포 굿즈','문구',1000,'ok',10,pg_temp.sc_id('origin',1)),
- ('sc-good-2','sc-ip','TEST 대조 남양주 굿즈','문구',2000,'ok',10,pg_temp.sc_id('origin',2));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('sc-good-1','sc-ip','TEST 대조 김포 굿즈',1000,'ok',10,pg_temp.sc_id('origin',1)),
+ ('sc-good-2','sc-ip','TEST 대조 남양주 굿즈',2000,'ok',10,pg_temp.sc_id('origin',2));
 insert into public.goods_variants(id,good_id,name,price,stock_qty,sort_order) values
  (pg_temp.sc_id('variant',1),'sc-good-1','TEST 대조 김포 파랑',1000,5,1),
  (pg_temp.sc_id('variant',2),'sc-good-2','TEST 대조 남양주 빨강',2000,5,1);
@@ -45,9 +45,9 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  (pg_temp.sc_id('order',1),pg_temp.sc_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 대조로 1','address2','101호'),
   now()-interval '3 days',now()-interval '2 days');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values
- (pg_temp.sc_id('item',1),pg_temp.sc_id('order',1),'sc-good-1',pg_temp.sc_default('sc-good-1'),1,1000,'TEST 대조 김포 굿즈','문구','sc-ip'),
- (pg_temp.sc_id('item',2),pg_temp.sc_id('order',1),'sc-good-2',pg_temp.sc_default('sc-good-2'),2,2000,'TEST 대조 남양주 굿즈','문구','sc-ip');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) values
+ (pg_temp.sc_id('item',1),pg_temp.sc_id('order',1),'sc-good-1',pg_temp.sc_default('sc-good-1'),1,1000,'TEST 대조 김포 굿즈','sc-ip'),
+ (pg_temp.sc_id('item',2),pg_temp.sc_id('order',1),'sc-good-2',pg_temp.sc_default('sc-good-2'),2,2000,'TEST 대조 남양주 굿즈','sc-ip');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at) values
  (pg_temp.sc_id('shipment',1),pg_temp.sc_id('order',1),pg_temp.sc_id('origin',1),'TEST 대조 김포',0,'{}','delivered','hanjin','SCSALE000001',now()-interval '3 days',now()-interval '2 days'),
  (pg_temp.sc_id('shipment',2),pg_temp.sc_id('order',1),pg_temp.sc_id('origin',2),'TEST 대조 남양주',0,'{}','delivered','hanjin','SCSALE000002',now()-interval '3 days',now()-interval '2 days');

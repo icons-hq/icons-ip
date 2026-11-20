@@ -15,7 +15,7 @@ def marker(process,expected):
  for line in process.stdout:
   if line.strip()==expected:return
  raise AssertionError('Session ended before '+expected)
-seed=sql(f"begin;insert into public.catalog_categories(id,code,name) values('{category}','{good}','TEST 카테고리 잠금');insert into public.ips(id,title,vertical_key) values('{good}','TEST 잠금 IP','character');insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,category_id) values('{good}','{good}','TEST 잠금 상품','문구',10000,'ok',1,'{category}');commit;")
+seed=sql(f"begin;insert into public.catalog_categories(id,code,name) values('{category}','{good}','TEST 카테고리 잠금');insert into public.ips(id,title,vertical_key) values('{good}','TEST 잠금 IP','character');insert into public.goods(id,ip_id,name,price,stock,stock_qty,category_id) values('{good}','{good}','TEST 잠금 상품',10000,'ok',1,'{category}');commit;")
 assert seed.returncode==0,seed.stderr
 matcher=f"select private.coupon_good_matches('selected_categories','{{}}',array['{category}']::uuid[],'{good}');"
 a=subprocess.Popen(base,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)

@@ -12,7 +12,7 @@ insert into private.operator_memberships(profile_id,manager_role) select ('92800
 update private.operator_access_state set configured=true where id;
 update private.goods_media_settings set priority='image',shortclips=false,revision=0 where id;
 insert into public.ips(id,title,vertical_key,published_at,public_slug) select 'media-test-ip','영상 검증 IP',key,now(),'media-test-ip' from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price) values('media-test-1','media-test-ip','검증 영상 상품1','문구',1000),('media-test-2','media-test-ip','검증 영상 상품2','문구',1000);
+insert into public.goods(id,ip_id,name,price) values('media-test-1','media-test-ip','검증 영상 상품1',1000),('media-test-2','media-test-ip','검증 영상 상품2',1000);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}',now(),now() from public.goods where id like 'media-test-%';
 update public.profiles set role='staff' where id in(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id like 'media-test-%');
@@ -106,7 +106,7 @@ select public.service_complete_goods_media_cleanup('92800000-0000-4000-8001-0000
 select 1/case when public.service_cancel_goods_media_upload('92800000-0000-4000-8000-000000000001','92800000-0000-4000-8001-000000000002') then 1 else 0 end as late_owned_cancel_reopens_cleanup;
 select 1/case when (select status='rejected' from private.goods_media_assets where id='92800000-0000-4000-8001-000000000002') then 1 else 0 end as late_owned_cleanup_reserved;
 -- Deleting a long-attached draft starts seven days of retirement now.
-insert into public.goods(id,ip_id,name,type,price) values('media-test-deleted','media-test-ip','삭제 검증','문구',1000);
+insert into public.goods(id,ip_id,name,price) values('media-test-deleted','media-test-ip','삭제 검증',1000);
 insert into private.goods_media_assets(id,actor_id,kind,path,source_size,status,expires_at,metadata,attached_at,staging_cleaned_at)
  values('92800000-0000-4000-8001-000000000003','92800000-0000-4000-8000-000000000001','video','video/92800000-0000-4000-8001-000000000003.mp4',4001,'attached',now()-interval '20 days',:'media_metadata',now()-interval '30 days',now());
 insert into private.goods_media_bindings(good_id,video_asset_id,video_title) values('media-test-deleted','92800000-0000-4000-8001-000000000003','삭제 영상');

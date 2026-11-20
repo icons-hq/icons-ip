@@ -17,8 +17,8 @@ insert into public.ips(id,title,vertical_key,published_at,public_slug) select 'e
 insert into public.fulfillment_origins(id,code,name,base_fee,free_threshold,is_active)
  values('92200000-0000-4000-8000-000000000101','experience-test-origin','체험 검증 출고지',3000,2500,true),
  ('92200000-0000-4000-8000-000000000102','experience-test-origin-other','다른 출고지',3000,null,true);
-insert into public.goods(id,ip_id,name,type,price,origin_id,order_quantity_limit_enabled,min_order_qty,max_order_qty)
- select 'experience-test-'||n,'experience-test-ip','체험 검증 굿즈 '||n,'문구',case when n=2 then 1500 else 1000 end,'92200000-0000-4000-8000-000000000101',true,case when n=3 then 2 else 1 end,100 from generate_series(1,6)n;
+insert into public.goods(id,ip_id,name,price,origin_id,order_quantity_limit_enabled,min_order_qty,max_order_qty)
+ select 'experience-test-'||n,'experience-test-ip','체험 검증 굿즈 '||n,case when n=2 then 1500 else 1000 end,'92200000-0000-4000-8000-000000000101',true,case when n=3 then 2 else 1 end,100 from generate_series(1,6)n;
 update public.goods_variants set stock_qty=100 where good_id like 'experience-test-%';
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}',now(),now() from public.goods where id like 'experience-test-%';
@@ -38,8 +38,8 @@ declare buyer uuid:=('92200000-0000-4000-8000-'||lpad(customer::text,12,'0'))::u
 begin
  select g.price*quantity into amount from public.goods g where g.id=good;
  insert into public.orders(id,user_id,status,total,address,payment_method) values(purchase,buyer,'paid',amount,'{}','card');
- insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select purchase,g.id,v.id,quantity,g.price,g.name,g.type,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id=good;
+ insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select purchase,g.id,v.id,quantity,g.price,g.name,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id=good;
  insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key) values(payment,buyer,'order',purchase,'korpay',amount,'paid','experience-payment-'||n);
  insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
  values(attempt,'korpay',buyer,'order',purchase,amount,'approved','experience-attempt-'||n,'experience-order-'||n,'experience-product-'||n,payment,now()+interval '10 minutes');

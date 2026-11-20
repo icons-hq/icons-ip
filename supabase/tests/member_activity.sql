@@ -16,9 +16,9 @@ insert into auth.sessions(id,user_id,created_at,updated_at,not_after) select ('a
  ('a6161000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,now(),now(),now()+interval '1 hour' from generate_series(1,3)n;
 insert into public.ips(id,title,vertical_key,published_at) values('member-activity-ip','TEST 분석 IP','character',now());
 insert into public.catalog_categories(id,code,name) values('a6161000-0000-4000-8000-000000000501','member-activity-category','TEST 분석 분류');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,category_id) values
- ('member-activity-good','member-activity-ip','TEST 분석 상품','문구',1000,'ok',10,'a6161000-0000-4000-8000-000000000501'),
- ('member-activity-similar','member-activity-ip','TEST 유사 상품','문구',1000,'ok',10,'a6161000-0000-4000-8000-000000000501');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,category_id) values
+ ('member-activity-good','member-activity-ip','TEST 분석 상품',1000,'ok',10,'a6161000-0000-4000-8000-000000000501'),
+ ('member-activity-similar','member-activity-ip','TEST 유사 상품',1000,'ok',10,'a6161000-0000-4000-8000-000000000501');
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  values(('47c47700'||left(md5('member-activity-good'),24))::uuid,'authenticated','authenticated','member-activity-kc@example.test','{"testFixture":"goods-kc"}','{}',now(),now());
 insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('member-activity-good'),24))::uuid,'primary');

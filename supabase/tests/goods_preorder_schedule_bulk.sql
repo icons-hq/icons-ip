@@ -75,10 +75,10 @@ insert into public.verticals(key,label,color) values('preorder-schedule-tests','
 insert into public.ips(id,title,vertical_key,published_at) values('preorder-schedule-tests','예약 일정 검증','preorder-schedule-tests',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
  values(pg_temp.ps_id('origin',1),'preorder-schedule-origin','예약 일정 검증 출고지','hanjin',0,null,'합성 반송 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values
- ('ps-main','preorder-schedule-tests','예약 일정 메인','문구',10000,'ok',0),
- ('ps-other','preorder-schedule-tests','함께 묶는 다른 예약','문구',5000,'ok',0),
- ('ps-random','preorder-schedule-tests','랜덤 예약','문구',5000,'ok',0);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values
+ ('ps-main','preorder-schedule-tests','예약 일정 메인',10000,'ok',0),
+ ('ps-other','preorder-schedule-tests','함께 묶는 다른 예약',5000,'ok',0),
+ ('ps-random','preorder-schedule-tests','랜덤 예약',5000,'ok',0);
 insert into public.goods_variants(good_id,name,code,price,attributes,sort_order)
  values('ps-main','늦은 옵션','PS-MAIN-B',10000,'{"구성":"늦은 옵션"}',1);
 select id as main_a from public.goods_variants where good_id='ps-main' and is_default \gset
@@ -109,8 +109,8 @@ end $$;
 create function pg_temp.ps_item(n integer,item integer,good text,variant uuid,policy integer,ship date) returns void language plpgsql as $$
 declare item_id uuid:=pg_temp.ps_id('item',n*10+item);
 begin
- insert into public.order_items(id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(item_id,pg_temp.ps_id('order',n),good,1,10000,good,'문구','preorder-schedule-tests',variant);
+ insert into public.order_items(id,order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(item_id,pg_temp.ps_id('order',n),good,1,10000,good,'preorder-schedule-tests',variant);
  insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(pg_temp.ps_id('order',n),pg_temp.ps_id('shipment',n),item_id,1);
  set local session_replication_role=replica;
  update public.order_items set supply_source='preorder',preorder_policy_id=pg_temp.ps_id('policy',policy),preorder_expected_ship_date=ship,

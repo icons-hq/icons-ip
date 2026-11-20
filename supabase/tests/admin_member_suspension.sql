@@ -247,11 +247,11 @@ values ('member-suspension-ip', '회원 정지 IP', 'member-suspension', false)
 on conflict (id) do update set title = excluded.title, vertical_key = excluded.vertical_key;
 
 insert into public.goods (
-  id, ip_id, name, type, price, stock, stock_qty
+  id, ip_id, name, price, stock, stock_qty
 )
 values (
   'member-suspension-good', 'member-suspension-ip', '회원 정지 굿즈',
-  '문구', 1000, 'ok', 10
+  1000, 'ok', 10
 )
 on conflict (id) do update set stock_qty = excluded.stock_qty, stock = excluded.stock;
 

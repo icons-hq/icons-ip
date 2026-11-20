@@ -9,13 +9,12 @@ update private.card_reward_control set enabled = true where singleton;
 
 -- Historical item identity must be stored on every order item.
 select 1 / case when (
-  select count(*) = 3 and bool_and(is_nullable = 'NO')
+  select count(*) = 2 and bool_and(is_nullable = 'NO')
   from information_schema.columns
   where table_schema = 'public'
     and table_name = 'order_items'
     and column_name in (
       'good_name_snapshot',
-      'good_type_snapshot',
       'good_ip_id_snapshot'
     )
 ) then 1 else 0 end as assert_order_item_snapshots_are_required;
@@ -107,12 +106,11 @@ values
   ('order-history-ip-a', '주문 스냅샷 IP A', 'character', now()),
   ('order-history-ip-b', '주문 스냅샷 IP B', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
 values (
   'order-history-good',
   'order-history-ip-a',
   '주문 당시 굿즈명',
-  '아크릴',
   25000,
   'ok',
   10
@@ -194,8 +192,7 @@ update public.goods set published_at=null where id='order-history-good';
 update public.goods
 set
   ip_id = 'order-history-ip-b',
-  name = '변경된 굿즈명',
-  type = '키링'
+  name = '변경된 굿즈명'
 where id = 'order-history-good';
 
 select 1 / case when (
