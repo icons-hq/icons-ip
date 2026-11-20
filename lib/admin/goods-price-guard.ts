@@ -4,7 +4,7 @@
  *
  * 기준 근거: 자릿수 오타(29,000 → 2,900 / 290,000)는 10배 차이라 절반·두 배 경계로 넉넉히 잡히고, 흔한 인상·인하(10~30%)와
  * 정상 할인은 걸리지 않는다. 1,000원 미만은 우리 굿즈에 정상 판매가가 거의 없는 구간이라 빈 칸·자릿수 누락을 잡는다.
- * 같은 기준을 상품 편집 저장·등록의 저장 후 공개·목록 일괄 판매가 변경·목록 판매가 바로 수정·ERP 판매가 반영이 함께 쓴다.
+ * 같은 기준을 상품 편집 저장·[실제 등록]·목록 일괄 판매가 변경·목록 판매가 바로 수정·ERP 판매가 반영이 함께 쓴다.
  */
 
 export const GOODS_PRICE_GUARD_LOW = 1_000;
@@ -70,7 +70,7 @@ export const GOODS_PRICE_GUARD_TITLE = '판매가 확인';
 export const GOODS_PRICE_GUARD_INTRO = '판매가가 0원·1,000원 미만이거나 이전 금액의 절반 이하·두 배 이상입니다. 금액을 잘못 입력하지 않았는지 확인해주세요.';
 
 /**
- * 상품 편집 저장 전 확인(등록 화면의 저장 후 공개 포함). 판매가(할인 전)와, 할인이 걸리면 고객이 내는 할인가를 따로 본다.
+ * 상품 편집 저장 전 확인([실제 등록] 포함). 판매가(할인 전)와, 할인이 걸리면 고객이 내는 할인가를 따로 본다.
  * 저장된 값과 같고 공개하지도 않으면 0원·1,000원 미만을 다시 묻지 않는다. 확인할 것이 없으면 null.
  */
 export function goodEditorPriceConfirmation({ saved, next, publish }: {
@@ -90,11 +90,11 @@ export function goodEditorPriceConfirmation({ saved, next, publish }: {
     if (sale) lines.push(sale);
   }
   if (!lines.length) return null;
-  const action = publish ? '저장 후 공개' : '저장';
+  const action = publish ? '실제 등록' : '저장';
   return {
     title: GOODS_PRICE_GUARD_TITLE,
-    message: `${GOODS_PRICE_GUARD_INTRO}\n\n${lines.map(formatGoodsPriceGuardLine).join('\n')}\n\n맞으면 ${action}${action === '저장' ? '을' : '를'} 계속합니다.`,
-    confirmLabel: publish ? '이대로 저장 후 공개' : '이대로 저장',
+    message: `${GOODS_PRICE_GUARD_INTRO}\n\n${lines.map(formatGoodsPriceGuardLine).join('\n')}\n\n맞으면 ${action}을 계속합니다.`,
+    confirmLabel: publish ? '이대로 실제 등록' : '이대로 저장',
   };
 }
 

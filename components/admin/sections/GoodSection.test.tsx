@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { GOODS_KC_PUBLISH_BLOCKED_COPY } from '@/lib/admin/goods-kc';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminCategoryNode } from '@/lib/admin/category';
@@ -242,15 +243,15 @@ describe('GoodSection', () => {
     expect(save(draftHtml)).not.toContain('초안 저장 → 2. KC 검토 → 3. 공개');
     expect(save(draftHtml)).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
     expect(draftHtml).toContain('모델·옵션·고시정보를 수정하면 실제 상품과 검토 근거가 달라질 수 있어 초안 전환과 KC 재검토가 필요합니다.');
-    /* R13·D6②·T15b — 등록 화면은 KC와 나머지 설정을 기본 입력과 함께 저장하고, 저장 후 공개로 바로 공개한다. 순서·재검토 조건은 한 문장이다. */
+    /* R13·D6②·T15b — 등록 화면은 KC와 나머지 설정을 기본 입력과 함께 저장하고, [실제 등록]으로 바로 공개한다(2026-11-19 저장 버튼 둘). 순서·재검토 조건은 한 문장이다. */
     const create = save(renderGoodSection(null));
-    const sentence = '공개 조건과 KC까지 채우면 저장 후 공개로 저장과 함께 공개하고(막히면 저장만 하고 판매 준비에서 공개), KC를 검토 완료로 저장했더라도 그 뒤 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
+    const sentence = '[실제 등록]은 공개 조건과 KC를 모두 채우면 저장과 함께 공개하고(서버가 막으면 초안으로 저장해 두고 이유를 알림), KC를 검토 완료로 저장했더라도 그 뒤 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
     expect(create).toContain(sentence);
     expect(sentence.match(/다\./g)).toHaveLength(1);
     expect(create).toContain('함께 저장할 설정(판매 방식·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·할인·배송비·묶음그룹·정기배송·수령 방식·제작·공급가)을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 재고 조정·옵션 사용·복사·보관만 저장 뒤 같은 자리에서 합니다.');
-    /* 저장 안내를 열지 않아도 다음 단계가 보인다. 필수 입력 전에는 저장 후 공개 버튼이 없고 무엇을 채우면 되는지 말한다. */
-    expect(create).toContain('data-good-next-step="">다음 단계: 필수 입력과 KC를 마치면 저장 후 공개로 저장과 함께 공개할 수 있습니다. 저장만 하면 화면 맨 위 판매 준비에서 공개합니다.');
-    expect(create).not.toContain('value="publish"');
+    /* 저장 안내를 열지 않아도 다음 단계가 보인다. [실제 등록]은 늘 있고, 필수 입력이 남았으면 누를 때 알린다(제출하지 않는다). */
+    expect(create).toContain('data-good-next-step="">[실제 등록]을 누르면 저장과 함께 바로 공개합니다. 필수 입력이 남아 있으면 그때 알려 드립니다. [임시저장]은 고객 화면에 보이지 않습니다.');
+    expect(create).toMatch(/data-good-register-button=""[^>]*value="publish"[^>]*>실제 등록</);
     expect(create).not.toContain('→ 2.');
   });
 
@@ -268,18 +269,18 @@ describe('GoodSection', () => {
     expect(create).toContain('data-good-identity-help=""');
     expect(saved).not.toContain('data-good-identity-help=""');
   });
-  it('저장 후 공개가 KC에 막혀 초안으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
+  it('[실제 등록]이 KC에 막혀 임시저장으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
     const draft = { ...good, publishedAt: null };
-    const message = "초안으로 저장했습니다. 상품명·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.";
+    const message = GOODS_KC_PUBLISH_BLOCKED_COPY.goods;
     const html = renderGoodSection(draft, { message, kcPublishBlocked: true, savedGoodId: draft.id, attempt: 1 });
     const save = html.slice(html.indexOf('aria-label="기본 상품 저장"'));
     expect(save).toContain('초안 저장 완료 · 공개 보류');
-    expect(save).not.toContain('기본 상품 저장 완료');
+    expect(save).not.toContain('>초안 저장 완료<');
     const escaped = message.replaceAll("'", '&#x27;').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     expect(save).toMatch(new RegExp(`role="alert"[^>]*>${escaped}`));
     expect(save).toMatch(/<a href="#good-operation-kc"[^>]*>KC 정보 열기<\/a>/);
     const saved = renderGoodSection(draft, { message: '상품을 저장했습니다.', savedGoodId: draft.id, attempt: 1 });
-    expect(saved).toContain('기본 상품 저장 완료');
+    expect(saved).toContain('초안 저장 완료');
     expect(saved).not.toContain('공개 보류');
     // KC를 다시 검토하고 게시 작업으로 공개하면, 남아 있던 보류 안내가 공개 상태와 어긋나지 않게 사라진다.
     const published = renderGoodSection({ ...good, publishedAt: '2026-10-07T12:00:00.000Z' }, { message, kcPublishBlocked: true, savedGoodId: good.id, attempt: 1 });
@@ -290,8 +291,8 @@ describe('GoodSection', () => {
   });
   it('초안 저장은 브라우저 고시 필수 검증에 막히지 않고 공개 이미지 오류를 표시한다', () => {
     const html = renderGoodSection(null, { errors: { imagePath: '대표 이미지를 업로드한 뒤 공개해주세요.' } });
-    expect(html).toContain('저장하기');
-    expect(html).toContain('저장 후 공개');
+    expect(html).toContain('>임시저장<');
+    expect(html).toContain('>실제 등록<');
     expect(html).toContain('대표 이미지를 업로드한 뒤 공개해주세요.');
     const noticeInputs = html.match(/<input[^>]*name="notice[^"]*"[^>]*>/g) ?? [];
     expect(noticeInputs).toHaveLength(7);
@@ -430,7 +431,8 @@ describe('GoodSection', () => {
 
   /*
    * 사람 눈 테스트 2라운드 — 공개 버튼이 두 개라 차이를 몰랐고, 저장 후 공개를 눌러도 초안으로만 저장돼 이름과 결과가 달랐다.
-   * 주 행동은 하나다: 막는 항목이 남으면 다음 할 일, 없으면 공개로 전환, 저장할 입력이 있으면 저장 막대의 저장 후 공개. 저장 계약(intent)은 그대로다.
+   * 주 행동은 하나다: 막는 항목이 남으면 다음 할 일, 없으면 공개로 전환, 저장할 입력이 있으면 저장 막대의 [실제 등록]. 저장 계약(intent)은 그대로다.
+   * 2026-11-19부터 저장 막대는 [임시저장](intent=save)·[실제 등록](미공개면 intent=publish) 둘이고, [실제 등록]은 막는 항목이 있으면 누를 때 알린다.
    */
   describe('판매 준비 카드의 주 행동', () => {
     const reason = (code: GoodsReadinessReasonCode, kind: 'blocking' | 'review' = 'blocking') => ({ code, ...GOODS_READINESS_REASONS[code], kind });
@@ -443,17 +445,17 @@ describe('GoodSection', () => {
     const tone = (html: string, label: string) => html.match(new RegExp(`data-tone="([a-z]+)"[^>]*>${label}`))?.[1];
     const button = (html: string, label: string) => html.match(new RegExp(`<(?:a|button)\\b[^>]*>${label}<`))?.[0] ?? '';
 
-    it('KC가 막으면 공개 버튼 대신 KC 검토하기가 주 행동이고 저장 후 공개는 보이지 않는다', () => {
+    it('KC가 막으면 공개 버튼 대신 KC 검토하기가 주 행동이고 [실제 등록]은 보조 모양으로 남는다', () => {
       const html = renderGoodSection(draft, {}, { readiness: kcBlocked });
       expect(card(html)).toContain('다음 할 일 · KC 검토 필요');
       expect(button(card(html), 'KC 검토하기')).toContain('bg-primary');
       expect(button(card(html), 'KC 검토하기')).toContain('href="#good-operation-kc"');
       expect(button(card(html), '공개로 전환')).toBe('');
-      expect(bar(html)).not.toContain('value="publish"');
-      expect(bar(html)).not.toContain('저장 후 공개');
-      expect(bar(html)).toContain('KC 검토를 마치면 공개할 수 있습니다.');
+      expect(button(bar(html), '실제 등록')).toContain('value="publish"');
+      expect(button(bar(html), '임시저장')).toContain('value="save"');
+      expect(bar(html)).toContain('KC 검토를 마쳐야 [실제 등록]으로 공개할 수 있습니다.');
       /* 고칠 입력이 없으면 주 색은 위쪽 다음 할 일 하나다. */
-      expect(button(bar(html), '저장하기')).not.toContain('bg-primary');
+      expect(button(bar(html), '실제 등록')).not.toContain('bg-primary');
       /* 사람 눈 테스트 3라운드 — KC 일 하나에 노랑·빨강이 섞였다. 이동 띠도 주의색이고, 남은 것이 KC뿐이면 저장 막대는 문장 하나로 말한다. */
       const nav = html.slice(html.indexOf('data-good-workspace-nav'), html.indexOf('</nav>', html.indexOf('data-good-workspace-nav')));
       expect(nav).toMatch(/data-good-card-remaining="1"[^>]*data-tone="warning"|data-tone="warning"[^>]*data-good-card-remaining="1"/);
@@ -462,18 +464,22 @@ describe('GoodSection', () => {
     });
 
     /* 사람 눈 테스트 3라운드 — "저장된 내용과 같음"인데 초안은 흰색, 공개 중인 상품은 파란색이라 눌러도 되는지 망설였다. */
-    it('저장할 변경이 없으면 저장하기는 초안·공개 중 어느 상품이든 같은 보조 모양이다', () => {
+    it('저장할 변경이 없으면 [실제 등록]은 초안·공개 중 어느 상품이든 같은 보조 모양이다', () => {
       const clean = [renderGoodSection(draft, {}, { readiness: kcBlocked }), renderGoodSection(draft, {}, { readiness: ready }), renderGoodSection(good, {}, { readiness: live })];
-      for (const html of clean) {
-        expect(bar(html)).toContain('저장된 내용과 같음');
-        expect(button(bar(html), '저장하기')).not.toContain('bg-primary');
-      }
-      expect(button(bar(renderGoodSection(null)), '저장하기')).toContain('bg-primary');
+      /* 상태 문구는 경우별로 다르다: 저장된 초안은 '초안 · 고객 화면 미공개', 공개 중인 상품은 '저장된 내용과 같음'. */
+      expect(bar(clean[0])).toContain('초안 · 고객 화면 미공개');
+      expect(bar(clean[1])).toContain('초안 · 고객 화면 미공개');
+      expect(bar(clean[2])).toContain('저장된 내용과 같음');
+      for (const html of clean) expect(button(bar(html), '실제 등록')).not.toContain('bg-primary');
+      expect(button(bar(renderGoodSection(null)), '실제 등록')).toContain('bg-primary');
+      /* 공개 중인 상품의 [실제 등록]은 수정 내용을 바로 반영(intent=save)하고, [임시저장]은 이 브라우저에만 보관한다. */
+      expect(button(bar(renderGoodSection(good, {}, { readiness: live })), '실제 등록')).toContain('value="save"');
+      expect(button(bar(renderGoodSection(good, {}, { readiness: live })), '임시저장')).toContain('type="button"');
     });
 
     it('공개 중 반영 안내는 주의색이고 잠긴 연결 IP·유형 선택칸은 잠긴 입력칸과 같은 모양이다', () => {
       const publishedHtml = renderGoodSection(good, {}, { readiness: live });
-      expect(bar(publishedHtml)).toMatch(/data-good-next-step=""><span class="[^"]*text-warning[^"]*">[^]*?저장하면 공개 중인 상품 화면에 바로 반영됩니다\./);
+      expect(bar(publishedHtml)).toMatch(/data-good-next-step=""><span class="[^"]*text-warning[^"]*">[^]*?\[실제 등록\]을 누르면 공개 중인 상품 화면에 바로 반영됩니다\./);
       /* 잠금은 모양만 바꾼다. 값은 hidden input이 그대로 제출한다. */
       const lockedOpen = `<div class="${GOOD_LOCKED_SELECTS_CLASS.replaceAll('&', '&amp;')}">`;
       expect(publishedHtml).toContain(lockedOpen);
@@ -500,9 +506,8 @@ describe('GoodSection', () => {
       const html = renderGoodSection(draft, {}, { readiness: ready });
       expect(card(html)).toContain('공개할 수 있습니다');
       expect(button(card(html), '공개로 전환')).toContain('bg-primary');
-      expect(bar(html)).not.toContain('value="publish"');
-      expect(button(bar(html), '저장하기')).not.toContain('bg-primary');
-      expect(bar(html)).toContain('화면 맨 위 판매 준비에서 공개할 수 있습니다.');
+      expect(button(bar(html), '실제 등록')).not.toContain('bg-primary');
+      expect(bar(html)).toContain('[실제 등록]을 누르면 저장과 함께 바로 공개합니다. 공개 조건에 막히면 이유를 알려 드리고 입력은 화면에 남습니다.');
     });
 
     it('공개는 되지만 고객이 살 수 없는 항목이면 다음 할 일을 앞세우고 공개는 보조로 남긴다', () => {
@@ -512,19 +517,19 @@ describe('GoodSection', () => {
       expect(button(card(html), '공개로 전환')).toContain('data-slot="button"');
     });
 
-    it('저장할 입력이 있고 공개 조건을 채웠을 때만 저장 후 공개가 보이고 저장하기가 주 행동이다', () => {
+    it('저장할 입력이 있으면 [실제 등록]이 주 행동이고, 공개를 막는 입력은 다음 단계 문장이 미리 말한다', () => {
       const values = { previousId: draft.id, name: draft.name, ipId: draft.ipId, imagePath: draft.imagePath, regularPrice: '26000', price: '22000', originId: '11111111-1111-4111-8111-111111111111', noticeMaker: '주식회사 아이콘스', noticeOrigin: '대한민국', noticeMaterial: '아크릴', noticeSize: '80 x 60 x 20mm · 90g', noticeMadeOn: '2026-07', noticeAsManager: '아이콘스 고객센터', noticeAsContact: '02-000-0000' };
       const variants = [{ id: '11111111-1111-4111-8111-111111111111', goodId: draft.id, name: '기본 옵션', code: 'HW-0100-01', price: draft.price, stockQty: 12, isDefault: true, archivedAt: null, attributes: {} }];
       const dirty = renderGoodSection(draft, { attempt: 1, values }, { readiness: ready, variants });
-      expect(button(bar(dirty), '저장 후 공개')).toContain('value="publish"');
-      expect(button(bar(dirty), '저장하기')).toContain('bg-primary');
-      expect(bar(dirty)).toContain('저장 후 공개를 누르면 수정한 내용까지 고객 화면에 공개됩니다.');
-      /* 이번 저장이 KC 검토를 되돌리면 초안으로만 저장되므로 버튼을 내고 이유를 말한다. */
+      expect(button(bar(dirty), '실제 등록')).toContain('value="publish"');
+      expect(button(bar(dirty), '실제 등록')).toContain('bg-primary');
+      expect(bar(dirty)).toContain('[실제 등록]을 누르면 저장과 함께 바로 공개합니다.');
+      /* 이번 저장이 KC 검토를 되돌리면 공개되지 않으므로 다음 단계에서 이유를 말한다(누르면 제출하지 않고 알린다 — goodRealRegistrationBlocker). */
       const context = renderGoodSection(draft, { attempt: 1, values: { ...values, name: '바꾼 상품명' } }, { readiness: ready, variants });
-      expect(bar(context)).not.toContain('value="publish"');
-      expect(bar(context)).toContain('KC를 다시 검토해야 공개할 수 있습니다.');
-      /* 필수 칸이 비면 저장 후 공개는 없다. */
-      expect(bar(renderGoodSection(draft, { attempt: 1, values: { ...values, noticeMaker: '' } }, { readiness: ready, variants }))).not.toContain('value="publish"');
+      expect(bar(context)).toContain('KC를 다시 검토해야 공개할 수 있습니다. 지금은 [임시저장]으로 저장합니다.');
+      /* 필수 칸이 비면 누를 때 알린다고 미리 말한다. */
+      /* KC 맥락이 아닌 필수 칸(출고지)이 비면 누를 때 알린다고 미리 말한다. KC 맥락 칸(고시 제조자 등)을 비우면 위 KC 재검토 문장이 먼저다. */
+      expect(bar(renderGoodSection(draft, { attempt: 1, values: { ...values, originId: '' } }, { readiness: ready, variants }))).toContain('필수 입력이 남아 있으면 그때 알려 드립니다.');
     });
 
     it('공개 중인 상품은 초록 상태로 보이고 내리는 작업은 위험 표시와 함께 접힌 줄이다', () => {
@@ -886,14 +891,15 @@ describe('GoodSection', () => {
     expect(renderGoodSection({ ...good, archivedAt: '2026-10-01T00:00:00Z' })).not.toContain('data-good-card-remaining');
   });
 
-  it('저장 막대는 저장하기·미리보기·임시저장 메뉴·취소로 줄이고 불러오기는 메뉴에 묶는다', () => {
+  it('저장 막대는 [임시저장]·[실제 등록] 둘과 미리보기·취소로 줄이고 불러오기는 임시저장 메뉴에 묶는다', () => {
     const create = renderGoodSection(null);
     const bar = create.slice(create.indexOf('data-good-workspace-save'), create.indexOf('</form>'));
     expect(bar).toContain('aria-label="임시저장 메뉴"');
     expect(bar).toMatch(/data-good-draft-button=""[^>]*>임시저장</);
     expect(bar).not.toContain('>임시저장 불러오기<');
     expect(bar).not.toContain('>새 임시저장으로 저장<');
-    for (const label of ['미리보기', '저장하기', '취소']) expect(bar).toContain(label);
+    for (const label of ['미리보기', '실제 등록', '취소']) expect(bar).toContain(label);
+    for (const gone of ['저장하기', '저장 후 공개', '입력 임시저장']) expect(bar).not.toContain(gone);
     /* 탭이 하나뿐이면 탭 줄을 그리지 않는다. */
     expect(create).not.toContain('data-good-editor-tabs');
   });

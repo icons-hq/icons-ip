@@ -3,7 +3,7 @@
  * 0901-008(11/11 묶음 11) "빈 화면에서 공개까지 10클릭 이내" 측정 스크립트 — T15b.
  *
  * 셈법(오케스트레이터 판단): 단품(옵션 1개)·필수 항목만·고시 프리셋 사용·KC 해당 없음 조건에서, 빈 상품 등록 화면부터
- * '저장 후 공개'까지 사람이 누르는 버튼·선택 클릭만 센다. 입력칸에 글자를 넣으려고 누르는 포커스 클릭은 세지 않는다
+ * [실제 등록](저장과 함께 공개)까지 사람이 누르는 버튼·선택 클릭만 센다. 입력칸에 글자를 넣으려고 누르는 포커스 클릭은 세지 않는다
  * (R4a 0901-008 #637 측정과 같은 셈법). 로그인과 화면 이동(주소 입력)은 세지 않는다.
  *
  * 사람처럼 보이는 이름(역할·라벨·글자)으로만 찾고 누른다. CSS 셀렉터·page.evaluate로 동작을 대신하지 않는다.
@@ -84,7 +84,7 @@ async function main() {
 
     // 빈 상품 등록 화면에서 시작
     await page.goto(`${origin}/admin/catalog/goods?create=1`, { waitUntil: 'domcontentloaded' });
-    const save = page.getByRole('button', { name: '저장하기', exact: true });
+    const save = page.getByRole('button', { name: '실제 등록', exact: true });
     await save.waitFor({ state: 'visible', timeout: 60_000 });
     await shot('empty');
 
@@ -117,10 +117,10 @@ async function main() {
     await click('KC 대상 아님', page.getByLabel('대상 아님 · 상품 전체 KC 해당 없음'));
     await shot('filled');
 
-    // 6. 저장 후 공개
-    const publish = page.getByRole('button', { name: '저장 후 공개', exact: true });
+    // 6. 실제 등록(저장과 함께 공개 — 2026-11-19 저장 버튼 둘)
+    const publish = page.getByRole('button', { name: '실제 등록', exact: true });
     await publish.waitFor({ state: 'visible', timeout: 15_000 });
-    await click('저장 후 공개', publish);
+    await click('실제 등록', publish);
     const outcome = await Promise.race([
       page.getByText('공개했습니다').first().waitFor({ timeout: 60_000 }).then(() => 'published'),
       page.getByText('공개하지 않았습니다').first().waitFor({ timeout: 60_000 }).then(() => 'blocked'),

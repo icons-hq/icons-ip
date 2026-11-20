@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodCategoryFailure, GOOD_CATEGORY_REQUIRED_MESSAGE, GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE, orderedGoodErrors } from './good-workspace';
+import { goodRealRegistrationBlocker, GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodCategoryFailure, GOOD_CATEGORY_REQUIRED_MESSAGE, GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE, orderedGoodErrors } from './good-workspace';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
 
 const values = { name: '상품', ipId: 'ip', type: '키링', categoryId: 'category', imagePath: 'path', originId: 'origin', noticeMaker: 'a', noticeOrigin: 'b', noticeMaterial: 'c', noticeSize: 'd', noticeMadeOn: 'e', noticeAsManager: 'f', noticeAsContact: 'g' };
@@ -38,7 +38,10 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(done).toHaveLength(15);
     expect(goodRemainingByCard(done)).toEqual({ basic: 0, sales: 0, images: 0, notice: 0, delivery: 0 });
 
-    const missing = goodPublishRequirements({ values: { ...values, categoryId: ' ', imagePath: '', noticeMaker: '' }, regularPrice: 0, hasStock: false, kcDone: false });
+    /* 0원은 의도한 금액(사은품)일 수 있어 남은 칸이 아니다 — [실제 등록] 때 판매가 확인창이 묻는다. 빈 칸·잘못된 값(null)만 남은 칸이다. */
+    const zeroPrice = goodPublishRequirements({ values, regularPrice: 0, hasStock: true, kcDone: true });
+    expect(zeroPrice.filter((item) => !item.done)).toEqual([]);
+    const missing = goodPublishRequirements({ values: { ...values, categoryId: ' ', imagePath: '', noticeMaker: '' }, regularPrice: null, hasStock: false, kcDone: false });
     expect(missing.filter((item) => !item.done).map((item) => item.key)).toEqual(['category', 'regularPrice', 'stock', 'imagePath', 'noticeMaker', 'kc']);
     expect(goodRemainingByCard(missing)).toEqual({ basic: 1, sales: 2, images: 1, notice: 2, delivery: 0 });
     /* 필수 항목이 없는 카드는 표시하지 않는다. */
@@ -158,5 +161,21 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     const readiness: AdminGoodsReadiness = { ...unknownGoodsReadiness(), state: 'blocked', publication: 'draft', reasons: [reason('draft'), reason('category_missing')] };
     expect(goodReadinessPlan(readiness).publish).toBeNull();
     expect(goodReadinessPlan(readiness).next?.code).toBe('category_missing');
+  });
+});
+
+/* 2026-11-19 저장 막대 [임시저장]·[실제 등록] — 공개까지 남은 칸이나 KC 재검토가 있으면 [실제 등록]을 제출하지 않고 그때 알린다. */
+describe('실제 등록 전 확인', () => {
+  const item = (label: string, anchor: string, field?: string) => ({ label, anchor, field });
+  it('남은 필수 칸을 화면 순서대로 알리고 첫 칸으로 보낸다', () => {
+    const blocker = goodRealRegistrationBlocker({ remaining: [item('대표 이미지', 'good-section-images', 'imagePath'), item('출고지', 'good-section-shipping', 'originId')], kcContextChanged: false });
+    expect(blocker).toEqual({ anchor: 'good-section-images', field: 'imagePath',
+      message: '실제 등록 전에 채워야 할 항목이 있습니다: 대표 이미지, 출고지. 지금 저장만 하려면 [임시저장]을 눌러주세요(초안으로 저장되고 고객 화면에는 보이지 않습니다).' });
+  });
+  it('남은 칸이 없어도 이번 저장이 KC 검토를 되돌리면 KC 정보로 보낸다', () => {
+    expect(goodRealRegistrationBlocker({ remaining: [], kcContextChanged: true })).toMatchObject({ anchor: 'good-operation-kc', message: expect.stringContaining('[임시저장]으로 저장한 뒤 KC 정보에서 검토') });
+  });
+  it('막는 것이 없으면 null이다', () => {
+    expect(goodRealRegistrationBlocker({ remaining: [], kcContextChanged: false })).toBeNull();
   });
 });

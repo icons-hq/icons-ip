@@ -158,7 +158,7 @@ export function ProductNotApplicable({ variants, models, disabled, onNoteChange,
   return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 [&>legend]:float-left [&>legend]:w-full [&>legend]:p-0 [&>legend]:text-sm [&>legend]:font-medium [&>legend]:text-foreground" disabled={disabled} data-kc-not-applicable="">
     <legend>상품 전체 KC 해당 없음</legend>
     <p className="text-sm text-muted-foreground">{!active.length ? '사용 중인 옵션이 없습니다. 옵션을 저장한 뒤 해당 없음으로 검토를 완료할 수 있습니다.'
-      : checkOnly ? (checked ? `사용 중인 옵션 ${active.length}개가 모두 연결됩니다. 저장하기를 누르면 해당 없음으로 검토 완료됩니다. 더 입력할 것은 없습니다.` : '아래 확인을 체크하면 해당 없음으로 검토 완료됩니다. 체크하지 않으면 미검토로 함께 저장합니다. 모델·사업자·판단 근거는 입력하지 않아도 됩니다.')
+      : checkOnly ? (checked ? `사용 중인 옵션 ${active.length}개가 모두 연결됩니다. [실제 등록]을 누르면 해당 없음으로 검토 완료됩니다. 더 입력할 것은 없습니다.` : '아래 확인을 체크하면 해당 없음으로 검토 완료됩니다. 체크하지 않으면 미검토로 함께 저장합니다. 모델·사업자·판단 근거는 입력하지 않아도 됩니다.')
       : `KC 대상이 아닌 상품은 확인 체크 후 바로 검토를 끝낼 수 있습니다. 사용 중인 옵션 ${active.length}개가 모두 연결되고, 모델·사업자·판단 근거는 입력하지 않아도 됩니다.`}</p>
     <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={checkOnly ? checked : confirmed} disabled={!active.length && !(checkOnly && checked)}
       onChange={(event) => { if (!checkOnly) setConfirmed(event.target.checked); else if (event.target.checked) complete(); else onUncheck?.(); }} /><span>{GOODS_KC_NOT_APPLICABLE_ATTESTATION}</span></label>

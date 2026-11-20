@@ -43,9 +43,9 @@ describe('상품 게시 상태 화면', () => {
     expect(publishButton(clean)).toContain('bg-primary');
     expect(clean).toContain('value="true"');
     const onSave = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt={null} archivedAt={null} readiness={ready} unsaved publishOnSave/>);
-    expect(publishButton(onSave)).toBe(''); expect(onSave).toContain('저장 막대의 저장 후 공개');
+    expect(publishButton(onSave)).toBe(''); expect(onSave).toContain('저장 막대의 [실제 등록]');
     const blocked = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt={null} archivedAt={null} readiness={ready} unsaved/>);
-    expect(publishButton(blocked)).toBe(''); expect(blocked).toContain('저장한 뒤 공개할 수 있습니다.');
+    expect(publishButton(blocked)).toBe(''); expect(blocked).toContain('공개하려면 저장 막대의 [실제 등록]을 누릅니다. 막는 항목이 있으면 그때 알려 드립니다.');
   });
   it('판매 준비를 읽지 못하면 판정을 추정하지 않고 공개를 보조 버튼으로 남긴다', () => {
     const html = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt={null} archivedAt={null} readiness={null}/>);

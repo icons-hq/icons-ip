@@ -73,7 +73,12 @@ export interface GoodPublishRequirement { key: string; label: string; card: Good
  * 판매가·재고는 서버 공개 조건은 아니지만 없으면 팔 수 없어 함께 센다.
  */
 export function goodPublishRequirements({ values, regularPrice, hasStock, kcDone, missingAttributes = [] }: {
-  values: Record<string, string | undefined>; regularPrice: number | null; hasStock: boolean; kcDone: boolean;
+  values: Record<string, string | undefined>;
+  /**
+   * 입력한 판매가. 빈 칸이거나 잘못된 값이면 null이다. 0원은 사은품처럼 의도한 금액일 수 있어 채운 것으로 센다 —
+   * [실제 등록] 때 판매가 확인창(CAT-007, goodEditorPriceConfirmation)이 한 번 더 묻고, 막지는 않는다.
+   */
+  regularPrice: number | null; hasStock: boolean; kcDone: boolean;
   /** 고른 대표 카테고리에서 아직 안 채운 필수 상품속성 이름. 서버가 저장을 막는 칸이라 함께 센다. */
   missingAttributes?: readonly string[];
 }): GoodPublishRequirement[] {
@@ -84,13 +89,34 @@ export function goodPublishRequirements({ values, regularPrice, hasStock, kcDone
     /* ADR-0044: 공개하려면 대표 카테고리가 있어야 한다(상품 유형은 없다). values.categoryId에 고른 대표 카테고리를 싣는다. */
     { key: 'category', label: '대표 카테고리', card: 'basic', anchor: 'good-section-category', field: 'categoryId', done: filled('categoryId') },
     ...missingAttributes.map((name) => ({ key: `attribute:${name}`, label: name, card: 'basic' as const, anchor: 'good-section-attributes', field: 'productAttributes', done: false })),
-    { key: 'regularPrice', label: '판매가', card: 'sales', anchor: 'good-section-price', field: 'regularPrice', done: Boolean(regularPrice && regularPrice > 0) },
+    { key: 'regularPrice', label: '판매가', card: 'sales', anchor: 'good-section-price', field: 'regularPrice', done: regularPrice !== null && regularPrice >= 0 },
     { key: 'stock', label: '재고수량', card: 'sales', anchor: 'good-section-variants', field: 'variants', done: hasStock },
     { key: 'imagePath', label: '대표 이미지', card: 'images', anchor: 'good-section-images', field: 'imagePath', done: filled('imagePath') },
     ...GOODS_NOTICE_FIELDS.map((field) => ({ key: field.formName, label: field.label, card: 'notice' as const, anchor: 'good-section-notice', field: field.formName, done: filled(field.formName) })),
     { key: 'kc', label: 'KC 검토', card: 'notice', anchor: 'good-operation-kc', done: kcDone },
     { key: 'originId', label: '출고지', card: 'delivery', anchor: 'good-section-shipping', field: 'originId', done: filled('originId') },
   ];
+}
+
+/*
+ * 저장 막대는 [임시저장]·[실제 등록] 둘이다(2026-11-19 사용자·MD 결정 — "전체 통틀어서 임시저장, 실제등록 두 개만",
+ * "실제등록할땐 꼭 들어가야하는 내용들 없으면 그때만 알람", [실제 등록]은 공개까지 한 번에). 아직 공개하지 않은 상품의 [실제 등록]은
+ * 저장과 공개를 함께 하므로, 공개까지 남은 필수 칸이 있거나 이번 저장이 KC 검토를 되돌리면 제출하지 않고 그 이유와 첫 칸을 돌려준다.
+ * 판정은 서버가 다시 한다(막히면 저장만 하고 이유를 알린다).
+ */
+export interface GoodRealRegistrationBlocker { message: string; anchor: string; field?: string }
+export function goodRealRegistrationBlocker({ remaining, kcContextChanged }: {
+  remaining: readonly Pick<GoodPublishRequirement, 'label' | 'anchor' | 'field'>[]; kcContextChanged: boolean;
+}): GoodRealRegistrationBlocker | null {
+  if (remaining.length) {
+    return { anchor: remaining[0].anchor, field: remaining[0].field,
+      message: `실제 등록 전에 채워야 할 항목이 있습니다: ${remaining.map((item) => item.label).join(', ')}. 지금 저장만 하려면 [임시저장]을 눌러주세요(초안으로 저장되고 고객 화면에는 보이지 않습니다).` };
+  }
+  if (kcContextChanged) {
+    return { anchor: 'good-operation-kc',
+      message: '바꾼 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션 때문에 KC를 다시 검토해야 공개할 수 있습니다. [임시저장]으로 저장한 뒤 KC 정보에서 검토를 마치고 [실제 등록]을 눌러주세요.' };
+  }
+  return null;
 }
 
 /** 카드별 남은 필수 입력 수. 필수 항목이 없는 카드는 키가 없다(표시하지 않는다). */
@@ -150,7 +176,7 @@ const goodKcOptionIdentity = (row: GoodKcOptionRow) => JSON.stringify([row.name.
 
 /**
  * 이 입력을 저장하면 완료된 KC 검토가 미검토로 돌아가는가. DB 가드(private.guard_goods_kc·guard_goods_variant_kc)와 같은 기준의 안내용 판정이다.
- * 저장 후 공개가 초안으로만 저장될 경우를 미리 가려 버튼 이름과 결과를 맞춘다. 사용 중지는 검토를 무효화하지 않아 세지 않는다.
+ * [실제 등록]이 공개 없이 저장만 될 경우를 미리 가려 제출 전에 알린다. 사용 중지는 검토를 무효화하지 않아 세지 않는다.
  */
 export function goodKcContextChanged(savedValues: Record<string, string>, currentValues: Record<string, string>, savedRows: readonly GoodKcOptionRow[], currentRows: readonly GoodKcOptionRow[]): boolean {
   if (changedGoodLockedFields(savedValues, currentValues).length) return true;

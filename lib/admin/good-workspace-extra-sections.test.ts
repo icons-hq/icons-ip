@@ -149,6 +149,6 @@ describe('섹션 실패·공개 결과 안내', () => {
     expect(goodWorkspacePublishRejection({ requested: true, published: false, error: 'goods_publish_incomplete' })?.message).toContain('대표 이미지');
     expect(goodWorkspacePublishRejection({ requested: true, published: false, error: 'fulfillment_origin_required' })?.message).toContain('출고지');
     /* 공개 결과를 못 받았으면 공개했다고 하지 않는다. */
-    expect(goodWorkspacePublishRejection(undefined)).toMatchObject({ kc: false, message: expect.stringContaining('저장했지만 공개하지 않았습니다') });
+    expect(goodWorkspacePublishRejection(undefined)).toMatchObject({ kc: false, message: expect.stringContaining('초안으로 저장했고 아직 공개하지 않았습니다') });
   });
 });

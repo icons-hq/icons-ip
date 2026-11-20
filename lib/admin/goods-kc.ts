@@ -161,13 +161,13 @@ export function goodsKcProductNotApplicableConfirm(plan: GoodsKcProductNotApplic
   return `입력한 KC 모델 ${plan.discarded}개(${names})를 지우고 상품 전체 KC 해당 없음으로 ${completing ? '검토를 완료합니다' : '바꿉니다'}. 계속할까요?`;
 }
 
-/** Copy after "저장 후 공개" was refused only for KC and the same input was saved
- * as a draft instead. The admin guide's error table quotes these strings verbatim. */
+/** Copy after [실제 등록] (intent=publish) was refused only for KC and the same input was saved
+ * unpublished instead. The admin guide's error table quotes these strings verbatim. */
 export const GOODS_KC_PUBLISH_BLOCKED_COPY = {
-  goods: "초안으로 저장했습니다. 상품명·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
-  options: "초안으로 저장했습니다. 옵션이 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
-  goodsAndOptions: "초안으로 저장했습니다. 상품명·IP·고시정보와 옵션이 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
-  unreviewed: "초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+  goods: "초안으로 저장했습니다(고객 화면에는 보이지 않습니다). 상품명·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 [실제 등록]을 눌러주세요.",
+  options: "초안으로 저장했습니다(고객 화면에는 보이지 않습니다). 옵션이 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 [실제 등록]을 눌러주세요.",
+  goodsAndOptions: "초안으로 저장했습니다(고객 화면에는 보이지 않습니다). 상품명·IP·고시정보와 옵션이 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 [실제 등록]을 눌러주세요.",
+  unreviewed: "초안으로 저장했습니다(고객 화면에는 보이지 않습니다). KC 정보에서 검토를 완료한 뒤 [실제 등록]을 눌러주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
 } as const;
 type GoodsKcPublishSnapshot = Pick<AdminGoodsKc, 'status' | 'revision'> & { history: readonly Pick<GoodsKcHistoryEntry, 'revision' | 'reason'>[] };
 /** Picks the copy from the KC state read before and after the draft save. Only a
