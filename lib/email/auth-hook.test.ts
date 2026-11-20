@@ -26,7 +26,7 @@ describe('planAuthHookEmails', () => {
       messageKind: 'auth_signup',
       contentRevision: 'auth_signup_v2',
     }));
-    // 1014-004: 가입 화면에 넣을 6자리 확인 코드와 같은 브라우저용 확인 링크를 함께 보낸다(운영 Auth 템플릿과 같은 구성).
+    // 1014-004: 가입 화면에 넣을 확인 코드와 같은 브라우저용 확인 링크를 함께 보낸다(운영 Auth 템플릿과 같은 구성).
     expect(plans[0].message.subject).toBe('[ICONS] 가입 확인 코드');
     expect(plans[0].message.html).toContain('>305805</p>');
     expect(plans[0].message.text).toContain('확인 코드: 305805');
