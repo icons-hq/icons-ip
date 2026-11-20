@@ -145,7 +145,7 @@ describe('부분 반품 환불 단계(ADR-0047)', () => {
     expect(html).not.toContain('결제 전액을 취소하고');
     expect(html).not.toContain('남은 결제 금액');
     expect(claimRefundCompletionConfirmation(true, '토스', null, null, { refundAmount: 6500, deductionAmount: 3000 }))
-      .toBe('토스 결제에서 부분 반품한 상품 몫 6,500원(반품배송비 3,000원 차감)을 부분 취소하고, 고른 상품만 재고 복원·카드팩 판정을 확정할까요? 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.');
+      .toBe('토스 결제에서 부분 반품한 상품 몫 6,500원(반품배송비 3,000원 차감)을 부분 취소하고, 고른 상품의 재고를 되돌리고 남은 주문 금액으로 카드팩 지급 조건을 다시 확인할까요? 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.');
   });
 });
 
@@ -184,7 +184,7 @@ describe('부분 반품 적대적 리뷰 반영(2026-11-19)', () => {
     const html = render({ partialReturn: { refundAmount: 9500, deductionAmount: 0, refileable: true, convertible: true }, stage: 'needs_review',
       defectiveStock: { claimId: CLAIM_ID, frozen: false, pending: 0,
         items: [{ orderItemId: '22222222-2222-4222-8222-222222222222', name: 'TEST 굿즈', variantName: null, qty: 1, defective: false, state: null }] } });
-    expect(html).toContain('계좌 송금 부분 환불로 바꿀 때 고른 상품의 재고가 정해집니다');
+    expect(html).toContain('계좌 송금 부분 환불로 전환하면 고른 상품의 재고를 바로 처리합니다');
   });
 });
 
@@ -195,7 +195,7 @@ describe('부분 반품 접수의 재고 처리·확인(Codex 리뷰)', () => {
   it('0원 부분 반품의 [환불 접수]는 결제 수단과 무관하게 확인창을 거치고 재고 처리(불량 선택)를 같은 양식에 싣는다', () => {
     const html = render({ partialReturn: { refundAmount: 0, deductionAmount: 0 }, stage: 'collected', defectiveStock: stock });
     expect(html).toContain(`data-confirm="${partialReturnFilingConfirmation({ refundAmount: 0, deductionAmount: 0 }, '토스')}"`);
-    expect(partialReturnFilingConfirmation({ refundAmount: 0, deductionAmount: 0 }, '토스')).toContain('불량으로 고른 상품은 판매 재고 제외');
+    expect(partialReturnFilingConfirmation({ refundAmount: 0, deductionAmount: 0 }, '토스')).toContain('불량으로 고른 상품은 판매 재고에 넣지 않음');
     expect(html).toContain('claim-refund-file-stock');
     expect(html).toContain('돌려줄 결제 금액이 0원');
   });

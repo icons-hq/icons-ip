@@ -152,10 +152,10 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
                 <span className="min-w-0 break-words">{item.goodName}{item.variantName ? ` (${item.variantName})` : ''} · 남은 {item.activeQty}개{item.originName ? ` · ${item.originName}` : ''}</span>
                 {reason ? <small className={HINT}>{reason}</small> : <input aria-label={`${item.goodName} 반품 수량`} className="w-20" type="number" min={0} max={item.activeQty} inputMode="numeric"
                   value={quantities[item.orderItemId] ?? 0} onChange={event => { const value = Number.parseInt(event.target.value || '0', 10); setQuantities(current => ({ ...current, [item.orderItemId]: Number.isFinite(value) ? Math.min(Math.max(value, 0), item.activeQty) : 0 })); setError(''); }} />}
-                {item.returnRestricted ? <small className={HINT}>반품 제한 상품{item.restrictionReason ? `(${item.restrictionReason})` : ''} — 단순 변심이면 사후 판단</small> : null}
+                {item.returnRestricted ? <small className={HINT}>반품 제한 상품{item.restrictionReason ? `(${item.restrictionReason})` : ''} — 단순 변심이면 접수한 뒤 반품을 받을지 판단</small> : null}
               </li>;
             })}</ul> : null}
-            <p className={HINT}>고른 상품의 출고지만 수거하고, 고른 상품의 결제 몫(비게 된 배송 묶음 배송비 포함, 단순 변심은 반품배송비 차감)만 환불합니다. 남은 상품을 모두 고르면 주문 전체 반품으로 접수됩니다.</p>
+            <p className={HINT}>고른 상품이 있는 출고지만 수거합니다. 환불은 고른 상품의 결제 몫만 하고, 상품이 모두 빠진 배송 묶음이 생기면 그 배송비도 돌려줍니다. 단순 변심이면 반품배송비를 뺍니다. 남은 상품을 모두 고르면 주문 전체 반품으로 접수됩니다.</p>
           </div> : null}
           {blocked ? <p className="text-destructive" role="status">{blocked}</p> : null}
           {context.activeClaim ? <Link className="w-fit underline underline-offset-4" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[context.activeClaim.claimType]}/${context.activeClaim.id}`}>현재 진행 중인 요청 열기</Link> : null}

@@ -10,7 +10,7 @@ export const GOODS_READINESS_REASONS = {
   image_missing: { label: '대표 이미지 미입력', detail: '대표 이미지를 등록하고 기본 상품 정보를 저장하세요.', target: 'basic' },
   notice_missing: { label: '고시정보 미입력', detail: '상품정보제공고시의 필수 항목을 확인하세요.', target: 'notice' },
   no_active_options: { label: '사용 중인 옵션 없음', detail: '사용 중인 옵션이 없습니다. 옵션 목록에서 팔 옵션을 복원하거나 새 옵션을 더하세요. 옵션을 바꾸면 KC 검토 범위도 함께 확인하세요.', target: 'variants' },
-  stock_unavailable: { label: '판매 가용 수량 없음', detail: '팔 수 있는 수량이 없습니다. 사용 중인 옵션의 재고수량과, 예약판매라면 예약 수량·판매 기간을 확인하세요.', target: 'variants' },
+  stock_unavailable: { label: '판매 가능 수량 없음', detail: '팔 수 있는 수량이 없습니다. 사용 중인 옵션의 재고수량과, 예약판매라면 예약 수량·판매 기간을 확인하세요.', target: 'variants' },
   payment_disabled: { label: '결제수단 모두 중지', detail: '현재 상품에서 허용하는 결제수단을 확인하세요.', target: 'sale' },
   restricted_sale: { label: '판매 제한 상품', detail: '현재 판매 제한 상품의 공개·구매는 닫혀 있습니다.', target: 'restriction' },
   shipping_unavailable: { label: '출고지 사용 불가', detail: '상품에 연결한 출고지의 사용 상태를 확인하세요.', target: 'shipping' },

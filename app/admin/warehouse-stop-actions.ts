@@ -26,7 +26,7 @@ function refresh(orderId: string) {
  */
 export async function loadOrderWarehouseStopAction(orderId: unknown): Promise<WarehouseStopActionResult<OrderWarehouseStopContext>> {
   const id = typeof orderId === 'string' && isUuid(orderId) ? orderId.toLowerCase() : null;
-  if (!id) return { ok: false, error: '주문을 확인해주세요.' };
+  if (!id) return { ok: false, error: '주문을 찾지 못했습니다. 주문 화면을 새로고침한 뒤 다시 열어주세요.' };
   if (!await requireAdminActionAccess(`/admin/sales/orders/${id}`, { capability: 'sales.read' })) {
     return { ok: false, error: '관리자 권한이 필요합니다.' };
   }
@@ -51,7 +51,7 @@ export async function recordWarehouseStopReplyAction(input: unknown): Promise<Wa
   if (!normalized.ok) return normalized;
   const { orderId, shipmentIds, outcome, channel, repliedAt, note, operationId } = normalized.value;
   if (!await requireAdminActionAccess(`/admin/sales/orders/${orderId}`, { capability: 'sales.dispatch' })) {
-    return { ok: false, error: '창고 회신을 기록할 권한이 없습니다.' };
+    return { ok: false, error: '창고 회신을 기록할 권한이 없습니다. 받은 회신(경로·시각·내용)을 주문 처리 담당에게 전달해 기록을 맡겨주세요.' };
   }
   try {
     const { data, error } = await (await createClient()).rpc('admin_record_warehouse_stop_reply', {
@@ -59,7 +59,7 @@ export async function recordWarehouseStopReplyAction(input: unknown): Promise<Wa
     });
     if (error) return { ok: false, error: warehouseStopErrorMessage(error.message) };
     const result = data as { orderId?: unknown; discoveryIds?: unknown; cancellationInFlight?: unknown } | null;
-    if (!result || result.orderId !== orderId) return { ok: false, error: '기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록을 확인해주세요.' };
+    if (!result || result.orderId !== orderId) return { ok: false, error: '기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록에 남았는지 확인하고, 없을 때만 다시 기록해주세요.' };
     refresh(orderId);
     const discovered = Array.isArray(result.discoveryIds) ? result.discoveryIds.length : 0;
     return { ok: true, value: { message: discovered
@@ -73,7 +73,7 @@ export async function recordWarehouseStopReplyAction(input: unknown): Promise<Wa
         : '창고의 이미 출고 회신을 기록했습니다. 이 배송 건은 취소하지 말고 운송장 회신을 받아 발송 처리한 뒤 고객 반품으로 접수해주세요.' } };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: '기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록을 확인해주세요.' };
+    return { ok: false, error: '기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록에 남았는지 확인하고, 없을 때만 다시 기록해주세요.' };
   }
 }
 
@@ -86,7 +86,7 @@ export async function resolveCanceledShipmentDispatchAction(input: unknown): Pro
   if (!normalized.ok) return normalized;
   const { orderId, dispatchId, outcome, note, operationId } = normalized.value;
   if (!await requireAdminActionAccess(`/admin/sales/orders/${orderId}`, { capability: 'sales.manage' })) {
-    return { ok: false, error: '취소 뒤 출고를 처리할 권한이 없습니다.' };
+    return { ok: false, error: '취소 뒤 출고를 처리할 권한이 없습니다. 주문 처리 권한이 있는 계정으로 처리해주세요.' };
   }
   try {
     const { data, error } = await (await createClient()).rpc('admin_resolve_canceled_shipment_dispatch', {
@@ -95,7 +95,7 @@ export async function resolveCanceledShipmentDispatchAction(input: unknown): Pro
     if (error) return { ok: false, error: warehouseStopErrorMessage(error.message) };
     const result = data as { orderId?: unknown; state?: unknown; returnedQty?: unknown } | null;
     if (!result || result.orderId !== orderId || result.state !== outcome) {
-      return { ok: false, error: '처리 결과를 확인하지 못했습니다. 새로고침해 기록을 확인해주세요.' };
+      return { ok: false, error: '처리 결과를 확인하지 못했습니다. 새로고침해 처리 결과가 남았는지 확인하고, 아직 처리 대기면 다시 처리해주세요.' };
     }
     refresh(orderId);
     return { ok: true, value: { message: outcome === 'returned'
@@ -103,6 +103,6 @@ export async function resolveCanceledShipmentDispatchAction(input: unknown): Pro
       : '손실로 처리했습니다. 재고는 발견 때 뺀 그대로입니다.' } };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: '처리 결과를 확인하지 못했습니다. 새로고침해 기록을 확인해주세요.' };
+    return { ok: false, error: '처리 결과를 확인하지 못했습니다. 새로고침해 처리 결과가 남았는지 확인하고, 아직 처리 대기면 다시 처리해주세요.' };
   }
 }

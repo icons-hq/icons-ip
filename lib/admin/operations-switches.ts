@@ -124,4 +124,4 @@ export function operationsSwitchesError(code?: string, message?: string): string
 }
 
 export const EMAIL_NOT_CONFIGURED_MESSAGE =
-  '이메일 공급자 또는 발송 서명 설정이 운영 환경에 준비되지 않아 켤 수 없습니다. 설정을 마친 뒤 다시 시도해주세요.';
+  '메일 발송 서비스 연결(발송 키·서명 설정)이 운영 환경에 준비되지 않아 켤 수 없습니다. 설정을 마친 뒤 다시 시도해주세요.';

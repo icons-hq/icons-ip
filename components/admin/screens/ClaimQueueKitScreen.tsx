@@ -86,7 +86,7 @@ export function ClaimQueueKitScreen({
   const currentHref = adminClaimHref(claimType, filters);
   const collects = claimType !== 'cancel';
   const scopeNotice = partialReturnEnabled && claimType === 'return'
-    ? '반품은 고객이 고른 상품·수량만 회수·환불할 수 있습니다(부분 반품: 고른 상품의 결제 몫과 비게 된 배송 묶음의 배송비, 단순 변심은 반품배송비 차감). 품목을 고르지 않은 요청은 주문 단위 전액입니다.'
+    ? '반품은 고객이 고른 상품·수량만 회수·환불할 수 있습니다(부분 반품). 부분 반품은 고른 상품의 결제 몫과, 상품이 모두 빠진 배송 묶음의 배송비를 환불하고, 단순 변심이면 반품배송비를 뺍니다. 품목을 고르지 않은 요청은 주문 단위 전액입니다.'
     : `${typeLabel} 요청은 주문 단위 전액으로만 처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.`;
   const stageFilterLabel = filters.stage === 'all' ? null : adminClaimStageOptions(claimType).find((option) => option.value === filters.stage)?.label ?? null;
   /* 오래 기다린 건부터 처리하는 것이 이 화면의 주 행동이다. 이미 그 조건이면 버튼 대신 맨 위부터 처리하라고 말한다. */

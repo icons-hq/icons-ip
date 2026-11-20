@@ -53,7 +53,7 @@ describe('어드민 문구 계약 (ADM-016 E)', () => {
   });
 
   it('#25 시각은 KST로 쓴다(한국 시간·한국 시각·한국시간을 섞지 않는다)', () => {
-    expect(offenders(/한국 ?시(?:간|각)/)).toEqual([]);
+    expect(offenders(/한국 ?시(?:간|각)|\(한국\)/)).toEqual([]);
   });
 
   it('#26 운송장·배송비를 쓴다(송장·운임은 창고 양식 이름과 열 이름에만 남는다)', () => {
@@ -95,8 +95,7 @@ describe('어드민 문구 계약 (ADM-016 E)', () => {
   });
 
   it('#41 값이 없을 때 \'미설정\'이라고만 쓰지 않는다(없음·선택 안 함·등록 안 함처럼 뜻을 말한다)', () => {
-    /* 예약판매 화면은 다른 작업(예약판매 저장 한 번에 적용)이 고치는 중이라 그 작업이 합쳐진 뒤 정리한다. */
-    expect(offenders(/미설정/, ['components/admin/GoodWorkspaceSections.tsx', 'components/admin/GoodsPreordersPanel.tsx'])).toEqual([]);
+    expect(offenders(/미설정/)).toEqual([]);
   });
 
   it('#42 시스템이 만드는 코드는 상품 자동코드·옵션 자동코드라 부른다(옛 이름 판매자상품코드·관리코드는 옛 엑셀 머리글 별칭에만 남는다)', () => {

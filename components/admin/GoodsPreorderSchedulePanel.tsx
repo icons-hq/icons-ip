@@ -107,7 +107,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
   const allChecked = excluded.size === 0;
   /* 확정 버튼이 눌리지 않는 이유를 버튼 곁에 한 줄로 밝힌다(처리 중·결과 모름 단계는 제외). */
   const confirmBlockedReason = pending || frozen ? null
-    : !emailReady ? '이메일 발송 설정이 준비되지 않아 확정할 수 없습니다.'
+    : !emailReady ? '이메일을 보낼 수 없어 확정할 수 없습니다(위 안내).'
     : tooMany ? `선택이 한 번에 바꿀 수 있는 ${preview.limit.toLocaleString('ko-KR')}건을 넘었습니다.`
     : !selection.shipments ? '바꿀 배송 건을 하나 이상 선택해주세요.'
     : !policyDecided ? (preview.policyBlockReason ? '접수 중 예약 조건은 이 날짜로 바꿀 수 없습니다. 위의 ‘확인했습니다’를 체크해야 확정할 수 있습니다.' : '접수 중 예약 조건을 새 날짜로 교체하거나 위의 ‘확인했습니다’를 체크해야 확정할 수 있습니다.')
@@ -138,7 +138,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
     startTransition(async () => {
       const result = await readPreorderScheduleChangeAction(payload.requestId);
       if (result.ok) onApplied(result.change);
-      else setError({ message: result.uncertain ? result.error : '아직 반영되지 않았습니다. 같은 요청으로 다시 확정할 수 있습니다.', uncertain: true });
+      else setError({ message: result.uncertain ? result.error : '아직 반영되지 않았습니다. [같은 내용으로 다시 확정]을 누르면 같은 요청으로 확정하고, 두 번 처리되지 않습니다.', uncertain: true });
     });
   }
   return <div className="flex min-w-0 flex-col gap-4" data-preorder-schedule-preview="">
@@ -147,17 +147,17 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
       {selection.shipments ? <p className="text-muted-foreground">
         {preview.variantName ? `옵션 '${preview.variantName}'의 ` : ''}미출고 예약 배송 건 {(selection.shipments - selection.noticeOnly).toLocaleString('ko-KR')}건의 발송 예정일을 {dateLabel(preview.expectedShipDate)}로 바꾸고
         {selection.noticeOnly ? `(따로 바꿔 둔 ${selection.noticeOnly.toLocaleString('ko-KR')}건은 일정 그대로 안내만)` : ''},
-        주문 {selection.orders.toLocaleString('ko-KR')}건의 구매자(선물 주문은 받는 분 포함)에게 앱 알림·이메일을 보냅니다. 주문 당시 예정일은 보존하고 배송 건마다 변경 이력이 남습니다.
+        주문 {selection.orders.toLocaleString('ko-KR')}건의 구매자(선물 주문은 받는 분 포함)에게 앱 알림·이메일을 보냅니다. 주문 당시 예정일은 그대로 기록에 남고, 배송 건마다 변경 이력이 남습니다.
       </p> : preview.targets.length ? <p className="text-muted-foreground">아래 표에서 바꿀 배송 건을 하나 이상 선택해주세요.</p> : null}
     </div>
-    {!emailReady ? <AdminNotice role="status" tone="danger">{!preview.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널이 준비되어야 일정 변경과 안내를 진행할 수 있습니다.{!preview.emailEnabled && switchesLink ? <> <Link className="font-medium underline underline-offset-4" data-operations-switches-link="" href={OPERATIONS_SWITCHES_PATH}>운영 스위치에서 켜기</Link></> : null}</AdminNotice> : null}
+    {!emailReady ? <AdminNotice role="status" tone="danger">{!preview.emailEnabled ? '지연 안내 이메일 발송 설정(운영 스위치의 주문 지연 안내 이메일)이 꺼져 있습니다.' : '메일 발송 서비스 연결(발송 키·서명 설정)이 운영 환경에 준비되지 않았습니다. 개발 담당자에게 메일 발송 설정을 요청해주세요.'} 앱 알림과 이메일을 함께 보내야 해서, 이메일을 보낼 수 없으면 일정도 바꾸지 않습니다.{!preview.emailEnabled && switchesLink ? <> <Link className="font-medium underline underline-offset-4" data-operations-switches-link="" href={OPERATIONS_SWITCHES_PATH}>운영 스위치에서 켜기</Link></> : null}</AdminNotice> : null}
 
     {preview.openPolicies.length ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" data-preorder-schedule-policies="">
       <p className="font-medium">접수 중인 예약 조건 · {openPolicySummary(preview.openPolicies)}</p>
       <p className="text-muted-foreground">이 조건 그대로면 이후 새 주문은 옛 날짜로 약속됩니다.</p>
       {policyReplaceable ? <label className="flex items-start gap-2">
         <input form={form} type="checkbox" checked={replacePolicies} disabled={pending || frozen} onChange={(event) => { edit(); setReplacePolicies(event.target.checked); }} />
-        <span>접수 중 예약 조건도 {dateLabel(preview.expectedShipDate)}로 교체 — 남은 물량·접수 기간을 이어받은 새 버전으로 적용합니다{preview.randomSale ? '(랜덤 판매는 모든 옵션)' : ''}.</span>
+        <span>접수 중 예약 조건도 {dateLabel(preview.expectedShipDate)}로 교체 — 남은 물량과 접수 기간은 그대로 이어받고 발송 예정일만 바꿔 다시 저장합니다{preview.randomSale ? '(랜덤 판매는 모든 옵션)' : ''}.</span>
       </label> : null}
       {preview.policyBlockReason ? <p className="text-warning">{PREORDER_SCHEDULE_POLICY_BLOCK_LABELS[preview.policyBlockReason]}</p> : null}
       {!policyReplaceable || !replacePolicies ? <label className="flex items-start gap-2" data-preorder-schedule-policy-ack="">
@@ -292,7 +292,7 @@ export function PreorderScheduleResultView({ change: initial, context }: { chang
     <AdminNotice tone="success" title={`배송 건 ${change.shipmentCount.toLocaleString('ko-KR')}건을 ${dateLabel(change.expectedShipDate)} 일정으로 안내했습니다`}>
       주문 {change.orderCount.toLocaleString('ko-KR')}건에 앱 알림을 보내고 이메일을 발송 대기열에 넣었습니다{change.smsQueued ? '(SMS는 수신 동의한 고객에게만)' : ''}{notChanged ? `. 바꾸지 않은 배송 건은 ${notChanged.total.toLocaleString('ko-KR')}건입니다${notChanged.detail}.` : '.'}
     </AdminNotice>
-    {change.policyAction === 'replaced' ? <AdminNotice tone="info">접수 중이던 예약 조건({openPolicySummary(change.policies)})을 {dateLabel(change.expectedShipDate)} 새 버전으로 바꿨습니다. 이후 새 주문도 같은 날짜로 안내됩니다.</AdminNotice>
+    {change.policyAction === 'replaced' ? <AdminNotice tone="info">접수 중이던 예약 조건({openPolicySummary(change.policies)})을 {dateLabel(change.expectedShipDate)} 발송으로 바꿔 다시 저장했습니다. 이후 새 주문도 같은 날짜로 안내됩니다.</AdminNotice>
       : change.policyAction === 'acknowledged' ? <AdminNotice tone="warning">접수 중인 예약 조건({openPolicySummary(change.policies)})은 바꾸지 않았습니다. {context ? preorderSchedulePolicyAckText(context.canReplacePolicies, context.policyBlocked) : PREORDER_SCHEDULE_POLICY_ACK}</AdminNotice> : null}
     <p className="text-xs text-muted-foreground tabular-nums">{formatOrderDateTime(change.createdAt)} · {change.actorName ?? '운영자'} · 사유: {change.reason}</p>
     {noEmail ? <AdminNotice tone="warning">이메일이 없는 수신자 {noEmail.toLocaleString('ko-KR')}명은 앱 알림만 받았습니다.</AdminNotice> : null}
@@ -309,7 +309,7 @@ export function PreorderScheduleResultView({ change: initial, context }: { chang
           <TableCell className="align-top whitespace-normal"><ul className="flex flex-col gap-0.5">{target.shipments.map((shipment) => <li key={shipment.shipmentId} className="tabular-nums">
             {shipment.label} · {shipment.noticeOnly ? `${shipment.toDate} (일정 그대로, 안내만)` : `${shipment.fromDate} → ${shipment.toDate}`}</li>)}</ul></TableCell>
           <TableCell className="align-top"><AdminStatusBadge tone={statusTone('delayNoticeChannel', target.inAppStatus)}>{ORDER_DELAY_STATUS_LABELS[target.inAppStatus]}</AdminStatusBadge></TableCell>
-          <TableCell className="align-top whitespace-normal"><AdminStatusBadge tone={statusTone('delayNoticeChannel', target.emailStatus)}>{target.emailStatus === 'sent' && target.emailProviderState === 'accepted' ? '공급자 접수' : ORDER_DELAY_STATUS_LABELS[target.emailStatus]}</AdminStatusBadge>
+          <TableCell className="align-top whitespace-normal"><AdminStatusBadge tone={statusTone('delayNoticeChannel', target.emailStatus)}>{target.emailStatus === 'sent' && target.emailProviderState === 'accepted' ? '발송 서비스 접수' : ORDER_DELAY_STATUS_LABELS[target.emailStatus]}</AdminStatusBadge>
             {target.errorCode ? <p className="mt-1 text-xs text-destructive">{ORDER_DELAY_ERROR_LABELS[target.errorCode] ?? '발송 상태를 확인해주세요.'}</p> : null}</TableCell>
           {sms ? <TableCell className="align-top whitespace-normal">{target.smsStatus ? <>
             <AdminStatusBadge tone={statusTone('delayNoticeSms', target.smsStatus)}>{PREORDER_SCHEDULE_SMS_LABELS[target.smsStatus]}</AdminStatusBadge>
@@ -319,7 +319,7 @@ export function PreorderScheduleResultView({ change: initial, context }: { chang
       </Table>
     </div>
     {change.targets.length > PAGE_SIZE ? <ConsolePagination label="안내 결과 페이지" page={targetPage} pageSize={PAGE_SIZE} total={change.targets.length} unit="명" onPageChange={setTargetPage} /> : null}
-    <p className="text-xs text-muted-foreground">이메일의 &lsquo;공급자 접수&rsquo;는 수신함 도착 확인과 다릅니다. 이미 보낸 앱 알림·이메일은 다시 보내지 않으며, 같은 안내는 발송관리의 고객 지연 안내 이력에도 남습니다.</p>
+    <p className="text-xs text-muted-foreground">이메일의 &lsquo;발송 서비스 접수&rsquo;는 메일 발송 서비스가 보낼 메일을 받았다는 뜻이고, 고객 메일함에 도착했다는 뜻은 아닙니다. 이미 보낸 앱 알림·이메일은 다시 보내지 않으며, 같은 안내는 발송관리의 고객 지연 안내 이력에도 남습니다.</p>
     <div aria-live="polite">{pending ? <p className="text-muted-foreground" role="status">결과를 확인하고 있습니다…</p> : null}{error ? <p className="text-destructive" role="alert">{error}</p> : null}</div>
     <div className="flex flex-wrap gap-2">
       <Button form={form} type="button" variant="outline" disabled={pending} onClick={() => run(() => readPreorderScheduleChangeAction(change.id))}>안내 결과 새로고침</Button>

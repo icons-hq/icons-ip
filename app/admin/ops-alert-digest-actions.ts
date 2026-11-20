@@ -6,6 +6,8 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import {
   OPS_ALERT_DIGEST_CATEGORIES,
+  OPS_ALERT_DIGEST_MAX_DELAY_HOURS,
+  OPS_ALERT_DIGEST_MIN_DELAY_HOURS,
   OPS_ALERT_DIGEST_RECIPIENT_LIMIT,
   isOpsAlertDigestDelayHours,
   opsAlertDigestErrorMessage,
@@ -34,7 +36,7 @@ export async function saveOpsAlertDigestAction(input: {
     if (!await requireAdminActionAccess(SYSTEM_HEALTH_PATH, ACCESS)) return { ok: false, error: FORBIDDEN };
     if (!input || typeof input.enabled !== 'boolean' || typeof input.recipients !== 'string' || !isOpsAlertDigestDelayHours(input.delayHours)
       || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 1) {
-      return { ok: false, error: '받는 주소와 답변 지연 기준 시간을 확인해주세요.' };
+      return { ok: false, error: `받는 주소(최대 ${OPS_ALERT_DIGEST_RECIPIENT_LIMIT}개)와 답변 지연 기준 시간(${OPS_ALERT_DIGEST_MIN_DELAY_HOURS}~${OPS_ALERT_DIGEST_MAX_DELAY_HOURS}시간, 정수)을 확인한 뒤 다시 저장해주세요.` };
     }
     const categories = Array.isArray(input.categories)
       ? OPS_ALERT_DIGEST_CATEGORIES.filter((category) => input.categories.includes(category)) : [];
@@ -55,7 +57,7 @@ export async function saveOpsAlertDigestAction(input: {
     });
     if (error) return { ok: false, error: opsAlertDigestErrorMessage(error) };
     const settings = parseOpsAlertDigestSettings(data);
-    if (!settings) return { ok: false, error: '저장 결과를 확인하지 못했습니다. 새로고침해 확인해주세요.' };
+    if (!settings) return { ok: false, error: '저장됐을 수 있지만 결과를 읽지 못했습니다. 새로고침해 설정이 바뀌었는지 확인하고, 바뀌지 않았으면 다시 저장해주세요.' };
     revalidatePath(SYSTEM_HEALTH_PATH);
     return { ok: true, settings };
   } catch (error) {

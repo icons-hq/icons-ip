@@ -277,13 +277,13 @@ export function memberWithdrawalConfirmMessage(inquiry: MemberWithdrawalInquiry)
   const warning = isRestrictedMemberInquiryCategory(inquiry.category)
     ? ''
     : `주의: 이 문의는 '계정' 유형이 아닙니다(${inquiryCategoryLabel(inquiry.category)}). 탈퇴를 요청한 문의가 맞는지 다시 확인해주세요.\n\n`;
-  return `${warning}${summary}\n\n이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지우고 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 위 문의의 탈퇴 요청을 처리할까요?`;
+  return `${warning}${summary}\n\n이 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의 등을 지웁니다. 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤, 모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 위 문의의 탈퇴 요청을 처리할까요?`;
 }
 
 /** 카카오 알림으로 처리하기 직전의 확인 문구. */
 export function kakaoUnlinkWithdrawalConfirmMessage(unlink: KakaoUnlinkSummary): string {
   return `카카오 연결 해제 알림 · ${kakaoUnlinkReasonLabel(unlink.reason)} · ${formatInquiryDateTime(unlink.eventAt)} 수신\n\n`
-    + '이 회원은 카카오로만 가입해 다시 로그인할 수 없습니다. 이 알림을 근거로 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의·카카오 로그인 연결 등을 지우고 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤 '
+    + '이 회원은 카카오로만 가입해 다시 로그인할 수 없습니다. 이 알림을 근거로 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의·카카오 로그인 연결 등을 지웁니다. 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤, '
     + '모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 탈퇴를 처리할까요?';
 }
 

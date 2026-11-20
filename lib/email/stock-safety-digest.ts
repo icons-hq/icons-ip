@@ -46,7 +46,7 @@ export function renderStockSafetyDigestEmail(job: StockSafetyDigestJobContent, s
   const rest = Math.max(0, job.itemCount - job.items.length);
   const intro = origin
     ? `${job.originNames.join(', ') || '출고지'}에서 출고하는 ICONS 상품 중 재고수량이 안전재고 기준 이하인 옵션입니다. 실재고 확인과 입고 일정 공유를 부탁드립니다.`
-    : '재고수량이 안전재고 기준 이하인 옵션입니다. 재고수량은 ICONS에서 판매할 수 있는 할당 재고이며 주문을 받으면 줄어듭니다.';
+    : '재고수량이 안전재고 기준 이하인 옵션입니다. 재고수량은 ICONS에서 판매할 수 있는 수량이며 주문을 받으면 줄어듭니다.';
   const adminUrl = `${siteUrl}${RECONCILE_PATH}`;
   const lines = job.items.map((item) => itemLine(item, withOrigin));
   const footer = '이 메일은 ICONS 어드민의 안전재고 요약 메일 설정에 따라 하루 한 번 보냅니다. 받지 않으려면 ICONS 운영 담당자에게 알려주세요.';

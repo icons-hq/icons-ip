@@ -54,7 +54,7 @@ async function verificationWait(actorId: string) {
     .gte('processing_started_at', new Date(Date.now() - 60000).toISOString())
     .order('processing_started_at')
     .limit(ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE);
-  if (error) throw new Error('이미지 검증 상태를 읽지 못했습니다.');
+  if (error) throw new Error('이미지 확인 상태를 읽지 못했습니다.');
   return (data?.length ?? 0) >= ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE
     ? Math.max(
         1000,
@@ -141,7 +141,7 @@ async function promoteImage(
         await rejectAdminArtworkUpload({ actorId: batch.actor_id, path });
         return { retryAfter: retry };
       }
-      throw new Error('이미지 크기·형식·내용을 확인해주세요.');
+      throw new Error('이미지를 확인하지 못했습니다. 파일 형식(JPEG·PNG·WebP)과 크기가 규격에 맞는지 확인한 뒤 상품 편집에서 직접 올려주세요.');
     }
     await save(promoted.imagePath);
     return { done: true };
@@ -244,7 +244,7 @@ export async function prefetchGoodsImportImages(
         continue;
       }
       const label = IMAGE_LABELS[image.field] ?? `추가 이미지 ${Number(image.field.split('_')[1]) + 1}`;
-      group.warnings.push(`${label}: ${result.error} 이 이미지는 빼고 초안을 만듭니다. 상품 편집에서 올려 주세요.`);
+      group.warnings.push(`${label}: ${result.error} 이 이미지는 빼고 상품을 저장합니다. 상품 편집에서 직접 올려 주세요.`);
       dropGoodsImportImage(group, image.field);
     }
   }

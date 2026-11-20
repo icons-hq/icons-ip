@@ -2,6 +2,12 @@
 begin;
 -- 10/14 회의 A3b·D7: 무통장 입금코드는 16자리 주문번호에서 만든다. 전부 합성 롤백 데이터다.
 
+-- 0) 전환 시각을 KST 오전 고정 시각으로 둔다(롤백된다). migration이 기록한 실제 적용 시각은 CI에서 '지금'이라,
+--    KST 21시 뒤에 돌면 6-1)의 전환 뒤 주문(+30분·+3시간)이 자정을 넘어 다음 날 첫 주문이 된다. 그날 10일 주기 자리가 0이면
+--    코드가 000001이 되어 7)의 공유 코드와 겹치고 "코드가 같은 주문만 찾는다"가 시각 따라 깨졌다(2026-11-19 21:33 KST 재현).
+--    고른 날(2026-10-27)의 주기 자리 6은 7)의 공유 코드(0)·전날 주문(9)과 겹치지 않는다.
+update private.bank_transfer_deposit_code_switch set switched_at=timestamptz '2026-10-27 10:00:00+09';
+
 -- 1) TS bankTransferDepositCode와 같은 벡터(lib/payments/bank-transfer.test.ts).
 select 1/case when array[
   private.bank_transfer_deposit_code_for_number('2026102710000001'),private.bank_transfer_deposit_code_for_number('2026102810123456'),

@@ -51,7 +51,7 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.shipment.status_updated': '배송 건 상태 변경', 'admin.shipment.tracking_updated': '배송 건 운송장 수정',
   'admin.shipment.extra_tracking_added': '추가 운송장 등록', 'admin.shipment.extra_tracking_removed': '추가 운송장 삭제',
   'system.shipment.tracking_delivered': '배송완료 (택배 추적 자동)',
-  'order.preorder_stock_allocated': '예약 재고 할당', 'order.preorder_capacity_released': '예약 물량 해제',
+  'order.preorder_stock_allocated': '예약 입고 확인', 'order.preorder_capacity_released': '예약 물량 해제',
   'admin.shipment.preorder_promise_changed': '예약 발송 일정 변경',
   'admin.shipment.delivery_method_selected': '배송 방식 변경', 'admin.shipment.delivery_evidence_recorded': '인계·수령 근거 기록',
   'admin.order.forced_delivered': '강제 배송완료',
