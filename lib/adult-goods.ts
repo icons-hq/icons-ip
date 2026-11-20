@@ -12,6 +12,18 @@
 
 export type AdultGoodsAccess = 'hidden' | 'masked' | 'full';
 
+export interface AdultGoodsVisibility {
+  enabled: boolean;
+  revision: number;
+}
+
+export function parseAdultGoodsVisibility(value: unknown): AdultGoodsVisibility | null {
+  if (!value || typeof value !== 'object' || !('enabled' in value) || !('revision' in value)) return null;
+  const { enabled, revision } = value;
+  if (typeof enabled !== 'boolean' || typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1) return null;
+  return { enabled, revision };
+}
+
 /** 가림 카드와 인증 안내에 쓰는 고객 표기(CONTEXT.md "성인 상품"). */
 export const ADULT_GOOD_LABEL = '19금 굿즈';
 
