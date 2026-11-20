@@ -124,6 +124,15 @@ export const STORE_SETTINGS_TOPIC: AdminGuideTopic = {
       ],
     },
     {
+      id: 'adult-goods-visibility',
+      heading: '성인(19금) 상품 공개 설정',
+      paragraphs: [
+        '판매자 정보 → 기능 공개 관리에서 [19 표시로 노출] 또는 [모든 고객에게 숨김]을 누르면 바로 저장됩니다.',
+        '19 표시로 노출하면 인증 전에는 상품 이름과 사진을 가리고, 성인 인증을 마친 고객만 상세를 열 수 있습니다. 모든 고객에게 숨기면 인증한 고객도 목록·검색·상세에서 상품을 볼 수 없고 새로 구매할 수 없습니다.',
+      ],
+      screens: [{ href: '/admin/settings/features', note: '통합·계정 주매니저가 설정합니다.' }],
+    },
+    {
       id: 'collectible-features',
       heading: '운영하지 않는 기능 숨기기(카드 바인더·굿즈 마켓·카드 트레이드)',
       paragraphs: [
