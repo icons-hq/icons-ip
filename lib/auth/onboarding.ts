@@ -216,7 +216,7 @@ export function authSignUpErrorMessage(error: AuthErrorLike | null | undefined):
 }
 
 /*
- * 가입 확인 6자리 코드 검증 실패(1014-004). GoTrue는 틀린 코드와 만료된 코드를 같은 otp_expired로 돌려주므로
+ * 가입 확인 코드 검증 실패(1014-004). GoTrue는 틀린 코드와 만료된 코드를 같은 otp_expired로 돌려주므로
  * 두 경우를 한 문장으로 말한다. 자세한 실패 사유는 이용자에게 보이지 않는다.
  */
 export function signupCodeErrorMessage(error: AuthErrorLike | null | undefined): string {
