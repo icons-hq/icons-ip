@@ -100,8 +100,8 @@ on conflict (id) do update set
 insert into public.ips (id, title, vertical_key)
 values ('order-ladder-ip', '주문 사다리 IP', 'character');
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('order-ladder-goods', 'order-ladder-ip', '사다리 굿즈', '문구', 10000, 'ok', 20);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
+values ('order-ladder-goods', 'order-ladder-ip', '사다리 굿즈', 10000, 'ok', 20);
 
 insert into public.orders (
   id, user_id, status, total, address, expires_at, shipped_at, delivered_at
@@ -159,8 +159,8 @@ values
   );
 
 -- 상태뿐 아니라 실제 주문 품목과 배송 수량을 가진 주문으로 검증한다.
-insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-select o.id,'order-ladder-goods',1,10000,'사다리 굿즈','문구','order-ladder-ip',
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+select o.id,'order-ladder-goods',1,10000,'사다리 굿즈','order-ladder-ip',
   (select id from public.goods_variants where good_id='order-ladder-goods' and is_default)
 from public.orders o where o.user_id='00000000-0000-4000-8000-000000000901'
   and not exists(select 1 from public.order_items i where i.order_id=o.id);
@@ -571,8 +571,8 @@ values (
 on conflict (id) do nothing;
 
 -- 상태뿐 아니라 실제 주문 품목과 배송 수량을 가진 주문으로 검증한다.
-insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-select o.id,'order-ladder-goods',1,10000,'사다리 굿즈','문구','order-ladder-ip',
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+select o.id,'order-ladder-goods',1,10000,'사다리 굿즈','order-ladder-ip',
   (select id from public.goods_variants where good_id='order-ladder-goods' and is_default)
 from public.orders o where o.user_id='00000000-0000-4000-8000-000000000901'
   and not exists(select 1 from public.order_items i where i.order_id=o.id);

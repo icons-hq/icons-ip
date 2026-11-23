@@ -18,14 +18,14 @@ insert into private.operator_memberships(profile_id,manager_role) values(pg_temp
 update private.operator_access_state set configured=true where id;
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after) select pg_temp.ho_id(n+100),pg_temp.ho_id(n),now(),now(),now()+interval '1 hour' from generate_series(1,3)n;
 insert into public.ips(id,title,vertical_key,published_at) values('helpful-owner-ip','TEST 도움 소유자 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('helpful-owner-good','helpful-owner-ip','TEST 도움 소유자 상품','문구',10000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('helpful-owner-good','helpful-owner-ip','TEST 도움 소유자 상품',10000,'ok',10);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  values(('47c47700'||left(md5('helpful-owner-good'),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5('helpful-owner-good')||'@example.test',now(),'{"testFixture":"goods-kc"}','{}');
 insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('helpful-owner-good'),24))::uuid,'primary');
 select pg_temp.publish_goods_kc_fixture('helpful-owner-good');
 insert into public.orders(id,user_id,status,total,address,delivered_at) values(pg_temp.ho_id(201),pg_temp.ho_id(2),'delivered',10000,'{}',now()-interval '1 day'),(pg_temp.ho_id(202),pg_temp.ho_id(2),'canceled',10000,'{}',null);
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ho_id(201),'helpful-owner-good',id,1,10000,'TEST 도움 소유자 상품','문구','helpful-owner-ip' from public.goods_variants where good_id='helpful-owner-good' and is_default;
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ho_id(201),'helpful-owner-good',id,1,10000,'TEST 도움 소유자 상품','helpful-owner-ip' from public.goods_variants where good_id='helpful-owner-good' and is_default;
 insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key)
  values(pg_temp.ho_id(401),pg_temp.ho_id(2),'order',pg_temp.ho_id(201),'korpay',10000,'paid','helpful-owner-payment');
 insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)

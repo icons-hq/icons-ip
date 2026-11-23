@@ -9,9 +9,9 @@ update public.profiles set nickname='home_rank_user' where id='00000000-0000-400
 insert into public.ips(id,title,vertical_key,published_at) values
  ('home-ranking-ip','홈 자동 선정 검증','character',now()),
  ('home-ranking-draft-ip','초안 IP 검증','character',null);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,sale_restriction,created_at)
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,sale_restriction,created_at)
 select 'home-rank-'||key,case when key='draft-ip' then 'home-ranking-draft-ip' else 'home-ranking-ip' end,
- '집계 검증 '||key,'문구',1000,case when key='soldout' then 'soldout' else 'ok' end,100,
+ '집계 검증 '||key,1000,case when key='soldout' then 'soldout' else 'ok' end,100,
  null,
  (case when key='restricted' then 'adult' else 'none' end)::public.goods_sale_restriction,
  now()-interval '40 days'
@@ -48,8 +48,8 @@ begin
  insert into public.orders(id,user_id,status,total,address,created_at,payment_method)
  values(purchase,'00000000-0000-4000-8000-000000013002',order_state,quantity::bigint*1000,'{}',now()-interval '90 days',
    case when bank then 'bank_transfer'::public.order_payment_method else 'card'::public.order_payment_method end);
- insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select purchase,'home-rank-'||good_key,id,quantity,1000,'합성 집계 상품','문구','home-ranking-ip'
+ insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select purchase,'home-rank-'||good_key,id,quantity,1000,'합성 집계 상품','home-ranking-ip'
  from public.goods_variants where good_id='home-rank-'||good_key and is_default;
  insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key)
  values(payment,'00000000-0000-4000-8000-000000013002','order',purchase,

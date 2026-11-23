@@ -88,13 +88,13 @@ create function pg_temp.wsr_order(n integer,origins integer[],exported boolean d
 language plpgsql as $$
 declare oid uuid:=pg_temp.wsr_id('order',n);item uuid;k integer;sid uuid;
 begin
- insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('wsr-goods-'||n,'wsr-ip','TEST 창고 회신 굿즈 '||n,'문구',10000,'ok',10);
+ insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('wsr-goods-'||n,'wsr-ip','TEST 창고 회신 굿즈 '||n,10000,'ok',10);
  insert into public.orders(id,user_id,status,total,address,confirmed_at) values(oid,pg_temp.wsr_id('user',2),status,10000*cardinality(origins),
   jsonb_build_object('recipientName','TEST 수령인 '||n,'phone','010000000'||lpad(n::text,2,'0'),'postalCode','12345','address1','합성 주소 '||n),now()-interval '2 hours');
  for k in 1..cardinality(origins) loop
   sid:=pg_temp.wsr_id('shipment-'||n,k);
-  insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-   values(oid,'wsr-goods-'||n,1,10000,'TEST 창고 회신 굿즈 '||n,'문구','wsr-ip',(select id from public.goods_variants where good_id='wsr-goods-'||n and is_default))
+  insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+   values(oid,'wsr-goods-'||n,1,10000,'TEST 창고 회신 굿즈 '||n,'wsr-ip',(select id from public.goods_variants where good_id='wsr-goods-'||n and is_default))
    returning id into item;
   insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,exported_at)
    values(sid,oid,pg_temp.wsr_id('origin',origins[k]),'TEST 출고지 '||origins[k],0,'{}',

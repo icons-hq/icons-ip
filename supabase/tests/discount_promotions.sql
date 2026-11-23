@@ -17,15 +17,15 @@ insert into private.operator_memberships(profile_id,manager_role) values('b92000
 update private.operator_access_state set configured=true where id;
 insert into auth.sessions(id,user_id,created_at,updated_at) values('b9200000-0000-4000-8000-000000000011','b9200000-0000-4000-8000-000000000001',now(),now());
 insert into public.ips(id,title,vertical_key) values('promo-ip-main','TEST 프로모션 IP','character'),('promo-ip-other','TEST 프로모션 다른 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values
- ('promo-a','promo-ip-main','TEST 프로모션 A','문구',10000,'ok',10),
- ('promo-b','promo-ip-main','TEST 프로모션 B 옵션','문구',20000,'ok',10),
- ('promo-c','promo-ip-main','TEST 프로모션 C 저가','문구',900,'ok',10),
- ('promo-d','promo-ip-main','TEST 프로모션 D 겹침','문구',10000,'ok',10),
- ('promo-e','promo-ip-main','TEST 프로모션 E 나중 개별할인','문구',10000,'ok',10),
- ('promo-f','promo-ip-main','TEST 프로모션 F 보관','문구',10000,'ok',0),
- ('promo-g','promo-ip-main','TEST 프로모션 G 제외','문구',10000,'ok',10),
- ('promo-x','promo-ip-other','TEST 프로모션 X 밖','문구',10000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values
+ ('promo-a','promo-ip-main','TEST 프로모션 A',10000,'ok',10),
+ ('promo-b','promo-ip-main','TEST 프로모션 B 옵션',20000,'ok',10),
+ ('promo-c','promo-ip-main','TEST 프로모션 C 저가',900,'ok',10),
+ ('promo-d','promo-ip-main','TEST 프로모션 D 겹침',10000,'ok',10),
+ ('promo-e','promo-ip-main','TEST 프로모션 E 나중 개별할인',10000,'ok',10),
+ ('promo-f','promo-ip-main','TEST 프로모션 F 보관',10000,'ok',0),
+ ('promo-g','promo-ip-main','TEST 프로모션 G 제외',10000,'ok',10),
+ ('promo-x','promo-ip-other','TEST 프로모션 X 밖',10000,'ok',10);
 update public.goods set code='PROMO-CODE-B' where id='promo-b';
 update public.goods set archived_at=now() where id='promo-f';
 insert into public.goods_variants(id,good_id,name,price,stock_qty,sort_order) values('b9200000-0000-4000-8000-0000000000b2','promo-b','큰 사이즈',25000,5,1);
@@ -199,7 +199,7 @@ select pg_temp.promo_assert(public.admin_get_discount_promotion('b9200000-0000-4
 --     할인까지 끈다(1014-109·110 묶음 단위 중지). 원상품에서 나간 옵션의 원래 행은 전환이 끄고 출처는 그대로다.
 reset role;
 insert into public.ips(id,title,vertical_key) values('promo-ip-group','TEST 프로모션 그룹 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('promo-h','promo-ip-group','TEST 프로모션 H 그룹 전환','문구',10000,'ok',4);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('promo-h','promo-ip-group','TEST 프로모션 H 그룹 전환',10000,'ok',4);
 insert into public.goods_variants(id,good_id,name,attributes,price,stock_qty,sort_order,is_default)
 values('b9200000-0000-4000-8000-0000000000c2','promo-h','파랑','{"색상":"파랑"}',12000,3,1,false);
 select id as h_first_variant from public.goods_variants where good_id='promo-h' and is_default \gset

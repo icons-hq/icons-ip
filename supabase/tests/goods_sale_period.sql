@@ -42,7 +42,7 @@ select public.service_prepare_admin_artwork_upload('a5e06400-0000-4000-8000-0000
 select public.service_begin_admin_artwork_verification('a5e06400-0000-4000-8000-000000000001','catalog/good/a5e06400-0000-4000-8000-000000000099.webp');
 select public.service_verify_admin_artwork_upload('a5e06400-0000-4000-8000-000000000001','catalog/good/a5e06400-0000-4000-8000-000000000099.webp',100);
 select set_config('request.jwt.claim.sub','a5e06400-0000-4000-8000-000000000001',true);
-update public.goods set type='문구',image_path='public-media/catalog/good/a5e06400-0000-4000-8000-000000000099.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='합성 CS',notice_as_contact='02-0000' where id='sale-period-good';
+update public.goods set image_path='public-media/catalog/good/a5e06400-0000-4000-8000-000000000099.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='합성 CS',notice_as_contact='02-0000' where id='sale-period-good';
 select set_config('request.jwt.claim.sub','',true);
 select pg_temp.publish_goods_kc_fixture('sale-period-good');
 select 1/case when (select available_qty from private.resolve_goods_variant_supply(:'variant',now()-interval '1 hour'))=20

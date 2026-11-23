@@ -18,8 +18,8 @@ insert into private.operator_memberships(profile_id,manager_role) values
  ('87000000-0000-4000-8000-000000000005','logistics');
 insert into public.ips(id,title,vertical_key,published_at)
 select 'story-test-ip','스토리 합성 IP',key,now() from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-select 'story-test-'||lpad(n::text,3,'0'),'story-test-ip','스토리 합성 상품 '||lpad(n::text,3,'0'),'문구',1000,'ok',10,null
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
+select 'story-test-'||lpad(n::text,3,'0'),'story-test-ip','스토리 합성 상품 '||lpad(n::text,3,'0'),1000,'ok',10,null
 from generate_series(1,301)n;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 select ('47c47700'||left(md5(good_id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(good_id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}',now(),now()

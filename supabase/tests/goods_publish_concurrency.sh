@@ -70,8 +70,8 @@ update public.profiles set nickname='ip_purchase_race',birth_date='2000-01-01',
 update public.profiles set role='admin' where id='${admin_id}';
 insert into public.verticals(key,label,color) values ('goods-publish-race','게시 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('goods-publish-race','게시 경합','goods-publish-race',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact)
-values ('goods-publish-race','goods-publish-race','게시 경합 상품','문구',12000,'ok',10,null,'public-media/goods-race.webp','제조사','한국','종이','A5','2026-09','CS','02-000-0000');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact)
+values ('goods-publish-race','goods-publish-race','게시 경합 상품',12000,'ok',10,null,'public-media/goods-race.webp','제조사','한국','종이','A5','2026-09','CS','02-000-0000');
 select pg_temp.publish_goods_kc_fixture('goods-publish-race');
 insert into public.cart_items(user_id,good_id,qty, variant_id) values ('${user_id}','goods-publish-race',1, (select id from public.goods_variants where good_id='goods-publish-race' and is_default));
 SQL

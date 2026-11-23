@@ -12,9 +12,9 @@ update public.profiles set role='staff' where id::text like '94000000-0000-4000-
 insert into private.operator_memberships(profile_id,manager_role) values('94000000-0000-4000-8000-000000000001','primary'),('94000000-0000-4000-8000-000000000002','deputy'),('94000000-0000-4000-8000-000000000003','logistics');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('after-sales-content-ip','A/S 검증 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,notice_as_contact,notice_as_manager) values
- ('after-sales-content-good','after-sales-content-ip','A/S 검증 합성 상품','문구',1000,'법정 고시 연락처','법정 고시 책임자'),
- ('after-sales-content-empty','after-sales-content-ip','A/S 없는 합성 상품','문구',1000,null,null);
+insert into public.goods(id,ip_id,name,price,notice_as_contact,notice_as_manager) values
+ ('after-sales-content-good','after-sales-content-ip','A/S 검증 합성 상품',1000,'법정 고시 연락처','법정 고시 책임자'),
+ ('after-sales-content-empty','after-sales-content-ip','A/S 없는 합성 상품',1000,null,null);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id='after-sales-content-good';
 update public.profiles set role='staff' where id=(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id='after-sales-content-good');

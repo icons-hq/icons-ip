@@ -34,10 +34,10 @@ insert into private.operator_memberships(profile_id, manager_role) values (pg_te
 insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
  select pg_temp.pc_id('origin', n), 'partial-cancel-origin-'||n, 'TEST 부분취소 출고지 '||n, 'hanjin', 3000, 'TEST 반품 주소', true from generate_series(1, 2) n;
 insert into public.ips(id, title, vertical_key) values ('partial-cancel-ip', 'TEST 부분취소 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id) values
- ('partial-cancel-a', 'partial-cancel-ip', 'TEST 품절 상품 A', '문구', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
- ('partial-cancel-b', 'partial-cancel-ip', 'TEST 남는 상품 B', '문구', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
- ('partial-cancel-c', 'partial-cancel-ip', 'TEST 다른 출고지 상품 C', '문구', 5000, 'ok', 10, pg_temp.pc_id('origin', 2));
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id) values
+ ('partial-cancel-a', 'partial-cancel-ip', 'TEST 품절 상품 A', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
+ ('partial-cancel-b', 'partial-cancel-ip', 'TEST 남는 상품 B', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
+ ('partial-cancel-c', 'partial-cancel-ip', 'TEST 다른 출고지 상품 C', 5000, 'ok', 10, pg_temp.pc_id('origin', 2));
 create function pg_temp.pc_stock(good text) returns integer language sql as $$
  select stock_qty from public.goods_variants where good_id = good and is_default$$;
 
@@ -57,9 +57,9 @@ begin
    (case when provider = 'bank_transfer' then 'bank_transfer' else 'card' end)::public.order_payment_method,
    case when n = 2 then '2031-04-01T03:00:00Z'::timestamptz else '2031-03-01T03:00:00Z'::timestamptz end,
    case when initial = 'confirmed' then clock_timestamp() - interval '1 hour' end);
- insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot)
  select pg_temp.pc_id('item-'||g.id, n), pg_temp.pc_id('order', n), g.id, v.id, case when g.id = 'partial-cancel-a' then 2 else 1 end, g.price,
-   g.name, '문구', 'partial-cancel-ip'
+   g.name, 'partial-cancel-ip'
  from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id like 'partial-cancel-%';
  if version = 2 then
   -- 버전 2 주문은 거래 계약 묶음이 있어야 품목을 넣을 수 있다. 합성 주문은 품목을 넣은 뒤 버전을 올린다(배분 원장만 쓴다).
@@ -733,8 +733,8 @@ select pg_temp.pc_assert((select state = 'rejected' and applied_at is null and r
  and exists(select 1 from public.audit_log where action = 'admin.order.partial_cancellation_resolved' and diff->>'resolution' = 'not_moved'
    and diff->>'partialCancellationId' = (pg_temp.pc_head(32)).id::text), 'not_moved_changes_nothing_but_closes');
 -- 그 사이 C가 D로 재고 승계됐다(상품 통합). 수량 단위 복원이 막히므로 해소는 승계를 따라 지금의 실물 옵션(D)에 되돌린다.
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id)
- values ('partial-cancel-d', 'partial-cancel-ip', 'TEST 통합 대상 상품 D', '문구', 5000, 'ok', 10, pg_temp.pc_id('origin', 2));
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id)
+ values ('partial-cancel-d', 'partial-cancel-ip', 'TEST 통합 대상 상품 D', 5000, 'ok', 10, pg_temp.pc_id('origin', 2));
 insert into private.goods_group_operations(operation_id, actor_id, session_id, command, request_hash)
  values (pg_temp.pc_id('goods-op', 1), pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1), 'convert', repeat('a', 64));
 insert into private.goods_stock_successors(source_variant_id, source_good_id, target_variant_id, target_good_id, operation_id, moved_qty, actor_id)
@@ -818,9 +818,9 @@ begin
    (case when provider = 'bank_transfer' then 'bank_transfer' else 'card' end)::public.order_payment_method,
    case when n = 2 then '2031-04-01T03:00:00Z'::timestamptz else '2031-03-01T03:00:00Z'::timestamptz end,
    case when initial = 'confirmed' then clock_timestamp() - interval '1 hour' end);
- insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot)
  select pg_temp.pc_id('item-'||g.id, n), pg_temp.pc_id('order', n), g.id, v.id, case when g.id = 'partial-cancel-a' then 2 else 1 end, g.price,
-   g.name, '문구', 'partial-cancel-ip'
+   g.name, 'partial-cancel-ip'
  from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id in ('partial-cancel-a','partial-cancel-b');
  if version = 2 then
   -- 버전 2 주문은 거래 계약 묶음이 있어야 품목을 넣을 수 있다. 합성 주문은 품목을 넣은 뒤 버전을 올린다(배분 원장만 쓴다).

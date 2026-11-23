@@ -84,7 +84,7 @@ select id as variant_c from public.goods_variants where code='MASK-C' \gset
 select id as neighbor_variant from public.goods_variants where code='MASK-N' \gset
 select 1/case when exists(select 1 from public.goods_variants where id=:'variant_a' and is_default) then 1 else 0 end as assert_a_is_cart_key;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/random-mask-fixture.webp',
+update public.goods set image_path='public-media/random-mask-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000163030'
  where id in ('random-mask','random-mask-neighbor');

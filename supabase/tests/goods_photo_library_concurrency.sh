@@ -69,7 +69,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000713111',true);
 select :'race_case'='attach' as attach_first \gset
 \if :attach_first
-select public.admin_save_good('{"id":"photo-library-race-good","ip_id":"photo-library-race","name":"경합 상품","type":"문구","price":1000,"image_path":"public-media/catalog/good/00000000-0000-4000-8000-000000713112.webp"}');
+select public.admin_save_good('{"id":"photo-library-race-good","ip_id":"photo-library-race","name":"경합 상품","price":1000,"image_path":"public-media/catalog/good/00000000-0000-4000-8000-000000713112.webp"}');
 \else
 select public.admin_save_goods_photo('00000000-0000-4000-8000-000000713113','public-media/catalog/good/00000000-0000-4000-8000-000000713112.webp','경합 사진',1,true);
 \endif
@@ -100,7 +100,7 @@ select :'race_case'='attach' as attach_first \gset
 \if :attach_first
 select public.admin_save_goods_photo('00000000-0000-4000-8000-000000713113','public-media/catalog/good/00000000-0000-4000-8000-000000713112.webp','경합 사진',1,true);
 \else
-select public.admin_save_good('{"id":"photo-library-race-good","ip_id":"photo-library-race","name":"경합 상품","type":"문구","price":1000,"image_path":"public-media/catalog/good/00000000-0000-4000-8000-000000713112.webp"}');
+select public.admin_save_good('{"id":"photo-library-race-good","ip_id":"photo-library-race","name":"경합 상품","price":1000,"image_path":"public-media/catalog/good/00000000-0000-4000-8000-000000713112.webp"}');
 \endif
 commit;
 SQL

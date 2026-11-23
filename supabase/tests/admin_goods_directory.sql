@@ -6,8 +6,8 @@ values ('00000000-0000-4000-8000-000000041301','authenticated','authenticated','
 update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000041301';
 insert into public.verticals(key,label,color) values ('goods-list','상품 목록','#000000');
 insert into public.ips(id,title,vertical_key) values ('goods-list','상품 목록','goods-list');
-insert into public.goods(id,code,ip_id,name,type,price,stock)
-select 'goods-list-'||lpad(n::text,4,'0'),'LIST-'||lpad(n::text,4,'0'),'goods-list','목록 상품 '||n,'키링',1000,'ok'
+insert into public.goods(id,code,ip_id,name,price,stock)
+select 'goods-list-'||lpad(n::text,4,'0'),'LIST-'||lpad(n::text,4,'0'),'goods-list','목록 상품 '||n,1000,'ok'
 from generate_series(1,1000)n;
 update public.goods set name='문자 %_ 검색' where id='goods-list-0999';
 update public.goods_variants set code='WAREHOUSE-EXACT-1000' where good_id='goods-list-1000' and is_default;

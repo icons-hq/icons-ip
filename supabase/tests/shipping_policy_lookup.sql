@@ -16,8 +16,8 @@ update public.profiles set nickname='shipping_policy_buyer',birth_date='2000-01-
  consents='{"terms":true,"privacy":true}',onboarded_at=now() where id='00000000-0000-4000-8000-000000043801';
 insert into public.verticals(key,label,color) values ('shipping-policy','배송 정책','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('shipping-policy','배송 정책','shipping-policy',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,allow_bank_transfer,published_at)
- values ('shipping-policy','shipping-policy','배송 정책 상품','문구',49999,'ok',10,true,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,allow_bank_transfer,published_at)
+ values ('shipping-policy','shipping-policy','배송 정책 상품',49999,'ok',10,true,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('shipping-policy');
 

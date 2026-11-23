@@ -6,9 +6,9 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) v
 update public.profiles set role='staff' where id='71000000-0000-4000-8000-000000000001';
 insert into public.ips(id,title,vertical_key,published_at) values
  ('review-insights-qa-ip','리뷰 통계 검증','character',now()),('review-insights-qa-private','비공개 통계 제외','character',null);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
 select 'review-insights-qa-'||key,case when key='private' then 'review-insights-qa-private' else 'review-insights-qa-ip' end,
-  case when key='a' then '사진 100% 아닌 상품' else '검수 상품 '||key end,'문구',1000,'ok',100,null
+  case when key='a' then '사진 100% 아닌 상품' else '검수 상품 '||key end,1000,'ok',100,null
 from unnest(array['a','b','empty','draft','private','adult']||array(select 'page-'||i from generate_series(1,21) i)) key;
 select pg_temp.publish_goods_kc_fixture(id) from public.goods where id like 'review-insights-qa-%' and id<>'review-insights-qa-draft';
 update public.goods set sale_restriction='adult' where id='review-insights-qa-adult';
@@ -17,14 +17,14 @@ insert into public.orders(id,user_id,status,total,address,created_at,delivered_a
 select ('72000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'71000000-0000-4000-8000-000000000002','delivered',1000,'{}',
   :'day_start'::timestamptz-interval '150 days',case when n in (1,1002,1003,1006) then :'day_start'::timestamptz-interval '2 days' else :'day_start'::timestamptz-interval '91 days' end
 from generate_series(1,1006) n;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select '72000000-0000-4000-8000-000000000001','review-insights-qa-a',v.id,1,1000,'합성 A','문구','review-insights-qa-ip'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select '72000000-0000-4000-8000-000000000001','review-insights-qa-a',v.id,1,1000,'합성 A','review-insights-qa-ip'
 from public.goods_variants v cross join unnest(array['ALPHA','BETA']) value where v.good_id='review-insights-qa-a' and v.is_default;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select ('72000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'review-insights-qa-b',v.id,1,1000,'합성 B','문구','review-insights-qa-ip'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select ('72000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'review-insights-qa-b',v.id,1,1000,'합성 B','review-insights-qa-ip'
 from public.goods_variants v cross join generate_series(1002,1003) n where v.good_id='review-insights-qa-b' and v.is_default;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select '72000000-0000-4000-8000-000000001006','review-insights-qa-adult',v.id,1,1000,'합성 비노출 상품','문구','review-insights-qa-ip'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select '72000000-0000-4000-8000-000000001006','review-insights-qa-adult',v.id,1,1000,'합성 비노출 상품','review-insights-qa-ip'
 from public.goods_variants v where v.good_id='review-insights-qa-adult' and v.is_default;
 insert into public.reviews(user_id,good_id,order_id,rating,body,created_at,image_paths)
 select '71000000-0000-4000-8000-000000000002','review-insights-qa-a',('72000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,5,'행수 제한 없는 합성 리뷰',:'day_start'::timestamptz-interval '1 second',

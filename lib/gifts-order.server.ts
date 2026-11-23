@@ -35,8 +35,7 @@ export function parseGiftCheckoutOrder(value: unknown, orderId: string): GiftChe
     || receipt.display.totals.collectShippingTotal !== 0) return null;
   const items: CheckoutOrderItem[] = [], itemIds = new Set<string>();
   for (const item of row.items) {
-    /* 상품 유형 칸 삭제(ADR-0044) 배포 사이에는 DB가 옛 'type' 키를 아직 실을 수 있다. 값은 읽지 않고, 다음 정리 PR이 이 허용을 걷는다. */
-    if (!transactionRecord(item) || !(transactionExactKeys(item, GIFT_ORDER_ITEM_KEYS) || transactionExactKeys(item, [...GIFT_ORDER_ITEM_KEYS, 'type']) && typeof item.type === 'string')
+    if (!transactionRecord(item) || !transactionExactKeys(item, GIFT_ORDER_ITEM_KEYS)
       || !uuid(item.id) || itemIds.has(item.id) || !text(item.goodId, 200) || !uuid(item.variantId) || !nullableText(item.variantName) || !nullableText(item.variantCode)
       || !text(item.name) || !transactionInteger(item.qty, 1) || !transactionInteger(item.unitPrice)
       || item.supplySource !== 'stock' && item.supplySource !== 'preorder' || !date(item.preorderExpectedShipDate)) return null;

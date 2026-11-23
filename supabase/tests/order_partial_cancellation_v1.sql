@@ -35,10 +35,10 @@ insert into private.operator_memberships(profile_id, manager_role) values (pg_te
 insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
  select pg_temp.pv_id('origin', n), 'partial-cancel-v1-origin-'||n, 'TEST 버전1 출고지 '||n, 'hanjin', 3000, 'TEST 반품 주소', true from generate_series(1, 2) n;
 insert into public.ips(id, title, vertical_key) values ('partial-cancel-v1-ip', 'TEST 버전1 부분취소 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id) values
- ('partial-cancel-v1-a', 'partial-cancel-v1-ip', 'TEST 버전1 품절 상품 A', '문구', 10000, 'ok', 10, pg_temp.pv_id('origin', 1)),
- ('partial-cancel-v1-b', 'partial-cancel-v1-ip', 'TEST 버전1 남는 상품 B', '문구', 10000, 'ok', 10, pg_temp.pv_id('origin', 1)),
- ('partial-cancel-v1-c', 'partial-cancel-v1-ip', 'TEST 버전1 다른 출고지 상품 C', '문구', 5000, 'ok', 10, pg_temp.pv_id('origin', 2));
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id) values
+ ('partial-cancel-v1-a', 'partial-cancel-v1-ip', 'TEST 버전1 품절 상품 A', 10000, 'ok', 10, pg_temp.pv_id('origin', 1)),
+ ('partial-cancel-v1-b', 'partial-cancel-v1-ip', 'TEST 버전1 남는 상품 B', 10000, 'ok', 10, pg_temp.pv_id('origin', 1)),
+ ('partial-cancel-v1-c', 'partial-cancel-v1-ip', 'TEST 버전1 다른 출고지 상품 C', 5000, 'ok', 10, pg_temp.pv_id('origin', 2));
 insert into public.coupons(code, name, discount_type, discount_value, starts_at) values ('PCV1-ALL', 'TEST 버전1 전체 쿠폰', 'fixed', 1000, '2026-01-01');
 insert into public.coupons(code, name, discount_type, discount_value, starts_at, goods_scope, target_good_ids)
  values ('PCV1-AB', 'TEST 버전1 A·B 쿠폰', 'fixed', 1500, '2026-01-01', 'selected_goods', array['partial-cancel-v1-a', 'partial-cancel-v1-b']);
@@ -60,9 +60,9 @@ begin
    '2031-03-01T03:00:00Z'::timestamptz, case when initial = 'confirmed' then clock_timestamp() - interval '1 hour' end,
    (select jsonb_agg(jsonb_build_object('originId', pg_temp.pv_id('origin', o), 'originName', 'TEST 버전1 출고지 '||o, 'totalFee', 3000) order by o)
      from generate_series(1, 2) o));
- insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, regular_unit_price_snapshot, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, regular_unit_price_snapshot, good_name_snapshot, good_ip_id_snapshot)
  select pg_temp.pv_id('item-'||right(g.id, 1), n), pg_temp.pv_id('order', n), g.id, v.id, case when g.id = 'partial-cancel-v1-a' then 2 else 1 end, g.price,
-   case when g.id = 'partial-cancel-v1-a' then 12000 end, g.name, '문구', 'partial-cancel-v1-ip'
+   case when g.id = 'partial-cancel-v1-a' then 12000 end, g.name, 'partial-cancel-v1-ip'
  from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id like 'partial-cancel-v1-%';
  insert into public.order_shipments(id, order_id, origin_id, origin_name_snapshot, shipping_fee, shipping_fee_snapshot)
  select pg_temp.pv_id('shipment-'||o, n), pg_temp.pv_id('order', n), pg_temp.pv_id('origin', o), 'TEST 버전1 출고지 '||o, 3000,

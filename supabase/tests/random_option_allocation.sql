@@ -96,7 +96,7 @@ select id as variant_c from public.goods_variants where code='RANDOM-C' \gset
 select id as select_variant from public.goods_variants where code='RANDOM-N' \gset
 select 1/case when exists(select 1 from public.goods_variants where id=:'variant_a' and is_default) then 1 else 0 end as assert_first_option_is_cart_key;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/random-option-fixture.webp',
+update public.goods set image_path='public-media/random-option-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000162030'
  where id in ('random-main','select-main');
@@ -301,8 +301,8 @@ select pg_temp.expect_error($sql$update public.order_items set option_sale_mode_
  'order_item_option_sale_mode_immutable');
 
 -- 다른 경로가 랜덤 굿즈 행을 배정 없이 만들 수 없다(거래 런타임·선물·구독 차단).
-select pg_temp.expect_error(format($sql$insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot)
- values(%L,'random-main',%L,1,4000,'랜덤','문구')$sql$,:'random_order',:'variant_b'),'random_option_checkout_unsupported','23514');
+select pg_temp.expect_error(format($sql$insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot)
+ values(%L,'random-main',%L,1,4000,'랜덤')$sql$,:'random_order',:'variant_b'),'random_option_checkout_unsupported','23514');
 
 -- 전체 취소는 배정된 옵션으로 재고를 돌려준다.
 select public.finalize_order_cancellation_with_provider_evidence(:'random_order','합성 미결제 취소','{}');
@@ -353,7 +353,7 @@ reset role;
 select id as cart_a from public.goods_variants where code='RANDOM-CA' \gset
 select id as cart_b from public.goods_variants where code='RANDOM-CB' \gset
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/random-option-fixture.webp',
+update public.goods set image_path='public-media/random-option-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000162030'
  where id='random-cart';
@@ -423,7 +423,7 @@ select public.admin_save_good('{"id":"random-bulk","ip_id":"random-option-tests"
 reset role;
 select id as bulk_a from public.goods_variants where code='RANDOM-BA' \gset
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/random-option-fixture.webp',
+update public.goods set image_path='public-media/random-option-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000162030'
  where id='random-bulk';

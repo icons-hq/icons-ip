@@ -151,7 +151,7 @@ select public.admin_save_good(pg_temp.idp_payload('idp-live',20000,null,pg_temp.
 reset role;
 select set_config('request.jwt.claim.sub','',true);
 select set_config('request.jwt.claims','',true);
-update public.goods set type='문구',image_path='public-media/idp-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',
+update public.goods set image_path='public-media/idp-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',
  notice_size='A5',notice_made_on='2026-11',notice_as_manager='CS',notice_as_contact='02-000',origin_id='b9400000-0000-4000-8000-000000000030'
  where id in ('idp-main','idp-live');
 -- KC 합성 검토자도 운영자 멤버십이 있어야 한다(운영자 접근 설정이 켜진 DB).

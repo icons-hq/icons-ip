@@ -35,7 +35,7 @@ select 1 / case when exists(select 1 from public.goods_variants where id=:'sourc
 reset role;
 
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/three-axis-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='CS',notice_as_contact='02-000'
+update public.goods set image_path='public-media/three-axis-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='CS',notice_as_contact='02-000'
 where id='three-axis-source';
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000063201',true);
 select pg_temp.review_goods_kc_fixture('three-axis-source');

@@ -163,10 +163,10 @@ on conflict (id) do update set
 insert into public.ips (id, title, vertical_key, published_at)
 values ('bank-ip', '무통장 IP', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, allow_bank_transfer, published_at)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, allow_bank_transfer, published_at)
 values
-  ('bank-goods', 'bank-ip', '무통장 굿즈', '문구', 20000, 'ok', 10, true,null),
-  ('bank-blocked-goods', 'bank-ip', '한정 드롭 굿즈', '문구', 20000, 'ok', 5, false,null);
+  ('bank-goods', 'bank-ip', '무통장 굿즈', 20000, 'ok', 10, true,null),
+  ('bank-blocked-goods', 'bank-ip', '한정 드롭 굿즈', 20000, 'ok', 5, false,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('bank-goods');
 select pg_temp.publish_goods_kc_fixture('bank-blocked-goods');

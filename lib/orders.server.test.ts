@@ -532,7 +532,6 @@ describe('loadOrderDetail', () => {
           qty: 2,
           unit_price: 27000,
           good_name_snapshot: '아크릴 스탠드',
-          good_type_snapshot: '아크릴',
         }],
         payment_summaries: [{
           id: 'payment-2',
@@ -750,7 +749,7 @@ describe('loadOrderDetail', () => {
 it('1001행 주문을 고객 주문 상세와 주문 목록 수량 요약에서 모두 읽는다',async()=>{
   const records:QueryRecord[]=[];
   const rows={orders:[{id:orderId,user_id:userId,status:'paid',total:1001000,address:{},created_at:'2026-10-12T00:00:00Z',payment_method:'card'}],
-    order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',good_type_snapshot:'문구',variant_id:'00000000-0000-4000-8000-000000000001',
+    order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',variant_id:'00000000-0000-4000-8000-000000000001',
       custom_inputs_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'문구',value:`입력 ${index}`}]}}))};
   mocks.client=createClient({records,rows});
   const detail=await loadOrderDetail(userId,orderId);
@@ -761,14 +760,11 @@ it('1001행 주문을 고객 주문 상세와 주문 목록 수량 요약에서 
 
 describe('랜덤 판매 굿즈(D5②) 고객 은닉', () => {
   const randomRows = [
-    { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
-      good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', variant_name_snapshot: '배정옵션-비밀', variant_code_snapshot: 'SECRET-CODE',
+    { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', variant_name_snapshot: '배정옵션-비밀', variant_code_snapshot: 'SECRET-CODE',
       option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' },
-    { id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, good_id: 'random-good', qty: 1, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
-      good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000c', variant_name_snapshot: '다른배정-비밀', variant_code_snapshot: 'SECRET-CODE-2',
+    { id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, good_id: 'random-good', qty: 1, unit_price: 5000, good_name_snapshot: '랜덤 포토카드', variant_id: '00000000-0000-4000-8000-00000000000c', variant_name_snapshot: '다른배정-비밀', variant_code_snapshot: 'SECRET-CODE-2',
       option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' },
-    { id: '00000000-0000-4000-8000-0000000000a3', order_id: orderId, good_id: 'plain-good', qty: 1, unit_price: 3000, good_name_snapshot: '틴케이스',
-      good_type_snapshot: '문구', variant_id: '00000000-0000-4000-8000-00000000000d', variant_name_snapshot: '파랑', variant_code_snapshot: 'BLUE' },
+    { id: '00000000-0000-4000-8000-0000000000a3', order_id: orderId, good_id: 'plain-good', qty: 1, unit_price: 3000, good_name_snapshot: '틴케이스', variant_id: '00000000-0000-4000-8000-00000000000d', variant_name_snapshot: '파랑', variant_code_snapshot: 'BLUE' },
   ];
 
   it('주문 목록 요약은 직접 읽기에서 빠지는 랜덤 행까지 마스킹 RPC로 센다', async () => {
@@ -827,7 +823,7 @@ describe('loadOrderDetail lines·provider', () => {
 
   const baseRows = () => ({
     orders: [{ id: orderId, user_id: userId, status: 'paid', total: 54000, address: null, created_at: '2026-07-14T06:00:00.000Z', payment_method: 'card', calculation_version: 1 } as Record<string, unknown>],
-    order_items: [{ id: 'item-1', order_id: orderId, good_id: 'g1', variant_id: 'v1', variant_name_snapshot: '파랑', qty: 2, unit_price: 27000, good_name_snapshot: '아크릴 스탠드', good_type_snapshot: '아크릴' } as Record<string, unknown>],
+    order_items: [{ id: 'item-1', order_id: orderId, good_id: 'g1', variant_id: 'v1', variant_name_snapshot: '파랑', qty: 2, unit_price: 27000, good_name_snapshot: '아크릴 스탠드' } as Record<string, unknown>],
     goods: [{ id: 'g1', ip_id: 'ip-1', image_path: 'goods/a.webp', bg: null, sale_restriction: 'none' }],
     ips: [{ id: 'ip-1', title: '홍실' }],
     payment_summaries: [{ id: 'payment-1', user_id: userId, purpose: 'order', ref_id: orderId, amount: 54000, status: 'paid', created_at: '2026-07-14T06:01:00.000Z', provider: 'toss' } as Record<string, unknown>],

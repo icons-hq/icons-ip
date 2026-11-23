@@ -133,7 +133,7 @@ select public.admin_save_good('{"id":"erp-linked-t","ip_id":"erp-linked-ip","nam
   {"name":"다른","attributes":{"판":"2"},"extraPrice":0,"stockQty":3,"barcode":"8807180000099"},
   {"name":"같은1","attributes":{"판":"3"},"extraPrice":0,"stockQty":3,"erpCode":"EA-U1","erpName":"같은 바코드 1"},
   {"name":"같은2","attributes":{"판":"4"},"extraPrice":0,"stockQty":3,"erpCode":"EA-U2","erpName":"같은 바코드 2"}]}');
-select public.admin_save_good('{"id":"erp-linked-f","ip_id":"erp-linked-ip","name":"TEST 저장 거절","type":"기타","price":20000,"variant_baseline":[],
+select public.admin_save_good('{"id":"erp-linked-f","ip_id":"erp-linked-ip","name":"TEST 저장 거절","price":20000,"variant_baseline":[],
  "variants":[{"name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":3,"erpCode":"EA-F","erpName":"저장 거절"}]}');
 -- 즉시할인: 상품 편집은 판매가(할인 전)를 표시용 정가에, 할인가를 price에 저장한다(lib/admin/goods-price-editor.ts).
 select public.admin_save_good('{"id":"erp-linked-i","ip_id":"erp-linked-ip","name":"TEST 즉시할인","price":9000,"compare_at_price":12000,"variant_baseline":[],

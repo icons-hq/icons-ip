@@ -127,13 +127,13 @@ update public.profiles set role='staff' where id='${staff}';
 insert into public.ips(id,title,vertical_key) values('${test_prefix}','옵션 경합 테스트','character');
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
 values('${origin}','${test_prefix}','합성 옵션 반송지',0,'합성 옵션 경합 반송 주소');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values('${test_prefix}','${test_prefix}','옵션 경합','문구',10000,'ok',0,'${origin}');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values('${test_prefix}','${test_prefix}','옵션 경합',10000,'ok',0,'${origin}');
 insert into public.goods_variants(id,good_id,name,price,stock_qty) values('${blue}','${test_prefix}','파랑',10000,0),('${red}','${test_prefix}','빨강',10000,1);
 insert into public.orders(id,user_id,status,total,address,shipped_at,delivered_at) values
 ('${first_order}','${customer}','delivered',10000,'{"recipientName":"합성 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 교환 주소","address2":"TEST"}',now(),now()),('${second_order}','${customer}','delivered',10000,'{"recipientName":"합성 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 교환 주소","address2":"TEST"}',now(),now());
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values
-('${first_item}','${first_order}','${test_prefix}','${blue}',1,10000,'옵션 경합','문구','${test_prefix}'),
-('${second_item}','${second_order}','${test_prefix}','${blue}',1,10000,'옵션 경합','문구','${test_prefix}');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) values
+('${first_item}','${first_order}','${test_prefix}','${blue}',1,10000,'옵션 경합','${test_prefix}'),
+('${second_item}','${second_order}','${test_prefix}','${blue}',1,10000,'옵션 경합','${test_prefix}');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at) values
 ('${first_shipment}','${first_order}','${origin}','합성 옵션 반송지',0,'{}','delivered','hanjin','SALE440001',now(),now()),
 ('${second_shipment}','${second_order}','${origin}','합성 옵션 반송지',0,'{}','delivered','hanjin','SALE440002',now(),now());

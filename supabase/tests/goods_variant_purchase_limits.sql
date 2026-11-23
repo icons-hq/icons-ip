@@ -88,7 +88,7 @@ set local role authenticated;
 select public.admin_save_good(jsonb_set(pg_temp.good_payload('option-limit-main'),'{variants,0,memberMaxQty}','3'));
 reset role;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/option-limit-fixture.webp',
+update public.goods set image_path='public-media/option-limit-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000161030'
  where id='option-limit-main';

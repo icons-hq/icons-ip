@@ -41,7 +41,7 @@ select public.admin_save_goods_price_period('additional-extra',:'extra_variant',
  jsonb_build_object('state','active','discountPrice',2500,'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour'));
 reset role;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/additional-fixture.webp',
+update public.goods set image_path='public-media/additional-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000048230'
  where id in ('additional-base','additional-extra','additional-third');

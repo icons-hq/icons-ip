@@ -13,7 +13,7 @@ update public.profiles set role='staff' where id::text like '93800000-0000-4000-
 insert into private.operator_memberships(profile_id,manager_role) values('93800000-0000-4000-8000-000000000001','primary'),('93800000-0000-4000-8000-000000000002','deputy'),('93800000-0000-4000-8000-000000000003','logistics');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('benefit-content-ip','혜택 독립검토 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price) values('benefit-content-good','benefit-content-ip','혜택 독립검토 합성 상품','문구',1000),('benefit-content-empty','benefit-content-ip','혜택 없는 합성 상품','문구',1000),('benefit-content-images','benefit-content-ip','혜택 이미지 합성 상품','문구',1000);
+insert into public.goods(id,ip_id,name,price) values('benefit-content-good','benefit-content-ip','혜택 독립검토 합성 상품',1000),('benefit-content-empty','benefit-content-ip','혜택 없는 합성 상품',1000),('benefit-content-images','benefit-content-ip','혜택 이미지 합성 상품',1000);
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id='benefit-content-good';
 update public.profiles set role='staff' where id=(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id='benefit-content-good');

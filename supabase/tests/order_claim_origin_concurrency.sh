@@ -64,14 +64,14 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,cr
 ('00000000-0000-4000-8000-000000045303','authenticated','authenticated','claim-origin-other@example.test','{}','{}',now(),now());
 update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000045301';
 insert into public.ips(id,title,vertical_key) values('claim-origin-test','회수 계약 검증','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('claim-origin-test','claim-origin-test','회수 상품','문구',10000,'ok',20);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('claim-origin-test','claim-origin-test','회수 상품',10000,'ok',20);
 insert into public.orders(id,user_id,status,total,address) values
 ('00000000-0000-4000-8000-000000045310','00000000-0000-4000-8000-000000045302','paid',30000,'{}');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select '00000000-0000-4000-8000-000000045311','00000000-0000-4000-8000-000000045310','claim-origin-test',id,2,10000,'회수 상품','문구','claim-origin-test'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select '00000000-0000-4000-8000-000000045311','00000000-0000-4000-8000-000000045310','claim-origin-test',id,2,10000,'회수 상품','claim-origin-test'
 from public.goods_variants where good_id='claim-origin-test' and is_default;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select '00000000-0000-4000-8000-000000045312','00000000-0000-4000-8000-000000045310','claim-origin-test',id,1,10000,'회수 상품','문구','claim-origin-test'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select '00000000-0000-4000-8000-000000045312','00000000-0000-4000-8000-000000045310','claim-origin-test',id,1,10000,'회수 상품','claim-origin-test'
 from public.goods_variants where good_id='claim-origin-test' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot) values
 ('00000000-0000-4000-8000-000000045321','00000000-0000-4000-8000-000000045310','00000000-0000-4000-8000-000000042201','김포',0,'{}'),
@@ -163,8 +163,8 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,return_addre
 ('00000000-0000-4000-8000-000000045342','claimraceb','회수 경합 B','hanjin','합성 회수 B',0);
 insert into public.orders(id,user_id,status,total,address,delivered_at)
 values('00000000-0000-4000-8000-000000045310','00000000-0000-4000-8000-000000045302','delivered',30000,'{}',now());
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select v.id,'00000000-0000-4000-8000-000000045310','claim-origin-test',g.id,v.qty,10000,'회수 상품','문구','claim-origin-test'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select v.id,'00000000-0000-4000-8000-000000045310','claim-origin-test',g.id,v.qty,10000,'회수 상품','claim-origin-test'
 from (values ('00000000-0000-4000-8000-000000045311'::uuid,2),('00000000-0000-4000-8000-000000045312'::uuid,1)) v(id,qty)
 cross join public.goods_variants g where g.good_id='claim-origin-test' and g.is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,delivered_at) values

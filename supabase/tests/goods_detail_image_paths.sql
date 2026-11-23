@@ -27,8 +27,8 @@ select pg_temp.detail_assert(pg_get_triggerdef((select oid from pg_trigger where
   like '%detail_image_paths%', 'content artwork claim trigger watches detail_image_paths');
 
 -- 1. 한 장만 아는 쓰기(직접 insert)는 목록을 그 한 장으로 맞춘다.
-insert into public.goods(id,ip_id,name,type,price,stock,detail_image_path)
-  values('detail-legacy','detail-images-tests','TEST 옛 한 장','문구',1000,'ok','public-media/goods-detail-legacy/one.png');
+insert into public.goods(id,ip_id,name,price,stock,detail_image_path)
+  values('detail-legacy','detail-images-tests','TEST 옛 한 장',1000,'ok','public-media/goods-detail-legacy/one.png');
 select pg_temp.detail_assert(pg_temp.detail_paths('detail-legacy') = array['public-media/goods-detail-legacy/one.png'], 'legacy insert mirrors the single path');
 
 -- 업로드 확인을 마친 이미지 7장(1~7). 확인은 운영자별로 한 장씩 차례로 진행된다.

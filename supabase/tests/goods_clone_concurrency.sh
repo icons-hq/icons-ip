@@ -103,13 +103,13 @@ insert into public.verticals(key,label,color) values('goods-clone-race','합성 
 insert into public.ips(id,title,vertical_key,published_at) values('goods-clone-race','합성 복사 경쟁','goods-clone-race',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('00000000-0000-4000-8000-000000047930','goods-clone-race','합성 경쟁 출고지','hanjin',3000,'배송 금지 검증 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id,image_path,
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id,image_path,
  notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('goods-clone-race-source','goods-clone-race','TEST-ONLY 원본 상품','문구',10000,'ok',10,null,'00000000-0000-4000-8000-000000047930',
+ ('goods-clone-race-source','goods-clone-race','TEST-ONLY 원본 상품',10000,'ok',10,null,'00000000-0000-4000-8000-000000047930',
   'public-media/goods-clone-race-fixture.webp','합성 제조사','한국','종이','A5','2026-09','합성 CS','02-0000'),
- ('goods-clone-race-first','goods-clone-race','TEST-ONLY 앞선 상품','문구',10000,'ok',10,null,'00000000-0000-4000-8000-000000047930',
+ ('goods-clone-race-first','goods-clone-race','TEST-ONLY 앞선 상품',10000,'ok',10,null,'00000000-0000-4000-8000-000000047930',
   'public-media/goods-clone-race-fixture.webp','합성 제조사','한국','종이','A5','2026-09','합성 CS','02-0000'),
- ('goods-clone-race-existing','goods-clone-race','TEST-ONLY 기존 대상','문구',10000,'ok',10,null,'00000000-0000-4000-8000-000000047930',
+ ('goods-clone-race-existing','goods-clone-race','TEST-ONLY 기존 대상',10000,'ok',10,null,'00000000-0000-4000-8000-000000047930',
   'public-media/goods-clone-race-fixture.webp','합성 제조사','한국','종이','A5','2026-09','합성 CS','02-0000');
 select pg_temp.publish_goods_kc_fixture(id) from public.goods where id in ('goods-clone-race-source','goods-clone-race-first','goods-clone-race-existing');
 insert into public.cart_items(user_id,good_id,variant_id,qty)

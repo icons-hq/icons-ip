@@ -99,8 +99,8 @@ insert into public.ips (id, title, vertical_key)
 values ('pq-ip', 'Q&A 스모크 IP', 'character')
 on conflict (id) do nothing;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('pq-g1', 'pq-ip', 'Q&A 굿즈', '피규어', 20000, 'ok', 10)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
+values ('pq-g1', 'pq-ip', 'Q&A 굿즈', 20000, 'ok', 10)
 on conflict (id) do update set price = excluded.price;
 
 -- ── 스키마·ACL 계약 ─────────────────────────────────────────────────────────

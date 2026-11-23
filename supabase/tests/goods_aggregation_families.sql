@@ -18,10 +18,10 @@ update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('aggregation-ip','TEST 합산 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('bc140000-0000-4000-8000-000000000010','aggregation-origin','TEST 합산출고지','hanjin',3000,'TEST 합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('aggregation-root','aggregation-ip','TEST 원상품','문구',10000,'ok',100,'bc140000-0000-4000-8000-000000000010','individual',3001),
- ('aggregation-child','aggregation-ip','TEST 분리상품','문구',5000,'ok',100,'bc140000-0000-4000-8000-000000000010','individual',3001),
- ('aggregation-child-two','aggregation-ip','TEST 후속분리상품','문구',7000,'ok',100,'bc140000-0000-4000-8000-000000000010','individual',3001);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('aggregation-root','aggregation-ip','TEST 원상품',10000,'ok',100,'bc140000-0000-4000-8000-000000000010','individual',3001),
+ ('aggregation-child','aggregation-ip','TEST 분리상품',5000,'ok',100,'bc140000-0000-4000-8000-000000000010','individual',3001),
+ ('aggregation-child-two','aggregation-ip','TEST 후속분리상품',7000,'ok',100,'bc140000-0000-4000-8000-000000000010','individual',3001);
 select set_config('request.jwt.claim.sub','bc140000-0000-4000-8000-000000000001',true);
 select private.bind_goods_aggregation('aggregation-root',array['aggregation-child'],'bc140000-0000-4000-8000-000000000011','bc140000-0000-4000-8000-000000000001') as family_id \gset
 select private.bind_goods_aggregation('aggregation-child',array['aggregation-child-two'],'bc140000-0000-4000-8000-000000000012','bc140000-0000-4000-8000-000000000001');

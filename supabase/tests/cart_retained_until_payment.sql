@@ -18,11 +18,11 @@ update public.profiles set email='retained-'||right(id::text,1)||'@example.test'
 insert into public.ips(id,title,vertical_key,published_at) values('retained-ip','TEST 유지 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('cc270000-0000-4000-8000-000000000010','retained-origin','TEST 유지 출고지','hanjin',3000,'TEST 합성 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,member_purchase_limit_enabled,member_lifetime_qty_limit) values
- ('retained-a','retained-ip','TEST 유지 A','문구',10000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',false,null),
- ('retained-c','retained-ip','TEST 유지 C 한정','문구',5000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',true,2);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,custom_inputs_enabled,custom_inputs_revision,custom_input_fields) values
- ('retained-input','retained-ip','TEST 유지 각인','문구',4000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',true,1,
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,member_purchase_limit_enabled,member_lifetime_qty_limit) values
+ ('retained-a','retained-ip','TEST 유지 A',10000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',false,null),
+ ('retained-c','retained-ip','TEST 유지 C 한정',5000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',true,2);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,custom_inputs_enabled,custom_inputs_revision,custom_input_fields) values
+ ('retained-input','retained-ip','TEST 유지 각인',4000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',true,1,
   '[{"id":"cc270000-0000-4000-8000-000000000061","name":"각인 문구","active":true}]');
 insert into private.operator_memberships(profile_id,manager_role) values('cc270000-0000-4000-8000-000000000001','primary');
 update private.operator_access_state set configured=true where id;

@@ -103,10 +103,10 @@ on conflict (id) do update set
 insert into public.ips (id, title, vertical_key)
 values ('review-ip', '리뷰 IP', 'character');
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
 values
-  ('review-goods', 'review-ip', '리뷰 굿즈', '문구', 12000, 'ok', 20),
-  ('review-other-goods', 'review-ip', '다른 굿즈', '문구', 9000, 'ok', 20);
+  ('review-goods', 'review-ip', '리뷰 굿즈', 12000, 'ok', 20),
+  ('review-other-goods', 'review-ip', '다른 굿즈', 9000, 'ok', 20);
 
 insert into public.orders (id, user_id, status, total, address, delivered_at)
 values
@@ -145,14 +145,14 @@ values
 -- 카탈로그가 나중에 바뀌어도 주문이 무엇이었는지 남기기 위해서다.
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('50000000-0000-4000-8000-000000000951', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
-  ('50000000-0000-4000-8000-000000000952', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
-  ('50000000-0000-4000-8000-000000000953', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
-  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
-  ('50000000-0000-4000-8000-000000000955', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default));
+  ('50000000-0000-4000-8000-000000000951', 'review-goods', 1, 12000, '리뷰 굿즈', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000952', 'review-goods', 1, 12000, '리뷰 굿즈', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000953', 'review-goods', 1, 12000, '리뷰 굿즈', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000955', 'review-goods', 1, 12000, '리뷰 굿즈', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default));
 
 -- ---------------------------------------------------------------------------
 -- 구매자 세션

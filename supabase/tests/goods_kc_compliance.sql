@@ -19,14 +19,14 @@ insert into public.verticals(key,label,color) values('kc-tests','KC 합성검증
 insert into public.ips(id,title,vertical_key,published_at) values('kc-tests','KC 합성검증','kc-tests',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
  values('00000000-0000-4000-8000-000000047730','kc-tests','합성 출고지','hanjin',3000,30000,'배송 금지 검증 주소',true);
-select pg_temp.kc_expect_error($sql$insert into public.goods(id,ip_id,name,type,price,published_at,origin_id)
- values('kc-direct-publish','kc-tests','합성 상품','문구',1000,now(),'00000000-0000-4000-8000-000000047730')$sql$,
+select pg_temp.kc_expect_error($sql$insert into public.goods(id,ip_id,name,price,published_at,origin_id)
+ values('kc-direct-publish','kc-tests','합성 상품',1000,now(),'00000000-0000-4000-8000-000000047730')$sql$,
  'goods_kc_review_required','23514');
-insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('kc-test-good','kc-tests','합성 KC 상품','문구',1000,'public-media/kc-test.webp','00000000-0000-4000-8000-000000047730',
+ ('kc-test-good','kc-tests','합성 KC 상품',1000,'public-media/kc-test.webp','00000000-0000-4000-8000-000000047730',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-09','합성 CS','02-000'),
- ('kc-other-good','kc-tests','합성 다른 상품','문구',1000,'public-media/kc-test.webp','00000000-0000-4000-8000-000000047730',
+ ('kc-other-good','kc-tests','합성 다른 상품',1000,'public-media/kc-test.webp','00000000-0000-4000-8000-000000047730',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-09','합성 CS','02-000');
 insert into public.goods_variants(id,good_id,name,attributes,price,is_default) values
  ('00000000-0000-4000-8000-000000047711','kc-test-good','합성 파랑','{"색상":"파랑"}',1000,false);

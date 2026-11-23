@@ -18,9 +18,9 @@ update private.goods_transaction_runtime set enabled=true where singleton;
 insert into public.ips(id,title,vertical_key,published_at) values('coupon-combination-check-ip','TEST 전달 방식 회귀 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('c7160854-0000-4000-8000-000000000010','coupon-combination-check-origin','TEST 출고지','hanjin',3000,'TEST 합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('coupon-combination-check-a','coupon-combination-check-ip','TEST 상품 A','문구',10000,'ok',100,'c7160854-0000-4000-8000-000000000010','policy',0),
- ('coupon-combination-check-b','coupon-combination-check-ip','TEST 상품 B','문구',5000,'ok',100,'c7160854-0000-4000-8000-000000000010','individual',2000);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('coupon-combination-check-a','coupon-combination-check-ip','TEST 상품 A',10000,'ok',100,'c7160854-0000-4000-8000-000000000010','policy',0),
+ ('coupon-combination-check-b','coupon-combination-check-ip','TEST 상품 B',5000,'ok',100,'c7160854-0000-4000-8000-000000000010','individual',2000);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','transaction-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now()
  from public.goods where ip_id='coupon-combination-check-ip';

@@ -104,7 +104,7 @@ select 1/case when (select effective_price from private.resolve_goods_variant_pr
  then 1 else 0 end as assert_half_open_period_boundaries;
 select pg_temp.expect_error(format('update public.goods_variants set price=11000 where id=%L',:'default_variant'),
  'active_price_period_requires_reset','23514');
-update public.goods set type='문구',image_path='public-media/sales-policy-fixture.webp',
+update public.goods set image_path='public-media/sales-policy-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000047630'
  where id in ('sales-policy-main','sales-policy-bank','sales-policy-free');

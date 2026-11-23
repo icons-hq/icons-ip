@@ -90,17 +90,17 @@ insert into public.ips(id,title,vertical_key) values('stock-rc-ip','TEST 재고�
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address) values
  ('5a0c0000-0000-4000-8000-0000000000a1','stock-rc-a','TEST 재고대조 창고A',0,'합성 반송 주소'),
  ('5a0c0000-0000-4000-8000-0000000000a2','stock-rc-b','TEST 재고대조 창고B',0,'합성 반송 주소');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('stock-rc-g1','stock-rc-ip','TEST 재고대조 굿즈1','문구',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g2','stock-rc-ip','TEST 재고대조 굿즈2','문구',10000,'ok',5,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g3','stock-rc-ip','TEST 재고대조 굿즈3','문구',10000,'ok',7,'5a0c0000-0000-4000-8000-0000000000a2'),
- ('stock-rc-g4','stock-rc-ip','TEST 재고대조 굿즈4','문구',10000,'ok',4,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g5','stock-rc-ip','TEST 재고대조 굿즈5','문구',10000,'soldout',1,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g6','stock-rc-ip','TEST 재고대조 반품','문구',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g7','stock-rc-ip','TEST 재고대조 그룹 교환 출고','문구',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g8','stock-rc-ip','TEST 재고대조 그룹 교환 회수','문구',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g9','stock-rc-ip','TEST 재고대조 승계','문구',10000,'ok',16,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-g10','stock-rc-ip','TEST 재고대조 전환 전','문구',10000,'ok',0,'5a0c0000-0000-4000-8000-0000000000a1');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('stock-rc-g1','stock-rc-ip','TEST 재고대조 굿즈1',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g2','stock-rc-ip','TEST 재고대조 굿즈2',10000,'ok',5,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g3','stock-rc-ip','TEST 재고대조 굿즈3',10000,'ok',7,'5a0c0000-0000-4000-8000-0000000000a2'),
+ ('stock-rc-g4','stock-rc-ip','TEST 재고대조 굿즈4',10000,'ok',4,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g5','stock-rc-ip','TEST 재고대조 굿즈5',10000,'soldout',1,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g6','stock-rc-ip','TEST 재고대조 반품',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g7','stock-rc-ip','TEST 재고대조 그룹 교환 출고',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g8','stock-rc-ip','TEST 재고대조 그룹 교환 회수',10000,'ok',10,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g9','stock-rc-ip','TEST 재고대조 승계',10000,'ok',16,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-g10','stock-rc-ip','TEST 재고대조 전환 전',10000,'ok',0,'5a0c0000-0000-4000-8000-0000000000a1');
 insert into public.goods_variants(good_id,name,price,stock_qty,code,sort_order)
  values('stock-rc-g2','TEST 둘째 옵션',10000,0,'STOCKRC-G2-EXTRA',1);
 -- 그룹상품 전환 전 옵션(보관). 재고는 승계 옵션(굿즈9 기본 옵션)으로 옮겨 갔다.
@@ -143,8 +143,8 @@ declare oid uuid:=('5a0c0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;item 
 begin
  insert into public.orders(id,user_id,status,total,address,confirmed_at) values(oid,'5a0c0000-0000-4000-8000-000000000002',status,10000*qty,
   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',case when status not in('pending','paid') then now() end);
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(oid,good,qty,10000,'TEST 재고대조','문구','stock-rc-ip',variant) returning id into item;
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,good,qty,10000,'TEST 재고대조','stock-rc-ip',variant) returning id into item;
  insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
   values(sid,oid,(select origin_id from public.goods where id=good),'TEST 재고대조 창고',0,'{}');
  insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(oid,sid,item,qty);
@@ -408,8 +408,8 @@ select 1/case when :'conflict_two'::jsonb->>'status'='conflict'
  then 1 else 0 end as assert_conflict_changes_nothing_and_adjustment_flagged;
 
 -- 초안 상품의 주소(id)가 바뀌어도 대조 기록이 옵션을 따라간다.
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('stock-rc-slug-old','stock-rc-ip','TEST 재고대조 주소 변경','문구',10000,'ok',3,'5a0c0000-0000-4000-8000-0000000000a1');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('stock-rc-slug-old','stock-rc-ip','TEST 재고대조 주소 변경',10000,'ok',3,'5a0c0000-0000-4000-8000-0000000000a1');
 select code as v11_code,id as v11 from public.goods_variants where good_id='stock-rc-slug-old' and is_default \gset
 set local role authenticated;
 select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
@@ -454,9 +454,9 @@ select 1/case when (select w->>'kind'='shortage' and (w->>'shortageQty')::intege
 -- 같은 옵션에 주문이 들어와 재고수량과 맞춘 뒤 값이 함께 움직인 경우. 결과·옵션별 감사는 반영 시점 값이다.
 -- 출고 전 경고 시험 뒤에 둔다(이 주문들이 창고A 출고 대기 옵션 수를 바꾸지 않게).
 -- ---------------------------------------------------------------------------
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('stock-rc-moment','stock-rc-ip','TEST 재고대조 반영 시점','문구',10000,'ok',5,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-same','stock-rc-ip','TEST 재고대조 같은 옵션','문구',10000,'ok',4,'5a0c0000-0000-4000-8000-0000000000a1');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('stock-rc-moment','stock-rc-ip','TEST 재고대조 반영 시점',10000,'ok',5,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-same','stock-rc-ip','TEST 재고대조 같은 옵션',10000,'ok',4,'5a0c0000-0000-4000-8000-0000000000a1');
 select (select id from public.goods_variants where good_id='stock-rc-moment' and is_default) as v_moment,
  (select code from public.goods_variants where good_id='stock-rc-moment' and is_default) as v_moment_code,
  (select id from public.goods_variants where good_id='stock-rc-same' and is_default) as v_same,
@@ -532,11 +532,11 @@ select 1/case when :'conflict_same'::jsonb->>'status'='conflict'
 --   D 출고 전 취소: 파일 10. 창고를 떠난 적이 없다
 -- 넷 다 차이 0·맞춘 뒤 재고수량 = 지금 재고수량 10이어야 한다(취소 배송 건을 통째로 빼면 A는 +1, C는 −1로 맞춰진다).
 -- ---------------------------------------------------------------------------
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('stock-rc-refund-a','stock-rc-ip','TEST 재고대조 출고 뒤 환불 회수','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-refund-b','stock-rc-ip','TEST 재고대조 출고 뒤 환불 회수 기록 없음','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-refund-c','stock-rc-ip','TEST 재고대조 기준 전 출고 환불','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
- ('stock-rc-refund-d','stock-rc-ip','TEST 재고대조 출고 전 취소','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('stock-rc-refund-a','stock-rc-ip','TEST 재고대조 출고 뒤 환불 회수',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-refund-b','stock-rc-ip','TEST 재고대조 출고 뒤 환불 회수 기록 없음',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-refund-c','stock-rc-ip','TEST 재고대조 기준 전 출고 환불',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-refund-d','stock-rc-ip','TEST 재고대조 출고 전 취소',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1');
 select (select id from public.goods_variants where good_id='stock-rc-refund-a' and is_default) as v_ra,
  (select code from public.goods_variants where good_id='stock-rc-refund-a' and is_default) as v_ra_code,
  (select id from public.goods_variants where good_id='stock-rc-refund-b' and is_default) as v_rb,
@@ -555,8 +555,8 @@ begin
   values(oid,'5a0c0000-0000-4000-8000-000000000002',case when shipped is null then 'paid' else 'delivered' end::public.order_status,10000,
    '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',
    case when shipped is not null then now()-interval '4 hours' end,shipped,shipped);
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(oid,good,1,10000,'TEST 재고대조','문구','stock-rc-ip',variant) returning id into item;
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,good,1,10000,'TEST 재고대조','stock-rc-ip',variant) returning id into item;
  insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,
   shipped_at,delivered_at)
   values(sid,oid,'5a0c0000-0000-4000-8000-0000000000a1','TEST 재고대조 창고A',0,'{}',case when shipped is null then 'ready' else 'delivered' end,

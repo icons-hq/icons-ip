@@ -11,10 +11,10 @@ insert into private.operator_memberships(profile_id,manager_role) values
  ('93600000-0000-4000-8000-000000000001','deputy'),('93600000-0000-4000-8000-000000000003','logistics');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key) values('review-sort-tests','정렬 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price) values
- ('review-sort-a','review-sort-tests','합성 정렬 가 상품','문구',1000),
- ('review-sort-b','review-sort-tests','합성 정렬 나 상품','문구',1000),
- ('review-sort-c','review-sort-tests','합성 정렬 다 상품','문구',1000);
+insert into public.goods(id,ip_id,name,price) values
+ ('review-sort-a','review-sort-tests','합성 정렬 가 상품',1000),
+ ('review-sort-b','review-sort-tests','합성 정렬 나 상품',1000),
+ ('review-sort-c','review-sort-tests','합성 정렬 다 상품',1000);
 insert into public.orders(id,user_id,status,total,address,delivered_at)
  select ('93600000-0000-4000-8001-'||lpad(n::text,12,'0'))::uuid,'93600000-0000-4000-8000-000000000002','delivered',1000,'{}',now() from generate_series(1,26)n;
 -- Simulate a legacy nullable row only inside this rolled-back test transaction.

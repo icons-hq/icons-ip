@@ -71,9 +71,9 @@ insert into public.ips(id,title,vertical_key) values('rp-ip','TEST 회수 접수
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  (pg_temp.rp_id('origin',1),'rp-gimpo','TEST 김포','hanjin',0,'TEST 김포 반송지 1',true),
  (pg_temp.rp_id('origin',2),'rp-namyangju','TEST 남양주','epost',0,'TEST 남양주 반송지 2',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('rp-good-1','rp-ip','TEST 김포 굿즈','문구',1000,'ok',50,pg_temp.rp_id('origin',1)),
- ('rp-good-2','rp-ip','TEST 남양주 굿즈','문구',2000,'ok',50,pg_temp.rp_id('origin',2));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('rp-good-1','rp-ip','TEST 김포 굿즈',1000,'ok',50,pg_temp.rp_id('origin',1)),
+ ('rp-good-2','rp-ip','TEST 남양주 굿즈',2000,'ok',50,pg_temp.rp_id('origin',2));
 create function pg_temp.rp_default(good text) returns uuid language sql stable as $$select id from public.goods_variants where good_id=good and is_default$$;
 
 -- 주문 1~9·11~20: 김포 굿즈 한 줄(반품). 주문 10: 남양주 굿즈(회수 계약 없는 출고지). 주문 13은 김포·남양주 두 배송 건(혼합), 주문 14는 선물,
@@ -82,9 +82,9 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  select pg_temp.rp_id('order',n),pg_temp.rp_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 고객 '||n,'phone','010-5555-'||lpad(n::text,4,'0'),'postalCode','12345','address1','합성시 회수로 '||n,'address2','10'||n||'호'),
   now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,20)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
  select pg_temp.rp_id('item',n),pg_temp.rp_id('order',n),case when n=10 then 'rp-good-2' else 'rp-good-1' end,
-  pg_temp.rp_default(case when n=10 then 'rp-good-2' else 'rp-good-1' end),1,1000,'TEST 회수 굿즈 '||n,'문구','rp-ip' from generate_series(1,20)n;
+  pg_temp.rp_default(case when n=10 then 'rp-good-2' else 'rp-good-1' end),1,1000,'TEST 회수 굿즈 '||n,'rp-ip' from generate_series(1,20)n;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  select pg_temp.rp_id('shipment',n),pg_temp.rp_id('order',n),case when n=10 then pg_temp.rp_id('origin',2) else pg_temp.rp_id('origin',1) end,
   case when n=10 then 'TEST 남양주' else 'TEST 김포' end,0,'{}','delivered','hanjin','RPSALE'||lpad(n::text,6,'0'),now()-interval '4 days',now()-interval '3 days'
@@ -95,8 +95,8 @@ insert into public.payments(id,user_id,purpose,ref_id,amount,status,idempotency_
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type)
  select pg_temp.rp_id('claim',n),pg_temp.rp_id('order',n),pg_temp.rp_id('user',2),'TEST 회수 접수 반품 '||n,case when n in(18,19) then 'exchange' else 'return' end,'requested',case when n in(18,19) then 'defect' else 'change_of_mind' end from generate_series(1,20)n;
 -- 주문 13의 두 번째 배송 건(남양주 — 회수 계약 없는 출고지).
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- values(pg_temp.rp_id('item',113),pg_temp.rp_id('order',13),'rp-good-2',pg_temp.rp_default('rp-good-2'),1,1000,'TEST 회수 굿즈 113','문구','rp-ip');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ values(pg_temp.rp_id('item',113),pg_temp.rp_id('order',13),'rp-good-2',pg_temp.rp_default('rp-good-2'),1,1000,'TEST 회수 굿즈 113','rp-ip');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  values(pg_temp.rp_id('shipment',113),pg_temp.rp_id('order',13),pg_temp.rp_id('origin',2),'TEST 남양주',0,'{}','delivered','epost','RPSALE000113',now()-interval '4 days',now()-interval '3 days');
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(pg_temp.rp_id('order',13),pg_temp.rp_id('shipment',113),pg_temp.rp_id('item',113),1);

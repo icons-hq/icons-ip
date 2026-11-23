@@ -27,11 +27,11 @@ insert into public.verticals(key,label,color) values('kc-na-tests','KC 해당 �
 insert into public.ips(id,title,vertical_key,published_at) values('kc-na-tests','KC 해당 없음 합성검증','kc-na-tests',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
  values('00000000-0000-4000-8000-000000100730','kc-na-tests','합성 출고지','hanjin',3000,30000,'배송 금지 검증 주소',true);
-insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('kc-na-good','kc-na-tests','합성 해당 없음 상품','문구',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
+ ('kc-na-good','kc-na-tests','합성 해당 없음 상품',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000'),
- ('kc-na-other-good','kc-na-tests','합성 다른 상품','문구',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
+ ('kc-na-other-good','kc-na-tests','합성 다른 상품',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-10','합성 CS','02-000');
 insert into public.goods_variants(id,good_id,name,attributes,price,is_default) values
  ('00000000-0000-4000-8000-000000100711','kc-na-good','합성 파랑','{"색상":"파랑"}',1000,false),
@@ -139,9 +139,9 @@ select 1/case when not has_function_privilege('authenticated','private.goods_kc_
 -- 확인 체크와 함께 검토 완료·공개된다. 내부 검토 근거(판단 사유·근거 참조)는 비워도 된다.
 -- 합성 이미지 경로는 시스템 입력으로 넣는다(로그인 운영자 입력이면 사진 소유 확인을 요구한다).
 select set_config('request.jwt.claim.sub','',true);
-insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('kc-sd-good','kc-na-tests','합성 자가 신고 상품','문구',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
+ ('kc-sd-good','kc-na-tests','합성 자가 신고 상품',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000');
 select id as sd_default from public.goods_variants where good_id='kc-sd-good' and is_default \gset
 select pg_temp.link_goods_type_category_fixture('kc-sd-good');

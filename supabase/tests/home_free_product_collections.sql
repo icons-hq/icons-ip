@@ -17,7 +17,7 @@ update public.profiles set role='staff' where id::text like '96000000-0000-4000-
 insert into private.operator_memberships(profile_id,manager_role) values('96000000-0000-4000-8000-000000000001','primary'),('96000000-0000-4000-8000-000000000002','deputy'),('96000000-0000-4000-8000-000000000003','logistics');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('free-products-ip','자유상품 합성 IP','character',now()),('free-products-draft-ip','초안 합성 IP','character',null);
-insert into public.goods(id,ip_id,name,type,price) select 'free-products-good-'||n,case when n=7 then 'free-products-draft-ip' else 'free-products-ip' end,'자유상품 합성 '||n,'문구',1000 from generate_series(1,7)n;
+insert into public.goods(id,ip_id,name,price) select 'free-products-good-'||n,case when n=7 then 'free-products-draft-ip' else 'free-products-ip' end,'자유상품 합성 '||n,1000 from generate_series(1,7)n;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id like 'free-products-good-%';
 update public.profiles set role='staff' where id in(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id like 'free-products-good-%');

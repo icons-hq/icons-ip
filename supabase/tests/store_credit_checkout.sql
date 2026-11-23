@@ -10,8 +10,8 @@ where id in ('00000000-0000-4000-8000-000000004891','00000000-0000-4000-8000-000
 insert into public.ips(id,title,vertical_key,published_at) values('credits-check-ip','적립금 주문 검증','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
 values('00000000-0000-4000-8000-000000004890','credits-check-origin','검증 출고지','hanjin',3000,'합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id,shipping_fee_type)
-values('credits-check-good','credits-check-ip','합성 적립금 굿즈','문구',10000,'ok',100,null,'00000000-0000-4000-8000-000000004890','policy');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id,shipping_fee_type)
+values('credits-check-good','credits-check-ip','합성 적립금 굿즈',10000,'ok',100,null,'00000000-0000-4000-8000-000000004890','policy');
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('credits-check-good');
 -- The same coupon/credit/order snapshots apply when discount display is hidden.

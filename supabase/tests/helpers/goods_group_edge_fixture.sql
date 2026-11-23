@@ -28,7 +28,7 @@ end$$;
 create function goods_group_edge_test.make_source(n integer,p_publish boolean default false) returns text language plpgsql as $$
 declare gid text:='group-edge-'||n;reviewer uuid:=('47c47700'||left(md5(gid),24))::uuid;
 begin
- insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values(gid,'group-edge-ip','TEST 엣지 '||n||' 빨강','문구',10000,'ok',7);
+ insert into public.goods(id,ip_id,name,price,stock,stock_qty) values(gid,'group-edge-ip','TEST 엣지 '||n||' 빨강',10000,'ok',7);
  insert into public.goods_variants(id,good_id,name,attributes,price,stock_qty,sort_order,is_default) values
   (goods_group_edge_test.id(1000+n*10+1),gid,'파랑','{"색상":"파랑"}',12000,11,1,false),
   (goods_group_edge_test.id(1000+n*10+2),gid,'미선택','{"색상":"미선택"}',13000,13,2,false);

@@ -62,7 +62,7 @@ update public.profiles set nickname='TEST 운영알림 '||right(id::text,1),birt
 insert into private.operator_memberships(profile_id,manager_role) values('0a1e0000-0000-4000-8000-000000000001','primary');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key) values('ops-digest-ip','TEST 운영알림 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('ops-digest-g1','ops-digest-ip','TEST 운영알림 굿즈','문구',10000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('ops-digest-g1','ops-digest-ip','TEST 운영알림 굿즈',10000,'ok',10);
 
 -- ---------------------------------------------------------------------------
 -- 설정 저장

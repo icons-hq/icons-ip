@@ -55,8 +55,8 @@ insert into public.verticals(key, label, color) values ('shipping-notice-tests',
 insert into public.ips(id, title, vertical_key, published_at)
 values ('shipping-notice-tests', '배송정보 검증', 'shipping-notice-tests', now())
 on conflict (id) do nothing;
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, published_at, origin_id, shipping_fee_type, individual_fee)
-values ('shipping-notice-good', 'shipping-notice-tests', '배송정보 상품', '키링', 1000, 'ok', 1,null, '00000000-0000-4000-8000-000000042201', 'policy', 0)
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, published_at, origin_id, shipping_fee_type, individual_fee)
+values ('shipping-notice-good', 'shipping-notice-tests', '배송정보 상품', 1000, 'ok', 1,null, '00000000-0000-4000-8000-000000042201', 'policy', 0)
 on conflict (id) do nothing;
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('shipping-notice-good');

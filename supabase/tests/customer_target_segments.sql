@@ -15,15 +15,15 @@ insert into private.account_action_fences(subject_user_id,deletion_event_id) val
 insert into public.ips(id,title,vertical_key) select 'segment-test-ip','세그먼트 합성 IP',key from public.verticals limit 1;
 insert into public.catalog_categories(id,code,name) values('bfc01600-0000-4000-8000-000000000101','segment-root','세그먼트 분류');
 insert into public.catalog_categories(id,code,name,parent_id,depth) values('bfc01600-0000-4000-8000-000000000102','segment-child','세그먼트 하위','bfc01600-0000-4000-8000-000000000101',2);
-insert into public.goods(id,ip_id,name,type,price,category_id) values('segment-test-good','segment-test-ip','세그먼트 합성 상품','문구',1000,'bfc01600-0000-4000-8000-000000000102');
-insert into public.goods(id,ip_id,name,type,price) values('segment-test-cart','segment-test-ip','세그먼트 장바구니 상품','문구',1000);
+insert into public.goods(id,ip_id,name,price,category_id) values('segment-test-good','segment-test-ip','세그먼트 합성 상품',1000,'bfc01600-0000-4000-8000-000000000102');
+insert into public.goods(id,ip_id,name,price) values('segment-test-cart','segment-test-ip','세그먼트 장바구니 상품',1000);
 insert into public.orders(id,user_id,status,total,address,created_at)
  select ('bfc01600-0000-4000-8000-'||lpad((200+n)::text,12,'0'))::uuid,('bfc01600-0000-4000-8000-'||lpad(customer::text,12,'0'))::uuid,
   case when customer=6 then 'canceled'::public.order_status else 'paid'::public.order_status end,1000,'{}',now()-make_interval(days=>days)
  from(values(1,4,20),(2,5,100),(3,5,10),(4,6,5),(5,10,20),(6,10,5),(7,11,190),(8,13,3)) facts(n,customer,days);
 insert into public.payments(user_id,purpose,ref_id,amount,status,payment_key,idempotency_key)
  select user_id,'order',id,1000,'paid','segment-'||id::text,'segment-'||id::text from public.orders where id::text like 'bfc01600-0000-4000-8000-0000000002%';
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) select id,'segment-test-good',(select id from public.goods_variants where good_id='segment-test-good' and is_default),1,1000,'세그먼트 상품','문구','segment-test-ip' from public.orders where id::text like 'bfc01600-0000-4000-8000-0000000002%';
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) select id,'segment-test-good',(select id from public.goods_variants where good_id='segment-test-good' and is_default),1,1000,'세그먼트 상품','segment-test-ip' from public.orders where id::text like 'bfc01600-0000-4000-8000-0000000002%';
 insert into public.cart_items(user_id,good_id,variant_id,qty) select ('bfc01600-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'segment-test-cart',(select id from public.goods_variants where good_id='segment-test-cart' and is_default),1 from unnest(array[3,7])n;
 insert into public.wishlists(user_id,good_id,created_at) values('bfc01600-0000-4000-8000-000000000003','segment-test-good',now()-interval '6 days'),('bfc01600-0000-4000-8000-000000000013','segment-test-good',now()-interval '6 days');
 insert into public.coupons(code,name,discount_type,discount_value,ends_at) values('SEGMENT-TEST','세그먼트 쿠폰','fixed',100,now()+interval '10 days');

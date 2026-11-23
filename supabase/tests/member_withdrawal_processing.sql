@@ -153,11 +153,11 @@ values (pg_temp.uid(3), gen_random_uuid(), 1, 'visit', 'home', 'home'), (pg_temp
 insert into private.member_email_change_challenges(id, user_id, email, email_digest, code_digest, expires_at)
 values (gen_random_uuid(), pg_temp.uid(3), 'new-address@example.test', pg_temp.d('new mail'), pg_temp.d('code'), clock_timestamp() + interval '10 minutes');
 insert into public.ips(id, title, vertical_key) values ('withdrawal-ip', 'TEST 탈퇴 처리 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty)
-values ('withdrawal-goods', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈', '문구', 10000, 'soldout', 0);
+insert into public.goods(id, ip_id, name, price, stock, stock_qty)
+values ('withdrawal-goods', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈', 10000, 'soldout', 0);
 insert into public.restock_alerts(user_id, good_id) values (pg_temp.uid(3), 'withdrawal-goods'), (pg_temp.uid(7), 'withdrawal-goods');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty)
-values ('withdrawal-goods-2', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈 2', '문구', 10000, 'ok', 3);
+insert into public.goods(id, ip_id, name, price, stock, stock_qty)
+values ('withdrawal-goods-2', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈 2', 10000, 'ok', 3);
 -- 이미 알린 신청(발송 이력)은 남긴다.
 insert into public.restock_alerts(user_id, good_id, status, notified_at) values (pg_temp.uid(3), 'withdrawal-goods-2', 'notified', now());
 insert into auth.sessions(id, user_id, created_at, updated_at) values

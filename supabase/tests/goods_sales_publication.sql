@@ -21,16 +21,16 @@ update public.profiles set nickname='판매게시검증7652',birth_date='2000-01
 insert into public.verticals(key,label,color) values('sales-publish-tests','판매 게시 검증','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values('sales-publish-tests','판매 게시 검증','sales-publish-tests',now());
 insert into public.ip_follows(user_id,ip_id,notify_drops) values('00000000-0000-4000-8000-000000047652','sales-publish-tests',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,image_path,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,image_path,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact,published_at)
  values
- ('sales-policy-slug-before','sales-publish-tests','이름 변경 후 성인 게시','문구',10000,'ok',10,'public-media/sales-publish-fixture.webp',
+ ('sales-policy-slug-before','sales-publish-tests','이름 변경 후 성인 게시',10000,'ok',10,'public-media/sales-publish-fixture.webp',
  '제조사','한국','종이','A5','2026-09','CS','02-000',null),
- ('sales-policy-restock-adult','sales-publish-tests','성인 변경 재고 저장','문구',10000,'soldout',0,'public-media/sales-restock-adult.webp',
+ ('sales-policy-restock-adult','sales-publish-tests','성인 변경 재고 저장',10000,'soldout',0,'public-media/sales-restock-adult.webp',
  '제조사','한국','종이','A5','2026-09','CS','02-000',null),
- ('sales-policy-restock-closed','sales-publish-tests','결제 중지 재고 저장','문구',10000,'soldout',0,'public-media/sales-restock-closed.webp',
+ ('sales-policy-restock-closed','sales-publish-tests','결제 중지 재고 저장',10000,'soldout',0,'public-media/sales-restock-closed.webp',
  '제조사','한국','종이','A5','2026-09','CS','02-000',null),
- ('sales-policy-restock-unpublish','sales-publish-tests','비공개 변경 재고 저장','문구',10000,'soldout',0,'public-media/sales-restock-unpublish.webp',
+ ('sales-policy-restock-unpublish','sales-publish-tests','비공개 변경 재고 저장',10000,'soldout',0,'public-media/sales-restock-unpublish.webp',
  '제조사','한국','종이','A5','2026-09','CS','02-000',null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('sales-policy-restock-adult');

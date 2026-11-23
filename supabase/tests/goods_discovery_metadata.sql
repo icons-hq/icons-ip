@@ -39,7 +39,7 @@ select 1 / case when (
 ) then 1 else 0 end as assert_discovery_metadata_is_normalized_and_saved;
 
 -- Existing callers that omit the new keys keep the stored metadata.
-select public.admin_save_good('{"previous_id":"goods-discovery-good","id":"goods-discovery-good","ip_id":"goods-discovery","name":"이름 수정","type":"키링","price":1000}');
+select public.admin_save_good('{"previous_id":"goods-discovery-good","id":"goods-discovery-good","ip_id":"goods-discovery","name":"이름 수정","price":1000}');
 select 1 / case when (
   (select search_keywords from public.goods where id='goods-discovery-good') = array['여름 굿즈','KUMA']
   and (select display_order from public.goods where id='goods-discovery-good') = 7
@@ -47,7 +47,7 @@ select 1 / case when (
 
 -- Explicit clearing is supported, while malformed values are rejected before
 -- the wrapped catalog save can change the product.
-select public.admin_save_good('{"previous_id":"goods-discovery-good","id":"goods-discovery-good","ip_id":"goods-discovery","name":"이름 수정","type":"키링","price":1000,"search_keywords":[],"display_order":null}');
+select public.admin_save_good('{"previous_id":"goods-discovery-good","id":"goods-discovery-good","ip_id":"goods-discovery","name":"이름 수정","price":1000,"search_keywords":[],"display_order":null}');
 select 1 / case when (
   (select cardinality(search_keywords) from public.goods where id='goods-discovery-good') = 0
   and (select display_order from public.goods where id='goods-discovery-good') is null
@@ -80,7 +80,7 @@ select 1 / case when (
   and not has_function_privilege('service_role','public.admin_search_goods(text)','execute')
   and (select count(*) from public.admin_search_goods('Acrylic Keyring') where id='goods-discovery-good') = 1
 ) then 1 else 0 end as assert_admin_discovery_search_and_acl;
-select public.admin_save_good('{"previous_id":"goods-discovery-good","id":"goods-discovery-good","ip_id":"goods-discovery","name":"이름 수정","type":"키링","price":1000,"search_keywords":["100% 키링"]}');
+select public.admin_save_good('{"previous_id":"goods-discovery-good","id":"goods-discovery-good","ip_id":"goods-discovery","name":"이름 수정","price":1000,"search_keywords":["100% 키링"]}');
 select 1 / case when (select count(*) from public.admin_search_goods('%') where id='goods-discovery-good') = 1
   then 1 else 0 end as assert_admin_search_escapes_wildcards;
 
@@ -92,11 +92,11 @@ update public.goods set search_keywords=array['여름 굿즈'], display_order=7,
 where id='goods-discovery-good';
 select pg_temp.publish_goods_kc_fixture('goods-discovery-good');
 insert into public.goods(
-  id,ip_id,name,type,price,stock,search_keywords,published_at,sale_restriction
+  id,ip_id,name,price,stock,search_keywords,published_at,sale_restriction
 ) values (
-  'goods-discovery-adult','goods-discovery','성인 키링','키링',1000,'ok',array['여름 굿즈'],null,'adult'
+  'goods-discovery-adult','goods-discovery','성인 키링',1000,'ok',array['여름 굿즈'],null,'adult'
 ), (
-  'goods-discovery-draft','goods-discovery','초안 키링','키링',1000,'ok',array['여름 굿즈'],null,'none'
+  'goods-discovery-draft','goods-discovery','초안 키링',1000,'ok',array['여름 굿즈'],null,'none'
 );
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('goods-discovery-adult');

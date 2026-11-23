@@ -23,8 +23,8 @@ insert into private.operator_memberships(profile_id,manager_role) values
  ('00000000-0000-4000-8000-000000231004','logistics');
 
 insert into public.ips(id,title,vertical_key) values('pqs-ip','비밀글 스모크 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
-values('pqs-g1','pqs-ip','비밀글 스모크 굿즈','문구',1000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+values('pqs-g1','pqs-ip','비밀글 스모크 굿즈',1000,'ok',10);
 
 -- 목록 한 줄을 id로 찾는다.
 create function pg_temp.list_row(p_list jsonb, p_id uuid) returns jsonb language sql immutable as $$

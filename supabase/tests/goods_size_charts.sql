@@ -12,9 +12,9 @@ update public.profiles set role='staff' where id::text like '98050000-0000-4000-
 insert into private.operator_memberships(profile_id,manager_role) values('98050000-0000-4000-8000-000000000001','primary'),('98050000-0000-4000-8000-000000000002','deputy'),('98050000-0000-4000-8000-000000000003','logistics');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('size-chart-ip','사이즈 검증 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,notice_size) values
- ('size-chart-good','size-chart-ip','사이즈 검증 합성 상품','문구',1000,'기존 고시 크기'),
- ('size-chart-empty','size-chart-ip','사이즈 없는 합성 상품','문구',2000,'독립 고시 크기');
+insert into public.goods(id,ip_id,name,price,notice_size) values
+ ('size-chart-good','size-chart-ip','사이즈 검증 합성 상품',1000,'기존 고시 크기'),
+ ('size-chart-empty','size-chart-ip','사이즈 없는 합성 상품',2000,'독립 고시 크기');
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}' from public.goods where id='size-chart-good';
 update public.profiles set role='staff' where id=(select ('47c47700'||left(md5(id),24))::uuid from public.goods where id='size-chart-good');

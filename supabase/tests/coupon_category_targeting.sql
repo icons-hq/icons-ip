@@ -18,9 +18,9 @@ update private.goods_transaction_runtime set enabled=true where singleton;
 insert into public.ips(id,title,vertical_key,published_at) values('coupon-category-check-ip','TEST 카테고리 쿠폰 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('c7160930-0000-4000-8000-000000000010','coupon-category-check-origin','TEST 출고지','hanjin',3000,'TEST 합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('coupon-category-check-a','coupon-category-check-ip','TEST 상품 A','문구',10000,'ok',100,'c7160930-0000-4000-8000-000000000010','policy',0),
- ('coupon-category-check-b','coupon-category-check-ip','TEST 상품 B','문구',5000,'ok',100,'c7160930-0000-4000-8000-000000000010','individual',2000);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('coupon-category-check-a','coupon-category-check-ip','TEST 상품 A',10000,'ok',100,'c7160930-0000-4000-8000-000000000010','policy',0),
+ ('coupon-category-check-b','coupon-category-check-ip','TEST 상품 B',5000,'ok',100,'c7160930-0000-4000-8000-000000000010','individual',2000);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','transaction-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now()
  from public.goods where ip_id='coupon-category-check-ip';
@@ -81,7 +81,7 @@ select 1/case when (select target_categories#>>'{0,path}' from public.admin_sear
 select 1/case when jsonb_array_length(public.admin_marketing_coupon_options('CATEGORY')->'rows')=1 then 1 else 0 end as targeted_excluded_from_download_messages;
 select public.admin_save_coupon_combination_policy('{"stackingEnabled":true,"maxGoodsCoupons":3,"shippingEnabled":true,"evidence":"TEST 카테고리 조합","confirmed":true}',1,'c7160930-0000-4009-8000-000000000001','c7160930-0000-4000-8000-000000000001','c7160930-0000-4000-9000-000000000001');
 reset role;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,category_id) values('coupon-category-new','coupon-category-check-ip','TEST 나중에 추가한 상품','문구',1000,'ok',10,'c7160930-0000-4007-8000-000000000002');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,category_id) values('coupon-category-new','coupon-category-check-ip','TEST 나중에 추가한 상품',1000,'ok',10,'c7160930-0000-4007-8000-000000000002');
 select 1/case when private.coupon_good_matches('selected_categories','{}',array['c7160930-0000-4007-8000-000000000001']::uuid[],'coupon-category-new') then 1 else 0 end as future_good_automatically_eligible;
 select pg_temp.coupon_actor(2);set local role authenticated;
 select pg_temp.transaction_expect_error('select public.claim_coupon_code(''CATEGORY-GOODS'')','coupon_designated_recipient_required');

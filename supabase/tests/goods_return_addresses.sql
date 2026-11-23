@@ -98,13 +98,13 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,ret
  (pg_temp.ra_id('origin',1),'ra-gimpo','TEST 김포','hanjin',0,'TEST 김포 출고지 반품 주소',true),
  (pg_temp.ra_id('origin',2),'ra-namyangju','TEST 남양주','hanjin',0,'TEST 남양주 출고지 반품 주소',true),
  (pg_temp.ra_id('origin',3),'ra-empty','TEST 반품 주소 없는 출고지','hanjin',0,'',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('ra-good-a','ra-ip','TEST 서울 반품 굿즈','문구',1000,'ok',20,pg_temp.ra_id('origin',1)),
- ('ra-good-b','ra-ip','TEST 출고지 반품 굿즈','문구',1000,'ok',20,pg_temp.ra_id('origin',1)),
- ('ra-good-c','ra-ip','TEST 남양주 굿즈','문구',1000,'ok',20,pg_temp.ra_id('origin',2)),
- ('ra-good-d','ra-ip','TEST 빈 출고지·부산 반품 굿즈','문구',1000,'ok',20,pg_temp.ra_id('origin',3)),
- ('ra-good-e','ra-ip','TEST 빈 출고지 굿즈','문구',1000,'ok',20,pg_temp.ra_id('origin',3)),
- ('ra-good-r','ra-ip','TEST 반품 제한 굿즈','문구',1000,'ok',20,pg_temp.ra_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('ra-good-a','ra-ip','TEST 서울 반품 굿즈',1000,'ok',20,pg_temp.ra_id('origin',1)),
+ ('ra-good-b','ra-ip','TEST 출고지 반품 굿즈',1000,'ok',20,pg_temp.ra_id('origin',1)),
+ ('ra-good-c','ra-ip','TEST 남양주 굿즈',1000,'ok',20,pg_temp.ra_id('origin',2)),
+ ('ra-good-d','ra-ip','TEST 빈 출고지·부산 반품 굿즈',1000,'ok',20,pg_temp.ra_id('origin',3)),
+ ('ra-good-e','ra-ip','TEST 빈 출고지 굿즈',1000,'ok',20,pg_temp.ra_id('origin',3)),
+ ('ra-good-r','ra-ip','TEST 반품 제한 굿즈',1000,'ok',20,pg_temp.ra_id('origin',1));
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}'
  from public.goods where id like 'ra-good-%';
@@ -158,8 +158,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  select pg_temp.ra_id('order',n),pg_temp.ra_id('user',2),'delivered',3000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 반품로 1','address2','101호'),
   now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,5)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ra_id('item',item),pg_temp.ra_id('order',purchase),good,pg_temp.ra_variant(good),1,1000,name,'문구','ra-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ra_id('item',item),pg_temp.ra_id('order',purchase),good,pg_temp.ra_variant(good),1,1000,name,'ra-ip'
  from (values(1,1,'ra-good-a','TEST 서울 반품 굿즈'),(2,1,'ra-good-b','TEST 출고지 반품 굿즈'),(3,1,'ra-good-c','TEST 남양주 굿즈'),
   (4,2,'ra-good-a','TEST 서울 반품 굿즈'),(5,3,'ra-good-r','TEST 반품 제한 굿즈'),(6,4,'ra-good-d','TEST 빈 출고지·부산 반품 굿즈'),(7,5,'ra-good-e','TEST 빈 출고지 굿즈')) spec(item,purchase,good,name);
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
@@ -336,8 +336,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  select pg_temp.ra_id('order',n),pg_temp.ra_id('user',2),'delivered',2000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 반품로 1','address2','101호'),
   now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(11,13)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ra_id('item',item),pg_temp.ra_id('order',purchase),good,pg_temp.ra_variant(good),1,1000,name,'문구','ra-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ra_id('item',item),pg_temp.ra_id('order',purchase),good,pg_temp.ra_variant(good),1,1000,name,'ra-ip'
  from (values(11,11,'ra-good-a','TEST 서울 반품 굿즈'),(12,11,'ra-good-b','TEST 출고지 반품 굿즈'),(13,12,'ra-good-a','TEST 서울 반품 굿즈'),(14,12,'ra-good-b','TEST 출고지 반품 굿즈'),
   (15,13,'ra-good-b','TEST 출고지 반품 굿즈')) spec(item,purchase,good,name);
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
@@ -412,8 +412,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  values(pg_temp.ra_id('order',14),pg_temp.ra_id('user',2),'delivered',1000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 반품로 1','address2','101호'),
   now()-interval '4 days',now()-interval '3 days',now()-interval '5 days');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- values(pg_temp.ra_id('item',16),pg_temp.ra_id('order',14),'ra-good-b',pg_temp.ra_variant('ra-good-b'),1,1000,'TEST 출고지 반품 굿즈','문구','ra-ip');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ values(pg_temp.ra_id('item',16),pg_temp.ra_id('order',14),'ra-good-b',pg_temp.ra_variant('ra-good-b'),1,1000,'TEST 출고지 반품 굿즈','ra-ip');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  values(pg_temp.ra_id('shipment',14),pg_temp.ra_id('order',14),pg_temp.ra_id('origin',1),'TEST 김포',0,'{}','delivered','hanjin','RASALE000014',now()-interval '4 days',now()-interval '3 days');
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(pg_temp.ra_id('order',14),pg_temp.ra_id('shipment',14),pg_temp.ra_id('item',16),1);

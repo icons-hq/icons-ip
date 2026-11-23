@@ -74,24 +74,24 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,fre
  (pg_temp.sc_id(101),'shipping-charge-main','TEST 배송비 출고지','hanjin',3000,50000,'TEST 반송주소',true),
  (pg_temp.sc_id(102),'shipping-charge-other','TEST 다른 출고지','hanjin',4000,null,'TEST 반송주소',true),
  (pg_temp.sc_id(103),'shipping-charge-inactive','TEST 정리 출고지','hanjin',3000,null,'TEST 반송주소',false);
-insert into public.goods(id,code,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee)
- select 'sc-good-'||lpad(n::text,3,'0'),'SC-GOOD-'||lpad(n::text,3,'0'),'shipping-charge-ip','TEST 상품 '||n,'문구',10000,'ok',100,pg_temp.sc_id(101),'individual',2500
+insert into public.goods(id,code,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee)
+ select 'sc-good-'||lpad(n::text,3,'0'),'SC-GOOD-'||lpad(n::text,3,'0'),'shipping-charge-ip','TEST 상품 '||n,10000,'ok',100,pg_temp.sc_id(101),'individual',2500
  from generate_series(1,110)n;
 update public.goods set shipping_fee_type='free',individual_fee=0 where id in('sc-good-002','sc-good-003');
 update public.goods set individual_fee=0 where id='sc-good-004';
 update public.goods set shipping_fee_type='policy',individual_fee=0 where id in('sc-good-005','sc-good-007');
 update public.goods set individual_fee=5000 where id='sc-good-006';
 update public.goods set individual_fee=1,price=1 where id in('sc-good-008','sc-good-009');
-insert into public.goods(id,code,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee)
- select id,upper(id),'shipping-charge-ip','TEST 공유 상품','문구',10000,'ok',100,pg_temp.sc_id(101),'individual',5000
+insert into public.goods(id,code,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee)
+ select id,upper(id),'shipping-charge-ip','TEST 공유 상품',10000,'ok',100,pg_temp.sc_id(101),'individual',5000
  from unnest(array['sc-family-owner','sc-family-child'])id;
-insert into public.goods(id,code,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee)
- values('sc-no-origin','SC-NO-ORIGIN','shipping-charge-ip','TEST 출고지 없음','문구',10000,'ok',100,null,'individual',0),
- ('sc-other-origin','SC-OTHER-ORIGIN','shipping-charge-ip','TEST 다른 출고지','문구',10000,'ok',100,pg_temp.sc_id(102),'individual',7000),
- ('sc-inactive-origin','SC-INACTIVE-ORIGIN','shipping-charge-ip','TEST 정리 대상','문구',10000,'ok',100,pg_temp.sc_id(103),'individual',1000);
+insert into public.goods(id,code,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee)
+ values('sc-no-origin','SC-NO-ORIGIN','shipping-charge-ip','TEST 출고지 없음',10000,'ok',100,null,'individual',0),
+ ('sc-other-origin','SC-OTHER-ORIGIN','shipping-charge-ip','TEST 다른 출고지',10000,'ok',100,pg_temp.sc_id(102),'individual',7000),
+ ('sc-inactive-origin','SC-INACTIVE-ORIGIN','shipping-charge-ip','TEST 정리 대상',10000,'ok',100,pg_temp.sc_id(103),'individual',1000);
 insert into public.orders(id,user_id,status,total,address) values(pg_temp.sc_id(501),pg_temp.sc_id(3),'pending',10000,'{}');
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.sc_id(501),'sc-good-001',id,1,10000,'TEST 기존 주문','문구','shipping-charge-ip' from public.goods_variants where good_id='sc-good-001' and is_default;
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.sc_id(501),'sc-good-001',id,1,10000,'TEST 기존 주문','shipping-charge-ip' from public.goods_variants where good_id='sc-good-001' and is_default;
 create temp table sc_old_order as select to_jsonb(i) value from public.order_items i where order_id=pg_temp.sc_id(501);
 select pg_temp.sc_auth();
 select private.bind_goods_aggregation('sc-family-owner',array['sc-family-child'],pg_temp.sc_id(550),pg_temp.sc_id(1));

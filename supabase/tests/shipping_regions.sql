@@ -32,14 +32,14 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,fre
  ('00000000-0000-4000-8000-000000049310','region-a','합성 출고지 A','hanjin',3000,30000,'배송 금지 합성 주소 A',true),
  ('00000000-0000-4000-8000-000000049311','region-b','합성 출고지 B','hanjin',4500,50000,'배송 금지 합성 주소 B',true),
  ('00000000-0000-4000-8000-000000049312','region-future','합성 미래 출고지','hanjin',3000,null,'배송 금지 합성 주소 C',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('region-policy-a','shipping-region-ip','정책 A','문구',10000,'ok',100,'00000000-0000-4000-8000-000000049310','policy',0),
- ('region-free-a','shipping-region-ip','무료 A','문구',7000,'ok',100,'00000000-0000-4000-8000-000000049310','free',0),
- ('region-individual-a','shipping-region-ip','개별 A','문구',5000,'ok',100,'00000000-0000-4000-8000-000000049310','individual',1200),
- ('region-policy-b','shipping-region-ip','정책 B','문구',11000,'ok',100,'00000000-0000-4000-8000-000000049311','policy',0),
- ('region-free-b','shipping-region-ip','무료 B','문구',7000,'ok',100,'00000000-0000-4000-8000-000000049311','free',0),
- ('region-individual-b','shipping-region-ip','개별 B','문구',5000,'ok',100,'00000000-0000-4000-8000-000000049311','individual',800),
- ('region-future','shipping-region-ip','미래 정책 상품','문구',10000,'ok',100,'00000000-0000-4000-8000-000000049312','policy',0);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('region-policy-a','shipping-region-ip','정책 A',10000,'ok',100,'00000000-0000-4000-8000-000000049310','policy',0),
+ ('region-free-a','shipping-region-ip','무료 A',7000,'ok',100,'00000000-0000-4000-8000-000000049310','free',0),
+ ('region-individual-a','shipping-region-ip','개별 A',5000,'ok',100,'00000000-0000-4000-8000-000000049310','individual',1200),
+ ('region-policy-b','shipping-region-ip','정책 B',11000,'ok',100,'00000000-0000-4000-8000-000000049311','policy',0),
+ ('region-free-b','shipping-region-ip','무료 B',7000,'ok',100,'00000000-0000-4000-8000-000000049311','free',0),
+ ('region-individual-b','shipping-region-ip','개별 B',5000,'ok',100,'00000000-0000-4000-8000-000000049311','individual',800),
+ ('region-future','shipping-region-ip','미래 정책 상품',10000,'ok',100,'00000000-0000-4000-8000-000000049312','policy',0);
 insert into public.goods_variants(id,good_id,name,attributes,price,stock_qty)
  values('00000000-0000-4000-8000-000000049320','region-individual-a','합성 두번째 옵션','{"색":"합성"}',5000,100);
 select pg_temp.publish_goods_kc_fixture(id) from public.goods where ip_id='shipping-region-ip';
@@ -61,9 +61,9 @@ savepoint region_carrier_labels;
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active) values
  ('00000000-0000-4000-8000-000000049313','region-nocarrier','합성 택배사 없는 출고지',null,3000,null,'배송 금지 합성 주소 D',true),
  ('00000000-0000-4000-8000-000000049314','region-retired','합성 꺼진 택배사 출고지','region_test',3000,null,'배송 금지 합성 주소 E',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
- ('region-nocarrier','shipping-region-ip','택배사 없는 굿즈','문구',10000,'ok',100,'00000000-0000-4000-8000-000000049313','policy',0),
- ('region-retired','shipping-region-ip','꺼진 택배사 굿즈','문구',10000,'ok',100,'00000000-0000-4000-8000-000000049314','policy',0);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('region-nocarrier','shipping-region-ip','택배사 없는 굿즈',10000,'ok',100,'00000000-0000-4000-8000-000000049313','policy',0),
+ ('region-retired','shipping-region-ip','꺼진 택배사 굿즈',10000,'ok',100,'00000000-0000-4000-8000-000000049314','policy',0);
 select pg_temp.publish_goods_kc_fixture(id) from public.goods where id in ('region-nocarrier','region-retired');
 update public.shipping_carriers set is_active=false where code='region_test';
 select public.quote_goods_sales_for_address(pg_temp.region_items(array['region-policy-a','region-policy-b','region-nocarrier','region-retired']),null) as region_carrier_quote \gset

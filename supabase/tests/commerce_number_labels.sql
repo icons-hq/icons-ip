@@ -9,14 +9,14 @@ update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000
 insert into private.operator_memberships(profile_id,manager_role) values('00000000-0000-4000-8000-000000271401','primary');
 insert into public.verticals(key,label,color) values('number-label','번호 표기','#000000');
 insert into public.ips(id,title,vertical_key) values('number-label','번호 표기','number-label');
-insert into public.goods(id,ip_id,name,type,price,origin_id) values
- ('number-label','number-label','번호 표기 키링','문구',1000,'00000000-0000-4000-8000-000000042202');
+insert into public.goods(id,ip_id,name,price,origin_id) values
+ ('number-label','number-label','번호 표기 키링',1000,'00000000-0000-4000-8000-000000042202');
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select ('52000000-0000-4000-8000-00000000000'||n)::uuid,'00000000-0000-4000-8000-000000271402','confirmed',4000,3000,
   jsonb_build_object('recipientName','합성 받는분','phone','01012342714','postalCode','04524','address1','서울특별시 중구 세종대로 110','address2','101호','deliveryNote',''),now()-interval '5 days'
 from generate_series(1,2) n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select ('72000000-0000-4000-8000-00000000000'||n)::uuid,('52000000-0000-4000-8000-00000000000'||n)::uuid,good_id,id,1,1000,'번호 표기 키링','문구','number-label'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select ('72000000-0000-4000-8000-00000000000'||n)::uuid,('52000000-0000-4000-8000-00000000000'||n)::uuid,good_id,id,1,1000,'번호 표기 키링','number-label'
 from public.goods_variants cross join generate_series(1,2) n where good_id='number-label' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,exported_at)
 select ('62000000-0000-4000-8000-00000000000'||n)::uuid,('52000000-0000-4000-8000-00000000000'||n)::uuid,'00000000-0000-4000-8000-000000042202','남양주',

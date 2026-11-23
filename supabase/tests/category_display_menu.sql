@@ -31,13 +31,13 @@ update public.category_activation_control set customer_enabled=true where id='ca
 insert into public.catalog_categories(id,code,name,parent_id,sort_order) values
  (pg_temp.cm_id(10),'cm-menu-source','메뉴 원천 분류',null,0),(pg_temp.cm_id(11),'cm-menu-empty','상품 없는 원천',null,1);
 insert into public.ips(id,title,vertical_key,published_at) values('cm-menu-ip','메뉴 검증 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,category_id,created_at) values
- ('cm-menu-g-1','cm-menu-ip','나 피규어','피규어',3000,pg_temp.cm_id(10),'2026-01-03T00:00:00Z'),
- ('cm-menu-g-2','cm-menu-ip','가 피규어','피규어',5000,pg_temp.cm_id(10),'2026-01-01T00:00:00Z'),
- ('cm-menu-g-3','cm-menu-ip','B figure','키링',1000,pg_temp.cm_id(10),'2026-01-05T00:00:00Z'),
- ('cm-menu-g-4','cm-menu-ip','10번 굿즈','키링',4000,pg_temp.cm_id(10),'2026-01-02T00:00:00Z'),
- ('cm-menu-g-5','cm-menu-ip','2번 굿즈','기타',2000,pg_temp.cm_id(10),'2026-01-04T00:00:00Z'),
- ('cm-menu-draft','cm-menu-ip','공개 전 상품','문구',2000,pg_temp.cm_id(11),now());
+insert into public.goods(id,ip_id,name,price,category_id,created_at) values
+ ('cm-menu-g-1','cm-menu-ip','나 피규어',3000,pg_temp.cm_id(10),'2026-01-03T00:00:00Z'),
+ ('cm-menu-g-2','cm-menu-ip','가 피규어',5000,pg_temp.cm_id(10),'2026-01-01T00:00:00Z'),
+ ('cm-menu-g-3','cm-menu-ip','B figure',1000,pg_temp.cm_id(10),'2026-01-05T00:00:00Z'),
+ ('cm-menu-g-4','cm-menu-ip','10번 굿즈',4000,pg_temp.cm_id(10),'2026-01-02T00:00:00Z'),
+ ('cm-menu-g-5','cm-menu-ip','2번 굿즈',2000,pg_temp.cm_id(10),'2026-01-04T00:00:00Z'),
+ ('cm-menu-draft','cm-menu-ip','공개 전 상품',2000,pg_temp.cm_id(11),now());
 update public.goods_variants set stock_qty=5 where good_id like 'cm-menu-g-%';
 insert into private.goods_preorder_policies(id,variant_id,state,capacity_qty,starts_at,ends_at,expected_ship_date,approval_reference,created_by,activated_by,activated_at)
 select pg_temp.cm_id(90),id,'active',3,now()-interval '1 day',now()+interval '1 day',current_date+30,'synthetic QA',pg_temp.cm_id(1),pg_temp.cm_id(1),now()
@@ -150,18 +150,11 @@ do $$declare page jsonb;facets jsonb;begin
  page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"sort":"newest"}'));
  perform pg_temp.cm_assert(pg_temp.cm_page_ids(page)=array['cm-menu-g-3','cm-menu-g-5','cm-menu-g-1','cm-menu-g-4','cm-menu-g-2'],'newest first');
  facets:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query())->'typeFacets';
- perform pg_temp.cm_assert(facets=jsonb_build_array(
-   jsonb_build_object('value','피규어','label','피규어','count',2),jsonb_build_object('value','키링','label','키링','count',2),
-   jsonb_build_object('value','기타','label','기타','count',1),jsonb_build_object('value','예약판매','label','예약판매','count',1)),'type facets follow the taxonomy order (기타 last) and end with 예약판매: '||facets::text);
+ perform pg_temp.cm_assert(facets=jsonb_build_array(jsonb_build_object('value','예약판매','label','예약판매','count',1)),'type facets are only 예약판매 (ADR-0044): '||facets::text);
  page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["예약판매"]}'));
  perform pg_temp.cm_assert(page->>'filteredTotal'='1' and pg_temp.cm_page_ids(page)=array['cm-menu-g-2'] and page->>'total'='5','예약판매 filters preorder goods inside the same scope');
- page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["키링","예약판매"]}'));
- perform pg_temp.cm_assert(page->>'filteredTotal'='3','type values combine with OR including 예약판매');
- page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["피규어","인형","키링","아크릴","문구","쿠션","파우치","세트","기타","예약판매"]}'));
- perform pg_temp.cm_assert(page->>'filteredTotal'='5','every taxonomy value (기타 포함) plus 예약판매 is accepted');
- page:=public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["기타"]}'));
- perform pg_temp.cm_assert(page->>'filteredTotal'='1' and pg_temp.cm_page_ids(page)=array['cm-menu-g-5'],'기타 filters its goods');
- begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["피규어","인형","키링","아크릴","문구","쿠션","파우치","세트","기타","예약판매","피규어"]}'));raise exception 'eleven type values accepted';exception when invalid_parameter_value then null;end;
+ -- 상품 유형은 없다(ADR-0044). 옛 유형 값은 모르는 값으로 거절한다.
+ begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["키링"]}'));raise exception 'retired goods type accepted';exception when invalid_parameter_value then null;end;
  begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"sort":"rating"}'));raise exception 'unknown sort accepted';exception when invalid_parameter_value then null;end;
  begin perform public.get_category_display_page(pg_temp.cm_id(21),pg_temp.cm_query('{"types":["중고"]}'));raise exception 'unknown type accepted';exception when invalid_parameter_value then null;end;
  -- 수동 전시의 동률·정렬도 같은 규칙이다(가격 동률 없음 — 이름순만 확인).

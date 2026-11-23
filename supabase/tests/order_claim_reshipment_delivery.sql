@@ -38,12 +38,12 @@ update public.profiles set role='staff',nickname='재출고45A'||right(id::text,
 insert into public.ips(id,title,vertical_key) values('claim-reship-delivery-test','재출고 배송 확인','character');
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
 values('45a10000-0000-4000-8000-000000000050','claim-reship-delivery-test','합성 반송지',3000,'합성 재출고 반송 주소');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
-values('claim-reship-delivery-test','claim-reship-delivery-test','합성 재출고 굿즈','문구',10000,'ok',20,'45a10000-0000-4000-8000-000000000050');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+values('claim-reship-delivery-test','claim-reship-delivery-test','합성 재출고 굿즈',10000,'ok',20,'45a10000-0000-4000-8000-000000000050');
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at)
 values('45a10000-0000-4000-8000-000000000010','45a10000-0000-4000-8000-000000000002','delivered',23000,3000,'{}',now()-interval '2 days',now()-interval '1 day');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select '45a10000-0000-4000-8000-000000000011','45a10000-0000-4000-8000-000000000010','claim-reship-delivery-test',id,2,10000,'합성 재출고 굿즈','문구','claim-reship-delivery-test'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select '45a10000-0000-4000-8000-000000000011','45a10000-0000-4000-8000-000000000010','claim-reship-delivery-test',id,2,10000,'합성 재출고 굿즈','claim-reship-delivery-test'
 from public.goods_variants where good_id='claim-reship-delivery-test' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
 values('45a10000-0000-4000-8000-000000000051','45a10000-0000-4000-8000-000000000010','45a10000-0000-4000-8000-000000000050','합성 반송지',3000,'{}','delivered','hanjin','SALE45A10001',now()-interval '2 days',now()-interval '1 day');

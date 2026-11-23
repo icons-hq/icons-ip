@@ -345,8 +345,8 @@ def run():
 
         request = assignment_request(727, preview(clone, ['sc-family-owner'], 201, DEPUTY, DEPUTY_SESSION))
         held = auth(role=None) + "select pg_advisory_xact_lock(hashtextextended('goods-stock-successor-topology:v1',0));" + \
-            "insert into public.goods(id,code,ip_id,name,type,price,stock,origin_id,shipping_fee_type,individual_fee) values(" + \
-            "'sc-family-race-added','SC-FAMILY-RACE-ADDED','shipping-charge-ip','TEST 추가 공유상품','문구',10000,'ok'," + quote(ident(101)) + ", 'individual',5000);" + \
+            "insert into public.goods(id,code,ip_id,name,price,stock,origin_id,shipping_fee_type,individual_fee) values(" + \
+            "'sc-family-race-added','SC-FAMILY-RACE-ADDED','shipping-charge-ip','TEST 추가 공유상품',10000,'ok'," + quote(ident(101)) + ", 'individual',5000);" + \
             "select private.bind_goods_aggregation('sc-family-owner',array['sc-family-race-added']," + quote(ident(752)) + ',' + quote(ACTOR) + ');'
         clone.pair('family-topology-versus-assignment', held, operation_body(request), 'shipping_charge_group_goods_changed')
         absent(clone, 727)

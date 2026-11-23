@@ -17,8 +17,8 @@ insert into private.category_display_nodes(id,parent_id,name,sort_order,archived
  select id,parent_id,name,sort_order,archived_at,id from public.catalog_categories where code like 'cd-display-%';
 update public.category_activation_control set customer_enabled=true where id='catalog';
 insert into public.ips(id,title,vertical_key,published_at) values('cd-display-ip','카테고리 전시 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,category_id)
-select 'cd-display-g-'||n,'cd-display-ip','카테고리 검증 상품 '||n,'문구',1000,case when n<=1001 then pg_temp.cd_id(12) else pg_temp.cd_id(13) end from generate_series(1,1003)n;
+insert into public.goods(id,ip_id,name,price,category_id)
+select 'cd-display-g-'||n,'cd-display-ip','카테고리 검증 상품 '||n,1000,case when n<=1001 then pg_temp.cd_id(12) else pg_temp.cd_id(13) end from generate_series(1,1003)n;
 insert into public.goods_additional_categories(good_id,category_id) values('cd-display-g-1002',pg_temp.cd_id(12));
 -- Use the real KC review contract with an explicitly provisioned fixture actor.
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)

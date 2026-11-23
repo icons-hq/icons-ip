@@ -51,13 +51,13 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,fre
  (pg_temp.st_id(101),'shipping-delivery-unready','TEST 수납 미준비','hanjin',3000,null,'TEST 반송주소',true),
  (pg_temp.st_id(102),'shipping-delivery-ready','TEST 수납 출고지','hanjin',3000,null,'TEST 반송주소',true),
  (pg_temp.st_id(103),'shipping-delivery-inactive','TEST 비활성','hanjin',3000,null,'TEST 반송주소',false);
-insert into public.goods(id,code,ip_id,name,type,price,stock,origin_id,shipping_fee_type,individual_fee)
- select 'st-good-'||lpad(n::text,3,'0'),'ST-GOOD-'||lpad(n::text,3,'0'),'shipping-delivery-ip','TEST 상품 '||n,'문구',1000,'ok',pg_temp.st_id(102),'individual',100 from generate_series(1,101)n;
-insert into public.goods(id,code,ip_id,name,type,price,stock,origin_id,shipping_fee_type,individual_fee)
- select id,upper(id),'shipping-delivery-ip','TEST 공유 상품','문구',1000,'ok',pg_temp.st_id(102),'individual',100 from unnest(array['st-family-owner','st-family-child','st-family-new'])id;
+insert into public.goods(id,code,ip_id,name,price,stock,origin_id,shipping_fee_type,individual_fee)
+ select 'st-good-'||lpad(n::text,3,'0'),'ST-GOOD-'||lpad(n::text,3,'0'),'shipping-delivery-ip','TEST 상품 '||n,1000,'ok',pg_temp.st_id(102),'individual',100 from generate_series(1,101)n;
+insert into public.goods(id,code,ip_id,name,price,stock,origin_id,shipping_fee_type,individual_fee)
+ select id,upper(id),'shipping-delivery-ip','TEST 공유 상품',1000,'ok',pg_temp.st_id(102),'individual',100 from unnest(array['st-family-owner','st-family-child','st-family-new'])id;
 insert into public.orders(id,user_id,status,total,address) values(pg_temp.st_id(501),pg_temp.st_id(3),'pending',1000,'{}');
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.st_id(501),'st-good-001',id,1,1000,'TEST 기존 주문','문구','shipping-delivery-ip' from public.goods_variants where good_id='st-good-001' and is_default;
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.st_id(501),'st-good-001',id,1,1000,'TEST 기존 주문','shipping-delivery-ip' from public.goods_variants where good_id='st-good-001' and is_default;
 create temp table st_old_order as select to_jsonb(i) value from public.order_items i where order_id=pg_temp.st_id(501);
 create temp table st_old_origins as select id,to_jsonb(o) value from public.fulfillment_origins o where id in(pg_temp.st_id(101),pg_temp.st_id(102),pg_temp.st_id(103));
 select pg_temp.st_auth();

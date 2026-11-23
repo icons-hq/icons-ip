@@ -25,12 +25,12 @@ update private.operator_access_state set configured=true where id;
 select pg_temp.cc_assert((select configured from private.operator_access_state where id) and(select count(*)=1 from private.operator_memberships where manager_role='owner'),'configured single owner');
 insert into public.ips(id,title,vertical_key) values('cc-ip','TEST Contact','character');
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values(pg_temp.cc_id('origin',1),'cc-origin','TEST Contact','hanjin',0,'TEST warehouse',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values('cc-good','cc-ip','TEST Contact Good','문구',1000,'ok',100,pg_temp.cc_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values('cc-good','cc-ip','TEST Contact Good',1000,'ok',100,pg_temp.cc_id('origin',1));
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at)
  select pg_temp.cc_id('order',n),pg_temp.cc_id('user',2),'delivered',1000,0,
  jsonb_build_object('recipientName','원래 수령인','phone','010-1234-5678','postalCode',' 1234 ','address1',' 원본 기본 주소 ','address2','원래 상세'),now()-interval '45 days',now()-interval '44 days' from generate_series(1,18)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.cc_id('item',n),pg_temp.cc_id('order',n),'cc-good',(select id from public.goods_variants where good_id='cc-good' and is_default),1,1000,'TEST Contact Good','문구','cc-ip' from generate_series(1,18)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.cc_id('item',n),pg_temp.cc_id('order',n),'cc-good',(select id from public.goods_variants where good_id='cc-good' and is_default),1,1000,'TEST Contact Good','cc-ip' from generate_series(1,18)n;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  select pg_temp.cc_id('shipment',n),pg_temp.cc_id('order',n),pg_temp.cc_id('origin',1),'TEST Contact',0,'{}','delivered','hanjin','CONTACT'||lpad(n::text,8,'0'),now()-interval '45 days',now()-interval '44 days' from generate_series(1,18)n;
 insert into public.order_shipment_items(shipment_id,order_id,order_item_id,qty) select pg_temp.cc_id('shipment',n),pg_temp.cc_id('order',n),pg_temp.cc_id('item',n),1 from generate_series(1,18)n;

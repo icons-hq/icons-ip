@@ -239,16 +239,16 @@ values
   );
 
 insert into public.goods (
-  id, ip_id, name, type, price, stock, stock_qty, archived_at, published_at
+  id, ip_id, name, price, stock, stock_qty, archived_at, published_at
 )
 values
-  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null,null),
-  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null,null),
-  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null,null),
-  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null,null),
-  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '문구', 1000, 'soldout', 0, now(), null),
-  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null,null),
-  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null,null);
+  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', 1000, 'soldout', 0, null,null),
+  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', 1000, 'soldout', 0, null,null),
+  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', 1000, 'ok', 1, null,null),
+  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', 1000, 'soldout', 0, null,null),
+  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', 1000, 'soldout', 0, now(), null),
+  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', 1000, 'soldout', 0, null,null),
+  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', 1000, 'soldout', 0, null,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('archive-life-good');
 select pg_temp.publish_goods_kc_fixture('archive-child-good');
@@ -376,14 +376,14 @@ values (
 
 insert into public.order_items (
   id, order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '00000000-0000-4000-8000-000000011362',
   '00000000-0000-4000-8000-000000011361',
   'archive-history-good',
   1, 1000,
-  '카탈로그보관검색 굿즈', '문구', 'archive-history-ip',
+  '카탈로그보관검색 굿즈', 'archive-history-ip',
   (select id from public.goods_variants where good_id='archive-history-good' and is_default));
 
 insert into public.user_cards (user_id, card_id, qty)
@@ -646,10 +646,10 @@ do $$
 begin
   begin
     insert into public.goods (
-      id, ip_id, name, type, price, stock, stock_qty
+      id, ip_id, name, price, stock, stock_qty
     ) values (
       'archive-parent-active-insert', 'archive-parent-ip',
-      '부모 가드 신규 굿즈', '문구', 1000, 'soldout', 0
+      '부모 가드 신규 굿즈', 1000, 'soldout', 0
     );
   exception
     when check_violation then

@@ -10,7 +10,7 @@ select 1 / case when to_regprocedure('public.admin_adjust_stock(uuid,text,intege
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('00000000-0000-4000-8000-000000044301','authenticated','authenticated','option-contract@example.test',now(),'{}','{}',now(),now());
 insert into public.ips(id,title,vertical_key,published_at) values('option-contract-test','옵션 필수','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values('option-contract-test','option-contract-test','옵션 필수','문구',10000,'ok',4,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at) values('option-contract-test','option-contract-test','옵션 필수',10000,'ok',4,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('option-contract-test');
 do $$ begin
@@ -23,8 +23,8 @@ do $$ begin
  raise exception 'cart silently selected default option';
 exception when not_null_violation then null; end $$;
 do $$ begin
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- values('00000000-0000-4000-8000-000000044320','option-contract-test',1,10000,'옵션 필수','문구','option-contract-test');
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ values('00000000-0000-4000-8000-000000044320','option-contract-test',1,10000,'옵션 필수','option-contract-test');
  raise exception 'order silently selected default option';
 exception when not_null_violation then null; end $$;
 set local role authenticated;

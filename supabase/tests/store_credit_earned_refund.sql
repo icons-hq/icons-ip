@@ -10,8 +10,8 @@ where id in ('00000000-0000-4000-8000-000000004894','00000000-0000-4000-8000-000
 insert into public.ips(id,title,vertical_key,published_at) values('credit-earned-ip','원적립 환불 검증','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
 values('00000000-0000-4000-8000-000000004894','credit-earned-origin','합성 출고지','hanjin',0,'합성 반품 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id)
-values('credit-earned-good','credit-earned-ip','합성 원적립 굿즈','문구',10000,'ok',100,null,'00000000-0000-4000-8000-000000004894');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id)
+values('credit-earned-good','credit-earned-ip','합성 원적립 굿즈',10000,'ok',100,null,'00000000-0000-4000-8000-000000004894');
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('credit-earned-good');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004894',true);

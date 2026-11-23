@@ -377,7 +377,6 @@ insert into public.goods (
   id,
   ip_id,
   name,
-  type,
   price,
   stock,
   stock_qty
@@ -386,7 +385,6 @@ values (
   'notification-seed-good',
   'notification-ip',
   '시드 굿즈',
-  '문구',
   1000,
   'ok',
   1

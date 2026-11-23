@@ -34,8 +34,8 @@ update public.category_activation_control set customer_enabled = true where id =
 -- 굿즈 25개(= 첫 페이지 20 + 둘째 페이지 5). 구성 순서·id 순서 = mt-01 … mt-25.
 insert into public.catalog_categories(id, code, name, parent_id, sort_order) values (pg_temp.mt_uid(10), 'mt-token-source', '정렬 토큰 원천', null, 0);
 insert into public.ips(id, title, vertical_key, published_at) values ('mt-ip', '정렬 토큰 IP', 'character', now());
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, category_id, created_at, display_order)
-select 'mt-' || lpad(n::text, 2, '0'), 'mt-ip', '정렬 토큰 상품 ' || n, '문구', 1000 + n, 'ok', 100, pg_temp.mt_uid(10),
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, category_id, created_at, display_order)
+select 'mt-' || lpad(n::text, 2, '0'), 'mt-ip', '정렬 토큰 상품 ' || n, 1000 + n, 'ok', 100, pg_temp.mt_uid(10),
  timestamptz '2026-03-01 00:00:00+00' + (n || ' days')::interval, n
 from generate_series(1, 25) n;
 insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
@@ -54,8 +54,8 @@ declare purchase uuid := ('10000000-0000-4000-8000-' || lpad((target + 700)::tex
 begin
  insert into public.orders(id, user_id, status, total, address, created_at, payment_method)
  values(purchase, pg_temp.mt_uid(2), 'paid', quantity::bigint * 1000, '{}', now() - interval '90 days', 'card');
- insert into public.order_items(order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
- select purchase, 'mt-' || good_key, id, quantity, 1000, '합성 집계 상품', '문구', 'mt-ip'
+ insert into public.order_items(order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot)
+ select purchase, 'mt-' || good_key, id, quantity, 1000, '합성 집계 상품', 'mt-ip'
  from public.goods_variants where good_id = 'mt-' || good_key and is_default;
  insert into public.payments(id, user_id, purpose, ref_id, provider, amount, status, idempotency_key)
  values(payment, pg_temp.mt_uid(2), 'order', purchase, 'korpay', quantity::bigint * 1000, 'paid', 'mt-payment-' || target);

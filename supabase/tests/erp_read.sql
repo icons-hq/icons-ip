@@ -20,8 +20,8 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
  values(pg_temp.er_id('origin',1),'erp-read-origin','읽기 합성 출고지',0,'합성 반송 주소');
 insert into public.ips(id,title,vertical_key) values('erp-read-ip','읽기 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('erp-read-good','erp-read-ip','읽기 합성 굿즈','문구',1000,'ok',100,pg_temp.er_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('erp-read-good','erp-read-ip','읽기 합성 굿즈',1000,'ok',100,pg_temp.er_id('origin',1));
 insert into private.goods_variant_external_identity(variant_id,erp_code,erp_name,barcode)
  select v.id,'ERP-READ-0001','읽기 합성 품목','8800000000028' from public.goods_variants v where v.good_id='erp-read-good' and v.is_default;
 insert into public.orders(id,user_id,status,total,address,created_at,updated_at,payment_method)
@@ -29,8 +29,8 @@ insert into public.orders(id,user_id,status,total,address,created_at,updated_at,
   jsonb_build_object('recipientName','읽기 합성 수취인','phone','01000000000'),
   '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z'::timestamptz+n*interval '1 minute','card'
  from generate_series(1,3)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.er_id('item',n),pg_temp.er_id('order',n),g.id,v.id,n,1000,g.name,g.type,g.ip_id
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.er_id('item',n),pg_temp.er_id('order',n),g.id,v.id,n,1000,g.name,g.ip_id
  from generate_series(1,3)n join public.goods g on g.id='erp-read-good' join public.goods_variants v on v.good_id=g.id and v.is_default;
 insert into public.payments(id,user_id,purpose,ref_id,amount,status,payment_key,idempotency_key,provider)
  values(pg_temp.er_id('payment',1),pg_temp.er_id('buyer',1),'order',pg_temp.er_id('order',1),2001,'paid','erp-read-payment-key','erp-read-idempotency','toss');

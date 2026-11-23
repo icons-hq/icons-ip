@@ -7,7 +7,7 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
 select pg_temp.gift_id(n),'authenticated','authenticated','gift-domain-'||n||'@example.test',now(),'{"testFixture":"gift-domain"}','{}' from generate_series(1,3)n;
 update public.profiles set nickname='선물검증'||right(id::text,1),birth_date='1990-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}' where id in(pg_temp.gift_id(1),pg_temp.gift_id(2),pg_temp.gift_id(3));
 insert into public.ips(id,title,vertical_key,published_at) values('gift-domain-ip','선물 검증 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price) values('gift-domain-good','gift-domain-ip','선물 검증 상품','문구',10000);
+insert into public.goods(id,ip_id,name,price) values('gift-domain-good','gift-domain-ip','선물 검증 상품',10000);
 update public.goods_variants set stock_qty=100 where good_id='gift-domain-good';
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
 values(('47c47700'||left(md5('gift-domain-good'),24))::uuid,'authenticated','authenticated','gift-kc@example.test',now(),'{"testFixture":"goods-kc"}','{}');

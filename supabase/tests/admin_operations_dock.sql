@@ -4,7 +4,7 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,cr
 select ('00000000-0000-4000-8000-'||lpad((69000+i)::text,12,'0'))::uuid,'authenticated','authenticated','operations-dock-'||i||'@example.test','{}','{}',now(),now() from generate_series(1,3)i;
 update public.profiles set role='staff' where id in('00000000-0000-4000-8000-000000069001','00000000-0000-4000-8000-000000069002');
 insert into public.ips(id,title,vertical_key)values('ops-dock-test','운영 알림 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)values('ops-dock-good','ops-dock-test','알림 검수 상품','문구',1000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)values('ops-dock-good','ops-dock-test','알림 검수 상품',1000,'ok',10);
 insert into public.orders(id,user_id,status,total)values('00000000-0000-4000-8000-000000069101','00000000-0000-4000-8000-000000069003','pending',1000);
 update public.orders set status='paid' where id='00000000-0000-4000-8000-000000069101';
 update public.orders set status='paid' where id='00000000-0000-4000-8000-000000069101';

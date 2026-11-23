@@ -148,7 +148,7 @@ select 1/case when not has_table_privilege('authenticated','private.goods_varian
  and (select unit_cost_krw from private.goods_variant_purchase_costs where variant_id=:'variant_id')=1460
  and (select count(*) from private.goods_variant_purchase_cost_changes where variant_id=:'variant_id')=5
  then 1 else 0 end as assert_private_ledgers_are_sealed_and_staff_did_not_clear;
-update public.goods set type='문구',image_path='public-media/purchase-cost-fixture.webp',
+update public.goods set image_path='public-media/purchase-cost-fixture.webp',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',
  notice_as_manager='CS',notice_as_contact='02-000' where id='purchase-cost-good';
 select pg_temp.publish_goods_kc_fixture('purchase-cost-good');
