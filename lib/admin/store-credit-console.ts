@@ -24,7 +24,7 @@ const date = (value: unknown): value is string => typeof value === 'string' && N
 const nullableUuid = (value: unknown) => value === null || typeof value === 'string' && isUuid(value);
 export function parseStoreCreditTargets(raw: string): { targets: string[]; duplicates: number } {
   const values = raw.split(/[\s,;]+/).map(value => value.trim().toLowerCase()).filter(Boolean);
-  if (!values.length || values.length > 5000 || values.some(value => value.length > 200 || !isUuid(value) && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))) throw new Error('고객 ID 또는 정확한 이메일을 한 줄에 하나씩 입력해주세요.');
+  if (!values.length || values.length > 5000 || values.some(value => value.length > 200 || !isUuid(value) && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))) throw new Error('회원번호 또는 정확한 이메일을 한 줄에 하나씩 입력해주세요.');
   const targets = [...new Set(values)];
   if (targets.length > STORE_CREDIT_TARGET_LIMIT) throw new Error('한 번에 최대 1,000명까지 지급할 수 있습니다.');
   return { targets, duplicates: values.length - targets.length };
@@ -74,9 +74,9 @@ export function parseStoreCreditConsoleData(value: unknown, filters: StoreCredit
   return { filters, total: value.total, rows: value.rows as unknown as StoreCreditConsoleRow[] };
 }
 export function storeCreditBatchError(reason: string | null): string {
-  if (reason === 'customer_not_found') return '정확한 고객 ID·이메일을 확인해주세요.';
-  if (reason === 'duplicate_customer') return '같은 고객이 ID와 이메일로 중복 입력됐습니다.';
-  if (reason === 'customer_unavailable' || reason === 'account_suspended' || reason === 'account_deletion_in_progress') return '현재 지급할 수 없는 고객 계정입니다.';
-  if (reason === 'store_credit_preview_stale') return '확인 유효시간이 지났거나 정책이 바뀌었습니다. 새로 검증해주세요.';
+  if (reason === 'customer_not_found') return '찾을 수 없는 회원번호·이메일입니다. 철자를 확인해주세요.';
+  if (reason === 'duplicate_customer') return '같은 고객을 회원번호와 이메일로 두 번 넣었습니다. 한 줄을 지워주세요.';
+  if (reason === 'customer_unavailable' || reason === 'account_suspended' || reason === 'account_deletion_in_progress') return '지금 지급할 수 없는 계정입니다(정지·탈퇴 처리 중 등). 대상에서 빼주세요.';
+  if (reason === 'store_credit_preview_stale') return '검증한 지 15분이 지났거나 그사이 정책·잔액이 바뀌었습니다. ‘대상·총액 검증’을 다시 눌러주세요.';
   return storeCreditErrorMessage(reason);
 }

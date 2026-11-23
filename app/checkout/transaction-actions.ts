@@ -34,6 +34,7 @@ export type CartTransactionPlaceResult = { ok: true; orderId: string } | { ok: f
 
 async function authorize(expectedActorId: string, allowExisting = false): Promise<CartTransactionError | null> {
   const auth = await getCurrentAuthState();
+  if (auth.authUnavailable) return 'checkout_unavailable';
   if (!auth.isConfigured || auth.user?.id !== expectedActorId) return 'auth_changed';
   if (!allowExisting && (isAccountSuspended(auth.profile) || !isOnboarded(auth.profile, auth.user.email))) return 'account_unavailable';
   return null;

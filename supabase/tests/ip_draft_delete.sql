@@ -228,8 +228,8 @@ select public.admin_set_ip_published('t17c-once', false);
 select public.admin_create_ip('t17c-archived', '보관한 초안', null, 't17c-test', null, null, null, null, null);
 select public.admin_archive_ip('t17c-archived');
 reset role;
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty)
-values ('t17c-goods-item', 't17c-goods', '연결 상품', '문구', 1000, 'soldout', 0);
+insert into public.goods(id, ip_id, name, price, stock, stock_qty)
+values ('t17c-goods-item', 't17c-goods', '연결 상품', 1000, 'soldout', 0);
 insert into public.home_curations(id, kind, title, link_path, display_order, active_from, enabled)
 values (gen_random_uuid(), 'announcement', '링크 공지', '/ip/t17c-linked?tab=goods', 0, now(), false);
 insert into public.coupons(code, name, discount_type, discount_value, goods_scope, target_ip_ids)

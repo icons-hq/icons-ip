@@ -86,7 +86,7 @@ async function mutate(id: string, name: string): Promise<OrderDelayNoticeActionR
   if (!current.emailConfigured)
     return {
       ...current,
-      error: '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.',
+      error: '메일 발송 서비스 연결(발송 키·서명 설정)이 아직 준비되지 않았습니다. 개발 담당자에게 메일 발송 설정을 요청해주세요.',
     };
   if (!current.notice.emailEnabled)
     return {

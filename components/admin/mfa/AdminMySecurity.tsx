@@ -72,7 +72,7 @@ export function AdminMySecurity({ required }: { required: boolean }) {
 
   return <div className="flex flex-col gap-5">
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="font-medium">이 로그인 세션</span>
+      <span className="font-medium">지금 로그인</span>
       <AdminStatusBadge tone={statusTone('setting', verifiedHere ? 'active' : 'inactive')}>{verifiedHere ? '인증 앱으로 확인됨' : '비밀번호만 확인됨'}</AdminStatusBadge>
     </div>
     {verified.length ? <ul className="flex flex-col divide-y rounded-lg border">
@@ -81,15 +81,15 @@ export function AdminMySecurity({ required }: { required: boolean }) {
           <span className="truncate font-medium">{factor.friendlyName ?? '인증 앱'}</span>
           <span className="text-xs text-muted-foreground">등록 {formatOrderDateTime(factor.createdAt)}</span>
         </div>
-        <Button disabled={busy || !verifiedHere} onClick={() => void remove(factor)} size="sm" title={verifiedHere ? undefined : '인증 앱 코드로 이 세션을 먼저 확인해야 지울 수 있습니다.'} variant="outline">삭제</Button>
+        <Button disabled={busy || !verifiedHere} onClick={() => void remove(factor)} size="sm" title={verifiedHere ? undefined : '지금 로그인을 인증 앱 코드로 먼저 확인해야 지울 수 있습니다.'} variant="outline">삭제</Button>
       </li>)}
     </ul> : <p className="text-sm text-muted-foreground">등록한 인증 앱이 없습니다.</p>}
-    {verified.length && !verifiedHere ? <section aria-label="이 세션 확인" className="flex flex-col gap-2 rounded-lg border p-3">
-      <p className="text-sm">등록한 인증 앱의 코드로 이 세션을 확인합니다. 확인한 세션에서만 인증 앱을 지울 수 있습니다.</p>
-      <TotpCodeForm factorId={verified[0].id} onVerified={() => afterVerified('이 세션을 인증 앱으로 확인했습니다.')} submitLabel="확인" supabase={supabase} />
+    {verified.length && !verifiedHere ? <section aria-label="지금 로그인 확인" className="flex flex-col gap-2 rounded-lg border p-3">
+      <p className="text-sm">등록한 인증 앱의 코드를 넣어 지금 로그인을 확인합니다. 인증 앱 코드로 확인한 로그인에서만 인증 앱을 지울 수 있습니다.</p>
+      <TotpCodeForm factorId={verified[0].id} onVerified={() => afterVerified('지금 로그인을 인증 앱 코드로 확인했습니다.')} submitLabel="확인" supabase={supabase} />
     </section> : null}
     {!verified.length ? <section aria-label="인증 앱 등록" className="flex flex-col gap-3 rounded-lg border p-3">
-      <TotpEnrollPanel factors={factors} onVerified={() => afterVerified('인증 앱을 등록했고 이 세션도 확인했습니다.')} supabase={supabase} />
+      <TotpEnrollPanel factors={factors} onVerified={() => afterVerified('인증 앱을 등록했고 지금 로그인도 인증 앱 코드로 확인했습니다.')} supabase={supabase} />
     </section> : null}
     {message ? <p className="text-sm text-success" role="status">{message}</p> : null}
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}

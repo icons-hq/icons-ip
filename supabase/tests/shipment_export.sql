@@ -5,9 +5,9 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,cr
 update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000042970';
 insert into public.verticals(key,label,color) values('shipment-export-test','출고지시 테스트','#111111');
 insert into public.ips(id,title,vertical_key) values('shipment-export-test','출고지시 테스트','shipment-export-test');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('shipment-export-test','shipment-export-test','출고할 상품','문구',10000,'ok',20);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('shipment-export-test','shipment-export-test','출고할 상품',10000,'ok',20);
 insert into public.orders(id,user_id,status,total,address) values('00000000-0000-4000-8000-000000042971','00000000-0000-4000-8000-000000042970','confirmed',20000,'{"recipientName":"이름","phone":"01000112233","postalCode":"00123","address1":"주소1","address2":"주소2","deliveryNote":"문 앞"}');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) select '00000000-0000-4000-8000-000000042972','00000000-0000-4000-8000-000000042971','shipment-export-test',id,2,10000,'출고할 상품','문구','shipment-export-test' from public.goods_variants where good_id='shipment-export-test' and is_default;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) select '00000000-0000-4000-8000-000000042972','00000000-0000-4000-8000-000000042971','shipment-export-test',id,2,10000,'출고할 상품','shipment-export-test' from public.goods_variants where good_id='shipment-export-test' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot) values('00000000-0000-4000-8000-000000042973','00000000-0000-4000-8000-000000042971','00000000-0000-4000-8000-000000042201','김포',3000,'{}');
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id) values('00000000-0000-4000-8000-000000042971','00000000-0000-4000-8000-000000042973','00000000-0000-4000-8000-000000042972');
 set local role authenticated;

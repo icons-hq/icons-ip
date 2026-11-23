@@ -65,9 +65,9 @@ insert into public.ips(id,title,vertical_key) values('po-ip','TEST 출고지별 
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  (pg_temp.po_id('origin',1),'po-gimpo','TEST 김포','hanjin',0,'TEST 김포 반송지',true),
  (pg_temp.po_id('origin',2),'po-namyangju','TEST 남양주','hanjin',0,'TEST 남양주 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('po-good-1','po-ip','TEST 김포 굿즈','문구',1000,'ok',10,pg_temp.po_id('origin',1)),
- ('po-good-2','po-ip','TEST 남양주 굿즈','문구',2000,'ok',10,pg_temp.po_id('origin',2));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('po-good-1','po-ip','TEST 김포 굿즈',1000,'ok',10,pg_temp.po_id('origin',1)),
+ ('po-good-2','po-ip','TEST 남양주 굿즈',2000,'ok',10,pg_temp.po_id('origin',2));
 insert into public.goods_variants(id,good_id,name,price,stock_qty,sort_order) values
  (pg_temp.po_id('variant',1),'po-good-1','TEST 김포 파랑',1000,5,1),
  (pg_temp.po_id('variant',2),'po-good-2','TEST 남양주 빨강',2000,5,1);
@@ -81,11 +81,11 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  select pg_temp.po_id('order',n),pg_temp.po_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 출고지로 1','address2','101호'),
   now()-interval '3 days',now()-interval '2 days' from generate_series(1,3)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values
- (pg_temp.po_id('item',1),pg_temp.po_id('order',1),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 굿즈','문구','po-ip'),
- (pg_temp.po_id('item',2),pg_temp.po_id('order',1),'po-good-2',pg_temp.po_default('po-good-2'),2,2000,'TEST 남양주 굿즈','문구','po-ip'),
- (pg_temp.po_id('item',3),pg_temp.po_id('order',2),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 굿즈','문구','po-ip'),
- (pg_temp.po_id('item',4),pg_temp.po_id('order',3),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 굿즈','문구','po-ip');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) values
+ (pg_temp.po_id('item',1),pg_temp.po_id('order',1),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 굿즈','po-ip'),
+ (pg_temp.po_id('item',2),pg_temp.po_id('order',1),'po-good-2',pg_temp.po_default('po-good-2'),2,2000,'TEST 남양주 굿즈','po-ip'),
+ (pg_temp.po_id('item',3),pg_temp.po_id('order',2),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 굿즈','po-ip'),
+ (pg_temp.po_id('item',4),pg_temp.po_id('order',3),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 굿즈','po-ip');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at) values
  (pg_temp.po_id('shipment',1),pg_temp.po_id('order',1),pg_temp.po_id('origin',1),'TEST 김포',0,'{}','delivered','hanjin','POSALE000001',now()-interval '3 days',now()-interval '2 days'),
  (pg_temp.po_id('shipment',2),pg_temp.po_id('order',1),pg_temp.po_id('origin',2),'TEST 남양주',0,'{}','delivered','hanjin','POSALE000002',now()-interval '3 days',now()-interval '2 days'),
@@ -323,9 +323,9 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  select pg_temp.po_id('order',n),pg_temp.po_id('user',2),'delivered',3000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 출고지로 1','address2','101호'),
   now()-interval '12 days',now()-interval '2 days' from generate_series(4,5)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.po_id('item',n*10+1),pg_temp.po_id('order',n),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 주문제작','문구','po-ip' from generate_series(4,5)n
- union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','문구','po-ip' from generate_series(4,5)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.po_id('item',n*10+1),pg_temp.po_id('order',n),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 주문제작','po-ip' from generate_series(4,5)n
+ union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','po-ip' from generate_series(4,5)n;
 -- 주문제작 조건·원주문 제작 완료·결제 확인은 이 시험의 전제라 트리거 없이 심는다(order_production.sql과 같은 결제 근거).
 set session_replication_role=replica;
 update public.order_items set production_terms_snapshot='{"leadDays":3,"dayBasis":"calendar"}' where id in(pg_temp.po_id('item',41),pg_temp.po_id('item',51));
@@ -429,9 +429,9 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  select pg_temp.po_id('order',n),pg_temp.po_id('user',2),'delivered',3000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 출고지로 1','address2','101호'),
   now()-interval '12 days',now()-interval '2 days' from generate_series(6,11)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.po_id('item',n*10+1),pg_temp.po_id('order',n),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 주문제작','문구','po-ip' from generate_series(6,11)n
- union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','문구','po-ip' from generate_series(6,11)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.po_id('item',n*10+1),pg_temp.po_id('order',n),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 주문제작','po-ip' from generate_series(6,11)n
+ union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','po-ip' from generate_series(6,11)n;
 set session_replication_role=replica;
 update public.order_items set production_terms_snapshot='{"leadDays":3,"dayBasis":"calendar"}' where id in(select pg_temp.po_id('item',n*10+1) from generate_series(6,11)n);
 insert into private.order_production_jobs(order_id,order_item_id,terms,state,basis_at,due_at,started_at,completed_at)

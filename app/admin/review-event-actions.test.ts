@@ -33,7 +33,7 @@ describe('review event action authorization and durable results', () => {
   });
   it('explains a rejected value check as an input problem', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid_review_event' } });
-    expect(await saveReviewEventAction(id, 0, operation, values())).toEqual({ error: expect.stringContaining('입력값을 확인해주세요') });
+    expect(await saveReviewEventAction(id, 0, operation, values())).toEqual({ error: expect.stringContaining('입력한 조건이 맞지 않습니다') });
   });
   it('keeps the same operation retry contract when save or readback is ambiguous', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: event(), error: null }).mockResolvedValueOnce({ data: null, error: { message: 'offline' } });

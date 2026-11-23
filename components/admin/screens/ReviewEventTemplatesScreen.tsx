@@ -50,7 +50,7 @@ export function ReviewEventTemplateEditor({ template, initial, onClose, onSaved,
     try {
       result = next.kind === 'save' ? await saveReviewEventTemplateAction(next.id, next.revision, next.operationId, next.values)
         : await deleteReviewEventTemplateAction(next.id, next.revision, next.operationId);
-    } catch { result = { ok: false, uncertain: true, error: `${next.kind === 'save' ? '저장' : '삭제'} 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.` }; }
+    } catch { result = { ok: false, uncertain: true, error: `${next.kind === 'save' ? '저장' : '삭제'}됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러주세요. 다시 눌러도 두 번 처리되지 않습니다.` }; }
     busy.current = false; setPending(false);
     if (!result.ok) { setMessage(result.error); setUncertain(Boolean(result.uncertain)); setConflict(Boolean(result.conflict)); if (!result.uncertain) request.current = null; return; }
     request.current = null; setUncertain(false);

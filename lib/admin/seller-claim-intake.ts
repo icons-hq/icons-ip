@@ -92,7 +92,7 @@ export function parseSellerClaimInput(input: unknown): { ok: true; requestId: st
   const fail = (error: string) => ({ ok: false, error } as const);
   if (!record(input) || !exactKeys(input, ['requestId','orderId','claimType','reasonType','reason','source','inquiryId','customerRequestedAt','agreementEvidence','agreementConfirmed','collectionAddress','collections','refundAccount'])
     || !isUuid(input.requestId) || !isUuid(input.orderId) || !isOrderClaimType(input.claimType)
-    || typeof input.reasonType !== 'string' || !isOrderWithdrawalReasonType(input.reasonType) || !known(SELLER_CLAIM_SOURCES, input.source)) return fail('주문과 접수 유형을 다시 확인해주세요.');
+    || typeof input.reasonType !== 'string' || !isOrderWithdrawalReasonType(input.reasonType) || !known(SELLER_CLAIM_SOURCES, input.source)) return fail('주문 또는 접수 유형 정보가 올바르지 않습니다. 접수 창을 닫았다가 다시 열어주세요.');
   /* R7: 취소(발주확인 전)는 단순 변심만 받는다. DB(private.validate_seller_claim_intake)도 같은 규칙으로 거절한다. */
   if (!(ORDER_CLAIM_BUYER_REASON_TYPES[input.claimType] as readonly string[]).includes(input.reasonType)) {
     return fail('취소 접수 사유는 단순 변심만 선택할 수 있습니다. 상품 하자·오배송은 반품·교환으로 접수해주세요.');
@@ -102,7 +102,7 @@ export function parseSellerClaimInput(input: unknown): { ok: true; requestId: st
   if (!agreementEvidence || agreementEvidence.length > 1000 || controls.test(agreementEvidence)) return fail('고객 합의 근거를 1~1,000자로 입력해주세요.');
   if (input.agreementConfirmed !== true) return fail('고객의 주문 전체 접수 동의를 확인해주세요.');
   const customerRequestedAt = parseKstInput(string(input.customerRequestedAt));
-  if (!customerRequestedAt) return fail('고객 요청 시각을 KST으로 입력해주세요.');
+  if (!customerRequestedAt) return fail('고객 요청 시각을 날짜와 시간까지 KST로 입력해주세요.');
   if (input.source === 'inquiry' ? !isUuid(input.inquiryId) : input.inquiryId !== null) return fail('이 주문에 연결된 고객문의를 선택해주세요.');
 
   let address: SellerClaimAddress | null = null;
@@ -125,16 +125,16 @@ export function parseSellerClaimInput(input: unknown): { ok: true; requestId: st
     const carrier = string(row.carrier) || null; const trackingNumber = normalizeTrackingNumber(string(row.trackingNumber)) || null; const note = string(row.note);
     if (note.length > 500 || controls.test(note) || (Boolean(carrier) !== Boolean(trackingNumber))
       || (row.method === 'customer_sent' && !carrier) || (row.method === 'not_requested' && carrier)
-      || (row.method === 'seller_arranged' && !note) || (carrier && (!isShippingCarrierCodeFormat(carrier) || !isTrackingNumber(trackingNumber!)))) return fail('수거 메모와 택배사·송장번호를 확인해주세요. 구매자가 발송한 경우 운송장 정보가 필요합니다.');
+      || (row.method === 'seller_arranged' && !note) || (carrier && (!isShippingCarrierCodeFormat(carrier) || !isTrackingNumber(trackingNumber!)))) return fail('출고지별 수거 방법에 맞게 입력해주세요. 구매자가 이미 발송했으면 수거 택배사와 수거 운송장번호가, 판매자가 따로 수거하면 수거 메모가 필요합니다. 수거 택배사와 수거 운송장번호는 둘 다 넣거나 둘 다 비워 주세요.');
     collections.push({ shipmentId: row.shipmentId.toLowerCase(), method: row.method, carrier, trackingNumber, note });
   }
   if (new Set(collections.map(row => row.shipmentId)).size !== collections.length) return fail('중복된 출고지 수거 계획이 있습니다. 주문을 다시 열어주세요.');
   if (input.refundAccount !== null && (!record(input.refundAccount) || !exactKeys(input.refundAccount, ['bankName','accountNumber','accountHolder'])
-    || Object.values(input.refundAccount).some(value => typeof value !== 'string'))) return fail('환불계좌 입력을 확인해주세요.');
+    || Object.values(input.refundAccount).some(value => typeof value !== 'string'))) return fail('환불계좌는 은행·환불계좌 번호·예금주를 모두 입력하거나 모두 비워 주세요.');
   const account = normalizeRefundAccount(input.refundAccount ?? {});
   if (!account.ok) return fail(account.error);
   if (input.claimType === 'exchange' && account.value) return fail('교환 접수에는 환불계좌를 저장하지 않습니다.');
-  if (account.value && (controls.test(account.value.bankName) || controls.test(account.value.accountHolder))) return fail('환불계좌 입력을 확인해주세요.');
+  if (account.value && (controls.test(account.value.bankName) || controls.test(account.value.accountHolder))) return fail('은행이나 예금주에 줄바꿈 같은 특수 문자가 들어 있습니다. 다시 입력해주세요.');
   return { ok: true, requestId: input.requestId.toLowerCase(), refundAccount: account.value, payload: {
     orderId: input.orderId.toLowerCase(), claimType: input.claimType, reasonType: input.reasonType, reason,
     source: input.source, inquiryId: typeof input.inquiryId === 'string' ? input.inquiryId.toLowerCase() : null,
@@ -200,10 +200,10 @@ export function sellerClaimBlockMessage(reason: string | null): string | null {
   if (!reason) return null;
   if (reason.includes('digital_exchange_unavailable')) return '디지털 파일은 구매 당시 파일 재다운로드와 문의·취소·환불 심사로 처리합니다. 다른 파일로 교환하지 않습니다.';
   if (reason.includes('not_cancelable')) return '발주확인과 출고지시서 출력 전의 주문만 취소 요청을 접수할 수 있습니다. 이후 요청은 고객문의로 확인해주세요.';
-  if (reason.includes('not_claimable')) return '실제 발송된 배송 중 주문부터 접수할 수 있습니다. 전체 수량의 배송 배정과 이전 교환품의 수령 상태를 확인해주세요.';
-  if (reason.includes('deadline_expired')) return '현재 접수 시점의 신청 기한이 지났습니다. 고객 의사표시 근거와 함께 CS 검토를 이어가세요.';
+  if (reason.includes('not_claimable')) return '반품·교환은 상품이 실제로 발송된 뒤(배송중부터) 접수할 수 있습니다. 주문 상세에서 전체 수량의 배송 배정(모든 수량이 배송 건에 담겨 발송됐는지)과 이전 교환품의 수령 상태(배송완료 확인)를 확인해주세요.';
+  if (reason.includes('deadline_expired')) return '지금 접수하는 시각 기준으로 신청 기한이 지나 접수할 수 없습니다. 고객이 요청한 근거(문의·상담 기록)를 남기고 CS에서 계속 검토해주세요.';
   if (reason.includes('already_requested')) return '이 주문에는 처리 중인 취소·반품·교환 요청이 있습니다.';
-  if (reason.includes('reconciliation_in_progress')) return '기존 결제 취소 확인이 진행 중입니다. 해당 처리 이력을 먼저 확인해주세요.';
+  if (reason.includes('reconciliation_in_progress')) return '이 주문의 결제 취소 확인이 아직 진행 중입니다. 주문 통합검색에서 이 주문의 처리 이력을 먼저 확인해주세요.';
   if (reason.includes('already_canceled')) return '이미 취소된 주문입니다.';
   if (reason.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
   return '현재 주문 상태에서는 접수할 수 없습니다. 최신 주문과 처리 이력을 확인해주세요.';

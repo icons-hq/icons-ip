@@ -70,7 +70,7 @@ describe('goods workspace server boundary', () => {
     const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
     expect(result.goods[0]).toMatchObject({ basePrice: 12000, compareAtPrice: null, activeDiscountEndsAt: null, activeVariantCount: 1, inlineStock: { variantId: 'v1', stockQty: 7 }, inlineOptions: null });
     expect(result.goods[1]).toMatchObject({ basePrice: 9000, compareAtPrice: 11000, activeDiscountEndsAt: '2026-10-30T00:00:00Z', activeVariantCount: 2, inlineStock: null });
-    // 옵션이 여럿이면 옵션별 재고 창이 옵션 이름·관리코드·실재고를 상품 수정의 옵션 순서로 받는다(1014-106).
+    // 옵션이 여럿이면 옵션별 재고 창이 옵션 이름·옵션 자동코드·실재고를 상품 수정의 옵션 순서로 받는다(1014-106).
     expect(result.goods[1].inlineOptions).toEqual([{ variantId: 'v2', name: '블루', code: 'V-2', stockQty: 1 }, { variantId: 'v3', name: '레드', code: 'V-3', stockQty: 2 }]);
     expect(mocks.selects).toContain('goods_variants:id,good_id,stock_qty,name,code');
   });

@@ -140,7 +140,7 @@ describe('재고 부족 부분 취소 패널', () => {
   });
 
   it('환불 0원(전액 할인 상품만) 기록은 결제사를 부르지 않았다고 보인다', () => {
-    expect(view(context({ history: [record({ refundAmount: 0, goodsRefundAmount: 0 })] }))).toContain('결제사를 부르지 않고 적용');
+    expect(view(context({ history: [record({ refundAmount: 0, goodsRefundAmount: 0 })] }))).toContain('결제사에 취소를 요청하지 않고 적용');
   });
 });
 
@@ -167,7 +167,7 @@ describe('부분 반품 환불 줄의 결제사 확인(ADR-0047, 적대적 리�
   it('결제사가 받지 않아 닫힌 부분 반품 줄은 계좌 송금 전환을 가리킨다', () => {
     const html = view(context({ history: [record({ reasonCode: 'return', claimId: 'dddddddd-0000-4000-8000-00000000000d', state: 'rejected',
       appliedAt: null, completedAt: null })] }));
-    expect(html).toContain('계좌 송금 부분 환불로 전환합니다');
+    expect(html).toContain('[계좌 송금 부분 환불로 전환]으로 처리합니다');
   });
 });
 

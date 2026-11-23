@@ -106,7 +106,7 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
         if (response.preview) { setPreview(response.preview); setOperationId(crypto.randomUUID()); }
         else setError(response.error ?? '반품입고 회신을 읽지 못했습니다.');
       } catch {
-        setError('반품입고 회신을 확인하지 못했습니다. 잠시 후 다시 확인해주세요.');
+        setError('반품입고 회신을 확인하지 못했습니다. 잠시 뒤 [등록 전 확인]을 다시 눌러주세요.');
       }
     });
   }
@@ -121,9 +121,9 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
       try {
         const response = await confirmClaimReturnIntakeAction(data);
         if (response.result) { setResult(response.result); setPreview(null); router.refresh(); }
-        else setError(response.error ?? '입고 확정 결과를 확인하지 못했습니다.');
+        else setError(response.error ?? '입고 확정이 끝났는지 확인하지 못했습니다. 목록을 새로고침해 입고 상태를 확인해주세요.');
       } catch {
-        setError('입고 확정 결과를 확인하지 못했습니다. 같은 파일로 다시 확정하면 이미 기록된 줄은 그대로 둡니다.');
+        setError('입고 확정이 끝났는지 확인하지 못했습니다. 같은 파일로 다시 확정해도 이미 기록된 줄은 두 번 기록되지 않습니다.');
       }
     });
   }
@@ -167,7 +167,7 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
         <AlertDialogHeader>
           <AlertDialogTitle>{matched.length.toLocaleString('ko-KR')}건을 입고완료로 확정할까요?</AlertDialogTitle>
           <AlertDialogDescription>
-            회수 묶음마다 회수 확인으로 기록합니다. 실제 입고일은 파일의 입고일이고 환급 기한은 그 날부터 셉니다. 확정한 입고는 되돌릴 수 없고, 근거에 파일과 행 번호가 남습니다.
+            회수 묶음마다 회수 확인으로 기록합니다. 실제 입고일은 파일의 입고일이고 환급 기한은 그 날부터 셉니다. 확정한 입고는 되돌릴 수 없고, 처리 이력의 근거에 파일과 줄 번호가 남습니다.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -183,7 +183,7 @@ function IntakePreview({ preview }: { preview: ClaimReturnIntakePreview }) {
   const count = (status: string) => preview.counts[status] ?? 0;
   const others = preview.rows.length - count('matched') - count('not_found');
   return <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border bg-muted/40 p-3" data-return-intake-preview="" role="status">
-    <p className="font-medium text-foreground">{preview.fileName} · 매칭 {count('matched').toLocaleString('ko-KR')} · 못 찾음 {count('not_found').toLocaleString('ko-KR')}
+    <p className="font-medium text-foreground">{preview.fileName} · 확정 대상 {count('matched').toLocaleString('ko-KR')} · 못 찾음 {count('not_found').toLocaleString('ko-KR')}
       {others ? ` · 확인 필요 ${others.toLocaleString('ko-KR')}` : ''}{preview.issues.length ? ` · 읽지 못한 줄 ${preview.issues.length.toLocaleString('ko-KR')}` : ''}</p>
     <div className="w-full rounded-lg border bg-card">
       <Table>
@@ -216,7 +216,7 @@ function IntakeResult({ result }: { result: ReturnIntakeConfirmResult }) {
   return <div className="flex w-full min-w-0 flex-col gap-2" data-return-intake-result="">
     <AdminNotice role="status" tone={result.failed || result.changed ? 'warning' : 'success'}>
       {result.recorded.toLocaleString('ko-KR')}건을 입고완료로 기록했습니다.{result.changed ? ` 미리보기 뒤 바뀐 ${result.changed}건은 기록하지 않았습니다.` : ''}
-      {result.failed ? ` ${result.failed}건은 기록하지 못했습니다.` : ''}{result.replayed ? ' 이미 처리한 확정의 결과입니다.' : ''}
+      {result.failed ? ` ${result.failed}건은 기록하지 못했습니다.` : ''}{result.replayed ? ' 이미 처리한 확정이라 그때의 결과를 보여 줍니다.' : ''}
     </AdminNotice>
     {notRecorded.length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">
       {notRecorded.map(row => <li key={row.rowNumber}><span className="tabular-nums">{row.rowNumber}줄</span>: {RETURN_INTAKE_OUTCOME_LABELS[row.outcome] ?? row.outcome}

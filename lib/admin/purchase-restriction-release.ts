@@ -29,7 +29,7 @@ export function parseRestrictionReleaseReceipt(value: unknown): PurchaseRestrict
 }
 export function restrictionReleaseError(code: string | undefined) {
   if (code === '42501') return '현재 매니저 권한으로 구매제한을 해제할 수 없습니다.';
-  if (code === 'PT409' || code === '23505') return '같은 요청의 대상 또는 사유가 다릅니다. 저장된 결과를 먼저 확인해주세요.';
-  if (code === '22023') return '선택한 기록과 해제 사유를 확인해주세요.';
-  return '처리 결과가 불확실합니다. 같은 요청의 결과를 다시 조회해주세요.';
+  if (code === 'PT409' || code === '23505') return '앞서 보낸 해제 요청과 대상이나 사유가 달라 처리하지 않았습니다. 화면을 새로고침해 앞 요청의 결과를 확인한 뒤 다시 선택해주세요.';
+  if (code === '22023') return '해제하지 않았습니다. 기록을 1~100개 고르고 해제 사유를 줄바꿈 없이 1~200자로 적어주세요.';
+  return '해제됐는지 확인하지 못했습니다. ‘같은 요청 결과 조회’를 눌러 결과를 확인해주세요. 다시 조회해도 두 번 해제되지 않습니다.';
 }

@@ -25,7 +25,7 @@ describe('상품 1개짜리 일괄 변경', () => {
   it('확정 응답이 끊기면(호출 자체가 실패) 재실행하지 않고 같은 요청번호의 결과 조회를 남긴다', async () => {
     mocks.commit.mockRejectedValueOnce(new Error('network'));
     const result = await runSingleGoodBulk(identity, 'good-a', 'price', { mode: 'set', value: 12000 }, () => null);
-    expect(result).toEqual({ ok: false, message: expect.stringContaining('불명확'), operationId: mocks.preview.mock.calls[0][0] });
+    expect(result).toEqual({ ok: false, message: expect.stringContaining('처리됐는지 확인하지 못했습니다'), operationId: mocks.preview.mock.calls[0][0] });
   });
 });
 
@@ -83,14 +83,14 @@ describe('할인 중지 후 판매가 변경 (1027T-025)', () => {
   it('한 번에 진행하다 판매가 확정 응답이 끊기면 결과를 모르는 단계(price-uncertain)로 멈추고 그 요청번호를 남긴다', async () => {
     const review = { operationId: 'b9000000-0000-4000-8000-0000000000a1', discounts };
     // 할인 중지 확정은 받았고, 판매가 확정은 서버에 반영됐을 수 있으나 응답이 끊겼다(호출 실패·불명확 응답 두 경우).
-    for (const failure of [() => Promise.reject(new Error('network')), () => Promise.resolve({ error: '처리 결과가 불명확합니다.', uncertain: true })]) {
+    for (const failure of [() => Promise.reject(new Error('network')), () => Promise.resolve({ error: '처리됐는지 확인하지 못했습니다.', uncertain: true })]) {
       vi.clearAllMocks();
       mocks.commit.mockImplementation(async (operationId: string) => operationId === review.operationId ? receipt(operationId, 'completed') : failure());
       const onStopped = vi.fn();
       const step = await stopDiscountThenChangePrice(identity, 'good-a', review, 10000, 12000, onStopped);
       const priceOperation = mocks.preview.mock.calls[0][0];
       expect(step.done).toBeUndefined();
-      expect(step.phase).toEqual({ step: 'price-uncertain', stoppedHere: true, stopped: discounts, operationId: priceOperation, message: expect.stringContaining('불명확') });
+      expect(step.phase).toEqual({ step: 'price-uncertain', stoppedHere: true, stopped: discounts, operationId: priceOperation, message: expect.stringContaining('처리됐는지 확인하지 못했습니다') });
       expect(onStopped).toHaveBeenCalledWith({ step: 'price', stoppedHere: true, stopped: discounts, error: '' });
     }
     // 같은 단계에서 다시 시도해도 결과 단계는 넘겨받은 값이 아니라 결과로 정해진다.

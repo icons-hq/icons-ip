@@ -179,7 +179,7 @@ describe('이동 대기 단계', () => {
     expect(adminNavigationStatusMessage('waiting')).toBe('');
     expect(adminNavigationStatusMessage('bar')).toBe('');
     expect(adminNavigationStatusMessage('dim')).toBe('화면을 불러오는 중입니다.');
-    expect(adminNavigationStatusMessage('slow')).toContain('응답이 늦어지고 있습니다');
+    expect(adminNavigationStatusMessage('slow')).toContain('화면을 불러오는 데 시간이 걸리고 있습니다');
   });
 
   describe('브라우저 이벤트', () => {

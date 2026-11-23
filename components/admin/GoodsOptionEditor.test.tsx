@@ -32,7 +32,48 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).toContain('&quot;externalUpdatedAt&quot;:&quot;2026-09-10T07:00:00.000Z&quot;');
   });
 
-  it('옵션 미사용 상품은 재고수량 입력 하나와 관리코드만 보이고 옵션은 설정안함이다', () => {
+  /* 2026-11-19 MD가 받은 엑셀의 '코드'(ERP 코드)를 옛 '관리코드' 칸에 넣었다. 안내는 칸마다 무엇을 넣고 어느 엑셀에 찍히는지 말하고,
+     ERP 코드·바코드 칸이 옵션 자동코드보다 앞에 온다. 개발 용어(반입·선행 0·미설정)는 쓰지 않는다. */
+  it('옵션 상세 정보는 사람이 넣는 ERP 코드·바코드를 자동코드보다 앞에 두고 칸마다 넣을 값과 찍히는 엑셀을 쉬운 말로 안내한다', () => {
+    const rows = [{ id: savedA, name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 1 }];
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA]} basePrice={1000} canSearchErp />);
+    const details = html.slice(html.indexOf('data-good-option-details'));
+    const headers = [...details.slice(0, details.indexOf('</thead>')).matchAll(/<th[^>]*scope="col"[^>]*>(.*?)<\/th>/g)]
+      .map((match) => match[1].replace(/<span[^>]*>.*?<\/span>/g, '').replace(/<[^>]+>/g, ''));
+    expect(headers).toEqual(['옵션', 'ERP 코드', '바코드', 'ERP 품명', '옵션 자동코드', '안전재고 기준']);
+    const cells = [...details.matchAll(/aria-label="(기본 옵션의 옵션 자동코드|옵션 1 (?:ERP 코드|바코드|ERP 품명|안전재고 기준))"/g)].map((match) => match[1]);
+    expect(cells).toEqual(['옵션 1 ERP 코드', '옵션 1 바코드', '옵션 1 ERP 품명', '기본 옵션의 옵션 자동코드', '옵션 1 안전재고 기준']);
+    const guidance = details.slice(details.indexOf('id="goods-option-external-identity-guidance"'), details.indexOf('</ul>'));
+    for (const phrase of ['거래확정·출고지시 엑셀에 찍히는 번호입니다', '‘코드’(품목코드)는 ERP 코드 칸에', '앞의 0까지 그대로 저장됩니다',
+      'ERP 품목 메뉴에 올라가 있는 상품만 검색됩니다', '저장할 때 시스템이 옵션마다 만드는 번호라 입력할 필요가 없습니다', 'ERP 코드와 다른 번호이니', '모르는 칸은 비워 둬도 저장됩니다']) {
+      expect(guidance, phrase).toContain(phrase);
+    }
+    expect(details.match(/직접 입력 · 거래확정·출고 엑셀에 찍힘/g)).toHaveLength(2);
+    /* 시스템이 만드는 옵션 자동코드는 기본으로 잠그고 자동 생성임을 보인다(ADR-0048). */
+    expect(details).toMatch(/aria-label="기본 옵션의 옵션 자동코드"[^>]*placeholder="저장 시 자동 생성"/);
+    expect(details).toMatch(/<input(?=[^>]*aria-label="기본 옵션의 옵션 자동코드")[^>]*readOnly=""/);
+    expect(details).toContain('자동 생성 · 입력할 필요 없음');
+    expect(details).toContain('>옵션 자동코드 직접 바꾸기</button>');
+    expect(details).toMatch(/aria-label="옵션 1 ERP 코드"[^>]*placeholder="엑셀의 &#x27;코드&#x27;"/);
+    for (const jargon of ['반입', '선행 0', '미설정', '관리코드']) expect(details, jargon).not.toContain(jargon);
+  });
+
+  it('잠긴 옵션 자동코드에 바코드 형식 값이 들어 있으면 바코드 칸으로 경고만 한다', () => {
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
+      rows={[
+        { id: savedA, name: '홍기훈', code: '8800353086155', attributes: { 캐릭터: '홍기훈' }, extraPrice: 0, stockQty: 2, barcode: '8800353086155' },
+        { id: savedB, name: '이연', code: 'HSQ-0033-01', attributes: { 캐릭터: '이연' }, extraPrice: 0, stockQty: 2, barcode: '8800353086148' },
+      ]}
+      baseline={[savedA, savedB]}
+      basePrice={1000}
+    />);
+    expect(html.match(/data-good-option-code-barcode=/g)).toHaveLength(1);
+    expect(html).toContain('바코드 형식입니다 · 바코드는 바코드 칸에 넣습니다');
+    expect(html).toMatch(/<input(?=[^>]*aria-label="옵션 1 옵션 자동코드")(?=[^>]*readOnly)(?=[^>]*aria-describedby="goods-option-code-barcode-0")/);
+    expect(html).not.toMatch(/<input(?=[^>]*aria-label="옵션 2 옵션 자동코드")(?=[^>]*aria-describedby)/);
+  });
+
+  it('옵션 미사용 상품은 재고수량 입력 하나와 옵션 자동코드만 보이고 옵션은 설정안함이다', () => {
     const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
       rows={[{
         id: savedA, name: '기본 옵션', code: 'GOOD-0001', attributes: {},
@@ -109,7 +150,7 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).toContain('옵션목록 (총 2개)');
     const table = html.slice(html.indexOf('aria-label="옵션목록 편집표"'));
     const headers = [...table.slice(0, table.indexOf('</thead>')).matchAll(/<th[^>]*scope="col"[^>]*>(.*?)<\/th>/g)].map((match) => match[1].replace(/<[^>]+>/g, ''));
-    /* 관리코드는 옵션 상세 정보로 옮겼다(표 폭을 줄이는 복잡도 표 137행). */
+    /* 옵션 자동코드는 옵션 상세 정보로 옮겼다(표 폭을 줄이는 복잡도 표 137행). */
     expect(headers).toEqual(['선택', '옵션명', '옵션가', '재고수량', '사용여부', '순서', '삭제']);
     expect(html).toContain('판매 10,000원');
     expect(html).toContain('판매 11,000원');
@@ -117,27 +158,27 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).toContain('9개');
     expect(html).toContain('사용 중 옵션 4개');
     for (const label of ['선택목록 일괄수정', '선택삭제']) expect(html).toMatch(new RegExp(`<button type="button"[^>]*disabled=""[^>]*>${label}</button>`));
-    expect(html.indexOf('옵션목록 편집표')).toBeLessThan(html.indexOf('옵션 상세 정보 · 관리코드·ERP 품명·ERP 코드·바코드·안전재고'));
+    expect(html.indexOf('옵션목록 편집표')).toBeLessThan(html.indexOf('옵션 상세 정보 · ERP 코드·바코드·ERP 품명·옵션 자동코드·안전재고'));
     expect(html).toContain('GOOD-01');
     expect(html).toContain(savedB);
     for (const legacy of ['기준 판매가', '추가금액', '옵션 판매가', '할당 재고', '조합 생성']) expect(html).not.toContain(legacy);
   });
 
-  /* 2026-10-07 QA: 관리코드 칸 예시가 행 순서 번호라, 교체된 기본 옵션이 쓰는 -01과 겹쳐 저장값과 달랐다. */
-  it('빈 관리코드 칸은 저장 시 붙을 코드를 보이고, 예상할 수 없으면 저장 시 자동 생성만 보인다', () => {
+  /* 2026-10-07 QA: 옵션 자동코드 칸 예시가 행 순서 번호라, 교체된 기본 옵션이 쓰는 -01과 겹쳐 저장값과 달랐다. */
+  it('빈 옵션 자동코드 칸은 저장 시 붙을 코드를 보이고, 예상할 수 없으면 저장 시 자동 생성만 보인다', () => {
     const rows = [
       { name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 0 },
       { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 0 },
     ];
-    const placeholders = (html: string) => [...html.matchAll(/aria-label="옵션 \d+ 관리코드"[^>]*placeholder="([^"]*)"/g)].map((match) => match[1]);
+    const placeholders = (html: string) => [...html.matchAll(/aria-label="옵션 \d+ 옵션 자동코드"[^>]*placeholder="([^"]*)"/g)].map((match) => match[1]);
     const predicted = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA]} basePrice={10000}
       codePrefix="RIL-0001" savedCodes={{ goodCode: 'RIL-0001', options: [{ id: savedA, code: 'RIL-0001-01' }] }} />);
-    expect(placeholders(predicted)).toEqual(['RIL-0001-02', 'RIL-0001-03']);
+    expect(placeholders(predicted)).toEqual(['저장 시 자동 생성 · 예상 RIL-0001-02', '저장 시 자동 생성 · 예상 RIL-0001-03']);
     const unknown = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA]} basePrice={10000} codePrefix="RIL-0001" />);
     expect(placeholders(unknown)).toEqual(['저장 시 자동 생성', '저장 시 자동 생성']);
     const single = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={[{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0 }]}
       baseline={[]} basePrice={10000} codePrefix="RIL-0002" savedCodes={{ goodCode: null, options: [] }} />);
-    expect(single).toMatch(/id="goods-single-code"[^>]*placeholder="RIL-0002-01"/);
+    expect(single).toMatch(/id="goods-single-code"[^>]*placeholder="저장 시 자동 생성 · 예상 RIL-0002-01"/);
     expect(renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={[{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0 }]}
       baseline={[]} basePrice={10000} codePrefix="RIL-0002" />)).toMatch(/id="goods-single-code"[^>]*placeholder="저장 시 자동 생성"/);
   });

@@ -116,8 +116,8 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
       </div>
       <label className={FIELD_LABEL}>지역표 · 스프레드시트의 6개 열을 붙여넣기<Textarea className={TSV_TEXTAREA} rows={9} value={tsv} maxLength={500000}
         spellCheck={false} onChange={(event) => { setTsv(event.target.value); setAttested(false); }} /></label>
-      <p className={NOTE}>우편번호 시작·끝은 5자리이며 양 끝을 포함합니다. 주소 시작문구는 공백을 정리한 기본주소의 시작 부분과 단어 경계가 정확히 일치해야 합니다.
-        처리 열은 ‘추가료 없음’, ‘추가료 부과’, ‘배송 불가’, ‘개별 확인 필요’ 중 하나입니다. 추가료 부과 행에만 원 단위 정수를 입력하며, 0원도 명시해야 합니다. 최대 1,000행입니다.</p>
+      <p className={NOTE}>우편번호 시작·끝은 5자리이며 시작과 끝 번호도 범위에 들어갑니다. 주소 시작문구를 적으면 고객 기본주소(띄어쓰기를 한 칸으로 맞춘 주소)의 앞부분이 단어 단위로 똑같을 때만 그 줄이 적용됩니다(예: ‘제주특별자치도 제주시’).
+        처리 열은 ‘추가료 없음’, ‘추가료 부과’, ‘배송 불가’, ‘개별 확인 필요’ 중 하나입니다. 추가료는 ‘추가료 부과’ 줄에만 원 단위 숫자로 적고, 0원이어도 0을 적습니다. 최대 1,000줄입니다.</p>
       <label className={CHECK_LABEL}><input type="checkbox" checked={input.noRulesConfirmed} onChange={(event) => change({ noRulesConfirmed: event.target.checked })} />
         실제 회신에 예외 지역이 없으며 지역표가 비어 있음을 확인했습니다.</label>
     </fieldset>
@@ -129,7 +129,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
         <TableBody>{parsed.rules.slice(0, 50).map((rule, index) => <TableRow key={rule.id ?? index}><TableCell className="tabular-nums">{rule.postalFrom || '미입력'}~{rule.postalTo || '미입력'}</TableCell>
           <TableCell className="whitespace-normal">{rule.addressPrefix || '우편번호만 판정'}</TableCell><TableCell>{rule.regionLabel || '미입력'}</TableCell><TableCell>{rule.disposition ? REGION_DISPOSITION_LABELS[rule.disposition] : '미입력'}</TableCell>
           <TableCell className="text-right tabular-nums">{rule.amount === null ? rule.disposition === 'surcharge' ? '미입력' : '해당 없음' : krw(rule.amount)}</TableCell></TableRow>)}</TableBody></Table>
-        {parsed.rules.length > 50 ? <p className="border-t px-3 py-2 text-xs text-muted-foreground">앞의 50행을 표시합니다. 저장·서버 검증은 전체 {parsed.rules.length}행에 적용합니다.</p> : null}</div> : <p className={`mt-2 ${NOTE}`}>입력된 지역표가 없습니다.</p>}
+        {parsed.rules.length > 50 ? <p className="border-t px-3 py-2 text-xs text-muted-foreground">앞의 50줄만 보여 줍니다. 저장할 때는 전체 {parsed.rules.length}줄을 모두 검사합니다.</p> : null}</div> : <p className={`mt-2 ${NOTE}`}>입력된 지역표가 없습니다.</p>}
     </details>
     {!readOnly && problems.length > 0 ? <AdminNotice title="활성화 전 확인" tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></AdminNotice> : null}
     {!readOnly && overlapping.length > 0 ? <AdminNotice title="활성화하려면 기존 버전을 먼저 중단해주세요" tone="warning">
@@ -207,15 +207,15 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
         const newlyActive = originPolicies.some((policy) => policy.status !== 'draft');
         const state = adoption
           ? !adoptionStarted(origin)
-            ? { tone: 'info', label: '지역 정책 적용 예정', detail: `${formatOrderDateTime(adoption.managedFrom)}부터 지역 정책 필수 · 그 전에는 기존 배송비로 주문 확정` } as const
+            ? { tone: 'info', label: '지역 정책 적용 예정', detail: `${formatOrderDateTime(adoption.managedFrom)}부터 지역 정책 필수 · 그 전에는 기존 배송비로 주문 받음` } as const
             : inEffect(origin)
             ? { tone: 'success', label: '지역 정책 적용', detail: `${formatOrderDateTime(adoption.managedFrom)}부터 지역 정책 필수` } as const
             : { tone: 'warning', label: '적용 중인 정책 없음', detail: `${formatOrderDateTime(adoption.managedFrom)}부터 지역 정책 필수` } as const
           : newlyActive ? { tone: 'info', label: '지역 정책 도입', detail: '적용 기간을 확인해주세요' } as const
-            : { tone: 'neutral', label: '지역표 미등록', detail: '기존 배송비로 주문 확정' } as const;
+            : { tone: 'neutral', label: '지역표 미등록', detail: '기존 배송비로 주문 받음' } as const;
         return <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0" key={origin.id}><span className="font-medium">{origin.name}</span><AdminStatusBadge tone={state.tone}>{state.label}</AdminStatusBadge><span className="text-muted-foreground">{state.detail}</span></li>;
       })}</ul>
-      {hasUnregistered ? <p className={NOTE}>지역표 미등록은 계약 추가료가 0원이라는 뜻이 아닙니다. 현재 표시된 배송비로 주문이 확정되며, 이미 확정된 주문에 지역료를 뒤늦게 더하지 않습니다.</p> : null}
+      {hasUnregistered ? <p className={NOTE}>지역표 미등록은 계약 추가료가 0원이라는 뜻이 아닙니다. 지금 고객에게 보이는 배송비로 주문을 받고, 이미 들어온 주문에 지역 추가료를 나중에 더하지 않습니다.</p> : null}
       {uncovered.length ? <AdminNotice title="신규 주문이 차단될 수 있습니다" tone="warning">{uncovered.map((origin) => origin.name).join('·')}에 적용 중인 정책이 없습니다. 지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 신규 주문을 차단합니다.</AdminNotice>
         : <AdminNotice tone="info">지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 <strong className="font-semibold">신규 주문을 차단합니다</strong>.</AdminNotice>}
     </AdminSectionCard>

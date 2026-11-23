@@ -39,7 +39,7 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
     setNewId(value.selected && value.drafts[value.selected]?.revision === 0 ? value.selected : null);
     const operation = value.pending?.kind === 'inquiry' ? value.pending.operation : null;
     setAttempt(operation); setUncertain(Boolean(operation));
-    setMessage(operation ? '이전 저장 요청을 복구했습니다. 같은 요청의 결과를 먼저 확인해주세요.' : '편집 초안을 복구했습니다. 저장하면 기존 버전을 다시 검사합니다.');
+    setMessage(operation ? '저장됐는지 확인하지 못한 편집을 복구했습니다. [같은 요청의 저장 결과 확인]을 먼저 눌러주세요.' : '저장하지 않은 편집을 복구했습니다. 저장할 때 그사이 다른 사람이 템플릿을 고쳤는지 확인합니다.');
   }
   function discard() { recovery.discard(); setSelected(null); setNewId(null); setAttempt(null); setLatest(null); setError(''); setMessage(''); }
   async function load(page = 1) {
@@ -63,13 +63,13 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
   }
   function createDraft() {
     const id = newId ?? crypto.randomUUID(); setNewId(id);
-    if (!workspace.drafts[id] && Object.keys(workspace.drafts).length >= CS_TEMPLATE_DRAFT_LIMIT) { setError(`편집 초안은 최대 ${CS_TEMPLATE_DRAFT_LIMIT}개입니다. 기존 초안을 저장하거나 정리해주세요.`); return; }
+    if (!workspace.drafts[id] && Object.keys(workspace.drafts).length >= CS_TEMPLATE_DRAFT_LIMIT) { setError(`저장하지 않은 템플릿 편집은 최대 ${CS_TEMPLATE_DRAFT_LIMIT}개까지 보관합니다. 편집 중인 템플릿을 저장하거나 정리한 뒤 다시 시도해주세요.`); return; }
     if (!keep({ ...workspace, drafts: { ...workspace.drafts, [id]: workspace.drafts[id] ?? { id, revision: 0, category: 'other', title: '', body } }, selected: id })) return;
     setSelected(id); setLatest(null); setError(''); setMessage(''); setAttempt(null);
   }
   function updateDraft(patch: Partial<InquiryTemplateDraft>) {
     if (!draft || locked) return;
-    if (!workspace.drafts[draft.id] && Object.keys(workspace.drafts).length >= CS_TEMPLATE_DRAFT_LIMIT) { setError(`편집 초안은 최대 ${CS_TEMPLATE_DRAFT_LIMIT}개입니다. 기존 초안을 저장하거나 정리해주세요.`); return; }
+    if (!workspace.drafts[draft.id] && Object.keys(workspace.drafts).length >= CS_TEMPLATE_DRAFT_LIMIT) { setError(`저장하지 않은 템플릿 편집은 최대 ${CS_TEMPLATE_DRAFT_LIMIT}개까지 보관합니다. 편집 중인 템플릿을 저장하거나 정리한 뒤 다시 시도해주세요.`); return; }
     keep({ ...workspace, drafts: { ...workspace.drafts, [draft.id]: { ...draft, ...patch } }, selected: draft.id }); setAttempt(null); setError(''); setMessage('');
   }
   async function acceptReceipt(receipt: InquiryTemplateReceipt) {
@@ -80,21 +80,21 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
       setSelected(receipt.templateId); if (newId === receipt.templateId) setNewId(null);
     }
     try { await load(data.page); } catch { setError('변경은 저장됐지만 목록을 다시 불러오지 못했습니다. 검색을 눌러 최신 목록을 확인해주세요.'); }
-    setMessage(receipt.action === 'archive' ? '템플릿을 삭제했습니다. 삭제한 템플릿에서 복구할 수 있습니다.'
+    setMessage(receipt.action === 'archive' ? '템플릿을 삭제했습니다. [삭제한 템플릿]을 체크하고 검색하면 찾아서 복구할 수 있습니다.'
       : receipt.action === 'restore' ? '템플릿을 복구했습니다. 편집 중이던 문구는 그대로 보존됩니다.' : '답변 템플릿을 저장했습니다. 고객에게 답변을 발송하지 않았습니다.');
   }
   async function mutate(intent: Omit<InquiryTemplateMutation, 'operationId'>) {
     if (locked) return;
     const sameAttempt = attempt && JSON.stringify({ ...attempt, operationId: '' }) === JSON.stringify({ ...intent, operationId: '' });
     const operation = { ...intent, operationId: sameAttempt ? attempt.operationId : crypto.randomUUID() };
-    if (!keep({ ...workspace, pending: { kind: 'inquiry', operation } })) { setError('템플릿 입력을 확인해주세요. 초안은 유지됩니다.'); return; }
+    if (!keep({ ...workspace, pending: { kind: 'inquiry', operation } })) { setError('템플릿 제목(1~40자)과 내용(1~2,000자)을 확인해주세요. 작성 중인 문구는 그대로 있습니다.'); return; }
     setAttempt(operation);
     await run(async () => {
       try {
         const result = await mutateInquiryReplyTemplateAction(operation);
         if ('error' in result) { if (!result.uncertain) keep({ ...workspace, pending: null }); setError(result.error); setUncertain(Boolean(result.uncertain)); return; }
         await acceptReceipt(result.receipt);
-      } catch { setUncertain(true); setError('저장 결과가 불확실합니다. 같은 요청의 결과를 먼저 확인해주세요.'); }
+      } catch { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 먼저 눌러주세요. 결과만 확인하므로 두 번 저장되지 않습니다.'); }
     });
   }
   async function readback() {
@@ -102,8 +102,8 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
     await run(async () => {
       const result = await readInquiryTemplateOperationAction(attempt.operationId);
       if ('error' in result) { setError(result.error); return; }
-      if (!result.receipt) { keep({ ...workspace, pending: null }); setUncertain(false); setMessage('이 요청으로 저장된 변경이 없습니다. 같은 요청으로 다시 시도할 수 있습니다.'); return; }
-      if (result.receipt.templateId !== attempt.templateId || result.receipt.action !== attempt.action) { setError('저장 결과가 현재 편집 대상과 다릅니다. 요청 정보를 확인해주세요.'); return; }
+      if (!result.receipt) { keep({ ...workspace, pending: null }); setUncertain(false); setMessage('아직 저장된 기록이 없습니다. 같은 내용으로 같은 버튼(저장·삭제·복구)을 다시 누르면 같은 요청으로 처리해 두 번 저장되지 않습니다.'); return; }
+      if (result.receipt.templateId !== attempt.templateId || result.receipt.action !== attempt.action) { setError('저장 결과가 지금 편집 중인 템플릿과 맞지 않습니다. 화면을 새로고침한 뒤 목록에서 템플릿을 확인해주세요.'); return; }
       await acceptReceipt(result.receipt);
     });
   }
@@ -118,7 +118,7 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
     {open ? <CustomerServiceDialog title="고객문의 답변 템플릿" busy={locked} onClose={() => { if (!locked) setOpen(false); }} wide>
       <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">운영자가 공유하는 고객문의용 문구입니다. {REPLY_TEMPLATE_REPLACE_HINT} 템플릿 관리만으로 메일·알림을 보내지 않습니다.</p>
-      <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관 초안 모두 버리기"
+      <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관한 편집 모두 버리기"
         discardDisabled={uncertain || Boolean(recovery.recovery?.pending)} />
       <CsTemplateDraftList drafts={workspace.drafts} disabled={locked} onSelect={id => { setSelected(id); setLatest(null); setAttempt(null); setError(''); setMessage(''); }} />
       <form className={TEMPLATE_SEARCH_CLASS} data-cs-template="search" onSubmit={event => { event.preventDefault(); void run(() => load()); }}>
@@ -131,7 +131,7 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
       <p aria-live="polite" className="text-sm text-muted-foreground">총 {data.total.toLocaleString('ko-KR')}개{pending ? ' · 처리 중' : ''}</p>
       {error ? <p className="bg-transparent text-sm text-destructive" role="alert">{error}</p> : null}
       {message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
-      {uncertain ? <div className={TEMPLATE_NOTICE_CLASS}><p className="mr-auto">입력과 요청 번호를 보존했습니다. 확인 전에는 새 저장 요청을 만들지 않습니다.</p><Button disabled={pending} onClick={() => { void readback(); }} size="sm" type="button">같은 요청의 저장 결과 확인</Button></div> : null}
+      {uncertain ? <div className={TEMPLATE_NOTICE_CLASS}><p className="mr-auto">저장됐는지 확인할 때까지 작성 문구를 그대로 두고 다시 저장하지 않습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.</p><Button disabled={pending} onClick={() => { void readback(); }} size="sm" type="button">같은 요청의 저장 결과 확인</Button></div> : null}
       <div className="flex flex-col gap-3">{data.rows.length ? data.rows.map(row => <article className={TEMPLATE_ROW_CLASS} key={row.id}>
         <header className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{INQUIRY_TEMPLATE_CATEGORIES.find(option => option.value === row.category)?.label}</Badge><strong className="font-medium text-foreground">{row.title}</strong><small className="text-xs text-muted-foreground">버전 {row.revision}</small></header><p className={TEMPLATE_BODY_CLASS}>{row.body}</p>
         <div className="flex flex-wrap justify-end gap-2">

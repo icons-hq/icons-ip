@@ -65,7 +65,7 @@ update public.profiles set role=case when id='{uid(1)}' then 'admin'::public.use
 insert into private.operator_memberships(profile_id,manager_role) values('{uid(1)}','owner'),('{uid(2)}','deputy');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key)select 'marketing-race-ip','동시성 합성 IP',key from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price) select 'marketing-race-'||n,'marketing-race-ip','동시성 합성 상품 '||n,'문구',1000 from generate_series(1,5)n;
+insert into public.goods(id,ip_id,name,price) select 'marketing-race-'||n,'marketing-race-ip','동시성 합성 상품 '||n,1000 from generate_series(1,5)n;
 commit;""")
 race('same-target', issue('marketing-race-1', 101), issue('marketing-race-1', 102, 2))
 assert sql("select count(*) from private.marketing_links where good_id='marketing-race-1';") == '1'

@@ -37,7 +37,7 @@ function rowNames(rows: readonly Row[]) {
 const overLimitReason = (capacity: number) => `지금 담을 수 있는 수(${count(capacity)}개)를 넘어 담지 않았습니다. 선택을 줄인 뒤 다시 확인해주세요.`;
 
 /**
- * 여러 상품을 한 번에 고른다(1014-112): 상품 URL(주소 또는 주소 끝 값)·판매자상품코드를 한 줄에 하나씩 붙여 넣거나, 엑셀·CSV 파일의 한 열을 읽는다.
+ * 여러 상품을 한 번에 고른다(1014-112): 상품 URL(주소 또는 주소 끝 값)·상품 자동코드를 한 줄에 하나씩 붙여 넣거나, 엑셀·CSV 파일의 한 열을 읽는다.
  * 찾은 상품과 못 찾은 상품을 먼저 보여 주고, '추가'를 눌러야 선택에 담는다(편성 저장은 각 화면의 저장 버튼이 한다).
  * 고객 화면에 보이지 않는 상품(초안·IP 초안·성인(19금))도 담을 수 있지만 줄마다 그 이유를 표시한다(QA1 MD). 한도를 넘어 담지 못한 줄은 이유와 함께 남기고 입력 칸에도 되돌려 둔다.
  * 선택기 안의 검색 폼과 섞이지 않게 버튼은 모두 type="button"이고 Enter로 제출하지 않는다.
@@ -60,7 +60,7 @@ export function GoodBulkAddPanel<T>({ options, disabled = false }: { options: Go
     const invalidRows: Row[] = parsed.invalid.map((line, index) => ({ key: `invalid:${index}`, ref: line.value, label: `${line.line}번째 줄`, state: 'missing', reason: line.reason, id: null, visibility: 'missing' }));
     if (!parsed.refs.length) {
       setResult(invalidRows.length || lineNotes.length ? { rows: invalidRows, notes: lineNotes } : null);
-      setError(invalidRows.length || parsed.systemNumberColumn ? '' : '상품 URL·판매자상품코드를 한 줄에 하나씩 넣어주세요.');
+      setError(invalidRows.length || parsed.systemNumberColumn ? '' : '상품 URL·상품 자동코드를 한 줄에 하나씩 넣어주세요.');
       return;
     }
     const token = ++ticket.current; setPending(true); setError(''); setMessage('');
@@ -127,7 +127,7 @@ export function GoodBulkAddPanel<T>({ options, disabled = false }: { options: Go
   return <details className="group/bulk rounded-lg border px-3.5 py-2.5 text-sm" data-good-bulk-add="">
     <summary className="cursor-pointer font-medium text-foreground">여러 상품 한 번에 추가 <span className="font-normal text-muted-foreground">(여러 줄 붙여넣기 · 엑셀 파일)</span></summary>
     <div className="mt-3 flex min-w-0 flex-col gap-3">
-      <p className="text-xs leading-relaxed text-muted-foreground" id={noteId}>상품 URL(주소 또는 주소 끝 값)·판매자상품코드를 한 줄에 하나씩 넣습니다. 엑셀에서 한 열을 복사해 붙여도 됩니다(여러 열이면 각 줄의 첫 칸만 읽습니다). 한 번에 {count(GOOD_REFERENCE_LIMIT)}개까지 확인합니다. 초안 등 고객 화면에 보이지 않는 상품도 담을 수 있으며 줄마다 그 이유를 표시합니다.</p>
+      <p className="text-xs leading-relaxed text-muted-foreground" id={noteId}>상품 URL(주소 또는 주소 끝 값)·상품 자동코드를 한 줄에 하나씩 넣습니다. 엑셀에서 한 열을 복사해 붙여도 됩니다(여러 열이면 각 줄의 첫 칸만 읽습니다). 한 번에 {count(GOOD_REFERENCE_LIMIT)}개까지 확인합니다. 초안 등 고객 화면에 보이지 않는 상품도 담을 수 있으며 줄마다 그 이유를 표시합니다.</p>
       <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium" htmlFor={textId}>여러 줄 붙여넣기
         <Textarea aria-describedby={noteId} className="min-h-24 font-mono text-xs" disabled={locked} id={textId} onChange={event => setText(event.target.value)}
           placeholder={'https://iconsip.com/shop/상품ID\nGC-0001'} rows={4} value={text} />

@@ -83,10 +83,10 @@ function PeriodReceipt({ period, variant, onSaved }: { period: AdminGoodsPricePe
       if (result.ok) { setError(null); onSaved(result.message); } else setError(result.error);
     });
   }
-  const at = (value: string | null) => value ? new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '미설정';
+  const at = (value: string | null) => value ? new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '없음';
   return <div className="flex min-w-0 flex-col items-start gap-1.5">
-    <strong className="font-medium">{variant?.name ?? '이전 옵션'} · <span className={period.state === 'active' ? 'text-[var(--wc-success)]' : 'text-muted-foreground'}>{period.state === 'active' ? '활성' : '중지'}</span></strong>
-    <span className="tabular-nums">{period.regularPrice.toLocaleString('ko-KR')}원 → {period.discountPrice?.toLocaleString('ko-KR') ?? '미설정'}원</span>
+    <strong className="font-medium">{variant?.name ?? '이전 옵션'} · <span className={period.state === 'active' ? 'text-[var(--wc-success)]' : 'text-muted-foreground'}>{period.state === 'active' ? '적용' : '중지'}</span></strong>
+    <span className="tabular-nums">{period.regularPrice.toLocaleString('ko-KR')}원 → {period.discountPrice != null ? `${period.discountPrice.toLocaleString('ko-KR')}원` : '할인가 없음'}</span>
     <span className="text-xs text-muted-foreground">{at(period.startsAt)} ~ {at(period.endsAt)} (KST)</span>
     {period.state === 'active' && <Button className="mt-1" size="sm" type="button" variant="outline" onClick={stop} disabled={pending}>
       {pending ? '중지 중…' : '기간 할인 중지'}

@@ -51,5 +51,5 @@ export async function prepareDigitalAssetAction(input: unknown, rawIdentity: unk
 export async function verifyDigitalAssetAction(id: unknown, rawIdentity: unknown): Promise<DigitalAssetResult> {
  if (!isUuid(id)) return { ok: false, error: '파일을 다시 선택해주세요.' };
  try { const identity = await uploadIdentity(rawIdentity); return identity ? await verifyDigitalAsset(identity.actorId, identity.sessionId, id) : { ok: false, error: fulfillmentError('42501') };
- } catch (error) { unstable_rethrow(error); return { ok: false, error: '파일 확인 결과를 알 수 없습니다. 같은 업로드 결과를 다시 확인해주세요.', uncertain: true }; }
+ } catch (error) { unstable_rethrow(error); return { ok: false, error: '파일 확인이 끝났는지 알 수 없습니다. 같은 업로드 결과 확인을 다시 눌러주세요.', uncertain: true }; }
 }

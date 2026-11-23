@@ -21,7 +21,7 @@ export const RETURN_PICKUP_STATE_LABELS: Record<ReturnPickupState, string> = {
 
 const ERROR_LABELS: Record<string, string> = {
   pickup_address_unavailable: '회수지(고객 주소)를 읽지 못했습니다',
-  adapter_unavailable: '회수 접수 연결 설정을 확인해야 합니다',
+  adapter_unavailable: '택배사 자동 접수 연결 설정에 문제가 있습니다 · 개발 담당자에게 알려주세요',
   pickup_timeout: '택배사 응답 시간이 지났습니다',
   pickup_failed: '택배사에 연결하지 못했습니다',
   invalid_tracking: '택배사가 준 회수 운송장 형식이 틀립니다',
@@ -117,7 +117,7 @@ export function parseClaimReturnOperations(value: unknown): ClaimReturnOperation
 
 export function claimReturnPickupError(message: string | null | undefined): string {
   const value = (message ?? '').toLowerCase();
-  if (value.includes('return_pickup_disabled')) return '자동 회수 접수가 꺼져 있습니다. 택배사에 직접 접수하고 회수 정보 정정에 기록해주세요.';
+  if (value.includes('return_pickup_disabled')) return '자동 회수 접수가 꺼져 있습니다. 택배사에 직접 회수를 접수한 뒤 [회수 정보 정정]에서 수거 방법과 회수 운송장을 기록해주세요.';
   if (value.includes('return_pickup_in_progress')) return '지금 택배사에 보내는 중입니다. 잠시 뒤 새로고침해 결과를 확인해주세요.';
   if (value.includes('return_pickup_not_found')) return '이 회수 묶음의 회수 접수를 찾지 못했습니다. 새로고침해주세요.';
   return '다시 접수하지 못했습니다. 새로고침한 뒤 다시 시도해주세요.';

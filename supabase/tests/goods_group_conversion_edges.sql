@@ -80,8 +80,8 @@ do $$declare n integer;attempt_state text;blocked jsonb;begin
   perform goods_group_edge_test.make_source(n);
   insert into public.orders(id,user_id,status,total,address,created_at,delivered_at)
    values(goods_group_edge_test.id(10000+n),goods_group_edge_test.id(3),'delivered',10000,'{}',now()-interval '2 days',now()-interval '1 day');
-  insert into public.order_items(order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_name_snapshot,qty,unit_price)
-   select goods_group_edge_test.id(10000+n),v.good_id,v.id,'TEST 이전 구매','문구','group-edge-ip',v.name,1,10000
+  insert into public.order_items(order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,variant_name_snapshot,qty,unit_price)
+   select goods_group_edge_test.id(10000+n),v.good_id,v.id,'TEST 이전 구매','group-edge-ip',v.name,1,10000
     from public.goods_variants v where v.good_id='group-edge-'||n and v.is_default;
   insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,expires_at,claim_token,claim_expires_at)
    values(goods_group_edge_test.id(11000+n),'toss',goods_group_edge_test.id(3),'order',goods_group_edge_test.id(10000+n),10000,

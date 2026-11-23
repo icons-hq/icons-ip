@@ -3,7 +3,7 @@
 -- schema. It uses the real review RPC and creates explicit synthetic evidence;
 -- it does not disable a trigger, alter a policy, or add a production bypass.
 -- ADR-0044: 운영자 공개(set_good_published)는 대표 카테고리가 있어야 한다(상품 유형은 판정하지 않는다).
--- 카테고리 없이 직접 넣은 합성 상품을 합성 카테고리에 붙여 공개 경로를 그대로 지나게 한다. 유형은 바뀌지 않는다.
+-- 카테고리 없이 직접 넣은 합성 상품을 합성 카테고리 하나에 붙여 공개 경로를 그대로 지나게 한다.
 -- 이미 카테고리가 있거나 그룹 상품이면 건드리지 않는다(카테고리 시험의 의미를 바꾸지 않는다).
 -- 함수 이름은 ADR-0037 때 지은 그대로다(여러 시험이 부른다).
 create or replace function pg_temp.link_goods_type_category_fixture(p_good_id text) returns void
@@ -13,10 +13,9 @@ begin
   select * into good from public.goods where id=p_good_id;
   if not found or good.category_id is not null
     or exists(select 1 from private.goods_group_members where good_id=p_good_id) then return; end if;
-  fixture_category:=('47c47701'||left(md5('goods-type-fixture:'||coalesce(good.type,'')),24))::uuid;
+  fixture_category:=('47c47701'||left(md5('goods-type-fixture:'),24))::uuid;
   insert into public.catalog_categories(id,code,name,depth,sort_order)
-    values(fixture_category,'test-type-'||left(md5('goods-type-fixture:'||coalesce(good.type,'')),12),
-      'TEST-ONLY 대표 카테고리 '||coalesce(nullif(good.type,''),'기본'),1,0)
+    values(fixture_category,'test-type-'||left(md5('goods-type-fixture:'),12),'TEST-ONLY 대표 카테고리 기본',1,0)
     on conflict (id) do nothing;
   update public.goods set category_id=fixture_category where id=p_good_id;
 end $$;

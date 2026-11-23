@@ -314,7 +314,7 @@ describe('ClaimDetailScreen', () => {
     });
     expect(html).toContain('환불 완료 확정 (토스 전액 취소)');
     expect(html).toContain('누르면 토스 결제 전액을 취소하고 결제사에 결과를 확인합니다.');
-    expect(html).not.toContain('결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요');
+    expect(html).not.toContain('결제사 관리자 화면(거래 내역)에서 전액 취소된 것을 확인한 뒤 눌러주세요');
     expect(html).toContain('결제사 취소 (토스 전액 취소)');
     expect(html).toContain('type="hidden" name="method" value="pg_cancel"');
     expect(html).not.toContain('<option value="bank_transfer"');
@@ -678,7 +678,7 @@ describe('ClaimDetailScreen', () => {
       refund: { ...base.refund!, status: 'done', completedAt: null },
     });
 
-    expect(html).toContain('환불 완료를 원장에 기록');
+    expect(html).toContain('환불 완료 기록만 남기기');
     expect(html).toContain('이 취소·반품·교환 요청은 이미 종결됐습니다');
     expect(html).not.toContain('주문과 재고는 그대로 유지됩니다');
     expect(html).not.toContain('재고 복원 · 카드팩 회수 포함');

@@ -41,7 +41,7 @@ create function pg_temp.as_actor(p uuid) returns void language plpgsql as $$begi
  perform set_config('request.jwt.claims',jsonb_build_object('sub',p,'role','authenticated')::text,true);
 end $$;
 insert into public.ips(id,title,vertical_key) values('forced-delivery-ip','TEST 강제 배송완료 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('forced-delivery-goods','forced-delivery-ip','TEST 강제 배송완료 굿즈','문구',10000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('forced-delivery-goods','forced-delivery-ip','TEST 강제 배송완료 굿즈',10000,'ok',100);
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_active)
  values('f0dd0000-0000-4000-8000-0000000000f1','forced-delivery-origin','TEST 강제 배송완료 창고',0,'합성 반송 주소',true);
 insert into private.fulfillment_delivery_policies(id,origin_id,method,state,terms,revision,activated_at) values
@@ -54,8 +54,8 @@ declare oid uuid:=('f0dd0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;item 
 begin
  insert into public.orders(id,user_id,status,total,address,confirmed_at) values(oid,'f0dd0000-0000-4000-8000-000000000002',status,10000,
   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',case when status<>'paid' then now() end);
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(oid,'forced-delivery-goods',1,10000,'TEST 강제 배송완료 굿즈','문구','forced-delivery-ip',(select id from public.goods_variants where good_id='forced-delivery-goods' and is_default))
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,'forced-delivery-goods',1,10000,'TEST 강제 배송완료 굿즈','forced-delivery-ip',(select id from public.goods_variants where good_id='forced-delivery-goods' and is_default))
   returning id into item;
  insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at)
   values(sid,oid,'f0dd0000-0000-4000-8000-0000000000f1','TEST 강제 배송완료 창고',0,'{}',shipment_status,

@@ -36,7 +36,7 @@ function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise;
     <label className={FIELD_CLASS}><span>변경 사유</span>
       <Textarea name="reason" rows={2} maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} required disabled={pending} />
     </label>
-    <small className="text-xs text-muted-foreground">변경된 일정은 주문 화면에 반영하며, 원 예정일과 이전 변경 이력을 보존합니다.</small>
+    <small className="text-xs text-muted-foreground">바꾼 일정은 주문 화면에 바로 보이고, 고객에게 따로 알림은 가지 않습니다. 주문 당시 예정일과 이전 변경 이력은 그대로 남습니다.</small>
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     <Button type="submit" disabled={pending}>{pending ? '기록 중…' : '발송 예정일 변경 기록'}</Button>
   </form>;
@@ -62,7 +62,7 @@ export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipment
     let canceled = false;
     void readShipmentPreorderPromiseAction(shipmentId, orderId).then((result) => {
       if (!canceled) setLoaded(result.ok ? { key, promise: result.promise } : { key, error: result.error });
-    }).catch(() => { if (!canceled) setLoaded({ key, error: '예약 발송 일정을 불러오지 못했습니다.' }); });
+    }).catch(() => { if (!canceled) setLoaded({ key, error: '예약 발송 일정을 불러오지 못했습니다. [예약 발송 일정 새로고침]을 눌러주세요.' }); });
     return () => { canceled = true; };
   }, [key, shipmentId, orderId]);
   const visible = loaded?.key === key ? loaded : null;
@@ -75,7 +75,7 @@ export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipment
       {promise.originalExpectedShipDate ? <>
         <p>주문 당시: {goodsShipDateLabel(promise.originalExpectedShipDate)}<br />현재: {goodsShipDateLabel(promise.expectedShipDate)}</p>
         {promise.status === 'ready' ? <PromiseEditor key={`${promise.shipmentId}:${promise.updatedAt}`} promise={promise}
-          onSaved={(message) => { setNotice({ shipmentId, message }); reload(); }} /> : <small className="text-xs text-muted-foreground">발송 준비를 마친 배송 건은 변경 이력을 확인할 수 있습니다.</small>}
+          onSaved={(message) => { setNotice({ shipmentId, message }); reload(); }} /> : <small className="text-xs text-muted-foreground">발송 대기가 아닌 배송 건은 예정일을 바꿀 수 없고 변경 이력만 볼 수 있습니다.</small>}
         {promise.changes.length ? <ol className="flex list-decimal flex-col gap-2.5 pl-5">
           {promise.changes.map((change) => <li key={change.id}>
             <PromiseChangeHeadline change={change} /><p className="my-1 whitespace-pre-wrap wrap-anywhere">{change.reason}</p>

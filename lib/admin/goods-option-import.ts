@@ -70,7 +70,7 @@ function emptyNewDefault(row: GoodsOptionRow): boolean {
 export function planGoodsOptionImport(input: { current: GoodsOptionRow[]; source: GoodsOptionImportSource; basePrice: number; includePrices: boolean }):
   { ok: true; plan: GoodsOptionImportPlan } | { ok: false; error: string } {
   const source = parseGoodsOptionImportSource(input.source);
-  if (!source) return { ok: false, error: '불러올 선택형 옵션을 확인할 수 없습니다. 옵션이 없거나 구성·금액이 유효하지 않습니다.' };
+  if (!source) return { ok: false, error: '불러올 선택형 옵션이 없거나 원본 옵션의 구성·금액을 읽을 수 없습니다. 원본 상품의 옵션을 확인해주세요.' };
   if (!money(input.basePrice) || !parseGoodsOptionRows(JSON.stringify(input.current), input.basePrice).ok) return { ok: false, error: '현재 옵션의 이름·금액·재고 입력을 확인한 뒤 다시 비교해주세요. 입력은 유지됩니다.' };
   const current = input.current.length === 1 && emptyNewDefault(input.current[0]) ? [] : input.current;
   const byIdentity = new Map(current.map(row => [exactGoodsOptionIdentity(row.attributes), row]));
@@ -80,7 +80,7 @@ export function planGoodsOptionImport(input: { current: GoodsOptionRow[]; source
   for (const definition of source.rows) {
     const identity = exactGoodsOptionIdentity(definition.attributes), previous = byIdentity.get(identity);
     const extraPrice = input.includePrices ? definition.price - source.basePrice : previous?.extraPrice ?? 0;
-    if (!money(extraPrice) || !money(input.basePrice + extraPrice)) return { ok: false, error: '원본 옵션가 또는 적용 후 판매금액이 허용 범위를 벗어납니다. 원본 저장 금액을 확인해주세요.' };
+    if (!money(extraPrice) || !money(input.basePrice + extraPrice)) return { ok: false, error: '원본 옵션가나 가져온 뒤의 옵션 판매가가 쓸 수 있는 금액 범위를 벗어납니다. 원본 상품의 옵션 판매가를 확인해주세요.' };
     const row: GoodsOptionRow = previous ? { ...previous, attributes: { ...previous.attributes }, extraPrice }
       : { name: definition.name, attributes: { ...definition.attributes }, code: '', extraPrice, stockQty: 0, isActive: true };
     rows.push(row); changes.push({ name: row.name, kind: previous ? 'kept' : 'added', oldExtraPrice: previous?.extraPrice ?? null, extraPrice, stockQty: row.stockQty, active: row.isActive !== false });

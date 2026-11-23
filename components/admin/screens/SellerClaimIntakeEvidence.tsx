@@ -12,7 +12,7 @@ export function SellerClaimIntakeEvidence({ intake }: { intake: SellerClaimRecei
     <dl className="grid grid-cols-1 gap-x-3 gap-y-1.5 sm:grid-cols-[8rem_minmax(0,1fr)]">
       <dt className={TERM_CLASS}>접수 담당자</dt><dd className={VALUE_CLASS}>{intake.actorName || intake.actorId}</dd>
       <dt className={TERM_CLASS}>확인 경로</dt><dd className={VALUE_CLASS}>{SELLER_CLAIM_SOURCES.find(source => source.value === intake.source)?.label}{intake.inquiryId ? <> · <Link className="underline underline-offset-4" href={`/admin/cs/inquiries/${intake.inquiryId}`}>연결된 문의</Link></> : null}</dd>
-      <dt className={TERM_CLASS}>고객 요청 시각</dt><dd className={VALUE_CLASS}>{formatOrderDateTime(intake.customerRequestedAt)} · 근거용, 접수 기한 소급 없음</dd>
+      <dt className={TERM_CLASS}>고객 요청 시각</dt><dd className={VALUE_CLASS}>{formatOrderDateTime(intake.customerRequestedAt)} · 근거로만 남김, 신청 기한은 실제 접수 시각 기준</dd>
       <dt className={TERM_CLASS}>실제 접수 시각</dt><dd className={VALUE_CLASS}>{formatOrderDateTime(intake.requestedAt)}</dd>
       <dt className={TERM_CLASS}>고객 합의 근거</dt><dd className={`${VALUE_CLASS} whitespace-pre-wrap`}>{intake.agreementEvidence}</dd>
       {address ? <><dt className={TERM_CLASS}>수거 안내 주소</dt><dd className={VALUE_CLASS}>{address.recipientName} · {address.phone}<br />[{address.postalCode}] {address.address1} {address.address2}</dd></> : null}

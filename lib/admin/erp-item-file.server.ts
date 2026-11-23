@@ -21,7 +21,7 @@ export interface ErpItemFileTable {
 
 /* 머리글 탐지 구간과 빈 줄 몇 개는 행 수 상한과 따로 둔다. */
 const ERP_ITEM_TABLE_ROW_LIMIT = ERP_ITEM_IMPORT_ROW_LIMIT + ERP_ITEM_HEADER_SCAN_ROWS + 100;
-const TOO_MANY_ROWS = `한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지 반입할 수 있습니다. 파일을 나누어 반입해주세요.`;
+const TOO_MANY_ROWS = `한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 올릴 수 있습니다. 파일을 나누어 올려주세요.`;
 
 type CellRead = { text: string; numeric?: boolean; formula?: boolean; lossy?: boolean };
 

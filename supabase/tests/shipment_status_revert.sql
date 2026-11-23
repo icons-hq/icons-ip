@@ -56,7 +56,7 @@ create function pg_temp.as_actor(p uuid) returns void language plpgsql as $$begi
 end $$;
 update private.purchase_confirmation_policy set auto_enabled=true,auto_after_days=7,buyer_extension_days=3 where singleton;
 insert into public.ips(id,title,vertical_key) values('shipment-revert-ip','TEST 배송 정정 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('shipment-revert-goods','shipment-revert-ip','TEST 배송 정정 굿즈','문구',10000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('shipment-revert-goods','shipment-revert-ip','TEST 배송 정정 굿즈',10000,'ok',100);
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address,is_active)
  values('c3a00000-0000-4000-8000-0000000000f1','shipment-revert-origin','TEST 배송 정정 창고',0,'합성 반송 주소',true);
 -- 주문 n: 결제·품목·택배 배송 건 하나. 배송 중이면 운송장 1000000nnn·발송 3일 전, 출고지시는 4일 전 전달.
@@ -65,8 +65,8 @@ declare oid uuid:=('c3a00000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;item 
 begin
  insert into public.orders(id,user_id,status,total,address,confirmed_at) values(oid,'c3a00000-0000-4000-8000-000000000002',status,10000,
   jsonb_build_object('recipientName','TEST 수령인'||n,'phone','010000000'||lpad(n::text,2,'0'),'postalCode','12345','address1','합성 주소','address2',n||'층'),now()-interval '5 days');
- insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-  values(oid,'shipment-revert-goods',1,10000,'TEST 배송 정정 굿즈','문구','shipment-revert-ip',(select id from public.goods_variants where good_id='shipment-revert-goods' and is_default))
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,'shipment-revert-goods',1,10000,'TEST 배송 정정 굿즈','shipment-revert-ip',(select id from public.goods_variants where good_id='shipment-revert-goods' and is_default))
   returning id into item;
  insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,exported_at)
   values(sid,oid,'c3a00000-0000-4000-8000-0000000000f1','TEST 배송 정정 창고',0,'{}',shipment_status,

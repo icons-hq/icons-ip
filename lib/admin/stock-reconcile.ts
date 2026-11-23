@@ -25,10 +25,10 @@ export type StockColumnTarget = StockKeyField | 'quantity' | 'ignore';
 export const STOCK_KEY_FIELDS: readonly StockKeyField[] = ['optionCode', 'erpCode', 'barcode', 'goodsCode'];
 export const STOCK_COLUMN_TARGETS: readonly StockColumnTarget[] = ['optionCode', 'erpCode', 'barcode', 'goodsCode', 'quantity', 'ignore'];
 export const STOCK_COLUMN_TARGET_LABELS: Record<StockColumnTarget, string> = {
-  optionCode: '관리코드',
+  optionCode: '옵션 자동코드',
   erpCode: 'ERP 코드(품번)',
   barcode: '바코드',
-  goodsCode: '판매자상품코드',
+  goodsCode: '상품 자동코드',
   quantity: '재고 수량',
   ignore: '가져오지 않음',
 };
@@ -36,10 +36,11 @@ export const STOCK_COLUMN_TARGET_LABELS: Record<StockColumnTarget, string> = {
 /* 별칭은 공백·괄호를 지우고 소문자로 비교한다(ERP 반입과 같은 정규화). 앞에 둔 별칭일수록 우선한다.
    ERP·창고 파일의 '상품코드'는 보통 ERP 품목코드라 ERP 코드로 읽는다. */
 const ALIASES: Record<Exclude<StockColumnTarget, 'ignore'>, readonly string[]> = {
-  optionCode: ['관리코드', '옵션관리코드', '옵션코드', '단품코드', 'sku', 'sku코드'],
+  /* 관리코드·판매자상품코드는 2026-11-19 전 어드민 이름(ADR-0048)이라 옛 파일을 위해 남긴다. */
+  optionCode: ['옵션자동코드', '관리코드', '옵션관리코드', '옵션코드', '단품코드', 'sku', 'sku코드'],
   erpCode: ['품번', '품목코드', '품목번호', 'erp코드', '자체상품코드', '상품코드', 'itemcode', '코드'],
   barcode: ['바코드', '바코드번호', '바코드ean', 'ean', 'ean13', 'barcode'],
-  goodsCode: ['판매자상품코드', '판매자상품번호', '쇼핑몰상품코드'],
+  goodsCode: ['상품자동코드', '판매자상품코드', '판매자상품번호', '쇼핑몰상품코드'],
   quantity: ['재고수량', '현재고', '현재고수량', '실재고', '실재고수량', '가용재고', '가용수량', '정상재고', '정상재고수량', '재고량', '재고',
     '수량', 'qty', 'quantity', 'stock', 'onhand'],
 };
@@ -256,7 +257,7 @@ export function buildStockReconcilePlan(table: readonly (readonly string[])[], o
 
   let blocking: string | null = null;
   if (quantityColumn < 0) blocking = '재고 수량 열을 골라야 대조할 수 있습니다.';
-  else if (!keyColumns.length) blocking = '관리코드·ERP 코드(품번)·바코드·판매자상품코드 중 한 열 이상을 골라야 대조할 수 있습니다.';
+  else if (!keyColumns.length) blocking = '옵션 자동코드·ERP 코드(품번)·바코드·상품 자동코드 중 한 열 이상을 골라야 대조할 수 있습니다.';
   else if (rows.length > STOCK_RECONCILE_ROW_LIMIT) blocking = `한 번에 ${STOCK_RECONCILE_ROW_LIMIT.toLocaleString('ko-KR')}행까지 대조할 수 있습니다. 파일을 나누어 올려주세요.`;
   else if (!rows.length) blocking = dataRowCount ? '대조할 수 있는 행이 없습니다. 행별 사유를 확인해주세요.' : '대조할 행이 없습니다.';
   return { headerIndex, columns, rows, issues, dataRowCount, skippedRowCount, blocking, warnings };
@@ -295,13 +296,13 @@ export const STOCK_RECONCILE_ISSUE_LABELS: Record<StockReconcileIssueReason, str
   duplicate: '같은 옵션을 가리키는 행이 둘 이상 — 위치별로 나뉜 파일이면 합계로 만든 뒤 올려주세요',
   not_found: '사이트에서 찾지 못함(코드·바코드 등록 확인)',
   conflict: '코드끼리 서로 다른 옵션·상품을 가리킴',
-  option_required: '옵션이 여럿인 상품 — 관리코드·ERP 코드·바코드가 필요함',
+  option_required: '옵션이 여럿인 상품 — 옵션 자동코드·ERP 코드·바코드가 필요함',
   other_origin: '고른 출고지의 상품이 아님',
   goods_archived: '보관한 상품',
   option_stopped: '사용 중지한 옵션',
 };
 export const STOCK_MATCH_KIND_LABELS: Record<StockMatchKind, string> = {
-  option_code: '관리코드', erp_code: 'ERP 코드', barcode: '바코드', goods_code: '판매자상품코드',
+  option_code: '옵션 자동코드', erp_code: 'ERP 코드', barcode: '바코드', goods_code: '상품 자동코드',
 };
 
 export interface StockReconcileItem {

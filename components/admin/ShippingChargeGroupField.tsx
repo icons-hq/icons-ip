@@ -28,8 +28,8 @@ export function ShippingChargeGroupSummary({ group, originName, ownerGoodId, inh
   const regionMode = group.regional?.mode ?? group.regionalMode;
   return <div className={SUMMARY_CLASS} data-shipping-charge-group-summary="group">
     <strong className="flex flex-wrap items-center gap-2 font-medium wrap-anywhere">{group.name} <Badge variant={group.archived || !group.enabled ? 'outline' : 'secondary'}>{group.archived ? '보관' : group.enabled ? '사용' : '사용 안 함'}</Badge></strong>
-    <dl className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-0.5 sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-y-1 [&>dd]:m-0 [&>dd]:wrap-anywhere max-sm:[&>dd]:mb-1.5 [&>dt]:text-muted-foreground"><dt>배송비 계산</dt><dd>{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 유효 무료 조건 우선</dd>
-      <dt>지역 추가료</dt><dd>{regionMode === 'inherit' ? '출고지 지역 정책 상속' : regionMode === 'override' ? '그룹 지역표로 그룹당 한 번' : '지역 정책 확인 필요'}</dd>
+    <dl className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-0.5 sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-y-1 [&>dd]:m-0 [&>dd]:wrap-anywhere max-sm:[&>dd]:mb-1.5 [&>dt]:text-muted-foreground"><dt>배송비 계산</dt><dd>{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 무료배송 조건을 채운 상품이 있으면 0원</dd>
+      <dt>지역 추가료</dt><dd>{regionMode === 'inherit' ? '출고지 지역 정책 그대로 사용' : regionMode === 'override' ? '그룹 지역표로 그룹당 한 번' : '지역 정책 확인 필요'}</dd>
       {originName ? <><dt>출고지</dt><dd>{originName}</dd></> : null}<dt>저장 버전</dt><dd className="tabular-nums">{group.revision}</dd></dl>
     <p className="text-muted-foreground">같은 주문·출고지에서 실제 구매한 상품만 함께 계산합니다. 기본 배송비가 무료여도 지역 추가료는 별도 조건을 따릅니다.</p>
     {inherited && ownerGoodId ? <p className="text-muted-foreground">이 상품은 <Link className={`${LINK_CLASS} text-foreground`} href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownerGoodId)}`}>원상품의 묶음그룹 배정</Link>을 공유합니다.</p> : null}
@@ -99,7 +99,7 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
     {name ? <input type="hidden" name={name} value={value ?? ''} /> : null}
     <ShippingChargeGroupSummary group={selected} ownerGoodId={ownerGoodId} inherited={readOnly} manageLink />
     {!originId ? <p className="text-muted-foreground">출고지를 먼저 선택해주세요. 같은 출고지의 사용 중인 그룹만 선택할 수 있습니다.</p> : null}
-    {mismatch ? <p className="text-destructive wrap-anywhere" role="alert">현재 선택한 그룹과 출고지가 다릅니다. 같은 출고지의 그룹을 다시 선택하거나 배정을 명시적으로 해제해주세요.</p> : null}
+    {mismatch ? <p className="text-destructive wrap-anywhere" role="alert">현재 선택한 그룹과 출고지가 다릅니다. 같은 출고지의 그룹을 다시 선택하거나 배정을 해제해주세요.</p> : null}
     {error || loadedGroup?.error ? <p className="text-destructive wrap-anywhere" role="alert">{error || loadedGroup?.error}</p> : null}
     {!readOnly ? <div className="flex min-w-0 flex-wrap items-center gap-2 print:hidden">
       <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked} aria-expanded={picker.open} aria-controls={`${id}-picker`}
@@ -115,7 +115,7 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
       {list.error ? <p className="text-destructive wrap-anywhere" role="alert">{list.error}</p> : null}
       <ul className="m-0 flex min-w-0 list-none flex-col gap-2 p-0">{options.map(group => <li key={group.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border p-3">
         <div className="min-w-0"><strong className="flex flex-wrap items-center gap-2 font-medium wrap-anywhere">{group.name} {group.isDefault ? <Badge variant="secondary">기본</Badge> : null}</strong>
-          <small className="mt-1 block text-xs text-muted-foreground wrap-anywhere">{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 무료 우선 · {group.regional.mode === 'inherit' ? '출고지 지역 정책 상속' : '그룹 지역표 1회'} · 버전 {group.revision}</small></div>
+          <small className="mt-1 block text-xs text-muted-foreground wrap-anywhere">{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 무료 우선 · {group.regional.mode === 'inherit' ? '출고지 지역 정책 그대로 사용' : '그룹 지역표 1회'} · 버전 {group.revision}</small></div>
         <button className={buttonVariants({ variant: value === group.id ? 'secondary' : 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || current(group)} onClick={() => { if (!locked && group.originId === originId && group.enabled && !group.archived) { onChange(group.id, group); setPicker({ owner, open: false, query: '' }); } }}>{current(group) ? '선택됨' : value === group.id ? '최신 버전으로 다시 선택' : '선택'}</button>
       </li>)}</ul>
       {!list.busy && list.data && !options.length ? <p className="text-muted-foreground">선택할 수 있는 그룹이 없습니다. 기존 선택이나 미지정 상태는 자동으로 바뀌지 않습니다.</p> : null}

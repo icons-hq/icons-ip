@@ -16,7 +16,7 @@ const CELL_CLASS = 'px-3 py-2.5 align-top whitespace-normal';
 
 /** 사용 중지 옵션은 판매 정보 카드의 옵션 상세 정보 표에 없어, 식별자(옵션코드·ERP 코드·바코드)를 이 목록에 작게 남긴다. */
 function ArchivedVariantIdentifiers({ variant }: { variant: AdminGoodsVariant }) {
-  const identifiers = [['옵션코드', variant.code], ['ERP 코드', variant.erpCode], ['바코드', variant.barcode]].filter(([, value]) => value);
+  const identifiers = [['옵션 자동코드', variant.code], ['ERP 코드', variant.erpCode], ['바코드', variant.barcode]].filter(([, value]) => value);
   if (!variant.archivedAt || !identifiers.length) return null;
   return <small className="mt-1 flex min-w-0 flex-col text-xs font-normal text-muted-foreground" data-variant-identifiers="">
     {identifiers.map(([label, value]) => <span key={label} className="wrap-anywhere">{label} {value}</span>)}
@@ -52,14 +52,14 @@ export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: str
       <div className="flex flex-col gap-1">
         <h2 id={`good-variants-${goodId}`} className="text-base leading-snug font-medium">옵션 목록</h2>
         <p className="text-sm text-muted-foreground">
-          옵션명·판매가·재고수량·사용 상태를 확인합니다. 옵션코드·ERP·바코드·안전재고는 위 판매 정보 카드의 옵션 상세 정보에서 확인·수정하고(사용 중지 옵션의 코드는 이 목록에 남습니다), 사용 중지와 복원은 즉시 반영되고 위 상품 폼의 수정은 별도로 저장합니다.
+          저장된 옵션의 옵션명·판매가·재고수량·사용 상태를 봅니다. 옵션 자동코드·ERP 코드·바코드·안전재고는 위 판매 정보 카드의 &lsquo;옵션 상세 정보&rsquo;에서 보고 고칩니다. 사용 중지한 옵션의 코드는 이 목록에 작게 남습니다. &lsquo;사용 중지&rsquo;·&lsquo;복원&rsquo;은 누르는 즉시 반영되고, 위 상품 폼에서 고친 내용은 따로 저장해야 반영됩니다.
         </p>
       </div>
       {selectedVariants.length ? <>
         <div className="grid min-w-0 gap-2.5 sm:grid-cols-2" role="group" aria-label="옵션 재고 요약">
           <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3"><span className="text-xs text-muted-foreground">사용 중 옵션</span><strong className="text-sm font-semibold tabular-nums">{activeVariants.length}개 · 재고수량 {activeAllocatedStock.toLocaleString('ko-KR')}개</strong></div>
           <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3"><span className="text-xs text-muted-foreground">전체 옵션</span><strong className="text-sm font-semibold tabular-nums">{selectedVariants.length}개 · 재고수량 {totalAllocatedStock.toLocaleString('ko-KR')}개</strong></div>
-          <p className="text-xs text-muted-foreground sm:col-span-2">전체 옵션 합계에는 사용 중지 옵션의 보존 재고가 포함됩니다. 실제 판매 가능 수량과 예약 가용 수량은 서버 판정값을 따릅니다.</p>
+          <p className="text-xs text-muted-foreground sm:col-span-2">전체 옵션 합계에는 사용 중지한 옵션에 남아 있는 재고도 들어갑니다. 고객이 실제로 살 수 있는 수량과 예약판매로 받을 수 있는 수량은 판매 조건에 따라 따로 계산하므로 이 합계와 다를 수 있습니다.</p>
         </div>
         <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="저장된 옵션 핵심 정보" tabIndex={0}>
           <Table className="min-w-[36rem] table-fixed">

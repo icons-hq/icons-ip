@@ -8,7 +8,7 @@ export const AUTO_ORDER_CONFIRMATION_DEFAULT_TIME = '16:30';
 export const AUTO_ORDER_CONFIRMATION_EXCLUSIONS = {
   cancellation_in_progress: '취소 요청 진행 중',
   fulfillment_hold: '출고 보류(테스트 결제·결제사 취소)',
-  preorder_unallocated: '예약 재고 할당 전',
+  preorder_unallocated: '예약 입고 확인 전',
   locked: '다른 처리와 겹쳐 다음 실행으로 넘김',
   failed: '처리 확인 필요',
 } as const;
@@ -55,5 +55,5 @@ export function autoOrderConfirmationError(code?: string, message?: string) {
   if (code === 'PT409' || message?.includes('auto_order_confirmation_changed')) return '다른 담당자가 먼저 설정을 바꿨습니다. 새로고침해 현재 설정을 확인해주세요.';
   if (['42501', '28000'].includes(code ?? '') || message?.includes('operator_capability_required')) return '현재 로그인 계정과 주문 관리 권한을 확인해주세요.';
   if (code === '22023' || message?.includes('invalid_auto_order_confirmation')) return '실행 시각을 00:00~23:59 사이로 입력해주세요.';
-  return '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+  return '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 저장됐는지 확인해주세요.';
 }

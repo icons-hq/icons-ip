@@ -17,7 +17,7 @@ type Shipment = ShipmentExportData['shipments'][number];
 
 function money(value: number | null | undefined): number | null {
   if (value == null) return null;
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error('상품주문 금액 정보를 확인해주세요.');
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error('상품주문 금액 기록을 읽지 못해 파일을 만들지 않았습니다. 목록을 새로고침해 다시 내려받고, 계속되면 개발 담당자에게 알려주세요.');
   return value;
 }
 
@@ -34,7 +34,7 @@ function detail(line: ShipmentExportLine): SmartStoreShipmentDetail {
     || !Number.isSafeInteger(line.qty) || line.qty < 1 || unitPrice !== null && (!Number.isSafeInteger(unitPrice) || unitPrice < 0)) {
     throw new Error('ICONS 표준 양식의 상품주문 정보를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   }
-  if (unitPrice !== null && !Number.isSafeInteger(line.qty * unitPrice)) throw new Error('상품주문 금액 정보를 확인해주세요.');
+  if (unitPrice !== null && !Number.isSafeInteger(line.qty * unitPrice)) throw new Error('상품주문 금액 기록을 읽지 못해 파일을 만들지 않았습니다. 목록을 새로고침해 다시 내려받고, 계속되면 개발 담당자에게 알려주세요.');
   // The discount can also include a promotion from the historical regular price.
   // The RPC validates its immutable allocations; today's unit price cannot reconstruct it.
   money(value.itemDiscount); money(value.itemTotal);
@@ -50,9 +50,9 @@ function standardRow(shipment: Shipment, line: ShipmentExportLine, index: number
   const collectValue = shipment.shippingCollectFee as number | null | undefined;
   const paidShipping = blankShipping ? null : money(shipment.shippingFee);
   const collectShipping = blankShipping && collectValue === null ? null : money(collectValue ?? 0);
-  if (!blankShipping && (paidShipping === null || collectShipping === null)) throw new Error('배송비 정보를 확인해주세요.');
+  if (!blankShipping && (paidShipping === null || collectShipping === null)) throw new Error('배송비 기록을 읽지 못해 파일을 만들지 않았습니다. 목록을 새로고침해 다시 내려받고, 계속되면 개발 담당자에게 알려주세요.');
   const shipping = paidShipping === null || collectShipping === null ? null : paidShipping + collectShipping;
-  if (shipping !== null && !Number.isSafeInteger(shipping)) throw new Error('배송비 정보를 확인해주세요.');
+  if (shipping !== null && !Number.isSafeInteger(shipping)) throw new Error('배송비 기록을 읽지 못해 파일을 만들지 않았습니다. 목록을 새로고침해 다시 내려받고, 계속되면 개발 담당자에게 알려주세요.');
   const chargeLabel = paidShipping !== null && collectShipping !== null ? shippingChargeLabel(paidShipping, collectShipping)
     : blankShipping && (collectShipping ?? 0) > 0 ? '착불' : null;
   const firstRow = index === 0;

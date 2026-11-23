@@ -85,8 +85,8 @@ insert into public.ips (id, title, vertical_key)
 values ('s8h-ip', 'S8 하드닝 IP', 'character')
 on conflict (id) do nothing;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('s8h-g1', 's8h-ip', 'S8 하드닝 굿즈', '피규어', 20000, 'ok', 10)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
+values ('s8h-g1', 's8h-ip', 'S8 하드닝 굿즈', 20000, 'ok', 10)
 on conflict (id) do update set price = excluded.price;
 
 insert into public.card_pools (id, ip_id, name)

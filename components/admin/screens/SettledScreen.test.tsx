@@ -105,7 +105,7 @@ describe('SettledScreen', () => {
       })} now={NOW} />,
     );
 
-    expect(html).toContain('공급일 미기록 · 원장 확인 필요');
+    expect(html).toContain('공급일 기록 없음 · 주문 기록 확인 필요');
     expect(html).toContain('미기록');
   });
 
@@ -137,7 +137,7 @@ describe('SettledScreen', () => {
     /* 다른 주문·배송 목록처럼 목록 머리에 둔다. 표 위의 안내 문단은 메뉴설명으로 접혀 표를 밀지 않는다. */
     expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('<thead'));
     expect(html.indexOf('자동 확정은 기본 꺼짐')).toBeLessThan(html.indexOf('data-sales-filters'));
-    expect(html).toContain('현재 조회 조건의 전체 페이지');
+    expect(html).toContain('지금 조회 조건의 모든 페이지');
     expect(html).toContain('name="from" value="2026-09-01"');
     expect(html).toContain('name="query" value="0000"');
     expect(html).toContain('name="requestId" value="10000000-0000-4000-8000-000000004951"');

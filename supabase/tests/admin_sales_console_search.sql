@@ -10,16 +10,16 @@ update public.profiles set nickname='sales_console_buyer',email='sales-console-b
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address) values
  ('00000000-0000-4000-8000-000000061201','sales-console-test','검색 검증 출고지',0,'합성 반송 주소');
 insert into public.ips(id,title,vertical_key) values('sales-console-test','검색 검증 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('sales-console-good','sales-console-test','필터 전용 상품','문구',10000,'ok',100,'00000000-0000-4000-8000-000000061201');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('sales-console-good','sales-console-test','필터 전용 상품',10000,'ok',100,'00000000-0000-4000-8000-000000061201');
 insert into public.orders(id,user_id,status,total,address,created_at,confirmed_at,shipped_at,delivered_at,done_at,payment_method,expires_at) values
  ('70000000-0000-4000-8000-000000061201','00000000-0000-4000-8000-000000061202','paid',10000,'{"recipientName":"검색 수취인","phone":"010000061201"}','2026-09-01T00:00:00Z',null,null,null,null,'card',null),
  ('70000000-0000-4000-8000-000000061202','00000000-0000-4000-8000-000000061202','confirmed',30000,'{"recipientName":"검색 수취인","phone":"010000061202"}','2026-09-01T00:00:00Z','2026-09-04T15:00:00Z',null,null,null,'card',null),
  ('70000000-0000-4000-8000-000000061203','00000000-0000-4000-8000-000000061202','done',20000,'{"recipientName":"검색 수취인","phone":"010000061203"}','2026-09-02T00:00:00Z','2026-09-03T00:00:00Z','2026-09-04T00:00:00Z','2026-09-05T00:00:00Z','2026-09-14T00:00:00Z','bank_transfer',null),
  ('70000000-0000-4000-8000-000000061204','00000000-0000-4000-8000-000000061202','pending',40000,'{"recipientName":"검색 수취인"}','2026-09-03T00:00:00Z',null,null,null,null,'bank_transfer','2026-09-04T00:00:00Z'),
  ('70000000-0000-4000-8000-000000061205','00000000-0000-4000-8000-000000061202','pending',50000,'{"recipientName":"검색 수취인"}','2026-09-03T00:00:00Z',null,null,null,null,'bank_transfer','2026-09-05T00:00:00Z');
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price)
-select '72000000-0000-4000-8000-000000061202','70000000-0000-4000-8000-000000061202','sales-console-good',id,'필터 전용 상품','문구','sales-console-test',3,10000
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price)
+select '72000000-0000-4000-8000-000000061202','70000000-0000-4000-8000-000000061202','sales-console-good',id,'필터 전용 상품','sales-console-test',3,10000
 from public.goods_variants where good_id='sales-console-good' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at) values
  ('71000000-0000-4000-8000-000000061201','70000000-0000-4000-8000-000000061201','00000000-0000-4000-8000-000000061201','검색 검증 출고지',0,'{}','ready',null,null,null,null),

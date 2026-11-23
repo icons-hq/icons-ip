@@ -186,13 +186,13 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
       :await exportShipmentsAction(request.ids,request.format,request.layout,credentials);
      if(result.error)setError(result.error);
      else if(result.file){
-      if(request.layout==='smartstore'&&request.format==='xlsx'&&result.file.encryption!=='ECMA-376-Agile'){setError('파일 암호화를 확인하지 못했습니다. 다시 내려받아 주세요.');return;}
+      if(request.layout==='smartstore'&&request.format==='xlsx'&&result.file.encryption!=='ECMA-376-Agile'){setError('파일 암호화를 확인하지 못해 파일을 저장하지 않았습니다. 다시 내려받아 주세요.');return;}
       download(result.file);setExportRequest(null);setMessage(result.message??(request.kind==='selection'?`${request.ids.length}건의 출고지시를 내려받았습니다.`:'출고지시를 내려받았습니다.'));
       if(request.kind==='selection')setDownloadedIds(current=>new Set([...current,...request.ids]));
      }
     }
     router.refresh();
-   }catch{setCompletion(null);setError('처리 중 연결이 끊겼습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.');}
+   }catch{setCompletion(null);setError('처리 중 연결이 끊겼습니다. 이미 처리됐을 수 있으니 목록을 새로고침해 상태를 확인한 뒤 다시 시도해주세요.');}
    finally{setDataRound(round=>round+1);}
   });
  }
@@ -249,7 +249,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     <p className="text-muted-foreground">합포장에 포함된 모든 상품의 실제 도착을 택배사 조회로 확인해주세요.</p>
     <label className={FIELD}><span>택배사 배송완료 일시 (KST)</span><Input type="datetime-local" name="deliveredAt" value={completion.arrival} max={kstDateTimeLocalValue(new Date())} disabled={pending} required
      onChange={event=>setCompletion({...completion,arrival:event.target.value})}/></label>
-    <p className="text-muted-foreground" data-arrival-hint="">택배사 조회의 배송완료 일시를 넣으세요. 청약철회 기간과 구매확정 기한은 처리한 시각이 아니라 이 일시부터 셉니다 — 늦게 처리할수록 철회 기간이 뒤로 밀리지 않도록 실제 일시를 기준으로 합니다. 처음 값(이 창을 연 시각)을 그대로 두면 처리 시각으로 기록합니다. 발송 등록 시각보다 이른 일시는 그 배송 건만 처리하지 않습니다.</p>
+    <p className="text-muted-foreground" data-arrival-hint="">택배사 조회의 배송완료 일시를 넣으세요. 청약철회 기간과 구매확정 기한은 처리한 시각이 아니라 이 일시부터 셉니다. 처리가 늦어져도 고객의 철회 기간이 뒤로 밀리지 않게 실제 도착 일시를 기준으로 합니다. 처음 채워진 값(이 창을 연 시각)을 그대로 두면 처리한 시각으로 기록합니다. 발송 등록 시각보다 이른 일시를 넣으면 그 배송 건만 처리하지 않고 나머지는 처리합니다.</p>
     {completionNeedsReason&&canManageSales?<label className={FIELD}><span>늦게 처리한 사유 ({SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 일시 · 감사 기록에 남습니다)</span><Textarea name="arrivalReason" rows={2} maxLength={SHIPMENT_REVERT_REASON_MAX} value={completion.reason} disabled={pending}
      placeholder="예: 택배사 조회로 확인했으나 배송완료 처리를 놓침" onChange={event=>setCompletion({...completion,reason:event.target.value})}/></label>:null}
     {completionError?<p role="alert" className="text-destructive">{completionError}</p>:null}

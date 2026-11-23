@@ -39,7 +39,7 @@ function couponLineEligible(terms: LegacyCouponTerms, item: LegacyAllocationItem
 }
 
 export const LEGACY_ALLOCATION_ISSUES = {
-  couponUnrecorded: '쿠폰 대상·금액의 주문 당시 기록 미기록 또는 불일치',
+  couponUnrecorded: '쿠폰 대상·금액의 주문 당시 기록이 없거나 맞지 않음',
   couponTargetMismatch: '쿠폰 대상 품목 합계 불일치',
   creditMismatch: '사용 적립금과 상품 금액 불일치',
 } as const;

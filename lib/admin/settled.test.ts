@@ -36,7 +36,7 @@ describe('하자 클레임 잔여 기한', () => {
     expect(window.deadline).toBeNull();
     expect(window.daysRemaining).toBeNull();
     expect(window.open).toBe(false);
-    expect(adminDefectClaimLabel(window)).toBe('공급일 미기록 · 원장 확인 필요');
+    expect(adminDefectClaimLabel(window)).toBe('공급일 기록 없음 · 주문 기록 확인 필요');
   });
 });
 

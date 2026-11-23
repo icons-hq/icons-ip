@@ -202,7 +202,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminGameForm(formData, gameContext)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
         previousGameId: '이전 게임 ID를 확인해주세요.',
         id: 'ID는 소문자 영어, 숫자, 하이픈만 사용할 수 있습니다.',
         title: '게임 제목을 입력해주세요.',
@@ -632,7 +632,7 @@ describe('admin catalog form normalization', () => {
   it.each([
     { delta: '0', reason: '재고 조사', errors: { delta: '조정 수량은 0이 아닌 정수여야 합니다.' } },
     { delta: '1.5', reason: '재고 조사', errors: { delta: '조정 수량은 0이 아닌 정수여야 합니다.' } },
-    { delta: '2147483648', reason: '재고 조사', errors: { delta: '조정 수량은 32비트 정수 범위여야 합니다.' } },
+    { delta: '2147483648', reason: '재고 조사', errors: { delta: '조정 수량이 너무 큽니다. -2,147,483,648~2,147,483,647 안의 정수로 입력해주세요.' } },
     { delta: '1', reason: '   ', errors: { reason: '조정 사유를 입력해주세요.' } },
     { delta: '1', reason: '가'.repeat(201), errors: { reason: '조정 사유는 200자 이하로 입력해주세요.' } },
   ])('rejects an invalid stock adjustment: $errors', ({ delta, reason, errors }) => {
@@ -659,7 +659,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminStockAdjustmentForm(formData)).toEqual({
       ok: false,
       errors: {
-        adjustmentId: '유효한 재고 조정 요청이 아닙니다.',
+        adjustmentId: '재고 조정 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.',
         expectedStockQty: '현재 실재고를 확인해주세요.',
       },
     });
@@ -713,7 +713,7 @@ describe('admin catalog form normalization', () => {
 
     expect(normalizeAdminCardForm(invalid, context)).toEqual({
       ok: false,
-      errors: { poolId: '유효한 카드풀을 선택해주세요.' },
+      errors: { poolId: '등록된 카드풀을 골라주세요.' },
     });
   });
 
@@ -751,8 +751,8 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminCardPoolForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        id: '유효한 카드풀이 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
+        id: '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
         ipId: '등록된 IP를 선택해주세요.',
         name: '카드풀 이름을 입력해주세요.',
         activeTo: '운영 종료는 시작보다 뒤여야 합니다.',
@@ -856,8 +856,8 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminEventForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        startsAt: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.',
-        endsAt: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.',
+        startsAt: '일시는 날짜와 시각(시·분)까지 모두 골라주세요.',
+        endsAt: '일시는 날짜와 시각(시·분)까지 모두 골라주세요.',
       },
     });
   });
@@ -899,8 +899,8 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminTicketTypeForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        id: '유효한 티켓 회차가 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
+        id: '티켓 회차를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
         eventId: '등록된 이벤트를 선택해주세요.',
         name: '회차명을 입력해주세요.',
         price: '가격은 0 이상의 정수여야 합니다.',
@@ -1010,9 +1010,9 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminRewardPolicyForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        operationId: '유효한 저장 요청이 아닙니다.',
-        id: '유효한 발급 정책이 아닙니다.',
-        poolId: '유효한 카드풀이 아닙니다.',
+        operationId: '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.',
+        id: '발급 정책을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
+        poolId: '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
         trigger: '지원하지 않는 발급 조건입니다.',
         targetGoodId: '선택한 IP의 굿즈만 지정할 수 있습니다.',
         minAmount: '최소 결제 금액은 0 이상의 정수여야 합니다.',

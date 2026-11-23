@@ -36,10 +36,10 @@ insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee
  select pg_temp.md_id('origin', n), 'partial-mixed-origin-'||n, case n when 1 then 'TEST 김포' else 'TEST 남양주' end, 'hanjin', 3000, 'TEST 반품 주소', true
  from generate_series(1, 2) n;
 insert into public.ips(id, title, vertical_key) values ('partial-mixed-ip', 'TEST 혼합 부분취소 IP', 'character');
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id) values
- ('partial-mixed-a', 'partial-mixed-ip', 'TEST 김포 상품 A', '문구', 10000, 'ok', 20, pg_temp.md_id('origin', 1)),
- ('partial-mixed-b', 'partial-mixed-ip', 'TEST 김포 상품 B', '문구', 10000, 'ok', 20, pg_temp.md_id('origin', 1)),
- ('partial-mixed-c', 'partial-mixed-ip', 'TEST 남양주 품절 상품 C', '문구', 5000, 'ok', 20, pg_temp.md_id('origin', 2));
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, origin_id) values
+ ('partial-mixed-a', 'partial-mixed-ip', 'TEST 김포 상품 A', 10000, 'ok', 20, pg_temp.md_id('origin', 1)),
+ ('partial-mixed-b', 'partial-mixed-ip', 'TEST 김포 상품 B', 10000, 'ok', 20, pg_temp.md_id('origin', 1)),
+ ('partial-mixed-c', 'partial-mixed-ip', 'TEST 남양주 품절 상품 C', 5000, 'ok', 20, pg_temp.md_id('origin', 2));
 create function pg_temp.md_stock(good text) returns integer language sql as $$
  select stock_qty from public.goods_variants where good_id = good and is_default$$;
 grant execute on function pg_temp.md_stock(text) to authenticated;
@@ -58,9 +58,9 @@ begin
    '2031-03-01T03:00:00Z'::timestamptz, clock_timestamp() - interval '1 hour',
    (select jsonb_agg(jsonb_build_object('originId', pg_temp.md_id('origin', o), 'originName', case o when 1 then 'TEST 김포' else 'TEST 남양주' end, 'totalFee', 3000) order by o)
      from generate_series(1, 2) o));
- insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot)
  select pg_temp.md_id('item-'||right(g.id, 1), n), pg_temp.md_id('order', n), g.id, v.id,
-   case g.id when 'partial-mixed-a' then 2 when 'partial-mixed-c' then c_qty else 1 end, g.price, g.name, '문구', 'partial-mixed-ip'
+   case g.id when 'partial-mixed-a' then 2 when 'partial-mixed-c' then c_qty else 1 end, g.price, g.name, 'partial-mixed-ip'
  from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id like 'partial-mixed-%';
  if version = 2 then
   update public.orders set calculation_version = 2 where id = pg_temp.md_id('order', n);

@@ -27,9 +27,9 @@ const NOTE = 'text-xs leading-relaxed text-muted-foreground';
 const TABLE_TITLE = 'text-base font-semibold text-foreground';
 const MATCH_REASON: Record<string, string> = {
   verified: '수집 시점의 결제·금액·거래 근거 일치', payment_not_found: '연결할 결제 없음', payment_not_finalized: '결제 확정 근거 없음',
-  ambiguous_payment: '결제 연결을 하나로 특정할 수 없음', payment_identity_mismatch: '결제 식별 정보 불일치', unsupported_purpose: '지원하지 않는 결제 대상',
-  reference_mismatch: '주문·예매 원장 불일치', amount_mismatch: '결제금액 불일치', transaction_evidence_missing: '기존 거래 근거 미기록',
-  integration_binding_mismatch: '결제 연동·상점 계정 불일치', integration_binding_missing: '정기결제 연동 근거 미기록',
+  ambiguous_payment: '결제 연결을 하나로 특정할 수 없음', payment_identity_mismatch: '결제 번호·정보 불일치', unsupported_purpose: '지원하지 않는 결제 대상',
+  reference_mismatch: '주문·예매 기록 불일치', amount_mismatch: '결제금액 불일치', transaction_evidence_missing: '기존 거래 근거 기록 없음',
+  integration_binding_mismatch: '결제 연동·상점 계정 불일치', integration_binding_missing: '정기결제 연결 근거 기록 없음',
   ambiguous_refund: '환불 거래를 하나로 특정할 수 없음', refund_amount_mismatch: '완료 환불금액 불일치',
 };
 const DAILY_COLUMNS: ConsoleGridColumn[] = [
@@ -82,7 +82,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
         <SalesGuide title="결제사(토스페이먼츠) 정산 자료와 ICONS 결제·환불 기록을 맞춰 봅니다.">
           <p>정산 매출일·지급일은 결제사가 제공한 날짜입니다. 은행 계좌의 실제 입금 완료를 확인한 내역은 아닙니다.</p>
           <p>승인과 취소, 통화를 각각 구분해 합산합니다. 취소 금액의 부호를 임의로 바꾸거나 순입금액으로 계산하지 않습니다.</p>
-          <p>코페이 정산 자료 수집과 은행 입금 대사는 아직 연결되지 않았습니다. 이 화면의 자료는 토스페이먼츠 조회 결과입니다.</p>
+          <p>코페이 정산 자료 수집과 은행 입금 내역 맞춰 보기는 아직 연결되지 않았습니다. 이 화면의 자료는 토스페이먼츠 조회 결과입니다.</p>
         </SalesGuide>
       </div>
     </div>

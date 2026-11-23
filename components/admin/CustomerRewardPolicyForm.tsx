@@ -31,29 +31,29 @@ export function CustomerRewardPolicyForm({ initial, actorId, sessionId }: { init
       const result = await saveCustomerRewardPolicyAction(values, policy.revision, crypto.randomUUID(), { actorId, sessionId });
       if (!session.current()) return;
       if ('policy' in result && result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); setMessage('보상 정책을 저장했습니다. 이후 주문·선정부터 적용합니다.'); }
-      else { setUncertain(true); setMessage(result.error ?? '현재 저장본을 조회해주세요.'); }
+      else { setUncertain(true); setMessage(result.error ?? '저장됐는지 확인하지 못했습니다. ‘현재 저장본 다시 불러오기’를 눌러 저장됐는지 확인해주세요.'); }
     });
   }
   function read() { start(async () => { const result = await readCustomerRewardPolicyAction(); if (!session.current()) return;
     if ('policy' in result && result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); setUncertain(false); setMessage('현재 저장본을 불러왔습니다.'); }
-    else setMessage(result.error ?? '현재 저장본을 조회하지 못했습니다.'); }); }
+    else setMessage(result.error ?? '현재 저장본을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); }); }
   return <form className="flex min-w-0 scroll-mt-16 flex-col gap-4" id="customer-rewards" onSubmit={event => { event.preventDefault(); save(); }}>
-    <p className={NOTE}>기본 적립금의 지급 상한·최대 보유액·환불 회수 기준을 함께 적용합니다. 자동 지급은 초기에는 꺼져 있습니다.</p>
-    {!initial.baseCreditEnabled ? <AdminNotice tone="warning">기본 적립금 정책을 활성화한 뒤 자동 보상을 켤 수 있습니다.</AdminNotice> : null}
+    <p className={NOTE}>등급 적립과 리뷰 보상에도 위 적립금 정책의 최대 지급 금액·최대 보유 적립금·환불 회수 기준이 똑같이 적용됩니다. 자동 지급은 처음에 꺼져 있습니다.</p>
+    {!initial.baseCreditEnabled ? <AdminNotice tone="warning">위 적립금 정책을 켜야 자동 보상을 켤 수 있습니다.</AdminNotice> : null}
     <fieldset className={FIELDSET} disabled={blocked}><legend className={LEGEND}>등급별 주문 적립</legend><label className={CHECK_LABEL}><input type="checkbox" checked={draft.gradeEnabled} onChange={event => setDraft({ ...draft, gradeEnabled: event.target.checked })} /> 등급별 최종 적립률 사용</label>
-      <p className={NOTE}>기본 지급률·고정액을 아래 최종 적립률로 대체합니다. 주문 생성 시 등급과 적립률을 고정하고 거래확정 때 지급합니다. 배송비와 사용한 적립금은 적립 기준에서 제외합니다.</p>
+      <p className={NOTE}>켜면 적립금 정책의 기본 적립률·고정액 대신 아래 등급별 적립률로 적립합니다. 적립률은 고객이 주문할 때의 등급으로 정해져 그 주문에 저장되고, 적립금은 거래확정 때 지급됩니다. 배송비와 사용한 적립금은 적립 기준에서 뺍니다.</p>
       <div className={GRID}>{REWARD_GRADES.map(grade => <AdminField key={grade} label={`${grade.toUpperCase()} 최종 적립률 (%)`} inputId={`reward-rate-${grade}`}><Input id={`reward-rate-${grade}`} type="number" min="0" max="100" step="0.01" value={draft.rates[grade]} onChange={event => setDraft({ ...draft, rates: { ...draft.rates, [grade]: event.target.value } })} /></AdminField>)}</div>
     </fieldset>
     <fieldset className={FIELDSET} disabled={blocked}><legend className={LEGEND}>BEST 리뷰 보상</legend><label className={CHECK_LABEL}><input type="checkbox" checked={draft.bestEnabled} onChange={event => setDraft({ ...draft, bestEnabled: event.target.checked })} /> BEST 선정 시 적립금 자동 지급</label>
-      <p className={NOTE}>리뷰별 최초 1회만 지급합니다. 선정 해제 후 다시 선정해도 중복 지급하지 않습니다. 설정은 이후 선정에 적용하며, 이미 접수된 보상은 당시 정책을 유지합니다.</p>
+      <p className={NOTE}>리뷰별 최초 1회만 지급합니다. 선정 해제 후 다시 선정해도 중복 지급하지 않습니다. 바꾼 설정은 이후 선정부터 적용되고, 이미 처리를 시작한 보상은 그때 정책대로 둡니다.</p>
       <div className={GRID}><AdminField label="리뷰 1건당 적립금 (원)" inputId="best-reward-amount"><Input id="best-reward-amount" type="number" min="1" step="1" value={draft.amount} onChange={event => setDraft({ ...draft, amount: event.target.value })} /></AdminField>
         <AdminField label="보상 유효기간 (일)" inputId="best-reward-days"><Input id="best-reward-days" type="number" min="1" max="36500" step="1" value={draft.days} onChange={event => setDraft({ ...draft, days: event.target.value })} /></AdminField>
-        <AdminField label="선정 해제·리뷰 변경·구매 취소 시" inputId="best-reward-reversal"><NativeSelect className="w-full" id="best-reward-reversal" value={draft.reversal} onChange={event => setDraft({ ...draft, reversal: event.target.value })}><option value="">회수 정책 선택</option><option value="keep">이미 지급한 보상 유지</option><option value="revoke">회수 · 사용한 금액은 향후 적립금 상계</option></NativeSelect></AdminField></div>
+        <AdminField label="선정 해제·리뷰 변경·구매 취소 시" inputId="best-reward-reversal"><NativeSelect className="w-full" id="best-reward-reversal" value={draft.reversal} onChange={event => setDraft({ ...draft, reversal: event.target.value })}><option value="">회수 정책 선택</option><option value="keep">이미 지급한 보상 유지</option><option value="revoke">회수 · 이미 쓴 금액은 앞으로 받을 적립금에서 뺌</option></NativeSelect></AdminField></div>
       <p className={NOTE}>지급 시 최대 보유액을 넘는 부분은 지급하지 않습니다. 실제 지급·회수 결과는 리뷰 상세와 고객 적립금 내역에 남깁니다. 보상을 받은 공개 리뷰에는 혜택 표시를 붙입니다.</p>
     </fieldset>
     <AdminField label="정책 근거·운영 메모" inputId="customer-reward-evidence"><Textarea id="customer-reward-evidence" disabled={blocked} rows={3} maxLength={2000} value={draft.evidence} onChange={event => setDraft({ ...draft, evidence: event.target.value })} /></AdminField>
-    <label className={CHECK_LABEL}><input type="checkbox" disabled={blocked} checked={draft.acknowledged} onChange={event => setDraft({ ...draft, acknowledged: event.target.checked })} /> 적용 시점·지급 상한·보상 회수 정책을 확인했습니다.</label>
+    <label className={CHECK_LABEL}><input type="checkbox" disabled={blocked} checked={draft.acknowledged} onChange={event => setDraft({ ...draft, acknowledged: event.target.checked })} /> 적용 시점·최대 지급 금액·보상 회수 정책을 확인했습니다.</label>
     <div className={ACTIONS}><Button disabled={blocked || !draft.acknowledged} type="submit"><Check aria-hidden="true" />등급·리뷰 보상 정책 저장</Button><Button disabled={pending || session.blocked} onClick={read} type="button" variant="outline"><RotateCcw aria-hidden="true" />현재 저장본 다시 불러오기</Button></div>
-    {message ? <AdminNotice role="status" tone="neutral">{message}</AdminNotice> : null}{session.blocked ? <AdminNotice role="alert" tone="danger">로그인 상태가 바뀌었습니다. 현재 계정으로 다시 열어주세요.</AdminNotice> : null}
+    {message ? <AdminNotice role="status" tone="neutral">{message}</AdminNotice> : null}{session.blocked ? <AdminNotice role="alert" tone="danger">로그인 상태가 바뀌었습니다. 지금 로그인한 계정으로 화면을 새로고침해주세요.</AdminNotice> : null}
   </form>;
 }

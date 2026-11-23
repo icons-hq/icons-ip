@@ -57,9 +57,9 @@ insert into public.ips(id,title,vertical_key) values('cl-ip','TEST 배송 분실
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  (pg_temp.cl_id('origin',1),'cl-gimpo','TEST 김포','hanjin',0,'TEST 김포 반송지',true),
  (pg_temp.cl_id('origin',2),'cl-namyangju','TEST 남양주','hanjin',0,'TEST 남양주 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('cl-good-1','cl-ip','TEST 김포 굿즈','문구',2000,'ok',10,pg_temp.cl_id('origin',1)),
- ('cl-good-2','cl-ip','TEST 남양주 굿즈','문구',3000,'ok',10,pg_temp.cl_id('origin',2));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('cl-good-1','cl-ip','TEST 김포 굿즈',2000,'ok',10,pg_temp.cl_id('origin',1)),
+ ('cl-good-2','cl-ip','TEST 남양주 굿즈',3000,'ok',10,pg_temp.cl_id('origin',2));
 create function pg_temp.cl_default(good text) returns uuid language sql stable as $$select id from public.goods_variants where good_id=good and is_default$$;
 
 -- 주문 1: 김포(배송완료) + 남양주(배송중, 분실). 주문 2: 남양주 한 건(배송중, 분실). 주문 3: 김포(배송중) + 남양주(발송 전).
@@ -69,8 +69,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,created_a
  select pg_temp.cl_id('order',n),pg_temp.cl_id('user',2),'confirmed',5000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 분실로 1','address2','101호'),
   now()-interval '5 days' from generate_series(1,7)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.cl_id('item',item),pg_temp.cl_id('order',purchase),good,pg_temp.cl_default(good),1,price,'TEST 굿즈 '||item,'문구','cl-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.cl_id('item',item),pg_temp.cl_id('order',purchase),good,pg_temp.cl_default(good),1,price,'TEST 굿즈 '||item,'cl-ip'
  from (values(1,1,'cl-good-1',2000),(2,1,'cl-good-2',3000),(3,2,'cl-good-2',5000),(4,3,'cl-good-1',2000),(5,3,'cl-good-2',3000),
   (6,4,'cl-good-2',5000),(7,5,'cl-good-2',5000),(8,6,'cl-good-2',5000),(9,7,'cl-good-2',5000)) spec(item,purchase,good,price);
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)

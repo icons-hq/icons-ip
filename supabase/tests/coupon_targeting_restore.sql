@@ -6,9 +6,9 @@ update public.profiles set role='staff',email='coupon-restore-staff@example.test
 where id='00000000-0000-4000-8000-000000004877';
 insert into public.ips(id,title,vertical_key) values('coupon-restore-ip','쿠폰 복원 합성 IP','character');
 -- Target selection is independent from publication. These fixtures stay draft.
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values
- ('coupon-restore-a','coupon-restore-ip','복원 대상 합성 A','문구',10000,'ok',5),
- ('coupon-restore-b','coupon-restore-ip','복원 대상 합성 B','문구',10000,'ok',5);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values
+ ('coupon-restore-a','coupon-restore-ip','복원 대상 합성 A',10000,'ok',5),
+ ('coupon-restore-b','coupon-restore-ip','복원 대상 합성 B',10000,'ok',5);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004877',true);
 set local role authenticated;
 do $$

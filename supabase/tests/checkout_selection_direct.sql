@@ -31,13 +31,13 @@ update public.profiles set email='d2-'||right(id::text,1)||'@example.test',nickn
 insert into public.ips(id,title,vertical_key,published_at) values('d2-ip','TEST D2 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('d2000000-0000-4000-8000-000000000010','d2-origin','TEST D2 출고지','hanjin',3000,'TEST 합성 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,member_purchase_limit_enabled,member_lifetime_qty_limit) values
- ('d2-a','d2-ip','TEST D2 A','문구',10000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',false,null),
- ('d2-b','d2-ip','TEST D2 B','문구',6000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',false,null),
- ('d2-c','d2-ip','TEST D2 C 한정','문구',5000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',true,2),
- ('d2-addon','d2-ip','TEST D2 추가 구성','문구',2000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',false,null);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,custom_inputs_enabled,custom_inputs_revision,custom_input_fields) values
- ('d2-input','d2-ip','TEST D2 각인','문구',4000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',true,1,
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,member_purchase_limit_enabled,member_lifetime_qty_limit) values
+ ('d2-a','d2-ip','TEST D2 A',10000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',false,null),
+ ('d2-b','d2-ip','TEST D2 B',6000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',false,null),
+ ('d2-c','d2-ip','TEST D2 C 한정',5000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',true,2),
+ ('d2-addon','d2-ip','TEST D2 추가 구성',2000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',false,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,custom_inputs_enabled,custom_inputs_revision,custom_input_fields) values
+ ('d2-input','d2-ip','TEST D2 각인',4000,'ok',20,'d2000000-0000-4000-8000-000000000010','policy',true,1,
   '[{"id":"d2000000-0000-4000-8000-000000000061","name":"각인 문구","active":true}]');
 insert into private.operator_memberships(profile_id,manager_role) values('d2000000-0000-4000-8000-000000000001','primary');
 update private.operator_access_state set configured=true where id;
@@ -559,7 +559,7 @@ select public.admin_save_good('{"id":"d2-random","ip_id":"d2-ip","name":"TEST D2
   {"name":"B","code":"D2-RANDOM-B","attributes":{"멤버":"B"},"extraPrice":0,"stockQty":3}],
  "allow_card_payment":true,"allow_bank_transfer":true,"sale_restriction":"none"}');
 reset role;
-update public.goods set type='문구',origin_id='d2000000-0000-4000-8000-000000000010',shipping_fee_type='policy' where id='d2-random';
+update public.goods set origin_id='d2000000-0000-4000-8000-000000000010',shipping_fee_type='policy' where id='d2-random';
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
  values(('47c47700'||left(md5('d2-random'),24))::uuid,'authenticated','authenticated','d2-kc-'||md5('d2-random')||'@example.test','{"testFixture":"goods-kc"}',now(),now());
 insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('d2-random'),24))::uuid,'primary');

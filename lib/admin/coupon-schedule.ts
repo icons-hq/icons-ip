@@ -16,7 +16,7 @@ export function readCouponIssueSchedule(form: FormData, startsAt: string | null,
   if (mode !== 'period' && mode !== 'relative') errors.validityMode = '쿠폰 유효기간 방식을 선택해주세요.';
   const validDays = mode === 'relative' ? Number(form.get('validDays')) : null;
   if (validDays !== null && (!Number.isSafeInteger(validDays) || validDays < 1 || validDays > 365)) errors.validDays = '발급일 기준 1~365일을 입력해주세요.';
-  if (mode === 'period' && endsAt && issueStartsAt && Date.parse(issueStartsAt) >= Date.parse(endsAt)) errors.issueStartsAt = '사용 종료 전부터 발급할 수 있도록 설정해주세요.';
+  if (mode === 'period' && endsAt && issueStartsAt && Date.parse(issueStartsAt) >= Date.parse(endsAt)) errors.issueStartsAt = '발급 시작일은 쿠폰 사용 종료일보다 앞이어야 합니다.';
   if (mode === 'period' && endsAt && issueEndsAt && Date.parse(issueEndsAt) > Date.parse(endsAt)) errors.issueEndsAt = '발급 종료일은 사용 종료일보다 늦을 수 없습니다.';
   return { issueStartsAt, issueEndsAt, validDays };
 }

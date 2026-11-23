@@ -8,24 +8,24 @@ import { claimWithdrawalError, claimWithdrawalReceiptMatches, normalizeClaimWith
 const access = () => requireAdminActionAccess('/admin/sales/claims/returns', { capability: 'sales.manage' });
 export async function loadAdminClaimWithdrawalAction(claimId: string): Promise<ClaimWithdrawalResult> {
   if (!await access()) return { error: claimWithdrawalError('42501') };
-  if (!isUuid(claimId)) return { error: '요청번호를 확인해주세요.' };
+  if (!isUuid(claimId)) return { error: '요청을 찾지 못했습니다. 화면을 새로고침한 뒤 다시 열어주세요.' };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_order_claim_withdrawal_context', { p_claim_id: claimId });
     const context = parseClaimWithdrawalContext(data);
     if (error || !context || context.claimId !== claimId) return { error: claimWithdrawalError(error?.code, error?.message) };
     return { context };
-  } catch (error) { unstable_rethrow(error); return { error: '요청의 최신 상태를 읽지 못했습니다.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: '최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.' }; }
 }
 export async function readAdminClaimWithdrawalAction(id: string): Promise<ClaimWithdrawalResult> {
   if (!await access()) return { error: claimWithdrawalError('42501'), uncertain: true };
-  if (!isUuid(id)) return { error: '요청번호를 확인해주세요.', uncertain: true };
+  if (!isUuid(id)) return { error: '저장 결과를 확인할 번호가 올바르지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_read_order_claim_withdrawal', { p_operation_id: id });
     if (error) return { error: claimWithdrawalError(error.code, error.message), uncertain: true };
     if (data === null) return { receipt: null };
     const receipt = parseClaimWithdrawalReceipt(data);
-    return receipt?.id === id && receipt.actorKind === 'operator' ? { receipt } : { error: '저장 결과를 확인하지 못했습니다.', uncertain: true };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 읽지 못했습니다.', uncertain: true }; }
+    return receipt?.id === id && receipt.actorKind === 'operator' ? { receipt } : { error: '불러온 저장 결과가 이 요청과 맞지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
+  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.', uncertain: true }; }
 }
 export async function submitAdminClaimWithdrawalAction(input: unknown): Promise<ClaimWithdrawalResult> {
   if (!await access()) return { error: claimWithdrawalError('42501') };
@@ -35,8 +35,8 @@ export async function submitAdminClaimWithdrawalAction(input: unknown): Promise<
       p_expected_revision: request.revision, p_reason: request.reason, p_confirmed: request.confirmed });
     if (error) return { error: claimWithdrawalError(error.code, error.message), conflict: error.code === 'PT409', uncertain: !['PT409', '42501', '22023', '23514', 'P0002'].includes(error.code ?? '') };
     const receipt = parseClaimWithdrawalReceipt(data);
-    if (!receipt || !claimWithdrawalReceiptMatches(receipt, request, true)) return { error: '저장 결과가 불확실합니다. 같은 요청을 확인해주세요.', uncertain: true };
+    if (!receipt || !claimWithdrawalReceiptMatches(receipt, request, true)) return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true };
     for (const path of ['/admin/sales/claims', '/admin/sales/orders', `/admin/sales/orders/${receipt.orderId}`, `/orders/${receipt.orderId}`]) revalidatePath(path, path === '/admin/sales/claims' ? 'layout' : 'page');
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과가 불확실합니다. 같은 요청을 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true }; }
 }

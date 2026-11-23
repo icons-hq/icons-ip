@@ -35,7 +35,7 @@ describe('클레임 결제 정합화 권한', () => {
   });
   it('기존 staff의 admin 전용 수동 정합화 제한을 유지한다', async () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: 'staff-1' }, role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') });
-    expect(await recordOrderClaimRefundAction({}, form())).toMatchObject({ error: expect.stringContaining('권한 전환 전에는 기존 관리자') });
+    expect(await recordOrderClaimRefundAction({}, form())).toMatchObject({ error: expect.stringContaining('새 권한 체계로 바뀌기 전이면 기존 관리자') });
     expect(mocks.recover).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_record_order_claim_refund', expect.anything());
   });

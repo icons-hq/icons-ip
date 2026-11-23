@@ -48,8 +48,8 @@ insert into public.ips(id,title,vertical_key) values('et-ip','TEST 교환 불량
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  (pg_temp.et_id('origin',1),'et-gimpo','TEST 김포','hanjin',0,'TEST 김포 반송지',true),
  (pg_temp.et_id('origin',2),'et-namyangju','TEST 남양주','hanjin',0,'TEST 남양주 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- select 'et-good-'||n,'et-ip','TEST 교환불량 굿즈 '||n,'문구',1000,'ok',10,pg_temp.et_id('origin',case when n in(2,6) then 2 else 1 end) from generate_series(1,8)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ select 'et-good-'||n,'et-ip','TEST 교환불량 굿즈 '||n,1000,'ok',10,pg_temp.et_id('origin',case when n in(2,6) then 2 else 1 end) from generate_series(1,8)n;
 insert into public.goods_variants(id,good_id,name,code,price,stock_qty,sort_order) values
  (pg_temp.et_id('variant',1),'et-good-1','TEST 파랑','ET-BLUE',1000,5,1),
  (pg_temp.et_id('variant',2),'et-good-2','TEST 빨강','ET-RED',1000,5,1),
@@ -71,8 +71,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,payment_m
  select pg_temp.et_id('order',n),pg_temp.et_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 교환로 1','address2','101호'),
   'card'::public.order_payment_method,now()-interval '3 days',now()-interval '2 days' from generate_series(1,6)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.et_id('item',k.item),pg_temp.et_id('order',k.ord),'et-good-'||k.good,pg_temp.et_default('et-good-'||k.good),k.qty,1000,'TEST 교환불량 굿즈 '||k.good,'문구','et-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.et_id('item',k.item),pg_temp.et_id('order',k.ord),'et-good-'||k.good,pg_temp.et_default('et-good-'||k.good),k.qty,1000,'TEST 교환불량 굿즈 '||k.good,'et-ip'
  from (values(1,1,1,2),(2,1,2,1),(3,2,3,1),(4,3,4,1),(5,4,5,1),(6,5,6,1),(7,6,7,2)) k(item,ord,good,qty);
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  select pg_temp.et_id('shipment',k.item),pg_temp.et_id('order',k.ord),pg_temp.et_id('origin',k.origin),case k.origin when 1 then 'TEST 김포' else 'TEST 남양주' end,

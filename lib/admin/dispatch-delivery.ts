@@ -148,10 +148,10 @@ export function dispatchDeliveryError(code?: string): string {
     dispatch_method_reason_required: '고객이 고른 방법과 다르면 사유를 입력해주세요.',
     delivery_policy_unavailable: '이 출고지에서 운영 조건이 켜지지 않은 방법입니다. 배송정보 관리의 운영 조건을 확인해주세요.',
     delivery_method_evidence_required: '발주확인이 끝난 배송 준비 건만 인계(발송)를 기록할 수 있습니다.',
-    preorder_allocation_required: '예약 품목에 실제 입고 물량을 먼저 할당해주세요.',
+    preorder_allocation_required: '예약 품목의 입고 확인이 아직 끝나지 않았습니다. 상품 편집의 예약판매에서 이 주문을 골라 [선택한 예약 주문 입고 확인]을 먼저 눌러주세요.',
     invalid_delivery_evidence: '실제 인계 담당자·업체·연락처·근거와, 발주확인 이후 지금까지의 인계 시각을 입력해주세요.',
     dispatch_delivery_unchanged: '이미 같은 방법이라 바꿀 내용이 없습니다.',
-    invalid_dispatch_delivery_request: '방법·대상·사유를 확인해주세요.',
+    invalid_dispatch_delivery_request: '배송 방법·대상 배송 건·사유를 다시 확인해주세요. 목록을 새로고침한 뒤 다시 시도해주세요.',
     operation_conflict: '같은 요청 번호에 다른 내용이 기록돼 있습니다. 새로고침한 뒤 다시 처리해주세요.',
     operator_capability_required: '현재 로그인 계정과 배송 처리 권한을 확인해주세요.',
   };

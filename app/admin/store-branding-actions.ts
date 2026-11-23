@@ -12,7 +12,7 @@ export async function saveStoreBrandingAction(input: unknown, stamp: string, ope
   try {
     if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'store.manage' })) return { error: '설정 변경은 최고 관리자만 할 수 있습니다.' };
     const branding = parseStoreBranding(input);
-    if (!branding) return { error: '입력값을 확인해주세요. 표시 이름은 1~30자, 소개는 최대 50자이며 사용할 소개·로고·SNS 주소가 필요합니다. SNS에는 해당 서비스의 HTTPS 주소를 입력해주세요.' };
+    if (!branding) return { error: '저장할 수 없는 칸이 있습니다. 표시 이름은 1~30자, 소개는 50자 이내로 입력해주세요. 사용으로 켠 소개·로고·SNS에는 내용(문구·이미지·주소)이 있어야 하고, SNS 주소는 해당 서비스의 https:// 주소여야 합니다.' };
     if (!stamp || Number.isNaN(Date.parse(stamp)) || !isUuid(operationId)) return { error: '설정을 다시 열어 최신 저장 정보를 확인해주세요.' };
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_store_branding', { target_operation_id: operationId, target_values: branding, expected_updated_at: stamp });

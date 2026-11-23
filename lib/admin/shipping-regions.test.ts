@@ -53,7 +53,7 @@ describe('지역 배송 정책 초안과 활성화', () => {
     expect(shippingRegionPolicyProblems({ ...policy, sourceEvidence: '\u00a0' }).join(' ')).toContain('근거');
   });
   it('명시적 0원을 허용하며 추가료 부과의 미입력을 거절한다', () => {
-    expect(shippingRegionPolicyProblems({ ...policy, rules: [{ ...policy.rules[0], amount: null }] }).join(' ')).toContain('미입력');
+    expect(shippingRegionPolicyProblems({ ...policy, rules: [{ ...policy.rules[0], amount: null }] }).join(' ')).toContain('추가료를 꼭 적고(0원이면 0)');
     expect(shippingRegionPolicyProblems({ ...policy, rules: [{ ...policy.rules[0], disposition: 'unavailable', amount: null }] })).toEqual([]);
     expect(shippingRegionPolicyProblems({ ...policy, rules: [{ ...policy.rules[0], disposition: 'standard', amount: 0 }] })).not.toEqual([]);
   });

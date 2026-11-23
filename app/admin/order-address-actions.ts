@@ -9,20 +9,20 @@ import { getOrderAddressContext, getOrderAddressReceipt } from '@/lib/admin/orde
 const PATH = '/admin/sales/orders';
 const access = () => requireAdminActionAccess(PATH, { capability: 'sales.manage' });
 export async function loadOrderAddressContextAction(orderId: string): Promise<{ context: OrderAddressContext } | { error: string }> {
-  if (!await access()) return { error: '현재 매니저 권한을 확인해주세요.' };
-  if (!isUuid(orderId)) return { error: '주문번호를 확인해주세요.' };
+  if (!await access()) return { error: '배송지를 수정할 권한(판매 관리)이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
+  if (!isUuid(orderId)) return { error: '주문 정보를 확인하지 못했습니다. 주문 화면을 새로고침해주세요.' };
   try { return { context: await getOrderAddressContext(orderId.toLowerCase()) }; }
   catch (error) { unstable_rethrow(error); return { error: '배송 정보와 변경 이력을 읽지 못했습니다. 다시 확인해주세요.' }; }
 }
 export type OrderAddressActionResult = { receipt: OrderAddressReceipt | null } | { error: string; uncertain?: boolean; conflict?: boolean };
 export async function readOrderAddressChangeAction(id: string): Promise<OrderAddressActionResult> {
-  if (!await access()) return { error: '현재 매니저 권한을 확인해주세요.' };
-  if (!isUuid(id)) return { error: '변경 요청번호를 확인해주세요.' };
+  if (!await access()) return { error: '배송지를 수정할 권한(판매 관리)이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
+  if (!isUuid(id)) return { error: '변경 요청 정보를 확인하지 못했습니다. 주문 화면을 새로고침해주세요.' };
   try { return { receipt: await getOrderAddressReceipt(id.toLowerCase()) }; }
-  catch (error) { unstable_rethrow(error); return { error: '저장 결과를 읽지 못했습니다. 같은 요청을 다시 확인해주세요.', uncertain: true }; }
+  catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.', uncertain: true }; }
 }
 export async function changeOrderAddressAction(input: unknown): Promise<OrderAddressActionResult> {
-  if (!await access()) return { error: '현재 매니저 권한을 확인해주세요.' };
+  if (!await access()) return { error: '배송지를 수정할 권한(판매 관리)이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
   const parsed = normalizeOrderAddressRequest(input); if ('error' in parsed) return parsed;
   const request = parsed.request;
   try {
@@ -31,8 +31,8 @@ export async function changeOrderAddressAction(input: unknown): Promise<OrderAdd
       p_expected_revision: request.revision, p_address: request.address, p_reason: request.reason, p_customer_agreed: request.agreed });
     if (error) return { error: orderAddressError(error.code, error.message), conflict: error.code === 'PT409', uncertain: !['42501', 'PT409', '22023', '23514', 'P0002'].includes(error.code ?? '') };
     const receipt = parseOrderAddressReceipt(data);
-    if (!receipt || !orderAddressReceiptMatches(receipt, request)) return { error: '저장 결과를 확인하지 못했습니다. 같은 요청의 결과를 조회해주세요.', uncertain: true };
+    if (!receipt || !orderAddressReceiptMatches(receipt, request)) return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.', uncertain: true };
     for (const path of [PATH, `${PATH}/${request.orderId}`, '/admin/sales/dispatch', '/admin/sales/shipping', `/orders/${request.orderId}`, `/checkout/${request.orderId}`]) revalidatePath(path);
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과가 불확실합니다. 같은 요청의 결과를 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.', uncertain: true }; }
 }

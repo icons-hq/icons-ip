@@ -106,13 +106,13 @@ describe('ERP 품목 반입 패널', () => {
     button(render(), '붙여넣은 표 확인').props.onClick?.();
 
     let tree = render();
-    expect(text(tree)).toContain('반입 가능 601건');
+    expect(text(tree)).toContain('올릴 수 있는 품목 601건');
     expect(select(tree, '품번 열의 항목').props.value).toBe('code');
     expect(select(tree, '바코드 열의 항목').props.value).toBe('barcode');
-    const issues = find(tree, (element) => element.props.caption === '반입할 수 없는 행')[0];
+    const issues = find(tree, (element) => element.props.caption === '올릴 수 없는 줄')[0];
     expect(issues.props.issues).toEqual([{ row: 603, code: '', reason: 'missing_code' }]);
 
-    button(tree, '601건 반입').props.onClick?.();
+    button(tree, '601건 올리기').props.onClick?.();
     await settle();
     expect(hooks.importRows).toHaveBeenCalledTimes(2);
     expect(hooks.importRows.mock.calls[0][0]).toHaveLength(500);
@@ -127,15 +127,15 @@ describe('ERP 품목 반입 패널', () => {
   it('미리보기에서 걸러진 행도 반입 결과의 거부 건수와 행 목록에 함께 센다', async () => {
     find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: '품번\t품명\nA1\t키링\nA2\t\nA3\t토끼' } });
     button(render(), '붙여넣은 표 확인').props.onClick?.();
-    expect(text(render())).toContain('반입 가능 2건 · 오류 1건');
+    expect(text(render())).toContain('올릴 수 있는 품목 2건 · 오류 1건');
     hooks.importRows.mockResolvedValueOnce({ ok: true, inserted: 1, updated: 0, unchanged: 0, rejected: [{ row: 4, code: 'A3', reason: 'invalid_name' }] });
-    button(render(), '2건 반입').props.onClick?.();
+    button(render(), '2건 올리기').props.onClick?.();
     await settle();
     expect(hooks.importRows.mock.calls[0][0].map((row: { code: string }) => row.code)).toEqual(['A1', 'A3']);
     const tree = render();
     expect(text(tree)).toContain('추가 1');
     expect(text(tree)).toContain('거부 2');
-    expect(find(tree, (element) => element.props.caption === '반입하지 못한 행')[0].props.issues).toEqual([
+    expect(find(tree, (element) => element.props.caption === '올리지 못한 줄')[0].props.issues).toEqual([
       { row: 3, code: 'A2', reason: 'missing_name' },
       { row: 4, code: 'A3', reason: 'invalid_name' },
     ]);
@@ -149,14 +149,14 @@ describe('ERP 품목 반입 패널', () => {
     find(render(props), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: pasted } });
     button(render(props), '붙여넣은 표 확인').props.onClick?.();
     hooks.importRows.mockResolvedValueOnce({ ok: true, inserted: 3, updated: 0, unchanged: 0, rejected: [{ row: 4, code: 'A3', reason: 'invalid_name' }] });
-    button(render(props), '4건 반입').props.onClick?.();
+    button(render(props), '4건 올리기').props.onClick?.();
     await settle();
     expect(hooks.workspace.comparePasted).toHaveBeenCalledOnce();
     expect(hooks.workspace.comparePasted).toHaveBeenCalledWith(['A1', 'A2', 'A4']);
     const tree = render(props);
     expect(find(tree, (element) => (element.props as { title?: unknown }).title === '미연결 분류 2건')).toHaveLength(1);
     expect(text(tree)).toContain('문구 > 키링 · 문구 > 스티커');
-    expect(text(tree)).toContain('방금 반입한 품목과 연결 상품의 판매가·바코드를 비교했습니다.');
+    expect(text(tree)).toContain('방금 올린 품목과 연결 상품의 판매가·바코드를 비교했습니다.');
     button(tree, '연결하기').props.onClick?.();
     expect(hooks.workspace.showUnlinkedCategories).toHaveBeenCalledOnce();
   });
@@ -164,7 +164,7 @@ describe('ERP 품목 반입 패널', () => {
   it('모든 분류가 연결돼 있고 화면 연결이 없으면(단독 렌더) 안내를 덧붙이지 않는다', async () => {
     find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: '품번\t품명\t카테고리\nA1\t키링\t문구 > 키링' } });
     button(render(), '붙여넣은 표 확인').props.onClick?.();
-    button(render(), '1건 반입').props.onClick?.();
+    button(render(), '1건 올리기').props.onClick?.();
     await settle();
     const tree = render({ unlinkedErpCategories: ['다른 분류'] });
     expect(text(tree)).toContain('추가 1');
@@ -176,7 +176,7 @@ describe('ERP 품목 반입 패널', () => {
     find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: '품번\t품명\nA1\t"곰돌이 키링\nA2\t토끼\nA3\t고양이' } });
     button(render(), '붙여넣은 표 확인').props.onClick?.();
     const tree = render();
-    expect(text(tree)).toContain('반입 가능 3건');
+    expect(text(tree)).toContain('올릴 수 있는 품목 3건');
     expect(text(tree)).toContain('닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다.');
   });
 
@@ -185,22 +185,22 @@ describe('ERP 품목 반입 패널', () => {
     button(render(), '붙여넣은 표 확인').props.onClick?.();
     select(render(), '품번 열의 항목').props.onChange?.({ target: { value: 'ignore' } });
     const tree = render();
-    expect(text(tree)).toContain('ERP 코드(품번) 열을 골라야 반입할 수 있습니다.');
-    expect(button(tree, '0건 반입').props.disabled).toBe(true);
+    expect(text(tree)).toContain('ERP 코드(품번) 열을 골라야 올릴 수 있습니다.');
+    expect(button(tree, '0건 올리기').props.disabled).toBe(true);
   });
 
   it('중간 묶음이 실패하면 반영된 건수와 다시 반입 안내를 함께 보여 준다', async () => {
     hooks.importRows
       .mockResolvedValueOnce({ ok: true, inserted: 499, updated: 0, unchanged: 0, rejected: [{ row: 9, code: 'C0007', reason: 'duplicate_code' }] })
-      .mockResolvedValueOnce({ ok: false, error: 'ERP 품목을 반입하지 못했습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.' });
+      .mockResolvedValueOnce({ ok: false, error: 'ERP 품목을 올리지 못했습니다. 같은 내용으로 다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다.' });
     find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: PASTED } });
     button(render(), '붙여넣은 표 확인').props.onClick?.();
-    button(render(), '601건 반입').props.onClick?.();
+    button(render(), '601건 올리기').props.onClick?.();
     await settle();
     const tree = render();
-    expect(text(tree)).toContain('500건까지 반입했습니다. ERP 품목을 반입하지 못했습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.');
+    expect(text(tree)).toContain('500건까지 올렸습니다. ERP 품목을 올리지 못했습니다. 같은 내용으로 다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다.');
     expect(text(tree)).toContain('추가 499');
-    expect(find(tree, (element) => element.props.caption === '반입하지 못한 행')[0].props.issues).toEqual([
+    expect(find(tree, (element) => element.props.caption === '올리지 못한 줄')[0].props.issues).toEqual([
       { row: 9, code: 'C0007', reason: 'duplicate_code' },
       { row: 603, code: '', reason: 'missing_code' },
     ]);
@@ -232,7 +232,7 @@ describe('ERP 품목 반입 패널', () => {
       ['900KB를 넘는 파일', new File([new Uint8Array(900 * 1024 + 1)], '품목 전체.csv'), '파일은 900KB 이하로 올려주세요. 크면 필요한 열만 남겨 저장하거나 표를 복사해 붙여넣어 주세요.'],
       ['XLS 파일', new File(['x'], '품목.xls'), 'XLS 파일은 엑셀에서 XLSX로 다시 저장하거나, 표를 복사해 붙여넣어 주세요.'],
       ['XLSX·CSV가 아닌 파일', new File(['x'], '품목.pdf'), 'XLSX 또는 CSV 파일을 올려주세요.'],
-      ['빈 파일', new File([], '품목.csv'), '반입할 파일을 선택해주세요.'],
+      ['빈 파일', new File([], '품목.csv'), '올릴 파일을 선택해주세요.'],
     ])('%s은 서버로 보내지 않고 서버와 같은 문구로 안내한다', async (_label, file, copy) => {
       fileInput().props.onChange?.({ target: { files: [file] } });
       await settle();
@@ -264,12 +264,12 @@ describe('ERP 품목 반입 패널', () => {
         .mockRejectedValueOnce(new Error('network'));
       find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: PASTED } });
       button(render(), '붙여넣은 표 확인').props.onClick?.();
-      button(render(), '601건 반입').props.onClick?.();
+      button(render(), '601건 올리기').props.onClick?.();
       await expect(settle()).resolves.toBeUndefined();
       const tree = render();
-      expect(text(tree)).toContain('500건까지 반입했습니다. ERP 품목 반입 요청이 끊겼습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.');
+      expect(text(tree)).toContain('500건까지 올렸습니다. ERP 품목을 올리는 중에 연결이 끊겼습니다. 같은 내용으로 다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다.');
       expect(text(tree)).toContain('추가 500');
-      expect(text(tree)).not.toContain('반입 중 ·');
+      expect(text(tree)).not.toContain('올리는 중 ·');
       expect(hooks.refresh).toHaveBeenCalledOnce();
     });
   });

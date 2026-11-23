@@ -25,9 +25,9 @@ select 1 / case when not has_function_privilege('anon','public.admin_adjust_stoc
  and not has_table_privilege('authenticated','public.order_claim_reshipment_items','insert')
  then 1 else 0 end as assert_option_writers_are_sealed;
 insert into public.ips(id,title,vertical_key,published_at) values('option-stock-test','옵션 재고 테스트','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values
-('option-stock-test','option-stock-test','옵션 재고 테스트','문구',10000,'ok',5,null),
-('option-stock-other','option-stock-test','다른 상품','문구',10000,'ok',1,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at) values
+('option-stock-test','option-stock-test','옵션 재고 테스트',10000,'ok',5,null),
+('option-stock-other','option-stock-test','다른 상품',10000,'ok',1,null);
 insert into public.goods_variants(id,good_id,name,price,stock_qty,sort_order) values
 ('00000000-0000-4000-8000-000000044010','option-stock-test','파랑',10000,2,1),
 ('00000000-0000-4000-8000-000000044011','option-stock-test','빨강',11000,3,2);
@@ -63,8 +63,8 @@ reset role;
 
 insert into public.orders(id,user_id,status,total,address) values
 ('00000000-0000-4000-8000-000000044020','00000000-0000-4000-8000-000000044002','pending',20000,'{}');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values
-('00000000-0000-4000-8000-000000044021','00000000-0000-4000-8000-000000044020','option-stock-test','00000000-0000-4000-8000-000000044010',2,10000,'옵션 재고 테스트','문구','option-stock-test');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) values
+('00000000-0000-4000-8000-000000044021','00000000-0000-4000-8000-000000044020','option-stock-test','00000000-0000-4000-8000-000000044010',2,10000,'옵션 재고 테스트','option-stock-test');
 select public.finalize_order_cancellation_with_provider_evidence('00000000-0000-4000-8000-000000044020','미입금 취소','{}');
 select public.finalize_order_cancellation_with_provider_evidence('00000000-0000-4000-8000-000000044020','미입금 취소','{}');
 select 1 / case when (select stock_qty from public.goods_variants where id='00000000-0000-4000-8000-000000044010')=6
@@ -77,8 +77,8 @@ select 1 / case when (select stock_qty from public.goods_variants where id='0000
 -- may differ while the paid option/price snapshots remain unchanged.
 insert into public.orders(id,user_id,status,total,address,shipped_at,delivered_at) values
 ('00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044002','delivered',20000,'{}',now(),now());
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values
-('00000000-0000-4000-8000-000000044041','00000000-0000-4000-8000-000000044040','option-stock-test','00000000-0000-4000-8000-000000044010',2,10000,'옵션 재고 테스트','문구','option-stock-test');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot) values
+('00000000-0000-4000-8000-000000044041','00000000-0000-4000-8000-000000044040','option-stock-test','00000000-0000-4000-8000-000000044010',2,10000,'옵션 재고 테스트','option-stock-test');
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
 values ('00000000-0000-4000-8000-000000044050','option-stock-return-test','옵션 검증 창고',0,'합성 옵션 반송 주소');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)

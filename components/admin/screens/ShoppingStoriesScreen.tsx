@@ -42,7 +42,7 @@ export function ShoppingStoriesAdminScreen({ data }: { data: AdminShoppingStoryL
         setRetry(null); setConfirmIds(null); setSelected([]); setError(''); router.refresh();
       } catch {
         setRetry(request);
-        setError('삭제 결과를 확인하지 못했습니다. 같은 선택으로 다시 확인해주세요.');
+        setError('삭제 결과를 확인하지 못했습니다. 이미 삭제됐을 수 있으니 선택을 바꾸지 말고 ‘같은 요청으로 삭제 결과 확인’을 눌러주세요.');
       } finally {
         deleting.current = false;
       }

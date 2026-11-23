@@ -46,13 +46,13 @@ reset role;
 -- demographic profile is captured in the immutable payment/order ledgers.
 update private.customer_demographic_consents set accepted_at=now()-interval '90 days' where user_id::text like 'a6191000-%';
 insert into public.ips(id,title,vertical_key) values('demographic-test-ip','TEST 집계 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('demographic-test-good','demographic-test-ip','TEST 집계 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('demographic-test-good','demographic-test-ip','TEST 집계 상품',1000,'ok',100);
 insert into public.orders(id,user_id,status,total,shipping_fee,created_at,payment_method)
  select ('a6191000-0000-4002-8000-'||lpad(n::text,12,'0'))::uuid,
  ('a6191000-0000-4000-8000-'||lpad((case when n=11 then 1 else n end)::text,12,'0'))::uuid,
  case when n=11 then 'canceled'::public.order_status else 'paid'::public.order_status end,1000,0,now()-interval '45 days','card' from generate_series(1,11)n;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select ('a6191000-0000-4002-8000-'||lpad(n::text,12,'0'))::uuid,g.id,v.id,1,1000,g.name,g.type,g.ip_id
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select ('a6191000-0000-4002-8000-'||lpad(n::text,12,'0'))::uuid,g.id,v.id,1,1000,g.name,g.ip_id
  from generate_series(1,11)n cross join public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='demographic-test-good';
 insert into public.payments(id,user_id,purpose,ref_id,amount,status,payment_key,idempotency_key,provider)
  select ('a6191000-0000-4003-8000-'||lpad(n::text,12,'0'))::uuid,

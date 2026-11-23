@@ -58,8 +58,8 @@ export function parseGoodsPhotoPage(value: unknown): GoodsPhotoPage | null {
   return page;
 }
 export function goodsPhotoError(message: string | undefined): string {
-  if (message === 'goods_photo_changed') return '다른 저장 결과가 있습니다. 목록을 새로 조회한 뒤 다시 시도해주세요. 입력은 유지됩니다.';
+  if (message === 'goods_photo_changed') return '다른 사람(다른 작업)이 이 사진을 먼저 바꿨습니다. 입력은 그대로 있습니다. 목록을 다시 조회한 뒤 다시 저장해주세요.';
   if (message === 'goods_photo_in_use') return '사용 중인 사진은 보관할 수 없습니다. 연결된 상품이나 전시 설정에서 먼저 사진을 변경해주세요.';
-  if (message === 'unverified_artwork') return '등록 가능한 업로드가 아닙니다. 사진을 다시 업로드해주세요.';
+  if (message === 'unverified_artwork') return '확인이 끝나지 않은 사진이라 등록할 수 없습니다. 사진을 다시 올려주세요.';
   return '사진을 저장하지 못했습니다. 입력을 유지합니다. 목록에서 저장 여부를 먼저 확인해주세요.';
 }

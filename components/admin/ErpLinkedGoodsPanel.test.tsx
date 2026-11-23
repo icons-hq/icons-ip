@@ -97,14 +97,14 @@ describe('연결 상품 반영 패널', () => {
     await settle();
     expect(hooks.preview).toHaveBeenCalledWith(null);
     const tree = render();
-    expect(text(tree)).toContain('반입한 전체 ERP 품목과 비교했습니다. 연결 옵션 5개 중 값이 다른 행 3건 · 반영할 수 있는 판매가 1건·바코드 1건 · 건너뜀 1건.');
+    expect(text(tree)).toContain('올려 둔 ERP 품목 전체와 비교했습니다. 연결 옵션 5개 중 값이 다른 줄 3건 · 반영할 수 있는 판매가 1건·바코드 1건 · 건너뜀 1건.');
     expect(checkbox(tree, '아크릴 키링 기본 옵션 판매가 반영').props.checked).toBe(true);
     expect(checkbox(tree, '아크릴 키링 기본 옵션 바코드 반영').props.checked).toBe(true);
     expect(checkbox(tree, '포토카드 기본 옵션 판매가 반영')).toBeUndefined();
     expect(text(tree)).toContain('건너뜀 · 기간 할인 중');
     expect(text(tree)).toContain('할인을 중지한 뒤 다시 비교해주세요.');
     expect(text(tree)).toContain('바코드 바뀜');
-    expect(find(tree, (element) => element.props.title === '바코드가 바뀌는 행 1건')).toHaveLength(1);
+    expect(find(tree, (element) => element.props.title === '바코드가 바뀌는 줄 1건')).toHaveLength(1);
     expect(text(tree)).toContain('10,000원');
     expect(text(tree)).toContain('11,000원');
     expect(text(button(tree, '건 반영'))).toBe('선택한 2건 반영');
@@ -118,7 +118,7 @@ describe('연결 상품 반영 패널', () => {
     handlers.at(-1)?.(['000123', '000456']);
     await settle();
     expect(hooks.preview).toHaveBeenCalledWith(['000123', '000456']);
-    expect(text(render())).toContain('방금 반입한 품목 2개와 비교했습니다.');
+    expect(text(render())).toContain('방금 올린 품목 2개와 비교했습니다.');
   });
 
   it('고른 행만 확인한 뒤 반영하고, 막힌 행은 사유와 함께 남긴다', async () => {
@@ -134,7 +134,7 @@ describe('연결 상품 반영 패널', () => {
     expect(hooks.commit).toHaveBeenCalledWith({ operationId: 'op-1', keys: [`${A}:price`] });
     const tree = render();
     expect(text(tree)).toContain('상품 1개에 판매가 1건을 반영했습니다.');
-    expect(text(tree)).not.toContain('값이 다른 행');
+    expect(text(tree)).not.toContain('값이 다른 줄');
     expect(hooks.refresh).toHaveBeenCalledOnce();
   });
 
@@ -169,7 +169,7 @@ describe('연결 상품 반영 패널', () => {
     await button(tree, '선택한 2건 반영').props.onClick?.();
     await settle();
     tree = render();
-    expect(text(tree)).toContain('같은 미리보기에서 다시 반영하면 이미 반영한 행은 다시 바꾸지 않습니다.');
+    expect(text(tree)).toContain('같은 미리보기에서 다시 반영해도 이미 반영된 줄은 다시 바꾸지 않습니다.');
     hooks.commit.mockResolvedValueOnce({ ok: true, receipt: { state: 'rejected', operationId: 'op-1', error: 'erp_goods_apply_changed' },
       message: '미리보기 뒤 상품이나 ERP 값이 바뀌어 아무것도 반영하지 않았습니다. 다시 비교해주세요.' });
     await button(tree, '선택한 2건 반영').props.onClick?.();
@@ -189,7 +189,7 @@ describe('연결 상품 반영 패널', () => {
     button(render(), '전체 품목과 비교').props.onClick?.();
     await settle();
     const tree = render();
-    expect(text(tree)).toContain('연결 옵션 3개의 판매가·바코드가 반입한 값과 모두 같습니다.');
+    expect(text(tree)).toContain('연결 옵션 3개의 판매가·바코드가 올린 ERP 값과 모두 같습니다.');
     expect(button(tree, '건 반영')).toBeUndefined();
   });
 });

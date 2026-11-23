@@ -41,8 +41,8 @@ export function normalizePurchaseRestrictionRegistration(form: FormData) {
   if (!isUuid(value.requestId) || !isUuid(value.userId)) return { error: '고객을 다시 조회한 뒤 등록해주세요.' } as const;
   if (!PURCHASE_RESTRICTION_REASONS.some(({ value: reason }) => reason === value.reasonCode)) return { error: '등록 사유를 선택해주세요.' } as const;
   if (!value.reasonDetail || value.reasonDetail.length > 200) return { error: '상세 사유를 1~200자로 입력해주세요.' } as const;
-  if (value.evidenceOrderId && !isUuid(value.evidenceOrderId)) return { error: '근거 주문번호를 확인해주세요.' } as const;
-  if (form.get('confirmed') !== 'on') return { error: adminGoodsCopy('신규 굿즈 주문 제한 범위를 확인해주세요.') } as const;
+  if (value.evidenceOrderId && !isUuid(value.evidenceOrderId)) return { error: '근거 주문번호 형식이 맞지 않습니다. 이 고객 주문의 전체 주문번호를 넣거나 비워 두세요.' } as const;
+  if (form.get('confirmed') !== 'on') return { error: adminGoodsCopy('등록하지 않았습니다. 신규 굿즈 주문만 제한하고 기존 주문은 정상 처리한다는 확인 칸에 체크해주세요.') } as const;
   return { value } as const;
 }
 export function normalizePurchaseRestrictionRelease(form: FormData) {
@@ -53,10 +53,10 @@ export function normalizePurchaseRestrictionRelease(form: FormData) {
 }
 export function purchaseRestrictionError(message: string) {
   if (message.includes('evidence_owner_mismatch')) return '해당 고객의 주문번호만 근거로 등록할 수 있습니다.';
-  if (message.includes('already_active')) return '이미 구매제한 중인 고객입니다. 목록을 새로 확인해주세요.';
+  if (message.includes('already_active')) return '이미 구매제한 중인 고객입니다. 목록을 새로고침해 기존 기록을 확인해주세요.';
   if (message.includes('customer_not_eligible')) return '일반 고객 계정만 구매제한을 등록할 수 있습니다.';
-  if (message.includes('request_conflict')) return '같은 요청의 내용이 바뀌었습니다. 고객을 다시 조회해주세요.';
+  if (message.includes('request_conflict')) return '앞서 보낸 등록 요청과 내용이 달라 처리하지 않았습니다. 고객을 다시 조회한 뒤 등록해주세요.';
   if (message.includes('not_found')) return '해당 구매제한 기록을 찾을 수 없습니다.';
-  if (message.includes('forbidden') || message.includes('auth_required')) return '관리자 권한을 확인해주세요.';
+  if (message.includes('forbidden') || message.includes('auth_required')) return '구매제한을 관리할 권한이 없습니다. 권한이 바뀌었다면 화면을 새로고침해주세요.';
   return '구매제한을 처리하지 못했습니다. 목록에서 반영 여부를 확인한 뒤 다시 시도해주세요.';
 }

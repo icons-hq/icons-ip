@@ -203,7 +203,7 @@ export function ArtworkUploadField({
     clearFileInput();
     setDisplay((current) => clearArtworkDisplayState(current));
     setHasUnsavedUpload(true);
-    setStatus('저장하면 현재 이미지 연결을 제거합니다. 저장소 원본은 별도 보존됩니다.');
+    setStatus('저장하면 이 칸의 이미지가 빠집니다. 올렸던 원본 파일은 지우지 않고 저장소에 그대로 남습니다.');
     onPreviewChange?.(null);
     onPathChange?.('');
   }

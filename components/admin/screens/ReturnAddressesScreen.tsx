@@ -71,7 +71,7 @@ function DeleteReturnAddress({ entry }: { entry: ReturnAddress }) {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>‘{entry.name}’ 반품지를 삭제할까요?</AlertDialogTitle>
-          <AlertDialogDescription>이 반품지를 고른 상품이 없습니다. 이미 접수된 반품의 회수 주소는 그대로 남고, 삭제 기록은 감사 로그에 남습니다.</AlertDialogDescription>
+          <AlertDialogDescription>이 반품지를 고른 상품이 없습니다. 이미 접수된 반품의 회수 주소는 그대로 남고, 삭제 기록은 감사 기록에 남습니다.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>취소</AlertDialogCancel>

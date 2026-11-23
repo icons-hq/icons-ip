@@ -39,5 +39,5 @@ export function collectibleFeaturesError(code?: string, message?: string): strin
     return '현재 로그인 계정과 관리자 권한을 확인해주세요.';
   }
   if (code === '22023' || message?.includes('invalid_collectible_features')) return '저장할 값이 올바르지 않습니다. 새로고침 후 다시 시도해주세요.';
-  return '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+  return '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.';
 }

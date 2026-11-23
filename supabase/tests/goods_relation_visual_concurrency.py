@@ -86,7 +86,7 @@ try:
     update public.profiles set role='staff' where id={quote(actor)};
     insert into private.operator_memberships(profile_id,manager_role) values({quote(actor)},'primary');
     insert into public.ips(id,title,vertical_key) select {quote(ip)},'동시성 검수',key from public.verticals limit 1;
-    insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values({quote(goods[0])},{quote(ip)},'동시성 상품 A','문구',1000,'ok',0),({quote(goods[1])},{quote(ip)},'동시성 상품 B','문구',1000,'ok',0);
+    insert into public.goods(id,ip_id,name,price,stock,stock_qty) values({quote(goods[0])},{quote(ip)},'동시성 상품 A',1000,'ok',0),({quote(goods[1])},{quote(ip)},'동시성 상품 B',1000,'ok',0);
     commit;""")
     for path in paths:
         sql(f"begin;set local role service_role;select public.service_prepare_admin_artwork_upload({quote(actor)},{quote(path)},'curation','image/webp',100,now()+interval '10 minutes');select * from public.service_begin_admin_artwork_verification({quote(actor)},{quote(path)});select public.service_verify_admin_artwork_upload({quote(actor)},{quote(path)},100);commit;")

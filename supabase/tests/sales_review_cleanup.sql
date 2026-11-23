@@ -62,12 +62,12 @@ reset role;
 select 1/case when (select count(*) from public.audit_log where action='admin.good.sales_policy_saved' and target='goods:review-cleanup-policy')=1
  then 1 else 0 end as assert_noop_does_not_append_an_audit;
 
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values
- ('review-cleanup-percent','review-cleanup','검증 50% 할인','문구',1000,'ok',10),
- ('review-cleanup-underscore','review-cleanup','검증 A_B','문구',1000,'ok',10),
- ('review-cleanup-backslash','review-cleanup',E'검증 A\\B','문구',1000,'ok',10),
- ('review-cleanup-long','review-cleanup',repeat('가',101),'문구',1000,'ok',10),
- ('review-cleanup-hidden','review-cleanup','검증 50% 숨김','문구',1000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values
+ ('review-cleanup-percent','review-cleanup','검증 50% 할인',1000,'ok',10),
+ ('review-cleanup-underscore','review-cleanup','검증 A_B',1000,'ok',10),
+ ('review-cleanup-backslash','review-cleanup',E'검증 A\\B',1000,'ok',10),
+ ('review-cleanup-long','review-cleanup',repeat('가',101),1000,'ok',10),
+ ('review-cleanup-hidden','review-cleanup','검증 50% 숨김',1000,'ok',10);
 select pg_temp.publish_goods_kc_fixture(id) from public.goods
  where id in ('review-cleanup-percent','review-cleanup-underscore','review-cleanup-backslash','review-cleanup-long');
 

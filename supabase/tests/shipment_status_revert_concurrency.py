@@ -103,14 +103,14 @@ update public.profiles set nickname='TEST 정정 경합 '||right(id::text,1),bir
 insert into private.operator_memberships(profile_id,manager_role) values('{operator}','primary');
 update private.purchase_confirmation_policy set auto_enabled=true,auto_after_days=7,buyer_extension_days=3 where singleton;
 insert into public.ips(id,title,vertical_key) values('shipment-revert-race-ip','TEST 정정 경합 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('shipment-revert-race-good','shipment-revert-race-ip','TEST 정정 경합 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('shipment-revert-race-good','shipment-revert-race-ip','TEST 정정 경합 상품',1000,'ok',100);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select ('c3b00000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid,'{buyer}','shipping'::public.order_status,1000,0,
  jsonb_build_object('recipientName','TEST 수령인'||n,'phone','0108888000'||(n%10),'postalCode','00123','address1','합성 주소','address2',n||'층','deliveryNote',''),now()-interval '14 days'
 from generate_series(1,{ORDERS}) n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
 select ('c3b00000-0000-4003-8000-'||lpad(n::text,12,'0'))::uuid,('c3b00000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid,'shipment-revert-race-good',v.id,1,1000,
- 'TEST 정정 경합 상품','문구','shipment-revert-race-ip'
+ 'TEST 정정 경합 상품','shipment-revert-race-ip'
 from generate_series(1,{ORDERS}) n cross join (select id from public.goods_variants where good_id='shipment-revert-race-good' and is_default) v;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,exported_at)
 select ('c3b00000-0000-4002-8000-'||lpad(n::text,12,'0'))::uuid,('c3b00000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid,

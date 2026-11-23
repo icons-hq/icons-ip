@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { phoneVerificationConfig, readMyVerifiedPhone } from '@/lib/sms/phone-verification.server';
 import { createClient } from '@/lib/supabase/server';
@@ -26,6 +27,8 @@ interface ProfileRow {
 
 export interface CurrentAuthState {
   isConfigured: boolean;
+  /** 인증 서버에 닿지 않아 신원을 확인할 수 없다. 같은 세션으로 다시 시도할 수 있다. */
+  authUnavailable?: true;
   user: {
     id: string;
     email: string | null;
@@ -56,11 +59,18 @@ export async function getCurrentAuthState(): Promise<CurrentAuthState> {
   const { isConfigured } = getSupabaseConfig();
   if (!isConfigured) return { isConfigured: false, user: null, profile: null, isStaff: false };
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
+  // 첫 연결이 멈춰도 전송 계층의 10초 타임아웃까지 기다리지 않고 같은 세션을 다시 확인한다.
+  const supabase = await createClient({ firstUserLookupTimeoutMs: 800 });
+  let verified = await supabase.auth.getUser();
+  if (isAuthRetryableFetchError(verified.error)) verified = await supabase.auth.getUser();
+  const { data, error } = verified;
   const user = data.user;
 
-  if (error || !user) return { isConfigured: true, user: null, profile: null, isStaff: false };
+  if (error || !user) {
+    const guest = { isConfigured: true, user: null, profile: null, isStaff: false };
+    if (error && (!error.status || error.status === 429 || error.status >= 500)) return { ...guest, authUnavailable: true };
+    return guest;
+  }
 
   const profile = await getProfileForUser(supabase, user.id);
 

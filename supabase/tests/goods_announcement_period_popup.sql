@@ -18,10 +18,10 @@ insert into private.operator_memberships(profile_id,manager_role) values
  ('97010000-0000-4000-8000-000000000001','primary'),('97010000-0000-4000-8000-000000000002','deputy'),('97010000-0000-4000-8000-000000000003','influencer');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) values('notice-period-ip','공지 기간 QA','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock_qty) values
- ('notice-period-public','notice-period-ip','기간 공개 상품','문구',1000,10),
- ('notice-period-delete','notice-period-ip','참조 삭제 상품','문구',1000,10),
- ('notice-period-hidden','notice-period-ip','비공개 상품','문구',1000,10);
+insert into public.goods(id,ip_id,name,price,stock_qty) values
+ ('notice-period-public','notice-period-ip','기간 공개 상품',1000,10),
+ ('notice-period-delete','notice-period-ip','참조 삭제 상품',1000,10),
+ ('notice-period-hidden','notice-period-ip','비공개 상품',1000,10);
 -- KC helper identities have explicit operator authority in configured databases.
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
  select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','kc-synthetic-'||md5(id)||'@example.test',now(),'{"testFixture":"goods-kc"}','{}'

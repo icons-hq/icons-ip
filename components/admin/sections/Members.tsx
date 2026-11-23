@@ -44,7 +44,7 @@ function formatDate(value: string) {
 }
 
 export function confirmMemberSuspension(event: FormEvent<HTMLFormElement>) {
-  confirmAdminSubmit(event, '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?');
+  confirmAdminSubmit(event, '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 나중에 정지 해제로 풀 수 있습니다. 계속할까요?');
 }
 
 /** 권한 값(user·staff·admin)은 DB 계약이고 화면은 운영팀 말로 보인다. */
@@ -89,7 +89,7 @@ function MemberSuspensionControl({
         <div className="flex flex-col gap-1.5">
           <InlineNotice state={state} />
           <span className="text-xs text-muted-foreground">
-            변경된 상태에서 추가 작업이 필요하면 회원을 다시 검색해 상세를 열어주세요.
+            이 회원에게 다른 작업을 이어서 하려면 회원을 다시 검색해 상세를 열어주세요.
           </span>
         </div>
       </AdminNotice>
@@ -172,7 +172,7 @@ function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
         <AdminStatusBadge>{gradeLabel}</AdminStatusBadge>
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        {loyaltyBasisSummary()} 보정 이력은 등급 이력·감사 로그에 남습니다.
+        {loyaltyBasisSummary()} 보정 이력은 등급 이력·감사 기록에 남습니다.
       </p>
       <form action={adjustAction} className="flex flex-col gap-3">
         <input name="profileId" type="hidden" value={member.id} />

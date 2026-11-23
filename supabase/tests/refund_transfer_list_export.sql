@@ -28,14 +28,14 @@ insert into private.operator_memberships(profile_id,manager_role) values
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values(pg_temp.rt_id('origin',1),'refund-export-origin','TEST 환불엑셀 출고지','hanjin',0,'TEST 반품 주소',true);
 insert into public.ips(id,title,vertical_key) values('refund-export-ip','TEST 환불엑셀 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- select 'refund-export-good-'||n,'refund-export-ip','TEST 환불엑셀 상품 '||n,'문구',5000,'ok',98,pg_temp.rt_id('origin',1) from generate_series(1,4)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ select 'refund-export-good-'||n,'refund-export-ip','TEST 환불엑셀 상품 '||n,5000,'ok',98,pg_temp.rt_id('origin',1) from generate_series(1,4)n;
 insert into public.orders(id,user_id,status,total,shipping_fee,address,payment_method,created_at)
  select pg_temp.rt_id('order',n),pg_temp.rt_id('user',2),'paid',10000,0,
  '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}','bank_transfer',
  clock_timestamp()-interval '2 days' from generate_series(1,4)n;
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price)
- select pg_temp.rt_id('item',n),pg_temp.rt_id('order',n),'refund-export-good-'||n,v.id,'TEST 환불엑셀 상품','문구','refund-export-ip',2,5000
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price)
+ select pg_temp.rt_id('item',n),pg_temp.rt_id('order',n),'refund-export-good-'||n,v.id,'TEST 환불엑셀 상품','refund-export-ip',2,5000
  from generate_series(1,4)n join public.goods_variants v on v.good_id='refund-export-good-'||n and v.is_default;
 create function pg_temp.rt_shipments(n integer) returns void language plpgsql as $$declare lines jsonb;quote jsonb;begin
  select jsonb_agg(jsonb_build_object('origin_id',origin_id_snapshot,'good_id',good_id,'qty',qty,'unit_price',unit_price,'fee_type',shipping_fee_type_snapshot,'individual_fee',individual_fee_snapshot)) into lines

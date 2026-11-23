@@ -161,7 +161,7 @@ describe('bulkDecideOrderClaimsAction', () => {
       ['C00001', 'failed'], ['C00002', 'failed'], ['C00003', 'done'],
     ]);
     expect(state.results?.[0].message).toContain('provider_cancel_failed');
-    expect(state.results?.[1].message).toBe('지금 단계에서는 처리할 수 없습니다. 최신 상태를 확인해주세요.');
+    expect(state.results?.[1].message).toBe('지금 단계에서는 처리할 수 없습니다. 다른 담당자가 먼저 처리했을 수 있으니 새로고침해 현재 단계를 확인해주세요.');
     expect(state.summary).toBe('처리됨 1건 · 실패 2건');
   });
 

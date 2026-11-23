@@ -91,7 +91,7 @@ export function parseGoodsSubscriptionRecovery(value: unknown): GoodsSubscriptio
 export function goodsSubscriptionPolicyError(message?: string): string {
   const labels: Record<string, string> = {
     subscription_policy_conflict: '상품 또는 정기배송 설정이 변경됐습니다. 입력을 유지한 채 최신 저장본을 비교해주세요.',
-    subscription_actor_changed: '로그인 계정이 바뀌었습니다. 현재 계정으로 상품 화면을 다시 열어주세요.',
+    subscription_actor_changed: '로그인한 계정이 바뀌었습니다. 지금 계정으로 상품 화면을 새로고침해주세요.',
     operator_capability_required: '상품관리 권한이 필요합니다.', subscription_good_not_found: '상품이 없습니다. 상품 목록에서 다시 확인해주세요.',
     operator_operation_conflict: '같은 요청 번호에 다른 내용이 있습니다. 최신 저장본을 확인해주세요.',
   };

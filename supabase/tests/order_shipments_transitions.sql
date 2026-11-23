@@ -11,12 +11,12 @@ update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000
 update private.purchase_confirmation_policy set auto_enabled=true,auto_after_days=8,
  evidence='TEST ONLY: multi-shipment confirmation' where singleton;
 insert into public.ips(id,title,vertical_key) values('shipment-transitions-ip','TEST 배송 전이','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values
- ('shipment-transitions-a','shipment-transitions-ip','TEST 배송 굿즈 A','문구',11500,'ok',10),
- ('shipment-transitions-b','shipment-transitions-ip','TEST 배송 굿즈 B','문구',11500,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values
+ ('shipment-transitions-a','shipment-transitions-ip','TEST 배송 굿즈 A',11500,'ok',10),
+ ('shipment-transitions-b','shipment-transitions-ip','TEST 배송 굿즈 B',11500,'ok',10);
 insert into public.orders(id,user_id,status,total,shipping_fee,address) values('00000000-0000-4000-8000-000000044610','00000000-0000-4000-8000-000000044602','paid',30000,7000,'{}');
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select '00000000-0000-4000-8000-000000044610',good_id,id,1,11500,'TEST 배송 굿즈','문구','shipment-transitions-ip'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select '00000000-0000-4000-8000-000000044610',good_id,id,1,11500,'TEST 배송 굿즈','shipment-transitions-ip'
  from public.goods_variants where good_id in('shipment-transitions-a','shipment-transitions-b') and is_default;
 insert into public.payments(user_id,purpose,ref_id,provider,amount,status,idempotency_key)
  values('00000000-0000-4000-8000-000000044602','order','00000000-0000-4000-8000-000000044610','toss',30000,'paid','TEST-shipment-transition-payment');

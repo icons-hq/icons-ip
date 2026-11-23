@@ -55,7 +55,7 @@ values
 update public.profiles set role = 'staff' where id in ('00000000-0000-4000-8000-000000047481','00000000-0000-4000-8000-000000047482');
 insert into public.verticals(key, label, color) values ('category-race-0474','카테고리 경합 검증','#000000');
 insert into public.ips(id, title, vertical_key) values ('category-race-0474','카테고리 경합 검증','category-race-0474');
-insert into public.goods(id, ip_id, name, type, price, stock) values ('category-race-good-0474','category-race-0474','카테고리 경합 상품','문구',1000,'ok');
+insert into public.goods(id, ip_id, name, price, stock) values ('category-race-good-0474','category-race-0474','카테고리 경합 상품',1000,'ok');
 commit;
 SQL
 

@@ -10,7 +10,7 @@ update public.profiles set role='admin',nickname='TEST 그룹 목록',birth_date
 insert into private.operator_memberships(profile_id,manager_role) values('a6160000-0000-4000-8000-000000000001','primary');
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after) values('a6160000-0000-4000-8000-000000000002','a6160000-0000-4000-8000-000000000001',now(),now(),now()+interval '1 hour');
 insert into public.ips(id,title,vertical_key,published_at) values('group-console-ip','TEST 목록 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,notice_maker) select 'group-console-'||n,'group-console-ip','TEST 상품 '||n,'문구',10000,'ok',n,'TEST 제작사' from generate_series(1,4) n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,notice_maker) select 'group-console-'||n,'group-console-ip','TEST 상품 '||n,10000,'ok',n,'TEST 제작사' from generate_series(1,4) n;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a6160000-0000-4000-8000-000000000001',true);
 select set_config('request.jwt.claims','{"sub":"a6160000-0000-4000-8000-000000000001","role":"authenticated","session_id":"a6160000-0000-4000-8000-000000000002"}',true);

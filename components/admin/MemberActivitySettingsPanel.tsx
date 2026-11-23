@@ -17,7 +17,7 @@ export function MemberActivitySettingsPanel({ initial, actorId, sessionId }: { i
       const result = await saveMemberActivitySettingsAction(enabled, { actorId, sessionId, revision: settings.revision }, crypto.randomUUID());
       if (!session.current()) return;
       if ('settings' in result && result.settings) { setSettings(result.settings); setEnabled(result.settings.enabled); setMessage('설정을 저장했습니다.'); router.refresh(); }
-      else { setUncertain(true); setMessage(result.error ?? '현재 상태를 조회해주세요.'); }
+      else { setUncertain(true); setMessage(result.error ?? '저장됐는지 확인하지 못했습니다. ‘현재 상태 조회’를 눌러 확인한 뒤 다시 저장해주세요.'); }
     });
   }
   function read() { start(async () => { const result = await readMemberActivitySettingsAction(); if (!session.current()) return;
@@ -28,7 +28,7 @@ export function MemberActivitySettingsPanel({ initial, actorId, sessionId }: { i
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 font-medium [&::-webkit-details-marker]:hidden"><span className="flex min-w-0 flex-wrap items-center gap-2">회원 방문·영상 분석 설정<AdminStatusBadge tone={settings.enabled ? 'success' : 'warning'}>{settings.enabled ? '수집 사용' : '수집 꺼짐'}</AdminStatusBadge>{settings.enabled ? null : <span className="text-xs font-normal text-muted-foreground">켜면 잠재·방문 고객과 방문·영상 세그먼트를 집계합니다.</span>}</span>{settings.enabled ? <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/activity:rotate-180" /> : <span className={`${buttonVariants({ size: 'sm', variant: 'soft' })} shrink-0`}>수집 설정 열기<ChevronDown aria-hidden="true" className="transition-transform group-open/activity:rotate-180" /></span>}</summary>
     <div className="flex min-w-0 flex-col gap-3 border-t p-4">
       <p className={NOTE}>별도 선택 동의한 회원의 공개 화면 방문과 상품 영상 재생을 90일 동안 보관합니다. 마케팅 수신 동의를 대신하지 않습니다.</p>
-      <p className={NOTE}>미방문 조건은 선택 기간 전체에 걸쳐 동의와 수집이 유지된 회원만 포함합니다. 수집을 다시 켜면 관측 기간도 다시 시작합니다.</p>
+      <p className={NOTE}>미방문 조건은 고른 기간 내내 동의와 수집이 켜져 있던 회원만 셉니다. 수집을 껐다가 다시 켜면 그 기간도 처음부터 다시 셉니다.</p>
       <label className={CHECK_LABEL}><input type="checkbox" checked={enabled} disabled={pending || uncertain || session.blocked} onChange={event => setEnabled(event.target.checked)} /> 회원 방문·영상 분석 사용</label>
       <div className={ACTIONS}><Button disabled={pending || uncertain || session.blocked || enabled === settings.enabled} onClick={save} type="button">설정 저장</Button>
         <Button disabled={pending || session.blocked} onClick={read} type="button" variant="outline">현재 상태 조회</Button></div>

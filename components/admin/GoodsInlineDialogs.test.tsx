@@ -29,7 +29,7 @@ describe('할인 중지 후 판매가 변경 창 (1027T-025)', () => {
     expect(html).toContain('할인 프로모션이 건 할인을 포함해');
     expect(html).toContain('멈춘 할인은 되돌리지 않으니');
     expect(html).toMatch(/현재 판매가 <strong[^>]*>10,000원<\/strong>/);
-    expect(html).toContain('할인 전 기본 판매가 · 옵션 추가금 유지');
+    expect(html).toContain('할인 전 기본 판매가 · 옵션가는 그대로');
     expect(buttons(html)).toEqual(['취소', '할인 중지 후 변경']);
   });
   /* TKT-033: 기간 없는 즉시할인(정가 표시) 상품도 같은 창 — 멈출 할인에 그 즉시할인을 적고 판매가(할인 전)로 되돌린다고 밝힌다. */

@@ -100,7 +100,7 @@ const receiptActions = [
     rpcName: 'admin_record_order_claim_origin_collection',
     fallback: '수거 상태를 기록하지 못했습니다. 최신 상태를 확인해주세요.',
     rejectedState: 'claim_not_collectable',
-    rejectedMessage: '수거 단계가 아닙니다. 최신 상태를 확인해주세요.',
+    rejectedMessage: '수거 단계가 아닙니다. 새로고침해 현재 단계를 확인해주세요.',
   },
   {
     name: 'recordOrderClaimReshipmentDeliveryAction',
@@ -183,7 +183,7 @@ describe.each(receiptActions)('$name', (contract) => {
   it.each([
     ['공백뿐인 근거', '  \n\t  ', '확인 근거를 500자 이내로 입력해주세요.'],
     ['500자를 초과한 근거', `  ${'가'.repeat(501)}\n`, '확인 근거를 500자 이내로 입력해주세요.'],
-    ['금지된 제어문자', '  확인\u0001근거\n ', '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.'],
+    ['금지된 제어문자', '  확인\u0001근거\n ', '확인 근거에 눈에 보이지 않는 특수 문자가 섞여 있습니다. 다른 곳에서 복사해 붙였다면 지우고 직접 다시 입력해주세요.'],
   ])('%s는 RPC 전에 거절하고 원문을 보존한다', async (_name, evidence, error) => {
     const form = receiptForm(contract.claimType, evidence);
 
@@ -477,14 +477,14 @@ describe('recordOrderClaimCarrierLossAction', () => {
     const noPhoto = lossForm(); noPhoto.delete('evidenceFileId');
     expect((await recordOrderClaimCarrierLossAction({}, noPhoto)).error).toBe('분실 근거 사진(택배사 회신·사고 접수 화면)을 1~5장 올려주세요.');
     const noRevision = lossForm(); noRevision.set('claimRevision', '');
-    expect((await recordOrderClaimCarrierLossAction({}, noRevision)).error).toBe('배송 분실을 기록하지 못했습니다. 최신 상태를 확인해주세요.');
+    expect((await recordOrderClaimCarrierLossAction({}, noRevision)).error).toBe('배송 분실을 기록하지 못했습니다. 새로고침해 이 출고지가 이미 배송 분실로 기록됐는지 확인하고, 아니면 다시 기록해주세요.');
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('DB 거절을 운영자 문구로 옮긴다', async () => {
     for (const [code, message] of [
       ['carrier_loss_shipment_not_dispatched', '아직 발송되지 않은 배송 건은 분실로 기록할 수 없습니다. 발송 전 몫은 재고 부족 부분 취소로 처리해주세요.'],
-      ['carrier_loss_return_only', '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 생략 재출고를 쓰세요.'],
-      ['claim_changed', '다른 처리로 요청이 바뀌었습니다. 새로고침한 뒤 최신 상태로 다시 확인해주세요.'],
+      ['carrier_loss_return_only', '배송 분실은 반품 요청에서만 기록합니다. 분실된 상품을 다시 보내려면 하자·오배송 교환으로 접수해 회수 없이 재출고해주세요.'],
+      ['claim_changed', '그사이 요청 상태가 바뀌어 처리하지 않았습니다. 새로고침해 최신 상태를 확인한 뒤 다시 처리해주세요.'],
     ] as const) {
       mocks.rpc.mockResolvedValue({ data: null, error: { message: code } });
       expect((await recordOrderClaimCarrierLossAction({}, lossForm())).error).toBe(message);

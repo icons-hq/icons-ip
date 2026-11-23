@@ -75,23 +75,23 @@ const REQUEST_KEYS = ['expectedStockQty', 'nextStockQty', 'reason', 'requestId',
 
 /** 화면이 보낸 줄을 기존 재고 조정 입력 규칙(normalizeAdminStockAdjustmentForm) 그대로 검증한다. 하나라도 틀리면 전체를 거절한다. */
 function parseRequests(goodId: string, value: unknown): AdminStockAdjustmentFormValue[] | string {
-  if (!Array.isArray(value) || value.length < 1 || value.length > OPTION_STOCK_BATCH_LIMIT) return '저장할 옵션을 확인해주세요.';
+  if (!Array.isArray(value) || value.length < 1 || value.length > OPTION_STOCK_BATCH_LIMIT) return '저장할 옵션 재고수량의 형식이 맞지 않습니다. 창을 닫고 새로고침한 뒤 다시 입력해주세요.';
   const parsed: AdminStockAdjustmentFormValue[] = [];
   for (const raw of value as unknown[]) {
     /* 새 수량은 화면과 같은 범위(0 이상 정수)만 받는다 — 음수 목표는 DB까지 보내지 않는다. */
     if (!record(raw) || Object.keys(raw).sort().join() !== REQUEST_KEYS.join() || !isUuid(raw.requestId) || !isUuid(raw.variantId)
       || !Number.isSafeInteger(raw.expectedStockQty) || !Number.isSafeInteger(raw.nextStockQty) || (raw.nextStockQty as number) < 0
-      || (raw.nextStockQty as number) > 2_147_483_647 || typeof raw.reason !== 'string') return '저장할 옵션을 확인해주세요.';
+      || (raw.nextStockQty as number) > 2_147_483_647 || typeof raw.reason !== 'string') return '저장할 옵션 재고수량의 형식이 맞지 않습니다. 창을 닫고 새로고침한 뒤 다시 입력해주세요.';
     const request = raw as unknown as OptionStockRequest;
     const data = new FormData();
     data.set('adjustmentId', request.requestId); data.set('goodId', goodId); data.set('variantId', request.variantId);
     data.set('expectedStockQty', String(request.expectedStockQty)); data.set('delta', String(request.nextStockQty - request.expectedStockQty));
     data.set('reason', request.reason);
     const result = normalizeAdminStockAdjustmentForm(data);
-    if (!result.ok) return Object.values(result.errors).find(Boolean) ?? '저장할 옵션을 확인해주세요.';
+    if (!result.ok) return Object.values(result.errors).find(Boolean) ?? '저장할 옵션 재고수량의 형식이 맞지 않습니다. 창을 닫고 새로고침한 뒤 다시 입력해주세요.';
     parsed.push(result.value);
   }
-  if (new Set(parsed.map(item => item.variantId)).size !== parsed.length || new Set(parsed.map(item => item.adjustmentId)).size !== parsed.length) return '저장할 옵션을 확인해주세요.';
+  if (new Set(parsed.map(item => item.variantId)).size !== parsed.length || new Set(parsed.map(item => item.adjustmentId)).size !== parsed.length) return '저장할 옵션 재고수량의 형식이 맞지 않습니다. 창을 닫고 새로고침한 뒤 다시 입력해주세요.';
   return parsed;
 }
 

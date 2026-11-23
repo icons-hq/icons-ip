@@ -132,8 +132,8 @@ where id = '${second_user_id}'::uuid;
 insert into public.ips (id, title, vertical_key)
 values ('coupon-race-ip', '쿠폰 경합 IP', 'character');
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('coupon-race-good', 'coupon-race-ip', '쿠폰 경합 굿즈', '피규어', 30000, 'ok', 10);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
+values ('coupon-race-good', 'coupon-race-ip', '쿠폰 경합 굿즈', 30000, 'ok', 10);
 
 insert into public.cart_items (user_id, good_id, qty, variant_id)
 values

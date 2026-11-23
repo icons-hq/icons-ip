@@ -50,12 +50,12 @@ describe('거절 사유 문구', () => {
     expect(operatorMfaError('42501', 'operator_mfa_self_required')).toContain('내 보안 설정');
     expect(operatorMfaError('22023', 'operator_mfa_unenrolled')).toContain('미등록 운영자');
     expect(operatorMfaError('42501', 'operator_mfa_reset_owner_only')).toContain('통합 매니저만');
-    expect(operatorMfaError('42501', 'operator_mfa_required')).toContain('2단계 인증을 마친 세션');
+    expect(operatorMfaError('42501', 'operator_mfa_required')).toContain('인증 앱 코드까지 확인한 로그인');
     expect(operatorMfaError('PT409', 'operator_mfa_policy_changed')).toContain('먼저 설정을 바꿨습니다');
     expect(operatorMfaError('42501', 'operator_capability_required')).toContain('관리자 권한');
-    expect(operatorMfaError()).toContain('같은 요청으로 다시 확인');
+    expect(operatorMfaError()).toContain('결과 확인 버튼을 눌러');
     expect(totpErrorMessage({ code: 'mfa_verification_failed' })).toContain('인증 코드가 맞지 않습니다');
-    expect(totpErrorMessage({ code: 'mfa_totp_enroll_not_enabled' })).toContain('꺼져 있습니다');
+    expect(totpErrorMessage({ code: 'mfa_totp_enroll_not_enabled' })).toContain('인증 앱 사용이 꺼져 있어');
     expect(totpErrorMessage(null)).toContain('실패했습니다');
   });
 });

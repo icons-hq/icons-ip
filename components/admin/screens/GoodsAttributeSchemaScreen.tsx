@@ -38,13 +38,13 @@ export function GoodsAttributeSchemaScreen({ categories }: { categories: AdminCa
     operation.current ??= crypto.randomUUID();
     const normalized = fields.map(field => ({ ...field, name: field.name.trim(), unit: field.unit.trim(), options: field.options.map(option => ({ ...option, label: option.label.trim() })) }));
     const result = await saveGoodsAttributeSchemaAction(base.categoryId, normalized, base.revision, operation.current); setBusy(false);
-    if (!result.data) { setError(result.error ?? '저장하지 못했습니다.'); return; }
+    if (!result.data) { setError(result.error ?? '상품속성 정의를 저장하지 못했습니다. 잠시 후 다시 저장해주세요.'); return; }
     setBase(result.data); setFields(result.data.fields); setLatest(null); setDirty(false); operation.current = null; setMessage('상품속성 정의를 저장했습니다. 기존 상품 값은 유지됩니다.');
   }
   async function copy() {
     if (!copyCategory || busy) return; setBusy(true); const result = await readGoodsAttributesAction(copyCategory); setBusy(false);
     if (!result.data?.schema) { setError(result.error ?? '정의를 불러오지 못했습니다.'); return; }
-    edit(result.data.schema.fields); setMessage('다른 카테고리의 항목 ID를 유지해 불러왔습니다. 저장 전 내용을 확인해주세요.');
+    edit(result.data.schema.fields); setMessage('다른 카테고리의 항목을 항목 번호까지 그대로 불러왔습니다. 저장하기 전에 이 카테고리에 맞는지 내용을 확인해주세요.');
   }
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-attributes">
     <AdminPageHeader title="상품속성 관리" description="대표 고객 카테고리별 상품 정보를 관리합니다. 옵션·상품정보제공고시와 별도로 저장하며, 네이버의 속성 사전을 자동으로 가져오지 않습니다." />

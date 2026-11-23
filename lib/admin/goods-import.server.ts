@@ -100,8 +100,8 @@ export async function loadGoodsWorkbookContext(
   const names = [
     ...new Set(rows.map((row) => row.values.preset).filter(Boolean)),
   ];
-  // 반입 키(ADR-0038): 상품번호 → 판매자상품코드. 상품번호는 상품 URL로 바꿔 함께 읽는다. 번호·코드가 모두 빈 행(새 상품)의
-  // 상품 URL은 키가 아니라 '이미 쓰는 URL인지' 확인하려고 함께 읽는다. 판매자상품코드로 이미 읽는 상품은 다시 넣지 않는다(합쳐 500건 상한).
+  // 반입 키(ADR-0038): 상품번호 → 상품 자동코드. 상품번호는 상품 URL로 바꿔 함께 읽는다. 번호·코드가 모두 빈 행(새 상품)의
+  // 상품 URL은 키가 아니라 '이미 쓰는 URL인지' 확인하려고 함께 읽는다. 상품 자동코드로 이미 읽는 상품은 다시 넣지 않는다(합쳐 500건 상한).
   const numbers = [...new Set(rows.map((row) => row.values.productNo.trim()).filter((value) => /^[1-9]\d{0,15}$/.test(value)))];
   const numbered = numbers.length
     ? await client.from('goods').select('id,code').in('product_no', numbers)
@@ -151,12 +151,12 @@ export async function loadGoodsWorkbookContext(
     ips.push(...(result.data ?? []));
     if ((result.data?.length ?? 0) < 1000) break;
   }
-  // 관리코드(옵션코드)는 전체에서 유일하다. 파일의 관리코드를 쓰는 상품을 미리 읽어 새 행·다른 상품의 중복을 미리보기에서 잡는다.
+  // 옵션 자동코드(옵션코드)는 전체에서 유일하다. 파일의 옵션 자동코드를 쓰는 상품을 미리 읽어 새 행·다른 상품의 중복을 미리보기에서 잡는다.
   const variantCodes = [...new Set(rows.map((row) => row.values.variantCode.trim().toUpperCase()).filter(Boolean))];
   const variantCodeOwners: Record<string, string> = {};
   for (let start = 0; start < variantCodes.length; start += 100) {
     const result = await client.from('goods_variants').select('code, goods!inner(code)').in('code', variantCodes.slice(start, start + 100));
-    if (result.error) throw new Error('현재 옵션 관리코드를 읽지 못했습니다. 다시 시도해주세요.');
+    if (result.error) throw new Error('현재 옵션 자동코드를 읽지 못했습니다. 다시 시도해주세요.');
     for (const row of (result.data ?? []) as unknown as { code: string; goods: { code: string } | { code: string }[] }[]) {
       const owner = Array.isArray(row.goods) ? row.goods[0] : row.goods;
       if (owner) variantCodeOwners[String(row.code).toUpperCase()] = String(owner.code).toUpperCase();
@@ -284,17 +284,17 @@ export function goodsImportErrorMessage(error?: string) {
   const categoryFailure = goodCategoryFailure(error);
   if (categoryFailure) return categoryFailure;
   if (error?.includes('category') || error?.includes('additional_categories'))
-    return '대표·추가 카테고리의 코드와 활성 말단 상태를 확인하고 다시 검증해주세요.';
+    return '대표·추가 카테고리 코드가 맞는지, 보관되지 않은 마지막 단계 카테고리인지 확인하고 다시 검증해주세요.';
   if (error?.includes('stock_changed'))
     return '미리보기 이후 재고가 바뀌었습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('changed') || error?.includes('conflict'))
     return '미리보기 이후 상품 정보가 바뀌었습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('duplicate') || error?.includes('code'))
-    return '판매자상품코드·관리코드가 이미 사용 중이거나 형식이 올바르지 않습니다.';
+    return '상품 자동코드·옵션 자동코드가 이미 사용 중이거나 형식이 올바르지 않습니다.';
   if (error?.includes('artwork') || error?.includes('images'))
     return '이미지를 저장하지 못했습니다. URL·ZIP 파일을 확인하고 다시 올려주세요.';
   if (error?.includes('publish') || error?.includes('origin'))
-    return '공개 필수 정보·이미지·출고지 설정을 확인해주세요.';
+    return '공개에 필요한 정보(대표 이미지·대표 카테고리·고시정보·출고지·KC 검토)와 출고지 설정을 확인하고 다시 검증해주세요.';
   return '상품 정보를 저장하지 못했습니다. 실패 행의 필수 정보와 옵션 구성을 확인하고 다시 올려주세요.';
 }
 export function goodsImportView(batch: GoodsImportBatch) {

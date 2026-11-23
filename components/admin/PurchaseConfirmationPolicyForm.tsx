@@ -20,7 +20,7 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
         buyerExtensionDays: draft.extension ? Number(draft.extension) : null, evidence: draft.evidence, acknowledged: draft.acknowledged }, policy.revision, crypto.randomUUID(), { actorId, sessionId });
       if (!session.current()) return;
       if ('policy' in result && result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); setMessage('구매확정 정책을 저장했습니다.'); }
-      else { setUncertain(true); setMessage(result.error ?? '현재 저장본을 확인해주세요.'); }
+      else { setUncertain(true); setMessage(result.error ?? '저장 결과를 확인하지 못했습니다. [현재 정책 다시 불러오기]로 저장된 내용을 확인해주세요.'); }
     });
   }
   return <form className="flex min-w-0 flex-col gap-4 text-sm" data-purchase-confirmation-policy="" onSubmit={e => { e.preventDefault(); save(); }}>
@@ -29,12 +29,12 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
       <AdminFormGrid><AdminField label="배송완료 후 자동 확정까지 (일)" inputId="confirmation-auto-days"><Input className="tabular-nums" id="confirmation-auto-days" type="number" min="1" max="36500" step="1" value={draft.days} onChange={e => setDraft({ ...draft, days: e.target.value })} /></AdminField>
         <AdminField label="구매자 1회 연장 기간 (일, 비우면 연장 미제공)" inputId="confirmation-extension"><Input className="tabular-nums" id="confirmation-extension" type="number" min="1" max="36500" step="1" value={draft.extension} onChange={e => setDraft({ ...draft, extension: e.target.value })} /></AdminField></AdminFormGrid>
       <AdminField label="정책 근거·운영 메모" inputId="confirmation-evidence"><Textarea id="confirmation-evidence" maxLength={2000} rows={3} value={draft.evidence} onChange={e => setDraft({ ...draft, evidence: e.target.value })} /></AdminField>
-      <p className="text-muted-foreground">모든 배송 건이 도착하고 진행 중인 클레임·보류가 없어야 확정합니다. 구매자 직접 확정은 자동 설정과 별개입니다. 반품·교환 기한은 배송일과 사유를 기준으로 계속 검사합니다.</p>
+      <p className="text-muted-foreground">모든 배송 건이 도착하고, 진행 중인 취소·반품·교환 요청이나 구매확정 보류가 없어야 자동 확정합니다. 구매자가 직접 확정하는 것은 이 자동 설정과 상관없습니다. 반품·교환 신청 기한은 확정 뒤에도 배송일과 사유를 기준으로 계속 적용합니다.</p>
       <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.acknowledged} onChange={e => setDraft({ ...draft, acknowledged: e.target.checked })} /><span>적용 시점·적립금 지급·반품/교환 자격을 확인했습니다.</span></label>
     </fieldset>
     <div className="flex flex-wrap items-center gap-2"><Button type="submit" disabled={disabled || !draft.acknowledged}>구매확정 정책 저장</Button><Button type="button" variant="outline" disabled={pending || session.blocked} onClick={() => start(async () => {
       const result = await readPurchaseConfirmationPolicyAction(); if (!session.current()) return;
       if ('policy' in result && result.policy) { setPolicy(result.policy); setDraft(draftOf(result.policy)); setUncertain(false); setMessage('현재 저장본을 불러왔습니다.'); } else setMessage(result.error ?? '조회하지 못했습니다.');
-    })}>현재 정책 다시 불러오기</Button></div>{message ? <p className="text-muted-foreground" role="status">{message}</p> : null}{session.blocked ? <p className="text-destructive" role="alert">로그인 상태가 바뀌었습니다. 다시 열어주세요.</p> : null}
+    })}>현재 정책 다시 불러오기</Button></div>{message ? <p className="text-muted-foreground" role="status">{message}</p> : null}{session.blocked ? <p className="text-destructive" role="alert">로그인 상태가 바뀌었습니다. 다시 로그인한 뒤 이 화면을 다시 열어주세요.</p> : null}
   </form>;
 }

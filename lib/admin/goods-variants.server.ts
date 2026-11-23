@@ -28,7 +28,7 @@ export async function loadAdminGoodsVariants(goodId?: string): Promise<AdminGood
     'admin_list_goods_variant_external_identities',
     { target_good_id: goodId ?? null },
   );
-  if (externalError) throw new Error('옵션 ERP 식별자를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+  if (externalError) throw new Error('옵션의 ERP 코드·바코드·ERP 품명을 불러오지 못했습니다. 잠시 후 새로고침해주세요.');
   const externalByVariant = new Map<string, {
     erpCode: string | null;
     erpName: string | null;

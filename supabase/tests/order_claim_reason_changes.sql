@@ -17,14 +17,14 @@ insert into private.operator_memberships(profile_id,manager_role) values
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values(pg_temp.reason_id('origin',1),'claim-reason-origin','사유 정정 합성 출고지','hanjin',3000,'합성 반송 주소',true);
 insert into public.ips(id,title,vertical_key) values('claim-reason-ip','사유 정정 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('claim-reason-good','claim-reason-ip','사유 정정 합성 상품','문구',10000,'ok',100,pg_temp.reason_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('claim-reason-good','claim-reason-ip','사유 정정 합성 상품',10000,'ok',100,pg_temp.reason_id('origin',1));
 insert into public.orders(id,user_id,status,total,shipping_fee,address,created_at,delivered_at)
  select pg_temp.reason_id('order',n),pg_temp.reason_id('user',3),case when n=17 then 'canceled'::public.order_status else 'delivered'::public.order_status end,13000,3000,
  '{"recipientName":"합성 고객","phone":"01000000000","postalCode":"12345","address1":"합성시 검증로 1"}',
  '2019-12-20T00:00:00Z',case when n=24 then null else '2020-01-01T00:00:00Z'::timestamptz end from generate_series(1,28)n;
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price)
- select pg_temp.reason_id('item',n),pg_temp.reason_id('order',n),'claim-reason-good',v.id,'사유 정정 합성 상품','문구','claim-reason-ip',1,10000
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price)
+ select pg_temp.reason_id('item',n),pg_temp.reason_id('order',n),'claim-reason-good',v.id,'사유 정정 합성 상품','claim-reason-ip',1,10000
  from generate_series(1,28)n cross join public.goods_variants v where v.good_id='claim-reason-good' and v.is_default;
 create function pg_temp.reason_shipments(n integer) returns void language plpgsql as $$declare lines jsonb;quote jsonb;begin
  select jsonb_agg(jsonb_build_object('origin_id',origin_id_snapshot,'good_id',good_id,'qty',qty,'unit_price',unit_price,'fee_type',shipping_fee_type_snapshot,'individual_fee',individual_fee_snapshot)) into lines

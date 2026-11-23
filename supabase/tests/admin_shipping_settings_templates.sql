@@ -14,11 +14,11 @@ insert into public.ips(id,title,vertical_key,published_at) values('shipping-temp
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active) values
  ('a0000000-0000-4000-8000-000000063240','shipping-template-origin','합성 출고지','hanjin',3100,40000,'합성 반송 주소',true),
  ('00000000-0000-4000-8000-000000063241','shipping-template-inactive','합성 비활성 출고지','hanjin',2000,null,'합성 주소',false);
-insert into public.goods(id,code,ip_id,name,type,price,stock,individual_fee)
- select 'shipping-template-good-'||lpad(n::text,3,'0'),'SHIPPING-TEMPLATE-'||lpad(n::text,3,'0'),'shipping-template-ip','합성 상품 '||n,'문구',1000,'ok',100 from generate_series(1,101)n;
+insert into public.goods(id,code,ip_id,name,price,stock,individual_fee)
+ select 'shipping-template-good-'||lpad(n::text,3,'0'),'SHIPPING-TEMPLATE-'||lpad(n::text,3,'0'),'shipping-template-ip','합성 상품 '||n,1000,'ok',100 from generate_series(1,101)n;
 insert into public.orders(id,user_id,status,total,address) values('00000000-0000-4000-8000-000000063250','00000000-0000-4000-8000-000000063202','pending',1000,'{}');
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select '00000000-0000-4000-8000-000000063250','shipping-template-good-001',id,1,1000,'합성 주문 상품','문구','shipping-template-ip' from public.goods_variants where good_id='shipping-template-good-001' limit 1;
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select '00000000-0000-4000-8000-000000063250','shipping-template-good-001',id,1,1000,'합성 주문 상품','shipping-template-ip' from public.goods_variants where good_id='shipping-template-good-001' limit 1;
 create temp table shipping_template_order_before as select to_jsonb(i) snapshot from public.order_items i where order_id='00000000-0000-4000-8000-000000063250';
 create temp table shipping_template_origin_before as select to_jsonb(o) snapshot from public.fulfillment_origins o where id='a0000000-0000-4000-8000-000000063240';
 create function pg_temp.shipping_template_payload(origin uuid default 'a0000000-0000-4000-8000-000000063240',fee_type text default 'individual') returns jsonb language sql as $$

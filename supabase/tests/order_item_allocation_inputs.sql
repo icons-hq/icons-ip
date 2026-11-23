@@ -8,12 +8,12 @@ update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000
 insert into private.operator_memberships(profile_id,manager_role) values('00000000-0000-4000-8000-000000271601','primary');
 insert into public.verticals(key,label,color) values('allocation-input','배분 입력','#000000');
 insert into public.ips(id,title,vertical_key) values('allocation-input','배분 입력','allocation-input');
-insert into public.goods(id,ip_id,name,type,price) values('allocation-input','allocation-input','배분 키링','문구',6000);
+insert into public.goods(id,ip_id,name,price) values('allocation-input','allocation-input','배분 키링',6000);
 insert into public.orders(id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address) values
  ('54000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000271602','paid',11500,3000,1000,500,'{}');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,regular_unit_price_snapshot,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,regular_unit_price_snapshot,good_name_snapshot,good_ip_id_snapshot)
 select ('74000000-0000-4000-8000-00000000000'||n)::uuid,'54000000-0000-4000-8000-000000000001',good_id,id,n,case n when 1 then 6000 else 2000 end,
- case n when 1 then 7000 end,'배분 키링','문구','allocation-input'
+ case n when 1 then 7000 end,'배분 키링','allocation-input'
 from public.goods_variants cross join generate_series(1,2) n where good_id='allocation-input' and is_default;
 insert into public.coupons(code,name,discount_type,discount_value,starts_at) values('ALLOC-QA','배분 쿠폰','fixed',1000,'2026-01-01');
 insert into public.user_coupons(id,coupon_code,user_id,issued_source,issued_at) values

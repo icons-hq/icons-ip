@@ -22,7 +22,7 @@ describe('global credit actions',()=>{
  });
  it('does not claim success when execution or readback is uncertain',async()=>{
   mocks.rpc.mockResolvedValueOnce({data:batch,error:null}).mockResolvedValueOnce({data:null,error:{message:'offline'}});
-  expect((await executeStoreCreditBatchAction(form())).error).toContain('다시 읽지 못했습니다');expect(mocks.revalidate).not.toHaveBeenCalled();
+  expect((await executeStoreCreditBatchAction(form())).error).toContain('저장된 결과를 읽지 못했습니다');expect(mocks.revalidate).not.toHaveBeenCalled();
   mocks.rpc.mockResolvedValue({data:{...batch,id:'22222222-2222-4222-8222-222222222222'},error:null});expect((await readStoreCreditBatchAction(id)).error).toBeTruthy();
  });
  it('validates amount and calendar time and resolves only exact target identifiers',async()=>{

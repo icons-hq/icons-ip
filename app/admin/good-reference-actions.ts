@@ -17,7 +17,7 @@ export async function resolveGoodReferencesAction(refs: unknown): Promise<GoodRe
     if (!await requireAdminActionAccess('/admin', { capability: 'catalog.read' })) return { ok: false, error: ACCESS_DENIED };
     if (!Array.isArray(refs) || refs.length < 1 || refs.length > GOOD_REFERENCE_LIMIT
       || refs.some(ref => typeof ref !== 'string' || ref !== ref.trim() || !ref || [...ref].length > GOOD_REFERENCE_MAX_LENGTH)
-      || new Set(refs).size !== refs.length) return { ok: false, error: '조회할 상품 URL·판매자상품코드를 확인해주세요.' };
+      || new Set(refs).size !== refs.length) return { ok: false, error: '조회할 상품 URL·상품 자동코드를 확인해주세요.' };
     const { resolveGoodReferences } = await import('@/lib/admin/good-references.server');
     return { ok: true, matches: await resolveGoodReferences(refs as string[]) };
   } catch (error) {
@@ -51,12 +51,12 @@ export async function readGoodReferenceFileAction(formData: FormData): Promise<G
     if (!(file instanceof File) || file.size === 0) return { ok: false, error: '읽을 파일을 선택해주세요.' };
     if (/\.xls$/i.test(file.name)) return { ok: false, error: 'XLS 파일은 엑셀에서 XLSX로 다시 저장하거나, 열을 복사해 붙여넣어 주세요.' };
     if (!/\.(xlsx|csv|tsv|txt)$/i.test(file.name)) return { ok: false, error: 'XLSX 또는 CSV 파일을 올려주세요.' };
-    if (file.size > ERP_ITEM_FILE_BYTES_LIMIT) return { ok: false, error: '파일은 900KB 이하로 올려주세요. 판매자상품코드·상품 URL 한 열만 남겨 저장해주세요.' };
+    if (file.size > ERP_ITEM_FILE_BYTES_LIMIT) return { ok: false, error: '파일은 900KB 이하로 올려주세요. 상품 자동코드·상품 URL 한 열만 남겨 저장해주세요.' };
     const { readErpItemFile } = await import('@/lib/admin/erp-item-file.server');
     const read = await readErpItemFile(file.name, Buffer.from(await file.arrayBuffer()));
     const width = Math.max(0, ...read.table.map(row => row.length));
     const columns = Array.from({ length: width }, (_, index) => index);
-    /* 상품 엑셀(v8)의 첫 열은 시스템 상품번호다. 머리글이 있으면 판매자상품코드·상품 URL 열을 골라 읽고, 번호 열은 읽지 않는다(T22i). */
+    /* 상품 엑셀(v8)의 첫 열은 시스템 상품번호다. 머리글이 있으면 상품 자동코드·상품 URL 열을 골라 읽고, 번호 열은 읽지 않는다(T22i). */
     const header = read.table[0] ?? [];
     const firstWithValues = columns.find(index => read.table.some(row => (row[index] ?? '').trim()));
     const keyColumn = columns.find(index => isGoodReferenceKeyHeader(header[index] ?? ''));

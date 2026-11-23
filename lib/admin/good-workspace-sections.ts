@@ -106,7 +106,7 @@ export function goodWorkspaceKcWithTemplate(kc: GoodWorkspaceKcDraft, template: 
   return kc.models.length >= MAX_GOODS_KC_MODELS ? null : { models: [...kc.models, model], attested: false };
 }
 
-/** KC 편집기·옵션 선택에 쓰는 옵션 목록(화면 id·이름·관리코드·사용 여부). */
+/** KC 편집기·옵션 선택에 쓰는 옵션 목록(화면 id·이름·옵션 자동코드·사용 여부). */
 export function goodWorkspaceKcVariants(rows: readonly GoodsOptionRow[]): GoodsKcVariant[] {
   return rows.map((row, index) => ({ id: goodWorkspaceVariantId(row), code: row.code.trim() || '저장 시 생성',
     name: row.name.trim() || `옵션 ${index + 1}`, active: row.isActive !== false }));
@@ -231,13 +231,13 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canMa
     sections.kc = { status: kc.status as 'unreviewed' | 'reviewed', attested: kc.attested, expectedRevision: null, expectedContextFingerprint: null, models };
   }
   if (value.preorders !== undefined) {
-    if (!Array.isArray(value.preorders) || value.preorders.length > 100) return { ok: false, field: 'workspacePreorders', error: '예약 조건 입력을 확인해주세요.' };
+    if (!Array.isArray(value.preorders) || value.preorders.length > 100) return { ok: false, field: 'workspacePreorders', error: '예약 조건을 읽지 못했습니다. 화면을 새로고침한 뒤 예약 조건을 다시 입력해주세요.' };
     const preorders: NonNullable<GoodWorkspaceRpcSections['preorders']> = [];
     for (const [index, entry] of value.preorders.entries()) {
       const label = `예약 조건 ${index + 1}`;
       const variant = record(entry) ? parseRef(entry.variant) : null;
       const values = record(entry) && record(entry.values) && entry.values.state === 'active' ? parseGoodsPreorderInput(entry.values) : null;
-      if (!variant || !values) return { ok: false, field: 'workspacePreorders', error: `${label}: 예약 물량·접수 기간·발송 예정일과 대상 옵션을 확인해주세요.` };
+      if (!variant || !values) return { ok: false, field: 'workspacePreorders', error: `${label}: 예약 물량(1 이상의 정수)·접수 기간(종료가 시작보다 뒤)·발송 예정일(접수 종료일과 같거나 뒤)과 예약 대상 옵션을 확인해주세요.` };
       preorders.push({ variant, policyId: null, expectedRevision: null, values });
     }
     if (preorders.length) sections.preorders = preorders;
@@ -256,17 +256,17 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canMa
 
 /**
  * T15b(0901-008): 새 상품 원자 저장의 공개 결과(영수증 publish). 공개됐으면 null, 거절됐으면 저장은 끝났다는 문장과 이유.
- * 이유는 기존 '저장 후 공개' 오류 안내와 같은 문장을 쓴다(판정은 서버 공개 경로 그대로). 결과가 없으면 공개 여부를 모르므로 거절로 다룬다.
+ * 이유는 기존 [실제 등록] 공개 오류 안내와 같은 문장을 쓴다(판정은 서버 공개 경로 그대로). 결과가 없으면 공개 여부를 모르므로 거절로 다룬다.
  */
 export function goodWorkspacePublishRejection(publish: unknown): { message: string; kc: boolean } | null {
   const result = record(publish) ? publish as { published?: unknown; error?: unknown } : null;
   if (result?.published === true) return null;
   const reason = typeof result?.error === 'string' ? result.error : '';
-  const saved = adminGoodsCopy('굿즈를 저장했지만 공개하지 않았습니다.');
-  if (reason.includes('goods_kc_')) return { kc: true, message: `${saved} KC 검토를 마쳐야 공개할 수 있습니다. KC 정보에서 검토를 완료한 뒤 판매 준비에서 공개해주세요.` };
-  const why = reason.includes('goods_publish_incomplete') ? '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 판매 준비에서 공개해주세요.'
-    : /invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(reason) ? '활성 출고지를 고른 뒤 판매 준비에서 공개해주세요.'
-    : goodCategoryFailure(reason) ?? '공개 조건을 확인한 뒤 판매 준비에서 공개해주세요.';
+  const saved = adminGoodsCopy('굿즈를 초안으로 저장했고 아직 공개하지 않았습니다(고객 화면에는 보이지 않습니다).');
+  if (reason.includes('goods_kc_')) return { kc: true, message: `${saved} KC 검토를 마쳐야 공개할 수 있습니다. KC 정보에서 검토를 완료한 뒤 [실제 등록]을 다시 눌러주세요.` };
+  const why = reason.includes('goods_publish_incomplete') ? '대표 이미지·상품정보제공고시와 옵션을 채운 뒤 [실제 등록]을 다시 눌러주세요.'
+    : /invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(reason) ? '사용 중인 출고지를 고른 뒤 [실제 등록]을 다시 눌러주세요.'
+    : goodCategoryFailure(reason) ?? '공개 조건을 확인한 뒤 [실제 등록]을 다시 눌러주세요.';
   return { kc: false, message: `${saved} ${why}` };
 }
 
@@ -310,7 +310,7 @@ export function goodWorkspaceSectionFailure(message: string, code?: string): Par
     const reason = message.includes('preorder_policy_not_configured') ? '예약 물량·접수 기간·발송 예정일을 모두 입력해주세요(접수 종료는 지금 이후, 발송 예정일은 접수 종료일과 같거나 뒤).'
       : message.includes('preorder_runtime_not_ready') ? '예약판매 기능을 준비 중입니다. 아직 저장할 수 없습니다.'
       : message.includes('goods_variant_inactive') ? '사용 중지한 옵션에는 예약판매를 저장할 수 없습니다.'
-      : '예약 조건 입력을 확인해주세요.';
+      : '예약 조건을 저장하지 못했습니다. 예약 물량·접수 기간·발송 예정일과 예약 대상 옵션을 확인해주세요.';
     return { workspacePreorders: `${reason} 상품은 저장되지 않았고 입력은 유지됩니다.` };
   }
   if (message.includes('invalid_goods_workspace_request')) return { form: '저장 요청을 확인하지 못했습니다. 새로고침 후 다시 시도해주세요. 입력은 유지됩니다.' };

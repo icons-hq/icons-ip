@@ -124,7 +124,7 @@ export function normalizeAdminCouponFilters(
     status: rawStatus === 'active' || rawStatus === 'archived' ? rawStatus : 'all',
     page: Number.isSafeInteger(rawPage) && rawPage > 0 ? Math.min(rawPage, 100000) : 1,
     selectedCode: CODE_PATTERN.test(rawSelectedCode) ? rawSelectedCode : null,
-    ...(invalidDate ? { inputError: '조회 시작일과 종료일을 확인해주세요.' } : {}),
+    ...(invalidDate ? { inputError: '조회 시작일이 종료일보다 늦거나 날짜 형식이 맞지 않습니다. 날짜를 다시 골라주세요.' } : {}),
     ...(from ? { from } : {}), ...(to ? { to } : {}),
     ...(phase !== 'all' && COUPON_PHASES.some(option => option.value === phase) ? { phase } : {}),
     ...(['fixed', 'percent'].includes(discountType) ? { discountType } : {}),
@@ -200,8 +200,8 @@ export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormRes
   if (targeting.ok && targeting.value.issuanceMode === 'targeted' && rawGradeBenefit) errors.gradeBenefit = '고객 지정 쿠폰은 등급 자동 발급과 함께 설정할 수 없습니다.';
   const benefitKind = readString(formData, 'benefitKind') || 'goods';
   const stackableRaw = readString(formData, 'stackable') || 'false';
-  if (!['goods', 'shipping'].includes(benefitKind)) errors.benefitKind = '할인 대상을 확인해주세요.';
-  if (!['true', 'false'].includes(stackableRaw)) errors.stackable = '중복 사용 여부를 확인해주세요.';
+  if (!['goods', 'shipping'].includes(benefitKind)) errors.benefitKind = '할인 대상(상품 할인·배송비 할인)을 골라주세요.';
+  if (!['true', 'false'].includes(stackableRaw)) errors.stackable = '다른 쿠폰과 중복 사용 여부를 골라주세요.';
 
   if (!CODE_PATTERN.test(code)) {
     errors.code = '코드는 대문자·숫자·하이픈 3~24자로 입력해주세요.';
@@ -216,11 +216,11 @@ export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormRes
     errors.status = '상태를 선택해주세요.';
   }
   if (rawGradeBenefit && !GRADE_SET.has(rawGradeBenefit)) {
-    errors.gradeBenefit = '등급 혜택 값을 확인해주세요.';
+    errors.gradeBenefit = '등급 혜택의 등급을 목록에서 다시 골라주세요.';
   }
   const rawCadence = readString(formData, 'gradeBenefitCadence');
   if (rawGradeBenefit && rawCadence && !isGradeBenefitCadence(rawCadence)) {
-    errors.gradeBenefitCadence = '등급 혜택 지급 방식을 확인해주세요.';
+    errors.gradeBenefitCadence = '등급 혜택 지급 방식(승급 시 1회·매월 1일)을 골라주세요.';
   }
 
   const discountValueRaw = readString(formData, 'discountValue');

@@ -105,8 +105,8 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_collection_completed': '회수 완료',
   'admin.order.claim_type_changed': '반품·교환 유형 전환',
   'admin.order.claim_reason_changed': '교환 사유 정정',
-  'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
-  'admin.order.cancellation_rejected': '청약철회 거절 (레거시 경로)',
+  'admin.order.cancellation_approved': '청약철회 승인 (이전 처리 방식)',
+  'admin.order.cancellation_rejected': '청약철회 거절 (이전 처리 방식)',
   'admin.order.cancellation_completed': '결제 취소 확인 · 주문 취소 완료',
   'system.order.cancellation_completed': '결제 취소 확인 · 주문 취소 완료 (자동)',
   'admin.order.cancellation_needs_review': '결제 취소 확인 필요',
@@ -359,7 +359,7 @@ export function ClaimDetailScreen({
           <p className="mt-1.5 text-xs text-muted-foreground">
             {refundAccount.purgedAt
               ? '원문은 파기됐습니다. 송금이 필요하면 구매자에게 다시 요청하세요.'
-              : '기본 화면에는 마스킹된 계좌만 표시합니다. 무통장 환불 담당자는 아래 처리에서 열람 기록을 남긴 뒤 원문을 확인할 수 있습니다. 요청 종결 또는 교환 전환 후 30일이 지나면 원문을 파기합니다.'}
+              : '기본 화면에는 계좌번호 일부를 가려 보여 줍니다. 무통장 환불 담당자는 아래 처리에서 열람 기록을 남긴 뒤 원문을 확인할 수 있습니다. 요청 종결 또는 교환 전환 후 30일이 지나면 원문을 파기합니다.'}
           </p>
         </div>
       ) : null}
@@ -388,7 +388,7 @@ export function ClaimDetailScreen({
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {awaitsOperator ? <Link className={`${buttonVariants({ variant: 'soft' })} lg:hidden`} data-slot="button" href="#claim-process">처리하기</Link> : null}
           {embedded && detailHref ? <ClaimPreviewFullScreenLink href={detailHref} /> : null}
-          <nav aria-label="클레임 상세 항목" className="inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg bg-muted p-0.5">
+          <nav aria-label="요청 상세 항목" className="inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg bg-muted p-0.5">
             <Link className={SECTION_LINK_CLASS} href="#claim-order">주문정보</Link>
             <Link className={SECTION_LINK_CLASS} href="#claim-request">요청·처리이력</Link>
             <Link className={SECTION_LINK_CLASS} href="#claim-process">{typeLabel} 처리</Link>

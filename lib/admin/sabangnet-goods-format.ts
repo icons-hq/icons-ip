@@ -79,7 +79,7 @@ export const SABANGNET_TARGETS: readonly {
 }[] = [
   { key: 'ignore', label: '가져오지 않음', multiple: true },
   { key: 'name', label: '상품명' },
-  { key: 'code', label: '판매자상품코드' },
+  { key: 'code', label: '상품 자동코드' },
   // 사방넷 판매가는 고객 결제 금액이다. TAG가가 더 크면 ICONS 판매가는 TAG가, 차액은 즉시할인이 된다(상품 엑셀 v8과 같은 뜻).
   { key: 'price', label: '판매가(고객 결제 금액)' },
   { key: 'compareAtPrice', label: 'TAG가(할인 전 판매가)' },

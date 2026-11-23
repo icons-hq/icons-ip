@@ -5,7 +5,7 @@ import { isUuid } from '@/lib/uuid';
 import { parseReviewExportSnapshot, type ReviewExportFilters } from './review-export';
 
 const AUTH_MESSAGE = '로그인 상태나 리뷰 관리 권한이 바뀌었습니다. 화면을 새로고침한 뒤 다시 내려받아 주세요.';
-const CHANGED_MESSAGE = '리뷰 목록이나 도움수 등이 바뀌어 파일을 발급하지 않았습니다. 같은 조건으로 다시 내려받아 주세요.';
+const CHANGED_MESSAGE = '내려받는 사이 리뷰 목록이나 도움수 등이 바뀌어 파일을 만들지 않았습니다. 같은 조건으로 다시 내려받아 주세요.';
 export class ReviewExportError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
@@ -31,7 +31,7 @@ export async function prepareReviewExport(expectedActorId: string, filters: Revi
   const { data, error } = await client.rpc('admin_export_reviews_v2', { p_filters: filters });
   if (error?.code === '42501') throw new ReviewExportError(AUTH_MESSAGE, 403);
   if (error?.code === '54000') throw new ReviewExportError('최대 10,000건까지 내려받을 수 있습니다. 검색 조건을 좁혀 다시 시도해주세요.', 422);
-  if (error?.code === '22023') throw new ReviewExportError('다운로드 조건을 확인해주세요.', 400);
+  if (error?.code === '22023') throw new ReviewExportError('검색 조건을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 내려받아 주세요.', 400);
   const snapshot = error ? null : parseReviewExportSnapshot(data, filters);
   if (!snapshot) throw new ReviewExportError('리뷰 목록을 확인하지 못해 파일을 만들지 않았습니다. 잠시 후 다시 시도해주세요.', 503);
   return {
@@ -46,7 +46,7 @@ export async function prepareReviewExport(expectedActorId: string, filters: Revi
       });
       if (audit.error?.code === '42501') throw new ReviewExportError(AUTH_MESSAGE, 403);
       if (audit.error?.code === 'PT409' || audit.error?.code === '54000') throw new ReviewExportError(CHANGED_MESSAGE, 409);
-      if (audit.error || !isUuid(audit.data)) throw new ReviewExportError('발급 기록이나 현재 권한을 확인하지 못해 파일을 발급하지 않았습니다. 다시 시도해주세요.', 503);
+      if (audit.error || !isUuid(audit.data)) throw new ReviewExportError('내려받기 기록을 남기지 못했거나 권한을 확인하지 못해 파일을 만들지 않았습니다. 다시 시도해주세요.', 503);
       return audit.data;
     },
   };

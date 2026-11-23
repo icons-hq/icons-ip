@@ -32,8 +32,10 @@ const document = {
 
 describe('재고 파일 대조 — 표 읽기', () => {
   it('ERP·창고 파일 머리글을 자동으로 짝짓는다(상품코드는 ERP 코드로 읽는다)', () => {
-    expect(defaultStockColumnMapping(['품목코드', '품목명', '바코드', '현재고', '판매자상품코드', '관리코드']))
+    expect(defaultStockColumnMapping(['품목코드', '품목명', '바코드', '현재고', '상품 자동코드', '옵션 자동코드']))
       .toEqual(['erpCode', 'ignore', 'barcode', 'quantity', 'goodsCode', 'optionCode']);
+    /* 2026-11-19 전 어드민 이름(관리코드·판매자상품코드)의 파일도 같은 칸으로 읽는다(ADR-0048). */
+    expect(defaultStockColumnMapping(['관리코드', '판매자상품코드', '재고수량'])).toEqual(['optionCode', 'goodsCode', 'quantity']);
     expect(defaultStockColumnMapping(['상품코드', '재고 수량'])).toEqual(['erpCode', 'quantity']);
     expect(defaultStockColumnMapping(['재고', '실재고'])).toEqual(['ignore', 'quantity']);
   });
@@ -80,9 +82,9 @@ describe('재고 파일 대조 — 표 읽기', () => {
   it('수량 열이나 코드 열이 없으면 막고, 행 수 상한을 지킨다', () => {
     expect(buildStockReconcilePlan([['품번', '품명'], ['A', 'B']]).blocking).toContain('재고 수량 열');
     expect(buildStockReconcilePlan([['품명', '재고수량'], ['A', '1']]).blocking).toContain('한 열 이상');
-    const many = [['관리코드', '재고수량'], ...Array.from({ length: STOCK_RECONCILE_ROW_LIMIT + 1 }, (_, index) => [`C${index}`, '1'])];
+    const many = [['옵션 자동코드', '재고수량'], ...Array.from({ length: STOCK_RECONCILE_ROW_LIMIT + 1 }, (_, index) => [`C${index}`, '1'])];
     expect(buildStockReconcilePlan(many).blocking).toContain('2,000행');
-    expect(buildStockReconcilePlan([['관리코드', '재고수량']]).blocking).toBe('대조할 행이 없습니다.');
+    expect(buildStockReconcilePlan([['옵션 자동코드', '재고수량']]).blocking).toBe('대조할 행이 없습니다.');
   });
 
   it('서버는 브라우저 행을 다시 검사하고 RPC 형식으로 바꾼다', () => {

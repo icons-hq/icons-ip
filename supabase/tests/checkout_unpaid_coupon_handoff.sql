@@ -28,9 +28,9 @@ update public.profiles set email='d8-'||right(id::text,1)||'@example.test',nickn
 insert into public.ips(id,title,vertical_key,published_at) values('d8-ip','TEST D8 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('d8000000-0000-4000-8000-000000000010','d8-origin','TEST D8 출고지','hanjin',3000,'TEST 합성 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type) values
- ('d8-a','d8-ip','TEST D8 A','문구',12000,'ok',20,'d8000000-0000-4000-8000-000000000010','policy'),
- ('d8-b','d8-ip','TEST D8 B','문구',15000,'ok',20,'d8000000-0000-4000-8000-000000000010','policy');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type) values
+ ('d8-a','d8-ip','TEST D8 A',12000,'ok',20,'d8000000-0000-4000-8000-000000000010','policy'),
+ ('d8-b','d8-ip','TEST D8 B',15000,'ok',20,'d8000000-0000-4000-8000-000000000010','policy');
 insert into private.operator_memberships(profile_id,manager_role) values('d8000000-0000-4000-8000-000000000001','primary');
 update private.operator_access_state set configured=true where id;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)

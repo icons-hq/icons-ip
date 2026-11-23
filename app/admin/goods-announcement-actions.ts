@@ -11,7 +11,7 @@ import { loadGoodsAnnouncement, searchGoodsForAnnouncement } from '@/lib/admin/g
 export interface GoodsAnnouncementActionState { errors?: Record<string, string>; message?: string; saved?: GoodsAnnouncement; savedId?: string; outcome?: 'saved' | 'rejected' | 'unknown'; reloadRequired?: boolean }
 async function readSavedAnnouncement(previous: GoodsAnnouncementActionState, id: string, result: unknown): Promise<GoodsAnnouncementActionState> {
   if (!result || typeof result !== 'object' || !('id' in result) || result.id !== id || !('revision' in result)
-    || !Number.isSafeInteger(result.revision) || Number(result.revision) < 1) return { saved: previous.saved, outcome: 'unknown', errors: { form: '저장 결과를 확인하지 못했습니다. 같은 요청의 결과를 다시 확인해주세요.' } };
+    || !Number.isSafeInteger(result.revision) || Number(result.revision) < 1) return { saved: previous.saved, outcome: 'unknown', errors: { form: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'저장 결과 확인\'을 다시 눌러주세요.' } };
   revalidatePath(GOODS_ANNOUNCEMENTS_PATH); revalidateGoodsSurfaces();
   const saved = await loadGoodsAnnouncement(id);
   if (!saved) return { saved: previous.saved, savedId: id, outcome: 'saved', reloadRequired: true, message: '저장이 확인됐습니다. 최신 공지를 다시 열어주세요.' };
@@ -24,7 +24,7 @@ export async function saveGoodsAnnouncementAction(previous: GoodsAnnouncementAct
   if (!access) return fail({ form: '관리자 권한이 필요합니다.' });
   if (form.get('accountId') !== access.user.id) return fail({ form: '로그인 계정이 바뀌었습니다. 현재 계정으로 공지 화면을 다시 열어주세요.' });
   const operationId = form.get('operationId');
-  if (!isUuid(operationId)) return fail({ form: '저장 요청을 다시 준비해주세요.' });
+  if (!isUuid(operationId)) return fail({ form: '저장 요청을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 저장해주세요.' });
   const parsed = parseGoodsAnnouncementInput(form);
   if (!parsed.ok) return fail(parsed.errors);
   let confirmed = false;
@@ -44,7 +44,7 @@ export async function saveGoodsAnnouncementAction(previous: GoodsAnnouncementAct
   } catch (error) {
     unstable_rethrow(error);
     if (confirmed) return { saved: previous.saved, savedId: parsed.id, outcome: 'saved', reloadRequired: true, message: '저장이 확인됐지만 최신 내용을 불러오지 못했습니다. 저장된 공지를 다시 열어주세요.' };
-    return fail({ form: '저장 결과가 아직 확인되지 않았습니다. 입력을 고정한 채 같은 요청의 결과를 확인해주세요.' }, 'unknown');
+    return fail({ form: '저장됐는지 아직 확인하지 못했습니다. 입력을 바꾸지 말고 \'저장 결과 확인\'을 눌러주세요.' }, 'unknown');
   }
 }
 export async function resolveGoodsAnnouncementSaveAction(previous: GoodsAnnouncementActionState, operationId: string, id: string, accountId: string): Promise<GoodsAnnouncementActionState> {
@@ -58,7 +58,7 @@ export async function resolveGoodsAnnouncementSaveAction(previous: GoodsAnnounce
     const client = await createClient();
     const { data, error } = await client.rpc('admin_get_goods_announcement_save_result', { p_operation_id: operationId });
     if (error) return unknown('결과 조회에 실패했습니다. 원래 저장 요청을 유지합니다.');
-    if (data === null) return unknown('현재 등록된 결과가 없습니다. 같은 요청 다시 저장으로 재시도해주세요.');
+    if (data === null) return unknown('저장된 결과가 없습니다. \'같은 요청 다시 저장\'을 눌러 다시 저장해주세요.');
     confirmed = Boolean(data && data.id === id && Number.isSafeInteger(data.revision) && data.revision > 0);
     return await readSavedAnnouncement(previous, id, data);
   } catch (error) {

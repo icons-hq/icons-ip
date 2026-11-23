@@ -35,9 +35,9 @@ function refreshStorefrontMenus() {
 }
 const NODE_IMAGE_PATH = /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 function fail(error?: { code?: string }): CategoryDisplayFailure {
-  if (error?.code === 'PT409') return { error: '다른 작업에서 전시 구성이 바뀌었습니다. 입력을 보관한 뒤 최신 저장본을 불러와주세요.', conflict: true };
-  if (['22023', '42501', '28000', '23514', '23503', '23505', 'P0002'].includes(error?.code ?? '')) return { error: '현재 권한·카테고리·상품·업로드한 이미지를 확인해주세요. 입력은 유지됩니다.' };
-  return { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 결과를 다시 확인해주세요.', uncertain: true };
+  if (error?.code === 'PT409') return { error: '다른 사람이 먼저 전시 구성을 바꿨습니다. 지금 입력은 따로 적어 둔 뒤 최신 저장본 불러오기를 눌러 다시 입력해주세요.', conflict: true };
+  if (['22023', '42501', '28000', '23514', '23503', '23505', 'P0002'].includes(error?.code ?? '')) return { error: '저장하지 못했습니다. 스토어 관리 권한이 있는지, 고른 카테고리·상품이 그사이 삭제·보관되지 않았는지, 이미지 업로드가 끝났는지 확인한 뒤 다시 저장해주세요. 입력은 유지됩니다.' };
+  return { error: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.', uncertain: true };
 }
 export async function updateCategoryDisplayTreeAction(input: unknown, expectedRevision: number, operationId: string, expectedActorId: string): Promise<CategoryDisplayTreeResult> {
   try {
@@ -62,7 +62,7 @@ export async function updateCategoryDisplayNodeImageAction(nodeId: string, image
     const auth = await requireAdminActionAccess(CATEGORY_DISPLAY_ADMIN_PATH, { capability: 'store.manage' });
     if (!auth || auth.user.id !== expectedActorId) return { error: '로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.' };
     if (!isUuid(nodeId) || !isUuid(operationId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0
-      || imagePath !== null && (typeof imagePath !== 'string' || !NODE_IMAGE_PATH.test(imagePath))) return { error: '아이콘 이미지와 저장 기준을 확인해주세요.' };
+      || imagePath !== null && (typeof imagePath !== 'string' || !NODE_IMAGE_PATH.test(imagePath))) return { error: '아이콘을 적용하지 못했습니다. 이미지를 다시 올려주세요. 계속되면 최신 분류를 불러온 뒤 다시 올려주세요.' };
     const client = await createClient(), { data, error } = await client.rpc('admin_set_category_display_node_image', {
       p_node_id: nodeId, p_image_path: imagePath, p_expected_revision: expectedRevision, p_operation_id: operationId,
     });
@@ -89,7 +89,7 @@ export async function saveCategoryDisplayAction(categoryId: string, input: unkno
     const auth = await requireAdminActionAccess(CATEGORY_DISPLAY_ADMIN_PATH, { capability: 'store.manage' });
     if (!auth || auth.user.id !== expectedActorId) return { error: '로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.' };
     const values = parseCategoryDisplayValues(input);
-    if (!values || !isUuid(categoryId) || !isUuid(operationId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return { error: '전시 설정과 저장 기준을 확인해주세요.' };
+    if (!values || !isUuid(categoryId) || !isUuid(operationId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return { error: '저장할 수 없는 전시 설정이 있습니다. 입력을 확인한 뒤 다시 저장하고, 계속되면 최신 저장본 불러오기를 눌러 다시 입력해주세요.' };
     const client = await createClient(), { data, error } = await client.rpc('admin_save_category_display', { p_category_id: categoryId, p_values: values, p_expected_revision: expectedRevision, p_operation_id: operationId });
     if (error) return fail(error);
     const snapshot = parseCategoryDisplaySnapshot(data);
@@ -111,11 +111,11 @@ export async function previewCategoryDisplayAction(categoryId: string, input: un
     const auth = await requireAdminActionAccess(CATEGORY_DISPLAY_ADMIN_PATH, { capability: 'store.manage' });
     if (!auth || auth.user.id !== expectedActorId) return { error: '로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.' };
     const values = parseCategoryDisplayValues(input);
-    if (!values || !isUuid(categoryId)) return { error: '미리볼 입력값을 확인해주세요.' };
+    if (!values || !isUuid(categoryId)) return { error: '미리볼 수 없는 입력이 있습니다. 켠 배너에는 PC 이미지를, 켠 동영상에는 상품을, 켠 추천상품에는 제목을 넣은 뒤 저장 전 미리보기를 다시 눌러주세요.' };
     const client = await createClient(), { data, error } = await client.rpc('admin_preview_category_display', { p_category_id: categoryId, p_values: values, p_query: categoryDisplaySqlQuery(query) });
     if (error) return { error: '미리보기를 불러오지 못했습니다. 입력은 유지됩니다.' };
     const page = data === null ? null : parseCategoryDisplayPage(data, query);
-    if (data !== null && (!page || page.category.id !== categoryId || page.offset !== 0)) return { error: '미리보기 결과를 확인하지 못했습니다.' };
+    if (data !== null && (!page || page.category.id !== categoryId || page.offset !== 0)) return { error: '미리보기 결과를 확인하지 못했습니다. 저장 전 미리보기를 다시 눌러주세요.' };
     return { page: page ? await hydrateCategoryDisplayPage(page, client) : null };
   } catch (error) { unstable_rethrow(error); return { error: '미리보기를 불러오지 못했습니다. 입력은 유지됩니다.' }; }
 }

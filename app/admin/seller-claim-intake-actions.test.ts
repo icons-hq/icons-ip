@@ -32,7 +32,7 @@ describe('판매자 직접 접수 액션', () => {
     mocks.rpc.mockRejectedValueOnce(new Error('network'));
     expect(await submitSellerClaimIntakeAction(sellerClaimInputFixture)).toMatchObject({ uncertain: true });
     mocks.rpc.mockResolvedValueOnce({ error: { message: 'not_claimable', code: '23514' } });
-    expect(await submitSellerClaimIntakeAction(sellerClaimInputFixture)).toMatchObject({ uncertain: false, error: expect.stringContaining('실제 발송된 배송 중 주문') });
+    expect(await submitSellerClaimIntakeAction(sellerClaimInputFixture)).toMatchObject({ uncertain: false, error: expect.stringContaining('상품이 실제로 발송된 뒤(배송중부터)') });
     mocks.rpc.mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ data: null, error: { message: 'read failed' } });
     expect(await submitSellerClaimIntakeAction(sellerClaimInputFixture)).toMatchObject({ uncertain: true });
     mocks.rpc.mockResolvedValueOnce({ data: sellerClaimReceiptFixture, error: null });

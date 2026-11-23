@@ -57,8 +57,8 @@ update public.profiles set nickname=case when id='${first_user}' then 'variant_r
  where id in ('${first_user}','${second_user}');
 insert into public.verticals(key,label,color) values ('variant-expand-race','옵션 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('variant-expand-race','옵션 경합','variant-expand-race',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('variant-expand-race','variant-expand-race','마지막 옵션 상품','문구',12000,'ok',1,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
+values ('variant-expand-race','variant-expand-race','마지막 옵션 상품',12000,'ok',1,null);
 select pg_temp.publish_goods_kc_fixture('variant-expand-race');
 insert into public.cart_items(user_id,good_id,qty, variant_id) values
  ('${first_user}','variant-expand-race',1, (select id from public.goods_variants where good_id='variant-expand-race' and is_default)),('${second_user}','variant-expand-race',1, (select id from public.goods_variants where good_id='variant-expand-race' and is_default));

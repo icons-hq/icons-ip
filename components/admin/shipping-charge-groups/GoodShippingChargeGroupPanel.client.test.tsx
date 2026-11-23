@@ -146,7 +146,7 @@ it.each(['actor', 'session', 'good', 'group'] as const)('다른 %s 미리보기�
   if (kind === 'actor') wrong.actorId = ids.other; if (kind === 'session') wrong.sessionId = ids.other;
   if (kind === 'good') wrong.goods[0].id = 'other-good'; if (kind === 'group') wrong.group!.id = ids.other;
   mocks.preview.mockResolvedValueOnce({ data: wrong }); await mount(); await prepare();
-  expect(button('이 배정으로 저장')).toBeUndefined(); expect(text(node())).toContain('다른 미리보기'); expect(mocks.assign).not.toHaveBeenCalled();
+  expect(button('이 배정으로 저장')).toBeUndefined(); expect(text(node())).toContain('맞지 않는 미리보기'); expect(mocks.assign).not.toHaveBeenCalled();
 });
 it('서버 미리보기의 full guard가 불완전하면 저장 입력을 만들지 않는다', async () => {
   const { preview } = chargeAdminFixtures(); mocks.preview.mockResolvedValueOnce({ data: { ...preview, goods: [{ ...preview.goods[0], assignmentVersionId: ids.assignment }] } });
@@ -197,5 +197,5 @@ it('바깥 패널은 로그인 세션을 key로 격리하고 세션 교체 시 �
     access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` });
   authenticate(ids.session); await flush(); const editor = all(node()).find(item => item.type === GoodShippingChargeGroupAssignmentEditor)!;
   expect(editor.key).toContain(ids.session); authenticate(ids.other); await flush(); expect(all(node()).some(item => item.type === GoodShippingChargeGroupAssignmentEditor)).toBe(false);
-  expect(text(node())).toContain('로그인 계정 또는 세션이 바뀌었습니다');
+  expect(text(node())).toContain('로그인 계정이 바뀌었거나 로그인이 끊겼습니다');
 });

@@ -103,8 +103,8 @@ describe('shipment workbook exchange', () => {
     expect(numeric.rows).toEqual([]);
     expect(numeric.issues[0].reason).toContain('텍스트 형식');
     // 원본 21열 뒤에 모르는 열이 붙으면 김포 회신으로 보지 않는다.
-    await expect(replyBook([...GIMPO_TEMPLATE_HEADERS, '메모'], [orderUuid])).rejects.toThrow('세 컬럼만');
-    await expect(replyBook([...GIMPO_EXPORT_HEADERS, '바코드'], [orderUuid])).rejects.toThrow('세 컬럼만');
+    await expect(replyBook([...GIMPO_TEMPLATE_HEADERS, '메모'], [orderUuid])).rejects.toThrow('세 열만');
+    await expect(replyBook([...GIMPO_EXPORT_HEADERS, '바코드'], [orderUuid])).rejects.toThrow('세 열만');
   });
   it('김포 회신의 주문번호 판정은 isCommerceNumber 한 곳을 따른다(번호 체계가 바뀌면 그 함수만 바뀐다)', async () => {
     // 16자리(지금)·20자리(새 체계: 날짜8+시분4+종류1+일련7)·상품주문번호·잘린 번호. 받는지는 공용 판정과 언제나 같아야 한다.
@@ -403,5 +403,5 @@ it('keeps a Seowon gift reply readable with its validated operational supplement
  expect(reply.rows).toHaveLength(1);expect(reply.rows[0]).toMatchObject({trackingNumber:'001234567890',quantity:2});
  expect(reply.rows[0].error).toBeUndefined();
  book.getWorksheet('배송 운영 안내')!.getCell('A2').value={formula:'1+1'};
- await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()),[])).rejects.toThrow('허용되지 않는 셀');
+ await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()),[])).rejects.toThrow('수식·오류 값·날짜가 든 칸');
 });

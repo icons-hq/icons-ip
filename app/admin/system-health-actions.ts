@@ -44,10 +44,10 @@ export async function reconcilePaymentAttemptAction(input: { attemptId: string; 
   if (result.kind === 'reconciled') {
     return { ok: true, outcome: result.outcome, message: PAYMENT_RECONCILE_OUTCOME_MESSAGES[result.outcome] ?? '결제 상태를 다시 확인했습니다.' };
   }
-  if (result.kind === 'in_progress') return { ok: false, error: '다른 처리가 이 결제를 확인하고 있습니다. 잠시 뒤 새로고침해주세요.' };
+  if (result.kind === 'in_progress') return { ok: false, error: '다른 처리가 이 결제를 확인하고 있습니다. 10분쯤 뒤 새로고침해 결과를 확인해주세요.' };
   if (result.kind === 'unsupported') {
-    return { ok: false, error: '이 결제는 결제사 조회로 확인할 수 없습니다(코페이·무통장입금 등). 시스템 상태 런북의 수동 처리 절차를 따라주세요.' };
+    return { ok: false, error: '이 결제는 결제사 조회로 확인할 수 없습니다(코페이·무통장입금 등). 무통장입금은 주문관리의 미결제 확인에서 처리하고, 코페이는 개발팀에 수동 복구를 요청해주세요.' };
   }
-  if (result.kind === 'unavailable') return { ok: false, error: '이 배포에는 결제사 설정이 없어 확인할 수 없습니다.' };
+  if (result.kind === 'unavailable') return { ok: false, error: '지금 접속한 사이트에는 이 결제사의 연결 설정이 없어 확인할 수 없습니다. 개발팀에 알려주세요.' };
   return { ok: false, error: paymentReconcileError() };
 }

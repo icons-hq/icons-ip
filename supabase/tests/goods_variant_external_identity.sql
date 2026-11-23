@@ -87,12 +87,12 @@ values (
 );
 insert into public.order_items(
   id,order_id,good_id,variant_id,qty,unit_price,
-  good_name_snapshot,good_type_snapshot,good_ip_id_snapshot
+  good_name_snapshot,good_ip_id_snapshot
 ) values (
   '20000000-0000-4000-8000-000000047201',
   '10000000-0000-4000-8000-000000047201',
   'sales-erp-good',:'erp_variant_id'::uuid,1,1000,
-  'ERP 옵션 상품','키링','sales-erp'
+  'ERP 옵션 상품','sales-erp'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047201',true);
@@ -127,12 +127,12 @@ select public.admin_save_goods_variant_external_identity(
 reset role;
 insert into public.order_items(
   id,order_id,good_id,variant_id,qty,unit_price,
-  good_name_snapshot,good_type_snapshot,good_ip_id_snapshot
+  good_name_snapshot,good_ip_id_snapshot
 ) values (
   '20000000-0000-4000-8000-000000047202',
   '10000000-0000-4000-8000-000000047202',
   'sales-erp-good',:'erp_variant_id'::uuid,1,1000,
-  'ERP 옵션 상품','키링','sales-erp'
+  'ERP 옵션 상품','sales-erp'
 );
 set local role authenticated;
 select public.admin_save_goods_variant_external_identity(

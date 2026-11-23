@@ -5,14 +5,14 @@ select ('78000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'authenticated',
 update public.profiles set role=(case when id='78000000-0000-4000-8000-000000000001' then 'admin' when id='78000000-0000-4000-8000-000000000002' then 'staff' else 'user' end)::public.user_role,
  birth_date='1990-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}' where id::text like '78000000-0000-4000-8000-%';
 insert into public.ips(id,title,vertical_key,published_at) values('loyalty-policy-qa-ip','합성 등급 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock_qty) values('loyalty-policy-qa-good','loyalty-policy-qa-ip','합성 등급 상품','문구',1000,20000);
+insert into public.goods(id,ip_id,name,price,stock_qty) values('loyalty-policy-qa-good','loyalty-policy-qa-ip','합성 등급 상품',1000,20000);
 select pg_temp.publish_goods_kc_fixture('loyalty-policy-qa-good');
 insert into public.orders(id,user_id,status,total,address,created_at)
 select ('79000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'78000000-0000-4000-8000-000000000003',
  case when n=1003 then 'canceled'::public.order_status else 'paid'::public.order_status end,1000,'{}',case when n=1002 then now()-interval '91 days' else now()-interval '1 day' end
  from generate_series(1,1003) n;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select o.id,'loyalty-policy-qa-good',v.id,5,1000,'합성 등급 상품','문구','loyalty-policy-qa-ip'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select o.id,'loyalty-policy-qa-good',v.id,5,1000,'합성 등급 상품','loyalty-policy-qa-ip'
 from public.orders o cross join public.goods_variants v where o.id::text like '79000000-0000-4000-8000-%' and v.good_id='loyalty-policy-qa-good' and v.is_default;
 
 select 1/case when not has_table_privilege('authenticated','public.loyalty_settings','select')

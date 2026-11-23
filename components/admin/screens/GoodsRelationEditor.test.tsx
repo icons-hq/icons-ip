@@ -177,7 +177,7 @@ describe('다른 구성 저장 결과 복구', () => {
     expect(mocks.save.mock.calls[1][0].values.compositionLabels).toContainEqual({ goodId: 'b', label: '저장할 구성' });
     expect(field('상품 B 구성 표시값').props.value).toBe('저장할 구성');
     expect(render().find(node => node.type === 'fieldset')?.props.disabled).toBe(false);
-    expect(text(render())).toContain('저장 버전 3');
+    expect(text(render())).toContain('3번째 저장');
     expect(text(render())).toContain('저장된 편성을 다시 확인했습니다.');
     expect(text(render())).not.toContain('저장하지 않은 변경사항');
   });

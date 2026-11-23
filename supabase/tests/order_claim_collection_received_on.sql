@@ -51,9 +51,9 @@ insert into public.ips(id,title,vertical_key) values('ro-ip','TEST 입고일','c
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  (pg_temp.ro_id('origin',1),'ro-gimpo','TEST 김포','hanjin',0,'TEST 김포 반송지',true),
  (pg_temp.ro_id('origin',2),'ro-namyangju','TEST 남양주','hanjin',0,'TEST 남양주 반송지',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('ro-good-1','ro-ip','TEST 김포 굿즈','문구',1000,'ok',10,pg_temp.ro_id('origin',1)),
- ('ro-good-2','ro-ip','TEST 남양주 굿즈','문구',2000,'ok',10,pg_temp.ro_id('origin',2));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('ro-good-1','ro-ip','TEST 김포 굿즈',1000,'ok',10,pg_temp.ro_id('origin',1)),
+ ('ro-good-2','ro-ip','TEST 남양주 굿즈',2000,'ok',10,pg_temp.ro_id('origin',2));
 create function pg_temp.ro_default(good text) returns uuid language sql stable as $$select id from public.goods_variants where good_id=good and is_default$$;
 create function pg_temp.ro_stock(good text) returns integer language sql stable as $$select stock_qty from public.goods_variants where good_id=good and is_default$$;
 
@@ -64,8 +64,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  select pg_temp.ro_id('order',n),pg_temp.ro_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 입고일로 1','address2','101호'),
   now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,12)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ro_id('item',item),pg_temp.ro_id('order',purchase),good,pg_temp.ro_default(good),1,1000,'TEST 굿즈','문구','ro-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ro_id('item',item),pg_temp.ro_id('order',purchase),good,pg_temp.ro_default(good),1,1000,'TEST 굿즈','ro-ip'
  from (values(1,1,'ro-good-1'),(2,1,'ro-good-2'),(3,2,'ro-good-1'),(5,3,'ro-good-1'),(6,3,'ro-good-2'),
   (7,4,'ro-good-1'),(8,5,'ro-good-1'),(9,6,'ro-good-1'),(10,7,'ro-good-1'),(11,8,'ro-good-1'),(12,9,'ro-good-1'),(13,9,'ro-good-2'),
   (14,10,'ro-good-1'),(15,10,'ro-good-2'),(16,11,'ro-good-1'),(17,11,'ro-good-2'),(18,12,'ro-good-1'),(19,12,'ro-good-2')) spec(item,purchase,good);
@@ -381,8 +381,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
  values(pg_temp.ro_id('order',13),pg_temp.ro_id('user',2),'delivered',3000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 입고일로 1','address2','101호'),
   now()-interval '4 days',now()-interval '3 days',now()-interval '15 days');
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ro_id('item',19+k),pg_temp.ro_id('order',13),good,pg_temp.ro_default(good),1,1000,'TEST 굿즈','문구','ro-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ro_id('item',19+k),pg_temp.ro_id('order',13),good,pg_temp.ro_default(good),1,1000,'TEST 굿즈','ro-ip'
  from (values(1,'ro-good-1'),(2,'ro-good-2')) spec(k,good);
 -- 주문제작 조건과 원주문 제작 완료는 시험 전제다(order_claim_reshipments_per_origin.sql과 같은 방식).
 set session_replication_role=replica;

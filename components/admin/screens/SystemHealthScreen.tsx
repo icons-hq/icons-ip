@@ -43,7 +43,7 @@ export function SystemHealthScreen({ health, payments, canReconcile, digest }: {
       description="메일·정기결제·선물 만료·리워드·배송 추적 같은 자동 작업의 실패·멈춤, 결제사 결과를 받지 못한 결제, 메일 발송 실패를 한곳에서 봅니다. 문제가 생기면 운영 알림 '시스템'과 할 일 '시스템 점검'에도 건수가 올라옵니다." />
     {health ? <HealthBody canReconcile={canReconcile} health={health} payments={payments} />
       : <AdminNotice role="alert" title="시스템 상태를 불러오지 못했습니다" tone="danger">
-        새로고침 후 다시 확인해주세요. 계속 열리지 않으면 DB 연결 자체가 문제일 수 있으니 개발팀에 알려주세요.
+        새로고침 후 다시 확인해주세요. 계속 열리지 않으면 데이터 저장소 연결에 문제가 있을 수 있으니 개발팀에 알려주세요.
       </AdminNotice>}
     <AdminSectionCard id="ops-alert-digest" title="운영 알림 메일"
       summary="어드민을 열어 두지 않아도 새 문의·답변 지연·자동 작업 멈춤을 메일 한 통으로 받습니다.">

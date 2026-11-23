@@ -88,7 +88,7 @@ update public.profiles set nickname='TEST 자동 발주확인 경합 '||right(id
 insert into private.operator_memberships(profile_id,manager_role) values('{operator}','owner');
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key) values('auto-confirm-race-ip','TEST 경합 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('auto-confirm-race-goods','auto-confirm-race-ip','TEST 경합 굿즈','문구',10000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('auto-confirm-race-goods','auto-confirm-race-ip','TEST 경합 굿즈',10000,'ok',100);
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
  values('a0c10000-0000-4000-8000-0000000000f1','auto-confirm-race-origin','TEST 경합 창고',0,'합성 반송 주소');
 update private.auto_order_confirmation_settings set enabled=true,run_time='16:30',enabled_at='2031-03-13 10:00:00+09',revision=revision+1 where singleton;
@@ -100,8 +100,8 @@ begin
   oid:=('a0c10000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;sid:=gen_random_uuid();
   insert into public.orders(id,user_id,status,total,address) values(oid,'{buyer}','paid',10000,
    '{{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}}');
-  insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
-   values(oid,'auto-confirm-race-goods',1,10000,'TEST 경합 굿즈','문구','auto-confirm-race-ip',
+  insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot,variant_id)
+   values(oid,'auto-confirm-race-goods',1,10000,'TEST 경합 굿즈','auto-confirm-race-ip',
     (select id from public.goods_variants where good_id='auto-confirm-race-goods' and is_default)) returning id into item;
   insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
    values(sid,oid,'a0c10000-0000-4000-8000-0000000000f1','TEST 경합 창고',0,'{{}}');

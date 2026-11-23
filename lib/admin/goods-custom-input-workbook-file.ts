@@ -1,6 +1,7 @@
 import 'server-only';
 import type ExcelJS from 'exceljs';
 import { readSafeWorkbookCell } from './workbook-safety';
+import { goodsWorkbookHeaderMatches } from './goods-workbook-headers';
 import {
   GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_LEGACY_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_ROW_LIMIT, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET,
   emptyGoodsCustomInputWorkbookRow, goodsCustomInputWorkbookOrphanErrors,
@@ -59,9 +60,9 @@ export function readGoodsCustomInputWorksheet(workbook: ExcelJS.Workbook, versio
   if (!sheet) return null;
   if (version !== latestVersion && version !== 'ICONS 상품 일괄 등록 v7' && version !== 'ICONS 상품 일괄 등록 v6')
     throw new Error('직접입력형 옵션 시트는 v6~v8 상품 양식에서 편집할 수 있습니다. 최신 양식을 내려받아주세요.');
-  // v6·v7은 판매자상품코드 열 이름이 '상품코드'다(뜻·순서는 같다).
+  // v6·v7은 상품 자동코드 열 이름이 '상품코드'다(뜻·순서는 같다).
   const headers = version === latestVersion ? GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS : GOODS_CUSTOM_INPUT_WORKBOOK_LEGACY_HEADERS;
-  if (sheet.getCell('A1').text !== version || KEYS.some((key, index) => sheet.getCell(4, index + 1).text !== headers[key]))
+  if (sheet.getCell('A1').text !== version || KEYS.some((key, index) => !goodsWorkbookHeaderMatches(sheet.getCell(4, index + 1).text, headers[key])))
     throw new Error('직접입력형 옵션 시트의 버전·열 이름·순서를 유지해주세요.');
   const result: GoodsCustomInputWorkbookInputRow[] = [];
   sheet.eachRow((row, number) => {

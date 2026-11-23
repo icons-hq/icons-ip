@@ -83,7 +83,7 @@ describe('normalizeAdminCampaignForm', () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors.id).toContain('변경할 수 없습니다');
+    expect(result.errors.id).toContain('등록 후 바꿀 수 없습니다');
   });
 
   it('빈 배너 순서는 배너 미노출(null)로 읽는다', () => {
@@ -147,7 +147,7 @@ describe('parseAdminCampaignSections', () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.message).toContain('블록 배열');
+    expect(result.message).toContain('블록 목록');
   });
 
   it('블록 20개를 넘기면 거절한다', () => {

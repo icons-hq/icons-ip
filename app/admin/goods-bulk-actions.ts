@@ -47,10 +47,10 @@ async function receipt(id: unknown, rawIdentity: unknown, mode: 'commit' | 'read
     const { data, error } = await (await createClient()).rpc(mode === 'commit' ? 'admin_commit_goods_bulk' : 'admin_read_goods_bulk', { ...args(id, identity), ...(mode === 'read' ? { p_seal: seal } : {}) });
     if (error) return failure(error.message, error.code, true);
     const result = parseGoodsBulkReceipt(data, id);
-    if (!result) return { error: '처리 결과를 확인하지 못했습니다. 같은 요청의 결과를 조회해주세요.', uncertain: true };
+    if (!result) return { error: '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'처리 결과 조회\'를 눌러 결과를 확인해주세요.', uncertain: true };
     if (result.state === 'completed') refresh();
     return { value: result };
-  } catch (error) { unstable_rethrow(error); return { error: '처리 결과가 불명확합니다. 같은 요청의 결과를 조회해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'처리 결과 조회\'를 눌러 결과를 확인해주세요.', uncertain: true }; }
 }
 export async function commitGoodsBulkAction(id: unknown, identity: unknown) { return receipt(id, identity, 'commit'); }
 export async function readGoodsBulkAction(id: unknown, identity: unknown, seal = false) { return receipt(id, identity, 'read', seal); }

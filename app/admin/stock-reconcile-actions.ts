@@ -47,8 +47,8 @@ export async function readStockReconcileFileAction(formData: FormData): Promise<
     return { ok: true, fileName: file.name.slice(0, 200), ...read };
   } catch (error) {
     unstable_rethrow(error);
-    /* 파일 읽기 오류 중 한국어 안내(행 수 상한 등)는 그대로 보이고, 그 밖은 일반 안내로 바꾼다. */
-    const message = error instanceof Error && /[가-힣]/.test(error.message) ? error.message.replace('반입', '대조') : '';
+    /* 파일 읽기 오류 중 한국어 안내(줄 수 최대 등)는 그대로 보이고, 그 밖은 일반 안내로 바꾼다. */
+    const message = error instanceof Error && /[가-힣]/.test(error.message) ? error.message : '';
     return { ok: false, error: message || '파일을 읽지 못했습니다. 형식을 확인한 뒤 다시 올려주세요.' };
   }
 }

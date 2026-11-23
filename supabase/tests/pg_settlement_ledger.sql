@@ -46,10 +46,10 @@ create function pg_temp.settlement_report(extra jsonb default '{}')returns jsonb
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values(pg_temp.settlement_id('origin',1),'pg-settlement-origin','정산 합성 출고지','hanjin',0,'합성 반송 주소',true);
 insert into public.ips(id,title,vertical_key)values('pg-settlement-ip','정산 합성 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id)
- values('pg-settlement-good','pg-settlement-ip','정산 합성 상품','문구',101,'ok',9,pg_temp.settlement_id('origin',1));
-insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,qty,unit_price)
- select pg_temp.settlement_id('item',1),pg_temp.settlement_id('order',1),'pg-settlement-good',id,'정산 합성 상품','문구','pg-settlement-ip',1,101
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id)
+ values('pg-settlement-good','pg-settlement-ip','정산 합성 상품',101,'ok',9,pg_temp.settlement_id('origin',1));
+insert into public.order_items(id,order_id,good_id,variant_id,good_name_snapshot,good_ip_id_snapshot,qty,unit_price)
+ select pg_temp.settlement_id('item',1),pg_temp.settlement_id('order',1),'pg-settlement-good',id,'정산 합성 상품','pg-settlement-ip',1,101
  from public.goods_variants where good_id='pg-settlement-good' and is_default;
 do $$declare lines jsonb;quote jsonb;begin
  select jsonb_agg(jsonb_build_object('origin_id',origin_id_snapshot,'good_id',good_id,'qty',qty,'unit_price',unit_price,'fee_type',shipping_fee_type_snapshot,'individual_fee',individual_fee_snapshot))into lines from public.order_items where order_id=pg_temp.settlement_id('order',1);

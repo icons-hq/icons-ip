@@ -17,12 +17,12 @@ insert into private.operator_memberships(profile_id,manager_role) values('b93000
 update private.operator_access_state set configured=true where id;
 insert into public.ips(id,title,vertical_key,published_at) select 'vis-ip-open','노출 이유 공개 IP',key,now() from public.verticals limit 1;
 insert into public.ips(id,title,vertical_key,published_at) select 'vis-ip-later','노출 이유 IP 공개 전',key,now() from public.verticals limit 1;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values
- ('vis-public','vis-ip-open','노출 공개','문구',10000,'ok',10),
- ('vis-draft','vis-ip-open','노출 초안','문구',10000,'ok',10),
- ('vis-adult','vis-ip-open','노출 성인','문구',10000,'ok',10),
- ('vis-archived','vis-ip-open','노출 보관','문구',10000,'ok',0),
- ('vis-ip-draft','vis-ip-later','노출 IP 초안','문구',10000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values
+ ('vis-public','vis-ip-open','노출 공개',10000,'ok',10),
+ ('vis-draft','vis-ip-open','노출 초안',10000,'ok',10),
+ ('vis-adult','vis-ip-open','노출 성인',10000,'ok',10),
+ ('vis-archived','vis-ip-open','노출 보관',10000,'ok',0),
+ ('vis-ip-draft','vis-ip-later','노출 IP 초안',10000,'ok',10);
 update public.goods set code='VIS-PUBLIC' where id='vis-public';
 -- KC 합성 검토로 공개한다(트리거를 끄지 않는다). IP 공개 전 상품은 IP가 공개일 때 공개한 뒤 IP를 공개 전으로 돌린다.
 -- 활성 상품이 있는 IP는 보관할 수 없어(ip_has_active_children) IP 보관 이유는 판정 함수에 직접 넣어 확인한다.

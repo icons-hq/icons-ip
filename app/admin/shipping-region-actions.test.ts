@@ -25,7 +25,7 @@ describe('지역 배송 정책 서버 action', () => {
     expect(await saveShippingRegionPolicyAction(null, null, input)).toMatchObject({ ok: true, policy });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_save_shipping_region_policy', { p_policy_id: null, p_values: input, p_expected_revision: null });
     mocks.revalidate.mockClear(); mocks.rpc.mockResolvedValue({ data: null, error: { message: 'shipping_region_policy_changed' } });
-    expect(await saveShippingRegionPolicyAction(id, 1, input)).toMatchObject({ ok: false, error: expect.stringContaining('변경') });
+    expect(await saveShippingRegionPolicyAction(id, 1, input)).toMatchObject({ ok: false, error: expect.stringContaining('먼저 정책을 바꿨습니다') });
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
   it('원본 확인과 저장 리비전 없이 활성화하지 않고 서버 중첩 거절을 설명한다', async () => {

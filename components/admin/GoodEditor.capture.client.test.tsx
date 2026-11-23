@@ -139,6 +139,38 @@ it('공개 중 잠긴 칸을 바꾼 저장은 서버 호출 없이 막고 그 �
   expect(allowed).not.toHaveBeenCalled(); expect(mocks.submit).toHaveBeenCalledOnce();
 });
 
+/*
+ * 2026-11-19 저장 막대 [임시저장]·[실제 등록] — 공개 전 상품의 [실제 등록](intent=publish)은 공개까지 남은 칸이 있으면 서버 호출 없이 막고 그 항목을
+ * 알린다. 공개 제출은 [실제 등록] 버튼을 직접 누르거나(포인터) 그 버튼에서 Enter·Space를 눌렀을 때만 받는다 — 입력칸·체크박스·라디오의 Enter가
+ * 만든 암묵 제출(새 상품은 첫 제출 버튼이 [실제 등록])은 조용히 무시한다(리뷰 blocker: 체크박스 Enter도 암묵 제출한다).
+ */
+it('[실제 등록]은 버튼을 직접 눌렀을 때만 공개 제출을 받고, 남은 필수 칸을 알리며 막는다', () => {
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
+  const h = setup(false, false, good); h.initialize();
+  const form = (tree: Element[]) => tree.find(node => node.type === 'form')!.props as Record<string, (event: unknown) => void>;
+  const publishSubmit = (tree: Element[]) => { const preventDefault = vi.fn(); form(tree).onSubmitCapture({ currentTarget: h.form, preventDefault, nativeEvent: { submitter: { getAttribute: () => 'publish' } } }); return preventDefault; };
+  const formError = () => (h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors as Record<string, string | undefined>).form;
+  const elsewhere = { closest: () => null };
+  const registerButton = { closest: (selector: string) => selector === '[data-good-register-button]' ? {} : null };
+  /* 체크박스·입력칸에서 Enter: 공개 제출을 무시한다(오류 안내도 없다). */
+  for (const target of [elsewhere, null]) {
+    form(h.render()).onKeyDownCapture({ key: 'Enter', target });
+    const ignored = publishSubmit(h.render());
+    expect(ignored).toHaveBeenCalledOnce(); expect(mocks.submit).not.toHaveBeenCalled(); expect(formError()).toBeUndefined();
+  }
+  /* 다른 곳을 누른 뒤의 공개 제출도 받지 않는다. */
+  form(h.render()).onPointerDownCapture({ currentTarget: { querySelector: () => null }, target: elsewhere });
+  expect(publishSubmit(h.render())).toHaveBeenCalledOnce(); expect(formError()).toBeUndefined();
+  /* [실제 등록]을 직접 누른 제출은 확인을 거친다: KC 검토 등이 남아 있어 제출하지 않고 그 이유를 알린다. */
+  form(h.render()).onPointerDownCapture({ currentTarget: { querySelector: () => null }, target: registerButton });
+  const clicked = publishSubmit(h.render());
+  expect(clicked).toHaveBeenCalledOnce(); expect(mocks.submit).not.toHaveBeenCalled();
+  expect(String(formError())).toContain('실제 등록 전에 채워야 할 항목이 있습니다: ');
+  /* 버튼에서 키보드(Space)로 눌러도 같다. */
+  form(h.render()).onKeyDownCapture({ key: ' ', target: registerButton });
+  expect(publishSubmit(h.render())).toHaveBeenCalledOnce(); expect(String(formError())).toContain('실제 등록 전에 채워야 할 항목이 있습니다: ');
+});
+
 /* 10/27 회의 R19 — 업로드 진행·안내 같은 상태 변화마다 상세 HTML 정리와 공개 미리보기를 다시 만들지 않는다. */
 it('입력이 그대로면 다시 그려도 상세 HTML 정리·미리보기를 다시 계산하지 않고, 같은 이미지 알림은 상태를 바꾸지 않는다', () => {
   const htmlGood = { ...good, descriptionFormat: 'html' as const, description: '<p>저장된 본문</p>' };
@@ -179,13 +211,13 @@ it('이름 없는 옵션별 제한 입력의 브라우저 검증 오류를 구�
   const invalid = (tree: Element[], elements: FakeElement[]) => (tree.find(node => node.type === 'form')!.props.onInvalidCapture as (event: unknown) => void)({ preventDefault: vi.fn(), currentTarget: { elements } });
   invalid(h.render(), [first, second]);
   let tree = h.render();
-  expect(errors(tree)).toMatchObject({ optionLimits: '빨강 최대 구매수량(주문당) 입력값을 확인해주세요. 값은 1 이상이어야 합니다.' });
+  expect(errors(tree)).toMatchObject({ optionLimits: '빨강 최대 구매수량(주문당) 칸을 확인해주세요. 값은 1 이상이어야 합니다.' });
   expect(errors(tree)).not.toHaveProperty('form');
   expect(first.focus).toHaveBeenCalled();
   /* 이름도 오류 칸도 없는 입력은 지금처럼 form으로 남는다. */
   invalid(tree, [unnamed]);
   tree = h.render();
-  expect(errors(tree)).toMatchObject({ form: 'form 입력값을 확인해주세요. 값을 입력하세요.' });
+  expect(errors(tree)).toMatchObject({ form: 'form 칸을 확인해주세요. 값을 입력하세요.' });
 });
 
 /*

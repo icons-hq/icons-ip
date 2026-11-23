@@ -83,7 +83,7 @@ it('문제 있는 작업·미종결 결제·메일 실패 건수와 작업 표·
   expect(html).toContain('href="/admin/sales/orders/a7000000-0000-4002-8000-000000000001"');
   expect(html).toContain('31,000원');
   expect(html).toContain('>결제 결과 불명<');
-  expect(html).toContain('>결제사·원장 불일치<');
+  expect(html).toContain('>결제사·주문 불일치<');
   expect(html).toContain('1일');
   // 조회 API가 있는 시도만 다시 확인 버튼이 있다(코페이는 수동 처리).
   expect(html.match(/결제 상태 다시 확인<\/button>/g)).toHaveLength(1);

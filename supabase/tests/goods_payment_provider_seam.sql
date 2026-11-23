@@ -169,12 +169,11 @@ insert into public.ips (id, title, vertical_key)
 values ('goods-payment-seam-ip', '굿즈 결제 seam IP', 'goods-payment-seam-test')
 on conflict (id) do update set title = excluded.title;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
 values (
   'goods-payment-seam-good',
   'goods-payment-seam-ip',
   '굿즈 결제 seam 상품',
-  '문구',
   28000,
   'ok',
   100
@@ -182,7 +181,6 @@ values (
 on conflict (id) do update set
   ip_id = excluded.ip_id,
   name = excluded.name,
-  type = excluded.type,
   price = excluded.price,
   stock = excluded.stock,
   stock_qty = excluded.stock_qty;
@@ -246,7 +244,6 @@ insert into public.order_items (
   qty,
   unit_price,
   good_name_snapshot,
-  good_type_snapshot,
   good_ip_id_snapshot, variant_id
 )
 select
@@ -255,7 +252,6 @@ select
   1,
   28000,
   '굿즈 결제 seam 상품',
-  '문구',
   'goods-payment-seam-ip', (select id from public.goods_variants where good_id='goods-payment-seam-good' and is_default)
 from (
   values

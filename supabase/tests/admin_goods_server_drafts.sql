@@ -47,7 +47,7 @@ select set_config('request.jwt.claim.sub','76000000-0000-4000-8000-000000000002'
 select 1/case when (select count(*) from public.admin_goods_drafts)=0 and public.admin_list_goods_drafts()->>'total'='0' then 1 else 0 end as other_staff_cannot_read;
 select pg_temp.expect_draft_error($q$select public.admin_get_goods_draft('76000000-0000-4000-8000-000000000020')$q$,'goods_draft_not_found');
 select pg_temp.expect_draft_error($q$select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000020','{"name":"타인 덮어쓰기"}',2)$q$,'forbidden');
-select pg_temp.expect_draft_error($q$select public.admin_save_good('{"id":"draft-image-theft","ip_id":"server-draft-qa-ip","name":"타인 이미지 차단","type":"문구","price":1000,"stock":"ok","image_path":"public-media/catalog/good/76000000-0000-4000-8000-000000000010.png"}')$q$,'unverified_artwork');
+select pg_temp.expect_draft_error($q$select public.admin_save_good('{"id":"draft-image-theft","ip_id":"server-draft-qa-ip","name":"타인 이미지 차단","price":1000,"stock":"ok","image_path":"public-media/catalog/good/76000000-0000-4000-8000-000000000010.png"}')$q$,'unverified_artwork');
 select pg_temp.expect_draft_error($q$select public.admin_save_goods_photo('76000000-0000-4000-8000-000000000012','public-media/catalog/good/76000000-0000-4000-8000-000000000012.png','다른 직원 공용 사진',1,true)$q$,'goods_photo_in_use');
 select set_config('request.jwt.claim.sub','76000000-0000-4000-8000-000000000001',true);
 select public.admin_set_goods_draft_archived('76000000-0000-4000-8000-000000000020',2,true);
@@ -57,7 +57,7 @@ select public.admin_set_goods_draft_archived('76000000-0000-4000-8000-0000000000
 select pg_temp.expect_draft_error($q$select public.admin_save_good_from_draft('{"id":"bad-draft-product"}','76000000-0000-4000-8000-000000000020',4)$q$,'goods_name_required');
 select 1/case when public.admin_get_goods_draft('76000000-0000-4000-8000-000000000020')->>'archived'='false'
  and public.admin_get_goods_draft('76000000-0000-4000-8000-000000000020')->>'revision'='4' then 1 else 0 end as failed_registration_does_not_consume_draft;
-select public.admin_save_good_from_draft('{"id":"server-draft-product","ip_id":"server-draft-qa-ip","name":"임시저장 상품 등록","type":"문구","price":1000,"stock":"ok","image_path":"public-media/catalog/good/76000000-0000-4000-8000-000000000010.png","gallery_paths":["public-media/catalog/good/76000000-0000-4000-8000-000000000012.png"],"description_format":"html","description":"<p>사진</p>","description_image_paths":["public-media/catalog/good/76000000-0000-4000-8000-000000000011.png"]}','76000000-0000-4000-8000-000000000020',4);
+select public.admin_save_good_from_draft('{"id":"server-draft-product","ip_id":"server-draft-qa-ip","name":"임시저장 상품 등록","price":1000,"stock":"ok","image_path":"public-media/catalog/good/76000000-0000-4000-8000-000000000010.png","gallery_paths":["public-media/catalog/good/76000000-0000-4000-8000-000000000012.png"],"description_format":"html","description":"<p>사진</p>","description_image_paths":["public-media/catalog/good/76000000-0000-4000-8000-000000000011.png"]}','76000000-0000-4000-8000-000000000020',4);
 select 1/case when public.admin_save_good_from_draft('{"id":"should-not-create-again"}','76000000-0000-4000-8000-000000000020',4)->>'id'='server-draft-product'
  and public.admin_list_goods_drafts()->>'total'='0' then 1 else 0 end as retry_returns_first_catalogue_result;
 select pg_temp.expect_draft_error($q$select public.admin_set_goods_draft_archived('76000000-0000-4000-8000-000000000020',5,false)$q$,'goods_draft_completed');

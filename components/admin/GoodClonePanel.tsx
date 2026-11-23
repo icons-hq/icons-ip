@@ -32,6 +32,9 @@ export function GoodClonePanel({
   const [initialOperationId] = useState(operationId);
   const values = state.values ?? {};
   const value = (name: string) => values[name] ?? '';
+  /* 새 상품 자동코드는 시스템이 만든다(ADR-0048). 기본은 잠그고, 창고 품번처럼 정해진 코드가 있을 때만 연다. 저장 오류가 나면 열어 둔다. */
+  const [codeOpen, setCodeOpen] = useState(false);
+  const newCodeOpen = codeOpen || Boolean(state.errors?.newCode);
   const completed = Boolean(state.savedGood);
   /* 서버는 "필수값을 확인"이라고만 답한다. 원본의 속성을 다시 읽어 어떤 속성이 비었는지 이름을 보인다. */
   const attributeBlocked = Boolean(state.errors?.form?.includes('속성'));
@@ -55,7 +58,7 @@ export function GoodClonePanel({
       <div className="flex flex-col gap-1">
         <h2 id={`good-clone-${goodId}`} className="text-base leading-snug font-medium">상품 복사</h2>
         <p className="text-sm text-muted-foreground">
-          {goodName || goodId} · {goodCode || '판매자상품코드 확인 중'}을 새 초안으로 복사합니다. 원본 주문·재고·외부 식별자는 연결하지 않습니다.
+          {goodName || goodId} · {goodCode || '상품 자동코드 확인 중'}을 새 초안으로 복사합니다. 원본 주문·재고·외부 식별자는 연결하지 않습니다.
         </p>
       </div>
       <form
@@ -67,7 +70,14 @@ export function GoodClonePanel({
         <input name="sourceGoodId" type="hidden" value={goodId} />
         <div className="grid min-w-0 gap-4 md:grid-cols-3">
           <label className={FIELD_CLASS}><span className="font-medium">새 상품 URL (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newId')} disabled={pending || completed} name="newId" placeholder="비우면 자동 생성" /></label>
-          <label className={FIELD_CLASS}><span className="font-medium">새 판매자상품코드 (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newCode')} disabled={pending || completed} name="newCode" placeholder="비우면 자동 생성" /></label>
+          <div className={FIELD_CLASS} data-good-clone-code={newCodeOpen ? 'open' : 'locked'}>
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1"><label className="font-medium" htmlFor="good-clone-new-code">새 상품 자동코드</label>
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{newCodeOpen ? '직접 바꾸는 중' : '자동 생성 · 입력할 필요 없음'}</span>
+              <button type="button" className={`${buttonVariants({ variant: 'ghost', size: 'xs' })} ml-auto`} data-slot="button" disabled={pending || completed || Boolean(state.errors?.newCode)}
+                onClick={() => setCodeOpen((open) => !open)}>{newCodeOpen ? '자동코드로 두기' : '직접 바꾸기'}</button></span>
+            <input className={GOOD_INPUT_CLASS} data-slot="input" id="good-clone-new-code" key={newCodeOpen ? 'open' : 'locked'} defaultValue={newCodeOpen ? value('newCode') : ''} disabled={pending || completed}
+              readOnly={!newCodeOpen} name="newCode" placeholder={newCodeOpen ? '창고 품번처럼 정해진 코드' : '저장 시 자동 생성'} />
+          </div>
           <label className={FIELD_CLASS}><span className="font-medium">새 상품 이름 (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newName')} disabled={pending || completed} name="newName" placeholder="비우면 원본 이름에 복사본을 붙입니다" /></label>
         </div>
         <div className={`${GOOD_NOTE_CLASS} flex flex-col gap-1.5`}>

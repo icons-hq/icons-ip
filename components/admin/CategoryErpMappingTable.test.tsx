@@ -201,6 +201,6 @@ describe('카테고리별 ERP 분류 매핑 표', () => {
   });
 
   it('마지막 단계 카테고리가 없으면 안내만 보인다', () => {
-    expect(text(render([]))).toContain('ERP 분류를 매핑할 마지막 단계 카테고리가 없습니다.');
+    expect(text(render([]))).toContain('ERP 값을 적을 마지막 단계 카테고리가 없습니다.');
   });
 });

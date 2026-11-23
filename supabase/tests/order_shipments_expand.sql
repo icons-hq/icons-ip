@@ -4,9 +4,9 @@ select 1 / case when to_regclass('public.order_shipments') is not null then 1 el
 update public.fulfillment_origins set is_active=true,base_fee=4000,free_threshold=60000 where id='00000000-0000-4000-8000-000000042202';
 insert into public.verticals(key,label,color) values('shipments-test','배송 테스트','#111111');
 insert into public.ips(id,title,vertical_key,published_at) values('shipments-test','배송 테스트','shipments-test',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id) values
- ('shipment-gimpo','shipments-test','김포 굿즈','문구',10000,'ok',5,null,'00000000-0000-4000-8000-000000042201'),
- ('shipment-seowon','shipments-test','서원 굿즈','문구',15000,'ok',5,null,'00000000-0000-4000-8000-000000042202');
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id) values
+ ('shipment-gimpo','shipments-test','김포 굿즈',10000,'ok',5,null,'00000000-0000-4000-8000-000000042201'),
+ ('shipment-seowon','shipments-test','서원 굿즈',15000,'ok',5,null,'00000000-0000-4000-8000-000000042202');
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('shipment-gimpo');
 select pg_temp.publish_goods_kc_fixture('shipment-seowon');

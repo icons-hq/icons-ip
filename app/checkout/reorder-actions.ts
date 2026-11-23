@@ -354,6 +354,7 @@ export async function restoreCanceledOrderToCartAction(
   if (!orderId) return { ok: false, error: 'not_found' };
 
   const auth = await getCurrentAuthState();
+  if (auth.authUnavailable) return { ok: false, error: 'failed' };
   if (!auth.isConfigured || !auth.user || !isOnboarded(auth.profile, auth.user.email)) {
     return { ok: false, error: 'auth_required' };
   }

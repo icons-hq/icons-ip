@@ -14,8 +14,8 @@ insert into public.catalog_categories(id,code,name) values('88000000-0000-4000-8
 insert into public.catalog_categories(id,code,name,parent_id) values('88000000-0000-4000-8000-000000000102','picker-child','문구','88000000-0000-4000-8000-000000000101');
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
 values('88000000-0000-4000-8000-000000000201','picker-origin','선택기 출고지','hanjin',3000,1000,'합성 검수 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id,created_at)
-select 'picker-test-'||k,'picker-test-ip','선택기 '||k,'문구',case k when 'a' then 1000 when 'b' then 2000 when 'c' then 3000 else 4000 end,
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at,origin_id,created_at)
+select 'picker-test-'||k,'picker-test-ip','선택기 '||k,case k when 'a' then 1000 when 'b' then 2000 when 'c' then 3000 else 4000 end,
  'ok',10,null,'88000000-0000-4000-8000-000000000201',now()-interval '1 day' from unnest(array['a','b','c','d','e','f'])k;
 update public.goods set category_id='88000000-0000-4000-8000-000000000102',shipping_fee_type='free',compare_at_price=2000 where id='picker-test-a';
 insert into public.goods_additional_categories(good_id,category_id) values('picker-test-f','88000000-0000-4000-8000-000000000102');
@@ -44,8 +44,8 @@ declare purchase uuid:=('88100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid;
  payment uuid:=('88200000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid;attempt uuid:=('88300000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid;
 begin
  insert into public.orders(id,user_id,status,total,address,payment_method) values(purchase,'88000000-0000-4000-8000-000000000002','paid',qty_value*1000,'{}',case when bank then 'bank_transfer'::public.order_payment_method else 'card'::public.order_payment_method end);
- insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select purchase,'picker-test-'||k,id,qty_value,1000,'합성 집계 상품','문구','picker-test-ip' from public.goods_variants where good_id='picker-test-'||k and is_default;
+ insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select purchase,'picker-test-'||k,id,qty_value,1000,'합성 집계 상품','picker-test-ip' from public.goods_variants where good_id='picker-test-'||k and is_default;
  insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key)
  values(payment,'88000000-0000-4000-8000-000000000002','order',purchase,case when bank then 'bank_transfer'::public.payment_provider else 'korpay'::public.payment_provider end,qty_value*1000,'paid','picker-payment-'||n);
  insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
@@ -109,7 +109,7 @@ select pg_temp.picker_error($q$select public.admin_search_shopping_story_goods_f
 select set_config('request.jwt.claim.sub','88000000-0000-4000-8000-000000000002',true);
 select pg_temp.picker_error($q$select public.admin_search_shopping_story_goods_filtered()$q$,'operator_capability_required');
 reset role;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,created_at) select 'picker-page-'||lpad(n::text,2,'0'),'picker-test-ip','동일 제목','문구',1000,'ok',1,now() from generate_series(1,21)n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,created_at) select 'picker-page-'||lpad(n::text,2,'0'),'picker-test-ip','동일 제목',1000,'ok',1,now() from generate_series(1,21)n;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','88000000-0000-4000-8000-000000000001',true);
 do $$ declare a jsonb;b jsonb;begin

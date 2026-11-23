@@ -10,7 +10,7 @@ insert into public.catalog_category_attribute_schemas(category_id,fields) values
  {"id":"a5e06400-0000-4000-8000-000000001011","name":"소재","kind":"text","required":true,"unit":"","options":[]},
  {"id":"a5e06400-0000-4000-8000-000000001012","name":"중량","kind":"number","required":false,"unit":"g","options":[]}
 ]');
-insert into public.goods(id,ip_id,name,type,price,category_id,sale_starts_at,sale_ends_at) values('attribute-clone-source','attribute-clone-tests','속성 복사 원본','문구',1000,'a5e06400-0000-4000-8000-000000001010',now(),now()+interval '1 hour');
+insert into public.goods(id,ip_id,name,price,category_id,sale_starts_at,sale_ends_at) values('attribute-clone-source','attribute-clone-tests','속성 복사 원본',1000,'a5e06400-0000-4000-8000-000000001010',now(),now()+interval '1 hour');
 insert into public.goods_attribute_values(good_id,entries) select 'attribute-clone-source',jsonb_build_array(
  jsonb_build_object('field',fields->0,'value','면'),jsonb_build_object('field',fields->1,'value',12.345678),
  jsonb_build_object('field',jsonb_build_object('id','a5e06400-0000-4000-8000-000000001013','name','보관된 구분','kind','text','required',false,'unit','','options','[]'::jsonb),'value','이전 분류 값'))

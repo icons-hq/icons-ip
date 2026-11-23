@@ -24,6 +24,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const auth = await getCurrentAuthState();
   const next = `/checkout/${orderId}`;
+  if (auth.authUnavailable) throw new Error('Checkout authentication temporarily unavailable');
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(next)}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
 

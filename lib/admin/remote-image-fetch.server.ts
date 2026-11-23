@@ -49,10 +49,10 @@ function acceptsContentType(header: string | string[] | undefined) {
 const MESSAGES = {
   url: '공개 HTTPS 이미지 URL만 사용할 수 있습니다.',
   private: '내부 네트워크 이미지 URL은 사용할 수 없습니다.',
-  dns: '이미지 주소의 서버를 찾지 못했습니다.',
+  dns: '이미지 주소의 사이트를 찾지 못했습니다. 주소가 맞는지 확인해주세요.',
   redirect: '이미지 주소가 너무 여러 번 다른 주소로 넘어갑니다.',
   status: '이미지 URL에서 파일을 내려받지 못했습니다.',
-  type: '이미지 URL의 응답이 JPEG·PNG·WebP 이미지가 아닙니다.',
+  type: '이미지 URL에서 받은 파일이 JPEG·PNG·WebP 이미지가 아닙니다.',
   size: '이미지는 20MB 이하여야 합니다.',
   timeout: '이미지 URL 응답 시간이 초과됐습니다.',
 } as const;

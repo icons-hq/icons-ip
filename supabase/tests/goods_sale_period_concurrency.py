@@ -84,7 +84,7 @@ variant = sql("select id from public.goods_variants where good_id='sale-period-g
 clone_variant = sql("select id from public.goods_variants where good_id='sale-period-clone';")
 # The clone begins unpublished with zero stock; make a second explicit test good.
 sql((base / 'helpers/goods_kc_fixture.sql').read_text() + """begin;
-update public.goods set type='문구',image_path='public-media/sale-period-test.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='합성 CS',notice_as_contact='02-0000' where id='sale-period-clone';
+update public.goods set image_path='public-media/sale-period-test.webp',notice_maker='합성',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',notice_as_manager='합성 CS',notice_as_contact='02-0000' where id='sale-period-clone';
 update public.goods_variants set stock_qty=20 where good_id='sale-period-clone';
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at) values(('47c47700'||left(md5('sale-period-clone'),24))::uuid,'authenticated','authenticated','sale-period-clone-kc@example.test','{"testFixture":"goods-kc"}',now(),now());
 insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('sale-period-clone'),24))::uuid,'primary');
@@ -168,7 +168,7 @@ sql('drop trigger test_sale_period_final_wait on public.orders;drop function pri
 # Use a fresh unpublished clone so catalog identity locks are irrelevant to CAS.
 sql('begin;' + auth(admin) + f"select public.admin_clone_good('{key(301)}','sale-period-good','sale-period-cas','SALE-CAS','기간 CAS');commit;")
 revision = int(sql("select sale_period_revision from public.goods where id='sale-period-cas';"))
-payload = dict(id='sale-period-cas', previous_id='sale-period-cas', ip_id='sale-period-tests', name='기간 CAS', type='문구', price=10000,
+payload = dict(id='sale-period-cas', previous_id='sale-period-cas', ip_id='sale-period-tests', name='기간 CAS', price=10000,
                sale_period=dict(startsAt='2099-01-01T00:00:00Z', endsAt='2099-02-01T00:00:00Z', expectedRevision=revision))
 save = "select public.admin_save_good('" + json.dumps(payload, ensure_ascii=False) + "');"
 race('period-cas', auth(admin) + save, auth(admin) + save, 'goods_sale_period_changed')

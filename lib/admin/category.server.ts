@@ -163,8 +163,8 @@ export async function loadAdminCategoryExportRows(includePlatform = true) {
       depth: category.depth,
       status: category.archivedAt ? '보관' : '사용',
       assignedGoods: category.assignedGoodCount,
-      ...(includePlatform ? { erpCode: mapping?.erpCode ?? '미설정', erpName: mapping?.erpName ?? '미설정',
-        erpSource: mapping?.source ?? '미설정', erpVerifiedAt: mapping?.verifiedAt ?? '미설정' } : {}),
+      ...(includePlatform ? { erpCode: mapping?.erpCode ?? '없음', erpName: mapping?.erpName ?? '없음',
+        erpSource: mapping?.source ?? '없음', erpVerifiedAt: mapping?.verifiedAt ?? '없음' } : {}),
     };
   });
 }

@@ -14,5 +14,5 @@ export function readGoodsAttributeSubmission(form: FormData) {
     const submission = parseGoodsAttributeSubmission(JSON.parse(String(form.get('productAttributes'))));
     if (!submission) throw new Error();
     return { ok: true as const, fields: { product_attributes: submission } };
-  } catch { return { ok: false as const, error: '상품속성 입력과 조회 버전을 확인해주세요. 입력은 유지됩니다.' }; }
+  } catch { return { ok: false as const, error: '상품속성 입력을 읽지 못했습니다. 상품속성을 다 불러왔는지 확인한 뒤 다시 저장해주세요. 입력은 유지됩니다.' }; }
 }

@@ -86,7 +86,7 @@ describe('부분 반품 환불 액션(ADR-0047)', () => {
 
     const state = await recordOrderClaimRefundAction({}, refundForm('completed', 'pg_cancel'));
 
-    expect(state.error).toContain('전액 환불로 돌리지 말고');
+    expect(state.error).toContain('전액 환불로 돌리지 마세요');
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_record_order_claim_refund', expect.anything());
     expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
   });
@@ -97,7 +97,7 @@ describe('부분 반품 환불 액션(ADR-0047)', () => {
 
     const state = await recordOrderClaimRefundAction({}, refundForm('completed', 'bank_transfer'));
 
-    expect(state.error).toContain('부분 환불 기록에서 송금 증빙으로 완료');
+    expect(state.error).toContain('부분 환불 기록에서 송금 근거를 적고 [송금 완료 기록]');
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.reconcileOrderPartialCancellation).not.toHaveBeenCalled();
   });
@@ -120,7 +120,7 @@ describe('부분 반품 환불 액션(ADR-0047)', () => {
 
     const state = await recordOrderClaimRefundAction({}, refundForm('completed', 'bank_transfer'));
 
-    expect(state.error).toContain('부분 반품의 환불 수단과 다릅니다');
+    expect(state.error).toContain('부분 반품의 환불 수단과 맞지 않는 처리입니다');
     expect(mocks.reconcileOrderPartialCancellation).not.toHaveBeenCalled();
   });
 });
@@ -177,7 +177,7 @@ describe('결제사 거절 뒤 계좌 송금 부분 환불로 전환(ADR-0047, �
   });
 
   it.each([
-    ['partial_return_transfer_unavailable', '닫힌 부분 반품만'],
+    ['partial_return_transfer_unavailable', '결제사가 부분 취소를 받지 않은 부분 반품뿐'],
     ['partial_return_transfer_reason_required', '사유를 5~500자'],
     ['bank_refund_permission_required', '계좌 송금 환불 권한'],
   ])('DB 거절 %s를 운영자 문구로 옮긴다', async (code, message) => {

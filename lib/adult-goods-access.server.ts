@@ -5,7 +5,18 @@ import { cache } from 'react';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadMyAdultVerification } from '@/lib/identity/adult-verification-status.server';
 import { adultVerificationEnabledFor } from '@/lib/identity/kcp-cert-config';
-import type { AdultGoodsAccess } from './adult-goods';
+import { createClient } from '@/lib/supabase/server';
+import { parseAdultGoodsVisibility, type AdultGoodsAccess } from './adult-goods';
+
+/** 요청 안에서만 공유한다. 관리자가 바꾼 공개 상태는 다음 조회부터 적용된다. */
+export const getAdultGoodsVisibility = cache(async () => {
+  try {
+    const { data, error } = await (await createClient()).rpc('get_adult_goods_visibility');
+    return error ? null : parseAdultGoodsVisibility(data);
+  } catch {
+    return null;
+  }
+});
 
 /**
  * 이 요청의 19금 굿즈 노출 모드. 성인 인증 gate(공개 스위치·canary)가 이 방문자에게
@@ -21,7 +32,10 @@ export const getAdultGoodsAccess = cache(async (): Promise<AdultGoodsAccess> => 
     return 'hidden';
   }
   if (!adultVerificationEnabledFor(userId)) return 'hidden';
-  if (!userId) return 'masked';
-  const status = await loadMyAdultVerification();
-  return status.status === 'verified' ? 'full' : 'masked';
+  const [visibility, verification] = await Promise.all([
+    getAdultGoodsVisibility(),
+    userId ? loadMyAdultVerification() : null,
+  ]);
+  if (!visibility?.enabled) return 'hidden';
+  return verification?.status === 'verified' ? 'full' : 'masked';
 });

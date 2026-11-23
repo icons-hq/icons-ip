@@ -44,6 +44,6 @@ describe('쿠폰 개별 회수 서버 액션', () => {
     mocks.rpc.mockResolvedValueOnce({ data: { nope: true }, error: null });
     expect((await revokeUserCouponsAction({ userCouponIds: [a], reason: '잘못 발급', operationId: op })).ok).toBe(false);
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'coupon_revoke_operation_conflict' } });
-    expect(await revokeUserCouponsAction({ userCouponIds: [a], reason: '잘못 발급', operationId: op })).toMatchObject({ ok: false, error: expect.stringContaining('같은 작업 ID') });
+    expect(await revokeUserCouponsAction({ userCouponIds: [a], reason: '잘못 발급', operationId: op })).toMatchObject({ ok: false, error: expect.stringContaining('앞서 보낸 회수 요청') });
   });
 });

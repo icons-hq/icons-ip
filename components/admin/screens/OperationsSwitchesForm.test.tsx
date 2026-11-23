@@ -21,7 +21,7 @@ it('꺼진 화면은 진행 중 단순 변심 반품 수와 켜기 전 확인 �
   expect(html).toContain('EMAIL_DISPATCH_HMAC_SECRET');
   expect(html).toContain('나이스페이 부분 취소 계약');
   expect(html).toContain('서원(물류)에서 품절을 통보받는 경로');
-  expect(html).toContain('배분 점검 쿼리');
+  expect(html).toContain('금액 배분 점검');
   expect(html).not.toContain('무통장 송금 대기로 처리');
 });
 

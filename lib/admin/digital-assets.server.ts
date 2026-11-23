@@ -21,10 +21,10 @@ export async function verifyDigitalAsset(actor: string, session: string, id: str
  try {
   const read = await service.rpc('service_read_digital_asset', { p_actor: actor, p_session: session, p_id: id });
   const asset = read.error ? null : privateAsset(read.data, actor, id);
-  if (!asset) return { ok: false, error: '파일 업로드의 계정·세션·유효 기간을 확인해주세요.' };
+  if (!asset) return { ok: false, error: '업로드한 파일 정보를 찾지 못했습니다. 로그인이 바뀌었거나 업로드한 지 오래되어 만료됐을 수 있으니 파일을 다시 올려주세요.' };
   if (asset.state === 'verified') return typeof asset.sha256 === 'string' && /^[a-f0-9]{64}$/.test(asset.sha256) ? { ok: true, file: asset.file } : unknown();
   const bucket = service.storage.from(DIGITAL_BUCKET), info = await bucket.info(asset.path);
-  if (info.error || info.data?.size !== asset.file.size || info.data.contentType !== asset.file.mimeType || asset.file.size > DIGITAL_FILE_MAX_BYTES) return { ok: false, error: '업로드 파일의 크기·형식이 일치하지 않습니다.' };
+  if (info.error || info.data?.size !== asset.file.size || info.data.contentType !== asset.file.mimeType || asset.file.size > DIGITAL_FILE_MAX_BYTES) return { ok: false, error: '올라간 파일의 크기나 형식이 고른 파일과 다릅니다. 파일을 다시 올려주세요.' };
   const downloaded = await bucket.download(asset.path);
   if (downloaded.error || downloaded.data?.size !== asset.file.size) return unknown();
   const sha256 = inspectDigitalFile(new Uint8Array(await downloaded.data.arrayBuffer()), asset.file.mimeType);

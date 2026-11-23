@@ -120,7 +120,7 @@ try:
  ]:contention(name,held,apply_request(number,preview([target])))
  request=apply_request(719,preview(['st-family-owner']))
  held=auth(role=False)+"select pg_advisory_xact_lock(hashtextextended('goods-stock-successor-topology:v1',0));"
- held+="insert into public.goods(id,code,ip_id,name,type,price,stock,origin_id,shipping_fee_type,individual_fee) values('st-family-race-added','ST-FAMILY-RACE-ADDED','shipping-delivery-ip','TEST 추가 공유 상품','문구',1000,'ok',"+quote(ident(102))+",'individual',100);"
+ held+="insert into public.goods(id,code,ip_id,name,price,stock,origin_id,shipping_fee_type,individual_fee) values('st-family-race-added','ST-FAMILY-RACE-ADDED','shipping-delivery-ip','TEST 추가 공유 상품',1000,'ok',"+quote(ident(102))+",'individual',100);"
  held+="select private.bind_goods_aggregation('st-family-owner',array['st-family-race-added'],"+quote(ident(751))+','+quote(actor)+');'
  pair('family-membership-cas',held,operation_body(request),'shipping_settings_goods_changed');absent(719)
  request=apply_request(720,preview(['st-good-001']))

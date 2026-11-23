@@ -12,8 +12,8 @@ update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000
 insert into public.verticals(key,label,color) values ('ip-purchase-guard','게시 구매 경계','#000000');
 insert into public.ips(id,title,vertical_key,published_at)
 values ('ip-purchase-guard','게시 구매 경계','ip-purchase-guard',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('ip-purchase-guard','ip-purchase-guard','게시 상품','문구',12000,'ok',10,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
+values ('ip-purchase-guard','ip-purchase-guard','게시 상품',12000,'ok',10,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('ip-purchase-guard');
 insert into public.events(id,title,mode,status,ip_id)

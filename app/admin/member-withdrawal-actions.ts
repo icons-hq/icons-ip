@@ -29,7 +29,7 @@ export interface MemberWithdrawalActionState {
 }
 
 const SIGNIN_BLOCK_FAILED = '정지·삭제는 끝났지만 재로그인 차단을 적용하지 못했습니다. 아래 \'재로그인 차단 다시 적용\'을 눌러주세요.';
-const AVATAR_ERASE_FAILED = '정지·삭제는 끝났지만 프로필 사진 파일을 지우지 못했습니다. 아래 다시 적용 버튼을 눌러주세요.';
+const AVATAR_ERASE_FAILED = '정지·삭제는 끝났지만 프로필 사진 파일을 지우지 못했습니다. 아래 \'프로필 사진 삭제 다시 적용\'을 눌러주세요.';
 
 function revalidateMemberViews(profileId: string) {
   revalidatePath('/admin');

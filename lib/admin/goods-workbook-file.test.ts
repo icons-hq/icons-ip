@@ -61,6 +61,33 @@ describe('real xlsx boundary', () => {
     book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!.getCell('A5').value = { formula: '1+1', result: 2 };
     await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('수식');
   });
+  /* ADR-0048: 2026-11-19 코드 열 이름을 상품 자동코드·옵션 자동코드로 바꿨다. 그 전에 내려받은 v8 파일(판매자상품코드·관리코드·
+     적용 관리코드)도 같은 열로 읽고, 새로 내려받는 파일은 새 이름을 쓴다. */
+  it('코드 열의 새 머리글로 내려받고, 옛 v8 머리글(판매자상품코드·관리코드)의 파일도 같은 열로 읽는다', async () => {
+    const kc = { ...emptyGoodsKcWorkbookRow(), goodCode: values.code, modelIndex: '1', variantCodes: '00001-01',
+      family: '그 외', scheme: '해당 없음', modelName: 'TEST 전용 모델', basis: 'TEST 적용근거' };
+    const custom = { ...emptyGoodsCustomInputWorkbookRow(), goodCode: values.code, mode: '편집', enabled: '아니오',
+      fieldId: '00000000-0000-4000-8000-000000010001', name: 'TEST 문구', action: '중지', revision: '7' };
+    const bytes = await buildGoodsWorkbook([values], undefined, [kc], [custom]);
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes as never);
+    const goods = book.getWorksheet('상품')!, kcSheet = book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!, customSheet = book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!;
+    const headers = (sheet: ExcelJS.Worksheet) => (sheet.getRow(4).values as unknown[]).slice(1).map(String);
+    expect(headers(goods)).toEqual(expect.arrayContaining(['상품 자동코드', '옵션 자동코드']));
+    expect(headers(goods)).not.toEqual(expect.arrayContaining(['판매자상품코드']));
+    expect(headers(kcSheet).slice(0, 3)).toEqual(['상품 자동코드', 'KC행번호', '적용 옵션 자동코드']);
+    const rename = (sheet: ExcelJS.Worksheet, from: string, to: string) => {
+      const index = headers(sheet).indexOf(from); expect(index, from).toBeGreaterThanOrEqual(0); sheet.getCell(4, index + 1).value = to;
+    };
+    rename(goods, '상품 자동코드', '판매자상품코드'); rename(goods, '옵션 자동코드', '관리코드');
+    rename(kcSheet, '상품 자동코드', '판매자상품코드'); rename(kcSheet, '적용 옵션 자동코드', '적용 관리코드');
+    rename(customSheet, '상품 자동코드', '판매자상품코드');
+    expect(await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).toMatchObject({
+      rows: [{ values }], kcRows: [{ row: 5, values: kc }], customInputRows: [{ row: 5, values: custom, errors: [] }],
+    });
+    /* 별칭은 같은 열의 옛 이름만 받는다. 다른 열 이름으로 바꾸면 지금처럼 거절한다. */
+    rename(goods, '판매자상품코드', '바코드');
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('현재 상품 양식을 내려받아');
+  });
   it('round trips typed money, textual codes, blanks and multiline descriptions losslessly', async () => {
     const bytes = await buildGoodsWorkbook([values]);
     expect(bytes.subarray(0, 2).toString()).toBe('PK');
@@ -132,8 +159,8 @@ describe('real xlsx boundary', () => {
     expect(GOODS_WORKBOOK_VERSION).toBe('ICONS 상품 일괄 등록 v8');
     const headers = (sheet.getRow(4).values as unknown[]).slice(1).map(String);
     // 열 이름은 상품 수정 화면과 같다(S36-X02·S36-012·S36-013).
-    expect(headers.slice(0, 9)).toEqual(['상품번호', '판매자상품코드', '상품명', 'IP ID', '상품 URL', '게시 상태', '상품 유형', '판매가', '즉시할인']);
-    for (const header of ['관리코드', '옵션가', '재고수량', '판매상태', '상품 표시문구', '공급가(매입단가) (관리자 전용)', '공급가(매입단가) 세금 구분 (관리자 전용)'])
+    expect(headers.slice(0, 9)).toEqual(['상품번호', '상품 자동코드', '상품명', 'IP ID', '상품 URL', '게시 상태', '상품 유형', '판매가', '즉시할인']);
+    for (const header of ['옵션 자동코드', '옵션가', '재고수량', '판매상태', '상품 표시문구', '공급가(매입단가) (관리자 전용)', '공급가(매입단가) 세금 구분 (관리자 전용)'])
       expect(headers).toContain(header);
     for (const header of ['상품코드', '옵션코드', '기준 판매가', '소비자가', '옵션 판매가', '옵션 재고', '매입단가 (관리자 전용)']) expect(headers).not.toContain(header);
     expect(headers.slice(headers.indexOf('옵션 축 1'), headers.indexOf('옵션 축 1') + 6)).toEqual(['옵션 축 1', '옵션 값 1', '옵션 축 2', '옵션 값 2', '옵션 축 3', '옵션 값 3']);
@@ -165,7 +192,7 @@ describe('real xlsx boundary', () => {
     const parsed = await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()));
     expect(parsed.customInputRows?.[0].errors?.join()).toContain('수식');
     sheet.getCell('A5').value = 1;
-    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('같은 판매자상품코드');
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('같은 상품 자동코드');
   });
   it('시트 누락과 기존 v5 파일은 보존하고, 구버전에 새 시트를 붙이거나 열·버전을 바꾸면 거절한다', async () => {
     const book = new ExcelJS.Workbook(); await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
@@ -188,7 +215,7 @@ describe('real xlsx boundary', () => {
     book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!.getCell('A5').value = 123;
     book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!.getCell('D5').value = 42;
     expect((await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).customInputRows?.[0].errors).toEqual([
-      '판매자상품코드: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.', '항목 ID: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.',
+      '상품 자동코드: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.', '항목 ID: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.',
     ]);
     await expect(buildGoodsWorkbook([product], undefined, [], Array.from({ length: 5001 }, () => custom))).rejects.toThrow('5,000');
   });

@@ -138,7 +138,7 @@ describe('signup confirmation email template contract', () => {
   const code = '<p>{{ .Token }}</p>';
   const link = '<a href="{{ .ConfirmationURL }}">confirm</a>';
 
-  it('allows one six-digit code and one confirmation link', () => {
+  it('allows one code and one confirmation link', () => {
     expect(isSafeConfirmationTemplate(`${code}${link}`)).toBe(true);
     expect(isSafeConfirmationTemplate(`<p style="font-size:24px">{{.Token}}</p><a href='{{ .ConfirmationURL }}'>confirm</a>`)).toBe(true);
   });
@@ -155,7 +155,7 @@ describe('signup confirmation email template contract', () => {
   });
 
   it('is satisfied only when the subject and the template match', () => {
-    const base = { site_url: 'https://iconsip.com', uri_allow_list: '' };
+    const base = { site_url: 'https://iconsip.com', uri_allow_list: '', mailer_otp_length: 6 };
     const confirmation = { subject: 'ICONS 가입 확인 코드', template: `${code}${link}` };
     expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: 'ICONS 가입 확인 코드', mailer_templates_confirmation_content: `  ${code}${link}\n` },
       siteUrl: 'https://iconsip.com', allowList: '', enforceMailer: false, confirmation })).toBe(true);
@@ -553,6 +553,23 @@ describe('syncSupabaseAuth', () => {
   }
 
   const ok = (body) => ({ ok: true, status: 200, body });
+
+  it('운영의 8자리 발급 설정을 그대로 두고 입력 범위 밖의 설정은 배포 전에 알린다', async () => {
+    const path = new URL('../supabase/templates/confirmation.html', import.meta.url).pathname;
+    const env = { ...baseEnv, CONFIRMATION_TEMPLATE_PATH: path, CONFIRMATION_SUBJECT: 'ICONS 가입 확인 코드' };
+    const config = {
+      site_url: baseEnv.SITE_URL, uri_allow_list: baseEnv.REDIRECT_URLS.replace('\n', ','),
+      mailer_subjects_confirmation: env.CONFIRMATION_SUBJECT,
+      mailer_templates_confirmation_content: await readFile(path, 'utf8'),
+      mailer_otp_length: 8,
+    };
+    const { calls, fetchStub } = stubFetch([ok({ ...config, mailer_subjects_confirmation: 'old' }), ok({}), ok(config), ok({ ...config, mailer_otp_length: 11 })]);
+    vi.stubGlobal('fetch', fetchStub);
+    await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
+    expect(JSON.parse(calls[1].body)).not.toHaveProperty('mailer_otp_length');
+    await expect(syncSupabaseAuth(env, () => {})).rejects.toThrow('Unsupported signup email OTP length');
+    expect(calls.map(call => call.method)).toEqual(['GET', 'PATCH', 'GET', 'GET']);
+  });
 
   it('이미 맞는 설정이면 PATCH하지 않는다', async () => {
     const synced = {

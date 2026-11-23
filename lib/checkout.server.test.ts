@@ -140,7 +140,6 @@ describe('loadCheckoutOrder', () => {
         qty: 1,
         unit_price: 27000,
         good_name_snapshot: '주문 당시 이름',
-        good_type_snapshot: '아크릴',
       }],
       payment_summaries: [],
       goods: [{ id: 'goods-1', name: '나중에 바뀐 이름', type: '변경됨' }],
@@ -618,7 +617,7 @@ it('같은 옵션의 1001개 주문 문구를 결제 준비 화면에서 모두 
   const records:QueryRecord[]=[];
   const orderId='7ad4c967-3d48-44da-a665-64731ac33f62',userId='1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
   const rows:Record<string,Record<string,unknown>[]>={orders:[{id:orderId,user_id:userId,status:'pending',total:1001000,address:{},created_at:'2026-10-12T00:00:00Z',payment_method:'bank_transfer'}],
-    order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',good_type_snapshot:'문구',variant_id:'00000000-0000-4000-8000-000000000001',
+    order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',variant_id:'00000000-0000-4000-8000-000000000001',
       custom_inputs_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'문구',value:`입력 ${index}`}]}}))};
   const rpc=vi.fn(async()=>({data:'7AD4C967',error:null}));
   mocks.client={from:(table:string)=>createQuery(table,records,rows),rpc};mocks.serviceClient=mocks.client;
@@ -665,7 +664,7 @@ it('신규 주문은 저장된 온라인·착불·할인·품목 원장과 일�
       discount_total: totals.couponDiscountTotal, store_credit_total: totals.storeCreditTotal, volume_discount_total: totals.volumeDiscountTotal,
       shipping_collect_total: totals.collectShippingTotal, calculation_version: 2, address: transactionInput.address, created_at: '2026-10-14T03:00:00Z' }],
     order_items: [{ id: transactionLineId, order_id: transactionOrder, good_id: transactionInput.items[0].goodId, variant_id: transactionInput.items[0].variantId,
-      qty: 2, unit_price: 10000, good_name_snapshot: '굿즈', good_type_snapshot: '피규어' }],
+      qty: 2, unit_price: 10000, good_name_snapshot: '굿즈' }],
   };
   const rpc = vi.fn().mockResolvedValue({ data: { orderId: transactionOrder, quoteId: transactionQuoteId, display: transactionDisplay }, error: null });
   mocks.client = { from: (table: string) => createQuery(table, records, rows), rpc }; mocks.serviceClient = mocks.client;
@@ -684,7 +683,7 @@ it('신규 주문은 저장된 온라인·착불·할인·품목 원장과 일�
 it('결제 대기 주문서는 랜덤 판매 굿즈를 장바구니 키·옵션명 랜덤 한 줄로만 보인다(D5②)', async () => {
   const records: QueryRecord[] = [];
   const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62', userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
-  const secret = { good_id: 'random-good', unit_price: 5000, good_name_snapshot: '랜덤 포토카드', good_type_snapshot: '포토카드',
+  const secret = { good_id: 'random-good', unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
     option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' };
   const rows: Record<string, Record<string, unknown>[]> = {
     orders: [{ id: orderId, user_id: userId, status: 'pending', total: 15000, address: {}, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
@@ -709,11 +708,9 @@ it('주문서의 배송 건은 배송 건 품목에서 빠진 랜덤 줄을 my_o
   const rows: Record<string, Record<string, unknown>[]> = {
     orders: [{ id: orderId, user_id: userId, status: 'paid', total: 15000, address: {}, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
     order_items: [
-      { id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, good_id: 'random-good', qty: 1, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
-        good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000c', option_sale_mode_snapshot: 'random',
+      { id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, good_id: 'random-good', qty: 1, unit_price: 5000, good_name_snapshot: '랜덤 포토카드', variant_id: '00000000-0000-4000-8000-00000000000c', option_sale_mode_snapshot: 'random',
         cart_variant_id: '00000000-0000-4000-8000-00000000000a', shipment_id: 'shipment-1' },
-      { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
-        good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', option_sale_mode_snapshot: 'random',
+      { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', option_sale_mode_snapshot: 'random',
         cart_variant_id: '00000000-0000-4000-8000-00000000000a', shipment_id: 'shipment-1' },
     ],
     order_shipments: [{ id: 'shipment-1', order_id: orderId, origin_id: 'origin', origin_name_snapshot: '김포', shipping_fee: 3000, status: 'ready',

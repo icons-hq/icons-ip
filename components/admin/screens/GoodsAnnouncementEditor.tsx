@@ -63,7 +63,7 @@ function EditorFields({ announcement, action, pending, state, backHref, uncertai
       <Field label="공지 내용" htmlFor="announcement-body" error={errors.body}>
         <div className={INLINE}><label className={CHOICE}><input type="radio" name="format" value="plain" checked={format === 'plain'} onChange={() => setFormat('plain')} />직접 입력</label><label className={CHOICE}><input type="radio" name="format" value="html" checked={format === 'html'} onChange={() => setFormat('html')} />HTML</label><Button size="sm" variant="outline" onClick={() => setPreview(true)} type="button">미리보기</Button></div>
         <Textarea className="min-h-60 resize-y field-sizing-fixed" id="announcement-body" name="body" maxLength={30000} required rows={14} value={body} onChange={event => setBody(event.target.value)} />
-        <small className="text-xs text-muted-foreground tabular-nums">{body.length.toLocaleString('ko-KR')} / 30,000자{format === 'html' ? ' · 지원하지 않는 코드와 검증되지 않은 저장소 이미지는 제거됩니다.' : ''}</small>
+        <small className="text-xs text-muted-foreground tabular-nums">{body.length.toLocaleString('ko-KR')} / 30,000자{format === 'html' ? ' · 쓸 수 없는 HTML 코드와 확인되지 않은 업로드 이미지는 저장할 때 지워집니다.' : ''}</small>
         {warnings.map(warning => <p className={NOTE} key={warning}>{warning}</p>)}
       </Field>
       <Field label="노출 화면" htmlFor="announcement-device" error={errors.device}><AdminSelect id="announcement-device" name="device" value={device} onChange={event => setDevice(event.target.value as typeof device)} wrapperClassName="w-full sm:w-80">{GOODS_ANNOUNCEMENT_DEVICES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</AdminSelect></Field>
@@ -91,7 +91,7 @@ function EditorFields({ announcement, action, pending, state, backHref, uncertai
       </Field>
     </fieldset>
     <div className="sticky bottom-0 z-10 flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between print:static" data-announcement="savebar">
-      <div className="flex min-w-0 flex-col gap-1.5 text-sm">{errors.form ? <p className="text-destructive" role="alert">{errors.form}</p> : null}{state.message ? <p className="text-success" role="status">{state.message}</p> : null}{state.outcome === 'saved' && state.savedId ? <a className="w-fit underline underline-offset-4" href={`${GOODS_ANNOUNCEMENTS_PATH}?edit=${state.savedId}`}>저장된 공지 다시 열기</a> : null}<small className="text-xs text-muted-foreground">{announcement.reference ? `공지번호 ${announcement.reference} · 저장 버전 ${announcement.revision}` : '신규 공지'}{enabled ? ' · 저장 후 조건에 맞는 상품에 표시됩니다.' : ' · 저장해도 상품에 표시되지 않습니다.'}</small></div>
+      <div className="flex min-w-0 flex-col gap-1.5 text-sm">{errors.form ? <p className="text-destructive" role="alert">{errors.form}</p> : null}{state.message ? <p className="text-success" role="status">{state.message}</p> : null}{state.outcome === 'saved' && state.savedId ? <a className="w-fit underline underline-offset-4" href={`${GOODS_ANNOUNCEMENTS_PATH}?edit=${state.savedId}`}>저장된 공지 다시 열기</a> : null}<small className="text-xs text-muted-foreground">{announcement.reference ? `공지번호 ${announcement.reference} · ${announcement.revision}번째 저장` : '신규 공지'}{enabled ? ' · 저장 후 조건에 맞는 상품에 표시됩니다.' : ' · 저장해도 상품에 표시되지 않습니다.'}</small></div>
       <div className="flex shrink-0 flex-wrap justify-end gap-2">{uncertain ? <><Button variant="outline" disabled={pending || !canResolve} type="button" onClick={resolve}>저장 결과 확인</Button><Button disabled={pending || !canResolve} type="button" onClick={retry}>같은 요청 다시 저장</Button></> : <Button disabled={pending || locked || state.reloadRequired} type="submit">{pending ? '저장 중…' : '저장'}</Button>}{!pending && !uncertain ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={backHref}>목록</Link> : null}</div>
     </div>
     {picker ? <GoodsAnnouncementProductPicker value={goods} onClose={() => setPicker(false)} onApply={items => { setGoods(items); setPicker(false); }} /> : null}
@@ -140,7 +140,7 @@ export function GoodsAnnouncementEditor({ announcement, backHref, accountId, per
       const operation = createGoodsAnnouncementPendingSave(form, accountId, announcement.id, crypto.randomUUID());
       if (!operation) { setState({ saved: state.saved, errors: { form: '저장할 입력을 확인하지 못했습니다. 내용을 확인하고 다시 시도해주세요.' } }); return; }
       if (persistPending && (!draft.change(operation) || !draft.getCurrentSnapshot().saved)) {
-        draft.discard(); setState({ saved: state.saved, errors: { form: '이 브라우저에서 저장 요청을 보관할 수 없어 서버에 보내지 않았습니다. 입력을 복사하고 브라우저 저장소 설정을 확인해주세요.' } }); return;
+        draft.discard(); setState({ saved: state.saved, errors: { form: '이 브라우저에 저장 요청을 보관할 수 없어 저장하지 않았습니다. 입력을 따로 복사해 두고, 브라우저 설정에서 사이트 데이터 저장이 막혀 있지 않은지 확인해주세요.' } }); return;
       }
       request.current = { operation, form: goodsAnnouncementPendingForm(operation) };
       if (!persistPending) setFixtureRequest(operation);
@@ -160,16 +160,16 @@ export function GoodsAnnouncementEditor({ announcement, backHref, accountId, per
         }
         else setUncertain(true);
       } catch {
-        if (active()) { setState({ saved: state.saved, outcome: 'unknown', errors: { form: '저장 응답을 확인하지 못했습니다. 원래 입력과 요청을 유지합니다.' } }); setUncertain(true); }
+        if (active()) { setState({ saved: state.saved, outcome: 'unknown', errors: { form: '저장됐는지 확인하지 못했습니다. 원래 입력과 요청은 그대로 두었습니다. 저장 결과 확인을 눌러 확인해주세요.' } }); setUncertain(true); }
       }
       finally { busy.current = false; }
     });
   }
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-announcement-editor"><AdminPageHeader title={current.revision ? '상품공지사항 수정' : '상품공지사항 등록'} actions={!pending && !unresolved ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={backHref}>목록</Link> : undefined} />
-    {persistPending && draft.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 바뀌어 이전 요청을 지우고 편집을 잠갔습니다. 화면을 새로고침해주세요.</p> : <>
+    {persistPending && draft.blocked ? <p className="text-sm text-destructive" role="alert">로그인한 계정이 바뀌었거나 다시 로그인해서 이전 요청을 지우고 편집을 잠갔습니다. 화면을 새로고침해주세요.</p> : <>
       {persistPending && !draft.ready ? <p className="text-sm text-muted-foreground" role="status">현재 로그인과 보관된 저장 요청을 확인하고 있습니다.</p> : null}
-      {persistPending && draft.unavailable ? <p className="text-sm text-destructive" role="alert">이 브라우저에서 저장 요청을 보관할 수 없습니다. 보관이 가능해지기 전에는 서버에 저장하지 않습니다.</p> : null}
-      {recovered ? <AdminNotice tone="warning"><p role="status">이 공지에 앞서 보낸 저장 요청이 있습니다. 편집을 잠갔습니다. 결과를 확인할 때까지 이 탭의 같은 로그인에서 보관합니다. 로그아웃·계정 또는 로그인 세션 변경 후에는 복구되지 않습니다.</p><Button className="mt-2" size="sm" variant="outline" type="button" disabled={pending || locked} onClick={restore}>고정된 저장 요청 복구</Button></AdminNotice> : null}
+      {persistPending && draft.unavailable ? <p className="text-sm text-destructive" role="alert">이 브라우저에 저장 요청을 보관할 수 없어 지금은 저장할 수 없습니다. 브라우저 설정에서 사이트 데이터 저장이 막혀 있지 않은지 확인해주세요.</p> : null}
+      {recovered ? <AdminNotice tone="warning"><p role="status">이 공지에 앞서 보낸 저장 요청의 결과를 아직 확인하지 못해 편집을 잠갔습니다. 결과를 확인할 때까지 이 탭에 보관합니다. 로그아웃하거나 계정이 바뀌거나 다시 로그인하면 복구되지 않습니다.</p><Button className="mt-2" size="sm" variant="outline" type="button" disabled={pending || locked} onClick={restore}>고정된 저장 요청 복구</Button></AdminNotice> : null}
       {stored ? <details className="rounded-lg border bg-muted/40 px-4 py-3 text-sm"><summary className="cursor-pointer font-medium">확인 중인 최초 입력</summary><dl className="mt-3 grid gap-3">{stored.entries.filter(([field]) => GOODS_ANNOUNCEMENT_PENDING_LABELS[field]).map(([field, value]) => <div className="grid gap-1" key={field}><dt className="text-xs text-muted-foreground">{GOODS_ANNOUNCEMENT_PENDING_LABELS[field]}</dt><dd className="whitespace-pre-wrap wrap-anywhere">{goodsAnnouncementPendingDisplayValue(field, value)}</dd></div>)}</dl></details> : null}
       <EditorFields key={`${current.id}:${current.revision}`} announcement={current} action={form => execute(form)} pending={pending} state={state} backHref={backHref} uncertain={unresolved} locked={locked} canResolve={!locked && !recovered && Boolean(stored)} resolve={() => execute(undefined, true)} retry={() => execute()} />
     </>}

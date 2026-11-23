@@ -96,7 +96,7 @@ async function reconcileApprovedRequest(requestId: string, actorId: string) {
 function reviewRequiredMessage(code: string) {
   return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]으로 다시 시도해주세요.`;
 }
-const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.';
+const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 결제 담당자에게 결제사 거래 내역 확인을 요청해주세요.';
 
 /**
  * 전이별 완료 문구(#250). "완료 처리"는 done이 거래확정으로 재정의되면서
@@ -607,9 +607,9 @@ function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFa
   const canceledNote=`${fresh?` 취소한 주문의 배송 건 ${fresh}건은 발송처리하지 않고 '취소 뒤 출고 발견'으로 기록했습니다. 주문 상세에서 고객 연락·회수를 처리해주세요.`:''}${again?` 이미 '취소 뒤 출고 발견'으로 기록된 ${again}건은 그대로 두었습니다.`:''}`;
   if(!succeeded.length){
     if((unchanged||blankLines||canceled.length)&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}${canceledNote}`,report};
-    return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}${canceledNote}`},report};
+    return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 아래 '등록하지 못한 줄'의 사유를 보고 파일을 고쳐 다시 올려주세요.${skipped}${canceledNote}`},report};
   }
-  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${extras}${skipped}${canceledNote}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
+  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${extras}${skipped}${canceledNote}${failed.length?` 실패 ${failed.length}건은 아래 '등록하지 못한 줄'의 사유를 확인해주세요.`:''}${queueWarning?' 배송 안내 메일 발송 예약을 확인하지 못했습니다. 주문 상세의 배송 메일 처리 상태에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
 }
 
 /**

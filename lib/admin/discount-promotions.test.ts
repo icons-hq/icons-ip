@@ -118,7 +118,7 @@ describe('할인 프로모션 화면 문구', () => {
       .toEqual(['10% 할인', '1,500원 할인', '예외가 7,000원', '할인 제외']);
     expect(discountPromotionSkipLabel('price_period_overlap')).toBe('기간이 겹치는 즉시할인이 이미 있음');
     expect(discountPromotionSkipLabel('discount_promotion_excluded')).toBe('예외로 할인에서 제외');
-    expect(discountPromotionError('discount_promotion_changed')).toContain('다시 확인');
+    expect(discountPromotionError('discount_promotion_changed')).toContain('다시 비교');
     expect(discountPromotionError('unknown_code')).toContain('처리하지 않았습니다');
   });
   it('주소는 프로모션 화면 아래에 둔다', () => {

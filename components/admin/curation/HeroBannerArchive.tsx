@@ -49,7 +49,7 @@ function HeroArchiveConfirmation({ target, archive, dirty = false, onClose, onCo
     startTransition(async () => {
       let result: AdminCurationActionState;
       try { result = await setHeroBannerArchivedAction(fixedRequest); }
-      catch { result = { errors: { form: '처리 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }, uncertain: true }; }
+      catch { result = { errors: { form: '처리 결과를 확인하지 못했습니다. 이미 처리됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 처리됩니다.' }, uncertain: true }; }
       inFlight.current = false;
       if (result.message && !result.errors) { setState(result); onCompleted(); router.refresh(); }
       else {

@@ -51,7 +51,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
     setData(result.data);
   }
   function run(work: () => Promise<void>) {
-    startTransition(async () => { setError(''); setMessage(''); try { await work(); } catch { setError('처리 결과를 확인하지 못했습니다. 작성 중인 문구는 유지됩니다.'); } });
+    startTransition(async () => { setError(''); setMessage(''); try { await work(); } catch { setError('처리 결과를 확인하지 못했습니다. 작성 중인 문구는 그대로 있습니다. [검색]을 눌러 목록에서 결과를 확인한 뒤 필요하면 다시 시도해주세요.'); } });
   }
   function edit(template: CsReplyTemplate) {
     setCleanDrafts(previous => ({ ...previous, [template.id]: template })); setSelected(template.id); setLatest(null); setError(''); setMessage('');
@@ -59,7 +59,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   function changeDraft(value: CsTemplateDraft) {
     if (locked) return;
     if (!workspace.drafts[value.id] && Object.keys(workspace.drafts).length >= CS_TEMPLATE_DRAFT_LIMIT) {
-      setError(`편집 초안은 최대 ${CS_TEMPLATE_DRAFT_LIMIT}개입니다. 기존 초안을 저장하거나 정리해주세요.`); return;
+      setError(`저장하지 않은 템플릿 편집은 최대 ${CS_TEMPLATE_DRAFT_LIMIT}개까지 보관합니다. 편집 중인 템플릿을 저장하거나 정리한 뒤 다시 시도해주세요.`); return;
     }
     if (keep({ ...workspace, drafts: { ...workspace.drafts, [value.id]: value }, selected: value.id })) {
       setSelected(value.id); setLatest(null); setError(''); setMessage('');
@@ -68,7 +68,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   function newDraft() { changeDraft({ id: crypto.randomUUID(), title: '', body, category: 'other', revision: 0 }); }
   function restore() {
     const value = recovery.restore(); if (!value) return;
-    setSelected(value.selected); setLatest(null); setError(''); setMessage(value.pending ? '이전 저장 결과를 먼저 확인해주세요. 자동으로 다시 저장하지 않습니다.' : '편집 초안을 복구했습니다. 저장하면 기존 버전을 다시 검사합니다.');
+    setSelected(value.selected); setLatest(null); setError(''); setMessage(value.pending ? '저장됐는지 확인하지 못한 편집을 복구했습니다. [이전 저장 결과 · 최신 저장본 확인]을 먼저 눌러주세요. 자동으로 다시 저장하지 않습니다.' : '저장하지 않은 편집을 복구했습니다. 저장할 때 그사이 다른 사람이 템플릿을 고쳤는지 확인합니다.');
   }
   function discard() { recovery.discard(); setSelected(null); setLatest(null); setError(''); setMessage(''); }
   async function insert(template: CsReplyTemplate) {
@@ -81,7 +81,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
     if (!keep(without(template.id))) return;
     setCleanDrafts(previous => ({ ...previous, [template.id]: template })); setSelected(template.id); setLatest(null);
     try { await load(data.page); } catch { setError('저장본은 확인했지만 목록을 다시 불러오지 못했습니다. 검색을 눌러 최신 목록을 확인해주세요.'); }
-    setMessage(readback ? '현재 저장본이 작성 문구와 일치합니다. 해당 초안을 정리했습니다.' : '답변 템플릿을 저장했습니다. 해당 초안을 정리했습니다.');
+    setMessage(readback ? '저장된 템플릿이 작성 문구와 같아 저장된 것을 확인했습니다. 보관하던 편집 내용을 지웠습니다.' : '답변 템플릿을 저장했습니다. 보관하던 편집 내용을 지웠습니다.');
   }
   async function save() {
     if (!draft || locked) return;
@@ -95,7 +95,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
           setError(result.error); return;
         }
         await accept(result.template);
-      } catch { setError('저장 결과가 불확실합니다. 입력과 대상 버전을 보존했으니 최신 저장본을 확인해주세요.'); }
+      } catch { setError('저장됐는지 확인하지 못했습니다. 작성 문구는 그대로 있습니다. [이전 저장 결과 · 최신 저장본 확인]을 눌러 저장됐는지 확인해주세요.'); }
     });
   }
   function readLatest() {
@@ -111,8 +111,8 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
       }
       if (request) keep({ ...workspace, pending: null });
       setLatest(current);
-      setMessage(current ? '최신 저장본을 확인했습니다. 작성 문구와 이전 버전은 유지됩니다. 버전이 다르면 그대로 덮어쓸 수 없습니다.'
-        : '현재 조회되는 저장본이 없습니다. 작성 문구와 대상 번호를 유지했으며 다시 저장할 때 같은 버전을 검사합니다.');
+      setMessage(current ? '최신 저장본을 아래에 보여 줍니다. 작성 문구는 그대로 있습니다. 버전이 다르면 그사이 다른 사람이 고친 것이라 지금 문구로 덮어쓸 수 없습니다. 이때는 작성 문구를 복사해 두고 [편집 문구를 최신 저장본으로 바꾸기]를 누른 뒤 다시 고쳐주세요.'
+        : '저장된 템플릿을 찾지 못했습니다. 아직 저장되지 않았을 수 있습니다. 작성 문구는 그대로 있으니 [템플릿 저장]을 다시 눌러주세요. 저장할 때 그사이 다른 사람이 고쳤는지 확인합니다.');
     });
   }
 
@@ -121,7 +121,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
     {open ? <CustomerServiceDialog title={`${CS_REPLY_SURFACE_LABELS[surface]} 답변 템플릿`} busy={pending || uncertain} onClose={() => setOpen(false)} wide>
       <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">상품 상세에 공개할 답변을 준비합니다. {REPLY_TEMPLATE_REPLACE_HINT}</p>
-      <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관 초안 모두 버리기"
+      <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관한 편집 모두 버리기"
         discardDisabled={uncertain || Boolean(recovery.recovery?.pending)} />
       <CsTemplateDraftList drafts={workspace.drafts} disabled={locked} onSelect={id => { setSelected(id); setLatest(null); setError(''); setMessage(''); }} />
       <form className={TEMPLATE_SEARCH_CLASS} data-cs-template="search" onSubmit={event => { event.preventDefault(); run(() => load()); }}>
@@ -142,7 +142,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
           <Button disabled={locked} onClick={() => run(async () => {
             const result = await archiveCsReplyTemplateAction({ id: template.id, revision: template.revision, archived: !template.archivedAt });
             if (!result.ok) { setError(result.error); return; }
-            await load(data.page); setMessage(template.archivedAt ? '템플릿을 복구했습니다. 편집 초안은 유지됩니다.' : '템플릿을 삭제했습니다. 편집 초안은 유지되며 삭제된 템플릿은 복구 후 수정할 수 있습니다.');
+            await load(data.page); setMessage(template.archivedAt ? '템플릿을 복구했습니다. 편집 중인 문구는 그대로 있습니다.' : '템플릿을 삭제했습니다. 편집 중인 문구는 그대로 있습니다. 삭제한 템플릿은 [삭제한 템플릿]을 체크하고 검색해 복구한 뒤 수정할 수 있습니다.');
           })} size="sm" type="button" variant={template.archivedAt ? 'outline' : 'destructive'}>{template.archivedAt ? '복구' : '삭제'}</Button>
         </div>
       </article>) : <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 템플릿이 없습니다.</p>}</div>

@@ -42,7 +42,7 @@ export function MarketingLinkIssuer({ source, targetIds, label = '마케팅 링�
       const result = await issueMarketingLinksAction(request.source, request.targetIds, request.operationId);
       if (result.error) { setError(result.error); setRetry(result.uncertain ? request : null); }
       else if (result.rows) { setRows(result.rows); setRetry(null); if (refreshOnIssue) router.refresh(); }
-    } catch { setError('링크 생성 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); setRetry(request); }
+    } catch { setError('링크가 만들어졌는지 확인하지 못했습니다. [같은 요청으로 다시 확인]을 눌러주세요. 다시 눌러도 링크가 두 번 만들어지지 않습니다.'); setRetry(request); }
     finally { setPending(false); }
   }
   return <>

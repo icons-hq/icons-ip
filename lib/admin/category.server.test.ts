@@ -49,7 +49,7 @@ describe('admin category loader', () => {
 
   it('exports missing ERP values as explicit unconfigured labels', async () => {
     const rows = await loadAdminCategoryExportRows();
-    expect(rows[0]).toMatchObject({ path: '생활', erpCode: '미설정' });
+    expect(rows[0]).toMatchObject({ path: '생활', erpCode: '없음' });
     expect(rows[1]).toMatchObject({ path: '생활 > 문구', erpCode: 'ERP-01', assignedGoods: 2 });
   });
 });

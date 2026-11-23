@@ -85,7 +85,7 @@ describe('ERP 품목 파일 읽기', () => {
   });
 
   it('파일 형식·크기를 먼저 확인한다', async () => {
-    expect(await readErpItemFileAction(new FormData())).toMatchObject({ ok: false, error: '반입할 파일을 선택해주세요.' });
+    expect(await readErpItemFileAction(new FormData())).toMatchObject({ ok: false, error: '올릴 파일을 선택해주세요.' });
     expect(await readErpItemFileAction(fileForm('items.xls', 'a'))).toMatchObject({ ok: false, error: expect.stringContaining('XLSX로 다시 저장') });
     expect(await readErpItemFileAction(fileForm('items.pdf', 'a'))).toMatchObject({ ok: false, error: 'XLSX 또는 CSV 파일을 올려주세요.' });
     expect(await readErpItemFileAction(fileForm('items.csv', new Uint8Array(900 * 1024 + 1)))).toMatchObject({ ok: false, error: expect.stringContaining('900KB') });
@@ -151,11 +151,11 @@ describe('ERP 품목 반입', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'staff_required' } });
     expect(await importErpItemsAction(rows)).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid_erp_item_rows' } });
-    expect(await importErpItemsAction(rows)).toEqual({ ok: false, error: '한 번에 5,000행까지 반입할 수 있습니다.' });
+    expect(await importErpItemsAction(rows)).toEqual({ ok: false, error: '한 번에 5,000줄까지 올릴 수 있습니다. 파일을 나누어 올려주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: { inserted: 'x' }, error: null });
-    expect(await importErpItemsAction(rows)).toMatchObject({ ok: false, error: expect.stringContaining('반입 결과를 확인하지 못했습니다') });
+    expect(await importErpItemsAction(rows)).toMatchObject({ ok: false, error: expect.stringContaining('올린 결과를 확인하지 못했습니다') });
     mocks.rpc.mockRejectedValueOnce(new Error('socket'));
-    expect(await importErpItemsAction(rows)).toMatchObject({ ok: false, error: expect.stringContaining('다시 반입하면 이어서 반영됩니다') });
+    expect(await importErpItemsAction(rows)).toMatchObject({ ok: false, error: expect.stringContaining('다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다') });
   });
 });
 
@@ -166,7 +166,7 @@ describe('ERP 분류 연결', () => {
     mocks.auth.mockResolvedValue(member);
     expect(await setErpCategoryMappingAction({ erpCategory: '문구', categoryId: CATEGORY_ID })).toMatchObject({ ok: false });
     mocks.auth.mockResolvedValue(staff);
-    expect(await setErpCategoryMappingAction({ erpCategory: '  ', categoryId: CATEGORY_ID })).toEqual({ ok: false, error: 'ERP 분류 이름을 확인해주세요.' });
+    expect(await setErpCategoryMappingAction({ erpCategory: '  ', categoryId: CATEGORY_ID })).toEqual({ ok: false, error: 'ERP 분류 이름이 비어 있거나 너무 깁니다. 새로고침한 뒤 다시 연결해주세요.' });
     expect(await setErpCategoryMappingAction({ erpCategory: '문구', categoryId: 'leaf' })).toEqual({ ok: false, error: '연결할 고객 카테고리를 다시 골라주세요.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -367,7 +367,7 @@ describe('연결 상품 반영 확정(1027T-X04)', () => {
       ok: true, message: '1건은 상품 저장 규칙에 막혀 반영하지 못했습니다. 아래 사유를 확인해주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'erp_goods_apply_partial_price', details: '아크릴 키링' } });
     expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toEqual({
-      ok: false, error: '같은 상품(‘아크릴 키링’)의 판매가 행을 일부만 고르면 옵션 판매 금액이 상품 판매가보다 낮아집니다. 그 상품의 판매가 행을 함께 고르거나 함께 빼 주세요.' });
+      ok: false, error: '같은 상품(‘아크릴 키링’)의 판매가 줄을 일부만 고르면 옵션 판매 금액이 상품 판매가보다 낮아집니다. 그 상품의 판매가 줄을 모두 고르거나 모두 빼 주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'erp_goods_apply_busy' } });
     expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toEqual({ ok: false, error: '다른 작업이 같은 상품을 저장하고 있습니다. 잠시 뒤 다시 반영해주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'erp_goods_apply_unavailable' } });
@@ -378,11 +378,11 @@ describe('연결 상품 반영 확정(1027T-X04)', () => {
     for (const input of [{ operationId: 'nope', keys: [`${VARIANT}:price`] }, { operationId: OPERATION, keys: [] }, { operationId: OPERATION, keys: ['x:price'] },
       { operationId: OPERATION, keys: [`${VARIANT}:stock`] },
       { operationId: OPERATION, keys: Array.from({ length: 501 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}:price`) }]) {
-      expect(await commitErpLinkedGoodsAction(input)).toEqual({ ok: false, error: '반영할 행을 다시 골라주세요.' });
+      expect(await commitErpLinkedGoodsAction(input)).toEqual({ ok: false, error: '반영할 줄을 다시 골라주세요.' });
     }
     expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.rpc.mockRejectedValueOnce(new Error('socket'));
     expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toEqual({
-      ok: false, error: '반영 결과를 확인하지 못했습니다. 같은 미리보기에서 다시 반영하면 이미 반영한 행은 다시 바꾸지 않습니다.' });
+      ok: false, error: '반영 결과를 확인하지 못했습니다. 같은 미리보기에서 다시 반영해도 이미 반영된 줄은 다시 바꾸지 않습니다.' });
   });
 });

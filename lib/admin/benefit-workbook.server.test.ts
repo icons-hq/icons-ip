@@ -15,7 +15,7 @@ it('내보낸 요약·전체행·주간 합계·안전한 문자열·조회조�
   expect(book.getWorksheet('기간별 추이')?.getCell('A2').value).toBe('2026-09-28');
   expect(book.getWorksheet('사용 상세')?.getCell('D2').value).toBe('결제 완료');
   expect(book.getWorksheet('내려받기 정보')?.getCell('B4').value).toBe('조건');
-  expect(book.getWorksheet('사용 상세')?.getRow(1).values).toEqual([, '사용 ID', '주문번호', '적용일시', '현재 상태', '할인금액', '주문금액', '복구일시']);
+  expect(book.getWorksheet('사용 상세')?.getRow(1).values).toEqual([, '사용 번호', '주문번호', '적용일시', '현재 상태', '할인금액', '주문금액', '복구일시']);
   expect(book.getWorksheet('사용 상세')?.getCell('C2').value).toBe('2026-10-01 00:00');
   expect(book.getWorksheet('요약')?.getCell('D1').value).toBe('쿠폰 할인금액'); expect(book.getWorksheet('요약')?.getCell('D1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(book.getWorksheet('요약')?.getCell('D2').numFmt).toBe('#,##0');
 });
@@ -34,7 +34,7 @@ it('발급 상세 전체행·현재 사용 집계와 KST 문자열 날짜를 쓰
   expect(book.worksheets.map(sheet => sheet.name)).toEqual(['요약', '혜택별 지급현황', '기간별 추이', '비교기간 추이', '사용 상세', '발급 상세', '내려받기 정보']);
   const sheet = book.getWorksheet('발급 상세')!;
   expect(sheet.rowCount).toBe(52);
-  expect(sheet.getRow(1).values).toEqual([, '발급 ID', '쿠폰 ID', '발급일시', '현재 결제 사용 집계 여부']);
+  expect(sheet.getRow(1).values).toEqual([, '발급 번호', '쿠폰 코드', '발급일시', '현재 결제 사용 집계 여부']);
   expect(sheet.getCell('A52').value).toBe(issuanceData.rows[50].id);
   expect(sheet.getCell('A2').type).toBe(ExcelJS.ValueType.String);
   expect(sheet.getCell('C2').type).toBe(ExcelJS.ValueType.String);

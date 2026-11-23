@@ -40,13 +40,13 @@ update public.profiles set role=(case when right(id::text,2)='02' then 'user' el
 where id::text like 'f13b0000-0000-0001-8000-%';
 insert into private.operator_memberships(profile_id,manager_role) values (pg_temp.dt_id(1,1),'primary');
 insert into public.ips(id,title,vertical_key) values('delivery-tracking-ip','합성 추적 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('delivery-tracking-good','delivery-tracking-ip','합성 추적 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('delivery-tracking-good','delivery-tracking-ip','합성 추적 상품',1000,'ok',100);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select pg_temp.dt_id(2,n),pg_temp.dt_id(1,2),'confirmed'::public.order_status,5000,3000,
  jsonb_build_object('recipientName','합성수령인'||n,'phone','0105555000'||n,'postalCode','00123','address1','합성 주소','address2',n||'층','deliveryNote',''),now()-interval '3 days'
 from generate_series(1,9) n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.dt_id(3,n),pg_temp.dt_id(2,case when n=9 then 6 when n=10 then 9 else n end),'delivery-tracking-good',v.id,1,1000,'합성 추적 상품','문구','delivery-tracking-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.dt_id(3,n),pg_temp.dt_id(2,case when n=9 then 6 when n=10 then 9 else n end),'delivery-tracking-good',v.id,1,1000,'합성 추적 상품','delivery-tracking-ip'
 from generate_series(1,10) n cross join (select id from public.goods_variants where good_id='delivery-tracking-good' and is_default) v;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,exported_at)
 select pg_temp.dt_id(4,n),pg_temp.dt_id(2,case when n=9 then 6 when n=10 then 9 else n end),

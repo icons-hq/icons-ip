@@ -164,7 +164,7 @@ update private.store_credit_policy set enabled=true,earn_kind='rate_bps',earn_va
   validity_days=30,min_use=100,max_use=10000,restore_grace_days=3,refund_earned_credit_mode='offset_future_credits',
   evidence='synthetic expired prepared cancellation fixture';
 insert into public.ips(id,title,vertical_key,published_at) values('$ip_id','만료 결제 취소 합성 IP','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values('$good','$ip_id','만료 결제 취소 합성 굿즈','문구',10000,'ok',20,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at) values('$good','$ip_id','만료 결제 취소 합성 굿즈',10000,'ok',20,null);
 select pg_temp.publish_goods_kc_fixture('$good');
 insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,starts_at,status) values
  ('RACE-EXPPREP-G','만료 G','fixed',1000,0,now()-interval '1 day','active'),

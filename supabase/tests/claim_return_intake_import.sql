@@ -49,9 +49,9 @@ insert into public.ips(id,title,vertical_key) values('ri-ip','TEST 반품입고'
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values
  (pg_temp.ri_id('origin',1),'ri-namyangju','TEST 남양주','epost',0,'TEST 남양주 반송지',true);
 insert into public.return_addresses(id,name,address,phone) values(pg_temp.ri_id('place',1),'TEST 서울 반품지','TEST 서울 반품지 주소','0212345678');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
- ('ri-good-1','ri-ip','TEST 남양주 굿즈','문구',1000,'ok',50,pg_temp.ri_id('origin',1)),
- ('ri-good-2','ri-ip','TEST 서울 반품 굿즈','문구',1000,'ok',50,pg_temp.ri_id('origin',1));
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id) values
+ ('ri-good-1','ri-ip','TEST 남양주 굿즈',1000,'ok',50,pg_temp.ri_id('origin',1)),
+ ('ri-good-2','ri-ip','TEST 서울 반품 굿즈',1000,'ok',50,pg_temp.ri_id('origin',1));
 update public.goods set return_address_id=pg_temp.ri_id('place',1) where id='ri-good-2';
 create function pg_temp.ri_default(good text) returns uuid language sql stable as $$select id from public.goods_variants where good_id=good and is_default$$;
 
@@ -62,10 +62,10 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_a
   jsonb_build_object('recipientName','합성 반품 고객 '||n,'phone','010-7777-'||lpad(n::text,4,'0'),'postalCode','12345','address1','합성시 입고로 '||n,'address2','20'||n||'호'),
   now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,6)n;
 create function pg_temp.ri_number(n integer) returns text language sql stable as $$select order_number from public.orders where id=pg_temp.ri_id('order',n)$$;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ri_id('item',n),pg_temp.ri_id('order',n),'ri-good-1',pg_temp.ri_default('ri-good-1'),1,1000,'TEST 반품 굿즈 '||n,'문구','ri-ip' from generate_series(1,6)n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- values(pg_temp.ri_id('item',40),pg_temp.ri_id('order',4),'ri-good-2',pg_temp.ri_default('ri-good-2'),2,1000,'TEST 서울 반품 굿즈','문구','ri-ip');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ri_id('item',n),pg_temp.ri_id('order',n),'ri-good-1',pg_temp.ri_default('ri-good-1'),1,1000,'TEST 반품 굿즈 '||n,'ri-ip' from generate_series(1,6)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ values(pg_temp.ri_id('item',40),pg_temp.ri_id('order',4),'ri-good-2',pg_temp.ri_default('ri-good-2'),2,1000,'TEST 서울 반품 굿즈','ri-ip');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  select pg_temp.ri_id('shipment',n),pg_temp.ri_id('order',n),pg_temp.ri_id('origin',1),'TEST 남양주',0,'{}','delivered','epost','RISALE'||lpad(n::text,6,'0'),now()-interval '4 days',now()-interval '3 days'
  from generate_series(1,6)n;

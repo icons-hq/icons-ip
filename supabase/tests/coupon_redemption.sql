@@ -57,11 +57,11 @@ insert into public.ips (id, title, vertical_key, published_at)
 values ('cpn-ip', '쿠폰 스모크 IP', 'character', now())
 on conflict (id) do nothing;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
 values
-  ('cpn-g1', 'cpn-ip', '쿠폰 굿즈 3만', '피규어', 30000, 'ok', 100,null),
-  ('cpn-g2', 'cpn-ip', '쿠폰 굿즈 4만', '피규어', 40000, 'ok', 100,null),
-  ('cpn-g3', 'cpn-ip', '쿠폰 굿즈 9만', '피규어', 90000, 'ok', 100,null)
+  ('cpn-g1', 'cpn-ip', '쿠폰 굿즈 3만', 30000, 'ok', 100,null),
+  ('cpn-g2', 'cpn-ip', '쿠폰 굿즈 4만', 40000, 'ok', 100,null),
+  ('cpn-g3', 'cpn-ip', '쿠폰 굿즈 9만', 90000, 'ok', 100,null)
 on conflict (id) do update set
   price = excluded.price, stock = excluded.stock, stock_qty = excluded.stock_qty, published_at = excluded.published_at;
 -- Build reviewed synthetic KC evidence before publishing each fixture.

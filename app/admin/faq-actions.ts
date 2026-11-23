@@ -24,11 +24,11 @@ function invalidate() {
   revalidatePath('/my/inquiries/new');
 }
 function errorMessage(message: string) {
-  if (message.includes('faq_conflict')) return '다른 운영자가 수정했습니다. 입력값을 복사한 뒤 새로고침해 최신 내용을 확인해주세요.';
+  if (message.includes('faq_conflict')) return '다른 운영자가 먼저 수정했습니다. 입력한 내용을 복사해 둔 뒤 새로고침해 최신 내용을 확인하고 다시 저장해주세요.';
   if (message.includes('faq_not_found')) return 'FAQ를 찾을 수 없습니다. 삭제되었을 수 있습니다.';
   if (message.includes('staff_required')) return '관리자 권한이 필요합니다.';
   if (message.includes('invalid_faq_widget_topic')) return '상담 위젯 버튼을 다시 선택해주세요.';
-  return 'FAQ를 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
+  return 'FAQ를 저장하지 못했습니다. 입력한 내용은 그대로 있습니다. 잠시 후 다시 시도해주세요.';
 }
 export async function saveFaqAction(previous: FaqActionState, data: FormData): Promise<FaqActionState> {
   const values = Object.fromEntries(FIELDS.map((name) => [name, typeof data.get(name) === 'string' ? data.get(name) as string : '']));

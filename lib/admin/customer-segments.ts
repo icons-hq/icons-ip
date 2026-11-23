@@ -84,7 +84,7 @@ export function customerSegmentsHref(filters: SegmentFilters, page = filters.pag
 export function segmentRuleSummary(rule: SegmentRule, options: SegmentOption[] = []): string[] {
   const label = (kind: SegmentOptionKind, id: string) => options.find(option => option.kind === kind && option.id === id)?.label ?? id;
   return [SEGMENT_TARGET_LABELS[rule.target], rule.goodsScope === 'goods' ? `선택 상품 ${rule.goodIds.length}개` : rule.goodsScope === 'category' ? `분류: ${label('category',rule.categoryId ?? '')} 및 하위 분류` : '전체 상품',
-    ...(rule.months ? [rule.target === 'lapsed_purchase' ? `마지막 구매 후 ${rule.months}개월 경과` : `최근 ${rule.months}개월`] : []), ...(rule.activityDays ? [`최근 ${rule.activityDays}일${ACTIVITY_SEGMENT_TARGETS.includes(rule.target) ? ' 이용 관측' : ' 등록'}`] : []),
+    ...(rule.months ? [rule.target === 'lapsed_purchase' ? `마지막 구매 후 ${rule.months}개월 경과` : `최근 ${rule.months}개월`] : []), ...(rule.activityDays ? [`최근 ${rule.activityDays}일${ACTIVITY_SEGMENT_TARGETS.includes(rule.target) ? ' 이용 기록' : ' 등록'}`] : []),
     ...(rule.ipId ? [`IP: ${label('ip',rule.ipId)}`] : []), ...(rule.couponCode ? [`쿠폰: ${label('coupon',rule.couponCode)}`] : []),
     rule.grades.length ? rule.grades.map(g => SEGMENT_GRADE_LABELS[g]).join('·') : '전체 회원 등급', rule.ageBands.length ? rule.ageBands.map(b => b === 60 ? '60세 이상' : `${b}대`).join('·') : '전체 연령대'];
 }

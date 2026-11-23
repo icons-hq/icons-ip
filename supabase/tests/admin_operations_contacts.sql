@@ -39,9 +39,9 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,is_
 insert into public.verticals(key,label,color) values('operations-contact-fixture','운영 연락 검증','#000000');
 insert into public.ips(id,title,vertical_key,published_at)
  values('operations-contact-fixture','운영 연락 검증','operations-contact-fixture',now());
-insert into public.goods(id,ip_id,name,type,price,stock,image_path,origin_id,
+insert into public.goods(id,ip_id,name,price,stock,image_path,origin_id,
  notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact)
- values('operations-contact-good','operations-contact-fixture','운영 연락 공개 검증 상품','문구',1700,'ok',
+ values('operations-contact-good','operations-contact-fixture','운영 연락 공개 검증 상품',1700,'ok',
  'public-media/operations-contact-fixture.webp','00000000-0000-4000-8000-000000050111',
  '합성 제조사','한국','종이','A5','2026-09','공개 CS','02-000');
 select pg_temp.publish_goods_kc_fixture('operations-contact-good');

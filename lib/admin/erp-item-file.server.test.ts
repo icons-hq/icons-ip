@@ -81,7 +81,7 @@ describe('ERP 품목 XLSX 읽기', () => {
 
   it('행 수·형식 상한을 넘으면 한국어 안내로 거절한다', async () => {
     const csv = ['품번,품명', ...Array.from({ length: 5_200 }, (_, index) => `C${index},품목`)].join('\n');
-    await expect(readErpItemFile('a.csv', Buffer.from(csv))).rejects.toThrow('5,000행까지');
+    await expect(readErpItemFile('a.csv', Buffer.from(csv))).rejects.toThrow('5,000줄까지');
     await expect(readErpItemFile('a.pdf', Buffer.from('x'))).rejects.toThrow('XLSX 또는 CSV 파일을 올려주세요.');
     await expect(readErpItemFile('a.csv', Buffer.alloc(0))).rejects.toThrow('900KB');
   });

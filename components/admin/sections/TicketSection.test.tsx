@@ -52,7 +52,7 @@ describe('TicketSection', () => {
   it('shows allocation status and locks historical metadata while keeping capacity editable', () => {
     const html = renderTicketSection(ticketType);
 
-    expect(html).toContain('할당 12 / 80');
+    expect(html).toContain('예매 12 / 80');
     expect(html).toContain('잔여 68');
     expect(html).toContain('잔여 있음');
     expect(html).toContain('결제 대기 포함');

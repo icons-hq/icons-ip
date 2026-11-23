@@ -145,11 +145,11 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
       if (!result.ok) {
         const next = { ...pending, retry: result.uncertain ? request : null, latest: result.latest ?? null,
           readbackRequired: Boolean(result.committed && !result.latest) };
-        setUi({ workspace: next, error: result.error, message: result.committed ? '원래 요청의 저장은 확인됐습니다.' : '' }); persist(next, true); return;
+        setUi({ workspace: next, error: result.error, message: result.committed ? '방금 요청은 저장됐습니다.' : '' }); persist(next, true); return;
       }
       const next = { base: result.value, draft: goodsSubscriptionDraft(result.value), retry: null, latest: null, recoveryPending: false, readbackRequired: false };
       setUi({ workspace: next, message: '정기배송 설정을 저장하고 다시 확인했습니다.' }); persist(next, true);
-    } catch { if (scope.canApply(ticket)) setUi({ error: '저장 결과가 불명확합니다. 같은 요청으로 다시 확인해주세요.' }); }
+    } catch { if (scope.canApply(ticket)) setUi({ error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청으로 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' }); }
     finally { scope.lane.finish(sequence); if (scope.canApply(ticket)) setUi({ busy: false }); }
   }
   const recoveryValid = recovery?.sessionId === sessionId && recovery?.base.goodId === goodId
@@ -163,24 +163,24 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
     if (!workspace?.latest || !valid || scope.lane.busy() || workspace.retry) return;
     const next = { base: workspace.latest, draft: keep ? workspace.draft : goodsSubscriptionDraft(workspace.latest),
       retry: null, latest: null, recoveryPending: false, readbackRequired: false };
-    setUi({ workspace: next, error: '', message: keep ? '입력을 유지하고 최신 버전을 저장 기준으로 선택했습니다.' : '최신 저장본을 불러왔습니다.' }); persist(next, true);
+    setUi({ workspace: next, error: '', message: keep ? '입력을 유지하고 최신 저장본을 기준으로 바꿨습니다. 내용을 확인한 뒤 저장해주세요.' : '최신 저장본을 불러왔습니다.' }); persist(next, true);
   }
   const locked = !valid || !workspace || busy || Boolean(workspace.retry || workspace.recoveryPending || workspace.readbackRequired);
   return <div className="flex min-w-0 flex-col gap-4" data-goods-subscription-policy="" onKeyDown={event => {
     if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.type !== 'checkbox') event.preventDefault();
   }}>
     <p className="text-sm text-muted-foreground">상품별 정기배송 주기와 안내를 저장합니다. 카드 자동결제 연결과 서비스 공개 준비가 완료된 상품만 고객에게 신청 버튼이 표시됩니다.</p>
-    {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 상품 화면을 다시 열어주세요.</p> : <>
+    {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인한 계정이 바뀌었거나 다시 로그인했습니다. 지금 계정으로 상품 화면을 새로고침해주세요.</p> : <>
       {ui?.error && <p className="text-sm text-destructive" role="alert">{ui.error}</p>}{ui?.message && <p className="text-sm font-medium" role="status">{ui.message}</p>}
       {stored.unavailable && <p className="text-sm text-muted-foreground" role="status">입력 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 저장해주세요.</p>}
       {showDisabledReason && disabledReason && <p className={GOOD_NOTE_CLASS} role="status">{disabledReason}</p>}
       {workspace?.recoveryPending && <div className={`${GOOD_NOTE_CLASS} flex flex-col items-start gap-2`}>
-        <p>{recoveryValid ? '같은 로그인 세션에서 저장하지 않은 정기배송 입력이 있습니다.' : '이전 로그인 세션이거나 확인할 수 없는 임시 입력입니다.'}</p>
+        <p>{recoveryValid ? '이 브라우저에 저장하지 않은 정기배송 입력이 남아 있습니다. 이어서 쓰려면 임시 입력 복원을 누르세요.' : '이전 로그인 때 남았거나 읽을 수 없는 임시 입력이라 복원할 수 없습니다. 임시 입력 버리기를 눌러 지워주세요.'}</p>
         <div className="flex flex-wrap gap-2">{recoveryValid && <button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy} onClick={restore}>임시 입력 복원</button>}
         <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy} onClick={() => { storage.discard(); setUi({ workspace: { ...workspace, recoveryPending: false } }); }}>임시 입력 버리기</button></div>
       </div>}
       {!workspace ? <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={busy} onClick={() => void readLatest()}>설정 다시 불러오기</button> : <>
-        {workspace.retry && <div className={RETRY_NOTE_CLASS} role="alert"><p>이전 저장 결과를 확인해야 합니다. 입력과 요청 번호를 보존했습니다.</p>
+        {workspace.retry && <div className={RETRY_NOTE_CLASS} role="alert"><p>직전 저장이 처리됐는지 아직 모릅니다. 입력은 그대로 두었습니다. 아래 버튼을 누르면 같은 요청의 결과를 확인하며, 두 번 저장되지 않습니다.</p>
           <button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy || Boolean(disabledReason)} onClick={() => void save(workspace.retry!)}>같은 요청으로 결과 확인</button></div>}
         {workspace.latest && <section className={GOOD_SUBPANEL_CLASS} aria-label="정기배송 최신 저장본 비교">
           <strong className="text-sm font-medium">최신 저장본 · 버전 {workspace.latest.revision}</strong>

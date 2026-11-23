@@ -528,6 +528,13 @@ describe('placeOrderAction — 주문서 초안', () => {
     await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true, [])).resolves.toEqual({ ok: false, error: 'auth_required' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+
+  it('인증 서비스 장애에서는 재로그인을 요구하거나 주문을 접수하지 않는다', async () => {
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false, authUnavailable: true };
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true, [])).resolves.toEqual({ ok: false, error: 'unavailable' });
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'unavailable' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 });
 
 /* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015) — 카드·무통장·장바구니·초안 주문 모두 서버가 true를 확인하고, 주문 생성 직후 기록을 부른다. */

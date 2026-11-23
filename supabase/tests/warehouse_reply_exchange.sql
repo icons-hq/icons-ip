@@ -17,8 +17,8 @@ update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000
 insert into private.operator_memberships(profile_id,manager_role) values('00000000-0000-4000-8000-000000043101','primary');
 insert into public.verticals(key,label,color) values('warehouse-reply','서원 회신','#000000');
 insert into public.ips(id,title,vertical_key) values('warehouse-reply','서원 회신','warehouse-reply');
-insert into public.goods(id,ip_id,name,type,price,origin_id) values
- ('warehouse-reply','warehouse-reply','주문 당시 키링','문구',1000,'00000000-0000-4000-8000-000000042202');
+insert into public.goods(id,ip_id,name,price,origin_id) values
+ ('warehouse-reply','warehouse-reply','주문 당시 키링',1000,'00000000-0000-4000-8000-000000042202');
 -- n: 1 발송 대기(전달 전) · 2 발송 대기(전달됨) · 3 최근 발송 · 4 45일 전 발송 · 5 취소 요청 중 · 6 취소된 주문
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select ('51000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'00000000-0000-4000-8000-000000043101',
@@ -26,8 +26,8 @@ select ('51000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'00000000-0000-4
  4000,3000,jsonb_build_object('recipientName','합성 받는분 '||n,'phone','0101234000'||n,'postalCode','04524',
   'address1','서울특별시 중구 세종대로 110','address2',n||'01호','deliveryNote','문 앞'),now()
 from generate_series(1,6) n;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select ('51000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,good_id,id,2,1000,'주문 당시 키링','문구','warehouse-reply'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select ('51000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,good_id,id,2,1000,'주문 당시 키링','warehouse-reply'
 from public.goods_variants cross join generate_series(1,6) n where good_id='warehouse-reply' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,exported_at)
 select ('61000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,('51000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,
@@ -90,8 +90,8 @@ insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed
 select ('52000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'00000000-0000-4000-8000-000000043101','confirmed',0,0,
  '{"recipientName":"합성 대량","phone":"01000000000","postalCode":"04524","address1":"합성 주소"}',now(),now()+n*interval '1 second'
 from generate_series(1,3) n;
-insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select ('52000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,good_id,id,1,1000,'주문 당시 키링','문구','warehouse-reply'
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select ('52000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,good_id,id,1,1000,'주문 당시 키링','warehouse-reply'
 from public.goods_variants cross join generate_series(1,3) n cross join generate_series(1,400) line where good_id='warehouse-reply' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
 select ('62000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,('52000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,

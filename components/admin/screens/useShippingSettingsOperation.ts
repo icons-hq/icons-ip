@@ -111,7 +111,7 @@ export function useShippingSettingsOperation({ identity, scope, templateId, comm
     try {
       const serialized = JSON.stringify(operation); sessionStorage.setItem(storageKey, serialized);
       if (sessionStorage.getItem(storageKey) !== serialized) throw new Error('checkpoint unavailable');
-    } catch { setError('이 탭에 요청번호를 보관할 수 없어 전송하지 않았습니다. 브라우저 저장 설정을 확인해주세요.'); return; }
+    } catch { setError('이 브라우저 탭에 처리 번호를 남길 수 없어 요청을 보내지 않았습니다. 시크릿 창이 아닌 일반 창에서 열거나, 브라우저 설정에서 사이트 데이터 저장을 허용해주세요.'); return; }
     request.current = structuredClone(input); setContext(operation); changed();
     await run(operation, () => input.command === 'save' ? saveShippingSettingsTemplateAction(input) : applyShippingSettingsTemplateAction(input), true);
   }

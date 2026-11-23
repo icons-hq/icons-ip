@@ -90,7 +90,7 @@ describe('결제확인필요 해소 서버 액션', () => {
     mocks.inspect.mockResolvedValue({ ok: true, resolution: 'not_moved', observedBalance: 40000 });
     mocks.serviceRpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'bank_refund_permission_required' } });
     const result = await resolveOrderPartialCancellationAction(input);
-    expect(result).toEqual({ ok: false, error: '송금 담당 권한(관리자 로그인 세션)이 필요합니다.' });
+    expect(result).toEqual({ ok: false, error: '송금 담당 권한이 필요합니다. 송금 권한이 있는 관리자 계정으로 로그인했는지 확인해주세요.' });
   });
 
   it('조회 전용(sales.read) 사용자는 처리 액션이 거절되고 읽기만 허용된다', async () => {

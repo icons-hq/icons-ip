@@ -25,9 +25,9 @@ export interface AdminUnpaidActionState {
   message?: string;
 }
 
-const CONFIRM_FAILED = '입금을 확정하지 못했습니다. 최신 상태를 확인해주세요.';
-const EXTEND_FAILED = '기한을 연장하지 못했습니다. 최신 상태를 확인해주세요.';
-const CANCEL_FAILED = '주문을 취소하지 못했습니다. 최신 상태를 확인해주세요.';
+const CONFIRM_FAILED = '입금을 확정하지 못했습니다. 목록을 새로고침해 주문 상태를 확인한 뒤 다시 시도해주세요.';
+const EXTEND_FAILED = '기한을 연장하지 못했습니다. 목록을 새로고침해 주문 상태를 확인한 뒤 다시 시도해주세요.';
+const CANCEL_FAILED = '주문을 취소하지 못했습니다. 목록을 새로고침해 주문 상태를 확인한 뒤 다시 시도해주세요.';
 
 /** DB message를 운영자 문구로 옮긴다. 원문을 그대로 노출하지 않는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string) {
@@ -37,13 +37,13 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
     return '이미 처리된 주문입니다. 목록을 새로고침해주세요.';
   }
   if (value.includes('bank_transfer_attempt_not_found')) {
-    return '이 주문에는 입금 원장이 없습니다. 결제 내역을 먼저 확인해주세요.';
+    return '이 주문에는 무통장 입금 대기 기록이 없습니다. 주문 상세의 결제 내역에서 결제 방법과 상태를 먼저 확인해주세요.';
   }
   if (value.includes('bank_transfer_attempt_not_confirmable')) {
-    return '입금 원장이 이미 닫혔습니다. 기한 만료로 자동 취소됐는지 확인해주세요.';
+    return '입금 대기가 이미 끝난 주문입니다. 입금 기한이 지나 자동 취소됐는지 주문 상세에서 확인해주세요.';
   }
   if (value.includes('bank_transfer_attempt_not_cancelable')) {
-    return '확정이 진행 중인 주문입니다. 결과를 확인한 뒤 다시 시도해주세요.';
+    return '입금 확인이 처리되는 중인 주문입니다. 목록을 새로고침해 결과를 확인한 뒤 다시 시도해주세요.';
   }
   if (value.includes('bank_transfer_already_extended')) {
     return '기한 연장은 주문당 한 번입니다. 더 기다릴 수 없다면 취소해주세요.';
@@ -73,9 +73,9 @@ async function finalizationResult(
     return { message: successMessage };
   }
   return {
-    error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과: ${
+    error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과 코드: ${
       typeof outcome === 'string' ? outcome : 'unknown'
-    }). 결제 내역을 확인한 뒤 수동 확인이 필요합니다.`,
+    }). 구매자 계정이 정지됐거나 주문 금액 기록이 맞지 않을 때 이렇게 됩니다. 주문 상세의 결제 내역을 확인하고 개발 담당자에게 결과 코드와 함께 알려주세요.`,
   };
 }
 
@@ -200,8 +200,8 @@ export async function cancelUnpaidBankTransferOrderAction(
  * finalize_goods_payment_attempt로 이어진다. 자동 확정은 없다 — 매칭은 제안이고,
  * 마지막 클릭은 사람이 한다(ADR-0007).
  */
-const DEPOSIT_CONFIRM_FAILED = '입금 내역을 확정하지 못했습니다. 최신 상태를 확인해주세요.';
-const DEPOSIT_IGNORE_FAILED = '입금 내역을 보류하지 못했습니다. 최신 상태를 확인해주세요.';
+const DEPOSIT_CONFIRM_FAILED = '입금 내역을 확정하지 못했습니다. 목록을 새로고침해 입금과 주문 상태를 확인한 뒤 다시 시도해주세요.';
+const DEPOSIT_IGNORE_FAILED = '입금 내역을 보류하지 못했습니다. 목록을 새로고침해 입금 상태를 확인한 뒤 다시 시도해주세요.';
 
 function depositErrorMessage(message: string | null | undefined, fallback: string) {
   const value = (message ?? '').toLowerCase();
@@ -271,5 +271,5 @@ export async function ignoreBankDepositAction(
   if (error) return { error: depositErrorMessage(error.message, DEPOSIT_IGNORE_FAILED) };
 
   revalidatePath('/admin/sales/unpaid');
-  return { message: '입금 내역을 큐에서 내렸습니다. 기록은 남습니다.' };
+  return { message: '입금 내역을 목록에서 내렸습니다. 보류 사유와 입금 기록은 남습니다.' };
 }

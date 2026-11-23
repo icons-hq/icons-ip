@@ -97,7 +97,7 @@ describe('예약 일정 일괄 변경 서버 액션', () => {
   it('이메일 설정이 없으면 일정도 바꾸지 않고, 이미 처리된 같은 요청이면 그 결과를 보인다', async () => {
     mocks.dispatcher.mockReturnValue(null);
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'preorder_schedule_change_not_found' } });
-    expect(await applyPreorderScheduleChangeAction(applyInput())).toMatchObject({ ok: false, error: expect.stringContaining('이메일 공급자') });
+    expect(await applyPreorderScheduleChangeAction(applyInput())).toMatchObject({ ok: false, error: expect.stringContaining('메일 발송 서비스 연결') });
     expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_read_goods_preorder_schedule_change']);
     mocks.rpc.mockResolvedValueOnce({ data: json(scheduleChange()), error: null });
     expect(await applyPreorderScheduleChangeAction(applyInput())).toMatchObject({ ok: true });

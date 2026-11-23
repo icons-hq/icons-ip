@@ -29,7 +29,7 @@ it('관리자는 실제 입력 화면과 출고지별 저장 폼을 사용하며
   expect(html).toContain('href="/admin/catalog/goods"');
   expect(html).toContain('href="/admin/settings/store-credits"');
   expect(html).toContain('href="/admin/settings/switches"');
-  expect(html).toContain('출고지 비활성');
+  expect(html).toContain('출고지 사용 안 함');
   expect(html).toContain('담당자 정보 미입력');
   expect(html).toContain('정보 입력 3/4');
   expect(html.match(/>담당자 정보 저장</g)).toHaveLength(2);

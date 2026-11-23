@@ -16,7 +16,7 @@ export function parseCouponTargeting(form: FormData): { ok: true; value: CouponT
     if (!Array.isArray(input) || input.length > 1000 || input.some(value => typeof value !== 'string' || !value.trim() || value.length > 200 || /[\u0000-\u001f\u007f]/.test(value))) throw new Error('invalid');
     ids = [...new Set(input.map(value => (value as string).trim()))].sort();
   } catch { errors.targetGoodIds = '할인 대상 상품을 다시 선택해주세요.'; }
-  if (scope === 'selected_goods' && !ids.length && read('status') !== 'archived') errors.targetGoodIds = '선택 상품 쿠폰을 활성화하려면 대상 상품이 필요합니다.';
+  if (scope === 'selected_goods' && !ids.length && read('status') !== 'archived') errors.targetGoodIds = '선택한 상품 쿠폰은 대상 상품을 하나 이상 골라야 저장할 수 있습니다.';
   if (scope !== 'selected_goods') ids = [];
   let categoryIds: string[] = [];
   try {
@@ -24,7 +24,7 @@ export function parseCouponTargeting(form: FormData): { ok: true; value: CouponT
     if (!Array.isArray(input) || input.length > 100 || input.some(id => typeof id !== 'string' || !isUuid(id))) throw new Error('invalid');
     categoryIds = [...new Set(input as string[])].sort();
   } catch { errors.targetCategoryIds = '할인 대상 카테고리를 다시 선택해주세요.'; }
-  if (scope === 'selected_categories' && !categoryIds.length && read('status') !== 'archived') errors.targetCategoryIds = '카테고리 쿠폰을 활성화하려면 대상 카테고리가 필요합니다.';
+  if (scope === 'selected_categories' && !categoryIds.length && read('status') !== 'archived') errors.targetCategoryIds = '카테고리 쿠폰은 대상 카테고리를 하나 이상 골라야 저장할 수 있습니다.';
   if (scope !== 'selected_categories') categoryIds = [];
   let ipIds: string[] = [];
   try {
@@ -32,7 +32,7 @@ export function parseCouponTargeting(form: FormData): { ok: true; value: CouponT
     if (!Array.isArray(input) || input.length > 100 || input.some(id => typeof id !== 'string' || !COUPON_TARGET_IP_ID.test(id))) throw new Error('invalid');
     ipIds = [...new Set(input as string[])].sort();
   } catch { errors.targetIpIds = '할인 대상 IP를 다시 선택해주세요.'; }
-  if (scope === 'selected_ips' && !ipIds.length && read('status') !== 'archived') errors.targetIpIds = 'IP 쿠폰을 활성화하려면 대상 IP가 필요합니다.';
+  if (scope === 'selected_ips' && !ipIds.length && read('status') !== 'archived') errors.targetIpIds = 'IP 쿠폰은 대상 IP를 하나 이상 골라야 저장할 수 있습니다.';
   if (scope !== 'selected_ips') ipIds = [];
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, value: { recipientSegment: segment as CouponRecipientSegment, goodsScope: scope as CouponGoodsScope, targetGoodIds: ids,
     ...(form.has('targetCategoryIds') || scope === 'selected_categories' ? { targetCategoryIds: categoryIds } : {}),

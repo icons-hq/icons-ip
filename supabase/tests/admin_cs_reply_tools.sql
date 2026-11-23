@@ -6,7 +6,7 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
  ('00000000-0000-4000-8000-000000063403','authenticated','authenticated','cs-tools-other-staff@example.test',now(),'{}','{}',now(),now());
 update public.profiles set role='staff' where id in ('00000000-0000-4000-8000-000000063401','00000000-0000-4000-8000-000000063403');
 insert into public.ips(id,title,vertical_key) values('cs-tools','합성 CS 도구 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('cs-tools','cs-tools','합성 리뷰 상품','문구',1000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('cs-tools','cs-tools','합성 리뷰 상품',1000,'ok',10);
 insert into public.orders(id,user_id,status,total,address,delivered_at) values
  ('00000000-0000-4000-8000-000000063411','00000000-0000-4000-8000-000000063402','delivered',1000,'{}',now()),
  ('00000000-0000-4000-8000-000000063412','00000000-0000-4000-8000-000000063402','delivered',1000,'{}',now());

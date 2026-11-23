@@ -439,7 +439,7 @@ describe('admin order actions', () => {
     mocks.reconcile.mockResolvedValue({ ok: true, status: 'in_progress' });
 
     await expect(approveAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      message: '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.',
+      message: '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 결제 담당자에게 결제사 거래 내역 확인을 요청해주세요.',
     });
   });
 
@@ -476,7 +476,7 @@ describe('admin order actions', () => {
     mocks.reconcile.mockResolvedValue({ ok: true, status: 'in_progress' });
 
     await expect(reconcileAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      message: '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.',
+      message: '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 결제 담당자에게 결제사 거래 내역 확인을 요청해주세요.',
     });
   });
 

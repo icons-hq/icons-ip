@@ -42,7 +42,7 @@ export const WAREHOUSE_STOP_ANCHOR = 'warehouse-stop';
 const shipmentLabel = (shipment: { originName: string; shipmentId: string; shipmentNumber: string | null }) =>
   `${shipment.originName} · ${commerceReferenceLabel(shipment.shipmentId, shipment.shipmentNumber)}`;
 const USED_LABELS = { staff_cancellation: '운영자 전액 취소에 씀', partial_cancellation: '재고 부족 부분 취소에 씀', claim_collection: '반품·교환 회수 확인에 씀' } as const;
-const SOURCE_LABELS = { tracking_reply: '운송장 회신 반입', warehouse_reply: '창고 이미 출고 회신' } as const;
+const SOURCE_LABELS = { tracking_reply: '운송장 회신 올리기', warehouse_reply: '창고 이미 출고 회신' } as const;
 
 function ReplyHistory({ shipment }: { shipment: WarehouseStopShipment }) {
   if (!shipment.replies.length) return <p className={HINT}>기록된 창고 회신이 없습니다.</p>;
@@ -92,7 +92,7 @@ function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipme
       const result = await recordWarehouseStopReplyAction({ orderId, shipmentIds: selected, outcome, channel, repliedAt, note, operationId: operationId.current });
       if (result.ok) { operationId.current = null; onRecorded(result.value.message); } else setError(result.error);
     } catch {
-      setError('기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록을 확인한 뒤 다시 시도해주세요.');
+      setError('기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록에 남았는지 확인하고, 없을 때만 다시 기록해주세요.');
     } finally { setPending(false); }
   }
 
@@ -123,7 +123,7 @@ function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipme
           {WAREHOUSE_STOP_CHANNELS.map(value => <option key={value} value={value}>{WAREHOUSE_STOP_CHANNEL_LABELS[value]}</option>)}
         </NativeSelect>
       </label>
-      <label className={FIELD}><span className="text-sm font-medium">창고가 회신한 시각 (한국)</span>
+      <label className={FIELD}><span className="text-sm font-medium">창고가 회신한 시각 (KST)</span>
         <Input disabled={pending} onChange={event => { operationId.current = null; setRepliedAt(event.target.value); }} type="datetime-local" value={repliedAt} />
       </label>
     </div>
@@ -132,7 +132,7 @@ function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipme
       <Textarea disabled={pending} maxLength={WAREHOUSE_STOP_NOTE_LIMIT} onChange={event => { operationId.current = null; setNote(event.target.value); }}
         placeholder="예: 서원 김OO 담당 카카오톡 14:05 — 포장 전 회수, 출고 목록에서 뺌" rows={2} value={note} />
     </label>
-    <p className={HINT}>창고에 출고 중단을 요청하고 받은 답을 그대로 적습니다. 회신 없이 기록하지 않습니다. 같은 배송 건은 가장 늦은 회신이 판정하고, 다시 출고지시하면 예전 회신은 근거가 아닙니다.</p>
+    <p className={HINT}>창고에 출고 중단을 요청하고 받은 답을 그대로 적습니다. 회신을 받기 전에는 기록하지 않습니다. 같은 배송 건에 회신이 여러 개면 가장 늦게 받은 회신을 따릅니다. 출고지시를 다시 보내면 예전 회신은 취소 근거로 쓸 수 없어 회신을 새로 받아야 합니다.</p>
     {error ? <p className="text-destructive" role="alert">{error}</p> : null}
     <Button className="w-fit" disabled={pending} type="submit">{pending ? '기록 중…' : '회신 기록'}</Button>
   </form>;
@@ -164,7 +164,7 @@ function DispatchResolveForm({ orderId, dispatch, onResolved }: { orderId: strin
       const result = await resolveCanceledShipmentDispatchAction({ orderId, dispatchId: dispatch.id, outcome, note, operationId: operationId.current });
       if (result.ok) { operationId.current = null; onResolved(result.value.message); } else setError(result.error);
     } catch {
-      setError('처리 결과를 확인하지 못했습니다. 새로고침해 기록을 확인한 뒤 다시 시도해주세요.');
+      setError('처리 결과를 확인하지 못했습니다. 새로고침해 처리 결과가 남았는지 확인하고, 아직 처리 대기면 다시 처리해주세요.');
     } finally { setPending(false); }
   }
   return <form className="flex min-w-0 flex-col gap-2 border-t pt-2" aria-label="취소 뒤 출고 처리" noValidate onSubmit={event => { event.preventDefault(); void submit(); }}>

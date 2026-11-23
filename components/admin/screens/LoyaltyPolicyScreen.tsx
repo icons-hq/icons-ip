@@ -112,7 +112,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
       setRequest(null); setUncertain(false); setLatest(null);
       setFeedback({ message: '등급 조건을 저장했습니다. 고객 등급은 다음 결제 확정·취소 또는 수동 재산정 때 반영됩니다.' });
     } catch {
-      setUncertain(true); setFeedback({ error: '저장 결과를 확인하지 못했습니다. 입력을 유지하고 같은 요청으로 다시 확인해주세요.' });
+      setUncertain(true); setFeedback({ error: '저장됐는지 확인하지 못했습니다. 입력은 그대로 있습니다. ‘같은 요청으로 저장 결과 확인’을 눌러주세요. 이미 저장됐다면 두 번 저장되지 않고 결과만 보여 줍니다.' });
     } finally { setBusy(false); }
   }
   async function readLatest() {
@@ -122,7 +122,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
       const result = await readLoyaltyPolicyAction();
       if ('error' in result) { setFeedback({ error: result.error }); return; }
       setLatest(result.data); setCoupons(result.data.coupons); setRuns(result.data.monthlyRuns ?? []);
-    } catch { setFeedback({ error: '최신 정책을 불러오지 못했습니다. 작성한 입력은 유지됩니다.' }); }
+    } catch { setFeedback({ error: '최신 정책을 불러오지 못했습니다. 작성한 입력은 그대로 있습니다. ‘최신 정책과 비교’를 다시 눌러주세요.' }); }
     finally { setReading(false); }
   }
   function applyLatest(replaceDraft: boolean) {
@@ -134,7 +134,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
   }
 
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="loyalty-policy">
-    <AdminPageHeader title="고객등급 관리" description="WELCOME은 기본 등급입니다. 최근 90일의 결제 확정·취소 제외 실적으로 SILVER, GOLD, PLATINUM을 산정합니다." actions={<p className="text-xs text-muted-foreground tabular-nums">저장 버전 {base.revision} · {formatOrderDateTime(base.updatedAt)}</p>} />
+    <AdminPageHeader title="고객등급 관리" description="WELCOME은 조건 없이 받는 기본 등급입니다. SILVER·GOLD·PLATINUM은 최근 90일 동안 결제가 확정된 주문(취소 제외) 실적으로 정합니다." actions={<p className="text-xs text-muted-foreground tabular-nums">저장 버전 {base.revision} · {formatOrderDateTime(base.updatedAt)}</p>} />
     <form onSubmit={save} className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
       <div className="flex flex-col gap-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-semibold">등급별 승급 조건</h3><Link className={`${buttonVariants({ variant: 'ghost', size: 'xs' })} font-normal text-muted-foreground`} data-slot="button" href="/admin/settings/store-credits#customer-rewards">적립률 설정<ArrowUpRight aria-hidden="true" /></Link></div>
         {/* 줄의 수정은 초안만 바꾼다 — 어떤 순서로 눌러야 저장되는지를 표 앞에서 말한다. */}
@@ -189,7 +189,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
         </div>
         <p className={NOTE}>두 조건을 모두 사용하면 하나만 충족해도 해당 등급을 받을 수 있습니다. 주문 항목 수는 구매 수량 합계와 다릅니다.</p>
         <div className={INFO_PANEL}><h3 className="font-medium">연결된 혜택 쿠폰</h3>
-          {coupons.filter(coupon => coupon.grade === draft[editor.index].grade).length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{coupons.filter(coupon => coupon.grade === draft[editor.index].grade).map(coupon => <li key={coupon.code}>{coupon.name} · {coupon.code} · {GRADE_BENEFIT_CADENCE_LABELS[coupon.cadence ?? 'upgrade']}</li>)}</ul> : <p className="text-muted-foreground">연결된 쿠폰이 없습니다. 조건 적용 후 등급별 혜택에서 쿠폰을 등록할 수 있습니다.</p>}
+          {coupons.filter(coupon => coupon.grade === draft[editor.index].grade).length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{coupons.filter(coupon => coupon.grade === draft[editor.index].grade).map(coupon => <li key={coupon.code}>{coupon.name} · {coupon.code} · {GRADE_BENEFIT_CADENCE_LABELS[coupon.cadence ?? 'upgrade']}</li>)}</ul> : <p className="text-muted-foreground">연결된 쿠폰이 없습니다. 등급 조건 표의 &lsquo;혜택 쿠폰 등록&rsquo;을 누르면 이 등급의 쿠폰을 만들 수 있습니다.</p>}
         </div>
         {editorError ? <AdminNotice role="alert" tone="danger">{editorError}</AdminNotice> : null}
         <div className={`${ACTIONS} justify-end border-t pt-4`}><Button onClick={closeEditor} type="button" variant="outline">취소</Button><Button type="submit">조건 적용</Button></div>
@@ -204,13 +204,19 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
     <section aria-label="등급 산정 예시" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground sm:p-5"><h3 className="text-base font-medium">입력한 조건으로 등급 확인</h3>
       <p className={NOTE}>실적 예시를 입력하면 현재 작성한 조건의 결과를 확인할 수 있습니다. 고객 등급이나 수동 보정에는 영향을 주지 않습니다.</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className={FIELD_LABEL} htmlFor="loyalty-sample-amount">실적 금액 (원)<Input id="loyalty-sample-amount" inputMode="numeric" maxLength={13} value={sample.amount} onChange={event => setSample({ ...sample, amount: event.target.value })} /></label><label className={FIELD_LABEL} htmlFor="loyalty-sample-count">상품 주문 항목 수 (건)<Input id="loyalty-sample-count" inputMode="numeric" maxLength={7} value={sample.itemCount} onChange={event => setSample({ ...sample, itemCount: event.target.value })} /></label></div>
-      <p aria-live="polite" className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm">{estimated ? <>예상 등급 <strong className="font-semibold">{estimated.toUpperCase()}</strong></> : '유효한 등급 조건과 실적 금액·항목 수를 입력해주세요.'}</p>
+      <p aria-live="polite" className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm">{estimated ? <>예상 등급 <strong className="font-semibold">{estimated.toUpperCase()}</strong></> : '실적 금액과 상품 주문 항목 수를 모두 숫자로 넣어주세요(없으면 0). 위 등급 조건에 고칠 곳이 있으면 결과가 나오지 않습니다.'}</p>
     </section>
-    <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground sm:p-5"><h3 className="text-base font-medium">등급 혜택 안내</h3><p className={NOTE}>쿠폰마다 지급 방식을 고릅니다. 승급 시 1회는 승급할 때 통과한 등급의 쿠폰을 발급하고 이미 보유한 같은 쿠폰은 다시 발급하지 않습니다. 매월 1일은 매월 1일 0시(KST)에 그 시점 등급이 쿠폰 등급 이상인 회원에게 한 장씩 발급하고 알림을 보내며, 지난달 몫은 소급하지 않습니다. 매월 1일 지급 직전에는 대상 회원(SILVER 이상으로 기록된 회원)의 등급을 최근 90일 실적으로 다시 계산해, 실적이 줄어든 회원은 그때 강등되고 그 등급까지의 쿠폰만 받습니다(강등·승급 이력과 승급 쿠폰은 결제 때와 같은 규칙). 두 방식 모두 발급 기간·한도·대상 조건을 따릅니다. 쿠폰 내용·연결 등급·지급 방식은 쿠폰 편집에서 관리합니다.</p>
-      <p className={NOTE}>등급별 주문 적립률은 <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/settings/store-credits#customer-rewards">적립금 정책</Link>에서 설정합니다. 주문 생성 시 등급을 기준으로 최종 적립률을 저장하고 거래확정 때 지급합니다.</p></section>
+    <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground sm:p-5"><h3 className="text-base font-medium">등급 혜택 안내</h3><p className={NOTE}>쿠폰마다 지급 방식을 고릅니다. 쿠폰 내용·연결 등급·지급 방식은 쿠폰 편집에서 바꿉니다.</p>
+      <ul className={`${NOTE} flex list-disc flex-col gap-1 pl-5`}>
+        <li><strong className="font-medium text-foreground">승급 시 1회</strong>: 회원이 승급할 때 거쳐 간 등급의 쿠폰을 발급합니다. 이미 가진 같은 쿠폰은 다시 발급하지 않습니다.</li>
+        <li><strong className="font-medium text-foreground">매월 1일</strong>: 매월 1일 0시(KST)에 그 시점 등급이 쿠폰 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지난달에 받지 못한 몫은 나중에 채워 주지 않습니다.</li>
+        <li>매월 1일 지급 직전에는 대상 회원(SILVER 이상으로 기록된 회원)의 등급을 최근 90일 실적으로 다시 계산합니다. 실적이 줄어든 회원은 이때 등급이 내려가고, 내려간 등급까지의 쿠폰만 받습니다. 등급이 오르내린 기록과 승급 쿠폰은 결제 때와 같은 규칙으로 남고 발급됩니다.</li>
+        <li>두 방식 모두 쿠폰에 정한 발급 기간·발급 한도·대상 조건을 따릅니다.</li>
+      </ul>
+      <p className={NOTE}>등급별 주문 적립률은 <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/settings/store-credits#customer-rewards">적립금 정책</Link>에서 설정합니다. 적립률은 고객이 주문할 때의 등급으로 정해져 주문에 저장되고, 적립금은 거래확정 때 지급됩니다. 주문 뒤에 등급이 바뀌어도 그 주문의 적립률은 바뀌지 않습니다.</p></section>
     <section aria-label="매월 지급 기록" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground sm:p-5" data-loyalty-monthly-runs="">
       <h3 className="text-base font-medium">매월 지급 기록</h3>
-      <p className={NOTE}>매월 1일 지급 쿠폰의 최근 6개월 기록입니다. 그 달 첫 실행이 지급할 쿠폰을 정하고 회원 순서대로 나눠 지급합니다.</p>
+      <p className={NOTE}>매월 1일에 지급하는 쿠폰의 최근 6개월 기록입니다. 지급할 쿠폰은 그 달 지급을 시작할 때 정해지고, 대상 회원에게 차례대로 나눠 지급합니다.</p>
       {runs.length ? <div className={TABLE_BOX}><Table className="min-w-[40rem] table-fixed"><caption className="sr-only">매월 등급 혜택 쿠폰 지급 기록</caption>
         <colgroup><col style={{ width: '15%' }} /><col style={{ width: '25%' }} /><col style={{ width: '15%' }} /><col style={{ width: '45%' }} /></colgroup>
         <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col">지급 월</TableHead><TableHead scope="col">상태</TableHead><TableHead scope="col">받은 회원 · 장수</TableHead><TableHead scope="col">쿠폰별</TableHead></TableRow></TableHeader>

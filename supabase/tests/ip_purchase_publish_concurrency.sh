@@ -69,8 +69,8 @@ update public.profiles set nickname='ip_purchase_race',birth_date='2000-01-01',
 update public.profiles set role='admin' where id='${admin_id}';
 insert into public.verticals(key,label,color) values ('ip-purchase-race','게시 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('ip-purchase-race','게시 경합','ip-purchase-race',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('ip-purchase-race','ip-purchase-race','게시 경합 상품','문구',12000,'ok',10,null);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,published_at)
+values ('ip-purchase-race','ip-purchase-race','게시 경합 상품',12000,'ok',10,null);
 select pg_temp.publish_goods_kc_fixture('ip-purchase-race');
 insert into public.events(id,title,mode,status,ip_id)
 values ('ip-purchase-race','게시 경합 이벤트','오프라인','예매중','ip-purchase-race');

@@ -84,7 +84,7 @@ export function ReviewInsightsScreen({ data,filters,history = { kind: 'error' } 
       <li>작성률은 {data.cohortFrom}~{data.asOf} 배송완료 주문의 상품 중 리뷰가 작성된 비율입니다. 같은 주문의 동일 상품은 옵션·입력 문구와 관계없이 1건입니다. 블라인드한 리뷰도 작성 사실에 포함하며 취소된 주문은 제외합니다.</li>
       <li>주문 대비 리뷰가 적은 상품은 내 스토어 전체 작성률보다 낮은 상품입니다. 배송완료 기록이 없는 상품은 제외합니다. 3점 이하 신규 리뷰와 상품 평균 4.6 미만은 서로 다른 지표입니다.</li>
       <li>평점은 리뷰가 있는 상품별 평균을 다시 평균합니다. 내 스토어 기준은 검색어와 무관하며 진단 건수·목록에만 검색 조건을 적용합니다.</li>
-      <li>3개월 전 비교는 현재 기준일에서 달력 3개월을 뺀 같은 날짜의 첫 성공 관측값을 사용합니다. 현재 평점은 지금 공개 상태로 다시 집계하며 과거 평점은 관측 당시 상태를 보존합니다. 날짜를 놓친 기록은 다른 날이나 현재 데이터로 채우지 않습니다.</li>
+      <li>3개월 전 비교는 기준일에서 달력으로 3개월을 뺀 같은 날짜에 처음 제대로 기록된 평점(과거 관측 시각)을 씁니다. 지금 평점은 현재 공개 상태로 다시 계산하고, 3개월 전 평점은 그날 기록한 값을 그대로 씁니다. 그날 기록이 없으면 다른 날이나 지금 값으로 채우지 않습니다.</li>
       {history.kind === 'ready' ? <li>비교 기준일: 현재 {history.data.asOf} / 3개월 전 {history.data.comparisonAsOf}. {past ? <>과거 관측 시각: {observedAt} KST. 전체 평점 {rating(past.averageRating)} (상품 {past.ratedProductCount.toLocaleString('ko-KR')}개, 공개 리뷰 {past.reviewCount.toLocaleString('ko-KR')}건), 최근 6개월 평점 {rating(past.sixMonthRating)} (상품 {past.sixMonthRatedProductCount.toLocaleString('ko-KR')}개, 공개 리뷰 {past.sixMonthReviewCount.toLocaleString('ko-KR')}건; {past.sixMonthFrom}~{past.asOf}).</> : reviewRatingComparisonText(data.summary.averageRating, history, 'averageRating')}</li> : <li>과거 비교를 불러오지 못했습니다. 현재 평점과 상품 목록은 조회한 값입니다.</li>}
     </ul></details>
   </div>;

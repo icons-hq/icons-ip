@@ -79,7 +79,7 @@ describe('주문 상세 창고 회신·취소 뒤 출고 (ADR-0046)', () => {
     expect(html).toContain('data-canceled-dispatch-badge=""');
     expect(html).toContain('취소 뒤 출고 발견 1건');
     expect(html).toContain('취소한 주문의 상품이 출고됐습니다 · 1건');
-    expect(html).toContain('운송장 회신 반입');
+    expect(html).toContain('운송장 회신 올리기');
     expect(html).toContain('epost 6000000000001');
     expect(html).toContain('취소 때 되돌린 2개 중 발견 때 다시 뺀 1개');
     expect(html).toContain('그사이 다시 팔려 빼지 못한 1개');

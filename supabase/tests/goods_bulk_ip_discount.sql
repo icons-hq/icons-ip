@@ -15,10 +15,10 @@ insert into auth.sessions(id,user_id,created_at,updated_at) values('b9100000-000
 insert into public.ips(id,title,vertical_key) values('bulk-ip-main','TEST IP 일괄 할인','character'),('bulk-ip-other','TEST IP 일괄 다른 IP','character'),('bulk-ip-closed','TEST IP 보관','character');
 update public.ips set archived_at=now() where id='bulk-ip-closed';
 -- 105 live goods in the IP (above the 100-item selection limit), one archived, one in another IP.
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
- select 'bulk-ip-'||lpad(n::text,3,'0'),'bulk-ip-main','TEST IP 상품 '||n,'문구',10000,'ok',10 from generate_series(1,105) n;
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,archived_at) values('bulk-ip-archived','bulk-ip-main','TEST IP 보관 상품','문구',10000,'ok',0,now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('bulk-ip-elsewhere','bulk-ip-other','TEST 다른 IP 상품','문구',10000,'ok',10);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+ select 'bulk-ip-'||lpad(n::text,3,'0'),'bulk-ip-main','TEST IP 상품 '||n,10000,'ok',10 from generate_series(1,105) n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,archived_at) values('bulk-ip-archived','bulk-ip-main','TEST IP 보관 상품',10000,'ok',0,now());
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('bulk-ip-elsewhere','bulk-ip-other','TEST 다른 IP 상품',10000,'ok',10);
 -- Too cheap for a 1,000-won amount discount: skipped, not fatal.
 update public.goods set price=900 where id='bulk-ip-002';
 update public.goods_variants set price=900 where good_id='bulk-ip-002';
@@ -84,8 +84,8 @@ select pg_temp.bulk_error($q$select pg_temp.ip_preview(4,'discount','{"mode":"ra
 select pg_temp.bulk_error($q$select public.admin_preview_goods_bulk(gen_random_uuid(),'{"kind":"ip","ids":["bulk-ip-main","bulk-ip-other"],"command":"discount_stop","values":{}}','b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')$q$,'goods_bulk_invalid');
 reset role;
 -- More than 1,000 goods in one IP: refused instead of an unbounded transaction.
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
- select 'bulk-ip-x'||lpad(n::text,4,'0'),'bulk-ip-other','TEST IP 대량 '||n,'문구',10000,'ok',1 from generate_series(1,1000) n;
+insert into public.goods(id,ip_id,name,price,stock,stock_qty)
+ select 'bulk-ip-x'||lpad(n::text,4,'0'),'bulk-ip-other','TEST IP 대량 '||n,10000,'ok',1 from generate_series(1,1000) n;
 set local role authenticated;
 select pg_temp.bulk_error($q$select pg_temp.ip_preview(5,'discount_stop','{}','bulk-ip-other')$q$,'goods_bulk_target_limit');
 reset role;

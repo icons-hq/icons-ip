@@ -235,7 +235,7 @@ export function GoodsDetailImageList({ errors = {}, initialPaths, initialUrls, o
     pendingFocus.current = index < tilesRef.current.length - 1 ? { index, control: 'input' } : { index, control: 'add' };
     const label = goodsDetailImageLabel(index);
     commit(removeGoodsDetailImage(tilesRef.current, index), tile.path
-      ? `${label}${goodsDetailImageObjectParticle(index)} 뺐습니다. 상품을 저장하면 연결이 제거됩니다. 저장소 원본은 별도 보존됩니다.`
+      ? `${label}${goodsDetailImageObjectParticle(index)} 뺐습니다. 상품을 저장하면 상세 화면에서 빠집니다. 올렸던 원본 파일은 저장소에 그대로 남습니다.`
       : `${label} 업로드를 취소했습니다.`);
   }
 

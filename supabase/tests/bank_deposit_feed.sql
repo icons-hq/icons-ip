@@ -101,8 +101,8 @@ on conflict (id) do update set
 insert into public.ips (id, title, vertical_key, published_at)
 values ('deposit-ip', '입금 IP', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('deposit-goods', 'deposit-ip', '입금 굿즈', '문구', 20000, 'ok', 30,null);
+insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
+values ('deposit-goods', 'deposit-ip', '입금 굿즈', 20000, 'ok', 30,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('deposit-goods');
 

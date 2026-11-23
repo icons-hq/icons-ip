@@ -26,8 +26,8 @@ update public.profiles set nickname = '카테고리 검증 구매자', birth_dat
 where id = '00000000-0000-4000-8000-000000047472';
 insert into public.verticals(key, label, color) values ('category-hierarchy-0474', '카테고리 계층 검증', '#000000');
 insert into public.ips(id, title, vertical_key) values ('category-hierarchy-0474', '카테고리 계층 검증', 'category-hierarchy-0474');
-insert into public.goods(id, ip_id, name, type, price, stock) values
-  ('category-good-0474', 'category-hierarchy-0474', '카테고리 연결 검증', '문구', 1000, 'ok');
+insert into public.goods(id, ip_id, name, price, stock) values
+  ('category-good-0474', 'category-hierarchy-0474', '카테고리 연결 검증', 1000, 'ok');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000047471', true);

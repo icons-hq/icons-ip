@@ -10,7 +10,7 @@ const ADMIN_COPY_EXCEPTIONS = [
   { file: 'lib/admin/guide/topics/events-tickets.ts', reason: '티켓 안내는 운영 상품 어휘 변환 대상이 아니다.' },
   { file: 'lib/admin/good-preview.ts', text: '(굿즈 이름 미입력)', reason: '고객용 굿즈 미리보기에 쓰는 임시 이름이다.' },
   { file: 'components/admin/screens/ClaimQueueKitScreen.tsx', text: '약관 제16조', reason: '굿즈를 반환받은 날부터 3영업일이라는 약관 원문 인용을 보존한다.' },
-  { file: 'app/admin/actions.ts', text: 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.', reason: '실물 판매와 구분하는 폐기된 게임 variant 안내다.' },
+  { file: 'app/admin/actions.ts', text: '이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.', reason: '실물 판매와 구분하는 폐기된 게임 variant 안내다.' },
   { file: 'app/admin/actions.ts', text: '선택한 IP의 굿즈만 지정할 수 있습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'app/admin/actions.ts', text: '연결할 굿즈를 찾을 수 없습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'lib/admin/catalog.ts', text: '등록된 굿즈를 선택해주세요.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
@@ -34,8 +34,8 @@ const PUBLIC_COPY_EXCEPTIONS = [
     reason: '토스페이먼츠가 돌려주는 상품권 결제수단의 공식 이름이라 굿즈 어휘로 바꾸지 않는다.' })),
   /* 공용 모듈에 도메인 로직과 함께 있는 운영자 전용 문구. 쪼개면 저장 검증 규칙이 두 곳에 갈라져 예외로 둔다. */
   { file: 'lib/review-events.ts', text: '이벤트 대상 상품을', reason: '리뷰이벤트 등록 화면(어드민)에서만 쓰는 저장 전 검증 문구이며 같은 모듈의 저장 규칙(parseReviewEventValues)과 한 벌로 맞춘다.' },
-  ...['에서 출고하는 ICONS 상품 중', '상품·옵션', '판매자상품코드·관리코드'].map(text => ({ file: 'lib/email/stock-safety-digest.ts', text,
-    reason: '출고지 담당자와 운영자가 받는 안전재고 메일이라 어드민 운영 어휘(상품·옵션·판매자상품코드)를 쓴다. 고객에게 가지 않는다.' })),
+  ...['에서 출고하는 ICONS 상품 중', '상품·옵션', '상품 자동코드·옵션 자동코드'].map(text => ({ file: 'lib/email/stock-safety-digest.ts', text,
+    reason: '출고지 담당자와 운영자가 받는 안전재고 메일이라 어드민 운영 어휘(상품·옵션·상품 자동코드)를 쓴다. 고객에게 가지 않는다.' })),
 ] as const;
 const MAPPED_GUIDE_SOURCES = {
   'lib/admin/guide/topics/goods-sales.ts': 'topics.ts의 operatorTopic이 모든 정적 제목·본문·표를 변환한다.',

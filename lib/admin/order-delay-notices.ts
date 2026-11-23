@@ -64,16 +64,16 @@ export const ORDER_DELAY_STATUS_LABELS: Record<OrderDelayChannelStatus, string> 
   suppressed: '발송 제외',
 };
 export const ORDER_DELAY_ERROR_LABELS: Record<string, string> = {
-  provider_not_configured: '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.',
+  provider_not_configured: '메일 발송 서비스 연결(발송 키·서명 설정)이 아직 준비되지 않았습니다. 개발 담당자에게 메일 발송 설정을 요청해주세요.',
   delivery_disabled: '지연 안내 이메일 발송 설정이 꺼져 있습니다.',
   recipient_missing: '수신자 이메일이 없거나 형식이 올바르지 않습니다.',
-  target_changed: '주문·배송·수신자 또는 예정일이 변경되어 재확인이 필요합니다.',
-  delivery_in_progress: '기존 요청 결과를 확인하고 있습니다.',
-  delivery_outcome_unknown: '같은 발송 요청으로 접수 결과를 확인합니다. 새 메시지를 발송하지 마세요.',
-  delivery_needs_review: '중복 발송 방지를 위해 자동 처리를 멈췄습니다. 공급자 발송 이력을 확인해주세요.',
-  provider_retryable: '이메일 공급자가 요청을 처리하지 못했습니다. 실패 건을 재시도할 수 있습니다.',
-  provider_rejected: '이메일 공급자가 발송 실패 또는 반송을 기록했습니다. 수신 상태를 확인해주세요.',
-  provider_suppressed: '이메일 공급자가 해당 수신자 발송을 제외했습니다.',
+  target_changed: '주문·배송·수신자 또는 예정일이 바뀌었습니다. 목록에서 다시 선택해 새 미리보기를 만들어주세요.',
+  delivery_in_progress: '앞서 보낸 요청의 결과를 확인하는 중입니다. 잠시 뒤 [안내 결과 새로고침]을 눌러주세요.',
+  delivery_outcome_unknown: '메일이 접수됐는지 아직 모릅니다. 새 안내를 보내지 말고 [안내 결과 새로고침]으로 결과를 확인해주세요.',
+  delivery_needs_review: '같은 메일이 두 번 나가지 않도록 자동 처리를 멈췄습니다. 메일 발송 서비스의 발송 기록 확인이 필요하니 개발 담당자에게 알려주세요.',
+  provider_retryable: '메일 발송 서비스가 요청을 처리하지 못했습니다. [실패한 이메일만 재시도]로 다시 보낼 수 있습니다.',
+  provider_rejected: '메일 발송 서비스가 발송 실패 또는 반송을 기록했습니다. 고객 이메일 주소가 맞는지 확인해주세요.',
+  provider_suppressed: '메일 발송 서비스가 이 수신자에게는 보내지 않았습니다. 이전에 반송됐거나 수신을 거부한 주소일 수 있습니다.',
 };
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const optionalString = (value: unknown) => value === null || typeof value === 'string';
@@ -134,12 +134,12 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
 export function orderDelayNoticeError(code: string): string {
   const errors: Record<string, string> = {
     delay_notice_stale: '미리보기 이후 주문·배송·구매자 또는 지연 정보가 바뀌었습니다. 목록에서 다시 선택해 새 미리보기를 만들어주세요.',
-    delay_notice_ineligible: '현재 지연 중인 미발송 배송 건만 선택할 수 있습니다. 취소·클레임 상태도 확인해주세요.',
+    delay_notice_ineligible: '지금 지연 중이고 아직 발송하지 않은 배송 건만 선택할 수 있습니다. 취소·반품·교환 요청이 열린 주문인지도 확인해주세요.',
     delay_notice_expired: '미리보기 유효 시간이 지났습니다. 새 미리보기를 만들어주세요.',
-    delay_notice_not_found: '안내 기록을 찾을 수 없습니다.',
-    delay_notice_idempotency_conflict: '같은 요청의 내용이 변경되었습니다. 새 미리보기를 만들어주세요.',
+    delay_notice_not_found: '안내 기록을 찾을 수 없습니다. [최근 안내·미리보기 이력 불러오기]로 이력을 다시 확인해주세요.',
+    delay_notice_idempotency_conflict: '같은 요청 번호로 다른 내용이 이미 접수됐습니다. 새 미리보기를 만들어주세요.',
     delay_notice_delivery_disabled: ORDER_DELAY_ERROR_LABELS.delivery_disabled,
-    invalid_delay_notice: '배송 건과 고객 문구·예정일을 확인해주세요.',
+    invalid_delay_notice: '배송 건 선택과 고객 문구·발송 예정일 입력을 확인한 뒤 새 미리보기를 만들어주세요.',
     delay_notice_preorder_schedule: '예약 일정 일괄 변경 안내는 이력의 일괄 결과에서 확인합니다.',
   };
   return errors[code] ?? '처리 결과를 확인하지 못했습니다. 같은 안내의 결과를 새로고침한 뒤 다시 시도해주세요.';

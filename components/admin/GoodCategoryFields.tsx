@@ -107,7 +107,7 @@ export function GoodCategoryField({ categories, primary, onPrimaryChange, error 
       choose(template.categoryId); setTemplatePicker(false);
     }} /> : null}
     {/* ADR-0044: 상품 유형은 없다. 대표 카테고리가 있어야 공개할 수 있다. */}
-    <span className="text-xs text-muted-foreground" id="good-category-hint">마지막 단계 카테고리를 하나 고릅니다. 대표 카테고리가 있어야 공개할 수 있습니다.{selectedArchived ? ' 보관된 카테고리는 선택 해제해야 바뀝니다.' : ''}</span>
+    <span className="text-xs text-muted-foreground" id="good-category-hint">마지막 단계 카테고리를 하나 고릅니다. 대표 카테고리가 있어야 공개할 수 있습니다.{selectedArchived ? ' 지금 고른 카테고리는 보관됐습니다. 선택 해제를 누른 뒤 다른 카테고리를 골라주세요.' : ''}</span>
     {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
   </div>;
 }

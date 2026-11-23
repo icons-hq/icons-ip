@@ -312,7 +312,7 @@ function CurationForm({
     fixedRequest.current ??= formData;
     let result: AdminCurationActionState;
     try { result = await upsertAdminCurationAction(previous, fixedRequest.current); }
-    catch { result = { errors: { form: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }, uncertain: true }; }
+    catch { result = { errors: { form: '저장 결과를 확인하지 못했습니다. 이미 저장됐을 수 있으니 결과 확인 버튼을 눌러주세요. 여러 번 눌러도 한 번만 저장됩니다.' }, uncertain: true }; }
     if (result.message && !result.errors) {
       onSaved(String(fixedRequest.current.get('id')));
       fixedRequest.current = null;

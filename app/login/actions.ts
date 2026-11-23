@@ -3,6 +3,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { isSignupCode } from '@/lib/auth/signup-code.mjs';
 import {
   AUTH_CALLBACK_PATH,
   AUTH_RECOVERY_CALLBACK_PATH,
@@ -58,7 +59,7 @@ export interface AuthActionState {
     form?: string;
   };
   /**
-   * 가입 확인 메일을 보낸 이메일(정규화된 값). 화면은 이 값이 있으면 같은 자리에서 6자리 확인 코드 입력 단계를
+   * 가입 확인 메일을 보낸 이메일(정규화된 값). 화면은 이 값이 있으면 같은 자리에서 확인 코드 입력 단계를
    * 연다(10/14 회의 1014-004). 메일의 확인 링크도 그대로 동작한다.
    */
   pendingSignupEmail?: string;
@@ -95,11 +96,11 @@ const AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const AUTH_SIGNUP_RESEND_STATE_MAX_AGE_MS = AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS * 1000;
 const AUTH_SIGNUP_RESEND_WINDOW_MS = 10 * 60 * 1000;
 const AUTH_SIGNUP_RESEND_MAX_ATTEMPTS = 3;
-/* 확인 메일에는 6자리 확인 코드와 확인 링크가 함께 있다(supabase/templates/confirmation.html). 화면은 코드 입력을
+/* 확인 메일에는 확인 코드와 확인 링크가 함께 있다(supabase/templates/confirmation.html). 화면은 코드 입력을
    먼저 안내하고, 링크도 계속 동작한다. */
-const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니다. 메일에 적힌 6자리 확인 코드를 아래에 입력해주세요. 메일이 보이지 않으면 스팸함을 확인해주세요. 이미 가입한 이메일이라면 로그인도 시도할 수 있습니다.';
-const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 가장 최근에 받은 메일의 6자리 확인 코드를 입력해주세요.';
-const SIGNUP_CODE_FORMAT_MESSAGE = '메일로 받은 6자리 숫자를 입력해주세요.';
+const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니다. 메일에 적힌 확인 코드를 아래에 입력해주세요. 메일이 보이지 않으면 스팸함을 확인해주세요. 이미 가입한 이메일이라면 로그인도 시도할 수 있습니다.';
+const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 가장 최근에 받은 메일의 확인 코드를 입력해주세요.';
+const SIGNUP_CODE_FORMAT_MESSAGE = '메일로 받은 확인 코드 전체를 숫자로 입력해주세요.';
 const SIGNUP_CODE_EMAIL_MISSING_MESSAGE = '확인할 이메일을 찾지 못했습니다. 회원가입을 다시 시작해주세요.';
 const SIGNUP_CODE_RESTART_MESSAGE = '코드를 다시 받으려면 [다른 이메일로 가입하기]를 눌러 같은 이메일로 회원가입을 다시 제출해주세요.';
 const PASSWORD_RESET_SENT_MESSAGE = '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.';
@@ -688,7 +689,7 @@ async function closeSignupCodeSession(supabase: SupabaseServerClient) {
 }
 
 /*
- * 가입 확인 6자리 코드(1014-004). 메일 링크를 새 창에서 열지 않고 가입한 화면에서 그대로 확인을 끝낸다.
+ * 가입 확인 코드(1014-004). 메일 링크를 새 창에서 열지 않고 가입한 화면에서 그대로 확인을 끝낸다.
  * Supabase verifyOtp(type email)는 가입 확인 토큰을 먼저 보고(PKCE 가입의 pkce_ 토큰도 같은 코드로 통과) 이메일을
  * 확인한다. 이때 생긴 세션은 AMR otp라 현재 비밀번호 없이 비밀번호를 바꿀 수 있는 세션이므로(리뷰 F1) 바로 닫고,
  * 가입 화면에서 입력한 비밀번호로 다시 로그인해 password 세션만 브라우저에 준다. 비밀번호는 화면 메모리에서만 이
@@ -703,7 +704,7 @@ export async function verifySignupCodeAction(_state: AuthActionState, formData: 
   const code = readString(formData, 'code').replace(/\s+/g, '');
   const password = readString(formData, 'password');
   const next = safeNextPath(formData.get('next'));
-  if (!/^\d{6}$/.test(code)) return { errors: { code: SIGNUP_CODE_FORMAT_MESSAGE }, pendingSignupEmail: email };
+  if (!isSignupCode(code)) return { errors: { code: SIGNUP_CODE_FORMAT_MESSAGE }, pendingSignupEmail: email };
 
   const { isConfigured } = getSupabaseConfig();
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 가입할 수 있습니다.' }, pendingSignupEmail: email };

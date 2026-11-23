@@ -4,7 +4,7 @@ import { GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTI
 describe('goods list navigation', () => {
   it('상품번호(시스템 순번)와 상품 URL을 다른 검색 대상으로 두고, 예전 상품번호순 주소는 새 상품번호순으로 연다(S36-009·S36-X02)', () => {
     expect(GOODS_LIST_SEARCH_FIELDS.map(item => [item.value, item.label])).toEqual([
-      ['all', '전체'], ['name', '상품명'], ['number', '상품번호'], ['id', '상품 URL'], ['code', '판매자상품코드·관리코드'], ['erp', 'ERP 코드·품명'], ['barcode', '바코드'],
+      ['all', '전체'], ['name', '상품명'], ['number', '상품번호'], ['id', '상품 URL'], ['code', '상품 자동코드·옵션 자동코드'], ['erp', 'ERP 코드·품명'], ['barcode', '바코드'],
     ]);
     const filters = normalizeGoodsListFilters({ field: 'number', q: '12, 15', sort: 'number_asc' });
     expect(filters).toMatchObject({ field: 'number', query: '12, 15', sort: 'number_asc' });
@@ -26,7 +26,7 @@ describe('goods list navigation', () => {
     // 한글 14px·영숫자 8.5px·문장부호·공백 4.5px로 어림한 폭이 240px 이하다.
     const width = (text: string) => [...text].reduce((sum, ch) => sum + (/[가-힣]/.test(ch) ? 14 : /[A-Za-z0-9]/.test(ch) ? 8.5 : 4.5), 0);
     for (const item of GOODS_LIST_SEARCH_FIELDS) expect(width(GOODS_LIST_SEARCH_HINTS[item.value].placeholder)).toBeLessThanOrEqual(240);
-    expect(width('상품명, 상품번호, 판매자상품코드, ERP 코드·품명, 바코드')).toBeGreaterThan(254);
+    expect(width('상품명, 상품번호, 상품 자동코드, ERP 코드·품명, 바코드')).toBeGreaterThan(254);
     expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('ERP 품명');
     expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('바코드');
     expect(GOODS_LIST_SEARCH_HINTS.erp.placeholder).toContain('ERP 코드·품명');

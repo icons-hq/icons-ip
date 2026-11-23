@@ -151,12 +151,12 @@ export function parseSystemHealthReport(value: unknown): SystemHealthReport | nu
 
 export type UnresolvedPaymentReason = 'unknown' | 'needs_review' | 'confirming_stalled';
 export const UNRESOLVED_PAYMENT_REASON_LABELS: Record<UnresolvedPaymentReason, string> = {
-  unknown: '결제 결과 불명', needs_review: '결제사·원장 불일치', confirming_stalled: '확인 처리 멈춤',
+  unknown: '결제 결과 불명', needs_review: '결제사·주문 불일치', confirming_stalled: '확인 처리 멈춤',
 };
 export const UNRESOLVED_PAYMENT_REASON_HINTS: Record<UnresolvedPaymentReason, string> = {
-  unknown: '결제사 응답을 받지 못했습니다. 다시 확인하면 결제사 조회 결과로 승인 또는 취소가 확정됩니다.',
+  unknown: '결제사에서 결과를 받지 못했습니다. 결제 상태 다시 확인을 누르면 결제사에 조회해 승인 또는 취소로 확정합니다.',
   needs_review: '결제사 결과가 주문과 맞지 않습니다(금액·주문 불일치 등). 다시 확인해도 같으면 결제사 관리자 화면에서 거래를 확인해주세요.',
-  confirming_stalled: '승인 확인 처리가 끝나지 않고 멈췄습니다. 다시 확인하면 결제사 조회로 마무리합니다.',
+  confirming_stalled: '승인 확인 처리가 끝나지 않고 멈췄습니다. 결제 상태 다시 확인을 누르면 결제사에 조회해 마무리합니다.',
 };
 export const PAYMENT_PURPOSE_LABELS: Record<string, string> = { order: '상품 주문', ticket: '티켓 예매', prize_sale: '실물 쿠지', wallet: '폐기된 결제 유형' };
 export const PAYMENT_PROVIDER_LABELS: Record<string, string> = { toss: '토스페이먼츠', nicepay: '나이스페이', korpay: '코페이', bank_transfer: '무통장입금' };
@@ -228,7 +228,7 @@ export const PAYMENT_RECONCILE_OUTCOME_MESSAGES: Record<string, string> = {
   approved: '결제사에서 승인이 확인되어 결제를 확정했습니다.',
   declined: '결제사에서 승인되지 않은 결제로 확인되어 결제 없이 닫았습니다. 잡혀 있던 재고·쿠폰이 풀립니다.',
   canceled: '결제사에서 취소된 결제로 확인되어 결제 없이 닫았습니다. 잡혀 있던 재고·쿠폰이 풀립니다.',
-  unknown: '결제사 응답을 아직 받지 못했습니다. 잠시 뒤 다시 확인해주세요(자동 재확인도 이어집니다).',
+  unknown: '결제사에서 아직 결과를 받지 못했습니다. 잠시 뒤 다시 확인해주세요(자동으로도 계속 다시 확인합니다).',
   needs_review: '결제사 결과가 주문과 맞지 않습니다. 결제사 관리자 화면에서 거래를 확인한 뒤 개발팀에 전달해주세요.',
 };
 

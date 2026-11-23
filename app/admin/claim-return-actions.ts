@@ -67,7 +67,7 @@ async function readIntake(formData: FormData): Promise<ReadIntake> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_claim_return_operations');
   const operations = error ? null : parseClaimReturnOperations(data);
-  if (!operations || !operations.intake.enabled) return { error: '반품입고 회신 반영이 꺼져 있습니다. 창고 회신은 클레임 상세의 회수 확인으로 기록해주세요.' };
+  if (!operations || !operations.intake.enabled) return { error: '반품입고 회신 업로드가 꺼져 있습니다. 창고 회신은 요청 상세의 출고지별 회수 확인에 한 건씩 기록해주세요.' };
   const file = formData.get('file');
   if (!(file instanceof File) || !file.size) return { error: '반품입고 회신 파일을 골라주세요.' };
   const password = formData.get('filePassword');
@@ -92,7 +92,7 @@ export async function previewClaimReturnIntakeAction(formData: FormData): Promis
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_preview_claim_return_intake', { p_rows: read.rows });
   const parsed = error ? null : parseReturnIntakePreview(data);
-  if (!parsed) return { error: '반품입고 회신을 맞춰 보지 못했습니다. 잠시 후 같은 파일로 다시 확인해주세요.' };
+  if (!parsed) return { error: '반품입고 회신을 요청과 맞춰 보지 못했습니다. 잠시 뒤 같은 파일로 [등록 전 확인]을 다시 눌러주세요.' };
   return { preview: { fileName: read.fileName, sha256: read.sha256, headerLine: read.headerLine, rows: parsed.rows, counts: parsed.counts, issues: read.issues } };
 }
 
@@ -115,12 +115,12 @@ export async function confirmClaimReturnIntakeAction(formData: FormData): Promis
       return [Number(entry.rowNumber), entry.bundleId] as const;
     }));
   } catch {
-    return { error: '확정할 줄을 읽지 못했습니다. 등록 전 확인을 다시 해주세요.' };
+    return { error: '확정할 줄을 읽지 못했습니다. [등록 전 확인]을 다시 눌러주세요.' };
   }
-  if (!isUuid(operationId) || !/^[0-9a-f]{64}$/u.test(previewSha) || !selection.size) return { error: '확정할 줄이 없습니다. 등록 전 확인을 다시 해주세요.' };
+  if (!isUuid(operationId) || !/^[0-9a-f]{64}$/u.test(previewSha) || !selection.size) return { error: '확정할 줄이 없습니다. [등록 전 확인]을 다시 눌러주세요.' };
   const read = await readIntake(formData);
   if ('error' in read) return { error: read.error };
-  if (read.sha256 !== previewSha) return { error: '확인한 파일과 다른 파일입니다. 등록 전 확인을 다시 해주세요.' };
+  if (read.sha256 !== previewSha) return { error: '확인한 파일과 다른 파일입니다. [등록 전 확인]을 다시 눌러주세요.' };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_confirm_claim_return_intake', {
     p_rows: read.rows.map(row => ({ ...row, bundleId: selection.get(row.rowNumber) ?? null })),
@@ -129,11 +129,11 @@ export async function confirmClaimReturnIntakeAction(formData: FormData): Promis
   });
   if (error) {
     return { error: (error.message ?? '').includes('claim_return_intake_conflict')
-      ? '같은 확정 번호로 다른 내용이 이미 처리됐습니다. 등록 전 확인을 다시 해주세요.'
-      : '입고 확정 결과를 확인하지 못했습니다. 같은 파일로 다시 확정하면 이미 기록된 줄은 그대로 둡니다.' };
+      ? '같은 확정 번호로 다른 내용이 이미 처리됐습니다. [등록 전 확인]을 다시 눌러주세요.'
+      : '입고 확정이 끝났는지 확인하지 못했습니다. 같은 파일로 다시 확정해도 이미 기록된 줄은 두 번 기록되지 않습니다.' };
   }
   const result = parseReturnIntakeConfirmResult(data);
-  if (!result) return { error: '입고 확정 결과를 확인하지 못했습니다. 목록을 새로고침해 입고 상태를 확인해주세요.' };
+  if (!result) return { error: '입고 확정이 끝났는지 확인하지 못했습니다. 목록을 새로고침해 입고 상태를 확인해주세요.' };
   revalidateClaims();
   return { result };
 }

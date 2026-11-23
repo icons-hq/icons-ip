@@ -162,14 +162,14 @@ select pg_temp.ld_assert(
 
 -- B. 합성 주문. 1 발주확인된 김포 택배 건, 2 결제만 된 신규주문, 3 같은 구매자의 두 번째 발주확인 건, 4 남양주(서원) 건.
 insert into public.ips(id,title,vertical_key) values('logistics-dispatch-ip','합성 물류 IP','character');
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('logistics-dispatch-good','logistics-dispatch-ip','합성 물류 상품','문구',1000,'ok',100);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('logistics-dispatch-good','logistics-dispatch-ip','합성 물류 상품',1000,'ok',100);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at)
 select pg_temp.ld_id(2,n),pg_temp.ld_id(1,case when n=2 then 10 else 9 end),(case when n=2 then 'paid' else 'confirmed' end)::public.order_status,5000,3000,
  jsonb_build_object('recipientName','합성수령인'||n,'phone','0101234567'||n,'postalCode','00123','address1','합성 주소','address2',n||'층','deliveryNote','문 앞'),
  case when n=2 then null else now() end
 from generate_series(1,4) n;
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
-select pg_temp.ld_id(3,n),pg_temp.ld_id(2,n),'logistics-dispatch-good',v.id,1,1000,'합성 물류 상품','문구','logistics-dispatch-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+select pg_temp.ld_id(3,n),pg_temp.ld_id(2,n),'logistics-dispatch-good',v.id,1,1000,'합성 물류 상품','logistics-dispatch-ip'
 from generate_series(1,4) n cross join (select id from public.goods_variants where good_id='logistics-dispatch-good' and is_default) v;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
 select pg_temp.ld_id(4,n),pg_temp.ld_id(2,n),
@@ -356,8 +356,8 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,fre
  values(pg_temp.ld_id(8,1),'ld-quick-origin','합성 퀵 출고지','hanjin',1000,null,'합성 반송 주소',true);
 insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at) values(pg_temp.ld_id(2,5),pg_temp.ld_id(1,9),'confirmed',5000,3000,
  '{"recipientName":"합성수령인5","phone":"01012345675","postalCode":"00123","address1":"합성 주소","address2":"5층","deliveryNote":"문 앞"}',now());
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ld_id(3,5),pg_temp.ld_id(2,5),'logistics-dispatch-good',id,1,1000,'합성 물류 상품','문구','logistics-dispatch-ip'
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
+ select pg_temp.ld_id(3,5),pg_temp.ld_id(2,5),'logistics-dispatch-good',id,1,1000,'합성 물류 상품','logistics-dispatch-ip'
  from public.goods_variants where good_id='logistics-dispatch-good' and is_default;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
  values(pg_temp.ld_id(4,5),pg_temp.ld_id(2,5),pg_temp.ld_id(8,1),'합성 퀵 출고지',3000,'{}');

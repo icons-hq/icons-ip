@@ -533,7 +533,7 @@ function UpdateTrackingForm({
   shipment: OrderShipment | null;
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderTrackingAction, EMPTY_ACTION_STATE);
-  const confirmation = '운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다.';
+  const confirmation = '운송장번호를 수정할까요? 바꾼 내용이 감사 기록에 남습니다.';
 
   return (
     <form
@@ -657,7 +657,7 @@ function ReconcileCancellationForm({
 }) {
   const { pending, running } = cancellationFormView(cancellation, 'reconcile', orderId);
   const confirmation = preparedKorpay
-    ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.`
+    ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제가 유효 시간을 넘겨 만료됐는지 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 바로 끝납니다.`
     : '결제 취소 상태를 다시 확인할까요?';
   const label = preparedKorpay
     ? ADMIN_CANCELLATION_RECHECK_LABELS.preparedKorpay

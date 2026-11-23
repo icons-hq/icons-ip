@@ -34,7 +34,7 @@ const NO_LOCAL_VALUES: ReadonlyMap<string, string> = new Map();
 const UNCONFIRMED = '저장 결과를 확인하지 못했습니다. 고른 값은 그대로이니 다시 저장해주세요. 같은 값을 다시 저장해도 안전합니다.';
 
 function suggestionText(basis: ErpCategorySuggestion['basis']) {
-  return basis === 'erp_mapping' ? '고객 카테고리의 ERP 분류 매핑대로 연결' : '같은 경로로 연결';
+  return basis === 'erp_mapping' ? '카테고리 관리의 ERP 분류 매핑대로 연결' : '같은 경로로 연결';
 }
 
 /* 제안을 그대로 고른 것은 어긋남이 아니다. 제안은 공백·대소문자를 무시해 고르고 경고는 글자를 그대로 비교해서, 같은 매핑을 다른 분류라고 말하게 된다. */
@@ -125,10 +125,10 @@ function MappingRow({ row, options, index, categoryErpMappings, draft, onDraftCh
           {fallback && !selected ? <p className="text-xs text-muted-foreground">
             {fallbackBasis === 'same_path'
               ? <>같은 경로의 ‘{pathOf(fallback)}’ 카테고리에 자동으로 연결됩니다. 다른 카테고리를 쓰려면 골라 저장해주세요.</>
-              : <>고객 카테고리의 ERP 분류 매핑에 따라 ‘{pathOf(fallback)}’ 카테고리를 제안합니다. 다른 카테고리를 쓰려면 골라 저장해주세요.</>}
+              : <>카테고리 관리의 ERP 분류 매핑에 적힌 값에 따라 ‘{pathOf(fallback)}’ 카테고리를 제안합니다. 다른 카테고리를 쓰려면 골라 저장해주세요.</>}
           </p> : null}
           {conflict ? <p className="text-xs text-warning" role="status">
-            고른 카테고리는 고객 카테고리 화면에서 다른 ERP 분류(‘{conflict.erpName}’, {conflict.erpCode})에 매핑돼 있습니다. 맞는 카테고리인지 확인해주세요.
+            고른 카테고리는 카테고리 관리의 ERP 분류 매핑에 다른 ERP 분류(‘{conflict.erpName}’, {conflict.erpCode})로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.
           </p> : null}
           <span aria-live="polite" className={`text-xs ${message?.tone === 'error' ? 'text-destructive' : 'text-success'}`}>{message?.text ?? ''}</span>
         </div>
@@ -319,12 +319,12 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     ? selectedRows.map((row) => mappingConflict(row.erpCategory, bulkTarget, index, categoryErpMappings)).find(Boolean) ?? null
     : null;
   const bulkLine = bulkConflict
-    ? { tone: 'warning', text: `고른 카테고리는 고객 카테고리 화면에서 다른 ERP 분류(‘${bulkConflict.erpName}’, ${bulkConflict.erpCode})에 매핑돼 있습니다. 맞는 카테고리인지 확인해주세요.` }
+    ? { tone: 'warning', text: `고른 카테고리는 카테고리 관리의 ERP 분류 매핑에 다른 ERP 분류(‘${bulkConflict.erpName}’, ${bulkConflict.erpCode})로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.` }
     : bulkStatus;
   const bulkLineTone = (line: typeof bulkLine) => line?.tone === 'error' ? 'text-destructive' : line?.tone === 'warning' ? 'text-warning' : 'text-success';
 
   if (!rows.length) {
-    return <p className="text-sm text-muted-foreground">반입한 품목에 ERP 분류가 없습니다. 반입할 때 ERP 분류 열을 골라주세요.</p>;
+    return <p className="text-sm text-muted-foreground">올린 품목에 ERP 분류가 없습니다. 품목 올리기의 열 표에서 ERP 분류 열을 골라 다시 올려주세요.</p>;
   }
   return <div className="flex min-w-0 flex-col gap-3" data-erp-items="mapping">
     <p className="text-sm text-muted-foreground">ERP 분류 {rows.length.toLocaleString('ko-KR')}개 중 {linked.toLocaleString('ko-KR')}개 연결됨 · {rows.length > linked ? <strong className="font-semibold text-warning">연결 필요 {(rows.length - linked).toLocaleString('ko-KR')}개</strong> : '연결 필요 0개'}. 여기서 연결해도 상품은 바뀌지 않습니다. 상품 옵션에서 ERP 품목을 고를 때 연결된 카테고리를 제안하는 데만 씁니다.</p>

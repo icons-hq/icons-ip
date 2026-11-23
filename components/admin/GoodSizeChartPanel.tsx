@@ -54,7 +54,7 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
     local.capture({ baseRevision: fixed.revision, values: fixed.values, request: fixed }, true);
     let result: GoodsSizeResult<GoodsSizeChartSnapshot>;
     try { result = await saveGoodsSizeChartAction(goodId, fixed.values, fixed.revision, fixed.operationId); }
-    catch { result = { ok: false, uncertain: true, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.' }; }
+    catch { result = { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' }; }
     let current: GoodsSizeChartSnapshot | null = null;
     if (result.ok && replaying) {
       try { const read = await loadGoodsSizeChartAction(goodId); if (read.ok) current = read.value; } catch { /* The receipt still confirms this operation. */ }
@@ -102,7 +102,7 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
     setSnapshot(latest); setBaseRevision(latest.revision); setConflict(false);
     if (keepInput) local.capture({ baseRevision: latest.revision, values, request: null }, true);
     else { setValues(latest.values); local.discard(); }
-    setLatest(null); setError(false); setMessage(keepInput ? '최신 버전을 기준으로 작성한 표를 유지합니다. 저장하면 이 표가 반영됩니다.' : '최신 저장본으로 바꿨습니다.');
+    setLatest(null); setError(false); setMessage(keepInput ? '작성한 표를 유지하고 최신 저장본을 기준으로 바꿨습니다. 저장하면 이 표가 반영됩니다.' : '최신 저장본으로 바꿨습니다.');
   }
   const locked = !snapshot || pending || uncertain || conflict || recoveryPending, preview = parseGoodsSizeChart(values.chart);
   /* 공개 표시 선택은 상품마다 하나다(편집기 운영 섹션 하나에만 그린다). */
@@ -126,7 +126,7 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
         <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending || uncertain || recoveryBlocked} onClick={() => startTransition(() => refresh())}>최신 저장본 확인</button>
       </div>
     </form>
-    {latest ? <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-4" aria-label="최신 사이즈 저장본" data-goods-size-latest=""><h3 className="text-sm font-medium">최신 저장본 · {latest.values.enabled ? '설정함' : '설정안함'}</h3><GoodSizeChart chart={parseGoodsSizeChart(latest.values.chart)} /><div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(true)}>최신 버전 기준으로 작성한 표 유지</button><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(false)}>최신 저장본으로 바꾸기</button></div></section> : null}
+    {latest ? <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-4" aria-label="최신 사이즈 저장본" data-goods-size-latest=""><h3 className="text-sm font-medium">최신 저장본 · {latest.values.enabled ? '설정함' : '설정안함'}</h3><GoodSizeChart chart={parseGoodsSizeChart(latest.values.chart)} /><div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(true)}>최신 저장본 기준으로 작성한 표 유지</button><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(false)}>최신 저장본으로 바꾸기</button></div></section> : null}
     {preview ? <details className={DETAILS_CLASS} data-goods-size-preview=""><summary className={SUMMARY_CLASS}>저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3">{!values.enabled ? <p className="text-muted-foreground">현재 설정안함입니다. 저장해도 고객에게 표시하지 않습니다.</p> : null}<GoodSizeChart chart={preview} /></div></details> : null}
     {templates ? <GoodsSizeTemplatePicker onClose={() => setTemplates(false)} onSelect={template => { change({ enabled: values.enabled, chart: structuredClone(template.chart) }); setTemplates(false); setMessage('템플릿을 불러왔습니다. 공개 표시를 확인하고 사이즈 안내를 저장해주세요.'); setError(false); }} /> : null}
   </div>;

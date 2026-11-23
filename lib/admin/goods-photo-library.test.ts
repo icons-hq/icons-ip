@@ -42,6 +42,6 @@ describe('공용 사진 계약', () => {
   });
   it('사용 중·변경 충돌을 복구 가능한 메시지로 구분한다', () => {
     expect(goodsPhotoError('goods_photo_in_use')).toContain('먼저');
-    expect(goodsPhotoError('goods_photo_changed')).toContain('입력은 유지');
+    expect(goodsPhotoError('goods_photo_changed')).toContain('입력은 그대로 있습니다');
   });
 });

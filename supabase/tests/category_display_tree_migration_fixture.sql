@@ -9,7 +9,7 @@ insert into public.catalog_categories(id,code,name,parent_id,sort_order) values
  ('94930000-0000-4000-8000-000000000016','display-migration-a-tie','동률 첫째','94930000-0000-4000-8000-000000000011',5),
  ('94930000-0000-4000-8000-000000000015','display-migration-z-tie','동률 둘째','94930000-0000-4000-8000-000000000011',5);
 insert into public.ips(id,title,vertical_key) values('display-migration-ip','이관 증빙 IP','character');
-insert into public.goods(id,ip_id,name,type,price,category_id) values('display-migration-good','display-migration-ip','이관 증빙 상품','문구',3210,'94930000-0000-4000-8000-000000000014');
+insert into public.goods(id,ip_id,name,price,category_id) values('display-migration-good','display-migration-ip','이관 증빙 상품',3210,'94930000-0000-4000-8000-000000000014');
 insert into private.category_display_compositions(category_id,enabled,mode,banner,video_enabled,video_good_id,recommendations,revision,updated_at)
 select '94930000-0000-4000-8000-000000000014',false,'manual',private.category_display_defaults('94930000-0000-4000-8000-000000000014')->'banner'||'{"title":"그대로 남아야 하는 배너","content":"첫 줄\n둘째 줄","imagePath":"public-media/catalog/curation/94930000-0000-4000-8000-000000000001.png"}',true,'display-migration-good',
  ((private.category_display_defaults('94930000-0000-4000-8000-000000000014')->'recommendations')-'goodIds')||'{"enabled":true,"title":"보존 추천상품"}',17,'2026-10-12T12:34:56.123456Z';

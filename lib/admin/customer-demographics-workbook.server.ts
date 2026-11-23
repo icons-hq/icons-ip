@@ -16,9 +16,9 @@ export async function buildCustomerDemographicWorkbook(input: DemographicReport,
     ['대상', data.scope === 'members' ? '현재 가입 회원' : '기간 내 결제 고객'],
     ['기간', data.from ? `${data.from} ~ ${data.to}` : '조회 시점 현재'], ['연령 기준일 (KST)', data.ageAsOf],
     ['집계 시각 (KST)', kstDateTimeText(data.asOf)], ['내려받은 시각 (KST)', kstDateTimeText(generatedAt.toISOString())], ['최소 공개 인원', '10'], ['보호 기준', DEMOGRAPHIC_REPORT_NOTICE],
-    ['성별', '현재 별도 선택 동의를 유지한 자가 입력값. 결제는 동의 이후 이력에만 사용. 미선택·철회·동의 전 결제는 미제공.'],
+    ['성별', '고객이 별도로 선택 동의하고 직접 입력한 성별입니다(지금도 동의를 유지한 고객만). 결제 고객 집계에서는 동의한 뒤의 결제에만 성별을 씁니다. 성별을 고르지 않았거나 동의를 철회했거나 동의 전에 결제한 경우는 "미제공"으로 셉니다.'],
     ['대상 제외', '정지·탈퇴 신청 계정. 생년월일 기준 14세 미만 또는 확인 불가.'],
-    ['결제 기준', '실제 승인·입금 이력이 있는 상품 주문. 이후 취소·환불 포함, 고객별 중복 제거.'],
+    ['결제 기준', '실제 승인·입금 이력이 있는 상품 주문입니다. 그 뒤 취소·환불된 주문도 포함하고, 같은 고객은 한 번만 셉니다.'],
   ]);
   return Buffer.from(await book.xlsx.writeBuffer());
 }

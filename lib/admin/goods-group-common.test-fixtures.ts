@@ -4,7 +4,7 @@ import { emptyGoodsSizeChartValues } from '@/lib/goods-size-chart';
 
 export const commonTestRaw = {
   group,
-  common: { goods: { ...Object.fromEntries(GROUP_COMMON_DB_FIELDS.map(key => [key, null])), ip_id: 'sample-ip', type: '문구', description_format: 'plain', description_image_paths: [], search_keywords: ['검색어'], name_en: 'Common name', notice_as_manager: 'A/S 담당자' }, attributes: [], additionalCategories: [], afterSales: null, sizeChart: null },
+  common: { goods: { ...Object.fromEntries(GROUP_COMMON_DB_FIELDS.map(key => [key, null])), ip_id: 'sample-ip', description_format: 'plain', description_image_paths: [], search_keywords: ['검색어'], name_en: 'Common name', notice_as_manager: 'A/S 담당자' }, attributes: [], additionalCategories: [], afterSales: null, sizeChart: null },
   afterSales: { goodId: group.commonGoodId, goodName: 'TEST 원상품', phone: '', guide: '', sellerSpecialNotes: '', revision: 0, updatedAt: null },
   sizeChart: { goodId: group.commonGoodId, goodName: 'TEST 원상품', values: emptyGoodsSizeChartValues(), revision: 0, updatedAt: null },
 };

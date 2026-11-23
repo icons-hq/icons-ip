@@ -110,7 +110,7 @@ export function parseGoodsBulkReceipt(value: unknown, expectedId: string): Goods
 export function goodsBulkError(code: string | null): string {
   const messages: Record<string, string> = {
     goods_bulk_changed: '비교 이후 상품·옵션·재고가 변경되었습니다. 최신 내용으로 다시 확인해주세요.',
-    goods_bulk_busy: '다른 작업이 진행 중입니다. 최신 내용으로 다시 확인해주세요.',
+    goods_bulk_busy: '같은 상품에 다른 작업이 진행 중입니다. 잠시 뒤 다시 비교해주세요.',
     goods_bulk_preview_expired: '비교 결과의 15분 유효기간이 지났습니다. 다시 확인해주세요.',
     goods_bulk_target_limit: '한 번에 개별 상품 100개(IP 전체 적용은 1,000개)까지 변경할 수 있습니다. 대상 수를 줄여주세요.',
     goods_bulk_all_skipped: '모든 상품이 건너뛰기 대상입니다. 기간이 겹치는 할인이나 할인 금액을 확인해주세요.',
@@ -121,17 +121,17 @@ export function goodsBulkError(code: string | null): string {
     goods_bulk_group_unavailable: '선택한 그룹이 변경되거나 해제되었습니다. 목록을 새로고침해주세요.',
     goods_bulk_price_invalid: '변경할 판매가·할인가가 허용 범위를 벗어납니다. 금액과 옵션 가격을 확인해주세요.',
     goods_compare_at_price_invalid: '새 판매가가 표시용 정가 이상입니다. 해당 상품의 정가를 먼저 확인해주세요.',
-    price_period_overlap: '시간이 겹치는 활성 할인이 있습니다. 기존 할인을 중지하거나 기간을 변경해주세요.',
+    price_period_overlap: '기간이 겹치는 할인이 이미 걸려 있습니다. 기존 할인을 중지하거나 기간을 바꿔주세요.',
     goods_sale_period_preorder_conflict: '예약판매 중인 상품은 일반 판매기간을 설정할 수 없습니다.',
-    good_has_stock: '할당 재고가 남아 있는 상품은 보관할 수 없습니다. 재고를 확인해주세요.',
+    good_has_stock: '재고수량이 남아 있는 상품은 보관할 수 없습니다. 재고 조정에서 남은 재고를 정리한 뒤 보관해주세요.',
     good_archived: '보관된 상품이 포함되어 있습니다. 복원한 뒤 변경해주세요.',
     goods_kc_review_required: '공개 전 KC 검토가 필요한 상품이 있습니다. 해당 상품을 확인해주세요.',
     goods_category_required: '대표 카테고리가 없는 상품이 있습니다. 대표 카테고리를 고른 뒤 공개해주세요.',
     goods_notice_required: '공개에 필요한 상품정보제공고시를 먼저 입력해주세요.',
-    goods_group_auth_changed: '로그인 계정 또는 세션이 변경되었습니다. 화면을 다시 열어주세요.',
+    goods_group_auth_changed: '로그인한 계정이 바뀌었거나 다시 로그인했습니다. 화면을 새로고침해주세요.',
     operator_capability_required: '상품 관리 권한이 필요합니다.',
   };
-  return messages[code ?? ''] ?? '일괄 변경을 적용하지 않았습니다. 상품의 판매 준비·현재 상태와 입력값을 확인해주세요.';
+  return messages[code ?? ''] ?? '일괄 변경을 적용하지 않았습니다. 대상 상품의 판매 준비 상태와 입력한 금액·기간을 확인한 뒤 다시 비교해주세요.';
 }
 
 /**

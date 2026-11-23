@@ -132,12 +132,12 @@ values
   ('admin-reward-policy-ip-b', '발급 정책 IP B', 'admin-reward-policy-test')
 on conflict (id) do update set title = excluded.title;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, price, stock, stock_qty)
 values
-  ('admin-reward-policy-good-a0', 'admin-reward-policy-ip-a', '정책 무료 굿즈 A0', '문구', 0, 'ok', 20),
-  ('admin-reward-policy-good-a1', 'admin-reward-policy-ip-a', '정책 굿즈 A1', '문구', 5000, 'ok', 20),
-  ('admin-reward-policy-good-a2', 'admin-reward-policy-ip-a', '정책 굿즈 A2', '문구', 10000, 'ok', 20),
-  ('admin-reward-policy-good-b1', 'admin-reward-policy-ip-b', '정책 굿즈 B1', '문구', 5000, 'ok', 20)
+  ('admin-reward-policy-good-a0', 'admin-reward-policy-ip-a', '정책 무료 굿즈 A0', 0, 'ok', 20),
+  ('admin-reward-policy-good-a1', 'admin-reward-policy-ip-a', '정책 굿즈 A1', 5000, 'ok', 20),
+  ('admin-reward-policy-good-a2', 'admin-reward-policy-ip-a', '정책 굿즈 A2', 10000, 'ok', 20),
+  ('admin-reward-policy-good-b1', 'admin-reward-policy-ip-b', '정책 굿즈 B1', 5000, 'ok', 20)
 on conflict (id) do update set ip_id = excluded.ip_id;
 
 insert into public.card_pools (id, ip_id, name, active_from, active_to)
@@ -500,18 +500,18 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values
   (
     '40000000-0000-4000-8000-000000000991',
     'admin-reward-policy-good-a1', 1, 5000,
-    '정책 굿즈 A1', '문구', 'admin-reward-policy-ip-a'
+    '정책 굿즈 A1', 'admin-reward-policy-ip-a'
   , (select id from public.goods_variants where good_id='admin-reward-policy-good-a1' and is_default)),
   (
     '40000000-0000-4000-8000-000000000991',
     'admin-reward-policy-good-a2', 1, 10000,
-    '정책 굿즈 A2', '문구', 'admin-reward-policy-ip-a'
+    '정책 굿즈 A2', 'admin-reward-policy-ip-a'
   , (select id from public.goods_variants where good_id='admin-reward-policy-good-a2' and is_default));
 
 -- Runtime matching must use the immutable order snapshot, not mutable catalog IP.
@@ -611,18 +611,18 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
+  good_name_snapshot, good_ip_id_snapshot, variant_id
 )
 values
   (
     '40000000-0000-4000-8000-000000000992',
     'admin-reward-policy-good-a0', 1, 0,
-    '정책 무료 굿즈 A0', '문구', 'admin-reward-policy-ip-a'
+    '정책 무료 굿즈 A0', 'admin-reward-policy-ip-a'
   , (select id from public.goods_variants where good_id='admin-reward-policy-good-a0' and is_default)),
   (
     '40000000-0000-4000-8000-000000000992',
     'admin-reward-policy-good-b1', 1, 5000,
-    '정책 굿즈 B1', '문구', 'admin-reward-policy-ip-b'
+    '정책 굿즈 B1', 'admin-reward-policy-ip-b'
   , (select id from public.goods_variants where good_id='admin-reward-policy-good-b1' and is_default));
 
 set local role service_role;

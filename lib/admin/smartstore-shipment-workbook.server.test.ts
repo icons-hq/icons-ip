@@ -194,7 +194,7 @@ describe('ICONS 표준 양식 출고지시', () => {
     const parsed = await parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers);
     expect(parsed.issues).toEqual([]); expect(parsed.rows).toHaveLength(1);
     book.getWorksheet('내려받기 정보')!.getCell('B1').value = { formula: '1+1' };
-    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('허용되지 않는 셀');
+    await expect(parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers)).rejects.toThrow('수식·오류 값·날짜가 든 칸');
   });
 
   it('운송장번호만 채운 파일을 안내 없이 그대로 회신으로 읽는다', async () => {

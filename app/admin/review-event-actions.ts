@@ -10,7 +10,7 @@ import { reviewEventError } from '@/lib/admin/review-event-messages';
 export type ReviewEventActionResult = { event: ReviewEvent } | { error: string; uncertain?: boolean };
 /** SHEET-017 문구 템플릿 결과. conflict는 다른 운영자가 먼저 바꾼 경우, uncertain은 같은 요청으로 다시 확인할 경우다. */
 export type ReviewEventTemplateResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
-const uncertain = (): ReviewEventActionResult => ({ error: '저장 결과를 확인하지 못했습니다. 입력을 유지한 채 같은 요청으로 다시 확인해주세요.', uncertain: true });
+const uncertain = (): ReviewEventActionResult => ({ error: '저장됐는지 확인하지 못했습니다. 입력은 그대로 있습니다. [같은 요청으로 저장 결과 확인]을 눌러주세요. 다시 눌러도 두 번 처리되지 않습니다.', uncertain: true });
 const validRevision = (value: number) => Number.isSafeInteger(value) && value >= 0;
 async function execute(name: string, args: Record<string, unknown>, eventId?: string): Promise<ReviewEventActionResult> {
   try {
@@ -77,7 +77,7 @@ export async function searchReviewEventTargetsAction(type: 'goods' | 'categories
    (등록 화면에서 템플릿을 저장해도 작성 중인 이벤트 입력이 새로 그려지지 않게). 적립금 정책은 보지 않는다. */
 const TEMPLATE_UNREAD = '템플릿을 불러오지 못했습니다. 다시 조회해주세요.';
 const KNOWN_TEMPLATE_ERRORS = ['22023', '42501', 'P0002', '23514', '23505', 'PT409', '28000'];
-function templateUncertain<T>(error = '저장 결과를 확인하지 못했습니다. 입력을 유지한 채 같은 요청으로 다시 확인해주세요.'): ReviewEventTemplateResult<T> {
+function templateUncertain<T>(error = '저장됐는지 확인하지 못했습니다. 입력은 그대로 있습니다. [같은 요청 결과 확인]을 눌러주세요. 다시 눌러도 두 번 저장되지 않습니다.'): ReviewEventTemplateResult<T> {
   return { ok: false, error, uncertain: true };
 }
 function templateRejected<T>(error: { code?: string; message?: string }): ReviewEventTemplateResult<T> {
@@ -110,7 +110,7 @@ export async function saveReviewEventTemplateAction(id: string, revision: number
 export async function deleteReviewEventTemplateAction(id: string, revision: number, operationId: string): Promise<ReviewEventTemplateResult<{ id: string }>> {
   if (!await requireAdminActionAccess(REVIEW_EVENTS_ADMIN_PATH, { capability: 'cs.manage' })) return { ok: false, error: '리뷰 관리 권한이 필요합니다.' };
   if (!isUuid(id) || !isUuid(operationId) || !Number.isSafeInteger(revision) || revision < 1) return { ok: false, error: '최신 템플릿 목록을 다시 불러와 주세요.' };
-  const unsure = '삭제 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+  const unsure = '삭제됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러주세요. 다시 눌러도 두 번 처리되지 않습니다.';
   try {
     const { data, error } = await (await createClient()).rpc('admin_delete_review_event_template', { p_id: id, p_expected_revision: revision, p_operation_id: operationId });
     if (error) return KNOWN_TEMPLATE_ERRORS.includes(error.code ?? '') ? templateRejected(error) : templateUncertain(unsure);

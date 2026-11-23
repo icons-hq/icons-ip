@@ -272,14 +272,14 @@ describe('bulk tracking action', () => {
     const result = await bulkRegisterAdminOrderTrackingAction({}, form('00000001,hanjin,12345678\ninvalid,hanjin,12345679\n00000003,hanjin,12345680'));
     expect(result.report?.succeeded).toEqual(['00000001']);
     expect(result.report?.failed.map((failure) => failure.line)).toEqual([2, 3]);
-    expect(result.report?.failed[1].reason).toBe('배송 건을 찾을 수 없습니다.');
+    expect(result.report?.failed[1].reason).toBe('배송 건을 찾을 수 없습니다. 배송건번호를 확인하거나 목록을 새로고침해주세요.');
     expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: 'order-one', shipmentId: 'shipment-one' }]);
   });
   it('keeps committed shipment success and visibly warns when queue confirmation fails', async () => {
     mocks.enqueue.mockRejectedValue(new Error('queue unavailable'));
     const result = await bulkRegisterAdminOrderTrackingAction({}, form('00000001,hanjin,12345678'));
     expect(result.report?.succeeded).toEqual(['00000001']); expect(result.errors).toBeUndefined();
-    expect(result.message).toContain('배송 메일 대기열 확인이 필요합니다.');
+    expect(result.message).toContain('배송 안내 메일 발송 예약을 확인하지 못했습니다.');
     expect(result.queueWarning).toBe(true);
     expect(mocks.refresh).toHaveBeenCalledWith('/admin/sales/dispatch');
   });

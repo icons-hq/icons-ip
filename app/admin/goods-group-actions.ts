@@ -76,10 +76,10 @@ async function receiptResult(recovery: GoodsGroupRecovery, rpc: string, args: Re
     const client = await createClient(); const { data, error } = await client.rpc(rpc, { ...args, ...identityArgs(recovery) });
     if (error) return { ...goodsGroupError(error.code, error.message, true), ...(read ? { uncertain: true } : {}) };
     const receipt = parseGoodsGroupReceipt(data, recovery);
-    if (!receipt || !read && receipt.state === 'unresolved') return { error: '요청 결과를 대조하지 못했습니다. 진행 내역을 확인해주세요.', uncertain: true };
+    if (!receipt || !read && receipt.state === 'unresolved') return { error: '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'진행 내역 확인\'을 눌러 결과를 확인해주세요.', uncertain: true };
     if (receipt.state === 'completed') refresh();
     return { value: receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '처리 결과가 불명확합니다. 같은 진행 내역으로 결과를 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'진행 내역 확인\'을 눌러 결과를 확인해주세요.', uncertain: true }; }
 }
 export async function confirmGoodsGroupConversionAction(input: unknown): Promise<GoodsGroupResult<GoodsGroupReceipt>> {
   const recovery = parseGoodsGroupRecovery(input);

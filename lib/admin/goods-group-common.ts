@@ -36,8 +36,7 @@ export function parseGoodsGroupCommonSnapshot(value: unknown): GoodsGroupCommonS
   const group = parseGoodsGroupSnapshot(value.group), afterSales = parseGoodsAfterSalesSnapshot(value.afterSales), sizeChart = parseGoodsSizeChartSnapshot(value.sizeChart), common = value.common;
   if (!group || group.archivedAt || !afterSales || !sizeChart || afterSales.goodId !== group.commonGoodId || sizeChart.goodId !== group.commonGoodId
     || !transactionExactKeys(common, ['goods','attributes','additionalCategories','afterSales','sizeChart']) || !transactionRecord(common.goods)
-    /* 상품 유형 칸 삭제(ADR-0044) 배포 사이에는 DB가 옛 'type' 키를 아직 실을 수 있다. 값은 읽지 않고, 다음 정리 PR이 이 허용을 걷는다. */
-    || !(transactionExactKeys(common.goods, GROUP_COMMON_DB_FIELDS) || transactionExactKeys(common.goods, [...GROUP_COMMON_DB_FIELDS, 'type']) && typeof common.goods.type === 'string')
+    || !transactionExactKeys(common.goods, GROUP_COMMON_DB_FIELDS)
     || !Array.isArray(common.additionalCategories) || common.additionalCategories.some(id => !isUuid(id))) return null;
   const goods = common.goods;
   if (!validGoodsGroupGoodId(goods.ip_id) || goods.category_id !== null && !isUuid(goods.category_id) || !['plain','html'].includes(String(goods.description_format))
@@ -63,7 +62,7 @@ export function normalizeGoodsGroupCommonForm(input: FormData) {
   if (!attributes.ok || !attributes.fields.product_attributes) return { ok: false as const, errors: { productAttributes: '카테고리의 상품속성 조회를 마친 뒤 저장해주세요.' } };
   let afterSales, sizeChart;
   try { afterSales = parseGoodsAfterSalesValues(JSON.parse(String(input.get('groupAfterSales'))), true); sizeChart = parseGoodsSizeChartValues(JSON.parse(String(input.get('groupSizeChart')))); } catch { /* Invalid JSON cannot reach the RPC. */ }
-  if (!afterSales || !sizeChart) return { ok: false as const, errors: { groupCommon: 'A/S 안내와 사이즈 안내 입력값을 확인해주세요.' } };
+  if (!afterSales || !sizeChart) return { ok: false as const, errors: { groupCommon: 'A/S 안내나 사이즈 안내 입력을 읽지 못했습니다. 두 안내의 칸을 확인하고, 계속되면 화면을 새로고침한 뒤 다시 입력해주세요.' } };
   const fields = goodSaveFields(normalized.value) as Record<string, unknown>;
   return { ok: true as const, values: { goods: Object.fromEntries([...GROUP_COMMON_DB_FIELDS,'additional_category_ids'].map(key => [key, fields[key]])),
     attributes: attributes.fields.product_attributes, afterSales, sizeChart } };

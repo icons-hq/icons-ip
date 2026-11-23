@@ -10,9 +10,9 @@ insert into public.verticals(key, label, color)
 values ('demo-ops', '운영 연습', '#111111') on conflict do nothing;
 insert into public.ips(id, title, vertical_key, published_at)
 values ('demo-maple-placeholder', '[데모] 메이플 자리표시', 'demo-ops', now()) on conflict(id) do nothing;
-insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, published_at)
+insert into public.goods(id, ip_id, name, price, stock, stock_qty, published_at)
 select 'demo-goods-' || lpad(n::text, 3, '0'), 'demo-maple-placeholder',
-  '[데모] 자리표시 상품 ' || lpad(n::text, 2, '0'), '문구', 10000 + n * 100, 'ok', 500, null
+  '[데모] 자리표시 상품 ' || lpad(n::text, 2, '0'), 10000 + n * 100, 'ok', 500, null
 from generate_series(1, 20) as n on conflict do nothing;
 -- These placeholders have no real KC evidence. New rows remain drafts; existing
 -- published staging rows are preserved by the insert-only conflict policy.
@@ -43,13 +43,13 @@ cross join lateral (select case when n<=100 then 'paid' else (array['confirmed',
 on conflict(id) do nothing;
 
 insert into public.order_items(id, order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id,
+  good_name_snapshot, good_ip_id_snapshot, variant_id,
   origin_id_snapshot, shipping_fee_type_snapshot, individual_fee_snapshot)
 select ('de200000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid,
   ('de100000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid,
   'demo-goods-' || lpad((1 + ((n - 1) % 20))::text, 3, '0'), 1,
   10000 + (1 + ((n - 1) % 20)) * 100,
-  '[데모] 자리표시 상품 ' || lpad((1 + ((n - 1) % 20))::text, 2, '0'), '문구', 'demo-maple-placeholder',
+  '[데모] 자리표시 상품 ' || lpad((1 + ((n - 1) % 20))::text, 2, '0'), 'demo-maple-placeholder',
   (select id from public.goods_variants where good_id='demo-goods-' || lpad((1 + ((n - 1) % 20))::text, 3, '0') and is_default),
   '00000000-0000-4000-8000-000000042201'::uuid,'policy',0
 from generate_series(1, 120) as n on conflict do nothing;

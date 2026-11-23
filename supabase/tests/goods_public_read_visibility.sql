@@ -140,16 +140,16 @@ insert into public.ips(id,public_slug,title,vertical_key,published_at) values
   ('gprv-draft-ip','gprv-draft-ip','TEST 공개읽기 초안 IP','character',null);
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
   values('a5160000-0000-4000-8000-000000000010','gprv-origin','TEST 공개읽기 출고지','hanjin',3000,'TEST 합성 주소',true);
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,image_path) values
-  ('gprv-public','gprv-ip','TEST 공개읽기 공개','문구',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-public.webp'),
-  ('gprv-draft','gprv-ip','TEST 공개읽기 초안','문구',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-draft.webp'),
-  ('gprv-archived','gprv-ip','TEST 공개읽기 보관','문구',10000,'soldout',0,'a5160000-0000-4000-8000-000000000010','goods/gprv-archived.webp'),
-  ('gprv-adult','gprv-ip','TEST 공개읽기 성인','문구',20000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-adult.webp'),
-  ('gprv-unpublished','gprv-ip','TEST 공개읽기 내림','문구',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-unpublished.webp'),
-  ('gprv-under-draft-ip','gprv-draft-ip','TEST 공개읽기 초안 IP 상품','문구',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-under.webp'),
-  ('gprv-random','gprv-ip','TEST 공개읽기 랜덤 초안','문구',9000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-random.webp'),
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,image_path) values
+  ('gprv-public','gprv-ip','TEST 공개읽기 공개',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-public.webp'),
+  ('gprv-draft','gprv-ip','TEST 공개읽기 초안',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-draft.webp'),
+  ('gprv-archived','gprv-ip','TEST 공개읽기 보관',10000,'soldout',0,'a5160000-0000-4000-8000-000000000010','goods/gprv-archived.webp'),
+  ('gprv-adult','gprv-ip','TEST 공개읽기 성인',20000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-adult.webp'),
+  ('gprv-unpublished','gprv-ip','TEST 공개읽기 내림',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-unpublished.webp'),
+  ('gprv-under-draft-ip','gprv-draft-ip','TEST 공개읽기 초안 IP 상품',10000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-under.webp'),
+  ('gprv-random','gprv-ip','TEST 공개읽기 랜덤 초안',9000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprv-random.webp'),
   -- 위조 행·랜덤 조회의 양성 대조(공개 랜덤 상품). 접두가 달라 아래 gprv-% 목록 단언에 끼지 않는다.
-  ('gprvr-random-public','gprv-ip','TEST 랜덤 공개 대조','문구',9000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprvr-random.webp');
+  ('gprvr-random-public','gprv-ip','TEST 랜덤 공개 대조',9000,'ok',20,'a5160000-0000-4000-8000-000000000010','goods/gprvr-random.webp');
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
 select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','gprv-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now()
 from public.goods where id like 'gprv%';
@@ -200,9 +200,9 @@ insert into public.cart_items(user_id,good_id,variant_id,qty) values
   ('a5160000-0000-4000-8000-000000000003','gprv-public',:'public_variant',1);
 insert into public.orders(id,user_id,status,total,calculation_version) values
   ('a5160000-0000-4000-8000-000000000101','a5160000-0000-4000-8000-000000000003','paid',50000,1);
-insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_ip_id_snapshot)
 select ('a5160000-0000-4000-8000-0000000002'||lpad(row_number() over (order by good.id)::text,2,'0'))::uuid,
-  'a5160000-0000-4000-8000-000000000101', good.id, variant.id, 1, 10000, good.name, '문구', good.ip_id
+  'a5160000-0000-4000-8000-000000000101', good.id, variant.id, 1, 10000, good.name, good.ip_id
 from public.goods good join public.goods_variants variant on variant.good_id=good.id and variant.is_default
 where good.id in ('gprv-unpublished','gprv-archived','gprv-adult');
 

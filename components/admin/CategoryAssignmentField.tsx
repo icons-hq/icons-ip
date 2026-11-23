@@ -158,7 +158,7 @@ export function CategoryAssignmentField({
         choose(template.categoryId); setTemplatePicker(false);
       }} /> : null}
       <span className="text-xs text-muted-foreground" id="category-assignment-hint">
-        마지막 단계 카테고리 하나를 대표로 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 대표 카테고리가 있어야 공개할 수 있고, 공개 중인 상품은 다른 카테고리로 옮길 수 있지만 비울 수는 없습니다.
+        마지막 단계 카테고리 하나를 대표로 고릅니다. ERP에는 대표 카테고리가 쓰입니다. 지금 값이 보관된 카테고리라면 &lsquo;미분류&rsquo;를 직접 골라야 비워집니다. 대표 카테고리가 있어야 공개할 수 있고, 공개 중인 상품은 다른 카테고리로 옮길 수 있지만 비울 수는 없습니다.
       </span>
       {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
       {additionalValue !== undefined && <details className="group/additional min-w-0 rounded-lg border" data-good-category-additional="" open={Boolean(additionalError) || additional.length > 0}><summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/additional:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/additional:rotate-90 motion-reduce:transition-none" />추가 카테고리 (선택)</summary><div className="flex min-w-0 flex-col gap-3 border-t px-3 py-4">
@@ -180,7 +180,7 @@ export function CategoryAssignmentField({
             <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" aria-label={`${category?.name ?? id} 추가 분류 해제`} onClick={() => setAdditional(current => current.filter(value => value !== id))}>해제</button>
           </div>;
         })}
-        <span className="text-xs text-muted-foreground" id="additional-category-hint">관리자 목록에서 대표·추가 분류와 하위 분류로 찾을 수 있습니다. 기본 상품 저장으로 반영합니다.</span>
+        <span className="text-xs text-muted-foreground" id="additional-category-hint">어드민 상품 목록에서 대표·추가 카테고리와 그 상위 카테고리로 이 상품을 찾을 수 있습니다. 아래 저장 버튼을 눌러야 반영됩니다.</span>
         {additionalError && <span className="text-sm text-destructive" role="alert">{additionalError}</span>}
       </div></details>}
     </div>

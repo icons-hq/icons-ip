@@ -44,7 +44,7 @@ export function KakaoUnlinkWithdrawalQueueScreen({ entries }: { entries: KakaoUn
     </AdminNotice>
     {entries === null
       ? <AdminNotice role="alert" title="탈퇴 검토 대기 목록을 불러오지 못했습니다." tone="warning">잠시 후 화면을 새로고침해주세요.</AdminNotice>
-      : <ConsoleListCard description="알림을 받은 순서입니다. 이메일은 일부만 보이며 전체 이메일과 남은 의무는 고객 상세에서 확인합니다."
+      : <ConsoleListCard description="알림을 받은 순서입니다. 이메일은 일부만 보입니다. 전체 이메일과 먼저 끝내야 할 일(진행 중인 주문·환불 등)은 고객 상세에서 확인합니다."
         title="탈퇴 검토 대기" total={entries.length} unit="명">
         <ConsoleGrid caption="카카오 연결 해제 탈퇴 검토 대기" columns={COLUMNS} emptyLabel="탈퇴 검토를 기다리는 회원이 없습니다."
           preferencesKey="kakao-unlink-withdrawal-queue"
