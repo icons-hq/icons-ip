@@ -728,15 +728,15 @@ describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주�
   const revised = at(ALIMTALK.effectiveDate).privacy;
   const article = (document: LegalDocument, prefix: string) => document.articles.find((item) => item.heading.startsWith(prefix))!;
 
-  it('운영 일정은 2026-11-19 공지·7일 뒤 시행이고, 운영 게이트가 같은 시행일을 읽는다', () => {
-    expect(ALIMTALK_PRIVACY_REVISION).toEqual({ announcedDate: '2026-11-19', effectiveDate: '2026-11-26' });
-    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBe('2026-11-26');
+  it('운영 일정은 2026-11-23 공지·7일 뒤 시행이고, 운영 게이트가 같은 시행일을 읽는다', () => {
+    expect(ALIMTALK_PRIVACY_REVISION).toEqual({ announcedDate: '2026-11-23', effectiveDate: '2026-11-30' });
+    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBe('2026-11-30');
     /* 운영 상수(기본 인자) 그대로 공지·시행 상태를 만들 수 있어야 한다 — 휴대폰 번호 인증 개정이 이미 시행 중인 본문 위다. */
-    const announced = createLegalDocuments(BUSINESS_INFO, '2026-11-19').privacy;
+    const announced = createLegalDocuments(BUSINESS_INFO, '2026-11-23').privacy;
     expect(announced.pendingRevision?.heading).toBe('카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내');
     expect(plainText(announced)).not.toContain('알림톡');
-    const effective = createLegalDocuments(BUSINESS_INFO, '2026-11-26').privacy;
-    expect(effective.effectiveDate).toBe('2026-11-26');
+    const effective = createLegalDocuments(BUSINESS_INFO, '2026-11-30').privacy;
+    expect(effective.effectiveDate).toBe('2026-11-30');
     expect(effective.previousVersion?.effectiveDate).toBe('2026-11-18');
     expect(plainText(effective)).toContain('카카오톡 알림톡');
   });
