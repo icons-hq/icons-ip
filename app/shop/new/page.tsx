@@ -22,7 +22,7 @@ export default async function Page({ searchParams }: PageProps) {
   const params = await (searchParams ?? {});
   const { query } = parseListingSearchParams(params, 'new');
   const [catalog, wishlist, banners, sortOrders] = await Promise.all([
-    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })),
+    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true, storefrontReadCache: true })),
     loadListingWishlist(),
     getCollectionBanners('new'),
     isServerOrderedSort(query.sort) ? loadListingSortOrders() : Promise.resolve(null),

@@ -76,7 +76,7 @@ export default async function Page({ params, searchParams }: PageProps) {
     return <CampaignLanding {...await loadCampaignLandingProps(campaign)} />;
   }
 
-  const catalog = await getCatalogSnapshot();
+  const catalog = await getCatalogSnapshot({ storefrontReadCache: true });
   if (!catalog.events.some((event) => event.id === eventId)) notFound();
 
   /* 쿼리는 리다이렉트 분기에서만 읽는다 — 캠페인 렌더 경로에는 필요 없다. */

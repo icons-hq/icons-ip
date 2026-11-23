@@ -16,7 +16,7 @@ export async function loadGoodsShippingQuote(items: ShippingQuoteItem[]) {
  */
 export async function loadGoodShippingPolicy(goodId: string) {
   if (!getSupabaseConfig().isConfigured) return null;
-  const client = await createClient();
+  const client = await createClient({ storefrontReadCache: true });
   const [policyResult, regionResult, pickupResult, feeResult] = await Promise.all([
     client.rpc('get_good_shipping_policy', { target_good_id: goodId }),
     Promise.resolve(client.rpc('get_good_shipping_region_fees', { target_good_id: goodId })).catch(() => ({ data: null, error: true })),

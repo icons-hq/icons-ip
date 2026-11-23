@@ -13,7 +13,7 @@ export function parsePublicGoodsAttributeRows(value: unknown): PublicGoodsAttrib
 }
 export async function loadPublicGoodsAttributeRows(goodId: string): Promise<PublicGoodsAttributeRow[]> {
   try {
-    const client = await createClient();
+    const client = await createClient({ storefrontReadCache: true });
     const { data, error } = await client.rpc('get_good_attribute_rows', { p_good_id: goodId });
     return error ? [] : parsePublicGoodsAttributeRows(data) ?? [];
   } catch { return []; }

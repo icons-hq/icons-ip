@@ -20,7 +20,7 @@ describe('다른 구성 공개 서버 loader', () => {
   it('공개 RPC 이후 현재 상품과 첫 목록 1000행 밖 후보도 ID로 직접 재조회한다', async () => {
     const data = await loadGoodOtherCompositions('good-current');
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('get_good_other_compositions', { p_good_id: 'good-current' });
-    expect(mocks.cards).toHaveBeenCalledExactlyOnceWith(['good-current', 'good-1500', 'good-b'], { adultGoods: 'hidden' });
+    expect(mocks.cards).toHaveBeenCalledExactlyOnceWith(['good-current', 'good-1500', 'good-b'], { adultGoods: 'hidden', storefrontReadCache: true });
     expect(data.groups[0].goods.map(({ good }) => good.id)).toEqual(['good-1500', 'good-b']);
     expect(data.unavailable).toBeUndefined();
   });

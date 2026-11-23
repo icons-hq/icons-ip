@@ -19,7 +19,7 @@ export async function loadPublicDetailExperienceConfig(): Promise<DetailDiscover
 }
 export async function loadPublicDetailExperience(goodId: string): Promise<PublicDetailExperience | null> {
   if (!getSupabaseConfig().isConfigured) return null;
-  try { const client = await createClient(); const { data, error } = await client.rpc('get_product_detail_experience', { p_good_id: goodId });
+  try { const client = await createClient({ storefrontReadCache: true }); const { data, error } = await client.rpc('get_product_detail_experience', { p_good_id: goodId });
     return error ? null : parsePublicDetailExperience(data);
   } catch { return null; }
 }

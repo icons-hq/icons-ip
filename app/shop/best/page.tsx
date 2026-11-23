@@ -24,7 +24,7 @@ export default async function Page({ searchParams }: PageProps) {
   const params = await (searchParams ?? {});
   const { period, query } = parseListingSearchParams(params, 'best');
   const [catalog, ranking, wishlist, banners, sortOrders] = await Promise.all([
-    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })),
+    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true, storefrontReadCache: true })),
     loadSalesRanking(period),
     loadListingWishlist(),
     getCollectionBanners('best'),

@@ -29,7 +29,7 @@ export default async function Page({ searchParams }: PageProps) {
   /* 빈 검색·0건 화면의 추천 칩은 검색 오버레이와 같은 운영 추천 검색어다(셸과 같은 쿠키 없는 캐시 읽기, 없으면 코드 상수). */
   /* 카드 결과는 카드 바인더로만 이어진다 — 바인더 공개 스위치가 꺼져 있으면 카드 결과를 싣지 않는다(lib/search.ts). */
   const { binder: binderEnabled } = await readCollectibleFeatures();
-  const [snapshot, catalog, wishlist, operatorTerms] = await Promise.all([getSearchSnapshot(query, { binderEnabled }), getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })), loadListingWishlist(), getOperatorSearchTerms()]);
+  const [snapshot, catalog, wishlist, operatorTerms] = await Promise.all([getSearchSnapshot(query, { binderEnabled }), getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true, storefrontReadCache: true })), loadListingWishlist(), getOperatorSearchTerms()]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const listQuery = parseShopSearchParams(params, {
     view: 'search',

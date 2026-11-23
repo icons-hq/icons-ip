@@ -8,7 +8,7 @@ import { parseGoodOtherCompositionReferences, resolveGoodOtherCompositions, type
 export async function loadGoodOtherCompositions(goodId: string): Promise<PublicGoodOtherCompositions> {
   if (!getSupabaseConfig().isConfigured) return { groups: [], nextChangeAt: null };
   try {
-    const client = await createClient();
+    const client = await createClient({ storefrontReadCache: true });
     const { data, error } = await client.rpc('get_good_other_compositions', { p_good_id: goodId });
     const references = parseGoodOtherCompositionReferences(data, goodId);
     if (error || !references) throw new Error('Other compositions unavailable');
@@ -18,7 +18,7 @@ export async function loadGoodOtherCompositions(goodId: string): Promise<PublicG
     const ids = [...new Set([goodId, ...references.groups.flatMap(group => group.goods.map(member => member.goodId))])];
     const reads = [];
     const adultGoods = await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden';
-    for (let offset = 0; offset < ids.length; offset += 1000) reads.push(getCatalogGoodsByIds(ids.slice(offset, offset + 1000), { adultGoods }));
+    for (let offset = 0; offset < ids.length; offset += 1000) reads.push(getCatalogGoodsByIds(ids.slice(offset, offset + 1000), { adultGoods, storefrontReadCache: true }));
     const goods = (await Promise.all(reads)).flat();
     return resolveGoodOtherCompositions(references, goods, goodId);
   } catch {

@@ -4,7 +4,7 @@ import { parsePublicGoodsGroup } from './goods-groups';
 
 export async function loadPublicGoodsGroupReference(goodId: string) {
   try {
-    const client = await createClient();
+    const client = await createClient({ storefrontReadCache: true });
     const { data, error } = await client.rpc('get_good_group', { p_good_id: goodId });
     return error || data === null ? null : parsePublicGoodsGroup(data, goodId);
   } catch { return null; }

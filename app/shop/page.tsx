@@ -34,7 +34,7 @@ export default async function Page({ searchParams }: PageProps) {
   /* 전체 굿즈 — 칩(전체 선택) + "전체 굿즈" + 정렬 셀렉트. 컬렉션 배너(all 슬롯 슬라이더)는 여기서만 읽는다. 필터 쿼리는 읽지 않는다. */
   const { query } = parseListingSearchParams(params, 'all');
   const [catalog, tree, wishlist, banners, sortOrders] = await Promise.all([
-    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })),
+    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true, storefrontReadCache: true })),
     loadCategoryTree(),
     loadListingWishlist(),
     getCollectionBanners('all'),

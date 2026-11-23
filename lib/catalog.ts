@@ -31,6 +31,7 @@ import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
+import { STOREFRONT_READ_CACHE_TTL_MS } from '@/lib/supabase/storefront-read-cache';
 import { buildHomeMosaicBand, parseHomeMosaicPayload, type HomeMosaicPayload } from './home-mosaic';
 import { buildHomeProductCollectionBand, isHomeProductCollectionTitle, parseHomeProductCollectionPayload, type HomeProductCollectionPayload } from './home-product-collection';
 import { readPublicHomeLayoutOrder } from '@/lib/home-layout';
@@ -85,6 +86,11 @@ export interface CatalogSnapshotOptions {
    * IP 관은 스냅샷 대신 그 IP 굿즈 몫만 따로 읽는다(getCatalogIpDetail).
    */
   includeReviewSummaries?: boolean;
+  /**
+   * 공개 조회 10초 공유 캐시(`lib/supabase/storefront-read-cache.ts`). 쇼핑 표면(홈·굿즈샵·NEW·BEST·검색·IP·이벤트)만
+   * 켠다 — 주문서·장바구니·위시·관리자 경로는 매번 새로 읽는다.
+   */
+  storefrontReadCache?: boolean;
 }
 
 export function getCatalogSource(options: CatalogSnapshotOptions = {}): CatalogSource {
@@ -135,6 +141,8 @@ export interface CatalogIpDetailOptions {
   viewerId?: string | null;
   isStaff?: boolean;
   adultGoods?: AdultGoodsAccess;
+  /** 쇼핑 표면만 켠다(CatalogSnapshotOptions.storefrontReadCache). */
+  storefrontReadCache?: boolean;
 }
 
 interface VerticalRow {
@@ -427,9 +435,14 @@ function toHomeBanner(
   };
 }
 
-async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
-  const supabase = await createClient();
-  const now = new Date().toISOString();
+async function getActiveHomeCurationSnapshot(storefrontReadCache = false): Promise<LoadedHomeCuration> {
+  const supabase = await createClient({ storefrontReadCache });
+  /* 공유 캐시를 켠 쇼핑 표면만 키가 요청마다 달라지지 않게 10초 단위로 내린다. 새로 시작하는 배너가 최대 10초 늦게
+     보일 뿐, 끝난 배너는 공개 RLS(실제 now())가 거른다. 관리자 미리보기는 지금 시각 그대로 읽는다. */
+  const nowMs = Date.now();
+  const now = new Date(storefrontReadCache
+    ? Math.floor(nowMs / STOREFRONT_READ_CACHE_TTL_MS) * STOREFRONT_READ_CACHE_TTL_MS
+    : nowMs).toISOString();
   const [curations, layout, productCollectionsResult] = await Promise.all([supabase
     .from('home_curations')
     .select('id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,slot,payload')
@@ -908,7 +921,8 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   if (source === 'mock') return mockSnapshot();
 
   const adultGoods = options.adultGoods ?? 'hidden';
-  const supabase = await createClient();
+  const storefrontReadCache = options.storefrontReadCache === true;
+  const supabase = await createClient({ storefrontReadCache });
 
   const [verticalsResult, ipsResult, goodsResult, cardsResult, eventsResult, maskedAdultRows] = await Promise.all([
     supabase.from('verticals').select('key,label,color').order('key'),
@@ -986,7 +1000,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
      부르지 않는다(CL-02). */
   const [listingAppearance, transactionOffers, reviewSummaries] = await Promise.all([
     loadGoodsListingAppearance(supabase, decorated.map(good => good.id)),
-    loadGoodsTransactionOffers(decorated.map(good => good.id)),
+    loadGoodsTransactionOffers(decorated.map(good => good.id), { storefrontReadCache }),
     options.includeReviewSummaries ? loadGoodsReviewSummaries(supabase, decorated.map(good => good.id)) : Promise.resolve(undefined),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
@@ -1123,6 +1137,7 @@ async function readPublicGoodsByIds(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ids: readonly string[],
   adultGoods: AdultGoodsAccess = 'hidden',
+  storefrontReadCache = false,
 ): Promise<Good[]> {
   const selected = [...new Set(ids)];
   if (!selected.length) return [];
@@ -1141,7 +1156,7 @@ async function readPublicGoodsByIds(
   const decorated = goods.filter(good => !good.masked);
   const [appearance, transactionOffers] = await Promise.all([
     loadGoodsListingAppearance(supabase, decorated.map(good => good.id)),
-    loadGoodsTransactionOffers(decorated.map(good => good.id)),
+    loadGoodsTransactionOffers(decorated.map(good => good.id), { storefrontReadCache }),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
   const transactionCalculatedAt = new Date().toISOString();
@@ -1155,13 +1170,14 @@ async function readPublicGoodsByIds(
 
 export async function getCatalogGoodsByIds(
   ids: readonly string[],
-  options: { adultGoods?: AdultGoodsAccess } = {},
+  options: { adultGoods?: AdultGoodsAccess; storefrontReadCache?: boolean } = {},
 ): Promise<Good[]> {
   if (getCatalogSource() !== 'supabase') {
     const selected = new Set(ids);
     return (await getCatalogSnapshot()).goods.filter(good => selected.has(good.id));
   }
-  return readPublicGoodsByIds(await createClient(), ids, options.adultGoods ?? 'hidden');
+  const storefrontReadCache = options.storefrontReadCache === true;
+  return readPublicGoodsByIds(await createClient({ storefrontReadCache }), ids, options.adultGoods ?? 'hidden', storefrontReadCache);
 }
 
 /**
@@ -1172,7 +1188,7 @@ export async function isPublishedAdultGood(goodId: string): Promise<boolean> {
   if (getCatalogSource() !== 'supabase' || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return false;
   try {
     /* goods RLS가 인증 전 세션에 성인 행을 닫으므로 가림 카드 RPC로 공개 여부만 확인한다. */
-    const rows = await loadMaskedAdultGoodRows(await createClient(), goodId);
+    const rows = await loadMaskedAdultGoodRows(await createClient({ storefrontReadCache: true }), goodId);
     return rows.some(row => row.id === goodId);
   } catch {
     return false;
@@ -1198,8 +1214,8 @@ export async function getCatalogGoodDetail(
       }), description: null, gallery: [], detailImageUrls: [], notice: EMPTY_GOODS_NOTICE };
   }
   if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return null;
-  const supabase = await createClient();
-  const [good] = await readPublicGoodsByIds(supabase, [goodId], adultGoods);
+  const supabase = await createClient({ storefrontReadCache: true });
+  const [good] = await readPublicGoodsByIds(supabase, [goodId], adultGoods, true);
   if (!good) return null;
   const detailQuery = supabase
     .from('goods')
@@ -1219,7 +1235,7 @@ export async function getCatalogGoodDetail(
     supabase.from('ips').select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .eq('id', good.ip).is('archived_at', null).not('published_at', 'is', null).maybeSingle(),
     supabase.from('verticals').select('key,label,color').order('key'),
-    readPublicGoodsByIds(supabase, (good.additionalGoodIds ?? []).filter(id => id !== good.id), adultGoods),
+    readPublicGoodsByIds(supabase, (good.additionalGoodIds ?? []).filter(id => id !== good.id), adultGoods, true),
   ]);
 
   if (result.error) {
@@ -1248,8 +1264,8 @@ export async function getCatalogGoodDetail(
       // Saved relations may already contain 1,000 goods; the group adds up to
       // 100 distinct destinations beyond that individual read limit.
       const selectedGoods = (await Promise.all([
-        readPublicGoodsByIds(supabase, selectedIds.slice(0, 1000), adultGoods),
-        readPublicGoodsByIds(supabase, selectedIds.slice(1000), adultGoods),
+        readPublicGoodsByIds(supabase, selectedIds.slice(0, 1000), adultGoods, true),
+        readPublicGoodsByIds(supabase, selectedIds.slice(1000), adultGoods, true),
       ])).flat();
       relatedGoods = resolveGoodRelations(relationReferences, selectedGoods, goodId);
       goodsGroup = resolvePublicGoodsGroup(groupReference, selectedGoods);
@@ -1377,7 +1393,7 @@ export async function getCatalogIpDetail(
   id: string,
   options: CatalogIpDetailOptions = {},
 ): Promise<CatalogIpDetail | null> {
-  const catalog = await getCatalogSnapshot({ adultGoods: options.adultGoods });
+  const catalog = await getCatalogSnapshot({ adultGoods: options.adultGoods, storefrontReadCache: options.storefrontReadCache });
   const ip = catalog.ips.find((item) => item.id === id);
   if (!ip) return null;
 
@@ -1386,7 +1402,7 @@ export async function getCatalogIpDetail(
   const [posts, reviewSummaries] = await Promise.all([
     catalog.source === 'mock' ? Promise.resolve(mockPostPreviews()) : getCatalogPostPreviewsForIp(id, ip, options),
     catalog.source === 'supabase' && ipGoodIds.length
-      ? (async () => loadGoodsReviewSummaries(await createClient(), ipGoodIds))()
+      ? (async () => loadGoodsReviewSummaries(await createClient({ storefrontReadCache: options.storefrontReadCache === true }), ipGoodIds))()
       : Promise.resolve(undefined),
   ]);
   const detail = buildCatalogIpDetail(catalog, id, posts);
@@ -1398,9 +1414,9 @@ export async function getHomeSnapshot(
 ): Promise<HomeSnapshot> {
   const source = getCatalogSource();
   const [catalog, loadedCuration, storyList] = await Promise.all([
-    getCatalogSnapshot({ includeReviewSummaries: options.includeReviewSummaries }),
+    getCatalogSnapshot({ includeReviewSummaries: options.includeReviewSummaries, storefrontReadCache: options.storefrontReadCache }),
     source === 'supabase'
-      ? getActiveHomeCurationSnapshot()
+      ? getActiveHomeCurationSnapshot(options.storefrontReadCache === true)
       : Promise.resolve(emptyLoadedHomeCuration()),
     source === 'supabase' ? getPublicShoppingStories({ limit: 3 }) : Promise.resolve(null),
   ]);

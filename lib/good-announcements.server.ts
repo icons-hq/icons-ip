@@ -7,7 +7,7 @@ import { GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, goodsAnnounc
 export async function loadGoodAnnouncements(goodId: string): Promise<GoodAnnouncementsData> {
   if (!getSupabaseConfig().isConfigured) return { items: [], nextChangeAt: null };
   try {
-    const client = await createClient(); const { data, error } = await client.rpc('get_good_announcements', { p_good_id: goodId });
+    const client = await createClient({ storefrontReadCache: true }); const { data, error } = await client.rpc('get_good_announcements', { p_good_id: goodId });
     if (error || !data || !Array.isArray(data.items) || data.items.some((item: Record<string, unknown>) => !item || !isUuid(item.id)
       || typeof item.title !== 'string' || typeof item.body !== 'string' || !['plain', 'html'].includes(String(item.format))
       || !GOODS_ANNOUNCEMENT_CATEGORIES.some(category => category.value === item.category)

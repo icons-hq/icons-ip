@@ -94,7 +94,8 @@ export async function loadGoodReviewSection(
 ): Promise<GoodReviewSection> {
   if (!getSupabaseConfig().isConfigured) return emptySection(options);
 
-  const supabase = await createClient();
+  /* 본인 표시(도움돼요·내 리뷰)가 섞여 로그인하지 않은 요청만 공유 캐시한다(storefront-read-cache). */
+  const supabase = await createClient({ storefrontReadCache: true });
 
   const { data, error } = await supabase.rpc('get_good_group_reviews_v3', {
     p_good_id: goodId,
