@@ -25,7 +25,11 @@ const { appendFileSync, writeFileSync } = require('node:fs');
   if (args[0] === 'alias') {
     writeFileSync(process.env.TEST_ALIAS_FILE, JSON.stringify(args[2]));
   } else if (args.includes('--dry')) {
-    console.log(JSON.stringify({ totalSize: 100, fileCount: 1, files: [{ path: 'package.json' }] }));
+    // The real CLI prints every uploaded file; this repo's manifest grew past Node's 1 MiB spawnSync default.
+    const files = process.env.TEST_MODE === 'large-manifest'
+      ? Array.from({ length: 9000 }, (_, index) => ({ path: 'app/' + 'segment/'.repeat(12) + index + '.tsx', size: 1, sha: 'f'.repeat(40) }))
+      : [{ path: 'package.json' }];
+    console.log(JSON.stringify({ totalSize: 100, fileCount: files.length, files }, null, 2));
   } else {
     const environment = {
       VERCEL_ENV: 'preview',
@@ -83,12 +87,12 @@ describe('staging deployment activation', () => {
     expect(result.calls.some(([command]) => command === 'alias')).toBe(false);
     expect(result.stdout + result.stderr).not.toContain(inheritedSecret);
     expect(result.stderr).toContain(mode === 'invalid-key'
-      ? 'Vercel deploy failed; inspect the Vercel deployment log'
+      ? 'Vercel deploy failed (exit 1); inspect the Vercel deployment log'
       : 'Vercel did not return a deployment URL');
   });
 
-  it('activates the alias only after the remote prebuild accepts inherited keys and isolated settings', async () => {
-    const result = await deploy('valid');
+  it.each(['valid', 'large-manifest'])('activates the alias only after the remote prebuild accepts inherited keys and isolated settings (%s)', async (mode) => {
+    const result = await deploy(mode);
     expect(result.status).toBe(0);
     expect(result.alias).toBe('https://new-staging.vercel.app');
     expect(result.calls).toEqual([['deploy', '--dry'], ['deploy', '--yes'], ['alias', 'set']]);
