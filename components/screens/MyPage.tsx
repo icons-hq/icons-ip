@@ -10,6 +10,7 @@ import { MypageShell, type MypageLoyaltySummary } from '@/components/wc/MypageSh
 import { ProductCard } from '@/components/wc/ProductCard';
 import { krw } from '@/lib/format';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
+import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 import { ipEn } from '@/lib/ip-display';
 import { DASHBOARD_ORDER_STEPS, type MypageDashboard } from '@/lib/mypage-dashboard';
 import { customerOrderStatusMeta, customerOrderStepLabel, formatOrderDate } from '@/lib/orders';
@@ -209,9 +210,9 @@ function WishBlock({ wishlist }: { wishlist: MypageDashboard['wishlist'] }) {
                 name={good.name}
                 price={good.price}
                 priceMax={good.priceMax}
-                salePeriod={good.salePeriod}
                 showDiscountRate={good.showDiscountRate}
                 soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+                unavailableLabel={productCardUnavailableLabel(good, good.stock === 'soldout' || good.stockQty <= 0)}
               />
             </li>
           ))}

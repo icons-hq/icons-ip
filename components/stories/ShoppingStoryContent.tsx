@@ -18,7 +18,7 @@ export function ShoppingStoryContent({ title, bodyHtml, imagePaths, sections, wi
         {section.goods.map(good => <ProductCard key={good.id} href={`/shop/${encodeURIComponent(good.id)}`} name={good.name} price={good.price} priceMax={good.priceMax}
           action={heartFor(good)} reviewSummary={good.reviewSummary}
           listSurface="story" listingAppearance={good.listingAppearance} imageShape={section.imageShape}
-          compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} imageBackground={good.imageBackground} badges={good.badge ? [good.badge] : undefined} salePeriod={good.salePeriod} soldOut={good.soldOut} />)}
+          compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} imageBackground={good.imageBackground} badges={good.badge ? [good.badge] : undefined} salePeriod={good.salePeriod} soldOut={good.soldOut} unavailableLabel={good.unavailableLabel} />)}
       </div></section> : null)}
   </article>;
 }

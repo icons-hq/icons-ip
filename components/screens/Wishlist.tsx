@@ -19,6 +19,7 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, Ip } from '@/lib/data';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
+import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 import { ipEn } from '@/lib/ip-display';
 import { hrefFor } from '@/lib/routes';
 import { wishlistTabHref, type WishlistLine, type WishlistTab } from '@/lib/wishlist-lines';
@@ -131,6 +132,7 @@ function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (i
     );
   }
 
+  const soldOut = good.stock === 'soldout' || good.stockQty <= 0;
   return (
     <>
       <ProductCard
@@ -145,9 +147,9 @@ function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (i
         name={good.name}
         price={good.price}
         priceMax={good.priceMax}
-        salePeriod={good.salePeriod}
         showDiscountRate={good.showDiscountRate}
-        soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+        soldOut={soldOut}
+        unavailableLabel={productCardUnavailableLabel(good, soldOut)}
       />
       {/* 담기(수량 없는 한 개)와 [구매하기]를 카드 바닥에 함께 세운다. */}
       <div className="wc-wish__actions" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
