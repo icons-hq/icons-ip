@@ -1,5 +1,5 @@
 import { GoodsPaymentRepositoryError } from '@/lib/payments/goods-checkout.server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
@@ -306,6 +306,42 @@ describe('placeOrderAction', () => {
       ok: false,
       error: 'unavailable',
     });
+    /* 결과를 모르는 네트워크 오류는 다시 보내지 않는다. */
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  /* 결제가 몰려 상품 잠금 대기를 넘긴 주문은 고객에게 오류를 보이지 않고 같은 주문서 키로 서버가 다시 보낸다(동접 대비). */
+  describe('주문 생성 혼잡 자동 재시도', () => {
+    const lockTimeout = { data: null, error: { message: 'canceling statement due to lock timeout', code: '55P03' } };
+    beforeEach(() => { vi.useFakeTimers(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+    afterEach(() => { vi.useRealTimers(); vi.mocked(console.warn).mockRestore(); });
+
+    it('혼잡이 풀리면 같은 키로 다시 보내 주문을 만든다', async () => {
+      mocks.rpc.mockResolvedValueOnce(lockTimeout).mockResolvedValueOnce({ data: null, error: { message: 'Timed out acquiring connection from connection pool.', code: 'PGRST003' } })
+        .mockResolvedValueOnce({ data: orderId, error: null });
+      const work = placeOrderAction(address, checkoutKey);
+      await vi.runAllTimersAsync();
+      await expect(work).resolves.toEqual({ ok: true, orderId });
+      expect(mocks.rpc).toHaveBeenCalledTimes(3);
+      expect(new Set(mocks.rpc.mock.calls.map(call => call[1].p_checkout_key))).toEqual(new Set([checkoutKey]));
+      expect(console.warn).toHaveBeenCalledTimes(2);
+    });
+
+    it('재시도 예산을 다 써도 혼잡이면 주문 없이 혼잡 안내를 돌려준다', async () => {
+      mocks.rpc.mockResolvedValue(lockTimeout);
+      mocks.recordAcknowledgement.mockClear();
+      const work = placeOrderAction(address, checkoutKey);
+      await vi.runAllTimersAsync();
+      await expect(work).resolves.toEqual({ ok: false, error: 'order_busy' });
+      expect(mocks.rpc).toHaveBeenCalledTimes(6);
+      expect(mocks.recordAcknowledgement).not.toHaveBeenCalled();
+    });
+
+    it('재고 부족 같은 일반 거절은 다시 보내지 않는다', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'out of stock', code: 'P0001' } });
+      await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'out_of_stock' });
+      expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    });
   });
 });
 
@@ -457,6 +493,20 @@ describe('placeOrderAction — 주문서 초안', () => {
     }));
     /* 결제사는 초안 줄(g2)로 파생한다 — 화면의 장바구니(g1)가 아니다. */
     expect(mocks.deriveCartProvider).toHaveBeenCalledWith(['g2']);
+  });
+
+  it('바로구매 주문도 혼잡이 풀리면 같은 초안·키로 다시 보낸다', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mocks.loadDraft.mockResolvedValue({ ...selectionDraft, source: 'direct', baseGoodId: 'g2' });
+      mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'deadlock detected', code: '40P01' } }).mockResolvedValueOnce({ data: orderId, error: null });
+      const work = placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true, []);
+      await vi.runAllTimersAsync();
+      await expect(work).resolves.toEqual({ ok: true, orderId });
+      expect(mocks.rpc.mock.calls.map(call => [call[0], call[1].p_draft_id, call[1].p_checkout_key])).toEqual([
+        ['place_direct_order', draftId, checkoutKey], ['place_direct_order', draftId, checkoutKey]]);
+    } finally { vi.useRealTimers(); warn.mockRestore(); }
   });
 
   it('바로구매 초안은 바로구매 RPC로 주문서에서 고른 쿠폰을 넘긴다', async () => {

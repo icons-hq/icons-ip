@@ -111,6 +111,41 @@ describe('Checkout 쿠폰 변경 중 결제 잠금', () => {
   });
 });
 
+/* 결제가 몰리면 서버가 주문 생성을 자동으로 다시 시도한다(동접 대비). 3초가 넘으면 '처리 중'을 알리고, 끝내 혼잡이면 다시 누르라고 안내한다. */
+describe('Checkout 결제 혼잡 안내', () => {
+  const texts = (node: ReactNode) => all(node).flatMap((element) => Children.toArray(element.props.children as ReactNode)).filter((child): child is string => typeof child === 'string');
+
+  it('주문 생성이 3초를 넘기면 버튼과 안내를 처리 중으로 바꾸고, 끝나면 되돌린다', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolve!: (value: unknown) => void;
+      mocks.place.mockReturnValueOnce(new Promise((yes) => { resolve = yes; }));
+      const work = submit();
+      expect(texts(render())).toContain('재고를 확인하는 중');
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(texts(render())).not.toContain('주문이 많아 처리 중이에요');
+      await vi.advanceTimersByTimeAsync(1);
+      const busy = texts(render());
+      expect(busy).toContain('주문이 많아 처리 중이에요');
+      expect(busy).toContain('주문이 몰려 순서대로 처리하고 있어요. 이 화면에서 잠시만 기다려주세요.');
+      resolve({ ok: false, error: 'order_busy' });
+      await work;
+      const after = texts(render());
+      expect(after).not.toContain('주문이 많아 처리 중이에요');
+      expect(after).toContain('주문이 몰려 지금은 접수하지 못했어요. 잠시 후 결제하기를 다시 눌러주세요.');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('빨리 끝난 주문은 처리 중 안내를 띄우지 않는다', async () => {
+    vi.useFakeTimers();
+    try {
+      await submit();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(texts(render())).not.toContain('주문이 많아 처리 중이에요');
+    } finally { vi.useRealTimers(); }
+  });
+});
+
 /* 같은 주문서(초안)를 다른 탭·뒤로 가기로 다시 내면 DB가 원 주문과 함께 거절한다(ADR-0030 완료 기준 5). 주문서는 원 주문으로
    잇고 다시 주문하지 않는다. */
 describe('Checkout 이미 주문한 주문서', () => {
