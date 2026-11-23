@@ -1,4 +1,6 @@
-import type { Good } from '@/lib/data';
+import type { Good, GoodOption } from '@/lib/data';
+import { preorderUnavailableLabel } from '@/lib/goods-preorders';
+import { goodsSaleUnavailableLabel, type GoodsSalePeriod } from '@/lib/goods-sale-period';
 
 /*
  * 상품 카드 칩(X SQUARE 스토어프런트 · 공용 부품 계약 §3).
@@ -46,4 +48,21 @@ export function productCardChips(
   const tag = good.badge?.trim();
   if (tag && options.showTags !== false) chips.push({ kind: 'tag', label: tag });
   return chips;
+}
+
+/**
+ * 카드 이미지 위 판매 불가 덮개와 이름 옆 숨은 상태 문구(`ProductCard`의 `unavailableLabel`).
+ *
+ * 상세 구매 패널(`GoodPurchasePanel`)과 같은 순서로 판정한다 — 판매기간(시작 전·종료)이 먼저, 그다음 예약 상태다. 모든 옵션이
+ * 예약 판매이고 지금 주문할 수 있는 물량이 없을 때만 예약 문구(접수 예정·물량 마감·접수 종료·접수 중지)를 돌려준다. 접수 중이고
+ * 물량이 남았으면 품절이 아니라 null 이고, 그때 카드는 덮개 없이 '예약판매' 칩만 단다(`productCardChips`).
+ * null 이면서 `soldOut`이면 카드는 'SOLD OUT'·'(품절)'을 그린다. 표시 정책일 뿐 주문·재고 판정은 DB가 한다.
+ *
+ * 홈·카테고리 추천처럼 서버가 카드 뷰모델을 만드는 곳은 서버에서, 굿즈를 그대로 받는 목록·검색·IP관 카드는 카드가 이 함수를 부른다.
+ */
+export function productCardUnavailableLabel(
+  good: { salePeriod?: GoodsSalePeriod | null; options?: readonly Pick<GoodOption, 'stockQty' | 'supply'>[] },
+  soldOut: boolean,
+): string | null {
+  return goodsSaleUnavailableLabel(good.salePeriod) ?? preorderUnavailableLabel(good.options, soldOut);
 }

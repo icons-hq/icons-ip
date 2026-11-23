@@ -5,6 +5,7 @@ import { loadInterestCollectionAction } from '@/app/shop/experience-actions';
 import { ProductCard } from '@/components/wc/ProductCard';
 import type { Good } from '@/lib/data';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
+import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 import { readRecentGoods, recentGoodsKey } from '@/lib/product-detail-experiences';
 import { hrefFor } from '@/lib/routes';
 import { MypageSectionHead } from './MypageSectionHead';
@@ -47,9 +48,9 @@ export function RecentGoodsCards({ goods, ipTitles }: { goods: readonly Good[]; 
             name={good.name}
             price={good.price}
             priceMax={good.priceMax}
-            salePeriod={good.salePeriod}
             showDiscountRate={good.showDiscountRate}
             soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+            unavailableLabel={productCardUnavailableLabel(good, good.stock === 'soldout' || good.stockQty <= 0)}
           />
         </li>
       ))}

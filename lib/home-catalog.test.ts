@@ -7,6 +7,7 @@ import {
   buildHomeIpWorld,
   getHomeSelectableIps,
   HOME_NEW_ARRIVALS_COUNT,
+  homeCardUnavailableLabel,
   isCommunityDestination,
   MAX_HOME_PICKER_IPS,
   prioritizeHomePostPreviews,
@@ -162,6 +163,41 @@ describe('home goods card chips and IP address', () => {
     const cards = resolveHomeGoodsCards({ ips, goods }, ['a', 'b', 'c'], 5);
     expect(cards.map((row) => row.ipHref)).toEqual(['/ip/hongsil-quest', '/ip/legacy%20ip', null]);
     expect(cards[2].brand).toBeNull();
+  });
+});
+
+/* 2026-11-23 운영 홈 NEW ARRIVAL: 접수 시작 전 예약판매 굿즈가 재고 0(예약 옵션의 남은 물량)으로 읽혀 'SOLD OUT'으로 덮였다.
+   카드 뷰모델은 옵션 예약 상태를 싣지 않으므로 서버가 상세와 같은 판정으로 문구를 채운다. */
+describe('home goods card unavailable label', () => {
+  const preorderSupply = (state: 'scheduled' | 'open', availableQty: number): GoodsVariantSupply => ({
+    mode: 'preorder', availableQty, policyId: '11111111-1111-4111-8111-111111111111', policyRevision: 1, state,
+    startsAt: '2026-12-02T02:00:00.000Z', endsAt: '2026-12-13T14:59:59.000Z', expectedShipDate: '2026-12-14',
+    calculatedAt: state === 'scheduled' ? '2026-11-23T00:00:00.000Z' : '2026-12-03T00:00:00.000Z',
+    nextChangeAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : '2026-12-13T14:59:59.000Z',
+  });
+  const option = (supply: GoodsVariantSupply | undefined, stockQty: number): GoodOption => ({
+    id: 'o1', name: '겨울', code: 'W', price: 12000, stockQty, isDefault: true, attributes: {}, ...(supply ? { supply } : {}),
+  });
+  const goods: Good[] = [
+    { ...good('scheduled', 'brand'), stock: 'soldout', stockQty: 0, options: [option(preorderSupply('scheduled', 0), 0)] },
+    { ...good('open', 'brand'), stockQty: 30, options: [option(preorderSupply('open', 30), 30)] },
+    { ...good('soldout', 'brand'), stock: 'soldout', stockQty: 0, options: [option(undefined, 0)] },
+  ];
+
+  it('fills 예약 접수 예정 for a preorder before reception, a chip only once it opens, and nothing for a real sold-out', () => {
+    const cards = resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 5);
+    expect(cards.map((row) => [row.id, row.soldOut, row.unavailableLabel, row.chips])).toEqual([
+      ['scheduled', true, '예약 접수 예정', []],
+      ['open', false, undefined, [{ kind: 'preorder', label: '예약판매' }]],
+      ['soldout', true, undefined, []],
+    ]);
+    expect(cards.map(homeCardUnavailableLabel)).toEqual(['예약 접수 예정', null, null]);
+  });
+
+  it('falls back to the sale period for an old card view without the server label', () => {
+    const salePeriod = { state: 'scheduled' as const, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' };
+    expect(homeCardUnavailableLabel({ soldOut: true, salePeriod })).toBe('판매 시작 전');
+    expect(homeCardUnavailableLabel({ soldOut: true })).toBeNull();
   });
 });
 

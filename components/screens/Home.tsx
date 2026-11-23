@@ -32,6 +32,7 @@ import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { hrefFor } from '@/lib/routes';
 import {
   benefitTileIcon,
+  homeCardUnavailableLabel,
   withoutCardRewardCurations,
   withoutCommunityCurations,
   withoutHiddenCollectibleCurations,
@@ -99,9 +100,9 @@ function HomeProductCard({ good, heartFor, showRating = true }: { good: HomeGood
       price={good.price}
       priceMax={good.priceMax}
       reviewSummary={showRating ? good.reviewSummary : undefined}
-      salePeriod={good.salePeriod}
       showDiscountRate={good.showDiscountRate}
       soldOut={good.soldOut}
+      unavailableLabel={homeCardUnavailableLabel(good)}
     />
   );
 }

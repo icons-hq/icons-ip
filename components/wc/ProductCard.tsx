@@ -8,8 +8,8 @@ import type { GoodsListingAppearance } from '@/lib/store-presentation';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { goodsImageBackground } from '@/lib/goods-image';
 import { reviewStarCount, reviewSummaryLabel, type GoodsReviewSummary } from '@/lib/goods-review-summary';
-import { goodsSaleUnavailableLabel, type GoodsSalePeriod } from '@/lib/goods-sale-period';
-import type { ProductCardChip } from '@/lib/product-card-chips';
+import type { GoodsSalePeriod } from '@/lib/goods-sale-period';
+import { productCardUnavailableLabel, type ProductCardChip } from '@/lib/product-card-chips';
 
 export type { ProductCardChip, ProductCardChipKind } from '@/lib/product-card-chips';
 
@@ -27,6 +27,11 @@ export interface ProductCardProps {
   chips?: readonly ProductCardChip[];
   soldOut?: boolean;
   salePeriod?: GoodsSalePeriod;
+  /**
+   * 판매 불가 문구(`productCardUnavailableLabel` 결과). 옵션 예약 상태를 싣지 않는 카드 뷰모델(홈·카테고리 추천·쇼핑 스토리)은
+   * 서버가 채워 넘기고, 굿즈를 그대로 받는 카드는 넘기지 않아도 카드가 `salePeriod`·`cartGood`으로 같은 함수를 부른다.
+   */
+  unavailableLabel?: string | null;
   imageBackground?: string;
   image?: ReactNode;
   action?: ReactNode;
@@ -51,7 +56,7 @@ export interface ProductCardProps {
  * aria-hidden 안에 초점 가능한 요소를 두면 안 되므로 tabIndex 도 같이 뺀다.
  *
  * 품절 밴드는 그 숨긴 링크 안에 있어 스크린리더에 닿지 않는다. 이름 옆의 sr-only
- * '(품절)'이 그 상태를 대신 읽어주는 유일한 지점이다(WCAG 1.3.1).
+ * '(품절)'·'(예약 접수 예정)' 같은 문구가 그 상태를 대신 읽어주는 유일한 지점이다(WCAG 1.3.1).
  *
  * 가림 카드는 19 표지와 고정 이름, 가격만 그린다. 상세로 가는 링크는 남긴다 — 상세가
  * 인증 안내를 보여준다. 이름·이미지는 서버에서 이미 지워져 오므로 여기서 숨기는 것은
@@ -111,6 +116,7 @@ export function ProductCard({
   priceMax,
   soldOut,
   salePeriod,
+  unavailableLabel,
   listSurface = 'preview',
   listingAppearance,
   cartGood,
@@ -124,7 +130,9 @@ export function ProductCard({
   const [imageIndex, setImageIndex] = useState(0);
   const selectedImage = gallery.length ? gallery[imageIndex % gallery.length] : imageBackground;
   const cardChips = chips ?? badgeChips(badges, configured && !listing.showTags);
-  const saleLabel = goodsSaleUnavailableLabel(salePeriod ?? cartGood?.salePeriod);
+  /* 판매기간·예약 상태 문구가 품절보다 앞선다 — 접수 예정 예약판매는 재고 0이어도 'SOLD OUT'이 아니다(상세와 같은 판정). */
+  const saleLabel = unavailableLabel
+    ?? productCardUnavailableLabel({ salePeriod: salePeriod ?? cartGood?.salePeriod, options: cartGood?.options }, Boolean(soldOut));
   const availabilityLabel = saleLabel ?? (soldOut ? '품절' : null);
   if (masked) return <MaskedProductCard action={action} brand={brand} className={className} href={href} name={name} price={price} priceMax={priceMax} />;
   return (

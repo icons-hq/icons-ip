@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import type { Good, GoodOption } from '@/lib/data';
+import type { GoodsVariantSupply } from '@/lib/goods-preorders';
+import { productCardChips } from '@/lib/product-card-chips';
 import { ProductCard } from './ProductCard';
 
 const card = {
@@ -7,6 +10,19 @@ const card = {
   name: '아크릴 블록',
   price: 12000,
 };
+
+/* 예약 정책이 걸린 굿즈(접수 2026-12-02 11:00 KST 시작). 카탈로그 투영(toGood)은 예약 옵션의 재고를 남은 예약 물량으로 읽어
+   접수 전에는 0 이고, 그래서 굿즈 전체가 stock 'soldout' 으로 온다. */
+function preorderGood(state: 'scheduled' | 'open', availableQty: number): Good {
+  const supply: GoodsVariantSupply = {
+    mode: 'preorder', availableQty, policyId: '11111111-1111-4111-8111-111111111111', policyRevision: 1, state,
+    startsAt: '2026-12-02T02:00:00.000Z', endsAt: '2026-12-13T14:59:59.000Z', expectedShipDate: '2026-12-14',
+    calculatedAt: state === 'scheduled' ? '2026-11-23T00:00:00.000Z' : '2026-12-03T00:00:00.000Z',
+    nextChangeAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : '2026-12-13T14:59:59.000Z',
+  };
+  const options: GoodOption[] = [{ id: 'o1', name: '겨울', code: 'W', price: 12000, stockQty: availableQty, isDefault: true, attributes: {}, supply }];
+  return { id: 'g13', ip: 'hsq', name: card.name, price: 12000, badge: null, img: '', options, stockQty: availableQty, stock: availableQty > 0 ? 'ok' : 'soldout' };
+}
 
 describe('ProductCard', () => {
   it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('keeps %s browseable and labels the sale period before stock', (state, label) => {
@@ -70,6 +86,43 @@ describe('ProductCard', () => {
     const imageLink = html.match(/<a\b[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
     expect(imageLink).toContain('SOLD OUT');
     expect(imageLink).not.toContain('wc-sr-only');
+  });
+
+  /* 접수 시작 전 예약판매는 품절이 아니다 — 상세와 같은 판정('예약 접수 예정')을 덮개와 숨은 문구 둘 다에 쓴다. */
+  it('labels a preorder before reception opens instead of SOLD OUT, from the good itself', () => {
+    const good = preorderGood('scheduled', 0);
+    const html = renderToStaticMarkup(<ProductCard {...card} cartGood={good} soldOut={good.stock === 'soldout'} />);
+
+    expect(html).toContain('<div class="wc-product-card__soldout"><span>예약 접수 예정</span></div>');
+    expect(html).toContain('<span class="wc-sr-only"> (예약 접수 예정)</span>');
+    expect(html).not.toContain('SOLD OUT');
+    expect(html).not.toContain('품절');
+  });
+
+  it('uses the label a server card view filled in (home, category recommendations)', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} soldOut unavailableLabel="예약 접수 예정" />);
+
+    expect(html).toContain('<span>예약 접수 예정</span>');
+    expect(html).toContain(' (예약 접수 예정)');
+    expect(html).not.toContain('SOLD OUT');
+  });
+
+  it('drops the band once reception opens and leaves the 예약판매 chip', () => {
+    const good = preorderGood('open', 30);
+    const html = renderToStaticMarkup(<ProductCard {...card} cartGood={good} chips={productCardChips(good)} soldOut={good.stock === 'soldout'} />);
+
+    expect(html).not.toContain('wc-product-card__soldout');
+    expect(html).not.toContain('wc-sr-only"> (');
+    expect(html).toContain('<span class="wc-x-chip wc-x-chip--preorder">예약판매</span>');
+  });
+
+  it('keeps SOLD OUT for a really sold-out stock good', () => {
+    const good: Good = { id: 'g13', ip: 'hsq', name: card.name, price: 12000, badge: null, img: '', stockQty: 0, stock: 'soldout',
+      options: [{ id: 'o1', name: '단일', code: 'S', price: 12000, stockQty: 0, isDefault: true, attributes: {} }] };
+    const html = renderToStaticMarkup(<ProductCard {...card} cartGood={good} soldOut />);
+
+    expect(html).toContain('<span>SOLD OUT</span>');
+    expect(html).toContain('<span class="wc-sr-only"> (품절)</span>');
   });
 
   it('omits the sold-out band and label when the product is in stock', () => {
