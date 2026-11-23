@@ -87,7 +87,7 @@ export async function upsertAdminCurationAction(
     if (message.includes('invalid_hero_subtitle')) return { errors: { subtitle: '변경한 내용은 150자 이하, 최대 3줄로 입력해주세요.' } };
     if (message.includes('invalid_hero_alt')) return { errors: { altTitle: '대체텍스트 제목 40자·내용 150자와 설정 여부를 확인해주세요.' } };
     if (message.includes('invalid_curation_notice')) return { errors: { form: '텍스트 공지 바·띠배너의 문구, 버튼 문구와 공지를 보일 화면을 확인해주세요.' } };
-    if (message.includes('invalid_curation_collection_banner')) return { errors: { form: '컬렉션 배너의 문구(40자)·부제(80자)·이미지 대체텍스트(100자)와 딤·텍스트 색상을 확인해주세요.' } };
+    if (message.includes('invalid_curation_collection_banner')) return { errors: { form: '컬렉션 배너의 문구(40자)·부제(80자)·이미지 대체텍스트(100자)와 딤·텍스트 색상을 확인해주세요. 배너 문구를 비웠다면 이미지 대체텍스트에 이미지 속 문구를 적고 부제는 비워주세요.' } };
     if (message.includes('invalid_curation_search_terms')) return { errors: { searchTerms: '추천 검색어는 줄바꿈 없이 1~20자로, 겹치지 않게 1~10개 입력해주세요.' } };
     if (message.includes('invalid_curation_slot')) return { errors: { slot: '배너를 보일 컬렉션 또는 상품 모음 위치를 다시 선택해주세요.' } };
     if (/forbidden|auth_required|operator_/.test(message)) return { errors: { form: '스토어 관리 권한이 없어 저장하지 못했습니다. 권한이 필요하면 계정 주매니저에게 요청해주세요.' } };

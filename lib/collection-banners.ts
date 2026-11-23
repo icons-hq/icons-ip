@@ -8,9 +8,11 @@ import { shellNoticeDestinationAllowed, type ShellNoticeGates } from './shell-no
  * 홈 전시관리 큐레이션 `collection_banner` 한 행이 컬렉션 한 페이지의 머리 배너 한 장이다. slot 이 페이지를 고른다:
  * 굿즈샵 전체(`all` — 여러 장을 넘겨 보는 수동 슬라이더), BEST·NEW(`best`·`new` — 한 장). 세 슬롯 모두 화면은 같은 스트립 배너
  * 1272×340이다(권장 이미지 PC 2544×680, 모바일 750×350).
- * 카테고리 전시(`/shop?displayCategory=`)에는 배너가 없다. 문구는 이미지에 굽지 않고 텍스트 레이어로 얹는다 —
+ * 카테고리 전시(`/shop?displayCategory=`)에는 배너가 없다. 문구는 이미지에 굽지 않고 텍스트 레이어로 얹는 것이 기본이다 —
  * 이미지가 늦거나 실패해도 무엇을 여는 배너인지 읽힌다(캠페인 배너와 같은 규칙). 이미지 대체텍스트는 그림 자체의 의미만
  * 따로 담고(선택), 비우면 장식 이미지(alt="")다.
+ * 예외: 문구가 그림 안에 든 배너(X SQUARE Figma 목록 배너, 20261125100000)는 문구(title)를 비운다. 그러면 텍스트 레이어
+ * 없이 그림만 보이고, 그림 속 문구를 읽히는 대체텍스트가 필수이며 문구 아래 줄인 부제는 둘 수 없다.
  *
  * 로더(lib/collection-banners.server.ts)는 쿠키 없는 캐시 읽기로 지금 노출 중인 행을 내려 주고, 요청마다 종료 시각과
  * 목적지 게이트(카드 리워드·커뮤니티)를 서버에서 다시 거른 뒤 페이지 몫(굿즈샵 전체 10장, BEST·NEW 운영 순서 첫 장)만 넘긴다.
@@ -42,6 +44,7 @@ export const COLLECTION_BANNER_SLOT_LABELS: Record<CollectionBannerSlot, string>
 export interface CollectionBanner {
   id: string;
   slot: CollectionBannerSlot;
+  /** 이미지 위 글자 레이어. 빈 문자열이면 문구가 그림 안에 든 배너다 — 글자 레이어를 그리지 않고 imageAlt가 문구를 읽힌다. */
   title: string;
   subtitle: string | null;
   imageUrl: string;
@@ -87,7 +90,7 @@ export function parseCollectionBannerRow(
 ): CollectionBanner | null {
   if (!isCollectionBannerSlot(row.slot)) return null;
   const title = row.title;
-  if (typeof title !== 'string' || boundedText(title, COLLECTION_BANNER_TITLE_LIMIT) === false || !title) return null;
+  if (typeof title !== 'string' || (title !== '' && boundedText(title, COLLECTION_BANNER_TITLE_LIMIT) === false)) return null;
   if (!row.image_path || !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
   const href = row.link_path === null ? null : row.link_path.trim();
   if (href !== null && !isSafeInternalLink(href)) return null;
@@ -98,6 +101,8 @@ export function parseCollectionBannerRow(
   const subtitle = boundedText(payload.subtitle, COLLECTION_BANNER_SUBTITLE_LIMIT);
   const imageAlt = boundedText(payload.image_alt, COLLECTION_BANNER_ALT_LIMIT);
   if (subtitle === false || imageAlt === false) return null;
+  /* 문구를 비운 배너는 그림 속 문구를 대체텍스트로 읽히고 부제를 두지 않는다(DB is_valid_home_collection_banner와 같은 규칙). */
+  if (!title && (!imageAlt || subtitle)) return null;
   const mobileImagePath = payload.mobile_image_path;
   if (mobileImagePath !== undefined && (typeof mobileImagePath !== 'string' || !HOME_CURATION_IMAGE_PATTERN.test(mobileImagePath))) return null;
   if (payload.image_dim !== undefined && !isHomeHeroImageDim(payload.image_dim)) return null;

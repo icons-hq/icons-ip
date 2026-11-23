@@ -175,4 +175,30 @@ select 1/case when (select count(*) from public.home_curations where kind='colle
  and active_from<'2030-02-01' and coalesce(active_to,'infinity')>'2030-01-15')=10 then 1 else 0 end as at_most_ten_live_in_new;
 select 1/case when (select title from public.home_curations where id='97430000-0000-4000-8000-000000000001')='신상 1 문구 수정'
  then 1 else 0 end as full_collection_copy_edit_saved;
+
+-- 9. Copy baked into the artwork (X SQUARE Figma listing banners, 20261125100000):
+--    a collection banner may leave its copy empty, but then the image alt text is
+--    required (it names the banner) and no subtitle may hang under the missing copy.
+--    Every other kind except hero still needs a title.
+insert into public.admin_artwork_upload_claims(path,actor_id,kind,mime_type,source_size,final_size,status,expires_at,processing_started_at,verified_at)
+ select 'catalog/curation/97410000-0000-4000-8000-'||lpad(n::text,12,'0')||'.webp','97400000-0000-4000-8000-000000000001','curation','image/webp',1024,1024,'verified',now()+interval '1 hour',now(),now() from generate_series(25,26)n;
+select set_config('request.jwt.claim.sub','97400000-0000-4000-8000-000000000001',true);
+set local role authenticated;
+select pg_temp.save('97400000-0000-4000-8000-000000000301','97420000-0000-4000-8000-000000000021','collection_banner',
+ '   ','public-media/catalog/curation/97410000-0000-4000-8000-000000000025.webp','/shop/new','all',
+ jsonb_build_object('image_alt','  배달부가 맛있고 피자가 친절해요!  '));
+select 1/case when title='' and payload->>'image_alt'='배달부가 맛있고 피자가 친절해요!' and not payload ? 'subtitle'
+ then 1 else 0 end as baked_copy_banner_saved from public.home_curations where id='97420000-0000-4000-8000-000000000021';
+select pg_temp.expect_error($q$select pg_temp.save(gen_random_uuid(),gen_random_uuid(),'collection_banner','','public-media/catalog/curation/97410000-0000-4000-8000-000000000026.webp',null,'all',null)$q$,'invalid_curation_collection_banner');
+select pg_temp.expect_error($q$select pg_temp.save(gen_random_uuid(),gen_random_uuid(),'collection_banner','','public-media/catalog/curation/97410000-0000-4000-8000-000000000026.webp',null,'all','{"image_dim":"none","text_color":"black"}')$q$,'invalid_curation_collection_banner');
+select pg_temp.expect_error($q$select pg_temp.save(gen_random_uuid(),gen_random_uuid(),'collection_banner','','public-media/catalog/curation/97410000-0000-4000-8000-000000000026.webp',null,'all','{"image_alt":"그림 속 문구","subtitle":"부제"}')$q$,'invalid_curation_collection_banner');
+select pg_temp.expect_error($q$select pg_temp.save(gen_random_uuid(),gen_random_uuid(),'editor_pick','','public-media/catalog/curation/97410000-0000-4000-8000-000000000026.webp','/shop',null,null)$q$,'invalid_curation_title');
+reset role;
+select pg_temp.expect_error($q$insert into public.home_curations(id,kind,title,image_path,slot,active_from) values(gen_random_uuid(),'collection_banner','','public-media/catalog/curation/97410000-0000-4000-8000-000000000026.webp','all',now())$q$,'23514');
+select pg_temp.expect_error($q$insert into public.home_curations(id,kind,title,image_path,link_path,active_from) values(gen_random_uuid(),'band_banner','','public-media/catalog/curation/97410000-0000-4000-8000-000000000026.webp','/shop',now())$q$,'23514');
+select 1/case when private.is_valid_home_collection_banner('','{"image_alt":"그림 속 문구"}')
+ and not private.is_valid_home_collection_banner('',null)
+ and not private.is_valid_home_collection_banner('','{"image_alt":"그림 속 문구","subtitle":"부제"}')
+ and private.is_valid_home_collection_banner('가을 신상 굿즈',null)
+ then 1 else 0 end as baked_copy_validator_rules;
 rollback;

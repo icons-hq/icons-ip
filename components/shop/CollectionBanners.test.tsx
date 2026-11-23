@@ -55,6 +55,18 @@ describe('CollectionBanners — Figma 스트립 배너(콘텐츠 폭 1272×340, 
     expect(html).not.toContain('wc-listing-banner__dim');
   });
 
+  /* X SQUARE Figma 목록 배너는 문구가 그림 안에 있다(20261125100000) — 문구를 비우면 같은 문구가 두 번 겹치지 않게
+     글자 레이어를 그리지 않고, 대체텍스트가 그림 속 문구를 링크 이름으로 읽힌다. */
+  it('문구를 비운 배너는 글자 레이어 없이 그림만 그리고 대체텍스트를 링크 이름으로 쓴다', () => {
+    const html = renderToStaticMarkup(<CollectionBanners banners={[banner('baked', {
+      slot: 'new', title: '', href: '/offline-popups/icons77', imageAlt: '배달부가 맛있고 피자가 친절해요!',
+    })]} slot="new" />);
+
+    expect(html).not.toContain('wc-listing-banner__copy');
+    expect(html).not.toContain('wc-listing-banner__title');
+    expect(html).toMatch(/<a class="wc-strip-banner__link" href="\/offline-popups\/icons77"><picture><img alt="배달부가 맛있고 피자가 친절해요!"/);
+  });
+
   it('링크가 없으면 링크 없이 그림만이고, 딤·글자색은 데이터 속성으로 남는다', () => {
     const plain = renderToStaticMarkup(<CollectionBanners banners={[banner('plain', { slot: 'new' })]} slot="new" />);
     expect(plain).not.toContain('wc-strip-banner__link');
