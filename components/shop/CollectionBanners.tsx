@@ -34,14 +34,20 @@ const MOBILE_IMAGE_SIZE = { width: 375, height: 175 };
 /** 배너 한 장을 그리는 데 필요한 값 — 컬렉션 배너와 카테고리 전시 배너(`HomeHeroSlide`)가 같은 모양으로 맞춘다. */
 export type ListingBannerContent = Pick<CollectionBanner, 'id' | 'title' | 'subtitle' | 'imageUrl' | 'mobileImageUrl' | 'href' | 'imageAlt' | 'imageDim' | 'textColor'>;
 
+/**
+ * 문구(title)와 부제가 모두 빈 배너는 문구가 그림 안에 든 배너라 글자 레이어를 그리지 않는다 — 같은 문구가 두 번 겹쳐 보이지 않는다.
+ * 컬렉션 배너는 문구 없이 부제를 둘 수 없지만, 카테고리 전시 배너는 제목 없이 내용(부제)만 둘 수 있어 그때는 부제만 그린다.
+ */
 function BannerCopy({ banner }: { banner: ListingBannerContent }) {
   return (
     <>
       {banner.imageDim !== 'none' ? <span aria-hidden className="wc-listing-banner__dim" data-tone={banner.imageDim} /> : null}
-      <span aria-hidden className="wc-listing-banner__copy">
-        <strong className="wc-listing-banner__title">{banner.title}</strong>
-        {banner.subtitle ? <span className="wc-listing-banner__subtitle">{banner.subtitle}</span> : null}
-      </span>
+      {banner.title || banner.subtitle ? (
+        <span aria-hidden className="wc-listing-banner__copy">
+          {banner.title ? <strong className="wc-listing-banner__title">{banner.title}</strong> : null}
+          {banner.subtitle ? <span className="wc-listing-banner__subtitle">{banner.subtitle}</span> : null}
+        </span>
+      ) : null}
     </>
   );
 }

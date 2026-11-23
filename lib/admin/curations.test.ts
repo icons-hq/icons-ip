@@ -581,7 +581,7 @@ describe('admin curation form normalization', () => {
   it('컬렉션 배너의 슬롯·문구·부제·대체텍스트·이미지 한도를 칸 오류로 막는다', () => {
     expect(normalizeAdminCurationForm(bannerForm({ slot: 'category' }))).toMatchObject({ ok: false, errors: { slot: '배너를 보일 컬렉션을 선택해주세요.' } });
     expect(normalizeAdminCurationForm(bannerForm({ slot: '' }))).toMatchObject({ ok: false, errors: { slot: expect.any(String) } });
-    for (const title of ['', '가'.repeat(41), '두 줄\n문구']) {
+    for (const title of ['가'.repeat(41), '두 줄\n문구']) {
       expect(normalizeAdminCurationForm(bannerForm({ title }))).toMatchObject({ ok: false, errors: { title: expect.any(String) } });
     }
     expect(normalizeAdminCurationForm(bannerForm({ title: '가'.repeat(40) }))).toMatchObject({ ok: true });
@@ -589,6 +589,20 @@ describe('admin curation form normalization', () => {
     expect(normalizeAdminCurationForm(bannerForm({ imageAlt: '가'.repeat(101) }))).toMatchObject({ ok: false, errors: { imageAlt: expect.any(String) } });
     expect(normalizeAdminCurationForm(bannerForm({ imagePath: '' }))).toMatchObject({ ok: false, errors: { imagePath: '이미지를 등록해주세요.' } });
     expect(normalizeAdminCurationForm(bannerForm({ textColor: 'pink' }))).toMatchObject({ ok: false, errors: { textColor: expect.any(String) } });
+  });
+
+  /* 문구가 그림 안에 든 배너(X SQUARE Figma 목록 배너, 20261125100000)는 배너 문구를 비우고 대체텍스트에 그 문구를 적는다. */
+  it('컬렉션 배너는 문구를 비울 수 있고, 그때 대체텍스트가 필요하며 부제는 받지 않는다', () => {
+    expect(normalizeAdminCurationForm(bannerForm({ title: '  ', imageAlt: ' 배달부가 맛있고 피자가 친절해요! ' }))).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: 'collection_banner', title: '', payload: { image_dim: 'none', text_color: 'black', image_alt: '배달부가 맛있고 피자가 친절해요!' } }),
+    });
+    expect(normalizeAdminCurationForm(bannerForm({ title: '' }))).toMatchObject({
+      ok: false, errors: { imageAlt: '배너 문구를 비우면 이미지 대체텍스트가 필요합니다. 이미지 안에 쓰인 문구를 그대로 적어주세요.' },
+    });
+    expect(normalizeAdminCurationForm(bannerForm({ title: '', imageAlt: '그림 속 문구', subtitle: '부제' }))).toMatchObject({
+      ok: false, errors: { subtitle: expect.stringContaining('배너 문구 없이 쓸 수 없습니다') },
+    });
   });
 
   function termsForm(terms: string[], entries: Record<string, string> = {}) {

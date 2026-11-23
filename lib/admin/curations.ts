@@ -539,7 +539,9 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     : kind === 'notice_bar' ? NOTICE_BAR_MESSAGE_LIMIT
       : kind === 'collection_banner' ? COLLECTION_BANNER_TITLE_LIMIT
         : kind === 'search_terms' ? SEARCH_TERM_LIST_NAME_LIMIT : 120;
-  if (characterLength(title) < (kind === 'hero' ? 0 : 1) || characterLength(title) > titleLimit) {
+  /* 히어로와 컬렉션 배너는 문구를 비울 수 있다 — 컬렉션 배너는 문구가 그림 안에 든 배너다(아래 대체텍스트 규칙). */
+  const optionalTitle = kind === 'hero' || kind === 'collection_banner';
+  if (characterLength(title) < (optionalTitle ? 0 : 1) || characterLength(title) > titleLimit) {
     errors.title = kind === 'hero' ? '제목은 40자 이하로 입력해주세요.' : `제목은 1자 이상 ${titleLimit}자 이하로 입력해주세요.`;
   }
   if (kind === 'hero' && title !== readString(formData, 'originalTitle') && characterLength(title) > HOME_HERO_TITLE_LIMIT) {
@@ -549,10 +551,11 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   if (kind === 'notice_bar' && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) < 1 || characterLength(title) > NOTICE_BAR_MESSAGE_LIMIT)) {
     errors.title = `공지 문구는 줄바꿈 없이 1자 이상 ${NOTICE_BAR_MESSAGE_LIMIT}자 이하로 입력해주세요.`;
   }
-  if ((kind === 'collection_banner' || kind === 'search_terms') && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) < 1 || characterLength(title) > titleLimit)) {
-    errors.title = kind === 'collection_banner'
-      ? `배너 문구는 줄바꿈 없이 1자 이상 ${titleLimit}자 이하로 입력해주세요.`
-      : `목록 이름은 줄바꿈 없이 1자 이상 ${titleLimit}자 이하로 입력해주세요.`;
+  if (kind === 'collection_banner' && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) > titleLimit)) {
+    errors.title = `배너 문구는 줄바꿈 없이 ${titleLimit}자 이하로 입력해주세요. 문구가 이미지 안에 들어 있으면 비워 두세요.`;
+  }
+  if (kind === 'search_terms' && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) < 1 || characterLength(title) > titleLimit)) {
+    errors.title = `목록 이름은 줄바꿈 없이 1자 이상 ${titleLimit}자 이하로 입력해주세요.`;
   }
 
   const rawImagePath = readString(formData, 'imagePath');
@@ -580,6 +583,12 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   }
 
   const payload = readCurationPayload(formData, kind, errors);
+  /* 문구를 비운 컬렉션 배너는 글자 레이어 없이 그림만 보인다. 그림 속 문구를 화면 읽기 프로그램이 읽도록 대체텍스트가
+     필요하고, 문구 아래 줄인 부제는 둘 수 없다(DB is_valid_home_collection_banner와 같은 규칙). */
+  if (kind === 'collection_banner' && !title) {
+    if (!payload?.image_alt && !errors.imageAlt) errors.imageAlt = '배너 문구를 비우면 이미지 대체텍스트가 필요합니다. 이미지 안에 쓰인 문구를 그대로 적어주세요.';
+    if (payload?.subtitle) errors.subtitle = '부제는 배너 문구 아래 줄이라 배너 문구 없이 쓸 수 없습니다. 배너 문구를 입력하거나 부제를 비워주세요.';
+  }
 
   const rawLinkValue = formData.get('linkPath');
   const rawLinkPath = typeof rawLinkValue === 'string' ? rawLinkValue : '';

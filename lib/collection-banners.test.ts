@@ -58,10 +58,18 @@ describe('parseCollectionBannerRow', () => {
     });
   });
 
+  /* 문구가 그림 안에 든 배너(X SQUARE Figma, 20261125100000): 문구를 비우고 대체텍스트로 그림 속 문구를 읽힌다. */
+  it('빈 문구는 대체텍스트가 있고 부제가 없을 때만 그림만의 배너로 읽는다', () => {
+    expect(parseCollectionBannerRow(row({ slot: 'new', title: '', payload: { image_alt: '배달부가 맛있고 피자가 친절해요!' } }), url))
+      .toMatchObject({ slot: 'new', title: '', subtitle: null, imageAlt: '배달부가 맛있고 피자가 친절해요!' });
+  });
+
   it.each([
     ['알 수 없는 슬롯', { slot: 'category' }],
     ['슬롯 없음', { slot: null }],
-    ['빈 제목', { title: '' }],
+    ['대체텍스트 없는 빈 제목', { title: '' }],
+    ['부제만 있는 빈 제목', { title: '', payload: { image_alt: '그림 속 문구', subtitle: '부제' } }],
+    ['공백만 있는 제목', { title: ' ', payload: { image_alt: '그림 속 문구' } }],
     ['41자 제목', { title: '가'.repeat(41) }],
     ['줄바꿈 제목', { title: '두 줄\n제목' }],
     ['앞뒤 공백 제목', { title: ' 제목 ' }],

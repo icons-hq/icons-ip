@@ -61,7 +61,7 @@ const KIND_HELP: Record<AdminCurationKind, string> = {
   product_collection: "직접 고른 상품을 리스트나 큰 이미지로 보여줍니다. 모자이크와 합계 5개까지 구성할 수 있습니다. '그리드형(5열)'은 5개 또는 10개를 한 줄 5개로 보여주고, 고른 상품이 모두 한 IP면 '전체보기'가 그 IP관으로 연결됩니다.",
   review_best: '공개 리뷰 평점이 높은 상품을 자동 또는 직접 선정합니다. 4개 이상일 때 전시합니다.',
   benefit: '쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.',
-  collection_banner: '굿즈샵 전체(여러 장이면 넘겨 보는 슬라이드)·BEST·NEW 목록 맨 위에 보이는 배너입니다. 문구는 이미지 위에 글자로 얹습니다.',
+  collection_banner: '굿즈샵 전체(여러 장이면 넘겨 보는 슬라이드)·BEST·NEW 목록 맨 위에 보이는 배너입니다. 배너 문구를 적으면 이미지 위에 글자로 얹고, 문구가 이미지 안에 들어 있으면 배너 문구를 비워 이미지만 보여줍니다.',
   search_terms: '검색창을 열면 보이는 추천 검색어 칩입니다. 최대 10개이며, 칩을 누르면 그 검색어의 검색 결과로 이동합니다.',
   featured_ip: '기존 특집 IP 설정입니다. 현재 홈 본문에는 특집 IP 영역이 없습니다.',
   announcement: '홈 본문 가운데 가로로 긴 배너입니다(권장 2544×340). 노출 중인 첫 배너 하나를 보여줍니다.',
@@ -80,7 +80,7 @@ const ARTWORK_HELP: Record<AdminCurationKind, string> = {
   product_collection: '선택한 상품의 대표이미지를 사용합니다.',
   review_best: '리뷰 상품의 대표이미지를 사용합니다.',
   benefit: '혜택 타일은 이미지를 쓰지 않습니다.',
-  collection_banner: '배너 이미지는 필수입니다. 굿즈샵 전체·BEST·NEW 모두 PC 2544×680px(화면 1272×340), 모바일은 750×350px을 권장합니다. 문구는 이미지에 넣지 말고 아래 배너 문구 칸에 입력하세요.',
+  collection_banner: '배너 이미지는 필수입니다. 굿즈샵 전체·BEST·NEW 모두 PC 2544×680px(화면 1272×340), 모바일은 750×350px을 권장합니다. 새로 만드는 이미지는 문구를 넣지 말고 배너 문구 칸에 입력하세요. 디자인 시안처럼 문구가 이미 들어 있는 이미지를 올릴 때는 배너 문구를 비우고 이미지 대체텍스트에 그 문구를 적습니다.',
   search_terms: '추천 검색어는 이미지를 쓰지 않습니다.',
 };
 const DEFAULT_PREVIEW: CurationPublicPreview = { curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false };
@@ -401,9 +401,9 @@ function CurationForm({
             <CurationSelect error={state.errors?.slot} label="배너를 보일 컬렉션" name="slot" onChange={(event) => update('slot', event.target.value)} required value={values.slot}>
               {COLLECTION_BANNER_SLOTS.map((slot) => <option key={slot} value={slot}>{COLLECTION_BANNER_SLOT_LABELS[slot]}</option>)}
             </CurationSelect>
-            <CurationCountedText name="title" label="배너 문구" value={values.title} limit={COLLECTION_BANNER_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
+            <CurationCountedText name="title" label="배너 문구 (선택)" value={values.title} limit={COLLECTION_BANNER_TITLE_LIMIT} error={state.errors?.title} onChange={value => update('title', value)} />
             <CurationCountedText name="subtitle" label="부제 (선택)" value={values.subtitle} limit={COLLECTION_BANNER_SUBTITLE_LIMIT} error={state.errors?.subtitle} onChange={value => update('subtitle', value)} />
-            <p className={HELP}>문구는 줄바꿈 없이 한 줄로 입력합니다. 굿즈샵 전체는 여러 장을 노출 순서대로 넘겨 보고(자동으로 넘기지 않음), BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다. 한 컬렉션에 노출 기간이 겹치는 배너는 비노출을 빼고 10장까지 등록합니다. BEST·NEW 배너는 문구가 길면 모바일에서 배너가 그만큼 길어지니 짧게 쓰는 것을 권장합니다. 카테고리 전시·검색·IP관에는 보이지 않습니다.</p>
+            <p className={HELP}>문구는 줄바꿈 없이 한 줄로 입력합니다. 배너 문구를 비우면 이미지 위에 글자를 얹지 않고 이미지만 보이며, 이때는 아래 이미지 대체텍스트가 꼭 필요하고 부제는 쓸 수 없습니다. 굿즈샵 전체는 여러 장을 노출 순서대로 넘겨 보고(자동으로 넘기지 않음), BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다. 한 컬렉션에 노출 기간이 겹치는 배너는 비노출을 빼고 10장까지 등록합니다. BEST·NEW 배너는 문구가 길면 모바일에서 배너가 그만큼 길어지니 짧게 쓰는 것을 권장합니다. 카테고리 전시·검색·IP관에는 보이지 않습니다.</p>
           </> : kind === 'search_terms' ? <>
             <CurationCountedText name="title" label="목록 이름 (관리용)" value={values.title} limit={SEARCH_TERM_LIST_NAME_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
             <p className={HELP}>스토어 화면에는 보이지 않는 이름이지만 공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요. 예: 11월 추천 검색어</p>
@@ -489,8 +489,8 @@ function CurationForm({
         </section> : null}
         {kind === 'collection_banner' ? <section className={FORM_SECTION}>
           <h4 className={SECTION_TITLE}>이미지 대체텍스트</h4>
-          <p className={HELP}>배너 문구는 화면에 글자로 읽히므로 따로 적지 않습니다. 이미지 자체에 담긴 상품이나 장면을 스크린리더에 전달하려면 입력하고, 꾸밈용 이미지면 비워 두세요.</p>
-          <CurationCountedText name="imageAlt" label="이미지 대체텍스트 (선택)" value={values.imageAlt} limit={COLLECTION_BANNER_ALT_LIMIT} error={state.errors?.imageAlt} onChange={value => update('imageAlt', value)} />
+          <p className={HELP}>배너 문구를 비웠다면 이미지 안에 쓰인 문구를 그대로 적습니다(필수) — 화면 읽기 프로그램이 이 글을 배너 이름으로 읽어 줍니다. 배너 문구를 적었다면 그 문구는 화면에 글자로 읽히므로 따로 적지 않고, 이미지 자체에 담긴 상품이나 장면을 전하려면 입력하고 꾸밈용 이미지면 비워 두세요.</p>
+          <CurationCountedText name="imageAlt" label={values.title.trim() ? '이미지 대체텍스트 (선택)' : '이미지 대체텍스트 (배너 문구를 비우면 필수)'} value={values.imageAlt} limit={COLLECTION_BANNER_ALT_LIMIT} required={!values.title.trim()} error={state.errors?.imageAlt} onChange={value => update('imageAlt', value)} />
         </section> : null}
         {kind === 'search_terms' ? <SearchTermFields error={state.errors?.searchTerms} onChange={(terms) => update('searchTerms', terms)} terms={values.searchTerms} /> : null}
         {kind === 'product_mosaic' ? <CurationMosaicFields title={values.mosaicTitle} subtitle={values.mosaicSubtitle} slots={values.mosaicSlots} imageUrls={values.mosaicImageUrls}
