@@ -553,7 +553,8 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
 4. 개발자센터 > 웹훅: MID `iconsi0xvd`(테스트 `ticonsi0xvd`)의 `https://iconsip.com/api/webhooks/tosspayments`에
    **`DEPOSIT_CALLBACK`**을 더한다(기존 `PAYMENT_STATUS_CHANGED`는 그대로).
 5. 개발자센터 > API 키: 라이브·테스트 키의 **API 버전**이 같은지 확인한다(1.4 이하면 입금 오류 되돌림이 `CANCELED`로 온다).
-6. 법정 고지: `lib/legal/virtual-account-terms-revision.json`의 공지일 = 실제 운영 배포일(KST), 시행일 = 공지일 + 7일 이상이고
+6. 법정 고지(이번 개정 확정값: 공지 2026-11-24 → 시행 2026-12-01 — 운영 배포가 11-24 KST를 넘기면 두 날짜를 함께 미룬다):
+   `lib/legal/virtual-account-terms-revision.json`의 공지일 = 실제 운영 배포일(KST), 시행일 = 공지일 + 7일 이상이고
    같은 문서의 앞선 예약 개정(표기·부분 반품·알림톡) 시행일보다 늦어야 한다(빌드 가드). 공지 기간은 앞선 개정의 공지와 겹쳐도
    된다 — 법정 문서 화면이 두 사전 공지를 함께 보인다. 시행일 전에는 `TOSS_VIRTUAL_ACCOUNT_ENABLED`를 켤 수 없다(빌드 가드).
    시행일부터 사이트 하단에 구매안전서비스 가입 문구와 '서비스 가입 사실 확인' 링크

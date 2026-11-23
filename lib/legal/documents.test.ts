@@ -916,10 +916,9 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
   const after = at(VA.effectiveDate);
   const article = (document: LegalDocument, heading: string) => document.articles.find((item) => item.heading === heading)!;
 
-  it('운영 날짜 파일은 형식이 맞고 시행일이 공지일 7일 이상 뒤다(자리표시 — 머지·배포 때 정한다)', () => {
-    expect(VIRTUAL_ACCOUNT_TERMS_REVISION).not.toBeNull();
+  it('운영 날짜 파일은 확정값(공지 2026-11-24 → 시행 2026-12-01)이고 시행일이 공지일 7일 이상 뒤다', () => {
+    expect(VIRTUAL_ACCOUNT_TERMS_REVISION).toEqual({ announcedDate: '2026-11-24', effectiveDate: '2026-12-01' });
     const { announcedDate, effectiveDate } = VIRTUAL_ACCOUNT_TERMS_REVISION!;
-    expect(announcedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect((Date.parse(effectiveDate) - Date.parse(announcedDate)) / 86_400_000).toBeGreaterThanOrEqual(7);
     /* 운영 상수(기본 인자) 그대로 공지·시행 상태를 만들 수 있어야 한다. */
     expect(() => createLegalDocuments(BUSINESS_INFO, announcedDate)).not.toThrow();
