@@ -112,6 +112,7 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 | `TOSS_WIDGET_VARIANT_KEY` | 서버 전용(비밀 아님 — `NEXT_PUBLIC_` 금지); 결제 어드민(그 키 모드)에 결제 UI를 만든 **뒤에만** `ICONS`; 미설정 = `DEFAULT` 결제 UI·MID 대조 없음(지금 동작); `DEFAULT`·형식 밖 값은 빌드 실패; 라이브 키는 이 값 없이 빌드 실패 | 두지 않음(런타임은 Production 전용이라 무의미 — 놓이면 형식만 검증) |
 | `TOSS_ADDITIONAL_MERCHANT_IDS` | 선택; 쉼표로 구분한 **라이브** MID(테스트 MID는 `t` 접두로 자동 파생). 알리페이 등 새 결제서비스를 `ICONS`에 붙일 때만; 형식 밖이면 빌드 실패; 바인딩 없이 두면 경고만 | 두지 않음 |
 | `TOSS_VIRTUAL_ACCOUNT_ENABLED` | 기본 미설정(꺼짐); `true`면 가상계좌 **새 발급**을 입금 대기로 받는다(ADR-0049). 결제 UI 바인딩·가상계좌 법정 고지 시행 뒤에만(빌드 가드) | 두지 않음 |
+| `TOSS_ESCROW_SECRET_KEY` | **sensitive**, 서버 전용. 에스크로 부가서비스 API(거래 조회·배송 등록·수정·취소 요청 수락) 키 = MID `iconsi0xvd`(테스트 `ticonsi0xvd`)의 **API 개별 연동 시크릿 키** `live_sk_…`/`test_sk_…`. 결제 위젯 키(gsk)는 부가서비스 API를 부를 수 없다(토스 'API 키' 문서). `TOSS_SECRET_KEY`와 같은 모드여야 하고 형식 밖·모드 불일치는 빌드 실패, 가상계좌가 켜졌는데 없으면 경고. 등록은 `bash scripts/register-toss-escrow-key.sh`(입력 숨김 → `vercel env add … production --sensitive`) | 두지 않음(빌드 실패) |
 
 키 규칙:
 
@@ -185,7 +186,8 @@ build readback 줄에는 키 값 없이 `Toss configured`·목적별 gate·canar
 `Toss mode=test|live|none`, 결제 UI(`Toss variant=ICONS`, 바인딩 전에는 `Toss variant=DEFAULT (unbound),
 Toss merchant check=off`), `Toss merchant=`(바인딩이 켜졌을 때 그 모드에서 런타임이 허용하는 MID —
 테스트 키면 `ticonsi0xvd|ticonsi8sr4`, 라이브 키면 `iconsi0xvd|iconsi8sr4`, env로 더한 MID가 뒤에 붙고, 키
-없음은 `none`), `docs public key=true|false`, 가상계좌 운영 스위치(`Toss virtual account=enabled|disabled`),
+없음은 `none`), `docs public key=true|false`, 가상계좌 운영 스위치(`Toss virtual account=enabled|disabled`)와
+에스크로 키 등록 여부(`Toss escrow key configured=true|false`, 값은 싣지 않는다),
 나이스페이 상태, `payment reconciliation secret configured=true|false`가 실린다. `Toss variant`는 결제 어드민에 있어야 하는 결제 UI 이름이다 — 빌드는
 결제 어드민을 볼 수 없으므로 그 UI의 존재·MID 연결·노출 결제수단·한글 표시는 사람이 확인한다.
 
@@ -554,6 +556,11 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
 4. 개발자센터 > 웹훅: MID `iconsi0xvd`(테스트 `ticonsi0xvd`)의 `https://iconsip.com/api/webhooks/tosspayments`에
    **`DEPOSIT_CALLBACK`**을 더한다(기존 `PAYMENT_STATUS_CHANGED`는 그대로).
 5. 개발자센터 > API 키: 라이브·테스트 키의 **API 버전**이 같은지 확인한다(1.4 이하면 입금 오류 되돌림이 `CANCELED`로 온다).
+5-1. 개발자센터 > API 키 > MID `iconsi0xvd`(테스트 모드면 `ticonsi0xvd`)의 **API 개별 연동 키 → 시크릿 키**(`live_sk_…`/`test_sk_…`)를
+   에스크로 키로 등록한다: 저장소 루트에서 `bash scripts/register-toss-escrow-key.sh`(값은 화면에 보이지 않게 입력 — 채팅·파일·로그에 남기지
+   않는다) → production 재배포 → readback `Toss escrow key configured=true`. 결제 키(`TOSS_SECRET_KEY`)와 모드가 같아야 한다(라이브 전환 때
+   함께 바꾼다). 이 키가 없으면 에스크로 배송 등록이 대기하고 시스템 상태의 '에스크로 배송 등록·거래 상태 확인' 작업이
+   '에스크로 API 키 없음'으로 실패를 알린다. 구매자 에스크로 취소 신청 건의 환불도 이 키로 신청을 확인한다(없으면 일반 결제 취소로 간다).
 6. 법정 고지(이번 개정 확정값: 2026-11-23 즉시 시행 — 운영 책임자 결정, 날짜 파일의 `noticeWaiver`가 기록):
    `lib/legal/virtual-account-terms-revision.json`의 시행일은 원칙상 공지일 + 7일 이상이다. 더 짧게 하려면 운영 책임자 결정을
    `noticeWaiver`(10~200자)로 남겨야 빌드 가드가 받는다. 다른 예약 개정(표기·부분 반품·알림톡)과의 선후는 법정 문서가 시행일
@@ -577,7 +584,8 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
 | `provider_refund_failed` | 은행 환불이 실패(`refundStatus` FAILED) | 토스 상점관리자에서 환불 상태 확인·재환불, 구매자 안내 |
 | `deposit_reversed` 출고 보류 | 은행이 입금을 취소 | 토스 상점관리자에서 입금 상태 확인 → 다시 입금됐으면 보류 해제, 아니면 운영자 전액 취소 |
 | `escrow_cancel_requested` 출고 보류 | 구매자가 토스 구매안전서비스에서 취소 신청 | 운영자 전액 취소(신청 수락 → 구매자 등록 계좌로 환불). 수락하지 않으면 토스 상점관리자에서 구매확정 요청 메일 재발송 |
-| 에스크로 배송 등록 운영자 확인(주문 패널) | 택배사 코드 없음·송장 형식 거절·에스크로 API 권한 없음 | 토스 상점관리자에서 배송 정보를 직접 등록 |
+| 에스크로 배송 등록 운영자 확인(주문 패널) | 택배사 코드 없음·송장 형식 거절 | 토스 상점관리자에서 배송 정보를 직접 등록 |
+| 시스템 상태 '에스크로 API 키 없음'·'토스가 API 키를 거절함'(작업 `toss-escrow`) | `TOSS_ESCROW_SECRET_KEY`가 없거나 토스가 거절(401·403·키 오류) — 작업은 운영자 확인으로 굳지 않고 대기·다시 시도로 남는다 | 사람 단계 5-1로 키를 (다시) 등록하고 재배포 → 다음 회차(15분)에 다시 돈다. 키 모드가 결제 키와 같은지, 개발자센터에서 MID가 맞는지 확인 |
 
 `awaiting_deposit` 시도가 입금 기한 + 2시간이 지나도 닫히지 않으면 시스템 상태의 미종결 결제에 보인다 — [결제 상태 다시
 확인]으로 바로 조회하고(기한이 지났으면 계좌를 반납하고 주문을 닫는다), 자동 재확인 cron(`payment-reconciliation`)이

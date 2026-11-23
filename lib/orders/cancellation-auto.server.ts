@@ -161,6 +161,7 @@ export async function issueApprovedOrderCancellation(
     const dependencies = providedDependencies ?? createDefaultDependencies();
     const deadline = dependencies.now() + Math.max(0, options.awaitConfirmingAttemptMs ?? 0);
     const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? POLL_INTERVAL_MS);
+    let releasedDeposit = false;
 
     for (;;) {
       const state = await dependencies.loadState(orderId);
@@ -174,11 +175,18 @@ export async function issueApprovedOrderCancellation(
         return { status: 'reconciled', requestId: state.requestId, result };
       }
       if (state.requestStatus === 'needs_review') return { status: 'skipped', reason: 'needs_review' };
-      if (state.requestStatus === 'requested' && state.attemptState === 'awaiting_deposit' && state.attemptId) {
+      if (state.requestStatus === 'requested' && state.attemptState === 'awaiting_deposit' && state.attemptId && !releasedDeposit) {
         // 입금 전 가상계좌 주문의 취소 — 계좌를 반납하면 결제 없이 끝난 주문이라 DB가 요청을 바로 종결한다. 반납이 리스에
         // 막히면(다른 재정합 진행 중) 요청은 requested로 남고, 다음 재확인의 입금 대기 확정을 DB가 거부해 그 자리에서 반납한다.
         try {
           const outcome = await dependencies.releaseAwaitingDeposit(state.attemptId);
+          // 반납 직전에 입금이 도착했다(조회가 DONE → 승인). 승인 finalizer가 열린 취소 요청을 처리 중으로 승인했으니 같은 실행에서
+          // 상태를 다시 읽어 환불(결제사 전액 취소)까지 잇는다 — 뒤따르는 입금 웹훅은 이미 승인이라 아무것도 하지 않고, 처리 중
+          // 요청을 다시 돌리는 cron도 없다. 반납은 한 번만 시도한다.
+          if (outcome === 'approved') {
+            releasedDeposit = true;
+            continue;
+          }
           return { status: 'released', requestId: state.requestId, outcome };
         } catch (error) {
           if (error instanceof GoodsPaymentReconciliationInProgressError) {

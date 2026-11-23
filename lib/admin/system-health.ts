@@ -68,6 +68,9 @@ export function systemErrorCodeLabel(code: string | null): string | null {
   if (code === 'pg_cron_failed') return 'DB 작업 실패';
   if (code === 'rows_skipped') return '일부 건 건너뜀';
   if (code === 'reconciliation_candidates_unavailable') return '재확인 대상 조회 실패';
+  // 토스 에스크로 부가서비스 API 키(TOSS_ESCROW_SECRET_KEY) — 런북 '가상계좌' 절의 키 등록 단계로 고친다.
+  if (code === 'toss_escrow_key_missing') return '에스크로 API 키 없음(배송 등록 대기 중)';
+  if (code === 'toss_escrow_key_rejected') return '토스가 API 키를 거절함(키 확인 필요)';
   if (code.startsWith('exception')) return '처리 중 오류';
   if (code.startsWith('db:') || code.startsWith('sqlstate_')) return `DB 오류(${code.replace(/^(db:|sqlstate_)/, '')})`;
   return code;

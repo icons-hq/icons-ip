@@ -18,6 +18,7 @@ import type {
 import { type PaymentBalanceInspection, PARTIAL_CANCEL_UNAVAILABLE_REASON } from './gateway';
 import {
   isTossAllowedMerchantId,
+  isTossApiSecretKey,
   isTossClientKey,
   isTossKeyPairAligned,
   isTossProviderOrderId,
@@ -26,6 +27,7 @@ import {
   parseTossVirtualAccountEnabled,
   parseTossWidgetVariantKey,
   TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME,
+  tossApiSecretKeyMode,
   tossKeyMode,
   tossMerchantBindingFromEnvironment,
 } from './toss-config.mjs';
@@ -219,6 +221,12 @@ interface TossGatewayOptions {
    * 켜져 있어도 결제 UI 바인딩이 있고 굿즈 주문일 때만 받는다 — 그 밖은 지금 가드(발급 즉시 반납) 그대로다.
    */
   readonly virtualAccountEnabled?: boolean;
+  /**
+   * 에스크로 부가서비스 API 키(API 개별 연동 시크릿 키 `test_sk_`·`live_sk_`, 서버 env TOSS_ESCROW_SECRET_KEY). 결제 키와 모드가 같을
+   * 때만 쓴다. 없으면 구매자 에스크로 취소 신청을 확인하지 못하므로 환불은 일반 결제 취소 API로 간다(에스크로 가이드: 상점이 먼저
+   * 취소하려면 결제 취소 API를 쓴다).
+   */
+  readonly escrowSecretKey?: string;
 }
 
 /** 결제 UI 바인딩 — variantKey는 결제 어드민의 결제 UI 이름, additionalMerchantIds는 env로 더한 라이브 MID. */
@@ -274,6 +282,11 @@ interface ProviderRequestInit {
   readonly timeoutMs: number;
   readonly idempotencyKey?: string;
   readonly body?: Record<string, unknown>;
+  /**
+   * 인증 키. 기본(payment)은 결제 시크릿 키(gsk) — 코어 API(승인·취소·조회)다. escrow는 에스크로 부가서비스 API(거래 조회·취소 요청
+   * 수락)라 API 개별 연동 시크릿 키(escrowSecretKey)로 부른다(토스 'API 키' 문서: gsk는 부가서비스 API를 부를 수 없다).
+   */
+  readonly credential?: 'payment' | 'escrow';
 }
 
 interface ProviderResponse {
@@ -678,6 +691,10 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   const wait = options.wait
     ?? ((ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); }));
   const authorizationHeader = `Basic ${Buffer.from(`${secretKey}:`, 'utf8').toString('base64')}`;
+  const escrowSecretKey = options.escrowSecretKey;
+  const escrowAuthorizationHeader = isTossApiSecretKey(escrowSecretKey) && tossApiSecretKeyMode(escrowSecretKey) === keyMode
+    ? `Basic ${Buffer.from(`${escrowSecretKey}:`, 'utf8').toString('base64')}`
+    : null;
 
   function callbackNonce(attempt: PaymentAttempt) {
     return createHmac('sha256', secretKey)
@@ -735,10 +752,13 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), init.timeoutMs);
     try {
+      const authorization = init.credential === 'escrow' ? escrowAuthorizationHeader : authorizationHeader;
+      // 에스크로 키 없이 에스크로 API를 부르는 호출자는 없다(호출 전에 escrowAuthorizationHeader를 본다). 방어선으로 전송 전에 끊는다.
+      if (!authorization) throw new TossResponseBodyInvalidError();
       const response = await fetchImpl(new URL(path, TOSS_API_ORIGIN).toString(), {
         method: init.method,
         headers: {
-          authorization: authorizationHeader,
+          authorization,
           accept: 'application/json',
           ...(init.body ? { 'content-type': 'application/json' } : {}),
           ...(init.idempotencyKey ? { 'idempotency-key': init.idempotencyKey } : {}),
@@ -1573,13 +1593,14 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   /**
    * 에스크로 결제의 구매자 취소 신청 여부(ADR-0049). 에스크로 결제는 Payment에 `useEscrow: true`와 `escrowKey`(에스크로
    * 거래 id — 가상계좌는 입금 뒤에 채워진다)가 실린다(/guides/v2/escrow "에스크로 결제 판별하기"). 거래 조회
-   * GET /v2/escrows/{id}의 status가 CANCEL_REQUESTED면 취소 수락 API로 환불한다. 조회가 키·권한·없음(4xx)으로 거부되면
-   * 에스크로 경로를 쓰지 않고 일반 취소로 간다 — 일시 장애(5xx·전송 실패)만 unavailable이다.
+   * GET /v2/escrows/{id}의 status가 CANCEL_REQUESTED면 취소 수락 API로 환불한다. 가상계좌·계좌이체 모두다(결정 6). 거래 조회는
+   * 부가서비스 API라 에스크로 키(API 개별 연동 sk)로 부른다 — 키가 없거나 조회가 키·권한·없음(4xx)으로 거부되면 에스크로 경로를 쓰지
+   * 않고 일반 취소로 간다. 일시 장애(5xx·전송 실패)만 unavailable이다.
    */
   async function escrowCancelRequest(
     payment: Record<string, unknown>,
   ): Promise<{ kind: 'none' } | { kind: 'cancel_requested'; escrowKey: string } | { kind: 'unavailable' }> {
-    if (payment.useEscrow !== true) return { kind: 'none' };
+    if (payment.useEscrow !== true || escrowAuthorizationHeader === null) return { kind: 'none' };
     const escrowKey = payment.escrowKey;
     if (!safeString(escrowKey, 64) || !/^[\x21-\x7e]+$/.test(escrowKey)) return { kind: 'none' };
     let response: ProviderResponse;
@@ -1587,6 +1608,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       response = await providerFetch(`/v2/escrows/${encodeURIComponent(escrowKey)}`, {
         method: 'GET',
         timeoutMs: requestTimeoutMs,
+        credential: 'escrow',
       });
     } catch {
       return { kind: 'unavailable' };
@@ -2025,43 +2047,44 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       let cancelPath = `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`;
       let cancelBody: Record<string, unknown> = { cancelReason: request.reason };
       let cancelKey = request.idempotencyKey;
-      if (isVirtualAccountPayment(before.payment)) {
-        // 입금이 끝난 가상계좌(ADR-0049). 구매자가 에스크로 결제의 취소를 토스에 신청해 둔 상태면 에스크로 취소 수락
-        // API가 취소다(환불 계좌는 구매자가 신청 때 등록한 계좌, 금액 지정 없음 = 전액, 멱등키 필수 — 부가 API
-        // /reference/additional#취소-요청-수락). 그 밖에는 취소 API에 환불 계좌를 싣는다(결제 취소 가이드 Case 1) — 계좌가
-        // 없으면 결제사를 부르지 않는다: 계좌 없이 한 번 부른 취소의 거절 응답이 같은 멱등키에 15일간 재생된다.
-        const escrow = await escrowCancelRequest(before.payment);
-        if (escrow.kind === 'unavailable') {
-          return baseOutcome(attempt, 'unknown', 'provider_unavailable', { providerPaymentKey: paymentKey }) as RefundOutcome;
+      let cancelCredential: 'payment' | 'escrow' = 'payment';
+      // 에스크로 결제(가상계좌·계좌이체 — ADR-0049 결정 6)에서 구매자가 토스에 취소를 신청해 둔 상태면 에스크로 취소 수락 API가
+      // 취소다(환불 계좌는 구매자가 신청 때 등록한 계좌, 금액 지정 없음 = 전액, 멱등키 필수 — 부가 API /reference/additional#취소-요청-수락,
+      // 에스크로 키로 부른다).
+      const escrow = await escrowCancelRequest(before.payment);
+      if (escrow.kind === 'unavailable') {
+        return baseOutcome(attempt, 'unknown', 'provider_unavailable', { providerPaymentKey: paymentKey }) as RefundOutcome;
+      }
+      if (escrow.kind === 'cancel_requested') {
+        cancelPath = `/v2/escrows/${encodeURIComponent(escrow.escrowKey)}/cancel`;
+        cancelBody = { reason: request.reason.slice(0, 150) };
+        cancelKey = `${request.idempotencyKey}:escrow`;
+        cancelCredential = 'escrow';
+      } else if (isVirtualAccountPayment(before.payment)) {
+        // 입금이 끝난 가상계좌(ADR-0049) — 취소 API에 환불 계좌를 싣는다(결제 취소 가이드 Case 1). 계좌가 없으면 결제사를 부르지
+        // 않는다: 계좌 없이 한 번 부른 취소의 거절 응답이 같은 멱등키에 15일간 재생된다.
+        const account = request.refundReceiveAccount;
+        if (
+          !account
+          || !VIRTUAL_ACCOUNT_BANK_CODE.test(account.bankCode)
+          || !REFUND_ACCOUNT_NUMBER.test(account.accountNumber)
+          || !safeString(account.holderName, 50)
+        ) {
+          return baseOutcome(attempt, 'needs_review', 'provider_refund_account_required', {
+            providerPaymentKey: paymentKey,
+            resultCode: 'DONE_refund_account_required',
+            paymentMethod: '가상계좌',
+          }) as RefundOutcome;
         }
-        if (escrow.kind === 'cancel_requested') {
-          cancelPath = `/v2/escrows/${encodeURIComponent(escrow.escrowKey)}/cancel`;
-          cancelBody = { reason: request.reason.slice(0, 150) };
-          cancelKey = `${request.idempotencyKey}:escrow`;
-        } else {
-          const account = request.refundReceiveAccount;
-          if (
-            !account
-            || !VIRTUAL_ACCOUNT_BANK_CODE.test(account.bankCode)
-            || !REFUND_ACCOUNT_NUMBER.test(account.accountNumber)
-            || !safeString(account.holderName, 50)
-          ) {
-            return baseOutcome(attempt, 'needs_review', 'provider_refund_account_required', {
-              providerPaymentKey: paymentKey,
-              resultCode: 'DONE_refund_account_required',
-              paymentMethod: '가상계좌',
-            }) as RefundOutcome;
-          }
-          cancelBody = {
-            cancelReason: request.reason,
-            refundReceiveAccount: {
-              bank: account.bankCode,
-              accountNumber: account.accountNumber,
-              holderName: account.holderName,
-            },
-          };
-          cancelKey = `${request.idempotencyKey}:va-${refundAccountKeySuffix(account)}`;
-        }
+        cancelBody = {
+          cancelReason: request.reason,
+          refundReceiveAccount: {
+            bank: account.bankCode,
+            accountNumber: account.accountNumber,
+            holderName: account.holderName,
+          },
+        };
+        cancelKey = `${request.idempotencyKey}:va-${refundAccountKeySuffix(account)}`;
       }
       let cancelSucceeded = false;
       try {
@@ -2072,6 +2095,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
             timeoutMs: requestTimeoutMs,
             idempotencyKey: cancelKey,
             body: cancelBody,
+            credential: cancelCredential,
           },
         );
         const code = anyErrorCode(cancelResult.payload);

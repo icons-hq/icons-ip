@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createTossEscrowWorker, tossKstTimestamp, type TossEscrowJob } from './toss-escrow.server';
 
 const API = 'https://api.tosspayments.com';
+/* 결제 조회는 결제 키(gsk), 에스크로 부가서비스 API는 API 개별 연동 키(sk)다(토스 'API 키' 문서). */
+const KEYS = { paymentSecretKey: 'test_gsk_x', escrowSecretKey: 'test_sk_escrow' } as const;
+const auth = (key: string) => `Basic ${Buffer.from(`${key}:`).toString('base64')}`;
 const ORDER_ID = '20000000-0000-4000-8000-000000004901';
 const PAYMENT_KEY = 'tviva20261123000000vaKEY123456789';
 const ESCROW_KEY = 'escrow_a01kradqm4cyvaw4ym4p4svjgqd';
@@ -47,7 +50,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
       .mockResolvedValueOnce(json(200, { paymentKey: PAYMENT_KEY, useEscrow: true, escrowKey: ESCROW_KEY }))
       .mockResolvedValueOnce(json(200, escrow()))
       .mockResolvedValueOnce(json(200, { entityType: 'delivery', entityBody: { id: 'delivery_1', status: 'IN_TRANSIT' } }));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
     const result = await worker.process(job());
 
@@ -67,7 +70,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
 
   it('에스크로를 고르지 않은 결제면 건너뛴다(useEscrow로만 판별)', async () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(json(200, { paymentKey: PAYMENT_KEY, useEscrow: false, escrowKey: null }));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
     await expect(worker.process(job())).resolves.toEqual({ outcome: 'skipped' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -77,7 +80,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(json(200, escrow()))
       .mockResolvedValueOnce(json(200, { entityBody: { id: 'delivery_2', status: 'COMPLETED' } }));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
     await worker.process(job({ escrowKey: ESCROW_KEY, deliveryMethod: 'DIRECT', carrier: null, trackingNumber: null, shippedAt: null, receivedAt: '2026-11-24T05:00:00.000Z' }));
 
@@ -91,7 +94,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
 
   it('모르는 택배사는 등록하지 않고 운영자 확인으로 넘긴다', async () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(json(200, escrow()));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
     const result = await worker.process(job({ escrowKey: ESCROW_KEY, carrier: 'mystery' }));
 
@@ -101,7 +104,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
 
   it('송장 형식 거절(4xx)은 운영자 확인, 5xx·전송 실패는 다시 시도', async () => {
     const rejected = createTossEscrowWorker({
-      secretKey: 'test_gsk_x',
+      ...KEYS,
       fetch: vi.fn()
         .mockResolvedValueOnce(json(200, escrow()))
         .mockResolvedValueOnce(json(400, { error: { code: 'INVALID_REQUEST', message: '송장번호 형식' } })) as unknown as typeof fetch,
@@ -109,7 +112,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
     await expect(rejected.process(job({ escrowKey: ESCROW_KEY }))).resolves.toMatchObject({ outcome: 'manual_required', errorCode: 'INVALID_REQUEST' });
 
     const flaky = createTossEscrowWorker({
-      secretKey: 'test_gsk_x',
+      ...KEYS,
       fetch: vi.fn()
         .mockResolvedValueOnce(json(200, escrow()))
         .mockResolvedValueOnce(json(503, { error: { code: 'FAILED_INTERNAL_SYSTEM_PROCESSING' } })) as unknown as typeof fetch,
@@ -117,16 +120,38 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
     await expect(flaky.process(job({ escrowKey: ESCROW_KEY }))).resolves.toMatchObject({ outcome: 'retry' });
   });
 
-  it('에스크로 API 권한이 없으면(403) 운영자 확인 — 토스 상점관리자에서 등록한다', async () => {
-    const fetchImpl = vi.fn().mockResolvedValueOnce(json(403, { error: { code: 'FORBIDDEN_REQUEST' } }));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+  /* 키가 거절되면 사람이 키를 고칠 일이지 이 작업을 직접 등록할 일이 아니다 — 다시 시도로 두면 키를 고친 뒤 다음 회차에 다시 돈다. */
+  it.each([
+    [403, 'FORBIDDEN_REQUEST'], [401, 'UNAUTHORIZED_KEY'], [400, 'INVALID_API_KEY'], [401, undefined],
+  ])('에스크로 키가 거절되면(%s %s) 운영자 확인으로 굳히지 않고 다시 시도한다', async (status, code) => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(json(status, code ? { error: { code } } : {}));
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
-    await expect(worker.process(job({ escrowKey: ESCROW_KEY }))).resolves.toMatchObject({ outcome: 'manual_required', errorCode: 'FORBIDDEN_REQUEST' });
+    await expect(worker.process(job({ escrowKey: ESCROW_KEY }))).resolves.toMatchObject({ outcome: 'retry', errorCode: 'toss_escrow_key_rejected' });
+  });
+
+  it('결제 조회는 결제 키, 거래 조회·배송 등록은 에스크로 키로 부른다', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(json(200, { paymentKey: PAYMENT_KEY, useEscrow: true, escrowKey: ESCROW_KEY }))
+      .mockResolvedValueOnce(json(200, escrow()))
+      .mockResolvedValueOnce(json(200, { version: '2022-11-16', entityType: 'delivery', entityBody: { id: 'delivery_1' } }));
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
+
+    await expect(worker.process(job())).resolves.toMatchObject({ outcome: 'registered' });
+    const headers = fetchImpl.mock.calls.map(([, init]) => (init as RequestInit & { headers: Record<string, string> }).headers.authorization);
+    expect(headers).toEqual([auth(KEYS.paymentSecretKey), auth(KEYS.escrowSecretKey), auth(KEYS.escrowSecretKey)]);
+  });
+
+  it('결제 키가 결제 조회에서 거절되면 결제 키 거절로 다시 시도한다', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(json(401, { code: 'UNAUTHORIZED_KEY' }));
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
+
+    await expect(worker.process(job())).resolves.toMatchObject({ outcome: 'retry', errorCode: 'toss_payment_key_rejected' });
   });
 
   it('구매자 취소 신청 중이면 등록하지 않고 상태만 남긴다', async () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(json(200, escrow('CANCEL_REQUESTED')));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
     await expect(worker.process(job({ escrowKey: ESCROW_KEY }))).resolves.toEqual({
       outcome: 'status_only', escrowKey: ESCROW_KEY, escrowStatus: 'CANCEL_REQUESTED',
@@ -138,7 +163,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(json(200, escrow('IN_PROGRESS', { deliveryIds: ['delivery_9'] })))
       .mockResolvedValueOnce(json(200, { entityBody: { id: 'delivery_9', status: 'IN_TRANSIT' } }));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
     const result = await worker.process(job({ escrowKey: ESCROW_KEY }));
 
@@ -152,7 +177,7 @@ describe('토스 에스크로 작업자(ADR-0049)', () => {
 
   it('등록 끝·발송 전 건은 거래 상태만 확인한다', async () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(json(200, escrow('CONFIRMED')));
-    const worker = createTossEscrowWorker({ secretKey: 'test_gsk_x', fetch: fetchImpl as unknown as typeof fetch });
+    const worker = createTossEscrowWorker({ ...KEYS, fetch: fetchImpl as unknown as typeof fetch });
 
     await expect(worker.process(job({ state: 'registered', escrowKey: ESCROW_KEY, tossDeliveryId: 'delivery_1' })))
       .resolves.toEqual({ outcome: 'status_only', escrowKey: ESCROW_KEY, escrowStatus: 'CONFIRMED' });

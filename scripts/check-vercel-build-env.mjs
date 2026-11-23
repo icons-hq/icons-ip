@@ -10,12 +10,15 @@ import {
 import { isNicepayMerchantId, isNicepayMerchantKey } from '../lib/payments/nicepay-config.mjs';
 import {
   TOSS_ADDITIONAL_MERCHANT_IDS_ENV_NAME,
+  TOSS_ESCROW_SECRET_KEY_ENV_NAME,
   TOSS_LEGACY_VARIANT_ENV_NAME,
   TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME,
   TOSS_WIDGET_VARIANT_ENV_NAME,
+  isTossApiSecretKey,
   isTossDocsPublicKey,
   isTossKeyPairAligned,
   parseTossVirtualAccountEnabled,
+  tossApiSecretKeyMode,
   tossKeyMode,
   tossMerchantBindingFromEnvironment,
   tossMerchantIdsForMode,
@@ -475,6 +478,36 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     }
   }
 
+  // 에스크로 부가서비스 API 키(ADR-0049 결정 6 보강). 결제 키(gsk)는 에스크로 거래 조회·배송 등록·취소 수락을 부를 수 없어(토스 'API 키'
+  // 문서) API 개별 연동 시크릿 키를 따로 받는다. production 전용이고 결제 키와 같은 모드여야 한다. 값은 사람이 직접 넣는다
+  // (scripts/register-toss-escrow-key.sh). 없으면 배송 등록이 대기하고 toss-escrow 작업이 toss_escrow_key_missing으로 알린다.
+  const tossEscrowSecretKey = environment[TOSS_ESCROW_SECRET_KEY_ENV_NAME]?.trim() ?? '';
+  const tossEscrowKeyConfigured = tossEscrowSecretKey.length > 0;
+  if (tossEscrowKeyConfigured) {
+    if (target === 'preview') {
+      throw new Error(`Invalid Vercel preview ${TOSS_ESCROW_SECRET_KEY_ENV_NAME}: the escrow API key is production-only`);
+    }
+    if (!isTossApiSecretKey(tossEscrowSecretKey)) {
+      throw new Error(
+        `Invalid Vercel production ${TOSS_ESCROW_SECRET_KEY_ENV_NAME}: use the Toss API individual-integration secret key `
+        + '(test_sk_... / live_sk_...) of the ICONS merchant, not the payment widget secret key (gsk): '
+        + 'docs/runbooks/toss-production-rollout.md',
+      );
+    }
+    if (!tossConfigured || tossApiSecretKeyMode(tossEscrowSecretKey) !== tossMode) {
+      throw new Error(
+        `Invalid Vercel production ${TOSS_ESCROW_SECRET_KEY_ENV_NAME}: requires a Toss widget key pair in the same mode `
+        + `(${tossMode === 'none' ? 'no payment keys' : `payment keys are ${tossMode}`}): docs/runbooks/toss-production-rollout.md`,
+      );
+    }
+  }
+  if (target === 'production' && tossVirtualAccountEnabled && !tossEscrowKeyConfigured) {
+    warnings.push(
+      `${TOSS_ESCROW_SECRET_KEY_ENV_NAME} is not set: escrow delivery registration waits and the toss-escrow job reports `
+      + 'toss_escrow_key_missing. Register it with scripts/register-toss-escrow-key.sh: docs/runbooks/toss-production-rollout.md',
+    );
+  }
+
   return {
     checked: true,
     ...(stagingVerified ? { stagingVerified: true } : {}),
@@ -501,6 +534,7 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     tossMerchantIds: tossBound ? tossMerchantIdsForMode(tossMode, tossBinding.additionalMerchantIds) : [],
     tossDocsPublicKey,
     tossVirtualAccountEnabled,
+    tossEscrowKeyConfigured,
     tossOrderCheckoutEnabled,
     tossTicketCheckoutEnabled,
     tossOrderCanaryConfigured,
@@ -515,7 +549,7 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
  * 배포 로그 readback 한 줄. 이름·boolean·키 모드·결제 UI variantKey·그 모드의 허용 MID(모두
  * 비밀 아님)만 싣고 키 값은 싣지 않는다 — 런북의 배포 확인 절이 이 줄을 대조한다. 결제 UI
  * 바인딩이 꺼져 있으면 `Toss variant=DEFAULT (unbound), Toss merchant check=off`다. 가상계좌 운영 스위치는
- * `Toss virtual account=enabled|disabled`다.
+ * `Toss virtual account=enabled|disabled`, 에스크로 부가서비스 API 키(값이 아니라 있는지만)는 `Toss escrow key configured=true|false`다.
  */
 export function formatVercelBuildReadback(result, target) {
   const tossBinding = result.tossVariantKey
@@ -532,7 +566,8 @@ export function formatVercelBuildReadback(result, target) {
     + `Toss mode=${result.tossMode}, `
     + tossBinding
     + `docs public key=${result.tossDocsPublicKey}; `
-    + `Toss virtual account=${result.tossVirtualAccountEnabled ? 'enabled' : 'disabled'}; `
+    + `Toss virtual account=${result.tossVirtualAccountEnabled ? 'enabled' : 'disabled'}, `
+    + `Toss escrow key configured=${result.tossEscrowKeyConfigured}; `
     + `NICEPAY configured=${result.nicepayConfigured}, `
     + `order checkout enabled=${result.nicepayOrderCheckoutEnabled}, `
     + `order canary configured=${result.nicepayOrderCanaryConfigured}; `

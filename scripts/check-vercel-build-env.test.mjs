@@ -130,6 +130,7 @@ describe('validateVercelBuildEnvironment', () => {
       tossMerchantIds: [],
       tossDocsPublicKey: false,
       tossVirtualAccountEnabled: false,
+      tossEscrowKeyConfigured: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
@@ -233,6 +234,7 @@ describe('validateVercelBuildEnvironment', () => {
       tossMerchantIds: [],
       tossDocsPublicKey: false,
       tossVirtualAccountEnabled: false,
+      tossEscrowKeyConfigured: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
@@ -913,7 +915,7 @@ describe('Toss virtual account switch (ADR-0049)', () => {
   it('stays disabled by default and reads back disabled', () => {
     const result = validateVercelBuildEnvironment(productionEnvironment(liveBound), revision);
     expect(result.tossVirtualAccountEnabled).toBe(false);
-    expect(formatVercelBuildReadback(result, 'production')).toContain('docs public key=false; Toss virtual account=disabled; NICEPAY configured=');
+    expect(formatVercelBuildReadback(result, 'production')).toContain('docs public key=false; Toss virtual account=disabled, Toss escrow key configured=false; NICEPAY configured=');
     expect(validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'false' }), revision).tossVirtualAccountEnabled).toBe(false);
   });
 
@@ -951,5 +953,39 @@ describe('Toss virtual account switch (ADR-0049)', () => {
     expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }))
       .toThrow(/Invalid Vercel preview TOSS_VIRTUAL_ACCOUNT_ENABLED: the virtual account switch is production-only/);
     expect(validateVercelBuildEnvironment({ ...baseEnvironment, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'false' }).tossVirtualAccountEnabled).toBe(false);
+  });
+});
+
+describe('Toss escrow API key (ADR-0049 결정 6 보강)', () => {
+  const liveBound = {
+    NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_iconsdocs00000000000001',
+    TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
+    TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+  };
+  const source = (announced, effective) => JSON.stringify({ announcedDate: announced, effectiveDate: effective });
+  const revision = { virtualAccountRevisionSource: source('2026-11-24', '2026-12-01'), today: '2026-12-01' };
+
+  it('accepts an API individual-integration secret key in the payment key mode and reads back configured', () => {
+    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'live_sk_iconsescrow0000000001' }), revision);
+    expect(result.tossEscrowKeyConfigured).toBe(true);
+    expect(formatVercelBuildReadback(result, 'production')).toContain('Toss escrow key configured=true;');
+    expect(formatVercelBuildReadback(result, 'production')).not.toContain('live_sk_');
+  });
+
+  it('rejects a payment widget key, a mode mismatch, and missing payment keys', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'live_gsk_iconsdocs00000000000001' }), revision))
+      .toThrow(/TOSS_ESCROW_SECRET_KEY: use the Toss API individual-integration secret key/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'test_sk_iconsescrow0000000001' }), revision))
+      .toThrow(/TOSS_ESCROW_SECRET_KEY: requires a Toss widget key pair in the same mode \(payment keys are live\)/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ TOSS_ESCROW_SECRET_KEY: 'live_sk_iconsescrow0000000001' }), revision))
+      .toThrow(/requires a Toss widget key pair in the same mode \(no payment keys\)/);
+  });
+
+  it('is production-only and warns when virtual accounts are open without it', () => {
+    expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, TOSS_ESCROW_SECRET_KEY: 'test_sk_iconsescrow0000000001' }))
+      .toThrow(/Invalid Vercel preview TOSS_ESCROW_SECRET_KEY: the escrow API key is production-only/);
+    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }), revision);
+    expect(result.tossEscrowKeyConfigured).toBe(false);
+    expect(result.warnings.some((warning) => warning.includes('TOSS_ESCROW_SECRET_KEY is not set'))).toBe(true);
   });
 });

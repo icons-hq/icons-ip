@@ -228,6 +228,37 @@ describe('입금 전 가상계좌 주문의 취소(ADR-0049)', () => {
     expect(result).toEqual({ status: 'skipped', reason: 'awaiting_staff' });
   });
 
+  /* 반납 직전에 입금이 도착한 경합 — 반납 재정합의 조회가 DONE이라 승인으로 닫히고, 승인 finalizer가 열린 취소 요청을 처리 중으로
+     승인한다. 같은 실행에서 그 요청의 환불까지 이어야 한다(뒤따르는 입금 웹훅은 이미 승인이라 아무것도 하지 않는다). */
+  it('반납 직전 입금이 승인되면 처리 중이 된 취소를 같은 실행에서 환불한다', async () => {
+    const deps = dependencies([
+      state({ requestStatus: 'requested', attemptState: 'awaiting_deposit', attemptId: ATTEMPT_ID }),
+      state({ requestStatus: 'processing', attemptState: 'approved', attemptId: ATTEMPT_ID }),
+    ]);
+    vi.mocked(deps.releaseAwaitingDeposit).mockResolvedValueOnce('approved');
+
+    const result = await issueApprovedOrderCancellation(ORDER_ID, {}, deps);
+
+    expect(deps.releaseAwaitingDeposit).toHaveBeenCalledTimes(1);
+    expect(deps.reconcile).toHaveBeenCalledWith(REQUEST_ID);
+    expect(result).toEqual({ status: 'reconciled', requestId: REQUEST_ID, result: { ok: true, status: 'completed' } });
+  });
+
+  it('입금 승인 뒤에도 요청이 처리 중으로 바뀌지 않았으면 반납을 다시 부르지 않고 직원 대기로 둔다', async () => {
+    const deps = dependencies([
+      state({ requestStatus: 'requested', attemptState: 'awaiting_deposit', attemptId: ATTEMPT_ID }),
+      // 조회 사이에 상태가 아직 갱신되지 않은 읽기(같은 입금 대기)여도 반납은 한 번만이다.
+      state({ requestStatus: 'requested', attemptState: 'awaiting_deposit', attemptId: ATTEMPT_ID }),
+    ]);
+    vi.mocked(deps.releaseAwaitingDeposit).mockResolvedValueOnce('approved');
+
+    const result = await issueApprovedOrderCancellation(ORDER_ID, {}, deps);
+
+    expect(deps.releaseAwaitingDeposit).toHaveBeenCalledTimes(1);
+    expect(deps.reconcile).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: 'skipped', reason: 'awaiting_staff' });
+  });
+
   it('입금 대기가 아니면(결제 전 prepared 등) 반납하지 않는다', async () => {
     const deps = dependencies([state({ requestStatus: 'requested', attemptState: 'prepared', attemptId: ATTEMPT_ID })]);
 

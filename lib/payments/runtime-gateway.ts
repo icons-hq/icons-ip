@@ -15,7 +15,9 @@ import {
   isTossKeyPairAligned,
   isTossSecretKey,
   parseTossVirtualAccountEnabled,
+  TOSS_ESCROW_SECRET_KEY_ENV_NAME,
   TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME,
+  tossApiSecretKeyMode,
   tossKeyMode,
   tossMerchantBindingFromEnvironment,
 } from './toss-config.mjs';
@@ -76,7 +78,17 @@ function tossConfiguration() {
   // canonical origin 규칙은 provider와 무관한 사이트 속성이라 korpay-config의
   // 정규화를 공용한다.
   const normalizedSiteUrl = normalizeKorpaySiteUrl(siteUrl, { production: true });
-  return normalizedSiteUrl ? { clientKey, secretKey, siteUrl: normalizedSiteUrl } : null;
+  if (!normalizedSiteUrl) return null;
+  // 에스크로 부가서비스 API 키(API 개별 연동 sk). 결제 키와 모드가 같을 때만 쓴다 — 없거나 어긋나면 에스크로 호출을 하지 않는다.
+  const escrowSecretKey = process.env[TOSS_ESCROW_SECRET_KEY_ENV_NAME]?.trim() ?? '';
+  const escrowKeyUsable = tossApiSecretKeyMode(escrowSecretKey) !== null
+    && tossApiSecretKeyMode(escrowSecretKey) === tossKeyMode(secretKey);
+  return {
+    clientKey,
+    secretKey,
+    siteUrl: normalizedSiteUrl,
+    ...(escrowKeyUsable ? { escrowSecretKey } : {}),
+  };
 }
 
 function nicepayConfiguration() {
@@ -149,13 +161,25 @@ export function tossVirtualAccountCheckoutEnabled(): boolean {
 }
 
 /**
- * 에스크로 작업자(cron /api/cron/toss-escrow)가 쓸 토스 시크릿 키(ADR-0049). 운영 배포 + 결제 UI 바인딩이 있을 때만이다 —
- * 가상계좌 입금 대기를 다루는 조건과 같다. 키는 이 server-only 모듈 밖으로 나가 작업자 클로저에만 들어간다.
+ * 결제 UI 바인딩이 있는 운영 배포의 결제 시크릿 키(gsk) — 코어 API(paymentKey로 결제 조회)용. 에스크로 작업자가 결제의 에스크로 사용
+ * 여부·거래 id(`useEscrow`·`escrowKey`)를 읽을 때 쓴다. 가상계좌 입금 대기를 다루는 조건(운영 배포 + 바인딩)과 같다.
+ * 키는 이 server-only 모듈 밖으로 나가 작업자 클로저에만 들어간다.
  */
-export function tossEscrowSecretKey(): string | null {
+export function tossBoundPaymentSecretKey(): string | null {
   const configuration = tossConfiguration();
   if (!configuration) return null;
   return tossMerchantBindingFromEnvironment(process.env).kind === 'bound' ? configuration.secretKey : null;
+}
+
+/**
+ * 에스크로 부가서비스 API 키(ADR-0049 결정 6 보강) — 거래 조회·배송 등록·수정·취소 요청 수락. 결제 키(gsk)는 부가서비스 API를 부를 수
+ * 없어(토스 'API 키' 문서) API 개별 연동 시크릿 키(TOSS_ESCROW_SECRET_KEY)를 따로 받는다. 운영 배포 + 결제 UI 바인딩 + 결제 키와 같은
+ * 모드일 때만이다. 없으면 null — 작업자는 작업을 대기로 두고 시스템 상태에 경고를 올린다.
+ */
+export function tossEscrowSecretKey(): string | null {
+  const configuration = tossConfiguration();
+  if (!configuration?.escrowSecretKey) return null;
+  return tossMerchantBindingFromEnvironment(process.env).kind === 'bound' ? configuration.escrowSecretKey : null;
 }
 
 /** Credentials make the adapter ready; rollout gates remain independent. */
