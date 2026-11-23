@@ -120,6 +120,7 @@ export function claimRefundAccountError(code?: string, message?: string): ClaimR
     refund_account_already_recorded: '환불계좌가 이미 등록되어 있습니다. 변경이 필요하면 고객지원에 문의해주세요.',
     refund_account_finance_started: '환급 처리가 시작되어 계좌를 추가할 수 없습니다. 고객지원에 문의해주세요.',
     refund_account_refund_in_progress: '지금 환불을 처리하고 있어 계좌를 바꿀 수 없어요. 처리 결과가 나오면 이 화면에서 다시 확인해주세요.',
+    invalid_virtual_account_refund_account: '은행은 목록에서 고르고, 계좌번호는 숫자 6~20자리(하이픈 제외)로 입력해주세요.',
     refund_account_request_sealed: '종료한 저장 요청입니다. 최신 상태를 확인한 뒤 새로 입력해주세요.',
     refund_account_request_expired: '계좌 보관 기간이 종료됐습니다. 저장 기록을 확인해주세요.',
     refund_account_request_conflict: '처음 보낸 내용과 다릅니다. 이전 요청의 저장 결과를 확인해주세요.',

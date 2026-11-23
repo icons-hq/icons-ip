@@ -1,9 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import { paymentAttemptRoute, reconcilablePaymentProviders, reconcilePaymentAttempt } from '@/lib/payments/attempt-reconciliation.server';
-import { tossEscrowSecretKey } from '@/lib/payments/runtime-gateway';
+import { tossBoundPaymentSecretKey } from '@/lib/payments/runtime-gateway';
 import { createTossVirtualAccountRefundInspector, type VirtualAccountRefundWatch } from '@/lib/payments/toss-virtual-account-refund-watch.server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { startCronRun } from '@/lib/system-health/cron-run.server';
+import { cronErrorCode, startCronRun } from '@/lib/system-health/cron-run.server';
 import { isUuid } from '@/lib/uuid';
 
 /*
@@ -19,6 +19,8 @@ import { isUuid } from '@/lib/uuid';
  * 둘째 단계: 가상계좌 은행 환불 감시(ADR-0049 결정 5 보강). 환불(취소 API CANCELED) 뒤 은행이 영업일 2일 안에 송금하는데 그 사이 실패를
  * 운영자가 [상태 다시 확인]을 누르기 전엔 몰랐다. 고르는 규칙은 DB(service_claim_virtual_account_refund_watches — 송금 확인 전·실패, 환불
  * 30일 안, 2시간·6시간 간격)가 정하고, 회차당 3건을 원장 결제 키로 조회해 결과를 남긴다(service_record_virtual_account_refund_watch).
+ * paymentKey 조회는 코어 API라 결제 위젯 시크릿 키(gsk)로 부른다(에스크로 부가서비스 키가 아니다 — 토스 'API 키' 문서).
+ * 이 단계의 실패(조회 불가·기록 실패·예외)는 첫 단계 건수를 버리지 않고 응답만 실패로 남긴다.
  * 실패·7일 지연은 DB가 운영 알림(벨·운영 알림 요약 메일)과 시스템 상태의 '환불 송금 실패'로 올린다. 토스 결제 UI 바인딩이 없는 배포는
  * 가상계좌가 없으므로 이 단계를 건너뛴다.
  */
@@ -73,6 +75,11 @@ export async function GET(request: Request) {
   try {
     const started = Date.now();
     const providers = reconcilablePaymentProviders();
+    // 가상계좌 은행 환불 감시 — 토스 결제 UI 바인딩이 있는 운영 배포만(가상계좌는 그때만 받는다).
+    const paymentSecretKey = tossBoundPaymentSecretKey();
+    if (!providers.length && !paymentSecretKey) {
+      return run.finish(Response.json({ ok: true, providers: 0, candidates: 0 }, { headers }));
+    }
     const counts = { providers: providers.length, candidates: 0, approved: 0, closed: 0, awaitingDeposit: 0, unresolved: 0, inProgress: 0, unavailable: 0, failed: 0, deferred: 0 };
     const service = createServiceClient();
     if (providers.length) {
@@ -96,36 +103,40 @@ export async function GET(request: Request) {
       }
     }
 
-    // 가상계좌 은행 환불 감시 — 토스 결제 UI 바인딩이 있는 배포만(가상계좌는 그때만 받는다).
-    const refunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, recordFailed: 0, deferred: 0 };
-    const secretKey = tossEscrowSecretKey();
-    if (secretKey) {
-      const { data, error } = await service.rpc('service_claim_virtual_account_refund_watches', { p_limit: REFUND_WATCH_LIMIT });
-      const watches = error ? null : parseRefundWatches(data);
-      if (!watches) throw new Error('refund_watches_unavailable');
-      refunds.watches = watches.length;
-      const inspector = createTossVirtualAccountRefundInspector({ secretKey });
-      for (const watch of watches) {
-        // 미룬 감시는 DB가 건 10분 리스 뒤에 다시 뽑힌다.
-        if (Date.now() - started > REFUND_WATCH_BUDGET_MS) { refunds.deferred += 1; continue; }
-        const inspection = await inspector.inspect(watch);
-        if (inspection.outcome === 'completed') refunds.completed += 1;
-        else if (inspection.outcome === 'pending') refunds.pending += 1;
-        else if (inspection.outcome === 'unavailable') refunds.unavailable += 1;
-        else refunds.failed += 1;
-        const { error: recordError } = await service.rpc('service_record_virtual_account_refund_watch', {
-          p_attempt_id: watch.attemptId,
-          p_outcome: inspection.outcome,
-          p_refund_status: inspection.refundStatus,
-        });
-        if (recordError) refunds.recordFailed += 1;
-        if (inspection.outcome === 'failed' || inspection.outcome === 'mismatch') {
-          console.error('[cron/payment-reconciliation] virtual account refund needs operator action', { orderId: watch.orderId, outcome: inspection.outcome });
+    const refunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, recordFailed: 0, deferred: 0, errored: false };
+    if (paymentSecretKey) {
+      try {
+        const { data, error } = await service.rpc('service_claim_virtual_account_refund_watches', { p_limit: REFUND_WATCH_LIMIT });
+        const watches = error ? null : parseRefundWatches(data);
+        if (!watches) throw new Error('refund_watches_unavailable');
+        refunds.watches = watches.length;
+        const inspector = createTossVirtualAccountRefundInspector({ secretKey: paymentSecretKey });
+        for (const watch of watches) {
+          // 미룬 감시는 DB가 건 10분 리스 뒤에 다시 뽑힌다.
+          if (Date.now() - started > REFUND_WATCH_BUDGET_MS) { refunds.deferred += 1; continue; }
+          const inspection = await inspector.inspect(watch);
+          if (inspection.outcome === 'completed') refunds.completed += 1;
+          else if (inspection.outcome === 'pending') refunds.pending += 1;
+          else if (inspection.outcome === 'unavailable') refunds.unavailable += 1;
+          else refunds.failed += 1;
+          const { error: recordError } = await service.rpc('service_record_virtual_account_refund_watch', {
+            p_attempt_id: watch.attemptId,
+            p_outcome: inspection.outcome,
+            p_refund_status: inspection.refundStatus,
+          });
+          if (recordError) refunds.recordFailed += 1;
+          if (inspection.outcome === 'failed' || inspection.outcome === 'mismatch') {
+            console.error('[cron/payment-reconciliation] virtual account refund needs operator action', { orderId: watch.orderId, outcome: inspection.outcome });
+          }
         }
+      } catch (error) {
+        // 앞 단계 건수는 그대로 응답하고 이 단계만 실패로 남긴다(응답 ok=false → 실행 기록이 실패로 남는다).
+        refunds.errored = true;
+        console.error('[cron/payment-reconciliation] refund watch phase failed', { code: cronErrorCode(error) });
       }
     }
 
-    const ok = counts.failed === 0 && counts.unavailable === 0 && refunds.unavailable === 0 && refunds.recordFailed === 0;
+    const ok = counts.failed === 0 && counts.unavailable === 0 && refunds.unavailable === 0 && refunds.recordFailed === 0 && !refunds.errored;
     return run.finish(Response.json({ ok, ...counts, refunds }, { status: ok ? 200 : 503, headers }));
   } catch (error) {
     return run.fail(error, Response.json({ ok: false }, { status: 503, headers }));

@@ -67,6 +67,21 @@ as $function$
 $function$;
 revoke all on function private.order_toss_virtual_account_payment(uuid) from public, anon, authenticated, service_role;
 
+-- 결제대행사(토스) 환불 은행 이름 — 화면 목록(lib/payments/toss-bank-codes.ts TOSS_REFUND_BANKS)과 같다(시험이 대조한다).
+-- 가상계좌 환불은 은행 코드를 보내므로 구매자 입력은 이 목록의 이름만 받는다(이름 → 코드 변환이 추측이 되지 않게).
+create function private.toss_refund_bank_name_known(p_name text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $function$
+  select p_name = any (array[
+    '경남은행', '광주은행', '단위농협', '부산은행', '새마을금고', '산림조합', '신한은행', '신협', '씨티은행', '우리은행', '우체국',
+    '저축은행', '전북은행', '제주은행', '카카오뱅크', '케이뱅크', '토스뱅크', '하나은행', 'HSBC', 'Bank of America', 'IBK기업은행',
+    'KB국민은행', 'iM뱅크(대구)', 'KDB산업은행', 'NH농협은행', 'SC제일은행', 'Sh수협은행', '수협중앙회']);
+$function$;
+revoke all on function private.toss_refund_bank_name_known(text) from public, anon, authenticated, service_role;
+
 -- 가상계좌 주문의 환급 계좌 입력 판정. 결제사 환불이 진행 중이거나 끝났으면 막는다. 이미 입력한 계좌는 바꿀 수 있다.
 create function private.order_claim_virtual_account_refund_blocker(
   p_claim public.order_cancellation_requests,
@@ -85,6 +100,10 @@ as $function$
       or p_claim.status not in ('requested', 'processing', 'needs_review') then 'refund_account_claim_closed'
     -- 결제사 환불을 부르는 중이다 — 결과(완료 또는 결제확인필요)가 나온 뒤 다시 입력한다.
     when p_claim.status = 'processing' then 'refund_account_refund_in_progress'
+    -- 결제확인필요는 계좌 때문에 멈춘 경우(계좌 없음·결제사 거절)만 계좌를 받는다. 그 밖(결과 불명·확인 실패 등)은 결제사가 이미 앞 계좌로
+    -- 환불했을 수 있어 바꾸지 않는다 — 화면·원장의 계좌와 실제 송금 계좌가 갈라지지 않게 한다.
+    when p_claim.status = 'needs_review' and p_claim.last_error_code is distinct from 'provider_refund_account_required'
+      and p_claim.last_error_code is distinct from 'provider_refund_account_invalid' then 'refund_account_finance_started'
     -- 가상계좌는 부분 반품을 받지 않는다(부분 취소 불가). 지금 SQL 차단과 같은 판단이다.
     when private.claim_is_partial_return(p_claim.id) then 'refund_account_payment_unavailable'
     when exists (
@@ -222,6 +241,10 @@ begin
  blocker:=private.order_claim_refund_account_blocker(claim,purchase);
  if blocker is not null then raise check_violation using message=blocker;end if;
  virtual_account:=purchase.payment_method='card' and private.order_toss_virtual_account_payment(purchase.id) is not null;
+ -- 가상계좌 환불은 결제대행사에 은행 코드와 숫자 6~20자리 계좌번호를 보낸다 — 그대로 보낼 수 없는 계좌는 받지 않는다.
+ if virtual_account and (not private.toss_refund_bank_name_known(p_bank_name)
+   or pg_catalog.replace(p_account_number,'-','')!~'^[0-9]{6,20}$') then
+  raise invalid_parameter_value using message='invalid_virtual_account_refund_account';end if;
  replaced:=exists(select 1 from private.claim_refund_accounts where claim_id=claim.id);
  -- 차단 판정이 기존 계좌를 막지 않은 것은 가상계좌 주문뿐이다(회사 계좌 무통장은 refund_account_already_recorded).
  insert into private.claim_refund_accounts(claim_id,bank_name,account_number,account_holder,masked_account,masked_holder)
@@ -305,7 +328,9 @@ begin
     or v_claim.last_error_code is null
     or v_claim.last_error_code not in ('provider_refund_account_required', 'provider_refund_account_invalid')
     or v_purchase.payment_method is distinct from 'card'
-    or exists (select 1 from private.gift_intents as gift where gift.order_id = v_order_id) then
+    or exists (select 1 from private.gift_intents as gift where gift.order_id = v_order_id)
+    -- 운영자 재시작(admin_begin_order_cancellation_reconcile)과 같이 취소 원장이 있어야 처리 중으로 되돌린다.
+    or not exists (select 1 from public.order_cancellation_claims as cancel_claim where cancel_claim.order_id = v_order_id) then
     return 'not_applicable';
   end if;
   v_payment := private.order_toss_virtual_account_payment(v_order_id);
@@ -600,8 +625,10 @@ begin
   if p_limit is null or p_limit not between 1 and 100 then
     raise invalid_parameter_value using message = 'invalid_refund_failure_limit';
   end if;
+  -- 실패와 7일 넘게 송금 확인 전인 감시(조회가 멈춘 경우 포함)를 함께 보인다 — 시스템 상태 건수와 같은 규칙이다.
   return pg_catalog.jsonb_build_object(
-    'total', (select count(*) from private.virtual_account_refund_watches as watch where watch.state = 'failed'),
+    'total', (select count(*) from private.virtual_account_refund_watches as watch
+      where watch.state = 'failed' or (watch.state = 'pending' and watch.refunded_at <= pg_catalog.clock_timestamp() - interval '7 days')),
     'items', coalesce((
       select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
         'orderId', picked.order_id,
@@ -613,13 +640,14 @@ begin
         'failedAt', picked.failed_at,
         'checkedAt', picked.last_checked_at) order by picked.failed_at, picked.order_id)
       from (
-        select watch.order_id, order_record.order_number, attempt.amount, watch.failure_code, watch.refund_status,
-          watch.refunded_at, watch.failed_at, watch.last_checked_at
+        select watch.order_id, order_record.order_number, attempt.amount,
+          coalesce(watch.failure_code, 'refund_overdue') as failure_code, watch.refund_status,
+          watch.refunded_at, coalesce(watch.failed_at, watch.refunded_at + interval '7 days') as failed_at, watch.last_checked_at
         from private.virtual_account_refund_watches as watch
         join public.orders as order_record on order_record.id = watch.order_id
         join public.payment_attempts as attempt on attempt.id = watch.attempt_id
-        where watch.state = 'failed'
-        order by watch.failed_at, watch.order_id
+        where watch.state = 'failed' or (watch.state = 'pending' and watch.refunded_at <= pg_catalog.clock_timestamp() - interval '7 days')
+        order by 7, watch.order_id
         limit p_limit
       ) as picked), '[]'::jsonb));
 end;
@@ -690,8 +718,10 @@ select private.va_refund_patch('private.system_health_report()'::regprocedure, p
     $a$  emails := jsonb_build_object('failed24h', mail_failed, 'bounced24h', mail_bounced);
 
   -- 가상계좌 환불 송금 실패·지연(운영자가 처리 완료로 닫기 전까지). 토스 상점관리자에서 재환불하면 조회가 저절로 닫는다.
-  select count(*), min(w.failed_at) into refund_failed, refund_oldest
-  from private.virtual_account_refund_watches w where w.state = 'failed';$a$),
+  -- 송금 확인 전으로 7일이 지난 감시도 센다 — 자동 재확인이 멈췄거나 결제 키가 빠져 조회하지 못해도 묻히지 않는다.
+  select count(*), min(coalesce(w.failed_at, w.refunded_at + interval '7 days')) into refund_failed, refund_oldest
+  from private.virtual_account_refund_watches w
+  where w.state = 'failed' or (w.state = 'pending' and w.refunded_at <= at - interval '7 days');$a$),
   pg_catalog.jsonb_build_array(
     $a$'payments', payments, 'emails', emails,$a$,
     $a$'payments', payments, 'emails', emails,

@@ -86,7 +86,8 @@ export async function retryVirtualAccountRefundAction(input: unknown): Promise<{
     if (!context || context.actorId !== identity.actorId || context.orderId !== identity.orderId || context.claimId !== identity.claimId) {
       return { error: '최신 요청 상태를 읽지 못했습니다. 다시 확인해주세요.' };
     }
-    if (context.mode !== 'virtual_account' || !context.refundAccountIssue || (!context.maskedAccount && !context.checkoutAccount)) {
+    // 결제사가 거절한 계좌(invalid)는 같은 계좌로 다시 보내도 같은 멱등키의 거절이 재생될 뿐이라 계좌를 바꿔야 한다.
+    if (context.mode !== 'virtual_account' || context.refundAccountIssue !== 'required' || (!context.maskedAccount && !context.checkoutAccount)) {
       return { error: '지금은 환불을 다시 요청할 수 없어요. 환급 계좌를 먼저 입력해주세요.' };
     }
     const refundRetry = await retryVirtualAccountRefund(identity.claimId);

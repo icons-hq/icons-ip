@@ -170,6 +170,9 @@ insert into public.order_cancellation_requests (id, order_id, requested_by, reas
 values ('61000000-0000-4000-8000-000000004912', '21000000-0000-4000-8000-000000004912', '00000000-0000-4000-8000-000000004911',
   '단순 변심 반품', 'change_of_mind', 'return', 'needs_review', private.order_claim_status_for_stage('needs_review'), now(),
   'provider_refund_account_invalid');
+-- 환불 단계까지 온 반품에는 취소 원장 행이 있다(운영자 재시작·시스템 재시작 모두 이 행을 요구한다).
+insert into public.order_cancellation_claims(order_id, requested_by, previous_status)
+values ('21000000-0000-4000-8000-000000004912', '00000000-0000-4000-8000-000000004911', 'paid'::public.order_status);
 
 -- 카드 주문은 지금 차단 그대로(회사 계좌 무통장만), 가상계좌 결제확인필요는 열린다.
 select 1 / case when private.order_claim_refund_account_blocker(c, o) = 'refund_account_payment_unavailable'
@@ -177,6 +180,11 @@ then 1 else 0 end as assert_card_order_still_blocked
 from public.order_cancellation_requests c join public.orders o on o.id = c.order_id where c.id = :'claim_4913';
 select 1 / case when private.order_claim_refund_account_blocker(c, o) is null
 then 1 else 0 end as assert_virtual_account_needs_review_opens
+from public.order_cancellation_requests c join public.orders o on o.id = c.order_id where c.id = :'claim_4911';
+-- 계좌 때문이 아닌 결제확인필요(결과 불명 등)는 결제사가 이미 앞 계좌로 환불했을 수 있어 계좌를 바꾸지 않는다.
+select 1 / case when private.order_claim_refund_account_blocker(jsonb_populate_record(c, jsonb_build_object('last_error_code', 'provider_unavailable')), o)
+  = 'refund_account_finance_started'
+then 1 else 0 end as assert_other_review_codes_block_replacement
 from public.order_cancellation_requests c join public.orders o on o.id = c.order_id where c.id = :'claim_4911';
 
 -- ---------------------------------------------------------------------------
@@ -204,15 +212,24 @@ select 1 / case when (
     '00000000-0000-4000-8000-000000004911', '00000000-0000-4000-8000-0000000049a1') as ctx) c
 ) then 1 else 0 end as assert_card_context_unchanged;
 
+-- 가상계좌 환불은 은행 코드·숫자 6~20자리로 보낸다 — 목록 밖 은행 이름·형식 밖 계좌번호는 저장하지 않는다.
+select pg_temp.expect_error(format($$select public.set_my_order_claim_refund_account('21000000-0000-4000-8000-000000004911', %L,
+  '71000000-0000-4000-8000-0000000049f1', %s, '국민은행', '123-456-789012', '김합성',
+  '00000000-0000-4000-8000-000000004911', '00000000-0000-4000-8000-0000000049a1')$$, :'claim_4911', :revision_4911),
+  'invalid_virtual_account_refund_account');
+select pg_temp.expect_error(format($$select public.set_my_order_claim_refund_account('21000000-0000-4000-8000-000000004911', %L,
+  '71000000-0000-4000-8000-0000000049f2', %s, '신한은행', '1234-5678-9012-3456-7890-12', '김합성',
+  '00000000-0000-4000-8000-000000004911', '00000000-0000-4000-8000-0000000049a1')$$, :'claim_4911', :revision_4911),
+  'invalid_virtual_account_refund_account');
 select 1 / case when (public.set_my_order_claim_refund_account('21000000-0000-4000-8000-000000004911', :'claim_4911',
-  '71000000-0000-4000-8000-000000004911', :revision_4911, '국민은행', '123-456-789012', '김합성',
+  '71000000-0000-4000-8000-000000004911', :revision_4911, 'KB국민은행', '123-456-789012', '김합성',
   '00000000-0000-4000-8000-000000004911', '00000000-0000-4000-8000-0000000049a1'))->>'state' = 'saved'
 then 1 else 0 end as assert_virtual_account_refund_account_saved;
 reset role;
 select set_config('request.jwt.claims', '{}', true);
 
 select 1 / case when (
-  select a.bank_name = '국민은행' and a.account_number = '123-456-789012' and a.account_holder = '김합성' and a.purged_at is null
+  select a.bank_name = 'KB국민은행' and a.account_number = '123-456-789012' and a.account_holder = '김합성' and a.purged_at is null
   from private.claim_refund_accounts a where a.claim_id = :'claim_4911'
 ) and exists (
   select 1 from public.audit_log where action = 'order.claim_refund_account_confirmed' and diff->>'mode' = 'virtual_account'
@@ -402,6 +419,17 @@ then 1 else 0 end as assert_resolved_watch_closed;
 insert into private.virtual_account_refund_watches(attempt_id, order_id, payment_id, provider_payment_key, refunded_at)
 select a.id, a.ref_id, a.payment_id, 'var-key-4912', now() - interval '8 days'
 from public.payment_attempts a where a.id = '31000000-0000-4000-8000-000000004912';
+-- 조회 전이어도(자동 재확인이 멈춰도) 7일 지난 송금 확인 전 감시는 시스템 상태와 확인 목록에 오른다.
+select 1 / case when (private.system_health_report()->'counts'->>'refundFailures')::integer = :refund_failures_before + 1
+then 1 else 0 end as assert_stale_pending_counted;
+set local role authenticated;
+select pg_temp.as_operator();
+select 1 / case when public.admin_virtual_account_refund_failures(20)->'items' @> pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+  'orderId', '21000000-0000-4000-8000-000000004912', 'failureCode', 'refund_overdue'))
+then 1 else 0 end as assert_stale_pending_listed;
+reset role;
+select set_config('request.jwt.claims', '{}', true);
+select set_config('request.jwt.claim.sub', '', true);
 select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004912', 'pending', 'PENDING') = 'failed'
 then 1 else 0 end as assert_overdue_refund_flagged;
 select 1 / case when (

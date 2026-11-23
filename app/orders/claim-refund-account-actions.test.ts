@@ -44,6 +44,10 @@ it('가상계좌 환불 다시 요청은 본인 문맥이 계좌 때문에 멈�
   expect(await retryVirtualAccountRefundAction(identity)).toHaveProperty('error');
   mocks.rpc.mockResolvedValueOnce({ data: context, error: null });
   expect(await retryVirtualAccountRefundAction(identity)).toHaveProperty('error');
+  // 결제사가 거절한 계좌는 바꿔야 풀린다 — 같은 계좌로 다시 요청하지 않는다.
+  mocks.rpc.mockResolvedValueOnce({ data: { ...virtualAccountRefundContext, refundAccountIssue: 'invalid', maskedAccount: '신한은행 ********4321',
+    maskedHolder: '김*성', recordedAt: '2026-11-23T05:00:00.000Z' }, error: null });
+  expect(await retryVirtualAccountRefundAction(identity)).toHaveProperty('error');
   mocks.auth.mockResolvedValueOnce({ user: { id: request.operationId } });
   expect(await retryVirtualAccountRefundAction(identity)).toMatchObject({ authChanged: true });
   expect(mocks.retry).not.toHaveBeenCalled();

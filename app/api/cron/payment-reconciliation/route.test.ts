@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/system-health/cron-run-recorder.server', () => ({ recordCronJobRun: async () => ({ incident: false }) }));
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), reconcile: vi.fn(), providers: vi.fn(), secretKey: vi.fn(), inspect: vi.fn() }));
-vi.mock('@/lib/payments/runtime-gateway', () => ({ tossEscrowSecretKey: mocks.secretKey }));
+vi.mock('@/lib/payments/runtime-gateway', () => ({ tossBoundPaymentSecretKey: mocks.secretKey }));
 vi.mock('@/lib/payments/toss-virtual-account-refund-watch.server', () => ({
   createTossVirtualAccountRefundInspector: () => ({ inspect: mocks.inspect }),
 }));
@@ -26,7 +26,7 @@ beforeEach(() => {
   mocks.reconcile.mockResolvedValue({ kind: 'reconciled', outcome: 'approved' });
   mocks.secretKey.mockReturnValue(null);
 });
-const noRefunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, recordFailed: 0, deferred: 0 };
+const noRefunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, recordFailed: 0, deferred: 0, errored: false };
 afterEach(() => vi.unstubAllEnvs());
 
 describe('미종결 결제 자동 재확인', () => {
@@ -53,7 +53,7 @@ describe('미종결 결제 자동 재확인', () => {
     mocks.providers.mockReturnValue([]);
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, providers: 0, candidates: 0, refunds: noRefunds });
+    expect(await response.json()).toEqual({ ok: true, providers: 0, candidates: 0 });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
@@ -117,10 +117,14 @@ describe('미종결 결제 자동 재확인', () => {
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
 
-    it('감시 목록 모양이 다르면 결제사를 부르지 않고 503이다', async () => {
-      mocks.rpc.mockResolvedValue({ data: [{ ...watch, amount: -1 }], error: null });
-      expect((await GET(request())).status).toBe(503);
+    it('감시 목록 모양이 다르면 결제사를 부르지 않고 503이지만, 앞 단계 건수는 버리지 않는다', async () => {
+      mocks.providers.mockReturnValue(['toss']);
+      mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_payment_reconciliation_candidates'
+        ? { data: [goods], error: null } : { data: [{ ...watch, amount: -1 }], error: null });
+      const response = await GET(request());
+      expect(response.status).toBe(503);
       expect(mocks.inspect).not.toHaveBeenCalled();
+      expect(await response.json()).toMatchObject({ ok: false, candidates: 1, approved: 1, refunds: { errored: true } });
     });
   });
 });
