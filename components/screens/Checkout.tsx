@@ -18,6 +18,7 @@ import {
   type CheckoutAddressField,
   type CheckoutPaymentMethod,
 } from '@/lib/checkout';
+import { ORDER_BUSY_NOTICE_DELAY_MS } from '@/lib/checkout-order-retry';
 import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
@@ -110,6 +111,8 @@ export const checkoutActionErrorCopy = {
   acknowledgement_required: CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
   /* 화면이 보인 제한 고지와 주문 직전 서버 재조회가 달랐다 — 주문서를 새로 읽어 고지를 다시 보인다. */
   claim_notice_changed: CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
+  /* 결제가 몰려 서버가 자동으로 다시 시도한 뒤에도 접수하지 못했다. 만든 주문이 없어 다시 누르면 된다. */
+  order_busy: '주문이 몰려 지금은 접수하지 못했어요. 잠시 후 결제하기를 다시 눌러주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 const actionErrors = checkoutActionErrorCopy;
@@ -241,6 +244,8 @@ export function Checkout({
   const [directCouponId, setDirectCouponId] = useState<string | null>(null);
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /* 결제가 몰려 서버가 주문 생성을 자동으로 다시 시도하는 동안(3초 이상) 버튼과 안내를 '처리 중'으로 바꾼다. */
+  const [submitBusy, setSubmitBusy] = useState(false);
   /* 결제 전 주문 내용 확인·구매 조건 동의(PAY-015). 주문서를 열 때마다 새로 받는다 — 저장하지 않으므로 재시도로 돌아와도 다시 체크한다. */
   const [acknowledged, setAcknowledged] = useState(initialAcknowledged);
   /* 쿠폰 칸의 변경 액션이 진행 중이면 결제를 잠근다(R25) — 끝나기 전의 주문은 이전 쿠폰으로 나가 거절된다. */
@@ -428,6 +433,7 @@ export function Checkout({
     setDraftReturnNeeded(false);
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
+    const busyTimer = setTimeout(() => setSubmitBusy(true), ORDER_BUSY_NOTICE_DELAY_MS);
     try {
       result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits,
         direct ? directCouponId : shipping.sales.coupon?.userCouponId ?? null, items, draft?.id, acknowledged, claimNotice);
@@ -435,6 +441,9 @@ export function Checkout({
       setSubmitError(actionErrors.unavailable);
       setSubmitting(false);
       return;
+    } finally {
+      clearTimeout(busyTimer);
+      setSubmitBusy(false);
     }
     if (!result.ok) {
       /* 거절된 주문은 품목·금액이 바뀌었을 수 있다 — 바뀐 내용을 다시 확인하고 동의하게 한다. */
@@ -727,9 +736,10 @@ export function Checkout({
           <PurchaseAcknowledgement checked={acknowledged} disabled={submitting} hasRestrictedGoods={restrictedGoods.length > 0} claimUnavailable={claimRestrictions === null} onChange={setAcknowledged} />
           <button className="btn btn-holo checkout-submit" disabled={!acknowledged || submitting || cartPending || couponPending || unavailable || Boolean(salePeriodNotice) || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
             {submitting
-              ? '재고를 확인하는 중'
+              ? submitBusy ? '주문이 많아 처리 중이에요' : '재고를 확인하는 중'
               : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}
           </button>
+          {submitting && submitBusy && <p className="money-caption checkout-busy-note" role="status">주문이 몰려 순서대로 처리하고 있어요. 이 화면에서 잠시만 기다려주세요.</p>}
           <p className="money-caption">{checkoutSubmitCaption(draft?.source ?? null, selectedPaymentMethod)}</p>
           <Link className="checkout-back" href={draftReturnHref}>{draft?.source === 'direct' ? '← 굿즈로 돌아가기' : '← 장바구니 수정'}</Link>
         </aside>
