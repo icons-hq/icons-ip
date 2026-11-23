@@ -67,6 +67,14 @@ describe('CollectionBanners — Figma 스트립 배너(콘텐츠 폭 1272×340, 
     expect(html).toMatch(/<a class="wc-strip-banner__link" href="\/offline-popups\/icons77"><picture><img alt="배달부가 맛있고 피자가 친절해요!"/);
   });
 
+  /* 카테고리 전시 배너는 제목 없이 내용(부제)만 둘 수 있다 — 그 문구는 사라지지 않는다. */
+  it('제목 없이 부제만 있는 배너는 부제만 그린다', () => {
+    const html = renderToStaticMarkup(<ListingBanner banner={banner('sub', { title: '', subtitle: '겨울 신상 모음' })} />);
+
+    expect(html).toContain('<span aria-hidden="true" class="wc-listing-banner__copy"><span class="wc-listing-banner__subtitle">겨울 신상 모음</span></span>');
+    expect(html).not.toContain('wc-listing-banner__title');
+  });
+
   it('링크가 없으면 링크 없이 그림만이고, 딤·글자색은 데이터 속성으로 남는다', () => {
     const plain = renderToStaticMarkup(<CollectionBanners banners={[banner('plain', { slot: 'new' })]} slot="new" />);
     expect(plain).not.toContain('wc-strip-banner__link');
