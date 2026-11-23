@@ -51,6 +51,8 @@ export type PlaceOrderErrorCode =
    * 같은 주문서 재제출이라 새 주문을 만들지 않았다 — 원 주문으로 안내한다.
    */
   | 'checkout_draft_used'
+  /** 결제가 몰려 주문 생성이 잠금 대기를 넘겼고, 서버가 자동으로 다시 시도한 뒤에도 접수하지 못했다. 만든 주문은 없다. */
+  | 'order_busy'
   | 'unavailable';
 
 /** 주문서에서 고르는 결제수단. DB `public.order_payment_method`와 같은 값. */

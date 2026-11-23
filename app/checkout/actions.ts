@@ -28,6 +28,10 @@ import { isClosedCheckoutDraft, normalizeCheckoutDraftId } from '@/lib/checkout-
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 import { isCheckoutAcknowledged, normalizeClaimNotice } from '@/lib/checkout-acknowledgement';
 import { recordOrderPurchaseAcknowledgement, verifyClaimNotice } from '@/lib/checkout-acknowledgement.server';
+import { isTransientOrderError, retryTransientOrderErrors } from '@/lib/checkout-order-retry';
+
+/* 결제가 몰릴 때 자동 재시도를 남긴다 — 고객·주문 정보 없이 시도 횟수와 오류 코드만. */
+const logOrderBusyRetry = (attempt: number, code: string) => console.warn(`[checkout] 주문 생성 혼잡, 자동 재시도 ${attempt}회 (${code})`);
 
 type PlaceOrderActionError =
   | PlaceOrderErrorCode
@@ -188,19 +192,20 @@ export async function placeOrderAction(
   const noticeVerdict = await verifyClaimNotice(expectedCart.map(item => item.goodId), claimNotice);
   if (noticeVerdict !== 'ok') return { ok: false, error: noticeVerdict === 'changed' ? 'claim_notice_changed' : 'unavailable' };
 
+  const buyerId = auth.user.id;
   let data: unknown;
-  let error: { message: string; details?: string | null } | null;
+  let error: { message: string; details?: string | null; code?: string | null } | null;
   try {
     const service = createServiceClient();
-    const result = await service.rpc('place_order_with_cart_snapshot', {
-      p_user_id: auth.user.id,
+    const result = await retryTransientOrderErrors(() => service.rpc('place_order_with_cart_snapshot', {
+      p_user_id: buyerId,
       p_address: address,
       p_checkout_key: checkoutKey,
       p_payment_method: paymentMethod,
       p_store_credit_amount: storeCreditAmount,
       p_expected_user_coupon_id: expectedCouponId,
       p_expected_cart:expectedCart.map(item=>({good_id:item.goodId,variant_id:item.variantId,qty:item.qty,input_revision:item.customInputs?.revision??0,input_values:goodsCustomInputValues(item.customInputs)})),
-    });
+    }), { onRetry: logOrderBusyRetry });
     data = result.data;
     error = result.error;
   } catch {
@@ -208,6 +213,8 @@ export async function placeOrderAction(
   }
 
   if (error) {
+    /* 자동 재시도 예산을 다 써도 혼잡이 풀리지 않았다 — 만든 주문이 없으니 다시 누르면 된다. */
+    if (isTransientOrderError(error)) return { ok: false, error: 'order_busy' };
     const code = mapPlaceOrderError(error.message);
     return { ok: false, error: code, ...blockingOrder(code, error),
       ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
@@ -280,13 +287,14 @@ async function placeDraftOrder(
   const noticeVerdict = await verifyClaimNotice(draft.lines.map(item => item.goodId), claimNotice);
   if (noticeVerdict !== 'ok') return { ok: false, error: noticeVerdict === 'changed' ? 'claim_notice_changed' : 'unavailable' };
 
+  const buyerId = auth.user.id;
   let data: unknown;
-  let error: { message: string; details?: string | null } | null;
+  let error: { message: string; details?: string | null; code?: string | null } | null;
   try {
     const service = createServiceClient();
-    const result = draft.source === 'direct'
-      ? await service.rpc('place_direct_order', {
-        p_user_id: auth.user.id,
+    const result = await retryTransientOrderErrors(() => draft.source === 'direct'
+      ? service.rpc('place_direct_order', {
+        p_user_id: buyerId,
         p_draft_id: draft.id,
         p_address: address,
         p_checkout_key: checkoutKey,
@@ -294,15 +302,15 @@ async function placeDraftOrder(
         p_store_credit_amount: storeCreditAmount,
         p_user_coupon_id: userCouponId,
       })
-      : await service.rpc('place_order_with_cart_selection', {
-        p_user_id: auth.user.id,
+      : service.rpc('place_order_with_cart_selection', {
+        p_user_id: buyerId,
         p_draft_id: draft.id,
         p_address: address,
         p_checkout_key: checkoutKey,
         p_payment_method: paymentMethod,
         p_store_credit_amount: storeCreditAmount,
         p_expected_user_coupon_id: userCouponId,
-      });
+      }), { onRetry: logOrderBusyRetry });
     data = result.data;
     error = result.error;
   } catch {
@@ -310,6 +318,8 @@ async function placeDraftOrder(
   }
 
   if (error) {
+    /* 자동 재시도 예산을 다 써도 혼잡이 풀리지 않았다 — 만든 주문이 없으니 다시 누르면 된다. */
+    if (isTransientOrderError(error)) return { ok: false, error: 'order_busy' };
     const code = mapPlaceOrderError(error.message);
     /* 같은 주문서의 재제출(다른 탭·뒤로 가기)·결제 확인 중인 주문: DB detail이 그 주문 id다. */
     return { ok: false, error: code, ...blockingOrder(code, error),
