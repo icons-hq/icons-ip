@@ -461,7 +461,10 @@ security definer
 set search_path = ''
 as $function$
 begin
-  perform private.require_operator_capability('sales.read', false);
+  -- 읽기 전용(STABLE) 운영자 RPC — 잠금을 거는 require_operator_capability 대신 판정만 한다(PostgREST READ ONLY 모드).
+  if (select auth.uid()) is null or not public.has_operator_capability('sales.read', false) then
+    raise insufficient_privilege using message = 'operator_capability_required';
+  end if;
   if p_order_id is null then
     raise invalid_parameter_value using message = 'invalid_order';
   end if;

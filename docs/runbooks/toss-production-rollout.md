@@ -563,6 +563,8 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
 7. 시행일 이후, 라이브 전환 3번(라이브 키 + canary 배포)과 같은 배포에 `TOSS_VIRTUAL_ACCOUNT_ENABLED=true`를 넣고
    readback `Toss virtual account=enabled`를 확인한다. 리허설(라이브 전환 6번)에 **가상계좌 1건**(소액 입금 → 결제완료 →
    운영자 전액 취소 → 환불 계좌로 환불)을 더한다. 테스트 모드에서는 개발자센터 테스트 결제내역의 '입금처리'로 입금을 흉내 낸다.
+   켜는 날 운영자 업데이트 내역(`lib/admin/guide/changes.ts`)에 가상계좌 결제 안내(주문 처리 패널의 입금 표시, 출고 보류 사유
+   '입금 오류 되돌림'·'에스크로 취소 요청', 환불 계좌 오류 처리)를 더한다 — 켜기 전에는 미리 알리지 않는다.
 
 ### 운영 처리(결제확인필요 사유별)
 
