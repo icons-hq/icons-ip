@@ -427,7 +427,28 @@ select pg_temp.as_operator();
 select 1 / case when public.admin_virtual_account_refund_failures(20)->'items' @> pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
   'orderId', '21000000-0000-4000-8000-000000004912', 'failureCode', 'refund_overdue'))
 then 1 else 0 end as assert_stale_pending_listed;
+-- 주문 화면도 확인 필요(지연)로 보여 '처리 완료로 표시'가 열린다.
+select 1 / case when (public.admin_order_virtual_account('21000000-0000-4000-8000-000000004912'))->'refund'->>'state' = 'failed'
+  and (public.admin_order_virtual_account('21000000-0000-4000-8000-000000004912'))->'refund'->>'failureCode' = 'refund_overdue'
+then 1 else 0 end as assert_stale_pending_shown_as_attention;
 reset role;
+select set_config('request.jwt.claims', '{}', true);
+select set_config('request.jwt.claim.sub', '', true);
+-- 조회가 멈춘 채 7일이 지난 감시도 운영자가 처리 완료로 닫을 수 있다(4913 결제 시도로 따로 만든 감시).
+insert into private.virtual_account_refund_watches(attempt_id, order_id, payment_id, provider_payment_key, refunded_at)
+select a.id, a.ref_id, a.payment_id, 'card-key-4913', now() - interval '9 days'
+from public.payment_attempts a where a.id = '31000000-0000-4000-8000-000000004913';
+set local role authenticated;
+select pg_temp.as_operator();
+select 1 / case when public.admin_resolve_virtual_account_refund_watch('21000000-0000-4000-8000-000000004913', '회사 계좌로 직접 송금') = 'resolved'
+then 1 else 0 end as assert_stale_pending_resolvable;
+reset role;
+select 1 / case when (
+  select state = 'resolved' from private.virtual_account_refund_watches where attempt_id = '31000000-0000-4000-8000-000000004913'
+) and exists (
+  select 1 from public.audit_log where action = 'admin.order.virtual_account_refund_resolved'
+    and target = 'order:21000000-0000-4000-8000-000000004913' and diff->>'failureCode' = 'refund_overdue' and diff->>'fromState' = 'pending'
+) then 1 else 0 end as assert_stale_pending_resolution_audited;
 select set_config('request.jwt.claims', '{}', true);
 select set_config('request.jwt.claim.sub', '', true);
 select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004912', 'pending', 'PENDING') = 'failed'

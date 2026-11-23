@@ -593,7 +593,9 @@ begin
   if v_watch.state = 'resolved' then
     return 'already_resolved';
   end if;
-  if v_watch.state <> 'failed' then
+  -- 실패로 올린 감시와, 조회가 멈춰 송금 확인 전으로 7일이 지난 감시(시스템 상태·확인 목록과 같은 규칙)를 닫을 수 있다.
+  if v_watch.state <> 'failed'
+    and not (v_watch.state = 'pending' and v_watch.refunded_at <= pg_catalog.clock_timestamp() - interval '7 days') then
     raise check_violation using message = 'refund_watch_not_failed';
   end if;
   update private.virtual_account_refund_watches
@@ -602,7 +604,8 @@ begin
   where attempt_id = v_watch.attempt_id;
   insert into public.audit_log(actor_id, action, target, diff)
   values (v_actor, 'admin.order.virtual_account_refund_resolved', 'order:' || p_order_id::text,
-    pg_catalog.jsonb_build_object('attemptId', v_watch.attempt_id, 'failureCode', v_watch.failure_code, 'note', v_note));
+    pg_catalog.jsonb_build_object('attemptId', v_watch.attempt_id, 'failureCode', coalesce(v_watch.failure_code, 'refund_overdue'),
+      'fromState', v_watch.state, 'note', v_note));
   return 'resolved';
 end;
 $function$;
@@ -684,10 +687,13 @@ as $function$
         'lastErrorCode', job.last_error_code)
       from private.toss_escrow_deliveries as job where job.order_id = p_order_id),
     'refund', (
+      -- 조회가 멈춰 송금 확인 전으로 7일이 지난 감시는 확인 필요(지연)로 보인다 — 시스템 상태·확인 목록·처리 완료와 같은 규칙이다.
       select pg_catalog.jsonb_build_object(
-        'state', watch.state,
+        'state', case when watch.state = 'pending' and watch.refunded_at <= pg_catalog.clock_timestamp() - interval '7 days'
+          then 'failed' else watch.state end,
         'refundStatus', watch.refund_status,
-        'failureCode', watch.failure_code,
+        'failureCode', case when watch.state = 'pending' and watch.refunded_at <= pg_catalog.clock_timestamp() - interval '7 days'
+          then coalesce(watch.failure_code, 'refund_overdue') else watch.failure_code end,
         'refundedAt', watch.refunded_at,
         'checkedAt', watch.last_checked_at,
         'failedAt', watch.failed_at,
