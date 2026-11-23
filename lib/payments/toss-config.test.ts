@@ -3,11 +3,14 @@ import {
   TOSS_ALLOWED_MERCHANT_IDS,
   TOSS_ICONS_WIDGET_VARIANT_KEY,
   isTossAllowedMerchantId,
+  isTossApiSecretKey,
   isTossDocsPublicKey,
+  isTossSecretKey,
   isTossWidgetVariantKey,
   parseTossAdditionalMerchantIds,
   parseTossWidgetVariantKey,
   tossMerchantBindingFromEnvironment,
+  tossApiSecretKeyMode,
   tossMerchantIdsForMode,
 } from './toss-config.mjs';
 
@@ -187,5 +190,20 @@ describe('toss-config 문서 공개 테스트 키 판별', () => {
     undefined,
   ])('상점 키·라이브 키·다른 키 계열은 문서 공개 키가 아니다: %s', (key) => {
     expect(isTossDocsPublicKey(key)).toBe(false);
+  });
+});
+
+/* 에스크로 부가서비스 API 키(ADR-0049 결정 6 보강) — 결제 위젯 키(gsk)와 다른 API 개별 연동 시크릿 키(sk)다(토스 'API 키' 문서). */
+describe('toss-config API 개별 연동 시크릿 키', () => {
+  it('sk만 받고 gsk·클라이언트 키는 받지 않는다', () => {
+    expect(isTossApiSecretKey('live_sk_iconsescrow0000000001')).toBe(true);
+    expect(tossApiSecretKeyMode('live_sk_iconsescrow0000000001')).toBe('live');
+    expect(tossApiSecretKeyMode('test_sk_iconsescrow0000000001')).toBe('test');
+    for (const key of ['live_gsk_iconsdocs00000000000001', 'live_gck_iconsdocs00000000000001', 'live_ck_iconsdocs00000000000001', 'sk_live_x', '', null]) {
+      expect(isTossApiSecretKey(key), String(key)).toBe(false);
+      expect(tossApiSecretKeyMode(key), String(key)).toBeNull();
+    }
+    // 결제 키 판정은 sk를 받지 않는다(두 키 축이 섞이지 않는다).
+    expect(isTossSecretKey('live_sk_iconsescrow0000000001')).toBe(false);
   });
 });

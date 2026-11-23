@@ -59,6 +59,8 @@ describe('시스템 상태 읽기 모델', () => {
 
   it('오류 코드·경과·주기를 운영자 말로 바꾼다', () => {
     expect(systemErrorCodeLabel('unhealthy_result')).toBe('일부 건 처리 실패');
+    expect(systemErrorCodeLabel('toss_escrow_key_missing')).toBe('에스크로 API 키 없음(배송 등록 대기 중)');
+    expect(systemErrorCodeLabel('toss_escrow_key_rejected')).toBe('토스가 API 키를 거절함(키 확인 필요)');
     expect(systemErrorCodeLabel('rows_skipped')).toBe('일부 건 건너뜀');
     expect(systemErrorCodeLabel('db:23505')).toBe('DB 오류(23505)');
     expect(systemErrorCodeLabel('sqlstate_P0001')).toBe('DB 오류(P0001)');

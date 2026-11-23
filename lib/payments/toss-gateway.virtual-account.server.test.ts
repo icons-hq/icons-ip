@@ -6,6 +6,9 @@ import { createTossPaymentGateway } from './toss-gateway.server';
 // toss-gateway.server.test.ts가 고정하고, 이 파일은 결제 UI 바인딩(ICONS) 위 가상계좌 계약만 본다.
 const CLIENT_KEY = 'test_gck_iconsdocs00000000000001';
 const SECRET_KEY = 'test_gsk_iconsdocs00000000000001';
+/* 에스크로 부가서비스 API 키(API 개별 연동 sk) — gsk는 부가서비스 API를 부를 수 없다(토스 'API 키' 문서). */
+const ESCROW_SECRET_KEY = 'test_sk_iconsescrow0000000001';
+const basicAuth = (key: string) => `Basic ${Buffer.from(`${key}:`).toString('base64')}`;
 const NOW = new Date('2026-11-23T03:00:00Z'); // 12:00 KST
 const MERCHANT_ID = 'ticonsi0xvd';
 const PAYMENT_KEY = 'tviva20261123000000vaKEY123456789';
@@ -62,10 +65,11 @@ function vaPayment(overrides: Record<string, unknown> = {}, account: Record<stri
   };
 }
 
-function gateway(fetchImpl: ReturnType<typeof vi.fn>, options: { virtualAccountEnabled?: boolean; now?: Date } = {}) {
+function gateway(fetchImpl: ReturnType<typeof vi.fn>, options: { virtualAccountEnabled?: boolean; now?: Date; escrowSecretKey?: string | null } = {}) {
   return createTossPaymentGateway({
     clientKey: CLIENT_KEY,
     secretKey: SECRET_KEY,
+    ...(options.escrowSecretKey === null ? {} : { escrowSecretKey: options.escrowSecretKey ?? ESCROW_SECRET_KEY }),
     siteUrl: 'https://iconsip.com',
     fetch: fetchImpl as unknown as typeof fetch,
     merchantBinding: { variantKey: 'ICONS' },
@@ -379,6 +383,36 @@ describe('토스 가상계좌(ADR-0049)', () => {
       expect(init.headers['idempotency-key']).toBe(`refund:${ATTEMPT.id}:escrow`);
       expect(JSON.parse(init.body)).toEqual({ reason: 'ICONS 주문 취소' });
       expect(outcome.outcome).toBe('approved');
+      // 결제 조회·전후 조회는 결제 키(gsk), 거래 조회·취소 수락은 에스크로 키(sk)다.
+      expect(fetchImpl.mock.calls.map(([, call]) => call.headers.authorization)).toEqual([
+        basicAuth(SECRET_KEY), basicAuth(ESCROW_SECRET_KEY), basicAuth(ESCROW_SECRET_KEY), basicAuth(SECRET_KEY),
+      ]);
+    });
+
+    it('에스크로 키가 없으면 거래 조회를 하지 않고 일반 취소(환불 계좌)로 간다', async () => {
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, deposited({ useEscrow: true, escrowKey: ESCROW_KEY })))
+        .mockResolvedValueOnce(jsonResponse(200, refunded()))
+        .mockResolvedValueOnce(jsonResponse(200, refunded()));
+      const tossGateway = gateway(fetchImpl, { escrowSecretKey: null });
+
+      const outcome = await tossGateway.refund(refundRequest({ refundReceiveAccount: ACCOUNT }));
+
+      expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('/v2/escrows'))).toBe(false);
+      expect(fetchImpl.mock.calls[1]![0]).toBe(`${API}/v1/payments/${PAYMENT_KEY}/cancel`);
+      expect(outcome.outcome).toBe('approved');
+    });
+
+    it('결제 키와 모드가 다른 에스크로 키는 쓰지 않는다', async () => {
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, deposited({ useEscrow: true, escrowKey: ESCROW_KEY })))
+        .mockResolvedValueOnce(jsonResponse(200, refunded()))
+        .mockResolvedValueOnce(jsonResponse(200, refunded()));
+      const tossGateway = gateway(fetchImpl, { escrowSecretKey: 'live_sk_iconsescrow0000000001' });
+
+      await tossGateway.refund(refundRequest({ refundReceiveAccount: ACCOUNT }));
+
+      expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('/v2/escrows'))).toBe(false);
     });
 
     it('에스크로 거래 조회가 권한·없음(4xx)으로 거부되면 일반 취소(환불 계좌)로 간다', async () => {
@@ -497,6 +531,53 @@ describe('토스 가상계좌(ADR-0049)', () => {
 
       expect(fetchImpl.mock.calls[1]![0]).toBe(`${API}/v1/payments/${PAYMENT_KEY}/cancel`);
       expect(outcome.outcome).toBe('declined');
+    });
+
+    /* 결정 6: 에스크로를 고른 계좌이체도 구매자 취소 신청이면 취소 수락 API로 환불한다(가상계좌만이 아니다). */
+    it('에스크로 계좌이체에 구매자 취소 신청이 있으면 취소 수락 API로 환불한다', async () => {
+      const canceled = transferPayment({ status: 'CANCELED', balanceAmount: 0 });
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, transferPayment()))
+        .mockResolvedValueOnce(jsonResponse(200, { version: '2022-11-16', entityType: 'escrow', entityBody: { id: ESCROW_KEY, status: 'CANCEL_REQUESTED' } }))
+        .mockResolvedValueOnce(jsonResponse(200, { version: '2022-11-16', entityType: 'escrow', entityBody: { id: ESCROW_KEY, status: 'CANCELED' } }))
+        .mockResolvedValueOnce(jsonResponse(200, canceled));
+      const tossGateway = gateway(fetchImpl);
+
+      const outcome = await tossGateway.refund({
+        attempt: ATTEMPT,
+        idempotencyKey: `refund:${ATTEMPT.id}`,
+        amount: ATTEMPT.amount,
+        reason: 'ICONS 주문 취소',
+        providerPaymentKey: PAYMENT_KEY,
+      });
+
+      const [url, init] = fetchImpl.mock.calls[2]!;
+      expect(url).toBe(`${API}/v2/escrows/${ESCROW_KEY}/cancel`);
+      expect(init.headers.authorization).toBe(basicAuth(ESCROW_SECRET_KEY));
+      expect(init.headers['idempotency-key']).toBe(`refund:${ATTEMPT.id}:escrow`);
+      expect(outcome.outcome).toBe('approved');
+    });
+
+    it('에스크로 계좌이체라도 취소 신청이 없으면 일반 취소 API다', async () => {
+      const canceled = transferPayment({ status: 'CANCELED', balanceAmount: 0 });
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, transferPayment()))
+        .mockResolvedValueOnce(jsonResponse(200, { version: '2022-11-16', entityType: 'escrow', entityBody: { id: ESCROW_KEY, status: 'IN_PROGRESS' } }))
+        .mockResolvedValueOnce(jsonResponse(200, canceled))
+        .mockResolvedValueOnce(jsonResponse(200, canceled));
+      const tossGateway = gateway(fetchImpl);
+
+      const outcome = await tossGateway.refund({
+        attempt: ATTEMPT,
+        idempotencyKey: `refund:${ATTEMPT.id}`,
+        amount: ATTEMPT.amount,
+        reason: 'ICONS 주문 취소',
+        providerPaymentKey: PAYMENT_KEY,
+      });
+
+      expect(fetchImpl.mock.calls[2]![0]).toBe(`${API}/v1/payments/${PAYMENT_KEY}/cancel`);
+      expect(fetchImpl.mock.calls[2]![1].headers.authorization).toBe(basicAuth(SECRET_KEY));
+      expect(outcome.outcome).toBe('approved');
     });
 
     it('계좌이체 환불은 환불 계좌 없이 취소 API를 부른다(출금 계좌로 환불)', async () => {
