@@ -3,6 +3,7 @@ import { krw } from '../format';
 import { commerceReferenceLabel } from '../commerce-number';
 import { formatOrderDateTime, LEGAL_WITHDRAWAL_NOTICE, orderReferenceLabel } from '../orders';
 import type { GoodsTransactionDisplay } from '../goods-transaction';
+import { tossBankLabel } from '../payments/toss-bank-codes';
 
 /* 트랜잭션 이메일 본문(#180). 순수 함수다 — 네트워크·DB·env를 모르고 입력만 받는다.
  *
@@ -438,6 +439,72 @@ export function renderInquiryAnsweredEmail(input: InquiryAnsweredEmailInput): Re
     htmlParagraph('추가로 궁금한 점이 있으면 같은 문의에 이어서 질문할 수 있습니다.'),
     htmlButton(input.inquiryUrl, '문의 상세 보기'),
   ].join(''), '문의번호');
+
+  return { subject, text, html };
+}
+
+export interface VirtualAccountIssuedEmailInput {
+  orderId: string;
+  orderNumber?: string | null;
+  /** 토스 은행 코드(2·3자리). 이름으로 바꾸지 못하는 코드는 코드를 그대로 보인다. */
+  bankCode: string;
+  accountNumber: string;
+  amount: number;
+  /** 입금 기한(ISO). 한국 시간으로 적는다. */
+  dueAt: string;
+  /** 에스크로(구매안전서비스)를 고른 결제인지. */
+  useEscrow: boolean;
+  orderUrl: string;
+}
+
+/**
+ * 토스 가상계좌 입금 안내 메일(ADR-0049). 결제 확정 메일(order_confirmation)과 다르다 —
+ * 입금이 확인되기 전이라 "결제가 확인됐다"고 말하지 않고, 입금 계좌와 기한을 알린다.
+ * 예금주는 적지 않는다(결제사가 상점 명의로 발급한 수납 계좌라 구매자에게 의미가 없다).
+ */
+export function renderVirtualAccountIssuedEmail(input: VirtualAccountIssuedEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const subject = `[ICONS] 입금 계좌를 안내해 드려요 (주문번호 ${reference})`;
+  const bank = tossBankLabel(input.bankCode);
+  const due = formatOrderDateTime(input.dueAt);
+  const notices = [
+    '입금자명은 주문자와 달라도 괜찮아요. 다만 입금 금액은 아래 금액과 정확히 같아야 해요.',
+    '입금 기한이 지나면 주문이 자동으로 취소되고, 이후에는 입금할 수 없어요.',
+    '입금은 자동으로 확인돼요. 보통 몇 분 안에 확인되고, 확인되면 주문 확인 메일을 다시 보내드려요.',
+    ...(input.useEscrow ? [
+      '구매안전서비스(에스크로)가 적용된 결제라, 배송이 완료되면 토스페이먼츠에서 구매확정 메일이 가요.',
+    ] : []),
+  ];
+  const rows: [string, string][] = [
+    ['입금 은행', bank],
+    ['계좌번호', input.accountNumber],
+    ['입금 금액', krw(input.amount)],
+    ...(due ? [['입금 기한', due] as [string, string]] : []),
+  ];
+
+  const text = textBlock([
+    'ICONS 주문이 접수됐어요. 아래 계좌로 입금해 주세요.',
+    '',
+    `주문번호: ${reference}`,
+    '',
+    '[입금 계좌]',
+    ...rows.map(([label, value]) => `${label}: ${value}`),
+    '',
+    '[안내]',
+    ...notices.map((line) => `- ${line}`),
+    '',
+    `주문 상세: ${input.orderUrl}`,
+  ]);
+
+  const html = htmlDocument(reference, [
+    htmlHeading('입금 계좌를 안내해 드려요'),
+    htmlParagraph('주문이 접수됐어요. 입금이 확인되면 결제가 완료되고 배송 준비를 시작해요.'),
+    htmlSectionTitle('입금 계좌'),
+    htmlDefinitionRows(rows),
+    htmlSectionTitle('안내'),
+    ...notices.map((line) => htmlParagraph(line)),
+    htmlButton(input.orderUrl, '주문 상세 보기'),
+  ].join(''));
 
   return { subject, text, html };
 }

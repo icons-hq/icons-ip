@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   tossGatewayKeyMode: vi.fn(),
   recordKeyMode: vi.fn(),
   sendOrderConfirmationEmail: vi.fn(),
+  sendVirtualAccountIssuedEmail: vi.fn(),
+  after: vi.fn(),
   repository: {
     prepareOrderAttempt: vi.fn(),
     bindCallbackNonce: vi.fn(),
@@ -38,7 +40,9 @@ vi.mock('./goods-checkout.server', () => ({
 }));
 vi.mock('../email/transactional.server', () => ({
   sendOrderConfirmationEmail: mocks.sendOrderConfirmationEmail,
+  sendVirtualAccountIssuedEmail: mocks.sendVirtualAccountIssuedEmail,
 }));
+vi.mock('next/server', () => ({ after: mocks.after }));
 
 function attemptFor(provider: 'toss' | 'korpay'): PaymentAttempt {
   return {
@@ -91,6 +95,11 @@ describe('createRuntimeGoodsPaymentCheckout', () => {
     mocks.recordKeyMode.mockResolvedValue(undefined);
     mocks.sendOrderConfirmationEmail.mockReset();
     mocks.sendOrderConfirmationEmail.mockResolvedValue({ status: 'sent' });
+    mocks.sendVirtualAccountIssuedEmail.mockReset();
+    mocks.sendVirtualAccountIssuedEmail.mockResolvedValue({ status: 'sent' });
+    /* 기본은 요청 범위 밖 — after()가 던지면 직접 기다린다. */
+    mocks.after.mockReset();
+    mocks.after.mockImplementation(() => { throw new Error('outside request scope'); });
     for (const fn of Object.values(mocks.repository)) fn.mockReset();
   });
 
@@ -102,6 +111,29 @@ describe('createRuntimeGoodsPaymentCheckout', () => {
 
     expect(mocks.getPaymentGateway).toHaveBeenCalledWith('toss');
     expect(mocks.sendOrderConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.sendOrderConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
+  });
+
+  it('입금 대기 확정은 입금 안내 메일 훅만 주문 id로 부른다', async () => {
+    stubConfirmedPayment('toss', 'awaiting_deposit');
+
+    await expect(createRuntimeGoodsPaymentCheckout().confirm(callback))
+      .resolves.toMatchObject({ outcome: 'awaiting_deposit' });
+
+    expect(mocks.sendVirtualAccountIssuedEmail).toHaveBeenCalledWith(ORDER_ID);
+    expect(mocks.sendOrderConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it('요청 범위 안이면 메일을 after()로 미뤄 승인 응답이 메일을 기다리지 않는다', async () => {
+    const queued: (() => Promise<void>)[] = [];
+    mocks.after.mockImplementation((task: () => Promise<void>) => { queued.push(task); });
+    stubConfirmedPayment('toss', 'approved');
+
+    await createRuntimeGoodsPaymentCheckout().confirm(callback);
+
+    expect(queued).toHaveLength(1);
+    expect(mocks.sendOrderConfirmationEmail).not.toHaveBeenCalled();
+    await queued[0]();
     expect(mocks.sendOrderConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
   });
 

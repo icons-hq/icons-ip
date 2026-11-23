@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GOODS_PAYMENT_ATTEMPT_STATES,
+  GOODS_PAYMENT_ATTEMPT_STATE_LABELS,
+  adminVirtualAccountEscrowLabel,
+  parseAdminOrderVirtualAccount,
   adminOrderBackHref,
   adminOrderDetailHref,
   adminOrdersHref,
@@ -325,5 +329,46 @@ describe('adminOrdersHref', () => {
       '/admin/sales/shipping?tab=transit&originId=00000000-0000-4000-8000-000000042201&query=ABC&page=2&evil=1',
     )).toBe('/admin/sales/shipping?tab=transit&page=2&originId=00000000-0000-4000-8000-000000042201&query=ABC');
     expect(adminOrderBackHref('https://evil.example/steal')).toBe('/admin/sales/orders');
+  });
+});
+
+/* 토스 가상계좌(ADR-0049): 입금 대기는 결제 시도의 새 상태이고, 주문의 입금 계좌는 admin_order_virtual_account가 돌려준다. */
+describe('가상계좌 입금 대기와 입금 정보', () => {
+  it('결제 시도 상태에 입금 대기(가상계좌)가 있고 모든 상태에 운영자 표기가 있다', () => {
+    expect(GOODS_PAYMENT_ATTEMPT_STATES).toContain('awaiting_deposit');
+    expect(GOODS_PAYMENT_ATTEMPT_STATE_LABELS.awaiting_deposit).toBe('입금 대기(가상계좌)');
+    for (const state of GOODS_PAYMENT_ATTEMPT_STATES) expect(GOODS_PAYMENT_ATTEMPT_STATE_LABELS[state], state).toBeTruthy();
+    expect(isKorpayManualRecoveryState('awaiting_deposit')).toBe(false);
+  });
+
+  it('입금 정보를 읽고, 가상계좌가 아닌 주문(null)과 형식이 어긋난 응답(undefined)을 구분한다', () => {
+    const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T15:00:00+00:00', amount: 32000, useEscrow: true, state: 'awaiting' };
+    expect(parseAdminOrderVirtualAccount(account)).toEqual({ ...account, escrow: null });
+    expect(parseAdminOrderVirtualAccount({ ...account, useEscrow: null })?.useEscrow).toBeNull();
+    expect(parseAdminOrderVirtualAccount({ ...account, useEscrow: undefined })?.useEscrow).toBeNull();
+    expect(parseAdminOrderVirtualAccount(null)).toBeNull();
+    for (const broken of [[], 'x', { ...account, bankCode: '우리' }, { ...account, accountNumber: '12 34' }, { ...account, dueAt: 'soon' },
+      { ...account, amount: -1 }, { ...account, amount: 1.5 }, { ...account, useEscrow: 'Y' }, { ...account, state: 'expired' }]) {
+      expect(parseAdminOrderVirtualAccount(broken), JSON.stringify(broken)).toBeUndefined();
+    }
+  });
+
+  /* 에스크로 배송 등록 작업(20261125090200) — 운영자 json에만 실린다. 모르는 값은 조용히 접지 않고 '불러오지 못했다'로 본다. */
+  it('에스크로 배송 등록 작업을 읽고, 모르는 값이면 응답 전체를 읽지 못한 것으로 본다', () => {
+    const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T15:00:00+00:00', amount: 32000, useEscrow: true, state: 'deposited' };
+    expect(parseAdminOrderVirtualAccount({ ...account, escrow: { deliveryState: 'manual_required', escrowStatus: null, lastErrorCode: 'INVALID_COMPANY' } })?.escrow)
+      .toEqual({ deliveryState: 'manual_required', escrowStatus: null, lastErrorCode: 'INVALID_COMPANY' });
+    expect(parseAdminOrderVirtualAccount({ ...account, escrow: { deliveryState: 'registered', escrowStatus: 'CANCEL_REQUESTED', lastErrorCode: null } })?.escrow)
+      .toEqual({ deliveryState: 'registered', escrowStatus: 'CANCEL_REQUESTED', lastErrorCode: null });
+    expect(parseAdminOrderVirtualAccount({ ...account, escrow: null })?.escrow).toBeNull();
+    for (const escrow of [{ deliveryState: 'lost' }, { deliveryState: 'ready', escrowStatus: 'DONE' }, { deliveryState: 'ready', lastErrorCode: 'bad code!' }, []]) {
+      expect(parseAdminOrderVirtualAccount({ ...account, escrow }), JSON.stringify(escrow)).toBeUndefined();
+    }
+  });
+
+  it('구매안전서비스(에스크로) 적용 여부를 운영자 말로 쓴다', () => {
+    expect(adminVirtualAccountEscrowLabel(true)).toBe('적용(구매자가 선택)');
+    expect(adminVirtualAccountEscrowLabel(false)).toBe('적용 안 함');
+    expect(adminVirtualAccountEscrowLabel(null)).toBe('기록 없음');
   });
 });

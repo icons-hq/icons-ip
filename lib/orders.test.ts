@@ -97,6 +97,14 @@ describe('customerOrderStatusMeta', () => {
     expect(customerOrderStatusMeta('pending', 'bank_transfer')).toMatchObject({ label: '입금 대기', title: '입금을 기다리고 있어요' });
   });
 
+  it('토스 가상계좌 입금 대기 카드 주문은 입금 대기로 보인다(ADR-0049)', () => {
+    expect(customerOrderStatusMeta('pending', 'card', { awaitingVirtualAccount: true }))
+      .toMatchObject({ label: '입금 대기', title: '입금을 기다리고 있어요' });
+    expect(customerOrderStatusMeta('pending', 'card', { awaitingVirtualAccount: false })).toMatchObject({ label: '결제 대기' });
+    expect(customerOrderStepLabel('pending', { awaitingVirtualAccount: true })).toBe('입금 대기');
+    expect(customerOrderStepLabel('pending')).toBe('결제 대기');
+  });
+
   /* MD-0036 3번 — 고객 라벨. 제목·본문·톤은 공용 표 그대로고, 어드민이 쓰는 orderStatusMeta 라벨은 바뀌지 않는다. */
   it.each([
     ['paid', '주문 완료'],

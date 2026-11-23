@@ -601,3 +601,52 @@ it('read-only order search skips payment/refund queries and cancellation operati
   expect(result.items[0]).toMatchObject({ payments: [], refunds: [], cancellationRequest: null, manualRecoveryAttempt: null });
   expect(JSON.stringify(result)).not.toContain('private-note');
 });
+
+/* 토스 가상계좌(ADR-0049): 처리 패널이 여는 주문 하나만 입금 정보를 읽는다(목록 전체·엑셀·조회 전용 권한은 읽지 않는다). */
+describe('가상계좌 입금 정보(처리 패널 주문)', () => {
+  const OTHER_ORDER_ID = '44444444-4444-4444-8444-444444444444';
+  const row = (id: string) => ({ id, user_id: USER_ID, buyer_name: 'va', buyer_email: null, status: 'pending', total: 32000, address: null,
+    created_at: '2026-11-24T01:00:00.000Z', updated_at: '2026-11-24T01:00:00.000Z', total_count: 2 });
+  const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 32000, useEscrow: true, state: 'awaiting' };
+
+  it('지정한 주문만 admin_order_virtual_account로 읽어 싣는다', async () => {
+    const rpc = vi.fn();
+    mocks.client = createClient({ records: [], rpc, rpcRowsByName: { admin_search_orders_console: [row(OTHER_ORDER_ID), row(ORDER_ID)],
+      admin_order_virtual_account: account as never }, rows: { order_items: [] } });
+    const result = await getAdminOrderRecords({ ...filters, orderId: ORDER_ID });
+    expect(rpc.mock.calls.filter(([name]) => name === 'admin_order_virtual_account')).toEqual([['admin_order_virtual_account', { p_order_id: ORDER_ID }]]);
+    expect(result.items.find(item => item.id === ORDER_ID)?.virtualAccount).toEqual({ ...account, escrow: null });
+    expect(result.items.find(item => item.id === OTHER_ORDER_ID)).not.toHaveProperty('virtualAccount');
+  });
+
+  it('지정한 주문이 없으면 패널이 여는 첫 주문을 읽고, 가상계좌가 아니면 null이다', async () => {
+    const rpc = vi.fn();
+    mocks.client = createClient({ records: [], rpc, rpcRowsByName: { admin_search_orders_console: [row(OTHER_ORDER_ID), row(ORDER_ID)] },
+      rows: { order_items: [] } });
+    /* 가상계좌가 아닌 주문은 RPC가 null을 돌려준다(이 시험 클라이언트의 이름별 응답은 null을 담지 못해 따로 둔다). */
+    const base = rpc.getMockImplementation()!;
+    rpc.mockImplementation(async (name: string, args: unknown) => name === 'admin_order_virtual_account' ? { data: null, error: null } : base(name, args));
+    const result = await getAdminOrderRecords({ ...filters, orderId: null });
+    expect(rpc).toHaveBeenCalledWith('admin_order_virtual_account', { p_order_id: OTHER_ORDER_ID });
+    expect(result.items[0].virtualAccount).toBeNull();
+  });
+
+  it('읽지 못하면 가상계좌가 아니라고 하지 않고 불러오지 못했다고 표시한다', async () => {
+    mocks.client = createClient({ records: [], rpc: vi.fn(), rpcRowsByName: { admin_search_orders_console: [row(ORDER_ID)] },
+      rpcErrorsByName: { admin_order_virtual_account: 'statement_timeout' }, rows: { order_items: [] } });
+    const result = await getAdminOrderRecords({ ...filters, orderId: ORDER_ID });
+    expect(result.items[0]).toMatchObject({ virtualAccountUnavailable: true });
+    expect(result.items[0]).not.toHaveProperty('virtualAccount');
+  });
+
+  it('목록 엑셀(건수 안 읽음)과 조회 전용 권한은 읽지 않는다', async () => {
+    for (const options of [{ includeCounts: false }, { canManage: false }]) {
+      const rpc = vi.fn();
+      mocks.client = createClient({ records: [], rpc, rpcRowsByName: { admin_search_orders_console: [row(ORDER_ID)], admin_order_virtual_account: account as never },
+        rows: { order_items: [] } });
+      const result = await getAdminOrderRecords({ ...filters, orderId: ORDER_ID }, false, options);
+      expect(rpc, JSON.stringify(options)).not.toHaveBeenCalledWith('admin_order_virtual_account', expect.anything());
+      expect(result.items[0]).not.toHaveProperty('virtualAccount');
+    }
+  });
+});

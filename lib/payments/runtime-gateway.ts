@@ -10,7 +10,15 @@ import {
 import { createKorpayPaymentGateway } from './korpay-gateway.server';
 import { isNicepayMerchantId, isNicepayMerchantKey } from './nicepay-config.mjs';
 import { createNicepayPaymentGateway, type NicepayPaymentReferenceStore } from './nicepay-gateway.server';
-import { isTossClientKey, isTossKeyPairAligned, isTossSecretKey, tossKeyMode } from './toss-config.mjs';
+import {
+  isTossClientKey,
+  isTossKeyPairAligned,
+  isTossSecretKey,
+  parseTossVirtualAccountEnabled,
+  TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME,
+  tossKeyMode,
+  tossMerchantBindingFromEnvironment,
+} from './toss-config.mjs';
 import { createTossPaymentGateway } from './toss-gateway.server';
 
 export type NewPaymentCheckoutPurpose = 'order' | 'ticket';
@@ -126,6 +134,28 @@ export function tossGatewayKeyMode(): 'test' | 'live' | null {
   if (!configuration) return null;
   const mode = tossKeyMode(configuration.secretKey);
   return mode === 'test' || mode === 'live' ? mode : null;
+}
+
+/**
+ * 고객 화면이 가상계좌(무통장입금)를 결제수단으로 안내해도 되는가(ADR-0049) — 토스 자격 증명 + 결제 UI 바인딩
+ * (TOSS_WIDGET_VARIANT_KEY) + 운영 스위치 TOSS_VIRTUAL_ACCOUNT_ENABLED='true'. 게이트웨이가 새 발급을 받는 조건과 같다.
+ * 실제 노출은 결제 어드민의 ICONS 결제 UI 설정이 정하므로 이 값은 안내 문구에만 쓴다.
+ */
+export function tossVirtualAccountCheckoutEnabled(): boolean {
+  if (!tossConfiguration()) return false;
+  const binding = tossMerchantBindingFromEnvironment(process.env);
+  return binding.kind === 'bound'
+    && parseTossVirtualAccountEnabled(process.env[TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME]) === true;
+}
+
+/**
+ * 에스크로 작업자(cron /api/cron/toss-escrow)가 쓸 토스 시크릿 키(ADR-0049). 운영 배포 + 결제 UI 바인딩이 있을 때만이다 —
+ * 가상계좌 입금 대기를 다루는 조건과 같다. 키는 이 server-only 모듈 밖으로 나가 작업자 클로저에만 들어간다.
+ */
+export function tossEscrowSecretKey(): string | null {
+  const configuration = tossConfiguration();
+  if (!configuration) return null;
+  return tossMerchantBindingFromEnvironment(process.env).kind === 'bound' ? configuration.secretKey : null;
 }
 
 /** Credentials make the adapter ready; rollout gates remain independent. */

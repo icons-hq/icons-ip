@@ -59,8 +59,18 @@ const STATUS_TONES = {
   refund: { requested: 'warning', awaiting_transfer: 'warning', done: 'success', failed: 'danger' },
   /** 무통장 환불 송금 단계 — lib/admin/bank-transfer-refund phase */
   refundTransfer: { not_confirmed: 'warning', awaiting_transfer: 'warning', completed: 'success' },
-  /** 미결제 무통장의 결제 시도. 입금 대기는 이 목록의 평상 상태라 조용히 둔다(전 행이 주의색이면 기한 임박 신호가 죽는다). missing은 원장이 없는 주문 */
-  unpaid: { prepared: 'neutral', confirming: 'info', needs_review: 'danger', unknown: 'danger', missing: 'danger' },
+  /** 미결제 무통장의 결제 시도. 입금 대기는 이 목록의 평상 상태라 조용히 둔다(전 행이 주의색이면 기한 임박 신호가 죽는다). missing은 원장이 없는 주문.
+   *  awaiting_deposit(토스 가상계좌 입금 대기)도 고객을 기다리는 상태라 조용히 둔다 */
+  unpaid: { prepared: 'neutral', confirming: 'info', needs_review: 'danger', unknown: 'danger', missing: 'danger', awaiting_deposit: 'neutral' },
+  /** 굿즈 결제 시도 상태 — lib/admin/orders GOODS_PAYMENT_ATTEMPT_STATE_LABELS. 입금 대기(가상계좌)는 고객을 기다리는 상태라 조용히 둔다 */
+  paymentAttempt: { prepared: 'neutral', confirming: 'info', approved: 'success', declined: 'danger', canceled: 'danger', unknown: 'warning', needs_review: 'danger', awaiting_deposit: 'neutral' },
+  /** 토스 가상계좌 입금 상태 — lib/admin/orders ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS(ADR-0049). 입금 대기는 고객을 기다리는 상태라 조용히,
+   *  기한이 지났는데 닫히지 않은 확인 중은 우리가 지켜볼 일이다. 입금 없이 닫힌 계좌는 끝난 일이다 */
+  virtualAccount: { awaiting: 'neutral', deposited: 'success', checking: 'warning', closed: 'neutral' },
+  /** 에스크로 배송 정보 등록 — lib/admin/orders ADMIN_ESCROW_DELIVERY_STATE_LABELS. 자동 등록이 안 된 건(직접 등록 필요)만 위험색이다 */
+  escrowDelivery: { waiting: 'neutral', ready: 'info', registered: 'success', skipped: 'neutral', manual_required: 'danger' },
+  /** 결제사 에스크로 거래 상태 — lib/admin/orders ADMIN_ESCROW_STATUS_LABELS. 구매자 취소 신청은 우리가 처리할 일이다 */
+  escrowStatus: { IN_PROGRESS: 'info', CANCEL_REQUESTED: 'warning', CONFIRMED: 'success', CANCELED: 'neutral' },
   /** 반품·교환 배송비 청구 — lib/orders/claim-fees */
   claimFee: { unpaid: 'warning', reported: 'warning', paid: 'success', waived: 'neutral', voided: 'neutral', refund_due: 'danger', refunded: 'success' },
   /** 정기구매 신청 — lib/subscriptions/model. 해지는 이미 끝난 건이라 조용히 두고 처리할 '변경 내용 확인 필요'만 띄운다 */
@@ -94,10 +104,11 @@ const STATUS_TONES = {
   claimReturnPickup: { pending: 'info', failed: 'danger', requested: 'info', collected: 'success', cancel_pending: 'info', cancel_failed: 'danger', canceled: 'neutral' },
   /** 재고 부족 부분 취소 — lib/orders/partial-cancellation(ADR-0032). 결제확인필요는 출고를 막고 있어 위험색, 송금 대기는 우리가 보낼 돈이다 */
   partialCancellation: { processing: 'info', needs_review: 'danger', rejected: 'neutral', completed: 'success', awaiting_transfer: 'warning' },
-  /** 주문 출고 보류 사유 — lib/admin/fulfillment-holds. 둘 다 돈이 들어오지 않았거나 돌려준 주문이라 출고를 막는 위험색이다.
+  /** 주문 출고 보류 사유 — lib/admin/fulfillment-holds. 테스트 결제·결제사 취소·입금 오류 되돌림은 돈이 들어오지 않았거나 돌려준 주문이라
+   *  출고를 막는 위험색이다. 에스크로 취소 요청은 구매자의 취소 신청을 우리가 처리할 일이라 클레임 접수(requested)와 같은 경고색이다.
    *  blocked는 사유를 모르는 화면(발송·배송현황의 배송 건)에서 아직 나가지 않은 배송 건의 보류, shipped는 이미 발송된
    *  주문의 보류(출고를 막지 않는 경고)다 */
-  fulfillmentHold: { test_payment: 'danger', provider_canceled: 'danger', blocked: 'danger', shipped: 'warning' },
+  fulfillmentHold: { test_payment: 'danger', provider_canceled: 'danger', deposit_reversed: 'danger', escrow_cancel_requested: 'warning', blocked: 'danger', shipped: 'warning' },
   /** 출고지시 뒤 취소 전 창고 회신 판정 — lib/admin/warehouse-stop(ADR-0046). 회신이 없거나 이미 쓴 회신은 우리가 처리할 일,
    *  이미 출고 회신은 취소를 막는 위험색이다 */
   warehouseStop: { required: 'warning', stopped: 'success', already_shipped: 'danger', used: 'warning', not_applicable: 'neutral' },
@@ -185,7 +196,7 @@ const STATUS_TONES = {
   /** 자동 작업 상태 — lib/admin/system-health systemJobState. 실패 중·멈춤은 문제, 기록 없음·꺼짐은 판단할 수 없어 조용히 둔다 */
   systemJob: { ok: 'success', failing: 'danger', stalled: 'danger', unrecorded: 'neutral', inactive: 'neutral' },
   /** 미종결 결제 시도 사유 — lib/admin/system-health. 결제사와 원장이 어긋난 건은 사람이 봐야 해 위험, 나머지는 다시 확인할 일이다 */
-  unresolvedPayment: { unknown: 'warning', confirming_stalled: 'warning', needs_review: 'danger' },
+  unresolvedPayment: { unknown: 'warning', confirming_stalled: 'warning', needs_review: 'danger', awaiting_deposit: 'warning' },
   /** 개인정보 접속기록의 이상 징후 — lib/admin/pii-access-log PII_ACCESS_FLAG_LABELS. 점검자가 먼저 볼 것(근무시간 외)과 경위를 물을 것(대량·몰아보기). */
   piiAccessFlag: { off_hours: 'warning', bulk: 'danger', burst: 'danger' },
 } as const satisfies Record<string, Record<string, AdminTone>>;

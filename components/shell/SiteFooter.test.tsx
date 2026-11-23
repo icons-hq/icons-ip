@@ -358,3 +358,23 @@ describe('SiteFooter 사업자정보 확인 링크', () => {
     }
   });
 });
+
+/* 구매안전서비스(결제대금예치) 가입 사실 표시(ADR-0049) — 가상계좌 개정(약관의 구매안전서비스 고지)이 시행된 날부터 사업자 정보 아래에 보인다. */
+describe('SiteFooter 구매안전서비스 표시', () => {
+  const notice = '고객님은 안전거래를 위해 현금 등으로 결제 시 저희 쇼핑몰에서 가입한 토스페이먼츠의 구매안전(에스크로) 서비스를 이용하실 수 있습니다.';
+
+  it('시행 중이면 사업자 정보 아래·저작권 위에 안내와 가입 사실 확인 링크(새 창)를 그린다', () => {
+    const html = renderToStaticMarkup(<SiteFooter copyrightYear={2026} escrowNoticeVisible />);
+    expect(html).toContain(notice);
+    expect(html).toContain('<a class="wc-x-footer__biz-verify" href="https://consumer.tosspayments.com/escrow/detail?mertid=iconsi0xvd" rel="noopener noreferrer" target="_blank">서비스 가입 사실 확인<span class="wc-sr-only"> 새 창</span></a>');
+    const escrow = html.indexOf('data-footer-escrow');
+    expect(escrow).toBeGreaterThan(html.indexOf('aria-label="연락처·호스팅"'));
+    expect(escrow).toBeLessThan(html.indexOf('wc-x-footer__copy'));
+  });
+
+  it('시행 전(또는 예약 없음)에는 그리지 않는다', () => {
+    const html = renderToStaticMarkup(<SiteFooter copyrightYear={2026} escrowNoticeVisible={false} />);
+    expect(html).not.toContain('data-footer-escrow');
+    expect(html).not.toContain('구매안전');
+  });
+});

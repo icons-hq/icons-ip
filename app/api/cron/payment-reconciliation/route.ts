@@ -56,13 +56,15 @@ export async function GET(request: Request) {
     if (!candidates) throw new Error('reconciliation_candidates_unavailable');
     const started = Date.now();
     const stamp = new Date(started).toISOString().replace(/\D/g, '').slice(0, 12);
-    const counts = { providers: providers.length, candidates: candidates.length, approved: 0, closed: 0, unresolved: 0, inProgress: 0, unavailable: 0, failed: 0, deferred: 0 };
+    const counts = { providers: providers.length, candidates: candidates.length, approved: 0, closed: 0, awaitingDeposit: 0, unresolved: 0, inProgress: 0, unavailable: 0, failed: 0, deferred: 0 };
     for (const candidate of candidates) {
       if (Date.now() - started > START_BUDGET_MS) { counts.deferred += 1; continue; }
       const result = await reconcilePaymentAttempt(candidate, `auto-${stamp}-${candidate.attemptId.replace(/-/g, '')}`);
       if (result.kind === 'reconciled') {
         if (result.outcome === 'approved') counts.approved += 1;
         else if (result.outcome === 'declined' || result.outcome === 'canceled') counts.closed += 1;
+        // 가상계좌 입금 대기 재확인(입금 전·기한 유예 안) — 정상 대기다(ADR-0049).
+        else if (result.outcome === 'awaiting_deposit') counts.awaitingDeposit += 1;
         else counts.unresolved += 1;
       } else if (result.kind === 'in_progress') counts.inProgress += 1;
       else if (result.kind === 'unavailable') counts.unavailable += 1;

@@ -19,6 +19,43 @@ const COPY: Record<string, PaymentCancelErrorCopy> = {
   provider_mismatch: { label: '결제 정보가 일치하지 않습니다', next: HAND_OVER },
   // 반품배송비 차감 부분 취소(ADR-0031): 결제사 잔액이 이 취소 전·후의 기대값과 다르다 — 다른 취소가 끼어들었을 수 있다.
   provider_balance_mismatch: { label: '결제사 잔액이 예상과 다릅니다', next: `결제사 관리자에서 이 결제의 취소 내역을 확인해주세요. ${HAND_OVER}` },
+  /* 토스 가상계좌(ADR-0049). 입금 뒤 환불은 고객 환불 계좌로만 나간다 — 계좌가 없거나 결제사가 계좌를 받지 않으면 결제사를 다시 부르지 않고 멈춘다. */
+  provider_refund_account_required: {
+    label: '환불 계좌가 없어 가상계좌 결제를 환불하지 못했습니다',
+    next: '고객에게 환불 계좌(은행·계좌번호·예금주)를 받아 토스페이먼츠 상점관리자에서 환불한 뒤 [환불 완료 확정]을 다시 눌러주세요(주문 처리 화면에서는 [상태 다시 확인]).',
+  },
+  provider_refund_account_invalid: {
+    label: '결제사가 환불 계좌를 받지 않았습니다',
+    next: '은행·계좌번호·예금주가 맞는지 고객에게 다시 확인해 토스페이먼츠 상점관리자에서 환불한 뒤 [환불 완료 확정]을 다시 눌러주세요.',
+  },
+  provider_refund_failed: {
+    label: '결제는 취소됐지만 고객 계좌로 환불 송금이 실패했습니다',
+    next: '토스페이먼츠 상점관리자에서 환불 실패 사유를 확인하고, 고객에게 맞는 환불 계좌를 받아 다시 환불한 뒤 [환불 완료 확정]을 다시 눌러주세요.',
+  },
+  provider_virtual_account_released: {
+    label: '입금 전에 가상계좌를 반납했습니다',
+    next: '입금된 돈이 없어 환불할 금액이 없습니다. 화면을 새로고침해 주문이 취소됐는지 확인해주세요.',
+  },
+  provider_deposit_expired: {
+    label: '입금 기한이 지나 가상계좌가 닫혔습니다',
+    next: '입금된 돈이 없어 주문은 자동 취소되고 재고·쿠폰·적립금이 돌아갑니다. 화면을 새로고침해 확인해주세요.',
+  },
+  provider_virtual_account_canceled: {
+    label: '결제사에서 가상계좌 결제가 취소됐습니다',
+    next: '입금 전에 반납됐거나 토스페이먼츠 상점관리자에서 이미 환불한 결제입니다. 화면을 새로고침해 주문이 취소됐는지 확인하고, 상점관리자에서 직접 환불했다면 고객에게 환불이 끝났는지 확인해주세요.',
+  },
+  provider_virtual_account_release_pending: {
+    label: '가상계좌 반납 결과를 아직 확인하지 못했습니다',
+    next: '시스템이 결제사에 자동으로 다시 확인합니다. 잠시 뒤 [환불 완료 확정]을 다시 눌러주세요.',
+  },
+  provider_deposit_window_out_of_range: {
+    label: '입금 기한이 허용 범위(발급 뒤 72시간 안) 밖이라 가상계좌를 반납했습니다',
+    next: `토스페이먼츠 결제 어드민의 가상계좌 입금 기한 설정(권장 24시간)을 확인해야 합니다. ${HAND_OVER}`,
+  },
+  provider_virtual_account_invalid: {
+    label: '결제사가 보낸 가상계좌 정보의 형식이 맞지 않아 계좌를 반납했습니다',
+    next: HAND_OVER,
+  },
 };
 
 const UNKNOWN: PaymentCancelErrorCopy = { label: '결제사 확인에 실패했습니다', next: '가이드의 취소·반품·교환 관리에서 코드별 조치를 확인해주세요.' };

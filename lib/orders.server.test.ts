@@ -3,14 +3,14 @@ import { loadOrderDetail, loadOrders } from './orders.server';
 import { myOrderItemsFixture } from './orders/my-order-items.fixture';
 import { transactionDisplay, transactionLineId, transactionQuoteId } from '@/test/fixtures/cart-transaction';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn(), retrySources: vi.fn() }));
+const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn(), retrySources: vi.fn(), awaitingDeposit: vi.fn() }));
 
 vi.mock('./gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.gift }));
 vi.mock('./gifts-order-detail.server', () => ({ loadGiftOrderList: mocks.giftList, loadGiftOrderDetail: mocks.giftDetail }));
 /* 다시 결제 진입의 출처(QA1 S-D2-15)는 보류 원장을 서비스 롤로 읽는다 — 여기서는 주입한다. */
-vi.mock('./checkout.server', () => ({ loadOrderRetrySources: mocks.retrySources }));
+vi.mock('./checkout.server', () => ({ loadOrderRetrySources: mocks.retrySources, loadAwaitingDepositOrderIds: mocks.awaitingDeposit }));
 beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); mocks.giftList.mockReset().mockResolvedValue([]); mocks.giftDetail.mockReset();
-  mocks.retrySources.mockReset().mockResolvedValue(new Map()); });
+  mocks.retrySources.mockReset().mockResolvedValue(new Map()); mocks.awaitingDeposit.mockReset().mockResolvedValue(new Set()); });
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 /* 품목 줄 보강의 19금 판정(MD-0036)은 인증 요청 범위가 필요하다 — 여기서는 주입한다. */
 vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => 'full' }));
@@ -171,6 +171,17 @@ describe('loadOrders', () => {
     expect(await loadOrders(userId,{includePending:true})).toMatchObject([{id:orderId,status:'pending',retry}]);
     expect(await loadOrders(userId)).toMatchObject([{id:orderId,status:'pending',paymentMethod:'card',retry}]);
     expect(mocks.retrySources).toHaveBeenLastCalledWith(userId, [orderId]);
+  });
+
+  /* ADR-0049: 토스 가상계좌 입금 대기는 결제수단이 card로 남는다 — 결제 시도 상태로 가려 '입금 대기'로 보이게 하고 다시 결제 진입을 걷는다. */
+  it('가상계좌 입금 대기 카드 주문은 awaitingVirtualAccount로 표시하고 다시 결제 진입을 붙이지 않는다', async () => {
+    mocks.client=createClient({records:[],rows:{orders:[
+      {id:orderId,user_id:userId,status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z'},
+    ],order_items:[]}});
+    mocks.retrySources.mockResolvedValue(new Map([[orderId, { source: 'cart', awaitingPayment: true, paymentUnresolved: false, baseGoodId: null, retryOrderId: null }]]));
+    mocks.awaitingDeposit.mockResolvedValue(new Set([orderId]));
+    expect(await loadOrders(userId)).toMatchObject([{ id: orderId, status: 'pending', paymentMethod: 'card', awaitingVirtualAccount: true, retry: null }]);
+    expect(mocks.awaitingDeposit).toHaveBeenLastCalledWith(userId, [orderId]);
   });
 
   it('결제한 주문·무통장 주문은 다시 결제 출처를 묻지 않는다', async () => {

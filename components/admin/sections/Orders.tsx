@@ -23,7 +23,14 @@ import {
   ADMIN_ORDER_STATUS_LABELS,
   ADMIN_STAFF_CANCELLATION_NOTE_LIMIT,
   ADMIN_STAFF_CANCELLATION_REASONS,
+  ADMIN_ESCROW_DELIVERY_STATE_LABELS,
+  ADMIN_ESCROW_MANUAL_REQUIRED_HINT,
+  ADMIN_ESCROW_STATUS_LABELS,
+  ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS,
+  ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS,
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
+  GOODS_PAYMENT_ATTEMPT_STATE_LABELS,
+  adminVirtualAccountEscrowLabel,
   adminOrderDetailHref,
   adminOrderSearchHref,
   adminStaffCancellationAvailability,
@@ -82,6 +89,7 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { adminPaymentCancelErrorCopy } from '@/lib/admin/payment-cancel-error';
+import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
 import { ShipmentExtraTrackingsPanel } from '@/components/admin/ShipmentExtraTrackingsPanel';
 import { ShipmentTrackingSwapForm } from '@/components/admin/ShipmentTrackingSwapForm';
 import { ShipmentTrackingDuplicateForm } from '@/components/admin/ShipmentTrackingDuplicateForm';
@@ -126,18 +134,37 @@ const STATUS_CARD_ICONS: Partial<Record<AdminOrderFilters['status'], LucideIcon>
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
-const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
-  NonNullable<AdminOrderRecord['manualRecoveryAttempt']>['state'],
-  string
-> = {
-  prepared: '결제 준비',
-  confirming: '승인 확인 중',
-  approved: '승인 완료',
-  declined: '승인 거절',
-  canceled: '취소 완료',
-  unknown: '결과 미확인',
-  needs_review: '운영 확인 필요',
-};
+/**
+ * 토스 가상계좌(무통장입금) 입금 정보(ADR-0049). 처리 패널 '결제·환불'의 맨 위 — 결제수단·입금 은행·계좌번호·입금 기한·상태와
+ * 구매안전서비스(에스크로) 적용 여부. 입금 확인·만료는 결제사 조회가 자동으로 닫으므로 버튼은 없다.
+ */
+function OrderVirtualAccountFacts({ order }: { order: AdminOrderRecord }) {
+  if (order.virtualAccountUnavailable) {
+    return <p className="text-muted-foreground" data-order-virtual-account="unavailable">가상계좌 입금 정보를 불러오지 못했습니다. 잠시 뒤 새로고침해 다시 확인해주세요.</p>;
+  }
+  const account = order.virtualAccount;
+  if (!account) return null;
+  /* 에스크로 결제가 아니면(작업 없음·건너뜀) 배송 정보 등록 칸을 그리지 않는다. */
+  const escrow = account.escrow && account.escrow.deliveryState !== 'skipped' ? account.escrow : null;
+  return (
+    <div className="flex flex-col gap-2" data-order-virtual-account={account.state}>
+      <dl className={FACTS_CLASS}>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>가상계좌</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>입금 상태</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('virtualAccount', account.state)}>{ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS[account.state]}</AdminStatusBadge></dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>입금 은행 · 계좌번호</dt><dd className={`${FACT_VALUE} tabular-nums`}>{tossBankLabel(account.bankCode)} {account.accountNumber}</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>입금 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{formatKrwExact(account.amount)}</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>입금 기한 (KST)</dt><dd className={`${FACT_VALUE} tabular-nums`}><time dateTime={account.dueAt}>{formatOrderDateTime(account.dueAt)}</time></dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>구매안전서비스(에스크로)</dt><dd className={FACT_VALUE}>{adminVirtualAccountEscrowLabel(account.useEscrow)}</dd></div>
+        {escrow ? <>
+          <div className={FACT_CLASS} data-order-escrow-delivery={escrow.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', escrow.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[escrow.deliveryState]}</AdminStatusBadge>{escrow.lastErrorCode ? <span className="mt-1 block text-xs font-normal text-muted-foreground">확인 코드 · {escrow.lastErrorCode}</span> : null}</dd></div>
+          <div className={FACT_CLASS}><dt className={FACT_TERM}>에스크로 거래 상태</dt><dd className={FACT_VALUE}>{escrow.escrowStatus ? <AdminStatusBadge tone={statusTone('escrowStatus', escrow.escrowStatus)}>{ADMIN_ESCROW_STATUS_LABELS[escrow.escrowStatus]}</AdminStatusBadge> : '아직 확인 전'}</dd></div>
+        </> : null}
+      </dl>
+      {escrow?.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
+      <p className="text-xs leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} 가상계좌 결제는 주문 전체로만 취소·반품할 수 있습니다.</p>
+    </div>
+  );
+}
 
 /**
  * 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. 운영자 전액
@@ -963,6 +990,7 @@ function OrderDetail({
       {canManage ? <section className={DETAIL_SECTION} aria-labelledby="admin-order-payment-title">
         <h3 className={DETAIL_HEADING} id="admin-order-payment-title">결제·환불</h3>
         <div className="flex flex-col gap-2">
+          <OrderVirtualAccountFacts order={order} />
           {order.payments.map((payment) => (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={payment.id}>
               <span className="flex items-center gap-1.5">결제 <AdminStatusBadge tone={statusTone('payment', payment.status)}>{paymentStatusLabel(payment.status)}</AdminStatusBadge></span>
@@ -977,7 +1005,7 @@ function OrderDetail({
               <strong className="ml-auto font-semibold tabular-nums">{formatKrwExact(refund.amount)}</strong>
             </div>
           ))}
-          {!order.payments.length && !order.refunds.length ? <p className="text-muted-foreground">결제 기록이 없습니다.</p> : null}
+          {!order.payments.length && !order.refunds.length && !order.virtualAccount ? <p className="text-muted-foreground">결제 기록이 없습니다.</p> : null}
         </div>
       </section> : null}
 

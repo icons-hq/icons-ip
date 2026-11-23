@@ -108,6 +108,8 @@ const ATTEMPT_STATE_LABELS: Record<string, string> = {
   confirming: '확정 처리중',
   needs_review: '결제 확인 필요',
   unknown: '결제 확인 필요',
+  /* 토스 가상계좌 입금 대기(ADR-0049). 이 목록은 자체 계좌 무통장 주문만 싣지만, 시도 상태를 모르는 값으로 보이지 않게 이름을 둔다. */
+  awaiting_deposit: '입금 대기(가상계좌)',
 };
 
 export function adminUnpaidAttemptStateLabel(state: string | null) {

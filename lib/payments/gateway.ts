@@ -4,6 +4,11 @@ export const PAYMENT_OUTCOMES = [
   'canceled',
   'unknown',
   'needs_review',
+  /**
+   * 가상계좌 발급 — 승인 API 200이지만 결제 완료가 아니다(입금 대기, ADR-0049). 굿즈 주문의 토스 결제만 이 값을
+   * 돌려준다(티켓·정기결제·다른 결제사는 돌려주지 않는다). DB 전용 finalizer가 입금 기한까지 주문을 잡아 둔다.
+   */
+  'awaiting_deposit',
 ] as const;
 
 export type PaymentOutcome = (typeof PAYMENT_OUTCOMES)[number];
@@ -73,6 +78,32 @@ export interface PaymentProviderEvidence {
   readonly paymentMethod?: string;
   readonly maskedPaymentMethod?: string;
   readonly approvedAt?: string;
+  /** `awaiting_deposit`일 때만 — 결제사가 이 주문에 발급한 입금 계좌(ADR-0049). */
+  readonly virtualAccount?: PaymentVirtualAccount;
+}
+
+/** 결제사가 주문마다 발급한 가상계좌(수납 계좌). 구매자 개인정보가 아니다. */
+export interface PaymentVirtualAccount {
+  /** 토스 은행 코드(2·3자리 숫자, /codes/org-codes). */
+  readonly bankCode: string;
+  readonly accountNumber: string;
+  /** 입금 기한(ISO 8601). 이 시각이 지나면 계좌가 반납된다. */
+  readonly dueAt: string;
+  /** 구매자가 에스크로(구매안전서비스)를 골랐는지. 결제사가 싣지 않으면 null. */
+  readonly useEscrow: boolean | null;
+  /**
+   * 구매자가 결제 UI에 입력한 환불 계좌(결제 어드민 '가상계좌 환불 정보 입력' 사용 시). 결제창을 띄운 뒤 30분만
+   * 조회되므로 입금 대기 확정 때 남긴다. 없으면 null.
+   */
+  readonly refundReceiveAccount: PaymentRefundReceiveAccount | null;
+}
+
+/** 입금 뒤 가상계좌 환불에 쓰는 고객 환불 계좌(토스 취소 API `refundReceiveAccount`). */
+export interface PaymentRefundReceiveAccount {
+  /** 토스 은행 코드(2자리 권장, /codes/org-codes). */
+  readonly bankCode: string;
+  readonly accountNumber: string;
+  readonly holderName: string;
 }
 
 export interface PaymentOperationOutcome {
@@ -110,6 +141,12 @@ export interface PaymentRefundRequest {
    * idempotencyKey가 달라야 한다(토스는 같은 키의 첫 응답을 15일간 재생한다). providerPaymentKey가 필요하다.
    */
   readonly partial?: PaymentPartialRefund;
+  /**
+   * 입금이 끝난 가상계좌 결제의 전액 취소에만 쓴다(ADR-0049). 토스 취소 API가 환불 계좌를 요구한다 — 없으면 어댑터는
+   * 결제사를 부르지 않고 needs_review(provider_refund_account_required)를 돌려준다. 멱등키는 어댑터가 계좌별로 갈라
+   * 쓴다(틀린 계좌로 거절된 첫 응답이 15일간 재생되지 않게).
+   */
+  readonly refundReceiveAccount?: PaymentRefundReceiveAccount;
 }
 
 export interface PaymentPartialRefund {
@@ -127,6 +164,11 @@ export const PARTIAL_CANCEL_UNAVAILABLE_REASON = 'provider_partial_cancel_unavai
  */
 export interface PaymentReconcileHint {
   readonly providerPaymentKey?: string;
+  /**
+   * 입금 대기 가상계좌를 반납(입금 전 전액 취소)하고 닫으라는 요청(ADR-0049) — 구매자가 입금 전에 주문을 취소했을 때.
+   * 조회가 이미 입금(DONE)을 보이면 반납하지 않고 승인으로 판정한다.
+   */
+  readonly releaseVirtualAccount?: boolean;
 }
 
 export interface RefundOutcome extends PaymentOperationOutcome {
@@ -141,7 +183,16 @@ export interface RefundOutcome extends PaymentOperationOutcome {
  * 주문·총액을 대조한 뒤 지금 잔액과 마지막 취소 거래를 돌려준다. 판정(돈이 안 움직였는지·이미 취소됐는지)은 호출자가 한다.
  */
 export type PaymentBalanceInspection =
-  | { kind: 'ok'; status: string; balanceAmount: number; lastCancel: { cancelAmount: number; transactionKey: string } | null }
+  | {
+      kind: 'ok';
+      status: string;
+      balanceAmount: number;
+      lastCancel: { cancelAmount: number; transactionKey: string } | null;
+      /** 가상계좌 결제인지 — 입금 오류 되돌림(DONE → WAITING_FOR_DEPOSIT) 판정에 쓴다(ADR-0049). */
+      virtualAccount?: boolean;
+      /** 결제의 마지막 거래 키(불투명) — 같은 되돌림 관측을 한 번만 기록하는 표지. */
+      lastTransactionKey?: string;
+    }
   | { kind: 'unavailable' | 'mismatch' | 'not_supported' };
 
 /**
@@ -166,6 +217,12 @@ export type PaymentReceiptLookup =
 
 export interface PaymentGateway {
   prepare(attempt: PaymentAttempt): Promise<PreparedCheckout>;
+  /**
+   * 입금 대기 가상계좌를 반납한다(입금 전 전액 취소, 멱등) — DB가 입금 대기 확정을 거부했을 때 발급된 계좌가 열린 채
+   * 남지 않게 같은 요청에서 부른다(ADR-0049). 결과는 판정에 쓰지 않는다(뒤따르는 웹훅·재정합이 조회로 닫는다).
+   * 지원하지 않는 결제사는 없다.
+   */
+  releaseVirtualAccount?(attempt: PaymentAttempt, providerPaymentKey: string): Promise<void>;
   confirm(returnInput: PaymentReturnInput): Promise<ConfirmOutcome>;
   reconcile(attempt: PaymentAttempt, hint?: PaymentReconcileHint): Promise<ReconcileOutcome>;
   refund(request: PaymentRefundRequest): Promise<RefundOutcome>;

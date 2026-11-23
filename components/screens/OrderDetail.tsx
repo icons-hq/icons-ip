@@ -353,7 +353,7 @@ export function OrderDetail({
   /* 결제를 마치지 않은 주문은 결제수단으로 말한다 — 무통장은 '입금 대기'·'입금을 기다리고 있어요'(QA1 S-D2-12). 진행 중인 취소
      클레임이 있으면 그 단계로 말한다(orderDetailHeaderPresentation). */
   const headerBase = orderDetailHeaderPresentation(order.status, order.cancellationRequest);
-  const paymentStatusMeta = customerOrderStatusMeta(order.status, order.paymentMethod);
+  const paymentStatusMeta = customerOrderStatusMeta(order.status, order.paymentMethod, { awaitingVirtualAccount: cardPayment?.awaitingDeposit === true });
   const status = headerBase === orderStatusMeta(order.status)
     ? { ...paymentStatusMeta }
     : { ...headerBase, label: paymentStatusMeta.label };

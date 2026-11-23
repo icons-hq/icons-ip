@@ -142,3 +142,90 @@ describe('GoodsPaymentAttemptRepository', () => {
     })).rejects.toThrow('goods_payment_repository_failed');
   });
 });
+
+describe('GoodsPaymentAttemptRepository — 가상계좌 입금 대기(ADR-0049)', () => {
+  beforeEach(() => mocks.rpc.mockReset());
+
+  const awaiting: ConfirmOutcome = {
+    attemptId: ATTEMPT_ID,
+    provider: 'toss',
+    outcome: 'awaiting_deposit',
+    reasonCode: 'provider_awaiting_deposit',
+    evidence: {
+      providerPaymentKey: 'va-payment-key',
+      resultCode: 'WAITING_FOR_DEPOSIT',
+      paymentMethod: '가상계좌',
+      virtualAccount: {
+        bankCode: '20',
+        accountNumber: 'X6505636518308',
+        dueAt: '2026-11-24T03:00:00.000Z',
+        useEscrow: true,
+        refundReceiveAccount: { bankCode: '88', accountNumber: '110123456789', holderName: '김토스' },
+      },
+    },
+  };
+
+  it('입금 대기는 전용 finalizer에 계좌·기한·에스크로·환불 계좌를 넘긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'awaiting_deposit', error: null });
+    const repository = createGoodsPaymentAttemptRepository({ rpc: mocks.rpc });
+
+    await expect(repository.finalizeOrderAttempt({ attemptId: ATTEMPT_ID, claimToken: 'claim', outcome: awaiting }))
+      .resolves.toEqual(awaiting);
+    expect(mocks.rpc).toHaveBeenCalledWith('finalize_goods_payment_awaiting_deposit', {
+      p_attempt_id: ATTEMPT_ID,
+      p_claim_token: 'claim',
+      p_provider_payment_key: 'va-payment-key',
+      p_bank_code: '20',
+      p_account_number: 'X6505636518308',
+      p_due_at: '2026-11-24T03:00:00.000Z',
+      p_use_escrow: true,
+      p_refund_bank_code: '88',
+      p_refund_account_number: '110123456789',
+      p_refund_holder_name: '김토스',
+    });
+  });
+
+  it('DB가 거부해 needs_review를 돌려주면 database_finalization_guard로 그 결과를 따른다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'needs_review', error: null });
+    const repository = createGoodsPaymentAttemptRepository({ rpc: mocks.rpc });
+
+    await expect(repository.finalizeOrderAttempt({ attemptId: ATTEMPT_ID, claimToken: 'claim', outcome: awaiting }))
+      .resolves.toMatchObject({ outcome: 'needs_review', reasonCode: 'database_finalization_guard' });
+  });
+
+  it('재정합의 입금 대기는 감사 행을 닫는 재정합 전용 finalizer를 쓴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'awaiting_deposit', error: null });
+    const repository = createGoodsPaymentAttemptRepository({ rpc: mocks.rpc });
+
+    await repository.finalizeOrderReconciliation({ attemptId: ATTEMPT_ID, claimToken: 'claim', outcome: awaiting });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('finalize_goods_payment_reconciliation_awaiting_deposit', expect.objectContaining({
+      p_attempt_id: ATTEMPT_ID,
+      p_bank_code: '20',
+    }));
+  });
+
+  it('계좌가 실리지 않은 입금 대기는 계약 위반이라 일반 finalizer에 needs_review로 넘긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'needs_review', error: null });
+    const repository = createGoodsPaymentAttemptRepository({ rpc: mocks.rpc });
+
+    await repository.finalizeOrderAttempt({
+      attemptId: ATTEMPT_ID,
+      claimToken: 'claim',
+      outcome: { ...awaiting, evidence: { providerPaymentKey: 'va-payment-key' } },
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('finalize_goods_payment_attempt', expect.objectContaining({ p_outcome: 'needs_review' }));
+  });
+
+  it('입금 대기 terminal claim(중복 successUrl)을 그대로 재생한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { claim_status: 'terminal', attempt: attemptRow({ provider: 'toss' }), outcome: 'awaiting_deposit' }, error: null });
+    const repository = createGoodsPaymentAttemptRepository({ rpc: mocks.rpc });
+
+    const claim = await repository.claimOrderAttempt({
+      provider: 'toss', providerOrderId: 'O30000000000040008000000000000205', callbackNonceDigest: 'd', claimToken: 'c',
+    });
+
+    expect(claim).toMatchObject({ status: 'terminal', outcome: { outcome: 'awaiting_deposit' } });
+  });
+});

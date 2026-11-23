@@ -19,6 +19,14 @@ import {
 import { formatOrderDateTime } from '@/lib/orders';
 import { statusTone } from '@/lib/admin/status-tone';
 
+/** 사유별 해제 확인창 안내. 해제하면 발주확인·출고지시 대상이 된다는 결과와 적을 내용을 말한다. */
+const RELEASE_PROMPT_MESSAGES: Record<FulfillmentHoldReason, string> = {
+  test_payment: '실제 돈이 결제되지 않은 테스트 결제입니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 결제를 따로 받았거나 출고해야 하는 이유를 적어주세요.',
+  provider_canceled: '결제사에서 취소된 금액이 있습니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 고객과 합의한 내용 등 출고해야 하는 이유를 적어주세요.',
+  deposit_reversed: '은행이 가상계좌 입금을 취소한 결제입니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 토스페이먼츠 상점관리자에서 입금을 다시 확인한 내용(확인 일시·금액 등)을 적어주세요.',
+  escrow_cancel_requested: '구매자가 구매안전서비스(에스크로)에서 취소를 신청한 결제입니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 고객과 합의한 내용 등 출고해야 하는 이유를 적어주세요.',
+};
+
 /** 보류 배지 색. 출고를 막는 보류는 사유 색(위험), 이미 발송된 주문의 보류는 경고색이다. */
 const holdTone = (hold: OrderFulfillmentHold) => statusTone('fulfillmentHold', hold.outboundBlocked ? hold.reason : 'shipped');
 
@@ -54,9 +62,7 @@ function HeldOrderNotice({ orderId, holds, canManage }: {
   async function release(reason: FulfillmentHoldReason) {
     const note = await adminPrompt({
       title: `출고 보류 해제 · ${FULFILLMENT_HOLD_LABELS[reason]}`,
-      message: reason === 'test_payment'
-        ? '실제 돈이 결제되지 않은 테스트 결제입니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 결제를 따로 받았거나 출고해야 하는 이유를 적어주세요.'
-        : '결제사에서 취소된 금액이 있습니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다. 고객과 합의한 내용 등 출고해야 하는 이유를 적어주세요.',
+      message: RELEASE_PROMPT_MESSAGES[reason],
       confirmLabel: '보류 해제',
       destructive: true,
       input: { label: '해제 사유', placeholder: '예: 고객과 통화해 남은 금액으로 출고하기로 함', minLength: 5, maxLength: 500 },

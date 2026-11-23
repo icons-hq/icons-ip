@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentRefundRequest, type RefundOutcome } from '../payments/gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentRefundReceiveAccount, type PaymentRefundRequest, type RefundOutcome } from '../payments/gateway';
 import {
   providerCancelsAutomatically,
   type AutomatedCancelProvider,
@@ -167,6 +167,23 @@ export function parsePaymentPartialRefunds(value: unknown): ReadonlyMap<string, 
   return result;
 }
 
+/** 가상계좌 결제의 구매자 환불 계좌(service 전용 RPC). 없거나 조회 실패면 undefined — 어댑터가 결제확인필요로 남긴다. */
+async function loadVirtualAccountRefundAccount(
+  service: ReturnType<typeof createServiceClient>,
+  attemptId: string,
+  paymentKey: string,
+): Promise<PaymentRefundReceiveAccount | undefined> {
+  const { data, error } = await service.rpc('service_goods_virtual_account_refund_account', {
+    p_attempt_id: attemptId,
+    p_payment_key: paymentKey,
+  });
+  if (error || typeof data !== 'object' || data === null || Array.isArray(data)) return undefined;
+  const row = data as Record<string, unknown>;
+  return typeof row.bankCode === 'string' && typeof row.accountNumber === 'string' && typeof row.holderName === 'string'
+    ? { bankCode: row.bankCode, accountNumber: row.accountNumber, holderName: row.holderName }
+    : undefined;
+}
+
 /**
  * 결제사 취소 요청 조립(기본 의존성이 쓰는 순수 함수 — 시험이 같은 조립을 쓴다).
  * 부분 취소는 취소마다 멱등키가 다르다 — 토스는 같은 키의 첫 응답을 15일간 재생하므로 전액 취소 키(`refund:{attemptId}`)를 쓰면
@@ -177,8 +194,10 @@ export function parsePaymentPartialRefunds(value: unknown): ReadonlyMap<string, 
 export function cancellationRefundRequest(attempt: PaymentAttempt, input: {
   amount: number; reason: string; paymentKey: string;
   partial?: { refundAmount: number; requestId: string; expectedBalanceBefore?: number; scope?: 'deduction' | 'remainder' };
+  /** 입금이 끝난 가상계좌 결제의 환불 계좌(ADR-0049). 다른 결제는 어댑터가 무시한다. */
+  refundReceiveAccount?: PaymentRefundReceiveAccount;
 }): PaymentRefundRequest {
-  const { amount, reason, paymentKey, partial } = input;
+  const { amount, reason, paymentKey, partial, refundReceiveAccount } = input;
   if (partial) {
     return {
       attempt,
@@ -189,7 +208,14 @@ export function cancellationRefundRequest(attempt: PaymentAttempt, input: {
       partial: { expectedBalanceBefore: partial.expectedBalanceBefore ?? amount },
     };
   }
-  return { attempt, idempotencyKey: `refund:${attempt.id}`, amount, reason, providerPaymentKey: paymentKey };
+  return {
+    attempt,
+    idempotencyKey: `refund:${attempt.id}`,
+    amount,
+    reason,
+    providerPaymentKey: paymentKey,
+    ...(refundReceiveAccount ? { refundReceiveAccount } : {}),
+  };
 }
 
 /** 남은 잔액을 결제사 부분 취소로 돌려줄 때의 취소 사유(토스 cancelReason ≤200자). */
@@ -453,7 +479,12 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         expiresAt: row.expires_at,
       };
       const gateway = createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider));
-      return gateway.refund(cancellationRefundRequest(attempt, { amount, reason, paymentKey, partial }));
+      // 입금이 끝난 가상계좌 환불은 토스 취소 API가 환불 계좌를 요구한다. 결제 UI가 받은 구매자 환불 계좌를 원장 결제 키와
+      // 맞을 때만 싣는다(ADR-0049). 없으면 어댑터가 결제사를 부르지 않고 결제확인필요로 남긴다.
+      const refundReceiveAccount = provider === 'toss'
+        ? await loadVirtualAccountRefundAccount(service, attempt.id, paymentKey)
+        : undefined;
+      return gateway.refund(cancellationRefundRequest(attempt, { amount, reason, paymentKey, partial, refundReceiveAccount }));
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
       const { data, error } = await service.rpc(

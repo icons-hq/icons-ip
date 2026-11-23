@@ -326,6 +326,14 @@ describe('readCheckoutPayment', () => {
     expiresAt: '2026-10-12T05:15:00.000Z',
   };
 
+  it('가상계좌 입금 대기 주문은 확인 중 국면이고 다시 결제·재주문을 권하지 않는다', () => {
+    expect(readCheckoutPayment({
+      ...order,
+      paymentStatus: 'pending',
+      paymentAttempt: { state: 'awaiting_deposit', expiresAt: '2026-10-13T05:00:00.000Z', provider: 'toss' },
+    }, now)).toEqual({ state: 'checking', closure: null, reorderMode: null, provider: 'toss', awaitingDeposit: true });
+  });
+
   it('승인 거절된 결제 대기 주문은 닫힌 결제이고 취소 뒤 다시 담을 수 있다', () => {
     expect(readCheckoutPayment({
       ...order,
@@ -369,6 +377,8 @@ describe('checkoutEffectivePaymentStatus', () => {
     for (const state of ['confirming', 'unknown', 'needs_review']) {
       expect(checkoutEffectivePaymentStatus(state, null)).toBe('pending');
     }
+    /* 토스 가상계좌 입금 대기(ADR-0049)도 실패가 아닌 진행 중이다. */
+    expect(checkoutEffectivePaymentStatus('awaiting_deposit', null)).toBe('pending');
     expect(checkoutEffectivePaymentStatus('declined', null)).toBeNull();
     expect(checkoutEffectivePaymentStatus(undefined, 'paid')).toBe('paid');
   });
@@ -451,6 +461,17 @@ describe('checkoutPaymentResultOutcome', () => {
         orderStatus: 'pending', paymentStatus: null, attempt: attempt(state), hasActiveCancellationRequest: true,
       }, now)).toBe('checking');
     }
+  });
+
+  it('가상계좌 입금 대기 시도는 실패가 아닌 입금 대기로 안내하고, 승인 콜백을 덮지 않는다', () => {
+    for (const paymentStatus of [null, 'pending']) {
+      expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus, attempt: attempt('awaiting_deposit') }, now))
+        .toBe('awaiting_deposit');
+    }
+    expect(checkoutPaymentResultOutcome({
+      orderStatus: 'pending', paymentStatus: null, attempt: attempt('awaiting_deposit'), hasActiveCancellationRequest: true,
+    }, now)).toBe('awaiting_deposit');
+    expect(checkoutPaymentResultFollowsApproval('awaiting_deposit')).toBe(false);
   });
 
   it('결제가 잡혔을 수 있는 상태와 모르는 값은 확인 중으로 둔다', () => {

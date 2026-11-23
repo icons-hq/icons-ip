@@ -34,7 +34,8 @@ interface TossGoodsPaymentConfirmHandlerDependencies {
 
 /* 승인되면 그 주문의 완료 화면으로 보낸다(D12). 주문은 쿼리가 아니라 결제 시도 원장에서 나온다. */
 function redirectForOutcome(outcome: string, orderId?: string) {
-  if (outcome === 'approved') return orderId ? orderCompleteHref(orderId) : '/orders?payment=approved';
+  /* 입금 대기는 실패가 아니다 — 같은 완료 화면이 입금 안내를 보인다(ADR-0049). */
+  if (outcome === 'approved' || outcome === 'awaiting_deposit') return orderId ? orderCompleteHref(orderId) : '/orders?payment=approved';
   if (outcome === 'unknown' || outcome === 'needs_review') return '/orders?payment=checking';
   return '/orders?payment=failed';
 }

@@ -29,6 +29,12 @@ vi.mock('@/lib/legal/partial-return-terms-revision', async (importOriginal) => (
   PARTIAL_RETURN_TERMS_REVISION: null,
 }));
 
+/* 가상계좌·구매안전서비스 개정(ADR-0049)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
+vi.mock('@/lib/legal/virtual-account-terms-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/virtual-account-terms-revision')>()),
+  VIRTUAL_ACCOUNT_TERMS_REVISION: null,
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -100,6 +106,20 @@ describe('/legal/[document] 라우트', () => {
     for (const change of notice.changes) {
       expect(html).toContain(change);
     }
+  });
+
+  it('공지 기간이 겹친 예약 개정은 사전 공지를 순서대로 모두 보인다', () => {
+    const first = { announcedDate: '2026-09-01', effectiveDate: '2026-09-08', heading: '앞선 개정 예정 안내', changes: ['앞선 변경입니다.'] };
+    const second = { announcedDate: '2026-09-03', effectiveDate: '2026-09-10', heading: '뒤 개정 예정 안내', changes: ['뒤 변경입니다.'] };
+    const html = renderToStaticMarkup(
+      <LegalDocumentScreen document={{ ...LEGAL_DOCUMENTS.terms, pendingRevision: first, additionalPendingRevisions: [second] }} />,
+    );
+
+    expect(html.split('개정 사전 공지')).toHaveLength(3);
+    expect(html.indexOf(first.heading)).toBeLessThan(html.indexOf(second.heading));
+    expect(html).toContain('id="terms-pending-revision-heading"');
+    expect(html).toContain('id="terms-pending-revision-heading-2"');
+    expect(html).toContain(`시행 예정일 ${second.effectiveDate}`);
   });
 
   /* '출고지' 표기 예약 개정(1027T-010)은 요청 시각(KST)으로 상태가 갈린다 — 라우트는 요청마다 오늘 날짜로 문서를 만든다.

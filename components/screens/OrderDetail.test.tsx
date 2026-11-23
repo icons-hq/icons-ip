@@ -287,6 +287,23 @@ describe('OrderDetail', () => {
   });
 });
 
+describe('OrderDetail 토스 가상계좌 입금 대기(ADR-0049)', () => {
+  it('카드 주문이어도 입금 대기로 말하고 입금 안내 화면으로 보낸다', () => {
+    const html = renderToStaticMarkup(
+      <OrderDetail
+        cardPayment={{ state: 'checking', closure: null, reorderMode: null, provider: 'toss', awaitingDeposit: true }}
+        order={order({ status: 'pending', paymentMethod: 'card', payment: null, shipments: [] })}
+      />,
+    );
+
+    expect(html).toContain('>입금 대기</span>');
+    expect(html).toContain('<h1 class="wc-receipt__title">입금을 기다리고 있어요</h1>');
+    expect(html).toContain(`href="/orders/${ORDER_ID}/complete"`);
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).not.toContain('계좌번호');
+  });
+});
+
 describe('OrderDetail 무통장 입금 대기', () => {
   /*
    * 지금까지 입금 안내로 돌아가는 길은 알림 링크와 결제 화면뿐이었다. 구매자가

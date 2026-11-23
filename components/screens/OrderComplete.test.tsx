@@ -53,6 +53,49 @@ describe('orderCompleteDestination', () => {
   });
 });
 
+describe('가상계좌 입금 대기(ADR-0049)', () => {
+  const pendingCard = { ...order, status: 'pending', paymentStatus: 'pending', paidAt: null, expiresAt: '2026-10-28T05:00:00.000Z' };
+  const va = {
+    bankCode: '20', accountNumber: '1002-123-456789', dueAt: '2026-10-28T05:00:00.000Z',
+    amount: 15_000, useEscrow: true, state: 'awaiting',
+  } as const;
+
+  it('카드 주문의 계좌가 입금 대기면 완료 화면을, 계좌를 모르면 주문 상세를 그린다', () => {
+    expect(orderCompleteDestination(pendingCard, 0, { state: 'awaiting' })).toEqual({ kind: 'virtual_account', state: 'awaiting' });
+    expect(orderCompleteDestination(pendingCard, 0, { state: 'checking' })).toEqual({ kind: 'virtual_account', state: 'checking' });
+    expect(orderCompleteDestination(pendingCard, 0, { state: 'closed' })).toEqual({ kind: 'redirect', href: `/orders/${order.id}` });
+    expect(orderCompleteDestination(pendingCard, 0, null)).toEqual({ kind: 'redirect', href: `/orders/${order.id}` });
+    /* 무통장 주문은 계좌 값이 와도 기존 판정을 따른다. */
+    expect(orderCompleteDestination({ ...pendingCard, paymentMethod: 'bank_transfer', paymentStatus: null }, 0, { state: 'awaiting' }).kind).toBe('deposit');
+  });
+
+  it('은행·계좌번호·금액·기한과 안내 문구를 보이고 예금주는 보이지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderComplete order={pendingCard} bankTransferAccount={null} virtualAccount={va} />);
+    expect(html).toContain('주문이 접수됐어요');
+    expect(html).toContain('우리은행');
+    expect(html).toContain('1002-123-456789');
+    expect(html).toContain('계좌번호 복사');
+    expect(html).toContain('입금할 금액</dt><dd>₩15,000');
+    expect(html).toContain('입금 기한');
+    expect(html).toContain('입금자명은 주문자와 달라도');
+    expect(html).toContain('자동으로 취소');
+    expect(html).toContain('몇 분 안에');
+    expect(html).toContain('구매안전서비스(에스크로)');
+    expect(html).not.toContain('예금주');
+  });
+
+  it('에스크로가 아니면 구매안전서비스 안내를 싣지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderComplete order={pendingCard} bankTransferAccount={null} virtualAccount={{ ...va, useEscrow: false }} />);
+    expect(html).not.toContain('구매안전서비스');
+  });
+
+  it('확인 중이면 계좌를 다시 보이지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderComplete order={pendingCard} bankTransferAccount={null} virtualAccount={{ ...va, state: 'checking' }} />);
+    expect(html).toContain('입금을 확인하고 있어요');
+    expect(html).not.toContain('1002-123-456789');
+  });
+});
+
 describe('OrderComplete', () => {
   it('주문번호·품목·최종 결제 금액·결제 일시와 주문 상세·쇼핑 계속을 보인다(D12)', () => {
     const html = renderToStaticMarkup(<OrderComplete order={order} bankTransferAccount={null} />);

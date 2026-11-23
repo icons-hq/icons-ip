@@ -18,7 +18,17 @@ import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/a
 import type { AdminOrderDetail, AdminOrderTimelineEntry, AdminOrderTimelineSource } from '@/lib/admin/order-detail';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
-import { ADMIN_ORDER_STATUS_LABELS, type AdminOrderStatus } from '@/lib/admin/orders';
+import {
+  ADMIN_ESCROW_DELIVERY_STATE_LABELS,
+  ADMIN_ESCROW_MANUAL_REQUIRED_HINT,
+  ADMIN_ESCROW_STATUS_LABELS,
+  ADMIN_ORDER_STATUS_LABELS,
+  ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS,
+  ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS,
+  adminVirtualAccountEscrowLabel,
+  type AdminOrderStatus,
+} from '@/lib/admin/orders';
+import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
 import { forcedDeliveryHref } from '@/lib/admin/forced-delivery';
@@ -84,7 +94,7 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.bank_refund_complete_transfer': '계좌 송금 완료',
   'system.order.unpaid_cart_order_closed': '결제 대기 주문 자동 취소 (재주문·장바구니 복귀)',
   'system.order.cart_hold_detached': '장바구니 보류 해제 (결제 확인 필요 주문)',
-  'system.order.fulfillment_hold_placed': '출고 보류 (테스트 결제·결제사 취소)',
+  'system.order.fulfillment_hold_placed': '출고 보류 (결제 확인 필요)',
   'admin.order.fulfillment_hold_released': '출고 보류 해제',
   'system.order.fulfillment_hold_released': '출고 보류 종료 (주문 취소)',
   /* 출고지시 뒤 취소의 창고 회신과 취소 뒤 출고 발견(ADR-0046). */
@@ -138,6 +148,36 @@ function ItemAllocationSummary({ allocation, discounted, unavailable = false }: 
   const parts = [allocation.volumeDiscount ? `복수구매 −${money(allocation.volumeDiscount)}` : '', `쿠폰 −${money(allocation.couponDiscount)}`,
     `적립금 −${money(allocation.storeCreditDiscount)}`].filter(Boolean);
   return <><span className={ITEM_NOTE}>{parts.join(' · ')}</span><span className={ITEM_NOTE}>배분 후 {money(allocation.paidGoodsTotal)} · 배송비 제외</span></>;
+}
+
+/**
+ * 토스 가상계좌(무통장입금) 입금 정보(ADR-0049). 주문 처리 권한(결제·환불 기록과 같은 범위)에만 그린다. 입금 확인·만료는
+ * 결제사 조회가 자동으로 닫으므로 버튼은 없다. 읽지 못했으면 가상계좌가 아니라고 말하지 않고 그 사실을 적는다.
+ */
+function OrderVirtualAccountCard({ detail }: { detail: AdminOrderDetail }) {
+  if (detail.virtualAccountUnavailable) {
+    return <AdminSectionCard title="가상계좌 입금"><p className="text-muted-foreground" data-order-virtual-account="unavailable">가상계좌 입금 정보를 불러오지 못했습니다. 잠시 뒤 새로고침해 다시 확인해주세요.</p></AdminSectionCard>;
+  }
+  const account = detail.virtualAccount;
+  if (!account) return null;
+  /* 에스크로 결제가 아니면(작업 없음·건너뜀) 배송 정보 등록 줄을 그리지 않는다. */
+  const escrow = account.escrow && account.escrow.deliveryState !== 'skipped' ? account.escrow : null;
+  return <AdminSectionCard title="가상계좌 입금">
+    <dl className={FACTS} data-order-virtual-account={account.state}>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>입금 상태</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('virtualAccount', account.state)}>{ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS[account.state]}</AdminStatusBadge></dd></div>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>입금 은행</dt><dd className={FACT_VALUE}>{tossBankLabel(account.bankCode)}</dd></div>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>계좌번호</dt><dd className={`${FACT_VALUE} tabular-nums`}>{account.accountNumber}</dd></div>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>입금 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(account.amount)}</dd></div>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>입금 기한 (KST)</dt><dd className={`${FACT_VALUE} tabular-nums`}><time dateTime={account.dueAt}>{dateTime(account.dueAt)}</time></dd></div>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>구매안전서비스 (에스크로)</dt><dd className={FACT_VALUE}>{adminVirtualAccountEscrowLabel(account.useEscrow)}</dd></div>
+      {escrow ? <>
+        <div className={FACT_ROW} data-order-escrow-delivery={escrow.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', escrow.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[escrow.deliveryState]}</AdminStatusBadge>{escrow.lastErrorCode ? <span className="mt-1 block text-xs text-muted-foreground">확인 코드 · {escrow.lastErrorCode}</span> : null}</dd></div>
+        <div className={FACT_ROW}><dt className={FACT_TERM}>에스크로 거래 상태</dt><dd className={FACT_VALUE}>{escrow.escrowStatus ? <AdminStatusBadge tone={statusTone('escrowStatus', escrow.escrowStatus)}>{ADMIN_ESCROW_STATUS_LABELS[escrow.escrowStatus]}</AdminStatusBadge> : '아직 확인 전'}</dd></div>
+      </> : null}
+    </dl>
+    {escrow?.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
+    <p className="text-sm leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} 가상계좌 결제는 주문 전체로만 취소·반품할 수 있습니다.</p>
+  </AdminSectionCard>;
 }
 
 /** 주문 콘솔 패널(sections/Orders)에서 지금 이어서 할 일. '주문 처리'만으로는 어떤 처리인지 알 수 없다. 운송장이 빠진 배송 건이 있으면 그것부터다. */
@@ -294,7 +334,7 @@ export function OrderDetailScreen({
         </div>
       </AdminNotice>
     </div> : null}
-    {/* 출고 보류(테스트 결제·결제사 취소)는 출고를 막는 상태라 머리 바로 아래에서 다음 행동과 함께 보인다. */}
+    {/* 출고 보류(테스트 결제·결제사 취소·입금 오류 되돌림·에스크로 취소 요청)는 출고를 막는 상태라 머리 바로 아래에서 다음 행동과 함께 보인다. */}
     <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} />
     {/* 출고지시가 나간 배송 건의 창고 회신과 취소 뒤 출고 발견(ADR-0046). 해당 배송 건·발견이 없으면 그리지 않는다. */}
     <OrderWarehouseStopPanel key={`warehouse-stop:${order.id}`} orderId={order.id} />
@@ -338,6 +378,7 @@ export function OrderDetailScreen({
             <div className={FACT_ROW}><dt className={FACT_TERM}>온라인 결제금액 / 착불 배송비</dt><dd className={FACT_VALUE}>{money(order.transaction.totals.onlineTotal)} / {money(order.transaction.totals.collectShippingTotal)} · 착불은 착불 수납 기록에서 확인</dd></div>
           </>}
           <div className={`${FACT_ROW} border-t pt-3`}><dt className="font-medium">최종 결제금액</dt><dd className={`${FACT_VALUE} text-base font-semibold tabular-nums`}>{money(order.total)}</dd></div>
+          {canManage && detail.virtualAccount ? <div className={FACT_ROW}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>가상계좌</dd></div> : null}
           {order.isGift && <div className={FACT_ROW}><dt className={FACT_TERM}>선물 배송</dt><dd className={FACT_VALUE}>수령인 배송지 · 수령인용 포장 명세에는 가격·결제정보를 제외합니다.</dd></div>}
         </dl>
       </AdminSectionCard>
@@ -351,6 +392,7 @@ export function OrderDetailScreen({
         </dl>}
       </AdminSectionCard>
     </div>
+    {canManage ? <OrderVirtualAccountCard detail={detail} /> : null}
     {downloads !== undefined && <AdminOrderDownloads document={downloads} />}
     {acknowledgement !== undefined ? <AdminSectionCard title="결제 전 확인 동의">
       {acknowledgement ? <dl className={FACTS} data-order-acknowledgement="recorded">

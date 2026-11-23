@@ -143,7 +143,7 @@ export function dispatchDeliveryError(code?: string): string {
     delivery_method_fixed: '배송없음·디지털 상품은 구매 때 정한 제공 방식을 유지합니다.',
     delivery_method_selection_unavailable: '결제된 주문의 출고지시 전달·운송장 등록 전 배송 준비 건만 방법을 바꿀 수 있습니다.',
     'order cancellation in progress': '취소·반품·교환 처리가 진행 중입니다. 주문 상세를 먼저 확인해주세요.',
-    'order fulfillment hold': '출고 보류 중인 주문입니다(테스트 결제 또는 결제사 취소). 주문 상세의 출고 보류 안내를 확인해주세요.',
+    'order fulfillment hold': '출고 보류 중인 주문입니다(결제 확인 필요). 주문 상세의 출고 보류 안내를 확인해주세요.',
     shipment_pack_method_locked: '합포장에 묶인 배송 건은 방법을 바꿀 수 없습니다. 합포장을 먼저 해제해주세요.',
     dispatch_method_reason_required: '고객이 고른 방법과 다르면 사유를 입력해주세요.',
     delivery_policy_unavailable: '이 출고지에서 운영 조건이 켜지지 않은 방법입니다. 배송정보 관리의 운영 조건을 확인해주세요.',

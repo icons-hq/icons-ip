@@ -96,6 +96,7 @@ select 1 / case when (
     = array[
       'prepared',
       'confirming',
+      'awaiting_deposit',
       'approved',
       'declined',
       'canceled',

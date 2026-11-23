@@ -34,6 +34,7 @@ import type { CartCouponState } from '@/lib/coupons.server';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
+import { cardMethodCopy, VIRTUAL_ACCOUNT_ESCROW_CHECKOUT_NOTICE } from '@/lib/payments/virtual-account';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { addressBookEntryToCheckout, checkoutAddressPrefillNotice, sameCheckoutDestination, type AddressBookEntry, type CheckoutAddressPrefill } from '@/lib/address-book';
@@ -145,6 +146,8 @@ interface CheckoutProps {
   draft?: CheckoutDraft | null;
   /** 청약철회·교환이 제한된 굿즈(서버가 읽은 값) — 품목 줄에 다시 고지하고 동의 문구에 더한다(PAY-015). */
   claimRestrictions?: CheckoutClaimRestrictions | null;
+  /** 토스 가상계좌(무통장입금)가 열려 있는지(서버 값, `tossVirtualAccountCheckoutEnabled`). 켜지면 카드 선택지가 같은 결제창의 무통장입금까지 말한다. */
+  virtualAccountEnabled?: boolean;
   /** 동의 체크의 시작값. 화면은 항상 false로 시작한다 — 서버 렌더 시험이 체크 뒤 상태를 보려고만 쓴다. */
   initialAcknowledged?: boolean;
 }
@@ -219,6 +222,7 @@ export function Checkout({
   paymentFailCode = null,
   draft = null,
   claimRestrictions = EMPTY_CHECKOUT_CLAIM_RESTRICTIONS,
+  virtualAccountEnabled = false,
   initialAcknowledged = false,
 }: CheckoutProps) {
   const router = useRouter();
@@ -346,6 +350,7 @@ export function Checkout({
   const purchaseProblem = shipping.sales
     ? goodsSalesQuoteProblem(shipping.sales) ?? (belowMinimumPayment ? BELOW_MINIMUM_PAYMENT_COPY : null)
     : null;
+  const cardCopy = cardMethodCopy(virtualAccountEnabled, '결제 후 바로 확정됩니다. 재고 선점 15분.');
   const cardSelectable = paymentAvailable && shipping.sales?.paymentMethods.card === true;
   const bankTransferSelectable = bankTransferAvailable && !bankTransferBlockedByCart && shipping.sales?.paymentMethods.bankTransfer === true;
   const selectedPaymentMethod = checkoutMethodAvailable(paymentMethod, { card: cardSelectable, bankTransfer: bankTransferSelectable })
@@ -676,8 +681,8 @@ export function Checkout({
                 onChange={() => setPaymentMethod('card')}
               />
               <span>
-                <strong>신용·체크카드</strong>
-                <small>{shipping.sales?.paymentMethods.card === false ? '이 주문에는 카드를 쓸 수 없는 굿즈가 있어요.' : '결제 후 바로 확정됩니다. 재고 선점 15분.'}</small>
+                <strong>{cardCopy.label}</strong>
+                <small>{shipping.sales?.paymentMethods.card === false ? '이 주문에는 카드를 쓸 수 없는 굿즈가 있어요.' : cardCopy.note}</small>
               </span>
             </label>
             <label className="checkout-method-option">
@@ -702,6 +707,7 @@ export function Checkout({
               </span>
             </label>
           </fieldset>
+          {virtualAccountEnabled && <p className="money-caption">{VIRTUAL_ACCOUNT_ESCROW_CHECKOUT_NOTICE}</p>}
           {/* 결제수단 칸(aria-describedby)은 접힌 안내도 설명으로 읽는다. 펼쳐 볼 수 있게 접기만 한다(1014-020). */}
           <details className="checkout-note">
             <summary>결제수단 변경 안내</summary>

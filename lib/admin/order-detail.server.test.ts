@@ -82,3 +82,20 @@ it('운송장이 있는 배송 건의 추가 운송장을 주문 상세 배송 �
  mocks.from.mockImplementation((table:string)=>table==='order_shipment_extra_trackings'?{select:()=>({eq:async()=>({data:null,error:{message:'private'}})})}:{select:mocks.select});
  await expect(getAdminOrderDetail('order')).rejects.toThrow('추가 운송장을 불러오지 못했습니다.');
 });
+
+/* 토스 가상계좌(ADR-0049): 주문 상세는 주문 처리 권한에만 입금 정보를 싣는다. 읽지 못하면 '불러오지 못했다'로 표시한다. */
+it('주문 처리 권한이면 가상계좌 입금 정보를 싣고, 조회 전용이면 읽지 않는다', async () => {
+ const account={bankCode:'20',accountNumber:'X1234567890',dueAt:'2026-11-25T01:00:00.000Z',amount:32000,useEscrow:false,state:'deposited'};
+ const detail={data:{order:{id:'order'},items:[],shipments:[],timeline:[]},error:null};
+ mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_virtual_account'?{data:account,error:null}:name==='admin_order_item_allocation_inputs'?{data:[],error:null}:detail);
+ expect((await getAdminOrderDetail('order'))?.virtualAccount).toEqual({...account,escrow:null});
+ expect(mocks.rpc).toHaveBeenCalledWith('admin_order_virtual_account',{p_order_id:'order'});
+ mocks.rpc.mockClear();
+ const reader=await getAdminOrderDetail('order',false);
+ expect(mocks.rpc).not.toHaveBeenCalledWith('admin_order_virtual_account',expect.anything());
+ expect(reader).not.toHaveProperty('virtualAccount');
+ mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_virtual_account'?{data:null,error:{message:'boom'}}:name==='admin_order_item_allocation_inputs'?{data:[],error:null}:detail);
+ const failed=await getAdminOrderDetail('order');
+ expect(failed).toMatchObject({virtualAccountUnavailable:true});
+ expect(failed).not.toHaveProperty('virtualAccount');
+});

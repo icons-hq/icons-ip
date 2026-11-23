@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { isAllowedTossReceiptUrl } from '../orders/receipt';
 import type {
   ConfirmOutcome,
@@ -9,7 +9,9 @@ import type {
   PaymentOperationOutcome,
   PaymentProviderEvidence,
   PaymentReceiptLookup,
+  PaymentReconcileHint,
   PaymentRefundRequest,
+  PaymentVirtualAccount,
   PreparedCheckout,
   RefundOutcome,
 } from './gateway';
@@ -21,7 +23,9 @@ import {
   isTossProviderOrderId,
   isTossSecretKey,
   parseTossAdditionalMerchantIds,
+  parseTossVirtualAccountEnabled,
   parseTossWidgetVariantKey,
+  TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME,
   tossKeyMode,
   tossMerchantBindingFromEnvironment,
 } from './toss-config.mjs';
@@ -114,6 +118,19 @@ const CANCEL_REJECTED_CODES = new Set([
 const UNSUPPORTED_METHOD_CANCEL_REASON = '지원하지 않는 결제수단(가상계좌)';
 // 허용 밖 결제수단으로 승인된(DONE) 결제를 되돌릴 때의 cancelReason.
 const DISALLOWED_METHOD_CANCEL_REASON = '지원하지 않는 결제수단';
+// 입금 대기 가상계좌를 반납(입금 전 전액 취소)할 때의 cancelReason(ADR-0049). 입금 기한 경과·구매자 취소·
+// 입금 대기로 받을 수 없는 주문(입금 기한 범위 밖 등) 어느 경우든 같은 문구다.
+const VIRTUAL_ACCOUNT_RELEASE_REASON = '입금 전 주문 종료(가상계좌 반납)';
+// 입금 대기로 받는 입금 기한의 상한. 결제 어드민 설정(24시간 권장)이 잘못돼 기한이 길어도 재고를 그 이상 잡지 않는다 —
+// DB finalizer(finalize_goods_payment_awaiting_deposit)의 72시간과 같은 값이어야 한다.
+const MAX_DEPOSIT_WINDOW_MS = 72 * 60 * 60_000;
+// 입금 기한이 지난 뒤 늦은 입금 통보(웹훅 재전송 1·4·16분)를 기다리는 유예. 이 안에서는 반납하지 않고 입금 대기로
+// 둔다 — DB finalizer의 1시간 유예보다 짧아야 한다.
+const DEPOSIT_GRACE_MS = 30 * 60_000;
+// 토스 가상계좌 은행 코드(2·3자리, /codes/org-codes)와 계좌번호 형식(숫자·영문·마스킹 * · 하이픈).
+const VIRTUAL_ACCOUNT_BANK_CODE = /^[0-9]{2,3}$/;
+const VIRTUAL_ACCOUNT_NUMBER = /^[0-9A-Za-z*-]{4,40}$/;
+const REFUND_ACCOUNT_NUMBER = /^[0-9]{6,20}$/;
 // Phase 1 계약 결제수단. Payment.method 열거는 카드·가상계좌·간편결제·휴대폰·계좌이체·
 // 문화상품권·도서문화상품권·게임문화상품권이다(문서 129 /reference#payment-객체).
 // 이 허용 목록과 상점(MID) 대조는 결제 UI 바인딩(TOSS_WIDGET_VARIANT_KEY)이 켜졌을 때만
@@ -196,6 +213,11 @@ interface TossGatewayOptions {
    * Payment의 mId를 키 모드의 허용 MID와, DONE의 결제수단을 카드·간편결제와 대조한다.
    */
   readonly merchantBinding?: TossMerchantBindingOption | null;
+  /**
+   * 가상계좌 입금 대기를 받는가(ADR-0049). 생략하면 서버 env TOSS_VIRTUAL_ACCOUNT_ENABLED('true'만 켜짐)를 읽는다.
+   * 켜져 있어도 결제 UI 바인딩이 있고 굿즈 주문일 때만 받는다 — 그 밖은 지금 가드(발급 즉시 반납) 그대로다.
+   */
+  readonly virtualAccountEnabled?: boolean;
 }
 
 /** 결제 UI 바인딩 — variantKey는 결제 어드민의 결제 UI 이름, additionalMerchantIds는 env로 더한 라이브 MID. */
@@ -234,6 +256,12 @@ function resolveMerchantBinding(
     return configurationError();
   }
   return { variantKey, additionalMerchantIds: Object.freeze(additionalMerchantIds) };
+}
+
+function resolveVirtualAccountEnabled(option: boolean | undefined): boolean {
+  if (option !== undefined) return option;
+  const parsed = parseTossVirtualAccountEnabled(process.env[TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME]);
+  return parsed === null ? configurationError() : parsed;
 }
 
 class TossResponseTooLargeError extends Error {}
@@ -388,6 +416,77 @@ function paymentMatchesAttempt(payment: Record<string, unknown>, attempt: Paymen
  */
 function isVirtualAccountPayment(payment: Record<string, unknown>) {
   return payment.method === '가상계좌' || plainRecord(payment.virtualAccount);
+}
+
+/**
+ * 결제가 실은 가상계좌(수납 계좌) — 은행 코드·계좌번호·입금 기한(`virtualAccount.dueDate`)과 구매자의 에스크로 선택
+ * (`useEscrow`). 형식 밖이면 null이다 — 구매자에게 안내할 수 없는 계좌로 주문을 잡아 두지 않는다(호출자가 반납한다).
+ */
+function virtualAccountDetails(payment: Record<string, unknown>): PaymentVirtualAccount | null {
+  const account = plainRecord(payment.virtualAccount) ? payment.virtualAccount : null;
+  if (!account) return null;
+  const bankCode = account.bankCode;
+  const accountNumber = account.accountNumber;
+  const dueAt = isoTimestamp(account.dueDate);
+  if (
+    typeof bankCode !== 'string'
+    || !VIRTUAL_ACCOUNT_BANK_CODE.test(bankCode)
+    || typeof accountNumber !== 'string'
+    || !VIRTUAL_ACCOUNT_NUMBER.test(accountNumber)
+    || dueAt === null
+  ) {
+    return null;
+  }
+  const refund = plainRecord(account.refundReceiveAccount) ? account.refundReceiveAccount : null;
+  const refundReceiveAccount = refund
+    && typeof refund.bankCode === 'string' && VIRTUAL_ACCOUNT_BANK_CODE.test(refund.bankCode)
+    && typeof refund.accountNumber === 'string' && REFUND_ACCOUNT_NUMBER.test(refund.accountNumber)
+    && safeString(refund.holderName, 50)
+    ? { bankCode: refund.bankCode, accountNumber: refund.accountNumber, holderName: refund.holderName }
+    : null;
+  return {
+    bankCode,
+    accountNumber,
+    dueAt,
+    useEscrow: payment.useEscrow === true ? true : payment.useEscrow === false ? false : null,
+    refundReceiveAccount,
+  };
+}
+
+function virtualAccountExpired(payment: Record<string, unknown>) {
+  return plainRecord(payment.virtualAccount) && payment.virtualAccount.expired === true;
+}
+
+/**
+ * 가상계좌 환불이 은행에서 실패했는지(`virtualAccount.refundStatus` — NONE·PENDING·FAILED·PARTIAL_FAILED·COMPLETED).
+ * 가상계좌 환불은 취소 API가 CANCELED를 돌려준 뒤 은행이 취소일 + 2일에 입금한다(결제 취소 가이드 Case 1) — 실패하면
+ * 돈이 구매자에게 가지 않았으므로 환불 완료로 닫지 않는다.
+ */
+function virtualAccountRefundFailed(payment: Record<string, unknown>) {
+  if (!plainRecord(payment.virtualAccount)) return false;
+  const status = payment.virtualAccount.refundStatus;
+  return status === 'FAILED' || status === 'PARTIAL_FAILED';
+}
+
+/** 환불 계좌별 멱등키 접미 — 틀린 계좌로 거절된 첫 응답이 고친 계좌의 요청에 15일간 재생되지 않게 한다. */
+function refundAccountKeySuffix(account: { bankCode: string; accountNumber: string; holderName: string }) {
+  return createHash('sha256')
+    .update(`${account.bankCode}|${account.accountNumber}|${account.holderName}`, 'utf8')
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/** v1 에러(`{code}`)와 v2 에러(`{error: {code}}`, 부가 API) 모두에서 코드를 읽는다. */
+function anyErrorCode(payload: unknown): string | null {
+  const direct = errorCode(payload);
+  if (direct !== null) return direct;
+  return plainRecord(payload) ? errorCode(payload.error) : null;
+}
+
+// 가상계좌 환불 계좌가 결제사 검증에 걸린 코드(결제 취소 가이드·가상계좌 웹훅 블로그: INVALID_REFUND_ACCOUNT_INFO·
+// INVALID_REFUND_ACCOUNT_NUMBER). 같은 계열의 이름(은행·예금주)도 같은 축으로 읽는다 — 계좌를 다시 받아야 풀린다.
+function refundAccountRejected(code: string | null) {
+  return code !== null && (/REFUND_ACCOUNT/.test(code) || code === 'INVALID_BANK' || code === 'INVALID_ACCOUNT_HOLDER');
 }
 
 function paymentStatusLabel(payment: Record<string, unknown>) {
@@ -566,6 +665,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   // ICONS 상점(MID)이 아닌 곳에 잡힌다. 빌드 가드(scripts/check-vercel-build-env.mjs)가 먼저
   // 막고, 이 줄은 그 가드를 우회한 런타임에서도 같은 규칙을 지키는 방어선이다.
   if (keyMode === 'live' && binding === null) return configurationError();
+  const virtualAccountEnabled = resolveVirtualAccountEnabled(options.virtualAccountEnabled);
   const fetchImpl = options.fetch ?? fetch;
   const now = options.now ?? (() => new Date());
   const confirmTimeoutMs = timeoutOption(options.confirmTimeoutMs, CONFIRM_TIMEOUT_MS);
@@ -599,6 +699,20 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   function merchantAllowed(payment: Record<string, unknown>) {
     return binding === null
       || isTossAllowedMerchantId(payment.mId, keyMode, binding.additionalMerchantIds);
+  }
+
+  /**
+   * 이 시도의 가상계좌를 입금 대기·입금 승인으로 다루는가(ADR-0049) — 결제 UI 바인딩 + 굿즈 주문. 티켓·바인딩 없는 배포는
+   * 지금 가드(발급 즉시 반납, 입금 뒤 needs_review)다. 운영 스위치는 **새 발급**(승인 콜백)만 막는다 — 스위치를 끈 뒤에도
+   * 이미 입금 대기인 주문의 입금·만료·반납은 재정합으로 계속 닫힌다(drain).
+   */
+  function virtualAccountManaged(attempt: PaymentAttempt) {
+    return binding !== null && attempt.purpose === 'order';
+  }
+
+  /** 승인 콜백(새 발급)에서 입금 대기를 받는가 — 관리 대상이면서 운영 스위치가 켜져 있을 때. */
+  function virtualAccountIssuable(attempt: PaymentAttempt) {
+    return virtualAccountEnabled && virtualAccountManaged(attempt);
   }
 
   /**
@@ -772,6 +886,124 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   }
 
   /**
+   * 가상계좌 발급(WAITING_FOR_DEPOSIT)의 판정 — 승인 200·confirm 재확인 조회·reconcile 조회가 같은 규칙을 쓴다(ADR-0049).
+   * 호출자가 상점(MID)과 identity(이 주문·금액·키)를 먼저 통과시킨다.
+   *
+   * 입금 대기로 받지 않는 시도(스위치 꺼짐·바인딩 없음·티켓)는 지금 가드(declineUnsupportedMethod)다. 받는 시도는:
+   *  - 반납 요청(구매자 입금 전 취소)·계좌 형식 밖·입금 기한 경과(`expired`)·기한이 72시간 넘게 남음 → 반납 후 declined
+   *  - 그 밖 → awaiting_deposit(계좌·기한·에스크로 선택을 증거로) — DB 전용 finalizer가 주문을 입금 기한까지 잡아 둔다.
+   * 입금 기한 만료에는 토스 웹훅이 없다(웹훅 이벤트 문서 "입금 기한 만료 → WAITING_FOR_DEPOSIT, 웹훅 없음") — 자동 재확인
+   * cron이 기한 지난 시도를 다시 조회해 이 분기의 반납으로 닫는다.
+   */
+  async function settleWaitingForDeposit(
+    attempt: PaymentAttempt,
+    payment: Record<string, unknown>,
+    context: { readonly issuing: boolean; readonly release: boolean },
+  ): Promise<PaymentOperationOutcome> {
+    const accepted = context.issuing ? virtualAccountIssuable(attempt) : virtualAccountManaged(attempt);
+    if (!accepted) return declineUnsupportedMethod(attempt, payment);
+    const paymentKey = payment.paymentKey as string;
+    if (virtualAccountExpired(payment)) {
+      // 입금 기한이 지나 토스가 계좌를 반납했다(`expired`) — 더 입금될 수 없으므로 반납 호출 없이 닫는다.
+      return baseOutcome(attempt, 'declined', 'provider_deposit_expired', {
+        providerPaymentKey: paymentKey,
+        resultCode: 'WAITING_FOR_DEPOSIT_expired',
+        paymentMethod: '가상계좌',
+      });
+    }
+    if (context.release) return releaseVirtualAccount(attempt, payment, 'provider_virtual_account_released');
+    const details = virtualAccountDetails(payment);
+    if (details === null) return releaseVirtualAccount(attempt, payment, 'provider_virtual_account_invalid');
+    const nowMs = now().getTime();
+    const dueMs = Date.parse(details.dueAt);
+    if (dueMs + DEPOSIT_GRACE_MS <= nowMs) {
+      return releaseVirtualAccount(attempt, payment, 'provider_deposit_expired');
+    }
+    if (context.issuing && dueMs <= nowMs) {
+      // 새 발급인데 기한이 이미 지났다 — 결제 어드민 입금 기한 설정 오류다. 받지 않는다.
+      return releaseVirtualAccount(attempt, payment, 'provider_deposit_window_out_of_range');
+    }
+    if (dueMs > nowMs + MAX_DEPOSIT_WINDOW_MS) {
+      return releaseVirtualAccount(attempt, payment, 'provider_deposit_window_out_of_range');
+    }
+    return baseOutcome(attempt, 'awaiting_deposit', 'provider_awaiting_deposit', {
+      providerPaymentKey: payment.paymentKey as string,
+      resultCode: 'WAITING_FOR_DEPOSIT',
+      paymentMethod: '가상계좌',
+      virtualAccount: details,
+    });
+  }
+
+  /**
+   * 입금 대기 가상계좌 반납 — 입금 전 전액 취소(cancelAmount·refundReceiveAccount 없음, 결제 취소 가이드 Case 1 "입금하기
+   * 전이라면 일반 결제와 똑같이 취소"). 반납된 계좌에는 더 입금할 수 없다. 멱등키 `release-va:{attemptId}`는 경로와 무관하게
+   * 같아 반납이 두 번 나가지 않는다.
+   *
+   * 성립 판정: 취소 응답이 우리 상점·이 결제·이 주문의 CANCELED면 declined. 성립하지 않으면(입금이 먼저 들어왔을 수 있다)
+   * 같은 결제를 다시 조회한다 — DONE이면 입금이 이겼으니 승인 판정(settleDonePayment), CANCELED면 declined, 입금 기한이
+   * 지나 계좌가 만료(`expired`)됐으면 더 입금될 수 없으므로 declined, 그 밖은 unknown으로 남겨 자동 재확인이 다시 본다.
+   */
+  async function releaseVirtualAccount(
+    attempt: PaymentAttempt,
+    payment: Record<string, unknown>,
+    reasonCode: string,
+  ): Promise<PaymentOperationOutcome> {
+    const paymentKey = payment.paymentKey as string;
+    const evidence: PaymentProviderEvidence = {
+      providerPaymentKey: paymentKey,
+      resultCode: 'CANCELED_virtual_account_released',
+      paymentMethod: '가상계좌',
+    };
+    try {
+      const result = await providerRequest(
+        `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
+        {
+          method: 'POST',
+          timeoutMs: requestTimeoutMs,
+          idempotencyKey: `release-va:${attempt.id}`,
+          body: { cancelReason: VIRTUAL_ACCOUNT_RELEASE_REASON },
+        },
+      );
+      if (
+        result.status === 200
+        && plainRecord(result.payload)
+        && result.payload.status === 'CANCELED'
+        && merchantAllowed(result.payload)
+        && result.payload.paymentKey === paymentKey
+        && result.payload.orderId === attempt.providerOrderId
+      ) {
+        return baseOutcome(attempt, 'declined', reasonCode, evidence);
+      }
+    } catch {
+      // 전송 실패 — 반납 성립 여부가 미상이다. 아래 조회가 판정한다.
+    }
+    const after = await inquireByPaymentKey(paymentKey);
+    if (
+      after.kind === 'ok'
+      && merchantAllowed(after.payment)
+      && after.payment.paymentKey === paymentKey
+      && after.payment.orderId === attempt.providerOrderId
+      && integerAmount(after.payment.totalAmount) === attempt.amount
+    ) {
+      if (after.payment.status === 'DONE') {
+        return settleDonePayment(attempt, after.payment, 'provider_reconciled_approved', paymentKey);
+      }
+      if (after.payment.status === 'CANCELED') return baseOutcome(attempt, 'declined', reasonCode, evidence);
+      if (after.payment.status === 'WAITING_FOR_DEPOSIT' && virtualAccountExpired(after.payment)) {
+        return baseOutcome(attempt, 'declined', 'provider_deposit_expired', {
+          providerPaymentKey: paymentKey,
+          resultCode: 'WAITING_FOR_DEPOSIT_expired',
+          paymentMethod: '가상계좌',
+        });
+      }
+    }
+    return baseOutcome(attempt, 'unknown', 'provider_virtual_account_release_pending', {
+      providerPaymentKey: paymentKey,
+      paymentMethod: '가상계좌',
+    });
+  }
+
+  /**
    * 허용 밖 결제수단 가드 — 카드·간편결제가 아닌 수단으로 승인(DONE)된 결제. Phase 1 계약
    * 결제수단은 카드·간편결제뿐인데, 그 제한은 토스 결제 어드민의 노출 설정에만 달려 있다
    * (공식문서 24 /guides/v2/payment-widget/admin). 설정 실수로 계좌이체·휴대폰·상품권이
@@ -880,6 +1112,11 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       );
     }
     if (isVirtualAccountPayment(payment)) {
+      // 입금 완료. 입금 대기를 받는 시도(ADR-0049)면 카드와 같이 승인이다 — 이후 경로(결제완료·주문 확인 메일·발주확인)가
+      // 같다. 받지 않는 시도는 지금 가드 그대로(에스크로 연동 없는 판매를 성립시키지 않는다).
+      if (virtualAccountManaged(attempt)) {
+        return baseOutcome(attempt, 'approved', reasonCode, approvedEvidence(payment));
+      }
       return baseOutcome(attempt, 'needs_review', 'provider_method_not_allowed', {
         providerPaymentKey: payment.paymentKey as string,
         resultCode: 'DONE_virtual_account',
@@ -911,6 +1148,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     payment: Record<string, unknown>,
     approvedReason: 'provider_approved_after_recheck' | 'provider_reconciled_approved',
     lookupPaymentKey?: string,
+    releaseVirtualAccountRequested = false,
   ): Promise<PaymentOperationOutcome> {
     if (!merchantAllowed(payment)) {
       return merchantMismatchOutcome(attempt, payment, lookupPaymentKey);
@@ -934,7 +1172,11 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       if (!paymentMatchesAttempt(payment, attempt)) {
         return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch');
       }
-      return declineUnsupportedMethod(attempt, payment);
+      return settleWaitingForDeposit(attempt, payment, {
+        // confirm 재확인은 새 발급의 일부다 — 운영 스위치가 꺼져 있으면 받지 않는다.
+        issuing: approvedReason === 'provider_approved_after_recheck',
+        release: releaseVirtualAccountRequested,
+      });
     }
     if (paymentFullyCanceled(payment, attempt)) {
       // 호출자가 원장 payment_key와 대조할 providerPaymentKey를 경로에 따라 빠뜨리지 않는다.
@@ -944,6 +1186,20 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         'provider_payment_canceled',
         canceledEvidence(payment),
       );
+    }
+    if (
+      payment.status === 'CANCELED'
+      && isVirtualAccountPayment(payment)
+      && payment.orderId === attempt.providerOrderId
+      && integerAmount(payment.totalAmount) === attempt.amount
+    ) {
+      // 승인되지 않은 시도의 가상계좌가 취소됐다 — 입금 전 반납(또는 결제 어드민에서 입금 뒤 환불까지 끝낸 것)이라 이
+      // 주문에 잡힌 돈이 없다. 승인 결제의 전액 취소 검증(canceled)과 구분해 declined로 닫는다.
+      return baseOutcome(attempt, 'declined', 'provider_virtual_account_canceled', {
+        ...(validPaymentKey(payment.paymentKey) ? { providerPaymentKey: payment.paymentKey as string } : {}),
+        resultCode: 'CANCELED',
+        paymentMethod: '가상계좌',
+      });
     }
     if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
       // 우리는 부분취소를 발행하지 않는다 — 전액 취소 검증(금액·잔액 대조)을
@@ -1272,7 +1528,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     const cancelAmount = last ? integerAmount(last.cancelAmount) : null;
     const transactionKey = last && safeString(last.transactionKey, 64) ? last.transactionKey : null;
     return { kind: 'ok', status: payment.status, balanceAmount: balance,
-      lastCancel: cancelAmount !== null && transactionKey ? { cancelAmount, transactionKey } : null };
+      lastCancel: cancelAmount !== null && transactionKey ? { cancelAmount, transactionKey } : null,
+      virtualAccount: isVirtualAccountPayment(payment),
+      ...(safeString(payment.lastTransactionKey, 200) ? { lastTransactionKey: payment.lastTransactionKey } : {}) };
   }
 
   /**
@@ -1298,9 +1556,55 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     return isAllowedTossReceiptUrl(url) ? { kind: 'ok', url } : { kind: 'not_found', reason: 'receipt_url_missing' };
   }
 
+  /**
+   * 에스크로 결제의 구매자 취소 신청 여부(ADR-0049). 에스크로 결제는 Payment에 `useEscrow: true`와 `escrowKey`(에스크로
+   * 거래 id — 가상계좌는 입금 뒤에 채워진다)가 실린다(/guides/v2/escrow "에스크로 결제 판별하기"). 거래 조회
+   * GET /v2/escrows/{id}의 status가 CANCEL_REQUESTED면 취소 수락 API로 환불한다. 조회가 키·권한·없음(4xx)으로 거부되면
+   * 에스크로 경로를 쓰지 않고 일반 취소로 간다 — 일시 장애(5xx·전송 실패)만 unavailable이다.
+   */
+  async function escrowCancelRequest(
+    payment: Record<string, unknown>,
+  ): Promise<{ kind: 'none' } | { kind: 'cancel_requested'; escrowKey: string } | { kind: 'unavailable' }> {
+    if (payment.useEscrow !== true) return { kind: 'none' };
+    const escrowKey = payment.escrowKey;
+    if (!safeString(escrowKey, 64) || !/^[\x21-\x7e]+$/.test(escrowKey)) return { kind: 'none' };
+    let response: ProviderResponse;
+    try {
+      response = await providerFetch(`/v2/escrows/${encodeURIComponent(escrowKey)}`, {
+        method: 'GET',
+        timeoutMs: requestTimeoutMs,
+      });
+    } catch {
+      return { kind: 'unavailable' };
+    }
+    if (response.status >= 500 || (response.status === 200 && !response.parsed)) return { kind: 'unavailable' };
+    if (response.status !== 200) return { kind: 'none' };
+    const body = plainRecord(response.payload) && plainRecord(response.payload.entityBody)
+      ? response.payload.entityBody
+      : response.payload;
+    if (!plainRecord(body)) return { kind: 'unavailable' };
+    return body.status === 'CANCEL_REQUESTED' ? { kind: 'cancel_requested', escrowKey } : { kind: 'none' };
+  }
+
   return {
     inspectBalance,
     receiptUrl,
+    async releaseVirtualAccount(attempt, providerPaymentKey) {
+      assertAttempt(attempt);
+      const paymentKey = validPaymentKey(providerPaymentKey);
+      if (!paymentKey) return;
+      try {
+        // 반납 경로와 같은 멱등키 — 어느 경로에서 다시 불러도 반납은 한 번이다. 결과는 웹훅·재정합의 조회가 판정한다.
+        await providerRequest(`/v1/payments/${encodeURIComponent(paymentKey)}/cancel`, {
+          method: 'POST',
+          timeoutMs: requestTimeoutMs,
+          idempotencyKey: `release-va:${attempt.id}`,
+          body: { cancelReason: VIRTUAL_ACCOUNT_RELEASE_REASON },
+        });
+      } catch {
+        // 반납 성립 여부는 뒤따르는 웹훅·재정합이 조회로 확인한다.
+      }
+    },
     async prepare(attempt): Promise<PreparedCheckout> {
       assertAttempt(attempt);
       const currentTime = now();
@@ -1441,7 +1745,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
               resultCode: 'WAITING_FOR_DEPOSIT_identity_mismatch',
             }) as ConfirmOutcome;
           }
-          return declineUnsupportedMethod(input.attempt, payload);
+          return settleWaitingForDeposit(input.attempt, payload, { issuing: true, release: false });
         }
         if (!plainRecord(payload) || payload.status !== 'DONE') {
           return baseOutcome(input.attempt, 'unknown', 'provider_invalid_response', {
@@ -1524,8 +1828,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
      * 밖(404·키/설정 거부·전송 실패·다른 주문·다른 상점·주문의 결론이 아닌 상태)은 힌트를
      * 버리고 orderId 조회로 판정한다 — 힌트가 위조돼도 결과는 힌트가 없을 때와 같다.
      */
-    async reconcile(attempt, hint) {
+    async reconcile(attempt, hint?: PaymentReconcileHint) {
       assertAttempt(attempt);
+      const release = hint?.releaseVirtualAccount === true;
       const hintedPaymentKey = validPaymentKey(hint?.providerPaymentKey);
       if (hintedPaymentKey !== undefined) {
         const hinted = await inquireByPaymentKey(hintedPaymentKey);
@@ -1535,6 +1840,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
             hinted.payment,
             'provider_reconciled_approved',
             hintedPaymentKey,
+            release,
           );
         }
       }
@@ -1561,7 +1867,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       if (inquiry.kind === 'http_error') {
         return baseOutcome(attempt, 'unknown', 'provider_http_error');
       }
-      return settleInquiredPayment(attempt, inquiry.payment, 'provider_reconciled_approved');
+      return settleInquiredPayment(attempt, inquiry.payment, 'provider_reconciled_approved', undefined, release);
     },
 
     async refund(request): Promise<RefundOutcome> {
@@ -1593,6 +1899,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       // 그 키·이 attempt의 주문인지 대조한다. 키가 없을 때만 orderId 조회다.
       async function inquireForRefund(): Promise<
         | { readonly kind: 'canceled'; readonly payment: Record<string, unknown> }
+        | { readonly kind: 'refund_failed'; readonly payment: Record<string, unknown> }
         | { readonly kind: 'done'; readonly payment: Record<string, unknown> }
         | { readonly kind: 'merchant_mismatch'; readonly payment: Record<string, unknown> }
         | { readonly kind: 'identity_mismatch'; readonly payment: Record<string, unknown> }
@@ -1637,19 +1944,18 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         ) {
           return { kind: 'identity_mismatch', payment };
         }
-        if (paymentFullyCanceled(payment, attempt)) return { kind: 'canceled', payment };
+        if (paymentFullyCanceled(payment, attempt)) {
+          // 가상계좌 환불은 CANCELED 뒤 은행이 입금한다 — 그 입금이 실패했으면 환불 완료가 아니다.
+          return virtualAccountRefundFailed(payment) ? { kind: 'refund_failed', payment } : { kind: 'canceled', payment };
+        }
         if (
           payment.status === 'DONE'
           && payment.orderId === attempt.providerOrderId
           && integerAmount(payment.totalAmount) === attempt.amount
           && safeString(payment.paymentKey, 200)
           && PROVIDER_PAYMENT_KEY.test(payment.paymentKey as string)
-          // 입금이 끝난 가상계좌는 취소 API가 refundReceiveAccount를 요구한다(문서 129
-          // "가상계좌 결제에만 필수"). 어댑터는 환불 계좌를 싣지 않으므로 호출하면
-          // INVALID_REQUEST로 거부돼 설정 오류로 오라벨링된다 — 호출하지 않고
-          // not_refundable(needs_review)로 운영 판단에 태운다.
-          && !isVirtualAccountPayment(payment)
         ) {
+          // 입금이 끝난 가상계좌도 여기다 — 취소 요청을 만들 때 환불 계좌(또는 에스크로 취소 수락)를 고른다.
           return { kind: 'done', payment };
         }
         return { kind: 'not_refundable' };
@@ -1678,6 +1984,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           refundedAmount: attempt.amount,
         } as RefundOutcome;
       }
+      if (before.kind === 'refund_failed') {
+        return baseOutcome(attempt, 'needs_review', 'provider_refund_failed', {
+          ...canceledEvidence(before.payment),
+          resultCode: 'CANCELED_refund_failed',
+        }) as RefundOutcome;
+      }
       if (before.kind === 'not_found') {
         return baseOutcome(attempt, 'needs_review', 'provider_payment_not_found') as RefundOutcome;
       }
@@ -1695,21 +2007,69 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }
 
       const paymentKey = before.payment.paymentKey as string;
+      // 기본은 전액 취소 API다. cancelAmount를 싣지 않는다 — 값이 없으면 전액 취소가 취소 API 계약이다.
+      let cancelPath = `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`;
+      let cancelBody: Record<string, unknown> = { cancelReason: request.reason };
+      let cancelKey = request.idempotencyKey;
+      if (isVirtualAccountPayment(before.payment)) {
+        // 입금이 끝난 가상계좌(ADR-0049). 구매자가 에스크로 결제의 취소를 토스에 신청해 둔 상태면 에스크로 취소 수락
+        // API가 취소다(환불 계좌는 구매자가 신청 때 등록한 계좌, 금액 지정 없음 = 전액, 멱등키 필수 — 부가 API
+        // /reference/additional#취소-요청-수락). 그 밖에는 취소 API에 환불 계좌를 싣는다(결제 취소 가이드 Case 1) — 계좌가
+        // 없으면 결제사를 부르지 않는다: 계좌 없이 한 번 부른 취소의 거절 응답이 같은 멱등키에 15일간 재생된다.
+        const escrow = await escrowCancelRequest(before.payment);
+        if (escrow.kind === 'unavailable') {
+          return baseOutcome(attempt, 'unknown', 'provider_unavailable', { providerPaymentKey: paymentKey }) as RefundOutcome;
+        }
+        if (escrow.kind === 'cancel_requested') {
+          cancelPath = `/v2/escrows/${encodeURIComponent(escrow.escrowKey)}/cancel`;
+          cancelBody = { reason: request.reason.slice(0, 150) };
+          cancelKey = `${request.idempotencyKey}:escrow`;
+        } else {
+          const account = request.refundReceiveAccount;
+          if (
+            !account
+            || !VIRTUAL_ACCOUNT_BANK_CODE.test(account.bankCode)
+            || !REFUND_ACCOUNT_NUMBER.test(account.accountNumber)
+            || !safeString(account.holderName, 50)
+          ) {
+            return baseOutcome(attempt, 'needs_review', 'provider_refund_account_required', {
+              providerPaymentKey: paymentKey,
+              resultCode: 'DONE_refund_account_required',
+              paymentMethod: '가상계좌',
+            }) as RefundOutcome;
+          }
+          cancelBody = {
+            cancelReason: request.reason,
+            refundReceiveAccount: {
+              bank: account.bankCode,
+              accountNumber: account.accountNumber,
+              holderName: account.holderName,
+            },
+          };
+          cancelKey = `${request.idempotencyKey}:va-${refundAccountKeySuffix(account)}`;
+        }
+      }
       let cancelSucceeded = false;
       try {
         const cancelResult = await providerRequest(
-          `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
+          cancelPath,
           {
             method: 'POST',
             timeoutMs: requestTimeoutMs,
-            idempotencyKey: request.idempotencyKey,
-            // cancelAmount를 싣지 않는다 — 값이 없으면 전액 취소가 취소 API 계약이다.
-            body: { cancelReason: request.reason },
+            idempotencyKey: cancelKey,
+            body: cancelBody,
           },
         );
-        const code = errorCode(cancelResult.payload);
+        const code = anyErrorCode(cancelResult.payload);
         if (cancelResult.status === 200) {
           cancelSucceeded = true;
+        } else if (refundAccountRejected(code)) {
+          // 결제사가 환불 계좌(은행·계좌번호·예금주)를 검증해 거절했다 — 계좌를 다시 받아야 풀린다.
+          return baseOutcome(attempt, 'needs_review', 'provider_refund_account_invalid', {
+            providerPaymentKey: paymentKey,
+            resultCode: code ?? undefined,
+            paymentMethod: '가상계좌',
+          }) as RefundOutcome;
         } else if (code !== null && CANCEL_REJECTED_CODES.has(code)) {
           return baseOutcome(attempt, 'needs_review', 'provider_cancel_rejected', {
             providerPaymentKey: paymentKey,
@@ -1727,6 +2087,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }
 
       const after = await inquireForRefund();
+      if (after.kind === 'refund_failed') {
+        return baseOutcome(attempt, 'needs_review', 'provider_refund_failed', {
+          ...canceledEvidence(after.payment),
+          resultCode: 'CANCELED_refund_failed',
+        }) as RefundOutcome;
+      }
       if (after.kind === 'merchant_mismatch') {
         return merchantMismatchOutcome(attempt, after.payment, paymentKey) as RefundOutcome;
       }

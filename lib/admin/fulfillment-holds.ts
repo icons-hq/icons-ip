@@ -5,13 +5,19 @@ import { isUuid } from '@/lib/uuid';
  * (supabase/migrations/20261118156000_order_fulfillment_holds.sql). 화면은 사유·근거를 보이고 해제만 요청한다.
  *  - test_payment: 운영 배포에 토스 테스트 키가 물린 기간에 승인된 결제. 돈이 실제로 결제되지 않았다.
  *  - provider_canceled: 토스 상점관리자 등 결제사에서 직접 취소됐는데 우리 원장에 그 취소가 없다.
+ *  - deposit_reversed: 토스가 가상계좌 입금(DONE)을 알린 뒤 은행이 그 입금을 취소했다(입금 대기로 되돌아감, ADR-0049).
+ *    결제 원장은 되돌리지 않고 출고만 막는다 — 상점관리자에서 입금 상태를 확인한 뒤 해제하거나 운영자 전액 취소한다.
+ *  - escrow_cancel_requested: 구매자가 토스 구매안전서비스(에스크로) 구매확정 메일에서 취소를 신청했다(ADR-0049).
+ *    운영자 전액 취소가 이 결제에서는 결제 취소 대신 에스크로 취소 수락(구매자가 등록한 환불 계좌로 환불)을 부른다.
  */
-export const FULFILLMENT_HOLD_REASONS = ['test_payment', 'provider_canceled'] as const;
+export const FULFILLMENT_HOLD_REASONS = ['test_payment', 'provider_canceled', 'deposit_reversed', 'escrow_cancel_requested'] as const;
 export type FulfillmentHoldReason = typeof FULFILLMENT_HOLD_REASONS[number];
 
 export const FULFILLMENT_HOLD_LABELS: Record<FulfillmentHoldReason, string> = {
   test_payment: '테스트 결제',
   provider_canceled: '결제사 취소',
+  deposit_reversed: '입금 오류 되돌림',
+  escrow_cancel_requested: '에스크로 취소 요청',
 };
 
 export interface OrderFulfillmentHold {
@@ -105,6 +111,16 @@ const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
  */
 export function fulfillmentHoldGuidance(hold: OrderFulfillmentHold): string {
   const unexplained = hold.unexplainedAmount ?? hold.providerCanceledAmount;
+  if (hold.reason === 'deposit_reversed') {
+    return hold.outboundBlocked
+      ? '결제사가 가상계좌 입금을 알린 뒤 은행이 그 입금을 취소했습니다. 돈이 들어와 있지 않을 수 있으니 출고하지 마세요. 토스페이먼츠 상점관리자에서 이 결제의 입금 상태를 확인해, 입금이 다시 확인되면 사유를 적고 보류를 해제하고, 입금이 없으면 운영자 전액 취소로 주문을 닫으세요(재고·쿠폰·적립금이 돌아갑니다).'
+      : '이미 발송된 주문인데 결제사가 알린 가상계좌 입금을 은행이 취소했습니다. 배송완료 처리는 막지 않습니다. 토스페이먼츠 상점관리자에서 입금 상태를 확인해, 입금이 다시 확인되면 사유를 적고 보류를 해제하고, 입금이 없으면 고객에게 연락해 반품을 접수하세요.';
+  }
+  if (hold.reason === 'escrow_cancel_requested') {
+    return hold.outboundBlocked
+      ? '구매자가 토스페이먼츠 구매안전서비스(에스크로)에서 결제 취소를 신청했습니다. 출고하지 마세요. 운영자 전액 취소를 누르면 구매자의 취소 신청을 수락해 구매자가 등록한 환불 계좌로 환불되고 주문이 닫힙니다. 고객과 통화해 그대로 출고하기로 했다면 사유를 적고 보류를 해제한 뒤, 토스페이먼츠 상점관리자에서 구매자에게 구매확정 요청을 다시 보내세요.'
+      : '이미 발송된 주문인데 구매자가 토스페이먼츠 구매안전서비스(에스크로)에서 결제 취소를 신청했습니다. 배송완료 처리는 막지 않습니다. 물건을 돌려받을 주문이면 반품을 접수하고, 고객과 합의해 그대로 두기로 했다면 사유를 적고 보류를 해제한 뒤, 토스페이먼츠 상점관리자에서 구매자에게 구매확정 요청을 다시 보내세요.';
+  }
   if (!hold.outboundBlocked) {
     if (hold.reason === 'test_payment') {
       return '토스 테스트 키로 승인된(실제 돈이 결제되지 않은) 결제인데 이미 발송된 주문입니다. 배송완료 처리는 막지 않습니다. 물건을 돌려받으려면 반품을 접수하고, 그대로 두기로 했다면 사유를 적고 보류를 해제하세요.';
@@ -137,6 +153,7 @@ export function fulfillmentHoldBadgeLabel(hold: OrderFulfillmentHold): string {
   return hold.outboundBlocked ? `출고 보류 · ${FULFILLMENT_HOLD_LABELS[hold.reason]}` : `발송 후 ${FULFILLMENT_HOLD_LABELS[hold.reason]} 확인`;
 }
 
-/** DB 출고 경로가 보류로 거절할 때의 오류 문구(message 'order fulfillment hold'). */
-export const FULFILLMENT_HOLD_BLOCKED_MESSAGE = '출고 보류 중인 주문입니다(테스트 결제 또는 결제사 취소). 주문 상세의 출고 보류 안내를 확인해주세요.';
+/** DB 출고 경로가 보류로 거절할 때의 오류 문구(message 'order fulfillment hold'). 괄호 안 사유는 다른 화면의 같은 오류 문구·가이드
+ *  인용(troubleshooting)과 글자가 같아야 해서 그대로 둔다 — 사유 전체는 주문 상세의 출고 보류 안내가 보인다. */
+export const FULFILLMENT_HOLD_BLOCKED_MESSAGE = '출고 보류 중인 주문입니다(결제 확인 필요). 주문 상세의 출고 보류 안내를 확인해주세요.';
 export const isFulfillmentHoldError = (message?: string | null) => message?.includes('order fulfillment hold') === true;

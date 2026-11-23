@@ -9,6 +9,26 @@ import { loadOrderFulfillmentHolds } from './fulfillment-holds.server';
 import { shipmentExtraTrackings, type ShipmentExtraTrackingRow } from '@/lib/orders/shipments';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { shippingCarrierLabel } from '@/lib/orders/shipment';
+import { parseAdminOrderVirtualAccount, type AdminOrderVirtualAccount } from './orders';
+
+type AdminSupabase = Awaited<ReturnType<typeof createClient>>;
+export type AdminOrderVirtualAccountLoad = { virtualAccount: AdminOrderVirtualAccount | null } | { virtualAccountUnavailable: true };
+
+/**
+ * 주문 하나의 토스 가상계좌 입금 정보(`admin_order_virtual_account`, sales.read — ADR-0049). 주문 상세·팝업과 주문 처리 패널이 같이 쓴다.
+ * 읽지 못해도 화면은 연다 — 가상계좌가 아니라고 말하지 않고 '불러오지 못했다'로 표시한다(입금 확인·만료는 DB·결제사 조회가 닫으므로
+ * 이 정보는 판단 근거가 아니라 안내다).
+ */
+export async function loadAdminOrderVirtualAccount(supabase: AdminSupabase, orderId: string): Promise<AdminOrderVirtualAccountLoad> {
+  try {
+    const { data, error } = await supabase.rpc('admin_order_virtual_account', { p_order_id: orderId });
+    if (error) return { virtualAccountUnavailable: true };
+    const parsed = parseAdminOrderVirtualAccount(data ?? null);
+    return parsed === undefined ? { virtualAccountUnavailable: true } : { virtualAccount: parsed };
+  } catch {
+    return { virtualAccountUnavailable: true };
+  }
+}
 
 export async function getAdminOrderDetail(orderId: string, canManage = true): Promise<AdminOrderDetail | null> {
   const supabase = await createClient();
@@ -28,8 +48,9 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
   const extraRows = (extraResult.data ?? []) as (ShipmentExtraTrackingRow & { shipment_id: string })[];
   /* 추가 운송장과 타임라인의 운송장 줄(택배사 코드)은 레지스트리 이름으로 보인다. */
   const carriers = extraRows.length || detail.timeline.some(entry => entry.carrier) ? await getShippingCarrierRegistry() : [];
-  const [deliveries, transactions, allocations, holds] = await Promise.all([loadAdminOrderDeliveries([orderId]), loadAdminOrderTransactions([orderId]), loadOrderItemAllocationsForScreen([orderId]),
-    loadOrderFulfillmentHolds([orderId], supabase)]);
+  /* 가상계좌 입금 정보는 결제 정보라 주문 처리 권한(타임라인의 결제·환불 기록과 같은 범위)에만 싣는다. */
+  const [deliveries, transactions, allocations, holds, virtualAccount] = await Promise.all([loadAdminOrderDeliveries([orderId]), loadAdminOrderTransactions([orderId]), loadOrderItemAllocationsForScreen([orderId]),
+    loadOrderFulfillmentHolds([orderId], supabase), canManage ? loadAdminOrderVirtualAccount(supabase, orderId) : Promise.resolve(null)]);
   const delivery = deliveries.get(orderId), transaction = transactions.get(orderId)?.display;
   if (!delivery || transaction && (transaction.totals.onlineTotal !== detail.order.total || transaction.lines.length !== detail.items.length
     || transaction.lines.some(line => !detail.items.some(item => item.id === line.lineId && item.variantId === line.variantId && item.qty === line.qty && item.unitPrice === line.unitPrice)))) throw new Error('주문의 배송·금액 기록이 서로 맞지 않아 주문 상세를 열지 못했습니다. 잠시 뒤 새로고침하고, 계속되면 개발 담당자에게 알려주세요.');
@@ -38,6 +59,7 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
     return { ...shipment, regionalShipping: parseRegionalShippingSnapshot(shipment.regionalShipping), ...(extraTrackings.length ? { extraTrackings } : {}) };
   }), order: { ...detail.order, ...(delivery.orderNumber ? { orderNumber: delivery.orderNumber } : {}), address: delivery.address ?? {}, isGift: delivery.isGift, ...(delivery.addressNeedsReview ? { addressNeedsReview: true } : {}), ...(transaction ? { transaction } : {}) }, emailJobs,
     fulfillmentHolds: holds.get(orderId) ?? [],
+    ...(virtualAccount ?? {}),
     itemAllocations: Object.fromEntries([...allocations ?? []].map(([itemId, loaded]) => [itemId, loaded.allocation])),
     ...(allocations ? {} : { itemAllocationsUnavailable: true as const }),
     timeline: (canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)))

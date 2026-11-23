@@ -79,28 +79,31 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
           </nav>
         </header>
 
-        {document.pendingRevision && (
-          <aside
-            aria-labelledby={`${document.slug}-pending-revision-heading`}
-            className="wc-document__notice"
-          >
-            <p className="wc-document__notice-kicker">개정 사전 공지</p>
-            <h2
-              className="wc-document__notice-heading"
-              id={`${document.slug}-pending-revision-heading`}
+        {[document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].map((notice, index) => {
+          if (!notice) return null;
+          /* 첫 공지의 id는 그대로 두고(기존 링크·시험), 겹친 뒤 공지만 번호를 붙인다. */
+          const headingId = `${document.slug}-pending-revision-heading${index === 0 ? '' : `-${index + 1}`}`;
+          return (
+            <aside
+              key={`${notice.announcedDate}:${notice.heading}`}
+              aria-labelledby={headingId}
+              className="wc-document__notice"
             >
-              {document.pendingRevision.heading}
-            </h2>
-            <p className="wc-document__notice-meta">
-              공지일 {document.pendingRevision.announcedDate}
-              <span aria-hidden>·</span>
-              시행 예정일 {document.pendingRevision.effectiveDate}
-            </p>
-            <ul className="wc-document__notice-list">
-              {document.pendingRevision.changes.map((change) => <li key={change}>{change}</li>)}
-            </ul>
-          </aside>
-        )}
+              <p className="wc-document__notice-kicker">개정 사전 공지</p>
+              <h2 className="wc-document__notice-heading" id={headingId}>
+                {notice.heading}
+              </h2>
+              <p className="wc-document__notice-meta">
+                공지일 {notice.announcedDate}
+                <span aria-hidden>·</span>
+                시행 예정일 {notice.effectiveDate}
+              </p>
+              <ul className="wc-document__notice-list">
+                {notice.changes.map((change) => <li key={change}>{change}</li>)}
+              </ul>
+            </aside>
+          );
+        })}
 
         {document.revisionChanges && (
           <aside className="wc-document__notice" aria-label={`${document.effectiveDate} 개정 안내`}>

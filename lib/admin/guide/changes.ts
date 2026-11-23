@@ -1,6 +1,13 @@
 /** Newest first. Describe available behavior; do not preannounce unfinished tickets. */
 export const ADMIN_WEEKLY_CHANGES = [
   {
+    week: '2026-11-24',
+    title: '출고 보류 안내 문구 정리',
+    changes: [
+      "출고 보류 중인 주문의 발주확인·출고지시 내보내기·발송·강제 배송완료·예약 입고 확인·교환 재출고를 막을 때 보이는 안내가 '(테스트 결제 또는 결제사 취소)' 대신 '(결제 확인 필요)'로 바뀌었습니다. 출고 관리의 보류 배지는 '출고 보류·결제 확인 필요', 주문 상세 처리 기록은 '출고 보류 (결제 확인 필요)'로 보입니다. 보류 사유와 처리 방법은 지금처럼 주문 상세의 출고 보류 안내에서 확인합니다.",
+    ],
+  },
+  {
     week: '2026-11-20',
     title: '성인(19금) 상품 공개 설정',
     changes: [

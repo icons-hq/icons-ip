@@ -90,7 +90,7 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 | ② | 레거시 제거 + 신규 개발(#386·#387·#388·#389·#390·#392·#393) | agent | 코드 완료 |
 | ③ | prod 테스트 키 공개 배포 | human/CI [#394](https://github.com/icons-hq/icons-ip/issues/394) | **진행 중** — 2026-09-08 굿즈 gate 개방(아래 "2026-09-08 심사 창 개방 기록") |
 | ④ | 전자결제 신청 → 홈페이지 심사 → 카드사 심사 | human [#394](https://github.com/icons-hq/icons-ip/issues/394) | 대기 |
-| ⑤ | 라이브 키 전환·굿즈 공개 | human [#395](https://github.com/icons-hq/icons-ip/issues/395) | 대기 |
+| ⑤ | 라이브 키 전환·굿즈 공개 + 가상계좌(무통장입금) 오픈 | human [#395](https://github.com/icons-hq/icons-ip/issues/395) | 대기 — 2026-11-23 사용자 결정: 가상계좌 개발·공지 시행 뒤 한 번에(아래 "가상계좌(무통장입금)" 절) |
 | ⑥ | 코페이 재개방 | 19+ 오픈 트랙 | 별도 에픽 |
 
 ②가 끝나 코드는 토스 기본 상태이고, ③에서 심사자가 결제창을 볼 수 있도록 **테스트 키 위에서
@@ -111,6 +111,7 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 | `TOSS_TICKET_CANARY_USER_ID` | 선택적 단일 인증 사용자 UUID; 기본 미설정 | 없어야 함 |
 | `TOSS_WIDGET_VARIANT_KEY` | 서버 전용(비밀 아님 — `NEXT_PUBLIC_` 금지); 결제 어드민(그 키 모드)에 결제 UI를 만든 **뒤에만** `ICONS`; 미설정 = `DEFAULT` 결제 UI·MID 대조 없음(지금 동작); `DEFAULT`·형식 밖 값은 빌드 실패; 라이브 키는 이 값 없이 빌드 실패 | 두지 않음(런타임은 Production 전용이라 무의미 — 놓이면 형식만 검증) |
 | `TOSS_ADDITIONAL_MERCHANT_IDS` | 선택; 쉼표로 구분한 **라이브** MID(테스트 MID는 `t` 접두로 자동 파생). 알리페이 등 새 결제서비스를 `ICONS`에 붙일 때만; 형식 밖이면 빌드 실패; 바인딩 없이 두면 경고만 | 두지 않음 |
+| `TOSS_VIRTUAL_ACCOUNT_ENABLED` | 기본 미설정(꺼짐); `true`면 가상계좌 **새 발급**을 입금 대기로 받는다(ADR-0049). 결제 UI 바인딩·가상계좌 법정 고지 시행 뒤에만(빌드 가드) | 두지 않음 |
 
 키 규칙:
 
@@ -184,8 +185,8 @@ build readback 줄에는 키 값 없이 `Toss configured`·목적별 gate·canar
 `Toss mode=test|live|none`, 결제 UI(`Toss variant=ICONS`, 바인딩 전에는 `Toss variant=DEFAULT (unbound),
 Toss merchant check=off`), `Toss merchant=`(바인딩이 켜졌을 때 그 모드에서 런타임이 허용하는 MID —
 테스트 키면 `ticonsi0xvd|ticonsi8sr4`, 라이브 키면 `iconsi0xvd|iconsi8sr4`, env로 더한 MID가 뒤에 붙고, 키
-없음은 `none`), `docs public key=true|false`, 나이스페이 상태, `payment reconciliation secret
-configured=true|false`가 실린다. `Toss variant`는 결제 어드민에 있어야 하는 결제 UI 이름이다 — 빌드는
+없음은 `none`), `docs public key=true|false`, 가상계좌 운영 스위치(`Toss virtual account=enabled|disabled`),
+나이스페이 상태, `payment reconciliation secret configured=true|false`가 실린다. `Toss variant`는 결제 어드민에 있어야 하는 결제 UI 이름이다 — 빌드는
 결제 어드민을 볼 수 없으므로 그 UI의 존재·MID 연결·노출 결제수단·한글 표시는 사람이 확인한다.
 
 Vercel 환경변수의 추가·수정·삭제는 이미 생성된 deployment의 runtime을 바꾸지 않는다. 키,
@@ -196,6 +197,10 @@ docs public key·reconciliation secret 값이 의도와 같은지까지 확인�
 exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 
 ## 결제 프로토콜
+
+> 가상계좌: 아래 5·7·8·10번과 운영 노트의 "가상계좌 가드"(발급 즉시 반납·입금 뒤 `needs_review`)는 결제 UI 바인딩이
+> 없는 배포·티켓·운영 스위치 `TOSS_VIRTUAL_ACCOUNT_ENABLED`가 꺼진 새 발급에만 남는다. 스위치를 켜면 굿즈 주문의 가상계좌는
+> 입금 대기(`awaiting_deposit`)로 받고 입금 뒤 승인한다 — "가상계좌(무통장입금)" 절과 ADR-0049가 정본이다.
 
 1. 서버 prepare가 DB attempt의 불변 amount·KRW·opaque orderId(굿즈 `O…`·티켓 `T…`)·
    opaque product code를 읽고, 공개 클라이언트 키·(결제 UI 바인딩이 켜졌으면) 결제 UI
@@ -519,6 +524,66 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
    3번 뒤에 발견된 테스트 주문은 시스템 경로로 닫히지 않으니 담당자에게 넘기고 그 사실도 적는다.
 
 완료 조건: 라이브 실결제·취소 왕복 검증 완료, 첫 판매(에픽 #319) 결제 준비 상태.
+
+## 가상계좌(무통장입금) — [ADR-0049](../adr/0049-toss-virtual-account-escrow.md)
+
+2026-11-23 사용자 결정: 무통장 입금은 토스 가상계좌로 받는다(자체 법인계좌 무통장은 닫힌 채 둔다), 라이브 키 전환은
+가상계좌 개발이 끝나고 법정 고지가 시행된 뒤 **함께** 한다. ICONS MID `iconsi0xvd`의 계약 결제수단에 가상계좌·계좌이체가
+에스크로 사용으로 들어 있다(2026-10-12 상점관리자 실측 — 라이브 전환 전에 다시 확인한다).
+
+동작 요약(정본은 ADR-0049):
+
+- 승인 콜백의 `WAITING_FOR_DEPOSIT` = 계좌 발급. 결제 시도가 `awaiting_deposit`이 되고 주문은 입금 기한까지 결제대기로
+  재고·쿠폰·적립금을 잡는다. 구매자는 주문 완료 화면·메일·앱 알림으로 은행·계좌번호·금액·기한을 안내받는다.
+- 입금(`DONE`) → 웹훅(`PAYMENT_STATUS_CHANGED`·`DEPOSIT_CALLBACK`)·자동 재확인이 조회로 승인 → 결제완료(카드와 같은 경로).
+- 기한 만료에는 웹훅이 없다 — 자동 재확인 cron이 기한 + 30분 뒤 반납(`release-va:{attemptId}`)하고 만료 정리가 주문을
+  취소한다. 입금 전 고객 취소도 반납이다. 계정당 열린 입금 대기는 2건까지다.
+- 입금 오류 되돌림(`DONE` → `WAITING_FOR_DEPOSIT`)은 출고 보류 `deposit_reversed`, 에스크로 구매자 취소 신청은 출고 보류
+  `escrow_cancel_requested`로 운영 할 일에 뜬다.
+- 입금 뒤 환불은 결제 UI가 받은 환불 계좌로 취소 API를 부른다(계좌별 멱등키). 에스크로 취소 신청 건은 운영자 전액 취소가
+  에스크로 취소 수락 API를 부른다.
+- 에스크로를 고른 결제는 실물 배송 건이 모두 발송되면 15분 cron(`/api/cron/toss-escrow`)이 토스에 배송을 등록한다.
+
+### 사람 단계 — 결제 어드민·개발자센터(테스트 모드에서 먼저, 같은 순서로 라이브 모드)
+
+1. 상점관리자 > 이용정보 > 결제·부가서비스: MID `iconsi0xvd`의 가상계좌가 계약·사용 중이고 **에스크로 사용**인지 확인.
+2. 결제 UI 설정 > `ICONS` > 디자인 및 기능 > 결제수단: **가상계좌를 노출**한다(계좌이체·휴대폰·상품권은 계속 끈다).
+   같은 화면의 기능 > 가상계좌: **입금 기한 24시간**, **가상계좌 환불 정보 입력: 사용함**. `DEFAULT`·다른 결제 UI는 건드리지 않는다.
+3. 토스에 **가상계좌 2분 지연통보**를 신청한다(입금 통보 뒤 2분간 취소 통보가 없을 때만 통보 — 입금 오류 되돌림 방지).
+4. 개발자센터 > 웹훅: MID `iconsi0xvd`(테스트 `ticonsi0xvd`)의 `https://iconsip.com/api/webhooks/tosspayments`에
+   **`DEPOSIT_CALLBACK`**을 더한다(기존 `PAYMENT_STATUS_CHANGED`는 그대로).
+5. 개발자센터 > API 키: 라이브·테스트 키의 **API 버전**이 같은지 확인한다(1.4 이하면 입금 오류 되돌림이 `CANCELED`로 온다).
+6. 법정 고지(이번 개정 확정값: 공지 2026-11-24 → 시행 2026-12-01 — 운영 배포가 11-24 KST를 넘기면 두 날짜를 함께 미룬다):
+   `lib/legal/virtual-account-terms-revision.json`의 공지일 = 실제 운영 배포일(KST), 시행일 = 공지일 + 7일 이상이고
+   같은 문서의 앞선 예약 개정(표기·부분 반품·알림톡) 시행일보다 늦어야 한다(빌드 가드). 공지 기간은 앞선 개정의 공지와 겹쳐도
+   된다 — 법정 문서 화면이 두 사전 공지를 함께 보인다. 시행일 전에는 `TOSS_VIRTUAL_ACCOUNT_ENABLED`를 켤 수 없다(빌드 가드).
+   시행일부터 사이트 하단에 구매안전서비스 가입 문구와 '서비스 가입 사실 확인' 링크
+   (`consumer.tosspayments.com/escrow/detail?mertid=iconsi0xvd`)가 보인다 — 시행 전에 이 링크에서 ICONS 가입 사실이 보이는지
+   확인하고, 다르면 `components/shell/SiteFooter.tsx`의 `ESCROW_SERVICE_CHECK_HREF`를 상점관리자가 주는 주소로 바꾼다.
+7. 시행일 이후, 라이브 전환 3번(라이브 키 + canary 배포)과 같은 배포에 `TOSS_VIRTUAL_ACCOUNT_ENABLED=true`를 넣고
+   readback `Toss virtual account=enabled`를 확인한다. 리허설(라이브 전환 6번)에 **가상계좌 1건**(소액 입금 → 결제완료 →
+   운영자 전액 취소 → 환불 계좌로 환불)을 더한다. 테스트 모드에서는 개발자센터 테스트 결제내역의 '입금처리'로 입금을 흉내 낸다.
+   켜는 날 운영자 업데이트 내역(`lib/admin/guide/changes.ts`)에 가상계좌 결제 안내(주문 처리 패널의 입금 표시, 출고 보류 사유
+   '입금 오류 되돌림'·'에스크로 취소 요청', 환불 계좌 오류 처리)를 더한다 — 켜기 전에는 미리 알리지 않는다.
+
+### 운영 처리(결제확인필요 사유별)
+
+| 사유 코드 | 뜻 | 처리 |
+|---|---|---|
+| `provider_refund_account_required` | 입금된 가상계좌인데 결제 UI가 받은 환불 계좌가 없다(결제사 미호출) | 구매자에게 환불 계좌를 받아 토스 상점관리자에서 환불 → 주문 패널 '상태 다시 확인' |
+| `provider_refund_account_invalid` | 결제사가 환불 계좌(예금주·계좌번호)를 거절 | 같은 처리(계좌를 다시 받는다) |
+| `provider_refund_failed` | 은행 환불이 실패(`refundStatus` FAILED) | 토스 상점관리자에서 환불 상태 확인·재환불, 구매자 안내 |
+| `deposit_reversed` 출고 보류 | 은행이 입금을 취소 | 토스 상점관리자에서 입금 상태 확인 → 다시 입금됐으면 보류 해제, 아니면 운영자 전액 취소 |
+| `escrow_cancel_requested` 출고 보류 | 구매자가 토스 구매안전서비스에서 취소 신청 | 운영자 전액 취소(신청 수락 → 구매자 등록 계좌로 환불). 수락하지 않으면 토스 상점관리자에서 구매확정 요청 메일 재발송 |
+| 에스크로 배송 등록 운영자 확인(주문 패널) | 택배사 코드 없음·송장 형식 거절·에스크로 API 권한 없음 | 토스 상점관리자에서 배송 정보를 직접 등록 |
+
+`awaiting_deposit` 시도가 입금 기한 + 2시간이 지나도 닫히지 않으면 시스템 상태의 미종결 결제에 보인다 — [결제 상태 다시
+확인]으로 바로 조회하고(기한이 지났으면 계좌를 반납하고 주문을 닫는다), 자동 재확인 cron(`payment-reconciliation`)이
+멈췄는지 본다. 기한 전 입금 대기는 웹훅·자동 재확인(6시간마다)이 닫는다.
+
+입금 대기 주문은 운영자 전액 취소가 열리지 않는다(돈이 아직 들어오지 않았다 — `payment_reconciliation_required`). 구매자가
+주문 상세에서 취소하면 계좌가 반납되고 주문이 바로 취소되며, 그대로 두면 입금 기한 뒤 자동 취소된다. 구매자가 전화로
+취소를 요청하면 주문 상세에서 직접 취소하도록 안내한다.
 
 ## 테스트 키 기간의 출고 보류
 

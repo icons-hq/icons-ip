@@ -50,6 +50,24 @@ describe('상태 → tone 단일 표 (ADR-0029)', () => {
     expect(statusTone('unresolvedPayment', 'confirming_stalled')).toBe('warning');
   });
 
+  /* 토스 가상계좌(ADR-0049): 고객의 입금을 기다리는 상태는 조용히, 은행이 되돌린 입금은 위험, 구매자 에스크로 취소 신청은 처리할 일이다. */
+  it('가상계좌 입금 대기·입금 상태·새 출고 보류 사유·기한 지난 입금 대기', () => {
+    expect(statusTone('paymentAttempt', 'awaiting_deposit')).toBe('neutral');
+    expect(statusTone('paymentAttempt', 'needs_review')).toBe('danger');
+    expect(statusTone('unpaid', 'awaiting_deposit')).toBe('neutral');
+    expect(statusTone('virtualAccount', 'awaiting')).toBe('neutral');
+    expect(statusTone('virtualAccount', 'deposited')).toBe('success');
+    expect(statusTone('virtualAccount', 'checking')).toBe('warning');
+    expect(statusTone('virtualAccount', 'closed')).toBe('neutral');
+    expect(statusTone('fulfillmentHold', 'deposit_reversed')).toBe('danger');
+    expect(statusTone('fulfillmentHold', 'escrow_cancel_requested')).toBe('warning');
+    expect(statusTone('unresolvedPayment', 'awaiting_deposit')).toBe('warning');
+    expect(statusTone('escrowDelivery', 'manual_required')).toBe('danger');
+    expect(statusTone('escrowDelivery', 'registered')).toBe('success');
+    expect(statusTone('escrowStatus', 'CANCEL_REQUESTED')).toBe('warning');
+    expect(statusTone('escrowStatus', 'CONFIRMED')).toBe('success');
+  });
+
   it('표에 없는 상태는 눈에 띄지 않는 neutral이다', () => {
     expect(statusTone('order', 'not-a-status')).toBe('neutral');
     expect(statusTone('claim', null)).toBe('neutral');

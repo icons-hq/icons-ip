@@ -97,6 +97,14 @@ describe('GET /api/payments/goods/confirm/toss/[nonce]', () => {
     expect(result.headers.get('location')).toBe('/orders/40000000-0000-4000-8000-000000000388/complete');
   });
 
+  it('입금 대기(awaiting_deposit)는 승인과 같은 완료 화면으로 보낸다', async () => {
+    mocks.confirm.mockResolvedValue({ ...outcome('awaiting_deposit'), orderId: '40000000-0000-4000-8000-000000000388' });
+    const result = await callGet();
+
+    expect(result.status).toBe(303);
+    expect(result.headers.get('location')).toBe('/orders/40000000-0000-4000-8000-000000000388/complete');
+  });
+
   it.each([
     ['unknown', '/orders?payment=checking'],
     ['needs_review', '/orders?payment=checking'],

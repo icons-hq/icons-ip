@@ -115,6 +115,8 @@ export interface OrderListItem {
   claim?: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null;
   /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 없다. */
   retry?: OrderRetrySource | null;
+  /** 토스 가상계좌 입금 대기 주문(ADR-0049)이면 true — 결제수단은 card지만 '입금 대기'로 보인다. 아니면 없다. */
+  awaitingVirtualAccount?: boolean;
   /**
    * 주문의 모든 품목 줄(MD-0036). `loadOrders(…, { withLines: true })`만 채운다 — 없으면 화면이 `itemLabel`·`itemCount` 요약으로 대체한다.
    * 썸네일·IP명·영수증 보강이 실패해도 스냅샷 이름·수량·단가의 줄은 남는다.
@@ -262,9 +264,22 @@ const CUSTOMER_STATUS_LABELS: Record<Exclude<OrderDetailStatus, 'pending'>, stri
  * (QA1 S-D2-12·S-D2-15·S-T06-01: 입금 대기 주문 제목이 카드 승인 확인 문구와 같았고, 목록에 '입금 대기'와 '결제대기'가 함께 붙었다).
  * 그 밖의 상태는 라벨만 고객 이름(`CUSTOMER_STATUS_LABELS`)으로 바꾸고 제목·본문·톤은 공용 표 그대로다.
  */
-export function customerOrderStatusMeta(status: OrderDetailStatus, paymentMethod: CheckoutPaymentMethod | null | undefined): OrderStatusPresentation {
+export function customerOrderStatusMeta(
+  status: OrderDetailStatus,
+  paymentMethod: CheckoutPaymentMethod | null | undefined,
+  { awaitingVirtualAccount = false }: { awaitingVirtualAccount?: boolean } = {},
+): OrderStatusPresentation {
   const base = STATUS_PRESENTATION[status];
   if (status !== 'pending') return { ...base, label: CUSTOMER_STATUS_LABELS[status] };
+  /* 토스 가상계좌 입금 대기(ADR-0049)는 결제수단이 card로 남지만 고객에게는 입금 대기다. */
+  if (awaitingVirtualAccount) {
+    return {
+      ...base,
+      label: '입금 대기',
+      title: '입금을 기다리고 있어요',
+      body: '안내된 가상계좌로 기한 안에 입금하면 자동으로 확인되고 주문이 확정돼요. 진행하지 않을 주문은 아래에서 취소할 수 있어요.',
+    };
+  }
   return paymentMethod === 'bank_transfer'
     ? {
         ...base,
@@ -280,8 +295,11 @@ export function customerOrderStatusMeta(status: OrderDetailStatus, paymentMethod
  * (결제수단별 pending 구분이 필요한 배지는 `customerOrderStatusMeta`). 디지털 전용 주문은 파일 제공 흐름의 이름을 쓴다 —
  * 발주확인·배송중은 디지털에 없는 단계라 '주문 완료'로 접고(`OrderDetail` 사다리와 같은 규칙), 배송완료는 '파일 제공 시작'이다.
  */
-export function customerOrderStepLabel(status: OrderDetailStatus, { digital = false }: { digital?: boolean } = {}): string {
-  if (status === 'pending') return '결제 대기';
+export function customerOrderStepLabel(
+  status: OrderDetailStatus,
+  { digital = false, awaitingVirtualAccount = false }: { digital?: boolean; awaitingVirtualAccount?: boolean } = {},
+): string {
+  if (status === 'pending') return awaitingVirtualAccount ? '입금 대기' : '결제 대기';
   if (digital) {
     if (status === 'delivered') return '파일 제공 시작';
     if (status === 'confirmed' || status === 'shipping') return CUSTOMER_STATUS_LABELS.paid;

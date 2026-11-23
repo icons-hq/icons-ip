@@ -192,6 +192,33 @@ export async function loadOrderRetrySources(userId: string, orderIds: readonly s
   }
 }
 
+/**
+ * 주문 목록용: 토스 가상계좌 입금 대기(결제 시도 awaiting_deposit, ADR-0049)인 주문 id 집합.
+ * 결제 시도 원장은 service role 전용이라 본인 주문 id로만 좁혀 한 번에 읽는다. 읽지 못하면 빈 집합 — 그 주문은
+ * 기존처럼 '결제 대기'로 보이고 입금 안내는 주문 상세·완료 화면이 이어받는다.
+ */
+export async function loadAwaitingDepositOrderIds(userId: string, orderIds: readonly string[]): Promise<Set<string>> {
+  const ids = [...new Set(orderIds)];
+  if (!ids.length) return new Set();
+  try {
+    const found = new Set<string>();
+    for (let index = 0; index < ids.length; index += 200) {
+      const { data, error } = await createServiceClient()
+        .from('payment_attempts')
+        .select('ref_id')
+        .eq('user_id', userId)
+        .eq('purpose', 'order')
+        .eq('state', 'awaiting_deposit')
+        .in('ref_id', ids.slice(index, index + 200));
+      if (error) return new Set();
+      for (const row of (data ?? []) as { ref_id: string }[]) found.add(row.ref_id.toLowerCase());
+    }
+    return found;
+  } catch {
+    return new Set();
+  }
+}
+
 function paymentAttemptSnapshot(row: PaymentAttemptRow | null): CheckoutPaymentAttemptSnapshot | null {
   return row
     ? { state: row.state, expiresAt: row.expires_at ?? null, provider: row.provider }

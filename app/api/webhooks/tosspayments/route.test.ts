@@ -237,18 +237,122 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(deps.loadAttempt).not.toHaveBeenCalled();
   });
 
-  it('비지원 이벤트 타입은 조회 없이 200 ack다', async () => {
+  it.each([
+    ['METHOD_UPDATED', { eventType: 'METHOD_UPDATED', createdAt: '2026-09-01T00:00:00.000000', data: {} }],
+    // 부가 API 이벤트는 소문자·점 이름이다 — 형식이 맞으면 400이 아니라 처리하지 않는 이벤트로 200이다.
+    ['escrow.changed', { eventType: 'escrow.changed', eventId: 'whevt_1', entityType: 'escrow', entityBody: { id: 'escrow_1' } }],
+  ])('비지원 이벤트 타입(%s)은 조회 없이 200 ack다', async (_name, body) => {
     const { deps, post } = handler();
 
-    const result = await post(webhookRequest({
-      eventType: 'DEPOSIT_CALLBACK',
-      createdAt: '2026-09-01T00:00:00.000000',
-      secret: 'virtual-account-secret',
-      orderId: PROVIDER_ORDER_ID,
-    }));
+    const result = await post(webhookRequest(body));
 
     expect(result.status).toBe(200);
     expect(deps.loadAttempt).not.toHaveBeenCalled();
+  });
+
+  describe('가상계좌(ADR-0049)', () => {
+    it('입금 통보(DEPOSIT_CALLBACK)는 eventType·paymentKey 없는 본문이어도 저장된 결제 키를 힌트로 입금 대기 시도를 재정합한다', async () => {
+      const loadPaymentKeyHint = vi.fn(async () => 'stored-va-payment-key');
+      const { deps, post } = handler({
+        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'awaiting_deposit' })),
+        loadPaymentKeyHint,
+      });
+
+      const result = await post(webhookRequest(
+        {
+          createdAt: '2026-11-23T10:00:00.000000',
+          secret: 'virtual-account-secret-not-trusted',
+          status: 'DONE',
+          transactionKey: 'TX1',
+          orderId: PROVIDER_ORDER_ID,
+        },
+        { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID },
+      ));
+
+      expect(result.status).toBe(200);
+      expect(deps.loadAttempt).toHaveBeenCalledWith(PROVIDER_ORDER_ID);
+      expect(loadPaymentKeyHint).toHaveBeenCalledWith(ATTEMPT_ID);
+      expect(deps.reconcileGoods).toHaveBeenCalledWith({
+        attemptId: ATTEMPT_ID,
+        caseRef: TRANSMISSION_ID,
+        providerPaymentKeyHint: 'stored-va-payment-key',
+      });
+      expect(await result.text()).not.toContain('virtual-account-secret');
+    });
+
+    it('감싼 DEPOSIT_CALLBACK({ eventType, data })도 같은 재정합으로 간다', async () => {
+      const { deps, post } = handler({
+        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'awaiting_deposit' })),
+        loadPaymentKeyHint: vi.fn(async () => undefined),
+      });
+
+      const result = await post(webhookRequest({
+        eventType: 'DEPOSIT_CALLBACK',
+        createdAt: '2026-09-01T00:00:00.000000',
+        data: { secret: 'virtual-account-secret', status: 'DONE', orderId: PROVIDER_ORDER_ID },
+      }));
+
+      expect(result.status).toBe(200);
+      expect(deps.reconcileGoods).toHaveBeenCalledWith(expect.objectContaining({ attemptId: ATTEMPT_ID }));
+    });
+
+    it('본문에 결제 키가 있으면 저장된 키를 읽지 않는다', async () => {
+      const loadPaymentKeyHint = vi.fn(async () => 'stored');
+      const { deps, post } = handler({
+        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'awaiting_deposit' })),
+        loadPaymentKeyHint,
+      });
+      await post(webhookRequest(statusChangedBody({ status: 'DONE' })));
+      expect(loadPaymentKeyHint).not.toHaveBeenCalled();
+      expect(deps.reconcileGoods).toHaveBeenCalledWith(expect.objectContaining({ providerPaymentKeyHint: PAYMENT_KEY }));
+    });
+
+    it('승인된 결제에 WAITING_FOR_DEPOSIT이 오면 직접 취소 감지보다 먼저 입금 오류 되돌림을 본다 — 되돌림이면 보류만 남기고 200', async () => {
+      const checkDepositReversal = vi.fn(async () => 'held' as const);
+      const { deps, post } = handler({
+        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
+        checkDepositReversal,
+      });
+
+      const result = await post(webhookRequest(
+        statusChangedBody({ status: 'WAITING_FOR_DEPOSIT' }),
+        { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID },
+      ));
+
+      expect(result.status).toBe(200);
+      expect(checkDepositReversal).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, caseRef: TRANSMISSION_ID });
+      expect(deps.checkProviderCancellation).not.toHaveBeenCalled();
+      expect(deps.reconcileGoods).not.toHaveBeenCalled();
+    });
+
+    it('되돌림이 아니면 결제사 직접 취소 감지로 넘어가고, 되돌림 조회 실패는 500으로 재전송을 받는다', async () => {
+      const passThrough = handler({
+        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
+        checkDepositReversal: vi.fn(async () => 'not_applicable' as const),
+      });
+      const passed = await passThrough.post(webhookRequest(statusChangedBody({ status: 'WAITING_FOR_DEPOSIT' })));
+      expect(passed.status).toBe(200);
+      expect(passThrough.deps.checkProviderCancellation).toHaveBeenCalled();
+
+      const failing = handler({
+        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
+        checkDepositReversal: vi.fn(async () => { throw new Error('inspect unavailable'); }),
+      });
+      const failed = await failing.post(webhookRequest(statusChangedBody({ status: 'WAITING_FOR_DEPOSIT' })));
+      expect(failed.status).toBe(500);
+      expect(failing.deps.checkProviderCancellation).not.toHaveBeenCalled();
+    });
+
+    it('취소 상태 힌트(CANCELED)는 되돌림을 보지 않고 직접 취소 감지만 한다', async () => {
+      const checkDepositReversal = vi.fn(async () => 'held' as const);
+      const { deps, post } = handler({
+        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
+        checkDepositReversal,
+      });
+      await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })));
+      expect(checkDepositReversal).not.toHaveBeenCalled();
+      expect(deps.checkProviderCancellation).toHaveBeenCalled();
+    });
   });
 
   it.each([

@@ -11,7 +11,9 @@ import { isTossProviderOrderId } from './toss-config.mjs';
 // 버린다. 힌트는 게이트웨이가 조회 응답이 attempt와 일치할 때만 쓰고, status 힌트는
 // 조회 여부만 고른다(판정은 조회 결과). raw payload는 저장하지 않는다.
 const MAX_WEBHOOK_BYTES = 64 * 1024;
-const EVENT_TYPE = /^[A-Z_]{2,64}$/;
+// 이벤트 이름 형식 — 결제 이벤트는 대문자(PAYMENT_STATUS_CHANGED·DEPOSIT_CALLBACK), 2026-10 부가 API 이벤트는 소문자·점
+// (escrow.changed·delivery.changed). 처리하지 않는 이벤트도 형식이 맞으면 200 ack다(재전송해도 처리할 것이 없다).
+const EVENT_TYPE = /^[A-Za-z][A-Za-z0-9_.-]{1,63}$/;
 const CASE_REF = /^[A-Za-z0-9_-]{16,128}$/;
 // paymentKey wire 형식 — successUrl 콜백 파서·어댑터와 같은 계약(최대 200자, 제어문자 금지).
 const PAYMENT_KEY = /^[\x21-\x7e]{1,200}$/;
@@ -88,16 +90,35 @@ export async function parseTossWebhook(request: Request): Promise<ParsedTossWebh
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
     throw new TossWebhookInvalidError();
   }
-  const eventType = (payload as Record<string, unknown>).eventType;
+  const body = payload as Record<string, unknown>;
+  const eventType = body.eventType;
+  if (eventType === undefined && 'secret' in body && 'orderId' in body && 'status' in body) {
+    /*
+     * 가상계좌 입금 통보(DEPOSIT_CALLBACK) — 본문에 eventType·paymentKey 없이 { createdAt, secret, status, transactionKey,
+     * orderId }만 온다(웹훅 이벤트 문서 DEPOSIT_CALLBACK, ADR-0049). secret은 저장하지도 대조하지도 않는다 — 어차피 본문을
+     * 믿지 않고 저장된 결제 키로 다시 조회해 판정한다. 여기서는 orderId와 status 힌트만 꺼낸다.
+     */
+    return paymentStatusChanged(body);
+  }
   if (typeof eventType !== 'string' || !EVENT_TYPE.test(eventType)) {
     throw new TossWebhookInvalidError();
   }
+  if (eventType === 'DEPOSIT_CALLBACK') {
+    // 감싼 형태({ eventType, data })와 평평한 형태 모두 orderId·status만 읽는다.
+    const data = body.data;
+    return paymentStatusChanged(typeof data === 'object' && data !== null && !Array.isArray(data)
+      ? data as Record<string, unknown>
+      : body);
+  }
   if (eventType !== 'PAYMENT_STATUS_CHANGED') return { kind: 'unsupported_event' };
 
-  const data = (payload as Record<string, unknown>).data;
-  const record = typeof data === 'object' && data !== null && !Array.isArray(data)
+  const data = body.data;
+  return paymentStatusChanged(typeof data === 'object' && data !== null && !Array.isArray(data)
     ? data as Record<string, unknown>
-    : undefined;
+    : undefined);
+}
+
+function paymentStatusChanged(record: Record<string, unknown> | undefined): ParsedTossWebhook {
   const orderId = record?.orderId;
   // 주문번호 wire 계약은 toss-config.mjs 하나만 본다 — 사본이 갈라지면 유효한
   // 주문번호가 여기서만 조용히 미지 식별자로 떨어진다.

@@ -531,3 +531,101 @@ describe('GoodsPaymentCheckout', () => {
     );
   });
 });
+
+describe('가상계좌 입금 대기(ADR-0049)', () => {
+  const VA_EVIDENCE = {
+    providerPaymentKey: 'va-payment-key',
+    resultCode: 'WAITING_FOR_DEPOSIT',
+    paymentMethod: '가상계좌',
+    virtualAccount: {
+      bankCode: '20',
+      accountNumber: 'X6505636518308',
+      dueAt: '2026-11-24T03:00:00.000Z',
+      useEscrow: false,
+      refundReceiveAccount: null,
+    },
+  } as const;
+
+  function vaFixture(confirm: readonly ConfirmOutcome[], reconcile: readonly ConfirmOutcome[] = []) {
+    const repository = new MemoryGoodsPaymentAttemptRepository();
+    const releaseVirtualAccount = vi.fn(async () => undefined);
+    const gateway = Object.assign(new FakePaymentGateway({ prepare: [prepared()], confirm, reconcile }), {
+      releaseVirtualAccount,
+    });
+    const onApproved = vi.fn(async () => undefined);
+    const onAwaitingDeposit = vi.fn(async () => undefined);
+    const checkout = createGoodsPaymentCheckout({
+      provider: 'korpay',
+      gateway,
+      repository,
+      createClaimToken: () => '40000000-0000-4000-8000-000000000205',
+      onApproved,
+      onAwaitingDeposit,
+    });
+    return { checkout, repository, gateway, releaseVirtualAccount, onApproved, onAwaitingDeposit };
+  }
+
+  it('DB가 입금 대기를 확정하면 입금 안내 알림만 보내고 계좌를 반납하지 않는다', async () => {
+    const { checkout, releaseVirtualAccount, onApproved, onAwaitingDeposit } = vaFixture([
+      outcome('awaiting_deposit', { evidence: VA_EVIDENCE }),
+    ]);
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    const result = await checkout.confirm(CALLBACK);
+
+    expect(result.outcome).toBe('awaiting_deposit');
+    expect(result.orderId).toBe(ORDER_ID);
+    expect(onAwaitingDeposit).toHaveBeenCalledTimes(1);
+    expect(onApproved).not.toHaveBeenCalled();
+    expect(releaseVirtualAccount).not.toHaveBeenCalled();
+  });
+
+  it('DB가 입금 대기를 거부하면(needs_review) 발급된 계좌를 같은 요청에서 반납한다 — 알림은 보내지 않는다', async () => {
+    const { checkout, repository, releaseVirtualAccount, onAwaitingDeposit } = vaFixture([
+      outcome('awaiting_deposit', { evidence: VA_EVIDENCE }),
+    ]);
+    repository.finalizeOutcomeOverride = 'needs_review';
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    const result = await checkout.confirm(CALLBACK);
+
+    expect(result.outcome).toBe('needs_review');
+    expect(releaseVirtualAccount).toHaveBeenCalledWith(expect.objectContaining({ id: ATTEMPT_ID }), 'va-payment-key');
+    expect(onAwaitingDeposit).not.toHaveBeenCalled();
+  });
+
+  it('반납 실패는 확정 결과를 바꾸지 않는다(뒤따르는 웹훅·재정합이 조회로 닫는다)', async () => {
+    const { checkout, repository, releaseVirtualAccount } = vaFixture([
+      outcome('awaiting_deposit', { evidence: VA_EVIDENCE }),
+    ]);
+    repository.finalizeOutcomeOverride = 'needs_review';
+    releaseVirtualAccount.mockRejectedValueOnce(new Error('network'));
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    await expect(checkout.confirm(CALLBACK)).resolves.toMatchObject({ outcome: 'needs_review' });
+  });
+
+  it('입금 전 취소의 재정합은 반납 힌트를 게이트웨이에 넘긴다', async () => {
+    const { checkout, repository, gateway } = vaFixture(
+      [outcome('unknown')],
+      [outcome('declined', { reasonCode: 'provider_virtual_account_released' })],
+    );
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+    await checkout.confirm(CALLBACK);
+    const reconcile = vi.spyOn(gateway, 'reconcile');
+
+    const result = await checkout.reconcilePayment({
+      attemptId: ATTEMPT_ID,
+      caseRef: 'cancel-release-0123456789',
+      providerPaymentKeyHint: 'va-payment-key',
+      releaseVirtualAccount: true,
+    });
+
+    expect(reconcile).toHaveBeenCalledWith(expect.objectContaining({ id: ATTEMPT_ID }), {
+      providerPaymentKey: 'va-payment-key',
+      releaseVirtualAccount: true,
+    });
+    expect(result.outcome).toBe('declined');
+    expect(repository.finalizations.at(-1)?.outcome.reasonCode).toBe('provider_virtual_account_released');
+  });
+});

@@ -6,6 +6,8 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
 import { getBankTransferAccount } from '@/lib/payments/bank-transfer.server';
+import { isAwaitingDepositAttempt } from '@/lib/payments/virtual-account';
+import { loadMyOrderVirtualAccount } from '@/lib/payments/virtual-account.server';
 import { orderCompleteHref } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -31,7 +33,11 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]/comp
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) notFound();
 
-  const destination = orderCompleteDestination(order);
+  /* 토스 가상계좌 입금 대기(ADR-0049)는 결제 시도 상태로 가려 읽고, 계좌는 본인 전용 RPC로만 읽는다. */
+  const virtualAccount = order.status === 'pending' && order.paymentMethod === 'card' && isAwaitingDepositAttempt(order.paymentAttempt)
+    ? await loadMyOrderVirtualAccount(order.id)
+    : null;
+  const destination = orderCompleteDestination(order, undefined, virtualAccount);
   if (destination.kind === 'redirect') redirect(destination.href);
 
   return (
@@ -39,6 +45,7 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]/comp
       order={order}
       bankTransferAccount={destination.kind === 'deposit' ? await getBankTransferAccount() : null}
       depositDeadlinePassed={destination.kind === 'deposit' && destination.deadlinePassed}
+      virtualAccount={destination.kind === 'virtual_account' ? virtualAccount : null}
     />
   );
 }

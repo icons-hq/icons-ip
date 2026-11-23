@@ -243,3 +243,30 @@ describe('주문 상세 — 결제 전 확인 동의', () => {
     expect(unread).not.toContain('결제 전 확인 동의');
   });
 });
+
+/* 토스 가상계좌(ADR-0049): 주문 상세의 '가상계좌 입금' 칸과 주문 정보의 결제수단. 주문 처리 권한에만 보인다. */
+describe('주문 상세 가상계좌 입금', () => {
+  const account = { bankCode: '088', accountNumber: '56211234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 12800, useEscrow: null, state: 'checking' as const, escrow: null };
+  it('입금 은행·계좌번호·금액·기한·상태·에스크로 적용 여부와 결제수단 가상계좌를 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: account }} noteOperationId="operation" />);
+    for (const text of ['가상계좌 입금', '입금 확인 중', '신한은행', '56211234567890', '₩12,800', '2026. 11. 25. 10:00', '구매안전서비스 (에스크로)', '기록 없음', '<dd class="min-w-0 wrap-anywhere">가상계좌</dd>']) {
+      expect(html, text).toContain(text);
+    }
+    expect(html).toContain('data-order-virtual-account="checking"');
+  });
+  it('에스크로 배송 정보가 자동 등록되지 않았으면 직접 등록 안내를 띄운다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: { ...account, state: 'deposited', useEscrow: true,
+      escrow: { deliveryState: 'manual_required', escrowStatus: null, lastErrorCode: 'INVALID_COMPANY' } } }} noteOperationId="operation" />);
+    for (const text of ['에스크로 배송 정보', '직접 등록 필요', '확인 코드 · INVALID_COMPANY', '아직 확인 전', '배송 정보를 직접 등록해주세요']) expect(html, text).toContain(text);
+  });
+  it('읽지 못했으면 그 사실을 적고, 조회 전용 권한에는 그리지 않는다', () => {
+    expect(renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccountUnavailable: true }} noteOperationId="operation" />)).toContain('가상계좌 입금 정보를 불러오지 못했습니다');
+    const reader = renderToStaticMarkup(<OrderDetailScreen canManage={false} detail={{ ...detail, virtualAccount: account }} noteOperationId="operation" />);
+    expect(reader).not.toContain('56211234567890');
+    expect(reader).not.toContain('가상계좌 입금');
+  });
+  it('입금 오류 되돌림 출고 보류 기록은 결제 확인 필요 출고 보류로 적는다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, timeline: [{ id: 'hold', source: 'status', occurredAt: '2026-11-25T02:00:00Z', action: 'system.order.fulfillment_hold_placed', actorName: null }] }} noteOperationId="operation" />);
+    expect(html).toContain('출고 보류 (결제 확인 필요)');
+  });
+});

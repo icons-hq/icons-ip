@@ -498,7 +498,9 @@ export function checkoutEffectivePaymentStatus(
   attemptState: string | null | undefined,
   ledgerStatus: string | null,
 ): string | null {
+  /* awaiting_deposit(토스 가상계좌 입금 대기, ADR-0049)도 실패가 아니라 진행 중이다 — 결제가 잡혀 있고 입금을 기다린다. */
   return attemptState === 'confirming' || attemptState === 'unknown' || attemptState === 'needs_review'
+    || attemptState === 'awaiting_deposit'
     ? 'pending'
     : ledgerStatus;
 }
@@ -511,6 +513,8 @@ export interface CheckoutPaymentReading {
   readonly reorderMode: CheckoutReorderMode | null;
   /** 결제 시도의 provider. 시도가 없으면 null. */
   readonly provider: string | null;
+  /** 토스 가상계좌 입금 대기 주문(ADR-0049)이면 true. 아니면 필드가 없다. */
+  readonly awaitingDeposit?: boolean;
   /** 바로구매 주문(ADR-0030)의 상품 상세 굿즈 — `retry_direct` 안내의 목적지. 아니면 null. */
   readonly directGoodId?: string | null;
 }
@@ -533,6 +537,7 @@ export function readCheckoutPayment(
     closure: state === 'payment_closed' ? closure : null,
     reorderMode: checkoutReorderMode(order, state, now),
     provider: order.paymentAttempt?.provider ?? null,
+    ...(order.paymentAttempt?.state === 'awaiting_deposit' ? { awaitingDeposit: true as const } : {}),
     ...(order.directGoodId ? { directGoodId: order.directGoodId } : {}),
   };
 }
@@ -554,6 +559,8 @@ export function readCheckoutPayment(
 export type CheckoutPaymentResultOutcome =
   | 'approved'
   | 'checking'
+  /** 토스 가상계좌 계좌가 발급돼 입금을 기다린다(ADR-0049). 실패가 아니다. */
+  | 'awaiting_deposit'
   | 'not_approved'
   | 'attempt_expired'
   | 'retryable'
@@ -599,6 +606,7 @@ export function checkoutPaymentResultOutcome(
     paymentStatus: input.paymentStatus,
     hasActiveCancellationRequest: input.hasActiveCancellationRequest ?? false,
   })) return 'refund_in_progress';
+  if (input.attempt.state === 'awaiting_deposit') return 'awaiting_deposit';
   if (input.paymentStatus === 'pending' || input.paymentStatus === 'paid') return 'checking';
   const { state, expiresAt } = input.attempt;
   const closedBeforeApproval = state === 'prepared' || state === 'declined' || state === 'canceled';

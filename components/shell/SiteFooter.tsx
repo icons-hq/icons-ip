@@ -20,6 +20,7 @@ import { SITE_FOOTER_ID } from './site-footer-jump';
 import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
 import { DEFAULT_STOREFRONT_BRANDING, STORE_SOCIAL_LABELS, type StorefrontBranding } from '@/lib/store-branding';
 import { AdminConsoleLink, useAdminConsoleVisible } from './AdminConsoleLink';
+import { virtualAccountTermsRevisionInEffect } from '@/lib/legal/virtual-account-terms-revision';
 
 /* X SQUARE 푸터(Figma Site Footer, ADR-0043). 한 줄 링크(약관·안내 | 고객센터·SNS) → 사업자 정보 두 줄 → (스태프 블록) → 저작권이다.
    법정 표기(상호·대표자·주소·사업자등록번호·통신판매업 신고번호·전화·이메일·호스팅)와 법정 고지 3종은 그대로 두고 접지 않는다 —
@@ -63,6 +64,29 @@ function BusinessLines({ info }: { info: BusinessInfoData }) {
   });
 }
 
+/*
+ * 구매안전서비스(결제대금예치) 가입 사실 표시 — 전자상거래법 제13조·제24조, 토스페이먼츠 에스크로 안내("에스크로를 사용하는 상점은 홈페이지
+ * 하단에 에스크로 가입 인증 마크가 필요")(ADR-0049 결정 9). 가상계좌 개정(약관 제11조의 구매안전서비스 고지)이 시행된 날부터 함께 보인다.
+ * 가입 사실 확인 링크: 토스페이먼츠 구매자용 에스크로 가입 확인 페이지(consumer.tosspayments.com/escrow/detail, 상점아이디 mertid) —
+ * 가상계좌·에스크로를 받는 ICONS 국내 결제 MID(iconsi0xvd, lib/payments/toss-config.mjs)로 건다. MID는 비밀이 아니다. 시행 전 사람이
+ * 이 링크에서 ICONS 가입 사실이 보이는지 확인한다(런북 가상계좌 절).
+ */
+const ESCROW_NOTICE_TEXT = '고객님은 안전거래를 위해 현금 등으로 결제 시 저희 쇼핑몰에서 가입한 토스페이먼츠의 구매안전(에스크로) 서비스를 이용하실 수 있습니다.';
+const ESCROW_SERVICE_CHECK_HREF = 'https://consumer.tosspayments.com/escrow/detail?mertid=iconsi0xvd';
+
+function EscrowNotice() {
+  return (
+    <p className="wc-x-footer__biz" data-footer-escrow="">
+      <span className="wc-x-footer__biz-row">
+        <span>
+          {ESCROW_NOTICE_TEXT}{' '}
+          <a className="wc-x-footer__biz-verify" href={ESCROW_SERVICE_CHECK_HREF} rel="noopener noreferrer" target="_blank">서비스 가입 사실 확인<span className="wc-sr-only"> 새 창</span></a>
+        </span>
+      </span>
+    </p>
+  );
+}
+
 /* SNS는 운영 브랜딩 설정에서 켠 것만 그린다. 인스타그램은 Figma 원본 글리프(18px), 블로그·페이스북은 원본 자산이 없어 글자 링크다. */
 function SocialLinks({ socials }: { socials: StorefrontBranding['socials'] }) {
   return socials.map(({ platform, url }) => (
@@ -84,11 +108,17 @@ export function SiteFooter({
   businessInfo = BUSINESS_INFO,
   branding = DEFAULT_STOREFRONT_BRANDING,
   copyrightYear = new Date().getFullYear(),
+  escrowNoticeVisible = virtualAccountTermsRevisionInEffect(),
 }: {
   businessInfo?: BusinessInfoData;
   branding?: StorefrontBranding;
   /** 저작권 줄의 연도 — 서버 레이아웃이 KST 기준으로 넘긴다. */
   copyrightYear?: number;
+  /**
+   * 구매안전서비스 가입 사실 표시 여부. 기본은 가상계좌 개정 시행 여부(KST 날짜)다 — 서버 레이아웃이 넘기면 그 값을 쓴다
+   * (넘기지 않으면 시행일 0시 무렵 정적 HTML과 브라우저가 다른 날짜로 계산할 수 있다).
+   */
+  escrowNoticeVisible?: boolean;
 }) {
   const pathname = usePathname();
   /* 마켓·트레이드 시연은 그 기능의 DB 공개 스위치가 켜져 있을 때만 남는다 — 둘 다 꺼지면 블록 자체가 없다(lib/collectible-features.ts). */
@@ -124,6 +154,8 @@ export function SiteFooter({
         </div>
 
         <BusinessLines info={businessInfo} />
+
+        {escrowNoticeVisible ? <EscrowNotice /> : null}
 
         {/* 관리자 페이지 바로가기 — 어드민 콘솔에 들어갈 수 있는 운영자에게만 마크업이 생긴다(운영 권한 readback). 유틸 메뉴가
             없는 모바일 상품 상세·장바구니·결제와 공용 내비가 없는 캠페인·게임에서도 닿도록 푸터 스태프 블록 맨 앞에 둔다. */}

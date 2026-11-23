@@ -111,6 +111,14 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
         link: checkoutLink('결제 상태 보기'),
         inquiry: true,
       };
+    case 'awaiting_deposit':
+      /* 토스 가상계좌 계좌 발급(ADR-0049) — 실패가 아니라 입금을 기다리는 중이다. 계좌는 주문 완료 화면이 보인다. */
+      return {
+        tone: 'checking',
+        title: '입금을 기다리고 있어요',
+        body: '가상계좌가 발급됐어요. 안내된 계좌로 기한 안에 입금하면 자동으로 확인돼요.',
+        link: { href: `/orders/${focus.orderId}/complete`, label: '입금 계좌 보기' },
+      };
     case 'not_approved':
       return {
         tone: 'failed',
@@ -292,7 +300,7 @@ export function Orders({
           ) : (
             <ol className="orders-list">
               {orders.map((order) => {
-                const status = customerOrderStatusMeta(order.status, order.paymentMethod);
+                const status = customerOrderStatusMeta(order.status, order.paymentMethod, { awaitingVirtualAccount: order.awaitingVirtualAccount });
                 const claimLabel = orderClaimProgressLabel(order.status, order.claim);
                 const referenceLabel = orderReferenceLabel(order.id, order.orderNumber);
 

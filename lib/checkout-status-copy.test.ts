@@ -149,6 +149,17 @@ describe('closedPaymentCopy — 시도 만료', () => {
 /* QA-2: 거절·시도 만료로 닫힌 결제대기 주문의 주문 상세가 '결제 상태를 확인하고 있어요'와
    '결제 상태 확인·이어가기'를 보이면 청구가 진행 중이고 이어갈 수 있는 것처럼 읽힌다. */
 describe('orderDetailCardPaymentNotice', () => {
+  it('가상계좌 입금 대기 주문은 입금 안내 화면으로 보내고 결제 확인 중이라 말하지 않는다(ADR-0049)', () => {
+    const notice = orderDetailCardPaymentNotice(
+      reading({ state: 'checking', awaitingDeposit: true }),
+      { orderId, orderExpiresAt },
+    );
+
+    expect(notice.header.title).toBe('입금을 기다리고 있어요');
+    expect(notice.banner).toMatchObject({ link: { href: `/orders/${orderId}/complete`, label: '입금 안내 보기' } });
+    expect(noticeText(notice)).not.toContain('확인하고 있어요');
+  });
+
   it('승인 거절된 주문은 다시 결제할 수 없다고 말하고 결제 화면의 정리 액션으로 보낸다', () => {
     const notice = orderDetailCardPaymentNotice(
       reading({ state: 'payment_closed', closure: 'not_approved', reorderMode: 'cancel_then_reorder' }),

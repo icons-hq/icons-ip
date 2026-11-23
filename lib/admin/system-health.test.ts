@@ -6,6 +6,8 @@ import {
   parseSystemHealthReport,
   parseUnresolvedPaymentAttempts,
   paymentReconcileError,
+  UNRESOLVED_PAYMENT_REASON_HINTS,
+  UNRESOLVED_PAYMENT_REASON_LABELS,
   systemErrorCodeLabel,
   systemJobState,
 } from './system-health';
@@ -81,6 +83,15 @@ describe('미종결 결제 목록', () => {
     expect(parseUnresolvedPaymentAttempts({ total: 0, asOf, items: [item] })).toBeNull();
     expect(parseUnresolvedPaymentAttempts({ total: 1, asOf, items: [{ ...item, reason: 'approved' }] })).toBeNull();
     expect(parseUnresolvedPaymentAttempts({ total: 1, asOf, items: [{ ...item, attemptId: 'x' }] })).toBeNull();
+  });
+
+  /* 입금 기한이 2시간 넘게 지난 가상계좌 입금 대기(ADR-0049) — 목록 전체를 실패로 만들지 않고, 운영자 재확인 버튼은 DB 값을 따른다
+     (admin_begin_payment_reconciliation의 미종결 판정이 입금 대기를 받는다). */
+  it('입금 기한 지난 가상계좌 입금 대기를 읽고 재확인 버튼을 DB 값대로 둔다', () => {
+    const overdue = { ...item, state: 'awaiting_deposit', reason: 'awaiting_deposit' };
+    expect(parseUnresolvedPaymentAttempts({ total: 1, asOf, items: [overdue] })?.items[0]).toMatchObject({ reason: 'awaiting_deposit', reconcilable: true });
+    expect(UNRESOLVED_PAYMENT_REASON_LABELS.awaiting_deposit).toBe('입금 기한 지남(가상계좌)');
+    expect(UNRESOLVED_PAYMENT_REASON_HINTS.awaiting_deposit).toContain('토스페이먼츠 상점관리자');
   });
 
   it('재확인 오류를 운영자 말로 바꾼다', () => {
