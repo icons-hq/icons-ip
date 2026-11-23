@@ -33,7 +33,7 @@ export async function loadListingReviewSummaries(goodIds: Iterable<unknown>): Pr
   const ids = listingReviewSummaryIds(goodIds);
   if (!ids.length || !getSupabaseConfig().isConfigured) return {};
   try {
-    return await readListingReviewSummaries(await createClient(), ids);
+    return await readListingReviewSummaries(await createClient({ storefrontReadCache: true }), ids);
   } catch {
     return {};
   }

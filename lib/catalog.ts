@@ -31,6 +31,7 @@ import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
+import { STOREFRONT_READ_CACHE_TTL_MS } from '@/lib/supabase/storefront-read-cache';
 import { buildHomeMosaicBand, parseHomeMosaicPayload, type HomeMosaicPayload } from './home-mosaic';
 import { buildHomeProductCollectionBand, isHomeProductCollectionTitle, parseHomeProductCollectionPayload, type HomeProductCollectionPayload } from './home-product-collection';
 import { readPublicHomeLayoutOrder } from '@/lib/home-layout';
@@ -428,8 +429,10 @@ function toHomeBanner(
 }
 
 async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
-  const supabase = await createClient();
-  const now = new Date().toISOString();
+  const supabase = await createClient({ storefrontReadCache: true });
+  /* 공유 캐시 키가 요청마다 달라지지 않게 10초 단위로 내린다. 새로 시작하는 배너가 최대 10초 늦게 보일 뿐,
+     끝난 배너는 RLS(실제 now())가 거른다. */
+  const now = new Date(Math.floor(Date.now() / STOREFRONT_READ_CACHE_TTL_MS) * STOREFRONT_READ_CACHE_TTL_MS).toISOString();
   const [curations, layout, productCollectionsResult] = await Promise.all([supabase
     .from('home_curations')
     .select('id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,slot,payload')
@@ -908,7 +911,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   if (source === 'mock') return mockSnapshot();
 
   const adultGoods = options.adultGoods ?? 'hidden';
-  const supabase = await createClient();
+  const supabase = await createClient({ storefrontReadCache: true });
 
   const [verticalsResult, ipsResult, goodsResult, cardsResult, eventsResult, maskedAdultRows] = await Promise.all([
     supabase.from('verticals').select('key,label,color').order('key'),
@@ -986,7 +989,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
      부르지 않는다(CL-02). */
   const [listingAppearance, transactionOffers, reviewSummaries] = await Promise.all([
     loadGoodsListingAppearance(supabase, decorated.map(good => good.id)),
-    loadGoodsTransactionOffers(decorated.map(good => good.id)),
+    loadGoodsTransactionOffers(decorated.map(good => good.id), { storefrontReadCache: true }),
     options.includeReviewSummaries ? loadGoodsReviewSummaries(supabase, decorated.map(good => good.id)) : Promise.resolve(undefined),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
@@ -1141,7 +1144,7 @@ async function readPublicGoodsByIds(
   const decorated = goods.filter(good => !good.masked);
   const [appearance, transactionOffers] = await Promise.all([
     loadGoodsListingAppearance(supabase, decorated.map(good => good.id)),
-    loadGoodsTransactionOffers(decorated.map(good => good.id)),
+    loadGoodsTransactionOffers(decorated.map(good => good.id), { storefrontReadCache: true }),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
   const transactionCalculatedAt = new Date().toISOString();
@@ -1161,7 +1164,7 @@ export async function getCatalogGoodsByIds(
     const selected = new Set(ids);
     return (await getCatalogSnapshot()).goods.filter(good => selected.has(good.id));
   }
-  return readPublicGoodsByIds(await createClient(), ids, options.adultGoods ?? 'hidden');
+  return readPublicGoodsByIds(await createClient({ storefrontReadCache: true }), ids, options.adultGoods ?? 'hidden');
 }
 
 /**
@@ -1172,7 +1175,7 @@ export async function isPublishedAdultGood(goodId: string): Promise<boolean> {
   if (getCatalogSource() !== 'supabase' || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return false;
   try {
     /* goods RLS가 인증 전 세션에 성인 행을 닫으므로 가림 카드 RPC로 공개 여부만 확인한다. */
-    const rows = await loadMaskedAdultGoodRows(await createClient(), goodId);
+    const rows = await loadMaskedAdultGoodRows(await createClient({ storefrontReadCache: true }), goodId);
     return rows.some(row => row.id === goodId);
   } catch {
     return false;
@@ -1198,7 +1201,7 @@ export async function getCatalogGoodDetail(
       }), description: null, gallery: [], detailImageUrls: [], notice: EMPTY_GOODS_NOTICE };
   }
   if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return null;
-  const supabase = await createClient();
+  const supabase = await createClient({ storefrontReadCache: true });
   const [good] = await readPublicGoodsByIds(supabase, [goodId], adultGoods);
   if (!good) return null;
   const detailQuery = supabase
@@ -1386,7 +1389,7 @@ export async function getCatalogIpDetail(
   const [posts, reviewSummaries] = await Promise.all([
     catalog.source === 'mock' ? Promise.resolve(mockPostPreviews()) : getCatalogPostPreviewsForIp(id, ip, options),
     catalog.source === 'supabase' && ipGoodIds.length
-      ? (async () => loadGoodsReviewSummaries(await createClient(), ipGoodIds))()
+      ? (async () => loadGoodsReviewSummaries(await createClient({ storefrontReadCache: true }), ipGoodIds))()
       : Promise.resolve(undefined),
   ]);
   const detail = buildCatalogIpDetail(catalog, id, posts);

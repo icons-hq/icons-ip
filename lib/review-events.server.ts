@@ -32,7 +32,7 @@ export async function loadGoodsReviewEvents(goodIds: readonly string[]): Promise
     return { rows: results.flatMap(result => result.rows), nextChangeAt: results.flatMap(result => result.nextChangeAt ? [result.nextChangeAt] : []).sort()[0] ?? null, ...(results.some(result => result.unavailable) ? { unavailable: true } : {}) };
   }
   try {
-    const { data, error } = await (await createClient()).rpc('get_goods_review_events', { p_good_ids: ids });
+    const { data, error } = await (await createClient({ storefrontReadCache: true })).rpc('get_goods_review_events', { p_good_ids: ids });
     if (error || !data || !Array.isArray(data.rows) || !instant(data.nextChangeAt) || data.rows.some((row: Record<string, unknown>) => !row || typeof row.goodId !== 'string' || !ids.includes(row.goodId) || !parsePublicReviewEvent(row.event))) throw new Error('Invalid review event banners');
     return data as GoodsReviewEvents;
   } catch { return { rows: [], nextChangeAt: null, unavailable: true }; }

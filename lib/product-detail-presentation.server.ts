@@ -8,7 +8,7 @@ import { loadReviewEventDisclosures } from '@/lib/review-events.server';
 export async function loadPublicDetailPresentation(goodId: string): Promise<PublicDetailPresentation | null> {
   if (!getSupabaseConfig().isConfigured) return null;
   try {
-    const client = await createClient();
+    const client = await createClient({ storefrontReadCache: true });
     const { data, error } = await client.rpc('get_product_detail_presentation', { p_good_id: goodId });
     if (error) throw new Error('Detail presentation unavailable');
     if (data === null) return null;

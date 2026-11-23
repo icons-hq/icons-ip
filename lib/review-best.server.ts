@@ -15,7 +15,7 @@ export async function loadReviewBestSettings(): Promise<ReviewBestSettings> {
 export async function loadSelectedReviewCards(goodId: string): Promise<PublicSelectedReviewCard[]> {
   if (!getSupabaseConfig().isConfigured) return [];
   try {
-    const client = await createClient(), { data, error } = await client.rpc('get_good_selected_reviews_v2', { p_good_id: goodId });
+    const client = await createClient({ storefrontReadCache: true }), { data, error } = await client.rpc('get_good_selected_reviews_v2', { p_good_id: goodId });
     const cards = parseTypedSelectedReviewCards(data);
     if (error || !cards?.length) return [];
     const paths = [...new Set(cards.flatMap(card => card.imagePaths))];

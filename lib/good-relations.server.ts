@@ -4,7 +4,7 @@ import { parseGoodRelationReferences, type GoodRelationReferences } from './good
 
 export async function loadGoodRelationReferences(goodId: string): Promise<GoodRelationReferences> {
   try {
-    const client = await createClient(); const { data, error } = await client.rpc('get_good_relation_compositions', { p_good_id: goodId });
+    const client = await createClient({ storefrontReadCache: true }); const { data, error } = await client.rpc('get_good_relation_compositions', { p_good_id: goodId });
     const parsed = parseGoodRelationReferences(data);
     if (error || !parsed) throw new Error('invalid related goods');
     return parsed;

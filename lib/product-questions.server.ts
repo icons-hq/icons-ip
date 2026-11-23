@@ -138,7 +138,8 @@ export async function loadGoodQuestions(
   const page = Math.max(1, Math.trunc(options.page ?? 1) || 1);
   if (!getSupabaseConfig().isConfigured) return emptySection(page);
 
-  const supabase = await createClient();
+  /* 내 비공개 문의가 섞여 로그인하지 않은 요청만 공유 캐시한다(storefront-read-cache). */
+  const supabase = await createClient({ storefrontReadCache: true });
   const offset = (page - 1) * GOOD_QUESTION_PAGE_SIZE;
 
   const { data, error } = await supabase.rpc('good_product_questions', {

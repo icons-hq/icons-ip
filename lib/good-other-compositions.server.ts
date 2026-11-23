@@ -8,7 +8,7 @@ import { parseGoodOtherCompositionReferences, resolveGoodOtherCompositions, type
 export async function loadGoodOtherCompositions(goodId: string): Promise<PublicGoodOtherCompositions> {
   if (!getSupabaseConfig().isConfigured) return { groups: [], nextChangeAt: null };
   try {
-    const client = await createClient();
+    const client = await createClient({ storefrontReadCache: true });
     const { data, error } = await client.rpc('get_good_other_compositions', { p_good_id: goodId });
     const references = parseGoodOtherCompositionReferences(data, goodId);
     if (error || !references) throw new Error('Other compositions unavailable');
