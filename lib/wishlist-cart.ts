@@ -1,15 +1,15 @@
 import type { Good } from './data';
 import { goodsPurchaseConditionProblem, initialGoodOption, purchasableOptionQty } from './goods-options';
-import { goodsSaleUnavailableLabel } from './goods-sale-period';
+import { productCardUnavailableLabel } from './product-card-chips';
 import type { CartSelectionItem } from './cart-additions';
 
 /* 위시 카드의 수량 없는 '장바구니 담기' 판정 (LFS 패리티 2차 L6 · MY-06, 10/14 S14·S15).
  *
  * 목록 담기 버튼(AddToCartButton)과 같은 규칙을 따른다: 옵션·직접 입력·최소 수량이 필요한 굿즈는 여기서
  * 고를 수 없으니 상세로 보내고, 단일 옵션 굿즈만 한 개 담는다. 담을 수 없는 사정(판매 기간 밖·품절·판매
- * 준비 중·카트 준비 전·재고 한도)은 버튼 문구와 접근 이름으로 말한다. 판매 기간 문구가 품절보다 먼저다 — 같은
- * 카드 위 표시(ProductCard)·목록 담기 버튼·굿즈 상세가 모두 그 순서라, 판매 기간 밖이라 고를 옵션이 없는 굿즈를
- * 버튼만 '품절'(재고 소진)로 부르지 않는다(L6 QA l6-qa-1). 담기 자체는 굿즈 상세와 같은 카트
+ * 준비 중·카트 준비 전·재고 한도)은 버튼 문구와 접근 이름으로 말한다. 판매 기간·예약 상태 문구가 품절보다 먼저다 — 같은
+ * 카드 위 표시(ProductCard)·목록 담기 버튼·굿즈 상세가 모두 그 판정(`productCardUnavailableLabel`)이라, 판매 기간 밖이거나
+ * 예약 접수 전이라 고를 옵션이 없는 굿즈를 버튼만 '품절'(재고 소진)로 부르지 않는다(L6 QA l6-qa-1). 담기 자체는 굿즈 상세와 같은 카트
  * 계약(addSelection — 기대 수량 + 1)이고, 결과 모달은 그 반영이 확정(true)된 뒤에만 연다. */
 
 export type WishCartState =
@@ -21,7 +21,7 @@ export type WishCartState =
  * @param cart.pending 카트가 다른 반영을 처리하는 중인가 — 그동안은 어느 카드도 담지 못하므로 비활성으로만 둔다.
  */
 export function wishCartState(good: Good, cart: { quantityInCart: number; ready: boolean; working: boolean; pending?: boolean }): WishCartState {
-  const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
+  const saleLabel = productCardUnavailableLabel(good, good.stock === 'soldout' || good.stockQty <= 0);
   const minQuantity = Boolean(good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1);
   if (!saleLabel && (good.customInputs?.enabled || (good.options?.length ?? 0) > 1 || minQuantity)) {
     const label = minQuantity ? '수량 선택' : '옵션 선택';
