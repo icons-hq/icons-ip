@@ -1,4 +1,4 @@
-import type { HomeGoodsCard } from '@/lib/home-catalog';
+import { homeCardUnavailableLabel, type HomeGoodsCard } from '@/lib/home-catalog';
 import type { HomeProductCollectionBand } from '@/lib/home-product-collection';
 import { ListingWishHeart } from '@/components/shop/ListingWishHeart';
 import { homeCardChips } from '@/components/home/home-card-chips';
@@ -32,7 +32,7 @@ export function ProductCollection({ band, wishlist }: { band: HomeProductCollect
             <ProductCard name={good.name} brand={good.brand} href={good.href} action={heartFor(good)}
               chips={homeCardChips(good, listing.showTags)} imageBackground={good.imageBg}
               price={good.price} priceMax={good.priceMax} compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate}
-              reviewSummary={good.reviewSummary} soldOut={good.soldOut} salePeriod={good.salePeriod} />
+              reviewSummary={good.reviewSummary} soldOut={good.soldOut} unavailableLabel={homeCardUnavailableLabel(good)} />
           </li>)}
         </ProductGrid>
       </div>
@@ -56,7 +56,7 @@ export function ProductCollection({ band, wishlist }: { band: HomeProductCollect
             ) : <div className="wc-product-collection__image" style={{ background: good.imageBg }} />}
             chips={homeCardChips(good, listing.showTags)} price={good.price} priceMax={good.priceMax}
             compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} reviewSummary={good.reviewSummary}
-            soldOut={good.soldOut} salePeriod={good.salePeriod} />
+            soldOut={good.soldOut} unavailableLabel={homeCardUnavailableLabel(good)} />
         </li>;
         })}
       </ol>

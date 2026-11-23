@@ -12,6 +12,7 @@ import { COMMUNITY_ENABLED } from './community-visibility';
 import { readCardRewardsEnabled } from './card-rewards/gate.server';
 import { isUuid } from './uuid';
 import { goodDetailHref } from './goods-display';
+import { productCardUnavailableLabel } from './product-card-chips';
 import { categoryDisplayRecord as record, CATEGORY_DISPLAY_PAGE_SIZE, isCategoryDisplayGoodId, type CategoryDisplayPage, type CategoryDisplayNavigation } from './category-display';
 import { SHOP_PREORDER_TYPE, type ShopFacetOption, type ShopListQuery } from './shop-catalog';
 import type { Good } from './data';
@@ -89,11 +90,12 @@ export function parseCategoryDisplayPage(value: unknown, query: ShopListQuery): 
     const recommendationRows = r.rows;
     const recommended = recommendationRows.map(parseCategoryDisplayGood);
     if (recommendationRows.some(row => !record(row) || typeof row.ip_name !== 'string') || recommended.some(good => !good) || new Set(recommended.map(good => good?.id)).size !== recommended.length) return null;
-    page.recommendations = { id: `category-${page.category.id}`, title: r.title, layout: 'list', imageShape: 'square', goods: (recommended as Good[]).map((good, index) => ({
-      id: good.id, name: good.name, href: goodDetailHref(good.id), imageBg: good.img, price: good.price, priceMax: good.priceMax,
-      soldOut: good.stock === 'soldout', salePeriod: good.salePeriod, badge: good.badge ?? null,
-      brand: (recommendationRows[index] as { ip_name: string }).ip_name,
-    })) };
+    page.recommendations = { id: `category-${page.category.id}`, title: r.title, layout: 'list', imageShape: 'square', goods: (recommended as Good[]).map((good, index) => {
+      const soldOut = good.stock === 'soldout', unavailableLabel = productCardUnavailableLabel(good, soldOut);
+      return { id: good.id, name: good.name, href: goodDetailHref(good.id), imageBg: good.img, price: good.price, priceMax: good.priceMax,
+        soldOut, ...(unavailableLabel ? { unavailableLabel } : {}), salePeriod: good.salePeriod, badge: good.badge ?? null,
+        brand: (recommendationRows[index] as { ip_name: string }).ip_name };
+    }) };
   }
   return page;
 }
