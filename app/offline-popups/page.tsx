@@ -14,7 +14,7 @@ import { listEventGameLinks } from '@/lib/games/catalog';
  * 절충이고, 온라인 이벤트를 어느 표면이 소유할지는 별도 이사 작업의 몫이다. */
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ ip?: string | string[] }> }) {
-  const [catalog, gameLinks] = await Promise.all([getCatalogSnapshot(), listEventGameLinks()]);
+  const [catalog, gameLinks] = await Promise.all([getCatalogSnapshot({ storefrontReadCache: true }), listEventGameLinks()]);
   const events = selectOfflinePopupEvents(catalog.events);
   const ipParam = (await searchParams).ip;
   const requestedIp = Array.isArray(ipParam) ? ipParam[0] : ipParam;

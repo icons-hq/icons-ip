@@ -16,7 +16,7 @@ export async function loadPublicDetailPresentation(goodId: string): Promise<Publ
     if (!parsed) throw new Error('Invalid detail presentation');
     const paths = [...new Set(parsed.reviews?.cards.flatMap(card => card.imagePaths) ?? [])];
     const [goods, signed, disclosures] = await Promise.all([
-      getCatalogGoodsByIds(Object.values(parsed.recommendations).flat()).catch(() => null),
+      getCatalogGoodsByIds(Object.values(parsed.recommendations).flat(), { storefrontReadCache: true }).catch(() => null),
       Promise.all(paths.map(async path => {
         try {
           const { data, error } = await client.storage.from('user-uploads').createSignedUrl(path, 3600);

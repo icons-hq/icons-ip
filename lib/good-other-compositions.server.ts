@@ -18,7 +18,7 @@ export async function loadGoodOtherCompositions(goodId: string): Promise<PublicG
     const ids = [...new Set([goodId, ...references.groups.flatMap(group => group.goods.map(member => member.goodId))])];
     const reads = [];
     const adultGoods = await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden';
-    for (let offset = 0; offset < ids.length; offset += 1000) reads.push(getCatalogGoodsByIds(ids.slice(offset, offset + 1000), { adultGoods }));
+    for (let offset = 0; offset < ids.length; offset += 1000) reads.push(getCatalogGoodsByIds(ids.slice(offset, offset + 1000), { adultGoods, storefrontReadCache: true }));
     const goods = (await Promise.all(reads)).flat();
     return resolveGoodOtherCompositions(references, goods, goodId);
   } catch {

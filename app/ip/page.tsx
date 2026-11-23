@@ -17,7 +17,7 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [catalog, query] = await Promise.all([getCatalogSnapshot(), searchParams]);
+  const [catalog, query] = await Promise.all([getCatalogSnapshot({ storefrontReadCache: true }), searchParams]);
 
   const legacyId = firstParam(query.ip);
   const legacyIp = legacyId ? catalog.ips.find((ip) => ip.id === legacyId) : null;

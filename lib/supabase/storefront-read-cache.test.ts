@@ -37,7 +37,13 @@ afterEach(() => resetStorefrontReadCacheForTests());
 
 describe('classifyStorefrontRead', () => {
   it('허용 목록의 RPC만 등급을 준다', () => {
-    expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_goods_transaction_offers_v3`)).toBe('public');
+    expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_good_return_pickup`)).toBe('public');
+    /* 내부 helper(get_goods_transaction_offers·goods_group_public_good)가 19금 노출을 호출자로 판정한다. */
+    expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_goods_transaction_offers_v3`)).toBe('adult');
+    expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_good_group`)).toBe('adult');
+    expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_goods_review_summaries`)).toBe('adult');
+    /* 회원 구매 한도·쿠폰을 호출자별로 계산한다. */
+    expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_product_shipping_savings`)).toBeNull();
     expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_good_media`)).toBe('adult');
     expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/get_good_group_reviews_v3`)).toBe('anonymous');
     expect(classifyStorefrontRead('POST', `${BASE}/rest/v1/rpc/place_direct_order`)).toBeNull();
@@ -71,8 +77,8 @@ describe('createStorefrontReadCacheFetch', () => {
 
   it('공개 조회는 로그인 여부와 관계없이 익명 요청으로 바꿔 한 번만 읽고 본문·헤더를 그대로 돌려준다', async () => {
     const { calls, cachedFetch, viewerSeesAdultGoods } = setup();
-    const first = await cachedFetch(...rpc('get_goods_transaction_offers_v3', USER));
-    const second = await cachedFetch(...rpc('get_goods_transaction_offers_v3', ANON));
+    const first = await cachedFetch(...rpc('get_good_return_pickup', USER));
+    const second = await cachedFetch(...rpc('get_good_return_pickup', ANON));
     expect(calls).toHaveLength(1);
     expect(new Headers(calls[0].init?.headers).get('authorization')).toBe(ANON);
     expect(await first.json()).toEqual({ n: 1 });
@@ -141,7 +147,9 @@ describe('createStorefrontReadCacheFetch', () => {
     let clock = Date.parse('2026-12-02T01:59:55.000Z');
     const { calls, cachedFetch } = setup({
       now: () => clock,
-      body: n => ({ n, rows: [{ sale_period: { state: n === 1 ? 'upcoming' : 'open', nextChangeAt: '2026-12-02T02:00:00+00:00' } }, { endsAt: '2026-12-31T00:00:00Z' }] }),
+      body: n => ({ n, rows: [{ sale_period: n === 1
+        ? { state: 'upcoming', nextChangeAt: '2026-12-02T02:00:00+00:00' }
+        : { state: 'open', startsAt: '2026-12-02T02:00:00+00:00', nextChangeAt: '2026-12-09T02:00:00+00:00' } }, { endsAt: '2026-12-31T00:00:00Z' }] }),
     });
     expect(await (await cachedFetch(...rpc('get_good_media', ANON))).json()).toMatchObject({ n: 1 });
     clock = Date.parse('2026-12-02T01:59:59.900Z');
@@ -160,6 +168,57 @@ describe('createStorefrontReadCacheFetch', () => {
     });
     expect(earliestFutureBoundary(body, now)).toBe(Date.parse('2026-12-02T00:00:03Z'));
     expect(earliestFutureBoundary('{"rows":[]}', now)).toBeNull();
+  });
+
+  it('판매 오픈을 걸친 조회는 담지 않고, 오픈 뒤 합류한 요청은 오픈 뒤 응답을 받는다', async () => {
+    const opening = Date.parse('2026-12-02T02:00:00.000Z');
+    let clock = opening - 100;
+    const resolvers: ((body: unknown) => void)[] = [];
+    const calls: number[] = [];
+    const baseFetch = vi.fn(() => {
+      calls.push(clock);
+      return new Promise<Response>(resolve => resolvers.push(body => resolve(new Response(JSON.stringify(body), { status: 200 }))));
+    }) as unknown as typeof fetch;
+    const cachedFetch = createStorefrontReadCacheFetch({ anonKey: KEY, viewerSeesAdultGoods: async () => false, baseFetch, now: () => clock });
+    const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    const before = cachedFetch(...rpc('get_good_media', ANON));
+    await settle();
+    clock = opening + 50;
+    const after = cachedFetch(...rpc('get_good_media', ANON));
+    await settle();
+    /* DB는 오픈 직전에 계산했다. */
+    resolvers[0]({ state: 'scheduled', nextChangeAt: '2026-12-02T02:00:00+00:00' });
+    await settle(); await settle();
+    expect(calls).toHaveLength(2);
+    resolvers[1]({ state: 'open', startsAt: '2026-12-02T02:00:00+00:00', nextChangeAt: '2026-12-09T02:00:00+00:00' });
+    expect(await (await after).json()).toMatchObject({ state: 'open' });
+    expect(await (await before).json()).toMatchObject({ state: 'open' });
+
+    /* 오픈 뒤 응답은 지난 시작 시각이 실려 있어도 정상으로 담긴다. */
+    clock = opening + 200;
+    expect(await (await cachedFetch(...rpc('get_good_media', ANON))).json()).toMatchObject({ state: 'open' });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('DB 시계가 조금 늦어 전환 전 상태를 계산했으면 담지 않는다', async () => {
+    const opening = Date.parse('2026-12-02T02:00:00.000Z');
+    let clock = opening + 300;
+    const { calls, cachedFetch } = setup({ now: () => clock, body: n => ({ n, nextChangeAt: '2026-12-02T02:00:00Z' }) });
+    await cachedFetch(...rpc('get_good_media', ANON));
+    clock += 10;
+    await cachedFetch(...rpc('get_good_media', ANON));
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('항목 수 상한을 넘으면 오래 안 쓴 항목부터 비운다', async () => {
+    const { calls, cachedFetch } = setup();
+    for (let index = 0; index <= 5_000; index += 1) await cachedFetch(...rpc('get_good_media', ANON, `{"p_good_id":"g${index}"}`));
+    expect(calls).toHaveLength(5_001);
+    await cachedFetch(...rpc('get_good_media', ANON, '{"p_good_id":"g5000"}'));
+    expect(calls).toHaveLength(5_001);
+    await cachedFetch(...rpc('get_good_media', ANON, '{"p_good_id":"g0"}'));
+    expect(calls).toHaveLength(5_002);
   });
 
   it('200이 아닌 응답은 담지 않는다', async () => {

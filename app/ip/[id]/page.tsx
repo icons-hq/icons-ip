@@ -51,7 +51,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const auth = await getCurrentAuthState();
   const [detail, followState, wishlist, banner] = await Promise.all([
-    getAdultGoodsAccess().then(adultGoods => getCatalogIpDetail(identity.internalId, { viewerId: auth.user?.id ?? null, isStaff: auth.isStaff, adultGoods })),
+    getAdultGoodsAccess().then(adultGoods => getCatalogIpDetail(identity.internalId, { viewerId: auth.user?.id ?? null, isStaff: auth.isStaff, adultGoods, storefrontReadCache: true })),
     getIpFollowState(identity.internalId),
     loadListingWishlist(),
     /* IP관 PC/MO 배너(IP-06). 없거나 못 읽으면 null — 배너는 키아트 그대로다. */

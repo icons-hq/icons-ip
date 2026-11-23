@@ -49,8 +49,10 @@ export async function createClient(options: ServerClientOptions = {}) {
   const lookupFetch = options.firstUserLookupTimeoutMs === undefined
     ? undefined
     : fetchWithFirstUserLookupDeadline(url, options.firstUserLookupTimeoutMs);
+  /* 서버 액션·라우트 핸들러에서는 React cache가 요청 단위로 묶이지 않는다 — 클라이언트마다 판정을 한 번만 한다. */
+  let adultDecision: Promise<boolean> | undefined;
   const clientFetch = options.storefrontReadCache
-    ? createStorefrontReadCacheFetch({ anonKey: key, viewerSeesAdultGoods, baseFetch: lookupFetch })
+    ? createStorefrontReadCacheFetch({ anonKey: key, viewerSeesAdultGoods: () => (adultDecision ??= viewerSeesAdultGoods()), baseFetch: lookupFetch })
     : lookupFetch;
 
   return createServerClient(
