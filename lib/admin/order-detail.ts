@@ -60,6 +60,10 @@ export interface AdminOrderDetail {
   /** 배분 조회 자체가 실패했다. 나눌 수 없는 주문(빈 itemAllocations)과 구분해 '불러오지 못했다'고 안내한다. */
   itemAllocationsUnavailable?: true;
   timeline: AdminOrderTimelineEntry[];
-  /** 출고 보류(테스트 결제·결제사 취소). 비어 있으면 보류가 없다. */
+  /** 출고 보류(테스트 결제·결제사 취소·입금 오류 되돌림·에스크로 취소 요청). 비어 있으면 보류가 없다. */
   fulfillmentHolds?: import('./fulfillment-holds').OrderFulfillmentHold[];
+  /** 토스 가상계좌 입금 정보(ADR-0049, 주문 처리 권한만). null이면 가상계좌 결제가 아니다. 키가 없으면 읽지 않았다. */
+  virtualAccount?: import('./orders').AdminOrderVirtualAccount | null;
+  /** 가상계좌 정보를 읽지 못했다. */
+  virtualAccountUnavailable?: true;
 }

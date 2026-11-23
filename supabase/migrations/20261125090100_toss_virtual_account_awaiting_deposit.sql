@@ -446,7 +446,8 @@ begin
   ) then
     return null;
   end if;
-  return private.order_virtual_account_json(p_order_id);
+  -- 구매자에게는 운영용 에스크로 작업 상태(20261125090200이 더한다)를 보이지 않는다.
+  return private.order_virtual_account_json(p_order_id) - 'escrow';
 end;
 $function$;
 revoke all on function public.get_my_order_virtual_account(uuid) from public, anon, authenticated, service_role;
@@ -750,6 +751,17 @@ select private.va_seam_patch('private.system_health_report()'::regprocedure,
   $p$[["a.state in ('unknown', 'needs_review', 'confirming') and private.payment_attempt_unresolved(a.state, a.claim_expires_at, at)", "((a.state in ('unknown', 'needs_review', 'confirming') and private.payment_attempt_unresolved(a.state, a.claim_expires_at, at)) or (a.state = 'awaiting_deposit' and a.expires_at <= at - interval '2 hours'))"]]$p$::jsonb);
 select private.va_seam_patch('public.admin_unresolved_payment_attempts(integer)'::regprocedure,
   $p$[["a.state in ('unknown', 'needs_review', 'confirming') and private.payment_attempt_unresolved(a.state, a.claim_expires_at, at)", "((a.state in ('unknown', 'needs_review', 'confirming') and private.payment_attempt_unresolved(a.state, a.claim_expires_at, at)) or (a.state = 'awaiting_deposit' and a.expires_at <= at - interval '2 hours'))"]]$p$::jsonb);
+
+-- 입금 대기도 아직 닫히지 않은 결제다. 이 판정을 쓰는 곳은 세 갈래다 —
+--  · 상태 보고·미종결 목록·자동 재확인 후보: 상태를 먼저 거른 뒤 부르므로 영향 없다(입금 대기는 위 별도 조건).
+--  · 운영자 [결제 상태 다시 확인](admin_begin_payment_reconciliation): 입금 대기를 받는다 — 위 목록의 기한 지난 입금
+--    대기를 운영자가 바로 조회한다(조회가 판정하고, 기한 + 30분이 지난 계좌만 반납한다).
+--  · 자동 재확인 표식 정리(maintain_system_job_records): 입금 대기의 표식을 지우지 않는다 — 10분 재확인 간격이 유지된다.
+create or replace function private.payment_attempt_unresolved(p_state public.payment_attempt_state, p_claim_expires_at timestamptz, p_at timestamptz)
+returns boolean language sql immutable set search_path = '' as $$
+  select p_state in ('unknown', 'needs_review', 'awaiting_deposit') or (p_state = 'confirming' and p_claim_expires_at is not null and p_claim_expires_at <= p_at)
+$$;
+revoke all on function private.payment_attempt_unresolved(public.payment_attempt_state, timestamptz, timestamptz) from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 8. 운영자 계약 재등록(재정의한 함수) · 새 운영자 RPC 등록

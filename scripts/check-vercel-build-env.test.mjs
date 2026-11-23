@@ -129,6 +129,7 @@ describe('validateVercelBuildEnvironment', () => {
       tossVariantKey: null,
       tossMerchantIds: [],
       tossDocsPublicKey: false,
+      tossVirtualAccountEnabled: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
@@ -231,6 +232,7 @@ describe('validateVercelBuildEnvironment', () => {
       tossVariantKey: null,
       tossMerchantIds: [],
       tossDocsPublicKey: false,
+      tossVirtualAccountEnabled: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
@@ -866,5 +868,80 @@ describe('legal revision date guard', () => {
     expect(() => validateVercelBuildEnvironment(productionEnvironment(), { revisionSource: '{ not json' }))
       .toThrow(/shipping-bundle-wording-revision\.json is not valid JSON/);
     expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: source(null, null) })).not.toThrow();
+  });
+
+  it('checks the virtual account terms revision dates (ADR-0049) with the same rules in production builds', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source('2026-11-24', '2026-11-30') }))
+      .toThrow(/in virtual-account-terms-revision\.json: effectiveDate .* at least 7 days/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: '{ not json' }))
+      .toThrow(/virtual-account-terms-revision\.json is not valid JSON/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source('2026-11-24', null) }))
+      .toThrow(/virtual-account-terms-revision\.json: announcedDate and effectiveDate must both be null/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source(null, null) })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(baseEnvironment, { virtualAccountRevisionSource: source('2026-11-24', '2026-11-30') })).not.toThrow();
+  });
+
+  it('requires the virtual account revision to take effect after the earlier revisions of the same documents', () => {
+    const earlier = { partialReturnRevisionSource: source('2026-11-20', '2026-11-27'), alimtalkRevisionSource: source('2026-11-23', '2026-11-30') };
+    /* 공지 기간은 겹쳐도 된다 — 시행일만 앞선 개정들보다 늦어야 한다. */
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-23', '2026-11-30') }))
+      .toThrow(/virtual-account-terms-revision\.json: effectiveDate 2026-11-30 must be after alimtalk-privacy-revision\.json effectiveDate 2026-11-30/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-19', '2026-11-26') }))
+      .toThrow(/must be after partial-return-terms-revision\.json effectiveDate 2026-11-27/);
+  });
+});
+
+describe('Toss virtual account switch (ADR-0049)', () => {
+  const source = (announced, effective) => JSON.stringify({ announcedDate: announced, effectiveDate: effective });
+  const liveBound = {
+    NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_iconsdocs00000000000001',
+    TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
+    TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+  };
+  const revision = { virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') };
+
+  it('stays disabled by default and reads back disabled', () => {
+    const result = validateVercelBuildEnvironment(productionEnvironment(liveBound), revision);
+    expect(result.tossVirtualAccountEnabled).toBe(false);
+    expect(formatVercelBuildReadback(result, 'production')).toContain('docs public key=false; Toss virtual account=disabled; NICEPAY configured=');
+    expect(validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'false' }), revision).tossVirtualAccountEnabled).toBe(false);
+  });
+
+  it('enables on the effective date with a bound key pair and reads back enabled', () => {
+    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }), { ...revision, today: '2026-12-01' });
+    expect(result.tossVirtualAccountEnabled).toBe(true);
+    expect(formatVercelBuildReadback(result, 'production')).toContain('Toss virtual account=enabled');
+  });
+
+  it.each(['TRUE', '1', 'yes', ' true'])('rejects a malformed switch value (%s)', (value) => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: value }), revision))
+      .toThrow(/TOSS_VIRTUAL_ACCOUNT_ENABLED: use true, false, or leave unset/);
+  });
+
+  it('refuses the switch before the legal revision takes effect or without a scheduled revision', () => {
+    const env = productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' });
+    expect(() => validateVercelBuildEnvironment(env, { ...revision, today: '2026-11-30' }))
+      .toThrow(/legal revision .* is not in effect on 2026-11-30 \(effectiveDate 2026-12-01\)/);
+    expect(() => validateVercelBuildEnvironment(env, { virtualAccountRevisionSource: source(null, null), today: '2026-12-01' }))
+      .toThrow(/no revision scheduled/);
+  });
+
+  it('refuses the switch without a bound widget key pair', () => {
+    const options = { ...revision, today: '2026-12-01' };
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }), options))
+      .toThrow(/requires a matching Toss widget key pair and TOSS_WIDGET_VARIANT_KEY/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+      TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true',
+    }), options)).toThrow(/requires a matching Toss widget key pair and TOSS_WIDGET_VARIANT_KEY/);
+  });
+
+  it('keeps the switch off in preview builds', () => {
+    expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }))
+      .toThrow(/Invalid Vercel preview TOSS_VIRTUAL_ACCOUNT_ENABLED: the virtual account switch is production-only/);
+    expect(validateVercelBuildEnvironment({ ...baseEnvironment, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'false' }).tossVirtualAccountEnabled).toBe(false);
   });
 });

@@ -301,4 +301,20 @@ select 1 / case when (select status = 'canceled' from public.orders where id = '
   and (select stock_qty from public.goods_variants where good_id = 'va-awaiting-good' and is_default) = :stock_before + 1
 then 1 else 0 end as assert_released_order_expires_and_restocks;
 
+-- ---------------------------------------------------------------------------
+-- 7. 입금 대기는 운영자 [결제 상태 다시 확인] 대상이고, 자동 재확인 표식을 정리 작업이 지우지 않는다
+-- ---------------------------------------------------------------------------
+select 1 / case when private.payment_attempt_unresolved('awaiting_deposit', null, now())
+  and not private.payment_attempt_unresolved('approved', null, now())
+  and not private.payment_attempt_unresolved('declined', null, now())
+then 1 else 0 end as assert_awaiting_deposit_counts_as_unresolved;
+-- 앞 단계의 입금 대기는 모두 닫혔다 — 확인 중 시도 하나를 입금 대기로 옮겨 표식을 남긴다(이 트랜잭션 안에서만).
+select a.id as marker_attempt from public.payment_attempts a where a.state = 'confirming' order by a.id limit 1 \gset
+update public.payment_attempts set state = 'awaiting_deposit', claim_token = null, claim_expires_at = null where id = :'marker_attempt';
+insert into private.payment_reconciliation_auto_checks(attempt_id, last_picked_at) values (:'marker_attempt', now())
+on conflict (attempt_id) do update set last_picked_at = excluded.last_picked_at;
+select private.maintain_system_job_records();
+select 1 / case when exists(select 1 from private.payment_reconciliation_auto_checks m where m.attempt_id = :'marker_attempt')
+then 1 else 0 end as assert_awaiting_deposit_auto_check_marker_kept;
+
 rollback;

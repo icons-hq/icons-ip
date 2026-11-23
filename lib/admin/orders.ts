@@ -66,8 +66,154 @@ export const GOODS_PAYMENT_ATTEMPT_STATES = [
   'canceled',
   'unknown',
   'needs_review',
+  /* 토스 가상계좌가 발급돼 입금을 기다리는 시도(ADR-0049). 입금 기한까지 재고를 잡고, 입금되면 approved로 닫힌다. */
+  'awaiting_deposit',
 ] as const;
 export type GoodsPaymentAttemptState = (typeof GOODS_PAYMENT_ATTEMPT_STATES)[number];
+
+/** 결제 시도 상태의 운영자 표기. 주문 패널·상세가 같은 말을 쓴다. */
+export const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<GoodsPaymentAttemptState, string> = {
+  prepared: '결제 준비',
+  confirming: '승인 확인 중',
+  approved: '승인 완료',
+  declined: '승인 거절',
+  canceled: '취소 완료',
+  unknown: '결과 미확인',
+  needs_review: '운영 확인 필요',
+  awaiting_deposit: '입금 대기(가상계좌)',
+};
+
+/**
+ * 주문의 토스 가상계좌(무통장입금) 입금 정보 — `admin_order_virtual_account`(sales.read)가 돌려준다(ADR-0049).
+ * 계좌번호는 결제사가 주문마다 발급한 수납 계좌라 구매자 개인정보가 아니지만, 주문 본인과 운영자에게만 보인다.
+ * state: awaiting(입금 기한 전 입금 대기) · deposited(입금 확인 = 결제 승인) · checking(기한이 지났거나 결제사 확인이
+ * 끝나지 않음 — 자동 재확인이 닫는다) · closed(입금 없이 반납·취소·만료로 닫힘).
+ */
+export const ADMIN_VIRTUAL_ACCOUNT_STATES = ['awaiting', 'deposited', 'checking', 'closed'] as const;
+export type AdminVirtualAccountState = (typeof ADMIN_VIRTUAL_ACCOUNT_STATES)[number];
+
+/**
+ * 에스크로 배송 등록 작업(private.toss_escrow_deliveries, 20261125090200)의 운영자 투영. 구매자가 에스크로를 고른 결제는
+ * 발송 때 결제사에 배송 정보를 등록해야 구매확정·정산이 진행된다. manual_required는 자동 등록이 안 돼 사람이 상점관리자에서 등록할 일이다.
+ */
+export const ADMIN_ESCROW_DELIVERY_STATES = ['waiting', 'ready', 'registered', 'skipped', 'manual_required'] as const;
+export type AdminEscrowDeliveryState = (typeof ADMIN_ESCROW_DELIVERY_STATES)[number];
+export const ADMIN_ESCROW_STATUSES = ['IN_PROGRESS', 'CANCEL_REQUESTED', 'CONFIRMED', 'CANCELED'] as const;
+export type AdminEscrowStatus = (typeof ADMIN_ESCROW_STATUSES)[number];
+
+export interface AdminOrderEscrowJob {
+  deliveryState: AdminEscrowDeliveryState;
+  /** 결제사 에스크로 거래 상태(마지막으로 다시 읽은 값). 아직 읽지 않았으면 null. */
+  escrowStatus: AdminEscrowStatus | null;
+  /** 자동 등록이 실패했거나 다시 시도 중일 때의 확인 코드. */
+  lastErrorCode: string | null;
+}
+
+export const ADMIN_ESCROW_DELIVERY_STATE_LABELS: Record<AdminEscrowDeliveryState, string> = {
+  waiting: '발송 전',
+  ready: '배송 정보 등록 중',
+  registered: '배송 정보 등록 완료',
+  skipped: '에스크로 결제 아님',
+  manual_required: '직접 등록 필요',
+};
+
+export const ADMIN_ESCROW_STATUS_LABELS: Record<AdminEscrowStatus, string> = {
+  IN_PROGRESS: '구매확정 대기',
+  CANCEL_REQUESTED: '구매자 취소 신청',
+  CONFIRMED: '구매확정 완료',
+  CANCELED: '에스크로 취소',
+};
+
+/** 자동 등록이 안 된 에스크로 배송 정보의 다음 일. */
+export const ADMIN_ESCROW_MANUAL_REQUIRED_HINT =
+  '발송한 배송 정보를 결제사에 자동으로 등록하지 못했습니다(택배사 코드 없음·운송장 형식 거절 등). 토스페이먼츠 상점관리자에서 이 결제의 배송 정보를 직접 등록해주세요. 등록하지 않으면 구매자가 구매확정을 할 수 없어 정산이 진행되지 않습니다.';
+
+export interface AdminOrderVirtualAccount {
+  /** 토스 은행 코드(2·3자리). 화면은 tossBankLabel로 은행 이름을 보인다. */
+  bankCode: string;
+  accountNumber: string;
+  /** 입금 기한(ISO 시각). */
+  dueAt: string;
+  amount: number;
+  /** 구매자가 구매안전서비스(에스크로)를 골랐는가. null이면 결제사 응답에 값이 없었다. */
+  useEscrow: boolean | null;
+  state: AdminVirtualAccountState;
+  /** 에스크로 배송 등록 작업. 작업이 없으면(옛 응답 포함) null. */
+  escrow: AdminOrderEscrowJob | null;
+}
+
+export const ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS: Record<AdminVirtualAccountState, string> = {
+  awaiting: '입금 대기',
+  deposited: '입금 완료',
+  checking: '입금 확인 중',
+  closed: '입금 없이 닫힘',
+};
+
+/** 상태별 다음 일 안내. 운영자가 누를 버튼은 없다 — 입금 확인·만료 정리는 결제사 조회로 자동 처리된다. */
+export const ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS: Record<AdminVirtualAccountState, string> = {
+  awaiting: '고객이 입금하면 결제사 확인 뒤 자동으로 결제완료(신규주문)가 됩니다. 입금 기한까지 입금이 없으면 주문이 자동 취소되고 재고·쿠폰·적립금이 돌아갑니다.',
+  deposited: '결제사가 입금을 확인해 결제가 확정됐습니다. 입금 뒤 환불은 고객 환불 계좌로 보내므로, 취소·반품에서 환불 계좌(은행·계좌번호·예금주)가 있어야 합니다.',
+  checking: '입금 기한이 지났거나 결제사 확인이 아직 끝나지 않았습니다. 시스템이 결제사에 다시 조회해 입금이 있으면 결제완료, 없으면 주문 취소로 닫습니다. 입금 기한이 2시간 넘게 지나도 그대로면 판매자 정보 → 시스템 상태의 미종결 결제에 보입니다.',
+  closed: '입금 없이 계좌가 반납·만료돼 닫힌 결제입니다. 이 계좌로는 더 입금되지 않습니다.',
+};
+
+/** 구매안전서비스(에스크로) 적용 표기. */
+export function adminVirtualAccountEscrowLabel(useEscrow: boolean | null): string {
+  if (useEscrow === true) return '적용(구매자가 선택)';
+  if (useEscrow === false) return '적용 안 함';
+  return '기록 없음';
+}
+
+const VIRTUAL_ACCOUNT_STATE_SET = new Set<string>(ADMIN_VIRTUAL_ACCOUNT_STATES);
+const ESCROW_DELIVERY_STATE_SET = new Set<string>(ADMIN_ESCROW_DELIVERY_STATES);
+const ESCROW_STATUS_SET = new Set<string>(ADMIN_ESCROW_STATUSES);
+
+/** 에스크로 작업 투영. 없으면 null, 모르는 값이면 undefined(직접 등록 필요 같은 신호를 조용히 접지 않는다). */
+function parseAdminOrderEscrowJob(value: unknown): AdminOrderEscrowJob | null | undefined {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const { deliveryState, escrowStatus, lastErrorCode } = value as Record<string, unknown>;
+  if (typeof deliveryState !== 'string' || !ESCROW_DELIVERY_STATE_SET.has(deliveryState)
+    || (escrowStatus !== null && escrowStatus !== undefined && (typeof escrowStatus !== 'string' || !ESCROW_STATUS_SET.has(escrowStatus)))
+    || (lastErrorCode !== null && lastErrorCode !== undefined && (typeof lastErrorCode !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(lastErrorCode)))) {
+    return undefined;
+  }
+  return {
+    deliveryState: deliveryState as AdminEscrowDeliveryState,
+    escrowStatus: typeof escrowStatus === 'string' ? escrowStatus as AdminEscrowStatus : null,
+    lastErrorCode: typeof lastErrorCode === 'string' ? lastErrorCode : null,
+  };
+}
+
+/**
+ * `admin_order_virtual_account` 응답을 읽는다. null(가상계좌 결제가 아닌 주문)은 null, 형태가 어긋나면 undefined —
+ * 호출자가 '불러오지 못했다'고 안내한다(가상계좌가 아니라고 잘못 말하지 않는다).
+ */
+export function parseAdminOrderVirtualAccount(value: unknown): AdminOrderVirtualAccount | null | undefined {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const row = value as Record<string, unknown>;
+  const { bankCode, accountNumber, dueAt, amount, useEscrow, state } = row;
+  const escrow = parseAdminOrderEscrowJob(row.escrow);
+  if (escrow === undefined) return undefined;
+  if (typeof bankCode !== 'string' || !/^[0-9]{2,3}$/.test(bankCode)
+    || typeof accountNumber !== 'string' || !/^[0-9A-Za-z*-]{4,40}$/.test(accountNumber)
+    || typeof dueAt !== 'string' || !Number.isFinite(Date.parse(dueAt))
+    || typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount < 0
+    || (useEscrow !== null && useEscrow !== undefined && typeof useEscrow !== 'boolean')
+    || typeof state !== 'string' || !VIRTUAL_ACCOUNT_STATE_SET.has(state)) {
+    return undefined;
+  }
+  return {
+    bankCode,
+    accountNumber,
+    dueAt,
+    amount,
+    useEscrow: typeof useEscrow === 'boolean' ? useEscrow : null,
+    state: state as AdminVirtualAccountState,
+    escrow,
+  };
+}
 
 const KORPAY_MANUAL_RECOVERY_STATE_SET = new Set<GoodsPaymentAttemptState>([
   'confirming',
@@ -216,8 +362,15 @@ export interface AdminOrderRecord {
   cancellationRequest: AdminOrderCancellationRequestRecord | null;
   manualRecoveryAttempt: AdminGoodsManualRecoveryAttemptRecord | null;
   shipments: ShipmentRecord[];
-  /** 출고 보류(테스트 결제·결제사 취소). 없거나 빈 배열이면 보류가 없다 — 판정·차단은 DB가 한다. */
+  /** 출고 보류(테스트 결제·결제사 취소·입금 오류 되돌림·에스크로 취소 요청). 없거나 빈 배열이면 보류가 없다 — 판정·차단은 DB가 한다. */
   fulfillmentHolds?: import('./fulfillment-holds').OrderFulfillmentHold[];
+  /**
+   * 토스 가상계좌 입금 정보(ADR-0049). 화면 목록에서 열려 있는 주문 하나(처리 패널)만 읽는다 — 키가 없으면 읽지 않은 것이고,
+   * null이면 가상계좌 결제가 아닌 주문이다.
+   */
+  virtualAccount?: AdminOrderVirtualAccount | null;
+  /** 가상계좌 정보를 읽지 못했다(조회 실패·형식 어긋남). 가상계좌가 아니라고 말하지 않고 '불러오지 못했다'고 안내한다. */
+  virtualAccountUnavailable?: true;
 }
 
 export interface AdminOrderConsoleData {

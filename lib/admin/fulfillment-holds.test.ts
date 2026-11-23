@@ -73,3 +73,29 @@ describe('출고 보류 안내', () => {
     expect(AUTO_ORDER_CONFIRMATION_EXCLUSIONS.fulfillment_hold).toContain('출고 보류');
   });
 });
+
+/* 토스 가상계좌(ADR-0049): 은행이 되돌린 입금(deposit_reversed)과 구매자의 에스크로 취소 신청(escrow_cancel_requested). */
+describe('가상계좌 출고 보류 사유', () => {
+  const reversed = { ...testHold, reason: 'deposit_reversed', providerStatus: 'WAITING_FOR_DEPOSIT', paymentAmount: 32000 };
+  const escrow = { ...testHold, reason: 'escrow_cancel_requested', paymentAmount: 32000 };
+
+  it('두 사유를 읽고 배지에 운영자 이름을 쓴다', () => {
+    expect(parseOrderFulfillmentHolds({ [ORDER_ID]: [reversed, escrow] }, [ORDER_ID])?.get(ORDER_ID)?.map(hold => hold.reason)).toEqual(['deposit_reversed', 'escrow_cancel_requested']);
+    expect(fulfillmentHoldBadgeLabel(reversed as never)).toBe('출고 보류 · 입금 오류 되돌림');
+    expect(fulfillmentHoldBadgeLabel(escrow as never)).toBe('출고 보류 · 에스크로 취소 요청');
+    expect(fulfillmentHoldBadgeLabel({ ...escrow, outboundBlocked: false } as never)).toBe('발송 후 에스크로 취소 요청 확인');
+  });
+
+  it('입금 오류 되돌림은 상점관리자 확인 뒤 해제 또는 운영자 전액 취소, 에스크로 취소 요청은 운영자 전액 취소가 수락이라고 말한다', () => {
+    const reversedText = fulfillmentHoldGuidance(reversed as never);
+    expect(reversedText).toContain('은행이 그 입금을 취소');
+    expect(reversedText).toContain('토스페이먼츠 상점관리자');
+    expect(reversedText).toContain('운영자 전액 취소');
+    expect(fulfillmentHoldGuidance({ ...reversed, outboundBlocked: false } as never)).toContain('반품을 접수');
+    const escrowText = fulfillmentHoldGuidance(escrow as never);
+    expect(escrowText).toContain('구매안전서비스(에스크로)');
+    expect(escrowText).toContain('운영자 전액 취소를 누르면 구매자의 취소 신청을 수락');
+    expect(fulfillmentHoldGuidance({ ...escrow, outboundBlocked: false } as never)).toContain('반품을 접수');
+  });
+});
+

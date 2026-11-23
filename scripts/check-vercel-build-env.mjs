@@ -11,9 +11,11 @@ import { isNicepayMerchantId, isNicepayMerchantKey } from '../lib/payments/nicep
 import {
   TOSS_ADDITIONAL_MERCHANT_IDS_ENV_NAME,
   TOSS_LEGACY_VARIANT_ENV_NAME,
+  TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME,
   TOSS_WIDGET_VARIANT_ENV_NAME,
   isTossDocsPublicKey,
   isTossKeyPairAligned,
+  parseTossVirtualAccountEnabled,
   tossKeyMode,
   tossMerchantBindingFromEnvironment,
   tossMerchantIdsForMode,
@@ -50,6 +52,10 @@ const ALIMTALK_PRIVACY_REVISION_FILE = fileURLToPath(
 /* 부분 반품·반품배송비 차감 약관 개정(ADR-0047)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
 const PARTIAL_RETURN_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/partial-return-terms-revision.json', import.meta.url),
+);
+/* 토스 가상계좌·구매안전서비스 개정(ADR-0049)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
+const VIRTUAL_ACCOUNT_TERMS_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/virtual-account-terms-revision.json', import.meta.url),
 );
 
 /*
@@ -89,6 +95,17 @@ export function validateLegalRevisionDates(source, fileName = 'shipping-bundle-w
   }
 }
 
+/** 날짜 파일의 개정 날짜(형식 검증 뒤). 예약이 없으면 null. */
+function legalRevisionDates(source) {
+  const parsed = JSON.parse(source);
+  return typeof parsed?.effectiveDate === 'string' ? { announcedDate: parsed.announcedDate, effectiveDate: parsed.effectiveDate } : null;
+}
+
+/** 빌드 시각의 한국 날짜(YYYY-MM-DD) — 법정 문서 개정의 시행 여부를 앱(lib/legal/*-revision.ts)과 같은 기준으로 가른다. */
+function kstToday(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+}
+
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -120,15 +137,36 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
       'SITE_URL',
     );
   }
+  let virtualAccountRevision = null;
   if (target === 'production') {
-    validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
-    validateLegalRevisionDates(options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8'),
-      'partial-return-terms-revision.json');
+    const bundleSource = options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8');
+    validateLegalRevisionDates(bundleSource);
+    const partialReturnSource = options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8');
+    validateLegalRevisionDates(partialReturnSource, 'partial-return-terms-revision.json');
     /* 개인정보처리방침 알림톡 개정(lib/legal/alimtalk-privacy-revision.json)도 같은 규칙(둘 다 null 또는 7일 이상 공지)이다. */
-    validateLegalRevisionDates(
-      options.alimtalkRevisionSource ?? readFileSync(ALIMTALK_PRIVACY_REVISION_FILE, 'utf8'),
-      'alimtalk-privacy-revision.json',
-    );
+    const alimtalkSource = options.alimtalkRevisionSource ?? readFileSync(ALIMTALK_PRIVACY_REVISION_FILE, 'utf8');
+    validateLegalRevisionDates(alimtalkSource, 'alimtalk-privacy-revision.json');
+    /* 가상계좌·구매안전서비스 개정(lib/legal/virtual-account-terms-revision.json — 약관·방침·배송 정책)도 같은 규칙이다. */
+    const virtualAccountSource = options.virtualAccountRevisionSource ?? readFileSync(VIRTUAL_ACCOUNT_TERMS_REVISION_FILE, 'utf8');
+    validateLegalRevisionDates(virtualAccountSource, 'virtual-account-terms-revision.json');
+    virtualAccountRevision = legalRevisionDates(virtualAccountSource);
+    /* 가상계좌 개정은 같은 문서의 앞선 예약 개정(표기·부분 반품·알림톡) 위에 얹힌다 — 시행일이 그 개정들보다 늦어야 이전 판이
+       앞선 개정을 담는다(lib/legal/documents.ts). 공지 기간은 겹쳐도 된다(사전 공지를 함께 보인다). */
+    if (virtualAccountRevision) {
+      for (const [fileName, source] of [
+        ['shipping-bundle-wording-revision.json', bundleSource],
+        ['partial-return-terms-revision.json', partialReturnSource],
+        ['alimtalk-privacy-revision.json', alimtalkSource],
+      ]) {
+        const earlier = legalRevisionDates(source);
+        if (earlier && virtualAccountRevision.effectiveDate <= earlier.effectiveDate) {
+          throw new Error(
+            `Invalid legal revision dates in virtual-account-terms-revision.json: effectiveDate ${virtualAccountRevision.effectiveDate} `
+            + `must be after ${fileName} effectiveDate ${earlier.effectiveDate}`,
+          );
+        }
+      }
+    }
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
@@ -418,6 +456,33 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
   }
   const tossBound = tossBinding.kind === 'bound';
 
+  // 가상계좌 운영 스위치(ADR-0049). 켜면 굿즈 주문의 가상계좌 새 발급을 입금 대기로 받는다 — production 전용이고, 위젯 키 쌍과
+  // 결제 UI 바인딩(MID 대조)이 있어야 하며, 가상계좌·구매안전서비스 법정 문서 개정이 시행 중이어야 한다(7일 사전 공지 뒤).
+  const tossVirtualAccountEnabled = parseTossVirtualAccountEnabled(environment[TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME]);
+  if (tossVirtualAccountEnabled === null) {
+    throw new Error(`Invalid Vercel ${target} ${TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME}: use true, false, or leave unset`);
+  }
+  if (tossVirtualAccountEnabled) {
+    if (target === 'preview') {
+      throw new Error(`Invalid Vercel preview ${TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME}: the virtual account switch is production-only`);
+    }
+    if (!tossConfigured || !tossBound) {
+      throw new Error(
+        `Invalid Vercel production ${TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME}: requires a matching Toss widget key pair `
+        + `and ${TOSS_WIDGET_VARIANT_ENV_NAME}: docs/runbooks/toss-production-rollout.md`,
+      );
+    }
+    const today = options.today ?? kstToday();
+    if (!virtualAccountRevision || today < virtualAccountRevision.effectiveDate) {
+      throw new Error(
+        `Invalid Vercel production ${TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME}: the virtual account legal revision `
+        + `(lib/legal/virtual-account-terms-revision.json) is not in effect on ${today}`
+        + (virtualAccountRevision ? ` (effectiveDate ${virtualAccountRevision.effectiveDate})` : ' (no revision scheduled)')
+        + ': docs/runbooks/toss-production-rollout.md',
+      );
+    }
+  }
+
   return {
     checked: true,
     ...(stagingVerified ? { stagingVerified: true } : {}),
@@ -443,6 +508,7 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     // 꺼져 있거나 키가 없으면 빈 목록이다(대조하지 않는다).
     tossMerchantIds: tossBound ? tossMerchantIdsForMode(tossMode, tossBinding.additionalMerchantIds) : [],
     tossDocsPublicKey,
+    tossVirtualAccountEnabled,
     tossOrderCheckoutEnabled,
     tossTicketCheckoutEnabled,
     tossOrderCanaryConfigured,
@@ -456,7 +522,8 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
 /**
  * 배포 로그 readback 한 줄. 이름·boolean·키 모드·결제 UI variantKey·그 모드의 허용 MID(모두
  * 비밀 아님)만 싣고 키 값은 싣지 않는다 — 런북의 배포 확인 절이 이 줄을 대조한다. 결제 UI
- * 바인딩이 꺼져 있으면 `Toss variant=DEFAULT (unbound), Toss merchant check=off`다.
+ * 바인딩이 꺼져 있으면 `Toss variant=DEFAULT (unbound), Toss merchant check=off`다. 가상계좌 운영 스위치는
+ * `Toss virtual account=enabled|disabled`다.
  */
 export function formatVercelBuildReadback(result, target) {
   const tossBinding = result.tossVariantKey
@@ -473,6 +540,7 @@ export function formatVercelBuildReadback(result, target) {
     + `Toss mode=${result.tossMode}, `
     + tossBinding
     + `docs public key=${result.tossDocsPublicKey}; `
+    + `Toss virtual account=${result.tossVirtualAccountEnabled ? 'enabled' : 'disabled'}; `
     + `NICEPAY configured=${result.nicepayConfigured}, `
     + `order checkout enabled=${result.nicepayOrderCheckoutEnabled}, `
     + `order canary configured=${result.nicepayOrderCanaryConfigured}; `

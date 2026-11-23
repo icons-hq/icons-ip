@@ -85,3 +85,17 @@ it('배지와 목록 묶음', () => {
   expect(text(list)).toContain('출고 보류 주문 2건');
   expect(all(list).some(element => element.props.href === `/admin/sales/orders?orderId=${ORDER_ID}`)).toBe(true);
 });
+
+/* 토스 가상계좌(ADR-0049) 보류: 해제 확인창은 사유별로 적을 내용을 말하고, 같은 사유로 서버 액션을 부른다. */
+it('입금 오류 되돌림·에스크로 취소 요청 보류의 해제 확인창은 사유별 안내를 보인다', async () => {
+  mocks.release.mockResolvedValue({ ok: true, message: '출고 보류를 해제했습니다.' });
+  for (const [reason, phrase] of [['deposit_reversed', '은행이 가상계좌 입금을 취소한 결제'], ['escrow_cancel_requested', '구매안전서비스(에스크로)에서 취소를 신청한 결제']] as const) {
+    prompts = [];
+    const hold: OrderFulfillmentHold = { ...testHold, reason };
+    expect(text(render([hold]))).toContain(reason === 'deposit_reversed' ? '입금 오류 되돌림' : '에스크로 취소 요청');
+    all(render([hold])).find(element => element.props.onClick)!.props.onClick!();
+    for (let n = 0; n < 8; n++) await Promise.resolve();
+    expect(prompts[0]?.message, reason).toContain(phrase);
+    expect(mocks.release).toHaveBeenLastCalledWith(expect.objectContaining({ orderId: ORDER_ID, reason }));
+  }
+});

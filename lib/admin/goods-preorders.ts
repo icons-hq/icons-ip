@@ -291,7 +291,7 @@ export function preorderMutationError(message: string): string {
     random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
     invalid_random_preorder: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
     'order cancellation in progress': '취소·반품·교환 요청이 진행 중인 주문이 선택에 있습니다. 그 요청을 먼저 처리하거나 그 주문을 빼고 다시 입고 확인해주세요.',
-    'order fulfillment hold': '출고 보류 중인 주문(테스트 결제 또는 결제사 취소)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 입고 확인해주세요.',
+    'order fulfillment hold': '출고 보류 중인 주문(결제 확인 필요)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 입고 확인해주세요.',
   };
   return errors[message] ?? '예약판매 처리를 완료하지 못했습니다. [저장된 예약 조건 새로고침]으로 지금 상태를 확인한 뒤 다시 시도해주세요.';
 }

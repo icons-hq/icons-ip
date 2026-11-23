@@ -1217,3 +1217,38 @@ describe('운영자 전액 취소 제출 순서', () => {
     }
   });
 });
+
+/* 토스 가상계좌(ADR-0049): 처리 패널 '결제·환불'에 결제수단·입금 은행·계좌번호·입금 기한·상태와 에스크로 적용 여부를 보인다. */
+describe('OrdersSection 가상계좌 입금 정보', () => {
+  const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 32000, useEscrow: true, state: 'awaiting' as const, escrow: null };
+
+  it('입금 대기 주문의 결제·환불에 가상계좌 정보를 보이고 결제 기록 없음 문구를 쓰지 않는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'pending', payments: [], virtualAccount: account })} />);
+    const section = html.slice(html.indexOf('id="admin-order-payment-title"'));
+    for (const text of ['결제수단', '가상계좌', '입금 대기', '우리은행 X1234567890', '₩32,000', '입금 기한 (KST)', '2026. 11. 25. 10:00', '구매안전서비스(에스크로)', '적용(구매자가 선택)', '주문 전체로만 취소·반품']) {
+      expect(section, text).toContain(text);
+    }
+    expect(section).toContain('data-order-virtual-account="awaiting"');
+    expect(section).not.toContain('결제 기록이 없습니다.');
+  });
+
+  it('읽지 못했으면 그 사실을 적고, 가상계좌가 아닌 주문에는 아무것도 더하지 않는다', () => {
+    expect(renderToStaticMarkup(<OrdersSection data={orderData({ virtualAccountUnavailable: true })} />)).toContain('가상계좌 입금 정보를 불러오지 못했습니다');
+    const card = renderToStaticMarkup(<OrdersSection data={orderData({ virtualAccount: null })} />);
+    expect(card).not.toContain('data-order-virtual-account');
+    expect(card).not.toContain('가상계좌');
+  });
+
+  it('에스크로 결제는 배송 정보 등록·거래 상태를 보이고, 자동 등록이 안 됐으면 직접 등록 안내를 띄운다', () => {
+    const manual = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', virtualAccount: { ...account, state: 'deposited',
+      escrow: { deliveryState: 'manual_required', escrowStatus: 'IN_PROGRESS', lastErrorCode: 'INVALID_COMPANY' } } })} />);
+    for (const text of ['에스크로 배송 정보', '직접 등록 필요', '확인 코드 · INVALID_COMPANY', '에스크로 거래 상태', '구매확정 대기', '배송 정보를 직접 등록해주세요']) expect(manual, text).toContain(text);
+    const skipped = renderToStaticMarkup(<OrdersSection data={orderData({ virtualAccount: { ...account, useEscrow: false, escrow: { deliveryState: 'skipped', escrowStatus: null, lastErrorCode: null } } })} />);
+    expect(skipped).not.toContain('에스크로 배송 정보');
+    expect(skipped).toContain('적용 안 함');
+  });
+
+  it('조회 전용 권한에는 결제·환불과 함께 가상계좌 정보도 그리지 않는다', () => {
+    expect(renderToStaticMarkup(<OrdersSection canManage={false} data={orderData({ virtualAccount: account })} />)).not.toContain('X1234567890');
+  });
+});
