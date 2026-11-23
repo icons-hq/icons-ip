@@ -347,6 +347,16 @@ select 1 / case when (select count(*) = 1 from private.admin_operation_alerts
   where event_key = 'virtual_account_refund_failed:31000000-0000-4000-8000-000000004911')
 then 1 else 0 end as assert_refund_failure_alerted_once;
 
+-- 실패 뒤 재환불이 진행 중(PENDING)으로 읽혀도 실패로 남고 처음 사유를 지킨다(7일이 지났어도 지연으로 덮지 않는다).
+update private.virtual_account_refund_watches set refunded_at = now() - interval '8 days'
+where attempt_id = '31000000-0000-4000-8000-000000004911';
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004911', 'pending', 'PENDING') = 'failed'
+then 1 else 0 end as assert_failed_watch_stays_failed_while_pending;
+select 1 / case when (
+  select state = 'failed' and failure_code = 'refund_failed' and refund_status = 'PENDING'
+  from private.virtual_account_refund_watches where attempt_id = '31000000-0000-4000-8000-000000004911'
+) then 1 else 0 end as assert_failure_code_kept;
+
 -- 운영자 주문 패널은 송금 상태를 보고, 구매자 조회에는 운영용 상태가 없다.
 set local role authenticated;
 select pg_temp.as_operator();
@@ -356,7 +366,7 @@ then 1 else 0 end as assert_operator_sees_refund_watch;
 select 1 / case when (
   select (r->>'total')::integer = :refund_failures_before + 1
     and r->'items' @> pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
-      'orderId', '21000000-0000-4000-8000-000000004911', 'failureCode', 'refund_failed', 'amount', 31000, 'refundStatus', 'FAILED'))
+      'orderId', '21000000-0000-4000-8000-000000004911', 'failureCode', 'refund_failed', 'amount', 31000, 'refundStatus', 'PENDING'))
   from (select public.admin_virtual_account_refund_failures(20) as r) x
 ) then 1 else 0 end as assert_operator_lists_refund_failures;
 select pg_temp.as_buyer();

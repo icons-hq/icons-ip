@@ -154,7 +154,7 @@ begin
  if purchase.id is null or claim.id is null or exists(select 1 from private.gift_intents where order_id=purchase.id) then
   raise sqlstate 'PT404' using message='claim_not_found';end if;
  blocker:=private.order_claim_refund_account_blocker(claim,purchase);
- select * into account from private.claim_refund_accounts where claim_id=claim.id and purged_at is null;
+ select * into account from private.claim_refund_accounts where claim_id=claim.id;
  if purchase.payment_method='card' then va_payment:=private.order_toss_virtual_account_payment(purchase.id);end if;
  if va_payment is not null then
   select jsonb_build_object('bankCode',va.refund_bank_code,'maskedAccount',public.mask_refund_account_number(va.refund_account_number),
@@ -512,8 +512,10 @@ begin
     return v_watch.state;
   end if;
 
+  -- 이미 실패로 올린 감시가 송금 확인 전(재환불 진행 등)으로 읽히면 처음 실패 사유를 남긴다 — 구체적 사유(실패·불일치)만 덮어쓴다.
   update private.virtual_account_refund_watches
-  set state = 'failed', refund_status = coalesce(p_refund_status, refund_status), failure_code = v_failure,
+  set state = 'failed', refund_status = coalesce(p_refund_status, refund_status),
+      failure_code = case when p_outcome = 'pending' and v_watch.state = 'failed' then coalesce(v_watch.failure_code, v_failure) else v_failure end,
       failed_at = coalesce(failed_at, v_now), next_check_at = v_now + interval '6 hours', updated_at = v_now
   where attempt_id = p_attempt_id;
 
