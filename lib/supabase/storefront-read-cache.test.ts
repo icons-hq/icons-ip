@@ -3,6 +3,7 @@ import {
   STOREFRONT_READ_CACHE_TTL_MS,
   classifyStorefrontRead,
   createStorefrontReadCacheFetch,
+  earliestFutureBoundary,
   resetStorefrontReadCacheForTests,
 } from './storefront-read-cache';
 
@@ -13,12 +14,12 @@ const USER = 'Bearer user-jwt';
 
 type Call = { url: string; init: RequestInit | undefined };
 
-function setup(options: { adultFull?: boolean; status?: number; now?: () => number } = {}) {
+function setup(options: { adultFull?: boolean; status?: number; now?: () => number; body?: (n: number) => unknown } = {}) {
   const calls: Call[] = [];
   const viewerSeesAdultGoods = vi.fn(async () => options.adultFull === true);
   const baseFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(input), init });
-    return new Response(JSON.stringify({ n: calls.length }), {
+    return new Response(JSON.stringify(options.body ? options.body(calls.length) : { n: calls.length }), {
       status: options.status ?? 200,
       headers: { 'content-type': 'application/json', 'content-range': '0-0/1' },
     });
@@ -134,6 +135,31 @@ describe('createStorefrontReadCacheFetch', () => {
     clock += 2;
     await cachedFetch(...rpc('get_good_media', ANON));
     expect(calls).toHaveLength(2);
+  });
+
+  it('응답에 실린 다음 전환 시각이 오면 유효 시간 전이라도 다시 읽는다', async () => {
+    let clock = Date.parse('2026-12-02T01:59:55.000Z');
+    const { calls, cachedFetch } = setup({
+      now: () => clock,
+      body: n => ({ n, rows: [{ sale_period: { state: n === 1 ? 'upcoming' : 'open', nextChangeAt: '2026-12-02T02:00:00+00:00' } }, { endsAt: '2026-12-31T00:00:00Z' }] }),
+    });
+    expect(await (await cachedFetch(...rpc('get_good_media', ANON))).json()).toMatchObject({ n: 1 });
+    clock = Date.parse('2026-12-02T01:59:59.900Z');
+    expect(await (await cachedFetch(...rpc('get_good_media', ANON))).json()).toMatchObject({ n: 1 });
+    /* 오픈 시각의 새로고침은 옛 응답('upcoming')을 받지 않는다. */
+    clock = Date.parse('2026-12-02T02:00:00.050Z');
+    expect(await (await cachedFetch(...rpc('get_good_media', ANON))).json()).toMatchObject({ n: 2 });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('지난 전환 시각과 시각이 아닌 값은 무시하고 가장 가까운 미래 시각을 고른다', () => {
+    const now = Date.parse('2026-12-02T00:00:00Z');
+    const body = JSON.stringify({
+      a: { nextChangeAt: '2026-12-01T00:00:00Z' }, b: { startsAt: '2026-12-02T00:00:07Z' }, c: { active_to: '2026-12-02T00:00:03+00:00' },
+      d: { endsAt: null }, e: { next_change_at: 'not-a-date-value' }, f: { createdAt: '2026-12-02T00:00:01Z' },
+    });
+    expect(earliestFutureBoundary(body, now)).toBe(Date.parse('2026-12-02T00:00:03Z'));
+    expect(earliestFutureBoundary('{"rows":[]}', now)).toBeNull();
   });
 
   it('200이 아닌 응답은 담지 않는다', async () => {

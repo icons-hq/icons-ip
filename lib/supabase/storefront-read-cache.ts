@@ -94,6 +94,22 @@ function removeEntry(key: string) {
   entries.delete(key);
 }
 
+/*
+ * 판매 기간·옵션 가격·예약 공급·공지·추천처럼 시각에 따라 바뀌는 응답은 DB가 현재 시각으로 계산하고 다음 전환
+ * 시각을 함께 싣는다. 화면은 그 시각에 한 번 새로고침하므로, 전환 직전에 담긴 응답이 전환 뒤에도 남으면 새로고침이
+ * 옛 응답을 받고 타이머도 다시 걸리지 않는다. 그래서 응답 안의 가장 가까운 미래 전환 시각에서 항목을 끝낸다.
+ */
+const BOUNDARY_KEY_PATTERN = /"(?:nextChangeAt|next_change_at|startsAt|starts_at|endsAt|ends_at|activeFrom|active_from|activeTo|active_to)"\s*:\s*"([^"]{10,40})"/g;
+
+export function earliestFutureBoundary(body: string, now: number): number | null {
+  let earliest: number | null = null;
+  for (const match of body.matchAll(BOUNDARY_KEY_PATTERN)) {
+    const at = Date.parse(match[1]);
+    if (Number.isFinite(at) && at > now && (earliest === null || at < earliest)) earliest = at;
+  }
+  return earliest;
+}
+
 function storeEntry(key: string, value: CachedResponse, expiresAt: number) {
   if (value.status !== 200 || value.body.length > MAX_ENTRY_CHARS) return;
   removeEntry(key);
@@ -177,7 +193,12 @@ export function createStorefrontReadCacheFetch(options: StorefrontReadCacheOptio
       void _signal;
       pending = baseFetch(url, { ...rest, method, headers })
         .then(readResponse)
-        .then((value) => { storeEntry(key, value, now() + ttlMs); return value; })
+        .then((value) => {
+          const storedAt = now();
+          const boundary = earliestFutureBoundary(value.body, storedAt);
+          storeEntry(key, value, boundary === null ? storedAt + ttlMs : Math.min(storedAt + ttlMs, boundary));
+          return value;
+        })
         .finally(() => { inflight.delete(key); });
       inflight.set(key, pending);
     }
