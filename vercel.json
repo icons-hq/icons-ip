@@ -17,6 +17,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/toss-escrow",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/order-shipment-emails",
       "schedule": "* * * * *"
     },

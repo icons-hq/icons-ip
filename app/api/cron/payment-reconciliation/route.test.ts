@@ -39,7 +39,7 @@ describe('미종결 결제 자동 재확인', () => {
     expect(mocks.reconcile.mock.calls[0][0]).toEqual(goods);
     expect(mocks.reconcile.mock.calls[0][1]).toMatch(/^auto-\d{12}-a700000000004003800000000000000[1]$/);
     const body = await response.json();
-    expect(body).toEqual({ ok: true, providers: 1, candidates: 2, approved: 1, closed: 0, unresolved: 1, inProgress: 0, unavailable: 0, failed: 0, deferred: 0 });
+    expect(body).toEqual({ ok: true, providers: 1, candidates: 2, approved: 1, closed: 0, awaitingDeposit: 0, unresolved: 1, inProgress: 0, unavailable: 0, failed: 0, deferred: 0 });
     expect(JSON.stringify(body)).not.toContain(goods.attemptId);
   });
 

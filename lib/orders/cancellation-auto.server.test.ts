@@ -50,6 +50,7 @@ function dependencies(states: Array<SystemCancellationState | null>) {
   const deps: SystemCancellationDependencies = {
     loadState: vi.fn(async () => (queue.length > 1 ? queue.shift()! : queue[0]) ?? null),
     reconcile: vi.fn(async () => ({ ok: true as const, status: 'completed' as const })),
+    releaseAwaitingDeposit: vi.fn(async () => 'declined'),
     sleep: vi.fn(async (ms: number) => {
       clock += ms;
     }),
@@ -201,5 +202,37 @@ describe('issueApprovedOrderCancellation', () => {
       reason: 'no_active_cancel',
     });
     expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
+  });
+});
+
+describe('입금 전 가상계좌 주문의 취소(ADR-0049)', () => {
+  const ATTEMPT_ID = '33333333-3333-4333-8333-333333333333';
+
+  it('requested 취소 + 입금 대기 시도면 계좌를 반납하는 재정합을 부른다 — 결제사 취소 오케스트레이터는 부르지 않는다', async () => {
+    const deps = dependencies([state({ requestStatus: 'requested', attemptState: 'awaiting_deposit', attemptId: ATTEMPT_ID })]);
+
+    const result = await issueApprovedOrderCancellation(ORDER_ID, {}, deps);
+
+    expect(deps.releaseAwaitingDeposit).toHaveBeenCalledWith(ATTEMPT_ID);
+    expect(deps.reconcile).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: 'released', requestId: REQUEST_ID, outcome: 'declined' });
+  });
+
+  it('반납 재정합이 다른 처리자의 리스에 막히면 직원 대기로 남긴다(다음 재확인이 반납한다)', async () => {
+    const { GoodsPaymentReconciliationInProgressError } = await import('../payments/goods-checkout');
+    const deps = dependencies([state({ requestStatus: 'requested', attemptState: 'awaiting_deposit', attemptId: ATTEMPT_ID })]);
+    vi.mocked(deps.releaseAwaitingDeposit).mockRejectedValueOnce(new GoodsPaymentReconciliationInProgressError());
+
+    const result = await issueApprovedOrderCancellation(ORDER_ID, {}, deps);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'awaiting_staff' });
+  });
+
+  it('입금 대기가 아니면(결제 전 prepared 등) 반납하지 않는다', async () => {
+    const deps = dependencies([state({ requestStatus: 'requested', attemptState: 'prepared', attemptId: ATTEMPT_ID })]);
+
+    await issueApprovedOrderCancellation(ORDER_ID, {}, deps);
+
+    expect(deps.releaseAwaitingDeposit).not.toHaveBeenCalled();
   });
 });

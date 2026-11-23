@@ -28,6 +28,7 @@ export const CRON_JOBS = {
   'delivery-tracking': { label: '택배 추적 자동 배송완료', intervalMinutes: 10 },
   'return-pickups': { label: '반품 자동 회수 접수', intervalMinutes: 5 },
   'payment-reconciliation': { label: '미종결 결제 자동 재확인', intervalMinutes: 10 },
+  'toss-escrow': { label: '에스크로 배송 등록·거래 상태 확인', intervalMinutes: 15 },
 } as const satisfies Record<string, CronJobDefinition>;
 
 export type CronJobKey = keyof typeof CRON_JOBS;
@@ -53,6 +54,7 @@ export const PG_CRON_JOB_LABELS: Readonly<Record<string, string>> = {
   'monthly-grade-coupons': '등급 쿠폰 월 발급',
   'member-email-change-retention': '이메일 변경 인증 기록 정리',
   'goods-provider-cancellation-sweep': '결제사 취소 판정 대기 처리',
+  'purge-virtual-account-refund-accounts': '가상계좌 환불 계좌 보관 기간 정리',
   'system-job-records-maintenance': '자동 작업 기록 정리',
   'auth-mail-abuse-retention': '가입·재설정 요청 기록 정리',
   'operator-pii-access-log-retention': '운영자 개인정보 접속기록 보존 정리',

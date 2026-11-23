@@ -305,6 +305,7 @@ describe('같은 결제의 다회 부분 취소(가짜 토스, 잔액 누적)', 
     await toss.gateway.refund(orderPartialCancellationRefundRequest(ATTEMPT, { partialCancellationId: ID, paymentKey: PAYMENT_KEY, refundAmount: 9_500, expectedBalanceBefore: 40_000 }));
     await expect(toss.gateway.inspectBalance!(ATTEMPT, PAYMENT_KEY)).resolves.toEqual({
       kind: 'ok', status: 'PARTIAL_CANCELED', balanceAmount: 30_500, lastCancel: { cancelAmount: 9_500, transactionKey: 'CANCEL00000000000000000000000001' },
+      virtualAccount: false, lastTransactionKey: 'CANCEL00000000000000000000000001',
     });
     const posts = toss.posts.length;
     await expect(toss.gateway.inspectBalance!(ATTEMPT, 'not a key')).resolves.toEqual({ kind: 'mismatch' });

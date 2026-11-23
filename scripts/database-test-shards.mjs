@@ -275,6 +275,8 @@ const storefront = [
   sql('order_fulfillment_holds'),
   // 시스템 상태: cron 실행 기록·멈춤 판정·미종결 결제 재확인·운영 알림 시스템 분류.
   sql('system_health_alerts'),
+  // 토스 가상계좌 입금 대기(ADR-0049): 진입·거부, 정리 함수가 입금 대기 주문을 건드리지 않음, 입금·반납·만료, 되돌림 보류.
+  sql('toss_virtual_account_awaiting_deposit'),
   // 운영 알림 요약 메일: 새 문의·답변 지연·시스템 장애를 한 통으로(커서·지연 1회·범주·전용 dispatcher gate).
   sql('ops_alert_digest'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),

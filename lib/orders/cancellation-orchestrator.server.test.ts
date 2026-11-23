@@ -326,6 +326,7 @@ describe('reconcileOrderCancellation', () => {
       'service_order_claim_refund_deduction',
       // 재고 부족 부분 취소 누계 읽기(ADR-0032). 부분 취소가 없으면 빈 배열이고 아래 결제사 호출은 그대로 전액 취소다.
       'service_order_payment_partial_refunds',
+      'service_goods_virtual_account_refund_account',
       'service_get_payment_gateway_binding',
       'complete_order_cancellation_request',
     ]);
@@ -336,6 +337,9 @@ describe('reconcileOrderCancellation', () => {
         expect(args).toEqual({ p_request_id: REQUEST_ID });
       } else if (name === 'service_order_payment_partial_refunds') {
         expect(args).toEqual({ p_order_id: ORDER_ID });
+      } else if (name === 'service_goods_virtual_account_refund_account') {
+        // 결제 시도·원장 결제 키로만 읽는다 — 행위자 인자가 없는 서버 전용 조회다(ADR-0049).
+        expect(Object.keys(args).sort()).toEqual(['p_attempt_id', 'p_payment_key']);
       } else expect(args.p_actor_id).toBeNull();
     }
   });

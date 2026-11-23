@@ -78,6 +78,8 @@ function gateway(overrides: {
   wait?: (ms: number) => Promise<void>;
   /** 기본은 ICONS 결제 UI 바인딩. null이면 바인딩 꺼짐(지금 동작). */
   merchantBinding?: { variantKey: string; additionalMerchantIds?: string[] } | null;
+  /** 가상계좌 새 발급 운영 스위치(ADR-0049). 기본 꺼짐. */
+  virtualAccountEnabled?: boolean;
 } = {}) {
   const fetchImpl = overrides.fetch ?? (vi.fn() as unknown as typeof fetch);
   return {
@@ -87,6 +89,7 @@ function gateway(overrides: {
       siteUrl: SITE_URL,
       fetch: fetchImpl,
       merchantBinding: overrides.merchantBinding === undefined ? ICONS_BINDING : overrides.merchantBinding,
+      virtualAccountEnabled: overrides.virtualAccountEnabled ?? false,
       now: overrides.now ?? (() => NOW),
       ...(overrides.confirmTimeoutMs !== undefined
         ? { confirmTimeoutMs: overrides.confirmTimeoutMs }
@@ -366,18 +369,18 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_identity_mismatch');
     });
 
-    it('승인 200이 DONE이어도 결제수단이 가상계좌면 approved가 아니라 needs_review다 — 입금 뒤라 취소 API도 호출하지 않는다', async () => {
-      // 취소 실패로 needs_review에 남은 가상계좌 건에 구매자가 입금하면 DONE이 돌아온다.
-      // identity가 맞아도 에스크로 미계약 가상계좌 판매를 approved로 성립시키지 않고,
-      // 입금 뒤 취소는 refundReceiveAccount가 필요하므로(문서 127) 취소도 발행하지 않는다.
+    it('결제 UI 바인딩이 없으면 승인 200이 DONE이어도 결제수단이 가상계좌면 approved가 아니라 needs_review다 — 입금 뒤라 취소 API도 호출하지 않는다', async () => {
+      // 가상계좌 입금 대기는 결제 UI 바인딩(ICONS) 위에서만 다룬다(ADR-0049). 바인딩 없는 배포에서는
+      // identity가 맞아도 가상계좌 판매를 approved로 성립시키지 않고, 입금 뒤 취소는 환불 계좌가 필요하므로
+      // 취소도 발행하지 않는다.
       const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
         method: '가상계좌',
         card: null,
         virtualAccount: { accountNumber: 'X1234567890', bankCode: '20', dueDate: '2026-09-02T00:00:00+09:00' },
       })));
-      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, merchantBinding: null });
 
-      const outcome = await tossGateway.confirm(await confirmInput());
+      const outcome = await tossGateway.confirm(await confirmInput({}, ATTEMPT, { merchantBinding: null }));
 
       expect(fetchImpl).toHaveBeenCalledTimes(1);
       expect(outcome.outcome).toBe('needs_review');
@@ -614,16 +617,16 @@ describe('TossPayments v2 gateway', () => {
         expect(outcome.evidence?.resultCode).toBe('WAITING_FOR_DEPOSIT');
       });
 
-      it('confirm 재확인 조회가 입금 뒤 DONE(가상계좌)을 돌려주면 approved가 아니라 needs_review다', async () => {
+      it('결제 UI 바인딩이 없으면 confirm 재확인 조회가 입금 뒤 DONE(가상계좌)을 돌려줘도 approved가 아니라 needs_review다', async () => {
         const fetchImpl = vi.fn()
           .mockResolvedValueOnce(jsonResponse(500, { code: 'COMMON_ERROR', message: '일시적인 오류' }))
           .mockResolvedValueOnce(jsonResponse(200, waitingForDeposit({
             status: 'DONE',
             approvedAt: '2026-09-01T09:00:21+09:00',
           })));
-        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, merchantBinding: null });
 
-        const outcome = await tossGateway.confirm(await confirmInput());
+        const outcome = await tossGateway.confirm(await confirmInput({}, ATTEMPT, { merchantBinding: null }));
 
         // 조회 1회뿐 — 입금 뒤 취소는 발행하지 않는다.
         expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -1173,7 +1176,7 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.evidence).toBeUndefined();
     });
 
-    it('조회가 DONE인데 결제수단이 가상계좌면 approved가 아니라 needs_review로 격리한다 — 입금 뒤라 취소 API를 호출하지 않는다', async () => {
+    it('결제 UI 바인딩이 없으면 조회가 DONE인데 결제수단이 가상계좌면 approved가 아니라 needs_review로 격리한다 — 입금 뒤라 취소 API를 호출하지 않는다', async () => {
       // 취소 실패로 needs_review에 남은 가상계좌 건은 재정합 대상이다(웹훅·내부 라우트).
       // 구매자가 입금해 DONE 웹훅이 오면 이 분기가 approved를 막아야 에스크로 미계약
       // 가상계좌 판매가 성립하지 않는다(문서 125 "WAITING_FOR_DEPOSIT →입금 완료→ DONE").
@@ -1182,7 +1185,7 @@ describe('TossPayments v2 gateway', () => {
         card: null,
         virtualAccount: { accountNumber: 'X1234567890', bankCode: '20', dueDate: '2026-09-02T00:00:00+09:00' },
       })));
-      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, merchantBinding: null });
 
       const outcome = await tossGateway.reconcile(ATTEMPT);
 
@@ -1203,7 +1206,7 @@ describe('TossPayments v2 gateway', () => {
         card: null,
         virtualAccount: { accountNumber: 'X1234567890', bankCode: '20' },
       })));
-      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, merchantBinding: null });
 
       const outcome = await tossGateway.reconcile(ATTEMPT);
 
@@ -1272,7 +1275,7 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_payment_in_progress');
     });
 
-    it('조회가 WAITING_FOR_DEPOSIT(가상계좌)이면 즉시 전액 취소하고 declined로 닫는다 — 입금 뒤 DONE 웹훅이 approved를 만들지 못하게', async () => {
+    it('결제 UI 바인딩이 없으면 조회가 WAITING_FOR_DEPOSIT(가상계좌)일 때 즉시 전액 취소하고 declined로 닫는다 — 입금 뒤 DONE 웹훅이 approved를 만들지 못하게', async () => {
       const waiting = donePayment({
         status: 'WAITING_FOR_DEPOSIT',
         method: '가상계좌',
@@ -1287,7 +1290,7 @@ describe('TossPayments v2 gateway', () => {
           card: null,
           balanceAmount: 0,
         })));
-      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, merchantBinding: null });
 
       const outcome = await tossGateway.reconcile(ATTEMPT);
 
@@ -1308,11 +1311,11 @@ describe('TossPayments v2 gateway', () => {
       });
     });
 
-    it('WAITING_FOR_DEPOSIT 취소가 200이 아니면 needs_review로 격리한다', async () => {
+    it('결제 UI 바인딩이 없을 때 WAITING_FOR_DEPOSIT 취소가 200이 아니면 needs_review로 격리한다', async () => {
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(200, donePayment({ status: 'WAITING_FOR_DEPOSIT', method: '가상계좌' })))
         .mockResolvedValueOnce(jsonResponse(403, { code: 'NOT_CANCELABLE_PAYMENT', message: '취소 할 수 없는 결제 입니다.' }));
-      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, merchantBinding: null });
 
       const outcome = await tossGateway.reconcile(ATTEMPT);
 
@@ -1637,10 +1640,9 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_payment_not_refundable');
     });
 
-    it('사전 조회가 가상계좌 DONE이면 취소 API를 호출하지 않고 needs_review로 격리한다 — 입금 뒤 취소는 refundReceiveAccount가 필요하다', async () => {
-      // 문서 127: refundReceiveAccount는 "가상계좌 결제에만 필수". 어댑터는 환불 계좌를
-      // 싣지 않으므로 취소 API가 INVALID_REQUEST로 거부돼 설정 오류로 오라벨링된다 —
-      // 호출 자체를 하지 않고 운영 판단(수동 환불)에 태운다.
+    it('사전 조회가 가상계좌 DONE인데 환불 계좌가 없으면 취소 API를 호출하지 않고 needs_review로 격리한다 — 입금 뒤 취소는 refundReceiveAccount가 필요하다', async () => {
+      // refundReceiveAccount는 "가상계좌 결제에만 필수"(결제 취소 가이드 Case 1). 계좌 없이 한 번 부른 취소의 거절 응답은
+      // 같은 멱등키에 15일간 재생되므로 호출 자체를 하지 않고 운영 판단(환불 계좌 받기)에 태운다(ADR-0049).
       const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
         method: '가상계좌',
         card: null,
@@ -1653,7 +1655,12 @@ describe('TossPayments v2 gateway', () => {
       expect(fetchImpl).toHaveBeenCalledTimes(1);
       expect(fetchImpl.mock.calls[0]![1].method).toBe('GET');
       expect(outcome.outcome).toBe('needs_review');
-      expect(outcome.reasonCode).toBe('provider_payment_not_refundable');
+      expect(outcome.reasonCode).toBe('provider_refund_account_required');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'DONE_refund_account_required',
+        paymentMethod: '가상계좌',
+      });
       expect(outcome.refundedAmount).toBeUndefined();
     });
 

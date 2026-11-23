@@ -148,6 +148,16 @@ export function tossVirtualAccountCheckoutEnabled(): boolean {
     && parseTossVirtualAccountEnabled(process.env[TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME]) === true;
 }
 
+/**
+ * 에스크로 작업자(cron /api/cron/toss-escrow)가 쓸 토스 시크릿 키(ADR-0049). 운영 배포 + 결제 UI 바인딩이 있을 때만이다 —
+ * 가상계좌 입금 대기를 다루는 조건과 같다. 키는 이 server-only 모듈 밖으로 나가 작업자 클로저에만 들어간다.
+ */
+export function tossEscrowSecretKey(): string | null {
+  const configuration = tossConfiguration();
+  if (!configuration) return null;
+  return tossMerchantBindingFromEnvironment(process.env).kind === 'bound' ? configuration.secretKey : null;
+}
+
 /** Credentials make the adapter ready; rollout gates remain independent. */
 export function paymentProviderConfigured(provider: PaymentCheckoutProvider = 'toss') {
   if (provider === 'korpay') return korpayConfiguration() !== null;
