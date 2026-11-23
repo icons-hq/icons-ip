@@ -15,6 +15,12 @@ import {
   contactChannelsPrivacyRevisionInEffect,
 } from './contact-channels-privacy-revision';
 import {
+  ALIMTALK_PRIVACY_REVISION,
+  type AlimtalkPrivacyRevision,
+  alimtalkPrivacyRevisionAnnounced,
+  alimtalkPrivacyRevisionInEffect,
+} from './alimtalk-privacy-revision';
+import {
   SHIPPING_BUNDLE_WORDING_REVISION,
   type ShippingBundleWordingRevision,
   shippingBundleWordingRevisionAnnounced,
@@ -459,6 +465,79 @@ function applyContactChannelsPrivacyRevision(document: LegalDocument, today: str
   }
 }
 
+/* 예약 개정(개인정보처리방침) — 카카오톡 알림톡 주문 안내(lib/legal/alimtalk-privacy-revision.ts). 휴대폰 번호 인증 개정(2026-11-18
+ * 시행) 위에 얹는다 — 그 개정의 제2조 마무리 문장('거래 안내 … 발송에는 이용하지 않습니다')과 제5조 표를 앵커로 쓰므로, 시행일
+ * 상태는 휴대폰 번호 인증 개정이 시행된 본문에서만 만들 수 있다(앵커가 없으면 던진다 — 테스트가 그 상태를 만든다). */
+const PRIVACY_ALIMTALK_PROCESSOR_ROWS: string[][] = [
+  ['엔에이치엔클라우드 주식회사', '카카오톡 알림톡(주문 접수·굿즈 발송 안내) 발송 대행', '위탁계약 종료 시까지'],
+  ['주식회사 카카오', '카카오톡 알림톡 전달', '위탁계약 종료 시까지'],
+];
+
+const ALIMTALK_PRIVACY_REASON =
+  '개정 사유 — 주문 접수와 굿즈 발송 소식을 이메일과 함께 카카오톡 알림톡으로도 알려 드리기 위해, 휴대폰 번호 인증으로 확인한 번호를 주문한 회원 본인에게 보내는 알림톡 거래 안내에 이용하고 그 발송을 위탁합니다.';
+
+const ALIMTALK_PRIVACY_CHANGES: string[] = [
+  ALIMTALK_PRIVACY_REASON,
+  "제2조(개인정보의 처리 목적)의 거래 진행 안내 방법에 카카오톡 알림톡을 더하고, 휴대폰 번호 인증으로 확인한 번호를 주문한 회원 본인에게 주문 접수·굿즈 발송을 알리는 알림톡에 이용한다고 밝힙니다. 문자 메시지 알림과 마케팅 정보 발송에는 계속 이용하지 않습니다.",
+  "제5조(개인정보 처리업무의 위탁)에 수탁자 '엔에이치엔클라우드 주식회사'(알림톡 발송 대행)와 '주식회사 카카오'(알림톡 전달)를 더하고, 이들에게 전달되는 항목(휴대폰 번호와 안내 내용)을 밝힙니다.",
+];
+
+/** 현행 방침 조문(휴대폰 번호 인증 개정 시행본)의 깊은 사본에 알림톡 개정을 적용한 조문 목록. */
+function reviseAlimtalkPrivacyArticles(source: LegalArticle[]): LegalArticle[] {
+  let articles: LegalArticle[] = structuredClone(source);
+  const replaceOnce = (from: string, to: string) => {
+    const result = replaceInArticles(articles, from, to);
+    if (result.count !== 1) throw new Error(`alimtalk_privacy_anchor_changed:text:${from}`);
+    articles = result.articles;
+  };
+  const article = (prefix: string) => {
+    const found = articles.filter((item) => item.heading.startsWith(prefix));
+    if (found.length !== 1) throw new Error(`alimtalk_privacy_anchor_changed:article:${prefix}`);
+    return found[0]!;
+  };
+
+  /* 제2조 */
+  replaceOnce('알림함·이메일을 통한 거래 진행 안내와 서비스 공지', '알림함·이메일·카카오톡 알림톡을 통한 거래 진행 안내와 서비스 공지');
+  replaceOnce(
+    '휴대폰 번호 인증으로 확인한 번호는 위 목적에만 이용하며 문자 메시지를 통한 알림·거래 안내·마케팅 정보 발송에는 이용하지 않습니다. 알림·거래 안내의 목적과 방법(알림함·이메일)은 이 개정으로 바뀌지 않습니다.',
+    '휴대폰 번호 인증으로 확인한 번호는 위 목적과, 주문한 회원 본인에게 주문 접수·굿즈 발송 사실을 알리는 카카오톡 알림톡 발송에만 이용합니다. 문자 메시지를 통한 알림·거래 안내와 마케팅 정보 발송에는 이용하지 않습니다.',
+  );
+
+  /* 제5조 */
+  const consignment = article('제5조 ');
+  const table = consignment.table;
+  const index = table ? table.rows.findIndex((row) => row[0] === EMAIL_PROCESSOR_LABEL) : -1;
+  if (!table || index < 0 || table.rows.filter((row) => row[0] === EMAIL_PROCESSOR_LABEL).length !== 1) {
+    throw new Error(`alimtalk_privacy_anchor_changed:row:제5조:${EMAIL_PROCESSOR_LABEL}`);
+  }
+  if (!table.rows.some((row) => row[0] === 'Twilio Inc.')) throw new Error('alimtalk_privacy_anchor_changed:row:제5조:Twilio Inc.');
+  table.rows.splice(index + 1, 0, ...PRIVACY_ALIMTALK_PROCESSOR_ROWS.map((row) => [...row]));
+  if (!consignment.closing?.length) throw new Error('alimtalk_privacy_anchor_changed:closing:제5조');
+  consignment.closing.push(
+    '카카오톡 알림톡 수탁자(엔에이치엔클라우드 주식회사, 주식회사 카카오)에는 인증한 휴대폰 번호와 안내 내용(주문번호, 주문 굿즈 이름, 결제금액, 택배사와 운송장번호, 주문 상세 주소)만 전달됩니다.',
+  );
+  return articles;
+}
+
+/** 예약 개정을 날짜(KST)에 맞춰 방침에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
+function applyAlimtalkPrivacyRevision(document: LegalDocument, today: string, revision: AlimtalkPrivacyRevision | null): void {
+  if (revision && alimtalkPrivacyRevisionInEffect(today, revision)) {
+    const articles = reviseAlimtalkPrivacyArticles(document.articles);
+    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
+    document.articles = articles;
+    document.effectiveDate = revision.effectiveDate;
+    document.revisionChanges = ALIMTALK_PRIVACY_CHANGES;
+    delete document.pendingRevision;
+  } else if (revision && alimtalkPrivacyRevisionAnnounced(today, revision)) {
+    document.pendingRevision = {
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
+      heading: '카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내',
+      changes: ALIMTALK_PRIVACY_CHANGES,
+    };
+  }
+}
+
 /** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
 export function createLegalDocuments(
   businessInfo:BusinessInfo=BUSINESS_INFO,
@@ -469,7 +548,10 @@ export function createLegalDocuments(
    * 이 뒤의 예약 개정은 위치 인자가 아니라 이름으로 받는다 — 같은 시기에 다른 작업이 개정 인자를 더해도 순서가 엇갈려 다른 개정의
    * 날짜가 들어가지 않게(위치 인자 네 개는 기존 호출 그대로). 키를 생략하면 운영 날짜 파일, null이면 예약 없음이다.
    */
-  { partialReturnRevision = PARTIAL_RETURN_TERMS_REVISION }: { partialReturnRevision?: PartialReturnTermsRevision | null } = {},
+  {
+    partialReturnRevision = PARTIAL_RETURN_TERMS_REVISION,
+    alimtalkPrivacyRevision = ALIMTALK_PRIVACY_REVISION,
+  }: { partialReturnRevision?: PartialReturnTermsRevision | null; alimtalkPrivacyRevision?: AlimtalkPrivacyRevision | null } = {},
 ) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
@@ -1130,6 +1212,7 @@ const shipping: LegalDocument = {
 applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
 applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
+applyAlimtalkPrivacyRevision(privacy, today, alimtalkPrivacyRevision);
 /* 부분 반품 개정은 '출고지' 표기 개정 뒤에 얹는다(시행일이 그 뒤다). */
 applyPartialReturnTermsRevision(terms, 'terms', today, partialReturnRevision);
 applyPartialReturnTermsRevision(shipping, 'shipping', today, partialReturnRevision);

@@ -1,4 +1,5 @@
 import { kstDay } from '@/lib/admin/kst';
+import { ALIMTALK_PRIVACY_REVISION } from '@/lib/legal/alimtalk-privacy-revision';
 import { CONTACT_CHANNELS_PRIVACY_REVISION } from '@/lib/legal/contact-channels-privacy-revision';
 
 /*
@@ -23,6 +24,13 @@ export const CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE: string | null = CONTACT_CH
  * 시행일을 여기에 채운다.
  */
 export const SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE: string | null = null;
+
+/**
+ * 카카오 알림톡 주문 안내(lib/kakao/alimtalk)의 방침 시행일. 인증한 휴대폰 번호를 주문 접수·발송 안내에 쓰는 목적과 알림톡
+ * 처리위탁(엔에이치엔클라우드·카카오)을 고지하는 예약 개정(lib/legal/alimtalk-privacy-revision.ts)의 시행일을 그대로 읽는다 —
+ * 날짜가 비어 있으면(예약 없음) 운영에서는 env를 다 넣어도 닫혀 있다.
+ */
+export const KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE: string | null = ALIMTALK_PRIVACY_REVISION?.effectiveDate ?? null;
 
 type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 

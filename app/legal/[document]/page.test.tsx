@@ -13,10 +13,14 @@ vi.mock('@/lib/legal/shipping-bundle-wording-revision', async (importOriginal) =
 }));
 
 /* 방침 개정(휴대폰 번호 인증·이메일 변경, 2026-11-18 시행)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험은 표기 개정 날짜로 시계를 옮기므로
-   방침이 그 개정의 영향을 받지 않는다는 것만 보도록 방침 개정 예약을 끈다. */
+   방침이 그 개정의 영향을 받지 않는다는 것만 보도록 방침 개정 예약(알림톡 개정 포함)을 끈다. */
 vi.mock('@/lib/legal/contact-channels-privacy-revision', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/legal/contact-channels-privacy-revision')>()),
   CONTACT_CHANNELS_PRIVACY_REVISION: null,
+}));
+vi.mock('@/lib/legal/alimtalk-privacy-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/alimtalk-privacy-revision')>()),
+  ALIMTALK_PRIVACY_REVISION: null,
 }));
 
 /* 부분 반품·반품배송비 차감 개정(ADR-0047)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */

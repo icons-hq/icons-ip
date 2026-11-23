@@ -44,6 +44,9 @@ const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
 );
+const ALIMTALK_PRIVACY_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/alimtalk-privacy-revision.json', import.meta.url),
+);
 /* 부분 반품·반품배송비 차감 약관 개정(ADR-0047)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
 const PARTIAL_RETURN_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/partial-return-terms-revision.json', import.meta.url),
@@ -121,6 +124,11 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
     validateLegalRevisionDates(options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8'),
       'partial-return-terms-revision.json');
+    /* 개인정보처리방침 알림톡 개정(lib/legal/alimtalk-privacy-revision.json)도 같은 규칙(둘 다 null 또는 7일 이상 공지)이다. */
+    validateLegalRevisionDates(
+      options.alimtalkRevisionSource ?? readFileSync(ALIMTALK_PRIVACY_REVISION_FILE, 'utf8'),
+      'alimtalk-privacy-revision.json',
+    );
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 

@@ -261,6 +261,8 @@ const storefront = [
   sql('member_email_change'),
   sql('customer_marketing_consent_kakao'),
   sql('kakao_channel_friend_coupon'),
+  // 카카오 알림톡 주문 안내: 인증 번호 받는 사람 판정과 한 번만 보내기 클레임.
+  sql('kakao_alimtalk_deliveries'),
   // 코드 입력 등급 확인(PAY-028)과 지정 발급 쿠폰 개별 회수(PAY-034). 회수 대 결제 경합은 별도 스크립트.
   sql('coupon_grade_check_and_revoke'),
   script('coupon_revoke_concurrency.sh', 'COUPON_REVOKE_TEST_SCOPE'),

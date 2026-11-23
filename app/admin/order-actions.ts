@@ -25,6 +25,7 @@ import {
   sendOrderConfirmationEmail,
   sendOrderShippedEmail,
 } from '@/lib/email/transactional.server';
+import { sendOrderShippedAlimtalk } from '@/lib/kakao/alimtalk/order-notices.server';
 import { orderReferenceLabel } from '@/lib/orders';
 import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
@@ -152,6 +153,8 @@ export async function updateAdminOrderStatusAction(
     if (delivery.status === 'failed') {
       console.error(`[admin] shipped email failed (order:${normalized.value.orderId}): ${delivery.error}`);
     }
+    // 카카오 알림톡 발송 안내(기본 꺼짐). 절대 throw하지 않고 실패는 스스로 로그를 남긴다.
+    await sendOrderShippedAlimtalk({ orderId: normalized.value.orderId });
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);
