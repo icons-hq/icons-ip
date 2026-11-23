@@ -4,6 +4,7 @@ import { scheduleApprovedOrderCancellation } from '@/lib/orders/cancellation-aut
 import { GoodsPaymentContractError, GoodsPaymentReconciliationInProgressError } from './goods-checkout';
 import { goodsPaymentConfirmationAvailable } from './goods-checkout-availability';
 import { createRuntimeGoodsPaymentCheckout } from './goods-checkout.runtime.server';
+import { loadGoodsPaymentKeyHint } from './goods-payment-key-hint.server';
 import type { PaymentOutcome } from './gateway';
 import { TicketPaymentContractError, TicketPaymentReconciliationInProgressError } from './ticket-checkout';
 import { ticketPaymentProviderAvailable } from './ticket-checkout-availability';
@@ -64,7 +65,13 @@ export async function reconcilePaymentAttempt(
     if (route === 'goods') {
       const provider = attempt.provider as 'toss' | 'nicepay';
       if (!goodsPaymentConfirmationAvailable(provider)) return { kind: 'unavailable' };
-      const outcome = await createRuntimeGoodsPaymentCheckout(provider).reconcilePayment({ attemptId: attempt.attemptId, caseRef });
+      // 토스는 저장된 결제 키를 조회 힌트로 쓴다(입금 대기 가상계좌의 입금·만료 확인 — 본문에 키가 없는 경로).
+      const providerPaymentKeyHint = provider === 'toss' ? await loadGoodsPaymentKeyHint(attempt.attemptId) : undefined;
+      const outcome = await createRuntimeGoodsPaymentCheckout(provider).reconcilePayment({
+        attemptId: attempt.attemptId,
+        caseRef,
+        ...(providerPaymentKeyHint ? { providerPaymentKeyHint } : {}),
+      });
       if (outcome.outcome === 'approved' && attempt.refId) {
         try {
           scheduleApprovedOrderCancellation(attempt.refId);

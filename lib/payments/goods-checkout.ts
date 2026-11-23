@@ -95,6 +95,8 @@ export interface GoodsPaymentCheckout {
     readonly caseRef: string;
     /** 웹훅 본문의 미검증 paymentKey — 게이트웨이 조회 힌트로만 넘긴다. */
     readonly providerPaymentKeyHint?: string;
+    /** 입금 대기 가상계좌를 반납하고 닫으라는 요청(구매자 입금 전 취소, ADR-0049). 입금이 먼저 들어왔으면 승인된다. */
+    readonly releaseVirtualAccount?: boolean;
   }): Promise<ConfirmOutcome>;
 }
 
@@ -111,6 +113,11 @@ interface GoodsPaymentCheckoutDependencies {
    * 안 되므로 throw는 삼켜진다 — 실패 관측은 hook 구현의 책임이다.
    */
   readonly onApproved?: (attempt: PaymentAttempt) => Promise<unknown>;
+  /**
+   * 입금 대기 확정 알림 seam(입금 안내 메일, ADR-0049). DB가 awaiting_deposit을 확정했을 때만 불린다. 멱등이어야 하고
+   * throw는 삼켜진다(onApproved와 같은 계약).
+   */
+  readonly onAwaitingDeposit?: (attempt: PaymentAttempt) => Promise<unknown>;
   /**
    * 이 배포의 결제사 키 모드('test' | 'live'). 없거나 null이면 남기지 않는다(로컬·preview — 게이트웨이가 운영 배포에만 있다).
    * 값이 있으면 prepare가 체크아웃을 돌려주기 전에 `recordKeyMode`로 시도에 남긴다. 운영에 테스트 키가 물린 기간에 승인된
@@ -177,6 +184,7 @@ export function createGoodsPaymentCheckout({
   repository,
   createClaimToken = randomUUID,
   onApproved,
+  onAwaitingDeposit,
   providerKeyMode,
   recordKeyMode,
 }: GoodsPaymentCheckoutDependencies): GoodsPaymentCheckout {
@@ -187,6 +195,35 @@ export function createGoodsPaymentCheckout({
     } catch {
       // 알림 실패가 이미 확정된 결제 결과를 checking/failed로 둔갑시키면 안 된다.
       console.error('[payments/goods] approved notification failed');
+    }
+  }
+
+  /**
+   * 결제사가 가상계좌를 발급했는데(awaiting_deposit) DB가 입금 대기를 거부했으면(취소 요청·계정 상한·기한 범위 밖 등) 발급된
+   * 계좌가 열린 채 남지 않게 같은 요청에서 반납한다(ADR-0049). 시도는 needs_review로 남고, 반납 결과는 뒤따르는 웹훅·재정합이
+   * 조회로 닫는다. 입금 대기가 확정됐으면 입금 안내 알림을 보낸다.
+   */
+  async function afterFinalize(attempt: PaymentAttempt, provided: ConfirmOutcome, finalized: ConfirmOutcome) {
+    if (finalized.outcome === 'approved') {
+      await notifyApproved(attempt);
+      return;
+    }
+    if (finalized.outcome === 'awaiting_deposit') {
+      if (!onAwaitingDeposit) return;
+      try {
+        await onAwaitingDeposit(attempt);
+      } catch {
+        console.error('[payments/goods] awaiting deposit notification failed');
+      }
+      return;
+    }
+    const paymentKey = provided.evidence?.providerPaymentKey;
+    if (provided.outcome === 'awaiting_deposit' && paymentKey && gateway.releaseVirtualAccount) {
+      try {
+        await gateway.releaseVirtualAccount(attempt, paymentKey);
+      } catch {
+        console.error('[payments/goods] refused virtual account release failed');
+      }
     }
   }
 
@@ -268,11 +305,11 @@ export function createGoodsPaymentCheckout({
         claimToken: claim.claimToken,
         outcome,
       });
-      if (finalized.outcome === 'approved') await notifyApproved(claim.attempt);
+      await afterFinalize(claim.attempt, outcome, finalized);
       return { ...finalized, orderId: claim.attempt.refId };
     },
 
-    async reconcilePayment({ attemptId, caseRef, providerPaymentKeyHint }) {
+    async reconcilePayment({ attemptId, caseRef, providerPaymentKeyHint, releaseVirtualAccount }) {
       if (
         typeof attemptId !== 'string'
         || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attemptId)
@@ -302,8 +339,13 @@ export function createGoodsPaymentCheckout({
       let providerOutcome: ConfirmOutcome;
       try {
         // 힌트는 조회 대상을 좁힐 뿐 확정 근거가 아니다 — 판정은 게이트웨이 조회가 한다.
-        providerOutcome = typeof providerPaymentKeyHint === 'string' && providerPaymentKeyHint
-          ? await gateway.reconcile(claim.attempt, { providerPaymentKey: providerPaymentKeyHint })
+        const hint = {
+          ...(typeof providerPaymentKeyHint === 'string' && providerPaymentKeyHint
+            ? { providerPaymentKey: providerPaymentKeyHint } : {}),
+          ...(releaseVirtualAccount === true ? { releaseVirtualAccount: true } : {}),
+        };
+        providerOutcome = Object.keys(hint).length > 0
+          ? await gateway.reconcile(claim.attempt, hint)
           : await gateway.reconcile(claim.attempt);
       } catch {
         providerOutcome = {
@@ -325,7 +367,7 @@ export function createGoodsPaymentCheckout({
         claimToken: claim.claimToken,
         outcome,
       });
-      if (finalized.outcome === 'approved') await notifyApproved(claim.attempt);
+      await afterFinalize(claim.attempt, outcome, finalized);
       return finalized;
     },
   };

@@ -1,6 +1,10 @@
 import 'server-only';
 
 import { after } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import { GoodsPaymentReconciliationInProgressError } from '../payments/goods-checkout';
+import { createRuntimeGoodsPaymentCheckout } from '../payments/goods-checkout.runtime.server';
+import { loadGoodsPaymentKeyHint } from '../payments/goods-payment-key-hint.server';
 import { providerCancelsAutomatically } from '../payments/provider-capabilities';
 import { createServiceClient } from '../supabase/service';
 import {
@@ -38,6 +42,8 @@ export interface SystemCancellationState {
   requestId: string;
   requestStatus: ActiveRequestStatus;
   attemptState: string | null;
+  /** 결제 시도 id — 입금 대기 가상계좌를 반납할 때 쓴다. */
+  attemptId?: string | null;
   /**
    * 토스가 아닌 결제(Korpay·무통장)가 걸려 있는가. 그 결제는 결제사 취소 API로 닫히지
    * 않아 시스템이 돌리면 곧바로 결제확인필요가 되고, 운영자의 기존 수동 절차(Korpay
@@ -49,11 +55,18 @@ export interface SystemCancellationState {
 export type SystemCancellationOutcome =
   | { status: 'skipped'; reason: 'no_active_cancel' | 'awaiting_staff' | 'needs_review' | 'manual_provider' }
   | { status: 'reconciled'; requestId: string; result: CancellationReconciliationResult }
+  /** 입금 전 가상계좌를 반납했다(또는 반납을 시도했다) — 결과는 결제 시도의 재정합 판정이다(ADR-0049). */
+  | { status: 'released'; requestId: string; outcome: string }
   | { status: 'failed' };
 
 export interface SystemCancellationDependencies {
   loadState(orderId: string): Promise<SystemCancellationState | null>;
   reconcile(requestId: string): Promise<CancellationReconciliationResult>;
+  /**
+   * 입금 대기 가상계좌 반납 재정합(ADR-0049). 반납이 성립하면 시도가 declined로 닫히고 DB finalizer가 활성 취소 요청을
+   * 함께 종결한다(주문 취소·재고·쿠폰·적립금 복원). 입금이 먼저 들어왔으면 승인되고 요청은 환불로 이어진다.
+   */
+  releaseAwaitingDeposit(attemptId: string): Promise<string>;
   sleep(ms: number): Promise<void>;
   now(): number;
 }
@@ -86,7 +99,7 @@ function createDefaultDependencies(): SystemCancellationDependencies {
 
       const { data: attemptData, error: attemptError } = await service
         .from('payment_attempts')
-        .select('state')
+        .select('id,state')
         .eq('purpose', 'order')
         .eq('ref_id', orderId)
         .order('id', { ascending: true })
@@ -109,11 +122,22 @@ function createDefaultDependencies(): SystemCancellationDependencies {
         requestId: request.id,
         requestStatus: request.status as ActiveRequestStatus,
         attemptState: typeof attempt?.state === 'string' ? attempt.state : null,
+        attemptId: typeof attempt?.id === 'string' ? attempt.id : null,
         manualProviderPayment,
       };
     },
     reconcile(requestId) {
       return reconcileOrderCancellation({ requestId, actorId: null });
+    },
+    async releaseAwaitingDeposit(attemptId) {
+      const providerPaymentKeyHint = await loadGoodsPaymentKeyHint(attemptId);
+      const outcome = await createRuntimeGoodsPaymentCheckout('toss').reconcilePayment({
+        attemptId,
+        caseRef: `cancel-release-${randomUUID()}`,
+        releaseVirtualAccount: true,
+        ...(providerPaymentKeyHint ? { providerPaymentKeyHint } : {}),
+      });
+      return outcome.outcome;
     },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     now: () => Date.now(),
@@ -150,6 +174,19 @@ export async function issueApprovedOrderCancellation(
         return { status: 'reconciled', requestId: state.requestId, result };
       }
       if (state.requestStatus === 'needs_review') return { status: 'skipped', reason: 'needs_review' };
+      if (state.requestStatus === 'requested' && state.attemptState === 'awaiting_deposit' && state.attemptId) {
+        // 입금 전 가상계좌 주문의 취소 — 계좌를 반납하면 결제 없이 끝난 주문이라 DB가 요청을 바로 종결한다. 반납이 리스에
+        // 막히면(다른 재정합 진행 중) 요청은 requested로 남고, 다음 재확인의 입금 대기 확정을 DB가 거부해 그 자리에서 반납한다.
+        try {
+          const outcome = await dependencies.releaseAwaitingDeposit(state.attemptId);
+          return { status: 'released', requestId: state.requestId, outcome };
+        } catch (error) {
+          if (error instanceof GoodsPaymentReconciliationInProgressError) {
+            return { status: 'skipped', reason: 'awaiting_staff' };
+          }
+          throw error;
+        }
+      }
       if (state.attemptState !== 'confirming' || dependencies.now() >= deadline) {
         return { status: 'skipped', reason: 'awaiting_staff' };
       }

@@ -130,6 +130,37 @@ function evidenceArgs(evidence: PaymentProviderEvidence | undefined) {
 }
 
 /**
+ * 입금 대기(가상계좌 발급, ADR-0049) 전용 finalizer 인자. 게이트웨이가 awaiting_deposit에 계좌를 싣지 않았으면 계약 위반이라
+ * null을 돌려주고, 호출자는 needs_review로 일반 finalizer를 부른다(계좌를 안내할 수 없는 주문을 잡아 두지 않는다).
+ */
+function awaitingDepositArgs(evidence: PaymentProviderEvidence | undefined) {
+  const account = evidence?.virtualAccount;
+  if (!account || !evidence?.providerPaymentKey) return null;
+  return {
+    p_provider_payment_key: evidence.providerPaymentKey,
+    p_bank_code: account.bankCode,
+    p_account_number: account.accountNumber,
+    p_due_at: account.dueAt,
+    p_use_escrow: account.useEscrow,
+    p_refund_bank_code: account.refundReceiveAccount?.bankCode ?? null,
+    p_refund_account_number: account.refundReceiveAccount?.accountNumber ?? null,
+    p_refund_holder_name: account.refundReceiveAccount?.holderName ?? null,
+  };
+}
+
+function finalizedOutcome(input: GoodsPaymentFinalization, finalized: unknown): ConfirmOutcome {
+  if (typeof finalized !== 'string' || !paymentOutcomeSet.has(finalized as PaymentOutcome)) {
+    throw new GoodsPaymentRepositoryError();
+  }
+  if (finalized === input.outcome.outcome) return input.outcome;
+  return {
+    ...input.outcome,
+    outcome: finalized as PaymentOutcome,
+    reasonCode: 'database_finalization_guard',
+  };
+}
+
+/**
  * 굿즈 결제 시도의 결제사 키 모드를 남긴다(service_role RPC). 테스트 키로 승인된 운영 결제를 DB가 출고 보류하는 근거다.
  * 결제 전(prepared)에만 바꿀 수 있고, 실패는 throw한다 — 호출자(prepare)가 체크아웃을 열지 않는다.
  */
@@ -178,21 +209,28 @@ export function createGoodsPaymentAttemptRepository(client: RpcClient, options: 
     },
 
     async finalizeOrderAttempt(input: GoodsPaymentFinalization): Promise<ConfirmOutcome> {
-      const finalized = await rpc(client, 'finalize_goods_payment_attempt', {
+      if (input.outcome.outcome === 'awaiting_deposit') {
+        const args = awaitingDepositArgs(input.outcome.evidence);
+        if (args) {
+          return finalizedOutcome(input, await rpc(client, 'finalize_goods_payment_awaiting_deposit', {
+            p_attempt_id: input.attemptId,
+            p_claim_token: input.claimToken,
+            ...args,
+          }));
+        }
+        return finalizedOutcome(input, await rpc(client, 'finalize_goods_payment_attempt', {
+          p_attempt_id: input.attemptId,
+          p_claim_token: input.claimToken,
+          p_outcome: 'needs_review',
+          ...evidenceArgs(input.outcome.evidence),
+        }));
+      }
+      return finalizedOutcome(input, await rpc(client, 'finalize_goods_payment_attempt', {
         p_attempt_id: input.attemptId,
         p_claim_token: input.claimToken,
         p_outcome: input.outcome.outcome,
         ...evidenceArgs(input.outcome.evidence),
-      });
-      if (typeof finalized !== 'string' || !paymentOutcomeSet.has(finalized as PaymentOutcome)) {
-        throw new GoodsPaymentRepositoryError();
-      }
-      if (finalized === input.outcome.outcome) return input.outcome;
-      return {
-        ...input.outcome,
-        outcome: finalized as PaymentOutcome,
-        reasonCode: 'database_finalization_guard',
-      };
+      }));
     },
 
     async claimOrderReconciliation({ attemptId, claimToken, caseRef }) {
@@ -212,21 +250,28 @@ export function createGoodsPaymentAttemptRepository(client: RpcClient, options: 
       if (finalizer !== 'finalize_goods_payment_reconciliation' && finalizer !== 'service_finalize_subscription_payment_reconciliation') {
         throw new GoodsPaymentRepositoryError();
       }
-      const finalized = await rpc(client, finalizer, {
+      if (input.outcome.outcome === 'awaiting_deposit') {
+        const args = finalizer === 'finalize_goods_payment_reconciliation' ? awaitingDepositArgs(input.outcome.evidence) : null;
+        if (args) {
+          return finalizedOutcome(input, await rpc(client, 'finalize_goods_payment_reconciliation_awaiting_deposit', {
+            p_attempt_id: input.attemptId,
+            p_claim_token: input.claimToken,
+            ...args,
+          }));
+        }
+        return finalizedOutcome(input, await rpc(client, finalizer, {
+          p_attempt_id: input.attemptId,
+          p_claim_token: input.claimToken,
+          p_outcome: 'needs_review',
+          ...evidenceArgs(input.outcome.evidence),
+        }));
+      }
+      return finalizedOutcome(input, await rpc(client, finalizer, {
         p_attempt_id: input.attemptId,
         p_claim_token: input.claimToken,
         p_outcome: input.outcome.outcome,
         ...evidenceArgs(input.outcome.evidence),
-      });
-      if (typeof finalized !== 'string' || !paymentOutcomeSet.has(finalized as PaymentOutcome)) {
-        throw new GoodsPaymentRepositoryError();
-      }
-      if (finalized === input.outcome.outcome) return input.outcome;
-      return {
-        ...input.outcome,
-        outcome: finalized as PaymentOutcome,
-        reasonCode: 'database_finalization_guard',
-      };
+      }));
     },
   };
 }
