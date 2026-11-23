@@ -57,14 +57,14 @@ export const VIRTUAL_ACCOUNT_COPY = {
 } as const;
 
 /**
- * 주문서 결제수단 칸의 카드 선택지 문구. 토스 가상계좌가 열려 있으면(`tossVirtualAccountCheckoutEnabled`, 서버 값) 같은
- * 토스 결제창에서 무통장입금(가상계좌)도 고를 수 있다 — 결제수단은 여전히 주문에 `card`로 고정된다(ADR-0049).
+ * 주문서 결제수단 칸의 카드 선택지 문구. 토스 가상계좌·계좌이체가 열려 있으면(`tossVirtualAccountCheckoutEnabled`, 서버 값) 같은
+ * 토스 결제창에서 계좌이체·무통장입금(가상계좌)도 고를 수 있다 — 결제수단은 여전히 주문에 `card`로 고정된다(ADR-0049).
  */
 export function cardMethodCopy(virtualAccountEnabled: boolean, cardNote: string): { label: string; note: string } {
   if (!virtualAccountEnabled) return { label: '신용·체크카드', note: cardNote };
   return {
-    label: '카드·간편결제·무통장입금(가상계좌)',
-    note: '토스페이먼츠 결제창에서 신용·체크카드, 간편결제, 무통장입금(가상계좌) 중에 고를 수 있어요. 카드·간편결제는 결제 후 바로 확정되고 재고 선점은 15분이에요. 무통장입금은 주문한 뒤 안내되는 입금 기한까지 재고를 잡아 둬요.',
+    label: '카드·간편결제·계좌이체·무통장입금(가상계좌)',
+    note: '토스페이먼츠 결제창에서 신용·체크카드, 간편결제, 계좌이체, 무통장입금(가상계좌) 중에 고를 수 있어요. 카드·간편결제·계좌이체는 결제 후 바로 확정되고 재고 선점은 15분이에요. 무통장입금은 주문한 뒤 안내되는 입금 기한까지 재고를 잡아 둬요.',
   };
 }
 

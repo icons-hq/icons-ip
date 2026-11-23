@@ -91,7 +91,14 @@ export function validateLegalRevisionDates(source, fileName = 'shipping-bundle-w
   }
   const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
   if (!(days >= 7)) {
-    throw new Error(`${prefix}: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
+    /* 약관 제3조·방침 제13조의 7일 사전 공지를 줄이는 것은 운영 책임자의 명시 결정이 있을 때만이다 — 날짜 파일의
+       noticeWaiver(결정 일자·결정자·사유, 10~200자)가 그 기록이다. 시행일은 그래도 공지일보다 앞설 수 없다. */
+    const waiver = parsed?.noticeWaiver;
+    const waived = typeof waiver === 'string' && waiver.trim().length >= 10 && waiver.length <= 200;
+    if (!waived || !(days >= 0)) {
+      throw new Error(`${prefix}: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`
+        + (waived ? '' : ' (or record noticeWaiver for a shorter notice approved by the operator)'));
+    }
   }
 }
 
@@ -150,23 +157,8 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     const virtualAccountSource = options.virtualAccountRevisionSource ?? readFileSync(VIRTUAL_ACCOUNT_TERMS_REVISION_FILE, 'utf8');
     validateLegalRevisionDates(virtualAccountSource, 'virtual-account-terms-revision.json');
     virtualAccountRevision = legalRevisionDates(virtualAccountSource);
-    /* 가상계좌 개정은 같은 문서의 앞선 예약 개정(표기·부분 반품·알림톡) 위에 얹힌다 — 시행일이 그 개정들보다 늦어야 이전 판이
-       앞선 개정을 담는다(lib/legal/documents.ts). 공지 기간은 겹쳐도 된다(사전 공지를 함께 보인다). */
-    if (virtualAccountRevision) {
-      for (const [fileName, source] of [
-        ['shipping-bundle-wording-revision.json', bundleSource],
-        ['partial-return-terms-revision.json', partialReturnSource],
-        ['alimtalk-privacy-revision.json', alimtalkSource],
-      ]) {
-        const earlier = legalRevisionDates(source);
-        if (earlier && virtualAccountRevision.effectiveDate <= earlier.effectiveDate) {
-          throw new Error(
-            `Invalid legal revision dates in virtual-account-terms-revision.json: effectiveDate ${virtualAccountRevision.effectiveDate} `
-            + `must be after ${fileName} effectiveDate ${earlier.effectiveDate}`,
-          );
-        }
-      }
-    }
+    /* 가상계좌·계좌이체 개정과 다른 예약 개정(표기·부분 반품·알림톡)의 선후는 lib/legal/documents.ts가 시행일 순서로 정한다 —
+       어느 쪽이 먼저 시행돼도 이전 판이 직전 시행 본문을 담는다. 공지 기간은 겹쳐도 된다(사전 공지를 함께 보인다). */
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 

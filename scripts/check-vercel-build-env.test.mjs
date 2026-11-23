@@ -882,14 +882,22 @@ describe('legal revision date guard', () => {
     expect(() => validateVercelBuildEnvironment(baseEnvironment, { virtualAccountRevisionSource: source('2026-11-24', '2026-11-30') })).not.toThrow();
   });
 
-  it('requires the virtual account revision to take effect after the earlier revisions of the same documents', () => {
+  it('lets the virtual account revision take effect before or after the earlier revisions (documents apply them by effective date)', () => {
     const earlier = { partialReturnRevisionSource: source('2026-11-20', '2026-11-27'), alimtalkRevisionSource: source('2026-11-23', '2026-11-30') };
-    /* 공지 기간은 겹쳐도 된다 — 시행일만 앞선 개정들보다 늦어야 한다. */
     expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-23', '2026-11-30') }))
-      .toThrow(/virtual-account-terms-revision\.json: effectiveDate 2026-11-30 must be after alimtalk-privacy-revision\.json effectiveDate 2026-11-30/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-19', '2026-11-26') }))
-      .toThrow(/must be after partial-return-terms-revision\.json effectiveDate 2026-11-27/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-19', '2026-11-26') })).not.toThrow();
+  });
+
+  it('accepts a notice shorter than 7 days only with a recorded operator waiver, and never an effective date before the announcement', () => {
+    const waived = (announced, effective, noticeWaiver) => JSON.stringify({ announcedDate: announced, effectiveDate: effective, noticeWaiver });
+    const decision = '2026-11-23 운영 책임자 결정: 실사용 회원이 없어 즉시 시행';
+    expect(() => validateLegalRevisionDates(waived('2026-11-23', '2026-11-23', decision), 'virtual-account-terms-revision.json')).not.toThrow();
+    expect(() => validateLegalRevisionDates(source('2026-11-23', '2026-11-23'), 'virtual-account-terms-revision.json'))
+      .toThrow(/must be at least 7 days after announcedDate 2026-11-23 \(or record noticeWaiver/);
+    expect(() => validateLegalRevisionDates(waived('2026-11-23', '2026-11-23', '짧음'), 'virtual-account-terms-revision.json'))
+      .toThrow(/or record noticeWaiver/);
+    expect(() => validateLegalRevisionDates(waived('2026-11-23', '2026-11-22', decision), 'virtual-account-terms-revision.json'))
+      .toThrow(/must be at least 7 days after announcedDate 2026-11-23$/);
   });
 });
 

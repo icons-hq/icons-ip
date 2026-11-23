@@ -743,7 +743,8 @@ describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주�
     expect(plainText(announced)).not.toContain('알림톡');
     const effective = createLegalDocuments(BUSINESS_INFO, '2026-11-30').privacy;
     expect(effective.effectiveDate).toBe('2026-11-30');
-    expect(effective.previousVersion?.effectiveDate).toBe('2026-11-18');
+    /* 가상계좌·계좌이체 개정(2026-11-23 즉시 시행)이 먼저 시행돼 이전 판이 그 본문이다(시행일 순서). */
+    expect(effective.previousVersion?.effectiveDate).toBe('2026-11-23');
     expect(plainText(effective)).toContain('카카오톡 알림톡');
   });
 
@@ -916,13 +917,43 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
   const after = at(VA.effectiveDate);
   const article = (document: LegalDocument, heading: string) => document.articles.find((item) => item.heading === heading)!;
 
-  it('운영 날짜 파일은 확정값(공지 2026-11-24 → 시행 2026-12-01)이고 시행일이 공지일 7일 이상 뒤다', () => {
-    expect(VIRTUAL_ACCOUNT_TERMS_REVISION).toEqual({ announcedDate: '2026-11-24', effectiveDate: '2026-12-01' });
-    const { announcedDate, effectiveDate } = VIRTUAL_ACCOUNT_TERMS_REVISION!;
-    expect((Date.parse(effectiveDate) - Date.parse(announcedDate)) / 86_400_000).toBeGreaterThanOrEqual(7);
-    /* 운영 상수(기본 인자) 그대로 공지·시행 상태를 만들 수 있어야 한다. */
-    expect(() => createLegalDocuments(BUSINESS_INFO, announcedDate)).not.toThrow();
-    expect(createLegalDocuments(BUSINESS_INFO, effectiveDate).terms.effectiveDate).toBe(effectiveDate);
+  it('운영 날짜 파일은 확정값(2026-11-23 즉시 시행 — 운영 책임자 결정)이다', () => {
+    expect(VIRTUAL_ACCOUNT_TERMS_REVISION).toEqual({ announcedDate: '2026-11-23', effectiveDate: '2026-11-23' });
+    /* 운영 상수(기본 인자) 그대로 시행 상태와, 그 뒤 앞선 예약 개정(부분 반품 11-27·알림톡 11-30)의 시행 상태를 만들 수 있어야 한다. */
+    const today = createLegalDocuments(BUSINESS_INFO, '2026-11-23');
+    for (const slug of LEGAL_DOCUMENT_SLUGS) {
+      expect(today[slug].effectiveDate, slug).toBe('2026-11-23');
+      expect(plainText(today[slug]), slug).toContain('가상계좌');
+    }
+    expect(plainText(today.terms)).toContain('신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다');
+    /* 즉시 시행이라 가상계좌 사전 공지는 없고, 앞선 개정의 공지는 그대로 보인다. */
+    expect(today.terms.pendingRevision?.heading).toBe('일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내');
+    expect(today.privacy.pendingRevision?.heading).toBe('카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내');
+    for (const slug of LEGAL_DOCUMENT_SLUGS) expect(today[slug].additionalPendingRevisions, slug).toBeUndefined();
+    const partial = createLegalDocuments(BUSINESS_INFO, '2026-11-27');
+    expect(partial.terms.effectiveDate).toBe('2026-11-27');
+    expect(partial.terms.previousVersion?.effectiveDate).toBe('2026-11-23');
+    expect(plainText(partial.terms)).toContain('계좌이체 또는 가상계좌(무통장입금)');
+    expect(plainText(partial.terms)).toContain('주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
+    const alimtalk = createLegalDocuments(BUSINESS_INFO, '2026-11-30');
+    expect(plainText(alimtalk.privacy)).toContain('계좌이체·가상계좌(무통장입금) 결제 처리');
+    expect(plainText(alimtalk.privacy)).toContain('카카오톡 알림톡');
+  });
+
+  it('앞선 예약 개정보다 먼저 시행되면 그 개정이 가상계좌 본문 위에 얹히고 이전 판이 시행일 순서로 이어진다', () => {
+    const early: VirtualAccountTermsRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-20' };
+    const now = at('2026-11-20', early);
+    expect(now.terms.effectiveDate).toBe('2026-11-20');
+    expect(now.terms.pendingRevision?.heading ?? '').not.toContain('가상계좌');
+    const partialOn = at(PARTIAL.effectiveDate, early);
+    expect(partialOn.terms.effectiveDate).toBe(PARTIAL.effectiveDate);
+    expect(partialOn.terms.previousVersion?.effectiveDate).toBe('2026-11-20');
+    expect(JSON.stringify(partialOn.terms.previousVersion?.articles)).toContain('계좌이체 또는 가상계좌(무통장입금)');
+    expect(plainText(partialOn.terms)).toContain('계좌이체 또는 가상계좌(무통장입금)');
+    expect(plainText(partialOn.shipping)).toContain('가상계좌 입금 기한');
+    const alimtalkOn = at(ALIMTALK.effectiveDate, early);
+    expect(alimtalkOn.privacy.previousVersion?.effectiveDate).toBe('2026-11-20');
+    expect(plainText(alimtalkOn.privacy)).toContain('가상계좌 결제 환급 계좌');
   });
 
   it('공지 기간에는 세 문서의 본문을 두고 개정 예정 안내만 붙인다', () => {
@@ -931,7 +962,7 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
         expect(notice[slug].articles, slug).toEqual(base[slug].articles);
         expect(notice[slug].effectiveDate, slug).toBe(base[slug].effectiveDate);
         expect(notice[slug].pendingRevision, slug).toMatchObject({ announcedDate: VA.announcedDate, effectiveDate: VA.effectiveDate,
-          heading: '가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내' });
+          heading: '계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내' });
       }
       expect(base[slug].pendingRevision?.heading ?? '', slug).not.toContain('가상계좌');
     }
@@ -941,13 +972,15 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
     expect(after.terms.effectiveDate).toBe(VA.effectiveDate);
     expect(after.terms.previousVersion).toEqual({ effectiveDate: base.terms.effectiveDate, articles: base.terms.articles });
     const payment = article(after.terms, '제11조 (지급방법)').paragraphs!;
-    expect(payment[0]).toBe('굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드, 간편결제 또는 가상계좌(무통장입금)로 지급할 수 있습니다. 가상계좌는 굿즈 주문에만 제공하며, 팝업 티켓과 19금 굿즈가 담긴 주문에는 제공하지 않습니다.');
+    expect(payment[0]).toBe('굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다. 계좌이체와 가상계좌는 굿즈 주문에만 제공하며, 팝업 티켓과 19금 굿즈가 담긴 주문에는 제공하지 않습니다.');
     const confirm = payment.findIndex((text) => text.startsWith('결제의 확정은 결제대행사가'));
     expect(payment[confirm + 1]).toContain('가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되며, 기한 안에 입금되지 않으면 주문은 자동으로 취소되고 선점된 수량은 복원됩니다.');
+    expect(payment[confirm + 2]).toContain('계좌이체 또는 가상계좌로 지급하는 이용자는');
     expect(payment[confirm + 2]).toContain('구매안전서비스(결제대금예치, 에스크로)를 선택해 이용할 수 있습니다');
     expect(payment[confirm + 3]).toContain('환급 계좌 정보의 제공은 환급의 전제가 됩니다. 결제대행사는 환급 전에 예금주를 확인하며');
     expect(payment[confirm + 3]).toContain('영업일 기준 2일 정도');
-    expect(payment).toHaveLength(article(base.terms, '제11조 (지급방법)').paragraphs!.length + 3);
+    expect(payment[confirm + 4]).toBe('계좌이체로 지급한 대금을 취소·환급하는 경우 회사는 결제대행사를 통해 대금이 출금된 계좌로 돌려드리며, 별도의 환급 계좌를 받지 않습니다.');
+    expect(payment).toHaveLength(article(base.terms, '제11조 (지급방법)').paragraphs!.length + 4);
     expect(article(after.terms, '제11조의2 (무통장 입금)')).toEqual(article(base.terms, '제11조의2 (무통장 입금)'));
     /* 부분 반품 개정 본문은 그대로 이어진다. */
     expect(plainText(after.terms)).toContain('주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
@@ -961,7 +994,7 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
     const claimRow = rows.findIndex((row) => row[0] === '취소·반품 환급 계좌');
     expect(rows[claimRow + 1]).toEqual(['가상계좌 결제 환급 계좌', '은행, 계좌번호, 예금주 (가상계좌 발급일부터 180일 뒤 파기)', '가상계좌 결제 화면에서 이용자가 환불받을 계좌를 입력한 경우(결제대행사가 회사에 전달)']);
     const consignment = after.privacy.articles.find((item) => item.heading.startsWith('제5조 '))!.table!.rows;
-    expect(consignment.find((row) => row[0] === '토스페이먼츠 주식회사')?.[1]).toBe('굿즈·티켓 카드·간편결제와 굿즈 가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 결제 취소와 환급(환급 계좌 확인 포함) 처리');
+    expect(consignment.find((row) => row[0] === '토스페이먼츠 주식회사')?.[1]).toBe('굿즈·티켓 카드·간편결제와 굿즈 계좌이체·가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 결제 취소와 환급(환급 계좌 확인 포함) 처리');
     /* 알림톡 개정 수탁자는 그대로 남는다. */
     expect(consignment.some((row) => row[0] === '엔에이치엔클라우드 주식회사')).toBe(true);
   });
@@ -977,6 +1010,7 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
     const refund = article(after.shipping, '7. 환급 계좌').paragraphs!;
     expect(refund.at(-1)).toContain('가상계좌로 결제한 주문을 입금 뒤 취소·반품하는 경우에도');
     expect(refund.at(-1)).toContain('가상계좌 발급일부터 180일이 지나면 파기합니다');
+    expect(refund.at(-1)).toContain('계좌이체로 결제한 주문은 환급 계좌 없이 결제대행사를 통해 대금이 출금된 계좌로 환급합니다');
     expect(plainText(after.shipping)).toContain('배송 묶음별 지정 택배사');
   });
 
@@ -987,10 +1021,10 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
       expect(overlap[slug].pendingRevision?.heading, slug).toBe('일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내');
       expect(overlap[slug].additionalPendingRevisions, slug).toEqual([expect.objectContaining({
         announcedDate: overlapping.announcedDate, effectiveDate: overlapping.effectiveDate,
-        heading: '가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내' })]);
+        heading: '계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내' })]);
     }
     /* 앞선 공지가 없는 문서(알림톡 개정은 이미 시행)는 가상계좌 공지 하나다. */
-    expect(overlap.privacy.pendingRevision?.heading).toBe('가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내');
+    expect(overlap.privacy.pendingRevision?.heading).toBe('계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내');
     expect(overlap.privacy.additionalPendingRevisions).toBeUndefined();
     /* 시행일에는 앞선 개정이 이미 시행돼 이전 판이 그 개정을 담는다. */
     const effective = at(overlapping.effectiveDate, overlapping);

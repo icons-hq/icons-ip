@@ -302,6 +302,49 @@ select 1 / case when (select status = 'canceled' from public.orders where id = '
 then 1 else 0 end as assert_released_order_expires_and_restocks;
 
 -- ---------------------------------------------------------------------------
+-- 6b. 계좌이체(20261125090300): 계좌이체로 승인된 굿즈 주문도 에스크로 배송 등록 작업 대상이다(에스크로 선택은 작업자가 결제
+--     조회로 확인한다). 카드 승인 주문은 대상이 아니다.
+-- ---------------------------------------------------------------------------
+select 1 / case when not has_function_privilege('service_role', 'private.toss_escrow_candidate_attempt(uuid)', 'execute')
+  and not has_function_privilege('authenticated', 'private.toss_escrow_candidate_attempt(uuid)', 'execute')
+then 1 else 0 end as assert_escrow_candidate_sealed;
+
+insert into public.orders (id, user_id, status, total, shipping_fee, expires_at, checkout_key)
+select ('20000000-0000-4000-8000-00000000' || n)::uuid, '00000000-0000-4000-8000-000000004901', 'pending', 31000, 3000,
+  now() + interval '15 minutes', ('10000000-0000-4000-8000-00000000' || n)::uuid
+from unnest(array['4907', '4908']) as n;
+insert into public.order_items (order_id, good_id, qty, unit_price, good_name_snapshot, good_ip_id_snapshot, variant_id)
+select o.id, 'va-awaiting-good', 1, 28000, '가상계좌 굿즈', 'va-awaiting-ip',
+  (select id from public.goods_variants where good_id = 'va-awaiting-good' and is_default)
+from public.orders o where o.id in ('20000000-0000-4000-8000-000000004907', '20000000-0000-4000-8000-000000004908');
+update public.goods_variants set stock_qty = stock_qty - 2 where good_id = 'va-awaiting-good' and is_default;
+insert into public.payment_attempts (
+  id, provider, user_id, purpose, ref_id, amount, currency, state, idempotency_key,
+  provider_order_id, provider_product_code, claim_token, claim_expires_at, expires_at)
+select ('30000000-0000-4000-8000-00000000' || n)::uuid, 'toss', '00000000-0000-4000-8000-000000004901', 'order',
+  ('20000000-0000-4000-8000-00000000' || n)::uuid, 31000, 'KRW', 'confirming', 'goods:transfer:' || n,
+  'O30000000000040008000' || lpad(n, 11, '0'), 'P30000000000040008000' || lpad(n, 11, '0'),
+  ('40000000-0000-4000-8000-00000000' || n)::uuid, now() + interval '10 minutes', now() + interval '10 minutes'
+from unnest(array['4907', '4908']) as n;
+
+select 1 / case when public.finalize_goods_payment_attempt(
+  '30000000-0000-4000-8000-000000004907', '40000000-0000-4000-8000-000000004907', 'approved',
+  'tr-key-4907', 'TRTX4907', null, 'DONE', '계좌이체', '계좌이체', now()
+) = 'approved' then 1 else 0 end as assert_transfer_approves;
+select 1 / case when (
+  select job.state = 'ready' and job.delivery_method = 'DIRECT' and job.attempt_id = '30000000-0000-4000-8000-000000004907'
+  from private.toss_escrow_deliveries as job where job.order_id = '20000000-0000-4000-8000-000000004907'
+) then 1 else 0 end as assert_transfer_escrow_job_created;
+select 1 / case when public.finalize_goods_payment_attempt(
+  '30000000-0000-4000-8000-000000004908', '40000000-0000-4000-8000-000000004908', 'approved',
+  'card-key-4908', 'CARDTX4908', null, 'DONE', '카드', '4330****', now()
+) = 'approved' then 1 else 0 end as assert_card_approves;
+select 1 / case when not exists (
+  select 1 from private.toss_escrow_deliveries where order_id = '20000000-0000-4000-8000-000000004908'
+) and not private.toss_escrow_candidate_attempt('30000000-0000-4000-8000-000000004908')
+then 1 else 0 end as assert_card_order_not_escrow_candidate;
+
+-- ---------------------------------------------------------------------------
 -- 7. 입금 대기는 운영자 [결제 상태 다시 확인] 대상이고, 자동 재확인 표식을 정리 작업이 지우지 않는다
 -- ---------------------------------------------------------------------------
 select 1 / case when private.payment_attempt_unresolved('awaiting_deposit', null, now())
