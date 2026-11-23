@@ -9,6 +9,7 @@ import { imageBg, publicMediaUrl } from '@/lib/media';
 import { goodCompareAtPrice } from '@/lib/goods-options';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
+import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 import { sanitizeShoppingStoryContent } from '@/lib/shopping-stories-content';
 import { SHOPPING_STORY_IMAGE_PATTERN, type PublicShoppingStory, type PublicShoppingStoryGood, type PublicShoppingStoryList,
   type PublicShoppingStorySection, type PublicShoppingStorySummary } from '@/lib/shopping-stories';
@@ -63,15 +64,17 @@ export function parseShoppingStoryGood(value: unknown): PublicShoppingStoryGood 
     if (!record(variant) || !nonnegative(variant.price)) return null;
     const pricing = parseGoodsVariantPricing(variant.pricing), supply = parseGoodsVariantSupply(variant.supply);
     if (!pricing || !supply) return null;
-    options.push({ price: pricing.effectivePrice, stockQty: supply.availableQty, pricing });
+    options.push({ price: pricing.effectivePrice, stockQty: supply.availableQty, pricing, supply });
   }
+  const soldOut = options.reduce((sum, option) => sum + option.stockQty, 0) <= 0;
+  const unavailableLabel = productCardUnavailableLabel({ salePeriod, options }, soldOut);
   const prices = options.map(option => option.price);
   const imageUrl = value.imagePath ? publicMediaUrl(value.imagePath as string) : null;
   return { id: value.id, name: value.name, salePeriod, price: prices.length ? Math.min(...prices) : value.price,
     priceMax: prices.length ? Math.max(...prices) : value.price,
     compareAtPrice: goodCompareAtPrice({ price: value.price, compareAtPrice: value.compareAtPrice as number | null }, options),
     showDiscountRate: value.showDiscountRate, imageBackground: imageUrl ? imageBg(imageUrl) : (value.bg as string | null) ?? '',
-    badge: value.badge as string | null, soldOut: options.reduce((sum, option) => sum + option.stockQty, 0) <= 0 };
+    badge: value.badge as string | null, soldOut, ...(unavailableLabel ? { unavailableLabel } : {}) };
 }
 export function parsePublicShoppingStory(value: unknown): PublicShoppingStory | null {
   const source = publicStorySource(value);

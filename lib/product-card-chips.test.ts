@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Good, GoodOption } from '@/lib/data';
 import type { GoodsVariantSupply } from '@/lib/goods-preorders';
-import { productCardChips } from '@/lib/product-card-chips';
+import { productCardChips, productCardUnavailableLabel } from '@/lib/product-card-chips';
 
 type ChipGood = Pick<Good, 'options' | 'optionSaleMode' | 'badge' | 'shippingFeeType'>;
 
@@ -117,5 +117,48 @@ describe('productCardChips', () => {
       { kind: 'random', label: '캡슐토이' },
       { kind: 'tag', label: 'EXCLUSIVE' },
     ]);
+  });
+});
+
+/* 카드 판매 불가 문구는 상세 구매 패널과 같은 판정이다 — 접수 예정 예약판매는 재고 0이어도 'SOLD OUT'(null)이 아니다. */
+describe('productCardUnavailableLabel', () => {
+  const stockSupply = (availableQty: number) => supply({ mode: 'stock', state: 'stock', availableQty, policyId: null, policyRevision: null,
+    startsAt: null, endsAt: null, expectedShipDate: null, nextChangeAt: null });
+  const scheduled = supply({ state: 'scheduled', availableQty: 0, startsAt: '2026-12-02T02:00:00.000Z', endsAt: '2026-12-13T14:59:59.000Z',
+    expectedShipDate: '2026-12-14', nextChangeAt: '2026-12-02T02:00:00.000Z' });
+
+  it('labels a preorder whose reception has not opened yet instead of reading it as sold out', () => {
+    expect(productCardUnavailableLabel({ options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('예약 접수 예정');
+    expect(productCardUnavailableLabel({ options: [
+      option({ id: 'o1', stockQty: 0, supply: scheduled }),
+      option({ id: 'o2', isDefault: false, stockQty: 0, supply: scheduled }),
+    ] }, true)).toBe('예약 접수 예정');
+  });
+
+  it('leaves an open preorder with quantity to the 예약판매 chip, without any unavailable label', () => {
+    const open = { options: [option({ stockQty: 10, supply: supply() })] };
+    expect(productCardUnavailableLabel(open, false)).toBeNull();
+    expect(productCardChips(good(open))).toEqual([{ kind: 'preorder', label: '예약판매' }]);
+  });
+
+  it.each([
+    ['open without quantity', { state: 'open' as const, availableQty: 0 }, '예약 물량 마감'],
+    ['closed', { state: 'closed' as const, availableQty: 0, endsAt: '2026-11-16T00:00:00.000Z', startsAt: '2026-11-01T00:00:00.000Z', nextChangeAt: null }, '예약 접수 종료'],
+    ['stopped', { state: 'stopped' as const, availableQty: 0 }, '예약 접수 중지'],
+  ])('labels a preorder that is %s', (_name, overrides, label) => {
+    expect(productCardUnavailableLabel({ options: [option({ stockQty: 0, supply: supply(overrides) })] }, true)).toBe(label);
+  });
+
+  it('returns null for a really sold-out stock good, so the card keeps SOLD OUT', () => {
+    expect(productCardUnavailableLabel({ options: [option({ stockQty: 0, supply: stockSupply(0) })] }, true)).toBeNull();
+    expect(productCardUnavailableLabel({}, true)).toBeNull();
+    /* 재고 옵션이 섞이면 상세처럼 예약 문구를 쓰지 않는다. */
+    expect(productCardUnavailableLabel({ options: [option({ id: 'o1', stockQty: 0, supply: stockSupply(0) }), option({ id: 'o2', stockQty: 0, supply: scheduled })] }, true)).toBeNull();
+  });
+
+  it('puts the sale period before the preorder state, like the product detail', () => {
+    const salePeriod = { state: 'scheduled' as const, startsAt: '2026-12-01T00:00:00Z', endsAt: '2026-12-31T00:00:00Z', calculatedAt: NOW, nextChangeAt: '2026-12-01T00:00:00Z' };
+    expect(productCardUnavailableLabel({ salePeriod, options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 시작 전');
+    expect(productCardUnavailableLabel({ salePeriod: { ...salePeriod, state: 'ended', nextChangeAt: null } }, false)).toBe('판매 종료');
   });
 });

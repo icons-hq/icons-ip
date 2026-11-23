@@ -5,8 +5,7 @@ import { PromoCard } from '@/components/wc/PromoCard';
 import { SectionHeader } from '@/components/wc/SectionHeader';
 import { krw } from '@/lib/format';
 import { goodsImageBackground } from '@/lib/goods-image';
-import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
-import type { HomeGoodsBand, HomeGoodsCard } from '@/lib/home-catalog';
+import { homeCardUnavailableLabel, type HomeGoodsBand, type HomeGoodsCard } from '@/lib/home-catalog';
 import { imageBg } from '@/lib/media';
 
 /** ICONS PICK 카드 하나에 붙는 상품 행 수(Figma: 카드마다 2행). */
@@ -44,7 +43,7 @@ export function IconsPick({ bands, heartFor }: IconsPickProps) {
                 {band.goods.length > 0 ? (
                   <ul className="wc-x-pick__goods">
                     {band.goods.slice(0, ICONS_PICK_GOODS).map((good) => {
-                      const unavailable = goodsSaleUnavailableLabel(good.salePeriod) ?? (good.soldOut ? '품절' : null);
+                      const unavailable = homeCardUnavailableLabel(good) ?? (good.soldOut ? '품절' : null);
                       const { rate } = pdpPriceView(good);
                       return (
                         <li className="wc-x-pick__row" key={good.id}>

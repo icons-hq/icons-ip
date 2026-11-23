@@ -49,6 +49,8 @@ export interface PublicShoppingStoryGood {
   imageBackground: string;
   badge: string | null;
   soldOut: boolean;
+  /** 판매기간·예약 상태 문구(`productCardUnavailableLabel`). 공개 로더가 옵션 예약 상태로 채운다 — 지금 주문할 수 있거나 어드민 미리보기면 없다. */
+  unavailableLabel?: string;
 }
 export interface PublicShoppingStorySection {
   id: string;

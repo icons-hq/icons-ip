@@ -9,7 +9,7 @@ import type { PublicShoppingStorySummary } from './shopping-stories';
 import type { HomeHeroImageDim, HomeHeroTextColor } from './home-hero';
 import { COLLECTIBLE_FEATURE_IDS, type CollectibleFeatures } from './collectible-features';
 import { publicIpHref } from './ip-identity';
-import { productCardChips, type ProductCardChip } from './product-card-chips';
+import { productCardChips, productCardUnavailableLabel, type ProductCardChip } from './product-card-chips';
 
 export const MAX_HOME_PICKER_IPS = 5;
 
@@ -233,12 +233,25 @@ export interface HomeGoodsCard {
   imageBg: string;
   href: string;
   soldOut: boolean;
+  /**
+   * 판매기간·예약 상태 문구(`productCardUnavailableLabel`) — 카드 뷰모델은 옵션 예약 상태를 싣지 않으므로 서버가 채운다.
+   * 지금 주문할 수 있으면 없다. 옛 투영도 없고, 그때 화면은 `homeCardUnavailableLabel`로 판매기간만 본다.
+   */
+  unavailableLabel?: string;
   /** 목록 카드 별점(CL-02) — 공개 리뷰가 있을 때만. */
   reviewSummary?: GoodsReviewSummary;
   /** 카드 칩(예약판매·무료배송·캡슐토이·운영 배지). `productCardChips`가 서버에서 채운다(공용 부품 계약 §3). 옛 투영은 비어 있다. */
   chips?: ProductCardChip[];
   /** 상품이 속한 IP의 공개 주소(`/ip/<slug>`). 상품 모음 '전체보기'를 한 IP관으로 잇는 근거다. IP가 카탈로그에 없으면 null. */
   ipHref?: string | null;
+}
+
+/**
+ * 홈 카드(`HomeGoodsCard`)의 판매 불가 문구. 서버가 채운 `unavailableLabel`(예약 상태 포함)이 먼저고, 없으면 같은 함수로
+ * 판매기간만 본다 — 서버 판정이 판매기간을 먼저 보므로 둘은 어긋나지 않는다. null 이면서 `soldOut`이면 품절이다.
+ */
+export function homeCardUnavailableLabel(good: Pick<HomeGoodsCard, 'unavailableLabel' | 'salePeriod' | 'soldOut'>): string | null {
+  return good.unavailableLabel ?? productCardUnavailableLabel(good, good.soldOut);
 }
 
 /** 홈 스트립 배너(X SQUARE 홈) — 옛 종류 `announcement`를 되살려 이미지가 있는 첫 노출 행을 쓴다. 링크는 필수다(DB 규칙). */
@@ -352,6 +365,8 @@ export function resolveHomeGoodsCards(
     const good = goodsById.get(id);
     if (!good) continue;
     const ip = ipById.get(good.ip);
+    const soldOut = good.stock === 'soldout';
+    const unavailableLabel = productCardUnavailableLabel(good, soldOut);
     cards.push({
       id: good.id,
       name: good.name,
@@ -363,7 +378,8 @@ export function resolveHomeGoodsCards(
       badge: good.badge ?? null,
       imageBg: good.img,
       href: `/shop/${good.id}`,
-      soldOut: good.stock === 'soldout',
+      soldOut,
+      ...(unavailableLabel ? { unavailableLabel } : {}),
       chips: productCardChips(good),
       ipHref: ip ? publicIpHref({ id: ip.id, publicSlug: ip.publicSlug }) : null,
       ...(good.salePeriod ? { salePeriod: good.salePeriod } : {}),
