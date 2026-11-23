@@ -46,6 +46,14 @@ function orderItem(overrides: Partial<OrderListItem> = {}): OrderListItem {
 }
 
 describe('Orders', () => {
+  it('가상계좌 입금 대기 주문은 카드 주문이어도 목록 배지가 입금 대기다', () => {
+    const waiting = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'pending', awaitingVirtualAccount: true })]} />);
+    expect(waiting).toContain('>입금 대기</span>');
+    expect(waiting).not.toContain('결제 대기');
+    const plain = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'pending' })]} />);
+    expect(plain).toContain('>결제 대기</span>');
+  });
+
   it('payment 결과가 없으면 결제 배너를 렌더하지 않는다', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem()]} />);
 
@@ -98,6 +106,16 @@ describe('Orders', () => {
      실제로는 청구 없이 끝난 결제다(UX-2·AMT-5). */
   describe('원장에서 읽은 결제 결과', () => {
     const orderId = '22222222-2222-4222-8222-222222222222';
+
+    it('가상계좌 입금 대기는 실패가 아니라 입금 안내 화면으로 안내한다(ADR-0049)', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="checking" paymentFocus={{ orderId, outcome: 'awaiting_deposit' }} />,
+      );
+
+      expect(html).toContain('입금을 기다리고 있어요');
+      expect(html).toContain(`href="/orders/${orderId}/complete"`);
+      expect(html).not.toContain('결제가 완료되지 않았어요');
+    });
 
     it('시도 만료는 확인 중이 아니라 청구 없음과 다시 주문으로 안내한다', () => {
       const html = renderToStaticMarkup(

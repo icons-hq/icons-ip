@@ -92,7 +92,9 @@ function render({
   couponState = { selectedUserCouponId: null, coupons: [] },
   acknowledged = true,
   claimRestrictions,
+  virtualAccountEnabled = false,
 }: {
+  virtualAccountEnabled?: boolean;
   acknowledged?: boolean;
   claimRestrictions?: CheckoutClaimRestrictions | null;
   addressPrefill?: CheckoutAddressPrefill;
@@ -125,6 +127,7 @@ function render({
       couponState={couponState}
       paymentFailCode={paymentFailCode}
       claimRestrictions={claimRestrictions}
+      virtualAccountEnabled={virtualAccountEnabled}
       initialAcknowledged={acknowledged}
     />,
   );
@@ -169,6 +172,23 @@ describe('checkoutMethodAvailable', () => {
 
     expect(checkoutMethodAvailable('card', gates)).toBe(true);
     expect(checkoutMethodAvailable('bank_transfer', gates)).toBe(false);
+  });
+});
+
+describe('Checkout 토스 가상계좌 안내(ADR-0049)', () => {
+  it('가상계좌가 열려 있으면 카드 선택지가 같은 결제창의 무통장입금과 구매안전 안내를 말한다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: false, virtualAccountEnabled: true });
+    expect(html).toContain('카드·간편결제·무통장입금(가상계좌)');
+    expect(html).toContain('입금 기한까지 재고를 잡아 둬요');
+    expect(html).toContain('구매안전(에스크로) 서비스');
+  });
+
+  it('가상계좌가 닫혀 있으면 기존 문구 그대로다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: false });
+    expect(html).toContain('<strong>신용·체크카드</strong>');
+    expect(html).toContain('재고 선점 15분');
+    expect(html).not.toContain('가상계좌');
+    expect(html).not.toContain('에스크로');
   });
 });
 

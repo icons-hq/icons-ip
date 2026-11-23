@@ -4,6 +4,7 @@ import {
   sendOrderConfirmationEmail,
   sendOrderShippedEmail,
   sendRestockAlertEmails,
+  sendVirtualAccountIssuedEmail,
 } from './transactional.server';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -775,4 +776,85 @@ it('uses the v2 contractual totals and refuses inconsistent immutable item ident
   expect(text).toContain('착불 배송비 · 수령 시 별도: ₩3,000'); expect(text).toContain('총 부담금액: ₩19,000');
   mocks.send.mockClear(); mocks.items[0].id = 'wrong-line';
   expect((await sendOrderConfirmationEmail(ORDER_ID)).status).toBe('failed'); expect(mocks.send).not.toHaveBeenCalled();
+});
+
+describe('sendVirtualAccountIssuedEmail (ADR-0049)', () => {
+  const account = {
+    bankCode: '20', accountNumber: '1234567890123', dueAt: '2026-11-24T14:59:00.000Z',
+    amount: 27_000, useEscrow: true, state: 'awaiting',
+  };
+
+  function mockAccount(value: unknown) {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'claim_email_delivery') return { data: true, error: null };
+      if (name === 'service_order_virtual_account') return { data: value, error: null };
+      return { data: null, error: null };
+    });
+  }
+
+  it('pending 주문의 입금 대기 계좌를 주문당 한 키로 안내한다', async () => {
+    mocks.order = { ...mocks.order, status: 'pending' };
+    mockAccount(account);
+
+    const result = await sendVirtualAccountIssuedEmail(ORDER_ID);
+
+    expect(result.status).toBe('sent');
+    expect(rpcCalls('service_order_virtual_account')[0][1]).toEqual({ p_order_id: ORDER_ID });
+    expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
+      target_dedupe_key: `order_virtual_account:${ORDER_ID}`,
+      target_template: 'order_virtual_account',
+      target_recipient: 'buyer@example.com',
+    });
+    const { subject, text } = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(subject).toContain('입금 계좌를 안내해 드려요');
+    expect(text).toContain('1234567890123');
+    expect(text).toContain('구매안전서비스');
+  });
+
+  it.each(['deposited', 'checking', 'closed'])('계좌 상태가 %s이면 보내지 않는다', async (state) => {
+    mocks.order = { ...mocks.order, status: 'pending' };
+    mockAccount({ ...account, state });
+
+    const result = await sendVirtualAccountIssuedEmail(ORDER_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: `virtual_account_state_mismatch:${state}` });
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('pending이 아닌 주문(이미 입금 확인·취소)은 보내지 않는다', async () => {
+    mocks.order = { ...mocks.order, status: 'paid' };
+    mockAccount(account);
+
+    const result = await sendVirtualAccountIssuedEmail(ORDER_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'order_status_mismatch:paid' });
+    expect(rpcCalls('service_order_virtual_account')).toHaveLength(0);
+  });
+
+  it('발급된 계좌가 없으면 보내지 않는다', async () => {
+    mocks.order = { ...mocks.order, status: 'pending' };
+    mockAccount(null);
+    expect(await sendVirtualAccountIssuedEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'virtual_account_missing' });
+  });
+
+  it('이미 보낸 주문은 다시 보내지 않는다(멱등)', async () => {
+    mocks.order = { ...mocks.order, status: 'pending' };
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'claim_email_delivery') return { data: false, error: null };
+      if (name === 'service_order_virtual_account') return { data: account, error: null };
+      return { data: null, error: null };
+    });
+    expect(await sendVirtualAccountIssuedEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'already_delivered' });
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('조회가 실패해도 던지지 않고 로그를 남긴다', async () => {
+    mocks.order = { ...mocks.order, status: 'pending' };
+    mocks.rpc.mockImplementation(async (name: string) => (
+      name === 'service_order_virtual_account' ? { data: null, error: { message: 'boom' } } : { data: null, error: null }
+    ));
+    const result = await sendVirtualAccountIssuedEmail(ORDER_ID);
+    expect(result.status).toBe('failed');
+    expect(loggedLines().some((line) => line.includes('virtual account issued failed'))).toBe(true);
+  });
 });

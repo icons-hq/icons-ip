@@ -1,12 +1,35 @@
 import 'server-only';
 
-import { sendOrderConfirmationEmail } from '../email/transactional.server';
+import { after } from 'next/server';
+import { sendOrderConfirmationEmail, sendVirtualAccountIssuedEmail } from '../email/transactional.server';
 import { sendOrderConfirmationAlimtalk } from '../kakao/alimtalk/order-notices.server';
 import { createServiceClient } from '../supabase/service';
 import { createGoodsPaymentCheckout } from './goods-checkout';
 import { createGoodsPaymentAttemptRepository, createGoodsPaymentKeyModeRecorder } from './goods-checkout.server';
 import { getPaymentGateway, tossGatewayKeyMode, type PaymentCheckoutProvider } from './runtime-gateway';
 import { createRuntimeAttemptPaymentGateway, goodsReconciliationFinalizer } from '../subscriptions/payment-dispatch.server';
+
+/**
+ * 확정 부수효과(메일·알림톡)를 응답 뒤로 미룬다. 토스 웹훅은 10초 안에 응답해야 하는데 메일 발송이
+ * 그 예산을 쓰면 재전송이 오기 때문이다. 요청 범위 밖(크론·재정합 워커·테스트)에서는 after()가 던지므로
+ * 그때는 직접 기다린다. 작업은 절대 throw하지 않는 훅이라 어느 쪽이든 결제 확정을 흔들지 않는다.
+ */
+function runAfterResponse(work: () => Promise<unknown>): Promise<void> {
+  try {
+    after(async () => {
+      try {
+        await work();
+      } catch {
+        console.error('[payments] post-confirmation side effect failed');
+      }
+    });
+    return Promise.resolve();
+  } catch {
+    return work().then(() => undefined, () => {
+      console.error('[payments] post-confirmation side effect failed');
+    });
+  }
+}
 
 /**
  * Composition root kept outside the deep module so tests can supply Fake.
@@ -29,10 +52,13 @@ export function createRuntimeGoodsPaymentCheckout(
        발송 훅은 절대 throw하지 않고 email_deliveries 클레임으로 멱등이며(#180),
        이메일 env 미설정이면 조용히 건너뛰고 발송 이력에 실패로 남는다. 카카오 알림톡 주문 접수 안내도 같은 규율이다
        (기본 꺼짐, 클레임으로 한 번만 — lib/kakao/alimtalk/order-notices.server.ts). */
-    onApproved: async (attempt) => {
+    onApproved: attempt => runAfterResponse(async () => {
       /* 둘 다 throw하지 않는다. 승인 응답을 기다리는 사용자를 위해 차례로가 아니라 함께 보낸다. */
       await Promise.all([sendOrderConfirmationEmail(attempt.refId), sendOrderConfirmationAlimtalk(attempt.refId)]);
-    },
+    }),
+    /* 토스 가상계좌 발급(입금 대기, ADR-0049) — 입금 안내 메일. 재확인에서 다시 불려도 dedupe_key(주문당 1)가
+       한 통만 보낸다. 앱 알림은 DB finalizer가 같은 트랜잭션에서 남긴다. */
+    onAwaitingDeposit: attempt => runAfterResponse(() => sendVirtualAccountIssuedEmail(attempt.refId)),
     /* 토스 결제 준비는 이 배포의 키 모드를 시도에 남긴다(운영 배포만 — 그 밖은 null). 운영에 테스트 키가 물린 기간의
        승인은 DB가 출고 보류한다(supabase/migrations/20261118156000_order_fulfillment_holds.sql). 나이스페이·코페이는 실 MID다. */
     providerKeyMode: provider === 'toss' ? tossGatewayKeyMode : undefined,

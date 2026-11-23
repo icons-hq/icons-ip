@@ -16,6 +16,9 @@ export type NotificationType =
      금액·입금자명 코드·기한이 그때 정해지고, 이 알림을 놓치면 구매자는 어디로
      얼마를 보낼지 알 수 없다. */
   | 'order_bank_transfer_pending'
+  /* 토스 가상계좌 발급 안내(ADR-0049). 결제 확정 finalizer가 awaiting_deposit 전이와 같은 트랜잭션에서 남기고
+     링크는 /orders/{id}/complete(입금 안내 화면)다. */
+  | 'order_virtual_account_issued'
   /* 클레임 단계 변화(#252) — 접수·승인·거부·보류·입고·환불·재출고를 한 타입으로
      묶는다. 단계마다 타입을 나누면 DB CHECK와 이 union이 아홉 번 갈라진다. */
   | 'claim_updated'

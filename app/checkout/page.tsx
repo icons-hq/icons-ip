@@ -10,6 +10,7 @@ import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { loadCheckoutAddressPrefill, loadLatestPendingCheckoutOrderId } from '@/lib/checkout.server';
 import { loadCartCouponState } from '@/lib/coupons.server';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
+import { tossVirtualAccountCheckoutEnabled } from '@/lib/payments/runtime-gateway';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { deriveGoodsCartProvider, deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { checkoutDraftHref, checkoutDraftReturnHref, isClosedCheckoutDraft, normalizeCheckoutDraftId, type CheckoutDraft } from '@/lib/checkout-draft';
@@ -107,6 +108,8 @@ export default async function Page({ searchParams }: PageProps) {
   const cardProvider = await (draft ? deriveGoodsCartProvider(draft.lines.map(line => line.goodId)) : deriveUserCartProvider(auth.user.id))
     .catch(() => 'toss' as const);
   const paymentAvailable = goodsCheckoutPaymentsEnabled(auth.user.id, cardProvider);
+  /* 토스 가상계좌(무통장입금)가 열려 있어도 19금 굿즈 주문(나이스페이)에는 없다 — 안내 문구도 토스 카드 주문에만 쓴다. */
+  const virtualAccountEnabled = cardProvider === 'toss' && tossVirtualAccountCheckoutEnabled();
 
   /* 확정은 place_order 가 한다 — 주문서는 카트에 적용해 둔 선택을 미리 보여주고, 같은 선택(cart_coupon_selections)을 바꾸게 한다(R25). */
   const appliedCoupon = couponState.coupons.find(
@@ -115,7 +118,7 @@ export default async function Page({ searchParams }: PageProps) {
 
   if (transactionMode === 'unavailable') return <main className="wc-root checkout-page"><div className="wrap card"><h1>주문 조건을 확인하지 못했어요</h1><p>잠시 후 다시 확인해주세요.</p><Link href="/cart">장바구니로 돌아가기</Link></div></main>;
   if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: catalog.goods, ips: catalog.ips }} addressPrefill={addressPrefill}
-    resumeOrderId={resumeOrderId} paymentAvailable={paymentAvailable} bankTransferAvailable={await bankTransferCheckoutEnabled()}
+    resumeOrderId={resumeOrderId} paymentAvailable={paymentAvailable} bankTransferAvailable={await bankTransferCheckoutEnabled()} virtualAccountEnabled={virtualAccountEnabled}
     userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} draft={draft} claimRestrictions={claimRestrictions} />;
 
   return (
@@ -127,6 +130,7 @@ export default async function Page({ searchParams }: PageProps) {
          주문 액션이 실제 카트로 다시 판정하고, 서버 prepare가 최종 gate다. */
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={await bankTransferCheckoutEnabled()}
+      virtualAccountEnabled={virtualAccountEnabled}
       appliedCoupon={appliedCoupon}
       couponState={couponState}
       paymentFailCode={paymentFailCode}

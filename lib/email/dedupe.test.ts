@@ -7,6 +7,7 @@ import {
   orderEmailDedupeKey,
   parseOrderEmailDedupeKey,
   restockAlertEmailDedupeKey,
+  virtualAccountEmailDedupeKey,
 } from './dedupe';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -148,4 +149,20 @@ it('recipient keys preserve the audience without accepting ambiguous shipment re
     .toEqual({ template: 'order_shipped', orderId: ORDER_ID, shipmentId: ORDER_ID, audience: 'recipient' });
   expect(parseOrderEmailDedupeKey(`order_shipped:${ORDER_ID}:recipient`)).toBeNull();
   expect(parseOrderEmailDedupeKey(`order_confirmation:${ORDER_ID}:recipient:recipient`)).toBeNull();
+});
+
+describe('virtualAccountEmailDedupeKey', () => {
+  it('템플릿 이름 목록에 order_virtual_account가 있다 — DB CHECK와 같은 집합이다', () => {
+    expect(EMAIL_TEMPLATE_NAMES).toContain('order_virtual_account');
+    expect(isEmailTemplateName('order_virtual_account')).toBe(true);
+  });
+
+  it('dedupe_key는 주문당 하나다', () => {
+    expect(virtualAccountEmailDedupeKey(ORDER_ID)).toBe(`order_virtual_account:${ORDER_ID}`);
+  });
+
+  it('주문 메일 재발송 파서의 대상이 아니다', () => {
+    expect(parseOrderEmailDedupeKey(virtualAccountEmailDedupeKey(ORDER_ID))).toBeNull();
+    expect(isOrderEmailTemplateName('order_virtual_account')).toBe(false);
+  });
 });

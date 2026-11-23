@@ -5,6 +5,8 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
+import { isAwaitingDepositAttempt } from '@/lib/payments/virtual-account';
+import { orderCompleteHref } from '@/lib/routes';
 import { getBankTransferAccount } from '@/lib/payments/bank-transfer.server';
 
 export const metadata: Metadata = {
@@ -30,6 +32,11 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) notFound();
+
+  /* 토스 가상계좌 입금 대기(ADR-0049): 이미 결제가 잡혀 있어 위젯을 다시 열지 않는다. 입금 안내는 주문 완료 화면이 보인다. */
+  if (order.status === 'pending' && order.paymentMethod === 'card' && isAwaitingDepositAttempt(order.paymentAttempt)) {
+    redirect(orderCompleteHref(order.id));
+  }
 
   /* 토스 failUrl은 실패한 그 주문의 이 화면으로 돌아온다(?code=…&message=…). 루트
      /checkout과 같은 규칙으로 code는 형식만 통과시키고, message는 아예 읽지 않는다. */

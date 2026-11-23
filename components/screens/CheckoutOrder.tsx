@@ -195,7 +195,8 @@ export function CheckoutOrder({
      로그인·주문 소유권·금액·재고 예약을 다시 확인하고 결제 시도를 준비한다. 유효 시간 안의
      시도는 같은 시도를 다시 쓴다. 실패하면 사유와 다시 시도 버튼을 보인다. */
   const autoPrepareStarted = useRef(false);
-  const autoPrepareReady = state === 'payable' && !isBankTransfer && now !== null
+  /* 토스 가상계좌 입금 대기 주문은 결제를 다시 준비하지 않는다(준비가 거절된다). 주문서 페이지가 완료 화면으로 보내지만 방어한다. */
+  const autoPrepareReady = state === 'payable' && !isBankTransfer && order.paymentAttempt?.state !== 'awaiting_deposit' && now !== null
     && !prepareState.prepared && !prepareState.error;
   useEffect(() => {
     if (!autoPrepareReady || autoPrepareStarted.current) return;

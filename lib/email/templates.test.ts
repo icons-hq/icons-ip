@@ -5,6 +5,7 @@ import {
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
   renderRestockAlertEmail,
+  renderVirtualAccountIssuedEmail,
   restockAlertSentence,
 } from './templates';
 
@@ -369,4 +370,38 @@ it('defensively suppresses recipient PII and tracking even when a gift payer cal
   const shipping = renderOrderShippedEmail(shippedInput({ giftDelivery: true, trackingNumber: '987654321000', trackingUrl: 'https://private-tracking.test/track' }));
   expect(shipping.text).not.toContain('987654321000'); expect(shipping.html).not.toContain('private-tracking.test');
   expect(shipping.text).toContain('구매자에게 공개되지 않습니다');
+});
+
+describe('renderVirtualAccountIssuedEmail (ADR-0049)', () => {
+  const input = {
+    orderId: ORDER_ID,
+    bankCode: '20',
+    accountNumber: '1234567890123',
+    amount: 31_000,
+    dueAt: '2026-11-24T14:59:00.000Z',
+    useEscrow: false,
+    orderUrl: `https://iconsip.com/orders/${ORDER_ID}/complete`,
+  };
+
+  it('제목에 주문번호를, 본문에 은행·계좌·금액·한국 시간 기한을 싣는다', () => {
+    const { subject, text, html } = renderVirtualAccountIssuedEmail(input);
+    expect(subject).toBe('[ICONS] 입금 계좌를 안내해 드려요 (주문번호 1F2A3B4C)');
+    for (const body of [text, html]) {
+      expect(body).toContain('우리은행');
+      expect(body).toContain('1234567890123');
+      expect(body).toContain('₩31,000');
+      expect(body).toContain('11. 24. 23:59');
+    }
+    expect(text).toContain('입금자명은 주문자와 달라도');
+    expect(text).toContain('자동으로 취소');
+    expect(text).not.toContain('예금주');
+    expect(text).not.toContain('결제가 확인됐');
+  });
+
+  it('에스크로를 고른 결제만 구매안전서비스 안내를 싣는다', () => {
+    expect(renderVirtualAccountIssuedEmail(input).text).not.toContain('구매안전서비스');
+    const escrow = renderVirtualAccountIssuedEmail({ ...input, useEscrow: true });
+    expect(escrow.text).toContain('구매안전서비스(에스크로)');
+    expect(escrow.text).toContain('구매확정 메일');
+  });
 });

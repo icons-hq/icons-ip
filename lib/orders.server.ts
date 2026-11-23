@@ -21,7 +21,7 @@ import { isOrderClaimStage, isOrderClaimType } from './orders/claims';
 import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
-import { loadOrderRetrySources } from './checkout.server';
+import { loadAwaitingDepositOrderIds, loadOrderRetrySources } from './checkout.server';
 import { attachRandomItemsToShipments, readMyOrderItems } from './orders/customer-items.server';
 import { loadOrderLineViews, type OrderLineOrderInput } from './orders/order-lines.server';
 
@@ -180,10 +180,13 @@ export async function loadOrders(userId: string, {includePending=false, withLine
   const retryCandidates = orderRows.filter((order) => (normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card') === 'card'
     && (order.status === 'pending' || order.status === 'canceled'));
   /* 랜덤 판매 굿즈(D5②)의 배정 행은 고객 직접 읽기에서 빠진다 — 마스킹 RPC로 읽어야 수량·요약이 맞다. */
-  const [{ data: itemData, error: itemError }, retrySources] = await Promise.all([
+  /* 토스 가상계좌 입금 대기(ADR-0049)는 결제수단이 card로 남아 있어 결제 시도 상태로 가린다. */
+  const depositCandidates = retryCandidates.filter((order) => order.status === 'pending');
+  const [{ data: itemData, error: itemError }, retrySources, awaitingDepositIds] = await Promise.all([
     readMyOrderItems<OrderListItemRow&{id:string}>(supabase, orderIds,
       withLines ? 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode,variant_id,variant_name_snapshot' : 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode'),
     loadOrderRetrySources(userId, retryCandidates.map((order) => order.id)),
+    loadAwaitingDepositOrderIds(userId, depositCandidates.map((order) => order.id)),
   ]);
 
   if (itemError) {
@@ -236,7 +239,9 @@ export async function loadOrders(userId: string, {includePending=false, withLine
       itemCount: summary.itemCount,
       paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
       claim: latestClaimByOrderId.get(order.id) ?? null,
-      retry: retrySources.get(order.id.toLowerCase()) ?? null,
+      /* 입금을 기다리는 주문에는 '다시 결제' 진입을 내밀지 않는다 — 결제는 잡혀 있고 입금만 남았다. */
+      retry: awaitingDepositIds.has(order.id.toLowerCase()) ? null : retrySources.get(order.id.toLowerCase()) ?? null,
+      ...(awaitingDepositIds.has(order.id.toLowerCase()) ? { awaitingVirtualAccount: true } : {}),
       ...(linesByOrderId?.get(order.id) ? { lines: linesByOrderId.get(order.id) } : {}),
     };
   })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));

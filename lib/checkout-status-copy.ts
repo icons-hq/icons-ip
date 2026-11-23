@@ -236,6 +236,21 @@ export function orderDetailCardPaymentNotice(
   };
   if (!reading) return undetermined;
 
+  /* 토스 가상계좌 입금 대기(ADR-0049): 결제는 잡혀 있고 입금만 남았다. 결제 화면이 아니라 입금 안내 화면으로 보낸다. */
+  if (reading.awaitingDeposit) {
+    return {
+      header: {
+        title: '입금을 기다리고 있어요',
+        body: '안내된 가상계좌로 기한 안에 입금하면 자동으로 확인되고 주문이 확정돼요. 진행하지 않을 주문은 아래에서 취소할 수 있어요.',
+      },
+      banner: {
+        title: '입금을 기다리고 있어요',
+        body: '가상계좌 번호와 입금 기한은 입금 안내 화면에서 확인할 수 있어요.',
+        link: { href: `/orders/${orderId}/complete`, label: '입금 안내 보기' },
+      },
+    };
+  }
+
   switch (reading.state) {
     case 'payable':
       return {

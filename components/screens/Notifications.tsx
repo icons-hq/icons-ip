@@ -6,6 +6,7 @@ import { MypageShell } from '@/components/wc/MypageShell';
 const TYPE_LABELS: Record<NotificationType, string> = {
   order_paid: '주문',
   order_bank_transfer_pending: '입금',
+  order_virtual_account_issued: '입금',
   order_shipping: '배송',
   order_delivered: '배송',
   purchase_confirmation: '구매확정',
@@ -28,6 +29,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
 const TYPE_ICONS: Record<NotificationType, string> = {
   order_paid: 'bag',
   order_bank_transfer_pending: 'bag',
+  order_virtual_account_issued: 'bag',
   order_shipping: 'bag',
   order_delivered: 'bag',
   purchase_confirmation: 'bag',

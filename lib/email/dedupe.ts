@@ -10,6 +10,7 @@ export const EMAIL_TEMPLATE_NAMES = [
   'order_shipped',
   'inquiry_answered',
   'restock_alert',
+  'order_virtual_account',
 ] as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATE_NAMES)[number];
@@ -41,6 +42,11 @@ export function isOrderEmailTemplateName(value: string): value is OrderEmailTemp
 
 export function isEmailDeliveryStatus(value: string): value is EmailDeliveryStatus {
   return (EMAIL_DELIVERY_STATUSES as readonly string[]).includes(value);
+}
+
+/** 토스 가상계좌 입금 안내 메일의 dedupe_key. 주문당 한 번(재확인에서 다시 불려도 1통)이다. */
+export function virtualAccountEmailDedupeKey(orderId: string): string {
+  return `order_virtual_account:${orderId}`;
 }
 
 export type OrderEmailAudience = 'payer' | 'recipient';

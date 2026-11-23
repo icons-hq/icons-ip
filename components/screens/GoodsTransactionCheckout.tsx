@@ -1,4 +1,5 @@
 'use client';
+import { cardMethodCopy, VIRTUAL_ACCOUNT_ESCROW_CHECKOUT_NOTICE } from '@/lib/payments/virtual-account';
 import { couponBenefitLabel, couponDisplayState, type UserCouponSummary } from '@/lib/coupons';
 import type { CouponCombinationPolicy } from '@/lib/coupon-combinations';
 import { FULFILLMENT_METHOD_LABELS, fulfillmentNeedsAddress, type FulfillmentMethod } from '@/lib/goods-fulfillment';
@@ -60,7 +61,7 @@ interface Props {
   accountId: string; catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
   /** 배송지 미리 채우기(주소록 기본 배송지 → 결제를 마친 직전 주문)와 주소록 — L7 · 10/14 S6a. */
   addressPrefill: CheckoutAddressPrefill;
-  paymentAvailable: boolean; bankTransferAvailable: boolean; resumeOrderId: string | null;
+  paymentAvailable: boolean; bankTransferAvailable: boolean; virtualAccountEnabled?: boolean; resumeOrderId: string | null;
   coupons?: UserCouponSummary[]; couponPolicy?: CouponCombinationPolicy | null;
   userCouponId: string | null; paymentFailCode?: string | null;
   /**
@@ -72,7 +73,7 @@ interface Props {
   claimRestrictions?: CheckoutClaimRestrictions | null;
 }
 
-export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode, draft = null, claimRestrictions = EMPTY_CHECKOUT_CLAIM_RESTRICTIONS }: Props) {
+export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, virtualAccountEnabled = false, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode, draft = null, claimRestrictions = EMPTY_CHECKOUT_CLAIM_RESTRICTIONS }: Props) {
   const router = useRouter(), cart = useCart();
   const direct = draft?.source === 'direct';
   /* 바로구매 주문서의 안내는 장바구니가 아니라 굿즈 상세(쿠폰은 이 주문서)로 돌려보낸다(ADR-0030). */
@@ -280,11 +281,13 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
           {/* legacy 주문서와 같은 결제수단 선택지 마크업·스타일을 쓴다 — 사유 문구가 선택지 이름과 붙지 않게(10/14 S26). */}
           <fieldset disabled={busy} className="checkout-method"><legend>결제수단</legend>{(['card', 'bank_transfer'] as const).map(value => <label className="checkout-method-option" key={value}><input type="radio" name="paymentMethod" value={value} checked={effectiveMethod === value} disabled={!selectable[value]} onChange={() => setMethod(value)} />
             <span>
-              <strong>{value === 'card' ? '신용·체크카드' : '무통장 입금'}</strong>
+              <strong>{value === 'card' ? cardMethodCopy(virtualAccountEnabled, '').label : '무통장 입금'}</strong>
+              {value === 'card' && virtualAccountEnabled && <small>{cardMethodCopy(true, '').note}</small>}
               {/* 두 주문서가 같은 사유 문구를 쓴다(S26). */}
               {value === 'bank_transfer' && <small>{bankTransferMethodNote({ accountConfigured: bankTransferAvailable, goodsAllow: currentDisplay ? currentDisplay.paymentMethods.bankTransfer : null })}</small>}
             </span>
           </label>)}</fieldset>
+          {virtualAccountEnabled && <p className="money-caption">{VIRTUAL_ACCOUNT_ESCROW_CHECKOUT_NOTICE}</p>}
           <button type="button" className="btn btn-ghost" disabled={!input || busy || cart.pending} onClick={quotes.refresh}>금액 다시 확인</button>
           <PurchaseAcknowledgement checked={acknowledged} disabled={busy} hasRestrictedGoods={restrictedCheckoutGoods(visibleItems.map(item => item.goodId), claimRestrictions ?? EMPTY_CHECKOUT_CLAIM_RESTRICTIONS).length > 0} claimUnavailable={claimRestrictions === null} onChange={setAcknowledged} />
           <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}</button>

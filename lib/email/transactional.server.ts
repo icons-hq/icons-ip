@@ -17,6 +17,7 @@ import {
   orderEmailDedupeKey,
   shipmentEmailDedupeKey,
   restockAlertEmailDedupeKey,
+  virtualAccountEmailDedupeKey,
   type EmailTemplateName,
   type OrderEmailTemplateName,
   type OrderEmailAudience,
@@ -28,6 +29,7 @@ import {
   renderOrderShippedEmail,
   renderGiftRecipientEmail,
   renderRestockAlertEmail,
+  renderVirtualAccountIssuedEmail,
   type OrderEmailItem,
   type RenderedEmail,
 } from './templates';
@@ -357,6 +359,71 @@ export function sendOrderConfirmationEmail(orderId: string, audience?: OrderEmai
         : renderGiftRecipientEmail({ orderId, orderNumber: context.orderNumber, stage: 'confirmation', items: context.items.map(({ name, variantName, qty }) => ({ name, variantName, qty })),
           address: context.address!, giftUrl: `${siteUrl()}/gifts` }),
     }));
+  });
+}
+
+interface VirtualAccountSnapshot {
+  bankCode: string;
+  accountNumber: string;
+  dueAt: string;
+  amount: number;
+  useEscrow: boolean;
+  state: string;
+}
+
+function parseVirtualAccountSnapshot(value: unknown): VirtualAccountSnapshot | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.bankCode !== 'string' || typeof row.accountNumber !== 'string'
+    || typeof row.dueAt !== 'string' || typeof row.amount !== 'number'
+    || typeof row.state !== 'string') return null;
+  return {
+    bankCode: row.bankCode, accountNumber: row.accountNumber, dueAt: row.dueAt,
+    amount: row.amount, useEscrow: row.useEscrow === true, state: row.state,
+  };
+}
+
+/**
+ * 토스 가상계좌 입금 안내 메일(ADR-0049). 계좌 발급(awaiting_deposit 전이) 직후 불린다.
+ *
+ * 주문이 pending이고 계좌가 아직 입금을 기다릴 때(state=awaiting)만 보낸다 — 입금이 이미 확인됐거나
+ * 기한이 지났다면 "입금해 주세요"는 거짓 고지다. 재확인에서 다시 불려도 dedupe_key가 주문당 하나라 1통이다.
+ * 다른 훅과 같이 절대 throw하지 않는다.
+ */
+export function sendVirtualAccountIssuedEmail(orderId: string): Promise<TransactionalEmailResult> {
+  return safely('virtual account issued', `order:${orderId}`, async () => {
+    const blocked = guardedEnvironment();
+    if (blocked) return blocked;
+    const service = createServiceClient();
+    const { data: orderData, error: orderError } = await service
+      .from('orders').select('id,order_number,user_id,status').eq('id', orderId).maybeSingle();
+    if (orderError) throw new Error('virtual_account_email_order_load_failed');
+    const order = orderData as { id: string; order_number?: string | null; user_id: string; status: string } | null;
+    if (!order) return { status: 'skipped', reason: 'order_missing' };
+    if (order.status !== 'pending') return { status: 'skipped', reason: `order_status_mismatch:${order.status}` };
+
+    const { data: vaData, error: vaError } = await service.rpc('service_order_virtual_account', { p_order_id: orderId });
+    if (vaError) throw new Error('virtual_account_email_account_load_failed');
+    const account = parseVirtualAccountSnapshot(vaData);
+    if (!account) return { status: 'skipped', reason: 'virtual_account_missing' };
+    if (account.state !== 'awaiting') return { status: 'skipped', reason: `virtual_account_state_mismatch:${account.state}` };
+
+    const { data: profile, error: profileError } = await service
+      .from('profiles').select('email').eq('id', order.user_id).maybeSingle();
+    if (profileError) throw new Error('virtual_account_email_recipient_load_failed');
+    const email = (profile as { email?: unknown } | null)?.email;
+    if (typeof email !== 'string' || !email.includes('@')) return { status: 'skipped', reason: 'recipient_missing' };
+
+    return deliver(service, {
+      dedupeKey: virtualAccountEmailDedupeKey(orderId),
+      template: 'order_virtual_account',
+      recipient: email,
+      rendered: renderVirtualAccountIssuedEmail({
+        orderId: order.id, orderNumber: order.order_number ?? null,
+        bankCode: account.bankCode, accountNumber: account.accountNumber, amount: account.amount,
+        dueAt: account.dueAt, useEscrow: account.useEscrow, orderUrl: `${siteUrl()}/orders/${order.id}/complete`,
+      }),
+    });
   });
 }
 
