@@ -136,6 +136,7 @@ const REFUND_ACCOUNT_NUMBER = /^[0-9]{6,20}$/;
 // 이 허용 목록과 상점(MID) 대조는 결제 UI 바인딩(TOSS_WIDGET_VARIANT_KEY)이 켜졌을 때만
 // 적용한다 — ICONS 결제 UI는 카드·간편결제만 노출하도록 결제 어드민에서 만들고, 이 가드는 그
 // 설정이 틀렸을 때의 방어선이다. 바인딩이 꺼져 있으면(DEFAULT 결제 UI) 지금 동작 그대로다.
+// 계좌이체는 가상계좌 운영 스위치가 켜진 굿즈 주문에서만 따로 받는다(transferAccepted, ADR-0049 2026-11-23 보강).
 const ALLOWED_PAYMENT_METHODS = new Set(['카드', '간편결제']);
 // 허용 밖이지만 승인 직후 전액 취소가 문서상 성립하는 수단. 결제수단 정책(공식문서 17
 // /guides/v2/get-started/payment-methods)과 취소 가이드(공식문서 8 /guides/v2/cancel-payment):
@@ -716,6 +717,16 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   }
 
   /**
+   * 계좌이체 승인(DONE)을 받는가(ADR-0049 2026-11-23 보강) — 가상계좌와 같은 운영 스위치·결제 UI 바인딩·굿즈 주문일 때만.
+   * 계좌이체는 승인 즉시 출금되고(입금 대기 없음) 환불은 취소 API가 출금 계좌로 돌려준다(환불 계좌 불필요, 문서 129).
+   * 에스크로를 고른 결제는 배송 등록 작업(private.toss_escrow_deliveries)이 승인 증거의 결제수단으로 대상을 잡는다.
+   * 스위치가 꺼졌거나 티켓이면 지금 가드(승인 직후 전액 취소, cancelDisallowedMethod)다.
+   */
+  function transferAccepted(attempt: PaymentAttempt) {
+    return virtualAccountEnabled && binding !== null && attempt.purpose === 'order';
+  }
+
+  /**
    * 코어 API 호출의 저수준 계층. 전송 실패(타임아웃·네트워크·과대 응답)는 throw하고,
    * 본문이 JSON이 아닌 응답은 상태 코드를 보존한 채 parsed:false로 돌려준다 — 401·403은
    * 본문 없이도 설정 오류로 읽어야 하기 때문이다(inquireByOrderId).
@@ -1122,6 +1133,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         resultCode: 'DONE_virtual_account',
         ...(safeString(payment.method, 32) ? { paymentMethod: payment.method } : {}),
       });
+    }
+    if (payment.method === '계좌이체' && transferAccepted(attempt)) {
+      return baseOutcome(attempt, 'approved', reasonCode, approvedEvidence(payment));
     }
     if (
       binding !== null

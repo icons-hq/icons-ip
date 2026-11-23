@@ -286,12 +286,12 @@ function applyPartialReturnTermsRevision(
     document.effectiveDate = revision.effectiveDate;
     document.revisionChanges = PARTIAL_RETURN_CHANGES[slug];
   } else if (revision && partialReturnTermsRevisionAnnounced(today, revision)) {
-    document.pendingRevision = {
+    addPendingRevision(document, {
       announcedDate: revision.announcedDate,
       effectiveDate: revision.effectiveDate,
       heading: '일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내',
       changes: PARTIAL_RETURN_CHANGES[slug],
-    };
+    });
   }
 }
 
@@ -537,30 +537,31 @@ function applyAlimtalkPrivacyRevision(document: LegalDocument, today: string, re
     document.revisionChanges = ALIMTALK_PRIVACY_CHANGES;
     delete document.pendingRevision;
   } else if (revision && alimtalkPrivacyRevisionAnnounced(today, revision)) {
-    document.pendingRevision = {
+    addPendingRevision(document, {
       announcedDate: revision.announcedDate,
       effectiveDate: revision.effectiveDate,
       heading: '카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내',
       changes: ALIMTALK_PRIVACY_CHANGES,
-    };
+    });
   }
 }
 
-/* 예약 개정(이용약관·개인정보처리방침·배송·반품 정책) — 토스 가상계좌(무통장입금)와 구매안전서비스(에스크로)(ADR-0049,
+/* 예약 개정(이용약관·개인정보처리방침·배송·반품 정책) — 토스 계좌이체·가상계좌(무통장입금)와 구매안전서비스(에스크로)(ADR-0049,
  * lib/legal/virtual-account-terms-revision.ts). 회사 계좌로 직접 받는 무통장 입금(제11조의2·배송 정책 '무통장 입금 기한')은 건드리지 않는다.
  * 앵커는 다른 예약 개정이 바꾸지 않는 문장·행·조문 제목만 쓴다 — 다른 개정의 시행 여부와 관계없이 시행일 상태를 만들 수 있다.
  * 앵커가 없거나 둘 이상이면 시행일 상태를 만드는 순간 던진다(테스트가 그 상태를 만든다). */
 const VIRTUAL_ACCOUNT_TERMS_TOSS_FROM = '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드 또는 간편결제로 지급할 수 있습니다.';
 const VIRTUAL_ACCOUNT_TERMS_TOSS_TO =
-  '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드, 간편결제 또는 가상계좌(무통장입금)로 지급할 수 있습니다. 가상계좌는 굿즈 주문에만 제공하며, 팝업 티켓과 19금 굿즈가 담긴 주문에는 제공하지 않습니다.';
+  '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다. 계좌이체와 가상계좌는 굿즈 주문에만 제공하며, 팝업 티켓과 19금 굿즈가 담긴 주문에는 제공하지 않습니다.';
 const VIRTUAL_ACCOUNT_TERMS_PARAGRAPHS = [
   '가상계좌로 지급하는 이용자는 결제 화면과 주문 화면에 안내된 은행·계좌번호·금액으로 입금 기한 안에 입금해야 합니다. 가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되며, 기한 안에 입금되지 않으면 주문은 자동으로 취소되고 선점된 수량은 복원됩니다. 이 경우 지급된 대금이 없으므로 환급 절차도 없습니다.',
-  '배송이 필요한 굿즈를 가상계좌로 지급하는 이용자는 결제대행사인 토스페이먼츠 주식회사가 제공하는 구매안전서비스(결제대금예치, 에스크로)를 선택해 이용할 수 있습니다. 구매안전서비스를 선택한 결제의 대금은 이용자가 굿즈를 받고 구매를 확정할 때까지 결제대행사가 보관하며, 구매 확정과 취소 신청은 결제대행사가 보내는 안내에 따릅니다.',
+  '배송이 필요한 굿즈를 계좌이체 또는 가상계좌로 지급하는 이용자는 결제대행사인 토스페이먼츠 주식회사가 제공하는 구매안전서비스(결제대금예치, 에스크로)를 선택해 이용할 수 있습니다. 구매안전서비스를 선택한 결제의 대금은 이용자가 굿즈를 받고 구매를 확정할 때까지 결제대행사가 보관하며, 구매 확정과 취소 신청은 결제대행사가 보내는 안내에 따릅니다.',
   '가상계좌로 지급한 대금을 입금 뒤 취소·환급하는 경우 회사는 결제대행사를 통해 이용자가 알려준 환급 계좌(은행, 계좌번호, 예금주)로 환급하며, 환급 계좌 정보의 제공은 환급의 전제가 됩니다. 결제대행사는 환급 전에 예금주를 확인하며, 은행 처리에 따라 환급까지 영업일 기준 2일 정도 걸릴 수 있습니다.',
+  '계좌이체로 지급한 대금을 취소·환급하는 경우 회사는 결제대행사를 통해 대금이 출금된 계좌로 돌려드리며, 별도의 환급 계좌를 받지 않습니다.',
 ];
 const VIRTUAL_ACCOUNT_PRIVACY_TOSS_FROM = '굿즈·티켓 카드·간편결제 처리, 결제 취소와 환급 처리';
 const VIRTUAL_ACCOUNT_PRIVACY_TOSS_TO =
-  '굿즈·티켓 카드·간편결제와 굿즈 가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 결제 취소와 환급(환급 계좌 확인 포함) 처리';
+  '굿즈·티켓 카드·간편결제와 굿즈 계좌이체·가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 결제 취소와 환급(환급 계좌 확인 포함) 처리';
 /* 결제 화면(토스 결제 UI)에서 구매자가 입력한 환불 계좌는 승인 응답으로 받아 입금 뒤 환불에 쓰고 발급 180일 뒤 지운다
  * (supabase/migrations/20261125090100_toss_virtual_account_awaiting_deposit.sql private.payment_attempt_virtual_accounts). */
 const VIRTUAL_ACCOUNT_PRIVACY_REFUND_ROW = [
@@ -575,25 +576,25 @@ const VIRTUAL_ACCOUNT_SHIPPING_DEADLINE_ROW = [
   '결제 화면과 주문 화면에 안내된 입금 기한(보통 주문 후 24시간). 기한 안에 입금되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.',
 ];
 const VIRTUAL_ACCOUNT_SHIPPING_REFUND_PARAGRAPH =
-  '가상계좌로 결제한 주문을 입금 뒤 취소·반품하는 경우에도 결제 화면 또는 반품·취소 신청 화면에서 입력한 환급 계좌로 환급하므로, 환급 계좌가 없으면 환급을 진행할 수 없습니다. 결제대행사가 예금주를 확인한 뒤 송금하며, 은행 처리에 영업일 기준 2일 정도 걸릴 수 있습니다. 결제 화면에서 입력한 환급 계좌는 결제대행사가 회사에 전달하며 가상계좌 발급일부터 180일이 지나면 파기합니다.';
+  '가상계좌로 결제한 주문을 입금 뒤 취소·반품하는 경우에도 결제 화면 또는 반품·취소 신청 화면에서 입력한 환급 계좌로 환급하므로, 환급 계좌가 없으면 환급을 진행할 수 없습니다. 결제대행사가 예금주를 확인한 뒤 송금하며, 은행 처리에 영업일 기준 2일 정도 걸릴 수 있습니다. 결제 화면에서 입력한 환급 계좌는 결제대행사가 회사에 전달하며 가상계좌 발급일부터 180일이 지나면 파기합니다. 계좌이체로 결제한 주문은 환급 계좌 없이 결제대행사를 통해 대금이 출금된 계좌로 환급합니다.';
 
 const VIRTUAL_ACCOUNT_REASON =
-  '개정 사유 — 굿즈 대금을 결제대행사(토스페이먼츠)가 발급하는 가상계좌(무통장입금)로도 받고, 현금성 결제에 구매안전서비스(결제대금예치, 에스크로)를 제공하기 위해 지급 방법·결제 확정 시점·환급 절차와 개인정보 처리 내용을 밝힙니다.';
+  '개정 사유 — 굿즈 대금을 결제대행사(토스페이먼츠)를 통한 계좌이체와 결제대행사가 발급하는 가상계좌(무통장입금)로도 받고, 현금성 결제에 구매안전서비스(결제대금예치, 에스크로)를 제공하기 위해 지급 방법·결제 확정 시점·환급 절차와 개인정보 처리 내용을 밝힙니다.';
 
 const VIRTUAL_ACCOUNT_CHANGES: Record<LegalDocumentSlug, string[]> = {
   terms: [
     VIRTUAL_ACCOUNT_REASON,
-    '제11조(지급방법): 토스페이먼츠 주식회사를 통한 지급 방법에 가상계좌(무통장입금)를 더합니다(굿즈 주문만 — 팝업 티켓과 19금 굿즈가 담긴 주문 제외). 가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되고, 입금 기한 안에 입금되지 않으면 주문이 자동 취소됩니다. 구매안전서비스(에스크로)를 선택할 수 있고, 입금 뒤 취소·환급은 이용자가 알려준 환급 계좌로 합니다. 회사 계좌로 직접 입금하는 무통장 입금(제11조의2)은 바뀌지 않습니다.',
+    '제11조(지급방법): 토스페이먼츠 주식회사를 통한 지급 방법에 계좌이체와 가상계좌(무통장입금)를 더합니다(굿즈 주문만 — 팝업 티켓과 19금 굿즈가 담긴 주문 제외). 가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되고, 입금 기한 안에 입금되지 않으면 주문이 자동 취소됩니다. 계좌이체·가상계좌 모두 구매안전서비스(에스크로)를 선택할 수 있고, 가상계좌 입금 뒤 취소·환급은 이용자가 알려준 환급 계좌로, 계좌이체 취소·환급은 대금이 출금된 계좌로 합니다. 회사 계좌로 직접 입금하는 무통장 입금(제11조의2)은 바뀌지 않습니다.',
   ],
   privacy: [
     VIRTUAL_ACCOUNT_REASON,
     '제1조(수집하는 개인정보 항목과 수집 방법)에 가상계좌 결제 화면에서 입력한 환급 계좌(은행, 계좌번호, 예금주 — 가상계좌 발급일부터 180일 뒤 파기)를 더합니다.',
-    '제5조(개인정보 처리업무의 위탁)의 토스페이먼츠 주식회사 위탁 업무에 가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 환급 계좌 확인을 더합니다.',
+    '제5조(개인정보 처리업무의 위탁)의 토스페이먼츠 주식회사 위탁 업무에 계좌이체·가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 환급 계좌 확인을 더합니다.',
   ],
   shipping: [
     VIRTUAL_ACCOUNT_REASON,
     '1. 배송 안내에 가상계좌 입금 기한을 더하고, 가상계좌 주문은 결제대행사가 입금을 확인한 날이 결제 확정일임을 밝힙니다.',
-    '7. 환급 계좌: 가상계좌로 결제한 주문을 입금 뒤 취소·반품하면 입력한 환급 계좌로 환급하고, 결제 화면에서 입력한 환급 계좌는 가상계좌 발급일부터 180일 뒤 파기합니다.',
+    '7. 환급 계좌: 가상계좌로 결제한 주문을 입금 뒤 취소·반품하면 입력한 환급 계좌로 환급하고, 결제 화면에서 입력한 환급 계좌는 가상계좌 발급일부터 180일 뒤 파기합니다. 계좌이체 주문은 대금이 출금된 계좌로 환급합니다.',
   ],
 };
 
@@ -652,7 +653,7 @@ function addPendingRevision(document: LegalDocument, notice: LegalRevisionNotice
 /**
  * 가상계좌 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문.
  * 시행 뒤에도 다른 예약 개정의 사전 공지(pendingRevision)는 지우지 않는다. 공지 기간이 같은 문서의 다른 예약 개정 공지와 겹치면
- * 두 공지를 함께 보인다(addPendingRevision). 시행일은 앞선 개정의 시행일 이후여야 이전 판이 그 개정을 담는다.
+ * 두 공지를 함께 보인다(addPendingRevision). 다른 예약 개정과의 선후는 createLegalDocuments가 시행일 순서로 정한다.
  */
 function applyVirtualAccountTermsRevision(
   document: LegalDocument,
@@ -670,7 +671,7 @@ function applyVirtualAccountTermsRevision(
     addPendingRevision(document, {
       announcedDate: revision.announcedDate,
       effectiveDate: revision.effectiveDate,
-      heading: '가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내',
+      heading: '계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내',
       changes: VIRTUAL_ACCOUNT_CHANGES[slug],
     });
   }
@@ -1355,14 +1356,32 @@ const shipping: LegalDocument = {
 applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
 applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
-applyAlimtalkPrivacyRevision(privacy, today, alimtalkPrivacyRevision);
-/* 부분 반품 개정은 '출고지' 표기 개정 뒤에 얹는다(시행일이 그 뒤다). */
-applyPartialReturnTermsRevision(terms, 'terms', today, partialReturnRevision);
-applyPartialReturnTermsRevision(shipping, 'shipping', today, partialReturnRevision);
-/* 가상계좌·구매안전서비스 개정은 위 개정들 뒤에 얹는다(시행일이 그 뒤다). 회사 계좌 무통장 입금 본문은 그대로다. */
-applyVirtualAccountTermsRevision(terms, 'terms', today, virtualAccountRevision);
-applyVirtualAccountTermsRevision(privacy, 'privacy', today, virtualAccountRevision);
-applyVirtualAccountTermsRevision(shipping, 'shipping', today, virtualAccountRevision);
+/* 알림톡·부분 반품·가상계좌(계좌이체 포함) 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
+   이전 판(previousVersion)이 직전 시행 본문을 담는다. 시행일이 같으면 아래 나열 순서다(Array.sort는 안정 정렬). 세 개정의 앵커는
+   서로가 바꾸는 문장·행을 쓰지 않으므로 어느 순서로도 본문을 만들 수 있다. 회사 계좌 무통장 입금 본문은 그대로다. */
+const NO_REVISION = '9999-12-31';
+const scheduledRevisions: { effectiveDate: string; apply: () => void }[] = [
+  {
+    effectiveDate: alimtalkPrivacyRevision?.effectiveDate ?? NO_REVISION,
+    apply: () => applyAlimtalkPrivacyRevision(privacy, today, alimtalkPrivacyRevision),
+  },
+  {
+    effectiveDate: partialReturnRevision?.effectiveDate ?? NO_REVISION,
+    apply: () => {
+      applyPartialReturnTermsRevision(terms, 'terms', today, partialReturnRevision);
+      applyPartialReturnTermsRevision(shipping, 'shipping', today, partialReturnRevision);
+    },
+  },
+  {
+    effectiveDate: virtualAccountRevision?.effectiveDate ?? NO_REVISION,
+    apply: () => {
+      applyVirtualAccountTermsRevision(terms, 'terms', today, virtualAccountRevision);
+      applyVirtualAccountTermsRevision(privacy, 'privacy', today, virtualAccountRevision);
+      applyVirtualAccountTermsRevision(shipping, 'shipping', today, virtualAccountRevision);
+    },
+  },
+];
+for (const revision of [...scheduledRevisions].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))) revision.apply();
 
 return {terms,privacy,shipping};
 }

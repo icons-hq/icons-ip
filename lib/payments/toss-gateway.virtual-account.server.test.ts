@@ -438,4 +438,86 @@ describe('토스 가상계좌(ADR-0049)', () => {
       });
     });
   });
+
+  describe('계좌이체(같은 운영 스위치, 2026-11-23 보강)', () => {
+    const transferPayment = (overrides: Record<string, unknown> = {}) => ({
+      mId: MERCHANT_ID,
+      paymentKey: PAYMENT_KEY,
+      orderId: ATTEMPT.providerOrderId,
+      status: 'DONE',
+      currency: 'KRW',
+      totalAmount: ATTEMPT.amount,
+      balanceAmount: ATTEMPT.amount,
+      lastTransactionKey: 'TRTX0000000000000000000000000001',
+      method: '계좌이체',
+      card: null,
+      approvedAt: '2026-11-23T12:00:10+09:00',
+      useEscrow: true,
+      escrowKey: ESCROW_KEY,
+      transfer: { bankCode: '88', settlementStatus: 'INCOMPLETED' },
+      ...overrides,
+    });
+
+    it('굿즈 주문의 계좌이체 DONE은 취소하지 않고 결제수단을 증거로 approved다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse(200, transferPayment()));
+      const tossGateway = gateway(fetchImpl);
+
+      const outcome = await tossGateway.confirm(await confirmInput(tossGateway));
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('approved');
+      expect(outcome.evidence?.paymentMethod).toBe('계좌이체');
+    });
+
+    it('운영 스위치가 꺼져 있으면 지금 가드대로 승인 직후 전액 취소한다', async () => {
+      const canceled = transferPayment({ status: 'CANCELED', balanceAmount: 0 });
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, transferPayment()))
+        .mockResolvedValueOnce(jsonResponse(200, canceled))
+        .mockResolvedValueOnce(jsonResponse(200, canceled));
+      const tossGateway = gateway(fetchImpl, { virtualAccountEnabled: false });
+
+      const outcome = await tossGateway.confirm(await confirmInput(tossGateway));
+
+      expect(fetchImpl.mock.calls[1]![0]).toBe(`${API}/v1/payments/${PAYMENT_KEY}/cancel`);
+      expect(outcome.outcome).toBe('declined');
+      expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+    });
+
+    it('티켓 결제의 계좌이체는 스위치가 켜져 있어도 받지 않는다(승인 직후 전액 취소)', async () => {
+      const payment = transferPayment({ orderId: TICKET_ATTEMPT.providerOrderId, useEscrow: false, escrowKey: null });
+      const canceled = { ...payment, status: 'CANCELED', balanceAmount: 0 };
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, payment))
+        .mockResolvedValueOnce(jsonResponse(200, canceled))
+        .mockResolvedValueOnce(jsonResponse(200, canceled));
+      const tossGateway = gateway(fetchImpl);
+
+      const outcome = await tossGateway.confirm(await confirmInput(tossGateway, TICKET_ATTEMPT));
+
+      expect(fetchImpl.mock.calls[1]![0]).toBe(`${API}/v1/payments/${PAYMENT_KEY}/cancel`);
+      expect(outcome.outcome).toBe('declined');
+    });
+
+    it('계좌이체 환불은 환불 계좌 없이 취소 API를 부른다(출금 계좌로 환불)', async () => {
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, transferPayment({ useEscrow: false, escrowKey: null })))
+        .mockResolvedValueOnce(jsonResponse(200, transferPayment({ useEscrow: false, escrowKey: null, status: 'CANCELED', balanceAmount: 0 })))
+        .mockResolvedValue(jsonResponse(200, transferPayment({ useEscrow: false, escrowKey: null, status: 'CANCELED', balanceAmount: 0 })));
+      const tossGateway = gateway(fetchImpl);
+
+      await tossGateway.refund({
+        attempt: ATTEMPT,
+        idempotencyKey: `refund:${ATTEMPT.id}`,
+        amount: ATTEMPT.amount,
+        reason: 'ICONS 주문 취소',
+        providerPaymentKey: PAYMENT_KEY,
+      });
+
+      const cancelCall = fetchImpl.mock.calls.find(([url]) => String(url).endsWith('/cancel'));
+      expect(cancelCall).toBeDefined();
+      const body = JSON.parse(cancelCall![1].body);
+      expect(body.refundReceiveAccount).toBeUndefined();
+    });
+  });
 });

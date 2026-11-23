@@ -335,7 +335,7 @@ describe('SiteFooter 사업자정보 확인 링크', () => {
   const anchorOf = (html: string) => html.match(/<a[^>]*wc-x-footer__biz-verify[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
 
   it('사업자등록번호 줄에 공정위 조회 주소로 새 창 링크를 단다', () => {
-    const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, registrationNumber: '109-86-27576' }} copyrightYear={2026} />);
+    const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, registrationNumber: '109-86-27576' }} copyrightYear={2026} escrowNoticeVisible={false} />);
     const anchor = anchorOf(html);
 
     expect(anchor).toContain('href="https://www.ftc.go.kr/bizCommPop.do?wrkr_no=1098627576"');
@@ -352,7 +352,7 @@ describe('SiteFooter 사업자정보 확인 링크', () => {
 
   it('번호가 10자리가 아니거나 비어 있으면 링크를 숨긴다', () => {
     for (const registrationNumber of ['', '109-86', '109-86-275761', 'abc-de-fghij']) {
-      const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, registrationNumber }} copyrightYear={2026} />);
+      const html = renderToStaticMarkup(<SiteFooter businessInfo={{ ...BUSINESS_INFO, registrationNumber }} copyrightYear={2026} escrowNoticeVisible={false} />);
       expect(html, registrationNumber).not.toContain('wc-x-footer__biz-verify');
       expect(html, registrationNumber).not.toContain('ftc.go.kr');
     }
