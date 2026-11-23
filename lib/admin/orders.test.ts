@@ -12,7 +12,7 @@ import {
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderFilters,
   normalizeAdminOrderStatusForm,
-  normalizeAdminOrderTrackingForm,
+  normalizeAdminOrderTrackingForm, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURE_LABELS, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES, ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS, adminTransferEscrowLabel, parseAdminOrderTransferEscrow,
 } from './orders';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
@@ -343,7 +343,7 @@ describe('가상계좌 입금 대기와 입금 정보', () => {
 
   it('입금 정보를 읽고, 가상계좌가 아닌 주문(null)과 형식이 어긋난 응답(undefined)을 구분한다', () => {
     const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T15:00:00+00:00', amount: 32000, useEscrow: true, state: 'awaiting' };
-    expect(parseAdminOrderVirtualAccount(account)).toEqual({ ...account, escrow: null });
+    expect(parseAdminOrderVirtualAccount(account)).toEqual({ ...account, escrow: null, refund: null });
     expect(parseAdminOrderVirtualAccount({ ...account, useEscrow: null })?.useEscrow).toBeNull();
     expect(parseAdminOrderVirtualAccount({ ...account, useEscrow: undefined })?.useEscrow).toBeNull();
     expect(parseAdminOrderVirtualAccount(null)).toBeNull();
@@ -364,6 +364,35 @@ describe('가상계좌 입금 대기와 입금 정보', () => {
     for (const escrow of [{ deliveryState: 'lost' }, { deliveryState: 'ready', escrowStatus: 'DONE' }, { deliveryState: 'ready', lastErrorCode: 'bad code!' }, []]) {
       expect(parseAdminOrderVirtualAccount({ ...account, escrow }), JSON.stringify(escrow)).toBeUndefined();
     }
+  });
+
+  /* 환불 뒤 은행 송금 감시(20261125110000) — 운영자 json에만 실린다. 실패 신호를 조용히 접지 않는다. */
+  it('환불 송금 감시를 읽고, 실패에는 사유가 있어야 하며 모르는 값이면 응답 전체를 읽지 못한 것으로 본다', () => {
+    const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T15:00:00+00:00', amount: 32000, useEscrow: false, state: 'deposited' };
+    const refund = { state: 'failed', refundStatus: 'FAILED', failureCode: 'refund_failed', refundedAt: '2026-11-26T01:00:00+00:00',
+      checkedAt: '2026-11-26T03:00:00+00:00', failedAt: '2026-11-26T03:00:00+00:00', resolvedAt: null, resolutionNote: null };
+    expect(parseAdminOrderVirtualAccount({ ...account, refund })?.refund).toEqual({ state: 'failed', failureCode: 'refund_failed',
+      refundedAt: refund.refundedAt, checkedAt: refund.checkedAt, resolutionNote: null });
+    expect(parseAdminOrderVirtualAccount({ ...account, refund: { ...refund, state: 'pending', failureCode: null, checkedAt: null } })?.refund?.state).toBe('pending');
+    for (const broken of [{ ...refund, state: 'lost' }, { ...refund, failureCode: null }, { ...refund, failureCode: 'other' }, { ...refund, refundedAt: 'soon' }]) {
+      expect(parseAdminOrderVirtualAccount({ ...account, refund: broken }), JSON.stringify(broken)).toBeUndefined();
+    }
+    expect(ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS.failed).toContain('[처리 완료로 표시]');
+    for (const code of ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES) expect(ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURE_LABELS[code]).toBeTruthy();
+  });
+
+  /* 계좌이체 에스크로(20261125110100) — 구매자 선택 기록이 없어 결제사 조회 전에는 '확인 중'이다. */
+  it('계좌이체 에스크로 작업을 읽고 적용 여부를 운영자 말로 쓴다', () => {
+    expect(parseAdminOrderTransferEscrow({ useEscrow: null, deliveryState: 'ready', escrowStatus: null, lastErrorCode: null }))
+      .toEqual({ useEscrow: null, job: { deliveryState: 'ready', escrowStatus: null, lastErrorCode: null } });
+    expect(parseAdminOrderTransferEscrow({ useEscrow: true, deliveryState: 'manual_required', escrowStatus: 'IN_PROGRESS', lastErrorCode: 'carrier_unmapped' })?.job.deliveryState)
+      .toBe('manual_required');
+    expect(parseAdminOrderTransferEscrow(null)).toBeNull();
+    for (const broken of [[], { useEscrow: 'Y', deliveryState: 'ready' }, { useEscrow: true, deliveryState: 'lost' }]) {
+      expect(parseAdminOrderTransferEscrow(broken), JSON.stringify(broken)).toBeUndefined();
+    }
+    expect(adminTransferEscrowLabel(null)).toBe('확인 중(결제사 조회 전)');
+    expect(adminTransferEscrowLabel(false)).toBe('적용 안 함');
   });
 
   it('구매안전서비스(에스크로) 적용 여부를 운영자 말로 쓴다', () => {

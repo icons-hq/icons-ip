@@ -9,10 +9,12 @@ import { loadOrderFulfillmentHolds } from './fulfillment-holds.server';
 import { shipmentExtraTrackings, type ShipmentExtraTrackingRow } from '@/lib/orders/shipments';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { shippingCarrierLabel } from '@/lib/orders/shipment';
-import { parseAdminOrderVirtualAccount, type AdminOrderVirtualAccount } from './orders';
+import { parseAdminOrderTransferEscrow, parseAdminOrderVirtualAccount, type AdminOrderTransferEscrow, type AdminOrderVirtualAccount } from './orders';
 
 type AdminSupabase = Awaited<ReturnType<typeof createClient>>;
-export type AdminOrderVirtualAccountLoad = { virtualAccount: AdminOrderVirtualAccount | null } | { virtualAccountUnavailable: true };
+export type AdminOrderVirtualAccountLoad =
+  | { virtualAccount: AdminOrderVirtualAccount | null; transferEscrow?: AdminOrderTransferEscrow | null }
+  | { virtualAccountUnavailable: true };
 
 /**
  * 주문 하나의 토스 가상계좌 입금 정보(`admin_order_virtual_account`, sales.read — ADR-0049). 주문 상세·팝업과 주문 처리 패널이 같이 쓴다.
@@ -24,9 +26,23 @@ export async function loadAdminOrderVirtualAccount(supabase: AdminSupabase, orde
     const { data, error } = await supabase.rpc('admin_order_virtual_account', { p_order_id: orderId });
     if (error) return { virtualAccountUnavailable: true };
     const parsed = parseAdminOrderVirtualAccount(data ?? null);
-    return parsed === undefined ? { virtualAccountUnavailable: true } : { virtualAccount: parsed };
+    if (parsed === undefined) return { virtualAccountUnavailable: true };
+    if (parsed) return { virtualAccount: parsed };
+    // 가상계좌가 아니면 계좌이체 에스크로 작업을 읽는다(20261125110100). 읽지 못해도 결제 정보는 연다 — 에스크로 줄만 빠진다.
+    return { virtualAccount: null, transferEscrow: await loadAdminOrderTransferEscrow(supabase, orderId) };
   } catch {
     return { virtualAccountUnavailable: true };
+  }
+}
+
+/** 계좌이체 주문의 에스크로 작업(`admin_order_transfer_escrow`, sales.read). 작업이 없거나 읽지 못하면 null. */
+async function loadAdminOrderTransferEscrow(supabase: AdminSupabase, orderId: string): Promise<AdminOrderTransferEscrow | null> {
+  try {
+    const { data, error } = await supabase.rpc('admin_order_transfer_escrow', { p_order_id: orderId });
+    if (error) return null;
+    return parseAdminOrderTransferEscrow(data ?? null) ?? null;
+  } catch {
+    return null;
   }
 }
 

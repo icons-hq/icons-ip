@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import postcss, { type AtRule } from 'postcss';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -372,9 +374,20 @@ describe('SiteFooter 구매안전서비스 표시', () => {
     expect(escrow).toBeLessThan(html.indexOf('wc-x-footer__copy'));
   });
 
+  it('토스페이먼츠 공식 에스크로 인증 마크(바꾸지 않은 원본)를 안내 앞에 붙인다', () => {
+    const html = renderToStaticMarkup(<SiteFooter copyrightYear={2026} escrowNoticeVisible />);
+    expect(html).toContain('<img alt="토스페이먼츠 매매보호(에스크로) 서비스" class="wc-x-footer__escrow-mark" height="28" src="/brand/toss-escrow-mark.png" width="210"/>');
+    expect(html.indexOf('wc-x-footer__escrow-mark')).toBeGreaterThan(html.indexOf('data-footer-escrow'));
+    expect(html.indexOf('wc-x-footer__escrow-mark')).toBeLessThan(html.indexOf('서비스 가입 사실 확인'));
+    // 공식 다운로드 파일 그대로인지(sha256) — 임의로 다시 만든 마크를 쓰지 않는다.
+    const bytes = readFileSync(path.join(process.cwd(), 'public/brand/toss-escrow-mark.png'));
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe('323d0b919b5793fab3f2dd0fa04ef024f99b0ef8dd51756945751332222faa3c');
+  });
+
   it('시행 전(또는 예약 없음)에는 그리지 않는다', () => {
     const html = renderToStaticMarkup(<SiteFooter copyrightYear={2026} escrowNoticeVisible={false} />);
     expect(html).not.toContain('data-footer-escrow');
     expect(html).not.toContain('구매안전');
+    expect(html).not.toContain('toss-escrow-mark');
   });
 });

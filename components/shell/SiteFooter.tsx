@@ -73,10 +73,19 @@ function BusinessLines({ info }: { info: BusinessInfoData }) {
  */
 const ESCROW_NOTICE_TEXT = '고객님은 안전거래를 위해 현금 등으로 결제 시 저희 쇼핑몰에서 가입한 토스페이먼츠의 구매안전(에스크로) 서비스를 이용하실 수 있습니다.';
 const ESCROW_SERVICE_CHECK_HREF = 'https://consumer.tosspayments.com/escrow/detail?mertid=iconsi0xvd';
+/*
+ * 토스페이먼츠 에스크로 인증 마크 — 공식 용어 문서 '에스크로'(/resources/glossary/escrow, 2026-11-23 확인)의 다운로드
+ * (static.tosspayments.com/docs/glossary/escrow-auth-mark.zip 안의 img_mark01(2x).png, 420×174)를 바꾸지 않고 그대로 둔다
+ * (sha256 323d0b91…faa3c). 그림은 위아래 투명 여백 가운데 띠에만 있어, 화면에서는 CSS가 여백만 가린다(.wc-x-footer__escrow-mark).
+ */
+const ESCROW_MARK_SRC = '/brand/toss-escrow-mark.png';
 
 function EscrowNotice() {
   return (
     <p className="wc-x-footer__biz" data-footer-escrow="">
+      {/* Bundled official asset: Toss Payments escrow certification mark (unmodified download). */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img alt="토스페이먼츠 매매보호(에스크로) 서비스" className="wc-x-footer__escrow-mark" height={28} src={ESCROW_MARK_SRC} width={210} />
       <span className="wc-x-footer__biz-row">
         <span>
           {ESCROW_NOTICE_TEXT}{' '}

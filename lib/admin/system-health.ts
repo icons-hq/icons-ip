@@ -46,7 +46,9 @@ export interface SystemHealthReport {
   recentFailures: SystemJobFailure[];
   payments: { goods: number; tickets: number; other: number; oldestAt: string | null };
   emails: { failed24h: number; bounced24h: number };
-  counts: { failingJobs: number; stalledJobs: number; problemJobs: number; unresolvedPayments: number; emailFailures: number; emailBounces: number; issues: number };
+  /** 가상계좌 환불 송금 확인 필요(실패·7일 지연·결제사 기록 불일치, ADR-0049 결정 5 보강). 예전 판정에는 없어 0으로 읽는다. */
+  refunds: { virtualAccountFailed: number; oldestAt: string | null };
+  counts: { failingJobs: number; stalledJobs: number; problemJobs: number; unresolvedPayments: number; emailFailures: number; emailBounces: number; refundFailures: number; issues: number };
 }
 
 export const SYSTEM_JOB_STATE_LABELS: Record<SystemJobState, string> = {
@@ -127,10 +129,15 @@ export function parseSystemHealthReport(value: unknown): SystemHealthReport | nu
   const failures = value.recentFailures.map(parseFailure);
   const payments = { goods: count(value.payments.goods), tickets: count(value.payments.tickets), other: count(value.payments.other), oldestAt: optionalTime(value.payments.oldestAt) };
   const emails = { failed24h: count(value.emails.failed24h), bounced24h: count(value.emails.bounced24h) };
-  const counts = Object.fromEntries(['failingJobs', 'stalledJobs', 'problemJobs', 'unresolvedPayments', 'emailFailures', 'emailBounces', 'issues']
-    .map(key => [key, count((value.counts as Record<string, unknown>)[key])]));
+  const refundSource = isObject(value.refunds) ? value.refunds : { virtualAccountFailed: 0, oldestAt: null };
+  const refunds = { virtualAccountFailed: count(refundSource.virtualAccountFailed), oldestAt: optionalTime(refundSource.oldestAt) };
+  const rawCounts = { refundFailures: 0, ...(value.counts as Record<string, unknown>) };
+  const counts = Object.fromEntries(['failingJobs', 'stalledJobs', 'problemJobs', 'unresolvedPayments', 'emailFailures', 'emailBounces', 'refundFailures', 'issues']
+    .map(key => [key, count(rawCounts[key as keyof typeof rawCounts])]));
   if (jobs.some(job => !job) || failures.some(failure => !failure)
-    || [payments.goods, payments.tickets, payments.other, payments.oldestAt, emails.failed24h, emails.bounced24h].some(field => field === undefined)
+    || (value.refunds !== undefined && !isObject(value.refunds))
+    || [payments.goods, payments.tickets, payments.other, payments.oldestAt, emails.failed24h, emails.bounced24h, refunds.virtualAccountFailed, refunds.oldestAt]
+      .some(field => field === undefined)
     || Object.values(counts).some(field => field === undefined)) return null;
   const parsedJobs = jobs as SystemJob[];
   for (const [jobKey, job] of Object.entries(CRON_JOBS)) {
@@ -146,6 +153,7 @@ export function parseSystemHealthReport(value: unknown): SystemHealthReport | nu
   return {
     asOf: value.asOf, jobs: parsedJobs, recentFailures: failures as SystemJobFailure[],
     payments: payments as SystemHealthReport['payments'], emails: emails as SystemHealthReport['emails'],
+    refunds: refunds as SystemHealthReport['refunds'],
     counts: counts as SystemHealthReport['counts'],
   };
 }
@@ -208,6 +216,42 @@ export function parseUnresolvedPaymentAttempts(value: unknown): UnresolvedPaymen
   const items = value.items.map(parseAttempt);
   if (items.some(item => !item) || items.length > (value.total as number)) return null;
   return { total: value.total as number, asOf: value.asOf, items: items as UnresolvedPaymentAttempt[] };
+}
+
+// --- 가상계좌 환불 송금 확인 필요 -------------------------------------------------------------------------------------------
+
+export const VIRTUAL_ACCOUNT_REFUND_FAILURE_CODES = ['refund_failed', 'refund_partial_failed', 'refund_overdue', 'payment_mismatch'] as const;
+export type VirtualAccountRefundFailureCode = (typeof VIRTUAL_ACCOUNT_REFUND_FAILURE_CODES)[number];
+const REFUND_FAILURE_CODE_SET = new Set<string>(VIRTUAL_ACCOUNT_REFUND_FAILURE_CODES);
+export const VIRTUAL_ACCOUNT_REFUND_FAILURE_SHORT_LABELS: Record<VirtualAccountRefundFailureCode, string> = {
+  refund_failed: '은행 송금 실패', refund_partial_failed: '일부 송금 실패', refund_overdue: '7일째 송금 확인 안 됨', payment_mismatch: '결제사 기록 불일치',
+};
+
+export interface VirtualAccountRefundFailure {
+  orderId: string;
+  orderNumber: string | null;
+  amount: number;
+  failureCode: VirtualAccountRefundFailureCode;
+  refundedAt: string;
+  failedAt: string;
+}
+export interface VirtualAccountRefundFailureList { total: number; items: VirtualAccountRefundFailure[] }
+
+function parseRefundFailure(value: unknown): VirtualAccountRefundFailure | null {
+  if (!isObject(value)) return null;
+  const { orderId, orderNumber, amount, failureCode, refundedAt, failedAt } = value;
+  const number = optionalString(orderNumber, 60);
+  if (!isUuid(orderId) || number === undefined || count(amount) === undefined
+    || typeof failureCode !== 'string' || !REFUND_FAILURE_CODE_SET.has(failureCode) || !isTime(refundedAt) || !isTime(failedAt)) return null;
+  return { orderId, orderNumber: number, amount: amount as number, failureCode: failureCode as VirtualAccountRefundFailureCode, refundedAt, failedAt };
+}
+
+/** `admin_virtual_account_refund_failures` 응답. 형식이 어긋나면 null(화면이 '불러오지 못했다'고 안내한다). */
+export function parseVirtualAccountRefundFailures(value: unknown): VirtualAccountRefundFailureList | null {
+  if (!isObject(value) || count(value.total) === undefined || !Array.isArray(value.items)) return null;
+  const items = value.items.map(parseRefundFailure);
+  if (items.some(item => !item) || items.length > (value.total as number)) return null;
+  return { total: value.total as number, items: items as VirtualAccountRefundFailure[] };
 }
 
 /** "3일 4시간", "2시간 5분", "12분" — 기준 시각에서 얼마나 지났는가. */

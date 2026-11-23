@@ -348,6 +348,8 @@ export function OrderDetail({
   const linesByKey = new Map((order.lines ?? []).map(line => [line.key, line]));
   const itemLines = remainingItems.map(item => ({ item, line: displayedOrderLine(item, linesByKey, order.transaction) }));
   const paymentMethodLabel = orderPaymentMethodLabel(order.paymentMethod, paymentDisplay);
+  /* 입금된 토스 가상계좌 결제(ADR-0049 결정 5 보강) — 환불은 환급 계좌로 송금된다. 표시 힌트이고, 계좌 입력 가능 여부는 DB 문맥이 정한다. */
+  const virtualAccountPaid = order.paymentMethod === 'card' && paymentDisplay?.provider === 'toss' && paymentDisplay.method === '가상계좌';
   const receiptAvailable = orderReceiptAvailable({ paymentMethod: order.paymentMethod, payment: order.payment });
   const statementAvailable = orderStatementAvailable(order.status);
   /* 결제를 마치지 않은 주문은 결제수단으로 말한다 — 무통장은 '입금 대기'·'입금을 기다리고 있어요'(QA1 S-D2-12). 진행 중인 취소
@@ -552,11 +554,12 @@ export function OrderDetail({
               returnFeePolicy={returnFeePolicy}
               returnPickup={returnPickup}
               status={order.status}
+              virtualAccountRefund={virtualAccountPaid}
             /></div>
           ) : null}
 
           {claimRequest ? order.giftId ? <a href={`/gifts/${order.giftId}`}>선물 요청 관리</a> : <ClaimWithdrawal key={claimRequest.id} claimId={claimRequest.id} stage={claimRequest.stage} /> : null}
-          {viewerId && claimRequest && !order.giftId && order.paymentMethod === 'bank_transfer' && claimRequest.claimType !== 'exchange'
+          {viewerId && claimRequest && !order.giftId && (order.paymentMethod === 'bank_transfer' || virtualAccountPaid) && claimRequest.claimType !== 'exchange'
             && isOpenOrderClaimStage(claimRequest.stage) ? <ClaimRefundAccount actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /> : null}
           {viewerId && hasPhysicalItems && claimRequest && (claimRequest.claimType === 'return' || claimRequest.claimType === 'exchange')
             ? <>{order.giftId ? null : <ClaimCollectionPlan actorId={viewerId} claimId={claimRequest.id} shipmentLabels={customerShipmentGroupLabels(order.shipments)} />}<ClaimContactHistory key={`contact:${claimRequest.id}`} actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /></> : null}

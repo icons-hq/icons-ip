@@ -22,6 +22,7 @@ const orderActions = vi.hoisted(() => ({
 
 vi.mock('@/app/admin/order-actions', () => orderActions);
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('@/app/admin/virtual-account-refund-actions', () => ({ resolveVirtualAccountRefundAction: vi.fn() }));
 vi.mock('@/app/admin/shipment-tracking-actions', () => ({ addShipmentExtraTrackingAction: vi.fn(), removeShipmentExtraTrackingAction: vi.fn() }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -1220,7 +1221,7 @@ describe('운영자 전액 취소 제출 순서', () => {
 
 /* 토스 가상계좌(ADR-0049): 처리 패널 '결제·환불'에 결제수단·입금 은행·계좌번호·입금 기한·상태와 에스크로 적용 여부를 보인다. */
 describe('OrdersSection 가상계좌 입금 정보', () => {
-  const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 32000, useEscrow: true, state: 'awaiting' as const, escrow: null };
+  const account = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 32000, useEscrow: true, state: 'awaiting' as const, escrow: null, refund: null };
 
   it('입금 대기 주문의 결제·환불에 가상계좌 정보를 보이고 결제 기록 없음 문구를 쓰지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'pending', payments: [], virtualAccount: account })} />);
@@ -1250,5 +1251,28 @@ describe('OrdersSection 가상계좌 입금 정보', () => {
 
   it('조회 전용 권한에는 결제·환불과 함께 가상계좌 정보도 그리지 않는다', () => {
     expect(renderToStaticMarkup(<OrdersSection canManage={false} data={orderData({ virtualAccount: account })} />)).not.toContain('X1234567890');
+  });
+
+  /* 환불 뒤 은행 송금 감시(ADR-0049 결정 5 보강). */
+  it('환불 송금 상태를 보이고, 실패면 확인 안내와 처리 완료 표시 버튼을 띄운다', () => {
+    const refund = { state: 'failed' as const, failureCode: 'refund_overdue' as const, refundedAt: '2026-11-26T01:00:00.000Z', checkedAt: '2026-12-03T01:00:00.000Z', resolutionNote: null };
+    const failed = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'canceled', virtualAccount: { ...account, state: 'deposited', refund } })} />);
+    for (const text of ['환불 송금', '환불 송금 확인 필요', '환불 뒤 7일이 지나도 송금 완료가 확인되지 않습니다', '처리 완료로 표시']) expect(failed, text).toContain(text);
+    const pending = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'canceled', virtualAccount: { ...account, state: 'deposited', refund: { ...refund, state: 'pending', failureCode: null } } })} />);
+    for (const text of ['은행 송금 확인 중', '은행이 고객 계좌로 송금하는 중입니다']) expect(pending, text).toContain(text);
+    expect(pending).not.toContain('환불 송금 확인이 필요합니다');
+  });
+
+  /* 계좌이체 에스크로(20261125110100). */
+  it('계좌이체 주문의 에스크로 배송 등록 상태를 보이고 확인 전이면 확인 중이라고 쓴다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ virtualAccount: null, transferEscrow: { useEscrow: null,
+      job: { deliveryState: 'waiting', escrowStatus: null, lastErrorCode: null } } })} />);
+    const section = html.slice(html.indexOf('id="admin-order-payment-title"'));
+    for (const text of ['계좌이체', '확인 중(결제사 조회 전)', '발송 전', '아직 확인 전', '대금이 출금된 계좌로 돌려줍니다']) expect(section, text).toContain(text);
+    const manual = renderToStaticMarkup(<OrdersSection data={orderData({ virtualAccount: null, transferEscrow: { useEscrow: true,
+      job: { deliveryState: 'manual_required', escrowStatus: 'IN_PROGRESS', lastErrorCode: 'carrier_unmapped' } } })} />);
+    expect(manual).toContain('배송 정보를 직접 등록해주세요');
+    expect(renderToStaticMarkup(<OrdersSection data={orderData({ virtualAccount: null, transferEscrow: { useEscrow: false,
+      job: { deliveryState: 'skipped', escrowStatus: null, lastErrorCode: null } } })} />)).not.toContain('data-order-transfer-escrow');
   });
 });

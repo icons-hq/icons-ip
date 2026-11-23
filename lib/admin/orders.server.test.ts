@@ -615,7 +615,7 @@ describe('가상계좌 입금 정보(처리 패널 주문)', () => {
       admin_order_virtual_account: account as never }, rows: { order_items: [] } });
     const result = await getAdminOrderRecords({ ...filters, orderId: ORDER_ID });
     expect(rpc.mock.calls.filter(([name]) => name === 'admin_order_virtual_account')).toEqual([['admin_order_virtual_account', { p_order_id: ORDER_ID }]]);
-    expect(result.items.find(item => item.id === ORDER_ID)?.virtualAccount).toEqual({ ...account, escrow: null });
+    expect(result.items.find(item => item.id === ORDER_ID)?.virtualAccount).toEqual({ ...account, escrow: null, refund: null });
     expect(result.items.find(item => item.id === OTHER_ORDER_ID)).not.toHaveProperty('virtualAccount');
   });
 

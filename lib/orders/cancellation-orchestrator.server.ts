@@ -6,6 +6,7 @@ import {
   type AutomatedCancelProvider,
 } from '../payments/provider-capabilities';
 import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
+import { parseVirtualAccountRefundAccountCandidates, selectVirtualAccountRefundAccount } from '../payments/virtual-account-refund-account';
 import { createServiceClient } from '../supabase/service';
 import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
 
@@ -167,21 +168,24 @@ export function parsePaymentPartialRefunds(value: unknown): ReadonlyMap<string, 
   return result;
 }
 
-/** 가상계좌 결제의 구매자 환불 계좌(service 전용 RPC). 없거나 조회 실패면 undefined — 어댑터가 결제확인필요로 남긴다. */
+/**
+ * 가상계좌 결제의 환급 계좌(service 전용 RPC, ADR-0049 결정 5 보강). 이 요청에서 구매자가 입력한 계좌(반품·취소 신청 화면·주문 상세)를
+ * 먼저, 없거나 쓸 수 없으면 결제 UI가 받은 계좌를 쓴다(lib/payments/virtual-account-refund-account.ts). 원장 결제 키가 다르거나 가상계좌가
+ * 아니면 RPC가 null이다. 없거나 조회 실패면 undefined — 어댑터가 결제사를 부르지 않고 결제확인필요로 남긴다.
+ */
 async function loadVirtualAccountRefundAccount(
   service: ReturnType<typeof createServiceClient>,
   attemptId: string,
   paymentKey: string,
+  requestId: string | undefined,
 ): Promise<PaymentRefundReceiveAccount | undefined> {
-  const { data, error } = await service.rpc('service_goods_virtual_account_refund_account', {
+  const { data, error } = await service.rpc('service_goods_virtual_account_refund_accounts', {
     p_attempt_id: attemptId,
     p_payment_key: paymentKey,
+    p_request_id: requestId ?? null,
   });
-  if (error || typeof data !== 'object' || data === null || Array.isArray(data)) return undefined;
-  const row = data as Record<string, unknown>;
-  return typeof row.bankCode === 'string' && typeof row.accountNumber === 'string' && typeof row.holderName === 'string'
-    ? { bankCode: row.bankCode, accountNumber: row.accountNumber, holderName: row.holderName }
-    : undefined;
+  if (error) return undefined;
+  return selectVirtualAccountRefundAccount(parseVirtualAccountRefundAccountCandidates(data))?.account;
 }
 
 /**
@@ -259,6 +263,8 @@ export interface CancellationReconciliationDependencies {
      * 취소(`refund:{attemptId}`)다. 재고 부족 부분 취소(ADR-0032)가 먼저 있었던 결제는 남은 잔액을 scope remainder로 취소한다.
      */
     partial?: { refundAmount: number; requestId: string; expectedBalanceBefore?: number; scope?: 'deduction' | 'remainder' };
+    /** 취소·반품 요청 id — 입금된 가상계좌 환불이 이 요청에서 구매자가 입력한 환급 계좌를 찾는다(ADR-0049 결정 5 보강). */
+    requestId?: string;
   }): Promise<RefundOutcome>;
   completeRequest(input: {
     requestId: string;
@@ -440,7 +446,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         payments,
       };
     },
-    async refundProviderPayment({ paymentId, provider, amount, reason, paymentKey, partial }) {
+    async refundProviderPayment({ paymentId, provider, amount, reason, paymentKey, partial, requestId }) {
       const { data, error } = await service
         .from('payment_attempts')
         .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
@@ -479,10 +485,10 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         expiresAt: row.expires_at,
       };
       const gateway = createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider));
-      // 입금이 끝난 가상계좌 환불은 토스 취소 API가 환불 계좌를 요구한다. 결제 UI가 받은 구매자 환불 계좌를 원장 결제 키와
-      // 맞을 때만 싣는다(ADR-0049). 없으면 어댑터가 결제사를 부르지 않고 결제확인필요로 남긴다.
+      // 입금이 끝난 가상계좌 환불은 토스 취소 API가 환불 계좌를 요구한다. 이 요청의 구매자 입력 계좌, 없으면 결제 UI가 받은 계좌를
+      // 원장 결제 키와 맞을 때만 싣는다(ADR-0049). 없으면 어댑터가 결제사를 부르지 않고 결제확인필요로 남긴다.
       const refundReceiveAccount = provider === 'toss'
-        ? await loadVirtualAccountRefundAccount(service, attempt.id, paymentKey)
+        ? await loadVirtualAccountRefundAccount(service, attempt.id, paymentKey, requestId)
         : undefined;
       return gateway.refund(cancellationRefundRequest(attempt, { amount, reason, paymentKey, partial, refundReceiveAccount }));
     },
@@ -785,6 +791,7 @@ export async function reconcileOrderCancellation(
           reason: PARTIAL_REMAINDER_REFUND_REASON,
           paymentKey: payment.paymentKey,
           partial: { refundAmount: remaining, requestId: input.requestId, expectedBalanceBefore: remaining, scope: 'remainder' },
+          requestId: input.requestId,
         }
         : {
           paymentId: payment.id,
@@ -792,6 +799,7 @@ export async function reconcileOrderCancellation(
           amount: payment.amount,
           reason: 'ICONS 주문 취소',
           paymentKey: payment.paymentKey,
+          requestId: input.requestId,
         });
     } catch {
       return markNeedsReview(dependencies, input, 'provider_unavailable');

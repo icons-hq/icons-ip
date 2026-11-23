@@ -23,6 +23,7 @@ describe('결제 취소 실패 안내', () => {
   it('가상계좌 환불·반납 코드를 운영자 말로 옮긴다', () => {
     const required = adminPaymentCancelFailureMessage('provider_refund_account_required');
     expect(required).toContain('환불 계좌가 없어');
+    expect(required).toContain('주문 상세에서 환급 계좌를 입력하면');
     expect(required).toContain('토스페이먼츠 상점관리자에서 환불한 뒤');
     expect(required).toContain('provider_refund_account_required');
     for (const code of ['provider_refund_account_invalid', 'provider_refund_failed', 'provider_virtual_account_released', 'provider_deposit_expired',

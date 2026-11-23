@@ -66,4 +66,6 @@ export interface AdminOrderDetail {
   virtualAccount?: import('./orders').AdminOrderVirtualAccount | null;
   /** 가상계좌 정보를 읽지 못했다. */
   virtualAccountUnavailable?: true;
+  /** 계좌이체 주문의 에스크로 작업(주문 처리 권한만). 없으면 계좌이체 에스크로 작업이 없다. */
+  transferEscrow?: import('./orders').AdminOrderTransferEscrow | null;
 }

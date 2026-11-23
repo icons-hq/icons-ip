@@ -88,7 +88,7 @@ it('주문 처리 권한이면 가상계좌 입금 정보를 싣고, 조회 전�
  const account={bankCode:'20',accountNumber:'X1234567890',dueAt:'2026-11-25T01:00:00.000Z',amount:32000,useEscrow:false,state:'deposited'};
  const detail={data:{order:{id:'order'},items:[],shipments:[],timeline:[]},error:null};
  mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_virtual_account'?{data:account,error:null}:name==='admin_order_item_allocation_inputs'?{data:[],error:null}:detail);
- expect((await getAdminOrderDetail('order'))?.virtualAccount).toEqual({...account,escrow:null});
+ expect((await getAdminOrderDetail('order'))?.virtualAccount).toEqual({...account,escrow:null,refund:null});
  expect(mocks.rpc).toHaveBeenCalledWith('admin_order_virtual_account',{p_order_id:'order'});
  mocks.rpc.mockClear();
  const reader=await getAdminOrderDetail('order',false);
@@ -98,4 +98,18 @@ it('주문 처리 권한이면 가상계좌 입금 정보를 싣고, 조회 전�
  const failed=await getAdminOrderDetail('order');
  expect(failed).toMatchObject({virtualAccountUnavailable:true});
  expect(failed).not.toHaveProperty('virtualAccount');
+});
+
+/* 계좌이체 에스크로(20261125110100): 가상계좌가 아닌 주문만 계좌이체 에스크로 작업을 읽는다. 읽지 못해도 결제 정보는 연다. */
+it('가상계좌가 아니면 계좌이체 에스크로 작업을 읽어 싣고, 읽지 못하면 그 줄만 뺀다', async () => {
+ const detail={data:{order:{id:'order'},items:[],shipments:[],timeline:[]},error:null};
+ const escrow={useEscrow:true,deliveryState:'manual_required',escrowStatus:'IN_PROGRESS',lastErrorCode:'carrier_unmapped'};
+ mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_virtual_account'?{data:null,error:null}
+  :name==='admin_order_transfer_escrow'?{data:escrow,error:null}:name==='admin_order_item_allocation_inputs'?{data:[],error:null}:detail);
+ const result=await getAdminOrderDetail('order');
+ expect(mocks.rpc).toHaveBeenCalledWith('admin_order_transfer_escrow',{p_order_id:'order'});
+ expect(result).toMatchObject({virtualAccount:null,transferEscrow:{useEscrow:true,job:{deliveryState:'manual_required',escrowStatus:'IN_PROGRESS',lastErrorCode:'carrier_unmapped'}}});
+ mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_virtual_account'?{data:null,error:null}
+  :name==='admin_order_transfer_escrow'?{data:null,error:{message:'boom'}}:name==='admin_order_item_allocation_inputs'?{data:[],error:null}:detail);
+ expect(await getAdminOrderDetail('order')).toMatchObject({virtualAccount:null,transferEscrow:null});
 });

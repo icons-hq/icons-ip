@@ -25,9 +25,14 @@ import {
   ADMIN_ORDER_STATUS_LABELS,
   ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS,
   ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS,
+  ADMIN_TRANSFER_ESCROW_HINT,
+  ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS,
+  ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS,
+  adminTransferEscrowLabel,
   adminVirtualAccountEscrowLabel,
   type AdminOrderStatus,
 } from '@/lib/admin/orders';
+import { VirtualAccountRefundNotice } from '@/components/admin/VirtualAccountRefundNotice';
 import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
@@ -174,9 +179,31 @@ function OrderVirtualAccountCard({ detail }: { detail: AdminOrderDetail }) {
         <div className={FACT_ROW} data-order-escrow-delivery={escrow.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', escrow.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[escrow.deliveryState]}</AdminStatusBadge>{escrow.lastErrorCode ? <span className="mt-1 block text-xs text-muted-foreground">확인 코드 · {escrow.lastErrorCode}</span> : null}</dd></div>
         <div className={FACT_ROW}><dt className={FACT_TERM}>에스크로 거래 상태</dt><dd className={FACT_VALUE}>{escrow.escrowStatus ? <AdminStatusBadge tone={statusTone('escrowStatus', escrow.escrowStatus)}>{ADMIN_ESCROW_STATUS_LABELS[escrow.escrowStatus]}</AdminStatusBadge> : '아직 확인 전'}</dd></div>
       </> : null}
+      {account.refund ? <div className={FACT_ROW} data-order-virtual-account-refund={account.refund.state}><dt className={FACT_TERM}>환불 송금</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('virtualAccountRefund', account.refund.state)}>{ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS[account.refund.state]}</AdminStatusBadge>{account.refund.resolutionNote ? <span className="mt-1 block text-xs text-muted-foreground">처리 내용 · {account.refund.resolutionNote}</span> : null}</dd></div> : null}
     </dl>
     {escrow?.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
+    <VirtualAccountRefundNotice canManage orderId={detail.order.id} refund={account.refund} />
+    {account.refund && account.refund.state !== 'failed' ? <p className="text-sm leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS[account.refund.state]}</p> : null}
     <p className="text-sm leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} 가상계좌 결제는 주문 전체로만 취소·반품할 수 있습니다.</p>
+  </AdminSectionCard>;
+}
+
+/**
+ * 계좌이체 주문의 구매안전서비스(에스크로) 배송 등록(20261125110100). 주문 처리 권한에만 그린다. 에스크로 결제가 아니면(건너뜀) 그리지 않는다.
+ */
+function OrderTransferEscrowCard({ detail }: { detail: AdminOrderDetail }) {
+  const escrow = detail.transferEscrow;
+  if (!escrow || escrow.job.deliveryState === 'skipped') return null;
+  const { job } = escrow;
+  return <AdminSectionCard title="계좌이체 구매안전서비스">
+    <dl className={FACTS} data-order-transfer-escrow={job.deliveryState}>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>계좌이체</dd></div>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>구매안전서비스 (에스크로)</dt><dd className={FACT_VALUE}>{adminTransferEscrowLabel(escrow.useEscrow)}</dd></div>
+      <div className={FACT_ROW} data-order-escrow-delivery={job.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', job.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[job.deliveryState]}</AdminStatusBadge>{job.lastErrorCode ? <span className="mt-1 block text-xs text-muted-foreground">확인 코드 · {job.lastErrorCode}</span> : null}</dd></div>
+      <div className={FACT_ROW}><dt className={FACT_TERM}>에스크로 거래 상태</dt><dd className={FACT_VALUE}>{job.escrowStatus ? <AdminStatusBadge tone={statusTone('escrowStatus', job.escrowStatus)}>{ADMIN_ESCROW_STATUS_LABELS[job.escrowStatus]}</AdminStatusBadge> : '아직 확인 전'}</dd></div>
+    </dl>
+    {job.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
+    <p className="text-sm leading-relaxed text-muted-foreground">{ADMIN_TRANSFER_ESCROW_HINT}</p>
   </AdminSectionCard>;
 }
 
@@ -393,6 +420,7 @@ export function OrderDetailScreen({
       </AdminSectionCard>
     </div>
     {canManage ? <OrderVirtualAccountCard detail={detail} /> : null}
+    {canManage ? <OrderTransferEscrowCard detail={detail} /> : null}
     {downloads !== undefined && <AdminOrderDownloads document={downloads} />}
     {acknowledgement !== undefined ? <AdminSectionCard title="결제 전 확인 동의">
       {acknowledgement ? <dl className={FACTS} data-order-acknowledgement="recorded">

@@ -71,6 +71,8 @@ const STATUS_TONES = {
   escrowDelivery: { waiting: 'neutral', ready: 'info', registered: 'success', skipped: 'neutral', manual_required: 'danger' },
   /** 결제사 에스크로 거래 상태 — lib/admin/orders ADMIN_ESCROW_STATUS_LABELS. 구매자 취소 신청은 우리가 처리할 일이다 */
   escrowStatus: { IN_PROGRESS: 'info', CANCEL_REQUESTED: 'warning', CONFIRMED: 'success', CANCELED: 'neutral' },
+  /** 가상계좌 환불 은행 송금 — lib/admin/orders ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS(ADR-0049 결정 5 보강) */
+  virtualAccountRefund: { pending: 'info', completed: 'success', failed: 'danger', resolved: 'neutral' },
   /** 반품·교환 배송비 청구 — lib/orders/claim-fees */
   claimFee: { unpaid: 'warning', reported: 'warning', paid: 'success', waived: 'neutral', voided: 'neutral', refund_due: 'danger', refunded: 'success' },
   /** 정기구매 신청 — lib/subscriptions/model. 해지는 이미 끝난 건이라 조용히 두고 처리할 '변경 내용 확인 필요'만 띄운다 */

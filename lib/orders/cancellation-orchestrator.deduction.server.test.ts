@@ -118,7 +118,7 @@ function dependencies(
 }
 
 const FULL_REFUND_CALL = {
-  paymentId: 'payment-1', provider: 'toss', amount: 30000, reason: 'ICONS 주문 취소', paymentKey: PAYMENT_KEY,
+  paymentId: 'payment-1', provider: 'toss', amount: 30000, reason: 'ICONS 주문 취소', paymentKey: PAYMENT_KEY, requestId: REQUEST_ID,
 };
 
 describe('reconcileOrderCancellation — 반품배송비 차감', () => {

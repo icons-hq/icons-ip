@@ -1,16 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), health: vi.fn(), payments: vi.fn(), digest: vi.fn(), reconcile: vi.fn(), refresh: vi.fn(), saveDigest: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), health: vi.fn(), payments: vi.fn(), refunds: vi.fn(), digest: vi.fn(), reconcile: vi.fn(), refresh: vi.fn(), saveDigest: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
-vi.mock('@/lib/admin/system-health.server', () => ({ loadSystemHealth: mocks.health, loadUnresolvedPaymentAttempts: mocks.payments }));
+vi.mock('@/lib/admin/system-health.server', () => ({ loadSystemHealth: mocks.health, loadUnresolvedPaymentAttempts: mocks.payments,
+  loadVirtualAccountRefundFailures: mocks.refunds }));
 vi.mock('@/lib/admin/ops-alert-digest.server', () => ({ loadOpsAlertDigest: mocks.digest }));
 vi.mock('@/app/admin/ops-alert-digest-actions', () => ({ saveOpsAlertDigestAction: mocks.saveDigest }));
 vi.mock('@/app/admin/system-health-actions', () => ({ reconcilePaymentAttemptAction: mocks.reconcile }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 import Page from './page';
 import { parseOpsAlertDigestSettings } from '@/lib/admin/ops-alert-digest';
-import { parseSystemHealthReport, parseUnresolvedPaymentAttempts } from '@/lib/admin/system-health';
+import { parseSystemHealthReport, parseUnresolvedPaymentAttempts, parseVirtualAccountRefundFailures } from '@/lib/admin/system-health';
 
 const asOf = '2026-11-18T03:00:00.000Z';
 const access = (capabilities: string[]) => ({
@@ -31,8 +32,13 @@ const health = parseSystemHealthReport({
   recentFailures: [{ jobKey: 'gifts', source: 'vercel_cron', occurredAt: '2026-11-18T02:59:00Z', statusCode: 503, errorCode: 'unhealthy_result' }],
   payments: { goods: 2, tickets: 0, other: 0, oldestAt: '2026-11-17T03:00:00Z' },
   emails: { failed24h: 1, bounced24h: 3 },
-  counts: { failingJobs: 1, stalledJobs: 0, problemJobs: 1, unresolvedPayments: 2, emailFailures: 1, emailBounces: 3, issues: 4 },
+  refunds: { virtualAccountFailed: 1, oldestAt: '2026-11-17T05:00:00Z' },
+  counts: { failingJobs: 1, stalledJobs: 0, problemJobs: 1, unresolvedPayments: 2, emailFailures: 1, emailBounces: 3, refundFailures: 1, issues: 5 },
 });
+const refundFailures = parseVirtualAccountRefundFailures({ total: 1, items: [{
+  orderId: 'a7000000-0000-4002-8000-000000000009', orderNumber: '2026111800000000009', amount: 31000, failureCode: 'refund_failed',
+  refundStatus: 'FAILED', refundedAt: '2026-11-16T03:00:00Z', failedAt: '2026-11-17T05:00:00Z', checkedAt: '2026-11-17T05:00:00Z',
+}] });
 const payments = parseUnresolvedPaymentAttempts({
   total: 2, asOf, items: [{
     attemptId: 'a7000000-0000-4003-8000-000000000001', purpose: 'order', provider: 'toss', state: 'unknown', reason: 'unknown',
@@ -58,6 +64,7 @@ beforeEach(() => {
   mocks.guard.mockResolvedValue(access(['home', 'platform.manage', 'sales.read', 'sales.manage']));
   mocks.health.mockResolvedValue(health);
   mocks.payments.mockResolvedValue(payments);
+  mocks.refunds.mockResolvedValue(refundFailures);
 });
 
 it('운영 관리자 권한을 확인한 뒤에만 상태를 읽는다', async () => {
@@ -74,12 +81,18 @@ it('운영 관리자 권한을 확인한 뒤에만 상태를 읽는다', async (
 it('문제 있는 작업·미종결 결제·메일 실패 건수와 작업 표·실패 표·결제 목록을 kit 부품으로 그린다', async () => {
   const html = renderToStaticMarkup(await Page());
   expect(html).toContain('시스템 상태');
-  for (const label of ['문제 있는 자동 작업 1개', '미종결 결제 2건', '메일 발송 실패(24시간) 1건', '메일 반송(24시간) 3건']) expect(html).toContain(`aria-label="${label}"`);
+  for (const label of ['문제 있는 자동 작업 1개', '미종결 결제 2건', '메일 발송 실패(24시간) 1건', '메일 반송(24시간) 3건', '환불 송금 확인 필요 1건']) expect(html).toContain(`aria-label="${label}"`);
   expect(html).toMatch(/data-system-job="gifts" data-system-job-state="failing"/);
   expect(html).toContain('>실패 중<');
   expect(html).toContain('결제 기한 만료 정리');
   expect(html).toContain('일부 건 처리 실패');
-  expect(html.match(/data-slot="table"/g)?.length).toBe(3);
+  expect(html.match(/data-slot="table"/g)?.length).toBe(4);
+  // 가상계좌 환불 송금 확인 필요(ADR-0049 결정 5 보강) — 주문으로 이어지는 목록.
+  expect(html).toContain('id="virtual-account-refunds"');
+  expect(html).toContain('href="/admin/sales/orders/a7000000-0000-4002-8000-000000000009"');
+  expect(html).toContain('data-virtual-account-refund-failure="refund_failed"');
+  expect(html).toContain('>은행 송금 실패<');
+  expect(mocks.refunds).toHaveBeenCalledWith(50);
   expect(html).toContain('href="/admin/sales/orders/a7000000-0000-4002-8000-000000000001"');
   expect(html).toContain('31,000원');
   expect(html).toContain('>결제 결과 불명<');
@@ -96,17 +109,22 @@ it('주문 관리 권한이 없으면 결제 목록을 읽지 않고 안내만 �
   mocks.guard.mockResolvedValue(access(['home', 'platform.manage']));
   const html = renderToStaticMarkup(await Page());
   expect(mocks.payments).not.toHaveBeenCalled();
+  expect(mocks.refunds).not.toHaveBeenCalled();
+  expect(html).toContain('주문 조회 권한이 있는 매니저에게 보입니다. 지금 1건입니다.');
   expect(html).toContain('주문 관리 권한이 있는 매니저에게 보입니다');
   expect(html).not.toContain('결제 상태 다시 확인</button>');
 });
 
 it('문제가 없으면 정상 안내를, 읽지 못하면 정상처럼 보이지 않는 오류를 보인다', async () => {
   mocks.health.mockResolvedValue({ ...health!, jobs: health!.jobs.slice(1), recentFailures: [],
-    counts: { failingJobs: 0, stalledJobs: 0, problemJobs: 0, unresolvedPayments: 0, emailFailures: 0, emailBounces: 0, issues: 0 } });
+    refunds: { virtualAccountFailed: 0, oldestAt: null },
+    counts: { failingJobs: 0, stalledJobs: 0, problemJobs: 0, unresolvedPayments: 0, emailFailures: 0, emailBounces: 0, refundFailures: 0, issues: 0 } });
   mocks.payments.mockResolvedValue({ total: 0, asOf, items: [] });
+  mocks.refunds.mockResolvedValue({ total: 0, items: [] });
   let html = renderToStaticMarkup(await Page());
   expect(html).toContain('지금 확인할 문제가 없습니다');
   expect(html).toContain('미종결 결제가 없습니다');
+  expect(html).toContain('확인할 환불 송금이 없습니다');
   mocks.health.mockResolvedValue(null);
   html = renderToStaticMarkup(await Page());
   expect(html).toContain('시스템 상태를 불러오지 못했습니다');
