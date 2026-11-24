@@ -80,7 +80,7 @@ async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
 
 function revalidateCatalog(paths: string[]) {
   revalidateGoodsSurfaces();
-  const defaults = ['/binder', '/events', '/offline-popups'];
+  const defaults = ['/events', '/offline-popups'];
   for (const path of [...defaults, ...paths]) {
     revalidatePath(path);
   }
