@@ -184,6 +184,14 @@ describe('입금된 가상계좌 주문(ADR-0049 결정 5 보강)', () => {
     expect(mocks.retry).toHaveBeenCalledWith(expect.objectContaining({ claimId: identity.claimId, sessionId: identity.sessionId }));
   });
 
+  it('결제대행사에 그대로 보낼 수 없는 등록 계좌는 바꾸라고 알리고 같은 계좌로 다시 요청하지 않는다', async () => {
+    await openVirtualAccount({ refundAccountIssue: 'unusable', maskedAccount: '농협 ********4321', maskedHolder: '김*성', recordedAt: '2026-11-23T05:00:00.000Z' });
+    render();
+    expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('등록된 계좌로는 환불할 수 없어요'))).toBe(true);
+    expect(nodes.some(node => node.type === 'button' && text(node) === '이 계좌로 환불 다시 요청')).toBe(false);
+    expect(nodes.some(node => node.type === 'button' && text(node) === '환급 계좌 바꾸기')).toBe(true);
+  });
+
   it('결제대행사가 거절한 계좌는 같은 계좌로 다시 요청하지 않는다(바꿔야 풀린다)', async () => {
     await openVirtualAccount({ refundAccountIssue: 'invalid', maskedAccount: '신한은행 ********4321', maskedHolder: '김*성', recordedAt: '2026-11-23T05:00:00.000Z' });
     render();

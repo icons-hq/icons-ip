@@ -115,6 +115,14 @@ describe('submitOrderClaim', () => {
     )).toBe(false);
   });
 
+  it('받지 않은 환급 계좌(가상계좌 주문)는 계좌를 고쳐 다시 신청하도록 구분한다', async () => {
+    expect(await submitOrderClaim(
+      ORDER_ID,
+      { claimType: 'cancel', reasonType: 'change_of_mind', bankName: '농협', accountNumber: '110987654321', accountHolder: '김합성' },
+      fetcher({ ok: false, status: 400, body: { error: { code: 'invalid_refund_account' } } }),
+    )).toBe('invalid_refund_account');
+  });
+
   it('자동 승인 응답을 그대로 읽는다', async () => {
     expect(await submitOrderClaim(
       ORDER_ID,

@@ -4,8 +4,10 @@
 -- 1. 환불 계좌가 없거나 결제사가 거절한 가상계좌 환불을 사람 손에서 시스템으로 옮긴다.
 --    - 구매자가 반품·취소 신청 화면이나 주문 상세에서 입력한 환급 계좌(private.claim_refund_accounts — 법정 문서가 이미 '반품·취소
 --      신청 화면에서 입력한 환급 계좌'와 '환급 완료 30일 뒤 원문 파기'를 말한다)를 가상계좌 환불의 첫째 계좌로 쓴다. 없으면 결제 UI가
---      받은 계좌(private.payment_attempt_virtual_accounts.refund_*, 발급 180일 뒤 파기)다. 고르는 규칙·은행 이름 → 토스 은행 코드는
---      앱(lib/payments/virtual-account-refund-account.ts)이 정한다. 계좌별 멱등키(refund:{attemptId}:va-{계좌 해시})는 그대로다.
+--      받은 계좌(private.payment_attempt_virtual_accounts.refund_*, 발급 180일 뒤 파기)다. 입력한 계좌를 결제사에 그대로 보낼 수
+--      있는지는 DB 판정 하나(private.virtual_account_refund_account_usable)가 정하고 저장·재시도 시작·계좌 후보 응답이 모두 그것을 쓴다.
+--      은행 이름 → 토스 은행 코드는 앱(lib/payments/virtual-account-refund-account.ts)이 같은 은행 목록으로 바꾼다(시험이 두 목록을
+--      대조한다). 계좌별 멱등키(refund:{attemptId}:va-{계좌 해시})는 그대로다. 예전 단수형 계좌 조회 함수는 지운다.
 --    - 기존 차단(주문 상세의 환불계좌 보완은 회사 계좌 무통장 주문만)을 입금된 토스 가상계좌 주문에 연다. 가상계좌 주문은 계좌를 바꿀 수
 --      있다(결제사가 거절한 계좌를 고친다) — 결제사 환불이 진행 중(processing)이거나 환불이 끝났으면 바꾸지 않는다.
 --    - 계좌를 저장하면: 취소(시스템 actor 허용)는 앱이 service_begin_virtual_account_refund_retry로 결제확인필요 → 처리 중으로 되돌린 뒤
@@ -81,6 +83,24 @@ as $function$
     'KB국민은행', 'iM뱅크(대구)', 'KDB산업은행', 'NH농협은행', 'SC제일은행', 'Sh수협은행', '수협중앙회']);
 $function$;
 revoke all on function private.toss_refund_bank_name_known(text) from public, anon, authenticated, service_role;
+
+-- 가상계좌 환불에 그대로 보낼 수 있는 환급 계좌인지 — 은행은 위 목록의 이름, 계좌번호는 하이픈을 뺀 숫자 6~20자리, 예금주는 1~50자.
+-- 판정은 이 함수 하나다. 저장(주문 상세·반품·취소 신청)·재시도 시작·계좌 후보 응답(usable)이 모두 이 함수를 부르고, 앱
+-- (lib/payments/virtual-account-refund-account.ts)은 후보 응답의 usable을 따른다 — 앱과 DB가 계좌를 다르게 판정하지 않게 한다.
+create function private.virtual_account_refund_account_usable(p_bank_name text, p_account_number text, p_account_holder text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $function$
+  select coalesce(
+    private.toss_refund_bank_name_known(p_bank_name)
+      and pg_catalog.replace(p_account_number, '-', '') ~ '^[0-9]{6,20}$'
+      and pg_catalog.char_length(pg_catalog.btrim(p_account_holder)) between 1 and 50
+      and pg_catalog.btrim(p_account_holder) !~ '[[:cntrl:]]',
+    false);
+$function$;
+revoke all on function private.virtual_account_refund_account_usable(text, text, text) from public, anon, authenticated, service_role;
 
 -- 가상계좌 주문의 환급 계좌 입력 판정. 결제사 환불이 진행 중이거나 끝났으면 막는다. 이미 입력한 계좌는 바꿀 수 있다.
 create function private.order_claim_virtual_account_refund_blocker(
@@ -186,8 +206,13 @@ begin
   'claimType',claim.claim_type,'stage',claim.stage,'revision',claim.claim_revision,'allowed',blocker is null,'blocker',blocker,
   'maskedAccount',account.masked_account,'maskedHolder',account.masked_holder,'recordedAt',account.created_at,
   'mode',case when va_payment is not null then 'virtual_account' else 'bank_transfer' end,
-  'refundAccountIssue',case when va_payment is not null and claim.status='needs_review' then case claim.last_error_code
-    when 'provider_refund_account_required' then 'required' when 'provider_refund_account_invalid' then 'invalid' end end,
+  'refundAccountIssue',case
+    when va_payment is null then null
+    -- 입력된 계좌를 결제사에 그대로 보낼 수 없다(목록 밖 은행 이름·숫자 6~20자리 밖 등) — 바꿀 수 있을 때 바꾸라고 알린다.
+    when blocker is null and account.purged_at is null and account.account_number is not null
+      and not private.virtual_account_refund_account_usable(account.bank_name,account.account_number,account.account_holder) then 'unusable'
+    when claim.status='needs_review' then case claim.last_error_code
+      when 'provider_refund_account_required' then 'required' when 'provider_refund_account_invalid' then 'invalid' end end,
   'checkoutAccount',checkout_account);
 end $function$;
 
@@ -242,8 +267,7 @@ begin
  if blocker is not null then raise check_violation using message=blocker;end if;
  virtual_account:=purchase.payment_method='card' and private.order_toss_virtual_account_payment(purchase.id) is not null;
  -- 가상계좌 환불은 결제대행사에 은행 코드와 숫자 6~20자리 계좌번호를 보낸다 — 그대로 보낼 수 없는 계좌는 받지 않는다.
- if virtual_account and (not private.toss_refund_bank_name_known(p_bank_name)
-   or pg_catalog.replace(p_account_number,'-','')!~'^[0-9]{6,20}$') then
+ if virtual_account and not private.virtual_account_refund_account_usable(p_bank_name,p_account_number,p_account_holder) then
   raise invalid_parameter_value using message='invalid_virtual_account_refund_account';end if;
  replaced:=exists(select 1 from private.claim_refund_accounts where claim_id=claim.id);
  -- 차단 판정이 기존 계좌를 막지 않은 것은 가상계좌 주문뿐이다(회사 계좌 무통장은 refund_account_already_recorded).
@@ -269,8 +293,24 @@ begin
 end $function$;
 
 -- ---------------------------------------------------------------------------
+-- 1-3b. 반품·취소 신청 화면에서 받는 계좌도 같은 판정으로 막는다 — 입금된 가상계좌 주문은 이 계좌로 결제사 환불을 보낸다.
+--       (운영자 접수·유형 전환 경로는 바꾸지 않는다. 그 계좌를 쓸 수 없으면 재시도 시작이 account_invalid로, 구매자 화면이
+--       '바꿔야 하는 계좌'로 알린다.)
+-- ---------------------------------------------------------------------------
+select private.va_refund_patch(
+  'private.request_order_claim_for_parties(uuid,uuid,uuid,uuid,text,text,text,text,text,text)'::regprocedure,
+  pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_array(
+    '    v_masked_account := public.mask_refund_account_number(p_account_number);',
+    '    -- 입금된 토스 가상계좌 주문은 이 계좌로 결제사 환불을 보낸다(20261125110000) — 그대로 보낼 수 없는 계좌는 받지 않는다.
+    if private.order_toss_virtual_account_payment(p_order_id) is not null
+      and not private.virtual_account_refund_account_usable(btrim(p_bank_name), p_account_number, btrim(p_account_holder)) then
+      raise invalid_parameter_value using message = ''invalid_virtual_account_refund_account'';
+    end if;
+    v_masked_account := public.mask_refund_account_number(p_account_number);')));
+
+-- ---------------------------------------------------------------------------
 -- 1-4. 서버(service role) 전용: 가상계좌 환불에 실을 계좌 후보 두 개. 결제 시도의 원장 결제 키와 같을 때만 준다.
---      claim = 이 취소·반품 요청에서 구매자가 입력한 계좌(은행 이름), checkout = 결제 UI가 받은 계좌(토스 은행 코드).
+--      claim = 이 취소·반품 요청에서 구매자가 입력한 계좌(은행 이름, usable = 그대로 보낼 수 있는지), checkout = 결제 UI가 받은 계좌(토스 은행 코드).
 -- ---------------------------------------------------------------------------
 create function public.service_goods_virtual_account_refund_accounts(p_attempt_id uuid, p_payment_key text, p_request_id uuid)
 returns jsonb
@@ -282,7 +322,8 @@ as $function$
   select pg_catalog.jsonb_build_object(
     'claim', (
       select pg_catalog.jsonb_build_object(
-        'bankName', account.bank_name, 'accountNumber', account.account_number, 'holderName', account.account_holder)
+        'bankName', account.bank_name, 'accountNumber', account.account_number, 'holderName', account.account_holder,
+        'usable', private.virtual_account_refund_account_usable(account.bank_name, account.account_number, account.account_holder))
       from private.claim_refund_accounts as account
       join public.order_cancellation_requests as request on request.id = account.claim_id
       where account.claim_id = p_request_id and request.order_id = va.order_id
@@ -298,7 +339,8 @@ grant execute on function public.service_goods_virtual_account_refund_accounts(u
 -- ---------------------------------------------------------------------------
 -- 1-5. 서버(service role) 전용: 구매자가 계좌를 입력한 뒤 계좌 때문에 멈춘 가상계좌 취소를 처리 중으로 되돌린다(시스템 actor).
 --      started = 앱이 같은 요청에서 환불을 다시 시도한다 / operator_required = 반품(운영자 [상태 다시 확인]) /
---      account_missing = 쓸 계좌가 없다 / not_applicable = 대상 아님(이미 처리 중·다른 사유·가상계좌 아님).
+--      account_missing = 쓸 계좌가 없다 / account_invalid = 입력한 계좌를 결제사에 그대로 보낼 수 없다(계좌를 고쳐야 한다) /
+--      not_applicable = 대상 아님(이미 처리 중·다른 사유·가상계좌 아님).
 -- ---------------------------------------------------------------------------
 create function public.service_begin_virtual_account_refund_retry(p_request_id uuid)
 returns text
@@ -311,6 +353,7 @@ declare
   v_purchase public.orders%rowtype;
   v_claim public.order_cancellation_requests%rowtype;
   v_payment jsonb;
+  v_claim_account_usable boolean;
 begin
   if p_request_id is null then
     raise invalid_parameter_value using message = 'invalid_refund_retry';
@@ -340,10 +383,16 @@ begin
   if v_claim.claim_type <> 'cancel' then
     return 'operator_required';
   end if;
-  if not exists (
-      select 1 from private.claim_refund_accounts as account
-      where account.claim_id = v_claim.id and account.purged_at is null and account.account_number is not null)
-    and not exists (
+  -- 앱의 계좌 고르기와 같은 규칙: 이 요청에서 입력한 계좌가 있으면 그것만 본다(결제 UI 계좌로 넘어가지 않는다). 그 계좌를 결제사에
+  -- 그대로 보낼 수 없으면 환불을 다시 부르지 않는다 — 불러도 계좌 없음으로 돌아올 뿐이라 구매자에게 계좌를 고치라고 알린다.
+  select private.virtual_account_refund_account_usable(account.bank_name, account.account_number, account.account_holder)
+  into v_claim_account_usable
+  from private.claim_refund_accounts as account
+  where account.claim_id = v_claim.id and account.purged_at is null and account.account_number is not null;
+  if v_claim_account_usable is false then
+    return 'account_invalid';
+  end if;
+  if v_claim_account_usable is null and not exists (
       select 1 from private.payment_attempt_virtual_accounts as va
       where va.attempt_id = (v_payment->>'attemptId')::uuid and va.refund_bank_code is not null) then
     return 'account_missing';
@@ -755,6 +804,7 @@ begin
     'private.order_claim_refund_account_blocker(public.order_cancellation_requests,public.orders)'::regprocedure,
     'public.get_my_order_claim_refund_account_context(uuid,uuid,uuid,uuid)'::regprocedure,
     'public.set_my_order_claim_refund_account(uuid,uuid,uuid,integer,text,text,text,uuid,uuid)'::regprocedure,
+    'private.request_order_claim_for_parties(uuid,uuid,uuid,uuid,text,text,text,text,text,text)'::regprocedure,
     'public.get_my_order_virtual_account(uuid)'::regprocedure,
     'private.system_health_report()'::regprocedure,
     'private.prepare_ops_alert_digest(timestamptz)'::regprocedure
@@ -778,6 +828,10 @@ select private.register_operator_rpc_contract(
   'public.admin_virtual_account_refund_failures(integer)'::regprocedure, 'sales.read', 'read', false);
 
 drop function private.va_refund_patch(regprocedure, jsonb);
+
+-- 예전 단수형 계좌 조회(20261125090100)는 후보 두 개를 돌려주는 service_goods_virtual_account_refund_accounts(1-4)로 바뀌어 부르는 곳이
+-- 없다. 평문 계좌를 돌려주는 service 함수를 남기지 않는다(운영자 계약에는 등록돼 있지 않다).
+drop function public.service_goods_virtual_account_refund_account(uuid, text);
 
 commit;
 

@@ -30,7 +30,7 @@ describe('retryVirtualAccountRefund', () => {
     expect(deps.reconcile).toHaveBeenCalledWith(REQUEST_ID);
   });
 
-  it.each(['operator_required', 'account_missing', 'not_applicable', 'failed'] as const)('%s면 환불을 부르지 않는다', async (outcome) => {
+  it.each(['operator_required', 'account_missing', 'account_invalid', 'not_applicable', 'failed'] as const)('%s면 환불을 부르지 않는다', async (outcome) => {
     const { deps, tasks } = dependencies(outcome);
     expect(await retryVirtualAccountRefund(REQUEST_ID, deps)).toBe(outcome);
     expect(tasks).toHaveLength(0);

@@ -170,8 +170,10 @@ export function parsePaymentPartialRefunds(value: unknown): ReadonlyMap<string, 
 
 /**
  * 가상계좌 결제의 환급 계좌(service 전용 RPC, ADR-0049 결정 5 보강). 이 요청에서 구매자가 입력한 계좌(반품·취소 신청 화면·주문 상세)를
- * 먼저, 없거나 쓸 수 없으면 결제 UI가 받은 계좌를 쓴다(lib/payments/virtual-account-refund-account.ts). 원장 결제 키가 다르거나 가상계좌가
- * 아니면 RPC가 null이다. 없거나 조회 실패면 undefined — 어댑터가 결제사를 부르지 않고 결제확인필요로 남긴다.
+ * 먼저, 없으면 결제 UI가 받은 계좌를 쓴다(lib/payments/virtual-account-refund-account.ts). 원장 결제 키가 다르거나 가상계좌가 아니면
+ * RPC가 null이다. 쓸 계좌가 없으면 undefined — 어댑터가 결제사를 부르지 않고 결제확인필요(계좌 없음)로 남긴다.
+ * 조회 자체가 실패하면 계좌 없음과 구분해 던진다 — 환불 호출부가 결제사를 부르지 않고 '결제사 응답 없음'(provider_unavailable, 운영자
+ * [상태 다시 확인]으로 다시 시도)으로 남긴다. 계좌 없음으로 적으면 구매자에게 계좌를 다시 입력하라는 잘못된 안내가 나간다.
  */
 async function loadVirtualAccountRefundAccount(
   service: ReturnType<typeof createServiceClient>,
@@ -184,7 +186,7 @@ async function loadVirtualAccountRefundAccount(
     p_payment_key: paymentKey,
     p_request_id: requestId ?? null,
   });
-  if (error) return undefined;
+  if (error) throw new Error('virtual account refund account lookup failed');
   return selectVirtualAccountRefundAccount(parseVirtualAccountRefundAccountCandidates(data))?.account;
 }
 

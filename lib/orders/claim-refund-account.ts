@@ -9,8 +9,11 @@ export interface ClaimRefundAccountRequest extends ClaimRefundAccountRecovery { 
  * 보강) — 입력한 계좌로 결제대행사가 환급하고, 결제대행사가 계좌를 거절하면 바꿀 수 있다.
  */
 export type ClaimRefundAccountMode = 'bank_transfer' | 'virtual_account';
-/** 가상계좌 환불이 계좌 때문에 멈췄는지 — required: 계좌 없음, invalid: 결제대행사가 계좌를 거절. */
-export type ClaimRefundAccountIssue = 'required' | 'invalid';
+/**
+ * 가상계좌 환불의 계좌 문제 — required: 계좌 없음, invalid: 결제대행사가 계좌를 거절,
+ * unusable: 입력된 계좌를 결제대행사에 그대로 보낼 수 없다(DB 판정 private.virtual_account_refund_account_usable — 바꿔야 환불된다).
+ */
+export type ClaimRefundAccountIssue = 'required' | 'invalid' | 'unusable';
 export interface ClaimRefundAccountCheckoutAccount { bankCode: string; maskedAccount: string; maskedHolder: string }
 export interface ClaimRefundAccountContext {
   actorId: string; orderId: string; claimId: string; claimType: OrderClaimType; stage: OrderClaimStage; revision: number;
@@ -18,7 +21,7 @@ export interface ClaimRefundAccountContext {
   mode: ClaimRefundAccountMode; refundAccountIssue: ClaimRefundAccountIssue | null; checkoutAccount: ClaimRefundAccountCheckoutAccount | null;
 }
 /** 저장 뒤 가상계좌 환불 재시도 결과(lib/orders/virtual-account-refund-retry.server.ts). */
-export type ClaimRefundAccountRetry = 'started' | 'operator_required' | 'account_missing' | 'not_applicable' | 'failed';
+export type ClaimRefundAccountRetry = 'started' | 'operator_required' | 'account_missing' | 'account_invalid' | 'not_applicable' | 'failed';
 export interface ClaimRefundAccountReceipt {
   operationId: string; actorId: string; orderId: string; claimId: string; revision: number; resultRevision: number;
   state: 'saved' | 'sealed'; createdAt: string;
@@ -87,7 +90,7 @@ export function parseClaimRefundAccountContext(value: unknown): ClaimRefundAccou
     || (value.maskedAccount === null) !== (value.maskedHolder === null)
     || (value.maskedAccount === null) !== (value.recordedAt === null)
     || (mode !== 'bank_transfer' && mode !== 'virtual_account')
-    || (issue !== null && issue !== 'required' && issue !== 'invalid')
+    || (issue !== null && issue !== 'required' && issue !== 'invalid' && issue !== 'unusable')
     || checkoutAccount === undefined
     // 회사 계좌 무통장은 계좌를 한 번만 받는다 — 이미 있으면 입력이 열리지 않는다. 가상계좌는 계좌를 바꿀 수 있다.
     || mode === 'bank_transfer' && (value.allowed && value.maskedAccount !== null || issue !== null || checkoutAccount !== null)) return null;

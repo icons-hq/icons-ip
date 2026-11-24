@@ -17,15 +17,20 @@ const blank = { bankName: '', accountNumber: '', accountHolder: '' };
 
 /* 가상계좌 환불 안내(ADR-0049 결정 5 보강). 결제대행사가 예금주를 확인한 뒤 송금하고, 은행 처리에 영업일 2일 정도 걸린다. */
 const VIRTUAL_ACCOUNT_INTRO = '가상계좌로 결제한 주문은 입력한 환급 계좌로 결제대행사가 환불해요. 예금주를 확인한 뒤 송금하고, 은행 처리에 영업일 기준 2일 정도 걸려요.';
-const VIRTUAL_ACCOUNT_ISSUE: Record<'required' | 'invalid', string> = {
+/* 입력된 계좌를 결제대행사에 그대로 보낼 수 없을 때(DB 판정 private.virtual_account_refund_account_usable — 목록의 은행 이름, 숫자 6~20자리). */
+const VIRTUAL_ACCOUNT_FIX_HINT = '은행은 목록에서 고르고, 계좌번호는 숫자 6~20자리(하이픈 제외)로 다시 입력해주세요.';
+const VIRTUAL_ACCOUNT_UNUSABLE = `등록된 계좌로는 환불할 수 없어요. ${VIRTUAL_ACCOUNT_FIX_HINT}`;
+const VIRTUAL_ACCOUNT_ISSUE: Record<'required' | 'invalid' | 'unusable', string> = {
   required: '환불할 계좌가 없어 환불이 멈춰 있어요. 환급 계좌를 입력하면 그 계좌로 환불해요.',
   invalid: '결제대행사가 환급 계좌를 확인하지 못해 환불이 멈춰 있어요. 은행·계좌번호·예금주를 확인해 다시 입력해주세요.',
+  unusable: VIRTUAL_ACCOUNT_UNUSABLE,
 };
 
 function savedMessage(context: ClaimRefundAccountContext | null, retry: ClaimRefundAccountRetry | undefined): string {
   if (context?.mode !== 'virtual_account') return '환불계좌를 등록했습니다. 환급은 담당자가 확인한 뒤 별도로 진행합니다.';
   if (retry === 'started') return '환급 계좌를 저장하고 이 계좌로 환불을 다시 요청했어요. 처리 결과는 이 화면에서 확인할 수 있어요.';
   if (retry === 'operator_required') return '환급 계좌를 저장했어요. 담당자가 확인한 뒤 이 계좌로 환불해요.';
+  if (retry === 'account_invalid') return `환급 계좌를 저장했지만 이 계좌로는 환불할 수 없어요. ${VIRTUAL_ACCOUNT_FIX_HINT}`;
   if (retry === 'failed') return '환급 계좌를 저장했어요. 환불 요청은 아직 보내지 못했어요 — 잠시 뒤 [이 계좌로 환불 다시 요청]을 눌러주세요.';
   return '환급 계좌를 저장했어요. 환불할 때 이 계좌를 써요.';
 }
@@ -142,7 +147,8 @@ function RefundAccountForm({ identity, scope }: { identity: ClaimRefundAccountId
       if ('error' in result) { setError(result.error); if (result.authChanged) scope.authenticate(null, null); return; }
       setMessage(result.refundRetry === 'started' ? '이 계좌로 환불을 다시 요청했어요. 처리 결과는 이 화면에서 확인할 수 있어요.'
         : result.refundRetry === 'operator_required' ? '담당자가 확인한 뒤 이 계좌로 환불해요.'
-          : '지금은 환불을 다시 요청할 수 없어요. 최신 상태를 확인해주세요.');
+          : result.refundRetry === 'account_invalid' ? VIRTUAL_ACCOUNT_UNUSABLE
+            : '지금은 환불을 다시 요청할 수 없어요. 최신 상태를 확인해주세요.');
       setNeedsRefresh(true); setReload(value => value + 1);
     } catch { if (alive.current && scope.canApply(ticket)) setError('환불 요청 결과를 확인하지 못했습니다. 잠시 뒤 다시 확인해주세요.'); }
     finally { busy.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }

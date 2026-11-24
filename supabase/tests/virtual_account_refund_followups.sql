@@ -33,6 +33,10 @@ select 1 / case when
   and not has_function_privilege('service_role', 'private.virtual_account_refund_watch_opened()', 'execute')
   and not has_table_privilege('service_role', 'private.virtual_account_refund_watches', 'select')
   and not has_table_privilege('authenticated', 'private.virtual_account_refund_watches', 'select')
+  and not has_function_privilege('service_role', 'private.virtual_account_refund_account_usable(text,text,text)', 'execute')
+  and not has_function_privilege('authenticated', 'private.virtual_account_refund_account_usable(text,text,text)', 'execute')
+  -- 예전 단수형 계좌 조회(평문 계좌를 돌려주던 service 함수)는 지웠다.
+  and to_regprocedure('public.service_goods_virtual_account_refund_account(uuid,text)') is null
   and has_function_privilege('authenticated', 'public.admin_virtual_account_refund_failures(integer)', 'execute')
   and not has_function_privilege('anon', 'public.admin_virtual_account_refund_failures(integer)', 'execute')
   and (select count(*) from private.operator_rpc_contracts where signature in (
@@ -147,6 +151,25 @@ select 1 / case when private.order_toss_virtual_account_payment('21000000-0000-4
   and private.order_toss_virtual_account_payment('21000000-0000-4000-8000-000000004913') is null
   and private.order_toss_virtual_account_payment('21000000-0000-4000-8000-000000004914') is null
 then 1 else 0 end as assert_virtual_account_payment_detected;
+
+-- 계좌 판정은 DB 함수 하나다(앱은 후보 응답의 usable을 따른다): 목록의 은행 이름 + 하이픈을 뺀 숫자 6~20자리 + 예금주 1~50자.
+select 1 / case when private.virtual_account_refund_account_usable('신한은행', '110-987-654321', ' 김합성 ')
+  and not private.virtual_account_refund_account_usable('농협', '110987654321', '김합성')
+  and not private.virtual_account_refund_account_usable('신한은행', '1234567890123456789012', '김합성')
+  and not private.virtual_account_refund_account_usable('신한은행', '12345', '김합성')
+  and not private.virtual_account_refund_account_usable('신한은행', '110987654321', ' ')
+  and not private.virtual_account_refund_account_usable(null, '110987654321', '김합성')
+then 1 else 0 end as assert_refund_account_usable_rule;
+-- 반품·취소 신청 화면도 입금된 가상계좌 주문에는 그대로 보낼 수 없는 계좌를 받지 않는다(신청 전체가 되돌려진다).
+select pg_temp.expect_error($$select public.request_order_claim('21000000-0000-4000-8000-000000004911',
+  '00000000-0000-4000-8000-000000004911', 'cancel', '사용자 주문 취소', 'change_of_mind', '농협', '110-987-654321', '김합성')$$,
+  'invalid_virtual_account_refund_account');
+select pg_temp.expect_error($$select public.request_order_claim('21000000-0000-4000-8000-000000004911',
+  '00000000-0000-4000-8000-000000004911', 'cancel', '사용자 주문 취소', 'change_of_mind', '신한은행', '1234567890123456789012', '김합성')$$,
+  'invalid_virtual_account_refund_account');
+select 1 / case when not exists (
+  select 1 from public.order_cancellation_requests where order_id = '21000000-0000-4000-8000-000000004911'
+) then 1 else 0 end as assert_unusable_claim_account_rejected_at_request;
 
 -- 4911 취소: 자동 승인(처리 중) → 결제사가 환불 계좌를 요구해 결제확인필요. 4913 카드 취소도 같은 상태로 둔다.
 select 1 / case when public.request_order_claim('21000000-0000-4000-8000-000000004911', '00000000-0000-4000-8000-000000004911',
@@ -291,6 +314,30 @@ then 1 else 0 end as assert_refund_account_candidates;
 select 1 / case when public.service_begin_virtual_account_refund_retry('61000000-0000-4000-8000-000000004912') = 'operator_required'
   and public.service_begin_virtual_account_refund_retry(:'claim_4913') = 'not_applicable'
 then 1 else 0 end as assert_retry_routes_return_and_card;
+-- 입력된 계좌를 결제사에 그대로 보낼 수 없으면(예: 운영자 접수 경로의 자유 입력 은행 이름) 재시도를 시작하지 않고 계좌를 고치라고 돌려준다
+-- — 결제 화면 계좌로 넘어가지 않고, 구매자 문맥은 '바꿔야 하는 계좌'로 보인다.
+update private.claim_refund_accounts set bank_name = '농협' where claim_id = :'claim_4911';
+select 1 / case when public.service_begin_virtual_account_refund_retry(:'claim_4911') = 'account_invalid'
+  and (select c.status = 'needs_review' from public.order_cancellation_requests c where c.id = :'claim_4911')
+  and (public.service_goods_virtual_account_refund_accounts('31000000-0000-4000-8000-000000004911', 'var-key-4911', :'claim_4911')
+    ->'claim'->>'usable')::boolean = false
+then 1 else 0 end as assert_retry_refuses_unusable_account;
+set local role authenticated;
+select pg_temp.as_buyer();
+select 1 / case when (
+  select ctx->>'refundAccountIssue' = 'unusable' and (ctx->>'allowed')::boolean
+  from (select public.get_my_order_claim_refund_account_context('21000000-0000-4000-8000-000000004911', :'claim_4911',
+    '00000000-0000-4000-8000-000000004911', '00000000-0000-4000-8000-0000000049a1') as ctx) c
+) then 1 else 0 end as assert_buyer_context_flags_unusable_account;
+reset role;
+select set_config('request.jwt.claims', '{}', true);
+update private.claim_refund_accounts set account_number = '1234567890123456789012', bank_name = '신한은행' where claim_id = :'claim_4911';
+select 1 / case when public.service_begin_virtual_account_refund_retry(:'claim_4911') = 'account_invalid'
+then 1 else 0 end as assert_retry_refuses_overlong_account;
+update private.claim_refund_accounts set account_number = '110987654321' where claim_id = :'claim_4911';
+select 1 / case when (public.service_goods_virtual_account_refund_accounts('31000000-0000-4000-8000-000000004911', 'var-key-4911', :'claim_4911')
+    ->'claim'->>'usable')::boolean
+then 1 else 0 end as assert_candidate_reports_usable_account;
 select 1 / case when public.service_begin_virtual_account_refund_retry(:'claim_4911') = 'started'
 then 1 else 0 end as assert_retry_started;
 select 1 / case when (

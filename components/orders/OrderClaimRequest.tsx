@@ -53,6 +53,9 @@ export const CLAIM_DEADLINE_MESSAGE = '신청 기한이 지난 주문입니다. 
 export const CLAIM_NOT_AVAILABLE_MESSAGE = '지금은 신청할 수 없는 주문입니다. 최신 상태를 확인해주세요.';
 export const PARTIAL_RETURN_BLOCKED_MESSAGE = '고른 굿즈 가운데 지금 반품할 수 없는 굿즈가 있습니다. 최신 상태를 확인한 뒤 다시 골라주세요.';
 export const PARTIAL_RETURN_SELECTION_REQUIRED = '반품할 굿즈와 수량을 1개 이상 골라주세요.';
+/* 가상계좌 환불은 결제대행사에 은행 코드와 숫자 6~20자리 계좌번호를 보낸다(DB 판정 private.virtual_account_refund_account_usable과 같다). */
+export const VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE = '은행은 목록에서 고르고, 계좌번호는 숫자 6~20자리(하이픈 제외)로 입력해주세요.';
+const VIRTUAL_ACCOUNT_REFUND_NUMBER = /^[0-9]{6,20}$/;
 
 type ClaimFetch = (
   input: string,
@@ -67,6 +70,7 @@ type ClaimSubmissionResult =
   | 'deadline_expired'
   | 'not_claimable'
   | 'partial_return_unavailable'
+  | 'invalid_refund_account'
   | false;
 
 export async function submitOrderClaim(
@@ -95,6 +99,8 @@ export async function submitOrderClaim(
     if (code === 'deadline_expired') return 'deadline_expired';
     if (code === 'not_claimable') return 'not_claimable';
     if (code === 'partial_return_unavailable' || code === 'partial_return_item_unavailable') return 'partial_return_unavailable';
+    /* 입력한 환급 계좌를 받지 않았다 — 신청 전체가 되돌려졌으니 계좌를 고쳐 다시 신청한다. */
+    if (code === 'invalid_refund_account') return 'invalid_refund_account';
     return false;
   }
 
@@ -249,6 +255,11 @@ export function OrderClaimRequest({
       setAccountError(account.error);
       return;
     }
+    if (virtualAccountRefund && account.value
+      && !VIRTUAL_ACCOUNT_REFUND_NUMBER.test(account.value.accountNumber.replace(/-/g, ''))) {
+      setAccountError(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE);
+      return;
+    }
     /* 반품은 환불로 끝난다. 계좌를 받아 두면 카드 접수가 막혔을 때 송금으로
        전환할 수 있고, 무통장 주문(#256)에서는 유일한 경로가 된다. */
     setAccountError(null);
@@ -275,6 +286,11 @@ export function OrderClaimRequest({
       result = false;
     }
 
+    if (result === 'invalid_refund_account') {
+      setAccountError(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE);
+      setSubmission('form');
+      return;
+    }
     if (result === 'deadline_expired') setSubmission('expired');
     else if (result === 'not_claimable') setSubmission('blocked');
     else if (result === 'partial_return_unavailable') setSubmission('partial_blocked');

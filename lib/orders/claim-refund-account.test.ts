@@ -33,6 +33,9 @@ describe('일반 주문 환불계좌 보완 계약', () => {
     expect(parseClaimRefundAccountContext({ ...virtualAccountRefundContext, refundAccountIssue: 'invalid', checkoutAccount })?.checkoutAccount)
       .toEqual(checkoutAccount);
     expect(parseClaimRefundAccountContext({ ...virtualAccountRefundContext, checkoutAccount: { bankCode: '신한', maskedAccount: 'x', maskedHolder: 'y' } })).toBeNull();
+    // 입력된 계좌를 결제대행사에 그대로 보낼 수 없으면(DB 판정) 바꾸라고 알린다.
+    expect(parseClaimRefundAccountContext({ ...virtualAccountRefundContext, ...recorded, refundAccountIssue: 'unusable' })?.refundAccountIssue)
+      .toBe('unusable');
     expect(parseClaimRefundAccountContext({ ...virtualAccountRefundContext, refundAccountIssue: 'unknown' })).toBeNull();
     expect(parseClaimRefundAccountContext({ ...virtualAccountRefundContext, mode: 'card' })).toBeNull();
     // 회사 계좌 무통장 문맥에는 가상계좌 전용 값이 실리지 않는다.

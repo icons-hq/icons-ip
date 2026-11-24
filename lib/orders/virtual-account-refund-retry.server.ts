@@ -15,9 +15,15 @@ import { reconcileOrderCancellation } from './cancellation-orchestrator.server';
  *    누르면 같은 오케스트레이터가 이 계좌로 환불한다.
  */
 
-export type VirtualAccountRefundRetryOutcome = 'started' | 'operator_required' | 'account_missing' | 'not_applicable' | 'failed';
+/**
+ * started = 처리 중으로 되돌려 응답 뒤 환불을 다시 부른다 / operator_required = 반품(운영자) / account_missing = 쓸 계좌 없음 /
+ * account_invalid = 입력한 계좌를 결제사에 그대로 보낼 수 없어 부르지 않는다(구매자가 계좌를 바꿔야 한다 — DB 판정 하나를 앱 계좌 고르기와
+ * 같이 쓴다) / not_applicable = 대상 아님 / failed = DB 호출 실패.
+ */
+export type VirtualAccountRefundRetryOutcome =
+  | 'started' | 'operator_required' | 'account_missing' | 'account_invalid' | 'not_applicable' | 'failed';
 
-const OUTCOMES = new Set<VirtualAccountRefundRetryOutcome>(['started', 'operator_required', 'account_missing', 'not_applicable']);
+const OUTCOMES = new Set<VirtualAccountRefundRetryOutcome>(['started', 'operator_required', 'account_missing', 'account_invalid', 'not_applicable']);
 
 export interface VirtualAccountRefundRetryDependencies {
   begin(requestId: string): Promise<VirtualAccountRefundRetryOutcome>;
