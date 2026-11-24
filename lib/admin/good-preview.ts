@@ -106,6 +106,8 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
   return {
     good: {
       id: trimmed(values, 'id'),
+      /* 상품 자동코드 칸의 값(저장 규칙처럼 대문자). 미리보기 카드 링크가 공개 상세 주소(ADR-0050)를 가리킨다. */
+      ...(trimmed(values, 'code') ? { code: trimmed(values, 'code').toUpperCase() } : {}),
       ...(random ? { optionSaleMode: 'random' as const } : {}),
       name: trimmed(values, 'name') || '(굿즈 이름 미입력)',
       nameEn: trimmed(values, 'nameEn') || undefined,

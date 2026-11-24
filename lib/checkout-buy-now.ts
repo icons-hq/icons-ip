@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { cartItemKey, type CartItem } from './cart';
 import { goodsCustomInputValues, parseGoodsCustomInputSelection } from './goods-custom-inputs';
+import { goodDetailHref, type GoodAddressRef } from './goods-display';
 
 /*
  * 바로구매(ADR-0030 · 10/14 회의 1014-033·037·039). 상품 상세·위시의 [구매하기]는 고른 옵션·수량·추가 구성·직접입력값만
@@ -108,8 +109,11 @@ export function takePendingBuyNow(goodId: string, now = Date.now()): PendingBuyN
   }
 }
 
-/** 로그인 뒤 돌아올 상품 상세 주소. 고른 옵션만 기존 `?variant=` 로 싣는다 — 직접입력값은 싣지 않는다. */
-export function buyNowReturnPath(goodId: string, variantId: string | null | undefined): string {
-  const path = `/shop/${encodeURIComponent(goodId)}`;
+/**
+ * 로그인 뒤 돌아올 상품 상세 주소. 고른 옵션만 기존 `?variant=` 로 싣는다 — 직접입력값은 싣지 않는다.
+ * 굿즈(id·상품 자동코드)를 받으면 정식 코드 주소, 내부 id 문자열이면 옛 주소다 — 상세가 쿼리를 둔 채 코드 주소로 옮긴다(ADR-0050).
+ */
+export function buyNowReturnPath(good: GoodAddressRef | string, variantId: string | null | undefined): string {
+  const path = goodDetailHref(good);
   return variantId ? `${path}?variant=${encodeURIComponent(variantId)}` : path;
 }

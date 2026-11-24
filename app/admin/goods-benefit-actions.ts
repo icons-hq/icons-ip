@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { revalidateGoodDetailSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
@@ -28,7 +29,7 @@ export async function saveGoodsBenefitsAction(goodId: string, values: GoodsBenef
     if (error) return ['PT409', '23505', '23514', '22023', '42501', 'P0002'].includes(error.code ?? '') ? { ok: false, error: goodsBenefitsError(error.message), conflict: error.code === 'PT409' || error.code === '23505' } : unknown();
     const value = parseGoodsBenefitSnapshot(data);
     if (!value || value.goodId !== goodId || value.revision !== revision + 1 || value.eventText !== parsed.eventText || value.giftText !== parsed.giftText || JSON.stringify(value.giftImagePaths) !== JSON.stringify(parsed.giftImagePaths)) return unknown();
-    revalidatePath(`/shop/${goodId}`); revalidatePath('/admin/catalog/goods');
+    revalidateGoodDetailSurfaces(); revalidatePath('/admin/catalog/goods');
     return { ok: true, value };
   } catch { return unknown(); }
 }

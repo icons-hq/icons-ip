@@ -1,6 +1,7 @@
 'use server';
 import { unstable_rethrow } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { revalidateGoodDetailSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { parseGoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { createClient } from '@/lib/supabase/server';
@@ -32,7 +33,7 @@ export async function saveGoodsFulfillmentAction(goodId: unknown, values: unknow
   if (parseGoodsFulfillment(saved.data, true)?.goodId !== goodId) return unknown();
   const latest = await client.rpc('admin_get_goods_fulfillment', { p_good: goodId }), settings = latest.error ? null : parseGoodsFulfillment(latest.data, true);
   if (!settings || settings.goodId !== goodId) return unknown();
-  for (const p of [path, `/shop/${goodId}`, '/cart', '/checkout']) revalidatePath(p); return { settings };
+  for (const p of [path, '/cart', '/checkout']) revalidatePath(p); revalidateGoodDetailSurfaces(); return { settings };
  } catch (error) { unstable_rethrow(error); return unknown(); }
 }
 async function uploadIdentity(rawIdentity: unknown) {

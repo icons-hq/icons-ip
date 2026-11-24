@@ -11,6 +11,15 @@ const mocks = vi.hoisted(() => ({
   inserts: [] as [string, unknown][],
   insertResult: { error: null } as { error: { message: string } | null },
   revalidatePath: vi.fn(),
+  /* 공개 상품 주소(ADR-0050): 주소 끝 값 → 내부 id. hsq-0013 은 g13 의 상품 자동코드 주소다. */
+  addresses: {
+    'hsq-0013': { goodId: 'g13', segment: 'hsq-0013' },
+    g13: { goodId: 'g13', segment: 'hsq-0013' },
+    'hsq-0099': { goodId: 'g99', segment: 'hsq-0099' },
+  } as Record<string, { goodId: string; segment: string }>,
+}));
+vi.mock('@/lib/goods-address.server', () => ({
+  resolvePublicGoodAddress: async (value: string) => mocks.addresses[value] ?? null,
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.authState }));
@@ -92,7 +101,8 @@ describe('askProductQuestionAction', () => {
   it('굿즈 상세와 내 Q&A를 함께 되살린다', async () => {
     await askProductQuestionAction({}, questionForm());
 
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/g13');
+    /* 상세 주소는 상품 자동코드라(ADR-0050) 상세 라우트 전체를 갱신한다. */
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/[goodId]', 'page');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/my/questions');
   });
 
@@ -118,6 +128,21 @@ describe('askProductQuestionAction', () => {
     await expect(
       askProductQuestionAction({}, questionForm({ next: '/shop/g99?qnaPage=1#qna' })),
     ).rejects.toThrow(`NEXT_REDIRECT:/login?next=${encodeURIComponent('/shop/g13?qnaPage=1#qna')}`);
+
+    /* 다른 굿즈의 상품 자동코드 주소도 접는다. */
+    await expect(
+      askProductQuestionAction({}, questionForm({ next: '/shop/hsq-0099?qnaPage=1#qna' })),
+    ).rejects.toThrow(`NEXT_REDIRECT:/login?next=${encodeURIComponent('/shop/g13?qnaPage=1#qna')}`);
+  });
+
+  /* ADR-0050 — 상세는 상품 자동코드 주소로 열린다. 그 굿즈의 코드 주소면 보던 Q&A 페이지로 돌아온다. */
+  it('그 굿즈의 상품 자동코드 주소인 next는 그대로 로그인 뒤 목적지로 쓴다', async () => {
+    mocks.authState = { isConfigured: true, user: null, profile: null, isStaff: false };
+    const codeNext = '/shop/hsq-0013?qnaPage=2#qna';
+
+    await expect(askProductQuestionAction({}, questionForm({ next: codeNext }))).rejects.toThrow(
+      `NEXT_REDIRECT:/login?next=${encodeURIComponent(codeNext)}`,
+    );
   });
 
   it('정지 계정은 정지 안내로 보낸다', async () => {

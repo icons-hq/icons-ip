@@ -14,6 +14,8 @@ export interface AnalyticsPage { kind: 'home'|'shop'|'good'|'stories'|'story'|'i
 export interface AnalyticsEvent extends AnalyticsAcquisition { eventId: string; pageKind: AnalyticsPage['kind']; targetId: string; linkToken: string|null }
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SLUG=/^[a-z0-9][a-z0-9-]{0,199}$/;
+/* 상품 상세 주소 끝은 상품 자동코드의 소문자형(`._-` 포함, ADR-0050)이거나 옛 내부 id다. 서버가 내부 id로 바꿔 기록한다. */
+const GOOD_SEGMENT=/^[a-z0-9][a-z0-9._-]{0,199}$/;
 const TOKEN=/^[0-9a-f]{32}$/;
 export const CHANNEL_LABELS: Record<AnalyticsChannel,string> = {direct:'직접·출처 미확인',search:'검색',social:'소셜',email:'이메일',paid:'유료 캠페인 표기',referral:'기타 외부',internal:'스토어 내부'};
 export const SOURCE_LABELS: Record<AnalyticsSource,string> = {none:'출처 없음',google:'Google',naver:'네이버',bing:'Bing',daum:'다음',instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',kakao:'카카오',x:'X',threads:'Threads',email:'이메일',other:'기타',icons:'ICONS'};
@@ -34,7 +36,7 @@ export function analyticsPage(pathname:string,search:URLSearchParams):AnalyticsP
  if(pathname==='/stories'||pathname==='/events')return {kind:pathname==='/stories'?'stories':'events',target:'all',linkToken};
  const match=pathname.match(/^\/(shop|stories|ip|events)\/([^/]+)$/);if(!match)return null;
  const kind=match[1]==='shop'?'good':match[1]==='stories'?'story':match[1]==='ip'?'ip':'event';
- if(kind==='story'?!UUID.test(match[2]):!SLUG.test(match[2]))return null;
+ if(kind==='story'?!UUID.test(match[2]):!(kind==='good'?GOOD_SEGMENT:SLUG).test(match[2]))return null;
  return {kind,target:match[2],linkToken};
 }
 const HOST_SOURCES: ReadonlyArray<[string,AnalyticsSource,AnalyticsChannel]> = [

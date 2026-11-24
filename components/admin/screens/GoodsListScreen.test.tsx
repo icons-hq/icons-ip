@@ -158,7 +158,8 @@ describe('goods list screen', () => {
       { ...base, id: 'good-draft', productNo: null, publishedAt: null, customerVisible: false },
     ] }} />);
     expect(html).toContain('>상품 URL</th>');
-    expect(html).toMatch(/<a [^>]*data-goods-list="good-id" href="\/shop\/good-public" target="_blank" rel="noopener noreferrer">good-public/);
+    /* 고객 화면은 상품 자동코드 주소로 연다(ADR-0050). 열에 보이는 값은 상품 URL 그대로다. */
+    expect(html).toMatch(/<a [^>]*data-goods-list="good-id" href="\/shop\/a" target="_blank" rel="noopener noreferrer">good-public/);
     expect(html).toContain(`href="${goodEditorHref(filters, 'good-draft').replaceAll('&', '&amp;')}#good-preview"`);
     expect(html).toContain('공개 전 · 미리보기');
     // 상품번호(첫 열)는 주 색 링크로 수정 화면에 간다. 번호를 아직 못 읽은 상품은 '—'다.

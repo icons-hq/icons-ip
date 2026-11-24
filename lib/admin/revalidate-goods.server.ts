@@ -11,3 +11,11 @@ export function revalidateGoodsSurfaces() {
     revalidatePath(path, 'page');
   }
 }
+
+/**
+ * 상품 상세 화면만 바꾸는 저장(사이즈·혜택·A/S·제작 정보·출고 설정). 상세 주소는 상품 자동코드라(`/shop/hsq-0059`, ADR-0050)
+ * 내부 id 경로(`/shop/<goods.id>`)를 갱신해도 고객이 보는 상세는 갱신되지 않는다 — 상세 라우트 전체를 갱신한다.
+ */
+export function revalidateGoodDetailSurfaces() {
+  revalidatePath('/shop/[goodId]', 'page');
+}

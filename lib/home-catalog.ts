@@ -10,6 +10,7 @@ import type { HomeHeroImageDim, HomeHeroTextColor } from './home-hero';
 import { COLLECTIBLE_FEATURE_IDS, type CollectibleFeatures } from './collectible-features';
 import { publicIpHref } from './ip-identity';
 import { productCardChips, productCardUnavailableLabel, type ProductCardChip } from './product-card-chips';
+import { goodDetailHref } from '@/lib/goods-display';
 
 export const MAX_HOME_PICKER_IPS = 5;
 
@@ -377,7 +378,7 @@ export function resolveHomeGoodsCards(
       showDiscountRate: good.showDiscountRate,
       badge: good.badge ?? null,
       imageBg: good.img,
-      href: `/shop/${good.id}`,
+      href: goodDetailHref(good),
       soldOut,
       ...(unavailableLabel ? { unavailableLabel } : {}),
       chips: productCardChips(good),

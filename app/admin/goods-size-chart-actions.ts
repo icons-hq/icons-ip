@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidateGoodDetailSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
@@ -34,7 +35,7 @@ export async function saveGoodsSizeChartAction(goodId: string, values: GoodsSize
     if (error) return knownFailure(error.code) ? { ok: false, error: goodsSizeChartError(error.message), conflict: error.code === 'PT409' || error.code === '23505' } : unknown();
     const value = parseGoodsSizeChartSnapshot(data);
     if (!value || value.goodId !== goodId || value.revision !== revision + 1 || JSON.stringify(value.values) !== JSON.stringify(parsed)) return unknown();
-    revalidatePath(`/shop/${goodId}`);
+    revalidateGoodDetailSurfaces();
     revalidatePath('/admin/catalog/goods');
     return { ok: true, value };
   } catch { return unknown(); }

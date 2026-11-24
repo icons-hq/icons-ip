@@ -70,6 +70,8 @@ interface GoodRow {
   /** 공개 계산 열 `goods_random_option` — 랜덤 판매 굿즈의 고객용 옵션 한 줄(옵션 행은 고객에게 숨는다). 랜덤이 아니면 null. */
   random_option?: unknown;
   id: string;
+  /** 상품 자동코드 — 카드 링크가 공개 상세의 정식 주소(ADR-0050)로 간다. */
+  code?: string | null;
   name: string;
   price: number;
   compare_at_price: number | null;
@@ -106,6 +108,8 @@ export interface GoodCardView {
   salePeriod?: import('./goods-sale-period').GoodsSalePeriod;
   priceMax?: number;
   id: string;
+  /** 상품 자동코드 — 공개 상세 주소(`goodDetailHref`, ADR-0050). */
+  code?: string;
   name: string;
   price: number;
   compareAtPrice: number | null;
@@ -289,7 +293,7 @@ async function loadSectionGoods(
 
   const { data, error } = await supabase
     .from('goods')
-    .select('id,name,sale_period:goods_sale_period,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),option_sale_mode,random_option:goods_random_option,goods_variants(price,archived_at,pricing:goods_variant_pricing)')
+    .select('id,code,name,sale_period:goods_sale_period,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),option_sale_mode,random_option:goods_random_option,goods_variants(price,archived_at,pricing:goods_variant_pricing)')
     .in('id', goodIds)
     // 캠페인 섹션은 카탈로그 스냅샷을 우회하는 직접 조회라 보관 제외와
     // 판매 제한 비노출(#392)을 여기서 따로 건다.
@@ -312,6 +316,7 @@ async function loadSectionGoods(
     const prices = options.map(option => option.price);
     return [row.id, {
       id: row.id, salePeriod,
+      ...(typeof row.code === 'string' && row.code ? { code: row.code } : {}),
       name: row.name,
       price: prices.length ? Math.min(...prices) : row.price,
       priceMax: prices.length ? Math.max(...prices) : row.price,

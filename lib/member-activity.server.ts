@@ -1,6 +1,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { MEMBER_ACTIVITY_NOTICE_VERSION, parseMemberActivityState, type MemberActivityEvent, type MemberActivityIdentity } from './member-activity';
+import { internalGoodTarget } from './goods-address.server';
 
 export async function memberActivityState() {
   const client = await createClient(); const auth = await client.auth.getUser();
@@ -24,7 +25,9 @@ export async function updateMemberActivityChoice(choice: 'accepted' | 'declined'
 }
 export async function recordMemberActivity(event: MemberActivityEvent, identity: MemberActivityIdentity) {
   const client = await createClient();
+  /* 상품 상세 주소 끝은 상품 자동코드다(ADR-0050). 활동 기록·세그먼트·영상 연결은 내부 id 기준이라 바꿔서 넘긴다. */
+  const targetId = event.pageKind === 'good' ? await internalGoodTarget(event.targetId) : event.targetId;
   const { data, error } = await client.rpc('record_member_activity_event', { p_event_id: event.eventId, p_kind: event.kind, p_page_kind: event.pageKind,
-    p_target_id: event.targetId, p_asset_id: event.assetId, p_expected_revision: identity.revision, p_expected_actor: identity.actorId, p_expected_session: identity.sessionId });
+    p_target_id: targetId, p_asset_id: event.assetId, p_expected_revision: identity.revision, p_expected_actor: identity.actorId, p_expected_session: identity.sessionId });
   return !error && data?.recorded === true ? { ok: true, status: 200 } : { ok: false, status: error?.code === 'P0429' ? 429 : error?.code === '42501' ? 403 : 400 };
 }

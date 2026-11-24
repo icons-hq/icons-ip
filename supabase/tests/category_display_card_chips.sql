@@ -22,6 +22,10 @@ begin
   if projected->>'option_sale_mode' is distinct from good_row.option_sale_mode then
     raise exception 'category_display_card_chips: option_sale_mode % <> %', projected->>'option_sale_mode', good_row.option_sale_mode;
   end if;
+  /* 카드 링크가 공개 상세의 정식 주소(상품 자동코드, ADR-0050 · migration 20261125160000)로 가도록 코드도 싣는다. */
+  if projected->>'code' is distinct from good_row.code or projected->>'id' is distinct from good_row.id then
+    raise exception 'category_display_card_chips: code % <> %', projected->>'code', good_row.code;
+  end if;
   /* 기존 키는 그대로다 — 꼬리 앵커 앞뒤가 바뀌지 않았다. */
   if projected->'goods_variants' is distinct from '[]'::jsonb or not (projected ? 'sale_period') or not (projected ? 'sale_restriction') then
     raise exception 'category_display_card_chips: existing keys changed: %', projected;

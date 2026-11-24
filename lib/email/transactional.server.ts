@@ -11,6 +11,7 @@ import { loadOrderShipments } from '../orders/shipments.server';
 import { loadShippingCarrierRegistry } from '../orders/shipment.server';
 import { mergeRandomOrderItemRows } from '../orders/customer-items.server';
 import { maskCustomerOrderItem } from '../goods-option-sale-mode';
+import { goodDetailHref } from '../goods-display';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import {
   inquiryEmailDedupeKey,
@@ -564,7 +565,7 @@ export async function sendRestockAlertEmails(
 
     const { data: goodData, error: goodError } = await service
       .from('goods')
-      .select('name,published_at,archived_at,sale_restriction,option_sale_mode,ips:ip_id(published_at,archived_at)')
+      .select('name,code,published_at,archived_at,sale_restriction,option_sale_mode,ips:ip_id(published_at,archived_at)')
       .eq('id', goodId)
       .maybeSingle();
     if (goodError) throw new Error('restock_email_good_load_failed');
@@ -574,6 +575,7 @@ export async function sendRestockAlertEmails(
     }
     // A notification may have been queued before the operator hid this good.
     const current = goodData as unknown as {
+      code?: string | null;
       published_at: string | null; archived_at: string | null; sale_restriction: string; option_sale_mode?: string | null;
       ips: { published_at: string | null; archived_at: string | null } | null;
     };
@@ -602,7 +604,8 @@ export async function sendRestockAlertEmails(
       const rendered = renderRestockAlertEmail({
         goodName,
         optionName: variantId ? optionName : null,
-        goodPath: `${siteUrl()}/shop/${goodId}${variantId ? `?variant=${encodeURIComponent(variantId)}` : ''}`,
+        /* 공개 상세의 정식 주소(상품 자동코드, ADR-0050). 코드를 못 읽으면 내부 id 주소 — 상세가 코드 주소로 옮긴다. */
+        goodPath: `${siteUrl()}${goodDetailHref({ id: goodId, code: current.code })}${variantId ? `?variant=${encodeURIComponent(variantId)}` : ''}`,
       });
       renderedByOption.set(cacheKey, rendered);
       return rendered;

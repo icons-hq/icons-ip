@@ -72,6 +72,11 @@ export interface Good {
   searchKeywords?: string[];
   priceMax?: number;
   id: string;
+  /**
+   * 상품 자동코드(goods.code, ADR-0048). 공개 상세 주소 `/shop/<코드 소문자>`를 만든다(ADR-0050, `goodDetailHref`).
+   * 목업·가림 카드·코드를 싣지 않는 옛 투영에는 없고, 그때 링크는 내부 id 주소라 상세가 코드 주소로 옮긴다.
+   */
+  code?: string;
   name: string;
   nameEn?: string;
   ip: string;

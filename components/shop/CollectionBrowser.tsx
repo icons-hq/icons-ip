@@ -352,7 +352,7 @@ export function CollectionBrowser({
                     chips={productCardChips(good, { showTags: listing.showTags })}
                     brand={brandByIpId.get(good.ip)}
                     showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
-                    href={goodDetailHref(good.id)}
+                    href={goodDetailHref(good)}
                     imageBackground={good.img}
                     name={good.name}
                     price={good.price} priceMax={good.priceMax}

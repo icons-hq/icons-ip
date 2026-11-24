@@ -4,11 +4,22 @@ vi.mock('next/headers',()=>({cookies:async()=>({get:mocks.get,set:mocks.set})}))
 vi.mock('@/lib/supabase/server',()=>({createClient:async()=>({auth:{getUser:mocks.getUser}})}));
 vi.mock('@/lib/supabase/service',()=>({createServiceClient:()=>({rpc:mocks.rpc})}));
 vi.mock('@/lib/auth/server',()=>({getProfileForUser:mocks.profile}));
+/* 상품 상세 주소 끝은 상품 자동코드다(ADR-0050). hsq-0059 는 내부 id hongsil-keyring 의 주소다. */
+vi.mock('./goods-address.server',()=>({internalGoodTarget:async(value:string)=>value==='hsq-0059'?'hongsil-keyring':value}));
 import {acceptStoreAnalytics,bindStoreAnalyticsOrder,declineStoreAnalytics,recordStoreAnalytics,recordStoreAnalyticsNotice,storeAnalyticsState} from './store-analytics.server';
 const token='a'.repeat(43);const cookies=new Map<string,string>();
 const event={eventId:'11111111-1111-4111-8111-111111111111',pageKind:'home' as const,targetId:'home',linkToken:null,channel:'direct' as const,source:'none' as const,medium:'none' as const};
 beforeEach(()=>{vi.clearAllMocks();vi.stubEnv('NODE_ENV','production');cookies.clear();mocks.get.mockImplementation(name=>cookies.has(name)?{value:cookies.get(name)}:undefined);mocks.set.mockImplementation((name,value)=>cookies.set(name,value));mocks.getUser.mockResolvedValue({data:{user:null},error:{name:'AuthSessionMissingError'}});mocks.rpc.mockResolvedValue({data:{enabled:true,noticeVersion:'analytics-v1',usable:true},error:null});});
 afterEach(()=>vi.unstubAllEnvs());
+describe('상품 상세 대상(ADR-0050)',()=>{
+ it('상품 자동코드 주소에서 읽은 굿즈 대상은 내부 id로 바꿔 기록한다 — 집계·마케팅 링크 대조가 내부 id 기준이다',async()=>{
+  cookies.set('__Host-icons_analytics_choice','analytics-v1:yes');cookies.set('__Host-icons_analytics_session',token);mocks.rpc.mockResolvedValue({data:{recorded:true},error:null});
+  expect(await recordStoreAnalytics({...event,pageKind:'good',targetId:'hsq-0059'})).toMatchObject({ok:true,status:200});
+  expect(mocks.rpc).toHaveBeenCalledWith('record_store_analytics_event',expect.objectContaining({p_page_kind:'good',p_target_id:'hongsil-keyring'}));
+  await recordStoreAnalytics({...event,pageKind:'ip',targetId:'hsq-0059'});
+  expect(mocks.rpc).toHaveBeenLastCalledWith('record_store_analytics_event',expect.objectContaining({p_page_kind:'ip',p_target_id:'hsq-0059'}));
+ });
+});
 describe('server-owned measurement consent and sessions',()=>{
  it('returns state without making sessions or setting cookies',async()=>{expect(await storeAnalyticsState()).toMatchObject({enabled:true,choice:'unset',usable:false});expect(mocks.set).not.toHaveBeenCalled();expect(mocks.rpc).toHaveBeenCalledTimes(1);});
  it('creates a secure HttpOnly token only after opt-in and stores only its hash',async()=>{

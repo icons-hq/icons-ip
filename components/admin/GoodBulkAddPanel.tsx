@@ -130,7 +130,7 @@ export function GoodBulkAddPanel<T>({ options, disabled = false }: { options: Go
       <p className="text-xs leading-relaxed text-muted-foreground" id={noteId}>상품 URL(주소 또는 주소 끝 값)·상품 자동코드를 한 줄에 하나씩 넣습니다. 엑셀에서 한 열을 복사해 붙여도 됩니다(여러 열이면 각 줄의 첫 칸만 읽습니다). 한 번에 {count(GOOD_REFERENCE_LIMIT)}개까지 확인합니다. 초안 등 고객 화면에 보이지 않는 상품도 담을 수 있으며 줄마다 그 이유를 표시합니다.</p>
       <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium" htmlFor={textId}>여러 줄 붙여넣기
         <Textarea aria-describedby={noteId} className="min-h-24 font-mono text-xs" disabled={locked} id={textId} onChange={event => setText(event.target.value)}
-          placeholder={'https://iconsip.com/shop/상품ID\nGC-0001'} rows={4} value={text} />
+          placeholder={'https://iconsip.com/shop/hsq-0059\nGC-0001'} rows={4} value={text} />
       </label>
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={locked || !text.trim()} onClick={() => void check(text)} size="sm" type="button" variant="outline">{pending ? '확인 중…' : '상품 확인'}</Button>
