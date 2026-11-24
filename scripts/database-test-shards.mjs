@@ -273,6 +273,8 @@ const storefront = [
   // 카카오 연결 해제 탈퇴 검토 대기의 어드민 처리: 카카오계정 탈퇴 사유만 해제 알림으로 처리, 연결만 끊은 회원은 1:1 문의 경로.
   sql('kakao_unlink_withdrawal_processing'),
   sql('auto_order_confirmation'),
+  // 자동 발주확인이 가상계좌 주문을 마지막 입금 확인 1시간 뒤부터 확정한다(입금 직후 은행 취소 통보 대비).
+  sql('auto_order_confirmation_virtual_account'),
   // 출고 보류(테스트 키 결제·결제사 직접 취소)와 발송 경로 차단·해제.
   sql('order_fulfillment_holds'),
   // 시스템 상태: cron 실행 기록·멈춤 판정·미종결 결제 재확인·운영 알림 시스템 분류.

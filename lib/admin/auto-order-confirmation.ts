@@ -9,6 +9,8 @@ export const AUTO_ORDER_CONFIRMATION_EXCLUSIONS = {
   cancellation_in_progress: '취소 요청 진행 중',
   fulfillment_hold: '출고 보류(테스트 결제·결제사 취소)',
   preorder_unallocated: '예약 입고 확인 전',
+  // 20261125180000: 가상계좌는 마지막 입금 확인 뒤 1시간이 지나야 대상이다(은행의 늦은 입금 취소 통보 대비).
+  deposit_settling: '가상계좌 입금 1시간 미만(다음 날 처리)',
   locked: '다른 처리와 겹쳐 다음 실행으로 넘김',
   failed: '처리 확인 필요',
 } as const;
