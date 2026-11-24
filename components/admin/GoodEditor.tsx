@@ -746,7 +746,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             placeholder="한 줄에 하나 또는 쉼표로 구분해 입력해주세요."
           /></OwnedFields>
           <p className="text-sm text-muted-foreground">고객 통합 검색과 어드민 상품 검색에만 쓰이며, 공개 상세에는 표시하지 않습니다.</p>
-          <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={errors as Record<string, string>} ipId={values.ipId} name={values.name} slug={initial.id} />
+          {/* 새 상품은 내부 id 를 비워 보낸다 — 배포 전 임시저장·자동복구에 남은 옛 'URL' 값(대문자·이미 쓰는 값)이 숨은 칸에 갇혀
+              고칠 수 없는 오류가 되지 않게, 서버가 상품명으로 새로 만든다(ADR-0050). 저장된 상품만 지금 id 를 그대로 보낸다. */}
+          <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={errors as Record<string, string>} ipId={values.ipId} name={values.name} slug={selected ? initial.id : ''} />
         </section>
       </GoodEditorSection>
 

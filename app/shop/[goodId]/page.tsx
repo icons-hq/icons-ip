@@ -65,7 +65,10 @@ function canonicalGoodRedirectHref(segment: string, query: Record<string, string
     for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) search.append(key, item);
   }
   const suffix = search.toString();
-  return `${goodDetailHref(segment)}${suffix ? `?${suffix}` : ''}`;
+  /* 서버는 원래 주소의 해시(#reviews·#qna)를 볼 수 없고, 스트리밍 응답의 이동(meta refresh·RSC)은 해시를 잇지 않는다. 앱이 만드는
+     리뷰·Q&A 페이지 링크는 언제나 reviewPage↔#reviews, qnaPage↔#qna 짝이라 쿼리에서 되살린다(탭 선택 규칙과 같게 리뷰가 먼저). */
+  const hash = query.reviewPage !== undefined ? '#reviews' : query.qnaPage !== undefined ? '#qna' : '';
+  return `${goodDetailHref(segment)}${suffix ? `?${suffix}` : ''}${hash}`;
 }
 
 /* 19금 굿즈(ADR-0024): 인증 성인(full)은 일반 상세를, 인증 전 방문자(masked)는 상품 정보 없는

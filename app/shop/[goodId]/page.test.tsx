@@ -451,10 +451,16 @@ describe('/shop/[goodId] 공개 상품 주소', () => {
 
   it('옛 주소(내부 id)는 쿼리를 그대로 둔 채 상품 자동코드 주소로 영구 이동한다', async () => {
     const query = { reviewPage: '2', utm_source: 'kakao', tag: ['a', 'b'] };
-    const target = 'NEXT_REDIRECT:/shop/hsq-0059?reviewPage=2&utm_source=kakao&tag=a&tag=b';
+    /* 서버는 해시를 볼 수 없어 reviewPage↔#reviews·qnaPage↔#qna 짝을 쿼리에서 되살린다(리뷰가 먼저). */
+    const target = 'NEXT_REDIRECT:/shop/hsq-0059?reviewPage=2&utm_source=kakao&tag=a&tag=b#reviews';
     await expect(Page({ params: Promise.resolve({ goodId: 'hongsil-keyring' }), searchParams: Promise.resolve(query) })).rejects.toThrow(target);
     await expect(generateMetadata({ params: Promise.resolve({ goodId: 'hongsil-keyring' }), searchParams: Promise.resolve(query) })).rejects.toThrow(target);
     expect(mocks.goodDetail).not.toHaveBeenCalled();
+  });
+
+  it('Q&A 페이지 링크로 옛 주소에 들어오면 #qna 를 붙여 Q&A 위치로 옮긴다', async () => {
+    await expect(Page({ params: Promise.resolve({ goodId: 'hongsil-keyring' }), searchParams: Promise.resolve({ qnaPage: '1' }) }))
+      .rejects.toThrow(/^NEXT_REDIRECT:\/shop\/hsq-0059\?qnaPage=1#qna$/);
   });
 
   it('대문자로 들어온 상품 자동코드는 소문자 정식 주소로 옮긴다', async () => {
