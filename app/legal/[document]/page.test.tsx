@@ -41,6 +41,12 @@ vi.mock('@/lib/legal/brand-name-revision', async (importOriginal) => ({
   BRAND_NAME_REVISION: null,
 }));
 
+/* 가입·로그인 봇 차단(Cloudflare Turnstile) 방침 개정은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
+vi.mock('@/lib/legal/bot-protection-privacy-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/bot-protection-privacy-revision')>()),
+  BOT_PROTECTION_PRIVACY_REVISION: null,
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');

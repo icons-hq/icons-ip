@@ -64,6 +64,10 @@ const VIRTUAL_ACCOUNT_TERMS_REVISION_FILE = fileURLToPath(
 const BRAND_NAME_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/brand-name-revision.json', import.meta.url),
 );
+/* 개인정보처리방침 봇 차단(Cloudflare Turnstile·요청 남용 방지 기록) 개정의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
+const BOT_PROTECTION_PRIVACY_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/bot-protection-privacy-revision.json', import.meta.url),
+);
 
 /*
  * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
@@ -167,6 +171,9 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     /* 이용약관 서비스 이름 개정(lib/legal/brand-name-revision.json)도 같은 규칙이다. */
     const brandNameSource = options.brandNameRevisionSource ?? readFileSync(BRAND_NAME_REVISION_FILE, 'utf8');
     validateLegalRevisionDates(brandNameSource, 'brand-name-revision.json');
+    /* 개인정보처리방침 봇 차단 개정(lib/legal/bot-protection-privacy-revision.json)도 같은 규칙이다. */
+    const botProtectionSource = options.botProtectionPrivacyRevisionSource ?? readFileSync(BOT_PROTECTION_PRIVACY_REVISION_FILE, 'utf8');
+    validateLegalRevisionDates(botProtectionSource, 'bot-protection-privacy-revision.json');
     /* 가상계좌·계좌이체 개정과 다른 예약 개정(표기·부분 반품·알림톡)의 선후는 lib/legal/documents.ts가 시행일 순서로 정한다 —
        어느 쪽이 먼저 시행돼도 이전 판이 직전 시행 본문을 담는다. 공지 기간은 겹쳐도 된다(사전 공지를 함께 보인다). */
   }

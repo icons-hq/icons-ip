@@ -44,6 +44,12 @@ import {
   brandNameRevisionInEffect,
   type BrandNameRevision,
 } from './brand-name-revision';
+import {
+  BOT_PROTECTION_PRIVACY_REVISION,
+  botProtectionPrivacyRevisionAnnounced,
+  botProtectionPrivacyRevisionInEffect,
+  type BotProtectionPrivacyRevision,
+} from './bot-protection-privacy-revision';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -715,6 +721,103 @@ function applyBrandNameRevision(document: LegalDocument, today: string, revision
   }
 }
 
+/* 개정(개인정보처리방침) — 가입·로그인 봇 차단(lib/legal/bot-protection-privacy-revision.ts, 런북 signup-contact-channels §13).
+ * Cloudflare Turnstile 자동 가입 방지 확인의 위탁·국외 이전과, 앱 서버의 요청 남용 방지 기록(IP·이메일 HMAC 다이제스트, 2일 보관)을 밝힌다.
+ * 앵커는 다른 예약 개정이 바꾸지 않는 최초 판의 행·목록 항목·조문 제목만 쓴다(제6조의 'Vercel, Inc.' 행 뒤에는 휴대폰 번호 인증 개정이
+ * Twilio 행을 넣지만 그 행 자체는 바꾸지 않는다) — 다른 개정의 시행 여부와 관계없이 시행일 상태를 만들 수 있다.
+ * 앵커가 없거나 둘 이상이면 시행일 상태를 만드는 순간 던진다(테스트가 그 상태를 만든다). */
+const BOT_PROTECTION_PROCESSOR = 'Cloudflare, Inc.';
+const BOT_PROTECTION_COLLECTION_ROW: string[] = [
+  '자동 가입 방지 확인',
+  '접속 IP 주소, 브라우저·기기 정보(브라우저 종류, 운영체제 등)와 자동화 프로그램 여부 판단에 쓰이는 브라우저 환경 신호(Cloudflare Turnstile이 처리). 회원가입·가입 확인 메일 재전송·비밀번호 재설정 요청 기록(요청 일시·종류)에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
+  '회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정을 요청할 때',
+];
+const BOT_PROTECTION_PURPOSE_ANCHOR = '회원 식별, 로그인 유지, 가입 자격 확인 등 회원 관리';
+const BOT_PROTECTION_PURPOSE =
+  '자동화된 프로그램(봇)을 이용한 회원가입·로그인 시도와 가입 확인·비밀번호 재설정 메일 발송 남용을 막는 부정 이용 방지';
+const BOT_PROTECTION_RETENTION =
+  '회원가입·가입 확인 메일 재전송·비밀번호 재설정 요청 기록(요청 일시·종류)은 요청 2일 뒤 삭제하며, 이 기록에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다. 자동 가입 방지 확인 결과는 해당 요청을 처리하는 데에만 쓰고 따로 저장하지 않습니다.';
+const BOT_PROTECTION_PROCESSOR_ROW: string[] = [
+  BOT_PROTECTION_PROCESSOR,
+  '회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정 화면의 자동 가입 방지 확인(Turnstile) 제공',
+  '위탁계약 종료 시까지',
+];
+const BOT_PROTECTION_TRANSFER_ROW: string[] = [
+  BOT_PROTECTION_PROCESSOR,
+  '미국',
+  '접속 IP 주소, 브라우저·기기 정보와 브라우저 환경 신호 · 회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정 화면 이용 시점 · 정보통신망을 통한 전송',
+  '자동 가입 방지 확인(Turnstile) · 위탁계약 종료 시까지',
+];
+
+const BOT_PROTECTION_CHANGES: string[] = [
+  '개정 사유 — 자동화된 프로그램(봇)이 회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정을 대량으로 시도해 메일 발송을 남용하거나 계정을 노리는 일을 막기 위해, 이 화면들에 Cloudflare Turnstile 자동 가입 방지 확인을 도입하고 요청 남용 방지 기록의 보관 기간을 밝힙니다.',
+  "제1조(수집하는 개인정보 항목과 수집 방법)에 '자동 가입 방지 확인' 행을 더합니다 — 접속 IP 주소와 브라우저·기기 정보를 Cloudflare Turnstile이 확인하고, 회사는 요청 기록에 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.",
+  '제2조(개인정보의 처리 목적)에 자동화된 가입·로그인 시도와 메일 발송 남용을 막는 부정 이용 방지를 더합니다.',
+  '제3조(개인정보의 보유·이용기간)에 요청 남용 방지 기록을 요청 2일 뒤 삭제한다는 내용을 더합니다.',
+  "제5조(개인정보 처리업무의 위탁)에 수탁자 'Cloudflare, Inc.'(자동 가입 방지 확인)를, 제6조(개인정보의 국외 이전)에 이전받는 자 'Cloudflare, Inc.'(미국)를 더합니다.",
+];
+
+/** 현행 방침 조문의 깊은 사본에 봇 차단 개정을 적용한 조문 목록. 앵커가 정확히 하나가 아니면 던진다. */
+function reviseBotProtectionPrivacyArticles(source: LegalArticle[]): LegalArticle[] {
+  const articles: LegalArticle[] = structuredClone(source);
+  const article = (prefix: string) => {
+    const found = articles.filter((item) => item.heading.startsWith(prefix));
+    if (found.length !== 1) throw new Error(`bot_protection_privacy_anchor_changed:article:${prefix}`);
+    return found[0]!;
+  };
+  const insertRowAfter = (target: LegalArticle, firstCell: string, row: string[]) => {
+    const rows = target.table?.rows;
+    const index = rows?.findIndex((cells) => cells[0] === firstCell) ?? -1;
+    if (!rows || index < 0 || rows.filter((cells) => cells[0] === firstCell).length !== 1) {
+      throw new Error(`bot_protection_privacy_anchor_changed:row:${target.heading}:${firstCell}`);
+    }
+    if (rows.some((cells) => cells[0] === row[0])) throw new Error(`bot_protection_privacy_anchor_changed:duplicate:${target.heading}:${row[0]}`);
+    rows.splice(index + 1, 0, [...row]);
+  };
+
+  /* 제1조 */
+  insertRowAfter(article('제1조 '), '자동 생성', BOT_PROTECTION_COLLECTION_ROW);
+
+  /* 제2조 */
+  const purposes = article('제2조 (');
+  const purposeIndex = purposes.list?.indexOf(BOT_PROTECTION_PURPOSE_ANCHOR) ?? -1;
+  if (!purposes.list || purposeIndex < 0 || purposes.list.filter((text) => text === BOT_PROTECTION_PURPOSE_ANCHOR).length !== 1) {
+    throw new Error(`bot_protection_privacy_anchor_changed:list:${BOT_PROTECTION_PURPOSE_ANCHOR}`);
+  }
+  purposes.list.splice(purposeIndex + 1, 0, BOT_PROTECTION_PURPOSE);
+
+  /* 제3조 */
+  const retention = article('제3조 ');
+  if (!retention.closing?.length) throw new Error('bot_protection_privacy_anchor_changed:closing:제3조');
+  retention.closing.push(BOT_PROTECTION_RETENTION);
+
+  /* 제5조·제6조 */
+  insertRowAfter(article('제5조 '), 'Vercel, Inc.', BOT_PROTECTION_PROCESSOR_ROW);
+  insertRowAfter(article('제6조 '), 'Vercel, Inc.', BOT_PROTECTION_TRANSFER_ROW);
+  return articles;
+}
+
+/**
+ * 봇 차단 개정을 날짜(KST)에 맞춰 방침에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문.
+ * 시행 뒤에도 다른 예약 개정의 사전 공지(pendingRevision)는 지우지 않는다.
+ */
+function applyBotProtectionPrivacyRevision(document: LegalDocument, today: string, revision: BotProtectionPrivacyRevision | null): void {
+  if (revision && botProtectionPrivacyRevisionInEffect(today, revision)) {
+    const articles = reviseBotProtectionPrivacyArticles(document.articles);
+    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
+    document.articles = articles;
+    document.effectiveDate = revision.effectiveDate;
+    document.revisionChanges = BOT_PROTECTION_CHANGES;
+  } else if (revision && botProtectionPrivacyRevisionAnnounced(today, revision)) {
+    addPendingRevision(document, {
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
+      heading: '가입·로그인 자동 가입 방지 확인 도입에 따른 개정 예정 안내',
+      changes: BOT_PROTECTION_CHANGES,
+    });
+  }
+}
+
 /** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
 export function createLegalDocuments(
   businessInfo:BusinessInfo=BUSINESS_INFO,
@@ -730,11 +833,13 @@ export function createLegalDocuments(
     alimtalkPrivacyRevision = ALIMTALK_PRIVACY_REVISION,
     virtualAccountRevision = VIRTUAL_ACCOUNT_TERMS_REVISION,
     brandNameRevision = BRAND_NAME_REVISION,
+    botProtectionPrivacyRevision = BOT_PROTECTION_PRIVACY_REVISION,
   }: {
     partialReturnRevision?: PartialReturnTermsRevision | null;
     alimtalkPrivacyRevision?: AlimtalkPrivacyRevision | null;
     virtualAccountRevision?: VirtualAccountTermsRevision | null;
     brandNameRevision?: BrandNameRevision | null;
+    botProtectionPrivacyRevision?: BotProtectionPrivacyRevision | null;
   } = {},
 ) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
@@ -1396,7 +1501,7 @@ const shipping: LegalDocument = {
 applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
 applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
-/* 알림톡·부분 반품·가상계좌(계좌이체 포함)·서비스 이름 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
+/* 알림톡·부분 반품·가상계좌(계좌이체 포함)·서비스 이름·봇 차단 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
    이전 판(previousVersion)이 직전 시행 본문을 담는다. 시행일이 같으면 아래 나열 순서다(Array.sort는 안정 정렬). 세 개정의 앵커는
    서로가 바꾸는 문장·행을 쓰지 않으므로 어느 순서로도 본문을 만들 수 있다. 회사 계좌 무통장 입금 본문은 그대로다. */
 const NO_REVISION = '9999-12-31';
@@ -1423,6 +1528,10 @@ const scheduledRevisions: { effectiveDate: string; apply: () => void }[] = [
   {
     effectiveDate: brandNameRevision?.effectiveDate ?? NO_REVISION,
     apply: () => applyBrandNameRevision(terms, today, brandNameRevision),
+  },
+  {
+    effectiveDate: botProtectionPrivacyRevision?.effectiveDate ?? NO_REVISION,
+    apply: () => applyBotProtectionPrivacyRevision(privacy, today, botProtectionPrivacyRevision),
   },
 ];
 for (const revision of [...scheduledRevisions].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))) revision.apply();

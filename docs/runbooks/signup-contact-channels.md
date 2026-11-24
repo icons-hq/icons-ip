@@ -483,8 +483,9 @@ CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/r
 
 순서가 중요하다. GoTrue CAPTCHA를 먼저 켜면 위젯이 없는 앱이 모든 로그인·가입을 막는다.
 
-1. Cloudflare 대시보드 → Turnstile → 위젯 추가(호스트 이름: `iconsip.com`, `xsquare.kr` 및 쓰는 preview 도메인, 모드 Managed). 사이트 키·비밀 키를 받는다.
-   비밀 키는 채팅·로그에 남기지 않는다(사용자 스크립트로 등록).
+1. Cloudflare 대시보드 → Turnstile → 위젯 추가(호스트 이름: `iconsip.com`, `xsquare.kr` — 하위 도메인도 함께 허용된다, 모드 Managed). preview·staging 호스트는
+   넣지 않는다(2번의 테스트 키를 쓴다). 사이트 키·비밀 키를 받는다. 비밀 키는 채팅·로그에 남기지 않는다(사용자 스크립트로 등록). 비밀 키가 채팅이나 도구
+   출력에 한 번이라도 보였으면 위젯 설정에서 **비밀 키를 회전**(사이트 키는 그대로)한 뒤 새 값을 등록한다.
 2. Vercel **Production** 환경 변수에 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`만 등록하고 **앱을 먼저 재배포**한다(사이트 키는 빌드에 박힌다). 이때는 위젯만
    그려지고 보호는 아직 없다. 비밀 키를 Vercel에 넣지 않는다. **Preview·staging**은 운영 사이트 키를 쓰지 않는다 — 위젯 호스트 목록에 preview·staging 호스트를
    넣을 수 없어 QA 로그인이 막힌다. Preview env에는 Cloudflare 공식 문서의 **항상 통과 테스트 사이트 키**(`1x00000000000000000000AA`)를 넣는다
@@ -515,10 +516,18 @@ CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/r
 7. 운영 중 위젯이 안 뜨는 환경(광고 차단 등)에서는 가입·로그인이 막힌다 — 안내 문구가 새로고침을 권한다. 문의가 늘면 한도 로그부터 보고, 급하면
    Supabase 콘솔에서 CAPTCHA를 끈다.
 
-### 후속(이 PR 밖)
+### 개인정보처리방침 고지(2026-11-24 반영)
 
-- 개인정보처리방침 고지: 앱 한도의 가명 다이제스트(IP·이메일 HMAC) 2일 보관, Turnstile을 켜면 Cloudflare가 접속 정보를 처리한다는 점. 처리방침 파일
-  (`lib/legal/documents.ts`)이 PR #684와 겹쳐 이 작업에서 고치지 않았다 — 키를 켜기 전에 별도로 개정·공지해야 한다.
+Turnstile을 켜면 Cloudflare, Inc.가 접속 정보를 처리하고, 앱 한도는 가명 다이제스트(IP·이메일 HMAC)를 2일 보관한다. 이 둘은
+`lib/legal/bot-protection-privacy-revision.ts`(날짜 `bot-protection-privacy-revision.json`) 개정으로 방침 제1·2·3·5·6조에 밝혔다 — 정식 오픈 전이라
+2026-11-24 운영 책임자 결정으로 7일 공지 없이 즉시 시행(`noticeWaiver`). 운영 사이트 키(2번)는 이 개정과 **같은 운영 배포**로 켠다 — 위젯이 방침보다
+먼저 뜨지 않게. 2일 보관은 운영 DB의 매시 정리 작업 `auth-mail-abuse-retention`(pg_cron, 2026-11-24 active 확인)이 지킨다.
+
+### 진행 기록
+
+- 2026-11-24 1번: 위젯 `xsquare-auth`(관리형, 호스트 `iconsip.com`·`xsquare.kr`, 사전 승인 꺼짐) 생성. 사이트 키(공개값) `0x4AAAAAAGQXwZ4SUyxYQzjP`.
+  2번: Vercel Production `NEXT_PUBLIC_TURNSTILE_SITE_KEY`에 그 사이트 키, Preview에 항상 통과 테스트 키를 넣고 위 처리방침 개정 배포로 위젯을 켠다.
+  3번 이후의 결과는 이 목록에 이어 적는다.
 
 ### 시험
 
