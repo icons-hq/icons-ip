@@ -339,7 +339,7 @@ insert into public.restock_alerts(user_id,good_id,variant_id) values('00000000-0
 update public.goods_variants set stock_qty=4 where id=:'variant_b';
 select 1/case when (select status from public.restock_alerts where user_id='00000000-0000-4000-8000-000000163004' and good_id='random-mask')='notified'
  and (select count(*) from public.notifications where user_id='00000000-0000-4000-8000-000000163004' and type='restock_available'
-   and body='랜덤 은닉 굿즈가 다시 판매를 시작했어요.' and link_path='/shop/random-mask')=1
+   and body='랜덤 은닉 상품이 다시 판매를 시작했어요.' and link_path='/shop/random-mask')=1
  and not exists(select 1 from public.notifications where user_id='00000000-0000-4000-8000-000000163004' and type='restock_available'
    and (body like '%· B%' or link_path like '%variant=%'))
  then 1 else 0 end as assert_random_restock_notification_is_good_level;
