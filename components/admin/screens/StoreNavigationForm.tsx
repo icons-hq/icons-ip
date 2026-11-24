@@ -2,7 +2,6 @@
 import { useState, useTransition, type FormEvent } from 'react';
 import { saveStoreNavigationAction, type StoreNavigationActionState } from '@/app/admin/store-navigation-actions';
 import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react';
-import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -10,7 +9,7 @@ import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { hrefFor, STOREFRONT_MENU_ITEMS } from '@/lib/routes';
 import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import type { StoreSettingsSnapshot } from '@/lib/admin/store-settings';
-import { DEFAULT_STORE_NAVIGATION, parseStoreNavigation, resolveStorefrontNavigation, storefrontNavigation, STORE_MENU_LABEL_LIMIT, type StoreNavigation } from '@/lib/store-navigation';
+import { DEFAULT_STORE_NAVIGATION, parseStoreNavigation, resolveStorefrontNavigation, RETIRED_STORE_MENU_IDS, storefrontNavigation, STORE_MENU_LABEL_LIMIT, type StoreNavigation } from '@/lib/store-navigation';
 
 const baseLabels = new Map(STOREFRONT_MENU_ITEMS.map(item => [item.id, item.label]));
 const GROUP = 'flex min-w-0 flex-col gap-4 rounded-lg border p-4 sm:p-5';
@@ -25,7 +24,6 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
   const [state, setState] = useState<StoreNavigationActionState>({});
   const [pending, startTransition] = useTransition();
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
-  const cardRewardsEnabled = useCardRewardsEnabled();
   const [savedDraft, setSavedDraft] = useState(draft);
   useAdminLeaveGuard({ dirty: JSON.stringify(draft) !== JSON.stringify(savedDraft) });
 
@@ -34,11 +32,20 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
     setSaveOperationId(crypto.randomUUID());
     setState({});
   }
+  /* 퇴역한 메뉴 칸(카드팩, RETIRED_STORE_MENU_IDS)은 저장 계약 때문에 값에 남지만 화면에 그리지 않는다 —
+     위로·아래로는 보이는 이웃과 자리를 바꾼다. 숨은 칸과 바꾸면 눌러도 아무 일이 없어 보인다. */
+  function neighborIndex(index: number, direction: -1 | 1): number | null {
+    for (let target = index + direction; target >= 0 && target < draft.length; target += direction) {
+      if (!RETIRED_STORE_MENU_IDS.has(draft[target].id)) return target;
+    }
+    return null;
+  }
   function move(index: number, direction: -1 | 1) {
-    if (index + direction < 0 || index + direction >= draft.length) return;
+    const target = neighborIndex(index, direction);
+    if (target === null) return;
     change(previous => {
       const next = [...previous];
-      [next[index], next[index + direction]] = [next[index + direction], next[index]];
+      [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
   }
@@ -62,7 +69,8 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
     });
   }
   const parsed = parseStoreNavigation(draft.map(entry => ({ ...entry, label: entry.label.trim() })));
-  const preview = parsed ? resolveStorefrontNavigation(storefrontNavigation(parsed), cardRewardsEnabled) : null;
+  const preview = parsed ? resolveStorefrontNavigation(storefrontNavigation(parsed)) : null;
+  const visibleEntries = draft.filter(entry => !RETIRED_STORE_MENU_IDS.has(entry.id));
 
   /* 공개 메뉴 편집(템플릿 룩, ADR-0028). 이름·순서·노출과 저장 계약은 그대로다. */
   return <form onSubmit={submit} className="flex min-w-0 flex-col gap-5">
@@ -72,11 +80,12 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
       <legend className={LEGEND}>메뉴 설정</legend>
       <ol className="flex flex-col">
         {draft.map((entry, index) => {
+          if (RETIRED_STORE_MENU_IDS.has(entry.id)) return null;
+          const position = visibleEntries.indexOf(entry);
           const baseLabel = baseLabels.get(entry.id)!;
-          const unavailable = entry.id === 'community' && !COMMUNITY_ENABLED ? '커뮤니티가 비공개여서 현재 메뉴에 표시되지 않습니다.'
-            : entry.id === 'packs' && !cardRewardsEnabled ? '카드 리워드가 중지되어 현재 메뉴에 표시되지 않습니다.' : null;
+          const unavailable = entry.id === 'community' && !COMMUNITY_ENABLED ? '커뮤니티가 비공개여서 현재 메뉴에 표시되지 않습니다.' : null;
           return <li className="grid grid-cols-[24px_minmax(0,1fr)] items-start gap-3 border-b py-4 last:border-b-0 lg:grid-cols-[28px_minmax(180px,1fr)_minmax(170px,220px)_auto] lg:items-center lg:gap-4" key={entry.id}>
-            <span className="text-sm font-semibold text-muted-foreground tabular-nums" aria-label={`${index + 1}번째 메뉴`}>{index + 1}</span>
+            <span className="text-sm font-semibold text-muted-foreground tabular-nums" aria-label={`${position + 1}번째 메뉴`}>{position + 1}</span>
             <div className="flex min-w-0 flex-col gap-1.5">
               <Label htmlFor={`store-menu-${entry.id}`}>{baseLabel} 메뉴명</Label>
               <Input id={`store-menu-${entry.id}`} value={entry.label} required aria-describedby={`store-menu-${entry.id}-hint`}
@@ -89,8 +98,8 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
               {baseLabel} 노출{entry.id === 'shop' ? ' (필수)' : ''}
             </label>
             <div className="col-start-2 flex gap-1.5 lg:col-start-auto">
-              <Button size="sm" type="button" variant="outline" aria-label={`${baseLabel} 위로`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp aria-hidden="true" />위로</Button>
-              <Button size="sm" type="button" variant="outline" aria-label={`${baseLabel} 아래로`} disabled={index === draft.length - 1} onClick={() => move(index, 1)}><ArrowDown aria-hidden="true" />아래로</Button>
+              <Button size="sm" type="button" variant="outline" aria-label={`${baseLabel} 위로`} disabled={neighborIndex(index, -1) === null} onClick={() => move(index, -1)}><ArrowUp aria-hidden="true" />위로</Button>
+              <Button size="sm" type="button" variant="outline" aria-label={`${baseLabel} 아래로`} disabled={neighborIndex(index, 1) === null} onClick={() => move(index, 1)}><ArrowDown aria-hidden="true" />아래로</Button>
             </div>
           </li>;
         })}

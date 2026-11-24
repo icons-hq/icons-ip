@@ -54,7 +54,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: async (): Promise<CatalogSnapshot> => ({
-    source: 'supabase', verticals: [], ips: [], goods: mocks.goods, cards: [], events: [],
+    source: 'supabase', verticals: [], ips: [], goods: mocks.goods, events: [],
   }),
 }));
 

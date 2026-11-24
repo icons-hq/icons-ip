@@ -198,4 +198,4 @@ PR #167 branch prototype에서는 이 규율을 코드로 강제했다. `NEVER_A
 - [game-scenario.md](./game-scenario.md) — 전연령 본편 시나리오
 - [docs/PRD.md](../../PRD.md) §5.1 본인확인 · §7 규제 · §11 미해결
 - [docs/ARCHITECTURE.md](../../ARCHITECTURE.md) §7·§15 서버 신뢰 경계
-- [ADR-0004](../../adr/0004-draw-ticket-card-packs.md) — 서버 결정 카드팩·참여형 게임 경계
+- ADR-0004([2026-11-24 삭제](../../adr/0052-general-shopping-mall-pivot.md)) — 서버 결정 카드팩·참여형 게임 경계

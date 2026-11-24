@@ -21,16 +21,9 @@ import {
   GOOD_BADGES_INVALID_MESSAGE,
   GOODS_DETAIL_IMAGE_MAX,
   catalogContextFromSnapshot,
-  gameContextFromRecords,
-  normalizeAdminCardForm,
-  normalizeAdminCardPoolForm,
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
-  normalizeAdminGameEndForm,
-  normalizeAdminGameForm,
   normalizeAdminIpForm,
-  normalizeAdminPoolOddsForm,
-  normalizeAdminRewardPolicyForm,
   normalizeAdminStockAdjustmentForm,
   normalizeAdminTicketTypeForm,
   type AdminFieldErrors,
@@ -87,7 +80,7 @@ async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
 
 function revalidateCatalog(paths: string[]) {
   revalidateGoodsSurfaces();
-  const defaults = ['/binder', '/events', '/offline-popups'];
+  const defaults = ['/events', '/offline-popups'];
   for (const path of [...defaults, ...paths]) {
     revalidatePath(path);
   }
@@ -102,20 +95,6 @@ function revalidateTicketing() {
   revalidatePath('/admin');
   revalidatePath('/events');
   revalidatePath('/offline-popups');
-}
-
-function revalidateRewards() {
-  for (const path of ['/admin', '/packs', '/binder']) revalidatePath(path);
-}
-
-function revalidateGames(gameIds: Array<string | null>) {
-  const paths = ['/admin'];
-  for (const gameId of gameIds) {
-    if (gameId && !paths.includes(`/games/${gameId}`)) paths.push(`/games/${gameId}`);
-  }
-  paths.push('/events');
-  paths.push('/offline-popups');
-  for (const path of paths) revalidatePath(path);
 }
 
 function readRpcIpId(data: unknown) {
@@ -261,7 +240,7 @@ function getAdminValidationCatalog() {
   return getCatalogSnapshot({ previewDefaultSource: 'supabase' });
 }
 
-type AdminValidationRecordKind = 'good' | 'card' | 'cardPool' | 'rewardPolicy' | 'event' | 'ticketType';
+type AdminValidationRecordKind = 'good' | 'event' | 'ticketType';
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -295,20 +274,6 @@ async function getAdminValidationContext(
   if (kind === 'good') {
     const current = records.goods.find((record) => record.id === id);
     if (current) context.ipIds.add(current.ipId);
-  } else if (kind === 'card') {
-    const current = records.cards.find((record) => record.id === id);
-    if (current) context.ipIds.add(current.ipId);
-  } else if (kind === 'cardPool') {
-    const current = records.cardPools.find((record) => record.id === id);
-    if (current) context.ipIds.add(current.ipId);
-  } else if (kind === 'rewardPolicy') {
-    const current = records.rewardPolicies.find((record) => record.id === id);
-    if (current) {
-      context.ipIds.add(current.targetIpId);
-      if (current.targetGoodId) {
-        context.goodIpById.set(current.targetGoodId, current.targetIpId);
-      }
-    }
   } else if (kind === 'event') {
     const current = records.events.find((record) => record.id === id);
     if (current?.ipId) context.ipIds.add(current.ipId);
@@ -673,14 +638,6 @@ export async function adjustAdminStockAction(
   } : {}) };
 }
 
-export async function upsertAdminCardAction(
-  state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
-  return preserveCatalogSubmission(state, formData, () => saveAdminCard(formData),
-    '카드를 저장하지 못했습니다. 다시 시도해주세요.');
-}
-
 async function preserveCatalogSubmission(
   state: AdminCatalogActionState,
   formData: FormData,
@@ -694,379 +651,6 @@ async function preserveCatalogSubmission(
     unstable_rethrow(error);
     return withPreservedFormValues(rpcFailure(failureMessage), state, formData);
   }
-}
-
-async function saveAdminCard(formData: FormData): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return authError;
-
-  const context = await getAdminValidationContext(formData, 'card');
-  const result = normalizeAdminCardForm(formData, context);
-  if (!result.ok) return { errors: result.errors };
-
-  const value = result.value;
-  const previousIpPath = readPreviousIpPath(formData);
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_card', {
-    target_id: value.id,
-    target_ip_id: value.ipId,
-    target_name: value.name,
-    target_no: value.no,
-    target_rarity: value.rarity,
-    target_bg: value.bg,
-    target_image_path: value.imagePath,
-    target_pool_id: value.poolId,
-    target_pool_binding_provided: true,
-    target_previous_id: value.previousId,
-  });
-
-  if (error) {
-    revalidatePath('/admin');
-    const writeIntentError = catalogWriteIntentFailure(error.message);
-    if (writeIntentError) return writeIntentError;
-    const artworkError = artworkClaimFailure(error.message);
-    if (artworkError) return artworkError;
-    const parentError = archivedParentFailure(error.message);
-    if (parentError) return parentError;
-    const archivedError = archivedCatalogFailure(error.message);
-    if (archivedError) return archivedError;
-    if (error.message.includes('card_pool_ip_mismatch')) {
-      return rpcFailure('카드와 같은 IP의 카드풀만 연결할 수 있습니다.');
-    }
-    if (error.message.includes('pool_rarity_uncovered')) {
-      return rpcFailure('이 카드는 카드풀에서 확률이 0%보다 큰 등급의 마지막 카드라 다른 카드풀로 옮기거나 연결을 풀 수 없습니다. 같은 등급에 다른 카드를 먼저 연결해주세요.');
-    }
-    if (error.message.includes('pooled_card_catalog_contract_locked')) {
-      return rpcFailure('풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경해주세요.');
-    }
-    if (error.message.includes('pool_not_found')) {
-      return rpcFailure('연결할 카드풀을 찾을 수 없습니다.');
-    }
-    return rpcFailure('카드를 저장하지 못했습니다. 다시 시도해주세요.');
-  }
-
-  revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
-  return { message: '카드를 저장했습니다.' };
-}
-
-export async function upsertAdminCardPoolAction(
-  state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
-  return preserveCatalogSubmission(state, formData, () => saveAdminCardPool(formData),
-    '카드풀을 저장하지 못했습니다. 다시 시도해주세요.');
-}
-
-async function saveAdminCardPool(formData: FormData): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return authError;
-
-  const context = await getAdminValidationContext(formData, 'cardPool');
-  const result = normalizeAdminCardPoolForm(formData, context);
-  if (!result.ok) return { errors: result.errors };
-
-  const value = result.value;
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_card_pool', {
-    target_operation_id: value.operationId,
-    target_pool_id: value.id,
-    target_ip_id: value.ipId,
-    target_name: value.name,
-    target_active_from: value.activeFrom,
-    target_active_to: value.activeTo,
-  });
-
-  if (error) {
-    const archivedError = archivedCatalogFailure(error.message);
-    if (archivedError) return archivedError;
-    if (error.message.includes('pool_ip_locked')) {
-      return rpcFailure('연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.');
-    }
-    if (error.message.includes('invalid_pool_active_window')) {
-      return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
-    }
-    if (error.message.includes('active_reward_policy_window_conflict')) {
-      return rpcFailure('사용 중인 발급 정책의 운영 기간이 바꾼 카드풀 운영 기간과 겹치지 않게 됩니다. 그 발급 정책의 정책 활성화를 먼저 끈 뒤 기간을 바꿔주세요.');
-    }
-    if (error.message.includes('game_pool_window_conflict')) {
-      return rpcFailure('카드풀 운영 기간은 연결된 게임 운영 기간 전체를 포함해야 합니다.');
-    }
-    if (error.message.includes('ip_not_found')) {
-      return rpcFailure('연결할 IP를 찾을 수 없습니다.');
-    }
-    if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
-    }
-    return rpcFailure('카드풀을 저장하지 못했습니다. 다시 시도해주세요.');
-  }
-
-  revalidateRewards();
-  return { message: '카드풀을 저장했습니다.' };
-}
-
-export async function setAdminPoolOddsAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return authError;
-
-  const result = normalizeAdminPoolOddsForm(formData);
-  if (!result.ok) return { errors: result.errors };
-
-  const { odds, operationId, poolId } = result.value;
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_set_pool_odds', {
-    target_operation_id: operationId,
-    target_pool_id: poolId,
-    target_n: odds.N,
-    target_r: odds.R,
-    target_sr: odds.SR,
-    target_ssr: odds.SSR,
-    target_holo: odds.HOLO,
-  });
-
-  if (error) {
-    const archivedError = archivedCatalogFailure(error.message);
-    if (archivedError) return archivedError;
-    if (error.message.includes('pool_rarity_uncovered')) {
-      return rpcFailure('확률이 0%보다 큰 등급에는 카드가 1장 이상 연결되어 있어야 합니다.');
-    }
-    if (
-      error.message.includes('invalid_pool_probability')
-      || error.message.includes('invalid_probability_precision')
-      || error.message.includes('pool_odds_must_sum_to_one')
-    ) {
-      return rpcFailure('각 확률과 합계가 올바른지 확인해주세요.');
-    }
-    if (error.message.includes('pool_not_found')) {
-      return rpcFailure('카드풀을 찾을 수 없습니다.');
-    }
-    if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
-    }
-    return rpcFailure('등급별 확률을 저장하지 못했습니다. 다시 시도해주세요.');
-  }
-
-  revalidateRewards();
-  return { message: '등급별 확률을 저장했습니다.' };
-}
-
-export async function upsertAdminRewardPolicyAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return authError;
-
-  const context = await getAdminValidationContext(formData, 'rewardPolicy');
-  const result = normalizeAdminRewardPolicyForm(formData, context);
-  if (!result.ok) return { errors: result.errors };
-
-  const value = result.value;
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_reward_policy', {
-    target_operation_id: value.operationId,
-    target_policy_id: value.id,
-    target_pool_id: value.poolId,
-    target_trigger: value.trigger,
-    target_ip_id: value.targetIpId,
-    target_good_id: value.targetGoodId,
-    target_min_amount: value.minAmount,
-    target_tickets_per_grant: value.ticketsPerGrant,
-    target_active: value.active,
-    target_active_from: value.activeFrom,
-    target_active_to: value.activeTo,
-  });
-
-  if (error) {
-    const archivedError = archivedCatalogFailure(error.message);
-    if (archivedError) return archivedError;
-    if (error.message.includes('card_rewards_disabled')) {
-      return rpcFailure('카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.');
-    }
-    if (error.message.includes('auth_required')) {
-      return rpcFailure('로그인이 필요합니다.');
-    }
-    if (error.message.includes('forbidden')) {
-      return rpcFailure('관리자 권한이 필요합니다.');
-    }
-    if (error.message.includes('invalid_operation_id')) {
-      return rpcFailure('저장 요청 정보가 맞지 않습니다. 화면을 새로고침한 뒤 다시 저장해주세요.');
-    }
-    if (error.message.includes('invalid_reward_policy_id')) {
-      return rpcFailure('발급 정책 정보를 확인해주세요.');
-    }
-    if (error.message.includes('invalid_reward_trigger')) {
-      return rpcFailure('지원하지 않는 발급 조건입니다.');
-    }
-    if (error.message.includes('invalid_min_amount')) {
-      return rpcFailure('최소 결제 금액을 확인해주세요.');
-    }
-    if (error.message.includes('invalid_tickets_per_grant')) {
-      return rpcFailure('발급 수량은 1~100 사이여야 합니다.');
-    }
-    if (error.message.includes('invalid_reward_policy_active_from')) {
-      return rpcFailure('운영 시작 일시를 확인해주세요.');
-    }
-    if (error.message.includes('invalid_reward_policy_active_window')) {
-      return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
-    }
-    if (error.message.includes('invalid_reward_policy_active')) {
-      return rpcFailure('정책 활성화 값을 확인할 수 없습니다. 화면을 새로고침한 뒤 정책 활성화를 다시 골라 저장해주세요.');
-    }
-    if (error.message.includes('reward_policy_good_ip_mismatch')) {
-      return rpcFailure('선택한 IP의 굿즈만 지정할 수 있습니다.');
-    }
-    if (error.message.includes('ip_not_found')) {
-      return rpcFailure('연결할 IP를 찾을 수 없습니다.');
-    }
-    if (error.message.includes('good_not_found')) {
-      return rpcFailure('연결할 굿즈를 찾을 수 없습니다.');
-    }
-    if (error.message.includes('pool_not_found')) {
-      return rpcFailure('카드풀을 찾을 수 없습니다.');
-    }
-    if (error.message.includes('reward_pool_not_ready')) {
-      return rpcFailure('확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.');
-    }
-    if (error.message.includes('reward_policy_pool_window_disjoint')) {
-      return rpcFailure('정책과 카드풀 운영 기간이 겹쳐야 합니다.');
-    }
-    if (error.message.includes('reward_policy_pool_locked')) {
-      return rpcFailure('이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.');
-    }
-    if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
-    }
-    return rpcFailure('발급 정책을 저장하지 못했습니다. 다시 시도해주세요.');
-  }
-
-  revalidateRewards();
-  return { message: '발급 정책을 저장했습니다.' };
-}
-
-export async function upsertAdminGameAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return authError;
-
-  const records = await getAdminCatalogRecords();
-  const result = normalizeAdminGameForm(formData, gameContextFromRecords(records));
-  if (!result.ok) return { errors: result.errors };
-
-  const value = result.value;
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_game', {
-    target_operation_id: value.operationId,
-    target_previous_game_id: value.previousGameId,
-    target_game_id: value.id,
-    target_title: value.title,
-    target_reward_pool_id: value.rewardPoolId,
-    target_event_id: value.eventId,
-    target_per_user_daily_limit: value.perUserDailyLimit,
-    target_active_from: value.activeFrom,
-    target_active_to: value.activeTo,
-    target_end_now: false,
-  });
-
-  if (error) {
-    const archivedError = archivedCatalogFailure(error.message);
-    if (archivedError) return archivedError;
-    if (error.message.includes('card_rewards_disabled')) {
-      return rpcFailure('카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.');
-    }
-    if (error.message.includes('auth_required')) return rpcFailure('로그인이 필요합니다.');
-    if (error.message.includes('forbidden')) return rpcFailure('관리자 권한이 필요합니다.');
-    if (error.message.includes('invalid_operation_id')) {
-      return rpcFailure('저장 요청 정보가 맞지 않습니다. 화면을 새로고침한 뒤 다시 저장해주세요.');
-    }
-    if (error.message.includes('invalid_game_id')) return rpcFailure('게임 주소 이름은 영문 소문자나 숫자로 시작하고, 영문 소문자·숫자·하이픈만 쓸 수 있습니다.');
-    if (error.message.includes('invalid_game_title')) return rpcFailure('게임 제목을 입력해주세요.');
-    if (error.message.includes('invalid_game_daily_limit')) {
-      return rpcFailure('일일 플레이 한도는 1~100 사이여야 합니다.');
-    }
-    if (error.message.includes('invalid_game_active_from')) {
-      return rpcFailure('운영 시작 일시를 명시적으로 선택해주세요.');
-    }
-    if (error.message.includes('invalid_game_active_window')) {
-      return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
-    }
-    if (error.message.includes('pool_not_found')) return rpcFailure('카드풀을 찾을 수 없습니다.');
-    if (error.message.includes('reward_pool_not_ready')) {
-      return rpcFailure('확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.');
-    }
-    if (error.message.includes('game_pool_window_not_covered')) {
-      return rpcFailure('게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.');
-    }
-    if (
-      error.message.includes('game_event_ip_mismatch')
-      || error.message.includes('game_event_mode_invalid')
-    ) {
-      return rpcFailure('같은 IP의 온라인 이벤트만 선택할 수 있습니다.');
-    }
-    if (error.message.includes('event_not_found')) return rpcFailure('이벤트를 찾을 수 없습니다.');
-    if (error.message.includes('game_catalog_locked')) {
-      return rpcFailure('플레이 이력이 있어 게임 주소 이름·카드풀·이벤트·설정을 바꿀 수 없습니다.');
-    }
-    if (error.message.includes('game_variant_read_only')) {
-      return rpcFailure('이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.');
-    }
-    if (error.message.includes('game_id_conflict')) return rpcFailure('이미 쓰고 있는 게임 주소 이름입니다. 다른 이름을 입력해주세요.');
-    if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
-    if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.');
-    }
-    return rpcFailure('게임을 저장하지 못했습니다. 다시 시도해주세요.');
-  }
-
-  revalidateGames([value.previousGameId, value.id]);
-  return { message: '게임을 저장했습니다.' };
-}
-
-export async function endAdminGameAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return authError;
-
-  const result = normalizeAdminGameEndForm(formData);
-  if (!result.ok) return { errors: result.errors };
-
-  const { gameId, operationId } = result.value;
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_game', {
-    target_operation_id: operationId,
-    target_previous_game_id: gameId,
-    target_game_id: gameId,
-    target_title: null,
-    target_reward_pool_id: null,
-    target_event_id: null,
-    target_per_user_daily_limit: null,
-    target_active_from: null,
-    target_active_to: null,
-    target_end_now: true,
-  });
-
-  if (error) {
-    if (error.message.includes('game_not_active')) {
-      return rpcFailure('운영 중인 게임만 지금 종료할 수 있습니다.');
-    }
-    if (error.message.includes('game_variant_read_only')) {
-      return rpcFailure('이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.');
-    }
-    if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
-    if (error.message.includes('operation_conflict')) {
-      return rpcFailure('이 종료 요청은 이미 처리됐습니다. 화면을 새로고침해 게임 상태를 확인해주세요.');
-    }
-    return rpcFailure('게임 운영을 종료하지 못했습니다. 다시 시도해주세요.');
-  }
-
-  revalidateGames([gameId]);
-  return { message: '게임 운영을 종료했습니다.' };
 }
 
 export async function upsertAdminEventAction(
@@ -1111,7 +695,7 @@ async function saveAdminEvent(formData: FormData): Promise<AdminCatalogActionSta
     const parentError = archivedParentFailure(error.message);
     if (parentError) return parentError;
     if (error.message.includes('game_event_contract_locked')) {
-      return rpcFailure('연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.');
+      return rpcFailure('예전 게임 기록이 연결돼 이벤트 IP·운영 방식을 변경할 수 없습니다. 개발팀에 게임 기록 정리를 요청해주세요.');
     }
     return rpcFailure('이벤트를 저장하지 못했습니다. 다시 시도해주세요.');
   }

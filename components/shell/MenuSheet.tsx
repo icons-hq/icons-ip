@@ -4,39 +4,34 @@ import Link from 'next/link';
 import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
-import { hrefFor, withoutHiddenCollectibleGroups } from '@/lib/routes';
+import { hrefFor } from '@/lib/routes';
 import { DEFAULT_STOREFRONT_NAVIGATION, resolveStorefrontNavigation, storeMenuSheetGroups, type StorefrontNavigation } from '@/lib/store-navigation';
 import { Icon } from '@/components/ui/Icon';
 import { ProductInterestMenuLink } from '@/components/shop/ProductInterestShelf';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { useCart } from './CartProvider';
-import { useCollectibleFeatures } from './CollectibleFeatures';
 import { loginEntryHref } from './login-entry';
 import { useOverlayA11y } from './useOverlayA11y';
 import { AdminConsoleLink, useAdminConsoleVisible } from './AdminConsoleLink';
 
 /* 모바일 전체 메뉴 시트. 바텀바의 '메뉴' 탭이 연다. 모바일 GNB의 '카테고리' 탭은 공개 전시 트리가 있으면
    카테고리 전용 시트(CategorySheet)를, 없으면(고객 카테고리 공개 스위치 OFF·공개 전시 없음) 이 시트를 연다(L5 폴백).
-   스토어 그룹은 GNB와 같은 설정 순서, 내 활동/거래는 routes.ts의 고정 그룹을 사용한다.
+   스토어 그룹은 GNB와 같은 설정 순서, 세계·내 활동은 routes.ts의 고정 그룹을 사용한다.
    어드민 콘솔 운영자에게는 맨 위에 '스태프 전용' 섹션(관리자 페이지 바로가기)이 더 선다 — 모바일에는 유틸 메뉴가 없어
    여기가 메뉴 탭 → 한 번으로 닿는 자리다. 운영 권한 readback 이 참일 때만 마크업이 생긴다. */
 export function MenuSheet({
   open,
   onClose,
-  cardRewardsEnabled,
   navigation = DEFAULT_STOREFRONT_NAVIGATION,
 }: {
   open: boolean;
   onClose: () => void;
-  cardRewardsEnabled: boolean;
   navigation?: StorefrontNavigation;
 }) {
   const router = useRouter();
   const { resetForSignOut } = useCart();
   const presence = useAuthPresence();
   const panelRef = useRef<HTMLDivElement>(null);
-  /* '내 활동'의 바인더와 '거래' 그룹은 DB 공개 스위치가 꺼진 동안 빠진다(lib/collectible-features.ts). */
-  const collectibleFeatures = useCollectibleFeatures();
 
   useOverlayA11y({ open, onClose, panelRef });
   const adminConsoleVisible = useAdminConsoleVisible();
@@ -47,7 +42,7 @@ export function MenuSheet({
      렌더 시점 pathname을 굳혀 두면 경로가 바뀐 뒤 돌아올 곳이 어긋난다. */
   const loginHref = () => loginEntryHref(window.location.pathname, window.location.search);
 
-  const groups = withoutHiddenCollectibleGroups(storeMenuSheetGroups(resolveStorefrontNavigation(navigation, cardRewardsEnabled)), collectibleFeatures);
+  const groups = storeMenuSheetGroups(resolveStorefrontNavigation(navigation));
 
   return (
     <>

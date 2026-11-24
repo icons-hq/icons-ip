@@ -18,7 +18,6 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { compactNumber } from '@/lib/format';
 import type { IpFollowState } from '@/lib/ip-follow';
 import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
@@ -197,10 +196,8 @@ export function IpDetail({
   /** 목록 하트의 초기 상태. 생략하면 하트를 그리지 않는다. */
   wishlist?: ListingWishlist | null;
 }) {
-  const { ip, goods, cards } = detail;
+  const { ip, goods } = detail;
   const router = useRouter();
-  /* 카드 도감(바인더) 링크는 카드 바인더 공개 스위치가 켜진 동안에만 그린다(lib/collectible-features.ts). */
-  const binderEnabled = useCollectibleFeatures().binder;
   const hallBanner = banner && (banner.imageUrl || banner.mobileImageUrl) ? banner : null;
   const canonicalSlug = publicSlug ?? ip.publicSlug ?? ip.id;
   const hallPath = publicIpHref(canonicalSlug);
@@ -294,7 +291,6 @@ export function IpDetail({
       <div className="wc-container wc-container--wide">
         <nav aria-label="이 IP의 다른 공간" className="wc-iphall__links">
           <Link href={`${hrefFor('shop')}?ip=${ip.id}`}>굿즈샵에서 전체 보기</Link>
-          {binderEnabled && <Link href={hrefFor('binder')}>{`카드 도감 ${cards.length}종`}</Link>}
           {hasOfflinePopup && <Link href={`${hrefFor('offlinePopups')}?ip=${ip.id}`}>오프라인 팝업</Link>}
           {COMMUNITY_ENABLED && <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>}
         </nav>

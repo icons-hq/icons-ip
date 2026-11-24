@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, isPublishedAdultGood, toGood, type CatalogPostPreview, type CatalogSnapshot, type GoodRow } from './catalog';
+import { buildCatalogIpDetail, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, isPublishedAdultGood, toGood, type CatalogPostPreview, type CatalogSnapshot, type GoodRow } from './catalog';
 import { getHomeSelectableIps } from './home-catalog';
 import type { Ip } from './data';
 
@@ -43,10 +43,6 @@ const catalog: CatalogSnapshot = {
   goods: [
     { id: 'g2', ip: 'hwasan', name: '아크릴 스탠드', price: 22000, badge: null, stock: 'ok', stockQty: 12, img: 'g2' },
     { id: 'g1', ip: 'lumen', name: '피규어', price: 89000, badge: null, stock: 'ok', stockQty: 4, img: 'g1' },
-  ],
-  cards: [
-    { id: 'c2', ip: 'hwasan', name: '화산의 검', no: '014/120', rarity: 'SSR', owned: false, bg: 'c2' },
-    { id: 'c1', ip: 'lumen', name: 'LUMEN · Dawn', no: '027/200', rarity: 'SR', owned: false, bg: 'c1' },
   ],
   events: [
     { id: 'e2', ip: 'hwasan', title: '매화 특별전', mode: '오프라인', status: '예정', date: '6.02', loc: '강남', accent: '#8B5CFF', img: 'e2' },
@@ -306,7 +302,6 @@ describe('buildCatalogIpDetail', () => {
 
     expect(detail?.ip).toEqual(hwasan);
     expect(detail?.goods.map((good) => good.id)).toEqual(['g2']);
-    expect(detail?.cards.map((card) => card.id)).toEqual(['c2']);
     expect(detail?.events.map((event) => event.id)).toEqual(['e2']);
     expect(detail?.posts.map((post) => post.id)).toEqual(['p1']);
     expect(detail?.posts[0]).not.toHaveProperty('img');
@@ -446,10 +441,6 @@ describe('getCatalogSnapshot', () => {
         { id: 'g-active', ip_id: 'hwasan', name: '운영 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
         { id: 'g-archived', ip_id: 'hwasan', name: '보관 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, sale_restriction: 'none', archived_at: '2026-07-17T00:00:00.000Z' },
       ],
-      cards: [
-        { id: 'c-active', ip_id: 'hwasan', name: '운영 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },
-        { id: 'c-archived', ip_id: 'hwasan', name: '보관 카드', no: '002', rarity: 'N', bg: null, image_path: null, archived_at: '2026-07-17T00:00:00.000Z' },
-      ],
       events: [
         { id: 'e-active', ip_id: 'hwasan', title: '운영 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
         { id: 'e-archived', ip_id: 'hwasan', title: '보관 이벤트', mode: '온라인', status: '종료', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: '2026-07-17T00:00:00.000Z' },
@@ -460,9 +451,8 @@ describe('getCatalogSnapshot', () => {
 
     expect(snapshot.ips.map((item) => item.id)).toEqual(['hwasan']);
     expect(snapshot.goods.map((item) => item.id)).toEqual(['g-active']);
-    expect(snapshot.cards.map((item) => item.id)).toEqual(['c-active']);
     expect(snapshot.events.map((item) => item.id)).toEqual(['e-active']);
-    for (const table of ['ips', 'goods', 'cards', 'events']) {
+    for (const table of ['ips', 'goods', 'events']) {
       expect(records.find((record) => record.table === table)?.is).toContainEqual(['archived_at', null]);
     }
 
@@ -484,10 +474,6 @@ describe('getCatalogSnapshot', () => {
         { id: 'g-live', ip_id: 'hwasan', name: '공개 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
         { id: 'g-draft', ip_id: 'draft-ip', name: '초안 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
       ],
-      cards: [
-        { id: 'c-live', ip_id: 'hwasan', name: '공개 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },
-        { id: 'c-draft', ip_id: 'draft-ip', name: '초안 카드', no: '002', rarity: 'N', bg: null, image_path: null, archived_at: null },
-      ],
       events: [
         { id: 'e-live', ip_id: 'hwasan', title: '공개 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
         { id: 'e-draft', ip_id: 'draft-ip', title: '초안 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
@@ -499,12 +485,11 @@ describe('getCatalogSnapshot', () => {
 
     expect(snapshot.ips.map((item) => item.id)).toEqual(['hwasan']);
     expect(snapshot.goods.map((item) => item.id)).toEqual(['g-live']);
-    expect(snapshot.cards.map((item) => item.id)).toEqual(['c-live']);
     expect(snapshot.events.map((item) => item.id)).toEqual(['e-joint', 'e-live']);
     expect(records.find((record) => record.table === 'ips')?.not).toContainEqual(['published_at', 'is', null]);
     /* 자식 컬렉션의 초안 제외는 앱에서 IP 집합으로 거른다 — 쿼리에 published 조건을 조인하지 않는다. */
     expect(records.find((record) => record.table === 'goods')?.not).toContainEqual(['published_at', 'is', null]);
-    for (const table of ['cards', 'events']) {
+    for (const table of ['events']) {
       expect(records.find((record) => record.table === table)?.not).toEqual([]);
     }
 
@@ -737,93 +722,6 @@ describe('getCatalogSnapshot', () => {
     expect(goods.get('with-base')).toMatchObject({ price: 10800, priceMax: 13800, compareAtPrice: 12000, catalogPrice: 10800, catalogCompareAtPrice: 12000 });
     expect(goods.get('extra-only')).toMatchObject({ price: 11300, priceMax: 11300, compareAtPrice: 12500 });
     expect(goods.get('period')).toMatchObject({ price: 12000, priceMax: 12000, compareAtPrice: 13800, catalogCompareAtPrice: 12000 });
-
-    mocks.isConfigured = false;
-    mocks.client = null;
-  });
-});
-
-describe('getBinderCatalogOverlay', () => {
-  it('loads owned archived card metadata without reopening it in public discovery', async () => {
-    const records: QueryRecord[] = [];
-    mocks.isConfigured = true;
-    mocks.client = createSupabaseClient(records, {
-      user_cards: [
-        { card_id: 'c-archived', qty: 1 },
-        { card_id: 'c-zero', qty: 0 },
-      ],
-      ips: [{
-        id: 'archived-ip',
-        title: '보관된 IP',
-        sub: '종료된 시리즈',
-        vertical_key: 'rofan',
-        tagline: '기억 속에 남은 이야기',
-        synopsis: '보관된 IP 설명',
-        glyph: '보관',
-        bg: 'archived-ip-bg',
-        image_path: null,
-        featured: false,
-        fans_count: 12,
-        goods_count: 0,
-        cards_count: 1,
-        archived_at: '2026-07-17T00:00:00.000Z',
-      }],
-      cards: [
-        {
-          id: 'c-archived',
-          ip_id: 'archived-ip',
-          name: '보관된 보유 카드',
-          no: '099',
-          rarity: 'SSR',
-          bg: null,
-          image_path: 'public-media/catalog/card/c-archived.webp',
-          archived_at: '2026-07-17T00:00:00.000Z',
-        },
-        {
-          id: 'c-zero',
-          ip_id: 'hwasan',
-          name: '수량 없는 카드',
-          no: '100',
-          rarity: 'N',
-          bg: null,
-          image_path: null,
-          archived_at: null,
-        },
-      ],
-    });
-
-    await expect(getBinderCatalogOverlay()).resolves.toEqual({
-      ownedCardIds: ['c-archived'],
-      cards: [expect.objectContaining({
-        id: 'c-archived',
-        ip: 'archived-ip',
-        name: '보관된 보유 카드',
-        owned: false,
-        bg: 'url("https://cdn.example/catalog/card/c-archived.webp") center / cover no-repeat',
-      })],
-      ips: [expect.objectContaining({
-        id: 'archived-ip',
-        title: '보관된 IP',
-        v: vertical,
-      })],
-    });
-    expect(records.find((record) => record.table === 'user_cards')?.gt).toEqual([['qty', 0]]);
-    expect(records.find((record) => record.table === 'cards')?.in).toEqual([['id', ['c-archived']]]);
-    expect(records.find((record) => record.table === 'cards')?.is).toEqual([]);
-    expect(records.find((record) => record.table === 'ips')?.in).toEqual([['id', ['archived-ip']]]);
-    /* 보유 이력은 게시 상태와도 무관하다 — 초안·보관 필터를 바인더에 걸지 않는다. */
-    expect(records.find((record) => record.table === 'ips')?.not).toEqual([]);
-    expect(records.find((record) => record.table === 'ips')?.is).toEqual([]);
-
-    mocks.isConfigured = false;
-    mocks.client = null;
-  });
-
-  it('returns public mode for a signed-out viewer', async () => {
-    mocks.isConfigured = true;
-    mocks.client = createSupabaseClient([], {}, null);
-
-    await expect(getBinderCatalogOverlay()).resolves.toBeNull();
 
     mocks.isConfigured = false;
     mocks.client = null;

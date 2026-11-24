@@ -5,17 +5,14 @@ import { createClient } from '@/lib/supabase/server';
 import {
   ADMIN_CAMPAIGN_KINDS,
   ADMIN_CAMPAIGN_STATUSES,
-  ADMIN_COIN_OFFER_STATUSES,
   type AdminCampaignKind,
   type AdminCampaignRecord,
   type AdminCampaignStatus,
-  type AdminCoinExchangeOfferRecord,
-  type AdminCoinOfferStatus,
 } from './campaigns';
 
 /* 캠페인 콘솔 로더 (S8 #330).
  *
- * campaigns·coin_exchange_offers 는 staff RLS select 가 열려 있어 사용자 세션
+ * campaigns 는 staff RLS select 가 열려 있어 사용자 세션
  * 클라이언트로 읽는다 — service role 을 화면 로드에 끌어들이지 않는다. draft
  * 캠페인이 목록에 보이는 것도 그 정책 덕분이고(campaigns_public_read), 그래서
  * 이 로더는 status 조건을 걸지 않는다: 운영자에게 안 보이는 초안은 편집할 수 없다.
@@ -24,9 +21,7 @@ import {
  * 캠페인 목록 전체가 막히는데, 노출 설정은 부가 정보라 못 읽어도 캠페인 편집은 계속 되어야 한다 — 읽기에 실패하면
  * 레코드의 presentation 이 null 이 되고 패널이 안내한다. draft 캠페인의 행은 RLS 로 promotion.manage 운영자만 읽힌다.
  *
- * 카드풀 이름은 여기서 조인하지 않는다. 교환처 폼이 어차피 카드풀 선택지를
- * 받아야 해서(`getAdminCatalogRecords({ include: ['cardPools'] })`), 같은 이름을
- * 두 경로로 읽으면 두 값이 갈라질 자리가 생긴다. */
+ * 코인 → 카드팩 교환처(coin_exchange_offers)는 2026-11-24 일반 쇼핑몰 전환으로 화면에서 지웠다(ADR-0052, 표는 보존). */
 
 interface CampaignRow {
   id: string;
@@ -51,41 +46,25 @@ interface CampaignPresentationRow {
   card_link_path: string | null;
 }
 
-interface CoinExchangeOfferRow {
-  id: string;
-  pool_id: string;
-  label: string;
-  coin_cost: number;
-  ticket_count: number;
-  status: string;
-  updated_at: string;
-}
-
 export interface AdminCampaignConsoleData {
   campaigns: AdminCampaignRecord[];
-  offers: AdminCoinExchangeOfferRecord[];
 }
 
 const KIND_SET = new Set<string>(ADMIN_CAMPAIGN_KINDS);
 const STATUS_SET = new Set<string>(ADMIN_CAMPAIGN_STATUSES);
-const OFFER_STATUS_SET = new Set<string>(ADMIN_COIN_OFFER_STATUSES);
 
 /** 노출 설정 행이 없는 캠페인 = EVENT 에 보이고 바로가기도 없다. */
 const EMPTY_PRESENTATION: CampaignPresentation = { popupMode: null, popupLocation: null, cardLinkPath: null };
 
-export async function getAdminCampaignConsoleData(options: { includeOffers?: boolean } = {}): Promise<AdminCampaignConsoleData> {
+export async function getAdminCampaignConsoleData(): Promise<AdminCampaignConsoleData> {
   const supabase = await createClient();
 
-  const [campaignsResult, offersResult, presentationsResult] = await Promise.all([
+  const [campaignsResult, presentationsResult] = await Promise.all([
     supabase
       .from('campaigns')
       /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
       .select('id,kind,title,subtitle,status,starts_at,ends_at,hero_image_path,card_image_path,banner_image_path,featured_order,sections,updated_at')
       .order('starts_at', { ascending: false }),
-    options.includeOffers === false ? Promise.resolve({ data: [], error: null }) : supabase
-      .from('coin_exchange_offers')
-      .select('id,pool_id,label,coin_cost,ticket_count,status,updated_at')
-      .order('created_at', { ascending: false }),
     supabase
       .from('campaign_presentations')
       /* 공개 열만 열 단위로 열려 있다(updated_by 비공개) — `*`로 바꾸면 권한 오류다. */
@@ -94,9 +73,6 @@ export async function getAdminCampaignConsoleData(options: { includeOffers?: boo
 
   if (campaignsResult.error) {
     throw new Error(`Failed to load admin campaigns: ${campaignsResult.error.message}`);
-  }
-  if (offersResult.error) {
-    throw new Error(`Failed to load admin coin exchange offers: ${offersResult.error.message}`);
   }
 
   /* 노출 설정을 못 읽거나(표 없음·권한) 형식이 어긋난 행은 null — 빈 값으로 보이면 운영자가 저장하며 기존 설정을 지우게 된다. */
@@ -125,15 +101,6 @@ export async function getAdminCampaignConsoleData(options: { includeOffers?: boo
       featuredOrder: row.featured_order,
       sections: Array.isArray(row.sections) ? row.sections : [],
       presentation: presentationFor(row.id),
-      updatedAt: row.updated_at,
-    })),
-    offers: ((offersResult.data ?? []) as CoinExchangeOfferRow[]).map((row) => ({
-      id: row.id,
-      poolId: row.pool_id,
-      label: row.label,
-      coinCost: row.coin_cost,
-      ticketCount: row.ticket_count,
-      status: (OFFER_STATUS_SET.has(row.status) ? row.status : 'disabled') as AdminCoinOfferStatus,
       updatedAt: row.updated_at,
     })),
   };

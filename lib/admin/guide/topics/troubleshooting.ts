@@ -156,10 +156,10 @@ const ARCHIVE_CASES: AdminGuideErrorCase[] = [
     fix: '판매만 멈추려면 보관 대신 판매 중지를 씁니다. 엑스스퀘어에 배정된 물량을 실제로 회수했을 때만, 그 근거를 남겨 재고를 조정한 뒤 보관합니다.',
   },
   {
-    quote: '활성 리워드 정책에 연결된 굿즈는 보관할 수 없습니다.',
+    quote: '예전 카드팩 발급 정책에 연결된 굿즈는 보관할 수 없습니다. 개발팀에 정책 정리를 요청해주세요.',
     sourceFile: 'app/admin/archive-actions.ts',
-    cause: '켜져 있는 카드팩 발급 정책이 이 굿즈를 대상으로 잡고 있습니다.',
-    fix: '발급 정책 화면에서 그 정책의 "정책 활성화"를 끄고 저장한 뒤 보관합니다.',
+    cause: '카드 기능을 운영하던 때 만든 카드팩 발급 정책이 아직 켜진 채 이 굿즈를 대상으로 잡고 있습니다. 카드 화면은 2026-11-24에 없어져 판매자센터에서 끌 수 없습니다.',
+    fix: '개발팀에 그 정책을 꺼 달라고 요청한 뒤 다시 보관합니다.',
   },
 ];
 
@@ -180,7 +180,7 @@ const PUBLISH_CASES: AdminGuideErrorCase[] = [
 
 const CLAIM_CASES: AdminGuideErrorCase[] = [
   {
-    quote: '결제 취소 확인이 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
+    quote: '결제 취소 확인이 끝나지 않았습니다. 재고 복원이 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
     sourceFile: 'app/admin/claim-actions.ts',
     cause: '결제사 취소가 아직 시스템에서 확인되지 않은 상태에서 환불 완료를 먼저 기록하려 했습니다.',
     fix: '화면의 결제 취소 확인 절차를 먼저 마칩니다. 코페이(Korpay) 건을 직접 확정하는 일은 대표 또는 계정 주매니저(매니저 역할 설정 전에는 기존 관리자)에게 요청합니다.',
@@ -226,15 +226,6 @@ const PROMOTION_CASES: AdminGuideErrorCase[] = [
   },
 ];
 
-const POOL_CASES: AdminGuideErrorCase[] = [
-  {
-    quote: '확률 합계는 100%여야 합니다.',
-    sourceFile: 'lib/admin/catalog.ts',
-    cause: '카드풀 등급별 확률 다섯 칸의 합이 100%가 아닙니다.',
-    fix: '다섯 등급의 확률을 다시 나눠 합계를 정확히 100%로 맞춥니다. 소수 셋째 자리까지 입력할 수 있습니다.',
-  },
-];
-
 export const ADMIN_GUIDE_ERROR_CASES: AdminGuideErrorCase[] = [
   ...CATALOG_CASES,
   ...KC_PUBLISH_CASES,
@@ -245,7 +236,6 @@ export const ADMIN_GUIDE_ERROR_CASES: AdminGuideErrorCase[] = [
   ...PUBLISH_CASES,
   ...CLAIM_CASES,
   ...PROMOTION_CASES,
-  ...POOL_CASES,
 ];
 
 function errorTable(cases: AdminGuideErrorCase[]): AdminGuideTable {
@@ -301,6 +291,5 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
     { id: 'publish', heading: 'IP 게시 상태', table: errorTable(PUBLISH_CASES) },
     { id: 'claims', heading: '클레임', table: errorTable(CLAIM_CASES) },
     { id: 'promotions', heading: '쿠폰·캠페인', table: errorTable(PROMOTION_CASES) },
-    { id: 'pools', heading: '카드풀', table: errorTable(POOL_CASES) },
   ],
 };

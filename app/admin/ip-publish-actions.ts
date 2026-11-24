@@ -70,13 +70,11 @@ function revalidateIpPublishSurfaces(id: string) {
     '/',
     '/ip',
     '/shop',
-    '/binder',
     '/events',
     '/offline-popups',
     '/search',
     '/cart',
     '/checkout',
-    '/packs',
     '/admin',
   ]) {
     revalidatePath(path);

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, BarChart3, BellRing, ContactRound, Gamepad2, Landmark, LifeBuoy, Megaphone, MessageSquareText, Package, Rocket, Settings, Ticket, Truck, Undo2, Wrench, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BarChart3, BellRing, ContactRound, Landmark, LifeBuoy, Megaphone, MessageSquareText, Package, Rocket, Settings, Ticket, Truck, Undo2, Wrench, type LucideIcon } from 'lucide-react';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Card, CardContent, CardHeader } from '@/components/admin/kit/ui/card';
 import { ADMIN_WEEKLY_CHANGES } from '@/lib/admin/guide/changes';
@@ -30,7 +30,6 @@ const TOPIC_ICONS: Record<AdminGuideTopicSlug, LucideIcon> = {
   'bank-transfer': Landmark,
   claims: Undo2,
   'inquiries-reviews': MessageSquareText,
-  'cards-games': Gamepad2,
   'events-tickets': Ticket,
   'display-messaging': Megaphone,
   'members-roles': ContactRound,

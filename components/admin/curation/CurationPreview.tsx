@@ -7,9 +7,8 @@ import { CollectionBanners } from '@/components/shop/CollectionBanners';
 import type { CollectionBanner } from '@/lib/collection-banners';
 import { Icon } from '@/components/ui/Icon';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { isCardRewardDestination, isCommunityDestination, isHiddenCollectibleDestination, type HomeCurationSnapshot, type NoticeStrip } from '@/lib/home-catalog';
+import { isCommunityDestination, isRetiredDestination, type HomeCurationSnapshot, type NoticeStrip } from '@/lib/home-catalog';
 import { RollingNoticeBody } from '@/components/shell/RollingNoticeBody';
-import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { searchPlaceholder, suggestedSearchHref } from '@/lib/search-terms';
 import { shellNoticeDestinationAllowed, type ShellNoticeBar } from '@/lib/shell-notices';
 
@@ -29,7 +28,6 @@ export function CurationPreviewNoticeBar({ bar }: { bar: Pick<ShellNoticeBar, 'm
 
 /** A script-free document gives public CSS and picture sources their real viewport. */
 export function CurationPreview({
-  cardRewardsEnabled,
   collectionBanner = null,
   curation,
   device,
@@ -37,7 +35,6 @@ export function CurationPreview({
   noticeStrip,
   searchTerms = null,
 }: {
-  cardRewardsEnabled: boolean;
   /** 컬렉션 배너 초안(L8b) — 홈 대신 컬렉션 머리 배너로 보여 준다. 공개 로더와 같은 목적지 게이트를 여기서 건다. */
   collectionBanner?: CollectionBanner | null;
   curation: HomeCurationSnapshot;
@@ -49,7 +46,6 @@ export function CurationPreview({
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const collectibleFeatures = useCollectibleFeatures();
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [stageWidth, setStageWidth] = useState(0);
   const viewportWidth = device === 'mobile' ? 390 : 1212;
@@ -77,15 +73,14 @@ export function CurationPreview({
   }, []);
 
   const visibleNotice = noticeStrip
-    && (cardRewardsEnabled || !isCardRewardDestination(noticeStrip.href))
-    && (COMMUNITY_ENABLED || !isCommunityDestination(noticeStrip.href))
-    && !isHiddenCollectibleDestination(noticeStrip.href, collectibleFeatures);
+    && !isRetiredDestination(noticeStrip.href)
+    && (COMMUNITY_ENABLED || !isCommunityDestination(noticeStrip.href));
   const visibleBar = noticeBar
-    && shellNoticeDestinationAllowed(noticeBar.cta?.href ?? null, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures })
+    && shellNoticeDestinationAllowed(noticeBar.cta?.href ?? null, { communityEnabled: COMMUNITY_ENABLED })
     ? noticeBar : null;
   /* 공개 컬렉션은 서버 로더가 게이트를 건 목록을 받는다(lib/collection-banners.server) — 미리보기도 같은 판정으로 보여 준다. */
   const bannerAllowed = collectionBanner !== null
-    && shellNoticeDestinationAllowed(collectionBanner.href, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures });
+    && shellNoticeDestinationAllowed(collectionBanner.href, { communityEnabled: COMMUNITY_ENABLED });
 
   return (
     <div className="relative m-3 min-h-[620px] min-w-0 flex-1 md:m-5" data-store-preview-stage="" ref={stageRef}>
@@ -149,7 +144,7 @@ export function CurationPreview({
                     <span aria-hidden className="wc-icon-btn wc-search__aux"><Icon name="chevronLeft" size={24} /></span>
                     <div className="wc-search__field">
                       <span aria-hidden className="wc-search__field-icon"><Icon name="search" size={22} /></span>
-                      <input aria-label="검색어" className="wc-search__input" placeholder={searchPlaceholder(COMMUNITY_ENABLED, collectibleFeatures.binder)} readOnly tabIndex={-1} type="search" />
+                      <input aria-label="검색어" className="wc-search__input" placeholder={searchPlaceholder(COMMUNITY_ENABLED)} readOnly tabIndex={-1} type="search" />
                     </div>
                     <span aria-hidden className="wc-icon-btn wc-search__aux"><Icon name="search" size={24} /></span>
                   </div>
@@ -159,7 +154,7 @@ export function CurationPreview({
                   </div>
                 </div>
               </div>
-            ) : <Home cardRewardsEnabled={cardRewardsEnabled} curation={curation} refreshScheduledContent={false} />}
+            ) : <Home curation={curation} refreshScheduledContent={false} />}
           </div>,
           portalRoot,
         ) : null}

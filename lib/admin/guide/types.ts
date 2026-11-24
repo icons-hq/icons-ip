@@ -17,7 +17,6 @@ export type AdminGuideTopicSlug =
   | 'bank-transfer'
   | 'claims'
   | 'inquiries-reviews'
-  | 'cards-games'
   | 'events-tickets'
   | 'display-messaging'
   | 'members-roles'

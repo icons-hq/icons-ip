@@ -64,7 +64,7 @@ function event(overrides: Partial<FandomEvent> & Pick<FandomEvent, 'id'>): Fando
 }
 
 function snapshot(events: FandomEvent[], source: CatalogSnapshot['source'] = 'supabase'): CatalogSnapshot {
-  return { source, verticals: [], ips: [], goods: [], cards: [], events };
+  return { source, verticals: [], ips: [], goods: [], events };
 }
 
 function campaign(overrides: Partial<CampaignSummary> & Pick<CampaignSummary, 'id'>): CampaignSummary {

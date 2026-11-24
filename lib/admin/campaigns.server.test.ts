@@ -17,23 +17,11 @@ const CAMPAIGN_ROW = {
   updated_at: '2026-08-31T15:00:00.000Z',
 };
 
-const OFFER_ROW = {
-  id: '22222222-2222-4222-8222-222222222222',
-  pool_id: '11111111-1111-4111-8111-111111111111',
-  label: '가을 카드팩 1장',
-  coin_cost: 10,
-  ticket_count: 1,
-  status: 'active',
-  updated_at: '2026-08-31T15:00:00.000Z',
-};
-
 const mocks = vi.hoisted(() => ({
   calls: [] as Array<{ table: string; select: string; orders: string[] }>,
   campaigns: [] as Array<Record<string, unknown>>,
-  offers: [] as Array<Record<string, unknown>>,
   presentations: [] as Array<Record<string, unknown>>,
   campaignError: null as { message: string } | null,
-  offerError: null as { message: string } | null,
   presentationError: null as { message: string } | null,
 }));
 
@@ -53,11 +41,7 @@ vi.mock('@/lib/supabase/server', () => ({
         },
         order(column: string) {
           call.orders.push(column);
-          return Promise.resolve(
-            table === 'campaigns'
-              ? { data: mocks.campaigns, error: mocks.campaignError }
-              : { data: mocks.offers, error: mocks.offerError },
-          );
+          return Promise.resolve({ data: mocks.campaigns, error: mocks.campaignError });
         },
       };
       return query;
@@ -68,10 +52,8 @@ vi.mock('@/lib/supabase/server', () => ({
 beforeEach(() => {
   mocks.calls = [];
   mocks.campaigns = [CAMPAIGN_ROW];
-  mocks.offers = [OFFER_ROW];
   mocks.presentations = [];
   mocks.campaignError = null;
-  mocks.offerError = null;
   mocks.presentationError = null;
 });
 
@@ -94,18 +76,12 @@ describe('getAdminCampaignConsoleData', () => {
     expect(campaignCall?.select).toContain('sections');
   });
 
-  it('교환처를 카멜케이스 레코드로 옮긴다', async () => {
+  /* 카드팩 교환처는 2026-11-24 일반 쇼핑몰 전환으로 화면과 함께 지웠다(ADR-0052) — 교환처 표를 읽지 않는다. */
+  it('카드팩 교환처 표를 읽지 않는다', async () => {
     const data = await getAdminCampaignConsoleData();
 
-    expect(data.offers).toEqual([{
-      id: OFFER_ROW.id,
-      poolId: OFFER_ROW.pool_id,
-      label: '가을 카드팩 1장',
-      coinCost: 10,
-      ticketCount: 1,
-      status: 'active',
-      updatedAt: OFFER_ROW.updated_at,
-    }]);
+    expect(data).not.toHaveProperty('offers');
+    expect(mocks.calls.map((call) => call.table)).not.toContain('coin_exchange_offers');
   });
 
   /* sections 가 배열이 아닌 값으로 들어오면 폼이 JSON.stringify 에서 이상한 값을
@@ -131,13 +107,6 @@ describe('getAdminCampaignConsoleData', () => {
     mocks.campaignError = { message: 'permission denied' };
 
     await expect(getAdminCampaignConsoleData()).rejects.toThrow('Failed to load admin campaigns');
-  });
-
-  it('교환처 조회 실패도 조용히 넘기지 않는다', async () => {
-    mocks.offerError = { message: 'permission denied' };
-
-    await expect(getAdminCampaignConsoleData())
-      .rejects.toThrow('Failed to load admin coin exchange offers');
   });
 
   /* 노출 설정 행이 없는 캠페인은 EVENT 에 보이는 빈 값이다(패널이 폼을 연다). */

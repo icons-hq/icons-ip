@@ -123,7 +123,6 @@ export interface CurationPublicPreview {
   goods: HomeGoodsCard[];
   latestGoods?: HomeGoodsCard[];
   productRankings?: HomeProductRankings;
-  cardRewardsEnabled: boolean;
 }
 
 export function curationKstInput(value: string | null) {

@@ -5,7 +5,7 @@ import { safeNextPath } from '@/lib/auth/onboarding';
 import { requireActiveUser } from '@/lib/participation-gate.server';
 import { createClient } from '@/lib/supabase/server';
 
-/* 캠페인 참여 액션 — 출석 체크 · 카드팩 교환 (S8 #330).
+/* 캠페인 참여 액션 — 출석 체크 (S8 #330). 코인 → 카드팩 교환은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052).
  *
  * 신규 파일이다. 기존 events 계열 액션 계약을 건드리지 않는다.
  *
@@ -14,15 +14,9 @@ import { createClient } from '@/lib/supabase/server';
  * 잔액 비교나 "오늘 출석했는지" 판정을 여기로 옮기면, 화면이 통과시킨 요청을 DB가
  * 거절하는 순간 두 판정이 갈라진 채로 남는다.
  *
- * 어휘 규율: 사용자-facing 문구에 '가챠·뽑기·충전' 을 쓰지 않는다(CONTEXT.md).
- * 뽑기권의 UI 표기는 "카드팩"이다. */
-
-const PACKS_PATH = '/packs';
+ * 어휘 규율: 사용자-facing 문구에 '가챠·뽑기·충전' 을 쓰지 않는다. */
 
 const ATTENDANCE_FALLBACK = '출석 체크를 완료하지 못했어요. 잠시 후 다시 시도해 주세요.';
-const EXCHANGE_FALLBACK = '카드팩 교환을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ParticipationActionState {
   status?: 'success' | 'error';
@@ -32,41 +26,20 @@ export interface ParticipationActionState {
 interface ParticipationRpcResult {
   status?: string;
   balance?: number;
-  issued_count?: number;
-}
-
-function readUuid(value: FormDataEntryValue | null): string | null {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().toLowerCase();
-  return UUID_PATTERN.test(normalized) ? normalized : null;
 }
 
 function readNext(formData: FormData): string {
   return safeNextPath(formData.get('next'));
 }
 
-/* RPC 예외 메시지 → 참여자 언어. lib/draw-tickets.ts 의 includes 관례를 따른다 —
-   PostgREST 는 raise 문구를 그대로 message 에 실어 보낸다. */
+/* RPC 예외 메시지 → 참여자 언어. PostgREST 는 raise 문구를 그대로 message 에 실어 보낸다. */
 function mapParticipationError(message: string | null | undefined, fallback: string): string {
   const value = (message ?? '').toLowerCase();
 
-  if (value.includes('insufficient_coins')) return '코인이 부족해요.';
-  if (value.includes('offer_unavailable')) return '지금은 교환할 수 없는 카드팩이에요.';
-  /* 전역 카드 리워드 게이트가 내려간 상태다. RPC 가 코인 차감까지 되돌린 뒤
-     던지므로 "다시 시도"는 안전한 안내다. */
-  if (value.includes('card_rewards_disabled')) {
-    return '카드팩 교환을 준비하고 있어요. 잠시 후 다시 시도해 주세요.';
-  }
-  if (value.includes('reward_pool_not_ready') || value.includes('pool_not_found')) {
-    return '지금은 교환할 수 없는 카드팩이에요.';
-  }
   if (value.includes('account_suspended')) return '정지된 계정은 이벤트에 참여할 수 없어요.';
   /* 탈퇴 신청으로 쓰기가 봉인된 계정. "잠시 후 다시"라고 하면 될 때까지 다시 누른다. */
   if (value.includes('account_deletion_write_fenced')) {
     return '탈퇴 처리 중인 계정에서는 이용할 수 없어요.';
-  }
-  if (value.includes('exchange_operation_conflict') || value.includes('invalid_operation')) {
-    return fallback;
   }
   return fallback;
 }
@@ -99,48 +72,4 @@ export async function attendanceCheckInAction(
   }
 
   return { status: 'success', message: `출석 완료! 코인 1개를 적립했어요. 지금 코인 ${balance}개예요.` };
-}
-
-/** 코인 → 카드팩 교환. operationId 는 서버 렌더가 심은 멱등 키다(폼 재제출 방어). */
-export async function exchangeCoinsAction(
-  _state: ParticipationActionState,
-  formData: FormData,
-): Promise<ParticipationActionState> {
-  const next = readNext(formData);
-  await requireActiveUser(next);
-
-  const offerId = readUuid(formData.get('offerId'));
-  const operationId = readUuid(formData.get('operationId'));
-  if (!offerId || !operationId) {
-    return { status: 'error', message: EXCHANGE_FALLBACK };
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc('exchange_coins_for_draw_tickets', {
-    p_offer_id: offerId,
-    p_operation_id: operationId,
-  });
-
-  if (error) {
-    return { status: 'error', message: mapParticipationError(error.message, EXCHANGE_FALLBACK) };
-  }
-
-  revalidatePath(next);
-  revalidatePath(PACKS_PATH);
-
-  const result = (data ?? {}) as ParticipationRpcResult;
-
-  /* already_exchanged 는 실패가 아니다 — 응답이 유실된 첫 요청이 이미 성립했다는
-     뜻이고, 카드팩은 발급돼 있다. 실패로 그리면 사용자가 한 번 더 교환하려 든다. */
-  if (result.status === 'already_exchanged') {
-    return {
-      status: 'success',
-      message: '이미 교환이 완료된 요청이에요. 카드팩 보관함에서 확인해 주세요.',
-    };
-  }
-
-  return {
-    status: 'success',
-    message: '카드팩 교환이 완료됐어요. 카드팩 보관함에서 확인해 주세요.',
-  };
 }

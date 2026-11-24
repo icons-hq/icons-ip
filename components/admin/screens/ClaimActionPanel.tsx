@@ -157,7 +157,7 @@ function ignoreUnconfirmedClaimSubmit() {}
 /** 취소 승인 확인 문구. 결제마다 승인 뒤 일어나는 일이 다르다. */
 export function claimCancelApprovalConfirmation(paymentProvider: string | null) {
   if (providerCancelsAutomatically(paymentProvider)) {
-    return `취소를 승인하고 ${automatedCancelProviderLabel(paymentProvider)} 결제 전액을 취소할까요? 되돌릴 수 없고, 취소가 확인되면 주문 취소·재고 복원·카드팩 회수까지 함께 끝납니다.`;
+    return `취소를 승인하고 ${automatedCancelProviderLabel(paymentProvider)} 결제 전액을 취소할까요? 되돌릴 수 없고, 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다.`;
   }
   if (paymentProvider === 'korpay') return '취소를 승인할까요? 승인 뒤 Korpay 취소 접수와 환불 완료 확정으로 진행합니다.';
   if (paymentProvider === 'bank_transfer') return '취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.';
@@ -178,23 +178,23 @@ export function claimRefundCompletionConfirmation(
   /** 부분 반품(ADR-0047): 고른 굿즈 몫만 부분 취소한다. 금액을 아직 모르면(접수 전) refundAmount가 null이다. */
   partialReturn: { refundAmount: number | null; deductionAmount: number } | null = null,
 ) {
-  if (!finalizationPending) return '환불 완료 기록만 남길까요? 주문 취소·재고 복원·카드팩 회수는 이미 끝나 다시 하지 않습니다.';
+  if (!finalizationPending) return '환불 완료 기록만 남길까요? 주문 취소·재고 복원은 이미 끝나 다시 하지 않습니다.';
   if (partialReturn) {
     const amount = partialReturn.refundAmount === null ? '고른 상품 몫' : krwAmountWords(partialReturn.refundAmount);
     const deduction = partialReturn.deductionAmount > 0 ? `(반품배송비 ${krwAmountWords(partialReturn.deductionAmount)} 차감)` : '';
     return autoCancelLabel
-      ? `${autoCancelLabel} 결제에서 부분 반품한 상품 몫 ${amount}${deduction}을 부분 취소하고, 고른 상품의 재고를 되돌리고 남은 주문 금액으로 카드팩 지급 조건을 다시 확인할까요? 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`
+      ? `${autoCancelLabel} 결제에서 부분 반품한 상품 몫 ${amount}${deduction}을 부분 취소하고, 고른 상품의 재고를 되돌릴까요? 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`
       : `부분 반품한 상품 몫 ${amount}${deduction}의 환불 완료를 기록할까요?`;
   }
   if (autoCancelLabel && partialRefund) {
-    return `${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`;
+    return `${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고 주문 취소·재고 복원을 확정할까요? 되돌릴 수 없습니다.`;
   }
   if (autoCancelLabel && remainderAmount !== null) {
-    return `${autoCancelLabel} 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ${krwAmountWords(remainderAmount)}을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`;
+    return `${autoCancelLabel} 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ${krwAmountWords(remainderAmount)}을 취소하고 주문 취소·재고 복원을 확정할까요? 되돌릴 수 없습니다.`;
   }
   return autoCancelLabel
-    ? `${autoCancelLabel} 결제 전액을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`
-    : '결제사 관리자 화면(거래 내역)에서 전액 취소된 것을 확인했나요? 확정하면 주문 취소·재고 복원·카드팩 회수가 진행되고 되돌릴 수 없습니다.';
+    ? `${autoCancelLabel} 결제 전액을 취소하고 주문 취소·재고 복원을 확정할까요? 되돌릴 수 없습니다.`
+    : '결제사 관리자 화면(거래 내역)에서 전액 취소된 것을 확인했나요? 확정하면 주문 취소·재고 복원이 진행되고 되돌릴 수 없습니다.';
 }
 
 /**
@@ -568,7 +568,7 @@ export function ClaimActionPanel({
           {/* 누르기 전에 읽도록 버튼 위에 둔다. 돈이 바로 나가는 승인만 경고 상자를 쓴다. */}
           {approvalMovesMoney ? (
             <AdminNotice title="승인하면 되돌릴 수 없습니다" tone="warning">
-              {`승인하면 바로 ${autoCancelLabel} 결제 전액을 취소하고 결제사에 결과를 확인합니다. 취소가 확인되면 주문 취소·재고 복원·카드팩 회수까지 함께 끝납니다.`}
+              {`승인하면 바로 ${autoCancelLabel} 결제 전액을 취소하고 결제사에 결과를 확인합니다. 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다.`}
             </AdminNotice>
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -760,7 +760,7 @@ export function ClaimActionPanel({
           {refundFinalizationPending ? (
             <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
               {autoCancelLabel && partialReturn
-                ? `누르면 ${autoCancelLabel} 결제에서 부분 반품한 상품 몫${partialReturn.refundAmount === null ? '' : ` ${krwAmountWords(partialReturn.refundAmount)}`}만 부분 취소하고, 결제사에 조회해 취소됐는지 확인합니다. 확인되면 고른 상품의 재고를 되돌리고 남은 주문 금액으로 카드팩 지급 조건을 다시 확인합니다. 남은 상품과 주문은 그대로 둡니다. 결제사가 부분 취소를 받지 않으면 전액 환불로 돌리지 않고 확인 필요로 남습니다.`
+                ? `누르면 ${autoCancelLabel} 결제에서 부분 반품한 상품 몫${partialReturn.refundAmount === null ? '' : ` ${krwAmountWords(partialReturn.refundAmount)}`}만 부분 취소하고, 결제사에 조회해 취소됐는지 확인합니다. 확인되면 고른 상품의 재고를 되돌립니다. 남은 상품과 주문은 그대로 둡니다. 결제사가 부분 취소를 받지 않으면 전액 환불로 돌리지 않고 확인 필요로 남습니다.`
                 : partialReturn
                 ? '무통장 부분 반품은 환불 접수 때 환불 송금 대기에 올라갑니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 [송금 완료 기록]을 눌러주세요.'
                 : autoCancelLabel && partialRefund
@@ -779,12 +779,12 @@ export function ClaimActionPanel({
                 ? '환불 완료 기록만 남기기'
                 : autoCancelLabel
                   ? `환불 완료 확정 (${autoCancelLabel} ${cancelScope})`
-                  : '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'}
+                  : '환불 완료 확정 (재고 복원 포함)'}
             </Button>
           </div>
           {!refundFinalizationPending ? (
             <p className={HINT_CLASS}>
-              {`이 ${V.claimRequest}은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 완료 기록만 남깁니다.`}
+              {`이 ${V.claimRequest}은 이미 종결됐습니다. 주문 취소·재고 복원은 끝났고, 여기서는 환불 완료 기록만 남깁니다.`}
             </p>
           ) : null}
         </form>

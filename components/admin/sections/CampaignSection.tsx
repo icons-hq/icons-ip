@@ -96,8 +96,7 @@ function SectionSchemaHelp() {
           ))}
         </ul>
         <p className={NOTE}>
-          <code>exchange</code> 블록의 <code>offer_id</code>는 아래 카드팩 교환처 목록의 ID를
-          복사해 넣습니다. <code>goods</code>의 <code>good_ids</code>{adminGoodsCopy("는 굿즈 ID 1~8개, ")}{' '}<code>notice</code>의 <code>items</code>는 문구 1~20줄입니다.
+          <code>goods</code>의 <code>good_ids</code>{adminGoodsCopy("는 굿즈 ID 1~8개, ")}{' '}<code>notice</code>의 <code>items</code>는 문구 1~20줄입니다.
         </p>
         <p className={NOTE}>
           <code>coupon</code>의 <code>coupon_code</code>는 쿠폰 관리에 먼저 등록되어 있어야 해요 —
@@ -111,12 +110,11 @@ function SectionSchemaHelp() {
         </p>
         <pre className="overflow-x-auto rounded-md border bg-background p-3 font-mono text-xs leading-relaxed">
 {`[
-  { "type": "intro", "copy": "출석하고 카드팩을 받아 가세요" },
+  { "type": "intro", "copy": "매일 출석하고 코인을 모아 보세요" },
   { "type": "attendance", "anchor": "attend" },
-  { "type": "exchange", "offer_id": "00000000-0000-0000-0000-000000000000" },
   { "type": "goods", "good_ids": ["g13", "g14"] },
   { "type": "cta", "label": "쇼핑하러 가기", "href": "/shop" },
-  { "type": "notice", "items": ["교환한 카드팩은 되돌릴 수 없습니다."] }
+  { "type": "notice", "items": ["출석 코인은 하루 한 번 적립됩니다."] }
 ]`}
         </pre>
       </div>

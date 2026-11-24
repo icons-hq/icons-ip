@@ -208,7 +208,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
       stage: 'needs_review', paymentProvider: 'toss', collectionPolicy: 'origin', refundLedgerOpen: true,
     });
 
-    expect(html).toContain('data-confirm="토스 결제 전액을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다."');
+    expect(html).toContain('data-confirm="토스 결제 전액을 취소하고 주문 취소·재고 복원을 확정할까요? 되돌릴 수 없습니다."');
     expect(html).toContain('환불 완료 확정 (토스 전액 취소)');
   });
 
@@ -282,7 +282,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     const filing = await render({ claimType: 'return', stage: 'collected', collectionPolicy: 'legacy', collectionComplete: true, paymentProvider: 'korpay' });
     expect(button(filing, '환불 접수 완료로 기록')).toContain('type="submit"');
     const completion = await render({ stage: 'needs_review', paymentProvider: 'korpay', collectionPolicy: 'origin', refundLedgerOpen: true, cancellationForm: '[결제 취소 요청]' });
-    expect(button(completion, '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)')).toContain('type="submit"');
+    expect(button(completion, '환불 완료 확정 (재고 복원 포함)')).toContain('type="submit"');
     expect(button(completion, '양식 복사')).toContain('type="button"');
     const legacy = await render({ claimType: 'return', stage: 'collecting', collectionPolicy: 'legacy', collectionComplete: false });
     expect(button(legacy, '반송 상품 입고 확인')).toContain('type="submit"');

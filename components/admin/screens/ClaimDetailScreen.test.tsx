@@ -87,7 +87,6 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       settlementNote: null,
       handlerName: 'cs_lead',
     },
-    cardPacks: { issued: 2, consumed: 1, revoked: 0 },
     refundAccount: {
       maskedAccount: '국민은행 ***********7890',
       maskedHolder: '홍**',
@@ -575,22 +574,21 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('maple_fan (buyer@example.com)');
   });
 
-  /* 취소·반품 완료는 미개봉 카드팩만 회수한다(약관 제17조). 개봉 이력이 있는 주문은
-     사람이 한 번 더 봐야 한다. */
-  it('이미 개봉된 카드팩이 회수되지 않는다는 사실을 알린다', () => {
+  /* 카드팩 발급·회수 줄은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). */
+  it('카드팩 발급·회수 안내를 그리지 않는다', () => {
     const html = render();
 
-    expect(html).toContain('카드팩 발급'); /* 뽑기권의 화면 표기는 카드팩이다(CONTEXT.md). */
-    expect(html).toContain('회수되지 않습니다');
+    expect(html).not.toContain('카드팩');
+    expect(html).toContain('>환불</');
   });
 
-  it('교환은 카드팩을 회수하지 않는다고 말한다', () => {
+  it('교환은 환불 기록이 없다고 말한다', () => {
     const html = render({
       claim: { ...detail().claim, claimType: 'exchange' },
       refund: null,
     });
 
-    expect(html).toContain('교환은 카드팩을 회수하지 않습니다');
+    expect(html).not.toContain('카드팩');
     expect(html).toContain('교환에는 환불 기록이 없습니다');
     expect(html).not.toContain('name="variant:00000000-0000-4000-8000-000000044041"');
     expect(html).not.toContain('재출고 등록하고 교환 종결');

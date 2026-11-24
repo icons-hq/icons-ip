@@ -239,28 +239,6 @@
   color: var(--wc-ink-sub);
 }
 
-/* 참여형 게임 진입 — 카드 링크 밖의 보조 링크. 44px 터치 높이. */
-.wc-offline-card__games {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.wc-offline-card__game {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--wc-ink);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .wc-offline__empty {
   padding: 64px 0;
 }

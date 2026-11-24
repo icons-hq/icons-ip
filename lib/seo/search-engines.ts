@@ -36,7 +36,7 @@ export const ROBOTS_DISALLOWED_PATHS = [
   '/manager-invitation',
 ] as const;
 
-/** 사이트맵에 싣는 공개 목록·안내 화면. 카드팩(카드 리워드 스위치)·커뮤니티(비공개)·검색 결과·v2 자리 화면은 넣지 않는다. */
+/** 사이트맵에 싣는 공개 목록·안내 화면. 커뮤니티(비공개)·검색 결과는 넣지 않는다(카드팩·바인더·마켓·트레이드·게임 화면은 2026-11-24 삭제, ADR-0052). */
 export const SITEMAP_STATIC_PATHS = [
   '/',
   '/shop',

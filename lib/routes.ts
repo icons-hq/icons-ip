@@ -3,7 +3,6 @@
    아직 여기로 모이지 않은 잔여물은 하나다: components/screens/Home.tsx의 하드코딩 내비게이션(S3에서 제거). */
 
 import { COMMUNITY_ENABLED } from './community-visibility';
-import { isHiddenCollectibleRoute, type CollectibleFeatures } from './collectible-features';
 import { publicIpHref, type PublicIpReference } from './ip-identity';
 
 export const AOUAD_POPUP_PATH = '/ip/aouad';
@@ -41,7 +40,9 @@ function visibleItems(items: NavItem[]): NavItem[] {
 /* 데스크톱 GNB — 카탈로그 진입(NEW·BEST·카테고리)을 앞에 두고 그 뒤에 팝업·이벤트를 잇는다(X SQUARE Figma, ADR-0043).
    운영 메뉴 설정(고정 9개 ID)의 이름·순서·노출이 이 목록 위에 얹힌다. defaultVisible 이 새 기본 노출이다: Figma GNB(NEW·BEST·카테고리·
    POP-UP·EVENT)만 켜고 나머지는 숨긴다 — 쇼핑스토리는 요청(MD-0035)으로 GNB·카테고리 시트·전체 메뉴에서 빠지고(화면 자체는 남는다),
-   온라인 팝업(IP관 디렉토리)은 상품 상세·POP-UP 화면에서 계속 닿는다. packs·community는 배포 게이트가 따로 거른다. 운영자가 다시 켤 수 있다.
+   온라인 팝업(IP관 디렉토리)은 상품 상세·POP-UP 화면에서 계속 닿는다. community는 배포 게이트가 따로 거른다. 운영자가 다시 켤 수 있다.
+   'packs'(카드팩)는 2026-11-24 일반 쇼핑몰 전환으로 화면을 지운 퇴역 칸이다(ADR-0052). DB 메뉴 설정 검증(private.store_navigation_valid)이
+   고정 9개 ID를 요구해 저장 계약에서만 남긴다 — 고객 메뉴(resolveStorefrontNavigation)와 어드민 메뉴 편집 화면은 이 칸을 그리지 않는다.
    'popups'(POP-UP)는 진행 중인 온·오프라인 팝업 화면이다(PATHS.popups — 화면은 설계자 C의 WP가 만든다). */
 export const STOREFRONT_MENU_ITEMS = [
   { id: 'new', label: 'NEW', defaultVisible: true },
@@ -54,7 +55,12 @@ export const STOREFRONT_MENU_ITEMS = [
   { id: 'community', label: '커뮤니티', defaultVisible: false },
   { id: 'stories', label: '쇼핑스토리', defaultVisible: false },
 ] as const satisfies readonly (NavItem & { defaultVisible: boolean })[];
-export const NAV_ITEMS: NavItem[] = visibleItems(STOREFRONT_MENU_ITEMS.map(({ id, label }) => ({ id, label })));
+/* 퇴역한 메뉴 칸 — 화면이 없어 고객 메뉴에도 어드민 메뉴 편집에도 그리지 않는다. DB 검증이 고정 9개 ID를 요구해 저장값에는
+   그대로 남는다(2026-11-24 카드팩 삭제, ADR-0052). 저장 계약을 바꾸려면 별도 migration 이 필요하다. */
+export const RETIRED_STORE_MENU_IDS: ReadonlySet<string> = new Set(['packs']);
+export const NAV_ITEMS: NavItem[] = visibleItems(STOREFRONT_MENU_ITEMS
+  .filter(({ id }) => !RETIRED_STORE_MENU_IDS.has(id))
+  .map(({ id, label }) => ({ id, label })));
 
 /* 활성 표시 별칭 — 항목의 경로 말고도 이 접두 경로에서 그 항목을 켠다. 오프라인 팝업(예매 도메인)은 POP-UP 아래에 있다(C D9).
    /events*는 PATHS.events 로 이미 EVENT 다. 최장 일치 규칙(activeNavId)이 별칭에도 같이 적용된다. */
@@ -97,8 +103,6 @@ const PATHS: Record<string, string> = {
   popups: '/popups',
   aouadPopup: AOUAD_POPUP_PATH,
   shop: '/shop',
-  packs: '/packs',
-  binder: '/binder',
   /* 'events'는 캠페인 허브, 'offlinePopups'는 팝업스토어 예매 도메인이다 — CONTEXT.md의 별개 도메인. */
   events: '/events',
   offlinePopups: '/offline-popups',
@@ -106,8 +110,6 @@ const PATHS: Record<string, string> = {
   stories: '/stories',
   reviewEvents: '/review-events',
   interests: '/interests',
-  exchange: '/exchange',
-  market: '/market',
   search: '/search',
   login: '/login',
   managerInvitation: MANAGER_INVITATION_PATH,
@@ -219,18 +221,6 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/* 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치(DB, lib/collectible-features.ts)가 꺼진 항목을 걷어낸다. 커뮤니티와 달리
-   런타임 값이라 모듈 상수에 굽지 않고, 링크 묶음을 그리는 소비처(Nav·MenuSheet·SiteFooter)가 렌더할 때 이 함수를 통과시킨다.
-   항목이 모두 빠진 그룹('수집'·'거래')은 제목만 남지 않도록 통째로 걷어낸다. */
-export function withoutHiddenCollectibleItems(items: NavItem[], features: CollectibleFeatures): NavItem[] {
-  return items.filter((item) => !isHiddenCollectibleRoute(item.id, features));
-}
-export function withoutHiddenCollectibleGroups(groups: NavGroup[], features: CollectibleFeatures): NavGroup[] {
-  return groups
-    .map((group) => ({ ...group, items: withoutHiddenCollectibleItems(group.items, features) }))
-    .filter((group) => group.items.length > 0);
-}
-
 /* 그룹판 visibleItems. 항목이 모두 빠진 그룹은 제목만 남지 않도록 통째로 걷어낸다. */
 function visibleGroups(groups: NavGroup[]): NavGroup[] {
   if (COMMUNITY_ENABLED) return groups;
@@ -254,18 +244,8 @@ export function bulkPurchaseMailto(email: string): string | null {
   return `mailto:${to}?subject=${encodeURIComponent(FOOTER_BULK_PURCHASE_SUBJECT)}`;
 }
 
-/* 스태프 전용 시연 진입점 — 푸터가 is_staff readback 이 참일 때만 그린다(SiteFooter).
-   경로는 공개 플레이스홀더와 같다: 같은 라우트가 staff/admin 에게만 mock 시연 화면을 렌더한다
-   (lib/secondary-market-demo.ts 의 스위치가 서버 게이트·이 진입점을 함께 좌우한다). */
-export const FOOTER_DEMO_ITEMS: NavItem[] = [
-  { id: 'market', label: '굿즈 마켓 시연' },
-  { id: 'exchange', label: '카드 트레이드 시연' },
-];
-
 /* 커뮤니티 스태프 프리뷰 진입점 — 공개 스위치가 꺼진 동안 커뮤니티로 가는 유일한 링크다.
-   위 시연 블록과 별개로 두는 이유는 성격이 다르기 때문이다: 저쪽은 mock 이고 이쪽은 실제
-   DB 를 읽는 진짜 커뮤니티라, "실제 결제·체결은 일어나지 않습니다" 안내를 공유하면 거짓말이
-   된다. 노출은 is_staff readback, 열람 권한은 lib/community-visibility.server.ts 가 판정한다.
+   노출은 is_staff readback, 열람 권한은 lib/community-visibility.server.ts 가 판정한다.
    visibleItems 를 통과시키지 않는다 — 공개 스위치가 꺼진 상태에서만 존재하는 항목이다. */
 export const FOOTER_COMMUNITY_STAFF_ITEMS: NavItem[] = [
   { id: 'community', label: '커뮤니티' },
@@ -285,14 +265,6 @@ export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
     { id: 'shop', label: '전체 굿즈' },
     { id: 'new', label: 'NEW' },
     { id: 'best', label: 'BEST' },
-  ] },
-  { heading: '수집', items: [
-    { id: 'packs', label: '카드팩' },
-    { id: 'binder', label: '바인더' },
-  ] },
-  { heading: '거래', items: [
-    { id: 'market', label: '굿즈 마켓' },
-    { id: 'exchange', label: '카드 트레이드' },
   ] },
 ];
 
@@ -318,7 +290,6 @@ export const MENU_SHEET_GROUPS: NavGroup[] = visibleGroups([
     { id: 'shop', label: '전체 굿즈' },
     { id: 'new', label: 'NEW' },
     { id: 'best', label: 'BEST' },
-    { id: 'packs', label: '카드팩' },
   ] },
   { heading: '세계', items: [
     { id: 'iphub', label: '온라인 팝업' },
@@ -328,13 +299,8 @@ export const MENU_SHEET_GROUPS: NavGroup[] = visibleGroups([
   { heading: '내 활동', items: [
     { id: 'orders', label: '주문조회' },
     { id: 'tickets', label: '내 티켓' },
-    { id: 'binder', label: '바인더' },
     { id: 'wish', label: '위시리스트' },
     { id: 'notifications', label: '알림함' },
     { id: 'my', label: '마이페이지' },
-  ] },
-  { heading: '거래', items: [
-    { id: 'market', label: '굿즈 마켓' },
-    { id: 'exchange', label: '카드 트레이드' },
   ] },
 ]);

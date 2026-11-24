@@ -28,11 +28,9 @@ import type {
   CommunitySnapshot,
   CommunityViewerState,
 } from '@/lib/community';
-import { hrefFor } from '@/lib/routes';
 import { Icon } from '@/components/ui/Icon';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { WcButton } from '@/components/wc/WcButton';
-import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 
 const emptyState: CommunityPostActionState = {};
 const emptyCommentState: CommunityCommentActionState = {};
@@ -756,7 +754,6 @@ export function Community({
   snapshot: CommunitySnapshot;
   viewerState: CommunityViewerState;
 }) {
-  const cardRewardsEnabled = useCardRewardsEnabled();
   const [selectedChannelId, setSelectedChannelId] = useState(initialChannelId ?? 'all');
   const channels = snapshot.channels;
   const channelId = selectedChannelId === 'all' || channels.some((channel) => channel.id === selectedChannelId)
@@ -871,23 +868,6 @@ export function Community({
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-            {cardRewardsEnabled && (
-              <div>
-                <h2 style={{ color: 'var(--wc-ink-tertiary)', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, letterSpacing: '.08em', margin: 0 }}>
-                  지금 열린 카드풀
-                </h2>
-                <p style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.5, margin: '10px 0 0' }}>
-                  새 카드풀이 열려 있어요<br />오늘의 운을 시험해 보세요
-                </p>
-                <Link
-                  className="wc-btn primary"
-                  href={hrefFor('packs')}
-                  style={{ fontSize: 14, marginTop: 14, padding: '0 16px', width: 'auto' }}
-                >
-                  카드팩 열기 →
-                </Link>
               </div>
             )}
           </aside>

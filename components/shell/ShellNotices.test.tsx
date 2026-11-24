@@ -18,8 +18,8 @@ const strip = (id: string, patch: Partial<ShellNoticeStrip> = {}): ShellNoticeSt
   pageTypes: ['home', 'product', 'content', 'other'], endsAt: null, ...patch,
 });
 
-function render(notices: ShellNoticeData, pathname = '/', cardRewardsEnabled = true) {
-  return renderToStaticMarkup(<ShellNotices cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} />);
+function render(notices: ShellNoticeData, pathname = '/') {
+  return renderToStaticMarkup(<ShellNotices notices={notices} pathname={pathname} />);
 }
 
 /* 스크립트 본문에도 선택자 문자열이 들어 있다 — 공지 마크업만 볼 때는 스크립트를 걷어 낸다. */
@@ -140,10 +140,9 @@ describe('셸 공지 서버 렌더', () => {
     expect(html).toContain('<script');
   });
 
-  it('게이트가 꺼진 배포에서 카드팩 목적지 공지는 숨고, 커뮤니티 목적지는 공개 스위치를 따른다', () => {
+  it('지운 카드팩·게임 화면 목적지 공지는 숨고, 커뮤니티 목적지는 공개 스위치를 따른다', () => {
     const packs = { bars: [bar('packs', { cta: { label: '열기', href: '/packs' } })], strips: [strip('games', { href: '/games/roulette' })] };
-    expect(markup(render(packs, '/', false))).toBe('');
-    expect(markup(render(packs, '/', true))).toContain('data-notice-bar');
+    expect(markup(render(packs, '/'))).toBe('');
     const community = { bars: [], strips: [strip('community', { href: '/community' })] };
     expect(markup(render(community)).includes('data-notice-strip')).toBe(COMMUNITY_ENABLED);
   });

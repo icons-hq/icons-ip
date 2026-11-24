@@ -10,7 +10,7 @@ IA와 명칭: GNB는 `NEW | BEST | 카테고리 | 온라인 팝업 | 카드팩 |
 
 기능 채택: 표면과 함께 가는 T-A(필터·정렬, NEW/SALE/SOLD OUT 배지, 장바구니+바로구매 2CTA, 공지바, 온라인 팝업 디렉토리, 공유, 위시리스트, 재입고 알림)와 도메인 신설이 필요한 T-B(쿠폰, 회원 등급·리워드, 상품 Q&A, 출석·코인)를 이번 개편 에픽에서 함께 구현한다. T-C(1:1 채팅 SaaS, 다국어, 접근성 SaaS)는 외부 계약이 본질이라 범위 외로 남긴다.
 
-돈의 경계: 신규 기능 중 주문 금액에 개입하는 것은 **쿠폰뿐**이며, 할인은 서버 주문 생성 RPC에서 확정한다. `PaymentGateway.confirm` seam·멱등 finalizer·할당 재고·카드 발급 RNG·RLS·검표 계약은 동결한다. **코인**은 결제와 무관한 참여 재화로 뽑기권 교환 같은 무상 리워드 소진처만 가진다([ADR-0003](./0003-free-reward-pivot.md)·[ADR-0004](./0004-draw-ticket-card-packs.md) 정합).
+돈의 경계: 신규 기능 중 주문 금액에 개입하는 것은 **쿠폰뿐**이며, 할인은 서버 주문 생성 RPC에서 확정한다. `PaymentGateway.confirm` seam·멱등 finalizer·할당 재고·카드 발급 RNG·RLS·검표 계약은 동결한다. **코인**은 결제와 무관한 참여 재화로 뽑기권 교환 같은 무상 리워드 소진처만 가진다(ADR-0003([2026-11-24 삭제](./0052-general-shopping-mall-pivot.md))·ADR-0004([2026-11-24 삭제](./0052-general-shopping-mall-pivot.md)) 정합).
 
 출고: 통합 브랜치(`ps/feat/lfs-storefront-redesign`)에 단계 PR을 쌓아 preview로 검수하고, 완성 시 일괄 전환한다. 메이플스토리 첫 판매 전 전환 완료가 목표다.
 

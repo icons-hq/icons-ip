@@ -1,8 +1,8 @@
 # ICONS 온라인 팝업 — 제품 요구사항 정의서 (PRD)
 
 > 작성일 2026-06-30 · 문서 2/4 · 짝 문서: [01-report.md](./01-report.md) · [04-dev-spec.md](./04-dev-spec.md)
-> 전제: **무료 리워드 모델**(실물만 유료결제 / 디지털 카드는 실물구매 후 무료 / 충전금·유료가챠 배제). 근거·리스크는 보고서 §1·§5 참조. **확정: [ADR-0003](../adr/0003-free-reward-pivot.md)** (0001 supersede).
-> 도메인 용어는 [CONTEXT.md](../../CONTEXT.md)를 따른다. 단 "가챠/충전금"은 본 모델에서 **뽑기권(카드팩) 개봉 기반 무료 카드 발급**으로 대체된다([ADR-0004](../adr/0004-draw-ticket-card-packs.md), 충돌 해소는 보고서 §1.3).
+> 전제: **무료 리워드 모델**(실물만 유료결제 / 디지털 카드는 실물구매 후 무료 / 충전금·유료가챠 배제). 근거·리스크는 보고서 §1·§5 참조. **확정: ADR-0003([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md))** (0001 supersede).
+> 도메인 용어는 [CONTEXT.md](../../CONTEXT.md)를 따른다. 단 "가챠/충전금"은 본 모델에서 **뽑기권(카드팩) 개봉 기반 무료 카드 발급**으로 대체된다(ADR-0004([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md)), 충돌 해소는 보고서 §1.3).
 > 주문 연동 무작위 카드팩과 참여형 게임 보상의 게임물·간접 유상성·확률 표시의무는 미확정이다. 법무·관계 기관 확인 전 공개하지 않으며, 표시가 필요하면 `pool_odds`를 진실원으로 사용한다.
 > **상태·범위:** 2026-08-12 #115를 current product scope에서 제거해 이 문서는 historical candidate다. 아래 P0~P3, `M`, MVP/V1/V2/V3는 active roadmap·backlog·루트 [`PRD.md`](../PRD.md)의 요구사항이 아니다. 실제 partner/pilot 신호가 생기면 이 문서를 그대로 구현하지 않고 작은 tracer RFC로 재검증한다.
 
@@ -76,7 +76,7 @@
 - `S` 묶음배송 무료 임계치(객단가 상향), 선착순/타임 세일.
 
 ### 4.4 무료 카드 & 바인더 (P1, 커머스와 결합) ★핵심 차별
-- `M` **실물 주문 확정의 부수효과는 뽑기권(카드팩) 발급**([ADR-0004](../adr/0004-draw-ticket-card-packs.md)). 카드팩 자체 가격·별도 결제 RPC는 없으며, 구매 금액·상품에 따른 발급 정책을 둔다. 주문 연동의 법적 분류는 별도 human gate다.
+- `M` **실물 주문 확정의 부수효과는 뽑기권(카드팩) 발급**(ADR-0004([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md))). 카드팩 자체 가격·별도 결제 RPC는 없으며, 구매 금액·상품에 따른 발급 정책을 둔다. 주문 연동의 법적 분류는 별도 human gate다.
 - `M` **뽑기권 개봉**(리워드형): 사용자가 개봉하는 시점에 카드풀에서 무작위 1장 발급. 풀 바인딩·무기한·천장 없음. 카드팩 자체의 충전금·별도 결제는 없다.
 - `M` 카드 등급(N·R·SR·SSR·HOLO 등 — 기존 CONTEXT 유지)은 결제 금액과 무관한 수집 분류다.
 - `M` **바인더**: 보유/미보유, 도감 진행률, IP/등급 필터, 카드 상세 연출(포일).
@@ -105,7 +105,7 @@
 ### 4.9 관리자 백오피스 (병행) — §8
 
 ### 4.10 게임 미니앱 & 크로스플랫폼(웹+앱) (V1 웹 · V2 네이티브 앱)
-> 결정 근거: [ADR-0002](../adr/0002-cross-platform-popup-game-miniapps.md) · 상세 스펙: [05-game-miniapp-spec.md](./05-game-miniapp-spec.md)
+> 결정 근거: ADR-0002([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md)) · 상세 스펙: 05-game-miniapp-spec.md([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md))
 
 - `M` **마블 룰렛**(대표 게임): **참여형 게임**과 **래플 추첨 시각화** 두 역할을 겸한다. 참여형은 추가 결제 없이 `grant_cards`로 카드 보상을 발급하고, 래플 연출은 `draw_raffle`의 **commit-reveal 검증 결과**를 마블로 표시한다. **결과는 서버 RPC가 결정하고 게임은 렌더러**다.
 - `M` **공정성 층위 분리**: 참여형 게임 = **코스메틱 연출**(서버가 결과, 물리는 장식, commit-reveal 불필요), 래플 선정 = **commit-reveal**(검증가능·정원 제한·당첨자 정가 결제). 선정과 연출은 다른 층이다.
@@ -114,7 +114,7 @@
 - `S` **(V2+) 네이티브 앱(Expo)**: 같은 원격 URL을 `react-native-webview`로 로드 → 웹·앱 **동일 경험을 구조로** 보장. 원격 URL은 **첫파티 오리진 허용리스트**만, Apple App Store 4.7(2025.11 강화) 대응.
 - 참여형 룰렛/도장깨기(§4.5)·래플(§4.6)은 이 미니앱 프레임 위에서 구현한다.
 
-> 현재 `lib/games/host.ts`의 `getSession(): { accessToken, userId }`는 같은 오리진 웹 호스트용 현행 인터페이스이며 #66 Expo bridge 계약으로 승인된 것이 아니다. #66 구현에서는 [ADR-0002](../adr/0002-cross-platform-popup-game-miniapps.md)와 [05-game-miniapp-spec.md §2](./05-game-miniapp-spec.md)의 BFF 경계로 교체한다.
+> 현재 `lib/games/host.ts`의 `getSession(): { accessToken, userId }`는 같은 오리진 웹 호스트용 현행 인터페이스이며 #66 Expo bridge 계약으로 승인된 것이 아니다. #66 구현에서는 ADR-0002([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md))와 05-game-miniapp-spec.md §2([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md))의 BFF 경계로 교체한다.
 
 ---
 
@@ -201,7 +201,7 @@
 
 ### V2 — "참여·확장"
 - 동일가치 실물 랜덤상품("균등가치 기획세트", 법률·PG 단계 분리 후), 선착순 대기열(트래픽 규모 시 Cloudflare Waiting Room), 3D 전시관/AR 전시, 카드 교환(C2C, 기존 `/exchange` 플레이스홀더 발전), 친구 초대·고도화 랭킹.
-- **네이티브 앱(Expo webview 미니앱, #66·[ADR-0002](../adr/0002-cross-platform-popup-game-miniapps.md))** — online-popup V1의 웹 게임 번들을 그대로 앱에 임베드해 웹·앱 동일 경험. 인증은 refresh token/범용 session 주입이 아닌 승인된 BFF single-use bridge 계약을 사용한다.
+- **네이티브 앱(Expo webview 미니앱, #66·ADR-0002([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md)))** — online-popup V1의 웹 게임 번들을 그대로 앱에 임베드해 웹·앱 동일 경험. 인증은 refresh token/범용 session 주입이 아닌 승인된 BFF single-use bridge 계약을 사용한다.
 
 ### V3 — "플랫폼화(검토)"
 - 다IP 동시 팝업 대규모 운영, 해외 판매(IP territory 확보 후), 브랜드 입점/마켓플레이스·제작 협업(정체성·범위 재검토 후).

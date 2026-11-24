@@ -29,7 +29,6 @@ vi.mock('@/lib/checkout.server', () => ({
   loadOrderRetrySources: vi.fn(async () => new Map()),
   loadPendingCardPaymentReading: vi.fn(async () => null),
 }));
-vi.mock('@/lib/card-rewards/gate.server', () => ({ readCardRewardsEnabled: vi.fn(async () => false) }));
 vi.mock('@/lib/reviews.server', () => ({ loadOrderReviewTargets: vi.fn(async () => []) }));
 vi.mock('@/lib/order-downloads.server', () => ({ loadMyOrderDownloads: vi.fn(async () => null) }));
 vi.mock('@/lib/order-production.server', () => ({ loadMyOrderProduction: vi.fn(async () => null) }));

@@ -35,7 +35,7 @@ describe('CatalogArchiveControl', () => {
     expect(html).toContain('value="good"');
     expect(html).toContain('name="id"');
     expect(html).toContain('value="g1"');
-    expect(html).toContain('판매 재고나 사용 중인 발급 정책이 남아 있으면 보관할 수 없습니다.');
+    expect(html).toContain('판매 재고가 남아 있으면 보관할 수 없습니다.');
     expect(html).toMatch(/<button[^>]*>[^<]*보관[^<]*<\/button>/);
     // 서버 액션 폼의 제출 버튼이다(kit 버튼의 기본 type은 button).
     expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>보관<\/button>/);
@@ -45,8 +45,8 @@ describe('CatalogArchiveControl', () => {
     const html = renderToStaticMarkup(
       <CatalogArchiveControl
         archivedAt="2026-07-17T00:00:00.000Z"
-        id="c1"
-        kind="card"
+        id="e1"
+        kind="event"
       />,
     );
 

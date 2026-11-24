@@ -218,10 +218,6 @@ export interface OrderDetail {
   /** DB가 발주확인 이력과 실제 배송 수량으로 판정한다. 조회 불가는 null이며 접수를 열지 않는다. */
   claimEligibility: OrderClaimEligibility | null;
   shipments: ShipmentRecord[];
-  cardPacks: {
-    issuedCount: number;
-    availableCount: number;
-  };
 }
 
 export function isVisibleOrderStatus(value: string): value is VisibleOrderStatus {

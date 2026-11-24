@@ -7,7 +7,7 @@ export const IP_INDEX_PAGE_SIZE = 20;
 export const IP_FEATURED_LIMIT = 5;
 export const IP_WORKSPACE_TABS = [
   { id: 'basic', label: '기본정보' }, { id: 'goods', label: '상품' },
-  { id: 'pools', label: '카드풀' }, { id: 'events', label: '이벤트' }, { id: 'exposure', label: '노출' },
+  { id: 'events', label: '이벤트' }, { id: 'exposure', label: '노출' },
 ] as const;
 export type IpWorkspaceTab = typeof IP_WORKSPACE_TABS[number]['id'];
 export type IpIndexStatus = 'active' | 'all' | 'draft' | 'published' | 'archived';

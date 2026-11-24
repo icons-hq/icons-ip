@@ -99,7 +99,7 @@ export function CurationLayoutEditor({ layout, operationId, preview, records, de
     <aside className="flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:h-auto xl:border-t-0 print:hidden" aria-label="홈 영역 순서 미리보기">
       <header className="flex items-center gap-3 border-b bg-background px-4 py-3"><h3 className="text-sm font-medium whitespace-nowrap">전체 홈 미리보기</h3><span className="ml-auto text-xs text-muted-foreground tabular-nums">{device === 'mobile' ? '390px' : '1212px'}</span></header>
       <div className="border-b bg-background px-4 py-3 text-xs text-muted-foreground">현재 공개된 콘텐츠에 편집 중인 영역 순서·노출을 적용한 모습입니다.</div>
-      <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} curation={{ ...preview.curation, productCollections: previewCollections, layoutOrder: publicOrder }} noticeBar={preview.noticeBar ?? null} noticeStrip={preview.noticeStrip} device={device} />
+      <CurationPreview curation={{ ...preview.curation, productCollections: previewCollections, layoutOrder: publicOrder }} noticeBar={preview.noticeBar ?? null} noticeStrip={preview.noticeStrip} device={device} />
     </aside>
   </div>;
 }

@@ -4,13 +4,10 @@ import {
   adminCampaignSectionsInput,
   campaignGoodsBlocks,
   normalizeAdminCampaignForm,
-  normalizeAdminCoinExchangeOfferForm,
   parseAdminCampaignSections,
   replaceCampaignGoodsBlock,
 } from './campaigns';
 
-const POOL_ID = '11111111-1111-4111-8111-111111111111';
-const OFFER_ID = '22222222-2222-4222-8222-222222222222';
 
 function form(entries: Record<string, string>) {
   const formData = new FormData();
@@ -27,17 +24,6 @@ function campaignForm(overrides: Record<string, string> = {}) {
     startsAt: '2026-09-01T00:00',
     endsAt: '2026-09-30T23:59',
     sections: '',
-    ...overrides,
-  });
-}
-
-function offerForm(overrides: Record<string, string> = {}) {
-  return form({
-    poolId: POOL_ID,
-    label: '가을 카드팩 1장',
-    coinCost: '10',
-    ticketCount: '1',
-    status: 'active',
     ...overrides,
   });
 }
@@ -186,14 +172,11 @@ describe('parseAdminCampaignSections', () => {
     expect(result.message).toContain('alt');
   });
 
-  it('exchange 블록의 offer_id 는 UUID 여야 한다', () => {
-    const bad = parseAdminCampaignSections('[{"type":"exchange","offer_id":"offer-1"}]');
-    const good = parseAdminCampaignSections(
-      `[{"type":"exchange","offer_id":"${OFFER_ID}"}]`,
-    );
+  /* 카드팩 교환처(exchange) 블록은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 모르는 블록으로 거절한다. */
+  it('exchange 블록은 더 이상 받지 않는다', () => {
+    const result = parseAdminCampaignSections('[{"type":"exchange","offer_id":"22222222-2222-4222-8222-222222222222"}]');
 
-    expect(bad.ok).toBe(false);
-    expect(good.ok).toBe(true);
+    expect(result.ok).toBe(false);
   });
 
   it('goods 블록의 good_ids 는 1~8개의 문자열이다', () => {
@@ -304,55 +287,6 @@ describe('parseAdminCampaignSections — cta 블록', () => {
   });
 });
 
-describe('normalizeAdminCoinExchangeOfferForm', () => {
-  it('신규 등록은 id 를 null 로 보낸다', () => {
-    const result = normalizeAdminCoinExchangeOfferForm(offerForm());
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value).toEqual({
-      id: null,
-      poolId: POOL_ID,
-      label: '가을 카드팩 1장',
-      coinCost: 10,
-      ticketCount: 1,
-      status: 'active',
-    });
-  });
-
-  it('수정은 선택한 교환처 id 를 함께 보낸다', () => {
-    const result = normalizeAdminCoinExchangeOfferForm(offerForm({ offerId: OFFER_ID }));
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.id).toBe(OFFER_ID);
-  });
-
-  it('카드풀을 고르지 않으면 거절한다', () => {
-    const result = normalizeAdminCoinExchangeOfferForm(offerForm({ poolId: '' }));
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.errors.poolId).toBeTruthy();
-  });
-
-  /* DB 체크와 같은 경계다. 여기서 통과시키면 저장 왕복 뒤에야 실패를 본다. */
-  it('코인 비용과 카드팩 수량의 상·하한을 지킨다', () => {
-    expect(normalizeAdminCoinExchangeOfferForm(offerForm({ coinCost: '0' })).ok).toBe(false);
-    expect(normalizeAdminCoinExchangeOfferForm(offerForm({ coinCost: '100001' })).ok).toBe(false);
-    expect(normalizeAdminCoinExchangeOfferForm(offerForm({ ticketCount: '11' })).ok).toBe(false);
-    expect(normalizeAdminCoinExchangeOfferForm(offerForm({ ticketCount: '10' })).ok).toBe(true);
-  });
-
-  it('모르는 노출 상태를 거절한다', () => {
-    const result = normalizeAdminCoinExchangeOfferForm(offerForm({ status: 'archived' }));
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.errors.status).toBeTruthy();
-  });
-});
-
 describe('폼 초기값 변환', () => {
   it('저장된 시각을 KST datetime-local 값으로 되돌린다', () => {
     expect(adminCampaignDateTimeInput('2026-08-31T15:00:00.000Z')).toBe('2026-09-01T00:00');
@@ -363,6 +297,9 @@ describe('폼 초기값 변환', () => {
   it('빈 블록은 빈 문자열로, 있는 블록은 들여쓴 JSON 으로 그린다', () => {
     expect(adminCampaignSectionsInput([])).toBe('');
     expect(adminCampaignSectionsInput(null)).toBe('');
+    /* ADR-0052 — 없앤 카드팩 교환 블록은 편집기에 싣지 않아 저장할 때 빠진다. */
+    expect(adminCampaignSectionsInput([{ type: 'exchange', offer_id: 'x' }])).toBe('');
+    expect(JSON.parse(adminCampaignSectionsInput([{ type: 'intro', title: '안내' }, { type: 'exchange', offer_id: 'x' }]))).toEqual([{ type: 'intro', title: '안내' }]);
     expect(adminCampaignSectionsInput([{ type: 'attendance' }]))
       .toBe('[\n  {\n    "type": "attendance"\n  }\n]');
   });

@@ -21,8 +21,8 @@ export function IpWorkspaceScreen({ created = false, data, children }: {
   children?: ReactNode;
 }) {
   const { ip, tab, related, relatedTotal } = data;
-  const label = tab === 'goods' ? ADMIN_VOCABULARY.goods : tab === 'pools' ? '카드풀' : '이벤트';
-  const relatedHref = tab === 'goods' ? `/admin/catalog/goods?ipId=${encodeURIComponent(ip.id)}` : tab === 'pools' ? '/admin/catalog/pools' : '/admin/catalog/events';
+  const label = tab === 'goods' ? ADMIN_VOCABULARY.goods : '이벤트';
+  const relatedHref = tab === 'goods' ? `/admin/catalog/goods?ipId=${encodeURIComponent(ip.id)}` : '/admin/catalog/events';
   return <section className="flex min-w-0 flex-col gap-6">
     {/* 어느 IP인지가 이 화면의 머리다 — 이름을 크게, 게시 상태는 이름 바로 옆에 두고 바꾸는 곳으로 가는 길을 함께 둔다. */}
     <header className="flex flex-wrap items-center gap-x-3 gap-y-2" data-admin-kit="page-header">

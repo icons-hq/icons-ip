@@ -10,7 +10,6 @@ import {
   missingGoodsNoticeKeys,
   type GoodsNoticeInfo,
 } from '@/lib/goods-notice';
-import type { RarityKey } from '@/lib/rarity';
 import { readAdminGoodsSalePolicy, type AdminGoodsSalePolicyInput } from './goods-sale-policy';
 import { GOODS_HTML_IMAGE_MAX, GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription, type GoodsDescriptionFormat } from '@/lib/goods-description';
 import { IP_PUBLIC_SLUG_ERROR_MESSAGES, normalizeIpPublicSlug, validateIpPublicSlug } from '@/lib/ip-identity';
@@ -97,75 +96,6 @@ export interface AdminStockAdjustmentFormValue {
   reason: string;
 }
 
-export interface AdminCardFormValue {
-  previousId: string | null;
-  id: string;
-  ipId: string;
-  name: string;
-  no: string | null;
-  rarity: RarityKey;
-  poolId: string | null;
-  bg: string | null;
-  imagePath: string | null;
-}
-
-export interface AdminCardPoolFormValue {
-  operationId: string;
-  id: string;
-  ipId: string;
-  name: string;
-  activeFrom: string;
-  activeTo: string | null;
-}
-
-export interface AdminPoolOddsFormValue {
-  operationId: string;
-  poolId: string;
-  odds: Record<RarityKey, number>;
-}
-
-export interface AdminRewardPolicyFormValue {
-  operationId: string;
-  id: string;
-  poolId: string;
-  trigger: 'order_paid';
-  targetIpId: string;
-  targetGoodId: string | null;
-  minAmount: number;
-  ticketsPerGrant: number;
-  active: boolean;
-  activeFrom: string;
-  activeTo: string | null;
-}
-
-export interface AdminGameFormValue {
-  operationId: string;
-  previousGameId: string | null;
-  id: string;
-  title: string;
-  rewardPoolId: string;
-  eventId: string | null;
-  perUserDailyLimit: number;
-  activeFrom: string;
-  activeTo: string | null;
-}
-
-export interface AdminGameEndFormValue {
-  operationId: string;
-  gameId: string;
-}
-
-export interface AdminGameContext {
-  pools: ReadonlyMap<string, {
-    ipId: string;
-    activeFrom: string;
-    activeTo: string | null;
-    rewardReady: boolean;
-    status: 'scheduled' | 'active' | 'ended';
-  }>;
-  events: ReadonlyMap<string, { ipId: string | null; mode: string }>;
-}
-
 export interface AdminEventFormValue {
   previousId: string | null;
   id: string;
@@ -214,7 +144,6 @@ export const GOODS_DETAIL_IMAGE_FIELD_NAMES: readonly string[] = Array.from({ le
 export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
 export const GOODS_SEARCH_KEYWORDS_MAX_COUNT = 50;
 export const GOODS_SEARCH_KEYWORD_MAX_LENGTH = 80;
-const RARITY_VALUES = new Set<RarityKey>(['N', 'R', 'SR', 'SSR', 'HOLO']);
 const EVENT_MODES = new Set(['온라인', '오프라인']);
 const EVENT_STATUSES = new Set(['예매중', '예정', '진행중', '종료']);
 const ADMIN_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
@@ -271,13 +200,6 @@ function readSlug(formData: FormData, key: string, errors: AdminFieldErrors, req
 
 function readUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
   const value = readString(formData, key).toLowerCase();
-  if (!isUuid(value)) errors[key] = message;
-  return value;
-}
-
-function readNullableUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
-  const value = readString(formData, key).toLowerCase();
-  if (!value) return null;
   if (!isUuid(value)) errors[key] = message;
   return value;
 }
@@ -448,32 +370,6 @@ export function catalogContextFromSnapshot(snapshot: {
     goodIpById: new Map(snapshot.goods.map((good) => [good.id, good.ip])),
     ipIds: new Set(snapshot.ips.map((ip) => ip.id)),
     verticalKeys: new Set(snapshot.verticals.map((vertical) => vertical.key)),
-  };
-}
-
-export function gameContextFromRecords(records: {
-  cardPools: Array<{
-    id: string;
-    ipId: string;
-    activeFrom: string;
-    activeTo: string | null;
-    rewardReady: boolean;
-    status: 'scheduled' | 'active' | 'ended';
-  }>;
-  events: Array<{ id: string; ipId: string | null; mode: string }>;
-}): AdminGameContext {
-  return {
-    pools: new Map(records.cardPools.map((pool) => [pool.id, {
-      ipId: pool.ipId,
-      activeFrom: pool.activeFrom,
-      activeTo: pool.activeTo,
-      rewardReady: pool.rewardReady,
-      status: pool.status,
-    }])),
-    events: new Map(records.events.map((event) => [event.id, {
-      ipId: event.ipId,
-      mode: event.mode,
-    }])),
   };
 }
 
@@ -712,279 +608,6 @@ export function normalizeAdminStockAdjustmentForm(
       reason,
     },
   };
-}
-
-export function normalizeAdminCardForm(
-  formData: FormData,
-  context: AdminCatalogContext,
-): AdminFormResult<AdminCardFormValue> {
-  const errors: AdminFieldErrors = {};
-  const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
-  const previousId = readPreviousId(formData, id, errors);
-  const ipId = validIpId(readString(formData, 'ipId'), context, errors);
-  const name = readString(formData, 'name');
-  const rarity = readString(formData, 'rarity') as RarityKey;
-  const poolId = readNullableUuid(formData, 'poolId', errors, '등록된 카드풀을 골라주세요.');
-
-  if (!name) errors.name = '카드 이름을 입력해주세요.';
-  if (!RARITY_VALUES.has(rarity)) errors.rarity = '등급을 선택해주세요.';
-
-  if (Object.keys(errors).length) return { ok: false, errors };
-
-  return {
-    ok: true,
-    value: {
-      previousId,
-      id,
-      ipId,
-      name,
-      no: nullableString(formData, 'no'),
-      rarity,
-      poolId,
-      bg: nullableString(formData, 'bg'),
-      imagePath: nullableString(formData, 'imagePath'),
-    },
-  };
-}
-
-export function normalizeAdminCardPoolForm(
-  formData: FormData,
-  context: AdminCatalogContext,
-): AdminFormResult<AdminCardPoolFormValue> {
-  const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
-  const id = readUuid(formData, 'id', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
-  const ipId = validIpId(readString(formData, 'ipId'), context, errors);
-  const name = readString(formData, 'name');
-  const activeFromRaw = readString(formData, 'activeFrom');
-  const activeFrom = localKstDateTimeToIso(formData, 'activeFrom', errors);
-  const activeTo = localKstDateTimeToIso(formData, 'activeTo', errors);
-
-  if (!name) errors.name = '카드풀 이름을 입력해주세요.';
-  if (!activeFromRaw) errors.activeFrom = '운영 시작 일시를 입력해주세요.';
-  if (activeFrom && activeTo && activeTo <= activeFrom) {
-    errors.activeTo = '운영 종료는 시작보다 뒤여야 합니다.';
-  }
-
-  if (Object.keys(errors).length || !activeFrom) return { ok: false, errors };
-
-  return {
-    ok: true,
-    value: { operationId, id, ipId, name, activeFrom, activeTo },
-  };
-}
-
-const ODDS_FIELDS: Array<[RarityKey, string]> = [
-  ['N', 'oddsN'],
-  ['R', 'oddsR'],
-  ['SR', 'oddsSr'],
-  ['SSR', 'oddsSsr'],
-  ['HOLO', 'oddsHolo'],
-];
-const PERCENT_PATTERN = /^(?:100(?:\.0{1,3})?|(?:\d|[1-9]\d)(?:\.\d{1,3})?)$/;
-
-function probabilityFromPercent(
-  formData: FormData,
-  key: string,
-  errors: AdminFieldErrors,
-) {
-  const raw = readString(formData, key);
-  if (!PERCENT_PATTERN.test(raw)) {
-    errors[key] = '확률은 0~100 사이, 소수 셋째 자리까지 입력해주세요.';
-    return 0;
-  }
-
-  const [whole, fraction = ''] = raw.split('.');
-  return Number(whole) * 1_000 + Number(fraction.padEnd(3, '0'));
-}
-
-export function normalizeAdminPoolOddsForm(
-  formData: FormData,
-): AdminFormResult<AdminPoolOddsFormValue> {
-  const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
-  const poolId = readUuid(formData, 'poolId', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
-  const milliPercents = Object.fromEntries(
-    ODDS_FIELDS.map(([rarity, key]) => [rarity, probabilityFromPercent(formData, key, errors)]),
-  ) as Record<RarityKey, number>;
-
-  if (!Object.keys(errors).some((key) => key.startsWith('odds'))) {
-    const total = Object.values(milliPercents).reduce((sum, value) => sum + value, 0);
-    if (total !== 100_000) errors.oddsTotal = '확률 합계는 100%여야 합니다.';
-  }
-
-  if (Object.keys(errors).length) return { ok: false, errors };
-
-  return {
-    ok: true,
-    value: {
-      operationId,
-      poolId,
-      odds: Object.fromEntries(
-        ODDS_FIELDS.map(([rarity]) => [rarity, milliPercents[rarity] / 100_000]),
-      ) as Record<RarityKey, number>,
-    },
-  };
-}
-
-export function normalizeAdminRewardPolicyForm(
-  formData: FormData,
-  context: AdminCatalogContext,
-): AdminFormResult<AdminRewardPolicyFormValue> {
-  const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
-  const id = readUuid(formData, 'id', errors, '발급 정책을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
-  const poolId = readUuid(formData, 'poolId', errors, '카드풀을 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.');
-  const trigger = readString(formData, 'trigger');
-  const targetIpId = readString(formData, 'targetIpId');
-  const targetGoodId = nullableString(formData, 'targetGoodId');
-  const minAmountRaw = readString(formData, 'minAmount');
-  const ticketsPerGrantRaw = readString(formData, 'ticketsPerGrant');
-  const activeFromRaw = readString(formData, 'activeFrom');
-  const activeFrom = localKstDateTimeToIso(formData, 'activeFrom', errors);
-  const activeTo = localKstDateTimeToIso(formData, 'activeTo', errors);
-
-  if (trigger !== 'order_paid') {
-    errors.trigger = '지원하지 않는 발급 조건입니다.';
-  }
-  if (!targetIpId || !context.ipIds.has(targetIpId)) {
-    errors.targetIpId = '등록된 IP를 선택해주세요.';
-  }
-  if (targetGoodId) {
-    const goodIpId = context.goodIpById.get(targetGoodId);
-    if (!goodIpId) {
-      errors.targetGoodId = '등록된 굿즈를 선택해주세요.';
-    } else if (goodIpId !== targetIpId) {
-      errors.targetGoodId = '선택한 IP의 굿즈만 지정할 수 있습니다.';
-    }
-  }
-
-  const minAmount = Number(minAmountRaw);
-  if (!/^\d+$/.test(minAmountRaw) || !Number.isSafeInteger(minAmount)) {
-    errors.minAmount = '최소 결제 금액은 0 이상의 정수여야 합니다.';
-  }
-
-  const ticketsPerGrant = Number(ticketsPerGrantRaw);
-  if (
-    !/^\d+$/.test(ticketsPerGrantRaw)
-    || !Number.isInteger(ticketsPerGrant)
-    || ticketsPerGrant < 1
-    || ticketsPerGrant > 100
-  ) {
-    errors.ticketsPerGrant = '발급 수량은 1~100 사이의 정수여야 합니다.';
-  }
-
-  if (!activeFromRaw) errors.activeFrom = '운영 시작 일시를 입력해주세요.';
-  if (activeFrom && activeTo && activeTo <= activeFrom) {
-    errors.activeTo = '운영 종료는 시작보다 뒤여야 합니다.';
-  }
-
-  if (Object.keys(errors).length || !activeFrom) return { ok: false, errors };
-
-  return {
-    ok: true,
-    value: {
-      operationId,
-      id,
-      poolId,
-      trigger: 'order_paid',
-      targetIpId,
-      targetGoodId,
-      minAmount,
-      ticketsPerGrant,
-      active: formData.get('active') === 'on',
-      activeFrom,
-      activeTo,
-    },
-  };
-}
-
-export function normalizeAdminGameForm(
-  formData: FormData,
-  context: AdminGameContext,
-): AdminFormResult<AdminGameFormValue> {
-  const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '저장 요청을 읽지 못했습니다. 새로고침한 뒤 다시 저장해주세요.');
-  const previousGameId = nullableString(formData, 'previousGameId');
-  const id = readSlug(formData, 'id', errors, '게임 ID를 입력해주세요.');
-  const title = readString(formData, 'title');
-  const rewardPoolId = readUuid(formData, 'rewardPoolId', errors, '등록된 카드풀을 골라주세요.');
-  const eventId = nullableString(formData, 'eventId');
-  const perUserDailyLimitRaw = readString(formData, 'perUserDailyLimit');
-  const activeFromRaw = readString(formData, 'activeFrom');
-  const activeFrom = localKstDateTimeToIso(formData, 'activeFrom', errors);
-  const activeTo = localKstDateTimeToIso(formData, 'activeTo', errors);
-  const pool = context.pools.get(rewardPoolId);
-
-  if (previousGameId && !SLUG_PATTERN.test(previousGameId)) {
-    errors.previousGameId = '이전 게임 ID를 확인해주세요.';
-  }
-  if (!title) errors.title = '게임 제목을 입력해주세요.';
-
-  if (!pool || !pool.rewardReady || pool.status === 'ended') {
-    errors.rewardPoolId = '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.';
-  }
-
-  if (eventId) {
-    const event = context.events.get(eventId);
-    if (!event || !pool || event.ipId !== pool.ipId || event.mode !== '온라인') {
-      errors.eventId = '같은 IP의 온라인 이벤트만 선택할 수 있습니다.';
-    }
-  }
-
-  const perUserDailyLimit = Number(perUserDailyLimitRaw);
-  if (
-    !/^\d+$/.test(perUserDailyLimitRaw)
-    || !Number.isInteger(perUserDailyLimit)
-    || perUserDailyLimit < 1
-    || perUserDailyLimit > 100
-  ) {
-    errors.perUserDailyLimit = '일일 플레이 한도는 1~100 사이의 정수여야 합니다.';
-  }
-
-  if (!activeFromRaw) {
-    errors.activeFrom = '운영 시작 일시를 명시적으로 선택해주세요.';
-  }
-  if (activeFrom && activeTo && activeTo <= activeFrom) {
-    errors.activeTo = '운영 종료는 시작보다 뒤여야 합니다.';
-  }
-
-  if (pool && activeFrom && !errors.activeTo) {
-    const coverageMessage = '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.';
-    if (Date.parse(activeFrom) < Date.parse(pool.activeFrom)) {
-      errors.activeFrom = coverageMessage;
-    } else if (pool.activeTo && (!activeTo || Date.parse(activeTo) > Date.parse(pool.activeTo))) {
-      errors.activeTo = coverageMessage;
-    }
-  }
-
-  if (Object.keys(errors).length || !activeFrom) return { ok: false, errors };
-
-  return {
-    ok: true,
-    value: {
-      operationId,
-      previousGameId,
-      id,
-      title,
-      rewardPoolId,
-      eventId,
-      perUserDailyLimit,
-      activeFrom,
-      activeTo,
-    },
-  };
-}
-
-export function normalizeAdminGameEndForm(
-  formData: FormData,
-): AdminFormResult<AdminGameEndFormValue> {
-  const errors: AdminFieldErrors = {};
-  const operationId = readUuid(formData, 'operationId', errors, '종료 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.');
-  const gameId = readSlug(formData, 'gameId', errors, '게임을 선택해주세요.');
-
-  if (Object.keys(errors).length) return { ok: false, errors };
-  return { ok: true, value: { operationId, gameId } };
 }
 
 export function normalizeAdminEventForm(

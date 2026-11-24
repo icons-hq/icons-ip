@@ -44,7 +44,7 @@ function formatDate(value: string) {
 }
 
 export function confirmMemberSuspension(event: FormEvent<HTMLFormElement>) {
-  confirmAdminSubmit(event, '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 나중에 정지 해제로 풀 수 있습니다. 계속할까요?');
+  confirmAdminSubmit(event, '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 게임 플레이를 새로 진행할 수 없습니다. 나중에 정지 해제로 풀 수 있습니다. 계속할까요?');
 }
 
 /** 권한 값(user·staff·admin)은 DB 계약이고 화면은 운영팀 말로 보인다. */
