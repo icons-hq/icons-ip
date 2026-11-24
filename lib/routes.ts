@@ -103,9 +103,6 @@ const PATHS: Record<string, string> = {
   popups: '/popups',
   aouadPopup: AOUAD_POPUP_PATH,
   shop: '/shop',
-  /* 임시 호환 — 바인더 화면은 2026-11-24 지웠다(ADR-0052, 주소는 404). IP 상세(components/screens/IpDetail.tsx, 다른 작업이 고치는 중)가
-     hrefFor('binder')를 아직 부르고 그 링크는 components/shell/CollectibleFeatures.tsx 껍데기가 늘 숨긴다. IP 상세에서 링크를 지우면 함께 지운다. */
-  binder: '/binder',
   /* 'events'는 캠페인 허브, 'offlinePopups'는 팝업스토어 예매 도메인이다 — CONTEXT.md의 별개 도메인. */
   events: '/events',
   offlinePopups: '/offline-popups',

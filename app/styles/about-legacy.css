@@ -1047,9 +1047,10 @@ html:has(.icons-preview)::-webkit-scrollbar {
 .icons-preview .trust-title .eyebrow { align-self: start; }
 .icons-preview .trust-title h2 { width: 66%; font-size: clamp(48px, 5.3vw, 100px); }
 
+/* 지표 5칸(2026-11-24 카드 지표를 지웠다, ADR-0052). 데스크톱 5열, 좁은 폭(3열·2열)은 마지막 칸이 두 칸을 차지해 빈 칸을 남기지 않는다. */
 .icons-preview .stats-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   border-top: 1px solid var(--preview-line);
   border-left: 1px solid var(--preview-line);
 }
@@ -1180,6 +1181,7 @@ html:has(.icons-preview)::-webkit-scrollbar {
   .icons-preview .feature-copy { min-height: 480px; }
   .icons-preview .feature-art { min-height: 600px; }
   .icons-preview .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .icons-preview .stats-grid > .stat:last-child { grid-column: span 2; }
 }
 
 @media (max-width: 720px) {

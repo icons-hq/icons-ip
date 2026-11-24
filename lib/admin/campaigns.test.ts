@@ -297,6 +297,9 @@ describe('폼 초기값 변환', () => {
   it('빈 블록은 빈 문자열로, 있는 블록은 들여쓴 JSON 으로 그린다', () => {
     expect(adminCampaignSectionsInput([])).toBe('');
     expect(adminCampaignSectionsInput(null)).toBe('');
+    /* ADR-0052 — 없앤 카드팩 교환 블록은 편집기에 싣지 않아 저장할 때 빠진다. */
+    expect(adminCampaignSectionsInput([{ type: 'exchange', offer_id: 'x' }])).toBe('');
+    expect(JSON.parse(adminCampaignSectionsInput([{ type: 'intro', title: '안내' }, { type: 'exchange', offer_id: 'x' }]))).toEqual([{ type: 'intro', title: '안내' }]);
     expect(adminCampaignSectionsInput([{ type: 'attendance' }]))
       .toBe('[\n  {\n    "type": "attendance"\n  }\n]');
   });

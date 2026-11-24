@@ -28,7 +28,7 @@ ICONS는 서브컬처 팬덤 "슈퍼앱"으로 출발해 실물 굿즈 커머스
    - `search_public_content`가 돌려주는 카드 행, 캠페인의 옛 `exchange` 블록은 앱 파서가 버린다(DB 검증은 여전히 받는다).
    - 어드민 상단 칸 ID `card`는 창 이름·즐겨찾기 호환을 위해 그대로 두고 이름만 "커뮤니티"로 바꾼다.
 4. **이 기능을 앱에 다시 들이지 않는다.** 되살리려면 이 ADR을 대체하는 새 결정이 먼저다.
-5. **규칙 문서와 용어집은 쇼핑몰 기준으로 다시 쓴다.** `AGENTS.md`·`DESIGN.md`·`README.md`·`docs/PRD.md`·`docs/ARCHITECTURE.md`에서 카드·게임 범위를 지우고 "2026-11-24 일반 쇼핑몰 전환으로 삭제(DB 테이블·기록은 보존)"라고 남긴다. `CONTEXT.md`는 카드·게임·커뮤니티·굿즈/카드 구분 항목을 지우고 주문·클레임·배송 등 쇼핑몰 용어만 남긴다. 어휘 검사 시험(`lib/vocabulary-contract.test.ts`)은 지운다.
+5. **규칙 문서와 용어집은 쇼핑몰 기준으로 다시 쓴다.** `AGENTS.md`·`DESIGN.md`·`README.md`·`docs/PRD.md`·`docs/ARCHITECTURE.md`에서 카드·게임 범위를 지우고 "2026-11-24 일반 쇼핑몰 전환으로 삭제(DB 테이블·기록은 보존)"라고 남긴다. `CONTEXT.md`는 카드·게임·커뮤니티·굿즈/카드 구분 항목을 지우고 주문·클레임·배송 등 쇼핑몰 용어만 남긴다. 어휘 검사 시험(`lib/vocabulary-contract.test.ts`)은 같은 날 PR #722에서 먼저 지웠다.
 
 ### 남긴 것
 

@@ -473,7 +473,10 @@ export function adminCampaignDateTimeInput(value: string | null | undefined) {
 }
 
 /** 폼 textarea 초기값. 저장된 블록을 사람이 읽고 고칠 수 있게 들여쓴다. */
+/* 카드팩 교환 블록(`exchange`)은 2026-11-24 일반 쇼핑몰 전환으로 없앴다(ADR-0052) — 공개 화면은 이미 그 블록을 버린다.
+   저장된 캠페인에 남아 있으면 편집기에 싣지 않아, 다른 칸만 고쳐 저장해도 블록 종류 오류로 막히지 않고 저장할 때 빠진다. */
 export function adminCampaignSectionsInput(sections: unknown[] | null | undefined) {
-  if (!sections?.length) return '';
-  return JSON.stringify(sections, null, 2);
+  const kept = (sections ?? []).filter((section) => !(section && typeof section === 'object' && (section as { type?: unknown }).type === 'exchange'));
+  if (!kept.length) return '';
+  return JSON.stringify(kept, null, 2);
 }

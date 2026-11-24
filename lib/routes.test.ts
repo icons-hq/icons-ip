@@ -315,8 +315,8 @@ describe('지운 카드·거래 화면 진입점', () => {
       expect(items.some((item) => item.id === id), id).toBe(false);
       expect(existsSync(join(process.cwd(), 'app', id, 'page.tsx')), id).toBe(false);
     }
-    /* 'binder' 경로만 IP 상세 임시 호환으로 남는다(lib/routes.ts 주석) — 나머지는 홈 폴백이다. */
-    for (const id of ['packs', 'market', 'exchange']) expect(hrefFor(id), id).toBe('/');
+    /* 경로 표에도 없다 — 부르면 홈 폴백이다. */
+    for (const id of removed) expect(hrefFor(id), id).toBe('/');
   });
 });
 
