@@ -74,9 +74,9 @@ describe('남길 주소', () => {
   /* l9-data-1: IP관 팔로우·알림 액션은 결과를 쿼리 플래그로 돌려준다(app/ip/actions.ts). 직전 목록이 이 플래그를 품으면
      빈 장바구니의 둘러보기가 지난 '알림 설정을 저장했습니다'·팔로우 오류 안내를 다시 띄운다. */
   it('IP관 액션 결과 플래그(notification_saved·follow_error·notification_error)는 남기지 않고 목록 상태만 남긴다', () => {
-    expect(listingReturnEntry('/ip/hong-sil-quest', params('category=abc&notification_saved=1'))).toBe('/ip/hong-sil-quest?category=abc');
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('category=abc&notification_saved=1'))).toBe('/ip/hong-sil-quest');
     expect(listingReturnEntry('/ip/hong-sil-quest', params('follow_error=1'))).toBe('/ip/hong-sil-quest');
-    expect(listingReturnEntry('/ip/hong-sil-quest', params('notification_error=1&sort=price_asc&min=1000'))).toBe('/ip/hong-sil-quest?sort=price_asc&min=1000');
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('notification_error=1&sort=price_asc&min=1000'))).toBe('/ip/hong-sil-quest?sort=price_asc');
   });
 
   it('화면마다 그 화면이 읽는 목록 상태 키만 남긴다 — 모르는 키·다른 화면의 키는 버린다', () => {
@@ -84,8 +84,8 @@ describe('남길 주소', () => {
     expect(listingReturnEntry('/shop/new', params('displayCategory=d1&ip=i1&sort=price_asc'))).toBe('/shop/new?ip=i1&sort=price_asc');
     expect(listingReturnEntry('/shop/best', params('q=키링&max=5000'))).toBe('/shop/best?max=5000');
     expect(listingReturnEntry('/search', params('q=곰&ip=i1&type=a&page=2&notification_saved=1'))).toBe('/search?q=%EA%B3%B0&ip=i1&type=a&page=2');
-    /* IP관은 스코프가 이미 IP 하나다 — ip 필터는 목록 상태가 아니다(app/ip/[id]/page.tsx). */
-    expect(listingReturnEntry('/ip/hong-sil-quest', params('ip=other&type=a'))).toBe('/ip/hong-sil-quest?type=a');
+    /* IP관은 정렬만 목록 상태다 — ip·type 같은 옛 필터는 목록 상태가 아니다(app/ip/[id]/page.tsx). */
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('ip=other&type=a'))).toBe('/ip/hong-sil-quest');
   });
 
   it('같은 키가 여러 번 오면(다중 선택 필터) 순서대로 모두 남긴다', () => {
@@ -133,7 +133,7 @@ describe('목록 상태 키 계약', () => {
     const flags = page.match(/for \(const key of \[([^\]]+)\] as const\)/)?.[1];
     const literals = (source: string | undefined) => [...(source ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1]);
 
-    expect(literals(collection)).toEqual(['category', 'type', 'min', 'max', 'sort']);
+    expect(literals(collection)).toEqual(['sort']);
     expect(listingStateKeys('/ip/hong-sil-quest', params())).toEqual(literals(collection));
     expect(literals(flags)).toEqual(['follow_error', 'notification_error', 'notification_saved']);
     for (const flag of literals(flags)) expect(listingStateKeys('/ip/hong-sil-quest', params())).not.toContain(flag);
@@ -180,7 +180,7 @@ describe('돌아갈 주소 판정', () => {
 
   it('이전 판에 남은 값의 결과 플래그도 읽을 때 걸러 내 재생하지 않는다', () => {
     expect(listingReturnHref('/ip/hong-sil-quest?notification_saved=1')).toBe('/ip/hong-sil-quest');
-    expect(listingReturnHref('/ip/hong-sil-quest?follow_error=1&type=a')).toBe('/ip/hong-sil-quest?type=a');
+    expect(listingReturnHref('/ip/hong-sil-quest?follow_error=1&type=a')).toBe('/ip/hong-sil-quest');
   });
 });
 

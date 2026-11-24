@@ -1,36 +1,40 @@
 'use client';
 
-/* 온라인 팝업 개별 관(/ip/[id]) — R-03 §1.9 브랜드관 재현.
- * 풀블리드 배너(IP명·팔로우 하트+팬 수·설명·해시태그) + IP로 좁힌 굿즈샵 컬렉션(사이드바·정렬·VIEW MORE·
- * 212 카드 — 11 IP-01) + 연결 밴드 3종.
+/* 온라인 팝업 개별 관(/ip/[id]) — X SQUARE 카테고리 화면 틀(ADR-0043, 스펙 C §2).
+ * 위에서 아래로: IP 배너 한 장(IP명·소개·해시태그) → 팔로우·알림 한 줄 → 제목 줄('<IP명>의 굿즈' + 정렬 셀렉트) →
+ * 굿즈샵 카테고리 화면과 같은 ListingGrid(4열 카드·VIEW MORE) → 이 IP의 다른 공간 링크.
+ * 왼쪽 필터(타입·가격)는 없다 — 옛 type·min·max 주소는 서버 페이지가 무시한다.
  * 배너 그림은 IP관 PC/MO 배너(11 IP-06)가 있으면 그것, 없으면 키아트(ip.bg)다 — lib/ip-hall-banner.ts 의 폭별 폴백.
  * 팔로우·알림 폼은 app/ip/actions.ts 계약(hidden ipId·intent·next·setBoth·autoFollow…)을 그대로 승계한다. */
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import { useFormStatus } from 'react-dom';
 import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
-import { CollectionBrowser } from '@/components/shop/CollectionBrowser';
-import { shopQueryString } from '@/components/shop/collection-filters';
+import { ListingGrid } from '@/components/shop/ListingGrid';
+import { ListingHeader } from '@/components/shop/ListingHeader';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
-import { SectionHeading } from '@/components/wc/SectionHeading';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { compactNumber } from '@/lib/format';
 import type { IpFollowState } from '@/lib/ip-follow';
 import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
+import { selectOfflinePopupEvents } from '@/lib/events-catalog';
 import { ipEn } from '@/lib/ip-display';
 import { publicIpHref } from '@/lib/ip-identity';
+import { LISTING_SORTS } from '@/lib/listing-sorts';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { hrefFor } from '@/lib/routes';
 import {
-  SHOP_VIEW_SORTS,
-  parseShopSearchParams,
+  listingQueryString,
+  parseListingSearchParams,
   selectCollectionGoods,
   type ShopListQuery,
   type ShopListResult,
+  type ShopSort,
 } from '@/lib/shop-catalog';
 
 /** IP관 굿즈 컬렉션 — 서버 페이지가 URL 필터·정렬로 계산해 내려준다(`app/ip/[id]/page.tsx`). */
@@ -39,9 +43,9 @@ export interface IpGoodsCollection {
   result: ShopListResult;
 }
 
-/** URL 필터가 없을 때의 IP관 컬렉션. IP 축은 스코프가 이미 이 IP 하나라 받지 않는다. */
+/** URL 정렬이 없을 때의 IP관 컬렉션. IP 축은 스코프가 이미 이 IP 하나라 받지 않는다. */
 function ipGoodsCollection(detail: Pick<CatalogIpDetail, 'ip' | 'goods'>): IpGoodsCollection {
-  const query = parseShopSearchParams({}, { view: 'ip', validIpIds: new Set() });
+  const { query } = parseListingSearchParams({}, 'all');
   return { query, result: selectCollectionGoods(detail.goods, { ips: [detail.ip] }, query) };
 }
 
@@ -85,7 +89,7 @@ function FollowForm({ followState, ipId, next }: { followState: IpFollowState; i
 function NotificationSubmit({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button className="wc-btn" disabled={pending} type="submit">
+    <button className="wc-iphall__bar-submit" disabled={pending} type="submit">
       {pending ? '저장 중' : label}
     </button>
   );
@@ -94,7 +98,7 @@ function NotificationSubmit({ label }: { label: string }) {
 /* 미팔로우 상태의 원클릭 폼(불변): autoFollow·setBoth·notifyDrops·notifyEvents 전부 1로 고정 전송. */
 function AutoFollowNotificationForm({ ipId, next }: { ipId: string; next: string }) {
   return (
-    <form action={setIpNotificationPreferencesAction}>
+    <form action={setIpNotificationPreferencesAction} className="wc-iphall__notify">
       <input name="ipId" type="hidden" value={ipId} />
       <input name="next" type="hidden" value={next} />
       <input name="autoFollow" type="hidden" value="1" />
@@ -110,12 +114,9 @@ function NotificationPreferenceFields({ followState }: { followState: IpFollowSt
   const { pending } = useFormStatus();
   return (
     <>
-      <fieldset
-        disabled={pending}
-        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '0 0 12px', padding: 0, border: 0 }}
-      >
+      <fieldset className="wc-iphall__prefs" disabled={pending}>
         <legend className="wc-sr-only">IP 알림 종류</legend>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44 }}>
+        <label className="wc-iphall__pref">
           <input
             defaultChecked={followState.notifyDrops}
             name="notifyDrops"
@@ -125,7 +126,7 @@ function NotificationPreferenceFields({ followState }: { followState: IpFollowSt
           />
           <span>새 굿즈·드롭</span>
         </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44 }}>
+        <label className="wc-iphall__pref">
           <input
             defaultChecked={followState.notifyEvents}
             name="notifyEvents"
@@ -144,7 +145,7 @@ function NotificationPreferenceFields({ followState }: { followState: IpFollowSt
 /* 팔로우 상태의 알림 설정 폼(불변): hidden ipId·next·setBoth + notifyDrops·notifyEvents 체크박스. */
 function NotificationPreferencesForm({ followState, ipId, next }: { followState: IpFollowState; ipId: string; next: string }) {
   return (
-    <form action={setIpNotificationPreferencesAction} aria-label="IP 알림 설정">
+    <form action={setIpNotificationPreferencesAction} aria-label="IP 알림 설정" className="wc-iphall__notify">
       <input name="ipId" type="hidden" value={ipId} />
       <input name="next" type="hidden" value={next} />
       <input name="setBoth" type="hidden" value="1" />
@@ -185,7 +186,7 @@ export function IpDetail({
 }: {
   /** IP관 PC/MO 배너(lib/ip-hall-banner.server). 생략·null 이면 키아트 배경 그대로다. */
   banner?: IpHallBanner | null;
-  /** URL 필터·정렬이 걸린 굿즈 컬렉션. 생략하면 필터 없는 기본 컬렉션을 그린다. */
+  /** URL 정렬이 걸린 굿즈 컬렉션. 생략하면 기본 정렬 컬렉션을 그린다. */
   collection?: IpGoodsCollection;
   detail: CatalogIpDetail;
   publicSlug?: string;
@@ -197,58 +198,64 @@ export function IpDetail({
   wishlist?: ListingWishlist | null;
 }) {
   const { ip, goods, cards } = detail;
+  const router = useRouter();
   /* 카드 도감(바인더) 링크는 카드 바인더 공개 스위치가 켜진 동안에만 그린다(lib/collectible-features.ts). */
   const binderEnabled = useCollectibleFeatures().binder;
   const hallBanner = banner && (banner.imageUrl || banner.mobileImageUrl) ? banner : null;
   const canonicalSlug = publicSlug ?? ip.publicSlug ?? ip.id;
   const hallPath = publicIpHref(canonicalSlug);
   const goodsCollection = collection ?? ipGoodsCollection(detail);
-  /* 팔로우·알림 폼은 저장(성공·실패·로그인 왕복) 뒤 지금 보던 IP 관으로 돌아온다 — 고른 굿즈 필터·정렬까지.
+  const { query, result } = goodsCollection;
+  /* 팔로우·알림 폼은 저장(성공·실패·로그인 왕복) 뒤 지금 보던 IP 관으로 돌아온다 — 고른 정렬까지.
      액션은 이 주소를 safeNextPath 로 다시 검사하고 결과 파라미터를 searchParams 로 덧붙인다. */
-  const collectionQuery = shopQueryString(goodsCollection.query);
-  const returnPath = collectionQuery ? `${hallPath}?${collectionQuery}` : hallPath;
+  const sortQuery = listingQueryString(query);
+  const returnPath = sortQuery ? `${hallPath}?${sortQuery}` : hallPath;
   const description = [ip.tagline, ip.synopsis].filter(Boolean).join(' ');
-  /* 해시태그는 데스크톱에서 배너 안, 모바일에서 배너 아래에 선다(11 IP-05). 같은 목록을 두 자리에
-     두고 폭마다 하나만 보인다 — 감춘 쪽은 display 로 빠져 스크린리더가 두 번 읽지 않는다. */
-  const hashtags = (placement: 'banner' | 'below') => (
-    <ul className={`wc-iphall__hashtags wc-iphall__hashtags--${placement}`}>
-      <li>{`#${ipEn(ip)}`}</li>
-      <li>{`#${ip.v.label}`}</li>
-    </ul>
-  );
+  /* 진행·예매·예정 중인 오프라인 팝업이 이 IP 에 있을 때만 목록으로 가는 링크를 둔다(끝난 팝업만이면 빈 칸이라 감춘다). */
+  const hasOfflinePopup = selectOfflinePopupEvents(detail.events).some((event) => ['진행중', '예매중', '예정'].includes(event.status));
+
+  const navigateSort = (sort: ShopSort) => {
+    if (sort === query.sort) return;
+    const next = listingQueryString({ ...query, sort });
+    router.push(next ? `${hallPath}?${next}` : hallPath, { scroll: false });
+  };
 
   return (
-    <main className="wc-root wc-iphall">
+    <main className="wc-root wc-listing wc-iphall" data-lead="banner">
       <GoodsSalePeriodRefresh goods={goods} />
-      <section
-        className="wc-iphall__banner"
-        data-banner={hallBanner ? (hallBanner.imageUrl ? 'all' : 'mobile') : undefined}
-        style={hallBanner
-          ? hallBanner.imageUrl ? undefined : ({ '--wc-iphall-keyart': ip.bg } as CSSProperties)
-          : { background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
-      >
-        {hallBanner ? <HallBannerMedia banner={hallBanner} /> : null}
-        <div className="wc-container">
-          <h1 className="wc-iphall__name">{ip.title}</h1>
-          <div className="wc-iphall__follow">
-            <FollowForm followState={followState} ipId={ip.id} next={returnPath} />
-            <span className="wc-iphall__follow-count">
-              <span className="wc-sr-only">팬 </span>
-              {compactNumber(ip.fans)}
-            </span>
-          </div>
-          {description ? <p className="wc-iphall__desc">{description}</p> : null}
-          {hashtags('banner')}
-        </div>
-      </section>
-      <div className="wc-container wc-iphall__tags-band">{hashtags('below')}</div>
-
-      {/* 알림 폼·저장 결과는 배너의 흰 글자 영역이 아니라 흰 지면에서 다룬다(체크박스 가독성). */}
-      <div className="wc-container">
+      <div className="wc-container wc-container--wide">
         <section
-          aria-label="IP 알림"
-          style={{ display: 'grid', gap: 12, maxWidth: 448, margin: '32px 0 0' }}
+          className="wc-iphall__banner"
+          data-banner={hallBanner ? (hallBanner.imageUrl ? 'all' : 'mobile') : undefined}
+          style={hallBanner
+            ? hallBanner.imageUrl ? undefined : ({ '--wc-iphall-keyart': ip.bg } as CSSProperties)
+            : { background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
         >
+          {hallBanner ? <HallBannerMedia banner={hallBanner} /> : null}
+          <div className="wc-iphall__copy">
+            <h1 className="wc-iphall__name">{ip.title}</h1>
+            {description ? <p className="wc-iphall__desc">{description}</p> : null}
+            <ul className="wc-iphall__hashtags">
+              <li>{`#${ipEn(ip)}`}</li>
+              <li>{`#${ip.v.label}`}</li>
+            </ul>
+          </div>
+        </section>
+
+        {/* 팔로우(무료 팬덤 가입)와 알림 설정은 배너 아래 한 줄이다 — 흰 지면이라 체크박스 가독성도 지킨다. */}
+        <section aria-label="IP 알림" className="wc-iphall__bar">
+          <div className="wc-iphall__bar-row">
+            <div className="wc-iphall__follow">
+              <FollowForm followState={followState} ipId={ip.id} next={returnPath} />
+              <span className="wc-iphall__follow-count">
+                <span className="wc-sr-only">팬 </span>
+                {compactNumber(ip.fans)}
+              </span>
+            </div>
+            {followState.isFollowed
+              ? <NotificationPreferencesForm followState={followState} ipId={ip.id} next={returnPath} />
+              : <AutoFollowNotificationForm ipId={ip.id} next={returnPath} />}
+          </div>
           {followError ? (
             <p className="wc-iphall__notice is-error" role="alert">
               팔로우 상태를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.
@@ -264,43 +271,31 @@ export function IpDetail({
               알림 설정을 저장했습니다.
             </p>
           ) : null}
-          {followState.isFollowed
-            ? <NotificationPreferencesForm followState={followState} ipId={ip.id} next={returnPath} />
-            : <AutoFollowNotificationForm ipId={ip.id} next={returnPath} />}
         </section>
       </div>
 
-      <section aria-labelledby="iphall-goods-heading" className="wc-iphall__goods">
-        <div className="wc-container">
-          <div className="wc-iphall__goods-head">
-            <SectionHeading id="iphall-goods-heading" title={`${ip.title}의 굿즈`} />
-            <Link className="wc-iphall__shop-link" href={`${hrefFor('shop')}?ip=${ip.id}`}>굿즈샵에서 전체 보기</Link>
-          </div>
-          {goodsCollection.result.total === 0 ? (
+      <section aria-labelledby="iphall-goods-heading" className="wc-container wc-container--wide wc-iphall__goods">
+        {/* 제목은 굿즈샵 카테고리 화면과 같은 목록 머리다. 페이지의 h1 은 배너의 IP명이라 여기는 h2 다. */}
+        <ListingHeader
+          headingId="iphall-goods-heading"
+          headingLevel={2}
+          sort={result.total > 0 ? { value: query.sort, options: LISTING_SORTS, onChange: navigateSort } : null}
+          title={`${ip.title}의 굿즈`}
+        />
+        {result.total === 0 ? (
+          <div className="wc-listing__empty">
             <EmptyState description="새 굿즈가 입점하면 이 자리에 소개돼요." title="등록된 굿즈가 아직 없습니다" />
-          ) : (
-            /* 굿즈샵 컬렉션을 IP 범위로 재사용한다(DESIGN §8 'facet 축약 컬렉션'). IP 그룹은 값이 하나뿐이라 그리지 않는다. */
-            <CollectionBrowser
-              countNoun="굿즈"
-              hrefFor={(next) => {
-                const qs = shopQueryString(next);
-                return qs ? `${hallPath}?${qs}` : hallPath;
-              }}
-              query={goodsCollection.query}
-              result={goodsCollection.result}
-              sheetDescription={goodsCollection.result.typeFacets.length > 0 ? '원하는 타입과 가격을 골라보세요.' : '원하는 가격을 골라보세요.'}
-              showIpFacet={false}
-              sorts={SHOP_VIEW_SORTS.ip}
-              wishlist={wishlist}
-            />
-          )}
-        </div>
+          </div>
+        ) : (
+          <ListingGrid resetKey={`ip|${hallPath}|${sortQuery}`} result={result} wishlist={wishlist} />
+        )}
       </section>
 
-      <div className="wc-container">
+      <div className="wc-container wc-container--wide">
         <nav aria-label="이 IP의 다른 공간" className="wc-iphall__links">
+          <Link href={`${hrefFor('shop')}?ip=${ip.id}`}>굿즈샵에서 전체 보기</Link>
           {binderEnabled && <Link href={hrefFor('binder')}>{`카드 도감 ${cards.length}종`}</Link>}
-          <Link href={hrefFor('offlinePopups')}>오프라인 팝업</Link>
+          {hasOfflinePopup && <Link href={`${hrefFor('offlinePopups')}?ip=${ip.id}`}>오프라인 팝업</Link>}
           {COMMUNITY_ENABLED && <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>}
         </nav>
       </div>
