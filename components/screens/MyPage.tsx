@@ -195,7 +195,7 @@ function WishBlock({ wishlist }: { wishlist: MypageDashboard['wishlist'] }) {
       {wishlist === null ? (
         <Unavailable message="위시리스트를 확인하지 못했어요." />
       ) : wishlist.goods === null ? (
-        <Unavailable message="찜한 굿즈 목록을 불러오지 못했어요." />
+        <Unavailable message="찜한 상품 목록을 불러오지 못했어요." />
       ) : wishlist.goods.length ? (
         <ul className="wc-mydash__shelf">
           {wishlist.goods.map(({ brand, good }) => (
@@ -220,7 +220,7 @@ function WishBlock({ wishlist }: { wishlist: MypageDashboard['wishlist'] }) {
         </ul>
       ) : (
         <p className="wc-mydash__empty">
-          {wishlist.count ? '판매를 마친 굿즈만 남아 있어요. 위시리스트에서 정리할 수 있어요.' : '아직 찜한 굿즈가 없어요.'}
+          {wishlist.count ? '판매를 마친 상품만 남아 있어요. 위시리스트에서 정리할 수 있어요.' : '아직 찜한 상품이 없어요.'}
         </p>
       )}
     </section>

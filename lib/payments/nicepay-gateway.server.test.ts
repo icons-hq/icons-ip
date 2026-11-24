@@ -167,7 +167,7 @@ describe('NICEPAY 웹표준 payment gateway', () => {
         kind: 'client_sdk',
         payload: {
           provider: 'nicepay',
-          GoodsName: '엑스스퀘어 굿즈 주문',
+          GoodsName: '엑스스퀘어 상품 주문',
           Amt: '31000',
           MID: MERCHANT_ID,
           EdiDate: ediDate,

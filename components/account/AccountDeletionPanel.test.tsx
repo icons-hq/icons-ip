@@ -151,7 +151,7 @@ describe('AccountDeletionPanel accessibility', () => {
     const html = renderBlocked();
 
     expect(html).toContain('href="/orders"');
-    expect(html).toContain('굿즈 결제 확인 1건');
+    expect(html).toContain('상품 결제 확인 1건');
     expect(html).toContain('href="/tickets"');
     expect(html).toContain('티켓 결제 확인 2건');
   });

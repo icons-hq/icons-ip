@@ -167,8 +167,8 @@ it('쿠폰 중복 사용이 켜져도 같은 쿠폰 정의의 두 번째 장은 
   props = { ...props, userCouponId: null, coupons: [held(first), held(second), held(other, 'WELCOME-1000')], couponPolicy: { revision: 1, stackingEnabled: true, maxGoodsCoupons: 2, shippingEnabled: false } };
   for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
   const select = (label: string) => all(render()).find(node => node.type === 'select' && node.props['aria-label'] === label)!;
-  (select('굿즈 쿠폰 1').props.onChange as (event: { target: { value: string } }) => void)({ target: { value: first } });
-  const options = all(select('굿즈 쿠폰 2').props.children as ReactNode).filter(node => node.type === 'option' && node.props.value);
+  (select('상품 쿠폰 1').props.onChange as (event: { target: { value: string } }) => void)({ target: { value: first } });
+  const options = all(select('상품 쿠폰 2').props.children as ReactNode).filter(node => node.type === 'option' && node.props.value);
   expect(Object.fromEntries(options.map(option => [option.props.value as string, Boolean(option.props.disabled)]))).toEqual({ [first]: true, [second]: true, [other]: false });
   expect(text(render())).toContain('같은 쿠폰을 여러 장 가지고 있어도 한 주문에는 1장만 씁니다.');
 });
@@ -194,7 +194,7 @@ it('주문이 거절되면 바뀐 내용을 다시 확인하도록 체크를 푼
   await submit();
   expect(acknowledgement()!.props.checked).toBe(false);
 });
-it('청약철회 제한 굿즈가 있으면 품목 줄 고지와 동의 문구가 달라진다', async () => {
+it('청약철회 제한 상품이 있으면 품목 줄 고지와 동의 문구가 달라진다', async () => {
   props = { ...props, claimRestrictions: { 'transaction-good': { goodId: 'transaction-good', returnAllowed: false, exchangeAllowed: false, reason: '각인 주문 제작 상품' } } };
   for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
   expect(text(render())).toContain('청약철회·교환 제한 — 각인 주문 제작 상품');

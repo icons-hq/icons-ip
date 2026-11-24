@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseGoodsRelationVisual, relationCoordinate, relationPointerCoordinate } from './good-relation-visual';
-const visual = { imagePath: 'public-media/catalog/curation/99000000-0000-4000-8000-000000000301.webp', alt: ' 책상 위의 굿즈 ', description: ' 함께 꾸민 공간 ', hotspots: [{ goodId: 'good-a', x: 0, y: 10000 }] };
+const visual = { imagePath: 'public-media/catalog/curation/99000000-0000-4000-8000-000000000301.webp', alt: ' 책상 위의 상품 ', description: ' 함께 꾸민 공간 ', hotspots: [{ goodId: 'good-a', x: 0, y: 10000 }] };
 describe('relation image coordinate contract', () => {
   it('preserves source-edge coordinates and normalizes human-readable descriptions', () => {
-    expect(parseGoodsRelationVisual(visual, ['good-a'])).toEqual({ ...visual, alt: '책상 위의 굿즈', description: '함께 꾸민 공간' });
+    expect(parseGoodsRelationVisual(visual, ['good-a'])).toEqual({ ...visual, alt: '책상 위의 상품', description: '함께 꾸민 공간' });
     expect(parseGoodsRelationVisual({ ...visual, hotspots: [] }, ['good-a'])).not.toBe(false);
     expect(parseGoodsRelationVisual(null, ['good-a'])).toBeNull();
   });

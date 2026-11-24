@@ -245,7 +245,7 @@ describe('ProductCard', () => {
      찜 하트는 넘긴 곳(위시)에서만 그리고, 다른 카드처럼 링크 밖에 둔다. */
   it('draws the adult masked card without the real image, badges or rating', () => {
     const html = renderToStaticMarkup(
-      <ProductCard {...card} badges={['NEW']} chips={[{ kind: 'random', label: '캡슐토이' }]} imageBackground="url(/generated/goods/g11.png)" masked name="19금 굿즈" reviewSummary={{ count: 3, average: 5 }} />,
+      <ProductCard {...card} badges={['NEW']} chips={[{ kind: 'random', label: '캡슐토이' }]} imageBackground="url(/generated/goods/g11.png)" masked name="19금 상품" reviewSummary={{ count: 3, average: 5 }} />,
     );
     expect(html).toContain('wc-product-card--masked');
     expect(html).toContain('>19</span>');
@@ -257,7 +257,7 @@ describe('ProductCard', () => {
     expect(html).not.toContain('wc-product-card__action');
 
     const withHeart = renderToStaticMarkup(
-      <ProductCard {...card} action={<button type="button">위시</button>} masked name="19금 굿즈" />,
+      <ProductCard {...card} action={<button type="button">위시</button>} masked name="19금 상품" />,
     );
     expect(withHeart).toContain('wc-product-card__action');
     for (const anchor of withHeart.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g)) expect(anchor[0]).not.toContain('<button');

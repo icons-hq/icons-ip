@@ -16,7 +16,7 @@ const url = (path: string) => `https://cdn.test/${path}`;
 function row(overrides: Partial<CollectionBannerRow> = {}): CollectionBannerRow {
   return {
     id: '97420000-0000-4000-8000-000000000001',
-    title: '가을 신상 굿즈',
+    title: '가을 신상 상품',
     image_path: PC,
     link_path: null,
     slot: 'all',
@@ -31,7 +31,7 @@ describe('parseCollectionBannerRow', () => {
     expect(parseCollectionBannerRow(row(), url)).toEqual({
       id: '97420000-0000-4000-8000-000000000001',
       slot: 'all',
-      title: '가을 신상 굿즈',
+      title: '가을 신상 상품',
       subtitle: null,
       imageUrl: `https://cdn.test/${PC}`,
       mobileImageUrl: null,
@@ -48,11 +48,11 @@ describe('parseCollectionBannerRow', () => {
       slot: 'best',
       link_path: '/shop/best',
       active_to: '2026-11-01T00:00:00.000Z',
-      payload: { subtitle: '지금 많이 찾는 굿즈', mobile_image_path: MO, image_alt: '리락쿠마 키링 세 종', image_dim: 'black', text_color: 'white' },
+      payload: { subtitle: '지금 많이 찾는 상품', mobile_image_path: MO, image_alt: '리락쿠마 키링 세 종', image_dim: 'black', text_color: 'white' },
     }), url);
 
     expect(banner).toMatchObject({
-      slot: 'best', href: '/shop/best', subtitle: '지금 많이 찾는 굿즈', mobileImageUrl: `https://cdn.test/${MO}`,
+      slot: 'best', href: '/shop/best', subtitle: '지금 많이 찾는 상품', mobileImageUrl: `https://cdn.test/${MO}`,
       imageAlt: '리락쿠마 키링 세 종', imageDim: 'black', textColor: 'white', endsAt: Date.parse('2026-11-01T00:00:00.000Z'),
     });
   });
@@ -103,7 +103,7 @@ describe('liveCollectionBanners', () => {
     expect(liveCollectionBanners(banners, 'new', now, OPEN)).toEqual([]);
   });
 
-  it(`굿즈샵 전체는 ${COLLECTION_BANNER_SLIDE_LIMIT}장, BEST·NEW는 운영 순서 첫 장 하나만 그린다(l8b-data-1)`, () => {
+  it(`쇼핑 전체는 ${COLLECTION_BANNER_SLIDE_LIMIT}장, BEST·NEW는 운영 순서 첫 장 하나만 그린다(l8b-data-1)`, () => {
     const all = Array.from({ length: 12 }, (_, index) => banner(`s${index}`, 'all'));
     const best = [banner('b1', 'best'), banner('b2', 'best')];
 

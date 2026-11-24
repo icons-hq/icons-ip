@@ -26,10 +26,10 @@ const tree: StorefrontCategoryNode[] = [
 ];
 
 describe('buildCategoryListingNav — 칩 영역', () => {
-  it('전체 목록(currentId null)은 맨 앞 전체 칩이 선택이고 제목은 전체 굿즈다', () => {
+  it('전체 목록(currentId null)은 맨 앞 전체 칩이 선택이고 제목은 전체 상품이다', () => {
     const nav = buildCategoryListingNav(tree, null);
 
-    expect(nav.title).toBe('전체 굿즈');
+    expect(nav.title).toBe('전체 상품');
     expect(nav.firstRow[0]).toEqual({ id: 'all', label: '전체', href: '/shop', selected: true });
     expect([...nav.firstRow, ...nav.secondRow].filter((chip) => chip.selected)).toHaveLength(1);
     expect(nav.tabs).toEqual([]);
@@ -53,7 +53,7 @@ describe('buildCategoryListingNav — 칩 영역', () => {
   });
 
   it('공개 트리가 비면 칩이 없고 전체 목록 제목만 남는다', () => {
-    expect(buildCategoryListingNav([], null)).toEqual({ firstRow: [], secondRow: [], title: '전체 굿즈', subtitle: null, tabs: [] });
+    expect(buildCategoryListingNav([], null)).toEqual({ firstRow: [], secondRow: [], title: '전체 상품', subtitle: null, tabs: [] });
     expect(buildCategoryListingNav([], id(1)).title).toBeNull();
   });
 

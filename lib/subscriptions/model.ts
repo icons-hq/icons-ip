@@ -105,7 +105,7 @@ export const SUBSCRIPTION_CYCLE_LABELS: Record<SubscriptionCycleState, string> =
 
 export const SUBSCRIPTION_REASON_LABELS: Record<SubscriptionPauseReason, string> = {
   customer_paused: '직접 일시정지했어요.', payment_failed: '카드 결제에 실패했어요. 카드를 확인한 뒤 다음 일정을 선택해 주세요.',
-  stock_unavailable: '재고가 부족해 결제하지 않았어요.', goods_unavailable: '현재 구매할 수 없는 굿즈가 있어요.',
+  stock_unavailable: '재고가 부족해 결제하지 않았어요.', goods_unavailable: '현재 구매할 수 없는 상품이 있어요.',
   schedule_missed: '예정된 결제일이 지나 새 일정 확인이 필요해요.', account_unavailable: '현재 계정에서 새 결제를 시작할 수 없어요.',
   card_unavailable: '사용할 수 있는 등록카드가 없어요.', delivery_unavailable: '배송 조건 확인이 필요해요.',
   terms_changed: '금액이나 배송 조건이 바뀌었어요.', payment_review: '이번 결제 결과를 확인하고 있어요.',

@@ -62,7 +62,7 @@ describe('buildOrderLines 영수증 줄 매칭', () => {
     expect(line).toMatchObject({ key: 'item-1', goodId: GOOD, name: '아크릴 스탠드', optionName: '파랑', qty: 2, purchaseAmount: 18000, regularAmount: 20000 });
   });
 
-  it('① 같은 굿즈의 다른 줄이 있어도 lineId가 맞는 줄을 쓴다', () => {
+  it('① 같은 상품의 다른 줄이 있어도 lineId가 맞는 줄을 쓴다', () => {
     const receipt = receiptWith([
       { lineId: 'other', goodId: GOOD, variantId: 'v-other', regularUnitPrice: 9000, unitPrice: 9000, volumeUnitDiscount: 0 },
       { lineId: transactionLineId, goodId: GOOD, variantId: VARIANT, regularUnitPrice: 12000, unitPrice: 11000, volumeUnitDiscount: 500 },
@@ -78,7 +78,7 @@ describe('buildOrderLines 영수증 줄 매칭', () => {
     expect(build({ items: [item({ lineId: undefined })], receipt })[0]).toMatchObject({ purchaseAmount: 21000, regularAmount: 24000 });
   });
 
-  it('③ 같은 굿즈의 줄이 모두 같은 단가면 그 값을 쓴다(랜덤 판매처럼 옵션 줄이 합쳐진 경우)', () => {
+  it('③ 같은 상품의 줄이 모두 같은 단가면 그 값을 쓴다(랜덤 판매처럼 옵션 줄이 합쳐진 경우)', () => {
     const same = { goodId: GOOD, regularUnitPrice: 12000, unitPrice: 11000, volumeUnitDiscount: 0 };
     const receipt = receiptWith([{ ...same, variantId: 'v-a' }, { ...same, variantId: 'v-b' }]);
     expect(build({ items: [item({ lineId: 'merged-id', variantId: 'v-cart-key' })], receipt })[0]).toMatchObject({ purchaseAmount: 22000, regularAmount: 24000 });
@@ -92,7 +92,7 @@ describe('buildOrderLines 영수증 줄 매칭', () => {
     expect(build({ items: [item({ lineId: 'merged-id', variantId: 'v-cart-key' })], receipt })[0]).toMatchObject({ purchaseAmount: 20000, regularAmount: null });
   });
 
-  it('④ 영수증에 없는 굿즈·영수증이 없는 주문(v1)은 주문 단가 × 수량이고 정가가 없다', () => {
+  it('④ 영수증에 없는 상품·영수증이 없는 주문(v1)은 주문 단가 × 수량이고 정가가 없다', () => {
     expect(build({ items: [item({ goodId: 'unknown', lineId: undefined })] })[0]).toMatchObject({ purchaseAmount: 20000, regularAmount: null });
     expect(build({ receipt: null })[0]).toMatchObject({ purchaseAmount: 20000, regularAmount: null });
   });
@@ -157,18 +157,18 @@ describe('buildOrderLines 배치 표시값(my_order_item_display)', () => {
 });
 
 describe('buildOrderLines 썸네일·IP명', () => {
-  it('굿즈 이미지 경로를 이미지 URL 배경으로 만들고 IP명을 붙인다', () => {
+  it('상품 이미지 경로를 이미지 URL 배경으로 만들고 IP명을 붙인다', () => {
     expect(build()[0]).toMatchObject({ ipName: '홍실', thumbnail: 'url("https://cdn.example/goods/a.webp") center / cover no-repeat', adultMasked: false });
   });
 
-  it('이미지 경로가 없으면 굿즈 배경값, 둘 다 없으면 null이다', () => {
+  it('이미지 경로가 없으면 상품 배경값, 둘 다 없으면 null이다', () => {
     expect(build({ goods: goods({ imagePath: null }) })[0].thumbnail).toBe('linear-gradient(#000, #fff)');
     expect(build({ goods: goods({ imagePath: null, bg: null }) })[0].thumbnail).toBeNull();
     /* 이미지 URL을 만들지 못해도 배경값으로 물러난다. */
     expect(build({ imageUrl: () => null })[0].thumbnail).toBe('linear-gradient(#000, #fff)');
   });
 
-  it('굿즈 행을 못 찾으면 IP명·썸네일 없이 줄은 남는다', () => {
+  it('상품 행을 못 찾으면 IP명·썸네일 없이 줄은 남는다', () => {
     const [line] = build({ goods: new Map(), ipTitles: new Map() });
     expect(line).toMatchObject({ name: '아크릴 스탠드', ipName: null, thumbnail: null, adultMasked: false });
   });
@@ -177,18 +177,18 @@ describe('buildOrderLines 썸네일·IP명', () => {
     expect(build({ ipTitles: new Map() })[0]).toMatchObject({ ipName: null, thumbnail: expect.stringContaining('goods/a.webp') });
   });
 
-  it('품목이 자기 이미지 경로(선물 스냅샷)를 가지면 굿즈 행 이미지보다 먼저 쓴다', () => {
+  it('품목이 자기 이미지 경로(선물 스냅샷)를 가지면 상품 행 이미지보다 먼저 쓴다', () => {
     expect(build({ items: [item({ imagePath: 'gift/own.webp' })] })[0].thumbnail).toContain('gift/own.webp');
   });
 });
 
-describe('buildOrderLines 19금 굿즈 가림', () => {
+describe('buildOrderLines 19금 상품 가림', () => {
   it.each(['hidden', 'masked'] as const)('성인 인증 전(%s)에는 이미지를 비우고 가림 표시를 켠다. 이름·가격은 그대로다', (adultAccess) => {
     const [line] = build({ goods: goods({ saleRestriction: 'adult' }), adultAccess });
     expect(line).toMatchObject({ adultMasked: true, thumbnail: null, name: '아크릴 스탠드', purchaseAmount: 18000 });
   });
 
-  it('인증을 마친 회원(full)에게는 일반 굿즈처럼 이미지가 보인다', () => {
+  it('인증을 마친 회원(full)에게는 일반 상품처럼 이미지가 보인다', () => {
     expect(build({ goods: goods({ saleRestriction: 'adult' }), adultAccess: 'full' })[0]).toMatchObject({ adultMasked: false, thumbnail: expect.stringContaining('goods/a.webp') });
   });
 
@@ -197,7 +197,7 @@ describe('buildOrderLines 19금 굿즈 가림', () => {
     expect(line.thumbnail).toBeNull();
   });
 
-  it('일반 굿즈는 접근 모드와 상관없이 가리지 않는다', () => {
+  it('일반 상품은 접근 모드와 상관없이 가리지 않는다', () => {
     expect(build({ adultAccess: 'hidden' })[0]).toMatchObject({ adultMasked: false, thumbnail: expect.stringContaining('goods/a.webp') });
   });
 });

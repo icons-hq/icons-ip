@@ -165,7 +165,7 @@ function skippedSummary(skipped: readonly RestoreOrderSkippedLine[]) {
 const COUPON_NOTICE_COPY: Record<ReorderCouponNotice, string> = {
   reselect: '이전 주문에 쓴 쿠폰은 다시 적용되지 않았어요. 장바구니에서 쿠폰을 다시 골라주세요.',
   reselect_checkout: '이전 주문에 쓴 쿠폰은 자동으로 다시 적용하지 않았어요. 주문서에서 사용할 쿠폰을 다시 골라주세요.',
-  conditions_unmet: '이전 주문에 쓴 쿠폰은 지금 담긴 굿즈로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요. 장바구니에서 굿즈와 쿠폰을 확인해주세요.',
+  conditions_unmet: '이전 주문에 쓴 쿠폰은 지금 담긴 상품으로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요. 장바구니에서 상품과 쿠폰을 확인해주세요.',
   unavailable: '이전 주문에 쓴 쿠폰은 만료·사용 완료·사용 중단 등으로 지금 쓸 수 없어 이번 주문에는 적용되지 않아요.',
 };
 
@@ -190,7 +190,7 @@ function ReapplyNotice({ reapply }: { reapply: ReorderBenefitsToReapply }) {
  * 취소가 즉시 끝나지 않고 취소 요청으로 접수됐을 때. 주문은 아직 취소되지 않았고 장바구니도
  * 그대로다. 끝나는 시점은 결제 결과에 달려 있어 약속하지 않는다.
  */
-export const REORDER_CANCEL_REQUESTED_NOTICE = '주문이 바로 취소되지 않고 취소 요청으로 접수돼, 굿즈를 장바구니에 다시 담지 않았어요. 진행 상태는 주문 상세에서 확인해주세요.';
+export const REORDER_CANCEL_REQUESTED_NOTICE = '주문이 바로 취소되지 않고 취소 요청으로 접수돼, 상품을 장바구니에 다시 담지 않았어요. 진행 상태는 주문 상세에서 확인해주세요.';
 
 /** 다시 담기 결과 안내. 주문서로 바로 넘기지 않는 모든 결과를 여기서 그린다. */
 export function ReorderOutcomeNotice({
@@ -204,7 +204,7 @@ export function ReorderOutcomeNotice({
   mode: CheckoutReorderMode;
   onRetry?: () => void;
 }) {
-  const label = mode === 'cancel_then_reorder' ? '이 주문 취소하고 다시 주문하기' : '같은 굿즈 다시 담기';
+  const label = mode === 'cancel_then_reorder' ? '이 주문 취소하고 다시 주문하기' : '같은 상품 다시 담기';
   const canceledPrefix = mode === 'cancel_then_reorder' ? '주문은 취소됐어요. ' : '';
   /* 쿠폰을 고르고 조건을 확인하는 곳은 장바구니다 — 장바구니에서 해결할 수 있는 쿠폰
      안내일 때만 장바구니를 먼저 권한다. 다시 고를 수 없는 쿠폰은 주문서를 먼저 권한다. */
@@ -238,15 +238,15 @@ export function ReorderOutcomeNotice({
     <div className="checkout-reorder" aria-live="polite">
       {outcome.kind === 'restored' ? (
         <>
-          <p role="status">{canceledPrefix}굿즈를 장바구니에 다시 담았어요.</p>
+          <p role="status">{canceledPrefix}상품을 장바구니에 다시 담았어요.</p>
           {outcome.reapply && <ReapplyNotice reapply={outcome.reapply} />}
           {benefitLinks(outcome.reapply)}
         </>
       ) : outcome.kind === 'partial' ? (
         <>
-          <p role="status">{canceledPrefix}일부 굿즈만 장바구니에 다시 담았어요. 담지 못한 굿즈: {skippedSummary(outcome.skipped)}</p>
+          <p role="status">{canceledPrefix}일부 상품만 장바구니에 다시 담았어요. 담지 못한 상품: {skippedSummary(outcome.skipped)}</p>
           {outcome.skipped.some(line => line.reason === 'custom_inputs_changed') && (
-            <p>직접입력형 옵션은 해당 굿즈에서 내용을 확인하고 다시 담아주세요. <Link href="/shop">굿즈샵 보기</Link></p>
+            <p>직접입력형 옵션은 해당 상품에서 내용을 확인하고 다시 담아주세요. <Link href="/shop">상품 둘러보기</Link></p>
           )}
           {outcome.reapply && <ReapplyNotice reapply={outcome.reapply} />}
           {benefitLinks(outcome.reapply)}
@@ -255,12 +255,12 @@ export function ReorderOutcomeNotice({
         <>
           <p role="alert">
             {canceledPrefix}
-            다시 담을 수 있는 굿즈가 없어요{outcome.skipped.length ? `: ${skippedSummary(outcome.skipped)}` : ''}.
+            다시 담을 수 있는 상품이 없어요{outcome.skipped.length ? `: ${skippedSummary(outcome.skipped)}` : ''}.
           </p>
           {outcome.skipped.some(line => line.reason === 'custom_inputs_changed') && (
-            <p>직접입력형 옵션은 해당 굿즈에서 내용을 확인하고 다시 담아주세요.</p>
+            <p>직접입력형 옵션은 해당 상품에서 내용을 확인하고 다시 담아주세요.</p>
           )}
-          <Link className="btn btn-holo" href="/shop">굿즈샵 둘러보기</Link>
+          <Link className="btn btn-holo" href="/shop">상품 둘러보기</Link>
         </>
       ) : outcome.kind === 'cancel_requested' ? (
         <>
@@ -278,9 +278,9 @@ export function ReorderOutcomeNotice({
         <>
           <p role="alert">
             {canceledPrefix}
-            굿즈를 장바구니에 다시 담지 못했어요. 굿즈샵에서 다시 담아주세요.
+            상품을 장바구니에 다시 담지 못했어요. 상품 상세에서 다시 담아주세요.
           </p>
-          <Link className="btn btn-holo" href="/shop">굿즈샵 둘러보기</Link>
+          <Link className="btn btn-holo" href="/shop">상품 둘러보기</Link>
         </>
       ) : (
         <>
@@ -323,7 +323,7 @@ export function ReorderAction({ orderId, mode, onCanceled, onRequested }: Reorde
     if (result.kind === 'cancel_requested' || result.kind === 'cancel_blocked') router.refresh();
   }
 
-  const label = mode === 'cancel_then_reorder' ? '이 주문 취소하고 다시 주문하기' : '같은 굿즈 다시 담기';
+  const label = mode === 'cancel_then_reorder' ? '이 주문 취소하고 다시 주문하기' : '같은 상품 다시 담기';
 
   /* 장바구니가 그대로 남은 주문(ADR-0026)은 다시 담지 않는다. 그 주문의 줄로 주문서 초안을 만들어 새로 결제한다 —
      초안 없는 /checkout은 장바구니 전체를 주문하므로 쓰지 않는다(ADR-0030). */

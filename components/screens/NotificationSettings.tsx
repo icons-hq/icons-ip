@@ -68,7 +68,7 @@ export function NotificationSettings({
         {preferences.length === 0 ? (
           <div className="wc-empty">
             <h2 className="wc-empty__title">아직 팔로우한 IP가 없어요</h2>
-            <p className="wc-empty__desc">좋아하는 IP를 팔로우하면 새 굿즈·드롭과 팝업·이벤트 알림을 설정할 수 있어요.</p>
+            <p className="wc-empty__desc">좋아하는 IP를 팔로우하면 새 상품·드롭과 팝업·이벤트 알림을 설정할 수 있어요.</p>
             <div className="wc-empty__action">
               <WcButton href="/ip">IP 둘러보기</WcButton>
             </div>
@@ -84,11 +84,11 @@ export function NotificationSettings({
                 <div className="wc-notif__pref-controls">
                   <label className="wc-notif__switch">
                     <span>
-                      <strong>새 굿즈·드롭</strong>
-                      <small>새 굿즈가 공개되면 알려드려요.</small>
+                      <strong>새 상품·드롭</strong>
+                      <small>새 상품이 공개되면 알려드려요.</small>
                     </span>
                     <input
-                      aria-label={`${preference.title} 새 굿즈·드롭 알림`}
+                      aria-label={`${preference.title} 새 상품·드롭 알림`}
                       defaultChecked={preference.notifyDrops}
                       name="notifyDrops"
                       role="switch"

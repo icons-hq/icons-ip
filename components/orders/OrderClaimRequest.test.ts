@@ -157,9 +157,9 @@ describe('claimStageNotice', () => {
   /* S36-040·QNA-031: 승인 뒤 회수 주소는 배송 묶음별이다. 회수 없이 다시 보낸 소포(ADR-0041)가 있으면 그 굿즈는 반송하지 않아도 된다. */
   it('수거 중 안내는 배송 묶음별 회수 주소를 가리키고 회수 생략 소포를 함께 말한다', () => {
     const plain = claimStageNotice(claim({ claimType: 'exchange', stage: 'collecting' }));
-    expect(plain).toBe('요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.');
+    expect(plain).toBe('요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 상품을 반송해주세요.');
     expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'collecting' }), null, { collectionWaived: true }))
-      .toBe(`${plain} 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.`);
+      .toBe(`${plain} 회수 없이 다시 보내드린 소포의 상품은 반송하지 않아도 됩니다.`);
     /* 다른 단계는 회수 생략과 무관하다. */
     expect(claimStageNotice(claim({ stage: 'collected' }), null, { collectionWaived: true })).toBe(claimStageNotice(claim({ stage: 'collected' })));
   });
@@ -210,9 +210,9 @@ it('회수 접수·회수 생략·반품배송비 정책·부분 취소를 함�
     claim: claim({ claimType: 'exchange', stage: 'collecting', status: 'processing' }), collectionWaived: true,
     returnPickup: { pickupBundles: 1, directBundles: 1 }, returnFeePolicy: { enabled: true, oneWayAmount: 3000 }, partiallyCanceled: true,
     eligibility: { cancel: false, return: true, exchange: true }, orderId: ORDER_ID, status: 'delivered' }));
-  expect(html).toContain('택배 기사가 방문해 굿즈를 회수합니다.');
+  expect(html).toContain('택배 기사가 방문해 상품을 회수합니다.');
   expect(html).toContain('회수 송장이 없는 묶음은 회수 정보의 회수 주소로 보내주세요.');
-  expect(html).toContain('회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.');
+  expect(html).toContain('회수 없이 다시 보내드린 소포의 상품은 반송하지 않아도 됩니다.');
 });
 
 describe('부분 반품 안내(ADR-0047, 적대적 리뷰 2026-11-19)', () => {
@@ -221,7 +221,7 @@ describe('부분 반품 안내(ADR-0047, 적대적 리뷰 2026-11-19)', () => {
     expect(claimStageNotice(review, null, { partialReturn: true })).toContain('계좌로 송금해 드리며');
     expect(claimStageNotice(review, null, { partialReturn: true })).not.toContain('결제 취소 결과');
     expect(claimStageNotice(review)).toContain('결제 취소 결과를 안전하게 확인하고 있습니다');
-    expect(claimStageNotice(claim({ claimType: 'return', stage: 'processing' }), null, { partialReturn: true })).toContain('반품하신 굿즈의 환급 절차');
+    expect(claimStageNotice(claim({ claimType: 'return', stage: 'processing' }), null, { partialReturn: true })).toContain('반품하신 상품의 환급 절차');
   });
 });
 

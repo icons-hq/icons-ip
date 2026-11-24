@@ -74,7 +74,7 @@ describe('주문 접수 알림톡', () => {
     expect(send.send).toHaveBeenCalledWith({
       templateCode: 'XSQ_ORDER_PAID',
       recipientNo: '01012345678',
-      templateParameter: { 주문번호: '2026111910000001', 굿즈명: '메이플스토리 아크릴 키링 외 1건', 결제금액: '32,000', 주문ID: ORDER_ID },
+      templateParameter: { 주문번호: '2026111910000001', 상품명: '메이플스토리 아크릴 키링 외 1건', 결제금액: '32,000', 주문ID: ORDER_ID },
       idempotencyKey: CLAIM.claimToken,
     });
     expect(repo.complete).toHaveBeenCalledWith(CLAIM, { status: 'sent', requestId: 'req-1' });
@@ -137,7 +137,7 @@ describe('주문 접수 알림톡', () => {
 });
 
 describe('발송 시작 알림톡', () => {
-  it('배송 건의 굿즈·택배사·송장번호로 보내고 배송 건 단위로 클레임한다', async () => {
+  it('배송 건의 상품·택배사·송장번호로 보내고 배송 건 단위로 클레임한다', async () => {
     const repo = repository({
       loadOrder: vi.fn(async () => order({ status: 'shipping' })),
       loadShipments: vi.fn(async () => [shipment({ id: OTHER_SHIPMENT_ID, orderItemIds: ['i1'] }), shipment({ orderItemIds: ['i3'] })]),
@@ -148,7 +148,7 @@ describe('발송 시작 알림톡', () => {
     expect(repo.claim).toHaveBeenCalledWith('order_shipped', ORDER_ID, SHIPMENT_ID);
     expect(send.send).toHaveBeenCalledWith(expect.objectContaining({
       templateCode: 'XSQ_ORDER_SHIPPED',
-      templateParameter: { 주문번호: '2026111910000001', 굿즈명: '랜덤 포토카드', 택배사: '한진택배', 송장번호: '512345678901', 주문ID: ORDER_ID },
+      templateParameter: { 주문번호: '2026111910000001', 상품명: '랜덤 포토카드', 택배사: '한진택배', 송장번호: '512345678901', 주문ID: ORDER_ID },
     }));
   });
 
@@ -190,7 +190,7 @@ describe('발송 시작 알림톡', () => {
 });
 
 describe('visibleItemNames', () => {
-  it('옵션 이름 없이 굿즈 이름만, 랜덤 배정 행은 굿즈마다 한 줄로 합친다', () => {
+  it('옵션 이름 없이 상품 이름만, 랜덤 배정 행은 상품마다 한 줄로 합친다', () => {
     expect(visibleItemNames(order().items)).toEqual(['메이플스토리 아크릴 키링', '랜덤 포토카드']);
     expect(visibleItemNames([
       { id: 'a', goodId: 'g', name: '키링', random: false },

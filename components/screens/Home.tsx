@@ -126,8 +126,8 @@ function TabProductBand({
     .map((tab) => ({
       id: tab.id,
       label: tab.label,
-      content: tab.goods.length === 0 ? <p className="wc-home__tab-empty">해당 기간에 집계된 굿즈가 없어요.</p> : (
-        <Slider label={`${tab.label} 굿즈`}>
+      content: tab.goods.length === 0 ? <p className="wc-home__tab-empty">해당 기간에 집계된 상품이 없어요.</p> : (
+        <Slider label={`${tab.label} 상품`}>
           {paginate(tab.goods, TAB_PAGE_SIZE).map((page) => (
             <div className="wc-tab-band__page" key={page[0].id}>
               {page.map((good) => <HomeProductCard good={good} heartFor={heartFor} key={good.id} />)}
@@ -155,7 +155,7 @@ function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heart
   return <section aria-labelledby={`home-reviews-${band.id}-heading`} className="wc-home__band">
     <div className="wc-container wc-container--wide">
       <SectionHeading id={`home-reviews-${band.id}-heading`} title={band.title} />
-      <Slider label={`${band.title} 굿즈`}>
+      <Slider label={`${band.title} 상품`}>
         {paginate(band.goods, HOME_REVIEW_GOODS_MIN).map((page) => <div className="wc-home-review__page" key={page[0].id}>
           {page.map((good) => {
             /* 보이는 숫자는 카드 별점과 같은 그룹 범위이고, 선정(3점 이상)·정렬도 같은 값이다(L4b, lib/home-ranking). */
@@ -301,13 +301,13 @@ export function Home({ curation: rawCuration, refreshScheduledContent = true, an
       {refreshScheduledContent && announcementPopup ? <HomeAnnouncementPopup data={announcementPopup} /> : null}
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={goods} /> : null}
       <h1 className="wc-sr-only">엑스스퀘어 홈</h1>
-      {common.showHomeSearch ? <section className="wc-home-store-search" aria-labelledby="home-store-search-heading"><div className="wc-container"><h2 id="home-store-search-heading">스토어 내 굿즈 검색</h2><form action="/search" role="search"><label className="wc-sr-only" htmlFor="home-store-search-query">굿즈 검색어</label><input id="home-store-search-query" name="q" type="search" placeholder="찾는 굿즈를 입력하세요" maxLength={80} required /><button type="submit">검색</button></form></div></section> : null}
+      {common.showHomeSearch ? <section className="wc-home-store-search" aria-labelledby="home-store-search-heading"><div className="wc-container"><h2 id="home-store-search-heading">스토어 내 상품 검색</h2><form action="/search" role="search"><label className="wc-sr-only" htmlFor="home-store-search-query">상품 검색어</label><input id="home-store-search-query" name="q" type="search" placeholder="찾는 상품을 입력하세요" maxLength={80} required /><button type="submit">검색</button></form></div></section> : null}
       {refreshScheduledContent && curation.storiesNextChangeAt && order.includes('stories')
         ? <ScheduledHomeRefresh at={curation.storiesNextChangeAt} /> : null}
       {visible.length === 0 ? (
         <div className="wc-home__empty">
-          <EmptyState action={<Link className="wc-btn primary" href="/shop">굿즈샵 둘러보기</Link>}
-            description="곧 새로운 소식과 굿즈를 만나볼 수 있어요." title="홈을 준비하고 있어요" titleAs="h2" />
+          <EmptyState action={<Link className="wc-btn primary" href="/shop">상품 둘러보기</Link>}
+            description="곧 새로운 소식과 상품을 만나볼 수 있어요." title="홈을 준비하고 있어요" titleAs="h2" />
         </div>
       ) : sections}
     </main>

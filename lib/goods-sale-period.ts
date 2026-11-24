@@ -60,10 +60,10 @@ export function goodsSalePeriodOrderNotice(
     else if (period.state === 'scheduled') scheduled.add(good.name);
   }
   if (ended.size) {
-    return `판매기간이 끝난 굿즈가 있어요: ${[...ended].join(', ')}. ${scope === 'direct' ? '이 굿즈는 지금 주문할 수 없어요.' : '장바구니에서 이 굿즈를 빼고 다시 주문해주세요.'}`;
+    return `판매기간이 끝난 상품이 있어요: ${[...ended].join(', ')}. ${scope === 'direct' ? '이 상품은 지금 주문할 수 없어요.' : '장바구니에서 이 상품을 빼고 다시 주문해주세요.'}`;
   }
   if (scheduled.size) {
-    return `아직 판매를 시작하지 않은 굿즈가 있어요: ${[...scheduled].join(', ')}. ${scope === 'direct' ? '판매가 시작된 뒤 주문해주세요.' : '장바구니에서 이 굿즈를 빼고 다시 주문해주세요.'}`;
+    return `아직 판매를 시작하지 않은 상품이 있어요: ${[...scheduled].join(', ')}. ${scope === 'direct' ? '판매가 시작된 뒤 주문해주세요.' : '장바구니에서 이 상품을 빼고 다시 주문해주세요.'}`;
   }
   return null;
 }

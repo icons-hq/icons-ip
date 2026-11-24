@@ -21,14 +21,14 @@ beforeEach(() => {
 });
 
 describe('readListingReviewSummaries', () => {
-  it('형식 밖 ID 를 뺀 한 번의 묶음으로 L4 RPC 를 부르고 요약을 굿즈별로 돌려준다', async () => {
+  it('형식 밖 ID 를 뺀 한 번의 묶음으로 L4 RPC 를 부르고 요약을 상품별로 돌려준다', async () => {
     const summaries = await readListingReviewSummaries({ rpc: mocks.rpc }, ['g1', 'g2', 'g1', 'bad id', '']);
 
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('get_goods_review_summaries', { p_good_ids: ['g1', 'g2'] });
     expect(summaries).toEqual({ g1: { count: 3, average: 4.33 }, g2: { count: 1, average: 5 } });
   });
 
-  it('물을 굿즈가 없으면 부르지 않는다', async () => {
+  it('물을 상품이 없으면 부르지 않는다', async () => {
     expect(await readListingReviewSummaries({ rpc: mocks.rpc }, [])).toEqual({});
     expect(await readListingReviewSummaries({ rpc: mocks.rpc }, ['bad id'])).toEqual({});
     expect(mocks.rpc).not.toHaveBeenCalled();

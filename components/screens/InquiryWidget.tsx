@@ -31,7 +31,7 @@ interface WidgetData { userId: string; inquiries?: InquiryListItem[]; inquiry?: 
  * 공개 FAQ가 하나도 없을 때만 쓴다. 내 주문 배송 조회 바로가기는 로그인 고객에게만 열고, 비로그인은 로그인 안내다.
  */
 const WIDGET_TOPIC_DEFAULT_ANSWERS: Record<FaqWidgetTopic, string> = {
-  delivery: '주문한 굿즈의 배송 상태는 내 주문에서 확인할 수 있습니다.',
+  delivery: '주문한 상품의 배송 상태는 내 주문에서 확인할 수 있습니다.',
   cancel: '주문 취소는 내 주문의 주문 상세에서 요청할 수 있습니다.',
   return: '교환·반품은 내 주문의 주문 상세에서 요청할 수 있습니다.',
 };

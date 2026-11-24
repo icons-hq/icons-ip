@@ -62,7 +62,7 @@ function rpcErrorMessage(
     return { form: '배송이 완료된 주문에만 리뷰를 남길 수 있습니다.' };
   }
   if (value.includes('review_good_not_in_order')) {
-    return { form: '이 주문에 포함되지 않은 굿즈입니다.' };
+    return { form: '이 주문에 포함되지 않은 상품입니다.' };
   }
   if (value.includes('review_order_not_found')) {
     return { form: '주문을 찾을 수 없습니다.' };
@@ -73,7 +73,7 @@ function rpcErrorMessage(
     return { form: '작성 기한이 지났습니다. 리뷰는 배송완료 후 90일까지 남기거나 고칠 수 있습니다.' };
   }
   if (value.includes('review_already_exists')) {
-    return { form: '이미 이 주문의 굿즈에 리뷰를 남겼습니다. 기존 리뷰를 수정해주세요.' };
+    return { form: '이미 이 주문의 상품에 리뷰를 남겼습니다. 기존 리뷰를 수정해주세요.' };
   }
   if (value.includes('review_hidden')) {
     return { form: '운영 정책에 따라 비공개 처리된 리뷰는 수정할 수 없습니다. 삭제는 언제든 가능합니다.' };

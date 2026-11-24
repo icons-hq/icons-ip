@@ -508,7 +508,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
       ...overrides,
     });
 
-    it('굿즈 주문의 계좌이체 DONE은 취소하지 않고 결제수단을 증거로 approved다', async () => {
+    it('상품 주문의 계좌이체 DONE은 취소하지 않고 결제수단을 증거로 approved다', async () => {
       const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse(200, transferPayment()));
       const tossGateway = gateway(fetchImpl);
 

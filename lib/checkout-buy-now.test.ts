@@ -7,7 +7,7 @@ const field = '00000000-0000-4000-8000-0000000000f1';
 const customInputs = { revision: 1, fields: [{ id: field, name: '각인', value: 'ICONS' }] };
 
 describe('바로구매 줄(ADR-0030)', () => {
-  it('본품이 있는 줄만 받고, 같은 굿즈·옵션·직접입력값이 두 번 오면 받지 않는다', () => {
+  it('본품이 있는 줄만 받고, 같은 상품·옵션·직접입력값이 두 번 오면 받지 않는다', () => {
     expect(parseDirectCheckoutEntries('g2', [{ goodId: 'g2', variantId: VARIANT.toUpperCase(), qty: 2, customInputs }, { goodId: 'g3', variantId: ADDON, qty: 1 }]))
       .toEqual([{ goodId: 'g2', variantId: VARIANT, qty: 2, customInputs }, { goodId: 'g3', variantId: ADDON, qty: 1 }]);
     expect(parseDirectCheckoutEntries('g2', [{ goodId: 'g3', variantId: ADDON, qty: 1 }])).toBeNull();
@@ -20,12 +20,12 @@ describe('바로구매 줄(ADR-0030)', () => {
     }
   });
 
-  it('DB 초안 줄은 굿즈·옵션·수량·직접입력 개정·값이다', () => {
+  it('DB 초안 줄은 상품·옵션·수량·직접입력 개정·값이다', () => {
     expect(directCheckoutLinePayload({ goodId: 'g2', variantId: VARIANT, qty: 2, customInputs }))
       .toEqual({ good_id: 'g2', variant_id: VARIANT, qty: 2, input_revision: 1, input_values: { [field]: 'ICONS' } });
   });
 
-  it('로그인 뒤 돌아올 주소는 굿즈 상세와 고른 옵션뿐이다 — 직접입력값을 싣지 않는다', () => {
+  it('로그인 뒤 돌아올 주소는 상품 상세와 고른 옵션뿐이다 — 직접입력값을 싣지 않는다', () => {
     expect(buyNowReturnPath('g2', VARIANT)).toBe(`/shop/g2?variant=${VARIANT}`);
     expect(buyNowReturnPath('g2', null)).toBe('/shop/g2');
   });
@@ -45,7 +45,7 @@ describe('로그인 전 [구매하기]의 이어서 진행', () => {
   const pending = { goodId: 'g2', entries: [{ goodId: 'g2', variantId: VARIANT, qty: 2, customInputs }],
     selection: { variantId: VARIANT, quantity: 2, additions: [], customInputValues: { g2: { [field]: 'ICONS' } } } };
 
-  it('같은 굿즈 상세에서 한 번만 꺼내고, 꺼내면 지운다', () => {
+  it('같은 상품 상세에서 한 번만 꺼내고, 꺼내면 지운다', () => {
     savePendingBuyNow(pending, 1_000);
     expect(takePendingBuyNow('g3', 2_000)).toBeNull();
     /* 다른 굿즈 상세가 꺼내도 지워진다 — 다른 상세에서 엉뚱하게 이어지지 않는다. */

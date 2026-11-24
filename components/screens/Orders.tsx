@@ -81,7 +81,7 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
       tone: 'failed',
       title: focus.outcome === 'attempt_expired' ? '결제 가능 시간이 지났어요' : '결제가 완료되지 않았어요',
       body: focus.outcome === 'canceled'
-        ? '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 이 주문의 굿즈 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.'
+        ? '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 이 주문의 상품 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.'
         : '결제가 진행되지 않았어요. 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.',
       link: { href: `/checkout/${focus.orderId}?retry=1`, label: '다시 결제하기' },
     };
@@ -91,7 +91,7 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
     return {
       tone: 'failed',
       title: focus.outcome === 'attempt_expired' ? '결제 가능 시간이 지났어요' : '결제가 완료되지 않았어요',
-      body: '결제가 진행되지 않았어요. 청구된 금액은 없고 장바구니는 바뀌지 않았어요. 같은 굿즈·옵션으로 다시 구매할 수 있어요.',
+      body: '결제가 진행되지 않았어요. 청구된 금액은 없고 장바구니는 바뀌지 않았어요. 같은 상품·옵션으로 다시 구매할 수 있어요.',
       link: checkoutLink('다시 구매하기'),
     };
   }
@@ -123,7 +123,7 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
       return {
         tone: 'failed',
         title: '결제가 승인되지 않았어요',
-        body: '이 주문으로는 다시 결제할 수 없어요. 주문 결제 화면에서 이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요.',
+        body: '이 주문으로는 다시 결제할 수 없어요. 주문 결제 화면에서 이 주문을 취소하고 같은 상품으로 다시 주문할 수 있어요.',
         link: checkoutLink('주문 정리하고 다시 주문하기'),
       };
     case 'attempt_expired':
@@ -133,7 +133,7 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
       return {
         tone: 'failed',
         title: '결제 가능 시간이 지났어요',
-        body: '결제 준비 후 유효 시간이 지나 결제가 진행되지 않았어요. 청구된 금액은 없어요. 이 주문으로는 다시 결제할 수 없어요. 주문 결제 화면에서 이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요.',
+        body: '결제 준비 후 유효 시간이 지나 결제가 진행되지 않았어요. 청구된 금액은 없어요. 이 주문으로는 다시 결제할 수 없어요. 주문 결제 화면에서 이 주문을 취소하고 같은 상품으로 다시 주문할 수 있어요.',
         link: checkoutLink('주문 정리하고 다시 주문하기'),
       };
     case 'retryable':
@@ -173,8 +173,8 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
       return {
         tone: 'failed',
         title: '주문이 취소됐어요',
-        body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.',
-        link: checkoutLink('같은 굿즈 다시 담기'),
+        body: '이 주문은 취소됐어요. 같은 상품을 다시 담아 새로 주문할 수 있어요.',
+        link: checkoutLink('같은 상품 다시 담기'),
       };
   }
 }
@@ -187,10 +187,10 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
 const ORDER_FLOW_STEPS: readonly { status: VisibleOrderStatus; body: string; note: string | null }[] = [
   { status: 'paid', body: '결제가 확인되면 주문이 접수돼요.', note: '발주확인 전에는 주문 상세에서 직접 취소할 수 있어요.' },
   { status: 'confirmed', body: '판매자가 주문을 확인하고 발송을 준비해요.', note: '발주확인 뒤 취소는 이 주문의 1:1 문의로 요청해주세요.' },
-  { status: 'shipping', body: '굿즈가 출고돼 배송지로 이동하고 있어요.', note: '배송 중부터 주문 전체로 반품·교환을 신청할 수 있어요.' },
+  { status: 'shipping', body: '상품이 출고돼 배송지로 이동하고 있어요.', note: '배송 중부터 주문 전체로 반품·교환을 신청할 수 있어요.' },
   {
     status: 'delivered',
-    body: '굿즈를 받았어요. 리뷰를 남길 수 있어요.',
+    body: '상품을 받았어요. 리뷰를 남길 수 있어요.',
     note: `단순 변심은 ${ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind}, 하자·오배송은 ${ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 안에 신청해주세요.`,
   },
   { status: 'done', body: '구매를 확정하면 거래가 마무리돼요.', note: null },
@@ -294,7 +294,7 @@ export function Orders({
             <div className="orders-empty card">
               <div className="orders-empty-icon" aria-hidden><Icon name="bag" size={30} /></div>
               <h2>아직 주문 내역이 없어요</h2>
-              <p>첫 굿즈를 만나보세요.</p>
+              <p>첫 상품을 만나보세요.</p>
               <ListingReturnLink className="btn btn-holo" />
             </div>
           ) : (
@@ -335,7 +335,7 @@ export function Orders({
                         /* 품목 줄을 읽지 못한 예외 경로 — 주문 스냅샷 요약으로 대신한다. */
                         <p className="wc-order-card__summary">
                           {order.itemLabel}
-                          <span>{order.itemCount}개 굿즈</span>
+                          <span>{order.itemCount}개 상품</span>
                         </p>
                       )}
                       <div className="wc-order-card__foot">

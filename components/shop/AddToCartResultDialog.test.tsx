@@ -8,7 +8,7 @@ const items = [
 ];
 
 describe('AddToCartResultDialog', () => {
-  it('담은 굿즈 요약과 계속 쇼핑·장바구니 보기를 모달 다이얼로그로 그린다', () => {
+  it('담은 상품 요약과 계속 쇼핑·장바구니 보기를 모달 다이얼로그로 그린다', () => {
     const html = renderToStaticMarkup(<AddToCartResultDialog items={items} onClose={vi.fn()} open />);
 
     expect(html).toContain('role="dialog"');

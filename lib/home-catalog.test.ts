@@ -456,11 +456,11 @@ describe('커뮤니티 목적지 큐레이션 필터', () => {
     expect(isCommunityDestination('%')).toBe(true);
   });
 
-  it('히어로·에디터픽·굿즈밴드에서 커뮤니티 목적지만 걷어낸다', () => {
+  it('히어로·에디터픽·상품밴드에서 커뮤니티 목적지만 걷어낸다', () => {
     const curation = {
       heroSlides: [
         { id: 'h1', title: '커뮤니티', subtitle: null, imageUrl: 'a', mobileImageUrl: null, href: '/community' },
-        { id: 'h2', title: '굿즈샵', subtitle: null, imageUrl: 'b', mobileImageUrl: null, href: '/shop' },
+        { id: 'h2', title: '쇼핑', subtitle: null, imageUrl: 'b', mobileImageUrl: null, href: '/shop' },
       ],
       editorPicks: [
         { id: 'p1', title: '팬덤', imageUrl: 'c', href: '/community?tag=notice' },
@@ -510,7 +510,7 @@ describe('홈 스트립 배너 게이트', () => {
 describe('isSafeInternalLink', () => {
   it('keeps ordinary in-site links, including queries, hashes and dotted file names', () => {
     for (const link of ['/', '/shop', '/shop/new', '/shop?ip=maple&type=%ED%82%A4%EB%A7%81', '/events/e1#top', '/ip/maple-story',
-      '/legal/terms.html', '/a/.hidden', '/a/..foo', '/shop?next=/../x', '/search?q=귀여운 굿즈', '/shop/%EA%B5%BF%EC%A6%88']) {
+      '/legal/terms.html', '/a/.hidden', '/a/..foo', '/shop?next=/../x', '/search?q=귀여운 상품', '/shop/%EA%B5%BF%EC%A6%88']) {
       expect(isSafeInternalLink(link), link).toBe(true);
     }
   });

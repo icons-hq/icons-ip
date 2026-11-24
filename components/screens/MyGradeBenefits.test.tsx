@@ -85,7 +85,7 @@ describe('MyGradeBenefits', () => {
     const html = render();
 
     expect(html).toContain('<table class="wc-grade-benefits__table"');
-    expect(html).toContain('최근 90일 결제 금액 ₩150,000 이상 또는 굿즈 주문 항목 3건 이상');
+    expect(html).toContain('최근 90일 결제 금액 ₩150,000 이상 또는 상품 주문 항목 3건 이상');
     expect(html).toContain('최근 90일 결제 금액 ₩500,000 이상');
     expect(html).toContain('가입하면 바로');
     expect(html).toContain('내 등급 · GOLD까지 300,000원');
@@ -113,7 +113,7 @@ describe('MyGradeBenefits', () => {
     const html = render();
 
     expect(html).toContain('<strong>실버 승급 쿠폰</strong> · ₩3,000 할인');
-    expect(html).toContain('<strong>굿즈 할인 쿠폰 1장</strong>');
+    expect(html).toContain('<strong>상품 할인 쿠폰 1장</strong>');
     expect(html).toContain('<strong>배송비 할인 쿠폰 1장</strong>');
     expect(html).toContain('쿠폰 내용은 이 등급에 오르면 쿠폰함에서 확인할 수 있어요');
     expect(html).not.toContain('골드 승급 쿠폰');
@@ -193,6 +193,6 @@ describe('MyGradeBenefits', () => {
     expect(html).toContain('등급 혜택 쿠폰 확인');
     expect(html).toContain('등급 산정 기준');
     expect(html).toContain('쿠폰마다 한 번만 지급');
-    for (const banned of ['멤버십', 'VIP', '티어', '상품', '가챠', '뽑기', '충전']) expect(html).not.toContain(banned);
+    for (const banned of ['멤버십', 'VIP', '티어', '가챠', '뽑기', '충전']) expect(html).not.toContain(banned);
   });
 });

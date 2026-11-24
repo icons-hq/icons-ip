@@ -17,7 +17,7 @@ const filled: GoodsNoticeInfo = {
   asContact: '02-000-0000',
 };
 
-describe('굿즈 고시정보', () => {
+describe('상품 고시정보', () => {
   it('폼 이름과 라벨을 한 곳에서 정의한다', () => {
     expect(GOODS_NOTICE_FIELDS.map((field) => field.key)).toEqual([
       'maker',

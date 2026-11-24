@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 describe('pendingRestockState (PD-11)', () => {
-  it('나누어 센다 — "모든 옵션" 신청은 굿즈 단위 표식, 옵션 신청은 옵션 id', () => {
+  it('나누어 센다 — "모든 옵션" 신청은 상품 단위 표식, 옵션 신청은 옵션 id', () => {
     expect(pendingRestockState([
       { variant_id: null, status: 'pending' },
       { variant_id: B, status: 'pending' },
@@ -62,7 +62,7 @@ describe('pendingRestockState (PD-11)', () => {
 
 describe('getGoodEngagement', () => {
   /* 예전에는 .eq(good_id).maybeSingle() 이라 신청이 두 행부터 오류가 나 신청 상태가 false 로 접혔다. */
-  it('한 굿즈의 여러 신청 행을 모두 읽어 옵션별 상태를 낸다', async () => {
+  it('한 상품의 여러 신청 행을 모두 읽어 옵션별 상태를 낸다', async () => {
     mocks.restock = { data: [{ variant_id: null, status: 'pending' }, { variant_id: B, status: 'pending' }, { variant_id: C, status: 'pending' }], error: null };
 
     await expect(getGoodEngagement(' g11 ')).resolves.toEqual({ wished: true, restockRequested: true, restockVariantIds: [B, C] });

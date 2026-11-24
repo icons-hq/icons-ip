@@ -16,7 +16,7 @@ describe('공용 링크 검증을 쓰는 링크 칸은 점 조각 경로를 거�
 
   it('컬렉션 배너 링크(행을 그리지 않는다)', () => {
     const row = (link_path: string): CollectionBannerRow => ({
-      id: '97420000-0000-4000-8000-000000000001', title: '가을 신상 굿즈',
+      id: '97420000-0000-4000-8000-000000000001', title: '가을 신상 상품',
       image_path: 'public-media/catalog/curation/97410000-0000-4000-8000-000000000001.webp', link_path, slot: 'all', active_to: null, payload: null,
     });
     const url = (path: string) => `https://cdn.test/${path}`;

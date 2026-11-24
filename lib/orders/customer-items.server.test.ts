@@ -60,7 +60,7 @@ describe('mergeRandomOrderItemRows', () => {
   const row = (id: string, goodId: string, qty: number, mode: 'select' | 'random', extra: Record<string, unknown> = {}) =>
     ({ id, order_id: 'order-1', good_id: goodId, qty, unit_price: 5000, option_sale_mode: mode, ...extra });
 
-  it('같은 주문·굿즈의 랜덤 배정 행을 첫 행 하나로 합쳐 나뉜 개수를 보이지 않는다', () => {
+  it('같은 주문·상품의 랜덤 배정 행을 첫 행 하나로 합쳐 나뉜 개수를 보이지 않는다', () => {
     expect(mergeRandomOrderItemRows([
       row('a1', 'random-good', 2, 'random'), row('a2', 'plain', 1, 'select'), row('a3', 'random-good', 1, 'random'),
       row('a4', 'plain', 3, 'select'),

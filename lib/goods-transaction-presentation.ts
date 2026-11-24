@@ -9,7 +9,7 @@ export function goodsVolumeConditionLabel(offer: GoodsTransactionOffer): string 
   if (!terms) return null;
   const condition = terms.condition === 'quantity' ? `${terms.threshold.toLocaleString('ko-KR')}개 이상` : `옵션 정상가 합계 ${krw(terms.threshold)} 이상`;
   const discount = terms.discountKind === 'fixed' ? krw(terms.discountValue) : `${terms.discountValue}%`;
-  return `${offer.aggregation ? '같은 굿즈에서 나뉜 항목 합산' : '같은 굿즈'} ${condition} 구매 시 개당 ${discount} 할인`;
+  return `${offer.aggregation ? '같은 상품에서 나뉜 항목 합산' : '같은 상품'} ${condition} 구매 시 개당 ${discount} 할인`;
 }
 export function goodsQuantityDeliveryLabel(terms: GoodsDeliveryQuantityTerms): string {
   if (terms.kind === 'repeat') return `${terms.interval.toLocaleString('ko-KR')}개마다 ${krw(terms.baseFee)}`;

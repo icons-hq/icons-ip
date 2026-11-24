@@ -185,7 +185,7 @@ export const PREORDER_SCHEDULE_SMS_REASON_LABELS: Record<string, string> = {
   lease_expired: '발송 결과를 확인하지 못했습니다. 중복을 막기 위해 다시 보내지 않습니다.',
 };
 
-/** 고객 안내 기본 문구. 선물 받는 분에게도 같은 글이 가므로 '주문하신'처럼 주문자만 가리키는 말을 쓰지 않는다. 고객에게 가는 글이라 굿즈명을 그대로 쓰고 '상품'이라는 운영 어휘를 넣지 않는다. */
+/** 고객 안내 기본 문구. 선물 받는 분에게도 같은 글이 가므로 '주문하신'처럼 주문자만 가리키는 말을 쓰지 않는다. 고객에게 가는 글이라 상품 이름을 그대로 쓴다. */
 export function defaultPreorderScheduleCopy(goodName: string): { title: string; body: string } {
   const name = goodName.trim();
   return {

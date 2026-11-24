@@ -54,7 +54,7 @@ function v2Order(display: GoodsTransactionDisplay = transactionDisplay, override
     shippingFee: display.totals.prepaidShippingTotal,
     discountTotal: display.totals.couponDiscountTotal,
     storeCreditTotal: display.totals.storeCreditTotal,
-    items: [{ id: transactionLineId, variantId: display.lines[0].variantId, variantName: '기본 옵션', goodId: display.lines[0].goodId, name: '트랜잭션 굿즈', qty: 2, unitPrice: 9000 }],
+    items: [{ id: transactionLineId, variantId: display.lines[0].variantId, variantName: '기본 옵션', goodId: display.lines[0].goodId, name: '트랜잭션 상품', qty: 2, unitPrice: 9000 }],
     ...overrides,
   });
 }
@@ -118,29 +118,29 @@ describe('buildOrderStatement 머리·공급자·공급받는자', () => {
 describe('buildOrderStatement 품목', () => {
   it('v1 주문은 주문 품목의 단가·주문 당시 수량·옵션명으로 줄을 만든다', () => {
     const model = build(order({ items: [
-      { id: 'a', variantId: 'v', variantName: '파랑', goodId: 'g1', name: '굿즈 A', qty: 3, unitPrice: 5000 },
-      { id: 'b', variantId: 'v', variantName: null, goodId: 'g2', name: '굿즈 B', qty: 1, unitPrice: 12000 },
+      { id: 'a', variantId: 'v', variantName: '파랑', goodId: 'g1', name: '상품 A', qty: 3, unitPrice: 5000 },
+      { id: 'b', variantId: 'v', variantName: null, goodId: 'g2', name: '상품 B', qty: 1, unitPrice: 12000 },
     ] }));
     expect(model.items).toEqual([
-      { key: 'a', name: '굿즈 A', option: '파랑', qty: 3, unitPrice: 5000, amount: 15000 },
-      { key: 'b', name: '굿즈 B', option: STATEMENT_NO_OPTION, qty: 1, unitPrice: 12000, amount: 12000 },
+      { key: 'a', name: '상품 A', option: '파랑', qty: 3, unitPrice: 5000, amount: 15000 },
+      { key: 'b', name: '상품 B', option: STATEMENT_NO_OPTION, qty: 1, unitPrice: 12000, amount: 12000 },
     ]);
   });
 
   it('옵션 없음·공백·기본 옵션은 —, 랜덤 판매의 서버 표기 랜덤은 그대로 보인다', () => {
-    const items = (['', '   ', '기본 옵션', '랜덤'] as const).map((variantName, index) => ({ id: `i${index}`, variantId: 'v', variantName, goodId: `g${index}`, name: `굿즈 ${index}`, type: 't', qty: 1, unitPrice: 1000 }));
+    const items = (['', '   ', '기본 옵션', '랜덤'] as const).map((variantName, index) => ({ id: `i${index}`, variantId: 'v', variantName, goodId: `g${index}`, name: `상품 ${index}`, type: 't', qty: 1, unitPrice: 1000 }));
     expect(build(order({ items })).items.map((row) => row.option)).toEqual(['—', '—', '—', '랜덤']);
   });
 
-  it('v2 주문은 서버 영수증 줄(lineId = 품목 id)의 단가를 쓰고, 행 금액 합이 굿즈 합계와 같다', () => {
+  it('v2 주문은 서버 영수증 줄(lineId = 품목 id)의 단가를 쓰고, 행 금액 합이 상품 합계와 같다', () => {
     const model = build(v2Order());
-    expect(model.items).toEqual([{ key: transactionLineId, name: '트랜잭션 굿즈', option: STATEMENT_NO_OPTION, qty: 2, unitPrice: 10000, amount: 20000 }]);
+    expect(model.items).toEqual([{ key: transactionLineId, name: '트랜잭션 상품', option: STATEMENT_NO_OPTION, qty: 2, unitPrice: 10000, amount: 20000 }]);
     expect(model.items.reduce((sum, row) => sum + row.amount, 0)).toBe(transactionDisplay.totals.subtotal);
     expect(amountOf(model.totals, 'goods')).toBe(transactionDisplay.totals.subtotal);
   });
 
-  it('v2에서 영수증 줄과 매칭이 안 되면 품목 단가를 쓰고, 굿즈 합계는 서버 영수증 합계를 그대로 둔다', () => {
-    const value = v2Order(transactionDisplay, { items: [{ id: 'unmatched', variantId: 'v', variantName: null, goodId: 'g', name: '굿즈', qty: 2, unitPrice: 9000 }] });
+  it('v2에서 영수증 줄과 매칭이 안 되면 품목 단가를 쓰고, 상품 합계는 서버 영수증 합계를 그대로 둔다', () => {
+    const value = v2Order(transactionDisplay, { items: [{ id: 'unmatched', variantId: 'v', variantName: null, goodId: 'g', name: '상품', qty: 2, unitPrice: 9000 }] });
     const model = build(value);
     expect(model.items[0]).toMatchObject({ unitPrice: 9000, amount: 18000 });
     expect(amountOf(model.totals, 'goods')).toBe(transactionDisplay.totals.subtotal);
@@ -148,10 +148,10 @@ describe('buildOrderStatement 품목', () => {
 });
 
 describe('buildOrderStatement 합계 표', () => {
-  it('v1: 굿즈 금액을 되돌려 복원하고 쿠폰·적립금·배송비·총 결제 금액을 낸다(0원 할인 행은 생략)', () => {
+  it('v1: 상품 금액을 되돌려 복원하고 쿠폰·적립금·배송비·총 결제 금액을 낸다(0원 할인 행은 생략)', () => {
     const model = build(order({ total: 25000, shippingFee: 3000, discountTotal: 3000, storeCreditTotal: 2000 }));
     expect(model.totals).toEqual([
-      { key: 'goods', label: '굿즈 합계', amount: 27000, kind: 'plain' },
+      { key: 'goods', label: '상품 합계', amount: 27000, kind: 'plain' },
       { key: 'coupon', label: '쿠폰 할인', amount: 3000, kind: 'deduction' },
       { key: 'credit', label: '적립금 사용', amount: 2000, kind: 'deduction' },
       { key: 'shipping', label: '배송비', amount: 3000, kind: 'plain' },
@@ -169,7 +169,7 @@ describe('buildOrderStatement 합계 표', () => {
   it('v2: 복수구매·쿠폰·적립금을 차감 행으로, 선결제 배송비를 더해 온라인 결제금액에 맞는다', () => {
     const model = build(v2Order());
     expect(model.totals).toEqual([
-      { key: 'goods', label: '굿즈 합계', amount: 20000, kind: 'plain' },
+      { key: 'goods', label: '상품 합계', amount: 20000, kind: 'plain' },
       { key: 'volume', label: '복수구매 할인', amount: 2000, kind: 'deduction' },
       { key: 'coupon', label: '쿠폰 할인', amount: 1000, kind: 'deduction' },
       { key: 'credit', label: '적립금 사용', amount: 1000, kind: 'deduction' },
@@ -178,7 +178,7 @@ describe('buildOrderStatement 합계 표', () => {
     ]);
   });
 
-  it('v2: 줄이 서로 맞는다(굿즈 합계 − 차감 + 배송비 = 총 결제 금액)', () => {
+  it('v2: 줄이 서로 맞는다(상품 합계 − 차감 + 배송비 = 총 결제 금액)', () => {
     const display: GoodsTransactionDisplay = {
       ...transactionDisplay,
       totals: { ...transactionDisplay.totals, prepaidShippingTotal: 2500, shippingCouponDiscountTotal: 500, collectShippingTotal: 0, onlineTotal: 18500, customerTotal: 18500 },

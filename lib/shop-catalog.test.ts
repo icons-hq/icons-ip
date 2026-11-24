@@ -39,7 +39,7 @@ function good(id: string, ipId: string, overrides: Partial<Good> = {}): Good {
   return {
     id,
     ip: ipId,
-    name: `굿즈 ${id}`,
+    name: `상품 ${id}`,
     price: 10000,
     badge: null,
     stock: 'ok' as Stock,
@@ -104,7 +104,7 @@ describe('정렬 상수', () => {
     for (const sort of LISTING_SORTS) expect(SHOP_SORT_LABELS[sort]).toBe(LISTING_SORT_LABELS[sort]);
   });
 
-  it('굿즈샵 전체·BEST 는 정렬 7종, NEW 는 추천순을 뺀 6종, IP관은 지금 7종, 검색은 관련성·가격 3종이다', () => {
+  it('쇼핑 전체·BEST 는 정렬 7종, NEW 는 추천순을 뺀 6종, IP관은 지금 7종, 검색은 관련성·가격 3종이다', () => {
     expect(SHOP_VIEW_SORTS.all).toEqual(['recommended', 'popular', 'newest', 'sales', 'price_asc', 'price_desc', 'reviews']);
     expect(SHOP_VIEW_SORTS.best).toEqual(SHOP_VIEW_SORTS.all);
     expect(SHOP_VIEW_SORTS.new).toEqual(NEW_SORT_TABS);
@@ -232,7 +232,7 @@ describe('selectShopGoods 필터', () => {
     expect(ids(selectShopGoods(catalog, query({ priceMax: 10000 })))).toEqual(['b']);
   });
 
-  it('조건에 맞는 굿즈가 없어도 뷰 스코프 총계는 유지한다', () => {
+  it('조건에 맞는 상품이 없어도 뷰 스코프 총계는 유지한다', () => {
     const result = selectShopGoods(catalog, query({ ips: ['ip3'] }));
 
     expect(result.goods).toEqual([]);
@@ -240,7 +240,7 @@ describe('selectShopGoods 필터', () => {
     expect(result.total).toBe(4);
   });
 
-  it('품절 굿즈도 목록에 남는다', () => {
+  it('품절 상품도 목록에 남는다', () => {
     expect(ids(selectShopGoods(catalog, query({ types: ['키링'] })))).toContain('c');
   });
 
@@ -298,17 +298,17 @@ describe('selectShopGoods 정렬', () => {
     expect(ids(selectShopGoods(catalog, query({ sort: 'price_desc' })))).toEqual(['d', 'a', 'c', 'b']);
   });
 
-  it('최신순은 등록 시각 내림차순이고 시각이 없는 굿즈는 뒤로 원순서를 지킨다', () => {
+  it('최신순은 등록 시각 내림차순이고 시각이 없는 상품은 뒤로 원순서를 지킨다', () => {
     expect(ids(selectShopGoods(catalog, query({ sort: 'newest' })))).toEqual(['b', 'a', 'd', 'c']);
   });
 
-  it('등록 시각이 없는 굿즈끼리는 카탈로그 순서를 유지한다', () => {
+  it('등록 시각이 없는 상품끼리는 카탈로그 순서를 유지한다', () => {
     const undated = { ips, goods: [good('x', 'ip1'), good('y', 'ip1'), good('z', 'ip1', { createdAt: '2026-01-01T00:00:00Z' })] };
 
     expect(ids(selectShopGoods(undated, query({ sort: 'newest' })))).toEqual(['z', 'x', 'y']);
   });
 
-  it('오래된순은 등록 시각 오름차순이고 시각이 없는 굿즈는 역시 뒤로 원순서를 지킨다', () => {
+  it('오래된순은 등록 시각 오름차순이고 시각이 없는 상품은 역시 뒤로 원순서를 지킨다', () => {
     expect(ids(selectShopGoods(catalog, query({ sort: 'oldest' })))).toEqual(['d', 'a', 'b', 'c']);
     const undated = { ips, goods: [good('x', 'ip1'), good('y', 'ip1'), good('z', 'ip1', { createdAt: '2026-01-01T00:00:00Z' })] };
     expect(ids(selectShopGoods(undated, query({ sort: 'oldest' })))).toEqual(['z', 'x', 'y']);
@@ -330,7 +330,7 @@ describe('selectShopGoods 정렬', () => {
     expect(ids(selectShopGoods(named, query({ sort: 'name_desc' })))).toEqual(['n2', 'n1', 'n4', 'n3', 'n5']);
   });
 
-  it('이름이 같은 굿즈는 진열(스코프) 순서를 지킨다', () => {
+  it('이름이 같은 상품은 진열(스코프) 순서를 지킨다', () => {
     const same = { ips, goods: [good('s2', 'ip1', { name: '같은 이름' }), good('s1', 'ip1', { name: '같은 이름' })] };
 
     expect(ids(selectShopGoods(same, query({ sort: 'name_asc' })))).toEqual(['s2', 's1']);
@@ -347,7 +347,7 @@ describe('selectCollectionGoods 스코프', () => {
     expect(ids(selectCollectionGoods(scope, { ips }, query({ view: 'search', sort: 'price_asc' })))).toEqual(['late', 'early']);
   });
 
-  it('IP관 스코프는 굿즈샵과 같은 진열 순서·facet 규칙을 쓴다', () => {
+  it('IP관 스코프는 쇼핑과 같은 진열 순서·facet 규칙을 쓴다', () => {
     const scope = goods.filter((item) => item.ip === 'ip1');
     const result = selectCollectionGoods(scope, { ips }, query({ view: 'ip' }));
 
@@ -369,21 +369,21 @@ describe('예약판매 타입 값 (11 §3 Δ6 · CL-11)', () => {
   });
   const scoped = { ips, goods: [...goods, preorder] };
 
-  it('예약판매 옵션을 가진 굿즈를 판별한다', () => {
+  it('예약판매 옵션을 가진 상품을 판별한다', () => {
     expect(isPreorderGood(preorder)).toBe(true);
     expect(isPreorderGood(goods[0])).toBe(false);
   });
 
-  it('스코프에 예약판매 굿즈가 있을 때만 타입 facet 끝에 값 하나로 붙인다', () => {
+  it('스코프에 예약판매 상품이 있을 때만 타입 facet 끝에 값 하나로 붙인다', () => {
     expect(selectShopGoods(scoped, query()).typeFacets.at(-1)).toEqual({ value: SHOP_PREORDER_TYPE, label: SHOP_PREORDER_TYPE, count: 1 });
     expect(selectShopGoods(catalog, query()).typeFacets.map((facet) => facet.value)).not.toContain(SHOP_PREORDER_TYPE);
   });
 
-  it('예약판매를 고르면 예약판매 굿즈만 남는다', () => {
+  it('예약판매를 고르면 예약판매 상품만 남는다', () => {
     expect(ids(selectShopGoods(scoped, query({ types: [SHOP_PREORDER_TYPE] })))).toEqual(['p1']);
   });
 
-  it('스코프에 예약판매 굿즈가 없으면 예약판매 값은 무시한다 — 해제할 길 없는 빈 목록 금지', () => {
+  it('스코프에 예약판매 상품이 없으면 예약판매 값은 무시한다 — 해제할 길 없는 빈 목록 금지', () => {
     const result = selectShopGoods(catalog, query({ types: [SHOP_PREORDER_TYPE] }));
     expect(result.typeFacets).toEqual([]);
     expect(result.filteredTotal).toBe(goods.length);
@@ -391,7 +391,7 @@ describe('예약판매 타입 값 (11 §3 Δ6 · CL-11)', () => {
 });
 
 describe('selectShopGoods 뷰', () => {
-  it('NEW 뷰는 NEW 배지 굿즈만 스코프로 잡는다', () => {
+  it('NEW 뷰는 NEW 배지 상품만 스코프로 잡는다', () => {
     const result = selectShopGoods(catalog, query({ view: 'new' }));
 
     expect(ids(result)).toEqual(['a', 'c']);
@@ -474,7 +474,7 @@ describe('고객 계층 카테고리', () => {
   ];
   const catalog = { ips, categories, goods: [good('g1', 'ip1', { categoryId: 'last' }), good('g2', 'ip1')] };
   const parse = (params: Record<string, string | string[]>) => parseShopSearchParams(params, { view: 'all', validIpIds: new Set(['ip1']), validCategoryIds: new Set(categories.map((category) => category.id)) });
-  it('상위 분류는 4단계 하위 굿즈까지 포함하고 미분류는 전체에 남는다', () => {
+  it('상위 분류는 4단계 하위 상품까지 포함하고 미분류는 전체에 남는다', () => {
     expect(selectShopGoods(catalog, parse({})).goods).toHaveLength(2);
     const result = selectShopGoods(catalog, parse({ category: ['root', 'child'] }));
     expect(result.goods.map((item) => item.id)).toEqual(['g1']);
@@ -513,7 +513,7 @@ describe('목록 카드 별점 (CL-02)', () => {
   });
 });
 
-describe('parseListingSearchParams — 굿즈샵 전체·NEW·BEST (Figma 목록 화면)', () => {
+describe('parseListingSearchParams — 쇼핑 전체·NEW·BEST (Figma 목록 화면)', () => {
   it('필터 쿼리(ip·type·min·max·category)는 읽지 않는다 — 지울 방법 없는 필터가 걸린 채 열리지 않는다', () => {
     const { query: parsed } = parseListingSearchParams({ ip: 'ip1', type: ['키링', '예약판매'], min: '5000', max: '20000', category: 'root', sort: 'price_asc' }, 'all');
 
@@ -565,13 +565,13 @@ describe('selectShopGoods 서버 정렬 3종 — 인기도·판매량·리뷰 �
   const ordered = { ips, goods: [good('a', 'ip1'), good('b', 'ip1'), good('c', 'ip1'), good('d', 'ip1'), good('e', 'ip1')] };
   const orders = { popular: ['c', 'a', 'e'], sales: ['b', 'a'], reviews: ['d', 'c'] };
 
-  it('DB 가 돌려준 id 배열의 위치로 줄 세우고 배열에 없는 굿즈는 스코프 순서로 뒤에 둔다', () => {
+  it('DB 가 돌려준 id 배열의 위치로 줄 세우고 배열에 없는 상품은 스코프 순서로 뒤에 둔다', () => {
     expect(ids(selectShopGoods(ordered, query({ sort: 'popular' }), [], orders))).toEqual(['c', 'a', 'e', 'b', 'd']);
     expect(ids(selectShopGoods(ordered, query({ sort: 'sales' }), [], orders))).toEqual(['b', 'a', 'c', 'd', 'e']);
     expect(ids(selectShopGoods(ordered, query({ sort: 'reviews' }), [], orders))).toEqual(['d', 'c', 'a', 'b', 'e']);
   });
 
-  it('배열에 없는 굿즈의 뒤 순서는 진열(추천) 순서다', () => {
+  it('배열에 없는 상품의 뒤 순서는 진열(추천) 순서다', () => {
     const displayOrdered = { ips, goods: [good('x', 'ip1', { displayOrder: 3 }), good('y', 'ip1', { displayOrder: 1 }), good('z', 'ip1', { displayOrder: 2 })] };
 
     expect(ids(selectShopGoods(displayOrdered, query({ sort: 'sales' }), [], { popular: [], sales: ['z'], reviews: [] }))).toEqual(['z', 'y', 'x']);
@@ -593,7 +593,7 @@ describe('selectShopGoods 서버 정렬 3종 — 인기도·판매량·리뷰 �
     expect(selectShopGoods(ordered, best, []).total).toBe(0);
   });
 
-  it('정렬해도 입력 굿즈 배열을 변형하지 않는다', () => {
+  it('정렬해도 입력 상품 배열을 변형하지 않는다', () => {
     const input = { ips, goods: [...ordered.goods] };
     selectShopGoods(input, query({ sort: 'popular' }), [], orders);
 

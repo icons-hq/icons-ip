@@ -123,7 +123,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     }
   });
 
-  describe('승인된 굿즈 결제의 결제사 직접 취소 감지', () => {
+  describe('승인된 상품 결제의 결제사 직접 취소 감지', () => {
     const approvedOrder = () => vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' }));
 
     it('정상 승인 알림(DONE)은 조회하지 않고 200이다', async () => {
@@ -563,7 +563,7 @@ describe('POST /api/webhooks/tosspayments', () => {
       expect(maxDuration).toBe(90);
     });
 
-    it('굿즈 재정합이 approved면 그 주문의 취소 예약을 건다', async () => {
+    it('상품 재정합이 approved면 그 주문의 취소 예약을 건다', async () => {
       const { deps, post } = handler();
 
       const result = await post(webhookRequest(statusChangedBody()));
@@ -577,7 +577,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     });
 
     it.each(['declined', 'canceled', 'needs_review', 'unknown'] as const)(
-      '굿즈 재정합이 %s면 예약하지 않는다',
+      '상품 재정합이 %s면 예약하지 않는다',
       async (outcome) => {
         const { deps, post } = handler({ reconcileGoods: vi.fn(async () => ({ outcome })) });
 

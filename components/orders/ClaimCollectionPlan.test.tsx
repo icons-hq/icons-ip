@@ -8,19 +8,19 @@ import type { ClaimCollectionRow } from '@/lib/orders/claim-collection';
 const row: ClaimCollectionRow = { shipmentId: '00000000-0000-4000-8000-000000000003', originName: 'TEST 김포', revision: 0, method: 'not_requested', carrier: null,
   trackingNumber: null, evidence: '', requestedOnce: true, collectedAt: null, updatedAt: null };
 const seoul = { bundleId: '00000000-0000-4000-8000-000000000010', returnName: '서울 반품지', returnAddress: '서울특별시 합성구 반품로 1', returnPhone: '02-1234-5678',
-  items: [{ name: 'TEST 서울 굿즈', qty: 1 }], collectedAt: null };
+  items: [{ name: 'TEST 서울 상품', qty: 1 }], collectedAt: null };
 const origin = { bundleId: '00000000-0000-4000-8000-000000000011', returnName: '', returnAddress: '경기도 합성시 출고지 반품로 2', returnPhone: '',
-  items: [{ name: 'TEST 출고지 굿즈', qty: 2 }], collectedAt: '2026-11-12T01:00:00.000Z' };
+  items: [{ name: 'TEST 출고지 상품', qty: 2 }], collectedAt: '2026-11-12T01:00:00.000Z' };
 
 /* S36-040·QNA-031: 승인 뒤 고객 반품 진행 칸에 배송 묶음별 회수 주소가 보인다. */
 describe('ClaimReturnBundles', () => {
   it('한 배송 묶음이 두 반품지로 갈리면 나눠 보내라고 하고 묶음마다 주소·품목을 보인다', () => {
     const html = renderToStaticMarkup(<ClaimReturnBundles row={{ ...row, returnBundles: [origin, seoul] }} operator={false} />);
-    expect(html).toContain('굿즈마다 보내는 곳이 달라 2곳으로 나눠 보내주세요.');
+    expect(html).toContain('상품마다 보내는 곳이 달라 2곳으로 나눠 보내주세요.');
     expect(html).toContain('회수 주소 1/2');
     expect(html).toContain('<span>경기도 합성시 출고지 반품로 2</span>');
     expect(html).toContain('<span>서울 반품지 · 서울특별시 합성구 반품로 1 · 02-1234-5678</span>');
-    expect(html).toContain('TEST 출고지 굿즈 2개');
+    expect(html).toContain('TEST 출고지 상품 2개');
     expect(html).toContain('입고 확인');
     /* 고객 화면은 출고지 이름을 말하지 않는다(R26). */
     expect(html).not.toContain('김포');
@@ -39,7 +39,7 @@ describe('ClaimReturnBundles', () => {
   /* 배송 분실(원장 #15): 고객에게 "다시 보내드려요"라고 하지 않고 분실이 확인돼 반송이 필요 없다고 말한다. */
   it('배송 분실 배송 건은 다시 보내드린다고 말하지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimReturnBundles row={{ ...row, collectionWaived: true, carrierLoss: true, returnBundles: [seoul] }} operator={false} />);
-    expect(html).toContain('배송 중 분실이 확인된 배송 묶음이에요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.');
+    expect(html).toContain('배송 중 분실이 확인된 배송 묶음이에요. 이 배송 묶음의 상품은 반송하지 않아도 됩니다.');
     expect(html).not.toContain('다시 보내드려요');
     expect(html).not.toContain('서울특별시');
     expect(renderToStaticMarkup(<ClaimReturnBundles row={{ ...row, collectionWaived: true, carrierLoss: true, returnBundles: [seoul] }} operator />)).toContain('배송 분실로 기록한 배송 건입니다.');
@@ -49,7 +49,7 @@ describe('ClaimReturnBundles', () => {
   it('회수 생략 배송 건은 고객에게 주소 대신 반송이 필요 없다고 말한다', () => {
     const waived = { ...row, returnBundles: [seoul], collectionWaived: true as const };
     const customer = renderToStaticMarkup(<ClaimReturnBundles row={waived} operator={false} />);
-    expect(customer).toContain('회수 없이 다시 보내드려요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.');
+    expect(customer).toContain('회수 없이 다시 보내드려요. 이 배송 묶음의 상품은 반송하지 않아도 됩니다.');
     expect(customer).not.toContain('서울특별시');
     const operator = renderToStaticMarkup(<ClaimReturnBundles row={waived} operator />);
     expect(operator).toContain('회수 생략으로 결정한 배송 건입니다.');

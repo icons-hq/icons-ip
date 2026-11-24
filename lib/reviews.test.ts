@@ -69,7 +69,7 @@ describe('리뷰 목록 조건', () => {
       .toBe('/shop/g13?reviewPage=1#reviews');
   });
 
-  it('작성 화면 링크는 주문과 굿즈를 함께 싣는다', () => {
+  it('작성 화면 링크는 주문과 상품을 함께 싣는다', () => {
     expect(newReviewHref(ORDER_ID, 'g13')).toBe(`/my/reviews/new?orderId=${ORDER_ID}&goodId=g13`);
   });
 });

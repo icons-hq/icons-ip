@@ -164,8 +164,8 @@ describe('curation editor preview', () => {
     expect(curationKstInput('invalid')).toBe('');
   });
 
-  /* L8b — 컬렉션 배너는 굿즈샵 전체·딤 없음·잉크 글자로 시작하고, 추천 검색어는 빈 칸을 뺀 칩 행으로 미리 본다. */
-  it('새 컬렉션 배너는 굿즈샵 전체 슬롯·딤 없음·잉크 글자로 시작하고 컬렉션 배너로 미리 본다', () => {
+  /* L8b — 컬렉션 배너는 전체 상품·딤 없음·잉크 글자로 시작하고, 추천 검색어는 빈 칸을 뺀 칩 행으로 미리 본다. */
+  it('새 컬렉션 배너는 전체 상품 슬롯·딤 없음·잉크 글자로 시작하고 컬렉션 배너로 미리 본다', () => {
     const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'collection_banner'), title: '가을 신상', imageUrl: '/pc.webp', mobileImageUrl: '/mo.webp', imageAlt: ' 키링 세 종 ', subtitle: ' 새로 나온 굿즈 ', linkPath: '' };
     expect(values).toMatchObject({ slot: 'all', imageDim: 'none', textColor: 'black', searchTerms: [] });
     /* 링크는 선택이라 새 배너·새 추천 검색어는 링크 없이 시작한다(홈으로 가는 기본 링크를 몰래 싣지 않는다). */
@@ -200,7 +200,7 @@ describe('curation editor preview', () => {
     expect(buildDraftCurationPreview('draft', { ...createCurationEditorValues(terms, '2026-10-12T00:00:00Z'), searchTerms: [' 키링 ', '', '인형'] }, []).searchTerms).toEqual(['키링', '인형']);
   });
 
-  it('영역을 바꾸면 slot 을 새 종류에 맞는 값으로 돌린다(BEST 탭 인기템 → 컬렉션 배너는 굿즈샵 전체)', () => {
+  it('영역을 바꾸면 slot 을 새 종류에 맞는 값으로 돌린다(BEST 탭 인기템 → 컬렉션 배너는 전체 상품)', () => {
     const DRAFT = '2026-10-12T00:00:00Z';
     const tab = { ...createCurationEditorValues(null, DRAFT, 'best_tab'), slot: 'popular' };
     expect(curationValuesForKindChange(tab, 'collection_banner', { isNew: true, touched: new Set(['slot'] as const), draftActiveFrom: DRAFT }).slot).toBe('all');

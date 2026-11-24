@@ -28,7 +28,7 @@ describe('CollectionBanners — Figma 스트립 배너(콘텐츠 폭 1272×340, 
 
   it('한 장이면 공용 StripBanner(page) 한 장 — 슬라이더 컨트롤 없이 링크 배너 하나를 그린다', () => {
     const html = renderToStaticMarkup(<CollectionBanners banners={[banner('one', {
-      slot: 'best', href: '/shop/best', subtitle: '지금 많이 찾는 굿즈', mobileImageUrl: 'https://cdn.test/one-m.webp', imageAlt: '리락쿠마 키링',
+      slot: 'best', href: '/shop/best', subtitle: '지금 많이 찾는 상품', mobileImageUrl: 'https://cdn.test/one-m.webp', imageAlt: '리락쿠마 키링',
     })]} slot="best" />);
 
     expect(html).toContain('class="wc-strip-banners" data-slot="best"');

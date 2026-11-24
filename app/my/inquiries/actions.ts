@@ -64,7 +64,7 @@ async function requireInquiryAuthor(next: string, accountInquiry: () => boolean 
 }
 
 const RESTRICTED_IMAGES = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의에 이미지를 첨부할 수 없습니다.';
-const RESTRICTED_LINK = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의만 글로 보낼 수 있고 이미지·주문·굿즈를 함께 보낼 수 없습니다.';
+const RESTRICTED_LINK = '정지됐거나 가입 절차를 마치지 않은 계정은 계정 문의만 글로 보낼 수 있고 이미지·주문·상품을 함께 보낼 수 없습니다.';
 
 /** RPC가 던진 도메인 오류를 사용자 문구로. 모르는 오류는 일반 실패로 접는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string): InquiryFormErrors {
@@ -80,7 +80,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string): 
     return { form: '연결할 주문을 찾을 수 없습니다. 주문 연결을 해제하고 다시 시도해주세요.' };
   }
   if (value.includes('inquiry_good_not_found')) {
-    return { form: '연결할 굿즈를 찾을 수 없습니다. 굿즈 연결을 해제하고 다시 시도해주세요.' };
+    return { form: '연결할 상품을 찾을 수 없습니다. 상품 연결을 해제하고 다시 시도해주세요.' };
   }
   if (value.includes('inquiry_closed')) {
     return { form: '종결된 문의입니다. 새 문의로 접수해주세요.' };

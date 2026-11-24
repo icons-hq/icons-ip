@@ -42,7 +42,7 @@ describe('부분 반품 문맥·선택(ADR-0047)', () => {
     expect(partialReturnSelectionFromQuantities(context, { [ITEM_A]: 0 })).toBeNull();
     expect(partialReturnCoversAll(context, [{ orderItemId: ITEM_A, qty: 2 }, { orderItemId: ITEM_B, qty: 1 }])).toBe(false);
     expect(partialReturnCoversAll({ ...context, items: context.items.slice(0, 2) }, [{ orderItemId: ITEM_A, qty: 2 }, { orderItemId: ITEM_B, qty: 1 }])).toBe(true);
-    expect(partialReturnItemBlockerLabel('digital_item')).toBe('디지털·배송 없는 굿즈는 반품 대상이 아닙니다.');
+    expect(partialReturnItemBlockerLabel('digital_item')).toBe('디지털·배송 없는 상품은 반품 대상이 아닙니다.');
   });
 
   it('부분 반품 원장 줄은 반품배송비 차감을 뺀 환불액을 검증하고 반품 문장으로 요약한다', () => {
@@ -101,7 +101,7 @@ describe('적대적 리뷰 반영(2026-11-19)', () => {
     const off = orderClaimIntakeNotice('return');
     expect(off).toBe(ORDER_CLAIM_INTAKE_NOTICES.return);
     const on = orderClaimIntakeNotice('return', null, { partialReturn: true });
-    expect(on).toContain('반품하신 굿즈의 회수를 확인하며');
+    expect(on).toContain('반품하신 상품의 회수를 확인하며');
     expect(on).not.toContain('전체 회수를 확인');
     expect(on).toContain('주문 전체 반품의 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.');
     expect(on).not.toContain('승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액');

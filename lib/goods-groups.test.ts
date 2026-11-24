@@ -42,7 +42,7 @@ describe('합산 정책의 공개 반영', () => {
     applyGoodsAggregationPolicy(value, offer);
     expect(value).toMatchObject({ id: 'blue-large', price: 12000, stockQty: 3, minOrderQty: 2, maxOrderQty: 5, memberLifetimeQtyLimit: 8, originId: group.id });
     expect(goodsAggregationUnavailableLabel(value)).toBe('구매 준비 중');
-    expect(goodsPurchaseConditionProblem(value)).toBe('구매 준비 중인 굿즈입니다.');
+    expect(goodsPurchaseConditionProblem(value)).toBe('구매 준비 중인 상품입니다.');
   });
   it('거래 기능이 열렸거나 합산군이 없는 기존 상품은 추가로 차단하지 않는다', () => {
     expect(goodsAggregationUnavailableLabel({ transactionOffer: { ...offer, aggregation: { ...offer.aggregation!, runtimeEnabled: true } } })).toBeNull();

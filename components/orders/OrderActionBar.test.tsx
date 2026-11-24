@@ -88,17 +88,17 @@ describe('orderActionBarModel 상태별 버튼 표', () => {
 });
 
 describe('리뷰작성', () => {
-  it('쓸 수 있는 대상이 1개면 그 굿즈의 작성 화면으로, 월간 리뷰는 kind를 싣는다', () => {
+  it('쓸 수 있는 대상이 1개면 그 상품의 작성 화면으로, 월간 리뷰는 kind를 싣는다', () => {
     expect(byKey().review).toMatchObject({ label: '리뷰작성', target: { kind: 'link', href: `/my/reviews/new?orderId=${ORDER_ID}&goodId=g13` }, hint: null });
     expect(byKey({ reviewTargets: [target({ kind: 'month' })] }).review.target).toEqual({ kind: 'link', href: `/my/reviews/new?orderId=${ORDER_ID}&goodId=g13&kind=month` });
   });
 
-  it('배송완료·구매확정인데 대상이 0개면 `배송이 완료되면`이라 말하지 않고 쓸 수 있는 굿즈가 없다고 알린다(조회 실패 포함)', () => {
+  it('배송완료·구매확정인데 대상이 0개면 `배송이 완료되면`이라 말하지 않고 쓸 수 있는 상품이 없다고 알린다(조회 실패 포함)', () => {
     for (const status of ['delivered', 'done'] as const) {
-      expect(byKey({ status, reviewTargets: [] }).review, status).toMatchObject({ label: '리뷰작성', target: null, hint: '리뷰작성: 지금은 리뷰를 쓸 수 있는 굿즈가 없어요.' });
+      expect(byKey({ status, reviewTargets: [] }).review, status).toMatchObject({ label: '리뷰작성', target: null, hint: '리뷰작성: 지금은 리뷰를 쓸 수 있는 상품이 없어요.' });
     }
     const html = renderToStaticMarkup(<OrderActionBar {...input({ status: 'delivered', reviewTargets: [] })} />);
-    expect(html).toContain('리뷰작성: 지금은 리뷰를 쓸 수 있는 굿즈가 없어요.');
+    expect(html).toContain('리뷰작성: 지금은 리뷰를 쓸 수 있는 상품이 없어요.');
     expect(html).not.toContain('리뷰작성: 배송이 완료되면 쓸 수 있어요.');
   });
 

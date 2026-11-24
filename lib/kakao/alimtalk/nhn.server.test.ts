@@ -18,7 +18,7 @@ const CONFIG: KakaoAlimtalkConfig = {
 const MESSAGE = {
   templateCode: 'XSQ_ORDER_PAID',
   recipientNo: '01012345678',
-  templateParameter: { 주문번호: '2026111910000001', 굿즈명: '키링', 결제금액: '32,000', 주문ID: 'order-id' },
+  templateParameter: { 주문번호: '2026111910000001', 상품명: '키링', 결제금액: '32,000', 주문ID: 'order-id' },
   idempotencyKey: '61000000-0000-4000-8000-000000000001',
 };
 

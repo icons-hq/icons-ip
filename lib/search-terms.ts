@@ -117,5 +117,5 @@ export function suggestedSearchHref(term: string): string {
 /** 통합 검색 입력 안내. 커뮤니티가 닫힌 배포에서는 검색도 포스트·태그 결과를 거르므로(lib/search.ts) '포스트'를 약속하지 않는다
  *  — /search 화면(Search.tsx)과 한 규칙이다. */
 export function searchPlaceholder(communityEnabled: boolean = COMMUNITY_ENABLED): string {
-  return `${['IP', '굿즈', ...(communityEnabled ? ['포스트'] : [])].join(' · ')} 통합 검색`;
+  return `${['IP', '상품', ...(communityEnabled ? ['포스트'] : [])].join(' · ')} 통합 검색`;
 }

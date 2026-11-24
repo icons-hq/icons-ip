@@ -170,7 +170,7 @@ describe('parseLoyaltyStanding', () => {
 
 describe('grade benefit copy', () => {
   it('summarises an unreached grade by coupon kind only', () => {
-    expect(gradeBenefitCountLines({ goods: 2, shipping: 1, monthly: 0 })).toEqual(['굿즈 할인 쿠폰 2장', '배송비 할인 쿠폰 1장']);
+    expect(gradeBenefitCountLines({ goods: 2, shipping: 1, monthly: 0 })).toEqual(['상품 할인 쿠폰 2장', '배송비 할인 쿠폰 1장']);
     expect(gradeBenefitCountLines({ goods: 0, shipping: 1, monthly: 0 })).toEqual(['배송비 할인 쿠폰 1장']);
     expect(gradeBenefitCountLines({ goods: 0, shipping: 0, monthly: 0 })).toEqual([]);
   });
@@ -223,7 +223,7 @@ describe('grade benefit copy', () => {
 
   it('writes the criterion from the policy and hides grades without automatic promotion', () => {
     expect(loyaltyCriterionCopy('welcome', TIERS)).toBe('가입하면 바로');
-    expect(loyaltyCriterionCopy('silver', TIERS)).toBe('최근 90일 결제 금액 ₩150,000 이상 또는 굿즈 주문 항목 3건 이상');
+    expect(loyaltyCriterionCopy('silver', TIERS)).toBe('최근 90일 결제 금액 ₩150,000 이상 또는 상품 주문 항목 3건 이상');
     expect(loyaltyCriterionCopy('gold', TIERS)).toBe('최근 90일 결제 금액 ₩500,000 이상');
     expect(loyaltyCriterionCopy('platinum', TIERS)).toBeNull();
   });

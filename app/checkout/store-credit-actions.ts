@@ -30,7 +30,7 @@ export async function quoteDraftStoreCreditsAction(value: unknown, destinationIn
   if (destinationInput !== null && !destination) return { ok: false, error: '적립금 사용 조건을 확인할 배송지 주소를 다시 확인해주세요.' };
   const items = parseShippingQuoteItems(itemsInput);
   const coupon = draftCoupon(couponInput);
-  if (!items?.length || !coupon) return { ok: false, error: '적립금 사용 조건을 확인할 굿즈를 다시 확인해주세요.' };
+  if (!items?.length || !coupon) return { ok: false, error: '적립금 사용 조건을 확인할 상품을 다시 확인해주세요.' };
   try {
     const quote = await loadDraftStoreCreditCheckout(amount, destination, items, coupon);
     return quote ? { ok: true, quote } : { ok: false, error: '적립금을 확인하지 못했습니다. 다시 조회해주세요.' };

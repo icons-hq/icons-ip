@@ -181,7 +181,7 @@ describe('SiteFooter Figma 진입점', () => {
 
     for (const missing of ['공지사항', '서비스 가이드라인', 'X (Twitter)', 'twitter', 'x.com']) expect(html, missing).not.toContain(missing);
     /* 로고·소개·회사 소개·오프라인 팝업·발견·내 활동 열은 Figma 푸터에 없다. */
-    for (const removed of ['회사 소개', '오프라인 팝업', '자주 묻는 질문', '카드 트레이드', '굿즈 마켓', 'wc-store-brand-logo', 'aria-label="발견 메뉴"', 'aria-label="내 활동 메뉴"']) expect(html, removed).not.toContain(removed);
+    for (const removed of ['회사 소개', '오프라인 팝업', '자주 묻는 질문', '카드 트레이드', '상품 마켓', 'wc-store-brand-logo', 'aria-label="발견 메뉴"', 'aria-label="내 활동 메뉴"']) expect(html, removed).not.toContain(removed);
     for (const href of ['/about', '/offline-popups', '/tickets', '/orders', '/binder', '/market', '/exchange', '/packs', '/community']) expect(html, href).not.toContain(`href="${href}"`);
   });
 

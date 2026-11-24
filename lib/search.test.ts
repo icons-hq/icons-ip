@@ -59,7 +59,7 @@ describe('getSearchSnapshot', () => {
     mocks.identities = [{ id: 'old-ip', public_slug: 'new-ip' }];
     mocks.rpc.mockResolvedValue({ data: [
       { kind: 'ip', id: 'old-ip', label: 'IP', ip_id: 'old-ip' },
-      { kind: 'good', id: 'good-1', label: '굿즈', ip_id: 'old-ip' },
+      { kind: 'good', id: 'good-1', label: '상품', ip_id: 'old-ip' },
     ], error: null });
     const snapshot = await getSearchSnapshot('IP');
     expect(snapshot.groups.flatMap(group => group.results).map(result => result.ipPublicSlug)).toEqual(['new-ip', 'new-ip']);
@@ -199,7 +199,7 @@ describe('getSearchSnapshot', () => {
     });
     const publicGroups = [
       expect.objectContaining({ kind: 'ip', label: 'IP', results: [expect.objectContaining({ id: 'rilakkuma' })] }),
-      expect.objectContaining({ kind: 'good', label: '굿즈', results: [expect.objectContaining({ id: 'g2' })] }),
+      expect.objectContaining({ kind: 'good', label: '상품', results: [expect.objectContaining({ id: 'g2' })] }),
     ];
     const communityGroups = [
       expect.objectContaining({ kind: 'post', label: '포스트', results: [expect.objectContaining({ id: '00000000-0000-4000-8000-000000000015' })] }),

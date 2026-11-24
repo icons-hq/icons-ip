@@ -249,7 +249,7 @@ describe('Cart 주문 요약 테이블', () => {
   const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
 
   it('금액 행을 표로 세운다', () => {
-    expect(html).toContain('총 굿즈 금액');
+    expect(html).toContain('총 상품 금액');
     expect(html).toContain('쿠폰 할인');
     expect(html).toContain('−₩0');
     expect(html).toContain('배송비');
@@ -260,7 +260,7 @@ describe('Cart 주문 요약 테이블', () => {
   /* R28(MD-0006)·SHEET-007: 'N개 주문하기' — N은 고른 줄의 수량 합이다(들어오면 전체 선택이라 담긴 총 수량과 같다). */
   it('주문 CTA에 고른 줄의 총 수량을 싣는다', () => {
     expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
-    expect(html).not.toContain('굿즈 주문하기');
+    expect(html).not.toContain('상품 주문하기');
     expect(checkoutEnabled(html)).toBe(true);
     const several = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }]);
     expect(several).toContain('<span class="wc-cart__checkout-count">3개 주문하기</span>');
@@ -360,11 +360,11 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
 });
 
 describe('Cart 라인 상태', () => {
-  it('카탈로그에서 사라진 굿즈는 판매 종료로 두고 주문을 막는다', () => {
+  it('카탈로그에서 사라진 상품은 판매 종료로 두고 주문을 막는다', () => {
     const html = render([{ goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
 
     expect(html).toContain('판매 종료');
-    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요.');
+    expect(html).toContain('주문할 수 없는 상품 1개는 주문에서 빠져요.');
     /* 고를 수 있는 줄이 하나도 없으니 주문할 줄도 없다. */
     expect(html).toContain('<button class="wc-btn primary wc-cart__checkout" disabled="" type="button"><span class="wc-cart__checkout-count">0개 주문하기</span></button>');
     expect(checkoutEnabled(html)).toBe(false);
@@ -388,7 +388,7 @@ describe('Cart 라인 상태', () => {
 });
 
 describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
-  it('랜덤 판매 굿즈는 옵션명을 랜덤으로 보이고 수량 상한은 풀 합계다', () => {
+  it('랜덤 판매 상품은 옵션명을 랜덤으로 보이고 수량 상한은 풀 합계다', () => {
     const html = render([{ goodId: 'g15', variantId: RANDOM_VARIANT, qty: 6 }]);
     expect(html).toContain('<p class="wc-cart__line-option">랜덤</p>');
     expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
@@ -422,19 +422,19 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('&#x27;파랑&#x27;은 1인당 3개까지 구매할 수 있습니다.');
     /* 개수는 주문 버튼·배지·전체 비우기 확인과 같은 수량 합이다(줄 수가 아니다). */
-    expect(html).toContain('구매 조건에 맞지 않는 굿즈 2개는 체크를 풀었어요');
-    expect(html).not.toContain('주문할 수 없는 굿즈');
+    expect(html).toContain('구매 조건에 맞지 않는 상품 2개는 체크를 풀었어요');
+    expect(html).not.toContain('주문할 수 없는 상품');
     expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" type="checkbox"\/>/);
     expect(checkoutEnabled(html)).toBe(false);
   });
 
-  it('굿즈 주문당 최대 수량을 넘으면 그 굿즈 줄의 체크만 풀고, 다른 굿즈는 주문할 수 있다', () => {
+  it('상품 주문당 최대 수량을 넘으면 그 상품 줄의 체크만 풀고, 다른 상품은 주문할 수 있다', () => {
     mocks.quoteGoods.set('g13', { orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 2, reason: 'order_quantity_above_maximum' });
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }]);
     expect(html).toContain('주문당 최대 2개까지 구매할 수 있어요. 옵션을 합해 2개 이하로 골라주세요.');
     expect(html).toMatch(/<input aria-label="홍실 아크릴 블록[^"]*선택" type="checkbox"\/>/);
     expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" type="checkbox" checked=""\/>/);
-    expect(html).not.toContain('주문할 수 없는 굿즈');
+    expect(html).not.toContain('주문할 수 없는 상품');
     /* 낡은 막힘 문구가 남지 않는다 — 남은 고른 줄만 견적한다. */
     expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g16']);
     expect(checkoutEnabled(html)).toBe(true);
@@ -456,9 +456,9 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
       startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: null } });
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('재고가 1개만 남아 이번 주문에서 빠졌어요. 수량을 줄이면 다시 고를 수 있어요.');
-    expect(html).toContain('주문할 수 없는 굿즈 2개는 주문에서 빠져요. 수량을 줄이면 다시 고를 수 있어요.');
+    expect(html).toContain('주문할 수 없는 상품 2개는 주문에서 빠져요. 수량을 줄이면 다시 고를 수 있어요.');
     /* 막힘 판정은 남은 고른 줄로만 한다 — 남은 줄(g13)은 주문할 수 있다. */
-    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
+    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 상품이 있어요');
     expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g13']);
     expect(checkoutEnabled(html)).toBe(true);
     expect(html).toContain('1개 주문하기');
@@ -466,11 +466,11 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
 });
 
 describe('Cart 빈 상태 (CT-02)', () => {
-  it('굿즈샵으로 돌려보낸다', () => {
+  it('쇼핑으로 돌려보낸다', () => {
     const html = render([]);
 
     expect(html).toContain('장바구니가 비어 있어요');
-    expect(html).toContain('굿즈샵 둘러보기');
+    expect(html).toContain('상품 둘러보기');
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('wc-cart__summary');
   });
@@ -480,7 +480,7 @@ describe('Cart 빈 상태 (CT-02)', () => {
     const html = render([]);
 
     expect(html).toContain('<p class="wc-cart__empty-message">장바구니가 비어 있어요</p>');
-    expect(html).toMatch(/<div class="wc-cart__cta-bar"><a class="wc-btn accent wc-cart__empty-cta" href="\/shop">굿즈샵 둘러보기<\/a><\/div>/);
+    expect(html).toMatch(/<div class="wc-cart__cta-bar"><a class="wc-btn accent wc-cart__empty-cta" href="\/shop">상품 둘러보기<\/a><\/div>/);
     expect(html.indexOf('wc-cart__empty-message')).toBeLessThan(html.indexOf('wc-cart__empty-cta'));
     expect(html).not.toContain('wc-cart__empty-art');
     expect(checkoutEnabled(html)).toBe(false);
@@ -619,15 +619,15 @@ describe('Cart 목록 행 (CT-04)', () => {
     expect(band).toMatch(/<div class="wc-cart__line-band"><div class="wc-cart__line-detail"><\/div><button aria-label="품절된 키링 장바구니에서 삭제" class="wc-cart__remove"/);
 
     html = render([{ goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
-    band = lineOf(html, '판매 종료된 굿즈 (gone)');
-    expect(band).toMatch(/<div class="wc-cart__line-band"><div class="wc-cart__line-detail"><\/div><button aria-label="판매 종료된 굿즈 gone 삭제" class="wc-cart__remove"/);
+    band = lineOf(html, '판매 종료된 상품 (gone)');
+    expect(band).toMatch(/<div class="wc-cart__line-band"><div class="wc-cart__line-detail"><\/div><button aria-label="판매 종료된 상품 gone 삭제" class="wc-cart__remove"/);
   });
 });
 
 
 /* 같은 굿즈의 옵션·직접입력 줄을 화면 읽기 프로그램이 구별하도록 체크박스 이름에 옵션·직접입력 요약을 더한다(ADR-0030). */
 describe('Cart 줄 체크박스 이름', () => {
-  it('굿즈 이름에 옵션과 직접입력 요약을 더한다', () => {
+  it('상품 이름에 옵션과 직접입력 요약을 더한다', () => {
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }]);
     expect(html).toContain('aria-label="아크릴 키링 · 파랑 선택"');
   });
@@ -640,7 +640,7 @@ describe('origin quote and option lines', () => {
     const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
     /* 고객 화면은 출고지 이름 대신 택배사로 부른다(10/14 회의 S7 · R26). 묶음이 둘이면 따로 계산되는 이유를 한 줄로(R27). */
     expect(html).toContain('<h2>한진택배 배송</h2>');expect(html).toContain('<h2>우체국택배 배송</h2>');
-    expect(html).toContain('aria-label="한진택배 배송 굿즈"');
+    expect(html).toContain('aria-label="한진택배 배송 상품"');
     expect(html).toContain('택배사가 달라 배송비가 각각 계산됩니다.');
     expect(html.indexOf('택배사가 달라')).toBeLessThan(html.indexOf('<h2>한진택배 배송</h2>'));
     expect(html).not.toContain('김포');expect(html).not.toContain('남양주');
@@ -730,7 +730,7 @@ describe('origin quote and option lines', () => {
   });
 });
 
- it('이관 불가한 이전 굿즈의 수량과 명시적 삭제·재시도를 남기며 주문을 막는다', () => {
+ it('이관 불가한 이전 상품의 수량과 명시적 삭제·재시도를 남기며 주문을 막는다', () => {
   mocks.items = [];
   mocks.legacyItems = [{ goodId: 'old-good', qty: 3 }];
   mocks.ready = false;
@@ -748,17 +748,17 @@ describe('Cart 선택 주문', () => {
   it('들어오면 고를 수 있는 줄 전부를 견적하고, 주문할 수 없는 줄은 견적·주문에서 빠질 뿐 주문을 막지 않는다', () => {
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 2 }, { goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }]);
     expect(mocks.quotedItems).toEqual([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 2 }]);
-    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요.');
+    expect(html).toContain('주문할 수 없는 상품 1개는 주문에서 빠져요.');
     expect(html).toContain('<button class="wc-btn primary wc-cart__checkout" type="button"><span class="wc-cart__checkout-count">2개 주문하기</span></button>');
     /* 총 굿즈 금액도 고른 줄(아크릴 블록 2개)만이다 — 품절 키링 9,000원은 들지 않는다. */
-    expect(html).toContain('<th scope="row">총 굿즈 금액</th><td>₩24,000</td>');
-    expect(html).toContain('고른 굿즈만 주문해요. 고르지 않은 굿즈는 결제 뒤에도 장바구니에 남아요.');
+    expect(html).toContain('<th scope="row">총 상품 금액</th><td>₩24,000</td>');
+    expect(html).toContain('고른 상품만 주문해요. 고르지 않은 상품은 결제 뒤에도 장바구니에 남아요.');
   });
 
   it('모든 줄이 주문 가능하고 전부 골랐으면 선택 안내를 띄우지 않는다', () => {
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
     expect(mocks.quotedItems).toEqual([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
-    expect(html).not.toContain('고른 굿즈만 주문해요.');
+    expect(html).not.toContain('고른 상품만 주문해요.');
     expect(html).not.toContain('wc-cart__warning');
   });
 });
@@ -781,7 +781,7 @@ describe('Cart 선택 바', () => {
   it('품절·판매 종료·성인 인증 전 줄은 체크할 수 없고 선택 수에 들지 않는다', () => {
     const html = render([{ goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }, { goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
     expect(lineOf(html, '품절된 키링')).toContain('<input aria-label="품절된 키링 선택" disabled="" type="checkbox"/>');
-    expect(lineOf(html, '판매 종료된 굿즈 (gone)')).toContain('<input aria-label="판매 종료된 굿즈 gone 선택" disabled="" type="checkbox"/>');
+    expect(lineOf(html, '판매 종료된 상품 (gone)')).toContain('<input aria-label="판매 종료된 상품 gone 선택" disabled="" type="checkbox"/>');
     /* 고를 줄이 없으면 전체 선택도 잠기고 선택 삭제는 할 일이 없다. 전체 비우기는 남는다. */
     expect(html).toContain('<input disabled="" type="checkbox"/><span>전체 선택 (0/0)</span>');
     expect(html).toContain('<button class="wc-cart__select-action" disabled="" type="button">선택 삭제</button>');
@@ -797,7 +797,7 @@ describe('Cart 선택 잇기·주문 버튼 사유', () => {
   it('다시 결제할 줄이 장바구니에 없으면 아무 줄도 체크하지 않은 채 열고 이유를 알린다(S-D2-15)', () => {
     mocks.items = two;
     const html = renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={emptyCouponState} retryEmpty />);
-    expect(html).toContain('이 주문의 굿즈가 장바구니에 남아 있지 않아요. 주문할 굿즈를 골라 다시 주문해주세요.');
+    expect(html).toContain('이 주문의 상품이 장바구니에 남아 있지 않아요. 주문할 상품을 골라 다시 주문해주세요.');
     expect(lineOf(html, '홍실 아크릴 블록')).toContain('<input aria-label="홍실 아크릴 블록 선택" type="checkbox"/>');
     expect(lineOf(html, '아크릴 키링')).toContain('<input aria-label="아크릴 키링 · 파랑 선택" type="checkbox"/>');
     expect(html).toContain('0개 주문하기');

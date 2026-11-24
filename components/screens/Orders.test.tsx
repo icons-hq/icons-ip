@@ -129,7 +129,7 @@ describe('Orders', () => {
       /* 2026-10-12 QA-1: 거절 주문과 같은 정리 흐름 — 결제 기한 뒤 자동 취소를 기다리게
          하지 않는다. */
       expect(html).toContain('주문 정리하고 다시 주문하기');
-      expect(html).toContain('이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요');
+      expect(html).toContain('이 주문을 취소하고 같은 상품으로 다시 주문할 수 있어요');
       expect(html).not.toContain('몇 분 안에 자동으로 취소');
     });
 
@@ -169,7 +169,7 @@ describe('Orders', () => {
       );
       expect(canceled).toContain(`href="/checkout/${orderId}?retry=1">다시 결제하기</a>`);
       expect(canceled).not.toContain('href="/cart"');
-      expect(canceled).not.toContain('같은 굿즈 다시 담기');
+      expect(canceled).not.toContain('같은 상품 다시 담기');
     });
 
     it('바로구매 주문의 결제 실패·만료·취소는 같은 구성으로 다시 구매하게 한다(ADR-0030)', () => {
@@ -179,7 +179,7 @@ describe('Orders', () => {
         );
         expect(html).toContain(`href="/checkout/${orderId}">다시 구매하기</a>`);
         expect(html).toContain('장바구니는 바뀌지 않았어요');
-        expect(html).not.toContain('같은 굿즈 다시 담기');
+        expect(html).not.toContain('같은 상품 다시 담기');
         expect(html).not.toContain('주문 정리하고 다시 주문하기');
       }
     });
@@ -361,7 +361,7 @@ describe('Orders 다시 결제 진입', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'canceled',
       retry: { source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: null } })]} />);
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
-    expect(html).not.toContain('굿즈 상세에서 다시 고르기');
+    expect(html).not.toContain('상품 상세에서 다시 고르기');
     const reordered = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'canceled',
       retry: { source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: '22222222-2222-4222-8222-222222222222' } })]} />);
     expect(reordered).toContain('href="/orders/22222222-2222-4222-8222-222222222222">다시 주문한 주문 보기</a>');
@@ -384,7 +384,7 @@ describe('Orders 다시 결제 진입', () => {
 describe('Orders 주문 카드', () => {
   const id = '11111111-1111-4111-8111-111111111111';
   const line = (n: number, overrides: Partial<OrderLineView> = {}): OrderLineView => ({
-    key: `item-${n}`, goodId: `good-${n}`, name: `굿즈 ${n}`, optionName: n % 2 ? '파랑' : '기본 옵션', qty: n, ipName: 'IP 이름',
+    key: `item-${n}`, goodId: `good-${n}`, name: `상품 ${n}`, optionName: n % 2 ? '파랑' : '기본 옵션', qty: n, ipName: 'IP 이름',
     thumbnail: null, adultMasked: false, purchaseAmount: 10000 * n, regularAmount: 10000 * n, ...overrides,
   });
 
@@ -401,12 +401,12 @@ describe('Orders 주문 카드', () => {
 
   it('주문의 모든 품목 줄을 그린다(첫 품목 요약이 아니다)', () => {
     const lines = [1, 2, 3, 4, 5].map((n) => line(n));
-    const html = renderToStaticMarkup(<Orders orders={[orderItem({ itemLabel: '굿즈 1 외 4건', itemCount: 15, lines })]} />);
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ itemLabel: '상품 1 외 4건', itemCount: 15, lines })]} />);
 
-    for (const n of [1, 2, 3, 4, 5]) expect(html).toContain(`class="wc-order-line__name">굿즈 ${n}</p>`);
+    for (const n of [1, 2, 3, 4, 5]) expect(html).toContain(`class="wc-order-line__name">상품 ${n}</p>`);
     expect(html.match(/class="wc-order-line"/g)).toHaveLength(5);
     /* 줄이 있으면 요약(첫 굿즈 외 N건)은 쓰지 않는다. */
-    expect(html).not.toContain('굿즈 1 외 4건');
+    expect(html).not.toContain('상품 1 외 4건');
     expect(html).not.toContain('wc-order-card__summary');
   });
 
@@ -447,17 +447,17 @@ describe('Orders 주문 카드', () => {
     expect(html.indexOf('</article>')).toBeLessThan(html.indexOf('order-retry-actions'));
   });
 
-  it('품목 줄을 읽지 못한 주문은 스냅샷 요약(굿즈 이름·개수)으로 대신 그린다', () => {
+  it('품목 줄을 읽지 못한 주문은 스냅샷 요약(상품 이름·개수)으로 대신 그린다', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ itemLabel: '홍실 아크릴 블록 외 1건', itemCount: 3 })]} />);
 
-    expect(html).toContain('<p class="wc-order-card__summary">홍실 아크릴 블록 외 1건<span>3개 굿즈</span></p>');
+    expect(html).toContain('<p class="wc-order-card__summary">홍실 아크릴 블록 외 1건<span>3개 상품</span></p>');
     expect(html).toContain('주문 상세 바로가기');
     expect(renderToStaticMarkup(<Orders orders={[orderItem({ lines: [] })]} />)).toContain('wc-order-card__summary');
   });
 
-  it('19금 굿즈 줄은 19 타일로 가린다', () => {
+  it('19금 상품 줄은 19 타일로 가린다', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ lines: [line(1, { adultMasked: true })] })]} />);
     expect(html).toContain('wc-order-line__thumb--adult');
-    expect(html).toContain('19금 굿즈');
+    expect(html).toContain('19금 상품');
   });
 });

@@ -175,19 +175,19 @@ describe('CampaignLanding', () => {
     const html = render({
       campaign: snapshot({
         resolvedSections: [
-          { type: 'intro', copy: '가을 굿즈를 모았어요.' },
-          { type: 'cta', anchor: '굿즈', label: '가을 굿즈 보러 가기', href: '/shop?ip=bt21' },
+          { type: 'intro', copy: '가을 상품을 모았어요.' },
+          { type: 'cta', anchor: '상품', label: '가을 상품 보러 가기', href: '/shop?ip=bt21' },
         ],
       }),
     });
 
     expect(html).toContain('class="wc-campaign-section wc-campaign-section--cta"');
-    expect(html).toMatch(/<a class="wc-btn primary" href="\/shop\?ip=bt21">가을 굿즈 보러 가기<\/a>/);
+    expect(html).toMatch(/<a class="wc-btn primary" href="\/shop\?ip=bt21">가을 상품 보러 가기<\/a>/);
     expect(html).toContain('href="#campaign-section-1"');
   });
 
   /* L4b · CL-01·CL-02 — 굿즈 진열 카드도 목록 카드처럼 하트(링크 밖 형제)와 리뷰가 있을 때만 별점을 단다. */
-  it('굿즈 진열 카드에 위시 상태로 하트를, 로더가 실은 별점을 단다', () => {
+  it('상품 진열 카드에 위시 상태로 하트를, 로더가 실은 별점을 단다', () => {
     const goodsSection = SECTIONS[5] as Extract<ResolvedCampaignSection, { type: 'goods' }>;
     const sections = SECTIONS.map((section, index) => (index === 5 ? {
       ...goodsSection,

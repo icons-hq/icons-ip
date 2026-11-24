@@ -22,7 +22,7 @@ const ip = (id: string, title: string): Ip => ({
 
 const good = (id: string, overrides: Partial<Good> = {}): Good => ({
   id,
-  name: `굿즈 ${id}`,
+  name: `상품 ${id}`,
   ip: 'rilakkuma',
   price: 12000,
   badge: null,
@@ -45,7 +45,7 @@ function catalogOf(goods: Good[]) {
 }
 
 describe('searchGoods 매칭 축', () => {
-  it('굿즈명을 대소문자 무시 부분일치로 찾는다', () => {
+  it('상품명을 대소문자 무시 부분일치로 찾는다', () => {
     const catalog = catalogOf([
       good('g1', { name: 'Rilakkuma BIG 인형' }),
       good('g2', { name: '담곰이 파우치', ip: 'maple' }),
@@ -85,19 +85,19 @@ describe('searchGoods 매칭 축', () => {
     expect(searchGoods(catalog, '쿠션', 1).total).toBe(0);
   });
 
-  it('저장된 검색 키워드로 찾고 굿즈명 일치 다음에 둔다', () => {
+  it('저장된 검색 키워드로 찾고 상품명 일치 다음에 둔다', () => {
     const result = searchGoods(catalogOf([
-      good('keyword', { name: '표시 이름', searchKeywords: ['  여름 굿즈 ', 'KUMA'] }),
-      good('name', { name: '여름 굿즈 본품' }),
+      good('keyword', { name: '표시 이름', searchKeywords: ['  여름 상품 ', 'KUMA'] }),
+      good('name', { name: '여름 상품 본품' }),
       good('other', { name: '무관' }),
-    ]), '여름 굿즈', 1);
+    ]), '여름 상품', 1);
 
     expect(result.items.map((item) => item.id)).toEqual(['name', 'keyword']);
     expect(result.total).toBe(2);
   });
 
   /* MD-0048 이후 인증 전 19금 가림 카드에도 이름이 실리지만, 검색은 예전처럼 상품명·IP로 걸리지 않고 고정 문구로만 맞는다. */
-  it('인증 전 19금 가림 굿즈는 이름·IP로 찾지 않고 고정 문구로만 찾는다', () => {
+  it('인증 전 19금 가림 상품은 이름·IP로 찾지 않고 고정 문구로만 찾는다', () => {
     const catalog = catalogOf([good('adult', { name: '성인 아크릴 키링', ip: 'maple', masked: true, saleRestriction: 'adult' }), good('plain', { name: '아크릴 키링' })]);
     expect(matchSearchGoods(catalog, '아크릴').map((item) => item.id)).toEqual(['plain']);
     expect(matchSearchGoods(catalog, '메이플').map((item) => item.id)).toEqual([]);
@@ -112,7 +112,7 @@ describe('searchGoods 매칭 축', () => {
 });
 
 describe('searchGoods 정렬', () => {
-  it('굿즈명 일치 > IP 일치 > 나머지 순으로 놓고 동순위는 카탈로그 원순서를 지킨다', () => {
+  it('상품명 일치 > IP 일치 > 나머지 순으로 놓고 동순위는 카탈로그 원순서를 지킨다', () => {
     /* 세 순위를 한 질의로 가르려면 질의어가 이름·IP 제목·그 밖(대표 카테고리 이름)에 각각 심겨야 한다.
        'IP 제목의 일부'를 질의어로 삼고 같은 어휘를 이름과 분류에도 심는다. */
     const catalog = catalogOf([
@@ -203,7 +203,7 @@ describe('selectSearchGoods (SR-01)', () => {
     expect(collection.result.priceCeil).toBe(30000);
   });
 
-  it('IP·가격 필터와 가격 정렬을 굿즈샵과 같은 규칙으로 얹고 옛 유형 값(?type=인형)은 무시한다', () => {
+  it('IP·가격 필터와 가격 정렬을 쇼핑과 같은 규칙으로 얹고 옛 유형 값(?type=인형)은 무시한다', () => {
     const filtered = selectSearchGoods(catalog, '리락쿠마', listQuery({ type: '인형', sort: 'price_desc' }), 1);
 
     expect(filtered.result.goods.map((item) => item.id)).toEqual(['name', 'name2', 'rest', 'ipGood']);

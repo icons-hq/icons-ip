@@ -10,13 +10,13 @@ import { isUuid } from '@/lib/uuid';
 export type GoodsSalesQuoteActionResult = { ok: true; quote: AddressGoodsSalesQuote } | { ok: false; error: string };
 export async function quoteGoodsSalesAction(input: unknown, destinationInput: unknown = null): Promise<GoodsSalesQuoteActionResult> {
   const items = parseShippingQuoteItems(input);
-  if (!items) return { ok: false, error: '가격과 구매 조건을 확인할 굿즈·옵션·수량을 다시 확인해주세요.' };
+  if (!items) return { ok: false, error: '가격과 구매 조건을 확인할 상품·옵션·수량을 다시 확인해주세요.' };
   const destination = destinationInput === null ? null : parseShippingDestination(destinationInput);
   if (destinationInput !== null && !destination) return { ok: false, error: '배송지의 우편번호와 기본 주소를 확인해주세요.' };
   try {
     const quote = await loadGoodsSalesQuote(items, destination);
     return quote ? { ok: true, quote }
-      : { ok: false, error: '현재 가격과 구매 조건을 확인하지 못했습니다. 굿즈의 판매 상태를 다시 확인해주세요.' };
+      : { ok: false, error: '현재 가격과 구매 조건을 확인하지 못했습니다. 상품의 판매 상태를 다시 확인해주세요.' };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '가격과 구매 조건을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.' };
@@ -26,11 +26,11 @@ export async function quoteGoodsSalesAction(input: unknown, destinationInput: un
 export type GoodsSalesPrecheckoutQuoteActionResult = { ok: true; quote: GoodsSalesPrecheckoutQuote } | { ok: false; error: string };
 export async function quoteGoodsSalesPrecheckoutAction(input: unknown): Promise<GoodsSalesPrecheckoutQuoteActionResult> {
   const items = parseShippingQuoteItems(input);
-  if (!items) return { ok: false, error: '가격과 구매 조건을 확인할 굿즈·옵션·수량을 다시 확인해주세요.' };
+  if (!items) return { ok: false, error: '가격과 구매 조건을 확인할 상품·옵션·수량을 다시 확인해주세요.' };
   try {
     const quote = await loadGoodsSalesPrecheckoutQuote(items);
     return quote ? { ok: true, quote }
-      : { ok: false, error: '현재 가격과 구매 조건을 확인하지 못했습니다. 굿즈의 판매 상태를 다시 확인해주세요.' };
+      : { ok: false, error: '현재 가격과 구매 조건을 확인하지 못했습니다. 상품의 판매 상태를 다시 확인해주세요.' };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '가격과 구매 조건을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.' };
@@ -43,7 +43,7 @@ export async function quoteGoodsSalesPrecheckoutAction(input: unknown): Promise<
  */
 export async function quoteGoodsSalesWithCouponAction(input: unknown, destinationInput: unknown, couponInput: unknown): Promise<GoodsSalesQuoteActionResult> {
   const items = parseShippingQuoteItems(input);
-  if (!items) return { ok: false, error: '가격과 구매 조건을 확인할 굿즈·옵션·수량을 다시 확인해주세요.' };
+  if (!items) return { ok: false, error: '가격과 구매 조건을 확인할 상품·옵션·수량을 다시 확인해주세요.' };
   const destination = destinationInput === null ? null : parseShippingDestination(destinationInput);
   if (destinationInput !== null && !destination) return { ok: false, error: '배송지의 우편번호와 기본 주소를 확인해주세요.' };
   if (couponInput !== null && !isUuid(couponInput)) return { ok: false, error: '고른 쿠폰을 다시 확인해주세요.' };
@@ -54,7 +54,7 @@ export async function quoteGoodsSalesWithCouponAction(input: unknown, destinatio
     });
     const quote = error ? null : parseAddressGoodsSalesQuote(data);
     return quote ? { ok: true, quote }
-      : { ok: false, error: '현재 가격과 구매 조건을 확인하지 못했습니다. 굿즈의 판매 상태를 다시 확인해주세요.' };
+      : { ok: false, error: '현재 가격과 구매 조건을 확인하지 못했습니다. 상품의 판매 상태를 다시 확인해주세요.' };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '가격과 구매 조건을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.' };

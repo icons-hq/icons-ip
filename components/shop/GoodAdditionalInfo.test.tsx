@@ -39,8 +39,8 @@ describe('GoodAdditionalInfo', () => {
     const preorder = renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[{ ...good, options: [{ id: '00000000-0000-4000-8000-000000000001', name: '예약', code: 'P1', price: 12000, stockQty: 0, isDefault: true, attributes: {},
       supply: { mode: 'preorder', expectedShipDate: '2026-12-01', availableQty: 5, saleStatus: 'open', saleEndsAt: null } }] } as never]} />);
     for (const markup of [html, preorder]) expect(markup).not.toContain('출고지');
-    expect(html).toContain('택배사가 달라 따로 배송되는 굿즈의 배송비는 각각 더합니다.');
-    expect(preorder).toContain('같은 배송 묶음의 일반 굿즈와 예약 굿즈를 함께 주문하면');
+    expect(html).toContain('택배사가 달라 따로 배송되는 상품의 배송비는 각각 더합니다.');
+    expect(preorder).toContain('같은 배송 묶음의 일반 상품과 예약 상품을 함께 주문하면');
   });
 
   /* S36-038: 지역 정책이 있는 출고지 굿즈는 지역별 추가 배송비를 싣고, 없으면 지금 문장 그대로다. 템플릿의 도서산간 안내는 그대로 보인다. */
@@ -64,7 +64,7 @@ describe('GoodAdditionalInfo', () => {
     /* 굿즈마다 부과하는 정책은 같은 금액에 단위를 굿즈당으로 밝힌다. */
     const perGood = renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} shippingPolicy={{ ...policy,
       regionFees: { state: 'listed', regions: [{ label: '제주', minFee: 3000, maxFee: 3000 }], regionCount: 1, feeUnit: 'per_good', waivedAtFreeThreshold: false, nextChangeAt: null } }} />);
-    expect(perGood).toContain('<li>지역별 추가 배송비: 제주 +₩3,000(굿즈당 1회). 최종 배송비는 주문서에서 주소를 입력한 뒤 확인합니다.');
+    expect(perGood).toContain('<li>지역별 추가 배송비: 제주 +₩3,000(상품당 1회). 최종 배송비는 주문서에서 주소를 입력한 뒤 확인합니다.');
     expect(perGood).not.toContain('배송 묶음당 1회');
   });
 
@@ -77,7 +77,7 @@ describe('GoodAdditionalInfo', () => {
     const returnSection = (html: string) => html.slice(html.indexOf('pdp-return-heading'), html.indexOf('pdp-seller-heading'));
     const available = returnSection(renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} shippingPolicy={policy} />));
     expect(available).toContain('<li data-claim-availability="available" style="white-space:pre-wrap"><strong>교환·반품 가능</strong></li>');
-    expect(available).toContain('<li>굿즈 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.</li>');
+    expect(available).toContain('<li>상품 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.</li>');
     expect(available).toContain('<li>교환·반품지: 서울특별시 합성구 반품로 1 · 주문 상세에서 교환·반품을 신청하고 승인 안내를 받은 뒤 보내주세요.</li>');
     expect(available).not.toContain('<strong>교환·반품 제한');
     expect(available).not.toContain('김포');
@@ -85,9 +85,9 @@ describe('GoodAdditionalInfo', () => {
     const restricted = returnSection(renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]}
       shippingPolicy={{ ...policy, claimPolicy: { ...terms, returnAllowed: false, exchangeAllowed: false, restrictionReason: '포장을 뜯으면 반품할 수 없습니다' } }} />));
     expect(restricted).toContain('<strong>교환·반품 제한(포장을 뜯으면 반품할 수 없습니다)</strong></li>');
-    expect(restricted).toContain('제한된 굿즈도 주문 상세에서 교환·반품을 신청할 수 있고, 담당자가 개별 확인합니다. 굿즈 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.');
+    expect(restricted).toContain('제한된 상품도 주문 상세에서 교환·반품을 신청할 수 있고, 담당자가 개별 확인합니다. 상품 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.');
     /* 사유가 제한 표시에 들어가므로 '굿즈별 확인 조건'으로 한 번 더 쓰지 않는다. */
-    expect(restricted).not.toContain('굿즈별 확인 조건');
+    expect(restricted).not.toContain('상품별 확인 조건');
 
     const returnOnly = returnSection(renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]}
       shippingPolicy={{ ...policy, claimPolicy: { ...terms, returnAllowed: false, restrictionReason: '위생용품' } }} />));

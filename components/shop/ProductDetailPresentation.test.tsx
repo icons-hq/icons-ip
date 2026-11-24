@@ -15,7 +15,7 @@ describe('PDP presentation public consumer', () => {
   });
   it('lets manual relations take precedence over their automatic counterparts', () => {
     const html = renderToStaticMarkup(<ProductDetailRecommendations data={data} manual={{ groups: [{ id: 'manual', kind: 'similar', title: '직접 편성', goods: cards }], nextChangeAt: null }} />);
-    expect(html).not.toContain('비슷한 굿즈도 살펴보세요'); expect(html).toContain('함께 구매한 굿즈');
+    expect(html).not.toContain('비슷한 상품도 살펴보세요'); expect(html).toContain('함께 구매한 상품');
     expect(renderToStaticMarkup(<ProductDetailRecommendations data={data} manual={{ groups: [], nextChangeAt: null, unavailable: true }} />)).toBe('');
   });
   /* L4b · CL-01·CL-02 — 자동 추천 카드도 상세가 내려 준 위시 상태·별점으로 하트와 별점을 단다. */

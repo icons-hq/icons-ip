@@ -220,7 +220,7 @@ function WithdrawalDeadlineNotice({
         </>
       ) : (
         <span>
-          단순 변심 {procedure} 기한이 지났습니다. {digitalOnly ? '파일 하자·오제공은' : '굿즈 하자·오배송은'}
+          단순 변심 {procedure} 기한이 지났습니다. {digitalOnly ? '파일 하자·오제공은' : '상품 하자·오배송은'}
           {' '}{ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 이내에 요청할 수 있습니다.
         </span>
       )}
@@ -452,10 +452,10 @@ export function OrderDetail({
               <strong>결제가 끝나지 않아 결제 없이 취소된 주문이에요</strong>
               <p>
                 {retry.source === 'cart'
-                  ? '청구된 금액은 없어요. 이 주문의 굿즈 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.'
+                  ? '청구된 금액은 없어요. 이 주문의 상품 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.'
                   : retry.retryOrderId
                     ? '청구된 금액은 없어요. 같은 구성으로 이미 다시 주문했어요. 다시 주문한 주문에서 결제·입금 상태를 확인해주세요.'
-                    : '청구된 금액은 없어요. 같은 굿즈·옵션·수량으로 주문서를 다시 열 수 있어요. 장바구니는 바뀌지 않아요.'}
+                    : '청구된 금액은 없어요. 같은 상품·옵션·수량으로 주문서를 다시 열 수 있어요. 장바구니는 바뀌지 않아요.'}
               </p>
             </div>
             <OrderRetryActions layout="detail" orderId={order.id} retry={retry} />
@@ -517,7 +517,7 @@ export function OrderDetail({
         <section className="order-detail-main card" aria-labelledby="ordered-goods-heading">
           <div className="checkout-section-heading checkout-section-heading--compact">
             <span className="checkout-step mono">ITEMS</span>
-            <h2 id="ordered-goods-heading">주문한 굿즈</h2>
+            <h2 id="ordered-goods-heading">주문한 상품</h2>
           </div>
 
           <div className="order-detail-items">
@@ -646,7 +646,7 @@ export function OrderDetail({
             </dl>
             {order.transaction ? <GoodsTransactionSummary display={order.transaction} labels="order" names={transactionReceiptNames(order.transaction, order.items)} canceledGoodIds={canceledGoodIds} /> : <dl className="checkout-totals">
               {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
-              <div><dt>총 굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
+              <div><dt>총 상품 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
               {order.discountTotal > 0 && (
                 <div><dt>쿠폰 할인 금액</dt><dd>−{krw(order.discountTotal)}</dd></div>
               )}

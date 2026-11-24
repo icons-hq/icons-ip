@@ -255,7 +255,7 @@ describe('CurationSection', () => {
     expect(checkboxTag(html, 'collection')).toContain('type="checkbox"');
     expect(checkboxTag(html, 'collection')).not.toContain('checked');
     expect(checkboxTag(html, 'product')).toContain('checked=""');
-    expect(html).toContain('상품 목록(굿즈샵·NEW·BEST·IP관)');
+    expect(html).toContain('상품 목록(쇼핑·NEW·BEST·IP관)');
     expect(html).not.toContain('data-artwork-kind="curation"');
     expect(html).toContain('type="hidden" name="imagePath" value=""');
     /* 띠배너를 공지 바로 바꿔도 이전 이미지 경로를 싣지 않는다 — 이미지 칸이 없어 오류를 보여 줄 자리도 없다. */
@@ -303,7 +303,7 @@ describe('CurationSection', () => {
     expect(html).toContain('컬렉션 배너 관리');
     expect(html).toContain('배너를 보일 컬렉션');
     expect(html).toContain('<option value="best" selected="">BEST</option>');
-    expect(html).toContain('<option value="all">굿즈샵 전체(슬라이드)</option>');
+    expect(html).toContain('<option value="all">전체 상품(슬라이드)</option>');
     expect(html).toContain('배너 문구');
     expect(html).toContain('8 / 40자');
     expect(html).toContain('name="subtitle"');

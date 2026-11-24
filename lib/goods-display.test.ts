@@ -37,7 +37,7 @@ describe('공개 상품 주소', () => {
     }
   });
 
-  it('운영자가 저장한 내부 id 링크를 읽어 둔 굿즈의 코드 주소로 바꾸고 모르는 값은 남겨 둔다', () => {
+  it('운영자가 저장한 내부 id 링크를 읽어 둔 상품의 코드 주소로 바꾸고 모르는 값은 남겨 둔다', () => {
     const goods = [{ id: 'hongsil-keyring', code: 'HSQ-0059' }, { id: 'plain', code: '창고 A' }];
     const links = canonicalGoodLinks(['/shop/hongsil-keyring?utm_source=home', '/shop/plain', '/shop/hsq-0059', '/shop/unknown', '/shop/new', '/ip/x'], goods);
     expect(Object.fromEntries(links)).toEqual({

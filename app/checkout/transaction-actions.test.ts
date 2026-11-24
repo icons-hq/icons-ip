@@ -102,7 +102,7 @@ it('쿠폰 순서를 별도 명시하고 응답의 쿠폰 선택이 다르면 �
   expect(await quoteCartTransactionAction({ ...transactionInput, userCouponIds: ids })).toEqual({ ok: false, error: 'unavailable' });
 });
 
-it('19금 굿즈가 섞인 카트의 카드 주문과 이어서 주문하기는 나이스페이 gate를 본다(ADR-0024)', async () => {
+it('19금 상품이 섞인 카트의 카드 주문과 이어서 주문하기는 나이스페이 gate를 본다(ADR-0024)', async () => {
   mocks.cartProvider.mockResolvedValue('nicepay'); mocks.userCartProvider.mockResolvedValue('nicepay'); mocks.card = false;
   expect(await placeCartTransactionAction(placeInput)).toMatchObject({ ok: false, error: 'payment_unavailable', uncertain: false });
   expect(mocks.cartProvider).toHaveBeenCalledWith(placeInput.items.map(item => item.goodId));
@@ -189,7 +189,7 @@ it('화면이 보인 제한 고지 없이 동의만 있으면 주문하지 않�
   expect(await placeCartTransactionAction({ ...placeInput, claimNotice: 'x' })).toEqual({ ok: false, error: 'acknowledgement_required', uncertain: false });
   expect(mocks.rpc).not.toHaveBeenCalled();
 });
-it('주문 직전 재조회가 화면에 없던 제한 굿즈를 찾으면 주문 RPC에 닿지 않는다', async () => {
+it('주문 직전 재조회가 화면에 없던 제한 상품을 찾으면 주문 RPC에 닿지 않는다', async () => {
   acknowledgement.verify.mockResolvedValueOnce('changed');
   expect(await placeCartTransactionAction({ ...placeInput, claimNotice: 'unavailable' })).toEqual({ ok: false, error: 'claim_notice_changed', uncertain: false });
   acknowledgement.verify.mockResolvedValueOnce('unavailable');
@@ -199,7 +199,7 @@ it('주문 직전 재조회가 화면에 없던 제한 굿즈를 찾으면 주�
 });
 
 /* 복구가 새 주문을 만들 수 있을 때만 화면이 보인 제한 고지와 다시 대조한다(P2). */
-it('복구가 새 주문을 만들 수 있으면 서버 장바구니 굿즈로 대조하고 통과하면 allow_new로 만든다', async () => {
+it('복구가 새 주문을 만들 수 있으면 서버 장바구니 상품으로 대조하고 통과하면 allow_new로 만든다', async () => {
   expect(await resumeCartTransactionAction({ ...recovery, claimNotice: ['transaction-good'] })).toEqual({ ok: true, orderId: transactionOrder });
   expect(acknowledgement.verify).toHaveBeenCalledWith(['transaction-good'], ['transaction-good']);
   expect(mocks.rpc).toHaveBeenLastCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: true }));

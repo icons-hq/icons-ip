@@ -22,7 +22,7 @@ import { ORDER_RECEIPT_NOTICE_PARAM, ORDER_RECEIPT_NOTICE_UNAVAILABLE } from '@/
 
 export const metadata: Metadata = {
   title: '주문 상세 — 엑스스퀘어',
-  description: '주문한 굿즈, 배송지, 결제 내역을 확인하세요.',
+  description: '주문한 상품, 배송지, 결제 내역을 확인하세요.',
 };
 
 export default async function Page({ params, searchParams }: PageProps<'/orders/[orderId]'>) {

@@ -37,7 +37,7 @@ describe('전시 공개 DTO', () => {
     expect(result?.options?.[0].supply?.state).toBe('open');
   });
   /* ADR-0050 — 전시 투영이 싣는 상품 자동코드로 카드 링크가 공개 상세의 정식 주소로 바로 간다. */
-  it('전시 투영의 상품 자동코드를 굿즈에 싣는다', () => {
+  it('전시 투영의 상품 자동코드를 상품에 싣는다', () => {
     expect(parseCategoryDisplayGood({ ...row(), code: 'HSQ-0059' })?.code).toBe('HSQ-0059');
     expect(parseCategoryDisplayGood(row())).not.toHaveProperty('code');
   });
@@ -47,7 +47,7 @@ describe('전시 공개 DTO', () => {
     const badSupply = row(); badSupply.goods_variants[0].supply.state = 'closed';
     expect(parseCategoryDisplayGood(badSupply)).toBeNull();
   });
-  it('랜덤 판매 굿즈는 전시 RPC가 싣는 랜덤 한 줄 하나로 목록 빠른 담기가 된다(D5②)', () => {
+  it('랜덤 판매 상품은 전시 RPC가 싣는 랜덤 한 줄 하나로 목록 빠른 담기가 된다(D5②)', () => {
     // private.category_display_public_variants 는 랜덤 굿즈의 옵션 행 대신 goods_random_option 한 줄(장바구니 키·풀 합계)만 싣는다.
     const base = row(), key = '93930000-0000-4000-8000-000000000077';
     const supply = { mode: 'stock', availableQty: 60, policyId: null, policyRevision: null, state: 'stock',
@@ -95,7 +95,7 @@ describe('전시 공개 DTO', () => {
     market.banner = { id, title: '', subtitle: null, imageUrl: 'image', mobileImageUrl: null, href: '/market', imageAlt: '', imageDim: 'none', textColor: 'white' };
     expect((await hydrateCategoryDisplayPage(market, {} as SupabaseClient)).banner).toBeNull();
   });
-  it('목록 카드 별점은 이 페이지 굿즈 몫만 배치로 읽고, 실패하면 별점만 숨긴다(CL-02)', async () => {
+  it('목록 카드 별점은 이 페이지 상품 몫만 배치로 읽고, 실패하면 별점만 숨긴다(CL-02)', async () => {
     const client = { rpc: vi.fn() } as unknown as SupabaseClient;
     mocks.summaries.mockResolvedValueOnce({ g1: { count: 4, average: 4.5 } });
     const result = await hydrateCategoryDisplayPage(parseCategoryDisplayPage(page(), query)!, client);

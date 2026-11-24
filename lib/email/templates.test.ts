@@ -83,7 +83,7 @@ describe('renderOrderConfirmationEmail', () => {
     expect(email.html).toContain('1F2A3B4C');
   });
 
-  it('굿즈 내역과 배송비 포함 결제 금액을 모두 적는다', () => {
+  it('상품 내역과 배송비 포함 결제 금액을 모두 적는다', () => {
     const email = renderOrderConfirmationEmail(confirmationInput());
 
     for (const surface of [email.text, email.html]) {
@@ -124,7 +124,7 @@ describe('renderOrderConfirmationEmail', () => {
     expect(email.html).toContain(LEGAL_WITHDRAWAL_NOTICE);
   });
 
-  it('굿즈 이름의 HTML 특수문자를 이스케이프한다', () => {
+  it('상품 이름의 HTML 특수문자를 이스케이프한다', () => {
     const email = renderOrderConfirmationEmail(confirmationInput({
       items: [{ name: '<script>alert(1)</script>', qty: 1, unitPrice: 1_000 }],
     }));
@@ -263,7 +263,7 @@ describe('renderRestockAlertEmail (#326)', () => {
     goodPath: 'https://iconsip.com/shop/g13',
   };
 
-  it('제목과 본문이 어떤 굿즈인지 말한다', () => {
+  it('제목과 본문이 어떤 상품인지 말한다', () => {
     const email = renderRestockAlertEmail(input);
 
     expect(email.subject).toBe('[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록');
@@ -282,7 +282,7 @@ describe('renderRestockAlertEmail (#326)', () => {
     expect(email.text).toContain('홍실 아크릴 블록');
   });
 
-  it('굿즈명의 HTML을 이스케이프한다', () => {
+  it('상품명의 HTML을 이스케이프한다', () => {
     const email = renderRestockAlertEmail({ ...input, goodName: '<script>x</script>' });
 
     expect(email.html).not.toContain('<script>');
@@ -299,11 +299,11 @@ describe('renderRestockAlertEmail (#326)', () => {
     expect(email.html).toContain('href="https://iconsip.com/shop/g13?variant=00000000-0000-4000-8000-000000056711"');
   });
 
-  it('옵션 이름이 없거나 비면 굿즈 단위 문장 그대로다', () => {
+  it('옵션 이름이 없거나 비면 상품 단위 문장 그대로다', () => {
     for (const optionName of [undefined, null, '   ']) {
       const email = renderRestockAlertEmail({ ...input, optionName });
       expect(email.subject).toBe('[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록');
-      expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
+      expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 상품이 다시 판매를 시작했어요.');
     }
   });
 
@@ -322,8 +322,8 @@ describe('renderRestockAlertEmail (#326)', () => {
 
   /* 알림함 본문은 DB 트리거가 같은 문장으로 쓴다(20261023010000 private.wake_restock_alerts). */
   it('알림함과 같은 문장을 쓴다', () => {
-    expect(restockAlertSentence('옵션 재입고 굿즈', '옵션 B')).toBe('옵션 재입고 굿즈 · 옵션 B 옵션이 다시 판매를 시작했어요.');
-    expect(restockAlertSentence('전부 품절 굿즈')).toBe('전부 품절 굿즈 굿즈가 다시 판매를 시작했어요.');
+    expect(restockAlertSentence('옵션 재입고 상품', '옵션 B')).toBe('옵션 재입고 상품 · 옵션 B 옵션이 다시 판매를 시작했어요.');
+    expect(restockAlertSentence('전부 품절 키링')).toBe('전부 품절 키링 상품이 다시 판매를 시작했어요.');
   });
 });
 
@@ -337,8 +337,8 @@ describe('renderRestockAlertEmail (#326)', () => {
   const email = renderOrderShippedEmail(shippedInput({orderNumber:'2026102710000123',shipmentNumber:'2026102730000045',carrierName:'한진택배',trackingNumber:'123456789012',trackingUrl:'https://carrier.example.test/123456789012'}));
   expect({subject:email.subject,text:email.text}).toMatchInlineSnapshot(`
     {
-      "subject": "[엑스스퀘어] 굿즈가 배송을 시작했어요 (주문번호 2026102710000123)",
-      "text": "엑스스퀘어 굿즈가 배송을 시작했어요.
+      "subject": "[엑스스퀘어] 상품이 배송을 시작했어요 (주문번호 2026102710000123)",
+      "text": "엑스스퀘어 상품이 배송을 시작했어요.
 
     주문번호: 2026102710000123
     배송건번호: 2026102730000045
@@ -346,7 +346,7 @@ describe('renderRestockAlertEmail (#326)', () => {
     운송장번호: 123456789012
     배송 조회: https://carrier.example.test/123456789012
 
-    [이번 배송 굿즈]
+    [이번 배송 상품]
     홍실 아크릴 블록 × 1  ₩12,000
 
     [배송지]

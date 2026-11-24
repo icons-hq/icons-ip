@@ -97,7 +97,7 @@ export async function upsertAdminCurationAction(
 
   revalidatePath('/');
   revalidatePath('/admin');
-  /* 컬렉션 배너(굿즈샵·BEST·NEW)와 추천 검색어(셸)도 아래 태그로 읽는다(lib/collection-banners.server · lib/search-terms.server). */
+  /* 컬렉션 배너(전체 상품·BEST·NEW)와 추천 검색어(셸)도 아래 태그로 읽는다(lib/collection-banners.server · lib/search-terms.server). */
   revalidatePath('/admin/display/curations');
   /*
    * 셸 공지(텍스트 공지 바·띠배너)는 전역 셸이 unstable_cache 로 읽는다 — 경로 재검증만으로는 늦는다.

@@ -181,12 +181,12 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
   const subject = `[엑스스퀘어] 주문이 접수됐어요 (주문번호 ${reference})`;
   const totals = input.transaction?.totals;
   const amountRows: [string, string][] = totals ? [
-    ['굿즈 합계', krw(totals.subtotal)], ['복수구매 할인', `−${krw(totals.volumeDiscountTotal)}`],
+    ['상품 합계', krw(totals.subtotal)], ['복수구매 할인', `−${krw(totals.volumeDiscountTotal)}`],
     ['쿠폰 할인', `−${krw(totals.couponDiscountTotal)}`], ['적립금 사용', `−${krw(totals.storeCreditTotal)}`],
     ['선불 배송비', krw(totals.prepaidShippingTotal)], ['온라인 결제금액', krw(totals.onlineTotal)],
     ...(totals.collectShippingTotal > 0 ? [['착불 배송비 · 수령 시 별도', krw(totals.collectShippingTotal)], ['총 부담금액', krw(totals.customerTotal)]] as [string, string][] : []),
   ] : [
-    ['굿즈 합계', krw(input.itemsSubtotal)], ['배송비', shippingFeeLabel(input.shippingFee)],
+    ['상품 합계', krw(input.itemsSubtotal)], ['배송비', shippingFeeLabel(input.shippingFee)],
     ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
     ...(input.storeCreditTotal ? [['적립금 사용', `−${krw(input.storeCreditTotal)}`] as [string, string]] : []),
     ['총 결제금액', krw(input.total)],
@@ -202,7 +202,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     `주문번호: ${reference}`,
     ...(orderedAt ? [`주문일시: ${orderedAt}`] : []),
     '',
-    '[주문 굿즈]',
+    '[주문 상품]',
     ...input.items.map(itemLine),
     '',
     ...amountRows.map(([label, value]) => `${label}: ${value}`),
@@ -225,7 +225,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
       ['주문번호', reference],
       ...(orderedAt ? [['주문일시', orderedAt] as [string, string]] : []),
     ]),
-    htmlSectionTitle('주문 굿즈'),
+    htmlSectionTitle('주문 상품'),
     htmlItemRows(input.items),
     htmlDefinitionRows(amountRows),
     ...collectLines.map(line => htmlParagraph(line)),
@@ -242,7 +242,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
 export function renderOrderShippedEmail(input: OrderShippedEmailInput): RenderedEmail {
   const reference = orderReferenceLabel(input.orderId, input.orderNumber);
   const shipmentReference = commerceReferenceLabel(input.shipmentId, input.shipmentNumber);
-  const subject = `[엑스스퀘어] 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
+  const subject = `[엑스스퀘어] 상품이 배송을 시작했어요 (주문번호 ${reference})`;
   const carrierName = input.giftDelivery ? null : input.carrierName?.trim() || null;
   const trackingNumber = input.giftDelivery ? null : input.trackingNumber?.trim() || null;
   const trackingUrl = input.giftDelivery ? null : safeLinkUrl(input.trackingUrl);
@@ -256,7 +256,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
   ];
 
   const text = textBlock([
-    '엑스스퀘어 굿즈가 배송을 시작했어요.',
+    '엑스스퀘어 상품이 배송을 시작했어요.',
     '',
     `주문번호: ${reference}`,
     `배송건번호: ${shipmentReference}`,
@@ -265,7 +265,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []),
     ...(hasTracking || input.giftDelivery ? [] : [TRACKING_FALLBACK]),
     '',
-    '[이번 배송 굿즈]',
+    '[이번 배송 상품]',
     ...input.items.map(itemLine),
     '',
     '[배송지]',
@@ -275,13 +275,13 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
   ]);
 
   const html = htmlDocument(reference, [
-    htmlHeading('굿즈가 배송을 시작했어요'),
-    htmlParagraph('아래 굿즈가 배송지로 이동하고 있습니다. 다른 배송 건은 주문 상세에서 확인해주세요.'),
+    htmlHeading('상품이 배송을 시작했어요'),
+    htmlParagraph('아래 상품이 배송지로 이동하고 있습니다. 다른 배송 건은 주문 상세에서 확인해주세요.'),
     htmlSectionTitle('배송 정보'),
     htmlDefinitionRows(trackingRows),
     ...(hasTracking || input.giftDelivery ? [] : [htmlParagraph(TRACKING_FALLBACK)]),
     ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []),
-    htmlSectionTitle('이번 배송 굿즈'),
+    htmlSectionTitle('이번 배송 상품'),
     htmlItemRows(input.items),
     htmlSectionTitle('배송지'),
     input.giftDelivery ? htmlParagraph(GIFT_DELIVERY_PRIVATE) : htmlAddress(input.address),
@@ -341,7 +341,7 @@ export interface RestockAlertEmailInput {
 /** 재입고 알림 첫 문장. 알림함 본문(DB 트리거)과 같은 문장이다. */
 export function restockAlertSentence(goodName: string, optionName?: string | null): string {
   const option = optionName?.trim();
-  return option ? `${goodName} · ${option} 옵션이 다시 판매를 시작했어요.` : `${goodName} 굿즈가 다시 판매를 시작했어요.`;
+  return option ? `${goodName} · ${option} 옵션이 다시 판매를 시작했어요.` : `${goodName} 상품이 다시 판매를 시작했어요.`;
 }
 
 /**
@@ -370,15 +370,15 @@ export function renderRestockAlertEmail(input: RestockAlertEmailInput): Rendered
     sentence,
     '',
     '수량이 한정적이라 다시 품절될 수 있어요.',
-    ...(goodUrl ? ['', `굿즈 보러 가기: ${goodUrl}`] : []),
+    ...(goodUrl ? ['', `상품 보러 가기: ${goodUrl}`] : []),
   ]);
 
   const html = htmlDocument(input.goodName, [
     htmlHeading('재입고 알림'),
     htmlParagraph(sentence, INK),
     htmlParagraph('수량이 한정적이라 다시 품절될 수 있어요.'),
-    ...(goodUrl ? [htmlButton(goodUrl, '굿즈 보러 가기')] : []),
-  ].join(''), '굿즈');
+    ...(goodUrl ? [htmlButton(goodUrl, '상품 보러 가기')] : []),
+  ].join(''), '상품');
 
   return { subject, text, html };
 }

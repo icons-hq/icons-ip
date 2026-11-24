@@ -150,7 +150,7 @@ export function buildOrderStatement(input: BuildOrderStatementInput): OrderState
   const amounts = statementAmounts(order);
   const partialRefund = partialCancellationRefundTotal(input.partialCancellations);
 
-  const totals: StatementTotalRow[] = [{ key: 'goods', label: '굿즈 합계', amount: amounts.goods, kind: 'plain' }];
+  const totals: StatementTotalRow[] = [{ key: 'goods', label: '상품 합계', amount: amounts.goods, kind: 'plain' }];
   if (amounts.volume > 0) totals.push({ key: 'volume', label: '복수구매 할인', amount: amounts.volume, kind: 'deduction' });
   if (amounts.coupon > 0) totals.push({ key: 'coupon', label: '쿠폰 할인', amount: amounts.coupon, kind: 'deduction' });
   if (amounts.credit > 0) totals.push({ key: 'credit', label: '적립금 사용', amount: amounts.credit, kind: 'deduction' });

@@ -146,7 +146,7 @@ describe('/my page', () => {
       grade: 'silver',
       windowSpend: 150000,
       windowItemCount: 2,
-      nextNote: 'GOLD까지 150,000원 또는 굿즈 주문 항목 3건',
+      nextNote: 'GOLD까지 150,000원 또는 상품 주문 항목 3건',
     });
 
     renderToStaticMarkup(await Page());
@@ -155,7 +155,7 @@ describe('/my page', () => {
       loyalty: {
         grade: 'silver',
         label: 'SILVER',
-        nextNote: 'GOLD까지 150,000원 또는 굿즈 주문 항목 3건',
+        nextNote: 'GOLD까지 150,000원 또는 상품 주문 항목 3건',
       },
     }), undefined);
   });

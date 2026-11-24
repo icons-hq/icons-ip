@@ -22,7 +22,7 @@ describe('일반 상품의 판매기간', () => {
   it('상품 구매 조건과 일반재고의 다음 경계에 판매기간을 전달한다', () => {
     const salePeriod = parseGoodsSalePeriod({ startsAt, endsAt, state: 'scheduled', calculatedAt: '2026-10-12T00:00:00Z', nextChangeAt: startsAt })!;
     expect(goodsSaleUnavailableLabel(salePeriod)).toBe('판매 예정');
-    expect(goodsPurchaseConditionProblem({ salePeriod })).toBe('판매 예정 굿즈입니다.');
+    expect(goodsPurchaseConditionProblem({ salePeriod })).toBe('판매 예정 상품입니다.');
     expect(parseGoodsVariantSupply({ mode: 'stock', availableQty: 0, policyId: null, policyRevision: null,
       state: 'stock', startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: salePeriod.calculatedAt, nextChangeAt: startsAt })).not.toBeNull();
   });
@@ -33,23 +33,23 @@ describe('goodsSalePeriodOrderNotice', () => {
   const now = Date.parse('2026-11-12T06:00:00Z');
   const period = (state: 'open' | 'ended' | 'scheduled' | 'unlimited', endsAt: string | null = null) =>
     ({ startsAt: endsAt ? '2026-11-01T00:00:00Z' : null, endsAt, state, calculatedAt: '2026-11-12T05:00:00Z', nextChangeAt: null });
-  it('판매기간이 끝난 굿즈의 이름과 이유를 말한다 — 화면을 연 뒤 종료 시각이 지난 굿즈도', () => {
+  it('판매기간이 끝난 상품의 이름과 이유를 말한다 — 화면을 연 뒤 종료 시각이 지난 상품도', () => {
     const goods = [
       { name: '곧 종료 스티커', salePeriod: period('open', '2026-11-12T05:59:00Z') },
       { name: '머그', salePeriod: period('unlimited') },
       { name: '엽서', salePeriod: period('ended', '2026-11-11T00:00:00Z') },
     ];
-    expect(goodsSalePeriodOrderNotice(goods, 'cart', now)).toBe('판매기간이 끝난 굿즈가 있어요: 곧 종료 스티커, 엽서. 장바구니에서 이 굿즈를 빼고 다시 주문해주세요.');
-    expect(goodsSalePeriodOrderNotice([goods[0]], 'direct', now)).toBe('판매기간이 끝난 굿즈가 있어요: 곧 종료 스티커. 이 굿즈는 지금 주문할 수 없어요.');
+    expect(goodsSalePeriodOrderNotice(goods, 'cart', now)).toBe('판매기간이 끝난 상품이 있어요: 곧 종료 스티커, 엽서. 장바구니에서 이 상품을 빼고 다시 주문해주세요.');
+    expect(goodsSalePeriodOrderNotice([goods[0]], 'direct', now)).toBe('판매기간이 끝난 상품이 있어요: 곧 종료 스티커. 이 상품은 지금 주문할 수 없어요.');
   });
-  it('판매 예정 굿즈도 알리고, 판매 중이면 없다', () => {
-    expect(goodsSalePeriodOrderNotice([{ name: '예정 굿즈', salePeriod: period('scheduled', '2026-12-01T00:00:00Z') }], 'cart', now))
-      .toContain('아직 판매를 시작하지 않은 굿즈가 있어요: 예정 굿즈.');
+  it('판매 예정 상품도 알리고, 판매 중이면 없다', () => {
+    expect(goodsSalePeriodOrderNotice([{ name: '예정 상품', salePeriod: period('scheduled', '2026-12-01T00:00:00Z') }], 'cart', now))
+      .toContain('아직 판매를 시작하지 않은 상품이 있어요: 예정 상품.');
     expect(goodsSalePeriodOrderNotice([{ name: '머그', salePeriod: period('open', '2026-12-01T00:00:00Z') }, { name: '키링' }], 'cart', now)).toBeNull();
   });
 });
 
-describe('굿즈 하나의 판매기간 차단 판정', () => {
+describe('상품 하나의 판매기간 차단 판정', () => {
   it('끝남·시작 전만 막고 열림·기간 없음은 막지 않는다', () => {
     const base = { startsAt, endsAt, calculatedAt: startsAt, nextChangeAt: null };
     expect(goodsSalePeriodBlock({ salePeriod: { ...base, state: 'ended' } })).toBe('ended');

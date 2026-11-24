@@ -135,10 +135,10 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
   });
 
   it.each([
-    ['코페이 굿즈 attempt(#208 수동 큐)', { provider: 'korpay', purpose: 'order' }],
+    ['코페이 상품 attempt(#208 수동 큐)', { provider: 'korpay', purpose: 'order' }],
     ['토스 티켓 attempt', { provider: 'toss', purpose: 'ticket' }],
     ['무통장 attempt', { provider: 'bank_transfer', purpose: 'order' }],
-  ])('토스·나이스페이 굿즈 attempt가 아니면 claim 없이 422로 거절한다 — 상태를 바꾸지 않는다: %s', async (_label, row) => {
+  ])('토스·나이스페이 상품 attempt가 아니면 claim 없이 422로 거절한다 — 상태를 바꾸지 않는다: %s', async (_label, row) => {
     mocks.attemptRow = row;
 
     const response = await POST(request());
@@ -219,7 +219,7 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
-  it('나이스페이 굿즈 attempt는 nicepay 조립으로 재정합한다', async () => {
+  it('나이스페이 상품 attempt는 nicepay 조립으로 재정합한다', async () => {
     mocks.attemptRow = { provider: 'nicepay', purpose: 'order' };
     mocks.reconcile.mockResolvedValueOnce({ attemptId, provider: 'nicepay', outcome: 'needs_review' });
 
@@ -234,7 +234,7 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
   });
 
   it.each([
-    ['refund operation(굿즈에는 환불 reconcile seam이 없다)', { operation: 'refund', requestId: attemptId, caseRef: 'case_goods_opaque_410' }],
+    ['refund operation(상품에는 환불 reconcile seam이 없다)', { operation: 'refund', requestId: attemptId, caseRef: 'case_goods_opaque_410' }],
     ['operation 누락', { attemptId, caseRef: 'case_goods_opaque_410' }],
     ['attemptId 형식 위반', { operation: 'payment', attemptId: 'not-a-uuid', caseRef: 'case_goods_opaque_410' }],
     ['caseRef에 PII성 문자', { operation: 'payment', attemptId, caseRef: 'staff@example.test' }],

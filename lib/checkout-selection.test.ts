@@ -70,7 +70,7 @@ describe('장바구니 선택(ADR-0030 · 1014-031)', () => {
     expect(cartOrderButtonLabel(cartSelectionQuantity([A, B]))).toBe('3개 주문하기');
   });
 
-  it('DB 줄 식별은 굿즈·옵션·직접입력 개정·값이다', () => {
+  it('DB 줄 식별은 상품·옵션·직접입력 개정·값이다', () => {
     expect(cartLineIdentityPayload(A)).toEqual({ good_id: 'a', variant_id: A.variantId, input_revision: 0, input_values: {} });
     expect(cartLineIdentityPayload(engraved('하나'))).toEqual({ good_id: 'e', variant_id: '00000000-0000-4000-8000-00000000000e',
       input_revision: 1, input_values: { '00000000-0000-4000-8000-0000000000f1': '하나' } });
@@ -94,7 +94,7 @@ describe('결제 대기 주문이 원인일 수 있는 견적 막힘', () => {
     expect(quoteMayBeBlockedByPendingOrder({ ...clear, lines: [{ optionLimit: { reason: 'option_order_limit_exceeded' } }] })).toBe(false);
   });
   /* 원인 조건은 사유마다 좁다 — 그 굿즈(옵션)·그 쿠폰. 모든 결제 대기 주문이 원인일 수 있는 것은 첫구매 예약뿐이다. */
-  it('견적 사유에서 원인 조건을 그 굿즈·옵션·쿠폰으로 읽는다', () => {
+  it('견적 사유에서 원인 조건을 그 상품·옵션·쿠폰으로 읽는다', () => {
     const VX = '00000000-0000-4000-8000-0000000000aa';
     const coupon = '00000000-0000-4000-8000-0000000000c1';
     expect(pendingOrderCausesFromQuote({ coupon: { reason: 'coupon_already_used', userCouponId: coupon },
@@ -105,7 +105,7 @@ describe('결제 대기 주문이 원인일 수 있는 견적 막힘', () => {
       .toMatchObject({ firstPurchase: true, userCouponIds: [] });
     expect(hasPendingOrderCause(pendingOrderCausesFromQuote({ coupon: { reason: 'coupon_min_subtotal' }, goods: [], lines: [] }))).toBe(false);
   });
-  it('거래 런타임 이슈에서 원인 조건을 읽는다(구매 한도는 그 굿즈, 쿠폰은 고른 쿠폰, 지금 살 수 없음은 그 굿즈 재고)', () => {
+  it('거래 런타임 이슈에서 원인 조건을 읽는다(구매 한도는 그 상품, 쿠폰은 고른 쿠폰, 지금 살 수 없음은 그 상품 재고)', () => {
     const coupon = '00000000-0000-4000-8000-0000000000c1';
     expect(pendingOrderCausesFromTransactionIssues([{ code: 'purchase_limit', goodId: 'g4' }, { code: 'coupon_unavailable' },
       { code: 'goods_unavailable', goodId: 'g6' }, { code: 'address_required' }], [coupon]))
@@ -144,7 +144,7 @@ describe('견적이 판정한 주문할 수 없는 줄·구매 조건', () => {
     expect(quoteExclusionKey({ ...a, qty: 1 })).not.toBe(quoteExclusionKey(a));
   });
 
-  it('굿즈 사유는 그 굿즈의 고른 줄 모두에 체크 해제 사유를 달고, 회원 누적 한도는 결제 대기 주문이 원인일 수 있다고 표시한다', () => {
+  it('상품 사유는 그 상품의 고른 줄 모두에 체크 해제 사유를 달고, 회원 누적 한도는 결제 대기 주문이 원인일 수 있다고 표시한다', () => {
     const a2 = { goodId: 'a', variantId: VC, qty: 1 };
     const quote = { lines: [{ ...base, goodId: 'a', variantId: VA, qty: 2, available: true }, { ...base, goodId: 'a', variantId: VC, qty: 1, available: true },
       { ...base, goodId: 'b', variantId: VB, qty: 1, available: true }] as never,
@@ -181,7 +181,7 @@ describe('견적이 판정한 주문할 수 없는 줄·구매 조건', () => {
     expect(goodsLimitNoteMessage(good('a'))).toBeNull();
   });
 
-  it('굿즈 줄 집합의 서명은 체크·해제·삭제·수량 변경에 바뀌고 다른 굿즈의 변경에는 그대로다', () => {
+  it('상품 줄 집합의 서명은 체크·해제·삭제·수량 변경에 바뀌고 다른 상품의 변경에는 그대로다', () => {
     const a2 = { goodId: 'a', variantId: VC, qty: 1 };
     const off = new Set([cartLineKey(a), cartLineKey(a2)]);
     const sign = (items: typeof a[], keys: ReadonlySet<string>) => cartGoodSignature(items.map((item) => (
@@ -203,7 +203,7 @@ describe('견적이 판정한 주문할 수 없는 줄·구매 조건', () => {
     expect(quoteCoversSelection([{ ...a, qty: 1 }, { ...a, qty: 1, customInputs: { revision: 1, fields: [] } }], quote)).toBe(true);
   });
 
-  it('거래 런타임의 지금 주문할 수 없는 굿즈를 모은다', () => {
+  it('거래 런타임의 지금 주문할 수 없는 상품을 모은다', () => {
     expect(transactionIssueStockGoodIds([{ code: 'goods_unavailable', goodId: 'a' }, { code: 'goods_unavailable', goodId: 'a' },
       { code: 'purchase_limit', goodId: 'b' }, { code: 'goods_unavailable', goodId: null }])).toEqual(['a']);
   });
@@ -214,7 +214,7 @@ describe('결제 대기 주문 확인창', () => {
   const ORDER = '00000000-0000-4000-8000-0000000000e1';
   const VA = '00000000-0000-4000-8000-00000000000a';
   const COUPON = '00000000-0000-4000-8000-0000000000c1';
-  const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 3, goodIds: ['a', 'b'],
+  const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '상품 A', itemCount: 3, goodIds: ['a', 'b'],
     variantIds: [VA.toUpperCase()], userCouponIds: [COUPON], releasable: true };
   it('목록 모양이 하나라도 틀리면 믿지 않는다', () => {
     expect(parseUnpaidCheckoutOrders([row])).toEqual([{ ...row, id: ORDER, variantIds: [VA] }]);
@@ -226,7 +226,7 @@ describe('결제 대기 주문 확인창', () => {
     expect(parseUnpaidCheckoutOrders({})).toBeNull();
   });
   /* t12b(UI 재리뷰): g4의 회원 누적 한도로 막혔는데 무관한 g7 결제 대기 주문을 원인으로 권해, 취소해도 g4는 그대로 막혔다. */
-  it('재고·회원 누적 한도는 그 굿즈(옵션)를 담은 주문, 쿠폰 사용은 그 쿠폰을 쓴 주문, 첫구매 예약만 모든 주문을 원인으로 본다', () => {
+  it('재고·회원 누적 한도는 그 상품(옵션)를 담은 주문, 쿠폰 사용은 그 쿠폰을 쓴 주문, 첫구매 예약만 모든 주문을 원인으로 본다', () => {
     const [order] = parseUnpaidCheckoutOrders([row])!;
     const unrelated = { ...order, id: '00000000-0000-4000-8000-0000000000e2', goodIds: ['g7'], variantIds: [], userCouponIds: [] };
     expect(relevantUnpaidCheckoutOrders([order, unrelated], { limitGoodIds: ['g4'] })).toEqual([]);
@@ -239,17 +239,17 @@ describe('결제 대기 주문 확인창', () => {
   });
   it('해소 안내는 원인 주문 건수와 그 주문이 잡은 것을 말한다', () => {
     const [order] = parseUnpaidCheckoutOrders([row])!;
-    expect(unpaidOrderCauseMessage([order], { limitGoodIds: ['a'] })).toBe('결제 대기 주문 1건이 이 굿즈의 구매 한도를 잡고 있어요.');
-    expect(unpaidOrderCauseMessage([order], { stockGoodIds: ['b'] })).toBe('결제 대기 주문 1건이 이 굿즈의 재고를 잡고 있어요.');
+    expect(unpaidOrderCauseMessage([order], { limitGoodIds: ['a'] })).toBe('결제 대기 주문 1건이 이 상품의 구매 한도를 잡고 있어요.');
+    expect(unpaidOrderCauseMessage([order], { stockGoodIds: ['b'] })).toBe('결제 대기 주문 1건이 이 상품의 재고를 잡고 있어요.');
     expect(unpaidOrderCauseMessage([order], { userCouponIds: [COUPON] })).toBe('결제 대기 주문 1건이 이 쿠폰을 쓰고 있어요.');
     expect(unpaidOrderCauseMessage([order], { firstPurchase: true })).toBe('결제 대기 주문 1건이 첫구매 혜택을 잡고 있을 수 있어요.');
     expect(unpaidOrderCauseMessage([order], { userCouponIds: [COUPON], stockGoodIds: ['a'] })).toBe('결제 대기 주문 1건이 쿠폰·재고를 잡고 있어요.');
     expect(unpaidOrderCauseMessage([order], { limitGoodIds: ['a'], firstPurchase: true })).toBe('결제 대기 주문 1건이 첫구매 혜택·구매 한도를 잡고 있을 수 있어요.');
   });
-  it('주문 요약은 첫 굿즈와 나머지 품목 수다', () => {
-    expect(unpaidCheckoutOrderSummary({ itemName: '굿즈 A', itemCount: 3 })).toBe('굿즈 A 외 2건');
-    expect(unpaidCheckoutOrderSummary({ itemName: '굿즈 A', itemCount: 1 })).toBe('굿즈 A');
-    expect(unpaidCheckoutOrderSummary({ itemName: null, itemCount: 1 })).toBe('굿즈');
+  it('주문 요약은 첫 상품과 나머지 품목 수다', () => {
+    expect(unpaidCheckoutOrderSummary({ itemName: '상품 A', itemCount: 3 })).toBe('상품 A 외 2건');
+    expect(unpaidCheckoutOrderSummary({ itemName: '상품 A', itemCount: 1 })).toBe('상품 A');
+    expect(unpaidCheckoutOrderSummary({ itemName: null, itemCount: 1 })).toBe('상품');
   });
 });
 

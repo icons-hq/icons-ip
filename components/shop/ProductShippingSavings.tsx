@@ -31,13 +31,13 @@ export function ProductShippingSavings({ goodId, option, quantity, wishlist }: {
   const reviewSummaries = useListingReviewSummaries(result?.items.flatMap(item => item.good ? [item.good.id] : []) ?? []);
   const heartFor = listingHeartsFor(wishlist);
   return <section className="wc-pdp-shipping-savings" id="pdp-shipping-savings" aria-labelledby="pdp-shipping-savings-title">
-    <h2 id="pdp-shipping-savings-title">배송비를 아끼는 굿즈</h2>
-    <p>선택한 굿즈 옵션{option?.name ? ` (${option.name})` : ''} {quantity}개의 선결제·착불을 합친 기본배송비 비교입니다. 현재 장바구니·추가구성·지역 추가배송비·쿠폰은 제외하며 최종 배송비와 결제방법은 주문서에서 확인해주세요.</p>
+    <h2 id="pdp-shipping-savings-title">배송비를 아끼는 상품</h2>
+    <p>선택한 상품 옵션{option?.name ? ` (${option.name})` : ''} {quantity}개의 선결제·착불을 합친 기본배송비 비교입니다. 현재 장바구니·추가구성·지역 추가배송비·쿠폰은 제외하며 최종 배송비와 결제방법은 주문서에서 확인해주세요.</p>
     {!option || quantity > 1000 ? <p>구매 영역에서 옵션과 수량을 선택해주세요. 한 번에1,000개까지 비교할 수 있습니다.</p>
       : !result ? <p role="status">묶음 배송비를 비교하고 있어요.</p>
       : result.unavailable ? <p role="alert">배송비를 불러오지 못했습니다. 옵션을 다시 선택하거나 새로고침해주세요.</p>
       : result.selectionUnavailable ? <p>선택한 수량으로 구매할 수 있는지 먼저 확인해주세요.</p>
-      : !result.items.length ? <p>현재 선택에서는 배송비를 줄일 수 있는 묶음 굿즈가 없습니다.</p>
+      : !result.items.length ? <p>현재 선택에서는 배송비를 줄일 수 있는 묶음 상품이 없습니다.</p>
       : <><ProductDetailRefresh nextChangeAt={result.nextChangeAt} /><div className="wc-pdp-shipping-savings__products">{result.items.map(item => {
         const good = item.good; if (!good) return null; const candidateOption = good.options?.find(value => value.id === item.variantId);
         /* 카드의 판매가는 후보 옵션 가격이므로 취소선 정가도 그 옵션의 정가여야 한다 — 상품 단위 정가를 옵션 가격에 대면 할인율이 틀린다(cartOptionGood 이 옵션 정가를 파생한다). */

@@ -60,10 +60,10 @@ describe('알림톡 템플릿 정본', () => {
 });
 
 describe('알림톡 변수 값', () => {
-  it('굿즈 요약은 첫 굿즈와 나머지 건수이고, 길면 말줄임하되 건수는 남긴다', () => {
+  it('상품 요약은 첫 상품과 나머지 건수이고, 길면 말줄임하되 건수는 남긴다', () => {
     expect(alimtalkItemSummary(['메이플스토리 아크릴 키링'])).toBe('메이플스토리 아크릴 키링');
     expect(alimtalkItemSummary(['키링', '  스티커  ', '엽서'])).toBe('키링 외 2건');
-    expect(alimtalkItemSummary([])).toBe('주문 굿즈');
+    expect(alimtalkItemSummary([])).toBe('주문 상품');
     const long = alimtalkItemSummary(['가'.repeat(60), '나']);
     expect(long.endsWith('… 외 1건')).toBe(true);
     expect([...long].length).toBeLessThanOrEqual(ALIMTALK_ITEM_SUMMARY_MAX);

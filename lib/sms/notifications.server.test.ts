@@ -51,10 +51,10 @@ describe('sendMemberSms', () => {
   it('marks advertising, names the sender and appends the opt-out notice', async () => {
     const h = harness({ data: { ok: true, phoneE164: '+821012345678', smsConsentAgreedAt: '2026-11-01T00:00:00Z' }, error: null });
 
-    expect(await sendMemberSms({ userId: USER_ID, kind: 'advertising', body: '새 굿즈가 나왔어요.', now: DAYTIME }, h.deps))
+    expect(await sendMemberSms({ userId: USER_ID, kind: 'advertising', body: '새 상품이 나왔어요.', now: DAYTIME }, h.deps))
       .toEqual({ sent: true, providerMessageId: 'p-1' });
     expect(h.rpc).toHaveBeenCalledWith('service_member_sms_recipient', { p_user_id: USER_ID, p_purpose: 'advertising' });
-    expect(h.sent).toEqual([{ to: '+821012345678', text: '(광고)엑스스퀘어\n새 굿즈가 나왔어요.\n무료수신거부 080-000-0000', purpose: 'advertising' }]);
+    expect(h.sent).toEqual([{ to: '+821012345678', text: '(광고)엑스스퀘어\n새 상품이 나왔어요.\n무료수신거부 080-000-0000', purpose: 'advertising' }]);
   });
 
   it('refuses advertising at night or without an opt-out notice before looking up anyone', async () => {
@@ -72,8 +72,8 @@ describe('sendMemberSms', () => {
   it('sends transactional notices without the advertising marks, at any hour', async () => {
     const h = harness({ data: { ok: true, phoneE164: '+819012345678', smsConsentAgreedAt: null }, error: null });
 
-    expect((await sendMemberSms({ userId: USER_ID, kind: 'transactional', body: '주문하신 굿즈를 보냈어요.', now: NIGHT }, h.deps)).sent).toBe(true);
-    expect(h.sent[0]?.text).toBe('[엑스스퀘어] 주문하신 굿즈를 보냈어요.');
+    expect((await sendMemberSms({ userId: USER_ID, kind: 'transactional', body: '주문하신 상품을 보냈어요.', now: NIGHT }, h.deps)).sent).toBe(true);
+    expect(h.sent[0]?.text).toBe('[엑스스퀘어] 주문하신 상품을 보냈어요.');
     expect(h.sent[0]?.text).not.toContain('(광고)');
   });
 

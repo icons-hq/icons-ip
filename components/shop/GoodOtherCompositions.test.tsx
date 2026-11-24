@@ -37,7 +37,7 @@ describe('다른 구성 공개 표시', () => {
   });
 
   /* L4b · CL-01·CL-02 — 다른 구성 카드도 상세가 내려 준 위시 상태·별점으로 하트와 별점을 단다. */
-  it('카드 action 슬롯에 목록 하트를, 별점은 리뷰가 있는 굿즈에만 넘긴다', () => {
+  it('카드 action 슬롯에 목록 하트를, 별점은 리뷰가 있는 상품에만 넘긴다', () => {
     renderToStaticMarkup(<GoodOtherCompositions data={data} reviewSummaries={{ 'good-c': { count: 2, average: 4.5 } }} wishlist={{ viewerId: 'viewer-1', goodIds: ['good-b'] }} />);
     const [first, second] = mocks.card.mock.calls.map(([props]) => props as ProductCardProps);
 
@@ -54,6 +54,6 @@ describe('다른 구성 공개 표시', () => {
   it('정상 0후보는 숨기고 전송 실패는 재시도 안내를 표시한다', () => {
     expect(renderToStaticMarkup(<GoodOtherCompositions data={{ groups: [], nextChangeAt: null }} />)).toBe('');
     expect(renderToStaticMarkup(<GoodOtherCompositions data={{ groups: [], nextChangeAt: null, unavailable: true }} />))
-      .toContain('다른 구성 굿즈를 불러오지 못했습니다.');
+      .toContain('다른 구성 상품을 불러오지 못했습니다.');
   });
 });

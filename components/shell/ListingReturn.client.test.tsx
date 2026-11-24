@@ -215,7 +215,7 @@ describe('직전 목록 기록 (셸 · CT-02)', () => {
     expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/shop/new');
   });
 
-  it('세션 저장소 접근이 막힌 브라우저에서도 던지지 않고 굿즈샵으로 읽는다', () => {
+  it('세션 저장소 접근이 막힌 브라우저에서도 던지지 않고 쇼핑으로 읽는다', () => {
     stubBrowser(null, { get sessionStorage(): never { throw new Error('SecurityError'); } });
 
     expect(() => visit('/shop/best')).not.toThrow();
@@ -235,7 +235,7 @@ describe('직전 목록 기록 (셸 · CT-02)', () => {
   });
 
   /* l9-data-2: 없는·보관된 IP관은 notFound() 를 부르지만 soft 404 라 주소와 200 만으로는 목록과 구별되지 않는다. */
-  it('찾을 수 없음 화면은 직전 목록을 덮지 않는다 — 기록이 없으면 굿즈샵', () => {
+  it('찾을 수 없음 화면은 직전 목록을 덮지 않는다 — 기록이 없으면 쇼핑', () => {
     const { storage, values } = sessionStorageStub();
     stubBrowser(storage);
 
@@ -343,7 +343,7 @@ describe('빈 장바구니 둘러보기 목적지', () => {
     const cases = [
       ['/ip/maplestory', '/ip/maplestory', '온라인 팝업 둘러보기'],
       ['/search?q=%ED%82%A4%EB%A7%81', '/search?q=%ED%82%A4%EB%A7%81', '검색 결과 둘러보기'],
-      ['/shop/new', '/shop/new', '굿즈샵 둘러보기'],
+      ['/shop/new', '/shop/new', '상품 둘러보기'],
     ] as const;
     for (const [stored, href, label] of cases) {
       stubBrowser(sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: stored }).storage);
@@ -352,7 +352,7 @@ describe('빈 장바구니 둘러보기 목적지', () => {
     }
   });
 
-  it('저장소에 외부 주소가 들어 있어도 CTA 는 굿즈샵으로 간다', () => {
+  it('저장소에 외부 주소가 들어 있어도 CTA 는 쇼핑으로 간다', () => {
     const { storage } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: 'https://evil.example/shop' });
     stubBrowser(storage);
 
@@ -379,8 +379,8 @@ describe('다른 화면의 둘러보기 링크', () => {
 
     const link = ListingReturnLink({ className: 'btn btn-holo' }) as ReactElement<Props>;
     expect([link.props.href, link.props.className, link.props.children]).toEqual(['/ip/hong-sil-quest?sort=price_asc', 'btn btn-holo', '온라인 팝업 둘러보기']);
-    const custom = ListingReturnLink({ children: '굿즈 다시 담기' }) as ReactElement<Props>;
-    expect([custom.props.href, custom.props.children]).toEqual(['/ip/hong-sil-quest?sort=price_asc', '굿즈 다시 담기']);
+    const custom = ListingReturnLink({ children: '상품 다시 담기' }) as ReactElement<Props>;
+    expect([custom.props.href, custom.props.children]).toEqual(['/ip/hong-sil-quest?sort=price_asc', '상품 다시 담기']);
   });
 
   it('주문 목록의 빈 상태와 결제 실패 안내가 직전 목록 링크를 쓴다', () => {
@@ -410,7 +410,7 @@ describe('모바일 서브헤더 [← 이전] (CT-03)', () => {
     expect(nav.push).not.toHaveBeenCalled();
   });
 
-  it('새 탭·직접 입력으로 온 장바구니는 직전 목록(없으면 굿즈샵)으로 보낸다', () => {
+  it('새 탭·직접 입력으로 온 장바구니는 직전 목록(없으면 쇼핑)으로 보낸다', () => {
     const { storage } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/shop/best' });
     stubBrowser(storage, { history: { length: 1 } });
     backButton().onClick();

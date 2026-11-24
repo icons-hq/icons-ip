@@ -68,11 +68,11 @@ describe('GoodPurchaseSheet', () => {
     expect(panel).toContain('예약판매 · 주문 시 결제 · 2026년 11월 20일 발송 예정');
     expect(panel).toContain('직접 입력 옵션');
     expect(panel).toMatch(/<input id="good-custom-g13-engrave"[^>]*required=""/);
-    expect(panel).toContain('추가 구성 굿즈');
+    expect(panel).toContain('추가 구성 상품');
     expect(panel).toContain('aria-label="추가 스티커 추가 수량"');
     expect(panel).toContain('주문 후 제작');
     /* MD-0039·0040 — 거래 조건이 있는 굿즈에는 '예상 굿즈 금액' 합계 행이 없다(시트도 패널 그대로다). */
-    expect(panel).not.toContain('예상 굿즈 금액');
+    expect(panel).not.toContain('예상 상품 금액');
     expect(panel).not.toContain('wc-buy-panel__total');
     expect(panel).toContain('>장바구니<');
     expect(panel).toContain('>구매하기<');
@@ -101,7 +101,7 @@ describe('GoodPurchaseSheet', () => {
     expect(panel).toContain('<dt>배송비</dt><dd>₩3,000 (₩40,000 이상 무료)</dd>');
     expect(panel).toContain('도서산간 지역은 추가 비용이 발생할 수 있습니다.');
     expect(panel).not.toContain('제공 방식');
-    expect(panel).not.toContain('예상 굿즈 금액');
+    expect(panel).not.toContain('예상 상품 금액');
   });
 
   it('가용성을 받지 못한 진입은 그리지 않는다(응답 전·실패와 같다)', () => {

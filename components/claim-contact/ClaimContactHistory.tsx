@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { fetchAdminClaimContactHistory, fetchMyClaimContactHistory } from '@/lib/claim-contact/client';
 import type { Address, ChangedField, HistoryEntry, HistoryResponse, TargetView } from '@/lib/claim-contact/contracts';
 import { formatOrderDateTime } from '@/lib/orders';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from './ClaimContactSession';
 
 const FIELD_LABELS: Record<ChangedField, string> = { recipientName: '수령인', phone: '연락처', address2: '상세주소', postalCode: '우편번호', address1: '기본 주소' };
-const targetLabel = (target: 'collection' | 'reshipment', operator: boolean) => target === 'collection' ? '수거 연락처' : `교환 ${operator ? ADMIN_VOCABULARY.goods : '굿즈'} 수령 연락처`;
+const targetLabel = (target: 'collection' | 'reshipment') => target === 'collection' ? '수거 연락처' : '교환 상품 수령 연락처';
 function unavailableCopy(value: Pick<TargetView, 'piiState' | 'unavailableReason'>): string {
   if (value.piiState === 'purged') return '연락처 정보가 삭제되어 변경 사실만 확인할 수 있습니다.';
   if (value.piiState === 'restricted') return '이 계정에는 연락처가 공개되지 않습니다.';
@@ -23,9 +22,9 @@ function AddressView({ value }: { value: Address }) {
     <span>({value.postalCode}) {value.address1}</span>{value.address2 ? <><br /><span>{value.address2}</span></> : null}
   </address>;
 }
-function CurrentTarget({ value, operator }: { value: TargetView; operator: boolean }) {
+function CurrentTarget({ value }: { value: TargetView }) {
   return <div>
-    <h4 style={{ margin: '0 0 6px' }}>{targetLabel(value.target, operator)}</h4>
+    <h4 style={{ margin: '0 0 6px' }}>{targetLabel(value.target)}</h4>
     {value.address ? <>
       <p style={{ margin: '0 0 6px' }}>{value.referenceOnly ? '원주문 배송정보 · 참고용' : value.sourceKind === 'seller_intake' ? '판매자 접수 시 확인한 정보' : '정정된 연락처'}</p>
       <AddressView value={value.address} />
@@ -34,7 +33,7 @@ function CurrentTarget({ value, operator }: { value: TargetView; operator: boole
 }
 function HistoryRow({ value, operator }: { value: HistoryEntry; operator: boolean }) {
   return <li style={{ borderTop: '1px solid var(--wc-hairline)', padding: '16px 0' }}>
-    <p style={{ margin: '0 0 8px' }}><time dateTime={value.recordedAt}>{formatOrderDateTime(value.recordedAt)}</time> · {targetLabel(value.target, operator)} 변경</p>
+    <p style={{ margin: '0 0 8px' }}><time dateTime={value.recordedAt}>{formatOrderDateTime(value.recordedAt)}</time> · {targetLabel(value.target)} 변경</p>
     <p>변경 항목: {value.changedFields.map(field => FIELD_LABELS[field]).join(' · ')}</p>
     {value.piiState === 'available' && value.before && value.after ? <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 20 }}>
       <div><h5 style={{ margin: '0 0 6px' }}>변경 전</h5><AddressView value={value.before} /></div>
@@ -120,8 +119,8 @@ function HistoryPanel({ identity, scope, orderId, claimId, operator }: {
         {view ? <>
           {view.viewerKind === 'gift_sender' ? <p>선물을 받는 분의 연락처는 보낸 분에게 공개되지 않습니다. 변경 일시와 항목만 확인할 수 있습니다.</p> : null}
           <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 24 }}>
-            <CurrentTarget value={view.current.collection} operator={operator} />
-            <CurrentTarget value={view.current.reshipment} operator={operator} />
+            <CurrentTarget value={view.current.collection} />
+            <CurrentTarget value={view.current.reshipment} />
           </div>
           <div><h4 style={{ margin: '0 0 6px' }}>재출고 확정 시 확인한 수령 연락처</h4>
             {view.reshipmentDestination.source === 'legacy_unconfirmed' ? <p>기존 재출고 기록에는 수령 연락처 확인 내역이 없습니다.</p>

@@ -17,8 +17,8 @@ describe('order presentation helpers', () => {
     ['pending', '결제대기', '결제 상태를 확인하고 있어요'],
     ['paid', '결제완료', '주문이 접수됐어요'],
     ['confirmed', '발주확인', '주문을 확인하고 준비 중이에요'],
-    ['shipping', '배송중', '굿즈가 배송 중이에요'],
-    ['delivered', '배송완료', '굿즈가 배송 완료됐어요'],
+    ['shipping', '배송중', '상품이 배송 중이에요'],
+    ['delivered', '배송완료', '상품이 배송 완료됐어요'],
     // "완료"가 아니라 "거래확정"이다(CONTEXT.md) — 변심 청약철회 창이 닫혔다는 뜻이고
     // 하자 클레임은 남아 있다.
     ['done', '거래확정', '구매가 확정됐어요'],
@@ -63,7 +63,7 @@ describe('order presentation helpers', () => {
       { name: '리락쿠마 낮잠 쿠션', qty: 2 },
       { name: '메이플스토리 키링', qty: 1 },
     ])).toEqual({ label: '리락쿠마 낮잠 쿠션 외 1건', itemCount: 3 });
-    expect(summarizeOrderItems([])).toEqual({ label: '주문한 굿즈', itemCount: 0 });
+    expect(summarizeOrderItems([])).toEqual({ label: '주문한 상품', itemCount: 0 });
   });
 });
 

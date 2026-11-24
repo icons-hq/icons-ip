@@ -40,7 +40,7 @@ export const CANCELLATION_BLOCKED_MESSAGE = '주문 상태가 변경되어 취�
 /** 부분 반품(ADR-0047) 스위치가 켜져 있으면 반품은 굿즈·수량을 골라 신청할 수 있다고 말한다. 꺼져 있으면 지금 문구 그대로다. */
 export function cancellationBlockedMessage(partialReturnEnabled = false) {
   return partialReturnEnabled
-    ? '주문 상태가 변경되어 취소를 신청할 수 없습니다. 취소는 발주확인 전, 반품은 배송 중부터 직접 신청할 수 있습니다(반품은 굿즈·수량을 골라 일부만 신청할 수도 있습니다). 그 밖의 취소·반품 요청은 1:1 문의로 알려주세요.'
+    ? '주문 상태가 변경되어 취소를 신청할 수 없습니다. 취소는 발주확인 전, 반품은 배송 중부터 직접 신청할 수 있습니다(반품은 상품·수량을 골라 일부만 신청할 수도 있습니다). 그 밖의 취소·반품 요청은 1:1 문의로 알려주세요.'
     : CANCELLATION_BLOCKED_MESSAGE;
 }
 

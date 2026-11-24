@@ -11,7 +11,7 @@ const SETTINGS_PATH = '/notifications/settings';
 
 export const metadata: Metadata = {
   title: 'IP 알림 설정 — 엑스스퀘어',
-  description: '팔로우한 IP의 새 굿즈·드롭과 팝업·이벤트 인앱 알림을 설정하세요.',
+  description: '팔로우한 IP의 새 상품·드롭과 팝업·이벤트 인앱 알림을 설정하세요.',
   robots: { index: false, follow: false },
 };
 
