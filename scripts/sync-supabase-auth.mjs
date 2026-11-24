@@ -96,10 +96,13 @@ export function missingSmtpSettings(config) {
 /*
  * 운영 Auth가 한 시간에 보낼 수 있는 메일(가입 확인·재설정·변경 알림) 수. 프로젝트 전체가 나눠 쓴다.
  * 배포 파이프라인이 이 값으로 강제하고 검증한다 — 값을 바꿀 곳은 여기 한 곳이다.
- * 앱 서버의 IP 시도 한도(supabase/migrations/20261119106000_auth_mail_abuse_limits.sql, IP당 시간 15)는 이 값의 5%라
- * 접속 IP 하나가 한도를 독점하지 못한다. 이 값을 올리거나 내리면 런북(docs/runbooks/signup-contact-channels.md 봇 차단 절)과 같이 본다.
+ * 10,000(2026-11-24 사용자 결정, 오픈 가입 몰림 대비 — 11-19의 300에서 올렸다). 위쪽 상한은 발송사 Resend다: 팀 전체 초당 10건
+ * (SMTP 포함, 시간 36,000)이고 Pro 요금제 월 50,000통(초과 발송 꺼짐)이라, 이 값은 주문 메일 몫을 남기면서 한 시간 남용이
+ * 월 한도의 1/5을 넘지 못하게 한다. 앱 서버의 IP 시도 한도(supabase/migrations/20261119106000_auth_mail_abuse_limits.sql,
+ * IP당 시간 15)는 이 값보다 훨씬 작아 접속 IP 하나가 한도를 독점하지 못한다.
+ * 이 값을 올리거나 내리면 런북(docs/runbooks/signup-contact-channels.md 봇 차단 절)과 같이 본다.
  */
-export const AUTH_EMAIL_RATE_LIMIT_PER_HOUR = 300;
+export const AUTH_EMAIL_RATE_LIMIT_PER_HOUR = 10_000;
 
 /*
  * Auth CAPTCHA(Turnstile). GoTrue는 /signup·/recover·/resend·/magiclink·/otp·/token(password·web3)·/sso·패스키 options에서
