@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { classifyVirtualAccountRefund, createTossVirtualAccountRefundInspector } from './toss-virtual-account-refund-watch.server';
+import { classifyVirtualAccountRefund, createTossVirtualAccountRefundInspector, escrowCanceledByBuyer } from './toss-virtual-account-refund-watch.server';
 
 const watch = { attemptId: 'a', orderId: 'o', paymentKey: 'va-key-1', providerOrderId: 'O-1', amount: 31000 };
 const canceled = (refundStatus: string, extra: Record<string, unknown> = {}) => ({
@@ -41,7 +41,7 @@ describe('createTossVirtualAccountRefundInspector', () => {
 
   it('원장 결제 키로 결제를 조회하고 시크릿 키를 기본 인증으로 보낸다', async () => {
     const { fetch, inspect } = inspector(async () => new Response(JSON.stringify(canceled('COMPLETED')), { status: 200 }));
-    expect(await inspect(watch)).toEqual({ outcome: 'completed', refundStatus: 'COMPLETED' });
+    expect(await inspect(watch)).toEqual({ outcome: 'completed', refundStatus: 'COMPLETED', escrowBuyerCanceled: null, escrowLookupFailed: false });
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.tosspayments.com/v1/payments/va-key-1');
     expect((init.headers as Record<string, string>).authorization).toBe(`Basic ${Buffer.from('test_sk_synthetic:').toString('base64')}`);
@@ -59,5 +59,86 @@ describe('createTossVirtualAccountRefundInspector', () => {
     const { fetch, inspect } = inspector(async () => new Response('{}', { status: 200 }));
     expect((await inspect({ ...watch, paymentKey: 'bad key' })).outcome).toBe('mismatch');
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('에스크로 구매자 취소 환불 확인(2026-11-24 보강)', () => {
+  const escrowPayment = (refundStatus: string | null, extra: Record<string, unknown> = {}) =>
+    canceled(refundStatus as string, { useEscrow: true, escrowKey: 'escrow-1', ...extra });
+  const escrow = (body: Record<string, unknown>) => JSON.stringify({ version: '2022-11-16', traceId: 't', entityType: 'escrow', entityBody: {
+    id: 'escrow-1', targetId: 'va-key-1', targetType: 'PAYMENT', status: 'CANCELED', cancelType: 'CUSTOMER', ...body } });
+  function inspector(responses: Array<() => Promise<Response>>, escrowSecretKey: string | null = 'test_sk_escrow') {
+    const fetch = vi.fn(async () => {
+      const next = responses.shift();
+      if (!next) throw new Error('unexpected request');
+      return next();
+    });
+    return { fetch, inspect: createTossVirtualAccountRefundInspector({ secretKey: 'test_gsk_synthetic', escrowSecretKey, fetch }).inspect };
+  }
+  const ok = (body: string) => async () => new Response(body, { status: 200 });
+
+  it('송금 상태가 NONE인 에스크로 결제는 거래를 에스크로 키로 조회해 구매자 취소 수락을 넘긴다', async () => {
+    const { fetch, inspect } = inspector([ok(JSON.stringify(escrowPayment('NONE'))), ok(escrow({}))]);
+    expect(await inspect(watch)).toEqual({ outcome: 'pending', refundStatus: 'NONE', escrowBuyerCanceled: true, escrowLookupFailed: false });
+    const [url, init] = fetch.mock.calls[1] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.tosspayments.com/v2/escrows/escrow-1');
+    expect((init.headers as Record<string, string>).authorization).toBe(`Basic ${Buffer.from('test_sk_escrow:').toString('base64')}`);
+    // 송금 상태 칸이 아예 없어도 같다.
+    const missing = inspector([ok(JSON.stringify(escrowPayment(null, { virtualAccount: { accountNumber: 'X1', bankCode: '20' } }))), ok(escrow({}))]);
+    expect((await missing.inspect(watch)).escrowBuyerCanceled).toBe(true);
+  });
+
+  it('결제 취소로 함께 끝났거나 진행 중이거나 다른 결제의 거래면 false다', async () => {
+    for (const body of [{ cancelType: 'TARGET_CANCELED' }, { status: 'CANCEL_REQUESTED', cancelType: null }, { targetId: 'other' }, { targetId: undefined }]) {
+      expect(await inspector([ok(JSON.stringify(escrowPayment('NONE'))), ok(escrow(body))]).inspect(watch), JSON.stringify(body))
+        .toEqual({ outcome: 'pending', refundStatus: 'NONE', escrowBuyerCanceled: false, escrowLookupFailed: false });
+    }
+  });
+
+  it('송금 상태가 있거나(형식 밖 값 포함) 에스크로가 아니거나 송금 중이 아니면 거래를 조회하지 않는다', async () => {
+    for (const payment of [
+      escrowPayment('PENDING'),
+      escrowPayment('failed; drop'),
+      canceled('NONE'),
+      escrowPayment('COMPLETED'),
+      escrowPayment('FAILED'),
+      escrowPayment('NONE', { status: 'DONE', balanceAmount: 31000 }),
+    ]) {
+      const { fetch, inspect } = inspector([ok(JSON.stringify(payment))]);
+      const result = await inspect(watch);
+      expect(result.escrowBuyerCanceled, JSON.stringify(payment)).toBeNull();
+      expect(result.escrowLookupFailed).toBe(false);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('확인해야 하는데 에스크로 키·거래 id가 없으면 조회하지 않고 확인 실패로 알린다', async () => {
+    for (const [payment, key] of [[escrowPayment('NONE'), null], [escrowPayment('NONE', { escrowKey: null }), 'test_sk_escrow']] as const) {
+      const { fetch, inspect } = inspector([ok(JSON.stringify(payment))], key);
+      expect(await inspect(watch)).toEqual({ outcome: 'pending', refundStatus: 'NONE', escrowBuyerCanceled: null, escrowLookupFailed: true });
+      expect(fetch).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('거래 조회가 실패하면 결제 조회 결과는 그대로 두고 확인 없음·확인 실패로 넘긴다', async () => {
+    for (const failure of [
+      async () => new Response('{}', { status: 401 }),
+      async () => new Response('{"code":"NOT_FOUND"}', { status: 404 }),
+      async () => new Response('{}', { status: 500 }),
+      async () => new Response('{}', { status: 429 }),
+      async () => new Response('not json', { status: 200 }),
+      async () => new Response('{"entityBody":{}}', { status: 200 }),
+      async () => { throw new Error('network'); },
+    ]) {
+      expect(await inspector([ok(JSON.stringify(escrowPayment('NONE'))), failure]).inspect(watch))
+        .toEqual({ outcome: 'pending', refundStatus: 'NONE', escrowBuyerCanceled: null, escrowLookupFailed: true });
+    }
+  });
+
+  it('응답 모양 판정', () => {
+    expect(escrowCanceledByBuyer(watch, JSON.parse(escrow({})))).toBe(true);
+    expect(escrowCanceledByBuyer(watch, { status: 'CANCELED', cancelType: 'CUSTOMER', targetId: 'va-key-1' })).toBe(true);
+    expect(escrowCanceledByBuyer(watch, JSON.parse(escrow({ targetType: 'ORDER' })))).toBe(false);
+    expect(escrowCanceledByBuyer(watch, null)).toBeNull();
   });
 });
