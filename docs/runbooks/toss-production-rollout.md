@@ -566,7 +566,8 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
    공식 문서 가상계좌 총정리(`docs.tosspayments.com/resources/glossary/virtual-account`, 2026-11-23 MCP 재조회 — 일부 은행, 특히
    신한은 입금 통보 뒤 최대 2분 이상 지나 취소 통보가 온다는 경고와 함께 이 기능을 안내한다). 신청 경로는 문서에 없으므로 토스
    고객센터(1544-7772)·영업 담당자에게 문의한다. **필수가 아니라 발생을 줄이는 보조 수단이다** — 2분이 넘게 늦은 취소 통보는 막지
-   못하고, 신청 전이나 신청이 안 돼도 입금 오류 되돌림은 시스템이 출고 보류 → 재입금 확인 또는 자동 취소로 처리한다.
+   못하고, 신청 전이나 신청이 안 돼도 입금 오류 되돌림은 시스템이 출고 보류 → 재입금 확인 또는 자동 취소로 처리한다. 자동 발주확인은
+   가상계좌 주문을 입금 확인 1시간 뒤부터 확정하므로(ADR-0025 2026-11-24 보강) 늦은 취소 통보도 대개 창고 전달 전에 잡힌다.
 4. 개발자센터 > 웹훅: MID `iconsi0xvd`(테스트 `ticonsi0xvd`)의 `https://iconsip.com/api/webhooks/tosspayments`에
    **`DEPOSIT_CALLBACK`**을 더한다(기존 `PAYMENT_STATUS_CHANGED`는 그대로).
 5. 개발자센터 > API 키: 라이브·테스트 키의 **API 버전**이 같은지 확인한다(1.4 이하면 입금 오류 되돌림이 `CANCELED`로 온다).
