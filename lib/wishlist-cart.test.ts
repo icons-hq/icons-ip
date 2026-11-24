@@ -88,9 +88,9 @@ describe('wishCartState 예약판매', () => {
 
   it('labels a preorder before reception instead of 품절, single or multi option', () => {
     expect(wishCartState(preorder('scheduled', 0), READY)).toEqual({
-      kind: 'add', variantId: null, stockQty: 0, label: '예약 접수 예정', ariaLabel: '홍실 아크릴 블록 예약 접수 예정', unavailable: true,
+      kind: 'add', variantId: null, stockQty: 0, label: '판매 예정', ariaLabel: '홍실 아크릴 블록 판매 예정', unavailable: true,
     });
-    expect(wishCartState(preorder('scheduled', 0, 2), READY)).toMatchObject({ kind: 'add', label: '예약 접수 예정', unavailable: true });
+    expect(wishCartState(preorder('scheduled', 0, 2), READY)).toMatchObject({ kind: 'add', label: '판매 예정', unavailable: true });
   });
 
   it('adds or sends to the option choice once reception opens', () => {

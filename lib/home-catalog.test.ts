@@ -184,14 +184,14 @@ describe('home goods card unavailable label', () => {
     { ...good('soldout', 'brand'), stock: 'soldout', stockQty: 0, options: [option(undefined, 0)] },
   ];
 
-  it('fills 예약 접수 예정 for a preorder before reception, a chip only once it opens, and nothing for a real sold-out', () => {
+  it('fills 판매 예정 for a preorder before reception, a chip only once it opens, and nothing for a real sold-out', () => {
     const cards = resolveHomeGoodsCards({ ips: [ip('brand')], goods }, goods.map((row) => row.id), 5);
     expect(cards.map((row) => [row.id, row.soldOut, row.unavailableLabel, row.chips])).toEqual([
-      ['scheduled', true, '예약 접수 예정', []],
+      ['scheduled', true, '판매 예정', []],
       ['open', false, undefined, [{ kind: 'preorder', label: '예약판매' }]],
       ['soldout', true, undefined, []],
     ]);
-    expect(cards.map(homeCardUnavailableLabel)).toEqual(['예약 접수 예정', null, null]);
+    expect(cards.map(homeCardUnavailableLabel)).toEqual(['판매 예정', null, null]);
   });
 
   it('falls back to the sale period for an old card view without the server label', () => {

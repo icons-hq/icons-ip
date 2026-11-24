@@ -14,9 +14,11 @@ export function ipArtBackground(ip: Pick<Ip, 'bg'>): string | null {
 /*
  * IP 카드 (PD-09 · R-04 §3.9 — 레퍼런스의 브랜드 칩 자리).
  *
- * 446×82 카드 — 왼쪽 IP 키아트 150×80(없으면 글자만) + IP 이름 + '온라인 팝업 보러가기 ›'(IP는 '브랜드'라 부르지 않는다 — CONTEXT.md).
- * 카드 전체가 하나의 링크라 접근 이름은 "IP 이름 온라인 팝업 보러가기"다. 정보 칼럼 맨 아래와
- * 상세 설명 패널 끝(PD-19)이 같은 카드를 쓴다.
+ * 446×82 카드 — 왼쪽 IP 키아트 150×80(없으면 글자만) + IP 이름 + '굿즈 전체보기 ›'(IP는 '브랜드'라 부르지 않는다 — CONTEXT.md).
+ * 링크는 IP관(그 IP의 굿즈 전체)으로 가므로 문구도 목적지에 맞춘다(MD-0052, 2026-11-23 — 옛 문구 '온라인 팝업 보러가기').
+ * 요청 원문은 '상품 전체보기'지만 공개 화면 어휘(CONTEXT.md 굿즈, lib/vocabulary-contract.test.ts)에 맞춰 '굿즈'로 쓴다(MD-0037 '총 굿즈 금액' 선례).
+ * 카드 전체가 하나의 링크라 접근 이름은 "IP 이름 굿즈 전체보기"다. 정보 칼럼 맨 아래에 둔다
+ * (상세 설명 패널 끝의 같은 카드는 MD-0054로 지웠다).
  */
 export function GoodIpCard({ className, ip }: { className?: string; ip: Ip }) {
   const art = ipArtBackground(ip);
@@ -27,34 +29,9 @@ export function GoodIpCard({ className, ip }: { className?: string; ip: Ip }) {
       <span className="wc-pdp-ipcard__text">
         <strong className="wc-pdp-ipcard__name">{ip.title}</strong>
         <span className="wc-pdp-ipcard__link">
-          온라인 팝업 보러가기 <span aria-hidden="true">›</span>
+          굿즈 전체보기 <span aria-hidden="true">›</span>
         </span>
       </span>
     </Link>
-  );
-}
-
-/*
- * 상세 설명 패널의 IP 소개 (PD-19 · R-04 §5.3 ③).
- *
- * 상세 이미지 다음에 IP 키아트·이름·한 줄 소개·시놉시스를 둔다. 데이터는 IP 에 이미 있는
- * 값만 쓴다 — 소개 문장도 키아트도 없으면 이름만 덩그러니 남은 빈 블록이 되므로 그리지 않는다.
- * 키아트 비율은 온라인 팝업 IP관 배너(1440×540)와 같은 8:3 이라 같은 크롭으로 보인다.
- */
-export function GoodIpStory({ ip }: { ip: Ip }) {
-  const art = ipArtBackground(ip);
-  const tagline = ip.tagline.trim();
-  const synopsis = ip.synopsis.trim();
-  if (!art && !tagline && !synopsis) return null;
-
-  return (
-    <section aria-labelledby="pdp-ip-story-heading" className="wc-pdp-ip-story">
-      <h2 className="wc-pdp-panel__title" id="pdp-ip-story-heading">IP 소개</h2>
-      {art ? <div aria-hidden="true" className="wc-pdp-ip-story__art" style={{ background: art }} /> : null}
-      <h3 className="wc-pdp-ip-story__name">{ip.title}</h3>
-      {ip.sub.trim() ? <p className="wc-pdp-ip-story__sub">{ip.sub}</p> : null}
-      {tagline ? <p className="wc-pdp-ip-story__tagline">{tagline}</p> : null}
-      {synopsis ? <p className="wc-pdp-ip-story__synopsis">{synopsis}</p> : null}
-    </section>
   );
 }

@@ -70,9 +70,9 @@ select 1 / case when (
       'public.get_random_option_good_ids(text[],text)'::regprocedure))
 ) then 1 else 0 end as assert_narrow_read_rpcs_are_sealed;
 
--- 가림 카드 RPC는 이름·이미지·배지·설명 열을 돌려주지 않는다.
+-- 가림 카드 RPC는 이미지·배지·설명 열을 돌려주지 않는다. 이름은 MD-0048(20261125120000)부터 돌려준다 — 썸네일만 가린다.
 select 1 / case when (
-  select coalesce(array_agg(name order by name), '{}') = array['category_id','created_at','display_order','id','ip_id','price','stock','stock_qty']
+  select coalesce(array_agg(name order by name), '{}') = array['category_id','created_at','display_order','id','ip_id','name','price','stock','stock_qty']
   from pg_catalog.pg_proc procedure
   cross join lateral unnest(procedure.proargnames, procedure.proargmodes) as argument(name, mode)
   where procedure.oid = 'public.get_masked_adult_goods(text)'::regprocedure and argument.mode = 't'
@@ -260,7 +260,7 @@ select 1 / case when (
 -- 가림 카드: 공개 IP의 게시된 19금만, 카드 열만.
 select 1 / case when (
   (select array_agg(id order by id) from public.get_masked_adult_goods() where id like 'gprv-%') = array['gprv-adult']
-  and (select price = 20000 and ip_id = 'gprv-ip' and stock_qty = 20 from public.get_masked_adult_goods('gprv-adult'))
+  and (select price = 20000 and ip_id = 'gprv-ip' and stock_qty = 20 and name = 'TEST 공개읽기 성인' from public.get_masked_adult_goods('gprv-adult'))
   and not exists (select 1 from public.get_masked_adult_goods('gprv-public'))
   and not exists (select 1 from public.get_masked_adult_goods('gprv-draft'))
   and not exists (select 1 from public.get_masked_adult_goods('gprv-missing'))

@@ -80,14 +80,14 @@ describe('예약판매 담기', () => {
   it('labels a single-option preorder before reception instead of 품절, for sight and screen readers', () => {
     const html = renderToStaticMarkup(<AddToCartButton good={preorder('scheduled', 0)} />);
     expect(html).toContain('disabled=""');
-    expect(html).toContain('>예약 접수 예정</button>');
-    expect(html).toContain('aria-label="키링 예약 접수 예정"');
+    expect(html).toContain('>판매 예정</button>');
+    expect(html).toContain('aria-label="키링 판매 예정"');
     expect(html).not.toContain('품절');
   });
 
   it('blocks a multi-option preorder before reception with the same label instead of 옵션 선택', () => {
     const html = renderToStaticMarkup(<AddToCartButton good={preorder('scheduled', 0, 2)} />);
-    expect(html).toContain('>예약 접수 예정</button>');
+    expect(html).toContain('>판매 예정</button>');
     expect(html).not.toContain('옵션 선택');
     expect(html).not.toContain('품절');
   });

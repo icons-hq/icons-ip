@@ -47,15 +47,16 @@ export function parseGoodsVariantSupply(value: unknown): GoodsVariantSupply | nu
     state: value.state as GoodsVariantSupply['state'], startsAt: value.startsAt as string | null, endsAt: value.endsAt as string | null,
     expectedShipDate: value.expectedShipDate as string | null, calculatedAt: value.calculatedAt, nextChangeAt: value.nextChangeAt as string | null };
 }
+/* 접수 시작 전 예약판매는 고객 화면에 '판매 예정'으로 보인다(MD-0050, 2026-11-23 — 옛 문구 '예약 접수 예정'). */
 export function preorderSupplyLabel(supply: GoodsVariantSupply | null | undefined): string | null {
   if (!supply || supply.mode === 'stock') return null;
   if (supply.state === 'open') return supply.availableQty > 0 ? '예약판매' : '예약 물량 마감';
-  return { stock: null, scheduled: '예약 접수 예정', closed: '예약 접수 종료', stopped: '예약 접수 중지' }[supply.state];
+  return { stock: null, scheduled: '판매 예정', closed: '예약 접수 종료', stopped: '예약 접수 중지' }[supply.state];
 }
 export function preorderUnavailableLabel(options: readonly { stockQty: number; supply?: GoodsVariantSupply }[] | undefined, soldOut: boolean): string | null {
   if (!soldOut || !options?.length || !options.every((option) => option.supply?.mode === 'preorder')) return null;
   if (options.some((option) => option.stockQty > 0)) return '현재 주문을 받지 않습니다';
-  if (options.some((option) => option.supply?.state === 'scheduled')) return '예약 접수 예정';
+  if (options.some((option) => option.supply?.state === 'scheduled')) return '판매 예정';
   if (options.some((option) => option.supply?.state === 'open')) return '예약 물량 마감';
   return options.every((option) => option.supply?.state === 'stopped') ? '예약 접수 중지' : '예약 접수 종료';
 }

@@ -40,7 +40,7 @@ export interface ProductCardProps {
   listingAppearance?: GoodsListingAppearance;
   cartGood?: Good;
   imageShape?: 'square' | 'portrait';
-  /** 성인 인증 전 방문자의 19금 굿즈 가림 카드(ADR-0024). 이름·이미지·배지·담기·별점을 그리지 않고, action(찜 하트)은 넘긴 곳에서만 그린다. */
+  /** 성인 인증 전 방문자의 19금 굿즈 가림 카드(ADR-0024). 이미지·배지·담기·별점을 그리지 않고(이름·IP·가격은 보인다, MD-0048), action(찜 하트)은 넘긴 곳에서만 그린다. */
   masked?: boolean;
   /** 목록 카드 별점(CL-02) — 공개 리뷰가 있을 때만 넘어온다. 없으면 별점 줄을 그리지 않는다. */
   reviewSummary?: GoodsReviewSummary | null;
@@ -56,10 +56,10 @@ export interface ProductCardProps {
  * aria-hidden 안에 초점 가능한 요소를 두면 안 되므로 tabIndex 도 같이 뺀다.
  *
  * 품절 밴드는 그 숨긴 링크 안에 있어 스크린리더에 닿지 않는다. 이름 옆의 sr-only
- * '(품절)'·'(예약 접수 예정)' 같은 문구가 그 상태를 대신 읽어주는 유일한 지점이다(WCAG 1.3.1).
+ * '(품절)'·'(판매 예정)' 같은 문구가 그 상태를 대신 읽어주는 유일한 지점이다(WCAG 1.3.1).
  *
- * 가림 카드는 19 표지와 고정 이름, 가격만 그린다. 상세로 가는 링크는 남긴다 — 상세가
- * 인증 안내를 보여준다. 이름·이미지는 서버에서 이미 지워져 오므로 여기서 숨기는 것은
+ * 가림 카드는 19 표지(썸네일 자리)와 IP·이름·가격을 그린다(MD-0048 — 썸네일만 가린다). 상세로 가는
+ * 링크는 남긴다 — 상세가 인증 안내를 보여준다. 이미지는 서버에서 이미 지워져 오므로 여기서 숨기는 것은
  * 표시 정책일 뿐 보안 경계가 아니다.
  */
 function MaskedProductCard({ action, className, href, name, price, priceMax, brand }: Pick<ProductCardProps, 'action' | 'className' | 'href' | 'name' | 'price' | 'priceMax' | 'brand'>) {

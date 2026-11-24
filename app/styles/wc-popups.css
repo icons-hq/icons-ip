@@ -33,9 +33,10 @@
 @media (min-width: 750px) {
   .wc-promo-page { padding-bottom: 96px; }
 
+  /* MD-0047: GNB 목록 화면 제목과 같은 28px(POP-UP·EVENT). */
   .wc-promo-page__title {
     padding: 17px 0 16px;
-    font-size: 32px;
+    font-size: 28px;
     line-height: 38px;
   }
 

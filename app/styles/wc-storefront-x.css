@@ -86,12 +86,32 @@
 .wc-x-chip--random { background: var(--wc-x-chip-random-bg); color: var(--wc-x-chip-random-ink); }
 .wc-x-chip--tag { background: var(--wc-x-chip-tag-bg); color: var(--wc-x-chip-tag-ink); }
 
+/* 카드 어디를 눌러도 상세로 간다(MD-0044, 2026-11-23). 이름 링크의 ::after 가 카드 전체를 덮는 덮개라 링크는 하나뿐이고
+   (스크린리더 링크 목록·탭 순서는 그대로) 하트·이미지 넘김(z-index 2)·담기 버튼은 덮개 위에 선다. 카드에 쌓임 맥락을 세워
+   덮개가 슬라이더 화살표 같은 카드 밖 요소와 겨루지 않게 한다. 카드 안 어디에 마우스를 올려도 이름 밑줄이 생긴다. */
+.wc-product-card { isolation: isolate; }
+
+.wc-product-card__name-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.wc-product-card__cart {
+  position: relative;
+  z-index: 2;
+}
+
+.wc-product-card:hover .wc-product-card__name-link { text-decoration: underline; }
+
 /* 위시 하트 — 썸네일 오른쪽 아래. 히트 44 안에 흰 원 32(+1px 선)가 앉아 원이 모서리에서 8px 떨어진다(44 - 32 = 12 → 6 + 2).
    빈 하트 선은 ink.tertiary, 선택 하트는 채움 --wc-x-heart. 홈 ICONS PICK 행(.wc-x-pick)도 같은 색·원 크기를 쓴다. */
 .wc-product-card__action {
   top: auto;
   right: 2px;
   bottom: 2px;
+  z-index: 2;
 }
 
 .wc-product-card__action .wc-list-heart { margin: 0; }

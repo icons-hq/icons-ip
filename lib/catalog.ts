@@ -721,15 +721,16 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
 }
 
 /**
- * 인증 전 방문자에게 보내는 성인 상품 가림 카드(ADR-0024). 이름·이미지·배지·키워드·
- * 옵션은 행에서 옮기지 않는다 — 클라이언트로 가는 값에 상품 정보가 없어야 한다. 목록의
- * 정렬·필터가 흔들리지 않도록 IP·기본 판매가·재고 상태·등록 순서만 남긴다.
+ * 인증 전 방문자에게 보내는 성인 상품 가림 카드(ADR-0024). 이미지·배지·키워드·옵션은 행에서
+ * 옮기지 않는다 — 썸네일과 상세 정보는 인증 성인에게만 간다. 이름은 MD-0048(2026-11-23)부터 싣는다
+ * (IP·이름·가격은 보이고 썸네일만 가린다). 이름이 없거나 비면 고정 문구를 쓴다. 목록의 정렬·필터가
+ * 흔들리지 않도록 IP·기본 판매가·재고 상태·등록 순서를 남긴다.
  */
 function toMaskedAdultGood(row: GoodRow): Good {
   return {
     id: row.id,
     ip: row.ip_id,
-    name: ADULT_GOOD_LABEL,
+    name: row.name?.trim() || ADULT_GOOD_LABEL,
     searchKeywords: [],
     displayOrder: row.display_order ?? null,
     categoryId: row.category_id ?? null,
@@ -759,8 +760,9 @@ const nullableString = (value: unknown): value is string | null => value === nul
 
 /**
  * 인증 전 방문자의 19금 가림 카드 행(ADR-0024). goods RLS는 인증 전 세션에 성인 상품 행을 열지 않으므로
- * (20261118160000) 가림 카드가 쓰는 열만 주는 RPC로 읽는다 — 이름·이미지·배지는 처음부터 오지 않는다.
- * 모양이 틀린 행은 버린다(카드가 하나 빠질 뿐 목록 전체를 막지 않는다).
+ * (20261118160000) 가림 카드가 쓰는 열만 주는 RPC로 읽는다 — 이미지·배지는 처음부터 오지 않고, 이름은
+ * 20261125120000(MD-0048)부터 온다(배포 순서가 어긋나 이름이 없으면 고정 문구). 모양이 틀린 행은 버린다
+ * (카드가 하나 빠질 뿐 목록 전체를 막지 않는다).
  */
 async function loadMaskedAdultGoodRows(supabase: CatalogSupabaseClient, goodId?: string): Promise<GoodRow[]> {
   const { data, error } = await supabase.rpc('get_masked_adult_goods', goodId ? { p_good_id: goodId } : {});
@@ -773,7 +775,8 @@ async function loadMaskedAdultGoodRows(supabase: CatalogSupabaseClient, goodId?:
       || typeof row.stock !== 'string' || typeof row.stock_qty !== 'number' || !Number.isSafeInteger(row.stock_qty)
       || !nullableInteger(row.display_order) || !nullableString(row.category_id) || !nullableString(row.created_at)) return [];
     return [{
-      id: row.id, ip_id: row.ip_id, name: ADULT_GOOD_LABEL, price: row.price, badge: null, stock: row.stock, stock_qty: row.stock_qty,
+      id: row.id, ip_id: row.ip_id, name: typeof row.name === 'string' && row.name.trim() ? row.name : ADULT_GOOD_LABEL,
+      price: row.price, badge: null, stock: row.stock, stock_qty: row.stock_qty,
       bg: null, image_path: null, allow_bank_transfer: null, display_order: row.display_order, category_id: row.category_id,
       created_at: row.created_at, sale_restriction: 'adult',
     }];

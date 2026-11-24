@@ -689,12 +689,13 @@ const shipping = (methods: FulfillmentMethodTerms[], overrides: Partial<GoodsFul
 const shippingPolicy: GoodShippingPolicy = { originId: 'o1', originName: '김포', baseFee: 3000, freeThreshold: 40000, feeType: 'policy', individualFee: 0 };
 
 describe("'예상 굿즈 금액' 행 삭제 (MD-0039·0040)", () => {
-  it('거래 조건이 있는 굿즈는 본문 패널에 합계 행(예상 굿즈 금액)이 없고 안내·CTA 는 남는다', () => {
+  /* MD-0053(2026-11-23) — '현재 선택한 굿즈 기준이에요…' 구매 안내 문단도 지웠다. CTA 는 남는다. */
+  it('거래 조건이 있는 굿즈는 본문 패널에 합계 행(예상 굿즈 금액)과 구매 안내 문단이 없고 CTA 는 남는다', () => {
     const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: withOffer(), quantity: 2, subtotal: 24000 })} />);
     expect(html).not.toContain('예상 굿즈 금액');
     expect(html).not.toContain('wc-buy-panel__total');
     expect(html).not.toContain('₩24,000');
-    expect(html).toContain('현재 선택한 굿즈 기준이에요.');
+    expect(html).not.toContain('현재 선택한 굿즈 기준이에요.');
     expect(html).toContain('>장바구니<');
     expect(html).toContain('>구매하기<');
   });
