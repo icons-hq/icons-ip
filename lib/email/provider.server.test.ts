@@ -4,7 +4,7 @@ import { getEmailProviderConfig, sendTransactionalEmail } from './provider.serve
 
 const message = {
   to: 'buyer@example.com',
-  subject: '[ICONS] 주문이 접수됐어요',
+  subject: '[엑스스퀘어] 주문이 접수됐어요',
   text: '주문이 접수됐어요',
   html: '<p>주문이 접수됐어요</p>',
 };

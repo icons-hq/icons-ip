@@ -158,7 +158,7 @@ function ProfileStrip({ profile }: { profile: MypageProfileSummary }) {
           {/* 모바일 웰컴 행의 등급 뱃지 — 데스크톱은 같은 뱃지를 등급 타일이 든다(한쪽만 화면에 남는다). */}
           {profile.loyalty ? <TierBadge className="wc-mypage__greeting-badge" loyalty={profile.loyalty} /> : null}
           <p className="wc-mypage__greeting">{profile.nickname}</p>
-          <p className="wc-mypage__greeting-sub">나의 ICONS 활동을 이어가세요.</p>
+          <p className="wc-mypage__greeting-sub">나의 엑스스퀘어 활동을 이어가세요.</p>
         </div>
       </div>
       <div className="wc-mypage__stat">

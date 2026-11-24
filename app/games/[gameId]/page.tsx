@@ -35,7 +35,7 @@ export async function generateMetadata({
   params: Promise<{ gameId: string }>;
 }): Promise<Metadata> {
   const { gameId } = await params;
-  return { title: gameId === HYOSAN_MEMORIES_GAME_ID ? '효산의 기억 — ICONS' : 'ICONS' };
+  return { title: gameId === HYOSAN_MEMORIES_GAME_ID ? '효산의 기억 — 엑스스퀘어' : '엑스스퀘어' };
 }
 
 export default async function GamePage({ params }: { params: Promise<{ gameId: string }> }) {

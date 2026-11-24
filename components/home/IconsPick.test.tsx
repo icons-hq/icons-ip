@@ -22,11 +22,11 @@ describe('IconsPick', () => {
     expect(renderToStaticMarkup(<IconsPick bands={[]} heartFor={noHeart} />)).toBe('');
   });
 
-  it('is one ICONS PICK section named by its first band, with one card per band', () => {
+  it('is one X SQUARE PICK section named by its first band, with one card per band', () => {
     const html = renderToStaticMarkup(<IconsPick bands={[band('a'), band('b'), band('c')]} heartFor={noHeart} />);
 
     expect(html).toContain('aria-labelledby="home-icons-pick-a-heading"');
-    expect(html).toContain('<h2 class="wc-x-sechead__title" id="home-icons-pick-a-heading">ICONS PICK</h2>');
+    expect(html).toContain('<h2 class="wc-x-sechead__title" id="home-icons-pick-a-heading">X SQUARE PICK</h2>');
     expect(html).not.toContain('wc-x-pill');
     expect((html.match(/<article class="wc-x-pick">/g) ?? []).length).toBe(3);
     expect(html).toContain('<ul class="wc-x-pick-grid">');

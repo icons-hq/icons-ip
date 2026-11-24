@@ -65,7 +65,7 @@ describe('downloadable goods XLSX', () => {
       new Request('http://localhost/api/admin/goods-workbook?mode=template'),
     );
     expect(response.headers.get('content-disposition')).toContain(
-      'icons-goods-template.xlsx',
+      'xsquare-goods-template.xlsx',
     );
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     const book = new ExcelJS.Workbook();

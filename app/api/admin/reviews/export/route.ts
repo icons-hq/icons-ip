@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       subjectKind: 'review', subjectIds: prepared.snapshot.rows.map(row => row.id), subjectCount: prepared.snapshot.total, detail: { auditId } });
     return new Response(new Uint8Array(encrypted.bytes), { headers: {
       ...EXPORT_NO_STORE, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-리뷰-${stamp}.xlsx`, `icons-reviews-${stamp}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-리뷰-${stamp}.xlsx`, `xsquare-reviews-${stamp}.xlsx`),
       'X-ICONS-Export-Audit': auditId, 'X-ICONS-Export-Rows': String(prepared.snapshot.total),
       'X-ICONS-Export-Records': String(prepared.snapshot.total), 'X-ICONS-Export-Encryption': 'ECMA-376-Agile',
     } });

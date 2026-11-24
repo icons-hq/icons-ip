@@ -123,7 +123,7 @@ describe('상품 엑셀 파일 업로드 본문 형식', () => {
     }
   });
 
-  it('사방넷 .xlsx와 ICONS 양식 XLSX·이미지 ZIP도 버킷이 받는 형식의 Blob으로 올린다', async () => {
+  it('사방넷 .xlsx와 엑스스퀘어 양식 XLSX·이미지 ZIP도 버킷이 받는 형식의 Blob으로 올린다', async () => {
     const first = render();
     find(first, (element) => (element.type === 'select' || element.type === AdminSelect) && element.props.id === 'goods-import-format')[0]
       .props.onChange?.({ target: { value: 'sabangnet' } });

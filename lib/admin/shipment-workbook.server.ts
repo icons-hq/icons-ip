@@ -24,14 +24,14 @@ function writeSupplement(workbook:ExcelJS.Workbook,supplement:NonNullable<Return
 async function buildOriginExport(shipments:Shipments,requested:'xlsx'|'csv',stamp:string,reader:WarehouseExportReader):Promise<ShipmentExportFile>{
  const table=warehouseExportTable(shipments,reader),first=shipments[0];
  const format=first.template==='seowon_xlsx'?'xlsx':requested;
- const stem=`icons-출고지시-${fileLabel(first.originName)}-${stamp}`;
+ const stem=`xsquare-출고지시-${fileLabel(first.originName)}-${stamp}`;
  const supplement=warehouseOperationalTable(shipments,reader);
  if(format==='csv'){
   const csv=shipmentExportRowsCsv(table.headers,table.rows);
   if(supplement){
    const zip=new JSZip();
-   zip.file(`icons-출고지시-${stamp}.csv`,csv);
-   zip.file(`icons-배송운영안내-${stamp}.csv`,shipmentExportRowsCsv(supplement.headers,supplement.rows));
+   zip.file(`xsquare-출고지시-${stamp}.csv`,csv);
+   zip.file(`xsquare-배송운영안내-${stamp}.csv`,shipmentExportRowsCsv(supplement.headers,supplement.rows));
    return {bytes:await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}),mime:'application/zip',extension:'zip',name:`${stem}.zip`};
   }
   return {bytes:Buffer.from(csv,'utf8'),mime:'text/csv;charset=utf-8',extension:'csv',name:`${stem}.csv`};
@@ -52,7 +52,7 @@ async function buildOriginExport(shipments:Shipments,requested:'xlsx'|'csv',stam
  return {bytes,mime:XLSX_MIME,extension:'xlsx',name:`${stem}.xlsx`};
 }
 /**
- * 파일 이름은 다른 내려받기와 같은 `icons-이름-YYYYMMDD-HHmm`(KST) 규칙이다.
+ * 파일 이름은 다른 내려받기와 같은 `xsquare-이름-YYYYMMDD-HHmm`(KST) 규칙이다.
  * reader.recipientOnly(주문 조회 권한이 없는 출고 전용 운영자, 1014-084 "수령인 정보만")면 어느 양식이든 구매자·결제·금액·선결제 배송비를
  * 모든 줄에서 비운다. 받은 자료가 이미 비어 있어도 여기서 한 번 더 비운다(같은 결과). 착불 배송비·수납 정보는 남는다.
  */
@@ -61,9 +61,9 @@ export async function buildShipmentExport(data:ShipmentExportData,format:'xlsx'|
  // 비운 사본은 금액 칸이 null이다. 빌더는 그 칸을 빈칸으로 그리므로 주문 조회 권한자의 계약 타입으로 넘긴다.
  if(reader.recipientOnly)data=recipientOnlyShipmentExport(data) as unknown as ShipmentExportData;
  if(layout==='smartstore'){
-  if(data.shipments.reduce((count,shipment)=>count+shipment.lines.length,0)>TRACKING_IMPORT_ROW_LIMIT)throw new Error('ICONS 표준 양식은 품목 1,000줄까지 만들 수 있습니다. 배송 건을 나눠서 내보내주세요.');
+  if(data.shipments.reduce((count,shipment)=>count+shipment.lines.length,0)>TRACKING_IMPORT_ROW_LIMIT)throw new Error('엑스스퀘어 표준 양식은 품목 1,000줄까지 만들 수 있습니다. 배송 건을 나눠서 내보내주세요.');
   const file=await buildSmartStoreShipmentExport(data,format,now,{recipientOnly:reader.recipientOnly});
-  return {...file,extension:file.extension as ShipmentExportFile['extension'],name:`icons-출고지시-${stamp}.${file.extension}`};
+  return {...file,extension:file.extension as ShipmentExportFile['extension'],name:`xsquare-출고지시-${stamp}.${file.extension}`};
  }
  const groups=new Map<string,Shipments>();
  for(const shipment of data.shipments){
@@ -79,5 +79,5 @@ export async function buildShipmentExport(data:ShipmentExportData,format:'xlsx'|
   let name=file.name;for(let copy=2;names.has(name);copy++)name=file.name.replace(/(\.[a-z]+)$/,`-${copy}$1`);
   names.add(name);zip.file(name,file.bytes);
  }
- return {bytes:await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}),mime:'application/zip',extension:'zip',name:`icons-출고지시-출고지별-${stamp}.zip`};
+ return {bytes:await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}),mime:'application/zip',extension:'zip',name:`xsquare-출고지시-출고지별-${stamp}.zip`};
 }

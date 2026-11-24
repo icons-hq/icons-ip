@@ -451,8 +451,8 @@ v5 표면의 액센트는 초록이 아니라 잉크다. 빨강은 롤링 띠·�
 | `--wc-x-footer-link` | `#535353` | `#535353` | 푸터 링크 |
 | `--wc-x-line-pill` | `#DBD9D9` | `#DBD9D9` | 전체보기 알약 테두리 |
 | `--wc-x-line-util` | `rgba(217,217,217,.5)` | `#D9D9D9`@50% | 유틸 아래·푸터 위·카테고리 칩 줄 구분선 |
-| `--wc-x-line-row` | `#CFCFCF` | `#CFCFCF` | ICONS PICK 카드 상품 행 사이 |
-| `--wc-x-line-card` | `rgba(196,196,196,.8)` | `#C4C4C4`@80% | ICONS PICK 카드 테두리(0.5px) |
+| `--wc-x-line-row` | `#CFCFCF` | `#CFCFCF` | X SQUARE PICK 카드 상품 행 사이 |
+| `--wc-x-line-card` | `rgba(196,196,196,.8)` | `#C4C4C4`@80% | X SQUARE PICK 카드 테두리(0.5px) |
 | `--wc-x-sale` | `#E02424` | `#FF4D4D` | 할인율 글자 |
 | `--wc-x-heart` | `#FF4D4D` | `#FF4D4D` | 위시 하트 선택(비텍스트) |
 | `--wc-x-rolling-bg` | `#E31B23` | `#EC2227` | 롤링 띠배너 바탕 |
@@ -484,7 +484,7 @@ Figma의 일부 색은 WCAG AA(작은 글자 4.5:1, 비텍스트 3:1)에 못 미
 - 넓은 컨테이너 `<div className="wc-container wc-container--wide">`: 최대 1320, 데스크톱 좌우 24(안쪽 1272), <990은 기존 거터 16. 기존 `.wc-container`(1212)는 다른 표면이 계속 쓴다.
 - 크롬 브레이크포인트 990(헤더·푸터), 콘텐츠 브레이크포인트 750(그리드)은 v4 그대로이고 그리드에만 1200 단이 하나 더 있다.
 
-| 폭 | 상품 그리드 열 | 열 간격 | 줄 간격 홈 / 목록 | 히어로 | IP 바로가기 | ICONS PICK | POP-UP·EVENT 카드 |
+| 폭 | 상품 그리드 열 | 열 간격 | 줄 간격 홈 / 목록 | 히어로 | IP 바로가기 | X SQUARE PICK | POP-UP·EVENT 카드 |
 |---|---|---|---|---|---|---|---|
 | ≥1200 | 5 | 15 | 24 / 56 | 1272×540 r18 | 265×180, 4열 가운데(간격 20) | 3열 | 3열(408:260) |
 | 990–1199 | 4 | 15 | 24 / 48 | 비율 유지 | 같음 | 3열 | 3열 |
@@ -502,7 +502,7 @@ Figma의 일부 색은 WCAG AA(작은 글자 4.5:1, 비텍스트 3:1)에 못 미
 | 상품 그리드 | `components/wc/ProductGrid.tsx` | `<ul class="wc-x-grid" data-density="home" 또는 "listing">`, 열·간격은 §14.4. 기존 `.wc-product-grid`(4열)는 v4 표면용으로 남는다 |
 | 섹션 머리 | `components/wc/SectionHeader.tsx` | 제목 28 Bold `--wc-x-ink`(<750은 20) + 전체보기 알약(13 Medium, 1px `--wc-x-line-pill`, 높이 38, 접근 이름 "제목 전체보기"). `moreHref`가 없으면 알약을 그리지 않는다 |
 | 스트립 배너 | `components/wc/StripBanner.tsx` | `size="home"` 1272×170 · `size="page"` 1272×340, r12, cover. 모바일(<750)은 r8이고 모바일 이미지가 있으면 그 고유 비율. 여러 장을 넘기는 슬라이더는 목록용 `CollectionBanners`·캠페인용 `CampaignBannerSlider`가 같은 `.wc-strip-banner` 계열로 맡는다 |
-| 프로모션 카드 | `components/wc/PromoCard.tsx` | 408:260 r8, 아래 150px 그라데이션(#121212 0→100%) 위 흰 제목 20 Bold 최대 2줄(`<h3>`), 선택 메타 한 줄 14 Medium, 선택 배지("오픈 예정"). 카드 전체가 링크 하나. POP-UP·EVENT 목록과 홈 ICONS PICK이 같은 모양을 쓴다 |
+| 프로모션 카드 | `components/wc/PromoCard.tsx` | 408:260 r8, 아래 150px 그라데이션(#121212 0→100%) 위 흰 제목 20 Bold 최대 2줄(`<h3>`), 선택 메타 한 줄 14 Medium, 선택 배지("오픈 예정"). 카드 전체가 링크 하나. POP-UP·EVENT 목록과 홈 X SQUARE PICK이 같은 모양을 쓴다 |
 | 위시 하트 | `components/shop/ListingWishHeart.tsx` | Figma 하트 경로, 선택은 채움·비선택은 선 |
 
 새 CSS의 선택자는 `.wc-x-`·`.wc-strip-banner`·기존 `.wc-product-card` 계열(공용 부품), `.wc-listing*`(목록), `.wc-promo-*`·`.wc-popups*`(POP-UP·EVENT)로만 시작한다 — 전역 element 규칙을 두지 않는다. import 순서는 `wc-inquiry-widget.css` → `wc-storefront-x.css` → `wc-listing.css` → `wc-popups.css`로, 화면 CSS가 부품 기본값을 덮는다(`app/layout.tsx`).
@@ -515,11 +515,11 @@ Figma의 일부 색은 WCAG AA(작은 글자 4.5:1, 비텍스트 3:1)에 못 미
 - **sticky 크롬 높이 계약**: 모바일 52 · 데스크톱 축약 69 · 데스크톱 펼침 **109**(행 108 + 선 1) — `wc-chrome.css`의 `--wc-sticky-chrome-h`와 `globals.css`의 `html scroll-padding-top`이 같은 값이고 `components/shell/chrome-styles.test.ts`가 맞춘다. (v4 §4의 데스크톱 123은 v5에 해당하지 않는다.)
 - **검색 패널**: 비모달(`aria-modal="false"`). 딤 위에 밝게 남는 줄 — 공지 띠(롤링 띠배너·이미지 스트립)·유틸 메뉴·헤더 행 — 은 inert에서 빠져 열린 채로도 눌린다. 로고·장바구니·마이·유틸 메뉴·공지 링크(공지 닫기 포함)는 이동과 함께 패널을 닫고, 카테고리·온라인 팝업 메가메뉴는 열릴 때 패널을 닫으며, 검색 아이콘은 열기/닫기 토글이다. 본문·푸터·탭바(과 모바일 GNB 탭 행)는 딤 + inert(MD-0034 — 밝으면 눌리고 딤 아래면 안 눌린다).
 - **GNB 구성**: 기본 NEW · BEST · 카테고리 · POP-UP · EVENT, 온라인 팝업·커뮤니티·쇼핑스토리는 기본 숨김(운영 메뉴 설정으로 켠다). `/popups*`·`/offline-popups*`에서 POP-UP, `/events*`에서 EVENT가 켜진다. 카드팩 칸은 2026-11-24 퇴역해 그리지 않고, 커뮤니티는 배포 게이트도 따로 거른다.
-- **푸터**: 1행 왼쪽 `아이콘스 이용약관`·`개인정보처리방침`·`배송·반품 정책`·`대량구매`(mailto, 16 Bold `--wc-x-footer-link`), 오른쪽 `고객센터` + 브랜딩 설정의 SNS(인스타그램 아이콘 18, 블로그·페이스북은 글자 링크) → 사업자 정보(상호·주소·대표자·사업자등록번호·통신판매업·전화·이메일·호스팅, 12 SemiBold `--wc-x-muted`, 접지 않음) → 스태프 블록(해당 시) → `© 연도 ICONS`. 법적 문서 3종과 법정 표기는 필수다. 목적지 없는 Figma 항목(공지사항·서비스 가이드라인·X)은 죽은 링크로 만들지 않는다.
+- **푸터**: 1행 왼쪽 `엑스스퀘어 이용약관`·`개인정보처리방침`·`배송·반품 정책`·`대량구매`(mailto, 16 Bold `--wc-x-footer-link`), 오른쪽 `고객센터` + 브랜딩 설정의 SNS(인스타그램 아이콘 18, 블로그·페이스북은 글자 링크) → 사업자 정보(상호·주소·대표자·사업자등록번호·통신판매업·전화·이메일·호스팅, 12 SemiBold `--wc-x-muted`, 접지 않음) → 스태프 블록(해당 시) → `© 연도 ICONS`. 법적 문서 3종과 법정 표기는 필수다. 목적지 없는 Figma 항목(공지사항·서비스 가이드라인·X)은 죽은 링크로 만들지 않는다.
 
 ### 14.7 홈
 
-섹션은 `wc-container--wide` 안에서 간격 60(모바일 48)이다. 기본 순서(저장 레이아웃이 없을 때): 히어로 → IP 바로가기(`editor_picks`) → NEW ARRIVAL(`new_arrivals`) → 홈 스트립 배너(`strip_banner`) → IP 상품 섹션(상품 모음) → ICONS PICK(`band:`) → 카테고리 BEST·인기템·혜택 → 판매·리뷰 랭킹·모자이크 → 쇼핑스토리.
+섹션은 `wc-container--wide` 안에서 간격 60(모바일 48)이다. 기본 순서(저장 레이아웃이 없을 때): 히어로 → IP 바로가기(`editor_picks`) → NEW ARRIVAL(`new_arrivals`) → 홈 스트립 배너(`strip_banner`) → IP 상품 섹션(상품 모음) → X SQUARE PICK(`band:`) → 카테고리 BEST·인기템·혜택 → 판매·리뷰 랭킹·모자이크 → 쇼핑스토리.
 
 | 영역 | 데이터 원천 | 모양 |
 |---|---|---|
@@ -528,7 +528,7 @@ Figma의 일부 색은 WCAG AA(작은 글자 4.5:1, 비텍스트 3:1)에 못 미
 | NEW ARRIVAL | 최신 등록 10개 자동 | `SectionHeader` + 5열 × 2줄, 전체보기 → `/shop/new` |
 | 홈 스트립 배너 | 옛 공지 배너(`announcement`)의 첫 노출 행 | `StripBanner size="home"` 1272×170 |
 | IP 상품 섹션 | 상품 모음 '그리드형(5열)' 5 또는 10개 | `SectionHeader` + 5열, 고른 상품이 모두 한 IP면 전체보기가 그 IP관 |
-| ICONS PICK | 연달아 놓인 기획전 배너 | 3열 `PromoCard` + 상품 2행(썸네일 94 r6) 묶음, 0.5px `--wc-x-line-card` 테두리 |
+| X SQUARE PICK | 연달아 놓인 기획전 배너 | 3열 `PromoCard` + 상품 2행(썸네일 94 r6) 묶음, 0.5px `--wc-x-line-card` 테두리 |
 
 옛 블록(카테고리 BEST·인기템·혜택·쇼핑스토리·랭킹·모자이크·리스트형/풀이미지형 모음)은 렌더를 바꾸지 않고 넓은 컨테이너·섹션 간격만 맞췄다. 운영자가 영역 순서·노출에서 끄면 Figma와 같아진다. 내용(어느 IP·배너)은 코드가 정하지 않는다.
 

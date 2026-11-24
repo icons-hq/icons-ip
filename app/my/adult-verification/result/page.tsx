@@ -10,7 +10,7 @@ import {
 import { loadMyAdultVerification } from '@/lib/identity/adult-verification-status.server';
 
 export const metadata: Metadata = {
-  title: '성인 인증 결과 — ICONS',
+  title: '성인 인증 결과 — 엑스스퀘어',
   robots: { index: false, follow: false },
 };
 

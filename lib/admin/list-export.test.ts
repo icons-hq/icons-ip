@@ -43,13 +43,13 @@ describe('KST 시각과 파일명', () => {
     expect(kstFileStamp(new Date('2026-10-07T15:30:00.000Z'))).toBe('20261008-0030');
   });
 
-  it('파일명은 icons-<화면>-YYYYMMDD-HHmm.xlsx이고 한글은 RFC 5987로 싣는다', () => {
+  it('파일명은 xsquare-<화면>-YYYYMMDD-HHmm.xlsx이고 한글은 RFC 5987로 싣는다', () => {
     const now = new Date('2026-10-07T06:04:00.000Z');
     const names = adminListExportFileNames('dispatch', now, '발송 대기');
-    expect(names.fileName).toBe('icons-발주발송-발송대기-20261007-1504.xlsx');
-    expect(names.asciiFileName).toBe('icons-dispatch-20261007-1504.xlsx');
+    expect(names.fileName).toBe('xsquare-발주발송-발송대기-20261007-1504.xlsx');
+    expect(names.asciiFileName).toBe('xsquare-dispatch-20261007-1504.xlsx');
     const header = adminListExportContentDisposition(names.fileName, names.asciiFileName);
-    expect(header).toBe(`attachment; filename="icons-dispatch-20261007-1504.xlsx"; filename*=UTF-8''${encodeURIComponent(names.fileName)}`);
+    expect(header).toBe(`attachment; filename="xsquare-dispatch-20261007-1504.xlsx"; filename*=UTF-8''${encodeURIComponent(names.fileName)}`);
     expect(adminListExportFileNameFromDisposition(header, 'fallback.xlsx')).toBe(names.fileName);
     expect(adminListExportFileNameFromDisposition('attachment; filename="plain.xlsx"', 'x')).toBe('plain.xlsx');
     expect(adminListExportFileNameFromDisposition(null, 'fallback.xlsx')).toBe('fallback.xlsx');

@@ -19,7 +19,7 @@ function expectStandard(parsed: Awaited<ReturnType<typeof parseTrackingWorkbook>
   return parsed;
 }
 
-describe('ICONS 표준 양식 회신', () => {
+describe('엑스스퀘어 표준 양식 회신', () => {
   it('시트 이름·열 순서와 관계없이 등록된 택배사와 운송장번호를 읽는다', async () => {
     const parsed = expectStandard(await parseTrackingWorkbook(await bytes([['001234567890', item, '한진택배']]), carriers));
     expect(parsed.issues).toEqual([]);
@@ -95,7 +95,7 @@ describe('ICONS 표준 양식 회신', () => {
   });
 });
 
-describe('ICONS 표준 양식 CSV·붙여넣기 회신', () => {
+describe('엑스스퀘어 표준 양식 CSV·붙여넣기 회신', () => {
   const csv = (rows: string[][], columns = headers) => [columns, ...rows].map(row => row.join(',')).join('\r\n');
 
   it('12자리 운송장번호와 열 순서가 바뀐 CSV를 XLSX와 같은 명령으로 보낸다', () => {

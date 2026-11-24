@@ -45,7 +45,7 @@ describe('Toss recurring billing Adapter', () => {
       providerPaymentKey: 'fake-payment-key-fixture', maskedPaymentMethod: '43301234****123*' } });
     expect(calls).toHaveLength(1); expect(calls[0].url).toBe(`https://api.tosspayments.com/v1/billing/${encodeURIComponent(input.billingKey)}`);
     expect(JSON.parse(String(calls[0].init.body))).toEqual({ customerKey: input.customerKey, amount: input.attempt.amount,
-      orderId: input.attempt.providerOrderId, orderName: 'ICONS 정기배송 주문' });
+      orderId: input.attempt.providerOrderId, orderName: '엑스스퀘어 정기배송 주문' });
     expect(calls[0].init).toMatchObject({ method: 'POST', redirect: 'error', cache: 'no-store' });
   });
 

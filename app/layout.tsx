@@ -83,7 +83,7 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   /* 상대 주소 메타(OG 등)의 기준. 운영 SITE_URL, 없으면 운영 도메인(lib/seo/search-engines.ts). */
   metadataBase: metadataBaseUrl(),
-  title: 'ICONS',
+  title: '엑스스퀘어',
   description:
     '공식 라이선스 굿즈 · 팝업 & 티케팅 · 팬 커뮤니티까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
   /* 네이버 서치어드바이저 소유확인(1014-029) — env 값이 있을 때만 <meta name="naver-site-verification">. 빌드 때 읽으므로

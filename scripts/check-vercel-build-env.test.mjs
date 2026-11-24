@@ -884,6 +884,16 @@ describe('legal revision date guard', () => {
     expect(() => validateVercelBuildEnvironment(baseEnvironment, { virtualAccountRevisionSource: source('2026-11-24', '2026-11-30') })).not.toThrow();
   });
 
+  it('checks the brand name terms revision dates with the same rules in production builds', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: source('2026-11-25', '2026-12-01') }))
+      .toThrow(/in brand-name-revision\.json: effectiveDate .* at least 7 days/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: '{ not json' }))
+      .toThrow(/brand-name-revision\.json is not valid JSON/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: source('2026-11-25', '2026-12-02') })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: source(null, null) })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(baseEnvironment, { brandNameRevisionSource: source('2026-11-25', '2026-12-01') })).not.toThrow();
+  });
+
   it('lets the virtual account revision take effect before or after the earlier revisions (documents apply them by effective date)', () => {
     const earlier = { partialReturnRevisionSource: source('2026-11-20', '2026-11-27'), alimtalkRevisionSource: source('2026-11-23', '2026-11-30') };
     expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') })).not.toThrow();

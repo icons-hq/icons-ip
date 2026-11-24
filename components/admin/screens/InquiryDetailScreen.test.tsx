@@ -124,7 +124,7 @@ describe('InquiryDetailScreen', () => {
     expect(html).toContain('자동 안내');
     expect(html).toContain('기한 초과');
     expect(html).toContain('href="https://iconsip.com/help"');
-    expect(html).not.toContain('ICONS 운영자');
+    expect(html).not.toContain('엑스스퀘어 운영자');
   });
   it('고객 ID 상세 링크와 화면 안의 고객 이력 패널을 제공한다', () => {
     const html = render();

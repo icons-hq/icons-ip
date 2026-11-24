@@ -281,7 +281,7 @@ describe('내보내기 전 바코드 경고 조회', () => {
     expect(failedLookup.message).toBe('2건의 출고지시를 내려받았습니다.');
   });
   /* 1027T-046 통합: ICONS 표준 양식은 출고지와 관계없이 모든 행에 바코드 칸이 있어 admin_smartstore_shipment_barcode_gaps로 센다. */
-  it('ICONS 표준 양식은 표준 양식 기준으로 바코드 빈칸을 세고, 실패한 내보내기는 세지 않는다', async () => {
+  it('엑스스퀘어 표준 양식은 표준 양식 기준으로 바코드 빈칸을 세고, 실패한 내보내기는 세지 않는다', async () => {
     mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_smartstore_shipment_export' ? { shipments: [{ id: ID, updatedAt: STAMP }] }
       : name === 'admin_smartstore_shipment_barcode_gaps' ? 2 : 1 }));
     const standard = await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);

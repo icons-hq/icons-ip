@@ -6,7 +6,7 @@ import { isUuid } from '@/lib/uuid';
 import { loadMyBillingCards, loadMyGoodsSubscription, loadMySubscriptionCycles } from '@/lib/subscriptions/customer.server';
 import { subscriptionAvailability } from '@/lib/subscriptions/runtime.server';
 import { SubscriptionDetail } from '@/components/screens/subscriptions/SubscriptionDetail';
-export const metadata: Metadata = { title: '정기배송 상세 — ICONS', robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: '정기배송 상세 — 엑스스퀘어', robots: { index: false, follow: false } };
 export const maxDuration = 90;
 export default async function Page({ params, searchParams }: { params: Promise<{ subscriptionId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { subscriptionId } = await params; if (!isUuid(subscriptionId)) notFound();

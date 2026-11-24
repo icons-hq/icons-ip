@@ -73,7 +73,7 @@ export function EncryptedWorkbookDownloadButton({ href, label, disabled = false,
       if (!current()) return;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a'); anchor.href = url;
-      anchor.download = adminListExportFileNameFromDisposition(response.headers.get('content-disposition'), 'icons-encrypted.xlsx');
+      anchor.download = adminListExportFileNameFromDisposition(response.headers.get('content-disposition'), 'xsquare-encrypted.xlsx');
       document.body.append(anchor); anchor.click(); anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       const count = response.headers.get('x-icons-export-rows');

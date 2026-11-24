@@ -84,7 +84,7 @@ function rotate(input: Uint8ClampedArray, size: Size) {
   return output;
 }
 
-describe('ICONS 공간 보정의 독립 2D 검산', () => {
+describe('엑스스퀘어 공간 보정의 독립 2D 검산', () => {
   it.each(shapes.flatMap(size => [1, 2, 32].map(radius => ({ ...size, radius }))))('box $width×$height, 반경 $radius는 가장자리 반복 가중치까지 2D 직접 합과 같다', ({ width, height, radius }) => {
     const size = { width, height }, input = sample(size), output = new Uint8ClampedArray(input);
     finish(boxBlurPhotoPixels(output, size, radius));

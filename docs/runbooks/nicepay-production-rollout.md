@@ -74,7 +74,7 @@ AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint�
 2. **결제창**: 어댑터가 `SignData = hex(sha256(EdiDate + MID + Amt + MerchantKey))`를
    계산한다. `EdiDate`는 attempt 만료 10분 전(KST)이라 같은 attempt를 다시 준비해도 값이
    같다. 브라우저는 `pg-web.nicepay.co.kr/v3/common/js/nicepay-pgweb.js`를 싣고
-   `accept-charset="euc-kr"` 결제 폼을 `goPay()`에 넘긴다. 상품명은 `ICONS 굿즈 주문`,
+   `accept-charset="euc-kr"` 결제 폼을 `goPay()`에 넘긴다. 상품명은 `엑스스퀘어 굿즈 주문`,
    주문번호(`Moid`)는 attempt의 provider 주문번호, 가맹점 여분 필드(`ReqReserved`)는 단회용
    callback nonce다. MerchantKey는 브라우저로 나가지 않는다.
 3. **인증 응답**: PC는 `nicepaySubmit()`이 폼을, 모바일은 나이스페이가 인증 결과를
@@ -130,7 +130,7 @@ AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint�
   방법(거래 내역 조회 등)을 정해 어댑터를 따로 고친다. 취소 전 조회 → 취소 → 취소 후 조회를 함께 보고, 취소
   응답(`2001`·`2211` + 서명 일치, 또는 `2013`·`2015`·`2219` 이미 취소)과 사후 조회 `Status=1`이
   맞을 때만 승인한다. 취소 거절 코드는 `needs_review`(`provider_cancel_rejected`)다. 한글
-  취소 사유는 EUC-KR 인코딩을 피하려고 `ICONS order cancellation`으로 바꿔 보낸다.
+  취소 사유는 EUC-KR 인코딩을 피하려고 `X SQUARE order cancellation`으로 바꿔 보낸다.
 - 나이스페이 결제는 토스처럼 운영자 전액 취소·클레임 승인 시 자동 전액 취소 대상이다
   (`lib/payments/provider-capabilities.ts`와 DB 같은 판정).
 

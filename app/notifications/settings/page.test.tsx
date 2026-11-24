@@ -67,7 +67,7 @@ beforeEach(() => {
 describe('/notifications/settings page', () => {
   it('is a private noindex preference surface in metadata', () => {
     expect(metadata).toMatchObject({
-      title: 'IP 알림 설정 — ICONS',
+      title: 'IP 알림 설정 — 엑스스퀘어',
       robots: { index: false, follow: false },
     });
   });

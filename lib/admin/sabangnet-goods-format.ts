@@ -242,7 +242,7 @@ export function validateSabangnetTargets(
   if (targets.length !== headers.length)
     return '열 구성이 바뀌었습니다. 파일을 다시 올려 주세요.';
   if (targets.some((target) => typeof target !== 'string' || !TARGET_KEYS.has(target as SabangnetTarget)))
-    return '알 수 없는 ICONS 항목이 있습니다. 열 연결을 다시 골라 주세요.';
+    return '알 수 없는 엑스스퀘어 항목이 있습니다. 열 연결을 다시 골라 주세요.';
   if (!targets.includes('name')) return '상품명으로 쓸 열을 골라 주세요.';
   for (const target of SABANGNET_TARGETS) {
     if (target.multiple) continue;
@@ -488,7 +488,7 @@ export function convertSabangnetRows(input: {
           notes.add(`옵션 축 ${index}의 같은 값 '${name}'을 하나로 합쳤습니다.`);
           continue;
         }
-        if (extra < 0) errors.push(`옵션 값 '${name}'의 금액이 판매가보다 낮습니다. ICONS 옵션가는 0원 이상인 추가금액이어야 합니다.`);
+        if (extra < 0) errors.push(`옵션 값 '${name}'의 금액이 판매가보다 낮습니다. 엑스스퀘어 옵션가는 0원 이상인 추가금액이어야 합니다.`);
         if (name.length > 80) errors.push(`옵션 값은 80자 이하로 입력해 주세요: ${name.slice(0, 20)}…`);
         parsed.set(name, Math.max(0, extra));
       }

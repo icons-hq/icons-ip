@@ -603,7 +603,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     || decodedLinkPath === null
     || isUnsafeInternalLink(decodedLinkPath)
   ))) {
-    errors.linkPath = '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.';
+    errors.linkPath = '이동할 화면은 /로 시작하는 엑스스퀘어 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.';
   }
   if (kind === 'product_collection' && linkPath !== null) errors.linkPath = '자유상품은 각 상품의 상세 화면으로 이동합니다.';
   if (kind === 'search_terms' && linkPath !== null) errors.linkPath = '추천 검색어는 각 검색어의 검색 결과로 이동합니다.';

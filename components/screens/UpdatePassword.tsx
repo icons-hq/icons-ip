@@ -50,7 +50,7 @@ export function UpdatePassword({ email, next }: { email: string | null; next: st
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
         <p className="wc-auth__step-note">
-          <Link href="/">ICONS</Link>
+          <Link href="/">X SQUARE</Link>
         </p>
         <h1 className="wc-auth__title wc-auth__title--sub">새 비밀번호 설정</h1>
         <p className="wc-auth__lede">기존과 다른 비밀번호를 입력한 뒤 다시 로그인해주세요.</p>

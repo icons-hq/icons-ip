@@ -15,6 +15,7 @@
  *   ENFORCE_MAILER          'true'면 confirmation·rate limit 설정까지 강제한다.
  *   EMAIL_OTP_EXPIRY_SECONDS 선택. email link/OTP TTL을 숫자로 일치시키고 read-back한다.
  *   RECOVERY_TEMPLATE_PATH  선택. recovery 메일 본문을 파일과 일치시키고 read-back한다.
+ *   RECOVERY_SUBJECT        선택. recovery(비밀번호 재설정) 메일 제목을 이 값과 일치시키고 read-back한다.
  *   PASSWORD_UPDATE_GUARDS  'true'면 비밀번호 변경에 현재 비밀번호·24시간 재인증을 요구한다.
  *   PASSWORD_CHANGED_TEMPLATE_PATH 선택. 비밀번호 변경 알림을 켜고 본문을 파일과 일치시킨다.
  *   PASSWORD_CHANGED_SUBJECT 위 경로를 줄 때 필수. 알림 메일 제목.
@@ -185,6 +186,7 @@ export function isSatisfied({
   allowList,
   enforceMailer,
   recoveryTemplate = null,
+  recoverySubject = null,
   emailOtpExpirySeconds = null,
   enforcePasswordGuards = false,
   passwordChanged = null,
@@ -201,6 +203,7 @@ export function isSatisfied({
     recoveryTemplate !== null
     && normalizedTemplate(config.mailer_templates_recovery_content) !== recoveryTemplate
   ) return false;
+  if (recoverySubject !== null && (config.mailer_subjects_recovery ?? '') !== recoverySubject) return false;
   if (
     enforcePasswordGuards
     && (config.security_update_password_require_current_password !== true
@@ -277,6 +280,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
       'recovery email template must use one exact {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery href',
     );
   }
+  const recoverySubject = env.RECOVERY_SUBJECT?.trim() || null;
   const enforcePasswordGuards = env.PASSWORD_UPDATE_GUARDS === 'true';
   const passwordChangedTemplatePath = env.PASSWORD_CHANGED_TEMPLATE_PATH?.trim();
   const passwordChangedSubject = env.PASSWORD_CHANGED_SUBJECT?.trim();
@@ -346,6 +350,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     allowList: allow.list,
     enforceMailer,
     recoveryTemplate,
+    recoverySubject,
     emailOtpExpirySeconds,
     enforcePasswordGuards,
     passwordChanged,
@@ -365,6 +370,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     ...captchaPatch({ captcha }),
     ...(emailOtpExpirySeconds === null ? {} : { mailer_otp_exp: emailOtpExpirySeconds }),
     ...(recoveryTemplate === null ? {} : { mailer_templates_recovery_content: recoveryTemplate }),
+    ...(recoverySubject === null ? {} : { mailer_subjects_recovery: recoverySubject }),
     ...passwordGuardPatch({ enforcePasswordGuards }),
     ...(passwordChanged === null ? {} : {
       mailer_notifications_password_changed_enabled: true,
@@ -407,6 +413,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `mailer_otp_exp=${final.mailer_otp_exp}, `
     + `mailer_otp_length=${final.mailer_otp_length}, `
     + `recovery_template=${recoveryTemplate === null ? 'not-managed' : 'mismatch'}, `
+    + `recovery_subject=${recoverySubject === null ? 'not-managed' : final.mailer_subjects_recovery}, `
     + `security_update_password_require_current_password=${final.security_update_password_require_current_password}, `
     + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `
     + `mailer_notifications_password_changed_enabled=${final.mailer_notifications_password_changed_enabled}, `

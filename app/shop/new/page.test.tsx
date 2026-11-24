@@ -74,7 +74,7 @@ beforeEach(() => {
 describe('/shop/new page', () => {
   it('실화면이므로 색인을 막지 않는다', () => {
     expect(metadata).toMatchObject({
-      title: 'NEW — ICONS',
+      title: 'NEW — 엑스스퀘어',
       description: '새로 나온 굿즈를 모아 봤어요.',
     });
     expect(metadata.robots).toBeUndefined();

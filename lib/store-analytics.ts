@@ -18,7 +18,7 @@ const SLUG=/^[a-z0-9][a-z0-9-]{0,199}$/;
 const GOOD_SEGMENT=/^[a-z0-9][a-z0-9._-]{0,199}$/;
 const TOKEN=/^[0-9a-f]{32}$/;
 export const CHANNEL_LABELS: Record<AnalyticsChannel,string> = {direct:'직접·출처 미확인',search:'검색',social:'소셜',email:'이메일',paid:'유료 캠페인 표기',referral:'기타 외부',internal:'스토어 내부'};
-export const SOURCE_LABELS: Record<AnalyticsSource,string> = {none:'출처 없음',google:'Google',naver:'네이버',bing:'Bing',daum:'다음',instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',kakao:'카카오',x:'X',threads:'Threads',email:'이메일',other:'기타',icons:'ICONS'};
+export const SOURCE_LABELS: Record<AnalyticsSource,string> = {none:'출처 없음',google:'Google',naver:'네이버',bing:'Bing',daum:'다음',instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',kakao:'카카오',x:'X',threads:'Threads',email:'이메일',other:'기타',icons:'엑스스퀘어'};
 export const PAGE_KINDS: readonly AnalyticsPage['kind'][] = ['home','shop','good','stories','story','ip','events','event'];
 
 export function analyticsCookieNames(secure: boolean) {

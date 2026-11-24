@@ -74,7 +74,7 @@ describe('모바일 카테고리 시트 (MC-05)', () => {
     expect(tabsFirst).toContain('<div class="wc-sheet__inner"><section class="wc-sheet__section wc-catsheet__section wc-catsheet__section--untitled">');
   });
 
-  it('바로가기는 운영 메뉴 설정 순서의 스토어 목적지와 ICONS 아이콘 칸이다', () => {
+  it('바로가기는 운영 메뉴 설정 순서의 스토어 목적지와 엑스스퀘어 아이콘 칸이다', () => {
     const html = render();
     const links = [...html.matchAll(/class="wc-catsheet__shortcut" href="([^"]+)"><span aria-hidden="true" class="wc-catsheet__icon"><span data-icon="([^"]+)"><\/span><\/span><span class="wc-catsheet__label">([^<]+)</g)]
       .map((match) => [match[1], match[2], match[3]]);

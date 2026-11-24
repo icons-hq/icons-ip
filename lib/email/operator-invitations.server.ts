@@ -57,9 +57,9 @@ function deliveryError(result: DispatchOutcome): InvitationDeliveryError | null 
 export function renderOperatorInvitationEmail(job: OperatorInvitationEmailJob, token: string, siteUrl: string) {
   const href = `${siteUrl}${OPERATOR_INVITATION_PATH}#token=${encodeURIComponent(token)}`;
   const expires = new Date(job.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-  const subject = 'ICONS 매니저 초대';
-  const text = `${job.name}님, ICONS의 ${MANAGER_ROLE_LABELS[job.managerRole]}로 초대되었습니다.\n\n초대받은 이메일로 로그인하거나 가입한 뒤 이메일 인증을 마치고 초대를 수락해주세요.\n유효기간: ${expires} (한국 시간)\n\n초대 확인: ${href}\n\n요청하지 않은 초대라면 수락하지 않아도 됩니다.`;
-  return { subject, text, html: `<h1>${subject}</h1><p>${escapeHtml(job.name)}님, ICONS의 ${escapeHtml(MANAGER_ROLE_LABELS[job.managerRole])}로 초대되었습니다.</p><p>초대받은 이메일로 로그인하거나 가입한 뒤 이메일 인증을 마치고 초대를 수락해주세요.</p><p>유효기간: ${escapeHtml(expires)} (한국 시간)</p><p><a href="${escapeHtml(href)}">초대 확인</a></p><p>요청하지 않은 초대라면 수락하지 않아도 됩니다.</p>` };
+  const subject = '엑스스퀘어 매니저 초대';
+  const text = `${job.name}님, 엑스스퀘어의 ${MANAGER_ROLE_LABELS[job.managerRole]}로 초대되었습니다.\n\n초대받은 이메일로 로그인하거나 가입한 뒤 이메일 인증을 마치고 초대를 수락해주세요.\n유효기간: ${expires} (한국 시간)\n\n초대 확인: ${href}\n\n요청하지 않은 초대라면 수락하지 않아도 됩니다.`;
+  return { subject, text, html: `<h1>${subject}</h1><p>${escapeHtml(job.name)}님, 엑스스퀘어의 ${escapeHtml(MANAGER_ROLE_LABELS[job.managerRole])}로 초대되었습니다.</p><p>초대받은 이메일로 로그인하거나 가입한 뒤 이메일 인증을 마치고 초대를 수락해주세요.</p><p>유효기간: ${escapeHtml(expires)} (한국 시간)</p><p><a href="${escapeHtml(href)}">초대 확인</a></p><p>요청하지 않은 초대라면 수락하지 않아도 됩니다.</p>` };
 }
 
 /** No raw token, recipient or rendered URL is returned to a console or logged. */

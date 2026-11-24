@@ -33,7 +33,7 @@ describe('SiteFooter 법정 고지 링크', () => {
   it('이용약관·개인정보처리방침·배송·반품 정책을 실제 링크로 건다(Figma 표기)', () => {
     const html = render();
 
-    expect(html).toContain('<a href="/legal/terms">아이콘스 이용약관</a>');
+    expect(html).toContain('<a href="/legal/terms">엑스스퀘어 이용약관</a>');
     expect(html).toContain('<a href="/legal/privacy">개인정보처리방침</a>');
     expect(html).toContain('<a href="/legal/shipping">배송·반품 정책</a>');
     /* 법정 고지가 링크 없는 글자로 남지 않는다. */
@@ -141,8 +141,8 @@ describe('SiteFooter 사업자 정보(법정 표기)', () => {
   });
 
   it('저작권 줄은 서버가 넘긴 연도를 쓴다', () => {
-    expect(render()).toContain('<p class="wc-x-footer__copy">© 2026 ICONS</p>');
-    expect(renderToStaticMarkup(<SiteFooter copyrightYear={2031} />)).toContain('© 2031 ICONS');
+    expect(render()).toContain('<p class="wc-x-footer__copy">© 2026 X SQUARE</p>');
+    expect(renderToStaticMarkup(<SiteFooter copyrightYear={2031} />)).toContain('© 2031 X SQUARE');
   });
 
   it('결제 확정 원칙·무상 카드 리워드 약속 문구는 Figma 푸터에 없다', () => {

@@ -13,7 +13,7 @@ it('쿠키 없이 공개 전용 RPC를 읽고 검증한 경로로 Storage URL을
   expect(mocks.rpc).toHaveBeenCalledWith('get_storefront_branding_v2');
   expect(mocks.create.mock.calls[0][2].cookies.getAll()).toEqual([]);
 });
-it('미적용 DB·잘못된 응답·미설정 환경은 기본 ICONS 셸을 유지한다',async()=>{
+it('미적용 DB·잘못된 응답·미설정 환경은 기본 엑스스퀘어 셸을 유지한다',async()=>{
   mocks.rpc.mockResolvedValue({data:null,error:{message:'missing'}});expect(await loadStorefrontBranding()).toEqual(DEFAULT_STOREFRONT_BRANDING);
   mocks.rpc.mockResolvedValue({data:{displayName:'invalid',secret:'hidden'},error:null});expect(await loadStorefrontBranding()).toEqual(DEFAULT_STOREFRONT_BRANDING);
   mocks.configured=false;expect(await loadStorefrontBranding()).toEqual(DEFAULT_STOREFRONT_BRANDING);

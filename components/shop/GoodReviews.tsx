@@ -203,7 +203,7 @@ export function GoodReviews({
 
                     {review.adminReply ? (
                       <div className="wc-review-item__reply">
-                        <strong className="wc-review-item__reply-author">ICONS 운영자</strong>
+                        <strong className="wc-review-item__reply-author">엑스스퀘어 운영자</strong>
                         {review.adminReplyAt ? (
                           <time className="wc-review-item__date" dateTime={review.adminReplyAt}>
                             {formatReviewDate(review.adminReplyAt)}

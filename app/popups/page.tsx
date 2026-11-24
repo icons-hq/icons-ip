@@ -6,8 +6,8 @@ import { loadPopupItems } from '@/lib/popups.server';
    지금 열려 있거나 곧 열리는 오프라인 팝업(예매)과 POP-UP 캠페인을 한 목록으로 모은다. 없으면 빈 상태. */
 
 export const metadata: Metadata = {
-  title: 'POP-UP — ICONS',
-  description: 'ICONS에서 지금 열려 있거나 곧 열리는 POP-UP을 모아 봅니다.',
+  title: 'POP-UP — 엑스스퀘어',
+  description: '엑스스퀘어에서 지금 열려 있거나 곧 열리는 POP-UP을 모아 봅니다.',
 };
 
 export default async function Page() {

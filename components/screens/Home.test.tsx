@@ -165,8 +165,8 @@ describe('Home empty curation', () => {
 
   /* 밴드 헤딩은 전부 h2 라, 페이지 이름을 대신 읽어줄 h1 이 문서에 하나는 있어야 한다. */
   it('keeps a screen-reader page heading above the bands', () => {
-    expect(render(emptyCuration)).toContain('<h1 class="wc-sr-only">ICONS 홈</h1>');
-    expect(render(fullCuration)).toContain('<h1 class="wc-sr-only">ICONS 홈</h1>');
+    expect(render(emptyCuration)).toContain('<h1 class="wc-sr-only">엑스스퀘어 홈</h1>');
+    expect(render(fullCuration)).toContain('<h1 class="wc-sr-only">엑스스퀘어 홈</h1>');
   });
 
   it('drops the empty state as soon as one band has data', () => {
@@ -286,11 +286,11 @@ describe('Home bands', () => {
   });
 
   /* 기획전 배너(band_banner) 행은 한 장이 ICONS PICK 카드 한 장이다 — 배너 이미지 + 제목(h3) 프로모션 카드 아래 상품 앞 2개. 부제는 그리지 않는다. */
-  it('renders each curated goods band as an ICONS PICK promo card with its first two products', () => {
+  it('renders each curated goods band as an X SQUARE PICK promo card with its first two products', () => {
     const html = render({ ...fullCuration, goodsBands: [{ ...fullCuration.goodsBands[0], goods: [good('p1'), good('p2'), good('p3')] }] });
 
     expect(html).toContain('id="home-icons-pick-b1-heading"');
-    expect(html).toContain('>ICONS PICK</h2>');
+    expect(html).toContain('>X SQUARE PICK</h2>');
     expect(html).toContain('<a class="wc-promo-card wc-x-pick__promo" href="/shop?collection=weekly">');
     expect(html).toContain('<h3 class="wc-promo-card__title">주간 기획전</h3>');
     expect(html).toContain('background:url(&quot;https://cdn.example/band-1.webp&quot;) center / cover no-repeat');
@@ -304,17 +304,17 @@ describe('Home bands', () => {
   });
 
   /* 순서상 연달아 놓인 기획전은 한 'ICONS PICK' 섹션(한 줄)으로 묶이고, 사이에 다른 블록이 끼면 갈라져 각자 섹션이 된다. */
-  it('groups consecutive bands into one ICONS PICK section and splits them around other blocks', () => {
+  it('groups consecutive bands into one X SQUARE PICK section and splits them around other blocks', () => {
     const goodsBands = ['b1', 'b2', 'b3'].map((id) => ({ ...fullCuration.goodsBands[0], id, title: `기획전 ${id}`, goods: [good(`${id}-g`)] }));
     const grouped = render({ ...fullCuration, goodsBands, layoutOrder: ['band:b1', 'band:b2', 'band:b3', 'popular'] });
 
-    expect((grouped.match(/>ICONS PICK<\/h2>/g) ?? []).length).toBe(1);
+    expect((grouped.match(/>X SQUARE PICK<\/h2>/g) ?? []).length).toBe(1);
     expect((grouped.match(/class="wc-x-pick"/g) ?? []).length).toBe(3);
     expect(grouped.indexOf('기획전 b1')).toBeLessThan(grouped.indexOf('기획전 b2'));
     expect(grouped.indexOf('기획전 b3')).toBeLessThan(grouped.indexOf('home-popular-heading'));
 
     const split = render({ ...fullCuration, goodsBands, layoutOrder: ['band:b1', 'popular', 'band:b2', 'band:b3'] });
-    expect((split.match(/>ICONS PICK<\/h2>/g) ?? []).length).toBe(2);
+    expect((split.match(/>X SQUARE PICK<\/h2>/g) ?? []).length).toBe(2);
     expect(split).toContain('id="home-icons-pick-b1-heading"');
     expect(split).toContain('id="home-icons-pick-b2-heading"');
     expect(split.indexOf('home-icons-pick-b1-heading')).toBeLessThan(split.indexOf('home-popular-heading'));
@@ -338,7 +338,7 @@ describe('Home bands', () => {
   });
 
   /* HM-03: 행 = [링크(썸네일·글) | 하트]. 하트는 링크의 형제라 버튼이 링크 안에 들지 않는다. */
-  it('puts a listing heart beside each ICONS PICK row link, never inside it', () => {
+  it('puts a listing heart beside each X SQUARE PICK row link, never inside it', () => {
     const html = render(fullCuration, { viewerId: 'viewer-1', goodIds: ['g7'] });
     const rows = [...html.matchAll(/<li class="wc-x-pick__row">([\s\S]*?)<\/button><\/li>/g)].map((match) => match[1]);
 
@@ -352,7 +352,7 @@ describe('Home bands', () => {
   });
 
   /* CL-02: 홈 카드는 공개 리뷰 요약으로 별점을 보인다. ICONS PICK 행은 Figma 모양(IP명·이름·가격)이라 별점 줄이 없다. */
-  it('shows ratings on home cards from the review summaries but not on ICONS PICK rows', () => {
+  it('shows ratings on home cards from the review summaries but not on X SQUARE PICK rows', () => {
     const html = render({
       ...fullCuration,
       categoryBestTabs: [{ id: 'keyring', label: '키링', goods: [good('g1', { reviewSummary: { count: 4, average: 4.5 } }), good('g2')] }],
@@ -489,7 +489,7 @@ describe('Home bands', () => {
 
 describe('Home band order', () => {
   /* 저장 레이아웃이 없을 때의 기본 순서(X SQUARE 홈, `defaultHomeBlockKeys`): 히어로 → IP 바로가기 → NEW ARRIVAL → 스트립 → IP 상품 섹션 →
-     ICONS PICK(기획전) → 카테고리 BEST → 인기템 → 혜택. 조건부 렌더를 옮기다 보면 조용히 뒤집힌다. */
+     X SQUARE PICK(기획전) → 카테고리 BEST → 인기템 → 혜택. 조건부 렌더를 옮기다 보면 조용히 뒤집힌다. */
   it('keeps the X SQUARE default band order', () => {
     const html = render({ ...fullCuration,
       newArrivals: [good('n1')], stripBanner: { id: 'strip', title: '겨울 MD 출시', imageUrl: 'https://cdn.example/strip.webp', href: '/events/winter' },
@@ -593,7 +593,7 @@ describe('Home X SQUARE blocks', () => {
       expect(html).not.toContain('<s class="wc-price__original">');
     });
 
-    it('shows the rate on the ICONS PICK rows too, as 5% before the price', () => {
+    it('shows the rate on the X SQUARE PICK rows too, as 5% before the price', () => {
       const html = render({ ...emptyCuration, goodsBands: [{ id: 'pick', title: '기획전', subcopy: null, imageUrl: 'https://cdn.example/pick.webp', href: '/events/pick', goods: [sale('p1')] }] });
 
       expect(html).toContain('<span class="wc-x-pick__price"><span class="wc-x-pick__rate">5%</span>₩15,200</span>');

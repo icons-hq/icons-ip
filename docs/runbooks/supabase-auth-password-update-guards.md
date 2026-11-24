@@ -68,7 +68,7 @@ GoTrue v2.192.0 `internal/api/user.go` 기준이다. 현재 비밀번호 검사�
 - A2는 `reauthenticate()`로 받은 nonce와 `current_password`를 **한 요청에** 보내야 200이다. nonce만 먼저
   보내면 `current_password_required`로 실패하고, 그 nonce는 이미 소비되어 다음 요청이 422
   `reauthentication_not_valid`가 된다.
-- 알림 메일(`supabase/templates/password_changed_notification.html`, 제목 `ICONS 비밀번호 변경 안내`)은
+- 알림 메일(`supabase/templates/password_changed_notification.html`, 제목 `엑스스퀘어 비밀번호 변경 안내`)은
   A(맞는 현재 비밀번호)·A2(nonce와 현재 비밀번호를 함께 보낸 경우)·B·C·D의 성공한 변경마다 한 통씩 왔고,
   E에는 오지 않았다.
 - C는 `admin.createUser`(비밀번호 없음)로 만든 계정의 identity를 `kakao` 하나로 바꾸고, magic link로 연
@@ -82,8 +82,9 @@ GoTrue v2.192.0 `internal/api/user.go` 기준이다. 현재 비밀번호 검사�
 | `security_update_password_require_current_password` | `true` | 비밀번호가 있는 계정의 비 recovery 세션 직접 호출을 막는다(A). recovery는 면제(B). |
 | `security_update_password_require_reauthentication` | `true` | 24시간 지난 세션은 메일함 nonce가 필요하다(A2·C2). recovery 세션은 검증 직후 생성이라 창 안이다(B). |
 | `mailer_notifications_password_changed_enabled` | `true` | 막지 못하는 경로(C)와 정상 변경 모두를 사용자에게 알린다. |
-| `mailer_subjects_password_changed_notification` | `ICONS 비밀번호 변경 안내` | 기본 영문 제목 대체. |
+| `mailer_subjects_password_changed_notification` | `엑스스퀘어 비밀번호 변경 안내` | 기본 영문 제목 대체. |
 | `mailer_templates_password_changed_notification_content` | 템플릿 파일 원문 | `{{ .Email }}`과 `{{ .SiteURL }}/login?mode=reset` 링크 하나만 쓴다. |
+| `mailer_subjects_recovery` | `엑스스퀘어 비밀번호 재설정` | 재설정 메일 제목. 배포 때 `RECOVERY_SUBJECT`로 맞추고 read-back한다(2026-11-24부터, 그 전에는 손으로 넣은 값). |
 
 둘 중 하나만 켜는 조합은 고르지 않는다. 현재 비밀번호만으로는 SNS 전용 계정이 시간 제한 없이 열려
 있고(C2), 재인증만으로는 로그인 직후 24시간 동안 비밀번호 계정이 열려 있다(A).
@@ -159,7 +160,7 @@ ADR-0006 계약은 그대로다.
    ```
 
 4. 운영에서 재설정 흐름을 한 번 통과한다: 직원 테스트 계정으로 `/login?mode=reset` → 메일 링크 →
-   새 비밀번호 저장 → 로그인 화면 이동 → `ICONS 비밀번호 변경 안내` 메일 수신.
+   새 비밀번호 저장 → 로그인 화면 이동 → `엑스스퀘어 비밀번호 변경 안내` 메일 수신.
 5. 같은 계정으로 비밀번호 로그인한 세션에서 `current_password` 없이 `PUT /auth/v1/user`가 400
    `current_password_required`인지 본다. 토큰은 브라우저 개발자 도구나 스크립트 변수에서만 다루고 남기지
    않는다.

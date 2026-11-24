@@ -64,7 +64,7 @@ it('커뮤니티가 닫히면 커뮤니티로 가는 혜택 타일도 지운 화
   expect(curation.benefitTiles).toHaveLength(6);
 });
 
-it('혜택 타일 아이콘은 목적지에서 ICONS 아이콘 이름으로 고른다', () => {
+it('혜택 타일 아이콘은 목적지에서 엑스스퀘어 아이콘 이름으로 고른다', () => {
   expect(benefitTileIcon('/events/welcome')).toBe('event');
   expect(benefitTileIcon('/review-events/abc')).toBe('event');
   expect(benefitTileIcon('/shop?type=%ED%82%A4%EB%A7%81')).toBe('shop');

@@ -35,7 +35,7 @@ describe('marketing consent state', () => {
     const at = new Date('2026-10-27T03:00:00Z');
     expect(marketingConsentResultMessage({ email: false, sms: true }, at)).not.toContain('알림함');
     expect(marketingConsentResultMessage({ email: false, sms: false }, at))
-      .toBe('ICONS 마케팅 정보 수신 설정을 저장했어요 · 이메일 수신 거부 · SMS 수신 거부 · 2026. 10. 27. 처리 · 알림함 마케팅 소식도 받지 않아요');
+      .toBe('엑스스퀘어 마케팅 정보 수신 설정을 저장했어요 · 이메일 수신 거부 · SMS 수신 거부 · 2026. 10. 27. 처리 · 알림함 마케팅 소식도 받지 않아요');
   });
 });
 
@@ -89,7 +89,7 @@ describe('kakao marketing channel', () => {
   it('reports the kakao choice in the saved-result message', () => {
     const at = new Date('2026-11-11T03:00:00Z');
     expect(marketingConsentResultMessage({ email: false, sms: false, kakao: true }, at))
-      .toBe('ICONS 마케팅 정보 수신 설정을 저장했어요 · 이메일 수신 거부 · SMS 수신 거부 · 카카오톡 수신 동의 · 2026. 11. 11. 처리');
+      .toBe('엑스스퀘어 마케팅 정보 수신 설정을 저장했어요 · 이메일 수신 거부 · SMS 수신 거부 · 카카오톡 수신 동의 · 2026. 11. 11. 처리');
     expect(marketingConsentResultMessage({ email: false, sms: false, kakao: false }, at)).toContain('알림함 마케팅 소식도 받지 않아요');
   });
 });

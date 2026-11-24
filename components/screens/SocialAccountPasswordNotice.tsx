@@ -9,7 +9,7 @@ export function SocialAccountPasswordNotice({ next }: { next: string }) {
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
         <p className="wc-auth__step-note">
-          <Link href="/">ICONS</Link>
+          <Link href="/">X SQUARE</Link>
         </p>
         <h1 className="wc-auth__title wc-auth__title--sub">새 비밀번호 설정</h1>
         <p className="wc-auth__lede">

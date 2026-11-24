@@ -6,8 +6,8 @@ import { getHomeSnapshot } from '@/lib/catalog';
 import { getFollowedIpIdsForUser } from '@/lib/ip-follow.server';
 
 export const metadata: Metadata = {
-  title: '회사 소개 — ICONS',
-  description: 'ICONS 가 만드는 팬덤 세계를 소개합니다. 공식 라이선스 굿즈, 팝업과 커뮤니티.',
+  title: '회사 소개 — 엑스스퀘어',
+  description: '엑스스퀘어가 만드는 팬덤 세계를 소개합니다. 공식 라이선스 굿즈, 팝업과 커뮤니티.',
 };
 
 export default async function Page() {

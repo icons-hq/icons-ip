@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     }
     return new Response(new Uint8Array(bytes), { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-${REPORT_FILE_LABELS[kind]}-${kstFileStamp(now)}.xlsx`, `icons-${kind}-report-${kstFileStamp(now)}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-${REPORT_FILE_LABELS[kind]}-${kstFileStamp(now)}.xlsx`, `xsquare-${kind}-report-${kstFileStamp(now)}.xlsx`),
       'Cache-Control': 'private, no-store',
     } });
   } catch (error) {

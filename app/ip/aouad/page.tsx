@@ -6,7 +6,7 @@ import { canViewAouadPopup } from '@/lib/aouad-popup.server';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: '지금 우리 학교는 — 온라인 팝업 프레젠테이션 | ICONS',
+  title: '지금 우리 학교는 — 온라인 팝업 프레젠테이션 | 엑스스퀘어',
   description: '효산고의 세계를 탐험하는 지금 우리 학교는 온라인 팝업 프레젠테이션.',
   robots: { index: false, follow: false },
 };

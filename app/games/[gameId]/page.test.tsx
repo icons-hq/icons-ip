@@ -40,7 +40,7 @@ describe('public game route gate', () => {
 
   it('does not publish a title for any game other than Hyosan', async () => {
     await expect(generateMetadata({ params: Promise.resolve({ gameId: 'game-1' }) })).resolves.toEqual({
-      title: 'ICONS',
+      title: '엑스스퀘어',
     });
   });
 
@@ -109,6 +109,6 @@ describe('public game route gate', () => {
   it('publishes the Hyosan title', async () => {
     await expect(
       generateMetadata({ params: Promise.resolve({ gameId: 'hyosan-memories' }) }),
-    ).resolves.toEqual({ title: '효산의 기억 — ICONS' });
+    ).resolves.toEqual({ title: '효산의 기억 — 엑스스퀘어' });
   });
 });

@@ -105,15 +105,15 @@ export function generateEmailChangeCode(random: (maxExclusive: number) => number
 
 export function renderEmailChangeCodeEmail(code: string) {
   const minutes = Math.round(EMAIL_CHANGE_CODE_TTL_SECONDS / 60);
-  const subject = '[ICONS] 이메일 변경 인증 코드';
+  const subject = '[엑스스퀘어] 이메일 변경 인증 코드';
   const text = [
-    'ICONS 계정의 이메일을 이 주소로 바꾸려면 아래 인증 코드를 입력해주세요.',
+    '엑스스퀘어 계정의 이메일을 이 주소로 바꾸려면 아래 인증 코드를 입력해주세요.',
     '',
     `인증 코드: ${code}`,
     '',
     `코드는 ${minutes}분 동안 쓸 수 있어요. 요청하지 않았다면 이 메일을 무시해주세요. 이메일은 바뀌지 않아요.`,
   ].join('\n');
-  const html = `<p>ICONS 계정의 이메일을 이 주소로 바꾸려면 아래 인증 코드를 입력해주세요.</p>`
+  const html = `<p>엑스스퀘어 계정의 이메일을 이 주소로 바꾸려면 아래 인증 코드를 입력해주세요.</p>`
     + `<p style="font-size:24px;font-weight:700;letter-spacing:4px">${escapeHtml(code)}</p>`
     + `<p>코드는 ${minutes}분 동안 쓸 수 있어요. 요청하지 않았다면 이 메일을 무시해주세요. 이메일은 바뀌지 않아요.</p>`;
   return { subject, text, html };
@@ -263,15 +263,15 @@ export async function verifyEmailChangeCode(
 }
 
 export function renderEmailChangedNotice(newEmail: string) {
-  const subject = '[ICONS] 계정 이메일이 바뀌었어요';
+  const subject = '[엑스스퀘어] 계정 이메일이 바뀌었어요';
   const masked = maskedEmail(newEmail);
   const text = [
-    `ICONS 계정의 이메일이 ${masked}(으)로 바뀌었어요. 앞으로 주문·배송 안내는 새 이메일로 보내 드려요.`,
+    `엑스스퀘어 계정의 이메일이 ${masked}(으)로 바뀌었어요. 앞으로 주문·배송 안내는 새 이메일로 보내 드려요.`,
     '',
-    '직접 바꾸지 않았다면 바로 ICONS 고객센터(마이페이지 1:1 문의)로 알려주세요.',
+    '직접 바꾸지 않았다면 바로 엑스스퀘어 고객센터(마이페이지 1:1 문의)로 알려주세요.',
   ].join('\n');
-  const html = `<p>ICONS 계정의 이메일이 ${escapeHtml(masked)}(으)로 바뀌었어요. 앞으로 주문·배송 안내는 새 이메일로 보내 드려요.</p>`
-    + '<p>직접 바꾸지 않았다면 바로 ICONS 고객센터(마이페이지 1:1 문의)로 알려주세요.</p>';
+  const html = `<p>엑스스퀘어 계정의 이메일이 ${escapeHtml(masked)}(으)로 바뀌었어요. 앞으로 주문·배송 안내는 새 이메일로 보내 드려요.</p>`
+    + '<p>직접 바꾸지 않았다면 바로 엑스스퀘어 고객센터(마이페이지 1:1 문의)로 알려주세요.</p>';
   return { subject, text, html };
 }
 

@@ -9,7 +9,7 @@ import { getWishlistEntries } from '@/lib/wishlist.server';
 import { followedIpList, wishlistLines, wishlistTab, wishlistTabHref } from '@/lib/wishlist-lines';
 
 export const metadata: Metadata = {
-  title: '위시리스트 — ICONS',
+  title: '위시리스트 — 엑스스퀘어',
   description: '찜해 둔 굿즈와 팔로우한 IP를 한곳에 모아 봅니다.',
   robots: { index: false, follow: false },
 };

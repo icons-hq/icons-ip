@@ -472,7 +472,7 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
      등)는 바인딩(`TOSS_WIDGET_VARIANT_KEY`)을 켠 배포에서 사전 조회가 `provider_merchant_mismatch`로
      격리한다(바인딩 전이면 MID를 대조하지 않으므로 운영자 전액 취소가 그대로 닫힌다 — 바인딩을 켜기
      전에 정리해도 된다). 취소 API를 부르지 않으므로 주문은 결제확인필요에 남고 결제사 확인 오류는
-     `provider_merchant_mismatch`(화면 "ICONS 상점의 결제가 아닙니다")다. 결제 어드민 **테스트 모드**에서 그 결제를 전액
+     `provider_merchant_mismatch`(화면 "엑스스퀘어 상점의 결제가 아닙니다")다. 결제 어드민 **테스트 모드**에서 그 결제를 전액
      취소한 뒤 같은 주문 패널의 **상태 다시 확인**(또는 클레임 상세의 **환불 완료 확정**)을 누른다.
      원장 paymentKey 조회가 같은 결제(키·주문)의 전액 취소를 확인하면 MID와 무관하게 환불 완료로
      닫힌다(운영 노트).
@@ -768,7 +768,7 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
   결제 UI(MID `tgsangwbzqu`)로 승인된 테스트 결제(2026-10-06 심사 창 주문 등)는 바인딩을 켠 뒤 운영자
   전액 취소·고객 취소·클레임 승인이 사전 조회에서 `merchant_mismatch`로 격리된다(`needs_review`, 취소
   API 미호출). 바인딩을 켜기 전이면 MID를 대조하지 않으므로 이 절차 없이 운영자 전액 취소로 닫힌다. 주문은 `결제확인필요`에
-  남고 결제사 확인 오류는 `provider_merchant_mismatch`(화면 "ICONS 상점의 결제가 아닙니다")다 — 오케스트레이터가
+  남고 결제사 확인 오류는 `provider_merchant_mismatch`(화면 "엑스스퀘어 상점의 결제가 아닙니다")다 — 오케스트레이터가
   게이트웨이의 `provider_*` 사유를 그대로 보존한다. 결제 어드민 **테스트 모드**에서 그 결제를 전액 취소한 뒤 주문
   패널의 **상태 다시 확인**(또는 클레임 상세의 **환불 완료 확정**)을 다시 누른다. 원장
   `payments.payment_key`로 조회한 응답이 그 키·그 주문의 전액 취소(잔액 0)면 어댑터가 MID와 무관하게

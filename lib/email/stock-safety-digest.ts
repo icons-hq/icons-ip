@@ -41,20 +41,20 @@ function originScope(names: readonly string[]): string {
 export function renderStockSafetyDigestEmail(job: StockSafetyDigestJobContent, siteUrl: string) {
   const origin = job.audience === 'origin';
   const scope = origin && job.originNames.length ? `${originScope(job.originNames)} ` : '';
-  const subject = `[ICONS] ${scope}안전재고 이하 옵션 ${job.itemCount.toLocaleString('ko-KR')}개 (${job.digestDate})`;
+  const subject = `[엑스스퀘어] ${scope}안전재고 이하 옵션 ${job.itemCount.toLocaleString('ko-KR')}개 (${job.digestDate})`;
   const withOrigin = !origin || job.originNames.length > 1;
   const rest = Math.max(0, job.itemCount - job.items.length);
   const intro = origin
-    ? `${job.originNames.join(', ') || '출고지'}에서 출고하는 ICONS 상품 중 재고수량이 안전재고 기준 이하인 옵션입니다. 실재고 확인과 입고 일정 공유를 부탁드립니다.`
-    : '재고수량이 안전재고 기준 이하인 옵션입니다. 재고수량은 ICONS에서 판매할 수 있는 수량이며 주문을 받으면 줄어듭니다.';
+    ? `${job.originNames.join(', ') || '출고지'}에서 출고하는 엑스스퀘어 상품 중 재고수량이 안전재고 기준 이하인 옵션입니다. 실재고 확인과 입고 일정 공유를 부탁드립니다.`
+    : '재고수량이 안전재고 기준 이하인 옵션입니다. 재고수량은 엑스스퀘어에서 판매할 수 있는 수량이며 주문을 받으면 줄어듭니다.';
   const adminUrl = `${siteUrl}${RECONCILE_PATH}`;
   const lines = job.items.map((item) => itemLine(item, withOrigin));
-  const footer = '이 메일은 ICONS 어드민의 안전재고 요약 메일 설정에 따라 하루 한 번 보냅니다. 받지 않으려면 ICONS 운영 담당자에게 알려주세요.';
+  const footer = '이 메일은 엑스스퀘어 어드민의 안전재고 요약 메일 설정에 따라 하루 한 번 보냅니다. 받지 않으려면 엑스스퀘어 운영 담당자에게 알려주세요.';
   const text = [
     `${job.digestDate} 기준 ${intro}`,
     '',
     ...lines,
-    ...(rest ? [`외 ${rest.toLocaleString('ko-KR')}개 옵션은 ICONS 어드민에서 확인해주세요.`] : []),
+    ...(rest ? [`외 ${rest.toLocaleString('ko-KR')}개 옵션은 엑스스퀘어 어드민에서 확인해주세요.`] : []),
     '',
     ...(job.audience === 'operator' ? [`재고 대조·안전재고 메일 설정: ${adminUrl}`, ''] : []),
     footer,
@@ -71,7 +71,7 @@ export function renderStockSafetyDigestEmail(job: StockSafetyDigestJobContent, s
     .map((label) => `<th style="${cell}">${label}</th>`).join('');
   const html = `<h1 style="font-size:18px">${escapeHtml(subject)}</h1><p>${escapeHtml(`${job.digestDate} 기준 ${intro}`)}</p>`
     + `<table style="border-collapse:collapse;font-size:13px"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`
-    + (rest ? `<p>외 ${rest.toLocaleString('ko-KR')}개 옵션은 ICONS 어드민에서 확인해주세요.</p>` : '')
+    + (rest ? `<p>외 ${rest.toLocaleString('ko-KR')}개 옵션은 엑스스퀘어 어드민에서 확인해주세요.</p>` : '')
     + (job.audience === 'operator' ? `<p><a href="${escapeHtml(adminUrl)}">재고 대조·안전재고 메일 설정</a></p>` : '')
     + `<p style="color:#666;font-size:12px">${escapeHtml(footer)}</p>`;
   return { subject, text, html };

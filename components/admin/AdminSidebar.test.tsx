@@ -67,7 +67,7 @@ describe('AdminSidebar 2단 메뉴', () => {
     for (const href of [...removed, '/admin/catalog/goods', '/admin/catalog/ips', '/admin/check-in']) expect(community).not.toContain(`href="${href}"`);
     expect(community).not.toContain('data-admin-nav-screen="overview"');
     expect(community).toContain('aria-label="커뮤니티 운영 메뉴"');
-    expect(community).toContain('ICONS 커뮤니티 운영');
+    expect(community).toContain('엑스스퀘어 커뮤니티 운영');
   });
 
   /* ADM-016 #1·#16: 즐겨찾기 별은 Tab 정지가 아니라 방향키로 닿고, 별은 24px 이상이다. */

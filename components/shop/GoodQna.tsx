@@ -76,7 +76,7 @@ function QuestionItem({ question }: { question: ProductQuestion }) {
       {/* 운영 답변은 들여 붙는다 — 화자가 갈리지 않으면 다른 구매자의 말처럼 읽힌다. */}
       {question.answerBody ? (
         <div className="wc-qna-item__answer">
-          <strong className="wc-qna-item__answer-author">ICONS 답변</strong>
+          <strong className="wc-qna-item__answer-author">엑스스퀘어 답변</strong>
           {question.answeredAt ? (
             <time className="wc-qna-item__date" dateTime={question.answeredAt}>
               {formatProductQuestionDate(question.answeredAt)}

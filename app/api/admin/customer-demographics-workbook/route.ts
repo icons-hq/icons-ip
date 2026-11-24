@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const data = await getCustomerDemographicReport(filters), generatedAt = new Date(); const bytes = await buildCustomerDemographicWorkbook(data, generatedAt), stamp = kstFileStamp(generatedAt);
     return new Response(new Uint8Array(bytes), { headers: { ...headers,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-성별연령통계-${stamp}.xlsx`, `icons-customer-demographics-${stamp}.xlsx`) } });
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-성별연령통계-${stamp}.xlsx`, `xsquare-customer-demographics-${stamp}.xlsx`) } });
   } catch (error) {
     unstable_rethrow(error);
     return Response.json({ error: '성별·연령 통계 파일을 만들지 못했습니다.' }, { status: 503, headers });

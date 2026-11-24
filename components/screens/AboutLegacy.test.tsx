@@ -498,7 +498,7 @@ describe('AboutLegacy curation', () => {
       curation: { ...EMPTY_EXPANDED_CURATION, hero: null, announcement: null, featuredIpIds: [] },
     });
 
-    expect(html).toMatch(/<section[^>]+aria-label="ICONS 경험 소개"[^>]+aria-roledescription="carousel"/);
+    expect(html).toMatch(/<section[^>]+aria-label="엑스스퀘어 경험 소개"[^>]+aria-roledescription="carousel"/);
     expect(html).toContain('class="film-progress"');
     expect(html).toMatch(/<div[^>]+aria-label="필름 장면 선택 및 자동 전환"[^>]+role="group"/);
     expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지" aria-pressed="true"');

@@ -156,7 +156,7 @@ const goodsNoticeForm = {
   noticeMaterial: '아크릴',
   noticeSize: '80 x 60 x 20mm · 90g',
   noticeMadeOn: '2026-07',
-  noticeAsManager: '아이콘스 고객센터',
+  noticeAsManager: '엑스스퀘어 고객센터',
   noticeAsContact: '02-000-0000',
 };
 
@@ -166,7 +166,7 @@ const goodsNoticeRpcArgs = {
   notice_material: '아크릴',
   notice_size: '80 x 60 x 20mm · 90g',
   notice_made_on: '2026-07',
-  notice_as_manager: '아이콘스 고객센터',
+  notice_as_manager: '엑스스퀘어 고객센터',
   notice_as_contact: '02-000-0000',
 };
 

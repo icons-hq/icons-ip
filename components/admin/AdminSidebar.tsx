@@ -523,12 +523,12 @@ export function AdminSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              render={<NavLink aria-label={`ICONS ${consoleTitle} 홈`} href={homeHref} />}
+              render={<NavLink aria-label={`엑스스퀘어 ${consoleTitle} 홈`} href={homeHref} />}
               size="lg"
             >
-              <span aria-hidden="true" className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-[10px] font-bold tracking-tight text-sidebar-primary-foreground">ICONS</span>
+              <span aria-hidden="true" className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-[11px] font-bold tracking-tight text-sidebar-primary-foreground">XS</span>
               <span className="grid flex-1 text-left leading-tight">
-                <span className="truncate font-semibold">ICONS {consoleTitle}</span>
+                <span className="truncate font-semibold">엑스스퀘어 {consoleTitle}</span>
                 <span className="truncate text-xs text-sidebar-foreground/70">{roleCaption}</span>
               </span>
             </SidebarMenuButton>

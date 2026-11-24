@@ -8,7 +8,7 @@ import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 import { getCollectionBanners } from '@/lib/collection-banners.server';
 
 export const metadata: Metadata = {
-  title: 'NEW — ICONS',
+  title: 'NEW — 엑스스퀘어',
   description: '새로 나온 굿즈를 모아 봤어요.',
 };
 

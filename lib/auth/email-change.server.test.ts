@@ -116,7 +116,7 @@ describe('requestEmailChangeCode', () => {
     expect(JSON.stringify(args)).not.toContain('482913');
     expect(JSON.stringify(args)).not.toContain('203.0.113.9');
     expect(fake.sent).toHaveLength(1);
-    expect(fake.sent[0]).toMatchObject({ to: 'real@example.com', challengeId: CHALLENGE_ID, subject: '[ICONS] 이메일 변경 인증 코드' });
+    expect(fake.sent[0]).toMatchObject({ to: 'real@example.com', challengeId: CHALLENGE_ID, subject: '[엑스스퀘어] 이메일 변경 인증 코드' });
     expect(fake.sent[0].text).toContain('인증 코드: 482913');
   });
 
@@ -196,7 +196,7 @@ describe('notifyPreviousEmail', () => {
     const fake = sender();
     await expect(notifyPreviousEmail(configWith(fake.sender), { previousEmail: 'old@privaterelay.appleid.com', newEmail: 'real@example.com', challengeId: CHALLENGE_ID }))
       .resolves.toBe(true);
-    expect(fake.sent[0]).toMatchObject({ to: 'old@privaterelay.appleid.com', challengeId: CHALLENGE_ID, kind: 'changed_notice', subject: '[ICONS] 계정 이메일이 바뀌었어요' });
+    expect(fake.sent[0]).toMatchObject({ to: 'old@privaterelay.appleid.com', challengeId: CHALLENGE_ID, kind: 'changed_notice', subject: '[엑스스퀘어] 계정 이메일이 바뀌었어요' });
     expect(fake.sent[0].text).toContain('r***@example.com');
     expect(fake.sent[0].text).not.toContain('real@example.com');
   });

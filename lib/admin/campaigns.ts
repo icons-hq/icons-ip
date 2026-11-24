@@ -240,7 +240,7 @@ export type AdminCampaignSectionsResult =
 
 /** 이동 버튼 링크 오류 안내. 어드민 가이드 오류 표(troubleshooting)가 이 문구를 인용한다. */
 export const CAMPAIGN_INTERNAL_PATH_MESSAGE =
-  '/로 시작하는 ICONS 내부 경로여야 합니다. 외부 주소(https://…, //…), 공백·역슬래시, ./.. 경로 조각은 넣을 수 없습니다.';
+  '/로 시작하는 엑스스퀘어 내부 경로여야 합니다. 외부 주소(https://…, //…), 공백·역슬래시, ./.. 경로 조각은 넣을 수 없습니다.';
 
 function sectionValueError(index: number, key: string, detail: string) {
   return `${index + 1}번째 블록의 ${key}: ${detail}`;

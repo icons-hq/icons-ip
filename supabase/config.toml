@@ -259,17 +259,17 @@ otp_expiry = 3600
 # 가입 확인 메일에 확인 코드({{ .Token }})와 확인 링크를 함께 담는다(10/14 회의 1014-004).
 # 운영·preview·staging Auth는 scripts/sync-supabase-auth.mjs가 같은 파일·제목으로 맞춘다(CONFIRMATION_TEMPLATE_PATH, docs/runbooks/signup-contact-channels.md §3).
 [auth.email.template.confirmation]
-subject = "ICONS 가입 확인 코드"
+subject = "엑스스퀘어 가입 확인 코드"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "ICONS 비밀번호 재설정"
+subject = "엑스스퀘어 비밀번호 재설정"
 content_path = "./supabase/templates/recovery.html"
 
 # notification.*의 content_path는 template.*과 달리 supabase/ 디렉터리 기준으로 읽는다(CLI 2.109.1 실측).
 [auth.email.notification.password_changed]
 enabled = true
-subject = "ICONS 비밀번호 변경 안내"
+subject = "엑스스퀘어 비밀번호 변경 안내"
 content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]

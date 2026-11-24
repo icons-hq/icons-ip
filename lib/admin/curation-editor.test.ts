@@ -218,7 +218,7 @@ describe('curation editor preview', () => {
     expect(buildDraftCurationPreview('ip', { ...values, kind: 'featured_ip' }, []).curation.stripBanner).toBeUndefined();
   });
 
-  it('IP 바로가기(추천 콘텐츠)·ICONS PICK(기획전) 초안은 공개 홈과 같은 뷰모델로 미리 본다', () => {
+  it('IP 바로가기(추천 콘텐츠)·X SQUARE PICK(기획전) 초안은 공개 홈과 같은 뷰모델로 미리 본다', () => {
     const DRAFT = '2026-10-12T00:00:00Z';
     const pick = { ...createCurationEditorValues(null, DRAFT, 'editor_pick'), title: '언니! 아직 안데려간 마루', badge: '마루는강쥐', description: '쓰이지 않는 설명', imageUrl: '/pick.webp', linkPath: '/ip/maru' };
     expect(buildDraftCurationPreview('pick', pick, []).curation.editorPicks[0]).toMatchObject({ title: '언니! 아직 안데려간 마루', badge: '마루는강쥐', href: '/ip/maru' });

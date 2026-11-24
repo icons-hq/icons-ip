@@ -48,7 +48,7 @@ describe('AdminCheckInPage', () => {
 
   it('검색 비노출 metadata를 선언한다', () => {
     expect(metadata).toMatchObject({
-      title: '티켓 검표 — ICONS',
+      title: '티켓 검표 — 엑스스퀘어',
       robots: { index: false, follow: false },
     });
   });

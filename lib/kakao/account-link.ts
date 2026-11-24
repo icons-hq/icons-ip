@@ -79,7 +79,7 @@ export function kakaoLinkNotice(result: KakaoLinkResult | null, linked: boolean,
     case 'cancelled':
       return { tone: 'alert', message: '카카오 계정 연결을 취소했어요.' };
     case 'identity_taken':
-      return { tone: 'alert', message: '이 카카오 계정은 이미 다른 ICONS 계정에 연결돼 있어요. 다른 카카오 계정으로 연결해주세요.' };
+      return { tone: 'alert', message: '이 카카오 계정은 이미 다른 엑스스퀘어 계정에 연결돼 있어요. 다른 카카오 계정으로 연결해주세요.' };
     case 'failed':
       return { tone: 'alert', message: '카카오 계정을 연결하지 못했어요. 잠시 후 다시 시도해주세요.' };
   }
@@ -93,7 +93,7 @@ export function kakaoChannelRewardNotice(outcome: KakaoRewardOutcome): { message
     case 'already_granted':
       return { message: '이미 친구 추가 쿠폰을 받았어요. 쿠폰함에서 확인해주세요.' };
     case 'not_friend':
-      return { error: '아직 ICONS 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' };
+      return { error: '아직 엑스스퀘어 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' };
     case 'no_kakao_identity':
       return { error: '카카오 계정을 먼저 연결해주세요.' };
     case 'no_coupon':

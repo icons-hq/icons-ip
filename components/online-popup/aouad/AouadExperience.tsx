@@ -10,7 +10,7 @@ const AouadSample = dynamic(
     ssr: false,
     loading: () => (
       <div className={styles.loading}>
-        <p className={styles.eyebrow}>ICONS · ONLINE POPUP</p>
+        <p className={styles.eyebrow}>X SQUARE · ONLINE POPUP</p>
         <h1>지금 우리 학교는</h1>
         <p role="status">효산고의 기억을 불러오고 있습니다.</p>
         <p className={styles.notice}>프레젠테이션 · 실제 주문·결제·리워드는 진행되지 않습니다.</p>

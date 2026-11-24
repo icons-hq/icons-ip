@@ -8,8 +8,8 @@ import { loadOrderReviewEvents } from '@/lib/order-review-events.server';
 import { loadOrders } from '@/lib/orders.server';
 
 export const metadata: Metadata = {
-  title: '주문 내역 — ICONS',
-  description: 'ICONS 굿즈 주문과 배송 상태를 확인하세요.',
+  title: '주문 내역 — 엑스스퀘어',
+  description: '엑스스퀘어 굿즈 주문과 배송 상태를 확인하세요.',
 };
 
 /** 결제 confirm 콜백이 붙이는 결과 쿼리만 통과시키고, 그 외 값은 배너 없이 무시한다. */

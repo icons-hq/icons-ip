@@ -38,7 +38,7 @@ export async function parseTrackingWorkbook(upload:Buffer,carriers:ShippingCarri
  if(info?.actualRowCount&&sheet.columnCount<=3)throw new Error('운송장 파일에는 내용이 있는 시트가 하나만 있어야 합니다. 다른 시트를 지우거나 비운 뒤 다시 올려주세요(내려받을 때 함께 온 안내 시트는 그대로 둬도 됩니다).');
  const nativeReply=parseWarehouseReply(sheet)??parseSeowonReply(sheet);
  if(nativeReply)return nativeReply;
- if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 열만 올려주세요. ICONS 표준 양식은 상품주문번호 머리글을, 김포 21열·남양주 송장양식 회신은 내려받은 머리글을 바꾸지 말고 올려주세요.');
+ if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 열만 올려주세요. 엑스스퀘어 표준 양식은 상품주문번호 머리글을, 김포 21열·남양주 송장양식 회신은 내려받은 머리글을 바꾸지 말고 올려주세요.');
  const issues:TrackingImportParseResult['issues']=[];const lines:string[]=[];
  for(let index=1;index<=sheet.rowCount;index++){
   const row=sheet.getRow(index);const cells=[1,2,3].map(column=>readSafeWorkbookCell(row.getCell(column),column!==2));

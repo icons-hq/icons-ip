@@ -121,7 +121,7 @@ describe('CampaignSection', () => {
     const markup = render(campaign());
 
     expect(markup).toContain('<code>cta</code> — 이동 버튼');
-    expect(markup).toContain('ICONS 내부 경로');
+    expect(markup).toContain('엑스스퀘어 내부 경로');
     expect(markup).toContain('외부 주소');
     expect(markup).toContain('&quot;type&quot;: &quot;cta&quot;');
   });

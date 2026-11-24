@@ -96,7 +96,7 @@ describe('FAQ 먼저 여는 상담 위젯', () => {
     }]};
     const html=renderToStaticMarkup(<WidgetInquiryConversation inquiry={inquiry} onSaved={()=>{}}/>);
     expect(html).toContain('자동 안내');
-    expect(html).not.toContain('ICONS 운영자');
+    expect(html).not.toContain('엑스스퀘어 운영자');
     expect(html).toContain('href="https://iconsip.com/help"');
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('href="javascript:');

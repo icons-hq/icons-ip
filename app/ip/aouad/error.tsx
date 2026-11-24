@@ -7,7 +7,7 @@ export default function Error({ reset }: { reset: () => void }) {
   return (
     <div className={styles.experience}>
       <div className={styles.loading} role="alert">
-        <p className={styles.eyebrow}>ICONS · ONLINE POPUP</p>
+        <p className={styles.eyebrow}>X SQUARE · ONLINE POPUP</p>
         <h1>잠시 연결이 끊겼습니다.</h1>
         <p>화면을 다시 불러와 효산고 탐험을 이어가세요.</p>
         <button className={styles.retry} onClick={reset} type="button">다시 불러오기</button>

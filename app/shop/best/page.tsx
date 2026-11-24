@@ -8,7 +8,7 @@ import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 import { getCollectionBanners } from '@/lib/collection-banners.server';
 
 export const metadata: Metadata = {
-  title: 'BEST — ICONS',
+  title: 'BEST — 엑스스퀘어',
   description: '지금 가장 사랑받는 굿즈예요.',
 };
 

@@ -34,7 +34,7 @@ export function IconsPick({ bands, heartFor }: IconsPickProps) {
   return (
     <section aria-labelledby={headingId} className="wc-home__band wc-home__icons-pick">
       <div className="wc-container wc-container--wide">
-        <SectionHeader id={headingId} title="ICONS PICK" />
+        <SectionHeader id={headingId} title="X SQUARE PICK" />
         <ul className="wc-x-pick-grid">
           {bands.map((band) => (
             <li key={band.id}>

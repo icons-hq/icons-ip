@@ -53,7 +53,7 @@ describe('CurationLayoutEditor', () => {
   });
 
   /* 기획전 배너는 연달아 놓이면 홈에서 ICONS PICK 한 줄로 묶인다 — 영역 이름 아래에 그 사실을 적고, 머리 안내에도 알린다. */
-  it('기획전 영역은 ICONS PICK 카드 표시를 이름 아래에 적고 묶임 규칙을 안내한다', () => {
+  it('기획전 영역은 X SQUARE PICK 카드 표시를 이름 아래에 적고 묶임 규칙을 안내한다', () => {
     const band = { id: '11111111-1111-4111-8111-111111111111', kind: 'band_banner', title: '팝업 인기 굿즈', displayOrder: 0, activeFrom: '2026-10-01T00:00:00.000Z',
       status: 'active' } as unknown as AdminCurationRecord;
     const html = renderToStaticMarkup(<CurationLayoutEditor
@@ -61,9 +61,9 @@ describe('CurationLayoutEditor', () => {
       operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [] }} records={[band]}
     />);
 
-    expect(html).toMatch(/<strong[^>]*>팝업 인기 굿즈<\/strong><small[^>]*>ICONS PICK 카드\(기획전\)<\/small>/);
+    expect(html).toMatch(/<strong[^>]*>팝업 인기 굿즈<\/strong><small[^>]*>X SQUARE PICK 카드\(기획전\)<\/small>/);
     expect(html).toContain('aria-label="팝업 인기 굿즈 홈 노출"');
-    expect(html).toContain('연달아 놓은 기획전은 홈에서 &#x27;ICONS PICK&#x27; 한 줄(3장)로 묶여 보입니다.');
+    expect(html).toContain('연달아 놓은 기획전은 홈에서 &#x27;X SQUARE PICK&#x27; 한 줄(3장)로 묶여 보입니다.');
   });
 });
 

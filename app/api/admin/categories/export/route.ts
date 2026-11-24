@@ -15,7 +15,7 @@ export async function GET() {
     return new Response(categoryExportCsv(rows, includeErp), {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': adminListExportContentDisposition(`icons-카테고리관리${includeErp ? '-ERP' : ''}-${stamp}.csv`, `icons-category${includeErp ? '-erp' : ''}-${stamp}.csv`),
+        'Content-Disposition': adminListExportContentDisposition(`xsquare-카테고리관리${includeErp ? '-ERP' : ''}-${stamp}.csv`, `xsquare-category${includeErp ? '-erp' : ''}-${stamp}.csv`),
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       },

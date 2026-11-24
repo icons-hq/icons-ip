@@ -27,7 +27,7 @@ describe('planAuthHookEmails', () => {
       contentRevision: 'auth_signup_v2',
     }));
     // 1014-004: 가입 화면에 넣을 확인 코드와 같은 브라우저용 확인 링크를 함께 보낸다(운영 Auth 템플릿과 같은 구성).
-    expect(plans[0].message.subject).toBe('[ICONS] 가입 확인 코드');
+    expect(plans[0].message.subject).toBe('[엑스스퀘어] 가입 확인 코드');
     expect(plans[0].message.html).toContain('>305805</p>');
     expect(plans[0].message.text).toContain('확인 코드: 305805');
     expect(plans[0].message.html).toContain(
@@ -45,7 +45,7 @@ describe('planAuthHookEmails', () => {
       },
     }, { supabaseUrl: 'https://project.supabase.co' });
     expect(signup.contentRevision).toBe('auth_signup_v1');
-    expect(signup.message.subject).toBe('[ICONS] 이메일을 확인해 주세요');
+    expect(signup.message.subject).toBe('[엑스스퀘어] 이메일을 확인해 주세요');
     expect(signup.message.text).not.toContain('확인 코드');
   });
 
@@ -133,7 +133,7 @@ describe('planAuthHookEmails', () => {
       messageKind: 'auth_reauthentication',
       contentRevision: 'auth_reauthentication_v1',
     }));
-    expect(plans[0].message.subject).toBe('[ICONS] 본인 확인 코드');
+    expect(plans[0].message.subject).toBe('[엑스스퀘어] 본인 확인 코드');
     expect(plans[0].message.text).toContain('938201');
     expect(plans[0].message.html).not.toContain('ATTACKER CONTROLLED SUBJECT');
   });

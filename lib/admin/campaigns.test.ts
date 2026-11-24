@@ -250,7 +250,7 @@ describe('parseAdminCampaignSections — cta 블록', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.message).toContain('1번째 블록의 href');
-    expect(result.message).toContain('/로 시작하는 ICONS 내부 경로여야 합니다.');
+    expect(result.message).toContain('/로 시작하는 엑스스퀘어 내부 경로여야 합니다.');
   });
 
   it('버튼 문구는 1~30자 문자열이고 필수다', () => {

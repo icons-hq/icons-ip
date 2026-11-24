@@ -41,7 +41,7 @@ export async function loadGoodsRelationsExport(filters: GoodsRelationFilters): P
 export async function buildGoodsRelationsWorkbook(snapshot: GoodsRelationsExport) {
   const book = new ExcelJS.Workbook();
   const includesOtherComposition = snapshot.filters.kind === 'other_composition' || snapshot.rows.some(row => row.kind === 'other_composition');
-  book.creator = 'ICONS'; book.created = new Date(snapshot.verifiedAt);
+  book.creator = '엑스스퀘어'; book.created = new Date(snapshot.verifiedAt);
   addWorkbookTable(book, '연관상품 편성', [column('편성 번호', 'code', 38), column('노출 제목', 'text', 36), column('유형', 'text', 20), column('전시상태', 'text', 12), column('전시 사용', 'text', 10), column('대표 상품 URL', 'code', 24), column('대표 상품 자동코드', 'code', 20), column('대표 상품명', 'text', 36), column('구성 상품수', 'count'), column('공개 상품수', 'count'), column('시작일시', 'date'), column('종료일시', 'date'), column('등록일시', 'date'), column('수정일시', 'date'), column('저장 회차', 'count')], snapshot.rows.map(row => {
     const representative = row.goods.find(good => good.id === row.representativeGoodId)!;
     return [row.id, row.title, goodsRelationKindLabel(row), goodsRelationStateLabel(row.state), row.enabled ? '사용' : '중지', representative.id, representative.code, representative.name, row.goods.length, row.goods.filter(good => good.public).length,

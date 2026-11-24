@@ -36,7 +36,7 @@ export function AdminMfaGate({ email, next }: { email: string | null; next: stri
   return <main className="wc-admin flex min-h-svh items-start justify-center bg-muted/40 px-4 py-10 text-foreground sm:py-16">
     <section aria-labelledby="admin-mfa-title" className="flex w-full max-w-lg flex-col gap-5 rounded-xl border bg-card p-5 text-sm shadow-sm sm:p-6">
       <header className="flex flex-col gap-1.5">
-        <span className="flex items-center gap-2 text-primary"><ShieldCheck aria-hidden className="size-5" /><span className="text-xs font-semibold">ICONS 어드민</span></span>
+        <span className="flex items-center gap-2 text-primary"><ShieldCheck aria-hidden className="size-5" /><span className="text-xs font-semibold">엑스스퀘어 어드민</span></span>
         <h1 className="text-lg font-semibold" id="admin-mfa-title">{verified ? '2단계 인증' : '인증 앱 등록'}</h1>
         <p className="text-muted-foreground">
           {verified

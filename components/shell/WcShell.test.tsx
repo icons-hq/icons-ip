@@ -539,7 +539,7 @@ describe('X SQUARE 헤더', () => {
 
   /* 기본 로고만 X SQUARE 이미지다 — 업로드 로고가 있으면 그게 먼저고, 이름을 바꾼 스토어는 글자 그대로다. */
   it('로고 링크는 기본 로고일 때 "X SQUARE 홈" 이름의 이미지이고 업로드 로고·바꾼 이름은 설정을 따른다', () => {
-    const base = { displayName: 'ICONS', logoUrl: null, mobileLogoUrl: null, introduction: null, socials: [] };
+    const base = { displayName: '엑스스퀘어', logoUrl: null, mobileLogoUrl: null, introduction: null, socials: [] };
     const html = headerOf(renderToStaticMarkup(<Nav branding={base} />));
 
     expect(html).toContain('aria-label="X SQUARE 홈"');
@@ -547,7 +547,7 @@ describe('X SQUARE 헤더', () => {
     expect(html).toContain('alt="X SQUARE"');
 
     const uploaded = headerOf(renderToStaticMarkup(<Nav branding={{ ...base, logoUrl: 'https://media.test/pc.png' }} />));
-    expect(uploaded).toContain('aria-label="ICONS 홈"');
+    expect(uploaded).toContain('aria-label="엑스스퀘어 홈"');
     expect(uploaded).toContain('src="https://media.test/pc.png"');
     expect(uploaded).not.toContain('xsquare-logo');
 
