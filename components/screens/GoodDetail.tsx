@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { GoodBuyBars, GoodPurchasePanel, GoodRailBuyBox, purchaseSheetAvailable, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
@@ -22,10 +21,9 @@ import { goodsNoticeRows } from '@/lib/goods-notice';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { GoodRelatedProducts } from '@/components/shop/GoodRelatedProducts';
-import { GoodIpCard, GoodIpStory } from '@/components/shop/GoodIpCard';
+import { GoodIpCard } from '@/components/shop/GoodIpCard';
 import { GoodsGroupSelector } from '@/components/shop/GoodsGroupSelector';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
-import { newInquiryHref } from '@/lib/inquiries';
 import { formatReviewAverage, goodReviewsHref, reviewRatingLabel, type ReviewRatingSummary } from '@/lib/reviews';
 import type { GoodShippingPolicy } from '@/lib/fulfillment';
 import type { BusinessInfo } from '@/lib/legal/business-info';
@@ -117,27 +115,6 @@ function NoticeTable({ detail }: { detail: GoodDetailContent }) {
     <p className="wc-pdp-panel__note">
       아직 등록된 고시정보가 없습니다. 판매 시작 전에 등록됩니다.
     </p>
-  );
-}
-
-/*
- * 상품 문의 진입점(#253).
- *
- * 공개 브라우징을 깨지 않는다 — 링크는 비로그인에게도 보이고, 로그인은 문의 화면이
- * 요구한다. 여기서 감추면 "물어볼 데가 없는 상품"으로 보인다.
- */
-function InquiryEntry({ goodId }: { goodId: string }) {
-  return (
-    <section aria-labelledby="pdp-inquiry-heading" className="wc-pdp-guide">
-      <h2 className="wc-pdp-panel__title" id="pdp-inquiry-heading">굿즈 문의</h2>
-      <p className="wc-pdp-panel__note">
-        구성, 재고, 배송 일정처럼 이 굿즈에 대해 궁금한 점을 운영자에게 비공개로 물어볼 수 있습니다.
-        영업일 기준 24시간 안에 첫 답변을 드립니다.
-      </p>
-      <Link className="wc-pdp-guide__link" href={newInquiryHref({ category: 'good', goodId })}>
-        굿즈 문의하기
-      </Link>
-    </section>
   );
 }
 
@@ -326,6 +303,21 @@ export function GoodDetailView({
   const displayedGood = chosenOption ? cartOptionGood(good, chosenOption.id) ?? good : good;
   const badges = goodDisplayBadges(displayedGood);
 
+  /* 고시정보·배송·교환/반품·판매자 정보 아코디언 — 추가정보 탭과 상세정보 패널 끝(MD-0055)이 같은 내용을 쓴다. 두 벌이 한
+     문서에 있으므로 펼침 제목 id 접두를 다르게 준다. 고시정보 칸에는 상품정보제공고시 표 뒤에 제품 안전정보(KC·기타 인증)를 잇는다. */
+  const additionalInfo = (idPrefix: string) => (
+    <GoodAdditionalInfo
+      idPrefix={idPrefix}
+      notice={<>
+        <NoticeTable detail={detail} />
+        <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} otherCertifications={detail.otherCertifications ?? []} />
+      </>}
+      goods={[good, ...(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => choice.good!)]}
+      sellerInfo={sellerInfo}
+      shippingPolicy={shippingPolicy}
+    />
+  );
+
   const panels: TabPanelDef[] = [
     {
       id: 'detail',
@@ -345,11 +337,11 @@ export function GoodDetailView({
             </div>
           ) : null}
           {bottomAnnouncements}
-          {ip ? <GoodIpStory ip={ip} /> : null}
-          <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} otherCertifications={detail.otherCertifications ?? []} />
-          <InquiryEntry goodId={good.id} />
+          {/* MD-0054·0055(2026-11-23): 상세 하단의 IP 소개·제품 안전정보·굿즈 문의·IP 카드를 지우고, 그 자리에 추가정보 탭과
+              같은 아코디언(고시정보·배송 안내·교환 · 반품 안내·판매자 정보)을 둔다. 제품 안전정보(KC)는 고시정보 안으로 옮겨
+              두 곳 모두에서 볼 수 있다. 굿즈 문의는 Q&A 탭·고객센터 문의로 남는다. */}
+          <div className="wc-pdp-detail-info">{additionalInfo('pdp-detail')}</div>
           {reviewEventBanner}
-          {ip ? <GoodIpCard className="wc-pdp-ipcard--panel" ip={ip} /> : null}
           {/* 추천 블록(연관 굿즈 → 자동 추천)은 상세 설명 패널 맨 끝이다(LD-6, 2026-10-22 확정 — 탭 위에서 이동). */}
           {!embedded && detail.relatedGoods ? <GoodRelatedProducts data={detail.relatedGoods} reviewSummaries={listingReviewSummaries} wishlist={listingWishlist} /> : null}
           {!embedded ? automaticRecommendations : null}
@@ -386,12 +378,7 @@ export function GoodDetailView({
       label: '추가정보',
       content: (
         <div className="wc-pdp-panel">
-          <GoodAdditionalInfo
-            notice={<NoticeTable detail={detail} />}
-            goods={[good, ...(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => choice.good!)]}
-            sellerInfo={sellerInfo}
-            shippingPolicy={shippingPolicy}
-          />
+          {additionalInfo('pdp')}
         </div>
       ),
     },
@@ -421,7 +408,7 @@ export function GoodDetailView({
                 <p className="wc-pdp-tools__rating">
                   <Stars rating={reviewSummary.average} />
                   <strong className="wc-pdp-tools__average">{formatReviewAverage(reviewSummary.average)}</strong>
-                  <a className="wc-pdp-tools__reviews" href={goodReviewsHref(good.id)} onClick={openReviewsTab}>
+                  <a className="wc-pdp-tools__reviews" href={goodReviewsHref(good)} onClick={openReviewsTab}>
                     {reviewSummary.count.toLocaleString('ko-KR')}개 리뷰보기
                   </a>
                 </p>

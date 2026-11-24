@@ -101,7 +101,7 @@ docker exec -i <격리 DB 컨테이너> psql -X -U postgres -d postgres -v ON_ER
 | 상태 | 대상 | 목록 | 상세 | 담기·주문 |
 | --- | --- | --- | --- | --- |
 | 감춤 | 모든 고객에게 숨김 또는 KCP gate 닫힘 | 보이지 않음 | 404 | DB가 거절 |
-| 가림 | gate가 열림 · 인증 전 방문자 | 이름·이미지·배지를 서버에서 지운 "19" 카드(IP·가격만) | 성인 인증 안내만(`noindex`) | DB가 `adult_verification_required`로 거절 |
+| 가림 | gate가 열림 · 인증 전 방문자 | 이미지·배지를 서버에서 지운 "19" 카드(IP·이름·가격, 2026-11-23 MD-0048부터 이름 포함) | 성인 인증 안내만(`noindex`) | DB가 `adult_verification_required`로 거절 |
 | 열림 | 유효한 성인 인증 회원 | 일반 카드 | 일반 상세(`noindex`) | 허용 — 카드는 19금 카드 provider gate, 무통장 입금은 무통장 gate |
 
 - 판정의 진실원은 DB `private.good_sale_restriction_visible(유형, 계정)`이다. 상세·가격·검색·담기(상세의 본품 담기
@@ -118,7 +118,7 @@ docker exec -i <격리 DB 컨테이너> psql -X -U postgres -d postgres -v ON_ER
   migration이 같은 줄을 바꾸면 이 migration이 `adult_goods_anchor_changed`로 실패하므로, 그 함수의 새 정의에 맞춰
   앵커를 다시 뽑는다.
 - `goods` 공개 읽기(RLS)도 같은 판정이다(20261118160000) — Data API를 직접 불러도 인증 전에는 19금 굿즈 행이 없다.
-  가림 카드는 행 대신 `get_masked_adult_goods`(IP·판매가·재고 상태·순서·분류만, 이름·이미지 없음)로 만들고, 상세의 인증
+  가림 카드는 행 대신 `get_masked_adult_goods`(IP·이름·판매가·재고 상태·순서·분류만, 이미지 없음 — 이름은 20261125150000부터)로 만들고, 상세의 인증
   안내 판정도 같은 RPC다. 인증이 만료된 회원의 주문 내역은 본인 주문 RPC(`my_order_line_goods`)로 19금 여부를 읽어 계속 가린다.
   남은 한계: 19금 굿즈의 리뷰·상품 문의 공개 읽기와 `public-media` 공개 버킷의 직접 이미지 URL은 이 판정 밖이다.
 - QA: 어드민 판매 설정에서 굿즈를 성인(19금)으로 바꾸고, 비로그인·인증 전 회원·인증 성인으로 목록·상세·검색·담기를

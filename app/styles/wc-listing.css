@@ -429,7 +429,8 @@
 }
 
 @media (min-width: 750px) {
-  .wc-listing-head__title { font-size: 32px; line-height: 43px; }
+  /* MD-0047(2026-11-23): 목록 제목(NEW·BEST·카테고리)은 32 → 28px. 줄 높이 43은 탭·정렬과 한 줄을 맞추려 그대로 둔다. */
+  .wc-listing-head__title { font-size: 28px; line-height: 43px; }
   .wc-listing-sort__select { padding-right: 32px; padding-left: 16px; font-size: 16px; }
 }
 
