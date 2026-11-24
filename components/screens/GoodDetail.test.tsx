@@ -748,13 +748,13 @@ describe('GoodDetail', () => {
     expect(html).toContain('배송·반품 정책 전문 보기');
   });
 
-  /* MD-0052 — 카드는 IP관(그 IP의 굿즈 전체)으로 가므로 '굿즈 전체보기'라 부른다. */
-  it('IP 카드에서 IP관(굿즈 전체보기)으로 간다', () => {
+  /* MD-0052 — 카드는 IP관(그 IP의 굿즈 전체)으로 가므로 '상품 전체보기'라 부른다. */
+  it('IP 카드에서 IP관(상품 전체보기)으로 간다', () => {
     const html = render();
 
     expect(html).toContain('홍실 퀘스트');
     expect(html).toContain('href="/ip/hong-sil-quest"');
-    expect(html).toContain('굿즈 전체보기');
+    expect(html).toContain('상품 전체보기');
     expect(html).not.toContain('온라인 팝업 보러가기');
   });
 
@@ -763,7 +763,7 @@ describe('GoodDetail', () => {
     const text = render();
     const card = text.match(/<a class="wc-pdp-ipcard is-text" href="\/ip\/hong-sil-quest">.*?<\/a>/)?.[0] ?? '';
     expect(card).toContain('<strong class="wc-pdp-ipcard__name">홍실 퀘스트</strong>');
-    expect(card).toContain('굿즈 전체보기 <span aria-hidden="true">›</span>');
+    expect(card).toContain('상품 전체보기 <span aria-hidden="true">›</span>');
     expect(card).not.toContain('wc-pdp-ipcard__art');
 
     const art = 'url("https://cdn.example/hong-sil-key.webp") center / cover no-repeat';

@@ -18,25 +18,6 @@ const ADMIN_COPY_EXCEPTIONS = [
   { file: 'lib/admin/sabangnet-goods-format.ts', text: '추가상품그룹코드', reason: '사방넷 상품 양식의 원본 열 이름이라 운영 어휘로 바꾸면 열을 인식하지 못한다.' },
   { file: 'lib/admin/sabangnet-goods-format.ts', text: '추가 상품상세설명', reason: '사방넷 상품 양식의 원본 열 이름이라 운영 어휘로 바꾸면 열을 인식하지 못한다.' },
 ] as const;
-const PUBLIC_COPY_EXCEPTIONS = [
-  { file: 'components/screens/GoodDetail.tsx', text: '전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.', reason: '상품정보제공고시는 법정 고시의 이름이므로 바꾸지 않는다.' },
-  ...[
-    '상품 Q&A에 답변이 등록됐어요', '교환 상품이 재출고됐어요',
-    '입고가 확인됐습니다. 교환 상품 재출고를 준비합니다.', '교환 상품을 새 운송장으로 발송했습니다.',
-  ].map(text => ({ file: 'lib/notifications.ts', text, reason: '기존 DB 시스템 알림을 고객 어휘로 표시하기 위한 정확한 원문 매칭 키다.' })),
-  /* 묶음 18: 동의 문구 3개와 KC 1개만 이유를 적은 예외로 둔다. */
-  { file: 'lib/marketing-consent.ts', text: '신상품·이벤트·할인 혜택', reason: '광고성 정보 수신 동의 원문이다. 문구를 바꾸면 버전을 올리고 DB가 받는 동의 버전 목록도 함께 바꿔야 한다(마케팅 동의 notice_version).' },
-  { file: 'lib/member-activity.ts', text: '회원별 관심 상품과 방문·영상 이용', reason: '회원 활동 수집·이용 동의 원문이다. 이미 받은 동의와 같은 문구여야 하므로 어휘 정리로 바꾸지 않는다.' },
-  { file: 'lib/member-activity.ts', text: '상품·IP·분류 등의 식별번호', reason: '회원 활동 수집 항목 고지 원문이다. 동의 문구와 같은 판으로 관리한다.' },
-  { file: 'lib/goods-kc.ts', text: 'KC 인증 대상이 아닌 상품입니다.', reason: 'KC 인증 대상 여부를 알리는 안전인증 표시 문구라 표시 원문 그대로 두고 어휘 정리로 바꾸지 않는다.' },
-  /* 이름 자체가 상품이 아닌 고유명사 */
-  ...['문화상품권', '도서문화상품권', '게임문화상품권'].map(text => ({ file: 'lib/payments/toss-gateway.server.ts', text,
-    reason: '토스페이먼츠가 돌려주는 상품권 결제수단의 공식 이름이라 굿즈 어휘로 바꾸지 않는다.' })),
-  /* 공용 모듈에 도메인 로직과 함께 있는 운영자 전용 문구. 쪼개면 저장 검증 규칙이 두 곳에 갈라져 예외로 둔다. */
-  { file: 'lib/review-events.ts', text: '이벤트 대상 상품을', reason: '리뷰이벤트 등록 화면(어드민)에서만 쓰는 저장 전 검증 문구이며 같은 모듈의 저장 규칙(parseReviewEventValues)과 한 벌로 맞춘다.' },
-  ...['에서 출고하는 ICONS 상품 중', '상품·옵션', '상품 자동코드·옵션 자동코드'].map(text => ({ file: 'lib/email/stock-safety-digest.ts', text,
-    reason: '출고지 담당자와 운영자가 받는 안전재고 메일이라 어드민 운영 어휘(상품·옵션·상품 자동코드)를 쓴다. 고객에게 가지 않는다.' })),
-] as const;
 const MAPPED_GUIDE_SOURCES = {
   'lib/admin/guide/topics/goods-sales.ts': 'topics.ts의 operatorTopic이 모든 정적 제목·본문·표를 변환한다.',
   'lib/admin/guide/topics/orders-shipping.ts': 'topics.ts의 operatorTopic이 모든 정적 제목·본문·표를 변환한다.',
@@ -79,26 +60,18 @@ function excepted(copy: CopyLiteral, exceptions: readonly { file: string; text?:
 }
 
 const ADMIN_SOURCES = ['app/admin', 'app/api/admin', 'components/admin', 'lib/admin'];
-const PUBLIC_EXCLUDED = ADMIN_SOURCES.map(path => `${path}/`);
-/* 공개 범위는 '어드민 경로 밖 전체'다. 새 화면·lib 파일이 목록 갱신 없이도 자동으로 검사된다.
-   fixture는 테스트 입력이라 화면 문구가 아니다. */
-const PUBLIC_SOURCES = ['app', 'components', 'lib'];
-const isPublicSource = (file: string) => !PUBLIC_EXCLUDED.some(prefix => file.startsWith(prefix)) && !/\.fixture\.(?:ts|tsx)$/.test(file);
+/* 고객 화면에서 '상품'을 막던 공개 어휘 검사는 2026-11-24 사용자 결정("업계 권장대로 … '굿즈'가 아니라 상품이야")으로 없앴다.
+   고객 화면도 업계 표기 '상품'을 쓴다. 어드민 운영 어휘(상품) 검사와 카드팩 어휘 분리는 그대로다. */
 const CARD_PACK_EXCHANGE_SOURCES = ['components/campaign/ExchangePanel.tsx', 'app/events/participation-actions.ts'];
 /* 두 전수 검사는 범위 안 모든 TS/TSX 를 TypeScript 파서로 훑어 코드가 늘수록 느려진다 — 로컬 약 2.6초, CI 러너에서는
    기본 5초 경계(5.0~5.5초)를 넘겨 앱 변경이 없는 PR 도 실패했다(2026-11-18 #666·#668). 검사 범위는 그대로 두고 제한만 늘린다. */
 const FULL_SCAN_TIMEOUT_MS = 20_000;
 
-describe('관리자·공개 굿즈 어휘 계약 (#503)', () => {
+describe('관리자 상품 어휘 계약 (#503)', () => {
   it('관리자 정적 문구의 굿즈는 운영 어휘 매핑을 거친다', () => {
     const violations = ADMIN_SOURCES.flatMap(sourceFiles).flatMap(literals)
       .filter(copy => /굿즈|추가\s*상품|추가\s+구성\s*상품|추가구성\s+상품/.test(copy.text.replace(/굿즈샵|굿즈 마켓/g, '')) && !copy.mapped
         && !Object.hasOwn(MAPPED_GUIDE_SOURCES, copy.file) && !excepted(copy, ADMIN_COPY_EXCEPTIONS));
-    expect(violations).toEqual([]);
-  }, FULL_SCAN_TIMEOUT_MS);
-  it('어드민 경로 밖 전체는 이유를 적은 예외 외에 상품이라는 별칭을 쓰지 않는다', () => {
-    const violations = PUBLIC_SOURCES.flatMap(sourceFiles).filter(isPublicSource).flatMap(literals)
-      .filter(copy => copy.text.includes('상품') && !excepted(copy, PUBLIC_COPY_EXCEPTIONS));
     expect(violations).toEqual([]);
   }, FULL_SCAN_TIMEOUT_MS);
   it('카드팩 교환 문구는 실물 굿즈와 유료 가챠 어휘를 쓰지 않는다', () => {
@@ -107,7 +80,7 @@ describe('관리자·공개 굿즈 어휘 계약 (#503)', () => {
     expect(violations).toEqual([]);
   });
   it('모든 예외와 일괄 매핑 경로는 구체적인 이유를 남긴다', () => {
-    for (const item of [...ADMIN_COPY_EXCEPTIONS, ...PUBLIC_COPY_EXCEPTIONS]) expect(item.reason.length).toBeGreaterThan(20);
+    for (const item of ADMIN_COPY_EXCEPTIONS) expect(item.reason.length).toBeGreaterThan(20);
     for (const reason of Object.values(MAPPED_GUIDE_SOURCES)) expect(reason.length).toBeGreaterThan(20);
   });
 });
