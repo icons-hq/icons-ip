@@ -21,6 +21,7 @@ import { DATA, type Card, type FandomEvent, type Good, type GoodOption, type Ip,
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import { collapseRandomGoodOptions, goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { parseRandomAllocationLimit } from '@/lib/goods-option-sale-mode';
@@ -211,6 +212,8 @@ export interface GoodRow {
   show_discount_rate?: boolean;
   created_at?: string | null;
   badge: string | null;
+  /** 상품 표시문구 전부(goods.badges, 고른 순서). 싣지 않는 옛 투영·픽스처는 `badge` 하나로 읽는다(`goodBadgeList`). */
+  badges?: string[] | null;
   stock: string;
   stock_qty: number;
   bg: string | null;
@@ -704,6 +707,7 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
     catalogCompareAtPrice: catalogPricing.compareAtPrice,
     showDiscountRate: row.show_discount_rate ?? true,
     badge: row.badge,
+    ...(Array.isArray(row.badges) ? { badges: goodBadgeList(row) } : {}),
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
     stockQty,
     img: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.GOODS[0]?.img ?? ''),
@@ -938,7 +942,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,shipping_fee_type,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,badges,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,shipping_fee_type,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
@@ -1147,7 +1151,7 @@ async function readPublicGoodsByIds(
   if (selected.length > 1000 || selected.some(id => !/^[a-z0-9][a-z0-9-]{0,199}$/.test(id))) throw new Error('Invalid selected goods');
   const result = await readCompleteIdPages<GoodRow>((afterId, pageSize) => {
     let query = supabase.from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,shipping_fee_type,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,badges,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,shipping_fee_type,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
       .in('id', selected).is('archived_at', null).not('published_at', 'is', null).in('sale_restriction', adultGoodsRestrictions(adultGoods))
       .is('ips.archived_at', null).not('ips.published_at', 'is', null).order('id').limit(pageSize);
     if (afterId) query = query.gt('id', afterId);

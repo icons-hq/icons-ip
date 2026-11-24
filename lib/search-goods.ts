@@ -4,6 +4,7 @@ import type { Good } from '@/lib/data';
 import { pickGoodsReviewSummaries } from '@/lib/goods-review-summary';
 import { selectCollectionGoods, type ShopListQuery, type ShopListResult } from '@/lib/shop-catalog';
 import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 
 /* /search 의 굿즈 결과 선택자 (#326 유저 스토리 18·19, LFS 패리티 2차 L4 · SR-01~03).
  *
@@ -88,7 +89,8 @@ export function matchSearchGoods(
       byIp.push(good);
       continue;
     }
-    if (includesFold(good.categoryId ? categoryNameById.get(good.categoryId) : null, needle) || includesFold(good.badge, needle)) {
+    if (includesFold(good.categoryId ? categoryNameById.get(good.categoryId) : null, needle)
+      || goodBadgeList(good).some((badge) => includesFold(badge, needle))) {
       rest.push(good);
     }
   }

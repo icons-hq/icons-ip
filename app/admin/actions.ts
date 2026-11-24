@@ -18,6 +18,7 @@ import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import {
+  GOOD_BADGES_INVALID_MESSAGE,
   GOODS_DETAIL_IMAGE_MAX,
   catalogContextFromSnapshot,
   gameContextFromRecords,
@@ -525,6 +526,8 @@ async function saveAdminGood(
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '고른 카테고리가 바뀌었거나 연결할 수 없는 상태입니다. 대표·추가 카테고리를 다시 골라주세요. 사용 중인 맨 아래 단계 카테고리만 고를 수 있습니다. 입력값은 유지됩니다.' } };
     const categoryFailure = goodCategoryFailure(error.message);
     if (categoryFailure) return { errors: { categoryId: `${categoryFailure} 입력값은 유지됩니다.` } };
+    /* 표시문구 저장 거절(허용 값 밖·같은 값 두 번·첫 값 불일치, 20261125140000)은 폼·엑셀 검증을 우회한 경우뿐이다. 그 칸에 고칠 방법을 붙인다. */
+    if (/goods_badges_invalid|goods_badges_duplicate|goods_badges_allowed|goods_badge_check/.test(error.message)) return { errors: { badge: GOOD_BADGES_INVALID_MESSAGE } };
     if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지를 저장하지 못했습니다. 상세페이지 형식, 글자 수(쓸 수 없는 태그를 정리한 뒤 기준), 상세페이지에 올린 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
     const randomOptionFailure = randomOptionSaleModeFailure(error.message);
     if (randomOptionFailure) return randomOptionFailure;
