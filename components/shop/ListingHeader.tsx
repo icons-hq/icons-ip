@@ -28,6 +28,10 @@ export interface ListingHeaderProps {
   tabsLabel?: string;
   /** 없으면 셀렉트를 그리지 않는다(NEW 는 탭 줄이 곧 정렬이다). */
   sort?: ListingHeaderSort | null;
+  /** 제목 요소 단계. 화면에 이미 h1(IP관 배너 등)이 있으면 2 를 준다. 기본은 h1. */
+  headingLevel?: 1 | 2;
+  /** 제목 요소 id(`aria-labelledby` 대상). */
+  headingId?: string;
 }
 
 /*
@@ -37,12 +41,13 @@ export interface ListingHeaderProps {
  * 선택 즉시 호출부(`onChange`)가 URL 이동을 맡는다. 모바일(750 미만)은 제목 줄 오른쪽에 셀렉트, 탭 줄은 그 아래 한 줄 가로 스크롤이다.
  * 제목·탭·셀렉트·부제가 한 그리드의 직접 자식이라 두 배치(데스크톱 한 줄 / 모바일 두 줄)를 영역 이름만으로 바꾼다(wc-listing.css).
  */
-export function ListingHeader({ sort, subtitle, tabs, tabsLabel = '하위 분류', title }: ListingHeaderProps) {
+export function ListingHeader({ headingId, headingLevel = 1, sort, subtitle, tabs, tabsLabel = '하위 분류', title }: ListingHeaderProps) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h1';
   const sortId = useId();
   const visibleTabs = tabs && tabs.length > 0 ? tabs : null;
   return (
     <header className="wc-listing-head">
-      <h1 className="wc-listing-head__title">{title}</h1>
+      <Heading className="wc-listing-head__title" id={headingId}>{title}</Heading>
       {visibleTabs ? (
         <ListingNav activeKey={visibleTabs.find((tab) => tab.selected)?.key ?? ''} className="wc-listing-tabs" label={tabsLabel}>
           <ul className="wc-listing-tabs__list">
