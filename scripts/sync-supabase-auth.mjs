@@ -16,6 +16,8 @@
  *   EMAIL_OTP_EXPIRY_SECONDS 선택. email link/OTP TTL을 숫자로 일치시키고 read-back한다.
  *   RECOVERY_TEMPLATE_PATH  선택. recovery 메일 본문을 파일과 일치시키고 read-back한다.
  *   RECOVERY_SUBJECT        선택. recovery(비밀번호 재설정) 메일 제목을 이 값과 일치시키고 read-back한다.
+ *   SMTP_SENDER_NAME        선택. custom SMTP 메일의 발신자 표시 이름(smtp_sender_name)을 이 값과 일치시키고 read-back한다.
+ *                          앱 메일의 표시 이름(lib/email/sender.ts EMAIL_SENDER_NAME)과 같은 값이어야 한다.
  *   PASSWORD_UPDATE_GUARDS  'true'면 비밀번호 변경에 현재 비밀번호·24시간 재인증을 요구한다.
  *   PASSWORD_CHANGED_TEMPLATE_PATH 선택. 비밀번호 변경 알림을 켜고 본문을 파일과 일치시킨다.
  *   PASSWORD_CHANGED_SUBJECT 위 경로를 줄 때 필수. 알림 메일 제목.
@@ -187,6 +189,7 @@ export function isSatisfied({
   enforceMailer,
   recoveryTemplate = null,
   recoverySubject = null,
+  smtpSenderName = null,
   emailOtpExpirySeconds = null,
   enforcePasswordGuards = false,
   passwordChanged = null,
@@ -204,6 +207,7 @@ export function isSatisfied({
     && normalizedTemplate(config.mailer_templates_recovery_content) !== recoveryTemplate
   ) return false;
   if (recoverySubject !== null && (config.mailer_subjects_recovery ?? '') !== recoverySubject) return false;
+  if (smtpSenderName !== null && (config.smtp_sender_name ?? '') !== smtpSenderName) return false;
   if (
     enforcePasswordGuards
     && (config.security_update_password_require_current_password !== true
@@ -294,6 +298,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
     );
   }
   const recoverySubject = env.RECOVERY_SUBJECT?.trim() || null;
+  const smtpSenderName = env.SMTP_SENDER_NAME?.trim() || null;
   const enforcePasswordGuards = env.PASSWORD_UPDATE_GUARDS === 'true';
   const passwordChangedTemplatePath = env.PASSWORD_CHANGED_TEMPLATE_PATH?.trim();
   const passwordChangedSubject = env.PASSWORD_CHANGED_SUBJECT?.trim();
@@ -364,6 +369,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
     enforceMailer,
     recoveryTemplate,
     recoverySubject,
+    smtpSenderName,
     emailOtpExpirySeconds,
     enforcePasswordGuards,
     passwordChanged,
@@ -384,6 +390,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
     ...(emailOtpExpirySeconds === null ? {} : { mailer_otp_exp: emailOtpExpirySeconds }),
     ...(recoveryTemplate === null ? {} : { mailer_templates_recovery_content: recoveryTemplate }),
     ...(recoverySubject === null ? {} : { mailer_subjects_recovery: recoverySubject }),
+    ...(smtpSenderName === null ? {} : { smtp_sender_name: smtpSenderName }),
     ...passwordGuardPatch({ enforcePasswordGuards }),
     ...(passwordChanged === null ? {} : {
       mailer_notifications_password_changed_enabled: true,
@@ -428,6 +435,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
     + `mailer_otp_length=${final.mailer_otp_length}, `
     + `recovery_template=${templateState(recoveryTemplate, final.mailer_templates_recovery_content)}, `
     + `recovery_subject=${recoverySubject === null ? 'not-managed' : final.mailer_subjects_recovery}, `
+    + `smtp_sender_name=${smtpSenderName === null ? 'not-managed' : final.smtp_sender_name}, `
     + `security_update_password_require_current_password=${final.security_update_password_require_current_password}, `
     + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `
     + `mailer_notifications_password_changed_enabled=${final.mailer_notifications_password_changed_enabled}, `

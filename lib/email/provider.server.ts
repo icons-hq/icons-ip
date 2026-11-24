@@ -1,4 +1,5 @@
 import 'server-only';
+import { brandedSender } from './sender';
 
 /* 트랜잭션 이메일 provider 경계(#180).
  *
@@ -28,7 +29,8 @@ export type EmailSendOutcome =
 
 export function getEmailProviderConfig() {
   const apiKey = process.env.EMAIL_PROVIDER_API_KEY;
-  const from = process.env.EMAIL_FROM;
+  const rawFrom = process.env.EMAIL_FROM?.trim();
+  const from = rawFrom ? brandedSender(rawFrom) : undefined;
   return {
     apiKey,
     from,

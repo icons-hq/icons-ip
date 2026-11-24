@@ -453,6 +453,8 @@ jobs:
           PASSWORD_CHANGED_SUBJECT: 엑스스퀘어 비밀번호 변경 안내
           CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
           CONFIRMATION_SUBJECT: 엑스스퀘어 가입 확인 코드
+          # custom SMTP 메일의 발신자 표시 이름 — 앱 메일(lib/email/sender.ts EMAIL_SENDER_NAME)과 같은 값.
+          SMTP_SENDER_NAME: X SQUARE
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback

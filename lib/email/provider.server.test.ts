@@ -77,7 +77,7 @@ describe('sendTransactionalEmail', () => {
     expect(url).toBe('https://api.resend.com/emails');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer key');
     expect(JSON.parse(init.body as string)).toMatchObject({
-      from: 'ICONS <no-reply@iconsip.com>',
+      from: 'X SQUARE <no-reply@iconsip.com>',
       to: ['buyer@example.com'],
       reply_to: 'help@iconsip.com',
       subject: message.subject,

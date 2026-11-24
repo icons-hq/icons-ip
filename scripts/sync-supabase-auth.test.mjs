@@ -16,6 +16,7 @@ import {
   parseAllowList,
   resolveRedirectAllowList,
 } from './sync-supabase-auth.mjs';
+import { EMAIL_SENDER_NAME } from '../lib/email/sender.ts';
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -57,6 +58,8 @@ describe('repository Auth redirect contract', () => {
     expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(4);
     /* 재설정 메일 제목도 같은 네 단계가 서비스 이름(엑스스퀘어)으로 맞춘다 — 로컬 config.toml 제목과 같아야 한다. */
     expect(pipeline.match(/RECOVERY_SUBJECT: 엑스스퀘어 비밀번호 재설정/g)).toHaveLength(4);
+    /* Supabase Auth 메일의 발신자 이름은 custom SMTP가 있는 production 동기화만 맞추고, 앱 메일 표시 이름과 같다. */
+    expect(pipeline.match(/SMTP_SENDER_NAME: .+/g)).toEqual([`SMTP_SENDER_NAME: ${EMAIL_SENDER_NAME}`]);
     expect(localConfig).toContain('subject = "엑스스퀘어 비밀번호 재설정"');
     // Production, isolated PR, shared preview and persistent staging each own a sync step.
     expect(pipeline.match(/EMAIL_OTP_EXPIRY_SECONDS: "3600"/g)).toHaveLength(4);
@@ -398,6 +401,13 @@ describe('isSatisfied', () => {
     })).toBe(false);
   });
 
+  it('관리하는 SMTP 발신자 이름이 다르면 통과하지 않고, 관리하지 않으면 보지 않는다', () => {
+    expect(isSatisfied({ ...args, config: { ...base, smtp_sender_name: 'X SQUARE' }, enforceMailer: false, smtpSenderName: 'X SQUARE' })).toBe(true);
+    expect(isSatisfied({ ...args, config: { ...base, smtp_sender_name: 'ICONS' }, enforceMailer: false, smtpSenderName: 'X SQUARE' })).toBe(false);
+    expect(isSatisfied({ ...args, config: base, enforceMailer: false, smtpSenderName: 'X SQUARE' })).toBe(false);
+    expect(isSatisfied({ ...args, config: { ...base, smtp_sender_name: 'ICONS' }, enforceMailer: false })).toBe(true);
+  });
+
   it('관리하는 재설정 메일 제목이 다르면 통과하지 않고, 관리하지 않으면 보지 않는다', () => {
     const recoverySubject = '엑스스퀘어 비밀번호 재설정';
     expect(isSatisfied({ ...args, config: { ...base, mailer_subjects_recovery: recoverySubject }, enforceMailer: false, recoverySubject })).toBe(true);
@@ -653,6 +663,20 @@ describe('syncSupabaseAuth', () => {
     await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
     expect(JSON.parse(calls[1].body).mailer_templates_recovery_content).toBe(recoveryTemplate);
     expect(JSON.parse(calls[1].body)).not.toHaveProperty('mailer_subjects_recovery');
+  });
+
+  it('SMTP 발신자 이름을 PATCH하고 read-back으로 검증한다', async () => {
+    const env = { ...baseEnv, SMTP_SENDER_NAME: ' X SQUARE ' };
+    const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
+    const { calls, fetchStub } = stubFetch([
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, smtp_sender_name: 'ICONS' }),
+      ok({}),
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, smtp_sender_name: 'X SQUARE' }),
+    ]);
+    vi.stubGlobal('fetch', fetchStub);
+
+    await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
+    expect(JSON.parse(calls[1].body).smtp_sender_name).toBe('X SQUARE');
   });
 
   it('재설정 메일 제목을 PATCH하고 read-back으로 검증한다', async () => {
