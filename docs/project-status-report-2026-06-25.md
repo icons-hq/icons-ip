@@ -1,6 +1,6 @@
 # ICONS 프로젝트 현황 보고서
 
-> **Historical snapshot — 2026-06-25 시점 기록.** 현재 제품 범위·구현 상태·법무 gate는 [`PRD.md`](./PRD.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md), [ADR-0003](./adr/0003-free-reward-pivot.md), [ADR-0004](./adr/0004-draw-ticket-card-packs.md)를 따른다. 이 문서의 유료 가챠·지갑과 미연결 쓰기 흐름 설명은 superseded됐으며 현행 상태로 사용하지 않는다. 편집 전 원문은 [`_archive/project-status-report-2026-06-25.original.md`](./_archive/project-status-report-2026-06-25.original.md)에 보존돼 있다.
+> **Historical snapshot — 2026-06-25 시점 기록.** 현재 제품 범위·구현 상태·법무 gate는 [`PRD.md`](./PRD.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md), ADR-0003([2026-11-24 삭제](./adr/0052-general-shopping-mall-pivot.md)), ADR-0004([2026-11-24 삭제](./adr/0052-general-shopping-mall-pivot.md))를 따른다. 이 문서의 유료 가챠·지갑과 미연결 쓰기 흐름 설명은 superseded됐으며 현행 상태로 사용하지 않는다. 편집 전 원문은 [`_archive/project-status-report-2026-06-25.original.md`](./_archive/project-status-report-2026-06-25.original.md)에 보존돼 있다.
 
 작성일: 2026-06-25 KST
 대상 저장소: `/Users/sangwopark19/icons/icons-ip`
