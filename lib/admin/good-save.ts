@@ -19,7 +19,8 @@ export function goodSaveFields(value: AdminGoodFormValue) {
     price: value.price,
     compare_at_price: value.compareAtPrice,
     ...(value.showDiscountRate !== undefined ? { show_discount_rate: value.showDiscountRate } : {}),
-    badge: value.badge,
+    // 상품 표시문구 전부(고른 순서). 저장 층이 첫 값 칸(badge)을 맞춘다(20261125140000).
+    badges: value.badges,
     stock: value.stock,
     bg: value.bg,
     image_path: value.imagePath,

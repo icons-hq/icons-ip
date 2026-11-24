@@ -10,6 +10,7 @@ import type { RarityKey } from '@/lib/rarity';
 import type { Stock } from '@/lib/data';
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
 import { imageUrlFromBg, normalizePublicMediaPath } from '@/lib/media';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 
 export interface AdminIpRecord {
   id: string;
@@ -77,7 +78,10 @@ export interface AdminGoodRecord {
    */
   instantDiscount?: import('./goods-price-editor').GoodsInstantDiscountState | null;
   showDiscountRate?: boolean;
+  /** 상품 표시문구 첫 값(`goods.badge`, `badges[0]` 거울). */
   badge: string | null;
+  /** 상품 표시문구 전부(`goods.badges`). 배열 순서가 카드·상세 노출 순서다. 싣지 않은 기록은 `badge` 하나로 읽는다(`goodBadgeList`). */
+  badges?: string[];
   stock: Stock;
   stockQty: number;
   saleAvailableQty?: number;
@@ -396,6 +400,7 @@ interface GoodRow {
   compare_at_price: number | null;
   show_discount_rate?: boolean;
   badge: string | null;
+  badges?: string[] | null;
   stock: Stock;
   stock_qty: number | null;
   sale_available_qty?: number;
@@ -581,7 +586,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,base_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,return_address_id,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path,detail_image_paths')
+        .select('id,code,option_sale_mode,updated_at,sale_starts_at,sale_ends_at,sale_period_revision,base_revision,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,return_address_id,price,compare_at_price,show_discount_rate,badge,badges,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path,detail_image_paths')
         .order('id')
       : null;
   if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
@@ -750,6 +755,7 @@ export async function getAdminCatalogRecords(
       compareAtPrice: row.compare_at_price,
       showDiscountRate: row.show_discount_rate ?? true,
       badge: row.badge,
+      badges: goodBadgeList(row),
       stock: row.stock,
       stockQty: row.stock_qty ?? 0,
       allowBankTransfer: row.allow_bank_transfer ?? true,

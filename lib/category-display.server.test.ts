@@ -65,6 +65,17 @@ describe('전시 공개 DTO', () => {
     expect(parseCategoryDisplayPage({ ...page(), token: 'invalid' }, query)).toBeNull();
     expect(parseCategoryDisplayPage({ ...page(), rows: [row(), row()], total: 2, filteredTotal: 2 }, query)).toBeNull();
   });
+  /* 상품 표시문구 여러 개(migration 20261125140000): 전시 투영의 badges를 고른 순서대로 싣고, 모양이 틀리면 거절한다. */
+  it('전시 투영의 표시문구 목록을 고른 순서대로 목록·추천 카드에 싣는다', () => {
+    const source = { ...row(), badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] };
+    expect(parseCategoryDisplayGood(source)?.badges).toEqual(['EXCLUSIVE', 'NEW']);
+    expect(parseCategoryDisplayGood({ ...row(), badges: 'NEW' })).toBeNull();
+    expect(parseCategoryDisplayGood({ ...row(), badges: ['NEW', 1] })).toBeNull();
+    /* badges를 싣지 않는 옛 투영은 첫 값 badge 하나로 읽는다(카드 칩 판정은 goodBadgeList). */
+    expect(parseCategoryDisplayGood({ ...row(), badge: 'NEW' })?.badges).toBeUndefined();
+    const result = parseCategoryDisplayPage({ ...page(), recommendations: { title: '추천', rows: [{ ...source, id: 'g2' }] } }, query);
+    expect(result?.recommendations?.goods[0]).toMatchObject({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] });
+  });
   it('메인 스코프 밖 추천상품도 자체 IP 이름을 유지한다', () => {
     const result = parseCategoryDisplayPage({ ...page(), recommendations: { title: '추천', rows: [{ ...row(), id: 'g2', ip_id: 'outside' }] } }, query);
     expect(result?.recommendations?.goods[0].brand).toBe('독립 추천 IP');

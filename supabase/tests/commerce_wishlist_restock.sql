@@ -34,7 +34,9 @@ $$;
 -- 배지·분류는 표준 값만 남는다(활성/보관 행 전부).
 select 1 / case when not exists (
   select 1 from public.goods
-  where badge is not null and badge not in ('NEW', 'EXCLUSIVE')
+  where (badge is not null and badge not in ('NEW', 'EXCLUSIVE'))
+    or not (badges <@ array['NEW', 'EXCLUSIVE']::text[])
+    or badge is distinct from badges[1]
 ) then 1 else 0 end as assert_goods_badges_standardized;
 
 -- 상품 유형 칸은 ADR-0044로 지웠다.
@@ -47,6 +49,11 @@ select 1 / case when (
     select 1 from pg_constraint
     where conrelid = 'public.goods'::regclass
       and conname = 'goods_badge_check'
+  )
+  and exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.goods'::regclass
+      and conname = 'goods_badges_allowed'
   )
   and exists (
     select 1 from pg_constraint

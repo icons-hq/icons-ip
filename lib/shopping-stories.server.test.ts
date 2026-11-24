@@ -23,6 +23,13 @@ describe('public shopping story projection',()=>{
   expect(parseShoppingStoryGood({...good,variants:[{...variant,supply:null}]})).toBeNull();
   expect(parsePublicShoppingStory({...base,goods:[good],sections:[{id,title:'잘못된 연결',imageShape:'square',goodIds:['missing']}]})).toBeNull();
  });
+ /* 상품 표시문구 여러 개(migration 20261125140000): 스토리 투영의 badges를 고른 순서대로 싣고, 모양이 틀리면 그 굿즈를 거절한다. */
+ it('carries every stored badge in order and fails closed on a malformed badge list',()=>{
+  expect(parseShoppingStoryGood({...good,badge:'EXCLUSIVE',badges:['EXCLUSIVE','NEW']})).toMatchObject({badge:'EXCLUSIVE',badges:['EXCLUSIVE','NEW']});
+  expect(parseShoppingStoryGood(good)).not.toHaveProperty('badges');
+  expect(parseShoppingStoryGood({...good,badges:'NEW'})).toBeNull();
+  expect(parseShoppingStoryGood({...good,badges:[null]})).toBeNull();
+ });
  it('re-sanitizes bypassed raw RPC HTML and does not project ownership/body fields onto cards',()=>{
   const result=parsePublicShoppingStorySummary({...base,bodyHtml:'<script>bad()</script><p>공개 설명</p><img src="public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp">',imagePaths:[],createdBy:'secret'});
   expect(result).toMatchObject({description:'공개 설명',imageUrl:null});expect(result).not.toHaveProperty('bodyHtml');expect(result).not.toHaveProperty('createdBy');

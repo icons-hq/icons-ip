@@ -9,6 +9,7 @@ import {
 import { GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE } from './good-workspace';
 import { parseGoodsOptionRows } from './goods-option-editor';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
+import { formatGoodBadgeText, goodBadgeList } from '@/lib/goods-taxonomy';
 import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
 import { goodSaveFields } from './good-save';
 import type { AdminGoodsKc } from './goods-kc';
@@ -40,7 +41,7 @@ export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
 /**
  * v8(ADR-0038·S36-012): 첫 열 상품번호, 열 이름을 상품 수정 화면과 맞춘다 — 상품 자동코드·옵션 자동코드(2026-11-19 전 판매자상품코드·관리코드,
- * 옛 이름도 읽는다 — goods-workbook-headers.ts, ADR-0048)·재고수량·상품 표시문구·판매상태,
+ * 옛 이름도 읽는다 — goods-workbook-headers.ts, ADR-0048)·재고수량·상품 표시문구(여러 개는 한 칸에 쉼표로, 2026-11-24 — 양식 버전은 그대로)·판매상태,
  * 가격은 화면처럼 판매가(할인 전)·즉시할인(원)·옵션가(추가금액), 매입단가는 공급가(매입단가). v3~v7 파일도 읽는다(아래 구형 열).
  */
 export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v8';
@@ -461,7 +462,9 @@ export function exportGoodsWorkbookRows(
     salePrice: discounted ? str(storedCompare) : str(good.price),
     instantDiscount: discounted ? String(storedCompare! - storedPrice) : '',
     showDiscountRate: good.show_discount_rate === false ? '아니오' : '예',
-    badge: str(good.badge),
+    /* 상품 표시문구는 고른 순서대로 쉼표로 이어 한 칸에 쓴다(`NEW, EXCLUSIVE`). 같은 모양으로 다시 올리면 그대로 저장된다. */
+    badge: formatGoodBadgeText(goodBadgeList({ badge: typeof good.badge === 'string' ? good.badge : null,
+      badges: Array.isArray(good.badges) ? good.badges.filter((badge): badge is string => typeof badge === 'string') : null })),
     stock: str(good.stock),
     allowBankTransfer: good.allow_bank_transfer === false ? '아니오' : '예',
     allowCardPayment: good.allow_card_payment === false ? '아니오' : '예',
