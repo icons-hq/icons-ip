@@ -4,7 +4,7 @@ import type { Good } from '@/lib/data';
 import { useCart } from '@/components/shell/CartProvider';
 import { goodsPurchaseConditionProblem, initialGoodOption, purchasableOptionQty } from '@/lib/goods-options';
 import Link from 'next/link';
-import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
+import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 
 /*
  * 담기 버튼 (#173). 굿즈샵 목록 카드와 상세페이지가 같은 재고·수량 제약을
@@ -20,7 +20,10 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
   const limitQty = option ? purchasableOptionQty(option) : 0;
   const atStockLimit = quantity >= limitQty;
   const detail = variant === 'detail';
-  const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
+  /* 판매기간·예약 상태 문구가 품절보다 앞선다 — 같은 카드의 덮개·굿즈 상세와 같은 판정이다. 접수 전 예약판매는 재고가 0으로
+     읽혀도 '품절'이 아니라 '예약 접수 예정'이고, 옵션이 여럿이어도 고를 옵션이 없으니 '옵션 선택' 대신 그 문구로 막는다.
+     예약 문구는 굿즈 전체가 지금 주문할 수 없을 때만 나온다(옵션 하나라도 접수 중이면 null). */
+  const saleLabel = productCardUnavailableLabel(good, good.stock === 'soldout' || good.stockQty <= 0);
   /* 이미 담은 굿즈는 장바구니 기준으로 말한다 — '담김'이 생소하다는 10/14 회의 지적(S14).
      N은 장바구니에 든 이 옵션의 수량이고, 누르면 한 개 더 담는다(aria-label이 같은 사실을 말한다). */
   const label = sold
@@ -46,7 +49,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
   if (!saleLabel && (good.customInputs?.enabled || (good.options?.length ?? 0) > 1 || (good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1))) return <Link className="wc-btn shop-cart-button" href={`/shop/${good.id}`}>{(good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1) ? '수량 선택' : '옵션 선택'}</Link>;
   return (
     <button
-      aria-label={conditionProblem ? `${good.name} ${conditionProblem}` : ariaLabel}
+      aria-label={saleLabel ? `${good.name} ${saleLabel}` : conditionProblem ? `${good.name} ${conditionProblem}` : ariaLabel}
       className="shop-cart-button"
       disabled={sold || Boolean(saleLabel) || Boolean(conditionProblem) || atStockLimit || !ready || pending}
       onClick={() => { if (option) void add(good.id, option.stockQty, option.id); }}

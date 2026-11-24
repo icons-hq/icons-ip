@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
+import type { GoodsVariantSupply } from '@/lib/goods-preorders';
 import { AddToCartButton } from './AddToCartButton';
 
 const mocks = vi.hoisted(() => ({ add: vi.fn(), getQuantity: vi.fn(() => 0) }));
@@ -59,5 +60,48 @@ describe('랜덤 판매·옵션별 구매 제한 담기', () => {
     expect(html).toContain('disabled=""');
     expect(html).toContain('aria-label="키링, 장바구니 2개, 구매 한도 2개"');
     mocks.getQuantity.mockReturnValue(0);
+  });
+});
+
+/* 접수 전 예약판매는 재고 0으로 읽혀도 '품절'이 아니다 — 같은 카드의 덮개·상세와 같은 문구로 막는다(2026-11-23 운영 홈 SOLD OUT 후속). */
+describe('예약판매 담기', () => {
+  const supply = (state: 'scheduled' | 'open', availableQty: number): GoodsVariantSupply => ({
+    mode: 'preorder', availableQty, policyId: '11111111-1111-4111-8111-111111111111', policyRevision: 1, state,
+    startsAt: '2026-12-02T02:00:00.000Z', endsAt: '2026-12-13T14:59:59.000Z', expectedShipDate: '2026-12-14',
+    calculatedAt: state === 'scheduled' ? '2026-11-23T00:00:00.000Z' : '2026-12-03T00:00:00.000Z',
+    nextChangeAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : '2026-12-13T14:59:59.000Z',
+  });
+  const preorder = (state: 'scheduled' | 'open', availableQty: number, optionCount = 1): Good => ({
+    ...good, stockQty: availableQty * optionCount, stock: availableQty > 0 ? 'ok' : 'soldout',
+    options: Array.from({ length: optionCount }, (_, index) => ({ ...option, id: `00000000-0000-4000-8000-00000000000${index + 1}`, isDefault: index === 0,
+      stockQty: availableQty, supply: supply(state, availableQty) })),
+  });
+
+  it('labels a single-option preorder before reception instead of 품절, for sight and screen readers', () => {
+    const html = renderToStaticMarkup(<AddToCartButton good={preorder('scheduled', 0)} />);
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('>예약 접수 예정</button>');
+    expect(html).toContain('aria-label="키링 예약 접수 예정"');
+    expect(html).not.toContain('품절');
+  });
+
+  it('blocks a multi-option preorder before reception with the same label instead of 옵션 선택', () => {
+    const html = renderToStaticMarkup(<AddToCartButton good={preorder('scheduled', 0, 2)} />);
+    expect(html).toContain('>예약 접수 예정</button>');
+    expect(html).not.toContain('옵션 선택');
+    expect(html).not.toContain('품절');
+  });
+
+  it('adds normally once reception opens', () => {
+    const html = renderToStaticMarkup(<AddToCartButton good={preorder('open', 30)} />);
+    expect(html).toContain('>담기</button>');
+    expect(html).not.toContain('disabled=""');
+    expect(renderToStaticMarkup(<AddToCartButton good={preorder('open', 30, 2)} />)).toContain('옵션 선택');
+  });
+
+  it('still says 품절 for a sold-out stock good and names the sale period in the accessible name', () => {
+    expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, stockQty: 0, stock: 'soldout', options: [{ ...option, stockQty: 0 }] }} />)).toContain('>품절</button>');
+    const scheduled = { state: 'scheduled' as const, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' };
+    expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, salePeriod: scheduled }} />)).toContain('aria-label="키링 판매 시작 전"');
   });
 });
