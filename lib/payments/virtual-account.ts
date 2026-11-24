@@ -3,8 +3,9 @@
  * - awaiting: 계좌가 발급됐고 기한 안이다(입금 안내를 보인다).
  * - checking: 기한이 지났거나 결제사 확인 중이다(계좌를 다시 약속하지 않는다).
  * - deposited: 입금이 확인됐다. closed: 입금 없이 닫혔다.
+ * - reversed: 입금 통보 뒤 은행이 입금을 취소했다(ADR-0049 결정 4) — 같은 계좌로 기한(dueAt, 결제사 조회값)까지 다시 입금해야 한다.
  */
-export type OrderVirtualAccountState = 'awaiting' | 'deposited' | 'checking' | 'closed';
+export type OrderVirtualAccountState = 'awaiting' | 'deposited' | 'reversed' | 'checking' | 'closed';
 
 export interface OrderVirtualAccount {
   /** 토스 은행 코드(2·3자리). 이름은 `tossBankLabel`로 바꾼다. */
@@ -19,7 +20,7 @@ export interface OrderVirtualAccount {
   readonly state: OrderVirtualAccountState;
 }
 
-const STATES: readonly string[] = ['awaiting', 'deposited', 'checking', 'closed'];
+const STATES: readonly string[] = ['awaiting', 'deposited', 'reversed', 'checking', 'closed'];
 
 /** RPC 결과를 검증해 읽는다. 모양이 어긋나면 null — 화면은 계좌를 단정하지 않는다. */
 export function parseOrderVirtualAccount(value: unknown): OrderVirtualAccount | null {
@@ -54,6 +55,11 @@ export const VIRTUAL_ACCOUNT_COPY = {
   deadlineNote: '입금 기한이 지나면 주문이 자동으로 취소돼요.',
   autoCheckNote: '입금 확인은 자동으로 이뤄져요. 보통 몇 분 안에 반영돼요.',
   escrowNote: '구매안전서비스(에스크로)가 적용된 결제예요. 배송이 완료되면 토스페이먼츠 구매확정 안내가 가요.',
+  /* 입금 오류 되돌림(ADR-0049 결정 4) — 주문 상세 안내. */
+  reversedTitle: '입금이 확인되지 않았어요',
+  reversedBody: '은행에서 입금이 취소돼 아직 결제가 완료되지 않았어요. 아래 계좌로 입금 기한까지 다시 입금해 주세요. 입금이 확인되면 주문이 그대로 진행돼요.',
+  reversedDeadlineNote: '입금 기한까지 입금되지 않으면 주문이 자동으로 취소돼요. 입금된 돈이 없어 따로 환불할 금액은 없어요.',
+  reversedOverdueBody: '입금 기한이 지나 입금을 확인하고 있어요.',
 } as const;
 
 /**

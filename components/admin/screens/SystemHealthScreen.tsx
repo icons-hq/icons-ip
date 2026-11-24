@@ -70,14 +70,16 @@ function HealthBody({ health, payments, canReconcile, refundFailures }: {
       <AdminCountCard count={counts.emailFailures} href="#system-emails" label="메일 발송 실패(24시간)" tone="danger" />
       <AdminCountCard count={counts.emailBounces} href="#system-emails" label="메일 반송(24시간)" tone="warning" />
       <AdminCountCard count={counts.refundFailures} href="#virtual-account-refunds" label="환불 송금 확인 필요" tone="danger" />
+      <AdminCountCard count={counts.depositReversalReviews} href="#deposit-reversals" label="입금 취소 결제 확인 필요" tone="danger" />
     </div>
     {counts.issues === 0 ? <AdminNotice role="status" title="지금 확인할 문제가 없습니다" tone="success">
-      자동 작업이 모두 제때 돌고 있고, 미종결 결제·메일 발송 실패·환불 송금 확인 필요가 없습니다.
+      자동 작업이 모두 제때 돌고 있고, 미종결 결제·메일 발송 실패·환불 송금 확인 필요·입금 취소 결제 확인 필요가 없습니다.
     </AdminNotice> : null}
     <JobsSection health={health} />
     <FailuresSection health={health} />
     <PaymentsSection canReconcile={canReconcile} health={health} payments={payments} />
     <RefundFailuresSection health={health} refundFailures={refundFailures} />
+    <DepositReversalsSection health={health} />
     <AdminSectionCard id="system-emails" title="메일 발송"
       summary="최근 24시간. 실패는 우리·발송사 쪽 문제(설정·연결·결과 불명)이고, 반송은 받는 주소 문제(없는 주소·수신 거부)입니다.">
       <p className="text-sm">발송 실패 <strong className="tabular-nums">{health.emails.failed24h.toLocaleString('ko-KR')}건</strong> · 반송 <strong className="tabular-nums">{health.emails.bounced24h.toLocaleString('ko-KR')}건</strong></p>
@@ -154,6 +156,15 @@ function PaymentsSection({ health, payments, canReconcile }: { health: SystemHea
  * 가상계좌 환불 송금 확인 필요(ADR-0049 결정 5 보강). 환불(결제 취소) 뒤 은행이 고객 계좌로 송금하지 못했거나 7일째 확인되지 않거나 결제사 기록이
  * 맞지 않는 주문이다. 자동 재확인이 결제사에 조회해 찾고, 토스페이먼츠 상점관리자에서 다시 환불하면 저절로 빠진다.
  */
+function DepositReversalsSection({ health }: { health: SystemHealthReport }) {
+  const summary = '고객이 가상계좌로 입금했다가 은행이 그 입금을 취소한 주문은 시스템이 처리합니다 — 다시 입금되면 출고 보류를 풀고, 입금 기한까지 입금이 없으면 계좌를 반납하고 주문을 자동 취소합니다(환불 없음). 여기에는 시스템이 끝내지 못한 주문(이미 발송, 결제사 기록 불일치, 결제사 조회가 계속 실패, 처리 대기 중인 취소 요청 등)과 입금 기한이 2시간 넘게 지났는데 닫히지 않은 주문만 셉니다.';
+  const { review, oldestAt } = health.depositReversals;
+  return <AdminSectionCard id="deposit-reversals" summary={summary} title="입금 취소 결제 확인 필요">
+    {review === 0 ? <p className="text-sm text-muted-foreground">확인할 주문이 없습니다.</p>
+      : <p className="text-sm"><strong className="tabular-nums">{review.toLocaleString('ko-KR')}건</strong>{oldestAt ? <> · 가장 오래된 건 {time(oldestAt)}부터</> : null}. <Link className="underline underline-offset-4" href="/admin/sales/orders">주문 관리</Link>의 출고 보류 목록에서 사유가 &apos;입금 오류 되돌림&apos;인 주문을 열면 주문별 다음 할 일이 보입니다.</p>}
+  </AdminSectionCard>;
+}
+
 function RefundFailuresSection({ health, refundFailures }: { health: SystemHealthReport; refundFailures: VirtualAccountRefundFailureList | null | undefined }) {
   const summary = '가상계좌 결제를 환불(결제 취소)한 뒤 은행이 고객 계좌로 송금하지 못했거나, 7일이 지나도 송금 완료가 확인되지 않거나, 결제사 기록이 맞지 않는 주문입니다. 토스페이먼츠 상점관리자에서 다시 환불하면 자동 재확인이 완료로 바꿉니다. 결제사 밖에서 끝냈다면 주문 화면의 [처리 완료로 표시]를 눌러주세요.';
   return <AdminSectionCard id="virtual-account-refunds" summary={summary} title="환불 송금 확인 필요">

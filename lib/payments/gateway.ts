@@ -192,6 +192,14 @@ export type PaymentBalanceInspection =
       virtualAccount?: boolean;
       /** 결제의 마지막 거래 키(불투명) — 같은 되돌림 관측을 한 번만 기록하는 표지. */
       lastTransactionKey?: string;
+      /**
+       * 가상계좌의 지금 입금 기한(`virtualAccount.dueDate`, ISO)과 만료 여부(`virtualAccount.expired`). 입금 오류 되돌림 뒤
+       * 기한이 유지되는지는 문서에 없어 되돌림 처리가 매번 이 조회값을 진실원으로 쓴다(ADR-0049 결정 4).
+       */
+      virtualAccountDueAt?: string;
+      virtualAccountExpired?: boolean;
+      /** 가상계좌 환불 송금 상태(`virtualAccount.refundStatus`). 반납(입금 전 취소)과 환불(입금 뒤 취소)을 가르는 데 쓴다. */
+      virtualAccountRefundStatus?: string;
     }
   | { kind: 'unavailable' | 'mismatch' | 'not_supported' };
 

@@ -87,9 +87,10 @@ export const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<GoodsPaymentAttemptState
  * 주문의 토스 가상계좌(무통장입금) 입금 정보 — `admin_order_virtual_account`(sales.read)가 돌려준다(ADR-0049).
  * 계좌번호는 결제사가 주문마다 발급한 수납 계좌라 구매자 개인정보가 아니지만, 주문 본인과 운영자에게만 보인다.
  * state: awaiting(입금 기한 전 입금 대기) · deposited(입금 확인 = 결제 승인) · checking(기한이 지났거나 결제사 확인이
- * 끝나지 않음 — 자동 재확인이 닫는다) · closed(입금 없이 반납·취소·만료로 닫힘).
+ * 끝나지 않음 — 자동 재확인이 닫는다) · reversed(입금 통보 뒤 은행이 입금을 취소해 재입금을 기다림 — ADR-0049 결정 4) ·
+ * closed(입금 없이 반납·취소·만료로 닫힘).
  */
-export const ADMIN_VIRTUAL_ACCOUNT_STATES = ['awaiting', 'deposited', 'checking', 'closed'] as const;
+export const ADMIN_VIRTUAL_ACCOUNT_STATES = ['awaiting', 'deposited', 'reversed', 'checking', 'closed'] as const;
 export type AdminVirtualAccountState = (typeof ADMIN_VIRTUAL_ACCOUNT_STATES)[number];
 
 /**
@@ -229,6 +230,7 @@ export function adminTransferEscrowLabel(useEscrow: boolean | null): string {
 export const ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS: Record<AdminVirtualAccountState, string> = {
   awaiting: '입금 대기',
   deposited: '입금 완료',
+  reversed: '입금 취소됨 · 재입금 대기',
   checking: '입금 확인 중',
   closed: '입금 없이 닫힘',
 };
@@ -237,6 +239,7 @@ export const ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS: Record<AdminVirtualAccountState
 export const ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS: Record<AdminVirtualAccountState, string> = {
   awaiting: '고객이 입금하면 결제사 확인 뒤 자동으로 결제완료(신규주문)가 됩니다. 입금 기한까지 입금이 없으면 주문이 자동 취소되고 재고·쿠폰·적립금이 돌아갑니다.',
   deposited: '결제사가 입금을 확인해 결제가 확정됐습니다. 입금 뒤 환불은 고객 환불 계좌로 보내므로, 취소·반품에서 환불 계좌(은행·계좌번호·예금주)가 있어야 합니다.',
+  reversed: '결제사가 입금을 알린 뒤 은행이 그 입금을 취소했습니다. 시스템이 고객에게 같은 계좌로 다시 입금하라고 안내했고, 출고는 보류돼 있습니다. 다시 입금되면 보류가 자동으로 풀리고, 입금 기한이 지나도 입금이 없으면 계좌를 반납하고 주문을 자동 취소합니다(재고·쿠폰·적립금 복원, 환불 없음).',
   checking: '입금 기한이 지났거나 결제사 확인이 아직 끝나지 않았습니다. 시스템이 결제사에 다시 조회해 입금이 있으면 결제완료, 없으면 주문 취소로 닫습니다. 입금 기한이 2시간 넘게 지나도 그대로면 판매자 정보 → 시스템 상태의 미종결 결제에 보입니다.',
   closed: '입금 없이 계좌가 반납·만료돼 닫힌 결제입니다. 이 계좌로는 더 입금되지 않습니다.',
 };

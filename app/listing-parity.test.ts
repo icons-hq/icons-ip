@@ -215,14 +215,30 @@ describe('온라인 팝업 디렉토리 (11 IP-02~04)', () => {
   });
 });
 
-describe('IP관 모바일 배너 (11 IP-05)', () => {
-  const MOBILE = '(max-width: 749px)';
+describe('IP관 X SQUARE 카테고리 틀 (ADR-0043)', () => {
+  const DESKTOP = '(min-width: 750px)';
 
-  it('모바일은 배너 글자를 가운데 세우고 해시태그를 배너 아래로 내린다', () => {
-    expect(decls(DISCOVERY, '.wc-iphall__banner .wc-container', MOBILE)['text-align']).toBe('center');
-    expect(decls(DISCOVERY, '.wc-iphall__hashtags--banner', MOBILE).display).toBe('none');
-    expect(decls(DISCOVERY, '.wc-iphall__tags-band', MOBILE).display).toBe('block');
-    expect(decls(DISCOVERY, '.wc-iphall__tags-band').display).toBe('none');
+  it('배너는 콘텐츠 폭 스트립이고 데스크톱 340·모바일 220 이며 해시태그 밴드는 따로 없다', () => {
+    const banner = decls(DISCOVERY, '.wc-iphall__banner');
+    expect(banner['border-radius']).toBe('var(--wc-x-radius-strip)');
+    expect(banner['min-height']).toBe('220px');
+    expect(decls(DISCOVERY, '.wc-iphall__banner', DESKTOP)['min-height']).toBe('340px');
+    expect(decls(DISCOVERY, '.wc-iphall__tags-band')).toEqual({});
+    expect(decls(DISCOVERY, '.wc-iphall__hashtags--banner', '(max-width: 749px)')).toEqual({});
+  });
+
+  it('IP명은 목록 제목과 같은 24/32 → 32/43 단계다', () => {
+    const name = decls(DISCOVERY, '.wc-iphall__name');
+    expect([name['font-size'], name['line-height']]).toEqual(['24px', '32px']);
+    const desktop = decls(DISCOVERY, '.wc-iphall__name', DESKTOP);
+    expect([desktop['font-size'], desktop['line-height']]).toEqual(['32px', '43px']);
+  });
+
+  it('팔로우 하트와 알림 버튼은 44px 터치 목표다', () => {
+    const heart = decls(DISCOVERY, '.wc-iphall__follow-heart');
+    expect([heart.width, heart.height]).toEqual(['44px', '44px']);
+    expect(decls(DISCOVERY, '.wc-iphall__bar-submit')['min-height']).toBe('44px');
+    expect(decls(DISCOVERY, '.wc-iphall__pref')['min-height']).toBe('44px');
   });
 });
 

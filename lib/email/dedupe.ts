@@ -11,6 +11,7 @@ export const EMAIL_TEMPLATE_NAMES = [
   'inquiry_answered',
   'restock_alert',
   'order_virtual_account',
+  'order_deposit_reversal',
 ] as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATE_NAMES)[number];
@@ -47,6 +48,16 @@ export function isEmailDeliveryStatus(value: string): value is EmailDeliveryStat
 /** 토스 가상계좌 입금 안내 메일의 dedupe_key. 주문당 한 번(재확인에서 다시 불려도 1통)이다. */
 export function virtualAccountEmailDedupeKey(orderId: string): string {
   return `order_virtual_account:${orderId}`;
+}
+
+/**
+ * 토스 가상계좌 입금 오류 되돌림 안내 메일의 dedupe_key(ADR-0049 결정 4). 재입금 안내는 되돌림마다 한 통(같은 결제가 다시 되돌아가면
+ * 번호가 늘어난다), 자동 취소 안내는 주문당 한 통이다. 운영자 재발송 대상이 아니다(ORDER_EMAIL_TEMPLATE_NAMES 밖).
+ */
+export function depositReversalEmailDedupeKey(orderId: string, stage: { readonly sequence: number } | 'canceled'): string {
+  return stage === 'canceled'
+    ? `order_deposit_reversal:${orderId}:canceled`
+    : `order_deposit_reversal:${orderId}:${stage.sequence}`;
 }
 
 export type OrderEmailAudience = 'payer' | 'recipient';

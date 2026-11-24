@@ -52,6 +52,14 @@ describe('시스템 상태 읽기 모델', () => {
     expect(withRefunds.refunds.virtualAccountFailed).toBe(2);
     expect(withRefunds.counts.refundFailures).toBe(2);
     expect(parseSystemHealthReport({ ...report, refunds: { virtualAccountFailed: -1, oldestAt: null } })).toBeNull();
+    // 입금 오류 되돌림 확인 필요(ADR-0049 결정 4) — 예전 판정에는 없어 0으로 읽는다.
+    expect(parseSystemHealthReport(report)!.depositReversals).toEqual({ review: 0, oldestAt: null });
+    expect(parseSystemHealthReport(report)!.counts.depositReversalReviews).toBe(0);
+    const withReversals = parseSystemHealthReport({ ...report, depositReversals: { review: 1, oldestAt: '2026-11-25T05:00:00Z' },
+      counts: { ...report.counts, depositReversalReviews: 1 } })!;
+    expect(withReversals.depositReversals).toEqual({ review: 1, oldestAt: '2026-11-25T05:00:00Z' });
+    expect(withReversals.counts.depositReversalReviews).toBe(1);
+    expect(parseSystemHealthReport({ ...report, depositReversals: 'bad' })).toBeNull();
     expect(parseSystemHealthReport({ ...report, refunds: 'x' })).toBeNull();
     expect(parseVirtualAccountRefundFailures({ total: 1, items: [{ orderId: 'a7000000-0000-4002-8000-000000000009', orderNumber: null, amount: 31000,
       failureCode: 'refund_overdue', refundedAt: '2026-11-10T03:00:00Z', failedAt: '2026-11-17T03:00:00Z' }] })?.items[0].failureCode).toBe('refund_overdue');
