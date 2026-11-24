@@ -32,6 +32,7 @@ vi.mock('@/lib/postcode.client', () => ({ loadPostcodeSearch: mocks.load }));
 
 import {
   POSTCODE_FAILED_MESSAGE,
+  POSTCODE_MANUAL_CHOSEN_MESSAGE,
   POSTCODE_SEARCH_HINT,
   POSTCODE_SELECTION_FAILED_MESSAGE,
   PostcodeField,
@@ -113,7 +114,8 @@ describe('PostcodeField — 검색 흐름', () => {
   let props: Props;
   const renderFake = () => { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; return PostcodeField(props); };
   const find = (predicate: (node: Element) => boolean) => all(renderFake()).find(predicate)!;
-  const searchButton = () => find((node) => node.type === 'button');
+  const searchButton = () => find((node) => node.type === 'button' && node.props.className === 'btn btn-ghost postcode-field-open');
+  const manualButton = () => all(renderFake()).find((node) => node.type === 'button' && node.props.className === 'postcode-field-manual');
   const field = (id: string) => find((node) => node.type === 'input' && node.props.id === id);
   /* 검색을 연 뒤의 효과를 돌린다(임베드 대상 노드는 가짜로 둔다). */
   const openAndLoad = async () => {
@@ -171,6 +173,23 @@ describe('PostcodeField — 검색 흐름', () => {
     expect(props.onSelect).not.toHaveBeenCalled();
     expect(field('checkout-postalCode').props.readOnly).toBe(false);
     expect(text(renderFake())).toContain(POSTCODE_SELECTION_FAILED_MESSAGE);
+  });
+
+  /* 스크립트는 떴지만 레이어 안 검색 화면(교차 출처 iframe)이 막히거나 멈추면 이쪽에서 알 수 없다 — 고객이 고르는 탈출구를 둔다. */
+  it('검색 레이어가 열려 있는 동안 [검색이 안 되면 직접 입력]으로 손 입력을 연다', async () => {
+    expect(manualButton()).toBeUndefined();
+    mocks.load.mockResolvedValue(class { embed() {} });
+    await openAndLoad();
+    expect(field('checkout-postalCode').props.readOnly).toBe(true);
+    (manualButton()!.props.onClick as () => void)();
+    expect(field('checkout-postalCode').props.readOnly).toBe(false);
+    expect(field('checkout-address1').props.readOnly).toBe(false);
+    expect(searchButton().props['aria-expanded']).toBe(false);
+    expect(text(renderFake())).toContain(POSTCODE_MANUAL_CHOSEN_MESSAGE);
+    expect(focused).toEqual(['checkout-postalCode']);
+    /* 손 입력이 열린 뒤에 다시 검색을 열어도 탈출구는 더 보이지 않는다. */
+    (searchButton().props.onClick as () => void)();
+    expect(manualButton()).toBeUndefined();
   });
 
   it('잠긴 빈 칸을 누르면 검색을 열고, 손 입력이 열린 칸은 누른다고 열지 않는다', async () => {

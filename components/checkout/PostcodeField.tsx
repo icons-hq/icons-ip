@@ -8,7 +8,9 @@ import { loadPostcodeSearch } from '@/lib/postcode.client';
 
    주소는 검색으로 확정한다(검색 → 선택 → 상세 주소, 국내 커머스 관행). 검색 결과로 채운 우편번호·기본 주소는 읽기 전용이고
    [다시 검색]으로만 바꾼다 — 손으로 고친 주소가 실제 주소와 어긋나는 일을 막는다. 손 입력은 검색 스크립트를 열지 못했거나
-   (네트워크·차단·무응답) 고른 결과를 옮기지 못했을 때만 연다. 그래야 검색이 죽는 날에도 결제까지 갈 수 있다.
+   (네트워크·차단·무응답) 고른 결과를 옮기지 못했을 때, 그리고 검색 레이어를 연 고객이 [검색이 안 되면 직접 입력]을 고를 때만
+   연다. 마지막 길은 스크립트는 떴지만 레이어 안 검색 화면(교차 출처 iframe)이 막히거나 멈춘 경우다 — 그 실패는 이쪽에서 알 수
+   없으므로 고객이 고를 수 있게 둔다. 그래야 검색이 죽는 날에도 결제까지 갈 수 있다.
 
    검색 레이어는 임베드 방식이라 팝업 차단에 걸리지 않고 모바일에서도 그대로 뜬다. 선택 결과는 콜백으로만 들어오고 URL을
    거치지 않는다 — 배송지는 어떤 경우에도 쿼리스트링에 실리지 않는다.
@@ -28,6 +30,8 @@ export type LayerState = 'loading' | 'ready' | 'failed';
 export const POSTCODE_FAILED_MESSAGE = '주소 검색을 열지 못했어요. 우편번호와 기본 주소를 직접 입력해도 주문할 수 있어요.';
 /** 고른 결과를 칸에 옮기지 못했을 때(우편번호 형식·길이 한도). 손 입력이 열린다. */
 export const POSTCODE_SELECTION_FAILED_MESSAGE = '선택한 주소를 옮기지 못했어요. 우편번호와 기본 주소를 직접 입력해주세요.';
+/** 검색 레이어에서 고객이 직접 입력을 고른 뒤의 안내. */
+export const POSTCODE_MANUAL_CHOSEN_MESSAGE = '우편번호와 기본 주소를 직접 입력해주세요. 동·호수는 아래 상세 주소에 적어주세요.';
 /** 검색으로 채우는 동안의 안내. */
 export const POSTCODE_SEARCH_HINT = '주소 검색으로 채워요. 동·호수는 아래 상세 주소에 적어주세요.';
 
@@ -129,6 +133,12 @@ export function PostcodeField({ address1, errors = {}, failedMessage = POSTCODE_
     }
     openLayer();
   };
+  /* 검색 화면이 뜨지 않거나 멈췄을 때의 탈출구 — 레이어를 걷고 손 입력을 연다. */
+  const chooseManualEntry = () => {
+    setOpen(false);
+    setManualReason(POSTCODE_MANUAL_CHOSEN_MESSAGE);
+    window.requestAnimationFrame(() => document.getElementById(postalId)?.focus());
+  };
   /* 잠긴 빈 칸을 누르면 검색을 연다(검색이 유일한 입력 수단일 때). */
   const openFromLockedField = () => {
     if (!manual && !open) openLayer();
@@ -174,6 +184,11 @@ export function PostcodeField({ address1, errors = {}, failedMessage = POSTCODE_
           )}
         </div>
       )}
+      {open && !manual ? (
+        <button className="postcode-field-manual" onClick={chooseManualEntry} type="button">
+          검색이 안 되면 직접 입력
+        </button>
+      ) : null}
       <label className="postcode-field-label postcode-field-label--address" htmlFor={address1Id}>기본 주소</label>
       <input
         id={address1Id}
