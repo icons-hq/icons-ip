@@ -74,7 +74,7 @@ export function AutoOrderConfirmPanel({ initial, listHref = AUTO_ORDER_CONFIRMAT
   return <SalesDisclosureCard id={AUTO_ORDER_CONFIRM_ANCHOR} status={<AdminStatusBadge tone={current.enabled ? 'success' : 'warning'}>{current.enabled ? '켜짐' : '꺼짐'}</AdminStatusBadge>} summary={summary} title="자동 발주확인">
     <p className="text-muted-foreground">매일 설정한 시각까지 결제가 끝난 신규주문을 시스템이 발주확인합니다. 그 시각 뒤에 결제된 주문은 다음 날 처리하며, 발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다.
       {current.enabled && current.enabledAt ? <> 켠 시각({dateTimeText(current.enabledAt)}) 전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다.</> : ' 꺼져 있는 동안에는 신규주문을 직접 발주확인합니다.'}
-      {' '}취소 요청이 진행 중이거나 예약 입고 확인 전인 주문은 신규주문에 남습니다.</p>
+      {' '}취소 요청이 진행 중이거나 예약 입고 확인 전인 주문은 신규주문에 남습니다. 가상계좌 주문은 은행이 입금을 뒤늦게 취소하는 경우에 대비해 입금 확인 뒤 1시간이 지나야 대상이므로, 실행 시각 1시간 안에 입금된 주문은 다음 날 처리합니다.</p>
     <form className="flex flex-col gap-4" ref={formRef} onSubmit={event => { event.preventDefault(); void save(); }}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>
         <legend className="mb-3 text-sm text-muted-foreground">자동 발주확인 설정</legend>
