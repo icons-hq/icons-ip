@@ -3,6 +3,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good } from '@/lib/data';
 import { pickGoodsReviewSummaries } from '@/lib/goods-review-summary';
 import { selectCollectionGoods, type ShopListQuery, type ShopListResult } from '@/lib/shop-catalog';
+import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
 
 /* /search 의 굿즈 결과 선택자 (#326 유저 스토리 18·19, LFS 패리티 2차 L4 · SR-01~03).
  *
@@ -69,6 +70,12 @@ export function matchSearchGoods(
   const rest: Good[] = [];
 
   for (const good of catalog.goods) {
+    /* 인증 전 19금 가림 카드(ADR-0024)는 카드에 이름이 보여도(MD-0048) 검색은 예전처럼 상품 정보로 걸리지 않는다 — DB 검색
+       (search_public_content)이 인증 전 방문자에게 19금 상품을 빼는 것과 같은 정책이다. 고정 문구로만 맞춘다. */
+    if (good.masked) {
+      if (includesFold(ADULT_GOOD_LABEL, needle)) byName.push(good);
+      continue;
+    }
     if (includesFold(good.name, needle)) {
       byName.push(good);
       continue;

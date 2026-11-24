@@ -24,7 +24,9 @@ describe('product card parts', () => {
     expect(overlay).toContain('inset: 0');
     expect(overlay).toContain('z-index: 1');
     expect(rule('.wc-product-card__action')).toContain('z-index: 2');
-    expect(rule('.wc-product-card__cart')).toMatch(/position: relative;[\s\S]*z-index: 2/);
+    expect(rule('.wc-product-card__cart > *')).toMatch(/position: relative;[\s\S]*z-index: 2/);
+    expect(X).toContain('.wc-product-card__cart button:disabled { pointer-events: none; }');
+    expect(rule('.wc-product-card__colors li')).toMatch(/position: relative;[\s\S]*z-index: 2/);
     /* 이미지 넘김 버튼은 공용 규칙에서 이미 z-index 2 다. */
     expect(css('store-presentation.css')).toMatch(/\.wc-root \.wc-product-card__gallery \{[^}]*z-index:2/);
   });

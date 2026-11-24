@@ -11,7 +11,7 @@ const good: Good = { id: 'good', ip: 'ip', name: '키링', price: 1000, stockQty
 beforeEach(() => vi.clearAllMocks());
 
 describe('찜 목록 담기', () => {
-  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('does not offer cart or option entry while %s', (state, label) => {
+  it.each([['scheduled', '판매 예정'], ['ended', '판매 종료']] as const)('does not offer cart or option entry while %s', (state, label) => {
     const closed = { ...good, options: [option, { ...option, id: '00000000-0000-4000-8000-000000000002' }], salePeriod: { state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null } };
     const html = renderToStaticMarkup(<AddToCartButton good={closed} />); expect(html).toContain('disabled=""'); expect(html).toContain(`>${label}</button>`); expect(html).not.toContain('옵션 선택'); expect(html).not.toContain('품절');
   });
@@ -102,6 +102,6 @@ describe('예약판매 담기', () => {
   it('still says 품절 for a sold-out stock good and names the sale period in the accessible name', () => {
     expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, stockQty: 0, stock: 'soldout', options: [{ ...option, stockQty: 0 }] }} />)).toContain('>품절</button>');
     const scheduled = { state: 'scheduled' as const, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' };
-    expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, salePeriod: scheduled }} />)).toContain('aria-label="키링 판매 시작 전"');
+    expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, salePeriod: scheduled }} />)).toContain('aria-label="키링 판매 예정"');
   });
 });

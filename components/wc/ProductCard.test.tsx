@@ -25,7 +25,7 @@ function preorderGood(state: 'scheduled' | 'open', availableQty: number): Good {
 }
 
 describe('ProductCard', () => {
-  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('keeps %s browseable and labels the sale period before stock', (state, label) => {
+  it.each([['scheduled', '판매 예정'], ['ended', '판매 종료']] as const)('keeps %s browseable and labels the sale period before stock', (state, label) => {
     const html = renderToStaticMarkup(<ProductCard {...card} soldOut salePeriod={{ state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null }} />);
     expect(html).toContain('href="/shop/g13"'); expect(html).toContain(`>${label}</span>`); expect(html).toContain(` (${label})`);
     expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('(품절)');

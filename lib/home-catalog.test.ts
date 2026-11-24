@@ -196,7 +196,7 @@ describe('home goods card unavailable label', () => {
 
   it('falls back to the sale period for an old card view without the server label', () => {
     const salePeriod = { state: 'scheduled' as const, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' };
-    expect(homeCardUnavailableLabel({ soldOut: true, salePeriod })).toBe('판매 시작 전');
+    expect(homeCardUnavailableLabel({ soldOut: true, salePeriod })).toBe('판매 예정');
     expect(homeCardUnavailableLabel({ soldOut: true })).toBeNull();
   });
 });

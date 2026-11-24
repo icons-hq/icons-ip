@@ -550,8 +550,8 @@ describe('GoodPurchasePanel', () => {
     expect(low).not.toContain('품절임박');
     expect(soldOut).not.toMatch(/<p class="wc-buy-panel__state">품절<\/p>/);
     /* 판매 기간 같은 판매 상태는 그대로 글로 먼저 알린다. */
-    expect(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ unavailableLabel: '판매 시작 전' })} />))
-      .toContain('<p class="wc-buy-panel__state">판매 시작 전</p>');
+    expect(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ unavailableLabel: '판매 예정' })} />))
+      .toContain('<p class="wc-buy-panel__state">판매 예정</p>');
   });
 
   /* 서버 확인 전에는 "완료"라고 하지 않는다. 카트가 낸 오류가 있으면 그것이 먼저다. */
@@ -710,7 +710,7 @@ describe("'예상 굿즈 금액' 행 삭제 (MD-0039·0040)", () => {
   });
 
   it('판매 불가는 어느 쪽에도 판매 상태 행이 남고, 거래 조건이 없는 굿즈는 총 금액 행이 남는다', () => {
-    const unavailable = controller({ good: withOffer(), unavailableLabel: '판매 시작 전' });
+    const unavailable = controller({ good: withOffer(), unavailableLabel: '판매 예정' });
     const panel = renderToStaticMarkup(<GoodPurchasePanel purchase={unavailable} />);
     const rail = renderToStaticMarkup(<GoodRailBuyBox purchase={unavailable} />);
     for (const html of [panel, rail]) {

@@ -98,7 +98,16 @@
   z-index: 1;
 }
 
-.wc-product-card__cart {
+/* 담기 줄은 카드 폭 전체라 줄 통째로 올리면 빈 칸이 덮개를 막는다 — 버튼만 올린다. 막힌(비활성) 담기 버튼은 덮개로 넘겨
+   누르면 상세로 간다. 색상 점은 이름 툴팁(title)이 보이도록 점만 덮개 위에 둔다. */
+.wc-product-card__cart > * {
+  position: relative;
+  z-index: 2;
+}
+
+.wc-product-card__cart button:disabled { pointer-events: none; }
+
+.wc-product-card__colors li {
   position: relative;
   z-index: 2;
 }

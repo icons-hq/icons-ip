@@ -345,7 +345,7 @@ describe('GoodDetail', () => {
   });
 
   /* R-04 §4 — 품절이면 CTA 자리만 재입고 알림으로 바뀌고 수량·합계는 남는다. */
-  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('shows the sale period and prevents a misleading restock CTA for %s', (state, label) => {
+  it.each([['scheduled', '판매 예정'], ['ended', '판매 종료']] as const)('shows the sale period and prevents a misleading restock CTA for %s', (state, label) => {
     const html = render({ good: { ...good, stock: 'soldout', stockQty: 0, salePeriod: { state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null } } });
     expect(html).toContain(`>${label}</button>`); expect(html).toContain(`>${label}</p>`); expect(html).not.toContain('재입고 알림 받기'); expect(html).not.toContain('>품절<'); expect(html).not.toContain('>구매하기<');
     expect(html).toContain('>판매 상태</span>'); expect(html).not.toContain('옵션 선택 후 표시');

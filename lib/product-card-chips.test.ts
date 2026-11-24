@@ -158,7 +158,7 @@ describe('productCardUnavailableLabel', () => {
 
   it('puts the sale period before the preorder state, like the product detail', () => {
     const salePeriod = { state: 'scheduled' as const, startsAt: '2026-12-01T00:00:00Z', endsAt: '2026-12-31T00:00:00Z', calculatedAt: NOW, nextChangeAt: '2026-12-01T00:00:00Z' };
-    expect(productCardUnavailableLabel({ salePeriod, options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 시작 전');
+    expect(productCardUnavailableLabel({ salePeriod, options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 예정');
     expect(productCardUnavailableLabel({ salePeriod: { ...salePeriod, state: 'ended', nextChangeAt: null } }, false)).toBe('판매 종료');
   });
 });
