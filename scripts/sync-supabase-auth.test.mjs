@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
+  AUTH_READBACK_DELAYS_MS,
   captchaPatch,
   isSatisfied,
   isSafeConfirmationTemplate,
@@ -666,6 +667,47 @@ describe('syncSupabaseAuth', () => {
 
     await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
     expect(JSON.parse(calls[1].body).mailer_subjects_recovery).toBe('엑스스퀘어 비밀번호 재설정');
+  });
+
+  it('반영이 늦어도 정해진 대기 안에 읽히면 통과하고, 대기는 짧게 시작해 늘린다', async () => {
+    const recoveryTemplatePath = new URL('../supabase/templates/recovery.html', import.meta.url).pathname;
+    const recoveryTemplate = (await readFile(recoveryTemplatePath, 'utf8')).trim();
+    const env = { ...baseEnv, RECOVERY_TEMPLATE_PATH: recoveryTemplatePath };
+    const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
+    const stale = ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_templates_recovery_content: 'old' });
+    /* 2026-11-24 운영 실측처럼 옛 대기(합 15초)를 넘겨 7번째 읽기에서야 새 템플릿이 보인다. */
+    const { fetchStub } = stubFetch([
+      stale, ok({}), stale, stale, stale, stale, stale, stale,
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_templates_recovery_content: recoveryTemplate }),
+    ]);
+    vi.stubGlobal('fetch', fetchStub);
+    const waits = [];
+
+    await expect(syncSupabaseAuth(env, () => {}, { wait: async (ms) => { waits.push(ms); } }))
+      .resolves.toEqual({ patched: true });
+    expect(waits).toEqual(AUTH_READBACK_DELAYS_MS.slice(0, 6));
+    expect(waits.reduce((sum, ms) => sum + ms, 0)).toBeGreaterThan(15_000);
+  });
+
+  it('끝내 읽히지 않으면 약 90초 대기 뒤 실패하고, 어긋난 템플릿과 맞는 값을 가려 말한다', async () => {
+    const recoveryTemplatePath = new URL('../supabase/templates/recovery.html', import.meta.url).pathname;
+    const recoveryTemplate = (await readFile(recoveryTemplatePath, 'utf8')).trim();
+    const env = { ...baseEnv, RECOVERY_TEMPLATE_PATH: recoveryTemplatePath, RECOVERY_SUBJECT: '엑스스퀘어 비밀번호 재설정' };
+    const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
+    /* 템플릿은 반영됐지만 제목이 끝내 옛 값이다 — 메시지가 템플릿은 ok, 제목은 실제 값으로 말해야 한다. */
+    const reflected = { site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_templates_recovery_content: recoveryTemplate, mailer_subjects_recovery: 'ICONS 비밀번호 재설정' };
+    const reads = Array.from({ length: AUTH_READBACK_DELAYS_MS.length + 1 }, () => ok(reflected));
+    const { fetchStub } = stubFetch([ok({ ...reflected, mailer_templates_recovery_content: 'old' }), ok({}), ...reads]);
+    vi.stubGlobal('fetch', fetchStub);
+    const waits = [];
+
+    const error = await syncSupabaseAuth(env, () => {}, { wait: async (ms) => { waits.push(ms); } }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('recovery_template=ok');
+    expect(error.message).toContain('recovery_subject=ICONS 비밀번호 재설정');
+    expect(error.message).toContain('password_changed_template=not-managed');
+    expect(waits).toEqual([...AUTH_READBACK_DELAYS_MS]);
+    expect(waits.reduce((sum, ms) => sum + ms, 0)).toBe(90_000);
   });
 
   it('email link TTL을 PATCH하고 read-back으로 검증한다', async () => {

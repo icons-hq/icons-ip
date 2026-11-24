@@ -255,7 +255,20 @@ function requireEnv(env, name) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function syncSupabaseAuth(env = process.env, log = console.log) {
+/*
+ * PATCH 뒤 read-back 사이의 대기(ms). Supabase Auth는 메일 템플릿처럼 큰 값을 바꾸면 반영이 15초를 넘길 수 있다 —
+ * 2026-11-24 재설정 메일 템플릿을 처음 바꾼 운영 배포에서 옛 대기(1~5초, 합 15초)가 끝날 때까지 새 템플릿이 읽히지 않아
+ * job이 실패했고, 같은 커밋을 다시 돌리자 "already up to date"로 통과했다(run 45323173698). 짧게 시작해 늘리고 합 90초에서 멈춘다.
+ */
+export const AUTH_READBACK_DELAYS_MS = Object.freeze([1000, 2000, 3000, 5000, 8000, 10000, 15000, 15000, 15000, 16000]);
+
+/** 관리 중인 템플릿이 읽어 온 값과 같은지 — 실패 메시지가 어느 템플릿이 어긋났는지 말하게 한다. */
+function templateState(managed, actual) {
+  if (managed === null) return 'not-managed';
+  return normalizedTemplate(actual) === managed ? 'ok' : 'mismatch';
+}
+
+export async function syncSupabaseAuth(env = process.env, log = console.log, { wait = sleep } = {}) {
   const token = requireEnv(env, 'SUPABASE_ACCESS_TOKEN');
   const projectRef = requireEnv(env, 'PROJECT_REF');
   const siteUrl = requireEnv(env, 'SITE_URL');
@@ -394,13 +407,14 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
   }
 
   /* PATCH가 200이어도 반영은 곧바로 읽히지 않는다 — 확인까지 해야 동기화라고 말할 수 있다. */
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
+  for (const delay of AUTH_READBACK_DELAYS_MS) {
     const verified = await readConfig({ token, projectRef });
     if (isSatisfied({ config: verified, ...desired })) {
       log(`Supabase Auth configuration for ${projectRef} updated.`);
       return { patched: true };
     }
-    await sleep(attempt * 1000);
+    log(`Supabase Auth configuration for ${projectRef} not reflected yet; checking again in ${delay / 1000}s.`);
+    await wait(delay);
   }
 
   const final = await readConfig({ token, projectRef });
@@ -412,13 +426,13 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `rate_limit_email_sent=${final.rate_limit_email_sent}, `
     + `mailer_otp_exp=${final.mailer_otp_exp}, `
     + `mailer_otp_length=${final.mailer_otp_length}, `
-    + `recovery_template=${recoveryTemplate === null ? 'not-managed' : 'mismatch'}, `
+    + `recovery_template=${templateState(recoveryTemplate, final.mailer_templates_recovery_content)}, `
     + `recovery_subject=${recoverySubject === null ? 'not-managed' : final.mailer_subjects_recovery}, `
     + `security_update_password_require_current_password=${final.security_update_password_require_current_password}, `
     + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `
     + `mailer_notifications_password_changed_enabled=${final.mailer_notifications_password_changed_enabled}, `
-    + `password_changed_template=${passwordChanged === null ? 'not-managed' : 'mismatch'}, `
-    + `confirmation_template=${confirmation === null ? 'not-managed' : 'mismatch'}, `
+    + `password_changed_template=${templateState(passwordChanged?.template ?? null, final.mailer_templates_password_changed_notification_content)}, `
+    + `confirmation_template=${templateState(confirmation?.template ?? null, final.mailer_templates_confirmation_content)}, `
     + `security_captcha=${captcha === null ? 'not-managed' : `${final.security_captcha_enabled}/${final.security_captcha_provider}`}`,
   );
 }
