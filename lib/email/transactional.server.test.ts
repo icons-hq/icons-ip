@@ -5,6 +5,8 @@ import {
   sendOrderShippedEmail,
   sendRestockAlertEmails,
   sendVirtualAccountIssuedEmail,
+  sendDepositReversalEmail,
+  sendDepositReversalCanceledEmail,
 } from './transactional.server';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -858,3 +860,71 @@ describe('sendVirtualAccountIssuedEmail (ADR-0049)', () => {
     expect(loggedLines().some((line) => line.includes('virtual account issued failed'))).toBe(true);
   });
 });
+
+describe('입금 오류 되돌림 메일(ADR-0049 결정 4)', () => {
+  const account = {
+    bankCode: '20', accountNumber: 'X6505636518308', dueAt: '2099-11-25T14:59:00.000Z',
+    amount: 31_000, useEscrow: false, state: 'reversed', reversal: { sequence: 2, resolution: null },
+  };
+
+  function mockAccount(value: unknown) {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'claim_email_delivery') return { data: true, error: null };
+      if (name === 'service_order_virtual_account') return { data: value, error: null };
+      return { data: null, error: null };
+    });
+  }
+
+  it('재입금을 기다리는 계좌면 되돌림 번호로 한 통 보낸다 — 아직 나가지 않은 주문은 자동 취소도 알린다', async () => {
+    mocks.order = { ...mocks.order, status: 'paid' };
+    mockAccount(account);
+
+    const result = await sendDepositReversalEmail(ORDER_ID);
+
+    expect(result.status).toBe('sent');
+    expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
+      target_dedupe_key: `order_deposit_reversal:${ORDER_ID}:2`,
+      target_template: 'order_deposit_reversal',
+      target_recipient: 'buyer@example.com',
+    });
+    const { subject, text } = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(subject).toContain('다시 입금이 필요해요');
+    expect(text).toContain('X6505636518308');
+    expect(text).toContain('자동으로 취소');
+  });
+
+  it('이미 다시 입금됐거나 되돌림 기록이 없거나 주문이 취소됐으면 보내지 않는다', async () => {
+    mocks.order = { ...mocks.order, status: 'paid' };
+    mockAccount({ ...account, state: 'deposited' });
+    expect(await sendDepositReversalEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'virtual_account_state_mismatch:deposited' });
+    mockAccount({ ...account, reversal: null });
+    expect(await sendDepositReversalEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'deposit_reversal_missing' });
+    // 기한이 이미 지났으면 다시 입금할 수 없다 — 재입금을 안내하지 않는다.
+    mockAccount({ ...account, dueAt: '2020-01-01T00:00:00.000Z' });
+    expect(await sendDepositReversalEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'deposit_reversal_due_passed' });
+    mocks.order = { ...mocks.order, status: 'canceled' };
+    expect(await sendDepositReversalEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'order_status_mismatch:canceled' });
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('자동 취소 안내는 반납으로 닫혀 취소된 주문에만 주문당 한 통이다', async () => {
+    mocks.order = { ...mocks.order, status: 'canceled' };
+    mockAccount({ ...account, state: 'closed', reversal: { sequence: 1, resolution: 'released' } });
+
+    const result = await sendDepositReversalCanceledEmail(ORDER_ID);
+
+    expect(result.status).toBe('sent');
+    expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({ target_dedupe_key: `order_deposit_reversal:${ORDER_ID}:canceled` });
+    const { text } = mocks.send.mock.calls[0][0] as { text: string };
+    expect(text).toContain('따로 환불할 금액은 없어요');
+
+    mocks.send.mockClear();
+    mocks.order = { ...mocks.order, status: 'paid' };
+    expect(await sendDepositReversalCanceledEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'order_status_mismatch:paid' });
+    mocks.order = { ...mocks.order, status: 'canceled' };
+    mockAccount({ ...account, state: 'closed', reversal: { sequence: 1, resolution: 'operator_released' } });
+    expect(await sendDepositReversalCanceledEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'deposit_reversal_not_released' });
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+});
+

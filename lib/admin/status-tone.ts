@@ -66,7 +66,7 @@ const STATUS_TONES = {
   paymentAttempt: { prepared: 'neutral', confirming: 'info', approved: 'success', declined: 'danger', canceled: 'danger', unknown: 'warning', needs_review: 'danger', awaiting_deposit: 'neutral' },
   /** 토스 가상계좌 입금 상태 — lib/admin/orders ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS(ADR-0049). 입금 대기는 고객을 기다리는 상태라 조용히,
    *  기한이 지났는데 닫히지 않은 확인 중은 우리가 지켜볼 일이다. 입금 없이 닫힌 계좌는 끝난 일이다 */
-  virtualAccount: { awaiting: 'neutral', deposited: 'success', checking: 'warning', closed: 'neutral' },
+  virtualAccount: { awaiting: 'neutral', deposited: 'success', reversed: 'danger', checking: 'warning', closed: 'neutral' },
   /** 에스크로 배송 정보 등록 — lib/admin/orders ADMIN_ESCROW_DELIVERY_STATE_LABELS. 자동 등록이 안 된 건(직접 등록 필요)만 위험색이다 */
   escrowDelivery: { waiting: 'neutral', ready: 'info', registered: 'success', skipped: 'neutral', manual_required: 'danger' },
   /** 결제사 에스크로 거래 상태 — lib/admin/orders ADMIN_ESCROW_STATUS_LABELS. 구매자 취소 신청은 우리가 처리할 일이다 */

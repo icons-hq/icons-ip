@@ -53,6 +53,8 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import type { CheckoutPaymentReading, OrderRetrySource } from '@/lib/checkout';
 import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
+import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
+import { VIRTUAL_ACCOUNT_COPY, type OrderVirtualAccount } from '@/lib/payments/virtual-account';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { customerShipmentGroupLabels } from '@/lib/fulfillment';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
@@ -291,6 +293,7 @@ export function OrderDetail({
   orderer = null,
   paymentDisplay = null,
   receiptNotice = false,
+  virtualAccount = null,
 }: {
   viewerId?: string;
   /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 null. */
@@ -327,6 +330,8 @@ export function OrderDetail({
   paymentDisplay?: OrderPaymentDisplay | null;
   /** `?receipt=unavailable`로 돌아온 경우 — 결제 영수증을 불러오지 못했다는 안내를 결제 정보에 띄운다. */
   receiptNotice?: boolean;
+  /** 토스 가상계좌 입금 정보(본인 전용 RPC). 입금 오류 되돌림(state 'reversed')이면 재입금 안내를 띄운다. 가상계좌 결제가 아니면 null. */
+  virtualAccount?: OrderVirtualAccount | null;
 }) {
   const at = now ?? new Date();
   /* 부분 취소(재고 부족) 뒤에는 주문 품목 수량이 원 수량 그대로다 — 고객에게는 남은 수량을 말하고 취소된 몫을 따로 적는다. */
@@ -414,6 +419,29 @@ export function OrderDetail({
               </p>
             </div>
             <Link className="btn btn-holo" href={`/checkout/${order.id}`}>입금 안내 보기</Link>
+          </div>
+        </div>
+      )}
+
+      {/* 토스 가상계좌 입금 오류 되돌림(ADR-0049 결정 4) — 은행이 입금을 취소해 재입금을 기다리는 동안. 주문 상태는 결제완료로 남지만
+          (원장은 되돌리지 않는다) 출고는 보류돼 있고, 고객에게는 같은 계좌·금액·기한을 다시 보인다. */}
+      {virtualAccount?.state === 'reversed' && order.status !== 'canceled' && (
+        <div className="wrap">
+          <div className="order-detail-deposit card" role="status" data-order-deposit-reversed="">
+            <div>
+              <strong>{VIRTUAL_ACCOUNT_COPY.reversedTitle}</strong>
+              {Date.parse(virtualAccount.dueAt) > at.getTime() ? <>
+                <p>{VIRTUAL_ACCOUNT_COPY.reversedBody}</p>
+                <dl className="checkout-totals">
+                  <div><dt>입금 은행</dt><dd>{tossBankLabel(virtualAccount.bankCode)}</dd></div>
+                  <div><dt>계좌번호</dt><dd>{virtualAccount.accountNumber}</dd></div>
+                  <div><dt>입금 금액</dt><dd>{krw(virtualAccount.amount)}</dd></div>
+                  <div><dt>입금 기한</dt><dd>{formatOrderDateTime(virtualAccount.dueAt)}</dd></div>
+                </dl>
+                {/* 자동 취소는 아직 나가지 않은 주문만이다(발송된 주문은 시스템이 취소하지 않는다). */}
+                {order.status === 'paid' || order.status === 'confirmed' ? <p>{VIRTUAL_ACCOUNT_COPY.reversedDeadlineNote}</p> : null}
+              </> : <p>{VIRTUAL_ACCOUNT_COPY.reversedOverdueBody}</p>}
+            </div>
           </div>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { formatOrderDateTime } from '@/lib/orders';
 import { isUuid } from '@/lib/uuid';
 
 /**
@@ -5,8 +6,9 @@ import { isUuid } from '@/lib/uuid';
  * (supabase/migrations/20261118156000_order_fulfillment_holds.sql). 화면은 사유·근거를 보이고 해제만 요청한다.
  *  - test_payment: 운영 배포에 토스 테스트 키가 물린 기간에 승인된 결제. 돈이 실제로 결제되지 않았다.
  *  - provider_canceled: 토스 상점관리자 등 결제사에서 직접 취소됐는데 우리 원장에 그 취소가 없다.
- *  - deposit_reversed: 토스가 가상계좌 입금(DONE)을 알린 뒤 은행이 그 입금을 취소했다(입금 대기로 되돌아감, ADR-0049).
- *    결제 원장은 되돌리지 않고 출고만 막는다 — 상점관리자에서 입금 상태를 확인한 뒤 해제하거나 운영자 전액 취소한다.
+ *  - deposit_reversed: 토스가 가상계좌 입금(DONE)을 알린 뒤 은행이 그 입금을 취소했다(입금 대기로 되돌아감, ADR-0049 결정 4).
+ *    결제 원장은 되돌리지 않고 출고만 막는다. 해결은 시스템이 한다 — 재입금이면 보류 자동 해제, 입금 기한까지 없으면 계좌 반납 뒤
+ *    주문 자동 취소(환불 없음). 시스템이 끝내지 못한 건(depositReversal.state 'review')만 운영자 몫이다.
  *  - escrow_cancel_requested: 구매자가 토스 구매안전서비스(에스크로) 구매확정 메일에서 취소를 신청했다(ADR-0049).
  *    운영자 전액 취소가 이 결제에서는 결제 취소 대신 에스크로 취소 수락(구매자가 등록한 환불 계좌로 환불)을 부른다.
  */
@@ -19,6 +21,22 @@ export const FULFILLMENT_HOLD_LABELS: Record<FulfillmentHoldReason, string> = {
   deposit_reversed: '입금 오류 되돌림',
   escrow_cancel_requested: '에스크로 취소 요청',
 };
+
+/** 입금 오류 되돌림의 시스템 처리 상태(private.virtual_account_deposit_reversals). */
+export const DEPOSIT_REVERSAL_REVIEW_CODES = [
+  'lookup_failed', 'payment_mismatch', 'order_shipped', 'provider_refunded', 'cancellation_pending', 'close_failed',
+] as const;
+export type DepositReversalReviewCode = typeof DEPOSIT_REVERSAL_REVIEW_CODES[number];
+
+export interface DepositReversalProgress {
+  /** awaiting_redeposit = 시스템이 재입금을 기다리며 처리 중 · review = 운영자 확인 필요. */
+  state: 'awaiting_redeposit' | 'review';
+  /** 지금 입금 기한(결제사 조회값). */
+  dueAt: string | null;
+  reviewCode: DepositReversalReviewCode | null;
+  /** 계좌가 이미 반납·만료돼 더 입금될 수 없는지. */
+  released: boolean;
+}
 
 export interface OrderFulfillmentHold {
   reason: FulfillmentHoldReason;
@@ -35,6 +53,8 @@ export interface OrderFulfillmentHold {
    * 다 나간 주문의 보류는 경고다 — 배송완료는 막지 않고, 반품 접수 또는 사유를 적어 해제한다.
    */
   outboundBlocked: boolean;
+  /** deposit_reversed: 시스템 처리 상태. 기록이 없으면(처리 전 보류) null. */
+  depositReversal?: DepositReversalProgress | null;
 }
 
 export interface OrderFulfillmentHoldListItem {
@@ -54,6 +74,16 @@ const isReason = (value: unknown): value is FulfillmentHoldReason =>
 const nullableString = (value: unknown) => (typeof value === 'string' && value ? value : null);
 const nullableAmount = (value: unknown) => (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null);
 
+function parseDepositReversal(value: unknown): DepositReversalProgress | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (row.state !== 'awaiting_redeposit' && row.state !== 'review') return null;
+  const reviewCode = typeof row.reviewCode === 'string' && (DEPOSIT_REVERSAL_REVIEW_CODES as readonly string[]).includes(row.reviewCode)
+    ? row.reviewCode as DepositReversalReviewCode
+    : null;
+  return { state: row.state, dueAt: nullableString(row.dueAt), reviewCode, released: row.released === true };
+}
+
 function parseHolds(value: unknown): OrderFulfillmentHold[] | null {
   if (!Array.isArray(value) || !value.length) return null;
   const holds: OrderFulfillmentHold[] = [];
@@ -70,6 +100,7 @@ function parseHolds(value: unknown): OrderFulfillmentHold[] | null {
       paymentAmount: nullableAmount(row.paymentAmount),
       /* 모르는 값은 막는 쪽으로 읽는다(안내가 '출고하지 마세요'로 남는다). */
       outboundBlocked: row.outboundBlocked !== false,
+      ...(row.reason === 'deposit_reversed' ? { depositReversal: parseDepositReversal(row.depositReversal) } : {}),
     });
   }
   return holds;
@@ -111,6 +142,7 @@ const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
  */
 export function fulfillmentHoldGuidance(hold: OrderFulfillmentHold): string {
   const unexplained = hold.unexplainedAmount ?? hold.providerCanceledAmount;
+  if (hold.reason === 'deposit_reversed' && hold.depositReversal) return depositReversalGuidance(hold, hold.depositReversal);
   if (hold.reason === 'deposit_reversed') {
     return hold.outboundBlocked
       ? '결제사가 가상계좌 입금을 알린 뒤 은행이 그 입금을 취소했습니다. 돈이 들어와 있지 않을 수 있으니 출고하지 마세요. 토스페이먼츠 상점관리자에서 이 결제의 입금 상태를 확인해, 입금이 다시 확인되면 사유를 적고 보류를 해제하고, 입금이 없으면 운영자 전액 취소로 주문을 닫으세요(재고·쿠폰·적립금이 돌아갑니다).'
@@ -136,6 +168,39 @@ export function fulfillmentHoldGuidance(hold: OrderFulfillmentHold): string {
     return `결제사에서 결제가 전액 취소되었습니다(취소${amount}). 출고하지 말고 운영자 전액 취소로 주문을 닫으세요 — 시스템이 이미 취소된 결제로 확인해 환불 기록을 남기고 재고·쿠폰을 되돌립니다.`;
   }
   return `결제사에서 결제 일부가 시스템 모르게 취소되었습니다(취소${amount}). 남은 금액도 취소해야 하면 토스 상점관리자에서 남은 금액을 마저 취소한 뒤 운영자 전액 취소로 주문을 닫으세요. 남은 금액으로 출고하기로 했다면 사유를 적고 보류를 해제하세요.`;
+}
+
+const dueLabel = (progress: DepositReversalProgress) => {
+  const due = progress.dueAt ? formatOrderDateTime(progress.dueAt) : null;
+  return due ? `입금 기한(${due})` : '입금 기한';
+};
+
+/**
+ * 입금 오류 되돌림 — 시스템이 처리 중이면 운영자가 할 일이 없다고 말하고, 확인 필요면 사유별 다음 일을 말한다(ADR-0049 결정 4).
+ * 운영자 전액 취소는 이 결제에서 환불이 아니라 계좌 반납 뒤 결제 없이 취소다(환불 계좌 불필요).
+ */
+function depositReversalGuidance(hold: OrderFulfillmentHold, progress: DepositReversalProgress): string {
+  if (progress.state === 'awaiting_redeposit') {
+    return hold.outboundBlocked
+      ? `결제사가 가상계좌 입금을 알린 뒤 은행이 그 입금을 취소했습니다. 출고하지 마세요. 시스템이 고객에게 같은 계좌로 다시 입금하라고 안내했습니다. ${dueLabel(progress)}까지 다시 입금되면 보류가 자동으로 풀리고, 입금이 없으면 기한이 지난 뒤 시스템이 계좌를 반납하고 주문을 자동 취소합니다(재고·쿠폰·적립금 복원, 환불 없음). 따로 할 일은 없습니다.`
+      : `이미 발송된 주문인데 은행이 가상계좌 입금을 취소했습니다. 배송완료 처리는 막지 않습니다. 시스템이 고객에게 재입금을 안내했고, ${dueLabel(progress)}까지 다시 입금되면 이 경고가 자동으로 풀립니다. 입금이 없으면 확인 필요로 올라옵니다.`;
+  }
+  switch (progress.reviewCode) {
+    case 'order_shipped':
+      return progress.released
+        ? '이미 발송된 주문인데 은행이 입금을 취소했고 입금 기한까지 다시 입금되지 않아 계좌가 닫혔습니다(더 입금되지 않습니다). 시스템은 발송된 주문을 취소하지 않습니다. 고객에게 연락해 반품을 접수하거나, 다른 방법으로 대금을 받았다면 사유를 적고 보류를 해제하세요.'
+        : '이미 발송된 주문인데 은행이 입금을 취소했습니다. 시스템은 발송된 주문을 취소하지 않습니다. 고객에게 연락해 반품을 접수하거나, 다른 방법으로 대금을 받았다면 사유를 적고 보류를 해제하세요. 늦게라도 다시 입금되면 보류가 자동으로 풀립니다.';
+    case 'lookup_failed':
+      return '은행이 가상계좌 입금을 취소한 결제인데, 결제사 조회가 입금 기한 뒤에도 계속 실패해 시스템이 처리를 끝내지 못했습니다. 출고하지 마세요. 조회가 회복되면 시스템이 이어서 처리합니다. 오래 이어지면 토스페이먼츠 상점관리자에서 이 결제의 입금 상태를 확인해, 입금됐으면 사유를 적고 보류를 해제하고, 입금이 없으면 운영자 전액 취소로 주문을 닫으세요(계좌 반납 뒤 결제 없이 취소, 환불 계좌 필요 없음).';
+    case 'payment_mismatch':
+      return '은행이 가상계좌 입금을 취소한 결제인데, 결제사 기록이 시스템 기록과 맞지 않아 자동으로 처리하지 않았습니다. 출고하지 마세요. 토스페이먼츠 상점관리자에서 이 결제의 상태를 확인하고 결제 담당자에게 넘겨주세요.';
+    case 'provider_refunded':
+      return '은행이 가상계좌 입금을 취소한 결제인데, 결제사에서 이 결제가 환불 처리돼 있습니다(상점관리자 직접 환불 등). 출고하지 마세요. 토스페이먼츠 상점관리자에서 환불 내역을 확인한 뒤 운영자 전액 취소로 주문을 닫으세요.';
+    case 'cancellation_pending':
+      return '은행이 가상계좌 입금을 취소한 결제에 처리 대기 중인 취소·반품 요청이 있어 시스템이 주문을 닫지 않았습니다. 출고하지 마세요. 클레임 화면에서 그 요청을 처리하면 결제 없이 취소가 끝납니다(입금된 돈이 없어 환불 계좌는 필요 없습니다).';
+    default:
+      return '은행이 가상계좌 입금을 취소했고 입금 기한까지 다시 입금되지 않았는데, 시스템이 주문을 자동으로 취소하지 못했습니다. 출고하지 마세요. 운영자 전액 취소로 주문을 닫으세요(계좌가 반납돼 환불 없이 취소되고 재고·쿠폰·적립금이 돌아갑니다).';
+  }
 }
 
 /** 해제 결과 오류 코드 → 문구. */
