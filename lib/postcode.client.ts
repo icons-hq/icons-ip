@@ -19,8 +19,16 @@ export interface PostcodeEmbedTarget {
 
 export type PostcodeConstructor = new (options: PostcodeEmbedOptions) => PostcodeEmbedTarget;
 
+/* 스크립트는 `window.kakao`를 만들고 옛 이름 `window.daum`을 같은 객체로 잇는다. 새 이름을 먼저 읽고,
+   옛 이름은 이어 주기가 빠지는 날을 위한 대체로만 읽는다. */
 interface PostcodeGlobal {
+  kakao?: { Postcode?: PostcodeConstructor };
   daum?: { Postcode?: PostcodeConstructor };
+}
+
+function loadedPostcodeConstructor(): PostcodeConstructor | undefined {
+  const global = window as unknown as PostcodeGlobal;
+  return global.kakao?.Postcode ?? global.daum?.Postcode;
 }
 
 /** 응답 없는 스크립트는 error 이벤트를 주지 않는다. 무한 로딩 대신 실패로 끝낸다. */
@@ -38,7 +46,7 @@ export function loadPostcodeSearch(): Promise<PostcodeConstructor> {
     return Promise.reject(new Error('postcode search requires a browser'));
   }
 
-  const loaded = (window as unknown as PostcodeGlobal).daum?.Postcode;
+  const loaded = loadedPostcodeConstructor();
   if (loaded) return Promise.resolve(loaded);
   if (pending) return pending;
 
@@ -61,7 +69,7 @@ export function loadPostcodeSearch(): Promise<PostcodeConstructor> {
     script.src = POSTCODE_SCRIPT_SRC;
     script.async = true;
     script.onload = () => {
-      const constructor = (window as unknown as PostcodeGlobal).daum?.Postcode;
+      const constructor = loadedPostcodeConstructor();
       if (constructor) settle(() => resolve(constructor));
       else fail('postcode search script loaded without a constructor');
     };

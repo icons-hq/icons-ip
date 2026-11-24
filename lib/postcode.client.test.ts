@@ -15,7 +15,7 @@ interface FakeScript {
   remove: () => void;
 }
 
-const daumWindow: { daum?: { Postcode?: unknown } } = {};
+const daumWindow: { daum?: { Postcode?: unknown }; kakao?: { Postcode?: unknown } } = {};
 let scripts: FakeScript[] = [];
 
 function Postcode() {
@@ -26,6 +26,7 @@ beforeEach(() => {
   resetPostcodeSearchLoader();
   scripts = [];
   delete daumWindow.daum;
+  delete daumWindow.kakao;
 
   vi.stubGlobal('window', daumWindow);
   vi.stubGlobal('document', {
@@ -77,6 +78,27 @@ describe('loadPostcodeSearch', () => {
 
     await expect(loadPostcodeSearch()).resolves.toBe(Postcode);
     expect(scripts).toHaveLength(0);
+  });
+
+  it('새 이름 kakao.Postcode를 먼저 읽고, 옛 이름 daum만 있어도 쓴다', async () => {
+    function KakaoPostcode() {
+      return { embed: () => undefined };
+    }
+    daumWindow.kakao = { Postcode: KakaoPostcode };
+    daumWindow.daum = { Postcode };
+    await expect(loadPostcodeSearch()).resolves.toBe(KakaoPostcode);
+
+    delete daumWindow.kakao;
+    const loading = loadPostcodeSearch();
+    await expect(loading).resolves.toBe(Postcode);
+    expect(scripts).toHaveLength(0);
+  });
+
+  it('kakao.Postcode만 만드는 스크립트도 받아들인다', async () => {
+    const loading = loadPostcodeSearch();
+    daumWindow.kakao = { Postcode };
+    scripts[0].onload?.();
+    await expect(loading).resolves.toBe(Postcode);
   });
 
   it('로드 실패는 캐시하지 않고 재시도를 허용한다', async () => {
