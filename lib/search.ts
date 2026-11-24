@@ -6,6 +6,7 @@ import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/me
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { resolveCatalogSource } from './catalog-source';
+import { goodBadgeList } from './goods-taxonomy';
 
 export type SearchResultKind = 'ip' | 'good' | 'card' | 'post' | 'tag';
 
@@ -156,7 +157,7 @@ function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions):
       score: mockScore(query, ip.title),
     })),
     ...DATA.GOODS.filter((good) =>
-      matchesQuery(query, [good.name, good.badge, ipsById.get(good.ip)?.title]),
+      matchesQuery(query, [good.name, ...goodBadgeList(good), ipsById.get(good.ip)?.title]),
     ).map((good) => {
       const ip = ipsById.get(good.ip);
       return {

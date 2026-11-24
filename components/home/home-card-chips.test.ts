@@ -23,6 +23,14 @@ describe('homeCardChips', () => {
     expect(homeCardChips({ badge: null }, true)).toEqual([]);
   });
 
+  /* 카테고리 추천처럼 칩 없이 표시문구 목록만 싣는 카드(migration 20261125140000)는 고른 순서대로 칩을 단다. */
+  it('turns every stored badge into tag chips in order for cards that carry no chips', () => {
+    expect(homeCardChips({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }, true)).toEqual([
+      { kind: 'tag', label: 'EXCLUSIVE' }, { kind: 'tag', label: 'NEW' },
+    ]);
+    expect(homeCardChips({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }, false)).toEqual([]);
+  });
+
   it('keeps an explicitly empty chip list empty instead of reviving the badge', () => {
     expect(homeCardChips({ chips: [], badge: 'NEW' }, true)).toEqual([]);
   });

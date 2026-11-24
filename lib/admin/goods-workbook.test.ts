@@ -352,6 +352,29 @@ describe('goods Excel planning', () => {
     const result = planGoodsWorkbookImport([{ row: 5, values: { ...rows[0], name: '다른 한글 이름', publish: '초안' } }], translatedContext)[0];
     expect(result).toMatchObject({ kind: 'update', target: { name_en: 'Acrylic Keyring', name: '다른 한글 이름' } });
   });
+  /* 상품 표시문구 여러 개(2026-11-24): 양식 버전은 그대로, '상품 표시문구' 한 칸에 쉼표로 여러 개를 쓰고 읽는다(옛 한 값도 그대로). */
+  it('상품 표시문구를 고른 순서대로 쉼표로 내보내고, 그대로 올리면 변경 없음, 고쳐 올리면 그 순서로 저장한다', async () => {
+    const badged = { ...existing, good: { ...existing.good, badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] } };
+    const badgedContext = { ...context, existing: [badged] };
+    const exported = exportGoodsWorkbookRows(badged, badgedContext);
+    expect(GOODS_WORKBOOK_HEADERS.badge).toBe('상품 표시문구');
+    expect(exported[0].badge).toBe('EXCLUSIVE, NEW');
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(planGoodsWorkbookImport(parsed.rows, badgedContext)[0].kind).toBe('unchanged');
+    const reordered = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], badge: 'new,exclusive' } }], badgedContext)[0];
+    expect(reordered).toMatchObject({ kind: 'update', target: { badges: ['NEW', 'EXCLUSIVE'] } });
+    expect(reordered.target).not.toHaveProperty('badge');
+    /* 목록을 싣지 않은 옛 기록은 첫 값 하나로 내보낸다. */
+    expect(exportGoodsWorkbookRows({ ...existing, good: { ...existing.good, badge: 'NEW' } }, context)[0].badge).toBe('NEW');
+  });
+  it('상품 표시문구 한 값·빈칸을 읽고, 표준 값이 아닌 글자는 그 상품을 막는다', () => {
+    const exported = exportGoodsWorkbookRows(existing, context)[0];
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, badge: 'NEW' } }], context)[0])
+      .toMatchObject({ kind: 'update', target: { badges: ['NEW'] } });
+    const rejected = planGoodsWorkbookImport([{ row: 5, values: { ...exported, badge: 'NEW, 신상' } }], context)[0];
+    expect(rejected.kind).toBe('error');
+    expect(rejected.errors.join('\n')).toContain('상품 표시문구는 NEW, EXCLUSIVE 중에서만 고를 수 있습니다.');
+  });
   it('treats an untouched export as zero changes, including blanks and storage paths', () => {
     const rows = exportGoodsWorkbookRows(existing, context).map(
       (values, index) => ({ row: index + 5, values }),

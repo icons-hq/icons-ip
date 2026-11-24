@@ -1,6 +1,7 @@
 import type { Good, GoodOption } from '@/lib/data';
 import { preorderUnavailableLabel } from '@/lib/goods-preorders';
 import { goodsSaleUnavailableLabel, type GoodsSalePeriod } from '@/lib/goods-sale-period';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 
 /*
  * 상품 카드 칩(X SQUARE 스토어프런트 · 공용 부품 계약 §3).
@@ -29,12 +30,13 @@ export const PRODUCT_CARD_CHIP_LABELS = {
  * - 예약판매: 옵션 하나라도 예약 접수 중이고 남은 물량이 있다(`preorderSupplyLabel`이 '예약판매'를 돌려주는 판정과 같다).
  * - 무료배송: `shippingFeeType === 'free'`. 필드가 없는 옛 투영·목업은 칩을 그리지 않는다.
  * - 캡슐토이: 랜덤 판매(ADR-0027) 굿즈. 옵션이 주문 때 무작위로 배정되는 상품이다.
- * - 운영 배지: 저장된 `badge`(NEW·EXCLUSIVE) 그대로. 스토어 표시 설정이 태그를 끄면(`showTags: false`) 뺀다.
+ * - 운영 배지: 저장된 상품 표시문구(`badges`, NEW·EXCLUSIVE)를 운영자가 고른 순서대로 하나씩. 같은 값은 한 번만이고,
+ *   `badges`를 싣지 않는 옛 투영은 첫 값 `badge` 하나다(`goodBadgeList`). 스토어 표시 설정이 태그를 끄면(`showTags: false`) 모두 뺀다.
  *
  * SALE 은 칩이 아니다 — 할인은 가격 줄의 할인율이 대신한다.
  */
 export function productCardChips(
-  good: Pick<Good, 'options' | 'optionSaleMode' | 'badge' | 'shippingFeeType'>,
+  good: Pick<Good, 'options' | 'optionSaleMode' | 'badge' | 'badges' | 'shippingFeeType'>,
   options: { showTags?: boolean } = {},
 ): ProductCardChip[] {
   const chips: ProductCardChip[] = [];
@@ -45,8 +47,9 @@ export function productCardChips(
   if (preorderOpen) chips.push({ kind: 'preorder', label: PRODUCT_CARD_CHIP_LABELS.preorder });
   if (good.shippingFeeType === 'free') chips.push({ kind: 'freeShipping', label: PRODUCT_CARD_CHIP_LABELS.freeShipping });
   if (good.optionSaleMode === 'random') chips.push({ kind: 'random', label: PRODUCT_CARD_CHIP_LABELS.random });
-  const tag = good.badge?.trim();
-  if (tag && options.showTags !== false) chips.push({ kind: 'tag', label: tag });
+  if (options.showTags !== false) {
+    for (const label of goodBadgeList(good)) chips.push({ kind: 'tag', label });
+  }
   return chips;
 }
 
