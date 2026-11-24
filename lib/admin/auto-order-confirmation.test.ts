@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoOrderConfirmationError, isAutoOrderRunTime, parseAutoOrderConfirmation } from './auto-order-confirmation';
+import { AUTO_ORDER_CONFIRMATION_EXCLUSIONS, autoOrderConfirmationError, isAutoOrderRunTime, parseAutoOrderConfirmation } from './auto-order-confirmation';
 
 const doc = {
   revision: 3, enabled: true, runTime: '16:30', enabledAt: '2026-10-27T00:57:35.245761+00:00', updatedAt: '2026-10-27T00:57:35.245761+00:00',
@@ -13,6 +13,11 @@ describe('자동 발주확인 문서', () => {
     expect(parseAutoOrderConfirmation(doc)).toEqual(doc);
     expect(parseAutoOrderConfirmation({ ...doc, lastRun: null, lastExclusions: [] })).toMatchObject({ lastRun: null, lastExclusions: [] });
     expect(parseAutoOrderConfirmation({ ...doc, enabled: false, nextRunAt: null })).toMatchObject({ enabled: false, nextRunAt: null });
+  });
+  it('가상계좌 입금 대기 사유(deposit_settling)를 받아 운영자 문구로 보인다', () => {
+    const waiting = { ...doc, lastExclusions: [{ ...doc.lastExclusions[0], outcome: 'deposit_settling' }] };
+    expect(parseAutoOrderConfirmation(waiting)).toEqual(waiting);
+    expect(AUTO_ORDER_CONFIRMATION_EXCLUSIONS.deposit_settling).toContain('1시간');
   });
   it('켜짐인데 켠 시각·다음 실행이 없거나, 모르는 제외 사유·키가 있으면 거절한다', () => {
     expect(parseAutoOrderConfirmation({ ...doc, enabledAt: null })).toBeNull();
