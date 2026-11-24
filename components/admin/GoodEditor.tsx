@@ -58,7 +58,8 @@ import { goodFormValues } from '@/lib/admin/good-preview';
 import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
-import { GOOD_BADGES, goodDisplayBadges } from '@/lib/goods-taxonomy';
+import { formatGoodBadgeText, goodDisplayBadges, parseGoodBadgeText } from '@/lib/goods-taxonomy';
+import { GoodBadgesField } from './GoodBadgesField';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 
 import { GoodDetailView } from '@/components/screens/GoodDetail';
@@ -723,9 +724,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       </GoodEditorSection>
 
       {/* 7. 추가 설정(접힘): 대부분의 상품은 기본값 그대로다. 접혀도 입력은 DOM에 남는다. */}
-      <GoodEditorSection title="추가 설정" id="good-section-information" defaultOpen={false} errorCount={errorCount('information')} summary={`표시문구 ${values.badge || '없음'} · ${ADMIN_STOCK_LABELS[values.stock as keyof typeof ADMIN_STOCK_LABELS] ?? '정상 판매'} · ${values.code || suggestedCode || '상품 자동코드 자동 생성'}`}>
+      <GoodEditorSection title="추가 설정" id="good-section-information" defaultOpen={false} errorCount={errorCount('information')} summary={`표시문구 ${formatGoodBadgeText(parseGoodBadgeText(values.badge ?? '').badges) || '없음'} · ${ADMIN_STOCK_LABELS[values.stock as keyof typeof ADMIN_STOCK_LABELS] ?? '정상 판매'} · ${values.code || suggestedCode || '상품 자동코드 자동 생성'}`}>
         <AdminFormGrid>
-          <SelectField defaultValue={initial.badge} error={errors.badge} label="상품 표시문구" name="badge"><option value="">없음</option>{GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}</SelectField>
+          <GoodBadgesField defaultValue={initial.badge} error={errors.badge} />
           <SelectField defaultValue={initial.stock} error={errors.stock} label="판매상태" name="stock">{Object.entries(ADMIN_STOCK_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
         </AdminFormGrid>
         <OwnedFields locked={groupOwned} fields={['additionalCategoryIds']} values={initial}><GoodAdditionalCategoryField categories={categories} primary={categoryId} value={initial.additionalCategoryIds} error={errors.additionalCategoryIds} /></OwnedFields>

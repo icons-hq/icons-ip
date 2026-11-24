@@ -20,6 +20,7 @@ import type { CampaignLandingSnapshot, ResolvedCampaignSection } from '@/lib/cam
 import type { CoinOverview } from '@/lib/coins.server';
 import { goodDetailHref } from '@/lib/goods-display';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 import { imageBg } from '@/lib/media';
 
 /* 캠페인 상세 랜딩 (R-06 §2 · DESIGN §6 campaign-landing).
@@ -156,7 +157,7 @@ function SectionBody({
           {section.goods.map((good) => (
             <ProductCard
               action={context.heartFor(good)}
-              badges={good.badge ? [good.badge] : undefined}
+              badges={goodBadgeList(good)}
               showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
               href={goodDetailHref(good)}
               imageBackground={good.imageBackground}

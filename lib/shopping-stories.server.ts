@@ -10,6 +10,7 @@ import { goodCompareAtPrice } from '@/lib/goods-options';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { productCardUnavailableLabel } from '@/lib/product-card-chips';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 import { sanitizeShoppingStoryContent } from '@/lib/shopping-stories-content';
 import { SHOPPING_STORY_IMAGE_PATTERN, type PublicShoppingStory, type PublicShoppingStoryGood, type PublicShoppingStoryList,
   type PublicShoppingStorySection, type PublicShoppingStorySummary } from '@/lib/shopping-stories';
@@ -55,7 +56,9 @@ export async function getPublicShoppingStories(input: { page?: number; limit?: n
 export function parseShoppingStoryGood(value: unknown): PublicShoppingStoryGood | null {
   if (!record(value) || typeof value.id !== 'string' || typeof value.name !== 'string' || !nonnegative(value.price)
     || (value.compareAtPrice !== null && !nonnegative(value.compareAtPrice)) || typeof value.showDiscountRate !== 'boolean'
-    || (value.badge !== null && typeof value.badge !== 'string') || (value.imagePath !== null && typeof value.imagePath !== 'string')
+    || (value.badge !== null && typeof value.badge !== 'string')
+    || (value.badges !== undefined && (!Array.isArray(value.badges) || value.badges.some(badge => typeof badge !== 'string')))
+    || (value.imagePath !== null && typeof value.imagePath !== 'string')
     || (value.bg !== null && typeof value.bg !== 'string') || !['ok', 'low', 'soldout'].includes(String(value.stock)) || !Array.isArray(value.variants)) return null;
   const salePeriod = value.salePeriod === undefined ? undefined : parseGoodsSalePeriod(value.salePeriod);
   if (salePeriod === null) return null;
@@ -74,7 +77,8 @@ export function parseShoppingStoryGood(value: unknown): PublicShoppingStoryGood 
     priceMax: prices.length ? Math.max(...prices) : value.price,
     compareAtPrice: goodCompareAtPrice({ price: value.price, compareAtPrice: value.compareAtPrice as number | null }, options),
     showDiscountRate: value.showDiscountRate, imageBackground: imageUrl ? imageBg(imageUrl) : (value.bg as string | null) ?? '',
-    badge: value.badge as string | null, soldOut, ...(unavailableLabel ? { unavailableLabel } : {}) };
+    badge: value.badge as string | null, ...(Array.isArray(value.badges) ? { badges: goodBadgeList({ badges: value.badges as string[] }) } : {}),
+    soldOut, ...(unavailableLabel ? { unavailableLabel } : {}) };
 }
 export function parsePublicShoppingStory(value: unknown): PublicShoppingStory | null {
   const source = publicStorySource(value);

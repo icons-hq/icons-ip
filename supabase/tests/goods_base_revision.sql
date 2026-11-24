@@ -52,7 +52,7 @@ select pg_temp.base_assert((select name = 'TEST 기본 칸 A 수정' and price =
 
 -- 3. 기준값이 없는 요청(배포 순간 열려 있던 옛 화면)은 지금처럼 저장한다. 형식이 틀린 기준값은 거절한다.
 select public.admin_save_good(pg_temp.base_payload('base-a') || '{"badge":"NEW"}');
-select pg_temp.base_assert((select badge = 'NEW' from public.goods where id = 'base-a') and pg_temp.base_revision('base-a') > :rev1, 'legacy request without a revision saves and bumps');
+select pg_temp.base_assert((select badge = 'NEW' and badges = array['NEW'] from public.goods where id = 'base-a') and pg_temp.base_revision('base-a') > :rev1, 'legacy request without a revision saves and bumps');
 select pg_temp.base_error(format('select public.admin_save_good(%L::jsonb)', (pg_temp.base_payload('base-a') || '{"base_expected_revision":"3"}')::text), 'invalid_goods_base_revision');
 select pg_temp.base_error(format('select public.admin_save_good(%L::jsonb)', (pg_temp.base_payload('base-a') || '{"base_expected_revision":-1}')::text), 'invalid_goods_base_revision');
 

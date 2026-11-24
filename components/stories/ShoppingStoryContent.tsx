@@ -4,6 +4,7 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import type { PublicShoppingStorySection } from '@/lib/shopping-stories';
 import { goodDetailHref } from '@/lib/goods-display';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 
 /** The editor preview and storefront render the exact same sanitized document.
  *  상품 카드의 목록 하트(L4b · CL-01)는 공개 화면이 위시 상태(`wishlist`)를 넘길 때만 선다 — 에디터 미리보기에는 없다.
@@ -19,7 +20,7 @@ export function ShoppingStoryContent({ title, bodyHtml, imagePaths, sections, wi
         {section.goods.map(good => <ProductCard key={good.id} href={goodDetailHref(good)} name={good.name} price={good.price} priceMax={good.priceMax}
           action={heartFor(good)} reviewSummary={good.reviewSummary}
           listSurface="story" listingAppearance={good.listingAppearance} imageShape={section.imageShape}
-          compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} imageBackground={good.imageBackground} badges={good.badge ? [good.badge] : undefined} salePeriod={good.salePeriod} soldOut={good.soldOut} unavailableLabel={good.unavailableLabel} />)}
+          compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} imageBackground={good.imageBackground} badges={goodBadgeList(good)} salePeriod={good.salePeriod} soldOut={good.soldOut} unavailableLabel={good.unavailableLabel} />)}
       </div></section> : null)}
   </article>;
 }

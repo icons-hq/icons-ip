@@ -92,7 +92,13 @@ export interface Good {
   catalogPrice?: number;
   /** 저장된 소비자가(`goods.compare_at_price`). 옵션 정가는 여기에 옵션 추가금액을 더해 파생한다. */
   catalogCompareAtPrice?: number | null;
+  /** 상품 표시문구 첫 값(`goods.badge`, `badges[0]` 거울). 한 값만 아는 옛 투영·목업이 쓴다. */
   badge: string | null;
+  /**
+   * 상품 표시문구 전부(`goods.badges`, NEW·EXCLUSIVE). 배열 순서가 카드 칩·상세 배지 순서다. 없으면(옛 투영·목업) `badge` 하나로 읽는다 —
+   * 화면은 직접 읽지 말고 `goodBadgeList`(lib/goods-taxonomy)로 읽는다.
+   */
+  badges?: string[];
   /** 배송비 방식(`goods.shipping_fee_type`). 'free'면 상품 카드가 '무료배송' 칩을 단다. 없으면(옛 투영·목업) 칩을 그리지 않는다. */
   shippingFeeType?: 'policy' | 'free' | 'individual';
   stock: Stock;

@@ -13,6 +13,7 @@ import { readCardRewardsEnabled } from './card-rewards/gate.server';
 import { isUuid } from './uuid';
 import { goodDetailHref } from './goods-display';
 import { productCardUnavailableLabel } from './product-card-chips';
+import { goodBadgeList } from './goods-taxonomy';
 import { categoryDisplayRecord as record, CATEGORY_DISPLAY_PAGE_SIZE, isCategoryDisplayGoodId, type CategoryDisplayPage, type CategoryDisplayNavigation } from './category-display';
 import { SHOP_PREORDER_TYPE, type ShopFacetOption, type ShopListQuery } from './shop-catalog';
 import type { Good } from './data';
@@ -30,6 +31,7 @@ export function parseCategoryDisplayGood(value: unknown): Good | null {
   if (!record(value) || !isCategoryDisplayGoodId(value.id) || typeof value.name !== 'string' || typeof value.ip_id !== 'string'
     || !number(value.price) || !number(value.stock_qty) || typeof value.stock !== 'string'
     || !nullableString(value.image_path) || !nullableString(value.bg) || !nullableString(value.badge)
+    || (value.badges !== undefined && (!Array.isArray(value.badges) || value.badges.some(badge => typeof badge !== 'string')))
     || !Array.isArray(value.goods_variants) || typeof value.custom_inputs_enabled !== 'boolean' || !number(value.custom_inputs_revision)
     || !Array.isArray(value.custom_input_fields) || (value.sale_restriction !== 'none' && value.sale_restriction !== 'adult')) return null;
   for (const variant of value.goods_variants) {
@@ -93,7 +95,7 @@ export function parseCategoryDisplayPage(value: unknown, query: ShopListQuery): 
     page.recommendations = { id: `category-${page.category.id}`, title: r.title, layout: 'list', imageShape: 'square', goods: (recommended as Good[]).map((good, index) => {
       const soldOut = good.stock === 'soldout', unavailableLabel = productCardUnavailableLabel(good, soldOut);
       return { id: good.id, name: good.name, href: goodDetailHref(good), imageBg: good.img, price: good.price, priceMax: good.priceMax,
-        soldOut, ...(unavailableLabel ? { unavailableLabel } : {}), salePeriod: good.salePeriod, badge: good.badge ?? null,
+        soldOut, ...(unavailableLabel ? { unavailableLabel } : {}), salePeriod: good.salePeriod, badge: good.badge ?? null, badges: goodBadgeList(good),
         brand: (recommendationRows[index] as { ip_name: string }).ip_name };
     }) };
   }

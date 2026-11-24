@@ -70,6 +70,15 @@ describe('searchGoods 매칭 축', () => {
     expect(searchGoods(catalog, '메이플', 1).items.map((item) => item.id)).toEqual(['g3']);
   });
 
+  it('여러 표시문구 중 둘째 값 이후로도 찾는다', () => {
+    const catalog = catalogOf([
+      good('g1', { name: '이름에 없음', badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }),
+      good('g2', { name: '이름에 없음2', badge: 'EXCLUSIVE', badges: ['EXCLUSIVE'] }),
+    ]);
+
+    expect(searchGoods(catalog, 'new', 1).items.map((item) => item.id)).toEqual(['g1']);
+  });
+
   it('옛 상품 유형 값으로는 찾지 않는다(ADR-0044)', () => {
     const catalog = catalogOf([good('g1', { name: '이름에 없음', })]);
 
