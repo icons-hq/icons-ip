@@ -20,7 +20,9 @@
 begin;
 
 -- 1. 가상계좌로 결제된 주문의 마지막 입금 확인 시각. 가상계좌 결제가 아니면 null이다.
---    주문당 굿즈 결제 시도는 하나다(payment_attempts_one_goods_order_idx).
+--    주문당 굿즈 결제 시도는 하나다(payment_attempts_one_goods_order_idx). 가상계좌 판정은 계좌 원장 행 또는 승인 증거의
+--    결제수단('가상계좌')이다 — 발급 콜백이 입금 대기 확정 전에 실패하고 구매자가 바로 입금하면 재정합이 처음 본 DONE을 일반
+--    승인 finalizer로 확정해 계좌 원장 행이 생기지 않는다(lib/payments/toss-gateway.server.ts settleDonePayment).
 create function private.order_virtual_account_deposit_confirmed_at(p_order_id uuid)
 returns timestamptz
 language sql
@@ -31,8 +33,12 @@ as $function$
   select case when exists (
       select 1
       from public.payment_attempts as attempt
-      join private.payment_attempt_virtual_accounts as account on account.attempt_id = attempt.id
-      where attempt.purpose = 'order' and attempt.ref_id = p_order_id and attempt.state = 'approved')
+      where attempt.purpose = 'order' and attempt.ref_id = p_order_id and attempt.state = 'approved'
+        and (
+          exists (select 1 from private.payment_attempt_virtual_accounts as account where account.attempt_id = attempt.id)
+          or exists (
+            select 1 from private.payment_provider_evidence as evidence
+            where evidence.payment_attempt_id = attempt.id and evidence.payment_method = '가상계좌')))
     then greatest(
       (select mark.paid_at from private.order_paid_marks as mark where mark.order_id = p_order_id),
       (select pg_catalog.max(hold.released_at) from private.order_fulfillment_holds as hold

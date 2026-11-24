@@ -9,6 +9,7 @@ begin;
 --     (정확히 1시간 전은 대상, 1초 늦으면 제외). 다음 날 실행이 확정한다.
 --   · 마지막 입금 확인 = 결제완료 시각과 재입금 확인(deposit_confirmed)으로 풀린 되돌림 보류 해제 시각 중 늦은 쪽
 --   · 열린 입금 되돌림 보류는 기존 사유(fulfillment_hold)가 먼저다
+--   · 계좌 원장 행 없이 승인 증거(결제수단 '가상계좌')만 있는 결제(재정합이 처음 본 DONE을 일반 승인으로 확정)도 가상계좌다
 --   · 카드 등 가상계좌가 아닌 결제는 마감 직전 결제도 그대로 확정한다
 --   · 운영 화면 문서가 새 사유를 그대로 싣는다
 --   · 새 함수는 어느 역할에도 실행 권한이 없다(선언적 확인)
@@ -40,8 +41,9 @@ insert into public.goods(id,ip_id,name,price,stock,stock_qty) values('auto-confi
 insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
  values('a0c30000-0000-4000-8000-0000000000f1','auto-confirm-va-origin','TEST 가상계좌 자동 발주확인 창고',0,'합성 반송 주소');
 
--- n번 주문을 paid로 만든다. va면 승인된 가상계좌 결제 시도와 계좌 원장을 붙인다.
-create function pg_temp.paid_order(n integer,paid timestamptz,va boolean) returns uuid language plpgsql as $$
+-- n번 주문을 paid로 만든다. kind: va = 입금 대기 확정을 거친 가상계좌(계좌 원장 + 승인 증거), va_reconciled = 재정합이 처음 본 DONE을
+-- 일반 승인으로 확정한 가상계좌(승인 증거만), card = 카드(승인 증거 '카드').
+create function pg_temp.paid_order(n integer,paid timestamptz,kind text) returns uuid language plpgsql as $$
 declare oid uuid:=('a0c30000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;item uuid;sid uuid:=gen_random_uuid();attempt uuid;
 begin
  insert into public.orders(id,user_id,status,total,address) values(oid,'a0c30000-0000-4000-8000-000000000002','paid',10000,
@@ -59,10 +61,12 @@ begin
   values('toss','a0c30000-0000-4000-8000-000000000002','order',oid,10000,'approved','attempt-auto-confirm-va-'||n,
    'order-auto-confirm-va-'||n,'product-auto-confirm-va-'||n,paid+interval '1 day')
   returning id into attempt;
- if va then
+ if kind='va' then
   insert into private.payment_attempt_virtual_accounts(attempt_id,order_id,provider_payment_key,bank_code,account_number,due_at)
    values(attempt,oid,'pk-auto-confirm-va-'||n,'088','X0000000000'||n,paid+interval '1 day');
  end if;
+ insert into private.payment_provider_evidence(payment_attempt_id,evidence_kind,provider_payment_key,result_code,payment_method)
+  values(attempt,'confirm_approved','pk-auto-confirm-va-'||n,'DONE',case when kind='card' then '카드' else '가상계좌' end);
  insert into private.order_paid_marks(order_id,paid_at) values(oid,paid);
  return oid;
 end $$;
@@ -77,19 +81,21 @@ $$;
 
 -- 켠 시각 2031-04-13 10:00, 마감 16:30 (KST) → 가상계좌 기준선 15:30.
 update private.auto_order_confirmation_settings set enabled=true,run_time='16:30',enabled_at='2031-04-13 10:00:00+09',revision=1 where singleton;
-select pg_temp.paid_order(1,'2031-04-14 15:29:59+09',true) as va_early \gset
-select pg_temp.paid_order(2,'2031-04-14 15:30:00+09',true) as va_boundary \gset
-select pg_temp.paid_order(3,'2031-04-14 15:30:01+09',true) as va_late \gset
-select pg_temp.paid_order(4,'2031-04-14 16:20:00+09',false) as card_late \gset
-select pg_temp.paid_order(5,'2031-04-14 10:00:00+09',true) as va_redeposit_late \gset
-select pg_temp.paid_order(6,'2031-04-14 09:00:00+09',true) as va_redeposit_early \gset
-select pg_temp.paid_order(7,'2031-04-14 10:00:00+09',true) as va_open_reversal \gset
+select pg_temp.paid_order(1,'2031-04-14 15:29:59+09','va') as va_early \gset
+select pg_temp.paid_order(2,'2031-04-14 15:30:00+09','va') as va_boundary \gset
+select pg_temp.paid_order(3,'2031-04-14 15:30:01+09','va') as va_late \gset
+select pg_temp.paid_order(4,'2031-04-14 16:20:00+09','card') as card_late \gset
+select pg_temp.paid_order(5,'2031-04-14 10:00:00+09','va') as va_redeposit_late \gset
+select pg_temp.paid_order(6,'2031-04-14 09:00:00+09','va') as va_redeposit_early \gset
+select pg_temp.paid_order(7,'2031-04-14 10:00:00+09','va') as va_open_reversal \gset
+select pg_temp.paid_order(8,'2031-04-14 16:00:00+09','va_reconciled') as va_reconciled_late \gset
 select pg_temp.reversal_hold(:'va_redeposit_late','2031-04-14 16:00:00+09');
 select pg_temp.reversal_hold(:'va_redeposit_early','2031-04-14 15:00:00+09');
 select pg_temp.reversal_hold(:'va_open_reversal',null);
 
 select 1/case when private.order_virtual_account_deposit_confirmed_at(:'card_late') is null
  and private.order_virtual_account_deposit_confirmed_at(:'va_late')='2031-04-14 15:30:01+09'
+ and private.order_virtual_account_deposit_confirmed_at(:'va_reconciled_late')='2031-04-14 16:00:00+09'
  and private.order_virtual_account_deposit_confirmed_at(:'va_redeposit_late')='2031-04-14 16:00:00+09'
  and private.order_virtual_account_deposit_confirmed_at(:'va_redeposit_early')='2031-04-14 15:00:00+09'
  then 1 else 0 end as assert_last_deposit_confirmation;
@@ -101,28 +107,31 @@ select private.run_auto_order_confirmation('2031-04-14 16:31:00+09',2)->>'status
 select private.run_auto_order_confirmation('2031-04-14 17:45:00+09',2)->>'status' as batch_two \gset
 select private.run_auto_order_confirmation('2031-04-14 18:00:00+09',2)->>'status' as batch_three \gset
 select private.run_auto_order_confirmation('2031-04-14 18:01:00+09',2)->>'status' as batch_four \gset
-select 1/case when :'batch_one'='continuing' and :'batch_two'='continuing' and :'batch_three'='continuing' and :'batch_four'='finished'
+select private.run_auto_order_confirmation('2031-04-14 18:02:00+09',2)->>'status' as batch_five \gset
+select 1/case when :'batch_one'='continuing' and :'batch_two'='continuing' and :'batch_three'='continuing' and :'batch_four'='continuing'
+ and :'batch_five'='finished'
  then 1 else 0 end as assert_batches_finish;
 select 1/case when (select jsonb_object_agg(order_id,outcome) from private.auto_order_confirmation_outcomes
-   where run_date='2031-04-14' and order_id in(:'va_early',:'va_boundary',:'va_late',:'card_late',:'va_redeposit_late',:'va_redeposit_early',:'va_open_reversal'))
+   where run_date='2031-04-14' and order_id in(:'va_early',:'va_boundary',:'va_late',:'card_late',:'va_redeposit_late',:'va_redeposit_early',:'va_open_reversal',:'va_reconciled_late'))
   =jsonb_build_object(:'va_early','confirmed',:'va_boundary','confirmed',:'va_late','deposit_settling',:'card_late','confirmed',
-   :'va_redeposit_late','deposit_settling',:'va_redeposit_early','confirmed',:'va_open_reversal','fulfillment_hold')
+   :'va_redeposit_late','deposit_settling',:'va_redeposit_early','confirmed',:'va_open_reversal','fulfillment_hold',
+   :'va_reconciled_late','deposit_settling')
  then 1 else 0 end as assert_virtual_account_waits_one_hour;
 select 1/case when (select count(*)=4 from public.orders where status='confirmed' and confirmed_at is not null
    and id in(:'va_early',:'va_boundary',:'card_late',:'va_redeposit_early'))
- and (select count(*)=3 from public.orders where status='paid' and id in(:'va_late',:'va_redeposit_late',:'va_open_reversal'))
+ and (select count(*)=4 from public.orders where status='paid' and id in(:'va_late',:'va_redeposit_late',:'va_open_reversal',:'va_reconciled_late'))
  then 1 else 0 end as assert_waiting_orders_stay_new;
 
 -- 운영 화면 문서가 새 사유를 싣는다(앱 파서가 아는 값이어야 화면이 깨지지 않는다).
-select 1/case when (select count(*)=2 from jsonb_array_elements(private.auto_order_confirmation_document('2031-04-14 18:02:00+09')->'lastExclusions') e
-   where e->>'outcome'='deposit_settling' and e->>'orderId' in(:'va_late',:'va_redeposit_late'))
+select 1/case when (select count(*)=3 from jsonb_array_elements(private.auto_order_confirmation_document('2031-04-14 18:03:00+09')->'lastExclusions') e
+   where e->>'outcome'='deposit_settling' and e->>'orderId' in(:'va_late',:'va_redeposit_late',:'va_reconciled_late'))
  then 1 else 0 end as assert_screen_document_carries_reason;
 
 -- ---------------------------------------------------------------------------
 -- 4/15 실행: 기다린 가상계좌 주문을 확정한다. 열린 되돌림 보류는 계속 빠진다.
 -- ---------------------------------------------------------------------------
 select private.run_auto_order_confirmation('2031-04-15 16:31:00+09');
-select 1/case when (select count(*)=2 from public.orders where status='confirmed' and id in(:'va_late',:'va_redeposit_late'))
+select 1/case when (select count(*)=3 from public.orders where status='confirmed' and id in(:'va_late',:'va_redeposit_late',:'va_reconciled_late'))
  and (select outcome='fulfillment_hold' from private.auto_order_confirmation_outcomes where run_date='2031-04-15' and order_id=:'va_open_reversal')
  and (select status='paid' from public.orders where id=:'va_open_reversal')
  then 1 else 0 end as assert_next_day_confirms_waited_orders;
