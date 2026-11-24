@@ -121,7 +121,7 @@ export function GoodWorkspacePreorderCard({ serverError, disabled = false }: { s
   const form = GOOD_DETACHED_FORM_ID;
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-good-workspace-preorders="">
     <p className="text-sm text-muted-foreground">예약판매할 옵션의 예약 물량·접수 기간·발송 예정일을 입력합니다. 상품을 저장하면 바로 예약판매로 적용되고,
-      접수 시작 전에는 고객 화면에 &apos;예약 접수 예정&apos;으로 보이며 주문은 받지 않습니다. 예약판매 옵션은 일반 판매기간과 함께 쓸 수 없습니다.</p>
+      접수 시작 전에는 고객 화면에 &apos;판매 예정&apos;으로 보이며 주문은 받지 않습니다. 예약판매 옵션은 일반 판매기간과 함께 쓸 수 없습니다.</p>
     {!entries.length && <p className="text-sm text-muted-foreground">입력한 예약 조건이 없습니다. 필요 없으면 비워 두세요.</p>}
     {entries.map((entry, index) => {
       /* 저장을 시도해 섹션 오류가 났을 때만 칸별 안내를 보인다. 칸을 고치면 다음 그리기에서 바로 사라진다. */

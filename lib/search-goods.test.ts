@@ -96,6 +96,14 @@ describe('searchGoods 매칭 축', () => {
     expect(result.total).toBe(2);
   });
 
+  /* MD-0048 이후 인증 전 19금 가림 카드에도 이름이 실리지만, 검색은 예전처럼 상품명·IP로 걸리지 않고 고정 문구로만 맞는다. */
+  it('인증 전 19금 가림 굿즈는 이름·IP로 찾지 않고 고정 문구로만 찾는다', () => {
+    const catalog = catalogOf([good('adult', { name: '성인 아크릴 키링', ip: 'maple', masked: true, saleRestriction: 'adult' }), good('plain', { name: '아크릴 키링' })]);
+    expect(matchSearchGoods(catalog, '아크릴').map((item) => item.id)).toEqual(['plain']);
+    expect(matchSearchGoods(catalog, '메이플').map((item) => item.id)).toEqual([]);
+    expect(matchSearchGoods(catalog, '19금').map((item) => item.id)).toEqual(['adult']);
+  });
+
   it('어느 축에도 걸리지 않으면 제외한다', () => {
     const catalog = catalogOf([good('g1'), good('g2')]);
 

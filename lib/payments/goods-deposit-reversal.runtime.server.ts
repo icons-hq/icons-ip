@@ -142,21 +142,23 @@ export function createRuntimeDepositReversal(service: ServiceClient = createServ
       if (error || typeof data !== 'string') throw new Error('deposit reversal check record failed');
       return data;
     },
-    async resolveRedeposited({ attemptId, paymentKey, caseRef }) {
+    async resolveRedeposited({ attemptId, paymentKey, caseRef, sequence }) {
       const { data, error } = await service.rpc('service_resolve_deposit_reversal_redeposited', {
         p_attempt_id: attemptId,
         p_payment_key: paymentKey,
         p_case_ref: caseRef,
+        p_sequence: sequence,
       });
       if (error || typeof data !== 'string') throw new Error('deposit reversal redeposit failed');
       return data;
     },
-    async close({ attemptId, paymentKey, evidence, caseRef }) {
+    async close({ attemptId, paymentKey, evidence, caseRef, sequence }) {
       const { data, error } = await service.rpc('service_close_deposit_reversal', {
         p_attempt_id: attemptId,
         p_payment_key: paymentKey,
         p_evidence: evidence,
         p_case_ref: caseRef,
+        p_sequence: sequence,
       });
       if (error) throw new Error('deposit reversal close failed');
       return parseDepositReversalCloseResult(data);

@@ -443,6 +443,7 @@ begin
       'orderId', leased.order_id,
       'paymentKey', leased.provider_payment_key,
       'state', leased.state,
+      'sequence', leased.sequence,
       'reviewCode', leased.review_code,
       'dueAt', leased.due_at,
       'released', leased.release_evidence is not null,
@@ -523,7 +524,7 @@ grant execute on function public.service_record_deposit_reversal_check(uuid, tex
 -- ---------------------------------------------------------------------------
 -- 6. 재입금 — 앱이 원장 결제 키로 조회해 DONE(가상계좌, 잔액 = 총액)을 확인하면 부른다(서비스 전용). 보류를 풀고 기록을 닫는다.
 -- ---------------------------------------------------------------------------
-create function public.service_resolve_deposit_reversal_redeposited(p_attempt_id uuid, p_payment_key text, p_case_ref text)
+create function public.service_resolve_deposit_reversal_redeposited(p_attempt_id uuid, p_payment_key text, p_case_ref text, p_sequence integer)
 returns text
 language plpgsql
 security definer
@@ -536,7 +537,7 @@ declare
   v_now timestamptz := pg_catalog.clock_timestamp();
   v_released integer;
 begin
-  if p_attempt_id is null or p_payment_key is null
+  if p_attempt_id is null or p_payment_key is null or p_sequence is null or p_sequence < 1
     or (p_case_ref is not null and p_case_ref !~ '^[A-Za-z0-9_-]{16,128}$') then
     raise invalid_parameter_value using message = 'invalid_deposit_reversal';
   end if;
@@ -545,13 +546,17 @@ begin
   if not found then
     return 'not_applicable';
   end if;
-  -- 주문 → 시도 → 기록 순서로 잠근다(감지·반납과 같은 순서).
+  -- 주문 → 시도 → 기록 순서로 잠근다(감지·반납과 같은 순서). 판정 근거(조회)는 p_sequence 번째 되돌림을 본 것이다 — 그 사이 재입금으로
+  -- 닫혔다가 새 되돌림이 다시 열렸으면 그 조회로 새 되돌림을 닫지 않는다(stale).
   select order_record.* into v_order from public.orders as order_record where order_record.id = v_attempt.ref_id for update;
   select attempt.* into v_attempt from public.payment_attempts as attempt where attempt.id = p_attempt_id for update;
   select reversal.* into v_reversal from private.virtual_account_deposit_reversals as reversal
   where reversal.attempt_id = p_attempt_id for update;
   if not found then
     return 'not_applicable';
+  end if;
+  if v_reversal.sequence <> p_sequence then
+    return 'stale';
   end if;
   if v_reversal.state = 'closed' then
     return case when v_reversal.resolution = 'redeposited' then 'already_resolved' else 'not_applicable' end;
@@ -589,8 +594,8 @@ begin
   return 'redeposited';
 end;
 $function$;
-revoke all on function public.service_resolve_deposit_reversal_redeposited(uuid, text, text) from public, anon, authenticated, service_role;
-grant execute on function public.service_resolve_deposit_reversal_redeposited(uuid, text, text) to service_role;
+revoke all on function public.service_resolve_deposit_reversal_redeposited(uuid, text, text, integer) from public, anon, authenticated, service_role;
+grant execute on function public.service_resolve_deposit_reversal_redeposited(uuid, text, text, integer) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 7. 반납 — 앱이 계좌를 반납(입금 전 취소)하고 조회로 반납(canceled)·만료(expired)를 확인하면 부른다(서비스 전용).
@@ -600,7 +605,8 @@ grant execute on function public.service_resolve_deposit_reversal_redeposited(uu
 --      없이 마저 닫고, 반품은 운영자의 환불 단계가 같은 길로 닫는다) · review: 확인 필요로 올렸다(이미 발송·접수 단계 요청·교환·2시간 넘게
 --      닫히지 않은 요청·취소 확정 실패) · not_applicable: 대상 아님.
 -- ---------------------------------------------------------------------------
-create function public.service_close_deposit_reversal(p_attempt_id uuid, p_payment_key text, p_evidence text, p_case_ref text)
+create function public.service_close_deposit_reversal(
+  p_attempt_id uuid, p_payment_key text, p_evidence text, p_case_ref text, p_sequence integer)
 returns jsonb
 language plpgsql
 security definer
@@ -615,6 +621,7 @@ declare
   v_error text;
 begin
   if p_attempt_id is null or p_payment_key is null or p_evidence is null or p_evidence not in ('canceled', 'expired')
+    or p_sequence is null or p_sequence < 1
     or (p_case_ref is not null and p_case_ref !~ '^[A-Za-z0-9_-]{16,128}$') then
     raise invalid_parameter_value using message = 'invalid_deposit_reversal_close';
   end if;
@@ -629,7 +636,8 @@ begin
   select attempt.* into v_attempt from public.payment_attempts as attempt where attempt.id = p_attempt_id for update;
   select reversal.* into v_reversal from private.virtual_account_deposit_reversals as reversal
   where reversal.attempt_id = p_attempt_id for update;
-  if not found or v_reversal.state = 'closed' or v_reversal.provider_payment_key <> p_payment_key
+  -- 판정 근거(조회)는 p_sequence 번째 되돌림을 본 것이다 — 다른 번호의 기록에 그 조회를 쓰지 않는다.
+  if not found or v_reversal.state = 'closed' or v_reversal.sequence <> p_sequence or v_reversal.provider_payment_key <> p_payment_key
     or v_attempt.state <> 'approved' or v_order.status = 'canceled'
     or not exists (
       select 1 from public.payments as payment
@@ -709,8 +717,8 @@ begin
   return pg_catalog.jsonb_build_object('status', 'closed');
 end;
 $function$;
-revoke all on function public.service_close_deposit_reversal(uuid, text, text, text) from public, anon, authenticated, service_role;
-grant execute on function public.service_close_deposit_reversal(uuid, text, text, text) to service_role;
+revoke all on function public.service_close_deposit_reversal(uuid, text, text, text, integer) from public, anon, authenticated, service_role;
+grant execute on function public.service_close_deposit_reversal(uuid, text, text, text, integer) to service_role;
 
 -- 결제확인필요로 멈춘 취소 요청을 처리 중으로 되돌린다 — 반납이 확인된 되돌림 결제일 때만(서비스 전용). 앱이 같은 요청에서 시스템 actor로
 -- 오케스트레이터를 다시 부르면 결제사 조회가 반납(CANCELED)을 확인하고 취소 확정이 증거를 읽어 환불 없이 주문을 닫는다.

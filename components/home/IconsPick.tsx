@@ -24,7 +24,7 @@ export interface IconsPickProps {
  *
  * 카드 전체를 링크로 덮지 않는다 — 상품 행의 링크·하트가 카드 링크 안에 들어가면 마크업으로도 잘못되고 클릭이 겹친다.
  * 그래서 배너 링크(PromoCard)와 행마다의 링크·하트가 서로 형제다(상품 카드·구 기획전 행과 같은 규칙).
- * 행의 '품절'·'판매 시작 전' 라벨은 구 기획전 행과 같이 가격 옆 글로 전한다(썸네일에 밴드를 겹칠 자리가 없다).
+ * 행의 '품절'·'판매 예정' 라벨은 구 기획전 행과 같이 가격 옆 글로 전한다(썸네일에 밴드를 겹칠 자리가 없다).
  * 할인율은 상품 카드(PriceBlock inline)와 같은 판정이다 — pdpPriceView 가 PriceBlock 과 같은 규칙으로 계산한다(가격 범위·정가 이하는 없음).
  */
 export function IconsPick({ bands, heartFor }: IconsPickProps) {

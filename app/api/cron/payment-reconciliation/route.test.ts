@@ -92,7 +92,7 @@ describe('미종결 결제 자동 재확인', () => {
   describe('가상계좌 입금 오류 되돌림(ADR-0049 결정 4)', () => {
     const claim = {
       attemptId: 'a7000000-0000-4003-8000-000000000004', orderId: 'a7000000-0000-4002-8000-000000000004', paymentKey: 'va-rev-key',
-      state: 'awaiting_redeposit', reviewCode: null, dueAt: '2026-11-24T03:00:00.000Z', released: false,
+      state: 'awaiting_redeposit', sequence: 1, reviewCode: null, dueAt: '2026-11-24T03:00:00.000Z', released: false,
       attempt: { id: 'a7000000-0000-4003-8000-000000000004', provider: 'toss', purpose: 'order', ref_id: 'a7000000-0000-4002-8000-000000000004',
         amount: 31000, currency: 'KRW', idempotency_key: 'goods:va', provider_order_id: 'O-va', provider_product_code: 'P-va',
         expires_at: '2026-11-24T03:00:00.000Z' },

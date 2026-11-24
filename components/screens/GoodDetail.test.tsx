@@ -167,7 +167,7 @@ describe('GoodDetail', () => {
     expect(html.indexOf('bottom-announcement-marker')).toBeGreaterThan(tabs);
     expect(html.indexOf('상세설명-본문-표식')).toBeLessThan(html.indexOf('bottom-announcement-marker'));
     expect(html.indexOf('detail.jpg')).toBeLessThan(html.indexOf('bottom-announcement-marker'));
-    expect(html.indexOf('bottom-announcement-marker')).toBeLessThan(html.indexOf('pdp-inquiry-heading'));
+    expect(html.indexOf('bottom-announcement-marker')).toBeLessThan(html.indexOf('pdp-detail-notice-heading'));
     expect(html.match(/bottom-announcement-marker/g)).toHaveLength(1);
   });
 
@@ -345,7 +345,7 @@ describe('GoodDetail', () => {
   });
 
   /* R-04 §4 — 품절이면 CTA 자리만 재입고 알림으로 바뀌고 수량·합계는 남는다. */
-  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('shows the sale period and prevents a misleading restock CTA for %s', (state, label) => {
+  it.each([['scheduled', '판매 예정'], ['ended', '판매 종료']] as const)('shows the sale period and prevents a misleading restock CTA for %s', (state, label) => {
     const html = render({ good: { ...good, stock: 'soldout', stockQty: 0, salePeriod: { state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null } } });
     expect(html).toContain(`>${label}</button>`); expect(html).toContain(`>${label}</p>`); expect(html).not.toContain('재입고 알림 받기'); expect(html).not.toContain('>품절<'); expect(html).not.toContain('>구매하기<');
     expect(html).toContain('>판매 상태</span>'); expect(html).not.toContain('옵션 선택 후 표시');
@@ -748,12 +748,14 @@ describe('GoodDetail', () => {
     expect(html).toContain('배송·반품 정책 전문 보기');
   });
 
-  it('IP 카드에서 온라인 팝업 화면으로 간다', () => {
+  /* MD-0052 — 카드는 IP관(그 IP의 굿즈 전체)으로 가므로 '상품 전체보기'라 부른다. */
+  it('IP 카드에서 IP관(상품 전체보기)으로 간다', () => {
     const html = render();
 
     expect(html).toContain('홍실 퀘스트');
     expect(html).toContain('href="/ip/hong-sil-quest"');
-    expect(html).toContain('온라인 팝업 보러가기');
+    expect(html).toContain('상품 전체보기');
+    expect(html).not.toContain('온라인 팝업 보러가기');
   });
 
   /* PD-09 — 텍스트 한 줄이던 칩이 446×82 카드가 됐다. 키아트가 이미지일 때만 150×80 칸을 둔다. */
@@ -761,7 +763,7 @@ describe('GoodDetail', () => {
     const text = render();
     const card = text.match(/<a class="wc-pdp-ipcard is-text" href="\/ip\/hong-sil-quest">.*?<\/a>/)?.[0] ?? '';
     expect(card).toContain('<strong class="wc-pdp-ipcard__name">홍실 퀘스트</strong>');
-    expect(card).toContain('온라인 팝업 보러가기 <span aria-hidden="true">›</span>');
+    expect(card).toContain('상품 전체보기 <span aria-hidden="true">›</span>');
     expect(card).not.toContain('wc-pdp-ipcard__art');
 
     const art = 'url("https://cdn.example/hong-sil-key.webp") center / cover no-repeat';
@@ -780,19 +782,41 @@ describe('GoodDetail', () => {
     expect(render({ detailImageUrls: [] })).not.toContain('wc-pdp-panel__detail-images');
   });
 
-  /* PD-19 — 상세 이미지 다음에 IP 소개, 패널 끝에 같은 IP 카드. 데이터는 IP 에 있는 값만 쓴다. */
-  it('상세 설명 패널에 상세 이미지 다음 IP 소개를, 패널 끝에 IP 카드를 둔다', () => {
-    const html = render();
+  /* MD-0054·0055 — 상세 설명 패널 끝의 IP 소개·제품 안전정보·굿즈 문의·IP 카드를 지우고 추가정보 아코디언을 둔다.
+     추가정보 탭은 그대로이고, 두 벌의 펼침 제목 id 는 겹치지 않는다. 제품 안전정보(KC)는 고시정보 칸 안으로 옮겼다. */
+  it('상세 설명 패널 끝은 IP 소개·굿즈 문의·IP 카드 없이 추가정보 아코디언이다', () => {
+    const html = render({ detailImageUrls: ['https://cdn.example/detail.png'] });
     const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
+    const info = html.slice(html.indexOf('id="pdp-panel-info"'));
 
-    expect(panel).toContain('id="pdp-ip-story-heading">IP 소개</h2>');
-    expect(panel).toContain('<h3 class="wc-pdp-ip-story__name">홍실 퀘스트</h3>');
-    expect(panel).toContain('붉은 실을 따라 시작되는 특별한 퀘스트');
-    expect(panel).toContain('홍실 퀘스트 컬렉션');
-    expect(panel.indexOf('wc-pdp-panel__image')).toBeLessThan(panel.indexOf('pdp-ip-story-heading'));
-    expect(panel).toContain('<a class="wc-pdp-ipcard is-text wc-pdp-ipcard--panel" href="/ip/hong-sil-quest">');
-    /* 소개 문장도 키아트도 없는 IP 는 이름만 남은 빈 블록을 그리지 않는다. */
-    expect(render({ ip: { ...ip, tagline: '', synopsis: ' ' } })).not.toContain('pdp-ip-story-heading');
+    expect(panel).not.toContain('pdp-ip-story-heading');
+    expect(panel).not.toContain('IP 소개');
+    expect(panel).not.toContain('wc-pdp-ipcard');
+    expect(panel).not.toContain('pdp-inquiry-heading');
+    expect(panel).not.toContain('/my/inquiries/new');
+    expect(panel).toContain('<div class="wc-pdp-detail-info"><div class="wc-pdp-info">');
+    expect(panel.match(/<details class="wc-pdp-info__item">/g)).toHaveLength(4);
+    expect(panel).toMatch(/id="pdp-detail-notice-heading"[^>]*>고시정보</);
+    expect(panel.indexOf('detail.png')).toBeLessThan(panel.indexOf('pdp-detail-notice-heading'));
+    expect(panel.indexOf('pdp-detail-notice-heading')).toBeLessThan(panel.indexOf('pdp-detail-shipping-heading'));
+    expect(panel.indexOf('pdp-detail-return-heading')).toBeLessThan(panel.indexOf('pdp-detail-seller-heading'));
+    expect(info).toMatch(/id="pdp-notice-heading"[^>]*>고시정보</);
+    expect(info).not.toContain('pdp-detail-notice-heading');
+    /* 정보 칼럼의 IP 카드(구매 패널 아래)는 남는다. */
+    expect(html.slice(0, html.indexOf('class="wc-pdp-tabs"'))).toContain('class="wc-pdp-ipcard is-text"');
+  });
+
+  it('제품 안전정보(KC)는 두 아코디언의 고시정보 칸 안에서 고시 표 뒤에 보인다', () => {
+    const html = render({ kcDisclosures: [{ family: 'living', scheme: 'not_applicable', productCategory: '', modelName: '', businessRole: '',
+      businessName: '', identifier: '', publicNote: '', variants: [] }] });
+    const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
+    const info = html.slice(html.indexOf('id="pdp-panel-info"'));
+    for (const section of [panel, info]) {
+      const notice = section.slice(section.indexOf('notice-heading'), section.indexOf('shipping-heading'));
+      expect(notice).toContain('전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.');
+      expect(notice).toContain('제품 안전정보');
+      expect(notice.indexOf('상품정보제공고시')).toBeLessThan(notice.indexOf('제품 안전정보'));
+    }
   });
 
   /* PD-16b(LD-6) — 추천 블록은 탭 위가 아니라 상세 설명 패널 맨 끝이다. 다른 구성·띠배너는 제자리다. */
@@ -807,7 +831,8 @@ describe('GoodDetail', () => {
     expect(html.indexOf('유사한 굿즈')).toBeGreaterThan(html.indexOf('role="tablist"'));
     expect(panel).toContain('유사한 굿즈');
     expect(panel).toContain('auto-recommendation-marker');
-    expect(panel.indexOf('wc-pdp-ipcard--panel')).toBeLessThan(panel.indexOf('유사한 굿즈'));
+    expect(panel.indexOf('wc-pdp-detail-info')).toBeGreaterThan(-1);
+    expect(panel.indexOf('wc-pdp-detail-info')).toBeLessThan(panel.indexOf('유사한 굿즈'));
     expect(panel.indexOf('유사한 굿즈')).toBeLessThan(panel.indexOf('auto-recommendation-marker'));
     expect(html.indexOf('other-composition-marker')).toBeLessThan(html.indexOf('role="tablist"'));
   });
@@ -833,8 +858,11 @@ describe('GoodDetail', () => {
     expect(html).not.toContain('href="/ip/hong-sil-quest"');
   });
 
-  it('상품 문의 진입점을 유지한다', () => {
-    expect(render()).toContain('href="/my/inquiries/new?category=good&amp;goodId=g13"');
+  /* MD-0054 — 상세 하단의 굿즈 문의 블록은 지웠다. 상품 질문은 Q&A 탭이 받는다. */
+  it('상세 하단 굿즈 문의 블록 없이 Q&A 탭이 남는다', () => {
+    const html = render();
+    expect(html).not.toContain('href="/my/inquiries/new?category=good&amp;goodId=g13"');
+    expect(html).toContain('id="pdp-tab-qna"');
   });
 
   it('고시정보가 비면 빈 표 대신 이유를 적는다', () => {

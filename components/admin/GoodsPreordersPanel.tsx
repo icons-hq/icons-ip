@@ -138,7 +138,7 @@ export function PreorderEditor({ goodId, variants, onSaved, onActivated }: {
         <FieldProblem id={`${id}-expectedShipDate-problem`} message={problems.expectedShipDate} />
       </div>
     </div>
-    <p className="text-sm text-muted-foreground">저장하면 바로 예약판매가 적용됩니다. 접수 시작 전에는 고객 화면에 &apos;예약 접수 예정&apos;으로 보이고 주문은 받지 않습니다.
+    <p className="text-sm text-muted-foreground">저장하면 바로 예약판매가 적용됩니다. 접수 시작 전에는 고객 화면에 &apos;판매 예정&apos;으로 보이고 주문은 받지 않습니다.
       저장한 물량과 일정은 바꿀 수 없고, 바꾸려면 접수를 중지한 뒤 새로 저장합니다.</p>
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     <button className={`${buttonVariants()} self-start`} data-slot="button" data-preorder-save="" form={form} type="button" disabled={pending || !variantId} onClick={save}>{pending ? '저장 중…' : '예약판매 저장'}</button>

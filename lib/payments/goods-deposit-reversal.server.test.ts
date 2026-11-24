@@ -36,6 +36,7 @@ function reversal(overrides: Partial<OpenDepositReversal> = {}): OpenDepositReve
     orderId: ORDER_ID,
     paymentKey: 'ledger-key',
     state: 'awaiting_redeposit',
+    sequence: 1,
     reviewCode: null,
     dueAt: '2026-11-25T15:00:00.000Z',
     released: false,
@@ -116,7 +117,7 @@ describe('입금 오류 되돌림 처리(settleDepositReversal)', () => {
   it('재입금(DONE, 잔액 = 총액)이면 보류를 푼다', async () => {
     const { deps, settleDepositReversal } = setup({ inspections: [ok({ status: 'DONE' })] });
     await expect(settleDepositReversal({ attemptId: ATTEMPT_ID, caseRef, mode: 'webhook' })).resolves.toBe('redeposited');
-    expect(deps.resolveRedeposited).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, paymentKey: 'ledger-key', caseRef });
+    expect(deps.resolveRedeposited).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, paymentKey: 'ledger-key', caseRef, sequence: 1 });
     expect(deps.release).not.toHaveBeenCalled();
   });
 
@@ -136,7 +137,7 @@ describe('입금 오류 되돌림 처리(settleDepositReversal)', () => {
     });
     await expect(settleDepositReversal({ attemptId: ATTEMPT_ID, caseRef, mode: 'sweep' })).resolves.toBe('closed');
     expect(deps.release).toHaveBeenCalledWith(attempt, 'ledger-key');
-    expect(deps.close).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, paymentKey: 'ledger-key', evidence: 'canceled', caseRef });
+    expect(deps.close).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, paymentKey: 'ledger-key', evidence: 'canceled', caseRef, sequence: 1 });
     expect(deps.notifyCanceled).toHaveBeenCalledWith(ORDER_ID);
   });
 
@@ -244,6 +245,12 @@ describe('입금 오류 되돌림 처리(settleDepositReversal)', () => {
     expect(deps.recordCheck).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'mismatch' }));
   });
 
+  it('조회한 되돌림이 그 사이 닫히고 새 되돌림이 열렸으면(stale) 아무것도 닫지 않는다', async () => {
+    const { deps, settleDepositReversal } = setup({ open: reversal({ sequence: 2 }), inspections: [ok({ status: 'DONE' })], resolved: 'stale' });
+    await expect(settleDepositReversal({ attemptId: ATTEMPT_ID, caseRef, mode: 'webhook' })).resolves.toBe('not_applicable');
+    expect(deps.resolveRedeposited).toHaveBeenCalledWith(expect.objectContaining({ sequence: 2 }));
+  });
+
   it('열린 되돌림이 없으면 조회하지 않는다', async () => {
     const { deps, settleDepositReversal } = setup({ open: null });
     await expect(settleDepositReversal({ attemptId: ATTEMPT_ID, caseRef, mode: 'webhook' })).resolves.toBe('not_applicable');
@@ -255,6 +262,7 @@ describe('service RPC 응답 읽기', () => {
   it('열린 되돌림·닫기 결과의 모양을 검증한다', () => {
     expect(parseOpenDepositReversal({ ...reversal(), reviewCode: null })).toEqual(reversal());
     expect(parseOpenDepositReversal({ ...reversal(), state: 'closed' })).toBeNull();
+    expect(parseOpenDepositReversal({ ...reversal(), sequence: 0 })).toBeNull();
     expect(parseOpenDepositReversal({ ...reversal(), paymentKey: 'has space' })).toBeNull();
     expect(parseDepositReversalCloseResult({ status: 'closed' })).toEqual({ status: 'closed' });
     expect(parseDepositReversalCloseResult({ status: 'cancellation_pending', requestId: 'r', requestStatus: 'needs_review', claimType: 'return' }))

@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- 토스 가상계좌 입금 오류 되돌림 자동 처리(ADR-0049 결정 4) — 20261125150000_toss_virtual_account_deposit_reversal_auto.sql
+-- 토스 가상계좌 입금 오류 되돌림 자동 처리(ADR-0049 결정 4) — 20261125160000_toss_virtual_account_deposit_reversal_auto.sql
 -- 고정하는 것: 감지(보류·기록·고객 알림, 멱등), 재입금 자동 해제와 재되돌림, 자동 재확인 후보·리스·조회 결과 기록(대기·조회 불가 →
 -- 확인 필요·회복·불일치), 입금 기한 뒤 반납 → 주문 취소(재고 복원·환불 행 없음·결제 canceled·환불 감시 없음), 이미 발송된 주문은
 -- 확인 필요, 활성 취소 요청은 그 경로로 결제 없이 완료, 결제확인필요 요청 재시작, 열린 되돌림의 결제사 직접 취소 판정 유보, 운영자 해제가
@@ -22,11 +22,11 @@ select 1 / case when
   and not has_function_privilege('anon', 'public.service_claim_deposit_reversal_checks(integer)', 'execute')
   and has_function_privilege('service_role', 'public.service_record_deposit_reversal_check(uuid,text,timestamptz)', 'execute')
   and not has_function_privilege('authenticated', 'public.service_record_deposit_reversal_check(uuid,text,timestamptz)', 'execute')
-  and has_function_privilege('service_role', 'public.service_resolve_deposit_reversal_redeposited(uuid,text,text)', 'execute')
-  and not has_function_privilege('authenticated', 'public.service_resolve_deposit_reversal_redeposited(uuid,text,text)', 'execute')
-  and has_function_privilege('service_role', 'public.service_close_deposit_reversal(uuid,text,text,text)', 'execute')
-  and not has_function_privilege('authenticated', 'public.service_close_deposit_reversal(uuid,text,text,text)', 'execute')
-  and not has_function_privilege('anon', 'public.service_close_deposit_reversal(uuid,text,text,text)', 'execute')
+  and has_function_privilege('service_role', 'public.service_resolve_deposit_reversal_redeposited(uuid,text,text,integer)', 'execute')
+  and not has_function_privilege('authenticated', 'public.service_resolve_deposit_reversal_redeposited(uuid,text,text,integer)', 'execute')
+  and has_function_privilege('service_role', 'public.service_close_deposit_reversal(uuid,text,text,text,integer)', 'execute')
+  and not has_function_privilege('authenticated', 'public.service_close_deposit_reversal(uuid,text,text,text,integer)', 'execute')
+  and not has_function_privilege('anon', 'public.service_close_deposit_reversal(uuid,text,text,text,integer)', 'execute')
   and has_function_privilege('service_role', 'public.service_begin_deposit_reversal_cancellation(uuid)', 'execute')
   and not has_function_privilege('authenticated', 'public.service_begin_deposit_reversal_cancellation(uuid)', 'execute')
   and not has_function_privilege('service_role', 'private.payment_deposit_reversal_released(uuid)', 'execute')
@@ -188,9 +188,9 @@ select pg_temp.expect_error($$update private.order_fulfillment_holds set release
 -- 2. 재입금 → 보류 자동 해제·고객 알림 → 다시 되돌림이면 다시 연다(번호 2)
 -- ---------------------------------------------------------------------------
 select 1 / case when public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101',
-  'va-reversal-case-5101d') = 'redeposited' then 1 else 0 end as assert_redeposit_resolves;
+  'va-reversal-case-5101d', 1) = 'redeposited' then 1 else 0 end as assert_redeposit_resolves;
 select 1 / case when public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101',
-  null) = 'already_resolved' then 1 else 0 end as assert_redeposit_idempotent;
+  null, 1) = 'already_resolved' then 1 else 0 end as assert_redeposit_idempotent;
 select 1 / case when (
   select r.state = 'closed' and r.resolution = 'redeposited' and r.resolved_at is not null
   from private.virtual_account_deposit_reversals r where r.attempt_id = '31000000-0000-4000-8000-000000005101'
@@ -215,7 +215,7 @@ select 1 / case when (select r.state = 'awaiting_redeposit' and r.sequence = 2 a
 then 1 else 0 end as assert_second_reversal_reopens;
 
 -- 다시 입금된 뒤 결제사가 같은 거래 키(또는 거래 키 없이 같은 대체 근거)로 또 입금 전을 보여도 새 되돌림으로 다시 연다(놓치면 결제 없이 출고).
-select 1 / case when public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101', null)
+select 1 / case when public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101', null, 2)
   = 'redeposited' then 1 else 0 end as assert_second_redeposit;
 select 1 / case when public.service_flag_goods_deposit_reversal('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101',
   'REVTX-5101-B', 'va-reversal-case-5101f', null) = 'held' then 1 else 0 end as assert_same_ref_reversal_held;
@@ -225,6 +225,17 @@ select 1 / case when (select r.state = 'awaiting_redeposit' and r.sequence = 3
   and public.service_flag_goods_deposit_reversal('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101',
     'REVTX-5101-B', 'va-reversal-case-5101g', null) = 'already_recorded'
 then 1 else 0 end as assert_same_ref_reversal_reopens_once;
+
+-- 앞선 되돌림(번호 2)을 본 늦은 판정은 새 되돌림(번호 3)을 닫지 않는다 — 재입금 확인·반납 모두 잠금 아래에서 번호를 대조한다.
+select 1 / case when public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101', null, 2)
+    = 'stale'
+  and public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005101', 'va-rev-key-5101', 'canceled', null, 2)->>'status'
+    = 'not_applicable'
+then 1 else 0 end as assert_stale_sequence_refused;
+select 1 / case when (select r.state = 'awaiting_redeposit' and r.sequence = 3 and r.release_evidence is null
+    from private.virtual_account_deposit_reversals r where r.attempt_id = '31000000-0000-4000-8000-000000005101')
+  and private.order_fulfillment_blocking('21000000-0000-4000-8000-000000005101')
+then 1 else 0 end as assert_stale_sequence_keeps_hold;
 
 -- ---------------------------------------------------------------------------
 -- 3. 자동 재확인 후보·리스·조회 결과
@@ -238,6 +249,7 @@ where attempt_id in ('31000000-0000-4000-8000-000000005102', '31000000-0000-4000
 select public.service_claim_deposit_reversal_checks(5) as claimed \gset
 select 1 / case when :'claimed'::jsonb @> jsonb_build_array(
     jsonb_build_object('attemptId', '31000000-0000-4000-8000-000000005102', 'paymentKey', 'va-rev-key-5102', 'state', 'awaiting_redeposit',
+      'sequence', 1,
       'released', false, 'attempt', jsonb_build_object('id', '31000000-0000-4000-8000-000000005102', 'amount', 31000,
         'provider_order_id', 'O31000000000040008000' || lpad('5102', 11, '0'))),
     jsonb_build_object('attemptId', '31000000-0000-4000-8000-000000005106'))
@@ -290,7 +302,7 @@ then 1 else 0 end as assert_operator_release_closes_reversal;
 -- ---------------------------------------------------------------------------
 select (select stock_qty from public.goods_variants where good_id = 'va-reversal-good' and is_default) as stock_before \gset
 select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005102', 'va-rev-key-5102', 'expired',
-  'va-reversal-close-5102a')->>'status' = 'closed' then 1 else 0 end as assert_release_closes_order;
+  'va-reversal-close-5102a', 1)->>'status' = 'closed' then 1 else 0 end as assert_release_closes_order;
 select 1 / case when (
   select o.status = 'canceled' and p.status = 'canceled'
   from public.orders o join public.payments p on p.ref_id = o.id and p.purpose = 'order'
@@ -315,8 +327,8 @@ select 1 / case when (
   and not exists (select 1 from private.toss_escrow_deliveries where order_id = '21000000-0000-4000-8000-000000005102')
 then 1 else 0 end as assert_auto_cancel_without_refund;
 select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005102', 'va-rev-key-5102', 'expired',
-  null)->>'status' = 'not_applicable'
-  and public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005102', 'va-rev-key-5102', null)
+  null, 1)->>'status' = 'not_applicable'
+  and public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005102', 'va-rev-key-5102', null, 1)
     = 'not_applicable'
 then 1 else 0 end as assert_closed_reversal_is_terminal;
 
@@ -325,7 +337,7 @@ then 1 else 0 end as assert_closed_reversal_is_terminal;
 -- ---------------------------------------------------------------------------
 select 1 / case when not private.order_fulfillment_blocking('21000000-0000-4000-8000-000000005103')
   and public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005103', 'va-rev-key-5103', 'canceled',
-    'va-reversal-close-5103a') = '{"status":"review","code":"order_shipped"}'::jsonb
+    'va-reversal-close-5103a', 1) = '{"status":"review","code":"order_shipped"}'::jsonb
 then 1 else 0 end as assert_shipped_close_refused;
 select 1 / case when (select o.status = 'shipping' from public.orders o where o.id = '21000000-0000-4000-8000-000000005103')
   and (select r.state = 'review' and r.review_code = 'order_shipped' and r.release_evidence = 'canceled'
@@ -338,19 +350,19 @@ then 1 else 0 end as assert_shipped_order_goes_to_review;
 insert into public.order_cancellation_requests (id, order_id, requested_by, reason, reason_type, claim_type, stage, status, requested_at)
 values ('61000000-0000-4000-8000-000000005103', '21000000-0000-4000-8000-000000005103', '00000000-0000-4000-8000-000000005101',
   '변심 반품', 'change_of_mind', 'return', 'processing', private.order_claim_status_for_stage('processing'), now());
-select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005103', 'va-rev-key-5103', 'canceled', null)
+select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005103', 'va-rev-key-5103', 'canceled', null, 1)
   = jsonb_build_object('status', 'cancellation_pending', 'requestId', '61000000-0000-4000-8000-000000005103',
     'requestStatus', 'processing', 'claimType', 'return')
 then 1 else 0 end as assert_shipped_return_uses_request_path;
 update private.virtual_account_deposit_reversals set released_at = now() - interval '3 hours'
 where attempt_id = '31000000-0000-4000-8000-000000005103';
-select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005103', 'va-rev-key-5103', 'canceled', null)
+select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005103', 'va-rev-key-5103', 'canceled', null, 1)
   = '{"status":"review","code":"cancellation_pending"}'::jsonb
 then 1 else 0 end as assert_stuck_request_escalates;
 delete from public.order_cancellation_requests where id = '61000000-0000-4000-8000-000000005103';
 
 -- 반납을 확인한 결제에 입금 확인이 오면 증거가 엇갈린다 — 닫지 않고 확인 필요로 남긴다.
-select 1 / case when public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005103', 'va-rev-key-5103', null)
+select 1 / case when public.service_resolve_deposit_reversal_redeposited('31000000-0000-4000-8000-000000005103', 'va-rev-key-5103', null, 1)
   = 'conflict' then 1 else 0 end as assert_conflict_detected;
 select 1 / case when (select r.review_code = 'payment_mismatch' and r.state = 'review' from private.virtual_account_deposit_reversals r
     where r.attempt_id = '31000000-0000-4000-8000-000000005103')
@@ -369,7 +381,7 @@ insert into public.refunds (payment_id, amount, reason, status, cancellation_req
 select p.id, p.amount, '변심', 'requested', '61000000-0000-4000-8000-000000005104'
 from public.payments p where p.purpose = 'order' and p.ref_id = '21000000-0000-4000-8000-000000005104';
 select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005104', 'va-rev-key-5104', 'canceled',
-  'va-reversal-close-5104a') = jsonb_build_object('status', 'cancellation_pending',
+  'va-reversal-close-5104a', 1) = jsonb_build_object('status', 'cancellation_pending',
     'requestId', '61000000-0000-4000-8000-000000005104', 'requestStatus', 'processing', 'claimType', 'cancel')
 then 1 else 0 end as assert_active_request_reported;
 select 1 / case when (select r.lease_until is null and r.next_check_at between now() + interval '29 minutes' and now() + interval '31 minutes'
@@ -411,7 +423,7 @@ from public.payments p where p.purpose = 'order' and p.ref_id = '21000000-0000-4
 select 1 / case when public.service_begin_deposit_reversal_cancellation('61000000-0000-4000-8000-000000005105') = 'not_applicable'
 then 1 else 0 end as assert_restart_needs_release_evidence;
 select 1 / case when public.service_close_deposit_reversal('31000000-0000-4000-8000-000000005105', 'va-rev-key-5105', 'canceled',
-  'va-reversal-close-5105a')->>'status' = 'cancellation_pending' then 1 else 0 end as assert_needs_review_request_pending;
+  'va-reversal-close-5105a', 1)->>'status' = 'cancellation_pending' then 1 else 0 end as assert_needs_review_request_pending;
 select 1 / case when public.service_begin_deposit_reversal_cancellation('61000000-0000-4000-8000-000000005105') = 'started'
 then 1 else 0 end as assert_needs_review_request_restarts;
 select 1 / case when (select c.status = 'processing' from public.order_cancellation_requests c where c.id = '61000000-0000-4000-8000-000000005105')

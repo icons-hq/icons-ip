@@ -71,7 +71,7 @@ describe('promo grid and page', () => {
     expect(title).toContain('font-size: 24px');
     expect(title).toContain('font-weight: 700');
     expect(title).toContain('color: var(--wc-x-ink)');
-    expect(css).toMatch(/@media \(min-width: 750px\) \{[^@]*\.wc-promo-page__title \{[^}]*font-size: 32px;/);
+    expect(css).toMatch(/@media \(min-width: 750px\) \{[^@]*\.wc-promo-page__title \{[^}]*font-size: 28px;/);
   });
 });
 

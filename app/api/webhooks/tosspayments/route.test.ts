@@ -308,7 +308,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     });
 
     const OPEN_REVERSAL = {
-      attemptId: ATTEMPT_ID, orderId: ORDER_ID, paymentKey: 'ledger-key', state: 'awaiting_redeposit' as const,
+      attemptId: ATTEMPT_ID, orderId: ORDER_ID, paymentKey: 'ledger-key', state: 'awaiting_redeposit' as const, sequence: 1,
       reviewCode: null, dueAt: '2026-11-25T15:00:00.000Z', released: false,
     };
     function reversalDeps(overrides: Partial<{

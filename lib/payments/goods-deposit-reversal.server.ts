@@ -42,6 +42,8 @@ export interface OpenDepositReversal {
   readonly orderId: string;
   readonly paymentKey: string;
   readonly state: 'awaiting_redeposit' | 'review';
+  /** 같은 결제의 몇 번째 되돌림인지 — 재입금·반납 판정이 조회할 때 본 되돌림에만 쓰이게 DB가 잠금 아래에서 대조한다. */
+  readonly sequence: number;
   readonly reviewCode: string | null;
   readonly dueAt: string;
   /** 결제사 조회가 반납·만료를 이미 확인했는지(그 뒤로는 돈이 들어올 수 없다). */
@@ -74,12 +76,18 @@ export interface GoodsDepositReversalDependencies {
     readonly dueAt: string | null;
   }): Promise<string>;
   recordCheck(input: { readonly attemptId: string; readonly outcome: DepositReversalCheckOutcome; readonly dueAt: string | null }): Promise<string>;
-  resolveRedeposited(input: { readonly attemptId: string; readonly paymentKey: string; readonly caseRef: string }): Promise<string>;
+  resolveRedeposited(input: {
+    readonly attemptId: string;
+    readonly paymentKey: string;
+    readonly caseRef: string;
+    readonly sequence: number;
+  }): Promise<string>;
   close(input: {
     readonly attemptId: string;
     readonly paymentKey: string;
     readonly evidence: 'canceled' | 'expired';
     readonly caseRef: string;
+    readonly sequence: number;
   }): Promise<DepositReversalCloseResult>;
   /** 재입금 안내 메일(되돌림마다 한 통 — 발송 이력 dedupe). 절대 throw하지 않는다. */
   notifyReversal(orderId: string): Promise<unknown>;
@@ -152,7 +160,9 @@ export function createGoodsDepositReversal(dependencies: GoodsDepositReversalDep
     caseRef: string,
     mode: 'webhook' | 'sweep' | 'cancel',
   ): Promise<DepositReversalSettlement> {
-    const result = await dependencies.close({ attemptId: reversal.attemptId, paymentKey: reversal.paymentKey, evidence, caseRef });
+    const result = await dependencies.close({
+      attemptId: reversal.attemptId, paymentKey: reversal.paymentKey, evidence, caseRef, sequence: reversal.sequence,
+    });
     if (result.status === 'closed') {
       await dependencies.notifyCanceled(reversal.orderId);
       return 'closed';
@@ -214,6 +224,7 @@ export function createGoodsDepositReversal(dependencies: GoodsDepositReversalDep
         attemptId: reversal.attemptId,
         paymentKey: reversal.paymentKey,
         caseRef: input.caseRef,
+        sequence: reversal.sequence,
       });
       if (resolved === 'redeposited' || resolved === 'already_resolved') return 'redeposited';
       return resolved === 'conflict' ? 'review' : 'not_applicable';
@@ -245,6 +256,7 @@ export function createGoodsDepositReversal(dependencies: GoodsDepositReversalDep
         attemptId: reversal.attemptId,
         paymentKey: reversal.paymentKey,
         caseRef: input.caseRef,
+        sequence: reversal.sequence,
       });
       if (resolved === 'redeposited' || resolved === 'already_resolved') return 'redeposited';
       return resolved === 'conflict' ? 'review' : 'not_applicable';
@@ -270,6 +282,9 @@ export function parseOpenDepositReversal(value: unknown): OpenDepositReversal | 
     || typeof row.paymentKey !== 'string'
     || !/^[\x21-\x7e]{1,200}$/.test(row.paymentKey)
     || (row.state !== 'awaiting_redeposit' && row.state !== 'review')
+    || typeof row.sequence !== 'number'
+    || !Number.isSafeInteger(row.sequence)
+    || row.sequence < 1
     || (row.reviewCode !== null && row.reviewCode !== undefined && typeof row.reviewCode !== 'string')
     || typeof row.dueAt !== 'string'
     || !Number.isFinite(Date.parse(row.dueAt))
@@ -282,6 +297,7 @@ export function parseOpenDepositReversal(value: unknown): OpenDepositReversal | 
     orderId: row.orderId,
     paymentKey: row.paymentKey,
     state: row.state,
+    sequence: row.sequence,
     reviewCode: typeof row.reviewCode === 'string' ? row.reviewCode : null,
     dueAt: row.dueAt,
     released: row.released,
