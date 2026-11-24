@@ -1387,10 +1387,11 @@ where type = 'claim_updated' and source_type = 'order_partial_cancellation'
 update public.notifications set body = '반품하신 상품의 환불 ' || substr(body, char_length('반품하신 굿즈의 환불 ') + 1)
 where type = 'claim_updated' and body like '반품하신 굿즈의 환불 %을 결제사 부분 취소로 진행합니다.%';
 
--- 상품 Q&A 답변·리뷰 답글: 상품 이름을 못 찾았을 때의 대체값
+-- 상품 Q&A 답변·리뷰 답글: 상품 이름을 못 찾았을 때의 대체값(서비스 이름 통일 20261125175000 전의 'ICONS 운영자' 행 포함)
 update public.notifications set body = '상품' || substr(body, char_length('굿즈') + 1)
 where type in ('product_question_answered', 'review_replied')
-  and body in ('굿즈 질문에 엑스스퀘어 운영자가 답변을 남겼습니다.', '굿즈 리뷰에 엑스스퀘어 운영자가 답글을 남겼습니다.');
+  and body in ('굿즈 질문에 엑스스퀘어 운영자가 답변을 남겼습니다.', '굿즈 리뷰에 엑스스퀘어 운영자가 답글을 남겼습니다.',
+    '굿즈 질문에 ICONS 운영자가 답변을 남겼습니다.', '굿즈 리뷰에 ICONS 운영자가 답글을 남겼습니다.');
 
 -- 3) 운영자 계약 지문
 select private.register_operator_rpc_contract('public.admin_answer_product_question(uuid,text)'::regprocedure,'cs.manage','retired',false);
