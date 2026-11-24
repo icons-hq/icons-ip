@@ -124,10 +124,10 @@ export function goodOrderMaxQty(good: Pick<Good, 'orderQuantityLimitEnabled' | '
 /** 바로구매 주문서를 열지 못한 이유(ADR-0030). 로그인·프로필 미완료는 화면을 옮겨 안내한다. */
 export const DIRECT_BUY_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required' | 'onboarding_required'>, string> = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
-  invalid_request: '선택한 굿즈와 수량을 확인해주세요.',
-  cart_changed: '선택한 굿즈와 수량을 확인해주세요.',
-  adult_verification_required: '19금 굿즈는 성인 인증을 마친 회원만 구매할 수 있어요. 마이 > 성인 인증에서 인증해주세요.',
-  additional_good_unavailable: '추가 구성 굿즈의 판매 또는 연결 상태가 변경되었습니다. 선택을 다시 확인해주세요.',
+  invalid_request: '선택한 상품과 수량을 확인해주세요.',
+  cart_changed: '선택한 상품과 수량을 확인해주세요.',
+  adult_verification_required: '19금 상품은 성인 인증을 마친 회원만 구매할 수 있어요. 마이 > 성인 인증에서 인증해주세요.',
+  additional_good_unavailable: '추가 구성 상품의 판매 또는 연결 상태가 변경되었습니다. 선택을 다시 확인해주세요.',
   goods_unavailable: '판매 상태가 바뀌었어요. 새로고침한 뒤 다시 확인해주세요.',
   custom_inputs_changed: '직접입력형 옵션 설정이 변경되었습니다. 내용을 다시 확인해주세요.',
   unavailable: '주문서를 열지 못했어요. 잠시 후 다시 시도해주세요.',
@@ -285,8 +285,8 @@ export function useGoodPurchase({
     && !selectedGoods.every((item) => item.allowBankTransfer !== false);
   const conditionProblem = goodsPurchaseConditionProblem(good)
     ?? (unavailableAddition ? `${unavailableAddition.name}의 판매 상태가 변경되었습니다. 추가 선택을 해제하고 다시 확인해주세요.` : null)
-    ?? (noCommonPayment ? '함께 선택한 굿즈에서 사용할 수 있는 결제수단이 없습니다.' : null)
-    ?? (memberLimitReached ? '회원 누적 구매 한도를 모두 사용한 굿즈예요. 결제 대기 중인 주문도 한도에 포함됩니다.' : null);
+    ?? (noCommonPayment ? '함께 선택한 상품에서 사용할 수 있는 결제수단이 없습니다.' : null)
+    ?? (memberLimitReached ? '회원 누적 구매 한도를 모두 사용한 상품이에요. 결제 대기 중인 주문도 한도에 포함됩니다.' : null);
   const nextQuantity = mergedCartQuantity(selectedOption ? cart.getQuantity(good.id, selectedOption.id) : 0, quantity);
   const blocked = purchaseBlockReason({
     disabled: disabled || Boolean(conditionProblem),
@@ -499,9 +499,9 @@ function CartGlyph() {
 
 function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
   if (!purchase.additionalChoices?.length) return null;
-  return <section aria-label="추가 구성 굿즈" style={{ borderTop: '1px solid var(--wc-hairline)', marginTop: 20, paddingTop: 20 }}>
-    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>추가 구성 굿즈 <span style={{ fontWeight: 400 }}>(선택)</span></h3>
-    <p className="wc-buy-panel__state">원하는 굿즈와 수량을 함께 담을 수 있습니다.</p>
+  return <section aria-label="추가 구성 상품" style={{ borderTop: '1px solid var(--wc-hairline)', marginTop: 20, paddingTop: 20 }}>
+    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>추가 구성 상품 <span style={{ fontWeight: 400 }}>(선택)</span></h3>
+    <p className="wc-buy-panel__state">원하는 상품과 수량을 함께 담을 수 있습니다.</p>
     {purchase.additionalChoices.map((choice) => <fieldset key={choice.goodId} disabled={purchase.disabled || purchase.busy}
       style={{ minWidth: 0, border: 0, borderBottom: '1px solid var(--wc-hairline)', margin: 0, padding: '12px 0' }}>
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14, lineHeight: 1.5 }}>
@@ -668,8 +668,8 @@ export function useSheetTriggerFocusReturn(barRef: RefObject<HTMLElement | null>
 /** 구매 전용 칸을 접었을 때의 안내. 고른 옵션만 품절이면 판매 중인 옵션을 고르면 다시 보인다고 알린다. */
 export function foldedPurchaseInputsNote(folded: readonly string[]): string | null {
   if (!folded.length) return null;
-  const particle = folded[folded.length - 1].endsWith('옵션') ? '은' : '는';
-  return `품절 옵션은 재입고 알림만 신청할 수 있어요. ${folded.join('·')}${particle} 판매 중인 옵션을 고르면 보여요.`;
+  /* 접는 칸 이름('직접 입력 옵션'·'추가 구성 상품')은 모두 받침으로 끝나 조사는 '은'이다. */
+  return `품절 옵션은 재입고 알림만 신청할 수 있어요. ${folded.join('·')}은 판매 중인 옵션을 고르면 보여요.`;
 }
 
 /** 정보 칼럼의 구매 패널. 품절이면(고른 옵션만 품절이어도) CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
@@ -695,7 +695,7 @@ export function GoodPurchasePanel({ otherPurchases, purchase, shippingPolicy }: 
      (모든 옵션이 품절이면 돌아갈 옵션이 없다). */
   const restockOnly = cta.kind === 'restock';
   const foldedInputs = restockOnly
-    ? [good.customInputs?.enabled ? '직접 입력 옵션' : null, purchase.additionalChoices?.length ? '추가 구성 굿즈' : null].filter((label): label is string => label !== null)
+    ? [good.customInputs?.enabled ? '직접 입력 옵션' : null, purchase.additionalChoices?.length ? '추가 구성 상품' : null].filter((label): label is string => label !== null)
     : [];
   const foldedNote = cta.kind === 'restock' && cta.variantId ? foldedPurchaseInputsNote(foldedInputs) : null;
   /* 상태 줄은 성공(담았어요) 말고는 실패·거절 안내다(카트·검증 오류, 구매 조건, 재입고 거절) — 문구가 뜻을 전하고 색은
@@ -709,8 +709,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase, shippingPolicy }: 
           운영자가 고르는 재고 표시라 실재고와 연동되지 않고(표시광고법 '품절임박' 실재고 연동 요건,
           docs/online-popup/01-report.md), 품절은 재입고 알림 CTA 가 글로 대신 말한다. */}
       {purchase.unavailableLabel ? <p className="wc-buy-panel__state">{purchase.unavailableLabel}</p> : null}
-      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p>
-        : good.orderQuantityLimitEnabled && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 최대 {good.maxOrderQty.toLocaleString('ko-KR')}개까지 구매할 수 있습니다.</p> : null}
+      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 상품에서 나뉜 항목을' : '같은 상품의 옵션을'} 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p>
+        : good.orderQuantityLimitEnabled && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 상품에서 나뉜 항목을' : '같은 상품의 옵션을'} 합산하여 주문당 최대 {good.maxOrderQty.toLocaleString('ko-KR')}개까지 구매할 수 있습니다.</p> : null}
       {good.memberPurchaseLimitEnabled && good.memberLifetimeQtyLimit ? <p className="wc-buy-panel__state">회원 누적 최대 {good.memberLifetimeQtyLimit.toLocaleString('ko-KR')}개 · 결제 대기 주문 포함</p> : null}
       {(good.options?.length ?? 0) > 1 ? (
         <label className="wc-buy-panel__option">
@@ -745,7 +745,7 @@ export function GoodPurchasePanel({ otherPurchases, purchase, shippingPolicy }: 
       {restockOnly ? null : <AdditionalChoices purchase={purchase} />}
       <GoodsTransactionTerms good={good} quantity={quantity} />
       {restockOnly ? null : (purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => <GoodsTransactionTerms key={choice.goodId} good={choice.good!} quantity={choice.quantity} />)}
-      {purchase.volumeDiscountTotal ? <p className="wc-buy-panel__state">선택 굿즈 복수구매 할인 예상 −{krw(purchase.volumeDiscountTotal)}</p> : null}
+      {purchase.volumeDiscountTotal ? <p className="wc-buy-panel__state">선택 상품 복수구매 할인 예상 −{krw(purchase.volumeDiscountTotal)}</p> : null}
       {total ? <div className="wc-buy-panel__total">
         <span className="wc-buy-panel__total-label">{total.label}</span>
         <strong className="wc-buy-panel__total-amount">{total.amount}</strong>
@@ -758,7 +758,7 @@ export function GoodPurchasePanel({ otherPurchases, purchase, shippingPolicy }: 
           <p>{shipping.parcel.notice}</p>
         </> : null}
         {shipping.publicNote ? <p>{shipping.publicNote}</p> : null}
-        {shipping.digital ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}
+        {shipping.digital ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 상품의 선물하기는 제공하지 않습니다.</p> : null}
       </div> : null}
       {/* 두 버튼의 주문 범위가 다르다(ADR-0030): 구매하기는 이 굿즈만, 장바구니는 담아 둔 굿즈와 함께 골라 주문한다. */}
       {cta.kind === 'unavailable' ? <WcButton disabled variant="primary">{cta.label}</WcButton> : cta.kind === 'restock' ? (

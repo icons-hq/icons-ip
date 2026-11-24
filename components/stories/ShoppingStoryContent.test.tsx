@@ -9,7 +9,7 @@ vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 const good = (id: string, overrides: Partial<PublicShoppingStoryGood> = {}): PublicShoppingStoryGood => ({
   id, name: `스토리 ${id}`, price: 9000, priceMax: 9000, compareAtPrice: null, showDiscountRate: true, imageBackground: '', badge: null, soldOut: false, ...overrides,
 });
-const sections: PublicShoppingStorySection[] = [{ id: '11111111-1111-4111-8111-111111111111', title: '함께 보면 좋은 굿즈', imageShape: 'portrait',
+const sections: PublicShoppingStorySection[] = [{ id: '11111111-1111-4111-8111-111111111111', title: '함께 보면 좋은 상품', imageShape: 'portrait',
   goods: [good('s1', { reviewSummary: { count: 5, average: 4.4 } }), good('s2')] }];
 
 function render(wishlist?: Parameters<typeof ShoppingStoryContent>[0]['wishlist']) {

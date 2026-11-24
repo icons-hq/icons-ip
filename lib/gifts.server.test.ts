@@ -34,7 +34,7 @@ beforeEach(() => {
 
 /* m27 CUST-1: 선물을 만든 뒤 랜덤 판매로 바뀐 굿즈의 품목 스냅샷에는 기본 옵션 이름이 남는다 — 화면에 닿기 전에 '랜덤'으로 가린다. */
 describe('선물 품목의 랜덤 판매 옵션 가림', () => {
-  it('선물 상세·선물함·받은 선물 링크가 모두 랜덤 판매 굿즈의 옵션명을 가린다', async () => {
+  it('선물 상세·선물함·받은 선물 링크가 모두 랜덤 판매 상품의 옵션명을 가린다', async () => {
     mocks.rpc.mockImplementation(async (name: string) => ({ error: null,
       data: name === 'get_my_gift_numbered' ? gift : name === 'list_my_gifts_numbered' ? { items: [gift], hasMore: false } : invitation }));
     expect(variantNames(await loadGift(id))).toEqual(['빨강', '랜덤']);

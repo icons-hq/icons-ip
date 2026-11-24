@@ -143,9 +143,9 @@ describe('MyCoupons 티켓 카드', () => {
 
     /* R25: 운영 주문서(legacy)는 주문 1건에 굿즈 쿠폰 1장이고 배송비 쿠폰 선택을 받지 않는다 — 사실대로 안내한다. */
     expect(html).toContain('장바구니와 주문서에서 보유 쿠폰을 고르거나 코드를 입력할 수 있어요.');
-    expect(html).toContain('한 주문에 굿즈 쿠폰 1장을 쓸 수 있어요.');
+    expect(html).toContain('한 주문에 상품 쿠폰 1장을 쓸 수 있어요.');
     expect(html).toContain('배송비 쿠폰은 지금 주문에 쓸 수 없어요.');
-    expect(html).not.toContain('주문서에서 굿즈 쿠폰의 적용 순서');
+    expect(html).not.toContain('주문서에서 상품 쿠폰의 적용 순서');
   });
 });
 
@@ -171,7 +171,7 @@ describe('MyCoupons 카드 중복 사용 표기', () => {
   it.each([
     ['운영 주문서(legacy)', LEGACY],
     ['중복 사용 꺼짐', { transactionMode: 'transaction', couponPolicy: policy(false, 3, true) }],
-    ['중복 사용이 켜졌지만 굿즈 쿠폰 1장·배송비 쿠폰 없음', { transactionMode: 'transaction', couponPolicy: policy(true, 1, false) }],
+    ['중복 사용이 켜졌지만 상품 쿠폰 1장·배송비 쿠폰 없음', { transactionMode: 'transaction', couponPolicy: policy(true, 1, false) }],
     ['정책 미확인', { transactionMode: 'transaction', couponPolicy: null }],
     ['런타임 미확인', { transactionMode: 'unavailable', couponPolicy: null }],
   ] as const)('%s이면 조합 표기를 그리지 않는다', (_label, checkoutRules) => {
@@ -191,28 +191,28 @@ describe('MyCoupons 쿠폰 안내 — 주문서 계약', () => {
 
   it('중복 사용·배송비 쿠폰이 켜진 거래 런타임이면 여러 장과 배송비 쿠폰을 안내하고 쓸 수 없다고 하지 않는다', () => {
     const text = guide({ transactionMode: 'transaction', couponPolicy: policy(true, 3, true) });
-    expect(text).toContain('장바구니에서 굿즈 쿠폰을 미리 고르거나 코드를 입력하고, 주문서에서 함께 쓸 쿠폰을 확정해요.');
-    expect(text).toContain('중복 사용을 허용한 쿠폰끼리 굿즈 쿠폰 최대 3장과 배송비 쿠폰 1장을 함께 쓸 수 있어요.');
-    expect(text).toContain('굿즈 쿠폰은 남은 굿즈 금액에, 배송비 쿠폰은 선결제 운송비에 적용돼요. 설치비와 착불 운송비는 배송비 할인에서 제외됩니다.');
+    expect(text).toContain('장바구니에서 상품 쿠폰을 미리 고르거나 코드를 입력하고, 주문서에서 함께 쓸 쿠폰을 확정해요.');
+    expect(text).toContain('중복 사용을 허용한 쿠폰끼리 상품 쿠폰 최대 3장과 배송비 쿠폰 1장을 함께 쓸 수 있어요.');
+    expect(text).toContain('상품 쿠폰은 남은 상품 금액에, 배송비 쿠폰은 선결제 운송비에 적용돼요. 설치비와 착불 운송비는 배송비 할인에서 제외됩니다.');
     expect(text).not.toContain('배송비 쿠폰은 지금 주문에 쓸 수 없어요');
-    expect(text).not.toContain('한 주문에 굿즈 쿠폰 1장을 쓸 수 있어요');
+    expect(text).not.toContain('한 주문에 상품 쿠폰 1장을 쓸 수 있어요');
   });
 
-  it('중복 사용이 꺼져 있으면 굿즈·배송비 쿠폰 중 1장이라고 알린다', () => {
+  it('중복 사용이 꺼져 있으면 상품·배송비 쿠폰 중 1장이라고 알린다', () => {
     const text = guide({ transactionMode: 'transaction', couponPolicy: policy(false, 1, true) });
-    expect(text).toContain('한 주문에 굿즈 쿠폰 또는 배송비 쿠폰 1장을 쓸 수 있어요.');
+    expect(text).toContain('한 주문에 상품 쿠폰 또는 배송비 쿠폰 1장을 쓸 수 있어요.');
     expect(text).toContain('배송비 쿠폰은 선결제 운송비에 적용돼요.');
   });
 
-  it('배송비 쿠폰이 꺼져 있으면 굿즈 쿠폰만 여러 장이라고 알리고 배송비 쿠폰은 쓸 수 없다고 한다', () => {
+  it('배송비 쿠폰이 꺼져 있으면 상품 쿠폰만 여러 장이라고 알리고 배송비 쿠폰은 쓸 수 없다고 한다', () => {
     const text = guide({ transactionMode: 'transaction', couponPolicy: policy(true, 2, false) });
-    expect(text).toContain('중복 사용을 허용한 굿즈 쿠폰끼리 최대 2장까지 함께 쓸 수 있어요.');
-    expect(text).toContain('굿즈 쿠폰은 대상 굿즈 금액에 적용돼요. 배송비 쿠폰은 지금 주문에 쓸 수 없어요.');
+    expect(text).toContain('중복 사용을 허용한 상품 쿠폰끼리 최대 2장까지 함께 쓸 수 있어요.');
+    expect(text).toContain('상품 쿠폰은 대상 상품 금액에 적용돼요. 배송비 쿠폰은 지금 주문에 쓸 수 없어요.');
   });
 
-  it('최대 1장이면 굿즈 쿠폰 1장으로 알린다', () => {
-    expect(guide({ transactionMode: 'transaction', couponPolicy: policy(true, 1, false) })).toContain('한 주문에 굿즈 쿠폰 1장을 쓸 수 있어요.');
-    expect(guide({ transactionMode: 'transaction', couponPolicy: policy(false, 1, false) })).toContain('한 주문에 굿즈 쿠폰 1장을 쓸 수 있어요.');
+  it('최대 1장이면 상품 쿠폰 1장으로 알린다', () => {
+    expect(guide({ transactionMode: 'transaction', couponPolicy: policy(true, 1, false) })).toContain('한 주문에 상품 쿠폰 1장을 쓸 수 있어요.');
+    expect(guide({ transactionMode: 'transaction', couponPolicy: policy(false, 1, false) })).toContain('한 주문에 상품 쿠폰 1장을 쓸 수 있어요.');
   });
 
   it.each([
@@ -222,6 +222,6 @@ describe('MyCoupons 쿠폰 안내 — 주문서 계약', () => {
     const text = guide(checkoutRules);
     expect(text).toContain('함께 쓸 수 있는 쿠폰 수와 배송비 쿠폰 사용 여부는 주문서에서 확인해주세요.');
     expect(text).not.toContain('배송비 쿠폰은 지금 주문에 쓸 수 없어요');
-    expect(text).not.toContain('한 주문에 굿즈 쿠폰 1장');
+    expect(text).not.toContain('한 주문에 상품 쿠폰 1장');
   });
 });

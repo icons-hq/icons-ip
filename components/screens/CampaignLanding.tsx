@@ -138,7 +138,7 @@ function SectionBody({
 
     case 'goods':
       if (!section.goods.length) {
-        return <p className="wc-campaign-panel__note">준비된 굿즈를 지금은 볼 수 없어요.</p>;
+        return <p className="wc-campaign-panel__note">준비된 상품을 지금은 볼 수 없어요.</p>;
       }
       return (
         <div className="wc-campaign-goods">

@@ -47,7 +47,7 @@ function render(targets: MyReviewTarget[]) {
 }
 
 describe('MyReviews', () => {
-  it('작성 가능한 굿즈에 남은 기한과 작성 링크를 준다', () => {
+  it('작성 가능한 상품에 남은 기한과 작성 링크를 준다', () => {
     const html = render([target()]);
 
     expect(html).toContain('작성할 수 있는 리뷰 1건');
@@ -59,7 +59,7 @@ describe('MyReviews', () => {
   it('리뷰가 없으면 왜 비었는지 말한다', () => {
     const html = render([]);
 
-    expect(html).toContain('지금 리뷰를 남길 수 있는 굿즈가 없습니다');
+    expect(html).toContain('지금 리뷰를 남길 수 있는 상품이 없습니다');
   });
 
   it('작성한 리뷰에는 수정과 삭제 경로를 준다', () => {
@@ -78,7 +78,7 @@ describe('MyReviews', () => {
       review: writtenReview({ status: 'hidden' }),
     })]);
 
-    expect(html).toContain('비공개 처리되어 굿즈 상세에는 보이지 않습니다');
+    expect(html).toContain('비공개 처리되어 상품 상세에는 보이지 않습니다');
     expect(html).toContain('/my/inquiries/new');
     expect(html).not.toContain('>수정</a>');
   });
@@ -96,7 +96,7 @@ describe('MyReviews', () => {
   });
 
   /* 사라진 항목은 "왜 못 쓰는지"를 설명하지 못한다. */
-  it('기한이 지난 미작성 굿즈도 감추지 않는다', () => {
+  it('기한이 지난 미작성 상품도 감추지 않는다', () => {
     const html = render([target({ deliveredAt: '2026-01-01T00:00:00.000Z', deadlineAt: '2026-04-01T00:00:00.000Z', writable: false })]);
 
     expect(html).toContain('현재 작성할 수 없는 리뷰 1건');
@@ -128,7 +128,7 @@ describe('MyReviews', () => {
   });
 
   /* 구매확정할 수 없는 주문은 리뷰도 막힌다. 남은 기한 대신 막힌 이유를 적는다. */
-  it('구매확정할 수 없어 막힌 굿즈는 기한 대신 막힌 이유를 보인다', () => {
+  it('구매확정할 수 없어 막힌 상품은 기한 대신 막힌 이유를 보인다', () => {
     const html = render([target({ writable: false, purchaseConfirmation: { required: true, block: 'claim_in_progress', holdReason: null } })]);
 
     expect(html).toContain('현재 작성할 수 없는 리뷰 1건');

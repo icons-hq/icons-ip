@@ -25,7 +25,7 @@ describe('claim collection corrections', () => {
   const row = { shipmentId: '00000000-0000-4000-8000-000000000003', originName: 'TEST 김포', revision: 0, method: 'not_requested', carrier: null, trackingNumber: null,
    evidence: '', requestedOnce: true, collectedAt: null, updatedAt: null };
   const bundle = { bundleId: '00000000-0000-4000-8000-000000000010', returnName: '서울 반품지', returnAddress: '서울특별시 합성구 반품로 1', returnPhone: '02-1234-5678',
-   items: [{ name: 'TEST 굿즈', qty: 1 }], collectedAt: null };
+   items: [{ name: 'TEST 상품', qty: 1 }], collectedAt: null };
   const doc = { claimId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002', claimRevision: 3, editable: true,
    rows: [{ ...row, returnBundles: [bundle, { ...bundle, bundleId: '00000000-0000-4000-8000-000000000011', returnName: '', returnPhone: '' }] }, { ...row, shipmentId: '00000000-0000-4000-8000-000000000004', collectionWaived: true }], history: [] };
   expect(parseClaimCollectionDocument(doc)?.rows.map(item => [item.returnBundles?.length ?? 0, item.collectionWaived ?? false])).toEqual([[2, false], [0, true]]);
@@ -53,7 +53,7 @@ describe('claim collection corrections', () => {
   const doc = { claimId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002', claimRevision: 3, editable: true, rows: [row], history: [] };
   const parsed = parseClaimCollectionDocument(doc);
   expect(parsed?.rows.every(item => Object.keys(item).every(key => [...previousRowKeys, 'carrierLabel'].includes(key)))).toBe(true);
-  const bundle = { bundleId: '00000000-0000-4000-8000-000000000010', returnName: '서울 반품지', returnAddress: '서울특별시 합성구 반품로 1', returnPhone: '02-1234-5678', items: [{ name: 'TEST 굿즈', qty: 1 }], collectedAt: null };
+  const bundle = { bundleId: '00000000-0000-4000-8000-000000000010', returnName: '서울 반품지', returnAddress: '서울특별시 합성구 반품로 1', returnPhone: '02-1234-5678', items: [{ name: 'TEST 상품', qty: 1 }], collectedAt: null };
   const payload = parseClaimReturnBundles([{ shipmentId: row.shipmentId, returnBundles: [bundle] }, { shipmentId: '00000000-0000-4000-8000-000000000004', returnBundles: [] }]);
   expect(payload?.get(row.shipmentId)).toEqual([bundle]);
   expect(withClaimReturnBundles(parsed!, payload!).rows[0].returnBundles).toEqual([bundle]);

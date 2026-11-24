@@ -21,6 +21,6 @@ it('회차 cursor는 내림차순 마지막 행과 일치해야 하며 과거 �
 });
 /* m27 CUST-1: 정기배송은 랜덤 판매 굿즈를 받지 않는다(ADR-0027). */
 it('DB의 랜덤 판매 거절을 확정 문구로 옮긴다', () => {
-  expect(subscriptionError('23514', 'subscription_random_option_unsupported')).toBe('랜덤 판매 굿즈는 정기배송으로 받을 수 없어요.');
-  expect(subscriptionError('22023', 'subscription_random_option_unsupported: random-good')).toBe('랜덤 판매 굿즈는 정기배송으로 받을 수 없어요.');
+  expect(subscriptionError('23514', 'subscription_random_option_unsupported')).toBe('랜덤 판매 상품은 정기배송으로 받을 수 없어요.');
+  expect(subscriptionError('22023', 'subscription_random_option_unsupported: random-good')).toBe('랜덤 판매 상품은 정기배송으로 받을 수 없어요.');
 });

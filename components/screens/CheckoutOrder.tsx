@@ -53,7 +53,7 @@ const prepareErrorCopy: Record<NonNullable<PrepareGoodsPaymentActionState['error
   auth_required: '로그인 상태를 다시 확인한 뒤 다시 시도해주세요.',
   not_found: '이 주문을 확인할 수 없습니다.',
   not_payable: '이 주문은 더 이상 결제할 수 없습니다.',
-  goods_sale_not_open: '굿즈의 판매기간이 시작되지 않았거나 종료되어 결제할 수 없습니다.',
+  goods_sale_not_open: '상품의 판매기간이 시작되지 않았거나 종료되어 결제할 수 없습니다.',
   payment_closed: '이 주문으로는 다시 결제할 수 없어요. 주문 상태를 새로 불러오고 있어요.',
   payment_unavailable: '결제 환경을 준비 중입니다. 잠시 후 다시 시도해주세요.',
 };
@@ -299,7 +299,7 @@ export function CheckoutOrder({
                   서버 prepare의 파생 결과가 진실원이라 provider로 판별한다. */}
               {prepareState.prepared.provider === 'nicepay' && (
                 <p className="money-caption" role="status">
-                  19금 굿즈가 포함된 주문은 결제수단이 신용카드로 제한됩니다.
+                  19금 상품이 포함된 주문은 결제수단이 신용카드로 제한됩니다.
                 </p>
               )}
               <PreparedCheckoutAction prepared={prepareState.prepared} />
@@ -377,7 +377,7 @@ export function CheckoutOrder({
               )}
               {state === 'closed' && !order.giftId && (
                 <ListingReturnLink className={reorderMode ? 'btn btn-ghost' : 'btn btn-holo'}>
-                  {reorderMode ? undefined : '굿즈 다시 담기'}
+                  {reorderMode ? undefined : '상품 다시 담기'}
                 </ListingReturnLink>
               )}
               {state === 'closed' && !isBankTransfer && (
@@ -413,7 +413,7 @@ export function CheckoutOrder({
           </div>
           {order.transaction ? <GoodsTransactionSummary display={order.transaction} names={transactionReceiptNames(order.transaction, order.items)} /> : <dl className="checkout-totals">
             {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
+            <div><dt>상품 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
             {order.discountTotal > 0 && (
               <div><dt>쿠폰 할인</dt><dd>−{krw(order.discountTotal)}</dd></div>
             )}

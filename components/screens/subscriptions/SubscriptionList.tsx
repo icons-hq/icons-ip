@@ -15,7 +15,7 @@ export function SubscriptionList({ actorId, plans, cards, canEnroll, registratio
     {canEnroll && !request.blocked && <Link className="wc-btn wc-btn-primary" href={routes.subscriptionNew()}>정기배송 신청</Link>}</header>
     <SubscriptionRequestFeedback {...request} />
     {!request.blocked && <>{unavailable ? <section className="wc-subscriptions__card" role="alert"><h2>신청 내역을 불러오지 못했습니다</h2><p>새로고침해 현재 내역을 다시 확인해주세요.</p></section>
-      : plans.length === 0 ? <section className="wc-subscriptions__card"><h2>신청한 정기구매가 없습니다</h2><p>정기배송을 제공하는 굿즈에서 신청할 수 있어요.</p></section>
+      : plans.length === 0 ? <section className="wc-subscriptions__card"><h2>신청한 정기구매가 없습니다</h2><p>정기배송을 제공하는 상품에서 신청할 수 있어요.</p></section>
         : <ul className="wc-subscriptions__list">{plans.map(plan => <li key={plan.id}><article className="wc-subscriptions__card"><div className="wc-subscriptions__row"><h2>{SUBSCRIPTION_PLAN_LABELS[plan.state]}</h2><small>{plan.schedule.interval}{plan.schedule.unit === 'week' ? '주' : '개월'} 주기</small></div>
           <dl><div><dt>다음 결제일</dt><dd>{subscriptionDate(plan.nextRunAt)}</dd></div><div><dt>이후 회차 온라인 결제금액</dt><dd>{krw(plan.renewalDisplay.totals.onlineTotal)}</dd></div>
             {plan.renewalDisplay.totals.collectShippingTotal > 0 && <div><dt>수령 시 별도 착불 배송비</dt><dd>{krw(plan.renewalDisplay.totals.collectShippingTotal)}</dd></div>}</dl>

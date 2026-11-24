@@ -49,7 +49,7 @@ export interface CollectionBrowserProps {
   result: ShopListResult;
   /** 이 목록이 고르게 하는 정렬. 서버 페이지네이션 목록은 DB 가 받는 4종만 넘긴다. */
   sorts: readonly ShopSort[];
-  /** 수량 줄의 명사 — 굿즈샵은 '굿즈', 검색은 '결과'(R-03 §2.2 '전체 › N개 결과'). */
+  /** 수량 줄의 명사 — 상품 목록은 '상품', 검색은 '결과'(R-03 §2.2 '전체 › N개 결과'). */
   countNoun: string;
   /** 컨트롤이 만들 다음 URL. 지금 URL 과 같으면 이동하지 않는다. */
   hrefFor: (query: ShopListQuery) => string;
@@ -234,7 +234,7 @@ export function CollectionBrowser({
     <>
       <div className="wc-collection__layout">
         {/* 데스크톱 사이드바는 체크 즉시 URL 을 갱신한다 — 적용 버튼이 없는 쪽 패턴(R-03 §1.3). */}
-        <aside aria-label="굿즈 필터" className="wc-collection__sidebar">
+        <aside aria-label="상품 필터" className="wc-collection__sidebar">
           {Boolean(result.categoryFacets?.length) && <details className="wc-filter-group" open>
             <summary className="wc-filter-group__summary">{`카테고리 (${query.categories?.length ?? 0})`}</summary>
             <FilterCheckList name="wc-shop-category" onToggle={(value) => applyFilters(toggleDraftValue(currentDraft, 'categories', value))} options={result.categoryFacets!} selected={query.categories ?? []} />
@@ -336,7 +336,7 @@ export function CollectionBrowser({
                   <WcButton onClick={() => applyFilters(EMPTY_SHOP_FILTER_DRAFT)}>전체 초기화</WcButton>
                 )}
                 description="필터를 줄이거나 초기화해 보세요."
-                title="조건에 맞는 굿즈가 없어요"
+                title="조건에 맞는 상품이 없어요"
               />
             </div>
           ) : (
@@ -383,14 +383,14 @@ export function CollectionBrowser({
           <div aria-hidden className="wc-filter-sheet__dim" onClick={closeSheet} />
           <div
             ref={panelRef}
-            aria-label="굿즈 필터"
+            aria-label="상품 필터"
             aria-modal="true"
             className="wc-filter-sheet"
             role="dialog"
           >
             <div className="wc-filter-sheet__heading">
               <div>
-                <h2>굿즈 필터</h2>
+                <h2>상품 필터</h2>
                 <p>{sheetDescription}</p>
               </div>
               <button aria-label="필터 닫기" className="wc-filter-sheet__close" onClick={closeSheet} type="button">

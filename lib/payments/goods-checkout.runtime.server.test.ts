@@ -161,7 +161,7 @@ describe('createRuntimeGoodsPaymentCheckout', () => {
    * 그대로 가는지 — 래퍼가 두 번째 인자를 버리면 굿즈 웹훅은 orderId 조회로만 판정된다.
    */
   it.each([['webhook-payment-key-hint'], [undefined]])(
-    '굿즈 웹훅 힌트(%s)는 attempt 래퍼를 지나 toss reconcile의 두 번째 인자로만 전달된다',
+    '상품 웹훅 힌트(%s)는 attempt 래퍼를 지나 toss reconcile의 두 번째 인자로만 전달된다',
     async (hint) => {
       const attempt = attemptFor('toss');
       const reconcile = vi.fn().mockResolvedValue(outcomeFor('toss', 'declined'));

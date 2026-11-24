@@ -185,16 +185,16 @@ export function parseGoodsSalesPrecheckoutQuote(value: unknown): GoodsSalesPrech
 
 export function goodsPurchaseReasonMessage(reason: GoodsPurchaseReason): string {
   const messages: Record<GoodsPurchaseReason, string> = {
-    purchase_limit_not_configured: '굿즈의 구매 조건을 확인 중입니다. 잠시 후 다시 확인해주세요.',
-    order_quantity_below_minimum: '같은 굿즈의 옵션을 합한 수량이 최소 구매 수량보다 적어요.',
-    order_quantity_above_maximum: '같은 굿즈의 옵션을 합한 수량이 주문당 최대 수량을 초과해요.',
+    purchase_limit_not_configured: '상품의 구매 조건을 확인 중입니다. 잠시 후 다시 확인해주세요.',
+    order_quantity_below_minimum: '같은 상품의 옵션을 합한 수량이 최소 구매 수량보다 적어요.',
+    order_quantity_above_maximum: '같은 상품의 옵션을 합한 수량이 주문당 최대 수량을 초과해요.',
     member_purchase_limit_exceeded: '회원 누적 구매 한도를 초과해요. 결제 대기 중인 주문도 한도에 포함됩니다.',
   };
   return messages[reason];
 }
 
 /** 견적 줄 가운데 지금 살 수 없는 줄이 있을 때의 공통 안내. 화면이 어떤 굿즈의 판매기간 때문인지 알면 그 안내로 바꾼다(QA1 S-D2-11). */
-export const GOODS_LINE_UNAVAILABLE_MESSAGE = '현재 판매 상태나 재고가 변경된 굿즈가 있어요. 수량을 다시 확인해주세요.';
+export const GOODS_LINE_UNAVAILABLE_MESSAGE = '현재 판매 상태나 재고가 변경된 상품이 있어요. 수량을 다시 확인해주세요.';
 
 export function goodsSalesQuoteProblem(quote: GoodsSalesConditions & { coupon?: CouponQuote | null }): string | null {
   if (quote.lines.some((line) => !line.available)) return GOODS_LINE_UNAVAILABLE_MESSAGE;
@@ -205,7 +205,7 @@ export function goodsSalesQuoteProblem(quote: GoodsSalesConditions & { coupon?: 
   if (optionReason) return PLACE_ORDER_OPTION_LIMIT_MESSAGES[optionReason];
   if (quote.coupon?.reason) return '선택한 쿠폰의 적용 조건이 바뀌었어요. 쿠폰을 다시 선택하거나 적용을 해제해주세요.';
   if (quote.lines.length && !quote.paymentMethods.card && !quote.paymentMethods.bankTransfer) {
-    return '함께 결제할 수 있는 공통 결제수단이 없어요. 굿즈를 나누어 주문해주세요.';
+    return '함께 결제할 수 있는 공통 결제수단이 없어요. 상품을 나누어 주문해주세요.';
   }
   return null;
 }

@@ -13,7 +13,7 @@ export function GoodOtherCompositions({ data, reviewSummaries, wishlist }: {
   wishlist?: ListingWishlist | null;
 }) {
   const heartFor = listingHeartsFor(wishlist);
-  if (data.unavailable) return <p className="wc-pdp-panel__note">다른 구성 굿즈를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p>;
+  if (data.unavailable) return <p className="wc-pdp-panel__note">다른 구성 상품을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p>;
   return <>{data.groups.map(group => <section className="wc-pdp-other-compositions" aria-labelledby={`good-other-composition-${group.id}`} key={group.id}>
     <h2 id={`good-other-composition-${group.id}`}>{group.title}</h2>
     <ul className="wc-pdp-other-compositions__products" aria-label={`${group.title} 목록`} tabIndex={0}>

@@ -80,7 +80,7 @@ export interface WishlistProps {
 function shopCta() {
   return (
     <WcButton href="/shop" variant="primary">
-      굿즈샵 둘러보기
+      상품 둘러보기
     </WcButton>
   );
 }
@@ -106,12 +106,12 @@ function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (i
         <div className="wc-product-card__media">
           <span aria-hidden className="wc-product-card__image" />
           <div className="wc-product-card__action">
-            <ListingWishHeart goodId={goodId} initialWished label="판매 종료 굿즈" viewerId={viewerId} />
+            <ListingWishHeart goodId={goodId} initialWished label="판매 종료 상품" viewerId={viewerId} />
           </div>
         </div>
         <div className="wc-product-card__info">
           <h3 className="wc-product-card__name">판매 종료</h3>
-          <p className="wc-wish__state">더 이상 판매하지 않는 굿즈예요.</p>
+          <p className="wc-wish__state">더 이상 판매하지 않는 상품이에요.</p>
         </div>
       </article>
     );
@@ -204,7 +204,7 @@ export function Wishlist({ followError = false, followedIps, lines, tab, viewerI
         </div>
         <nav aria-label="위시리스트 종류" className="wc-wish__tabs">
           <Link aria-current={tab === 'goods' ? 'page' : undefined} href={wishlistTabHref('goods')}>
-            굿즈 ({wishCount.toLocaleString('ko-KR')})
+            상품 ({wishCount.toLocaleString('ko-KR')})
           </Link>
           <Link aria-current={tab === 'ip' ? 'page' : undefined} href={wishlistTabHref('ip')}>
             팔로우한 IP{followedIps ? ` (${followedIps.length.toLocaleString('ko-KR')})` : ''}
@@ -230,8 +230,8 @@ export function Wishlist({ followError = false, followedIps, lines, tab, viewerI
           ) : (
             <EmptyState
               action={shopCta()}
-              description="마음에 드는 굿즈를 하트로 담아 두면 여기에 모여요."
-              title="아직 찜한 굿즈가 없어요"
+              description="마음에 드는 상품을 하트로 담아 두면 여기에 모여요."
+              title="아직 찜한 상품이 없어요"
             />
           )
         ) : followedIps === null ? (
@@ -250,7 +250,7 @@ export function Wishlist({ followError = false, followedIps, lines, tab, viewerI
         ) : (
           <EmptyState
             action={<WcButton href={hrefFor('iphub')} variant="primary">온라인 팝업 둘러보기</WcButton>}
-            description="좋아하는 IP를 팔로우하면 새 굿즈와 소식을 여기서 모아 볼 수 있어요."
+            description="좋아하는 IP를 팔로우하면 새 상품과 소식을 여기서 모아 볼 수 있어요."
             title="아직 팔로우한 IP가 없어요"
           />
         )}

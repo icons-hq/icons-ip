@@ -248,7 +248,7 @@ export function normalizeProductQuestionForm(formData: FormData): ProductQuestio
   const isSecret = readString(formData, 'secret') !== '';
   const errors: ProductQuestionFormErrors = {};
 
-  if (!goodId) errors.form = '질문을 남길 굿즈를 찾을 수 없습니다.';
+  if (!goodId) errors.form = '질문을 남길 상품을 찾을 수 없습니다.';
   if (!body) errors.body = '질문 내용을 입력해주세요.';
   else if (body.length > MAX_PRODUCT_QUESTION_BODY_LENGTH) {
     errors.body = `질문은 ${MAX_PRODUCT_QUESTION_BODY_LENGTH}자 이내로 입력해주세요.`;

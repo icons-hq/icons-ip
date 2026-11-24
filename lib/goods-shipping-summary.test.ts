@@ -85,7 +85,7 @@ describe('goodsShippingSummary (MD-0041)', () => {
     expect(none).toMatchObject({ methodsLabel: '배송없음 · 직접전달', parcel: null });
   });
 
-  it('디지털 굿즈는 현행 그대로 — 제공 방식 줄과 파일 제공 안내, 택배 블록 없음', () => {
+  it('디지털 상품은 현행 그대로 — 제공 방식 줄과 파일 제공 안내, 택배 블록 없음', () => {
     const summary = goodsShippingSummary(fulfillment([terms('digital')], { mode: 'digital', publicNote: '구매 후 바로 받아요.' }), policy(), offerBase);
     expect(summary).toEqual({ methodsLabel: '디지털 파일 다운로드', parcel: null, digital: true, publicNote: '구매 후 바로 받아요.' });
   });
@@ -95,16 +95,16 @@ describe('goodsShippingSummary (MD-0041)', () => {
   });
 
   describe('배송비 행', () => {
-    it('방식 조건의 배송비(feeAmount)가 정책보다 먼저다 — 굿즈당이면 표시한다', () => {
+    it('방식 조건의 배송비(feeAmount)가 정책보다 먼저다 — 상품당이면 표시한다', () => {
       const perOrder = goodsShippingSummary(fulfillment([terms('parcel', { feeAmount: 2500 })]), policy(), offerBase);
       expect(rowsOf(perOrder)?.[1]).toEqual(['배송비', '₩2,500']);
       const perItem = goodsShippingSummary(fulfillment([terms('parcel', { feeAmount: 2500, feeBasis: 'per_item' })]), policy(), offerBase);
-      expect(rowsOf(perItem)?.[1]).toEqual(['배송비', '₩2,500 (굿즈당)']);
+      expect(rowsOf(perItem)?.[1]).toEqual(['배송비', '₩2,500 (상품당)']);
       const zero = goodsShippingSummary(fulfillment([terms('parcel', { feeAmount: 0, feeBasis: 'per_item' })]), policy(), offerBase);
       expect(rowsOf(zero)?.[1]).toEqual(['배송비', '무료']);
     });
 
-    it('굿즈별 배송비 조건·묶음배송이 있으면 배송비 행을 빼고 국가·안내만 남긴다(거래 조건 블록이 말한다)', () => {
+    it('상품별 배송비 조건·묶음배송이 있으면 배송비 행을 빼고 국가·안내만 남긴다(거래 조건 블록이 말한다)', () => {
       const delivery = { status: 'active' } as unknown as NonNullable<GoodsTransactionOffer['delivery']>;
       const chargeGroup = { id: 'cg', revision: 1, calculationMode: 'min', regionalMode: 'inherit', available: true, inherited: false } as unknown as GoodsTransactionOffer['chargeGroup'];
       const withDelivery = goodsShippingSummary(fulfillment([terms('parcel')]), policy(), { delivery, chargeGroup: undefined });
@@ -123,9 +123,9 @@ describe('goodsShippingSummary (MD-0041)', () => {
       expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), policy({ baseFee: 0, freeThreshold: null }), offerBase))?.[1]).toEqual(['배송비', '무료']);
     });
 
-    it('무료 정책·굿즈당 정책', () => {
+    it('무료 정책·상품당 정책', () => {
       expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), policy({ feeType: 'free' }), offerBase))?.[1]).toEqual(['배송비', '무료']);
-      expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), policy({ feeType: 'individual', individualFee: 2000 }), offerBase))?.[1]).toEqual(['배송비', '₩2,000 (굿즈당 1회)']);
+      expect(rowsOf(goodsShippingSummary(fulfillment([terms('parcel')]), policy({ feeType: 'individual', individualFee: 2000 }), offerBase))?.[1]).toEqual(['배송비', '₩2,000 (상품당 1회)']);
     });
 
     it('정책이 없다고 읽혔으면(null) 배송비 행만 생략한다', () => {

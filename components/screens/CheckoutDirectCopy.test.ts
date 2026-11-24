@@ -20,10 +20,10 @@ describe('바로구매 주문서 안내', () => {
     ...Object.fromEntries(Object.entries(PLACE_ORDER_OPTION_LIMIT_MESSAGES).map(([key, value]) => [`option.${key}`, value])),
     random: PLACE_ORDER_RANDOM_OPTION_MESSAGE,
     randomLimit: PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE,
-    stock: '재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.',
+    stock: '재고가 변경된 상품이 있어요. 장바구니에서 수량을 확인해주세요.',
   };
 
-  it('장바구니를 가리키는 안내를 모두 굿즈 상세(쿠폰은 이 주문서)로 바꾼다', () => {
+  it('장바구니를 가리키는 안내를 모두 상품 상세(쿠폰은 이 주문서)로 바꾼다', () => {
     const leftovers = Object.entries(sources).filter(([, value]) => directCheckoutCopy(value).includes('장바구니'));
     expect(leftovers).toEqual([]);
   });
@@ -33,9 +33,9 @@ describe('바로구매 주문서 안내', () => {
     expect(directCheckoutCopy(cartTransactionErrorCopy.draft_used)).toBe(cartTransactionErrorCopy.draft_used);
   });
 
-  it('쿠폰 안내는 굿즈 상세가 아니라 이 주문서에서 다시 고르게 한다', () => {
+  it('쿠폰 안내는 상품 상세가 아니라 이 주문서에서 다시 고르게 한다', () => {
     expect(directCheckoutCopy(transactionIssueCopy.coupon_unavailable)).toContain('이 주문서에서 쿠폰을 다시 골라주세요');
     expect(directCheckoutCopy(cartTransactionErrorCopy.coupon_changed)).toContain('이 주문서에서 쿠폰을 다시 골라주세요');
-    expect(directCheckoutCopy(checkoutActionErrorCopy.out_of_stock)).toContain('굿즈 상세에서');
+    expect(directCheckoutCopy(checkoutActionErrorCopy.out_of_stock)).toContain('상품 상세에서');
   });
 });

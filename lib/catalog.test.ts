@@ -370,7 +370,7 @@ describe('getCatalogSnapshot', () => {
         { ...base, id: 'draft-ip', public_slug: 'hidden-draft', published_at: null },
         { ...base, id: 'archived-ip', public_slug: 'hidden-archive', archived_at: '2026-09-01T00:00:00Z' },
       ],
-      goods: [{ id: 'g-slug', ip_id: 'hwasan', name: '검증 굿즈', type: '문구', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', show_discount_rate: false, 'ips.published_at': '2026-09-01' }],
+      goods: [{ id: 'g-slug', ip_id: 'hwasan', name: '검증 상품', type: '문구', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', show_discount_rate: false, 'ips.published_at': '2026-09-01' }],
       ip_public_slug_aliases: [{ slug: 'old-display', ip_id: 'hwasan' }],
       home_curations: ['/ip/old-display?tab=goods#detail', '/ip/hwasan', '/ip?ip=hwasan&tab=cards', '/ip/aouad'].map((href, index) => ({
         id: `curation-${index}`, kind: 'benefit', ip_id: null, title: 'IP 바로가기', image_path: null,
@@ -438,8 +438,8 @@ describe('getCatalogSnapshot', () => {
         },
       ],
       goods: [
-        { id: 'g-active', ip_id: 'hwasan', name: '운영 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
-        { id: 'g-archived', ip_id: 'hwasan', name: '보관 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, sale_restriction: 'none', archived_at: '2026-07-17T00:00:00.000Z' },
+        { id: 'g-active', ip_id: 'hwasan', name: '운영 상품', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
+        { id: 'g-archived', ip_id: 'hwasan', name: '보관 상품', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, sale_restriction: 'none', archived_at: '2026-07-17T00:00:00.000Z' },
       ],
       events: [
         { id: 'e-active', ip_id: 'hwasan', title: '운영 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
@@ -470,9 +470,9 @@ describe('getCatalogSnapshot', () => {
         { ...defaultSupabaseRows().ips[0], id: 'draft-ip', title: '초안 IP', published_at: null },
       ],
       goods: [
-        { id: 'g-own-draft', published_at: null, ip_id: 'hwasan', name: '자체 초안 굿즈', type: '아크릴', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
-        { id: 'g-live', ip_id: 'hwasan', name: '공개 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
-        { id: 'g-draft', ip_id: 'draft-ip', name: '초안 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
+        { id: 'g-own-draft', published_at: null, ip_id: 'hwasan', name: '자체 초안 상품', type: '아크릴', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
+        { id: 'g-live', ip_id: 'hwasan', name: '공개 상품', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
+        { id: 'g-draft', ip_id: 'draft-ip', name: '초안 상품', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
       ],
       events: [
         { id: 'e-live', ip_id: 'hwasan', title: '공개 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
@@ -518,7 +518,7 @@ describe('getCatalogSnapshot', () => {
         {
           id: 'g2',
           ip_id: 'hwasan',
-          name: '판매 중지 굿즈',
+          name: '판매 중지 상품',
           type: '아크릴',
           price: 12000,
           badge: null,
@@ -658,7 +658,7 @@ describe('getCatalogSnapshot', () => {
     expect(snapshot.goods.map((good) => good.id).sort()).toEqual(['a', 'adult-old', 'adult-x']);
     /* MD-0048 — 가림 카드는 이름·IP·가격을 싣고 이미지는 비운다. 이름 열이 없는 옛 응답(배포 순서)은 고정 문구다. */
     expect(snapshot.goods.find((good) => good.id === 'adult-x')).toMatchObject({ name: '성인 아크릴 키링', ip: 'hwasan', img: '', price: 5000, masked: true, saleRestriction: 'adult' });
-    expect(snapshot.goods.find((good) => good.id === 'adult-old')).toMatchObject({ name: '19금 굿즈', img: '', masked: true });
+    expect(snapshot.goods.find((good) => good.id === 'adult-old')).toMatchObject({ name: '19금 상품', img: '', masked: true });
 
     rpcCalls.length = 0;
     await getCatalogSnapshot({ adultGoods: 'hidden' });
@@ -997,7 +997,7 @@ describe('getHomeSnapshot', () => {
         { id: 'hidden-latest', user_id: 'u1', ip_id: 'hwasan', text: '숨김 최신', tag: '숨김', created_at: '2026-06-22T07:00:00.000Z', status: 'hidden' },
         { id: 'hwasan-latest', user_id: 'u1', ip_id: 'hwasan', text: '화산 최신', tag: '후기', created_at: '2026-06-22T06:00:00.000Z', status: 'visible' },
         { id: 'hwasan-old', user_id: 'u2', ip_id: 'hwasan', text: '화산 예전', tag: '후기', created_at: '2026-06-22T05:00:00.000Z', status: 'visible' },
-        { id: 'lumen-latest', user_id: 'u2', ip_id: 'lumen', text: '루멘 최신', tag: '한정굿즈', created_at: '2026-06-22T04:00:00.000Z', status: 'visible' },
+        { id: 'lumen-latest', user_id: 'u2', ip_id: 'lumen', text: '루멘 최신', tag: '한정상품', created_at: '2026-06-22T04:00:00.000Z', status: 'visible' },
         { id: 'regular-latest', user_id: 'u1', ip_id: 'regular', text: '일반 IP', tag: '제외', created_at: '2026-06-22T08:00:00.000Z', status: 'visible' },
       ],
       comments: [
@@ -1502,13 +1502,13 @@ describe('getHomeSnapshot', () => {
       }],
       goods: [
         {
-          id: 'g-first', ip_id: 'brand-ip', name: '첫 굿즈', type: '키링', price: 12000,
+          id: 'g-first', ip_id: 'brand-ip', name: '첫 상품', type: '키링', price: 12000,
           badge: 'NEW', stock: 'ok', stock_qty: 5, bg: null,
           sale_restriction: 'none',
           image_path: null, allow_bank_transfer: true,
         },
         {
-          id: 'g-soldout', ip_id: 'brand-ip', name: '품절 굿즈', type: '파우치', price: 18000,
+          id: 'g-soldout', ip_id: 'brand-ip', name: '품절 상품', type: '파우치', price: 18000,
           badge: null, stock: 'ok', stock_qty: 0, bg: 'linear-gradient(#000, #111)',
           sale_restriction: 'none',
           image_path: null, allow_bank_transfer: true,
@@ -1864,7 +1864,7 @@ describe('getHomeSnapshot', () => {
       } finally { mocks.isConfigured = false; mocks.client = null; }
     });
 
-    it('등록일이 있는 공개 굿즈가 없으면 newArrivals 키를 싣지 않아 홈이 블록을 그리지 않는다', async () => {
+    it('등록일이 있는 공개 상품이 없으면 newArrivals 키를 싣지 않아 홈이 블록을 그리지 않는다', async () => {
       mocks.isConfigured = true;
       mocks.client = createSupabaseClient([], { goods: [
         { id: 'undated', ip_id: 'hwasan', name: '날짜 없음', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none' },
@@ -1937,7 +1937,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
   const row = (extra: Partial<GoodRow> & Record<string, unknown>): GoodRow => ({ id: 'photo', ip_id: 'hwasan', name: '랜덤 포토카드', type: '포토카드',
     price: 5000, badge: null, stock: 'ok', stock_qty: 6, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
 
-  it('랜덤 판매 굿즈는 옵션을 기본 옵션 키 하나(랜덤)로 접고 수량 최대는 판매 중인 옵션 재고 합이다', () => {
+  it('랜덤 판매 상품은 옵션을 기본 옵션 키 하나(랜덤)로 접고 수량 최대는 판매 중인 옵션 재고 합이다', () => {
     const good = toGood(row({ option_sale_mode: 'random', goods_variants: [
       variant('00000000-0000-4000-8000-0000000000a2', '흑', 4, 1, { supply: supply(4, '2026-10-29T00:00:00Z') }),
       variant('00000000-0000-4000-8000-0000000000a1', '백', 0, 0),
@@ -1952,7 +1952,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(JSON.stringify(good.options)).not.toMatch(/흑|백|적|CODE-/);
   });
 
-  it('랜덤 판매 굿즈의 모든 옵션이 품절이면 굿즈 단위 품절(굿즈 재입고 알림)이다', () => {
+  it('랜덤 판매 상품의 모든 옵션이 품절이면 상품 단위 품절(상품 재입고 알림)이다', () => {
     const good = toGood(row({ option_sale_mode: 'random', goods_variants: [
       variant('00000000-0000-4000-8000-0000000000b1', '백', 0, 0), variant('00000000-0000-4000-8000-0000000000b2', '흑', 0, 1),
     ] }), () => '');
@@ -1960,7 +1960,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(good.stock).toBe('soldout');
   });
 
-  it('선택 판매 굿즈는 옵션을 그대로 두고 옵션별 주문당·1인 최대 수량을 싣는다', () => {
+  it('선택 판매 상품은 옵션을 그대로 두고 옵션별 주문당·1인 최대 수량을 싣는다', () => {
     const good = toGood(row({ goods_variants: [
       variant('00000000-0000-4000-8000-0000000000c1', '백', 4, 0, { order_max_qty: 2, member_max_qty: 5 }),
       variant('00000000-0000-4000-8000-0000000000c2', '흑', 4, 1),
@@ -1971,7 +1971,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     ]);
   });
 
-  it('공개 굿즈 읽기는 판매 방식과 옵션 한도 열을 함께 읽는다', async () => {
+  it('공개 상품 읽기는 판매 방식과 옵션 한도 열을 함께 읽는다', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient(records, { goods: [] });
@@ -1997,7 +1997,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
   const randomOption = (stockQty: number, extra: Record<string, unknown> = {}) => ({ id: '00000000-0000-4000-8000-0000000000d1', name: '랜덤', code: '',
     price: 5000, stock_qty: stockQty, is_default: true, attributes: {}, archived_at: null, sort_order: 0, pricing: pricing(5000), supply: supply(stockQty), ...extra });
 
-  it('고객 세션의 랜덤 판매 굿즈는 공개 계산 열의 랜덤 한 줄을 옵션으로 쓴다(옵션 행이 숨어도 품절로 보지 않는다)', () => {
+  it('고객 세션의 랜덤 판매 상품은 공개 계산 열의 랜덤 한 줄을 옵션으로 쓴다(옵션 행이 숨어도 품절로 보지 않는다)', () => {
     const good = toGood(row({ option_sale_mode: 'random', goods_variants: [], random_option: randomOption(7) }), () => '');
     expect(good.options).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000d1', name: '랜덤', code: '', isDefault: true,
       attributes: {}, price: 5000, stockQty: 7, orderMaxQty: null, memberMaxQty: null })]);
@@ -2017,7 +2017,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
       .not.toHaveProperty('randomAllocationLimit');
   });
 
-  it('운영자 세션이 옵션 행을 함께 받아도 랜덤 굿즈는 공개 계산 열의 랜덤 한 줄만 쓴다', () => {
+  it('운영자 세션이 옵션 행을 함께 받아도 랜덤 상품은 공개 계산 열의 랜덤 한 줄만 쓴다', () => {
     const good = toGood(row({ option_sale_mode: 'random', random_option: randomOption(5), goods_variants: [
       variant('00000000-0000-4000-8000-0000000000d1', '백', 1, 0), variant('00000000-0000-4000-8000-0000000000d2', '흑', 2, 1),
     ] }), () => '');
@@ -2034,7 +2034,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
   });
 });
 
-describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
+describe('상품 배송비 방식(카드 무료배송 칩의 근거)', () => {
   const row = (extra: Record<string, unknown> = {}): GoodRow => ({ id: 'ship', ip_id: 'hwasan', name: '배송 시험', type: '키링', price: 5000, badge: null,
     stock: 'ok', stock_qty: 3, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
 
@@ -2047,7 +2047,7 @@ describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
     expect(toGood(row({ shipping_fee_type: null }), () => '')).not.toHaveProperty('shippingFeeType');
   });
 
-  it('전체 카탈로그 읽기가 shipping_fee_type을 읽어 굿즈에 싣는다', async () => {
+  it('전체 카탈로그 읽기가 shipping_fee_type을 읽어 상품에 싣는다', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient(records, { goods: [
@@ -2062,7 +2062,7 @@ describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
 });
 
 /* MD-0051 · ADR-0050 — 공개 상세 주소는 상품 자동코드의 소문자형이라 카탈로그 굿즈가 코드를 싣는다. */
-describe('굿즈 상품 자동코드(공개 상세 주소의 근거)', () => {
+describe('상품 자동코드(공개 상세 주소의 근거)', () => {
   const row = (extra: Record<string, unknown> = {}): GoodRow => ({ id: 'hongsil-keyring', ip_id: 'hwasan', name: '키링', price: 5000, badge: null,
     stock: 'ok', stock_qty: 3, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
 
@@ -2072,7 +2072,7 @@ describe('굿즈 상품 자동코드(공개 상세 주소의 근거)', () => {
     expect(toGood(row({ code: null }), () => '')).not.toHaveProperty('code');
   });
 
-  it('전체 카탈로그 읽기가 code를 읽어 굿즈에 싣는다', async () => {
+  it('전체 카탈로그 읽기가 code를 읽어 상품에 싣는다', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient(records, { goods: [

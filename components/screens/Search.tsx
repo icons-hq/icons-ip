@@ -152,7 +152,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
   const asideGroups = snapshot.groups.filter((group) => group.kind !== 'good');
   const hasQuery = query.length > 0;
   /* 포스트는 커뮤니티 공개 스위치를 따른다 — 안내 문구도 같은 범위만 말한다(lib/search.ts). */
-  const scopeDescription = `${['굿즈', 'IP', ...(COMMUNITY_ENABLED ? ['포스트'] : [])].join('·')}를 한 번에 찾아드려요.`;
+  const scopeDescription = `${['상품', 'IP', ...(COMMUNITY_ENABLED ? ['포스트'] : [])].join('·')}를 한 번에 찾아드려요.`;
   const total = goods.result.total;
 
   return (
@@ -220,7 +220,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
 
         {asideGroups.length > 0 ? (
           <div className="wc-search-results__aside-groups">
-            <SectionHeading title="굿즈 외 결과" />
+            <SectionHeading title="상품 외 결과" />
             {asideGroups.map((group) => <AsideGroup group={group} key={group.kind} />)}
           </div>
         ) : null}

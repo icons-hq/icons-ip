@@ -123,7 +123,7 @@ function NotificationPreferenceFields({ followState }: { followState: IpFollowSt
             type="checkbox"
             value="1"
           />
-          <span>새 굿즈·드롭</span>
+          <span>새 상품·드롭</span>
         </label>
         <label className="wc-iphall__pref">
           <input
@@ -277,11 +277,11 @@ export function IpDetail({
           headingId="iphall-goods-heading"
           headingLevel={2}
           sort={result.total > 0 ? { value: query.sort, options: LISTING_SORTS, onChange: navigateSort } : null}
-          title={`${ip.title}의 굿즈`}
+          title={`${ip.title}의 상품`}
         />
         {result.total === 0 ? (
           <div className="wc-listing__empty">
-            <EmptyState description="새 굿즈가 입점하면 이 자리에 소개돼요." title="등록된 굿즈가 아직 없습니다" />
+            <EmptyState description="새 상품이 입점하면 이 자리에 소개돼요." title="등록된 상품이 아직 없습니다" />
           </div>
         ) : (
           <ListingGrid resetKey={`ip|${hallPath}|${sortQuery}`} result={result} wishlist={wishlist} />
@@ -290,7 +290,7 @@ export function IpDetail({
 
       <div className="wc-container wc-container--wide">
         <nav aria-label="이 IP의 다른 공간" className="wc-iphall__links">
-          <Link href={`${hrefFor('shop')}?ip=${ip.id}`}>굿즈샵에서 전체 보기</Link>
+          <Link href={`${hrefFor('shop')}?ip=${ip.id}`}>전체 상품 보기</Link>
           {hasOfflinePopup && <Link href={`${hrefFor('offlinePopups')}?ip=${ip.id}`}>오프라인 팝업</Link>}
           {COMMUNITY_ENABLED && <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>}
         </nav>

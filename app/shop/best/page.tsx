@@ -9,7 +9,7 @@ import { getCollectionBanners } from '@/lib/collection-banners.server';
 
 export const metadata: Metadata = {
   title: 'BEST — 엑스스퀘어',
-  description: '지금 가장 사랑받는 굿즈예요.',
+  description: '지금 가장 사랑받는 상품이에요.',
 };
 
 interface PageProps {

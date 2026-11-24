@@ -43,7 +43,7 @@ const MAX_QUERY_LENGTH = 80;
 const DEFAULT_PER_GROUP_LIMIT = 6;
 const GROUP_LABELS: Record<SearchResultKind, string> = {
   ip: 'IP',
-  good: '굿즈',
+  good: '상품',
   post: '포스트',
   tag: '태그',
 };

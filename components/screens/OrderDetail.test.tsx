@@ -67,8 +67,8 @@ describe('OrderDetail', () => {
 
   it('keeps the original purchase and actual exchange product in separate labeled sections', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt] })} />);
-    expect(html).toContain('주문한 굿즈'); expect(html).toContain('홍실 아크릴 블록');
-    expect(html).toContain('교환으로 받은 굿즈'); expect(html).toContain('교환 출고 파랑 상품');
+    expect(html).toContain('주문한 상품'); expect(html).toContain('홍실 아크릴 블록');
+    expect(html).toContain('교환으로 받은 상품'); expect(html).toContain('교환 출고 파랑 상품');
     expect(html).not.toContain('REPLACEMENT-BLUE');
   });
 
@@ -82,11 +82,11 @@ describe('OrderDetail', () => {
     expect(html).toContain('교환 배송 2건'); expect(html).toContain('EXCHANGE0001'); expect(html).toContain('EXCHANGE0002');
     expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0001"'); expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0002"');
     expect(html).toContain('회수 없이 다시 보내드려요'); expect(html).toContain('도착 확인'); expect(html).toContain('배송 중');
-    expect(html).not.toContain('교환으로 받은 굿즈');
+    expect(html).not.toContain('교환으로 받은 상품');
     /* 소포로 오지 않은 다른 교환(선물 받은 분 화면의 이 기능 전 교환)의 굿즈 이력은 소포 목록 아래에 그대로 남는다. */
     const older = { ...orderReshipmentReceipt, claimId: '93942000-0000-4000-8000-000000000031' };
     const mixed = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt, older], reshipmentParcels: [parcel] })} />);
-    expect(mixed).toContain('교환 배송'); expect(mixed).toContain('교환으로 받은 굿즈');
+    expect(mixed).toContain('교환 배송'); expect(mixed).toContain('교환으로 받은 상품');
     expect(mixed.match(/교환 출고 파랑 상품/g)).toHaveLength(2);
   });
 
@@ -138,7 +138,7 @@ describe('OrderDetail', () => {
 
     expect(html).toContain('결제 가능 시간이 지났어요');
     expect(html).toContain('청구된 금액은 없어요');
-    expect(html).toContain('이 주문을 취소하고 같은 굿즈로 다시 주문해주세요');
+    expect(html).toContain('이 주문을 취소하고 같은 상품으로 다시 주문해주세요');
     expect(html).toContain('주문 정리하고 다시 주문하기');
     expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
     expect(html).not.toContain('몇 분 안에 자동으로 취소');
@@ -211,7 +211,7 @@ describe('OrderDetail', () => {
     expect(html).toContain('배송조회: 운송장이 등록되면 볼 수 있어요.');
   });
 
-  it('굿즈 금액과 배송비를 분리해 스냅샷 그대로 보여준다', () => {
+  it('상품 금액과 배송비를 분리해 스냅샷 그대로 보여준다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order()} />);
 
     expect(html).toContain('₩27,000');
@@ -484,15 +484,15 @@ describe('OrderDetail 다시 결제 진입', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled', payment: null })}
       retry={{ source: 'cart', awaitingPayment: false, paymentUnresolved: false, baseGoodId: null, retryOrderId: null }} />);
     expect(html).toContain('결제가 끝나지 않아 결제 없이 취소된 주문이에요');
-    expect(html).toContain('이 주문의 굿즈 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.');
+    expect(html).toContain('이 주문의 상품 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.');
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
   });
 
-  it('결제 없이 취소된 바로구매 주문은 같은 구성으로 다시 구매하고 굿즈 상세로도 잇는다', () => {
+  it('결제 없이 취소된 바로구매 주문은 같은 구성으로 다시 구매하고 상품 상세로도 잇는다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled', payment: null })}
       retry={{ source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g13', retryOrderId: null }} />);
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
-    expect(html).toContain('href="/shop/g13">굿즈 상세에서 다시 고르기</a>');
+    expect(html).toContain('href="/shop/g13">상품 상세에서 다시 고르기</a>');
   });
 
   it('진입이 없으면 그대로다', () => {
@@ -509,7 +509,7 @@ describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
   };
   const twoQty = order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', qty: 2, unitPrice: 13_500 }] });
 
-  it('굿즈 줄과 배송 묶음 카드는 남은 수량을 말하고 취소된 수량을 적는다', () => {
+  it('상품 줄과 배송 묶음 카드는 남은 수량을 말하고 취소된 수량을 적는다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
     /* 줄은 남은 수량과 그 수량의 구매가격(13,500 × 1)을 말하고, 취소된 몫은 줄 아래에 따로 적는다. */
     expect(html).toContain('<p class="wc-order-line__qty">1개</p>'); expect(html).toContain('<strong>₩13,500</strong>');
@@ -663,7 +663,7 @@ describe('OrderDetail 결제 정보(MD-0037·0038)', () => {
     const section = paymentSection(html);
     expect(html).toContain('<section class="order-receipt-section" id="order-payment"');
     expect(section).toContain('<dt>결제수단</dt><dd>신용·체크카드 (4330********1234)</dd>');
-    const positions = ['결제수단', '총 굿즈 금액', '총 결제 금액', '결제 상태', '결제 일시'].map((label) => section.indexOf(`<dt>${label}</dt>`));
+    const positions = ['결제수단', '총 상품 금액', '총 결제 금액', '결제 상태', '결제 일시'].map((label) => section.indexOf(`<dt>${label}</dt>`));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(section).toContain('<dt>결제 상태</dt><dd>결제완료</dd>'); expect(section).toContain('<time dateTime="2026-08-01T06:01:00.000Z">2026. 8. 1. 15:01</time>');
@@ -676,19 +676,19 @@ describe('OrderDetail 결제 정보(MD-0037·0038)', () => {
     expect(paymentSection(renderToStaticMarkup(<OrderDetail order={order({ paymentMethod: 'bank_transfer', payment: null })} />))).toContain('<dt>결제수단</dt><dd>무통장 입금</dd>');
   });
 
-  it('v1 주문(영수증 없음)은 총 굿즈 금액·쿠폰 할인 금액·보유 적립금 사용·총 결제 금액 네 라벨을 쓴다', () => {
+  it('v1 주문(영수증 없음)은 총 상품 금액·쿠폰 할인 금액·보유 적립금 사용·총 결제 금액 네 라벨을 쓴다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ shippingFee: 3000, total: 24000, discountTotal: 2000, storeCreditTotal: 4000 })} />);
     const section = paymentSection(html);
-    expect(section).toContain('<dt>총 굿즈 금액</dt><dd>₩27,000</dd>'); expect(section).toContain('<dt>쿠폰 할인 금액</dt><dd>−₩2,000</dd>');
+    expect(section).toContain('<dt>총 상품 금액</dt><dd>₩27,000</dd>'); expect(section).toContain('<dt>쿠폰 할인 금액</dt><dd>−₩2,000</dd>');
     expect(section).toContain('<dt>보유 적립금 사용</dt><dd>−₩4,000</dd>'); expect(section).toContain('<dt>총 결제 금액</dt><dd>₩24,000</dd>');
-    for (const old of ['<dt>굿즈 금액</dt>', '<dt>쿠폰 할인</dt>', '<dt>적립금 사용</dt>']) expect(section).not.toContain(old);
+    for (const old of ['<dt>상품 금액</dt>', '<dt>쿠폰 할인</dt>', '<dt>적립금 사용</dt>']) expect(section).not.toContain(old);
   });
 
   it('v2 주문(영수증 있음)은 합계 표의 같은 네 라벨을 쓴다', () => {
     const value = order({ transaction: transactionDisplay, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, payment: tossPayment,
       items: [{ ...ORDER_ITEM, id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }] });
     const section = paymentSection(renderToStaticMarkup(<OrderDetail order={value} />));
-    for (const label of ['총 굿즈 금액', '쿠폰 할인 금액', '보유 적립금 사용', '총 결제 금액']) expect(section).toContain(`<dt>${label}</dt>`);
+    for (const label of ['총 상품 금액', '쿠폰 할인 금액', '보유 적립금 사용', '총 결제 금액']) expect(section).toContain(`<dt>${label}</dt>`);
     expect(section).not.toContain('<dt>온라인 결제금액</dt>');
   });
 
@@ -747,7 +747,7 @@ describe('OrderDetail 품목 줄(MD-0036·0037 OrderLineItem 재사용)', () => 
     expect(html).toContain('<strong>₩24,000</strong>'); expect(html).toContain('<del>₩27,000</del>');
   });
 
-  it('IP명이 없으면 그 자리는 비고, 굿즈 유형은 어디에도 보이지 않는다', () => {
+  it('IP명이 없으면 그 자리는 비고, 상품 유형은 어디에도 보이지 않는다', () => {
     const none = renderToStaticMarkup(<OrderDetail order={order({ lines: [{ ...line, ipName: null }] })} />);
     expect(none).not.toContain('wc-order-line__ip');
     expect(none).not.toContain('>아크릴 블록</p>');

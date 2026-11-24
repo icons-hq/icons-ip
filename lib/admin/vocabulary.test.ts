@@ -6,8 +6,8 @@ import { ADMIN_INQUIRY_CATEGORY_OPTIONS } from './inquiries';
 import { INQUIRY_CATEGORY_LABELS } from '@/lib/inquiries';
 
 describe('운영 콘솔 어휘', () => {
-  it('같은 문의 유형도 고객에게는 굿즈, 운영자에게는 상품으로 표시한다', () => {
-    expect(INQUIRY_CATEGORY_LABELS.good).toBe('굿즈');
+  it('같은 문의 유형을 고객과 운영자 모두 상품으로 표시한다(2026-11-24 고객 화면도 상품)', () => {
+    expect(INQUIRY_CATEGORY_LABELS.good).toBe('상품');
     expect(ADMIN_INQUIRY_CATEGORY_OPTIONS.find(option => option.value === 'good')?.label).toBe('상품');
     expect(adminGoodsCopy('추가상품과 추가 구성 굿즈를 확인합니다.')).toBe('추가구성상품과 추가구성상품을 확인합니다.');
   });

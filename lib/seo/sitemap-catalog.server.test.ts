@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 describe('loadSitemapCatalog', () => {
-  it('공개 IP·굿즈만 공개 상세와 같은 조건으로 읽는다(19금·초안·보관·비공개 IP 소속 제외)', async () => {
+  it('공개 IP·상품만 공개 상세와 같은 조건으로 읽는다(19금·초안·보관·비공개 IP 소속 제외)', async () => {
     db.pages = {
       ips: [[{ id: 'ip-maple', public_slug: 'maplestory', updated_at: '2026-11-01T00:00:00Z' }]],
       goods: [[{ id: 'g4', code: 'HSQ-0004', updated_at: '2026-11-10T00:00:00Z', ips: { id: 'ip-maple' } }]],

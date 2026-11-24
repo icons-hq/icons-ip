@@ -67,7 +67,7 @@ describe('interest collection privacy boundaries', () => {
 });
 /* L4b · CL-01·CL-02 — 관심 굿즈 카드도 목록 하트와 별점을 단다. 굿즈는 서버 액션으로 오므로 별점은 받은 뒤 한 번에 묻는다. */
 describe('interest collection listing cards', () => {
-  it('서버가 판정한 위시 상태로 하트를, 받아 온 굿즈의 별점은 네 묶음을 한 번에 물어 카드에 단다', async () => {
+  it('서버가 판정한 위시 상태로 하트를, 받아 온 상품의 별점은 네 묶음을 한 번에 물어 카드에 단다', async () => {
     render({ wishlist: { viewerId: first, goodIds: ['g3'] } });
     hooks.state[0] = first;
     hooks.state[1] = { ...emptyInterestCollection(first), enabled: true, groups: { repurchase: [], cart: [good('g4')], wishlist: [good('g3')], recent: [good('g1'), good('g2'), good('g3')] } };

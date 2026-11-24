@@ -224,7 +224,7 @@ describe('restoreCanceledOrderToCartAction', () => {
     ]);
   });
 
-  it('랜덤 판매 굿즈는 배정 옵션이 아니라 장바구니 키(기본 옵션) 한 줄로 다시 담는다(D5②)', async () => {
+  it('랜덤 판매 상품은 배정 옵션이 아니라 장바구니 키(기본 옵션) 한 줄로 다시 담는다(D5②)', async () => {
     const defaultVariant = '10000000-0000-4000-8000-0000000000d0';
     mocks.rows.order_items = [
       { id: rowId(1), order_id: orderId, good_id: 'rnd', variant_id: '10000000-0000-4000-8000-0000000000d1', qty: 2, good_name_snapshot: '랜덤 포토카드',
@@ -239,7 +239,7 @@ describe('restoreCanceledOrderToCartAction', () => {
 
   /* T7 리뷰 RV-3: 랜덤 전환 전 비기본 옵션 줄(B)로 만든 주문은 배정 행의 장바구니 키가 A·B로 갈린다. 키마다 따로
      merge_cart_items(greatest)를 부르면 DB가 둘을 같은 키 줄로 모으며 앞 수량이 사라지는데도 두 줄을 복원했다고 보고했다. */
-  it('랜덤 행은 장바구니 키가 갈려 와도 굿즈마다 수량을 더해 한 번만 다시 담는다', async () => {
+  it('랜덤 행은 장바구니 키가 갈려 와도 상품마다 수량을 더해 한 번만 다시 담는다', async () => {
     mocks.oneRowPerAllocation = true;
     const keyA = '10000000-0000-4000-8000-0000000000a0', keyB = '10000000-0000-4000-8000-0000000000b0';
     mocks.rows.order_items = [
@@ -322,7 +322,7 @@ describe('restoreCanceledOrderToCartAction', () => {
 
   /* catalog_item_unavailable은 품절·비게시·판매 제한을 한데 묶는다. 게시 중인 굿즈가
      품절로 바뀐 경우를 '판매 중지'로 오인시키지 않는다(E-4). */
-  it('게시 중인 품절 굿즈는 품절로, 그 밖의 담을 수 없는 굿즈는 사유를 단정하지 않는다', async () => {
+  it('게시 중인 품절 상품은 품절로, 그 밖의 담을 수 없는 상품은 사유를 단정하지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_item_unavailable' } });
     mocks.rows.goods = [
       { id: 'g1', stock: 'soldout', published_at: '2026-09-01T00:00:00.000Z', archived_at: null },
@@ -606,7 +606,7 @@ describe('restoreCanceledOrderToCartAction', () => {
       expect(mocks.rows.cart_coupon_selections).toEqual([]);
     });
 
-    it('대상 굿즈 없음·최소 결제액 유지도 사용 조건 미달로 본다', async () => {
+    it('대상 상품 없음·최소 결제액 유지도 사용 조건 미달로 본다', async () => {
       for (const reason of ['coupon_no_eligible_goods', 'coupon_no_discount']) {
         mocks.rows.cart_items = [];
         mocks.rows.cart_coupon_selections = [];
@@ -714,7 +714,7 @@ describe('restoreCanceledOrderToCartAction', () => {
       expect(rpcCalls('apply_cart_coupon')).toEqual([]);
     });
 
-    it('담긴 굿즈가 없으면 쿠폰을 빈 장바구니에 걸지 않는다', async () => {
+    it('담긴 상품이 없으면 쿠폰을 빈 장바구니에 걸지 않는다', async () => {
       mocks.rpc.mockImplementation(() => Promise.resolve({ data: null, error: { message: 'out of stock' } }));
       await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({
         restoredLines: 0,

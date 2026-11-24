@@ -35,7 +35,7 @@ export function CategoryDisplayShop({ initial, nav, wishlist }: { initial: Categ
       setReviewSummaries(current => ({ ...current, ...batchSummaries }));
       setNextOffset(batch.nextOffset);
     } catch (cause) {
-      if (active.current && !controller.signal.aborted) setError(cause instanceof Error && cause.message === 'stale' ? '전시 굿즈가 변경되었습니다. 목록을 새로 불러와주세요.' : '굿즈를 더 불러오지 못했습니다. 다시 시도해주세요.');
+      if (active.current && !controller.signal.aborted) setError(cause instanceof Error && cause.message === 'stale' ? '전시 상품이 변경되었습니다. 목록을 새로 불러와주세요.' : '상품을 더 불러오지 못했습니다. 다시 시도해주세요.');
     } finally { if (active.current) setLoading(false); if (request.current === controller) request.current = null; }
   }
   return <Shop view="all" title={initial.category.name} categoryNav={nav} displayBanner={categoryDisplayBanner(initial)} query={initial.query}

@@ -15,10 +15,10 @@ export function ShippingGroupSummary({ group, withheld }: { group: ShippingQuote
       <p>배송비 {withheld ?? (group.finalFee === null ? '배송지 확인 후 확정' : shippingFeeLabel(group.totalFee))}</p>
       {group.regionStatus && group.regionStatus !== 'unconfigured' ? <p>{shippingRegionStatusMessage(group.regionStatus)}</p> : null}
       {!withheld && group.regionalFee != null && group.regionalFee > 0 ? <p>지역 추가 배송비 {krw(group.regionalFee)} 포함{group.regionLabel ? ` · ${group.regionLabel}` : ''}</p> : null}
-      {group.hasPreorder ? <p>{goodsShipDateLabel(group.expectedShipDate)} · 같은 배송 묶음의 굿즈는 가장 늦은 예정일에 함께 발송합니다.{group.hasStockItems ? ' 일반 굿즈도 함께 기다립니다.' : ''}</p> : null}
-      {!withheld && group.individualFee > 0 ? <p>개별 배송비 {krw(group.individualFee)} 포함 · 굿즈당 1회</p> : null}
+      {group.hasPreorder ? <p>{goodsShipDateLabel(group.expectedShipDate)} · 같은 배송 묶음의 상품은 가장 늦은 예정일에 함께 발송합니다.{group.hasStockItems ? ' 일반 상품도 함께 기다립니다.' : ''}</p> : null}
+      {!withheld && group.individualFee > 0 ? <p>개별 배송비 {krw(group.individualFee)} 포함 · 상품당 1회</p> : null}
       {!withheld && group.policyFee > 0 && remainder > 0 ? (
-        <p>이 배송 묶음의 정책 적용 굿즈를 {krwAmountWords(remainder)} 더 담으면 묶음 배송비가 무료예요.</p>
+        <p>이 배송 묶음의 정책 적용 상품을 {krwAmountWords(remainder)} 더 담으면 묶음 배송비가 무료예요.</p>
       ) : null}
     </div>
   );

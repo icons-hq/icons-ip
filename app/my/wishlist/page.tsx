@@ -10,7 +10,7 @@ import { followedIpList, wishlistLines, wishlistTab, wishlistTabHref } from '@/l
 
 export const metadata: Metadata = {
   title: '위시리스트 — 엑스스퀘어',
-  description: '찜해 둔 굿즈와 팔로우한 IP를 한곳에 모아 봅니다.',
+  description: '찜해 둔 상품과 팔로우한 IP를 한곳에 모아 봅니다.',
   robots: { index: false, follow: false },
 };
 

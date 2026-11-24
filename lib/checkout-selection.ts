@@ -437,8 +437,8 @@ export function unpaidOrderCauseMessage(orders: readonly UnpaidCheckoutOrder[], 
   const only = kinds.size === 1 ? [...kinds][0] : null;
   if (only === 'coupon') return `결제 대기 주문 ${count}건이 이 쿠폰을 쓰고 있어요.`;
   if (only === 'firstPurchase') return `결제 대기 주문 ${count}건이 첫구매 혜택을 잡고 있을 수 있어요.`;
-  if (only === 'limit') return `결제 대기 주문 ${count}건이 이 굿즈의 구매 한도를 잡고 있어요.`;
-  if (only === 'stock') return `결제 대기 주문 ${count}건이 이 굿즈의 재고를 잡고 있어요.`;
+  if (only === 'limit') return `결제 대기 주문 ${count}건이 이 상품의 구매 한도를 잡고 있어요.`;
+  if (only === 'stock') return `결제 대기 주문 ${count}건이 이 상품의 재고를 잡고 있어요.`;
   const labels = (['coupon', 'firstPurchase', 'limit', 'stock'] as const).filter((kind) => kinds.has(kind)).map((kind) => CAUSE_LABELS[kind]);
   const subject = labels.join('·') || '혜택';
   return `결제 대기 주문 ${count}건이 ${subject}${objectParticle(subject)} 잡고 있${kinds.has('firstPurchase') ? '을 수 있' : ''}어요.`;
@@ -446,6 +446,6 @@ export function unpaidOrderCauseMessage(orders: readonly UnpaidCheckoutOrder[], 
 
 /** 확인창의 주문 한 줄 요약 — 첫 굿즈 이름과 나머지 품목 수. */
 export function unpaidCheckoutOrderSummary(order: Pick<UnpaidCheckoutOrder, 'itemName' | 'itemCount'>): string {
-  const name = order.itemName?.trim() || '굿즈';
+  const name = order.itemName?.trim() || '상품';
   return order.itemCount > 1 ? `${name} 외 ${order.itemCount - 1}건` : name;
 }

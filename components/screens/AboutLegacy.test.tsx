@@ -489,7 +489,7 @@ describe('AboutLegacy curation', () => {
 
     expect(html).toContain('/generated/ip/rilakkuma.webp');
     expect(html).not.toContain('/generated/ip/rilakkuma.png');
-    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
+    expect(html).toContain('aria-label="상품 장면 자동 전환 일시 정지"');
   });
 
   it('renders the original accessible film line controls without visible text', () => {
@@ -501,10 +501,10 @@ describe('AboutLegacy curation', () => {
     expect(html).toMatch(/<section[^>]+aria-label="엑스스퀘어 경험 소개"[^>]+aria-roledescription="carousel"/);
     expect(html).toContain('class="film-progress"');
     expect(html).toMatch(/<div[^>]+aria-label="필름 장면 선택 및 자동 전환"[^>]+role="group"/);
-    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지" aria-pressed="true"');
+    expect(html).toContain('aria-label="상품 장면 자동 전환 일시 정지" aria-pressed="true"');
     expect(html).toContain('aria-label="팝업 장면 보기 및 자동 전환 일시 정지" aria-pressed="false"');
     expect(html).not.toContain('aria-label="카드 장면');
-    expect(html).not.toContain('>굿즈</button>');
+    expect(html).not.toContain('>상품</button>');
     expect(html).not.toContain('>팝업</button>');
     expect(html).not.toContain('>카드</button>');
     expect(html).not.toContain('class="film-scene-dock"');
@@ -535,7 +535,7 @@ describe('AboutLegacy curation', () => {
 
     expect(singleSceneHtml).not.toContain('class="film-progress"');
     expect(twoSceneHtml).toContain('class="film-progress"');
-    expect(twoSceneHtml).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
+    expect(twoSceneHtml).toContain('aria-label="상품 장면 자동 전환 일시 정지"');
     expect(twoSceneHtml).toContain('aria-label="팝업 장면 보기 및 자동 전환 일시 정지"');
     expect(twoSceneHtml).not.toContain('aria-label="카드 장면');
     expect(twoSceneHtml.match(/<button[^>]+aria-pressed=/g)).toHaveLength(2);
@@ -759,7 +759,7 @@ describe('ICONS IP World Preview composition', () => {
         goods: [
           {
             id: 'legacy-good',
-            name: '레거시 굿즈',
+            name: '레거시 상품',
             ip: 'legacy',
             price: 10000,
             badge: null,
@@ -769,7 +769,7 @@ describe('ICONS IP World Preview composition', () => {
           },
           {
             id: 'lumen-good',
-            name: '루멘 굿즈',
+            name: '루멘 상품',
             ip: 'lumen',
             price: 28000,
             badge: 'NEW',
@@ -782,7 +782,7 @@ describe('ICONS IP World Preview composition', () => {
       curation: { ...EMPTY_EXPANDED_CURATION, hero: null, announcement: null, featuredIpIds: ['lumen'] },
     });
 
-    expect(html).toMatch(/experience-card[\s\S]*루멘 굿즈/);
-    expect(html).not.toMatch(/experience-card[\s\S]*레거시 굿즈/);
+    expect(html).toMatch(/experience-card[\s\S]*루멘 상품/);
+    expect(html).not.toMatch(/experience-card[\s\S]*레거시 상품/);
   });
 });

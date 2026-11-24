@@ -106,7 +106,7 @@ export function GoodReviews({
   return (
     <section aria-labelledby="pdp-review-heading" className="wc-reviews" id="reviews">
       <h2 className="wc-sr-only" id="pdp-review-heading">리뷰</h2>
-      {section.grouped ? <p className="wc-pdp-panel__note">같은 그룹의 굿즈 리뷰를 함께 보여드립니다.</p> : null}
+      {section.grouped ? <p className="wc-pdp-panel__note">같은 그룹의 상품 리뷰를 함께 보여드립니다.</p> : null}
 
       {summary.count === 0 ? (
         <p className="wc-pdp-panel__note">
@@ -170,7 +170,7 @@ export function GoodReviews({
                 {reviews.map((review) => (
                   <li key={review.id} className="wc-review-item">
                     {section.grouped && review.purchasedGood ? <p className="wc-review-item__purchase">
-                      구매 당시 굿즈: {review.purchasedGood.name}
+                      구매 당시 상품: {review.purchasedGood.name}
                       {review.purchasedGood.variantNames.length ? ` · ${review.purchasedGood.variantNames.join(' / ')}` : ''}
                     </p> : null}
                     <div className="wc-review-item__meta">
@@ -279,7 +279,7 @@ export function GoodReviews({
       )}
 
       <p className="wc-reviews__policy">
-        리뷰는 배송이 완료된 주문의 구매자만 남길 수 있습니다. 일반 리뷰는 주문·굿즈당 한 번, 배송완료 후 90일까지입니다. 한달사용 리뷰는 내 리뷰에 안내된 기간에 별도로 한 번 작성할 수 있습니다.
+        리뷰는 배송이 완료된 주문의 구매자만 남길 수 있습니다. 일반 리뷰는 주문·상품당 한 번, 배송완료 후 90일까지입니다. 한달사용 리뷰는 내 리뷰에 안내된 기간에 별도로 한 번 작성할 수 있습니다.
         리뷰 작성만으로 혜택이 지급되지는 않습니다. 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.{' '}
         <Link href="/my/reviews">내가 쓸 수 있는 리뷰 보기</Link>
       </p>

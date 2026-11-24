@@ -27,7 +27,7 @@ const emptyCuration: HomeCurationSnapshot = {
 
 const good = (id: string, overrides: Partial<HomeGoodsCard> = {}): HomeGoodsCard => ({
   id,
-  name: `굿즈 ${id}`,
+  name: `상품 ${id}`,
   brand: 'ICONS',
   price: 29000,
   badge: null,
@@ -84,7 +84,7 @@ const fullCuration: HomeCurationSnapshot = {
 describe('home sale-period state', () => {
   it('retains scheduled goods in tab cards and compact rows without a sold-out label', () => {
     const item = good('scheduled', { soldOut: true, salePeriod: { state: 'scheduled', startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' } });
-    const html = renderToStaticMarkup(<Home curation={{ ...emptyCuration, categoryBestTabs: [{ id: 'one', label: '추천', goods: [item] }], goodsBands: [{ id: 'band', title: '선별 굿즈', subcopy: null, imageUrl: '/band.png', href: '/shop', goods: [item] }] }} refreshScheduledContent={false} />);
+    const html = renderToStaticMarkup(<Home curation={{ ...emptyCuration, categoryBestTabs: [{ id: 'one', label: '추천', goods: [item] }], goodsBands: [{ id: 'band', title: '선별 상품', subcopy: null, imageUrl: '/band.png', href: '/shop', goods: [item] }] }} refreshScheduledContent={false} />);
     expect(html).toContain('href="/shop/scheduled"'); expect(html).toContain('<span class="wc-x-pick__unavailable">판매 예정</span>'); expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('품절');
   });
 });
@@ -150,9 +150,9 @@ describe('Home empty curation', () => {
 
     expect(html).toContain('wc-home__empty');
     expect(html).toContain('홈을 준비하고 있어요');
-    expect(html).toContain('곧 새로운 소식과 굿즈를 만나볼 수 있어요.');
+    expect(html).toContain('곧 새로운 소식과 상품을 만나볼 수 있어요.');
     expect(html).toContain('href="/shop"');
-    expect(html).toContain('굿즈샵 둘러보기');
+    expect(html).toContain('상품 둘러보기');
   });
 
   it('draws no band at all when every slot is empty', () => {
@@ -185,7 +185,7 @@ describe('Home bands', () => {
     expect(html).toContain('home-best-tab-keyring');
     expect(html).toContain('aria-selected="true" class="wc-tabs__tab active" id="home-sales-sales-a-tab-weekly"');
     expect(html).toContain('home-sales-sales-a-tab-monthly');
-    expect(html).toContain('해당 기간에 집계된 굿즈가 없어요.');
+    expect(html).toContain('해당 기간에 집계된 상품이 없어요.');
   });
 
   it('renders public review content with escaped text and removes the entire module below four goods', () => {
@@ -213,13 +213,13 @@ describe('Home bands', () => {
       categoryBestTabs: [{ id: 'keyring', label: '키링', goods: [good('r1', { reviewSummary: { count: 31, average: 4.25 } })] }] });
     const ratingOf = (id: string) => html.match(new RegExp(`<a class="wc-home-review__rating"[^>]*href="/shop/${id}\\?reviewPage=1#reviews"[^>]*>[\\s\\S]*?</a>`))?.[0] ?? '';
 
-    expect(ratingOf('r1')).toContain('aria-label="굿즈 r1 평점 4.25점, 리뷰 31개 보기"');
+    expect(ratingOf('r1')).toContain('aria-label="상품 r1 평점 4.25점, 리뷰 31개 보기"');
     expect(ratingOf('r1')).toContain('4.25');
     expect(ratingOf('r1')).toContain('리뷰 31');
     expect(ratingOf('r1')).not.toContain('리뷰 12');
     /* 같은 홈의 카드 별점과 같은 숫자다. */
     expect(html).toContain('평점 5점 만점에 4.3점, 리뷰 31개');
-    expect(ratingOf('r2')).toContain('aria-label="굿즈 r2 평점 4.50점, 리뷰 12개 보기"');
+    expect(ratingOf('r2')).toContain('aria-label="상품 r2 평점 4.50점, 리뷰 12개 보기"');
   });
 
   it('renders the hero carousel from the curated slides', () => {
@@ -348,7 +348,7 @@ describe('Home bands', () => {
       expect(link).not.toContain('<button');
       expect(row).toMatch(/<button[^>]*class="wc-list-heart[^"]* wc-x-pick__heart"/);
     }
-    expect(rows[1]).toContain('aria-label="굿즈 g7 위시리스트에서 빼기"');
+    expect(rows[1]).toContain('aria-label="상품 g7 위시리스트에서 빼기"');
   });
 
   /* CL-02: 홈 카드는 공개 리뷰 요약으로 별점을 보인다. ICONS PICK 행은 Figma 모양(IP명·이름·가격)이라 별점 줄이 없다. */

@@ -168,7 +168,7 @@ describe('GoodQna', () => {
 
     expect(html).not.toContain('문의');
     expect(html).not.toContain('리뷰');
-    expect(html).toContain('굿즈 Q&amp;A');
+    expect(html).toContain('상품 Q&amp;A');
   });
 });
 
@@ -246,7 +246,7 @@ describe('GoodQna 비밀글 (MD-0023)', () => {
     const describedBy = checkbox.match(/aria-describedby="([^"]+)"/)?.[1];
     expect(describedBy).toBeTruthy();
     expect(html).toContain(`id="${describedBy}"`);
-    expect(html).toContain('비밀글이 아닌 질문과 답변은 굿즈 상세에 공개됩니다.');
+    expect(html).toContain('비밀글이 아닌 질문과 답변은 상품 상세에 공개됩니다.');
   });
 });
 

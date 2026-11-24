@@ -224,7 +224,7 @@ describe('placeOrderAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('19금 굿즈가 섞인 카트의 카드 주문은 카트 구성으로 파생한 나이스페이 gate를 본다(ADR-0024)', async () => {
+  it('19금 상품이 섞인 카트의 카드 주문은 카트 구성으로 파생한 나이스페이 gate를 본다(ADR-0024)', async () => {
     mocks.availabilityProviders = [];
     mocks.deriveCartProvider.mockReset();
     mocks.derivedCartProvider = 'nicepay';
@@ -643,7 +643,7 @@ describe('결제 전 확인 동의', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('주문 직전 서버 재조회가 화면에 없던 제한 굿즈를 찾으면 주문을 만들지 않는다(장바구니·초안)', async () => {
+  it('주문 직전 서버 재조회가 화면에 없던 제한 상품을 찾으면 주문을 만들지 않는다(장바구니·초안)', async () => {
     mocks.verifyNotice.mockResolvedValue('changed');
     await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, seenCart, undefined, true, [])).resolves.toEqual({ ok: false, error: 'claim_notice_changed' });
     await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true, 'unavailable')).resolves.toEqual({ ok: false, error: 'claim_notice_changed' });
@@ -657,7 +657,7 @@ describe('결제 전 확인 동의', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('재조회는 이 주문의 굿즈 id로 하고 화면이 보인 고지와 함께 대조한다', async () => {
+  it('재조회는 이 주문의 상품 id로 하고 화면이 보인 고지와 함께 대조한다', async () => {
     await placeOrderActionRaw(address, checkoutKey, 'card', 0, null, seenCart, undefined, true, ['g1']);
     expect(mocks.verifyNotice).toHaveBeenLastCalledWith(['g1'], ['g1']);
     await placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId, true, []);

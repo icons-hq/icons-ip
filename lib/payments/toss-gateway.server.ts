@@ -1693,7 +1693,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
             // (TOSS_WIDGET_VARIANT_KEY). 꺼져 있으면 키를 싣지 않는다 — 지금 payload 그대로다.
             ...(binding !== null ? { variantKey: binding.variantKey } : {}),
             orderId: attempt.providerOrderId,
-            orderName: attempt.purpose === 'order' ? '엑스스퀘어 굿즈 주문' : '엑스스퀘어 티켓 주문',
+            orderName: attempt.purpose === 'order' ? '엑스스퀘어 상품 주문' : '엑스스퀘어 티켓 주문',
             amount: attempt.amount,
             currency: 'KRW',
             successUrl: new URL(successPath, siteUrl).toString(),

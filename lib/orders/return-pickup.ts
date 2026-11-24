@@ -22,6 +22,6 @@ export function parseOrderReturnPickup(value: unknown): OrderReturnPickup | null
  */
 export function returnPickupCollectingNotice(returnPickup: OrderReturnPickup): string | null {
   if (returnPickup.pickupBundles <= 0) return null;
-  return '요청이 승인됐습니다. 택배 기사가 방문해 굿즈를 회수합니다. 아래 회수 정보 확인에서 배송 묶음별 회수 송장을 확인하고 굿즈를 포장해 두세요.'
+  return '요청이 승인됐습니다. 택배 기사가 방문해 상품을 회수합니다. 아래 회수 정보 확인에서 배송 묶음별 회수 송장을 확인하고 상품을 포장해 두세요.'
     + (returnPickup.directBundles > 0 ? ' 회수 송장이 없는 묶음은 회수 정보의 회수 주소로 보내주세요.' : '');
 }

@@ -52,16 +52,16 @@ export const PARTIAL_RETURN_ORDER_BLOCKER_LABELS: Record<string, string> = {
 
 /** 품목 단위로 고를 수 없는 이유. */
 export const PARTIAL_RETURN_ITEM_BLOCKER_LABELS: Record<string, string> = {
-  fully_returned: '이미 모두 반품·취소된 굿즈입니다.',
-  digital_item: '디지털·배송 없는 굿즈는 반품 대상이 아닙니다.',
-  production_item: '주문제작 굿즈는 일부 반품을 신청할 수 없습니다. 하자·오배송이면 1:1 문의로 알려주세요.',
-  allocation_missing: '결제 금액 배분을 확인할 수 없는 굿즈입니다.',
-  shipment_missing: '배송 정보를 확인할 수 없는 굿즈입니다.',
-  shipment_not_dispatched: '아직 발송되지 않은 굿즈입니다.',
-  stock_topology_changed: '교환·굿즈 통합 이력이 있어 수량을 나눠 반품할 수 없는 굿즈입니다. 주문 전체 반품이나 1:1 문의로 알려주세요.',
-  preorder_not_allocated: '예약 판매 굿즈의 출고 준비가 끝나지 않았습니다.',
-  supply_unavailable: '일부 반품을 신청할 수 없는 굿즈입니다.',
-  order_item_not_found: '주문에 없는 굿즈입니다.',
+  fully_returned: '이미 모두 반품·취소된 상품입니다.',
+  digital_item: '디지털·배송 없는 상품은 반품 대상이 아닙니다.',
+  production_item: '주문제작 상품은 일부 반품을 신청할 수 없습니다. 하자·오배송이면 1:1 문의로 알려주세요.',
+  allocation_missing: '결제 금액 배분을 확인할 수 없는 상품입니다.',
+  shipment_missing: '배송 정보를 확인할 수 없는 상품입니다.',
+  shipment_not_dispatched: '아직 발송되지 않은 상품입니다.',
+  stock_topology_changed: '교환·상품 통합 이력이 있어 수량을 나눠 반품할 수 없는 상품입니다. 주문 전체 반품이나 1:1 문의로 알려주세요.',
+  preorder_not_allocated: '예약 판매 상품의 출고 준비가 끝나지 않았습니다.',
+  supply_unavailable: '일부 반품을 신청할 수 없는 상품입니다.',
+  order_item_not_found: '주문에 없는 상품입니다.',
 };
 
 export function partialReturnOrderBlockerLabel(code: string | null) {
@@ -69,7 +69,7 @@ export function partialReturnOrderBlockerLabel(code: string | null) {
 }
 
 export function partialReturnItemBlockerLabel(code: string | null) {
-  return code ? PARTIAL_RETURN_ITEM_BLOCKER_LABELS[code] ?? '일부 반품을 신청할 수 없는 굿즈입니다.' : null;
+  return code ? PARTIAL_RETURN_ITEM_BLOCKER_LABELS[code] ?? '일부 반품을 신청할 수 없는 상품입니다.' : null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

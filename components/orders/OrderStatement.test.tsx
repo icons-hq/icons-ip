@@ -31,7 +31,7 @@ function model(overrides: Partial<OrderStatementModel> = {}): OrderStatementMode
       { key: 'b', name: '홍실 키링', option: '—', qty: 1, unitPrice: 8000, amount: 8000 },
     ],
     totals: [
-      { key: 'goods', label: '굿즈 합계', amount: 28000, kind: 'plain' },
+      { key: 'goods', label: '상품 합계', amount: 28000, kind: 'plain' },
       { key: 'volume', label: '복수구매 할인', amount: 2000, kind: 'deduction' },
       { key: 'shipping', label: '배송비', amount: 3000, kind: 'plain' },
       { key: 'total', label: '총 결제 금액', amount: 29000, kind: 'total' },
@@ -59,7 +59,7 @@ describe('OrderStatement', () => {
     expect(html).toContain('홍실 아크릴 블록');
     expect(html).toContain('₩10,000');
     expect(html).toContain('₩20,000');
-    expect(html).toContain('굿즈 합계');
+    expect(html).toContain('상품 합계');
     expect(html).toContain('총 결제 금액');
     expect(html).toContain('₩29,000');
   });

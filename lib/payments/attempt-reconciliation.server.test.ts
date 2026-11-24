@@ -53,7 +53,7 @@ describe('미종결 결제 한 건 재확인', () => {
     expect(reconcilablePaymentProviders()).toEqual(['toss', 'nicepay']);
   });
 
-  it('굿즈는 그 결제사의 재정합 seam을 부르고 승인되면 취소 예약을 건다', async () => {
+  it('상품은 그 결제사의 재정합 seam을 부르고 승인되면 취소 예약을 건다', async () => {
     await expect(reconcilePaymentAttempt(goods, caseRef)).resolves.toEqual({ kind: 'reconciled', outcome: 'approved' });
     expect(mocks.goodsFactory).toHaveBeenCalledWith('nicepay');
     expect(mocks.goodsReconcile).toHaveBeenCalledExactlyOnceWith({ attemptId: goods.attemptId, caseRef });

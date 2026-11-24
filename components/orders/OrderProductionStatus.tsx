@@ -5,7 +5,7 @@ export function OrderProductionStatus({ document }: { document: OrderProduction 
  if (!document.jobs.length) return null;
  return <section className="order-detail-inquiry" aria-label="주문제작 현황"><h3>주문제작 현황</h3>
   {document.jobs.map(job => <div key={job.id}><strong>{job.goodName} · {job.quantity}개{job.claimId ? ' · 교환 제작' : ''}</strong><p>{PRODUCTION_STATE_LABELS[job.state]}</p>
-   <p>{job.claimId ? '반송 굿즈 입고 확인' : '결제 확인'} 후 {productionLeadLabel(job.terms)} 내 발송 예정{job.dueAt ? ` · ${time(job.dueAt)}까지` : ' · 결제 확인 후 날짜 안내'}</p>
+   <p>{job.claimId ? '반송 상품 입고 확인' : '결제 확인'} 후 {productionLeadLabel(job.terms)} 내 발송 예정{job.dueAt ? ` · ${time(job.dueAt)}까지` : ' · 결제 확인 후 날짜 안내'}</p>
    {job.terms.publicNote ? <p>{job.terms.publicNote}</p> : null}
    {job.startedAt ? <p>제작 시작 {time(job.startedAt)}</p> : null}{job.completedAt ? <p>제작 완료 {time(job.completedAt)} · 실제 발송 상태는 배송 내역에서 확인해주세요.</p> : null}
   </div>)}

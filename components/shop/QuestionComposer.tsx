@@ -37,7 +37,7 @@ function QuestionField({ error }: { error?: string }) {
         maxLength={MAX_PRODUCT_QUESTION_BODY_LENGTH}
         name="body"
         onChange={(event) => setValue(event.target.value)}
-        placeholder="구성, 사이즈, 재입고처럼 이 굿즈에 대해 궁금한 점을 남겨주세요."
+        placeholder="구성, 사이즈, 재입고처럼 이 상품에 대해 궁금한 점을 남겨주세요."
         rows={4}
         value={value}
       />
@@ -99,7 +99,7 @@ export function QuestionComposer({ goodId, next }: { goodId: string; next: strin
 
       <div className="wc-qna-form__actions">
         <p className="wc-qna-form__note">
-          비밀글이 아닌 질문과 답변은 굿즈 상세에 공개됩니다. 주문번호·연락처 같은 개인정보는 남기지 마세요.
+          비밀글이 아닌 질문과 답변은 상품 상세에 공개됩니다. 주문번호·연락처 같은 개인정보는 남기지 마세요.
         </p>
         <WcButton disabled={pending} type="submit" variant="primary">
           {pending ? '등록 중' : '질문 등록'}

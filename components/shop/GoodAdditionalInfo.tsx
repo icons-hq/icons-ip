@@ -45,14 +45,14 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
         <li>{goods[0]?.transactionOffer?.delivery?.quantityTerms ? goodsQuantityDeliveryLabel(goods[0].transactionOffer.delivery.quantityTerms)
           : policy ? shippingPolicyDescription(policy) : '배송 정책을 확인하지 못했습니다. 주문 전에 배송비를 확인해주세요.'}</li>
         {policy?.shippingNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.shippingNotice}</li>}
-        <li>배송 묶음마다 정책 적용 굿즈의 기간 할인 적용 후, 복수구매 할인·쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 수량별 배송비에는 별도 무료 기준이 적용되지 않으며, 택배사가 달라 따로 배송되는 굿즈의 배송비는 각각 더합니다.</li>
+        <li>배송 묶음마다 정책 적용 상품의 기간 할인 적용 후, 복수구매 할인·쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 수량별 배송비에는 별도 무료 기준이 적용되지 않으며, 택배사가 달라 따로 배송되는 상품의 배송비는 각각 더합니다.</li>
         {/*
          * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
          * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이
          * 두 개가 되어, 어느 쪽이 약정인지 정할 수 없다. 그래서 정책 문장을 그대로 싣는다.
          */}
         {preorders.length ? <>
-          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 배송 묶음의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
+          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 배송 묶음의 일반 상품과 예약 상품을 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
           {preorders.map(option => <li key={option.id}>{option.label}: {goodsShipDateLabel(option.date)}</li>)}
           <li>일반 판매 옵션만 주문한 경우에는 기본 배송 정책을 따릅니다. 예약 공급 일정이 바뀌면 주문 상세에서 변경된 예정일을 확인할 수 있습니다.</li>
         </> : <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이, 가상계좌 주문은 결제대행사가 입금을 확인한 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>}
@@ -83,8 +83,8 @@ function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
           <strong>{availability.label}</strong>
           {availability.restricted && CLAIM_RESTRICTION_SCOPE[availability.scope] ? ` · ${CLAIM_RESTRICTION_SCOPE[availability.scope]}` : null}
         </li> : null}
-        {availability ? <li>{availability.restricted ? '제한된 굿즈도 주문 상세에서 교환·반품을 신청할 수 있고, 담당자가 개별 확인합니다. ' : ''}굿즈 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.</li> : null}
-        {terms?.restrictionReason && !availability?.restricted && <li style={{ whiteSpace: 'pre-wrap' }}>굿즈별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
+        {availability ? <li>{availability.restricted ? '제한된 상품도 주문 상세에서 교환·반품을 신청할 수 있고, 담당자가 개별 확인합니다. ' : ''}상품 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.</li> : null}
+        {terms?.restrictionReason && !availability?.restricted && <li style={{ whiteSpace: 'pre-wrap' }}>상품별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
         {terms && <>
           <li>고객 귀책 반품비(편도): {terms.returnFee === null ? '확인 후 안내' : krw(terms.returnFee)}</li>
           <li>최초 무료배송 후 반품비(왕복 합계): {terms.returnFreeShippingFee === null ? '확인 후 안내' : krw(terms.returnFreeShippingFee)}</li>
@@ -93,13 +93,13 @@ function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
         {policy?.returnExchangeNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.returnExchangeNotice}</li>}
         {policy?.returnAddress && <li>교환·반품지: {policy.returnAddress} · 주문 상세에서 교환·반품을 신청하고 승인 안내를 받은 뒤 보내주세요.</li>}
         {policy?.cs && (policy.cs.name || policy.cs.phone || policy.cs.email) && <li>고객센터: {[policy.cs.name, policy.cs.phone, policy.cs.email].filter(Boolean).join(' · ')}</li>}
-        <li>굿즈를 받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다.</li>
+        <li>상품을 받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다.</li>
         {/* 반품 자동 회수 접수(QNA-032)가 이 굿즈의 출고지에 켜져 있으면 착불 반송 대신 방문 회수를 안내한다(스위치에 묶음). */}
         {policy?.returnPickup
-          ? <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담합니다. 교환·반품이 승인되면 택배 기사가 방문해 회수하니 굿즈를 포장해 두세요.</li>
+          ? <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담합니다. 교환·반품이 승인되면 택배 기사가 방문해 회수하니 상품을 포장해 두세요.</li>
           : <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>}
-        <li>굿즈가 파손·오배송된 경우에는 반송비를 엑스스퀘어가 부담합니다.</li>
-        <li>사용·훼손해 재판매가 어려워진 굿즈는 청약철회가 제한될 수 있습니다.</li>
+        <li>상품이 파손·오배송된 경우에는 반송비를 엑스스퀘어가 부담합니다.</li>
+        <li>사용·훼손해 재판매가 어려워진 상품은 청약철회가 제한될 수 있습니다.</li>
       </ul>
       {/* 요약만 두면 반송비 부담·반품 절차·환급 기한을 확인할 곳이 없다. 전문은 정책 문서가 진실원이다. */}
       <Link className="wc-pdp-guide__link" href={legalDocumentHref('shipping')}>

@@ -98,7 +98,7 @@ describe('askProductQuestionAction', () => {
   });
 
   /* 질문은 굿즈 상세와 내 Q&A 두 곳에 동시에 나타난다. */
-  it('굿즈 상세와 내 Q&A를 함께 되살린다', async () => {
+  it('상품 상세와 내 Q&A를 함께 되살린다', async () => {
     await askProductQuestionAction({}, questionForm());
 
     /* 상세 주소는 상품 자동코드라(ADR-0050) 상세 라우트 전체를 갱신한다. */
@@ -118,7 +118,7 @@ describe('askProductQuestionAction', () => {
   });
 
   /* next 는 로그인 리다이렉트의 목적지다 — 다른 굿즈나 외부로 태우면 열린 리다이렉트가 된다. */
-  it('그 굿즈의 상세가 아닌 next는 해당 굿즈의 Q&A 탭으로 접는다', async () => {
+  it('그 상품의 상세가 아닌 next는 해당 상품의 Q&A 탭으로 접는다', async () => {
     mocks.authState = { isConfigured: true, user: null, profile: null, isStaff: false };
 
     await expect(
@@ -136,7 +136,7 @@ describe('askProductQuestionAction', () => {
   });
 
   /* ADR-0050 — 상세는 상품 자동코드 주소로 열린다. 그 굿즈의 코드 주소면 보던 Q&A 페이지로 돌아온다. */
-  it('그 굿즈의 상품 자동코드 주소인 next는 그대로 로그인 뒤 목적지로 쓴다', async () => {
+  it('그 상품의 상품 자동코드 주소인 next는 그대로 로그인 뒤 목적지로 쓴다', async () => {
     mocks.authState = { isConfigured: true, user: null, profile: null, isStaff: false };
     const codeNext = '/shop/hsq-0013?qnaPage=2#qna';
 

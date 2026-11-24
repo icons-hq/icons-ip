@@ -8,7 +8,7 @@ import { parseNicepayPayload } from './NicepayClientCheckout';
 function nicepayPayload(overrides: Record<string, unknown> = {}) {
   return {
     provider: 'nicepay',
-    GoodsName: '엑스스퀘어 굿즈 주문',
+    GoodsName: '엑스스퀘어 상품 주문',
     Amt: '31000',
     MID: 'iconst000m',
     EdiDate: '20261106101000',

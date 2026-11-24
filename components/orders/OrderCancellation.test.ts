@@ -19,7 +19,7 @@ describe('WITHDRAWAL_REASON_LABELS', () => {
   it('keeps the customer-facing wording that pairs each reason with its deadline', () => {
     expect(WITHDRAWAL_REASON_LABELS).toEqual({
       change_of_mind: '단순 변심 (공급받은 날부터 7일)',
-      defect: '굿즈 하자·오배송 (공급받은 날부터 3개월)',
+      defect: '상품 하자·오배송 (공급받은 날부터 3개월)',
     });
   });
 });
@@ -303,7 +303,7 @@ describe('submitOrderCancellation', () => {
 
   it('keeps the statutory notice and fail-closed error copy exact', () => {
     // 고지 문구는 실제로 강제되는 기한과 일치해야 한다(#189).
-    expect(LEGAL_WITHDRAWAL_NOTICE).toBe('굿즈를 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 굿즈 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 굿즈 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.');
+    expect(LEGAL_WITHDRAWAL_NOTICE).toBe('상품을 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 상품 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.');
     expect(CANCELLATION_FAILURE_MESSAGE).toBe('취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.');
   });
 });
@@ -312,7 +312,7 @@ describe('취소 불가 안내 — 부분 반품 스위치(ADR-0047)', () => {
   it('꺼져 있으면 지금 문구(주문 전체 반품) 그대로, 켜져 있으면 반품의 일부 신청을 말한다', () => {
     expect(cancellationBlockedMessage(false)).toBe(CANCELLATION_BLOCKED_MESSAGE);
     expect(CANCELLATION_BLOCKED_MESSAGE).toContain('반품은 배송 중부터 주문 전체를 직접 신청할 수 있습니다');
-    expect(cancellationBlockedMessage(true)).toContain('굿즈·수량을 골라 일부만 신청할 수도 있습니다');
+    expect(cancellationBlockedMessage(true)).toContain('상품·수량을 골라 일부만 신청할 수도 있습니다');
     expect(cancellationBlockedMessage(true)).not.toContain('주문 전체를 직접');
   });
 });

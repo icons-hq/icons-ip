@@ -65,10 +65,9 @@ describe('운영자가 뺀 배송 건', () => {
 });
 
 describe('고객 안내 문구', () => {
-  it('기본 문구는 굿즈명을 쓰고 운영 어휘(상품)를 넣지 않으며 길이 한도 안이다', () => {
+  it('기본 문구는 상품 이름을 그대로 쓰고 길이 한도 안이다', () => {
     const copy = defaultPreorderScheduleCopy(' 홍실 2차 랜덤 포토카드 ');
     expect(copy.body).toContain("'홍실 2차 랜덤 포토카드'");
-    expect(`${copy.title}${copy.body}`).not.toContain('상품');
     expect(copy.body.length).toBeLessThanOrEqual(PREORDER_SCHEDULE_BODY_MAX);
     expect(defaultPreorderScheduleCopy('가'.repeat(400)).body).toHaveLength(PREORDER_SCHEDULE_BODY_MAX);
   });

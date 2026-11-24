@@ -12,7 +12,7 @@ const SENDER = { recipientName: '합성 고객', phone: '01055550001', postalCod
 const requestItem = (overrides: Record<string, unknown> = {}) => ({
   kind: 'request', pickupId: PICKUP, leaseToken: LEASE, provider: 'fake', idempotencyKey: 'icons-return-0123456789abcdef', carrier: 'hanjin',
   outboundTrackingNumber: 'RPSALE000001', sender: { source: 'plain', address: SENDER },
-  receiver: { name: 'TEST 김포', phone: '', address: 'TEST 김포 반송지' }, items: [{ name: 'TEST 굿즈', qty: 1 }], ...overrides,
+  receiver: { name: 'TEST 김포', phone: '', address: 'TEST 김포 반송지' }, items: [{ name: 'TEST 상품', qty: 1 }], ...overrides,
 });
 const cancelItem = (overrides: Record<string, unknown> = {}) => ({
   kind: 'cancel', pickupId: PICKUP, leaseToken: LEASE, provider: 'fake', idempotencyKey: 'icons-return-0123456789abcdef', carrier: 'hanjin',
@@ -79,7 +79,7 @@ describe('회수 접수 크론 한 회차', () => {
     expect(result).toMatchObject({ enabled: true, leased: 1, requested: 1, failed: 0, invalid: 0 });
     expect(repo.recorded[0]).toEqual([{ pickupId: PICKUP, leaseToken: LEASE, kind: 'request', outcome: 'requested', trackingNumber: 'FAKE01234567', externalId: 'reservation-1' }]);
     expect(fake.request).toHaveBeenCalledWith({ idempotencyKey: 'icons-return-0123456789abcdef', carrier: 'hanjin', outboundTrackingNumber: 'RPSALE000001',
-      sender: SENDER, receiver: { name: 'TEST 김포', phone: '', address: 'TEST 김포 반송지' }, items: [{ name: 'TEST 굿즈', qty: 1 }] }, expect.any(AbortSignal));
+      sender: SENDER, receiver: { name: 'TEST 김포', phone: '', address: 'TEST 김포 반송지' }, items: [{ name: 'TEST 상품', qty: 1 }] }, expect.any(AbortSignal));
     expect(JSON.stringify(repo.recorded)).not.toContain('합성');
   });
   it('택배사 거절·형식이 틀린 송장·시간 초과는 실패로 남긴다(개인정보 없는 오류 코드)', async () => {

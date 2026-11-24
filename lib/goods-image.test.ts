@@ -6,7 +6,7 @@ import { goodsImageBackground } from './goods-image';
 const NEUTRAL = 'var(--wc-surface-grey-2, transparent)';
 
 describe('goodsImageBackground', () => {
-  it('굿즈 이미지 축약값의 cover만 contain으로 바꿔 1:1 프레임에서 잘리지 않게 한다', () => {
+  it('상품 이미지 축약값의 cover만 contain으로 바꿔 1:1 프레임에서 잘리지 않게 한다', () => {
     expect(goodsImageBackground(imageBg('https://cdn.example/g1.webp'))).toBe(`url("https://cdn.example/g1.webp") center / contain no-repeat, ${NEUTRAL}`);
   });
 
@@ -24,7 +24,7 @@ describe('goodsImageBackground', () => {
       .toBe(`url("/a,b.png") center / contain no-repeat, ${NEUTRAL}`);
   });
 
-  it('카탈로그 기본 굿즈 이미지는 모두 gradient 없이 중립 여백으로 그린다', () => {
+  it('카탈로그 기본 상품 이미지는 모두 gradient 없이 중립 여백으로 그린다', () => {
     /* 운영·seed의 굿즈 bg와 같은 `imageBg(path, grad(...))` 형태다. */
     expect(DATA.GOODS.length).toBeGreaterThan(0);
     for (const good of DATA.GOODS) {

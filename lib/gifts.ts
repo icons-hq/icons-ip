@@ -10,7 +10,7 @@ export const GIFT_MESSAGE_LIMIT = 300;
 export const GIFT_CLAIM_COOKIE = 'icons_gift_claim';
 export const GIFT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 /** 선물은 랜덤 판매 굿즈를 받지 않는다(ADR-0027 · m27 CUST-1). 선물 준비 목록의 비활성 이유이자 DB 거절 문구다. */
-export const GIFT_RANDOM_OPTION_UNSUPPORTED_MESSAGE = '랜덤 판매 굿즈는 선물할 수 없어요.';
+export const GIFT_RANDOM_OPTION_UNSUPPORTED_MESSAGE = '랜덤 판매 상품은 선물할 수 없어요.';
 export const GIFT_STATES = ['awaiting_acceptance', 'accepted', 'ordered', 'declined', 'expired', 'canceled'] as const;
 export type GiftState = typeof GIFT_STATES[number];
 export type GiftParty = 'sender' | 'recipient';
@@ -135,7 +135,7 @@ export function giftInvitationUrl(origin: string, token: string): string {
 }
 
 export function giftStateLabel(state: GiftState, orderStatus?: string): string {
-  if (state === 'ordered') return ({ pending: '결제 대기', paid: '결제 완료', confirmed: '굿즈 준비', shipping: '배송 중', delivered: '배송 완료', done: '선물 전달 완료', canceled: '주문 취소' } as Record<string, string>)[orderStatus ?? ''] ?? '주문 접수';
+  if (state === 'ordered') return ({ pending: '결제 대기', paid: '결제 완료', confirmed: '상품 준비', shipping: '배송 중', delivered: '배송 완료', done: '선물 전달 완료', canceled: '주문 취소' } as Record<string, string>)[orderStatus ?? ''] ?? '주문 접수';
   return { awaiting_acceptance: '수락 기다림', accepted: '결제 기다림', ordered: '주문 진행 중', declined: '수락 거절', expired: '기한 만료', canceled: '선물 취소' }[state];
 }
 
@@ -148,13 +148,13 @@ export function giftError(error?: { code?: string; message?: string }): GiftFail
     gift_invitation_unavailable: '사용할 수 없는 선물 링크입니다. 보낸 사람에게 새 링크를 요청해주세요.',
     gift_link_closed: '이미 수락했거나 기한이 지난 선물의 링크는 다시 발급할 수 없습니다.', gift_response_closed: '이 선물은 더 이상 수락할 수 없습니다.',
     gift_address_closed: '주문이 시작됐거나 기한이 지나 배송지를 여기서 바꿀 수 없습니다.', gift_close_unavailable: '주문이 시작된 선물은 주문의 취소 상태를 확인해주세요.',
-    gift_good_unavailable: '현재 선물할 수 없는 굿즈가 포함되어 있습니다.', gift_variant_unavailable: '현재 선물할 수 없는 옵션이 포함되어 있습니다.',
+    gift_good_unavailable: '현재 선물할 수 없는 상품이 포함되어 있습니다.', gift_variant_unavailable: '현재 선물할 수 없는 옵션이 포함되어 있습니다.',
     gift_source_changed: '선물 선택이나 배송지가 바뀌었습니다. 최신 견적을 확인해주세요.', gift_address_changed: '배송지가 바뀌었습니다. 최신 견적을 확인해주세요.',
     gift_prepaid_required: '선물의 배송비는 보낸 사람이 결제해야 합니다.', gift_payment_not_ready: '받는 사람이 수락하고 배송지를 입력한 뒤 결제할 수 있습니다.',
     not_claimable: '배송 완료 후 교환·반품을 요청할 수 있습니다.', deadline_expired: '화면에서 요청할 수 있는 기간이 지났습니다. 고객센터에서 확인해주세요.',
     already_requested: '이미 진행 중인 요청이 있습니다. 최신 상태를 확인해주세요.', gift_refund_account_closed: '현재 요청 상태에서는 계좌를 입력할 수 없습니다. 최신 상태를 확인해주세요.',
     gift_refund_account_exists: '이미 확인한 계좌가 있습니다. 최신 요청 상태를 확인해주세요.',
-    goods_custom_inputs_changed: '굿즈의 직접입력 항목이 바뀌었습니다. 굿즈를 다시 선택해주세요.',
+    goods_custom_inputs_changed: '상품의 직접입력 항목이 바뀌었습니다. 상품을 다시 선택해주세요.',
   };
   if (error?.message && messages[error.message]) return { error: messages[error.message] };
   /* DB가 거절한 굿즈 id를 접미로 붙여도 같은 문구다. */

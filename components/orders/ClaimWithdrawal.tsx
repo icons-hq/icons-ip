@@ -76,7 +76,7 @@ export function ClaimWithdrawalPanel({ initial, operator = false, onClose }: { i
       : <form onSubmit={event => { event.preventDefault(); void save(); }}>
         <fieldset disabled={locked}><legend>철회 사유와 확인</legend>
           <label>철회 사유<input value={reason} maxLength={500} minLength={2} required placeholder={operator ? '고객 요청과 상담 참조번호를 적어주세요.' : '요청을 철회하는 사유를 적어주세요.'} onChange={event => { if (canEdit()) setReason(event.target.value); }} /></label>
-          <label className="claim-withdrawal__agreement"><input type="checkbox" checked={confirmed} required onChange={event => { if (canEdit()) setConfirmed(event.target.checked); }} />{operator ? '고객과 철회에 합의했으며, 반송 중인 굿즈가 없음을 확인했습니다.' : '요청 철회에 동의하며, 반송 중인 굿즈가 없습니다.'}</label>
+          <label className="claim-withdrawal__agreement"><input type="checkbox" checked={confirmed} required onChange={event => { if (canEdit()) setConfirmed(event.target.checked); }} />{operator ? '고객과 철회에 합의했으며, 반송 중인 상품이 없음을 확인했습니다.' : '요청 철회에 동의하며, 반송 중인 상품이 없습니다.'}</label>
         </fieldset>
         <div className="claim-withdrawal__actions">{uncertain ? <><button type="button" className="btn" disabled={pending} onClick={() => { void readback(); }}>같은 요청 결과 확인</button><button type="button" className="btn btn-ghost" disabled={pending} onClick={() => { void save(); }}>같은 내용으로 재시도</button></>
           : conflict ? <button type="button" className="btn" disabled={pending} onClick={() => { void reload(); }}>최신 요청 상태 확인</button>

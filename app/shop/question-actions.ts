@@ -73,7 +73,7 @@ function insertErrorMessage(message: string | null | undefined): ProductQuestion
     return { body: '질문 내용을 다시 확인해주세요.' };
   }
   if (value.includes('foreign key')) {
-    return { form: '질문을 남길 굿즈를 찾을 수 없습니다.' };
+    return { form: '질문을 남길 상품을 찾을 수 없습니다.' };
   }
   return { form: CREATE_FAILED };
 }

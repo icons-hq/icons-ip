@@ -76,7 +76,7 @@ describe('카테고리 전시 목록 문법 (LFS 패리티 2차 L5 — CL-10·CL
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: 'PRE-ORDER' })?.query.types).toEqual([]);
   });
 
-  it('다음 묶음의 별점은 그 묶음 굿즈 몫의 올바른 값만 받는다', () => {
+  it('다음 묶음의 별점은 그 묶음 상품 몫의 올바른 값만 받는다', () => {
     const summaries = categoryDisplayReviewSummaries({
       g1: { count: 3, average: 4.33 }, g2: { count: 0, average: 4 }, g3: { count: 2, average: 6 }, outside: { count: 1, average: 5 }, g4: 'bad',
     }, ['g1', 'g2', 'g3', 'g4']);

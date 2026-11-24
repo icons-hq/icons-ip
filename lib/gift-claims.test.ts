@@ -18,7 +18,7 @@ it('recipient sees actual exchanged items while a payer-only projection cannot c
    이 키를 모르는 옛 파서와 호환되도록 DB는 배송 건 재출고 기록이 있을 때만 싣는다 — 키가 없는 문맥도 그대로 받는다. */
 it('recipient receives per-origin exchange parcels with carrier labels; payer projection rejects them', () => {
   const parcel = { claimId, reshipmentId: '93942000-0000-4000-8000-000000000013', carrier: 'hanjin', trackingNumber: 'RECIPIENT001',
-    reshippedAt: '2026-11-10T00:00:00Z', deliveredAt: null, collectionWaived: true, items: [{ orderItemId: '93942000-0000-4000-8000-000000000014', name: '합성 굿즈', variantName: '파랑', qty: 1 }] };
+    reshippedAt: '2026-11-10T00:00:00Z', deliveredAt: null, collectionWaived: true, items: [{ orderItemId: '93942000-0000-4000-8000-000000000014', name: '합성 상품', variantName: '파랑', qty: 1 }] };
   const recipient = parseGiftClaimContext({ ...context(), reshipmentParcels: [parcel] });
   expect(recipient?.reshipmentParcels).toEqual([parcel]);
   expect(parseGiftClaimContext({ ...context(), isSender: true, isRecipient: false, reshipmentParcels: [parcel] })).toBeNull();

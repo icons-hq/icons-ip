@@ -16,7 +16,7 @@ const openSupply: GoodsVariantSupply = {
 };
 const option = (id: string, patch: Partial<GoodOption> = {}): GoodOption => ({ id, name: '기본', code: id, price: 15200, stockQty: 5, isDefault: true, attributes: {}, ...patch });
 const good = (id: string, patch: Partial<Good> = {}): Good => ({
-  id, name: `굿즈 ${id}`, ip: 'brand', price: 15200, badge: null, stock: 'ok', stockQty: 5, img: 'linear-gradient(#111, #222)', ...patch,
+  id, name: `상품 ${id}`, ip: 'brand', price: 15200, badge: null, stock: 'ok', stockQty: 5, img: 'linear-gradient(#111, #222)', ...patch,
 });
 
 const goods: Good[] = [
@@ -44,11 +44,11 @@ describe('CollectionBrowser product cards', () => {
   );
 
   it('draws the same chips as listing and home cards', () => {
-    expect(card(html, '굿즈 preorder')).toContain('<span class="wc-x-chip wc-x-chip--preorder">예약판매</span>');
-    expect(card(html, '굿즈 free')).toContain('<span class="wc-x-chip wc-x-chip--freeShipping">무료배송</span>');
-    expect(card(html, '굿즈 free')).toContain('<span class="wc-x-chip wc-x-chip--tag">NEW</span>');
-    expect(card(html, '굿즈 capsule')).toContain('<span class="wc-x-chip wc-x-chip--random">캡슐토이</span>');
-    expect(card(html, '굿즈 sale')).not.toContain('wc-x-chip');
+    expect(card(html, '상품 preorder')).toContain('<span class="wc-x-chip wc-x-chip--preorder">예약판매</span>');
+    expect(card(html, '상품 free')).toContain('<span class="wc-x-chip wc-x-chip--freeShipping">무료배송</span>');
+    expect(card(html, '상품 free')).toContain('<span class="wc-x-chip wc-x-chip--tag">NEW</span>');
+    expect(card(html, '상품 capsule')).toContain('<span class="wc-x-chip wc-x-chip--random">캡슐토이</span>');
+    expect(card(html, '상품 sale')).not.toContain('wc-x-chip');
   });
 
   it('예약판매 facet 이 있으면 타입 그룹을, 없으면 사이드바·시트 탭 모두 그리지 않는다', () => {
@@ -73,7 +73,7 @@ describe('CollectionBrowser product cards', () => {
   });
 
   it('keeps the discount rate on the price line and drops the old SALE badge', () => {
-    expect(card(html, '굿즈 sale')).toContain('<span class="wc-price__rate">5%</span>');
+    expect(card(html, '상품 sale')).toContain('<span class="wc-price__rate">5%</span>');
     expect(html).not.toContain('>SALE<');
   });
 });

@@ -146,7 +146,7 @@ function WrittenCard({ target, now, entry }: { target: MyReviewTarget; now: Date
         */}
       {review.status === 'hidden' ? (
         <p className="wc-mypage__hint">
-          운영 정책에 따라 비공개 처리되어 굿즈 상세에는 보이지 않습니다. 수정은 할 수 없고 삭제는 언제든 가능합니다.
+          운영 정책에 따라 비공개 처리되어 상품 상세에는 보이지 않습니다. 수정은 할 수 없고 삭제는 언제든 가능합니다.
           이유가 궁금하면 <Link href="/my/inquiries/new?category=account">1:1 문의</Link>로 알려주세요.
         </p>
       ) : !editable ? (
@@ -196,7 +196,7 @@ export function MyReviews({
       </div>
       {registered ? <p className="wc-mypage__success" role="status">리뷰를 등록했습니다. 아래 &apos;작성한 리뷰&apos;에서 확인할 수 있어요.</p> : null}
       <p className="wc-mypage__lede">
-        배송이 완료된 굿즈에 별점과 후기를 남길 수 있습니다. 일반 리뷰는 주문·굿즈당 한 번, 배송완료 후 {REVIEW_WINDOW_DAYS}일까지입니다. 한달사용 리뷰는 별도로 안내된 기간에 한 번 작성할 수 있습니다.
+        배송이 완료된 상품에 별점과 후기를 남길 수 있습니다. 일반 리뷰는 주문·상품당 한 번, 배송완료 후 {REVIEW_WINDOW_DAYS}일까지입니다. 한달사용 리뷰는 별도로 안내된 기간에 한 번 작성할 수 있습니다.
         아직 구매확정하지 않은 주문은 리뷰를 등록하면 함께 구매확정됩니다. {REVIEW_BENEFIT_NOTE} 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.
       </p>
       {reviewEvents?.nextChangeAt ? <ScheduledHomeRefresh at={reviewEvents.nextChangeAt} /> : null}
@@ -214,7 +214,7 @@ export function MyReviews({
           </ul>
         ) : (
           <p className="wc-mypage__hint">
-            지금 리뷰를 남길 수 있는 굿즈가 없습니다. 배송이 완료되면 여기에 나타납니다.
+            지금 리뷰를 남길 수 있는 상품이 없습니다. 배송이 완료되면 여기에 나타납니다.
           </p>
         )}
       </section>

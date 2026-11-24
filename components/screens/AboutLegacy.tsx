@@ -67,17 +67,17 @@ const PREVIEW_HERO_COPY: Record<string, {
   rilakkuma: {
     eyebrow: 'X SQUARE ORIGINAL CURATION',
     title: '느긋한 하루를\n수집하는 시간',
-    description: '리락쿠마의 포근한 방을 굿즈와 팝업으로 만나보세요.',
+    description: '리락쿠마의 포근한 방을 상품과 팝업으로 만나보세요.',
   },
   maplestory: {
     eyebrow: 'NEW IP WORLD',
-    title: '몬스터즈가\n굿즈로 튀어나왔다',
+    title: '몬스터즈가\n상품으로 튀어나왔다',
     description: '주황버섯부터 핑크빈까지, 메이플스토리의 세계를 한곳에서.',
   },
   'attack-on-titan': {
     eyebrow: 'LIMITED EDITION',
     title: '리바이 에디션,\n고요한 전투의 기록',
-    description: '진격의 거인 한정 굿즈를 먼저 만나보세요.',
+    description: '진격의 거인 한정 상품을 먼저 만나보세요.',
   },
   'kakao-friends': {
     eyebrow: 'PICNIC COLLECTION',
@@ -228,7 +228,7 @@ function heroSlidesFor({
         id: `event-${previewEvent.id}`,
         eyebrow: 'POP-UP NOW',
         title: '포근한 방이\n성수에 열렸어요',
-        description: '리락쿠마 팝업의 한정 굿즈와 현장 경험을 확인하세요.',
+        description: '리락쿠마 팝업의 한정 상품과 현장 경험을 확인하세요.',
         background: previewEvent.img,
         href: `/offline-popups/${previewEvent.id}`,
         label: '리락쿠마 팝업',
@@ -537,7 +537,7 @@ function Experiences({ items }: { items: ExperienceItem[] }) {
         {items.length === 0 && (
           <div className="experience-empty">
             <strong>아직 열려 있는 경험이 없습니다</strong>
-            <span>새 굿즈와 이벤트가 공개되면 이곳에서 바로 만날 수 있어요.</span>
+            <span>새 상품과 이벤트가 공개되면 이곳에서 바로 만날 수 있어요.</span>
             <Link href="/ip">다른 IP 둘러보기 ↗</Link>
           </div>
         )}
@@ -633,7 +633,7 @@ function WorldFeatures({
         <div className="feature-copy">
           <span className="feature-number">01</span><p className="eyebrow dark">ONE IP, ONE WORLD</p>
           <h3>하나의 IP,<br />하나로 이어진 세계</h3>
-          <p>좋아하는 IP를 고르면 굿즈, 팝업, 커뮤니티가 한 화면에서 연결됩니다.</p>
+          <p>좋아하는 IP를 고르면 상품, 팝업, 커뮤니티가 한 화면에서 연결됩니다.</p>
           <Link href={hrefFor('ip', worldIp)}>IP 세계로 들어가기 <span aria-hidden>↗</span></Link>
         </div>
         <div className="feature-art feature-art--world">
@@ -641,7 +641,7 @@ function WorldFeatures({
             <Artwork background={worldIp.bg} label={`${worldIp.title} 키아트`} />
           </div>
           <div className="world-card world-card--one feature-float" data-end="7" data-parallax="true" data-start="-45">
-            <Artwork background={worldGood?.img ?? worldIp.bg} label={worldGood?.name ?? `${worldIp.title} 굿즈`} /><span>GOODS</span>
+            <Artwork background={worldGood?.img ?? worldIp.bg} label={worldGood?.name ?? `${worldIp.title} 상품`} /><span>GOODS</span>
           </div>
           <div className="world-card world-card--two feature-float" data-end="40" data-parallax="true" data-start="-58">
             <Artwork background={worldEvent?.img ?? worldIp.bg} label={worldEvent?.title ?? `${worldIp.title} 팝업`} /><span>POP-UP</span>
@@ -683,7 +683,7 @@ function Stats({ catalog }: { catalog: CatalogSnapshot }) {
   const activeEvents = catalog.events.filter((event) => event.status === '예매중' || event.status === '진행중').length;
   const stats = [
     [String(catalog.ips.length), '함께하는 IP'],
-    [String(catalog.goods.length), '공식 라이선스 굿즈'],
+    [String(catalog.goods.length), '공식 라이선스 상품'],
     [String(activeEvents), '열려 있는 팝업'],
     [compactNumber(fans), catalog.source === 'mock' ? '샘플 연결 팬' : '연결된 팬'],
     ['FREE', '무료 팬덤 가입'],
@@ -697,7 +697,7 @@ function Stats({ catalog }: { catalog: CatalogSnapshot }) {
           <div className={`stat stat--${index + 1}`} key={label}><strong>{value}</strong><span>{label}</span></div>
         ))}
       </div>
-      <p className="trust-note">공식 라이선스 굿즈 · 팝업 예매 · 공개 IP 브라우징</p>
+      <p className="trust-note">공식 라이선스 상품 · 팝업 예매 · 공개 IP 브라우징</p>
     </section>
   );
 }
@@ -773,7 +773,7 @@ export function AboutLegacy({
     const preferredEvent = hasPreviewDataset ? catalog.events.find((item) => item.id === 'e4') : null;
     const good = preferredGood ?? (selectedIp ? catalog.goods.find((item) => item.ip === selectedIp.id) : null);
     const event = preferredEvent ?? (selectedIp ? catalog.events.find((item) => item.ip === selectedIp.id) : null);
-    if (good) scenes.push({ id: `good-${good.id}`, controlLabel: '굿즈', kicker: 'OFFICIAL GOODS', title: '좋아하는 마음이\n손에 잡히는 순간', detail: `${good.name} · ${good.badge ?? 'OFFICIAL'}`, background: good.img, color: '#c4e5ae' });
+    if (good) scenes.push({ id: `good-${good.id}`, controlLabel: '상품', kicker: 'OFFICIAL GOODS', title: '좋아하는 마음이\n손에 잡히는 순간', detail: `${good.name} · ${good.badge ?? 'OFFICIAL'}`, background: good.img, color: '#c4e5ae' });
     if (event) scenes.push({ id: `event-${event.id}`, controlLabel: '팝업', kicker: 'POP-UP EXPERIENCE', title: '화면 너머의 세계를\n직접 만나는 하루', detail: `${event.title} · ${event.status}`, background: event.img, color: '#ffdaff' });
     if (scenes.length === 0 && selectedIp) scenes.push({ id: `ip-${selectedIp.id}`, controlLabel: 'IP', kicker: 'ONE IP, ONE WORLD', title: selectedIp.tagline, detail: selectedIp.title, background: selectedIp.bg, color: '#c4e5ae' });
     return scenes;

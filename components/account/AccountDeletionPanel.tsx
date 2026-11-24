@@ -42,7 +42,7 @@ function statusMessage(status: AccountDeletionStatus): string | null {
 }
 
 const blockerLabels: Record<AccountDeletionStatus['blockers'][number]['code'], string> = {
-  active_order: '진행 중인 굿즈 주문',
+  active_order: '진행 중인 상품 주문',
   active_received_gift: '받은 선물의 배송·취소 처리',
   active_shipping_collect: '착불 수납·환급 확인',
   active_claim_fee: '반품·교환 배송비 청구·반환 확인',
@@ -50,11 +50,11 @@ const blockerLabels: Record<AccountDeletionStatus['blockers'][number]['code'], s
   subscription_payment_pending: '정기배송 결제 확인',
   billing_registration_pending: '정기결제 카드 등록 확인',
   billing_card_cleanup: '정기결제 카드 해지',
-  active_cancellation: '굿즈 취소·환급 처리',
-  active_order_payment: '굿즈 결제 확인',
+  active_cancellation: '상품 취소·환급 처리',
+  active_order_payment: '상품 결제 확인',
   active_ticket_payment: '티켓 결제 확인',
   active_payment_attempt: '결제 정합화',
-  active_order_refund: '굿즈 환불·송금 대기 처리',
+  active_order_refund: '상품 환불·송금 대기 처리',
   active_ticket_refund: '티켓 환급 처리',
   active_refund: '환불·송금 확인',
   active_ticket: '진행 중인 티켓',

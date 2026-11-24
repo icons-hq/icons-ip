@@ -173,17 +173,17 @@ const imageBg = (src: string, fallback: string) =>
 
 const IPS: Ip[] = [
   { id: 'rilakkuma', title: '리락쿠마', sub: 'San-X · 캐릭터 IP', v: V.character, glyph: '리락\n쿠마', bg: imageBg('/generated/ip/rilakkuma.png', grad('#5a3517', '#D68A2D', '#FFD84D')), fans: 124500, goods: 2, cards: 2, featured: true,
-    tagline: '느긋한 하루를 수집하는 시간', synopsis: '리락쿠마의 포근한 방을 ICONS 굿즈, 카드, 팝업으로 재구성한 라이선스 mock 컬렉션입니다.' },
+    tagline: '느긋한 하루를 수집하는 시간', synopsis: '리락쿠마의 포근한 방을 ICONS 상품, 카드, 팝업으로 재구성한 라이선스 mock 컬렉션입니다.' },
   { id: 'maplestory', title: '메이플스토리', sub: 'NEXON · 게임', v: V.game, glyph: 'MAPLE', bg: imageBg('/generated/ip/maplestory.png', grad('#0d5e66', '#38F0C0', '#FFD84D')), fans: 198000, goods: 3, cards: 3, featured: true,
-    tagline: '몬스터즈가 굿즈로 튀어나오는 순간', synopsis: '주황버섯, 슬라임, 핑크빈을 중심으로 한 메이플스토리 몬스터 굿즈와 카드 라인업입니다.' },
+    tagline: '몬스터즈가 상품으로 튀어나오는 순간', synopsis: '주황버섯, 슬라임, 핑크빈을 중심으로 한 메이플스토리 몬스터 상품과 카드 라인업입니다.' },
   { id: 'nongdamgom', title: '담곰이', sub: '캐릭터 IP', v: V.character, glyph: '담곰이', bg: imageBg('/generated/ip/nongdamgom.png', grad('#70485a', '#F7A8C7', '#FFF3D6')), fans: 52300, goods: 2, cards: 2, featured: true,
-    tagline: '말랑한 농담처럼 가벼운 굿즈', synopsis: '담곰이와 오리친구의 단순하고 귀여운 결을 데스크 굿즈, 쿠션, 카드로 풀어낸 컬렉션입니다.' },
+    tagline: '말랑한 농담처럼 가벼운 상품', synopsis: '담곰이와 오리친구의 단순하고 귀여운 결을 데스크 상품, 쿠션, 카드로 풀어낸 컬렉션입니다.' },
   { id: 'kakao-friends', title: '카카오프렌즈', sub: 'Kakao · 캐릭터 IP', v: V.character, glyph: 'KAKAO', bg: imageBg('/generated/ip/kakao-friends.png', grad('#66421d', '#FFD84D', '#FF9AAF')), fans: 214000, goods: 2, cards: 3, featured: true,
-    tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 소품 mock 라인입니다.' },
+    tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 상품과 소품 mock 라인입니다.' },
   { id: 'attack-on-titan', title: '진격의 거인', sub: '리바이 에디션 · 애니메이션', v: V.anime, glyph: 'LEVI', bg: imageBg('/generated/ip/attack-on-titan.png', grad('#2b251f', '#6B705C', '#A981FF')), fans: 176400, goods: 1, cards: 2, featured: true,
     tagline: '리바이 에디션으로 완성하는 전시형 컬렉션', synopsis: '진격의 거인 리바이의 차분한 전투 전야 무드를 아크릴과 카드로 구성한 mock 컬렉션입니다.' },
   { id: 'hong-sil-quest', title: '홍실 퀘스트', sub: 'SOOP2RANG · 캐릭터 IP', v: V.character, glyph: '홍실\n퀘스트', bg: imageBg('/generated/ip/hong-sil-quest.webp', grad('#300008', '#9C001D', '#FF2E63')), fans: 0, goods: 3, cards: 0, featured: false,
-    tagline: '붉은 실을 따라 시작되는 특별한 퀘스트', synopsis: '홍실 퀘스트의 현대·전생·스페셜 라운드를 실제 팝업 굿즈로 잇는 공식 IP 컬렉션입니다.' },
+    tagline: '붉은 실을 따라 시작되는 특별한 퀘스트', synopsis: '홍실 퀘스트의 현대·전생·스페셜 라운드를 실제 팝업 상품으로 잇는 공식 IP 컬렉션입니다.' },
 ];
 
 const ipById = (id: string | null | undefined) => IPS.find((i) => i.id === id);
@@ -225,7 +225,7 @@ const CARDS: Card[] = [
 const EVENTS: FandomEvent[] = [
   { id: 'e1', title: '리락쿠마 포근한 방 팝업스토어', ip: 'rilakkuma', mode: '오프라인', status: '진행중', date: '7.01 - 7.21', loc: '성수 ICONS 스튜디오', accent: '#FFD84D', img: imageBg('/generated/events/e1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
   { id: 'e2', title: '메이플스토리 몬스터즈 온라인 팝업', ip: 'maplestory', mode: '온라인', status: '예매중', date: '7.12 20:00', loc: 'ICONS Live', accent: '#38F0C0', img: imageBg('/generated/events/e2.png', grad('#0d5e66', '#38F0C0', '#FFD84D')) },
-  { id: 'e3', title: '담곰이 드로잉 굿즈 팝업', ip: 'nongdamgom', mode: '오프라인', status: '예정', date: '7.19 - 8.02', loc: '홍대 ICONS 팝업', accent: '#F7A8C7', img: imageBg('/generated/events/e3.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
+  { id: 'e3', title: '담곰이 드로잉 상품 팝업', ip: 'nongdamgom', mode: '오프라인', status: '예정', date: '7.19 - 8.02', loc: '홍대 ICONS 팝업', accent: '#F7A8C7', img: imageBg('/generated/events/e3.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
   { id: 'e4', title: '카카오프렌즈 피크닉 팝업', ip: 'kakao-friends', mode: '오프라인', status: '예매중', date: '7.26 - 8.11', loc: '여의도 ICONS 팝업', accent: '#FFD84D', img: imageBg('/generated/events/e4.png', grad('#66421d', '#FFD84D', '#FF9AAF')) },
   { id: 'e5', title: '진격의 거인 리바이 에디션 온라인 팝업', ip: 'attack-on-titan', mode: '온라인', status: '예정', date: '8.08 21:00', loc: 'ICONS Live', accent: '#A981FF', img: imageBg('/generated/events/e5.png', grad('#2b251f', '#6B705C', '#A981FF')) },
 ];

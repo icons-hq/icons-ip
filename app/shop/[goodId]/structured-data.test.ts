@@ -56,7 +56,7 @@ describe('PDP 구조화 데이터 (PD-17)', () => {
   it('HTML 설명은 태그·스크립트를 떼고 평문으로 줄이며 비면 메타 설명을 쓴다', () => {
     expect(goodDescriptionText(detail)).toBe('붉은 실 & 아크릴 두 번째 문단');
     expect(goodDescriptionText({ ...detail, description: '  ', descriptionFormat: 'plain' }))
-      .toBe('아크릴 블록 굿즈의 구성, 고시정보, 리뷰, 배송과 교환·반품 안내를 확인하세요.');
+      .toBe('아크릴 블록 상품의 구성, 고시정보, 리뷰, 배송과 교환·반품 안내를 확인하세요.');
     expect([...goodDescriptionText({ ...detail, description: '가'.repeat(900), descriptionFormat: 'plain' })]).toHaveLength(500);
   });
 
@@ -94,10 +94,10 @@ describe('PDP 구조화 데이터 (PD-17)', () => {
     expect(goodOfferAvailability({ ...good, options: [preorder] })).toBe('https://schema.org/PreOrder');
   });
 
-  it('BreadcrumbList 는 홈 → 굿즈샵 → 굿즈다', () => {
+  it('BreadcrumbList 는 홈 → 쇼핑 → 상품이다', () => {
     expect(breadcrumbJsonLd(detail, ORIGIN).itemListElement).toEqual([
       { '@type': 'ListItem', position: 1, name: '홈', item: 'https://iconsip.test/' },
-      { '@type': 'ListItem', position: 2, name: '굿즈샵', item: 'https://iconsip.test/shop' },
+      { '@type': 'ListItem', position: 2, name: '쇼핑', item: 'https://iconsip.test/shop' },
       { '@type': 'ListItem', position: 3, name: '아크릴 블록', item: 'https://iconsip.test/shop/g13' },
     ]);
   });

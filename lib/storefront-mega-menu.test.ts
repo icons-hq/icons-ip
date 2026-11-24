@@ -223,7 +223,7 @@ describe('메가메뉴 현재 위치 (리뷰 l5-ui-2)', () => {
   const uuid = '94932000-0000-4000-8000-000000000002';
   const query = (search: string) => new URLSearchParams(search);
 
-  it('카테고리 전시는 쿼리의 전시분류가 현재 위치이고 굿즈샵 바로가기는 켜지 않는다', () => {
+  it('카테고리 전시는 쿼리의 전시분류가 현재 위치이고 쇼핑 바로가기는 켜지 않는다', () => {
     expect(megaMenuLocation('/shop', query(`displayCategory=${uuid}&sort=newest`))).toEqual({ routePathname: null, displayCategoryId: uuid });
     expect(megaMenuLocation('/shop', query(`displayCategory=${uuid.toUpperCase()}`))).toEqual({ routePathname: null, displayCategoryId: uuid });
     /* 잘못된 값도 전체 굿즈 화면은 아니다(전시 not-found). */

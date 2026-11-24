@@ -97,7 +97,7 @@ describe('deleteMyProductQuestionAction', () => {
   });
 
   /* 질문은 두 곳에 걸려 있다 — 내 Q&A 목록과 굿즈 상세의 Q&A 탭. */
-  it('내 목록과 대상 굿즈 상세를 함께 되살린다', async () => {
+  it('내 목록과 대상 상품 상세를 함께 되살린다', async () => {
     await deleteMyProductQuestionAction({}, deleteForm());
 
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/my/questions');
@@ -106,7 +106,7 @@ describe('deleteMyProductQuestionAction', () => {
   });
 
   /* 행이 사라진 뒤에는 어느 굿즈였는지 알 수 없다 — 삭제 전에 읽어 둔다. */
-  it('굿즈를 못 읽었으면 목록만 되살린다', async () => {
+  it('상품을 못 읽었으면 목록만 되살린다', async () => {
     mocks.lookupResult = { data: null, error: null };
 
     await deleteMyProductQuestionAction({}, deleteForm());

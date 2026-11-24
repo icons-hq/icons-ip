@@ -56,7 +56,7 @@ describe('CheckoutOrder 영수증', () => {
     expect(html).toContain(`href="/gifts/${order.id}"`);
     expect(html).toContain('받는 분의 수락과 배송지 확인');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
-    expect(html).not.toContain('같은 굿즈 다시 담기');
+    expect(html).not.toContain('같은 상품 다시 담기');
   });
 
   it('상품 코드 변경 후에도 원 영수증의 복수할인과 착불을 별도 표시한다', () => {
@@ -69,7 +69,7 @@ describe('CheckoutOrder 영수증', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, giftId: order.id }} />);
     expect(html).toContain('주소와 연락처는 받는 분만 확인할 수 있어요.');
   });
-  it('서버 원장 금액에서 쿠폰과 적립금을 함께 복원해 굿즈 소계를 표시한다', () => {
+  it('서버 원장 금액에서 쿠폰과 적립금을 함께 복원해 상품 소계를 표시한다', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, total: 12500, discountTotal: 1000, storeCreditTotal: 1500 }} />);
     expect(html).toContain('₩12,000');
     expect(html).toContain('−₩1,000');
@@ -77,7 +77,7 @@ describe('CheckoutOrder 영수증', () => {
     expect(html).toContain('₩12,500');
     expect(html).toContain('적립금 사용');
   });
-  it('서버가 확정한 배송비를 굿즈 금액과 분리해 보여준다', () => {
+  it('서버가 확정한 배송비를 상품 금액과 분리해 보여준다', () => {
     const html = renderToStaticMarkup(
       <CheckoutOrder
         order={order}
@@ -234,14 +234,14 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
     expect(copy?.body).not.toContain('결제는 승인됐고');
   });
 
-  it('취소된 카드 주문은 만료가 아니라 취소로 안내하고 같은 굿즈를 다시 담게 한다', () => {
+  it('취소된 카드 주문은 만료가 아니라 취소로 안내하고 같은 상품을 다시 담게 한다', () => {
     const html = renderToStaticMarkup(
       <CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />,
     );
 
     expect(html).toContain('취소된 주문이에요');
     expect(html).not.toContain('결제 가능한 시간이 지났어요');
-    expect(html).toContain('같은 굿즈 다시 담기');
+    expect(html).toContain('같은 상품 다시 담기');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
 
@@ -285,7 +285,7 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
     );
 
     expect(card).toContain('<a class="btn btn-ghost" data-listing-return="">(직전 목록 문구)</a>');
-    expect(bank).toContain('<a class="btn btn-holo" data-listing-return="">굿즈 다시 담기</a>');
+    expect(bank).toContain('<a class="btn btn-holo" data-listing-return="">상품 다시 담기</a>');
     expect(card + bank).not.toContain('href="/shop"');
   });
 
@@ -294,7 +294,7 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
       <CheckoutOrder order={{ ...order, paymentMethod: 'bank_transfer', status: 'canceled', expiresAt: null }} />,
     );
 
-    expect(html).not.toContain('같은 굿즈 다시 담기');
+    expect(html).not.toContain('같은 상품 다시 담기');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
 });
@@ -417,11 +417,11 @@ describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
   it('장바구니가 남은 주문이 결제 없이 취소됐으면 그 주문의 줄로 다시 결제한다', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, cartRetained: true, status: 'canceled', expiresAt: null }} />);
     expect(html).toContain('결제 없이 취소된 주문이에요');
-    expect(html).toContain('이 주문의 굿즈 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.');
+    expect(html).toContain('이 주문의 상품 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.');
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
     expect(html).not.toContain('href="/cart"');
     expect(html).not.toContain('장바구니 보기');
-    expect(html).not.toContain('같은 굿즈 다시 담기');
+    expect(html).not.toContain('같은 상품 다시 담기');
   });
 });
 
@@ -433,7 +433,7 @@ describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
     );
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
     /* 결제 대기 중인 주문은 보조 동작도 그 주문을 먼저 닫는다 — 마지막 재고를 잡은 본인 주문 때문에 상세가 품절로 보이지 않게. */
-    expect(html).toContain('<button class="checkout-retry-secondary" type="button">이 주문 닫고 굿즈 상세에서 다시 고르기</button>');
+    expect(html).toContain('<button class="checkout-retry-secondary" type="button">이 주문 닫고 상품 상세에서 다시 고르기</button>');
     expect(html).not.toContain('href="/shop/g2"');
     expect(html).toContain('같은 구성으로 주문서가 열려요');
     expect(html).not.toContain('다시 결제하기');
@@ -445,8 +445,8 @@ describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
     expect(html).toContain('같은 구성으로 다시 구매할 수 있어요');
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
     /* 이미 결제 없이 취소된 주문은 닫을 것이 없다 — 보조 링크로 바로 굿즈 상세에 간다. */
-    expect(html).toContain('<a class="checkout-retry-secondary" href="/shop/g2">굿즈 상세에서 다시 고르기</a>');
-    expect(html).not.toContain('같은 굿즈 다시 담기');
+    expect(html).toContain('<a class="checkout-retry-secondary" href="/shop/g2">상품 상세에서 다시 고르기</a>');
+    expect(html).not.toContain('같은 상품 다시 담기');
   });
 
   /* 두 탭 다시 구매(UI 재리뷰 4): 다른 탭에서 다시 구매로 이미 접수·결제한 뒤 이 결제 화면을 처음 그리거나 새로 그려도
@@ -460,7 +460,7 @@ describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
     expect(html).toContain('이미 다시 주문했어요');
     expect(html).toContain(`<a class="btn btn-holo" href="/orders/${reordered}">다시 주문한 주문 보기</a>`);
     expect(html).not.toContain('다시 구매하기</button>');
-    expect(html).not.toContain('이 주문 닫고 굿즈 상세에서 다시 고르기');
+    expect(html).not.toContain('이 주문 닫고 상품 상세에서 다시 고르기');
     expect(html).not.toContain('같은 구성으로 다시 구매할 수 있어요');
   });
 });

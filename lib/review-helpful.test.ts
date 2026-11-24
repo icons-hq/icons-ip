@@ -4,7 +4,7 @@ import { parseGoodsGroupReviewPage } from './goods-group-reviews';
 import { goodReviewsHref, normalizeGoodReviewOptions } from './reviews';
 
 const reviewId = 'a6140000-0000-4000-8000-000000000001';
-const row = { id: reviewId, goodId: 'original-good', goodName: '구매 당시 굿즈', variantNames: ['파랑'], rating: 4,
+const row = { id: reviewId, goodId: 'original-good', goodName: '구매 당시 상품', variantNames: ['파랑'], rating: 4,
   body: '합성 후기', imagePaths: [], authorName: '구매자', isMine: false, createdAt: '2026-10-14T00:00:00Z', editedAt: null,
   adminReply: null, adminReplyAt: null };
 const original = { grouped: true, summary: { count: 1, average: 4, distribution: [0, 0, 0, 1, 0], photoCount: 0 }, total: 1, reviews: [row] };

@@ -89,7 +89,7 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext,
             }}>{krwAmountWords(quote.display.totals.onlineTotal)} 결제 진행</button></fieldset>
           {quoteExpired ? <p role="status">견적 시간이 지났어요. 최종 결제금액을 다시 확인해주세요.</p> : <p>결제를 진행할 때 가격·재고·배송지를 한 번 더 확인해요.</p>}</> : null}
       </section> : null}
-      {receipt ? <section><h2>주문 진행</h2><p>{({ pending: '결제 대기', paid: '결제 완료', confirmed: '굿즈 준비', shipping: '배송 중', delivered: '배송 완료', done: '주문 완료', canceled: '취소' } as Record<string, string>)[receipt.status]}</p>
+      {receipt ? <section><h2>주문 진행</h2><p>{({ pending: '결제 대기', paid: '결제 완료', confirmed: '상품 준비', shipping: '배송 중', delivered: '배송 완료', done: '주문 완료', canceled: '취소' } as Record<string, string>)[receipt.status]}</p>
         {gift.party === 'sender' ? <><p>결제금액 {krw(receipt.total ?? 0)}</p><Link href={receipt.status === 'pending' ? `/checkout/${receipt.id}` : `/orders/${receipt.id}`}>{receipt.status === 'pending' ? '결제 이어가기' : '결제·취소 내역 확인'}</Link></> : <p>취소·반품으로 발생한 환불금은 보낸 사람에게 돌아가요.</p>}
         {gift.isRecipient && gift.address ? <address>{gift.address.recipientName} · {gift.address.phone}<br />({gift.address.postalCode}) {gift.address.address1} {gift.address.address2}<br />{gift.address.deliveryNote}</address> : null}
         <ul>{gift.shipments.map(shipment => <li key={shipment.id}>{({ ready: '배송 준비', shipping: '배송 중', delivered: '배송 완료', canceled: '취소' })[shipment.status]}{shipment.expectedShipDate ? ` · 발송 예정 ${shipment.expectedShipDate}` : ''}{gift.isRecipient && shipment.trackingNumber ? <GiftTrackingLine carriers={carriers} carrier={shipment.carrier} trackingNumber={shipment.trackingNumber} /> : null}

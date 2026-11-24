@@ -135,7 +135,7 @@ export function ReviewComposer({
                 ? target.kind === 'month' ? '내 리뷰에 표시된 한달사용 작성 기간을 확인해주세요.' : `리뷰는 배송완료 후 ${REVIEW_WINDOW_DAYS}일까지 남기거나 고칠 수 있습니다.`
                 : confirmationBlock
                   ? reviewConfirmationBlockMessage(confirmationBlock, confirmation?.holdReason)
-                  : '이미 이 주문의 굿즈에 리뷰를 남겼거나, 배송이 아직 완료되지 않았습니다.'}
+                  : '이미 이 주문의 상품에 리뷰를 남겼거나, 배송이 아직 완료되지 않았습니다.'}
           </span>
           {!hidden && !expired && confirmationBlock ? <WcButton href={orderHref}>주문 상세 보기</WcButton> : null}
           <WcButton href="/my/reviews">내 리뷰로 돌아가기</WcButton>
@@ -170,7 +170,7 @@ export function ReviewComposer({
               maxLength={MAX_REVIEW_BODY_LENGTH}
               minLength={MIN_REVIEW_BODY_LENGTH}
               name="body"
-              placeholder="굿즈의 마감, 크기, 색감, 배송처럼 다음 사람이 궁금해할 점을 적어주세요."
+              placeholder="상품의 마감, 크기, 색감, 배송처럼 다음 사람이 궁금해할 점을 적어주세요."
               rows={8}
             />
             <FieldError>{state.errors?.body}</FieldError>
@@ -247,7 +247,7 @@ export function ReviewComposer({
           <p className="wc-mypage__note">
             {/* 리뷰 등록이 구매확정을 겸하면 구매확정 적립금이 함께 지급된다. 그때 '혜택 없음'을 그대로 두면 사실과 어긋나므로
                 리뷰 작성 자체의 혜택과 구매확정 적립금을 나눠 말한다. 리뷰이벤트 선정 혜택은 배너와 같은 별도 안내다. */}
-            등록한 리뷰는 굿즈 상세에 닉네임과 함께 공개됩니다.{' '}
+            등록한 리뷰는 상품 상세에 닉네임과 함께 공개됩니다.{' '}
             {needsConfirmation
               ? `${REVIEW_BENEFIT_NOTE} 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.`
               : '리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.'}

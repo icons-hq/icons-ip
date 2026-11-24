@@ -8,11 +8,11 @@ import type { AdultVerificationResultStatus } from './adult-verification-routes'
 export const ADULT_VERIFICATION_RESULT_COPY: Record<AdultVerificationResultStatus, { title: string; description: string }> = {
   verified: {
     title: '성인 인증이 완료됐어요',
-    description: '이제 19금 굿즈를 보고 구매할 수 있어요. 인증은 1년 동안 유지돼요.',
+    description: '이제 19금 상품을 보고 구매할 수 있어요. 인증은 1년 동안 유지돼요.',
   },
   underage: {
     title: '성인 인증을 완료할 수 없어요',
-    description: '본인확인 결과 청소년 보호법상 청소년으로 확인됐어요. 19금 굿즈는 만 19세가 되는 해의 1월 1일부터 구매할 수 있어요.',
+    description: '본인확인 결과 청소년 보호법상 청소년으로 확인됐어요. 19금 상품은 만 19세가 되는 해의 1월 1일부터 구매할 수 있어요.',
   },
   failed: {
     title: '본인확인을 완료하지 못했어요',

@@ -32,7 +32,7 @@ describe('robots.txt (1014-029)', () => {
     }
   });
 
-  it('사이트맵에 싣는 공개 화면·IP관·굿즈 상세를 닫지 않는다', () => {
+  it('사이트맵에 싣는 공개 화면·IP관·상품 상세를 닫지 않는다', () => {
     for (const path of [...SITEMAP_STATIC_PATHS, '/shop/g4', '/ip/maplestory', '/login', '/search']) {
       expect(blocked(path), path).toBe(false);
     }
@@ -48,7 +48,7 @@ describe('robots.txt (1014-029)', () => {
 });
 
 describe('sitemap.xml (1014-029)', () => {
-  it('공개 목록 화면·공개 IP관·공개 굿즈 상세를 절대 주소로 싣는다', () => {
+  it('공개 목록 화면·공개 IP관·공개 상품 상세를 절대 주소로 싣는다', () => {
     const sitemap = buildSitemap(ORIGIN, {
       ips: [
         { id: 'ip-maple', publicSlug: 'maplestory', updatedAt: '2026-11-01T00:00:00Z' },
