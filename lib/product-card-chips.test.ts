@@ -3,7 +3,7 @@ import type { Good, GoodOption } from '@/lib/data';
 import type { GoodsVariantSupply } from '@/lib/goods-preorders';
 import { productCardChips, productCardUnavailableLabel } from '@/lib/product-card-chips';
 
-type ChipGood = Pick<Good, 'options' | 'optionSaleMode' | 'badge' | 'shippingFeeType'>;
+type ChipGood = Pick<Good, 'options' | 'optionSaleMode' | 'badge' | 'badges' | 'shippingFeeType'>;
 
 const NOW = '2026-11-17T00:00:00.000Z';
 
@@ -97,6 +97,22 @@ describe('productCardChips', () => {
       expect(productCardChips(good({ badge: '  ' }))).toEqual([]);
     });
 
+    /* 상품 표시문구 여러 개(migration 20261125140000): 운영자가 고른 순서대로 칩 하나씩, 같은 값은 한 번만. */
+    it('chips every stored badge in the order the operator chose, once each', () => {
+      expect(productCardChips(good({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }))).toEqual([
+        { kind: 'tag', label: 'EXCLUSIVE' },
+        { kind: 'tag', label: 'NEW' },
+      ]);
+      expect(productCardChips(good({ badge: 'NEW', badges: ['NEW', 'new', ' '] }))).toEqual([{ kind: 'tag', label: 'NEW' }]);
+      /* 빈 목록은 첫 값 거울이 남아 있어도 표시문구 없음이다(목록이 진실원). */
+      expect(productCardChips(good({ badge: 'NEW', badges: [] }))).toEqual([]);
+    });
+
+    it('drops every badge chip when the store presentation hides tags', () => {
+      expect(productCardChips(good({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'], shippingFeeType: 'free' }), { showTags: false }))
+        .toEqual([{ kind: 'freeShipping', label: '무료배송' }]);
+    });
+
     it('does not turn the hidden tag setting into a drop of the other chips', () => {
       const chips = productCardChips(good({ badge: 'NEW', shippingFeeType: 'free', optionSaleMode: 'random' }), { showTags: false });
       expect(chips.map((chip) => chip.kind)).toEqual(['freeShipping', 'random']);
@@ -128,11 +144,11 @@ describe('productCardUnavailableLabel', () => {
     expectedShipDate: '2026-12-14', nextChangeAt: '2026-12-02T02:00:00.000Z' });
 
   it('labels a preorder whose reception has not opened yet instead of reading it as sold out', () => {
-    expect(productCardUnavailableLabel({ options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('예약 접수 예정');
+    expect(productCardUnavailableLabel({ options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 예정');
     expect(productCardUnavailableLabel({ options: [
       option({ id: 'o1', stockQty: 0, supply: scheduled }),
       option({ id: 'o2', isDefault: false, stockQty: 0, supply: scheduled }),
-    ] }, true)).toBe('예약 접수 예정');
+    ] }, true)).toBe('판매 예정');
   });
 
   it('leaves an open preorder with quantity to the 예약판매 chip, without any unavailable label', () => {
@@ -158,7 +174,7 @@ describe('productCardUnavailableLabel', () => {
 
   it('puts the sale period before the preorder state, like the product detail', () => {
     const salePeriod = { state: 'scheduled' as const, startsAt: '2026-12-01T00:00:00Z', endsAt: '2026-12-31T00:00:00Z', calculatedAt: NOW, nextChangeAt: '2026-12-01T00:00:00Z' };
-    expect(productCardUnavailableLabel({ salePeriod, options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 시작 전');
+    expect(productCardUnavailableLabel({ salePeriod, options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 예정');
     expect(productCardUnavailableLabel({ salePeriod: { ...salePeriod, state: 'ended', nextChangeAt: null } }, false)).toBe('판매 종료');
   });
 });

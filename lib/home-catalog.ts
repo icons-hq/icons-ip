@@ -229,7 +229,10 @@ export interface HomeGoodsCard {
   /** 취소선 정가(`Good.compareAtPrice`)와 할인율 표시 여부 — 카드 가격 줄의 할인율을 목록 화면과 같은 규칙(`PriceBlock`)으로 그린다. 옛 투영은 없다. */
   compareAtPrice?: number | null;
   showDiscountRate?: boolean;
+  /** 상품 표시문구 첫 값(`Good.badge`). */
   badge: string | null;
+  /** 상품 표시문구 전부(고른 순서). 칩이 없는 카드(`chips` 없음)가 운영 배지 칩으로 그린다. 옛 투영은 없고 `badge` 하나로 읽는다. */
+  badges?: string[];
   imageBg: string;
   href: string;
   soldOut: boolean;

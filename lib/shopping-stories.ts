@@ -47,7 +47,10 @@ export interface PublicShoppingStoryGood {
   compareAtPrice: number | null;
   showDiscountRate: boolean;
   imageBackground: string;
+  /** 상품 표시문구 첫 값(`goods.badge`). */
   badge: string | null;
+  /** 상품 표시문구 전부(고른 순서, `goods.badges`). 투영이 싣지 않으면 없고 `badge` 하나로 읽는다(`goodBadgeList`). */
+  badges?: string[];
   soldOut: boolean;
   /** 판매기간·예약 상태 문구(`productCardUnavailableLabel`). 공개 로더가 옵션 예약 상태로 채운다 — 지금 주문할 수 있거나 어드민 미리보기면 없다. */
   unavailableLabel?: string;

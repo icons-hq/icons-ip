@@ -398,6 +398,16 @@ describe('selectShopGoods 뷰', () => {
     expect(result.total).toBe(2);
   });
 
+  /* 상품 표시문구 여러 개(migration 20261125140000): NEW가 첫 값이 아니어도 NEW 탭에 든다. 목록이 있으면 목록이 진실원이다. */
+  it('NEW 뷰는 표시문구 목록 어디에든 NEW가 있으면 담는다', () => {
+    const multi = { ips, goods: [
+      good('x', 'ip1', { badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }),
+      good('y', 'ip1', { badge: 'EXCLUSIVE', badges: ['EXCLUSIVE'] }),
+      good('z', 'ip2', { badge: 'NEW', badges: [] }),
+    ] };
+    expect(ids(selectShopGoods(multi, query({ view: 'new' })))).toEqual(['x']);
+  });
+
   it('BEST 뷰는 큐레이션 순서를 따르고 없는 id 와 중복은 무시한다', () => {
     const result = selectShopGoods(catalog, query({ view: 'best' }), ['d', 'ghost', 'b', 'd']);
 

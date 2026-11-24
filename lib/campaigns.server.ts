@@ -14,6 +14,7 @@ import {
   type CampaignSummary,
 } from '@/lib/campaigns';
 import { goodCompareAtPrice } from '@/lib/goods-options';
+import { goodBadgeList } from '@/lib/goods-taxonomy';
 import type { GoodsReviewSummary } from '@/lib/goods-review-summary';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { readListingReviewSummaries } from '@/lib/listing-review-summaries.server';
@@ -75,6 +76,8 @@ interface GoodRow {
   compare_at_price: number | null;
   show_discount_rate?: boolean;
   badge: string | null;
+  /** 상품 표시문구 전부(고른 순서). */
+  badges?: string[] | null;
   stock: string;
   stock_qty: number;
   bg: string | null;
@@ -110,7 +113,10 @@ export interface GoodCardView {
   price: number;
   compareAtPrice: number | null;
   showDiscountRate?: boolean;
+  /** 상품 표시문구 첫 값. */
   badge: string | null;
+  /** 상품 표시문구 전부(고른 순서). 카드가 운영 배지 칩으로 그린다. */
+  badges?: string[];
   soldOut: boolean;
   imageBackground: string;
   /** 카드 별점(LFS 패리티 2차 L4b · CL-02) — 공개 리뷰가 있을 때만. 숫자는 굿즈 상세와 같은 묶음 그룹 범위다. */
@@ -289,7 +295,7 @@ async function loadSectionGoods(
 
   const { data, error } = await supabase
     .from('goods')
-    .select('id,name,sale_period:goods_sale_period,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),option_sale_mode,random_option:goods_random_option,goods_variants(price,archived_at,pricing:goods_variant_pricing)')
+    .select('id,name,sale_period:goods_sale_period,price,compare_at_price,show_discount_rate,badge,badges,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),option_sale_mode,random_option:goods_random_option,goods_variants(price,archived_at,pricing:goods_variant_pricing)')
     .in('id', goodIds)
     // 캠페인 섹션은 카탈로그 스냅샷을 우회하는 직접 조회라 보관 제외와
     // 판매 제한 비노출(#392)을 여기서 따로 건다.
@@ -318,6 +324,7 @@ async function loadSectionGoods(
       compareAtPrice: goodCompareAtPrice({ price: row.price, compareAtPrice: row.compare_at_price ?? null }, options),
       showDiscountRate: row.show_discount_rate ?? true,
       badge: row.badge,
+      badges: goodBadgeList(row),
       soldOut: Boolean(goodsSaleUnavailableLabel(salePeriod)) || stockQty <= 0 || row.stock === 'soldout',
       imageBackground: imageUrl ? imageBg(imageUrl) : row.bg ?? '',
     }];

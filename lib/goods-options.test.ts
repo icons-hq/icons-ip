@@ -105,9 +105,16 @@ describe('public goods options',()=>{
     expect(variantSearchForSelection('?variant=red', 'red', undefined)).toBeNull();
     expect(variantSearchForSelection('?variant=red', undefined, undefined)).toBeNull();
   });
-  it('shows the price range including sold-out visible options',()=>{
-    expect(optionPriceRange(options)).toEqual({price:12000,priceMax:15000});
+  /* MD-0049 — 화면은 최저가 한 금액만 보이므로 최저가는 지금 살 수 있는 옵션에서 고른다(품절된 싼 옵션 제외). 살 수 있는 옵션이
+     없으면 전체 옵션에서 고르고, 최고가는 언제나 전체 옵션 기준이다. */
+  it('picks the lowest price among purchasable options and keeps the max over all options',()=>{
+    expect(optionPriceRange(options)).toEqual({price:15000,priceMax:15000});
     expect(optionPriceRange([options[1]])).toEqual({price:15000,priceMax:15000});
+    expect(optionPriceRange([options[0]])).toEqual({price:12000,priceMax:12000});
+    expect(optionPriceRange([{...options[0],stockQty:0},{...options[1],stockQty:0}])).toEqual({price:12000,priceMax:15000});
+    const openPreorder={mode:'preorder' as const,state:'open' as const,availableQty:4,policyId:null,policyRevision:null,startsAt:null,endsAt:null,expectedShipDate:null,calculatedAt:'2026-11-24T00:00:00Z',nextChangeAt:null};
+    expect(optionPriceRange([{...options[0],stockQty:0,supply:openPreorder},options[1]])).toEqual({price:12000,priceMax:15000});
+    expect(optionPriceRange([{...options[0],stockQty:9,supply:{...openPreorder,state:'scheduled' as const}},options[1]])).toEqual({price:15000,priceMax:15000});
   });
   it('resolves a cart line with its option price and stock, never a different option',()=>{
     expect(cartOptionGood(good,options[1].id)).toMatchObject({price:15000,stockQty:3});

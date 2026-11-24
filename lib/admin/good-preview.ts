@@ -2,6 +2,7 @@ import type { GoodOption, Ip, Stock } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import { imageBg } from '@/lib/media';
+import { parseGoodBadgeText } from '@/lib/goods-taxonomy';
 import { GOODS_DETAIL_IMAGE_FIELD_NAMES, GOODS_GALLERY_MAX, normalizeGoodsSearchKeywords } from './catalog';
 import { restoreGoodsOptionRows, type GoodsOptionRow } from './goods-option-editor';
 import { collapseRandomGoodOptions, optionPriceRange } from '@/lib/goods-options';
@@ -21,6 +22,12 @@ import { parseGoodsKcDisclosures, parseGoodsOtherCertificationDisclosures, type 
 
 const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
 const PREVIEW_PLACEHOLDER_BG = 'linear-gradient(150deg, #2A2440, #4A3F73)';
+
+/* 숨은 칸 'badge'에 고른 순서대로 쉼표로 이은 상품 표시문구. 표준 값만 고른 순서로 보이고, 첫 값은 옛 칸(badge)에도 둔다. */
+function previewBadges(values: Record<string, string>): { badge: string | null; badges: string[] } {
+  const { badges } = parseGoodBadgeText(values.badge ?? '');
+  return { badge: badges[0] ?? null, badges };
+}
 
 export interface GoodPreviewInput {
   /** 폼에서 그대로 읽은 값 (FormData 키 기준) */
@@ -124,7 +131,7 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
       price: basePrice,
       catalogPrice: basePrice,
       ...(options ? { options, ...optionPriceRange(options) } : {}),
-      badge: trimmed(values, 'badge') || null,
+      ...previewBadges(values),
       stock: options && !options.some((option) => option.stockQty > 0) ? 'soldout' : STOCK_VALUES.has(stock) ? stock : 'ok',
       stockQty: options ? options.reduce((total, option) => total + option.stockQty, 0) : stockQty,
       img: mainUrl ? imageBg(mainUrl) : fallbackBg || PREVIEW_PLACEHOLDER_BG,

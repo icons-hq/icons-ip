@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { paymentAttemptRoute, reconcilablePaymentProviders, reconcilePaymentAttempt } from '@/lib/payments/attempt-reconciliation.server';
-import { tossBoundPaymentSecretKey } from '@/lib/payments/runtime-gateway';
+import { tossBoundPaymentSecretKey, tossEscrowSecretKey } from '@/lib/payments/runtime-gateway';
 import { createTossVirtualAccountRefundInspector, type VirtualAccountRefundWatch } from '@/lib/payments/toss-virtual-account-refund-watch.server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { cronErrorCode, startCronRun } from '@/lib/system-health/cron-run.server';
@@ -22,7 +22,10 @@ import { isUuid } from '@/lib/uuid';
  * paymentKey 조회는 코어 API라 결제 위젯 시크릿 키(gsk)로 부른다(에스크로 부가서비스 키가 아니다 — 토스 'API 키' 문서).
  * 이 단계의 실패(조회 불가·기록 실패·예외)는 첫 단계 건수를 버리지 않고 응답만 실패로 남긴다.
  * 실패·7일 지연은 DB가 운영 알림(벨·운영 알림 요약 메일)과 시스템 상태의 '환불 송금 실패'로 올린다. 토스 결제 UI 바인딩이 없는 배포는
- * 가상계좌가 없으므로 이 단계를 건너뛴다.
+ * 가상계좌가 없으므로 이 단계를 건너뛴다. 송금 상태가 NONE인 에스크로 결제는 에스크로 키로 거래를 조회해 구매자 취소 수락 환불인지
+ * 함께 넘기고, DB가 그 감시를 7일 뒤 완료로 닫는다(escrowSettled, 2026-11-24 보강 — 토스가 그 환불의 송금 상태를 알리는지 문서에 없다).
+ * 거래를 확인하지 못하면(에스크로 키 없음·조회 실패) 확인 없음으로 넘겨 지금 판정을 따르고 escrowLookupFailed로 센다 — 회차를 실패로
+ * 만들지 않는다(지연으로 오른 감시도 다시 보므로 뒤 회차에 확인되면 닫힌다).
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -103,14 +106,14 @@ export async function GET(request: Request) {
       }
     }
 
-    const refunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, recordFailed: 0, deferred: 0, errored: false };
+    const refunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, escrowSettled: 0, escrowLookupFailed: 0, recordFailed: 0, deferred: 0, errored: false };
     if (paymentSecretKey) {
       try {
         const { data, error } = await service.rpc('service_claim_virtual_account_refund_watches', { p_limit: REFUND_WATCH_LIMIT });
         const watches = error ? null : parseRefundWatches(data);
         if (!watches) throw new Error('refund_watches_unavailable');
         refunds.watches = watches.length;
-        const inspector = createTossVirtualAccountRefundInspector({ secretKey: paymentSecretKey });
+        const inspector = createTossVirtualAccountRefundInspector({ secretKey: paymentSecretKey, escrowSecretKey: tossEscrowSecretKey() });
         for (const watch of watches) {
           // 미룬 감시는 DB가 건 10분 리스 뒤에 다시 뽑힌다.
           if (Date.now() - started > REFUND_WATCH_BUDGET_MS) { refunds.deferred += 1; continue; }
@@ -119,12 +122,19 @@ export async function GET(request: Request) {
           else if (inspection.outcome === 'pending') refunds.pending += 1;
           else if (inspection.outcome === 'unavailable') refunds.unavailable += 1;
           else refunds.failed += 1;
-          const { error: recordError } = await service.rpc('service_record_virtual_account_refund_watch', {
+          const { data: recorded, error: recordError } = await service.rpc('service_record_virtual_account_refund_watch', {
             p_attempt_id: watch.attemptId,
             p_outcome: inspection.outcome,
             p_refund_status: inspection.refundStatus,
+            p_escrow_buyer_canceled: inspection.escrowBuyerCanceled,
           });
           if (recordError) refunds.recordFailed += 1;
+          // 송금 확인 전으로 읽었는데 DB가 닫았다 — 에스크로 구매자 취소 환불을 7일 뒤 완료로 닫았다.
+          else if (inspection.outcome === 'pending' && recorded === 'completed') refunds.escrowSettled += 1;
+          if (inspection.escrowLookupFailed) {
+            refunds.escrowLookupFailed += 1;
+            console.error('[cron/payment-reconciliation] escrow transaction lookup for refund watch failed', { orderId: watch.orderId });
+          }
           if (inspection.outcome === 'failed' || inspection.outcome === 'mismatch') {
             console.error('[cron/payment-reconciliation] virtual account refund needs operator action', { orderId: watch.orderId, outcome: inspection.outcome });
           }

@@ -655,7 +655,8 @@ describe('getCatalogSnapshot', () => {
       return Promise.resolve({
         data: name === 'get_masked_adult_goods'
           ? [
-              { id: 'adult-x', ip_id: 'hwasan', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: '2026-11-01T00:00:00Z' },
+              { id: 'adult-x', ip_id: 'hwasan', name: '성인 아크릴 키링', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: '2026-11-01T00:00:00Z' },
+              { id: 'adult-old', ip_id: 'hwasan', display_order: null, category_id: null, price: 6000, stock: 'ok', stock_qty: 3, created_at: null },
               { id: 'adult-bad', ip_id: 'hwasan', price: '5000' },
               { id: 'adult-draft-ip', ip_id: 'draft-ip', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: null },
             ]
@@ -669,8 +670,10 @@ describe('getCatalogSnapshot', () => {
 
     expect(records.find((record) => record.table === 'goods')?.in).toContainEqual(['sale_restriction', ['none']]);
     expect(rpcCalls.filter((call) => call.name === 'get_masked_adult_goods')).toEqual([{ name: 'get_masked_adult_goods', args: {} }]);
-    expect(snapshot.goods.map((good) => good.id).sort()).toEqual(['a', 'adult-x']);
-    expect(snapshot.goods.find((good) => good.id === 'adult-x')).toMatchObject({ name: '19금 굿즈', img: '', price: 5000, masked: true, saleRestriction: 'adult' });
+    expect(snapshot.goods.map((good) => good.id).sort()).toEqual(['a', 'adult-old', 'adult-x']);
+    /* MD-0048 — 가림 카드는 이름·IP·가격을 싣고 이미지는 비운다. 이름 열이 없는 옛 응답(배포 순서)은 고정 문구다. */
+    expect(snapshot.goods.find((good) => good.id === 'adult-x')).toMatchObject({ name: '성인 아크릴 키링', ip: 'hwasan', img: '', price: 5000, masked: true, saleRestriction: 'adult' });
+    expect(snapshot.goods.find((good) => good.id === 'adult-old')).toMatchObject({ name: '19금 굿즈', img: '', masked: true });
 
     rpcCalls.length = 0;
     await getCatalogSnapshot({ adultGoods: 'hidden' });
@@ -2080,8 +2083,15 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(select).toMatch(/goods_variants\([^)]*order_max_qty,member_max_qty/);
     /* 랜덤 굿즈의 옵션 행은 고객에게 숨는다(T7 리뷰 RV-1) — 랜덤 한 줄은 공개 계산 열로 읽는다. */
     expect(select.split(',')).toContain('random_option:goods_random_option');
+    /* 상품 표시문구 여러 개(migration 20261125140000)는 첫 값 거울과 함께 목록 열로 읽는다. */
+    expect(select.split(',')).toEqual(expect.arrayContaining(['badge', 'badges']));
     mocks.isConfigured = false;
     mocks.client = null;
+  });
+
+  it('표시문구 목록을 고른 순서대로 싣고, 목록을 싣지 않은 옛 투영은 badges를 비워 둔다', () => {
+    expect(toGood(row({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }), () => '')).toMatchObject({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] });
+    expect(toGood(row({ badge: 'NEW' }), () => '')).not.toHaveProperty('badges');
   });
 
   /* 고객 세션: goods_variants 의 랜덤 굿즈 행은 restrictive RLS 로 빠지고(옵션별 재고 = 배정 단서), 공개 계산 열

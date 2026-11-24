@@ -4,6 +4,7 @@ import { readGoodsClaimPolicy } from './goods-claim-policy';
 import type { GoodClaimPolicy } from '@/lib/goods-claim-policy';
 import { readGoodsLinkedMetadata, type GoodsLinkedMetadataInput } from './goods-linked-metadata';
 import type { Stock } from '@/lib/data';
+import { GOOD_BADGES, parseGoodBadgeText, type GoodBadge } from '@/lib/goods-taxonomy';
 import {
   GOODS_NOTICE_FIELDS,
   missingGoodsNoticeKeys,
@@ -13,6 +14,10 @@ import type { RarityKey } from '@/lib/rarity';
 import { readAdminGoodsSalePolicy, type AdminGoodsSalePolicyInput } from './goods-sale-policy';
 import { GOODS_HTML_IMAGE_MAX, GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription, type GoodsDescriptionFormat } from '@/lib/goods-description';
 import { IP_PUBLIC_SLUG_ERROR_MESSAGES, normalizeIpPublicSlug, validateIpPublicSlug } from '@/lib/ip-identity';
+
+/** 표준 값이 아닌 상품 표시문구를 저장하려 할 때의 칸 오류(상품 편집·상품 엑셀 검증·저장 거절이 같은 문구, 어드민 전용). */
+export const GOOD_BADGES_INVALID_MESSAGE =
+  `상품 표시문구는 ${GOOD_BADGES.join(', ')} 중에서만 고를 수 있습니다. 여러 개는 쉼표로 구분해 적어주세요(예: ${GOOD_BADGES.join(', ')}).`;
 
 export type AdminFieldErrors = Record<string, string>;
 
@@ -68,7 +73,8 @@ export interface AdminGoodFormValue extends AdminGoodsSalePolicyInput, GoodsLink
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고, 아니면 null 이다. */
   compareAtPrice: number | null;
   showDiscountRate?: boolean;
-  badge: string | null;
+  /** 상품 표시문구(NEW·EXCLUSIVE). 고른 순서가 카드·상세 노출 순서이고 같은 값은 한 번만이다. 비우면 표시문구 없음. */
+  badges: GoodBadge[];
   stock: Stock;
   bg: string | null;
   imagePath: string | null;
@@ -603,6 +609,9 @@ export function normalizeAdminGoodForm(
   Object.assign(errors, salePolicy.errors);
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
   const detailImagePaths = readGoodsDetailImagePaths(formData, errors);
+  /* 상품 표시문구는 한 칸에 고른 순서대로 쉼표로 이어 온다(편집 화면 숨은 칸·상품 엑셀 열 모두 같은 모양, 옛 한 값 포함). */
+  const badgeText = parseGoodBadgeText(readString(formData, 'badge'));
+  if (badgeText.invalid.length) errors.badge = GOOD_BADGES_INVALID_MESSAGE;
 
   if (!name) errors.name = adminGoodsCopy('굿즈 이름을 입력해주세요.');
   /* ADR-0044: 상품 유형은 없다. 공개하려면 대표 카테고리가 있어야 한다. */
@@ -638,7 +647,7 @@ export function normalizeAdminGoodForm(
       ...(showDiscountRate !== undefined ? { showDiscountRate: showDiscountRate === 'true' } : {}),
       ...(searchKeywords !== undefined ? { searchKeywords } : {}),
       ...(displayOrder !== undefined ? { displayOrder } : {}),
-      badge: nullableString(formData, 'badge'),
+      badges: badgeText.badges,
       stock,
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),

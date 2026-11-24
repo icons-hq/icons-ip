@@ -15,14 +15,15 @@ export function pdpPriceView({ compareAtPrice, price, priceMax, showDiscountRate
   compareAtPrice?: number | null;
   showDiscountRate?: boolean;
 }) {
-  /* PriceBlock 과 같은 판정 — 정가가 판매가보다 높을 때만, 가격 범위가 아닐 때만 할인으로 본다. */
+  /* PriceBlock 과 같은 판정 — 정가가 판매가보다 높을 때만, 가격 범위가 아닐 때만 할인으로 본다.
+     옵션마다 가격이 달라도 범위 대신 가장 낮은 금액만 보인다(MD-0049, 2026-11-23). 보조기기에는 '최저가'로 읽힌다. */
   const ranged = priceMax != null && priceMax > price;
   const onSale = showDiscountRate && !ranged && compareAtPrice != null && compareAtPrice > price;
   return {
     original: onSale ? krw(compareAtPrice) : null,
     rate: onSale ? `${Math.round((1 - price / compareAtPrice) * 100)}%` : null,
-    amount: ranged ? `${krw(price)} ~ ${krw(priceMax)}` : krw(price),
-    amountLabel: onSale ? '할인가' : '가격',
+    amount: krw(price),
+    amountLabel: onSale ? '할인가' : ranged ? '최저가' : '가격',
   };
 }
 

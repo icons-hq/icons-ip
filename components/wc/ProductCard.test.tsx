@@ -25,7 +25,7 @@ function preorderGood(state: 'scheduled' | 'open', availableQty: number): Good {
 }
 
 describe('ProductCard', () => {
-  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('keeps %s browseable and labels the sale period before stock', (state, label) => {
+  it.each([['scheduled', '판매 예정'], ['ended', '판매 종료']] as const)('keeps %s browseable and labels the sale period before stock', (state, label) => {
     const html = renderToStaticMarkup(<ProductCard {...card} soldOut salePeriod={{ state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null }} />);
     expect(html).toContain('href="/shop/g13"'); expect(html).toContain(`>${label}</span>`); expect(html).toContain(` (${label})`);
     expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('(품절)');
@@ -88,22 +88,22 @@ describe('ProductCard', () => {
     expect(imageLink).not.toContain('wc-sr-only');
   });
 
-  /* 접수 시작 전 예약판매는 품절이 아니다 — 상세와 같은 판정('예약 접수 예정')을 덮개와 숨은 문구 둘 다에 쓴다. */
+  /* 접수 시작 전 예약판매는 품절이 아니다 — 상세와 같은 판정('판매 예정')을 덮개와 숨은 문구 둘 다에 쓴다. */
   it('labels a preorder before reception opens instead of SOLD OUT, from the good itself', () => {
     const good = preorderGood('scheduled', 0);
     const html = renderToStaticMarkup(<ProductCard {...card} cartGood={good} soldOut={good.stock === 'soldout'} />);
 
-    expect(html).toContain('<div class="wc-product-card__soldout"><span>예약 접수 예정</span></div>');
-    expect(html).toContain('<span class="wc-sr-only"> (예약 접수 예정)</span>');
+    expect(html).toContain('<div class="wc-product-card__soldout"><span>판매 예정</span></div>');
+    expect(html).toContain('<span class="wc-sr-only"> (판매 예정)</span>');
     expect(html).not.toContain('SOLD OUT');
     expect(html).not.toContain('품절');
   });
 
   it('uses the label a server card view filled in (home, category recommendations)', () => {
-    const html = renderToStaticMarkup(<ProductCard {...card} soldOut unavailableLabel="예약 접수 예정" />);
+    const html = renderToStaticMarkup(<ProductCard {...card} soldOut unavailableLabel="판매 예정" />);
 
-    expect(html).toContain('<span>예약 접수 예정</span>');
-    expect(html).toContain(' (예약 접수 예정)');
+    expect(html).toContain('<span>판매 예정</span>');
+    expect(html).toContain(' (판매 예정)');
     expect(html).not.toContain('SOLD OUT');
   });
 
@@ -221,7 +221,10 @@ describe('ProductCard', () => {
     expect(html).toContain('<span class="wc-price__amount">₩9,000</span>');
     expect(html).not.toContain('wc-price__original');
     expect(html).not.toContain('₩12,000');
-    expect(renderToStaticMarkup(<ProductCard {...card} price={9000} priceMax={12000} compareAtPrice={15000} />)).toContain('₩9,000 ~ ₩12,000');
+    /* MD-0049 — 옵션 가격 범위는 최저가 한 금액만 보인다. */
+    const ranged = renderToStaticMarkup(<ProductCard {...card} price={9000} priceMax={12000} compareAtPrice={15000} />);
+    expect(ranged).toContain('<span class="wc-price__amount">₩9,000</span>');
+    expect(ranged).not.toContain('₩12,000');
   });
 
   /* CL-02: 리뷰가 있으면 가격 아래 별 다섯 칸 + (리뷰 수). 별 문자는 읽지 않고 숨은 문장을 읽는다. */
