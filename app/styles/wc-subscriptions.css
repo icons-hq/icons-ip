@@ -34,3 +34,16 @@
   .wc-subscriptions__card, .wc-subscriptions__amounts > section { border-color: CanvasText; }
   .wc-subscriptions button { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; }
 }
+
+/* 받는 분과 배송지의 주소 칸(PostcodeField) — 주소 검색으로 채우고 잠긴다. 우편번호 줄은 [칸 + 검색 버튼], 칸 오류·안내는 그 아래. */
+.wc-subscriptions__fields .postcode-field, .wc-subscriptions__field-wide { grid-column: 1 / -1; }
+.wc-subscriptions .postcode-field { display: grid; gap: 7px; min-width: 0; font-size: 14px; }
+.wc-subscriptions .postcode-field-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wc-subscriptions .postcode-field-row input { flex: 1 1 140px; max-width: 180px; }
+.wc-subscriptions .postcode-field-row button { justify-self: auto; }
+.wc-subscriptions .postcode-layer { position: relative; overflow: hidden; border: 1px solid var(--wc-line, #d6d6d6); }
+.wc-subscriptions .postcode-layer-frame { width: 100%; height: 400px; }
+.wc-subscriptions .postcode-layer-state { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 20px; background: #fff; text-align: center; }
+.wc-subscriptions .postcode-field-hint { font-size: 13px; color: var(--wc-ink-tertiary, #6b6b6b); }
+.wc-subscriptions .checkout-field-error { font-size: 13px; color: var(--wc-danger, #c62828); }
+@media (max-width: 640px) { .wc-subscriptions__fields .postcode-field, .wc-subscriptions__field-wide { grid-column: 1; } }

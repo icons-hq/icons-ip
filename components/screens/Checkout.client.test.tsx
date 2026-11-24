@@ -1,5 +1,5 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CartItem } from '@/lib/cart';
 import type { UserCouponSummary } from '@/lib/coupons';
 import type { Good } from '@/lib/data';
@@ -7,17 +7,17 @@ import type { AddressGoodsSalesQuote } from '@/lib/shipping-regions';
 
 /* 제출 가드 흐름을 보려고 훅을 대체해 Checkout 을 함수로 부른다(GoodsTransactionCheckout.client.test 와 같은 방식). */
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], si: 0, ri: 0 }));
-const mocks = vi.hoisted(() => ({ place: vi.fn(), items: [] as CartItem[], sales: null as unknown }));
+const mocks = vi.hoisted(() => ({ place: vi.fn(), save: vi.fn(), push: vi.fn(), cartPending: false, items: [] as CartItem[], sales: null as unknown }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => { const i = hooks.si++; if (!(i in hooks.states)) hooks.states[i] = typeof initial === 'function' ? (initial as () => unknown)() : initial;
     return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.states[i]) : next; }]; },
   useRef: (value: unknown) => { const i = hooks.ri++; return hooks.refs[i] ??= { current: value }; },
   useMemo: (fn: () => unknown) => fn(),
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push, refresh: vi.fn() }) }));
 vi.mock('@/app/checkout/actions', () => ({ placeOrderAction: mocks.place }));
 vi.mock('@/app/cart/coupon-actions', () => ({ applyCouponAction: vi.fn(), applyCouponCodeAction: vi.fn(), clearCouponAction: vi.fn() }));
-vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: vi.fn() }));
+vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: mocks.save }));
 vi.mock('@/components/checkout/PostcodeField', () => ({ PostcodeField: () => null }));
 vi.mock('@/components/checkout/useStoreCreditQuote', () => ({ useStoreCreditQuote: () => ({ quote: null, loading: false, error: null, refresh: vi.fn() }) }));
 vi.mock('./CheckoutDraftQuotes', () => ({
@@ -29,10 +29,14 @@ vi.mock('@/components/shop/useShippingQuote', () => ({ useShippingQuote: () => (
 }) }));
 vi.mock('@/components/shell/CartProvider', () => ({
   useReleaseUnpaidCartOrders: () => true,
-  useCart: () => ({ items: mocks.items, ready: true, mode: 'server' as const, pending: false, error: null, refresh: vi.fn() }),
+  useCart: () => ({ items: mocks.items, ready: true, mode: 'server' as const, pending: mocks.cartPending, error: null, refresh: vi.fn() }),
 }));
 
 import { CouponPicker } from '@/components/checkout/CouponPicker';
+import { CheckoutAddressSection } from '@/components/checkout/CheckoutAddressSection';
+import type { CheckoutAddressEntryState } from '@/components/checkout/useCheckoutAddressEntry';
+import { setCustomerConfirmHandler, type CustomerConfirmRequest } from '@/lib/customer-confirm';
+import type { CheckoutAddress } from '@/lib/checkout';
 import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
 import { Checkout } from './Checkout';
 
@@ -57,6 +61,7 @@ const submit = () => (all(render()).find((node) => node.type === 'form')!.props.
 
 beforeEach(() => {
   hooks.states = []; hooks.refs = [];
+  mocks.cartPending = false;
   mocks.place.mockReset();
   mocks.place.mockResolvedValue({ ok: false, error: 'unavailable' });
   mocks.items = [{ goodId: 'g13', variantId: VARIANT, qty: 1 }];
@@ -269,5 +274,95 @@ describe('Checkout 제한 고지 대조', () => {
     expect(acknowledgement().props.checked).toBe(false);
     expect(submitButton().props.disabled).toBe(true);
     expect(all(render()).some((node) => node.props.role === 'alert' && Children.toArray(node.props.children as ReactNode).some((child) => typeof child === 'string' && child.includes('제한 안내가 바뀌었어요')))).toBe(true);
+  });
+});
+
+/* 국내 커머스 관행 맞추기 P1(11/24): 검색한 주소가 공동주택인데 상세 주소가 비면 주문 전에 한 번 확인받고(막지 않는다),
+   체크한 배송지는 주문을 만든 뒤에만 주소록에 저장한다(거절된 주문의 배송지는 남기지 않는다). */
+describe('Checkout 배송지 확인·주소록 저장', () => {
+  const focused: string[] = [];
+  const section = () => all(render()).find((node) => node.type === CheckoutAddressSection)!;
+  const entry = () => section().props.entry as CheckoutAddressEntryState;
+  const setAddress = (next: (current: CheckoutAddress) => CheckoutAddress) => (section().props.setAddress as (value: typeof next) => void)(next);
+  beforeEach(() => {
+    focused.length = 0;
+    mocks.save.mockReset();
+    mocks.push.mockReset();
+    vi.stubGlobal('window', { requestAnimationFrame: (callback: (time: number) => void) => { callback(0); return 0; }, scrollTo: vi.fn() });
+    vi.stubGlobal('document', { getElementById: (id: string) => ({ focus: () => { focused.push(id); } }) });
+  });
+  afterEach(() => { vi.unstubAllGlobals(); setCustomerConfirmHandler(null); });
+
+  it('공동주택 검색 결과에 상세 주소가 없으면 확인받고, [상세 주소 입력]이면 주문하지 않고 그 칸으로 간다', async () => {
+    const asked: CustomerConfirmRequest[] = [];
+    let answer = false;
+    setCustomerConfirmHandler(async (request) => { asked.push(request); return answer; });
+    entry().setApartment(true);
+    setAddress((current) => ({ ...current, address2: '' }));
+    await submit();
+    expect(asked[0]).toMatchObject({ confirmLabel: '이대로 주문', cancelLabel: '상세 주소 입력' });
+    expect(mocks.place).not.toHaveBeenCalled();
+    expect(focused).toContain('checkout-address2');
+
+    answer = true;
+    await submit();
+    expect(mocks.place).toHaveBeenCalledTimes(1);
+    expect(mocks.place.mock.calls[0][0]).toMatchObject({ address2: '' });
+
+    /* 공동주택이 아니거나(주소록·직전 주문 배송지) 상세 주소를 적었으면 묻지 않는다. */
+    setAddress((current) => ({ ...current, address2: '101동' }));
+    acknowledge();
+    await submit();
+    expect(asked).toHaveLength(2);
+    expect(mocks.place).toHaveBeenCalledTimes(2);
+  });
+
+  it('저장 체크는 기본 꺼짐이고, 켜면 주문을 만든 뒤에만 그 배송지를 주소록에 저장한다', async () => {
+    expect(entry().saveToBook).toBe(false);
+    mocks.place.mockResolvedValue({ ok: true, orderId: '00000000-0000-4000-8000-0000000000aa' });
+    await submit();
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith('/checkout/00000000-0000-4000-8000-0000000000aa');
+
+    hooks.states = []; hooks.refs = []; acknowledge();
+    entry().setSaveToBook(true);
+    entry().setSaveLabel('본가');
+    mocks.place.mockResolvedValueOnce({ ok: false, error: 'out_of_stock' });
+    await submit();
+    expect(mocks.save).not.toHaveBeenCalled();
+
+    acknowledge();
+    mocks.save.mockResolvedValue({ ok: true, entries: [], savedId: '7a570000-0000-4000-8000-000000000009' });
+    await submit();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.save).toHaveBeenCalledWith(null, { label: '본가', recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울 중구 세종대로 110', address2: '101동', makeDefault: true });
+  });
+
+  it('주소록 저장이 실패해도 주문 흐름은 그대로 이어진다', async () => {
+    entry().setSaveToBook(true);
+    mocks.place.mockResolvedValue({ ok: true, orderId: '00000000-0000-4000-8000-0000000000aa' });
+    mocks.save.mockRejectedValue(new Error('network'));
+    await submit();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.push).toHaveBeenCalledWith('/checkout/00000000-0000-4000-8000-0000000000aa');
+  });
+});
+
+/* 탭을 다시 볼 때 supabase-js 가 보내는 인증 이벤트로 장바구니가 다시 동기화된다 — 주문서를 '확인하고 있어요'로 바꾸면 배송지 시트와
+   입력 중인 새 배송지가 사라진다. 첫 확인 뒤에는 화면을 두고, 동기화 동안 제출만 막는다. */
+describe('Checkout 장바구니 재동기화 중 화면 유지', () => {
+  it('처음 확인하는 동안은 불러오는 화면이고, 한 번 그린 뒤의 재동기화에는 배송지 칸을 그대로 두고 결제만 잠근다', async () => {
+    hooks.states = []; hooks.refs = [];
+    mocks.cartPending = true;
+    expect(all(render()).some((node) => node.type === CheckoutAddressSection)).toBe(false);
+    mocks.cartPending = false;
+    render();
+    acknowledge();
+    expect(all(render()).some((node) => node.type === CheckoutAddressSection)).toBe(true);
+    mocks.cartPending = true;
+    expect(all(render()).some((node) => node.type === CheckoutAddressSection)).toBe(true);
+    expect(submitButton().props.disabled).toBe(true);
+    await submit();
+    expect(mocks.place).not.toHaveBeenCalled();
   });
 });
