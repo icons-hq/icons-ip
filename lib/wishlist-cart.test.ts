@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Good } from './data';
+import type { GoodsVariantSupply } from './goods-preorders';
 import { addWishGoodToCart, wishCartState } from './wishlist-cart';
 
 const VARIANT = '00000000-0000-4000-8000-0000000006a1';
@@ -68,6 +69,33 @@ describe('wishCartState', () => {
     /* 판매 기간 안이면 품절은 그대로 품절이다. */
     const open = { ...scheduled, startsAt: '2026-10-20T00:00:00.000Z', state: 'open', nextChangeAt: scheduled.endsAt } as const;
     expect(wishCartState(good({ ...noOption, salePeriod: open }), READY)).toMatchObject({ label: '품절', ariaLabel: '홍실 아크릴 블록 품절', unavailable: true });
+  });
+});
+
+/* 접수 전 예약판매는 재고 0으로 읽혀도 '품절'이 아니다 — 카드 덮개·목록 담기 버튼·상세와 같은 문구다. */
+describe('wishCartState 예약판매', () => {
+  const supply = (state: 'scheduled' | 'open', availableQty: number): GoodsVariantSupply => ({
+    mode: 'preorder', availableQty, policyId: '11111111-1111-4111-8111-111111111111', policyRevision: 1, state,
+    startsAt: '2026-12-02T02:00:00.000Z', endsAt: '2026-12-13T14:59:59.000Z', expectedShipDate: '2026-12-14',
+    calculatedAt: state === 'scheduled' ? '2026-11-23T00:00:00.000Z' : '2026-12-03T00:00:00.000Z',
+    nextChangeAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : '2026-12-13T14:59:59.000Z',
+  });
+  const preorder = (state: 'scheduled' | 'open', availableQty: number, optionCount = 1) => good({
+    stockQty: availableQty * optionCount, stock: availableQty > 0 ? 'ok' : 'soldout',
+    options: Array.from({ length: optionCount }, (_, index) => ({ id: index === 0 ? VARIANT : `00000000-0000-4000-8000-0000000006b${index}`,
+      name: `옵션${index}`, code: `G13-${index}`, price: 12000, stockQty: availableQty, isDefault: index === 0, attributes: {}, supply: supply(state, availableQty) })),
+  });
+
+  it('labels a preorder before reception instead of 품절, single or multi option', () => {
+    expect(wishCartState(preorder('scheduled', 0), READY)).toEqual({
+      kind: 'add', variantId: null, stockQty: 0, label: '예약 접수 예정', ariaLabel: '홍실 아크릴 블록 예약 접수 예정', unavailable: true,
+    });
+    expect(wishCartState(preorder('scheduled', 0, 2), READY)).toMatchObject({ kind: 'add', label: '예약 접수 예정', unavailable: true });
+  });
+
+  it('adds or sends to the option choice once reception opens', () => {
+    expect(wishCartState(preorder('open', 30), READY)).toMatchObject({ kind: 'add', label: '장바구니 담기', unavailable: false, stockQty: 30 });
+    expect(wishCartState(preorder('open', 30, 2), READY)).toMatchObject({ kind: 'choose', label: '옵션 선택' });
   });
 });
 

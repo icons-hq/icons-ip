@@ -59,6 +59,7 @@ export function productCardChips(
  * null 이면서 `soldOut`이면 카드는 'SOLD OUT'·'(품절)'을 그린다. 표시 정책일 뿐 주문·재고 판정은 DB가 한다.
  *
  * 홈·카테고리 추천처럼 서버가 카드 뷰모델을 만드는 곳은 서버에서, 굿즈를 그대로 받는 목록·검색·IP관 카드는 카드가 이 함수를 부른다.
+ * 같은 카드 아래 담기 버튼(`AddToCartButton`·위시 `wishCartState`)도 이 문구를 '품절'보다 먼저 쓴다.
  */
 export function productCardUnavailableLabel(
   good: { salePeriod?: GoodsSalePeriod | null; options?: readonly Pick<GoodOption, 'stockQty' | 'supply'>[] },
