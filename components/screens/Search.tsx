@@ -14,6 +14,7 @@ import { SEARCH_PAGE_WINDOW, searchPageWindow, type SearchGoodsCollection } from
 import type { SearchResult, SearchResultGroup, SearchSnapshot } from '@/lib/search';
 import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
 import { SHOP_VIEW_SORTS, type ShopListQuery } from '@/lib/shop-catalog';
+import { goodDetailHref } from '@/lib/goods-display';
 
 export interface SearchProps {
   /** 통합 검색 스냅샷. 굿즈 그룹은 쓰지 않는다 — goods 가 대체한다. */
@@ -44,7 +45,7 @@ function resultHref(result: SearchResult) {
   if (result.kind === 'ip') return publicIpHref({ id: result.ipId ?? result.id, publicSlug: result.ipPublicSlug });
   if (result.kind === 'post') return '/community';
   if (result.kind === 'tag') return `/search?q=${encodeURIComponent(result.id)}`;
-  return `/shop/${result.id}`;
+  return goodDetailHref(result.id);
 }
 
 function SuggestedTerms({ terms }: { terms: readonly string[] }) {

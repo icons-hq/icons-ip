@@ -13,6 +13,7 @@ import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { listingHeartsFor } from './listing-hearts';
 import { ProductDetailRefresh } from './ProductDetailRefresh';
 import { useListingReviewSummaries } from './useListingReviewSummaries';
+import { goodDetailHref } from '@/lib/goods-display';
 
 export function ProductShippingSavings({ goodId, option, quantity, wishlist }: { goodId: string; option?: GoodOption; quantity: number; wishlist?: ListingWishlist | null }) {
   const selectionKey = `${goodId}:${option?.id ?? ''}:${quantity}`;
@@ -41,7 +42,7 @@ export function ProductShippingSavings({ goodId, option, quantity, wishlist }: {
         const good = item.good; if (!good) return null; const candidateOption = good.options?.find(value => value.id === item.variantId);
         /* 카드의 판매가는 후보 옵션 가격이므로 취소선 정가도 그 옵션의 정가여야 한다 — 상품 단위 정가를 옵션 가격에 대면 할인율이 틀린다(cartOptionGood 이 옵션 정가를 파생한다). */
         const compareAtPrice = candidateOption ? cartOptionGood(good, candidateOption.id)?.compareAtPrice : good.compareAtPrice;
-        return <article key={item.goodId}><ProductCard href={`/shop/${good.id}`} name={good.name} imageBackground={good.img} price={candidateOption?.price ?? good.price}
+        return <article key={item.goodId}><ProductCard href={goodDetailHref(good)} name={good.name} imageBackground={good.img} price={candidateOption?.price ?? good.price}
           compareAtPrice={compareAtPrice} showDiscountRate={good.showDiscountRate}
           action={heartFor(good)} reviewSummary={reviewSummaries[good.id]}
           listSurface="standard" listingAppearance={good.listingAppearance} badges={goodDisplayBadges(good)} soldOut={good.stock === 'soldout'}

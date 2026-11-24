@@ -17,6 +17,7 @@ import {
 } from '@/lib/campaigns';
 import type { CampaignLandingSnapshot, ResolvedCampaignSection } from '@/lib/campaigns.server';
 import type { CoinOverview } from '@/lib/coins.server';
+import { goodDetailHref } from '@/lib/goods-display';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { goodBadgeList } from '@/lib/goods-taxonomy';
 import { imageBg } from '@/lib/media';
@@ -146,7 +147,7 @@ function SectionBody({
               action={context.heartFor(good)}
               badges={goodBadgeList(good)}
               showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
-              href={`/shop/${encodeURIComponent(good.id)}`}
+              href={goodDetailHref(good)}
               imageBackground={good.imageBackground}
               key={good.id}
               name={good.name}

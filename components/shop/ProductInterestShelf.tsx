@@ -12,6 +12,7 @@ import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { GoodsSalePeriodRefresh } from './GoodsSalePeriodRefresh';
 import { listingHeartsFor, wishlistForOwner } from './listing-hearts';
 import { useListingReviewSummaries } from './useListingReviewSummaries';
+import { goodDetailHref } from '@/lib/goods-display';
 
 const labels: Record<InterestKind, string> = { repurchase: '재구매한 굿즈', cart: '장바구니', wishlist: '찜한 굿즈', recent: '최근 본 굿즈' };
 const kinds: InterestKind[] = ['repurchase', 'cart', 'wishlist', 'recent'];
@@ -62,7 +63,7 @@ export function ProductInterestShelf({ currentGoodId, standalone = false, wishli
     <header><h2 id="product-interests-heading">관심 굿즈 모아보기</h2>{!standalone ? <Link href="/interests">모두 보기</Link> : null}</header>
     {collection.unavailable ? <p role="alert">관심 굿즈를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : !active ? <p>아직 모아볼 굿즈가 없습니다. 굿즈를 둘러보거나 찜해보세요.</p> : <>
       <div className="wc-product-interests__tabs" role="group" aria-label="관심 굿즈 종류">{available.map(group => <button key={group.kind} type="button" aria-pressed={group.kind === active.kind} aria-controls="product-interests-panel" onClick={() => setSelected(group.kind)}>{labels[group.kind]} ({group.goods.length})</button>)}</div>
-      <div id="product-interests-panel" role="region" aria-label={labels[active.kind]} className="wc-product-interests__products">{active.goods.map(good => <ProductCard key={good.id} href={`/shop/${good.id}`} name={good.name} action={heartFor(good)} reviewSummary={reviewSummaries[good.id]} imageBackground={good.img} price={good.price} priceMax={good.priceMax} compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good} />)}</div>
+      <div id="product-interests-panel" role="region" aria-label={labels[active.kind]} className="wc-product-interests__products">{active.goods.map(good => <ProductCard key={good.id} href={goodDetailHref(good)} name={good.name} action={heartFor(good)} reviewSummary={reviewSummaries[good.id]} imageBackground={good.img} price={good.price} priceMax={good.priceMax} compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good} />)}</div>
     </>}
     <footer><small>최근 본 굿즈는 현재 계정별로 이 브라우저에만 최대 30개 저장합니다.</small><button type="button" onClick={() => { if (owner === undefined) return; try { window.localStorage.removeItem(recentGoodsKey(owner)); } catch { /* Local persistence may be blocked. */ } setCollection(current => ({ ...current, groups: { ...current.groups, recent: [] } })); setRefresh(value => value + 1); }}>최근 본 굿즈 지우기</button></footer>
   </section>;

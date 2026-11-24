@@ -5,6 +5,7 @@ import { useCart } from '@/components/shell/CartProvider';
 import { goodsPurchaseConditionProblem, initialGoodOption, purchasableOptionQty } from '@/lib/goods-options';
 import Link from 'next/link';
 import { productCardUnavailableLabel } from '@/lib/product-card-chips';
+import { goodDetailHref } from '@/lib/goods-display';
 
 /*
  * 담기 버튼 (#173). 굿즈샵 목록 카드와 상세페이지가 같은 재고·수량 제약을
@@ -46,7 +47,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
             ? `${good.name}, 장바구니 ${quantity}개, 한 개 더 담기`
             : `${good.name} 장바구니에 한 개 담기`;
 
-  if (!saleLabel && (good.customInputs?.enabled || (good.options?.length ?? 0) > 1 || (good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1))) return <Link className="wc-btn shop-cart-button" href={`/shop/${good.id}`}>{(good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1) ? '수량 선택' : '옵션 선택'}</Link>;
+  if (!saleLabel && (good.customInputs?.enabled || (good.options?.length ?? 0) > 1 || (good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1))) return <Link className="wc-btn shop-cart-button" href={goodDetailHref(good)}>{(good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1) ? '수량 선택' : '옵션 선택'}</Link>;
   return (
     <button
       aria-label={saleLabel ? `${good.name} ${saleLabel}` : conditionProblem ? `${good.name} ${conditionProblem}` : ariaLabel}

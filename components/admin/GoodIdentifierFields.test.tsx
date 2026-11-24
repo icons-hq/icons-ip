@@ -3,28 +3,52 @@ import { describe, expect, it, vi } from 'vitest';
 import { GoodIdentifierFields } from './GoodIdentifierFields';
 vi.mock('@/app/admin/goods-identifier-actions',()=>({suggestGoodsIdentifiersAction:vi.fn()}));
 const inputOf=(html:string,name:string)=>html.match(new RegExp(`<input(?=[^>]*name="${name}")[^>]*>`))?.[0] ?? '';
-describe('상품 자동코드와 URL 입력',()=>{
+describe('상품 자동코드와 고객 화면 주소',()=>{
   /* 2026-11-19 MD가 바코드를 옛 '판매자상품코드' 칸에 넣었다(ADR-0048). 시스템이 만드는 코드는 기본으로 잠그고 자동 생성임을 보인다. */
   it('상품 자동코드·옵션 자동코드는 기본으로 잠그고 자동 생성이라 입력할 필요가 없다고 알린다',()=>{
-    const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="HW-0001" defaultVariantCode="HW-0001-01" slug="keyring" slugLocked errors={{}} />);
+    const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="HW-0001" defaultVariantCode="HW-0001-01" slug="keyring" errors={{}} />);
     expect(html).toContain('상품 자동코드');
     expect(html).toContain('옵션 자동코드');
-    for (const name of ['code','defaultVariantCode','id']) expect(inputOf(html,name),name).toContain('readOnly');
+    for (const name of ['code','defaultVariantCode']) expect(inputOf(html,name),name).toContain('readOnly');
     expect(inputOf(html,'code')).toContain('value="HW-0001"');
     expect(html.match(/자동 생성 · 입력할 필요 없음/g)).toHaveLength(2);
     expect(html.match(/>직접 바꾸기<\/button>/g)).toHaveLength(2);
     expect(html).toContain('바코드·ERP 코드는 여기에 넣지 않습니다.');
     expect(html).toContain('출고지시 엑셀(기본 양식)의 &#x27;상품코드&#x27; 열에 찍힙니다.');
-    expect(html).toContain('한 번 공개한 URL은 변경할 수 없습니다.');
     for (const old of ['판매자상품코드','관리코드']) expect(html).not.toContain(old);
   });
-  it('신규 상품은 예상 코드와 함께 저장 시 자동 생성을 보이고 상품 URL만 입력할 수 있다',()=>{
+  /* MD-0051·ADR-0050 — 예전 'URL' 칸의 로마자 값(내부 id)은 주소가 아니다. 고객 화면 주소는 상품 자동코드로 정해져 읽기 전용으로 보이고,
+     내부 id는 숨은 값으로 지금 그대로 보내 저장 계약을 지킨다. */
+  it('고객 화면 주소를 상품 자동코드로 보이고 내부 id는 입력·표시하지 않고 그대로 보낸다',()=>{
+    const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="HSQ-0059" defaultVariantCode="HSQ-0059-01" slug="hongsilkweseuteu-akeuril-hyudaepon-kiring" errors={{}} />);
+    expect(html).toContain('고객 화면 주소');
+    expect(html).toContain('<input type="hidden" name="id" value="hongsilkweseuteu-akeuril-hyudaepon-kiring"/>');
+    const address=html.match(/<input(?=[^>]*id="good-identifier-id")[^>]*>/)?.[0] ?? '';
+    expect(address).toContain('readOnly');
+    expect(address).toContain('value="iconsip.com/shop/hsq-0059"');
+    expect(address).not.toContain('name=');
+    expect(html.match(/hongsilkweseuteu/g)).toHaveLength(1);
+    expect(html).toContain('상품 자동코드를 직접 바꾸면 이 주소도 새 코드로 바뀌고, 바꾸기 전 주소로 들어온 고객은 상품을 찾지 못합니다.');
+    expect(html).toContain('고객 화면 주소 끝에도 쓰입니다.');
+    for (const old of ['한 번 공개한 URL은 변경할 수 없습니다.','비워두면 상품명에서 자동 생성합니다.']) expect(html).not.toContain(old);
+  });
+  it('신규 상품은 예상 코드와 함께 저장 시 자동 생성을 보이고 주소도 저장할 때 정해진다고 알린다',()=>{
     const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" errors={{}} />);
     expect(inputOf(html,'code')).toContain('readOnly');
     expect(inputOf(html,'code')).toContain('placeholder="저장 시 자동 생성"');
-    expect(inputOf(html,'id')).not.toContain('readOnly');
-    expect(html).toContain('비워두면 상품명에서 자동 생성합니다.');
+    expect(html).toContain('<input type="hidden" name="id" value=""/>');
+    expect(html).toContain('value="저장할 때 상품 자동코드로 정해집니다"');
     expect(html).not.toContain('g100');
+  });
+  it('상품 자동코드가 옛 값(내부 id의 대문자)이어도 코드 주소로 보고 쓸 수 없다고 하지 않는다',()=>{
+    const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="G13" slug="g13" errors={{}} />);
+    expect(html).toContain('value="iconsip.com/shop/g13"');
+    expect(html).not.toContain('주소에 쓸 수 없는 글자');
+  });
+  it('주소에 쓸 수 없는 글자가 든 상품 자동코드면 처음 저장한 영문 값 주소를 보이고 이유를 알린다',()=>{
+    const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="창고 A-1" slug="keyring" errors={{}} />);
+    expect(html).toContain('value="iconsip.com/shop/keyring"');
+    expect(html).toContain('이 상품 자동코드에는 주소에 쓸 수 없는 글자(공백·한글·기호)가 있어');
   });
   it('잠긴 자동코드 칸에 바코드 형식 값이 들어 있으면 막지 않고 바코드 칸과 직접 바꾸기를 안내한다',()=>{
     const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="8800353088562" defaultVariantCode="8800353086155" errors={{}} />);

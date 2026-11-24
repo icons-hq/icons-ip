@@ -81,8 +81,9 @@ describe('example markup stays in step with the product detail page', () => {
 
   it('renders the same review blocks the product detail route renders', () => {
     const page = repoFile('app/shop/[goodId]/page.tsx');
-    expect(page).toContain('reviews={<GoodReviews goodId={goodId} section={reviewSection} />}');
-    expect(page).toContain('reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}');
-    expect(page).toContain('selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}');
+    /* 리뷰 링크는 상품 자동코드 주소에 머물도록 코드도 넘긴다(ADR-0050). */
+    expect(page).toContain('reviews={<GoodReviews goodId={goodId} goodCode={detail.good.code} section={reviewSection} />}');
+    expect(page).toContain('reviewHighlights={<ProductDetailReviewSummary goodId={goodId} goodCode={detail.good.code} data={presentation} />}');
+    expect(page).toContain('selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} goodCode={detail.good.code} cards={selectedReviews} /> : undefined}');
   });
 });

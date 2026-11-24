@@ -9,6 +9,8 @@ import {
   type ProductQuestionFormErrors,
 } from '@/lib/product-questions';
 import { createClient } from '@/lib/supabase/server';
+import { parseGoodDetailLink } from '@/lib/goods-display';
+import { resolvePublicGoodAddress } from '@/lib/goods-address.server';
 
 /* 상품 Q&A 작성(#330).
  *
@@ -37,14 +39,19 @@ const CREATED = '질문을 등록했어요. 답변이 달리면 알림으로 알
  * 그 굿즈의 Q&A 탭으로 접는다 — 로그인 리다이렉트의 목적지라 임의의 경로를
  * 그대로 태우면 열린 리다이렉트가 된다.
  */
-function questionNextPath(rawNext: FormDataEntryValue | null, goodId: string) {
+async function questionNextPath(rawNext: FormDataEntryValue | null, goodId: string) {
   /* 굿즈를 알 수 없는 제출이면 상세로 돌려보낼 곳이 없다 — 굿즈샵으로 접는다. */
   const fallback = goodId ? goodQuestionsHref(goodId) : '/shop';
   if (!goodId || typeof rawNext !== 'string' || !rawNext.trim()) return fallback;
 
   const safe = safeNextPath(rawNext);
   const url = new URL(safe, 'https://icons.local');
-  return url.pathname === `/shop/${goodId}` ? safe : fallback;
+  if (url.pathname === `/shop/${goodId}`) return safe;
+  /* 상세는 상품 자동코드 주소(`/shop/hsq-0059`, ADR-0050)로 열린다 — 주소 끝 값을 같은 해석으로 풀어 그 굿즈일 때만 받는다. */
+  const link = parseGoodDetailLink(url.pathname);
+  if (!link) return fallback;
+  const address = await resolvePublicGoodAddress(link.segment).catch(() => null);
+  return address?.goodId === goodId ? safe : fallback;
 }
 
 /** insert 가 거절된 이유를 사용자 문구로. 모르는 오류는 일반 실패로 접는다. */
@@ -77,7 +84,7 @@ export async function askProductQuestionAction(
 ): Promise<ProductQuestionActionState> {
   const normalized = normalizeProductQuestionForm(formData);
   const goodId = normalized.ok ? normalized.value.goodId : '';
-  const next = questionNextPath(formData.get('next'), goodId);
+  const next = await questionNextPath(formData.get('next'), goodId);
 
   const user = await requireActiveUser(next);
   if (!normalized.ok) return { errors: normalized.errors };
@@ -97,7 +104,8 @@ export async function askProductQuestionAction(
   if (error) return { errors: insertErrorMessage(error.message) };
 
   /* 질문은 두 곳에 동시에 나타난다 — 굿즈 상세의 Q&A 탭과 내 Q&A 목록. */
-  revalidatePath(`/shop/${normalized.value.goodId}`);
+  /* 상세 주소는 상품 자동코드라(ADR-0050) 내부 id 경로가 아니라 상세 라우트 전체를 갱신한다. */
+  revalidatePath('/shop/[goodId]', 'page');
   revalidatePath('/my/questions');
 
   return { message: CREATED, resultKey: crypto.randomUUID() };

@@ -11,6 +11,8 @@
  * 작성 자격의 최종 판정은 언제나 서버다(RLS insert 정책). 여기 있는 검사는 그
  * 판정을 미리 보여 주기 위한 것이지 대체하는 것이 아니다. */
 
+import { goodDetailHref, type GoodAddressRef } from './goods-display';
+
 export const PRODUCT_QUESTION_STATUSES = ['visible', 'hidden'] as const;
 export type ProductQuestionStatus = (typeof PRODUCT_QUESTION_STATUSES)[number];
 
@@ -180,8 +182,9 @@ export function normalizeGoodQuestionOptions(
  * 파라미터가 있어야 Q&A 탭에서 열리고(GoodDetail.pdpDefaultPanelId), 파라미터가
  * 없으면 `#qna` 앵커가 숨겨진 패널 안을 가리켜 클릭이 아무 일도 하지 않는다.
  */
-export function goodQuestionsHref(goodId: string, page = 1) {
-  return `/shop/${goodId}?qnaPage=${Math.max(1, page)}#qna`;
+export function goodQuestionsHref(good: GoodAddressRef | string, page = 1) {
+  /* 굿즈(id·상품 자동코드)를 받으면 정식 코드 주소, 내부 id 문자열이면 옛 주소다 — 상세가 코드 주소로 옮긴다(ADR-0050). */
+  return `${goodDetailHref(good)}?qnaPage=${Math.max(1, page)}#qna`;
 }
 
 /**

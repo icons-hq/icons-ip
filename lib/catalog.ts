@@ -28,6 +28,7 @@ import { parseRandomAllocationLimit } from '@/lib/goods-option-sale-mode';
 import { parseGoodsKcDisclosures, parseGoodsOtherCertificationDisclosures } from '@/lib/goods-kc';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { resolvePublicIpLinks } from '@/lib/ip-identity.server';
+import { canonicalGoodLinks } from '@/lib/goods-display';
 import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
@@ -198,6 +199,8 @@ export interface GoodRow {
   shipping_fee_type?: string;
   goods_variants?: GoodOptionRow[];
   id: string;
+  /** 상품 자동코드 — 공개 상세 주소의 끝 값(ADR-0050). 코드를 싣지 않는 투영(가림 카드 등)에는 없다. */
+  code?: string | null;
   ip_id: string;
   name: string;
   name_en?: string | null;
@@ -687,6 +690,7 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
   const stockQty = options ? options.reduce((total, option) => total + option.stockQty, 0) : row.stock_qty ?? 0;
   return {
     id: row.id,
+    ...(typeof row.code === 'string' && row.code ? { code: row.code } : {}),
     optionSaleMode,
     salePeriod: parseGoodsSalePeriod(row.sale_period) ?? undefined,
     ip: row.ip_id,
@@ -942,7 +946,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,badges,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,shipping_fee_type,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,code,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,badges,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,shipping_fee_type,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
@@ -1151,7 +1155,7 @@ async function readPublicGoodsByIds(
   if (selected.length > 1000 || selected.some(id => !/^[a-z0-9][a-z0-9-]{0,199}$/.test(id))) throw new Error('Invalid selected goods');
   const result = await readCompleteIdPages<GoodRow>((afterId, pageSize) => {
     let query = supabase.from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,badges,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,shipping_fee_type,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
+      .select('id,code,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,price,compare_at_price,show_discount_rate,created_at,badge,badges,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,shipping_fee_type,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
       .in('id', selected).is('archived_at', null).not('published_at', 'is', null).in('sale_restriction', adultGoodsRestrictions(adultGoods))
       .is('ips.archived_at', null).not('ips.published_at', 'is', null).order('id').limit(pageSize);
     if (afterId) query = query.gt('id', afterId);
@@ -1472,8 +1476,11 @@ export async function getHomeSnapshot(
       };
   const linkEntries = [rawCuration.hero, rawCuration.announcement, rawCuration.stripBanner, ...rawCuration.heroSlides,
     ...rawCuration.editorPicks, ...rawCuration.goodsBands, ...rawCuration.benefitTiles];
-  const canonicalLinks = await resolvePublicIpLinks(linkEntries.flatMap(entry => entry?.href ? [entry.href] : []), catalog.ips);
-  const canonicalLink = <T extends { href: string | null }>(entry: T): T => ({ ...entry, href: entry.href === null ? null : canonicalLinks.get(entry.href) ?? entry.href });
+  const linkHrefs = linkEntries.flatMap(entry => entry?.href ? [entry.href] : []);
+  const canonicalLinks = await resolvePublicIpLinks(linkHrefs, catalog.ips);
+  /* 저장된 `/shop/<내부 id>` 링크는 읽어 둔 공개 굿즈의 상품 자동코드 주소로 바꾼다(ADR-0050) — 고객이 리디렉션을 거치지 않는다. */
+  const goodLinks = canonicalGoodLinks(linkHrefs, catalog.goods);
+  const canonicalLink = <T extends { href: string | null }>(entry: T): T => ({ ...entry, href: entry.href === null ? null : canonicalLinks.get(entry.href) ?? goodLinks.get(entry.href) ?? entry.href });
   /* NEW ARRIVAL 블록 — 공개 카탈로그 최신 등록순 자동 선정이라 큐레이션 행이 없고(mock 포함), 카드가 없으면 키 자체를 싣지 않는다. */
   const newArrivals = resolveHomeLatestGoodsCards(catalog, HOME_NEW_ARRIVALS_COUNT);
   const normalizedCuration: HomeCurationSnapshot = {

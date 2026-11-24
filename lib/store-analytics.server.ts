@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getProfileForUser } from '@/lib/auth/server';
 import { analyticsChoice, analyticsCookieNames, STORE_ANALYTICS_NOTICE_VERSION, type AnalyticsEvent, type AnalyticsNoticeEvent } from './store-analytics';
+import { internalGoodTarget } from './goods-address.server';
 
 const SESSION_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -79,8 +80,10 @@ export async function recordStoreAnalytics(event: AnalyticsEvent) {
   }
   const token = await tokenHash();
   if (!token) return { ok: false, status: 409, code: 'session_expired' } as const;
+  /* 상품 상세 주소 끝은 상품 자동코드다(ADR-0050). 집계·리포트·마케팅 링크 대조는 내부 id 기준이라 바꿔서 넘긴다. */
+  const targetId = event.pageKind === 'good' ? await internalGoodTarget(event.targetId) : event.targetId;
   const { error } = await createServiceClient().rpc('record_store_analytics_event', {
-    p_token_hash: token, p_event_id: event.eventId, p_page_kind: event.pageKind, p_target_id: event.targetId,
+    p_token_hash: token, p_event_id: event.eventId, p_page_kind: event.pageKind, p_target_id: targetId,
     p_channel: event.channel, p_source: event.source, p_medium: event.medium, p_link_token: event.linkToken,
   });
   if (error) return { ok: false, status: error.code === 'P0429' ? 429 : ['analytics_session_unavailable', 'analytics_session_expired'].includes(error.message) ? 409 : 400,

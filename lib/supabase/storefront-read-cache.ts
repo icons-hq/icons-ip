@@ -39,6 +39,8 @@ const RPC_CLASSES: Readonly<Record<string, StorefrontReadClass>> = {
   get_masked_adult_goods: 'public',
   get_product_detail_experience_config: 'public',
   get_return_fee_deduction_policy: 'public',
+  /* 상세 주소 끝 값 → 공개 상품의 id·상품 자동코드(ADR-0050). 19금 판매 표면 스위치만 보고 호출자는 보지 않는다. */
+  resolve_public_goods_address: 'public',
   // 성인 상품 노출 판정에만 호출자를 쓰는 함수
   get_good_after_sales_content: 'adult',
   get_good_announcements: 'adult',

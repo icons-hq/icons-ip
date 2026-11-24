@@ -214,6 +214,13 @@ describe('GoodSection', () => {
     expect(html).toContain(`value="${path}"`);
     expect(html).toContain('value="입력한 대체 설명"');
   });
+  /* ADR-0050 — 새 상품은 배포 전 임시저장·자동복구에 남은 옛 'URL' 값(대문자·이미 쓰는 값)을 숨은 칸에 싣지 않는다. 서버가 상품명으로 새로 만든다. */
+  it('새 상품 폼은 복구한 옛 URL 값을 내부 id 로 보내지 않는다', () => {
+    const html = renderGoodSection(null, { attempt: 1, values: { previousId: '', id: 'HSQ-0061', name: '복구한 상품' } });
+    expect(html).toContain('<input type="hidden" name="id" value=""/>');
+    expect(html).not.toContain('value="HSQ-0061"');
+  });
+
   it('renders kit sections and restores failed uploaded paths, notice and invalid option values', () => {
     const html = renderGoodSection(null, { attempt: 1, values: { previousId: '', name: '실패 뒤 상품', noticeAsContact: '복사된 연락처', imagePath: 'public-media/catalog/good/failed.webp', variants: '[{"name":"보존 옵션","code":"MANUAL","attributes":{},"extraPrice":-1,"stockQty":5}]' } });
     expect(html).toContain('aria-label="기본 정보"');

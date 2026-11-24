@@ -2162,3 +2162,28 @@ describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
     } finally { mocks.isConfigured = false; mocks.client = null; }
   });
 });
+
+/* MD-0051 · ADR-0050 — 공개 상세 주소는 상품 자동코드의 소문자형이라 카탈로그 굿즈가 코드를 싣는다. */
+describe('굿즈 상품 자동코드(공개 상세 주소의 근거)', () => {
+  const row = (extra: Record<string, unknown> = {}): GoodRow => ({ id: 'hongsil-keyring', ip_id: 'hwasan', name: '키링', price: 5000, badge: null,
+    stock: 'ok', stock_qty: 3, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
+
+  it('저장된 코드를 그대로 싣고, 코드를 싣지 않는 투영(가림 카드·옛 RPC)은 키를 만들지 않는다', () => {
+    expect(toGood(row({ code: 'HSQ-0059' }), () => '').code).toBe('HSQ-0059');
+    expect(toGood(row(), () => '')).not.toHaveProperty('code');
+    expect(toGood(row({ code: null }), () => '')).not.toHaveProperty('code');
+  });
+
+  it('전체 카탈로그 읽기가 code를 읽어 굿즈에 싣는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, { goods: [
+      { id: 'hongsil-keyring', code: 'HSQ-0059', ip_id: 'hwasan', name: '키링', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none' },
+    ] });
+    try {
+      const snapshot = await getCatalogSnapshot();
+      expect(snapshot.goods[0]).toMatchObject({ id: 'hongsil-keyring', code: 'HSQ-0059' });
+      expect(records.find((record) => record.table === 'goods')?.select?.split(',')).toContain('code');
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+});

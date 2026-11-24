@@ -36,6 +36,11 @@ describe('전시 공개 DTO', () => {
     expect(result?.price).toBe(700); expect(result?.stockQty).toBe(4);
     expect(result?.options?.[0].supply?.state).toBe('open');
   });
+  /* ADR-0050 — 전시 투영이 싣는 상품 자동코드로 카드 링크가 공개 상세의 정식 주소로 바로 간다. */
+  it('전시 투영의 상품 자동코드를 굿즈에 싣는다', () => {
+    expect(parseCategoryDisplayGood({ ...row(), code: 'HSQ-0059' })?.code).toBe('HSQ-0059');
+    expect(parseCategoryDisplayGood(row())).not.toHaveProperty('code');
+  });
   it('가격·공급 계약이 깨진 옵션을 조용히 버리고 성공하지 않는다', () => {
     const source = row(); source.goods_variants[0].pricing.effectivePrice = 1200;
     expect(parseCategoryDisplayGood(source)).toBeNull();

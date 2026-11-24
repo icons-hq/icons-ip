@@ -55,6 +55,8 @@ export const SITEMAP_STATIC_PATHS = [
 
 export interface SitemapGood {
   id: string;
+  /** 상품 자동코드 — 사이트맵 주소는 공개 상세의 정식 주소(`/shop/<코드 소문자>`, ADR-0050)다. */
+  code?: string | null;
   updatedAt: string | null;
 }
 
@@ -112,7 +114,7 @@ export function buildSitemap(origin: string, catalog: SitemapCatalog): MetadataR
   });
   const goodEntries = catalog.goods.map((good) => {
     const modified = lastModified(good.updatedAt);
-    return { url: `${origin}${goodDetailHref(good.id)}`, ...(modified ? { lastModified: modified } : {}) };
+    return { url: `${origin}${goodDetailHref(good)}`, ...(modified ? { lastModified: modified } : {}) };
   });
   return [...staticEntries, ...ipEntries, ...goodEntries];
 }

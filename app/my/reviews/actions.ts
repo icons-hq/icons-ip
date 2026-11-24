@@ -190,7 +190,7 @@ export async function createReviewAction(
 
   const orderId = normalized.value.orderId;
   revalidatePath(REVIEWS_PATH);
-  revalidatePath(`/shop/${normalized.value.goodId}`);
+  revalidatePath('/shop/[goodId]', 'page');
   revalidatePath('/admin/cs/review-events');
   revalidatePath('/admin/cs/review-events/[eventId]', 'page');
   /* 결과를 읽지 못해도 리뷰는 이미 저장됐다. 확정 여부를 모르면 확정된 것처럼 주문 화면도 새로 그린다. */
@@ -278,7 +278,7 @@ export async function deleteReviewAction(formData: FormData) {
   }
 
   const goodId = formData.get('goodId');
-  if (typeof goodId === 'string' && goodId.trim()) revalidatePath(`/shop/${goodId.trim()}`);
+  if (typeof goodId === 'string' && goodId.trim()) revalidatePath('/shop/[goodId]', 'page');
   revalidatePath(REVIEWS_PATH);
   revalidatePath('/my/store-credits');
   revalidatePath('/admin/sales/store-credits');

@@ -12,6 +12,8 @@
  * 자격·기한·중복의 최종 판정은 언제나 서버다. 여기 있는 계산은 그 판정을 미리
  * 보여 주기 위한 것이지 대체하는 것이 아니다. */
 
+import { goodDetailHref, type GoodAddressRef } from './goods-display';
+
 export const MIN_REVIEW_RATING = 1;
 export const MAX_REVIEW_RATING = 5;
 export const REVIEW_RATINGS = [1, 2, 3, 4, 5] as const;
@@ -123,7 +125,7 @@ export function normalizeGoodReviewOptions(
  * 없으면 `#reviews` 앵커가 숨겨진 패널 안을 가리켜 클릭이 아무 일도 하지 않는다.
  */
 export function goodReviewsHref(
-  goodId: string,
+  good: GoodAddressRef | string,
   options: GoodReviewListOptions = DEFAULT_GOOD_REVIEW_OPTIONS,
   overrides: Partial<GoodReviewListOptions> = {},
 ) {
@@ -134,7 +136,8 @@ export function goodReviewsHref(
   if (next.kind && next.kind !== 'all') params.set('reviewKind', next.kind);
   if (next.repeat && next.repeat !== 'all') params.set('reviewRepeat', next.repeat);
   params.set('reviewPage', String(Math.max(1, next.page)));
-  return `/shop/${goodId}?${params.toString()}#reviews`;
+  /* 굿즈(id·상품 자동코드)를 받으면 정식 코드 주소, 내부 id 문자열이면 옛 주소다 — 상세가 코드 주소로 옮긴다(ADR-0050). */
+  return `${goodDetailHref(good)}?${params.toString()}#reviews`;
 }
 
 /* ---------------------------------------------------------------------------

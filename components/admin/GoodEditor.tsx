@@ -7,6 +7,7 @@ import { GROUP_COMMON_FIELDS, type GoodsEditorOwnership } from '@/lib/admin/good
 import type { ReactNode } from 'react';
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import { categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
+import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShippingNoticeField';
 
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type Dispatch, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react';
@@ -138,7 +139,7 @@ function GoodsNoticeFields({
 const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
   const good = detail.good;
   /* 아직 저장하지 않은 신규 굿즈는 갈 곳이 없다 — 없는 상세로 보내는 대신 목록으로 둔다. */
-  const href = good.id ? `/shop/${good.id}` : '/shop';
+  const href = good.id ? goodDetailHref(good) : '/shop';
 
   return (
       <div className="flex min-w-0 flex-col gap-4 border-t px-4 py-4 sm:px-5 sm:py-5">
@@ -745,7 +746,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             placeholder="한 줄에 하나 또는 쉼표로 구분해 입력해주세요."
           /></OwnedFields>
           <p className="text-sm text-muted-foreground">고객 통합 검색과 어드민 상품 검색에만 쓰이며, 공개 상세에는 표시하지 않습니다.</p>
-          <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={errors as Record<string, string>} ipId={values.ipId} name={values.name} slug={initial.id} slugLocked={groupOwned || Boolean(selected?.firstPublishedAt)} />
+          {/* 새 상품은 내부 id 를 비워 보낸다 — 배포 전 임시저장·자동복구에 남은 옛 'URL' 값(대문자·이미 쓰는 값)이 숨은 칸에 갇혀
+              고칠 수 없는 오류가 되지 않게, 서버가 상품명으로 새로 만든다(ADR-0050). 저장된 상품만 지금 id 를 그대로 보낸다. */}
+          <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={errors as Record<string, string>} ipId={values.ipId} name={values.name} slug={selected ? initial.id : ''} />
         </section>
       </GoodEditorSection>
 
@@ -787,7 +790,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <Link className={`${buttonVariants({ variant: 'ghost' })} aria-disabled:pointer-events-none aria-disabled:opacity-50 ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" href={listHref} aria-disabled={pending || draftBusy} onNavigate={(event) => { if (pending || draftBusy) event.preventDefault(); }}>취소</Link>
         </div>
         {localSaveMessage ? <p className={`text-xs xl:col-span-2 ${localSaveMessage.ok ? 'text-success' : 'text-destructive'}`} role="status">{localSaveMessage.text}</p> : null}
-        {justPublished && !dirty ? <AdminNotice className="xl:col-span-2" tone="success"><span role="status">공개했습니다. <a className="underline underline-offset-4" href={`/shop/${selected?.id}`} rel="noreferrer" target="_blank">고객 화면에서 보기</a></span></AdminNotice> : draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice>
+        {justPublished && !dirty ? <AdminNotice className="xl:col-span-2" tone="success"><span role="status">공개했습니다. <a className="underline underline-offset-4" href={selected ? goodDetailHref(selected) : '/shop'} rel="noreferrer" target="_blank">고객 화면에서 보기</a></span></AdminNotice> : draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice>
           : publishBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-publish" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-publish'); }}>판매 준비로 이동</a></>}</AdminNotice>
           : state.kcPublishBlocked || state.publishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}
       </div>

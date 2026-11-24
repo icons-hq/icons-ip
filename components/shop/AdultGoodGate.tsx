@@ -7,8 +7,11 @@ import { adultVerificationHref } from '@/lib/identity/adult-verification-routes'
  * 보지 못하고 이 안내만 본다. 로그인 전이면 로그인부터, 로그인했으면 성인 인증으로 보내고
  * 인증이 끝나면 같은 상세로 돌아온다.
  */
-export function AdultGoodGate({ goodId, signedIn }: { goodId: string; signedIn: boolean }) {
-  const detailPath = `/shop/${encodeURIComponent(goodId)}`;
+export function AdultGoodGate({ detailHref: detailPath, signedIn }: {
+  /** 인증 뒤 돌아올 상세의 정식 주소(`goodDetailHref`, 상품 자동코드 — ADR-0050). */
+  detailHref: string;
+  signedIn: boolean;
+}) {
   return (
     <main className="wc-root wc-adult-gate">
       <div className="wc-container">
