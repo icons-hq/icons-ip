@@ -29,7 +29,9 @@ export function PriceBlock({ className, compareAtPrice, price, priceMax, showDis
       {onSale && !inline ? <s className="wc-price__original">{krw(compareAtPrice)}</s> : null}
       <div className="wc-price__row">
         {onSale ? <span className="wc-price__rate">{`${rate}%`}</span> : null}
-        <span className="wc-price__amount">{ranged ? `${krw(price)} ~ ${krw(priceMax)}` : krw(price)}</span>
+        {/* 옵션마다 가격이 달라도 범위 대신 가장 낮은 금액만 보인다(MD-0049, 2026-11-23). 보조기기에는 '최저가'를 앞에 읽힌다. */}
+        {ranged ? <span className="wc-sr-only">최저가 </span> : null}
+        <span className="wc-price__amount">{krw(price)}</span>
       </div>
     </div>
   );

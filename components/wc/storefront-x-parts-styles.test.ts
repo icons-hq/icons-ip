@@ -16,6 +16,21 @@ function rule(selector: string, source = X) {
 }
 
 describe('product card parts', () => {
+  /* MD-0044 — 카드 어디를 눌러도 상세로 간다. 이름 링크 하나가 덮개로 카드 전체를 덮고, 하트·담기는 그 위에 선다. */
+  it('stretches the name link over the whole card and keeps the heart and cart above it', () => {
+    expect(rule('.wc-product-card')).toContain('isolation: isolate');
+    const overlay = rule('.wc-product-card__name-link::after');
+    expect(overlay).toContain('position: absolute');
+    expect(overlay).toContain('inset: 0');
+    expect(overlay).toContain('z-index: 1');
+    expect(rule('.wc-product-card__action')).toContain('z-index: 2');
+    expect(rule('.wc-product-card__cart > *')).toMatch(/position: relative;[\s\S]*z-index: 2/);
+    expect(X).toContain('.wc-product-card__cart button:disabled { pointer-events: none; }');
+    expect(rule('.wc-product-card__colors li')).toMatch(/position: relative;[\s\S]*z-index: 2/);
+    /* 이미지 넘김 버튼은 공용 규칙에서 이미 z-index 2 다. */
+    expect(css('store-presentation.css')).toMatch(/\.wc-root \.wc-product-card__gallery \{[^}]*z-index:2/);
+  });
+
   it('sizes the text block like Figma: muted 14/500 brand, ink 14/500 name, 17px line height', () => {
     expect(rule('.wc-product-card__brand')).toMatch(/font-size: 14px;[\s\S]*font-weight: 500;[\s\S]*line-height: 17px;[\s\S]*color: var\(--wc-x-muted\)/);
     expect(rule('.wc-product-card__brand')).toContain('white-space: nowrap');

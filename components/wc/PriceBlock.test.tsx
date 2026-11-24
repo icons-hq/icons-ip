@@ -20,9 +20,11 @@ describe('PriceBlock', () => {
     expect(html).not.toContain('%');
   });
 
-  it('shows the whole option range without a misleading discount rate', () => {
+  /* MD-0049 — 옵션 가격이 다르면 범위 대신 최저가만 보이고, 보조기기에는 '최저가'를 앞에 읽힌다. */
+  it('shows only the lowest option price without a misleading discount rate', () => {
     const html = renderToStaticMarkup(<PriceBlock price={12000} priceMax={15000} compareAtPrice={16000} />);
-    expect(html).toContain('₩12,000 ~ ₩15,000');
+    expect(html).toContain('<span class="wc-sr-only">최저가 </span><span class="wc-price__amount">₩12,000</span>');
+    expect(html).not.toContain('₩15,000');
     expect(html).not.toContain('wc-price__rate');
   });
 
@@ -79,7 +81,8 @@ describe('PriceBlock', () => {
 
   it('keeps the inline variant honest about ranges, hidden discounts and missing comparison prices', () => {
     const ranged = renderToStaticMarkup(<PriceBlock compareAtPrice={16000} price={12000} priceMax={15000} variant="inline" />);
-    expect(ranged).toContain('₩12,000 ~ ₩15,000');
+    expect(ranged).toContain('<span class="wc-price__amount">₩12,000</span>');
+    expect(ranged).not.toContain('₩15,000');
     expect(ranged).not.toContain('wc-price__rate');
 
     const hidden = renderToStaticMarkup(<PriceBlock compareAtPrice={12000} price={9000} showDiscountRate={false} variant="inline" />);

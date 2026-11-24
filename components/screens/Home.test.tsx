@@ -84,7 +84,7 @@ describe('home sale-period state', () => {
   it('retains scheduled goods in tab cards and compact rows without a sold-out label', () => {
     const item = good('scheduled', { soldOut: true, salePeriod: { state: 'scheduled', startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' } });
     const html = renderToStaticMarkup(<Home cardRewardsEnabled curation={{ ...emptyCuration, categoryBestTabs: [{ id: 'one', label: '추천', goods: [item] }], goodsBands: [{ id: 'band', title: '선별 굿즈', subcopy: null, imageUrl: '/band.png', href: '/shop', goods: [item] }] }} refreshScheduledContent={false} />);
-    expect(html).toContain('href="/shop/scheduled"'); expect(html).toContain('<span class="wc-x-pick__unavailable">판매 시작 전</span>'); expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('품절');
+    expect(html).toContain('href="/shop/scheduled"'); expect(html).toContain('<span class="wc-x-pick__unavailable">판매 예정</span>'); expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('품절');
   });
 });
 

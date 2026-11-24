@@ -483,11 +483,11 @@ describe('X SQUARE 목록 화면 — NEW·BEST·카테고리 (Figma 2026-11-12 �
     expect(decls(LISTING, '.wc-listing-chip', MOBILE).height).toBe('36px');
   });
 
-  it('제목은 32/43 Bold(모바일 24)이고 머리는 제목 · 탭 줄(20 뒤) · 셀렉트가 한 줄, 아래 18 이다', () => {
+  it('제목은 28/43 Bold(모바일 24, MD-0047)이고 머리는 제목 · 탭 줄(20 뒤) · 셀렉트가 한 줄, 아래 18 이다', () => {
     const title = decls(LISTING, '.wc-listing-head__title', TABLET);
     const head = decls(LISTING, '.wc-listing-head', DESKTOP);
 
-    expect([title['font-size'], title['line-height']]).toEqual(['32px', '43px']);
+    expect([title['font-size'], title['line-height']]).toEqual(['28px', '43px']);
     expect(decls(LISTING, '.wc-listing-head__title')['font-size']).toBe('24px');
     expect(decls(LISTING, '.wc-listing-head__title')['font-weight']).toBe('700');
     expect(decls(LISTING, '.wc-listing-head').margin).toBe('0 0 18px');

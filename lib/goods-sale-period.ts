@@ -28,7 +28,8 @@ export function parseGoodsSalePeriod(value: unknown): GoodsSalePeriod | null {
 
 export function goodsSaleUnavailableLabel(period: GoodsSalePeriod | undefined | null): string | null {
   if (!period) return null;
-  return period.state === 'scheduled' ? '판매 시작 전' : period.state === 'ended' ? '판매 종료' : null;
+  /* 시작 전은 접수 전 예약판매와 같은 '판매 예정'이다(MD-0050, 2026-11-23 — 옛 문구 '판매 시작 전'). */
+  return period.state === 'scheduled' ? '판매 예정' : period.state === 'ended' ? '판매 종료' : null;
 }
 
 /**

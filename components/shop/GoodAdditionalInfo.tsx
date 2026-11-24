@@ -10,7 +10,7 @@ import { BUSINESS_INFO, businessInfoRows, type BusinessInfo } from '@/lib/legal/
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 
 /*
- * 굿즈 상세 '추가정보' 탭 (PD-06 · 11 §3 Δ4).
+ * 굿즈 상세 '추가정보' 탭 (PD-06 · 11 §3 Δ4)과 상세정보 패널 끝(MD-0055)의 같은 아코디언.
  *
  * `<details>` 아코디언 4개 — 고시정보 / 배송 안내 / 교환 · 반품 안내 / 판매자 정보. 내용은 기존
  * 데이터 그대로다: 고시정보(상세 패널에서 옮김 — 표는 호출부가 그려 넘긴다), 배송 정책(고객에게는 출고지 대신 배송 묶음·택배사로 말한다 — R26)·
@@ -111,10 +111,13 @@ function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
 
 export function GoodAdditionalInfo({
   goods,
+  idPrefix = 'pdp',
   notice,
   sellerInfo = BUSINESS_INFO,
   shippingPolicy,
 }: {
+  /** 펼침 제목 id 접두. 같은 문서에 두 벌(추가정보 탭·상세정보 패널 끝)이 있어 서로 다르게 준다. */
+  idPrefix?: string;
   /** 고시정보 표(또는 미등록 안내). */
   notice: ReactNode;
   /** 배송 안내가 예약 발송일을 읽는 굿즈 — 본품과 지금 고른 추가 구성. */
@@ -126,18 +129,18 @@ export function GoodAdditionalInfo({
 
   return (
     <div className="wc-pdp-info">
-      <InfoItem id="pdp-notice-heading" title="고시정보">
+      <InfoItem id={`${idPrefix}-notice-heading`} title="고시정보">
         {notice}
       </InfoItem>
-      <InfoItem id="pdp-shipping-heading" title="배송 안내">
+      <InfoItem id={`${idPrefix}-shipping-heading`} title="배송 안내">
         <ShippingGuide goods={goods} policy={shippingPolicy} />
       </InfoItem>
-      <InfoItem id="pdp-return-heading" title="교환 · 반품 안내">
+      <InfoItem id={`${idPrefix}-return-heading`} title="교환 · 반품 안내">
         <ReturnGuide policy={shippingPolicy} />
       </InfoItem>
       {/* 사업자 정보가 아직 확정 전이면(#239) 있는 값만 보이고, 하나도 없으면 칸을 두지 않는다. */}
       {sellerRows.length ? (
-        <InfoItem id="pdp-seller-heading" title="판매자 정보">
+        <InfoItem id={`${idPrefix}-seller-heading`} title="판매자 정보">
           <div className="wc-pdp-notice__scroll">
             <table className="wc-pdp-seller__table">
               <tbody>
