@@ -422,7 +422,7 @@ select 1 / case when (
   (select count(*) from public.notifications
     where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-soldout'
       and link_path = '/shop/restock-variant-soldout'
-      and body = '전부 품절 굿즈 굿즈가 다시 판매를 시작했어요.'
+      and body = '전부 품절 굿즈 상품이 다시 판매를 시작했어요.'
       and dedupe_key ~ '^restock:restock-variant-soldout:[0-9]+$') = 1
   and (select count(*) from public.notifications
     where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-soldout') = 1
@@ -635,7 +635,7 @@ select 1 / case when (
   and (select count(*) from public.notifications
     where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-preorder'
       and link_path = '/shop/restock-variant-preorder'
-      and body = '예약 전환 굿즈 굿즈가 다시 판매를 시작했어요.') = 1
+      and body = '예약 전환 굿즈 상품이 다시 판매를 시작했어요.') = 1
   and (select count(*) from public.notifications
     where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-preorder') = 1
   and (select count(*) from public.notifications

@@ -186,7 +186,7 @@ select pg_temp.cl_assert(((:'only_loss'::jsonb)->>'collectionComplete')::boolean
  and (select stage='collected' and collection_received_on=pg_temp.cl_today() from public.order_cancellation_requests where id=pg_temp.cl_id('claim',2))
  and not exists(select 1 from public.order_claim_collections where claim_id=pg_temp.cl_id('claim',2) and collected_at is not null)
  and exists(select 1 from public.notifications where source_id=pg_temp.cl_id('claim',2)::text and title='반품 확인이 끝났어요'
-  and body='배송 중 분실이 확인되어 굿즈 회수 없이 환불을 준비합니다.'),'all-lost return completes collection without receipts');
+  and body='배송 중 분실이 확인되어 상품 회수 없이 환불을 준비합니다.'),'all-lost return completes collection without receipts');
 -- 하자 교환으로 전환(분실 재발송): 효력이 남아 입고완료 그대로다.
 select public.admin_convert_order_claim_type(pg_temp.cl_id('claim',2),pg_temp.cl_id('convert',2),
  (select claim_revision from public.order_cancellation_requests where id=pg_temp.cl_id('claim',2)),'exchange','TEST 고객이 재발송을 원함(통화 합의)',true,null);

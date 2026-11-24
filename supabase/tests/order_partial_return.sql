@@ -625,7 +625,7 @@ select public.admin_record_order_claim_refund((pg_temp.pr_claim(16)).id, 'pg_can
 select public.service_complete_order_partial_cancellation((pg_temp.pr_head((pg_temp.pr_claim(16)).id)).id, (pg_temp.pr_head((pg_temp.pr_claim(16)).id)).refund_amount,
  'TEST-PR-KEY-16', 'TEST-PR-TX-16B', pg_temp.pr_id('user', 1));
 select pg_temp.pr_assert((pg_temp.pr_claim(16)).stage = 'completed'
- and (select revoked_at is not null and revoke_reason = '리뷰한 굿즈 부분 반품 완료' from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 1))
+ and (select revoked_at is not null and revoke_reason = '리뷰한 상품 부분 반품 완료' from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 1))
  and (select available_amount = 0 from private.store_credit_lots where id = (select lot_id from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 1)))
  and (select revoked_at is null from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 2))
  and (select available_amount = 1000 from private.store_credit_lots where id = (select lot_id from private.review_event_awards where entry_id = pg_temp.pr_id('entry', 2))),
