@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/system-health/cron-run-recorder.server', () => ({ recordCronJobRun: async () => ({ incident: false }) }));
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), reconcile: vi.fn(), providers: vi.fn(), secretKey: vi.fn(), inspect: vi.fn() }));
-vi.mock('@/lib/payments/runtime-gateway', () => ({ tossBoundPaymentSecretKey: mocks.secretKey }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), reconcile: vi.fn(), providers: vi.fn(), secretKey: vi.fn(), escrowKey: vi.fn(), inspect: vi.fn(), inspectorOptions: vi.fn() }));
+vi.mock('@/lib/payments/runtime-gateway', () => ({ tossBoundPaymentSecretKey: mocks.secretKey, tossEscrowSecretKey: mocks.escrowKey }));
 vi.mock('@/lib/payments/toss-virtual-account-refund-watch.server', () => ({
-  createTossVirtualAccountRefundInspector: () => ({ inspect: mocks.inspect }),
+  createTossVirtualAccountRefundInspector: (options: unknown) => { mocks.inspectorOptions(options); return { inspect: mocks.inspect }; },
 }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/payments/attempt-reconciliation.server', async () => ({
@@ -25,8 +25,9 @@ beforeEach(() => {
   mocks.rpc.mockResolvedValue({ data: [goods, ticket], error: null });
   mocks.reconcile.mockResolvedValue({ kind: 'reconciled', outcome: 'approved' });
   mocks.secretKey.mockReturnValue(null);
+  mocks.escrowKey.mockReturnValue(null);
 });
-const noRefunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, recordFailed: 0, deferred: 0, errored: false };
+const noRefunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, escrowSettled: 0, escrowLookupFailed: 0, recordFailed: 0, deferred: 0, errored: false };
 afterEach(() => vi.unstubAllEnvs());
 
 describe('미종결 결제 자동 재확인', () => {
@@ -89,17 +90,44 @@ describe('미종결 결제 자동 재확인', () => {
     });
 
     it('토스 바인딩이 있으면 DB가 고른 감시를 원장 결제 키로 조회해 결과를 남기고 건수만 응답한다', async () => {
-      mocks.inspect.mockResolvedValueOnce({ outcome: 'failed', refundStatus: 'FAILED' });
+      mocks.inspect.mockResolvedValueOnce({ outcome: 'failed', refundStatus: 'FAILED', escrowBuyerCanceled: null, escrowLookupFailed: false });
       const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       const response = await GET(request());
       expect(response.status).toBe(200);
       expect(mocks.rpc).toHaveBeenCalledWith('service_claim_virtual_account_refund_watches', { p_limit: 3 });
       expect(mocks.inspect).toHaveBeenCalledWith(watch);
       expect(mocks.rpc).toHaveBeenCalledWith('service_record_virtual_account_refund_watch', {
-        p_attempt_id: watch.attemptId, p_outcome: 'failed', p_refund_status: 'FAILED' });
+        p_attempt_id: watch.attemptId, p_outcome: 'failed', p_refund_status: 'FAILED', p_escrow_buyer_canceled: null });
       const body = await response.json();
       expect(body.refunds).toEqual({ ...noRefunds, watches: 1, failed: 1 });
       expect(JSON.stringify(body)).not.toContain(watch.paymentKey);
+      expect(error).toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    it('에스크로 키를 조회기에 넘기고, 구매자 취소 확인을 기록에 싣고, DB가 닫으면 escrowSettled로 센다', async () => {
+      mocks.escrowKey.mockReturnValue('synthetic_escrow_secret');
+      mocks.inspect.mockResolvedValueOnce({ outcome: 'pending', refundStatus: 'NONE', escrowBuyerCanceled: true, escrowLookupFailed: false });
+      mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_virtual_account_refund_watches'
+        ? { data: [watch], error: null } : { data: 'completed', error: null });
+      const response = await GET(request());
+      expect(response.status).toBe(200);
+      expect(mocks.inspectorOptions).toHaveBeenCalledWith({ secretKey: 'synthetic_secret', escrowSecretKey: 'synthetic_escrow_secret' });
+      expect(mocks.rpc).toHaveBeenCalledWith('service_record_virtual_account_refund_watch', {
+        p_attempt_id: watch.attemptId, p_outcome: 'pending', p_refund_status: 'NONE', p_escrow_buyer_canceled: true });
+      expect((await response.json()).refunds).toEqual({ ...noRefunds, watches: 1, pending: 1, escrowSettled: 1 });
+    });
+
+    it('에스크로 거래를 확인하지 못해도 회차는 성공이고 확인 실패 건수만 센다', async () => {
+      mocks.inspect.mockResolvedValueOnce({ outcome: 'pending', refundStatus: 'NONE', escrowBuyerCanceled: null, escrowLookupFailed: true });
+      mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_virtual_account_refund_watches'
+        ? { data: [watch], error: null } : { data: 'pending', error: null });
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const response = await GET(request());
+      expect(response.status).toBe(200);
+      expect(mocks.rpc).toHaveBeenCalledWith('service_record_virtual_account_refund_watch', {
+        p_attempt_id: watch.attemptId, p_outcome: 'pending', p_refund_status: 'NONE', p_escrow_buyer_canceled: null });
+      expect((await response.json()).refunds).toEqual({ ...noRefunds, watches: 1, pending: 1, escrowLookupFailed: 1 });
       expect(error).toHaveBeenCalled();
       error.mockRestore();
     });

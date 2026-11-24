@@ -269,7 +269,7 @@ describe('주문 상세 가상계좌 입금', () => {
   });
   /* 환불 뒤 은행 송금 감시(ADR-0049 결정 5 보강): 실패면 확인 안내와 '처리 완료로 표시', 그 밖은 상태와 다음 일만. */
   it('환불 송금 실패를 알리고 처리 완료로 표시할 수 있게 한다', () => {
-    const refund = { state: 'failed' as const, failureCode: 'refund_failed' as const, refundedAt: '2026-11-26T01:00:00.000Z', checkedAt: null, resolutionNote: null };
+    const refund = { state: 'failed' as const, failureCode: 'refund_failed' as const, refundedAt: '2026-11-26T01:00:00.000Z', checkedAt: null, resolutionNote: null, completedVia: null };
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: { ...account, state: 'deposited', refund } }} noteOperationId="operation" />);
     for (const text of ['환불 송금', '환불 송금 확인 필요', '환불 송금 확인이 필요합니다', '은행이 고객 계좌로 송금하지 못했습니다', '처리 완료로 표시']) expect(html, text).toContain(text);
     expect(html).toContain('data-order-virtual-account-refund="failed"');
@@ -277,6 +277,11 @@ describe('주문 상세 가상계좌 입금', () => {
       refund: { ...refund, state: 'resolved', resolutionNote: '회사 계좌로 직접 송금' } } }} noteOperationId="operation" />);
     for (const text of ['처리 완료(운영자 확인)', '처리 내용 · 회사 계좌로 직접 송금']) expect(resolved, text).toContain(text);
     expect(resolved).not.toContain('환불 송금 확인이 필요합니다');
+    // 에스크로 구매자 취소 환불을 시스템이 닫았으면(20261125130000) 그 근거로 보이고 처리 완료 버튼은 없다.
+    const escrow = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: { ...account, state: 'deposited',
+      refund: { ...refund, state: 'completed', failureCode: null, completedVia: 'escrow_buyer_cancel' } } }} noteOperationId="operation" />);
+    for (const text of ['토스 에스크로 환불로 닫힘', '환불 7일 뒤 시스템이 완료로 닫았습니다']) expect(escrow, text).toContain(text);
+    expect(escrow).not.toContain('처리 완료로 표시');
   });
   /* 계좌이체 에스크로(20261125110100): 가상계좌가 아닌 계좌이체 주문의 에스크로 배송 등록 상태. */
   it('계좌이체 에스크로 배송 등록 상태와 직접 등록 안내를 보이고, 건너뛴 결제는 그리지 않는다', () => {
