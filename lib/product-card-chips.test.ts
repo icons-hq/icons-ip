@@ -3,7 +3,7 @@ import type { Good, GoodOption } from '@/lib/data';
 import type { GoodsVariantSupply } from '@/lib/goods-preorders';
 import { productCardChips, productCardUnavailableLabel } from '@/lib/product-card-chips';
 
-type ChipGood = Pick<Good, 'options' | 'optionSaleMode' | 'badge' | 'shippingFeeType'>;
+type ChipGood = Pick<Good, 'options' | 'optionSaleMode' | 'badge' | 'badges' | 'shippingFeeType'>;
 
 const NOW = '2026-11-17T00:00:00.000Z';
 
@@ -95,6 +95,22 @@ describe('productCardChips', () => {
     it('ignores an empty badge', () => {
       expect(productCardChips(good({ badge: '' }))).toEqual([]);
       expect(productCardChips(good({ badge: '  ' }))).toEqual([]);
+    });
+
+    /* 상품 표시문구 여러 개(migration 20261125140000): 운영자가 고른 순서대로 칩 하나씩, 같은 값은 한 번만. */
+    it('chips every stored badge in the order the operator chose, once each', () => {
+      expect(productCardChips(good({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }))).toEqual([
+        { kind: 'tag', label: 'EXCLUSIVE' },
+        { kind: 'tag', label: 'NEW' },
+      ]);
+      expect(productCardChips(good({ badge: 'NEW', badges: ['NEW', 'new', ' '] }))).toEqual([{ kind: 'tag', label: 'NEW' }]);
+      /* 빈 목록은 첫 값 거울이 남아 있어도 표시문구 없음이다(목록이 진실원). */
+      expect(productCardChips(good({ badge: 'NEW', badges: [] }))).toEqual([]);
+    });
+
+    it('drops every badge chip when the store presentation hides tags', () => {
+      expect(productCardChips(good({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'], shippingFeeType: 'free' }), { showTags: false }))
+        .toEqual([{ kind: 'freeShipping', label: '무료배송' }]);
     });
 
     it('does not turn the hidden tag setting into a drop of the other chips', () => {

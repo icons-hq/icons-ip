@@ -32,9 +32,9 @@ import {
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   GOODS_PAYMENT_ATTEMPT_STATE_LABELS,
   adminVirtualAccountEscrowLabel,
+  adminVirtualAccountRefundHint,
+  adminVirtualAccountRefundStateLabel,
   adminTransferEscrowLabel,
-  ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS,
-  ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS,
   adminOrderDetailHref,
   adminOrderSearchHref,
   adminStaffCancellationAvailability,
@@ -164,11 +164,11 @@ function OrderVirtualAccountFacts({ order, canManage }: { order: AdminOrderRecor
           <div className={FACT_CLASS} data-order-escrow-delivery={escrow.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', escrow.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[escrow.deliveryState]}</AdminStatusBadge>{escrow.lastErrorCode ? <span className="mt-1 block text-xs font-normal text-muted-foreground">확인 코드 · {escrow.lastErrorCode}</span> : null}</dd></div>
           <div className={FACT_CLASS}><dt className={FACT_TERM}>에스크로 거래 상태</dt><dd className={FACT_VALUE}>{escrow.escrowStatus ? <AdminStatusBadge tone={statusTone('escrowStatus', escrow.escrowStatus)}>{ADMIN_ESCROW_STATUS_LABELS[escrow.escrowStatus]}</AdminStatusBadge> : '아직 확인 전'}</dd></div>
         </> : null}
-        {account.refund ? <div className={FACT_CLASS} data-order-virtual-account-refund={account.refund.state}><dt className={FACT_TERM}>환불 송금</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('virtualAccountRefund', account.refund.state)}>{ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS[account.refund.state]}</AdminStatusBadge>{account.refund.resolutionNote ? <span className="mt-1 block text-xs font-normal text-muted-foreground">처리 내용 · {account.refund.resolutionNote}</span> : null}</dd></div> : null}
+        {account.refund ? <div className={FACT_CLASS} data-order-virtual-account-refund={account.refund.state}><dt className={FACT_TERM}>환불 송금</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('virtualAccountRefund', account.refund.state)}>{adminVirtualAccountRefundStateLabel(account.refund)}</AdminStatusBadge>{account.refund.resolutionNote ? <span className="mt-1 block text-xs font-normal text-muted-foreground">처리 내용 · {account.refund.resolutionNote}</span> : null}</dd></div> : null}
       </dl>
       {escrow?.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
       <VirtualAccountRefundNotice canManage={canManage} orderId={order.id} refund={account.refund} />
-      {account.refund && account.refund.state !== 'failed' ? <p className="text-xs leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS[account.refund.state]}</p> : null}
+      {account.refund && account.refund.state !== 'failed' ? <p className="text-xs leading-relaxed text-muted-foreground">{adminVirtualAccountRefundHint(account.refund)}</p> : null}
       <p className="text-xs leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} 가상계좌 결제는 주문 전체로만 취소·반품할 수 있습니다.</p>
     </div>
   );

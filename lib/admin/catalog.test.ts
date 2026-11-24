@@ -396,7 +396,7 @@ describe('admin catalog form normalization', () => {
     valid.set('name', '화산강림 아크릴 스탠드');
     valid.set('type', '아크릴 스탠드');
     valid.set('price', '22000');
-    valid.set('badge', '신상');
+    valid.set('badge', 'exclusive, NEW, EXCLUSIVE');
     valid.set('stock', 'ok');
     valid.set('stockQty', '12');
 
@@ -412,7 +412,8 @@ describe('admin catalog form normalization', () => {
         name: '화산강림 아크릴 스탠드',
         price: 22000,
         compareAtPrice: null,
-        badge: '신상',
+        /* 고른 순서를 지키고 표준 표기(대문자)로 맞추며, 같은 값은 한 번만 남긴다. */
+        badges: ['EXCLUSIVE', 'NEW'],
         stock: 'ok',
         bg: null,
         imagePath: null,

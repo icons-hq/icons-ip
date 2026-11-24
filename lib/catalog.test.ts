@@ -2080,8 +2080,15 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(select).toMatch(/goods_variants\([^)]*order_max_qty,member_max_qty/);
     /* 랜덤 굿즈의 옵션 행은 고객에게 숨는다(T7 리뷰 RV-1) — 랜덤 한 줄은 공개 계산 열로 읽는다. */
     expect(select.split(',')).toContain('random_option:goods_random_option');
+    /* 상품 표시문구 여러 개(migration 20261125140000)는 첫 값 거울과 함께 목록 열로 읽는다. */
+    expect(select.split(',')).toEqual(expect.arrayContaining(['badge', 'badges']));
     mocks.isConfigured = false;
     mocks.client = null;
+  });
+
+  it('표시문구 목록을 고른 순서대로 싣고, 목록을 싣지 않은 옛 투영은 badges를 비워 둔다', () => {
+    expect(toGood(row({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }), () => '')).toMatchObject({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] });
+    expect(toGood(row({ badge: 'NEW' }), () => '')).not.toHaveProperty('badges');
   });
 
   /* 고객 세션: goods_variants 의 랜덤 굿즈 행은 restrictive RLS 로 빠지고(옵션별 재고 = 배정 단서), 공개 계산 열

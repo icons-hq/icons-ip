@@ -18,6 +18,7 @@ import {
   upsertAdminTicketTypeAction,
 } from './actions';
 import { collectFormValues } from '@/lib/admin/form-state';
+import { GOOD_BADGES_INVALID_MESSAGE } from '@/lib/admin/catalog';
 import type { CatalogSnapshot } from '@/lib/catalog';
 
 const mocks = vi.hoisted(() => ({
@@ -200,7 +201,7 @@ function goodForm() {
   formData.set('type', '아크릴 스탠드');
   formData.set('price', '22000');
   formData.set('compareAtPrice', '26000');
-  formData.set('badge', '신상');
+  formData.set('badge', 'EXCLUSIVE, NEW');
   formData.set('stock', 'ok');
   formData.set('stockQty', '12');
   for (const [key, value] of Object.entries(goodsNoticeForm)) formData.set(key, value);
@@ -610,7 +611,7 @@ describe('admin catalog actions', () => {
       ip_id: 'hwasan',
       name: '화산강림 아크릴 스탠드',
       price: 22000,
-      badge: '신상',
+      badges: ['EXCLUSIVE', 'NEW'],
       stock: 'ok',
       bg: null,
       image_path: null,
@@ -651,6 +652,29 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/new');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/best');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
+  });
+  /* 상품 표시문구 여러 개(20261125140000): 고른 순서대로 badges로 싣고, 표준 값이 아니면 저장하지 않고 그 칸에 알린다. */
+  it('상품 표시문구를 고른 순서대로 badges로 싣고, 옛 한 값도 읽으며, 표준 값이 아니면 저장하지 않는다', async () => {
+    const single = goodForm();
+    single.set('badge', 'new');
+    await upsertAdminGoodAction({}, single);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_good', { target_good: expect.objectContaining({ badges: ['NEW'] }) });
+    expect(mocks.rpc.mock.lastCall?.[1].target_good).not.toHaveProperty('badge');
+    const none = goodForm();
+    none.set('badge', '');
+    await upsertAdminGoodAction({}, none);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_good', { target_good: expect.objectContaining({ badges: [] }) });
+    mocks.rpc.mockClear();
+    const broken = goodForm();
+    broken.set('badge', 'NEW, 신상');
+    expect(await upsertAdminGoodAction({}, broken)).toMatchObject({ errors: { badge: GOOD_BADGES_INVALID_MESSAGE } });
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good', expect.anything());
+  });
+  it('표시문구 저장이 DB에서 거절되면 표시문구 칸에 고칠 방법을 붙인다', async () => {
+    for (const message of ['goods_badges_duplicate', 'new row for relation "goods" violates check constraint "goods_badges_allowed"', 'goods_badges_invalid']) {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message, code: '23514' } });
+      expect(await upsertAdminGoodAction({}, goodForm())).toMatchObject({ errors: { badge: GOOD_BADGES_INVALID_MESSAGE } });
+    }
   });
   /* TKT-033(ADR-0040): 즉시할인 기간 지시는 그대로 저장 RPC에 싣고, 지시가 없으면 지금처럼 저장한다. 모양이 다르면 보내지 않는다. */
   it('즉시할인 기간 지시를 instant_discount_period로 싣고, 없으면 싣지 않으며, 잘못된 지시는 저장하지 않는다', async () => {

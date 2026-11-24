@@ -1039,15 +1039,31 @@ describe('GoodSection', () => {
     expect(nav.match(/<a /g)).toHaveLength(7);
   });
 
-  /* #326 — 배지는 자유 입력이 아니라 표준 값 select 다. 상품 유형은 입력칸도 표시도 없다(ADR-0044). */
-  it('offers the standard badge options plus a compare-at price field and no type input', () => {
+  /* #326 — 배지(상품 표시문구)는 자유 입력이 아니라 표준 값 고르기다. 2026-11-24부터 여러 개를 고르고 고른 순서가 노출 순서다.
+     상품 유형은 입력칸도 표시도 없다(ADR-0044). */
+  it('offers the standard badge checkboxes plus a compare-at price field and no type input', () => {
     const html = renderGoodSection(null);
 
     expect(html).toContain('name="compareAtPrice"');
-    for (const badge of GOOD_BADGES) expect(html).toContain(`<option value="${badge}">`);
-    expect(html).toContain('없음');
+    const badges = html.slice(html.indexOf('data-good-badges'), html.indexOf('</fieldset>', html.indexOf('data-good-badges')));
+    expect(badges).toContain('<legend class="mb-2 text-sm leading-snug font-medium text-foreground">상품 표시문구</legend>');
+    for (const badge of GOOD_BADGES) expect(badges).toMatch(new RegExp(`<input type="checkbox"/><span>${badge}</span>`));
+    expect(badges).toContain('<input type="hidden" name="badge" value=""/>');
+    expect(badges).toContain('고르지 않으면 상품 카드와 상세에 표시문구가 없습니다.');
     expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
     expect(html).not.toContain('data-good-type-derived');
+  });
+
+  it('저장된 표시문구 여러 개를 고른 순서대로 체크·번호·숨은 칸·요약에 보인다', () => {
+    const html = renderGoodSection({ ...good, badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] });
+    const badges = html.slice(html.indexOf('data-good-badges'), html.indexOf('</fieldset>', html.indexOf('data-good-badges')));
+    expect(badges).toContain('<input type="hidden" name="badge" value="EXCLUSIVE, NEW"/>');
+    expect(badges).toMatch(/<input type="checkbox" checked=""\/><span>NEW<\/span><span[^>]*data-good-badge-order="">2번째<\/span>/);
+    expect(badges).toMatch(/<input type="checkbox" checked=""\/><span>EXCLUSIVE<\/span><span[^>]*data-good-badge-order="">1번째<\/span>/);
+    expect(badges).toContain('상품 카드와 상세에 EXCLUSIVE → NEW 순서로 보입니다.');
+    expect(html).toContain('표시문구 EXCLUSIVE, NEW · ');
+    /* badges를 싣지 않은 옛 기록은 첫 값 하나로 읽는다. */
+    expect(renderGoodSection({ ...good, badge: 'NEW', badges: undefined })).toContain('<input type="hidden" name="badge" value="NEW"/>');
   });
 
   /* ADR-0044 — 상품 유형은 화면 어디에도 없고 숨은 입력으로도 싣지 않는다. */

@@ -21,6 +21,7 @@ import type { GoodShippingPolicy, ShippingNoticeSnapshot } from '@/lib/fulfillme
 import { readGoodsClaimPolicy } from './goods-claim-policy';
 import { readAdminGoodsCustomInputs } from './goods-custom-inputs';
 import { EMPTY_GOODS_CUSTOM_INPUTS, parseGoodsCustomInputConfig } from '@/lib/goods-custom-inputs';
+import { formatGoodBadgeText, goodBadgeList } from '@/lib/goods-taxonomy';
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
 export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'baseRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
   ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`),
@@ -63,7 +64,8 @@ export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminF
     categoryId: selected?.categoryId ?? '',
     additionalCategoryIds: JSON.stringify(selected?.additionalCategoryIds ?? []),
     shippingNoticeTemplate: selected?.shippingNoticeSnapshot ? `${selected.shippingNoticeSnapshot.code}@${selected.shippingNoticeSnapshot.version}` : '',
-    badge: selected?.badge ?? '', stock: selected?.stock ?? 'ok', description: selected?.description ?? '',
+    /* 상품 표시문구는 고른 순서대로 쉼표로 이어 한 칸에 둔다(숨은 칸 'badge' — 자동복구·서버 임시저장도 같은 문자열). */
+    badge: selected ? formatGoodBadgeText(goodBadgeList(selected)) : '', stock: selected?.stock ?? 'ok', description: selected?.description ?? '',
     descriptionFormat: selected?.descriptionFormat ?? 'plain', descriptionUploadPath: '', descriptionImageAlt: '',
     imagePath: selected?.imagePath ?? '',
     ...Object.fromEntries(GOODS_DETAIL_IMAGE_FIELD_NAMES.map((name, i) => [name, selected?.detailImagePaths?.[i] ?? ''])),

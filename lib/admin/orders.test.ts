@@ -12,7 +12,7 @@ import {
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderFilters,
   normalizeAdminOrderStatusForm,
-  normalizeAdminOrderTrackingForm, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURE_LABELS, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES, ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS, adminTransferEscrowLabel, parseAdminOrderTransferEscrow,
+  normalizeAdminOrderTrackingForm, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURE_LABELS, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES, ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS, adminTransferEscrowLabel, adminVirtualAccountRefundHint, adminVirtualAccountRefundStateLabel, parseAdminOrderTransferEscrow,
 } from './orders';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
@@ -372,7 +372,16 @@ describe('가상계좌 입금 대기와 입금 정보', () => {
     const refund = { state: 'failed', refundStatus: 'FAILED', failureCode: 'refund_failed', refundedAt: '2026-11-26T01:00:00+00:00',
       checkedAt: '2026-11-26T03:00:00+00:00', failedAt: '2026-11-26T03:00:00+00:00', resolvedAt: null, resolutionNote: null };
     expect(parseAdminOrderVirtualAccount({ ...account, refund })?.refund).toEqual({ state: 'failed', failureCode: 'refund_failed',
-      refundedAt: refund.refundedAt, checkedAt: refund.checkedAt, resolutionNote: null });
+      refundedAt: refund.refundedAt, checkedAt: refund.checkedAt, resolutionNote: null, completedVia: null });
+    // 에스크로 구매자 취소 환불을 시스템이 닫은 완료(20261125130000)는 근거와 함께 읽는다. 완료가 아닌데 근거가 있거나 모르는 근거면 읽지 않는다.
+    const escrowSettled = { ...refund, state: 'completed', refundStatus: 'NONE', failureCode: null, completedVia: 'escrow_buyer_cancel' };
+    expect(parseAdminOrderVirtualAccount({ ...account, refund: escrowSettled })?.refund?.completedVia).toBe('escrow_buyer_cancel');
+    for (const broken of [{ ...escrowSettled, state: 'pending' }, { ...escrowSettled, completedVia: 'operator' }]) {
+      expect(parseAdminOrderVirtualAccount({ ...account, refund: broken }), JSON.stringify(broken)).toBeUndefined();
+    }
+    expect(adminVirtualAccountRefundStateLabel({ state: 'completed', completedVia: 'escrow_buyer_cancel' })).toBe('토스 에스크로 환불로 닫힘');
+    expect(adminVirtualAccountRefundStateLabel({ state: 'completed', completedVia: null })).toBe('환불 송금 완료');
+    expect(adminVirtualAccountRefundHint({ state: 'completed', completedVia: 'escrow_buyer_cancel' })).toContain('토스페이먼츠 상점관리자');
     expect(parseAdminOrderVirtualAccount({ ...account, refund: { ...refund, state: 'pending', failureCode: null, checkedAt: null } })?.refund?.state).toBe('pending');
     for (const broken of [{ ...refund, state: 'lost' }, { ...refund, failureCode: null }, { ...refund, failureCode: 'other' }, { ...refund, refundedAt: 'soon' }]) {
       expect(parseAdminOrderVirtualAccount({ ...account, refund: broken }), JSON.stringify(broken)).toBeUndefined();
