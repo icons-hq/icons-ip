@@ -76,9 +76,13 @@ describe('composePostcodeAddress', () => {
 
   it('검색 스크립트는 개인정보를 실을 수 없는 정적 주소다', () => {
     expect(POSTCODE_SCRIPT_SRC).toBe(
-      'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js',
+      'https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js',
     );
     expect(POSTCODE_SCRIPT_SRC).not.toContain('?');
+  });
+
+  it('2026-11-30에 닫히는 옛 다음 CDN 주소를 쓰지 않는다', () => {
+    expect(POSTCODE_SCRIPT_SRC).not.toContain('daumcdn.net');
   });
 
   /* 공동주택(아파트) 결과는 상세 주소(동·호수)가 비면 제출 전에 한 번 확인받는다(국내 커머스 관행·Baymard 세부 주소 누락). */

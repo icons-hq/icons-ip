@@ -12,11 +12,12 @@
 
 import type { CustomerConfirmRequest } from './customer-confirm';
 
-/** 다음 우편번호 서비스 임베드 스크립트. 쿼리 없는 정적 주소다.
-    CSP를 도입하는 시점에 script-src·frame-src·img-src에
-    `https://*.daumcdn.net`과 `https://postcode.map.daum.net`을 허용해야 한다. */
+/** 카카오 우편번호 서비스(옛 다음 우편번호) 임베드 스크립트. 쿼리 없는 정적 주소다.
+    옛 `t1.daumcdn.net` 주소는 2026-11-30에 닫힌다(서비스 공지) — 공식 가이드의 `t1.kakaocdn.net`을 쓴다.
+    CSP를 도입하는 시점에 script-src에 `https://t1.kakaocdn.net`, 검색 화면 iframe이 뜨는
+    frame-src에 `https://postcode.map.kakao.com`을 허용해야 한다. */
 export const POSTCODE_SCRIPT_SRC =
-  'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+  'https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
 
 /** 검색 레이어가 콜백으로 넘겨주는 값 중 우리가 쓰는 필드만 좁힌 형태다. */
 export interface PostcodeSelection {
