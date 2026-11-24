@@ -13,6 +13,7 @@
  *   PRUNE_REDIRECT_URLS     줄바꿈 구분(선택). allow-list에서 반드시 빠져야 하는 항목.
  *   REQUIRE_SMTP            'true'면 custom SMTP 미설정 시 실패한다.
  *   ENFORCE_MAILER          'true'면 confirmation·rate limit 설정까지 강제한다.
+ *   ENFORCE_REQUEST_RATE_LIMITS 'true'면 GoTrue IP별 요청 한도(AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES)를 일치시키고 read-back한다.
  *   EMAIL_OTP_EXPIRY_SECONDS 선택. email link/OTP TTL을 숫자로 일치시키고 read-back한다.
  *   RECOVERY_TEMPLATE_PATH  선택. recovery 메일 본문을 파일과 일치시키고 read-back한다.
  *   RECOVERY_SUBJECT        선택. recovery(비밀번호 재설정) 메일 제목을 이 값과 일치시키고 read-back한다.
@@ -124,6 +125,39 @@ export function mailerPatch({ enforceMailer }) {
   };
 }
 
+/*
+ * 운영 Auth(GoTrue)의 IP별 요청 한도. 값은 5분당 요청 수다 — GoTrue는 값/300을 초당 채움 속도로 쓰고, 순간 허용량(버킷)은 30으로
+ * 코드에 고정돼 있어 바꿀 수 없다(supabase/auth internal/api/apilimiter). 앱 서버 액션(가입·로그인·코드 확인·재전송·재설정)과
+ * 미들웨어 세션 갱신·소셜 로그인 코드 교환은 GoTrue에 회원 IP가 아니라 Vercel 함수 IP로 보인다. 2026-11-24 운영 edge 로그에서 서버 쪽
+ * Auth 요청은 5분 창마다 AWS IP 4~12개에 실렸고 한 IP가 최대 86%를 실었다(Fluid compute가 요청을 소수 인스턴스에 모은다).
+ * 기본값(가입류·코드 확인 5분 30, /token 5분 150)이면 오픈 몰림에서 정상 회원이 over_request_rate_limit(429)에 걸린다.
+ *   rate_limit_otp            /signup·/recover·/resend·/otp·/magiclink·PUT /user. 3,000(초당 10) — 발송사 Resend의 팀 초당 한도 10건과 같다.
+ *                             이 경로는 모두 메일을 보내므로 더 올려도 Resend에서 막힌다.
+ *   rate_limit_verify         /verify(가입 코드·재설정 링크 확인). 3,000(초당 10) — 확인할 코드는 메일 발송 속도를 넘지 않는다. 운영 코드는
+ *                             8자리라 한 IP가 유효 시간(1시간) 내내 추측해도 코드 하나를 맞힐 확률은 약 0.04%다.
+ *   rate_limit_token_refresh  /token(비밀번호 로그인·세션 갱신·소셜 로그인 코드 교환). 9,000(초당 30).
+ * 공개 publishable 키로 직접 부르는 공격자도 IP당 같은 한도를 얻는다 — 그 우회를 막는 것은 Auth CAPTCHA(Turnstile)와 프로젝트 메일 한도다
+ * (docs/runbooks/signup-contact-channels.md §13 'GoTrue IP 한도'). 회원 IP를 넘기는 sb-forwarded-for는 secret 키 요청만 받는데, GoTrue는
+ * secret 키(service_role) 요청을 관리자로 보고 CAPTCHA를 건너뛰어 앱 경로의 Turnstile이 무력화되므로 쓰지 않는다(같은 절).
+ */
+export const AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES = Object.freeze({
+  rate_limit_otp: 3_000,
+  rate_limit_verify: 3_000,
+  rate_limit_token_refresh: 9_000,
+});
+
+export function requestRateLimitPatch({ enforceRequestRateLimits }) {
+  if (!enforceRequestRateLimits) return {};
+  return { ...AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES };
+}
+
+/** 읽어 온 설정의 IP 한도가 선언값과 다른 키 목록 — 실패 메시지가 무엇이 어긋났는지 말하게 한다. */
+export function requestRateLimitMismatches(config) {
+  return Object.entries(AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES)
+    .filter(([key, value]) => Number(config[key]) !== value)
+    .map(([key]) => key);
+}
+
 function normalizedTemplate(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -195,6 +229,7 @@ export function isSatisfied({
   passwordChanged = null,
   confirmation = null,
   captcha = null,
+  enforceRequestRateLimits = false,
 }) {
   if ((config.site_url ?? '') !== siteUrl) return false;
   if ((config.uri_allow_list ?? '') !== allowList) return false;
@@ -230,6 +265,7 @@ export function isSatisfied({
     captcha !== null
     && (config.security_captcha_enabled !== true || config.security_captcha_provider !== 'turnstile')
   ) return false;
+  if (enforceRequestRateLimits && requestRateLimitMismatches(config).length > 0) return false;
   if (!enforceMailer) return true;
   /* 갓 만든 프로젝트는 mailer_autoconfirm을 아예 돌려주지 않는다 — 빈 값은 통과시킨다. */
   const autoconfirm = config.mailer_autoconfirm;
@@ -280,6 +316,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
   const prune = parseLines(env.PRUNE_REDIRECT_URLS);
   const requireSmtp = env.REQUIRE_SMTP === 'true';
   const enforceMailer = env.ENFORCE_MAILER === 'true';
+  const enforceRequestRateLimits = env.ENFORCE_REQUEST_RATE_LIMITS === 'true';
   const emailOtpExpiryRaw = env.EMAIL_OTP_EXPIRY_SECONDS?.trim();
   const emailOtpExpirySeconds = emailOtpExpiryRaw ? Number(emailOtpExpiryRaw) : null;
   if (
@@ -375,6 +412,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
     passwordChanged,
     confirmation,
     captcha,
+    enforceRequestRateLimits,
   };
   /* 비밀 키는 읽어 볼 수 없다 — 키가 있으면 교체(회전)를 놓치지 않도록 매번 PATCH한다. */
   if (captcha === null && isSatisfied({ config, ...desired })) {
@@ -386,6 +424,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
     site_url: siteUrl,
     uri_allow_list: allow.list,
     ...mailerPatch({ enforceMailer }),
+    ...requestRateLimitPatch({ enforceRequestRateLimits }),
     ...captchaPatch({ captcha }),
     ...(emailOtpExpirySeconds === null ? {} : { mailer_otp_exp: emailOtpExpirySeconds }),
     ...(recoveryTemplate === null ? {} : { mailer_templates_recovery_content: recoveryTemplate }),
@@ -431,6 +470,9 @@ export async function syncSupabaseAuth(env = process.env, log = console.log, { w
     + `mailer_autoconfirm=${final.mailer_autoconfirm}, `
     + `mailer_secure_email_change_enabled=${final.mailer_secure_email_change_enabled}, `
     + `rate_limit_email_sent=${final.rate_limit_email_sent}, `
+    + `request_rate_limits=${enforceRequestRateLimits
+      ? (requestRateLimitMismatches(final).map((key) => `${key}:${final[key]}`).join('/') || 'ok')
+      : 'not-managed'}, `
     + `mailer_otp_exp=${final.mailer_otp_exp}, `
     + `mailer_otp_length=${final.mailer_otp_length}, `
     + `recovery_template=${templateState(recoveryTemplate, final.mailer_templates_recovery_content)}, `

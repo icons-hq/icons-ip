@@ -441,12 +441,15 @@ jobs:
       # 새 앱의 코드 입력 단계는 배포 직후부터 메일의 코드를 받는다.
       # 변경 알림 메일은 custom SMTP가 있는 production에서만 켠다 — preview 계열은 기본 메일
       # 발송 한도를 recovery 메일과 나눠 쓰게 된다.
+      # GoTrue IP별 요청 한도도 production에서만 올린다 — 서버 액션·세션 갱신이 Vercel 함수 IP 몇 개로 몰려
+      # 기본값이면 오픈 몰림에서 정상 회원이 429에 걸린다(값과 근거는 스크립트의 AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES).
       - name: Sync and verify Supabase Auth configuration
         env:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
           SITE_URL: https://iconsip.com
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
+          ENFORCE_REQUEST_RATE_LIMITS: "true"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
           PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html

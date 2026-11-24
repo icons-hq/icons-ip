@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
   AUTH_READBACK_DELAYS_MS,
+  AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES,
   captchaPatch,
   isSatisfied,
   isSafeConfirmationTemplate,
@@ -14,6 +15,8 @@ import {
   mailerPatch,
   missingSmtpSettings,
   parseAllowList,
+  requestRateLimitMismatches,
+  requestRateLimitPatch,
   resolveRedirectAllowList,
 } from './sync-supabase-auth.mjs';
 import { EMAIL_SENDER_NAME } from '../lib/email/sender.ts';
@@ -493,6 +496,114 @@ describe('mailerPatch', () => {
       mailer_secure_email_change_enabled: true,
       rate_limit_email_sent: AUTH_EMAIL_RATE_LIMIT_PER_HOUR,
     });
+  });
+});
+
+/*
+ * 서버 액션·미들웨어 세션 갱신은 GoTrue에 Vercel 함수 IP 몇 개로 보인다. 오픈 몰림에서 정상 회원이 IP 한도(429)에 걸리지 않게
+ * production 배포가 세 한도를 올리고 read-back한다. preview·staging은 기본값 그대로다.
+ */
+describe('GoTrue IP별 요청 한도', () => {
+  const synced = { site_url: 'https://iconsip.com', uri_allow_list: 'https://iconsip.com/auth/callback' };
+  const args = { siteUrl: 'https://iconsip.com', allowList: 'https://iconsip.com/auth/callback', enforceMailer: false };
+  const raised = { ...synced, ...AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES };
+
+  it('가입류·코드 확인·/token 세 한도만 다루고 모두 GoTrue 기본값보다 크다', () => {
+    const defaults = { rate_limit_otp: 30, rate_limit_verify: 30, rate_limit_token_refresh: 150 };
+    expect(Object.keys(AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES).sort()).toEqual(Object.keys(defaults).sort());
+    for (const [key, value] of Object.entries(AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES)) {
+      expect(Number.isInteger(value)).toBe(true);
+      expect(value).toBeGreaterThan(defaults[key]);
+    }
+    /* 메일을 보내는 가입류 한도는 발송사 Resend 팀 초당 한도(10건)를 넘겨 봐야 쓸모가 없다 — 5분당 값/300 = 초당 채움 속도. */
+    expect(AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES.rate_limit_otp / 300).toBeLessThanOrEqual(10);
+    expect(Object.isFrozen(AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES)).toBe(true);
+  });
+
+  it('강제하지 않으면 한도를 PATCH하지도 요구하지도 않는다', () => {
+    expect(requestRateLimitPatch({ enforceRequestRateLimits: false })).toEqual({});
+    expect(isSatisfied({ ...args, config: synced })).toBe(true);
+    expect(isSatisfied({ ...args, config: { ...synced, rate_limit_otp: 30 }, enforceRequestRateLimits: false })).toBe(true);
+  });
+
+  it('강제하면 세 한도를 선언값으로 담는다', () => {
+    expect(requestRateLimitPatch({ enforceRequestRateLimits: true })).toEqual({ ...AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES });
+  });
+
+  it('하나라도 선언값과 다르거나 없으면 통과하지 않고, 문자열 값은 숫자로 비교한다', () => {
+    expect(isSatisfied({ ...args, config: raised, enforceRequestRateLimits: true })).toBe(true);
+    for (const [key, value] of Object.entries(AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES)) {
+      for (const wrong of [value - 1, value + 1, undefined, null]) {
+        const config = { ...raised, [key]: wrong };
+        expect(isSatisfied({ ...args, config, enforceRequestRateLimits: true })).toBe(false);
+        expect(requestRateLimitMismatches(config)).toEqual([key]);
+      }
+      expect(isSatisfied({ ...args, config: { ...raised, [key]: String(value) }, enforceRequestRateLimits: true })).toBe(true);
+    }
+  });
+
+  const baseEnv = {
+    SUPABASE_ACCESS_TOKEN: 'pat',
+    PROJECT_REF: 'projref',
+    SITE_URL: 'https://iconsip.com',
+    REDIRECT_URLS: 'https://iconsip.com/auth/callback',
+    ENFORCE_REQUEST_RATE_LIMITS: 'true',
+  };
+
+  function stubReads(responses) {
+    const calls = [];
+    vi.stubGlobal('fetch', async (url, options = {}) => {
+      calls.push({ method: options.method ?? 'GET', body: options.body });
+      const body = responses.shift();
+      if (!body) throw new Error('unexpected extra fetch');
+      return { ok: true, status: 200, json: async () => body };
+    });
+    return calls;
+  }
+
+  it('기본값이면 세 한도를 PATCH하고 read-back으로 확인한다', async () => {
+    const calls = stubReads([{ ...synced, rate_limit_otp: 30, rate_limit_verify: 30, rate_limit_token_refresh: 150 }, {}, raised]);
+    await expect(syncSupabaseAuth(baseEnv, () => {})).resolves.toEqual({ patched: true });
+    expect(calls.map((call) => call.method)).toEqual(['GET', 'PATCH', 'GET']);
+    expect(JSON.parse(calls[1].body)).toEqual({ ...synced, ...AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES });
+  });
+
+  it('이미 맞으면 PATCH하지 않는다', async () => {
+    const calls = stubReads([raised]);
+    await expect(syncSupabaseAuth(baseEnv, () => {})).resolves.toEqual({ patched: false });
+    expect(calls.map((call) => call.method)).toEqual(['GET']);
+  });
+
+  it('끝내 반영되지 않으면 어긋난 한도의 이름과 실제 값을 말하며 실패한다', async () => {
+    const stale = { ...raised, rate_limit_token_refresh: 150 };
+    stubReads([stale, {}, ...Array.from({ length: AUTH_READBACK_DELAYS_MS.length + 1 }, () => stale)]);
+    const error = await syncSupabaseAuth(baseEnv, () => {}, { wait: async () => {} }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('request_rate_limits=rate_limit_token_refresh:150');
+  });
+
+  it('관리하지 않으면 실패 메시지에 not-managed로 남긴다', async () => {
+    const stale = { ...synced, site_url: 'https://old.example' };
+    stubReads([stale, {}, ...Array.from({ length: AUTH_READBACK_DELAYS_MS.length + 1 }, () => stale)]);
+    const env = { ...baseEnv, ENFORCE_REQUEST_RATE_LIMITS: 'false' };
+    const error = await syncSupabaseAuth(env, () => {}, { wait: async () => {} }).catch((caught) => caught);
+    expect(error.message).toContain('request_rate_limits=not-managed');
+  });
+
+  it('production Supabase 배포의 동기화 단계 하나만 한도를 강제한다(preview·staging은 기본값)', async () => {
+    const pipeline = await readFile(new URL('../.github/workflows/pipeline.yml', import.meta.url), 'utf8');
+    expect(pipeline.match(/ENFORCE_REQUEST_RATE_LIMITS: "true"/g)).toHaveLength(1);
+    expect(pipeline).not.toMatch(/ENFORCE_REQUEST_RATE_LIMITS: "(?!true")/);
+    const productionSupabaseJob = pipeline.slice(
+      pipeline.indexOf('  deploy-supabase:'),
+      pipeline.indexOf('  deploy-supabase-preview:'),
+    );
+    const syncStep = productionSupabaseJob.slice(
+      productionSupabaseJob.indexOf('- name: Sync and verify Supabase Auth configuration'),
+      productionSupabaseJob.indexOf('run: node scripts/sync-supabase-auth.mjs'),
+    );
+    expect(syncStep).toContain('PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}');
+    expect(syncStep).toContain('ENFORCE_REQUEST_RATE_LIMITS: "true"');
   });
 });
 
