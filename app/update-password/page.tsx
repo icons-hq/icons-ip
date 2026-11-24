@@ -16,8 +16,8 @@ type PageProps = {
 };
 
 export const metadata: Metadata = {
-  title: '새 비밀번호 설정 — ICONS',
-  description: 'ICONS 계정의 새 비밀번호를 설정합니다.',
+  title: '새 비밀번호 설정 — 엑스스퀘어',
+  description: '엑스스퀘어 계정의 새 비밀번호를 설정합니다.',
 };
 
 function firstParam(value: string | string[] | undefined) {

@@ -225,7 +225,7 @@ export function cancellationRefundRequest(attempt: PaymentAttempt, input: {
 }
 
 /** 남은 잔액을 결제사 부분 취소로 돌려줄 때의 취소 사유(토스 cancelReason ≤200자). */
-export const PARTIAL_REMAINDER_REFUND_REASON = 'ICONS 주문 취소(부분 취소 뒤 남은 금액)';
+export const PARTIAL_REMAINDER_REFUND_REASON = '엑스스퀘어 주문 취소(부분 취소 뒤 남은 금액)';
 
 /**
  * 정합화를 실행하는 주체. 문자열은 staff/admin 사용자 id, null은 시스템(서버 자동
@@ -316,7 +316,7 @@ const PREFLIGHT_REJECTIONS = new Set([
  */
 const PROVIDER_REFUND_REVIEW_CODE = /^provider_[a-z0-9_]{1,55}$/;
 /** 반품배송비를 뺀 부분 취소의 취소 사유(토스 cancelReason ≤200자). */
-export const RETURN_FEE_DEDUCTION_REFUND_REASON = 'ICONS 반품 환불(반품배송비 차감)';
+export const RETURN_FEE_DEDUCTION_REFUND_REASON = '엑스스퀘어 반품 환불(반품배송비 차감)';
 
 /**
  * 완료로 닫지 못한 refund 결과의 needs_review 사유.
@@ -799,7 +799,7 @@ export async function reconcileOrderCancellation(
           paymentId: payment.id,
           provider,
           amount: payment.amount,
-          reason: 'ICONS 주문 취소',
+          reason: '엑스스퀘어 주문 취소',
           paymentKey: payment.paymentKey,
           requestId: input.requestId,
         });

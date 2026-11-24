@@ -51,7 +51,7 @@ describe('운영 알림 요약 메일 작업', () => {
       messageKind: 'ops_alert_digest', contentRevision: OPS_ALERT_DIGEST_CONTENT_REVISION });
     expect(s.binds).toEqual([job.id]);
     expect(s.provider.send).toHaveBeenCalledWith(expect.objectContaining({ recipient: 'ops@example.test',
-      message: expect.objectContaining({ subject: '[ICONS] 운영 알림 — 새 문의 2건 · 새 굿즈 Q&A 1건 · 답변 지연 2건 · 시스템 장애 1건' }) }));
+      message: expect.objectContaining({ subject: '[엑스스퀘어] 운영 알림 — 새 문의 2건 · 새 굿즈 Q&A 1건 · 답변 지연 2건 · 시스템 장애 1건' }) }));
     expect(s.finishes).toEqual([{ status: 'sent', errorCode: null, retryable: false }]);
   });
 
@@ -130,7 +130,7 @@ describe('운영 알림 요약 메일 본문', () => {
 
   it('범주가 하나뿐이면 그 범주만 제목·본문에 나온다', () => {
     const email = renderOpsAlertDigestEmail({ ...job, counts: { inquiries: 3, questions: 0, delayedInquiries: 0, delayedQuestions: 0, system: 0 }, systemTitles: [], delayed: [] }, 'https://iconsip.com');
-    expect(email.subject).toBe('[ICONS] 운영 알림 — 새 문의 3건');
+    expect(email.subject).toBe('[엑스스퀘어] 운영 알림 — 새 문의 3건');
     expect(email.text).not.toContain('시스템 장애');
     expect(email.text).not.toContain('답변 지연');
     expect(email.text).not.toContain('기다리는 문의 바로가기');

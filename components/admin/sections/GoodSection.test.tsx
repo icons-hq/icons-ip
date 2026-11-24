@@ -103,7 +103,7 @@ const good: AdminGoodRecord = {
     material: '아크릴',
     size: '80 x 60 x 20mm · 90g',
     madeOn: '2026-07',
-    asManager: '아이콘스 고객센터',
+    asManager: '엑스스퀘어 고객센터',
     asContact: '02-000-0000',
   },
   description: '붉은 실을 따라 놓인 아크릴 블록입니다.',

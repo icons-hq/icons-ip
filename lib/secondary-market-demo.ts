@@ -50,7 +50,7 @@ export const MARKET_LISTINGS: MarketListing[] = [
 
 /* 안전 거래 프로세스 — 시연 화면 하단 안내와 구매 다이얼로그 타임라인이 같은 순서를 공유한다. */
 export const ESCROW_STEPS = [
-  { no: '01', title: '검수센터 입고', desc: '판매 굿즈는 ICONS 검수센터로 먼저 보내요. 가품·상태를 확인해요.' },
+  { no: '01', title: '검수센터 입고', desc: '판매 굿즈는 엑스스퀘어 검수센터로 먼저 보내요. 가품·상태를 확인해요.' },
   { no: '02', title: '에스크로 결제', desc: '구매 대금은 에스크로에 보관되고, 검수 통과 후 배송돼요.' },
   { no: '03', title: '확정 후 정산', desc: '구매자가 수령을 확정하면 판매자에게 정산돼요.' },
 ] as const;

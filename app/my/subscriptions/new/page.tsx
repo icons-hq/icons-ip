@@ -7,7 +7,7 @@ import { loadMyCoupons } from '@/lib/coupons.server';
 import { loadSubscriptionOffers } from '@/lib/subscriptions/customer.server';
 import { subscriptionAvailability } from '@/lib/subscriptions/runtime.server';
 import { SubscriptionNew } from '@/components/screens/subscriptions/SubscriptionNew';
-export const metadata: Metadata = { title: '정기배송 신청 — ICONS', robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: '정기배송 신청 — 엑스스퀘어', robots: { index: false, follow: false } };
 export const maxDuration = 90;
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const auth = await getCurrentAuthState(); if (!auth.user) redirect('/login?next=%2Fmy%2Fsubscriptions%2Fnew');

@@ -54,7 +54,7 @@ function partiallyCanceled(balance: number, overrides: Record<string, unknown> =
     lastTransactionKey: 'CANCEL00000000000000000000000001',
     cancels: [{
       cancelAmount: ATTEMPT.amount - balance,
-      cancelReason: 'ICONS 반품 환불(반품배송비 차감)',
+      cancelReason: '엑스스퀘어 반품 환불(반품배송비 차감)',
       canceledAt: '2026-11-12T09:30:00+09:00',
       transactionKey: 'CANCEL00000000000000000000000001',
       cancelStatus: 'DONE',
@@ -104,7 +104,7 @@ function request(overrides: Partial<PaymentRefundRequest> = {}): PaymentRefundRe
     attempt: ATTEMPT,
     idempotencyKey: CANCEL_KEY,
     amount: 27_000,
-    reason: 'ICONS 반품 환불(반품배송비 차감)',
+    reason: '엑스스퀘어 반품 환불(반품배송비 차감)',
     providerPaymentKey: PAYMENT_KEY,
     partial: { expectedBalanceBefore: ATTEMPT.amount },
     ...overrides,
@@ -145,7 +145,7 @@ describe('토스 부분 취소', () => {
     // 취소마다 다른 멱등키(호출자가 준 값)와 취소 금액을 싣는다. 응답 본문은 판정에 쓰지 않는다.
     expect(toss.calls[1]).toMatchObject({
       idempotencyKey: CANCEL_KEY,
-      body: { cancelReason: 'ICONS 반품 환불(반품배송비 차감)', cancelAmount: 27_000 },
+      body: { cancelReason: '엑스스퀘어 반품 환불(반품배송비 차감)', cancelAmount: 27_000 },
     });
   });
 

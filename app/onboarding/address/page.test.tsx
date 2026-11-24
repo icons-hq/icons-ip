@@ -46,7 +46,7 @@ describe('/onboarding/address — 온보딩 뒤 배송지 등록 안내(건너�
   });
 
   it('검색에 노출하지 않는 개인 화면이다', () => {
-    expect(metadata).toMatchObject({ title: '배송지 등록 — ICONS', robots: { index: false, follow: false } });
+    expect(metadata).toMatchObject({ title: '배송지 등록 — 엑스스퀘어', robots: { index: false, follow: false } });
   });
 
   it('빈 주소록이면 안내를 보이고, 건너뛰면 갈 곳(next)은 안전한 경로로만 넘긴다', async () => {

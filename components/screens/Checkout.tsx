@@ -602,7 +602,7 @@ export function Checkout({
               return (
               <div className="checkout-item" data-sale-period-block={saleBlock ?? undefined} key={cartItemKey(goodId, variantId,customInputs)}>
                 <div>
-                  <span>{good ? (ip?.title ?? 'ICONS') : `${ip?.title ?? 'ICONS'} · 판매 종료`}</span>
+                  <span>{good ? (ip?.title ?? '엑스스퀘어') : `${ip?.title ?? '엑스스퀘어'} · 판매 종료`}</span>
                   <strong>{good?.name ?? goodId}</strong>
                   {optionName ? <span>{optionName}</span> : null}
                   <GoodsCustomInputsSummary selection={customInputs} />

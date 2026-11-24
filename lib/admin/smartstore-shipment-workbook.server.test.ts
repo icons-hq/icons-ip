@@ -33,7 +33,7 @@ async function load(bytes: Buffer) { const workbook = new ExcelJS.Workbook(); aw
 function value(sheet: ExcelJS.Worksheet, header: string, row = 2) { return sheet.getCell(row, HEADERS.indexOf(header) + 1); }
 async function exported() { return load((await buildShipmentExport({ shipments: [shipment] }, 'xlsx', 'smartstore')).bytes); }
 
-describe('ICONS 표준 양식 출고지시', () => {
+describe('엑스스퀘어 표준 양식 출고지시', () => {
   it('머리글 1행·공용 모양·화면 이름 시트로 쓰고 맨 뒤에 내려받기 정보를 둔다', async () => {
     const workbook = await exported();
     expect(workbook.worksheets.map(sheet => sheet.name)).toEqual(['발주(주문)확인 발송관리', '내려받기 정보']);
@@ -52,7 +52,7 @@ describe('ICONS 표준 양식 출고지시', () => {
     const lines = new Map<string, string[]>();
     info.eachRow(row => { const key = String(row.getCell(1).value); lines.set(key, [...(lines.get(key) ?? []), String(row.getCell(2).value)]); });
     expect(lines.get('화면')).toEqual(['발주(주문)확인/발송관리']);
-    expect(lines.get('양식')).toEqual(['ICONS 표준 양식']);
+    expect(lines.get('양식')).toEqual(['엑스스퀘어 표준 양식']);
     expect(lines.get('출고지')).toEqual(['김포']);
     expect(lines.get('건수')).toEqual(['1건 · 엑셀 1행']);
     expect(lines.get('안내')!.join(' ')).toContain('엑셀 일괄 운송장 등록');
@@ -199,7 +199,7 @@ describe('ICONS 표준 양식 출고지시', () => {
 
   it('운송장번호만 채운 파일을 안내 없이 그대로 회신으로 읽는다', async () => {
     const file = await buildShipmentExport({ shipments: [shipment] }, 'xlsx', 'smartstore');
-    expect(file.name).toMatch(/^icons-출고지시-\d{8}-\d{4}\.xlsx$/);
+    expect(file.name).toMatch(/^xsquare-출고지시-\d{8}-\d{4}\.xlsx$/);
     const downloaded = encryptAdminWorkbook(file.bytes, '1234');
     await expect(parseTrackingWorkbook(downloaded.bytes, carriers)).rejects.toThrow('파일 비밀번호를 입력');
     await expect(parseTrackingWorkbook(downloaded.bytes, carriers, '4321')).rejects.toThrow('맞지 않습니다');
@@ -271,15 +271,15 @@ describe('ICONS 표준 양식 출고지시', () => {
 
   it('CSV도 같은 열·같은 이름을 쓰고 수식처럼 보이는 값을 막는다', async () => {
     const file = await buildShipmentExport({ shipments: [shipment] }, 'csv', 'smartstore');
-    expect(file.name).toMatch(/^icons-출고지시-\d{8}-\d{4}\.csv$/);
+    expect(file.name).toMatch(/^xsquare-출고지시-\d{8}-\d{4}\.csv$/);
     const text = file.bytes.toString('utf8');
     expect(text.slice(1).split('\r\n')[0]).toBe(HEADERS.map(header => `"${header}"`).join(','));
     expect(text).toContain('"\'=합성 상품"');
     expect(text).toContain('"2026-10-20 01:30"');
     const gift = await buildShipmentExport({ shipments: [{ ...shipment, isGift: true }] }, 'csv', 'smartstore');
-    expect(gift.name).toMatch(/^icons-출고지시-\d{8}-\d{4}\.zip$/);
+    expect(gift.name).toMatch(/^xsquare-출고지시-\d{8}-\d{4}\.zip$/);
     const [instruction, operational] = Object.keys((await JSZip.loadAsync(gift.bytes)).files);
-    expect(instruction).toMatch(/^icons-출고지시-\d{8}-\d{4}\.csv$/);
-    expect(operational).toMatch(/^icons-배송운영안내-\d{8}-\d{4}\.csv$/);
+    expect(instruction).toMatch(/^xsquare-출고지시-\d{8}-\d{4}\.csv$/);
+    expect(operational).toMatch(/^xsquare-배송운영안내-\d{8}-\d{4}\.csv$/);
   });
 });

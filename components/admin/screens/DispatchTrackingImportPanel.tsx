@@ -88,7 +88,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
     <section className="flex min-w-0 flex-col gap-3 border-t p-3 text-sm leading-relaxed sm:p-4" aria-label="엑셀 일괄 운송장 등록">
       <h2 className="text-base font-medium text-foreground">엑셀 일괄 운송장 등록</h2>
       <p className={NOTE}>
-        내려받은 출고지시 파일(ICONS 표준 양식·김포 WMS 21열·남양주 송장양식)에 운송장을 채워 그대로 올리면 양식을 알아서 찾습니다.
+        내려받은 출고지시 파일(엑스스퀘어 표준 양식·김포 WMS 21열·남양주 송장양식)에 운송장을 채워 그대로 올리면 양식을 알아서 찾습니다.
         <strong className={STRONG}> 등록 전 확인</strong>으로 읽은 내용을 본 뒤 등록합니다. 한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
       </p>
 
@@ -113,7 +113,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           <span className={selectedFile ? 'min-w-0 break-all text-foreground' : NOTE} data-selected-file="" id="admin-dispatch-import-file-name">{selectedFile ? selectedFile.name : '선택한 파일 없음'}</span>
           {selectedFile ? <Button type="button" size="xs" variant="outline" disabled={pending} onClick={() => { setSelectedFile(null); invalidate(); if (fileInput.current) fileInput.current.value = ''; }}>파일 선택 해제</Button> : null}
         </div>
-        <p className={NOTE}>XLSX와 ICONS 표준 양식 CSV는 1MB, 그 밖의 CSV·TSV·텍스트와 붙여넣기는 256KB까지 등록합니다.</p>
+        <p className={NOTE}>XLSX와 엑스스퀘어 표준 양식 CSV는 1MB, 그 밖의 CSV·TSV·텍스트와 붙여넣기는 256KB까지 등록합니다.</p>
         <Label className="mt-1" htmlFor="admin-dispatch-import-file-password">파일 비밀번호</Label>
         <p className={NOTE} id="admin-dispatch-import-file-password-hint">비밀번호를 건 XLSX만 입력합니다. 파일을 내려받을 때 정한 비밀번호이며 저장하지 않습니다.</p>
         <Input
@@ -166,7 +166,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
 
       {state.report && state.report.failed.length > 0 ? (
         <div className="flex min-w-0 flex-col items-start gap-2">
-        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" download={`icons-운송장실패행-${kstFileStamp(new Date())}.csv`} href={`data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+[["줄","대상","사유"],...state.report.failed.map(row=>[String(row.line),row.reference,row.reason])].map(row=>row.map(cell=>`"${(/^[\s]*[=+\-@]/.test(cell)?"'":"")+cell.replaceAll('"','""')}"`).join(',')).join('\r\n'))}`}>실패 행 내려받기</a>
+        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" download={`xsquare-운송장실패행-${kstFileStamp(new Date())}.csv`} href={`data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+[["줄","대상","사유"],...state.report.failed.map(row=>[String(row.line),row.reference,row.reason])].map(row=>row.map(cell=>`"${(/^[\s]*[=+\-@]/.test(cell)?"'":"")+cell.replaceAll('"','""')}"`).join(',')).join('\r\n'))}`}>실패 행 내려받기</a>
         <div className="w-full rounded-lg border">
         <Table>
           <caption className="caption-top border-b px-2 py-2 text-left text-sm font-medium text-foreground">등록하지 못한 줄</caption>
@@ -220,13 +220,13 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
       ) : null}
 
       <details className={DISCLOSURE} data-tracking-import-guide="">
-        <summary>회신 양식 안내 (ICONS 표준 · 김포 WMS 21열 · 남양주 송장양식 · 기존 세 칸)</summary>
+        <summary>회신 양식 안내 (엑스스퀘어 표준 · 김포 WMS 21열 · 남양주 송장양식 · 기존 세 칸)</summary>
         <div className="mt-2 flex flex-col gap-2">
           <p className={NOTE}>
-            ICONS 표준 양식은 <strong className={STRONG}>상품주문번호 · 택배사 · 운송장번호</strong> 세 열을 읽습니다. 내려받은 파일에 택배사와 운송장번호를 채우고, XLSX 또는 내려받은 CSV로 올려주세요. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 위 <strong className={STRONG}>파일 비밀번호</strong>를 입력합니다.
+            엑스스퀘어 표준 양식은 <strong className={STRONG}>상품주문번호 · 택배사 · 운송장번호</strong> 세 열을 읽습니다. 내려받은 파일에 택배사와 운송장번호를 채우고, XLSX 또는 내려받은 CSV로 올려주세요. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 위 <strong className={STRONG}>파일 비밀번호</strong>를 입력합니다.
             시트 이름과 열 순서는 바꿔도 되고, 나머지 열은 그대로 두거나 지워도 됩니다. 이전에 내려받은 파일도 그대로 올릴 수 있습니다.
           </p>
-          <p className={NOTE}>상품주문번호는 ICONS 파일의 전체 번호를 유지해주세요. 택배 건만 등록할 수 있으며 퀵·방문수령·직접전달은 행의 인계·수령 확인에서 처리합니다. CSV를 Excel에서 열어 저장하면 긴 번호가 바뀌어 등록되지 않으니, Excel로 작업할 때는 XLSX를 받아 주세요.</p>
+          <p className={NOTE}>상품주문번호는 엑스스퀘어 파일의 전체 번호를 유지해주세요. 택배 건만 등록할 수 있으며 퀵·방문수령·직접전달은 행의 인계·수령 확인에서 처리합니다. CSV를 Excel에서 열어 저장하면 긴 번호가 바뀌어 등록되지 않으니, Excel로 작업할 때는 XLSX를 받아 주세요.</p>
           <p className={NOTE}>기존 <strong className={STRONG}>배송건번호 · 택배사코드 · 운송장번호</strong> 세 칸 XLSX·CSV·붙여넣기도 지원합니다. 단일 배송 주문은 주문번호도 사용할 수 있습니다.</p>
           <p className={NOTE}>
             택배사코드: {activeCodes.length
@@ -239,7 +239,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           </p>
           <ul className={`${NOTE} flex list-disc flex-col gap-1 pl-5`}>
             <li>
-              <strong className={STRONG}>김포 WMS 21열</strong> — 운송장번호 열을 채운 회신입니다. 주문번호(쇼핑몰)는 ICONS 출고 파일의 전체 주문번호를 유지해주세요.
+              <strong className={STRONG}>김포 WMS 21열</strong> — 운송장번호 열을 채운 회신입니다. 주문번호(쇼핑몰)는 엑스스퀘어 출고 파일의 전체 주문번호를 유지해주세요.
               같은 주문의 여러 상품 행은 한 배송 건으로 합치며, 서로 다른 운송장이 있으면 해당 주문 전체를 등록하지 않습니다.
               운송장 칸을 비운 주문은 아직 출고하지 않은 것으로 보고 건너뜁니다(한 주문의 일부 행만 비우면 그 주문은 등록하지 않습니다).
             </li>

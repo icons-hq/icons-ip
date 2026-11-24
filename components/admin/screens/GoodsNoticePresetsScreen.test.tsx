@@ -11,7 +11,7 @@ describe('상품정보제공고시 프리셋 관리 화면', () => {
       total: 1, filters: { query: '', page: 1 }, presets: [{
         id: 'preset-1', name: '아크릴 기본', updatedAt: '2026-09-08T01:00:00Z',
         kcTemplate:{family:'living',scheme:'not_applicable',publicNote:'합성 안내'},
-        notice: { maker: '아이콘스', origin: '대한민국', material: '아크릴', size: '80mm', madeOn: '2026-09', asManager: '아이콘스 고객센터', asContact: '02-000-0000' },
+        notice: { maker: '아이콘스', origin: '대한민국', material: '아크릴', size: '80mm', madeOn: '2026-09', asManager: '엑스스퀘어 고객센터', asContact: '02-000-0000' },
       }],
     }} />);
     for (const name of ['name', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize', 'noticeMadeOn', 'noticeAsManager', 'noticeAsContact']) {

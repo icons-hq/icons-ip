@@ -11,7 +11,7 @@ import { loadPublicDetailExperienceConfig } from '@/lib/product-detail-experienc
 import { getProfileAvatarPresentation } from '@/lib/profile-avatar.server';
 
 export const metadata: Metadata = {
-  title: '마이페이지 — ICONS',
+  title: '마이페이지 — 엑스스퀘어',
   description: '주문과 티켓, 카드 컬렉션, 계정 설정을 한곳에서 확인하세요.',
   robots: { index: false, follow: false },
 };

@@ -181,7 +181,7 @@ describe('bulk tracking action', () => {
     expect(await bulkRegisterAdminOrderTrackingAction({}, workbook)).toHaveProperty('errors.form');
     expect(mocks.rpc).not.toHaveBeenCalled(); expect(mocks.enqueue).not.toHaveBeenCalled();
   });
-  describe('ICONS 표준 양식 CSV 회신', () => {
+  describe('엑스스퀘어 표준 양식 CSV 회신', () => {
     const item='2026102120000001',second='2026102120000002';
     const csvForm=(text:string|Uint8Array,name='출고지시.csv')=>{const data=new FormData();data.set('file',new File([text as BlobPart],name));return data;};
     const header='상품주문번호,배송메시지,택배사,운송장번호';
@@ -238,7 +238,7 @@ describe('bulk tracking action', () => {
         mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: role }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture(role) });
         linkRpc(['s1','s1']);
         const result=await previewAdminOrderTrackingImportAction(csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
-        expect(result.preview).toMatchObject({format:'ICONS 표준 양식',ready:0,skipped:1,issueCount:1});
+        expect(result.preview).toMatchObject({format:'엑스스퀘어 표준 양식',ready:0,skipped:1,issueCount:1});
         expect(result.preview?.issues[0]).toMatchObject({line:2,reason:expect.stringContaining('같은 배송 건에 운송장이 빈 줄')});
         expect(mocks.rpc).toHaveBeenCalledWith('admin_tracking_reply_shipment_links',{p_references:expect.arrayContaining([item,second])});
         // 다른 배송 건이면 그대로 등록할 줄이다.

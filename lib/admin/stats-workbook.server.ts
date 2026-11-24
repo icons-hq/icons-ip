@@ -12,7 +12,7 @@ const SUMMARY_COLUMNS = [column('지표', 'text', 32), column('값', 'number')];
 
 export async function buildStatsWorkbook(source: Source, filters: AdminStatsFilters, generatedAt = new Date()) {
   const book = new ExcelJS.Workbook();
-  book.creator = 'ICONS'; book.created = generatedAt;
+  book.creator = '엑스스퀘어'; book.created = generatedAt;
   function sales(data: AdminSalesReport, goods: AdminSalesGoodsPage, active: AdminStatsFilters, prefix = '') {
     assertCompleteSalesGoodsExport(goods);
     addWorkbookTable(book, `${prefix}매출 추이`, [column('기간 시작일', 'date', 14), column('주문수', 'count'), column('매출', 'amount'), column('객단가', 'amount')], adminSalesTrend(data.daily, active, generatedAt).map(row => [row.date, row.orderCount, row.revenue, row.averageOrderValue]));

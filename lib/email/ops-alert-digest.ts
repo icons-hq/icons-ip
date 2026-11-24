@@ -41,7 +41,7 @@ export function renderOpsAlertDigestEmail(job: OpsAlertDigestJobContent, siteUrl
     delayed ? `답변 지연 ${n(delayed)}건` : '',
     counts.system ? `시스템 장애 ${n(counts.system)}건` : '',
   ].filter(Boolean);
-  const subject = `[ICONS] 운영 알림 — ${headline.join(' · ')}`;
+  const subject = `[엑스스퀘어] 운영 알림 — ${headline.join(' · ')}`;
   const stamp = kstStamp(job.createdAt);
   const link = (path: string) => `${siteUrl}${path}`;
 
@@ -62,9 +62,9 @@ export function renderOpsAlertDigestEmail(job: OpsAlertDigestJobContent, siteUrl
   if (counts.questions) sections.push({ title: `새 굿즈 Q&A ${n(counts.questions)}건`, lines: [], href: link(QUESTIONS_PATH), hrefLabel: '답변 없는 굿즈 Q&A 열기' });
 
   const delayedLinks = [...new Set(job.delayed.map((entry) => link(entry.href)))];
-  const footer = '이 메일은 ICONS 어드민의 운영 알림 메일 설정에 따라 보냅니다. 고객 이름·문의 내용은 담지 않으니 링크로 어드민에서 확인해주세요. 받지 않으려면 설정에서 주소를 빼주세요.';
+  const footer = '이 메일은 엑스스퀘어 어드민의 운영 알림 메일 설정에 따라 보냅니다. 고객 이름·문의 내용은 담지 않으니 링크로 어드민에서 확인해주세요. 받지 않으려면 설정에서 주소를 빼주세요.';
   const text = [
-    `${stamp ? `${stamp} 기준 ` : ''}ICONS 운영 알림입니다.`,
+    `${stamp ? `${stamp} 기준 ` : ''}엑스스퀘어 운영 알림입니다.`,
     '',
     ...sections.flatMap((section) => [`■ ${section.title}`, ...section.lines.map((line) => `- ${line}`), `  ${section.hrefLabel}: ${section.href}`, '']),
     ...(delayedLinks.length ? ['기다리는 문의 바로가기', ...delayedLinks.map((url) => `- ${url}`), ''] : []),
@@ -73,7 +73,7 @@ export function renderOpsAlertDigestEmail(job: OpsAlertDigestJobContent, siteUrl
     footer,
   ].join('\n');
   const html = `<h1 style="font-size:18px">${escapeHtml(subject)}</h1>`
-    + `<p>${escapeHtml(`${stamp ? `${stamp} 기준 ` : ''}ICONS 운영 알림입니다.`)}</p>`
+    + `<p>${escapeHtml(`${stamp ? `${stamp} 기준 ` : ''}엑스스퀘어 운영 알림입니다.`)}</p>`
     + sections.map((section) => `<h2 style="font-size:15px;margin:16px 0 4px">${escapeHtml(section.title)}</h2>`
       + (section.lines.length ? `<ul>${section.lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>` : '')
       + `<p><a href="${escapeHtml(section.href)}">${escapeHtml(section.hrefLabel)}</a></p>`).join('')

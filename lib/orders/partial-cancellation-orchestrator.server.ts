@@ -7,9 +7,9 @@ import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dis
 import { parseOrderPartialCancellationServiceRow, type OrderPartialCancellationServiceRow } from './partial-cancellation';
 
 /** 토스 cancelReason(≤200자). */
-export const ORDER_PARTIAL_CANCEL_REFUND_REASON = 'ICONS 재고 부족 부분 취소';
+export const ORDER_PARTIAL_CANCEL_REFUND_REASON = '엑스스퀘어 재고 부족 부분 취소';
 /** 부분 반품(ADR-0047)의 토스 cancelReason. 같은 부분 환불 원장·같은 확인 경로를 쓰고 사유 문구만 다르다. */
-export const ORDER_PARTIAL_RETURN_REFUND_REASON = 'ICONS 부분 반품 환불';
+export const ORDER_PARTIAL_RETURN_REFUND_REASON = '엑스스퀘어 부분 반품 환불';
 
 /**
  * 결제사 취소 결과로 닫지 못한 사유. 게이트웨이 사유 코드(`provider_*`)는 그대로 남기고(운영자가 런북 조치를 고른다),

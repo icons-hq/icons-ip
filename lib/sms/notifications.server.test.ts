@@ -54,7 +54,7 @@ describe('sendMemberSms', () => {
     expect(await sendMemberSms({ userId: USER_ID, kind: 'advertising', body: '새 굿즈가 나왔어요.', now: DAYTIME }, h.deps))
       .toEqual({ sent: true, providerMessageId: 'p-1' });
     expect(h.rpc).toHaveBeenCalledWith('service_member_sms_recipient', { p_user_id: USER_ID, p_purpose: 'advertising' });
-    expect(h.sent).toEqual([{ to: '+821012345678', text: '(광고)ICONS\n새 굿즈가 나왔어요.\n무료수신거부 080-000-0000', purpose: 'advertising' }]);
+    expect(h.sent).toEqual([{ to: '+821012345678', text: '(광고)엑스스퀘어\n새 굿즈가 나왔어요.\n무료수신거부 080-000-0000', purpose: 'advertising' }]);
   });
 
   it('refuses advertising at night or without an opt-out notice before looking up anyone', async () => {
@@ -73,7 +73,7 @@ describe('sendMemberSms', () => {
     const h = harness({ data: { ok: true, phoneE164: '+819012345678', smsConsentAgreedAt: null }, error: null });
 
     expect((await sendMemberSms({ userId: USER_ID, kind: 'transactional', body: '주문하신 굿즈를 보냈어요.', now: NIGHT }, h.deps)).sent).toBe(true);
-    expect(h.sent[0]?.text).toBe('[ICONS] 주문하신 굿즈를 보냈어요.');
+    expect(h.sent[0]?.text).toBe('[엑스스퀘어] 주문하신 굿즈를 보냈어요.');
     expect(h.sent[0]?.text).not.toContain('(광고)');
   });
 
@@ -99,6 +99,6 @@ describe('advertising helpers', () => {
   });
 
   it('builds the advertising text in the legal order', () => {
-    expect(advertisingSmsText('본문', '무료수신거부 080')).toBe('(광고)ICONS\n본문\n무료수신거부 080');
+    expect(advertisingSmsText('본문', '무료수신거부 080')).toBe('(광고)엑스스퀘어\n본문\n무료수신거부 080');
   });
 });

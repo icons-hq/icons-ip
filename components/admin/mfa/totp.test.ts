@@ -33,7 +33,7 @@ describe('인증 앱 브라우저 흐름', () => {
     if (!listed.ok) throw new Error('listed');
     const result = await startTotpEnrollment(client, listed.value, new Date('2026-11-18T03:04:05Z'));
     expect(mfa.unenroll.mock.calls).toEqual([[{ factorId: 'u1' }]]);
-    expect(mfa.enroll).toHaveBeenCalledWith({ factorType: 'totp', friendlyName: 'ICONS 어드민 2026-11-18 03:04:05', issuer: 'ICONS 어드민' });
+    expect(mfa.enroll).toHaveBeenCalledWith({ factorType: 'totp', friendlyName: '엑스스퀘어 어드민 2026-11-18 03:04:05', issuer: '엑스스퀘어 어드민' });
     expect(result).toEqual({ ok: true, value: { factorId: 'new', qrCode: 'data:image/svg+xml;utf-8,<svg/>', secret: 'SECRET' } });
   });
 

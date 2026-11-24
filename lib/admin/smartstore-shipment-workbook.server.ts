@@ -32,7 +32,7 @@ function detail(line: ShipmentExportLine): SmartStoreShipmentDetail {
   if (!value || !isUuid(value.itemId) || !isCommerceNumber(value.orderNumber, 'order')
     || !isCommerceNumber(value.productOrderNumber, 'item') || !isCommerceNumber(value.shipmentNumber, 'shipment') || !value.goodId || !value.orderedAt
     || !Number.isSafeInteger(line.qty) || line.qty < 1 || unitPrice !== null && (!Number.isSafeInteger(unitPrice) || unitPrice < 0)) {
-    throw new Error('ICONS 표준 양식의 상품주문 정보를 확인하지 못했습니다. 목록을 새로고침해주세요.');
+    throw new Error('엑스스퀘어 표준 양식의 상품주문 정보를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   }
   if (unitPrice !== null && !Number.isSafeInteger(line.qty * unitPrice)) throw new Error('상품주문 금액 기록을 읽지 못해 파일을 만들지 않았습니다. 목록을 새로고침해 다시 내려받고, 계속되면 개발 담당자에게 알려주세요.');
   // The discount can also include a promotion from the historical regular price.
@@ -89,14 +89,14 @@ function writeSupplement(workbook: ExcelJS.Workbook, supplement: NonNullable<Ret
 function instructionInfoLines(data: ShipmentExportData, rowCount: number, generatedAt: Date, recipientOnly = false): [string, string][] {
   return [
     ['화면', ADMIN_LIST_EXPORT_SCREENS.dispatch.label],
-    ['양식', 'ICONS 표준 양식'],
+    ['양식', '엑스스퀘어 표준 양식'],
     ['출고지', [...new Set(data.shipments.map(shipment => shipment.originName))].join(', ')],
     ['내려받은 시각 (KST)', kstDateTimeText(generatedAt.toISOString())],
     ['건수', `${data.shipments.length.toLocaleString('ko-KR')}건 · 엑셀 ${rowCount.toLocaleString('ko-KR')}행`],
     ['안내', '한 행은 상품주문 한 개입니다. 배송비는 같은 배송건번호의 첫 행에 한 번만 기록합니다. 기록되지 않은 금액·날짜는 빈칸입니다.'],
     ['안내', '바코드·ERP 품명은 옵션에 등록된 값입니다(주문 당시 값이 있으면 그 값). 등록되지 않은 옵션은 빈칸입니다.'],
     ['안내', '운송장 회신은 택배사와 운송장번호를 채운 뒤 이 XLSX(또는 내려받은 CSV)를 발주·발송 관리의 "엑셀 일괄 운송장 등록"에 올립니다. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 "파일 비밀번호" 칸에 입력합니다. 상품주문번호는 전체 번호를 유지해주세요.'],
-    ['안내', '택배사는 ICONS에 등록된 이름 또는 코드를, 운송장번호는 실제 발급된 8~30자리 영숫자를 텍스트로 입력합니다. 같은 배송 건의 상품은 같은 택배사와 운송장번호로 등록합니다.'],
+    ['안내', '택배사는 엑스스퀘어에 등록된 이름 또는 코드를, 운송장번호는 실제 발급된 8~30자리 영숫자를 텍스트로 입력합니다. 같은 배송 건의 상품은 같은 택배사와 운송장번호로 등록합니다.'],
     ['안내', recipientOnly ? '퀵서비스·방문수령·직접전달은 발주·발송 관리 목록의 인계·수령 확인에서 처리합니다.' : '퀵서비스·방문수령·직접전달은 주문 상세의 인계·수령 확인에서 처리합니다.'],
     ['안내', '합포장·선물·착불 조건이 있으면 별도 배송 운영 안내도 확인해주세요. 선물 주문의 배송 안내는 수취인 연락처를 이용하고, 내부 출고 파일을 수령인에게 동봉하지 마세요.'],
     ['개인정보', '개인정보가 담긴 파일입니다. 업무 목적 밖으로 공유하지 말고, 확인이 끝나면 삭제해주세요.'],
@@ -124,14 +124,14 @@ export async function buildSmartStoreShipmentExport(data: ShipmentExportData, fi
     const csv = shipmentExportRowsCsv(ICONS_INSTRUCTION_COLUMNS.map(column => column.header), rows.map(row => row.map(value => value ?? '')));
     if (supplement) {
       const zip = new JSZip(), stamp = kstFileStamp(generatedAt);
-      zip.file(`icons-출고지시-${stamp}.csv`, csv);
-      zip.file(`icons-배송운영안내-${stamp}.csv`, shipmentExportRowsCsv(supplement.headers, supplement.rows));
+      zip.file(`xsquare-출고지시-${stamp}.csv`, csv);
+      zip.file(`xsquare-배송운영안내-${stamp}.csv`, shipmentExportRowsCsv(supplement.headers, supplement.rows));
       return { bytes: await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }), mime: 'application/zip', extension: 'zip' };
     }
     return { bytes: Buffer.from(csv, 'utf8'), mime: 'text/csv;charset=utf-8', extension: 'csv' };
   }
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'ICONS';
+  workbook.creator = '엑스스퀘어';
   workbook.created = generatedAt;
   workbook.modified = generatedAt;
   addWorkbookTable(workbook, listExportSheetName(ADMIN_LIST_EXPORT_SCREENS.dispatch.label), ICONS_INSTRUCTION_COLUMNS, rows);

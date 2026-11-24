@@ -5,7 +5,7 @@ import { adminMfaPath } from '@/lib/admin/mfa';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 
 export const metadata: Metadata = {
-  title: '티켓 검표 — ICONS',
+  title: '티켓 검표 — 엑스스퀘어',
   robots: { index: false, follow: false },
 };
 

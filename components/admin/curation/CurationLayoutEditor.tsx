@@ -19,7 +19,7 @@ const LABELS: Record<string, string> = {
   hero: '프로모션 배너', editor_picks: 'IP 바로가기(추천 콘텐츠)', new_arrivals: 'NEW ARRIVAL(최신 상품 자동)', strip_banner: '홈 스트립 배너',
   category_best: '카테고리 BEST', popular: '인기템', benefits: '혜택', stories: '쇼핑스토리',
 };
-const BAND_LABEL = 'ICONS PICK 카드(기획전)';
+const BAND_LABEL = 'X SQUARE PICK 카드(기획전)';
 
 export function CurationLayoutEditor({ layout, operationId, preview, records, device, onDirty, onSaved }: {
   layout: AdminHomeLayout; operationId: string; preview: CurationPublicPreview; records: AdminCurationRecord[];
@@ -74,7 +74,7 @@ export function CurationLayoutEditor({ layout, operationId, preview, records, de
       <input name="operationId" type="hidden" value={operationId} />
       <input name="expectedRevision" type="hidden" value={layout.revision} />
       <input name="blocks" type="hidden" value={JSON.stringify(blocks)} />
-      <header className="flex flex-col gap-2 border-b px-4 py-5 sm:px-5"><h3 className="text-base font-medium">홈 영역 순서·노출</h3><p className="text-xs leading-relaxed text-muted-foreground">영역을 위아래로 옮기고 홈 노출을 설정하세요. 기획전·판매량 BEST·베스트리뷰·자유상품·모자이크는 각각 배치할 수 있습니다. 연달아 놓은 기획전은 홈에서 &apos;ICONS PICK&apos; 한 줄(3장)로 묶여 보입니다.</p></header>
+      <header className="flex flex-col gap-2 border-b px-4 py-5 sm:px-5"><h3 className="text-base font-medium">홈 영역 순서·노출</h3><p className="text-xs leading-relaxed text-muted-foreground">영역을 위아래로 옮기고 홈 노출을 설정하세요. 기획전·판매량 BEST·베스트리뷰·자유상품·모자이크는 각각 배치할 수 있습니다. 연달아 놓은 기획전은 홈에서 &apos;X SQUARE PICK&apos; 한 줄(3장)로 묶여 보입니다.</p></header>
       <fieldset className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible" disabled={pending}>
         <ol className="flex flex-col px-4 py-3 sm:px-5">{blocks.map((block, index) => {
           const label = labels.get(block.key) ?? LABELS[block.key] ?? BAND_LABEL;

@@ -7,7 +7,7 @@ import { loadCouponCombinationPolicy } from '@/lib/coupon-combinations.server';
 import { loadMyCoupons } from '@/lib/coupons.server';
 
 export const metadata: Metadata = {
-  title: '쿠폰함 — ICONS',
+  title: '쿠폰함 — 엑스스퀘어',
   description: '보유한 쿠폰과 사용·만료 내역을 확인합니다.',
   robots: { index: false, follow: false },
 };

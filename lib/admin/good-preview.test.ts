@@ -33,7 +33,7 @@ const values = {
   noticeMaterial: '아크릴',
   noticeSize: '80 x 60 x 20mm · 90g',
   noticeMadeOn: '2026-07',
-  noticeAsManager: '아이콘스 고객센터',
+  noticeAsManager: '엑스스퀘어 고객센터',
   noticeAsContact: '02-000-0000',
 };
 

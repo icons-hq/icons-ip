@@ -14,7 +14,7 @@ import { buildOrderStatement, statementUnavailableMessage } from '@/lib/orders/s
 
 /* 거래명세서는 주문자 개인정보(이름·이메일)와 사업자 정보를 담은 개인 문서라 색인하지 않는다. */
 export const metadata: Metadata = {
-  title: '거래명세서 — ICONS',
+  title: '거래명세서 — 엑스스퀘어',
   description: '주문 한 건의 거래 내용을 확인하고 인쇄할 수 있어요.',
   robots: { index: false, follow: false },
 };

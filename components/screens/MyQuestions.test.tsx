@@ -59,7 +59,7 @@ describe('MyQuestions', () => {
     })]);
 
     expect(html).toContain('답변 완료');
-    expect(html).toContain('ICONS 답변');
+    expect(html).toContain('엑스스퀘어 답변');
     expect(html).toContain('다음 주 화요일 재입고 예정입니다.');
   });
 

@@ -21,7 +21,7 @@ import { loadMyOrderPaymentDisplay } from '@/lib/orders/payment-display.server';
 import { ORDER_RECEIPT_NOTICE_PARAM, ORDER_RECEIPT_NOTICE_UNAVAILABLE } from '@/lib/orders/receipt';
 
 export const metadata: Metadata = {
-  title: '주문 상세 — ICONS',
+  title: '주문 상세 — 엑스스퀘어',
   description: '주문한 굿즈, 배송지, 결제와 카드팩 발급 내역을 확인하세요.',
 };
 

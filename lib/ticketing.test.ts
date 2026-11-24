@@ -97,7 +97,7 @@ describe('ticket checkout state', () => {
     const bounded = ticketOrderName('가'.repeat(100), '오후 회차');
     expect(bounded).toHaveLength(100);
     expect(bounded.endsWith(' · 오후 회차')).toBe(true);
-    expect(ticketOrderName(' ', ' ')).toBe('ICONS 티켓');
+    expect(ticketOrderName(' ', ' ')).toBe('엑스스퀘어 티켓');
   });
 });
 
@@ -117,7 +117,7 @@ function ticketOrder(overrides: Partial<TicketOrderListItem> = {}): TicketOrderL
     createdAt: '2026-07-14T02:00:00.000Z',
     startsAt: '2026-07-25T05:00:00.000Z',
     endsAt: '2026-07-25T08:00:00.000Z',
-    location: '성수 ICONS 팝업',
+    location: '성수 엑스스퀘어 팝업',
     ticketStatuses: ['valid', 'valid'],
     cancellationRequest: null,
     refund: null,

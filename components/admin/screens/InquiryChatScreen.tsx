@@ -46,8 +46,8 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
     ? { id: detail.order.id, orderNumber: detail.order.orderNumber, status: detail.order.status, title: detail.order.leadItemName, quantity: detail.order.itemCount, amount: detail.order.total }
     : purchase?.linkedOrder ?? null;
   const linkedKnown = canReadOrders || Boolean(purchase);
-  return <section className={`@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm print:h-auto ${INQUIRY_LIVE_CLASS} [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:p-2`} data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
-    <div className="sr-only"><strong>ICONS 고객 상담</strong><span>문의 내용과 답변은 ICONS 고객에게 표시됩니다.</span></div>
+  return <section className={`@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm print:h-auto ${INQUIRY_LIVE_CLASS} [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:p-2`} data-selected={selected ? 'true' : 'false'} aria-label="엑스스퀘어 실시간 상담">
+    <div className="sr-only"><strong>엑스스퀘어 고객 상담</strong><span>문의 내용과 답변은 엑스스퀘어 고객에게 표시됩니다.</span></div>
     <InquiryLiveUpdates audience="staff" />
     <div className={`flex min-h-0 flex-1 flex-col print:block! print:overflow-visible! @max-2xl/chat:group-data-[selected=true]/chat:overflow-y-auto @2xl/chat:grid @2xl/chat:grid-cols-[16rem_minmax(0,1fr)] @2xl/chat:grid-rows-[minmax(0,1fr)] @2xl/chat:overflow-hidden ${detail ? '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)_18rem]' : '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)]'}`}>
       <aside className="flex min-h-0 min-w-0 flex-1 flex-col bg-background @max-2xl/chat:group-data-[selected=true]/chat:hidden @2xl/chat:border-r print:hidden!" aria-label="대화 목록">

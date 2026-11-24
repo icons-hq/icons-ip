@@ -284,8 +284,8 @@ describe('/shop/[goodId] page', () => {
     const block = await generateMetadata({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) });
     const keyring = await generateMetadata({ params: Promise.resolve({ goodId: 'g14' }), searchParams: Promise.resolve({}) });
 
-    expect(block.title).toBe('아크릴 블록 — ICONS');
-    expect(keyring.title).toBe('오로라 아크릴 키링 — ICONS');
+    expect(block.title).toBe('아크릴 블록 — 엑스스퀘어');
+    expect(keyring.title).toBe('오로라 아크릴 키링 — 엑스스퀘어');
     expect(block.description).toContain('아크릴 블록');
   });
 
@@ -303,7 +303,7 @@ describe('/shop/[goodId] page', () => {
       const metadata = await generateMetadata({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) });
 
       expect(metadata.openGraph).toMatchObject({
-        siteName: 'ICONS', title: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
+        siteName: '엑스스퀘어', title: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
         images: [{ url: 'https://iconsip.test/generated/goods/g13.png', alt: '아크릴 블록' }],
       });
       /* og:type=product 와 og:price:* 는 property 속성이어야 수집기가 읽는다 — metadata(other 는 name 속성)로 내지 않는다. */
@@ -359,7 +359,7 @@ describe('/shop/[goodId] page', () => {
     expect(html).toContain(`href="/login?next=${encodeURIComponent('/shop/g15')}"`);
     expect(html).not.toContain('한정 아크릴 스탠드');
     expect(html).not.toContain('application/ld+json');
-    expect(metadata).toEqual({ title: '19금 굿즈 — ICONS', robots: { index: false, follow: false } });
+    expect(metadata).toEqual({ title: '19금 굿즈 — 엑스스퀘어', robots: { index: false, follow: false } });
   });
 
   it('로그인한 인증 전 회원은 19금 굿즈 안내에서 성인 인증으로 바로 보낸다', async () => {
@@ -395,7 +395,7 @@ describe('/shop/[goodId] page', () => {
     const general = await generateMetadata({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) });
 
     expect(mocks.goodDetail.mock.calls[0]?.[0]?.detail).toMatchObject({ good: { id: 'g15', saleRestriction: 'adult' } });
-    expect(adult.title).toBe('한정 아크릴 스탠드 — ICONS');
+    expect(adult.title).toBe('한정 아크릴 스탠드 — 엑스스퀘어');
     expect(adult.robots).toEqual({ index: false, follow: false });
     expect(general).not.toHaveProperty('robots');
   });

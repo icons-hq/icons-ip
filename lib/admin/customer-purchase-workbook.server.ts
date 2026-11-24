@@ -13,7 +13,7 @@ const COLUMNS = [
 ];
 
 export async function buildCustomerPurchaseWorkbook(data: CustomerPurchaseReport, filters: CustomerPurchaseFilters, generatedAt = new Date()) {
-  const workbook = new ExcelJS.Workbook(); workbook.creator = 'ICONS'; workbook.created = generatedAt;
+  const workbook = new ExcelJS.Workbook(); workbook.creator = '엑스스퀘어'; workbook.created = generatedAt;
   function rows(period: CustomerPurchasePeriod, label: string) {
     const all = period.rows.find(row => row.group === 'all')!;
     return period.rows.map(row => [label, period.from, period.to, CUSTOMER_PURCHASE_GROUP_LABEL[row.group], row.customerCount,

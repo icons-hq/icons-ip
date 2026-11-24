@@ -5,7 +5,7 @@ import { ADMIN_MFA_PATH, safeAdminNextPath } from '@/lib/admin/mfa';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 
 export const metadata: Metadata = {
-  title: '2단계 인증 — ICONS 어드민',
+  title: '2단계 인증 — 엑스스퀘어 어드민',
   robots: { index: false, follow: false },
 };
 

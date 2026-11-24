@@ -65,7 +65,7 @@ type OptionUsage = 'on' | 'off';
 
 const EMPTY_AXES: GoodsOptionAxis[] = Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, () => ({ name: '', values: '' }));
 const EMPTY_BULK: GoodsOptionBulkInput = { extraPrice: '', stockQty: '', isActive: '' };
-const STOCK_GUIDANCE = 'ICONS에서 판매할 수량이며 주문하면 차감됩니다. 비워 두면 저장되지 않으니 재고가 없으면 0을 입력합니다. 안전재고는 부족 알림 기준입니다.';
+const STOCK_GUIDANCE = '엑스스퀘어에서 판매할 수량이며 주문하면 차감됩니다. 비워 두면 저장되지 않으니 재고가 없으면 0을 입력합니다. 안전재고는 부족 알림 기준입니다.';
 const AUTO_CODE = '저장 시 자동 생성';
 /* 머리글 아래 작은 줄: 사람이 넣는 칸인지 시스템이 만드는 칸인지와 어디에 찍히는지(ADR-0048). */
 const HEAD_HINT_CLASS = 'block font-normal text-[11px] leading-snug';

@@ -142,7 +142,7 @@ describe('/my/wishlist page', () => {
 
   it('keeps the personal list out of search indexes', () => {
     expect(metadata).toMatchObject({
-      title: '위시리스트 — ICONS',
+      title: '위시리스트 — 엑스스퀘어',
       robots: { index: false, follow: false },
     });
   });

@@ -17,7 +17,7 @@ import { CategorySheetTabs } from './CategorySheetTabs';
 import { useOverlayA11y } from './useOverlayA11y';
 
 /* 바로가기 아이콘은 라우트 데이터가 아니라 표면의 표현이라 여기서 고정한다(BottomTabBar 와 같은 규율).
-   ICONS 아이콘 세트에서 목적지로 고른다 — 레퍼런스 일러스트를 쓰지 않는다(ADR-0011). */
+   엑스스퀘어 아이콘 세트에서 목적지로 고른다 — 레퍼런스 일러스트를 쓰지 않는다(ADR-0011). */
 const SHORTCUT_ICONS: Record<string, string> = {
   shop: 'shop',
   new: 'spark',

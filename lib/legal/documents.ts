@@ -38,6 +38,12 @@ import {
   virtualAccountTermsRevisionInEffect,
   type VirtualAccountTermsRevision,
 } from './virtual-account-terms-revision';
+import {
+  BRAND_NAME_REVISION,
+  brandNameRevisionAnnounced,
+  brandNameRevisionInEffect,
+  type BrandNameRevision,
+} from './brand-name-revision';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -677,6 +683,37 @@ function applyVirtualAccountTermsRevision(
   }
 }
 
+/* 2026-11 예약 개정(이용약관) — 서비스 이름을 ICONS에서 엑스스퀘어로(lib/legal/brand-name-revision.ts). 제1조의 회사·서비스 표기만
+ * 바뀐다(문서 이름은 조문이 아니어서 개인정보처리방침과 같이 바로 '엑스스퀘어 이용약관'이다). 앵커는 다른 예약 개정이 바꾸지 않는 제1조 첫 문장이라 어느 순서로도 시행일 상태를 만들 수 있고, 정확히 한 번이
+ * 아니면 시행일 상태를 만드는 순간 던진다. */
+const BRAND_NAME_TERMS_EDIT = {
+  from: '이 약관은 ICONS(이하 "회사")가 운영하는 온라인 서비스 ICONS(이하 "서비스")에서',
+  to: '이 약관은 주식회사 아이콘스(이하 "회사")가 운영하는 온라인 서비스 엑스스퀘어(이하 "서비스")에서',
+} as const;
+const BRAND_NAME_CHANGES = [
+  '개정 사유 — 서비스 이름을 ICONS에서 엑스스퀘어로 바꿉니다. 서비스를 운영하는 회사(주식회사 아이콘스)와 서비스 내용·이용조건은 바뀌지 않습니다.',
+  '제1조(목적)의 회사 표기를 법인 상호(주식회사 아이콘스)로, 서비스 이름을 엑스스퀘어로 고쳐 씁니다.',
+];
+
+/** 서비스 이름 개정을 날짜(KST)에 맞춰 약관에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
+function applyBrandNameRevision(document: LegalDocument, today: string, revision: BrandNameRevision | null): void {
+  if (revision && brandNameRevisionInEffect(today, revision)) {
+    const result = replaceInArticles(document.articles, BRAND_NAME_TERMS_EDIT.from, BRAND_NAME_TERMS_EDIT.to);
+    if (result.count !== 1) throw new Error('brand_name_terms_anchor_changed');
+    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
+    document.articles = result.articles;
+    document.effectiveDate = revision.effectiveDate;
+    document.revisionChanges = BRAND_NAME_CHANGES;
+  } else if (revision && brandNameRevisionAnnounced(today, revision)) {
+    addPendingRevision(document, {
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
+      heading: '서비스 이름(엑스스퀘어) 변경에 따른 개정 예정 안내',
+      changes: BRAND_NAME_CHANGES,
+    });
+  }
+}
+
 /** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
 export function createLegalDocuments(
   businessInfo:BusinessInfo=BUSINESS_INFO,
@@ -691,10 +728,12 @@ export function createLegalDocuments(
     partialReturnRevision = PARTIAL_RETURN_TERMS_REVISION,
     alimtalkPrivacyRevision = ALIMTALK_PRIVACY_REVISION,
     virtualAccountRevision = VIRTUAL_ACCOUNT_TERMS_REVISION,
+    brandNameRevision = BRAND_NAME_REVISION,
   }: {
     partialReturnRevision?: PartialReturnTermsRevision | null;
     alimtalkPrivacyRevision?: AlimtalkPrivacyRevision | null;
     virtualAccountRevision?: VirtualAccountTermsRevision | null;
+    brandNameRevision?: BrandNameRevision | null;
   } = {},
 ) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
@@ -731,7 +770,7 @@ const SETTINGS_UNEDITABLE_NOTICE = HAS_CONTACT
 
 const terms: LegalDocument = {
   slug: 'terms',
-  title: 'ICONS 이용약관',
+  title: '엑스스퀘어 이용약관',
   navLabel: LEGAL_DOCUMENT_LABELS.terms,
   summary: '굿즈 구매, 카드팩과 카드, 팝업 티켓, 커뮤니티 이용에 적용되는 회사와 이용자의 권리·의무를 정합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.terms,
@@ -1015,9 +1054,9 @@ const terms: LegalDocument = {
 
 const privacy: LegalDocument = {
   slug: 'privacy',
-  title: 'ICONS 개인정보처리방침',
+  title: '엑스스퀘어 개인정보처리방침',
   navLabel: LEGAL_DOCUMENT_LABELS.privacy,
-  summary: 'ICONS가 실제로 수집하는 항목, 이용 목적, 보유 기간, 처리위탁과 국외 이전, 이용자의 권리 행사 방법을 안내합니다.',
+  summary: '엑스스퀘어가 실제로 수집하는 항목, 이용 목적, 보유 기간, 처리위탁과 국외 이전, 이용자의 권리 행사 방법을 안내합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.privacy,
   articles: [
     {
@@ -1356,7 +1395,7 @@ const shipping: LegalDocument = {
 applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
 applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
-/* 알림톡·부분 반품·가상계좌(계좌이체 포함) 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
+/* 알림톡·부분 반품·가상계좌(계좌이체 포함)·서비스 이름 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
    이전 판(previousVersion)이 직전 시행 본문을 담는다. 시행일이 같으면 아래 나열 순서다(Array.sort는 안정 정렬). 세 개정의 앵커는
    서로가 바꾸는 문장·행을 쓰지 않으므로 어느 순서로도 본문을 만들 수 있다. 회사 계좌 무통장 입금 본문은 그대로다. */
 const NO_REVISION = '9999-12-31';
@@ -1379,6 +1418,10 @@ const scheduledRevisions: { effectiveDate: string; apply: () => void }[] = [
       applyVirtualAccountTermsRevision(privacy, 'privacy', today, virtualAccountRevision);
       applyVirtualAccountTermsRevision(shipping, 'shipping', today, virtualAccountRevision);
     },
+  },
+  {
+    effectiveDate: brandNameRevision?.effectiveDate ?? NO_REVISION,
+    apply: () => applyBrandNameRevision(terms, today, brandNameRevision),
   },
 ];
 for (const revision of [...scheduledRevisions].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))) revision.apply();

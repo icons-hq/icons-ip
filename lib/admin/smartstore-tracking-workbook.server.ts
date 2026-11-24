@@ -131,7 +131,7 @@ function parseReplyTable(table: ReplyTable, carriers: ShippingCarrierRegistry): 
     const trackingNumber = normalizeTrackingNumber(rawTracking);
     const method = methodCell.value.replace(/\s/g, '');
     const reason = cells.find(cell => cell.error)?.error ?? table.rowProblem(line, inputColumns, headerRow)
-      ?? (!isUuid(reference) && !isCommerceNumber(reference, 'item') ? '상품주문번호에 ICONS 출고 파일의 전체 상품주문번호를 유지해주세요.' : undefined)
+      ?? (!isUuid(reference) && !isCommerceNumber(reference, 'item') ? '상품주문번호에 엑스스퀘어 출고 파일의 전체 상품주문번호를 유지해주세요.' : undefined)
       ?? (method && !ICONS_REPLY_PARCEL_METHODS.includes(method) ? '퀵·방문수령·직접전달은 주문 상세에서 처리해주세요. 엑셀로는 택배만 등록할 수 있습니다.' : undefined)
       ?? (rawCarrier && !carrier ? `등록되지 않은 택배사입니다: ${rawCarrier}` : rawCarrier && carrier && !carrier.active ? `지금 사용하지 않는 택배사입니다: ${carrier.label}` : undefined);
     // 운송장 칸만 비운 줄은 아직 출고하지 않은 것으로 보고 건너뛴다(김포 회신과 같은 기준, QA 라운드 1b). 실패로 세지 않는다.

@@ -232,7 +232,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
       </div></section>
     ) : curation.shoppingStories?.length ? <HomeShoppingStories stories={curation.shoppingStories} /> : null,
     /* 혜택 밴드는 카드팩·게임만의 밴드가 아니다(12 LD-15) — 제목을 목적지와 무관한 '혜택'으로 두어 게이트가
-       꺼진 배포에서 카드 리워드라는 말이 새지 않게 한다. 타일 아이콘은 목적지에서 고른 ICONS 아이콘이다(HM-07). */
+       꺼진 배포에서 카드 리워드라는 말이 새지 않게 한다. 타일 아이콘은 목적지에서 고른 엑스스퀘어 아이콘이다(HM-07). */
     benefits: hasBenefit ? (
       <section aria-labelledby="home-benefit-heading" className="wc-home__band wc-home__band--grey">
         <div className="wc-container wc-container--wide">
@@ -278,7 +278,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
   const order = curation.layoutOrder ?? defaultHomeBlockKeys(curation.goodsBands.map((band) => band.id), rankingKeys);
   const visible = [...new Set(order)].filter((key) => blocks[key]);
   /* 보일 키를 순서대로 훑으며 연달아 오는 기획전(band:)을 한 그룹으로 묶는다 — 그룹은 'ICONS PICK' 한 섹션이고 그룹의 첫 키가 React key 다.
-     사이에 다른 블록이 끼면 그룹이 갈라져 각자 ICONS PICK 섹션이 된다. */
+     사이에 다른 블록이 끼면 그룹이 갈라져 각자 X SQUARE PICK 섹션이 된다. */
   const sections: ReactNode[] = [];
   for (let index = 0; index < visible.length; index += 1) {
     const key = visible[index];
@@ -306,7 +306,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
     <main className="wc-root wc-home">
       {refreshScheduledContent && announcementPopup ? <HomeAnnouncementPopup data={announcementPopup} /> : null}
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={goods} /> : null}
-      <h1 className="wc-sr-only">ICONS 홈</h1>
+      <h1 className="wc-sr-only">엑스스퀘어 홈</h1>
       {common.showHomeSearch ? <section className="wc-home-store-search" aria-labelledby="home-store-search-heading"><div className="wc-container"><h2 id="home-store-search-heading">스토어 내 굿즈 검색</h2><form action="/search" role="search"><label className="wc-sr-only" htmlFor="home-store-search-query">굿즈 검색어</label><input id="home-store-search-query" name="q" type="search" placeholder="찾는 굿즈를 입력하세요" maxLength={80} required /><button type="submit">검색</button></form></div></section> : null}
       {refreshScheduledContent && curation.storiesNextChangeAt && order.includes('stories')
         ? <ScheduledHomeRefresh at={curation.storiesNextChangeAt} /> : null}

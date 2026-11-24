@@ -5,7 +5,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { giftsAvailable, loadGifts } from '@/lib/gifts.server';
 import { isUuid } from '@/lib/uuid';
 import { transactionInstant } from '@/lib/goods-transaction-values';
-export const metadata: Metadata = { title: '선물함 — ICONS' };
+export const metadata: Metadata = { title: '선물함 — 엑스스퀘어' };
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const auth = await getCurrentAuthState(); if (!auth.user) redirect('/login?next=%2Fgifts');
   const query = await searchParams, party = query.party === 'recipient' ? 'recipient' : 'sender';

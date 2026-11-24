@@ -81,7 +81,7 @@ beforeEach(() => {
 describe('/my page', () => {
   it('is a private account hub in metadata', () => {
     expect(metadata).toMatchObject({
-      title: '마이페이지 — ICONS',
+      title: '마이페이지 — 엑스스퀘어',
       robots: { index: false, follow: false },
     });
     expect(metadata.description).toContain('주문');

@@ -105,7 +105,7 @@ describe('GoodReviews', () => {
       })],
     });
 
-    expect(html).toContain('ICONS 운영자');
+    expect(html).toContain('엑스스퀘어 운영자');
     expect(html).toContain('교환을 도와드리겠습니다');
   });
 

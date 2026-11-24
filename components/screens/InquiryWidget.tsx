@@ -206,8 +206,8 @@ export function InquiryWidgetPanel({ userId, onClose, clientFactory = createClie
   const onCreated = useCallback((id: string) => { setInquiryId(id); setView('thread'); }, []);
   const onSaved = useCallback(() => setRevision((value) => value + 1), []);
   return <><div className="wc-inquiry-widget__backdrop" aria-hidden="true" onClick={onClose} />
-    <div ref={panelRef} className="wc-inquiry-widget__panel" role="dialog" aria-modal="true" aria-label="ICONS 상담">
-      <header><h2>ICONS 상담</h2><button type="button" aria-label="상담 닫기" onClick={onClose}>닫기</button></header>
+    <div ref={panelRef} className="wc-inquiry-widget__panel" role="dialog" aria-modal="true" aria-label="엑스스퀘어 상담">
+      <header><h2>엑스스퀘어 상담</h2><button type="button" aria-label="상담 닫기" onClick={onClose}>닫기</button></header>
       <nav aria-label="상담 메뉴"><button type="button" onClick={() => setView('faq')} aria-pressed={view === 'faq'}>FAQ</button>
         {userId ? <><button type="button" onClick={() => setView('list')} aria-pressed={view === 'list' || view === 'thread'}>내 문의</button>
           <button type="button" onClick={() => setView('new')} aria-pressed={view === 'new'}>새 문의</button></> : null}

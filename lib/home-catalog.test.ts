@@ -60,7 +60,7 @@ it('커뮤니티가 닫히면 커뮤니티로 가는 혜택 타일도 카드 게
   expect(curation.benefitTiles).toHaveLength(6);
 });
 
-it('혜택 타일 아이콘은 목적지에서 ICONS 아이콘 이름으로 고른다', () => {
+it('혜택 타일 아이콘은 목적지에서 엑스스퀘어 아이콘 이름으로 고른다', () => {
   expect(benefitTileIcon('/packs')).toBe('card');
   expect(benefitTileIcon('/packs/season-1')).toBe('card');
   expect(benefitTileIcon('/games/marble')).toBe('spark');

@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       headers: {
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="icons-goods-${mode}${mode === 'export' ? `-${params.get('part') ?? 1}` : ''}.xlsx"`,
+        'Content-Disposition': `attachment; filename="xsquare-goods-${mode}${mode === 'export' ? `-${params.get('part') ?? 1}` : ''}.xlsx"`,
         'Cache-Control': 'private, no-store',
       },
     });

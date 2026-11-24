@@ -13,7 +13,14 @@ it('이름을 바꾼 스토어는 글자 로고, 링크 이름은 기본 로고�
   expect(renderToStaticMarkup(<StoreBrandLogo branding={renamed}/>)).toBe('<span class="wc-store-brand-name" title="검증 스토어">검증 스토어</span>');
   expect(storefrontLogoName()).toBe('X SQUARE');
   expect(storefrontLogoName(renamed)).toBe('검증 스토어');
-  expect(storefrontLogoName({...DEFAULT_STOREFRONT_BRANDING,logoUrl:'https://media.test/pc.png'})).toBe('ICONS');
+  expect(storefrontLogoName({...DEFAULT_STOREFRONT_BRANDING,logoUrl:'https://media.test/pc.png'})).toBe('엑스스퀘어');
+});
+it('서비스 이름 통일 전의 기본 이름(ICONS)이 남은 저장값도 글자로 새지 않고 기본 로고로 보인다',()=>{
+  const legacy={...DEFAULT_STOREFRONT_BRANDING,displayName:'ICONS'};
+  expect(renderToStaticMarkup(<StoreBrandLogo branding={legacy}/>)).toBe(renderToStaticMarkup(<StoreBrandLogo/>));
+  expect(storefrontLogoName(legacy)).toBe('X SQUARE');
+  /* 업로드 로고가 있으면 이름과 관계없이 업로드 로고가 먼저다. */
+  expect(renderToStaticMarkup(<StoreBrandLogo branding={{...legacy,logoUrl:'https://media.test/pc.png'}}/>)).toContain('src="https://media.test/pc.png"');
 });
 it('PC 로고를 기본으로 사용하고 모바일 원본은 선택적으로 제공한다',()=>{
   const base={...DEFAULT_STOREFRONT_BRANDING,displayName:'<브랜드>',logoUrl:'https://media.test/pc.png'};
@@ -29,7 +36,7 @@ it('소개는 텍스트로 이스케이프하고 SNS 새 창에 안전한 rel을
 it('대표 이미지만 있어도 푸터 프로필은 표시하고 헤더 로고는 유지한다',()=>{
   const branding={...DEFAULT_STOREFRONT_BRANDING,profileImageUrl:'https://media.test/profile.png'};
   const html=renderToStaticMarkup(<StoreBrandFooterDetails branding={branding}/>);
-  expect(html).toContain('class="wc-store-profile-image"');expect(html).toContain('alt="ICONS 대표 이미지"');
+  expect(html).toContain('class="wc-store-profile-image"');expect(html).toContain('alt="엑스스퀘어 대표 이미지"');
   expect(html).toContain('width="80"');expect(html).toContain('height="80"');
   expect(renderToStaticMarkup(<StoreBrandLogo branding={branding}/>)).toContain('src="/brand/xsquare-logo.png"');
 });

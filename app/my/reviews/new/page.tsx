@@ -7,7 +7,7 @@ import { loadMyReviewTargets } from '@/lib/reviews.server';
 import { loadGoodsReviewEvents } from '@/lib/review-events.server';
 
 export const metadata: Metadata = {
-  title: '리뷰 쓰기 — ICONS',
+  title: '리뷰 쓰기 — 엑스스퀘어',
   description: '배송이 완료된 굿즈에 별점과 후기를 남기세요.',
   robots: { index: false, follow: false },
 };

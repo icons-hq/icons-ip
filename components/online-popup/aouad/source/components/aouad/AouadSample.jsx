@@ -3344,7 +3344,7 @@ function IntroOverlay({ onClose }) {
       <div className={`${s.overlayBox} ${s.coBox}`}>
         <b>{THEME.title}</b>
         <p className={s.infoLead}>SURVIVE THE NIGHT<br /><span>살아 있다면, 옥상으로.</span></p>
-        <p className={s.coNote}>ICONS 프레젠테이션 · 굿즈 이미지와 가격, 일정은 제안 시안입니다. 주문·결제·리워드·현장 예약은 실제로 진행되지 않습니다.</p>
+        <p className={s.coNote}>엑스스퀘어 프레젠테이션 · 굿즈 이미지와 가격, 일정은 제안 시안입니다. 주문·결제·리워드·현장 예약은 실제로 진행되지 않습니다.</p>
         <p className={s.infoBody}>「지금 우리 학교는」 시즌 1.5 온라인 팝업. 효산고를 무대로 굿즈·체험·한정판·커뮤니티가 한 캠퍼스에 모입니다. 체험존에서는 명장면을 게임으로 즐기고, 옥상은 결말이자 시즌 2로 가는 문입니다.</p>
         <dl className={s.infoList}>
           <dt>기간</dt><dd>{POPUP_PERIOD.label}</dd>
@@ -3656,7 +3656,7 @@ export default function AouadSample() {
   return (
     <>
     <div className={s.stage} data-view={view} data-presentation="aouad" inert={hyosanOpen ? true : undefined}>
-      <div className={s.presentationUtility}><Link href="/ip" prefetch={false} aria-label="ICONS 온라인 팝업으로 돌아가기">ICONS<span> / </span>HYOSAN</Link><span className={s.utilityActions}><a className={s.utilityFooterLink} href={SITE_FOOTER_HREF} onClick={jumpToSiteFooter}>사업자 정보·약관</a><button type="button" onClick={() => { setMeOpen(false); setOverlay("intro"); }}>프레젠테이션</button></span></div>
+      <div className={s.presentationUtility}><Link href="/ip" prefetch={false} aria-label="엑스스퀘어 온라인 팝업으로 돌아가기">X SQUARE<span> / </span>HYOSAN</Link><span className={s.utilityActions}><a className={s.utilityFooterLink} href={SITE_FOOTER_HREF} onClick={jumpToSiteFooter}>사업자 정보·약관</a><button type="button" onClick={() => { setMeOpen(false); setOverlay("intro"); }}>프레젠테이션</button></span></div>
       {view === "opening" && <Opening key={resetNonce} short={st.op} reduced={reduced} hasId={st.temp !== null} onDone={finishOpening} onReset={resetDemo} />}
       {view !== "opening" && (
         <>

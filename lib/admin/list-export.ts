@@ -163,8 +163,8 @@ export function adminListExportFileNames(screen: AdminListExportScreenId, now: D
   const stamp = kstFileStamp(now);
   const suffix = variant ? `-${variant.replace(/[^\p{L}\p{N}]+/gu, '')}` : '';
   return {
-    fileName: `icons-${definition.fileLabel}${suffix}-${stamp}.xlsx`,
-    asciiFileName: `icons-${definition.asciiLabel}-${stamp}.xlsx`,
+    fileName: `xsquare-${definition.fileLabel}${suffix}-${stamp}.xlsx`,
+    asciiFileName: `xsquare-${definition.asciiLabel}-${stamp}.xlsx`,
   };
 }
 

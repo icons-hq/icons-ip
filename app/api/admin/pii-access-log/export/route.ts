@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     return new Response(new Uint8Array(encrypted.bytes), { headers: {
       ...EXPORT_NO_STORE,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-개인정보접속기록-${stamp}.xlsx`, `icons-pii-access-log-${stamp}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-개인정보접속기록-${stamp}.xlsx`, `xsquare-pii-access-log-${stamp}.xlsx`),
       'X-ICONS-Export-Audit': recordId, 'X-ICONS-Export-Rows': String(data.rows.length), 'X-ICONS-Export-Records': String(data.rows.length),
       'X-ICONS-Export-Encryption': 'ECMA-376-Agile',
     } });

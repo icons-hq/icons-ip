@@ -10,10 +10,10 @@ const getCardRewardsEnabled = cache(readCardRewardsEnabled);
 
 export async function generateMetadata(): Promise<Metadata> {
   if (!await getCardRewardsEnabled()) {
-    return { title: 'ICONS', robots: { index: false, follow: false } };
+    return { title: '엑스스퀘어', robots: { index: false, follow: false } };
   }
   return {
-    title: '카드팩 — ICONS',
+    title: '카드팩 — 엑스스퀘어',
     description: '굿즈를 구매하면 발급되는 카드팩을 개봉하고, 수집 카드를 바인더에 모아보세요.',
   };
 }

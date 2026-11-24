@@ -16,7 +16,7 @@ function form(overrides: Record<string, string> = {}) {
   for (const [key, value] of Object.entries({
     id: '', updatedAt: '', name: '아크릴 기본', noticeMaker: '아이콘스', noticeOrigin: '대한민국',
     noticeMaterial: '아크릴', noticeSize: '80mm', noticeMadeOn: '2026-09',
-    noticeAsManager: '아이콘스 고객센터', noticeAsContact: '02-000-0000', ...overrides,
+    noticeAsManager: '엑스스퀘어 고객센터', noticeAsContact: '02-000-0000', ...overrides,
   })) data.set(key, value);
   return data;
 }

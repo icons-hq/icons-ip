@@ -8,7 +8,7 @@ import { addSafeWorkbookInfoSheet, addWorkbookTable, tableColumn as column } fro
 export async function buildCustomerDemographicWorkbook(input: DemographicReport, generatedAt = new Date()) {
   const data = parseDemographicReport(input);
   if (!data) throw new Error('Invalid protected demographic report');
-  const book = new ExcelJS.Workbook(); book.creator = 'ICONS'; book.created = generatedAt;
+  const book = new ExcelJS.Workbook(); book.creator = '엑스스퀘어'; book.created = generatedAt;
   addWorkbookTable(book, '성별·연령별 고객수', [column('연령대', 'text', 22), column('성별', 'text', 18), column('고객수', 'number', 18)],
     data.cells.map(cell => [DEMOGRAPHIC_AGE_LABELS[cell.ageBand], DEMOGRAPHIC_GENDER_LABELS[cell.gender], cell.count === null ? '비공개' : cell.count]));
   addSafeWorkbookInfoSheet(book, [

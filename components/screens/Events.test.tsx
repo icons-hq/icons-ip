@@ -28,7 +28,7 @@ function event(id: string, overrides: Partial<FandomEvent> = {}): FandomEvent {
     mode: '오프라인',
     status: '예매중',
     date: '7.25 - 7.28',
-    loc: '성수 ICONS 스튜디오',
+    loc: '성수 엑스스퀘어 스튜디오',
     accent: '#38F0C0',
     img: 'linear-gradient(#111, #222)',
     ...overrides,
@@ -80,7 +80,7 @@ describe('Events', () => {
     expect(card).toContain('<span class="wc-offline-card__kind">오프라인</span>');
     expect(card).toContain('<p class="wc-offline-card__ip">화산강림</p>');
     expect(card).toContain('<h2 class="wc-offline-card__title">팝업 e1</h2>');
-    expect(card).toContain('성수 ICONS 스튜디오');
+    expect(card).toContain('성수 엑스스퀘어 스튜디오');
     expect(card).toContain('<span class="wc-offline-card__period">7.25 - 7.28</span>');
     expect(card).toContain('<span class="wc-offline-state wc-offline-state--open">예매중</span>');
   });

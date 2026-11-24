@@ -65,7 +65,7 @@ describe('AdminSidebar 2단 메뉴', () => {
     for (const href of ['/admin/catalog/goods', '/admin/catalog/ips', '/admin/catalog/games', '/admin/check-in']) expect(card).not.toContain(`href="${href}"`);
     expect(card).not.toContain('data-admin-nav-screen="overview"');
     expect(card).toContain('aria-label="카드 운영 메뉴"');
-    expect(card).toContain('ICONS 카드 운영');
+    expect(card).toContain('엑스스퀘어 카드 운영');
     const game = render('staff', 'game');
     expect(game).toContain('href="/admin/catalog/games"');
     expect(game).not.toContain('href="/admin/catalog/cards"');

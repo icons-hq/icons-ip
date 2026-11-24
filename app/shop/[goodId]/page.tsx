@@ -68,7 +68,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { detail, adultGate } = await resolveGoodDetail(goodId);
   /* 인증 전 19금 굿즈는 상품 이름 없이 안내 제목만 내고 색인하지 않는다. */
   if (!detail && adultGate) {
-    return { title: `${ADULT_GOOD_LABEL} — ICONS`, robots: { index: false, follow: false } };
+    return { title: `${ADULT_GOOD_LABEL} — 엑스스퀘어`, robots: { index: false, follow: false } };
   }
   /* 없는 굿즈는 여기서 바로 404로 보낸다. 폴백 제목을 돌려주면 그 제목이
      브라우저에 절대 도달하지 않으면서 테스트만 통과하는 죽은 분기가 된다. */
@@ -78,12 +78,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description = goodMetaDescription(detail.good.name);
   const image = goodImageUrls(detail, origin)[0];
   return {
-    title: `${detail.good.name} — ICONS`,
+    title: `${detail.good.name} — 엑스스퀘어`,
     description,
     /* 인증 성인에게 열린 19금 상세도 검색에 싣지 않는다 — 수집기는 인증 안내만 본다. */
     ...(detail.good.saleRestriction === 'adult' ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
-      siteName: 'ICONS',
+      siteName: '엑스스퀘어',
       locale: 'ko_KR',
       title: detail.good.name,
       description,

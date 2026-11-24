@@ -69,7 +69,7 @@ beforeEach(() => {
 describe('/notifications page', () => {
   it('is a private noindex inbox in metadata', () => {
     expect(metadata).toMatchObject({
-      title: '알림함 — ICONS',
+      title: '알림함 — 엑스스퀘어',
       robots: { index: false, follow: false },
     });
     expect(metadata.description).toContain('인앱 알림');

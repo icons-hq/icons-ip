@@ -7,7 +7,7 @@ import { isRestrictedMemberInquiryCategory } from '@/lib/inquiries';
 import { loadMyInquiries } from '@/lib/inquiries.server';
 
 export const metadata: Metadata = {
-  title: '1:1 문의 — ICONS',
+  title: '1:1 문의 — 엑스스퀘어',
   description: '운영자에게 보낸 문의와 답변을 확인하세요.',
   robots: { index: false, follow: false },
 };

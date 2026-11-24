@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.subscriptions', path: '/api/admin/subscriptions/export',
       subjectKind: 'member', subjectIds: owners, subjectCount: owners.length, detail: { records: rows.length, auditId: audit.data } });
     return new Response(new Uint8Array(encrypted.bytes), { headers: { ...HEADERS, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-정기구매관리-${stamp}.xlsx`, `icons-subscriptions-${stamp}.xlsx`), 'X-ICONS-Export-Audit': audit.data,
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-정기구매관리-${stamp}.xlsx`, `xsquare-subscriptions-${stamp}.xlsx`), 'X-ICONS-Export-Audit': audit.data,
       'X-ICONS-Export-Rows': String(rows.length), 'X-ICONS-Export-Records': String(rows.length), 'X-ICONS-Export-Encryption': 'ECMA-376-Agile' } });
   } catch (error) {
     unstable_rethrow(error); return Response.json({ error: error instanceof ExportRequestError ? error.message : '목록 또는 감사 기록을 확인하지 못해 파일을 만들지 않았습니다. 다시 시도해주세요.' },

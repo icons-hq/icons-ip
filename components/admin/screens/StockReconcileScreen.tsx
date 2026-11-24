@@ -44,7 +44,7 @@ export function StockReconcileScreen({ origins, history, snapshot, digest, canMa
   digest: StockSafetyDigestSettings | null; canManageDigest: boolean; now: string;
 }) {
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="stock-reconcile">
-    <AdminPageHeader title="재고 대조" description="ERP·창고 재고 파일(ICONS 몫 수량)을 올려 사이트 재고수량과의 차이를 미리 보고, 확인한 뒤 한 번에 반영합니다. ERP·창고와 자동으로 연동되지는 않습니다." />
+    <AdminPageHeader title="재고 대조" description="ERP·창고 재고 파일(엑스스퀘어 몫 수량)을 올려 사이트 재고수량과의 차이를 미리 보고, 확인한 뒤 한 번에 반영합니다. ERP·창고와 자동으로 연동되지는 않습니다." />
     <AdminSectionCard id="stock-reconcile-file" title="재고 파일 대조"
       summary="파일 수량에서 아직 출고하지 않은 주문을 빼서 맞춥니다. 주문을 받으면 사이트 재고수량은 바로 줄지만 창고 실물은 출고할 때 줄기 때문입니다.">
       <StockReconcilePanel origins={origins} initialSnapshot={snapshot} now={now} />

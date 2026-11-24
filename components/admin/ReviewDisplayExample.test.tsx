@@ -42,7 +42,7 @@ describe('ReviewDisplayExampleContent', () => {
     expect(html).toContain('리뷰 (4)');
     expect(html).toMatch(/<div aria-labelledby="pdp-tab-reviews" class="wc-tabs__panel" id="pdp-panel-reviews" role="tabpanel"/);
     expect(html).toMatch(/id="pdp-panel-detail"[^>]*hidden=""|hidden=""[^>]*id="pdp-panel-detail"/);
-    for (const part of ['wc-review-summary__score', 'wc-review-summary__dist', 'wc-review-list', 'wc-review-item__reply', 'ICONS 운영자', '한달사용 리뷰', '재구매', '수정됨', '‘예시 포토리뷰 이벤트’ 선정']) {
+    for (const part of ['wc-review-summary__score', 'wc-review-summary__dist', 'wc-review-list', 'wc-review-item__reply', '엑스스퀘어 운영자', '한달사용 리뷰', '재구매', '수정됨', '‘예시 포토리뷰 이벤트’ 선정']) {
       expect(html, part).toContain(part);
     }
     expect(html).toContain('4.3');

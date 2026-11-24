@@ -22,6 +22,6 @@ export async function GET(request: Request) {
     await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.store_credits', path: '/api/admin/store-credit-workbook',
       subjectKind: filters.mode === 'ledger' ? 'member' : 'none', subjectIds: members, subjectCount: members.length,
       detail: { mode: filters.mode, records: parsed.rows.length } });
-    return new Response(new Uint8Array(bytes),{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':adminListExportContentDisposition(`icons-${filters.mode === 'ledger' ? '적립금원장' : '적립금지급관리'}-${stamp}.xlsx`,`icons-store-credits-${filters.mode}-${stamp}.xlsx`),'Cache-Control':'private, no-store'}});
+    return new Response(new Uint8Array(bytes),{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':adminListExportContentDisposition(`xsquare-${filters.mode === 'ledger' ? '적립금원장' : '적립금지급관리'}-${stamp}.xlsx`,`xsquare-store-credits-${filters.mode}-${stamp}.xlsx`),'Cache-Control':'private, no-store'}});
   } catch (error) { unstable_rethrow(error); return Response.json({error:'적립금 엑셀을 만들지 못했습니다. 검색 조건과 권한을 확인해주세요.'},{status:500}); }
 }

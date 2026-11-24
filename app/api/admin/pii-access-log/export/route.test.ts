@@ -46,7 +46,7 @@ describe('개인정보 접속기록 엑셀', () => {
     expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[0]);
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('x-icons-export-audit')).toBe('77'); expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile');
-    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-개인정보접속기록-\d{8}-\d{4}\.xlsx/);
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/xsquare-개인정보접속기록-\d{8}-\d{4}\.xlsx/);
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-workbook'); expect(plain.every(byte => byte === 0)).toBe(true);
   });
   it('기록 실패·한도 초과는 파일 없이 오류로 끝낸다', async () => {

@@ -24,7 +24,7 @@ const order: TicketOrderDetail = {
   createdAt: '2026-07-14T02:00:00.000Z',
   startsAt: '2026-07-25T05:00:00.000Z',
   endsAt: '2026-07-25T08:00:00.000Z',
-  location: '성수 ICONS 팝업',
+  location: '성수 엑스스퀘어 팝업',
   tickets: [
     { id: '19b0d848-7192-4b40-a675-f508822f99c9', status: 'valid' },
     { id: '2ab1e959-8203-4c51-b786-0619933a00da', status: 'used' },
@@ -57,7 +57,7 @@ describe('TicketDetail', () => {
 
     expect(html).toContain('메이플 팝업');
     expect(html).toContain('7월 25일 오후 회차');
-    expect(html).toContain('성수 ICONS 팝업');
+    expect(html).toContain('성수 엑스스퀘어 팝업');
     expect(html).toContain('₩44,000');
     expect(html).toContain('결제 완료');
     expect(html).toContain('티켓 1');

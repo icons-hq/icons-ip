@@ -68,7 +68,7 @@ function createSheet(workbook: ExcelJS.Workbook, name: string, headers: readonly
   const sheet = workbook.addWorksheet(name);
   sheet.columns = widths.map((width, index) => ({ width: Math.max(width, workbookHeaderWidth(headers[index])), style: { ...workbookColumnStyle(kinds[index]), ...(kinds[index] === 'date' ? { numFmt: DATE_CELL_FORMAT } : {}) } }));
   sheet.mergeCells(1, 1, 1, headers.length);
-  sheet.getCell(1, 1).value = `ICONS ${name}`;
+  sheet.getCell(1, 1).value = `엑스스퀘어 ${name}`;
   sheet.getCell(1, 1).font = { ...WORKBOOK_FONT, bold: true };
   const { snapshot } = model;
   const filter = snapshot.filters;
@@ -117,7 +117,7 @@ function totals(sheet: ExcelJS.Worksheet, columns: number[], rows: (number | nul
 export async function buildSettledWorkbook(value: unknown, readNumbers?: (snapshot: SettledExportSnapshot) => Promise<SettledExportNumbers>): Promise<Buffer> {
   const model = buildSettledExportModel(parseSettledExportSnapshot(value));
   const numbers = await readNumbers?.(model.snapshot) ?? NO_NUMBERS;
-  const workbook = new ExcelJS.Workbook(); workbook.creator = 'ICONS';
+  const workbook = new ExcelJS.Workbook(); workbook.creator = '엑스스퀘어';
   workbook.created = new Date(model.snapshot.capturedAt); workbook.modified = new Date(model.snapshot.capturedAt);
   workbook.calcProperties.fullCalcOnLoad = true;
   const detailKinds = columnKinds(SETTLED_EXPORT_HEADERS.length, [1, 8], [5, 6, 7, 9, 10, 11, 12, 13, 22, 23, 25, 26, 27]);

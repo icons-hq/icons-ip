@@ -21,7 +21,7 @@ const event: FandomEvent = {
   mode: '오프라인',
   status: '예매중',
   date: '7.25 - 7.28',
-  loc: '성수 ICONS 스튜디오',
+  loc: '성수 엑스스퀘어 스튜디오',
   accent: '#38F0C0',
   img: 'linear-gradient(#111, #222)',
 };
@@ -211,7 +211,7 @@ describe('EventDetail', () => {
     expect(html).toContain('<h1 class="wc-offline-detail__title">화산강림 여름 팝업</h1>');
     expect(html).toContain('<span class="wc-offline-state wc-offline-state--open">예매중</span>');
     expect(html).toContain('<dt>기간</dt><dd>7.25 - 7.28</dd>');
-    expect(html).toContain('<dt>장소</dt><dd>성수 ICONS 스튜디오</dd>');
+    expect(html).toContain('<dt>장소</dt><dd>성수 엑스스퀘어 스튜디오</dd>');
     expect(html).toContain('href="/offline-popups"');
     /* 목록의 피처드 블록을 걷어 낸 뒤 IP 관으로 가는 길은 상세 머리에 남는다. */
     expect(html).toContain('<a class="wc-offline-detail__ip" href="/ip/ip100">화산강림</a>');

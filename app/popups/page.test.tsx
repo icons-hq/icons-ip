@@ -45,7 +45,7 @@ describe('/popups POP-UP 목록', () => {
     expect(mocks.screen.mock.calls[0]?.[0]?.items).toEqual([]);
   });
 
-  it('페이지 제목을 지금 패턴(— ICONS)으로 낸다', () => {
-    expect(metadata.title).toBe('POP-UP — ICONS');
+  it('페이지 제목을 지금 패턴(— 엑스스퀘어)으로 낸다', () => {
+    expect(metadata.title).toBe('POP-UP — 엑스스퀘어');
   });
 });

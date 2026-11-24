@@ -93,7 +93,7 @@ describe('목록 엑셀 다운로드 라우트', () => {
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(response.headers.get('content-disposition')).toBe(
-      `attachment; filename="icons-dispatch-20261007-1504.xlsx"; filename*=UTF-8''${encodeURIComponent('icons-발주발송-발송대기-20261007-1504.xlsx')}`,
+      `attachment; filename="xsquare-dispatch-20261007-1504.xlsx"; filename*=UTF-8''${encodeURIComponent('xsquare-발주발송-발송대기-20261007-1504.xlsx')}`,
     );
     expect(response.headers.get('x-icons-export-audit')).toBe('10000000-0000-4000-8000-00000000a501');
     expect(response.headers.get('x-icons-export-rows')).toBe('2');
@@ -108,11 +108,11 @@ describe('목록 엑셀 다운로드 라우트', () => {
   it('주문통합검색의 상품주문별 보기는 주문별과 구분되는 파일명으로 내려준다', async () => {
     mocks.load.mockResolvedValue({ ...sheet, screen: 'orders', filters: { view: 'items' } });
     const items = await POST(request('screen=orders&view=items'));
-    expect(decodeURIComponent(items.headers.get('content-disposition')!)).toContain('icons-상품주문별조회-20261007-1504.xlsx');
-    expect(items.headers.get('content-disposition')).toContain('filename="icons-order-items-20261007-1504.xlsx"');
+    expect(decodeURIComponent(items.headers.get('content-disposition')!)).toContain('xsquare-상품주문별조회-20261007-1504.xlsx');
+    expect(items.headers.get('content-disposition')).toContain('filename="xsquare-order-items-20261007-1504.xlsx"');
     mocks.load.mockResolvedValue({ ...sheet, screen: 'orders', filters: { status: 'all' } });
     const orders = await POST(request('screen=orders'));
-    expect(decodeURIComponent(orders.headers.get('content-disposition')!)).toContain('icons-주문통합검색-20261007-1504.xlsx');
+    expect(decodeURIComponent(orders.headers.get('content-disposition')!)).toContain('xsquare-주문통합검색-20261007-1504.xlsx');
   });
   it.each(['orders', 'unpaid', 'dispatch', 'shipping', 'claims-returns'] as AdminListExportScreenId[])(
     '%s 목록 수를 바꿔도 전체 목록 다운로드 요청은 허용된다', async screen => {
@@ -204,7 +204,7 @@ describe('환불 송금 대기 목록 엑셀(계좌 포함, 1007-047·048)', () 
     expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[0]);
     expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile');
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-xlsx');
-    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toContain('icons-환불송금대기-20261007-1504.xlsx');
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toContain('xsquare-환불송금대기-20261007-1504.xlsx');
   });
   it.each([
     ['비밀번호 없음', JSON.stringify({})],

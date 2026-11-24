@@ -17,7 +17,7 @@ describe('전시 상품 여러 줄 붙여넣기(1014-112)', () => {
     expect(parsed.refs).toEqual(['GC-0001']);
     expect(parsed.duplicates).toBe(1);
     expect(parsed.invalid.map(line => line.line)).toEqual([4, 5]);
-    expect(parsed.invalid[0].reason).toContain('ICONS 상품 주소');
+    expect(parsed.invalid[0].reason).toContain('엑스스퀘어 상품 주소');
   });
   it('지금 어드민을 연 호스트(스테이징·로컬)의 상품 주소도 받는다', () => {
     expect(parseGoodReferenceLines('http://localhost:3000/shop/local-good', 'localhost:3000').refs).toEqual(['local-good']);

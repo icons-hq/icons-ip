@@ -60,6 +60,10 @@ const PARTIAL_RETURN_REVISION_FILE = fileURLToPath(
 const VIRTUAL_ACCOUNT_TERMS_REVISION_FILE = fileURLToPath(
   new URL('../lib/legal/virtual-account-terms-revision.json', import.meta.url),
 );
+/* 이용약관 서비스 이름(엑스스퀘어) 개정의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
+const BRAND_NAME_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/brand-name-revision.json', import.meta.url),
+);
 
 /*
  * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
@@ -160,6 +164,9 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     const virtualAccountSource = options.virtualAccountRevisionSource ?? readFileSync(VIRTUAL_ACCOUNT_TERMS_REVISION_FILE, 'utf8');
     validateLegalRevisionDates(virtualAccountSource, 'virtual-account-terms-revision.json');
     virtualAccountRevision = legalRevisionDates(virtualAccountSource);
+    /* 이용약관 서비스 이름 개정(lib/legal/brand-name-revision.json)도 같은 규칙이다. */
+    const brandNameSource = options.brandNameRevisionSource ?? readFileSync(BRAND_NAME_REVISION_FILE, 'utf8');
+    validateLegalRevisionDates(brandNameSource, 'brand-name-revision.json');
     /* 가상계좌·계좌이체 개정과 다른 예약 개정(표기·부분 반품·알림톡)의 선후는 lib/legal/documents.ts가 시행일 순서로 정한다 —
        어느 쪽이 먼저 시행돼도 이전 판이 직전 시행 본문을 담는다. 공지 기간은 겹쳐도 된다(사전 공지를 함께 보인다). */
   }

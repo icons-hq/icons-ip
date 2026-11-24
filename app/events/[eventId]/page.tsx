@@ -52,13 +52,13 @@ export async function generateMetadata({ params }: Pick<PageProps, 'params'>): P
      쓰므로 여기서는 허브 제목으로만 답한다. */
   if (!campaign) {
     return {
-      title: '이벤트 — ICONS',
-      description: 'ICONS의 기간 한정 캠페인과 프로모션을 모아 봅니다.',
+      title: '이벤트 — 엑스스퀘어',
+      description: '엑스스퀘어의 기간 한정 캠페인과 프로모션을 모아 봅니다.',
     };
   }
 
   return {
-    title: `${campaign.title} — ICONS`,
+    title: `${campaign.title} — 엑스스퀘어`,
     description: campaign.subtitle ?? `${campaign.title} 캠페인 안내입니다.`,
   };
 }

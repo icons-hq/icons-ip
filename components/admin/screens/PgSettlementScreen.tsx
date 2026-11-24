@@ -79,7 +79,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           <Link className={TAB_CLASS} key={tab} aria-current={filters.tab === tab ? 'page' : undefined} href={pgSettlementHref(filters, { tab, page: 1 })}>{label}</Link>)}
       </nav>
       <div className="min-w-0 flex-1 basis-80">
-        <SalesGuide title="결제사(토스페이먼츠) 정산 자료와 ICONS 결제·환불 기록을 맞춰 봅니다.">
+        <SalesGuide title="결제사(토스페이먼츠) 정산 자료와 엑스스퀘어 결제·환불 기록을 맞춰 봅니다.">
           <p>정산 매출일·지급일은 결제사가 제공한 날짜입니다. 은행 계좌의 실제 입금 완료를 확인한 내역은 아닙니다.</p>
           <p>승인과 취소, 통화를 각각 구분해 합산합니다. 취소 금액의 부호를 임의로 바꾸거나 순입금액으로 계산하지 않습니다.</p>
           <p>코페이 정산 자료 수집과 은행 입금 내역 맞춰 보기는 아직 연결되지 않았습니다. 이 화면의 자료는 토스페이먼츠 조회 결과입니다.</p>
@@ -98,7 +98,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           <span className={NOTE}>최대 31일</span>
         </SalesFilterField>
         <SalesFilterField label="상세조건" htmlFor="pg-settlement-query">
-          <Input className="w-60 max-w-full" type="search" id="pg-settlement-query" name="query" maxLength={100} defaultValue={filters.query} placeholder="ICONS 주문번호" />
+          <Input className="w-60 max-w-full" type="search" id="pg-settlement-query" name="query" maxLength={100} defaultValue={filters.query} placeholder="엑스스퀘어 주문번호" />
           <SalesSelect name="kind" label="거래 구분" value={filters.kind} options={[{ value: 'all', label: '거래 전체' }, { value: 'approval', label: '승인' }, { value: 'cancel', label: '취소' }]} />
           <SalesSelect name="match" label="결제 기록 일치" value={filters.match} options={[{ value: 'all', label: '일치 여부 전체' }, { value: 'matched', label: '일치' }, { value: 'unlinked', label: '미연결' }, { value: 'mismatch', label: '불일치' }]} />
         </SalesFilterField>

@@ -240,7 +240,7 @@ export function parseWarehouseReply(sheet: ExcelJS.Worksheet): WarehouseTracking
     const trackingNumber = normalizeTrackingNumber(tracking.trim());
     const blank = !tracking.trim();
     const reason = cells.find(cell => cell.error)?.error
-      ?? (!isGimpoOrderReference(reference) ? '주문번호(쇼핑몰)에 ICONS 출고 파일의 전체 주문번호를 그대로 유지해주세요.' : undefined)
+      ?? (!isGimpoOrderReference(reference) ? '주문번호(쇼핑몰)에 엑스스퀘어 출고 파일의 전체 주문번호를 그대로 유지해주세요.' : undefined)
       ?? (!blank && (!isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(tracking)) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
     if (reason) { issues.push({ line, reference, reason }); if (isGimpoOrderReference(reference)) blocked.add(reference); }
     else if (blank) blanks.push({ line, reference });

@@ -431,7 +431,7 @@ describe('reconcileOrderCancellation', () => {
       paymentId: 'payment-1',
       provider: 'toss',
       amount: 42000,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       paymentKey: PAYMENT_KEY,
       requestId: REQUEST_ID,
     });
@@ -490,7 +490,7 @@ describe('reconcileOrderCancellation', () => {
       paymentId: 'payment-1',
       provider: 'nicepay',
       amount: 42000,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       paymentKey: PAYMENT_KEY,
       requestId: REQUEST_ID,
     });
@@ -897,7 +897,7 @@ describe('reconcileOrderCancellation', () => {
       provider: 'toss',
       paymentKey: PAYMENT_KEY,
       amount: 42000,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       requestId: REQUEST_ID,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith(

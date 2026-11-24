@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 const INQUIRY_COUNT_PREFIX = /^\(\d+\+?\) /;
 
 export function adminDocumentTitle(title: string): string {
-  return `${title} · ICONS 판매자센터`;
+  return `${title} · 엑스스퀘어 판매자센터`;
 }
 
 /** 지금 탭 제목을 바꿔야 하면 바꿀 값을, 이미 맞으면 null을 돌려준다. */

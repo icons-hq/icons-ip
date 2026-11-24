@@ -198,7 +198,7 @@ describe('Checkout 결제수단 게이트', () => {
     expect(html).not.toContain('아크릴</span>');
     expect(html).not.toContain('판매 종료');
     const ended = render({ paymentAvailable: true, bankTransferAvailable: true, items: [{ goodId: 'g-gone', variantId: 'v-gone', qty: 1 }], quote: null });
-    expect(ended).toContain('ICONS · 판매 종료');
+    expect(ended).toContain('엑스스퀘어 · 판매 종료');
   });
   it('배송비가 확정되지 않으면 확정 결제 금액을 제시하거나 주문을 허용하지 않는다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: {

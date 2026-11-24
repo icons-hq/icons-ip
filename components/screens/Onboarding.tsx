@@ -165,7 +165,7 @@ export function Onboarding({
           <p className="wc-auth__lede">
             {phoneVerification.reverificationRequired
               ? '다른 계정에서 같은 휴대폰 번호를 인증해 이 계정의 휴대폰 인증이 해제됐어요. 다시 인증하면 이어서 이용할 수 있어요.'
-              : '마지막으로 휴대폰 번호를 인증해주세요. 인증을 마치면 ICONS를 시작할 수 있어요.'}
+              : '마지막으로 휴대폰 번호를 인증해주세요. 인증을 마치면 엑스스퀘어를 시작할 수 있어요.'}
           </p>
           <PhoneVerificationPanel context="onboarding" isConfigured={isConfigured} view={phoneVerification} />
           <form action={finishAction} className="wc-auth__form" data-onboarding-finish onSubmit={handleFinish}>
@@ -182,7 +182,7 @@ export function Onboarding({
               </div>
             )}
             <WcButton disabled={!isConfigured || finishPending} type="submit" variant="primary">
-              {finishPending ? '확인 중' : 'ICONS 시작하기'}
+              {finishPending ? '확인 중' : '엑스스퀘어 시작하기'}
             </WcButton>
           </form>
         </div>
@@ -339,7 +339,7 @@ export function Onboarding({
           )}
 
           <WcButton disabled={!isConfigured || pending} type="submit" variant="primary">
-            {pending ? '저장 중' : phoneVerification ? '다음: 휴대폰 번호 인증' : 'ICONS 시작하기'}
+            {pending ? '저장 중' : phoneVerification ? '다음: 휴대폰 번호 인증' : '엑스스퀘어 시작하기'}
           </WcButton>
           <p className="wc-auth__legal">
             본인확인은 자가신고와 결제 시 결제사 확인으로 진행돼요
