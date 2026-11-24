@@ -24,7 +24,7 @@ export function GoodsRelationsExportButton({ href, total }: { href: string; tota
       const bytes = await response.blob();
       if (controller.signal.aborted) return;
       const url = URL.createObjectURL(bytes), anchor = document.createElement('a');
-      anchor.href = url; anchor.download = adminListExportFileNameFromDisposition(response.headers.get('content-disposition'), 'icons-연관상품관리.xlsx');
+      anchor.href = url; anchor.download = adminListExportFileNameFromDisposition(response.headers.get('content-disposition'), 'xsquare-연관상품관리.xlsx');
       document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       const count = Number(response.headers.get('x-icons-export-rows'));
       setMessage(Number.isSafeInteger(count) && count >= 0 ? `편성 ${count.toLocaleString('ko-KR')}개의 엑셀을 내려받았습니다.` : '엑셀을 내려받았습니다.');

@@ -34,7 +34,7 @@ describe('card packs page gate', () => {
 
   it('does not advertise disabled card packs through metadata', async () => {
     await expect(generateMetadata()).resolves.toEqual({
-      title: 'ICONS',
+      title: '엑스스퀘어',
       robots: { index: false, follow: false },
     });
   });
@@ -48,6 +48,6 @@ describe('card packs page gate', () => {
 
     expect(page.props.catalog).toEqual({ source: 'supabase' });
     expect(page.props.inventory).toEqual({ source: 'supabase', signedIn: true, groups: [] });
-    await expect(generateMetadata()).resolves.toMatchObject({ title: '카드팩 — ICONS' });
+    await expect(generateMetadata()).resolves.toMatchObject({ title: '카드팩 — 엑스스퀘어' });
   });
 });

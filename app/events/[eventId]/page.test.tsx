@@ -271,14 +271,14 @@ describe('/events/[eventId] 캠페인 상세', () => {
 
     const meta = await generateMetadata({ params: Promise.resolve({ eventId: 'summer' }) });
 
-    expect(meta.title).toBe('여름 코인 이벤트 — ICONS');
+    expect(meta.title).toBe('여름 코인 이벤트 — 엑스스퀘어');
     expect(meta.description).toBe('출석하고 카드팩 받기');
   });
 
   it('캠페인이 아니면 허브 제목으로 답한다', async () => {
     const meta = await generateMetadata({ params: Promise.resolve({ eventId: event.id }) });
 
-    expect(meta.title).toBe('이벤트 — ICONS');
+    expect(meta.title).toBe('이벤트 — 엑스스퀘어');
   });
 });
 

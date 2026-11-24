@@ -10,7 +10,7 @@ import { PG_SETTLEMENT_FEE_LABELS, PG_SETTLEMENT_KIND_LABELS, PG_SETTLEMENT_MATC
 export async function buildPgSettlementWorkbook(report: PgSettlementReport, filters: PgSettlementFilters, generatedAt: Date): Promise<Buffer> {
   if (!report.snapshot || report.coverage === 'uncollected' || !report.fingerprint
     || report.transactions.length !== report.pagination.total || report.transactions.length > 20_000) throw new Error('settlement_export_incomplete');
-  const book = new ExcelJS.Workbook(); book.creator = 'ICONS'; book.created = generatedAt; book.modified = generatedAt;
+  const book = new ExcelJS.Workbook(); book.creator = '엑스스퀘어'; book.created = generatedAt; book.modified = generatedAt;
   addWorkbookTable(book, '건별 정산내역', [
     column('주문번호', 'code', 18), column('거래 구분', 'text', 12), column('통화', 'text', 8), column('결제수단', 'text', 16),
     column('거래금액 원문', 'text', 26), column('지급액 원문', 'text', 26), column('취소금액 원문', 'text', 26),
@@ -36,7 +36,7 @@ export async function buildPgSettlementWorkbook(report: PgSettlementReport, filt
     ['자료 ID', report.snapshot.id], ['수집 완료 시각 (KST)', kstDateTimeText(report.snapshot.completedAt)], ['전체 수집 거래수', String(report.snapshot.recordCount)],
     ['검색 결과 거래수', String(report.pagination.total)], ['자료 지문', report.fingerprint], ['내려받은 시각 (KST)', kstDateTimeText(generatedAt.toISOString())],
     ['금액 읽기', '큰 금액과 소수 수수료를 보존하기 위해 금액 셀은 텍스트 형식입니다. 승인·취소와 통화별 원문을 각각 집계했습니다.'],
-    ['대조 기준', 'ICONS 결제·환불 원장의 대조 결과는 자료 수집 완료 시점에 고정되어 있습니다. 이후 변화는 다시 수집해 확인합니다.'],
+    ['대조 기준', '엑스스퀘어 결제·환불 원장의 대조 결과는 자료 수집 완료 시점에 고정되어 있습니다. 이후 변화는 다시 수집해 확인합니다.'],
     ['자료 범위', 'PG 조회 자료이며 은행 실입금 확인서, 세금계산서 또는 법정 세무 신고자료가 아닙니다. 취소 부호를 임의 변환한 순입금액은 제공하지 않습니다.'],
   ]);
   return Buffer.from(await book.xlsx.writeBuffer());

@@ -404,15 +404,15 @@ describe('CurationSection', () => {
 
   /* ── X SQUARE 홈(ADR-0043) 어드민 — 라벨·도움말·그리드형·홈 스트립 배너 ── */
 
-  it('추천 콘텐츠는 IP 바로가기 줄로, 기획전 배너는 ICONS PICK 카드로 보이는 방식을 안내한다', () => {
+  it('추천 콘텐츠는 IP 바로가기 줄로, 기획전 배너는 X SQUARE PICK 카드로 보이는 방식을 안내한다', () => {
     const pick = renderSection({ ...record, kind: 'editor_pick', title: '언니! 아직 안데려간 마루', linkPath: '/ip/maru', payload: { badge: '마루는강쥐' } });
     expect(pick).toContain('IP 바로가기(추천 콘텐츠) 관리');
     expect(pick).toContain('홈 배너 아래 IP 바로가기 줄입니다. 배지 문구 = 작은 회색 줄(IP 이름), 제목 = 아래 줄 문구. 설명은 지금 화면에 보이지 않습니다.');
     expect(pick).toContain('IP 바로가기 이미지는 필수입니다. 권장 530×360px');
 
     const band = renderSection({ ...record, kind: 'band_banner', title: '팝업 인기 굿즈', linkPath: '/events/popup', payload: { good_ids: ['g13'] } });
-    expect(band).toContain('홈 &#x27;ICONS PICK&#x27; 카드로 보입니다. 배너 이미지와 제목, 고른 상품 앞 2개가 카드에 나옵니다. 홈 영역 순서에서 연달아 놓은 기획전은 한 줄(3장)로 묶입니다.');
-    expect(band).toContain('ICONS PICK 카드 이미지는 필수입니다. 권장 816×520px');
+    expect(band).toContain('홈 &#x27;X SQUARE PICK&#x27; 카드로 보입니다. 배너 이미지와 제목, 고른 상품 앞 2개가 카드에 나옵니다. 홈 영역 순서에서 연달아 놓은 기획전은 한 줄(3장)로 묶입니다.');
+    expect(band).toContain('X SQUARE PICK 카드 이미지는 필수입니다. 권장 816×520px');
   });
 
   it('텍스트 공지 바 안내는 무작위 노출과 빨간 띠 흐름을 알린다', () => {

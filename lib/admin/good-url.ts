@@ -12,7 +12,7 @@ const CANONICAL_HOST = new URL(CANONICAL_SITE_ORIGIN).host;
 export const GOOD_URL_ERRORS = {
   empty: '상품 상세 주소를 붙여 넣어주세요.',
   invalid: `상품 상세 주소가 아닙니다. 상품 페이지 주소(예: ${CANONICAL_SITE_ORIGIN}/shop/hsq-0059 또는 /shop/hsq-0059)를 붙여 넣어주세요.`,
-  host: `ICONS 상품 주소만 추가할 수 있습니다. ${CANONICAL_HOST}의 상품 페이지 주소를 붙여 넣어주세요.`,
+  host: `엑스스퀘어 상품 주소만 추가할 수 있습니다. ${CANONICAL_HOST}의 상품 페이지 주소를 붙여 넣어주세요.`,
   notFound: '이 주소의 상품을 찾지 못했습니다. 보관됐거나 이 목록에서 고를 수 없는 상품인지 확인해주세요.',
   exists: '이미 추가된 상품입니다.',
 } as const;

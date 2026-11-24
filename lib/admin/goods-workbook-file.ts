@@ -83,7 +83,7 @@ export async function buildGoodsWorkbook(
   if (rows.length > GOODS_WORKBOOK_ROW_LIMIT)
     throw new Error('파일당 최대 500행입니다. 페이지를 나누어 내려받아주세요.');
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'ICONS';
+  workbook.creator = '엑스스퀘어';
   workbook.created = new Date('2026-09-08T00:00:00Z');
   const sheet = workbook.addWorksheet('상품', {
     views: [{ state: 'frozen', xSplit: 3, ySplit: 4, showGridLines: false }],

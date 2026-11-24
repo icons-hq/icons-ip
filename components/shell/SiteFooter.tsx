@@ -29,7 +29,7 @@ import { virtualAccountTermsRevisionInEffect } from '@/lib/legal/virtual-account
    쓰는 `footer.wc-footer#site-footer` 그대로다. */
 
 /* 법정 고지 링크 이름 — 첫 항목은 Figma 표기('아이콘스 이용약관')를 쓰고 나머지는 문서 이름 그대로다. */
-const FOOTER_LEGAL_LABELS = { ...LEGAL_DOCUMENT_LABELS, terms: `아이콘스 ${LEGAL_DOCUMENT_LABELS.terms}` };
+const FOOTER_LEGAL_LABELS = { ...LEGAL_DOCUMENT_LABELS, terms: `엑스스퀘어 ${LEGAL_DOCUMENT_LABELS.terms}` };
 
 /* 사업자 정보 두 줄 — 1줄: 상호·주소·대표자·사업자등록번호·통신판매업 신고번호, 2줄: 전화·이메일·호스팅. 비어 있는 항목은 행이 사라진다. */
 const BUSINESS_LINES: ReadonlyArray<{ label: string; keys: ReadonlyArray<BusinessInfoRow['key']> }> = [
@@ -205,7 +205,7 @@ export function SiteFooter({
           </nav>
         ) : null}
 
-        <p className="wc-x-footer__copy">© {copyrightYear} ICONS</p>
+        <p className="wc-x-footer__copy">© {copyrightYear} X SQUARE</p>
       </div>
     </footer>
   );

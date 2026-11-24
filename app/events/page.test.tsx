@@ -52,6 +52,6 @@ describe('/events 캠페인 허브', () => {
   });
 
   it('허브 제목을 유지한다', () => {
-    expect(metadata.title).toBe('이벤트 — ICONS');
+    expect(metadata.title).toBe('이벤트 — 엑스스퀘어');
   });
 });

@@ -335,7 +335,7 @@ describe('홈 (X SQUARE Figma Main Page · 11 HM-05·07)', () => {
     expect(decls(HOME, '.wc-ip-shortcuts__title')['font-size']).toBe('14px');
   });
 
-  it('ICONS PICK 묶음은 0.5px 선 · r8 · 상품 영역 20/20/21/20 · 행 사이 18+1px+18 · 썸네일 94 이다', () => {
+  it('X SQUARE PICK 묶음은 0.5px 선 · r8 · 상품 영역 20/20/21/20 · 행 사이 18+1px+18 · 썸네일 94 이다', () => {
     const pick = decls(HOME, '.wc-x-pick');
 
     expect(pick.border).toBe('.5px solid var(--wc-x-line-card)');
@@ -357,7 +357,7 @@ describe('홈 (X SQUARE Figma Main Page · 11 HM-05·07)', () => {
 
   /* review-b m3·M2 — 묶음이 overflow:hidden 이라 프로모션 카드의 바깥 포커스 링(offset 2px, wc-popups.css)은 위·좌·우가 잘린다.
      링을 안쪽에 그리고(스트립 배너와 같은 -4px), 다른 화면의 PromoCard 는 건드리지 않으려고 묶음 안에서만 바꾼다. 행 할인율은 카드 가격 줄과 같은 빨강이다. */
-  it('ICONS PICK 프로모션 카드의 포커스 링은 묶음 안에 그려 잘리지 않고, 행 할인율은 판매 빨강이다', () => {
+  it('X SQUARE PICK 프로모션 카드의 포커스 링은 묶음 안에 그려 잘리지 않고, 행 할인율은 판매 빨강이다', () => {
     /* 안쪽 outline 은 카드의 그림·글 층 아래에 칠해져 보이지 않는다(재검증 F1) — 링은 맨 위 층 ::before 에 그린다. */
     expect(decls(HOME, '.wc-x-pick .wc-x-pick__promo:focus-visible').outline).toBe('none');
     const ring = decls(HOME, '.wc-x-pick .wc-x-pick__promo:focus-visible::before');
@@ -372,7 +372,7 @@ describe('홈 (X SQUARE Figma Main Page · 11 HM-05·07)', () => {
     expect(rate['margin-right']).toBe('4px');
   });
 
-  it('ICONS PICK 은 데스크톱 3열 · 750~989 2열 · 모바일 1열이다', () => {
+  it('X SQUARE PICK 은 데스크톱 3열 · 750~989 2열 · 모바일 1열이다', () => {
     expect(decls(HOME, '.wc-x-pick-grid')['grid-template-columns']).toBe('minmax(0, 1fr)');
     expect(decls(HOME, '.wc-x-pick-grid', TABLET)['grid-template-columns']).toBe('repeat(2, minmax(0, 1fr))');
     expect(decls(HOME, '.wc-x-pick-grid', DESKTOP)['grid-template-columns']).toBe('repeat(3, minmax(0, 1fr))');
@@ -393,7 +393,7 @@ describe('홈 (X SQUARE Figma Main Page · 11 HM-05·07)', () => {
   });
 
   /* 세로 예산 계약(l4-ui-6) — 줄높이·간격을 px 로 고정해 렌더 높이를 CSS 에서 셀 수 있게 둔다. 아이콘 타일이 165.8 로 커졌던 것을 되돌리지 않게 막는다.
-     (구 기획전 리스트 행의 99/97 예산 계약은 행이 ICONS PICK 상품 행으로 바뀌며 위 94 썸네일 계약이 대신한다.) */
+     (구 기획전 리스트 행의 99/97 예산 계약은 행이 X SQUARE PICK 상품 행으로 바뀌며 위 94 썸네일 계약이 대신한다.) */
   it('데스크톱 혜택 타일의 글 블록이 158 - 패딩 64 안에 들어 280×158 을 지킨다(HM-07)', () => {
     const tile = decls(HOME, '.wc-benefit__tile', DESKTOP);
     const icon = decls(HOME, '.wc-benefit__tile-icon');

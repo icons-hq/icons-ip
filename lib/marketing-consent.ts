@@ -55,12 +55,15 @@ export const MARKETING_CONSENT_NOTICE = {
 /*
  * 카카오톡을 더한 안내(marketing-channels-v2, 1014-010). 카카오톡 채널 스위치가 켜졌을 때만 화면에 나온다.
  * 문구를 바꾸면 버전을 올리고 DB가 받는 버전 목록(customer_marketing_consents notice_version check)도 함께 바꾼다.
+ * 예외 기록(2026-11-24): 서비스 이름 통일로 kakao 문장의 'ICONS'를 '엑스스퀘어'로 고칠 때는 버전을 올리지 않았다 — 카카오톡 채널
+ * 스위치를 켠 적이 없어 운영 DB에 v2로 기록된 동의가 0건(v1 8건·legacy 2건, 같은 날 확인)이라 v2가 가리키는 문구가 하나뿐이다.
+ * 스위치를 켠 뒤부터는 이 예외를 쓰지 않는다.
  */
 export const MARKETING_CONSENT_NOTICE_WITH_KAKAO = {
   title: MARKETING_CONSENT_NOTICE.title,
   summary: MARKETING_CONSENT_NOTICE.summary,
   sms: MARKETING_CONSENT_NOTICE.sms,
-  kakao: '카카오톡은 ICONS 카카오톡 채널 메시지로 보내 드려요. 채널을 차단해도 받지 않아요.',
+  kakao: '카카오톡은 엑스스퀘어 카카오톡 채널 메시지로 보내 드려요. 채널을 차단해도 받지 않아요.',
   change: MARKETING_CONSENT_NOTICE.change,
   inApp: '알림함의 마케팅 소식은 이메일·SMS·카카오톡 중 하나라도 수신에 동의하면 받아요. 세 수단을 모두 끄면 알림함 마케팅 소식도 받지 않아요.',
 } as const;
@@ -169,7 +172,7 @@ export function marketingConsentResultMessage(choices: MarketingChannelChoices, 
   const channels = choices.kakao === undefined ? MARKETING_CHANNELS : MARKETING_CHANNELS_WITH_KAKAO;
   const parts = channels.map((channel) => `${MARKETING_CHANNEL_LABELS[channel]} ${choices[channel] ? '수신 동의' : '수신 거부'}`);
   const inApp = choices.email || choices.sms || choices.kakao ? '' : ' · 알림함 마케팅 소식도 받지 않아요';
-  return `ICONS 마케팅 정보 수신 설정을 저장했어요 · ${parts.join(' · ')} · ${formatMarketingConsentDate(at)} 처리${inApp}`;
+  return `엑스스퀘어 마케팅 정보 수신 설정을 저장했어요 · ${parts.join(' · ')} · ${formatMarketingConsentDate(at)} 처리${inApp}`;
 }
 
 /**

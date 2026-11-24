@@ -14,7 +14,7 @@ function row(overrides: Record<string, unknown> = {}) {
     dedupe_key: `order_confirmation:${ORDER_ID}`,
     template: 'order_confirmation',
     recipient: 'buyer@example.com',
-    subject: '[ICONS] 주문이 접수됐어요',
+    subject: '[엑스스퀘어] 주문이 접수됐어요',
     status: 'failed',
     attempt_count: 2,
     last_error: 'resend 429',

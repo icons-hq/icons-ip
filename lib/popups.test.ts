@@ -25,7 +25,7 @@ function event(overrides: Partial<FandomEvent> & Pick<FandomEvent, 'id'>): Fando
     mode: '오프라인',
     status: '진행중',
     date: '11.01 - 11.30',
-    loc: '성수 ICONS 스튜디오',
+    loc: '성수 엑스스퀘어 스튜디오',
     accent: '#8B5CFF',
     img: 'url("https://cdn.test/e.png") center / cover no-repeat',
     ...overrides,
@@ -124,7 +124,7 @@ describe('popupItemsFromEvents (오프라인 팝업)', () => {
       NOW,
     );
 
-    expect(same.meta).toBe('오프라인 · 성수 ICONS 스튜디오 · 2026.11.14 – 12.7');
+    expect(same.meta).toBe('오프라인 · 성수 엑스스퀘어 스튜디오 · 2026.11.14 – 12.7');
     expect(cross.meta).toBe('오프라인 · 2026.12.20 – 2027.1.5');
     /* 캠페인 쪽과 같은 함수의 결과다. */
     expect(popupItemsFromCampaigns([campaign({ id: 'c', startsAt: '2026-11-13T15:00:00.000Z', endsAt: '2026-12-07T14:59:59.000Z' })])[0].meta)
@@ -142,9 +142,9 @@ describe('popupItemsFromEvents (오프라인 팝업)', () => {
     );
 
     expect(items.map((item) => item.meta)).toEqual([
-      '오프라인 · 성수 ICONS 스튜디오 · 11.14',
-      '오프라인 · 성수 ICONS 스튜디오 · 7.01 - 7.21',
-      '오프라인 · 성수 ICONS 스튜디오 · 8.01 - 8.09',
+      '오프라인 · 성수 엑스스퀘어 스튜디오 · 11.14',
+      '오프라인 · 성수 엑스스퀘어 스튜디오 · 7.01 - 7.21',
+      '오프라인 · 성수 엑스스퀘어 스튜디오 · 8.01 - 8.09',
     ]);
   });
 

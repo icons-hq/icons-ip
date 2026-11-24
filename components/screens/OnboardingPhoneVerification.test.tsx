@@ -149,7 +149,7 @@ describe('PhoneVerificationPanel (1014-005·006, 스위치 ON)', () => {
     expect(html).not.toContain('name="birthYear"');
     expect(html).toContain('마지막으로 휴대폰 번호를 인증해주세요.');
     expect(html).toContain('<input type="hidden" name="next" value="/"/>');
-    expect(html).toContain('ICONS 시작하기');
+    expect(html).toContain('엑스스퀘어 시작하기');
   });
 
   /* 사용자 결정 '옮기고 재인증 요구' — 번호를 다른 계정에 옮겨 간 회원에게 왜 다시 인증하는지 알린다. */

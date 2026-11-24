@@ -13,7 +13,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { document } = await params;
   const legal = getLegalDocument(document);
-  return legal ? { title: `${legal.title} — ICONS`, description: legal.summary } : { title: 'ICONS' };
+  return legal ? { title: `${legal.title} — 엑스스퀘어`, description: legal.summary } : { title: '엑스스퀘어' };
 }
 
 export default async function Page({ params }: PageProps) {

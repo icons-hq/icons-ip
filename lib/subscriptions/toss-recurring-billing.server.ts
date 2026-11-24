@@ -197,7 +197,7 @@ export function createTossRecurringBilling(options: {
       }
       const response = await request(input.binding, `/v1/billing/${encodeURIComponent(input.billingKey)}`, 'POST', chargeTimeoutMs,
         input.binding.writeKeyVersion, input.attempt.idempotencyKey, { customerKey: input.customerKey, amount: input.attempt.amount,
-          orderId: input.attempt.providerOrderId, orderName: 'ICONS 정기배송 주문' });
+          orderId: input.attempt.providerOrderId, orderName: '엑스스퀘어 정기배송 주문' });
       if (!response) return billingOutcome(input.attempt, 'unknown', 'billing_charge_unavailable');
       if (configurationFailure(response)) return billingOutcome(input.attempt, 'needs_review', 'billing_configuration_error');
       const code = providerCode(response);

@@ -18,7 +18,7 @@ const detail: AdminInquiryDetail = { inquiry: { ...data.rows[0], buyerEmail: nul
 function render(props: Partial<Parameters<typeof InquiryChatScreen>[0]> = {}) {
   return renderToStaticMarkup(<InquiryChatScreen accountId={ACCOUNT} filters={normalizeInquiryChatFilters({})} data={data} detail={null} selected={false} canReadOrders={false} canViewCustomer={false} {...props} />);
 }
-describe('ICONS 상담 콘솔', () => {
+describe('엑스스퀘어 상담 콘솔', () => {
   it('검색·상태·담당자·기간·읽음·정렬과 실제 안 읽음 집계를 표시한다', () => {
     const html = render();
     expect(html).toContain('대화내용, 닉네임, 태그 검색'); expect(html).toContain('안 읽은 메시지 2개 전체 보기');

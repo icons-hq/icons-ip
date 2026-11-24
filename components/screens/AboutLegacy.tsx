@@ -79,7 +79,7 @@ const PREVIEW_HERO_COPY: Record<string, {
   description: string;
 }> = {
   rilakkuma: {
-    eyebrow: 'ICONS ORIGINAL CURATION',
+    eyebrow: 'X SQUARE ORIGINAL CURATION',
     title: '느긋한 하루를\n수집하는 시간',
     description: '리락쿠마의 포근한 방을 굿즈, 카드, 팝업으로 만나보세요.',
   },
@@ -205,7 +205,7 @@ function heroSlidesFor({
       id: `curation-${curatedHero.id}`,
       eyebrow: 'FEATURED STORY',
       title: curatedHero.title,
-      description: '지금 ICONS에서 가장 먼저 만나볼 수 있는 새로운 IP 경험입니다.',
+      description: '지금 엑스스퀘어에서 가장 먼저 만나볼 수 있는 새로운 IP 경험입니다.',
       background: curatedHero.imageBg ?? selectedIp?.bg ?? 'var(--editorial-placeholder)',
       href: curatedHero.href,
       label: curatedHero.title,
@@ -312,7 +312,7 @@ function HeroCarousel({
   if (!activeSlide) return null;
 
   return (
-    <section aria-label="ICONS 주요 소식" aria-roledescription="carousel" className="hero">
+    <section aria-label="엑스스퀘어 주요 소식" aria-roledescription="carousel" className="hero">
       <div className="hero-slides">
         {slides.map((slide, index) => (
           <div
@@ -417,7 +417,7 @@ function IpWorlds({ ips }: { ips: Ip[] }) {
   return (
     <section className="ip-section" id="ip">
       <div className="section-intro section-intro--center">
-        <p className="eyebrow dark">ICONS IP</p>
+        <p className="eyebrow dark">X SQUARE IP</p>
         <h2>당신이 좋아하는<br />세계들을 만나보세요.</h2>
       </div>
       <div className="marquee-shell">
@@ -461,7 +461,7 @@ function FilmWindow({ scenes }: { scenes: FilmScene[] }) {
   if (!active) return null;
 
   return (
-    <section aria-label="ICONS 경험 소개" aria-roledescription="carousel" className="film-section">
+    <section aria-label="엑스스퀘어 경험 소개" aria-roledescription="carousel" className="film-section">
       <div
         className="film-window"
         onFocusCapture={(event) => {
@@ -541,7 +541,7 @@ function Experiences({ items }: { items: ExperienceItem[] }) {
   return (
     <section className="experience-section" id="experience">
       <div className="section-heading-row">
-        <div><p className="eyebrow dark">RIGHT NOW AT ICONS</p><h2>지금 열려 있는<br />팬 경험</h2></div>
+        <div><p className="eyebrow dark">RIGHT NOW AT X SQUARE</p><h2>지금 열려 있는<br />팬 경험</h2></div>
         <div className="carousel-buttons">
           <button aria-label="이전 경험" onClick={() => scroll(-1)} type="button">←</button>
           <button aria-label="다음 경험" onClick={() => scroll(1)} type="button">→</button>
@@ -730,7 +730,7 @@ function Stats({ catalog }: { catalog: CatalogSnapshot }) {
 
   return (
     <section className="trust-section">
-      <div className="trust-title"><p className="eyebrow dark">ICONS IN NUMBERS</p><h2>좋아하는 마음이<br />모이는 곳</h2></div>
+      <div className="trust-title"><p className="eyebrow dark">X SQUARE IN NUMBERS</p><h2>좋아하는 마음이<br />모이는 곳</h2></div>
       <div className="stats-grid">
         {stats.map(([value, label], index) => (
           <div className={`stat stat--${index + 1}`} key={label}><strong>{value}</strong><span>{label}</span></div>

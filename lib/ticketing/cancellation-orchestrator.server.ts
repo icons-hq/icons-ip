@@ -333,7 +333,7 @@ export async function reconcileTicketCancellation(
       refund = await dependencies.refundTossPayment({
         paymentId: payment.id,
         amount: payment.amount,
-        reason: 'ICONS 티켓 취소',
+        reason: '엑스스퀘어 티켓 취소',
       });
     } catch {
       return markNeedsReview(dependencies, input, 'provider_unavailable');

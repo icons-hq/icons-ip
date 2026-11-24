@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     return new Response(new Uint8Array(bytes), { headers: {
       ...EXPORT_NO_STORE,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-거래확정-${stamp}.xlsx`, `icons-settled-${stamp}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-거래확정-${stamp}.xlsx`, `xsquare-settled-${stamp}.xlsx`),
       'X-ICONS-Export-Receipt': id, 'X-ICONS-Export-Audit': auditId, 'X-ICONS-Export-Encryption': 'ECMA-376-Agile',
     } });
   } catch (error) {

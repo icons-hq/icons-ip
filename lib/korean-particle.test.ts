@@ -3,7 +3,7 @@ import { conjunctionParticle, subjectParticle, directionParticle, objectParticle
 
 describe('directionParticle — 로/으로', () => {
   it('받침 없음·ㄹ 받침은 로, 그 밖의 받침은 으로', () => {
-    expect(directionParticle('ICONS 표준 양식')).toBe('으로');
+    expect(directionParticle('엑스스퀘어 표준 양식')).toBe('으로');
     expect(directionParticle('기존 창고 양식')).toBe('으로');
     expect(directionParticle('서원 송장양식')).toBe('으로');
     expect(directionParticle('파일')).toBe('로');

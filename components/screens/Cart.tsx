@@ -159,7 +159,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
           <span className="wc-product-card__adult-mark">19</span>
         </span>
         <div className="wc-cart__line-info">
-          <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
+          <p className="wc-cart__line-brand">{ip?.title ?? '엑스스퀘어'}</p>
           <p className="wc-cart__line-name">{ADULT_GOOD_LABEL}</p>
           <p className="wc-cart__line-state">
             성인 인증 후 구매할 수 있어요. <Link href={adultVerificationHref('/cart')}>성인 인증하기</Link>
@@ -219,7 +219,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
         tabIndex={-1}
       />
       <div className="wc-cart__line-info">
-        <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
+        <p className="wc-cart__line-brand">{ip?.title ?? '엑스스퀘어'}</p>
         <Link className="wc-cart__line-name" href={href}>{good.name}</Link>
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}

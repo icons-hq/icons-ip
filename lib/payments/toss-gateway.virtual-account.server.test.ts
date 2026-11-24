@@ -307,7 +307,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
         ...overrides,
       };
@@ -343,7 +343,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
       const [url, init] = fetchImpl.mock.calls[1]!;
       expect(url).toBe(`${API}/v1/payments/${PAYMENT_KEY}/cancel`);
       expect(JSON.parse(init.body)).toEqual({
-        cancelReason: 'ICONS 주문 취소',
+        cancelReason: '엑스스퀘어 주문 취소',
         refundReceiveAccount: { bank: '88', accountNumber: '110123456789', holderName: '김토스' },
       });
       expect(init.headers['idempotency-key']).toMatch(new RegExp(`^refund:${ATTEMPT.id}:va-[0-9a-f]{16}$`));
@@ -392,7 +392,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
       const [url, init] = fetchImpl.mock.calls[2]!;
       expect(url).toBe(`${API}/v2/escrows/${ESCROW_KEY}/cancel`);
       expect(init.headers['idempotency-key']).toBe(`refund:${ATTEMPT.id}:escrow`);
-      expect(JSON.parse(init.body)).toEqual({ reason: 'ICONS 주문 취소' });
+      expect(JSON.parse(init.body)).toEqual({ reason: '엑스스퀘어 주문 취소' });
       expect(outcome.outcome).toBe('approved');
       // 결제 조회·전후 조회는 결제 키(gsk), 거래 조회·취소 수락은 에스크로 키(sk)다.
       expect(fetchImpl.mock.calls.map(([, call]) => call.headers.authorization)).toEqual([
@@ -563,7 +563,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
       });
 
@@ -587,7 +587,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
       });
 
@@ -607,7 +607,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
       });
 

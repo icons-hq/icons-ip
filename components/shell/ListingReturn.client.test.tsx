@@ -402,7 +402,7 @@ describe('모바일 서브헤더 [← 이전] (CT-03)', () => {
     return button.props as { onClick: () => void };
   }
 
-  it('이 탭에서 앞에 ICONS 화면이 있으면 뒤로 간다', () => {
+  it('이 탭에서 앞에 엑스스퀘어 화면이 있으면 뒤로 간다', () => {
     stubBrowser(sessionStorageStub().storage, { history: { length: 3 }, navigation: { canGoBack: true } });
 
     backButton().onClick();
@@ -423,8 +423,8 @@ describe('모바일 서브헤더 [← 이전] (CT-03)', () => {
   });
 
   /* l9-data-4·l9-ui-1: 첫 기록인 장바구니에서 [홈]으로 갔다가 브라우저 뒤로 돌아오면 길이는 2 지만 뒤로 갈 곳이 없다.
-     빈 탭·다른 사이트에서 주소로 들어와도 길이는 2 다 — 그 앞 기록은 ICONS 가 아니다. */
-  it('기록 길이가 2 이상이어도 앞에 ICONS 화면이 없으면 뒤로 가지 않고 직전 목록으로 보낸다', () => {
+     빈 탭·다른 사이트에서 주소로 들어와도 길이는 2 다 — 그 앞 기록은 엑스스퀘어가 아니다. */
+  it('기록 길이가 2 이상이어도 앞에 엑스스퀘어 화면이 없으면 뒤로 가지 않고 직전 목록으로 보낸다', () => {
     const { storage } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/shop/new' });
     stubBrowser(storage, { history: { length: 2 }, navigation: { canGoBack: false } });
 

@@ -39,7 +39,7 @@ function tossPayload() {
     customerKey: 'ANONYMOUS',
     variantKey: 'ICONS',
     orderId: 'O0123456789abcdef0123456789abcdef',
-    orderName: 'ICONS 굿즈 주문',
+    orderName: '엑스스퀘어 굿즈 주문',
     amount: 31000,
     currency: 'KRW',
     successUrl: 'https://iconsip.com/api/payments/goods/confirm/toss/opaque-callback-nonce-205',

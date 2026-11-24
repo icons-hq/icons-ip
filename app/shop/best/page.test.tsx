@@ -94,7 +94,7 @@ beforeEach(() => {
 describe('/shop/best page', () => {
   it('실화면이므로 색인을 막지 않는다', () => {
     expect(metadata).toMatchObject({
-      title: 'BEST — ICONS',
+      title: 'BEST — 엑스스퀘어',
       description: '지금 가장 사랑받는 굿즈예요.',
     });
     expect(metadata.robots).toBeUndefined();

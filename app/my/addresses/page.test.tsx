@@ -48,7 +48,7 @@ describe('/my/addresses page', () => {
   });
 
   it('is a private account page in metadata', () => {
-    expect(metadata).toMatchObject({ title: '배송지 관리 — ICONS', robots: { index: false, follow: false } });
+    expect(metadata).toMatchObject({ title: '배송지 관리 — 엑스스퀘어', robots: { index: false, follow: false } });
   });
 
   it('requires login and onboarding with the exact return path before reading the address book', async () => {

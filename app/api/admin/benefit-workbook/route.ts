@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       filters.detail === 'issuances' ? getBenefitIssuances(filters, now, true) : null,
     ]);
     const bytes = await buildBenefitWorkbook(data, comparison, filters, now, issuances), stamp = kstFileStamp(now);
-    return new Response(new Uint8Array(bytes), { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': adminListExportContentDisposition(`icons-혜택리포트-${stamp}.xlsx`, `icons-benefit-report-${stamp}.xlsx`), 'Cache-Control': 'private, no-store' } });
+    return new Response(new Uint8Array(bytes), { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': adminListExportContentDisposition(`xsquare-혜택리포트-${stamp}.xlsx`, `xsquare-benefit-report-${stamp}.xlsx`), 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof BenefitIssuanceError) {

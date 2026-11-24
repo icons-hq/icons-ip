@@ -7,7 +7,7 @@ import { loadLoyaltyBenefitsPage } from '@/lib/loyalty-benefits.server';
 import { hrefFor } from '@/lib/routes';
 
 export const metadata: Metadata = {
-  title: '회원 등급 혜택 — ICONS',
+  title: '회원 등급 혜택 — 엑스스퀘어',
   description: '회원 등급별 기준과 등급 혜택 쿠폰·적립 혜택을 확인하세요.',
   robots: { index: false, follow: false },
 };

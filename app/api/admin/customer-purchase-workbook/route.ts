@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const bytes = await buildCustomerPurchaseWorkbook(data, filters, now), stamp = kstFileStamp(now);
     return new Response(new Uint8Array(bytes), { headers: { ...privateHeaders,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-신규재구매분석-${stamp}.xlsx`, `icons-customer-purchase-${stamp}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-신규재구매분석-${stamp}.xlsx`, `xsquare-customer-purchase-${stamp}.xlsx`),
     } });
   } catch (error) {
     unstable_rethrow(error);

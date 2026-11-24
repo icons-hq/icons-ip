@@ -447,7 +447,7 @@ describe('sendRestockAlertEmails (#326)', () => {
       target_dedupe_key: `restock_alert:${ALERT_ID}:2026-10-22T02:00:00.000Z`,
       target_template: 'restock_alert',
       target_recipient: 'fan@example.com',
-      target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
+      target_subject: '[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록',
     });
     expect(mocks.send).toHaveBeenCalledTimes(1);
     expect(mocks.send.mock.calls[0][0].text).toContain('홍실 아크릴 블록');
@@ -636,12 +636,12 @@ describe('sendRestockAlertEmails (#326)', () => {
       const claims = rpcCalls('claim_email_delivery').map((call) => call[1]);
       expect(claims[0]).toMatchObject({
         target_dedupe_key: `restock_alert:${ALERT_ID}:2026-10-22T02:00:00.000Z`,
-        target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
+        target_subject: '[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록',
       });
       expect(claims[1]).toMatchObject({
         target_dedupe_key: `restock_alert:${SECOND_ALERT}:${VARIANT_ID}:2026-10-23T01:00:00.000Z`,
         target_recipient: 'fan2@example.com',
-        target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록 · 빨강',
+        target_subject: '[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록 · 빨강',
       });
       const optionMail = mocks.send.mock.calls[1][0];
       expect(optionMail.text).toContain('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
@@ -666,7 +666,7 @@ describe('sendRestockAlertEmails (#326)', () => {
       expect(rpcCalls('service_restock_alert_option_names')).toHaveLength(0);
       expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
         target_dedupe_key: `restock_alert:${SECOND_ALERT}:${VARIANT_ID}:2026-10-23T01:00:00.000Z`,
-        target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
+        target_subject: '[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록',
       });
       const mail = mocks.send.mock.calls[0][0];
       expect(mail.text).toContain('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
@@ -709,7 +709,7 @@ describe('sendRestockAlertEmails (#326)', () => {
   mocks.shipments = [shipmentFixture({orderId:ORDER_ID,shipmentNumber:'2026102730000011',originName:'남양주',orderItemIds:['item-1']})];
   await sendOrderShippedEmail({orderId:ORDER_ID,shipmentId:mocks.shipments[0].id});
   const sent = mocks.send.mock.calls[0][0];
-  expect(sent.subject).toBe('[ICONS] 굿즈가 배송을 시작했어요 (주문번호 2026102710000009)');
+  expect(sent.subject).toBe('[엑스스퀘어] 굿즈가 배송을 시작했어요 (주문번호 2026102710000009)');
   expect(sent.text).toContain('배송건번호: 2026102730000011');
   expect(`${sent.subject}${sent.text}${sent.html}`).not.toContain('남양주');
  });

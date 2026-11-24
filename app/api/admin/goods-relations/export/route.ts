@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const bytes = await buildGoodsRelationsWorkbook(snapshot), stamp = kstFileStamp(new Date());
     return new Response(new Uint8Array(bytes), { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-연관상품관리-${stamp}.xlsx`, `icons-goods-relations-${stamp}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-연관상품관리-${stamp}.xlsx`, `xsquare-goods-relations-${stamp}.xlsx`),
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
       'X-ICONS-Export-Rows': String(snapshot.rows.length),

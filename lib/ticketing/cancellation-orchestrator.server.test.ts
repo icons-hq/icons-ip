@@ -165,7 +165,7 @@ describe('reconcileTicketCancellation', () => {
     expect(deps.refundTossPayment).toHaveBeenCalledWith({
       paymentId: PAYMENT_ID,
       amount: 42000,
-      reason: 'ICONS 티켓 취소',
+      reason: '엑스스퀘어 티켓 취소',
     });
     expect(deps.completeRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,

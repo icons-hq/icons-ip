@@ -96,8 +96,8 @@ const RECONCILE_ERRORS: Record<string, string> = {
   provider_cancel_ambiguous: '결제사 처리 결과를 확인하지 못했습니다. 잠시 뒤 [결제사 확인 다시 하기]를 눌러주세요.',
   provider_balance_mismatch: '결제사 잔액이 예상과 다릅니다(다른 취소가 끼어들었을 수 있음). 상점관리자에서 취소하지 말고 결제 담당자에게 넘겨주세요.',
   local_finalize_failed: '결제사 부분 취소는 확인됐지만 주문에 적용하지 못했습니다. [결제사 확인 다시 하기]를 눌러주세요. 같은 오류가 반복되면 결제 담당자에게 넘겨주세요.',
-  payment_evidence_invalid: 'ICONS의 결제 기록이 부분 취소를 시작할 때와 달라져 결제사에 취소를 요청하지 않았습니다. 결제 담당자에게 넘겨주세요.',
-  provider_mismatch: '결제사가 확인한 결제가 ICONS에 기록된 결제와 다릅니다. 결제 담당자에게 넘겨주세요.',
+  payment_evidence_invalid: '엑스스퀘어의 결제 기록이 부분 취소를 시작할 때와 달라져 결제사에 취소를 요청하지 않았습니다. 결제 담당자에게 넘겨주세요.',
+  provider_mismatch: '결제사가 확인한 결제가 엑스스퀘어에 기록된 결제와 다릅니다. 결제 담당자에게 넘겨주세요.',
   local_state_unavailable: '부분 취소 상태를 읽지 못했습니다. 잠시 뒤 다시 시도해주세요.',
   not_found: '부분 취소 기록을 찾을 수 없습니다.',
   not_ready: '결제사 확인을 기다리는 부분 취소가 아닙니다. 새로고침해주세요.',
@@ -109,7 +109,7 @@ const RESOLUTION_ERRORS: Record<string, string> = {
   not_needs_review: '결제확인필요 상태가 아닙니다. 새로고침해주세요.',
   local_state_unavailable: '부분 취소 상태를 읽지 못했습니다. 잠시 뒤 다시 시도해주세요.',
   provider_unavailable: '결제사 잔액을 조회하지 못했습니다. 잠시 뒤 다시 시도해주세요.',
-  provider_mismatch: '결제사가 알려 준 결제가 ICONS에 기록된 결제와 다릅니다. 아무것도 바꾸지 않았습니다. 결제사 상점관리자의 결제 내역과 주문 상세의 결제 내역을 맞춰 봐 주세요.',
+  provider_mismatch: '결제사가 알려 준 결제가 엑스스퀘어에 기록된 결제와 다릅니다. 아무것도 바꾸지 않았습니다. 결제사 상점관리자의 결제 내역과 주문 상세의 결제 내역을 맞춰 봐 주세요.',
   balance_unexplained: '결제사 잔액이 시작 때 잔액도, 이 취소를 뺀 잔액도 아닙니다(다른 취소가 끼었을 수 있음). 해소하지 않았습니다. 상점관리자의 취소 내역을 대조해주세요.',
 };
 

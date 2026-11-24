@@ -14,7 +14,7 @@ export function ReviewEventExportButton({ href, total, entries = false, disabled
       const response = await fetch(`${href}&privacyConfirmed=yes`, { cache: 'no-store', credentials: 'same-origin' });
       if (!response.ok || !response.headers.get('content-type')?.includes('spreadsheetml.sheet')) { setError(await adminListExportResponseError(response)); return; }
       const blob = await response.blob(), url = URL.createObjectURL(blob), anchor = document.createElement('a');
-      anchor.href = url; anchor.download = adminListExportFileNameFromDisposition(response.headers.get('content-disposition'), 'icons-review-events.xlsx');
+      anchor.href = url; anchor.download = adminListExportFileNameFromDisposition(response.headers.get('content-disposition'), 'xsquare-review-events.xlsx');
       document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       const rows = Number(response.headers.get('x-icons-export-rows')); setMessage(Number.isSafeInteger(rows) && rows >= 0 ? `엑셀 ${rows.toLocaleString('ko-KR')}행을 내려받았습니다.` : '엑셀 파일을 내려받았습니다.');
     } catch { setError('연결이 끊겨 파일을 받지 못했습니다. 다시 내려받아 주세요.'); }

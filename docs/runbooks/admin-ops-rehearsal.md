@@ -37,7 +37,7 @@ node scripts/admin-rehearsal-workbooks.mjs \
   --run ops-20260908-s1 \
   --ip demo-maple-placeholder \
   --origin gimpo \
-  --template /absolute/path/icons-goods-template.xlsx \
+  --template /absolute/path/xsquare-goods-template.xlsx \
   --out /absolute/path/rehearsal-s1
 
 node scripts/admin-rehearsal-orders.mjs \

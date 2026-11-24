@@ -19,7 +19,7 @@ select 1 / case when not has_function_privilege('anon','public.admin_save_store_
   and not has_function_privilege('authenticated','private.store_branding_valid(jsonb)','execute')
   and not has_table_privilege('authenticated','public.store_settings','update') then 1 else 0 end as assert_sealed_writes;
 set local role anon;
-select 1 / case when public.get_storefront_branding()='{ "displayName":"ICONS","logoPath":null,"mobileLogoPath":null,"introduction":null,"socials":[] }'::jsonb then 1 else 0 end as assert_public_default;
+select 1 / case when public.get_storefront_branding()='{ "displayName":"엑스스퀘어","logoPath":null,"mobileLogoPath":null,"introduction":null,"socials":[] }'::jsonb then 1 else 0 end as assert_public_default;
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000016002',true);

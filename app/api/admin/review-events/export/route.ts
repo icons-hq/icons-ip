@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     const stamp = kstFileStamp(generatedAt), label = filters.mode === 'events' ? '리뷰이벤트목록' : '리뷰이벤트응모';
     return new Response(new Uint8Array(bytes), { headers: { ...NO_STORE,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-${label}-${stamp}.xlsx`, `icons-review-${filters.mode}-${stamp}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-${label}-${stamp}.xlsx`, `xsquare-review-${filters.mode}-${stamp}.xlsx`),
       'X-ICONS-Export-Audit': audit.data, 'X-ICONS-Export-Rows': String(snapshot.total), 'X-ICONS-Export-Records': String(snapshot.total),
     } });
   } catch (error) { unstable_rethrow(error); return fail('파일을 만들지 못했습니다. 현재 권한과 연결 상태를 확인하고 다시 내려받아 주세요.', 503); }

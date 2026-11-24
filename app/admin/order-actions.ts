@@ -654,7 +654,7 @@ export async function previewAdminOrderTrackingImportAction(formData: FormData):
   if ('error' in read) return { error: read.error };
   const parsed = read.parsed;
   const kind = 'kind' in parsed ? parsed.kind : 'generic';
-  const format = kind === 'gimpo' ? '김포 WMS 21열' : kind === 'seowon' ? '남양주(서원) 송장양식' : kind === 'smartstore' ? 'ICONS 표준 양식' : '배송건번호 · 택배사코드 · 운송장번호';
+  const format = kind === 'gimpo' ? '김포 WMS 21열' : kind === 'seowon' ? '남양주(서원) 송장양식' : kind === 'smartstore' ? '엑스스퀘어 표준 양식' : '배송건번호 · 택배사코드 · 운송장번호';
   const rows: { line: number; reference: string; trackingNumber: string }[] = isSeowonReply(parsed)
     ? parsed.rows.filter(row => !row.error).map(row => ({ line: row.line, reference: row.shipmentNumber ?? row.items, trackingNumber: row.trackingNumber }))
     : parsed.rows.map(row => ({ line: row.line, reference: row.reference, trackingNumber: row.trackingNumber }));

@@ -22,7 +22,7 @@ describe('방문·유입 엑셀', () => {
   it('공용 모양·숫자 셀·KST 문자열과 맨 뒤 내려받기 정보로 만든다', async () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-방문유입분석-\d{8}-\d{4}\.xlsx/);
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/xsquare-방문유입분석-\d{8}-\d{4}\.xlsx/);
     const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await response.arrayBuffer()) as never);
     expect(book.worksheets.map(sheet => sheet.name)).toEqual(['분석 결과', '추이', '내려받기 정보']);
     const sheet = book.worksheets[0], trend = book.worksheets[1];
@@ -43,7 +43,7 @@ describe('방문·유입 엑셀', () => {
   });
   it('마케팅 링크 성과는 화면 이름으로 내려받는다', async () => {
     const response = await GET(request('from=2026-10-01&to=2026-10-07&dimension=link'));
-    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-마케팅링크성과-\d{8}-\d{4}\.xlsx/);
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/xsquare-마케팅링크성과-\d{8}-\d{4}\.xlsx/);
   });
   it('10,000개를 넘으면 파일을 만들지 않는다', async () => {
     mocks.report.mockResolvedValue({ ...report, total: 10001 });

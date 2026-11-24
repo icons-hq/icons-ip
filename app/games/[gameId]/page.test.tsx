@@ -48,7 +48,7 @@ describe('public game route gate', () => {
 
   it('does not leak a disabled game title through metadata', async () => {
     await expect(generateMetadata({ params: Promise.resolve({ gameId: 'game-1' }) })).resolves.toEqual({
-      title: 'ICONS',
+      title: '엑스스퀘어',
     });
     expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
   });
@@ -132,7 +132,7 @@ describe('public game route gate', () => {
   it('publishes the Hyosan title without consulting the gated card game catalog', async () => {
     await expect(
       generateMetadata({ params: Promise.resolve({ gameId: 'hyosan-memories' }) }),
-    ).resolves.toEqual({ title: '효산의 기억 — ICONS' });
+    ).resolves.toEqual({ title: '효산의 기억 — 엑스스퀘어' });
     expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
   });
 });

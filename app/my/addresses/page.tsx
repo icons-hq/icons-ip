@@ -8,7 +8,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { hrefFor } from '@/lib/routes';
 
 export const metadata: Metadata = {
-  title: '배송지 관리 — ICONS',
+  title: '배송지 관리 — 엑스스퀘어',
   description: '주문서에서 불러올 배송지를 등록하고 기본 배송지를 정하세요.',
   robots: { index: false, follow: false },
 };

@@ -96,8 +96,8 @@ export function generatePhoneCode(random: (maxExclusive: number) => number = ran
 export function phoneCodeMessage(code: string, e164: string): string {
   const minutes = Math.round(PHONE_CODE_TTL_SECONDS / 60);
   return isKoreanPhoneNumber(e164)
-    ? `[ICONS] 인증번호 [${code}]를 ${minutes}분 안에 입력해주세요.`
-    : `[ICONS] Your verification code is ${code}. It expires in ${minutes} minutes.`;
+    ? `[엑스스퀘어] 인증번호 [${code}]를 ${minutes}분 안에 입력해주세요.`
+    : `[X SQUARE] Your verification code is ${code}. It expires in ${minutes} minutes.`;
 }
 
 type ServiceClient = ReturnType<typeof createServiceClient>;

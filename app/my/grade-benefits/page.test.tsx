@@ -30,7 +30,7 @@ describe('/my/grade-benefits page', () => {
   });
 
   it('is a private account page in metadata', () => {
-    expect(metadata).toMatchObject({ title: '회원 등급 혜택 — ICONS', robots: { index: false, follow: false } });
+    expect(metadata).toMatchObject({ title: '회원 등급 혜택 — 엑스스퀘어', robots: { index: false, follow: false } });
   });
 
   it('requires login and onboarding with the exact return path before reading benefits', async () => {

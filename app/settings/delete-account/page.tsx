@@ -7,7 +7,7 @@ import { getAccountDeletionPresentation } from '@/lib/account-deletion.server';
 import { getCurrentAuthState } from '@/lib/auth/server';
 
 export const metadata: Metadata = {
-  title: '회원 탈퇴 — ICONS',
+  title: '회원 탈퇴 — 엑스스퀘어',
   description: '진행 중인 의무를 확인하고 회원 탈퇴를 신청합니다.',
 };
 

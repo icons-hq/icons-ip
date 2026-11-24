@@ -19,9 +19,9 @@ describe('smsSenderFromEnvironment (발송 seam)', () => {
     const write = vi.fn();
     const sender = createConsoleSmsSender(write);
 
-    await expect(sender.send({ to: '+821012345678', text: '[ICONS] 인증번호 [123456]', purpose: 'phone_verification' }))
+    await expect(sender.send({ to: '+821012345678', text: '[엑스스퀘어] 인증번호 [123456]', purpose: 'phone_verification' }))
       .resolves.toEqual({ ok: true, providerMessageId: null });
-    expect(write).toHaveBeenCalledWith('[sms:console] to=+821****78 purpose=phone_verification text=[ICONS] 인증번호 [123456]');
+    expect(write).toHaveBeenCalledWith('[sms:console] to=+821****78 purpose=phone_verification text=[엑스스퀘어] 인증번호 [123456]');
     expect(write.mock.calls[0][0]).not.toContain('1012345678');
   });
 });

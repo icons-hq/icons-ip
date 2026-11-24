@@ -7,8 +7,8 @@ import { normalizeTicketReference } from '@/lib/ticketing';
 import { loadTicketOrder } from '@/lib/ticketing.server';
 
 export const metadata: Metadata = {
-  title: '티켓 결제 — ICONS',
-  description: 'ICONS 티켓 예매 결제 상태를 확인하세요.',
+  title: '티켓 결제 — 엑스스퀘어',
+  description: '엑스스퀘어 티켓 예매 결제 상태를 확인하세요.',
 };
 
 export default async function Page({ params }: { params: Promise<{ ticketOrderId: string }> }) {

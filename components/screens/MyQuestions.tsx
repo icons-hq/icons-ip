@@ -48,7 +48,7 @@ function QuestionCard({ question }: { question: MyProductQuestion }) {
 
       {question.answerBody ? (
         <div className="wc-qna-item__answer">
-          <strong className="wc-qna-item__answer-author">ICONS 답변</strong>
+          <strong className="wc-qna-item__answer-author">엑스스퀘어 답변</strong>
           {question.answeredAt ? (
             <time className="wc-qna-item__date" dateTime={question.answeredAt}>
               {formatProductQuestionDate(question.answeredAt)}

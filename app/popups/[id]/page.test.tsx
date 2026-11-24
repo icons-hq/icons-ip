@@ -141,12 +141,12 @@ describe('/popups/[id] POP-UP 캠페인 상세', () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
-  it('캠페인마다 다른 페이지 제목을 지금 패턴(— ICONS)으로 낸다', async () => {
+  it('캠페인마다 다른 페이지 제목을 지금 패턴(— 엑스스퀘어)으로 낸다', async () => {
     mocks.campaign = campaignWith({ popupMode: 'hybrid', popupLocation: null, cardLinkPath: null });
 
     const meta = await generateMetadata(params('little-riize'));
 
-    expect(meta.title).toBe('리틀 라이즈 팝업 — ICONS');
+    expect(meta.title).toBe('리틀 라이즈 팝업 — 엑스스퀘어');
     expect(meta.description).toBe('성수에서 만나요');
   });
 
@@ -155,6 +155,6 @@ describe('/popups/[id] POP-UP 캠페인 상세', () => {
 
     const meta = await generateMetadata(params('little-riize'));
 
-    expect(meta.title).toBe('POP-UP — ICONS');
+    expect(meta.title).toBe('POP-UP — 엑스스퀘어');
   });
 });

@@ -28,7 +28,7 @@ export async function buildAdminListExportWorkbook(
 ): Promise<Buffer> {
   assertAdminListExportWithinLimit(sheet.rows.length, ADMIN_LIST_EXPORT_ROW_LIMIT, 'rows');
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'ICONS';
+  workbook.creator = '엑스스퀘어';
   workbook.created = generatedAt;
   workbook.modified = generatedAt;
 

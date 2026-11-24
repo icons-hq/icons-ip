@@ -12,7 +12,7 @@ beforeEach(() => {
 
 /* 푸터 진입점 readback 은 카드 리워드 게이트와 같은 계약이다 — 실패는 전부 OFF. */
 describe('fetchSecondaryMarketDemoVisible', () => {
-  it('현재 ICONS 운영 권한이 true 일 때만 진입점을 연다', async () => {
+  it('현재 엑스스퀘어 운영 권한이 true 일 때만 진입점을 연다', async () => {
     mocks.rpc.mockResolvedValue({ data: true, error: null });
     await expect(fetchSecondaryMarketDemoVisible()).resolves.toBe(true);
     expect(mocks.rpc).toHaveBeenCalledWith('has_operator_capability', { p_capability: 'platform.manage' });

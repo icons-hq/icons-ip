@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const stamp = kstFileStamp(generatedAt);
     return new Response(new Uint8Array(bytes), { headers: { ...HEADERS,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`icons-정산내역-${stamp}.xlsx`, `icons-pg-settlements-${stamp}.xlsx`),
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-정산내역-${stamp}.xlsx`, `xsquare-pg-settlements-${stamp}.xlsx`),
       'X-ICONS-Export-Audit': audit.data, 'X-ICONS-Export-Records': String(report.pagination.total), 'X-ICONS-Settlement-Import': report.snapshot.id,
     } });
   } catch (error) { unstable_rethrow(error); return fail('정산 파일을 만들지 못했습니다. 현재 권한과 연결 상태를 확인하고 다시 내려받아 주세요.', 503); }

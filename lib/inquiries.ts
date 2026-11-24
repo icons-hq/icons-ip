@@ -25,7 +25,7 @@ export function inquiryMessageAuthor(value:unknown):InquiryMessageAuthor {
   return value==='staff'||value==='system'?value:'user';
 }
 export function inquiryMessageAuthorLabel(author:InquiryMessageAuthor,name:string|null,userLabel='내 문의') {
-  return author==='system'?'자동 안내':author==='staff'?(name??'ICONS 운영자'):userLabel;
+  return author==='system'?'자동 안내':author==='staff'?(name??'엑스스퀘어 운영자'):userLabel;
 }
 
 export const INQUIRY_CATEGORY_IDS = INQUIRY_CATEGORIES.map((category) => category.id);

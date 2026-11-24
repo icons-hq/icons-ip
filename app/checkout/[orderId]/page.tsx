@@ -10,8 +10,8 @@ import { orderCompleteHref } from '@/lib/routes';
 import { getBankTransferAccount } from '@/lib/payments/bank-transfer.server';
 
 export const metadata: Metadata = {
-  title: '주문 결제 — ICONS',
-  description: 'ICONS 주문 결제 상태를 확인하세요.',
+  title: '주문 결제 — 엑스스퀘어',
+  description: '엑스스퀘어 주문 결제 상태를 확인하세요.',
 };
 
 interface PageProps {

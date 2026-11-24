@@ -310,7 +310,7 @@ export const normalizeCheckoutKey = normalizeUuid;
 export const normalizeOrderReference = normalizeUuid;
 
 export function checkoutOrderName(itemNames: readonly string[]) {
-  const firstName = itemNames[0]?.trim() || 'ICONS 굿즈';
+  const firstName = itemNames[0]?.trim() || '엑스스퀘어 굿즈';
   const suffix = itemNames.length > 1 ? ` 외 ${itemNames.length - 1}건` : '';
   const maxFirstLength = Math.max(1, 100 - suffix.length);
   return `${firstName.slice(0, maxFirstLength)}${suffix}`;

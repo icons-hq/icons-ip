@@ -35,6 +35,12 @@ vi.mock('@/lib/legal/virtual-account-terms-revision', async (importOriginal) => 
   VIRTUAL_ACCOUNT_TERMS_REVISION: null,
 }));
 
+/* 서비스 이름(엑스스퀘어) 개정은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
+vi.mock('@/lib/legal/brand-name-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/brand-name-revision')>()),
+  BRAND_NAME_REVISION: null,
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -53,13 +59,13 @@ describe('/legal/[document] 라우트', () => {
   it('문서 제목을 metadata로 노출한다', async () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ document: 'privacy' }) });
 
-    expect(metadata.title).toBe(`${LEGAL_DOCUMENTS.privacy.title} — ICONS`);
+    expect(metadata.title).toBe(`${LEGAL_DOCUMENTS.privacy.title} — 엑스스퀘어`);
   });
 
   it('알 수 없는 문서는 404다', async () => {
     await expect(Page({ params: Promise.resolve({ document: 'refund' }) })).rejects.toThrow('NEXT_NOT_FOUND');
     await expect(generateMetadata({ params: Promise.resolve({ document: 'refund' }) })).resolves.toEqual({
-      title: 'ICONS',
+      title: '엑스스퀘어',
     });
   });
 

@@ -133,7 +133,7 @@ function linkedMessage(subject: string, lead: string, url: string, label: string
     text: `${lead}\n\n${url}\n\n본인이 요청하지 않았다면 이 메일을 무시해 주세요.`,
     html: [
       '<div style="font-family:Arial,sans-serif;color:#171717;background:#ffffff;padding:24px">',
-      `<h1 style="font-size:20px">${escapeHtml(subject.replace('[ICONS] ', ''))}</h1>`,
+      `<h1 style="font-size:20px">${escapeHtml(subject.replace('[엑스스퀘어] ', ''))}</h1>`,
       `<p>${escapeHtml(lead)}</p>`,
       `<p><a href="${escapeHtml(url)}">${escapeHtml(label)}</a></p>`,
       '<p style="color:#666">본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>',
@@ -148,7 +148,7 @@ function otpMessage(subject: string, lead: string, otp: string) {
     text: `${lead}\n\n인증 코드: ${otp}\n\n본인이 요청하지 않았다면 이 메일을 무시해 주세요.`,
     html: [
       '<div style="font-family:Arial,sans-serif;color:#171717;background:#ffffff;padding:24px">',
-      `<h1 style="font-size:20px">${escapeHtml(subject.replace('[ICONS] ', ''))}</h1>`,
+      `<h1 style="font-size:20px">${escapeHtml(subject.replace('[엑스스퀘어] ', ''))}</h1>`,
       `<p>${escapeHtml(lead)}</p>`,
       `<p style="font-size:24px;font-weight:700;letter-spacing:4px">${escapeHtml(otp)}</p>`,
       '<p style="color:#666">본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>',
@@ -164,7 +164,7 @@ function codeLinkMessage(subject: string, lead: string, code: string, url: strin
     text: `${lead}\n\n확인 코드: ${code}\n\n가입을 시작한 브라우저에서는 아래 링크를 눌러도 확인을 마칠 수 있어요.\n${url}\n\n본인이 요청하지 않았다면 이 메일을 무시해 주세요.`,
     html: [
       '<div style="font-family:Arial,sans-serif;color:#171717;background:#ffffff;padding:24px">',
-      `<h1 style="font-size:20px">${escapeHtml(subject.replace('[ICONS] ', ''))}</h1>`,
+      `<h1 style="font-size:20px">${escapeHtml(subject.replace('[엑스스퀘어] ', ''))}</h1>`,
       `<p>${escapeHtml(lead)}</p>`,
       `<p style="font-size:24px;font-weight:700;letter-spacing:4px">${escapeHtml(code)}</p>`,
       '<p>가입을 시작한 브라우저에서는 아래 버튼을 눌러도 확인을 마칠 수 있어요.</p>',
@@ -199,8 +199,8 @@ export function planAuthHookEmails(
       messageKind: 'auth_signup',
       contentRevision: code ? 'auth_signup_v2' : 'auth_signup_v1',
     }, code
-      ? codeLinkMessage('[ICONS] 가입 확인 코드', 'ICONS 회원가입 화면에 아래 확인 코드를 입력해 주세요.', code, url, '이메일 확인하기')
-      : linkedMessage('[ICONS] 이메일을 확인해 주세요', 'ICONS 가입을 완료하려면 이메일을 확인해 주세요.', url, '이메일 확인하기'))];
+      ? codeLinkMessage('[엑스스퀘어] 가입 확인 코드', '엑스스퀘어 회원가입 화면에 아래 확인 코드를 입력해 주세요.', code, url, '이메일 확인하기')
+      : linkedMessage('[엑스스퀘어] 이메일을 확인해 주세요', '엑스스퀘어 가입을 완료하려면 이메일을 확인해 주세요.', url, '이메일 확인하기'))];
   }
 
   if (emailData.action === 'recovery') {
@@ -213,7 +213,7 @@ export function planAuthHookEmails(
       recipient: user.email,
       messageKind: 'auth_recovery',
       contentRevision: 'auth_recovery_v1',
-    }, linkedMessage('[ICONS] 비밀번호를 재설정해 주세요', '아래 링크에서 ICONS 비밀번호를 재설정해 주세요.', url, '비밀번호 재설정하기'))];
+    }, linkedMessage('[엑스스퀘어] 비밀번호를 재설정해 주세요', '아래 링크에서 엑스스퀘어 비밀번호를 재설정해 주세요.', url, '비밀번호 재설정하기'))];
   }
 
   if (emailData.action === 'email_change') {
@@ -238,14 +238,14 @@ export function planAuthHookEmails(
         recipient: user.email,
         messageKind: 'auth_email_change_current',
         contentRevision: 'auth_email_change_current_v1',
-      }, linkedMessage('[ICONS] 이메일 변경을 확인해 주세요', '현재 이메일 주소에서 변경 요청을 확인해 주세요.', currentUrl, '현재 이메일에서 확인하기')),
+      }, linkedMessage('[엑스스퀘어] 이메일 변경을 확인해 주세요', '현재 이메일 주소에서 변경 요청을 확인해 주세요.', currentUrl, '현재 이메일에서 확인하기')),
       plan({
         source: 'auth_hook',
         sourceReference: `email_change:${user.id}:${emailData.tokenHash}:new`,
         recipient: user.newEmail,
         messageKind: 'auth_email_change_new',
         contentRevision: 'auth_email_change_new_v1',
-      }, linkedMessage('[ICONS] 새 이메일 주소를 확인해 주세요', '새 이메일 주소에서 변경 요청을 확인해 주세요.', newUrl, '새 이메일에서 확인하기')),
+      }, linkedMessage('[엑스스퀘어] 새 이메일 주소를 확인해 주세요', '새 이메일 주소에서 변경 요청을 확인해 주세요.', newUrl, '새 이메일에서 확인하기')),
     ];
   }
 
@@ -257,7 +257,7 @@ export function planAuthHookEmails(
       recipient: user.email,
       messageKind: 'auth_reauthentication',
       contentRevision: 'auth_reauthentication_v1',
-    }, otpMessage('[ICONS] 본인 확인 코드', '본인 확인 화면에 아래 코드를 입력해 주세요.', emailData.token))];
+    }, otpMessage('[엑스스퀘어] 본인 확인 코드', '본인 확인 화면에 아래 코드를 입력해 주세요.', emailData.token))];
   }
 
   invalid();

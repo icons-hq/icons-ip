@@ -41,10 +41,10 @@ export async function generateMetadata({
   params: Promise<{ gameId: string }>;
 }): Promise<Metadata> {
   const { gameId } = await params;
-  if (gameId === HYOSAN_MEMORIES_GAME_ID) return { title: '효산의 기억 — ICONS' };
-  if (!await getCardRewardsEnabled()) return { title: 'ICONS' };
+  if (gameId === HYOSAN_MEMORIES_GAME_ID) return { title: '효산의 기억 — 엑스스퀘어' };
+  if (!await getCardRewardsEnabled()) return { title: '엑스스퀘어' };
   const entry = await getEntry(gameId);
-  return { title: entry ? `${entry.game.title} — ICONS` : 'ICONS' };
+  return { title: entry ? `${entry.game.title} — 엑스스퀘어` : '엑스스퀘어' };
 }
 
 export default async function GamePage({ params }: { params: Promise<{ gameId: string }> }) {

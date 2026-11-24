@@ -21,7 +21,7 @@ import { GoodsTransactionCheckout } from '@/components/screens/GoodsTransactionC
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: '체크아웃 — ICONS',
+  title: '체크아웃 — 엑스스퀘어',
   description: '배송지와 주문 내용을 확인하고 결제하세요.',
 };
 
