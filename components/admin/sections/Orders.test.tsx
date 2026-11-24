@@ -1255,12 +1255,16 @@ describe('OrdersSection 가상계좌 입금 정보', () => {
 
   /* 환불 뒤 은행 송금 감시(ADR-0049 결정 5 보강). */
   it('환불 송금 상태를 보이고, 실패면 확인 안내와 처리 완료 표시 버튼을 띄운다', () => {
-    const refund = { state: 'failed' as const, failureCode: 'refund_overdue' as const, refundedAt: '2026-11-26T01:00:00.000Z', checkedAt: '2026-12-03T01:00:00.000Z', resolutionNote: null };
+    const refund = { state: 'failed' as const, failureCode: 'refund_overdue' as const, refundedAt: '2026-11-26T01:00:00.000Z', checkedAt: '2026-12-03T01:00:00.000Z', resolutionNote: null, completedVia: null };
     const failed = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'canceled', virtualAccount: { ...account, state: 'deposited', refund } })} />);
     for (const text of ['환불 송금', '환불 송금 확인 필요', '환불 뒤 7일이 지나도 송금 완료가 확인되지 않습니다', '처리 완료로 표시']) expect(failed, text).toContain(text);
     const pending = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'canceled', virtualAccount: { ...account, state: 'deposited', refund: { ...refund, state: 'pending', failureCode: null } } })} />);
     for (const text of ['은행 송금 확인 중', '은행이 고객 계좌로 송금하는 중입니다']) expect(pending, text).toContain(text);
     expect(pending).not.toContain('환불 송금 확인이 필요합니다');
+    const escrow = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'canceled', virtualAccount: { ...account, state: 'deposited',
+      refund: { ...refund, state: 'completed', failureCode: null, completedVia: 'escrow_buyer_cancel' } } })} />);
+    for (const text of ['토스 에스크로 환불로 닫힘', '토스페이먼츠가 구매자가 등록한 계좌로 환불했습니다']) expect(escrow, text).toContain(text);
+    expect(escrow).not.toContain('처리 완료로 표시');
   });
 
   /* 계좌이체 에스크로(20261125110100). */
