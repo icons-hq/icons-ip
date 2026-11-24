@@ -19,6 +19,9 @@ export type NotificationType =
   /* 토스 가상계좌 발급 안내(ADR-0049). 결제 확정 finalizer가 awaiting_deposit 전이와 같은 트랜잭션에서 남기고
      링크는 /orders/{id}/complete(입금 안내 화면)다. */
   | 'order_virtual_account_issued'
+  /* 토스 가상계좌 입금 오류 되돌림(ADR-0049 결정 4) — 은행이 입금을 취소해 재입금이 필요하다는 안내(되돌림마다 한 건)와 입금 기한까지
+     재입금이 없어 주문을 자동 취소했다는 안내. 감지·자동 취소 DB 함수가 같은 트랜잭션에서 남기고 링크는 /orders/{id}다. */
+  | 'order_deposit_reversed'
   /* 클레임 단계 변화(#252) — 접수·승인·거부·보류·입고·환불·재출고를 한 타입으로
      묶는다. 단계마다 타입을 나누면 DB CHECK와 이 union이 아홉 번 갈라진다. */
   | 'claim_updated'

@@ -230,8 +230,8 @@ describe('직전 목록 기록 (셸 · CT-02)', () => {
 
     visit('/ip/hong-sil-quest', 'notification_saved=1');
     expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/ip/hong-sil-quest');
-    visit('/ip/hong-sil-quest', 'type=a&follow_error=1');
-    expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/ip/hong-sil-quest?type=a');
+    visit('/ip/hong-sil-quest', 'sort=price_asc&follow_error=1');
+    expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/ip/hong-sil-quest?sort=price_asc');
   });
 
   /* l9-data-2: 없는·보관된 IP관은 notFound() 를 부르지만 soft 404 라 주소와 200 만으로는 목록과 구별되지 않는다. */
@@ -375,12 +375,12 @@ describe('빈 장바구니 둘러보기 목적지', () => {
 /* l9-ui-2 · 리드 지시: 10/14 S17 셋째 기준은 빈 장바구니만이 아니라 주문 목록의 둘러보기에도 걸린다. */
 describe('다른 화면의 둘러보기 링크', () => {
   it('직전 목록으로 가고 문구는 목적지를 말한다 — 문구를 넘기면 그 문구를 쓴다', () => {
-    stubBrowser(sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/ip/hong-sil-quest?type=a' }).storage);
+    stubBrowser(sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/ip/hong-sil-quest?sort=price_asc' }).storage);
 
     const link = ListingReturnLink({ className: 'btn btn-holo' }) as ReactElement<Props>;
-    expect([link.props.href, link.props.className, link.props.children]).toEqual(['/ip/hong-sil-quest?type=a', 'btn btn-holo', '온라인 팝업 둘러보기']);
+    expect([link.props.href, link.props.className, link.props.children]).toEqual(['/ip/hong-sil-quest?sort=price_asc', 'btn btn-holo', '온라인 팝업 둘러보기']);
     const custom = ListingReturnLink({ children: '굿즈 다시 담기' }) as ReactElement<Props>;
-    expect([custom.props.href, custom.props.children]).toEqual(['/ip/hong-sil-quest?type=a', '굿즈 다시 담기']);
+    expect([custom.props.href, custom.props.children]).toEqual(['/ip/hong-sil-quest?sort=price_asc', '굿즈 다시 담기']);
   });
 
   it('주문 목록의 빈 상태와 결제 실패 안내가 직전 목록 링크를 쓴다', () => {

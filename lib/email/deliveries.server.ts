@@ -63,6 +63,7 @@ const TEMPLATE_LABELS: Record<EmailTemplateName, string> = {
   inquiry_answered: '문의 답변',
   restock_alert: '재입고 알림',
   order_virtual_account: '가상계좌 입금 안내',
+  order_deposit_reversal: '가상계좌 재입금·자동 취소 안내',
 };
 
 export function emailTemplateLabel(template: EmailTemplateName): string {

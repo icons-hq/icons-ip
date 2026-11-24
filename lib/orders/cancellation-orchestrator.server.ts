@@ -6,6 +6,8 @@ import {
   type AutomatedCancelProvider,
 } from '../payments/provider-capabilities';
 import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
+import { depositReversalRefundOutcome } from '../payments/goods-deposit-reversal.server';
+import { createRuntimeDepositReversal, loadOpenDepositReversal } from '../payments/goods-deposit-reversal.runtime.server';
 import { parseVirtualAccountRefundAccountCandidates, selectVirtualAccountRefundAccount } from '../payments/virtual-account-refund-account';
 import { createServiceClient } from '../supabase/service';
 import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
@@ -487,12 +489,43 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         expiresAt: row.expires_at,
       };
       const gateway = createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider));
+      /*
+       * 입금 오류 되돌림(ADR-0049 결정 4)이 열린 가상계좌 결제 — 은행이 입금을 취소해 돈이 없다. 환불하지 않고 먼저 계좌를 반납한다(입금 전
+       * 취소, 멱등키 release-va:{attemptId}). 반납이 조회로 확인되면 DB가 '입금 없음' 증거를 남기고, 아래 취소 조회가 CANCELED를 보고
+       * 완료 → 취소 확정이 증거를 읽어 환불 행 없이 주문을 닫는다. 그 사이 다시 입금됐으면(재입금) 보통의 가상계좌 환불로 간다.
+       */
+      if (provider === 'toss') {
+        const reversal = await loadOpenDepositReversal(service, attempt.id);
+        if (reversal) {
+          const settled = await createRuntimeDepositReversal(service).settleDepositReversal({
+            attemptId: attempt.id,
+            caseRef: `cancel-${requestId ?? attempt.id}`,
+            mode: 'cancel',
+            reversal,
+            attempt,
+          });
+          const reversalOutcome = depositReversalRefundOutcome(settled, {
+            attempt, paymentKey: reversal.paymentKey, amount, partial: partial !== undefined,
+          });
+          if (reversalOutcome) return reversalOutcome;
+        }
+      }
       // 입금이 끝난 가상계좌 환불은 토스 취소 API가 환불 계좌를 요구한다. 이 요청의 구매자 입력 계좌, 없으면 결제 UI가 받은 계좌를
       // 원장 결제 키와 맞을 때만 싣는다(ADR-0049). 없으면 어댑터가 결제사를 부르지 않고 결제확인필요로 남긴다.
       const refundReceiveAccount = provider === 'toss'
         ? await loadVirtualAccountRefundAccount(service, attempt.id, paymentKey, requestId)
         : undefined;
-      return gateway.refund(cancellationRefundRequest(attempt, { amount, reason, paymentKey, partial, refundReceiveAccount }));
+      const refund = await gateway.refund(cancellationRefundRequest(attempt, { amount, reason, paymentKey, partial, refundReceiveAccount }));
+      if (provider === 'toss' && refund.reasonCode === 'provider_deposit_reversed') {
+        // 원장은 입금 승인인데 결제사는 입금 전이다 — 되돌림을 아직 모르고 있었다(웹훅 누락·운영자가 보류를 푼 뒤). 지금 기록을 열어 자동
+        // 재확인이 반납하고 이 요청을 결제 없이 닫게 한다(실패해도 이 요청은 결제확인필요로 남는다).
+        try {
+          await createRuntimeDepositReversal(service).checkDepositReversal({ attemptId: attempt.id, caseRef: `cancel-${requestId ?? attempt.id}` });
+        } catch {
+          console.error('[orders/cancellation] deposit reversal check failed');
+        }
+      }
+      return refund;
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
       const { data, error } = await service.rpc(

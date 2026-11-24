@@ -8,6 +8,7 @@ import {
   parseOrderEmailDedupeKey,
   restockAlertEmailDedupeKey,
   virtualAccountEmailDedupeKey,
+  depositReversalEmailDedupeKey,
 } from './dedupe';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -166,3 +167,12 @@ describe('virtualAccountEmailDedupeKey', () => {
     expect(isOrderEmailTemplateName('order_virtual_account')).toBe(false);
   });
 });
+
+describe('depositReversalEmailDedupeKey', () => {
+  it('재입금 안내는 되돌림마다, 자동 취소 안내는 주문당 하나다', () => {
+    expect(depositReversalEmailDedupeKey(ORDER_ID, { sequence: 1 })).toBe(`order_deposit_reversal:${ORDER_ID}:1`);
+    expect(depositReversalEmailDedupeKey(ORDER_ID, { sequence: 2 })).toBe(`order_deposit_reversal:${ORDER_ID}:2`);
+    expect(depositReversalEmailDedupeKey(ORDER_ID, 'canceled')).toBe(`order_deposit_reversal:${ORDER_ID}:canceled`);
+  });
+});
+

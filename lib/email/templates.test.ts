@@ -6,6 +6,8 @@ import {
   renderOrderShippedEmail,
   renderRestockAlertEmail,
   renderVirtualAccountIssuedEmail,
+  renderDepositReversalEmail,
+  renderDepositReversalCanceledEmail,
   restockAlertSentence,
 } from './templates';
 
@@ -405,3 +407,36 @@ describe('renderVirtualAccountIssuedEmail (ADR-0049)', () => {
     expect(escrow.text).toContain('구매확정 메일');
   });
 });
+
+describe('입금 오류 되돌림 메일(ADR-0049 결정 4)', () => {
+  it('재입금 안내는 결제 확인과 다르다는 것을 먼저 말하고 같은 계좌·금액·기한을 보인다', () => {
+    const rendered = renderDepositReversalEmail({
+      orderId: ORDER_ID, bankCode: '20', accountNumber: 'X6505636518308', amount: 31_000,
+      dueAt: '2026-11-25T14:59:00.000Z', orderUrl: `https://iconsip.com/orders/${ORDER_ID}`, autoCancel: true,
+    });
+    expect(rendered.subject).toContain('다시 입금이 필요해요');
+    for (const body of [rendered.text, rendered.html]) {
+      expect(body).toContain('X6505636518308');
+      expect(body).toContain('₩31,000');
+      expect(body).toContain('입금 기한');
+      expect(body).toContain('자동으로 취소');
+    }
+    expect(rendered.text).toContain('앞서 받으신 결제 확인 안내와 달리');
+    // 이미 발송된 주문은 시스템이 취소하지 않으므로 자동 취소를 약속하지 않는다.
+    const shipped = renderDepositReversalEmail({
+      orderId: ORDER_ID, bankCode: '20', accountNumber: 'X6505636518308', amount: 31_000,
+      dueAt: '2026-11-25T14:59:00.000Z', orderUrl: `https://iconsip.com/orders/${ORDER_ID}`, autoCancel: false,
+    });
+    expect(shipped.text).not.toContain('자동으로 취소');
+  });
+
+  it('자동 취소 안내는 환불할 금액이 없다고 말한다', () => {
+    const rendered = renderDepositReversalCanceledEmail({
+      orderId: ORDER_ID, amount: 31_000, orderUrl: `https://iconsip.com/orders/${ORDER_ID}`,
+    });
+    expect(rendered.subject).toContain('주문이 취소됐어요');
+    expect(rendered.text).toContain('따로 환불할 금액은 없어요');
+    expect(rendered.html).toContain('따로 환불할 금액은 없어요');
+  });
+});
+

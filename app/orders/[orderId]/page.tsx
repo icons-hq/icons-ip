@@ -18,6 +18,7 @@ import { loadMyOrderPartialCancellations } from '@/lib/orders/partial-cancellati
 import { loadMyOrderClaimItems, loadMyOrderPartialReturnContext } from '@/lib/orders/partial-return.server';
 import { loadOrdererInfo } from '@/lib/orders/orderer.server';
 import { loadMyOrderPaymentDisplay } from '@/lib/orders/payment-display.server';
+import { loadMyOrderVirtualAccount } from '@/lib/payments/virtual-account.server';
 import { ORDER_RECEIPT_NOTICE_PARAM, ORDER_RECEIPT_NOTICE_UNAVAILABLE } from '@/lib/orders/receipt';
 
 export const metadata: Metadata = {
@@ -39,7 +40,7 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
 
   /* 리뷰 대상은 배송완료 이상 주문에서만 행이 돌아온다(#254). 그 판정을 화면이
      다시 하지 않도록 RPC 결과를 그대로 넘긴다. */
-  const [order, cardRewardsEnabled, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads, refundDeduction, returnFeePolicy, returnPickup, partialCancellations, orderer, paymentDisplay, partialReturn, claimItems] = await Promise.all([
+  const [order, cardRewardsEnabled, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads, refundDeduction, returnFeePolicy, returnPickup, partialCancellations, orderer, paymentDisplay, partialReturn, claimItems, virtualAccount] = await Promise.all([
     loadOrderDetail(auth.user.id, orderId),
     readCardRewardsEnabled(),
     loadOrderReviewTargets(orderId),
@@ -57,6 +58,8 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
     /* 부분 반품(ADR-0047): 스위치가 꺼져 있거나 읽지 못하면 반품 폼은 주문 전체만 받는다. */
     loadMyOrderPartialReturnContext(orderId),
     loadMyOrderClaimItems(orderId),
+    /* 토스 가상계좌 입금 오류 되돌림(ADR-0049 결정 4)의 재입금 안내 — 본인 주문만 값이 있고, 읽지 못하면 안내만 빠진다. */
+    loadMyOrderVirtualAccount(orderId),
   ]);
   if (!order) notFound();
 
@@ -96,6 +99,7 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
       orderer={orderer}
       paymentDisplay={paymentDisplay}
       receiptNotice={receiptNotice}
+      virtualAccount={virtualAccount}
     />
   );
 }

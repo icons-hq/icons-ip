@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/system-health/cron-run-recorder.server', () => ({ recordCronJobRun: async () => ({ incident: false }) }));
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), reconcile: vi.fn(), providers: vi.fn(), secretKey: vi.fn(), escrowKey: vi.fn(), inspect: vi.fn(), inspectorOptions: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), reconcile: vi.fn(), providers: vi.fn(), secretKey: vi.fn(), escrowKey: vi.fn(), inspect: vi.fn(), inspectorOptions: vi.fn(), settle: vi.fn() }));
 vi.mock('@/lib/payments/runtime-gateway', () => ({ tossBoundPaymentSecretKey: mocks.secretKey, tossEscrowSecretKey: mocks.escrowKey }));
 vi.mock('@/lib/payments/toss-virtual-account-refund-watch.server', () => ({
   createTossVirtualAccountRefundInspector: (options: unknown) => { mocks.inspectorOptions(options); return { inspect: mocks.inspect }; },
@@ -12,6 +12,10 @@ vi.mock('@/lib/payments/attempt-reconciliation.server', async () => ({
   reconcilablePaymentProviders: mocks.providers,
 }));
 vi.mock('@/lib/orders/cancellation-auto.server', () => ({ scheduleApprovedOrderCancellation: vi.fn() }));
+vi.mock('@/lib/payments/goods-deposit-reversal.runtime.server', async () => ({
+  ...await vi.importActual<object>('@/lib/payments/goods-deposit-reversal.runtime.server'),
+  createRuntimeDepositReversal: () => ({ settleDepositReversal: mocks.settle }),
+}));
 import { GET, maxDuration } from './route';
 
 const goods = { attemptId: 'a7000000-0000-4003-8000-000000000001', purpose: 'order', provider: 'toss', refId: 'a7000000-0000-4002-8000-000000000001' };
@@ -22,12 +26,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('CRON_SECRET', 'synthetic-reconcile-cron');
   mocks.providers.mockReturnValue(['toss']);
-  mocks.rpc.mockResolvedValue({ data: [goods, ticket], error: null });
+  mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_deposit_reversal_checks'
+    ? { data: [], error: null } : { data: [goods, ticket], error: null });
   mocks.reconcile.mockResolvedValue({ kind: 'reconciled', outcome: 'approved' });
   mocks.secretKey.mockReturnValue(null);
   mocks.escrowKey.mockReturnValue(null);
 });
 const noRefunds = { watches: 0, completed: 0, pending: 0, failed: 0, unavailable: 0, escrowSettled: 0, escrowLookupFailed: 0, recordFailed: 0, deferred: 0, errored: false };
+const noReversals = { checked: 0, redeposited: 0, waiting: 0, closed: 0, cancellation: 0, review: 0, unavailable: 0, failed: 0, deferred: 0, errored: false };
 afterEach(() => vi.unstubAllEnvs());
 
 describe('미종결 결제 자동 재확인', () => {
@@ -41,12 +47,16 @@ describe('미종결 결제 자동 재확인', () => {
     mocks.reconcile.mockResolvedValueOnce({ kind: 'reconciled', outcome: 'approved' }).mockResolvedValueOnce({ kind: 'reconciled', outcome: 'unknown' });
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('service_claim_payment_reconciliation_candidates', { p_limit: 3, p_providers: ['toss'] });
+    expect(mocks.rpc).toHaveBeenCalledWith('service_claim_payment_reconciliation_candidates', { p_limit: 3, p_providers: ['toss'] });
+    // 가상계좌 입금 오류 되돌림 단계(ADR-0049 결정 4) — 토스가 설정된 배포만, 고를 것이 없으면 결제사를 부르지 않는다.
+    expect(mocks.rpc).toHaveBeenCalledWith('service_claim_deposit_reversal_checks', { p_limit: 3 });
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.settle).not.toHaveBeenCalled();
     expect(mocks.reconcile).toHaveBeenCalledTimes(2);
     expect(mocks.reconcile.mock.calls[0][0]).toEqual(goods);
     expect(mocks.reconcile.mock.calls[0][1]).toMatch(/^auto-\d{12}-a700000000004003800000000000000[1]$/);
     const body = await response.json();
-    expect(body).toEqual({ ok: true, providers: 1, candidates: 2, approved: 1, closed: 0, awaitingDeposit: 0, unresolved: 1, inProgress: 0, unavailable: 0, failed: 0, deferred: 0, refunds: noRefunds });
+    expect(body).toEqual({ ok: true, providers: 1, candidates: 2, approved: 1, closed: 0, awaitingDeposit: 0, unresolved: 1, inProgress: 0, unavailable: 0, failed: 0, deferred: 0, reversals: noReversals, refunds: noRefunds });
     expect(JSON.stringify(body)).not.toContain(goods.attemptId);
   });
 
@@ -77,6 +87,50 @@ describe('미종결 결제 자동 재확인', () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  describe('가상계좌 입금 오류 되돌림(ADR-0049 결정 4)', () => {
+    const claim = {
+      attemptId: 'a7000000-0000-4003-8000-000000000004', orderId: 'a7000000-0000-4002-8000-000000000004', paymentKey: 'va-rev-key',
+      state: 'awaiting_redeposit', sequence: 1, reviewCode: null, dueAt: '2026-11-24T03:00:00.000Z', released: false,
+      attempt: { id: 'a7000000-0000-4003-8000-000000000004', provider: 'toss', purpose: 'order', ref_id: 'a7000000-0000-4002-8000-000000000004',
+        amount: 31000, currency: 'KRW', idempotency_key: 'goods:va', provider_order_id: 'O-va', provider_product_code: 'P-va',
+        expires_at: '2026-11-24T03:00:00.000Z' },
+    };
+    beforeEach(() => {
+      mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_deposit_reversal_checks'
+        ? { data: [claim], error: null } : { data: [], error: null });
+    });
+
+    it('DB가 고른 되돌림을 처리하고 결과 건수만 응답한다(결제 키·주문 식별자 없음)', async () => {
+      mocks.settle.mockResolvedValueOnce('closed');
+      const response = await GET(request());
+      expect(response.status).toBe(200);
+      expect(mocks.settle).toHaveBeenCalledWith(expect.objectContaining({
+        attemptId: claim.attemptId, mode: 'sweep', caseRef: expect.stringMatching(/^auto-\d{12}-a700000000004003800000000000000[4]$/),
+        reversal: expect.objectContaining({ attemptId: claim.attemptId, paymentKey: 'va-rev-key', state: 'awaiting_redeposit' }),
+        attempt: expect.objectContaining({ id: claim.attemptId, refId: claim.orderId, amount: 31000 }),
+      }));
+      const body = await response.json();
+      expect(body.reversals).toEqual({ ...noReversals, checked: 1, closed: 1 });
+      expect(JSON.stringify(body)).not.toContain('va-rev-key');
+    });
+
+    it('조회 불가·처리 예외·목록 모양 오류는 503으로 남긴다(앞 단계 건수는 그대로)', async () => {
+      mocks.settle.mockResolvedValueOnce('unavailable');
+      expect((await GET(request())).status).toBe(503);
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mocks.settle.mockRejectedValueOnce(new Error('db'));
+      const failed = await GET(request());
+      expect(failed.status).toBe(503);
+      expect((await failed.json()).reversals).toMatchObject({ checked: 1, failed: 1 });
+      mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_deposit_reversal_checks'
+        ? { data: [{ ...claim, attempt: { ...claim.attempt, id: 'other' } }], error: null } : { data: [], error: null });
+      const malformed = await GET(request());
+      expect(malformed.status).toBe(503);
+      expect((await malformed.json()).reversals).toMatchObject({ errored: true });
+      error.mockRestore();
+    });
   });
 
   describe('가상계좌 은행 환불 감시(ADR-0049 결정 5 보강)', () => {
