@@ -70,7 +70,7 @@ select 1 / case when (
       'public.get_random_option_good_ids(text[],text)'::regprocedure))
 ) then 1 else 0 end as assert_narrow_read_rpcs_are_sealed;
 
--- 가림 카드 RPC는 이미지·배지·설명 열을 돌려주지 않는다. 이름은 MD-0048(20261125120000)부터 돌려준다 — 썸네일만 가린다.
+-- 가림 카드 RPC는 이미지·배지·설명 열을 돌려주지 않는다. 이름은 MD-0048(20261125150000)부터 돌려준다 — 썸네일만 가린다.
 select 1 / case when (
   select coalesce(array_agg(name order by name), '{}') = array['category_id','created_at','display_order','id','ip_id','name','price','stock','stock_qty']
   from pg_catalog.pg_proc procedure

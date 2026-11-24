@@ -761,7 +761,7 @@ const nullableString = (value: unknown): value is string | null => value === nul
 /**
  * 인증 전 방문자의 19금 가림 카드 행(ADR-0024). goods RLS는 인증 전 세션에 성인 상품 행을 열지 않으므로
  * (20261118160000) 가림 카드가 쓰는 열만 주는 RPC로 읽는다 — 이미지·배지는 처음부터 오지 않고, 이름은
- * 20261125120000(MD-0048)부터 온다(배포 순서가 어긋나 이름이 없으면 고정 문구). 모양이 틀린 행은 버린다
+ * 20261125150000(MD-0048)부터 온다(배포 순서가 어긋나 이름이 없으면 고정 문구). 모양이 틀린 행은 버린다
  * (카드가 하나 빠질 뿐 목록 전체를 막지 않는다).
  */
 async function loadMaskedAdultGoodRows(supabase: CatalogSupabaseClient, goodId?: string): Promise<GoodRow[]> {
