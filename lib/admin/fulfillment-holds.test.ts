@@ -99,3 +99,45 @@ describe('가상계좌 출고 보류 사유', () => {
   });
 });
 
+/* 입금 오류 되돌림 자동 처리(ADR-0049 결정 4, 2026-11-24): 처리 중이면 할 일 없음, 확인 필요면 사유별 다음 일. */
+describe('입금 오류 되돌림 처리 상태', () => {
+  const base = { ...testHold, reason: 'deposit_reversed', providerStatus: 'WAITING_FOR_DEPOSIT', paymentAmount: 32000 };
+
+  it('처리 상태를 읽는다 — 모르는 확인 코드는 버리고, 되돌림 밖 사유에는 붙이지 않는다', () => {
+    const parsed = parseOrderFulfillmentHolds({ [ORDER_ID]: [
+      { ...base, depositReversal: { state: 'review', dueAt: '2026-11-25T15:00:00Z', reviewCode: 'order_shipped', released: true } },
+      { ...testHold, depositReversal: { state: 'review', reviewCode: 'order_shipped' } },
+    ] }, [ORDER_ID])!.get(ORDER_ID)!;
+    expect(parsed[0].depositReversal).toEqual({ state: 'review', dueAt: '2026-11-25T15:00:00Z', reviewCode: 'order_shipped', released: true });
+    expect(parsed[1]).not.toHaveProperty('depositReversal');
+    const unknown = parseOrderFulfillmentHolds({ [ORDER_ID]: [{ ...base, depositReversal: { state: 'review', reviewCode: 'later_code' } }] }, [ORDER_ID])!;
+    expect(unknown.get(ORDER_ID)![0].depositReversal).toEqual({ state: 'review', dueAt: null, reviewCode: null, released: false });
+    const closed = parseOrderFulfillmentHolds({ [ORDER_ID]: [{ ...base, depositReversal: { state: 'closed' } }] }, [ORDER_ID])!;
+    expect(closed.get(ORDER_ID)![0].depositReversal).toBeNull();
+  });
+
+  it('시스템이 처리 중이면 출고하지 말고 따로 할 일이 없다고 말한다(입금 기한·자동 해제·자동 취소)', () => {
+    const text = fulfillmentHoldGuidance({ ...base, depositReversal: { state: 'awaiting_redeposit', dueAt: '2026-11-25T15:00:00Z', reviewCode: null, released: false } } as never);
+    expect(text).toContain('출고하지 마세요');
+    expect(text).toContain('자동으로 풀리고');
+    expect(text).toContain('자동 취소');
+    expect(text).toContain('환불 없음');
+    expect(text).toContain('따로 할 일은 없습니다');
+    expect(text).not.toContain('상점관리자');
+  });
+
+  it('확인 필요는 사유별 다음 일을 말한다 — 발송된 주문은 취소하지 않고, 그 밖은 결제 없이 취소(환불 계좌 불필요)', () => {
+    const review = (reviewCode: string, released = false) => fulfillmentHoldGuidance({
+      ...base, depositReversal: { state: 'review', dueAt: null, reviewCode, released },
+    } as never);
+    expect(review('order_shipped', true)).toContain('반품을 접수');
+    expect(review('order_shipped', true)).toContain('더 입금되지 않습니다');
+    expect(review('order_shipped')).toContain('늦게라도 다시 입금되면');
+    expect(review('lookup_failed')).toContain('환불 계좌 필요 없음');
+    expect(review('payment_mismatch')).toContain('결제 담당자');
+    expect(review('provider_refunded')).toContain('환불 내역');
+    expect(review('cancellation_pending')).toContain('클레임 화면');
+    expect(review('close_failed')).toContain('운영자 전액 취소');
+  });
+});
+

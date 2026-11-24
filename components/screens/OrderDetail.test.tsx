@@ -774,3 +774,33 @@ describe('OrderDetail 품목 줄(MD-0036·0037 OrderLineItem 재사용)', () => 
     expect(all).not.toContain('<strong>₩24,000</strong>'); expect(all).not.toContain('wc-order-line__price');
   });
 });
+
+describe('OrderDetail 가상계좌 입금 오류 되돌림(ADR-0049 결정 4)', () => {
+  const account = { bankCode: '20', accountNumber: 'X6505636518308', dueAt: '2026-11-25T14:59:00.000Z', amount: 31000, useEscrow: false };
+
+  it('은행이 입금을 취소했으면 같은 계좌·금액·기한으로 재입금을 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <OrderDetail now={new Date('2026-11-25T03:00:00.000Z')} order={order({ status: 'paid', paymentMethod: 'card' })}
+        virtualAccount={{ ...account, state: 'reversed' }} />,
+    );
+    expect(html).toContain('data-order-deposit-reversed');
+    expect(html).toContain('입금이 확인되지 않았어요');
+    expect(html).toContain('X6505636518308');
+    expect(html).toContain('₩31,000');
+    expect(html).toContain('자동으로 취소돼요');
+  });
+
+  it('기한이 지났으면 계좌를 다시 약속하지 않고, 되돌림이 아니면 안내하지 않는다', () => {
+    const overdue = renderToStaticMarkup(
+      <OrderDetail now={new Date('2026-11-26T03:00:00.000Z')} order={order({ status: 'paid', paymentMethod: 'card' })}
+        virtualAccount={{ ...account, state: 'reversed' }} />,
+    );
+    expect(overdue).toContain('입금 기한이 지나 입금을 확인하고 있어요');
+    expect(overdue).not.toContain('X6505636518308');
+    const deposited = renderToStaticMarkup(
+      <OrderDetail order={order({ status: 'paid', paymentMethod: 'card' })} virtualAccount={{ ...account, state: 'deposited' }} />,
+    );
+    expect(deposited).not.toContain('data-order-deposit-reversed');
+  });
+});
+

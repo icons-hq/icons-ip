@@ -48,7 +48,12 @@ export interface SystemHealthReport {
   emails: { failed24h: number; bounced24h: number };
   /** 가상계좌 환불 송금 확인 필요(실패·7일 지연·결제사 기록 불일치, ADR-0049 결정 5 보강). 예전 판정에는 없어 0으로 읽는다. */
   refunds: { virtualAccountFailed: number; oldestAt: string | null };
-  counts: { failingJobs: number; stalledJobs: number; problemJobs: number; unresolvedPayments: number; emailFailures: number; emailBounces: number; refundFailures: number; issues: number };
+  /**
+   * 가상계좌 입금 오류 되돌림 중 시스템이 끝내지 못한 것(확인 필요 + 입금 기한 + 2시간이 지나도 열린 자동 처리, ADR-0049 결정 4).
+   * 예전 판정에는 없어 0으로 읽는다.
+   */
+  depositReversals: { review: number; oldestAt: string | null };
+  counts: { failingJobs: number; stalledJobs: number; problemJobs: number; unresolvedPayments: number; emailFailures: number; emailBounces: number; refundFailures: number; depositReversalReviews: number; issues: number };
 }
 
 export const SYSTEM_JOB_STATE_LABELS: Record<SystemJobState, string> = {
@@ -131,12 +136,16 @@ export function parseSystemHealthReport(value: unknown): SystemHealthReport | nu
   const emails = { failed24h: count(value.emails.failed24h), bounced24h: count(value.emails.bounced24h) };
   const refundSource = isObject(value.refunds) ? value.refunds : { virtualAccountFailed: 0, oldestAt: null };
   const refunds = { virtualAccountFailed: count(refundSource.virtualAccountFailed), oldestAt: optionalTime(refundSource.oldestAt) };
-  const rawCounts = { refundFailures: 0, ...(value.counts as Record<string, unknown>) };
-  const counts = Object.fromEntries(['failingJobs', 'stalledJobs', 'problemJobs', 'unresolvedPayments', 'emailFailures', 'emailBounces', 'refundFailures', 'issues']
+  const reversalSource = isObject(value.depositReversals) ? value.depositReversals : { review: 0, oldestAt: null };
+  const depositReversals = { review: count(reversalSource.review), oldestAt: optionalTime(reversalSource.oldestAt) };
+  const rawCounts = { refundFailures: 0, depositReversalReviews: 0, ...(value.counts as Record<string, unknown>) };
+  const counts = Object.fromEntries(['failingJobs', 'stalledJobs', 'problemJobs', 'unresolvedPayments', 'emailFailures', 'emailBounces', 'refundFailures', 'depositReversalReviews', 'issues']
     .map(key => [key, count(rawCounts[key as keyof typeof rawCounts])]));
   if (jobs.some(job => !job) || failures.some(failure => !failure)
     || (value.refunds !== undefined && !isObject(value.refunds))
-    || [payments.goods, payments.tickets, payments.other, payments.oldestAt, emails.failed24h, emails.bounced24h, refunds.virtualAccountFailed, refunds.oldestAt]
+    || (value.depositReversals !== undefined && !isObject(value.depositReversals))
+    || [payments.goods, payments.tickets, payments.other, payments.oldestAt, emails.failed24h, emails.bounced24h, refunds.virtualAccountFailed, refunds.oldestAt,
+      depositReversals.review, depositReversals.oldestAt]
       .some(field => field === undefined)
     || Object.values(counts).some(field => field === undefined)) return null;
   const parsedJobs = jobs as SystemJob[];
@@ -154,6 +163,7 @@ export function parseSystemHealthReport(value: unknown): SystemHealthReport | nu
     asOf: value.asOf, jobs: parsedJobs, recentFailures: failures as SystemJobFailure[],
     payments: payments as SystemHealthReport['payments'], emails: emails as SystemHealthReport['emails'],
     refunds: refunds as SystemHealthReport['refunds'],
+    depositReversals: depositReversals as SystemHealthReport['depositReversals'],
     counts: counts as SystemHealthReport['counts'],
   };
 }

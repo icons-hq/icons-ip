@@ -80,6 +80,12 @@ export function createAttemptAwarePaymentGateway(provider: PaymentCheckoutProvid
       if (await bindingFor(attempt) || !dependencies.legacy.inspectBalance) return { kind: 'not_supported' as const };
       return dependencies.legacy.inspectBalance(attempt, providerPaymentKey);
     },
+    // 입금 대기 가상계좌 반납(입금 전 전액 취소, 멱등키 release-va:{attemptId}, ADR-0049). 일반 결제만 — 정기배송(billing) 결제에는
+    // 가상계좌가 없다. 이 전달이 없으면 승인 콜백이 DB에 거부된 계좌의 즉시 반납과 입금 오류 되돌림의 기한 뒤 반납이 조용히 빠진다.
+    async releaseVirtualAccount(attempt, providerPaymentKey) {
+      if (await bindingFor(attempt) || !dependencies.legacy.releaseVirtualAccount) return;
+      await dependencies.legacy.releaseVirtualAccount(attempt, providerPaymentKey);
+    },
     async refund(request) {
       const binding = await bindingFor(request.attempt);
       if (!binding) return dependencies.legacy.refund(request);
