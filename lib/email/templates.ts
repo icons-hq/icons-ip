@@ -508,3 +508,100 @@ export function renderVirtualAccountIssuedEmail(input: VirtualAccountIssuedEmail
 
   return { subject, text, html };
 }
+
+export interface DepositReversalEmailInput {
+  orderId: string;
+  orderNumber?: string | null;
+  /** 토스 은행 코드(2·3자리). */
+  bankCode: string;
+  accountNumber: string;
+  amount: number;
+  /** 지금 입금 기한(ISO, 결제 조회값). 한국 시간으로 적는다. */
+  dueAt: string;
+  orderUrl: string;
+  /** 기한까지 입금이 없으면 시스템이 주문을 자동 취소하는지 — 아직 나가지 않은 주문만이다(발송된 주문은 취소하지 않는다). */
+  autoCancel: boolean;
+}
+
+/**
+ * 토스 가상계좌 입금 오류 되돌림 — 재입금 안내(ADR-0049 결정 4). 은행이 입금을 취소해 결제가 입금 전으로 돌아갔다. 토스 웹훅 이벤트 문서가
+ * "구매자에게 다시 입금하도록 안내"하라고 한다. 고객은 이미 결제 확인 메일을 받았을 수 있으므로 그 메일과 다르다는 것을 먼저 말한다.
+ */
+export function renderDepositReversalEmail(input: DepositReversalEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const subject = `[ICONS] 입금이 확인되지 않아 다시 입금이 필요해요 (주문번호 ${reference})`;
+  const due = formatOrderDateTime(input.dueAt);
+  const notices = [
+    '은행에서 입금이 취소돼 결제가 완료되지 않았어요. 앞서 받으신 결제 확인 안내와 달리, 아직 입금이 필요해요.',
+    '이체 한도 초과나 은행 통신 오류 같은 이유로 은행이 입금을 취소하면 이렇게 돼요. 통장에 출금 내역이 남아 있다면 거래 은행에 확인해 주세요.',
+    '같은 계좌로 아래 금액을 입금 기한까지 다시 입금해 주세요. 입금이 확인되면 주문이 그대로 진행돼요.',
+    ...(input.autoCancel ? ['입금 기한까지 입금되지 않으면 주문이 자동으로 취소되고, 입금된 돈이 없어 따로 환불할 금액은 없어요.'] : []),
+  ];
+  const rows: [string, string][] = [
+    ['입금 은행', tossBankLabel(input.bankCode)],
+    ['계좌번호', input.accountNumber],
+    ['입금 금액', krw(input.amount)],
+    ...(due ? [['입금 기한', due] as [string, string]] : []),
+  ];
+
+  const text = textBlock([
+    'ICONS 주문의 입금이 은행에서 취소돼 확인되지 않았어요. 아래 계좌로 다시 입금해 주세요.',
+    '',
+    `주문번호: ${reference}`,
+    '',
+    '[입금 계좌]',
+    ...rows.map(([label, value]) => `${label}: ${value}`),
+    '',
+    '[안내]',
+    ...notices.map((line) => `- ${line}`),
+    '',
+    `주문 상세: ${input.orderUrl}`,
+  ]);
+
+  const html = htmlDocument(reference, [
+    htmlHeading('입금이 확인되지 않았어요'),
+    htmlParagraph('은행에서 입금이 취소돼 아직 결제가 완료되지 않았어요. 입금 기한까지 같은 계좌로 다시 입금해 주세요.'),
+    htmlSectionTitle('입금 계좌'),
+    htmlDefinitionRows(rows),
+    htmlSectionTitle('안내'),
+    ...notices.map((line) => htmlParagraph(line)),
+    htmlButton(input.orderUrl, '주문 상세 보기'),
+  ].join(''));
+
+  return { subject, text, html };
+}
+
+export interface DepositReversalCanceledEmailInput {
+  orderId: string;
+  orderNumber?: string | null;
+  amount: number;
+  orderUrl: string;
+}
+
+/** 입금 오류 되돌림 뒤 입금 기한까지 재입금이 없어 주문을 자동으로 취소했다는 안내(ADR-0049 결정 4). 돈이 들어오지 않았으므로 환불이 없다. */
+export function renderDepositReversalCanceledEmail(input: DepositReversalCanceledEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const subject = `[ICONS] 입금이 확인되지 않아 주문이 취소됐어요 (주문번호 ${reference})`;
+  const notices = [
+    `입금 기한까지 ${krw(input.amount)} 입금이 확인되지 않아 주문을 취소했어요.`,
+    '입금된 돈이 없어 따로 환불할 금액은 없어요. 주문에 사용한 쿠폰·적립금은 주문 취소 기준에 따라 돌려드려요.',
+    '통장에 출금 내역이 남아 있다면 거래 은행이나 ICONS 고객센터로 문의해 주세요.',
+  ];
+  const text = textBlock([
+    'ICONS 주문이 입금 확인 없이 취소됐어요.',
+    '',
+    `주문번호: ${reference}`,
+    '',
+    '[안내]',
+    ...notices.map((line) => `- ${line}`),
+    '',
+    `주문 상세: ${input.orderUrl}`,
+  ]);
+  const html = htmlDocument(reference, [
+    htmlHeading('입금이 확인되지 않아 주문이 취소됐어요'),
+    htmlSectionTitle('안내'),
+    ...notices.map((line) => htmlParagraph(line)),
+    htmlButton(input.orderUrl, '주문 상세 보기'),
+  ].join(''));
+  return { subject, text, html };
+}
