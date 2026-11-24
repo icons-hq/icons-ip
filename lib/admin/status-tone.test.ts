@@ -66,6 +66,10 @@ describe('상태 → tone 단일 표 (ADR-0029)', () => {
     expect(statusTone('escrowDelivery', 'registered')).toBe('success');
     expect(statusTone('escrowStatus', 'CANCEL_REQUESTED')).toBe('warning');
     expect(statusTone('escrowStatus', 'CONFIRMED')).toBe('success');
+    expect(statusTone('virtualAccountRefund', 'failed')).toBe('danger');
+    expect(statusTone('virtualAccountRefund', 'pending')).toBe('info');
+    expect(statusTone('virtualAccountRefund', 'completed')).toBe('success');
+    expect(statusTone('virtualAccountRefund', 'resolved')).toBe('neutral');
   });
 
   it('표에 없는 상태는 눈에 띄지 않는 neutral이다', () => {

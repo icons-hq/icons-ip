@@ -13,6 +13,7 @@ import {
   SYSTEM_JOB_STATE_LABELS,
   UNRESOLVED_PAYMENT_REASON_HINTS,
   UNRESOLVED_PAYMENT_REASON_LABELS,
+  VIRTUAL_ACCOUNT_REFUND_FAILURE_SHORT_LABELS,
   formatElapsed,
   formatJobInterval,
   systemErrorCodeLabel,
@@ -20,6 +21,7 @@ import {
   type SystemHealthReport,
   type UnresolvedPaymentAttempt,
   type UnresolvedPaymentAttemptList,
+  type VirtualAccountRefundFailureList,
 } from '@/lib/admin/system-health';
 import { formatOrderDateTime } from '@/lib/orders';
 
@@ -30,10 +32,12 @@ const time = (value: string | null) => value ? <time className="tabular-nums" da
  * 시스템 상태(원장 OPS-039·OPS-040·PAY-067·PAY-063·CUS-066). 자동 작업의 실패·멈춤, 미종결 결제 시도, 메일 발송 실패를 한 화면에서 본다.
  * 판정은 DB(admin_system_health)가 하고 화면은 고르지 않는다. 미종결 결제 목록·재확인은 주문 관리 권한(sales.manage)이 있을 때만 보인다.
  */
-export function SystemHealthScreen({ health, payments, canReconcile, digest }: {
+export function SystemHealthScreen({ health, payments, canReconcile, digest, refundFailures }: {
   health: SystemHealthReport | null;
   /** sales.manage가 없으면 undefined(목록을 읽지 않는다), 읽지 못하면 null. */
   payments: UnresolvedPaymentAttemptList | null | undefined;
+  /** 가상계좌 환불 송금 확인 필요 목록. sales.read가 없으면 undefined, 읽지 못하면 null. */
+  refundFailures?: VirtualAccountRefundFailureList | null;
   canReconcile: boolean;
   /** 운영 알림 메일 설정(platform.manage). 읽지 못하면 null — 설정 칸 대신 안내를 보인다. */
   digest?: OpsAlertDigestSettings | null;
@@ -41,7 +45,7 @@ export function SystemHealthScreen({ health, payments, canReconcile, digest }: {
   return <div className="flex min-w-0 flex-col gap-4" data-system-health="">
     <AdminPageHeader title="시스템 상태"
       description="메일·정기결제·선물 만료·리워드·배송 추적 같은 자동 작업의 실패·멈춤, 결제사 결과를 받지 못한 결제, 메일 발송 실패를 한곳에서 봅니다. 문제가 생기면 운영 알림 '시스템'과 할 일 '시스템 점검'에도 건수가 올라옵니다." />
-    {health ? <HealthBody canReconcile={canReconcile} health={health} payments={payments} />
+    {health ? <HealthBody canReconcile={canReconcile} health={health} payments={payments} refundFailures={refundFailures} />
       : <AdminNotice role="alert" title="시스템 상태를 불러오지 못했습니다" tone="danger">
         새로고침 후 다시 확인해주세요. 계속 열리지 않으면 데이터 저장소 연결에 문제가 있을 수 있으니 개발팀에 알려주세요.
       </AdminNotice>}
@@ -53,7 +57,10 @@ export function SystemHealthScreen({ health, payments, canReconcile, digest }: {
   </div>;
 }
 
-function HealthBody({ health, payments, canReconcile }: { health: SystemHealthReport; payments: UnresolvedPaymentAttemptList | null | undefined; canReconcile: boolean }) {
+function HealthBody({ health, payments, canReconcile, refundFailures }: {
+  health: SystemHealthReport; payments: UnresolvedPaymentAttemptList | null | undefined; canReconcile: boolean;
+  refundFailures: VirtualAccountRefundFailureList | null | undefined;
+}) {
   const { counts } = health;
   return <>
     <p className="text-xs text-muted-foreground">기준 시각 {time(health.asOf)}</p>
@@ -62,13 +69,15 @@ function HealthBody({ health, payments, canReconcile }: { health: SystemHealthRe
       <AdminCountCard count={counts.unresolvedPayments} href="#unresolved-payments" label="미종결 결제" tone="warning" />
       <AdminCountCard count={counts.emailFailures} href="#system-emails" label="메일 발송 실패(24시간)" tone="danger" />
       <AdminCountCard count={counts.emailBounces} href="#system-emails" label="메일 반송(24시간)" tone="warning" />
+      <AdminCountCard count={counts.refundFailures} href="#virtual-account-refunds" label="환불 송금 확인 필요" tone="danger" />
     </div>
     {counts.issues === 0 ? <AdminNotice role="status" title="지금 확인할 문제가 없습니다" tone="success">
-      자동 작업이 모두 제때 돌고 있고, 미종결 결제와 메일 발송 실패가 없습니다.
+      자동 작업이 모두 제때 돌고 있고, 미종결 결제·메일 발송 실패·환불 송금 확인 필요가 없습니다.
     </AdminNotice> : null}
     <JobsSection health={health} />
     <FailuresSection health={health} />
     <PaymentsSection canReconcile={canReconcile} health={health} payments={payments} />
+    <RefundFailuresSection health={health} refundFailures={refundFailures} />
     <AdminSectionCard id="system-emails" title="메일 발송"
       summary="최근 24시간. 실패는 우리·발송사 쪽 문제(설정·연결·결과 불명)이고, 반송은 받는 주소 문제(없는 주소·수신 거부)입니다.">
       <p className="text-sm">발송 실패 <strong className="tabular-nums">{health.emails.failed24h.toLocaleString('ko-KR')}건</strong> · 반송 <strong className="tabular-nums">{health.emails.bounced24h.toLocaleString('ko-KR')}건</strong></p>
@@ -137,6 +146,35 @@ function PaymentsSection({ health, payments, canReconcile }: { health: SystemHea
               <TableBody>{payments.items.map(item => <PaymentRow asOf={payments.asOf} item={item} key={item.attemptId} />)}</TableBody>
             </Table>
             {payments.total > payments.items.length ? <p className="text-xs text-muted-foreground">오래된 {payments.items.length.toLocaleString('ko-KR')}건만 보입니다(전체 {payments.total.toLocaleString('ko-KR')}건). 처리하면 다음 건이 올라옵니다.</p> : null}
+          </>}
+  </AdminSectionCard>;
+}
+
+/**
+ * 가상계좌 환불 송금 확인 필요(ADR-0049 결정 5 보강). 환불(결제 취소) 뒤 은행이 고객 계좌로 송금하지 못했거나 7일째 확인되지 않거나 결제사 기록이
+ * 맞지 않는 주문이다. 자동 재확인이 결제사에 조회해 찾고, 토스페이먼츠 상점관리자에서 다시 환불하면 저절로 빠진다.
+ */
+function RefundFailuresSection({ health, refundFailures }: { health: SystemHealthReport; refundFailures: VirtualAccountRefundFailureList | null | undefined }) {
+  const summary = '가상계좌 결제를 환불(결제 취소)한 뒤 은행이 고객 계좌로 송금하지 못했거나, 7일이 지나도 송금 완료가 확인되지 않거나, 결제사 기록이 맞지 않는 주문입니다. 토스페이먼츠 상점관리자에서 다시 환불하면 자동 재확인이 완료로 바꿉니다. 결제사 밖에서 끝냈다면 주문 화면의 [처리 완료로 표시]를 눌러주세요.';
+  return <AdminSectionCard id="virtual-account-refunds" summary={summary} title="환불 송금 확인 필요">
+    {refundFailures === undefined ? <AdminNotice tone="neutral">주문 목록은 주문 조회 권한이 있는 매니저에게 보입니다. 지금 {health.refunds.virtualAccountFailed.toLocaleString('ko-KR')}건입니다.</AdminNotice>
+      : refundFailures === null ? <AdminNotice role="alert" tone="danger">환불 송금 확인 목록을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice>
+        : refundFailures.total === 0 ? <p className="text-sm text-muted-foreground">확인할 환불 송금이 없습니다.</p>
+          : <>
+            <Table aria-label="환불 송금 확인 필요">
+              <TableHeader><TableRow>
+                <TableHead scope="col">주문</TableHead><TableHead className="text-right" scope="col">금액</TableHead>
+                <TableHead scope="col">사유</TableHead><TableHead scope="col">환불</TableHead><TableHead scope="col">확인 필요가 된 때</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{refundFailures.items.map(item => <TableRow data-virtual-account-refund-failure={item.failureCode} key={item.orderId}>
+                <TableCell><Link className="font-medium tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/orders/${item.orderId}`}>{item.orderNumber ?? item.orderId.slice(0, 8)}</Link></TableCell>
+                <TableCell className={NUM}>{item.amount.toLocaleString('ko-KR')}원</TableCell>
+                <TableCell><AdminStatusBadge tone="danger">{VIRTUAL_ACCOUNT_REFUND_FAILURE_SHORT_LABELS[item.failureCode]}</AdminStatusBadge></TableCell>
+                <TableCell>{time(item.refundedAt)}</TableCell>
+                <TableCell>{time(item.failedAt)}</TableCell>
+              </TableRow>)}</TableBody>
+            </Table>
+            {refundFailures.total > refundFailures.items.length ? <p className="text-xs text-muted-foreground">오래된 {refundFailures.items.length.toLocaleString('ko-KR')}건만 보입니다(전체 {refundFailures.total.toLocaleString('ko-KR')}건).</p> : null}
           </>}
   </AdminSectionCard>;
 }

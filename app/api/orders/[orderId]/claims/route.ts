@@ -160,6 +160,8 @@ export async function POST(
       p_user_id: user.id,
     });
   if (error) {
+    // 입금된 가상계좌 주문은 환급 계좌를 결제사에 그대로 보낼 수 있어야 받는다(DB 판정, 20261125110000) — 계좌를 고쳐 다시 신청한다.
+    if (error.message === 'invalid_virtual_account_refund_account') return errorJson(400, 'invalid_refund_account');
     console.error('[orders/claims] claim request failed');
     return errorJson(502, 'claim_failed');
   }

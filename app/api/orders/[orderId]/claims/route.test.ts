@@ -115,6 +115,18 @@ describe('POST /api/orders/[orderId]/claims — 승인된 취소의 결제사 �
     expect(response.status).toBe(502);
     expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
   });
+
+  it('가상계좌 주문이 받지 않은 환급 계좌는 계좌 오류(400)로 돌려준다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'invalid_virtual_account_refund_account' } });
+
+    const response = await POST(request({
+      claimType: 'cancel', bankName: '농협', accountNumber: '110987654321', accountHolder: '김합성',
+    }), context);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'invalid_refund_account' } });
+    expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/orders/[orderId]/claims — 부분 반품(ADR-0047)', () => {

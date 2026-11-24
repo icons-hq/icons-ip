@@ -50,3 +50,24 @@ export function tossBankName(code: string | null | undefined): string | null {
 export function tossBankLabel(code: string): string {
   return tossBankName(code) ?? `은행 코드 ${code}`;
 }
+
+/**
+ * 구매자가 반품·취소 신청 화면·주문 상세에서 고르는 환급 은행(가상계좌 환불 — ADR-0049 결정 5 보강). 이름은 위 표 그대로이고 토스 취소 API의
+ * `refundReceiveAccount.bank`에는 2자리 코드를 싣는다. 화면은 이 목록에서 고르게 해 이름 → 코드 변환이 추측이 되지 않게 한다.
+ */
+export const TOSS_REFUND_BANKS: readonly { readonly code: string; readonly name: string }[] = Object.freeze(
+  TOSS_BANKS
+    .map(([twoDigit, , name]) => Object.freeze({ code: twoDigit, name }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'ko')),
+);
+
+const BANK_CODES_BY_NAME = new Map<string, string>(TOSS_REFUND_BANKS.map((bank) => [bank.name, bank.code]));
+
+/**
+ * 환급 은행 이름(위 목록의 이름 그대로)의 토스 은행 코드(2자리). 목록 밖 이름·별칭은 null — 코드를 추측하지 않는다.
+ * DB(private.toss_refund_bank_name_known·virtual_account_refund_account_usable)도 같은 이름만 받는다(시험이 두 목록을 대조한다).
+ */
+export function tossBankCodeForName(name: string | null | undefined): string | null {
+  if (typeof name !== 'string') return null;
+  return BANK_CODES_BY_NAME.get(name) ?? null;
+}

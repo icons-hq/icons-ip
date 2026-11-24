@@ -9,6 +9,8 @@ vi.mock('react', async () => {
   return { ...actual, useActionState: (_action: unknown, initial: unknown) => [initial, vi.fn(), false] };
 });
 vi.mock('@/app/admin/order-note-actions', () => ({ addOrderNoteAction: vi.fn() }));
+vi.mock('@/app/admin/virtual-account-refund-actions', () => ({ resolveVirtualAccountRefundAction: vi.fn() }));
+vi.mock('next/navigation', async () => ({ ...await vi.importActual<object>('next/navigation'), useRouter: () => ({ refresh: vi.fn() }) }));
 const ORDER = '10000000-0000-4000-8000-000000004141';
 const detail: AdminOrderDetail = {
   emailJobs: [],
@@ -246,7 +248,7 @@ describe('주문 상세 — 결제 전 확인 동의', () => {
 
 /* 토스 가상계좌(ADR-0049): 주문 상세의 '가상계좌 입금' 칸과 주문 정보의 결제수단. 주문 처리 권한에만 보인다. */
 describe('주문 상세 가상계좌 입금', () => {
-  const account = { bankCode: '088', accountNumber: '56211234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 12800, useEscrow: null, state: 'checking' as const, escrow: null };
+  const account = { bankCode: '088', accountNumber: '56211234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 12800, useEscrow: null, state: 'checking' as const, escrow: null, refund: null };
   it('입금 은행·계좌번호·금액·기한·상태·에스크로 적용 여부와 결제수단 가상계좌를 보인다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: account }} noteOperationId="operation" />);
     for (const text of ['가상계좌 입금', '입금 확인 중', '신한은행', '56211234567890', '₩12,800', '2026. 11. 25. 10:00', '구매안전서비스 (에스크로)', '기록 없음', '<dd class="min-w-0 wrap-anywhere">가상계좌</dd>']) {
@@ -264,6 +266,30 @@ describe('주문 상세 가상계좌 입금', () => {
     const reader = renderToStaticMarkup(<OrderDetailScreen canManage={false} detail={{ ...detail, virtualAccount: account }} noteOperationId="operation" />);
     expect(reader).not.toContain('56211234567890');
     expect(reader).not.toContain('가상계좌 입금');
+  });
+  /* 환불 뒤 은행 송금 감시(ADR-0049 결정 5 보강): 실패면 확인 안내와 '처리 완료로 표시', 그 밖은 상태와 다음 일만. */
+  it('환불 송금 실패를 알리고 처리 완료로 표시할 수 있게 한다', () => {
+    const refund = { state: 'failed' as const, failureCode: 'refund_failed' as const, refundedAt: '2026-11-26T01:00:00.000Z', checkedAt: null, resolutionNote: null };
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: { ...account, state: 'deposited', refund } }} noteOperationId="operation" />);
+    for (const text of ['환불 송금', '환불 송금 확인 필요', '환불 송금 확인이 필요합니다', '은행이 고객 계좌로 송금하지 못했습니다', '처리 완료로 표시']) expect(html, text).toContain(text);
+    expect(html).toContain('data-order-virtual-account-refund="failed"');
+    const resolved = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: { ...account, state: 'deposited',
+      refund: { ...refund, state: 'resolved', resolutionNote: '회사 계좌로 직접 송금' } } }} noteOperationId="operation" />);
+    for (const text of ['처리 완료(운영자 확인)', '처리 내용 · 회사 계좌로 직접 송금']) expect(resolved, text).toContain(text);
+    expect(resolved).not.toContain('환불 송금 확인이 필요합니다');
+  });
+  /* 계좌이체 에스크로(20261125110100): 가상계좌가 아닌 계좌이체 주문의 에스크로 배송 등록 상태. */
+  it('계좌이체 에스크로 배송 등록 상태와 직접 등록 안내를 보이고, 건너뛴 결제는 그리지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: null, transferEscrow: { useEscrow: true,
+      job: { deliveryState: 'manual_required', escrowStatus: 'IN_PROGRESS', lastErrorCode: 'carrier_unmapped' } } }} noteOperationId="operation" />);
+    for (const text of ['계좌이체 구매안전서비스', '계좌이체', '적용(구매자가 선택)', '직접 등록 필요', '확인 코드 · carrier_unmapped', '구매확정 대기', '배송 정보를 직접 등록해주세요']) expect(html, text).toContain(text);
+    expect(html).toContain('data-order-transfer-escrow="manual_required"');
+    const skipped = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: null, transferEscrow: { useEscrow: false,
+      job: { deliveryState: 'skipped', escrowStatus: null, lastErrorCode: null } } }} noteOperationId="operation" />);
+    expect(skipped).not.toContain('계좌이체 구매안전서비스');
+    const reader = renderToStaticMarkup(<OrderDetailScreen canManage={false} detail={{ ...detail, virtualAccount: null, transferEscrow: { useEscrow: null,
+      job: { deliveryState: 'ready', escrowStatus: null, lastErrorCode: null } } }} noteOperationId="operation" />);
+    expect(reader).not.toContain('계좌이체 구매안전서비스');
   });
   it('입금 오류 되돌림 출고 보류 기록은 결제 확인 필요 출고 보류로 적는다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, timeline: [{ id: 'hold', source: 'status', occurredAt: '2026-11-25T02:00:00Z', action: 'system.order.fulfillment_hold_placed', actorName: null }] }} noteOperationId="operation" />);

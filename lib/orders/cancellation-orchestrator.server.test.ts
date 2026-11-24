@@ -326,7 +326,7 @@ describe('reconcileOrderCancellation', () => {
       'service_order_claim_refund_deduction',
       // 재고 부족 부분 취소 누계 읽기(ADR-0032). 부분 취소가 없으면 빈 배열이고 아래 결제사 호출은 그대로 전액 취소다.
       'service_order_payment_partial_refunds',
-      'service_goods_virtual_account_refund_account',
+      'service_goods_virtual_account_refund_accounts',
       'service_get_payment_gateway_binding',
       'complete_order_cancellation_request',
     ]);
@@ -337,11 +337,42 @@ describe('reconcileOrderCancellation', () => {
         expect(args).toEqual({ p_request_id: REQUEST_ID });
       } else if (name === 'service_order_payment_partial_refunds') {
         expect(args).toEqual({ p_order_id: ORDER_ID });
-      } else if (name === 'service_goods_virtual_account_refund_account') {
-        // 결제 시도·원장 결제 키로만 읽는다 — 행위자 인자가 없는 서버 전용 조회다(ADR-0049).
-        expect(Object.keys(args).sort()).toEqual(['p_attempt_id', 'p_payment_key']);
+      } else if (name === 'service_goods_virtual_account_refund_accounts') {
+        // 결제 시도·원장 결제 키·이 요청으로만 읽는다 — 행위자 인자가 없는 서버 전용 조회다(ADR-0049 결정 5 보강).
+        expect(args).toEqual({ p_attempt_id: expect.any(String), p_payment_key: expect.any(String), p_request_id: REQUEST_ID });
       } else expect(args.p_actor_id).toBeNull();
     }
+  });
+
+  // 계좌 후보 조회가 실패한 것은 계좌가 없는 것과 다르다 — 결제사를 부르지 않고 '결제사 응답 없음'(다시 확인 대상)으로 남긴다.
+  // 계좌 없음(provider_refund_account_required)으로 적으면 구매자에게 계좌를 다시 입력하라는 잘못된 안내가 나간다.
+  it('가상계좌 환불 계좌 후보 조회가 실패하면 결제사를 부르지 않고 다시 확인 대상으로 남긴다', async () => {
+    defaultMocks.attempt = {
+      id: '44444444-4444-4444-8444-444444444444',
+      provider: 'toss', purpose: 'order', ref_id: ORDER_ID, amount: 42000, currency: 'KRW',
+      idempotency_key: 'approved-order-attempt', provider_order_id: 'approved-order',
+      provider_product_code: 'goods', expires_at: '2026-09-01T00:00:00.000Z',
+    };
+    defaultMocks.rpc.mockImplementation(async (name: string) => (name === 'service_goods_virtual_account_refund_accounts'
+      ? { data: null, error: { message: 'connection reset' } }
+      : {
+        data: name === 'reconcile_expired_prepared_goods_cancellation'
+          ? 'not_applicable'
+          : name === 'assert_order_cancellation_reconciliation_allowed' ? 'allowed' : null,
+        error: null,
+      }));
+
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID, actorId: null,
+    })).resolves.toEqual({ ok: false, code: 'provider_unavailable' });
+
+    expect(defaultMocks.gatewayRefund).not.toHaveBeenCalled();
+    expect(defaultMocks.rpc).toHaveBeenCalledWith('mark_order_cancellation_needs_review', expect.objectContaining({
+      p_request_id: REQUEST_ID, p_error_code: 'provider_unavailable',
+    }));
+    expect(defaultMocks.rpc).not.toHaveBeenCalledWith('mark_order_cancellation_needs_review', expect.objectContaining({
+      p_error_code: 'provider_refund_account_required',
+    }));
   });
 
   it('fresh prepared 세션은 in_progress로 유지하고 완료나 needs_review를 호출하지 않는다', async () => {
@@ -402,6 +433,7 @@ describe('reconcileOrderCancellation', () => {
       amount: 42000,
       reason: 'ICONS 주문 취소',
       paymentKey: PAYMENT_KEY,
+      requestId: REQUEST_ID,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
@@ -460,6 +492,7 @@ describe('reconcileOrderCancellation', () => {
       amount: 42000,
       reason: 'ICONS 주문 취소',
       paymentKey: PAYMENT_KEY,
+      requestId: REQUEST_ID,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
@@ -865,6 +898,7 @@ describe('reconcileOrderCancellation', () => {
       paymentKey: PAYMENT_KEY,
       amount: 42000,
       reason: 'ICONS 주문 취소',
+      requestId: REQUEST_ID,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith(
       expect.objectContaining({ verifiedPaymentKeys: [PAYMENT_KEY] }),

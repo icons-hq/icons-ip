@@ -23,6 +23,7 @@ import {
   type OrderClaimEligibility,
   type OrderClaimType,
 } from '@/lib/orders/claims';
+import { TOSS_REFUND_BANKS } from '@/lib/payments/toss-bank-codes';
 import {
   DISABLED_PARTIAL_RETURN,
   partialReturnItemBlockerLabel,
@@ -52,6 +53,9 @@ export const CLAIM_DEADLINE_MESSAGE = '신청 기한이 지난 주문입니다. 
 export const CLAIM_NOT_AVAILABLE_MESSAGE = '지금은 신청할 수 없는 주문입니다. 최신 상태를 확인해주세요.';
 export const PARTIAL_RETURN_BLOCKED_MESSAGE = '고른 굿즈 가운데 지금 반품할 수 없는 굿즈가 있습니다. 최신 상태를 확인한 뒤 다시 골라주세요.';
 export const PARTIAL_RETURN_SELECTION_REQUIRED = '반품할 굿즈와 수량을 1개 이상 골라주세요.';
+/* 가상계좌 환불은 결제대행사에 은행 코드와 숫자 6~20자리 계좌번호를 보낸다(DB 판정 private.virtual_account_refund_account_usable과 같다). */
+export const VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE = '은행은 목록에서 고르고, 계좌번호는 숫자 6~20자리(하이픈 제외)로 입력해주세요.';
+const VIRTUAL_ACCOUNT_REFUND_NUMBER = /^[0-9]{6,20}$/;
 
 type ClaimFetch = (
   input: string,
@@ -66,6 +70,7 @@ type ClaimSubmissionResult =
   | 'deadline_expired'
   | 'not_claimable'
   | 'partial_return_unavailable'
+  | 'invalid_refund_account'
   | false;
 
 export async function submitOrderClaim(
@@ -94,6 +99,8 @@ export async function submitOrderClaim(
     if (code === 'deadline_expired') return 'deadline_expired';
     if (code === 'not_claimable') return 'not_claimable';
     if (code === 'partial_return_unavailable' || code === 'partial_return_item_unavailable') return 'partial_return_unavailable';
+    /* 입력한 환급 계좌를 받지 않았다 — 신청 전체가 되돌려졌으니 계좌를 고쳐 다시 신청한다. */
+    if (code === 'invalid_refund_account') return 'invalid_refund_account';
     return false;
   }
 
@@ -184,6 +191,7 @@ export function OrderClaimRequest({
   returnFeePolicy = null,
   returnPickup = NO_RETURN_PICKUP,
   status,
+  virtualAccountRefund = false,
 }: {
   claim: OrderCancellationRequestSummary | null;
   /** 부분 반품 클레임에 고른 굿즈(ADR-0047). 주문 전체 클레임이면 그 클레임 id의 줄이 없다. */
@@ -198,6 +206,11 @@ export function OrderClaimRequest({
   partiallyCanceled?: boolean;
   /** 부분 반품 문맥(ADR-0047). 꺼져 있으면(기본) 반품 폼은 지금처럼 주문 전체만 받는다. */
   partialReturn?: OrderPartialReturnContext;
+  /**
+   * 입금된 토스 가상계좌 결제 주문인지(ADR-0049 결정 5 보강). 그러면 반품 환불은 입력한 환급 계좌로 결제대행사가 송금하므로 은행을
+   * 결제대행사 은행 목록에서 고르게 하고 안내 문구를 바꾼다. 판정의 진실원은 DB(주문 상세의 환급 계좌 문맥)이고 이 값은 표시 힌트다.
+   */
+  virtualAccountRefund?: boolean;
   refund?: OrderRefundSummary | null;
   returnFeePolicy?: { enabled: boolean; oneWayAmount: number | null } | null;
   /** 방문 회수(반품 자동 회수 접수, QNA-032)·직접 발송 묶음 수. 둘 다 0이면 지금 반송 안내 그대로다. */
@@ -242,6 +255,11 @@ export function OrderClaimRequest({
       setAccountError(account.error);
       return;
     }
+    if (virtualAccountRefund && account.value
+      && !VIRTUAL_ACCOUNT_REFUND_NUMBER.test(account.value.accountNumber.replace(/-/g, ''))) {
+      setAccountError(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE);
+      return;
+    }
     /* 반품은 환불로 끝난다. 계좌를 받아 두면 카드 접수가 막혔을 때 송금으로
        전환할 수 있고, 무통장 주문(#256)에서는 유일한 경로가 된다. */
     setAccountError(null);
@@ -268,6 +286,11 @@ export function OrderClaimRequest({
       result = false;
     }
 
+    if (result === 'invalid_refund_account') {
+      setAccountError(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE);
+      setSubmission('form');
+      return;
+    }
     if (result === 'deadline_expired') setSubmission('expired');
     else if (result === 'not_claimable') setSubmission('blocked');
     else if (result === 'partial_return_unavailable') setSubmission('partial_blocked');
@@ -424,20 +447,40 @@ export function OrderClaimRequest({
 
             {claimType === 'return' ? (
               <fieldset className="order-cancellation-reason">
-                <legend>환불계좌 (선택)</legend>
-                <p className="money-caption">
-                  결제수단으로 환급하지 못하는 경우에만 사용합니다. 입력하신 계좌는 마스킹해
-                  보관하고, 환급 완료 30일 뒤 원문을 파기합니다.
-                </p>
+                <legend>{virtualAccountRefund ? '환급 계좌' : '환불계좌 (선택)'}</legend>
+                {virtualAccountRefund ? (
+                  <p className="money-caption">
+                    가상계좌로 결제한 주문은 이 계좌로 결제대행사가 환불해요. 비워 두면 결제 화면에서 입력한 계좌로
+                    환불하고, 그 계좌도 없으면 주문 상세에서 계좌를 받아요. 입력하신 계좌는 마스킹해 보관하고, 환급 완료
+                    30일 뒤 원문을 파기합니다.
+                  </p>
+                ) : (
+                  <p className="money-caption">
+                    결제수단으로 환급하지 못하는 경우에만 사용합니다. 입력하신 계좌는 마스킹해
+                    보관하고, 환급 완료 30일 뒤 원문을 파기합니다.
+                  </p>
+                )}
                 <label htmlFor="order-claim-bank">
                   <span>은행</span>
-                  <input
-                    id="order-claim-bank"
-                    maxLength={40}
-                    onChange={(event) => setBankName(event.target.value)}
-                    type="text"
-                    value={bankName}
-                  />
+                  {virtualAccountRefund ? (
+                    /* 결제대행사에 은행 코드를 보낸다 — 목록에서 골라 이름 → 코드 변환이 추측이 되지 않게 한다. */
+                    <select
+                      id="order-claim-bank"
+                      onChange={(event) => setBankName(event.target.value)}
+                      value={bankName}
+                    >
+                      <option value="">은행 선택</option>
+                      {TOSS_REFUND_BANKS.map((bank) => <option key={bank.code} value={bank.name}>{bank.name}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      id="order-claim-bank"
+                      maxLength={40}
+                      onChange={(event) => setBankName(event.target.value)}
+                      type="text"
+                      value={bankName}
+                    />
+                  )}
                 </label>
                 <label htmlFor="order-claim-account">
                   <span>계좌번호</span>

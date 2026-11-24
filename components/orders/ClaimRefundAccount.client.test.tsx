@@ -1,7 +1,7 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ current: '', index: 0, frames: new Map<string, { values: unknown[]; effects: Map<number, { deps: unknown[]; cleanup?: () => void }>; jobs: (() => void)[] }>() }));
-const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), read: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
+const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), read: vi.fn(), retry: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   startTransition: (work: () => unknown) => { void work(); },
   useState: (initial: unknown) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++; if (!(i in f.values)) f.values[i] = typeof initial === 'function' ? initial() : initial; return [f.values[i], (next: unknown) => { f.values[i] = typeof next === 'function' ? next(f.values[i]) : next; }]; },
@@ -10,10 +10,12 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
   useEffect: (work: () => void | (() => void), deps: unknown[] = []) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++, old = f.effects.get(i); if (!old || deps.some((dep, n) => dep !== old.deps[n])) { f.effects.set(i, { deps, cleanup: old?.cleanup }); f.jobs.push(() => { old?.cleanup?.(); f.effects.get(i)!.cleanup = work() || undefined; }); } },
 }));
-vi.mock('@/app/orders/claim-refund-account-actions', () => ({ loadClaimRefundAccountAction: mocks.load, saveClaimRefundAccountAction: mocks.save, readClaimRefundAccountAction: mocks.read }));
+vi.mock('@/app/orders/claim-refund-account-actions', () => ({ loadClaimRefundAccountAction: mocks.load, saveClaimRefundAccountAction: mocks.save, readClaimRefundAccountAction: mocks.read,
+  retryVirtualAccountRefundAction: mocks.retry }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { ClaimRefundAccount } from './ClaimRefundAccount';
-import { refundAccountIdentity as identity, refundAccountRequest as request, refundAccountContext as context, refundAccountReceipt as receipt } from '@/test/fixtures/claim-refund-account';
+import { refundAccountIdentity as identity, refundAccountRequest as request, refundAccountContext as context, refundAccountReceipt as receipt,
+  virtualAccountRefundContext } from '@/test/fixtures/claim-refund-account';
 import { claimRefundAccountRecoveryKey, claimRefundAccountRequestMetadata } from '@/lib/orders/claim-refund-account';
 import { stubCustomerConfirm } from '@/lib/customer-confirm.test-support';
 type Element = ReactElement<Record<string, unknown>>;
@@ -145,5 +147,55 @@ describe('입력 중 이탈 경고(고객 공용 확인창)', () => {
     const external = clickEvent(tab); guard.click!(external);
     await flush();
     expect(same.preventDefault).not.toHaveBeenCalled(); expect(external.preventDefault).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
+  });
+});
+
+describe('입금된 가상계좌 주문(ADR-0049 결정 5 보강)', () => {
+  async function openVirtualAccount(extra: Partial<typeof virtualAccountRefundContext> = {}) {
+    dispose(); hooks.frames.clear();
+    mocks.load.mockResolvedValue({ context: { ...virtualAccountRefundContext, ...extra } });
+    render(); effects(); authenticate(); await flush();
+  }
+  function bankSelect() {
+    render(); const parent = nodes.find(node => node.type === 'label' && text(node).startsWith('은행'))!;
+    return Children.toArray(parent.props.children as ReactNode).find(value => isValidElement(value) && value.type === 'select') as Element | undefined;
+  }
+
+  it('계좌 때문에 멈춘 환불을 알리고, 은행은 결제대행사 목록에서 고르게 한다', async () => {
+    await openVirtualAccount();
+    expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('환불할 계좌가 없어 환불이 멈춰 있어요'))).toBe(true);
+    const select = bankSelect();
+    expect(select).toBeDefined();
+    expect(text(select!.props.children as ReactNode)).toContain('KB국민은행');
+    (select!.props.onChange as (event: unknown) => void)({ target: { value: '신한은행' } });
+    change('계좌번호', '110987654321'); change('예금주', '김합성');
+    mocks.save.mockImplementationOnce(async (sent: { operationId: string }) => ({ receipt: { ...receipt, operationId: sent.operationId }, refundRetry: 'started' }));
+    submit(); await flush();
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ account: { bankName: '신한은행', accountNumber: '110987654321', accountHolder: '김합성' } }));
+    expect(nodes.some(node => node.props.role === 'status' && text(node).includes('이 계좌로 환불을 다시 요청했어요'))).toBe(true);
+  });
+
+  it('등록된 계좌가 있으면 바꿀 수 있고, 계좌 없음으로 멈춘 환불은 그 계좌로 다시 요청한다', async () => {
+    await openVirtualAccount({ maskedAccount: '신한은행 ********4321', maskedHolder: '김*성', recordedAt: '2026-11-23T05:00:00.000Z' });
+    render();
+    expect(nodes.some(node => node.type === 'button' && text(node) === '환급 계좌 바꾸기')).toBe(true);
+    mocks.retry.mockResolvedValueOnce({ refundRetry: 'started' });
+    click('이 계좌로 환불 다시 요청'); await flush();
+    expect(mocks.retry).toHaveBeenCalledWith(expect.objectContaining({ claimId: identity.claimId, sessionId: identity.sessionId }));
+  });
+
+  it('결제대행사에 그대로 보낼 수 없는 등록 계좌는 바꾸라고 알리고 같은 계좌로 다시 요청하지 않는다', async () => {
+    await openVirtualAccount({ refundAccountIssue: 'unusable', maskedAccount: '농협 ********4321', maskedHolder: '김*성', recordedAt: '2026-11-23T05:00:00.000Z' });
+    render();
+    expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('등록된 계좌로는 환불할 수 없어요'))).toBe(true);
+    expect(nodes.some(node => node.type === 'button' && text(node) === '이 계좌로 환불 다시 요청')).toBe(false);
+    expect(nodes.some(node => node.type === 'button' && text(node) === '환급 계좌 바꾸기')).toBe(true);
+  });
+
+  it('결제대행사가 거절한 계좌는 같은 계좌로 다시 요청하지 않는다(바꿔야 풀린다)', async () => {
+    await openVirtualAccount({ refundAccountIssue: 'invalid', maskedAccount: '신한은행 ********4321', maskedHolder: '김*성', recordedAt: '2026-11-23T05:00:00.000Z' });
+    render();
+    expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('환급 계좌를 확인하지 못해'))).toBe(true);
+    expect(nodes.some(node => node.type === 'button' && text(node) === '이 계좌로 환불 다시 요청')).toBe(false);
   });
 });

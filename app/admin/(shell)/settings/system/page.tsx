@@ -3,15 +3,18 @@ import { hasAdminCapability } from '@/lib/admin/access';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { SYSTEM_HEALTH_PATH } from '@/lib/admin/system-health';
 import { loadOpsAlertDigest } from '@/lib/admin/ops-alert-digest.server';
-import { loadSystemHealth, loadUnresolvedPaymentAttempts } from '@/lib/admin/system-health.server';
+import { loadSystemHealth, loadUnresolvedPaymentAttempts, loadVirtualAccountRefundFailures } from '@/lib/admin/system-health.server';
 
 export default async function Page() {
   const auth = await requireAdminScreenAccess(SYSTEM_HEALTH_PATH);
   const canReconcile = hasAdminCapability(auth, 'sales.manage');
-  const [health, payments, digest] = await Promise.all([
+  const canReadSales = hasAdminCapability(auth, 'sales.read');
+  const [health, payments, digest, refundFailures] = await Promise.all([
     loadSystemHealth(),
     canReconcile ? loadUnresolvedPaymentAttempts(50) : Promise.resolve(undefined),
     loadOpsAlertDigest(),
+    /* 가상계좌 환불 송금 확인 필요(ADR-0049 결정 5 보강) — 주문 조회 권한이 있어야 주문으로 이어진다. */
+    canReadSales ? loadVirtualAccountRefundFailures(50) : Promise.resolve(undefined),
   ]);
-  return <SystemHealthScreen canReconcile={canReconcile} digest={digest} health={health} payments={payments} />;
+  return <SystemHealthScreen canReconcile={canReconcile} digest={digest} health={health} payments={payments} refundFailures={refundFailures} />;
 }

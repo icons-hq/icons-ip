@@ -26,8 +26,8 @@ select 1 / case when
   and not has_function_privilege('authenticated', 'public.service_flag_goods_deposit_reversal(uuid,text,text,text)', 'execute')
   and has_function_privilege('service_role', 'public.service_goods_attempt_payment_key_hint(uuid)', 'execute')
   and not has_function_privilege('authenticated', 'public.service_goods_attempt_payment_key_hint(uuid)', 'execute')
-  and has_function_privilege('service_role', 'public.service_goods_virtual_account_refund_account(uuid,text)', 'execute')
-  and not has_function_privilege('authenticated', 'public.service_goods_virtual_account_refund_account(uuid,text)', 'execute')
+  and has_function_privilege('service_role', 'public.service_goods_virtual_account_refund_accounts(uuid,text,uuid)', 'execute')
+  and not has_function_privilege('authenticated', 'public.service_goods_virtual_account_refund_accounts(uuid,text,uuid)', 'execute')
   and not has_function_privilege('service_role', 'private.finalize_goods_payment_awaiting_deposit_core(uuid,uuid,text,text,text,timestamptz,boolean,text,text,text)', 'execute')
   and not has_function_privilege('service_role', 'private.purge_virtual_account_refund_accounts()', 'execute')
   and has_function_privilege('service_role', 'public.service_claim_toss_escrow_jobs(integer)', 'execute')
@@ -274,15 +274,16 @@ then 1 else 0 end as assert_deposit_reversal_hold;
 select 1 / case when private.order_fulfillment_held('20000000-0000-4000-8000-000000004901')
 then 1 else 0 end as assert_reversed_order_held;
 
--- 환불 계좌는 원장 결제 키가 맞을 때만 준다. 기한이 지나면 지운다.
-select 1 / case when public.service_goods_virtual_account_refund_account('30000000-0000-4000-8000-000000004901', 'va-key-4901')
+-- 환불 계좌는 원장 결제 키가 맞을 때만 준다. 기한이 지나면 지운다(결제 화면 계좌 — 20261125110000의 후보 조회).
+select 1 / case when public.service_goods_virtual_account_refund_accounts('30000000-0000-4000-8000-000000004901', 'va-key-4901', null)->'checkout'
   = '{"bankCode":"88","accountNumber":"110123456789","holderName":"김토스"}'::jsonb
-  and public.service_goods_virtual_account_refund_account('30000000-0000-4000-8000-000000004901', 'other-key') is null
+  and public.service_goods_virtual_account_refund_accounts('30000000-0000-4000-8000-000000004901', 'other-key', null) is null
 then 1 else 0 end as assert_refund_account_lookup;
 update private.payment_attempt_virtual_accounts set refund_account_purge_after = now() - interval '1 minute'
 where attempt_id = '30000000-0000-4000-8000-000000004901';
 select 1 / case when private.purge_virtual_account_refund_accounts() >= 1 then 1 else 0 end as assert_refund_account_purge_ran;
-select 1 / case when public.service_goods_virtual_account_refund_account('30000000-0000-4000-8000-000000004901', 'va-key-4901') is null
+select 1 / case when public.service_goods_virtual_account_refund_accounts('30000000-0000-4000-8000-000000004901', 'va-key-4901', null)->'checkout'
+  = 'null'::jsonb
 then 1 else 0 end as assert_refund_account_purged;
 
 -- ---------------------------------------------------------------------------

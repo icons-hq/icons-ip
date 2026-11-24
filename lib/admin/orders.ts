@@ -128,6 +128,50 @@ export const ADMIN_ESCROW_STATUS_LABELS: Record<AdminEscrowStatus, string> = {
 export const ADMIN_ESCROW_MANUAL_REQUIRED_HINT =
   '발송한 배송 정보를 결제사에 자동으로 등록하지 못했습니다(택배사 코드 없음·운송장 형식 거절 등). 토스페이먼츠 상점관리자에서 이 결제의 배송 정보를 직접 등록해주세요. 등록하지 않으면 구매자가 구매확정을 할 수 없어 정산이 진행되지 않습니다.';
 
+/**
+ * 가상계좌 환불의 은행 송금 감시(private.virtual_account_refund_watches, ADR-0049 결정 5 보강). 환불(결제 취소) 뒤 은행이 영업일 2일 안에
+ * 고객 계좌로 송금한다. pending: 송금 확인 전 · completed: 송금 완료 · failed: 송금 실패·7일째 확인 안 됨·결제사 기록 불일치 ·
+ * resolved: 운영자가 결제사 밖에서 끝내고 처리 완료로 표시.
+ */
+export const ADMIN_VIRTUAL_ACCOUNT_REFUND_STATES = ['pending', 'completed', 'failed', 'resolved'] as const;
+export type AdminVirtualAccountRefundState = (typeof ADMIN_VIRTUAL_ACCOUNT_REFUND_STATES)[number];
+export const ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES = ['refund_failed', 'refund_partial_failed', 'refund_overdue', 'payment_mismatch'] as const;
+export type AdminVirtualAccountRefundFailure = (typeof ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES)[number];
+
+export interface AdminVirtualAccountRefundWatch {
+  state: AdminVirtualAccountRefundState;
+  /** 실패·지연 사유. 실패가 아니면 null. */
+  failureCode: AdminVirtualAccountRefundFailure | null;
+  /** 환불(결제 취소)을 확인한 시각. */
+  refundedAt: string;
+  /** 결제사에 마지막으로 조회한 시각. 아직 조회 전이면 null. */
+  checkedAt: string | null;
+  /** 운영자가 처리 완료로 표시하며 남긴 사유. */
+  resolutionNote: string | null;
+}
+
+export const ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS: Record<AdminVirtualAccountRefundState, string> = {
+  pending: '은행 송금 확인 중',
+  completed: '환불 송금 완료',
+  failed: '환불 송금 확인 필요',
+  resolved: '처리 완료(운영자 확인)',
+};
+
+export const ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURE_LABELS: Record<AdminVirtualAccountRefundFailure, string> = {
+  refund_failed: '은행이 고객 계좌로 송금하지 못했습니다',
+  refund_partial_failed: '은행이 일부 금액을 송금하지 못했습니다',
+  refund_overdue: '환불 뒤 7일이 지나도 송금 완료가 확인되지 않습니다',
+  payment_mismatch: '결제사 기록이 이 주문의 환불과 맞지 않습니다',
+};
+
+/** 송금 상태별 다음 일. */
+export const ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS: Record<AdminVirtualAccountRefundState, string> = {
+  pending: '결제는 취소됐고 은행이 고객 계좌로 송금하는 중입니다(영업일 기준 2일 정도). 시스템이 결제사에 조회해 송금 완료를 확인합니다.',
+  completed: '고객 환불 계좌로 송금이 끝났습니다.',
+  failed: '고객에게 환불금이 가지 않았을 수 있습니다. 토스페이먼츠 상점관리자에서 이 결제의 환불 상태를 확인해 다시 환불하고 고객에게 안내해주세요. 상점관리자에서 다시 환불하면 시스템이 조회해 저절로 완료로 바꿉니다. 회사 계좌에서 직접 보내는 등 결제사 밖에서 끝냈다면 [처리 완료로 표시]를 누르고 처리 내용을 남겨주세요.',
+  resolved: '운영자가 결제사 밖에서 환불을 끝내고 처리 완료로 표시했습니다.',
+};
+
 export interface AdminOrderVirtualAccount {
   /** 토스 은행 코드(2·3자리). 화면은 tossBankLabel로 은행 이름을 보인다. */
   bankCode: string;
@@ -140,6 +184,28 @@ export interface AdminOrderVirtualAccount {
   state: AdminVirtualAccountState;
   /** 에스크로 배송 등록 작업. 작업이 없으면(옛 응답 포함) null. */
   escrow: AdminOrderEscrowJob | null;
+  /** 환불 뒤 은행 송금 감시. 환불 전이거나 감시가 없으면(옛 응답 포함) null. */
+  refund: AdminVirtualAccountRefundWatch | null;
+}
+
+/**
+ * 계좌이체 주문의 에스크로(구매안전서비스) 작업(admin_order_transfer_escrow, 20261125110100). 계좌이체는 구매자 선택을 남기는 곳이 없어
+ * 작업자가 결제사에 조회해 확인한다 — useEscrow null은 아직 확인 전이다.
+ */
+export interface AdminOrderTransferEscrow {
+  useEscrow: boolean | null;
+  job: AdminOrderEscrowJob;
+}
+
+/** 계좌이체 에스크로 칸의 다음 일 안내. */
+export const ADMIN_TRANSFER_ESCROW_HINT =
+  '계좌이체는 고객이 결제할 때 구매안전서비스(에스크로)를 고를 수 있고, 시스템이 결제사에 조회해 적용 여부를 확인합니다. 적용된 결제는 실물 배송 건이 모두 발송되면 시스템이 결제사에 배송 정보를 등록합니다. 환불은 결제사가 대금이 출금된 계좌로 돌려줍니다.';
+
+/** 계좌이체 에스크로 적용 표기. */
+export function adminTransferEscrowLabel(useEscrow: boolean | null): string {
+  if (useEscrow === true) return '적용(구매자가 선택)';
+  if (useEscrow === false) return '적용 안 함';
+  return '확인 중(결제사 조회 전)';
 }
 
 export const ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS: Record<AdminVirtualAccountState, string> = {
@@ -165,6 +231,8 @@ export function adminVirtualAccountEscrowLabel(useEscrow: boolean | null): strin
 }
 
 const VIRTUAL_ACCOUNT_STATE_SET = new Set<string>(ADMIN_VIRTUAL_ACCOUNT_STATES);
+const VIRTUAL_ACCOUNT_REFUND_STATE_SET = new Set<string>(ADMIN_VIRTUAL_ACCOUNT_REFUND_STATES);
+const VIRTUAL_ACCOUNT_REFUND_FAILURE_SET = new Set<string>(ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES);
 const ESCROW_DELIVERY_STATE_SET = new Set<string>(ADMIN_ESCROW_DELIVERY_STATES);
 const ESCROW_STATUS_SET = new Set<string>(ADMIN_ESCROW_STATUSES);
 
@@ -185,6 +253,41 @@ function parseAdminOrderEscrowJob(value: unknown): AdminOrderEscrowJob | null | 
   };
 }
 
+/** 환불 송금 감시 투영. 없으면 null, 모르는 값이면 undefined(송금 실패 신호를 조용히 접지 않는다). */
+function parseAdminVirtualAccountRefundWatch(value: unknown): AdminVirtualAccountRefundWatch | null | undefined {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const { state, failureCode, refundedAt, checkedAt, resolutionNote } = value as Record<string, unknown>;
+  const time = (input: unknown) => typeof input === 'string' && Number.isFinite(Date.parse(input));
+  if (typeof state !== 'string' || !VIRTUAL_ACCOUNT_REFUND_STATE_SET.has(state)
+    || (failureCode !== null && failureCode !== undefined && (typeof failureCode !== 'string' || !VIRTUAL_ACCOUNT_REFUND_FAILURE_SET.has(failureCode)))
+    || (state === 'failed' && typeof failureCode !== 'string')
+    || !time(refundedAt)
+    || (checkedAt !== null && checkedAt !== undefined && !time(checkedAt))
+    || (resolutionNote !== null && resolutionNote !== undefined && typeof resolutionNote !== 'string')) {
+    return undefined;
+  }
+  return {
+    state: state as AdminVirtualAccountRefundState,
+    failureCode: typeof failureCode === 'string' ? failureCode as AdminVirtualAccountRefundFailure : null,
+    refundedAt: refundedAt as string,
+    checkedAt: typeof checkedAt === 'string' ? checkedAt : null,
+    resolutionNote: typeof resolutionNote === 'string' ? resolutionNote : null,
+  };
+}
+
+/**
+ * `admin_order_transfer_escrow` 응답을 읽는다. null(계좌이체 에스크로 작업이 없는 주문)은 null, 형태가 어긋나면 undefined.
+ */
+export function parseAdminOrderTransferEscrow(value: unknown): AdminOrderTransferEscrow | null | undefined {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const { useEscrow } = value as Record<string, unknown>;
+  const job = parseAdminOrderEscrowJob(value);
+  if (!job || (useEscrow !== null && useEscrow !== undefined && typeof useEscrow !== 'boolean')) return undefined;
+  return { useEscrow: typeof useEscrow === 'boolean' ? useEscrow : null, job };
+}
+
 /**
  * `admin_order_virtual_account` 응답을 읽는다. null(가상계좌 결제가 아닌 주문)은 null, 형태가 어긋나면 undefined —
  * 호출자가 '불러오지 못했다'고 안내한다(가상계좌가 아니라고 잘못 말하지 않는다).
@@ -196,6 +299,8 @@ export function parseAdminOrderVirtualAccount(value: unknown): AdminOrderVirtual
   const { bankCode, accountNumber, dueAt, amount, useEscrow, state } = row;
   const escrow = parseAdminOrderEscrowJob(row.escrow);
   if (escrow === undefined) return undefined;
+  const refund = parseAdminVirtualAccountRefundWatch(row.refund);
+  if (refund === undefined) return undefined;
   if (typeof bankCode !== 'string' || !/^[0-9]{2,3}$/.test(bankCode)
     || typeof accountNumber !== 'string' || !/^[0-9A-Za-z*-]{4,40}$/.test(accountNumber)
     || typeof dueAt !== 'string' || !Number.isFinite(Date.parse(dueAt))
@@ -212,6 +317,7 @@ export function parseAdminOrderVirtualAccount(value: unknown): AdminOrderVirtual
     useEscrow: typeof useEscrow === 'boolean' ? useEscrow : null,
     state: state as AdminVirtualAccountState,
     escrow,
+    refund,
   };
 }
 
@@ -369,6 +475,8 @@ export interface AdminOrderRecord {
    * null이면 가상계좌 결제가 아닌 주문이다.
    */
   virtualAccount?: AdminOrderVirtualAccount | null;
+  /** 계좌이체 주문의 에스크로 작업(주문 처리 권한에만 읽는다). */
+  transferEscrow?: AdminOrderTransferEscrow | null;
   /** 가상계좌 정보를 읽지 못했다(조회 실패·형식 어긋남). 가상계좌가 아니라고 말하지 않고 '불러오지 못했다'고 안내한다. */
   virtualAccountUnavailable?: true;
 }

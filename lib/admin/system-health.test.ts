@@ -9,8 +9,7 @@ import {
   UNRESOLVED_PAYMENT_REASON_HINTS,
   UNRESOLVED_PAYMENT_REASON_LABELS,
   systemErrorCodeLabel,
-  systemJobState,
-} from './system-health';
+  systemJobState, parseVirtualAccountRefundFailures } from './system-health';
 
 const asOf = '2026-11-18T03:00:00.000Z';
 const vercelJob = {
@@ -42,6 +41,23 @@ describe('시스템 상태 읽기 모델', () => {
     expect(unrecorded.every(job => systemJobState(job) === 'unrecorded' && job.source === 'vercel_cron')).toBe(true);
     expect(parsed.recentFailures[0].label).toBe('선물 만료·정리');
     expect(parsed.counts.issues).toBe(4);
+  });
+
+  /* 가상계좌 환불 송금 확인 필요(20261125110000) — 예전 판정(키 없음)은 0으로 읽고, 형식이 틀리면 null이다. */
+  it('환불 송금 확인 필요 건수를 읽는다', () => {
+    expect(parseSystemHealthReport(report)!.counts.refundFailures).toBe(0);
+    expect(parseSystemHealthReport(report)!.refunds).toEqual({ virtualAccountFailed: 0, oldestAt: null });
+    const withRefunds = parseSystemHealthReport({ ...report, refunds: { virtualAccountFailed: 2, oldestAt: '2026-11-17T05:00:00Z' },
+      counts: { ...report.counts, refundFailures: 2, issues: 6 } })!;
+    expect(withRefunds.refunds.virtualAccountFailed).toBe(2);
+    expect(withRefunds.counts.refundFailures).toBe(2);
+    expect(parseSystemHealthReport({ ...report, refunds: { virtualAccountFailed: -1, oldestAt: null } })).toBeNull();
+    expect(parseSystemHealthReport({ ...report, refunds: 'x' })).toBeNull();
+    expect(parseVirtualAccountRefundFailures({ total: 1, items: [{ orderId: 'a7000000-0000-4002-8000-000000000009', orderNumber: null, amount: 31000,
+      failureCode: 'refund_overdue', refundedAt: '2026-11-10T03:00:00Z', failedAt: '2026-11-17T03:00:00Z' }] })?.items[0].failureCode).toBe('refund_overdue');
+    expect(parseVirtualAccountRefundFailures({ total: 1, items: [{ orderId: 'x', failureCode: 'refund_failed' }] })).toBeNull();
+    expect(parseVirtualAccountRefundFailures({ total: 0, items: [{ orderId: 'a7000000-0000-4002-8000-000000000009', orderNumber: null, amount: 1,
+      failureCode: 'refund_failed', refundedAt: '2026-11-10T03:00:00Z', failedAt: '2026-11-17T03:00:00Z' }] })).toBeNull();
   });
 
   it('형식이 틀리면 null이다(정상처럼 보이지 않는다)', () => {
