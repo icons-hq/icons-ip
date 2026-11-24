@@ -297,7 +297,6 @@ describe('Search 비굿즈 그룹', () => {
     groups: [
       { kind: 'ip', label: 'IP', results: [result('ip', 'rilakkuma', '리락쿠마')] },
       { kind: 'good', label: '굿즈', results: [result('good', 'g9', '스냅샷 굿즈')] },
-      { kind: 'card', label: '카드', results: [result('card', 'c1', '리락쿠마 카드')] },
       { kind: 'post', label: '포스트', results: [result('post', 'p1', '리락쿠마 포스트')] },
       { kind: 'tag', label: '태그', results: [result('tag', '리락쿠마덕질', '#리락쿠마덕질')] },
     ],
@@ -305,7 +304,7 @@ describe('Search 비굿즈 그룹', () => {
 
   it('각 결과를 실제 상세 경로로 보낸다', () => {
     expect(html).toContain('href="/ip/rilakkuma"');
-    expect(html).toContain('href="/binder"');
+    expect(html).not.toContain('href="/binder"');
     expect(html).toContain('href="/community"');
     expect(html).toContain(`href="/search?q=${encodeURIComponent('리락쿠마덕질')}"`);
   });

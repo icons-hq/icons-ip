@@ -4,12 +4,10 @@ import { toGood, type GoodRow } from './catalog';
 import { initialGoodOption, purchasableOptionQty } from './goods-options';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), appearance: vi.fn(), rewards: vi.fn(), summaries: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), appearance: vi.fn(), summaries: vi.fn() }));
 vi.mock('./supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('./supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 vi.mock('./goods-listing-appearance.server', () => ({ loadGoodsListingAppearance: mocks.appearance }));
-vi.mock('./card-rewards/gate.server', () => ({ readCardRewardsEnabled: mocks.rewards }));
-vi.mock('./collectible-features.server', () => ({ getCollectibleFeatures: async () => ({ binder: false, market: false, exchange: false }) }));
 vi.mock('./goods-review-summary.server', () => ({ loadGoodsReviewSummaries: mocks.summaries }));
 const id = '93930000-0000-4000-8000-000000000011', now = '2026-10-14T00:00:00Z';
 const query = { displayCategory: id, view: 'all' as const, ips: [], types: [], priceMin: null, priceMax: null, sort: 'recommended' as const };
@@ -22,7 +20,7 @@ function row() {
 }
 function page() { return { category: { id, name: '전시' }, checkedAt: now, token: 'a'.repeat(32), offset: 0, nextOffset: null, total: 1, filteredTotal: 1, priceCeil: 700,
   rows: [row()], ipFacets: [{ value: 'ip1', label: 'IP', count: 1 }], typeFacets: [{ value: '문구', label: '문구', count: 1 }], banner: null, video: null, recommendations: null }; }
-beforeEach(() => { vi.clearAllMocks(); mocks.appearance.mockResolvedValue(new Map()); mocks.rewards.mockResolvedValue(true); mocks.summaries.mockResolvedValue({}); });
+beforeEach(() => { vi.clearAllMocks(); mocks.appearance.mockResolvedValue(new Map()); mocks.summaries.mockResolvedValue({}); });
 describe('전시 공개 DTO', () => {
   it('RPC typeFacets 의 옛 유형 값은 거르고 예약판매만 남긴다', () => {
     const source = page(); source.typeFacets = [{ value: '문구', label: '문구', count: 1 }, { value: '예약판매', label: '예약판매', count: 1 }];
@@ -80,17 +78,16 @@ describe('전시 공개 DTO', () => {
     const result = parseCategoryDisplayPage({ ...page(), recommendations: { title: '추천', rows: [{ ...row(), id: 'g2', ip_id: 'outside' }] } }, query);
     expect(result?.recommendations?.goods[0].brand).toBe('독립 추천 IP');
   });
-  it('공개 페이지와 미리보기 공통 변환이 표시 설정과 리워드 목적지 게이트를 적용한다', async () => {
+  it('공개 페이지와 미리보기 공통 변환이 표시 설정과 지운 화면 목적지 게이트를 적용한다', async () => {
     const input = parseCategoryDisplayPage(page(), query)!;
     input.banner = { id, title: '', subtitle: null, imageUrl: 'image', mobileImageUrl: null, href: '/packs', imageAlt: '', imageDim: 'none', textColor: 'white' };
     const appearance = { colors: [], gallery: [], description: '설명' };
-    mocks.appearance.mockResolvedValue(new Map([['g1', appearance]])); mocks.rewards.mockResolvedValue(false);
+    mocks.appearance.mockResolvedValue(new Map([['g1', appearance]]));
     const result = await hydrateCategoryDisplayPage(input, {} as SupabaseClient);
     expect(result.result.goods[0].listingAppearance).toEqual(appearance); expect(result.banner).toBeNull();
-    /* 운영하지 않는 수집·거래 기능(숨김이 기본)으로 가는 배너도 같은 자리에서 걷어낸다. */
+    /* 지운 굿즈 마켓 화면(ADR-0052)으로 가는 배너도 같은 자리에서 걷어낸다. */
     const market = parseCategoryDisplayPage(page(), query)!;
     market.banner = { id, title: '', subtitle: null, imageUrl: 'image', mobileImageUrl: null, href: '/market', imageAlt: '', imageDim: 'none', textColor: 'white' };
-    mocks.rewards.mockResolvedValue(true);
     expect((await hydrateCategoryDisplayPage(market, {} as SupabaseClient)).banner).toBeNull();
   });
   it('목록 카드 별점은 이 페이지 굿즈 몫만 배치로 읽고, 실패하면 별점만 숨긴다(CL-02)', async () => {

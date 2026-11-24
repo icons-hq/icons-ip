@@ -52,19 +52,16 @@ const broadRevalidationCalls = [
   ['/'],
   ['/ip'],
   ['/shop'],
-  ['/binder'],
   ['/events'],
   ['/offline-popups'],
   ['/search'],
   ['/cart'],
   ['/checkout'],
-  ['/packs'],
   ['/admin'],
   ['/admin/catalog/goods'],
   ['/ip/[id]', 'page'],
   ['/events/[eventId]', 'page'],
   ['/offline-popups/[eventId]', 'page'],
-  ['/games/[gameId]', 'page'],
 ];
 
 describe('admin catalog archive actions', () => {
@@ -87,11 +84,9 @@ describe('admin catalog archive actions', () => {
   it.each([
     ['archive', 'ip', 'admin_archive_ip', archiveAdminCatalogRecordAction, '카탈로그 항목을 보관했습니다.'],
     ['archive', 'good', 'admin_archive_good', archiveAdminCatalogRecordAction, '카탈로그 항목을 보관했습니다.'],
-    ['archive', 'card', 'admin_archive_card', archiveAdminCatalogRecordAction, '카탈로그 항목을 보관했습니다.'],
     ['archive', 'event', 'admin_archive_event', archiveAdminCatalogRecordAction, '카탈로그 항목을 보관했습니다.'],
     ['unarchive', 'ip', 'admin_unarchive_ip', unarchiveAdminCatalogRecordAction, '카탈로그 항목을 복원했습니다.'],
     ['unarchive', 'good', 'admin_unarchive_good', unarchiveAdminCatalogRecordAction, '카탈로그 항목을 복원했습니다.'],
-    ['unarchive', 'card', 'admin_unarchive_card', unarchiveAdminCatalogRecordAction, '카탈로그 항목을 복원했습니다.'],
     ['unarchive', 'event', 'admin_unarchive_event', unarchiveAdminCatalogRecordAction, '카탈로그 항목을 복원했습니다.'],
   ] as const)('%s %s calls the exact audited RPC and revalidates catalog surfaces', async (
     _operation,
@@ -113,6 +108,8 @@ describe('admin catalog archive actions', () => {
   it.each([
     ['missing kind', archiveForm('', RECORD_ID), { kind: '보관할 항목의 종류를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
     ['unknown kind', archiveForm('banner', RECORD_ID), { kind: '보관할 항목의 종류를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
+    /* 카드 보관은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). */
+    ['retired card kind', archiveForm('card', RECORD_ID), { kind: '보관할 항목의 종류를 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
     ['missing id', archiveForm('ip', ''), { id: '보관할 항목을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
     ['uppercase id', archiveForm('ip', 'Catalog-1'), { id: '보관할 항목을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
     ['spaced id', archiveForm('ip', 'catalog record'), { id: '보관할 항목을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' }],
@@ -186,14 +183,12 @@ describe('admin catalog archive actions', () => {
 
   it.each([
     ['catalog_not_found', '카탈로그 항목을 찾을 수 없습니다.'],
-    ['ip_has_active_children', '운영 중인 하위 상품·카드·이벤트를 먼저 보관해주세요.'],
-    ['ip_has_active_operations', '진행 중인 카드풀·리워드·게임 운영을 먼저 종료해주세요.'],
+    ['ip_has_active_children', '운영 중인 하위 상품·이벤트를 먼저 보관해주세요. 그래도 보관되지 않으면 예전 카드 기록이 남아 있는 것이니 개발팀에 정리를 요청해주세요.'],
+    ['ip_has_active_operations', '예전 카드풀·카드팩 발급 정책·게임 기록이 아직 운영 중으로 남아 있습니다. 개발팀에 정리를 요청해주세요.'],
     ['good_has_stock', '판매 가능한 재고가 남아 있어 상품을 보관할 수 없습니다.'],
-    ['good_has_active_policy', '활성 리워드 정책에 연결된 상품은 보관할 수 없습니다.'],
-    ['card_has_open_pool', '운영 중인 카드풀에 연결된 카드는 보관할 수 없습니다.'],
-    ['card_has_open_tickets', '미개봉 카드팩에서 발급될 수 있는 카드는 보관할 수 없습니다.'],
+    ['good_has_active_policy', '예전 카드팩 발급 정책에 연결된 상품은 보관할 수 없습니다. 개발팀에 정책 정리를 요청해주세요.'],
     ['event_has_open_ticketing', '진행 중인 예매가 있는 이벤트는 보관할 수 없습니다.'],
-    ['event_has_open_game', '운영 중인 게임에 연결된 이벤트는 보관할 수 없습니다.'],
+    ['event_has_open_game', '예전 게임 기록이 아직 운영 중으로 연결된 이벤트는 보관할 수 없습니다. 개발팀에 정리를 요청해주세요.'],
     ['parent_archived', '상위 IP를 먼저 복원해주세요.'],
   ])('maps the %s guard without exposing DB details', async (token, message) => {
     mocks.rpc.mockResolvedValue({
@@ -218,7 +213,7 @@ describe('admin catalog archive actions', () => {
   ])('maps DB code/message to a safe action error %#', async (error, message) => {
     mocks.rpc.mockResolvedValue({ data: null, error });
 
-    const result = await unarchiveAdminCatalogRecordAction({}, archiveForm('card'));
+    const result = await unarchiveAdminCatalogRecordAction({}, archiveForm('event'));
 
     expect(result).toEqual({ errors: { form: message } });
     expect(JSON.stringify(result)).not.toContain('private');

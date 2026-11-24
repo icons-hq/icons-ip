@@ -1,5 +1,4 @@
 import { BANK_TRANSFER_TOPIC } from './topics/bank-transfer';
-import { CARDS_GAMES_TOPIC } from './topics/cards-games';
 import { CLAIMS_TOPIC } from './topics/claims';
 import { DEV_REQUESTS_TOPIC } from './topics/dev-requests';
 import { DISPLAY_MESSAGING_TOPIC } from './topics/display-messaging';
@@ -30,7 +29,6 @@ export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
   'bank-transfer',
   'claims',
   'inquiries-reviews',
-  'cards-games',
   'events-tickets',
   'display-messaging',
   'members-roles',
@@ -48,7 +46,6 @@ const DOMAIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = {
   'bank-transfer': BANK_TRANSFER_TOPIC,
   claims: CLAIMS_TOPIC,
   'inquiries-reviews': INQUIRIES_REVIEWS_TOPIC,
-  'cards-games': CARDS_GAMES_TOPIC,
   'events-tickets': EVENTS_TICKETS_TOPIC,
   'display-messaging': DISPLAY_MESSAGING_TOPIC,
   'members-roles': MEMBERS_ROLES_TOPIC,
@@ -58,11 +55,11 @@ const DOMAIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = {
   'dev-requests': DEV_REQUESTS_TOPIC,
 };
 
-/** Static operator documentation only; card/ticket guides and route identifiers are unchanged. */
+/** Static operator documentation only; ticket guides and route identifiers are unchanged. */
 const operatorCopy = (copy:string) => adminClaimCopy(adminGoodsCopy(copy));
 
 function operatorTopic(topic: AdminGuideTopic): AdminGuideTopic {
-  if (topic.slug === 'cards-games' || topic.slug === 'events-tickets') return topic;
+  if (topic.slug === 'events-tickets') return topic;
   return {
     ...topic,
     title: topic.slug === 'claims' ? ADMIN_VOCABULARY.claims : operatorCopy(topic.title),

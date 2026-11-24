@@ -10,7 +10,7 @@ const NOTIFICATIONS_PATH = '/notifications';
 
 export const metadata: Metadata = {
   title: '알림함 — ICONS',
-  description: '주문, 카드팩, 팔로우한 IP의 인앱 알림을 확인하세요.',
+  description: '주문과 팔로우한 IP의 인앱 알림을 확인하세요.',
   robots: { index: false, follow: false },
 };
 

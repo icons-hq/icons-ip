@@ -42,7 +42,6 @@ const FIXED_TARGETS: AdminCurationTargetOption[] = [
      라벨은 GNB 표기(lib/routes.ts STOREFRONT_MENU_ITEMS)와 같고, 경로는 홈 큐레이션 링크 검증(DB is_safe_home_curation_link)이 받는 사이트 안 경로다. */
   { label: 'NEW', path: '/shop/new' },
   { label: 'BEST', path: '/shop/best' },
-  { label: '카드팩', path: '/packs' },
   { label: 'POP-UP', path: '/popups' },
   { label: '오프라인 팝업', path: '/offline-popups' },
   /* 텍스트 공지 바의 버튼 목적지로 자주 쓰는 화면(예: '약관 개정 안내 → 내용 보기', LFS 패리티 2차 L8a). */

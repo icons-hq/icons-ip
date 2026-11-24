@@ -344,7 +344,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
         <Checkbox checked={dispatchConfirmed} className="mt-0.5" disabled={busy} onCheckedChange={(value) => setDispatchConfirmed(!!value)} />
         <span>출고지마다 전체 수량과 실제 발송 정보(택배사·운송장·상품)를 확인했습니다.</span>
       </label>
-      <p className="text-xs text-muted-foreground">출고지마다 회수한 상품의 재고를 복원하고 고른 상품으로 재출고합니다. 모든 출고지를 보내면 교환이 종결됩니다. 결제금액과 카드팩은 유지됩니다.</p>
+      <p className="text-xs text-muted-foreground">출고지마다 회수한 상품의 재고를 복원하고 고른 상품으로 재출고합니다. 모든 출고지를 보내면 교환이 종결됩니다. 결제금액은 유지됩니다.</p>
     </div>
     {error ? <p className="text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
     {phase === 'running' ? <p className="text-muted-foreground" role="status">재출고를 한 줄씩 등록하는 중입니다({progress}줄 끝). 창을 닫지 마세요.</p> : null}

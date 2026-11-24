@@ -35,7 +35,7 @@ describe('CurationPreviewNoticeBar', () => {
 
   it('공개 셸이 그리는 같은 공지의 본문 마크업과 글자 하나까지 같다', () => {
     const body = (html: string) => html.slice(html.indexOf('<p class="wc-x-rolling__body">'), html.indexOf('</p>') + 4);
-    const shell = renderToStaticMarkup(<ShellNotices cardRewardsEnabled notices={{ bars: [bar], strips: [] }} pathname="/" />);
+    const shell = renderToStaticMarkup(<ShellNotices notices={{ bars: [bar], strips: [] }} pathname="/" />);
     expect(body(preview)).toBe(body(shell));
   });
 });

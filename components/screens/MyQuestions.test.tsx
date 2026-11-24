@@ -3,9 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MyProductQuestion } from '@/lib/product-questions';
 import { MyQuestions } from './MyQuestions';
 
-vi.mock('@/components/shell/CardRewardAvailability', () => ({
-  useCardRewardsEnabled: () => true,
-}));
 vi.mock('@/app/my/questions/actions', () => ({ deleteMyProductQuestionAction: vi.fn() }));
 
 function myQuestion(overrides: Partial<MyProductQuestion> = {}): MyProductQuestion {

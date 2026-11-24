@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { AttendancePanel } from '@/components/campaign/AttendancePanel';
 import { CampaignAnchorNav } from '@/components/campaign/CampaignAnchorNav';
-import { ExchangePanel } from '@/components/campaign/ExchangePanel';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { WcButton } from '@/components/wc/WcButton';
@@ -35,16 +34,8 @@ import { imageBg } from '@/lib/media';
 
 export interface CampaignLandingProps {
   campaign: CampaignLandingSnapshot;
-  /**
-   * 전역 카드 리워드 게이트. false 면 교환 블록을 앵커 항목까지 통째로 뺀다 —
-   * 다른 카드 표면(/packs·게임·마이 메뉴)과 같은 fail-closed 규율이다.
-   * 출석·코인 박스는 게이트와 무관하다(코인은 카드가 아니라 참여 재화다).
-   */
-  cardRewardsEnabled: boolean;
   /** 비로그인이면 null — 잔액 0 과 구분해야 로그인 CTA 를 그릴 수 있다. */
   coin: CoinOverview | null;
-  /** 교환 블록의 멱등 키. 섹션 인덱스별로 다르다(키 공유는 가짜 성공을 만든다). */
-  exchangeOperationIds: Record<number, string>;
   signedIn: boolean;
   /**
    * 이 랜딩이 열리는 경로의 앞부분(`/events` 기본). 로그인 복귀 경로와 종료 안내의 목록 링크가 이 값을 따른다 —
@@ -95,12 +86,9 @@ interface SectionContext {
 
 function SectionBody({
   context,
-  operationId,
   section,
 }: {
   context: SectionContext;
-  /** 이 블록 전용 멱등 키. exchange 가 아닌 블록에는 없다. */
-  operationId: string | undefined;
   section: ResolvedCampaignSection;
 }) {
   switch (section.type) {
@@ -190,20 +178,6 @@ function SectionBody({
         />
       );
 
-    case 'exchange':
-      return context.ended ? <ClosedNotice listHref={context.listHref} popup={context.popup} /> : (
-        <ExchangePanel
-          balance={context.balance}
-          loginHref={context.loginHref}
-          next={context.next}
-          /* 멱등 키가 없는 교환 블록은 제출할 수 없는 폼이다 — 서버가 거절할 버튼을
-             그리는 대신 상품을 못 찾았을 때와 같은 안내로 접는다. */
-          offer={operationId ? section.offer : null}
-          operationId={operationId ?? ''}
-          signedIn={context.signedIn}
-        />
-      );
-
     default:
       return null;
   }
@@ -212,9 +186,7 @@ function SectionBody({
 export function CampaignLanding({
   basePath = DEFAULT_BASE_PATH,
   campaign,
-  cardRewardsEnabled,
   coin,
-  exchangeOperationIds,
   signedIn,
   venue = null,
   wishlist,
@@ -222,16 +194,8 @@ export function CampaignLanding({
   const next = `${basePath}/${encodeURIComponent(campaign.id)}`;
   const loginHref = `/login?next=${encodeURIComponent(next)}`;
 
-  /* 게이트가 내려가면 교환 블록은 화면에서 사라진다 — 자리만 남겨 "지금은 못 해요"를
-     적는 방식(offer 결측)과 다르다. 저쪽은 이 캠페인의 상품 하나가 내려간 것이고,
-     이쪽은 카드 리워드라는 표면 자체가 없는 상태다.
-
-     원래 인덱스를 함께 들고 다닌다 — 멱등 키는 걸러내기 전의 섹션 인덱스로 매겨져
-     있고, DOM id·목차는 걸러낸 뒤의 자리로 매긴다. */
-  const visibleSections = campaign.resolvedSections
-    .map((section, sourceIndex) => ({ section, sourceIndex }))
-    .filter(({ section }) => cardRewardsEnabled || section.type !== 'exchange');
-  const anchors = campaignAnchors(visibleSections.map(({ section }) => section));
+  const visibleSections = campaign.resolvedSections;
+  const anchors = campaignAnchors(visibleSections);
   const context: SectionContext = {
     attendedToday: coin?.attendedToday ?? false,
     balance: coin?.balance ?? 0,
@@ -283,7 +247,7 @@ export function CampaignLanding({
         </header>
 
         {visibleSections.length ? (
-          visibleSections.map(({ section, sourceIndex }, index) => (
+          visibleSections.map((section, index) => (
             <section
               className={`wc-campaign-section wc-campaign-section--${section.type}`}
               id={campaignSectionDomId(index)}
@@ -295,7 +259,6 @@ export function CampaignLanding({
               ) : null}
               <SectionBody
                 context={context}
-                operationId={exchangeOperationIds[sourceIndex]}
                 section={section}
               />
             </section>

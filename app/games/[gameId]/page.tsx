@@ -1,20 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { cache } from 'react';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { isAccountSuspended, isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
-import { getGameCatalogEntry } from '@/lib/games/catalog';
-import { GameScreen } from '@/components/games/GameScreen';
 import { HyosanMemoriesEntry } from '@/components/games/hyosan-memories/HyosanMemoriesEntry.client';
 import hyosanStyles from '@/components/games/hyosan-memories/HyosanMemories.module.css';
-import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
-/* 현재 제품의 웹 참여형 게임 경로. 셸 없이 풀블리드로 렌더되며,
- * 카탈로그는 supabase 모드에서 games 테이블, mock 모드에서 DATA.GAMES(#64)를 쓴다. */
+/* 넷플릭스 지우학 캠페인(`/ip/aouad`)의 게임 「효산의 기억」만 여는 경로다. 셸 없이 풀블리드로 렌더된다.
+ * 카드 리워드용 참여형 게임(마블 룰렛 등)은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 다른 게임 ID 는 404 다. */
 
-const getEntry = cache(getGameCatalogEntry);
-const getCardRewardsEnabled = cache(readCardRewardsEnabled);
 const HYOSAN_MEMORIES_GAME_ID = 'hyosan-memories';
 
 function HyosanLoginGate() {
@@ -41,25 +35,17 @@ export async function generateMetadata({
   params: Promise<{ gameId: string }>;
 }): Promise<Metadata> {
   const { gameId } = await params;
-  if (gameId === HYOSAN_MEMORIES_GAME_ID) return { title: '효산의 기억 — ICONS' };
-  if (!await getCardRewardsEnabled()) return { title: 'ICONS' };
-  const entry = await getEntry(gameId);
-  return { title: entry ? `${entry.game.title} — ICONS` : 'ICONS' };
+  return { title: gameId === HYOSAN_MEMORIES_GAME_ID ? '효산의 기억 — ICONS' : 'ICONS' };
 }
 
 export default async function GamePage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = await params;
-  if (gameId === HYOSAN_MEMORIES_GAME_ID) {
-    const auth = await getCurrentAuthState();
-    if (!auth.isConfigured || !auth.user) return <HyosanLoginGate />;
-    if (isAccountSuspended(auth.profile)) redirect('/account-suspended');
-    if (!isOnboarded(auth.profile, auth.user.email)) {
-      redirect(onboardingPath(`/games/${HYOSAN_MEMORIES_GAME_ID}`));
-    }
-    return <HyosanMemoriesEntry />;
+  if (gameId !== HYOSAN_MEMORIES_GAME_ID) notFound();
+  const auth = await getCurrentAuthState();
+  if (!auth.isConfigured || !auth.user) return <HyosanLoginGate />;
+  if (isAccountSuspended(auth.profile)) redirect('/account-suspended');
+  if (!isOnboarded(auth.profile, auth.user.email)) {
+    redirect(onboardingPath(`/games/${HYOSAN_MEMORIES_GAME_ID}`));
   }
-  if (!await getCardRewardsEnabled()) notFound();
-  const entry = await getEntry(gameId);
-  if (!entry) notFound();
-  return <GameScreen game={entry.game} source={entry.source} cards={entry.cards} />;
+  return <HyosanMemoriesEntry />;
 }

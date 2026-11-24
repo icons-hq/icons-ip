@@ -17,11 +17,8 @@ const mocks = vi.hoisted(() => ({
   screen: vi.fn(() => null),
   campaigns: vi.fn(async () => ({
     campaigns: [{ id: 'autumn-attendance' }],
-    offers: [{ id: '22222222-2222-4222-8222-222222222222' }],
   })),
-  catalogRecords: vi.fn(async () => ({
-    cardPools: [{ id: '11111111-1111-4111-8111-111111111111', name: '가을 카드풀' }],
-  })),
+  catalogRecords: vi.fn(async () => ({})),
   curations: vi.fn(async () => []),
 }));
 
@@ -81,32 +78,21 @@ describe('AdminDisplayCampaignsPage', () => {
     expect(mocks.catalogRecords).not.toHaveBeenCalled();
   });
 
-  it('캠페인·교환처·카드풀 선택지를 함께 내려보낸다', async () => {
+  /* 카드팩 교환처·카드풀 선택지는 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 캠페인만 내려보낸다. */
+  it('캠페인만 내려보내고 카드풀·교환처나 다른 화면의 로더는 부르지 않는다', async () => {
     const screen = await AdminDisplayCampaignsPage();
 
     expect(screen.type).toBe(mocks.screen);
-    expect(screen.props).toMatchObject({
-      records: [{ id: 'autumn-attendance' }],
-      offers: [{ id: '22222222-2222-4222-8222-222222222222' }],
-      pools: [{ id: '11111111-1111-4111-8111-111111111111', name: '가을 카드풀' }],
-    });
-  });
-
-  /* 카드풀 이름은 한 곳에서만 읽는다 — 교환처 조인으로 한 번 더 읽으면 두 값이
-     갈라질 자리가 생긴다. */
-  it('쓰는 카탈로그 종류만 요청하고 다른 화면의 로더는 부르지 않는다', async () => {
-    await AdminDisplayCampaignsPage();
-
-    expect(mocks.catalogRecords).toHaveBeenCalledWith({ include: ['cardPools'] });
+    expect(screen.props).toEqual({ records: [{ id: 'autumn-attendance' }] });
+    expect(mocks.catalogRecords).not.toHaveBeenCalled();
     expect(mocks.curations).not.toHaveBeenCalled();
   });
-  it('프로모션 역할은 카드풀과 교환처 관리 데이터를 조회하지 않는다', async () => {
+
+  it('프로모션 역할도 같은 캠페인 화면을 연다', async () => {
     mocks.authState.operatorAccess = configuredOperatorAccessFixture('deputy');
     const screen = await AdminDisplayCampaignsPage();
-    expect(mocks.campaigns).toHaveBeenCalledWith({ includeOffers: false });
-    expect(mocks.catalogRecords).not.toHaveBeenCalled();
-    expect(screen.props.canManageOffers).toBe(false);
-    expect(screen.props.pools).toEqual([]);
+    expect(mocks.campaigns).toHaveBeenCalledWith();
+    expect(screen.props).toEqual({ records: [{ id: 'autumn-attendance' }] });
   });
 
 });

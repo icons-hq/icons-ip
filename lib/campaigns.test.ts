@@ -149,7 +149,8 @@ describe('parseCampaignSections', () => {
     expect(parseCampaignSections('[]')).toEqual([]);
   });
 
-  it('DB 블록 계약의 키를 그대로 옮긴다', () => {
+  /* 카드팩 교환(exchange) 블록은 2026-11-24 지웠다(ADR-0052) — DB에 남은 예전 블록은 모르는 종류로 버린다. */
+  it('DB 블록 계약의 키를 그대로 옮기고 지운 교환 블록은 버린다', () => {
     const sections = parseCampaignSections([
       { type: 'image', image_path: 'campaigns/hero.png', alt: '히어로' },
       { type: 'text', heading: '안내', body: '본문' },
@@ -162,7 +163,6 @@ describe('parseCampaignSections', () => {
     expect(sections).toEqual([
       { type: 'image', image_path: 'campaigns/hero.png', alt: '히어로' },
       { type: 'text', body: '본문', heading: '안내' },
-      { type: 'exchange', offer_id: '11111111-1111-4111-8111-111111111111' },
       { type: 'coupon', coupon_code: 'WELCOME', description: '첫 구매' },
       { type: 'goods', good_ids: ['g1', 'g2'] },
       { type: 'notice', items: ['유의사항 1'] },

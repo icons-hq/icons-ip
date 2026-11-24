@@ -92,12 +92,12 @@ describe('Events', () => {
     expect(card).toContain('장소 공개 예정');
   });
 
-  /* 링크 안의 링크는 만들 수 없다 — 게임 진입은 카드 링크 밖의 보조 링크다. */
-  it('참여형 게임 진입 링크는 카드 링크 밖에 둔다', () => {
-    const html = render([event('e1')], { gameLinks: [{ eventId: 'e1', gameId: 'marble', title: '마블 룰렛' }] });
+  /* 참여형 게임은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 카드에 게임 진입 링크가 없다. */
+  it('카드에 참여형 게임 진입 링크를 두지 않는다', () => {
+    const html = render([event('e1')]);
 
-    expect(cardLinkHtml(html, 'e1')).not.toContain('/games/marble');
-    expect(html).toContain('<a class="wc-offline-card__game" href="/games/marble">마블 룰렛 플레이</a>');
+    expect(html).not.toContain('/games/');
+    expect(html).not.toContain('wc-offline-card__game');
   });
 
   it('진행중 → 예매중 → 예정 순서로 싣는다', () => {

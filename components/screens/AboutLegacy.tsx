@@ -21,23 +21,9 @@ import {
   type HomeCurationSnapshot,
   type HomePostPreviewByIpId,
 } from '@/lib/home-catalog';
-import { isCommunityDestination, isHiddenCollectibleDestination } from '@/lib/home-catalog';
-import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
-import { RARITY_META } from '@/lib/rarity';
+import { isCommunityDestination, isRetiredDestination } from '@/lib/home-catalog';
 import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
-
-function isCardRewardDestination(href: string): boolean {
-  try {
-    const pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
-    return pathname === '/packs'
-      || pathname.startsWith('/packs/')
-      || pathname === '/games'
-      || pathname.startsWith('/games/');
-  } catch {
-    return true;
-  }
-}
 
 const HERO_ACCENTS = ['#f6d17d', '#c4e5ae', '#a6c5e6', '#ffdaff', '#ffe888'];
 const HERO_ACCENT_BY_SLIDE_ID: Record<string, string> = {
@@ -81,7 +67,7 @@ const PREVIEW_HERO_COPY: Record<string, {
   rilakkuma: {
     eyebrow: 'ICONS ORIGINAL CURATION',
     title: '느긋한 하루를\n수집하는 시간',
-    description: '리락쿠마의 포근한 방을 굿즈, 카드, 팝업으로 만나보세요.',
+    description: '리락쿠마의 포근한 방을 굿즈와 팝업으로 만나보세요.',
   },
   maplestory: {
     eyebrow: 'NEW IP WORLD',
@@ -91,7 +77,7 @@ const PREVIEW_HERO_COPY: Record<string, {
   'attack-on-titan': {
     eyebrow: 'LIMITED EDITION',
     title: '리바이 에디션,\n고요한 전투의 기록',
-    description: '진격의 거인 한정 굿즈와 디지털 카드를 먼저 만나보세요.',
+    description: '진격의 거인 한정 굿즈를 먼저 만나보세요.',
   },
   'kakao-friends': {
     eyebrow: 'PICNIC COLLECTION',
@@ -608,14 +594,12 @@ function useFeatureParallax(disabled: boolean) {
 }
 
 function WorldFeatures({
-  cardRewardsEnabled,
   catalog,
   followedIpIdSet,
   orderedIpIds,
   selectedIp,
   postPreviewByIpId,
 }: {
-  cardRewardsEnabled: boolean;
   catalog: CatalogSnapshot;
   followedIpIdSet: ReadonlySet<string>;
   orderedIpIds: readonly string[];
@@ -627,8 +611,7 @@ function WorldFeatures({
   const worldIp = catalog.ips.find((ip) => ip.id === 'maplestory') ?? selectedIp;
   const worldGood = catalog.goods.find((good) => good.id === 'g4')
     ?? catalog.goods.find((good) => good.ip === worldIp.id);
-  const worldCard = catalog.cards.find((card) => card.id === 'c3')
-    ?? catalog.cards.find((card) => card.ip === worldIp.id);
+  const worldEvent = catalog.events.find((event) => event.ip === worldIp.id);
   const communityEvent = catalog.events.find((event) => event.id === 'e1')
     ?? catalog.events.find((event) => event.ip === selectedIp.id);
   /* 커뮤니티가 임시 비공개인 동안 실제 포스트 발췌(작성자·본문·좋아요)를 공개 지면에 남기지
@@ -638,10 +621,6 @@ function WorldFeatures({
     : [];
   const primaryPost = posts[0];
   const secondaryPost = posts.find((post) => post.id !== primaryPost?.id);
-  const featureCards = ['c1', 'c6', 'c11']
-    .map((id) => catalog.cards.find((card) => card.id === id))
-    .filter((card): card is CatalogSnapshot['cards'][number] => Boolean(card));
-  const cardBackgrounds = [0, 1, 2].map((index) => featureCards[index]?.bg ?? catalog.cards[index]?.bg ?? selectedIp.bg);
 
   return (
     <section className="world-section" id="world" ref={ref}>
@@ -654,7 +633,7 @@ function WorldFeatures({
         <div className="feature-copy">
           <span className="feature-number">01</span><p className="eyebrow dark">ONE IP, ONE WORLD</p>
           <h3>하나의 IP,<br />하나로 이어진 세계</h3>
-          <p>좋아하는 IP를 고르면 굿즈, 카드, 팝업, 커뮤니티가 한 화면에서 연결됩니다.</p>
+          <p>좋아하는 IP를 고르면 굿즈, 팝업, 커뮤니티가 한 화면에서 연결됩니다.</p>
           <Link href={hrefFor('ip', worldIp)}>IP 세계로 들어가기 <span aria-hidden>↗</span></Link>
         </div>
         <div className="feature-art feature-art--world">
@@ -665,7 +644,7 @@ function WorldFeatures({
             <Artwork background={worldGood?.img ?? worldIp.bg} label={worldGood?.name ?? `${worldIp.title} 굿즈`} /><span>GOODS</span>
           </div>
           <div className="world-card world-card--two feature-float" data-end="40" data-parallax="true" data-start="-58">
-            <Artwork background={worldCard?.bg ?? worldIp.bg} label={worldCard?.name ?? `${worldIp.title} 카드`} /><span>SSR CARD</span>
+            <Artwork background={worldEvent?.img ?? worldIp.bg} label={worldEvent?.title ?? `${worldIp.title} 팝업`} /><span>POP-UP</span>
           </div>
           <div className="world-chip">FOLLOWING · FREE</div>
         </div>
@@ -695,23 +674,6 @@ function WorldFeatures({
           <div aria-hidden className="community-heart">♥</div>
         </div>
       </article>
-
-      {cardRewardsEnabled && (
-        <article className="feature feature--blue">
-          <div className="feature-copy">
-            <span className="feature-number">03</span><p className="eyebrow dark">COLLECT THE MOMENT</p>
-            <h3>갖는 순간부터<br />기록되는 카드</h3>
-            <p>굿즈 주문과 참여 경험으로 받은 무료 카드팩을 열고, 소중한 장면을 바인더에 모아보세요.</p>
-            <Link href="/packs">카드 경험 보기 <span aria-hidden>↗</span></Link>
-          </div>
-          <div className="feature-art feature-art--cards">
-            <div className="collect-card collect-card--back feature-float" data-end="25" data-parallax="true" data-start="-18"><Artwork background={cardBackgrounds[0]} /></div>
-            <div className="collect-card collect-card--middle feature-float" data-end="-32" data-parallax="true" data-start="18"><Artwork background={cardBackgrounds[1]} /></div>
-            <div className="collect-card collect-card--front feature-float" data-end="12" data-parallax="true" data-start="-8"><Artwork background={cardBackgrounds[2]} /><span>HOLO</span></div>
-            <div className="card-pack">CARD PACK<br /><b>FREE REWARD</b></div>
-          </div>
-        </article>
-      )}
     </section>
   );
 }
@@ -722,7 +684,6 @@ function Stats({ catalog }: { catalog: CatalogSnapshot }) {
   const stats = [
     [String(catalog.ips.length), '함께하는 IP'],
     [String(catalog.goods.length), '공식 라이선스 굿즈'],
-    [String(catalog.cards.length), '수집형 디지털 카드'],
     [String(activeEvents), '열려 있는 팝업'],
     [compactNumber(fans), catalog.source === 'mock' ? '샘플 연결 팬' : '연결된 팬'],
     ['FREE', '무료 팬덤 가입'],
@@ -736,7 +697,7 @@ function Stats({ catalog }: { catalog: CatalogSnapshot }) {
           <div className={`stat stat--${index + 1}`} key={label}><strong>{value}</strong><span>{label}</span></div>
         ))}
       </div>
-      <p className="trust-note">공식 라이선스 굿즈 · 무상 카드 리워드 · 공개 IP 브라우징</p>
+      <p className="trust-note">공식 라이선스 굿즈 · 팝업 예매 · 공개 IP 브라우징</p>
     </section>
   );
 }
@@ -756,7 +717,6 @@ function FinalCta({ ips }: { ips: Ip[] }) {
 }
 
 export interface AboutLegacyProps {
-  cardRewardsEnabled: boolean;
   catalog: CatalogSnapshot;
   curation: HomeCurationSnapshot;
   followedIpIds: string[];
@@ -764,7 +724,6 @@ export interface AboutLegacyProps {
 }
 
 export function AboutLegacy({
-  cardRewardsEnabled,
   catalog,
   curation,
   followedIpIds,
@@ -779,12 +738,10 @@ export function AboutLegacy({
   const selectedIp = selectableIps[0] ?? null;
   const hasPreviewDataset = REFERENCE_FEATURED_IP_IDS
     .every((id) => catalog.ips.some((ip) => ip.id === id));
-  /* 게이트가 걸린 목적지의 큐레이션은 배너만 살아 죽은 링크가 되므로 함께 걸러낸다. */
-  const collectibleFeatures = useCollectibleFeatures();
+  /* 지운 화면·닫힌 커뮤니티로 가는 큐레이션은 배너만 살아 죽은 링크가 되므로 함께 걸러낸다. */
   const isGatedDestination = (href: string) =>
-    (!cardRewardsEnabled && isCardRewardDestination(href))
-    || (!COMMUNITY_ENABLED && isCommunityDestination(href))
-    || isHiddenCollectibleDestination(href, collectibleFeatures);
+    isRetiredDestination(href)
+    || (!COMMUNITY_ENABLED && isCommunityDestination(href));
   const curatedHero = curation.hero && isGatedDestination(curation.hero.href) ? null : curation.hero;
   const curatedAnnouncement = curation.announcement && isGatedDestination(curation.announcement.href)
     ? null
@@ -814,16 +771,13 @@ export function AboutLegacy({
     const scenes: FilmScene[] = [];
     const preferredGood = hasPreviewDataset ? catalog.goods.find((item) => item.id === 'g3') : null;
     const preferredEvent = hasPreviewDataset ? catalog.events.find((item) => item.id === 'e4') : null;
-    const preferredCard = hasPreviewDataset ? catalog.cards.find((item) => item.id === 'c11') : null;
     const good = preferredGood ?? (selectedIp ? catalog.goods.find((item) => item.ip === selectedIp.id) : null);
     const event = preferredEvent ?? (selectedIp ? catalog.events.find((item) => item.ip === selectedIp.id) : null);
-    const card = preferredCard ?? (selectedIp ? catalog.cards.find((item) => item.ip === selectedIp.id) : null);
     if (good) scenes.push({ id: `good-${good.id}`, controlLabel: '굿즈', kicker: 'OFFICIAL GOODS', title: '좋아하는 마음이\n손에 잡히는 순간', detail: `${good.name} · ${good.badge ?? 'OFFICIAL'}`, background: good.img, color: '#c4e5ae' });
     if (event) scenes.push({ id: `event-${event.id}`, controlLabel: '팝업', kicker: 'POP-UP EXPERIENCE', title: '화면 너머의 세계를\n직접 만나는 하루', detail: `${event.title} · ${event.status}`, background: event.img, color: '#ffdaff' });
-    if (cardRewardsEnabled && card) scenes.push({ id: `card-${card.id}`, controlLabel: '카드', kicker: 'DIGITAL CARD', title: '모으는 재미까지\n하나의 IP 안에서', detail: `${card.name} · ${card.rarity}`, background: card.bg, color: '#a6c5e6' });
     if (scenes.length === 0 && selectedIp) scenes.push({ id: `ip-${selectedIp.id}`, controlLabel: 'IP', kicker: 'ONE IP, ONE WORLD', title: selectedIp.tagline, detail: selectedIp.title, background: selectedIp.bg, color: '#c4e5ae' });
     return scenes;
-  }, [cardRewardsEnabled, catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
+  }, [catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
 
   const experiences = useMemo<ExperienceItem[]>(() => {
     const items: ExperienceItem[] = [];
@@ -835,16 +789,10 @@ export function AboutLegacy({
       const good = catalog.goods.find((item) => item.id === id);
       if (good) items.push({ id: `good-${good.id}`, tag: 'GOODS', title: good.name, meta: meta ?? [good.badge, krw(good.price)].filter(Boolean).join(' · '), background: good.img, href: '/shop' });
     };
-    const addCard = (id: string) => {
-      if (!cardRewardsEnabled) return;
-      const card = catalog.cards.find((item) => item.id === id);
-      if (card) items.push({ id: `card-${card.id}`, tag: 'CARD', title: card.name, meta: `${RARITY_META[card.rarity].label} · ${card.no}`, background: card.bg, href: '/packs' });
-    };
 
     if (hasPreviewDataset) {
       addEvent('e1', 'POP-UP');
       addGood('g9', '한정 · 재고 8개');
-      addCard('c3');
       addEvent('e2', 'ONLINE POP-UP');
       addGood('g6', '신상 · 공식 라이선스');
       return items;
@@ -853,12 +801,10 @@ export function AboutLegacy({
     if (!selectedIp) return items;
     const good = catalog.goods.find((item) => item.ip === selectedIp.id);
     const event = catalog.events.find((item) => item.ip === selectedIp.id);
-    const card = catalog.cards.find((item) => item.ip === selectedIp.id);
     if (good) items.push({ id: `good-${good.id}`, tag: good.badge ?? 'GOODS', title: good.name, meta: krw(good.price), background: good.img, href: '/shop' });
     if (event) items.push({ id: `event-${event.id}`, tag: `${event.mode} · ${event.status}`, title: event.title, meta: `${event.date} · ${event.loc}`, background: event.img, href: `/offline-popups/${event.id}` });
-    if (cardRewardsEnabled && card) items.push({ id: `card-${card.id}`, tag: `${card.rarity} · CARD`, title: card.name, meta: `${RARITY_META[card.rarity].label} · ${card.no}`, background: card.bg, href: '/packs' });
     return items;
-  }, [cardRewardsEnabled, catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
+  }, [catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
 
   return (
     <div className="icons-preview">
@@ -873,7 +819,6 @@ export function AboutLegacy({
             <FilmWindow scenes={filmScenes} />
             <Experiences items={experiences} />
             <WorldFeatures
-              cardRewardsEnabled={cardRewardsEnabled}
               catalog={catalog}
               followedIpIdSet={followedIpIdSet}
               orderedIpIds={selectableIpIds}

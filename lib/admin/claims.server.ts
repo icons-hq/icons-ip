@@ -39,7 +39,7 @@ import {
 /* 어드민 클레임 콘솔 로더(#252).
  *
  * 목록·집계·상세 모두 staff 게이트가 붙은 RPC로만 읽는다. 상세는 권한이 확인된 RPC와 불변 거래 영수증으로
- * 주문 요약·결제·환불 원장·카드팩 발급 여부·마스킹된 환불계좌·타임라인을 함께
+ * 주문 요약·결제·환불 원장·마스킹된 환불계좌·타임라인을 함께
  * 받는다 — 운영자가 승인 버튼을 누르기 전에 봐야 하는 것들이 화면을 옮기지 않고
  * 한 자리에 있어야 한다. */
 
@@ -389,7 +389,6 @@ export interface AdminClaimDetail {
   refund: AdminClaimDetailRefund | null;
   /** 반품배송비 차감(ADR-0031) — 접수 전 판정 또는 접수 때 정한 결정. 스위치가 꺼져 있고 결정이 없으면 null. */
   refundDeduction?: ReturnFeeDeduction | null;
-  cardPacks: { issued: number; consumed: number; revoked: number };
   refundAccount: {
     maskedAccount: string;
     maskedHolder: string;
@@ -489,7 +488,6 @@ export async function loadAdminClaimDetail(
   const order = isRecord(data.order) ? data.order : null;
   const payment = isRecord(data.payment) ? data.payment : null;
   const refund = isRecord(data.refund) ? data.refund : null;
-  const packs = isRecord(data.cardPacks) ? data.cardPacks : null;
   const account = isRecord(data.refundAccount) ? data.refundAccount : null;
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
   const operationalFee = isRecord(claim.operationalFee) ? claim.operationalFee : {};
@@ -650,11 +648,6 @@ export async function loadAdminClaimDetail(
       }
       : null,
     refundDeduction: parseReturnFeeDeduction(data.refundDeduction),
-    cardPacks: {
-      issued: toNumber(packs?.issued as number | string),
-      consumed: toNumber(packs?.consumed as number | string),
-      revoked: toNumber(packs?.revoked as number | string),
-    },
     refundAccount: account
       ? {
         maskedAccount: String(account.maskedAccount ?? ''),

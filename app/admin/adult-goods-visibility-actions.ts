@@ -3,14 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
-import { COLLECTIBLE_FEATURES_PATH } from '@/lib/admin/collectible-features';
-import { parseAdultGoodsVisibility } from '@/lib/adult-goods';
+import { ADULT_GOODS_VISIBILITY_PATH, parseAdultGoodsVisibility } from '@/lib/adult-goods';
 import { createClient } from '@/lib/supabase/server';
 
 type SaveResult = { error?: string; message?: string };
 
 export async function setAdultGoodsVisibilityAction(_previous: SaveResult, form: FormData): Promise<SaveResult> {
-  if (!await requireAdminActionAccess(COLLECTIBLE_FEATURES_PATH, { adminOnly: true, capability: 'platform.manage' })) {
+  if (!await requireAdminActionAccess(ADULT_GOODS_VISIBILITY_PATH, { adminOnly: true, capability: 'platform.manage' })) {
     return { error: '성인 상품 공개 설정을 변경할 권한이 없습니다.' };
   }
   const mode = form.get('visibility');
@@ -24,7 +23,7 @@ export async function setAdultGoodsVisibilityAction(_previous: SaveResult, form:
       p_enabled: enabled, p_expected_revision: revision,
     });
     if (error?.code === 'PT409') {
-      revalidatePath(COLLECTIBLE_FEATURES_PATH);
+      revalidatePath(ADULT_GOODS_VISIBILITY_PATH);
       return { error: '다른 관리자가 먼저 변경했습니다. 현재 상태를 확인하고 다시 선택해주세요.' };
     }
     if (error || parseAdultGoodsVisibility(data)?.enabled !== enabled) {

@@ -7,7 +7,8 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
-export type AdminCatalogArchiveKind = 'ip' | 'good' | 'card' | 'event';
+/* 카드 보관은 2026-11-24 일반 쇼핑몰 전환으로 카드 화면과 함께 지웠다(ADR-0052, DB 함수는 보존). */
+export type AdminCatalogArchiveKind = 'ip' | 'good' | 'event';
 type AdminCatalogArchiveOperation = 'archive' | 'unarchive';
 
 export interface AdminCatalogArchiveActionState {
@@ -24,32 +25,28 @@ const RPC_NAMES: Record<AdminCatalogArchiveOperation, Record<AdminCatalogArchive
   archive: {
     ip: 'admin_archive_ip',
     good: 'admin_archive_good',
-    card: 'admin_archive_card',
     event: 'admin_archive_event',
   },
   unarchive: {
     ip: 'admin_unarchive_ip',
     good: 'admin_unarchive_good',
-    card: 'admin_unarchive_card',
     event: 'admin_unarchive_event',
   },
 };
 
-const ARCHIVE_KINDS = new Set<AdminCatalogArchiveKind>(['ip', 'good', 'card', 'event']);
+const ARCHIVE_KINDS = new Set<AdminCatalogArchiveKind>(['ip', 'good', 'event']);
 const CATALOG_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const RETRY_ERROR = '카탈로그 보관 상태를 변경하지 못했습니다. 다시 시도해주세요.';
 const STALE_ERROR = '카탈로그 보관 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
 
 const RPC_GUARD_MESSAGES: ReadonlyArray<readonly [string, string]> = [
   ['catalog_not_found', '카탈로그 항목을 찾을 수 없습니다.'],
-  ['ip_has_active_children', adminGoodsCopy('운영 중인 하위 굿즈·카드·이벤트를 먼저 보관해주세요.')],
-  ['ip_has_active_operations', '진행 중인 카드풀·리워드·게임 운영을 먼저 종료해주세요.'],
+  ['ip_has_active_children', adminGoodsCopy('운영 중인 하위 굿즈·이벤트를 먼저 보관해주세요. 그래도 보관되지 않으면 예전 카드 기록이 남아 있는 것이니 개발팀에 정리를 요청해주세요.')],
+  ['ip_has_active_operations', '예전 카드풀·카드팩 발급 정책·게임 기록이 아직 운영 중으로 남아 있습니다. 개발팀에 정리를 요청해주세요.'],
   ['good_has_stock', adminGoodsCopy('판매 가능한 재고가 남아 있어 굿즈를 보관할 수 없습니다.')],
-  ['good_has_active_policy', adminGoodsCopy('활성 리워드 정책에 연결된 굿즈는 보관할 수 없습니다.')],
-  ['card_has_open_pool', '운영 중인 카드풀에 연결된 카드는 보관할 수 없습니다.'],
-  ['card_has_open_tickets', '미개봉 카드팩에서 발급될 수 있는 카드는 보관할 수 없습니다.'],
+  ['good_has_active_policy', adminGoodsCopy('예전 카드팩 발급 정책에 연결된 굿즈는 보관할 수 없습니다. 개발팀에 정책 정리를 요청해주세요.')],
   ['event_has_open_ticketing', '진행 중인 예매가 있는 이벤트는 보관할 수 없습니다.'],
-  ['event_has_open_game', '운영 중인 게임에 연결된 이벤트는 보관할 수 없습니다.'],
+  ['event_has_open_game', '예전 게임 기록이 아직 운영 중으로 연결된 이벤트는 보관할 수 없습니다. 개발팀에 정리를 요청해주세요.'],
   ['parent_archived', '상위 IP를 먼저 복원해주세요.'],
 ];
 
@@ -95,9 +92,8 @@ function archiveRpcError(error: { code?: unknown; message?: unknown }) {
 
 function revalidateCatalogArchiveSurfaces(kind: AdminCatalogArchiveKind, id: string) {
   revalidateGoodsSurfaces();
-  for (const path of ['/binder', '/events', '/offline-popups', '/packs']) revalidatePath(path);
+  for (const path of ['/events', '/offline-popups']) revalidatePath(path);
   revalidatePath('/offline-popups/[eventId]', 'page');
-  revalidatePath('/games/[gameId]', 'page');
   if (kind === 'ip') {
     revalidatePath(`/ip/${id}`);
     revalidatePath('/admin/catalog/ips');

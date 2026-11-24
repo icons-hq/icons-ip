@@ -1,11 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { UserCouponSummary } from '@/lib/coupons';
 import { MyCoupons, type MyCouponsCheckoutRules } from './MyCoupons';
 
-vi.mock('@/components/shell/CardRewardAvailability', () => ({
-  useCardRewardsEnabled: () => true,
-}));
 
 const LEGACY: MyCouponsCheckoutRules = { transactionMode: 'legacy', couponPolicy: null };
 

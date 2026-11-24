@@ -3014,26 +3014,6 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   align-self: flex-start;
 }
 
-.wc-receipt .order-card-pack-callout {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 20px;
-  padding: 14px 16px;
-  border: 1px solid var(--wc-hairline);
-  background: var(--wc-surface-grey);
-}
-
-.wc-receipt .order-card-pack-callout p {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--wc-ink-tertiary);
-}
-
-.wc-receipt .order-card-pack-icon {
-  color: var(--wc-ink-sub);
-}
-
 /* --- 체크아웃 /checkout ------------------------------------------- */
 
 .wc-receipt .checkout-layout {
@@ -6066,17 +6046,6 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 
 .wc-receipt .order-tracking-link {
   margin-top: 12px;
-}
-
-/* 카드팩 안내 아이콘 타일 — 원본(globals)의 38px 정사각 자리만 옮긴다.
-   파스텔 면(editorial --account-blue)과 보라 보더·12px 라운드는 두고 온다. */
-.wc-receipt .order-card-pack-icon {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
 }
 
 /* --- 주문·티켓 목록 행 --------------------------------------------- */

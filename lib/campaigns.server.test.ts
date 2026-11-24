@@ -71,7 +71,6 @@ const FUTURE = { starts_at: '2099-01-01T00:00:00.000Z', ends_at: '2099-02-01T00:
 const LIVE = { starts_at: '2020-01-01T00:00:00.000Z', ends_at: '2099-02-01T00:00:00.000Z' };
 
 const OFFER_ID = '11111111-1111-4111-8111-111111111111';
-const MISSING_OFFER_ID = '22222222-2222-4222-8222-222222222222';
 
 function hubRow(id: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -310,7 +309,8 @@ describe('loadCampaignDetail', () => {
     await expect(loadCampaignDetail('missing')).resolves.toBeNull();
   });
 
-  it('교환·굿즈 참조를 해석해 한 벌로 내린다', async () => {
+  /* 카드팩 교환(exchange) 블록은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 예전에 저장된 블록은 버리고 교환처 표를 읽지 않는다. */
+  it('굿즈 참조를 해석해 한 벌로 내리고 지운 교환 블록은 버린다', async () => {
     mocks.tables.campaigns = {
       data: {
         ...hubRow('summer'),
@@ -318,14 +318,9 @@ describe('loadCampaignDetail', () => {
         sections: [
           { type: 'intro', copy: '여름 캠페인', anchor: '소개' },
           { type: 'exchange', offer_id: OFFER_ID },
-          { type: 'exchange', offer_id: MISSING_OFFER_ID },
           { type: 'goods', good_ids: ['g13', 'gone'] },
         ],
       },
-      error: null,
-    };
-    mocks.tables.coin_exchange_offers = {
-      data: [{ id: OFFER_ID, label: '카드팩 1개', coin_cost: 30, ticket_count: 1 }],
       error: null,
     };
     mocks.tables.goods = {
@@ -349,18 +344,12 @@ describe('loadCampaignDetail', () => {
 
     expect(detail?.heroImagePath).toBe('https://cdn.test/public-media/campaigns/hero.png');
     expect(mocks.filters).toContainEqual(['campaigns', 'id', 'summer']);
-    expect(mocks.filters).toContainEqual(['coin_exchange_offers', 'id', [OFFER_ID, MISSING_OFFER_ID]]);
+    expect(mocks.filters.some(([table]) => table === 'coin_exchange_offers')).toBe(false);
     expect(mocks.filters).toContainEqual(['goods', 'id', ['g13', 'gone']]);
 
     const sections = detail?.resolvedSections ?? [];
-    expect(sections[1]).toEqual({
-      type: 'exchange',
-      offer_id: OFFER_ID,
-      offer: { id: OFFER_ID, label: '카드팩 1개', coinCost: 30, ticketCount: 1 },
-    });
-    /* 못 찾은 offer 는 블록을 지우지 않는다 — 자리는 남기고 화면이 안내를 바꾼다. */
-    expect(sections[2]).toEqual({ type: 'exchange', offer_id: MISSING_OFFER_ID, offer: null });
-    expect(sections[3]).toMatchObject({
+    expect(sections.map((section) => section.type)).toEqual(['intro', 'goods']);
+    expect(sections[1]).toMatchObject({
       type: 'goods',
       good_ids: ['g13', 'gone'],
       goods: [{

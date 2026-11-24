@@ -15,10 +15,9 @@ import { Button } from './kit/ui/button';
 const initialState: AdminCatalogArchiveActionState = {};
 
 const ARCHIVE_WARNINGS: Record<AdminCatalogArchiveKind, string> = {
-  ip: '운영 중인 하위 카탈로그나 카드풀·정책·게임이 남아 있으면 보관할 수 없습니다.',
-  good: '판매 재고나 사용 중인 발급 정책이 남아 있으면 보관할 수 없습니다.',
-  card: '예정·운영 중인 카드풀이나 미개봉 카드팩이 남아 있으면 보관할 수 없습니다.',
-  event: '예정·운영 중인 티켓 회차나 게임이 남아 있으면 보관할 수 없습니다.',
+  ip: '운영 중인 하위 상품·이벤트가 남아 있으면 보관할 수 없습니다.',
+  good: '판매 재고가 남아 있으면 보관할 수 없습니다.',
+  event: '예정·운영 중인 티켓 회차가 남아 있으면 보관할 수 없습니다.',
 };
 
 export function CatalogArchiveFilter({

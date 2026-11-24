@@ -22,11 +22,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/components/ui/Icon', () => ({ Icon: ({ name }: { name: string }) => <span data-icon={name} /> }));
 vi.mock('./CartProvider', () => ({ useCart: () => ({ count: 0, resetForSignOut: vi.fn() }) }));
 vi.mock('./AuthPresenceProvider', () => ({ useAuthPresence: () => mocks.presence }));
-vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => true }));
 vi.mock('./StaffPreviewAvailability', () => ({
   useAdminConsoleVisible: () => mocks.adminConsoleVisible,
   useCommunityStaffPreviewVisible: () => false,
-  useSecondaryMarketDemoVisible: () => false,
 }));
 vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/auth/onboarding', () => ({ nextPathWithSearch: () => '/' }));
@@ -63,7 +61,7 @@ describe('관리자 페이지 바로가기', () => {
   });
 
   it('모바일 전체 메뉴 시트 맨 위에 스태프 전용 섹션으로 선다', () => {
-    const html = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
+    const html = renderToStaticMarkup(<MenuSheet onClose={vi.fn()} open />);
 
     expect(html.match(ADMIN_LINK)).toEqual(['<a class="wc-sheet__link" href="/admin">관리자 페이지</a>']);
     expect(html).toContain('<h2 class="wc-sheet__title">스태프 전용</h2>');
@@ -86,7 +84,7 @@ describe('관리자 페이지 바로가기', () => {
     mocks.adminConsoleVisible = false;
     const surfaces = [
       renderToStaticMarkup(<Nav />),
-      renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />),
+      renderToStaticMarkup(<MenuSheet onClose={vi.fn()} open />),
       renderToStaticMarkup(<SiteFooter copyrightYear={2026} />),
     ];
 

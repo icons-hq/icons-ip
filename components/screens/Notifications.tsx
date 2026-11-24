@@ -10,6 +10,8 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   order_shipping: '배송',
   order_delivered: '배송',
   purchase_confirmation: '구매확정',
+  /* 카드팩 알림 — 카드 기능은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). 타입은 DB CHECK 와 같은 목록이라 남기고,
+     예전에 쌓인 알림이 있으면 이 이름으로만 보인다. */
   draw_ticket_issued: '카드팩',
   drop_published: '드롭',
   event_published: '오프라인 팝업',
@@ -84,7 +86,7 @@ export function Notifications({ error = false, notifications, openAction }: Noti
         {notifications.length === 0 ? (
           <div className="wc-empty">
             <h2 className="wc-empty__title">아직 받은 알림이 없어요</h2>
-            <p className="wc-empty__desc">주문, 카드팩, 팔로우한 IP의 새 소식이 생기면 여기에 알려드릴게요.</p>
+            <p className="wc-empty__desc">주문과 팔로우한 IP의 새 소식이 생기면 여기에 알려드릴게요.</p>
           </div>
         ) : (
           <ol className="wc-notif__list">

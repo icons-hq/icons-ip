@@ -48,7 +48,6 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
     cancellationRequest: null,
     claimEligibility: { cancel: false, return: false, exchange: false },
     shipments: [shipmentFixture()],
-    cardPacks: { issuedCount: 0, availableCount: 0 },
     ...overrides,
   };
 }

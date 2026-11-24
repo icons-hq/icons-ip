@@ -1,12 +1,6 @@
 const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  upsertAdminCampaignAction,
-  upsertAdminCoinExchangeOfferAction,
-} from './campaign-actions';
-
-const POOL_ID = '11111111-1111-4111-8111-111111111111';
-const OFFER_ID = '22222222-2222-4222-8222-222222222222';
+import { upsertAdminCampaignAction } from './campaign-actions';
 
 const mocks = vi.hoisted(() => ({
   adminState: {
@@ -51,17 +45,6 @@ function campaignForm(overrides: Record<string, string> = {}) {
     featuredOrder: '1',
     heroImagePath: 'campaigns/autumn/hero.webp',
     sections: '[{"type":"attendance"}]',
-    ...overrides,
-  });
-}
-
-function offerForm(overrides: Record<string, string> = {}) {
-  return form({
-    poolId: POOL_ID,
-    label: '가을 카드팩 1장',
-    coinCost: '10',
-    ticketCount: '1',
-    status: 'active',
     ...overrides,
   });
 }
@@ -191,60 +174,5 @@ describe('upsertAdminCampaignAction', () => {
     const state = await upsertAdminCampaignAction({}, campaignForm());
 
     expect(state.errors?.form).toContain('저장하지 못했습니다');
-  });
-});
-
-describe('upsertAdminCoinExchangeOfferAction', () => {
-  it('신규 교환처는 id 를 null 로 보낸다', async () => {
-    const state = await upsertAdminCoinExchangeOfferAction({}, offerForm());
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_coin_exchange_offer', {
-      target_coin_cost: 10,
-      target_id: null,
-      target_label: '가을 카드팩 1장',
-      target_pool_id: POOL_ID,
-      target_status: 'active',
-      target_ticket_count: 1,
-    });
-    expect(state.message).toContain('가을 카드팩 1장');
-  });
-
-  it('수정은 선택한 교환처 id 를 함께 보낸다', async () => {
-    await upsertAdminCoinExchangeOfferAction({}, offerForm({ offerId: OFFER_ID }));
-
-    expect(mocks.rpc).toHaveBeenCalledWith(
-      'admin_upsert_coin_exchange_offer',
-      expect.objectContaining({ target_id: OFFER_ID }),
-    );
-  });
-
-  it('비스태프는 RPC 에 닿지 않는다', async () => {
-    mocks.adminState = {
-      isConfigured: true,
-      user: { id: 'fan-1', email: 'fan@icons.gg' },
-      role: 'user',
-      isStaff: false,
-    };
-
-    const state = await upsertAdminCoinExchangeOfferAction({}, offerForm());
-
-    expect(state.errors?.form).toBe('관리자 권한이 필요합니다.');
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  /* 없는 풀을 가리키는 교환처는 상세에 "교환 가능"으로 그려진 뒤 교환 시점에야
-     실패한다. DB 가 등록 시점에 막고, 그 사유를 그대로 옮긴다. */
-  it('없는 카드풀은 필드 오류로 옮긴다', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'pool_not_found' } });
-
-    const state = await upsertAdminCoinExchangeOfferAction({}, offerForm());
-
-    expect(state.errors?.poolId).toContain('카드풀을 찾을 수 없습니다');
-  });
-
-  it('교환처 저장도 캠페인 상세를 다시 그리게 한다', async () => {
-    await upsertAdminCoinExchangeOfferAction({}, offerForm());
-
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/events/[eventId]', 'page');
   });
 });

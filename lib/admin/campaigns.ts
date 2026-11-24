@@ -1,4 +1,3 @@
-import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
@@ -38,14 +37,6 @@ export const ADMIN_CAMPAIGN_STATUS_LABELS: Record<AdminCampaignStatus, string> =
   ended: '종료',
 };
 
-export const ADMIN_COIN_OFFER_STATUSES = ['active', 'disabled'] as const;
-export type AdminCoinOfferStatus = (typeof ADMIN_COIN_OFFER_STATUSES)[number];
-
-export const ADMIN_COIN_OFFER_STATUS_LABELS: Record<AdminCoinOfferStatus, string> = {
-  active: '노출',
-  disabled: '내림',
-};
-
 export interface AdminCampaignRecord {
   /** RecordList 규약상 id — 캠페인 슬러그가 곧 운영 식별자이자 URL이다. */
   id: string;
@@ -69,16 +60,6 @@ export interface AdminCampaignRecord {
   updatedAt: string;
 }
 
-export interface AdminCoinExchangeOfferRecord {
-  id: string;
-  poolId: string;
-  label: string;
-  coinCost: number;
-  ticketCount: number;
-  status: AdminCoinOfferStatus;
-  updatedAt: string;
-}
-
 export interface AdminCampaignFormValue {
   previousId: string | null;
   id: string;
@@ -95,21 +76,8 @@ export interface AdminCampaignFormValue {
   sections: unknown[];
 }
 
-export interface AdminCoinExchangeOfferFormValue {
-  id: string | null;
-  poolId: string;
-  label: string;
-  coinCost: number;
-  ticketCount: number;
-  status: AdminCoinOfferStatus;
-}
-
 export type AdminCampaignFormResult =
   | { ok: true; value: AdminCampaignFormValue }
-  | { ok: false; errors: AdminFieldErrors };
-
-export type AdminCoinExchangeOfferFormResult =
-  | { ok: true; value: AdminCoinExchangeOfferFormValue }
   | { ok: false; errors: AdminFieldErrors };
 
 export const ADMIN_CAMPAIGNS_PATH = '/admin/display/campaigns';
@@ -126,7 +94,7 @@ export function adminCampaignHref(id: string | null = null) {
 export const ADMIN_CAMPAIGN_MAX_SECTIONS = 20;
 
 /** internalPath — ICONS 안의 경로만(LD-18). 판정은 공개 파서·DB 와 같은 isCampaignInternalHref 다. */
-type SectionFieldKind = 'text' | 'uuid' | 'stringArray' | 'internalPath';
+type SectionFieldKind = 'text' | 'stringArray' | 'internalPath';
 
 export interface AdminCampaignSectionField {
   key: string;
@@ -179,11 +147,6 @@ const SECTION_SPECS = [
     ],
   },
   { type: 'attendance', label: '출석 적립', fields: [] },
-  {
-    type: 'exchange',
-    label: '카드팩 교환처',
-    fields: [{ key: 'offer_id', kind: 'uuid', required: true, maxLength: 36 }],
-  },
   {
     type: 'coupon',
     label: '쿠폰 받기',
@@ -249,7 +212,6 @@ function codePointLength(value: string): number {
 
 const KIND_SET = new Set<string>(ADMIN_CAMPAIGN_KINDS);
 const STATUS_SET = new Set<string>(ADMIN_CAMPAIGN_STATUSES);
-const OFFER_STATUS_SET = new Set<string>(ADMIN_COIN_OFFER_STATUSES);
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -316,10 +278,6 @@ function validateSectionField(
 
   if (field.nonBlank && !value.trim()) {
     return sectionValueError(index, field.key, '공백만으로는 쓸 수 없습니다.');
-  }
-
-  if (field.kind === 'uuid' && !isUuid(value)) {
-    return sectionValueError(index, field.key, '카드팩 교환처 목록의 [구성 코드 복사]로 복사한 교환처 번호를 넣어주세요.');
   }
 
   /* 외부 링크는 피싱·추적 위험이 있어 받지 않는다(LD-18). DB 가 같은 판정으로 다시 막는다. */
@@ -490,55 +448,6 @@ export function normalizeAdminCampaignForm(formData: FormData): AdminCampaignFor
       bannerImagePath,
       featuredOrder,
       sections,
-    },
-  };
-}
-
-export function normalizeAdminCoinExchangeOfferForm(
-  formData: FormData,
-): AdminCoinExchangeOfferFormResult {
-  const errors: AdminFieldErrors = {};
-
-  const rawId = readString(formData, 'offerId').toLowerCase();
-  const id = rawId || null;
-  if (id && !isUuid(id)) {
-    errors.offerId = '수정할 교환처를 다시 선택해주세요.';
-  }
-
-  const poolId = readString(formData, 'poolId').toLowerCase();
-  if (!isUuid(poolId)) errors.poolId = '카드풀을 선택해주세요.';
-
-  const label = readString(formData, 'label');
-  if (!label || label.length > 80) {
-    errors.label = label.length > 80 ? '이름은 80자 이하로 입력해주세요.' : '교환처 이름을 입력해주세요.';
-  }
-
-  const coinCostRaw = readString(formData, 'coinCost');
-  const coinCost = Number(coinCostRaw);
-  if (!coinCostRaw || !Number.isInteger(coinCost) || coinCost < 1 || coinCost > 100_000) {
-    errors.coinCost = '코인 비용은 1~100,000 사이의 정수여야 합니다.';
-  }
-
-  const ticketCountRaw = readString(formData, 'ticketCount');
-  const ticketCount = ticketCountRaw ? Number(ticketCountRaw) : 1;
-  if (!Number.isInteger(ticketCount) || ticketCount < 1 || ticketCount > 10) {
-    errors.ticketCount = '카드팩 수량은 1~10장이어야 합니다.';
-  }
-
-  const status = readString(formData, 'status');
-  if (!OFFER_STATUS_SET.has(status)) errors.status = '노출 상태를 선택해주세요.';
-
-  if (Object.keys(errors).length) return { ok: false, errors };
-
-  return {
-    ok: true,
-    value: {
-      id,
-      poolId,
-      label,
-      coinCost,
-      ticketCount,
-      status: status as AdminCoinOfferStatus,
     },
   };
 }

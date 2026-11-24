@@ -16,35 +16,39 @@ import {
   resolveHomeGoodsCards,
   isSafeInternalLink,
   withoutCommunityCurations,
-  withoutCardRewardCurations,
+  withoutRetiredCurations,
   type HomeCurationSnapshot,
 } from './home-catalog';
 
 const vertical: Vertical = { key: 'global', label: '글로벌 IP', color: '#2DE2FF' };
 
-it('링크 없는 프로모션 배너는 카드·커뮤니티 게이트와 무관하게 남긴다', () => {
+it('링크 없는 프로모션 배너는 지운 화면·커뮤니티 게이트와 무관하게 남긴다', () => {
   const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [],
     heroSlides: [{ id: 'no-link', title: '', subtitle: null, imageUrl: '/banner.webp', mobileImageUrl: null, href: null }] };
-  expect(withoutCommunityCurations(withoutCardRewardCurations(curation)).heroSlides).toEqual(curation.heroSlides);
+  expect(withoutCommunityCurations(withoutRetiredCurations(curation)).heroSlides).toEqual(curation.heroSlides);
 });
 
-/* LD-15(11 DT-11): 게이트 OFF 는 혜택 밴드를 통째로 비우지 않는다 — 카드팩·게임 목적지 타일만 뺀다. */
-it('게이트가 꺼지면 카드팩·게임으로 가는 혜택 타일만 걸러내고 나머지 혜택은 남긴다', () => {
+/* LD-15(11 DT-11): 혜택 밴드를 통째로 비우지 않는다 — 지운 화면(카드팩·게임·바인더·마켓·트레이드, ADR-0052) 목적지 타일만 뺀다. */
+it('지운 카드팩·게임·바인더·마켓·트레이드 화면으로 가는 혜택 타일만 걸러내고 나머지 혜택은 남긴다', () => {
   const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [],
     benefitTiles: [
       { id: 'packs', title: '카드팩', description: null, href: '/packs' },
       { id: 'game', title: '게임', description: null, href: '/games/reward?x=1' },
+      { id: 'binder', title: '바인더', description: null, href: '/binder' },
+      { id: 'market', title: '마켓', description: null, href: '/market?tab=sell' },
+      { id: 'exchange', title: '트레이드', description: null, href: '/exchange/1' },
       { id: 'coupon', title: '쿠폰', description: null, href: '/events/welcome' },
+      { id: 'lookalike', title: '비슷한 경로', description: null, href: '/packsale' },
       { id: 'broken', title: '깨진 링크', description: null, href: 'http://[' },
     ] };
 
-  expect(withoutCardRewardCurations(curation).benefitTiles.map((tile) => tile.id)).toEqual(['coupon']);
-  expect(curation.benefitTiles).toHaveLength(4);
+  expect(withoutRetiredCurations(curation).benefitTiles.map((tile) => tile.id)).toEqual(['coupon', 'lookalike']);
+  expect(curation.benefitTiles).toHaveLength(8);
 });
 
-/* 커뮤니티 노출 게이트는 카드 리워드 게이트와 별개다 — 혜택 타일도 다른 큐레이션처럼 커뮤니티 목적지를 거른다.
-   게이트 OFF(홈 순서: 카드 → 커뮤니티)와 게이트 ON 두 경로 모두에서 커뮤니티 타일이 남지 않아야 한다. */
-it('커뮤니티가 닫히면 커뮤니티로 가는 혜택 타일도 카드 게이트와 무관하게 걸러낸다', () => {
+/* 커뮤니티 노출 게이트는 지운 화면 판정과 별개다 — 혜택 타일도 다른 큐레이션처럼 커뮤니티 목적지를 거른다.
+   지운 화면 판정을 거친 경로(홈 순서: 지운 화면 → 커뮤니티)와 거치지 않은 경로 모두에서 커뮤니티 타일이 남지 않아야 한다. */
+it('커뮤니티가 닫히면 커뮤니티로 가는 혜택 타일도 지운 화면 판정과 무관하게 걸러낸다', () => {
   const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [],
     benefitTiles: [
       { id: 'community-events', title: '팬 이벤트', description: null, href: '/community/events' },
@@ -55,15 +59,12 @@ it('커뮤니티가 닫히면 커뮤니티로 가는 혜택 타일도 카드 게
       { id: 'broken', title: '깨진 링크', description: null, href: 'http://[' },
     ] };
 
-  expect(withoutCommunityCurations(withoutCardRewardCurations(curation)).benefitTiles.map((tile) => tile.id)).toEqual(['coupon', 'lookalike']);
+  expect(withoutCommunityCurations(withoutRetiredCurations(curation)).benefitTiles.map((tile) => tile.id)).toEqual(['coupon', 'lookalike']);
   expect(withoutCommunityCurations(curation).benefitTiles.map((tile) => tile.id)).toEqual(['packs', 'coupon', 'lookalike']);
   expect(curation.benefitTiles).toHaveLength(6);
 });
 
 it('혜택 타일 아이콘은 목적지에서 ICONS 아이콘 이름으로 고른다', () => {
-  expect(benefitTileIcon('/packs')).toBe('card');
-  expect(benefitTileIcon('/packs/season-1')).toBe('card');
-  expect(benefitTileIcon('/games/marble')).toBe('spark');
   expect(benefitTileIcon('/events/welcome')).toBe('event');
   expect(benefitTileIcon('/review-events/abc')).toBe('event');
   expect(benefitTileIcon('/shop?type=%ED%82%A4%EB%A7%81')).toBe('shop');
@@ -383,7 +384,7 @@ describe('buildHomeIpWorld', () => {
     expect(world.selectableIps.map((item) => item.id)).toEqual(['featured-1', 'featured-2']);
   });
 
-  it('derives representative goods, cards, and events from the selected IP only', () => {
+  it('derives representative goods and events from the selected IP only', () => {
     const world = buildHomeIpWorld(catalog({
       ips: [ip('hwasan', true), ip('lumen', true)],
       goods: [good('other-good', 'lumen'), good('selected-good', 'hwasan')],
@@ -395,7 +396,6 @@ describe('buildHomeIpWorld', () => {
     });
 
     expect(world.representativeGood?.id).toBe('selected-good');
-    expect(world.representativeCard?.id).toBe('selected-card');
     expect(world.representativeEvent?.id).toBe('selected-event');
     expect(world.representativePost?.id).toBe('selected-post');
   });
@@ -502,20 +502,20 @@ describe('홈 스트립 배너 게이트', () => {
   const base = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] };
   const strip = (href: string) => ({ id: 's1', title: '스트립', imageUrl: 'https://cdn.example/strip.webp', href });
 
-  it('카드 리워드·커뮤니티 목적지 스트립은 null로 걷어내고 나머지는 그대로 둔다', () => {
+  it('지운 화면·커뮤니티 목적지 스트립은 null로 걷어내고 나머지는 그대로 둔다', () => {
     const reward: HomeCurationSnapshot = { ...base, stripBanner: strip('/packs/season-1') };
     const community: HomeCurationSnapshot = { ...base, stripBanner: strip('/community?tag=notice') };
     const open: HomeCurationSnapshot = { ...base, stripBanner: strip('/events/summer') };
-    expect(withoutCardRewardCurations(reward).stripBanner).toBeNull();
-    expect(withoutCardRewardCurations(community).stripBanner).toEqual(community.stripBanner);
+    expect(withoutRetiredCurations(reward).stripBanner).toBeNull();
+    expect(withoutRetiredCurations(community).stripBanner).toEqual(community.stripBanner);
     expect(withoutCommunityCurations(community).stripBanner).toBeNull();
     expect(withoutCommunityCurations(reward).stripBanner).toEqual(reward.stripBanner);
-    expect(withoutCommunityCurations(withoutCardRewardCurations(open)).stripBanner).toEqual(open.stripBanner);
-    expect(withoutCardRewardCurations({ ...base, stripBanner: strip('http://[') }).stripBanner).toBeNull();
+    expect(withoutCommunityCurations(withoutRetiredCurations(open)).stripBanner).toEqual(open.stripBanner);
+    expect(withoutRetiredCurations({ ...base, stripBanner: strip('http://[') }).stripBanner).toBeNull();
   });
 
   it('스트립이 없는 스냅샷에는 키를 만들지 않는다', () => {
-    expect(withoutCardRewardCurations(base)).not.toHaveProperty('stripBanner');
+    expect(withoutRetiredCurations(base)).not.toHaveProperty('stripBanner');
     expect(withoutCommunityCurations(base)).not.toHaveProperty('stripBanner');
     expect(withoutCommunityCurations({ ...base, stripBanner: null }).stripBanner).toBeNull();
   });

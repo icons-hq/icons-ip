@@ -120,7 +120,7 @@ describe('접수 안내 — 재고 부족 부분 취소 뒤(orderClaimIntakeNoti
 
   it('부분 취소가 있으면 취소·반품의 결제금액 전액을 남은 결제 금액으로 바꾸고 교환은 그대로다', () => {
     const cancel = orderClaimIntakeNotice('cancel', null, { partiallyCanceled: true });
-    expect(cancel).toContain('승인되면 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액이 취소되고');
+    expect(cancel).toContain('승인되면 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액이 취소됩니다.');
     expect(cancel).not.toContain('결제금액 전액');
     const ret = orderClaimIntakeNotice('return', null, { partiallyCanceled: true });
     expect(ret).toContain('승인된 환불은 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액으로 처리합니다.');

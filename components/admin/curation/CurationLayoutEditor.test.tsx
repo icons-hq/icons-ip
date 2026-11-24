@@ -14,7 +14,7 @@ describe('CurationLayoutEditor', () => {
   it('혜택 영역을 목적지와 무관한 이름(혜택)으로 부른다', () => {
     const html = renderToStaticMarkup(<CurationLayoutEditor
       device="mobile" layout={{ blocks: null, revision: 1, updatedAt: '2026-10-23T00:00:00.000Z' }} onDirty={vi.fn()} onSaved={vi.fn()}
-      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false }} records={[]}
+      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [] }} records={[]}
     />);
 
     expect(html).toMatch(/<strong[^>]*>혜택<\/strong>/);
@@ -26,7 +26,7 @@ describe('CurationLayoutEditor', () => {
   it('전체 순서·노출 적용하기 버튼은 영역 순서 폼을 제출한다', () => {
     const html = renderToStaticMarkup(<CurationLayoutEditor
       device="mobile" layout={{ blocks: null, revision: 1, updatedAt: '2026-10-23T00:00:00.000Z' }} onDirty={vi.fn()} onSaved={vi.fn()}
-      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false }} records={[]}
+      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [] }} records={[]}
     />);
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>전체 순서·노출 적용하기<\/button>/);
     expect(html).toMatch(/<button[^>]*type="button"[^>]*aria-label="혜택 위로"/);
@@ -36,7 +36,7 @@ describe('CurationLayoutEditor', () => {
   it('새 고정 영역과 바뀐 영역 이름을 공개 홈 어휘로 보인다', () => {
     const html = renderToStaticMarkup(<CurationLayoutEditor
       device="mobile" layout={{ blocks: null, revision: 1, updatedAt: '2026-10-23T00:00:00.000Z' }} onDirty={vi.fn()} onSaved={vi.fn()}
-      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false }} records={[]}
+      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [] }} records={[]}
     />);
 
     expect(html).toMatch(/<strong[^>]*>IP 바로가기\(추천 콘텐츠\)<\/strong>/);
@@ -58,7 +58,7 @@ describe('CurationLayoutEditor', () => {
       status: 'active' } as unknown as AdminCurationRecord;
     const html = renderToStaticMarkup(<CurationLayoutEditor
       device="mobile" layout={{ blocks: null, revision: 1, updatedAt: '2026-10-23T00:00:00.000Z' }} onDirty={vi.fn()} onSaved={vi.fn()}
-      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false }} records={[band]}
+      operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [] }} records={[band]}
     />);
 
     expect(html).toMatch(/<strong[^>]*>팝업 인기 굿즈<\/strong><small[^>]*>ICONS PICK 카드\(기획전\)<\/small>/);

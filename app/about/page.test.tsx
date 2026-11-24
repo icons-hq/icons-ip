@@ -4,7 +4,6 @@ import Page from './page';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
-  cardRewardsEnabled: false,
   getFollowedIpIdsForUser: vi.fn(),
   getHomeSnapshot: vi.fn(),
 }));
@@ -18,9 +17,6 @@ vi.mock('@/lib/ip-follow.server', () => ({
   getFollowedIpIdsForUser: mocks.getFollowedIpIdsForUser,
 }));
 vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.getHomeSnapshot }));
-vi.mock('@/lib/card-rewards/gate.server', () => ({
-  readCardRewardsEnabled: () => mocks.cardRewardsEnabled,
-}));
 
 const home = {
   catalog: { source: 'supabase', verticals: [], ips: [], goods: [], cards: [], events: [] },
@@ -48,7 +44,7 @@ describe('about community personalization', () => {
     expect(mocks.getFollowedIpIdsForUser).not.toHaveBeenCalled();
     expect(element.props.followedIpIds).toEqual([]);
     expect(element.props.curation).toBe(home.curation);
-    expect(element.props.cardRewardsEnabled).toBe(false);
+    expect(element.props).not.toHaveProperty('cardRewardsEnabled');
   });
 
   it('prioritizes followed IPs only for an onboarded viewer', async () => {

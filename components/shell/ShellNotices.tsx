@@ -31,7 +31,6 @@ import { enterShellNoticeView, leaveShellNoticeView, recordShellNoticeEvent, she
 import { InlineScript } from './InlineScript';
 import { isActivationTarget } from './overlay-focus';
 import { RollingNoticeBody } from './RollingNoticeBody';
-import { useCollectibleFeatures } from './CollectibleFeatures';
 
 function browserSessionStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -57,18 +56,16 @@ function browserScope(): Record<string, unknown> | null {
  * 이 컴포넌트는 같은 저장소·시드·판정 시각을 lazy 초기값으로 읽어 같은 결과로 하이드레이트한다 — 닫은 공지가 깜빡였다
  * 사라지거나 스트립이 바뀌며 밀리지 않는다. 닫거나 끝나면 hidden(display:none)이라 빈 띠가 남지 않는다.
  * 셸 공지는 하드 로드 때만 내려오므로, 열린 화면에서는 다음 종료 시각에 맞춘 타이머로 끝난 공지를 숨긴다.
- * 보이는 공지 바는 처음 고른 것을 화면 유형별로 고정한다 — 카드 리워드 게이트는 마운트 뒤에야 확정돼(서버·하이드레이션은 꺼짐) 후보가 늘 수 있고,
- * 그때 같은 시드로 다시 고르면 보이던 문구가 바뀌고 노출이 두 번 집계된다. 게이트가 고른 공지를 막을 때만 다시 고른다(stableNoticeBar).
+ * 보이는 공지 바는 처음 고른 것을 화면 유형별로 고정한다 — 후보가 바뀌었을 때 같은 시드로 다시 고르면 보이던 문구가 바뀌고
+ * 노출이 두 번 집계된다. 고른 공지가 막힐 때만 다시 고른다(stableNoticeBar).
  */
 export function ShellNotices({
   notices,
   pathname,
-  cardRewardsEnabled,
   onActivate,
 }: {
   notices: ShellNoticeData;
   pathname: string;
-  cardRewardsEnabled: boolean;
   /** 공지 안의 링크·버튼(이동·닫기)을 눌렀을 때 — 검색 패널이 열려 있으면 닫으려는 신호다(MD-0034). 동작은 그대로 하고 알리기만 한다. */
   onActivate?: () => void;
 }) {
@@ -77,8 +74,7 @@ export function ShellNotices({
   const [seed] = useState(() => readShellNoticeSeed(browserScope()));
   const [barSeed] = useState(() => readShellNoticeBarSeed(browserScope()));
   const [now, setNow] = useState(() => initialShellNoticeNow(browserScope()));
-  const collectibleFeatures = useCollectibleFeatures();
-  const { bars, strips } = applicableShellNotices(notices, pathname, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures });
+  const { bars, strips } = applicableShellNotices(notices, pathname, { communityEnabled: COMMUNITY_ENABLED });
   const pageType = shellNoticePageType(pathname);
   /* 첫 선택(서버·첫 페인트 전 스크립트·하이드레이션과 같은 결과)이 고정의 시작이다. 이후 렌더는 고정한 공지를 그대로 쓰고, 막혔을 때만 새로 고른 키로 갱신한다
      — 렌더 중 상태 보정(Nav 의 경로 리셋과 같은 방식)이라 값이 같으면 다시 그리지 않는다. */
