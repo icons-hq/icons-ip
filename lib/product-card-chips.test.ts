@@ -144,11 +144,11 @@ describe('productCardUnavailableLabel', () => {
     expectedShipDate: '2026-12-14', nextChangeAt: '2026-12-02T02:00:00.000Z' });
 
   it('labels a preorder whose reception has not opened yet instead of reading it as sold out', () => {
-    expect(productCardUnavailableLabel({ options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('예약 접수 예정');
+    expect(productCardUnavailableLabel({ options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 예정');
     expect(productCardUnavailableLabel({ options: [
       option({ id: 'o1', stockQty: 0, supply: scheduled }),
       option({ id: 'o2', isDefault: false, stockQty: 0, supply: scheduled }),
-    ] }, true)).toBe('예약 접수 예정');
+    ] }, true)).toBe('판매 예정');
   });
 
   it('leaves an open preorder with quantity to the 예약판매 chip, without any unavailable label', () => {
@@ -174,7 +174,7 @@ describe('productCardUnavailableLabel', () => {
 
   it('puts the sale period before the preorder state, like the product detail', () => {
     const salePeriod = { state: 'scheduled' as const, startsAt: '2026-12-01T00:00:00Z', endsAt: '2026-12-31T00:00:00Z', calculatedAt: NOW, nextChangeAt: '2026-12-01T00:00:00Z' };
-    expect(productCardUnavailableLabel({ salePeriod, options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 시작 전');
+    expect(productCardUnavailableLabel({ salePeriod, options: [option({ stockQty: 0, supply: scheduled })] }, true)).toBe('판매 예정');
     expect(productCardUnavailableLabel({ salePeriod: { ...salePeriod, state: 'ended', nextChangeAt: null } }, false)).toBe('판매 종료');
   });
 });

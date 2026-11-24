@@ -1154,12 +1154,6 @@
   color: var(--wc-ink-sub);
 }
 
-/* 상세 설명 패널 끝의 같은 카드(PD-19) — 패널 문단 사이 간격으로 띄운다. */
-.wc-pdp-ipcard--panel {
-  max-width: 446px;
-  margin-top: 40px;
-}
-
 /* 모바일 갤러리는 화면 폭 그대로다(PD-04 · 375 기준 375×375). 컨테이너 거터를 갤러리만 넘고
    위 띠배너는 안쪽에 남는다. 1:1 contain 은 그대로다. */
 @media (max-width: 989px) {
@@ -1724,48 +1718,14 @@
   margin-top: 0;
 }
 
-/* 상세 설명 패널의 IP 소개(PD-19) — 상세 이미지 다음. 키아트는 IP관 배너와 같은 8:3 크롭이다. */
-.wc-pdp-ip-story {
+/* 고시정보 칸의 제품 안전정보(KC·기타 인증, MD-0054로 상세 하단에서 옮김) — 고시 표 아래에 띄워 잇는다. */
+.wc-pdp-info__body > * + .wc-pdp-notice {
+  margin-top: 24px;
+}
+
+/* 상세 설명 패널 끝의 추가정보 아코디언(MD-0055) — 상세 이미지·하단 공지 다음, 추천 블록 앞. 옛 IP 소개 자리의 간격을 잇는다. */
+.wc-pdp-detail-info {
   margin-top: 40px;
-}
-
-.wc-pdp-ip-story__art {
-  aspect-ratio: 8 / 3;
-  margin-bottom: 20px;
-  background-color: var(--wc-surface-grey-2);
-}
-
-/* editorial 파운데이션이 h1~h3 에 display 서체를 강제하므로 지면 서체로 되돌린다. */
-.wc-pdp-ip-story__name {
-  margin: 0;
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.5;
-  color: var(--wc-ink);
-}
-
-.wc-pdp-ip-story__sub {
-  margin: 2px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--wc-ink-tertiary);
-}
-
-.wc-pdp-ip-story__tagline {
-  margin: 12px 0 0;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.6;
-  color: var(--wc-ink);
-}
-
-.wc-pdp-ip-story__synopsis {
-  margin: 8px 0 0;
-  font-size: 14px;
-  line-height: 1.8;
-  white-space: pre-line;
-  color: var(--wc-ink-sub);
 }
 
 /* 추천 블록이 상세 설명 패널 끝으로 들어오면(LD-6) 패널 콘텐츠 폭(≈760)에 4열로 선다(레퍼런스 관련 상품 4열). */
