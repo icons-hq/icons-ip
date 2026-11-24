@@ -43,7 +43,7 @@ describe('ReviewComposer — 리뷰 등록 = 구매확정 (1014-079)', () => {
     expect(checkbox).toContain('type="checkbox"');
     expect(checkbox).toContain('required=""');
     expect(checkbox).toContain('value="on"');
-    expect(html).toContain('받은 굿즈와 구매확정 내용을 확인했습니다.');
+    expect(html).toContain('받은 상품과 구매확정 내용을 확인했습니다.');
     expect(html).toContain('리뷰 등록하고 구매확정');
     /* 리뷰 없이 확정만 하는 길은 주문 상세의 [구매확정]이다(②). */
     expect(html).toContain(`href="/orders/${ORDER_ID}"`);
@@ -106,7 +106,7 @@ describe('ReviewComposer — 리뷰 등록 = 구매확정 (1014-079)', () => {
       },
     }));
 
-    expect(html).toContain('이미 이 주문의 굿즈에 리뷰를 남겼거나');
+    expect(html).toContain('이미 이 주문의 상품에 리뷰를 남겼거나');
     expect(html).not.toContain('취소·반품·교환 신청이 진행 중');
   });
 

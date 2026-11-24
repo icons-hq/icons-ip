@@ -67,5 +67,5 @@ export function parseCouponTargetGoods(value: unknown): CouponTargetGood[] | nul
 }
 export function couponTargetingLabel(value: Partial<CouponTargeting>): string {
   const recipient = value.issuanceMode === 'targeted' ? '지정 고객' : value.recipientSegment === 'first_purchase' ? '첫구매 고객' : value.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객';
-  return `${recipient} · ${value.goodsScope === 'selected_goods' ? `선택 굿즈 ${value.targetGoodIds?.length ?? 0}종` : value.goodsScope === 'selected_categories' ? `선택 카테고리 ${value.targetCategoryIds?.length ?? 0}개` : value.goodsScope === 'selected_ips' ? `선택 IP ${value.targetIpIds?.length ?? 0}개` : '전체 굿즈'}`;
+  return `${recipient} · ${value.goodsScope === 'selected_goods' ? `선택 상품 ${value.targetGoodIds?.length ?? 0}종` : value.goodsScope === 'selected_categories' ? `선택 카테고리 ${value.targetCategoryIds?.length ?? 0}개` : value.goodsScope === 'selected_ips' ? `선택 IP ${value.targetIpIds?.length ?? 0}개` : '전체 상품'}`;
 }

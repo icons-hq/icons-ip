@@ -664,7 +664,7 @@ it('신규 주문은 저장된 온라인·착불·할인·품목 원장과 일�
       discount_total: totals.couponDiscountTotal, store_credit_total: totals.storeCreditTotal, volume_discount_total: totals.volumeDiscountTotal,
       shipping_collect_total: totals.collectShippingTotal, calculation_version: 2, address: transactionInput.address, created_at: '2026-10-14T03:00:00Z' }],
     order_items: [{ id: transactionLineId, order_id: transactionOrder, good_id: transactionInput.items[0].goodId, variant_id: transactionInput.items[0].variantId,
-      qty: 2, unit_price: 10000, good_name_snapshot: '굿즈' }],
+      qty: 2, unit_price: 10000, good_name_snapshot: '상품' }],
   };
   const rpc = vi.fn().mockResolvedValue({ data: { orderId: transactionOrder, quoteId: transactionQuoteId, display: transactionDisplay }, error: null });
   mocks.client = { from: (table: string) => createQuery(table, records, rows), rpc }; mocks.serviceClient = mocks.client;
@@ -680,7 +680,7 @@ it('신규 주문은 저장된 온라인·착불·할인·품목 원장과 일�
   expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
 });
 
-it('결제 대기 주문서는 랜덤 판매 굿즈를 장바구니 키·옵션명 랜덤 한 줄로만 보인다(D5②)', async () => {
+it('결제 대기 주문서는 랜덤 판매 상품을 장바구니 키·옵션명 랜덤 한 줄로만 보인다(D5②)', async () => {
   const records: QueryRecord[] = [];
   const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62', userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
   const secret = { good_id: 'random-good', unit_price: 5000, good_name_snapshot: '랜덤 포토카드',

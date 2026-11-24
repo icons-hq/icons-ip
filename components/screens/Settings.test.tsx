@@ -164,7 +164,7 @@ describe('Settings', () => {
     });
 
     expect(html).toContain('진행 중인 의무');
-    expect(html).toContain('진행 중인 굿즈 주문 2건 확인');
+    expect(html).toContain('진행 중인 상품 주문 2건 확인');
     expect(html).toContain('href="/orders"');
     expect(html).not.toContain('name="confirmation"');
   });
@@ -182,7 +182,7 @@ describe('Settings', () => {
     });
 
     expect(html).toContain('신청 전에 진행 중인 의무');
-    expect(html).toContain('신청 전 진행 중인 굿즈 주문 2건 확인');
+    expect(html).toContain('신청 전 진행 중인 상품 주문 2건 확인');
     expect(html).toContain('href="/orders"');
     expect(html).toContain('name="confirmation"');
   });

@@ -113,7 +113,7 @@ describe('/events/[eventId] 캠페인 상세', () => {
   });
 
   /* L4b · CL-01 — 굿즈 진열 카드의 목록 하트는 진열이 있을 때만 회원의 위시 ID 를 한 번 읽어 넘긴다. */
-  it('굿즈 진열이 있으면 위시 ID 를 한 번 읽어 화면에 넘기고, 없으면 읽지 않는다', async () => {
+  it('상품 진열이 있으면 위시 ID 를 한 번 읽어 화면에 넘기고, 없으면 읽지 않는다', async () => {
     mocks.campaign = { ...campaignFor('goods'), resolvedSections: [{ type: 'goods', good_ids: ['g13'], goods: [{
       id: 'g13', name: '아크릴 블록', price: 12000, compareAtPrice: null, badge: null, soldOut: false, imageBackground: '' }] }] };
     renderToStaticMarkup(await Page(pageProps('goods')));

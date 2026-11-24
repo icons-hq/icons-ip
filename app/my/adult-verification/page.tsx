@@ -13,7 +13,7 @@ import { adultVerificationEnabledFor } from '@/lib/identity/kcp-cert-config';
 
 export const metadata: Metadata = {
   title: '성인 인증 — 엑스스퀘어',
-  description: '19금 굿즈를 보고 구매하기 위한 휴대폰 본인확인 성인 인증 상태를 확인합니다.',
+  description: '19금 상품을 보고 구매하기 위한 휴대폰 본인확인 성인 인증 상태를 확인합니다.',
   robots: { index: false, follow: false },
 };
 

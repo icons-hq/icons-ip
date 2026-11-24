@@ -40,8 +40,8 @@ function DraftUnavailable({ draft, error }: { draft: DraftOrigin | null; error: 
         <p>{error ? '잠시 후 다시 시도해주세요.'
           : draft ? '주문서를 연 지 오래되어 다시 열어야 해요. 고른 화면에서 다시 주문해주세요.'
             : '주문서를 연 지 오래되었거나 이 계정의 주문서가 아니에요. 고른 화면에서 다시 주문해주세요.'}</p>
-        <Link className="btn btn-holo" href={checkoutDraftReturnHref(draft)}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link>
-        {draft ? null : <Link className="btn btn-ghost" href="/shop">굿즈 둘러보기</Link>}
+        <Link className="btn btn-holo" href={checkoutDraftReturnHref(draft)}>{draft?.source === 'direct' ? '상품으로 돌아가기' : '장바구니로 돌아가기'}</Link>
+        {draft ? null : <Link className="btn btn-ghost" href="/shop">상품 둘러보기</Link>}
       </div>
     </main>
   );
@@ -55,7 +55,7 @@ function DraftUsed({ draft, orderId }: { draft: DraftOrigin; orderId: string }) 
         <h1>이미 주문한 주문서예요</h1>
         <p>이 주문서로 만든 주문이 있어요. 주문 내용과 결제·입금 상태를 확인해주세요.</p>
         <Link className="btn btn-holo" href={`/orders/${encodeURIComponent(orderId)}`}>주문 보기</Link>
-        <Link className="btn btn-ghost" href={checkoutDraftReturnHref(draft)}>{draft.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link>
+        <Link className="btn btn-ghost" href={checkoutDraftReturnHref(draft)}>{draft.source === 'direct' ? '상품으로 돌아가기' : '장바구니로 돌아가기'}</Link>
       </div>
     </main>
   );

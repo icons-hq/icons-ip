@@ -80,11 +80,11 @@ export function collectionBannerSlotFor(view: ShopView, query: Pick<ShopListQuer
 }
 
 const VIEW_TITLES: Record<ShopView, string> = {
-  all: '전체 굿즈',
+  all: '전체 상품',
   new: 'NEW',
   best: 'BEST',
   search: '검색 결과',
-  ip: '굿즈',
+  ip: '상품',
 };
 
 function withQuery(pathname: string, queryString: string) {
@@ -166,11 +166,11 @@ export function Shop({
       {view === 'best' ? (
         rankingFailed
           ? <EmptyState description="잠시 후 다시 확인해주세요." title="순위를 불러오지 못했어요." />
-          : <EmptyState description="다른 기간을 골라 보세요." title="이 기간에 집계된 굿즈가 없어요" />
+          : <EmptyState description="다른 기간을 골라 보세요." title="이 기간에 집계된 상품이 없어요" />
       ) : (
         <EmptyState
           action={view === 'all' && !query.displayCategory ? undefined : (
-            <WcButton href="/shop" variant="primary">굿즈샵 둘러보기</WcButton>
+            <WcButton href="/shop" variant="primary">상품 둘러보기</WcButton>
           )}
           title="아직 준비 중이에요"
         />

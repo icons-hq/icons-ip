@@ -11,7 +11,7 @@ beforeEach(() => { vi.resetAllMocks(); mocks.client.mockResolvedValue({ rpc: moc
 /* QNA-032: 상품 상세·주문 상세의 방문 회수 안내는 DB 스위치가 true를 돌려줄 때만 켠다. 읽지 못하면 지금 안내 그대로다. */
 describe('방문 회수 안내 읽기', () => {
   const policy = { originId: 'origin', originName: '창고', baseFee: 3000, freeThreshold: null, feeType: 'policy', individualFee: 0 };
-  it('상품 상세 배송 정책은 굿즈의 출고지 회수 계약이 켜져 있을 때만 returnPickup을 싣는다', async () => {
+  it('상품 상세 배송 정책은 상품의 출고지 회수 계약이 켜져 있을 때만 returnPickup을 싣는다', async () => {
     let pickup: unknown = { data: false, error: null };
     mocks.rpc.mockImplementation(async (name: string) => name === 'get_good_shipping_policy' ? { data: policy, error: null }
       : name === 'get_good_return_pickup' ? pickup : { data: null, error: { message: 'missing' } });

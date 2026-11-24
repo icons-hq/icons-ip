@@ -36,7 +36,7 @@ export function SubscriptionDetail({ actorId, initialPlan, cards, canRegister, n
     <p>{SUBSCRIPTION_PLAN_LABELS[plan.state]}</p></header><SubscriptionRequestFeedback {...request} />
     {!request.blocked && <>
       {message && <p role="status">{message}</p>}
-      <section className="wc-subscriptions__card"><h2>신청 내용</h2><ul>{plan.selection.map((line, index) => <li key={`${line.variantId}-${index}`}>{names[line.goodId] ?? '정기배송 굿즈'} · {line.qty}개
+      <section className="wc-subscriptions__card"><h2>신청 내용</h2><ul>{plan.selection.map((line, index) => <li key={`${line.variantId}-${index}`}>{names[line.goodId] ?? '정기배송 상품'} · {line.qty}개
         {Object.values(line.inputValues).length > 0 && <span> · 직접 입력: {Object.values(line.inputValues).join(' / ')}</span>}</li>)}</ul>
         <dl><div><dt>배송 주기</dt><dd>{plan.schedule.interval}{plan.schedule.unit === 'week' ? '주' : '개월'}{plan.schedule.monthEnd ? ' · 말일 기준' : ''}</dd></div>
           <div><dt>다음 결제일 · 한국시간</dt><dd>{subscriptionDate(plan.nextRunAt)}</dd></div><div><dt>결제카드</dt><dd>{plan.card?.number ?? '선택 전'}</dd></div></dl>
@@ -73,7 +73,7 @@ export function SubscriptionDetail({ actorId, initialPlan, cards, canRegister, n
           {Object.entries(CHANGE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           <SubscriptionScheduleFields value={schedule} future onChange={value => { setSchedule(value); setDraftDirty(true); }} />
           {command === 'change_destination' && <><SubscriptionAddressFields value={address} prefix="subscription-change" onChange={value => { setAddress(value); setDraftDirty(true); }} />
-            {Array.from(new Set(plan.selection.map(line => line.goodId))).map(goodId => <label key={goodId}>{names[goodId] ?? '굿즈'} 배송비 결제<select value={deliveryChoices[goodId] ?? 'prepaid'}
+            {Array.from(new Set(plan.selection.map(line => line.goodId))).map(goodId => <label key={goodId}>{names[goodId] ?? '상품'} 배송비 결제<select value={deliveryChoices[goodId] ?? 'prepaid'}
               onChange={event => { setDeliveryChoices(previous => ({ ...previous, [goodId]: event.target.value as 'prepaid' | 'collect' })); setDraftDirty(true); }}><option value="prepaid">선불</option><option value="collect">착불</option></select></label>)}</>}
           <button type="submit">변경 후 금액·일정 확인</button>
         </fieldset></form>

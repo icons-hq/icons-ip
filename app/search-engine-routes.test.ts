@@ -41,7 +41,7 @@ describe('/robots.txt', () => {
 });
 
 describe('/sitemap.xml', () => {
-  it('요청마다 공개 카탈로그를 읽어 고정 화면·IP관·굿즈 상세를 싣는다', async () => {
+  it('요청마다 공개 카탈로그를 읽어 고정 화면·IP관·상품 상세를 싣는다', async () => {
     loader.load.mockResolvedValue({ ips: [{ id: 'ip-maple', publicSlug: 'maplestory', updatedAt: null }], goods: [{ id: 'g4', updatedAt: null }] });
     const route = await import('./sitemap');
 

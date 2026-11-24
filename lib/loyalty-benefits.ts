@@ -173,7 +173,7 @@ export function parseLoyaltyGradeBenefits(value: unknown): LoyaltyGradeBenefits 
 /** 아직 오르지 않은 등급의 쿠폰 요약 — 종류별 장수만 적는다(굿즈 할인 → 배송비 할인 순, 0장은 뺀다). */
 export function gradeBenefitCountLines(counts: GradeBenefitCouponCounts): string[] {
   return [
-    counts.goods > 0 ? `굿즈 할인 쿠폰 ${counts.goods.toLocaleString('ko-KR')}장` : null,
+    counts.goods > 0 ? `상품 할인 쿠폰 ${counts.goods.toLocaleString('ko-KR')}장` : null,
     counts.shipping > 0 ? `배송비 할인 쿠폰 ${counts.shipping.toLocaleString('ko-KR')}장` : null,
   ].filter((line): line is string => line !== null);
 }
@@ -234,7 +234,7 @@ export function loyaltyCriterionCopy(grade: LoyaltyGrade, tiers: readonly Loyalt
   if (!tier?.enabled) return null;
   const parts = [
     tier.amount === null ? null : `결제 금액 ${krw(tier.amount)} 이상`,
-    tier.itemCount === null ? null : `굿즈 주문 항목 ${tier.itemCount.toLocaleString('ko-KR')}건 이상`,
+    tier.itemCount === null ? null : `상품 주문 항목 ${tier.itemCount.toLocaleString('ko-KR')}건 이상`,
   ].filter((part): part is string => part !== null);
   return parts.length ? `최근 ${LOYALTY_WINDOW_DAYS}일 ${parts.join(' 또는 ')}` : null;
 }

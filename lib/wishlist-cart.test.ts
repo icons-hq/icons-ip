@@ -107,7 +107,7 @@ describe('wishCartState 옵션별 구매 제한·랜덤 판매', () => {
       label: '장바구니 · 2', ariaLabel: '홍실 아크릴 블록, 장바구니 2개, 구매 한도 2개' });
     expect(wishCartState(limited, { ...READY, quantityInCart: 1 })).toMatchObject({ kind: 'add', unavailable: false, stockQty: 9 });
   });
-  it('랜덤 판매 굿즈는 접힌 기본 옵션 키로 바로 담는다', () => {
+  it('랜덤 판매 상품은 접힌 기본 옵션 키로 바로 담는다', () => {
     const random = good({ optionSaleMode: 'random', stockQty: 6,
       options: [{ id: VARIANT, name: '랜덤', code: '', price: 12000, stockQty: 6, isDefault: true, attributes: {}, orderMaxQty: null, memberMaxQty: null }] });
     expect(wishCartState(random, READY)).toMatchObject({ kind: 'add', variantId: VARIANT, stockQty: 6, unavailable: false });

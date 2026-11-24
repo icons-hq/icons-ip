@@ -16,7 +16,7 @@ describe('listingReviewSummaryIds', () => {
 
   /* 형식이 어긋난 ID 하나가 묶음 전체를 invalid_goods_review_summary_goods 로 떨어뜨리지 않게 미리 뺀다. */
   it('공백·슬래시·한글처럼 RPC 가 거절할 문자를 담은 값은 보내지 않는다', () => {
-    expect(listingReviewSummaryIds(['good-1', 'good 2', 'good/3', '굿즈', 'good.4'])).toEqual(['good-1']);
+    expect(listingReviewSummaryIds(['good-1', 'good 2', 'good/3', '상품', 'good.4'])).toEqual(['good-1']);
   });
 });
 
@@ -33,7 +33,7 @@ describe('listingReviewSummaryBatches', () => {
 });
 
 describe('pdpShelfGoodIds', () => {
-  it('연관 굿즈·다른 구성·자동 추천 카드의 굿즈를 한 번의 묶음으로 모은다', () => {
+  it('연관 상품·다른 구성·자동 추천 카드의 상품을 한 번의 묶음으로 모은다', () => {
     const ids = pdpShelfGoodIds({
       relatedGoods: { nextChangeAt: null, groups: [{ id: 'r', kind: 'similar', title: '유사', goods: [good('a'), good('b')], allGoods: [good('current'), good('a'), good('b')] }] },
       otherCompositions: { nextChangeAt: null, groups: [{ id: 'o', title: '다른 구성', goods: [{ good: good('b'), compositionLabel: null }, { good: good('c'), compositionLabel: '세트' }] }] },

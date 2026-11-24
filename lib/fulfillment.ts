@@ -133,7 +133,7 @@ export function shippingRegionFeeDescription(fees: GoodShippingRegionFees | null
     .map(region => `${region.label} +${krw(region.minFee)}${region.maxFee > region.minFee ? `~${krw(region.maxFee)}` : ''}`);
   const rest = Math.max(fees.regionCount, fees.regions.length) - shown.length;
   const more = rest > 0 ? ` 외 ${rest.toLocaleString('ko-KR')}개 지역` : '';
-  const notes = [fees.feeUnit === 'per_good' ? '굿즈당 1회' : '배송 묶음당 1회', ...(fees.waivedAtFreeThreshold ? ['무료배송 조건을 채우면 면제'] : [])];
+  const notes = [fees.feeUnit === 'per_good' ? '상품당 1회' : '배송 묶음당 1회', ...(fees.waivedAtFreeThreshold ? ['무료배송 조건을 채우면 면제'] : [])];
   return `지역별 추가 배송비: ${shown.join(' · ')}${more}(${notes.join(', ')}).`;
 }
 export function parseShippingQuoteItems(value: unknown): ShippingQuoteItem[] | null {
@@ -151,8 +151,8 @@ export function parseShippingQuoteItems(value: unknown): ShippingQuoteItem[] | n
  * 고객에게 필요한 것은 배송비 조건과 "함께 오는 묶음"뿐이다. 어드민은 이름을 그대로 쓴다. */
 export function shippingPolicyDescription(policy: GoodShippingPolicy): string {
   if (policy.feeType === 'free') return '무료배송';
-  if (policy.feeType === 'individual') return `${krw(policy.individualFee)} · 수량·옵션과 관계없이 굿즈당 1회`;
-  return `배송비 ${krw(policy.baseFee)}${policy.freeThreshold === null ? '' : ` · 정책 적용 굿즈 ${krw(policy.freeThreshold)} 이상 무료`}`;
+  if (policy.feeType === 'individual') return `${krw(policy.individualFee)} · 수량·옵션과 관계없이 상품당 1회`;
+  return `배송비 ${krw(policy.baseFee)}${policy.freeThreshold === null ? '' : ` · 정책 적용 상품 ${krw(policy.freeThreshold)} 이상 무료`}`;
 }
 
 /** 택배사 이름을 아는 배송 묶음(견적 묶음·배송 건). */

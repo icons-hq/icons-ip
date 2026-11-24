@@ -249,7 +249,7 @@ describe('White Catalog 전역 셸', () => {
   });
 
   /* CH-12: 굿즈 상세는 카테고리 목록이 아니다 — GNB·모바일 탭·메가 링크 어디에도 현재 위치를 켜지 않는다. */
-  it('굿즈 상세에서는 GNB와 메가메뉴에 현재 위치를 표시하지 않는다', () => {
+  it('상품 상세에서는 GNB와 메가메뉴에 현재 위치를 표시하지 않는다', () => {
     mocks.pathname = '/shop/g1';
 
     const html = renderToStaticMarkup(<Nav />);
@@ -269,10 +269,10 @@ describe('White Catalog 전역 셸', () => {
   });
 
   /* CH-06: 메가메뉴 안의 /shop 링크는 '전체 굿즈'다 — GNB 트리거 이름('카테고리')으로 덮이면 메뉴가 자기 이름을 링크로 반복한다. */
-  it('메가메뉴의 전체 굿즈 링크는 GNB 트리거 이름으로 덮이지 않는다', () => {
+  it('메가메뉴의 전체 상품 링크는 GNB 트리거 이름으로 덮이지 않는다', () => {
     const mega = megaMarkup(renderToStaticMarkup(<Nav />));
 
-    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 상품</);
     expect(mega).not.toContain('>카테고리<');
   });
 
@@ -288,7 +288,7 @@ describe('White Catalog 전역 셸', () => {
 
   /* 모바일 PDP 는 72px 구매바가 최하단을 차지한다(R-04 §7.2). 탭바를 남기면
      z-index 로 가려진 채 포커스 순서에만 존재하는 유령 내비가 된다. */
-  it('굿즈 상세에서는 탭바를 접고, NEW·BEST 컬렉션에서는 유지한다', () => {
+  it('상품 상세에서는 탭바를 접고, NEW·BEST 컬렉션에서는 유지한다', () => {
     mocks.pathname = '/shop/g1';
     expect(renderToStaticMarkup(<Nav />)).not.toContain('wc-tabbar');
 
@@ -417,8 +417,8 @@ describe('White Catalog 전역 셸', () => {
     expect(html.includes('포스트')).toBe(COMMUNITY_ENABLED);
     /* 카드 화면은 2026-11-24 지웠다(ADR-0052) — 검색은 카드 결과를 싣지 않는다. */
     expect(html).not.toContain('카드');
-    expect(searchPlaceholder(false)).toBe('IP · 굿즈 통합 검색');
-    expect(searchPlaceholder(true)).toBe('IP · 굿즈 · 포스트 통합 검색');
+    expect(searchPlaceholder(false)).toBe('IP · 상품 통합 검색');
+    expect(searchPlaceholder(true)).toBe('IP · 상품 · 포스트 통합 검색');
   });
 
   /* CH-09: 데스크톱은 회색 칸 하나(돋보기는 칸 안 장식)로 보이지만, 뒤로·제출 버튼은 접근 이름을 가진 채
@@ -454,12 +454,12 @@ describe('White Catalog 전역 셸', () => {
   /* CH-10(L8b): 운영 목록이 있으면 코드 상수 대신 그 목록을 순서대로 칩으로 세운다. 입력값은 그대로 질의어가 되고
    * URL 인코딩만 거친다 — %·_ 같은 LIKE 와일드카드는 검색 RPC 가 이스케이프한다. */
   it('운영 추천 검색어가 있으면 그 목록만 순서대로 칩으로 세운다', () => {
-    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open terms={['가을 키링', '100%_굿즈', 'BT21']} />);
+    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open terms={['가을 키링', '100%_상품', 'BT21']} />);
     const hrefs = [...html.matchAll(/class="wc-search__chip" href="([^"]+)"/g)].map((match) => match[1]);
 
     expect(hrefs).toEqual([
       `/search?q=${encodeURIComponent('가을 키링')}`,
-      '/search?q=100%25_%EA%B5%BF%EC%A6%88',
+      '/search?q=100%25_%EC%83%81%ED%92%88',
       '/search?q=BT21',
     ]);
     expect(html).not.toContain(`href="/search?q=${encodeURIComponent(SUGGESTED_SEARCH_TERMS[0])}"`);
@@ -602,13 +602,13 @@ describe('X SQUARE 헤더', () => {
 
 /* LFS 패리티 2차 L5 — 카테고리·온라인 팝업 메가메뉴(CH-05·CH-07)와 모바일 카테고리 탭 진입(MC-05). */
 describe('카테고리 내비게이션 (L5)', () => {
-  it('공개 전시 트리가 있으면 메가메뉴가 굿즈샵 바로가기 · 기획전 | 세로선 | 전시분류 그룹이 된다', () => {
+  it('공개 전시 트리가 있으면 메가메뉴가 쇼핑 바로가기 · 기획전 | 세로선 | 전시분류 그룹이 된다', () => {
     const mega = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
 
     expect(mega).toContain('wc-mega__list--catalog');
     expect(mega).not.toContain('wc-mega__list--compact');
     /* 순서: 굿즈샵 → 기획전 → (세로선 칸) 전시분류. */
-    expect(mega.indexOf('>굿즈샵<')).toBeLessThan(mega.indexOf('>기획전<'));
+    expect(mega.indexOf('>쇼핑<')).toBeLessThan(mega.indexOf('>기획전<'));
     expect(mega.indexOf('>기획전<')).toBeLessThan(mega.indexOf('class="wc-mega__catalog"'));
     expect(mega).toContain('href="/events/fall-drop"><span class="wc-mega__link-clamp">가을 기획전</span></a>');
     /* 자기 전시가 없는 그룹 제목·2단계는 링크 없는 이름표, 전시가 있는 노드만 /shop?displayCategory 링크다. */
@@ -620,17 +620,17 @@ describe('카테고리 내비게이션 (L5)', () => {
     /* 실제 분류가 생기면 비(非)분류 그룹은 메가메뉴에서 빠진다(지운 수집·거래 그룹은 어디에도 없다). */
     expect(mega).not.toContain('>수집<');
     expect(mega).not.toContain('>거래<');
-    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 상품</);
   });
 
   /* 리뷰 l5-ui-2 — 카테고리 전시(/shop?displayCategory=)는 경로가 '전체 굿즈'와 같아 쿼리로만 가려진다. 전시 페이지에서 '전체 굿즈'가
    * 현재 위치로 읽히고 실제 전시분류 링크는 표시가 없었다. 기획전 상세(/events/<id>)에서는 기획전 링크에 표시가 없었다. */
-  it('전시 페이지에서는 그 전시분류 링크만 현재 위치이고 전체 굿즈는 아니다', () => {
+  it('전시 페이지에서는 그 전시분류 링크만 현재 위치이고 전체 상품은 아니다', () => {
     mocks.search = `displayCategory=${nodeId(2)}&sort=newest`;
     const item = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
     expect(item.match(/aria-current="page"/g)).toHaveLength(1);
     expect(item).toContain(`aria-current="page" class="wc-mega__link" href="/shop?displayCategory=${nodeId(2)}">피규어</a>`);
-    expect(item).toMatch(/[^"] class="wc-mega__link" href="\/shop">전체 굿즈</);
+    expect(item).toMatch(/[^"] class="wc-mega__link" href="\/shop">전체 상품</);
 
     /* 그룹 제목이 전시인 분류(시즌)는 제목 링크가 현재 위치다. 대문자 UUID 쿼리도 같은 분류다. */
     mocks.search = `displayCategory=${nodeId(5).toUpperCase()}`;
@@ -652,7 +652,7 @@ describe('카테고리 내비게이션 (L5)', () => {
     mocks.search = '';
     const all = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
     expect(all.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(all).toContain('aria-current="page" class="wc-mega__link" href="/shop">전체 굿즈</a>');
+    expect(all).toContain('aria-current="page" class="wc-mega__link" href="/shop">전체 상품</a>');
   });
 
   it('기획전 상세에서는 그 기획전 링크가 메가메뉴의 현재 위치다', () => {
@@ -692,11 +692,11 @@ describe('카테고리 내비게이션 (L5)', () => {
     expect(mega.match(/<span class="wc-mega__link-clamp">/g)).toHaveLength(6);
     expect(mega).toContain(`class="wc-mega__link" title="${longTitle}" href="/events/long"><span class="wc-mega__link-clamp">${longTitle}</span></a>`);
     /* 말줄임 변형은 기획전 칸에만 있다 — 굿즈샵 바로가기·전시분류 링크는 그대로다. */
-    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 상품</);
     expect(mega).toContain(`class="wc-mega__link" href="/shop?displayCategory=${nodeId(2)}">피규어</a>`);
   });
 
-  it('진행 중 기획전이 없으면 기획전 칸을 접고, 전시 트리가 비면 기존 굿즈샵 메뉴로 돌아간다', () => {
+  it('진행 중 기획전이 없으면 기획전 칸을 접고, 전시 트리가 비면 기존 쇼핑 메뉴로 돌아간다', () => {
     const compact = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, campaigns: [] }} />));
     expect(compact).toContain('wc-mega__list--catalog wc-mega__list--compact');
     expect(compact).not.toContain('>기획전<');
@@ -705,7 +705,7 @@ describe('카테고리 내비게이션 (L5)', () => {
     const fallback = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, categories: [] }} />));
     expect(fallback).not.toContain('wc-mega__list--catalog');
     /* 수집·거래 그룹(카드팩·바인더·마켓·트레이드)은 2026-11-24 지웠다(ADR-0052). */
-    expect(fallback).toContain('<p class="wc-mega__heading">굿즈샵</p>');
+    expect(fallback).toContain('<p class="wc-mega__heading">쇼핑</p>');
     for (const heading of ['수집', '거래']) expect(fallback).not.toContain(`<p class="wc-mega__heading">${heading}</p>`);
     expect(fallback).not.toContain('가을 기획전');
   });

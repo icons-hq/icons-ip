@@ -240,7 +240,7 @@ describe('purchaseTotalDisplay', () => {
   });
 
   /* PD-08 — 재고 0 옵션은 자동 선택되지 않아 품절 굿즈에 "옵션 선택 후 표시"가 남던 결함. */
-  it('품절 굿즈는 고를 옵션이 없으니 가격으로 합계를 보인다', () => {
+  it('품절 상품은 고를 옵션이 없으니 가격으로 합계를 보인다', () => {
     const only = { id: 'only', name: '기본 옵션', price: 9000, stockQty: 0, code: 'ONLY', attributes: {}, isDefault: true };
     expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0, options: [only] }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }))
       .toEqual({ label: '총 금액', amount: '₩9,000', numeric: true });
@@ -268,7 +268,7 @@ describe('purchaseCtaState (PD-10 · DESIGN restock-cta)', () => {
   const multi = { ...good, options: [blue, red] };
   const base = { good: multi, unavailableLabel: null, soldOut: false, restockRequested: false, restockVariantIds: [] as string[] };
 
-  it('판매 불가 안내 → 굿즈 전체 품절(모든 옵션) → 고른 옵션만 품절(그 옵션) → 담기·구매 순이다', () => {
+  it('판매 불가 안내 → 상품 전체 품절(모든 옵션) → 고른 옵션만 품절(그 옵션) → 담기·구매 순이다', () => {
     expect(purchaseCtaState({ ...base, unavailableLabel: '판매 종료', soldOut: true, restockOption: red })).toEqual({ kind: 'unavailable', label: '판매 종료' });
     expect(purchaseCtaState({ ...base, soldOut: true, restockOption: red, restockRequested: true }))
       .toEqual({ kind: 'restock', variantId: null, optionName: null, requested: true });
@@ -285,13 +285,13 @@ describe('purchaseCtaState (PD-10 · DESIGN restock-cta)', () => {
 
 /* D5② — 랜덤 판매 굿즈의 재입고 신청은 DB(request_variant_restock_alert·request_restock_alert)가 굿즈 단위(variant_id null)로
    저장한다. 상세의 신청 상태·버튼도 굿즈 단위를 봐야 신청 뒤 '신청됨'이 그대로 보인다. */
-describe('랜덤 판매 굿즈 재입고 알림 상태', () => {
+describe('랜덤 판매 상품 재입고 알림 상태', () => {
   const key = '00000000-0000-4000-8000-0000000000b1';
-  const row = (poolQty: number) => ({ id: 'random-restock', ip_id: 'ip1', name: '랜덤 굿즈', type: '문구', price: 5000, compare_at_price: null,
+  const row = (poolQty: number) => ({ id: 'random-restock', ip_id: 'ip1', name: '랜덤 상품', type: '문구', price: 5000, compare_at_price: null,
     stock: poolQty > 0 ? 'ok' : 'soldout', stock_qty: poolQty, bg: '#fff', image_path: null, badge: null, option_sale_mode: 'random', goods_variants: [],
     random_option: { id: key, name: '랜덤', code: '', price: 5000, stock_qty: poolQty, is_default: true, attributes: {}, archived_at: null, sort_order: 0 } });
 
-  it('풀이 비면 굿즈 전체 품절로 보고 굿즈 단위 신청 상태를 쓴다', () => {
+  it('풀이 비면 상품 전체 품절로 보고 상품 단위 신청 상태를 쓴다', () => {
     const random = toGood(row(0) as unknown as GoodRow, () => '');
     expect(random.options).toEqual([expect.objectContaining({ id: key, stockQty: 0 })]);
     expect(isGoodSoldOut(random)).toBe(true);
@@ -384,7 +384,7 @@ describe('activeGalleryIndex', () => {
 
 describe('GoodPurchasePanel', () => {
   /* D5② — 랜덤 판매 굿즈는 옵션 선택기 대신 '랜덤'과 확정 안내를 보이고, 수량 최대는 풀 합계다. */
-  it('랜덤 판매 굿즈는 옵션 대신 랜덤과 무작위 배정 안내를 보인다', () => {
+  it('랜덤 판매 상품은 옵션 대신 랜덤과 무작위 배정 안내를 보인다', () => {
     const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
     const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,optionSaleMode:'random',options:[random]},selectedOption:random,quantity:6})} />);
     expect(html).not.toContain('<select');
@@ -394,7 +394,7 @@ describe('GoodPurchasePanel', () => {
   });
 
   /* 선물·정기배송(거래 런타임)은 랜덤 판매 굿즈를 주문하지 않는다 — 막다른 진입을 보이지 않는다. */
-  it('랜덤 판매 굿즈는 선물·정기배송 진입을 두지 않는다', () => {
+  it('랜덤 판매 상품은 선물·정기배송 진입을 두지 않는다', () => {
     const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true};
     const html = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={{ gift: true, subscription: true }}
       purchase={controller({good:{...good,optionSaleMode:'random',options:[random]},selectedOption:random})} />);
@@ -419,12 +419,12 @@ describe('GoodPurchasePanel', () => {
   });
 
   /* QA1 S-D2-09: 굿즈 주문당 최대 수량(옵션 합산)을 넘겨 3까지 올라가고 주문서에서야 막혔다 — 상세에서 멈추고 안내한다. */
-  it('굿즈 주문당 최대 수량도 스테퍼 상한이고 상세에서 안내한다', () => {
+  it('상품 주문당 최대 수량도 스테퍼 상한이고 상세에서 안내한다', () => {
     const options = [{id:'a',name:'A타입',price:8000,stockQty:20,code:'A',attributes:{},isDefault:true}];
     const capped = { ...good, options, orderQuantityLimitEnabled: true, minOrderQty: null, maxOrderQty: 2 };
     const atMax = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:capped,selectedOption:options[0],quantity:2})} />);
     expect(atMax).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
-    expect(atMax).toContain('같은 굿즈의 옵션을 합산하여 주문당 최대 2개까지 구매할 수 있습니다.');
+    expect(atMax).toContain('같은 상품의 옵션을 합산하여 주문당 최대 2개까지 구매할 수 있습니다.');
     const below = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:capped,selectedOption:options[0],quantity:1})} />);
     expect(below).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
     const unlimited = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...capped,orderQuantityLimitEnabled:false},selectedOption:options[0],quantity:2})} />);
@@ -433,7 +433,7 @@ describe('GoodPurchasePanel', () => {
   });
 
   /* T7 리뷰 RV-5: 추가 구성 굿즈도 본품과 같은 판매 방식·옵션별 제한 안내(확정 카피)를 보인다. */
-  it('추가 구성 굿즈가 랜덤 판매면 무작위 배정 안내를, 옵션별 제한이 있으면 고른 옵션의 안내를 보인다', () => {
+  it('추가 구성 상품이 랜덤 판매면 무작위 배정 안내를, 옵션별 제한이 있으면 고른 옵션의 안내를 보인다', () => {
     const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
     const randomGood: Good = { ...good, id: 'rnd', name: '랜덤 캔뱃지', optionSaleMode: 'random', options: [random] };
     const limitOptions = [
@@ -446,7 +446,7 @@ describe('GoodPurchasePanel', () => {
       { goodId: 'lim', name: limitedGood.name, good: limitedGood, selected: true, selectedOption: limitOptions[0], quantity: 1 },
     ];
     const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ additionalChoices })} />);
-    const section = html.slice(html.indexOf('aria-label="추가 구성 굿즈"'));
+    const section = html.slice(html.indexOf('aria-label="추가 구성 상품"'));
     expect(section).toContain('옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.');
     expect(section).toContain('&#x27;파랑&#x27;은 한 번에 2개까지 주문할 수 있습니다.');
     expect(section).toContain('&#x27;파랑&#x27;은 1인당 4개까지 구매할 수 있습니다.');
@@ -587,7 +587,7 @@ describe('GoodPurchasePanel', () => {
       additionalChoices: [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }],
       toggleAdditional: vi.fn(), selectAdditionalOption: vi.fn(), setAdditionalQuantity: vi.fn(),
     })} />);
-    expect(html).toContain('추가 구성 굿즈');
+    expect(html).toContain('추가 구성 상품');
     expect(html).toContain('(선택)');
     expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
     expect(html).toContain('추가 스티커 옵션');
@@ -609,7 +609,7 @@ describe('GoodPurchasePanel', () => {
         production: { version: 1, goodId: 'g14', revision: 1, leadDays: 3, dayBasis: 'business', closedDates: [], publicNote: '스티커는 주문 후 인쇄합니다.' } } };
     const engraved: Good = { ...good, options: [blue, red], customInputs: { enabled: true, revision: 1, fields: [{ id: 'engrave', name: '각인 문구', active: true }] } };
     const choices: AdditionalPurchaseChoice[] = [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }];
-    const NOTE = '품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션·추가 구성 굿즈는 판매 중인 옵션을 고르면 보여요.';
+    const NOTE = '품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션·추가 구성 상품은 판매 중인 옵션을 고르면 보여요.';
 
     it('고른 옵션만 품절이면 직접 입력·추가 구성(과 그 거래 조건)을 접고 판매 중인 옵션을 고르면 보인다고 알린다', () => {
       const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
@@ -619,7 +619,7 @@ describe('GoodPurchasePanel', () => {
 
       expect(html).not.toContain('직접 입력 옵션</legend>');
       expect(html).not.toContain('good-custom-g13-engrave');
-      expect(html).not.toContain('aria-label="추가 구성 굿즈"');
+      expect(html).not.toContain('aria-label="추가 구성 상품"');
       expect(html).not.toContain('스티커는 주문 후 인쇄합니다.');
       expect(html).toContain(`<p class="wc-buy-panel__state">${NOTE}</p>`);
       /* 안내는 셀렉트 바로 아래(예약판매 안내와 같은 자리)이고, 수량·합계·그 옵션의 재입고 CTA 는 그대로다. */
@@ -637,7 +637,7 @@ describe('GoodPurchasePanel', () => {
 
       expect(html).toContain('직접 입력 옵션</legend>');
       expect(html).toContain('value="적어 둔 문구"');
-      expect(html).toContain('aria-label="추가 구성 굿즈"');
+      expect(html).toContain('aria-label="추가 구성 상품"');
       expect(html).toContain('스티커는 주문 후 인쇄합니다.');
       expect(html).not.toContain('품절 옵션은 재입고 알림만');
     });
@@ -649,7 +649,7 @@ describe('GoodPurchasePanel', () => {
       })} />);
 
       expect(html).not.toContain('직접 입력 옵션</legend>');
-      expect(html).not.toContain('aria-label="추가 구성 굿즈"');
+      expect(html).not.toContain('aria-label="추가 구성 상품"');
       expect(html).not.toContain('품절 옵션은 재입고 알림만');
       expect(html).toContain('data-variant=""');
     });
@@ -660,8 +660,8 @@ describe('GoodPurchasePanel', () => {
 
       expect(foldedPurchaseInputsNote([])).toBeNull();
       expect(foldedPurchaseInputsNote(['직접 입력 옵션'])).toBe('품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션은 판매 중인 옵션을 고르면 보여요.');
-      expect(foldedPurchaseInputsNote(['추가 구성 굿즈'])).toBe('품절 옵션은 재입고 알림만 신청할 수 있어요. 추가 구성 굿즈는 판매 중인 옵션을 고르면 보여요.');
-      expect(foldedPurchaseInputsNote(['직접 입력 옵션', '추가 구성 굿즈'])).toBe(NOTE);
+      expect(foldedPurchaseInputsNote(['추가 구성 상품'])).toBe('품절 옵션은 재입고 알림만 신청할 수 있어요. 추가 구성 상품은 판매 중인 옵션을 고르면 보여요.');
+      expect(foldedPurchaseInputsNote(['직접 입력 옵션', '추가 구성 상품'])).toBe(NOTE);
     });
   });
 
@@ -688,34 +688,34 @@ const shipping = (methods: FulfillmentMethodTerms[], overrides: Partial<GoodsFul
   ({ goodId: good.id, revision: 1, mode: 'shipping', methods, files: [], publicNote: '', ...overrides });
 const shippingPolicy: GoodShippingPolicy = { originId: 'o1', originName: '김포', baseFee: 3000, freeThreshold: 40000, feeType: 'policy', individualFee: 0 };
 
-describe("'예상 굿즈 금액' 행 삭제 (MD-0039·0040)", () => {
+describe("'예상 상품 금액' 행 삭제 (MD-0039·0040)", () => {
   /* MD-0053(2026-11-23) — '현재 선택한 굿즈 기준이에요…' 구매 안내 문단도 지웠다. CTA 는 남는다. */
-  it('거래 조건이 있는 굿즈는 본문 패널에 합계 행(예상 굿즈 금액)과 구매 안내 문단이 없고 CTA 는 남는다', () => {
+  it('거래 조건이 있는 상품은 본문 패널에 합계 행(예상 상품 금액)과 구매 안내 문단이 없고 CTA 는 남는다', () => {
     const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: withOffer(), quantity: 2, subtotal: 24000 })} />);
-    expect(html).not.toContain('예상 굿즈 금액');
+    expect(html).not.toContain('예상 상품 금액');
     expect(html).not.toContain('wc-buy-panel__total');
     expect(html).not.toContain('₩24,000');
-    expect(html).not.toContain('현재 선택한 굿즈 기준이에요.');
+    expect(html).not.toContain('현재 선택한 상품 기준이에요.');
     expect(html).toContain('>장바구니<');
     expect(html).toContain('>구매하기<');
   });
 
-  it('거래 조건이 있는 굿즈는 데스크톱 레일 박스에도 합계 행이 없고 박스는 버튼만 남는다', () => {
+  it('거래 조건이 있는 상품은 데스크톱 레일 박스에도 합계 행이 없고 박스는 버튼만 남는다', () => {
     const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: withOffer(), quantity: 2, subtotal: 24000 })} />);
-    expect(html).not.toContain('예상 굿즈 금액');
+    expect(html).not.toContain('예상 상품 금액');
     expect(html).not.toContain('wc-pdp-railbox__total');
     expect(html).not.toContain('wc-pdp-railbox__amount');
     expect(html).toContain('<section aria-label="빠른 구매" class="wc-pdp-railbox wc-pdp-railbox--no-total">');
     expect(html).toContain('<button class="wc-pdp-railbox__buy" type="button">구매하기</button>');
   });
 
-  it('판매 불가는 어느 쪽에도 판매 상태 행이 남고, 거래 조건이 없는 굿즈는 총 금액 행이 남는다', () => {
+  it('판매 불가는 어느 쪽에도 판매 상태 행이 남고, 거래 조건이 없는 상품은 총 금액 행이 남는다', () => {
     const unavailable = controller({ good: withOffer(), unavailableLabel: '판매 예정' });
     const panel = renderToStaticMarkup(<GoodPurchasePanel purchase={unavailable} />);
     const rail = renderToStaticMarkup(<GoodRailBuyBox purchase={unavailable} />);
     for (const html of [panel, rail]) {
       expect(html).toContain('판매 상태');
-      expect(html).not.toContain('예상 굿즈 금액');
+      expect(html).not.toContain('예상 상품 금액');
     }
     expect(rail).toContain('<section aria-label="빠른 구매" class="wc-pdp-railbox">');
 
@@ -777,7 +777,7 @@ describe('택배 배송 안내 (MD-0041)', () => {
     expect(html).toContain('도서산간 지역은 추가 비용이 발생할 수 있습니다.');
   });
 
-  it('굿즈별 배송비 조건이 있으면 같은 패널의 거래 조건이 말하므로 배송비 행을 한 번 더 두지 않는다', () => {
+  it('상품별 배송비 조건이 있으면 같은 패널의 거래 조건이 말하므로 배송비 행을 한 번 더 두지 않는다', () => {
     const delivery = { status: 'active', paymentMode: 'prepaid', quantityTerms: null } as unknown as GoodsTransactionOffer['delivery'];
     const html = panel(shipping([parcelTerms('parcel')]), shippingPolicy, { delivery });
     expect(html).not.toContain('<dt>배송비</dt>');
@@ -790,14 +790,14 @@ describe('택배 배송 안내 (MD-0041)', () => {
     expect(html).toContain('<dt>배송국가</dt>');
   });
 
-  it('택배가 없는 굿즈는 제공 방식 줄 그대로다', () => {
+  it('택배가 없는 상품은 제공 방식 줄 그대로다', () => {
     const html = panel(shipping([parcelTerms('pickup')]));
     expect(html).toContain('<p>제공 방식: 방문수령</p>');
     expect(html).not.toContain('wc-buy-panel__shipping');
     expect(html).not.toContain('도서산간');
   });
 
-  it('디지털 굿즈는 제공 방식·공개 안내·파일 제공 안내 그대로이고 택배 블록이 없다', () => {
+  it('디지털 상품은 제공 방식·공개 안내·파일 제공 안내 그대로이고 택배 블록이 없다', () => {
     const html = panel(shipping([parcelTerms('digital')], { mode: 'digital', publicNote: '구매 후 바로 받아요.' }));
     expect(html).toContain('<p>제공 방식: 디지털 파일 다운로드</p>');
     expect(html).toContain('<p>구매 후 바로 받아요.</p>');

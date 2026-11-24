@@ -105,7 +105,7 @@ describe('푸터 숨김 범위', () => {
 });
 
 describe('White Catalog 내비게이션 경로', () => {
-  it('카탈로그 진입 표면을 굿즈샵 하위 경로로 건다', () => {
+  it('카탈로그 진입 표면을 쇼핑 하위 경로로 건다', () => {
     expect(hrefFor('new')).toBe('/shop/new');
     expect(hrefFor('best')).toBe('/shop/best');
   });
@@ -241,11 +241,11 @@ describe('푸터·메뉴 경로 등록 계약', () => {
 });
 
 describe('isGoodDetailPath', () => {
-  it.each(['/shop/g3', '/shop/demo-rilakkuma-keycap-trio', '/shop/newbie', '/shop/best-seller'])('%s는 굿즈 상세다', (pathname) => {
+  it.each(['/shop/g3', '/shop/demo-rilakkuma-keycap-trio', '/shop/newbie', '/shop/best-seller'])('%s는 상품 상세다', (pathname) => {
     expect(isGoodDetailPath(pathname)).toBe(true);
   });
 
-  it.each(['/shop', '/shop/', '/shop/new', '/shop/best', '/shop/g3/reviews', '/shops/g3', '/'])('%s는 굿즈 상세가 아니다', (pathname) => {
+  it.each(['/shop', '/shop/', '/shop/new', '/shop/best', '/shop/g3/reviews', '/shops/g3', '/'])('%s는 상품 상세가 아니다', (pathname) => {
     expect(isGoodDetailPath(pathname)).toBe(false);
   });
 });
@@ -277,7 +277,7 @@ describe('activeNavId', () => {
   });
 
   /* CH-12: 굿즈 상세는 어떤 1차 내비의 목록도 아니다 — '/shop' 접두가 맞아도 카테고리를 켜지 않는다(레퍼런스 실측). */
-  it('굿즈 상세에서는 아무 항목도 고르지 않는다', () => {
+  it('상품 상세에서는 아무 항목도 고르지 않는다', () => {
     expect(activeNavId('/shop/g3')).toBeNull();
     expect(activeNavId('/shop/g3', MOB_ITEMS)).toBeNull();
     expect(activeNavId('/shop/new')).toBe('new');

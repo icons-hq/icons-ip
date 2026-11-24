@@ -72,7 +72,7 @@ export const NAV_ACTIVE_ALIASES: Record<string, readonly string[]> = {
    'menu'만 라우트가 없는 액션 탭이라 링크가 아니라 전체 메뉴 시트를 연다. */
 export const MOB_ITEMS: NavItem[] = [
   { id: 'menu', label: '메뉴' },
-  { id: 'shop', label: '굿즈샵' },
+  { id: 'shop', label: '쇼핑' },
   { id: 'home', label: '홈' },
   { id: 'wish', label: '위시' },
   { id: 'my', label: '마이' },
@@ -261,8 +261,8 @@ export const ADMIN_CONSOLE_LABEL = '관리자 페이지';
 /* 카테고리 메가메뉴의 기존 그룹 — 고객 카테고리 공개 스위치가 꺼졌거나 공개 전시분류가 없을 때의 폴백이다.
    공개 전시 트리가 있으면 메가메뉴는 첫 그룹(굿즈샵)만 바로가기로 남기고 기획전·전시분류 그룹을 잇는다(L5, Nav.tsx). */
 export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
-  { heading: '굿즈샵', items: [
-    { id: 'shop', label: '전체 굿즈' },
+  { heading: '쇼핑', items: [
+    { id: 'shop', label: '전체 상품' },
     { id: 'new', label: 'NEW' },
     { id: 'best', label: 'BEST' },
   ] },
@@ -271,7 +271,7 @@ export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
 /* 모바일 카테고리 시트의 아이콘 바로가기(레퍼런스 '스퀘어 픽' 자리, MC-05 ①) — 스토어 목적지만 둔다.
    운영 메뉴 설정의 이름·노출·순서를 메가메뉴 링크와 같은 규칙으로 따른다(lib/store-navigation.ts configuredNavigationGroups). */
 export const CATEGORY_SHEET_SHORTCUTS: NavGroup = { heading: '바로가기', items: [
-  { id: 'shop', label: '전체 굿즈' },
+  { id: 'shop', label: '전체 상품' },
   { id: 'new', label: 'NEW' },
   { id: 'best', label: 'BEST' },
   { id: 'events', label: '이벤트' },
@@ -287,7 +287,7 @@ export function campaignDetailHref(id: string): string {
    없으면(공개 스위치 OFF·전시 없음) 이 시트를 연다(L5 폴백). */
 export const MENU_SHEET_GROUPS: NavGroup[] = visibleGroups([
   { heading: '쇼핑', items: [
-    { id: 'shop', label: '전체 굿즈' },
+    { id: 'shop', label: '전체 상품' },
     { id: 'new', label: 'NEW' },
     { id: 'best', label: 'BEST' },
   ] },

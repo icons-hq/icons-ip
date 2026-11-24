@@ -82,7 +82,7 @@ describe('CouponPicker — 표시', () => {
 
   it('주문서에서 배송비 쿠폰을 고르는 계약(거래 런타임)이면 장바구니는 그 사실을 안내한다', () => {
     const markup = html({ surface: 'cart', shippingCouponsAtCheckout: true });
-    expect(markup).toContain('굿즈 쿠폰을 미리 선택할 수 있어요. 중복 적용과 배송비 쿠폰은 주문서에서 확인해주세요.');
+    expect(markup).toContain('상품 쿠폰을 미리 선택할 수 있어요. 중복 적용과 배송비 쿠폰은 주문서에서 확인해주세요.');
   });
 
   it('쓸 수 있는 쿠폰이 없으면 select 대신 안내하고 코드 입력은 남긴다', () => {
@@ -111,7 +111,7 @@ describe('CouponPicker — 표시', () => {
   it('적용한 쿠폰이 최소 주문 금액에 못 미치면 금액과 함께 알린다', () => {
     const markup = html({ couponState: state([fix5k], fix5k.id), appliedCoupon: fix5k,
       quote: { userCouponId: fix5k.id, couponCode: 'CPNFIX5K', eligibleSubtotal: 12000, discount: 0, reason: 'coupon_min_subtotal' } });
-    expect(markup).toContain('쿠폰 대상 굿즈 금액이 최소 주문 금액(₩20,000)에 못 미쳐 지금은 할인이 적용되지 않아요.');
+    expect(markup).toContain('쿠폰 대상 상품 금액이 최소 주문 금액(₩20,000)에 못 미쳐 지금은 할인이 적용되지 않아요.');
     expect(markup).toContain(`<option value="${fix5k.id}" selected="">`);
     expect(markup).toContain('적용 해제');
   });
@@ -125,7 +125,7 @@ describe('CouponPicker — 표시', () => {
   /* 만료·대상 없음 같은 사유에서 견적은 eligibleSubtotal 을 0으로 준다 — 최소 금액이 있는 쿠폰이라도 금액 미달로 안내하면 안 된다. */
   it.each([
     ['coupon_expired', '사용 기간이 지난 쿠폰이에요.'],
-    ['coupon_no_eligible_goods', '쿠폰 대상 굿즈를 담으면 사용할 수 있어요.'],
+    ['coupon_no_eligible_goods', '쿠폰 대상 상품을 담으면 사용할 수 있어요.'],
     ['coupon_not_started', '아직 사용 기간이 시작되지 않은 쿠폰이에요.'],
   ])('최소 주문 금액이 있는 쿠폰도 견적 사유(%s)대로 알린다', (reason, copy) => {
     const markup = html({ couponState: state([fix5k], fix5k.id), appliedCoupon: fix5k,
@@ -134,10 +134,10 @@ describe('CouponPicker — 표시', () => {
     expect(markup).not.toContain('최소 주문 금액');
   });
 
-  it('대상 굿즈가 없으면 그 사유를 쿠폰 칸에서 알린다', () => {
+  it('대상 상품이 없으면 그 사유를 쿠폰 칸에서 알린다', () => {
     const markup = html({ couponState: state([fix5k], fix5k.id), appliedCoupon: { ...fix5k, coupon: { ...fix5k.coupon, minSubtotal: 0 } },
       quote: { userCouponId: fix5k.id, couponCode: 'CPNFIX5K', eligibleSubtotal: 0, discount: 0, reason: 'coupon_no_eligible_goods' } });
-    expect(markup).toContain('쿠폰 대상 굿즈를 담으면 사용할 수 있어요.');
+    expect(markup).toContain('쿠폰 대상 상품을 담으면 사용할 수 있어요.');
   });
 
   /* QA1 S-D2-08: 결제 대기 주문이 잡은 쿠폰도 고를 수 있고, 무엇이 닫히는지와 그 주문으로 가는 길을 함께 보인다. */

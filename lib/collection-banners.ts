@@ -36,7 +36,7 @@ export function collectionBannerDisplayLimit(slot: CollectionBannerSlot): number
 }
 
 export const COLLECTION_BANNER_SLOT_LABELS: Record<CollectionBannerSlot, string> = {
-  all: '굿즈샵 전체(슬라이드)',
+  all: '전체 상품(슬라이드)',
   best: 'BEST',
   new: 'NEW',
 };

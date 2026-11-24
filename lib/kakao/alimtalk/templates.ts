@@ -36,24 +36,24 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkTemplateName, AlimtalkTemplateDr
       '결제가 확인되어 배송 준비를 시작합니다.',
       '',
       '■ 주문번호: #{주문번호}',
-      '■ 주문 굿즈: #{굿즈명}',
+      '■ 주문 상품: #{상품명}',
       '■ 결제금액: #{결제금액}원',
       '',
-      '굿즈가 발송되면 다시 알려 드릴게요.',
+      '상품이 발송되면 다시 알려 드릴게요.',
     ].join('\n'),
     buttons: [{ type: 'WL', name: '주문 상세 보기', linkMo: ORDER_LINK, linkPc: ORDER_LINK }],
-    variables: ['주문번호', '굿즈명', '결제금액', '주문ID'],
+    variables: ['주문번호', '상품명', '결제금액', '주문ID'],
   },
   order_shipped: {
     suggestedCode: 'XSQ_ORDER_SHIPPED',
-    name: '굿즈 발송 안내',
+    name: '상품 발송 안내',
     body: [
-      '[X SQUARE] 굿즈 발송 안내',
+      '[X SQUARE] 상품 발송 안내',
       '',
-      '주문하신 굿즈가 발송됐어요.',
+      '주문하신 상품이 발송됐어요.',
       '',
       '■ 주문번호: #{주문번호}',
-      '■ 발송 굿즈: #{굿즈명}',
+      '■ 발송 상품: #{상품명}',
       '■ 택배사: #{택배사}',
       '■ 송장번호: #{송장번호}',
       '',
@@ -63,17 +63,17 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkTemplateName, AlimtalkTemplateDr
       { type: 'DS', name: '배송 조회' },
       { type: 'WL', name: '주문 상세 보기', linkMo: ORDER_LINK, linkPc: ORDER_LINK },
     ],
-    variables: ['주문번호', '굿즈명', '택배사', '송장번호', '주문ID'],
+    variables: ['주문번호', '상품명', '택배사', '송장번호', '주문ID'],
   },
 };
 
-/** 굿즈명 변수 한 칸의 최대 길이. 넘치면 말줄임한다(본문이 휴대폰 한 화면 안에 들게). */
+/** 상품명 변수 한 칸의 최대 길이. 넘치면 말줄임한다(본문이 휴대폰 한 화면 안에 들게). */
 export const ALIMTALK_ITEM_SUMMARY_MAX = 40;
 
-/** '첫 굿즈 외 N건'. 이름이 길면 말줄임하되 '외 N건'은 남긴다. */
+/** '첫 상품 외 N건'. 이름이 길면 말줄임하되 '외 N건'은 남긴다. */
 export function alimtalkItemSummary(names: readonly string[]): string {
   const cleaned = names.map((name) => name.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  if (!cleaned.length) return '주문 굿즈';
+  if (!cleaned.length) return '주문 상품';
   const suffix = cleaned.length > 1 ? ` 외 ${cleaned.length - 1}건` : '';
   const room = ALIMTALK_ITEM_SUMMARY_MAX - suffix.length;
   const first = [...cleaned[0]];
@@ -93,7 +93,7 @@ export function orderConfirmationParameters(input: {
 }): Record<string, string> {
   return {
     주문번호: input.orderReference,
-    굿즈명: alimtalkItemSummary(input.itemNames),
+    상품명: alimtalkItemSummary(input.itemNames),
     결제금액: alimtalkAmount(input.total),
     주문ID: input.orderId,
   };
@@ -108,7 +108,7 @@ export function orderShippedParameters(input: {
 }): Record<string, string> {
   return {
     주문번호: input.orderReference,
-    굿즈명: alimtalkItemSummary(input.itemNames),
+    상품명: alimtalkItemSummary(input.itemNames),
     택배사: input.carrierLabel.trim(),
     송장번호: input.trackingNumber.trim(),
     주문ID: input.orderId,

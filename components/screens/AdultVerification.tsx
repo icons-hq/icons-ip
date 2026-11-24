@@ -83,7 +83,7 @@ function StatusPanel({ status }: { status: AdultVerificationStatus }) {
         <p className="wc-adult-status__badge">인증 완료</p>
         <h2 className="wc-adult-status__title">성인 인증이 완료된 계정이에요</h2>
         <p className="wc-adult-status__body">
-          {formatAdultVerificationDate(status.expiresAt)}까지 19금 굿즈를 보고 구매할 수 있어요.
+          {formatAdultVerificationDate(status.expiresAt)}까지 19금 상품을 보고 구매할 수 있어요.
         </p>
       </section>
     );
@@ -115,7 +115,7 @@ function StatusPanel({ status }: { status: AdultVerificationStatus }) {
     <section aria-label="성인 인증 상태" className="wc-adult-status">
       <h2 className="wc-adult-status__title">성인 인증이 필요해요</h2>
       <p className="wc-adult-status__body">
-        19금 굿즈는 휴대폰 본인확인으로 성인 인증을 마친 회원만 보고 구매할 수 있어요.
+        19금 상품은 휴대폰 본인확인으로 성인 인증을 마친 회원만 보고 구매할 수 있어요.
       </p>
     </section>
   );

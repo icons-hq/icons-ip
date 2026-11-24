@@ -60,7 +60,7 @@ const UNAVAILABLE_COPY = '보유 쿠폰을 불러오지 못했습니다. 새로�
 function couponDescription(surface: CouponPickerSurface, shippingCouponsAtCheckout: boolean): string {
   if (surface === 'checkout') return '장바구니에서 고른 쿠폰이 이어져요. 바꾸면 결제 금액을 다시 계산해요.';
   return shippingCouponsAtCheckout
-    ? '굿즈 쿠폰을 미리 선택할 수 있어요. 중복 적용과 배송비 쿠폰은 주문서에서 확인해주세요.'
+    ? '상품 쿠폰을 미리 선택할 수 있어요. 중복 적용과 배송비 쿠폰은 주문서에서 확인해주세요.'
     : '보유 쿠폰 1장을 고르거나 코드를 입력해주세요. 주문서에서도 바꿀 수 있어요.';
 }
 
@@ -71,7 +71,7 @@ function quoteNotice(applied: UserCouponSummary | null, quote: CouponQuote | nul
   if (!applied || !quote || quote.userCouponId !== applied.id || !quote.reason) return null;
   if (couponErrorNeedsPendingOrder(quote.reason)) return null;
   if (quote.reason === 'coupon_min_subtotal' && applied.coupon.minSubtotal > 0) {
-    return `쿠폰 대상 굿즈 금액이 최소 주문 금액(${krw(applied.coupon.minSubtotal)})에 못 미쳐 지금은 할인이 적용되지 않아요.`;
+    return `쿠폰 대상 상품 금액이 최소 주문 금액(${krw(applied.coupon.minSubtotal)})에 못 미쳐 지금은 할인이 적용되지 않아요.`;
   }
   return mapCouponActionError(quote.reason);
 }

@@ -23,7 +23,7 @@ import {
  */
 
 const SLOT_LABELS: Record<CollectionBannerSlot, string> = {
-  all: '굿즈샵 배너',
+  all: '전체 상품 배너',
   best: 'BEST 배너',
   new: 'NEW 배너',
 };

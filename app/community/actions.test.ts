@@ -811,7 +811,7 @@ describe('커뮤니티 임시 비공개', () => {
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
 
-    it('굿즈 리뷰 신고는 스위치와 무관하게 그대로 접수된다', async () => {
+    it('상품 리뷰 신고는 스위치와 무관하게 그대로 접수된다', async () => {
       mocks.rpc.mockResolvedValue({ data: null, error: null });
 
       const formData = new FormData();

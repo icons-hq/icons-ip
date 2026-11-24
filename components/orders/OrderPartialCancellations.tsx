@@ -37,14 +37,14 @@ export function OrderPartialCancellations({ records }: { records: readonly Order
       {stockout.length ? (
         <section aria-labelledby="order-partial-cancellation-heading" className="order-claim-type-history" data-order-partial-cancellations={stockout.length}>
           <h3 id="order-partial-cancellation-heading">일부 취소</h3>
-          <p>재고가 부족해 고객님과 확인한 대로 일부 굿즈를 취소했어요. 나머지 굿즈는 그대로 보내드려요.</p>
+          <p>재고가 부족해 고객님과 확인한 대로 일부 상품을 취소했어요. 나머지 상품은 그대로 보내드려요.</p>
           <RecordList records={stockout} />
         </section>
       ) : null}
       {returns.length ? (
         <section aria-labelledby="order-partial-return-heading" className="order-claim-type-history" data-order-partial-returns={returns.length}>
           <h3 id="order-partial-return-heading">일부 반품</h3>
-          <p>반품하신 굿즈의 확인을 마치고 그 몫을 환불했어요. 나머지 굿즈는 그대로 유지돼요.</p>
+          <p>반품하신 상품의 확인을 마치고 그 몫을 환불했어요. 나머지 상품은 그대로 유지돼요.</p>
           <RecordList records={returns} />
         </section>
       ) : null}

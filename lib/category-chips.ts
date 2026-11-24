@@ -10,7 +10,7 @@ import type { StorefrontCategoryNode } from './storefront-mega-menu';
 /** 칩 1줄에 '전체' 칩과 함께 놓는 1단계 노드 수. 나머지는 구분선 아래 2줄이다(해석 D7 — 운영자가 트리 순서로 줄을 정한다). */
 export const CATEGORY_CHIP_FIRST_ROW_COUNT = 4;
 export const CATEGORY_ALL_CHIP_LABEL = '전체';
-export const CATEGORY_ALL_TITLE = '전체 굿즈';
+export const CATEGORY_ALL_TITLE = '전체 상품';
 export const CATEGORY_ALL_HREF = '/shop';
 
 export interface CategoryChip {

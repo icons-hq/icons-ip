@@ -12,7 +12,7 @@ describe('WcButton', () => {
   });
 
   it('renders an anchor when a href is given', () => {
-    const html = renderToStaticMarkup(<WcButton href="/shop">굿즈샵</WcButton>);
+    const html = renderToStaticMarkup(<WcButton href="/shop">쇼핑</WcButton>);
 
     expect(html).toContain('<a ');
     expect(html).toContain('href="/shop"');
@@ -22,7 +22,7 @@ describe('WcButton', () => {
   /* 링크에는 disabled 속성이 없다. <a>로 두면 회색으로 보여도 키보드·스크린리더는 그대로
      따라갈 수 있어, 비활성 링크는 아예 링크가 아니어야 한다. */
   it('degrades a disabled link to a non-navigable span', () => {
-    const html = renderToStaticMarkup(<WcButton disabled href="/shop">굿즈샵</WcButton>);
+    const html = renderToStaticMarkup(<WcButton disabled href="/shop">쇼핑</WcButton>);
 
     expect(html).not.toContain('<a ');
     expect(html).not.toContain('href=');

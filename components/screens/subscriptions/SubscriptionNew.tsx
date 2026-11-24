@@ -39,21 +39,21 @@ export function SubscriptionNew({ actorId, goods, offers, coupons, canEnroll, in
     const [unit, interval] = nextOffer.intervals[0].split('_'); setSchedule(previous => ({ ...previous, unit: unit as 'month' | 'week', interval: Number(interval), monthEnd: false }));
   }
   return <MypageShell active={routes.subscriptions()}><div className="wc-subscriptions"><header><Link href={routes.subscriptions()}>정기구매 내역</Link><h1>정기배송 신청</h1>
-    <p>굿즈와 배송 주기를 정하고 첫 결제와 이후 결제 금액을 확인해 주세요.</p></header>
+    <p>상품과 배송 주기를 정하고 첫 결제와 이후 결제 금액을 확인해 주세요.</p></header>
     {!canEnroll ? <section className="wc-subscriptions__card"><h2>지금은 새 정기구매를 신청할 수 없어요</h2><p>기존 정기구매와 결제카드는 내역에서 관리할 수 있습니다.</p></section>
-      : !eligible.length ? <section className="wc-subscriptions__card"><h2>신청 가능한 굿즈가 없습니다</h2><Link href="/shop">굿즈 둘러보기</Link></section>
+      : !eligible.length ? <section className="wc-subscriptions__card"><h2>신청 가능한 상품이 없습니다</h2><Link href="/shop">상품 둘러보기</Link></section>
         : !request.blocked && <form className="wc-subscriptions__card" onSubmit={event => {
           event.preventDefault(); setError(''); if (!good || !offer) return;
           const selected = prepareGoodsCustomInputSelection(good.customInputs, custom); if (!selected.ok) { setError(selected.error); return; }
           const quantity = Number(qty), creditAmount = Number(credit);
-          if (!Number.isSafeInteger(quantity) || quantity < 1 || !Number.isSafeInteger(creditAmount) || creditAmount < 0) { setError('수량과 적립금은 0 이상의 정수로 입력해주세요. 굿즈는 1개 이상 선택해야 합니다.'); return; }
-          const interval = `${schedule.unit}_${schedule.interval}`; if (!offer.intervals.some(value => value === interval)) { setError('이 굿즈에서 제공하는 배송 주기를 선택해주세요.'); return; }
+          if (!Number.isSafeInteger(quantity) || quantity < 1 || !Number.isSafeInteger(creditAmount) || creditAmount < 0) { setError('수량과 적립금은 0 이상의 정수로 입력해주세요. 상품은 1개 이상 선택해야 합니다.'); return; }
+          const interval = `${schedule.unit}_${schedule.interval}`; if (!offer.intervals.some(value => value === interval)) { setError('이 상품에서 제공하는 배송 주기를 선택해주세요.'); return; }
           const input = { expectedActorId: actorId, operationId: crypto.randomUUID(), selection: [{ goodId, variantId, qty: quantity,
             inputRevision: selected.selection?.revision ?? 0, inputValues: goodsCustomInputValues(selected.selection) }], address,
             schedule: { ...schedule, anchorDate: kstToday() }, deliveryChoices: good.transactionOffer?.delivery?.paymentMode === 'buyer_choice' ? { [goodId]: delivery } : {}, userCouponId: coupon || null, storeCreditAmount: creditAmount };
           request.run(() => prepareGoodsSubscriptionAction(input), plan => { setCreated(true); router.push(routes.subscription(plan.id)); });
-        }}><fieldset disabled={request.locked}><legend>굿즈와 배송 정보</legend>
-          <label>정기배송 굿즈<select value={goodId} onChange={event => selectGood(event.target.value)}>{eligible.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        }}><fieldset disabled={request.locked}><legend>상품과 배송 정보</legend>
+          <label>정기배송 상품<select value={goodId} onChange={event => selectGood(event.target.value)}>{eligible.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <div className="wc-subscriptions__fields"><label>옵션<select value={variantId} onChange={event => setVariantId(event.target.value)} required>{good?.options?.map(option => <option key={option.id} value={option.id} disabled={option.supply?.mode === 'preorder'}>{option.name}</option>)}</select></label>
             <label>회차별 수량<input type="number" min={good?.minOrderQty ?? 1} max={good?.maxOrderQty ?? undefined} step={1} value={qty} required onChange={event => setQty(event.target.value)} /></label></div>
           {good && <GoodsCustomInputsFields goodId={good.id} config={good.customInputs} values={custom} onChange={(id, value) => setCustom(previous => ({ ...previous, [id]: value }))} />}

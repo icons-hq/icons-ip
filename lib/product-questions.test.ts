@@ -81,7 +81,7 @@ describe('normalizeProductQuestionForm', () => {
     return formData;
   }
 
-  it('앞뒤 공백을 지우고 굿즈와 본문을 넘긴다', () => {
+  it('앞뒤 공백을 지우고 상품과 본문을 넘긴다', () => {
     const result = normalizeProductQuestionForm(formOf({ goodId: ' g13 ', body: '  재입고 예정이 있나요?  ' }));
 
     expect(result).toEqual({ ok: true, value: { goodId: 'g13', body: '재입고 예정이 있나요?', isSecret: false } });
@@ -96,14 +96,14 @@ describe('normalizeProductQuestionForm', () => {
     expect(blank.ok && blank.value.isSecret).toBe(false);
   });
 
-  it('빈 본문과 굿즈 없는 제출을 막는다', () => {
+  it('빈 본문과 상품 없는 제출을 막는다', () => {
     const blank = normalizeProductQuestionForm(formOf({ goodId: 'g13', body: '   ' }));
     expect(blank.ok).toBe(false);
     expect(blank.ok === false && blank.errors.body).toBe('질문 내용을 입력해주세요.');
 
     const noGood = normalizeProductQuestionForm(formOf({ body: '질문' }));
     expect(noGood.ok).toBe(false);
-    expect(noGood.ok === false && noGood.errors.form).toContain('굿즈를 찾을 수 없습니다');
+    expect(noGood.ok === false && noGood.errors.form).toContain('상품을 찾을 수 없습니다');
   });
 
   /* DB의 CHECK 상한과 같은 경계여야 한다 — 한쪽만 넓히면 화면은 통과시키는데

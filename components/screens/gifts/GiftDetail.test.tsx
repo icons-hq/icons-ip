@@ -54,7 +54,7 @@ describe('선물 받는 분의 방문 회수 안내', () => {
     renderToStaticMarkup(<GiftDetail actorId={actorId} coupons={[]} initialClaimContext={context(stage)} returnPickup={returnPickup} initialGift={gift('recipient', {})} />);
   it('모두 방문 회수면 방문 회수 문장을 보인다', () => {
     const html = render('collecting', { pickupBundles: 2, directBundles: 0 });
-    expect(html).toContain('택배 기사가 방문해 굿즈를 회수합니다');
+    expect(html).toContain('택배 기사가 방문해 상품을 회수합니다');
     expect(html).not.toContain('회수 송장이 없는 묶음은');
   });
   it('섞이면 직접 보낼 묶음 안내를 더하고, 방문 회수 묶음이 없거나 수거 단계가 아니면 문장이 없다', () => {
@@ -76,7 +76,7 @@ describe('선물 결제 품목의 청약철회·교환 제한 고지', () => {
   const render = (claimRestrictions?: Record<string, { goodId: string; returnAllowed: boolean | null; exchangeAllowed: boolean | null; reason: string }> | null) =>
     renderToStaticMarkup(<GiftDetail actorId={actorId} coupons={[]} initialClaimContext={null} initialGift={payable()} claimRestrictions={claimRestrictions} />);
 
-  it('제한 굿즈 줄에만 사유와 반품·교환 구분을 보인다', () => {
+  it('제한 상품 줄에만 사유와 반품·교환 구분을 보인다', () => {
     const html = render(restrictions);
     expect(html).toContain('청약철회·교환 제한 — 각인 주문 제작');
     expect(html).toContain('교환 제한 · 청약철회 가능 — 교환 불가 사유');

@@ -100,7 +100,7 @@ afterEach(() => {
 });
 
 describe('loadOrderLineViews', () => {
-  it('굿즈·IP·거래 영수증을 읽어 썸네일·IP명·구매가/정가를 붙인다', async () => {
+  it('상품·IP·거래 영수증을 읽어 썸네일·IP명·구매가/정가를 붙인다', async () => {
     const { client, calls } = fakeClient();
     const lines = (await loadOrderLineViews(client, [order()])).get(transactionOrder);
     expect(lines).toEqual([{
@@ -131,14 +131,14 @@ describe('loadOrderLineViews', () => {
     expect(calls.receipts).toEqual([]);
   });
 
-  it('굿즈 읽기가 오류여도 던지지 않고 스냅샷 이름·수량·단가의 줄을 돌려준다', async () => {
+  it('상품 읽기가 오류여도 던지지 않고 스냅샷 이름·수량·단가의 줄을 돌려준다', async () => {
     const { client } = fakeClient({ goods: { data: null, error: { message: 'boom', code: '42501' } } });
     const lines = (await loadOrderLineViews(client, [order()])).get(transactionOrder);
     expect(lines).toMatchObject([{ name: '아크릴 스탠드', optionName: '파랑', qty: 2, ipName: null, thumbnail: null, adultMasked: false, purchaseAmount: 18000, regularAmount: 20000 }]);
     expect(errorSpy).toHaveBeenCalledWith('[orders] line enrichment failed', 'goods:42501');
   });
 
-  it('굿즈 읽기가 거절돼도(reject) 던지지 않는다', async () => {
+  it('상품 읽기가 거절돼도(reject) 던지지 않는다', async () => {
     const { client } = fakeClient({ goods: () => { throw new Error('network'); } });
     const lines = (await loadOrderLineViews(client, [order()])).get(transactionOrder);
     expect(lines).toMatchObject([{ name: '아크릴 스탠드', thumbnail: null }]);
@@ -171,7 +171,7 @@ describe('loadOrderLineViews', () => {
     expect((await loadOrderLineViews(client, [order()])).get(transactionOrder)?.[0]).toMatchObject({ purchaseAmount: 20000, regularAmount: null });
   });
 
-  it('성인 인증 확인이 실패하면 19금 굿즈를 가림 상태로 접는다', async () => {
+  it('성인 인증 확인이 실패하면 19금 상품을 가림 상태로 접는다', async () => {
     mocks.adult.mockRejectedValue(Object.assign(new Error('boom'), { code: 'X' }));
     const { client } = fakeClient({ goods: { data: [goodRow({ sale_restriction: 'adult' })], error: null } });
     const lines = (await loadOrderLineViews(client, [order()])).get(transactionOrder);
@@ -179,13 +179,13 @@ describe('loadOrderLineViews', () => {
     expect(errorSpy).toHaveBeenCalledWith('[orders] line enrichment failed', 'adult:X');
   });
 
-  it.each(['hidden', 'masked'] as const)('19금 굿즈는 성인 인증 전(%s)에 이미지를 비운다', async (access) => {
+  it.each(['hidden', 'masked'] as const)('19금 상품은 성인 인증 전(%s)에 이미지를 비운다', async (access) => {
     mocks.adult.mockResolvedValue(access);
     const { client } = fakeClient({ goods: { data: [goodRow({ sale_restriction: 'adult' })], error: null } });
     expect((await loadOrderLineViews(client, [order()])).get(transactionOrder)?.[0]).toMatchObject({ adultMasked: true, thumbnail: null });
   });
 
-  it('굿즈를 못 읽은 상태에서는 인증 전 회원에게 품목 자체 이미지 경로도 쓰지 않는다', async () => {
+  it('상품을 못 읽은 상태에서는 인증 전 회원에게 품목 자체 이미지 경로도 쓰지 않는다', async () => {
     mocks.adult.mockResolvedValue('masked');
     const { client } = fakeClient({ goods: { data: null, error: { message: 'boom', code: 'X' } } });
     const input = order({ tryReceipt: false, items: [{ ...order().items[0], imagePath: 'gift/own.webp' }] });
@@ -249,7 +249,7 @@ describe('loadOrderLineViews', () => {
         { data: [second], count: 1, error: null },
         { data: [], count: 0, error: null },
       ] });
-      const orders = Array.from({ length: 1001 }, (_, index) => displayOrder({ orderId: `order-${index}`, items: [{ key: `k${index}`, lineId: `line-${index}`, goodId: GOOD, name: '굿즈', optionName: null, qty: 2, unitPrice: 100 }] }));
+      const orders = Array.from({ length: 1001 }, (_, index) => displayOrder({ orderId: `order-${index}`, items: [{ key: `k${index}`, lineId: `line-${index}`, goodId: GOOD, name: '상품', optionName: null, qty: 2, unitPrice: 100 }] }));
       await loadOrderLineViews(client, orders);
       expect(calls.display.map((call) => call.orderIds.length)).toEqual([1000, 1000, 1]);
       /* 두 번째 호출은 첫 페이지의 마지막 id 뒤부터 이어 읽는다. */
@@ -285,9 +285,9 @@ describe('loadOrderLineViews', () => {
     });
   });
 
-  it('굿즈 id는 1000개씩 나눠 읽고 같은 id는 한 번만 보낸다', async () => {
+  it('상품 id는 1000개씩 나눠 읽고 같은 id는 한 번만 보낸다', async () => {
     const { client, calls } = fakeClient({ goods: { data: [], error: null } });
-    const items = Array.from({ length: 1500 }, (_, index) => ({ key: `k${index}`, goodId: `good-${index}`, name: `굿즈 ${index}`, optionName: null, qty: 1, unitPrice: 100 }));
+    const items = Array.from({ length: 1500 }, (_, index) => ({ key: `k${index}`, goodId: `good-${index}`, name: `상품 ${index}`, optionName: null, qty: 1, unitPrice: 100 }));
     await loadOrderLineViews(client, [{ orderId: 'big', tryReceipt: false, items: [...items, ...items.slice(0, 10)] }]);
     expect(calls.goods.map((ids) => ids.length)).toEqual([1000, 500]);
   });

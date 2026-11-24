@@ -107,8 +107,8 @@ describe('바로구매 다시 구매하기', () => {
 });
 
 /* '이 주문 닫고 굿즈 상세에서 다시 고르기'(UI 재리뷰): 같은 닫기만 하고 그 굿즈 상세로 보낸다 — 초안은 만들지 않는다. */
-describe('바로구매 주문 닫고 굿즈 상세로', () => {
-  it('그 주문을 닫고 그 굿즈 상세로 보낸다', async () => {
+describe('바로구매 주문 닫고 상품 상세로', () => {
+  it('그 주문을 닫고 그 상품 상세로 보낸다', async () => {
     mocks.rpc.mockResolvedValue({ data: { result: 'closed', baseGoodId: 'g2' }, error: null });
     await expect(closeDirectOrderAction(orderId)).resolves.toEqual({ ok: true, href: '/shop/g2' });
     expect(mocks.rpc).toHaveBeenCalledWith('service_close_direct_order', { p_user_id: userId, p_order_id: orderId });

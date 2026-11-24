@@ -46,7 +46,7 @@ function donePayment(overrides: Record<string, unknown> = {}) {
     mId: MERCHANT_ID,
     paymentKey: PAYMENT_KEY,
     orderId: ATTEMPT.providerOrderId,
-    orderName: '엑스스퀘어 굿즈 주문',
+    orderName: '엑스스퀘어 상품 주문',
     status: 'DONE',
     currency: 'KRW',
     totalAmount: ATTEMPT.amount,
@@ -190,7 +190,7 @@ describe('TossPayments v2 gateway', () => {
         // 떨어지지 않게 명시한다(toss-config.mjs TOSS_WIDGET_VARIANT_KEY).
         variantKey: 'ICONS',
         orderId: ATTEMPT.providerOrderId,
-        orderName: '엑스스퀘어 굿즈 주문',
+        orderName: '엑스스퀘어 상품 주문',
         amount: ATTEMPT.amount,
         currency: 'KRW',
         successUrl: `${SITE_URL}/api/payments/goods/confirm/toss/${prepared.callbackNonce}`,
@@ -240,7 +240,7 @@ describe('TossPayments v2 gateway', () => {
       ['원시 주문번호', { ...ATTEMPT, providerOrderId: ATTEMPT.refId }],
       ['purpose와 접두사 불일치', { ...ATTEMPT, providerOrderId: TICKET_ATTEMPT.providerOrderId }],
       /* refId는 failUrl 경로 세그먼트로 나간다 — 형식 밖 값이 URL에 실리면 안 된다. */
-      ['UUID 밖 굿즈 refId', { ...ATTEMPT, refId: '../../evil' }],
+      ['UUID 밖 상품 refId', { ...ATTEMPT, refId: '../../evil' }],
       ['깨진 만료 시각', { ...ATTEMPT, expiresAt: 'not-a-date' }],
     ])('범위 밖 attempt를 거부한다: %s', async (_label, attempt) => {
       const { gateway: tossGateway } = gateway();

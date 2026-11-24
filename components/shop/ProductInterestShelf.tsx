@@ -14,7 +14,7 @@ import { listingHeartsFor, wishlistForOwner } from './listing-hearts';
 import { useListingReviewSummaries } from './useListingReviewSummaries';
 import { goodDetailHref } from '@/lib/goods-display';
 
-const labels: Record<InterestKind, string> = { repurchase: '재구매한 굿즈', cart: '장바구니', wishlist: '찜한 굿즈', recent: '최근 본 굿즈' };
+const labels: Record<InterestKind, string> = { repurchase: '재구매한 상품', cart: '장바구니', wishlist: '찜한 상품', recent: '최근 본 상품' };
 const kinds: InterestKind[] = ['repurchase', 'cart', 'wishlist', 'recent'];
 /* 카드의 목록 하트는 서버가 판정한 위시 상태(`wishlist`)로 시작한다(LFS 패리티 2차 L4b · CL-01) — 상세·관심 굿즈 화면이 한 번
    읽어 내려 준다. 생략하면 하트가 없다. 선반은 계정 전환을 스스로 따라가므로, 그리는 목록의 주인이 서버가 판정한 회원과 다르면
@@ -60,12 +60,12 @@ export function ProductInterestShelf({ currentGoodId, standalone = false, wishli
   if (!standalone && (!collection.enabled || !active)) return null;
   return <section className="wc-product-interests" aria-labelledby="product-interests-heading">
     <GoodsSalePeriodRefresh goods={groups.flatMap(group => group.goods)} onRefresh={refreshSalePeriods} />
-    <header><h2 id="product-interests-heading">관심 굿즈 모아보기</h2>{!standalone ? <Link href="/interests">모두 보기</Link> : null}</header>
-    {collection.unavailable ? <p role="alert">관심 굿즈를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : !active ? <p>아직 모아볼 굿즈가 없습니다. 굿즈를 둘러보거나 찜해보세요.</p> : <>
-      <div className="wc-product-interests__tabs" role="group" aria-label="관심 굿즈 종류">{available.map(group => <button key={group.kind} type="button" aria-pressed={group.kind === active.kind} aria-controls="product-interests-panel" onClick={() => setSelected(group.kind)}>{labels[group.kind]} ({group.goods.length})</button>)}</div>
+    <header><h2 id="product-interests-heading">관심 상품 모아보기</h2>{!standalone ? <Link href="/interests">모두 보기</Link> : null}</header>
+    {collection.unavailable ? <p role="alert">관심 상품을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : !active ? <p>아직 모아볼 상품이 없습니다. 상품을 둘러보거나 찜해보세요.</p> : <>
+      <div className="wc-product-interests__tabs" role="group" aria-label="관심 상품 종류">{available.map(group => <button key={group.kind} type="button" aria-pressed={group.kind === active.kind} aria-controls="product-interests-panel" onClick={() => setSelected(group.kind)}>{labels[group.kind]} ({group.goods.length})</button>)}</div>
       <div id="product-interests-panel" role="region" aria-label={labels[active.kind]} className="wc-product-interests__products">{active.goods.map(good => <ProductCard key={good.id} href={goodDetailHref(good)} name={good.name} action={heartFor(good)} reviewSummary={reviewSummaries[good.id]} imageBackground={good.img} price={good.price} priceMax={good.priceMax} compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good} />)}</div>
     </>}
-    <footer><small>최근 본 굿즈는 현재 계정별로 이 브라우저에만 최대 30개 저장합니다.</small><button type="button" onClick={() => { if (owner === undefined) return; try { window.localStorage.removeItem(recentGoodsKey(owner)); } catch { /* Local persistence may be blocked. */ } setCollection(current => ({ ...current, groups: { ...current.groups, recent: [] } })); setRefresh(value => value + 1); }}>최근 본 굿즈 지우기</button></footer>
+    <footer><small>최근 본 상품은 현재 계정별로 이 브라우저에만 최대 30개 저장합니다.</small><button type="button" onClick={() => { if (owner === undefined) return; try { window.localStorage.removeItem(recentGoodsKey(owner)); } catch { /* Local persistence may be blocked. */ } setCollection(current => ({ ...current, groups: { ...current.groups, recent: [] } })); setRefresh(value => value + 1); }}>최근 본 상품 지우기</button></footer>
   </section>;
 }
 
@@ -73,5 +73,5 @@ export function ProductInterestShelf({ currentGoodId, standalone = false, wishli
 export function ProductInterestMenuLink({ onNavigate, className }: { onNavigate?: () => void; className?: string } = {}) {
   const [enabled, setEnabled] = useState(false);
   useEffect(() => { let active = true; void loadInterestAvailabilityAction().then(value => { if (active) setEnabled(value); }, () => {}); return () => { active = false; }; }, []);
-  return enabled ? <Link href="/interests" onClick={onNavigate} className={className}>관심 굿즈 모아보기</Link> : null;
+  return enabled ? <Link href="/interests" onClick={onNavigate} className={className}>관심 상품 모아보기</Link> : null;
 }

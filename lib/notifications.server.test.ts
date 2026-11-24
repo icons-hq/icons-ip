@@ -19,7 +19,7 @@ const row: NotificationRow = {
   id: '11111111-1111-4111-8111-111111111111',
   type: 'drop_published',
   title: '새 드롭이 열렸어요',
-  body: '팔로우한 IP의 새 굿즈를 확인해보세요.',
+  body: '팔로우한 IP의 새 상품을 확인해보세요.',
   link_path: '/shop',
   read_at: null,
   created_at: '2026-07-16T01:02:03.000Z',

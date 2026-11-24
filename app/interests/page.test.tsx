@@ -23,7 +23,7 @@ beforeEach(() => {
 
 describe('/interests', () => {
   /* L4b · CL-01 — 관심 굿즈 카드의 목록 하트 초기 상태를 운영 스위치와 나란히 한 번 읽어 넘긴다. */
-  it('회원의 위시 ID 를 한 번 읽어 관심 굿즈 화면에 넘긴다', async () => {
+  it('회원의 위시 ID 를 한 번 읽어 관심 상품 화면에 넘긴다', async () => {
     const wishlist: ListingWishlist = { viewerId: 'viewer-1', goodIds: ['g2'] };
     mocks.wishlist.mockResolvedValue(wishlist);
 

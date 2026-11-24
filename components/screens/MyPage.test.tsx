@@ -237,7 +237,7 @@ describe('MyPage dashboard', () => {
   it('gives each block an empty state and an unavailable state of its own', () => {
     const blank = render({ dashboard: empty });
     expect(blank).toContain('최근 주문이 없어요.');
-    expect(blank).toContain('아직 찜한 굿즈가 없어요.');
+    expect(blank).toContain('아직 찜한 상품이 없어요.');
     expect(blank).toContain('아직 팔로우한 IP가 없어요.');
     expect(blank).toContain('0장');
 
@@ -250,7 +250,7 @@ describe('MyPage dashboard', () => {
     /* 카탈로그만 못 읽었으면 찜 수(스트립·머리)는 그대로, 줄만 못 읽음으로 접는다. */
     const noShelf = render({ dashboard: { ...filled, wishlist: { count: 3, goods: null } } });
     expect(noShelf).toContain('위시리스트<span class="wc-mydash__count"> (3)</span>');
-    expect(noShelf).toContain('찜한 굿즈 목록을 불러오지 못했어요.');
+    expect(noShelf).toContain('찜한 상품 목록을 불러오지 못했어요.');
     expect(noShelf).toMatch(/wc-mypage__stat-count">3<span class="wc-sr-only">개<\/span>/);
   });
 
@@ -286,7 +286,7 @@ describe('MyPage dashboard', () => {
   });
 
   it('draws the recently viewed block only while the detail interests switch is on', () => {
-    expect(render({ recentGoodsEnabled: false })).not.toContain('최근 본 굿즈');
-    expect(render({ recentGoodsEnabled: true })).toContain('최근 본 굿즈를 불러오는 중이에요.');
+    expect(render({ recentGoodsEnabled: false })).not.toContain('최근 본 상품');
+    expect(render({ recentGoodsEnabled: true })).toContain('최근 본 상품을 불러오는 중이에요.');
   });
 });

@@ -12,7 +12,7 @@ const event={eventId:'11111111-1111-4111-8111-111111111111',pageKind:'home' as c
 beforeEach(()=>{vi.clearAllMocks();vi.stubEnv('NODE_ENV','production');cookies.clear();mocks.get.mockImplementation(name=>cookies.has(name)?{value:cookies.get(name)}:undefined);mocks.set.mockImplementation((name,value)=>cookies.set(name,value));mocks.getUser.mockResolvedValue({data:{user:null},error:{name:'AuthSessionMissingError'}});mocks.rpc.mockResolvedValue({data:{enabled:true,noticeVersion:'analytics-v1',usable:true},error:null});});
 afterEach(()=>vi.unstubAllEnvs());
 describe('상품 상세 대상(ADR-0050)',()=>{
- it('상품 자동코드 주소에서 읽은 굿즈 대상은 내부 id로 바꿔 기록한다 — 집계·마케팅 링크 대조가 내부 id 기준이다',async()=>{
+ it('상품 자동코드 주소에서 읽은 상품 대상은 내부 id로 바꿔 기록한다 — 집계·마케팅 링크 대조가 내부 id 기준이다',async()=>{
   cookies.set('__Host-icons_analytics_choice','analytics-v1:yes');cookies.set('__Host-icons_analytics_session',token);mocks.rpc.mockResolvedValue({data:{recorded:true},error:null});
   expect(await recordStoreAnalytics({...event,pageKind:'good',targetId:'hsq-0059'})).toMatchObject({ok:true,status:200});
   expect(mocks.rpc).toHaveBeenCalledWith('record_store_analytics_event',expect.objectContaining({p_page_kind:'good',p_target_id:'hongsil-keyring'}));

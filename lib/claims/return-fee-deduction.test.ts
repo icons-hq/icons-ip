@@ -97,7 +97,7 @@ describe('접수 안내(orderClaimIntakeNotice)', () => {
   it('켜져 있으면 반품 안내만 차감 규칙으로 바꾼다', () => {
     const notice = orderClaimIntakeNotice('return', { enabled: true, oneWayAmount: 3000 });
     expect(notice).toContain('단순 변심 반품은 반품배송비 3,000원(최초 무료배송 주문은 왕복 6,000원)을 빼고 환불합니다.');
-    expect(notice).toContain('굿즈 하자·오배송은 빼지 않습니다.');
+    expect(notice).toContain('상품 하자·오배송은 빼지 않습니다.');
     expect(notice).not.toContain('결제금액 전액으로 처리합니다');
     expect(orderClaimIntakeNotice('exchange', { enabled: true, oneWayAmount: 3000 })).toBe(ORDER_CLAIM_INTAKE_NOTICES.exchange);
   });

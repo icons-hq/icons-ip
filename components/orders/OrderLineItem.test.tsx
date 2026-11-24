@@ -12,7 +12,7 @@ function line(overrides: Partial<OrderLineView> = {}): OrderLineView {
 }
 
 describe('OrderLineItem', () => {
-  it('썸네일 · IP명 · 굿즈명 · 옵션 · 수량을 그린다', () => {
+  it('썸네일 · IP명 · 상품명 · 옵션 · 수량을 그린다', () => {
     const html = renderToStaticMarkup(<OrderLineItem line={line()} />);
 
     expect(html).toContain('class="wc-order-line__ip">홍실</p>');
@@ -67,11 +67,11 @@ describe('OrderLineItem', () => {
     expect(html).toContain('<span aria-hidden="true" class="wc-order-line__thumb"></span>');
   });
 
-  it('19금 굿즈는 이미지 대신 19 타일과 sr-only 라벨을 그린다. 이름과 가격은 그대로다', () => {
+  it('19금 상품은 이미지 대신 19 타일과 sr-only 라벨을 그린다. 이름과 가격은 그대로다', () => {
     const html = renderToStaticMarkup(<OrderLineItem line={line({ adultMasked: true, thumbnail: null })} />);
 
     expect(html).toContain('class="wc-order-line__thumb wc-order-line__thumb--adult"');
-    expect(html).toContain('<span aria-hidden="true">19</span><span class="wc-sr-only">19금 굿즈</span>');
+    expect(html).toContain('<span aria-hidden="true">19</span><span class="wc-sr-only">19금 상품</span>');
     expect(html).not.toContain('style=');
     expect(html).toContain('아크릴 스탠드');
     expect(html).toContain('₩18,000');

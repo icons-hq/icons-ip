@@ -1,12 +1,11 @@
 import { krw } from '@/lib/format';
-import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { ShippingChargeDetails } from '@/lib/shipping-charge-groups';
 
 /** These amounts are the saved calculation, already included in shipping totals. */
 export function ShippingChargeDetailsDisplay({ details, names = {}, admin = false }: {
   details: ShippingChargeDetails; names?: Record<string, string>; admin?: boolean;
 }) {
-  const noun = admin ? adminGoodsCopy('굿즈') : '굿즈';
+  const noun = '상품';
   /* 출고지는 운영 어휘다 — 고객 화면은 배송 묶음으로 말한다(R26). */
   const origin = admin ? '출고지' : '배송 묶음';
   return <details className="wc-shipping-charge-details">

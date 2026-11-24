@@ -21,10 +21,10 @@ export function GoodAnnouncements({ data, placement = 'top' }: { data: GoodAnnou
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [ownsRefresh, data.nextChangeAt, router]);
-  if (data.unavailable) return ownsRefresh ? <p className="wc-pdp-panel__note">굿즈 공지를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p> : null;
+  if (data.unavailable) return ownsRefresh ? <p className="wc-pdp-panel__note">상품 공지를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p> : null;
   const items = data.items.filter(item => item.placement === placement);
   if (!items.length) return null;
-  const heading = placement === 'bottom' ? '굿즈 안내' : '굿즈 공지사항';
+  const heading = placement === 'bottom' ? '상품 안내' : '상품 공지사항';
   return <section className="wc-pdp-announcements" aria-label={heading} data-placement={placement} data-pc={items.some(item => item.device !== 'mobile')} data-mobile={items.some(item => item.device !== 'pc')}>
     <h2>{heading}</h2>
     {items.map(item => <article className="wc-pdp-announcement" data-device={item.device} data-important={item.important} key={item.id}>

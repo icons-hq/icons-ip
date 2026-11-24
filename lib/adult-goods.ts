@@ -28,7 +28,7 @@ export function parseAdultGoodsVisibility(value: unknown): AdultGoodsVisibility 
 }
 
 /** 가림 카드와 인증 안내에 쓰는 고객 표기(CONTEXT.md "성인 상품"). */
-export const ADULT_GOOD_LABEL = '19금 굿즈';
+export const ADULT_GOOD_LABEL = '19금 상품';
 
 /** 이 모드에서 카탈로그가 읽을 판매 제한 유형. */
 export function adultGoodsRestrictions(access: AdultGoodsAccess): ('none' | 'adult')[] {

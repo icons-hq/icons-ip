@@ -31,7 +31,7 @@ describe('resolvePublicGoodAddress', () => {
     expect(mocks.createClient).toHaveBeenCalledWith({ storefrontReadCache: true });
   });
 
-  it('주소로 쓸 수 없는 코드의 굿즈는 내부 id 가 정식 끝 값이다', async () => {
+  it('주소로 쓸 수 없는 코드의 상품은 내부 id 가 정식 끝 값이다', async () => {
     mocks.rpc.mockResolvedValue({ data: [{ id: 'keyring', code: '창고 A-1' }], error: null });
     await expect(resolvePublicGoodAddress('창고 A-1')).resolves.toEqual({ goodId: 'keyring', segment: 'keyring' });
   });

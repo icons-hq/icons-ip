@@ -129,7 +129,7 @@ beforeEach(() => {
 describe('loadGoodQuestions', () => {
   /* 공개 목록은 테이블이 아니라 RPC 로 읽는다 — 테이블 RLS 는 남의 비밀글 행을 아예 빼는데,
      목록은 그 행도 자리를 지켜야 한다. 공개 상태 조건과 가림 판정은 RPC 본문이 갖는다. */
-  it('공개 목록 RPC 로 굿즈와 페이지 범위를 넘기고 건수를 그대로 쓴다', async () => {
+  it('공개 목록 RPC 로 상품과 페이지 범위를 넘기고 건수를 그대로 쓴다', async () => {
     mocks.rpcResult = {
       data: {
         count: 23,
@@ -264,7 +264,7 @@ describe('loadGoodQuestions', () => {
 
 describe('loadMyQuestions', () => {
   /* 블라인드된 글도 함께 내린다 — 감추면 왜 내려갔는지 물어볼 근거가 사라진다. */
-  it('본인 글 전체를 굿즈 이름·경로와 함께 내리고 블라인드도 남긴다', async () => {
+  it('본인 글 전체를 상품 이름·경로와 함께 내리고 블라인드도 남긴다', async () => {
     mocks.tables.product_questions = {
       data: [
         { ...questionRow(), goods: { id: 'g13', name: '아크릴 블록' } },
@@ -282,7 +282,7 @@ describe('loadMyQuestions', () => {
       status: 'visible',
       isSecret: false,
     });
-    expect(questions[1]).toMatchObject({ status: 'hidden', goodName: '지금 볼 수 없는 굿즈' });
+    expect(questions[1]).toMatchObject({ status: 'hidden', goodName: '지금 볼 수 없는 상품' });
   });
 
   /* 본인 비밀글은 원문 그대로다 — 비밀글 정책이 작성자에게는 열려 있다. 표시만 붙인다. */

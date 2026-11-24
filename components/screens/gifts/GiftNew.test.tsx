@@ -25,8 +25,8 @@ const goods: Good[] = [
     options: [{ id: RANDOM_KEY, name: '랜덤', code: '', price: 12000, stockQty: 9, isDefault: true, attributes: {} }] },
 ];
 
-describe('GiftNew — 랜덤 판매 굿즈(m27 CUST-1)', () => {
-  it('랜덤 판매 굿즈 줄은 고를 수 없고 이유를 보인다', () => {
+describe('GiftNew — 랜덤 판매 상품(m27 CUST-1)', () => {
+  it('랜덤 판매 상품 줄은 고를 수 없고 이유를 보인다', () => {
     cart.items = [{ goodId: 'select-good', variantId: SELECT_KEY, qty: 1 }, { goodId: 'random-good', variantId: RANDOM_KEY, qty: 2 }];
     const html = renderToStaticMarkup(<GiftNew actorId="93942000-0000-4000-8000-000000000001" goods={goods} available />);
     const rows = [...html.matchAll(/<li>(.*?)<\/li>/g)].map(match => match[1]);
@@ -34,7 +34,7 @@ describe('GiftNew — 랜덤 판매 굿즈(m27 CUST-1)', () => {
     expect(selectRow).not.toMatch(/<input[^>]*disabled/);
     expect(selectRow).not.toContain('선물할 수 없어요');
     expect(randomRow).toMatch(/<input[^>]*type="checkbox"[^>]*disabled=""/);
-    expect(randomRow).toContain('랜덤 판매 굿즈는 선물할 수 없어요.');
+    expect(randomRow).toContain('랜덤 판매 상품은 선물할 수 없어요.');
     /* 이유는 체크박스의 설명으로 이어진다. */
     const describedBy = /<input[^>]*aria-describedby="([^"]+)"/.exec(randomRow)?.[1];
     expect(describedBy).toBeTruthy();

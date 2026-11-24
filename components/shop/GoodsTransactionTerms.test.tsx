@@ -10,7 +10,7 @@ it('묶음배송 조건은 출고지 대신 배송 묶음으로 말한다', () =
   for (const regionalMode of ['inherit', 'override'] as const) {
     const html = renderToStaticMarkup(<GoodsTransactionTerms quantity={1} good={{ ...good, transactionOffer: { goodId: good.id, volume: null, delivery: null, collectReady: false, collector: null,
       chargeGroup: { id: '00000000-0000-4000-8000-000000000009', revision: 1, calculationMode: 'max', regionalMode, available: true, inherited: false } } }} />);
-    expect(html).toContain('같은 배송 묶음의 묶음 대상 굿즈를 함께 구매하면');
+    expect(html).toContain('같은 배송 묶음의 묶음 대상 상품을 함께 구매하면');
     expect(html).not.toContain('출고지');
   }
 });

@@ -59,7 +59,7 @@ vi.mock('@/lib/catalog', () => ({
 }));
 
 function good(id: string, overrides: Partial<Good> = {}): Good {
-  return { id, ip: 'ip1', name: `굿즈 ${id}`, price: 10000, badge: null, stock: 'ok', stockQty: 5, img: 'none', ...overrides };
+  return { id, ip: 'ip1', name: `상품 ${id}`, price: 10000, badge: null, stock: 'ok', stockQty: 5, img: 'none', ...overrides };
 }
 
 function node(id: string, name: string, parentId: string | null): StorefrontCategoryNode {
@@ -86,7 +86,7 @@ async function render(params: Record<string, string | string[] | undefined> = {}
 const currentLinks = (html: string) => [...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1]);
 
 beforeEach(() => {
-  mocks.goods = [good('a', { name: '첫 굿즈' })];
+  mocks.goods = [good('a', { name: '첫 상품' })];
   mocks.tree = [node(DISPLAY_ID, 'QA 인형 전시', null)];
   mocks.treeFails = false;
   mocks.page = null;
@@ -98,15 +98,15 @@ beforeEach(() => {
   mocks.orderLoads = 0;
 });
 
-describe('/shop 전체 굿즈 — 칩 영역', () => {
-  it('공개 전시 트리의 1단계 칩이 목록 머리 앞에 서고 전체 칩이 선택이며 제목은 전체 굿즈다', async () => {
+describe('/shop 전체 상품 — 칩 영역', () => {
+  it('공개 전시 트리의 1단계 칩이 목록 머리 앞에 서고 전체 칩이 선택이며 제목은 전체 상품이다', async () => {
     const html = await render();
 
     expect(html).toContain('<main class="wc-root wc-listing">');
     expect(html).toContain('aria-label="카테고리"');
     expect(html).toContain(`href="/shop?displayCategory=${DISPLAY_ID}"`);
     expect(currentLinks(html)).toEqual(['전체']);
-    expect(html).toContain('<h1 class="wc-listing-head__title">전체 굿즈</h1>');
+    expect(html).toContain('<h1 class="wc-listing-head__title">전체 상품</h1>');
     expect(html.indexOf('wc-listing-chips')).toBeLessThan(html.indexOf('wc-listing-head'));
     /* 옛 '카테고리 전시' 한 줄 내비는 칩으로 대체됐다. */
     expect(html).not.toContain('wc-category-display__navigation');
@@ -117,8 +117,8 @@ describe('/shop 전체 굿즈 — 칩 영역', () => {
     const html = await render();
 
     expect(html).not.toContain('wc-listing-chips');
-    expect(html).toContain('<h1 class="wc-listing-head__title">전체 굿즈</h1>');
-    expect(html).toContain('첫 굿즈');
+    expect(html).toContain('<h1 class="wc-listing-head__title">전체 상품</h1>');
+    expect(html).toContain('첫 상품');
   });
 
   it('트리를 읽지 못해도 목록은 막지 않는다 — 칩만 빠진다', async () => {
@@ -126,30 +126,30 @@ describe('/shop 전체 굿즈 — 칩 영역', () => {
     const html = await render();
 
     expect(html).not.toContain('wc-listing-chips');
-    expect(html).toContain('첫 굿즈');
+    expect(html).toContain('첫 상품');
   });
 
   it('필터 쿼리와 이름순은 읽지 않는다 — 결과가 같다', async () => {
-    mocks.goods = [good('a', { name: '첫 굿즈' }), good('b', { name: '둘째 굿즈', price: 90000, ip: 'ip2' })];
+    mocks.goods = [good('a', { name: '첫 상품' }), good('b', { name: '둘째 상품', price: 90000, ip: 'ip2' })];
 
     expect(await render({ ip: 'ip1', min: '50000', max: '1', type: '인형', category: 'root', sort: 'name_asc' })).toBe(await render());
   });
 
   it('정렬 순서(DB)는 인기도·판매량·리뷰 많은순일 때만 읽는다', async () => {
-    mocks.goods = [good('a', { name: '첫 굿즈' }), good('b', { name: '둘째 굿즈' })];
+    mocks.goods = [good('a', { name: '첫 상품' }), good('b', { name: '둘째 상품' })];
     mocks.orders = { popular: ['b', 'a'], sales: [], reviews: [] };
 
     await render({ sort: 'price_asc' });
     expect(mocks.orderLoads).toBe(0);
     const html = await render({ sort: 'popular' });
     expect(mocks.orderLoads).toBe(1);
-    expect(html.indexOf('둘째 굿즈')).toBeLessThan(html.indexOf('첫 굿즈'));
+    expect(html.indexOf('둘째 상품')).toBeLessThan(html.indexOf('첫 상품'));
   });
 });
 
 /* 굿즈샵 전체만 컬렉션 배너(all 슬롯)를 읽는다. 카테고리 전시 분기는 컬렉션 배너를 읽지도 그리지도 않고 전시 구성 배너를 쓴다. */
-describe('굿즈샵 컬렉션 배너 (LFS 패리티 2차 L8b)', () => {
-  it('굿즈샵 전체는 all 슬롯 배너를 읽어 칩 영역 앞 맨 위에 그린다', async () => {
+describe('쇼핑 컬렉션 배너 (LFS 패리티 2차 L8b)', () => {
+  it('쇼핑 전체는 all 슬롯 배너를 읽어 칩 영역 앞 맨 위에 그린다', async () => {
     mocks.banners = [collectionBanner('a1', 'all')];
     const html = await render();
 
@@ -163,7 +163,7 @@ describe('굿즈샵 컬렉션 배너 (LFS 패리티 2차 L8b)', () => {
 
   it('카테고리 전시 페이지는 컬렉션 배너를 읽지 않는다', async () => {
     mocks.banners = [collectionBanner('a1', 'all')];
-    mocks.page = displayPage([good('a', { name: '전시 굿즈' })]);
+    mocks.page = displayPage([good('a', { name: '전시 상품' })]);
     const html = await render({ displayCategory: DISPLAY_ID });
 
     expect(mocks.bannerSlots).toEqual([]);
@@ -174,19 +174,19 @@ describe('굿즈샵 컬렉션 배너 (LFS 패리티 2차 L8b)', () => {
 describe('카테고리 전시 (?displayCategory=)', () => {
   it('칩·제목·하위 탭을 공개 트리에서 만들고 현재 전시를 선택으로 표시한다', async () => {
     mocks.tree = [node(DISPLAY_ID, '인형', null), node(CHILD_ID, '봉제 인형', DISPLAY_ID)];
-    mocks.page = { ...displayPage([good('a', { name: '전시 굿즈' })]), category: { id: CHILD_ID, name: '봉제 인형' } };
+    mocks.page = { ...displayPage([good('a', { name: '전시 상품' })]), category: { id: CHILD_ID, name: '봉제 인형' } };
     const html = await render({ displayCategory: CHILD_ID });
 
     expect(mocks.pageCalls[0].id).toBe(CHILD_ID);
     expect(html).toContain('<h1 class="wc-listing-head__title">인형</h1>');
     expect(html).toContain('<nav aria-label="하위 분류" class="wc-listing-tabs">');
     expect(currentLinks(html)).toEqual(['인형', '봉제 인형']);
-    expect(html).toContain('전시 굿즈');
+    expect(html).toContain('전시 상품');
   });
 
   it('공개 트리 읽기가 실패하면 칩·탭 없이 전시 이름을 제목으로 그린다', async () => {
     mocks.treeFails = true;
-    mocks.page = displayPage([good('a', { name: '전시 굿즈' })]);
+    mocks.page = displayPage([good('a', { name: '전시 상품' })]);
     const html = await render({ displayCategory: DISPLAY_ID });
 
     expect(html).not.toContain('wc-listing-chips');
@@ -215,13 +215,13 @@ describe('카테고리 전시 (?displayCategory=)', () => {
   /* L5 — 카테고리 전시도 같은 목록 문법이다: 카드 하트(CL-01)·별점(CL-02)·정렬 7종(CL-10). */
   it('카드에 목록 하트와 별점을 그리고 정렬 7종을 연다', async () => {
     mocks.wishlist = { viewerId: 'viewer-1', goodIds: ['b'] };
-    const page = displayPage([good('a', { name: '별점 굿즈' }), good('b', { name: '찜한 굿즈' })]);
+    const page = displayPage([good('a', { name: '별점 상품' }), good('b', { name: '찜한 상품' })]);
     page.result.reviewSummaries = { a: { count: 3, average: 4.2 } };
     mocks.page = page;
     const html = await render({ displayCategory: DISPLAY_ID });
 
     expect(html.match(/<button[^>]*class="wc-list-heart/g)).toHaveLength(2);
-    expect(html).toMatch(/aria-pressed="true"[^>]*aria-label="찜한 굿즈[^"]*"|aria-label="찜한 굿즈[^"]*"[^>]*aria-pressed="true"/);
+    expect(html).toMatch(/aria-pressed="true"[^>]*aria-label="찜한 상품[^"]*"|aria-label="찜한 상품[^"]*"[^>]*aria-pressed="true"/);
     expect(html).toContain('평점 5점 만점에 4.2점, 리뷰 3개');
     const sorts = [...html.matchAll(/<option[^>]*value="([^"]+)"/g)].map((match) => match[1]);
     expect(sorts).toEqual(['recommended', 'popular', 'newest', 'sales', 'price_asc', 'price_desc', 'reviews']);
@@ -229,16 +229,16 @@ describe('카테고리 전시 (?displayCategory=)', () => {
   });
 
   it('전시 구성의 배너는 목록 머리 스트립 배너로, 영상·추천 밴드는 칩과 제목 줄 사이에 그린다', async () => {
-    const page = displayPage([good('a', { name: '전시 굿즈' })]);
+    const page = displayPage([good('a', { name: '전시 상품' })]);
     page.banner = { id: 'category-1', title: '겨울 여행', subtitle: '신규 MD', imageUrl: 'https://cdn.test/c.webp', mobileImageUrl: null, href: null };
-    page.recommendations = { id: 'category-1', title: '추천 굿즈', layout: 'list', imageShape: 'square', goods: [{ id: 'r1', name: '추천 인형', href: '/shop/r1', imageBg: 'none', price: 5000, soldOut: false, badge: null, brand: '홍실' }] };
+    page.recommendations = { id: 'category-1', title: '추천 상품', layout: 'list', imageShape: 'square', goods: [{ id: 'r1', name: '추천 인형', href: '/shop/r1', imageBg: 'none', price: 5000, soldOut: false, badge: null, brand: '홍실' }] };
     mocks.page = page;
     const html = await render({ displayCategory: DISPLAY_ID });
 
     expect(html).toContain('data-slot="category"');
     expect(html).toContain('겨울 여행');
     expect(html.indexOf('data-slot="category"')).toBeLessThan(html.indexOf('wc-listing-chips'));
-    expect(html.indexOf('wc-listing-chips')).toBeLessThan(html.indexOf('추천 굿즈'));
-    expect(html.indexOf('추천 굿즈')).toBeLessThan(html.indexOf('wc-listing-head'));
+    expect(html.indexOf('wc-listing-chips')).toBeLessThan(html.indexOf('추천 상품'));
+    expect(html.indexOf('추천 상품')).toBeLessThan(html.indexOf('wc-listing-head'));
   });
 });

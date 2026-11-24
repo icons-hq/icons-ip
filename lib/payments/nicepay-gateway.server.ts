@@ -49,7 +49,7 @@ const CANCEL_MESSAGE = /^[\x20-\x7e]{1,100}$/;
 const FALLBACK_CANCEL_MESSAGE = 'X SQUARE order cancellation';
 // 결제창에 보이는 상품명(GoodsName ≤40byte EUC-KR). 판매 품목은 계약서 제5조의 고지 품목과
 // 같아야 하므로 주문 구성을 싣지 않고 서비스 공통 이름만 싣는다.
-const GOODS_NAME = '엑스스퀘어 굿즈 주문';
+const GOODS_NAME = '엑스스퀘어 상품 주문';
 
 const APPROVED_CODE = '3001';
 // 결제창 인증 결과코드 — 구매자가 결제창에서 그만둔 경우.

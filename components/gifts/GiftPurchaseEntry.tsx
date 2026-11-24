@@ -24,5 +24,5 @@ export function useGiftPurchaseAvailable(enabled = true): boolean {
 export function GiftPurchaseEntry({ available }: { available?: boolean } = {}) {
   const fetched = useGiftPurchaseAvailable(available === undefined);
   if (!(available ?? fetched)) return null;
-  return <aside className="wc-good-gift-entry"><Link href={routes.gifts()}>선물함</Link><p>장바구니에 담은 굿즈로 선물을 준비할 수 있어요.</p></aside>;
+  return <aside className="wc-good-gift-entry"><Link href={routes.gifts()}>선물함</Link><p>장바구니에 담은 상품으로 선물을 준비할 수 있어요.</p></aside>;
 }

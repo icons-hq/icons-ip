@@ -7,7 +7,7 @@ describe('Slider', () => {
      그냥 문단 더미로 읽힌다. */
   it('announces itself as a labelled carousel', () => {
     const html = renderToStaticMarkup(
-      <Slider label="추천 굿즈">
+      <Slider label="추천 상품">
         <div>a</div>
         <div>b</div>
         <div>c</div>
@@ -15,7 +15,7 @@ describe('Slider', () => {
     );
 
     expect(html).toContain('aria-roledescription="carousel"');
-    expect(html).toContain('aria-label="추천 굿즈"');
+    expect(html).toContain('aria-label="추천 상품"');
     expect(html).toContain('class="wc-slider__track"');
   });
 
@@ -23,7 +23,7 @@ describe('Slider', () => {
      하이드레이션 직전까지 `1 / 0` 같은 빈 값이 보이지 않는다. */
   it('renders the fraction from the child count before hydration', () => {
     const html = renderToStaticMarkup(
-      <Slider label="추천 굿즈">
+      <Slider label="추천 상품">
         <div>a</div>
         <div>b</div>
         <div>c</div>
@@ -37,7 +37,7 @@ describe('Slider', () => {
 
   it('drops the controls when there is nothing to scroll to', () => {
     const html = renderToStaticMarkup(
-      <Slider label="추천 굿즈"><div>a</div></Slider>,
+      <Slider label="추천 상품"><div>a</div></Slider>,
     );
 
     expect(html).not.toContain('wc-slider__controls');
@@ -46,7 +46,7 @@ describe('Slider', () => {
 
   it('drops the controls when they are turned off', () => {
     const html = renderToStaticMarkup(
-      <Slider label="추천 굿즈" showControls={false}>
+      <Slider label="추천 상품" showControls={false}>
         <div>a</div>
         <div>b</div>
       </Slider>,
@@ -58,7 +58,7 @@ describe('Slider', () => {
   /* 첫 슬라이드에서는 이전 화살표가 갈 곳이 없다. */
   it('disables the previous arrow at the first slide', () => {
     const html = renderToStaticMarkup(
-      <Slider label="추천 굿즈">
+      <Slider label="추천 상품">
         <div>a</div>
         <div>b</div>
       </Slider>,

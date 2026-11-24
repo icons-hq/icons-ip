@@ -170,7 +170,7 @@ describe('IpDetail notification forms', () => {
     const drops = inputNamed(html, 'notifyDrops');
     const events = inputNamed(html, 'notifyEvents');
 
-    expect(html).toContain('새 굿즈·드롭');
+    expect(html).toContain('새 상품·드롭');
     expect(html).toContain('팝업·이벤트');
     expect(html).toContain('알림 설정 저장');
     expect(inputNamed(html, 'setBoth')).toContain('value="1"');
@@ -293,7 +293,7 @@ describe('IpDetail goods section', () => {
   it('titles the goods list like the category screens and keeps sold-out goods', () => {
     const html = render();
 
-    expect(html).toMatch(/<h2 class="wc-listing-head__title" id="iphall-goods-heading">메이플스토리의 굿즈<\/h2>/);
+    expect(html).toMatch(/<h2 class="wc-listing-head__title" id="iphall-goods-heading">메이플스토리의 상품<\/h2>/);
     expect(html).toContain('aria-labelledby="iphall-goods-heading"');
     expect(html).toContain('SOLD OUT');
     expect(html).toContain('href="/shop/g1"');
@@ -303,7 +303,7 @@ describe('IpDetail goods section', () => {
   it('links to the shop scoped to this ip', () => {
     const html = render();
 
-    expect(html).toContain('굿즈샵에서 전체 보기');
+    expect(html).toContain('전체 상품 보기');
     expect(html).toContain('href="/shop?ip=maplestory"');
   });
 
@@ -311,7 +311,7 @@ describe('IpDetail goods section', () => {
   it('has no filter sidebar, count row or filter sheet', () => {
     const html = render();
 
-    expect(html).not.toContain('aria-label="굿즈 필터"');
+    expect(html).not.toContain('aria-label="상품 필터"');
     expect(html).not.toContain('wc-collection');
     expect(html).not.toContain('전체 ›');
     expect(html).not.toContain('전체 초기화');
@@ -339,7 +339,7 @@ describe('IpDetail goods section', () => {
   it('pages beyond twenty goods with VIEW MORE', () => {
     const many: CatalogIpDetail = {
       ...detail,
-      goods: Array.from({ length: 25 }, (_, index) => ({ ...detail.goods[0], id: `m${index}`, name: `굿즈 ${index}` })),
+      goods: Array.from({ length: 25 }, (_, index) => ({ ...detail.goods[0], id: `m${index}`, name: `상품 ${index}` })),
     };
     const html = render({ detail: many });
 
@@ -357,7 +357,7 @@ describe('IpDetail goods section', () => {
   it('shows only the empty state when the hall has no goods', () => {
     const empty = render({ detail: { ...detail, goods: [] } });
 
-    expect(empty).toContain('등록된 굿즈가 아직 없습니다');
+    expect(empty).toContain('등록된 상품이 아직 없습니다');
     expect(empty).toContain('id="iphall-goods-heading"');
     expect(empty).not.toContain('wc-listing-sort__select');
     expect(empty).not.toContain('wc-x-grid');

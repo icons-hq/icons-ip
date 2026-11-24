@@ -42,7 +42,7 @@ export function QuestionDeleteButton({
         >
           {pending ? '삭제 중' : '삭제'}
         </button>
-        <span className="wc-mypage__hint">삭제하면 굿즈 상세에서도 사라져요.</span>
+        <span className="wc-mypage__hint">삭제하면 상품 상세에서도 사라져요.</span>
       </div>
       <p aria-live="polite" className="wc-mypage__hint" role="status">
         {state.message ?? ''}

@@ -198,7 +198,7 @@ describe('loadCampaignDetail', () => {
       data: { ...hubRow('ip-state'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['draft', 'archived', 'missing', 'live'] }] },
       error: null,
     };
-    const good = { name: '굿즈', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null };
+    const good = { name: '상품', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null };
     mocks.tables.goods = {
       data: [
         { ...good, id: 'draft', ips: { published_at: null, archived_at: null } },
@@ -212,14 +212,14 @@ describe('loadCampaignDetail', () => {
     expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ id: 'live' }] });
   });
   /* 옵션가는 할인하지 않는다 — 기준 옵션이 빠져 옵션가 3,000원 옵션만 남으면 정가도 소비자가 + 3,000원이다. */
-  it('옵션가가 붙은 옵션만 남은 굿즈 카드는 소비자가에 옵션가를 더한 정가와 비교한다', async () => {
+  it('옵션가가 붙은 옵션만 남은 상품 카드는 소비자가에 옵션가를 더한 정가와 비교한다', async () => {
     mocks.tables.campaigns = {
       data: { ...hubRow('option-price'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['option-price'] }] },
       error: null,
     };
     mocks.tables.goods = {
       data: [{
-        id: 'option-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '옵션 굿즈', price: 10800, compare_at_price: 12000,
+        id: 'option-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '옵션 상품', price: 10800, compare_at_price: 12000,
         badge: null, stock: 'ok', stock_qty: 6, bg: null, image_path: null,
         goods_variants: [{ price: 13800, archived_at: null }, { price: 13800, archived_at: null }, { price: 10800, archived_at: '2026-09-01T00:00:00Z' }],
       }],
@@ -237,7 +237,7 @@ describe('loadCampaignDetail', () => {
     };
     mocks.tables.goods = {
       data: [{
-        id: 'period-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '기간 할인 굿즈', price: 10800, compare_at_price: 12000,
+        id: 'period-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '기간 할인 상품', price: 10800, compare_at_price: 12000,
         badge: null, stock: 'ok', stock_qty: 6, bg: null, image_path: null,
         goods_variants: [
           { price: 13800, archived_at: null, pricing: { regularPrice: 13800, effectivePrice: 12000, pricePeriodId: '00000000-0000-4000-8000-000000000401',
@@ -253,7 +253,7 @@ describe('loadCampaignDetail', () => {
     expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ price: 12000, priceMax: 15000, compareAtPrice: 13800 }] });
   });
   /* 랜덤 판매(D5②) 굿즈의 옵션 행은 고객·익명에게 숨는다(goods_variants 빈 배열). 가격은 공개 랜덤 한 줄(goods_random_option)에서 읽는다. */
-  it('랜덤 판매 굿즈 카드는 숨겨진 옵션 행 대신 랜덤 한 줄의 기간 할인가를 보인다', async () => {
+  it('랜덤 판매 상품 카드는 숨겨진 옵션 행 대신 랜덤 한 줄의 기간 할인가를 보인다', async () => {
     const calculatedAt = '2026-10-08T00:00:00Z';
     mocks.tables.campaigns = {
       data: { ...hubRow('random-price'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['random-price'] }] },
@@ -261,7 +261,7 @@ describe('loadCampaignDetail', () => {
     };
     mocks.tables.goods = {
       data: [{
-        id: 'random-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '랜덤 굿즈', price: 13800, compare_at_price: null,
+        id: 'random-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '랜덤 상품', price: 13800, compare_at_price: null,
         badge: null, stock: 'ok', stock_qty: 9, bg: null, image_path: null, option_sale_mode: 'random', goods_variants: [],
         random_option: { id: '00000000-0000-4000-8000-000000000501', name: '랜덤', code: '', price: 13800, stock_qty: 9, is_default: true,
           attributes: {}, archived_at: null, sort_order: 0,
@@ -280,7 +280,7 @@ describe('loadCampaignDetail', () => {
       data: { ...hubRow('random-staff'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['random-staff', 'random-fallback'] }] },
       error: null,
     };
-    const base = { ips: { published_at: '2026-07-01', archived_at: null }, name: '랜덤 굿즈', price: 13800, compare_at_price: null,
+    const base = { ips: { published_at: '2026-07-01', archived_at: null }, name: '랜덤 상품', price: 13800, compare_at_price: null,
       badge: null, stock: 'ok', stock_qty: 9, bg: null, image_path: null, option_sale_mode: 'random' };
     mocks.tables.goods = {
       data: [
@@ -310,7 +310,7 @@ describe('loadCampaignDetail', () => {
   });
 
   /* 카드팩 교환(exchange) 블록은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 예전에 저장된 블록은 버리고 교환처 표를 읽지 않는다. */
-  it('굿즈 참조를 해석해 한 벌로 내리고 지운 교환 블록은 버린다', async () => {
+  it('상품 참조를 해석해 한 벌로 내리고 지운 교환 블록은 버린다', async () => {
     mocks.tables.campaigns = {
       data: {
         ...hubRow('summer'),
@@ -393,7 +393,7 @@ describe('loadCampaignDetail', () => {
     });
   });
 
-  it('참조가 없으면 교환·굿즈 조회를 아예 하지 않는다', async () => {
+  it('참조가 없으면 교환·상품 조회를 아예 하지 않는다', async () => {
     mocks.tables.campaigns = {
       data: {
         ...hubRow('quiet'),
@@ -410,7 +410,7 @@ describe('loadCampaignDetail', () => {
     expect(mocks.filters.some(([table]) => table === 'goods')).toBe(false);
   });
 
-  it('재고가 0인 굿즈는 품절로 표시한다', async () => {
+  it('재고가 0인 상품은 품절로 표시한다', async () => {
     mocks.tables.campaigns = {
       data: {
         ...hubRow('soldout'),
@@ -423,7 +423,7 @@ describe('loadCampaignDetail', () => {
       data: [{
         id: 'g99',
         ips: { published_at: '2026-07-01', archived_at: null },
-        name: '품절 굿즈',
+        name: '품절 상품',
         price: 9000,
         compare_at_price: null,
         badge: null,
@@ -444,7 +444,7 @@ describe('loadCampaignDetail', () => {
 
   /* 캠페인 섹션은 카탈로그 스냅샷(lib/catalog.ts)을 우회하는 직접 조회다 — 여기서
      따로 걸지 않으면 보관된 굿즈가 랜딩 블록에 계속 노출된다. */
-  it('굿즈 조회는 보관 굿즈를 제외한다', async () => {
+  it('상품 조회는 보관 상품을 제외한다', async () => {
     mocks.tables.campaigns = {
       data: {
         ...hubRow('archive-leak'),
@@ -463,7 +463,7 @@ describe('loadCampaignDetail', () => {
 
   /* 같은 이유로 판매 제한 굿즈(#392)도 랜딩 블록에서 따로 걸러야 한다 — 보관 필터와
      판매 제한 필터는 한 쿼리 체인에 함께 남아야 한다. */
-  it('굿즈 조회는 판매 제한 굿즈를 제외한다', async () => {
+  it('상품 조회는 판매 제한 상품을 제외한다', async () => {
     mocks.tables.campaigns = {
       data: {
         ...hubRow('restriction-leak'),
@@ -482,7 +482,7 @@ describe('loadCampaignDetail', () => {
   });
 
   /* L4b · CL-02 — 진열 굿즈의 별점은 굿즈 조회와 나란히 한 번의 묶음으로 묻고, 리뷰가 있는 굿즈 카드에만 싣는다. */
-  it('진열 굿즈 별점을 한 번에 묻고 리뷰가 있는 카드에만 싣는다', async () => {
+  it('진열 상품 별점을 한 번에 묻고 리뷰가 있는 카드에만 싣는다', async () => {
     const goodRow = (id: string) => ({ id, ips: { published_at: '2026-07-01', archived_at: null }, name: id, price: 9000, compare_at_price: null,
       badge: null, stock: 'ok', stock_qty: 3, bg: null, image_path: null });
     mocks.tables.campaigns = {

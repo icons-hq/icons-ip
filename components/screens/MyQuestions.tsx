@@ -60,7 +60,7 @@ function QuestionCard({ question }: { question: MyProductQuestion }) {
 
       {state === 'hidden' ? (
         <p className="wc-mypage__hint">
-          운영 정책에 따라 비공개 처리되어 굿즈 상세에는 보이지 않습니다.
+          운영 정책에 따라 비공개 처리되어 상품 상세에는 보이지 않습니다.
         </p>
       ) : state === 'awaiting' ? (
         <p className="wc-mypage__hint">
@@ -70,7 +70,7 @@ function QuestionCard({ question }: { question: MyProductQuestion }) {
 
       {question.isSecret && state !== 'hidden' ? (
         <p className="wc-mypage__hint">
-          판매자와 나만 볼 수 있는 비밀글입니다. 다른 사람에게는 굿즈 상세에 ‘비밀글입니다.’로만 보입니다.
+          판매자와 나만 볼 수 있는 비밀글입니다. 다른 사람에게는 상품 상세에 ‘비밀글입니다.’로만 보입니다.
         </p>
       ) : null}
 
@@ -85,16 +85,16 @@ export function MyQuestions({ questions }: { questions: MyProductQuestion[] }) {
   return (
     <MypageShell active="/my/questions">
       <div className="wc-mypage__headbar">
-        <h1 className="wc-mypage__headbar-title">내 굿즈 Q&amp;A</h1>
+        <h1 className="wc-mypage__headbar-title">내 상품 Q&amp;A</h1>
       </div>
       <p className="wc-mypage__lede">
-        굿즈 상세에 남긴 질문과 운영자 답변입니다. 비밀글이 아닌 질문과 답변은 굿즈 상세에 공개됩니다.
+        상품 상세에 남긴 질문과 운영자 답변입니다. 비밀글이 아닌 질문과 답변은 상품 상세에 공개됩니다.
       </p>
 
       {questions.length === 0 ? (
         <EmptyState
-          action={<Link className="wc-mypage__headbar-link" href="/shop">굿즈 둘러보기</Link>}
-          description="궁금한 굿즈의 상세 화면에서 Q&A 탭을 열면 질문을 남길 수 있어요."
+          action={<Link className="wc-mypage__headbar-link" href="/shop">상품 둘러보기</Link>}
+          description="궁금한 상품의 상세 화면에서 Q&A 탭을 열면 질문을 남길 수 있어요."
           title="아직 남긴 질문이 없어요"
           titleAs="h2"
         />

@@ -32,7 +32,7 @@ export function GoodRelatedProducts({ data, reviewSummaries, wishlist }: {
     schedule(); window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
     return () => { clearTimeout(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
   }, [nextChangeAt, router]);
-  if (data.unavailable) return <p className="wc-pdp-panel__note">연관 굿즈를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p>;
+  if (data.unavailable) return <p className="wc-pdp-panel__note">연관 상품을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p>;
   return <>{data.groups.map(group => <section className="wc-pdp-related" aria-labelledby={`good-relation-${group.id}`} key={group.id}>
     <h2 id={`good-relation-${group.id}`}>{group.title}</h2>
     {group.visual ? <GoodRelationVisual value={group.visual} goods={group.allGoods ?? group.goods} currentGoodId={data.currentGoodId} kind={group.kind} /> : null}

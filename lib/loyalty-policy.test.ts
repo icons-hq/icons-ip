@@ -23,7 +23,7 @@ describe('configurable loyalty criteria', () => {
     expect(parseLoyaltyCriteria(value)).toBeNull();
   });
   it('derives both remaining conditions and distinguishes satisfied from top grade', () => {
-    expect(loyaltyProgressNote('welcome', 40000, 1, tiers)).toBe('SILVER까지 60,000원 또는 굿즈 주문 항목 1건');
+    expect(loyaltyProgressNote('welcome', 40000, 1, tiers)).toBe('SILVER까지 60,000원 또는 상품 주문 항목 1건');
     expect(loyaltyProgressNote('silver', 300000, 2, tiers)).toContain('조건 충족');
     expect(loyaltyProgressNote('silver', 0, 5, tiers)).toContain('조건 충족');
     expect(loyaltyProgressNote('welcome', 1000000, 0, tiers)).toBe('PLATINUM 조건 충족 · 다음 재산정 시 반영');

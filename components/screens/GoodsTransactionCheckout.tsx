@@ -51,7 +51,7 @@ export const cartTransactionErrorCopy: Record<CartTransactionError, string> = {
   quote_changed: '가격이나 배송 조건이 변경되었어요. 새로 확인한 금액으로 다시 주문해주세요.',
   checkout_conflict: '이미 요청한 주문을 확인해주세요. 같은 요청으로 다른 주문을 만들 수 없어요.', unavailable: '주문을 확인하지 못했어요. 잠시 후 다시 시도해주세요.',
   payment_in_progress: '결제 확인 중인 주문이 있어요. 그 주문의 결제 결과를 확인한 뒤 다시 시도해주세요.',
-  draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.',
+  draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 상품 상세에서 다시 구매해주세요.',
   draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
   acknowledgement_required: CHECKOUT_ACKNOWLEDGEMENT_REQUIRED_COPY,
   claim_notice_changed: CHECKOUT_CLAIM_NOTICE_CHANGED_COPY,
@@ -213,7 +213,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   if (authBlocked) return <main className="wc-root checkout-page"><div className="wrap card"><h1>로그인 상태를 다시 확인해주세요</h1><p>{cartTransactionErrorCopy.auth_changed}</p><button type="button" className="btn btn-holo" onClick={() => window.location.reload()}>새로고침</button></div></main>;
   if (!session || !cart.ready || !released) return <main className="wc-root checkout-page"><p className="wrap" role="status">계정과 장바구니를 확인하고 있어요.</p></main>;
   if (cart.mode !== 'server') return <main className="wc-root checkout-page"><div className="wrap card"><h1>장바구니를 계정에 연결해주세요</h1><p>{cart.error}</p><button type="button" onClick={() => void cart.refresh()}>다시 연결</button></div></main>;
-  if (!orderItems.length && !recovery) return <main className="wc-root checkout-page"><div className="wrap card"><h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>{resumeOrderId && <><p>결제를 기다리거나 입금을 기다리는 주문이 있어요. 이어서 결제하거나 입금 안내를 확인할 수 있어요.</p><Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>주문 이어가기</Link></>}<Link href="/cart">장바구니로 돌아가기</Link></div></main>;
+  if (!orderItems.length && !recovery) return <main className="wc-root checkout-page"><div className="wrap card"><h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 상품이 없어요'}</h1>{resumeOrderId && <><p>결제를 기다리거나 입금을 기다리는 주문이 있어요. 이어서 결제하거나 입금 안내를 확인할 수 있어요.</p><Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>주문 이어가기</Link></>}<Link href="/cart">장바구니로 돌아가기</Link></div></main>;
 
   return <main className="wc-root wc-receipt checkout-page">
     <header className="wc-receipt__head"><div className="wrap"><h1 className="wc-receipt__title">받을 방식과 최종 결제금액을 확인해주세요</h1><p className="wc-receipt__subcopy">복수구매 할인, 쿠폰, 적립금과 배송비를 함께 확인합니다.</p>{paymentFailCode && <p role="alert">{paymentFailNoticeCopy(paymentFailCode)}</p>}</div></header>
@@ -235,23 +235,23 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
           const selectedMethod = typeof choice === 'object' ? choice.method : 'parcel';
           const selectedPayment = typeof choice === 'object' ? choice.paymentMode : choice ?? 'prepaid';
           return <div key={offer.goodId}>
-            {offer.fulfillment ? <label className="checkout-transaction-choice">{names[offer.goodId] ?? '굿즈'} 받을 방식<select value={selectedMethod} onChange={event => setChoices(value => ({ ...value, [offer.goodId]: { method: event.target.value as FulfillmentMethod, paymentMode: event.target.value === 'parcel' ? selectedPayment : 'prepaid' } }))}>
-              {offer.fulfillment.methods.map(m => <option key={m.method} value={m.method}>{FULFILLMENT_METHOD_LABELS[m.method]}{m.feeAmount !== null && m.feeAmount > 0 ? ` · ${krw(m.feeAmount)} / ${m.feeBasis === 'per_item' ? '개' : '굿즈별 주문'}` : ''}</option>)}
+            {offer.fulfillment ? <label className="checkout-transaction-choice">{names[offer.goodId] ?? '상품'} 받을 방식<select value={selectedMethod} onChange={event => setChoices(value => ({ ...value, [offer.goodId]: { method: event.target.value as FulfillmentMethod, paymentMode: event.target.value === 'parcel' ? selectedPayment : 'prepaid' } }))}>
+              {offer.fulfillment.methods.map(m => <option key={m.method} value={m.method}>{FULFILLMENT_METHOD_LABELS[m.method]}{m.feeAmount !== null && m.feeAmount > 0 ? ` · ${krw(m.feeAmount)} / ${m.feeBasis === 'per_item' ? '개' : '상품별 주문'}` : ''}</option>)}
             </select></label> : null}
-            {selectedMethod === 'parcel' && offer.delivery?.paymentMode === 'buyer_choice' ? <label className="checkout-transaction-choice">{names[offer.goodId] ?? '굿즈'} 배송비 결제방법<select value={selectedPayment} onChange={event => setChoices(value => ({ ...value, [offer.goodId]: { method: selectedMethod, paymentMode: event.target.value as 'prepaid' | 'collect' } }))}><option value="prepaid">선불 · 주문할 때 결제</option><option value="collect" disabled={!offer.collectReady}>착불 · 받을 때 결제</option></select></label> : null}
+            {selectedMethod === 'parcel' && offer.delivery?.paymentMode === 'buyer_choice' ? <label className="checkout-transaction-choice">{names[offer.goodId] ?? '상품'} 배송비 결제방법<select value={selectedPayment} onChange={event => setChoices(value => ({ ...value, [offer.goodId]: { method: selectedMethod, paymentMode: event.target.value as 'prepaid' | 'collect' } }))}><option value="prepaid">선불 · 주문할 때 결제</option><option value="collect" disabled={!offer.collectReady}>착불 · 받을 때 결제</option></select></label> : null}
             {offer.fulfillment?.publicNote ? <p>{offer.fulfillment.publicNote}</p> : null}
             {selectedMethod === 'digital' ? <p>파일을 처음 제공한 시점을 기록합니다. 다운로드를 시작한 주문의 취소 요청은 담당자가 검토합니다.</p> : null}
           </div>;
         })}
         {couponPolicy ? <fieldset className="checkout-coupon-selection"><legend>쿠폰 선택</legend>
-          <p>굿즈 쿠폰은 위에서부터 남은 굿즈 금액에 적용합니다. 배송비 쿠폰은 선결제 운송비만 할인하며 설치비·착불 비용은 제외합니다.</p>
-          {Array.from({ length: couponPolicy.stackingEnabled ? couponPolicy.maxGoodsCoupons : 1 }, (_, index) => <label className="checkout-transaction-choice" key={index}>굿즈 쿠폰 {index + 1}<select aria-label={`굿즈 쿠폰 ${index + 1}`} value={selectedCoupons[index] ?? ''} onChange={e => setSelectedCoupons(current => { const next = [...current]; next[index] = e.target.value; return next.filter(Boolean); })}>
+          <p>상품 쿠폰은 위에서부터 남은 상품 금액에 적용합니다. 배송비 쿠폰은 선결제 운송비만 할인하며 설치비·착불 비용은 제외합니다.</p>
+          {Array.from({ length: couponPolicy.stackingEnabled ? couponPolicy.maxGoodsCoupons : 1 }, (_, index) => <label className="checkout-transaction-choice" key={index}>상품 쿠폰 {index + 1}<select aria-label={`상품 쿠폰 ${index + 1}`} value={selectedCoupons[index] ?? ''} onChange={e => setSelectedCoupons(current => { const next = [...current]; next[index] = e.target.value; return next.filter(Boolean); })}>
             <option value="">사용 안 함</option>{coupons.filter(held => held.coupon.benefitKind !== 'shipping' && (couponDisplayState(held) === 'usable' || selectedCoupons.includes(held.id))).map(held => <option key={held.id} value={held.id} disabled={selectedCoupons.some(id => id !== selectedCoupons[index] && (id === held.id || coupons.find(other => other.id === id)?.coupon.code === held.coupon.code))}>{held.coupon.name} · {couponBenefitLabel(held.coupon)}{held.coupon.stackable ? ' · 중복 허용' : ' · 단독 사용'}</option>)}
           </select></label>)}
           {couponPolicy.shippingEnabled ? <label className="checkout-transaction-choice">배송비 쿠폰<select aria-label="배송비 쿠폰" value={shippingCoupon} onChange={e => setShippingCoupon(e.target.value)}><option value="">사용 안 함</option>{coupons.filter(held => held.coupon.benefitKind === 'shipping' && (couponDisplayState(held) === 'usable' || held.id === shippingCoupon)).map(held => <option key={held.id} value={held.id}>{held.coupon.name} · {couponBenefitLabel(held.coupon)}{held.coupon.stackable ? ' · 중복 허용' : ' · 단독 사용'}</option>)}</select></label> : null}
-          <p>{couponPolicy.stackingEnabled ? '선택한 모든 쿠폰이 중복 사용을 허용해야 함께 적용할 수 있습니다. 같은 쿠폰을 여러 장 가지고 있어도 한 주문에는 1장만 씁니다.' : '현재는 굿즈 쿠폰 또는 배송비 쿠폰 1장만 사용할 수 있습니다.'} 대상 굿즈·최소 구매 금액·사용기간은 최종 금액 확인 시 검사합니다.</p>
+          <p>{couponPolicy.stackingEnabled ? '선택한 모든 쿠폰이 중복 사용을 허용해야 함께 적용할 수 있습니다. 같은 쿠폰을 여러 장 가지고 있어도 한 주문에는 1장만 씁니다.' : '현재는 상품 쿠폰 또는 배송비 쿠폰 1장만 사용할 수 있습니다.'} 대상 상품·최소 구매 금액·사용기간은 최종 금액 확인 시 검사합니다.</p>
           {combinedIds.length ? <button type="button" onClick={() => { setSelectedCoupons([]); setShippingCoupon(''); }}>쿠폰 선택 모두 해제</button> : null}
-        </fieldset> : coupons.length ? <p>쿠폰 조합 정책을 확인하지 못했습니다. 장바구니에서 선택한 굿즈 쿠폰 1장을 확인합니다.</p> : null}
+        </fieldset> : coupons.length ? <p>쿠폰 조합 정책을 확인하지 못했습니다. 장바구니에서 선택한 상품 쿠폰 1장을 확인합니다.</p> : null}
         <label className="checkout-transaction-choice">사용할 적립금<input inputMode="numeric" value={creditInput} onChange={event => setCreditInput(event.target.value)} placeholder="0" aria-invalid={amount === null} /></label>
         {amount === null && <p role="alert">적립금은 0 이상의 원 단위 정수로 입력해주세요.</p>}
         {currentDisplay && <p>이 주문에서 최대 {krw(currentDisplay.storeCreditMaximum)} 사용 가능</p>}
@@ -260,12 +260,12 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
       <aside className="checkout-receipt card" aria-label="주문 내역과 결제금액">
         <h2>주문 내역</h2><div className="checkout-items">{visibleItems.map(item => {
           const price = display?.lines.find(line => line.goodId === item.goodId && line.variantId === item.variantId)?.unitPrice;
-          return <div className="checkout-item" key={cartItemKey(item.goodId, item.variantId, item.customInputs)}><div><strong>{names[item.goodId] ?? '굿즈'}</strong><span>{catalog.goods.find(good => good.id === item.goodId)?.options?.find(option => option.id === item.variantId)?.name}</span><GoodsCustomInputsSummary selection={item.customInputs} />{claimRestrictions && Object.hasOwn(claimRestrictions, item.goodId) ? <span className="checkout-item__restriction">{checkoutRestrictionNotice(claimRestrictions[item.goodId])}</span> : null}</div><span>{item.qty}개{price !== undefined ? ` × ${krw(price)}` : ''}</span></div>;
+          return <div className="checkout-item" key={cartItemKey(item.goodId, item.variantId, item.customInputs)}><div><strong>{names[item.goodId] ?? '상품'}</strong><span>{catalog.goods.find(good => good.id === item.goodId)?.options?.find(option => option.id === item.variantId)?.name}</span><GoodsCustomInputsSummary selection={item.customInputs} />{claimRestrictions && Object.hasOwn(claimRestrictions, item.goodId) ? <span className="checkout-item__restriction">{checkoutRestrictionNotice(claimRestrictions[item.goodId])}</span> : null}</div><span>{item.qty}개{price !== undefined ? ` × ${krw(price)}` : ''}</span></div>;
         })}</div>
         {display && <GoodsTransactionSummary display={display} names={names} />}
         {quotes.loading && <p role="status">할인과 배송비를 확인하고 있어요.</p>}
         {!input && !recovery && <p role={tooLarge ? 'alert' : undefined}>{tooLarge ? cartTransactionErrorCopy.order_too_large : '수령 방식과 필요한 배송지·적립금 입력을 완료하면 최종 금액을 표시합니다.'}</p>}
-        {quote?.state === 'blocked' && !recovery && <div role="alert">{quote.issues.map((issue, index) => <p key={`${issue.code}:${issue.goodId}:${index}`}>{issue.goodId ? `${names[issue.goodId] ?? '굿즈'}: ` : ''}{copyFor(transactionIssueCopy[issue.code])}</p>)}</div>}
+        {quote?.state === 'blocked' && !recovery && <div role="alert">{quote.issues.map((issue, index) => <p key={`${issue.code}:${issue.goodId}:${index}`}>{issue.goodId ? `${names[issue.goodId] ?? '상품'}: ` : ''}{copyFor(transactionIssueCopy[issue.code])}</p>)}</div>}
         {/* 결제 대기 주문이 그 굿즈의 구매 한도·재고나 고른 쿠폰을 잡고 있을 수 있다 — 그 막힘의 원인 주문을 실제로 찾았을 때만
             알리고 고객이 확인했을 때만 닫는다(ADR-0030). */}
         {!recovery && <CheckoutPendingOrderRelease
@@ -295,7 +295,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
         {recovery && <section aria-label="주문 요청 복구"><p>앞서 요청한 주문을 확인한 뒤 진행해주세요.</p><button type="button" className="btn btn-holo" disabled={busy} onClick={() => void resume()}>{busy ? '같은 주문 확인 중' : '같은 주문 다시 확인'}</button><Link href="/orders?pending=1">진행 중인 주문 보기</Link></section>}
         {error && <p className="checkout-error" role="alert">{error}</p>}
         {blockingOrder && <Link className="btn btn-holo" href={`/orders/${encodeURIComponent(blockingOrder)}`}>주문 보기</Link>}
-        <Link href={checkoutDraftReturnHref(draft)}>{direct ? '굿즈로 돌아가기' : '장바구니 확인'}</Link>
+        <Link href={checkoutDraftReturnHref(draft)}>{direct ? '상품으로 돌아가기' : '장바구니 확인'}</Link>
       </aside>
     </form>
   </main>;

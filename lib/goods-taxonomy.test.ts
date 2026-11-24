@@ -14,7 +14,7 @@ describe('goodDisplayBadges', () => {
   });
 
   /* PD-15 — 할인율 표시를 끈 굿즈(#543)는 목록·상세가 할인가만 보인다. 배지만 할인을 광고하면 안 된다. */
-  it('할인율 표시를 끈 굿즈에는 SALE 을 파생하지 않는다', () => {
+  it('할인율 표시를 끈 상품에는 SALE 을 파생하지 않는다', () => {
     expect(goodDisplayBadges({ badge: 'NEW', price: 12000, compareAtPrice: 18000, showDiscountRate: false })).toEqual(['NEW']);
   });
 });

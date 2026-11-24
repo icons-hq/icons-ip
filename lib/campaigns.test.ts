@@ -176,8 +176,8 @@ describe('parseCampaignSections', () => {
   });
 
   it('이동 버튼 블록은 문구와 내부 경로를 그대로 옮긴다', () => {
-    expect(parseCampaignSections([{ type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21', anchor: '굿즈' }]))
-      .toEqual([{ anchor: '굿즈', type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21' }]);
+    expect(parseCampaignSections([{ type: 'cta', label: '상품 더 보기', href: '/shop?ip=bt21', anchor: '상품' }]))
+      .toEqual([{ anchor: '상품', type: 'cta', label: '상품 더 보기', href: '/shop?ip=bt21' }]);
   });
 
   /* 저장은 DB 가 막지만, 외부로 나가는 값이 섞여 들어와도 화면은 그 버튼을 그리지 않는다(LD-18). */

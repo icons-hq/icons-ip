@@ -184,7 +184,7 @@ const CALLBACK = {
 } as const;
 
 describe('GoodsPaymentCheckout', () => {
-  it('같은 굿즈 주문 준비를 하나의 provider-neutral attempt와 checkout으로 재생한다', async () => {
+  it('같은 상품 주문 준비를 하나의 provider-neutral attempt와 checkout으로 재생한다', async () => {
     const { checkout, repository } = checkoutFixture();
 
     await expect(checkout.prepare({ userId: USER_ID, orderId: ORDER_ID })).resolves.toEqual(prepared());

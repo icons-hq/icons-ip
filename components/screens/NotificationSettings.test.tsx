@@ -52,7 +52,7 @@ describe('NotificationSettings', () => {
     expect(html).toMatch(/name="notifyDrops"[^>]*checked=""[^>]*value="true"/);
     expect(html).toMatch(/name="notifyEvents"[^>]*value="true"/);
     expect(html).not.toMatch(/name="notifyEvents"[^>]*checked=""/);
-    expect(html).toContain('새 굿즈·드롭');
+    expect(html).toContain('새 상품·드롭');
     expect(html).toContain('팝업·이벤트');
     expect(html).toContain('변경 저장');
   });

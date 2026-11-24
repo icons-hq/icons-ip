@@ -13,7 +13,7 @@ const DIRECT_RETRY_ERRORS: Record<Exclude<DirectRetryActionError, 'auth_required
   invalid_request: '주문을 다시 확인해주세요.',
   payment_in_progress: '결제 결과를 확인하고 있는 주문이 있어요. 확인이 끝난 뒤 다시 시도해주세요.',
   not_retryable: '이 주문은 다시 구매할 수 없는 상태예요. 주문 상세에서 결제 상태를 확인해주세요.',
-  lines_unavailable: '이 주문은 결제 없이 취소했어요. 지금은 같은 구성으로 주문서를 열 수 없으니 굿즈 상세에서 다시 골라주세요.',
+  lines_unavailable: '이 주문은 결제 없이 취소했어요. 지금은 같은 구성으로 주문서를 열 수 없으니 상품 상세에서 다시 골라주세요.',
   unavailable: '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
 };
 /* 같은 주문의 다시 구매는 한 번이다 — 두 탭·뒤로 가기로 다시 눌렀는데 이미 그 초안으로 접수·결제했으면 그 주문으로 잇는다. */
@@ -75,10 +75,10 @@ export function CheckoutDirectRetryButton({ orderId, goodId, orderPending, secon
       </button>
       {!secondary ? null : orderPending ? (
         <button aria-disabled={pending ? 'true' : undefined} className="checkout-retry-secondary" onClick={() => void run('close')} type="button">
-          {pending === 'close' ? '주문을 닫는 중' : '이 주문 닫고 굿즈 상세에서 다시 고르기'}
+          {pending === 'close' ? '주문을 닫는 중' : '이 주문 닫고 상품 상세에서 다시 고르기'}
         </button>
       ) : (
-        <Link className="checkout-retry-secondary" href={`/shop/${encodeURIComponent(goodId)}`}>굿즈 상세에서 다시 고르기</Link>
+        <Link className="checkout-retry-secondary" href={`/shop/${encodeURIComponent(goodId)}`}>상품 상세에서 다시 고르기</Link>
       )}
       {error ? (
         <p className="checkout-error" role="alert">

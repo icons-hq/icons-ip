@@ -27,10 +27,10 @@ function render(questions: MyProductQuestion[]) {
 }
 
 describe('MyQuestions', () => {
-  it('답변 대기 질문은 대상 굿즈 링크와 함께 기다리는 이유를 적는다', () => {
+  it('답변 대기 질문은 대상 상품 링크와 함께 기다리는 이유를 적는다', () => {
     const html = render([myQuestion()]);
 
-    expect(html).toContain('>내 굿즈 Q&amp;A</h1>');
+    expect(html).toContain('>내 상품 Q&amp;A</h1>');
     expect(html).toContain('href="/shop/g13?qnaPage=1#qna"');
     expect(html).toContain('아크릴 블록');
     expect(html).toContain('답변 대기');
@@ -45,7 +45,7 @@ describe('MyQuestions', () => {
     const aside = html.slice(html.indexOf('wc-mypage__aside'), html.indexOf('wc-mypage__content'));
 
     expect(aside).toContain('href="/my/questions"');
-    expect(aside).toContain('>굿즈 Q&amp;A</a>');
+    expect(aside).toContain('>상품 Q&amp;A</a>');
     expect(aside).toContain('>1:1 문의</a>');
   });
 
@@ -67,7 +67,7 @@ describe('MyQuestions', () => {
 
     expect(html).toContain('비공개 처리됨');
     expect(html).toContain('wc-qna-badge--hidden');
-    expect(html).toContain('굿즈 상세에는 보이지 않습니다');
+    expect(html).toContain('상품 상세에는 보이지 않습니다');
     expect(html).toContain('재입고 예정이 있나요?');
   });
 
@@ -78,7 +78,7 @@ describe('MyQuestions', () => {
     expect(html).toContain('name="questionId"');
     expect(html).toContain('value="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"');
     expect(html).toContain('aria-label="아크릴 블록에 남긴 질문 삭제"');
-    expect(html).toContain('삭제하면 굿즈 상세에서도 사라져요.');
+    expect(html).toContain('삭제하면 상품 상세에서도 사라져요.');
   });
 
   /* 답변이 달렸다고 자기 글을 못 거두게 하면, 작성자는 남긴 글을 영영 되돌릴 수 없다.
@@ -123,7 +123,7 @@ describe('MyQuestions', () => {
     expect(html).not.toContain('판매자와 나만 볼 수 있는 비밀글입니다.');
   });
 
-  it('남긴 질문이 없으면 굿즈로 가는 길을 준다', () => {
+  it('남긴 질문이 없으면 상품으로 가는 길을 준다', () => {
     const html = render([]);
 
     expect(html).toContain('아직 남긴 질문이 없어요');

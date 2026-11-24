@@ -85,7 +85,7 @@ export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
   title: '엑스스퀘어',
   description:
-    '공식 라이선스 굿즈 · 팝업 & 티케팅 · 팬 커뮤니티까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
+    '공식 라이선스 상품 · 팝업 & 티케팅 · 팬 커뮤니티까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
   /* 네이버 서치어드바이저 소유확인(1014-029) — env 값이 있을 때만 <meta name="naver-site-verification">. 빌드 때 읽으므로
      값을 넣거나 바꾸면 다시 배포한다. */
   ...siteVerificationMetadata(process.env.NAVER_SITE_VERIFICATION),

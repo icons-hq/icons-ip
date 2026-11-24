@@ -188,8 +188,8 @@ export function OrderComplete({ order, bankTransferAccount, depositDeadlinePasse
           </div>
         </section>
 
-        <aside className="checkout-receipt card" aria-label="주문한 굿즈">
-          <h2>주문한 굿즈</h2>
+        <aside className="checkout-receipt card" aria-label="주문한 상품">
+          <h2>주문한 상품</h2>
           <div className="checkout-items">
             {order.items.map((item) => (
               <div className="checkout-item" key={item.id}>

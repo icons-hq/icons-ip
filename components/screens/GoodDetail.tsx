@@ -437,7 +437,7 @@ export function GoodDetailView({
             <div className={`wc-pdp__purchase${purchaseSheetAvailable(purchase) ? '' : ' is-inline'}`}>
               {sheetVisible ? null : <GoodPurchasePanel otherPurchases={otherPurchases} purchase={surfacePurchase} shippingPolicy={shippingPolicy} />}
             </div>
-            {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
+            {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 상품 보기</a> : null}
             {ip ? <GoodIpCard ip={ip} /> : null}
           </div>
         </div>
@@ -446,7 +446,7 @@ export function GoodDetailView({
       {!embedded && reviewHighlights ? <div className="wc-container">{reviewHighlights}</div> : null}
       {!embedded && otherCompositions ? <div className="wc-container">{otherCompositions}</div> : null}
       {announcements ? <div className="wc-container">{announcements}</div> : null}
-      {detail.attributes?.length ? <div className="wc-container"><section className="wc-pdp-notice" aria-labelledby="pdp-attributes-heading"><h2 className="wc-pdp-panel__title" id="pdp-attributes-heading">굿즈 정보</h2><div className="wc-pdp-notice__scroll"><table className="wc-pdp-notice__table"><caption className="sr-only">굿즈 속성</caption><tbody>{detail.attributes.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{row.value}</td></tr>)}</tbody></table></div></section></div> : null}
+      {detail.attributes?.length ? <div className="wc-container"><section className="wc-pdp-notice" aria-labelledby="pdp-attributes-heading"><h2 className="wc-pdp-panel__title" id="pdp-attributes-heading">상품 정보</h2><div className="wc-pdp-notice__scroll"><table className="wc-pdp-notice__table"><caption className="sr-only">상품 속성</caption><tbody>{detail.attributes.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{row.value}</td></tr>)}</tbody></table></div></section></div> : null}
       {detail.sizeChart ? <div className="wc-container"><GoodSizeChart chart={detail.sizeChart} /></div> : null}
       {!embedded && discovery?.shippingSavings ? <div className="wc-container"><ProductShippingSavings goodId={good.id} option={purchase.selectedOption} quantity={purchase.quantity} wishlist={listingWishlist} /></div> : null}
       {!embedded && media?.settings.shortclips && media.shortclip ? <div className="wc-container"><ProductShortclips clip={media.shortclip} fallbackBackground={good.img} /></div> : null}

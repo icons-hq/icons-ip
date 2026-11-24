@@ -141,7 +141,7 @@ export function storeCreditErrorMessage(reason: string | null): string {
   if (reason?.includes('store_credit_balance_limit')) return '지급 후 잔액이 보유 적립금 상한을 초과합니다.';
   if (reason?.includes('store_credit_insufficient')) return '사용 가능한 적립금이 부족합니다.';
   if (reason?.includes('store_credit_debt')) return '환불로 회수할 적립금이 있어 사용이 제한됩니다.';
-  if (reason?.includes('store_credit_amount')) return '사용 하한·상한과 굿즈 결제 잔액을 확인해주세요.';
+  if (reason?.includes('store_credit_amount')) return '사용 하한·상한과 상품 결제 잔액을 확인해주세요.';
   if (reason?.includes('conflict')) return '다른 작업으로 내용이 변경됐습니다. 최신 내역을 확인해주세요.';
   return '적립금을 처리하지 못했습니다. 최신 잔액을 확인한 뒤 다시 시도해주세요.';
 }

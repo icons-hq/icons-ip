@@ -158,10 +158,10 @@ export function couponBenefitLabel(
 
 /** 사용 조건 한 줄 표기. */
 export function couponConditionLabel(coupon: Pick<CouponSummary, 'minSubtotal' | 'goodsScope'>): string {
-  const scope = coupon.goodsScope && coupon.goodsScope !== 'all' ? '대상 굿즈 합계 ' : '';
+  const scope = coupon.goodsScope && coupon.goodsScope !== 'all' ? '대상 상품 합계 ' : '';
   return coupon.minSubtotal > 0
     ? `${scope}${krw(coupon.minSubtotal)} 이상 구매 시`
-    : coupon.goodsScope === 'selected_categories' ? '선택한 카테고리의 굿즈에만 사용' : coupon.goodsScope === 'selected_ips' ? '선택한 IP의 굿즈에만 사용' : coupon.goodsScope === 'selected_goods' ? '선택한 대상 굿즈에만 사용' : '금액 제한 없음';
+    : coupon.goodsScope === 'selected_categories' ? '선택한 카테고리의 상품에만 사용' : coupon.goodsScope === 'selected_ips' ? '선택한 IP의 상품에만 사용' : coupon.goodsScope === 'selected_goods' ? '선택한 대상 상품에만 사용' : '금액 제한 없음';
 }
 
 /** 유효기간 한 줄 표기 — 실효 만료(정의 단축 반영) 기준. */
@@ -194,7 +194,7 @@ export function couponValidityLabel(userCoupon: UserCouponSummary): string {
    서버가 모르는 메시지는 일반 실패로 접는다. */
 const COUPON_ACTION_MESSAGES: Record<string, string> = {
   coupon_designated_recipient_required: '지정 고객에게 직접 발급하는 쿠폰이에요. 발급되면 쿠폰함에서 확인할 수 있어요.',
-  coupon_category_changed: '굿즈 카테고리가 변경되고 있어요. 주문서를 새로고침한 뒤 할인 금액을 확인해주세요.',
+  coupon_category_changed: '상품 카테고리가 변경되고 있어요. 주문서를 새로고침한 뒤 할인 금액을 확인해주세요.',
   coupon_checkout_required: '배송비 쿠폰은 주문서에서 받을 방식과 배송지를 확인한 뒤 선택해주세요.',
   coupon_grade_required: '더 높은 회원 등급 이상에게 지급되는 쿠폰이에요. 등급별 혜택은 마이페이지의 회원 등급 혜택에서 확인할 수 있어요.',
   coupon_revoked: '이 쿠폰은 다시 받을 수 없어요. 궁금한 점은 고객센터로 문의해주세요.',
@@ -208,11 +208,11 @@ const COUPON_ACTION_MESSAGES: Record<string, string> = {
   coupon_not_owned: '보유하지 않은 쿠폰이에요.',
   coupon_already_used: '이미 사용한 쿠폰이에요.',
   coupon_archived: '사용이 중단된 쿠폰이에요.',
-  coupon_first_purchase_only: '유효한 굿즈 결제 이력이 없는 첫구매 고객만 쓸 수 있어요.',
-  coupon_repeat_purchase_only: '유효한 굿즈 결제 이력이 있는 고객만 쓸 수 있어요.',
+  coupon_first_purchase_only: '유효한 상품 결제 이력이 없는 첫구매 고객만 쓸 수 있어요.',
+  coupon_repeat_purchase_only: '유효한 상품 결제 이력이 있는 고객만 쓸 수 있어요.',
   coupon_first_purchase_reserved: '첫구매 혜택으로 진행 중인 주문을 완료하거나 취소해주세요.',
   coupon_first_purchase_pending: '진행 중인 다른 주문을 완료하거나 취소한 뒤 첫구매 쿠폰을 사용해주세요.',
-  coupon_no_eligible_goods: '쿠폰 대상 굿즈를 담으면 사용할 수 있어요.',
+  coupon_no_eligible_goods: '쿠폰 대상 상품을 담으면 사용할 수 있어요.',
   coupon_no_discount: '최소 유상 결제액을 유지해야 하므로 이 주문에는 쿠폰 할인을 적용할 수 없어요.',
 };
 

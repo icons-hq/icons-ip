@@ -37,7 +37,7 @@ export interface AdminCurationTargetSource {
 const FIXED_TARGETS: AdminCurationTargetOption[] = [
   { label: '홈', path: '/' },
   { label: '온라인 팝업', path: '/ip' },
-  { label: '굿즈샵', path: '/shop' },
+  { label: '쇼핑', path: '/shop' },
   /* X SQUARE GNB의 NEW·BEST·POP-UP — 홈 배너·공지 바가 이 화면으로 바로 보낼 수 있어야 한다.
      라벨은 GNB 표기(lib/routes.ts STOREFRONT_MENU_ITEMS)와 같고, 경로는 홈 큐레이션 링크 검증(DB is_safe_home_curation_link)이 받는 사이트 안 경로다. */
   { label: 'NEW', path: '/shop/new' },

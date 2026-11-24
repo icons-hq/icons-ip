@@ -61,7 +61,7 @@ describe('recordOrderPurchaseAcknowledgement', () => {
 });
 
 describe('recordOrderPurchaseAcknowledgement 화면 고지', () => {
-  it('화면이 보인 제한 굿즈 목록이나 읽기 실패 표식을 함께 남긴다', async () => {
+  it('화면이 보인 제한 상품 목록이나 읽기 실패 표식을 함께 남긴다', async () => {
     mocks.rpc.mockResolvedValue({ data: true, error: null });
     await recordOrderPurchaseAcknowledgement(USER, ORDER, ['g1']);
     expect(mocks.rpc).toHaveBeenLastCalledWith('record_order_purchase_acknowledgement', expect.objectContaining({ p_screen_notice: { goodIds: ['g1'] } }));
@@ -84,7 +84,7 @@ describe('loadCheckoutClaimRestrictions', () => {
     expect(sessionCalls).toEqual([]);
   });
 
-  it('공개 RLS가 가린 굿즈는 응답에 없으므로 prop에도 없다(품목 밖·비공개 굿즈 비노출)', async () => {
+  it('공개 RLS가 가린 상품은 응답에 없으므로 prop에도 없다(품목 밖·비공개 상품 비노출)', async () => {
     /* 세션 client는 goods_public_read로 19금·미공개 굿즈 행을 돌려주지 않는다 — 돌려준 행만 prop이 된다. */
     mocks.session.mockResolvedValue({ data: [], error: null });
     await expect(loadCheckoutClaimRestrictions(['rh-adult-engraved-item', 'rh-unreleased-collab-item'])).resolves.toEqual({});
@@ -108,7 +108,7 @@ describe('loadCheckoutClaimRestrictions', () => {
 });
 
 describe('loadUserCartGoodIds', () => {
-  it('서버 장바구니의 굿즈 id를 중복 없이 돌려주고, 못 읽으면 null이다', async () => {
+  it('서버 장바구니의 상품 id를 중복 없이 돌려주고, 못 읽으면 null이다', async () => {
     mocks.cart.mockResolvedValueOnce({ data: [{ good_id: 'a' }, { good_id: 'a' }, { good_id: 'b' }], error: null });
     await expect(loadUserCartGoodIds(USER)).resolves.toEqual(['a', 'b']);
     mocks.cart.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
@@ -119,14 +119,14 @@ describe('loadUserCartGoodIds', () => {
 describe('verifyClaimNotice', () => {
   const restricted = { data: [{ id: 'g1', claim_return_allowed: false, claim_restriction_reason: 'r' }, { id: 'g2', claim_exchange_allowed: false, claim_restriction_reason: 'r' }], error: null };
 
-  it('주문 굿즈의 제한이 모두 화면에 보였으면 통과하고, 서버 재조회는 service client로 주문 굿즈에 한정한다', async () => {
+  it('주문 상품의 제한이 모두 화면에 보였으면 통과하고, 서버 재조회는 service client로 주문 상품에 한정한다', async () => {
     mocks.service.mockResolvedValue(restricted);
     await expect(verifyClaimNotice(['g1', 'g2', 'g3'], ['g1', 'g2'])).resolves.toBe('ok');
     expect(serviceCalls).toContainEqual(['in', 'id', ['g1', 'g2', 'g3']]);
     await expect(verifyClaimNotice(['g1', 'g2'], ['g1', 'g2', 'gx'])).resolves.toBe('ok');
   });
 
-  it('화면에 없던 제한 굿즈가 있으면 changed다(고지 읽기 실패 표식이면 모든 제한이 해당)', async () => {
+  it('화면에 없던 제한 상품이 있으면 changed다(고지 읽기 실패 표식이면 모든 제한이 해당)', async () => {
     mocks.service.mockResolvedValue(restricted);
     await expect(verifyClaimNotice(['g1', 'g2'], ['g1'])).resolves.toBe('changed');
     await expect(verifyClaimNotice(['g1', 'g2'], [])).resolves.toBe('changed');

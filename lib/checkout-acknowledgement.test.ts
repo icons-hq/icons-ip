@@ -22,9 +22,9 @@ describe('결제 전 확인 동의 값', () => {
     expect(CHECKOUT_ACKNOWLEDGEMENT_VERSION.length).toBeLessThanOrEqual(40);
   });
 
-  it('제한 굿즈가 있으면 문구가 그 사실을 더한다', () => {
-    expect(checkoutAcknowledgementText(false)).toBe('주문 굿즈·수량·결제 금액·배송지를 확인했으며, 구매 조건과 결제에 동의합니다.');
-    expect(checkoutAcknowledgementText(true)).toContain('청약철회 또는 교환이 제한되는 굿즈가 포함되어 있음을 확인하고');
+  it('제한 상품이 있으면 문구가 그 사실을 더한다', () => {
+    expect(checkoutAcknowledgementText(false)).toBe('주문 상품·수량·결제 금액·배송지를 확인했으며, 구매 조건과 결제에 동의합니다.');
+    expect(checkoutAcknowledgementText(true)).toContain('청약철회 또는 교환이 제한되는 상품이 포함되어 있음을 확인하고');
     expect(checkoutAcknowledgementText(true)).toContain('구매 조건과 결제에 동의합니다.');
   });
 
@@ -36,7 +36,7 @@ describe('결제 전 확인 동의 값', () => {
   });
 });
 
-describe('제한 굿즈 읽기', () => {
+describe('제한 상품 읽기', () => {
   it('제한이 아닌 행·형식이 틀린 행은 버리고 사유가 비면 개별 확인으로 채운다', () => {
     const parsed = parseCheckoutClaimRestrictions([
       { id: 'a', claim_return_allowed: false, claim_exchange_allowed: null, claim_restriction_reason: '  개봉 후 불가 ' },
@@ -70,9 +70,9 @@ describe('화면이 보인 제한 고지', () => {
     { id: 'b', claim_exchange_allowed: false, claim_restriction_reason: 'r' },
   ]);
 
-  it('교환만 제한된 굿즈(b)도 문구가 청약철회 또는 교환 제한을 말한다', () => {
+  it('교환만 제한된 상품(b)도 문구가 청약철회 또는 교환 제한을 말한다', () => {
     expect(checkoutRestrictionNotice(restrictions.b)).toBe('교환 제한 · 청약철회 가능 — r');
-    expect(checkoutAcknowledgementText(restrictedCheckoutGoods(['b'], restrictions).length > 0)).toContain('청약철회 또는 교환이 제한되는 굿즈');
+    expect(checkoutAcknowledgementText(restrictedCheckoutGoods(['b'], restrictions).length > 0)).toContain('청약철회 또는 교환이 제한되는 상품');
   });
 
   it('품목 기준 보인 목록, 읽기 실패면 unavailable 표식이다', () => {

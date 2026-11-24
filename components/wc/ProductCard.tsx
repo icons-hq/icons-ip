@@ -155,7 +155,7 @@ export function ProductCard({
           <Link className="wc-product-card__name-link" href={href}>{name}</Link>
           {availabilityLabel ? <span className="wc-sr-only"> ({availabilityLabel})</span> : null}
         </h3>
-        {configured && listing.showColors && listingAppearance?.colors.length ? <ul className="wc-product-card__colors" aria-label="굿즈 색상">{listingAppearance.colors.map(chip => <li key={chip.label} title={chip.label}><span style={{ backgroundColor: chip.hex }} /><span className="wc-sr-only">{chip.label}</span></li>)}</ul> : null}
+        {configured && listing.showColors && listingAppearance?.colors.length ? <ul className="wc-product-card__colors" aria-label="상품 색상">{listingAppearance.colors.map(chip => <li key={chip.label} title={chip.label}><span style={{ backgroundColor: chip.hex }} /><span className="wc-sr-only">{chip.label}</span></li>)}</ul> : null}
         <PriceBlock compareAtPrice={compareAtPrice} price={price} priceMax={priceMax} showDiscountRate={showDiscountRate} variant="inline" />
         {/* 칩 줄은 가격 바로 아래다(Figma). 예약판매·무료배송·캡슐토이는 굿즈 데이터에서, 운영 배지는 저장 배지에서 온다.
             판매 상태를 전하는 텍스트라 숨긴 이미지 링크 밖에 둔다. */}

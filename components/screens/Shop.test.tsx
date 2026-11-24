@@ -49,7 +49,7 @@ function good(id: string, ipId: string, overrides: Partial<Good> = {}): Good {
   return {
     id,
     ip: ipId,
-    name: `굿즈 ${id}`,
+    name: `상품 ${id}`,
     price: 10000,
     badge: null,
     stock: 'ok' as Stock,
@@ -173,10 +173,10 @@ describe('목록 틀 (Figma — 제목 줄 + 정렬 셀렉트 + 5열 그리드, 
   it('왼쪽 필터·수량 줄·모바일 필터 시트가 없다(D2)', () => {
     const html = render('all');
 
-    for (const gone of ['wc-collection__sidebar', 'wc-collection__toolbar', 'wc-filter-group', 'wc-filter-trigger', 'wc-filter-sheet', 'wc-price-slider', '굿즈 필터', '전체 초기화', '전체 ›']) {
+    for (const gone of ['wc-collection__sidebar', 'wc-collection__toolbar', 'wc-filter-group', 'wc-filter-trigger', 'wc-filter-sheet', 'wc-price-slider', '상품 필터', '전체 초기화', '전체 ›']) {
       expect(html, gone).not.toContain(gone);
     }
-    expect(html).not.toMatch(/\d개 굿즈/);
+    expect(html).not.toMatch(/\d개 상품/);
   });
 
   it('필터 쿼리는 읽지 않는다 — ?ip·?min 이 걸려도 결과가 같다', () => {
@@ -187,11 +187,11 @@ describe('목록 틀 (Figma — 제목 줄 + 정렬 셀렉트 + 5열 그리드, 
     expect((filtered.match(/<article/g) ?? []).length).toBe(4);
   });
 
-  it('제목은 보이는 h1 하나이고 전체 목록은 "전체 굿즈"다', () => {
+  it('제목은 보이는 h1 하나이고 전체 목록은 "전체 상품"다', () => {
     const html = render('all');
 
     expect(html.match(/<h1/g)).toHaveLength(1);
-    expect(html).toContain('<h1 class="wc-listing-head__title">전체 굿즈</h1>');
+    expect(html).toContain('<h1 class="wc-listing-head__title">전체 상품</h1>');
   });
 
   it('정렬 7종을 인기도·최신 등록순·판매량·가격·리뷰 순서의 네이티브 select 로 주고 현재 정렬을 선택 상태로 둔다', () => {
@@ -211,7 +211,7 @@ describe('목록 틀 (Figma — 제목 줄 + 정렬 셀렉트 + 5열 그리드, 
     expect(html.indexOf('홍실 피규어')).toBeLessThan(html.indexOf('메이플 인형'));
   });
 
-  it('카드에 굿즈명·가격·운영 배지 칩·할인율·품절을 싣고 상세로 링크한다 — SALE 배지 대신 할인율이다', () => {
+  it('카드에 상품명·가격·운영 배지 칩·할인율·품절을 싣고 상세로 링크한다 — SALE 배지 대신 할인율이다', () => {
     const html = render('all');
 
     expect(html).toContain('href="/shop/a"');
@@ -233,7 +233,7 @@ describe('목록 틀 (Figma — 제목 줄 + 정렬 셀렉트 + 5열 그리드, 
 
   /* LD-4(#326 결정 번복): 모든 상품 카드에 위시 하트. 목록 페이지가 위시 ID 집합을 한 번 내려 주고
      카드는 그 집합으로 초기 상태만 정한다. 어드민 미리보기처럼 상태를 받지 않은 자리에는 하트가 없다. */
-  it('위시 상태를 받으면 카드마다 링크 밖에 하트를 두고 찜한 굿즈만 눌린 상태로 시작한다', () => {
+  it('위시 상태를 받으면 카드마다 링크 밖에 하트를 두고 찜한 상품만 눌린 상태로 시작한다', () => {
     const html = render('all', {}, catalog, undefined, { viewerId: 'viewer-1', goodIds: ['b'] });
     const hearts = [...html.matchAll(/<button[^>]*class="wc-list-heart[^"]*"[^>]*>/g)].map((match) => match[0]);
 
@@ -286,18 +286,18 @@ describe('목록 틀 (Figma — 제목 줄 + 정렬 셀렉트 + 5열 그리드, 
     const more = render('all', {}, many, undefined, undefined, { paging: { loading: false, hasMore: true, onLoadMore: () => undefined } });
     expect(more).toContain('>VIEW MORE</button>');
 
-    const failed = render('all', {}, many, undefined, undefined, { paging: { loading: false, error: '굿즈를 더 불러오지 못했습니다.', hasMore: true, onLoadMore: () => undefined, onReload: () => undefined } });
+    const failed = render('all', {}, many, undefined, undefined, { paging: { loading: false, error: '상품을 더 불러오지 못했습니다.', hasMore: true, onLoadMore: () => undefined, onReload: () => undefined } });
     expect(failed).toContain('role="alert"');
     expect(failed).toContain('목록 새로 불러오기');
   });
 });
 
 describe('빈 상태', () => {
-  it('스코프 자체가 비면 준비 중 안내와 굿즈샵 링크만 남긴다(굿즈샵 전체는 링크 없이)', () => {
+  it('스코프 자체가 비면 준비 중 안내와 쇼핑 링크만 남긴다(쇼핑 전체는 링크 없이)', () => {
     const empty = render('new', {}, { ips: catalog.ips, goods: [] });
 
     expect(empty).toContain('아직 준비 중이에요');
-    expect(empty).toContain('굿즈샵 둘러보기');
+    expect(empty).toContain('상품 둘러보기');
     expect(empty).toContain('href="/shop"');
     expect(empty).not.toContain('wc-x-grid');
     expect(empty).not.toContain('<select');
@@ -307,12 +307,12 @@ describe('빈 상태', () => {
 
     const all = render('all', {}, { ips: catalog.ips, goods: [] });
     expect(all).toContain('아직 준비 중이에요');
-    expect(all).not.toContain('굿즈샵 둘러보기');
+    expect(all).not.toContain('상품 둘러보기');
   });
 });
 
 describe('NEW — 탭 줄이 곧 정렬이다(D4)', () => {
-  it('NEW 배지 굿즈만 담고 정렬 셀렉트가 없으며 탭 6종을 순서대로 링크로 둔다', () => {
+  it('NEW 배지 상품만 담고 정렬 셀렉트가 없으며 탭 6종을 순서대로 링크로 둔다', () => {
     const html = render('new');
 
     expect(html).toContain('<h1 class="wc-listing-head__title">NEW</h1>');
@@ -367,7 +367,7 @@ describe('BEST — 기간 탭 + 판매 랭킹 순서', () => {
     expect(html).toMatch(/<option[^>]*value="price_asc"[^>]*selected/);
   });
 
-  it('랭킹 순서를 그대로 그리고 랭킹에 없는 굿즈는 담지 않는다', () => {
+  it('랭킹 순서를 그대로 그리고 랭킹에 없는 상품은 담지 않는다', () => {
     const html = render('best', {}, catalog, ['d', 'b']);
 
     expect(html.indexOf('메이플 인형')).toBeLessThan(html.indexOf('홍실 키링'));
@@ -382,16 +382,16 @@ describe('BEST — 기간 탭 + 판매 랭킹 순서', () => {
     expect(html).not.toContain('메이플 키링');
   });
 
-  it('빈 기간은 "이 기간에 집계된 굿즈가 없어요" + 다른 기간 안내이고 탭 줄은 남긴다', () => {
+  it('빈 기간은 "이 기간에 집계된 상품이 없어요" + 다른 기간 안내이고 탭 줄은 남긴다', () => {
     const html = render('best', { period: 'daily' }, catalog, []);
 
-    expect(html).toContain('이 기간에 집계된 굿즈가 없어요');
+    expect(html).toContain('이 기간에 집계된 상품이 없어요');
     expect(html).toContain('다른 기간을 골라 보세요.');
     expect(html).toContain('wc-listing-tabs');
     expect([...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['일간']);
     expect(html).not.toContain('<select');
     expect(html).not.toContain('wc-x-grid');
-    expect(html).not.toContain('굿즈샵 둘러보기');
+    expect(html).not.toContain('상품 둘러보기');
   });
 
   it('랭킹을 읽지 못하면 가짜 순위 대신 실패 안내를 그린다(빈 기간과 다른 문구)', () => {
@@ -399,7 +399,7 @@ describe('BEST — 기간 탭 + 판매 랭킹 순서', () => {
 
     expect(html).toContain('순위를 불러오지 못했어요.');
     expect(html).toContain('잠시 후 다시 확인해주세요.');
-    expect(html).not.toContain('이 기간에 집계된 굿즈가 없어요');
+    expect(html).not.toContain('이 기간에 집계된 상품이 없어요');
     expect(html).toContain('wc-listing-tabs');
   });
 });
@@ -411,12 +411,12 @@ describe('카테고리 화면 — 칩·제목·하위 탭', () => {
   });
   const tree = [node(1, '문구용품', null), node(11, '다이어리', 1), node(12, '스티커', 1), node(2, '인형', null)];
 
-  it('전체 굿즈는 칩 영역(전체 선택) 아래 "전체 굿즈" 제목이고 하위 탭은 없다', () => {
+  it('전체 상품은 칩 영역(전체 선택) 아래 "전체 상품" 제목이고 하위 탭은 없다', () => {
     const html = render('all', {}, catalog, undefined, undefined, { categoryNav: buildCategoryListingNav(tree, null) });
 
     expect(html).toContain('aria-label="카테고리"');
     expect(html).toMatch(/<a aria-current="page" class="wc-listing-chip" href="\/shop">전체<\/a>/);
-    expect(html).toContain('<h1 class="wc-listing-head__title">전체 굿즈</h1>');
+    expect(html).toContain('<h1 class="wc-listing-head__title">전체 상품</h1>');
     expect(html).not.toContain('wc-listing-tabs');
     expect(html.indexOf('wc-listing-chips')).toBeLessThan(html.indexOf('wc-listing-head'));
   });
@@ -507,7 +507,7 @@ describe('스트립 배너 (Figma · 11 CL-09)', () => {
     expect(html).toContain('<main class="wc-root wc-listing" data-lead="banner">');
   });
 
-  it('굿즈샵 전체 배너(all 슬롯)는 컨테이너 안 맨 앞, 제목 줄 앞에 서고 다른 슬롯은 섞이지 않는다', () => {
+  it('쇼핑 전체 배너(all 슬롯)는 컨테이너 안 맨 앞, 제목 줄 앞에 서고 다른 슬롯은 섞이지 않는다', () => {
     const html = renderWith('all', [banner('a1', 'all'), banner('a2', 'all'), banner('b1', 'best')]);
 
     expect(html).toContain('data-slot="all"');
@@ -521,11 +521,11 @@ describe('스트립 배너 (Figma · 11 CL-09)', () => {
   });
 
   it('BEST·NEW 배너는 한 장이고 NEW 는 NEW 슬롯 배너만 받는다 — 배너가 있어도 제목 줄이 그대로 보인다', () => {
-    const best = renderWith('best', [banner('b1', 'best', { subtitle: '지금 많이 찾는 굿즈' }), banner('b2', 'best')], {}, ['d', 'b']);
+    const best = renderWith('best', [banner('b1', 'best', { subtitle: '지금 많이 찾는 상품' }), banner('b2', 'best')], {}, ['d', 'b']);
     expect(best).toContain('배너 b1');
     expect(best).not.toContain('배너 b2');
     expect(best).not.toContain('aria-roledescription="carousel"');
-    expect(best).toContain('지금 많이 찾는 굿즈');
+    expect(best).toContain('지금 많이 찾는 상품');
     expect(best).toContain('<h1 class="wc-listing-head__title">BEST</h1>');
 
     const fresh = renderWith('new', [banner('n1', 'new'), banner('a1', 'all')]);
@@ -568,6 +568,6 @@ describe('스트립 배너 (Figma · 11 CL-09)', () => {
     const html = renderWith('best', [banner('b1', 'best')], {}, []);
 
     expect(html).toContain('배너 b1');
-    expect(html).toContain('이 기간에 집계된 굿즈가 없어요');
+    expect(html).toContain('이 기간에 집계된 상품이 없어요');
   });
 });
