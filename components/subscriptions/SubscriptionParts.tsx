@@ -1,4 +1,6 @@
-import type { CheckoutAddress } from '@/lib/checkout';
+import type { CheckoutAddress, CheckoutAddressErrors } from '@/lib/checkout';
+import { PostcodeField } from '@/components/checkout/PostcodeField';
+import { focusCheckoutElementWhenReady } from '@/components/checkout/focus-when-ready';
 import type { SubscriptionSchedule } from '@/lib/subscriptions/schedule';
 import { GOODS_SUBSCRIPTION_INTERVALS, GOODS_SUBSCRIPTION_INTERVAL_LABELS, type GoodsSubscriptionInterval } from '@/lib/admin/goods-subscription-policy';
 import type { useSubscriptionRequest } from './useSubscriptionRequest';
@@ -15,15 +17,38 @@ export function SubscriptionRequestFeedback(request: ReturnType<typeof useSubscr
     </>}
   </>;
 }
-export function SubscriptionAddressFields({ value, onChange, prefix = 'subscription' }: { value: CheckoutAddress; onChange: (value: CheckoutAddress) => void; prefix?: string }) {
-  const fields = [
-    ['recipientName', '받는 분', 'name', 50], ['phone', '연락처', 'tel', 20], ['postalCode', '우편번호', 'postal-code', 5],
-    ['address1', '기본 주소', 'address-line1', 200], ['address2', '상세 주소', 'address-line2', 200], ['deliveryNote', '배송 요청사항', 'off', 200],
-  ] as const;
-  return <div className="wc-subscriptions__fields">{fields.map(([key, label, autoComplete, limit]) => <label key={key} htmlFor={`${prefix}-${key}`}>{label}
-    <input id={`${prefix}-${key}`} value={value[key] ?? ''} onChange={event => onChange({ ...value, [key]: event.target.value })}
-      maxLength={limit} autoComplete={autoComplete} inputMode={key === 'phone' ? 'tel' : key === 'postalCode' ? 'numeric' : 'text'} required={!['address2', 'deliveryNote'].includes(key)} />
-  </label>)}</div>;
+/** 정기구독 문맥의 검색 실패 문구. */
+export const SUBSCRIPTION_POSTCODE_FAILED_MESSAGE = '주소 검색을 열지 못했어요. 우편번호와 기본 주소를 직접 입력해도 신청할 수 있어요.';
+/**
+ * 정기배송 받는 분·배송지 칸. 주소는 주문서와 같은 검색 부품(PostcodeField)으로 확정한다 — 검색 결과는 잠기고 손 입력은 검색을
+ * 열지 못했을 때만 열린다. 잠긴 칸은 브라우저 필수 검사에서 빠지므로 제출은 useAddressFormGuard 가 검사한다(공동주택 확인 포함).
+ */
+export function SubscriptionAddressFields({ value, onChange, prefix = 'subscription', errors = {}, onSearched }: {
+  value: CheckoutAddress; onChange: (value: CheckoutAddress) => void; prefix?: string; errors?: CheckoutAddressErrors; onSearched?: (apartment: boolean) => void;
+}) {
+  const text = (key: 'recipientName' | 'phone' | 'address2' | 'deliveryNote', label: string, autoComplete: string, limit: number, wide = false) => (
+    <label key={key} htmlFor={`${prefix}-${key}`} className={wide ? 'wc-subscriptions__field-wide' : undefined}>{label}
+      <input id={`${prefix}-${key}`} value={value[key] ?? ''} onChange={event => onChange({ ...value, [key]: event.target.value })}
+        maxLength={limit} autoComplete={autoComplete} inputMode={key === 'phone' ? 'tel' : 'text'} required={key === 'recipientName' || key === 'phone'}
+        placeholder={key === 'address2' ? '예: 101동 1203호' : undefined}
+        aria-invalid={Boolean(errors[key])} aria-describedby={errors[key] ? `${prefix}-${key}-error` : undefined} />
+      {errors[key] ? <small className="checkout-field-error" id={`${prefix}-${key}-error`}>{errors[key]}</small> : null}
+    </label>
+  );
+  return <div className="wc-subscriptions__fields">
+    {text('recipientName', '받는 분', 'name', 50)}
+    {text('phone', '연락처', 'tel', 20)}
+    <PostcodeField idPrefix={prefix} postalCode={value.postalCode} address1={value.address1} errors={{ postalCode: errors.postalCode, address1: errors.address1 }}
+      failedMessage={SUBSCRIPTION_POSTCODE_FAILED_MESSAGE}
+      onChange={(key, next) => onChange({ ...value, [key]: next })}
+      onSelect={({ postalCode, address1, apartment }) => {
+        onChange({ ...value, postalCode, address1 });
+        onSearched?.(apartment);
+        focusCheckoutElementWhenReady(`${prefix}-address2`);
+      }} />
+    {text('address2', '상세 주소', 'address-line2', 200, true)}
+    {text('deliveryNote', '배송 요청사항', 'off', 200, true)}
+  </div>;
 }
 export function SubscriptionScheduleFields({ value, onChange, intervals = GOODS_SUBSCRIPTION_INTERVALS, future = false }: {
   value: SubscriptionSchedule; onChange: (value: SubscriptionSchedule) => void; intervals?: readonly GoodsSubscriptionInterval[]; future?: boolean;

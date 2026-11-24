@@ -325,7 +325,8 @@ describe('Checkout 결제 실패 복귀 안내', () => {
   });
 });
 
-/* 주소록(L7 · MY-11) · 배송지 미리 채우기 정정(10/14 S6a): 무엇으로 채웠는지 사실대로 안내하고, 주소록에서 고르거나 저장한다. */
+/* 주소록(L7 · MY-11) · 배송지 미리 채우기 정정(10/14 S6a) · 국내 커머스 관행 맞추기 P1(11/24): 미리 채운 배송지는 요약 카드 +
+   [변경](배송지 선택 시트)이고, 무엇으로 채웠는지 사실대로 안내한다. 주소록에 없는 배송지는 체크 하나로 저장한다(기본 꺼짐). */
 describe('Checkout 배송지 미리 채우기·주소록', () => {
   const home = {
     id: '7a570000-0000-4000-8000-000000000001', label: '집', recipientName: '홍길동', phone: '01012345678',
@@ -333,7 +334,7 @@ describe('Checkout 배송지 미리 채우기·주소록', () => {
   };
   const office = { ...home, id: '7a570000-0000-4000-8000-000000000002', label: '회사', address1: '서울 강남구 테헤란로 152', address2: null, isDefault: false };
 
-  it('주소록의 기본 배송지로 채우고 그 사실과 선택지를 보여 준다', () => {
+  it('주소록의 기본 배송지로 채우면 요약 카드와 [변경]만 보이고 그 사실을 안내한다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, addressPrefill: {
       address: { recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울 중구 세종대로 110', address2: '101동', deliveryNote: '' },
       source: 'address_book', book: [home, office],
@@ -341,36 +342,41 @@ describe('Checkout 배송지 미리 채우기·주소록', () => {
 
     expect(html).toContain('주소록의 기본 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.');
     expect(html).not.toContain('최근 결제한 주문의 배송지를 불러왔어요');
-    expect(html).toMatch(/<input[^>]*id="checkout-recipientName"[^>]*value="홍길동"/);
-    const select = html.match(/<select[^>]*id="checkout-address-book"[^>]*>[\s\S]*?<\/select>/)?.[0] ?? '';
-    expect(select).toMatch(new RegExp(`<option value="${home.id}" selected="">집 \\(기본\\) · \\(04524\\) 서울 중구 세종대로 110 101동</option>`));
-    expect(select).toContain(`<option value="${office.id}">회사 · (04524) 서울 강남구 테헤란로 152</option>`);
-    /* 이미 주소록에 있는 배송지라 다시 저장하자고 하지 않는다. 연락처는 선택지에 싣지 않는다. */
+    expect(html).toContain('<strong>홍길동</strong><span class="checkout-address-summary__label">집</span><span class="checkout-address-badge">기본 배송지</span>');
+    expect(html).toContain('010-1234-5678');
+    expect(html).toContain('(04524) 서울 중구 세종대로 110 101동');
+    expect(html).toMatch(/<button aria-haspopup="dialog" aria-label="배송지 변경"[^>]*>변경<\/button>/);
+    /* 늘 펼친 입력 칸·네이티브 select 는 없다 — 고르기는 [변경] 시트가 한다. */
+    expect(html).not.toContain('id="checkout-recipientName"');
+    expect(html).not.toContain('<select id="checkout-address-book"');
+    /* 이미 주소록에 있는 배송지라 다시 저장하자고 하지 않는다. 배송 메모는 요약 아래에 둔다. */
     expect(html).not.toContain('이 배송지를 주소록에 저장');
-    expect(select).not.toContain('01012345678');
-    expect(html).toContain('href="/my/addresses"');
+    expect(html).toContain('id="checkout-deliveryNote"');
   });
 
-  it('주소록이 비면 결제를 마친 직전 주문의 배송지로 채웠다고 안내하고 저장을 권한다', () => {
+  it('주소록이 비면 결제를 마친 직전 주문의 배송지를 요약으로 보이고 저장 체크(꺼짐)를 둔다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, addressPrefill: {
       address: { recipientName: '김팬', phone: '01099998888', postalCode: '06236', address1: '서울 강남구 테헤란로 152', address2: '', deliveryNote: '문 앞' },
       source: 'recent_order', book: [],
     } });
 
     expect(html).toContain('최근 결제한 주문의 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.');
-    expect(html).not.toContain('id="checkout-address-book"');
+    expect(html).toContain('<strong>김팬</strong>');
     expect(html).toContain('이 배송지를 주소록에 저장');
+    expect(html.match(/<input[^>]*id="checkout-address-save"[^>]*>/)?.[0]).not.toContain('checked');
     expect(html).toMatch(/<input[^>]*id="checkout-deliveryNote"[^>]*value="문 앞"/);
   });
 
-  it('채울 배송지가 없으면 기존 안내를 두고, 주소록을 읽지 못했으면 주소록 UI 없이 직접 입력한다', () => {
+  it('채울 배송지가 없으면 기존 안내와 입력 칸이고, 주소록을 읽지 못했으면 주소록 UI 가 없다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true });
 
     expect(html).toContain('수령에 필요한 정보만 주문에 안전하게 저장합니다.');
     expect(html).not.toContain('불러왔어요');
-    expect(html).not.toContain('checkout-address-book');
-    expect(html).not.toContain('href="/my/addresses"');
+    expect(html).not.toContain('주소록에 저장');
+    expect(html).not.toContain('주소록에서 선택');
     expect(html).toContain('id="checkout-recipientName"');
+    /* 주소 칸 자체(잠금·다시 검색)는 PostcodeField 시험이 본다 — 여기서는 우편번호 부품 자리만 확인한다. */
+    expect(html).toContain('data-postcode-field');
   });
 });
 

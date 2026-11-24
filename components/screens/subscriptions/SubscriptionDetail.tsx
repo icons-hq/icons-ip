@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { SubscriptionCards } from '@/components/subscriptions/SubscriptionCards';
+import { useAddressFormGuard } from '@/components/checkout/useAddressFormGuard';
 import { SubscriptionAddressFields, SubscriptionScheduleFields, SubscriptionRequestFeedback, subscriptionDate, nextKstDate, kstToday } from '@/components/subscriptions/SubscriptionParts';
 import { useSubscriptionRequest, useSubscriptionUnsaved } from '@/components/subscriptions/useSubscriptionRequest';
 import { changeGoodsSubscriptionStateAction, confirmGoodsSubscriptionAction, confirmGoodsSubscriptionChangeAction, prepareGoodsSubscriptionAction,
@@ -27,6 +28,8 @@ export function SubscriptionDetail({ actorId, initialPlan, cards, canRegister, n
   const [message, setMessage] = useState(''), [expired, setExpired] = useState(() => Date.parse(initialPlan.draftExpiresAt) <= Date.now());
   const lost = useCallback(() => { setAddress({ recipientName: '', phone: '', postalCode: '', address1: '' }); setProposal(null); setConsent(false); setChangeConsent(false); }, []);
   const request = useSubscriptionRequest(actorId, lost), router = useRouter();
+  /* 배송지 변경은 신청과 같은 검사(잠긴 주소 칸 직접 검사·공동주택 확인)를 거친다. */
+  const addressGuard = useAddressFormGuard('subscription-change');
   const pendingCycle = plan.cycles?.some(cycle => ['dispatching', 'unknown', 'needs_review'].includes(cycle.state)) ?? false;
   const canChange = ['active', 'paused', 'needs_confirmation'].includes(plan.state) && !pendingCycle;
   useSubscriptionUnsaved(!request.blocked && (draftDirty || proposal !== null || request.pending || Boolean(request.failure?.uncertain)));
@@ -65,14 +68,17 @@ export function SubscriptionDetail({ actorId, initialPlan, cards, canRegister, n
           }}>동의하고 첫 회차 결제</button></>}
       </section>}
       {canChange && <section className="wc-subscriptions__card"><h2>일정·배송지·카드 변경</h2>
-        <form onSubmit={event => {
-          event.preventDefault(); const input = { expectedActorId: actorId, operationId: crypto.randomUUID(), planId: plan.id, expectedRevision: plan.revision, command,
+        <form onSubmit={async event => {
+          event.preventDefault();
+          if (request.locked || proposal !== null) return;
+          if (command === 'change_destination' && !(await addressGuard.check(address, '진행'))) return;
+          const input = { expectedActorId: actorId, operationId: crypto.randomUUID(), planId: plan.id, expectedRevision: plan.revision, command,
             payload: command === 'change_destination' ? { schedule, address, deliveryChoices } : { schedule } };
           request.run(() => prepareGoodsSubscriptionChangeAction(input), value => { setProposal(value); setChangeConsent(false); });
         }}><fieldset disabled={request.locked || proposal !== null}><label>변경할 내용<select value={command} onChange={event => { setCommand(event.target.value as SubscriptionChangeCommand); setDraftDirty(true); }}>
           {Object.entries(CHANGE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           <SubscriptionScheduleFields value={schedule} future onChange={value => { setSchedule(value); setDraftDirty(true); }} />
-          {command === 'change_destination' && <><SubscriptionAddressFields value={address} prefix="subscription-change" onChange={value => { setAddress(value); setDraftDirty(true); }} />
+          {command === 'change_destination' && <><SubscriptionAddressFields {...addressGuard.fieldProps(address, value => { setAddress(value); setDraftDirty(true); })} prefix="subscription-change" />
             {Array.from(new Set(plan.selection.map(line => line.goodId))).map(goodId => <label key={goodId}>{names[goodId] ?? '굿즈'} 배송비 결제<select value={deliveryChoices[goodId] ?? 'prepaid'}
               onChange={event => { setDeliveryChoices(previous => ({ ...previous, [goodId]: event.target.value as 'prepaid' | 'collect' })); setDraftDirty(true); }}><option value="prepaid">선불</option><option value="collect">착불</option></select></label>)}</>}
           <button type="submit">변경 후 금액·일정 확인</button>

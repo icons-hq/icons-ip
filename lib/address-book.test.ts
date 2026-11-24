@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADDRESS_BOOK_ERROR_COPY,
+  ADDRESS_BOOK_LABEL_HINT,
   ADDRESS_BOOK_LIMIT,
   addressBookAddressLine,
+  addressBookAutoLabel,
+  addressBookResolvedLabel,
   addressBookDraftErrors,
   addressBookDraftFromCheckout,
   addressBookEntryMatches,
@@ -39,12 +42,14 @@ function draft(patch: Partial<AddressBookDraft> = {}): AddressBookDraft {
 }
 
 describe('주소록 입력 검증', () => {
-  it('주문서와 같은 배송지 문장을 쓰고 배송지 이름 규칙을 더한다', () => {
+  it('주문서와 같은 배송지 문장을 쓰고 배송지 이름 규칙을 더한다(이름은 선택)', () => {
     const empty = emptyAddressBookDraft();
     const errors = addressBookDraftErrors(empty);
     const checkout = checkoutAddressErrors({ recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: '' });
 
-    expect(errors.label).toBe('배송지 이름을 입력해주세요.');
+    /* 배송지 이름은 선택이다 — 비우면 받는 분 이름으로 저장한다(P1, 국내 커머스 관행). */
+    expect(errors.label).toBeUndefined();
+    expect(addressBookDraftErrors(draft({ label: '   ' }))).toEqual({});
     for (const field of ['recipientName', 'phone', 'postalCode', 'address1'] as const) expect(errors[field]).toBe(checkout[field]);
     expect(addressBookDraftErrors(draft({ label: '가'.repeat(21) })).label).toBe('배송지 이름은 20자 이하로 입력해주세요.');
     expect(addressBookDraftErrors(draft({ label: '가'.repeat(20) })).label).toBeUndefined();
@@ -64,7 +69,23 @@ describe('주소록 입력 검증', () => {
     expect(addressBookSaveInput(draft({ address2: ' 101동 ' }))?.address.address2).toBe('101동');
     expect(addressBookSaveInput(draft({ phone: '1234' }))).toBeNull();
     expect(addressBookSaveInput(draft({ postalCode: '4524' }))).toBeNull();
-    expect(addressBookSaveInput(draft({ label: '' }))).toBeNull();
+    /* 이름을 비우면 받는 분 이름(앞뒤 공백 제거)으로 저장한다. */
+    expect(addressBookSaveInput(draft({ label: '', recipientName: ' 홍길동 ' }))?.label).toBe('홍길동');
+  });
+
+  /* DB 는 이름을 1~20자로만 받는다(제약·RPC 그대로) — 비운 이름의 대신 이름도 그 안이어야 한다. */
+  it('비운 이름은 받는 분 이름의 앞 20자로 채우고, 적은 이름은 그대로 쓴다', () => {
+    expect(addressBookAutoLabel('  홍길동  ')).toBe('홍길동');
+    expect(addressBookAutoLabel('가'.repeat(30))).toBe('가'.repeat(20));
+    expect([...addressBookAutoLabel('😀'.repeat(25))].length).toBe(20);
+    /* 20자에서 자른 끝이 공백이면 지운다 — DB 제약(label = btrim(label)). */
+    expect(addressBookAutoLabel(`${'가'.repeat(19)} 나`)).toBe('가'.repeat(19));
+    expect(addressBookAutoLabel('   ')).toBe('');
+    expect(addressBookResolvedLabel({ label: ' 회사 ', recipientName: '홍길동' })).toBe('회사');
+    expect(addressBookResolvedLabel({ label: '', recipientName: '홍길동' })).toBe('홍길동');
+    const long = addressBookSaveInput(draft({ label: '', recipientName: '가'.repeat(50) }));
+    expect(long?.label).toBe('가'.repeat(20));
+    expect(ADDRESS_BOOK_LABEL_HINT).toBe('비우면 받는 분 이름으로 저장해요.');
   });
 
   it('액션 경계에서 받은 값의 모양을 좁히고 배송 메모 같은 다른 키는 버린다', () => {

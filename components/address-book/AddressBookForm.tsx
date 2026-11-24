@@ -6,16 +6,20 @@ import { PostcodeField } from '@/components/checkout/PostcodeField';
 import {
   ADDRESS_BOOK_DRAFT_FIELDS,
   ADDRESS_BOOK_ERROR_COPY,
+  ADDRESS_BOOK_LABEL_HINT,
   ADDRESS_BOOK_LABEL_MAX,
   addressBookDraftErrors,
   addressBookDraftFromEntry,
+  addressBookSaveInput,
   emptyAddressBookDraft,
   type AddressBookDraft,
   type AddressBookDraftErrors,
   type AddressBookDraftField,
   type AddressBookEntry,
+  type AddressBookSaveInput,
 } from '@/lib/address-book';
-import type { ComposedPostcodeAddress } from '@/lib/postcode';
+import { customerConfirm } from '@/lib/customer-confirm';
+import { apartmentDetailConfirmRequest, apartmentDetailMissing, type ComposedPostcodeAddress } from '@/lib/postcode';
 
 /** 주소 검색을 열지 못했을 때 — 주문이 아니라 배송지를 저장하는 화면의 문구다(주문서 문구는 PostcodeField 기본값). */
 export const ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE = '주소 검색을 열지 못했어요. 우편번호와 기본 주소를 직접 입력해도 배송지를 저장할 수 있어요.';
@@ -23,13 +27,17 @@ export const ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE = '주소 검색을 열지 못
 /*
  * 주소록 배송지 추가·수정 폼(LFS 패리티 2차 L7 · MY-11). 배송지 관리와 온보딩 안내가 같은 폼을 쓴다.
  * 우편번호 검색·검증 문장은 주문서와 같은 부품(PostcodeField·checkoutAddressErrors)이다 — 주문서에서 통과한
- * 주소가 여기서 거절되지 않는다. 배송 메모는 주문마다 다르므로 받지 않는다.
- * 주문서 안에서는 쓰지 않는다(폼 중첩 금지) — 주문서는 CheckoutAddressBook 이 지금 입력한 배송지를 저장한다.
+ * 주소가 여기서 거절되지 않는다. 배송 메모는 주문마다 다르므로 받지 않는다. 배송지 이름은 선택이다(비우면 받는 분 이름).
+ * 검색한 주소가 공동주택인데 상세 주소가 비면 저장 전에 한 번 확인받는다(막지는 않는다).
+ * 주문서의 배송지 선택 시트(CheckoutAddressPicker)도 이 폼을 쓴다 — 시트는 #root 밖(OverlayPortal)이라 DOM 에서 주문서
+ * form 과 겹치지 않고, 제출 이벤트가 React 트리를 타고 주문서로 번지지 않게 시트가 막는다.
  */
 
 export interface AddressBookFormSaved {
   entries: AddressBookEntry[] | null;
   savedId?: string;
+  /** 저장한 값(정규화·이름 채움 뒤). 목록을 다시 읽지 못했을 때 화면이 이 값으로 이어 그린다. */
+  input: AddressBookSaveInput;
 }
 
 export interface AddressBookFormProps {
@@ -58,6 +66,8 @@ export function AddressBookForm({
   const [fieldErrors, setFieldErrors] = useState<AddressBookDraftErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  /* 마지막 주소 검색 결과가 공동주택인가 — 상세 주소가 비면 저장 전에 확인받는다. 저장돼 있던 주소는 모른다(false). */
+  const [apartment, setApartment] = useState(false);
   /* 저장 요청이 나가 있는 동안 true. pending 은 다음 렌더에야 보이므로, 같은 태스크 안에서 제출이 두 번 불리면
      (같은 클로저) 둘 다 통과한다 — 이 ref 가 동기로 두 번째 요청을 막는다. */
   const inFlight = useRef(false);
@@ -80,8 +90,9 @@ export function AddressBookForm({
   };
 
   /* 검색 결과는 우편번호와 기본 주소만 덮어쓴다 — 상세 주소는 사용자 몫이다(주문서와 같은 규칙). */
-  const applySearchedAddress = ({ postalCode, address1 }: ComposedPostcodeAddress) => {
+  const applySearchedAddress = ({ postalCode, address1, apartment: searchedApartment }: ComposedPostcodeAddress) => {
     setDraft((current) => ({ ...current, postalCode, address1 }));
+    setApartment(searchedApartment);
     setFieldErrors((current) => {
       const next = { ...current };
       delete next.postalCode;
@@ -102,21 +113,27 @@ export function AddressBookForm({
     if (pending || inFlight.current) return;
     const value = { ...draft, makeDefault: defaultLocked || draft.makeDefault };
     const errors = addressBookDraftErrors(value);
-    if (Object.keys(errors).length > 0) {
+    const input = addressBookSaveInput(value);
+    if (Object.keys(errors).length > 0 || !input) {
       showErrors(errors);
       return;
     }
     inFlight.current = true;
-    setPending(true);
-    setFormError(null);
     try {
+      /* 공동주택인데 동·호수가 비었다 — 한 번 확인받는다. [상세 주소 입력]이면 그 칸으로 돌아간다. */
+      if (apartmentDetailMissing(apartment, value.address2) && !(await customerConfirm(apartmentDetailConfirmRequest('저장')))) {
+        focusField('address2');
+        return;
+      }
+      setPending(true);
+      setFormError(null);
       const result = await saveAddressBookEntryAction(entry?.id ?? null, value);
       if (!result.ok) {
         setFormError(result.message);
         if (result.fieldErrors) showErrors(result.fieldErrors);
         return;
       }
-      onSaved({ entries: result.entries, ...(result.savedId ? { savedId: result.savedId } : {}) });
+      onSaved({ entries: result.entries, ...(result.savedId ? { savedId: result.savedId } : {}), input });
     } catch {
       setFormError(ADDRESS_BOOK_ERROR_COPY.unavailable);
     } finally {
@@ -134,17 +151,17 @@ export function AddressBookForm({
     <form aria-busy={pending} className="wc-address-form" noValidate onSubmit={submit}>
       <div className="wc-address-form__fields">
         <label className="wc-address-form__field wc-address-form__field--wide">
-          <span>배송지 이름</span>
+          <span>배송지 이름 <em>선택</em></span>
           <input
-            aria-describedby={describedBy('label')}
+            aria-describedby={[describedBy('label'), `${fieldId('label')}-hint`].filter(Boolean).join(' ')}
             aria-invalid={Boolean(fieldErrors.label)}
             id={fieldId('label')}
             maxLength={ADDRESS_BOOK_LABEL_MAX}
             onChange={(event) => setField('label', event.target.value)}
             placeholder="예: 집, 회사"
-            required
             value={draft.label}
           />
+          <small className="wc-address-form__hint" id={`${fieldId('label')}-hint`}>{ADDRESS_BOOK_LABEL_HINT}</small>
           {fieldError('label')}
         </label>
         <label className="wc-address-form__field">
@@ -178,27 +195,14 @@ export function AddressBookForm({
           {fieldError('phone')}
         </label>
         <PostcodeField
-          error={fieldErrors.postalCode}
+          address1={draft.address1}
+          errors={{ postalCode: fieldErrors.postalCode, address1: fieldErrors.address1 }}
           failedMessage={ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE}
-          id={fieldId('postalCode')}
-          onChange={(postalCode) => setField('postalCode', postalCode)}
+          idPrefix={idPrefix}
+          onChange={setField}
           onSelect={applySearchedAddress}
-          value={draft.postalCode}
+          postalCode={draft.postalCode}
         />
-        <label className="wc-address-form__field wc-address-form__field--wide">
-          <span>기본 주소</span>
-          <input
-            aria-describedby={describedBy('address1')}
-            aria-invalid={Boolean(fieldErrors.address1)}
-            autoComplete="address-line1"
-            id={fieldId('address1')}
-            maxLength={200}
-            onChange={(event) => setField('address1', event.target.value)}
-            required
-            value={draft.address1}
-          />
-          {fieldError('address1')}
-        </label>
         <label className="wc-address-form__field wc-address-form__field--wide">
           <span>상세 주소 <em>선택</em></span>
           <input

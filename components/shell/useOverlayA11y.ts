@@ -10,7 +10,17 @@ import { backgroundToInert, tabbableIn, trapFocusTarget } from './overlay-focus'
    구 Nav.tsx의 전체 메뉴 effect를 뽑아낸 것으로, 셸 오버레이(검색·전체 메뉴)와
    화면 오버레이(Shop 필터 시트, Binder 카드 상세)가 함께 쓴다.
    패널은 inert 대상(#root·셸 행들) 밖에 있어야 한다 — #root 안 화면의 오버레이는
-   OverlayPortal로 body 직계에 렌더한다. */
+   OverlayPortal로 body 직계에 렌더한다.
+   오버레이가 겹치면(주문서 배송지 시트 위의 확인창처럼) 키(Escape·Tab)는 가장 나중에 열린 오버레이만 받는다 —
+   아래 오버레이까지 같이 닫히거나 두 포커스 가두기가 서로 포커스를 빼앗지 않게. */
+
+/* 열려 있는 오버레이(열린 순서). 맨 끝이 키를 받는다. */
+const openOverlays: symbol[] = [];
+
+/** 이 오버레이가 지금 키를 받는가(가장 나중에 열린 오버레이인가). 시험용으로도 쓴다. */
+export function isTopOverlay(token: symbol): boolean {
+  return openOverlays[openOverlays.length - 1] === token;
+}
 
 export function useOverlayA11y({
   open,
@@ -67,7 +77,11 @@ export function useOverlayA11y({
     /* initialFocusRef가 없으면 패널 안 첫 포커서블(= 닫기 버튼)로 들어간다. */
     (initialFocusRef?.current ?? getFocusable()[0])?.focus();
 
+    const token = Symbol('overlay');
+    openOverlays.push(token);
+
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!isTopOverlay(token)) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onCloseRef.current();
@@ -95,6 +109,8 @@ export function useOverlayA11y({
 
     ownerDocument.addEventListener('keydown', onKeyDown);
     return () => {
+      const index = openOverlays.indexOf(token);
+      if (index >= 0) openOverlays.splice(index, 1);
       ownerDocument.body.style.setProperty('overflow', previousOverflow);
       ownerDocument.removeEventListener('keydown', onKeyDown);
       backgroundElements.forEach((element, index) => {

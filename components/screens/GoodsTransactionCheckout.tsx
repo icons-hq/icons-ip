@@ -9,9 +9,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeCartTransactionAction, resumeCartTransactionAction, type CartTransactionError, type CartTransactionPlaceResult } from '@/app/checkout/transaction-actions';
-import { PostcodeField } from '@/components/checkout/PostcodeField';
-import { CheckoutAddressBook } from '@/components/checkout/CheckoutAddressBook';
-import { addressBookEntryToCheckout, checkoutAddressPrefillNotice, sameCheckoutDestination, type AddressBookEntry, type CheckoutAddressPrefill } from '@/lib/address-book';
+import { CheckoutAddressSection } from '@/components/checkout/CheckoutAddressSection';
+import { focusCheckoutElementWhenReady, saveCheckoutAddressToBook, useCheckoutAddressEntry } from '@/components/checkout/useCheckoutAddressEntry';
+import { checkoutAddressPrefillNotice, sameCheckoutDestination, type AddressBookDraft, type CheckoutAddressPrefill } from '@/lib/address-book';
+import { checkoutAddressSaveDraft } from '@/lib/checkout-address-entry';
+import { customerConfirm } from '@/lib/customer-confirm';
+import { apartmentDetailConfirmRequest, apartmentDetailMissing } from '@/lib/postcode';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { useCartTransactionQuote } from '@/components/checkout/useCartTransactionQuote';
 import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
@@ -84,6 +87,8 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
      장바구니 출처만 닫고, 바로구매 주문서는 아무것도 닫지 않는다 — 견적이 그 주문 때문에 막히면 고객이 누를 때만 닫는다(ADR-0030). */
   const released = useReleaseUnpaidCartOrders(direct ? 'none' : 'cart');
   const [address, setAddress] = useState<CheckoutAddress>(addressPrefill.address ?? { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: '' });
+  /* 배송지 칸의 모양(요약/입력)·주소록·주소록 저장 체크·공동주택 여부 — 장바구니 주문서와 같은 부품(CheckoutAddressSection). */
+  const addressEntry = useCheckoutAddressEntry(addressPrefill);
   /* 바로구매 쿠폰은 이 주문서에서 따로 고른다 — 장바구니 쿠폰 선택을 이어받지 않는다. */
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>(userCouponId && !direct ? [userCouponId] : []), [shippingCoupon, setShippingCoupon] = useState('');
   const [verifiedOffers, setVerifiedOffers] = useState<GoodsTransactionOffer[]>([]);
@@ -162,19 +167,17 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   const addressErrors = needsAddress ? checkoutAddressErrors(address) : {};
   /* 미리 채운 배송지를 그대로 두는 동안만 출처를 안내한다(S6a — 두 주문서 모두 사실대로). */
   const prefillNotice = addressPrefill.address && sameCheckoutDestination(addressPrefill.address, address) ? checkoutAddressPrefillNotice(addressPrefill.source) : null;
-  /* 주소록에서 고르면 그 배송지로, '새 배송지 입력'이면 비운다. 배송 메모는 주문서에 적은 값을 둔다. */
-  const pickAddressBookEntry = (entry: AddressBookEntry | null) => setAddress(value => entry
-    ? addressBookEntryToCheckout(entry, value.deliveryNote ?? '')
-    : { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: value.deliveryNote ?? '' });
 
   function remember(value: CartTransactionRecovery | null) {
     setRecovery(value);
     try { if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey); } catch { /* server receipt remains recoverable from order history */ }
   }
-  async function acceptResult(result: CartTransactionPlaceResult, capturedEpoch: number, paymentMethod: CheckoutPaymentMethod) {
+  async function acceptResult(result: CartTransactionPlaceResult, capturedEpoch: number, paymentMethod: CheckoutPaymentMethod, addressBookDraft: AddressBookDraft | null = null) {
     if (capturedEpoch !== epoch.current) return;
     if (result.ok) {
       remember(null); setFrozen(null);
+      /* 주문을 만든 뒤에 주소록에 저장한다(체크했을 때만) — 실패해도 주문은 그대로 이어진다. */
+      await saveCheckoutAddressToBook(addressBookDraft);
       /* 카드는 결제 화면이 바로 결제를 준비하고(S8) 장바구니는 결제 확정까지 남는다. 무통장은 접수가 곧
          주문 완료라 완료 화면에서 입금 안내를 본다(D12). */
       const next = paymentMethod === 'bank_transfer' ? orderCompleteHref(result.orderId) : `/checkout/${result.orderId}`;
@@ -194,11 +197,19 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     event.preventDefault();
     if (!acknowledged || !canSubmit || !input || !session || quote?.state !== 'quoted' || lane.current) return;
     if (Date.parse(quote.expiresAt) <= Date.now()) { quotes.refresh(); setError(cartTransactionErrorCopy.quote_changed); return; }
-    lane.current = true; setBusy(true); setError(''); const capturedEpoch = epoch.current;
+    /* 검색한 주소가 공동주택인데 동·호수가 비었다 — 한 번 확인받는다(막지는 않는다). 확인하는 동안 두 번째 제출은 lane 이 막는다. */
+    lane.current = true;
+    if (needsAddress && apartmentDetailMissing(addressEntry.apartment, address.address2) && !(await customerConfirm(apartmentDetailConfirmRequest('주문')))) {
+      lane.current = false;
+      focusCheckoutElementWhenReady('checkout-address2');
+      return;
+    }
+    const addressBookDraft = needsAddress ? checkoutAddressSaveDraft({ book: addressEntry.book, address, save: addressEntry.saveToBook, label: addressEntry.saveLabel }) : null;
+    setBusy(true); setError(''); const capturedEpoch = epoch.current;
     const marker: CartTransactionRecovery = { version: 1, expectedActorId: accountId, sessionId: session, quoteId: quote.quoteId, checkoutKey: crypto.randomUUID(), paymentMethod: effectiveMethod,
       ...(input.draftId ? { draftId: input.draftId } : {}), purchaseAcknowledged: true, claimNotice: claimNoticeOf(claimRestrictions, input.items.map(item => item.goodId)) };
     remember(marker); setFrozen({ display: quote.display, items: input.items });
-    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod, purchaseAcknowledged: true, claimNotice: marker.claimNotice }), capturedEpoch, marker.paymentMethod); }
+    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod, purchaseAcknowledged: true, claimNotice: marker.claimNotice }), capturedEpoch, marker.paymentMethod, addressBookDraft); }
     catch { if (capturedEpoch === epoch.current) setError('주문 생성 결과를 확인하지 못했어요. 같은 주문 다시 확인을 눌러주세요.'); }
     finally { lane.current = false; if (capturedEpoch === epoch.current) setBusy(false); }
   }
@@ -223,13 +234,9 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
         {recovery && <p>앞서 요청한 주문의 배송지는 서버에 보관되어 있습니다. 같은 주문을 다시 확인한 뒤 주문서에서 확인해주세요.</p>}
         <fieldset hidden={recovery !== null} disabled={busy || recovery !== null} className="checkout-transaction-fields">{needsAddress ? <>
           {prefillNotice ? <p className="checkout-address-prefill">{prefillNotice}</p> : null}
-          <CheckoutAddressBook address={address} book={addressPrefill.book} disabled={busy || recovery !== null} onPick={pickAddressBookEntry} />
-          <div className="checkout-fields">
-          {(['recipientName', 'phone'] as const).map(field => <label key={field}><span>{field === 'recipientName' ? '받는 분' : '연락처'}</span><input required id={`checkout-${field}`} autoComplete={field === 'recipientName' ? 'name' : 'tel'} maxLength={field === 'recipientName' ? 50 : 20} value={address[field]} onChange={event => setAddress(value => ({ ...value, [field]: event.target.value }))} /></label>)}
-          <PostcodeField value={address.postalCode} onChange={postalCode => setAddress(value => ({ ...value, postalCode }))} onSelect={({ postalCode, address1 }) => setAddress(value => ({ ...value, postalCode, address1 }))} />
-          {(['address1', 'address2', 'deliveryNote'] as const).map(field => <label className="checkout-field--wide" key={field}><span>{{ address1: '기본 주소', address2: '상세 주소 · 선택', deliveryNote: '배송 메모 · 선택' }[field]}</span><input id={`checkout-${field}`} required={field === 'address1'} autoComplete={field === 'address1' ? 'address-line1' : field === 'address2' ? 'address-line2' : 'off'} maxLength={200} value={address[field] ?? ''} onChange={event => setAddress(value => ({ ...value, [field]: event.target.value }))} /></label>)}
-        </div></> : <p>선택한 수령 방식에는 배송 주소를 입력하지 않습니다. 디지털 파일은 결제가 확인된 주문자의 계정에서 받을 수 있습니다.</p>}
-        {Object.keys(addressErrors).length > 0 && <p>받는 분, 연락처, 우편번호와 기본 주소를 입력하면 최종 금액을 확인할 수 있어요.</p>}
+          <CheckoutAddressSection address={address} disabled={busy || recovery !== null} entry={addressEntry} setAddress={setAddress} />
+        </> : <p>선택한 수령 방식에는 배송 주소를 입력하지 않습니다. 디지털 파일은 결제가 확인된 주문자의 계정에서 받을 수 있습니다.</p>}
+        {Object.keys(addressErrors).length > 0 && <p>받는 분과 연락처를 입력하고 주소를 검색하면 최종 금액을 확인할 수 있어요.</p>}
         {offers.filter(offer => selectedGoods.has(offer.goodId)).map(offer => {
           const choice = currentChoices[offer.goodId];
           const selectedMethod = typeof choice === 'object' ? choice.method : 'parcel';

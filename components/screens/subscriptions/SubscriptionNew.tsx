@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { GoodsCustomInputsFields } from '@/components/shop/GoodsCustomInputs';
+import { useAddressFormGuard } from '@/components/checkout/useAddressFormGuard';
 import { SubscriptionAddressFields, SubscriptionRequestFeedback, SubscriptionScheduleFields, kstToday } from '@/components/subscriptions/SubscriptionParts';
 import { useSubscriptionRequest, useSubscriptionUnsaved } from '@/components/subscriptions/useSubscriptionRequest';
 import { prepareGoodsSubscriptionAction } from '@/app/my/subscriptions/actions';
@@ -31,6 +32,8 @@ export function SubscriptionNew({ actorId, goods, offers, coupons, canEnroll, in
   const [coupon, setCoupon] = useState(''), [credit, setCredit] = useState('0'), [delivery, setDelivery] = useState<'prepaid' | 'collect'>('prepaid');
   const [error, setError] = useState(''), [created, setCreated] = useState(false);
   const lost = useCallback(() => { setAddress(EMPTY_ADDRESS); setCustom({}); setCoupon(''); setCredit('0'); }, []);
+  /* 주소 칸은 검색 결과로 잠긴다 — 신청 전에 직접 검사하고, 공동주택인데 상세 주소가 비면 한 번 확인받는다. */
+  const addressGuard = useAddressFormGuard('subscription');
   const request = useSubscriptionRequest(actorId, lost), good = eligible.find(item => item.id === goodId), offer = offers.find(item => item.goodId === goodId);
   useSubscriptionUnsaved(!created && !request.blocked && (Boolean(address.recipientName || address.address1) || request.pending || Boolean(request.failure?.uncertain)));
   function selectGood(id: string) {
@@ -42,8 +45,9 @@ export function SubscriptionNew({ actorId, goods, offers, coupons, canEnroll, in
     <p>굿즈와 배송 주기를 정하고 첫 결제와 이후 결제 금액을 확인해 주세요.</p></header>
     {!canEnroll ? <section className="wc-subscriptions__card"><h2>지금은 새 정기구매를 신청할 수 없어요</h2><p>기존 정기구매와 결제카드는 내역에서 관리할 수 있습니다.</p></section>
       : !eligible.length ? <section className="wc-subscriptions__card"><h2>신청 가능한 굿즈가 없습니다</h2><Link href="/shop">굿즈 둘러보기</Link></section>
-        : !request.blocked && <form className="wc-subscriptions__card" onSubmit={event => {
-          event.preventDefault(); setError(''); if (!good || !offer) return;
+        : !request.blocked && <form className="wc-subscriptions__card" onSubmit={async event => {
+          event.preventDefault(); setError(''); if (!good || !offer || request.locked) return;
+          if (!(await addressGuard.check(address, '진행'))) return;
           const selected = prepareGoodsCustomInputSelection(good.customInputs, custom); if (!selected.ok) { setError(selected.error); return; }
           const quantity = Number(qty), creditAmount = Number(credit);
           if (!Number.isSafeInteger(quantity) || quantity < 1 || !Number.isSafeInteger(creditAmount) || creditAmount < 0) { setError('수량과 적립금은 0 이상의 정수로 입력해주세요. 굿즈는 1개 이상 선택해야 합니다.'); return; }
@@ -59,7 +63,7 @@ export function SubscriptionNew({ actorId, goods, offers, coupons, canEnroll, in
           {good && <GoodsCustomInputsFields goodId={good.id} config={good.customInputs} values={custom} onChange={(id, value) => setCustom(previous => ({ ...previous, [id]: value }))} />}
           {offer?.message && <p>{offer.message}</p>}
           <SubscriptionScheduleFields value={schedule} intervals={offer?.intervals} onChange={setSchedule} />
-          <h2>받는 분과 배송지</h2><SubscriptionAddressFields value={address} onChange={setAddress} />
+          <h2>받는 분과 배송지</h2><SubscriptionAddressFields {...addressGuard.fieldProps(address, setAddress)} />
           {good?.transactionOffer?.delivery?.paymentMode === 'buyer_choice' ? <label>배송비 결제<select value={delivery} onChange={event => setDelivery(event.target.value as 'prepaid' | 'collect')}><option value="prepaid">선불</option><option value="collect">착불 · 수령 시 별도 납부</option></select></label>
             : <p>배송비: {good?.transactionOffer?.delivery?.paymentMode === 'collect' ? '착불 · 수령 시 별도 납부' : '온라인 선불 결제'}</p>}
           <h2>첫 회차 혜택</h2><div className="wc-subscriptions__fields"><label>보유 쿠폰<select value={coupon} onChange={event => setCoupon(event.target.value)} disabled={coupons === null}>

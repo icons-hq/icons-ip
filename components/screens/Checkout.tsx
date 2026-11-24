@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
-import { PostcodeField } from '@/components/checkout/PostcodeField';
 import { CouponPicker } from '@/components/checkout/CouponPicker';
-import { CheckoutAddressBook } from '@/components/checkout/CheckoutAddressBook';
+import { CheckoutAddressSection } from '@/components/checkout/CheckoutAddressSection';
+import { focusCheckoutElementWhenReady, saveCheckoutAddressToBook, useCheckoutAddressEntry } from '@/components/checkout/useCheckoutAddressEntry';
 import { useStoreCreditQuote } from '@/components/checkout/useStoreCreditQuote';
 import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -36,9 +36,11 @@ import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import { cardMethodCopy, VIRTUAL_ACCOUNT_ESCROW_CHECKOUT_NOTICE } from '@/lib/payments/virtual-account';
-import type { ComposedPostcodeAddress } from '@/lib/postcode';
+import { apartmentDetailConfirmRequest, apartmentDetailMissing } from '@/lib/postcode';
 import { shippingFeeLabel } from '@/lib/shipping';
-import { addressBookEntryToCheckout, checkoutAddressPrefillNotice, sameCheckoutDestination, type AddressBookEntry, type CheckoutAddressPrefill } from '@/lib/address-book';
+import { checkoutAddressPrefillNotice, sameCheckoutDestination, type CheckoutAddressPrefill } from '@/lib/address-book';
+import { checkoutAddressSaveDraft } from '@/lib/checkout-address-entry';
+import { customerConfirm } from '@/lib/customer-confirm';
 import { useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 import { shippingGroupLabel, shippingGroupsNotice } from '@/lib/fulfillment';
@@ -260,6 +262,9 @@ export function Checkout({
      안내하고 결제 버튼을 잠근다 — 같은 주문서로 두 번 청구되지 않게. */
   const [blockingOrderId, setBlockingOrderId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
+  /* 주문서를 한 번 그린 뒤의 장바구니 재동기화(탭을 다시 볼 때 오는 인증 이벤트 등)에는 화면을 '확인하고 있어요'로 바꾸지 않는다 —
+     바꾸면 배송지 칸이 내려가 열어 둔 배송지 선택 시트·입력 중인 새 배송지가 사라진다. 동기화 중 제출은 cartPending 가드가 막는다. */
+  const [checkoutShown, setCheckoutShown] = useState(false);
   /* 카드 게이트가 닫혀 있으면 열려 있는 무통장으로 시작한다 — 고를 수 없는
      라디오가 선택된 채 뜨지 않게. 두 게이트 prop은 서버가 내려주는 고정값이다. */
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>(
@@ -274,6 +279,8 @@ export function Checkout({
     address2: prefilled?.address2 ?? '',
     deliveryNote: prefilled?.deliveryNote ?? '',
   });
+  /* 배송지 칸의 모양(요약/입력)·주소록·주소록 저장 체크·공동주택 여부 — CheckoutAddressSection 과 제출이 함께 읽는다. */
+  const addressEntry = useCheckoutAddressEntry(addressPrefill);
   /* 미리 채운 배송지를 그대로 두는 동안만 출처를 안내한다(S6a — 사실대로). */
   const prefillNotice = prefilled && sameCheckoutDestination(prefilled, address)
     ? checkoutAddressPrefillNotice(addressPrefill.source) : null;
@@ -365,40 +372,6 @@ export function Checkout({
     bankTransfer: bankTransferSelectable,
   });
 
-  const setField = (field: keyof CheckoutAddress, value: string) => {
-    setAddress((current) => ({ ...current, [field]: value }));
-    setFieldErrors((current) => {
-      if (!current[field]) return current;
-      const next = { ...current };
-      delete next[field];
-      return next;
-    });
-  };
-
-  /* 주소록에서 고르면 그 배송지로 채우고, '새 배송지 입력'이면 비운다. 배송 메모는 주문서에 적은 값을 둔다. */
-  const pickAddressBookEntry = (entry: AddressBookEntry | null) => {
-    setAddress((current) => entry
-      ? addressBookEntryToCheckout(entry, current.deliveryNote ?? '')
-      : { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: current.deliveryNote ?? '' });
-    setFieldErrors({});
-  };
-
-  /* 검색 결과는 우편번호와 기본 주소만 덮어쓴다. 상세 주소는 사용자 몫이라
-     이미 적어둔 값을 지우지 않는다. */
-  const applySearchedAddress = ({ postalCode, address1 }: ComposedPostcodeAddress) => {
-    setAddress((current) => ({ ...current, postalCode, address1 }));
-    setFieldErrors((current) => {
-      if (!current.postalCode && !current.address1) return current;
-      const next = { ...current };
-      delete next.postalCode;
-      delete next.address1;
-      return next;
-    });
-    window.requestAnimationFrame(() => {
-      document.getElementById('checkout-address2')?.focus();
-    });
-  };
-
   /* 선택 주문 초안을 만든 뒤 다른 탭에서 고른 줄이 바뀌었다 — 주문하면 DB가 PT409로 거절하므로 먼저 막는다. */
   const draftStale = draft?.stale === true;
   /* 고객이 결제 대기 주문을 취소했으면 견적·적립금·쿠폰 상태를 다시 읽는다. */
@@ -416,15 +389,19 @@ export function Checkout({
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
+      /* 요약으로 접혀 있던 배송지가 틀렸으면 칸이 펼쳐진다(visibleCheckoutAddressMode) — 다음 커밋에 생긴 칸으로 포커스를 옮긴다. */
       setFieldErrors(nextFieldErrors);
       const firstInvalidField = addressFieldOrder.find((field) => nextFieldErrors[field]);
-      if (firstInvalidField) {
-        window.requestAnimationFrame(() => {
-          document.getElementById(`checkout-${firstInvalidField}`)?.focus();
-        });
-      }
+      if (firstInvalidField) focusCheckoutElementWhenReady(`checkout-${firstInvalidField}`);
       return;
     }
+    /* 검색한 주소가 공동주택인데 동·호수가 비었다 — 한 번 확인받는다(막지는 않는다). [상세 주소 입력]이면 그 칸으로 돌아간다. */
+    if (apartmentDetailMissing(addressEntry.apartment, address.address2) && !(await customerConfirm(apartmentDetailConfirmRequest('주문')))) {
+      focusCheckoutElementWhenReady('checkout-address2');
+      return;
+    }
+    /* 주문하면서 주소록에 저장할 배송지(체크했을 때만) — 제출한 그 배송지로 정해 둔다. */
+    const addressBookDraft = checkoutAddressSaveDraft({ book: addressEntry.book, address, save: addressEntry.saveToBook, label: addressEntry.saveLabel });
 
     setSubmitting(true);
     setSubmitError(null);
@@ -466,6 +443,8 @@ export function Checkout({
       return;
     }
 
+    /* 주문을 만든 뒤에 주소록에 저장한다 — 거절된 주문의 배송지를 남기지 않고, 저장이 실패해도 주문은 그대로 이어진다. */
+    await saveCheckoutAddressToBook(addressBookDraft);
     /* 카드: 장바구니는 결제가 확정될 때까지 그대로다. 결제 화면이 바로 결제를 준비한다(S8).
        무통장: 접수 = 주문 완료(입금대기)라 장바구니에서 빠졌다. 완료 화면이 입금 안내를 보인다. */
     await refresh();
@@ -473,7 +452,9 @@ export function Checkout({
     router.push(selectedPaymentMethod === 'bank_transfer' ? orderCompleteHref(result.orderId) : `/checkout/${result.orderId}`);
   };
 
-  if (!ready || cartPending || !released) {
+  const firstCartCheck = !ready || !released || (cartPending && !checkoutShown);
+  if (!firstCartCheck && !checkoutShown) setCheckoutShown(true);
+  if (firstCartCheck) {
     return (
       <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-loading" role="status">계정 장바구니를 확인하고 있어요.</div>
@@ -553,42 +534,7 @@ export function Checkout({
             </div>
           </div>
 
-          <CheckoutAddressBook address={address} book={addressPrefill.book} disabled={submitting} onAddressErrors={setFieldErrors} onPick={pickAddressBookEntry} />
-
-          {/* 문의 런처가 입력칸 오른쪽 끝을 가리지 않게, 이 칸들과 겹치는 동안은 런처를 비켜 둔다(QA2b minor 5). */}
-          <div className="checkout-fields" data-inquiry-avoid="">
-            <label>
-              <span>받는 분</span>
-              <input id="checkout-recipientName" required autoComplete="name" maxLength={50} aria-invalid={Boolean(fieldErrors.recipientName)} aria-describedby={fieldErrors.recipientName ? 'checkout-recipientName-error' : undefined} value={address.recipientName} onChange={(event) => setField('recipientName', event.target.value)} />
-              {fieldErrors.recipientName && <small id="checkout-recipientName-error" className="checkout-field-error">{fieldErrors.recipientName}</small>}
-            </label>
-            <label>
-              <span>연락처</span>
-              <input id="checkout-phone" required autoComplete="tel" inputMode="tel" maxLength={20} aria-invalid={Boolean(fieldErrors.phone)} aria-describedby={fieldErrors.phone ? 'checkout-phone-error' : undefined} placeholder="010-1234-5678" value={address.phone} onChange={(event) => setField('phone', event.target.value)} />
-              {fieldErrors.phone && <small id="checkout-phone-error" className="checkout-field-error">{fieldErrors.phone}</small>}
-            </label>
-            <PostcodeField
-              error={fieldErrors.postalCode}
-              onChange={(postalCode) => setField('postalCode', postalCode)}
-              onSelect={applySearchedAddress}
-              value={address.postalCode}
-            />
-            <label className="checkout-field--wide">
-              <span>기본 주소</span>
-              <input id="checkout-address1" required autoComplete="address-line1" maxLength={200} aria-invalid={Boolean(fieldErrors.address1)} aria-describedby={fieldErrors.address1 ? 'checkout-address1-error' : undefined} value={address.address1} onChange={(event) => setField('address1', event.target.value)} />
-              {fieldErrors.address1 && <small id="checkout-address1-error" className="checkout-field-error">{fieldErrors.address1}</small>}
-            </label>
-            <label className="checkout-field--wide">
-              <span>상세 주소 <em>선택</em></span>
-              <input id="checkout-address2" autoComplete="address-line2" maxLength={200} aria-invalid={Boolean(fieldErrors.address2)} aria-describedby={fieldErrors.address2 ? 'checkout-address2-error' : undefined} placeholder="예: 101동 1203호" value={address.address2 ?? ''} onChange={(event) => setField('address2', event.target.value)} />
-              {fieldErrors.address2 && <small id="checkout-address2-error" className="checkout-field-error">{fieldErrors.address2}</small>}
-            </label>
-            <label className="checkout-field--wide">
-              <span>배송 메모 <em>선택</em></span>
-              <input id="checkout-deliveryNote" maxLength={200} aria-invalid={Boolean(fieldErrors.deliveryNote)} aria-describedby={fieldErrors.deliveryNote ? 'checkout-deliveryNote-error' : undefined} placeholder="예: 문 앞에 놓아주세요" value={address.deliveryNote ?? ''} onChange={(event) => setField('deliveryNote', event.target.value)} />
-              {fieldErrors.deliveryNote && <small id="checkout-deliveryNote-error" className="checkout-field-error">{fieldErrors.deliveryNote}</small>}
-            </label>
-          </div>
+          <CheckoutAddressSection address={address} disabled={submitting} entry={addressEntry} errors={fieldErrors} onErrorsChange={setFieldErrors} setAddress={setAddress} />
         </section>
 
         <aside className="checkout-summary card" aria-label="최종 주문 요약" data-inquiry-avoid="">
