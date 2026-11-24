@@ -4,6 +4,7 @@ import type { PublicGoodOtherCompositions } from '@/lib/good-other-compositions'
 import type { GoodsReviewSummaries } from '@/lib/goods-review-summary';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { listingHeartsFor } from './listing-hearts';
+import { goodDetailHref } from '@/lib/goods-display';
 
 /* 다른 구성 카드에도 목록 하트와 별점을 단다(LFS 패리티 2차 L4b · CL-01·CL-02). 값은 상세 페이지가 한 번씩 읽어 내려 준다. */
 export function GoodOtherCompositions({ data, reviewSummaries, wishlist }: {
@@ -17,7 +18,7 @@ export function GoodOtherCompositions({ data, reviewSummaries, wishlist }: {
     <h2 id={`good-other-composition-${group.id}`}>{group.title}</h2>
     <ul className="wc-pdp-other-compositions__products" aria-label={`${group.title} 목록`} tabIndex={0}>
       {group.goods.map(({ good, compositionLabel }) => <li key={good.id}>
-        <ProductCard href={`/shop/${good.id}`} name={good.name}
+        <ProductCard href={goodDetailHref(good)} name={good.name}
           action={heartFor(good)} reviewSummary={reviewSummaries?.[good.id]}
           listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good}
           price={good.price} priceMax={good.priceMax} compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate}

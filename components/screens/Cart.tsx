@@ -39,6 +39,7 @@ import {
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
+import { goodDetailHref } from '@/lib/goods-display';
 
 interface CartLine {
   goodId: string;
@@ -204,7 +205,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
 
   const soldOut = isSoldOut(good) || Boolean(goodsSaleUnavailableLabel(good.salePeriod));
   const stateLabel = goodsSaleUnavailableLabel(good.salePeriod) ?? (supply?.mode === 'preorder' ? preorderSupplyLabel(supply) : lineStateLabel(good, qty));
-  const href = `/shop/${goodId}`;
+  const href = goodDetailHref(good);
 
   return (
     <li className={`wc-cart__line wc-cart__line--selectable${isUnavailable(line) || line.excludedReason ? ' wc-cart__line--unavailable' : ''}`}>

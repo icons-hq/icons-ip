@@ -78,7 +78,7 @@ export async function deleteMyProductQuestionAction(
 
   /* 질문은 두 곳에 동시에 걸려 있다 — 굿즈 상세의 Q&A 탭과 내 Q&A 목록. */
   revalidatePath(QUESTIONS_PATH);
-  if (target?.good_id) revalidatePath(`/shop/${target.good_id}`);
+  if (target?.good_id) revalidatePath('/shop/[goodId]', 'page');
 
   return { status: 'success', message: DELETED };
 }

@@ -18,6 +18,7 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, Ip } from '@/lib/data';
+import { goodDetailHref } from '@/lib/goods-display';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 import { ipEn } from '@/lib/ip-display';
@@ -123,7 +124,7 @@ function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (i
       <ProductCard
         action={<ListingWishHeart goodId={good.id} initialWished label={good.name} viewerId={viewerId} />}
         brand={brand}
-        href={`/shop/${good.id}`}
+        href={goodDetailHref(good)}
         listSurface="standard"
         masked
         name={good.name}
@@ -140,7 +141,7 @@ function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (i
         badges={goodDisplayBadges(good)}
         brand={brand}
         compareAtPrice={good.compareAtPrice}
-        href={`/shop/${good.id}`}
+        href={goodDetailHref(good)}
         imageBackground={good.img}
         listSurface="standard"
         listingAppearance={good.listingAppearance}

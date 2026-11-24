@@ -15,6 +15,7 @@ import { ipEn } from '@/lib/ip-display';
 import { DASHBOARD_ORDER_STEPS, type MypageDashboard } from '@/lib/mypage-dashboard';
 import { customerOrderStatusMeta, customerOrderStepLabel, formatOrderDate } from '@/lib/orders';
 import { hrefFor } from '@/lib/routes';
+import { goodDetailHref } from '@/lib/goods-display';
 
 interface MyPageProps {
   avatarInitial: string;
@@ -203,7 +204,7 @@ function WishBlock({ wishlist }: { wishlist: MypageDashboard['wishlist'] }) {
                 badges={goodDisplayBadges(good)}
                 brand={brand}
                 compareAtPrice={good.compareAtPrice}
-                href={`/shop/${good.id}`}
+                href={goodDetailHref(good)}
                 imageBackground={good.img}
                 listSurface="standard"
                 listingAppearance={good.listingAppearance}

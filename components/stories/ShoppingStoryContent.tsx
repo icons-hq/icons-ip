@@ -3,6 +3,7 @@ import { listingHeartsFor } from '@/components/shop/listing-hearts';
 import { ProductCard } from '@/components/wc/ProductCard';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import type { PublicShoppingStorySection } from '@/lib/shopping-stories';
+import { goodDetailHref } from '@/lib/goods-display';
 import { goodBadgeList } from '@/lib/goods-taxonomy';
 
 /** The editor preview and storefront render the exact same sanitized document.
@@ -16,7 +17,7 @@ export function ShoppingStoryContent({ title, bodyHtml, imagePaths, sections, wi
     <div className="wc-shopping-story__body" dangerouslySetInnerHTML={{ __html: content.html }} />
     {sections.map(section => section.goods.length ? <section key={section.id} className="wc-shopping-story__section" aria-label={section.title}>
       <h2>{section.title}</h2><div className="wc-shopping-story__goods" data-shape={section.imageShape}>
-        {section.goods.map(good => <ProductCard key={good.id} href={`/shop/${encodeURIComponent(good.id)}`} name={good.name} price={good.price} priceMax={good.priceMax}
+        {section.goods.map(good => <ProductCard key={good.id} href={goodDetailHref(good)} name={good.name} price={good.price} priceMax={good.priceMax}
           action={heartFor(good)} reviewSummary={good.reviewSummary}
           listSurface="story" listingAppearance={good.listingAppearance} imageShape={section.imageShape}
           compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} imageBackground={good.imageBackground} badges={goodBadgeList(good)} salePeriod={good.salePeriod} soldOut={good.soldOut} unavailableLabel={good.unavailableLabel} />)}

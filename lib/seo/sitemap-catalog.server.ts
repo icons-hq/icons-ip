@@ -32,9 +32,9 @@ async function readPublicIps(client: SitemapClient): Promise<SitemapIp[]> {
 }
 
 async function readPublicGoods(client: SitemapClient): Promise<SitemapGood[]> {
-  const rows = await readAll<{ id: string; updated_at: string | null }>((from, to) => client
+  const rows = await readAll<{ id: string; code: string | null; updated_at: string | null }>((from, to) => client
     .from('goods')
-    .select('id,updated_at,ips!inner(id)')
+    .select('id,code,updated_at,ips!inner(id)')
     .is('archived_at', null)
     .not('published_at', 'is', null)
     .eq('sale_restriction', 'none')
@@ -42,7 +42,7 @@ async function readPublicGoods(client: SitemapClient): Promise<SitemapGood[]> {
     .not('ips.published_at', 'is', null)
     .order('id')
     .range(from, to));
-  return rows.map((row) => ({ id: row.id, updatedAt: row.updated_at }));
+  return rows.map((row) => ({ id: row.id, code: row.code, updatedAt: row.updated_at }));
 }
 
 /** 사이트맵에 실을 공개 IP·굿즈. Supabase 가 없으면(목 데이터 실행) 빈 목록 — 고정 화면만 싣는다. */
