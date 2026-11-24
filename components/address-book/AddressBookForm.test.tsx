@@ -26,6 +26,7 @@ vi.mock('react', async () => {
 vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: mocks.save }));
 
 import { PostcodeField } from '@/components/checkout/PostcodeField';
+import { setCustomerConfirmHandler, type CustomerConfirmRequest } from '@/lib/customer-confirm';
 import { ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE, AddressBookForm, type AddressBookFormProps } from './AddressBookForm';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -59,6 +60,14 @@ describe('AddressBookForm — 표시', () => {
     expect(html).not.toContain('id="checkout-postalCode"');
     expect(html).not.toContain('배송 메모');
     expect(html).toContain('maxLength="20"');
+    /* 배송지 이름은 선택이다 — 비우면 받는 분 이름으로 저장한다(P1). */
+    const label = html.match(/<input[^>]*id="address-book-label"[^>]*>/)?.[0] ?? '';
+    expect(label).not.toContain('required');
+    expect(label).toContain('aria-describedby="address-book-label-hint"');
+    expect(html).toContain('배송지 이름 <em>선택</em>');
+    expect(html).toContain('비우면 받는 분 이름으로 저장해요.');
+    /* 주소는 검색으로 채우는 잠긴 칸이다(PostcodeField). */
+    expect(html.match(/<input[^>]*id="address-book-address1"[^>]*>/)?.[0]).toContain('readOnly=""');
     const checkbox = html.match(/<input[^>]*id="address-book-makeDefault"[^>]*>/)?.[0] ?? '';
     expect(checkbox).toContain('type="checkbox"');
     expect(checkbox).not.toContain('disabled');
@@ -82,13 +91,19 @@ describe('AddressBookForm — 표시', () => {
 
 describe('AddressBookForm — 제출', () => {
   const focus = vi.fn();
+  const postcode = () => all(renderFake()).find((node) => node.type === PostcodeField)!;
+  const search = (value: { postalCode: string; address1: string; apartment: boolean }) => (postcode().props.onSelect as (selected: typeof value) => void)(value);
+  const fill = () => {
+    for (const [id, value] of [['recipientName', '홍길동'], ['phone', '010-1234-5678']] as const) type(`address-book-${id}`, value);
+    search({ postalCode: '04524', address1: '서울 중구 세종대로 110', apartment: false });
+  };
   beforeEach(() => {
     hooks.fake = true;
     focus.mockReset();
     vi.stubGlobal('window', { requestAnimationFrame: (callback: (time: number) => void) => { callback(0); return 0; } });
     vi.stubGlobal('document', { getElementById: (id: string) => ({ focus: () => focus(id) }) });
   });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  afterEach(() => { vi.unstubAllGlobals(); setCustomerConfirmHandler(null); });
 
   it('검증에 걸리면 서버를 부르지 않고 첫 오류 칸으로 포커스를 옮긴다', async () => {
     type('address-book-label', '집');
@@ -96,31 +111,64 @@ describe('AddressBookForm — 제출', () => {
     expect(mocks.save).not.toHaveBeenCalled();
     expect(focus).toHaveBeenLastCalledWith('address-book-recipientName');
     expect(input('address-book-recipientName').props['aria-invalid']).toBe(true);
-    expect(all(renderFake()).find((node) => node.type === PostcodeField)!.props.error).toBe('우편번호 5자리를 입력해주세요.');
+    expect(postcode().props.errors).toEqual({ postalCode: '우편번호 5자리를 입력해주세요.', address1: '기본 주소를 입력해주세요.' });
   });
 
   it('검색 결과는 우편번호·기본 주소만 채우고 상세 주소로 포커스를 옮긴다', () => {
     type('address-book-address2', '101동');
-    (all(renderFake()).find((node) => node.type === PostcodeField)!.props.onSelect as (value: { postalCode: string; address1: string }) => void)({ postalCode: '04524', address1: '서울 중구 세종대로 110' });
-    expect(input('address-book-address1').props.value).toBe('서울 중구 세종대로 110');
+    search({ postalCode: '04524', address1: '서울 중구 세종대로 110', apartment: false });
+    expect(postcode().props.address1).toBe('서울 중구 세종대로 110');
+    expect(postcode().props.postalCode).toBe('04524');
     expect(input('address-book-address2').props.value).toBe('101동');
     expect(focus).toHaveBeenLastCalledWith('address-book-address2');
   });
 
-  it('수정은 내 배송지 id 로 저장하고 성공하면 갱신된 목록을 넘긴다', async () => {
+  it('수정은 내 배송지 id 로 저장하고 성공하면 갱신된 목록과 저장한 값을 넘긴다', async () => {
     props = { ...props, entry: { ...home, isDefault: false } };
     mocks.save.mockResolvedValue({ ok: true, entries: [home], savedId: home.id });
     type('address-book-label', '새 집');
     await submit();
     expect(mocks.save).toHaveBeenCalledWith(home.id, { label: '새 집', recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울 중구 세종대로 110', address2: '', makeDefault: false });
-    expect(props.onSaved).toHaveBeenCalledWith({ entries: [home], savedId: home.id });
+    expect(props.onSaved).toHaveBeenCalledWith({ entries: [home], savedId: home.id, input: { label: '새 집', address: { recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울 중구 세종대로 110' }, makeDefault: false } });
+  });
+
+  it('배송지 이름을 비워도 저장하고, 저장되는 이름은 받는 분 이름이다', async () => {
+    mocks.save.mockResolvedValue({ ok: true, entries: null, savedId: home.id });
+    fill();
+    await submit();
+    expect(mocks.save).toHaveBeenCalledWith(null, expect.objectContaining({ label: '' }));
+    expect(props.onSaved).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ label: '홍길동' }) }));
+  });
+
+  /* 공동주택(아파트)인데 동·호수가 비면 저장 전에 한 번 확인받는다 — 막지는 않는다(네이버 방식). */
+  it('공동주택 검색 결과에 상세 주소가 없으면 확인받고, [상세 주소 입력]이면 저장하지 않고 그 칸으로 간다', async () => {
+    const asked: CustomerConfirmRequest[] = [];
+    let answer = false;
+    setCustomerConfirmHandler(async (request) => { asked.push(request); return answer; });
+    mocks.save.mockResolvedValue({ ok: true, entries: [home], savedId: home.id });
+    fill();
+    search({ postalCode: '04524', address1: '서울 중구 세종대로 110', apartment: true });
+    await submit();
+    expect(asked[0]).toMatchObject({ title: '상세 주소 없이 진행할까요?', confirmLabel: '이대로 저장', cancelLabel: '상세 주소 입력' });
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(focus).toHaveBeenLastCalledWith('address-book-address2');
+
+    answer = true;
+    await submit();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+
+    /* 상세 주소를 적으면 묻지 않는다. */
+    type('address-book-address2', '101동 1203호');
+    await submit();
+    expect(asked).toHaveLength(2);
+    expect(mocks.save).toHaveBeenCalledTimes(2);
   });
 
   it('첫 배송지는 기본 지정으로 보내고, 서버 거절은 문구와 칸 오류로 되돌린다', async () => {
     props = { ...props, firstEntry: true };
     mocks.save.mockResolvedValue({ ok: false, error: 'address_book_full', message: '배송지는 최대 10개까지 저장할 수 있어요.' });
-    for (const [id, value] of [['label', '집'], ['recipientName', '홍길동'], ['phone', '010-1234-5678'], ['address1', '서울']] as const) type(`address-book-${id}`, value);
-    (all(renderFake()).find((node) => node.type === PostcodeField)!.props.onChange as (value: string) => void)('04524');
+    type('address-book-label', '집');
+    fill();
     await submit();
     expect(mocks.save).toHaveBeenCalledWith(null, expect.objectContaining({ makeDefault: true }));
     expect(props.onSaved).not.toHaveBeenCalled();
@@ -131,8 +179,7 @@ describe('AddressBookForm — 제출', () => {
   it('같은 렌더의 제출을 연달아 불러도 저장 요청은 하나만 나가고, 끝나면 다시 저장할 수 있다', async () => {
     let resolve: (value: unknown) => void = () => {};
     mocks.save.mockImplementation(() => new Promise((done) => { resolve = done; }));
-    for (const [id, value] of [['label', '집'], ['recipientName', '홍길동'], ['phone', '010-1234-5678'], ['address1', '서울']] as const) type(`address-book-${id}`, value);
-    (all(renderFake()).find((node) => node.type === PostcodeField)!.props.onChange as (value: string) => void)('04524');
+    fill();
     const onSubmit = all(renderFake()).find((node) => node.type === 'form')!.props.onSubmit as (event: { preventDefault(): void }) => Promise<void>;
     const first = onSubmit({ preventDefault() {} });
     const second = onSubmit({ preventDefault() {} });

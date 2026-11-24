@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkoutAddressErrors } from './checkout';
-import { POSTCODE_SCRIPT_SRC, composePostcodeAddress } from './postcode';
+import { POSTCODE_SCRIPT_SRC, apartmentDetailConfirmRequest, apartmentDetailMissing, composePostcodeAddress } from './postcode';
 
 const base = {
   zonecode: '04799',
@@ -16,6 +16,7 @@ describe('composePostcodeAddress', () => {
     expect(composePostcodeAddress(base)).toEqual({
       postalCode: '04799',
       address1: '서울 성동구 왕십리로 83-21 (성수동1가, 아크로서울포레스트)',
+      apartment: false,
     });
   });
 
@@ -23,6 +24,7 @@ describe('composePostcodeAddress', () => {
     expect(composePostcodeAddress({ ...base, userSelectedType: 'J' })).toEqual({
       postalCode: '04799',
       address1: '서울 성동구 성수동1가 656-1',
+      apartment: false,
     });
   });
 
@@ -69,7 +71,7 @@ describe('composePostcodeAddress', () => {
 
   it('도로명 주소가 비면 지번 주소로 대체한다', () => {
     expect(composePostcodeAddress({ ...base, roadAddress: '', bname: '', buildingName: '' }))
-      .toEqual({ postalCode: '04799', address1: '서울 성동구 성수동1가 656-1' });
+      .toEqual({ postalCode: '04799', address1: '서울 성동구 성수동1가 656-1', apartment: false });
   });
 
   it('검색 스크립트는 개인정보를 실을 수 없는 정적 주소다', () => {
@@ -81,5 +83,33 @@ describe('composePostcodeAddress', () => {
 
   it('2026-11-30에 닫히는 옛 다음 CDN 주소를 쓰지 않는다', () => {
     expect(POSTCODE_SCRIPT_SRC).not.toContain('daumcdn.net');
+  });
+
+  /* 공동주택(아파트) 결과는 상세 주소(동·호수)가 비면 제출 전에 한 번 확인받는다(국내 커머스 관행·Baymard 세부 주소 누락). */
+  it('공동주택 여부를 결과에 싣는다 — Y 만 공동주택이다', () => {
+    expect(composePostcodeAddress({ ...base, apartment: 'Y' })?.apartment).toBe(true);
+    expect(composePostcodeAddress({ ...base, apartment: 'N' })?.apartment).toBe(false);
+    expect(composePostcodeAddress(base)?.apartment).toBe(false);
+  });
+});
+
+describe('공동주택 상세 주소 확인', () => {
+  it('공동주택인데 상세 주소가 비었을 때만 확인한다(공백만 있어도 빈 것)', () => {
+    expect(apartmentDetailMissing(true, '')).toBe(true);
+    expect(apartmentDetailMissing(true, '   ')).toBe(true);
+    expect(apartmentDetailMissing(true, undefined)).toBe(true);
+    expect(apartmentDetailMissing(true, null)).toBe(true);
+    expect(apartmentDetailMissing(true, '101동 1203호')).toBe(false);
+    expect(apartmentDetailMissing(false, '')).toBe(false);
+  });
+
+  it('확인창은 막지 않고 고르게 한다 — 기본 버튼은 상세 주소 입력, 확인은 화면 동작 이름', () => {
+    expect(apartmentDetailConfirmRequest('주문')).toEqual({
+      title: '상세 주소 없이 진행할까요?',
+      message: '아파트 주소는 동·호수가 없으면 배송이 늦어지거나 돌아올 수 있어요.',
+      confirmLabel: '이대로 주문',
+      cancelLabel: '상세 주소 입력',
+    });
+    expect(apartmentDetailConfirmRequest('저장').confirmLabel).toBe('이대로 저장');
   });
 });

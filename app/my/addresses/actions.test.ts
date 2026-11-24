@@ -55,9 +55,17 @@ describe('saveAddressBookEntryAction', () => {
     mocks.auth = { isConfigured: true, user: { id: 'user-1' }, profile: ONBOARDED };
     expect(await saveAddressBookEntryAction('not-a-uuid', draft)).toMatchObject({ ok: false, error: 'address_book_entry_missing' });
     expect(await saveAddressBookEntryAction(null, { ...draft, phone: 12 })).toMatchObject({ ok: false, error: 'address_book_invalid' });
-    const invalid = await saveAddressBookEntryAction(null, { ...draft, postalCode: '123', label: '' });
-    expect(invalid).toMatchObject({ ok: false, error: 'address_book_invalid', fieldErrors: { postalCode: '우편번호 5자리를 입력해주세요.', label: '배송지 이름을 입력해주세요.' } });
+    const invalid = await saveAddressBookEntryAction(null, { ...draft, postalCode: '123', label: '집\n회사' });
+    expect(invalid).toMatchObject({ ok: false, error: 'address_book_invalid', fieldErrors: { postalCode: '우편번호 5자리를 입력해주세요.', label: '배송지 이름에 쓸 수 없는 문자가 있어요.' } });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  /* 배송지 이름은 선택이다(P1) — DB 는 이름을 1~20자로만 받으므로(제약·RPC 그대로) 액션이 받는 분 이름으로 채워 보낸다. */
+  it('이름을 비우면 받는 분 이름(앞 20자)으로 채워 보낸다', async () => {
+    await saveAddressBookEntryAction(null, { ...draft, label: '  ', recipientName: ' 홍길동 ' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('save_my_address_book_entry', expect.objectContaining({ p_label: '홍길동' }));
+    await saveAddressBookEntryAction(null, { ...draft, label: '', recipientName: '가'.repeat(50) });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('save_my_address_book_entry', expect.objectContaining({ p_label: '가'.repeat(20) }));
   });
 
   it('처리방침에 동의하지 않았거나(온보딩 전) 정지된 회원의 연락처·주소는 받지 않는다', async () => {

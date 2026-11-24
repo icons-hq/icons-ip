@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { respondGiftAction } from '@/app/gifts/actions';
 import { GiftAddressFields, GiftItems, GiftRequestFeedback, EMPTY_GIFT_ADDRESS } from '@/components/gifts/GiftParts';
 import { useGiftRequest, useGiftUnsaved } from '@/components/gifts/useGiftRequest';
+import { useAddressFormGuard } from '@/components/checkout/useAddressFormGuard';
 import { customerConfirm } from '@/lib/customer-confirm';
 import type { GiftInvitation } from '@/lib/gifts';
 import { normalizeCheckoutAddress } from '@/lib/checkout';
@@ -15,6 +16,8 @@ export function GiftReceive({ actorId, actorLabel, invitation }: { actorId: stri
   const router = useRouter(), [address, setAddress] = useState({ ...EMPTY_GIFT_ADDRESS }), [privacy, setPrivacy] = useState(false), [finished, setFinished] = useState(false);
   const lost = useCallback(() => { setAddress({ ...EMPTY_GIFT_ADDRESS }); setPrivacy(false); }, []);
   const request = useGiftRequest(actorId, lost);
+  /* 주소 칸은 검색 결과로 잠긴다 — 수락 전에 직접 검사하고, 공동주택인데 상세 주소가 비면 한 번 확인받는다. */
+  const addressGuard = useAddressFormGuard('gift-address');
   useGiftUnsaved(!finished && !request.blocked && (Object.values(address).some(Boolean) || request.pending || Boolean(request.failure?.uncertain)));
   const respond = (accept: boolean) => {
     const destination = accept ? normalizeCheckoutAddress(address) : null;
@@ -25,7 +28,7 @@ export function GiftReceive({ actorId, actorLabel, invitation }: { actorId: stri
   return <main className="wc-root"><div className="wc-container wc-gifts"><header><h1>{request.blocked ? '선물 확인' : `${invitation.senderLabel}님의 선물`}</h1><p>선물을 받을 배송지를 입력해주세요. 보낸 사람에게 주소와 연락처가 공개되지 않아요.</p></header>
     {!request.blocked ? <><p>현재 로그인: <strong>{actorLabel}</strong> · 이 계정의 선물함에 보관됩니다.</p><GiftItems items={invitation.items} />{invitation.message ? <blockquote>{invitation.message}</blockquote> : null}
       <p>{new Date(invitation.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}까지 수락할 수 있어요.</p>
-      <form onSubmit={event => { event.preventDefault(); respond(true); }}><GiftAddressFields value={address} disabled={request.locked} onChange={setAddress} />
+      <form noValidate onSubmit={async event => { event.preventDefault(); if (!privacy || request.locked || !(await addressGuard.check(address, '수락'))) return; respond(true); }}><GiftAddressFields {...addressGuard.fieldProps(address, setAddress)} disabled={request.locked} />
         <label className="wc-gifts__check"><input type="checkbox" checked={privacy} disabled={request.locked} onChange={event => setPrivacy(event.target.checked)} />선물 배송을 위해 배송지와 연락처를 제공하는 데 동의합니다. <Link href={legalDocumentHref('privacy')}>개인정보 처리방침</Link></label>
         <p>수락 후 보낸 사람이 결제를 완료하면 배송이 시작돼요. 선물 대금과 환불은 보낸 사람에게 귀속돼요.</p>
         <div className="wc-gifts__actions"><button type="submit" disabled={request.locked || !privacy}>선물 수락</button><button type="button" disabled={request.locked} onClick={() => { void customerConfirm({ title: '이 선물을 거절할까요?', confirmLabel: '선물 거절' }).then(confirmed => { if (confirmed) respond(false); }); }}>거절</button></div>

@@ -2,7 +2,7 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { transactionActor, transactionDisplay, transactionInput, transactionOrder, transactionQuote, transactionRecovery, transactionSession } from '@/test/fixtures/cart-transaction';
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], memos: [] as { value: unknown; deps: unknown[] }[], effects: [] as { deps: unknown[]; effect: () => void | (() => void); cleanup?: () => void }[], changed: [] as number[], si: 0, ri: 0, mi: 0, ei: 0 }));
-const mocks = vi.hoisted(() => ({ place: vi.fn(), resume: vi.fn(), refresh: vi.fn(), reprice: vi.fn(), push: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void), cart: null as unknown, quote: null as unknown }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), place: vi.fn(), resume: vi.fn(), refresh: vi.fn(), reprice: vi.fn(), push: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void), cart: null as unknown, quote: null as unknown }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => { const i = hooks.si++; if (!(i in hooks.states)) hooks.states[i] = typeof initial === 'function' ? initial() : initial; return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === 'function' ? next(hooks.states[i]) : next; }]; },
   useRef: (value: unknown) => { const i = hooks.ri++; return hooks.refs[i] ??= { current: value }; },
@@ -13,11 +13,14 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push, refres
 vi.mock('@/app/checkout/transaction-actions', () => ({ placeCartTransactionAction: mocks.place, resumeCartTransactionAction: mocks.resume }));
 vi.mock('@/components/shell/CartProvider', () => ({ useCart: () => mocks.cart, useReleaseUnpaidCartOrders: () => true }));
 vi.mock('@/components/checkout/useCartTransactionQuote', () => ({ useCartTransactionQuote: () => ({ result: mocks.quote, offers: [], loading: false, refresh: mocks.reprice }) }));
+vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: mocks.save }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe: vi.fn() } } }; } } }) }));
 import { GoodsTransactionCheckout } from './GoodsTransactionCheckout';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
-import { CheckoutAddressBook } from '@/components/checkout/CheckoutAddressBook';
-import { PostcodeField } from '@/components/checkout/PostcodeField';
+import { CheckoutAddressSection } from '@/components/checkout/CheckoutAddressSection';
+import type { CheckoutAddressEntryState } from '@/components/checkout/useCheckoutAddressEntry';
+import { setCustomerConfirmHandler } from '@/lib/customer-confirm';
+import type { CheckoutAddress } from '@/lib/checkout';
 import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap(child => isValidElement<Record<string, unknown>>(child) ? [child, ...all(child.props.children as ReactNode)] : []);
@@ -94,28 +97,46 @@ it('새 세션은 이전 세션의 복구 식별자를 재사용하지 않는다
   for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(transactionActor, transactionOrder); await flush();
   expect(storage.size).toBe(0); expect(button('같은 주문 다시 확인')).toBeUndefined();
 });
-/* 주소록(L7 · MY-11) · 미리 채우기 정정(10/14 S6a) — 거래 주문서도 같은 선택·안내를 쓴다. */
-it('주소록 배송지를 고르면 폼을 채우고 배송 메모는 두며, 미리 채운 출처 안내는 그 배송지일 때만 보인다', async () => {
+/* 주소록(L7 · MY-11) · 미리 채우기 정정(10/14 S6a) · 국내 커머스 관행 맞추기 P1 — 거래 주문서도 장바구니 주문서와 같은 배송지
+   부품(요약 카드·[변경] 시트·저장 체크)과 안내를 쓴다. */
+it('주소록 기본 배송지로 요약을 시작하고, 미리 채운 출처 안내는 그 배송지일 때만 보인다', async () => {
   const home = { id: '7a570000-0000-4000-8000-000000000011', label: '집', recipientName: '수령인', phone: '01012345678', postalCode: '04799', address1: '서울 성동구 테스트길', address2: '123호', isDefault: true };
   const office = { ...home, id: '7a570000-0000-4000-8000-000000000012', label: '회사', recipientName: '회사 수령인', address1: '서울 강남구 테헤란로 152', address2: null, isDefault: false };
   props = { ...props, addressPrefill: { address: { ...transactionInput.address, deliveryNote: '' }, source: 'address_book', book: [home, office] } };
   for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
-  const field = (id: string) => all(render()).find(node => node.type === 'input' && node.props.id === id)!;
+  const section = () => all(render()).find(node => node.type === CheckoutAddressSection)!;
   expect(text(render())).toContain('주소록의 기본 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.');
-  const picker = all(render()).find(node => node.type === CheckoutAddressBook)!;
-  expect(picker.props.book).toEqual([home, office]);
-  (field('checkout-deliveryNote').props.onChange as (event: { target: { value: string } }) => void)({ target: { value: '문 앞' } });
-  (picker.props.onPick as (entry: unknown) => void)(office);
-  expect(field('checkout-recipientName').props.value).toBe('회사 수령인');
-  expect(field('checkout-address1').props.value).toBe('서울 강남구 테헤란로 152');
-  expect(field('checkout-address2').props.value).toBe('');
-  expect(all(render()).find(node => node.type === PostcodeField)!.props.value).toBe('04799');
-  expect(field('checkout-deliveryNote').props.value).toBe('문 앞');
+  const entry = section().props.entry as CheckoutAddressEntryState;
+  expect(entry.book).toEqual([home, office]);
+  expect(entry.mode).toBe('summary');
+  expect(entry.saveToBook).toBe(false);
+  (section().props.setAddress as (next: (value: CheckoutAddress) => CheckoutAddress) => void)(value => ({ ...value, recipientName: '회사 수령인', address1: '서울 강남구 테헤란로 152', address2: '', deliveryNote: '문 앞' }));
+  expect(section().props.address).toMatchObject({ recipientName: '회사 수령인', deliveryNote: '문 앞' });
   expect(text(render())).not.toContain('불러왔어요');
-  (all(render()).find(node => node.type === CheckoutAddressBook)!.props.onPick as (entry: unknown) => void)(null);
-  expect(field('checkout-recipientName').props.value).toBe('');
-  expect(all(render()).find(node => node.type === PostcodeField)!.props.value).toBe('');
-  expect(field('checkout-deliveryNote').props.value).toBe('문 앞');
+});
+it('공동주택 상세 주소 확인을 [상세 주소 입력]으로 닫으면 주문하지 않고, 체크한 배송지는 주문을 만든 뒤에만 주소록에 저장한다', async () => {
+  const section = () => all(render()).find(node => node.type === CheckoutAddressSection)!;
+  const entry = () => section().props.entry as CheckoutAddressEntryState;
+  let answer = false;
+  setCustomerConfirmHandler(async () => answer);
+  (window as unknown as { requestAnimationFrame: unknown }).requestAnimationFrame = (callback: (time: number) => void) => { callback(0); return 0; };
+  vi.stubGlobal('document', { getElementById: () => ({ focus: vi.fn() }) });
+  try {
+    entry().setApartment(true);
+    (section().props.setAddress as (next: (value: CheckoutAddress) => CheckoutAddress) => void)(value => ({ ...value, address2: '' }));
+    entry().setSaveToBook(true);
+    await flush();
+    await submit(); await flush();
+    expect(mocks.place).not.toHaveBeenCalled();
+    answer = true;
+    mocks.place.mockResolvedValueOnce({ ok: true, orderId: transactionOrder }); mocks.save.mockResolvedValue({ ok: true, entries: [], savedId: transactionOrder });
+    await submit(); await flush();
+    expect(mocks.place).toHaveBeenCalledTimes(1);
+    expect(mocks.save).toHaveBeenCalledWith(null, { label: '', recipientName: '수령인', phone: '01012345678', postalCode: '04799', address1: '서울 성동구 테스트길', address2: '', makeDefault: true });
+    expect(mocks.push).toHaveBeenCalledWith(`/checkout/${transactionOrder}`);
+  } finally {
+    setCustomerConfirmHandler(null);
+  }
 });
 /* 주문서 초안(ADR-0030): 바로구매는 장바구니가 아니라 초안 줄로, 초안 id를 실어 견적·주문하고 장바구니 쿠폰을 이어받지 않는다. */
 it('바로구매 초안이면 장바구니가 아니라 초안 줄을 주문하고, 복구 식별자에 초안 id를 더한다', async () => {

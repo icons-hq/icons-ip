@@ -115,15 +115,30 @@ export function addressBookDraftFromCheckout(address: CheckoutAddress, label: st
   };
 }
 
+/** 배송지 이름 칸 안내 — 이름은 선택이고, 비우면 받는 분 이름으로 저장한다. */
+export const ADDRESS_BOOK_LABEL_HINT = '비우면 받는 분 이름으로 저장해요.';
+
+/**
+ * 비운 배송지 이름 대신 쓸 이름 — 받는 분 이름(앞뒤 공백 제거)의 앞 20자. DB 는 이름을 1~20자로 받으므로(제약·RPC 그대로)
+ * 화면이 비워도 저장되는 이름은 늘 있다. 받는 분 이름이 비면 빈 문자열(받는 분 칸 오류가 먼저 막는다).
+ */
+export function addressBookAutoLabel(recipientName: string): string {
+  return [...recipientName.trim()].slice(0, ADDRESS_BOOK_LABEL_MAX).join('').trim();
+}
+
+/** 저장할 배송지 이름 — 적은 이름, 비웠으면 받는 분 이름(addressBookAutoLabel). */
+export function addressBookResolvedLabel(draft: Pick<AddressBookDraft, 'label' | 'recipientName'>): string {
+  return draft.label.trim() || addressBookAutoLabel(draft.recipientName);
+}
+
 /**
  * 폼 검증 — 주문서와 같은 배송지 규칙(checkoutAddressErrors)에 배송지 이름 규칙을 더한다.
- * 같은 문장을 써야 주문서에서 통과한 주소가 주소록에서 거절되지 않는다.
+ * 같은 문장을 써야 주문서에서 통과한 주소가 주소록에서 거절되지 않는다. 배송지 이름은 선택이다(비우면 받는 분 이름).
  */
 export function addressBookDraftErrors(draft: AddressBookDraft): AddressBookDraftErrors {
   const errors: AddressBookDraftErrors = {};
   const label = draft.label.trim();
-  if (!label) errors.label = '배송지 이름을 입력해주세요.';
-  else if ([...label].length > ADDRESS_BOOK_LABEL_MAX) errors.label = `배송지 이름은 ${ADDRESS_BOOK_LABEL_MAX}자 이하로 입력해주세요.`;
+  if ([...label].length > ADDRESS_BOOK_LABEL_MAX) errors.label = `배송지 이름은 ${ADDRESS_BOOK_LABEL_MAX}자 이하로 입력해주세요.`;
   else if (CONTROL_CHARACTERS.test(label)) errors.label = '배송지 이름에 쓸 수 없는 문자가 있어요.';
 
   const address = checkoutAddressErrors({
@@ -155,8 +170,10 @@ export function addressBookSaveInput(draft: AddressBookDraft): AddressBookSaveIn
     ...(address2 ? { address2 } : {}),
   });
   if (!normalized) return null;
+  const label = addressBookResolvedLabel({ label: draft.label, recipientName: normalized.recipientName });
+  if (!label) return null;
   return {
-    label: draft.label.trim(),
+    label,
     address: {
       recipientName: normalized.recipientName,
       phone: normalized.phone,

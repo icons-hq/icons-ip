@@ -3,7 +3,14 @@
    서버로 흘리지 않는다 — 상태로만 받아 폼에 채운다.
 
    여기서 만든 값은 반드시 lib/checkout.ts의 checkoutAddressErrors를 통과해야
-   한다. 통과하지 못하는 결과는 채우지 않고 null을 돌려 수기 입력에 맡긴다. */
+   한다. 통과하지 못하는 결과는 채우지 않고 null을 돌려 수기 입력에 맡긴다.
+
+   주소는 검색으로 확정한다(국내 커머스 관행 — 검색 → 선택 → 상세 주소). 검색으로 채운
+   우편번호·기본 주소는 화면이 잠그고, 손 입력은 검색을 열지 못했을 때만 연다(PostcodeField).
+   공동주택(apartment)인데 상세 주소가 비면 제출 전에 한 번 확인받는다 — 동·호수 누락은
+   배송 주소 오류의 주된 원인이다. 확인일 뿐 막지는 않는다. */
+
+import type { CustomerConfirmRequest } from './customer-confirm';
 
 /** 카카오 우편번호 서비스(옛 다음 우편번호) 임베드 스크립트. 쿼리 없는 정적 주소다.
     옛 `t1.daumcdn.net` 주소는 2026-11-30에 닫힌다(서비스 공지) — 공식 가이드의 `t1.kakaocdn.net`을 쓴다.
@@ -20,11 +27,15 @@ export interface PostcodeSelection {
   userSelectedType: 'R' | 'J';
   bname: string;
   buildingName: string;
+  /** 공동주택(아파트) 여부. 다음 우편번호는 'Y' / 'N' 으로 준다. */
+  apartment: 'Y' | 'N';
 }
 
 export interface ComposedPostcodeAddress {
   postalCode: string;
   address1: string;
+  /** 검색 결과가 공동주택(아파트)이다 — 상세 주소(동·호수)가 비면 제출 전에 확인받는다. */
+  apartment: boolean;
 }
 
 const POSTAL_CODE_PATTERN = /^\d{5}$/;
@@ -62,5 +73,24 @@ export function composePostcodeAddress(
     ? `${baseAddress} (${references.join(', ')})`
     : baseAddress;
 
-  return address1.length > ADDRESS1_MAX_LENGTH ? null : { postalCode, address1 };
+  if (address1.length > ADDRESS1_MAX_LENGTH) return null;
+  return { postalCode, address1, apartment: selection.apartment === 'Y' };
+}
+
+/** 검색한 주소가 공동주택인데 상세 주소가 비었는가 — 제출 전에 한 번 확인받을 때다. */
+export function apartmentDetailMissing(apartment: boolean, address2: string | null | undefined): boolean {
+  return apartment && !(address2 ?? '').trim();
+}
+
+/**
+ * 공동주택 상세 주소 확인창 문구(lib/customer-confirm.ts 요청). action 은 확인 버튼의 동작 이름이다('주문'·'저장'·'진행').
+ * 취소(기본 버튼)를 누르면 화면은 상세 주소 칸으로 포커스를 옮긴다.
+ */
+export function apartmentDetailConfirmRequest(action: string): CustomerConfirmRequest {
+  return {
+    title: '상세 주소 없이 진행할까요?',
+    message: '아파트 주소는 동·호수가 없으면 배송이 늦어지거나 돌아올 수 있어요.',
+    confirmLabel: `이대로 ${action}`,
+    cancelLabel: '상세 주소 입력',
+  };
 }

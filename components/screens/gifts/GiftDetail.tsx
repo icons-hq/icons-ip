@@ -9,6 +9,7 @@ import { NO_RETURN_PICKUP, type OrderReturnPickup } from '@/lib/orders/return-pi
 import { MypageShell } from '@/components/wc/MypageShell';
 import { EMPTY_GIFT_ADDRESS, GiftAddressFields, GiftItems, GiftRequestFeedback } from '@/components/gifts/GiftParts';
 import { useGiftRequest, useGiftUnsaved } from '@/components/gifts/useGiftRequest';
+import { useAddressFormGuard } from '@/components/checkout/useAddressFormGuard';
 import { customerConfirm } from '@/lib/customer-confirm';
 import { PurchaseAcknowledgement } from '@/components/checkout/PurchaseAcknowledgement';
 import { EMPTY_CHECKOUT_CLAIM_RESTRICTIONS, claimNoticeOf, restrictedCheckoutGoods, type CheckoutClaimRestrictions } from '@/lib/checkout-acknowledgement';
@@ -39,6 +40,8 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext,
   const [acknowledged, setAcknowledged] = useState(false);
   const lost = useCallback(() => { setGift(previous => ({ ...previous, senderLabel: '', recipientLabel: null, message: '', items: [], address: null, addressRevision: null, order: null, shipments: [] })); setAddress({ ...EMPTY_GIFT_ADDRESS }); setLink(null); setQuote(null); setCouponId(''); setCredit('0'); setMessage(''); }, []);
   const request = useGiftRequest(actorId, lost);
+  /* 배송지 변경도 선물 받기와 같은 검사(잠긴 주소 칸 직접 검사·공동주택 확인)를 거친다. */
+  const addressGuard = useAddressFormGuard('gift-address');
   const addressDirty = gift.isRecipient && gift.state === 'accepted' && JSON.stringify(address) !== JSON.stringify(gift.address);
   useGiftUnsaved(!request.blocked && (addressDirty || request.pending || Boolean(request.failure?.uncertain)));
   useEffect(() => {
@@ -63,11 +66,12 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext,
         }}>{link ? '새 링크 발급' : '선물 링크 발급'}</button>
         {link ? <div className="wc-gifts__copy"><input aria-label="선물 링크" value={link} readOnly autoComplete="off" spellCheck={false} /><button type="button" onClick={() => { void navigator.clipboard.writeText(link).then(() => setCopyStatus('링크를 복사했습니다.'), () => setCopyStatus('링크를 선택한 뒤 직접 복사해주세요.')); }}>링크 복사</button><p role="status">{copyStatus}</p></div> : null}
         <p>새 링크를 발급하면 이전 링크는 사용할 수 없어요. 링크는 이 화면을 벗어나면 보관되지 않아요.</p></section> : null}
-      {gift.isRecipient && gift.state === 'accepted' ? <section><h2>배송지 확인</h2><form onSubmit={event => {
-        event.preventDefault(); const destination = normalizeCheckoutAddress(address); if (!destination) return;
+      {gift.isRecipient && gift.state === 'accepted' ? <section><h2>배송지 확인</h2><form noValidate onSubmit={async event => {
+        event.preventDefault(); if (request.locked || !addressDirty || !(await addressGuard.check(address, '변경'))) return;
+        const destination = normalizeCheckoutAddress(address); if (!destination) return;
         const operationId = crypto.randomUUID(), revision = gift.revision;
         request.run(() => updateGiftAddressAction(gift.id, revision, destination, operationId, actorId), result => { applyGift(result.gift); setAddress(result.gift.address ?? { ...EMPTY_GIFT_ADDRESS }); });
-      }}><GiftAddressFields value={address} disabled={request.locked} onChange={setAddress} /><button type="submit" disabled={request.locked || !addressDirty}>배송지 변경</button></form><p>보낸 사람이 주문을 시작하기 전까지 변경할 수 있어요.</p></section> : null}
+      }}><GiftAddressFields {...addressGuard.fieldProps(address, setAddress)} disabled={request.locked} /><button type="submit" disabled={request.locked || !addressDirty}>배송지 변경</button></form><p>보낸 사람이 주문을 시작하기 전까지 변경할 수 있어요.</p></section> : null}
       {gift.party === 'sender' && gift.state === 'accepted' ? <section><h2>선물 결제</h2><p>{gift.recipientLabel}님이 수락하고 배송지를 입력했어요. 배송비는 보낸 사람이 결제해요.</p>
         <fieldset disabled={request.locked}><legend>결제 혜택</legend><label>쿠폰<select value={couponId} disabled={coupons === null} onChange={event => { setCouponId(event.target.value); setQuote(null); request.clear(); }}><option value="">사용 안 함</option>
           {(coupons ?? []).filter(row => couponDisplayState(row) === 'usable').map(row => <option key={row.id} value={row.id}>{row.coupon.name}</option>)}</select></label>

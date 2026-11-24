@@ -369,7 +369,8 @@ function AddressRow({
             <strong>{entry.label}</strong>
             {entry.isDefault ? <span className="wc-address-book__badge">기본 배송지</span> : null}
           </span>
-          <span className="wc-address-book__recipient">{entry.recipientName}</span>
+          {/* 이름을 비워 받는 분 이름으로 저장한 배송지는 같은 이름을 두 번 보이지 않는다. */}
+          {entry.recipientName !== entry.label ? <span className="wc-address-book__recipient">{entry.recipientName}</span> : null}
         </th>
         <td className="wc-address-book__address">{addressBookAddressLine(entry)}</td>
         <td className="wc-address-book__phone">
