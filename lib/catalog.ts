@@ -17,7 +17,7 @@ import { HOME_HERO_LIMIT, homeHeroAltText, homeHeroStyle } from './home-hero';
 
 import { blockedUserIds } from '@/lib/blocks.server';
 import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '@/lib/community';
-import { DATA, type Card, type FandomEvent, type Good, type GoodOption, type Ip, type Stock, type Vertical } from '@/lib/data';
+import { DATA, type FandomEvent, type Good, type GoodOption, type Ip, type Stock, type Vertical } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import { collapseRandomGoodOptions, goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
@@ -29,7 +29,6 @@ import { parseGoodsKcDisclosures, parseGoodsOtherCertificationDisclosures } from
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { resolvePublicIpLinks } from '@/lib/ip-identity.server';
 import { canonicalGoodLinks } from '@/lib/goods-display';
-import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
@@ -68,7 +67,6 @@ export interface CatalogSnapshot {
   verticals: Vertical[];
   ips: Ip[];
   goods: Good[];
-  cards: Card[];
   events: FandomEvent[];
   /**
    * 목록 카드 별점(LFS 패리티 2차 L4 · CL-02) — 굿즈 ID → 공개 리뷰 수·평균(굿즈 상세와 같은 그룹 범위).
@@ -126,7 +124,6 @@ export interface CatalogIpDetail {
   source: CatalogSnapshot['source'];
   ip: Ip;
   goods: Good[];
-  cards: Card[];
   events: FandomEvent[];
   posts: CatalogPostPreview[];
   /** 이 IP 굿즈 몫의 목록 카드 별점(CL-02). */
@@ -231,20 +228,6 @@ export interface GoodRow {
   member_lifetime_qty_limit?: number | null;
 }
 
-interface CardRow {
-  id: string;
-  ip_id: string;
-  name: string;
-  no: string | null;
-  rarity: string;
-  bg: string | null;
-  image_path: string | null;
-}
-
-interface UserCardOwnershipRow {
-  card_id: string;
-}
-
 interface EventRow {
   id: string;
   ip_id: string | null;
@@ -340,7 +323,6 @@ const mockSnapshot = (): CatalogSnapshot => ({
   verticals: Object.values(DATA.V),
   ips: DATA.IPS,
   goods: DATA.GOODS,
-  cards: DATA.CARDS,
   events: DATA.EVENTS,
 });
 
@@ -809,18 +791,6 @@ function sortGoodsDisplayOrder(goods: Good[]) {
   return [...goods].sort(compareGoodsDisplayOrder);
 }
 
-function toCard(row: CardRow, imageUrlForPath: (path: string) => string): Card {
-  return {
-    id: row.id,
-    ip: row.ip_id,
-    name: row.name,
-    no: row.no ?? '',
-    rarity: isRarityKey(row.rarity) ? row.rarity : 'N',
-    owned: false,
-    bg: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.CARDS[0]?.bg ?? ''),
-  };
-}
-
 function eventDateParts(value: string) {
   const date = new Date(value);
   const parts = new Intl.DateTimeFormat('ko-KR', {
@@ -935,7 +905,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   const storefrontReadCache = options.storefrontReadCache === true;
   const supabase = await createClient({ storefrontReadCache });
 
-  const [verticalsResult, ipsResult, goodsResult, cardsResult, eventsResult, maskedAdultRows] = await Promise.all([
+  const [verticalsResult, ipsResult, goodsResult, eventsResult, maskedAdultRows] = await Promise.all([
     supabase.from('verticals').select('key,label,color').order('key'),
     supabase
       .from('ips')
@@ -950,14 +920,9 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
-         이 스냅샷이 리스트·검색·홈·바인더를 모두 먹이므로 기본은 지금처럼 비노출이다.
+         이 스냅샷이 리스트·검색·홈을 모두 먹이므로 기본은 지금처럼 비노출이다.
          가림(masked) 카드는 행 전체가 아니라 아래 가림 카드 RPC로 읽는다 — RLS가 인증 전 세션에 성인 행을 닫는다. */
       .in('sale_restriction', adultGoodsRestrictions(adultGoods === 'masked' ? 'hidden' : adultGoods))
-      .order('id'),
-    supabase
-      .from('cards')
-      .select('id,ip_id,name,no,rarity,bg,image_path')
-      .is('archived_at', null)
       .order('id'),
     supabase
       .from('events')
@@ -977,9 +942,6 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   if (goodsResult.error) {
     throw new Error(`Failed to load catalog goods: ${goodsResult.error.message}`);
   }
-  if (cardsResult.error) {
-    throw new Error(`Failed to load catalog cards: ${cardsResult.error.message}`);
-  }
   if (eventsResult.error) {
     throw new Error(`Failed to load catalog events: ${eventsResult.error.message}`);
   }
@@ -995,7 +957,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   const ips = ((ipsResult.data ?? []) as IpRow[]).map((row) => toIp(row, verticalsByKey, imageUrlForPath));
   const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
   /*
-   * 초안 IP 에 속한 굿즈·카드·이벤트도 함께 숨긴다 — 검색 RPC(20260907130001)와 같은 규칙이다.
+   * 초안 IP 에 속한 굿즈·이벤트도 함께 숨긴다 — 검색 RPC(20260907130001)와 같은 규칙이다.
    * 보관은 DB 트리거가 활성 자식을 못 남기게 막지만 초안에는 그런 불변식이 없어 여기서 거른다.
    * IP 없는 이벤트(플랫폼·합동)는 그대로 남는다.
    */
@@ -1021,10 +983,6 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     applyGoodsAggregationPolicy(good, offersByGood.get(good.id) ?? null);
     good.transactionCalculatedAt = transactionCalculatedAt;
   }
-  const cards = ((cardsResult.data ?? []) as CardRow[])
-    .filter((row) => belongsToPublicIp(row.ip_id))
-    .map((row) => toCard(row, imageUrlForPath))
-    .sort(byNaturalId);
   const events = ((eventsResult.data ?? []) as EventRow[])
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toEvent(row, ipsById, imageUrlForPath))
@@ -1035,88 +993,8 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     verticals,
     ips,
     goods,
-    cards,
     events,
     ...(reviewSummaries ? { reviewSummaries } : {}),
-  };
-}
-
-export interface BinderCatalogOverlay {
-  ownedCardIds: string[];
-  cards: Card[];
-  ips: Ip[];
-}
-
-/**
- * Public discovery excludes archived cards, but an authenticated owner's binder
- * must retain card metadata for historical user_cards rows.
- */
-export async function getBinderCatalogOverlay(): Promise<BinderCatalogOverlay | null> {
-  if (!getSupabaseConfig().isConfigured) return null;
-
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return null;
-
-  const ownershipResult = await supabase
-    .from('user_cards')
-    .select('card_id')
-    .gt('qty', 0)
-    .order('card_id');
-
-  if (ownershipResult.error) {
-    throw new Error(`Failed to load binder ownership: ${ownershipResult.error.message}`);
-  }
-
-  const ownedCardIds = [...new Set(
-    ((ownershipResult.data ?? []) as UserCardOwnershipRow[]).map((row) => row.card_id),
-  )];
-  if (!ownedCardIds.length) return { ownedCardIds, cards: [], ips: [] };
-
-  const cardsResult = await supabase
-    .from('cards')
-    .select('id,ip_id,name,no,rarity,bg,image_path')
-    .in('id', ownedCardIds)
-    .order('id');
-
-  if (cardsResult.error) {
-    throw new Error(`Failed to load binder cards: ${cardsResult.error.message}`);
-  }
-
-  const cardRows = (cardsResult.data ?? []) as CardRow[];
-  const parentIpIds = [...new Set(cardRows.map((row) => row.ip_id))];
-  const [ipsResult, verticalsResult] = await Promise.all([
-    supabase
-      .from('ips')
-      .select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
-      .in('id', parentIpIds)
-      .order('id'),
-    supabase
-      .from('verticals')
-      .select('key,label,color')
-      .order('key'),
-  ]);
-
-  if (ipsResult.error) {
-    throw new Error(`Failed to load binder IPs: ${ipsResult.error.message}`);
-  }
-  if (verticalsResult.error) {
-    throw new Error(`Failed to load binder verticals: ${verticalsResult.error.message}`);
-  }
-
-  const imageUrlForPath = (path: string) => supabase.storage
-    .from(PUBLIC_MEDIA_BUCKET)
-    .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
-  const verticalsByKey = new Map(
-    ((verticalsResult.data ?? []) as VerticalRow[]).map((vertical) => [vertical.key, vertical]),
-  );
-
-  return {
-    ownedCardIds,
-    cards: cardRows.map((row) => toCard(row, imageUrlForPath)).sort(byNaturalId),
-    ips: ((ipsResult.data ?? []) as IpRow[])
-      .map((row) => toIp(row, verticalsByKey, imageUrlForPath))
-      .sort(byNaturalId),
   };
 }
 
@@ -1328,7 +1206,6 @@ export function buildCatalogIpDetail(
     ip,
     goods,
     reviewSummaries: pickGoodsReviewSummaries(catalog.reviewSummaries, goods.map((good) => good.id)),
-    cards: catalog.cards.filter((card) => card.ip === id),
     events: catalog.events.filter((event) => event.ip === id),
     posts: posts
       .filter((post) => (post.ipId ? post.ipId === id : post.ipName === ip.title))

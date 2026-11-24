@@ -51,10 +51,6 @@ const detail: CatalogIpDetail = {
     { id: 'g2', name: '슬라임 인형', ip: ip.id, price: 29000, badge: null, stock: 'soldout', stockQty: 0, img: 'linear-gradient(#333, #444)' },
     { id: 'g3', name: '버섯 키링', ip: ip.id, price: 9000, badge: null, stock: 'ok', stockQty: 4, img: 'linear-gradient(#333, #444)' },
   ],
-  cards: [
-    { id: 'c1', ip: ip.id, name: '단풍잎 용사', no: '001', rarity: 'SSR', owned: false, bg: 'linear-gradient(#111, #222)' },
-    { id: 'c2', ip: ip.id, name: '슬라임', no: '002', rarity: 'N', owned: true, bg: 'linear-gradient(#111, #222)' },
-  ],
   events: [],
   posts: [],
 };

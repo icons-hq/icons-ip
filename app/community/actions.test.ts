@@ -96,7 +96,6 @@ const catalog: CatalogSnapshot = {
     synopsis: '화산파의 부활',
   }],
   goods: [],
-  cards: [],
   events: [],
 };
 

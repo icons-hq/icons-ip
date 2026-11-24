@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
-import type { Card, FandomEvent, Good, GoodOption, Ip, Vertical } from './data';
+import type { FandomEvent, Good, GoodOption, Ip, Vertical } from './data';
 import type { GoodsVariantSupply } from './goods-preorders';
 import {
   benefitTileIcon,
@@ -232,18 +232,6 @@ function good(id: string, ipId: string): Good {
   };
 }
 
-function card(id: string, ipId: string): Card {
-  return {
-    id,
-    ip: ipId,
-    name: `Card ${id}`,
-    no: '001/010',
-    rarity: 'SR',
-    owned: false,
-    bg: `card-${id}`,
-  };
-}
-
 function event(id: string, ipId: string | null): FandomEvent {
   return {
     id,
@@ -278,7 +266,6 @@ function catalog(overrides: Partial<CatalogSnapshot>): CatalogSnapshot {
     verticals: [vertical],
     ips: [],
     goods: [],
-    cards: [],
     events: [],
     ...overrides,
   };
@@ -388,7 +375,6 @@ describe('buildHomeIpWorld', () => {
     const world = buildHomeIpWorld(catalog({
       ips: [ip('hwasan', true), ip('lumen', true)],
       goods: [good('other-good', 'lumen'), good('selected-good', 'hwasan')],
-      cards: [card('other-card', 'lumen'), card('selected-card', 'hwasan')],
       events: [event('global-event', null), event('other-event', 'lumen'), event('selected-event', 'hwasan')],
     }), 'hwasan', {
       hwasan: post('selected-post', 'IP hwasan'),
@@ -404,7 +390,6 @@ describe('buildHomeIpWorld', () => {
     const world = buildHomeIpWorld(catalog({
       ips: [ip('featured-1', true), ip('featured-2', true)],
       goods: [good('default-good', 'featured-1'), good('other-good', 'featured-2')],
-      cards: [card('default-card', 'featured-1')],
       events: [event('default-event', 'featured-1')],
     }), 'missing');
 

@@ -50,7 +50,7 @@ const event: FandomEvent = {
 };
 
 function snapshot(events: FandomEvent[]): CatalogSnapshot {
-  return { source: 'mock', verticals: [], ips: [], goods: [], cards: [], events };
+  return { source: 'mock', verticals: [], ips: [], goods: [], events };
 }
 
 function campaignFor(id: string): CampaignLandingSnapshot {

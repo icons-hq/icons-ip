@@ -30,7 +30,7 @@ function event(id: string, overrides: Partial<FandomEvent> = {}): FandomEvent {
 }
 
 function snapshot(events: FandomEvent[]): CatalogSnapshot {
-  return { source: 'mock', verticals: [], ips: [], goods: [], cards: [], events };
+  return { source: 'mock', verticals: [], ips: [], goods: [], events };
 }
 
 function pageProps(searchParams: Record<string, string | string[] | undefined> = {}) {

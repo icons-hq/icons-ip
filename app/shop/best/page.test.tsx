@@ -67,7 +67,6 @@ function snapshot(): CatalogSnapshot {
       synopsis: '',
     }],
     goods: [good('a', '1위 굿즈', 30000), good('b', '2위 굿즈', 10000), good('c', '랭킹 밖 굿즈', 20000)],
-    cards: [],
     events: [],
   };
 }

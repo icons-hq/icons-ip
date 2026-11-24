@@ -44,7 +44,7 @@ const ip = {
 };
 
 beforeEach(() => {
-  mocks.detail = { source: 'mock', ip, goods: [], cards: [], events: [], posts: [] };
+  mocks.detail = { source: 'mock', ip, goods: [], events: [], posts: [] };
   mocks.identity = { internalId: 'ip-1', publicSlug: 'ip-1', isAlias: false };
   mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
   mocks.followState = { isFollowed: true, notifyDrops: true, notifyEvents: false };
@@ -114,7 +114,7 @@ describe('/ip/[id] page', () => {
   /* 굿즈 영역은 굿즈샵 카테고리 화면과 같은 틀이다 — 정렬만 읽고, 옛 `?type=인형`·`min`·`ip` 링크는 오류 없이 무시한다. */
   it('computes the IP-scoped collection from the sort and passes the listing wish set', async () => {
     mocks.detail = {
-      source: 'mock', ip, cards: [], events: [], posts: [],
+      source: 'mock', ip, events: [], posts: [],
       goods: [
         { id: 'g1', name: '화산 키링', ip: 'ip-1', price: 12000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },
         { id: 'g2', name: '화산 인형', ip: 'ip-1', price: 30000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },

@@ -104,7 +104,6 @@ const catalog: CatalogSnapshot = {
     stockQty: 12,
     img: '',
   }],
-  cards: [],
   events: [{
     id: 'e100',
     title: '화산강림 팝업',

@@ -53,7 +53,7 @@ function ip(id: string, title: string, featured = false): Ip {
 }
 
 function catalog(source: CatalogSnapshot['source'], ips: Ip[]): CatalogSnapshot {
-  return { source, verticals: [vertical], ips, goods: [], cards: [], events: [] };
+  return { source, verticals: [vertical], ips, goods: [], events: [] };
 }
 
 function previewCatalog(source: CatalogSnapshot['source']): CatalogSnapshot {
@@ -62,7 +62,6 @@ function previewCatalog(source: CatalogSnapshot['source']): CatalogSnapshot {
     verticals: Object.values(DATA.V),
     ips: DATA.IPS,
     goods: DATA.GOODS,
-    cards: DATA.CARDS,
     events: DATA.EVENTS,
   };
 }
