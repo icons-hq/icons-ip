@@ -415,7 +415,7 @@ App Store 심사 가이드라인 4.8(로그인 서비스는 이메일을 숨길 
 ### 문제
 
 가입·확인 메일 재전송·비밀번호 재설정은 공개 서버 액션이고 모두 Supabase Auth 메일을 보낸다. 운영 Auth는 `rate_limit_email_sent`
-(시간당 300통, `scripts/sync-supabase-auth.mjs`의 `AUTH_EMAIL_RATE_LIMIT_PER_HOUR`)를 프로젝트 전체가 나눠 쓴다. 앱의 재전송 창(10분 3회)은
+(시간당 10,000통, `scripts/sync-supabase-auth.mjs`의 `AUTH_EMAIL_RATE_LIMIT_PER_HOUR`)를 프로젝트 전체가 나눠 쓴다. 앱의 재전송 창(10분 3회)은
 서명 쿠키라 쿠키를 버리면 매번 새 창이고, GoTrue의 IP 한도는 서버 액션이 Vercel 함수 IP로 부르므로 공격자 IP별로 걸리지 않는다.
 **더 근본적으로, 공개 publishable 키만 있으면 누구나 `POST <supabase>/auth/v1/signup`·`/recover`·`/resend`·`/otp`를 앱을 거치지 않고 직접 부를 수 있다.**
 앱 서버의 IP·이메일 한도와 Turnstile은 이 우회를 볼 수 없다(2026-11-19 적대적 리뷰 재현: 한 IP에서 서로 다른 이메일 31통 발송, 앱 원장 0행).
@@ -446,13 +446,13 @@ App Store 심사 가이드라인 4.8(로그인 서비스는 이메일을 숨길 
 
 | 범위 | 시간당 | 하루 | 근거 |
 |---|---|---|---|
-| 접속 IP(세 요청 합산) | 15 | 40 | 세 요청이 모두 메일을 보내므로 합쳐 센다. 15는 Auth 한도(300)의 5%라 한 IP가 프로젝트 한도를 독점하지 못한다. 가입 1건이 메일 1~2통이라 학교·통신사 NAT 뒤 동시 가입 7~8명/시간까지 통과한다. |
+| 접속 IP(세 요청 합산) | 15 | 40 | 세 요청이 모두 메일을 보내므로 합쳐 센다. 15는 Auth 한도(10,000)보다 훨씬 작아 한 IP가 프로젝트 한도를 독점하지 못한다(11-19 설정 당시 한도 300의 5%). 가입 1건이 메일 1~2통이라 학교·통신사 NAT 뒤 동시 가입 7~8명/시간까지 통과한다. |
 | 이메일(세 요청 합산) | 5 | 없음 | 남의 주소로 메일을 반복해 보내는 메일 폭탄을 막는다. **하루 한도를 두지 않는다** — 두면 공격자가 피해자 이메일의 하루 한도를 채워 그 사람의 재설정을 반나절 넘게 막을 수 있다(적대적 리뷰 재현: 약 21시간). 최악의 차단은 1시간이다. |
 
 - 막힌 시도는 기록하지 않는다. 걸리면 사용자 문구는 앱 쿠키 한도와 같은 형태이고 IP 때문인지 이메일 때문인지는 밝히지 않는다(운영 로그
   `[auth-mail-abuse] rejected`에만 `action`·사유 종류(`rate_limited`+`scope` ip|email, `turnstile_token_missing`)를 남긴다 — 원문 IP·이메일 없음).
 - 한도 값을 바꾸려면 migration의 `service_consume_auth_mail_attempt` 안 숫자(15·40·5)를 새 migration에서 앵커 치환하고 이 표를 고친다.
-  Auth 시간당 한도 상수를 바꾸면 IP 시간 한도를 그 5% 이하로 다시 본다.
+  Auth 시간당 한도 상수를 내리면 IP 시간 한도가 그 5%를 넘지 않는지 다시 본다.
 - 이메일 별칭(`+tag`·gmail 점)은 정규화하지 않는다(소문자·공백 제거만).
 
 ### 결정과 근거
@@ -467,13 +467,16 @@ App Store 심사 가이드라인 4.8(로그인 서비스는 이메일을 숨길 
 - **빌드 가드.** `scripts/check-vercel-build-env.mjs`는 Vercel에 `TURNSTILE_SECRET_KEY`가 있으면(앱이 읽지 않는 비밀값) 경고한다. 동기화 스크립트는
   `TURNSTILE_SECRET_KEY`와 `TURNSTILE_SITE_KEY`(GitHub 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`) 중 하나만 있으면 실패한다(Supabase CAPTCHA만 켜지고
   위젯이 없으면 모든 로그인이 막히므로).
-- **Auth 시간당 메일 한도 300**(2026-11-19 사용자 결정)은 `AUTH_EMAIL_RATE_LIMIT_PER_HOUR` 한 상수가 정한다. 로컬 `supabase/config.toml`의 `email_sent`는
-  로컬 스택용이라 바꾸지 않는다.
+- **Auth 시간당 메일 한도 10,000**(2026-11-24 사용자 결정 — 11-19에 정한 300은 오픈 때 가입이 몰리면 한 시간에 300명 남짓에서 가입 확인 메일이
+  막혀 올렸다)은 `AUTH_EMAIL_RATE_LIMIT_PER_HOUR` 한 상수가 정한다. 위쪽 상한은 발송사 Resend다: 팀 전체 초당 10건(SMTP 포함, 시간 36,000)이고
+  Pro 요금제 월 50,000통(초과 발송 꺼짐)이다. 10,000은 주문·배송 메일 몫을 남기고, 한 시간 남용이 월 한도의 1/5을 넘지 못한다. Supabase 공식 문서는
+  custom SMTP에서 이 값을 프로젝트가 정하게 하고 상한을 두지 않는다. 로컬 `supabase/config.toml`의 `email_sent`는 로컬 스택용이라 바꾸지 않는다.
 
 ### 키가 없는 동안 남는 위험
 
 CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/recover`·`/resend`·`/otp`를 직접 부르는 우회가 **그대로 남는다**. 앱 한도는 이 직접
-호출을 세지 못한다. 그 사이에는 Supabase의 시간당 한도(300통)와 `over_request_rate_limit`(IP별 가입·로그인·메일 요청 한도)만 방어선이다.
+호출을 세지 못한다. 그 사이에는 Supabase의 시간당 한도(10,000통)와 `over_request_rate_limit`(IP별 가입·로그인·메일 요청 한도)만 방어선이다.
+한도를 10,000으로 올린 뒤로는 봇이 한 시간에 Resend 월 한도(50,000통)의 1/5을 쓸 수 있어, 남으면 주문 메일까지 막힌다.
 키는 오픈 전에 넣는 것을 전제로 한다.
 
 ### 사람 단계(Turnstile 켜기 — 코드·파이프라인은 이미 있고 키만 넣으면 된다)
@@ -501,7 +504,10 @@ CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/r
 4. 확인: 가입·로그인·재전송·재설정 정상 제출이 통과하는지, 위젯 토큰 없이 `curl -X POST <supabase>/auth/v1/signup`(publishable 키)이 `captcha_failed`로
    거절되는지(직접 호출 우회 차단), 코드 확인 → 자동 로그인이 되는지. Cloudflare 테스트 키(사이트 `1x00000000000000000000AA` / 비밀
    `1x0000000000000000000000000000000AA`)는 항상 통과, `2x…`는 항상 실패라 Preview에서 흐름만 볼 수 있다.
-5. **Resend 요금제 확인**: 시간당 300통이 Resend의 일·월 발송 한도를 감당하는지 확인한다(한도에 닿으면 SMTP가 실패해 가입 확인이 막힌다).
+5. **Resend 한도 확인**(한도에 닿으면 SMTP가 실패해 가입 확인이 막힌다). 2026-11-24 대시보드 확인: Pro 요금제, 월 50,000통(12/16 갱신, 그날
+   사용 48통), 하루 한도 없음, 초당 10건(팀 전체·SMTP 포함, 넘으면 429), 초과 발송(pay-as-you-go, 1,000통당 $0.90) **꺼짐**. 오픈 전 사람 단계:
+   - 초당 10건은 요금제를 올려도 그대로라, 오픈 첫 몇 분 가입이 초당 10명을 넘을 것 같으면 Resend 지원팀에 예상 발송량을 적어 상향을 요청한다.
+   - 월 50,000통을 넘으면 그 달 남은 기간 모든 메일(주문 확인 포함)이 멈춘다. Settings → Usage → Pay-as-you-go의 Transactional을 켜 둔다.
 6. **로그 경보**: Vercel 로그 경보에 태그 `[auth-mail-limit]`(Supabase Auth 시간당 메일 한도 도달, `over_email_send_rate_limit`)를 등록한다.
    `[auth-mail-abuse] rejected`는 한도 거절 추세 확인용이다.
    같은 신호는 운영 알림(분류 시스템, '가입·재설정 메일 시간당 한도에 도달했습니다', 시간당 한 줄)으로도 남아 시스템 상태 화면·알림·요약 메일에 잡힌다
