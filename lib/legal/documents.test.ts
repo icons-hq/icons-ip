@@ -938,7 +938,8 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
     for (const slug of LEGAL_DOCUMENT_SLUGS) expect(today[slug].additionalPendingRevisions, slug).toBeUndefined();
     const partial = createLegalDocuments(BUSINESS_INFO, '2026-11-27');
     expect(partial.terms.effectiveDate).toBe('2026-11-27');
-    expect(partial.terms.previousVersion?.effectiveDate).toBe('2026-11-23');
+    /* 그 사이 서비스 이름 개정(2026-11-24 즉시 시행)이 약관에 얹혀, 부분 반품 시행본의 이전 판은 11-24 본문이다. */
+    expect(partial.terms.previousVersion?.effectiveDate).toBe('2026-11-24');
     expect(plainText(partial.terms)).toContain('계좌이체 또는 가상계좌(무통장입금)');
     expect(plainText(partial.terms)).toContain('주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
     const alimtalk = createLegalDocuments(BUSINESS_INFO, '2026-11-30');
@@ -1070,10 +1071,17 @@ describe('이용약관 예약 개정 — 서비스 이름(엑스스퀘어)', () 
   const notices = (document: LegalDocument) => [document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].filter(Boolean);
   const brandNotice = (document: LegalDocument) => notices(document).find((notice) => notice!.heading.includes('엑스스퀘어'));
 
-  it('운영 날짜 파일은 7일 사전 공지(공지일 = 운영 배포일)다', () => {
-    expect(BRAND_NAME_REVISION).toEqual({ announcedDate: '2026-11-25', effectiveDate: '2026-12-02' });
-    const days = (Date.parse(`${BRAND_NAME_REVISION!.effectiveDate}T00:00:00+09:00`) - Date.parse(`${BRAND_NAME_REVISION!.announcedDate}T00:00:00+09:00`)) / 86_400_000;
-    expect(days).toBeGreaterThanOrEqual(7);
+  it('운영 날짜 파일은 확정값(2026-11-24 즉시 시행 — 정식 오픈 전, 운영 책임자 결정)이다', () => {
+    expect(BRAND_NAME_REVISION).toEqual({ announcedDate: '2026-11-24', effectiveDate: '2026-11-24' });
+    /* 7일보다 짧은 공지는 결정 기록(noticeWaiver)이 있어야 빌드 가드를 지난다. */
+    const dates = JSON.parse(readFileSync(new URL('./brand-name-revision.json', import.meta.url), 'utf8'));
+    expect(dates.noticeWaiver).toMatch(/2026-11-24 .*즉시 시행/);
+    const today = createLegalDocuments(BUSINESS_INFO, '2026-11-24');
+    expect(plainText(today.terms)).toContain(NEW_PURPOSE);
+    expect(today.terms.effectiveDate).toBe('2026-11-24');
+    expect(today.terms.previousVersion?.effectiveDate).toBe('2026-11-23');
+    /* 즉시 시행이라 서비스 이름 사전 공지는 없다(앞선 개정의 공지는 그대로 보인다). */
+    expect(brandNotice(today.terms)).toBeUndefined();
   });
 
   it('공지 전에는 현행 약관 그대로이고 공지가 없다', () => {
@@ -1136,8 +1144,10 @@ describe('이용약관 예약 개정 — 서비스 이름(엑스스퀘어)', () 
     expect(live.terms.title).toBe('엑스스퀘어 이용약관');
     expect(live.terms.effectiveDate).toBe(BRAND_NAME_REVISION!.effectiveDate);
     for (const slug of LEGAL_DOCUMENT_SLUGS) expect(`${live[slug].title}${plainText(live[slug])}`, slug).not.toContain('ICONS');
-    const announced = createLegalDocuments(BUSINESS_INFO, BRAND_NAME_REVISION!.announcedDate);
-    expect(brandNotice(announced.terms)?.effectiveDate).toBe(BRAND_NAME_REVISION!.effectiveDate);
+    /* 뒤에 시행되는 예약 개정(부분 반품 11-27·알림톡 11-30)이 모두 얹힌 뒤에도 약관에 옛 이름이 없다. */
+    const later = createLegalDocuments(BUSINESS_INFO, '2026-12-05');
+    expect(plainText(later.terms)).toContain(NEW_PURPOSE);
+    for (const slug of LEGAL_DOCUMENT_SLUGS) expect(`${later[slug].title}${plainText(later[slug])}`, slug).not.toContain('ICONS');
   });
 
   it('제1조 앵커는 현행 본문에 정확히 한 번 있다(없거나 둘 이상이면 시행일 상태를 만들 때 던진다)', () => {

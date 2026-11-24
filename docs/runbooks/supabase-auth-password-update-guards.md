@@ -84,6 +84,7 @@ GoTrue v2.192.0 `internal/api/user.go` 기준이다. 현재 비밀번호 검사�
 | `mailer_notifications_password_changed_enabled` | `true` | 막지 못하는 경로(C)와 정상 변경 모두를 사용자에게 알린다. |
 | `mailer_subjects_password_changed_notification` | `엑스스퀘어 비밀번호 변경 안내` | 기본 영문 제목 대체. |
 | `mailer_templates_password_changed_notification_content` | 템플릿 파일 원문 | `{{ .Email }}`과 `{{ .SiteURL }}/login?mode=reset` 링크 하나만 쓴다. |
+| `smtp_sender_name` | `X SQUARE` | custom SMTP 메일의 발신자 표시 이름. production 동기화가 `SMTP_SENDER_NAME`으로 맞추고 read-back한다 — 앱 메일 표시 이름(`lib/email/sender.ts`)과 같은 값. |
 | `mailer_subjects_recovery` | `엑스스퀘어 비밀번호 재설정` | 재설정 메일 제목. 배포 때 `RECOVERY_SUBJECT`로 맞추고 read-back한다(2026-11-24부터, 그 전에는 손으로 넣은 값). |
 
 둘 중 하나만 켜는 조합은 고르지 않는다. 현재 비밀번호만으로는 SNS 전용 계정이 시간 제한 없이 열려

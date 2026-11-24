@@ -36,8 +36,9 @@ describe('Resend production configuration', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.resend.com/emails');
     expect(init.headers).toMatchObject({ Authorization: 'Bearer legacy-sending-key' });
+    /* env의 옛 표시 이름(ICONS)은 버리고 주소만 쓴다 — 표시 이름은 서비스 이름 상수(lib/email/sender.ts)다. */
     expect(JSON.parse(String(init.body))).toMatchObject({
-      from: 'ICONS <no-reply@iconsip.com>', reply_to: 'help@iconsip.com',
+      from: 'X SQUARE <no-reply@iconsip.com>', reply_to: 'help@iconsip.com',
     });
   });
 
@@ -52,7 +53,7 @@ describe('Resend production configuration', () => {
     expect(url).toBe('https://provider.example.test/emails');
     expect(init.headers).toMatchObject({ Authorization: 'Bearer dedicated-key' });
     const body = JSON.parse(String(init.body));
-    expect(body.from).toBe('new@example.test');
+    expect(body.from).toBe('X SQUARE <new@example.test>');
     expect(body).not.toHaveProperty('reply_to');
   });
 

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { EmailProvider } from './dispatcher';
+import { brandedSender } from './sender';
 
 const DEFAULT_ENDPOINT = 'https://api.resend.com/emails';
 // Supabase HTTP Auth Hooks must finish within five seconds. Reserve half of that
@@ -90,7 +91,7 @@ export function resendEmailProviderFromEnvironment(): EmailProvider | null {
 
   return createResendEmailProvider({
     apiKey,
-    from,
+    from: brandedSender(from),
     replyTo: (dedicated ? process.env.RESEND_REPLY_TO : process.env.EMAIL_REPLY_TO)?.trim() || undefined,
     endpoint: dedicated ? process.env.RESEND_API_ENDPOINT?.trim() || undefined : undefined,
   });
