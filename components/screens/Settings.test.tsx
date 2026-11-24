@@ -164,7 +164,7 @@ describe('Settings', () => {
     });
 
     expect(html).toContain('진행 중인 의무');
-    expect(html).toContain('진행 중인 굿즈 주문 2건 확인');
+    expect(html).toContain('진행 중인 상품 주문 2건 확인');
     expect(html).toContain('href="/orders"');
     expect(html).not.toContain('name="confirmation"');
   });
@@ -182,7 +182,7 @@ describe('Settings', () => {
     });
 
     expect(html).toContain('신청 전에 진행 중인 의무');
-    expect(html).toContain('신청 전 진행 중인 굿즈 주문 2건 확인');
+    expect(html).toContain('신청 전 진행 중인 상품 주문 2건 확인');
     expect(html).toContain('href="/orders"');
     expect(html).toContain('name="confirmation"');
   });
@@ -436,7 +436,7 @@ describe('Settings kakao marketing channel', () => {
     expect(html).toContain('마케팅 정보 수신 동의 (카카오톡) <em class="wc-auth__opt">선택</em>');
     expect(html).toMatch(/<input[^>]*name="marketingKakao"[^>]*checked=""|<input[^>]*checked=""[^>]*name="marketingKakao"/);
     expect(html).toContain('<input type="hidden" name="marketingKakaoOffered" value="1"/>');
-    expect(html).toContain('카카오톡은 ICONS 카카오톡 채널 메시지로 보내 드려요.');
+    expect(html).toContain('카카오톡은 엑스스퀘어 카카오톡 채널 메시지로 보내 드려요.');
     expect(html).toContain('이메일·SMS·카카오톡 중 하나라도');
   });
 
@@ -467,13 +467,13 @@ describe('Settings kakao channel section', () => {
     expect(html).toContain('id="kakao-channel"');
     expect(html).toContain('data-kakao-account-link');
     expect(html).toContain('<strong>카카오 계정 연결</strong>');
-    expect(html).toContain('같은 동의 화면에서 ICONS 카카오톡 채널을 추가할 수 있어요. 채널을 추가하면 친구 추가 쿠폰을 한 번 드려요.');
+    expect(html).toContain('같은 동의 화면에서 엑스스퀘어 카카오톡 채널을 추가할 수 있어요. 채널을 추가하면 친구 추가 쿠폰을 한 번 드려요.');
     expect(html).not.toContain('data-kakao-channel-reward');
     expect(html).not.toContain('pf.kakao.com');
   });
 
   it('gives a linked member the channel link and the coupon check with its own status region', () => {
-    mocks.kakaoRewardState = { errors: { form: '아직 ICONS 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } };
+    mocks.kakaoRewardState = { errors: { form: '아직 엑스스퀘어 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } };
     const html = section(render({
       kakaoChannel: { channelPublicId: '_IconsTest', linked: true, couponOffered: true, notice: { tone: 'status', message: '카카오 계정을 연결했어요.' } },
     }));
@@ -482,7 +482,7 @@ describe('Settings kakao channel section', () => {
     expect(html).toContain('href="https://pf.kakao.com/_IconsTest/friend" rel="noopener noreferrer" target="_blank"');
     expect(html).toContain('data-kakao-channel-reward');
     expect(html).toContain('<strong>친구 추가 쿠폰 받기</strong>');
-    expect(html).toMatch(/aria-label="친구 추가 쿠폰 상태"[^>]*><div class="wc-auth__alert" role="alert">아직 ICONS 카카오톡 채널이/);
+    expect(html).toMatch(/aria-label="친구 추가 쿠폰 상태"[^>]*><div class="wc-auth__alert" role="alert">아직 엑스스퀘어 카카오톡 채널이/);
     expect(html).not.toContain('data-kakao-account-link');
   });
 

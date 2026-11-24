@@ -30,8 +30,6 @@ export const ADMIN_QA_ROUTES = [
   ['catalog/after-sales-templates', 'A/S 템플릿 관리'], ['catalog/size-templates', '사이즈 템플릿 관리'],
   ['catalog/announcements', '상품공지사항 관리'], ['catalog/photos', '사진 보관함'],
   ['catalog/related-goods', '연관상품 관리'], ['catalog/attributes', '상품속성 관리'],
-  ['catalog/cards', '카드'], ['catalog/pools', '카드풀'], ['catalog/policies', '뽑기권 발급 정책'],
-  ['catalog/grants', '카드팩 수동 발급'], ['catalog/games', '게임'],
   ['catalog/events', '이벤트'], ['catalog/ticket-types', '티켓 회차'],
   ['display/curations', '홈 전시 관리'], ['display/campaigns', '캠페인 관리'],
   ['display/categories', '카테고리 전시 관리'], ['display/detail', '상품 상세 구성'],

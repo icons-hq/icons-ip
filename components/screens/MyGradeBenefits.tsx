@@ -170,7 +170,7 @@ export function MyGradeBenefits({
       <div className="wc-grade-benefits__guide">
         <p className="wc-grade-benefits__guide-title">등급 산정 기준</p>
         <ul>
-          <li>최근 {LOYALTY_WINDOW_DAYS}일 동안 결제가 완료된 주문의 결제 금액 합계 또는 굿즈 주문 항목 수가 등급 기준에 닿으면 올라가요.</li>
+          <li>최근 {LOYALTY_WINDOW_DAYS}일 동안 결제가 완료된 주문의 결제 금액 합계 또는 상품 주문 항목 수가 등급 기준에 닿으면 올라가요.</li>
           <li>취소된 주문은 빼고 계산하며, 결제가 완료되거나 주문이 취소될 때 등급을 다시 계산해요.</li>
         </ul>
         <p className="wc-grade-benefits__guide-title">혜택 지급</p>

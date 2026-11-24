@@ -25,7 +25,7 @@ const values = {
   ipId: 'hong-sil-quest',
   name: '  아크릴 블록  ',
   price: '12000',
-  badge: '신상',
+  badge: 'EXCLUSIVE, NEW',
   stock: 'low',
   description: '  붉은 실을 따라 놓인 아크릴 블록입니다.  ',
   noticeMaker: '주식회사 아이콘스',
@@ -33,7 +33,7 @@ const values = {
   noticeMaterial: '아크릴',
   noticeSize: '80 x 60 x 20mm · 90g',
   noticeMadeOn: '2026-07',
-  noticeAsManager: '아이콘스 고객센터',
+  noticeAsManager: '엑스스퀘어 고객센터',
   noticeAsContact: '02-000-0000',
 };
 
@@ -115,7 +115,8 @@ describe('어드민 굿즈 미리보기', () => {
       ip: 'hong-sil-quest',
       price: 12000,
       catalogPrice: 12000,
-      badge: '신상',
+      badge: 'EXCLUSIVE',
+      badges: ['EXCLUSIVE', 'NEW'],
       stock: 'low',
       stockQty: 8,
       img: 'url("blob:selected-main") center / cover no-repeat',
@@ -139,7 +140,7 @@ describe('어드민 굿즈 미리보기', () => {
       stockQty: 0,
     });
 
-    expect(preview.good.name).toBe('(굿즈 이름 미입력)');
+    expect(preview.good.name).toBe('(상품 이름 미입력)');
     expect(preview.good.price).toBe(0);
     expect(preview.good.stock).toBe('ok');
     expect(preview.good.img).toContain('linear-gradient');

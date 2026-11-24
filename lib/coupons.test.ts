@@ -162,12 +162,12 @@ describe('couponPreviewDiscount payment floor', () => {
   });
   it('requires a server quote for category coupons instead of discounting the entire cart', () => {
     expect(couponPreviewDiscount({ ...fullCoupon, coupon: { ...fullCoupon.coupon, goodsScope: 'selected_categories', targetCategoryIds: ['ca109300-0000-4000-8000-000000000001'] } }, 70000, 0)).toBe(0);
-    expect(couponConditionLabel({ goodsScope: 'selected_categories', minSubtotal: 0 })).toBe('선택한 카테고리의 굿즈에만 사용');
+    expect(couponConditionLabel({ goodsScope: 'selected_categories', minSubtotal: 0 })).toBe('선택한 카테고리의 상품에만 사용');
   });
   it('requires a server quote for IP coupons and states the IP-only minimum', () => {
     expect(couponPreviewDiscount({ ...fullCoupon, coupon: { ...fullCoupon.coupon, goodsScope: 'selected_ips', targetIpIds: ['maple'] } }, 70000, 0)).toBe(0);
-    expect(couponConditionLabel({ goodsScope: 'selected_ips', minSubtotal: 0 })).toBe('선택한 IP의 굿즈에만 사용');
-    expect(couponConditionLabel({ goodsScope: 'selected_ips', minSubtotal: 50000 })).toBe('대상 굿즈 합계 ₩50,000 이상 구매 시');
+    expect(couponConditionLabel({ goodsScope: 'selected_ips', minSubtotal: 0 })).toBe('선택한 IP의 상품에만 사용');
+    expect(couponConditionLabel({ goodsScope: 'selected_ips', minSubtotal: 50000 })).toBe('대상 상품 합계 ₩50,000 이상 구매 시');
   });
 
   it('keeps the pin between app constant and the SQL guard/cap', () => {

@@ -76,7 +76,7 @@ function QuestionItem({ question }: { question: ProductQuestion }) {
       {/* 운영 답변은 들여 붙는다 — 화자가 갈리지 않으면 다른 구매자의 말처럼 읽힌다. */}
       {question.answerBody ? (
         <div className="wc-qna-item__answer">
-          <strong className="wc-qna-item__answer-author">ICONS 답변</strong>
+          <strong className="wc-qna-item__answer-author">엑스스퀘어 답변</strong>
           {question.answeredAt ? (
             <time className="wc-qna-item__date" dateTime={question.answeredAt}>
               {formatProductQuestionDate(question.answeredAt)}
@@ -91,19 +91,24 @@ function QuestionItem({ question }: { question: ProductQuestion }) {
 
 export function GoodQna({
   goodId,
+  goodCode,
   section,
 }: {
   goodId: string;
+  /** 상품 자동코드 — 페이지 링크가 지금 보고 있는 정식 주소(`/shop/<코드 소문자>`, ADR-0050)에 머문다. */
+  goodCode?: string | null;
   section: GoodQuestionSection;
 }) {
   const { count, pageCount, questions } = section;
+  /* 작성·신고 등 쓰기는 내부 id(goodId)로 하고, 링크만 공개 주소로 만든다. */
+  const address = { id: goodId, code: goodCode };
   const currentPage = Math.min(Math.max(1, section.page), pageCount);
 
   return (
     <section aria-labelledby="pdp-qna-heading" className="wc-qna" id="qna">
-      <h2 className="wc-sr-only" id="pdp-qna-heading">굿즈 Q&amp;A</h2>
+      <h2 className="wc-sr-only" id="pdp-qna-heading">상품 Q&amp;A</h2>
 
-      <QuestionComposer goodId={goodId} next={goodQuestionsHref(goodId, currentPage)} />
+      <QuestionComposer goodId={goodId} next={goodQuestionsHref(address, currentPage)} />
 
       {/* 빈 상태의 기준은 "이 페이지가 비었나"가 아니라 "질문이 하나도 없나"다 —
           범위를 벗어난 페이지에서 첫 질문을 권하면 앞 페이지의 질문들이 없던 일이 된다. */}
@@ -127,9 +132,9 @@ export function GoodQna({
           )}
 
           {pageCount > 1 ? (
-            <nav aria-label="굿즈 Q&amp;A 페이지" className="wc-pagination">
+            <nav aria-label="상품 Q&amp;A 페이지" className="wc-pagination">
               {currentPage > 1 ? (
-                <Link className="wc-pagination__arrow" href={goodQuestionsHref(goodId, currentPage - 1)}>
+                <Link className="wc-pagination__arrow" href={goodQuestionsHref(address, currentPage - 1)}>
                   이전
                 </Link>
               ) : null}
@@ -140,14 +145,14 @@ export function GoodQna({
                   <Link
                     key={page}
                     className="wc-pagination__cell"
-                    href={goodQuestionsHref(goodId, page)}
+                    href={goodQuestionsHref(address, page)}
                   >
                     {page}
                   </Link>
                 )
               ))}
               {currentPage < pageCount ? (
-                <Link className="wc-pagination__arrow" href={goodQuestionsHref(goodId, currentPage + 1)}>
+                <Link className="wc-pagination__arrow" href={goodQuestionsHref(address, currentPage + 1)}>
                   다음
                 </Link>
               ) : null}

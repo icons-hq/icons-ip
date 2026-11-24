@@ -182,7 +182,7 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 | 이름 | 필수 | 설명 |
 |---|---|---|
 | `EMAIL_PROVIDER_API_KEY` | ✅ | provider API 키. Resend 기준 `re_…` |
-| `EMAIL_FROM` | ✅ | 발신자. 예: `ICONS <no-reply@iconsip.com>` — 로컬 파트 앞의 도메인이 인증된 도메인이어야 한다 |
+| `EMAIL_FROM` | ✅ | 발신자. 예: `엑스스퀘어 <no-reply@iconsip.com>`(표시 이름은 고객이 보는 서비스 이름) — 로컬 파트 앞의 도메인이 인증된 도메인이어야 한다 |
 | `EMAIL_REPLY_TO` | — | 회신 주소. 발신 전용을 유지하려면 비워둔다 |
 | `EMAIL_PROVIDER_ENDPOINT` | — | 기본 `https://api.resend.com/emails`. 같은 모양의 API면 이 값만 바꿔 갈아끼운다 |
 | `SITE_URL` | — | 메일 본문 링크의 고정 오리진. Vercel Preview에서는 필수이며 나머지 환경의 기본값은 `https://iconsip.com` |

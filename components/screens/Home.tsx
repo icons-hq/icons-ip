@@ -23,7 +23,6 @@ import { SectionHeader } from '@/components/wc/SectionHeader';
 import { StripBanner } from '@/components/wc/StripBanner';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
-import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { Slider } from '@/components/wc/Slider';
 import { Icon } from '@/components/ui/Icon';
@@ -33,9 +32,8 @@ import { hrefFor } from '@/lib/routes';
 import {
   benefitTileIcon,
   homeCardUnavailableLabel,
-  withoutCardRewardCurations,
   withoutCommunityCurations,
-  withoutHiddenCollectibleCurations,
+  withoutRetiredCurations,
   type HomeBestTab,
   type HomeCurationSnapshot,
   type HomeGoodsBand,
@@ -44,7 +42,6 @@ import {
 import { listingWishSet, type ListingWishlist } from '@/lib/listing-wishlist';
 
 export interface HomeProps {
-  cardRewardsEnabled: boolean;
   curation: HomeCurationSnapshot;
   refreshScheduledContent?: boolean;
   announcementPopup?: HomeAnnouncementPopupData;
@@ -129,8 +126,8 @@ function TabProductBand({
     .map((tab) => ({
       id: tab.id,
       label: tab.label,
-      content: tab.goods.length === 0 ? <p className="wc-home__tab-empty">해당 기간에 집계된 굿즈가 없어요.</p> : (
-        <Slider label={`${tab.label} 굿즈`}>
+      content: tab.goods.length === 0 ? <p className="wc-home__tab-empty">해당 기간에 집계된 상품이 없어요.</p> : (
+        <Slider label={`${tab.label} 상품`}>
           {paginate(tab.goods, TAB_PAGE_SIZE).map((page) => (
             <div className="wc-tab-band__page" key={page[0].id}>
               {page.map((good) => <HomeProductCard good={good} heartFor={heartFor} key={good.id} />)}
@@ -158,7 +155,7 @@ function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heart
   return <section aria-labelledby={`home-reviews-${band.id}-heading`} className="wc-home__band">
     <div className="wc-container wc-container--wide">
       <SectionHeading id={`home-reviews-${band.id}-heading`} title={band.title} />
-      <Slider label={`${band.title} 굿즈`}>
+      <Slider label={`${band.title} 상품`}>
         {paginate(band.goods, HOME_REVIEW_GOODS_MIN).map((page) => <div className="wc-home-review__page" key={page[0].id}>
           {page.map((good) => {
             /* 보이는 숫자는 카드 별점과 같은 그룹 범위이고, 선정(3점 이상)·정렬도 같은 값이다(L4b, lib/home-ranking). */
@@ -181,21 +178,19 @@ function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heart
   </section>;
 }
 
-export function Home({ cardRewardsEnabled, curation: rawCuration, refreshScheduledContent = true, announcementPopup, wishlist }: HomeProps) {
+export function Home({ curation: rawCuration, refreshScheduledContent = true, announcementPopup, wishlist }: HomeProps) {
   const { common } = useStorePresentation();
   const heartFor = heartsFrom(wishlist);
-  /* 게이트가 꺼진 배포에서는 카드팩·게임 목적지를 가진 큐레이션을 밴드 종류와 무관하게 걸러낸다 —
-     GNB 의 packs 필터·구 홈과 같은 규칙이다. 혜택 타일도 다른 큐레이션처럼 목적지로 거른다(12 LD-15). */
-  const gatedCuration = cardRewardsEnabled ? rawCuration : withoutCardRewardCurations(rawCuration);
+  /* 지운 화면(카드팩·게임·바인더·마켓·트레이드, ADR-0052)으로 가는 예전 큐레이션은 밴드 종류와 무관하게 걸러낸다 —
+     GNB 와 같은 규칙이다. 혜택 타일도 다른 큐레이션처럼 목적지로 거른다(12 LD-15). */
+  const retiredCuration = withoutRetiredCurations(rawCuration);
   /* 커뮤니티 임시 비공개도 같은 규칙으로 목적지를 건다 — 배너만 살아 404 로 떨어지지 않게. */
-  const communityCuration = COMMUNITY_ENABLED ? gatedCuration : withoutCommunityCurations(gatedCuration);
-  /* 운영하지 않는 수집·거래 기능(카드 바인더·굿즈 마켓·카드 트레이드)도 DB 공개 스위치가 꺼진 동안 목적지로 거른다. */
-  const curation = withoutHiddenCollectibleCurations(communityCuration, useCollectibleFeatures());
+  const curation = COMMUNITY_ENABLED ? retiredCuration : withoutCommunityCurations(retiredCuration);
   const hasHero = curation.heroSlides.length > 0;
   const hasPicks = curation.editorPicks.length > 0;
   const hasBest = hasTabGoods(curation.categoryBestTabs);
   const hasPopular = hasTabGoods(curation.popularTabs);
-  /* 게이트 필터가 카드팩·게임 목적지 타일만 걷어 내므로 남은 타일 수로 밴드 존재를 판정한다. */
+  /* 목적지 필터가 지운 화면 타일만 걷어 내므로 남은 타일 수로 밴드 존재를 판정한다. */
   const hasBenefit = curation.benefitTiles.length > 0;
   const newArrivals = curation.newArrivals ?? [];
   const stripBanner = curation.stripBanner ?? null;
@@ -231,8 +226,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
           action={<Link className="wc-btn" href="/stories">스토리 다시 확인하기</Link>} />
       </div></section>
     ) : curation.shoppingStories?.length ? <HomeShoppingStories stories={curation.shoppingStories} /> : null,
-    /* 혜택 밴드는 카드팩·게임만의 밴드가 아니다(12 LD-15) — 제목을 목적지와 무관한 '혜택'으로 두어 게이트가
-       꺼진 배포에서 카드 리워드라는 말이 새지 않게 한다. 타일 아이콘은 목적지에서 고른 ICONS 아이콘이다(HM-07). */
+    /* 혜택 밴드의 제목은 목적지와 무관한 '혜택'이다(12 LD-15). 타일 아이콘은 목적지에서 고른 엑스스퀘어 아이콘이다(HM-07). */
     benefits: hasBenefit ? (
       <section aria-labelledby="home-benefit-heading" className="wc-home__band wc-home__band--grey">
         <div className="wc-container wc-container--wide">
@@ -278,7 +272,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
   const order = curation.layoutOrder ?? defaultHomeBlockKeys(curation.goodsBands.map((band) => band.id), rankingKeys);
   const visible = [...new Set(order)].filter((key) => blocks[key]);
   /* 보일 키를 순서대로 훑으며 연달아 오는 기획전(band:)을 한 그룹으로 묶는다 — 그룹은 'ICONS PICK' 한 섹션이고 그룹의 첫 키가 React key 다.
-     사이에 다른 블록이 끼면 그룹이 갈라져 각자 ICONS PICK 섹션이 된다. */
+     사이에 다른 블록이 끼면 그룹이 갈라져 각자 X SQUARE PICK 섹션이 된다. */
   const sections: ReactNode[] = [];
   for (let index = 0; index < visible.length; index += 1) {
     const key = visible[index];
@@ -306,14 +300,14 @@ export function Home({ cardRewardsEnabled, curation: rawCuration, refreshSchedul
     <main className="wc-root wc-home">
       {refreshScheduledContent && announcementPopup ? <HomeAnnouncementPopup data={announcementPopup} /> : null}
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={goods} /> : null}
-      <h1 className="wc-sr-only">ICONS 홈</h1>
-      {common.showHomeSearch ? <section className="wc-home-store-search" aria-labelledby="home-store-search-heading"><div className="wc-container"><h2 id="home-store-search-heading">스토어 내 굿즈 검색</h2><form action="/search" role="search"><label className="wc-sr-only" htmlFor="home-store-search-query">굿즈 검색어</label><input id="home-store-search-query" name="q" type="search" placeholder="찾는 굿즈를 입력하세요" maxLength={80} required /><button type="submit">검색</button></form></div></section> : null}
+      <h1 className="wc-sr-only">엑스스퀘어 홈</h1>
+      {common.showHomeSearch ? <section className="wc-home-store-search" aria-labelledby="home-store-search-heading"><div className="wc-container"><h2 id="home-store-search-heading">스토어 내 상품 검색</h2><form action="/search" role="search"><label className="wc-sr-only" htmlFor="home-store-search-query">상품 검색어</label><input id="home-store-search-query" name="q" type="search" placeholder="찾는 상품을 입력하세요" maxLength={80} required /><button type="submit">검색</button></form></div></section> : null}
       {refreshScheduledContent && curation.storiesNextChangeAt && order.includes('stories')
         ? <ScheduledHomeRefresh at={curation.storiesNextChangeAt} /> : null}
       {visible.length === 0 ? (
         <div className="wc-home__empty">
-          <EmptyState action={<Link className="wc-btn primary" href="/shop">굿즈샵 둘러보기</Link>}
-            description="곧 새로운 소식과 굿즈를 만나볼 수 있어요." title="홈을 준비하고 있어요" titleAs="h2" />
+          <EmptyState action={<Link className="wc-btn primary" href="/shop">상품 둘러보기</Link>}
+            description="곧 새로운 소식과 상품을 만나볼 수 있어요." title="홈을 준비하고 있어요" titleAs="h2" />
         </div>
       ) : sections}
     </main>

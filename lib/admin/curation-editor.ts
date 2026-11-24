@@ -42,7 +42,7 @@ export const CURATION_STATUS_LABELS: Record<AdminCurationRecord['status'], strin
 /* 셸 공지(텍스트 공지 바·상단 띠배너)의 대상 화면 유형 — 공개 판정은 lib/shell-notices.ts의 shellNoticePageType. */
 export const NOTICE_PAGE_TYPE_LABELS: Record<ShellNoticePageType, string> = {
   home: '홈',
-  collection: '상품 목록(굿즈샵·NEW·BEST·IP관)',
+  collection: '상품 목록(쇼핑·NEW·BEST·IP관)',
   product: '상품 상세',
   content: '쇼핑스토리·EVENT·POP-UP',
   other: '그 밖의 화면(검색·장바구니·마이 등)',
@@ -103,7 +103,7 @@ export interface CurationEditorValues {
   searchTerms: string[];
 }
 
-/** 종류마다 slot 시작값 — BEST 탭은 카테고리 BEST, 컬렉션 배너는 굿즈샵 전체. */
+/** 종류마다 slot 시작값 — BEST 탭은 카테고리 BEST, 컬렉션 배너는 전체 상품. */
 function defaultCurationSlot(kind: AdminCurationKind): string {
   return kind === 'collection_banner' ? 'all' : 'category';
 }
@@ -123,7 +123,6 @@ export interface CurationPublicPreview {
   goods: HomeGoodsCard[];
   latestGoods?: HomeGoodsCard[];
   productRankings?: HomeProductRankings;
-  cardRewardsEnabled: boolean;
 }
 
 export function curationKstInput(value: string | null) {

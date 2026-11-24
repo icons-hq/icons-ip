@@ -6,13 +6,12 @@ import { toGood, type GoodRow } from './catalog';
 import { parseGoodsMediaAsset } from './goods-media';
 import { loadGoodsListingAppearance } from './goods-listing-appearance.server';
 import { loadGoodsReviewSummaries } from './goods-review-summary.server';
-import { isSafeInternalLink, isCommunityDestination, isCardRewardDestination, isHiddenCollectibleDestination } from './home-catalog';
-import { getCollectibleFeatures } from './collectible-features.server';
+import { isSafeInternalLink, isCommunityDestination, isRetiredDestination } from './home-catalog';
 import { COMMUNITY_ENABLED } from './community-visibility';
-import { readCardRewardsEnabled } from './card-rewards/gate.server';
 import { isUuid } from './uuid';
 import { goodDetailHref } from './goods-display';
 import { productCardUnavailableLabel } from './product-card-chips';
+import { goodBadgeList } from './goods-taxonomy';
 import { categoryDisplayRecord as record, CATEGORY_DISPLAY_PAGE_SIZE, isCategoryDisplayGoodId, type CategoryDisplayPage, type CategoryDisplayNavigation } from './category-display';
 import { SHOP_PREORDER_TYPE, type ShopFacetOption, type ShopListQuery } from './shop-catalog';
 import type { Good } from './data';
@@ -22,7 +21,7 @@ const number = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v)
 const nullableString = (v: unknown): v is string | null => v === null || typeof v === 'string';
 const instant = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v));
 const failure = () => new Error('카테고리 전시를 불러오지 못했습니다. 다시 시도해주세요.');
-export class CategoryDisplayStaleError extends Error { constructor() { super('전시 굿즈가 변경되었습니다. 목록을 새로 불러와주세요.'); } }
+export class CategoryDisplayStaleError extends Error { constructor() { super('전시 상품이 변경되었습니다. 목록을 새로 불러와주세요.'); } }
 
 /** The DTO is explicitly projected by SQL, then mapped through the catalog's
  * exact option price, stock, custom-input and purchase-constraint normalizer. */
@@ -30,6 +29,7 @@ export function parseCategoryDisplayGood(value: unknown): Good | null {
   if (!record(value) || !isCategoryDisplayGoodId(value.id) || typeof value.name !== 'string' || typeof value.ip_id !== 'string'
     || !number(value.price) || !number(value.stock_qty) || typeof value.stock !== 'string'
     || !nullableString(value.image_path) || !nullableString(value.bg) || !nullableString(value.badge)
+    || (value.badges !== undefined && (!Array.isArray(value.badges) || value.badges.some(badge => typeof badge !== 'string')))
     || !Array.isArray(value.goods_variants) || typeof value.custom_inputs_enabled !== 'boolean' || !number(value.custom_inputs_revision)
     || !Array.isArray(value.custom_input_fields) || (value.sale_restriction !== 'none' && value.sale_restriction !== 'adult')) return null;
   for (const variant of value.goods_variants) {
@@ -92,8 +92,8 @@ export function parseCategoryDisplayPage(value: unknown, query: ShopListQuery): 
     if (recommendationRows.some(row => !record(row) || typeof row.ip_name !== 'string') || recommended.some(good => !good) || new Set(recommended.map(good => good?.id)).size !== recommended.length) return null;
     page.recommendations = { id: `category-${page.category.id}`, title: r.title, layout: 'list', imageShape: 'square', goods: (recommended as Good[]).map((good, index) => {
       const soldOut = good.stock === 'soldout', unavailableLabel = productCardUnavailableLabel(good, soldOut);
-      return { id: good.id, name: good.name, href: goodDetailHref(good.id), imageBg: good.img, price: good.price, priceMax: good.priceMax,
-        soldOut, ...(unavailableLabel ? { unavailableLabel } : {}), salePeriod: good.salePeriod, badge: good.badge ?? null,
+      return { id: good.id, name: good.name, href: goodDetailHref(good), imageBg: good.img, price: good.price, priceMax: good.priceMax,
+        soldOut, ...(unavailableLabel ? { unavailableLabel } : {}), salePeriod: good.salePeriod, badge: good.badge ?? null, badges: goodBadgeList(good),
         brand: (recommendationRows[index] as { ip_name: string }).ip_name };
     }) };
   }
@@ -123,11 +123,10 @@ export async function loadCategoryDisplayPage(categoryId: string, query: ShopLis
  *  목록 카드 별점(CL-02)도 컬렉션과 같은 배치 RPC로 이 페이지(20개) 굿즈 몫만 읽는다 — 별점은 장식이라 실패하면 숨길 뿐 목록을 막지 않는다. */
 export async function hydrateCategoryDisplayPage(page: CategoryDisplayPage, client: SupabaseClient): Promise<CategoryDisplayPage> {
   const ids = page.result.goods.map(good => good.id);
-  const [appearance, rewards, reviewSummaries, collectibleFeatures] = await Promise.all([loadGoodsListingAppearance(client, ids), readCardRewardsEnabled(),
-    loadGoodsReviewSummaries(client, ids).catch(() => ({})), getCollectibleFeatures()]);
+  const [appearance, reviewSummaries] = await Promise.all([loadGoodsListingAppearance(client, ids),
+    loadGoodsReviewSummaries(client, ids).catch(() => ({}))]);
   for (const good of page.result.goods) good.listingAppearance = appearance.get(good.id);
   page.result.reviewSummaries = reviewSummaries;
-  if (page.banner?.href && ((!COMMUNITY_ENABLED && isCommunityDestination(page.banner.href)) || (!rewards && isCardRewardDestination(page.banner.href))
-    || isHiddenCollectibleDestination(page.banner.href, collectibleFeatures))) page.banner = null;
+  if (page.banner?.href && ((!COMMUNITY_ENABLED && isCommunityDestination(page.banner.href)) || isRetiredDestination(page.banner.href))) page.banner = null;
   return page;
 }

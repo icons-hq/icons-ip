@@ -1,11 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { CoinLedgerEntry } from '@/lib/coins.server';
 import { MyCoins } from './MyCoins';
 
-vi.mock('@/components/shell/CardRewardAvailability', () => ({
-  useCardRewardsEnabled: () => true,
-}));
 
 /* KST 로 그리는지 보이려면 UTC 와 날짜가 갈리는 시각을 써야 한다 —
    2026-08-30T16:30Z 는 UTC 로 8/30 이고 KST 로 8/31 01:30 이다. */
@@ -25,8 +22,8 @@ const EXCHANGE: CoinLedgerEntry = {
   createdAt: '2026-08-25T05:00:00Z',
 };
 
-/* 코인은 결제 수단이 아니고 소진처도 "카드팩"으로만 부른다(CONTEXT.md).
-   화면 전체가 이 어휘를 피하는지 한 자리에서 지킨다. */
+/* 코인은 결제 수단이 아니다(CONTEXT.md). 화면 전체가 이 어휘를 피하는지 한 자리에서 지킨다.
+   예전 소진처였던 카드팩 교환은 2026-11-24 지웠고(ADR-0052) 원장의 예전 사용 내역만 그 이름으로 읽힌다. */
 const BANNED_WORDS = ['포인트', '충전', '가챠', '뽑기'];
 
 describe('MyCoins 잔액·원장', () => {
@@ -79,7 +76,7 @@ describe('MyCoins 잔액·원장', () => {
 
     expect(html).toContain('코인 안내');
     expect(html).toContain('결제에는 쓸 수 없어요');
-    expect(html).toContain('카드팩으로 바꿀 수 있어요');
+    expect(html).not.toContain('카드팩으로 바꿀 수 있어요');
     expect(html).toContain('최근 50건');
   });
 

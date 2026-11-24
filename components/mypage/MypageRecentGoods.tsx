@@ -9,6 +9,7 @@ import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 import { readRecentGoods, recentGoodsKey } from '@/lib/product-detail-experiences';
 import { hrefFor } from '@/lib/routes';
 import { MypageSectionHead } from './MypageSectionHead';
+import { goodDetailHref } from '@/lib/goods-display';
 
 /** 대시보드에 보이는 최근 본 굿즈 수 — 레퍼런스 대시보드 블록과 같은 다섯 칸(11 §5.2 ④). */
 export const RECENT_GOODS_DASHBOARD_LIMIT = 5;
@@ -41,7 +42,7 @@ export function RecentGoodsCards({ goods, ipTitles }: { goods: readonly Good[]; 
             badges={goodDisplayBadges(good)}
             brand={ipTitles?.[good.ip] ?? null}
             compareAtPrice={good.compareAtPrice}
-            href={`/shop/${good.id}`}
+            href={goodDetailHref(good)}
             imageBackground={good.img}
             listSurface="standard"
             listingAppearance={good.listingAppearance}
@@ -97,16 +98,16 @@ export function MypageRecentGoods({ enabled, ipTitles, viewerId }: { enabled: bo
         count={state.kind === 'ready' ? goods.length : undefined}
         href={state.kind === 'ready' && goods.length ? hrefFor('interests') : undefined}
         id="mydash-recent"
-        title="최근 본 굿즈"
+        title="최근 본 상품"
       />
       {state.kind === 'loading' ? (
-        <p aria-live="polite" className="wc-mydash__empty">최근 본 굿즈를 불러오는 중이에요.</p>
+        <p aria-live="polite" className="wc-mydash__empty">최근 본 상품을 불러오는 중이에요.</p>
       ) : state.kind === 'unavailable' ? (
-        <p className="wc-mydash__empty" role="status">최근 본 굿즈를 확인하지 못했어요. 잠시 후 다시 열어주세요.</p>
+        <p className="wc-mydash__empty" role="status">최근 본 상품을 확인하지 못했어요. 잠시 후 다시 열어주세요.</p>
       ) : goods.length ? (
         <RecentGoodsCards goods={goods} ipTitles={ipTitles} />
       ) : (
-        <p className="wc-mydash__empty">최근 본 굿즈가 없어요. 굿즈를 둘러보면 여기에 모여요.</p>
+        <p className="wc-mydash__empty">최근 본 상품이 없어요. 상품을 둘러보면 여기에 모여요.</p>
       )}
     </section>
   );

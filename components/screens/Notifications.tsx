@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notificationDisplayCopy, type NotificationItem, type NotificationType } from '@/lib/notifications';
+import { type NotificationItem, type NotificationType } from '@/lib/notifications';
 import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 
@@ -7,9 +7,12 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   order_paid: '주문',
   order_bank_transfer_pending: '입금',
   order_virtual_account_issued: '입금',
+  order_deposit_reversed: '입금',
   order_shipping: '배송',
   order_delivered: '배송',
   purchase_confirmation: '구매확정',
+  /* 카드팩 알림 — 카드 기능은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). 타입은 DB CHECK 와 같은 목록이라 남기고,
+     예전에 쌓인 알림이 있으면 이 이름으로만 보인다. */
   draw_ticket_issued: '카드팩',
   drop_published: '드롭',
   event_published: '오프라인 팝업',
@@ -23,13 +26,14 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   loyalty_monthly_coupons_issued: '등급',
   /* 비공개 1:1('문의')과 다른 표면이라 라벨도 갈라 둔다 — 같은 말이면 알림함에서
      어느 쪽에 답이 달렸는지 알 수 없다. */
-  product_question_answered: '굿즈 Q&A',
+  product_question_answered: '상품 Q&A',
 };
 
 const TYPE_ICONS: Record<NotificationType, string> = {
   order_paid: 'bag',
   order_bank_transfer_pending: 'bag',
   order_virtual_account_issued: 'bag',
+  order_deposit_reversed: 'bag',
   order_shipping: 'bag',
   order_delivered: 'bag',
   purchase_confirmation: 'bag',
@@ -84,12 +88,11 @@ export function Notifications({ error = false, notifications, openAction }: Noti
         {notifications.length === 0 ? (
           <div className="wc-empty">
             <h2 className="wc-empty__title">아직 받은 알림이 없어요</h2>
-            <p className="wc-empty__desc">주문, 카드팩, 팔로우한 IP의 새 소식이 생기면 여기에 알려드릴게요.</p>
+            <p className="wc-empty__desc">주문과 팔로우한 IP의 새 소식이 생기면 여기에 알려드릴게요.</p>
           </div>
         ) : (
           <ol className="wc-notif__list">
             {notifications.map((notification) => {
-              const copy = notificationDisplayCopy(notification);
               return (
                 <li
                   className={`wc-notif__row${notification.isUnread ? ' is-unread' : ''}`}
@@ -107,8 +110,8 @@ export function Notifications({ error = false, notifications, openAction }: Noti
                             {notificationDate.format(new Date(notification.createdAt))}
                           </time>
                         </span>
-                        <strong>{copy.title}</strong>
-                        <span>{copy.body}</span>
+                        <strong>{notification.title}</strong>
+                        <span>{notification.body}</span>
                         <span className="sr-only">
                           {notification.isUnread ? '안 읽은 알림' : '읽은 알림'}
                         </span>

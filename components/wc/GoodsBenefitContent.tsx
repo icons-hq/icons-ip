@@ -3,7 +3,7 @@ import { publicMediaUrl } from '@/lib/media';
 
 export function GoodsBenefitContent({ value }: { value: GoodsBenefitValues | null }) {
   if (!value || (!value.eventText && !value.giftText)) return null;
-  return <section className="wc-goods-benefits" aria-label="굿즈 혜택 안내">
+  return <section className="wc-goods-benefits" aria-label="상품 혜택 안내">
     {value.eventText ? <div><h2>이벤트</h2><p>{value.eventText}</p></div> : null}
     {value.giftText ? <div><h2>사은품</h2><div><p>{value.giftText}</p>{value.giftImagePaths.length ? <ul>{value.giftImagePaths.map((path, index) => {
       const url = publicMediaUrl(path); return url ? <li key={path}><a href={url} target="_blank" rel="noreferrer" aria-label={`사은품 이미지 ${index + 1} 새 창에서 보기`}>

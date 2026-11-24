@@ -11,7 +11,7 @@ const good: Good = { id: 'good', ip: 'ip', name: '키링', price: 1000, stockQty
 beforeEach(() => vi.clearAllMocks());
 
 describe('찜 목록 담기', () => {
-  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('does not offer cart or option entry while %s', (state, label) => {
+  it.each([['scheduled', '판매 예정'], ['ended', '판매 종료']] as const)('does not offer cart or option entry while %s', (state, label) => {
     const closed = { ...good, options: [option, { ...option, id: '00000000-0000-4000-8000-000000000002' }], salePeriod: { state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null } };
     const html = renderToStaticMarkup(<AddToCartButton good={closed} />); expect(html).toContain('disabled=""'); expect(html).toContain(`>${label}</button>`); expect(html).not.toContain('옵션 선택'); expect(html).not.toContain('품절');
   });
@@ -35,7 +35,7 @@ describe('찜 목록 담기', () => {
 });
 
 /* 10/14 회의 S14 — '담김'이 생소하다는 지적에 따라 이미 담은 굿즈는 장바구니 기준으로 말한다. */
-describe('담은 굿즈 표시', () => {
+describe('담은 상품 표시', () => {
   it('shows the cart quantity with the cart wording instead of 담김', () => {
     mocks.getQuantity.mockReturnValueOnce(1);
     const html = renderToStaticMarkup(<AddToCartButton good={good} />);
@@ -48,7 +48,7 @@ describe('담은 굿즈 표시', () => {
 
 /* D5② 랜덤 판매·D7② 옵션별 구매 제한. */
 describe('랜덤 판매·옵션별 구매 제한 담기', () => {
-  it('랜덤 판매 굿즈는 접힌 기본 옵션 키 하나라 목록에서 바로 담는다', () => {
+  it('랜덤 판매 상품은 접힌 기본 옵션 키 하나라 목록에서 바로 담는다', () => {
     const random = { ...option, name: '랜덤', code: '', attributes: {}, stockQty: 6, orderMaxQty: null, memberMaxQty: null };
     const html = renderToStaticMarkup(<AddToCartButton good={{ ...good, optionSaleMode: 'random', options: [random] }} />);
     expect(html).not.toContain('옵션 선택');
@@ -80,14 +80,14 @@ describe('예약판매 담기', () => {
   it('labels a single-option preorder before reception instead of 품절, for sight and screen readers', () => {
     const html = renderToStaticMarkup(<AddToCartButton good={preorder('scheduled', 0)} />);
     expect(html).toContain('disabled=""');
-    expect(html).toContain('>예약 접수 예정</button>');
-    expect(html).toContain('aria-label="키링 예약 접수 예정"');
+    expect(html).toContain('>판매 예정</button>');
+    expect(html).toContain('aria-label="키링 판매 예정"');
     expect(html).not.toContain('품절');
   });
 
   it('blocks a multi-option preorder before reception with the same label instead of 옵션 선택', () => {
     const html = renderToStaticMarkup(<AddToCartButton good={preorder('scheduled', 0, 2)} />);
-    expect(html).toContain('>예약 접수 예정</button>');
+    expect(html).toContain('>판매 예정</button>');
     expect(html).not.toContain('옵션 선택');
     expect(html).not.toContain('품절');
   });
@@ -102,6 +102,6 @@ describe('예약판매 담기', () => {
   it('still says 품절 for a sold-out stock good and names the sale period in the accessible name', () => {
     expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, stockQty: 0, stock: 'soldout', options: [{ ...option, stockQty: 0 }] }} />)).toContain('>품절</button>');
     const scheduled = { state: 'scheduled' as const, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' };
-    expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, salePeriod: scheduled }} />)).toContain('aria-label="키링 판매 시작 전"');
+    expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, salePeriod: scheduled }} />)).toContain('aria-label="키링 판매 예정"');
   });
 });

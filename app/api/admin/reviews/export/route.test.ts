@@ -61,7 +61,7 @@ describe('일반 리뷰 암호화 POST export', () => {
     expect(response.status).toBe(200); privateResponse(response);
     expect(response.headers.get('x-icons-export-audit')).toBe(id(30)); expect(response.headers.get('x-icons-export-rows')).toBe('1');
     expect(response.headers.get('x-icons-export-records')).toBe('1'); expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile');
-    expect(response.headers.get('content-disposition')).toContain('icons-reviews-'); expect(response.headers.get('content-disposition')).toContain(encodeURIComponent('리뷰'));
+    expect(response.headers.get('content-disposition')).toContain('xsquare-reviews-'); expect(response.headers.get('content-disposition')).toContain(encodeURIComponent('리뷰'));
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-workbook');
     const snapshot = reviewExportSnapshotFixture();
     expect(mocks.access).toHaveBeenCalledExactlyOnceWith({ actorId: actor, action: 'export', surface: 'export.reviews', path: '/api/admin/reviews/export',

@@ -49,7 +49,7 @@ describe('버튼형 자주 묻는 질문 (0901-044)', () => {
     expect(html).not.toContain('href="/orders"');
     expect(html).toContain('내 주문 배송 조회는 로그인 후 이용할 수 있습니다.');
     expect(html).toContain('href="/login?next=%2Forders"');
-    expect(html).toContain('주문한 굿즈의 배송 상태는 내 주문에서 확인할 수 있습니다.');
+    expect(html).toContain('주문한 상품의 배송 상태는 내 주문에서 확인할 수 있습니다.');
   });
   it('답을 불러오지 못하면 검색·문의로 이어 가게 안내한다', () => {
     const html = renderToStaticMarkup(<WidgetFaqTopicAnswer topic="cancel" signedIn onNavigate={() => {}} error="답변을 불러오지 못했습니다. 아래 FAQ 검색이나 문의를 이용해주세요." />);
@@ -96,7 +96,7 @@ describe('FAQ 먼저 여는 상담 위젯', () => {
     }]};
     const html=renderToStaticMarkup(<WidgetInquiryConversation inquiry={inquiry} onSaved={()=>{}}/>);
     expect(html).toContain('자동 안내');
-    expect(html).not.toContain('ICONS 운영자');
+    expect(html).not.toContain('엑스스퀘어 운영자');
     expect(html).toContain('href="https://iconsip.com/help"');
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('href="javascript:');

@@ -88,11 +88,10 @@ const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   'benefit-report': 'marketing.manage', 'customer-grades': 'marketing.manage', campaigns: 'promotion.manage',
   'store-credit-console': 'marketing.manage', 'store-credits': 'marketing.manage', notifications: 'marketing.manage',
   emails: 'marketing.manage', 'stats-traffic': 'stats.read', 'stats-marketing': 'stats.read', 'stats-sales': 'stats.read', 'stats-claims': 'stats.read', 'stats-customers': 'stats.read',
-  'store-settings': 'seller.read', roles: 'operators.manage', 'operator-mfa': 'operators.manage', 'my-security': 'home', 'operations-settings': 'platform.manage', 'system-health': 'platform.manage', 'collectible-features': 'platform.manage', 'operations-switches': 'platform.manage',
+  'store-settings': 'seller.read', roles: 'operators.manage', 'operator-mfa': 'operators.manage', 'my-security': 'home', 'operations-settings': 'platform.manage', 'system-health': 'platform.manage', 'feature-visibility': 'platform.manage', 'operations-switches': 'platform.manage',
   /* 개인정보 접속기록 점검: 운영자 활동·IP를 모아 보는 화면이라 운영자별 처리 이력과 같은 매니저 관리 권한으로 연다. */
   'pii-access-log': 'operators.manage',
-  ips: 'platform.manage', cards: 'platform.manage', pools: 'platform.manage', policies: 'platform.manage',
-  grants: 'platform.manage', games: 'platform.manage', events: 'platform.manage', 'ticket-types': 'platform.manage',
+  ips: 'platform.manage', events: 'platform.manage', 'ticket-types': 'platform.manage',
   moderation: 'platform.manage', 'check-in': 'platform.manage',
 };
 

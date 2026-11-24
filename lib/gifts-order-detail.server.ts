@@ -64,13 +64,12 @@ async function withGiftClaims(orders: OrderListItem[]): Promise<OrderListItem[]>
 export async function loadGiftOrderDetail(userId: string, result: Extract<GiftCheckoutOrderResult, { kind: 'gift' }>): Promise<OrderDetail> {
   const { order } = result; if (!isOrderDetailStatus(order.status)) throw new Error('gift_order_status_invalid');
   const client = await createClient();
-  const [payments, tickets, claims, eligibility] = await Promise.all([
+  const [payments, claims, eligibility] = await Promise.all([
     client.from('payment_summaries').select('id,amount,status,created_at,provider').eq('user_id', userId).eq('purpose', 'order').eq('ref_id', order.id).order('created_at', { ascending: false }).order('id', { ascending: false }),
-    client.from('draw_tickets').select('consumed_at,revoked_at').eq('user_id', userId).eq('source', 'order_paid').eq('source_id', order.id),
     client.rpc('get_my_gift_latest_claim', { p_order_id: order.id }), client.rpc('order_claim_eligibility', { p_order_id: order.id }),
   ]);
-  if (payments.error || tickets.error || claims.error) throw new Error('gift_order_history_failed');
-  const paymentRows = payments.data ?? [], ticketRows = tickets.data ?? [], payment = paymentRows[0];
+  if (payments.error || claims.error) throw new Error('gift_order_history_failed');
+  const paymentRows = payments.data ?? [], payment = paymentRows[0];
   const claimEligibility = transactionRecord(eligibility.data) && !eligibility.error && ['cancel', 'return', 'exchange'].every(key => typeof eligibility.data[key] === 'boolean')
     ? { cancel: eligibility.data.cancel as boolean, return: eligibility.data.return as boolean, exchange: eligibility.data.exchange as boolean } : null;
   let refund: OrderDetail['refund'] = null;
@@ -84,5 +83,5 @@ export async function loadGiftOrderDetail(userId: string, result: Extract<GiftCh
     items: order.items.map(item => ({ key: item.id, lineId: item.id, goodId: item.goodId, variantId: item.variantId, name: item.name, optionName: item.variantName ?? null, qty: item.qty, unitPrice: item.unitPrice })) }])).get(order.id);
   return { ...order, ...(lines ? { lines } : {}), status: order.status, deliveredAt: order.deliveredAt, claimEligibility,
     payment: payment ? { amount: payment.amount, status: payment.status, createdAt: payment.created_at, provider: payment.provider ?? null } : null,
-    refund, cancellationRequest: parseSafeClaim(claims.data), cardPacks: { issuedCount: ticketRows.length, availableCount: ticketRows.filter(row => row.consumed_at === null && row.revoked_at === null).length } };
+    refund, cancellationRequest: parseSafeClaim(claims.data) };
 }

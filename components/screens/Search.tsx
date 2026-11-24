@@ -8,13 +8,13 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { publicIpHref } from '@/lib/ip-identity';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { SEARCH_PAGE_WINDOW, searchPageWindow, type SearchGoodsCollection } from '@/lib/search-goods';
 import type { SearchResult, SearchResultGroup, SearchSnapshot } from '@/lib/search';
 import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
 import { SHOP_VIEW_SORTS, type ShopListQuery } from '@/lib/shop-catalog';
+import { goodDetailHref } from '@/lib/goods-display';
 
 export interface SearchProps {
   /** 통합 검색 스냅샷. 굿즈 그룹은 쓰지 않는다 — goods 가 대체한다. */
@@ -43,10 +43,9 @@ export function searchResultsHref(query: string, listQuery: ShopListQuery | null
 /** 결과 클릭은 목록이 아니라 실제 상세로 간다 — 구 화면의 '굿즈 → /shop' 은 버그였다. */
 function resultHref(result: SearchResult) {
   if (result.kind === 'ip') return publicIpHref({ id: result.ipId ?? result.id, publicSlug: result.ipPublicSlug });
-  if (result.kind === 'card') return '/binder';
   if (result.kind === 'post') return '/community';
   if (result.kind === 'tag') return `/search?q=${encodeURIComponent(result.id)}`;
-  return `/shop/${result.id}`;
+  return goodDetailHref(result.id);
 }
 
 function SuggestedTerms({ terms }: { terms: readonly string[] }) {
@@ -144,7 +143,7 @@ function AsideGroup({ group }: { group: SearchResultGroup }) {
 /*
  * 검색 결과 (R-03 §2, LFS 패리티 2차 L4 · SR-01~03).
  * 굿즈는 굿즈샵과 같은 컬렉션 본문(사이드바·'전체 › N개 결과'·관련성 정렬·모바일 필터)으로 그리고,
- * IP·카드·포스트 같은 통합 검색 결과는 그 아래 보조 섹션으로 유지한다(커뮤니티 노출 게이트 그대로).
+ * IP·포스트 같은 통합 검색 결과는 그 아래 보조 섹션으로 유지한다(커뮤니티 노출 게이트 그대로).
  * 제목과 재검색 인풋은 데스크톱 한 줄이다. 결과 그리드가 있는 모바일에서는 레퍼런스처럼 둘을 걷어
  * 내고(제목은 읽기 전용으로 남긴다) 필터·정렬 줄로 바로 시작한다.
  */
@@ -152,9 +151,8 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
   /* 굿즈 그룹만 자체 결과로 대체하고 나머지 그룹은 보조 섹션으로 남긴다. */
   const asideGroups = snapshot.groups.filter((group) => group.kind !== 'good');
   const hasQuery = query.length > 0;
-  /* 카드 결과는 카드 바인더가 공개일 때만 실린다(lib/search.ts) — 안내 문구도 같은 범위만 말한다. 포스트는 커뮤니티 공개 스위치를 따른다. */
-  const binderEnabled = useCollectibleFeatures().binder;
-  const scopeDescription = `${['굿즈', 'IP', ...(binderEnabled ? ['카드'] : []), ...(COMMUNITY_ENABLED ? ['포스트'] : [])].join('·')}를 한 번에 찾아드려요.`;
+  /* 포스트는 커뮤니티 공개 스위치를 따른다 — 안내 문구도 같은 범위만 말한다(lib/search.ts). */
+  const scopeDescription = `${['상품', 'IP', ...(COMMUNITY_ENABLED ? ['포스트'] : [])].join('·')}를 한 번에 찾아드려요.`;
   const total = goods.result.total;
 
   return (
@@ -183,7 +181,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
               className="wc-search-results__input"
               defaultValue={query}
               name="q"
-              placeholder={searchPlaceholder(COMMUNITY_ENABLED, binderEnabled)}
+              placeholder={searchPlaceholder(COMMUNITY_ENABLED)}
               type="search"
             />
           </form>
@@ -211,7 +209,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
             <EmptyState
               description={hasQuery
                 ? '다른 검색어로 시도해 보세요.'
-                /* 포스트·카드는 각 공개 스위치가 꺼진 동안 결과에서 빠지므로 안내에서도 뺀다. */
+                /* 포스트는 공개 스위치가 꺼진 동안 결과에서 빠지므로 안내에서도 뺀다. */
                 : scopeDescription}
               title={hasQuery ? `'${query}'에 맞는 결과가 없어요` : '검색어를 입력해 주세요'}
               titleAs="h2"
@@ -222,7 +220,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
 
         {asideGroups.length > 0 ? (
           <div className="wc-search-results__aside-groups">
-            <SectionHeading title="굿즈 외 결과" />
+            <SectionHeading title="상품 외 결과" />
             {asideGroups.map((group) => <AsideGroup group={group} key={group.kind} />)}
           </div>
         ) : null}

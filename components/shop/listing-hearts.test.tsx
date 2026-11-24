@@ -11,7 +11,7 @@ const card = (action: ReturnType<ReturnType<typeof listingHeartsFor>>) => render
 );
 
 describe('listingHeartsFor', () => {
-  it('위시 ID 집합으로 굿즈별 초기 상태를 정한 L4 목록 하트를 카드 action 슬롯에 꽂는다', () => {
+  it('위시 ID 집합으로 상품별 초기 상태를 정한 L4 목록 하트를 카드 action 슬롯에 꽂는다', () => {
     const heartFor = listingHeartsFor({ viewerId: 'viewer-1', goodIds: ['g1'] });
     const wished = card(heartFor({ id: 'g1', name: '아크릴 블록' }));
     const other = card(heartFor({ id: 'g2', name: '오로라 키링' }));

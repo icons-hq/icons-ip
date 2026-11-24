@@ -326,6 +326,8 @@ describe('reconcileOrderCancellation', () => {
       'service_order_claim_refund_deduction',
       // 재고 부족 부분 취소 누계 읽기(ADR-0032). 부분 취소가 없으면 빈 배열이고 아래 결제사 호출은 그대로 전액 취소다.
       'service_order_payment_partial_refunds',
+      // 입금 오류 되돌림(ADR-0049 결정 4)이 열린 결제인지 — 없으면(null) 아래는 그대로 환불이다.
+      'service_goods_deposit_reversal',
       'service_goods_virtual_account_refund_accounts',
       'service_get_payment_gateway_binding',
       'complete_order_cancellation_request',
@@ -337,6 +339,8 @@ describe('reconcileOrderCancellation', () => {
         expect(args).toEqual({ p_request_id: REQUEST_ID });
       } else if (name === 'service_order_payment_partial_refunds') {
         expect(args).toEqual({ p_order_id: ORDER_ID });
+      } else if (name === 'service_goods_deposit_reversal') {
+        expect(args).toEqual({ p_attempt_id: expect.any(String) });
       } else if (name === 'service_goods_virtual_account_refund_accounts') {
         // 결제 시도·원장 결제 키·이 요청으로만 읽는다 — 행위자 인자가 없는 서버 전용 조회다(ADR-0049 결정 5 보강).
         expect(args).toEqual({ p_attempt_id: expect.any(String), p_payment_key: expect.any(String), p_request_id: REQUEST_ID });
@@ -431,7 +435,7 @@ describe('reconcileOrderCancellation', () => {
       paymentId: 'payment-1',
       provider: 'toss',
       amount: 42000,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       paymentKey: PAYMENT_KEY,
       requestId: REQUEST_ID,
     });
@@ -490,7 +494,7 @@ describe('reconcileOrderCancellation', () => {
       paymentId: 'payment-1',
       provider: 'nicepay',
       amount: 42000,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       paymentKey: PAYMENT_KEY,
       requestId: REQUEST_ID,
     });
@@ -897,7 +901,7 @@ describe('reconcileOrderCancellation', () => {
       provider: 'toss',
       paymentKey: PAYMENT_KEY,
       amount: 42000,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       requestId: REQUEST_ID,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith(

@@ -97,7 +97,7 @@ describe('접수 안내(orderClaimIntakeNotice)', () => {
   it('켜져 있으면 반품 안내만 차감 규칙으로 바꾼다', () => {
     const notice = orderClaimIntakeNotice('return', { enabled: true, oneWayAmount: 3000 });
     expect(notice).toContain('단순 변심 반품은 반품배송비 3,000원(최초 무료배송 주문은 왕복 6,000원)을 빼고 환불합니다.');
-    expect(notice).toContain('굿즈 하자·오배송은 빼지 않습니다.');
+    expect(notice).toContain('상품 하자·오배송은 빼지 않습니다.');
     expect(notice).not.toContain('결제금액 전액으로 처리합니다');
     expect(orderClaimIntakeNotice('exchange', { enabled: true, oneWayAmount: 3000 })).toBe(ORDER_CLAIM_INTAKE_NOTICES.exchange);
   });
@@ -120,7 +120,7 @@ describe('접수 안내 — 재고 부족 부분 취소 뒤(orderClaimIntakeNoti
 
   it('부분 취소가 있으면 취소·반품의 결제금액 전액을 남은 결제 금액으로 바꾸고 교환은 그대로다', () => {
     const cancel = orderClaimIntakeNotice('cancel', null, { partiallyCanceled: true });
-    expect(cancel).toContain('승인되면 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액이 취소되고');
+    expect(cancel).toContain('승인되면 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액이 취소됩니다.');
     expect(cancel).not.toContain('결제금액 전액');
     const ret = orderClaimIntakeNotice('return', null, { partiallyCanceled: true });
     expect(ret).toContain('승인된 환불은 이미 일부 취소·반품으로 환불한 금액을 뺀 남은 결제 금액으로 처리합니다.');

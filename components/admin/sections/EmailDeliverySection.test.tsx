@@ -20,7 +20,7 @@ const failedDelivery: EmailDeliveryRecord = {
   templateLabel: '주문 확인',
   orderId: ORDER_ID,
   recipient: 'buyer@example.com',
-  subject: '[ICONS] 주문이 접수됐어요',
+  subject: '[엑스스퀘어] 주문이 접수됐어요',
   status: 'failed',
   attemptCount: 2,
   lastError: 'resend 429',
@@ -38,7 +38,7 @@ const inquiryDelivery: EmailDeliveryRecord = {
   template: 'inquiry_answered',
   templateLabel: '문의 답변',
   orderId: null,
-  subject: '[ICONS] 문의에 답변이 등록됐어요',
+  subject: '[엑스스퀘어] 문의에 답변이 등록됐어요',
   resendable: false,
 };
 

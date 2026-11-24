@@ -44,7 +44,6 @@ vi.mock('@/lib/catalog', () => ({
       synopsis: '',
     }],
     goods: mocks.goods,
-    cards: [],
     events: [],
   }),
 }));
@@ -53,7 +52,7 @@ function good(id: string, overrides: Partial<Good> = {}): Good {
   return {
     id,
     ip: 'ip1',
-    name: `굿즈 ${id}`,
+    name: `상품 ${id}`,
     price: 10000,
     badge: null,
     stock: 'ok',
@@ -75,13 +74,13 @@ beforeEach(() => {
 describe('/shop/new page', () => {
   it('실화면이므로 색인을 막지 않는다', () => {
     expect(metadata).toMatchObject({
-      title: 'NEW — ICONS',
-      description: '새로 나온 굿즈를 모아 봤어요.',
+      title: 'NEW — 엑스스퀘어',
+      description: '새로 나온 상품을 모아 봤어요.',
     });
     expect(metadata.robots).toBeUndefined();
   });
 
-  it('NEW 배지 굿즈만 담은 목록을 Figma 머리(제목 + 탭 줄)로 그린다', async () => {
+  it('NEW 배지 상품만 담은 목록을 Figma 머리(제목 + 탭 줄)로 그린다', async () => {
     mocks.goods = [
       good('a', { name: '신상 키링', badge: 'NEW' }),
       good('b', { name: '평범한 키링' }),
@@ -173,12 +172,12 @@ describe('/shop/new page', () => {
     expect([...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>([^<]+)<\/a>/g)].map((match) => match[1])).toEqual(['판매량순']);
   });
 
-  it('NEW 굿즈가 없으면 준비 중 안내와 굿즈샵 링크만 남긴다', async () => {
+  it('NEW 상품이 없으면 준비 중 안내와 쇼핑 링크만 남긴다', async () => {
     mocks.goods = [good('b', { name: '평범한 키링' })];
     const html = await render();
 
     expect(html).toContain('아직 준비 중이에요');
-    expect(html).toContain('굿즈샵 둘러보기');
+    expect(html).toContain('상품 둘러보기');
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('wc-x-grid');
   });

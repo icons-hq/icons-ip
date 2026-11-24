@@ -39,6 +39,7 @@ import {
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
+import { goodDetailHref } from '@/lib/goods-display';
 
 interface CartLine {
   goodId: string;
@@ -66,13 +67,13 @@ interface CartLine {
 /* 고른 줄로 주문서를 열지 못한 이유(ADR-0030). 로그인·프로필 미완료는 화면을 옮겨 안내한다. */
 const CART_ORDER_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required' | 'onboarding_required'>, string> = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
-  invalid_request: '고른 굿즈를 다시 확인해주세요.',
+  invalid_request: '고른 상품을 다시 확인해주세요.',
   cart_changed: '다른 화면에서 장바구니가 바뀌었어요. 지금 장바구니를 확인하고 다시 주문해주세요.',
   /* 아래는 바로구매 초안의 사유다 — 장바구니 선택 초안에서는 나오지 않지만 같은 결과 타입이라 문구를 둔다. */
-  adult_verification_required: '19금 굿즈는 성인 인증을 마친 회원만 주문할 수 있어요.',
-  additional_good_unavailable: '추가 구성 굿즈의 판매 상태가 바뀌었어요. 다시 확인해주세요.',
-  goods_unavailable: '판매 상태가 바뀐 굿즈가 있어요. 장바구니를 다시 확인해주세요.',
-  custom_inputs_changed: '직접 입력 옵션 설정이 바뀌었어요. 굿즈에서 내용을 다시 확인해주세요.',
+  adult_verification_required: '19금 상품은 성인 인증을 마친 회원만 주문할 수 있어요.',
+  additional_good_unavailable: '추가 구성 상품의 판매 상태가 바뀌었어요. 다시 확인해주세요.',
+  goods_unavailable: '판매 상태가 바뀐 상품이 있어요. 장바구니를 다시 확인해주세요.',
+  custom_inputs_changed: '직접 입력 옵션 설정이 바뀌었어요. 상품에서 내용을 다시 확인해주세요.',
   unavailable: '주문서를 열지 못했어요. 잠시 후 다시 시도해주세요.',
 };
 
@@ -158,7 +159,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
           <span className="wc-product-card__adult-mark">19</span>
         </span>
         <div className="wc-cart__line-info">
-          <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
+          <p className="wc-cart__line-brand">{ip?.title ?? '엑스스퀘어'}</p>
           <p className="wc-cart__line-name">{ADULT_GOOD_LABEL}</p>
           <p className="wc-cart__line-state">
             성인 인증 후 구매할 수 있어요. <Link href={adultVerificationHref('/cart')}>성인 인증하기</Link>
@@ -180,16 +181,16 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
   if (!good) {
     return (
       <li className="wc-cart__line wc-cart__line--selectable wc-cart__line--unavailable">
-        <CartLineCheck label={cartLineCheckLabel(`판매 종료된 굿즈 ${goodId}`, null, customInputs)} selection={selection} />
+        <CartLineCheck label={cartLineCheckLabel(`판매 종료된 상품 ${goodId}`, null, customInputs)} selection={selection} />
         <span aria-hidden className="wc-cart__line-media" />
         <div className="wc-cart__line-info">
-          <p className="wc-cart__line-name">판매 종료된 굿즈 ({goodId})</p>
+          <p className="wc-cart__line-name">판매 종료된 상품 ({goodId})</p>
           <p className="wc-cart__line-state">판매 종료</p>
         </div>
         <div className="wc-cart__line-band">
           <div className="wc-cart__line-detail" />
           <button
-            aria-label={`판매 종료된 굿즈 ${goodId} 삭제`}
+            aria-label={`판매 종료된 상품 ${goodId} 삭제`}
             className="wc-cart__remove"
             disabled={pending}
             onClick={() => void remove(goodId, variantId,customInputs)}
@@ -204,7 +205,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
 
   const soldOut = isSoldOut(good) || Boolean(goodsSaleUnavailableLabel(good.salePeriod));
   const stateLabel = goodsSaleUnavailableLabel(good.salePeriod) ?? (supply?.mode === 'preorder' ? preorderSupplyLabel(supply) : lineStateLabel(good, qty));
-  const href = `/shop/${goodId}`;
+  const href = goodDetailHref(good);
 
   return (
     <li className={`wc-cart__line wc-cart__line--selectable${isUnavailable(line) || line.excludedReason ? ' wc-cart__line--unavailable' : ''}`}>
@@ -218,7 +219,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
         tabIndex={-1}
       />
       <div className="wc-cart__line-info">
-        <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
+        <p className="wc-cart__line-brand">{ip?.title ?? '엑스스퀘어'}</p>
         <Link className="wc-cart__line-name" href={href}>{good.name}</Link>
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
@@ -460,7 +461,7 @@ export function Cart({
   const checkoutBlockedReason = canCheckout || ordering || pending || !ready ? null
     : purchaseProblem
       ?? (couponSelectionChanged ? '다른 화면에서 쿠폰 선택이 바뀌었어요. 쿠폰을 다시 확인해주세요.' : null)
-      ?? (selectedItems.length === 0 && selectableLines.length > 0 ? '주문할 굿즈를 골라주세요.' : null);
+      ?? (selectedItems.length === 0 && selectableLines.length > 0 ? '주문할 상품을 골라주세요.' : null);
 
   const lineSelection = (line: CartLine): CartLineSelection => ({
     checked: !deselected.has(cartLineKey(line)),
@@ -542,12 +543,12 @@ export function Cart({
 
         {error ? <p className="wc-cart__error" role="alert">{error}</p> : null}
         {retryEmpty && ready ? (
-          <p className="wc-cart__retry-note" role="status">이 주문의 굿즈가 장바구니에 남아 있지 않아요. 주문할 굿즈를 골라 다시 주문해주세요.</p>
+          <p className="wc-cart__retry-note" role="status">이 주문의 상품이 장바구니에 남아 있지 않아요. 주문할 상품을 골라 다시 주문해주세요.</p>
         ) : null}
         {legacyItems.length > 0 ? <section aria-label="이전 장바구니 확인">
           <p>이전 장바구니를 현재 옵션에 연결하고 있습니다. 확인하지 못한 항목은 그대로 보관합니다.</p>
           <ul>{legacyItems.map((item) => <li key={item.goodId}>
-            이전 굿즈 ({item.goodId}) · {item.qty}개
+            이전 상품 ({item.goodId}) · {item.qty}개
             <button className="wc-btn" disabled={pending} type="button" onClick={() => removeLegacyItem(item.goodId)}>이 항목 삭제</button>
           </li>)}</ul>
           <button className="wc-btn" disabled={pending} type="button" onClick={() => void refresh()}>다시 확인</button>
@@ -593,7 +594,7 @@ export function Cart({
                 <div aria-labelledby="cart-clear-title" className="wc-cart__clear-confirm" role="alertdialog"
                   onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setConfirmingClear(false); } }}>
                   {/* 개수는 주문 버튼·장바구니 배지와 같은 수량 단위다. */}
-                  <p id="cart-clear-title">{`장바구니의 굿즈 ${cartSelectionQuantity(lines)}개를 모두 삭제할까요?`}</p>
+                  <p id="cart-clear-title">{`장바구니의 상품 ${cartSelectionQuantity(lines)}개를 모두 삭제할까요?`}</p>
                   <div className="wc-cart__clear-actions">
                     <button className="wc-btn" disabled={pending} onClick={() => setConfirmingClear(false)} ref={clearCancelRef} type="button">취소</button>
                     <button className="wc-btn primary" disabled={pending} onClick={clearAll} type="button">전체 비우기</button>
@@ -602,7 +603,7 @@ export function Cart({
               ) : null}
               {shipping.quote && shippingGroupsNotice(shipping.quote.groups) ? <p className="wc-cart__summary-note">{shippingGroupsNotice(shipping.quote.groups)}</p> : null}
               {displayGroups.map((group, index, groups) => (
-                <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(groups, index)} 굿즈`}>
+                <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(groups, index)} 상품`}>
                   <h2>{shippingGroupLabel(groups, index)}</h2>
                   <ul className="wc-cart__list">
                     {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={withLimitNote(line)} selection={lineSelection(line)} />)}
@@ -620,7 +621,7 @@ export function Cart({
               <table className="wc-cart__summary">
                 <tbody>
                   <tr>
-                    <th scope="row">{transactionActive ? '복수구매 할인 전 굿즈 금액' : '총 굿즈 금액'}</th>
+                    <th scope="row">{transactionActive ? '복수구매 할인 전 상품 금액' : '총 상품 금액'}</th>
                     <td>{krw(subtotal)}</td>
                   </tr>
                   <tr>
@@ -673,12 +674,12 @@ export function Cart({
 
               {unavailableCount > 0 ? (
                 <p className="wc-cart__warning" role="alert">
-                  {`주문할 수 없는 굿즈 ${unavailableCount}개는 주문에서 빠져요.${reducibleUnavailable ? ' 수량을 줄이면 다시 고를 수 있어요.' : ''}`}
+                  {`주문할 수 없는 상품 ${unavailableCount}개는 주문에서 빠져요.${reducibleUnavailable ? ' 수량을 줄이면 다시 고를 수 있어요.' : ''}`}
                 </p>
               ) : null}
               {limitNoteCount > 0 ? (
                 <p className="wc-cart__warning" role="status">
-                  {`구매 조건에 맞지 않는 굿즈 ${limitNoteCount}개는 체크를 풀었어요. 굿즈의 안내를 확인하고 다시 골라주세요.`}
+                  {`구매 조건에 맞지 않는 상품 ${limitNoteCount}개는 체크를 풀었어요. 상품의 안내를 확인하고 다시 골라주세요.`}
                 </p>
               ) : null}
               {/* 결제 대기 주문(다른 탭의 바로구매 등)이 쿠폰·한도·재고를 잡고 있을 수 있다 — 장바구니를 열기만 해서는 그 결제를
@@ -687,10 +688,10 @@ export function Cart({
                 <CheckoutPendingOrderRelease causes={pendingOrderCauses} onReleased={releaseRetry} />
               ) : null}
               {selectedItems.length === 0 && selectableLines.length > 0 ? (
-                <p className="wc-cart__warning" role="status">주문할 굿즈를 골라주세요.</p>
+                <p className="wc-cart__warning" role="status">주문할 상품을 골라주세요.</p>
               ) : null}
               {selectedLines.length < lines.length && selectedItems.length > 0 ? (
-                <p className="wc-cart__selection-note">고른 굿즈만 주문해요. 고르지 않은 굿즈는 결제 뒤에도 장바구니에 남아요.</p>
+                <p className="wc-cart__selection-note">고른 상품만 주문해요. 고르지 않은 상품은 결제 뒤에도 장바구니에 남아요.</p>
               ) : null}
               {orderError ? <p className="wc-cart__error" role="alert">{orderError}</p> : null}
 

@@ -18,7 +18,6 @@ vi.mock('@/app/admin/campaign-presentation-actions', () => ({ saveAdminCampaignP
 import { CampaignScreen } from './CampaignScreen';
 import { CampaignPresentationPanel } from '@/components/admin/CampaignPresentationPanel';
 import { CampaignSection } from '@/components/admin/sections/CampaignSection';
-import { CoinExchangeOfferPanel } from '@/components/admin/sections/CoinExchangeOfferPanel';
 import type { AdminCampaignRecord } from '@/lib/admin/campaigns';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -29,7 +28,7 @@ const record = (id: string): AdminCampaignRecord => ({
   presentation: { popupMode: null, popupLocation: null, cardLinkPath: null }, updatedAt: '2026-11-01T00:00:00.000Z',
 });
 const records = [record('qa-open'), record('qa-later')];
-function section() { hooks.index = 0; return nodes(CampaignScreen({ offers: [], pools: [], records, canManageOffers: false })).find(node => node.type === CampaignSection)!; }
+function section() { hooks.index = 0; return nodes(CampaignScreen({ records })).find(node => node.type === CampaignSection)!; }
 const replaceState = vi.fn();
 
 beforeEach(() => { hooks.states = []; hooks.index = 0; hooks.search = ''; replaceState.mockClear(); vi.stubGlobal('window', { history: { replaceState } }); });
@@ -54,16 +53,17 @@ it('주소가 없거나 모르는 캠페인이면 지금처럼 목록으로 연�
   expect(replaceState).not.toHaveBeenCalled();
 });
 
-/* 스펙 C §2.8: 노출 설정은 저장된(선택된) 캠페인에만, 캠페인 폼 아래·카드팩 교환처 패널 위에 붙는다. 캠페인 저장과 별개의 폼이다. */
-it('저장된 캠페인을 고른 때만 그 캠페인의 노출 설정 패널을 캠페인 폼과 교환처 패널 사이에 둔다', () => {
-  const tree = () => { hooks.index = 0; return nodes(CampaignScreen({ offers: [], pools: [], records, canManageOffers: true })); };
+/* 스펙 C §2.8: 노출 설정은 저장된(선택된) 캠페인에만, 캠페인 폼 아래에 붙는다. 캠페인 저장과 별개의 폼이다.
+   카드팩 교환처 패널은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). */
+it('저장된 캠페인을 고른 때만 그 캠페인의 노출 설정 패널을 캠페인 폼 아래에 둔다', () => {
+  const tree = () => { hooks.index = 0; return nodes(CampaignScreen({ records })); };
   expect(tree().find(node => node.type === CampaignPresentationPanel)).toBeUndefined();
 
   hooks.states = []; hooks.search = 'campaign=qa-later';
   const nodesWithPanel = tree();
   const panel = nodesWithPanel.find(node => node.type === CampaignPresentationPanel)!;
   expect(panel.props.campaign).toMatchObject({ id: 'qa-later' });
-  const order = [CampaignSection, CampaignPresentationPanel, CoinExchangeOfferPanel].map(type => nodesWithPanel.findIndex(node => node.type === type));
+  const order = [CampaignSection, CampaignPresentationPanel].map(type => nodesWithPanel.findIndex(node => node.type === type));
   expect(order).toEqual([...order].sort((a, b) => a - b));
   expect(order.every(index => index >= 0)).toBe(true);
 

@@ -94,7 +94,7 @@ describe('GoodQna', () => {
     });
 
     expect(html).toContain('wc-qna-item__answer');
-    expect(html).toContain('ICONS 답변');
+    expect(html).toContain('엑스스퀘어 답변');
     expect(html).toContain('다음 주 화요일 재입고 예정입니다.');
     expect(html).toContain('답변 완료');
   });
@@ -168,7 +168,7 @@ describe('GoodQna', () => {
 
     expect(html).not.toContain('문의');
     expect(html).not.toContain('리뷰');
-    expect(html).toContain('굿즈 Q&amp;A');
+    expect(html).toContain('상품 Q&amp;A');
   });
 });
 
@@ -188,7 +188,7 @@ describe('GoodQna 비밀글 (MD-0023)', () => {
     /* 누가 숨겨 물었는지도 비밀이다 — 작성자 자리와 답변 블록이 없다. */
     expect(html).not.toContain('wc-qna-item__author');
     expect(html).not.toContain('wc-qna-item__answer');
-    expect(html).not.toContain('ICONS 답변');
+    expect(html).not.toContain('엑스스퀘어 답변');
     expect(html).toContain('질문 1건');
   });
 
@@ -246,7 +246,7 @@ describe('GoodQna 비밀글 (MD-0023)', () => {
     const describedBy = checkbox.match(/aria-describedby="([^"]+)"/)?.[1];
     expect(describedBy).toBeTruthy();
     expect(html).toContain(`id="${describedBy}"`);
-    expect(html).toContain('비밀글이 아닌 질문과 답변은 굿즈 상세에 공개됩니다.');
+    expect(html).toContain('비밀글이 아닌 질문과 답변은 상품 상세에 공개됩니다.');
   });
 });
 

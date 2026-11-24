@@ -433,7 +433,7 @@ describe('my ticket orders', () => {
         title: '메이플 팝업',
         starts_at: '2026-07-25T05:00:00.000Z',
         ends_at: '2026-07-25T08:00:00.000Z',
-        location: '성수 ICONS 팝업',
+        location: '성수 엑스스퀘어 팝업',
       }, {
         id: 'rinne-popup',
         title: '린네 팝업',
@@ -497,7 +497,7 @@ describe('my ticket orders', () => {
       createdAt: '2026-07-15T02:00:00.000Z',
       startsAt: '2026-07-25T05:00:00.000Z',
       endsAt: '2026-07-25T08:00:00.000Z',
-      location: '성수 ICONS 팝업',
+      location: '성수 엑스스퀘어 팝업',
       ticketStatuses: ['valid', 'valid'],
       cancellationRequest: null,
       refund: { status: 'done', amount: 44000, createdAt: '2026-07-15T02:40:00.000Z' },
@@ -567,7 +567,7 @@ describe('my ticket orders', () => {
       createdAt: '2026-07-15T02:00:00.000Z',
       startsAt: '2026-07-25T05:00:00.000Z',
       endsAt: '2026-07-25T08:00:00.000Z',
-      location: '성수 ICONS 팝업',
+      location: '성수 엑스스퀘어 팝업',
       tickets: [
         { id: '19b0d848-7192-4b40-a675-f508822f99c9', status: 'valid' },
         { id: '2ab1e959-8203-4c51-b786-0619933a00da', status: 'valid' },

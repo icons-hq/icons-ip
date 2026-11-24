@@ -5,7 +5,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadCoinLedger, loadCoinOverview } from '@/lib/coins.server';
 
 export const metadata: Metadata = {
-  title: '코인 — ICONS',
+  title: '코인 — 엑스스퀘어',
   description: '보유한 코인과 적립·사용 내역을 확인합니다.',
   robots: { index: false, follow: false },
 };

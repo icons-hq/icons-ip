@@ -64,7 +64,7 @@ export function goodDescriptionText(detail: Pick<GoodDetailContent, 'good' | 'de
 }
 
 export function goodMetaDescription(name: string): string {
-  return `${name} 굿즈의 구성, 고시정보, 리뷰, 배송과 교환·반품 안내를 확인하세요.`;
+  return `${name} 상품의 구성, 고시정보, 리뷰, 배송과 교환·반품 안내를 확인하세요.`;
 }
 
 /** 공개 카탈로그 기준 가격 범위. 옵션이 있으면 옵션 판매가, 없으면 굿즈 판매가다. */
@@ -101,7 +101,7 @@ export function goodOfferAvailability(good: Good): string {
 
 export function productJsonLd(detail: GoodDetailContent, origin: string) {
   const { good, ip } = detail;
-  const url = `${origin}${goodDetailHref(good.id)}`;
+  const url = `${origin}${goodDetailHref(good)}`;
   const prices = goodOfferPrices(good);
   const availability = goodOfferAvailability(good);
   const images = goodImageUrls(detail, origin);
@@ -122,8 +122,8 @@ export function productJsonLd(detail: GoodDetailContent, origin: string) {
 export function breadcrumbJsonLd(detail: Pick<GoodDetailContent, 'good'>, origin: string) {
   const crumbs = [
     { name: '홈', item: `${origin}/` },
-    { name: '굿즈샵', item: `${origin}/shop` },
-    { name: detail.good.name, item: `${origin}${goodDetailHref(detail.good.id)}` },
+    { name: '쇼핑', item: `${origin}/shop` },
+    { name: detail.good.name, item: `${origin}${goodDetailHref(detail.good)}` },
   ];
   return {
     '@context': 'https://schema.org',

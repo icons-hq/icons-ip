@@ -107,7 +107,7 @@ export function currentListingReturnHref(): string {
 
 /**
  * 빈 상태의 둘러보기 링크 — 직전에 보던 굿즈 목록(없으면 굿즈샵)으로 가고, 문구는 그 목적지를 말한다(listingReturnLabel).
- * 서버 화면(주문 목록)에서도 이 부품만 클라이언트로 그린다. children 은 표면을 말하지 않는 문구('굿즈 다시 담기')일 때만 넘긴다.
+ * 서버 화면(주문 목록)에서도 이 부품만 클라이언트로 그린다. children 은 표면을 말하지 않는 문구('상품 다시 담기')일 때만 넘긴다.
  */
 export function ListingReturnLink({ children, className }: { children?: ReactNode; className?: string }) {
   const href = useListingReturnHref();

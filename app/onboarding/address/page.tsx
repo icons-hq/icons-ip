@@ -8,7 +8,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { MANAGER_INVITATION_PATH } from '@/lib/routes';
 
 export const metadata: Metadata = {
-  title: '배송지 등록 — ICONS',
+  title: '배송지 등록 — 엑스스퀘어',
   description: '주문서에서 바로 불러올 배송지를 등록하세요. 지금 건너뛰어도 됩니다.',
   robots: { index: false, follow: false },
 };

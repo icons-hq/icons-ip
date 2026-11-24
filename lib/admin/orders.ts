@@ -87,9 +87,10 @@ export const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<GoodsPaymentAttemptState
  * 주문의 토스 가상계좌(무통장입금) 입금 정보 — `admin_order_virtual_account`(sales.read)가 돌려준다(ADR-0049).
  * 계좌번호는 결제사가 주문마다 발급한 수납 계좌라 구매자 개인정보가 아니지만, 주문 본인과 운영자에게만 보인다.
  * state: awaiting(입금 기한 전 입금 대기) · deposited(입금 확인 = 결제 승인) · checking(기한이 지났거나 결제사 확인이
- * 끝나지 않음 — 자동 재확인이 닫는다) · closed(입금 없이 반납·취소·만료로 닫힘).
+ * 끝나지 않음 — 자동 재확인이 닫는다) · reversed(입금 통보 뒤 은행이 입금을 취소해 재입금을 기다림 — ADR-0049 결정 4) ·
+ * closed(입금 없이 반납·취소·만료로 닫힘).
  */
-export const ADMIN_VIRTUAL_ACCOUNT_STATES = ['awaiting', 'deposited', 'checking', 'closed'] as const;
+export const ADMIN_VIRTUAL_ACCOUNT_STATES = ['awaiting', 'deposited', 'reversed', 'checking', 'closed'] as const;
 export type AdminVirtualAccountState = (typeof ADMIN_VIRTUAL_ACCOUNT_STATES)[number];
 
 /**
@@ -131,7 +132,8 @@ export const ADMIN_ESCROW_MANUAL_REQUIRED_HINT =
 /**
  * 가상계좌 환불의 은행 송금 감시(private.virtual_account_refund_watches, ADR-0049 결정 5 보강). 환불(결제 취소) 뒤 은행이 영업일 2일 안에
  * 고객 계좌로 송금한다. pending: 송금 확인 전 · completed: 송금 완료 · failed: 송금 실패·7일째 확인 안 됨·결제사 기록 불일치 ·
- * resolved: 운영자가 결제사 밖에서 끝내고 처리 완료로 표시.
+ * resolved: 운영자가 결제사 밖에서 끝내고 처리 완료로 표시. completed의 completedVia 'escrow_buyer_cancel'은 에스크로 구매자 취소 환불을
+ * 토스가 송금 상태를 알리지 않은 채 7일이 지나 시스템이 닫은 것이다(20261125130000).
  */
 export const ADMIN_VIRTUAL_ACCOUNT_REFUND_STATES = ['pending', 'completed', 'failed', 'resolved'] as const;
 export type AdminVirtualAccountRefundState = (typeof ADMIN_VIRTUAL_ACCOUNT_REFUND_STATES)[number];
@@ -148,6 +150,8 @@ export interface AdminVirtualAccountRefundWatch {
   checkedAt: string | null;
   /** 운영자가 처리 완료로 표시하며 남긴 사유. */
   resolutionNote: string | null;
+  /** 완료 근거. escrow_buyer_cancel: 에스크로 구매자 취소 환불을 7일 뒤 시스템이 닫음. 결제사가 송금 완료를 알렸으면 null. */
+  completedVia: 'escrow_buyer_cancel' | null;
 }
 
 export const ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS: Record<AdminVirtualAccountRefundState, string> = {
@@ -171,6 +175,21 @@ export const ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS: Record<AdminVirtualAccountRefun
   failed: '고객에게 환불금이 가지 않았을 수 있습니다. 토스페이먼츠 상점관리자에서 이 결제의 환불 상태를 확인해 다시 환불하고 고객에게 안내해주세요. 상점관리자에서 다시 환불하면 시스템이 조회해 저절로 완료로 바꿉니다. 회사 계좌에서 직접 보내는 등 결제사 밖에서 끝냈다면 [처리 완료로 표시]를 누르고 처리 내용을 남겨주세요.',
   resolved: '운영자가 결제사 밖에서 환불을 끝내고 처리 완료로 표시했습니다.',
 };
+
+/** 에스크로 구매자 취소 환불을 시스템이 닫았을 때의 상태 이름과 안내. */
+export const ADMIN_VIRTUAL_ACCOUNT_REFUND_ESCROW_LABEL = '토스 에스크로 환불로 닫힘';
+export const ADMIN_VIRTUAL_ACCOUNT_REFUND_ESCROW_HINT =
+  '구매자가 토스페이먼츠에 낸 구매안전서비스(에스크로) 취소 요청을 수락해, 토스페이먼츠가 구매자가 등록한 계좌로 환불했습니다. 토스페이먼츠가 은행 송금 결과를 따로 알려주지 않아 환불 7일 뒤 시스템이 완료로 닫았습니다. 고객이 환불금을 받지 못했다고 하면 토스페이먼츠 상점관리자에서 이 결제의 환불 내역을 확인해주세요.';
+
+/** 환불 송금 상태 이름 — 에스크로 구매자 취소 환불을 시스템이 닫았으면 그렇게 쓴다. */
+export function adminVirtualAccountRefundStateLabel(refund: Pick<AdminVirtualAccountRefundWatch, 'state' | 'completedVia'>): string {
+  return refund.completedVia === 'escrow_buyer_cancel' ? ADMIN_VIRTUAL_ACCOUNT_REFUND_ESCROW_LABEL : ADMIN_VIRTUAL_ACCOUNT_REFUND_STATE_LABELS[refund.state];
+}
+
+/** 환불 송금 상태별 다음 일(실패는 VirtualAccountRefundNotice가 보인다). */
+export function adminVirtualAccountRefundHint(refund: Pick<AdminVirtualAccountRefundWatch, 'state' | 'completedVia'>): string {
+  return refund.completedVia === 'escrow_buyer_cancel' ? ADMIN_VIRTUAL_ACCOUNT_REFUND_ESCROW_HINT : ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS[refund.state];
+}
 
 export interface AdminOrderVirtualAccount {
   /** 토스 은행 코드(2·3자리). 화면은 tossBankLabel로 은행 이름을 보인다. */
@@ -211,6 +230,7 @@ export function adminTransferEscrowLabel(useEscrow: boolean | null): string {
 export const ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS: Record<AdminVirtualAccountState, string> = {
   awaiting: '입금 대기',
   deposited: '입금 완료',
+  reversed: '입금 취소됨 · 재입금 대기',
   checking: '입금 확인 중',
   closed: '입금 없이 닫힘',
 };
@@ -219,6 +239,7 @@ export const ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS: Record<AdminVirtualAccountState
 export const ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS: Record<AdminVirtualAccountState, string> = {
   awaiting: '고객이 입금하면 결제사 확인 뒤 자동으로 결제완료(신규주문)가 됩니다. 입금 기한까지 입금이 없으면 주문이 자동 취소되고 재고·쿠폰·적립금이 돌아갑니다.',
   deposited: '결제사가 입금을 확인해 결제가 확정됐습니다. 입금 뒤 환불은 고객 환불 계좌로 보내므로, 취소·반품에서 환불 계좌(은행·계좌번호·예금주)가 있어야 합니다.',
+  reversed: '결제사가 입금을 알린 뒤 은행이 그 입금을 취소했습니다. 시스템이 고객에게 같은 계좌로 다시 입금하라고 안내했고, 출고는 보류돼 있습니다. 다시 입금되면 보류가 자동으로 풀리고, 입금 기한이 지나도 입금이 없으면 계좌를 반납하고 주문을 자동 취소합니다(재고·쿠폰·적립금 복원, 환불 없음).',
   checking: '입금 기한이 지났거나 결제사 확인이 아직 끝나지 않았습니다. 시스템이 결제사에 다시 조회해 입금이 있으면 결제완료, 없으면 주문 취소로 닫습니다. 입금 기한이 2시간 넘게 지나도 그대로면 판매자 정보 → 시스템 상태의 미종결 결제에 보입니다.',
   closed: '입금 없이 계좌가 반납·만료돼 닫힌 결제입니다. 이 계좌로는 더 입금되지 않습니다.',
 };
@@ -257,14 +278,15 @@ function parseAdminOrderEscrowJob(value: unknown): AdminOrderEscrowJob | null | 
 function parseAdminVirtualAccountRefundWatch(value: unknown): AdminVirtualAccountRefundWatch | null | undefined {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const { state, failureCode, refundedAt, checkedAt, resolutionNote } = value as Record<string, unknown>;
+  const { state, failureCode, refundedAt, checkedAt, resolutionNote, completedVia } = value as Record<string, unknown>;
   const time = (input: unknown) => typeof input === 'string' && Number.isFinite(Date.parse(input));
   if (typeof state !== 'string' || !VIRTUAL_ACCOUNT_REFUND_STATE_SET.has(state)
     || (failureCode !== null && failureCode !== undefined && (typeof failureCode !== 'string' || !VIRTUAL_ACCOUNT_REFUND_FAILURE_SET.has(failureCode)))
     || (state === 'failed' && typeof failureCode !== 'string')
     || !time(refundedAt)
     || (checkedAt !== null && checkedAt !== undefined && !time(checkedAt))
-    || (resolutionNote !== null && resolutionNote !== undefined && typeof resolutionNote !== 'string')) {
+    || (resolutionNote !== null && resolutionNote !== undefined && typeof resolutionNote !== 'string')
+    || (completedVia !== null && completedVia !== undefined && (completedVia !== 'escrow_buyer_cancel' || state !== 'completed'))) {
     return undefined;
   }
   return {
@@ -273,6 +295,7 @@ function parseAdminVirtualAccountRefundWatch(value: unknown): AdminVirtualAccoun
     refundedAt: refundedAt as string,
     checkedAt: typeof checkedAt === 'string' ? checkedAt : null,
     resolutionNote: typeof resolutionNote === 'string' ? resolutionNote : null,
+    completedVia: completedVia === 'escrow_buyer_cancel' ? 'escrow_buyer_cancel' : null,
   };
 }
 

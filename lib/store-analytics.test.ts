@@ -12,6 +12,10 @@ describe('optional store analytics privacy boundary',()=>{
   expect(analyticsPage('/shop',new URLSearchParams('category=personal-data&icm=raw-token'))).toEqual({kind:'shop',target:'all',linkToken:null});
   expect(analyticsPage('/shop/email@example.test',new URLSearchParams())).toBeNull();
   expect(analyticsPage('/stories/'+id,new URLSearchParams())?.kind).toBe('story');
+  /* 상품 상세 주소 끝은 상품 자동코드의 소문자형(`._-` 포함, ADR-0050)이다. 서버가 내부 id로 바꿔 기록한다. */
+  expect(analyticsPage('/shop/hsq-0059',new URLSearchParams())).toEqual({kind:'good',target:'hsq-0059',linkToken:null});
+  expect(analyticsPage('/shop/wh.12_a-3',new URLSearchParams())).toEqual({kind:'good',target:'wh.12_a-3',linkToken:null});
+  expect(analyticsPage('/ip/wh.12_a-3',new URLSearchParams())).toBeNull();
  });
  it('never sends unknown UTM or referrer path/query and rejects lookalike hosts',()=>{
   expect(analyticsAcquisition(new URLSearchParams('utm_source=person%40example.test&utm_campaign=secret&utm_term=phone'), 'https://naver.com/search?email=private','https://iconsip.com')).toEqual({channel:'search',source:'naver',medium:'organic'});

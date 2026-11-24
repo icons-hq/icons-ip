@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ pathname: '/admin' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 
-function render(role = 'staff', consoleId: 'shopping' | 'card' | 'game' = 'shopping') {
+function render(role = 'staff', consoleId: 'shopping' | 'card' = 'shopping') {
   return renderToStaticMarkup(
     <SidebarProvider><AdminSidebar role={role} console={consoleId} /></SidebarProvider>,
   );
@@ -47,29 +47,27 @@ describe('AdminSidebar 2단 메뉴', () => {
   });
 
   it('현재 화면만 aria-current를 단다', () => {
-    mocks.pathname = '/admin/catalog/pools';
+    mocks.pathname = '/admin/community/moderation';
     const html = render('staff', 'card');
 
     expect(html).toContain('aria-current="page"');
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
   });
 
-  /* 1014-074: 사이드바는 칸(쇼핑·카드·게임)별로 나뉘고 서로의 메뉴를 섞지 않는다. IP·이벤트·티켓 회차·검표는 쇼핑 칸이다. */
-  it('쇼핑·카드·게임 칸은 서로의 메뉴를 섞지 않는다', () => {
+  /* 1014-074: 사이드바는 칸별로 나뉘고 서로의 메뉴를 섞지 않는다. IP·이벤트·티켓 회차·검표는 쇼핑 칸이다.
+     카드·게임 칸의 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 남은 쇼핑 밖 칸은 커뮤니티(칸 ID 'card')다. */
+  it('쇼핑·커뮤니티 칸은 서로의 메뉴를 섞지 않고, 지운 카드·게임 화면 링크는 어디에도 없다', () => {
+    const removed = ['/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/policies', '/admin/catalog/grants', '/admin/catalog/games'];
     const shopping = render();
     for (const href of ['/admin/catalog/goods', '/admin/catalog/ips', '/admin/catalog/events', '/admin/catalog/ticket-types', '/admin/check-in']) expect(shopping).toContain(`href="${href}"`);
-    for (const href of ['/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/games', '/admin/community/moderation']) expect(shopping).not.toContain(`href="${href}"`);
+    for (const href of [...removed, '/admin/community/moderation']) expect(shopping).not.toContain(`href="${href}"`);
     expect(shopping).toContain('aria-label="관리자 메뉴"');
-    const card = render('staff', 'card');
-    for (const href of ['/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/policies', '/admin/catalog/grants', '/admin/community/moderation', '/admin/guide']) expect(card).toContain(`href="${href}"`);
-    for (const href of ['/admin/catalog/goods', '/admin/catalog/ips', '/admin/catalog/games', '/admin/check-in']) expect(card).not.toContain(`href="${href}"`);
-    expect(card).not.toContain('data-admin-nav-screen="overview"');
-    expect(card).toContain('aria-label="카드 운영 메뉴"');
-    expect(card).toContain('ICONS 카드 운영');
-    const game = render('staff', 'game');
-    expect(game).toContain('href="/admin/catalog/games"');
-    expect(game).not.toContain('href="/admin/catalog/cards"');
-    expect(game).toContain('aria-label="게임 운영 메뉴"');
+    const community = render('staff', 'card');
+    for (const href of ['/admin/community/moderation', '/admin/guide']) expect(community).toContain(`href="${href}"`);
+    for (const href of [...removed, '/admin/catalog/goods', '/admin/catalog/ips', '/admin/check-in']) expect(community).not.toContain(`href="${href}"`);
+    expect(community).not.toContain('data-admin-nav-screen="overview"');
+    expect(community).toContain('aria-label="커뮤니티 운영 메뉴"');
+    expect(community).toContain('엑스스퀘어 커뮤니티 운영');
   });
 
   /* ADM-016 #1·#16: 즐겨찾기 별은 Tab 정지가 아니라 방향키로 닿고, 별은 24px 이상이다. */

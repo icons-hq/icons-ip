@@ -13,7 +13,7 @@ export const INQUIRY_CATEGORIES = [
   /* "취소/반품/교환"에 관한 질문이다. 클레임 레코드 자체가 아니다 —
      실제 접수는 주문 상세의 청약철회 경로가 담당한다. */
   { id: 'claim', label: '취소/반품/교환' },
-  { id: 'good', label: '굿즈' },
+  { id: 'good', label: '상품' },
   { id: 'account', label: '계정' },
   { id: 'etc', label: '기타' },
 ] as const;
@@ -25,7 +25,7 @@ export function inquiryMessageAuthor(value:unknown):InquiryMessageAuthor {
   return value==='staff'||value==='system'?value:'user';
 }
 export function inquiryMessageAuthorLabel(author:InquiryMessageAuthor,name:string|null,userLabel='내 문의') {
-  return author==='system'?'자동 안내':author==='staff'?(name??'ICONS 운영자'):userLabel;
+  return author==='system'?'자동 안내':author==='staff'?(name??'엑스스퀘어 운영자'):userLabel;
 }
 
 export const INQUIRY_CATEGORY_IDS = INQUIRY_CATEGORIES.map((category) => category.id);

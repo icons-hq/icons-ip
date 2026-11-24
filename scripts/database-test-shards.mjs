@@ -163,6 +163,8 @@ const catalog = [
   sql('goods_base_revision'),
   // 긴 상세 이미지 여러 장(첫 장 거울·옛 한 장 저장·claim·복제·임시저장)과 업로드 확인 거절 사유 기록.
   sql('goods_detail_image_paths'),
+  // 상품 표시문구 여러 개(첫 값 거울·옛 한 값 저장·기본 칸 버전·복제·전시·검색 투영, migration 20261125140000).
+  sql('goods_multi_badges'),
   // 공개 Data API의 상품·옵션 읽기 경계(초안·보관·19금 비노출, 고객 화면 좁은 읽기 RPC).
   sql('goods_public_read_visibility', { kc: true }),
   sql('admin_body_templates', { admin: true }),
@@ -281,6 +283,8 @@ const storefront = [
   sql('toss_escrow_key_transfer_partial_cancel'),
   // 가상계좌 환불 후속: 환급 계좌 입력·변경과 취소 재시도, 은행 환불 감시(실패·지연·처리 완료), 계좌이체 에스크로 운영자 조회.
   sql('virtual_account_refund_followups'),
+  // 가상계좌 입금 오류 되돌림 자동 처리: 감지·재입금 해제·자동 재확인·기한 뒤 반납 취소(환불 없음)·발송 주문 확인 필요·취소 요청 경로.
+  sql('toss_virtual_account_deposit_reversal'),
   // 운영 알림 요약 메일: 새 문의·답변 지연·시스템 장애를 한 통으로(커서·지연 1회·범주·전용 dispatcher gate).
   sql('ops_alert_digest'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),

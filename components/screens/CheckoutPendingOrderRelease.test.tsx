@@ -22,7 +22,7 @@ const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap((chil
 const ORDER = '00000000-0000-4000-8000-0000000000e1';
 const OTHER = '00000000-0000-4000-8000-0000000000e2';
 const VARIANT = '00000000-0000-4000-8000-0000000000aa';
-const unpaid = { id: ORDER, orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 3, goodIds: ['g1', 'g9'], variantIds: [VARIANT],
+const unpaid = { id: ORDER, orderNumber: '2026111210000001', total: 23000, itemName: '상품 A', itemCount: 3, goodIds: ['g1', 'g9'], variantIds: [VARIANT],
   userCouponIds: [], releasable: true };
 const onReleased = vi.fn();
 let props: Omit<CheckoutPendingOrderReleaseProps, 'onReleased'> = { causes: { limitGoodIds: ['g1'] } };
@@ -67,14 +67,14 @@ describe('CheckoutPendingOrderRelease', () => {
     await load();
     const markup = html();
     expect(markup).toContain('<div class="checkout-pending-release">');
-    expect(markup).toContain('결제 대기 주문 1건이 이 굿즈의 구매 한도를 잡고 있어요.');
+    expect(markup).toContain('결제 대기 주문 1건이 이 상품의 구매 한도를 잡고 있어요.');
     expect(markup).toContain(`<a class="checkout-pending-release__link" href="/orders/${ORDER}">결제 대기 주문 보기</a>`);
     expect(markup).toContain('<button class="wc-btn" type="button">결제 대기 주문 취소하고 계속</button>');
     /* 화면을 여는 것만으로는 아무것도 닫지 않는다. */
     expect(actions.release).not.toHaveBeenCalled();
   });
 
-  it('누르면 취소될 주문(주문번호·굿즈·금액)과 청구·결제창 안내를 보이는 확인 단계를 열고, 아직 닫지 않는다', async () => {
+  it('누르면 취소될 주문(주문번호·상품·금액)과 청구·결제창 안내를 보이는 확인 단계를 열고, 아직 닫지 않는다', async () => {
     await load();
     await click('결제 대기 주문 취소하고 계속');
     const markup = html();
@@ -82,7 +82,7 @@ describe('CheckoutPendingOrderRelease', () => {
     expect(markup).toContain('결제하지 않은 주문 1건을 취소할까요?');
     expect(markup).toContain('청구된 금액은 없고, 다른 창에서 진행 중인 결제는 끝나요.');
     expect(markup).toContain('주문번호 2026111210000001');
-    expect(markup).toContain('굿즈 A 외 2건');
+    expect(markup).toContain('상품 A 외 2건');
     expect(markup).toContain('₩23,000');
     expect(actions.release).not.toHaveBeenCalled();
     /* 돌아가기는 확인 단계만 닫는다. */
@@ -134,18 +134,18 @@ describe('CheckoutPendingOrderRelease', () => {
     expect(html()).toContain('주문을 취소하지 못했어요');
   });
 
-  it('재고 부족은 그 굿즈를 담은 결제 대기 주문만 원인으로 알린다', async () => {
+  it('재고 부족은 그 상품을 담은 결제 대기 주문만 원인으로 알린다', async () => {
     props = { causes: { stockGoodIds: ['g5'] } };
     await load();
     expect(html()).toBe('');
     hooks.states = [];
     props = { causes: { stockGoodIds: ['g9'] } };
     await load();
-    expect(html()).toContain('결제 대기 주문 1건이 이 굿즈의 재고를 잡고 있어요.');
+    expect(html()).toContain('결제 대기 주문 1건이 이 상품의 재고를 잡고 있어요.');
   });
 
   /* t12b(UI 재리뷰): g4의 회원 누적 한도로 막혔는데 g4와 무관한 g7 결제 대기 주문의 취소를 권했다(취소해도 g4는 그대로 막힌다). */
-  it('회원 누적 한도로 막힌 굿즈를 담지 않은 결제 대기 주문은 권하지 않는다 — 사유만 남는다', async () => {
+  it('회원 누적 한도로 막힌 상품을 담지 않은 결제 대기 주문은 권하지 않는다 — 사유만 남는다', async () => {
     actions.load.mockResolvedValue({ ok: true, orders: [{ ...unpaid, goodIds: ['g7'], variantIds: [] }] });
     props = { causes: { limitGoodIds: ['g4'] } };
     await load();

@@ -62,7 +62,7 @@ function tossPayload() {
     customerKey: 'ANONYMOUS',
     variantKey: 'ICONS',
     orderId: 'O0123456789abcdef0123456789abcdef',
-    orderName: 'ICONS 굿즈 주문',
+    orderName: '엑스스퀘어 상품 주문',
     amount: 42_000,
     currency: 'KRW',
     successUrl: 'https://iconsip.com/api/payments/goods/confirm/toss/nonce-1',
@@ -221,7 +221,7 @@ describe('mountTossPaymentWidgets', () => {
     expect(sdk.requestPayment).toHaveBeenCalledOnce();
     expect(sdk.requestPayment).toHaveBeenCalledWith({
       orderId: 'O0123456789abcdef0123456789abcdef',
-      orderName: 'ICONS 굿즈 주문',
+      orderName: '엑스스퀘어 상품 주문',
       successUrl: 'https://iconsip.com/api/payments/goods/confirm/toss/nonce-1',
       failUrl: 'https://iconsip.com/checkout',
     });

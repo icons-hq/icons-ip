@@ -7,8 +7,8 @@ import { isInquiryCategory, isRestrictedMemberInquiryCategory, RESTRICTED_MEMBER
 import { resolveInquiryLinkTargets } from '@/lib/inquiries.server';
 
 export const metadata: Metadata = {
-  title: '문의하기 — ICONS',
-  description: '주문·배송, 취소/반품/교환, 굿즈, 계정에 대해 운영자에게 문의하세요.',
+  title: '문의하기 — 엑스스퀘어',
+  description: '주문·배송, 취소/반품/교환, 상품, 계정에 대해 운영자에게 문의하세요.',
   robots: { index: false, follow: false },
 };
 

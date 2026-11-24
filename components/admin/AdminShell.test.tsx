@@ -60,28 +60,30 @@ describe('AdminShell', () => {
     expect(html).toContain('value="/admin/cs/chat?inquiry=case-a"');
   });
 
-  /* 1014-074·075: 상단 전환은 쇼핑 | 카드 | 게임. 카드·게임은 이름 붙은 새 창이고, 칸은 경로가 정한다. */
-  it('상단에서 쇼핑·카드·게임을 전환하고 카드·게임은 새 창으로 연다', () => {
+  /* 1014-074·075의 쇼핑 | 카드 | 게임 전환에서 카드·게임 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052).
+     남은 전환은 쇼핑 | 커뮤니티(칸 ID 'card')이고, 커뮤니티는 이름 붙은 새 창이며 칸은 경로가 정한다. */
+  it('상단에서 쇼핑·커뮤니티를 전환하고 커뮤니티는 새 창으로 연다', () => {
     const html = render();
     expect(html).toContain('aria-label="콘솔 전환"');
     expect(html).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="shopping" href="\/admin">쇼핑<\/a>/);
-    expect(html).toMatch(/<a class="[^"]*" data-admin-console-link="card" target="icons-admin-card" href="\/admin\/catalog\/cards">카드<span class="sr-only"> \(새 창\)<\/span><\/a>/);
-    expect(html).toMatch(/<a class="[^"]*" data-admin-console-link="game" target="icons-admin-game" href="\/admin\/catalog\/games">게임<span class="sr-only"> \(새 창\)<\/span><\/a>/);
+    expect(html).toMatch(/<a class="[^"]*" data-admin-console-link="card" target="icons-admin-card" href="\/admin\/community\/moderation">커뮤니티<span class="sr-only"> \(새 창\)<\/span><\/a>/);
+    expect(html).not.toContain('data-admin-console-link="game"');
     expect(html).toContain('data-admin-console="shopping"');
 
-    mocks.pathname = '/admin/catalog/cards';
-    const card = render(<p>카드</p>);
-    expect(card).toContain('data-admin-console="card"');
-    expect(card).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="card" href="\/admin\/catalog\/cards">카드<\/a>/);
-    /* 쇼핑으로 돌아가는 링크는 같은 창이다. 게임 칸은 자기 이름의 창을 다시 쓴다. */
-    expect(card).toMatch(/<a class="[^"]*" data-admin-console-link="shopping" href="\/admin">쇼핑<\/a>/);
-    expect(card).toContain('target="icons-admin-game"');
-    expect(card).toContain('aria-label="카드 운영 메뉴"');
-    expect(card).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="cards"/);
-    expect(card).toContain('>카드 운영</a>');
+    mocks.pathname = '/admin/community/moderation';
+    const community = render(<p>커뮤니티</p>);
+    expect(community).toContain('data-admin-console="card"');
+    expect(community).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="card" href="\/admin\/community\/moderation">커뮤니티<\/a>/);
+    /* 쇼핑으로 돌아가는 링크는 같은 창이다. */
+    expect(community).toMatch(/<a class="[^"]*" data-admin-console-link="shopping" href="\/admin">쇼핑<\/a>/);
+    expect(community).toContain('aria-label="커뮤니티 운영 메뉴"');
+    expect(community).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="moderation"/);
 
-    mocks.pathname = '/admin/catalog/games';
-    expect(render(<p>게임</p>)).toContain('data-admin-console="game"');
+    /* 지운 카드·게임 화면 주소는 어드민 안의 없는 주소처럼 쇼핑 셸 안에 뜬다. */
+    for (const pathname of ['/admin/catalog/cards', '/admin/catalog/games']) {
+      mocks.pathname = pathname;
+      expect(render(<p>없음</p>)).toContain('data-admin-console="shopping"');
+    }
     /* IP·이벤트·티켓 회차는 (content) route group에 있어도 쇼핑 칸이다. */
     mocks.pathname = '/admin/catalog/ips';
     const ips = render(<p>IP</p>);
@@ -94,19 +96,19 @@ describe('AdminShell', () => {
     expect(missing).toContain('aria-label="관리자 메뉴"');
   });
 
-  it('현재 위치는 카드·게임 칸에서 칸 이름을 메뉴 그룹으로 다시 적지 않고, 쇼핑은 메뉴 그룹을 적는다', () => {
+  it('현재 위치는 커뮤니티 칸에서 칸 이름을 메뉴 그룹으로 다시 적지 않고, 쇼핑은 메뉴 그룹을 적는다', () => {
     const crumbs = (html: string) => html.slice(html.indexOf('>', html.indexOf('aria-label="현재 위치"')) + 1, html.indexOf('</nav>', html.indexOf('aria-label="현재 위치"')))
       .replace(/<[^>]+>/g, '|').split('|').map((part) => part.trim()).filter((part) => part && part !== '›');
 
-    mocks.pathname = '/admin/catalog/cards';
-    const content = render(<p>카드</p>);
-    expect(crumbs(content)).toEqual(['카드 운영', '카드']);
+    mocks.pathname = '/admin/community/moderation';
+    const content = render(<p>커뮤니티</p>);
+    expect(crumbs(content)).toEqual(['커뮤니티 운영', '커뮤니티 관리']);
 
     mocks.pathname = '/admin/sales/orders';
     expect(crumbs(render())).toEqual(['홈', '주문관리', '주문통합검색']);
   });
 
-  it('카드·게임 화면을 볼 수 없는 역할에는 콘솔 전환을 만들지 않는다', () => {
+  it('커뮤니티 화면을 볼 수 없는 역할에는 콘솔 전환을 만들지 않는다', () => {
     const limited = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'deputy' as const, capabilities: ['home', 'catalog.read', 'cs.manage'] as ('home' | 'catalog.read' | 'cs.manage')[], revision: 1, setupRequired: false } };
     const html = renderToStaticMarkup(<AdminShell admin={limited}><p>본문</p></AdminShell>);
     expect(html).not.toContain('aria-label="콘솔 전환"');
@@ -128,8 +130,8 @@ describe('AdminShell', () => {
     expect(commerce).toContain('data-inquiry-notifier="admin-1"');
     expect(commerce.indexOf('data-inquiry-notifier')).toBeGreaterThan(commerce.indexOf('</main>'));
 
-    mocks.pathname = '/admin/catalog/cards';
-    expect(render(<p>카드</p>)).not.toContain('data-inquiry-notifier');
+    mocks.pathname = '/admin/community/moderation';
+    expect(render(<p>커뮤니티</p>)).not.toContain('data-inquiry-notifier');
 
     const logistics = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'logistics' as const, capabilities: ['home'] as ('home')[], revision: 1, setupRequired: false } };
     mocks.pathname = '/admin';

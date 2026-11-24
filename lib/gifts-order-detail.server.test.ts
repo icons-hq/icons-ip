@@ -14,7 +14,7 @@ const ORDER_B = '22222222-2222-4222-8222-222222222222';
 
 function gift(id: string, orderId: string, status: string) {
   return {
-    id, createdAt: '2026-10-27T00:00:00.000Z', items: [{ name: '선물 굿즈', qty: 1 }],
+    id, createdAt: '2026-10-27T00:00:00.000Z', items: [{ name: '선물 상품', qty: 1 }],
     order: { id: orderId, status, total: 12000, createdAt: '2026-10-27T00:00:00.000Z', paymentMethod: 'card' },
   };
 }
@@ -66,14 +66,14 @@ describe('loadGiftOrderList lines', () => {
   const withItems = (id: string, orderId: string) => ({
     ...gift(id, orderId, 'paid'),
     items: [
-      { goodId: 'good-1', variantId: VARIANT, name: '선물 굿즈', variantName: '파랑', qty: 2, imagePath: 'goods/gift.webp', customInputs: null },
-      { goodId: 'good-2', variantId: VARIANT, name: '다른 굿즈', variantName: '기본 옵션', qty: 1, imagePath: null, customInputs: null },
+      { goodId: 'good-1', variantId: VARIANT, name: '선물 상품', variantName: '파랑', qty: 2, imagePath: 'goods/gift.webp', customInputs: null },
+      { goodId: 'good-2', variantId: VARIANT, name: '다른 상품', variantName: '기본 옵션', qty: 1, imagePath: null, customInputs: null },
     ],
   });
 
   it('withLines면 선물 품목으로 줄 입력을 만들어(이미지 경로 우선, 가격은 영수증에서) 주문에 붙인다', async () => {
     mocks.loadGifts.mockResolvedValue({ items: [withItems('gift-a', ORDER_A), withItems('gift-b', ORDER_B)], hasMore: false });
-    const lineA = [{ key: `good-1:${VARIANT}`, goodId: 'good-1', name: '선물 굿즈' }];
+    const lineA = [{ key: `good-1:${VARIANT}`, goodId: 'good-1', name: '선물 상품' }];
     mocks.lines.mockResolvedValue(new Map([[ORDER_A, lineA]]));
 
     const orders = await loadGiftOrderList(false, { withLines: true });
@@ -81,8 +81,8 @@ describe('loadGiftOrderList lines', () => {
     expect(mocks.lines).toHaveBeenCalledTimes(1);
     expect(mocks.lines.mock.calls[0][1]).toEqual([
       { orderId: ORDER_A, tryReceipt: true, items: [
-        { key: `good-1:${VARIANT}`, goodId: 'good-1', variantId: VARIANT, name: '선물 굿즈', optionName: '파랑', qty: 2, unitPrice: null, imagePath: 'goods/gift.webp' },
-        { key: `good-2:${VARIANT}`, goodId: 'good-2', variantId: VARIANT, name: '다른 굿즈', optionName: '기본 옵션', qty: 1, unitPrice: null, imagePath: null },
+        { key: `good-1:${VARIANT}`, goodId: 'good-1', variantId: VARIANT, name: '선물 상품', optionName: '파랑', qty: 2, unitPrice: null, imagePath: 'goods/gift.webp' },
+        { key: `good-2:${VARIANT}`, goodId: 'good-2', variantId: VARIANT, name: '다른 상품', optionName: '기본 옵션', qty: 1, unitPrice: null, imagePath: null },
       ] },
       expect.objectContaining({ orderId: ORDER_B, tryReceipt: true }),
     ]);
@@ -117,12 +117,12 @@ describe('loadGiftOrderDetail lines·provider', () => {
     const lines = [{ key: transactionLineId }];
     mocks.lines.mockResolvedValue(new Map([[ORDER_A, lines]]));
     const result = { kind: 'gift', order: { id: ORDER_A, status: 'paid', deliveredAt: null, transaction: transactionDisplay, giftId: 'gift-a',
-      items: [{ id: transactionLineId, goodId: 'transaction-good', variantId: transactionDisplay.lines[0].variantId, variantName: '파랑', name: '선물 굿즈', qty: 2, unitPrice: 10000 }] } } as unknown as Extract<GiftCheckoutOrderResult, { kind: 'gift' }>;
+      items: [{ id: transactionLineId, goodId: 'transaction-good', variantId: transactionDisplay.lines[0].variantId, variantName: '파랑', name: '선물 상품', qty: 2, unitPrice: 10000 }] } } as unknown as Extract<GiftCheckoutOrderResult, { kind: 'gift' }>;
 
     const detail = await loadGiftOrderDetail('user-1', result);
 
     expect(mocks.lines).toHaveBeenCalledWith(expect.anything(), [{ orderId: ORDER_A, tryReceipt: false, receipt: transactionDisplay,
-      items: [{ key: transactionLineId, lineId: transactionLineId, goodId: 'transaction-good', variantId: transactionDisplay.lines[0].variantId, name: '선물 굿즈', optionName: '파랑', qty: 2, unitPrice: 10000 }] }]);
+      items: [{ key: transactionLineId, lineId: transactionLineId, goodId: 'transaction-good', variantId: transactionDisplay.lines[0].variantId, name: '선물 상품', optionName: '파랑', qty: 2, unitPrice: 10000 }] }]);
     expect(detail.lines).toBe(lines);
     expect(detail.payment).toEqual({ amount: 16000, status: 'paid', createdAt: '2026-10-27T00:01:00.000Z', provider: 'toss' });
   });

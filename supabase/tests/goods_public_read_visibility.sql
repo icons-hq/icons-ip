@@ -18,6 +18,8 @@ begin;
 --      값을 돌려주지 않는다(검토한 목록 고정 + 행동 단언).
 --   7. 선물 랜덤 판매 여부 RPC는 로그인 회원에게만, 공개 상품이거나 본인 선물(보낸·받은·초대 세션)
 --      품목일 때만 답한다. 뽑기권 발급 정책은 대상 상품이 보이는 행만 익명·회원에게 열린다.
+--   8. 공개 상품 주소 해석(resolve_public_goods_address, ADR-0050)은 상품 자동코드(대소문자·앞뒤 공백 무시)나
+--      옛 상품 URL(id)을 공개 상품의 id·코드로만 푼다. 19금은 판매 표면이 켜졌을 때만이고 이름·이미지 열은 없다.
 -- ============================================================================
 
 create function pg_temp.gprv_expect_error(statement text, expected text) returns void language plpgsql as $$
@@ -70,9 +72,9 @@ select 1 / case when (
       'public.get_random_option_good_ids(text[],text)'::regprocedure))
 ) then 1 else 0 end as assert_narrow_read_rpcs_are_sealed;
 
--- 가림 카드 RPC는 이름·이미지·배지·설명 열을 돌려주지 않는다.
+-- 가림 카드 RPC는 이미지·배지·설명 열을 돌려주지 않는다. 이름은 MD-0048(20261125150000)부터 돌려준다 — 썸네일만 가린다.
 select 1 / case when (
-  select coalesce(array_agg(name order by name), '{}') = array['category_id','created_at','display_order','id','ip_id','price','stock','stock_qty']
+  select coalesce(array_agg(name order by name), '{}') = array['category_id','created_at','display_order','id','ip_id','name','price','stock','stock_qty']
   from pg_catalog.pg_proc procedure
   cross join lateral unnest(procedure.proargnames, procedure.proargmodes) as argument(name, mode)
   where procedure.oid = 'public.get_masked_adult_goods(text)'::regprocedure and argument.mode = 't'
@@ -260,7 +262,7 @@ select 1 / case when (
 -- 가림 카드: 공개 IP의 게시된 19금만, 카드 열만.
 select 1 / case when (
   (select array_agg(id order by id) from public.get_masked_adult_goods() where id like 'gprv-%') = array['gprv-adult']
-  and (select price = 20000 and ip_id = 'gprv-ip' and stock_qty = 20 from public.get_masked_adult_goods('gprv-adult'))
+  and (select price = 20000 and ip_id = 'gprv-ip' and stock_qty = 20 and name = 'TEST 공개읽기 성인' from public.get_masked_adult_goods('gprv-adult'))
   and not exists (select 1 from public.get_masked_adult_goods('gprv-public'))
   and not exists (select 1 from public.get_masked_adult_goods('gprv-draft'))
   and not exists (select 1 from public.get_masked_adult_goods('gprv-missing'))
@@ -406,6 +408,67 @@ select 1 / case when (
   pg_temp.gprv_visible_goods() = array['gprv-public']
   and pg_temp.gprv_visible_variant_goods() = array['gprv-public']
 ) then 1 else 0 end as assert_expired_adult_evidence_closes_adult_rows;
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- 5. 공개 상품 주소(ADR-0050) — /shop/<값>의 끝 값을 공개 상품의 id·상품 자동코드로만 푼다
+-- ---------------------------------------------------------------------------
+select code as gprv_public_code from public.goods where id = 'gprv-public' \gset
+select code as gprv_adult_code from public.goods where id = 'gprv-adult' \gset
+select code as gprv_draft_code from public.goods where id = 'gprv-draft' \gset
+
+select 1 / case when (
+  has_function_privilege('anon', 'public.resolve_public_goods_address(text)', 'execute')
+  and has_function_privilege('authenticated', 'public.resolve_public_goods_address(text)', 'execute')
+  and not has_function_privilege('service_role', 'public.resolve_public_goods_address(text)', 'execute')
+  and not exists (
+    select 1
+    from pg_catalog.pg_proc as procedure
+    cross join lateral pg_catalog.aclexplode(procedure.proacl) as privilege
+    where procedure.oid = 'public.resolve_public_goods_address(text)'::regprocedure and privilege.grantee = 0
+  )
+  and (select procedure.prosecdef and procedure.provolatile = 's' and procedure.proconfig = array['search_path=""']
+    from pg_catalog.pg_proc as procedure where procedure.oid = 'public.resolve_public_goods_address(text)'::regprocedure)
+  -- id·상품 자동코드만 돌려준다(이름·이미지·가격 없음).
+  and (select coalesce(array_agg(name order by name), '{}') = array['code','id']
+    from pg_catalog.pg_proc procedure
+    cross join lateral unnest(procedure.proargnames, procedure.proargmodes) as argument(name, mode)
+    where procedure.oid = 'public.resolve_public_goods_address(text)'::regprocedure and argument.mode = 't')
+) then 1 else 0 end as assert_goods_address_rpc_is_sealed;
+
+select pg_temp.gprv_actor(0);
+set local role anon;
+select 1 / case when (
+  -- 정식 주소(코드 소문자)·대문자 코드·앞뒤 공백·옛 주소(id)가 모두 같은 공개 상품의 id·코드로 풀린다.
+  (select id from public.resolve_public_goods_address(lower(:'gprv_public_code'))) = 'gprv-public'
+  and (select code from public.resolve_public_goods_address(lower(:'gprv_public_code'))) = :'gprv_public_code'
+  and (select id from public.resolve_public_goods_address(:'gprv_public_code')) = 'gprv-public'
+  and (select id from public.resolve_public_goods_address(' ' || lower(:'gprv_public_code') || ' ')) = 'gprv-public'
+  and (select code from public.resolve_public_goods_address('gprv-public')) = :'gprv_public_code'
+  and (select count(*) from public.resolve_public_goods_address('gprv-public')) = 1
+  -- 19금 판매 표면이 켜져 있으면 인증 전 방문자도 19금 상품의 주소를 푼다(가림 카드·인증 안내와 같은 범위).
+  and (select id from public.resolve_public_goods_address(lower(:'gprv_adult_code'))) = 'gprv-adult'
+  -- 초안·보관·게시 내림·초안 IP 아래·없는 값은 코드로도 id로도 풀리지 않는다.
+  and not exists (select 1 from public.resolve_public_goods_address(lower(:'gprv_draft_code')))
+  and not exists (select 1 from public.resolve_public_goods_address('gprv-draft'))
+  and not exists (select 1 from public.resolve_public_goods_address('gprv-archived'))
+  and not exists (select 1 from public.resolve_public_goods_address('gprv-unpublished'))
+  and not exists (select 1 from public.resolve_public_goods_address('gprv-under-draft-ip'))
+  and not exists (select 1 from public.resolve_public_goods_address('gprv-missing'))
+  and not exists (select 1 from public.resolve_public_goods_address(''))
+  and not exists (select 1 from public.resolve_public_goods_address(null))
+) then 1 else 0 end as assert_goods_address_resolves_only_public_goods;
+reset role;
+
+-- 19금 판매 표면을 끄면 19금 상품의 주소도 풀리지 않는다(상세가 없는 상품으로 보는 것과 같다).
+update private.adult_goods_storefront_settings set enabled = false where singleton;
+select pg_temp.gprv_actor(0);
+set local role anon;
+select 1 / case when (
+  not exists (select 1 from public.resolve_public_goods_address('gprv-adult'))
+  and not exists (select 1 from public.resolve_public_goods_address(lower(:'gprv_adult_code')))
+  and (select id from public.resolve_public_goods_address('gprv-public')) = 'gprv-public'
+) then 1 else 0 end as assert_goods_address_closes_adult_when_storefront_off;
 reset role;
 
 rollback;

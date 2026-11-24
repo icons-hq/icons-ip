@@ -13,7 +13,7 @@ describe('loyalty display aggregate', () => {
         { grade: 'gold', enabled: true, amount: null, itemCount: 2000 },
         { grade: 'platinum', enabled: false, amount: null, itemCount: null },
       ] } }, error: null });
-    expect(await loadLoyaltyStatus()).toEqual({ grade: 'welcome', windowSpend: 9000000, windowItemCount: 1001, nextNote: 'SILVER까지 굿즈 주문 항목 1건' });
+    expect(await loadLoyaltyStatus()).toEqual({ grade: 'welcome', windowSpend: 9000000, windowItemCount: 1001, nextNote: 'SILVER까지 상품 주문 항목 1건' });
     expect(mocks.rpc).toHaveBeenCalledWith('get_my_loyalty_status');
   });
   it('does not report zero spend or stale thresholds when reading fails', async () => {

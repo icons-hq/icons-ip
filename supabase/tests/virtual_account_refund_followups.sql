@@ -1,10 +1,10 @@
 \set ON_ERROR_STOP on
 
 -- 토스 가상계좌 환불 후속(ADR-0049 결정 5 보강) — 20261125110000_virtual_account_refund_followups.sql,
--- 20261125110100_toss_transfer_escrow_admin_view.sql
+-- 20261125110100_toss_transfer_escrow_admin_view.sql, 20261125130000_virtual_account_refund_escrow_autoclose.sql
 -- 고정하는 것: 입금된 가상계좌 주문의 환급 계좌 입력·변경(주문 상세), 환불 계좌 후보 조회, 계좌 입력 뒤 취소 재시도 시작(반품은
 -- 운영자 알림), 은행 환불 감시(열기·고르기·완료·실패·지연·운영자 처리 완료)와 시스템 상태·운영 알림, 계좌이체 에스크로 운영자 조회,
--- 실행 권한 봉인.
+-- 에스크로 구매자 취소 환불의 7일 뒤 시스템 완료, 실행 권한 봉인.
 
 begin;
 
@@ -20,8 +20,11 @@ select 1 / case when
   and not has_function_privilege('anon', 'public.service_begin_virtual_account_refund_retry(uuid)', 'execute')
   and has_function_privilege('service_role', 'public.service_claim_virtual_account_refund_watches(integer)', 'execute')
   and not has_function_privilege('authenticated', 'public.service_claim_virtual_account_refund_watches(integer)', 'execute')
-  and has_function_privilege('service_role', 'public.service_record_virtual_account_refund_watch(uuid,text,text)', 'execute')
-  and not has_function_privilege('authenticated', 'public.service_record_virtual_account_refund_watch(uuid,text,text)', 'execute')
+  and has_function_privilege('service_role', 'public.service_record_virtual_account_refund_watch(uuid,text,text,boolean)', 'execute')
+  and not has_function_privilege('authenticated', 'public.service_record_virtual_account_refund_watch(uuid,text,text,boolean)', 'execute')
+  and not has_function_privilege('anon', 'public.service_record_virtual_account_refund_watch(uuid,text,text,boolean)', 'execute')
+  -- 인자가 늘어 예전 3인자 함수는 지웠다(새 인자는 기본값 null이라 3인자 호출은 그대로 받는다).
+  and to_regprocedure('public.service_record_virtual_account_refund_watch(uuid,text,text)') is null
   and has_function_privilege('authenticated', 'public.admin_resolve_virtual_account_refund_watch(uuid,text)', 'execute')
   and not has_function_privilege('anon', 'public.admin_resolve_virtual_account_refund_watch(uuid,text)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_resolve_virtual_account_refund_watch(uuid,text)', 'execute')
@@ -546,5 +549,127 @@ select pg_temp.as_buyer();
 select pg_temp.expect_error($$select public.admin_order_transfer_escrow('21000000-0000-4000-8000-000000004914')$$,
   'operator_capability_required');
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- 6. 에스크로 구매자 취소 환불(20261125130000) — 토스가 송금 상태를 알리지 않은 채(NONE) 7일이 지나면 시스템이 완료로 닫는다
+--    (4914 결제 시도에 에스크로 가상계좌 원장과 감시를 따로 만든다). 확인이 없거나, 원장이 에스크로가 아니거나, 송금 상태가 있거나,
+--    송금 실패·기록 불일치면 지금 판정 그대로다.
+-- ---------------------------------------------------------------------------
+select set_config('request.jwt.claims', '{}', true);
+select set_config('request.jwt.claim.sub', '', true);
+insert into private.payment_attempt_virtual_accounts(attempt_id, order_id, provider_payment_key, bank_code, account_number, due_at, use_escrow)
+select a.id, a.ref_id, 'esc-key-4914', '20', 'X6505636518314', now() - interval '9 days', true
+from public.payment_attempts a where a.id = '31000000-0000-4000-8000-000000004914';
+insert into private.virtual_account_refund_watches(attempt_id, order_id, payment_id, provider_payment_key, refunded_at)
+select a.id, a.ref_id, a.payment_id, 'esc-key-4914', now() - interval '7 days' + interval '30 minutes'
+from public.payment_attempts a where a.id = '31000000-0000-4000-8000-000000004914';
+select (select count(*) from private.admin_operation_alerts) as alerts_before \gset
+create function pg_temp.reset_escrow_watch(p_state text, p_failure text) returns void language sql as $$
+  update private.virtual_account_refund_watches
+  set state = p_state, failure_code = p_failure, failed_at = case when p_state = 'failed' then now() end,
+      completed_at = null, completed_via = null, refund_status = null
+  where attempt_id = '31000000-0000-4000-8000-000000004914';
+$$;
+
+-- 7일 전에는 확인이 와도 닫지 않고, 다음 조회를 환불 7일 경계에 맞춘다(하루 뒤가 아니다).
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'NONE', true) = 'pending'
+then 1 else 0 end as assert_escrow_not_closed_before_seven_days;
+select 1 / case when (
+  select state = 'pending' and refund_status = 'NONE' and completed_via is null
+    and next_check_at between now() + interval '29 minutes' and now() + interval '31 minutes'
+  from private.virtual_account_refund_watches where attempt_id = '31000000-0000-4000-8000-000000004914'
+) then 1 else 0 end as assert_next_check_aligned_to_seven_days;
+-- 에스크로 확인이 없는 송금 확인 전(PENDING)도 2시간 간격이 7일 경계를 넘지 않는다.
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'PENDING') = 'pending'
+then 1 else 0 end as assert_pending_rescheduled_near_boundary;
+select 1 / case when (
+  select next_check_at between now() + interval '29 minutes' and now() + interval '31 minutes'
+  from private.virtual_account_refund_watches where attempt_id = '31000000-0000-4000-8000-000000004914'
+) then 1 else 0 end as assert_two_hour_check_capped_at_boundary;
+
+-- 7일이 지난 송금 확인 전 감시: 구매자 취소 수락이 확인되면 완료로 닫고 감사 기록만 남긴다(운영 알림·시스템 상태 건수 없음).
+update private.virtual_account_refund_watches set refunded_at = now() - interval '8 days', refund_status = null
+where attempt_id = '31000000-0000-4000-8000-000000004914';
+select 1 / case when (private.system_health_report()->'counts'->>'refundFailures')::integer = :refund_failures_before + 1
+then 1 else 0 end as assert_escrow_pending_counted_until_closed;
+-- 원장이 에스크로가 아니라고 기록한 결제는 확인이 와도 닫지 않는다(DB 근거).
+update private.payment_attempt_virtual_accounts set use_escrow = false where attempt_id = '31000000-0000-4000-8000-000000004914';
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'NONE', true) = 'failed'
+then 1 else 0 end as assert_non_escrow_ledger_not_settled;
+select pg_temp.reset_escrow_watch('pending', null);
+update private.payment_attempt_virtual_accounts set use_escrow = true where attempt_id = '31000000-0000-4000-8000-000000004914';
+select count(*) as alerts_before from private.admin_operation_alerts \gset
+-- 송금 상태 칸이 없어도(null) NONE과 같다.
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', null, true) = 'completed'
+then 1 else 0 end as assert_escrow_buyer_cancel_settled;
+select 1 / case when (
+  select state = 'completed' and completed_via = 'escrow_buyer_cancel' and completed_at is not null and failure_code is null
+  from private.virtual_account_refund_watches where attempt_id = '31000000-0000-4000-8000-000000004914'
+) and exists (
+  select 1 from public.audit_log where action = 'system.order.virtual_account_refund_escrow_settled' and actor_id is null
+    and target = 'order:21000000-0000-4000-8000-000000004914' and diff->>'fromState' = 'pending'
+    and diff->>'basis' = 'escrow_buyer_cancel' and (diff->>'useEscrow')::boolean
+) and (select count(*) from private.admin_operation_alerts) = :alerts_before
+  and (private.system_health_report()->'counts'->>'refundFailures')::integer = :refund_failures_before
+  -- 닫힌 감시는 다시 바꾸지 않는다.
+  and public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'failed', 'FAILED', null) = 'completed'
+then 1 else 0 end as assert_escrow_settlement_audited_without_alert;
+-- 주문 패널은 완료 근거를 싣는다.
+set local role authenticated;
+select pg_temp.as_operator();
+select 1 / case when (public.admin_order_virtual_account('21000000-0000-4000-8000-000000004914'))->'refund'->>'state' = 'completed'
+  and (public.admin_order_virtual_account('21000000-0000-4000-8000-000000004914'))->'refund'->>'completedVia' = 'escrow_buyer_cancel'
+  and (public.admin_order_virtual_account('21000000-0000-4000-8000-000000004912'))->'refund'->'completedVia' = 'null'::jsonb
+then 1 else 0 end as assert_panel_reports_completion_basis;
+reset role;
+select set_config('request.jwt.claims', '{}', true);
+select set_config('request.jwt.claim.sub', '', true);
+
+-- 완료 근거는 완료 상태에만 붙는다.
+select pg_temp.expect_error($$update private.virtual_account_refund_watches set state = 'pending', completed_at = null
+  where attempt_id = '31000000-0000-4000-8000-000000004914'$$, 'virtual_account_refund_watches_completed_via');
+
+-- 송금 상태가 있으면(토스가 송금을 추적한다) 확인이 와도 지금처럼 7일 지연으로 올린다.
+select pg_temp.reset_escrow_watch('pending', null);
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'PENDING', true) = 'failed'
+then 1 else 0 end as assert_tracked_escrow_refund_still_overdue;
+select 1 / case when (select failure_code = 'refund_overdue' from private.virtual_account_refund_watches where attempt_id = '31000000-0000-4000-8000-000000004914')
+  and exists (select 1 from private.admin_operation_alerts where event_key = 'virtual_account_refund_failed:' || '31000000-0000-4000-8000-000000004914')
+then 1 else 0 end as assert_tracked_escrow_refund_alerted;
+-- 이미 지연으로 오른 감시도 송금 상태 NONE과 구매자 취소 확인이 오면 닫는다.
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'NONE', true) = 'completed'
+then 1 else 0 end as assert_overdue_escrow_refund_settled;
+select 1 / case when exists (select 1 from public.audit_log where action = 'system.order.virtual_account_refund_escrow_settled'
+    and target = 'order:21000000-0000-4000-8000-000000004914' and diff->>'fromState' = 'failed' and diff->>'before' = 'refund_overdue')
+then 1 else 0 end as assert_overdue_escrow_settlement_audited;
+
+-- 송금 실패·기록 불일치로 오른 감시는 닫지 않고 처음 사유를 지킨다.
+select pg_temp.reset_escrow_watch('failed', 'refund_failed');
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'NONE', true) = 'failed'
+then 1 else 0 end as assert_failed_escrow_refund_not_settled;
+select 1 / case when (select failure_code = 'refund_failed' and completed_via is null from private.virtual_account_refund_watches
+    where attempt_id = '31000000-0000-4000-8000-000000004914')
+then 1 else 0 end as assert_failed_escrow_refund_keeps_reason;
+select pg_temp.reset_escrow_watch('failed', 'payment_mismatch');
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'NONE', true) = 'failed'
+then 1 else 0 end as assert_mismatch_escrow_refund_not_settled;
+select 1 / case when (select failure_code = 'payment_mismatch' and completed_via is null from private.virtual_account_refund_watches
+    where attempt_id = '31000000-0000-4000-8000-000000004914')
+then 1 else 0 end as assert_mismatch_escrow_refund_keeps_reason;
+-- 결제사 결과가 실패·불일치면 확인이 함께 와도 닫지 않는다.
+select pg_temp.reset_escrow_watch('pending', null);
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'mismatch', 'NONE', true) = 'failed'
+then 1 else 0 end as assert_mismatch_outcome_not_settled;
+select pg_temp.reset_escrow_watch('pending', null);
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'failed', 'NONE', true) = 'failed'
+then 1 else 0 end as assert_failed_outcome_not_settled;
+
+-- 확인이 없으면(false·null, 예전 3인자 호출 포함) 지금처럼 7일 지연이다.
+select pg_temp.reset_escrow_watch('pending', null);
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'NONE', false) = 'failed'
+then 1 else 0 end as assert_unconfirmed_escrow_refund_overdue;
+select pg_temp.reset_escrow_watch('pending', null);
+select 1 / case when public.service_record_virtual_account_refund_watch('31000000-0000-4000-8000-000000004914', 'pending', 'NONE') = 'failed'
+then 1 else 0 end as assert_legacy_call_still_overdue;
 
 rollback;

@@ -20,7 +20,7 @@ const source = { shipments: [shipment], contacts: new Map([[line.orderId, listEx
 function sheetFor(lines = [line], overrides: Partial<DeliveryListSheetBase> = {}, shipments = source) { return smartStoreDeliveryListSheet({ ...base, ...overrides }, lines, shipments); }
 function values(sheet: AdminListExportSheet, row = 0) { return Object.fromEntries(sheet.columns.map((column, i) => [column.header, sheet.rows[row][i]])); }
 
-describe('ICONS 표준 양식 배송현황 목록', () => {
+describe('엑스스퀘어 표준 양식 배송현황 목록', () => {
   it('두 화면 모두 표준 열·공용 모양·화면 이름 시트로 암호화해 내려받는다', async () => {
     for (const screen of ['dispatch', 'shipping'] as const) {
       const sheet = sheetFor([line], { screen, title: screen === 'dispatch' ? '발주(주문)확인/발송관리 - 신규주문' : '배송현황 관리 - 배송중' });

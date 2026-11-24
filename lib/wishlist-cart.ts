@@ -2,6 +2,7 @@ import type { Good } from './data';
 import { goodsPurchaseConditionProblem, initialGoodOption, purchasableOptionQty } from './goods-options';
 import { productCardUnavailableLabel } from './product-card-chips';
 import type { CartSelectionItem } from './cart-additions';
+import { goodDetailHref } from '@/lib/goods-display';
 
 /* 위시 카드의 수량 없는 '장바구니 담기' 판정 (LFS 패리티 2차 L6 · MY-06, 10/14 S14·S15).
  *
@@ -25,7 +26,7 @@ export function wishCartState(good: Good, cart: { quantityInCart: number; ready:
   const minQuantity = Boolean(good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1);
   if (!saleLabel && (good.customInputs?.enabled || (good.options?.length ?? 0) > 1 || minQuantity)) {
     const label = minQuantity ? '수량 선택' : '옵션 선택';
-    return { kind: 'choose', href: `/shop/${good.id}`, label, ariaLabel: `${good.name} ${label}` };
+    return { kind: 'choose', href: goodDetailHref(good), label, ariaLabel: `${good.name} ${label}` };
   }
 
   const option = initialGoodOption(good);

@@ -1561,10 +1561,18 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     const last = cancels.length && plainRecord(cancels[cancels.length - 1]) ? cancels[cancels.length - 1] as Record<string, unknown> : null;
     const cancelAmount = last ? integerAmount(last.cancelAmount) : null;
     const transactionKey = last && safeString(last.transactionKey, 64) ? last.transactionKey : null;
+    const account = plainRecord(payment.virtualAccount) ? payment.virtualAccount : null;
+    const dueAt = account ? isoTimestamp(account.dueDate) : null;
+    const refundStatus = account && typeof account.refundStatus === 'string' && /^[A-Z_]{1,32}$/.test(account.refundStatus)
+      ? account.refundStatus
+      : null;
     return { kind: 'ok', status: payment.status, balanceAmount: balance,
       lastCancel: cancelAmount !== null && transactionKey ? { cancelAmount, transactionKey } : null,
       virtualAccount: isVirtualAccountPayment(payment),
-      ...(safeString(payment.lastTransactionKey, 200) ? { lastTransactionKey: payment.lastTransactionKey } : {}) };
+      ...(safeString(payment.lastTransactionKey, 200) ? { lastTransactionKey: payment.lastTransactionKey } : {}),
+      ...(dueAt ? { virtualAccountDueAt: dueAt } : {}),
+      ...(account && typeof account.expired === 'boolean' ? { virtualAccountExpired: account.expired } : {}),
+      ...(refundStatus ? { virtualAccountRefundStatus: refundStatus } : {}) };
   }
 
   /**
@@ -1685,7 +1693,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
             // (TOSS_WIDGET_VARIANT_KEY). 꺼져 있으면 키를 싣지 않는다 — 지금 payload 그대로다.
             ...(binding !== null ? { variantKey: binding.variantKey } : {}),
             orderId: attempt.providerOrderId,
-            orderName: attempt.purpose === 'order' ? 'ICONS 굿즈 주문' : 'ICONS 티켓 주문',
+            orderName: attempt.purpose === 'order' ? '엑스스퀘어 상품 주문' : '엑스스퀘어 티켓 주문',
             amount: attempt.amount,
             currency: 'KRW',
             successUrl: new URL(successPath, siteUrl).toString(),
@@ -1941,6 +1949,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         | { readonly kind: 'identity_mismatch'; readonly payment: Record<string, unknown> }
         | { readonly kind: 'not_found' }
         | { readonly kind: 'not_refundable' }
+        | { readonly kind: 'deposit_reversed' }
         | { readonly kind: 'configuration_error'; readonly code: string }
         | { readonly kind: 'ambiguous' }
       > {
@@ -1994,6 +2003,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           // 입금이 끝난 가상계좌도 여기다 — 취소 요청을 만들 때 환불 계좌(또는 에스크로 취소 수락)를 고른다.
           return { kind: 'done', payment };
         }
+        // 원장은 입금 승인인데 결제사는 입금 전이다 — 은행이 입금을 취소했다(입금 오류 되돌림, ADR-0049 결정 4). 돈이 없으니 환불하지
+        // 않는다. 되돌림 처리가 계좌를 반납하면 다음 시도에서 조회가 CANCELED로 닫는다.
+        if (payment.status === 'WAITING_FOR_DEPOSIT' && isVirtualAccountPayment(payment)) return { kind: 'deposit_reversed' };
         return { kind: 'not_refundable' };
       }
 
@@ -2031,6 +2043,13 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }
       if (before.kind === 'not_refundable') {
         return baseOutcome(attempt, 'needs_review', 'provider_payment_not_refundable') as RefundOutcome;
+      }
+      if (before.kind === 'deposit_reversed') {
+        return baseOutcome(attempt, 'needs_review', 'provider_deposit_reversed', {
+          ...(ledgerPaymentKey !== undefined ? { providerPaymentKey: ledgerPaymentKey } : {}),
+          resultCode: 'WAITING_FOR_DEPOSIT_reversed',
+          paymentMethod: '가상계좌',
+        }) as RefundOutcome;
       }
       if (before.kind === 'configuration_error') {
         // 키·설정 오류를 일시 장애로 위장하지 않는다 — 취소 API를 호출하지 않고 격리.
@@ -2156,7 +2175,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           { providerPaymentKey: paymentKey },
         ) as RefundOutcome;
       }
-      if (after.kind === 'not_refundable') {
+      if (after.kind === 'not_refundable' || after.kind === 'deposit_reversed') {
         return baseOutcome(attempt, 'needs_review', 'provider_payment_not_refundable', {
           providerPaymentKey: paymentKey,
         }) as RefundOutcome;

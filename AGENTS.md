@@ -20,8 +20,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - UI 문구, 도메인 용어, 사용자-facing 이름을 다룰 때는 `CONTEXT.md`를 먼저 읽는다.
 - 제품 범위, v1/v2 경계, P0~P3 우선순위가 걸린 작업은 `docs/PRD.md`를 먼저 읽는다.
 - DB, Auth, 결제, 권한, 라우팅 구조, mock→real 이전 작업은 `docs/ARCHITECTURE.md`를 먼저 읽는다.
-- 카드 리워드, 뽑기권, RNG, 참여형 게임이 걸린 작업은 `docs/adr/0003-free-reward-pivot.md`·`docs/adr/0004-draw-ticket-card-packs.md`를 함께 읽는다. `docs/adr/0002-cross-platform-popup-game-miniapps.md`는 superseded 이력이며 Expo나 범용 게임 미니앱 구현의 근거로 쓰지 않는다. 유료 가챠 유물(`wallets`·`pulls` 등)을 다루면 `docs/adr/0001-paid-digital-gacha.md`(superseded)를 참조한다.
-- 19+ 유한 실물 쿠지는 기존 디지털 카드·뽑기권·참여형 게임과 분리된 `prize_sale` 도메인이다. 현재 구현 범위와 선행 증거는 GitHub #212·#213을 따른다.
+- 카드·카드팩(뽑기권)·참여형 게임·바인더·마켓·트레이드는 2026-11-24 일반 쇼핑몰 전환으로 삭제했다(DB 테이블·기록은 보존). 그 유물(DB 테이블·함수, 유료 가챠의 `wallets`·`pulls` 포함)을 다루는 작업은 `docs/adr/0052-general-shopping-mall-pivot.md`를 먼저 읽는다.
+- 19+ 유한 실물 쿠지는 별도 `prize_sale` 도메인이다. 현재 구현 범위와 선행 증거는 GitHub #212·#213을 따른다.
 - 블라인드 포장 굿즈의 `랜덤 판매`(주문 생성 때 DB가 옵션을 무작위 배정, 고객에게 배정 결과 은닉)는 `docs/adr/0027-random-option-sale-goods.md`를 따른다. 실물 쿠지·판매 제한 값 `random_box`와 섞지 않는다.
 - issue tracker, triage label, agent skill 운영 작업은 `docs/agents/`를 먼저 읽는다.
 
@@ -30,26 +30,25 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 도메인 언어
 
 - `CONTEXT.md`의 용어를 우선한다.
-- 수집형 디지털 `카드`와 실물 `굿즈`를 혼용하지 않는다.
 - `팬덤 가입`은 v1에서 무료 `팔로우`다. 유료 `멤버십`과 섞지 않는다.
-- `트레이드`는 카드 C2C(구 명칭 "교환"), `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다. `교환`은 굿즈 `클레임` 유형(회수 후 재출고)으로만 쓴다.
-- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 기본 provider는 토스페이먼츠 주문서형 v2이고(ADR-0013), `판매 제한 상품`(`goods.sale_restriction`, 성인(19금)) 포함 굿즈 주문만 나이스페이(웹표준 인증결제, 2026-11-06 코페이 대체)로 파생된다 — provider는 관리자가 고르는 값이 아니라 서버가 주문 단위로 파생·강제한다(앱 `RESTRICTED_GOODS_CARD_PROVIDER`·DB `prepare_goods_payment_attempt`). 코페이는 drain 전용으로 은퇴해 새 결제를 준비하지 않고, 진행 중 콜백·수동 복구만 남는다. 19금 오픈 트랙(성인인증 #595·19금 판매 #596·나이스페이 gate) 전까지 판매 제한 상품은 비노출·구매 차단이다. 토스 gate 상태·심사 시퀀스·잔여 위험은 `docs/runbooks/toss-production-rollout.md`를, 나이스페이 심사용 canary·카드사 심사·공개 순서는 `docs/runbooks/nicepay-production-rollout.md`를 따른다.
+- `교환`은 굿즈 `클레임` 유형(회수 후 재출고)으로만 쓴다.
+- 유료 가챠·`충전금`은 폐기됐다. 굿즈·티켓 신규 결제의 기본 provider는 토스페이먼츠 주문서형 v2이고(ADR-0013), `판매 제한 상품`(`goods.sale_restriction`, 성인(19금)) 포함 굿즈 주문만 나이스페이(웹표준 인증결제, 2026-11-06 코페이 대체)로 파생된다 — provider는 관리자가 고르는 값이 아니라 서버가 주문 단위로 파생·강제한다(앱 `RESTRICTED_GOODS_CARD_PROVIDER`·DB `prepare_goods_payment_attempt`). 코페이는 drain 전용으로 은퇴해 새 결제를 준비하지 않고, 진행 중 콜백·수동 복구만 남는다. 19금 오픈 트랙(성인인증 #595·19금 판매 #596·나이스페이 gate) 전까지 판매 제한 상품은 비노출·구매 차단이다. 토스 gate 상태·심사 시퀀스·잔여 위험은 `docs/runbooks/toss-production-rollout.md`를, 나이스페이 심사용 canary·카드사 심사·공개 순서는 `docs/runbooks/nicepay-production-rollout.md`를 따른다.
 - `바로구매`(상품 상세·위시 [구매하기] — 그 상품만 주문하고 장바구니를 읽거나 바꾸지 않는다)와 `선택 주문`(장바구니에서 체크한 줄만 주문)은 `docs/adr/0030-direct-buy-and-cart-selection.md`를 따른다. ADR-0026의 '바로구매 = 담고 장바구니', "주문 = 장바구니 전체" 문장은 대체됐으므로 근거로 쓰지 않는다.
-- 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이며, 남아 있는 mock 연출은 실제 경품·구매권을 만들지 않는다. 실물 쿠지에 재사용하지 않는다.
+- 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다.
 
 ## 구현 원칙
 
-- 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
-- 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
+- 공개 브라우징을 유지한다. IP·굿즈·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
+- 돈, 재고, 랜덤 판매 옵션 배정, 유한 실물 경품 배정, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 굿즈·티켓 seam은 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 신규 결제를 확정한다. 웹훅 payload도 불신한다 — orderId로 attempt를 찾아 조회 API 재검증(reconcile seam)에 태울 뿐, 웹훅이 확정을 우회하는 경로는 없다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.
-- 카드 `바인더`·굿즈 `마켓`(`/market`)·카드 `트레이드`(`/exchange`)는 운영하지 않는다(2026-11-18). DB 공개 스위치 `private.collectible_feature_control`(기본 전부 꺼짐, `/admin/settings/features`에서 관리자만 감사 기록과 함께 변경)이 기능별로 노출과 동작을 닫는다 — 꺼진 기능은 셸·화면 안 링크·큐레이션/공지 목적지·검색 카드 결과에서 사라지고, 라우트는 staff 포함 누구에게나 404다. 판정은 `lib/collectible-features.ts`(값·거르기)와 `.server.ts`(셸 캐시 읽기·라우트 신선 읽기, 실패는 꺼짐)에 모으고, 새 진입점을 만들면 이 스위치를 통과시킨다. 켜져 있을 때 `exchange`와 `market`은 v2 전까지 프로토타입/플레이스홀더이고, 로그인한 staff/admin에게만 같은 라우트가 렌더하는 mock 시연(`lib/secondary-market-demo.ts` 스위치·`MarketDemo`·`ExchangeDemo`)은 발표용 표면이라 공개 진입점·실거래 배선을 붙이지 않는다.
-- 커뮤니티는 현재 공개 비공개 + 스태프 전용 프리뷰다. `lib/community-visibility.ts`의 `COMMUNITY_ENABLED`가 공개 표면(GNB·푸터 발견 열·메뉴시트 진입점, 홈 큐레이션, 검색의 포스트·태그 결과, 바인더 `전시하기`, IP 상세 `팬덤 채널`)을 닫고, `COMMUNITY_STAFF_PREVIEW_ENABLED`가 그 위에서 staff/admin 열람만 연다. `/community` 라우트와 커뮤니티 서버 액션 8종의 판정은 `lib/community-visibility.server.ts`의 `canViewCommunity()` 하나이고(굿즈 리뷰 신고만 대상별로 갈라 통과), 진입점은 푸터의 스태프 전용 블록 하나뿐이다 — 노출은 `is_staff` readback(`lib/community-visibility.client.ts`), 권한은 서버 게이트가 매 요청 판정한다. 사용자 작성 쓰기는 DB `community_write_control`이 따로 닫고 있어 스태프도 열 수 없다. 화면·도메인 모듈·DB·어드민 운영 화면은 그대로라 공개 복원은 `COMMUNITY_ENABLED` 한 줄, 프리뷰 회수는 `COMMUNITY_STAFF_PREVIEW_ENABLED` 한 줄이다. 위 공개 브라우징 원칙에서 커뮤니티 읽기는 공개 스위치가 켜질 때 다시 적용된다.
+- 카드·카드팩·참여형 게임·바인더·마켓·트레이드 화면과 운영 콘솔은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). DB 테이블·함수·기록은 롤백과 기록 보존을 위해 남겼으므로, 정리는 별도 migration과 사용자 승인으로만 한다. 이 기능을 앱에 다시 들이지 않는다 — 저장된 옛 링크(큐레이션·공지·셸 알림)는 `lib/home-catalog.ts`의 `isRetiredDestination`이 거르고, DB 메뉴 계약에 남은 카드팩 칸은 `lib/routes.ts`의 `RETIRED_STORE_MENU_IDS`가 숨긴다. 지우학 체험존의 효산의 기억(`/games/hyosan-memories`)은 이 삭제 범위가 아니다.
+- 커뮤니티는 현재 공개 비공개 + 스태프 전용 프리뷰다. `lib/community-visibility.ts`의 `COMMUNITY_ENABLED`가 공개 표면(GNB·푸터 발견 열·메뉴시트 진입점, 홈 큐레이션, 검색의 포스트·태그 결과, IP 상세 `팬덤 채널`)을 닫고, `COMMUNITY_STAFF_PREVIEW_ENABLED`가 그 위에서 staff/admin 열람만 연다. `/community` 라우트와 커뮤니티 서버 액션 8종의 판정은 `lib/community-visibility.server.ts`의 `canViewCommunity()` 하나이고(굿즈 리뷰 신고만 대상별로 갈라 통과), 진입점은 푸터의 스태프 전용 블록 하나뿐이다 — 노출은 `is_staff` readback(`lib/community-visibility.client.ts`), 권한은 서버 게이트가 매 요청 판정한다. 사용자 작성 쓰기는 DB `community_write_control`이 따로 닫고 있어 스태프도 열 수 없다. 화면·도메인 모듈·DB·어드민 운영 화면은 그대로라 공개 복원은 `COMMUNITY_ENABLED` 한 줄, 프리뷰 회수는 `COMMUNITY_STAFF_PREVIEW_ENABLED` 한 줄이다. 위 공개 브라우징 원칙에서 커뮤니티 읽기는 공개 스위치가 켜질 때 다시 적용된다.
 
 ## 이미지 생성 워크플로우
 
 - 이미지 생성·편집과 모델 기반 비전 QA는 현재 Codex 앱 작업에서 기본 내장 `imagegen`과 이미지 비전을 직접 사용한다.
-- 이 기본 방식은 신규 생성뿐 아니라 레퍼런스 기반 재생성, 배경 교체·제거 같은 편집, 변환 전후 검수, 인게임 스크린샷 피드백에도 동일하게 적용한다.
+- 이 기본 방식은 신규 생성뿐 아니라 레퍼런스 기반 재생성, 배경 교체·제거 같은 편집, 변환 전후 검수에도 동일하게 적용한다.
 - 사용자가 명시적으로 변경하지 않는 한 이미지 작업을 CLI/API, `codex exec`, 이미지 생성·편집 스크립트, 중첩 Codex 작업으로 대체하거나 fallback하지 않는다.
 - 저장소 코드는 모델 호출 없이 기술 QA, 포맷 정규화, trim, atlas, manifest처럼 결정론적인 패키징만 수행한다. 작업별 예외와 변환 계약은 해당 에셋 파이프라인 문서를 정본으로 삼는다.
 - 결정론적 변환이 있는 자산은 변환 전 후보와 최종 출력 모두를 현재 Codex 앱에서 직접 보고 각각 정확한 SHA-256에 비전 QA를 결속한다. 모델 검토가 빠졌거나 검토 대상 해시가 다르면 승인 가능한 산출물로 게시하지 않는다.
@@ -59,7 +58,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - Next.js 16, React 19, Tailwind v4 기준으로 작성한다.
 - 공개 표면 디자인 시스템은 "White Catalog"(ADR-0011, 루트 `DESIGN.md` v4)다. 단 셸·홈·NEW·BEST·카테고리·POP-UP·EVENT와 상품 카드는 X SQUARE Figma([ADR-0043](docs/adr/0043-xsquare-figma-storefront.md), `DESIGN.md` §14)가 시각 정본이고, 그 표면의 공용 부품은 `components/wc`(`ProductCard`·`ProductGrid`·`SectionHeader`·`StripBanner`·`PromoCard`)와 토큰 `--wc-x-*`다. 표면별 수치·anatomy는 재현 스펙 `docs/research/linefriends-square/`가 정본이며, 스토어프론트 개편 작업 전에 해당 표면의 R-스펙 문서를 먼저 읽는다.
-- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`를 따른다. 토큰 진실원은 `app/styles/wc-foundation.css`다. 어드민(`/admin/**`)은 [ADR-0028](docs/adr/0028-admin-template-look.md)에 따라 전 화면이 shadcn/ui 템플릿 구조이고, 색과 위계는 [ADR-0029](docs/adr/0029-admin-color-hierarchy.md)를 따른다. 주 색은 행동·현재 위치, 의미색은 상태에만 쓰고 상태→tone은 `lib/admin/status-tone.ts` 한 곳에서 정한다. 화면은 색을 고르지 않고 토큰·공용 부품(`AdminStatusBadge`·`AdminCountCard`·`AdminNotice`·kit Button)을 쓴다. 화면은 `components/admin/kit/`(shadcn CLI 복사 소스, base는 Base UI 하나) 부품과 Tailwind 유틸리티로 그리고, 공용 골격은 `components/admin/console/`(ConsoleGrid·조회 조건·건수 카드·일괄 막대·페이지·AdminKit)와 `fields.tsx`가 소유한다. 토큰은 `app/styles/admin-kit.css`의 `.wc-admin`에만 둔다(주 색 값을 바꿀 때는 `--primary`·`--primary-soft`·`--primary-soft-foreground`·`--ring`만). 화면 전용 CSS를 새로 만들지 않는다 — 남은 관리자 CSS(공개 미리보기 보정·데이터 속성 색·고객 부품 보정)는 `@layer components` 안에서 모든 선택자가 `:not([data-slot])`으로 kit 부품을 비켜 간다(`app/admin-kit-contract.test.ts`). kit `Button`은 기본 `type="button"`이라 form 제출 버튼에 `type="submit"`을 적고, Tailwind 클래스를 보간으로 조각내지 않는다. 목록 URL은 화면의 기존 계약이 진실원이다(Dice `useDataTable`의 URL 형식은 쓰지 않는다). 템플릿의 영어 문구는 운영팀 어휘로 바꾼다. 어드민 라벨은 운영팀 어휘(상품·상품코드·옵션)를 쓰고 코드·문서·공개 표면은 `CONTEXT.md`의 굿즈를 유지한다. 공개 보존 표면(`/about`)은 격리 CSS(`about-legacy`) 안에 자체 기본 규칙과 토큰을 둔다. `globals.css`는 전역 하부만 소유한다. 레퍼런스 사이트의 이미지·카피·로고·액센트 색은 재사용하지 않는다.
+- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`를 따른다. 토큰 진실원은 `app/styles/wc-foundation.css`다. 어드민(`/admin/**`)은 [ADR-0028](docs/adr/0028-admin-template-look.md)에 따라 전 화면이 shadcn/ui 템플릿 구조이고, 색과 위계는 [ADR-0029](docs/adr/0029-admin-color-hierarchy.md)를 따른다. 주 색은 행동·현재 위치, 의미색은 상태에만 쓰고 상태→tone은 `lib/admin/status-tone.ts` 한 곳에서 정한다. 화면은 색을 고르지 않고 토큰·공용 부품(`AdminStatusBadge`·`AdminCountCard`·`AdminNotice`·kit Button)을 쓴다. 화면은 `components/admin/kit/`(shadcn CLI 복사 소스, base는 Base UI 하나) 부품과 Tailwind 유틸리티로 그리고, 공용 골격은 `components/admin/console/`(ConsoleGrid·조회 조건·건수 카드·일괄 막대·페이지·AdminKit)와 `fields.tsx`가 소유한다. 토큰은 `app/styles/admin-kit.css`의 `.wc-admin`에만 둔다(주 색 값을 바꿀 때는 `--primary`·`--primary-soft`·`--primary-soft-foreground`·`--ring`만). 화면 전용 CSS를 새로 만들지 않는다 — 남은 관리자 CSS(공개 미리보기 보정·데이터 속성 색·고객 부품 보정)는 `@layer components` 안에서 모든 선택자가 `:not([data-slot])`으로 kit 부품을 비켜 간다(`app/admin-kit-contract.test.ts`). kit `Button`은 기본 `type="button"`이라 form 제출 버튼에 `type="submit"`을 적고, Tailwind 클래스를 보간으로 조각내지 않는다. 목록 URL은 화면의 기존 계약이 진실원이다(Dice `useDataTable`의 URL 형식은 쓰지 않는다). 템플릿의 영어 문구는 운영팀 어휘로 바꾼다. 어드민과 고객 화면 문구는 업계 표기 '상품'을 쓴다(2026-11-24 사용자 결정 — 일반 쇼핑몰 전환으로 굿즈/상품 어휘 검사 `lib/vocabulary-contract.test.ts`는 삭제했다). 코드 이름(`goods`)은 그대로 둔다. 공개 보존 표면(`/about`)은 격리 CSS(`about-legacy`) 안에 자체 기본 규칙과 토큰을 둔다. `globals.css`는 전역 하부만 소유한다. 레퍼런스 사이트의 이미지·카피·로고·액센트 색은 재사용하지 않는다.
 - 어드민 화면·가이드 문구(안내·칸 이름·예시 글·오류·확인창)는 `docs/admin-copy-guide.md`를 따른다. 개발 용어를 쓰지 않고, 정보는 유지하되 어느 칸에 무엇을 넣고 결과가 어디에 반영되는지, 오류는 고칠 방법까지 쓴다.
 - 어드민에서 브라우저 기본 `confirm()`·`window.confirm`·`window.prompt`를 쓰지 않는다. 사유처럼 글을 받는 확인은 `adminPrompt`(같은 호스트, 입력 글자 수를 채워야 확인 버튼이 눌린다)로 한다. 되돌릴 수 없는 작업의 확인은 `lib/admin/confirm.ts`의 `adminConfirm`(버튼·핸들러)·`confirmAdminSubmit`(form `onSubmit`)으로 셸의 `AdminConfirmHost`(kit AlertDialog, 네이티브 모달 dialog 안에서는 그 안)에 띄운다. 호스트가 없으면 확인되지 않은 것으로 돌려주고, 같은 확인의 거듭 호출은 실행하지 않는다. 입력 이탈 경고는 `useAdminLeaveGuard`가 맡고, 비제어 폼은 뒤로 가기에 대비해 입력을 sessionStorage에 보관했다 되살린다(비밀번호·계좌·카드·인증 번호 같은 민감 입력과 조회 조건은 제외). 시험은 `lib/admin/confirm.test-support.ts`의 `stubAdminConfirm`을 쓴다.
 - 라우트는 `app/**/page.tsx`에서 screen 컴포넌트로 연결하는 현 구조를 존중한다.
@@ -71,7 +70,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 사용자별 데이터는 RLS로 격리한다. 카탈로그성 데이터는 공개 읽기, 쓰기는 staff/admin 범위로 유지한다.
 - service role은 서버 신뢰 경계 안에서만 사용하고, 클라이언트 번들에 노출하지 않는다.
 - Supabase default privileges가 public 스키마 신규 함수에 anon/authenticated/service_role의 execute를 자동 부여한다. 함수 생성 후 `revoke all ... from public, anon, authenticated, service_role`로 봉인하고 필요한 롤에만 grant한다 — `from public`만으로는 봉인되지 않는다.
-- 카드풀 발급 확률값, 카드·뽑기권 발급 이력, 결제 raw payload, 감사 로그는 추적 가능성을 해치지 않도록 다룬다.
+- 결제 raw payload, 감사 로그, 보존 중인 옛 카드풀 확률값·카드·뽑기권 발급 기록은 추적 가능성을 해치지 않도록 다룬다.
 
 ## 검증
 

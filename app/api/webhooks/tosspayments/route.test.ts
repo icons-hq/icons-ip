@@ -123,7 +123,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     }
   });
 
-  describe('승인된 굿즈 결제의 결제사 직접 취소 감지', () => {
+  describe('승인된 상품 결제의 결제사 직접 취소 감지', () => {
     const approvedOrder = () => vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' }));
 
     it('정상 승인 알림(DONE)은 조회하지 않고 200이다', async () => {
@@ -307,12 +307,26 @@ describe('POST /api/webhooks/tosspayments', () => {
       expect(deps.reconcileGoods).toHaveBeenCalledWith(expect.objectContaining({ providerPaymentKeyHint: PAYMENT_KEY }));
     });
 
-    it('승인된 결제에 WAITING_FOR_DEPOSIT이 오면 직접 취소 감지보다 먼저 입금 오류 되돌림을 본다 — 되돌림이면 보류만 남기고 200', async () => {
-      const checkDepositReversal = vi.fn(async () => 'held' as const);
-      const { deps, post } = handler({
-        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
-        checkDepositReversal,
-      });
+    const OPEN_REVERSAL = {
+      attemptId: ATTEMPT_ID, orderId: ORDER_ID, paymentKey: 'ledger-key', state: 'awaiting_redeposit' as const, sequence: 1,
+      reviewCode: null, dueAt: '2026-11-25T15:00:00.000Z', released: false,
+    };
+    function reversalDeps(overrides: Partial<{
+      check: () => Promise<'held' | 'already_recorded' | 'not_applicable'>;
+      loadOpen: () => Promise<typeof OPEN_REVERSAL | null>;
+      settle: () => Promise<'redeposited' | 'waiting' | 'closed' | 'cancellation_pending' | 'review' | 'unavailable' | 'not_applicable'>;
+    }> = {}) {
+      return {
+        check: vi.fn(overrides.check ?? (async () => 'held' as const)),
+        loadOpen: vi.fn(overrides.loadOpen ?? (async () => null)),
+        settle: vi.fn(overrides.settle ?? (async () => 'redeposited' as const)),
+      };
+    }
+    const approvedAttempt = () => vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' }));
+
+    it('승인된 결제에 WAITING_FOR_DEPOSIT이 오면 직접 취소 감지보다 먼저 입금 오류 되돌림을 본다 — 되돌림이면 보류·기록만 남기고 200', async () => {
+      const depositReversal = reversalDeps();
+      const { deps, post } = handler({ loadAttempt: approvedAttempt(), depositReversal });
 
       const result = await post(webhookRequest(
         statusChangedBody({ status: 'WAITING_FOR_DEPOSIT' }),
@@ -320,37 +334,68 @@ describe('POST /api/webhooks/tosspayments', () => {
       ));
 
       expect(result.status).toBe(200);
-      expect(checkDepositReversal).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, caseRef: TRANSMISSION_ID });
+      expect(depositReversal.check).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, caseRef: TRANSMISSION_ID });
+      expect(depositReversal.loadOpen).not.toHaveBeenCalled();
       expect(deps.checkProviderCancellation).not.toHaveBeenCalled();
       expect(deps.reconcileGoods).not.toHaveBeenCalled();
     });
 
     it('되돌림이 아니면 결제사 직접 취소 감지로 넘어가고, 되돌림 조회 실패는 500으로 재전송을 받는다', async () => {
-      const passThrough = handler({
-        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
-        checkDepositReversal: vi.fn(async () => 'not_applicable' as const),
-      });
+      const passThrough = handler({ loadAttempt: approvedAttempt(), depositReversal: reversalDeps({ check: async () => 'not_applicable' }) });
       const passed = await passThrough.post(webhookRequest(statusChangedBody({ status: 'WAITING_FOR_DEPOSIT' })));
       expect(passed.status).toBe(200);
       expect(passThrough.deps.checkProviderCancellation).toHaveBeenCalled();
 
       const failing = handler({
-        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
-        checkDepositReversal: vi.fn(async () => { throw new Error('inspect unavailable'); }),
+        loadAttempt: approvedAttempt(),
+        depositReversal: reversalDeps({ check: async () => { throw new Error('inspect unavailable'); } }),
       });
       const failed = await failing.post(webhookRequest(statusChangedBody({ status: 'WAITING_FOR_DEPOSIT' })));
       expect(failed.status).toBe(500);
       expect(failing.deps.checkProviderCancellation).not.toHaveBeenCalled();
     });
 
-    it('취소 상태 힌트(CANCELED)는 되돌림을 보지 않고 직접 취소 감지만 한다', async () => {
-      const checkDepositReversal = vi.fn(async () => 'held' as const);
-      const { deps, post } = handler({
-        loadAttempt: vi.fn(async () => ({ id: ATTEMPT_ID, purpose: 'order' as const, refId: ORDER_ID, state: 'approved' })),
-        checkDepositReversal,
-      });
+    it('열린 되돌림이 있는 결제의 재입금(DONE)은 되돌림 처리로 보내 조회로 재입금을 확인한다', async () => {
+      const depositReversal = reversalDeps({ loadOpen: async () => OPEN_REVERSAL, settle: async () => 'redeposited' });
+      const { deps, post } = handler({ loadAttempt: approvedAttempt(), depositReversal });
+
+      const result = await post(webhookRequest(
+        { createdAt: '2026-11-24T00:00:00.000000', secret: 's', status: 'DONE', transactionKey: 'tx', orderId: PROVIDER_ORDER_ID },
+        { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID },
+      ));
+
+      expect(result.status).toBe(200);
+      expect(depositReversal.loadOpen).toHaveBeenCalledWith(ATTEMPT_ID);
+      expect(depositReversal.settle).toHaveBeenCalledWith({ attemptId: ATTEMPT_ID, caseRef: TRANSMISSION_ID, reversal: OPEN_REVERSAL });
+      expect(depositReversal.check).not.toHaveBeenCalled();
+      expect(deps.checkProviderCancellation).not.toHaveBeenCalled();
+      expect(deps.reconcileGoods).not.toHaveBeenCalled();
+    });
+
+    it('열린 되돌림 결제의 반납(CANCELED) 웹훅은 결제사 직접 취소로 오탐하지 않는다 — 조회 불가·처리 실패는 500', async () => {
+      const closed = handler({ loadAttempt: approvedAttempt(), depositReversal: reversalDeps({ loadOpen: async () => OPEN_REVERSAL, settle: async () => 'closed' }) });
+      expect((await closed.post(webhookRequest(statusChangedBody({ status: 'CANCELED' })))).status).toBe(200);
+      expect(closed.deps.checkProviderCancellation).not.toHaveBeenCalled();
+
+      const unsettled = handler({ loadAttempt: approvedAttempt(), depositReversal: reversalDeps({ loadOpen: async () => OPEN_REVERSAL, settle: async () => 'unavailable' }) });
+      expect((await unsettled.post(webhookRequest(statusChangedBody({ status: 'CANCELED' })))).status).toBe(500);
+
+      const lookupFailed = handler({ loadAttempt: approvedAttempt(), depositReversal: reversalDeps({ loadOpen: async () => { throw new Error('db'); } }) });
+      expect((await lookupFailed.post(webhookRequest(statusChangedBody({ status: 'DONE' })))).status).toBe(500);
+      expect(lookupFailed.deps.checkProviderCancellation).not.toHaveBeenCalled();
+    });
+
+    it('열린 되돌림이 없으면 DONE은 그대로 200(조회 없음), 취소 상태 힌트는 직접 취소 감지만 한다', async () => {
+      const done = handler({ loadAttempt: approvedAttempt(), depositReversal: reversalDeps() });
+      expect((await done.post(webhookRequest(statusChangedBody({ status: 'DONE' })))).status).toBe(200);
+      expect(done.deps.depositReversal?.settle).not.toHaveBeenCalled();
+      expect(done.deps.checkProviderCancellation).not.toHaveBeenCalled();
+
+      const depositReversal = reversalDeps();
+      const { deps, post } = handler({ loadAttempt: approvedAttempt(), depositReversal });
       await post(webhookRequest(statusChangedBody({ status: 'CANCELED' })));
-      expect(checkDepositReversal).not.toHaveBeenCalled();
+      expect(depositReversal.check).not.toHaveBeenCalled();
+      expect(depositReversal.settle).not.toHaveBeenCalled();
       expect(deps.checkProviderCancellation).toHaveBeenCalled();
     });
   });
@@ -518,7 +563,7 @@ describe('POST /api/webhooks/tosspayments', () => {
       expect(maxDuration).toBe(90);
     });
 
-    it('굿즈 재정합이 approved면 그 주문의 취소 예약을 건다', async () => {
+    it('상품 재정합이 approved면 그 주문의 취소 예약을 건다', async () => {
       const { deps, post } = handler();
 
       const result = await post(webhookRequest(statusChangedBody()));
@@ -532,7 +577,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     });
 
     it.each(['declined', 'canceled', 'needs_review', 'unknown'] as const)(
-      '굿즈 재정합이 %s면 예약하지 않는다',
+      '상품 재정합이 %s면 예약하지 않는다',
       async (outcome) => {
         const { deps, post } = handler({ reconcileGoods: vi.fn(async () => ({ outcome })) });
 

@@ -36,7 +36,7 @@ export const ROBOTS_DISALLOWED_PATHS = [
   '/manager-invitation',
 ] as const;
 
-/** 사이트맵에 싣는 공개 목록·안내 화면. 카드팩(카드 리워드 스위치)·커뮤니티(비공개)·검색 결과·v2 자리 화면은 넣지 않는다. */
+/** 사이트맵에 싣는 공개 목록·안내 화면. 커뮤니티(비공개)·검색 결과는 넣지 않는다(카드팩·바인더·마켓·트레이드·게임 화면은 2026-11-24 삭제, ADR-0052). */
 export const SITEMAP_STATIC_PATHS = [
   '/',
   '/shop',
@@ -55,6 +55,8 @@ export const SITEMAP_STATIC_PATHS = [
 
 export interface SitemapGood {
   id: string;
+  /** 상품 자동코드 — 사이트맵 주소는 공개 상세의 정식 주소(`/shop/<코드 소문자>`, ADR-0050)다. */
+  code?: string | null;
   updatedAt: string | null;
 }
 
@@ -112,7 +114,7 @@ export function buildSitemap(origin: string, catalog: SitemapCatalog): MetadataR
   });
   const goodEntries = catalog.goods.map((good) => {
     const modified = lastModified(good.updatedAt);
-    return { url: `${origin}${goodDetailHref(good.id)}`, ...(modified ? { lastModified: modified } : {}) };
+    return { url: `${origin}${goodDetailHref(good)}`, ...(modified ? { lastModified: modified } : {}) };
   });
   return [...staticEntries, ...ipEntries, ...goodEntries];
 }

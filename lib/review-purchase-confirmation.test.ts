@@ -40,7 +40,6 @@ describe('리뷰 등록 = 구매확정 문구 (1014-079)', () => {
     expect(reviewConfirmationBlockMessage('held', '  사진 확인 중  ')).toContain('(사유: 사진 확인 중)');
     expect(reviewConfirmationBlockMessage('held', null)).not.toContain('사유:');
     expect(reviewConfirmationBlockMessage('unavailable')).toContain('주문 상세에서 상태를 확인');
-    for (const block of REVIEW_CONFIRMATION_BLOCKS) expect(reviewConfirmationBlockMessage(block)).not.toContain('상품');
   });
 
   it('구매확정 오류만 따로 옮기고 리뷰 자체 오류는 기존 변환에 맡긴다', () => {

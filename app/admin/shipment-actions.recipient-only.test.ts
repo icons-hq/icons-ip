@@ -73,7 +73,7 @@ function column(sheet: ExcelJS.Worksheet, header: string) {
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe('물류 계정 출고지시 파일 — 실제 빌더 (QA 라운드 1 B1·M2, 1014-084 수령인 정보만)', () => {
-  it('ICONS 표준 양식(암호 XLSX)을 만들고 구매자·결제·금액 칸은 비우며 수령인·수량·착불 표기는 남긴다', async () => {
+  it('엑스스퀘어 표준 양식(암호 XLSX)을 만들고 구매자·결제·금액 칸은 비우며 수령인·수량·착불 표기는 남긴다', async () => {
     as('logistics'); respond(payload({ amounts: 'blank', buyer: 'blank', smartstore: true }));
     const result = await exportShipmentsAction([SHIPMENT, COLLECT_SHIPMENT], 'xlsx', 'smartstore', credentials);
     expect(result.error).toBeUndefined();

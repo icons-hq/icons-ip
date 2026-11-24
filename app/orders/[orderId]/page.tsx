@@ -9,7 +9,6 @@ import { normalizeOrderReference } from '@/lib/checkout';
 import { loadOrderRetrySources, loadPendingCardPaymentReading } from '@/lib/checkout.server';
 import { loadOrderDetail } from '@/lib/orders.server';
 import { loadOrderReviewTargets } from '@/lib/reviews.server';
-import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 import { loadMyOrderClaimTypeHistory } from '@/lib/orders/claim-type-conversion.server';
 import { loadMyOrderClaimReasonHistory } from '@/lib/orders/claim-reason-change.server';
 import { loadMyOrderRefundDeduction, loadReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction.server';
@@ -18,11 +17,12 @@ import { loadMyOrderPartialCancellations } from '@/lib/orders/partial-cancellati
 import { loadMyOrderClaimItems, loadMyOrderPartialReturnContext } from '@/lib/orders/partial-return.server';
 import { loadOrdererInfo } from '@/lib/orders/orderer.server';
 import { loadMyOrderPaymentDisplay } from '@/lib/orders/payment-display.server';
+import { loadMyOrderVirtualAccount } from '@/lib/payments/virtual-account.server';
 import { ORDER_RECEIPT_NOTICE_PARAM, ORDER_RECEIPT_NOTICE_UNAVAILABLE } from '@/lib/orders/receipt';
 
 export const metadata: Metadata = {
-  title: '주문 상세 — ICONS',
-  description: '주문한 굿즈, 배송지, 결제와 카드팩 발급 내역을 확인하세요.',
+  title: '주문 상세 — 엑스스퀘어',
+  description: '주문한 상품, 배송지, 결제 내역을 확인하세요.',
 };
 
 export default async function Page({ params, searchParams }: PageProps<'/orders/[orderId]'>) {
@@ -39,9 +39,8 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
 
   /* 리뷰 대상은 배송완료 이상 주문에서만 행이 돌아온다(#254). 그 판정을 화면이
      다시 하지 않도록 RPC 결과를 그대로 넘긴다. */
-  const [order, cardRewardsEnabled, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads, refundDeduction, returnFeePolicy, returnPickup, partialCancellations, orderer, paymentDisplay, partialReturn, claimItems] = await Promise.all([
+  const [order, reviewTargets, claimTypeHistory, claimReasonHistory, production, downloads, refundDeduction, returnFeePolicy, returnPickup, partialCancellations, orderer, paymentDisplay, partialReturn, claimItems, virtualAccount] = await Promise.all([
     loadOrderDetail(auth.user.id, orderId),
-    readCardRewardsEnabled(),
     loadOrderReviewTargets(orderId),
     loadMyOrderClaimTypeHistory(orderId),
     loadMyOrderClaimReasonHistory(orderId),
@@ -57,6 +56,8 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
     /* 부분 반품(ADR-0047): 스위치가 꺼져 있거나 읽지 못하면 반품 폼은 주문 전체만 받는다. */
     loadMyOrderPartialReturnContext(orderId),
     loadMyOrderClaimItems(orderId),
+    /* 토스 가상계좌 입금 오류 되돌림(ADR-0049 결정 4)의 재입금 안내 — 본인 주문만 값이 있고, 읽지 못하면 안내만 빠진다. */
+    loadMyOrderVirtualAccount(orderId),
   ]);
   if (!order) notFound();
 
@@ -79,7 +80,6 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
     <OrderDetail
       viewerId={auth.user.id}
       cardPayment={cardPayment}
-      cardRewardsEnabled={cardRewardsEnabled}
       order={order}
       production={production}
       downloads={downloads}
@@ -96,6 +96,7 @@ export default async function Page({ params, searchParams }: PageProps<'/orders/
       orderer={orderer}
       paymentDisplay={paymentDisplay}
       receiptNotice={receiptNotice}
+      virtualAccount={virtualAccount}
     />
   );
 }

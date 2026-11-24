@@ -253,8 +253,8 @@ describe('loadOrders', () => {
         ],
         order_cancellation_requests: [{ order_id: pendingOrderId, claim_type: 'cancel', stage: 'requested', requested_at: '2026-07-14T07:01:00.000Z' }],
         order_items: [
-          { order_id: orderId, qty: 1, good_name_snapshot: '완료 주문 굿즈' },
-          { order_id: pendingOrderId, qty: 1, good_name_snapshot: '취소 확인 중 굿즈' },
+          { order_id: orderId, qty: 1, good_name_snapshot: '완료 주문 상품' },
+          { order_id: pendingOrderId, qty: 1, good_name_snapshot: '취소 확인 중 상품' },
         ],
       },
     });
@@ -265,7 +265,7 @@ describe('loadOrders', () => {
         status: 'pending',
         total: 32000,
         createdAt: '2026-07-14T07:00:00.000Z',
-        itemLabel: '취소 확인 중 굿즈',
+        itemLabel: '취소 확인 중 상품',
         itemCount: 1,
         paymentMethod: 'card',
         claim: { claimType: 'cancel', stage: 'requested' },
@@ -276,7 +276,7 @@ describe('loadOrders', () => {
         status: 'paid',
         total: 54000,
         createdAt: '2026-07-14T06:00:00.000Z',
-        itemLabel: '완료 주문 굿즈',
+        itemLabel: '완료 주문 상품',
         itemCount: 1,
         paymentMethod: 'card',
         claim: null,
@@ -307,7 +307,7 @@ describe('loadOrders', () => {
           { order_id: orderId, claim_type: 'cancel', stage: 'requested', requested_by: 'staff-id', requested_at: '2026-07-14T06:10:00.000Z' },
           { order_id: 'someone-else', claim_type: 'cancel', stage: 'requested', requested_at: '2026-07-14T07:10:00.000Z' },
         ],
-        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '굿즈' }],
+        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '상품' }],
       },
     });
 
@@ -328,7 +328,7 @@ describe('loadOrders', () => {
           { order_id: orderId, claim_type: 'cancel', stage: 'rejected', requested_at: '2026-07-14T06:10:00.000Z' },
           { order_id: orderId, claim_type: 'cancel', stage: 'processing', requested_at: '2026-07-14T06:20:00.000Z' },
         ],
-        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '굿즈' }],
+        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '상품' }],
       },
     });
 
@@ -387,7 +387,7 @@ describe('loadOrders withLines', () => {
         { id: secondOrderId, user_id: userId, status: 'paid', total: 18000, created_at: '2026-07-13T06:00:00.000Z' },
       ],
       order_items: [
-        { id: transactionLineId, order_id: orderId, good_id: 'transaction-good', variant_id: transactionDisplay.lines[0].variantId, variant_name_snapshot: '기본 옵션', qty: 2, unit_price: 10000, good_name_snapshot: '복수구매 굿즈' },
+        { id: transactionLineId, order_id: orderId, good_id: 'transaction-good', variant_id: transactionDisplay.lines[0].variantId, variant_name_snapshot: '기본 옵션', qty: 2, unit_price: 10000, good_name_snapshot: '복수구매 상품' },
         { id: 'item-b', order_id: secondOrderId, good_id: 'g1', variant_id: 'v1', variant_name_snapshot: '파랑', qty: 2, unit_price: 9000, good_name_snapshot: '아크릴 스탠드' },
       ],
       item_display: [
@@ -403,7 +403,7 @@ describe('loadOrders withLines', () => {
     expect(rpcCalls).not.toContain('get_my_goods_transaction_receipt');
     expect(records.find((record) => record.rpc === 'my_order_item_display')?.select).toBe('id:item_id,regular_unit_price,volume_unit_discount,active_qty');
     /* (10000 − 1000) × 2 = 18000 구매가, 10000 × 2 = 20000 정가. 기본 옵션은 줄에서 숨기는 이름이라 값은 남고 화면이 감춘다. */
-    expect(orders[0].lines?.[0]).toMatchObject({ name: '복수구매 굿즈', optionName: '기본 옵션', qty: 2, purchaseAmount: 18000, regularAmount: 20000 });
+    expect(orders[0].lines?.[0]).toMatchObject({ name: '복수구매 상품', optionName: '기본 옵션', qty: 2, purchaseAmount: 18000, regularAmount: 20000 });
     expect(orders[0].lines?.[0]).not.toHaveProperty('canceledQty');
     /* 구매가와 정가가 같은 줄은 숫자 하나로 보인다(값은 둘 다 남는다). */
     expect(orders[1].lines?.[0]).toMatchObject({ purchaseAmount: 18000, regularAmount: 18000 });
@@ -452,7 +452,7 @@ describe('loadOrders withLines', () => {
     expect(order.lines?.[0]).toMatchObject({ qty: 2, purchaseAmount: 36000, regularAmount: null });
   });
 
-  it('withLines가 아니면 굿즈·IP를 읽지 않고 lines 키도 없다(마이페이지 요약은 비용이 늘지 않는다)', async () => {
+  it('withLines가 아니면 상품·IP를 읽지 않고 lines 키도 없다(마이페이지 요약은 비용이 늘지 않는다)', async () => {
     const records: QueryRecord[] = [];
     const rpcCalls: string[] = [];
     mocks.client = createClient({ records, rpcCalls, rows: lineRows() });
@@ -473,7 +473,7 @@ describe('loadOrders withLines', () => {
     expect(mocks.giftList).toHaveBeenLastCalledWith(false, { withLines: false });
   });
 
-  it('굿즈·IP 읽기가 실패해도 목록은 스냅샷 줄로 그대로 돌아온다', async () => {
+  it('상품·IP 읽기가 실패해도 목록은 스냅샷 줄로 그대로 돌아온다', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.client = createClient({ records: [], rows: lineRows(), errors: { goods: 'boom', ips: 'boom' } });
 
@@ -509,7 +509,8 @@ describe('loadOrderDetail', () => {
     expect((await loadOrderDetail(userId, orderId))?.claimEligibility).toEqual(expected);
   });
 
-  it('loads a safe receipt and counts legacy, revoked, and opened card packs', async () => {
+  /* 카드팩(draw_tickets)은 2026-11-24 일반 쇼핑몰 전환으로 주문 상세에서 읽지 않는다(ADR-0052). */
+  it('loads a safe receipt without reading card packs', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({
       records,
@@ -626,7 +627,6 @@ describe('loadOrderDetail', () => {
         decidedAt: '2026-07-14T07:25:00.000Z',
         decisionNote: null,
       },
-      cardPacks: { issuedCount: 3, availableCount: 1 },
       shipments: [{
         carrier: 'hanjin',
         carrierLabel: '한진택배',
@@ -649,10 +649,8 @@ describe('loadOrderDetail', () => {
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
       maybeSingle: false,
     });
-    expect(records.find((record) => record.table === 'draw_tickets')).toMatchObject({
-      select: 'consumed_at,revoked_at',
-      eq: [['user_id', userId], ['source', 'order_paid'], ['source_id', orderId]],
-    });
+    expect(records.find((record) => record.table === 'draw_tickets')).toBeUndefined();
+    expect(result).not.toHaveProperty('cardPacks');
     expect(records.find((record) => record.table === 'refunds')).toMatchObject({
       select: 'status,created_at',
       in: [['payment_id', ['payment-2', 'payment-1']]],
@@ -769,7 +767,7 @@ it('1001행 주문을 고객 주문 상세와 주문 목록 수량 요약에서 
   expect((await loadOrders(userId))[0]?.itemCount).toBe(1001);
 });
 
-describe('랜덤 판매 굿즈(D5②) 고객 은닉', () => {
+describe('랜덤 판매 상품(D5②) 고객 은닉', () => {
   const randomRows = [
     { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', variant_name_snapshot: '배정옵션-비밀', variant_code_snapshot: 'SECRET-CODE',
       option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' },
@@ -871,7 +869,7 @@ describe('loadOrderDetail lines·provider', () => {
     expect(detail?.lines).toMatchObject([{ key: transactionLineId, purchaseAmount: 18000, regularAmount: 20000 }]);
   });
 
-  it('굿즈·IP 읽기가 실패해도 주문 상세는 스냅샷 줄과 함께 그대로 열린다', async () => {
+  it('상품·IP 읽기가 실패해도 주문 상세는 스냅샷 줄과 함께 그대로 열린다', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.client = createClient({ records: [], rows: baseRows(), errors: { goods: 'boom', ips: 'boom' } });
 

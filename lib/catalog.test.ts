@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, isPublishedAdultGood, toGood, type CatalogPostPreview, type CatalogSnapshot, type GoodRow } from './catalog';
+import { buildCatalogIpDetail, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, isPublishedAdultGood, toGood, type CatalogPostPreview, type CatalogSnapshot, type GoodRow } from './catalog';
 import { getHomeSelectableIps } from './home-catalog';
 import type { Ip } from './data';
 
@@ -43,10 +43,6 @@ const catalog: CatalogSnapshot = {
   goods: [
     { id: 'g2', ip: 'hwasan', name: '아크릴 스탠드', price: 22000, badge: null, stock: 'ok', stockQty: 12, img: 'g2' },
     { id: 'g1', ip: 'lumen', name: '피규어', price: 89000, badge: null, stock: 'ok', stockQty: 4, img: 'g1' },
-  ],
-  cards: [
-    { id: 'c2', ip: 'hwasan', name: '화산의 검', no: '014/120', rarity: 'SSR', owned: false, bg: 'c2' },
-    { id: 'c1', ip: 'lumen', name: 'LUMEN · Dawn', no: '027/200', rarity: 'SR', owned: false, bg: 'c1' },
   ],
   events: [
     { id: 'e2', ip: 'hwasan', title: '매화 특별전', mode: '오프라인', status: '예정', date: '6.02', loc: '강남', accent: '#8B5CFF', img: 'e2' },
@@ -306,7 +302,6 @@ describe('buildCatalogIpDetail', () => {
 
     expect(detail?.ip).toEqual(hwasan);
     expect(detail?.goods.map((good) => good.id)).toEqual(['g2']);
-    expect(detail?.cards.map((card) => card.id)).toEqual(['c2']);
     expect(detail?.events.map((event) => event.id)).toEqual(['e2']);
     expect(detail?.posts.map((post) => post.id)).toEqual(['p1']);
     expect(detail?.posts[0]).not.toHaveProperty('img');
@@ -375,7 +370,7 @@ describe('getCatalogSnapshot', () => {
         { ...base, id: 'draft-ip', public_slug: 'hidden-draft', published_at: null },
         { ...base, id: 'archived-ip', public_slug: 'hidden-archive', archived_at: '2026-09-01T00:00:00Z' },
       ],
-      goods: [{ id: 'g-slug', ip_id: 'hwasan', name: '검증 굿즈', type: '문구', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', show_discount_rate: false, 'ips.published_at': '2026-09-01' }],
+      goods: [{ id: 'g-slug', ip_id: 'hwasan', name: '검증 상품', type: '문구', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', show_discount_rate: false, 'ips.published_at': '2026-09-01' }],
       ip_public_slug_aliases: [{ slug: 'old-display', ip_id: 'hwasan' }],
       home_curations: ['/ip/old-display?tab=goods#detail', '/ip/hwasan', '/ip?ip=hwasan&tab=cards', '/ip/aouad'].map((href, index) => ({
         id: `curation-${index}`, kind: 'benefit', ip_id: null, title: 'IP 바로가기', image_path: null,
@@ -443,12 +438,8 @@ describe('getCatalogSnapshot', () => {
         },
       ],
       goods: [
-        { id: 'g-active', ip_id: 'hwasan', name: '운영 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
-        { id: 'g-archived', ip_id: 'hwasan', name: '보관 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, sale_restriction: 'none', archived_at: '2026-07-17T00:00:00.000Z' },
-      ],
-      cards: [
-        { id: 'c-active', ip_id: 'hwasan', name: '운영 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },
-        { id: 'c-archived', ip_id: 'hwasan', name: '보관 카드', no: '002', rarity: 'N', bg: null, image_path: null, archived_at: '2026-07-17T00:00:00.000Z' },
+        { id: 'g-active', ip_id: 'hwasan', name: '운영 상품', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
+        { id: 'g-archived', ip_id: 'hwasan', name: '보관 상품', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, sale_restriction: 'none', archived_at: '2026-07-17T00:00:00.000Z' },
       ],
       events: [
         { id: 'e-active', ip_id: 'hwasan', title: '운영 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
@@ -460,9 +451,8 @@ describe('getCatalogSnapshot', () => {
 
     expect(snapshot.ips.map((item) => item.id)).toEqual(['hwasan']);
     expect(snapshot.goods.map((item) => item.id)).toEqual(['g-active']);
-    expect(snapshot.cards.map((item) => item.id)).toEqual(['c-active']);
     expect(snapshot.events.map((item) => item.id)).toEqual(['e-active']);
-    for (const table of ['ips', 'goods', 'cards', 'events']) {
+    for (const table of ['ips', 'goods', 'events']) {
       expect(records.find((record) => record.table === table)?.is).toContainEqual(['archived_at', null]);
     }
 
@@ -480,13 +470,9 @@ describe('getCatalogSnapshot', () => {
         { ...defaultSupabaseRows().ips[0], id: 'draft-ip', title: '초안 IP', published_at: null },
       ],
       goods: [
-        { id: 'g-own-draft', published_at: null, ip_id: 'hwasan', name: '자체 초안 굿즈', type: '아크릴', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
-        { id: 'g-live', ip_id: 'hwasan', name: '공개 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
-        { id: 'g-draft', ip_id: 'draft-ip', name: '초안 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
-      ],
-      cards: [
-        { id: 'c-live', ip_id: 'hwasan', name: '공개 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },
-        { id: 'c-draft', ip_id: 'draft-ip', name: '초안 카드', no: '002', rarity: 'N', bg: null, image_path: null, archived_at: null },
+        { id: 'g-own-draft', published_at: null, ip_id: 'hwasan', name: '자체 초안 상품', type: '아크릴', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
+        { id: 'g-live', ip_id: 'hwasan', name: '공개 상품', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
+        { id: 'g-draft', ip_id: 'draft-ip', name: '초안 상품', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
       ],
       events: [
         { id: 'e-live', ip_id: 'hwasan', title: '공개 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
@@ -499,12 +485,11 @@ describe('getCatalogSnapshot', () => {
 
     expect(snapshot.ips.map((item) => item.id)).toEqual(['hwasan']);
     expect(snapshot.goods.map((item) => item.id)).toEqual(['g-live']);
-    expect(snapshot.cards.map((item) => item.id)).toEqual(['c-live']);
     expect(snapshot.events.map((item) => item.id)).toEqual(['e-joint', 'e-live']);
     expect(records.find((record) => record.table === 'ips')?.not).toContainEqual(['published_at', 'is', null]);
     /* 자식 컬렉션의 초안 제외는 앱에서 IP 집합으로 거른다 — 쿼리에 published 조건을 조인하지 않는다. */
     expect(records.find((record) => record.table === 'goods')?.not).toContainEqual(['published_at', 'is', null]);
-    for (const table of ['cards', 'events']) {
+    for (const table of ['events']) {
       expect(records.find((record) => record.table === table)?.not).toEqual([]);
     }
 
@@ -533,7 +518,7 @@ describe('getCatalogSnapshot', () => {
         {
           id: 'g2',
           ip_id: 'hwasan',
-          name: '판매 중지 굿즈',
+          name: '판매 중지 상품',
           type: '아크릴',
           price: 12000,
           badge: null,
@@ -655,7 +640,8 @@ describe('getCatalogSnapshot', () => {
       return Promise.resolve({
         data: name === 'get_masked_adult_goods'
           ? [
-              { id: 'adult-x', ip_id: 'hwasan', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: '2026-11-01T00:00:00Z' },
+              { id: 'adult-x', ip_id: 'hwasan', name: '성인 아크릴 키링', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: '2026-11-01T00:00:00Z' },
+              { id: 'adult-old', ip_id: 'hwasan', display_order: null, category_id: null, price: 6000, stock: 'ok', stock_qty: 3, created_at: null },
               { id: 'adult-bad', ip_id: 'hwasan', price: '5000' },
               { id: 'adult-draft-ip', ip_id: 'draft-ip', display_order: null, category_id: null, price: 5000, stock: 'ok', stock_qty: 3, created_at: null },
             ]
@@ -669,8 +655,10 @@ describe('getCatalogSnapshot', () => {
 
     expect(records.find((record) => record.table === 'goods')?.in).toContainEqual(['sale_restriction', ['none']]);
     expect(rpcCalls.filter((call) => call.name === 'get_masked_adult_goods')).toEqual([{ name: 'get_masked_adult_goods', args: {} }]);
-    expect(snapshot.goods.map((good) => good.id).sort()).toEqual(['a', 'adult-x']);
-    expect(snapshot.goods.find((good) => good.id === 'adult-x')).toMatchObject({ name: '19금 굿즈', img: '', price: 5000, masked: true, saleRestriction: 'adult' });
+    expect(snapshot.goods.map((good) => good.id).sort()).toEqual(['a', 'adult-old', 'adult-x']);
+    /* MD-0048 — 가림 카드는 이름·IP·가격을 싣고 이미지는 비운다. 이름 열이 없는 옛 응답(배포 순서)은 고정 문구다. */
+    expect(snapshot.goods.find((good) => good.id === 'adult-x')).toMatchObject({ name: '성인 아크릴 키링', ip: 'hwasan', img: '', price: 5000, masked: true, saleRestriction: 'adult' });
+    expect(snapshot.goods.find((good) => good.id === 'adult-old')).toMatchObject({ name: '19금 상품', img: '', masked: true });
 
     rpcCalls.length = 0;
     await getCatalogSnapshot({ adultGoods: 'hidden' });
@@ -734,93 +722,6 @@ describe('getCatalogSnapshot', () => {
     expect(goods.get('with-base')).toMatchObject({ price: 10800, priceMax: 13800, compareAtPrice: 12000, catalogPrice: 10800, catalogCompareAtPrice: 12000 });
     expect(goods.get('extra-only')).toMatchObject({ price: 11300, priceMax: 11300, compareAtPrice: 12500 });
     expect(goods.get('period')).toMatchObject({ price: 12000, priceMax: 12000, compareAtPrice: 13800, catalogCompareAtPrice: 12000 });
-
-    mocks.isConfigured = false;
-    mocks.client = null;
-  });
-});
-
-describe('getBinderCatalogOverlay', () => {
-  it('loads owned archived card metadata without reopening it in public discovery', async () => {
-    const records: QueryRecord[] = [];
-    mocks.isConfigured = true;
-    mocks.client = createSupabaseClient(records, {
-      user_cards: [
-        { card_id: 'c-archived', qty: 1 },
-        { card_id: 'c-zero', qty: 0 },
-      ],
-      ips: [{
-        id: 'archived-ip',
-        title: '보관된 IP',
-        sub: '종료된 시리즈',
-        vertical_key: 'rofan',
-        tagline: '기억 속에 남은 이야기',
-        synopsis: '보관된 IP 설명',
-        glyph: '보관',
-        bg: 'archived-ip-bg',
-        image_path: null,
-        featured: false,
-        fans_count: 12,
-        goods_count: 0,
-        cards_count: 1,
-        archived_at: '2026-07-17T00:00:00.000Z',
-      }],
-      cards: [
-        {
-          id: 'c-archived',
-          ip_id: 'archived-ip',
-          name: '보관된 보유 카드',
-          no: '099',
-          rarity: 'SSR',
-          bg: null,
-          image_path: 'public-media/catalog/card/c-archived.webp',
-          archived_at: '2026-07-17T00:00:00.000Z',
-        },
-        {
-          id: 'c-zero',
-          ip_id: 'hwasan',
-          name: '수량 없는 카드',
-          no: '100',
-          rarity: 'N',
-          bg: null,
-          image_path: null,
-          archived_at: null,
-        },
-      ],
-    });
-
-    await expect(getBinderCatalogOverlay()).resolves.toEqual({
-      ownedCardIds: ['c-archived'],
-      cards: [expect.objectContaining({
-        id: 'c-archived',
-        ip: 'archived-ip',
-        name: '보관된 보유 카드',
-        owned: false,
-        bg: 'url("https://cdn.example/catalog/card/c-archived.webp") center / cover no-repeat',
-      })],
-      ips: [expect.objectContaining({
-        id: 'archived-ip',
-        title: '보관된 IP',
-        v: vertical,
-      })],
-    });
-    expect(records.find((record) => record.table === 'user_cards')?.gt).toEqual([['qty', 0]]);
-    expect(records.find((record) => record.table === 'cards')?.in).toEqual([['id', ['c-archived']]]);
-    expect(records.find((record) => record.table === 'cards')?.is).toEqual([]);
-    expect(records.find((record) => record.table === 'ips')?.in).toEqual([['id', ['archived-ip']]]);
-    /* 보유 이력은 게시 상태와도 무관하다 — 초안·보관 필터를 바인더에 걸지 않는다. */
-    expect(records.find((record) => record.table === 'ips')?.not).toEqual([]);
-    expect(records.find((record) => record.table === 'ips')?.is).toEqual([]);
-
-    mocks.isConfigured = false;
-    mocks.client = null;
-  });
-
-  it('returns public mode for a signed-out viewer', async () => {
-    mocks.isConfigured = true;
-    mocks.client = createSupabaseClient([], {}, null);
-
-    await expect(getBinderCatalogOverlay()).resolves.toBeNull();
 
     mocks.isConfigured = false;
     mocks.client = null;
@@ -1096,7 +997,7 @@ describe('getHomeSnapshot', () => {
         { id: 'hidden-latest', user_id: 'u1', ip_id: 'hwasan', text: '숨김 최신', tag: '숨김', created_at: '2026-06-22T07:00:00.000Z', status: 'hidden' },
         { id: 'hwasan-latest', user_id: 'u1', ip_id: 'hwasan', text: '화산 최신', tag: '후기', created_at: '2026-06-22T06:00:00.000Z', status: 'visible' },
         { id: 'hwasan-old', user_id: 'u2', ip_id: 'hwasan', text: '화산 예전', tag: '후기', created_at: '2026-06-22T05:00:00.000Z', status: 'visible' },
-        { id: 'lumen-latest', user_id: 'u2', ip_id: 'lumen', text: '루멘 최신', tag: '한정굿즈', created_at: '2026-06-22T04:00:00.000Z', status: 'visible' },
+        { id: 'lumen-latest', user_id: 'u2', ip_id: 'lumen', text: '루멘 최신', tag: '한정상품', created_at: '2026-06-22T04:00:00.000Z', status: 'visible' },
         { id: 'regular-latest', user_id: 'u1', ip_id: 'regular', text: '일반 IP', tag: '제외', created_at: '2026-06-22T08:00:00.000Z', status: 'visible' },
       ],
       comments: [
@@ -1601,13 +1502,13 @@ describe('getHomeSnapshot', () => {
       }],
       goods: [
         {
-          id: 'g-first', ip_id: 'brand-ip', name: '첫 굿즈', type: '키링', price: 12000,
+          id: 'g-first', ip_id: 'brand-ip', name: '첫 상품', type: '키링', price: 12000,
           badge: 'NEW', stock: 'ok', stock_qty: 5, bg: null,
           sale_restriction: 'none',
           image_path: null, allow_bank_transfer: true,
         },
         {
-          id: 'g-soldout', ip_id: 'brand-ip', name: '품절 굿즈', type: '파우치', price: 18000,
+          id: 'g-soldout', ip_id: 'brand-ip', name: '품절 상품', type: '파우치', price: 18000,
           badge: null, stock: 'ok', stock_qty: 0, bg: 'linear-gradient(#000, #111)',
           sale_restriction: 'none',
           image_path: null, allow_bank_transfer: true,
@@ -1963,7 +1864,7 @@ describe('getHomeSnapshot', () => {
       } finally { mocks.isConfigured = false; mocks.client = null; }
     });
 
-    it('등록일이 있는 공개 굿즈가 없으면 newArrivals 키를 싣지 않아 홈이 블록을 그리지 않는다', async () => {
+    it('등록일이 있는 공개 상품이 없으면 newArrivals 키를 싣지 않아 홈이 블록을 그리지 않는다', async () => {
       mocks.isConfigured = true;
       mocks.client = createSupabaseClient([], { goods: [
         { id: 'undated', ip_id: 'hwasan', name: '날짜 없음', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none' },
@@ -2036,7 +1937,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
   const row = (extra: Partial<GoodRow> & Record<string, unknown>): GoodRow => ({ id: 'photo', ip_id: 'hwasan', name: '랜덤 포토카드', type: '포토카드',
     price: 5000, badge: null, stock: 'ok', stock_qty: 6, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
 
-  it('랜덤 판매 굿즈는 옵션을 기본 옵션 키 하나(랜덤)로 접고 수량 최대는 판매 중인 옵션 재고 합이다', () => {
+  it('랜덤 판매 상품은 옵션을 기본 옵션 키 하나(랜덤)로 접고 수량 최대는 판매 중인 옵션 재고 합이다', () => {
     const good = toGood(row({ option_sale_mode: 'random', goods_variants: [
       variant('00000000-0000-4000-8000-0000000000a2', '흑', 4, 1, { supply: supply(4, '2026-10-29T00:00:00Z') }),
       variant('00000000-0000-4000-8000-0000000000a1', '백', 0, 0),
@@ -2051,7 +1952,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(JSON.stringify(good.options)).not.toMatch(/흑|백|적|CODE-/);
   });
 
-  it('랜덤 판매 굿즈의 모든 옵션이 품절이면 굿즈 단위 품절(굿즈 재입고 알림)이다', () => {
+  it('랜덤 판매 상품의 모든 옵션이 품절이면 상품 단위 품절(상품 재입고 알림)이다', () => {
     const good = toGood(row({ option_sale_mode: 'random', goods_variants: [
       variant('00000000-0000-4000-8000-0000000000b1', '백', 0, 0), variant('00000000-0000-4000-8000-0000000000b2', '흑', 0, 1),
     ] }), () => '');
@@ -2059,7 +1960,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(good.stock).toBe('soldout');
   });
 
-  it('선택 판매 굿즈는 옵션을 그대로 두고 옵션별 주문당·1인 최대 수량을 싣는다', () => {
+  it('선택 판매 상품은 옵션을 그대로 두고 옵션별 주문당·1인 최대 수량을 싣는다', () => {
     const good = toGood(row({ goods_variants: [
       variant('00000000-0000-4000-8000-0000000000c1', '백', 4, 0, { order_max_qty: 2, member_max_qty: 5 }),
       variant('00000000-0000-4000-8000-0000000000c2', '흑', 4, 1),
@@ -2070,7 +1971,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     ]);
   });
 
-  it('공개 굿즈 읽기는 판매 방식과 옵션 한도 열을 함께 읽는다', async () => {
+  it('공개 상품 읽기는 판매 방식과 옵션 한도 열을 함께 읽는다', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient(records, { goods: [] });
@@ -2080,8 +1981,15 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(select).toMatch(/goods_variants\([^)]*order_max_qty,member_max_qty/);
     /* 랜덤 굿즈의 옵션 행은 고객에게 숨는다(T7 리뷰 RV-1) — 랜덤 한 줄은 공개 계산 열로 읽는다. */
     expect(select.split(',')).toContain('random_option:goods_random_option');
+    /* 상품 표시문구 여러 개(migration 20261125140000)는 첫 값 거울과 함께 목록 열로 읽는다. */
+    expect(select.split(',')).toEqual(expect.arrayContaining(['badge', 'badges']));
     mocks.isConfigured = false;
     mocks.client = null;
+  });
+
+  it('표시문구 목록을 고른 순서대로 싣고, 목록을 싣지 않은 옛 투영은 badges를 비워 둔다', () => {
+    expect(toGood(row({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] }), () => '')).toMatchObject({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] });
+    expect(toGood(row({ badge: 'NEW' }), () => '')).not.toHaveProperty('badges');
   });
 
   /* 고객 세션: goods_variants 의 랜덤 굿즈 행은 restrictive RLS 로 빠지고(옵션별 재고 = 배정 단서), 공개 계산 열
@@ -2089,7 +1997,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
   const randomOption = (stockQty: number, extra: Record<string, unknown> = {}) => ({ id: '00000000-0000-4000-8000-0000000000d1', name: '랜덤', code: '',
     price: 5000, stock_qty: stockQty, is_default: true, attributes: {}, archived_at: null, sort_order: 0, pricing: pricing(5000), supply: supply(stockQty), ...extra });
 
-  it('고객 세션의 랜덤 판매 굿즈는 공개 계산 열의 랜덤 한 줄을 옵션으로 쓴다(옵션 행이 숨어도 품절로 보지 않는다)', () => {
+  it('고객 세션의 랜덤 판매 상품은 공개 계산 열의 랜덤 한 줄을 옵션으로 쓴다(옵션 행이 숨어도 품절로 보지 않는다)', () => {
     const good = toGood(row({ option_sale_mode: 'random', goods_variants: [], random_option: randomOption(7) }), () => '');
     expect(good.options).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000d1', name: '랜덤', code: '', isDefault: true,
       attributes: {}, price: 5000, stockQty: 7, orderMaxQty: null, memberMaxQty: null })]);
@@ -2109,7 +2017,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
       .not.toHaveProperty('randomAllocationLimit');
   });
 
-  it('운영자 세션이 옵션 행을 함께 받아도 랜덤 굿즈는 공개 계산 열의 랜덤 한 줄만 쓴다', () => {
+  it('운영자 세션이 옵션 행을 함께 받아도 랜덤 상품은 공개 계산 열의 랜덤 한 줄만 쓴다', () => {
     const good = toGood(row({ option_sale_mode: 'random', random_option: randomOption(5), goods_variants: [
       variant('00000000-0000-4000-8000-0000000000d1', '백', 1, 0), variant('00000000-0000-4000-8000-0000000000d2', '흑', 2, 1),
     ] }), () => '');
@@ -2126,7 +2034,7 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
   });
 });
 
-describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
+describe('상품 배송비 방식(카드 무료배송 칩의 근거)', () => {
   const row = (extra: Record<string, unknown> = {}): GoodRow => ({ id: 'ship', ip_id: 'hwasan', name: '배송 시험', type: '키링', price: 5000, badge: null,
     stock: 'ok', stock_qty: 3, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
 
@@ -2139,7 +2047,7 @@ describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
     expect(toGood(row({ shipping_fee_type: null }), () => '')).not.toHaveProperty('shippingFeeType');
   });
 
-  it('전체 카탈로그 읽기가 shipping_fee_type을 읽어 굿즈에 싣는다', async () => {
+  it('전체 카탈로그 읽기가 shipping_fee_type을 읽어 상품에 싣는다', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient(records, { goods: [
@@ -2149,6 +2057,31 @@ describe('굿즈 배송비 방식(카드 무료배송 칩의 근거)', () => {
       const snapshot = await getCatalogSnapshot();
       expect(snapshot.goods[0]).toMatchObject({ id: 'free-ship', shippingFeeType: 'free' });
       expect(records.find((record) => record.table === 'goods')?.select?.split(',')).toContain('shipping_fee_type');
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+});
+
+/* MD-0051 · ADR-0050 — 공개 상세 주소는 상품 자동코드의 소문자형이라 카탈로그 굿즈가 코드를 싣는다. */
+describe('상품 자동코드(공개 상세 주소의 근거)', () => {
+  const row = (extra: Record<string, unknown> = {}): GoodRow => ({ id: 'hongsil-keyring', ip_id: 'hwasan', name: '키링', price: 5000, badge: null,
+    stock: 'ok', stock_qty: 3, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
+
+  it('저장된 코드를 그대로 싣고, 코드를 싣지 않는 투영(가림 카드·옛 RPC)은 키를 만들지 않는다', () => {
+    expect(toGood(row({ code: 'HSQ-0059' }), () => '').code).toBe('HSQ-0059');
+    expect(toGood(row(), () => '')).not.toHaveProperty('code');
+    expect(toGood(row({ code: null }), () => '')).not.toHaveProperty('code');
+  });
+
+  it('전체 카탈로그 읽기가 code를 읽어 상품에 싣는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, { goods: [
+      { id: 'hongsil-keyring', code: 'HSQ-0059', ip_id: 'hwasan', name: '키링', type: '키링', price: 5000, stock: 'ok', stock_qty: 3, sale_restriction: 'none' },
+    ] });
+    try {
+      const snapshot = await getCatalogSnapshot();
+      expect(snapshot.goods[0]).toMatchObject({ id: 'hongsil-keyring', code: 'HSQ-0059' });
+      expect(records.find((record) => record.table === 'goods')?.select?.split(',')).toContain('code');
     } finally { mocks.isConfigured = false; mocks.client = null; }
   });
 });

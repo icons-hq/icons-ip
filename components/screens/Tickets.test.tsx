@@ -18,7 +18,7 @@ const order: TicketOrderListItem = {
   createdAt: '2026-07-14T02:00:00.000Z',
   startsAt: '2026-07-25T05:00:00.000Z',
   endsAt: '2026-07-25T08:00:00.000Z',
-  location: '성수 ICONS 팝업',
+  location: '성수 엑스스퀘어 팝업',
   ticketStatuses: ['valid', 'valid'],
   cancellationRequest: null,
   refund: null,

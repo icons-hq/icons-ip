@@ -41,7 +41,7 @@ describe('checkoutStatusCopy — 이 화면에서 주문을 취소한 뒤', () =
     });
 
     expect(copy).toEqual(REORDER_CANCELED_COPY);
-    expect(copy?.body).not.toContain('취소하고 같은 굿즈로 다시 주문해주세요');
+    expect(copy?.body).not.toContain('취소하고 같은 상품으로 다시 주문해주세요');
   });
 
   it('결제 기한이 지난 주문의 안내도 취소 사실로 바꾼다', () => {
@@ -133,7 +133,7 @@ describe('closedPaymentCopy — 시도 만료', () => {
 
     expect(copy.title).toBe('결제 가능 시간이 지났어요');
     expect(copy.body).toContain('청구된 금액은 없어요');
-    expect(copy.body).toContain('이 주문을 취소하고 같은 굿즈로 다시 주문해주세요');
+    expect(copy.body).toContain('이 주문을 취소하고 같은 상품으로 다시 주문해주세요');
     expect(copy.body).toContain('바로 돌아와요');
     expect(copy.body).not.toContain('자동으로 취소');
   });
@@ -267,7 +267,7 @@ describe('orderDetailCardPaymentNotice', () => {
 
 describe('장바구니 유지 주문의 다시 결제 안내(ADR-0026)', () => {
   /* 장바구니 전체 주문서로 바로 보내지 않는다 — 결제 화면의 [다시 결제하기]가 그 주문의 줄로 주문서를 연다(ADR-0030). */
-  it('결제 없이 끝난 주문은 주문 상세에서 결제 화면으로 보내 같은 굿즈로 다시 결제하게 한다', () => {
+  it('결제 없이 끝난 주문은 주문 상세에서 결제 화면으로 보내 같은 상품으로 다시 결제하게 한다', () => {
     const reading: CheckoutPaymentReading = { state: 'payment_closed', closure: 'not_approved', reorderMode: 'retry_from_cart', provider: 'toss' };
     const notice = orderDetailCardPaymentNotice(reading, { orderId: 'order-1', orderExpiresAt: null });
     expect(notice.header.body).toContain('장바구니는 그대로 있으니');

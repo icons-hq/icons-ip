@@ -21,13 +21,13 @@ export function RelationImageMap({ src, alt, points, selectedId, onSelect, onMov
     onMove(point.goodId, relationCoordinate(point.x + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0)),
       relationCoordinate(point.y + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0)));
   }
-  if (failed) return <p className="relation-image-map__error" role="status">이미지를 불러오지 못했습니다. 연결된 굿즈는 아래 목록에서 확인할 수 있습니다.</p>;
+  if (failed) return <p className="relation-image-map__error" role="status">이미지를 불러오지 못했습니다. 연결된 상품은 아래 목록에서 확인할 수 있습니다.</p>;
   const picture = <img src={src} alt={alt} draggable={false} loading="lazy" decoding="async" onError={() => setFailed(true)} />;
   return <div className="relation-image-map" ref={bounds} data-editable={Boolean(onMove)}>
-    {onMove ? <button className="relation-image-map__surface" type="button" disabled={disabled || !selected} aria-label="선택한 굿즈 태그의 이미지 위치 지정"
+    {onMove ? <button className="relation-image-map__surface" type="button" disabled={disabled || !selected} aria-label="선택한 상품 태그의 이미지 위치 지정"
       onClick={event => { if (selected && event.detail) place(selected.goodId, event.clientX, event.clientY); }} onKeyDown={event => keyboard(event, selected)}>{picture}</button> : picture}
     {points.map((point, index) => <button key={point.goodId} type="button" className="relation-image-map__point" disabled={disabled}
-      aria-label={`${index + 1}. ${point.name} 굿즈 태그${onMove ? `, 가로 ${point.x / 100}%, 세로 ${point.y / 100}%` : ''}`}
+      aria-label={`${index + 1}. ${point.name} 상품 태그${onMove ? `, 가로 ${point.x / 100}%, 세로 ${point.y / 100}%` : ''}`}
       aria-pressed={selectedId === point.goodId} style={{ '--relation-x': `${point.x / 100}%`, '--relation-y': `${point.y / 100}%` } as CSSProperties}
       onClick={() => onSelect(point.goodId)} onFocus={() => { if (onMove) onSelect(point.goodId); }} onKeyDown={event => keyboard(event, point)}
       onPointerDown={event => { if (!onMove || disabled) return; drag.current = { id: point.goodId, pointerId: event.pointerId }; event.currentTarget.setPointerCapture(event.pointerId); onSelect(point.goodId); }}

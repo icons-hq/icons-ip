@@ -7,13 +7,11 @@ import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
 import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
-import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
-import { shopQueryString } from '@/components/shop/collection-filters';
+import { listingQueryString, parseListingSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
 import { IpDetail, type IpGoodsCollection } from './IpDetail';
-import { CollectibleFeaturesProvider } from '@/components/shell/CollectibleFeatures';
 
-/* R-03 §1.9 개별 관 행동 단언 — 팔로우·알림 폼의 hidden 필드 계약(app/ip/actions.ts),
- * 해시태그 실데이터 파생, 품절 포함 굿즈 카운트 행, 연결 밴드 경로. */
+/* IP관 행동 단언 — 팔로우·알림 폼의 hidden 필드 계약(app/ip/actions.ts), 해시태그 실데이터 파생,
+ * 굿즈샵 카테고리 화면과 같은 목록 틀(필터 없음·정렬 7종·4열 카드), 연결 링크 경로. */
 
 const actions = vi.hoisted(() => ({
   setPreferences: vi.fn(),
@@ -53,10 +51,6 @@ const detail: CatalogIpDetail = {
     { id: 'g2', name: '슬라임 인형', ip: ip.id, price: 29000, badge: null, stock: 'soldout', stockQty: 0, img: 'linear-gradient(#333, #444)' },
     { id: 'g3', name: '버섯 키링', ip: ip.id, price: 9000, badge: null, stock: 'ok', stockQty: 4, img: 'linear-gradient(#333, #444)' },
   ],
-  cards: [
-    { id: 'c1', ip: ip.id, name: '단풍잎 용사', no: '001', rarity: 'SSR', owned: false, bg: 'linear-gradient(#111, #222)' },
-    { id: 'c2', ip: ip.id, name: '슬라임', no: '002', rarity: 'N', owned: true, bg: 'linear-gradient(#111, #222)' },
-  ],
   events: [],
   posts: [],
 };
@@ -89,16 +83,12 @@ function render(overrides: {
 
 /* 페이지가 URL 로 계산해 내려주는 IP관 컬렉션을 테스트에서도 같은 함수로 만든다. */
 function collectionOf(params: Record<string, string | string[]>, source: CatalogIpDetail = detail): IpGoodsCollection {
-  const query = parseShopSearchParams(params, { view: 'ip', validIpIds: new Set() });
+  const { query } = parseListingSearchParams(params, 'all');
   return { query, result: selectCollectionGoods(source.goods, { ips: [source.ip] }, query) };
 }
 
 function inputNamed(html: string, name: string) {
   return html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0];
-}
-
-function text(html: string) {
-  return html.replace(/<[^>]+>/g, '');
 }
 
 describe('IpDetail follow form', () => {
@@ -143,12 +133,12 @@ describe('IpDetail follow form', () => {
   });
 });
 
-/* 팔로우·알림 저장(성공·실패·로그인 왕복) 뒤에도 고른 굿즈 필터·정렬이 남아야 한다(Codex #598). */
+/* 팔로우·알림 저장(성공·실패·로그인 왕복) 뒤에도 고른 굿즈 정렬이 남아야 한다(Codex #598). */
 describe('IpDetail form return path', () => {
-  it('sends the current filtered hall URL as next from every follow and notification form', () => {
-    const collection = collectionOf({ sort: 'name_asc' });
-    const expected = `/ip/maplestory?${shopQueryString(collection.query)}`.replace(/&/g, '&amp;');
-    expect(expected).toContain('sort=name_asc');
+  it('sends the current sorted hall URL as next from every follow and notification form', () => {
+    const collection = collectionOf({ sort: 'price_asc' });
+    const expected = `/ip/maplestory?${listingQueryString(collection.query)}`.replace(/&/g, '&amp;');
+    expect(expected).toContain('sort=price_asc');
 
     const follower = render({ collection, followState: { isFollowed: true, notifyDrops: true, notifyEvents: false } });
     const guest = render({ collection });
@@ -158,7 +148,7 @@ describe('IpDetail form return path', () => {
     expect(nextValues(guest)).toEqual([expected, expected]);
   });
 
-  it('keeps the bare hall path when no collection filter is chosen', () => {
+  it('keeps the bare hall path when no sort is chosen', () => {
     const nextValues = [...render().matchAll(/<input[^>]*name="next"[^>]*value="([^"]*)"/g)].map((match) => match[1]);
     expect(nextValues).toEqual(['/ip/maplestory', '/ip/maplestory']);
   });
@@ -180,7 +170,7 @@ describe('IpDetail notification forms', () => {
     const drops = inputNamed(html, 'notifyDrops');
     const events = inputNamed(html, 'notifyEvents');
 
-    expect(html).toContain('새 굿즈·드롭');
+    expect(html).toContain('새 상품·드롭');
     expect(html).toContain('팝업·이벤트');
     expect(html).toContain('알림 설정 저장');
     expect(inputNamed(html, 'setBoth')).toContain('value="1"');
@@ -218,22 +208,20 @@ describe('IpDetail banner', () => {
     expect(hashtagList.match(/<li>/g)).toHaveLength(2);
   });
 
-  /* 데스크톱은 배너 안, 모바일은 배너 아래 흰 지면에 해시태그가 선다(11 IP-05) — 같은 목록을 폭마다 하나만 보인다. */
-  it('places the same hashtag list inside the banner and below it for the mobile layout', () => {
+  /* 해시태그는 배너 안 한 곳에만 선다 — 배너가 스트립이라 모바일에서도 글자 단 안에 들어간다. */
+  it('puts the hashtag list once, inside the banner', () => {
     const html = render();
-    const banner = html.match(/<ul class="wc-iphall__hashtags wc-iphall__hashtags--banner">[\s\S]*?<\/ul>/)?.[0] ?? '';
-    const below = html.match(/<div class="wc-container wc-iphall__tags-band"><ul class="wc-iphall__hashtags wc-iphall__hashtags--below">[\s\S]*?<\/ul>/)?.[0] ?? '';
 
-    expect(banner.match(/<li>/g)).toHaveLength(2);
-    expect(below.match(/<li>/g)).toHaveLength(2);
-    expect(html.indexOf('wc-iphall__hashtags--banner')).toBeLessThan(html.indexOf('</section>'));
-    expect(html.indexOf('wc-iphall__hashtags--below')).toBeGreaterThan(html.indexOf('</section>'));
+    expect(html.match(/wc-iphall__hashtags/g)).toHaveLength(1);
+    expect(html.indexOf('wc-iphall__hashtags')).toBeLessThan(html.indexOf('</section>'));
+    expect(html).not.toContain('wc-iphall__tags-band');
   });
 
   it('renders the ip name as the page heading with its description', () => {
     const html = render();
 
     expect(html.match(/<h1[^>]*>메이플스토리<\/h1>/)).toBeTruthy();
+    expect(html.match(/<h1/g)).toHaveLength(1);
     expect(html).toContain('작은 용사들의 큰 모험 메이플 월드의 이야기');
   });
 });
@@ -280,10 +268,10 @@ describe('IpDetail hall banner artwork', () => {
 
     /* 기본(키아트·모바일): 전면 세로 스크림 .45→.62 그대로. */
     expect(find('.wc-iphall__banner::before', null)[0]?.decls.background).toBe('linear-gradient(180deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, .62) 100%)');
-    /* 데스크톱 PC 배너만: 왼쪽 글자 단(콘텐츠 왼쪽 선 + 560) 안은 .62→.54(기존 스크림의 글자 줄 값 이상), 그 끝에서 280px 동안 0 으로 풀린다. */
+    /* 데스크톱 PC 배너만: 왼쪽 글자 단(글자 최대 폭 640) 안은 .62→.54(기존 스크림의 글자 줄 값 이상), 그 끝에서 280px 동안 0 으로 풀린다. */
     const pc = find(".wc-iphall__banner[data-banner='all']::before", '(min-width: 750px)');
     expect(pc).toHaveLength(1);
-    expect(pc[0].decls['--wc-iphall-text-end']).toBe('calc(max(var(--wc-gutter), (100% - var(--wc-container-max)) / 2 + var(--wc-gutter)) + 560px)');
+    expect(pc[0].decls['--wc-iphall-text-end']).toBe('640px');
     expect(pc[0].decls.background.replace(/\s+/g, ' ')).toBe(
       'linear-gradient(90deg, rgba(0, 0, 0, .62) 0, rgba(0, 0, 0, .54) var(--wc-iphall-text-end), rgba(0, 0, 0, 0) calc(var(--wc-iphall-text-end) + 280px))',
     );
@@ -302,61 +290,61 @@ describe('IpDetail hall banner artwork', () => {
 });
 
 describe('IpDetail goods section', () => {
-  it('counts every good including sold-out ones and keeps the sold-out band', () => {
+  it('titles the goods list like the category screens and keeps sold-out goods', () => {
     const html = render();
 
-    expect(text(html)).toContain('전체 › 3개 굿즈');
+    expect(html).toMatch(/<h2 class="wc-listing-head__title" id="iphall-goods-heading">메이플스토리의 상품<\/h2>/);
+    expect(html).toContain('aria-labelledby="iphall-goods-heading"');
     expect(html).toContain('SOLD OUT');
     expect(html).toContain('href="/shop/g1"');
+    expect(html).toContain('href="/shop/g2"');
   });
 
   it('links to the shop scoped to this ip', () => {
     const html = render();
 
-    expect(html).toContain('굿즈샵에서 전체 보기');
+    expect(html).toContain('전체 상품 보기');
     expect(html).toContain('href="/shop?ip=maplestory"');
   });
 
-  /* IP-01: 상품 영역은 IP로 좁힌 굿즈샵 컬렉션이다 — 사이드바(타입·가격)·정렬·212 카드·VIEW MORE.
-     IP 그룹은 값이 하나뿐이라 그리지 않는다(레퍼런스 브랜드관의 1항목 브랜드 그룹 생략). */
-  it('replaces the type chips with the collection sidebar narrowed to this ip', () => {
+  /* 굿즈샵 카테고리 화면과 같은 틀 — 왼쪽 필터(타입·가격)·수량 줄·필터 시트가 없다. */
+  it('has no filter sidebar, count row or filter sheet', () => {
     const html = render();
 
-    expect(html).toContain('aria-label="굿즈 필터"');
-    /* 예약판매 굿즈가 없으면 '타입' 그룹은 아예 그리지 않는다(ADR-0044) — 옛 9종 옵션도 없다. */
-    expect(html).not.toContain('타입 (');
-    expect(text(html)).not.toContain('키링 (');
-    expect(html).not.toContain('IP (0)');
-    expect(html).not.toContain('wc-iphall__filter-chip');
-    expect(html).toContain('class="wc-product-grid"');
+    expect(html).not.toContain('aria-label="상품 필터"');
+    expect(html).not.toContain('wc-collection');
+    expect(html).not.toContain('전체 ›');
+    expect(html).not.toContain('전체 초기화');
+    expect(html).toContain('class="wc-x-grid" data-density="listing"');
+    expect(html).toContain('wc-listing-sort__select');
   });
 
-  it('offers the seven collection sorts with recommended selected by default', () => {
+  it('offers the seven listing sorts with recommended selected by default', () => {
     const html = render();
     const values = [...html.matchAll(/<option[^>]*value="([^"]+)"/g)].map((match) => match[1]);
 
-    expect(values).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
+    expect(values).toEqual(['recommended', 'popular', 'newest', 'sales', 'price_asc', 'price_desc', 'reviews']);
     expect(html).toMatch(/<option[^>]*value="recommended"[^>]*selected/);
   });
 
-  it('renders the server-computed collection with its filters and sort applied', () => {
-    const html = render({ collection: collectionOf({ type: '키링', sort: 'price_asc' }) });
+  it('renders the server-computed collection with its sort applied and ignores the old type filter', () => {
+    const html = render({ collection: collectionOf({ type: '키링', min: '10000', sort: 'price_asc' }) });
 
-    /* 옛 ?type=키링 링크는 무시된다 — 3개 모두 보이고 정렬만 적용된다. */
-    expect(text(html)).toContain('전체 › 3개 굿즈');
-    expect(html.indexOf('버섯 키링')).toBeLessThan(html.indexOf('단풍 키링'));
+    /* 옛 ?type=·min= 링크는 무시된다 — 3개 모두 보이고 정렬만 적용된다. */
     expect(html).toContain('슬라임 인형');
+    expect(html.indexOf('버섯 키링')).toBeLessThan(html.indexOf('단풍 키링'));
+    expect(html.indexOf('단풍 키링')).toBeLessThan(html.indexOf('슬라임 인형'));
   });
 
   it('pages beyond twenty goods with VIEW MORE', () => {
     const many: CatalogIpDetail = {
       ...detail,
-      goods: Array.from({ length: 25 }, (_, index) => ({ ...detail.goods[0], id: `m${index}`, name: `굿즈 ${index}` })),
+      goods: Array.from({ length: 25 }, (_, index) => ({ ...detail.goods[0], id: `m${index}`, name: `상품 ${index}` })),
     };
     const html = render({ detail: many });
 
     expect((html.match(/wc-product-card__name-link/g) ?? []).length).toBe(20);
-    expect(html).toContain('>VIEW MORE</button>');
+    expect(html).toContain('VIEW MORE');
   });
 
   it('puts a listing heart on every card when the wish set is passed', () => {
@@ -369,34 +357,45 @@ describe('IpDetail goods section', () => {
   it('shows only the empty state when the hall has no goods', () => {
     const empty = render({ detail: { ...detail, goods: [] } });
 
-    expect(empty).toContain('등록된 굿즈가 아직 없습니다');
+    expect(empty).toContain('등록된 상품이 아직 없습니다');
     expect(empty).toContain('id="iphall-goods-heading"');
-    expect(empty).not.toContain('aria-label="굿즈 필터"');
-    expect(empty).not.toContain('wc-product-grid');
+    expect(empty).not.toContain('wc-listing-sort__select');
+    expect(empty).not.toContain('wc-x-grid');
+  });
+});
+
+describe('IpDetail follow row', () => {
+  it('puts follow and notification controls in one row under the banner, before the goods list', () => {
+    const html = render({ followState: { isFollowed: true, notifyDrops: true, notifyEvents: false } });
+    const bar = html.match(/<section aria-label="IP 알림" class="wc-iphall__bar">[\s\S]*?<\/section>/)?.[0] ?? '';
+
+    expect(bar).toContain('wc-iphall__follow-heart');
+    expect(bar).toContain('name="notifyDrops"');
+    expect(bar).toContain('알림 설정 저장');
+    expect(html.indexOf('</section>')).toBeLessThan(html.indexOf('wc-iphall__bar'));
+    expect(html.indexOf('wc-iphall__bar')).toBeLessThan(html.indexOf('iphall-goods-heading'));
   });
 });
 
 describe('IpDetail link band', () => {
-  it('links the card binder with the lineup size, offline pop-ups, and the fandom channel', () => {
-    const html = renderToStaticMarkup(
-      <CollectibleFeaturesProvider value={{ binder: true, market: false, exchange: false }}>
-        <IpDetail detail={detail} followError={false} followState={notFollowed} notificationError={false} notificationSaved={false} />
-      </CollectibleFeaturesProvider>,
-    );
+  const popup = { id: 'e1', title: '메이플 팝업', ip: 'maplestory', mode: '오프라인', status: '진행중', date: '11.1', loc: '서울', accent: '#fff', img: 'none' };
 
-    expect(html).toContain('카드 도감 2종');
-    expect(html).toContain('href="/binder"');
-    expect(html).toContain('href="/offline-popups"');
+  /* 카드 바인더는 2026-11-24 지웠다(ADR-0052) — 카드 도감 링크 없이 오프라인 팝업·팬덤 채널 링크만 남는다. */
+  it('links offline pop-ups and the fandom channel without a card codex', () => {
+    const html = render({ detail: { ...detail, events: [popup] } });
+
+    expect(html).not.toContain('href="/binder"');
+    expect(html).not.toContain('카드 도감');
+    expect(html).toContain('href="/offline-popups?ip=maplestory"');
     /* 팬덤 채널은 커뮤니티 임시 비공개 스위치를 따른다. */
     expect(html.includes('href="/community?ip=maplestory"')).toBe(COMMUNITY_ENABLED);
   });
 
-  /* 카드 바인더는 운영하지 않는다 — 공개 스위치가 꺼져 있으면(기본) 카드 도감 링크가 없고 다른 공간 링크는 그대로다. */
-  it('drops the card codex link while the card binder is hidden', () => {
-    const html = render();
-
-    expect(html).not.toContain('href="/binder"');
-    expect(html).not.toContain('카드 도감');
-    expect(html).toContain('href="/offline-popups"');
+  /* 진행·예매·예정 중인 오프라인 팝업이 없으면 링크 칸을 그리지 않는다(온라인 팝업·끝난 팝업은 세지 않는다). */
+  it('shows the offline pop-up link only while this ip has a running or upcoming offline pop-up', () => {
+    expect(render()).not.toContain('/offline-popups');
+    expect(render({ detail: { ...detail, events: [{ ...popup, mode: '온라인' }] } })).not.toContain('/offline-popups');
+    expect(render({ detail: { ...detail, events: [{ ...popup, status: '종료' }] } })).not.toContain('/offline-popups');
+    expect(render({ detail: { ...detail, events: [{ ...popup, status: '예정' }] } })).toContain('/offline-popups');
   });
 });

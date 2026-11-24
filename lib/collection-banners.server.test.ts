@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * 돌려준 목록이 곧 그 페이지에 그릴 배너여야 Shop 의 머리말·여백 판정(hasBanner)이 실제 배너와 같다(l8b-ui-2·l8b-data-3).
  */
 
-const mocks = vi.hoisted(() => ({ rows: [] as unknown[], error: null as unknown, rewards: vi.fn(), calls: [] as Array<[string, unknown[]]> }));
+const mocks = vi.hoisted(() => ({ rows: [] as unknown[], error: null as unknown, calls: [] as Array<[string, unknown[]]> }));
 vi.mock('next/cache', () => ({
   unstable_cache: (fn: (...args: unknown[]) => Promise<unknown>) => fn,
 }));
@@ -23,7 +23,6 @@ vi.mock('@supabase/ssr', () => ({
   },
 }));
 vi.mock('./supabase/config', () => ({ getSupabaseConfig: () => ({ url: 'https://local.example.test', key: 'anon-test', isConfigured: true }) }));
-vi.mock('./card-rewards/gate.server', () => ({ readCardRewardsEnabled: mocks.rewards }));
 
 import { getCollectionBanners } from './collection-banners.server';
 
@@ -39,7 +38,6 @@ beforeEach(() => {
   mocks.rows = [];
   mocks.error = null;
   mocks.calls = [];
-  mocks.rewards.mockReset().mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -55,11 +53,10 @@ describe('getCollectionBanners', () => {
     expect((await getCollectionBanners('all')).map((banner) => banner.title)).toEqual(['배너 5', '배너 6']);
   });
 
-  it('카드 리워드가 꺼지면 카드팩으로 가는 BEST 배너를 서버에서 걷는다 — 걷힌 목록이 비면 Shop 은 텍스트 제목을 그린다(l8b-ui-2)', async () => {
+  it('지운 카드팩 화면으로 가는 BEST 배너를 서버에서 걷는다 — 걷힌 목록이 비면 Shop 은 텍스트 제목을 그린다(l8b-ui-2)', async () => {
     mocks.rows = [row(1, 'best', '/packs')];
 
     expect(await getCollectionBanners('best')).toEqual([]);
-    expect(mocks.rewards).toHaveBeenCalledTimes(1);
   });
 
   it('게이트로 빠진 자리는 다음 순서 배너가 채운다(l8b-data-4)', async () => {
@@ -73,18 +70,10 @@ describe('getCollectionBanners', () => {
     expect(slides.at(-1)?.title).toBe('배너 20');
   });
 
-  it('카드 리워드가 켜진 배포에서는 카드팩 배너가 첫 HTML 부터 그대로 있다', async () => {
-    mocks.rewards.mockResolvedValue(true);
-    mocks.rows = [row(1, 'best', '/packs')];
+  it('지운 바인더·마켓·트레이드 화면으로 가는 배너도 걷는다(ADR-0052)', async () => {
+    mocks.rows = [row(1, 'all', '/binder'), row(2, 'all', '/market'), row(3, 'all', '/exchange/1'), row(4, 'all', '/shop')];
 
-    expect((await getCollectionBanners('best')).map((banner) => banner.href)).toEqual(['/packs']);
-  });
-
-  it('카드팩·게임으로 가는 배너가 없으면 게이트를 읽지 않는다(요청마다 DB 왕복을 더하지 않는다)', async () => {
-    mocks.rows = [row(1, 'best', '/shop/best'), row(2, 'all', '/packs')];
-
-    expect(await getCollectionBanners('best')).toHaveLength(1);
-    expect(mocks.rewards).not.toHaveBeenCalled();
+    expect((await getCollectionBanners('all')).map((banner) => banner.title)).toEqual(['배너 4']);
   });
 
   it('커뮤니티가 닫힌 배포에서는 커뮤니티로 가는 배너를 걷는다', async () => {

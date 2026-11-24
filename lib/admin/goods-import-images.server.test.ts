@@ -67,7 +67,7 @@ describe('import image source boundary', () => {
     vi.clearAllMocks();
     mocks.lookup.mockResolvedValue([{ address: '8.8.8.8', family: 4 }]);
   });
-  it('ICONS 양식 URL 이미지는 octet-stream 응답과 공백이 든 주소도 파일 서명으로 받는다', async () => {
+  it('엑스스퀘어 양식 URL 이미지는 octet-stream 응답과 공백이 든 주소도 파일 서명으로 받는다', async () => {
     response(200, { 'content-type': 'application/octet-stream' }, PNG);
     await expect(fetchGoodsImportImage('https://example.test/a.png')).resolves.toEqual(PNG);
     response(200, { 'content-type': 'binary/octet-stream' }, PNG);
@@ -78,7 +78,7 @@ describe('import image source boundary', () => {
     response(200, { 'content-type': 'application/octet-stream' }, Buffer.from('<html></html>'));
     await expect(fetchGoodsImportImage('https://example.test/a.png')).rejects.toThrow('JPEG·PNG·WebP');
   });
-  it('ICONS 양식 URL 이미지는 느리지만 계속 오는 큰 이미지를 끝까지 받고 10초 무응답이면 끊는다', async () => {
+  it('엑스스퀘어 양식 URL 이미지는 느리지만 계속 오는 큰 이미지를 끝까지 받고 10초 무응답이면 끊는다', async () => {
     vi.useFakeTimers();
     try {
       const slow = (gap: number, count: number) => {
@@ -222,7 +222,7 @@ describe('사방넷 이미지 미리 받기와 초안 이미지 준비', () => {
     }));
   });
 
-  it('사방넷 초안은 검증하지 못한 이미지를 빼고 저장하고 ICONS 양식 상품은 실패로 남긴다', async () => {
+  it('사방넷 초안은 검증하지 못한 이미지를 빼고 저장하고 엑스스퀘어 양식 상품은 실패로 남긴다', async () => {
     const planned = group({ images: [{ field: 'gallery_0', kind: 'url', source: 'https://private.example.com/sub.png' }],
       target: { image_path: null, gallery_paths: ['import-image:gallery_0'], detail_image_path: null } });
     await expect(prepareGoodsImportImages(batchWith([planned]), 0, new Map())).resolves.toEqual({ ready: true });

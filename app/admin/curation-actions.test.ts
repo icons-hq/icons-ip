@@ -254,7 +254,7 @@ describe('admin curation action', () => {
     }))).resolves.toEqual({
       errors: {
         operationId: '저장 요청 정보가 맞지 않습니다. 새로고침한 뒤 다시 저장해주세요.',
-        linkPath: '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.',
+        linkPath: '이동할 화면은 /로 시작하는 엑스스퀘어 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.',
       },
     });
     expect(mocks.getCurrentAdminAuthState).not.toHaveBeenCalled();

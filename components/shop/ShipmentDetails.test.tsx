@@ -44,7 +44,7 @@ describe('non-parcel customer shipment display', () => {
       { id: 'line-1', goodId: 'keyring', name: '주문 당시 키링', qty: 1 }, { id: 'line-2', goodId: 'doll', name: '주문 당시 인형', qty: 1 },
     ]} />);
     expect(html).toContain('주문 당시 키링 · 주문 당시 인형');
-    expect(html).not.toContain('굿즈 1');
+    expect(html).not.toContain('상품 1');
   });
 });
 

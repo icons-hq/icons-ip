@@ -17,7 +17,7 @@ const LEDGER_COLUMNS = [
 ];
 
 export async function buildStoreCreditWorkbook(data: StoreCreditConsoleData, capturedAt: string): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook(); workbook.creator = 'ICONS'; workbook.created = new Date(capturedAt);
+  const workbook = new ExcelJS.Workbook(); workbook.creator = '엑스스퀘어'; workbook.created = new Date(capturedAt);
   const { filters } = data, ledger = filters.mode === 'ledger';
   addWorkbookTable(workbook, ledger ? '적립금 원장' : '지급관리', ledger ? LEDGER_COLUMNS : BATCH_COLUMNS, data.rows.map(row => ledger
     ? [row.id, kstDateTimeText(row.createdAt), storeCreditEntryLabel(row.kind), row.userId, row.nickname, row.maskedEmail, row.amount, row.availableDelta, row.reservedDelta, row.debtDelta, row.reason, row.orderId, row.batchId, row.actorId, kstDateTimeText(row.expiresAt)]

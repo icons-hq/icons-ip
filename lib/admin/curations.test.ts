@@ -229,7 +229,7 @@ describe('admin curation form normalization', () => {
   ])('rejects an unsafe internal link: %s', (_label, linkPath) => {
     expect(normalizeAdminCurationForm(curationForm({ linkPath }))).toEqual({
       ok: false,
-      errors: { linkPath: '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.' },
+      errors: { linkPath: '이동할 화면은 /로 시작하는 엑스스퀘어 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.' },
     });
   });
 
@@ -248,7 +248,7 @@ describe('admin curation form normalization', () => {
   ])('rejects an ambiguous raw or once-decoded internal link: %s', (_label, linkPath) => {
     expect(normalizeAdminCurationForm(curationForm({ linkPath }))).toEqual({
       ok: false,
-      errors: { linkPath: '이동할 화면은 /로 시작하는 ICONS 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.' },
+      errors: { linkPath: '이동할 화면은 /로 시작하는 엑스스퀘어 안의 주소로 2,048자 이내로 입력해주세요. 외부 주소는 넣을 수 없습니다.' },
     });
   });
 

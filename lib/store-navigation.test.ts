@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { CATEGORY_MEGA_GROUPS, CATEGORY_SHEET_SHORTCUTS, hrefFor, STOREFRONT_MENU_ITEMS } from './routes';
-import { configuredNavigationGroups, DEFAULT_STORE_NAVIGATION, DEFAULT_STOREFRONT_NAVIGATION, parseStorefrontNavigation, parseStoreNavigation, resolveStorefrontNavigation, storefrontNavigation, storeMenuSheetGroups, type StorefrontNavigation } from './store-navigation';
+import { configuredNavigationGroups, DEFAULT_STORE_NAVIGATION, DEFAULT_STOREFRONT_NAVIGATION, parseStorefrontNavigation, parseStoreNavigation, resolveStorefrontNavigation, RETIRED_STORE_MENU_IDS, storefrontNavigation, storeMenuSheetGroups, type StorefrontNavigation } from './store-navigation';
 
 describe('공개 메뉴 설정 계약', () => {
   it('고정 9개 ID를 정확히 한 번 보존하고 실제 경로만 연결한다', () => {
     expect(parseStoreNavigation(DEFAULT_STORE_NAVIGATION)).toEqual(DEFAULT_STORE_NAVIGATION);
-    for (const item of STOREFRONT_MENU_ITEMS) expect(hrefFor(item.id)).not.toBe('/');
+    /* 카드팩('packs')은 2026-11-24 지운 퇴역 칸이다(ADR-0052) — DB 저장 계약 때문에 ID만 남고 경로는 없다. */
+    expect([...RETIRED_STORE_MENU_IDS]).toEqual(['packs']);
+    for (const item of STOREFRONT_MENU_ITEMS) {
+      if (RETIRED_STORE_MENU_IDS.has(item.id)) expect(hrefFor(item.id)).toBe('/');
+      else expect(hrefFor(item.id)).not.toBe('/');
+    }
     const invalid = [null, {}, DEFAULT_STORE_NAVIGATION.slice(1), [...DEFAULT_STORE_NAVIGATION, DEFAULT_STORE_NAVIGATION[0]],
       DEFAULT_STORE_NAVIGATION.map((item, index) => index === 0 ? { ...item, id: 'admin' } : item),
       DEFAULT_STORE_NAVIGATION.map((item, index) => index === 0 ? { ...item, id: 'best' } : item),
@@ -30,10 +35,10 @@ describe('공개 메뉴 설정 계약', () => {
     expect(parseStorefrontNavigation(projection.filter(item => item.id !== 'shop'))).toBeNull();
     expect(parseStorefrontNavigation([...projection, projection[0]])).toBeNull();
   });
-  it('메뉴 노출 설정으로 카드팩·커뮤니티 기능 게이트를 우회하지 못한다', () => {
+  it('메뉴 노출 설정으로 커뮤니티 기능 게이트를 우회하지 못하고, 퇴역한 카드팩 칸은 켜져 있어도 그리지 않는다', () => {
     const projection = storefrontNavigation(DEFAULT_STORE_NAVIGATION.map(item => ({ ...item, visible: true })));
-    expect(resolveStorefrontNavigation(projection, false, false).map(item => item.id)).toEqual(['new', 'best', 'shop', 'popups', 'events', 'iphub', 'stories']);
-    expect(resolveStorefrontNavigation(projection, true, true)).toEqual(projection);
+    expect(resolveStorefrontNavigation(projection, false).map(item => item.id)).toEqual(['new', 'best', 'shop', 'popups', 'events', 'iphub', 'stories']);
+    expect(resolveStorefrontNavigation(projection, true)).toEqual(projection.filter(item => item.id !== 'packs'));
   });
   it('메뉴시트는 전체 순서와 이름을 공유하고 관련 메가 링크도 숨김을 존중한다', () => {
     const navigation = [{ id: 'events', label: '행사' }, { id: 'best', label: '인기 상품' }, { id: 'shop', label: '상품 분류' }];
@@ -44,14 +49,14 @@ describe('공개 메뉴 설정 계약', () => {
     expect(sheet.find(group => group.heading === '내 활동')?.items.map(item => item.id)).toContain('orders');
     const mega = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, navigation);
     /* 메가메뉴 트리거(shop)의 운영 이름은 메뉴 이름이다 — 메뉴 안의 /shop 링크는 '전체 굿즈'로 남는다(CH-06). */
-    expect(mega[0].items).toEqual([{ id: 'best', label: '인기 상품' }, { id: 'shop', label: '전체 굿즈' }]);
+    expect(mega[0].items).toEqual([{ id: 'best', label: '인기 상품' }, { id: 'shop', label: '전체 상품' }]);
     expect(mega.flatMap(group => group.items).map(item => item.id)).not.toContain('packs');
-    expect(mega.flatMap(group => group.items).map(item => item.id)).toContain('binder');
+    expect(mega.flatMap(group => group.items).map(item => item.id)).not.toContain('binder');
   });
-  it('기본 메뉴에서도 메가메뉴의 전체 굿즈 링크가 GNB 트리거 이름으로 덮이지 않는다', () => {
+  it('기본 메뉴에서도 메가메뉴의 전체 상품 링크가 GNB 트리거 이름으로 덮이지 않는다', () => {
     const mega = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, storefrontNavigation(DEFAULT_STORE_NAVIGATION));
-    const goods = mega.find(group => group.heading === '굿즈샵');
-    expect(goods?.items).toEqual([{ id: 'new', label: 'NEW' }, { id: 'best', label: 'BEST' }, { id: 'shop', label: '전체 굿즈' }]);
+    const goods = mega.find(group => group.heading === '쇼핑');
+    expect(goods?.items).toEqual([{ id: 'new', label: 'NEW' }, { id: 'best', label: 'BEST' }, { id: 'shop', label: '전체 상품' }]);
     expect(mega.flatMap(group => group.items).map(item => item.label)).not.toContain('카테고리');
   });
 });
@@ -74,7 +79,7 @@ describe('X SQUARE 기본 메뉴', () => {
   /* MD-0035 "카테고리에 쇼핑스토리 항목 삭제": GNB·모바일 탭·카테고리 시트 바로가기·전체 메뉴 시트에서 한 번에 빠진다(/stories 화면 자체는 남는다). */
   it('쇼핑스토리는 기본 메뉴의 GNB·카테고리 시트 바로가기·전체 메뉴 시트 어디에도 나오지 않고, 운영자가 켜면 모두에 돌아온다', () => {
     const idsOf = (navigation: StorefrontNavigation) => {
-      const items = resolveStorefrontNavigation(navigation, true, true);
+      const items = resolveStorefrontNavigation(navigation, true);
       return {
         gnb: items.map(item => item.id),
         shortcuts: configuredNavigationGroups([CATEGORY_SHEET_SHORTCUTS], items)[0].items.map(item => item.id),
@@ -92,7 +97,7 @@ describe('X SQUARE 기본 메뉴', () => {
     expect(shown.shortcuts).toContain('stories');
     expect(shown.sheet).toContain('stories');
     /* 바로가기 이름은 운영 메뉴 이름을 따른다 — 이벤트가 EVENT 로 바뀐다. */
-    expect(configuredNavigationGroups([CATEGORY_SHEET_SHORTCUTS], resolveStorefrontNavigation(DEFAULT_STOREFRONT_NAVIGATION, true, true))[0].items.find(item => item.id === 'events')).toEqual({ id: 'events', label: 'EVENT' });
+    expect(configuredNavigationGroups([CATEGORY_SHEET_SHORTCUTS], resolveStorefrontNavigation(DEFAULT_STOREFRONT_NAVIGATION, true))[0].items.find(item => item.id === 'events')).toEqual({ id: 'events', label: 'EVENT' });
   });
 
   /* 이행 전에 저장된 8개짜리 설정은 버리지 않는다 — popups(POP-UP, 노출)를 카테고리 바로 뒤에 끼워 9개로 읽는다. DB 이행과 같은 규칙. */

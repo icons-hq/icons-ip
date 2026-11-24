@@ -103,7 +103,7 @@ const good: AdminGoodRecord = {
     material: '아크릴',
     size: '80 x 60 x 20mm · 90g',
     madeOn: '2026-07',
-    asManager: '아이콘스 고객센터',
+    asManager: '엑스스퀘어 고객센터',
     asContact: '02-000-0000',
   },
   description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
@@ -214,6 +214,13 @@ describe('GoodSection', () => {
     expect(html).toContain(`value="${path}"`);
     expect(html).toContain('value="입력한 대체 설명"');
   });
+  /* ADR-0050 — 새 상품은 배포 전 임시저장·자동복구에 남은 옛 'URL' 값(대문자·이미 쓰는 값)을 숨은 칸에 싣지 않는다. 서버가 상품명으로 새로 만든다. */
+  it('새 상품 폼은 복구한 옛 URL 값을 내부 id 로 보내지 않는다', () => {
+    const html = renderGoodSection(null, { attempt: 1, values: { previousId: '', id: 'HSQ-0061', name: '복구한 상품' } });
+    expect(html).toContain('<input type="hidden" name="id" value=""/>');
+    expect(html).not.toContain('value="HSQ-0061"');
+  });
+
   it('renders kit sections and restores failed uploaded paths, notice and invalid option values', () => {
     const html = renderGoodSection(null, { attempt: 1, values: { previousId: '', name: '실패 뒤 상품', noticeAsContact: '복사된 연락처', imagePath: 'public-media/catalog/good/failed.webp', variants: '[{"name":"보존 옵션","code":"MANUAL","attributes":{},"extraPrice":-1,"stockQty":5}]' } });
     expect(html).toContain('aria-label="기본 정보"');
@@ -1039,15 +1046,31 @@ describe('GoodSection', () => {
     expect(nav.match(/<a /g)).toHaveLength(7);
   });
 
-  /* #326 — 배지는 자유 입력이 아니라 표준 값 select 다. 상품 유형은 입력칸도 표시도 없다(ADR-0044). */
-  it('offers the standard badge options plus a compare-at price field and no type input', () => {
+  /* #326 — 배지(상품 표시문구)는 자유 입력이 아니라 표준 값 고르기다. 2026-11-24부터 여러 개를 고르고 고른 순서가 노출 순서다.
+     상품 유형은 입력칸도 표시도 없다(ADR-0044). */
+  it('offers the standard badge checkboxes plus a compare-at price field and no type input', () => {
     const html = renderGoodSection(null);
 
     expect(html).toContain('name="compareAtPrice"');
-    for (const badge of GOOD_BADGES) expect(html).toContain(`<option value="${badge}">`);
-    expect(html).toContain('없음');
+    const badges = html.slice(html.indexOf('data-good-badges'), html.indexOf('</fieldset>', html.indexOf('data-good-badges')));
+    expect(badges).toContain('<legend class="mb-2 text-sm leading-snug font-medium text-foreground">상품 표시문구</legend>');
+    for (const badge of GOOD_BADGES) expect(badges).toMatch(new RegExp(`<input type="checkbox"/><span>${badge}</span>`));
+    expect(badges).toContain('<input type="hidden" name="badge" value=""/>');
+    expect(badges).toContain('고르지 않으면 상품 카드와 상세에 표시문구가 없습니다.');
     expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
     expect(html).not.toContain('data-good-type-derived');
+  });
+
+  it('저장된 표시문구 여러 개를 고른 순서대로 체크·번호·숨은 칸·요약에 보인다', () => {
+    const html = renderGoodSection({ ...good, badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] });
+    const badges = html.slice(html.indexOf('data-good-badges'), html.indexOf('</fieldset>', html.indexOf('data-good-badges')));
+    expect(badges).toContain('<input type="hidden" name="badge" value="EXCLUSIVE, NEW"/>');
+    expect(badges).toMatch(/<input type="checkbox" checked=""\/><span>NEW<\/span><span[^>]*data-good-badge-order="">2번째<\/span>/);
+    expect(badges).toMatch(/<input type="checkbox" checked=""\/><span>EXCLUSIVE<\/span><span[^>]*data-good-badge-order="">1번째<\/span>/);
+    expect(badges).toContain('상품 카드와 상세에 EXCLUSIVE → NEW 순서로 보입니다.');
+    expect(html).toContain('표시문구 EXCLUSIVE, NEW · ');
+    /* badges를 싣지 않은 옛 기록은 첫 값 하나로 읽는다. */
+    expect(renderGoodSection({ ...good, badge: 'NEW', badges: undefined })).toContain('<input type="hidden" name="badge" value="NEW"/>');
   });
 
   /* ADR-0044 — 상품 유형은 화면 어디에도 없고 숨은 입력으로도 싣지 않는다. */

@@ -66,8 +66,7 @@ function snapshot(): CatalogSnapshot {
       tagline: '',
       synopsis: '',
     }],
-    goods: [good('a', '1위 굿즈', 30000), good('b', '2위 굿즈', 10000), good('c', '랭킹 밖 굿즈', 20000)],
-    cards: [],
+    goods: [good('a', '1위 상품', 30000), good('b', '2위 상품', 10000), good('c', '랭킹 밖 상품', 20000)],
     events: [],
   };
 }
@@ -94,21 +93,21 @@ beforeEach(() => {
 describe('/shop/best page', () => {
   it('실화면이므로 색인을 막지 않는다', () => {
     expect(metadata).toMatchObject({
-      title: 'BEST — ICONS',
-      description: '지금 가장 사랑받는 굿즈예요.',
+      title: 'BEST — 엑스스퀘어',
+      description: '지금 가장 사랑받는 상품이에요.',
     });
     expect(metadata.robots).toBeUndefined();
   });
 
-  it('기본은 실시간 판매 랭킹 순서이고 랭킹 밖 굿즈는 담지 않는다', async () => {
+  it('기본은 실시간 판매 랭킹 순서이고 랭킹 밖 상품은 담지 않는다', async () => {
     mocks.ranking = ['b', 'a'];
     const html = await render();
 
     expect(mocks.rankingPeriods).toEqual(['realtime']);
     expect(html).toMatch(/<h1[^>]*>BEST<\/h1>/);
     expect(currentTab(html)).toEqual(['실시간']);
-    expect(html.indexOf('2위 굿즈')).toBeLessThan(html.indexOf('1위 굿즈'));
-    expect(html).not.toContain('랭킹 밖 굿즈');
+    expect(html.indexOf('2위 상품')).toBeLessThan(html.indexOf('1위 상품'));
+    expect(html).not.toContain('랭킹 밖 상품');
     /* 게스트에게도 카드 하트가 보인다(누르면 로그인 벽 — CL-01). */
     expect((html.match(/<button[^>]*class="wc-list-heart"/g) ?? []).length).toBe(2);
   });
@@ -131,27 +130,27 @@ describe('/shop/best page', () => {
     mocks.ranking = ['a', 'b'];
     const html = await render({ sort: 'price_asc' });
 
-    expect(html.indexOf('2위 굿즈')).toBeLessThan(html.indexOf('1위 굿즈'));
-    expect(html).not.toContain('랭킹 밖 굿즈');
+    expect(html.indexOf('2위 상품')).toBeLessThan(html.indexOf('1위 상품'));
+    expect(html).not.toContain('랭킹 밖 상품');
     expect(html).toMatch(/<option[^>]*value="price_asc"[^>]*selected/);
     expect(mocks.orderLoads).toBe(0);
 
     mocks.orders = { popular: ['c', 'b', 'a'], sales: [], reviews: [] };
     const popular = await render({ sort: 'popular' });
     expect(mocks.orderLoads).toBe(1);
-    expect(popular.indexOf('2위 굿즈')).toBeLessThan(popular.indexOf('1위 굿즈'));
-    expect(popular).not.toContain('랭킹 밖 굿즈');
+    expect(popular.indexOf('2위 상품')).toBeLessThan(popular.indexOf('1위 상품'));
+    expect(popular).not.toContain('랭킹 밖 상품');
   });
 
   it('필터 쿼리와 이름순은 읽지 않는다 — 결과가 같다', async () => {
     expect(await render({ ip: 'ghost', min: '1', type: '인형', sort: 'name_asc' })).toBe(await render());
   });
 
-  it('랭킹이 비면(집계된 굿즈 없음) 기간 탭은 남기고 "이 기간에 집계된 굿즈가 없어요" 안내를 그린다', async () => {
+  it('랭킹이 비면(집계된 상품 없음) 기간 탭은 남기고 "이 기간에 집계된 상품이 없어요" 안내를 그린다', async () => {
     mocks.ranking = [];
     const html = await render({ period: 'weekly' });
 
-    expect(html).toContain('이 기간에 집계된 굿즈가 없어요');
+    expect(html).toContain('이 기간에 집계된 상품이 없어요');
     expect(html).toContain('다른 기간을 골라 보세요.');
     expect(currentTab(html)).toEqual(['주간']);
     expect(html).not.toContain('wc-x-grid');
@@ -163,7 +162,7 @@ describe('/shop/best page', () => {
 
     expect(html).toContain('순위를 불러오지 못했어요.');
     expect(html).toContain('잠시 후 다시 확인해주세요.');
-    expect(html).not.toContain('이 기간에 집계된 굿즈가 없어요');
+    expect(html).not.toContain('이 기간에 집계된 상품이 없어요');
     expect(html).not.toContain('wc-x-grid');
   });
 

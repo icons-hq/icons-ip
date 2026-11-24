@@ -175,7 +175,7 @@ describe('resolveInquiryLinkTargets', () => {
     expect(targets.orderLabel).toBe('11111111');
   });
 
-  it('굿즈는 공개 카탈로그라 존재 확인만 한다', async () => {
+  it('상품은 공개 카탈로그라 존재 확인만 한다', async () => {
     mocks.tables.goods = { data: { id: 'g13', name: '아크릴 블록' }, error: null };
 
     const targets = await resolveInquiryLinkTargets(USER_ID, { goodId: 'g13' });

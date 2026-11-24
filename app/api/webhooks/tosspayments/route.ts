@@ -9,10 +9,12 @@ import {
   createGoodsProviderCancellationRepository,
   type GoodsProviderCancellationVerdict,
 } from '@/lib/payments/goods-provider-cancellation.server';
-import {
-  createGoodsDepositReversalCheck,
-  type GoodsDepositReversalVerdict,
+import type {
+  DepositReversalSettlement,
+  GoodsDepositReversalVerdict,
+  OpenDepositReversal,
 } from '@/lib/payments/goods-deposit-reversal.server';
+import { createRuntimeDepositReversal, loadOpenDepositReversal } from '@/lib/payments/goods-deposit-reversal.runtime.server';
 import { loadGoodsPaymentKeyHint } from '@/lib/payments/goods-payment-key-hint.server';
 import { getPaymentGateway, paymentProviderConfigured } from '@/lib/payments/runtime-gateway';
 import { createRuntimeAttemptPaymentGateway } from '@/lib/subscriptions/payment-dispatch.server';
@@ -20,7 +22,7 @@ import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/servic
 import { TicketPaymentReconciliationInProgressError } from '@/lib/payments/ticket-checkout';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
 import { billingRecoveryConfigured } from '@/lib/subscriptions/payment-dispatch.server';
-import type { ConfirmOutcome, PaymentAttempt } from '@/lib/payments/gateway';
+import type { ConfirmOutcome } from '@/lib/payments/gateway';
 import {
   TossWebhookInvalidError,
   parseTossWebhook,
@@ -81,10 +83,22 @@ interface TossWebhookHandlerDependencies {
    */
   readonly checkProviderCancellation: (input: { readonly attemptId: string; readonly caseRef: string }) => Promise<GoodsProviderCancellationVerdict>;
   /**
-   * 승인된 가상계좌 결제의 입금 오류 되돌림(DONE → WAITING_FOR_DEPOSIT) 감지(ADR-0049). 결제사 직접 취소 감지는 잔액이 그대로라
-   * 되돌림을 '이상 없음'으로 읽으므로 그보다 먼저 본다. 되돌림이면 DB가 출고 보류한다. 조회 실패는 throw.
+   * 승인된 가상계좌 결제의 입금 오류 되돌림(ADR-0049 결정 4).
+   *  - check: WAITING_FOR_DEPOSIT 웹훅 — 조회로 확인되면 DB가 출고 보류·되돌림 기록·고객 알림을 남긴다(재입금 안내 메일). 결제사 직접
+   *    취소 감지는 잔액이 그대로라 되돌림을 '이상 없음'으로 읽으므로 그보다 먼저 본다.
+   *  - loadOpen·settle: 열린 되돌림이 있는 결제의 그 밖의 웹훅(재입금 DONE·반납 CANCELED) — 조회로 재입금이면 보류를 풀고, 반납이면
+   *    주문을 결제 없이 닫는다. 결제사 직접 취소 감지로 보내지 않는다(우리 반납을 직접 취소로 오탐하지 않게).
+   * 조회·DB 실패는 throw(5xx로 재전송을 받는다).
    */
-  readonly checkDepositReversal?: (input: { readonly attemptId: string; readonly caseRef: string }) => Promise<GoodsDepositReversalVerdict>;
+  readonly depositReversal?: {
+    readonly check: (input: { readonly attemptId: string; readonly caseRef: string }) => Promise<GoodsDepositReversalVerdict>;
+    readonly loadOpen: (attemptId: string) => Promise<OpenDepositReversal | null>;
+    readonly settle: (input: {
+      readonly attemptId: string;
+      readonly caseRef: string;
+      readonly reversal: OpenDepositReversal;
+    }) => Promise<DepositReversalSettlement>;
+  };
   /**
    * 본문에 결제 키가 없을 때(가상계좌 입금 통보 DEPOSIT_CALLBACK 등) 재정합 조회 힌트로 쓸 저장된 결제 키. 없으면 orderId 조회다.
    */
@@ -116,7 +130,7 @@ export function createTossWebhookHandler({
   reconcileTicket,
   scheduleOrderCancellation,
   checkProviderCancellation,
-  checkDepositReversal,
+  depositReversal,
   loadPaymentKeyHint,
   createCaseRefFallback = randomUUID,
 }: TossWebhookHandlerDependencies) {
@@ -147,6 +161,41 @@ export function createTossWebhookHandler({
     }
     // 미지 식별자는 재전송해도 처리할 것이 없다 — 우리 원장의 결제가 아니다.
     if (!attempt) return acknowledged();
+    if (attempt.purpose === 'order' && attempt.state === 'approved' && depositReversal) {
+      /*
+       * 승인된 가상계좌 결제의 입금 오류 되돌림(ADR-0049 결정 4). WAITING_FOR_DEPOSIT은 되돌림 감지(조회로 확인되면 보류·기록·안내 —
+       * 아니면 아래 직접 취소 감지로 간다). 그 밖의 상태(재입금 DONE·반납 CANCELED 등)는 열린 되돌림이 있을 때만 되돌림 처리로 닫는다
+       * (조회 8초 + DB — 반납은 하지 않는다). 조회 불가는 5xx로 남겨 재전송을 받는다.
+       */
+      const caseRef = tossWebhookCaseRef(request, createCaseRefFallback);
+      if (!caseRef) return acknowledged();
+      if (parsed.providerStatusHint === 'WAITING_FOR_DEPOSIT') {
+        let reversal: GoodsDepositReversalVerdict;
+        try {
+          reversal = await depositReversal.check({ attemptId: attempt.id, caseRef });
+        } catch {
+          return Response.json({ error: 'deposit_reversal_check_failed' }, { status: 500 });
+        }
+        if (reversal !== 'not_applicable') return acknowledged();
+      } else {
+        let open: OpenDepositReversal | null;
+        try {
+          open = await depositReversal.loadOpen(attempt.id);
+        } catch {
+          return Response.json({ error: 'deposit_reversal_lookup_failed' }, { status: 500 });
+        }
+        if (open) {
+          let settled: DepositReversalSettlement;
+          try {
+            settled = await depositReversal.settle({ attemptId: attempt.id, caseRef, reversal: open });
+          } catch {
+            return Response.json({ error: 'deposit_reversal_settle_failed' }, { status: 500 });
+          }
+          if (settled === 'unavailable') return Response.json({ error: 'deposit_reversal_unsettled' }, { status: 500 });
+          return acknowledged();
+        }
+      }
+    }
     if (attempt.purpose === 'order' && attempt.state === 'approved' && parsed.providerStatusHint !== 'DONE') {
       /*
        * 승인된 굿즈 결제의 상태 변경 웹훅 — 운영자가 토스 상점관리자에서 직접 취소했을 수 있다. 원장은 웹훅이 되돌리지 않는다
@@ -160,16 +209,6 @@ export function createTossWebhookHandler({
        */
       const caseRef = tossWebhookCaseRef(request, createCaseRefFallback);
       if (!caseRef) return acknowledged();
-      if (parsed.providerStatusHint === 'WAITING_FOR_DEPOSIT' && checkDepositReversal) {
-        // 가상계좌 입금 오류 되돌림 — 조회로 확인되면 출고 보류만 남긴다(원장은 그대로). 되돌림이 아니면 아래 직접 취소 감지로 간다.
-        let reversal: GoodsDepositReversalVerdict;
-        try {
-          reversal = await checkDepositReversal({ attemptId: attempt.id, caseRef });
-        } catch {
-          return Response.json({ error: 'deposit_reversal_check_failed' }, { status: 500 });
-        }
-        if (reversal !== 'not_applicable') return acknowledged();
-      }
       let verdict: GoodsProviderCancellationVerdict;
       try {
         verdict = await checkProviderCancellation({ attemptId: attempt.id, caseRef });
@@ -318,67 +357,11 @@ export const POST = createTossWebhookHandler({
       record: repository.record,
     })(input);
   },
-  checkDepositReversal: (input) => {
-    const service = createServiceClient();
-    const gateway = createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss'));
-    return createGoodsDepositReversalCheck({
-      loadAttempt: (attemptId) => loadGoodsPaymentAttempt(service, attemptId),
-      loadPaymentKey: loadGoodsPaymentKeyHint,
-      inspect: (attempt, paymentKey) => gateway.inspectBalance
-        ? gateway.inspectBalance(attempt, paymentKey)
-        : Promise.resolve({ kind: 'not_supported' as const }),
-      flag: async ({ attemptId, paymentKey, transactionRef, caseRef }) => {
-        const { data, error } = await service.rpc('service_flag_goods_deposit_reversal', {
-          p_attempt_id: attemptId,
-          p_payment_key: paymentKey,
-          p_transaction_ref: transactionRef,
-          p_case_ref: caseRef,
-        });
-        if (error || typeof data !== 'string') throw new Error('deposit reversal flag failed');
-        return data;
-      },
-    })(input);
+  depositReversal: {
+    check: (input) => createRuntimeDepositReversal().checkDepositReversal(input),
+    loadOpen: (attemptId) => loadOpenDepositReversal(createServiceClient(), attemptId),
+    settle: ({ attemptId, caseRef, reversal }) => createRuntimeDepositReversal()
+      .settleDepositReversal({ attemptId, caseRef, reversal, mode: 'webhook' }),
   },
   loadPaymentKeyHint: loadGoodsPaymentKeyHint,
 });
-
-/** 되돌림 조회용 굿즈 결제 시도 행(서비스 롤). 형식이 계약과 다르면 null — 되돌림 판정을 하지 않는다. */
-async function loadGoodsPaymentAttempt(
-  service: ReturnType<typeof createServiceClient>,
-  attemptId: string,
-): Promise<PaymentAttempt | null> {
-  const { data, error } = await service
-    .from('payment_attempts')
-    .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
-    .eq('id', attemptId)
-    .maybeSingle();
-  if (error) throw new Error('payment attempt lookup failed');
-  const row = data as Record<string, unknown> | null;
-  if (
-    !row
-    || row.provider !== 'toss'
-    || row.purpose !== 'order'
-    || typeof row.id !== 'string'
-    || typeof row.ref_id !== 'string'
-    || typeof row.amount !== 'number'
-    || typeof row.currency !== 'string'
-    || typeof row.idempotency_key !== 'string'
-    || typeof row.provider_order_id !== 'string'
-    || typeof row.provider_product_code !== 'string'
-    || typeof row.expires_at !== 'string'
-  ) {
-    return null;
-  }
-  return {
-    id: row.id,
-    provider: 'toss',
-    purpose: 'order',
-    refId: row.ref_id,
-    amount: row.amount,
-    currency: row.currency,
-    idempotencyKey: row.idempotency_key,
-    providerOrderId: row.provider_order_id,
-    providerProductCode: row.provider_product_code,
-    expiresAt: row.expires_at,
-  };
-}

@@ -30,8 +30,8 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 const params = (query = '') => new URLSearchParams(query);
 
-describe('굿즈 목록 화면 판정', () => {
-  it('굿즈샵·NEW·BEST·검색 결과·IP관은 목록이다', () => {
+describe('상품 목록 화면 판정', () => {
+  it('쇼핑·NEW·BEST·검색 결과·IP관은 목록이다', () => {
     expect(isListingReturnPath('/shop', params())).toBe(true);
     expect(isListingReturnPath('/shop', params('category=11111111-1111-4111-8111-111111111111&sort=price_asc'))).toBe(true);
     expect(isListingReturnPath('/shop', params('displayCategory=abc'))).toBe(true);
@@ -41,7 +41,7 @@ describe('굿즈 목록 화면 판정', () => {
     expect(isListingReturnPath('/ip/hong-sil-quest', params())).toBe(true);
   });
 
-  it('굿즈 상세·검색어 없는 검색·IP 디렉토리·독립 팝업·홈·장바구니는 목록이 아니다', () => {
+  it('상품 상세·검색어 없는 검색·IP 디렉토리·독립 팝업·홈·장바구니는 목록이 아니다', () => {
     expect(isListingReturnPath('/shop/g13', params())).toBe(false);
     expect(isListingReturnPath('/search', params())).toBe(false);
     expect(isListingReturnPath('/search', params('q=%20%20'))).toBe(false);
@@ -74,9 +74,9 @@ describe('남길 주소', () => {
   /* l9-data-1: IP관 팔로우·알림 액션은 결과를 쿼리 플래그로 돌려준다(app/ip/actions.ts). 직전 목록이 이 플래그를 품으면
      빈 장바구니의 둘러보기가 지난 '알림 설정을 저장했습니다'·팔로우 오류 안내를 다시 띄운다. */
   it('IP관 액션 결과 플래그(notification_saved·follow_error·notification_error)는 남기지 않고 목록 상태만 남긴다', () => {
-    expect(listingReturnEntry('/ip/hong-sil-quest', params('category=abc&notification_saved=1'))).toBe('/ip/hong-sil-quest?category=abc');
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('category=abc&notification_saved=1'))).toBe('/ip/hong-sil-quest');
     expect(listingReturnEntry('/ip/hong-sil-quest', params('follow_error=1'))).toBe('/ip/hong-sil-quest');
-    expect(listingReturnEntry('/ip/hong-sil-quest', params('notification_error=1&sort=price_asc&min=1000'))).toBe('/ip/hong-sil-quest?sort=price_asc&min=1000');
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('notification_error=1&sort=price_asc&min=1000'))).toBe('/ip/hong-sil-quest?sort=price_asc');
   });
 
   it('화면마다 그 화면이 읽는 목록 상태 키만 남긴다 — 모르는 키·다른 화면의 키는 버린다', () => {
@@ -84,8 +84,8 @@ describe('남길 주소', () => {
     expect(listingReturnEntry('/shop/new', params('displayCategory=d1&ip=i1&sort=price_asc'))).toBe('/shop/new?ip=i1&sort=price_asc');
     expect(listingReturnEntry('/shop/best', params('q=키링&max=5000'))).toBe('/shop/best?max=5000');
     expect(listingReturnEntry('/search', params('q=곰&ip=i1&type=a&page=2&notification_saved=1'))).toBe('/search?q=%EA%B3%B0&ip=i1&type=a&page=2');
-    /* IP관은 스코프가 이미 IP 하나다 — ip 필터는 목록 상태가 아니다(app/ip/[id]/page.tsx). */
-    expect(listingReturnEntry('/ip/hong-sil-quest', params('ip=other&type=a'))).toBe('/ip/hong-sil-quest?type=a');
+    /* IP관은 정렬만 목록 상태다 — ip·type 같은 옛 필터는 목록 상태가 아니다(app/ip/[id]/page.tsx). */
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('ip=other&type=a'))).toBe('/ip/hong-sil-quest');
   });
 
   it('같은 키가 여러 번 오면(다중 선택 필터) 순서대로 모두 남긴다', () => {
@@ -100,7 +100,7 @@ describe('목록 상태 키 계약', () => {
     ips: ['i1'], categories: ['c1'], types: ['키링'], priceMin: 1000, priceMax: 9000, sort: 'price_desc', view, ...extra,
   });
 
-  it('굿즈샵·NEW·BEST·전시 카테고리 컨트롤(shopQueryString)이 만드는 주소는 그대로 남는다', () => {
+  it('쇼핑·NEW·BEST·전시 카테고리 컨트롤(shopQueryString)이 만드는 주소는 그대로 남는다', () => {
     const cases = [
       ['/shop', fullQuery('all')],
       ['/shop/new', fullQuery('new')],
@@ -133,7 +133,7 @@ describe('목록 상태 키 계약', () => {
     const flags = page.match(/for \(const key of \[([^\]]+)\] as const\)/)?.[1];
     const literals = (source: string | undefined) => [...(source ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1]);
 
-    expect(literals(collection)).toEqual(['category', 'type', 'min', 'max', 'sort']);
+    expect(literals(collection)).toEqual(['sort']);
     expect(listingStateKeys('/ip/hong-sil-quest', params())).toEqual(literals(collection));
     expect(literals(flags)).toEqual(['follow_error', 'notification_error', 'notification_saved']);
     for (const flag of literals(flags)) expect(listingStateKeys('/ip/hong-sil-quest', params())).not.toContain(flag);
@@ -141,13 +141,13 @@ describe('목록 상태 키 계약', () => {
 });
 
 describe('돌아갈 주소 판정', () => {
-  it('저장된 굿즈 목록 주소는 그대로 돌려준다', () => {
+  it('저장된 상품 목록 주소는 그대로 돌려준다', () => {
     expect(listingReturnHref('/shop?type=%ED%82%A4%EB%A7%81&sort=newest')).toBe('/shop?type=%ED%82%A4%EB%A7%81&sort=newest');
     expect(listingReturnHref('/search?q=%EA%B3%B0')).toBe('/search?q=%EA%B3%B0');
     expect(listingReturnHref('/ip/hong-sil-quest')).toBe('/ip/hong-sil-quest');
   });
 
-  it('값이 없으면 굿즈샵으로 보낸다', () => {
+  it('값이 없으면 쇼핑으로 보낸다', () => {
     expect(listingReturnHref(null)).toBe(LISTING_RETURN_FALLBACK);
     expect(listingReturnHref(undefined)).toBe(LISTING_RETURN_FALLBACK);
     expect(listingReturnHref('')).toBe('/shop');
@@ -161,11 +161,11 @@ describe('돌아갈 주소 판정', () => {
     'javascript:alert(1)',
     ' /shop',
     'shop',
-  ])('외부·스킴·프로토콜 상대 주소는 굿즈샵으로 접는다: %s', (stored) => {
+  ])('외부·스킴·프로토콜 상대 주소는 쇼핑으로 접는다: %s', (stored) => {
     expect(listingReturnHref(stored)).toBe('/shop');
   });
 
-  it('같은 출처라도 목록이 아닌 경로·점 경로로 빠져나가는 값은 굿즈샵으로 접는다', () => {
+  it('같은 출처라도 목록이 아닌 경로·점 경로로 빠져나가는 값은 쇼핑으로 접는다', () => {
     expect(listingReturnHref('/admin')).toBe('/shop');
     expect(listingReturnHref('/checkout')).toBe('/shop');
     expect(listingReturnHref('/shop/../admin')).toBe('/shop');
@@ -180,26 +180,26 @@ describe('돌아갈 주소 판정', () => {
 
   it('이전 판에 남은 값의 결과 플래그도 읽을 때 걸러 내 재생하지 않는다', () => {
     expect(listingReturnHref('/ip/hong-sil-quest?notification_saved=1')).toBe('/ip/hong-sil-quest');
-    expect(listingReturnHref('/ip/hong-sil-quest?follow_error=1&type=a')).toBe('/ip/hong-sil-quest?type=a');
+    expect(listingReturnHref('/ip/hong-sil-quest?follow_error=1&type=a')).toBe('/ip/hong-sil-quest');
   });
 });
 
 /* l9-ui-3: 둘러보기의 목적지가 직전 목록으로 바뀌므로 문구도 그 목적지 표면을 말해야 한다(WCAG 2.4.4 · CONTEXT.md). */
 describe('둘러보기 문구', () => {
-  it('목적지 표면을 말한다 — 굿즈샵·NEW·BEST = 굿즈샵, IP관 = 온라인 팝업, 검색 결과 = 검색 결과', () => {
-    expect(listingReturnLabel('/shop')).toBe('굿즈샵 둘러보기');
-    expect(listingReturnLabel('/shop?displayCategory=d1&type=a')).toBe('굿즈샵 둘러보기');
-    expect(listingReturnLabel('/shop/new?sort=price_asc')).toBe('굿즈샵 둘러보기');
-    expect(listingReturnLabel('/shop/best')).toBe('굿즈샵 둘러보기');
+  it('목적지 표면을 말한다 — 쇼핑·NEW·BEST = 쇼핑, IP관 = 온라인 팝업, 검색 결과 = 검색 결과', () => {
+    expect(listingReturnLabel('/shop')).toBe('상품 둘러보기');
+    expect(listingReturnLabel('/shop?displayCategory=d1&type=a')).toBe('상품 둘러보기');
+    expect(listingReturnLabel('/shop/new?sort=price_asc')).toBe('상품 둘러보기');
+    expect(listingReturnLabel('/shop/best')).toBe('상품 둘러보기');
     expect(listingReturnLabel('/ip/maplestory')).toBe('온라인 팝업 둘러보기');
     expect(listingReturnLabel('/ip/maplestory?type=a')).toBe('온라인 팝업 둘러보기');
     expect(listingReturnLabel('/search?q=%ED%82%A4%EB%A7%81')).toBe('검색 결과 둘러보기');
   });
 
-  it('판정한 목적지와 같은 값에서 문구를 고른다 — 거절된 저장값은 굿즈샵 주소와 굿즈샵 문구', () => {
+  it('판정한 목적지와 같은 값에서 문구를 고른다 — 거절된 저장값은 쇼핑 주소와 쇼핑 문구', () => {
     for (const stored of [null, 'https://evil.example/ip/x', '//evil.example/search?q=a', '/my', '/search']) {
       const href = listingReturnHref(stored);
-      expect([href, listingReturnLabel(href)]).toEqual(['/shop', '굿즈샵 둘러보기']);
+      expect([href, listingReturnLabel(href)]).toEqual(['/shop', '상품 둘러보기']);
     }
     const ip = listingReturnHref('/ip/hong-sil-quest?notification_saved=1');
     expect([ip, listingReturnLabel(ip)]).toEqual(['/ip/hong-sil-quest', '온라인 팝업 둘러보기']);
@@ -218,12 +218,12 @@ describe('세션 저장소 읽고 쓰기', () => {
     expect(readListingReturnHref(storage)).toBe('/shop/best');
   });
 
-  it('누군가 저장소에 외부 주소를 넣어도 굿즈샵으로 읽는다', () => {
+  it('누군가 저장소에 외부 주소를 넣어도 쇼핑으로 읽는다', () => {
     const { storage } = memoryStorage({ [LISTING_RETURN_STORAGE_KEY]: '//evil.example' });
     expect(readListingReturnHref(storage)).toBe('/shop');
   });
 
-  it('저장소가 없거나 막혀 있으면 조용히 굿즈샵으로 돌아간다', () => {
+  it('저장소가 없거나 막혀 있으면 조용히 쇼핑으로 돌아간다', () => {
     const blocked: ListingReturnStorage = {
       getItem: () => { throw new Error('SecurityError'); },
       setItem: () => { throw new Error('QuotaExceededError'); },

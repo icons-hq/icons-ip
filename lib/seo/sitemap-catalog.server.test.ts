@@ -50,21 +50,22 @@ beforeEach(() => {
 });
 
 describe('loadSitemapCatalog', () => {
-  it('공개 IP·굿즈만 공개 상세와 같은 조건으로 읽는다(19금·초안·보관·비공개 IP 소속 제외)', async () => {
+  it('공개 IP·상품만 공개 상세와 같은 조건으로 읽는다(19금·초안·보관·비공개 IP 소속 제외)', async () => {
     db.pages = {
       ips: [[{ id: 'ip-maple', public_slug: 'maplestory', updated_at: '2026-11-01T00:00:00Z' }]],
-      goods: [[{ id: 'g4', updated_at: '2026-11-10T00:00:00Z', ips: { id: 'ip-maple' } }]],
+      goods: [[{ id: 'g4', code: 'HSQ-0004', updated_at: '2026-11-10T00:00:00Z', ips: { id: 'ip-maple' } }]],
     };
     const { loadSitemapCatalog } = await import('./sitemap-catalog.server');
 
     await expect(loadSitemapCatalog()).resolves.toEqual({
       ips: [{ id: 'ip-maple', publicSlug: 'maplestory', updatedAt: '2026-11-01T00:00:00Z' }],
-      goods: [{ id: 'g4', updatedAt: '2026-11-10T00:00:00Z' }],
+      goods: [{ id: 'g4', code: 'HSQ-0004', updatedAt: '2026-11-10T00:00:00Z' }],
     });
     /* 방문자 쿠키 없이 읽는다. */
     expect(db.cookieMethods?.getAll()).toEqual([]);
     const goods = db.calls.find((call) => call.table === 'goods')!;
-    expect(goods.select).toBe('id,updated_at,ips!inner(id)');
+    /* 사이트맵 주소는 상품 자동코드로 만든다(ADR-0050). */
+    expect(goods.select).toBe('id,code,updated_at,ips!inner(id)');
     expect(goods.filters).toEqual(expect.arrayContaining([
       'archived_at is null',
       'published_at not is null',

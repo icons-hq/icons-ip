@@ -42,7 +42,7 @@ function statusMessage(status: AccountDeletionStatus): string | null {
 }
 
 const blockerLabels: Record<AccountDeletionStatus['blockers'][number]['code'], string> = {
-  active_order: '진행 중인 굿즈 주문',
+  active_order: '진행 중인 상품 주문',
   active_received_gift: '받은 선물의 배송·취소 처리',
   active_shipping_collect: '착불 수납·환급 확인',
   active_claim_fee: '반품·교환 배송비 청구·반환 확인',
@@ -50,11 +50,11 @@ const blockerLabels: Record<AccountDeletionStatus['blockers'][number]['code'], s
   subscription_payment_pending: '정기배송 결제 확인',
   billing_registration_pending: '정기결제 카드 등록 확인',
   billing_card_cleanup: '정기결제 카드 해지',
-  active_cancellation: '굿즈 취소·환급 처리',
-  active_order_payment: '굿즈 결제 확인',
+  active_cancellation: '상품 취소·환급 처리',
+  active_order_payment: '상품 결제 확인',
   active_ticket_payment: '티켓 결제 확인',
   active_payment_attempt: '결제 정합화',
-  active_order_refund: '굿즈 환불·송금 대기 처리',
+  active_order_refund: '상품 환불·송금 대기 처리',
   active_ticket_refund: '티켓 환급 처리',
   active_refund: '환불·송금 확인',
   active_ticket: '진행 중인 티켓',
@@ -109,7 +109,7 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
         </div>
       ) : (
         <p className="account-deletion-description">
-          신청 즉시 새 구매·예매·작성·카드팩 개봉·게임·마케팅 변경이 중단됩니다.
+          신청 즉시 새 구매·예매·작성·게임·마케팅 변경이 중단됩니다.
           진행 중인 거래가 있으면 삭제는 보류됩니다. 법정 거래 기록은 분리 보존되며,
           현재 신청 단계에서는 계정이 삭제되지 않습니다. 실제 Storage·DB·Auth hard delete와
           복원 방지 원장 기록이 시작되면 되돌릴 수 없습니다. 해당 단계 직전에 대상과

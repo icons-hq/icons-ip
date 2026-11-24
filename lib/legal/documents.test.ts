@@ -38,6 +38,12 @@ import {
   virtualAccountTermsRevisionInEffect,
 } from './virtual-account-terms-revision';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
+import {
+  BRAND_NAME_REVISION,
+  type BrandNameRevision,
+  brandNameRevisionAnnounced,
+  brandNameRevisionInEffect,
+} from './brand-name-revision';
 
 /** KST 달력 날짜(`YYYY-MM-DD`)를 하루 단위로 옮긴다. */
 function shiftDay(date: string, days: number): string {
@@ -51,20 +57,20 @@ function shiftDay(date: string, days: number): string {
 /* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
 const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
 const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
 
 /* 방침 개정(휴대폰 번호 인증·이메일 변경, 카카오톡 알림톡)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 모두 끄고(null) 2026-11-06 최초 판을 고정한다.
    알림톡 개정은 아래 전용 describe가 날짜별로 고정한다.
    BASE_LEGAL 은 실제 시계와 무관하게 방침 최초 판을 고정한 현행 문서 셋이다(방침 본문 문구를 검사하는 시험이 시행일 뒤에도 같은 본문을 본다). */
-const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
+const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
 /* 방침 개정 상태 — 날짜는 개정 상수에서 파생한다. 표기 개정은 꺼서(null) terms·shipping 을 건드리지 않게 한다. */
 const PRIVACY_NOW = CONTACT_CHANNELS_PRIVACY_REVISION;
-const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
-const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
-const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
+const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
+const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
+const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
@@ -251,7 +257,7 @@ describe('법정 문서 레지스트리', () => {
     expect(shippingBundleWordingRevisionAnnounced('2026-12-31', null)).toBe(false);
     expect(shippingBundleWordingRevisionInEffect('2099-01-01', null)).toBe(false);
     for (const today of ['2026-11-20', '2026-12-31', '2099-01-01']) {
-      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, { partialReturnRevision: null, virtualAccountRevision: null });
+      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, { partialReturnRevision: null, virtualAccountRevision: null, brandNameRevision: null });
       for (const slug of ['terms', 'shipping'] as const) {
         expect(set[slug].pendingRevision, `${slug} ${today}`).toBeUndefined();
         expect(set[slug].previousVersion, `${slug} ${today}`).toBeUndefined();
@@ -720,14 +726,14 @@ describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·�
     expect(contactChannelsPrivacyRevisionInEffect('2026-11-18', PRIVACY_NOW)).toBe(true);
     expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
     expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null }).privacy).toEqual(base);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null }).privacy).toEqual(base);
   });
 });
 
 describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주문 안내', () => {
   /* 날짜는 배포 직전에 JSON으로 커밋되므로 시험은 주입한 날짜로 상태를 고정한다. 휴대폰 번호 인증 개정이 시행된 본문 위에 얹는다. */
   const ALIMTALK: AlimtalkPrivacyRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
-  const at = (today: string) => createLegalDocuments(BUSINESS_INFO, today, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null });
+  const at = (today: string) => createLegalDocuments(BUSINESS_INFO, today, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null });
   const current = at(shiftDay(ALIMTALK.announcedDate, -1)).privacy;
   const during = at(ALIMTALK.announcedDate).privacy;
   const lastNotice = at(shiftDay(ALIMTALK.effectiveDate, -1)).privacy;
@@ -751,7 +757,7 @@ describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주�
   it('예약이 없으면(null) 지금 방침 그대로다', () => {
     expect(alimtalkPrivacyRevisionAnnounced('2030-01-01', null)).toBe(false);
     expect(alimtalkPrivacyRevisionInEffect('2030-01-01', null)).toBe(false);
-    const unreserved = createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null }).privacy;
+    const unreserved = createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null }).privacy;
     expect(unreserved.articles).toEqual(current.articles);
     expect(unreserved.effectiveDate).toBe(PRIVACY_NOW.effectiveDate);
     expect(unreserved.pendingRevision).toBeUndefined();
@@ -797,7 +803,7 @@ describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주�
   });
 
   it('휴대폰 번호 인증 개정이 시행되지 않은 본문에는 얹을 수 없다(앵커 검사)', () => {
-    expect(() => createLegalDocuments(BUSINESS_INFO, ALIMTALK.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null })).toThrow(/alimtalk_privacy_anchor_changed/);
+    expect(() => createLegalDocuments(BUSINESS_INFO, ALIMTALK.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null })).toThrow(/alimtalk_privacy_anchor_changed/);
   });
 });
 
@@ -855,9 +861,9 @@ it("설정 연락처 변경을 모든 법정 문서에 반영한다",()=>{for(co
 describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·반품배송비 차감(ADR-0047)', () => {
   /* '출고지' 표기 개정(BUNDLE_REVISION)이 이미 시행된 뒤에 얹는다 — 날짜는 시험이 주입한다(운영 날짜는 머지 직전에 JSON으로 정한다). */
   const REVISION: PartialReturnTermsRevision = { announcedDate: shiftDay(BUNDLE_EFFECTIVE, 1), effectiveDate: shiftDay(BUNDLE_EFFECTIVE, 8) };
-  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
-  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
-  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null });
+  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
+  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
+  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null });
 
   it('공지 전에는 본문·공지가 그대로다', () => {
     expect(before.terms).toEqual(AFTER_BUNDLE.terms);
@@ -900,7 +906,7 @@ describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·�
     expect(partialReturnTermsRevisionAnnounced(REVISION.announcedDate, REVISION)).toBe(true);
     expect(partialReturnTermsRevisionInEffect(shiftDay(REVISION.effectiveDate, -1), REVISION)).toBe(false);
     expect(partialReturnTermsRevisionInEffect(REVISION.effectiveDate, REVISION)).toBe(true);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null }).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null }).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
   });
 });
 
@@ -910,7 +916,7 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
   const PARTIAL: PartialReturnTermsRevision = { announcedDate: '2026-11-27', effectiveDate: '2026-12-04' };
   const VA: VirtualAccountTermsRevision = { announcedDate: '2026-12-05', effectiveDate: '2026-12-12' };
   const at = (today: string, virtualAccountRevision: VirtualAccountTermsRevision | null = VA) =>
-    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: PARTIAL, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision });
+    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: PARTIAL, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision, brandNameRevision: null });
   const base = at(shiftDay(VA.announcedDate, -1));
   const during = at(VA.announcedDate);
   const lastNotice = at(shiftDay(VA.effectiveDate, -1));
@@ -1033,7 +1039,7 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
   });
 
   it('다른 예약 개정 없이 최초 판 위에도 얹을 수 있다(앵커가 다른 개정에 기대지 않는다)', () => {
-    const alone = createLegalDocuments(BUSINESS_INFO, VA.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: VA });
+    const alone = createLegalDocuments(BUSINESS_INFO, VA.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: VA, brandNameRevision: null });
     for (const slug of LEGAL_DOCUMENT_SLUGS) {
       expect(alone[slug].effectiveDate, slug).toBe(VA.effectiveDate);
       expect(alone[slug].previousVersion?.articles, slug).toEqual(BASE_LEGAL[slug].articles);
@@ -1055,3 +1061,99 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
   });
 });
 
+describe('이용약관 예약 개정 — 서비스 이름(엑스스퀘어)', () => {
+  const OLD_PURPOSE = '이 약관은 ICONS(이하 "회사")가 운영하는 온라인 서비스 ICONS(이하 "서비스")에서';
+  const NEW_PURPOSE = '이 약관은 주식회사 아이콘스(이하 "회사")가 운영하는 온라인 서비스 엑스스퀘어(이하 "서비스")에서';
+  const BRAND: BrandNameRevision = { announcedDate: '2026-12-10', effectiveDate: '2026-12-17' };
+  const at = (today: string, brandNameRevision: BrandNameRevision | null = BRAND) =>
+    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision });
+  const notices = (document: LegalDocument) => [document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].filter(Boolean);
+  const brandNotice = (document: LegalDocument) => notices(document).find((notice) => notice!.heading.includes('엑스스퀘어'));
+
+  it('운영 날짜 파일은 7일 사전 공지(공지일 = 운영 배포일)다', () => {
+    expect(BRAND_NAME_REVISION).toEqual({ announcedDate: '2026-11-25', effectiveDate: '2026-12-02' });
+    const days = (Date.parse(`${BRAND_NAME_REVISION!.effectiveDate}T00:00:00+09:00`) - Date.parse(`${BRAND_NAME_REVISION!.announcedDate}T00:00:00+09:00`)) / 86_400_000;
+    expect(days).toBeGreaterThanOrEqual(7);
+  });
+
+  it('공지 전에는 현행 약관 그대로이고 공지가 없다', () => {
+    const before = at(shiftDay(BRAND.announcedDate, -1));
+    expect(before.terms.title).toBe('엑스스퀘어 이용약관');
+    expect(plainText(before.terms)).toContain(OLD_PURPOSE);
+    expect(brandNotice(before.terms)).toBeUndefined();
+  });
+
+  it('공지 기간에는 본문을 두고 개정 예정 안내만 붙인다', () => {
+    const before = at(shiftDay(BRAND.announcedDate, -1));
+    for (const today of [BRAND.announcedDate, shiftDay(BRAND.effectiveDate, -1)]) {
+      const during = at(today);
+      expect(during.terms.title).toBe('엑스스퀘어 이용약관');
+      expect(during.terms.articles).toEqual(before.terms.articles);
+      expect(during.terms.effectiveDate).toBe(before.terms.effectiveDate);
+      expect(brandNotice(during.terms)).toEqual({
+        announcedDate: BRAND.announcedDate,
+        effectiveDate: BRAND.effectiveDate,
+        heading: '서비스 이름(엑스스퀘어) 변경에 따른 개정 예정 안내',
+        changes: [
+          '개정 사유 — 서비스 이름을 ICONS에서 엑스스퀘어로 바꿉니다. 서비스를 운영하는 회사(주식회사 아이콘스)와 서비스 내용·이용조건은 바뀌지 않습니다.',
+          '제1조(목적)의 회사 표기를 법인 상호(주식회사 아이콘스)로, 서비스 이름을 엑스스퀘어로 고쳐 씁니다.',
+        ],
+      });
+      expect(brandNotice(during.privacy)).toBeUndefined();
+      expect(brandNotice(during.shipping)).toBeUndefined();
+    }
+  });
+
+  it('시행일부터 제1조가 바뀌고 직전 본문을 이전 판으로 보존한다', () => {
+    const before = at(shiftDay(BRAND.effectiveDate, -1));
+    const after = at(BRAND.effectiveDate);
+    expect(after.terms.title).toBe('엑스스퀘어 이용약관');
+    expect(after.terms.effectiveDate).toBe(BRAND.effectiveDate);
+    expect(plainText(after.terms)).toContain(NEW_PURPOSE);
+    expect(plainText(after.terms)).not.toContain('ICONS');
+    expect(after.terms.previousVersion).toEqual({ effectiveDate: before.terms.effectiveDate, articles: before.terms.articles });
+    expect(after.terms.revisionChanges).toEqual(brandNotice(before.terms)!.changes);
+    expect(brandNotice(after.terms)).toBeUndefined();
+    /* 바뀐 것은 제1조 한 문장뿐이다. */
+    const changed = after.terms.articles.filter((article, index) => JSON.stringify(article) !== JSON.stringify(before.terms.articles[index]));
+    expect(changed.map((article) => article.heading)).toEqual(['제1조 (목적)']);
+    expect(after.privacy).toEqual(before.privacy);
+    expect(after.shipping).toEqual(before.shipping);
+  });
+
+  it('문서 이름은 조문이 아니어서 공지 전부터 엑스스퀘어이고, 방침은 본문에 서비스 이름이 없다', () => {
+    for (const today of ['2026-11-24', BRAND.announcedDate, BRAND.effectiveDate]) {
+      const { terms, privacy } = at(today);
+      expect(terms.title).toBe('엑스스퀘어 이용약관');
+      expect(privacy.title).toBe('엑스스퀘어 개인정보처리방침');
+      expect(privacy.summary.startsWith('엑스스퀘어가 실제로 수집하는 항목')).toBe(true);
+      expect(plainText(privacy)).not.toContain('ICONS');
+    }
+  });
+
+  it('운영 날짜로 다른 예약 개정이 모두 시행된 뒤에도 본문을 만들 수 있고 약관에 옛 이름이 남지 않는다', () => {
+    const live = createLegalDocuments(BUSINESS_INFO, BRAND_NAME_REVISION!.effectiveDate);
+    expect(live.terms.title).toBe('엑스스퀘어 이용약관');
+    expect(live.terms.effectiveDate).toBe(BRAND_NAME_REVISION!.effectiveDate);
+    for (const slug of LEGAL_DOCUMENT_SLUGS) expect(`${live[slug].title}${plainText(live[slug])}`, slug).not.toContain('ICONS');
+    const announced = createLegalDocuments(BUSINESS_INFO, BRAND_NAME_REVISION!.announcedDate);
+    expect(brandNotice(announced.terms)?.effectiveDate).toBe(BRAND_NAME_REVISION!.effectiveDate);
+  });
+
+  it('제1조 앵커는 현행 본문에 정확히 한 번 있다(없거나 둘 이상이면 시행일 상태를 만들 때 던진다)', () => {
+    const terms = at(shiftDay(BRAND.announcedDate, -1)).terms;
+    expect(plainText(terms).split(OLD_PURPOSE)).toHaveLength(2);
+  });
+
+  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 현행 본문이다', () => {
+    expect(brandNameRevisionAnnounced(shiftDay(BRAND.announcedDate, -1), BRAND)).toBe(false);
+    expect(brandNameRevisionAnnounced(BRAND.announcedDate, BRAND)).toBe(true);
+    expect(brandNameRevisionAnnounced(BRAND.effectiveDate, BRAND)).toBe(false);
+    expect(brandNameRevisionInEffect(shiftDay(BRAND.effectiveDate, -1), BRAND)).toBe(false);
+    expect(brandNameRevisionInEffect(BRAND.effectiveDate, BRAND)).toBe(true);
+    expect(brandNameRevisionInEffect('2099-01-01', null)).toBe(false);
+    const unreserved = at('2099-01-01', null);
+    expect(unreserved.terms.title).toBe('엑스스퀘어 이용약관');
+    expect(plainText(unreserved.terms)).toContain(OLD_PURPOSE);
+  });
+});

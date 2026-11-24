@@ -100,7 +100,7 @@ const catalog = {
     options: [{ id: VARIANT, name: '기본', code: 'G13', price: 12000, stockQty: 20, isDefault: true, attributes: {} }],
   }, {
     id: 'g14',
-    name: '홍실 옵션 굿즈',
+    name: '홍실 옵션 상품',
     ip: 'hong-sil-quest',
     type: '키링',
     price: 9000,
@@ -114,7 +114,7 @@ const catalog = {
     ],
   }, {
     id: 'g15',
-    name: '찜하지 않은 굿즈',
+    name: '찜하지 않은 상품',
     ip: 'hong-sil-quest',
     type: '문구',
     price: 3000,
@@ -142,7 +142,7 @@ describe('/my/wishlist page', () => {
 
   it('keeps the personal list out of search indexes', () => {
     expect(metadata).toMatchObject({
-      title: '위시리스트 — ICONS',
+      title: '위시리스트 — 엑스스퀘어',
       robots: { index: false, follow: false },
     });
   });
@@ -158,9 +158,9 @@ describe('/my/wishlist page', () => {
   it('renders the empty state with a way back to the shop', async () => {
     const html = await render();
 
-    expect(html).toContain('아직 찜한 굿즈가 없어요');
+    expect(html).toContain('아직 찜한 상품이 없어요');
     expect(html).toContain('href="/shop"');
-    expect(html).toContain('굿즈샵 둘러보기');
+    expect(html).toContain('상품 둘러보기');
   });
 
   it('lists wished goods as product cards with the listing heart as the unwish control', async () => {
@@ -181,8 +181,8 @@ describe('/my/wishlist page', () => {
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('총 <strong>1</strong>개');
     /* 위시 화면은 고른 굿즈만 내려받는다 — 찜하지 않은 굿즈는 화면에 없다. */
-    expect(html).not.toContain('찜하지 않은 굿즈');
-    expect(html).not.toContain('아직 찜한 굿즈가 없어요');
+    expect(html).not.toContain('찜하지 않은 상품');
+    expect(html).not.toContain('아직 찜한 상품이 없어요');
   });
 
   /* S14: 목록 카드의 showCart 설정(기본 꺼짐)과 무관하게 수량 없는 담기가 선다. */
@@ -199,7 +199,7 @@ describe('/my/wishlist page', () => {
     expect(html).not.toContain('shop-cart-button');
     expect(html).not.toMatch(/type="number"|수량 선택<\/button>/);
     /* 옵션을 골라야 하는 굿즈는 여기서 담지 않고 상세로 보낸다(목록 담기 버튼과 같은 규칙). */
-    expect(html).toMatch(/aria-label="홍실 옵션 굿즈 옵션 선택"[^>]*href="\/shop\/g14"|href="\/shop\/g14"[^>]*aria-label="홍실 옵션 굿즈 옵션 선택"/);
+    expect(html).toMatch(/aria-label="홍실 옵션 상품 옵션 선택"[^>]*href="\/shop\/g14"|href="\/shop\/g14"[^>]*aria-label="홍실 옵션 상품 옵션 선택"/);
   });
 
   it('keeps focusable but inert add buttons when stock is already in the cart', async () => {
@@ -221,9 +221,9 @@ describe('/my/wishlist page', () => {
     const html = await render();
 
     expect(html).toContain('판매 종료');
-    expect(html).toContain('aria-label="판매 종료 굿즈 위시리스트에서 빼기"');
+    expect(html).toContain('aria-label="판매 종료 상품 위시리스트에서 빼기"');
     expect(html).not.toContain('장바구니 담기');
-    expect(html).not.toContain('아직 찜한 굿즈가 없어요');
+    expect(html).not.toContain('아직 찜한 상품이 없어요');
   });
 
   /* 판매 종료 카드도 같은 그리드의 상품 카드처럼 스토어 목록 이미지 비율(listing.imageShape)을 따른다(l6-ui-3). */
@@ -253,7 +253,7 @@ describe('/my/wishlist page', () => {
 
     const goods = await render();
     expect(goods).toContain('aria-label="위시리스트 종류"');
-    expect(goods).toMatch(/aria-current="page" href="\/my\/wishlist">굿즈 \(1\)/);
+    expect(goods).toMatch(/aria-current="page" href="\/my\/wishlist">상품 \(1\)/);
     expect(goods).toContain('href="/my/wishlist?tab=ip">팔로우한 IP (2)');
 
     const ips = await render('ip');

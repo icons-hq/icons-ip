@@ -155,12 +155,12 @@ export function SabangnetMappingStep({
       </AdminField>
       <div className="overflow-hidden rounded-lg border">
         <Table>
-          <TableCaption className="sr-only">사방넷 열과 ICONS 항목 연결</TableCaption>
+          <TableCaption className="sr-only">사방넷 열과 엑스스퀘어 항목 연결</TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead scope="col">사방넷 열</TableHead>
               <TableHead scope="col">예시 값</TableHead>
-              <TableHead scope="col">ICONS 항목</TableHead>
+              <TableHead scope="col">엑스스퀘어 항목</TableHead>
               <TableHead scope="col">인식</TableHead>
             </TableRow>
           </TableHeader>
@@ -171,7 +171,7 @@ export function SabangnetMappingStep({
                 <TableCell className="max-w-56 truncate text-muted-foreground">{column.sample || '—'}</TableCell>
                 <TableCell>
                   <AdminSelect
-                    aria-label={`${column.header || `${index + 1}번째 열`} 열을 연결할 ICONS 항목`}
+                    aria-label={`${column.header || `${index + 1}번째 열`} 열을 연결할 엑스스퀘어 항목`}
                     value={targets[index]}
                     onChange={(event) => onTarget(index, event.target.value as SabangnetTarget)}
                     disabled={busy}
@@ -411,7 +411,7 @@ export function GoodsImportScreen({
     }
     setBusy(true);
     setError('');
-    setStatus('행을 ICONS 상품으로 바꾸고 이미지 주소를 확인하고 있습니다. 이미지가 많으면 몇 분 걸릴 수 있습니다.');
+    setStatus('행을 엑스스퀘어 상품으로 바꾸고 이미지 주소를 확인하고 있습니다. 이미지가 많으면 몇 분 걸릴 수 있습니다.');
     try {
       const brandColumn = targets.indexOf('brand');
       const brands = new Set(brandColumn >= 0 ? inspection.columns[brandColumn].values ?? [] : []);
@@ -509,7 +509,7 @@ export function GoodsImportScreen({
               hint={
                 format === 'sabangnet'
                   ? '사방넷에서 내려받은 상품 엑셀을 그대로 올립니다. 모든 상품은 초안으로 만듭니다.'
-                  : 'ICONS 양식을 내려받아 작성한 파일을 올립니다.'
+                  : '엑스스퀘어 양식을 내려받아 작성한 파일을 올립니다.'
               }
             >
               <AdminSelect
@@ -524,7 +524,7 @@ export function GoodsImportScreen({
                 aria-describedby="goods-import-format-hint"
                 wrapperClassName="w-full"
               >
-                <option value="icons">ICONS 자체 양식</option>
+                <option value="icons">엑스스퀘어 자체 양식</option>
                 <option value="sabangnet">사방넷 상품 양식</option>
               </AdminSelect>
             </AdminField>
@@ -544,7 +544,7 @@ export function GoodsImportScreen({
           <>
             <p className="text-sm text-muted-foreground">
               .xlsx 또는 .csv · 2MB · 상품 최대 500개(옵션 조합을 펼쳐 500행까지). 위쪽 안내 행은 건너뛰고 열
-              이름 행을 찾습니다. .xls 파일은 엑셀에서 .xlsx로 저장해 올려 주세요. 이미지 주소는 ICONS가 직접 내려받아
+              이름 행을 찾습니다. .xls 파일은 엑셀에서 .xlsx로 저장해 올려 주세요. 이미지 주소는 엑스스퀘어가 직접 내려받아
               확인하며, 한 번에 최대 {SABANGNET_IMAGE_LIMIT}장까지 가져옵니다. 이미 등록된 상품 자동코드는 수정하지 않고 오류로 표시합니다.
             </p>
             <AdminField label="사방넷 상품 파일" inputId="sabangnet-workbook">
@@ -706,8 +706,8 @@ export function GoodsImportScreen({
           </div>
           {view.format === 'sabangnet' ? (
             <p className="text-sm text-muted-foreground">
-              이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행은 ICONS 양식으로 내려받으며, 이미 등록된
-              상품 자동코드 행은 넣지 않습니다. 고친 뒤 ICONS 자체 양식으로 올려 주세요.
+              이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행은 엑스스퀘어 양식으로 내려받으며, 이미 등록된
+              상품 자동코드 행은 넣지 않습니다. 고친 뒤 엑스스퀘어 자체 양식으로 올려 주세요.
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">

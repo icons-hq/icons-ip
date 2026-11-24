@@ -16,8 +16,8 @@ status: accepted
 
 ## Consequences
 
-- [ADR-0002](./0002-cross-platform-popup-game-miniapps.md)는 부분 supersede한다. **게임 결과는 서버가 정하고 웹 클라이언트는 렌더러다**라는 경계만 현행 결정으로 유지한다. 두 호스트·Expo 임베딩·범용 bridge는 historical candidate다.
-- [ADR-0003](./0003-free-reward-pivot.md)·[ADR-0004](./0004-draw-ticket-card-packs.md)의 현행 웹 카드 리워드와 서버 RNG 계약은 바꾸지 않는다.
+- ADR-0002([2026-11-24 삭제](./0052-general-shopping-mall-pivot.md))는 부분 supersede한다. **게임 결과는 서버가 정하고 웹 클라이언트는 렌더러다**라는 경계만 현행 결정으로 유지한다. 두 호스트·Expo 임베딩·범용 bridge는 historical candidate다.
+- ADR-0003([2026-11-24 삭제](./0052-general-shopping-mall-pivot.md))·ADR-0004([2026-11-24 삭제](./0052-general-shopping-mall-pivot.md))의 현행 웹 카드 리워드와 서버 RNG 계약은 바꾸지 않는다.
 - [ADR-0005](./0005-icons-allocated-inventory.md)의 수기 ICONS 할당 재고를 유지한다. 실제 다채널 재고 충돌과 WMS API 계약이 확인되기 전에는 공유재고 동기화를 만들지 않는다.
 - `docs/online-popup/`은 historical research/candidate로 남기며 구현 권한·일정·acceptance criteria가 아니다.
 - 코드에 남은 historical goods game variant는 읽기 전용으로 유지하고 새 운영을 거부한다. 안내 문구는 종료 이슈 대신 “현재 지원하지 않음”으로 정리한다.

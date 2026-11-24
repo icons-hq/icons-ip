@@ -6,6 +6,8 @@ import {
   renderOrderShippedEmail,
   renderRestockAlertEmail,
   renderVirtualAccountIssuedEmail,
+  renderDepositReversalEmail,
+  renderDepositReversalCanceledEmail,
   restockAlertSentence,
 } from './templates';
 
@@ -66,7 +68,7 @@ describe('renderOrderConfirmationEmail', () => {
   it('제목·본문·푸터에 16자리 주문번호를 넣는다', () => {
     const email = renderOrderConfirmationEmail(confirmationInput({ orderNumber: '2026102710000123' }));
 
-    expect(email.subject).toBe('[ICONS] 주문이 접수됐어요 (주문번호 2026102710000123)');
+    expect(email.subject).toBe('[엑스스퀘어] 주문이 접수됐어요 (주문번호 2026102710000123)');
     expect(email.text).toContain('주문번호: 2026102710000123');
     expect(email.html).toContain('주문번호 2026102710000123 · 이 메일은 발신 전용입니다.');
     for (const surface of [email.subject, email.text, email.html]) expect(surface).not.toContain('1F2A3B4C');
@@ -81,7 +83,7 @@ describe('renderOrderConfirmationEmail', () => {
     expect(email.html).toContain('1F2A3B4C');
   });
 
-  it('굿즈 내역과 배송비 포함 결제 금액을 모두 적는다', () => {
+  it('상품 내역과 배송비 포함 결제 금액을 모두 적는다', () => {
     const email = renderOrderConfirmationEmail(confirmationInput());
 
     for (const surface of [email.text, email.html]) {
@@ -122,7 +124,7 @@ describe('renderOrderConfirmationEmail', () => {
     expect(email.html).toContain(LEGAL_WITHDRAWAL_NOTICE);
   });
 
-  it('굿즈 이름의 HTML 특수문자를 이스케이프한다', () => {
+  it('상품 이름의 HTML 특수문자를 이스케이프한다', () => {
     const email = renderOrderConfirmationEmail(confirmationInput({
       items: [{ name: '<script>alert(1)</script>', qty: 1, unitPrice: 1_000 }],
     }));
@@ -261,10 +263,10 @@ describe('renderRestockAlertEmail (#326)', () => {
     goodPath: 'https://iconsip.com/shop/g13',
   };
 
-  it('제목과 본문이 어떤 굿즈인지 말한다', () => {
+  it('제목과 본문이 어떤 상품인지 말한다', () => {
     const email = renderRestockAlertEmail(input);
 
-    expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록');
+    expect(email.subject).toBe('[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록');
     expect(email.text).toContain('홍실 아크릴 블록');
     expect(email.text).toContain('https://iconsip.com/shop/g13');
     expect(email.html).toContain('href="https://iconsip.com/shop/g13"');
@@ -280,7 +282,7 @@ describe('renderRestockAlertEmail (#326)', () => {
     expect(email.text).toContain('홍실 아크릴 블록');
   });
 
-  it('굿즈명의 HTML을 이스케이프한다', () => {
+  it('상품명의 HTML을 이스케이프한다', () => {
     const email = renderRestockAlertEmail({ ...input, goodName: '<script>x</script>' });
 
     expect(email.html).not.toContain('<script>');
@@ -291,24 +293,24 @@ describe('renderRestockAlertEmail (#326)', () => {
   it('옵션 단위 신청이면 제목과 본문이 옵션을 말한다', () => {
     const email = renderRestockAlertEmail({ ...input, optionName: '빨강', goodPath: 'https://iconsip.com/shop/g13?variant=00000000-0000-4000-8000-000000056711' });
 
-    expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록 · 빨강');
+    expect(email.subject).toBe('[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록 · 빨강');
     expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
     expect(email.html).toContain('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
     expect(email.html).toContain('href="https://iconsip.com/shop/g13?variant=00000000-0000-4000-8000-000000056711"');
   });
 
-  it('옵션 이름이 없거나 비면 굿즈 단위 문장 그대로다', () => {
+  it('옵션 이름이 없거나 비면 상품 단위 문장 그대로다', () => {
     for (const optionName of [undefined, null, '   ']) {
       const email = renderRestockAlertEmail({ ...input, optionName });
-      expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록');
-      expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
+      expect(email.subject).toBe('[엑스스퀘어] 재입고 알림 — 홍실 아크릴 블록');
+      expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 상품이 다시 판매를 시작했어요.');
     }
   });
 
   /* claim_email_delivery 는 제목 200자를 넘기면 거부한다 — 옵션 이름까지 더한 표시를 60자에서 자른다. */
   it('긴 옵션 이름도 제목을 60자 표시 안에 둔다', () => {
     const email = renderRestockAlertEmail({ ...input, optionName: '아주 긴 옵션 이름 '.repeat(20) });
-    expect(email.subject.length).toBeLessThanOrEqual('[ICONS] 재입고 알림 — '.length + 60);
+    expect(email.subject.length).toBeLessThanOrEqual('[엑스스퀘어] 재입고 알림 — '.length + 60);
     expect(email.subject.endsWith('…')).toBe(true);
   });
 
@@ -320,8 +322,8 @@ describe('renderRestockAlertEmail (#326)', () => {
 
   /* 알림함 본문은 DB 트리거가 같은 문장으로 쓴다(20261023010000 private.wake_restock_alerts). */
   it('알림함과 같은 문장을 쓴다', () => {
-    expect(restockAlertSentence('옵션 재입고 굿즈', '옵션 B')).toBe('옵션 재입고 굿즈 · 옵션 B 옵션이 다시 판매를 시작했어요.');
-    expect(restockAlertSentence('전부 품절 굿즈')).toBe('전부 품절 굿즈 굿즈가 다시 판매를 시작했어요.');
+    expect(restockAlertSentence('옵션 재입고 상품', '옵션 B')).toBe('옵션 재입고 상품 · 옵션 B 옵션이 다시 판매를 시작했어요.');
+    expect(restockAlertSentence('전부 품절 키링')).toBe('전부 품절 키링 상품이 다시 판매를 시작했어요.');
   });
 });
 
@@ -335,8 +337,8 @@ describe('renderRestockAlertEmail (#326)', () => {
   const email = renderOrderShippedEmail(shippedInput({orderNumber:'2026102710000123',shipmentNumber:'2026102730000045',carrierName:'한진택배',trackingNumber:'123456789012',trackingUrl:'https://carrier.example.test/123456789012'}));
   expect({subject:email.subject,text:email.text}).toMatchInlineSnapshot(`
     {
-      "subject": "[ICONS] 굿즈가 배송을 시작했어요 (주문번호 2026102710000123)",
-      "text": "ICONS 굿즈가 배송을 시작했어요.
+      "subject": "[엑스스퀘어] 상품이 배송을 시작했어요 (주문번호 2026102710000123)",
+      "text": "엑스스퀘어 상품이 배송을 시작했어요.
 
     주문번호: 2026102710000123
     배송건번호: 2026102730000045
@@ -344,7 +346,7 @@ describe('renderRestockAlertEmail (#326)', () => {
     운송장번호: 123456789012
     배송 조회: https://carrier.example.test/123456789012
 
-    [이번 배송 굿즈]
+    [이번 배송 상품]
     홍실 아크릴 블록 × 1  ₩12,000
 
     [배송지]
@@ -385,7 +387,7 @@ describe('renderVirtualAccountIssuedEmail (ADR-0049)', () => {
 
   it('제목에 주문번호를, 본문에 은행·계좌·금액·한국 시간 기한을 싣는다', () => {
     const { subject, text, html } = renderVirtualAccountIssuedEmail(input);
-    expect(subject).toBe('[ICONS] 입금 계좌를 안내해 드려요 (주문번호 1F2A3B4C)');
+    expect(subject).toBe('[엑스스퀘어] 입금 계좌를 안내해 드려요 (주문번호 1F2A3B4C)');
     for (const body of [text, html]) {
       expect(body).toContain('우리은행');
       expect(body).toContain('1234567890123');
@@ -405,3 +407,36 @@ describe('renderVirtualAccountIssuedEmail (ADR-0049)', () => {
     expect(escrow.text).toContain('구매확정 메일');
   });
 });
+
+describe('입금 오류 되돌림 메일(ADR-0049 결정 4)', () => {
+  it('재입금 안내는 결제 확인과 다르다는 것을 먼저 말하고 같은 계좌·금액·기한을 보인다', () => {
+    const rendered = renderDepositReversalEmail({
+      orderId: ORDER_ID, bankCode: '20', accountNumber: 'X6505636518308', amount: 31_000,
+      dueAt: '2026-11-25T14:59:00.000Z', orderUrl: `https://iconsip.com/orders/${ORDER_ID}`, autoCancel: true,
+    });
+    expect(rendered.subject).toContain('다시 입금이 필요해요');
+    for (const body of [rendered.text, rendered.html]) {
+      expect(body).toContain('X6505636518308');
+      expect(body).toContain('₩31,000');
+      expect(body).toContain('입금 기한');
+      expect(body).toContain('자동으로 취소');
+    }
+    expect(rendered.text).toContain('앞서 받으신 결제 확인 안내와 달리');
+    // 이미 발송된 주문은 시스템이 취소하지 않으므로 자동 취소를 약속하지 않는다.
+    const shipped = renderDepositReversalEmail({
+      orderId: ORDER_ID, bankCode: '20', accountNumber: 'X6505636518308', amount: 31_000,
+      dueAt: '2026-11-25T14:59:00.000Z', orderUrl: `https://iconsip.com/orders/${ORDER_ID}`, autoCancel: false,
+    });
+    expect(shipped.text).not.toContain('자동으로 취소');
+  });
+
+  it('자동 취소 안내는 환불할 금액이 없다고 말한다', () => {
+    const rendered = renderDepositReversalCanceledEmail({
+      orderId: ORDER_ID, amount: 31_000, orderUrl: `https://iconsip.com/orders/${ORDER_ID}`,
+    });
+    expect(rendered.subject).toContain('주문이 취소됐어요');
+    expect(rendered.text).toContain('따로 환불할 금액은 없어요');
+    expect(rendered.html).toContain('따로 환불할 금액은 없어요');
+  });
+});
+

@@ -44,7 +44,7 @@ export function parsePublicDetailExperience(value: unknown): PublicDetailExperie
   return { messages, discovery, nextChangeAt: value.nextChangeAt };
 }
 export function purchaseMessageLabel(message: PurchaseMessage) {
-  if (message.kind === 'newProduct') return '등록 7일 이내 새 굿즈';
+  if (message.kind === 'newProduct') return '등록 7일 이내 새 상품';
   if (message.kind === 'bestSeller') return `최근 3일 판매 ${message.rank}위`;
   const windows = { today: '오늘', week: '최근 7일', threeMonths: '최근 3개월', sixMonths: '최근 6개월', year: '최근 1년', twoYears: '최근 2년' };
   return `${windows[message.window]} ${message.count.toLocaleString('ko-KR')}명 ${message.kind === 'buyers' ? '구매' : '재구매'}`;

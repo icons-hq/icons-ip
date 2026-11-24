@@ -5,7 +5,6 @@ import {
   CATEGORY_MEGA_GROUPS,
   CATEGORY_SHEET_SHORTCUTS,
   FOOTER_COMMUNITY_STAFF_ITEMS,
-  FOOTER_DEMO_ITEMS,
   MEMBER_UTIL_ITEMS,
   MENU_SHEET_GROUPS,
   MOB_ITEMS,
@@ -106,7 +105,7 @@ describe('푸터 숨김 범위', () => {
 });
 
 describe('White Catalog 내비게이션 경로', () => {
-  it('카탈로그 진입 표면을 굿즈샵 하위 경로로 건다', () => {
+  it('카탈로그 진입 표면을 쇼핑 하위 경로로 건다', () => {
     expect(hrefFor('new')).toBe('/shop/new');
     expect(hrefFor('best')).toBe('/shop/best');
   });
@@ -140,11 +139,12 @@ describe('White Catalog 내비게이션 경로', () => {
 describe('내비게이션 항목 구성', () => {
   it('GNB는 계약된 항목을 순서대로 유지한다', () => {
     /* 커뮤니티만 임시 비공개 스위치 대상이라 기대를 분기한다 — 스위치를 되돌리면 이 테스트도
-       손대지 않고 9개 계약으로 돌아온다(lib/community-visibility.ts). 앞 5개가 Figma GNB(NEW·BEST·카테고리·POP-UP·EVENT)다. */
+       손대지 않고 커뮤니티가 돌아온다(lib/community-visibility.ts). 앞 5개가 Figma GNB(NEW·BEST·카테고리·POP-UP·EVENT)다.
+       카드팩('packs')은 2026-11-24 삭제한 퇴역 칸이라 저장 계약(STOREFRONT_MENU_ITEMS)에만 남고 GNB 목록에는 없다(ADR-0052). */
     expect(NAV_ITEMS.map((item) => item.id)).toEqual(
       COMMUNITY_ENABLED
-        ? ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'packs', 'community', 'stories']
-        : ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'packs', 'stories'],
+        ? ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'community', 'stories']
+        : ['new', 'best', 'shop', 'popups', 'events', 'iphub', 'stories'],
     );
   });
 
@@ -218,7 +218,6 @@ describe('푸터·메뉴 경로 등록 계약', () => {
   const groupedItems = [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS, CATEGORY_SHEET_SHORTCUTS].flatMap((group) => group.items);
   const routedItems = [
     ...groupedItems,
-    ...FOOTER_DEMO_ITEMS,
     ...FOOTER_COMMUNITY_STAFF_ITEMS,
   ];
 
@@ -242,11 +241,11 @@ describe('푸터·메뉴 경로 등록 계약', () => {
 });
 
 describe('isGoodDetailPath', () => {
-  it.each(['/shop/g3', '/shop/demo-rilakkuma-keycap-trio', '/shop/newbie', '/shop/best-seller'])('%s는 굿즈 상세다', (pathname) => {
+  it.each(['/shop/g3', '/shop/demo-rilakkuma-keycap-trio', '/shop/newbie', '/shop/best-seller'])('%s는 상품 상세다', (pathname) => {
     expect(isGoodDetailPath(pathname)).toBe(true);
   });
 
-  it.each(['/shop', '/shop/', '/shop/new', '/shop/best', '/shop/g3/reviews', '/shops/g3', '/'])('%s는 굿즈 상세가 아니다', (pathname) => {
+  it.each(['/shop', '/shop/', '/shop/new', '/shop/best', '/shop/g3/reviews', '/shops/g3', '/'])('%s는 상품 상세가 아니다', (pathname) => {
     expect(isGoodDetailPath(pathname)).toBe(false);
   });
 });
@@ -278,7 +277,7 @@ describe('activeNavId', () => {
   });
 
   /* CH-12: 굿즈 상세는 어떤 1차 내비의 목록도 아니다 — '/shop' 접두가 맞아도 카테고리를 켜지 않는다(레퍼런스 실측). */
-  it('굿즈 상세에서는 아무 항목도 고르지 않는다', () => {
+  it('상품 상세에서는 아무 항목도 고르지 않는다', () => {
     expect(activeNavId('/shop/g3')).toBeNull();
     expect(activeNavId('/shop/g3', MOB_ITEMS)).toBeNull();
     expect(activeNavId('/shop/new')).toBe('new');
@@ -307,19 +306,17 @@ describe('activeNavId', () => {
   });
 });
 
-describe('세컨더리 마켓 시연 진입점', () => {
-  it('시연 링크는 공개 플레이스홀더와 같은 라우트를 가리키고 실제 페이지 파일에 묶인다', () => {
-    /* 같은 라우트가 staff/admin 에게만 시연을 렌더한다 — 별도 경로를 두면 서버 게이트가 둘로 갈린다. */
-    expect(FOOTER_DEMO_ITEMS.map((item) => item.id)).toEqual(['market', 'exchange']);
-    for (const item of FOOTER_DEMO_ITEMS) {
-      const href = hrefFor(item.id);
-      expect(href).not.toBe('/');
-      /* 공개 플레이스홀더 진입점은 모바일 전체 메뉴 시트의 '거래' 그룹이다. */
-      expect(MENU_SHEET_GROUPS.flatMap((group) => group.items).some((sheetItem) => sheetItem.id === item.id)).toBe(true);
-      const page = join(process.cwd(), 'app', ...href.split('/').filter(Boolean), 'page.tsx');
-      expect(existsSync(page)).toBe(true);
-      expect(item.label).toContain('시연');
+/* 카드팩·바인더·굿즈 마켓·카드 트레이드 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). */
+describe('지운 카드·거래 화면 진입점', () => {
+  it('메뉴·푸터 어디에도 지운 화면 항목이 없고 라우트 파일도 없다', () => {
+    const removed = ['packs', 'binder', 'market', 'exchange'];
+    const items = [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS, CATEGORY_SHEET_SHORTCUTS].flatMap((group) => group.items);
+    for (const id of removed) {
+      expect(items.some((item) => item.id === id), id).toBe(false);
+      expect(existsSync(join(process.cwd(), 'app', id, 'page.tsx')), id).toBe(false);
     }
+    /* 경로 표에도 없다 — 부르면 홈 폴백이다. */
+    for (const id of removed) expect(hrefFor(id), id).toBe('/');
   });
 });
 

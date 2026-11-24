@@ -6,8 +6,8 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { listTicketOrders } from '@/lib/ticketing.server';
 
 export const metadata: Metadata = {
-  title: '내 티켓 — ICONS',
-  description: 'ICONS 팝업 예매와 전자티켓 상태를 확인하세요.',
+  title: '내 티켓 — 엑스스퀘어',
+  description: '엑스스퀘어 팝업 예매와 전자티켓 상태를 확인하세요.',
   robots: { index: false, follow: false },
 };
 

@@ -25,7 +25,7 @@ export function GiftClaims({ actorId, orderId, initialContext, returnPickup = NO
     {orderId ? <OrderClaimFees actorId={actorId} orderId={orderId} /> : null}
     {claim ? <div><p>{({ cancel: '취소', return: '반품', exchange: '교환' })[claim.type]} · {STAGES[claim.stage]}</p>
       {claim.stage === 'collecting' && context.isRecipient && returnPickupCollectingNotice(returnPickup) ? <p data-gift-return-pickup-notice="">{returnPickupCollectingNotice(returnPickup)}</p> : null}
-      {claim.reshipTrackingNumber && !claimParcelShown ? <p>교환 굿즈 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
+      {claim.reshipTrackingNumber && !claimParcelShown ? <p>교환 상품 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
       {orderId && (claim.type === 'return' || claim.type === 'exchange') ? <>{context.isRecipient ? <ClaimCollectionPlan actorId={actorId} claimId={claim.id} /> : null}<ClaimContactHistory key={claim.id} actorId={actorId} orderId={orderId} claimId={claim.id} /></> : null}
       {claim.canWithdraw ? <button type="button" disabled={request.locked} onClick={async () => {
         const id = crypto.randomUUID(), revision = claim.revision, claimId = claim.id, giftId = context.giftId;
@@ -48,7 +48,7 @@ export function GiftClaims({ actorId, orderId, initialContext, returnPickup = NO
         request.run(() => requestGiftClaimAction(giftId, requestedType, requestedReason, id, actorId), result => { setContext(result.context); setNotice('요청을 접수했습니다.'); });
       });
     }}><fieldset disabled={request.locked}><legend>배송받은 선물 요청</legend><label>유형<select value={type} onChange={event => setType(event.target.value as typeof type)}><option value="return">반품</option><option value="exchange">교환</option></select></label>
-      <label>사유<select value={reason} onChange={event => setReason(event.target.value as typeof reason)}><option value="change_of_mind">단순 변심</option><option value="defect">굿즈 하자·오배송</option></select></label><button type="submit">요청 접수</button></fieldset></form> : null}
+      <label>사유<select value={reason} onChange={event => setReason(event.target.value as typeof reason)}><option value="change_of_mind">단순 변심</option><option value="defect">상품 하자·오배송</option></select></label><button type="submit">요청 접수</button></fieldset></form> : null}
     <button type="button" disabled={request.pending || Boolean(request.failure?.uncertain)} onClick={() => request.recover(() => reloadGiftClaimAction(context.giftId, actorId), result => { setContext(result.context); setNotice('최신 요청 상태를 확인했습니다.'); })}>요청 상태 확인</button>
     {notice ? <p role="status">{notice}</p> : null}</> : null}<GiftRequestFeedback {...request} /></section>;
 }

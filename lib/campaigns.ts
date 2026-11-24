@@ -55,11 +55,6 @@ export interface CampaignAttendanceSection extends CampaignSectionBase {
   type: 'attendance';
 }
 
-export interface CampaignExchangeSection extends CampaignSectionBase {
-  type: 'exchange';
-  offer_id: string;
-}
-
 export interface CampaignCouponSection extends CampaignSectionBase {
   type: 'coupon';
   coupon_code: string;
@@ -88,14 +83,13 @@ export type CampaignSection =
   | CampaignImageSection
   | CampaignTextSection
   | CampaignAttendanceSection
-  | CampaignExchangeSection
   | CampaignCouponSection
   | CampaignGoodsSection
   | CampaignNoticeSection
   | CampaignCtaSection;
 
 /* ------------------------------------------------------------------
-   이동 버튼(cta) 링크 규칙 — LD-18: ICONS 내부 경로만
+   이동 버튼(cta) 링크 규칙 — LD-18: 엑스스퀘어 내부 경로만
    ------------------------------------------------------------------
    DB(private.validate_campaign_sections, 20261022090100)와 같은 판정이다. 저장은 DB 가
    막고, 어드민 폼은 저장 왕복 전에 같은 판정을 쓰고, 공개 파서는 혹시 섞인 값을 그리지
@@ -454,10 +448,6 @@ function parseSection(raw: unknown): CampaignSection | null {
     }
     case 'attendance':
       return { ...base, type: 'attendance' };
-    case 'exchange': {
-      const offerId = requiredString(entry.offer_id);
-      return offerId ? { ...base, type: 'exchange', offer_id: offerId } : null;
-    }
     case 'coupon': {
       const couponCode = requiredString(entry.coupon_code);
       if (!couponCode) return null;
@@ -484,6 +474,8 @@ function parseSection(raw: unknown): CampaignSection | null {
       const href = typeof entry.href === 'string' && isCampaignInternalHref(entry.href) ? entry.href : null;
       return label && href ? { ...base, type: 'cta', label, href } : null;
     }
+    /* 'exchange'(코인 → 카드팩 교환) 블록은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). DB 검증은 아직 받으므로
+       예전에 저장된 블록이 남아 있어도 여기서 모르는 종류로 버린다. */
     default:
       return null;
   }

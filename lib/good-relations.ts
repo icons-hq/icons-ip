@@ -4,7 +4,7 @@ import { parseGoodsRelationVisual, type GoodsRelationVisual } from './good-relat
 
 export type GoodsRelationKind = 'together' | 'similar' | 'codi' | 'other_composition';
 export type PublicGoodsRelationKind = Exclude<GoodsRelationKind, 'other_composition'>;
-export const relationDefaultTitle = (kind: GoodsRelationKind) => kind === 'together' ? '함께 사면 좋은 굿즈' : kind === 'codi' ? '이렇게 함께 연출해요' : kind === 'other_composition' ? '다른 구성도 살펴보세요' : '유사한 굿즈';
+export const relationDefaultTitle = (kind: GoodsRelationKind) => kind === 'together' ? '함께 사면 좋은 상품' : kind === 'codi' ? '이렇게 함께 연출해요' : kind === 'other_composition' ? '다른 구성도 살펴보세요' : '유사한 상품';
 
 export interface GoodRelationReference { id: string; kind: PublicGoodsRelationKind; title: string; goodIds: string[]; allGoodIds?: string[]; representativeGoodId?: string; visual?: GoodsRelationVisual | null }
 export interface GoodRelationReferences { groups: GoodRelationReference[]; nextChangeAt: string | null; unavailable?: boolean }

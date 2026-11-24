@@ -198,7 +198,7 @@ describe('Checkout 결제수단 게이트', () => {
     expect(html).not.toContain('아크릴</span>');
     expect(html).not.toContain('판매 종료');
     const ended = render({ paymentAvailable: true, bankTransferAvailable: true, items: [{ goodId: 'g-gone', variantId: 'v-gone', qty: 1 }], quote: null });
-    expect(ended).toContain('ICONS · 판매 종료');
+    expect(ended).toContain('엑스스퀘어 · 판매 종료');
   });
   it('배송비가 확정되지 않으면 확정 결제 금액을 제시하거나 주문을 허용하지 않는다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: {
@@ -234,7 +234,7 @@ describe('Checkout 결제수단 게이트', () => {
   });
   /* DB 트리거가 1,000원 미만 결제 대기 주문을 거절한다. 제출 뒤 "잠시 후 다시 시도"로
      보이면 고객은 같은 실패를 반복한다(AMT-7). */
-  it('굿즈 금액과 배송비 합이 최소 결제 금액 미만이면 제출 전에 사유를 안내하고 막는다', () => {
+  it('상품 금액과 배송비 합이 최소 결제 금액 미만이면 제출 전에 사유를 안내하고 막는다', () => {
     const free = { totalFee: 0, groups: [], checkoutAllowed: true, finalTotalFee: 0, destination: null, nextChangeAt: null };
     const below = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { subtotal: 900, shipping: free } });
     expect(below).toContain('최소 결제 금액(₩1,000)보다 적어');
@@ -265,7 +265,7 @@ describe('Checkout 결제수단 게이트', () => {
     expect(submitButton(html)).not.toContain('disabled');
   });
 
-  it('무통장 차단 굿즈가 담기면 무통장 라디오와 제출을 함께 막는다', () => {
+  it('무통장 차단 상품이 담기면 무통장 라디오와 제출을 함께 막는다', () => {
     const html = render({
       paymentAvailable: false,
       bankTransferAvailable: true,
@@ -273,7 +273,7 @@ describe('Checkout 결제수단 게이트', () => {
     });
 
     expect(methodRadio(html, 'bank_transfer')).toContain('disabled');
-    expect(html).toContain('이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.');
+    expect(html).toContain('이 주문에는 무통장을 쓸 수 없는 상품이 있어요.');
     expect(html).toContain('선택한 결제수단을 지금은 쓸 수 없어요');
     expect(submitButton(html)).toContain('disabled');
   });
@@ -381,7 +381,7 @@ describe('Checkout 배송지 미리 채우기·주소록', () => {
 });
 
 describe('Checkout 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
-  it('랜덤 판매 굿즈는 옵션명을 랜덤으로 보인다', () => {
+  it('랜덤 판매 상품은 옵션명을 랜덤으로 보인다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, items: [{ goodId: 'g15', variantId: '00000000-0000-4000-8000-000000000015', qty: 2 }] });
     expect(html).toContain('<span>랜덤</span>');
   });
@@ -477,7 +477,7 @@ describe('Checkout 주문서 초안', () => {
     );
   }
 
-  it('선택 주문 초안이면 고른 줄만 보이고, 고르지 않은 굿즈는 장바구니에 남는다고 안내한다', () => {
+  it('선택 주문 초안이면 고른 줄만 보이고, 고르지 않은 상품은 장바구니에 남는다고 안내한다', () => {
     const html = renderDraft(draftOf());
     expect(html).toContain('홍실 아크릴 블록');
     expect(html).not.toContain('홍실 한정 피규어');
@@ -488,26 +488,26 @@ describe('Checkout 주문서 초안', () => {
 
   it('고른 줄이 바뀐 선택 초안은 제출을 막고 장바구니로 돌려보낸다', () => {
     const html = renderDraft(draftOf({ stale: true }));
-    expect(html).toContain('장바구니에서 고른 굿즈의 수량이나 구성이 바뀌었어요.');
+    expect(html).toContain('장바구니에서 고른 상품의 수량이나 구성이 바뀌었어요.');
     expect(html).toContain('<a href="/cart">장바구니로 돌아가기</a>');
     expect(submitButton(html)).toContain('disabled');
   });
 
-  it('바로구매 초안이면 장바구니 쿠폰 칸 대신 이 주문서 쿠폰 칸을 두고, 굿즈 상세로 돌아가게 한다', () => {
+  it('바로구매 초안이면 장바구니 쿠폰 칸 대신 이 주문서 쿠폰 칸을 두고, 상품 상세로 돌아가게 한다', () => {
     const html = renderDraft(draftOf({ source: 'direct', baseGoodId: 'g13' }));
     expect(html).toContain(checkoutSubcopy('direct', 'card'));
     expect(html).toContain('id="direct-coupon-title"');
     expect(html).toContain('이 주문에만 쓸 쿠폰을 골라요. 장바구니에서 고른 쿠폰은 바뀌지 않아요.');
     expect(html).not.toContain('장바구니에서 고른 쿠폰이 이어져요');
-    expect(html).toContain('<a class="checkout-back" href="/shop/g13">← 굿즈로 돌아가기</a>');
+    expect(html).toContain('<a class="checkout-back" href="/shop/g13">← 상품으로 돌아가기</a>');
     expect(html).not.toContain('홍실 한정 피규어');
   });
 
   it('장바구니 전체 주문서의 안내 문구는 그대로다', () => {
     expect(checkoutSubcopy(null, 'card')).toBe('결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.');
-    expect(checkoutSubcopy(null, 'bank_transfer')).toBe('주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.');
-    expect(checkoutSubmitCaption(null, 'card')).toBe('다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 주문한 굿즈가 장바구니에서 빠져요.');
-    expect(checkoutSubmitCaption(null, 'bank_transfer')).toBe('주문이 접수되면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.');
+    expect(checkoutSubcopy(null, 'bank_transfer')).toBe('주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 상품은 장바구니에서 빠져요.');
+    expect(checkoutSubmitCaption(null, 'card')).toBe('다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 주문한 상품이 장바구니에서 빠져요.');
+    expect(checkoutSubmitCaption(null, 'bank_transfer')).toBe('주문이 접수되면 입금 계좌와 기한을 안내해요. 접수한 상품은 장바구니에서 빠져요.');
     const html = render({ paymentAvailable: true, bankTransferAvailable: true });
     expect(html).toContain('<a class="checkout-back" href="/cart">← 장바구니 수정</a>');
   });
@@ -527,7 +527,7 @@ describe('Checkout 안내 정리', () => {
     expect(folded[0]).toContain('<summary>국내 배송·원화 결제만 제공해요</summary>');
     expect(folded[0]).toContain('국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.');
     expect(folded[1]).toContain('<summary>적립금 사용 기준</summary>');
-    expect(folded[1]).toContain('1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.');
+    expect(folded[1]).toContain('1원 단위로 상품 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.');
     expect(folded[2]).toContain('<summary>결제수단 변경 안내</summary>');
     expect(folded[2]).toContain('<p id="checkout-method-note">결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.</p>');
     /* 접힌 설명도 결제수단 칸의 설명으로 읽힌다. */
@@ -537,7 +537,7 @@ describe('Checkout 안내 정리', () => {
   it('주문 내용·결제 금액·결제수단별 안내·결제 버튼 아래 안내는 접지 않는다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true });
     const visible = outsideNotes(html);
-    for (const text of ['주문 확인', '홍실 아크릴 블록', '굿즈 금액', '배송비', '결제 금액', '결제 후 바로 확정됩니다. 재고 선점 15분.',
+    for (const text of ['주문 확인', '홍실 아크릴 블록', '상품 금액', '배송비', '결제 금액', '결제 후 바로 확정됩니다. 재고 선점 15분.',
       checkoutSubmitCaption(null, 'card'), checkoutSubcopy(null, 'card'), '쿠폰 할인', '적립금 잔액과 이 주문의 사용 조건을 확인합니다.']) {
       expect(visible, text).toContain(text);
     }
@@ -546,23 +546,23 @@ describe('Checkout 안내 정리', () => {
 });
 
 /* QA1 S-D2-11: 주문서를 연 채 판매기간이 끝나면 '재고가 변경된 굿즈' 공통 안내만 두 번 보였다. */
-it('판매기간이 끝난 굿즈는 그 굿즈와 이유를 한 번 말하고 주문을 잠근다', () => {
+it('판매기간이 끝난 상품은 그 상품과 이유를 한 번 말하고 주문을 잠근다', () => {
   const original = goods[0].salePeriod;
   goods[0].salePeriod = { startsAt: '2026-11-01T00:00:00.000Z', endsAt: '2026-11-11T00:00:00.000Z', state: 'ended', calculatedAt: '2026-11-12T00:00:00.000Z', nextChangeAt: null };
   try {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { lines: [{ goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1,
       regularPrice: 12000, effectivePrice: 12000, pricePeriodId: null, startsAt: null, endsAt: null, available: false }] } });
-    expect(html).toContain('판매기간이 끝난 굿즈가 있어요: 홍실 아크릴 블록. 장바구니에서 이 굿즈를 빼고 다시 주문해주세요.');
-    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
-    expect(html).not.toContain('재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.');
+    expect(html).toContain('판매기간이 끝난 상품이 있어요: 홍실 아크릴 블록. 장바구니에서 이 상품을 빼고 다시 주문해주세요.');
+    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 상품이 있어요');
+    expect(html).not.toContain('재고가 변경된 상품이 있어요. 장바구니에서 수량을 확인해주세요.');
     expect(html).toMatch(/<button class="btn btn-holo checkout-submit" disabled=""/);
   } finally {
     goods[0].salePeriod = original;
   }
 });
 
-describe('Checkout 판매기간이 끝난 굿즈가 섞인 주문서(원장 재작업 후속 7)', () => {
-  it('결제 금액처럼 굿즈 금액·쿠폰·배송비 줄도 그 굿즈를 포함한 금액을 보이지 않는다', () => {
+describe('Checkout 판매기간이 끝난 상품이 섞인 주문서(원장 재작업 후속 7)', () => {
+  it('결제 금액처럼 상품 금액·쿠폰·배송비 줄도 그 상품을 포함한 금액을 보이지 않는다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, items: [
       { goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 },
       { goodId: 'g17', variantId: '00000000-0000-4000-8000-000000000018', qty: 1 },
@@ -571,11 +571,11 @@ describe('Checkout 판매기간이 끝난 굿즈가 섞인 주문서(원장 재�
     expect(totals).not.toBe('');
     /* 서버 견적 굿즈 금액 17,000원·배송비 3,000원은 끝난 굿즈를 포함한 값이다 — 어느 줄에도 금액으로 남지 않는다. */
     expect(totals).not.toContain('₩');
-    expect(totals.match(/주문할 수 없는 굿즈를 뺀 뒤 표시/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(totals.match(/주문할 수 없는 상품을 뺀 뒤 표시/g)?.length).toBeGreaterThanOrEqual(1);
     expect(html).toContain('판매기간이 끝나 지금은 주문할 수 없어요');
     expect(submitButton(html)).toContain('disabled');
   });
-  it('배송 묶음 안내의 배송비·무료까지 남은 금액도 그 굿즈를 뺀 뒤 표시한다', () => {
+  it('배송 묶음 안내의 배송비·무료까지 남은 금액도 그 상품을 뺀 뒤 표시한다', () => {
     const group = { originId: '00000000-0000-4000-8000-000000042201', originCode: 'gimpo', originName: '김포', policySubtotal: 17000, baseFee: 3000,
       freeThreshold: 50000, policyFee: 3000, individualFee: 0, totalFee: 3000, regionMode: 'legacy_base_only' as const, regionStatus: 'unconfigured' as const,
       regionalContractFee: null, regionalFee: 0, finalFee: 3000, policyId: null, policyVersion: null, ruleId: null, regionLabel: null,
@@ -587,18 +587,18 @@ describe('Checkout 판매기간이 끝난 굿즈가 섞인 주문서(원장 재�
     ] });
     const section = ended.match(/<section class="wc-shipping-group"[\s\S]*?<\/section>/)?.[0] ?? '';
     expect(section).toContain('<h3>한진택배 배송</h3>');
-    expect(section).toContain('배송비 주문할 수 없는 굿즈를 뺀 뒤 표시');
+    expect(section).toContain('배송비 주문할 수 없는 상품을 뺀 뒤 표시');
     expect(section).not.toContain('₩');
     expect(section).not.toContain('더 담으면');
     const open = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping } });
     expect(open.match(/<section class="wc-shipping-group"[\s\S]*?<\/section>/)?.[0]).toContain('배송비 ₩3,000');
   });
-  it('판매 중인 굿즈만 있으면 지금처럼 금액을 보인다', () => {
+  it('판매 중인 상품만 있으면 지금처럼 금액을 보인다', () => {
     const totals = render({ paymentAvailable: true, bankTransferAvailable: true }).match(/<dl class="checkout-totals">[\s\S]*?<\/dl>/)?.[0] ?? '';
     expect(totals).toContain('₩12,000');
     expect(totals).toContain('₩3,000');
     expect(totals).toContain('₩15,000');
-    expect(totals).not.toContain('주문할 수 없는 굿즈를 뺀 뒤 표시');
+    expect(totals).not.toContain('주문할 수 없는 상품을 뺀 뒤 표시');
   });
 });
 
@@ -614,7 +614,7 @@ describe('Checkout 결제 전 확인 동의', () => {
       const html = render({ paymentAvailable, bankTransferAvailable: true, acknowledged: false });
       expect(ackCheckbox(html)).not.toBe('');
       expect(ackCheckbox(html)).not.toContain('checked');
-      expect(html).toContain('주문 굿즈·수량·결제 금액·배송지를 확인했으며, 구매 조건과 결제에 동의합니다.');
+      expect(html).toContain('주문 상품·수량·결제 금액·배송지를 확인했으며, 구매 조건과 결제에 동의합니다.');
       expect(html.indexOf('name="purchaseAcknowledgement"')).toBeLessThan(html.indexOf('checkout-submit'));
       expect(submitButton(html)).toContain('disabled');
     }
@@ -638,17 +638,17 @@ describe('Checkout 결제 전 확인 동의', () => {
     expect(html).toContain('rel="noopener"');
   });
 
-  it('청약철회 제한 굿즈가 있으면 품목 줄에 사유를 고지하고 동의 문구에 그 사실을 더한다', () => {
+  it('청약철회 제한 상품이 있으면 품목 줄에 사유를 고지하고 동의 문구에 그 사실을 더한다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: restrictions });
     expect(html).toContain('청약철회·교환 제한 — 각인 주문 제작 상품');
-    expect(html).toContain('청약철회 또는 교환이 제한되는 굿즈가 포함되어 있음을 확인하고');
+    expect(html).toContain('청약철회 또는 교환이 제한되는 상품이 포함되어 있음을 확인하고');
     expect(html).toContain('data-restricted="true"');
   });
 
-  it('제한 굿즈가 주문서 품목에 없으면 고지도 문구 변경도 없다', () => {
+  it('제한 상품이 주문서 품목에 없으면 고지도 문구 변경도 없다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: { g14: { goodId: 'g14', returnAllowed: false, exchangeAllowed: null, reason: '개봉 후 반품 불가' } } });
     expect(html).not.toContain('개봉 후 반품 불가');
-    expect(html).not.toContain('제한되는 굿즈가 포함되어');
+    expect(html).not.toContain('제한되는 상품이 포함되어');
   });
 
   it('반품만 제한이면 교환은 가능하다고 밝힌다', () => {
@@ -675,18 +675,18 @@ describe('Checkout 제한 고지를 읽지 못한 경우·교환만 제한', () 
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false, claimRestrictions: null });
     expect(html).toContain('청약철회·교환 제한 안내를 불러오지 못했어요');
     expect(html).toContain('data-claim-unavailable="true"');
-    expect(html).not.toContain('제한되는 굿즈가 포함되어');
+    expect(html).not.toContain('제한되는 상품이 포함되어');
   });
 
   it('읽었으면 일반 고지는 없다', () => {
     expect(render({ paymentAvailable: true, bankTransferAvailable: true })).not.toContain('불러오지 못했어요. 주문 전에');
   });
 
-  it('교환만 제한된 굿즈(b 행)도 체크박스가 청약철회 또는 교환 제한을 말한다', () => {
+  it('교환만 제한된 상품(b 행)도 체크박스가 청약철회 또는 교환 제한을 말한다', () => {
     const html = render({ paymentAvailable: true, bankTransferAvailable: true, acknowledged: false,
       claimRestrictions: { g13: { goodId: 'g13', returnAllowed: null, exchangeAllowed: false, reason: '교환 불가 상품' } } });
     expect(html).toContain('교환 제한 · 청약철회 가능 — 교환 불가 상품');
-    expect(html).toContain('청약철회 또는 교환이 제한되는 굿즈가 포함되어 있음을 확인하고');
-    expect(html).not.toContain('청약철회가 제한되는 굿즈가 포함');
+    expect(html).toContain('청약철회 또는 교환이 제한되는 상품이 포함되어 있음을 확인하고');
+    expect(html).not.toContain('청약철회가 제한되는 상품이 포함');
   });
 });

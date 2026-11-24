@@ -60,7 +60,7 @@ describe('안전재고 요약 메일 작업', () => {
       messageKind: 'stock_safety_digest', contentRevision: STOCK_SAFETY_DIGEST_CONTENT_REVISION });
     expect(s.binds).toEqual([operatorJob.id, originJob.id]);
     expect(s.provider.send).toHaveBeenCalledWith(expect.objectContaining({ recipient: 'seowon@example.test',
-      message: expect.objectContaining({ subject: '[ICONS] 남양주 안전재고 이하 옵션 1개 (2031-05-01)' }) }));
+      message: expect.objectContaining({ subject: '[엑스스퀘어] 남양주 안전재고 이하 옵션 1개 (2031-05-01)' }) }));
     expect(s.finishes).toEqual([{ status: 'sent', errorCode: null, retryable: false }, { status: 'sent', errorCode: null, retryable: false }]);
   });
 
@@ -125,12 +125,12 @@ describe('안전재고 요약 메일 작업', () => {
 describe('안전재고 요약 메일 본문', () => {
   it('운영자 메일은 출고지·어드민 링크를 싣고, 창고 메일은 싣지 않는다', () => {
     const operator = renderStockSafetyDigestEmail(operatorJob, 'https://iconsip.com');
-    expect(operator.subject).toBe('[ICONS] 안전재고 이하 옵션 2개 (2031-05-01)');
+    expect(operator.subject).toBe('[엑스스퀘어] 안전재고 이하 옵션 2개 (2031-05-01)');
     expect(operator.text).toContain('- TEST 아크릴 키링 / 핑크빈 (MAPLE-001 · MAPLE-001-02 · ERP E0001 · 바코드 8800000000011) — 재고 2개 / 기준 3개 · 남양주');
     expect(operator.text).toContain('- TEST 아크릴 키링 (MAPLE-002 · MAPLE-002-01) — 재고 2개 / 기준 3개 · 김포');
     expect(operator.text).toContain('https://iconsip.com/admin/catalog/stock-reconcile');
     const origin = renderStockSafetyDigestEmail(originJob, 'https://iconsip.com');
-    expect(origin.text).toContain('남양주에서 출고하는 ICONS 상품');
+    expect(origin.text).toContain('남양주에서 출고하는 엑스스퀘어 상품');
     expect(origin.text).not.toContain('/admin/');
     expect(origin.html).not.toContain('/admin/');
     expect(origin.html).not.toContain('<th style="padding:4px 8px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top">출고지</th>');
@@ -140,22 +140,22 @@ describe('안전재고 요약 메일 본문', () => {
     const job = { ...originJob, originNames: ['김포', '남양주'], itemCount: 2,
       items: [item, { ...item, optionName: '기본 옵션', optionCode: 'MAPLE-002-01', goodsCode: 'MAPLE-002', originName: '김포' }] };
     const email = renderStockSafetyDigestEmail(job, 'https://iconsip.com');
-    expect(email.subject).toBe('[ICONS] 김포, 남양주 안전재고 이하 옵션 2개 (2031-05-01)');
-    expect(email.text).toContain('김포, 남양주에서 출고하는 ICONS 상품');
+    expect(email.subject).toBe('[엑스스퀘어] 김포, 남양주 안전재고 이하 옵션 2개 (2031-05-01)');
+    expect(email.text).toContain('김포, 남양주에서 출고하는 엑스스퀘어 상품');
     expect(email.text).toContain('재고 2개 / 기준 3개 · 김포');
     expect(email.text).toContain('재고 2개 / 기준 3개 · 남양주');
     expect(email.html).toContain('<th style="padding:4px 8px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top">출고지</th>');
     expect(email.text).not.toContain('/admin/');
     // 셋 이상이면 제목에는 앞 둘과 나머지 곳 수만, 인사말에는 전부 쓴다.
     const many = renderStockSafetyDigestEmail({ ...job, originNames: ['김포', '남양주', '부천'] }, 'https://iconsip.com');
-    expect(many.subject).toBe('[ICONS] 김포, 남양주 외 1곳 안전재고 이하 옵션 2개 (2031-05-01)');
-    expect(many.text).toContain('김포, 남양주, 부천에서 출고하는 ICONS 상품');
+    expect(many.subject).toBe('[엑스스퀘어] 김포, 남양주 외 1곳 안전재고 이하 옵션 2개 (2031-05-01)');
+    expect(many.text).toContain('김포, 남양주, 부천에서 출고하는 엑스스퀘어 상품');
   });
 
   it('300개를 넘는 목록은 외 N개로 끝내고 이름을 HTML로 이스케이프한다', () => {
     const job = { ...operatorJob, itemCount: 305, items: [{ ...item, goodsName: '<b>키링</b>' }] };
     const email = renderStockSafetyDigestEmail(job, 'https://iconsip.com');
-    expect(email.text).toContain('외 304개 옵션은 ICONS 어드민에서 확인해주세요.');
+    expect(email.text).toContain('외 304개 옵션은 엑스스퀘어 어드민에서 확인해주세요.');
     expect(email.html).toContain('&lt;b&gt;키링&lt;/b&gt;');
     expect(email.html).not.toContain('<b>키링</b>');
   });

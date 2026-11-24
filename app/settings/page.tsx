@@ -16,7 +16,7 @@ import { phoneVerificationConfig, phoneVerificationView, readMyVerifiedPhone } f
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
-  title: '설정 — ICONS',
+  title: '설정 — 엑스스퀘어',
   description: '프로필을 편집하고 계정 정보와 마케팅 정보 수신 동의를 관리하세요.',
 };
 

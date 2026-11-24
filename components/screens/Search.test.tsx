@@ -24,7 +24,7 @@ const text = (html: string) => html
 
 const good = (id: string, overrides: Partial<Good> = {}): Good => ({
   id,
-  name: `굿즈 ${id}`,
+  name: `상품 ${id}`,
   ip: 'rilakkuma',
   price: 12000,
   badge: null,
@@ -73,26 +73,26 @@ function render(
   );
 }
 
-describe('Search 헤딩과 굿즈 그리드', () => {
+describe('Search 헤딩과 상품 그리드', () => {
   const items = [good('g1', { name: '리락쿠마 키링' }), good('g2', { name: '리락쿠마 인형', price: 30000 })];
   const html = render('리락쿠마', items);
 
-  it('질의어와 굿즈 건수를 헤딩에 쓴다', () => {
+  it('질의어와 상품 건수를 헤딩에 쓴다', () => {
     expect(text(html)).toContain("'리락쿠마' 검색 결과 2개");
   });
 
-  it('주 결과를 굿즈 그리드로 그린다', () => {
+  it('주 결과를 상품 그리드로 그린다', () => {
     expect(html).toContain('wc-product-grid');
     expect(html).toContain('리락쿠마 키링');
     expect(html).toContain('₩12,000');
   });
 
-  it('카드에 브랜드(IP 제목) 줄을 유지한다 — 굿즈샵 그리드와 같은 anatomy', () => {
+  it('카드에 브랜드(IP 제목) 줄을 유지한다 — 쇼핑 그리드와 같은 anatomy', () => {
     expect(html).toContain('wc-product-card__brand');
     expect(html).toContain('리락쿠마</');
   });
 
-  it('굿즈 결과는 목록이 아니라 상세로 보낸다', () => {
+  it('상품 결과는 목록이 아니라 상세로 보낸다', () => {
     expect(html).toContain('href="/shop/g1"');
     expect(html).toContain('href="/shop/g2"');
     expect(html).not.toContain('href="/shop"');
@@ -120,10 +120,10 @@ describe('Search 컬렉션 본문 (SR-01)', () => {
     good('g3', { name: '리락쿠마 메이플 콜라보', ip: 'maple', price: 30000 }),
   ];
 
-  it('굿즈샵 사이드바(IP·타입·가격)와 "전체 › N개 결과" 줄을 그린다', () => {
+  it('쇼핑 사이드바(IP·타입·가격)와 "전체 › N개 결과" 줄을 그린다', () => {
     const html = render('리락쿠마', items);
 
-    expect(html).toContain('aria-label="굿즈 필터"');
+    expect(html).toContain('aria-label="상품 필터"');
     expect(html).toContain('IP (0)');
     expect(html).not.toContain('타입 (');
     expect(text(html)).toContain('리락쿠마 (2)');
@@ -152,7 +152,7 @@ describe('Search 컬렉션 본문 (SR-01)', () => {
   it('필터 결과가 비면 컬렉션의 초기화 안내를 쓰고 검색 빈 상태 칩은 내지 않는다', () => {
     const html = render('리락쿠마', items, { params: { min: '90000' } });
 
-    expect(html).toContain('조건에 맞는 굿즈가 없어요');
+    expect(html).toContain('조건에 맞는 상품이 없어요');
     expect(html).not.toContain('추천 검색어');
   });
 
@@ -271,21 +271,21 @@ describe('Search 빈 상태', () => {
 
   /* l8b-qa-2 — 검색 오버레이와 같은 운영 추천 검색어를 쓴다(운영 목록이 있으면 코드 상수는 보이지 않는다). */
   it('운영 추천 검색어를 받으면 그 목록만 칩으로 그리고 입력값 그대로 검색 결과로 잇는다', () => {
-    const operator = render('없는말', [], { suggestedTerms: ['진격의 거인', '100%_굿즈'] });
+    const operator = render('없는말', [], { suggestedTerms: ['진격의 거인', '100%_상품'] });
     expect(operator.match(/class="wc-search__chip"/g)).toHaveLength(2);
-    expect(operator).toContain(`href="/search?q=${encodeURIComponent('100%_굿즈')}"`);
+    expect(operator).toContain(`href="/search?q=${encodeURIComponent('100%_상품')}"`);
     expect(operator).toContain('>진격의 거인</a>');
     for (const term of SUGGESTED_SEARCH_TERMS) expect(operator).not.toContain(`>${term}</a>`);
   });
 
   /* 결과가 없으면 레퍼런스처럼 사이드바를 그리지 않고, 모바일에서도 재검색 인풋을 남긴다. */
   it('사이드바 없이 제목·인풋을 남긴다', () => {
-    expect(html).not.toContain('aria-label="굿즈 필터"');
+    expect(html).not.toContain('aria-label="상품 필터"');
     expect(html).toContain('<div class="wc-search-results__head">');
   });
 });
 
-describe('Search 비굿즈 그룹', () => {
+describe('Search 비상품 그룹', () => {
   it('IP 검색 결과는 현재 공개 슬러그로 연결한다', () => {
     const html = render('리락쿠마', [], {
       groups: [{ kind: 'ip', label: 'IP', results: [{ ...result('ip', 'rilakkuma', '리락쿠마'), ipPublicSlug: 'relax-world' }] }],
@@ -296,8 +296,7 @@ describe('Search 비굿즈 그룹', () => {
   const html = render('리락쿠마', [good('g1', { name: '리락쿠마 g1' })], {
     groups: [
       { kind: 'ip', label: 'IP', results: [result('ip', 'rilakkuma', '리락쿠마')] },
-      { kind: 'good', label: '굿즈', results: [result('good', 'g9', '스냅샷 굿즈')] },
-      { kind: 'card', label: '카드', results: [result('card', 'c1', '리락쿠마 카드')] },
+      { kind: 'good', label: '상품', results: [result('good', 'g9', '스냅샷 상품')] },
       { kind: 'post', label: '포스트', results: [result('post', 'p1', '리락쿠마 포스트')] },
       { kind: 'tag', label: '태그', results: [result('tag', '리락쿠마덕질', '#리락쿠마덕질')] },
     ],
@@ -305,13 +304,13 @@ describe('Search 비굿즈 그룹', () => {
 
   it('각 결과를 실제 상세 경로로 보낸다', () => {
     expect(html).toContain('href="/ip/rilakkuma"');
-    expect(html).toContain('href="/binder"');
+    expect(html).not.toContain('href="/binder"');
     expect(html).toContain('href="/community"');
     expect(html).toContain(`href="/search?q=${encodeURIComponent('리락쿠마덕질')}"`);
   });
 
-  it('스냅샷의 굿즈 그룹은 자체 결과가 대체한다', () => {
-    expect(html).not.toContain('스냅샷 굿즈');
+  it('스냅샷의 상품 그룹은 자체 결과가 대체한다', () => {
+    expect(html).not.toContain('스냅샷 상품');
     expect(html).toContain('리락쿠마 g1');
   });
 });

@@ -59,7 +59,7 @@ describe('getSearchSnapshot', () => {
     mocks.identities = [{ id: 'old-ip', public_slug: 'new-ip' }];
     mocks.rpc.mockResolvedValue({ data: [
       { kind: 'ip', id: 'old-ip', label: 'IP', ip_id: 'old-ip' },
-      { kind: 'good', id: 'good-1', label: '굿즈', ip_id: 'old-ip' },
+      { kind: 'good', id: 'good-1', label: '상품', ip_id: 'old-ip' },
     ], error: null });
     const snapshot = await getSearchSnapshot('IP');
     expect(snapshot.groups.flatMap(group => group.results).map(result => result.ipPublicSlug)).toEqual(['new-ip', 'new-ip']);
@@ -69,14 +69,14 @@ describe('getSearchSnapshot', () => {
     await expect(getSearchSnapshot('IP')).rejects.toThrow('Failed to load search IP identities: identity unavailable');
   });
   it('uses mock catalog data when Supabase is not configured', async () => {
-    const snapshot = await getSearchSnapshot('리락쿠마', { binderEnabled: true });
+    const snapshot = await getSearchSnapshot('리락쿠마');
 
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(snapshot.source).toBe('mock');
     expect(snapshot.query).toBe('리락쿠마');
     /* 커뮤니티 임시 비공개 스위치가 포스트·태그 그룹을 함께 걷어낸다(lib/community-visibility.ts). */
     expect(snapshot.groups.map((group) => group.kind)).toEqual(
-      COMMUNITY_ENABLED ? ['ip', 'good', 'card', 'post'] : ['ip', 'good', 'card'],
+      COMMUNITY_ENABLED ? ['ip', 'good', 'post'] : ['ip', 'good'],
     );
     expect(snapshot.displayedTotal).toBe(
       snapshot.groups.reduce((total, group) => total + group.results.length, 0),
@@ -91,14 +91,11 @@ describe('getSearchSnapshot', () => {
     );
   });
 
-  it('drops card results while the card binder is hidden — cards only lead to the binder (default is hidden)', async () => {
-    const hidden = await getSearchSnapshot('리락쿠마');
-    const shown = await getSearchSnapshot('리락쿠마', { binderEnabled: true });
+  /* 카드 화면(바인더)은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 검색은 카드 결과를 싣지 않는다. */
+  it('never returns card results — the card screens were removed', async () => {
+    const snapshot = await getSearchSnapshot('리락쿠마');
 
-    expect(hidden.groups.map((group) => group.kind)).not.toContain('card');
-    expect(shown.groups.map((group) => group.kind)).toContain('card');
-    const cardCount = shown.groups.find((group) => group.kind === 'card')?.results.length ?? 0;
-    expect(hidden.displayedTotal).toBe(shown.displayedTotal - cardCount);
+    expect(snapshot.groups.map((group) => group.kind as string)).not.toContain('card');
   });
 
   it('uses mock catalog data on Vercel Preview even when Supabase is configured', async () => {
@@ -194,7 +191,7 @@ describe('getSearchSnapshot', () => {
       error: null,
     });
 
-    const snapshot = await getSearchSnapshot('  리락  ', { binderEnabled: true });
+    const snapshot = await getSearchSnapshot('  리락  ');
 
     expect(mocks.rpc).toHaveBeenCalledWith('search_public_content', {
       search_query: '리락',
@@ -202,8 +199,7 @@ describe('getSearchSnapshot', () => {
     });
     const publicGroups = [
       expect.objectContaining({ kind: 'ip', label: 'IP', results: [expect.objectContaining({ id: 'rilakkuma' })] }),
-      expect.objectContaining({ kind: 'good', label: '굿즈', results: [expect.objectContaining({ id: 'g2' })] }),
-      expect.objectContaining({ kind: 'card', label: '카드', results: [expect.objectContaining({ id: 'c2' })] }),
+      expect.objectContaining({ kind: 'good', label: '상품', results: [expect.objectContaining({ id: 'g2' })] }),
     ];
     const communityGroups = [
       expect.objectContaining({ kind: 'post', label: '포스트', results: [expect.objectContaining({ id: '00000000-0000-4000-8000-000000000015' })] }),
@@ -214,13 +210,11 @@ describe('getSearchSnapshot', () => {
     expect(snapshot).toEqual({
       source: 'supabase',
       query: '리락',
-      displayedTotal: COMMUNITY_ENABLED ? 5 : 3,
+      displayedTotal: COMMUNITY_ENABLED ? 4 : 2,
       groups: COMMUNITY_ENABLED ? [...publicGroups, ...communityGroups] : publicGroups,
     });
 
-    /* 카드 바인더가 숨김이면(기본) 카드 그룹이 빠지고 표시 개수도 함께 준다. */
-    const withoutCards = await getSearchSnapshot('  리락  ');
-    expect(withoutCards.groups.map((group) => group.kind)).not.toContain('card');
-    expect(withoutCards.displayedTotal).toBe(COMMUNITY_ENABLED ? 4 : 2);
+    /* 공개 검색 RPC 가 돌려준 카드 행은 결과 종류가 아니라 버린다(ADR-0052). */
+    expect(snapshot.groups.map((group) => group.kind as string)).not.toContain('card');
   });
 });

@@ -4,12 +4,10 @@ import { toGood, type GoodRow } from './catalog';
 import { initialGoodOption, purchasableOptionQty } from './goods-options';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), appearance: vi.fn(), rewards: vi.fn(), summaries: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), appearance: vi.fn(), summaries: vi.fn() }));
 vi.mock('./supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('./supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 vi.mock('./goods-listing-appearance.server', () => ({ loadGoodsListingAppearance: mocks.appearance }));
-vi.mock('./card-rewards/gate.server', () => ({ readCardRewardsEnabled: mocks.rewards }));
-vi.mock('./collectible-features.server', () => ({ getCollectibleFeatures: async () => ({ binder: false, market: false, exchange: false }) }));
 vi.mock('./goods-review-summary.server', () => ({ loadGoodsReviewSummaries: mocks.summaries }));
 const id = '93930000-0000-4000-8000-000000000011', now = '2026-10-14T00:00:00Z';
 const query = { displayCategory: id, view: 'all' as const, ips: [], types: [], priceMin: null, priceMax: null, sort: 'recommended' as const };
@@ -22,7 +20,7 @@ function row() {
 }
 function page() { return { category: { id, name: '전시' }, checkedAt: now, token: 'a'.repeat(32), offset: 0, nextOffset: null, total: 1, filteredTotal: 1, priceCeil: 700,
   rows: [row()], ipFacets: [{ value: 'ip1', label: 'IP', count: 1 }], typeFacets: [{ value: '문구', label: '문구', count: 1 }], banner: null, video: null, recommendations: null }; }
-beforeEach(() => { vi.clearAllMocks(); mocks.appearance.mockResolvedValue(new Map()); mocks.rewards.mockResolvedValue(true); mocks.summaries.mockResolvedValue({}); });
+beforeEach(() => { vi.clearAllMocks(); mocks.appearance.mockResolvedValue(new Map()); mocks.summaries.mockResolvedValue({}); });
 describe('전시 공개 DTO', () => {
   it('RPC typeFacets 의 옛 유형 값은 거르고 예약판매만 남긴다', () => {
     const source = page(); source.typeFacets = [{ value: '문구', label: '문구', count: 1 }, { value: '예약판매', label: '예약판매', count: 1 }];
@@ -38,13 +36,18 @@ describe('전시 공개 DTO', () => {
     expect(result?.price).toBe(700); expect(result?.stockQty).toBe(4);
     expect(result?.options?.[0].supply?.state).toBe('open');
   });
+  /* ADR-0050 — 전시 투영이 싣는 상품 자동코드로 카드 링크가 공개 상세의 정식 주소로 바로 간다. */
+  it('전시 투영의 상품 자동코드를 상품에 싣는다', () => {
+    expect(parseCategoryDisplayGood({ ...row(), code: 'HSQ-0059' })?.code).toBe('HSQ-0059');
+    expect(parseCategoryDisplayGood(row())).not.toHaveProperty('code');
+  });
   it('가격·공급 계약이 깨진 옵션을 조용히 버리고 성공하지 않는다', () => {
     const source = row(); source.goods_variants[0].pricing.effectivePrice = 1200;
     expect(parseCategoryDisplayGood(source)).toBeNull();
     const badSupply = row(); badSupply.goods_variants[0].supply.state = 'closed';
     expect(parseCategoryDisplayGood(badSupply)).toBeNull();
   });
-  it('랜덤 판매 굿즈는 전시 RPC가 싣는 랜덤 한 줄 하나로 목록 빠른 담기가 된다(D5②)', () => {
+  it('랜덤 판매 상품은 전시 RPC가 싣는 랜덤 한 줄 하나로 목록 빠른 담기가 된다(D5②)', () => {
     // private.category_display_public_variants 는 랜덤 굿즈의 옵션 행 대신 goods_random_option 한 줄(장바구니 키·풀 합계)만 싣는다.
     const base = row(), key = '93930000-0000-4000-8000-000000000077';
     const supply = { mode: 'stock', availableQty: 60, policyId: null, policyRevision: null, state: 'stock',
@@ -65,24 +68,34 @@ describe('전시 공개 DTO', () => {
     expect(parseCategoryDisplayPage({ ...page(), token: 'invalid' }, query)).toBeNull();
     expect(parseCategoryDisplayPage({ ...page(), rows: [row(), row()], total: 2, filteredTotal: 2 }, query)).toBeNull();
   });
+  /* 상품 표시문구 여러 개(migration 20261125140000): 전시 투영의 badges를 고른 순서대로 싣고, 모양이 틀리면 거절한다. */
+  it('전시 투영의 표시문구 목록을 고른 순서대로 목록·추천 카드에 싣는다', () => {
+    const source = { ...row(), badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] };
+    expect(parseCategoryDisplayGood(source)?.badges).toEqual(['EXCLUSIVE', 'NEW']);
+    expect(parseCategoryDisplayGood({ ...row(), badges: 'NEW' })).toBeNull();
+    expect(parseCategoryDisplayGood({ ...row(), badges: ['NEW', 1] })).toBeNull();
+    /* badges를 싣지 않는 옛 투영은 첫 값 badge 하나로 읽는다(카드 칩 판정은 goodBadgeList). */
+    expect(parseCategoryDisplayGood({ ...row(), badge: 'NEW' })?.badges).toBeUndefined();
+    const result = parseCategoryDisplayPage({ ...page(), recommendations: { title: '추천', rows: [{ ...source, id: 'g2' }] } }, query);
+    expect(result?.recommendations?.goods[0]).toMatchObject({ badge: 'EXCLUSIVE', badges: ['EXCLUSIVE', 'NEW'] });
+  });
   it('메인 스코프 밖 추천상품도 자체 IP 이름을 유지한다', () => {
     const result = parseCategoryDisplayPage({ ...page(), recommendations: { title: '추천', rows: [{ ...row(), id: 'g2', ip_id: 'outside' }] } }, query);
     expect(result?.recommendations?.goods[0].brand).toBe('독립 추천 IP');
   });
-  it('공개 페이지와 미리보기 공통 변환이 표시 설정과 리워드 목적지 게이트를 적용한다', async () => {
+  it('공개 페이지와 미리보기 공통 변환이 표시 설정과 지운 화면 목적지 게이트를 적용한다', async () => {
     const input = parseCategoryDisplayPage(page(), query)!;
     input.banner = { id, title: '', subtitle: null, imageUrl: 'image', mobileImageUrl: null, href: '/packs', imageAlt: '', imageDim: 'none', textColor: 'white' };
     const appearance = { colors: [], gallery: [], description: '설명' };
-    mocks.appearance.mockResolvedValue(new Map([['g1', appearance]])); mocks.rewards.mockResolvedValue(false);
+    mocks.appearance.mockResolvedValue(new Map([['g1', appearance]]));
     const result = await hydrateCategoryDisplayPage(input, {} as SupabaseClient);
     expect(result.result.goods[0].listingAppearance).toEqual(appearance); expect(result.banner).toBeNull();
-    /* 운영하지 않는 수집·거래 기능(숨김이 기본)으로 가는 배너도 같은 자리에서 걷어낸다. */
+    /* 지운 굿즈 마켓 화면(ADR-0052)으로 가는 배너도 같은 자리에서 걷어낸다. */
     const market = parseCategoryDisplayPage(page(), query)!;
     market.banner = { id, title: '', subtitle: null, imageUrl: 'image', mobileImageUrl: null, href: '/market', imageAlt: '', imageDim: 'none', textColor: 'white' };
-    mocks.rewards.mockResolvedValue(true);
     expect((await hydrateCategoryDisplayPage(market, {} as SupabaseClient)).banner).toBeNull();
   });
-  it('목록 카드 별점은 이 페이지 굿즈 몫만 배치로 읽고, 실패하면 별점만 숨긴다(CL-02)', async () => {
+  it('목록 카드 별점은 이 페이지 상품 몫만 배치로 읽고, 실패하면 별점만 숨긴다(CL-02)', async () => {
     const client = { rpc: vi.fn() } as unknown as SupabaseClient;
     mocks.summaries.mockResolvedValueOnce({ g1: { count: 4, average: 4.5 } });
     const result = await hydrateCategoryDisplayPage(parseCategoryDisplayPage(page(), query)!, client);

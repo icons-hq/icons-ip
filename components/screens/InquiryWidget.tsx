@@ -31,7 +31,7 @@ interface WidgetData { userId: string; inquiries?: InquiryListItem[]; inquiry?: 
  * 공개 FAQ가 하나도 없을 때만 쓴다. 내 주문 배송 조회 바로가기는 로그인 고객에게만 열고, 비로그인은 로그인 안내다.
  */
 const WIDGET_TOPIC_DEFAULT_ANSWERS: Record<FaqWidgetTopic, string> = {
-  delivery: '주문한 굿즈의 배송 상태는 내 주문에서 확인할 수 있습니다.',
+  delivery: '주문한 상품의 배송 상태는 내 주문에서 확인할 수 있습니다.',
   cancel: '주문 취소는 내 주문의 주문 상세에서 요청할 수 있습니다.',
   return: '교환·반품은 내 주문의 주문 상세에서 요청할 수 있습니다.',
 };
@@ -206,8 +206,8 @@ export function InquiryWidgetPanel({ userId, onClose, clientFactory = createClie
   const onCreated = useCallback((id: string) => { setInquiryId(id); setView('thread'); }, []);
   const onSaved = useCallback(() => setRevision((value) => value + 1), []);
   return <><div className="wc-inquiry-widget__backdrop" aria-hidden="true" onClick={onClose} />
-    <div ref={panelRef} className="wc-inquiry-widget__panel" role="dialog" aria-modal="true" aria-label="ICONS 상담">
-      <header><h2>ICONS 상담</h2><button type="button" aria-label="상담 닫기" onClick={onClose}>닫기</button></header>
+    <div ref={panelRef} className="wc-inquiry-widget__panel" role="dialog" aria-modal="true" aria-label="엑스스퀘어 상담">
+      <header><h2>엑스스퀘어 상담</h2><button type="button" aria-label="상담 닫기" onClick={onClose}>닫기</button></header>
       <nav aria-label="상담 메뉴"><button type="button" onClick={() => setView('faq')} aria-pressed={view === 'faq'}>FAQ</button>
         {userId ? <><button type="button" onClick={() => setView('list')} aria-pressed={view === 'list' || view === 'thread'}>내 문의</button>
           <button type="button" onClick={() => setView('new')} aria-pressed={view === 'new'}>새 문의</button></> : null}

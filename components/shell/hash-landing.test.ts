@@ -123,7 +123,7 @@ describe('문서를 열 때', () => {
 });
 
 describe('클라이언트 이동 뒤', () => {
-  it('다른 경로의 해시로 가면 맞춘다(홈 리뷰 → 굿즈 상세 #reviews)', () => {
+  it('다른 경로의 해시로 가면 맞춘다(홈 리뷰 → 상품 상세 #reviews)', () => {
     expect(shouldLandAfterNavigation({ pathname: '/', hash: '' }, { pathname: '/shop/g1', hash: '#reviews' })).toBe(true);
     expect(shouldLandAfterNavigation({ pathname: '/shop/g1', hash: '#reviews' }, { pathname: '/shop/g2', hash: '#reviews' })).toBe(true);
   });

@@ -167,10 +167,10 @@ function htmlDocument(reference: string, body: string, referenceLabel = '주문�
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F5F4FA;padding:24px 0;">`
     + `<tr><td align="center">`
     + `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;width:100%;background:#FFFFFF;border:1px solid ${LINE};border-radius:14px;font-family:'Apple SD Gothic Neo',-apple-system,'Segoe UI',Roboto,sans-serif;">`
-    + `<tr><td style="padding:24px 24px 0 24px;font-size:14px;font-weight:800;letter-spacing:.08em;color:${ACCENT};">ICONS</td></tr>`
+    + `<tr><td style="padding:24px 24px 0 24px;font-size:14px;font-weight:800;letter-spacing:.08em;color:${ACCENT};">X SQUARE</td></tr>`
     + body
     + `<tr><td style="padding:20px 24px 24px 24px;border-top:1px solid ${LINE};font-size:11px;line-height:1.7;color:${MUTED};">`
-    + `${escapeHtml(referenceLabel)} ${escapeHtml(reference)} · 이 메일은 발신 전용입니다. 문의는 ICONS 1:1 문의로 보내주세요.`
+    + `${escapeHtml(referenceLabel)} ${escapeHtml(reference)} · 이 메일은 발신 전용입니다. 문의는 엑스스퀘어 1:1 문의로 보내주세요.`
     + `</td></tr>`
     + `</table></td></tr></table>`;
 }
@@ -178,15 +178,15 @@ function htmlDocument(reference: string, body: string, referenceLabel = '주문�
 export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput): RenderedEmail {
   const reference = orderReferenceLabel(input.orderId, input.orderNumber);
   const orderedAt = formatOrderDateTime(input.orderedAt);
-  const subject = `[ICONS] 주문이 접수됐어요 (주문번호 ${reference})`;
+  const subject = `[엑스스퀘어] 주문이 접수됐어요 (주문번호 ${reference})`;
   const totals = input.transaction?.totals;
   const amountRows: [string, string][] = totals ? [
-    ['굿즈 합계', krw(totals.subtotal)], ['복수구매 할인', `−${krw(totals.volumeDiscountTotal)}`],
+    ['상품 합계', krw(totals.subtotal)], ['복수구매 할인', `−${krw(totals.volumeDiscountTotal)}`],
     ['쿠폰 할인', `−${krw(totals.couponDiscountTotal)}`], ['적립금 사용', `−${krw(totals.storeCreditTotal)}`],
     ['선불 배송비', krw(totals.prepaidShippingTotal)], ['온라인 결제금액', krw(totals.onlineTotal)],
     ...(totals.collectShippingTotal > 0 ? [['착불 배송비 · 수령 시 별도', krw(totals.collectShippingTotal)], ['총 부담금액', krw(totals.customerTotal)]] as [string, string][] : []),
   ] : [
-    ['굿즈 합계', krw(input.itemsSubtotal)], ['배송비', shippingFeeLabel(input.shippingFee)],
+    ['상품 합계', krw(input.itemsSubtotal)], ['배송비', shippingFeeLabel(input.shippingFee)],
     ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
     ...(input.storeCreditTotal ? [['적립금 사용', `−${krw(input.storeCreditTotal)}`] as [string, string]] : []),
     ['총 결제금액', krw(input.total)],
@@ -197,12 +197,12 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
   ] : []) ?? [];
 
   const text = textBlock([
-    'ICONS 주문이 접수됐어요.',
+    '엑스스퀘어 주문이 접수됐어요.',
     '',
     `주문번호: ${reference}`,
     ...(orderedAt ? [`주문일시: ${orderedAt}`] : []),
     '',
-    '[주문 굿즈]',
+    '[주문 상품]',
     ...input.items.map(itemLine),
     '',
     ...amountRows.map(([label, value]) => `${label}: ${value}`),
@@ -225,7 +225,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
       ['주문번호', reference],
       ...(orderedAt ? [['주문일시', orderedAt] as [string, string]] : []),
     ]),
-    htmlSectionTitle('주문 굿즈'),
+    htmlSectionTitle('주문 상품'),
     htmlItemRows(input.items),
     htmlDefinitionRows(amountRows),
     ...collectLines.map(line => htmlParagraph(line)),
@@ -242,7 +242,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
 export function renderOrderShippedEmail(input: OrderShippedEmailInput): RenderedEmail {
   const reference = orderReferenceLabel(input.orderId, input.orderNumber);
   const shipmentReference = commerceReferenceLabel(input.shipmentId, input.shipmentNumber);
-  const subject = `[ICONS] 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
+  const subject = `[엑스스퀘어] 상품이 배송을 시작했어요 (주문번호 ${reference})`;
   const carrierName = input.giftDelivery ? null : input.carrierName?.trim() || null;
   const trackingNumber = input.giftDelivery ? null : input.trackingNumber?.trim() || null;
   const trackingUrl = input.giftDelivery ? null : safeLinkUrl(input.trackingUrl);
@@ -256,7 +256,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
   ];
 
   const text = textBlock([
-    'ICONS 굿즈가 배송을 시작했어요.',
+    '엑스스퀘어 상품이 배송을 시작했어요.',
     '',
     `주문번호: ${reference}`,
     `배송건번호: ${shipmentReference}`,
@@ -265,7 +265,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []),
     ...(hasTracking || input.giftDelivery ? [] : [TRACKING_FALLBACK]),
     '',
-    '[이번 배송 굿즈]',
+    '[이번 배송 상품]',
     ...input.items.map(itemLine),
     '',
     '[배송지]',
@@ -275,13 +275,13 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
   ]);
 
   const html = htmlDocument(reference, [
-    htmlHeading('굿즈가 배송을 시작했어요'),
-    htmlParagraph('아래 굿즈가 배송지로 이동하고 있습니다. 다른 배송 건은 주문 상세에서 확인해주세요.'),
+    htmlHeading('상품이 배송을 시작했어요'),
+    htmlParagraph('아래 상품이 배송지로 이동하고 있습니다. 다른 배송 건은 주문 상세에서 확인해주세요.'),
     htmlSectionTitle('배송 정보'),
     htmlDefinitionRows(trackingRows),
     ...(hasTracking || input.giftDelivery ? [] : [htmlParagraph(TRACKING_FALLBACK)]),
     ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []),
-    htmlSectionTitle('이번 배송 굿즈'),
+    htmlSectionTitle('이번 배송 상품'),
     htmlItemRows(input.items),
     htmlSectionTitle('배송지'),
     input.giftDelivery ? htmlParagraph(GIFT_DELIVERY_PRIVATE) : htmlAddress(input.address),
@@ -314,7 +314,7 @@ export function renderGiftRecipientEmail(input: GiftRecipientEmailInput): Render
   const html = htmlDocument(reference, [htmlHeading(title), htmlSectionTitle('받을 선물'), ...itemLines.map(line => htmlParagraph(line, INK)),
     htmlSectionTitle('배송지'), htmlAddress(input.address), ...tracking.map(line => htmlParagraph(line)),
     ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []), htmlButton(input.giftUrl, '선물함 보기')].join(''), '선물 주문번호');
-  return { subject: `[ICONS] ${title}`, text, html };
+  return { subject: `[엑스스퀘어] ${title}`, text, html };
 }
 
 export interface InquiryAnsweredEmailInput {
@@ -341,7 +341,7 @@ export interface RestockAlertEmailInput {
 /** 재입고 알림 첫 문장. 알림함 본문(DB 트리거)과 같은 문장이다. */
 export function restockAlertSentence(goodName: string, optionName?: string | null): string {
   const option = optionName?.trim();
-  return option ? `${goodName} · ${option} 옵션이 다시 판매를 시작했어요.` : `${goodName} 굿즈가 다시 판매를 시작했어요.`;
+  return option ? `${goodName} · ${option} 옵션이 다시 판매를 시작했어요.` : `${goodName} 상품이 다시 판매를 시작했어요.`;
 }
 
 /**
@@ -362,7 +362,7 @@ export function renderRestockAlertEmail(input: RestockAlertEmailInput): Rendered
   const subjectName = subjectLabel.length > 60
     ? `${subjectLabel.slice(0, 59)}…`
     : subjectLabel;
-  const subject = `[ICONS] 재입고 알림 — ${subjectName}`;
+  const subject = `[엑스스퀘어] 재입고 알림 — ${subjectName}`;
   const goodUrl = safeLinkUrl(input.goodPath);
   const sentence = restockAlertSentence(input.goodName, option);
 
@@ -370,15 +370,15 @@ export function renderRestockAlertEmail(input: RestockAlertEmailInput): Rendered
     sentence,
     '',
     '수량이 한정적이라 다시 품절될 수 있어요.',
-    ...(goodUrl ? ['', `굿즈 보러 가기: ${goodUrl}`] : []),
+    ...(goodUrl ? ['', `상품 보러 가기: ${goodUrl}`] : []),
   ]);
 
   const html = htmlDocument(input.goodName, [
     htmlHeading('재입고 알림'),
     htmlParagraph(sentence, INK),
     htmlParagraph('수량이 한정적이라 다시 품절될 수 있어요.'),
-    ...(goodUrl ? [htmlButton(goodUrl, '굿즈 보러 가기')] : []),
-  ].join(''), '굿즈');
+    ...(goodUrl ? [htmlButton(goodUrl, '상품 보러 가기')] : []),
+  ].join(''), '상품');
 
   return { subject, text, html };
 }
@@ -408,10 +408,10 @@ function htmlAnswerBody(body: string) {
  */
 export function renderInquiryAnsweredEmail(input: InquiryAnsweredEmailInput): RenderedEmail {
   const reference = `#${input.reference}`;
-  const subject = `[ICONS] 문의에 답변이 등록됐어요 (문의번호 ${reference})`;
+  const subject = `[엑스스퀘어] 문의에 답변이 등록됐어요 (문의번호 ${reference})`;
 
   const text = textBlock([
-    'ICONS 1:1 문의에 답변이 등록됐어요.',
+    '엑스스퀘어 1:1 문의에 답변이 등록됐어요.',
     '',
     `문의번호: ${reference}`,
     `문의 유형: ${input.categoryLabel}`,
@@ -464,7 +464,7 @@ export interface VirtualAccountIssuedEmailInput {
  */
 export function renderVirtualAccountIssuedEmail(input: VirtualAccountIssuedEmailInput): RenderedEmail {
   const reference = orderReferenceLabel(input.orderId, input.orderNumber);
-  const subject = `[ICONS] 입금 계좌를 안내해 드려요 (주문번호 ${reference})`;
+  const subject = `[엑스스퀘어] 입금 계좌를 안내해 드려요 (주문번호 ${reference})`;
   const bank = tossBankLabel(input.bankCode);
   const due = formatOrderDateTime(input.dueAt);
   const notices = [
@@ -483,7 +483,7 @@ export function renderVirtualAccountIssuedEmail(input: VirtualAccountIssuedEmail
   ];
 
   const text = textBlock([
-    'ICONS 주문이 접수됐어요. 아래 계좌로 입금해 주세요.',
+    '엑스스퀘어 주문이 접수됐어요. 아래 계좌로 입금해 주세요.',
     '',
     `주문번호: ${reference}`,
     '',
@@ -506,5 +506,102 @@ export function renderVirtualAccountIssuedEmail(input: VirtualAccountIssuedEmail
     htmlButton(input.orderUrl, '주문 상세 보기'),
   ].join(''));
 
+  return { subject, text, html };
+}
+
+export interface DepositReversalEmailInput {
+  orderId: string;
+  orderNumber?: string | null;
+  /** 토스 은행 코드(2·3자리). */
+  bankCode: string;
+  accountNumber: string;
+  amount: number;
+  /** 지금 입금 기한(ISO, 결제 조회값). 한국 시간으로 적는다. */
+  dueAt: string;
+  orderUrl: string;
+  /** 기한까지 입금이 없으면 시스템이 주문을 자동 취소하는지 — 아직 나가지 않은 주문만이다(발송된 주문은 취소하지 않는다). */
+  autoCancel: boolean;
+}
+
+/**
+ * 토스 가상계좌 입금 오류 되돌림 — 재입금 안내(ADR-0049 결정 4). 은행이 입금을 취소해 결제가 입금 전으로 돌아갔다. 토스 웹훅 이벤트 문서가
+ * "구매자에게 다시 입금하도록 안내"하라고 한다. 고객은 이미 결제 확인 메일을 받았을 수 있으므로 그 메일과 다르다는 것을 먼저 말한다.
+ */
+export function renderDepositReversalEmail(input: DepositReversalEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const subject = `[엑스스퀘어] 입금이 확인되지 않아 다시 입금이 필요해요 (주문번호 ${reference})`;
+  const due = formatOrderDateTime(input.dueAt);
+  const notices = [
+    '은행에서 입금이 취소돼 결제가 완료되지 않았어요. 앞서 받으신 결제 확인 안내와 달리, 아직 입금이 필요해요.',
+    '이체 한도 초과나 은행 통신 오류 같은 이유로 은행이 입금을 취소하면 이렇게 돼요. 통장에 출금 내역이 남아 있다면 거래 은행에 확인해 주세요.',
+    '같은 계좌로 아래 금액을 입금 기한까지 다시 입금해 주세요. 입금이 확인되면 주문이 그대로 진행돼요.',
+    ...(input.autoCancel ? ['입금 기한까지 입금되지 않으면 주문이 자동으로 취소되고, 입금된 돈이 없어 따로 환불할 금액은 없어요.'] : []),
+  ];
+  const rows: [string, string][] = [
+    ['입금 은행', tossBankLabel(input.bankCode)],
+    ['계좌번호', input.accountNumber],
+    ['입금 금액', krw(input.amount)],
+    ...(due ? [['입금 기한', due] as [string, string]] : []),
+  ];
+
+  const text = textBlock([
+    '엑스스퀘어 주문의 입금이 은행에서 취소돼 확인되지 않았어요. 아래 계좌로 다시 입금해 주세요.',
+    '',
+    `주문번호: ${reference}`,
+    '',
+    '[입금 계좌]',
+    ...rows.map(([label, value]) => `${label}: ${value}`),
+    '',
+    '[안내]',
+    ...notices.map((line) => `- ${line}`),
+    '',
+    `주문 상세: ${input.orderUrl}`,
+  ]);
+
+  const html = htmlDocument(reference, [
+    htmlHeading('입금이 확인되지 않았어요'),
+    htmlParagraph('은행에서 입금이 취소돼 아직 결제가 완료되지 않았어요. 입금 기한까지 같은 계좌로 다시 입금해 주세요.'),
+    htmlSectionTitle('입금 계좌'),
+    htmlDefinitionRows(rows),
+    htmlSectionTitle('안내'),
+    ...notices.map((line) => htmlParagraph(line)),
+    htmlButton(input.orderUrl, '주문 상세 보기'),
+  ].join(''));
+
+  return { subject, text, html };
+}
+
+export interface DepositReversalCanceledEmailInput {
+  orderId: string;
+  orderNumber?: string | null;
+  amount: number;
+  orderUrl: string;
+}
+
+/** 입금 오류 되돌림 뒤 입금 기한까지 재입금이 없어 주문을 자동으로 취소했다는 안내(ADR-0049 결정 4). 돈이 들어오지 않았으므로 환불이 없다. */
+export function renderDepositReversalCanceledEmail(input: DepositReversalCanceledEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const subject = `[엑스스퀘어] 입금이 확인되지 않아 주문이 취소됐어요 (주문번호 ${reference})`;
+  const notices = [
+    `입금 기한까지 ${krw(input.amount)} 입금이 확인되지 않아 주문을 취소했어요.`,
+    '입금된 돈이 없어 따로 환불할 금액은 없어요. 주문에 사용한 쿠폰·적립금은 주문 취소 기준에 따라 돌려드려요.',
+    '통장에 출금 내역이 남아 있다면 거래 은행이나 엑스스퀘어 고객센터로 문의해 주세요.',
+  ];
+  const text = textBlock([
+    '엑스스퀘어 주문이 입금 확인 없이 취소됐어요.',
+    '',
+    `주문번호: ${reference}`,
+    '',
+    '[안내]',
+    ...notices.map((line) => `- ${line}`),
+    '',
+    `주문 상세: ${input.orderUrl}`,
+  ]);
+  const html = htmlDocument(reference, [
+    htmlHeading('입금이 확인되지 않아 주문이 취소됐어요'),
+    htmlSectionTitle('안내'),
+    ...notices.map((line) => htmlParagraph(line)),
+    htmlButton(input.orderUrl, '주문 상세 보기'),
+  ].join(''));
   return { subject, text, html };
 }

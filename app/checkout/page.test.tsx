@@ -133,12 +133,12 @@ describe('/checkout page — 주문서 초안', () => {
   });
 
   /* 만료돼도 본인 주문서면 출처가 남는다 — 바로구매 주문서는 장바구니가 아니라 그 굿즈 상세로 돌려보낸다. */
-  it('만료된 바로구매 주문서는 굿즈로 돌아가기를 안내한다', async () => {
+  it('만료된 바로구매 주문서는 상품으로 돌아가기를 안내한다', async () => {
     mocks.draft = { id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: null };
     const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }));
     expect(html).toContain('주문서를 다시 열어주세요');
     expect(html).toContain('href="/shop/g2"');
-    expect(html).toContain('굿즈로 돌아가기');
+    expect(html).toContain('상품으로 돌아가기');
     expect(html).not.toContain('href="/cart"');
     expect(mocks.checkout).not.toHaveBeenCalled();
   });
@@ -170,8 +170,8 @@ describe('/checkout page — 주문서 초안', () => {
 });
 
 /* 결제 전 확인 동의(PAY-015): 청약철회 제한 굿즈를 서버가 읽어 두 주문서에 넘긴다. */
-describe('/checkout page — 청약철회 제한 굿즈 고지', () => {
-  it('기본 주문서와 거래 주문서 모두 같은 제한 굿즈를 받는다', async () => {
+describe('/checkout page — 청약철회 제한 상품 고지', () => {
+  it('기본 주문서와 거래 주문서 모두 같은 제한 상품을 받는다', async () => {
     renderToStaticMarkup(await Page({}));
     expect(mocks.checkout.mock.calls.at(-1)?.[0].claimRestrictions).toBe(restrictions);
     mocks.transactionMode = 'transaction';
@@ -179,7 +179,7 @@ describe('/checkout page — 청약철회 제한 굿즈 고지', () => {
     expect(mocks.transactionCheckout.mock.calls.at(-1)?.[0].claimRestrictions).toBe(restrictions);
   });
 
-  it('장바구니 주문서는 서버 장바구니의 굿즈로, 초안 주문서는 그 초안 줄로만 읽는다', async () => {
+  it('장바구니 주문서는 서버 장바구니의 상품으로, 초안 주문서는 그 초안 줄로만 읽는다', async () => {
     renderToStaticMarkup(await Page({}));
     expect(claim.cart).toHaveBeenCalledWith('00000000-0000-4000-8000-000000001201');
     expect(claim.load).toHaveBeenLastCalledWith(['g1', 'g2']);
@@ -192,7 +192,7 @@ describe('/checkout page — 청약철회 제한 굿즈 고지', () => {
     expect(claim.load).toHaveBeenLastCalledWith(['g7']);
   });
 
-  it('제한 굿즈를 읽지 못하면(null) 그대로 넘겨 화면이 일반 고지를 보인다', async () => {
+  it('제한 상품을 읽지 못하면(null) 그대로 넘겨 화면이 일반 고지를 보인다', async () => {
     claim.load.mockResolvedValue(null);
     renderToStaticMarkup(await Page({}));
     expect(mocks.checkout.mock.calls.at(-1)?.[0].claimRestrictions).toBeNull();

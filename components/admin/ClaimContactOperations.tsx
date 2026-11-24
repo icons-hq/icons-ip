@@ -298,10 +298,10 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.destinationConfirmed} onChange={event => patch({ destinationConfirmed: event.target.checked })} /><span>표시된 최종 주소가 실제 발송할 주소와 같습니다.</span></label>
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.dispatchConfirmed} onChange={event => patch({ dispatchConfirmed: event.target.checked })} /><span>전체 수량과 실제 발송 정보를 확인했습니다.</span></label>
             <p className="text-muted-foreground">{waivedDispatch
-              ? '회수 상품 재고는 복원하지 않고, 선택한 상품의 재고만 줄입니다. 고객에게는 회수 없이 다시 보내드린다고 안내합니다. 결제금액과 카드팩은 유지됩니다.'
+              ? '회수 상품 재고는 복원하지 않고, 선택한 상품의 재고만 줄입니다. 고객에게는 회수 없이 다시 보내드린다고 안내합니다. 결제금액은 유지됩니다.'
               : defectiveItems.length
-                ? `불량으로 고른 회수 상품(${defectiveItems.map(item => item.name).join(', ')})은 판매 재고에 넣지 않고 불량 재고에 기록하고, 나머지 회수 상품의 재고를 복원합니다. 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.`
-                : '이 배송 건에서 회수한 상품의 재고를 복원하고 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.'}</p>
+                ? `불량으로 고른 회수 상품(${defectiveItems.map(item => item.name).join(', ')})은 판매 재고에 넣지 않고 불량 재고에 기록하고, 나머지 회수 상품의 재고를 복원합니다. 선택한 상품으로 전체 수량을 재출고합니다. 결제금액은 유지됩니다.`
+                : '이 배송 건에서 회수한 상품의 재고를 복원하고 선택한 상품으로 전체 수량을 재출고합니다. 결제금액은 유지됩니다.'}</p>
           </>}
         </fieldset>
         {!recovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" disabled={locked || uploading} type="submit">{context.command === 'change' ? '연락처 수정 저장'

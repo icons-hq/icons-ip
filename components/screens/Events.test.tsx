@@ -28,7 +28,7 @@ function event(id: string, overrides: Partial<FandomEvent> = {}): FandomEvent {
     mode: '오프라인',
     status: '예매중',
     date: '7.25 - 7.28',
-    loc: '성수 ICONS 스튜디오',
+    loc: '성수 엑스스퀘어 스튜디오',
     accent: '#38F0C0',
     img: 'linear-gradient(#111, #222)',
     ...overrides,
@@ -80,7 +80,7 @@ describe('Events', () => {
     expect(card).toContain('<span class="wc-offline-card__kind">오프라인</span>');
     expect(card).toContain('<p class="wc-offline-card__ip">화산강림</p>');
     expect(card).toContain('<h2 class="wc-offline-card__title">팝업 e1</h2>');
-    expect(card).toContain('성수 ICONS 스튜디오');
+    expect(card).toContain('성수 엑스스퀘어 스튜디오');
     expect(card).toContain('<span class="wc-offline-card__period">7.25 - 7.28</span>');
     expect(card).toContain('<span class="wc-offline-state wc-offline-state--open">예매중</span>');
   });
@@ -92,12 +92,12 @@ describe('Events', () => {
     expect(card).toContain('장소 공개 예정');
   });
 
-  /* 링크 안의 링크는 만들 수 없다 — 게임 진입은 카드 링크 밖의 보조 링크다. */
-  it('참여형 게임 진입 링크는 카드 링크 밖에 둔다', () => {
-    const html = render([event('e1')], { gameLinks: [{ eventId: 'e1', gameId: 'marble', title: '마블 룰렛' }] });
+  /* 참여형 게임은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 카드에 게임 진입 링크가 없다. */
+  it('카드에 참여형 게임 진입 링크를 두지 않는다', () => {
+    const html = render([event('e1')]);
 
-    expect(cardLinkHtml(html, 'e1')).not.toContain('/games/marble');
-    expect(html).toContain('<a class="wc-offline-card__game" href="/games/marble">마블 룰렛 플레이</a>');
+    expect(html).not.toContain('/games/');
+    expect(html).not.toContain('wc-offline-card__game');
   });
 
   it('진행중 → 예매중 → 예정 순서로 싣는다', () => {

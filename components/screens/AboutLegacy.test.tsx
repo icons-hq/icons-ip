@@ -53,7 +53,7 @@ function ip(id: string, title: string, featured = false): Ip {
 }
 
 function catalog(source: CatalogSnapshot['source'], ips: Ip[]): CatalogSnapshot {
-  return { source, verticals: [vertical], ips, goods: [], cards: [], events: [] };
+  return { source, verticals: [vertical], ips, goods: [], events: [] };
 }
 
 function previewCatalog(source: CatalogSnapshot['source']): CatalogSnapshot {
@@ -62,7 +62,6 @@ function previewCatalog(source: CatalogSnapshot['source']): CatalogSnapshot {
     verticals: Object.values(DATA.V),
     ips: DATA.IPS,
     goods: DATA.GOODS,
-    cards: DATA.CARDS,
     events: DATA.EVENTS,
   };
 }
@@ -78,7 +77,6 @@ function renderAboutLegacy(overrides: Partial<ComponentProps<typeof AboutLegacy>
     ip('six', '여섯 번째 IP'),
   ]);
   const props: ComponentProps<typeof AboutLegacy> = {
-    cardRewardsEnabled: true,
     catalog: baseCatalog,
     curation: {
       ...EMPTY_EXPANDED_CURATION,
@@ -100,9 +98,9 @@ describe('AboutLegacy curation', () => {
     expect(html).toContain('href="/ip/lumen-world"');
     expect(html).not.toContain('href="/ip/lumen"');
   });
-  it('hides every card-pack destination and reward CTA while the global gate is disabled', () => {
+  /* 카드팩·게임 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 예전 큐레이션 목적지와 카드 소개도 그리지 않는다. */
+  it('hides every card-pack destination and card feature now that the card screens are removed', () => {
     const html = renderAboutLegacy({
-      cardRewardsEnabled: false,
       curation: {
         ...EMPTY_EXPANDED_CURATION,
         hero: { id: 'pack-hero', title: '카드팩', imageBg: '#111', href: '/packs' },
@@ -491,7 +489,7 @@ describe('AboutLegacy curation', () => {
 
     expect(html).toContain('/generated/ip/rilakkuma.webp');
     expect(html).not.toContain('/generated/ip/rilakkuma.png');
-    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
+    expect(html).toContain('aria-label="상품 장면 자동 전환 일시 정지"');
   });
 
   it('renders the original accessible film line controls without visible text', () => {
@@ -500,13 +498,13 @@ describe('AboutLegacy curation', () => {
       curation: { ...EMPTY_EXPANDED_CURATION, hero: null, announcement: null, featuredIpIds: [] },
     });
 
-    expect(html).toMatch(/<section[^>]+aria-label="ICONS 경험 소개"[^>]+aria-roledescription="carousel"/);
+    expect(html).toMatch(/<section[^>]+aria-label="엑스스퀘어 경험 소개"[^>]+aria-roledescription="carousel"/);
     expect(html).toContain('class="film-progress"');
     expect(html).toMatch(/<div[^>]+aria-label="필름 장면 선택 및 자동 전환"[^>]+role="group"/);
-    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지" aria-pressed="true"');
+    expect(html).toContain('aria-label="상품 장면 자동 전환 일시 정지" aria-pressed="true"');
     expect(html).toContain('aria-label="팝업 장면 보기 및 자동 전환 일시 정지" aria-pressed="false"');
-    expect(html).toContain('aria-label="카드 장면 보기 및 자동 전환 일시 정지" aria-pressed="false"');
-    expect(html).not.toContain('>굿즈</button>');
+    expect(html).not.toContain('aria-label="카드 장면');
+    expect(html).not.toContain('>상품</button>');
     expect(html).not.toContain('>팝업</button>');
     expect(html).not.toContain('>카드</button>');
     expect(html).not.toContain('class="film-scene-dock"');
@@ -517,7 +515,7 @@ describe('AboutLegacy curation', () => {
   it('hides film controls for one scene and renders one line per scene for two scenes', () => {
     const maple = DATA.IPS.find((item) => item.id === 'maplestory')!;
     const good = DATA.GOODS.find((item) => item.id === 'g3')!;
-    const card = DATA.CARDS.find((item) => item.id === 'c3')!;
+    const popup = DATA.EVENTS.find((item) => item.ip === maple.id)!;
     const singleSceneCatalog = {
       ...catalog('supabase', [maple]),
       goods: [good],
@@ -531,15 +529,15 @@ describe('AboutLegacy curation', () => {
 
     const singleSceneHtml = renderAboutLegacy({ catalog: singleSceneCatalog, curation });
     const twoSceneHtml = renderAboutLegacy({
-      catalog: { ...singleSceneCatalog, cards: [card] },
+      catalog: { ...singleSceneCatalog, events: [popup] },
       curation,
     });
 
     expect(singleSceneHtml).not.toContain('class="film-progress"');
     expect(twoSceneHtml).toContain('class="film-progress"');
-    expect(twoSceneHtml).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
-    expect(twoSceneHtml).toContain('aria-label="카드 장면 보기 및 자동 전환 일시 정지"');
-    expect(twoSceneHtml).not.toContain('aria-label="팝업 장면');
+    expect(twoSceneHtml).toContain('aria-label="상품 장면 자동 전환 일시 정지"');
+    expect(twoSceneHtml).toContain('aria-label="팝업 장면 보기 및 자동 전환 일시 정지"');
+    expect(twoSceneHtml).not.toContain('aria-label="카드 장면');
     expect(twoSceneHtml.match(/<button[^>]+aria-pressed=/g)).toHaveLength(2);
   });
 
@@ -761,7 +759,7 @@ describe('ICONS IP World Preview composition', () => {
         goods: [
           {
             id: 'legacy-good',
-            name: '레거시 굿즈',
+            name: '레거시 상품',
             ip: 'legacy',
             price: 10000,
             badge: null,
@@ -771,7 +769,7 @@ describe('ICONS IP World Preview composition', () => {
           },
           {
             id: 'lumen-good',
-            name: '루멘 굿즈',
+            name: '루멘 상품',
             ip: 'lumen',
             price: 28000,
             badge: 'NEW',
@@ -784,7 +782,7 @@ describe('ICONS IP World Preview composition', () => {
       curation: { ...EMPTY_EXPANDED_CURATION, hero: null, announcement: null, featuredIpIds: ['lumen'] },
     });
 
-    expect(html).toMatch(/experience-card[\s\S]*루멘 굿즈/);
-    expect(html).not.toMatch(/experience-card[\s\S]*레거시 굿즈/);
+    expect(html).toMatch(/experience-card[\s\S]*루멘 상품/);
+    expect(html).not.toMatch(/experience-card[\s\S]*레거시 상품/);
   });
 });

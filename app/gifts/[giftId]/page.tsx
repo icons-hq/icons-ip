@@ -10,7 +10,7 @@ import { NO_RETURN_PICKUP } from '@/lib/orders/return-pickup';
 import { loadMyCoupons } from '@/lib/coupons.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { isUuid } from '@/lib/uuid';
-export const metadata: Metadata = { title: '선물 상세 — ICONS' };
+export const metadata: Metadata = { title: '선물 상세 — 엑스스퀘어' };
 export default async function Page({ params }: { params: Promise<{ giftId: string }> }) {
   const { giftId } = await params; if (!isUuid(giftId)) notFound();
   const auth = await getCurrentAuthState(); if (!auth.user) redirect(`/login?next=${encodeURIComponent(`/gifts/${giftId}`)}`);

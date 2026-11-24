@@ -71,9 +71,9 @@ function PresentationForm({ snapshot, section }: { snapshot: StorePresentationSn
       <AdminSectionCard title={section === 'common' ? '공통 테마·홈 검색' : '상품목록 표시'}>
         <fieldset disabled={pending || uncertain} className="grid min-w-0 gap-7">
           {section === 'common' ? <>
-            <fieldset className={GROUP}><legend className={LEGEND}>컬러 테마</legend><div className="flex flex-wrap gap-2">{STORE_THEME_COLORS.map((color, index) => <label className="relative block size-[38px] cursor-pointer" key={color} title={`${index === 0 ? 'ICONS 기본 ' : ''}${color}`}>
+            <fieldset className={GROUP}><legend className={LEGEND}>컬러 테마</legend><div className="flex flex-wrap gap-2">{STORE_THEME_COLORS.map((color, index) => <label className="relative block size-[38px] cursor-pointer" key={color} title={`${index === 0 ? '엑스스퀘어 기본 ' : ''}${color}`}>
               <input className="peer absolute inset-0 m-0 size-full cursor-pointer opacity-0" type="radio" name="themeColor" value={color} checked={common.themeColor === color} onChange={() => changeCommon('themeColor', color)} />
-              <span className="block size-full rounded-full border outline-offset-[3px] peer-checked:outline-2 peer-checked:outline-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50" style={{ backgroundColor: color }} /><span className="sr-only">{index === 0 ? 'ICONS 기본 ' : ''}{color}</span>
+              <span className="block size-full rounded-full border outline-offset-[3px] peer-checked:outline-2 peer-checked:outline-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50" style={{ backgroundColor: color }} /><span className="sr-only">{index === 0 ? '엑스스퀘어 기본 ' : ''}{color}</span>
             </label>)}</div><p className={HELP}>{common.themeColor.toUpperCase()} · 기본형은 상단 메뉴 밑줄, 컬러형은 머리말과 상단 메뉴 바탕에 쓰입니다. 어드민 색상에는 적용되지 않습니다.</p></fieldset>
             <fieldset className={GROUP}><legend className={LEGEND}>공통 상단 메뉴 디자인</legend><div className={CHOICES}>
               <label className={CHOICE}><input type="radio" name="headerStyle" checked={common.headerStyle === 'basic'} onChange={() => changeCommon('headerStyle', 'basic')} />기본형</label>

@@ -196,7 +196,7 @@ export function ticketOrderName(eventTitle: string, ticketTypeName: string, qty?
   const ticketType = ticketTypeName.trim();
   const qtyLabel = Number.isInteger(qty) && (qty ?? 0) > 0 ? `${qty}매` : '';
   const ticketDetails = [ticketType, qtyLabel].filter(Boolean).join(' · ');
-  if (!event && !ticketDetails) return 'ICONS 티켓';
+  if (!event && !ticketDetails) return '엑스스퀘어 티켓';
   if (!event) return ticketDetails.slice(0, ORDER_NAME_MAX_LENGTH);
   if (!ticketDetails) return event.slice(0, ORDER_NAME_MAX_LENGTH);
 

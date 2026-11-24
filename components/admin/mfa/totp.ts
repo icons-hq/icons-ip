@@ -28,7 +28,7 @@ export async function startTotpEnrollment(supabase: SupabaseClient, leftovers: r
     if (error) return { ok: false, error: totpErrorMessage(error) };
   }
   const stamp = now.toISOString().slice(0, 19).replace('T', ' ');
-  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: `ICONS 어드민 ${stamp}`, issuer: 'ICONS 어드민' });
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: `엑스스퀘어 어드민 ${stamp}`, issuer: '엑스스퀘어 어드민' });
   if (error || !data || data.type !== 'totp') return { ok: false, error: totpErrorMessage(error) };
   return { ok: true, value: { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret } };
 }

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadMyStoreCreditHistory } from '@/lib/store-credits.server';
 import { MyStoreCredits } from '@/components/screens/MyStoreCredits';
-export const metadata: Metadata = { title: '적립금 — ICONS', robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: '적립금 — 엑스스퀘어', robots: { index: false, follow: false } };
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent('/my/store-credits')}`);

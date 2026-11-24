@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
-  cardRewardsEnabled: false,
   getHomeSnapshot: vi.fn(),
   wishlist: { viewerId: 'viewer-1', goodIds: ['g1'] } as { viewerId: string | null; goodIds: string[] } | null,
 }));
@@ -11,9 +10,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/goods-announcement-popup.server', () => ({ loadHomeAnnouncementPopup: async () => ({ item: null, nextChangeAt: null }) }));
 vi.mock('@/components/screens/Home', () => ({ Home: () => null }));
 vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.getHomeSnapshot }));
-vi.mock('@/lib/card-rewards/gate.server', () => ({
-  readCardRewardsEnabled: () => mocks.cardRewardsEnabled,
-}));
 vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => mocks.wishlist }));
 
 const home = {
@@ -43,7 +39,6 @@ const home = {
 
 describe('home page assembly', () => {
   beforeEach(() => {
-    mocks.cardRewardsEnabled = false;
     mocks.getHomeSnapshot.mockReset();
     mocks.getHomeSnapshot.mockResolvedValue(home);
   });
@@ -66,11 +61,12 @@ describe('home page assembly', () => {
     expect(mocks.getHomeSnapshot).toHaveBeenCalledWith({ includeReviewSummaries: true, storefrontReadCache: true });
   });
 
-  it('passes the card rewards gate straight through to the screen', async () => {
-    expect((await Page()).props.cardRewardsEnabled).toBe(false);
+  /* 카드 리워드 게이트는 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 홈은 더 이상 그 값을 읽지 않는다. */
+  it('does not read the retired card rewards gate', async () => {
+    const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
 
-    mocks.cardRewardsEnabled = true;
-    expect((await Page()).props.cardRewardsEnabled).toBe(true);
+    expect(source).not.toContain('card-rewards');
+    expect((await Page()).props).not.toHaveProperty('cardRewardsEnabled');
   });
 
   /*

@@ -43,21 +43,21 @@ async function render(partialReturn?: OrderPartialReturnContext) {
 describe('반품 접수 — 부분 반품(ADR-0047)', () => {
   it('스위치가 꺼져 있으면(기본) 품목 선택이 없고 접수 안내도 지금 그대로다', async () => {
     const html = await render();
-    expect(html).not.toContain('반품할 굿즈');
+    expect(html).not.toContain('반품할 상품');
     expect(html).toContain(`<p class="money-caption">${ORDER_CLAIM_INTAKE_NOTICES.return}</p>`);
   });
 
-  it('켜져 있으면 품목·수량을 고르고, 막힌 품목은 이유를, 반품 제한 굿즈는 제한 사유를 함께 보인다', async () => {
+  it('켜져 있으면 품목·수량을 고르고, 막힌 품목은 이유를, 반품 제한 상품은 제한 사유를 함께 보인다', async () => {
     const html = await render(context());
-    expect(html).toContain('반품할 굿즈');
+    expect(html).toContain('반품할 상품');
     expect(html).toContain('data-partial-return-scope="partial"');
     expect(html).toContain('aria-label="홍실 아크릴 블록 반품 수량"');
     expect(html).toContain('max="2"');
     expect(html).not.toContain('aria-label="홍실 포토카드 반품 수량"');
-    expect(html).toContain('아직 발송되지 않은 굿즈입니다.');
-    expect(html).toContain('반품 제한 굿즈입니다(개봉 시 반품 불가)');
+    expect(html).toContain('아직 발송되지 않은 상품입니다.');
+    expect(html).toContain('반품 제한 상품입니다(개봉 시 반품 불가)');
     expect(html).toContain(PARTIAL_RETURN_INTAKE_SENTENCE);
-    expect(html).not.toContain('일부 굿즈만 반품하는 처리는 제공하지 않습니다');
+    expect(html).not.toContain('일부 상품만 반품하는 처리는 제공하지 않습니다');
   });
 
   it('주문 단위로 막혀 있으면(선물·결제 수단) 일부 고르기를 열지 않고 이유를 보인다', async () => {

@@ -11,8 +11,8 @@ import { loadMyOrderVirtualAccount } from '@/lib/payments/virtual-account.server
 import { orderCompleteHref } from '@/lib/routes';
 
 export const metadata: Metadata = {
-  title: '주문 완료 — ICONS',
-  description: '주문번호와 주문한 굿즈, 최종 결제 금액을 확인하세요.',
+  title: '주문 완료 — 엑스스퀘어',
+  description: '주문번호와 주문한 상품, 최종 결제 금액을 확인하세요.',
 };
 
 /*

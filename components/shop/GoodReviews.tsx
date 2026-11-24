@@ -80,12 +80,17 @@ function Distribution({ distribution, total }: { distribution: readonly number[]
 
 export function GoodReviews({
   goodId,
+  goodCode,
   section,
 }: {
   goodId: string;
+  /** 상품 자동코드 — 정렬·필터·페이지 링크가 지금 보고 있는 정식 주소(`/shop/<코드 소문자>`, ADR-0050)에 머문다. */
+  goodCode?: string | null;
   section: GoodReviewSection;
 }) {
   const { options, pageSize, reviews, summary, total } = section;
+  /* 도움이 돼요·신고 등 쓰기는 내부 id(goodId)로 하고, 링크만 공개 주소로 만든다. */
+  const address = { id: goodId, code: goodCode };
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(Math.max(1, options.page), pageCount);
   /* 조건이 걸린 목록은 요약 개수와 다를 수 있다. 목록 헤더에는 요약(전체)이 아니라
@@ -101,7 +106,7 @@ export function GoodReviews({
   return (
     <section aria-labelledby="pdp-review-heading" className="wc-reviews" id="reviews">
       <h2 className="wc-sr-only" id="pdp-review-heading">리뷰</h2>
-      {section.grouped ? <p className="wc-pdp-panel__note">같은 그룹의 굿즈 리뷰를 함께 보여드립니다.</p> : null}
+      {section.grouped ? <p className="wc-pdp-panel__note">같은 그룹의 상품 리뷰를 함께 보여드립니다.</p> : null}
 
       {summary.count === 0 ? (
         <p className="wc-pdp-panel__note">
@@ -139,7 +144,7 @@ export function GoodReviews({
                 key={sort}
                 aria-current={options.sort === sort ? 'true' : undefined}
                 className="wc-review-controls__link"
-                href={goodReviewsHref(goodId, options, { page: 1, sort })}
+                href={goodReviewsHref(address, options, { page: 1, sort })}
               >
                 {REVIEW_SORT_LABELS[sort]}
               </Link>
@@ -147,11 +152,11 @@ export function GoodReviews({
             <Link
               aria-current={options.photoOnly ? 'true' : undefined}
               className="wc-review-controls__link"
-              href={goodReviewsHref(goodId, options, { page: 1, photoOnly: !options.photoOnly })}
+              href={goodReviewsHref(address, options, { page: 1, photoOnly: !options.photoOnly })}
             >
               {options.photoOnly ? '전체 리뷰 보기' : '사진 리뷰만'}
             </Link>
-            {REVIEW_KIND_OPTIONS.map(option => <Link key={option.value} className="wc-review-controls__link" aria-current={(options.kind ?? 'all') === option.value ? 'true' : undefined} href={goodReviewsHref(goodId, options, { page: 1, kind: option.value })}>{option.label}</Link>)}
+            {REVIEW_KIND_OPTIONS.map(option => <Link key={option.value} className="wc-review-controls__link" aria-current={(options.kind ?? 'all') === option.value ? 'true' : undefined} href={goodReviewsHref(address, options, { page: 1, kind: option.value })}>{option.label}</Link>)}
           </div>
 
           {reviews.length === 0 ? (
@@ -165,7 +170,7 @@ export function GoodReviews({
                 {reviews.map((review) => (
                   <li key={review.id} className="wc-review-item">
                     {section.grouped && review.purchasedGood ? <p className="wc-review-item__purchase">
-                      구매 당시 굿즈: {review.purchasedGood.name}
+                      구매 당시 상품: {review.purchasedGood.name}
                       {review.purchasedGood.variantNames.length ? ` · ${review.purchasedGood.variantNames.join(' / ')}` : ''}
                     </p> : null}
                     <div className="wc-review-item__meta">
@@ -198,7 +203,7 @@ export function GoodReviews({
 
                     {review.adminReply ? (
                       <div className="wc-review-item__reply">
-                        <strong className="wc-review-item__reply-author">ICONS 운영자</strong>
+                        <strong className="wc-review-item__reply-author">엑스스퀘어 운영자</strong>
                         {review.adminReplyAt ? (
                           <time className="wc-review-item__date" dateTime={review.adminReplyAt}>
                             {formatReviewDate(review.adminReplyAt)}
@@ -215,7 +220,7 @@ export function GoodReviews({
                       goodId={goodId} options={options} initial={{ reviewId: review.id, helpfulCount: review.helpfulCount,
                         helpfulByMe: review.helpfulByMe, canMarkHelpful: review.canMarkHelpful }} />
                       : <Link className="wc-review-helpful__button"
-                        href={`/login?next=${encodeURIComponent(goodReviewsHref(goodId, options))}`}
+                        href={`/login?next=${encodeURIComponent(goodReviewsHref(address, options))}`}
                         aria-label={`로그인하고 도움이 돼요 표시 · 현재 ${review.helpfulCount.toLocaleString('ko-KR')}명`}>
                         도움이 돼요 <span>{review.helpfulCount.toLocaleString('ko-KR')}</span>
                       </Link>}
@@ -226,7 +231,7 @@ export function GoodReviews({
                       <form action={reportCommunityTargetAction} className="wc-review-item__report">
                         <input name="targetType" type="hidden" value="review" />
                         <input name="targetId" type="hidden" value={review.id} />
-                        <input name="next" type="hidden" value={goodReviewsHref(goodId, options)} />
+                        <input name="next" type="hidden" value={goodReviewsHref(address, options)} />
                         <button className="wc-review-item__action" type="submit">신고</button>
                       </form>
                     )}
@@ -240,7 +245,7 @@ export function GoodReviews({
                   {currentPage > 1 ? (
                     <Link
                       className="wc-pagination__arrow"
-                      href={goodReviewsHref(goodId, options, { page: currentPage - 1 })}
+                      href={goodReviewsHref(address, options, { page: currentPage - 1 })}
                     >
                       이전
                     </Link>
@@ -252,7 +257,7 @@ export function GoodReviews({
                       <Link
                         key={page}
                         className="wc-pagination__cell"
-                        href={goodReviewsHref(goodId, options, { page })}
+                        href={goodReviewsHref(address, options, { page })}
                       >
                         {page}
                       </Link>
@@ -261,7 +266,7 @@ export function GoodReviews({
                   {currentPage < pageCount ? (
                     <Link
                       className="wc-pagination__arrow"
-                      href={goodReviewsHref(goodId, options, { page: currentPage + 1 })}
+                      href={goodReviewsHref(address, options, { page: currentPage + 1 })}
                     >
                       다음
                     </Link>
@@ -274,7 +279,7 @@ export function GoodReviews({
       )}
 
       <p className="wc-reviews__policy">
-        리뷰는 배송이 완료된 주문의 구매자만 남길 수 있습니다. 일반 리뷰는 주문·굿즈당 한 번, 배송완료 후 90일까지입니다. 한달사용 리뷰는 내 리뷰에 안내된 기간에 별도로 한 번 작성할 수 있습니다.
+        리뷰는 배송이 완료된 주문의 구매자만 남길 수 있습니다. 일반 리뷰는 주문·상품당 한 번, 배송완료 후 90일까지입니다. 한달사용 리뷰는 내 리뷰에 안내된 기간에 별도로 한 번 작성할 수 있습니다.
         리뷰 작성만으로 혜택이 지급되지는 않습니다. 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.{' '}
         <Link href="/my/reviews">내가 쓸 수 있는 리뷰 보기</Link>
       </p>

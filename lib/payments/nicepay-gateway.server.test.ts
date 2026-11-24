@@ -167,7 +167,7 @@ describe('NICEPAY 웹표준 payment gateway', () => {
         kind: 'client_sdk',
         payload: {
           provider: 'nicepay',
-          GoodsName: 'ICONS 굿즈 주문',
+          GoodsName: '엑스스퀘어 상품 주문',
           Amt: '31000',
           MID: MERCHANT_ID,
           EdiDate: ediDate,
@@ -477,7 +477,7 @@ describe('NICEPAY 웹표준 payment gateway', () => {
       attempt: ATTEMPT,
       idempotencyKey: `refund:${ATTEMPT.id}`,
       amount: ATTEMPT.amount,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       providerPaymentKey: TID,
       ...overrides,
     });
@@ -511,7 +511,7 @@ describe('NICEPAY 웹표준 payment gateway', () => {
         Moid: ATTEMPT.providerOrderId,
         CancelAmt: '31000',
         // 한글 사유는 EUC-KR 인코딩을 피하려고 ASCII 고정 문구로 바꾼다.
-        CancelMsg: 'ICONS order cancellation',
+        CancelMsg: 'X SQUARE order cancellation',
         PartialCancelCode: '0',
         SignData: sha256(`${MERCHANT_ID}31000${cancel.get('EdiDate')}${MERCHANT_KEY}`),
       });

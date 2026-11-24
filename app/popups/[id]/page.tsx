@@ -41,13 +41,13 @@ export async function generateMetadata({ params }: Pick<PageProps, 'params'>): P
   /* POP-UP 캠페인이 아니면 이 라우트는 이동이나 404 로 끝난다 — 그 화면은 자기 제목을 쓰므로 목록 제목으로만 답한다. */
   if (!campaign?.presentation?.popupMode) {
     return {
-      title: 'POP-UP — ICONS',
-      description: 'ICONS에서 지금 열려 있거나 곧 열리는 POP-UP을 모아 봅니다.',
+      title: 'POP-UP — 엑스스퀘어',
+      description: '엑스스퀘어에서 지금 열려 있거나 곧 열리는 POP-UP을 모아 봅니다.',
     };
   }
 
   return {
-    title: `${campaign.title} — ICONS`,
+    title: `${campaign.title} — 엑스스퀘어`,
     description: campaign.subtitle ?? `${campaign.title} POP-UP 안내입니다.`,
   };
 }

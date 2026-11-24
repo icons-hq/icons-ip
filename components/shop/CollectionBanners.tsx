@@ -15,7 +15,7 @@ import {
  *   데스크톱은 배너 안 오른쪽 아래 32px 이전·다음 버튼, 모바일은 스와이프 + 'n / N' 알약이다. 진행 막대는 두지 않는다.
  * 문구(title·subtitle)는 이미지 위 텍스트 레이어다 — 이미지가 늦거나 실패해도 읽힌다. 장식 레이어라 스크린리더에는 숨기고(aria-hidden),
  * 링크·그림의 접근 이름은 대체텍스트(없으면 제목)가 맡아 같은 문구가 두 번 읽히지 않는다.
- * 카드 리워드·커뮤니티 목적지 게이트는 서버 로더(lib/collection-banners.server)가 이미 걸었다 — 여기서 다시 걸지 않는다(l8b-ui-2).
+ * 지운 화면·커뮤니티 목적지 게이트는 서버 로더(lib/collection-banners.server)가 이미 걸었다 — 여기서 다시 걸지 않는다(l8b-ui-2).
  * 어드민 미리보기는 호출부가 건다.
  *
  * 슬라이더 트랙은 scroll-snap 이다 — 모바일 스와이프는 브라우저가 맡고, 스크립트는 현재 장을 스크롤 위치에서 읽고 버튼 때만 scrollTo 한다.
@@ -23,7 +23,7 @@ import {
  */
 
 const SLOT_LABELS: Record<CollectionBannerSlot, string> = {
-  all: '굿즈샵 배너',
+  all: '전체 상품 배너',
   best: 'BEST 배너',
   new: 'NEW 배너',
 };

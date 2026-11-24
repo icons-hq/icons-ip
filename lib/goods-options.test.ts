@@ -26,7 +26,7 @@ describe('public goods options',()=>{
     expect(initialGoodOption({...good,options:[options[0]]})).toBeUndefined();
   });
   /* PD-08 — 재고 0 옵션은 자동 선택하지 않으므로 품절 굿즈의 합계는 이 단가로 미리 보인다. */
-  it('품절 굿즈의 합계 미리보기 단가는 첫 옵션 가격, 옵션이 없으면 굿즈 가격이다', () => {
+  it('품절 상품의 합계 미리보기 단가는 첫 옵션 가격, 옵션이 없으면 상품 가격이다', () => {
     expect(soldOutPreviewPrice({ price: 12000, options: [options[1], options[0]] })).toBe(15000);
     expect(soldOutPreviewPrice({ price: 12000, options: [options[0]] })).toBe(12000);
     expect(soldOutPreviewPrice({ price: 9000 })).toBe(9000);
@@ -71,7 +71,7 @@ describe('public goods options',()=>{
   });
   /* PD-14·PD-10 — 주소의 ?variant= 는 지금 고를 수 있는 이 굿즈의 옵션일 때만 첫 선택이 된다.
      품절 옵션을 가리키는 공유·재입고 알림 링크는 그 옵션을 고른 채(재입고 알림 CTA) 연다. */
-  it('주소 옵션은 이 굿즈의 고를 수 있는 옵션일 때만 받고, 품절 옵션도 받는다', () => {
+  it('주소 옵션은 이 상품의 고를 수 있는 옵션일 때만 받고, 품절 옵션도 받는다', () => {
     expect(selectableGoodOptionId(good, options[1].id)).toBe(options[1].id);
     expect(selectableGoodOptionId(good, options[0].id)).toBe(options[0].id);
     expect(selectableGoodOptionId(good, 'other-good-option')).toBeUndefined();
@@ -105,9 +105,16 @@ describe('public goods options',()=>{
     expect(variantSearchForSelection('?variant=red', 'red', undefined)).toBeNull();
     expect(variantSearchForSelection('?variant=red', undefined, undefined)).toBeNull();
   });
-  it('shows the price range including sold-out visible options',()=>{
-    expect(optionPriceRange(options)).toEqual({price:12000,priceMax:15000});
+  /* MD-0049 — 화면은 최저가 한 금액만 보이므로 최저가는 지금 살 수 있는 옵션에서 고른다(품절된 싼 옵션 제외). 살 수 있는 옵션이
+     없으면 전체 옵션에서 고르고, 최고가는 언제나 전체 옵션 기준이다. */
+  it('picks the lowest price among purchasable options and keeps the max over all options',()=>{
+    expect(optionPriceRange(options)).toEqual({price:15000,priceMax:15000});
     expect(optionPriceRange([options[1]])).toEqual({price:15000,priceMax:15000});
+    expect(optionPriceRange([options[0]])).toEqual({price:12000,priceMax:12000});
+    expect(optionPriceRange([{...options[0],stockQty:0},{...options[1],stockQty:0}])).toEqual({price:12000,priceMax:15000});
+    const openPreorder={mode:'preorder' as const,state:'open' as const,availableQty:4,policyId:null,policyRevision:null,startsAt:null,endsAt:null,expectedShipDate:null,calculatedAt:'2026-11-24T00:00:00Z',nextChangeAt:null};
+    expect(optionPriceRange([{...options[0],stockQty:0,supply:openPreorder},options[1]])).toEqual({price:12000,priceMax:15000});
+    expect(optionPriceRange([{...options[0],stockQty:9,supply:{...openPreorder,state:'scheduled' as const}},options[1]])).toEqual({price:15000,priceMax:15000});
   });
   it('resolves a cart line with its option price and stock, never a different option',()=>{
     expect(cartOptionGood(good,options[1].id)).toMatchObject({price:15000,stockQty:3});
@@ -177,14 +184,14 @@ describe('옵션 정가 — 소비자가 + 옵션 추가금액', () => {
     expect(goodCompareAtPrice({ price: 10800, compareAtPrice: null }, discounted.options)).toBeNull();
   });
 
-  it('저장값이 없는 굿즈는 표시 가격을 기준 판매가와 소비자가로 본다', () => {
+  it('저장값이 없는 상품은 표시 가격을 기준 판매가와 소비자가로 본다', () => {
     const legacy = { ...good, compareAtPrice: 20000 };
     expect(cartOptionGood(legacy, options[1].id)).toMatchObject({ price: 15000, compareAtPrice: 23000, catalogPrice: 12000, catalogCompareAtPrice: 20000 });
   });
 });
 
 describe('랜덤 판매(D5②)·옵션별 구매 제한(D7②) 표시 규칙', () => {
-  it('랜덤 판매 굿즈는 기본 옵션 키 하나로 접혀 자동 선택·빠른 담기 대상이 된다', () => {
+  it('랜덤 판매 상품은 기본 옵션 키 하나로 접혀 자동 선택·빠른 담기 대상이 된다', () => {
     const collapsed = collapseRandomGoodOptions([{ ...options[1], isDefault: false }, { ...options[0], stockQty: 0 }]);
     expect(collapsed).toEqual([expect.objectContaining({ id: options[0].id, name: '랜덤', stockQty: 3, price: 12000, code: '' })]);
     const random: Good = { ...good, optionSaleMode: 'random', options: collapsed };
@@ -195,7 +202,7 @@ describe('랜덤 판매(D5②)·옵션별 구매 제한(D7②) 표시 규칙', (
   });
 
   /* 랜덤 전환 전에 다른 옵션 키로 담은 장바구니 줄도 '랜덤' 줄이다 — DB는 같은 굿즈의 옵션 줄을 기본 옵션 키로 모은다. */
-  it('랜덤 판매 굿즈의 장바구니 줄은 어느 옵션 키로 담겼든 접힌 랜덤 옵션이다', () => {
+  it('랜덤 판매 상품의 장바구니 줄은 어느 옵션 키로 담겼든 접힌 랜덤 옵션이다', () => {
     const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
     expect(cartLineOption(random, options[1].id)?.name).toBe('랜덤');
     expect(cartOptionGood(random, options[1].id)).toMatchObject({ price: 12000, stockQty: 3, stock: 'ok' });
@@ -206,7 +213,7 @@ describe('랜덤 판매(D5②)·옵션별 구매 제한(D7②) 표시 규칙', (
 
   /* T7 리뷰 RV-2: 랜덤 전환 전에 담은 비기본 옵션 줄의 수량을 고치면 DB가 그 줄을 기본 옵션(키) 줄로 합친다 — 같은
      '랜덤' 두 줄 중 하나가 사라지고 다른 줄 수량이 뛰는 것처럼 보인다. 그 줄은 스테퍼 대신 '다시 담기'로 합친다. */
-  it('랜덤 굿즈의 비기본 옵션 줄만 키 줄로 다시 담을 대상이고, 계정 장바구니는 그 줄을 한 번 다시 저장해 DB가 합친다', () => {
+  it('랜덤 상품의 비기본 옵션 줄만 키 줄로 다시 담을 대상이고, 계정 장바구니는 그 줄을 한 번 다시 저장해 DB가 합친다', () => {
     const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
     const items = [{ goodId: 'g1', variantId: options[0].id, qty: 2 }, { goodId: 'g1', variantId: options[1].id, qty: 3 }];
     expect(randomCartLineFold(random, items, items[0], 'server')).toBeNull();

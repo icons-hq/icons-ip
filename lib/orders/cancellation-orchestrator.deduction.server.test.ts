@@ -118,7 +118,7 @@ function dependencies(
 }
 
 const FULL_REFUND_CALL = {
-  paymentId: 'payment-1', provider: 'toss', amount: 30000, reason: 'ICONS 주문 취소', paymentKey: PAYMENT_KEY, requestId: REQUEST_ID,
+  paymentId: 'payment-1', provider: 'toss', amount: 30000, reason: '엑스스퀘어 주문 취소', paymentKey: PAYMENT_KEY, requestId: REQUEST_ID,
 };
 
 describe('reconcileOrderCancellation — 반품배송비 차감', () => {
@@ -161,7 +161,7 @@ describe('reconcileOrderCancellation — 반품배송비 차감', () => {
 
     expect(deps.refundProviderPayment).toHaveBeenCalledTimes(1);
     expect(deps.refundProviderPayment).toHaveBeenCalledWith({
-      paymentId: 'payment-1', provider: 'toss', amount: 30000, reason: 'ICONS 반품 환불(반품배송비 차감)',
+      paymentId: 'payment-1', provider: 'toss', amount: 30000, reason: '엑스스퀘어 반품 환불(반품배송비 차감)',
       paymentKey: PAYMENT_KEY, partial: { refundAmount: 27000, requestId: REQUEST_ID },
     });
     expect(refundDeduction.recordPartialRefund).toHaveBeenCalledWith({
@@ -348,7 +348,7 @@ describe('기본 의존성 — 차감 결정 RPC와 게이트웨이 요청', () 
       attempt: expect.objectContaining({ id: ATTEMPT_ID, amount: 30000 }),
       idempotencyKey: `refund:${ATTEMPT_ID}:deduction:${REQUEST_ID}`,
       amount: 27000,
-      reason: 'ICONS 반품 환불(반품배송비 차감)',
+      reason: '엑스스퀘어 반품 환불(반품배송비 차감)',
       providerPaymentKey: PAYMENT_KEY,
       partial: { expectedBalanceBefore: 30000 },
     });
@@ -377,7 +377,7 @@ describe('기본 의존성 — 차감 결정 RPC와 게이트웨이 요청', () 
       attempt: expect.objectContaining({ id: ATTEMPT_ID }),
       idempotencyKey: `refund:${ATTEMPT_ID}`,
       amount: 30000,
-      reason: 'ICONS 주문 취소',
+      reason: '엑스스퀘어 주문 취소',
       providerPaymentKey: PAYMENT_KEY,
     });
   });

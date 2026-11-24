@@ -8,7 +8,7 @@ function order(id: string, status: OrderListItem['status']): OrderListItem {
   return { id, status, total: 1000, createdAt: `2026-10-${id.padStart(2, '0')}T00:00:00.000Z`, itemLabel: id, itemCount: 1, paymentMethod: 'card' };
 }
 
-const goods = Array.from({ length: 12 }, (_, index) => ({ id: `g${index}`, ip: index % 2 ? 'ip-b' : 'ip-a', name: `굿즈 ${index}` }) as unknown as Good);
+const goods = Array.from({ length: 12 }, (_, index) => ({ id: `g${index}`, ip: index % 2 ? 'ip-b' : 'ip-a', name: `상품 ${index}` }) as unknown as Good);
 const ips = [{ id: 'ip-a', title: '에이' }, { id: 'ip-b', title: '비' }, { id: 'ip-c', title: '씨' }] as unknown as Ip[];
 
 function held(id: string, state: 'usable' | 'used' | 'expired'): UserCouponSummary {

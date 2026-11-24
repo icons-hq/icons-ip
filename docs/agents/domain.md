@@ -7,7 +7,7 @@ This repo is **single-context**: one `CONTEXT.md` + `docs/adr/` at the repo root
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root — the domain glossary (canonical terms + aliases to avoid).
-- **`docs/adr/`** — read ADRs that touch the area you're about to work in (e.g. `0001-paid-digital-gacha.md`).
+- **`docs/adr/`** — read ADRs that touch the area you're about to work in (e.g. `0052-general-shopping-mall-pivot.md`).
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
 
@@ -22,7 +22,7 @@ Single-context repo (this repo):
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
 │   └── adr/
-│       └── 0001-paid-digital-gacha.md
+│       └── 0052-general-shopping-mall-pivot.md
 └── app/ · components/ · lib/ · supabase/
 ```
 
@@ -38,4 +38,4 @@ If the concept you need isn't in the glossary yet, that's a signal — either yo
 
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
-> _Contradicts ADR-0001 (paid digital gacha) — but worth reopening because…_
+> _Contradicts ADR-0052 (general shopping mall pivot) — but worth reopening because…_

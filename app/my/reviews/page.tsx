@@ -7,8 +7,8 @@ import { loadMyReviewTargets } from '@/lib/reviews.server';
 import { loadGoodsReviewEvents, loadMyReviewEventEntries } from '@/lib/review-events.server';
 
 export const metadata: Metadata = {
-  title: '내 리뷰 — ICONS',
-  description: '배송이 완료된 굿즈에 남길 수 있는 리뷰와 이미 작성한 리뷰를 관리하세요.',
+  title: '내 리뷰 — 엑스스퀘어',
+  description: '배송이 완료된 상품에 남길 수 있는 리뷰와 이미 작성한 리뷰를 관리하세요.',
   robots: { index: false, follow: false },
 };
 

@@ -450,9 +450,9 @@ jobs:
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
           PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html
-          PASSWORD_CHANGED_SUBJECT: ICONS 비밀번호 변경 안내
+          PASSWORD_CHANGED_SUBJECT: 엑스스퀘어 비밀번호 변경 안내
           CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
-          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
+          CONFIRMATION_SUBJECT: 엑스스퀘어 가입 확인 코드
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback
@@ -813,7 +813,7 @@ jobs:
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
           CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
-          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
+          CONFIRMATION_SUBJECT: 엑스스퀘어 가입 확인 코드
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -1121,6 +1121,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+          RECOVERY_SUBJECT: 엑스스퀘어 비밀번호 재설정
         run: node scripts/sync-supabase-auth.mjs
 
   # shared preview의 main branch는 production Supabase와 앱 배포가 모두 성공한 정확한
@@ -1193,8 +1194,9 @@ jobs:
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+          RECOVERY_SUBJECT: 엑스스퀘어 비밀번호 재설정
           CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
-          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
+          CONFIRMATION_SUBJECT: 엑스스퀘어 가입 확인 코드
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -1302,7 +1304,7 @@ jobs:
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
           PASSWORD_UPDATE_GUARDS: "true"
           CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html
-          CONFIRMATION_SUBJECT: ICONS 가입 확인 코드
+          CONFIRMATION_SUBJECT: 엑스스퀘어 가입 확인 코드
         run: |
           export SITE_URL="https://$STAGING_ALIAS"
           export REDIRECT_URLS="https://$STAGING_ALIAS/auth/callback
@@ -1316,6 +1318,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+          RECOVERY_SUBJECT: 엑스스퀘어 비밀번호 재설정
         run: |
           export SITE_URL="https://$STAGING_ALIAS"
           node scripts/sync-supabase-auth.mjs
@@ -1426,6 +1429,7 @@ jobs:
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+          RECOVERY_SUBJECT: 엑스스퀘어 비밀번호 재설정
         run: node scripts/sync-supabase-auth.mjs
 
   # 배포 직후 운영 익명 스모크(OPS-060). deploy-vercel 안에 두면 일시 실패 하나가 복구 템플릿 활성화·shared preview 동기화·

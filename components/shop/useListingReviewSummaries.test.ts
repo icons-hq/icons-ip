@@ -58,7 +58,7 @@ beforeEach(() => {
 });
 
 describe('useListingReviewSummaries', () => {
-  it('보이는 굿즈를 한 번의 공개 RPC 로 묻고 리뷰가 있는 굿즈만 별점을 돌려준다', async () => {
+  it('보이는 상품을 한 번의 공개 RPC 로 묻고 리뷰가 있는 상품만 별점을 돌려준다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: [row('g1', 3, 4.33)], error: null });
 
     expect(render(['g2', 'g1', 'g1', 'bad id'])).toEqual({});
@@ -71,7 +71,7 @@ describe('useListingReviewSummaries', () => {
   });
 
   /* 탭 전환·수량 변경으로 목록이 바뀌어도 이미 받은 별점은 꺼지지 않고 새로 보인 굿즈만 묻는다. */
-  it('목록이 바뀌면 새 굿즈만 묻고 이미 받은 별점을 유지한다', async () => {
+  it('목록이 바뀌면 새 상품만 묻고 이미 받은 별점을 유지한다', async () => {
     mocks.rpc
       .mockResolvedValueOnce({ data: [row('g1', 2, 4.5)], error: null })
       .mockResolvedValueOnce({ data: [row('g3', 1, 3)], error: null });
@@ -86,7 +86,7 @@ describe('useListingReviewSummaries', () => {
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
   });
 
-  it('실패한 묶음은 별점만 숨기고 그 굿즈가 다시 보이면 다시 묻는다', async () => {
+  it('실패한 묶음은 별점만 숨기고 그 상품이 다시 보이면 다시 묻는다', async () => {
     mocks.rpc
       .mockResolvedValueOnce({ data: null, error: { message: 'unavailable' } })
       .mockRejectedValueOnce(new Error('network'))
@@ -104,7 +104,7 @@ describe('useListingReviewSummaries', () => {
     expect(mocks.rpc).toHaveBeenCalledTimes(3);
   });
 
-  it('요청하지 않은 굿즈·범위 밖 값은 버린다', async () => {
+  it('요청하지 않은 상품·범위 밖 값은 버린다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: [row('other', 3, 4), row('g1', 0, 4), row('g2', 2, 9)], error: null });
 
     render(['g1', 'g2']);

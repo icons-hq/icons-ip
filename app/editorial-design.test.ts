@@ -87,7 +87,7 @@ describe('retained public surface boundaries after admin cutover', () => {
   });
 
   it('keeps material effects independent of retired theme variables', () => {
-    for (const file of ['../lib/rarity.ts', '../lib/ip-display.ts', '../lib/community.server.ts', '../components/screens/CardPacks.tsx', '../components/games/MarbleRoulette.tsx']) expect(read(file)).not.toMatch(/var\(--(?:holo|text|editorial-)/);
+    for (const file of ['../lib/rarity.ts', '../lib/ip-display.ts', '../lib/community.server.ts']) expect(read(file)).not.toMatch(/var\(--(?:holo|text|editorial-)/);
     expect(read('../components/screens/Onboarding.tsx')).not.toContain("outline: 'none'");
   });
 });

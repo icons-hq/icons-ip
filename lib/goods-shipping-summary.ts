@@ -45,13 +45,13 @@ function parcelFeeValue(
   offer: Pick<GoodsTransactionOffer, 'delivery' | 'chargeGroup'> | null | undefined,
 ): string | null {
   /* ① 방식 조건에 배송비가 직접 있으면 그 값이다. */
-  if (parcel.feeAmount !== null) return `${feeText(parcel.feeAmount)}${parcel.feeBasis === 'per_item' && parcel.feeAmount > 0 ? ' (굿즈당)' : ''}`;
+  if (parcel.feeAmount !== null) return `${feeText(parcel.feeAmount)}${parcel.feeBasis === 'per_item' && parcel.feeAmount > 0 ? ' (상품당)' : ''}`;
   /* ② 굿즈별 배송비 조건·묶음배송은 같은 패널의 거래 조건 블록이 정확한 조건을 이미 그린다 — 여기서 다른 숫자를 말하지 않는다. */
   if (offer?.delivery || offer?.chargeGroup) return null;
   /* ③ 출고지 배송비 정책. */
   if (!shippingPolicy) return null;
   if (shippingPolicy.feeType === 'free') return '무료';
-  if (shippingPolicy.feeType === 'individual') return `${feeText(shippingPolicy.individualFee)}${shippingPolicy.individualFee > 0 ? ' (굿즈당 1회)' : ''}`;
+  if (shippingPolicy.feeType === 'individual') return `${feeText(shippingPolicy.individualFee)}${shippingPolicy.individualFee > 0 ? ' (상품당 1회)' : ''}`;
   if (shippingPolicy.baseFee === 0) return '무료';
   return `${krw(shippingPolicy.baseFee)}${shippingPolicy.freeThreshold === null ? '' : ` (${krw(shippingPolicy.freeThreshold)} 이상 무료)`}`;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseGoodRelationReferences, resolveGoodRelations, type GoodRelationReferences } from './good-relations';
 import type { Good } from './data';
 
-const references: GoodRelationReferences = { groups: [{ id: '74000000-0000-4000-8000-000000000001', kind: 'similar', title: '유사한 굿즈', goodIds: ['good-c', 'good-b'] }], nextChangeAt: null };
+const references: GoodRelationReferences = { groups: [{ id: '74000000-0000-4000-8000-000000000001', kind: 'similar', title: '유사한 상품', goodIds: ['good-c', 'good-b'] }], nextChangeAt: null };
 const good = (id: string, price: number): Good => ({ id, name: id, ip: 'ip', price, priceMax: price + 1000, stock: 'ok', stockQty: 5, img: '', badge: null });
 describe('공개 연관상품 결합', () => {
   it('현재 공개 카드의 가격을 재사용하며 저장한 순서를 유지하고 현재 상품을 제외한다', () => {

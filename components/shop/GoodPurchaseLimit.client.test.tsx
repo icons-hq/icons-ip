@@ -112,7 +112,7 @@ describe('상품 상세 담기의 옵션별 주문당 최대 수량', () => {
     expect(cart.addSelection).toHaveBeenCalledTimes(1);
   });
 
-  it('추가 구성 굿즈도 담긴 수량을 합쳐 옵션별 한도를 넘으면 멈춘다', async () => {
+  it('추가 구성 상품도 담긴 수량을 합쳐 옵션별 한도를 넘으면 멈춘다', async () => {
     cart.quantities.set('g2:x', 1);
     render({ good, additionalGoods: [extra], initialVariantId: 'b' }).toggleAdditional?.('g2', true);
     render({ good, additionalGoods: [extra], initialVariantId: 'b' }).addToCart();

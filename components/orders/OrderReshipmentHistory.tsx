@@ -9,8 +9,8 @@ import type { OrderReshipmentParcelView, OrderReshipmentReceipt } from '@/lib/or
  * 소포가 없는 교환(선물 받은 분 화면의 이 기능 전 교환)은 예전처럼 교환으로 받은 굿즈만 보인다.
  */
 function ReceiptList({ receipts }: { receipts: readonly OrderReshipmentReceipt[] }) {
-  return <section className="order-claim-type-history" aria-label="교환 출고 굿즈 이력">
-    <h3>교환으로 받은 굿즈</h3>
+  return <section className="order-claim-type-history" aria-label="교환 출고 상품 이력">
+    <h3>교환으로 받은 상품</h3>
     <ol>{receipts.map(receipt => <li key={receipt.claimId}>
       <time dateTime={receipt.reshippedAt}>{formatOrderDateTime(receipt.reshippedAt)}</time>
       {receipt.items.map(item => <p key={item.orderItemId}>{item.name} · {item.variantName} · {item.qty}개</p>)}

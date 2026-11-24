@@ -32,7 +32,7 @@ const ip = {
 };
 
 beforeEach(() => {
-  mocks.catalog = { source: 'mock', verticals: [], ips: [ip], goods: [], cards: [], events: [] };
+  mocks.catalog = { source: 'mock', verticals: [], ips: [ip], goods: [], events: [] };
   mocks.directory.mockClear();
   mocks.redirect.mockClear();
 });

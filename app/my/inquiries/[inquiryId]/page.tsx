@@ -8,7 +8,7 @@ import { loadMyInquiryThread } from '@/lib/inquiries.server';
 import { loadMyInquirySatisfaction } from '@/lib/inquiry-satisfaction.server';
 
 export const metadata: Metadata = {
-  title: '문의 상세 — ICONS',
+  title: '문의 상세 — 엑스스퀘어',
   description: '문의 내용과 운영자 답변을 확인하세요.',
   robots: { index: false, follow: false },
 };

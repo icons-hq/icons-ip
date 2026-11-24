@@ -54,6 +54,9 @@ describe('repository Auth redirect contract', () => {
     expect(localConfig).toContain('content_path = "./supabase/templates/recovery.html"');
     expect(localConfig).toContain('otp_expiry = 3600');
     expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(4);
+    /* 재설정 메일 제목도 같은 네 단계가 서비스 이름(엑스스퀘어)으로 맞춘다 — 로컬 config.toml 제목과 같아야 한다. */
+    expect(pipeline.match(/RECOVERY_SUBJECT: 엑스스퀘어 비밀번호 재설정/g)).toHaveLength(4);
+    expect(localConfig).toContain('subject = "엑스스퀘어 비밀번호 재설정"');
     // Production, isolated PR, shared preview and persistent staging each own a sync step.
     expect(pipeline.match(/EMAIL_OTP_EXPIRY_SECONDS: "3600"/g)).toHaveLength(4);
     expect(isSafeRecoveryTemplate(recoveryTemplate)).toBe(true);
@@ -100,11 +103,11 @@ describe('repository password update guard contract', () => {
     expect(productionSupabaseJob).toContain(
       'PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html',
     );
-    expect(productionSupabaseJob).toContain('PASSWORD_CHANGED_SUBJECT: ICONS 비밀번호 변경 안내');
+    expect(productionSupabaseJob).toContain('PASSWORD_CHANGED_SUBJECT: 엑스스퀘어 비밀번호 변경 안내');
 
     expect(localConfig).toContain('secure_password_change = true');
     expect(localConfig).toContain('[auth.email.notification.password_changed]');
-    expect(localConfig).toContain('subject = "ICONS 비밀번호 변경 안내"');
+    expect(localConfig).toContain('subject = "엑스스퀘어 비밀번호 변경 안내"');
     expect(localConfig).toContain('content_path = "./templates/password_changed_notification.html"');
     expect(isSafePasswordChangedTemplate(template)).toBe(true);
   });
@@ -120,11 +123,11 @@ describe('repository signup confirmation template contract', () => {
     ]);
     expect(isSafeConfirmationTemplate(template)).toBe(true);
     expect(localConfig).toContain('[auth.email.template.confirmation]');
-    expect(localConfig).toContain('subject = "ICONS 가입 확인 코드"');
+    expect(localConfig).toContain('subject = "엑스스퀘어 가입 확인 코드"');
     expect(localConfig).toContain('content_path = "./supabase/templates/confirmation.html"');
     // Production, isolated PR, shared preview and persistent staging each own a sync step.
     expect(pipeline.match(/CONFIRMATION_TEMPLATE_PATH: supabase\/templates\/confirmation\.html/g)).toHaveLength(4);
-    expect(pipeline.match(/CONFIRMATION_SUBJECT: ICONS 가입 확인 코드/g)).toHaveLength(4);
+    expect(pipeline.match(/CONFIRMATION_SUBJECT: 엑스스퀘어 가입 확인 코드/g)).toHaveLength(4);
     const productionSupabaseJob = pipeline.slice(
       pipeline.indexOf('  deploy-supabase:'),
       pipeline.indexOf('  deploy-supabase-preview:'),
@@ -156,12 +159,12 @@ describe('signup confirmation email template contract', () => {
 
   it('is satisfied only when the subject and the template match', () => {
     const base = { site_url: 'https://iconsip.com', uri_allow_list: '', mailer_otp_length: 6 };
-    const confirmation = { subject: 'ICONS 가입 확인 코드', template: `${code}${link}` };
-    expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: 'ICONS 가입 확인 코드', mailer_templates_confirmation_content: `  ${code}${link}\n` },
+    const confirmation = { subject: '엑스스퀘어 가입 확인 코드', template: `${code}${link}` };
+    expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: '엑스스퀘어 가입 확인 코드', mailer_templates_confirmation_content: `  ${code}${link}\n` },
       siteUrl: 'https://iconsip.com', allowList: '', enforceMailer: false, confirmation })).toBe(true);
     expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: 'Confirm Your Signup', mailer_templates_confirmation_content: `${code}${link}` },
       siteUrl: 'https://iconsip.com', allowList: '', enforceMailer: false, confirmation })).toBe(false);
-    expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: 'ICONS 가입 확인 코드', mailer_templates_confirmation_content: link },
+    expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: '엑스스퀘어 가입 확인 코드', mailer_templates_confirmation_content: link },
       siteUrl: 'https://iconsip.com', allowList: '', enforceMailer: false, confirmation })).toBe(false);
   });
 });
@@ -394,6 +397,14 @@ describe('isSatisfied', () => {
     })).toBe(false);
   });
 
+  it('관리하는 재설정 메일 제목이 다르면 통과하지 않고, 관리하지 않으면 보지 않는다', () => {
+    const recoverySubject = '엑스스퀘어 비밀번호 재설정';
+    expect(isSatisfied({ ...args, config: { ...base, mailer_subjects_recovery: recoverySubject }, enforceMailer: false, recoverySubject })).toBe(true);
+    expect(isSatisfied({ ...args, config: { ...base, mailer_subjects_recovery: 'ICONS 비밀번호 재설정' }, enforceMailer: false, recoverySubject })).toBe(false);
+    expect(isSatisfied({ ...args, config: base, enforceMailer: false, recoverySubject })).toBe(false);
+    expect(isSatisfied({ ...args, config: { ...base, mailer_subjects_recovery: 'ICONS 비밀번호 재설정' }, enforceMailer: false })).toBe(true);
+  });
+
   it('비밀번호 가드 중 하나라도 꺼져 있으면 통과하지 않는다', () => {
     const guarded = {
       ...base,
@@ -413,7 +424,7 @@ describe('isSatisfied', () => {
   });
 
   it('비밀번호 변경 알림의 켜짐·제목·본문이 선언값과 다르면 통과하지 않는다', () => {
-    const passwordChanged = { subject: 'ICONS 비밀번호 변경 안내', template: '<a href="{{ .SiteURL }}/login?mode=reset">reset</a>' };
+    const passwordChanged = { subject: '엑스스퀘어 비밀번호 변경 안내', template: '<a href="{{ .SiteURL }}/login?mode=reset">reset</a>' };
     const notified = {
       ...base,
       mailer_notifications_password_changed_enabled: true,
@@ -556,7 +567,7 @@ describe('syncSupabaseAuth', () => {
 
   it('운영의 8자리 발급 설정을 그대로 두고 입력 범위 밖의 설정은 배포 전에 알린다', async () => {
     const path = new URL('../supabase/templates/confirmation.html', import.meta.url).pathname;
-    const env = { ...baseEnv, CONFIRMATION_TEMPLATE_PATH: path, CONFIRMATION_SUBJECT: 'ICONS 가입 확인 코드' };
+    const env = { ...baseEnv, CONFIRMATION_TEMPLATE_PATH: path, CONFIRMATION_SUBJECT: '엑스스퀘어 가입 확인 코드' };
     const config = {
       site_url: baseEnv.SITE_URL, uri_allow_list: baseEnv.REDIRECT_URLS.replace('\n', ','),
       mailer_subjects_confirmation: env.CONFIRMATION_SUBJECT,
@@ -640,6 +651,21 @@ describe('syncSupabaseAuth', () => {
 
     await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
     expect(JSON.parse(calls[1].body).mailer_templates_recovery_content).toBe(recoveryTemplate);
+    expect(JSON.parse(calls[1].body)).not.toHaveProperty('mailer_subjects_recovery');
+  });
+
+  it('재설정 메일 제목을 PATCH하고 read-back으로 검증한다', async () => {
+    const env = { ...baseEnv, RECOVERY_SUBJECT: ' 엑스스퀘어 비밀번호 재설정 ' };
+    const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
+    const { calls, fetchStub } = stubFetch([
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_subjects_recovery: 'ICONS 비밀번호 재설정' }),
+      ok({}),
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_subjects_recovery: '엑스스퀘어 비밀번호 재설정' }),
+    ]);
+    vi.stubGlobal('fetch', fetchStub);
+
+    await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
+    expect(JSON.parse(calls[1].body).mailer_subjects_recovery).toBe('엑스스퀘어 비밀번호 재설정');
   });
 
   it('email link TTL을 PATCH하고 read-back으로 검증한다', async () => {
@@ -663,14 +689,14 @@ describe('syncSupabaseAuth', () => {
       ...baseEnv,
       PASSWORD_UPDATE_GUARDS: 'true',
       PASSWORD_CHANGED_TEMPLATE_PATH: templatePath,
-      PASSWORD_CHANGED_SUBJECT: 'ICONS 비밀번호 변경 안내',
+      PASSWORD_CHANGED_SUBJECT: '엑스스퀘어 비밀번호 변경 안내',
     };
     const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
     const managed = {
       security_update_password_require_current_password: true,
       security_update_password_require_reauthentication: true,
       mailer_notifications_password_changed_enabled: true,
-      mailer_subjects_password_changed_notification: 'ICONS 비밀번호 변경 안내',
+      mailer_subjects_password_changed_notification: '엑스스퀘어 비밀번호 변경 안내',
       mailer_templates_password_changed_notification_content: template,
     };
     const { calls, fetchStub } = stubFetch([

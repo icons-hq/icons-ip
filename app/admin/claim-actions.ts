@@ -141,7 +141,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
     return '청약철회 기한이 지난 요청입니다. 승인 대신 사유를 남겨 거부해주세요.';
   }
   if (value.includes('claim_refund_finalization_required')) {
-    return '결제 취소 확인이 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.';
+    return '결제 취소 확인이 끝나지 않았습니다. 재고 복원이 확인된 뒤에만 환불 완료를 기록할 수 있습니다.';
   }
   if (value.includes('claim_refund_ledger_missing')) {
     return '이 주문에는 환불 기록이 없습니다. 결제 내역을 먼저 확인해주세요.';
@@ -292,7 +292,7 @@ async function issueApprovedClaimCancellation(
   }
   return {
     message: providerCancelsAutomatically(provider)
-      ? `취소를 승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 기록이 함께 끝났습니다.`
+      ? `취소를 승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소까지 확인했습니다. 주문 취소·재고 복원과 환불 기록이 함께 끝났습니다.`
       : '취소를 승인하고 주문 취소를 마쳤습니다. 결제 전 주문이라 결제사 취소는 없었습니다.',
   };
 }
@@ -862,7 +862,7 @@ export async function recordOrderClaimRefundAction(
        보이면 운영자가 같은 돈을 다른 수단으로 다시 돌려준다. 끝난 일을 먼저 말한다. */
     return {
       error: finalizationRan
-        ? `${cancelLabel ? `${cancelLabel} ${deduction ? '취소' : '전액 취소'}와 ` : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
+        ? `${cancelLabel ? `${cancelLabel} ${deduction ? '취소' : '전액 취소'}와 ` : ''}주문 취소·재고 복원은 이미 완료됐습니다. 환불 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
         : reason,
     };
   }
@@ -900,20 +900,20 @@ export async function recordOrderClaimRefundAction(
       const after = settled?.refundDeduction;
       if (after?.state === 'applied' && after.refundAmount !== null) {
         return {
-          message: `${cancelLabel} 부분 취소(반품배송비 ${krwAmountWords(after.deductionAmount)}을 뺀 ${krwAmountWords(after.refundAmount)})를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.`,
+          message: `${cancelLabel} 부분 취소(반품배송비 ${krwAmountWords(after.deductionAmount)}을 뺀 ${krwAmountWords(after.refundAmount)})를 확인하고 환불 완료를 기록했습니다. 재고 복원이 함께 확정됐습니다.`,
         };
       }
       if (after?.state === 'not_applied') {
         return {
-          message: `결제사가 이 결제의 부분 취소를 받지 않아 ${cancelLabel} 전액 취소로 환불 완료를 기록했습니다. 반품배송비는 필요하면 배송비 청구로 따로 받으세요. 재고 복원과 카드팩 회수가 함께 확정됐습니다.`,
+          message: `결제사가 이 결제의 부분 취소를 받지 않아 ${cancelLabel} 전액 취소로 환불 완료를 기록했습니다. 반품배송비는 필요하면 배송비 청구로 따로 받으세요. 재고 복원이 함께 확정됐습니다.`,
         };
       }
-      return { message: '결제사 취소를 확인하고 환불 완료를 기록했습니다. 환불 금액은 처리 화면에서 확인해주세요. 재고 복원과 카드팩 회수가 함께 확정됐습니다.' };
+      return { message: '결제사 취소를 확인하고 환불 완료를 기록했습니다. 환불 금액은 처리 화면에서 확인해주세요. 재고 복원이 함께 확정됐습니다.' };
     }
     return {
       message: cancelLabel
-        ? `${cancelLabel} 전액 취소를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.`
-        : '환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.',
+        ? `${cancelLabel} 전액 취소를 확인하고 환불 완료를 기록했습니다. 재고 복원이 함께 확정됐습니다.`
+        : '환불 완료를 기록했습니다. 재고 복원이 함께 확정됐습니다.',
     };
   };
 
@@ -1003,7 +1003,7 @@ async function recordPartialReturnRefund(
         : `부분 반품 환불 접수를 기록했습니다. [환불 완료 확정]을 누르면 ${amount}을 토스 부분 취소로 돌려줍니다.`,
     };
   }
-  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 상품의 재고 복원과 적립금 되돌림이 함께 확정됐고, 카드팩은 남은 주문 금액으로 지급 조건을 다시 확인했습니다(조건에 못 미치면 개봉하지 않은 카드팩을 회수).';
+  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 상품의 재고 복원과 적립금 되돌림이 함께 확정됐습니다.';
   if (dispositions && dispositions.defectiveIds.length > 0) {
     const recorded = await recordClaimDefectiveStock(input.claimId);
     if (recorded.error) return { error: `부분 반품 환불과 재고 처리는 이미 확정됐습니다. 불량 재고 기록만 끝나지 않았습니다 — 환불은 다시 하지 마세요. ${recorded.error}` };

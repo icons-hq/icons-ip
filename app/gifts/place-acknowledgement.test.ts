@@ -36,14 +36,14 @@ describe('placeGiftAction 결제 전 확인 동의', () => {
     expect(mocks.record).not.toHaveBeenCalled();
   });
 
-  it('동의가 있으면 선물 굿즈로 제한 고지를 대조한 뒤 주문을 만들고 동의를 기록한다', async () => {
+  it('동의가 있으면 선물 상품으로 제한 고지를 대조한 뒤 주문을 만들고 동의를 기록한다', async () => {
     await expect(placeGiftAction(GIFT, QUOTE, KEY, 'bank_transfer', ACTOR, true, ['g2'])).resolves.toEqual({ orderId: ORDER });
     expect(mocks.verify).toHaveBeenCalledWith(['g1', 'g2'], ['g2']);
     expect(placed()).toHaveLength(1);
     expect(mocks.record).toHaveBeenCalledWith(ACTOR, ORDER, ['g2']);
   });
 
-  it('화면에 없던 제한 굿즈가 있으면 주문을 만들지 않는다', async () => {
+  it('화면에 없던 제한 상품이 있으면 주문을 만들지 않는다', async () => {
     mocks.verify.mockResolvedValue('changed');
     await expect(placeGiftAction(GIFT, QUOTE, KEY, 'card', ACTOR, true, [])).resolves.toMatchObject({ error: expect.stringContaining('안내가 바뀌었어요') });
     expect(placed()).toHaveLength(0);

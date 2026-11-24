@@ -36,7 +36,7 @@ function job(overrides: Partial<TossEscrowJob> = {}): TossEscrowJob {
 const escrow = (status = 'IN_PROGRESS', extra: Record<string, unknown> = {}) => ({
   version: '2022-11-16',
   entityType: 'escrow',
-  entityBody: { id: ESCROW_KEY, status, products: [{ id: PRODUCT_ID, refProductId: '', name: 'ICONS 굿즈 주문', quantity: 1 }], deliveryIds: [], ...extra },
+  entityBody: { id: ESCROW_KEY, status, products: [{ id: PRODUCT_ID, refProductId: '', name: '엑스스퀘어 상품 주문', quantity: 1 }], deliveryIds: [], ...extra },
 });
 
 describe('토스 에스크로 작업자(ADR-0049)', () => {

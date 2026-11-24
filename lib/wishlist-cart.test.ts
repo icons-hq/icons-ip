@@ -59,13 +59,13 @@ describe('wishCartState', () => {
     const noOption = { options: [], stock: 'soldout' as const, stockQty: 0 };
 
     expect(wishCartState(good({ ...noOption, salePeriod: scheduled }), READY)).toEqual({
-      kind: 'add', variantId: null, stockQty: 0, label: '판매 시작 전', ariaLabel: '홍실 아크릴 블록 판매 시작 전', unavailable: true,
+      kind: 'add', variantId: null, stockQty: 0, label: '판매 예정', ariaLabel: '홍실 아크릴 블록 판매 예정', unavailable: true,
     });
     expect(wishCartState(good({ ...noOption, salePeriod: ended }), READY)).toEqual({
       kind: 'add', variantId: null, stockQty: 0, label: '판매 종료', ariaLabel: '홍실 아크릴 블록 판매 종료', unavailable: true,
     });
     /* 옵션이 남아 있어도(재고 있음) 판매 기간 밖이면 같은 문구로 막는다. */
-    expect(wishCartState(good({ salePeriod: scheduled }), READY)).toMatchObject({ label: '판매 시작 전', ariaLabel: '홍실 아크릴 블록 판매 시작 전', unavailable: true });
+    expect(wishCartState(good({ salePeriod: scheduled }), READY)).toMatchObject({ label: '판매 예정', ariaLabel: '홍실 아크릴 블록 판매 예정', unavailable: true });
     /* 판매 기간 안이면 품절은 그대로 품절이다. */
     const open = { ...scheduled, startsAt: '2026-10-20T00:00:00.000Z', state: 'open', nextChangeAt: scheduled.endsAt } as const;
     expect(wishCartState(good({ ...noOption, salePeriod: open }), READY)).toMatchObject({ label: '품절', ariaLabel: '홍실 아크릴 블록 품절', unavailable: true });
@@ -88,9 +88,9 @@ describe('wishCartState 예약판매', () => {
 
   it('labels a preorder before reception instead of 품절, single or multi option', () => {
     expect(wishCartState(preorder('scheduled', 0), READY)).toEqual({
-      kind: 'add', variantId: null, stockQty: 0, label: '예약 접수 예정', ariaLabel: '홍실 아크릴 블록 예약 접수 예정', unavailable: true,
+      kind: 'add', variantId: null, stockQty: 0, label: '판매 예정', ariaLabel: '홍실 아크릴 블록 판매 예정', unavailable: true,
     });
-    expect(wishCartState(preorder('scheduled', 0, 2), READY)).toMatchObject({ kind: 'add', label: '예약 접수 예정', unavailable: true });
+    expect(wishCartState(preorder('scheduled', 0, 2), READY)).toMatchObject({ kind: 'add', label: '판매 예정', unavailable: true });
   });
 
   it('adds or sends to the option choice once reception opens', () => {
@@ -107,7 +107,7 @@ describe('wishCartState 옵션별 구매 제한·랜덤 판매', () => {
       label: '장바구니 · 2', ariaLabel: '홍실 아크릴 블록, 장바구니 2개, 구매 한도 2개' });
     expect(wishCartState(limited, { ...READY, quantityInCart: 1 })).toMatchObject({ kind: 'add', unavailable: false, stockQty: 9 });
   });
-  it('랜덤 판매 굿즈는 접힌 기본 옵션 키로 바로 담는다', () => {
+  it('랜덤 판매 상품은 접힌 기본 옵션 키로 바로 담는다', () => {
     const random = good({ optionSaleMode: 'random', stockQty: 6,
       options: [{ id: VARIANT, name: '랜덤', code: '', price: 12000, stockQty: 6, isDefault: true, attributes: {}, orderMaxQty: null, memberMaxQty: null }] });
     expect(wishCartState(random, READY)).toMatchObject({ kind: 'add', variantId: VARIANT, stockQty: 6, unavailable: false });

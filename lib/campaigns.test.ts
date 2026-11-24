@@ -149,7 +149,8 @@ describe('parseCampaignSections', () => {
     expect(parseCampaignSections('[]')).toEqual([]);
   });
 
-  it('DB 블록 계약의 키를 그대로 옮긴다', () => {
+  /* 카드팩 교환(exchange) 블록은 2026-11-24 지웠다(ADR-0052) — DB에 남은 예전 블록은 모르는 종류로 버린다. */
+  it('DB 블록 계약의 키를 그대로 옮기고 지운 교환 블록은 버린다', () => {
     const sections = parseCampaignSections([
       { type: 'image', image_path: 'campaigns/hero.png', alt: '히어로' },
       { type: 'text', heading: '안내', body: '본문' },
@@ -162,7 +163,6 @@ describe('parseCampaignSections', () => {
     expect(sections).toEqual([
       { type: 'image', image_path: 'campaigns/hero.png', alt: '히어로' },
       { type: 'text', body: '본문', heading: '안내' },
-      { type: 'exchange', offer_id: '11111111-1111-4111-8111-111111111111' },
       { type: 'coupon', coupon_code: 'WELCOME', description: '첫 구매' },
       { type: 'goods', good_ids: ['g1', 'g2'] },
       { type: 'notice', items: ['유의사항 1'] },
@@ -176,8 +176,8 @@ describe('parseCampaignSections', () => {
   });
 
   it('이동 버튼 블록은 문구와 내부 경로를 그대로 옮긴다', () => {
-    expect(parseCampaignSections([{ type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21', anchor: '굿즈' }]))
-      .toEqual([{ anchor: '굿즈', type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21' }]);
+    expect(parseCampaignSections([{ type: 'cta', label: '상품 더 보기', href: '/shop?ip=bt21', anchor: '상품' }]))
+      .toEqual([{ anchor: '상품', type: 'cta', label: '상품 더 보기', href: '/shop?ip=bt21' }]);
   });
 
   /* 저장은 DB 가 막지만, 외부로 나가는 값이 섞여 들어와도 화면은 그 버튼을 그리지 않는다(LD-18). */

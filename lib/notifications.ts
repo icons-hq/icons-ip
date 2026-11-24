@@ -19,6 +19,9 @@ export type NotificationType =
   /* 토스 가상계좌 발급 안내(ADR-0049). 결제 확정 finalizer가 awaiting_deposit 전이와 같은 트랜잭션에서 남기고
      링크는 /orders/{id}/complete(입금 안내 화면)다. */
   | 'order_virtual_account_issued'
+  /* 토스 가상계좌 입금 오류 되돌림(ADR-0049 결정 4) — 은행이 입금을 취소해 재입금이 필요하다는 안내(되돌림마다 한 건)와 입금 기한까지
+     재입금이 없어 주문을 자동 취소했다는 안내. 감지·자동 취소 DB 함수가 같은 트랜잭션에서 남기고 링크는 /orders/{id}다. */
+  | 'order_deposit_reversed'
   /* 클레임 단계 변화(#252) — 접수·승인·거부·보류·입고·환불·재출고를 한 타입으로
      묶는다. 단계마다 타입을 나누면 DB CHECK와 이 union이 아홉 번 갈라진다. */
   | 'claim_updated'
@@ -57,31 +60,6 @@ export interface NotificationItem {
   readAt: string | null;
   createdAt: string;
   isUnread: boolean;
-}
-
-// 저장된 알림 원문과 상품명·공지 본문을 보존하고, 알려진 시스템 문장만 표시 시 바꾼다.
-const SYSTEM_NOTIFICATION_COPY = new Map<NotificationType, {
-  titles?: ReadonlyMap<string, string>;
-  bodies?: ReadonlyMap<string, string>;
-}>([
-  ['product_question_answered', {
-    titles: new Map([['상품 Q&A에 답변이 등록됐어요', '굿즈 Q&A에 답변이 등록됐어요']]),
-  }],
-  ['claim_updated', {
-    titles: new Map([['교환 상품이 재출고됐어요', '교환 굿즈가 재출고됐어요']]),
-    bodies: new Map([
-      ['입고가 확인됐습니다. 교환 상품 재출고를 준비합니다.', '입고가 확인됐습니다. 교환 굿즈 재출고를 준비합니다.'],
-      ['교환 상품을 새 운송장으로 발송했습니다.', '교환 굿즈를 새 운송장으로 발송했습니다.'],
-    ]),
-  }],
-]);
-
-export function notificationDisplayCopy(notification: Pick<NotificationItem, 'type' | 'title' | 'body'>) {
-  const copy = SYSTEM_NOTIFICATION_COPY.get(notification.type);
-  return {
-    title: copy?.titles?.get(notification.title) ?? notification.title,
-    body: copy?.bodies?.get(notification.body) ?? notification.body,
-  };
 }
 
 export function isSafeNotificationLink(value: unknown): value is string {

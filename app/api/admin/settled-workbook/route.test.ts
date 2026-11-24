@@ -53,7 +53,7 @@ describe('보존된 거래확정 암호화 엑셀 다운로드', () => {
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('x-icons-export-receipt')).toBe(ID);
     expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile');
-    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-거래확정-\d{8}-\d{4}\.xlsx/);
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/xsquare-거래확정-\d{8}-\d{4}\.xlsx/);
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-evidence');
   });
   it('기존 GET 링크는 같은 기록의 암호 입력 화면으로만 이동한다', async () => {

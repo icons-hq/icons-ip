@@ -3,6 +3,7 @@ import type { CatalogSnapshot } from './catalog';
 import type { Good } from './data';
 import { pickGoodsReviewSummaries, type GoodsReviewSummaries, type GoodsReviewSummary } from './goods-review-summary';
 import type { HomeSalesPeriod } from './home-ranking';
+import { goodBadgeList } from './goods-taxonomy';
 import {
   LISTING_SORT_LABELS,
   LISTING_SORTS,
@@ -222,7 +223,8 @@ function scopeFor(
   view: ShopView,
   bestGoodIds: readonly string[],
 ): Good[] {
-  if (view === 'new') return goods.filter((good) => good.badge === 'NEW');
+  /* NEW 탭은 상품 표시문구에 NEW가 있는 굿즈다 — 첫 값이 아니어도(여러 개를 단 굿즈, migration 20261125140000) 같다. */
+  if (view === 'new') return goods.filter((good) => goodBadgeList(good).some((badge) => badge.toUpperCase() === 'NEW'));
   if (view !== 'best') return [...goods];
 
   /* BEST 는 카탈로그가 아니라 판매 랭킹(기간별 `get_goods_sales_ranking`)이 순서를 정한다. 카탈로그에 없는 id(성인·비공개로 이 사람에게

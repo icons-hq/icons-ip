@@ -3,9 +3,22 @@ import { goodsOptionLimitMessage, goodsOptionLimitNotices, RANDOM_OPTION_LABEL, 
 import type { Good, GoodOption } from './data';
 import type { GoodsSalesQuoteLine, GoodsVariantPricing } from './goods-sales';
 
+/** 지금 살 수 있는 옵션인가 — 예약 옵션은 접수 중이고 남은 예약 물량이 있을 때, 일반 옵션은 재고가 있을 때. */
+function optionPurchasable(option: GoodOption): boolean {
+  return option.supply?.mode === 'preorder'
+    ? option.supply.state === 'open' && option.supply.availableQty > 0
+    : option.stockQty > 0;
+}
+
+/**
+ * 옵션 가격 범위. 가장 낮은 가격(price)은 지금 살 수 있는 옵션에서 고른다 — 목록·상세는 범위 대신 이 최저가만 보이므로
+ * (MD-0049) 품절된 싼 옵션 가격을 내걸면 고객이 그 값에 살 수 없다. 살 수 있는 옵션이 하나도 없으면(품절·접수 전) 전체
+ * 옵션에서 고른다. 가장 높은 가격(priceMax)은 전체 옵션 기준이다(옵션마다 값이 다른지 판정에 쓴다).
+ */
 export function optionPriceRange(options: readonly GoodOption[]) {
   const prices = options.map(option => option.price);
-  return { price: Math.min(...prices), priceMax: Math.max(...prices) };
+  const purchasable = options.filter(optionPurchasable).map(option => option.price);
+  return { price: Math.min(...(purchasable.length ? purchasable : prices)), priceMax: Math.max(...prices) };
 }
 
 /**
@@ -208,14 +221,14 @@ export function cartOptionGood(good: Good | undefined, variantId: string): Good 
 export function goodsPurchaseConditionProblem(good: Pick<Good,
   'allowCardPayment' | 'allowBankTransfer' | 'saleRestriction' | 'orderQuantityLimitEnabled' |
   'minOrderQty' | 'maxOrderQty' | 'memberPurchaseLimitEnabled' | 'memberLifetimeQtyLimit' | 'salePeriod' | 'transactionOffer'>): string | null {
-  if (good.transactionOffer?.aggregation?.runtimeEnabled === false) return '구매 준비 중인 굿즈입니다.';
+  if (good.transactionOffer?.aggregation?.runtimeEnabled === false) return '구매 준비 중인 상품입니다.';
   const periodLabel = goodsSaleUnavailableLabel(good.salePeriod);
-  if (periodLabel) return `${periodLabel} 굿즈입니다.`;
+  if (periodLabel) return `${periodLabel} 상품입니다.`;
   /* 19금 굿즈의 구매 자격은 상품 조건이 아니라 구매자의 성인 인증이다(ADR-0024). 인증 전
      방문자는 상세 대신 인증 안내를 보고, 담기·주문은 DB가 증거로 다시 판정한다. */
-  if (good.allowCardPayment === false && good.allowBankTransfer === false) return '현재 주문을 받지 않는 굿즈입니다.';
+  if (good.allowCardPayment === false && good.allowBankTransfer === false) return '현재 주문을 받지 않는 상품입니다.';
   if ((good.orderQuantityLimitEnabled && (!good.minOrderQty || !good.maxOrderQty || good.minOrderQty > good.maxOrderQty))
-    || (good.memberPurchaseLimitEnabled && !good.memberLifetimeQtyLimit)) return '구매 조건을 확인 중인 굿즈입니다.';
+    || (good.memberPurchaseLimitEnabled && !good.memberLifetimeQtyLimit)) return '구매 조건을 확인 중인 상품입니다.';
   return null;
 }
 

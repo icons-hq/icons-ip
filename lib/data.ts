@@ -72,6 +72,11 @@ export interface Good {
   searchKeywords?: string[];
   priceMax?: number;
   id: string;
+  /**
+   * 상품 자동코드(goods.code, ADR-0048). 공개 상세 주소 `/shop/<코드 소문자>`를 만든다(ADR-0050, `goodDetailHref`).
+   * 목업·가림 카드·코드를 싣지 않는 옛 투영에는 없고, 그때 링크는 내부 id 주소라 상세가 코드 주소로 옮긴다.
+   */
+  code?: string;
   name: string;
   nameEn?: string;
   ip: string;
@@ -87,7 +92,13 @@ export interface Good {
   catalogPrice?: number;
   /** 저장된 소비자가(`goods.compare_at_price`). 옵션 정가는 여기에 옵션 추가금액을 더해 파생한다. */
   catalogCompareAtPrice?: number | null;
+  /** 상품 표시문구 첫 값(`goods.badge`, `badges[0]` 거울). 한 값만 아는 옛 투영·목업이 쓴다. */
   badge: string | null;
+  /**
+   * 상품 표시문구 전부(`goods.badges`, NEW·EXCLUSIVE). 배열 순서가 카드 칩·상세 배지 순서다. 없으면(옛 투영·목업) `badge` 하나로 읽는다 —
+   * 화면은 직접 읽지 말고 `goodBadgeList`(lib/goods-taxonomy)로 읽는다.
+   */
+  badges?: string[];
   /** 배송비 방식(`goods.shipping_fee_type`). 'free'면 상품 카드가 '무료배송' 칩을 단다. 없으면(옛 투영·목업) 칩을 그리지 않는다. */
   shippingFeeType?: 'policy' | 'free' | 'individual';
   stock: Stock;
@@ -122,23 +133,6 @@ export interface Card {
   owned: boolean;
   bg: string;
 }
-/* 웹 참여형 게임 카탈로그 — card variant 실배선은 play_game(#64). */
-export type GameVariant =
-  | { kind: 'card'; rarityLineup: RarityKey[] } // 구슬 = 등급 확률 극장, 보상 = 무상 카드
-  | { kind: 'goods'; goodsIds: string[] }; // retired mock label 목록 — 실물 경품·구매권 경로 아님
-
-export interface Game {
-  id: string;
-  type: 'marble_roulette';
-  title: string;
-  ip: string | null; // 카드 보상 풀 스코프(card variant) — goods variant는 크로스오버라 null
-  event: string | null; // popup_id 대용(연결 이벤트)
-  config: {
-    marbleCount: number;
-    variant: GameVariant;
-  };
-}
-
 export interface FandomEvent {
   id: string;
   title: string;
@@ -179,17 +173,17 @@ const imageBg = (src: string, fallback: string) =>
 
 const IPS: Ip[] = [
   { id: 'rilakkuma', title: '리락쿠마', sub: 'San-X · 캐릭터 IP', v: V.character, glyph: '리락\n쿠마', bg: imageBg('/generated/ip/rilakkuma.png', grad('#5a3517', '#D68A2D', '#FFD84D')), fans: 124500, goods: 2, cards: 2, featured: true,
-    tagline: '느긋한 하루를 수집하는 시간', synopsis: '리락쿠마의 포근한 방을 ICONS 굿즈, 카드, 팝업으로 재구성한 라이선스 mock 컬렉션입니다.' },
+    tagline: '느긋한 하루를 수집하는 시간', synopsis: '리락쿠마의 포근한 방을 ICONS 상품, 카드, 팝업으로 재구성한 라이선스 mock 컬렉션입니다.' },
   { id: 'maplestory', title: '메이플스토리', sub: 'NEXON · 게임', v: V.game, glyph: 'MAPLE', bg: imageBg('/generated/ip/maplestory.png', grad('#0d5e66', '#38F0C0', '#FFD84D')), fans: 198000, goods: 3, cards: 3, featured: true,
-    tagline: '몬스터즈가 굿즈로 튀어나오는 순간', synopsis: '주황버섯, 슬라임, 핑크빈을 중심으로 한 메이플스토리 몬스터 굿즈와 카드 라인업입니다.' },
+    tagline: '몬스터즈가 상품으로 튀어나오는 순간', synopsis: '주황버섯, 슬라임, 핑크빈을 중심으로 한 메이플스토리 몬스터 상품과 카드 라인업입니다.' },
   { id: 'nongdamgom', title: '담곰이', sub: '캐릭터 IP', v: V.character, glyph: '담곰이', bg: imageBg('/generated/ip/nongdamgom.png', grad('#70485a', '#F7A8C7', '#FFF3D6')), fans: 52300, goods: 2, cards: 2, featured: true,
-    tagline: '말랑한 농담처럼 가벼운 굿즈', synopsis: '담곰이와 오리친구의 단순하고 귀여운 결을 데스크 굿즈, 쿠션, 카드로 풀어낸 컬렉션입니다.' },
+    tagline: '말랑한 농담처럼 가벼운 상품', synopsis: '담곰이와 오리친구의 단순하고 귀여운 결을 데스크 상품, 쿠션, 카드로 풀어낸 컬렉션입니다.' },
   { id: 'kakao-friends', title: '카카오프렌즈', sub: 'Kakao · 캐릭터 IP', v: V.character, glyph: 'KAKAO', bg: imageBg('/generated/ip/kakao-friends.png', grad('#66421d', '#FFD84D', '#FF9AAF')), fans: 214000, goods: 2, cards: 3, featured: true,
-    tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 소품 mock 라인입니다.' },
+    tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 상품과 소품 mock 라인입니다.' },
   { id: 'attack-on-titan', title: '진격의 거인', sub: '리바이 에디션 · 애니메이션', v: V.anime, glyph: 'LEVI', bg: imageBg('/generated/ip/attack-on-titan.png', grad('#2b251f', '#6B705C', '#A981FF')), fans: 176400, goods: 1, cards: 2, featured: true,
     tagline: '리바이 에디션으로 완성하는 전시형 컬렉션', synopsis: '진격의 거인 리바이의 차분한 전투 전야 무드를 아크릴과 카드로 구성한 mock 컬렉션입니다.' },
   { id: 'hong-sil-quest', title: '홍실 퀘스트', sub: 'SOOP2RANG · 캐릭터 IP', v: V.character, glyph: '홍실\n퀘스트', bg: imageBg('/generated/ip/hong-sil-quest.webp', grad('#300008', '#9C001D', '#FF2E63')), fans: 0, goods: 3, cards: 0, featured: false,
-    tagline: '붉은 실을 따라 시작되는 특별한 퀘스트', synopsis: '홍실 퀘스트의 현대·전생·스페셜 라운드를 실제 팝업 굿즈로 잇는 공식 IP 컬렉션입니다.' },
+    tagline: '붉은 실을 따라 시작되는 특별한 퀘스트', synopsis: '홍실 퀘스트의 현대·전생·스페셜 라운드를 실제 팝업 상품으로 잇는 공식 IP 컬렉션입니다.' },
 ];
 
 const ipById = (id: string | null | undefined) => IPS.find((i) => i.id === id);
@@ -228,43 +222,10 @@ const CARDS: Card[] = [
   { id: 'c12', ip: 'attack-on-titan', name: '리바이 · 조사병단', no: '017/070', rarity: 'SSR', owned: false, bg: imageBg('/generated/cards/c12.png', grad('#201c18', '#4C5A3F', '#A981FF')) },
 ];
 
-const GAMES: Game[] = [
-  {
-    id: 'marble-maple',
-    type: 'marble_roulette',
-    title: '메이플 마블 룰렛',
-    ip: 'maplestory',
-    event: 'e2',
-    config: {
-      marbleCount: 10,
-      variant: {
-        kind: 'card',
-        // 풀(maplestory CARDS)에 실존하는 등급만, mock 가중치 비례로 — 공시=추첨 일치(Gacha poolRates와 같은 규율)
-        rarityLineup: ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'SSR', 'SSR', 'HOLO'],
-      },
-    },
-  },
-  {
-    id: 'goods-marble',
-    type: 'marble_roulette',
-    title: '굿즈 마블 룰렛',
-    ip: null, // 5개 IP 크로스오버
-    event: null,
-    config: {
-      marbleCount: 9,
-      variant: {
-        kind: 'goods',
-        // 구슬 1:1 — 활성 mock 굿즈 9종
-        goodsIds: ['g1', 'g2', 'g3', 'g5', 'g6', 'g7', 'g8', 'g9', 'g11'],
-      },
-    },
-  },
-];
-
 const EVENTS: FandomEvent[] = [
   { id: 'e1', title: '리락쿠마 포근한 방 팝업스토어', ip: 'rilakkuma', mode: '오프라인', status: '진행중', date: '7.01 - 7.21', loc: '성수 ICONS 스튜디오', accent: '#FFD84D', img: imageBg('/generated/events/e1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
   { id: 'e2', title: '메이플스토리 몬스터즈 온라인 팝업', ip: 'maplestory', mode: '온라인', status: '예매중', date: '7.12 20:00', loc: 'ICONS Live', accent: '#38F0C0', img: imageBg('/generated/events/e2.png', grad('#0d5e66', '#38F0C0', '#FFD84D')) },
-  { id: 'e3', title: '담곰이 드로잉 굿즈 팝업', ip: 'nongdamgom', mode: '오프라인', status: '예정', date: '7.19 - 8.02', loc: '홍대 ICONS 팝업', accent: '#F7A8C7', img: imageBg('/generated/events/e3.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
+  { id: 'e3', title: '담곰이 드로잉 상품 팝업', ip: 'nongdamgom', mode: '오프라인', status: '예정', date: '7.19 - 8.02', loc: '홍대 ICONS 팝업', accent: '#F7A8C7', img: imageBg('/generated/events/e3.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
   { id: 'e4', title: '카카오프렌즈 피크닉 팝업', ip: 'kakao-friends', mode: '오프라인', status: '예매중', date: '7.26 - 8.11', loc: '여의도 ICONS 팝업', accent: '#FFD84D', img: imageBg('/generated/events/e4.png', grad('#66421d', '#FFD84D', '#FF9AAF')) },
   { id: 'e5', title: '진격의 거인 리바이 에디션 온라인 팝업', ip: 'attack-on-titan', mode: '온라인', status: '예정', date: '8.08 21:00', loc: 'ICONS Live', accent: '#A981FF', img: imageBg('/generated/events/e5.png', grad('#2b251f', '#6B705C', '#A981FF')) },
 ];
@@ -289,7 +250,6 @@ export const DATA = {
   GOODS,
   RARITY,
   CARDS,
-  GAMES,
   EVENTS,
   POSTS,
   TRENDING,

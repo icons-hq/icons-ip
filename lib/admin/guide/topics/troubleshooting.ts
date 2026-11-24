@@ -153,13 +153,13 @@ const ARCHIVE_CASES: AdminGuideErrorCase[] = [
     quote: '판매 가능한 재고가 남아 있어 굿즈를 보관할 수 없습니다.',
     sourceFile: 'app/admin/archive-actions.ts',
     cause: '실재고가 남아 있는 굿즈를 보관하려 했습니다.',
-    fix: '판매만 멈추려면 보관 대신 판매 중지를 씁니다. ICONS에 배정된 물량을 실제로 회수했을 때만, 그 근거를 남겨 재고를 조정한 뒤 보관합니다.',
+    fix: '판매만 멈추려면 보관 대신 판매 중지를 씁니다. 엑스스퀘어에 배정된 물량을 실제로 회수했을 때만, 그 근거를 남겨 재고를 조정한 뒤 보관합니다.',
   },
   {
-    quote: '활성 리워드 정책에 연결된 굿즈는 보관할 수 없습니다.',
+    quote: '예전 카드팩 발급 정책에 연결된 굿즈는 보관할 수 없습니다. 개발팀에 정책 정리를 요청해주세요.',
     sourceFile: 'app/admin/archive-actions.ts',
-    cause: '켜져 있는 카드팩 발급 정책이 이 굿즈를 대상으로 잡고 있습니다.',
-    fix: '발급 정책 화면에서 그 정책의 "정책 활성화"를 끄고 저장한 뒤 보관합니다.',
+    cause: '카드 기능을 운영하던 때 만든 카드팩 발급 정책이 아직 켜진 채 이 굿즈를 대상으로 잡고 있습니다. 카드 화면은 2026-11-24에 없어져 판매자센터에서 끌 수 없습니다.',
+    fix: '개발팀에 그 정책을 꺼 달라고 요청한 뒤 다시 보관합니다.',
   },
 ];
 
@@ -180,7 +180,7 @@ const PUBLISH_CASES: AdminGuideErrorCase[] = [
 
 const CLAIM_CASES: AdminGuideErrorCase[] = [
   {
-    quote: '결제 취소 확인이 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
+    quote: '결제 취소 확인이 끝나지 않았습니다. 재고 복원이 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
     sourceFile: 'app/admin/claim-actions.ts',
     cause: '결제사 취소가 아직 시스템에서 확인되지 않은 상태에서 환불 완료를 먼저 기록하려 했습니다.',
     fix: '화면의 결제 취소 확인 절차를 먼저 마칩니다. 코페이(Korpay) 건을 직접 확정하는 일은 대표 또는 계정 주매니저(매니저 역할 설정 전에는 기존 관리자)에게 요청합니다.',
@@ -219,19 +219,10 @@ const PROMOTION_CASES: AdminGuideErrorCase[] = [
     fix: '혜택 등록에서 그 코드를 먼저 등록한 뒤 캠페인을 저장합니다.',
   },
   {
-    quote: '/로 시작하는 ICONS 내부 경로여야 합니다.',
+    quote: '/로 시작하는 엑스스퀘어 내부 경로여야 합니다.',
     sourceFile: 'lib/admin/campaigns.ts',
     cause: '캠페인 이미지·랜딩 구성의 이동 버튼 블록에, 이동할 주소로 외부 사이트 주소(https://…, //…)나 빈칸·역슬래시가 든 주소를 넣었습니다. 바깥 사이트로 보내는 버튼은 사칭·추적에 쓰일 위험이 있어 받지 않습니다.',
-    fix: '이동할 ICONS 화면 주소에서 도메인(https://로 시작하는 앞부분)을 뺀 경로(예: /shop, /events/캠페인 주소)를 넣고 다시 저장합니다.',
-  },
-];
-
-const POOL_CASES: AdminGuideErrorCase[] = [
-  {
-    quote: '확률 합계는 100%여야 합니다.',
-    sourceFile: 'lib/admin/catalog.ts',
-    cause: '카드풀 등급별 확률 다섯 칸의 합이 100%가 아닙니다.',
-    fix: '다섯 등급의 확률을 다시 나눠 합계를 정확히 100%로 맞춥니다. 소수 셋째 자리까지 입력할 수 있습니다.',
+    fix: '이동할 엑스스퀘어 화면 주소에서 도메인(https://로 시작하는 앞부분)을 뺀 경로(예: /shop, /events/캠페인 주소)를 넣고 다시 저장합니다.',
   },
 ];
 
@@ -245,7 +236,6 @@ export const ADMIN_GUIDE_ERROR_CASES: AdminGuideErrorCase[] = [
   ...PUBLISH_CASES,
   ...CLAIM_CASES,
   ...PROMOTION_CASES,
-  ...POOL_CASES,
 ];
 
 function errorTable(cases: AdminGuideErrorCase[]): AdminGuideTable {
@@ -287,7 +277,7 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
         EXPORT_PASSWORD_HINT,
         '숫자만 입력해도 되며 비밀번호 확인란에도 같은 값을 넣습니다. 3자리 이하·17자리 이상·빈칸·한글은 쓸 수 없습니다. 오류가 나거나 연결이 끊긴 뒤에는 입력이 지워지므로 다시 입력합니다.',
         '예전에 받은 파일은 그때 정한 비밀번호로 엽니다. 새 파일의 비밀번호를 다르게 정해도 이전 파일의 비밀번호는 바뀌지 않습니다. 비밀번호는 어디에도 저장하지 않아 찾아볼 수 없으니, 잊었으면 다시 내려받습니다.',
-        '운송장 회신을 업로드할 때 비밀번호를 건 XLSX는 해제하지 않고 파일 비밀번호 칸에 그 파일의 비밀번호를 입력합니다. 비밀번호가 맞지 않는다고 나오면 내려받을 때 정한 값을 다시 입력하고, 잊었으면 출고지시를 새 비밀번호로 다시 내려받습니다. ICONS 표준 양식은 상품주문번호·택배사·운송장번호 머리글이 각각 하나씩 있는지도 확인합니다.',
+        '운송장 회신을 업로드할 때 비밀번호를 건 XLSX는 해제하지 않고 파일 비밀번호 칸에 그 파일의 비밀번호를 입력합니다. 비밀번호가 맞지 않는다고 나오면 내려받을 때 정한 값을 다시 입력하고, 잊었으면 출고지시를 새 비밀번호로 다시 내려받습니다. 엑스스퀘어 표준 양식은 상품주문번호·택배사·운송장번호 머리글이 각각 하나씩 있는지도 확인합니다.',
         '출고지시를 다시 받기 전에는 앞서 받은 파일이 제대로 내려받아졌는지, 창고에 이미 보냈는지 확인합니다. 같은 주문을 창고에 두 번 보내지 않도록 파일마다 어떤 배송 건이 들어 있는지 맞춰 봅니다.',
       ],
       screens: [{ href: '/admin/sales/dispatch' }, { href: '/admin/sales/shipping' }],
@@ -301,6 +291,5 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
     { id: 'publish', heading: 'IP 게시 상태', table: errorTable(PUBLISH_CASES) },
     { id: 'claims', heading: '클레임', table: errorTable(CLAIM_CASES) },
     { id: 'promotions', heading: '쿠폰·캠페인', table: errorTable(PROMOTION_CASES) },
-    { id: 'pools', heading: '카드풀', table: errorTable(POOL_CASES) },
   ],
 };

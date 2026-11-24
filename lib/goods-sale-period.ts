@@ -28,7 +28,8 @@ export function parseGoodsSalePeriod(value: unknown): GoodsSalePeriod | null {
 
 export function goodsSaleUnavailableLabel(period: GoodsSalePeriod | undefined | null): string | null {
   if (!period) return null;
-  return period.state === 'scheduled' ? '판매 시작 전' : period.state === 'ended' ? '판매 종료' : null;
+  /* 시작 전은 접수 전 예약판매와 같은 '판매 예정'이다(MD-0050, 2026-11-23 — 옛 문구 '판매 시작 전'). */
+  return period.state === 'scheduled' ? '판매 예정' : period.state === 'ended' ? '판매 종료' : null;
 }
 
 /**
@@ -59,10 +60,10 @@ export function goodsSalePeriodOrderNotice(
     else if (period.state === 'scheduled') scheduled.add(good.name);
   }
   if (ended.size) {
-    return `판매기간이 끝난 굿즈가 있어요: ${[...ended].join(', ')}. ${scope === 'direct' ? '이 굿즈는 지금 주문할 수 없어요.' : '장바구니에서 이 굿즈를 빼고 다시 주문해주세요.'}`;
+    return `판매기간이 끝난 상품이 있어요: ${[...ended].join(', ')}. ${scope === 'direct' ? '이 상품은 지금 주문할 수 없어요.' : '장바구니에서 이 상품을 빼고 다시 주문해주세요.'}`;
   }
   if (scheduled.size) {
-    return `아직 판매를 시작하지 않은 굿즈가 있어요: ${[...scheduled].join(', ')}. ${scope === 'direct' ? '판매가 시작된 뒤 주문해주세요.' : '장바구니에서 이 굿즈를 빼고 다시 주문해주세요.'}`;
+    return `아직 판매를 시작하지 않은 상품이 있어요: ${[...scheduled].join(', ')}. ${scope === 'direct' ? '판매가 시작된 뒤 주문해주세요.' : '장바구니에서 이 상품을 빼고 다시 주문해주세요.'}`;
   }
   return null;
 }

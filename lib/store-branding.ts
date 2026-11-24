@@ -33,12 +33,12 @@ export interface StorefrontBranding {
   socials: { platform: StoreSocialPlatform; url: string }[];
 }
 export const DEFAULT_STORE_BRANDING: StoreBranding = {
-  displayName: 'ICONS', logoMode: 'text', logoPath: null, mobileLogoPath: null,
+  displayName: '엑스스퀘어', logoMode: 'text', logoPath: null, mobileLogoPath: null,
   introduction: '', showIntroduction: false,
   socials: { blog: { enabled: false, url: '' }, facebook: { enabled: false, url: '' }, instagram: { enabled: false, url: '' } },
 };
 export const DEFAULT_STOREFRONT_BRANDING: StorefrontBranding = {
-  displayName: 'ICONS', logoUrl: null, mobileLogoUrl: null, introduction: null, socials: [],
+  displayName: '엑스스퀘어', logoUrl: null, mobileLogoUrl: null, introduction: null, socials: [],
 };
 
 function object(value: unknown): value is Record<string, unknown> {

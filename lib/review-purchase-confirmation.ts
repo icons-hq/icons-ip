@@ -13,7 +13,7 @@ export const REVIEW_CONFIRMATION_HEADING = '리뷰를 등록하면 구매확정�
 export const REVIEW_CONFIRMATION_CREDIT_NOTE = '구매확정 적립금은 리뷰 등록 여부·내용과 관계없이 같은 기준으로 지급됩니다.';
 /** 리뷰 등록이 구매확정을 겸할 때의 혜택 고지. 리뷰 작성 자체의 혜택은 없고, 구매확정 적립금은 리뷰 없이도 같다. */
 export const REVIEW_BENEFIT_NOTE = '리뷰 작성 자체에 대한 혜택은 없습니다. 구매확정 적립금은 리뷰 없이 [구매확정]이나 자동 구매확정으로도 똑같이 지급됩니다.';
-export const REVIEW_CONFIRMATION_ACK_LABEL = '받은 굿즈와 구매확정 내용을 확인했습니다.';
+export const REVIEW_CONFIRMATION_ACK_LABEL = '받은 상품과 구매확정 내용을 확인했습니다.';
 export const REVIEW_CONFIRMATION_SUBMIT_LABEL = '리뷰 등록하고 구매확정';
 /** 리뷰 목록의 작성 가능 카드에 붙는 한 줄. */
 export const REVIEW_CONFIRMATION_LIST_HINT = '리뷰를 등록하면 이 주문이 함께 구매확정됩니다.';
@@ -50,7 +50,7 @@ export function reviewConfirmationBlockMessage(block: ReviewConfirmationBlock, h
         ? `이 주문의 구매확정이 보류되어 있습니다(사유: ${holdReason.trim()}). 보류가 해제되면 리뷰를 남길 수 있습니다.`
         : '이 주문의 구매확정이 보류되어 있습니다. 보류가 해제되면 리뷰를 남길 수 있습니다.';
     case 'not_all_delivered':
-      return '아직 배송이 끝나지 않은 굿즈가 있어 구매확정할 수 없습니다. 모든 굿즈를 받은 뒤 리뷰를 남길 수 있습니다.';
+      return '아직 배송이 끝나지 않은 상품이 있어 구매확정할 수 없습니다. 모든 상품을 받은 뒤 리뷰를 남길 수 있습니다.';
     case 'account_restricted':
       return '현재 계정 상태로는 구매확정과 리뷰 작성을 할 수 없습니다. 1:1 문의로 알려주세요.';
     default:

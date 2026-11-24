@@ -42,7 +42,7 @@ describe('kakao account link', () => {
     });
     expect(kakaoLinkNotice('linked', true, false)?.message).toBe('카카오 계정을 연결했어요.');
     expect(kakaoLinkNotice('linked', false, true)).toBeNull();
-    expect(kakaoLinkNotice('identity_taken', false, true)).toMatchObject({ tone: 'alert', message: expect.stringContaining('이미 다른 ICONS 계정에 연결') });
+    expect(kakaoLinkNotice('identity_taken', false, true)).toMatchObject({ tone: 'alert', message: expect.stringContaining('이미 다른 엑스스퀘어 계정에 연결') });
     expect(kakaoLinkNotice('cancelled', false, true)).toMatchObject({ tone: 'alert' });
     expect(kakaoLinkNotice('failed', true, true)).toBeNull();
     expect(kakaoLinkNotice(null, true, true)).toBeNull();

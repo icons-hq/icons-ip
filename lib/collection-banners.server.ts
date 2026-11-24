@@ -1,10 +1,7 @@
 import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { unstable_cache } from 'next/cache';
-import { readCardRewardsEnabled } from './card-rewards/gate.server';
-import { getCollectibleFeatures } from './collectible-features.server';
 import {
-  collectionBannersNeedCardRewardGate,
   liveCollectionBanners,
   parseCollectionBannerRow,
   type CollectionBanner,
@@ -22,7 +19,7 @@ import { getSupabaseConfig } from './supabase/config';
  * (app/admin/curation-actions.ts의 updateTag). 공개 읽기 RLS 가 '지금 노출 중'인 행만 주므로 예약한 시작은 최대 5분 늦을 수 있고,
  * 종료 시각은 요청마다 다시 걸러 캐시가 끝난 배너를 붙들지 않는다.
  *
- * 목적지 게이트(카드 리워드·커뮤니티)도 여기 서버에서 건다 — 카테고리 전시 배너(lib/category-display.server.ts)와 같은 방식이다.
+ * 목적지 게이트(지운 화면·커뮤니티)도 여기 서버에서 건다 — 카테고리 전시 배너(lib/category-display.server.ts)와 같은 방식이다.
  * 클라이언트 컨텍스트(초기값 꺼짐)로 걸면 첫 HTML에서 배너만 빠지고 '배너 있음'으로 숨긴 머리말·여백은 그대로 남는다(l8b-ui-2).
  * 게이트를 통과한 뒤에 페이지 몫으로 자르므로 빠진 자리는 다음 순서 배너가 채운다.
  *
@@ -78,15 +75,12 @@ const getCachedCollectionBanners = unstable_cache(
 
 /**
  * 컬렉션 페이지가 부르는 읽기 — 돌려준 목록이 곧 그 페이지에 그릴 배너다(게이트·종료·페이지 몫 반영).
- * 실패해도 던지지 않는다 — 배너 없이(지금의 텍스트 머리말 그대로) 그린다. 카드 리워드 게이트 읽기는 실패하면 꺼짐이다.
+ * 실패해도 던지지 않는다 — 배너 없이(지금의 텍스트 머리말 그대로) 그린다.
  */
 export async function getCollectionBanners(slot: CollectionBannerSlot, now: number = Date.now()): Promise<CollectionBanner[]> {
   try {
     const banners = await getCachedCollectionBanners();
-    const cardRewardsEnabled = collectionBannersNeedCardRewardGate(banners, slot, now) ? await readCardRewardsEnabled() : false;
-    /* 숨긴 수집·거래 기능으로 가는 배너는 셸과 같은 캐시 읽기(관리자 저장이 즉시 만료)로 거른다. 읽지 못하면 꺼짐이다. */
-    const collectibleFeatures = await getCollectibleFeatures();
-    return liveCollectionBanners(banners, slot, now, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED, collectibleFeatures });
+    return liveCollectionBanners(banners, slot, now, { communityEnabled: COMMUNITY_ENABLED });
   } catch (error) {
     console.error('[storefront/collection-banners] read failed', {
       code: error instanceof CollectionBannerReadError ? error.code : null,

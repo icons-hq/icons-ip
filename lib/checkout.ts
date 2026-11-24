@@ -202,7 +202,7 @@ export function bankTransferMethodNote({
   goodsAllow: boolean | null;
 }): string {
   if (!accountConfigured) return '지금은 무통장 입금을 받지 않습니다.';
-  if (goodsAllow === false) return '이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.';
+  if (goodsAllow === false) return '이 주문에는 무통장을 쓸 수 없는 상품이 있어요.';
   if (goodsAllow === null) return '배송지와 결제 금액을 확인한 뒤 고를 수 있어요.';
   return '안내된 계좌로 24시간 안에 입금하면 확인 후 확정됩니다.';
 }
@@ -310,7 +310,7 @@ export const normalizeCheckoutKey = normalizeUuid;
 export const normalizeOrderReference = normalizeUuid;
 
 export function checkoutOrderName(itemNames: readonly string[]) {
-  const firstName = itemNames[0]?.trim() || 'ICONS 굿즈';
+  const firstName = itemNames[0]?.trim() || '엑스스퀘어 상품';
   const suffix = itemNames.length > 1 ? ` 외 ${itemNames.length - 1}건` : '';
   const maxFirstLength = Math.max(1, 100 - suffix.length);
   return `${firstName.slice(0, maxFirstLength)}${suffix}`;

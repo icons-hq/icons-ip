@@ -7,13 +7,7 @@ import { RecentGoodsCards } from '@/components/mypage/MypageRecentGoods';
 import { MyPage } from './MyPage';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
-const gates = vi.hoisted(() => ({ cardRewards: true, binder: true, cart: { ready: true, count: 0 } }));
-vi.mock('@/components/shell/CardRewardAvailability', () => ({
-  useCardRewardsEnabled: () => gates.cardRewards,
-}));
-vi.mock('@/components/shell/CollectibleFeatures', () => ({
-  useCollectibleFeatures: () => ({ binder: gates.binder, market: false, exchange: false }),
-}));
+const gates = vi.hoisted(() => ({ cart: { ready: true, count: 0 } }));
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({ ...gates.cart, resetForSignOut: vi.fn() }),
 }));
@@ -21,8 +15,6 @@ vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/app/shop/experience-actions', () => ({ loadInterestCollectionAction: vi.fn(() => new Promise(() => {})) }));
 
 afterEach(() => {
-  gates.cardRewards = true;
-  gates.binder = true;
   gates.cart = { ready: true, count: 0 };
 });
 
@@ -176,8 +168,6 @@ describe('MyPage dashboard', () => {
       ['/orders', '주문 내역'],
       ['/tickets', '내 티켓'],
       ['/my/wishlist', '위시리스트'],
-      ['/binder', '바인더'],
-      ['/packs', '카드팩'],
       ['/my/reviews', '내 리뷰'],
       ['/my/addresses', '배송지 관리'],
       ['/my/grade-benefits', '회원 등급 혜택'],
@@ -191,19 +181,12 @@ describe('MyPage dashboard', () => {
     }
   });
 
-  it('hides gated destinations while their gate is closed', () => {
-    gates.cardRewards = false;
+  /* 카드팩·바인더 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 마이페이지 메뉴에도 없다. */
+  it('does not link the removed card-pack and binder screens', () => {
     const html = render();
 
     expect(html).not.toContain('href="/packs"');
     expect(html).not.toContain('>카드팩</');
-  });
-
-  /* 카드 바인더는 운영하지 않는다 — DB 공개 스위치(기본 숨김)가 꺼져 있으면 마이페이지 메뉴에서도 빠진다. */
-  it('hides the card binder while its public switch is off', () => {
-    gates.binder = false;
-    const html = render();
-
     expect(html).not.toContain('href="/binder"');
     expect(html).not.toContain('>바인더</');
   });
@@ -254,7 +237,7 @@ describe('MyPage dashboard', () => {
   it('gives each block an empty state and an unavailable state of its own', () => {
     const blank = render({ dashboard: empty });
     expect(blank).toContain('최근 주문이 없어요.');
-    expect(blank).toContain('아직 찜한 굿즈가 없어요.');
+    expect(blank).toContain('아직 찜한 상품이 없어요.');
     expect(blank).toContain('아직 팔로우한 IP가 없어요.');
     expect(blank).toContain('0장');
 
@@ -267,7 +250,7 @@ describe('MyPage dashboard', () => {
     /* 카탈로그만 못 읽었으면 찜 수(스트립·머리)는 그대로, 줄만 못 읽음으로 접는다. */
     const noShelf = render({ dashboard: { ...filled, wishlist: { count: 3, goods: null } } });
     expect(noShelf).toContain('위시리스트<span class="wc-mydash__count"> (3)</span>');
-    expect(noShelf).toContain('찜한 굿즈 목록을 불러오지 못했어요.');
+    expect(noShelf).toContain('찜한 상품 목록을 불러오지 못했어요.');
     expect(noShelf).toMatch(/wc-mypage__stat-count">3<span class="wc-sr-only">개<\/span>/);
   });
 
@@ -303,7 +286,7 @@ describe('MyPage dashboard', () => {
   });
 
   it('draws the recently viewed block only while the detail interests switch is on', () => {
-    expect(render({ recentGoodsEnabled: false })).not.toContain('최근 본 굿즈');
-    expect(render({ recentGoodsEnabled: true })).toContain('최근 본 굿즈를 불러오는 중이에요.');
+    expect(render({ recentGoodsEnabled: false })).not.toContain('최근 본 상품');
+    expect(render({ recentGoodsEnabled: true })).toContain('최근 본 상품을 불러오는 중이에요.');
   });
 });

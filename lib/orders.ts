@@ -37,7 +37,7 @@ export type OrderWithdrawalReasonType = (typeof ORDER_WITHDRAWAL_REASON_TYPES)[n
 
 export const ORDER_WITHDRAWAL_REASON_LABELS: Record<OrderWithdrawalReasonType, string> = {
   change_of_mind: '단순 변심',
-  defect: '굿즈 하자·오배송',
+  defect: '상품 하자·오배송',
 };
 
 export const ORDER_WITHDRAWAL_DEADLINE_LABELS: Record<OrderWithdrawalReasonType, string> = {
@@ -73,13 +73,13 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
   },
   shipping: {
     label: '배송중',
-    title: '굿즈가 배송 중이에요',
-    body: '주문한 굿즈가 배송지로 이동하고 있습니다.',
+    title: '상품이 배송 중이에요',
+    body: '주문한 상품이 배송지로 이동하고 있습니다.',
     tone: 'shipping',
   },
   delivered: {
     label: '배송완료',
-    title: '굿즈가 배송 완료됐어요',
+    title: '상품이 배송 완료됐어요',
     body: '배송이 완료됐습니다. 문제가 있으면 아래에서 반품·교환을 요청할 수 있어요.',
     tone: 'delivered',
   },
@@ -218,10 +218,6 @@ export interface OrderDetail {
   /** DB가 발주확인 이력과 실제 배송 수량으로 판정한다. 조회 불가는 null이며 접수를 열지 않는다. */
   claimEligibility: OrderClaimEligibility | null;
   shipments: ShipmentRecord[];
-  cardPacks: {
-    issuedCount: number;
-    availableCount: number;
-  };
 }
 
 export function isVisibleOrderStatus(value: string): value is VisibleOrderStatus {
@@ -432,7 +428,7 @@ export function formatOrderDateTime(value: string): string {
 export function summarizeOrderItems(items: ReadonlyArray<{ name: string; qty: number }>) {
   const first = items[0];
   const itemCount = items.reduce((total, item) => total + item.qty, 0);
-  if (!first) return { label: '주문한 굿즈', itemCount };
+  if (!first) return { label: '주문한 상품', itemCount };
 
   return {
     label: items.length > 1 ? `${first.name} 외 ${items.length - 1}건` : first.name,
@@ -461,4 +457,4 @@ export function paymentStatusLabel(status: string): string {
    "계약내용에 관한 서면"의 내용이 채널마다 갈리지 않는다(#180 · L4). */
 // 문구는 실제로 강제되는 기한과 일치해야 한다(#189). 사유별 기한은
 // order_withdrawal_deadline_passed가 진실원이고, 이 문구는 그 규칙의 고지다.
-export const LEGAL_WITHDRAWAL_NOTICE = '굿즈를 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 굿즈 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 굿즈 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.';
+export const LEGAL_WITHDRAWAL_NOTICE = '상품을 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 상품 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.';

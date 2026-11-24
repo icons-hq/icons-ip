@@ -8,6 +8,7 @@ import {
   parseOrderEmailDedupeKey,
   restockAlertEmailDedupeKey,
   virtualAccountEmailDedupeKey,
+  depositReversalEmailDedupeKey,
 } from './dedupe';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -109,7 +110,7 @@ describe('재입고 알림 메일 키 (#326)', () => {
   });
 
   /* PD-11 — 옵션 단위 신청은 옵션을 키에 담는다. */
-  it('옵션 단위 신청의 키는 옵션 id 를 담고 굿즈 단위 키와 겹치지 않는다', () => {
+  it('옵션 단위 신청의 키는 옵션 id 를 담고 상품 단위 키와 겹치지 않는다', () => {
     expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, VARIANT_ID))
       .toBe(`restock_alert:${ALERT_ID}:${VARIANT_ID}:${NOTIFIED_AT}`);
     expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, VARIANT_ID))
@@ -120,7 +121,7 @@ describe('재입고 알림 메일 키 (#326)', () => {
 
   /* 발송 경로는 notified 행을 기간 없이 다시 읽고 이미 보낸 사이클을 키로만 거른다. 굿즈 단위 키 형식이
      바뀌면 지난 사이클 메일이 다음 어드민 저장 때 다시 나간다 — 옵션 키가 없으면 예전 형식 그대로다. */
-  it('굿즈 단위(모든 옵션) 신청의 키는 예전 형식과 같다', () => {
+  it('상품 단위(모든 옵션) 신청의 키는 예전 형식과 같다', () => {
     expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, null)).toBe(`restock_alert:${ALERT_ID}:${NOTIFIED_AT}`);
     expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, undefined)).toBe(`restock_alert:${ALERT_ID}:${NOTIFIED_AT}`);
   });
@@ -166,3 +167,12 @@ describe('virtualAccountEmailDedupeKey', () => {
     expect(isOrderEmailTemplateName('order_virtual_account')).toBe(false);
   });
 });
+
+describe('depositReversalEmailDedupeKey', () => {
+  it('재입금 안내는 되돌림마다, 자동 취소 안내는 주문당 하나다', () => {
+    expect(depositReversalEmailDedupeKey(ORDER_ID, { sequence: 1 })).toBe(`order_deposit_reversal:${ORDER_ID}:1`);
+    expect(depositReversalEmailDedupeKey(ORDER_ID, { sequence: 2 })).toBe(`order_deposit_reversal:${ORDER_ID}:2`);
+    expect(depositReversalEmailDedupeKey(ORDER_ID, 'canceled')).toBe(`order_deposit_reversal:${ORDER_ID}:canceled`);
+  });
+});
+

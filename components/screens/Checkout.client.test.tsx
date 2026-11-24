@@ -200,11 +200,11 @@ describe('Checkout 재견적으로 주문 불가가 된 줄의 판매기간 안�
     expect(all(render()).find((node) => node.type === QuoteUnavailableRefresh)!.props.signature).toBe('g13');
     expect(submitButton().props.disabled).toBe(true);
   });
-  it('카탈로그에 판매기간 종료가 반영되면 굿즈 이름 한 줄만 보이고 재고 변경·일반 불가 문구는 없다', () => {
+  it('카탈로그에 판매기간 종료가 반영되면 상품 이름 한 줄만 보이고 재고 변경·일반 불가 문구는 없다', () => {
     unavailableSales();
     props = { ...props, catalog: { goods: [{ ...good, salePeriod: ended }], ips: [] } };
     const text = alerts();
-    expect(text).toContain('판매기간이 끝난 굿즈가 있어요: 홍실 아크릴 블록');
+    expect(text).toContain('판매기간이 끝난 상품이 있어요: 홍실 아크릴 블록');
     expect(text).not.toContain('재고가 변경된');
     expect(text).not.toContain('현재 판매 상태나 재고가 변경된');
   });
@@ -253,7 +253,7 @@ describe('Checkout 결제 전 확인 동의', () => {
 
 /* 화면이 실제로 보인 제한 고지를 서버 액션 9번째 인자로 보내고, 서버가 안내가 바뀌었다고 거절하면 체크를 풀고 주문서를 새로 읽는다. */
 describe('Checkout 제한 고지 대조', () => {
-  it('보인 제한 굿즈 id 목록을 9번째 인자로 보낸다(제한 없으면 빈 목록)', async () => {
+  it('보인 제한 상품 id 목록을 9번째 인자로 보낸다(제한 없으면 빈 목록)', async () => {
     await submit();
     expect(mocks.place.mock.calls[0][8]).toEqual([]);
     acknowledge();

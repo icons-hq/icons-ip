@@ -6,7 +6,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadMyReviewTargets } from '@/lib/reviews.server';
 
 export const metadata: Metadata = {
-  title: '리뷰 수정 — ICONS',
+  title: '리뷰 수정 — 엑스스퀘어',
   description: '작성한 리뷰의 별점, 내용, 사진을 수정하세요.',
   robots: { index: false, follow: false },
 };

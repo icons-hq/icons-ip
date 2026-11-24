@@ -19,7 +19,7 @@ describe('상품상세 거래조건 표시', () => {
     const preview = goodsPurchaseVolumePreview([{ good: first, option, quantity: 2 }, { good: second, quantity: 1 }]);
     expect(preview).toMatchObject({ subtotal: 21000, volumeDiscountTotal: 3000, netSubtotal: 18000 });
     expect(preview?.lines.map(line => line.goodId)).toEqual(['one', 'two']);
-    expect(goodsVolumeConditionLabel(first.transactionOffer)).toBe('같은 굿즈에서 나뉜 항목 합산 3개 이상 구매 시 개당 ₩1,000 할인');
+    expect(goodsVolumeConditionLabel(first.transactionOffer)).toBe('같은 상품에서 나뉜 항목 합산 3개 이상 구매 시 개당 ₩1,000 할인');
     expect(goodsPurchaseVolumePreview([{ good: first, option, quantity: 2 }, { good: { ...second, transactionOffer: {
       ...second.transactionOffer, volume: { ...second.transactionOffer.volume, revision: 2 } } }, quantity: 1 }])).toBeNull();
   });
@@ -27,7 +27,7 @@ describe('상품상세 거래조건 표시', () => {
     const preview = goodsPurchaseVolumePreview([{ good, option, quantity: 2 }, { good, option, quantity: 1 },
       { good: { ...good, id: 'two', price: 5000, transactionOffer: { ...offer, goodId: 'two', volume: null, delivery: null } }, quantity: 1 }]);
     expect(preview).toMatchObject({ subtotal: 29000, volumeDiscountTotal: 3000, netSubtotal: 26000 });
-    expect(goodsVolumeConditionLabel(offer)).toBe('같은 굿즈 3개 이상 구매 시 개당 ₩1,000 할인');
+    expect(goodsVolumeConditionLabel(offer)).toBe('같은 상품 3개 이상 구매 시 개당 ₩1,000 할인');
   });
   it('정상가 조건과 시간 경계를 현재할인 여부와 구분한다', () => {
     const timed = { ...good, transactionOffer: { ...offer, volume: { ...offer.volume!, terms: { ...offer.volume!.terms!, condition: 'regular_subtotal' as const, threshold: 30000,

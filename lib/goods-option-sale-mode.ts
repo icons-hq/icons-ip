@@ -44,9 +44,9 @@ export const RANDOM_OPTION_PREORDER_NOTICE = '옵션은 주문 후 예약 물량
 /** 같은 옵션이 중복될 수 있다는 안내 문장. 1인 배정 상한이 1이면 중복이 없으므로 뺀다. */
 const RANDOM_OPTION_DUPLICATE_SENTENCE = ' 같은 옵션이 중복될 수 있습니다.';
 /** 주문 생성이 random_option_unavailable로 거절됐을 때 주문서 문구. */
-export const PLACE_ORDER_RANDOM_OPTION_MESSAGE = '랜덤 판매 조건이 바뀐 굿즈가 있어요. 장바구니에서 다시 확인해주세요.';
+export const PLACE_ORDER_RANDOM_OPTION_MESSAGE = '랜덤 판매 조건이 바뀐 상품이 있어요. 장바구니에서 다시 확인해주세요.';
 /** 주문 생성이 random_option_limit_exceeded로 거절됐을 때 주문서 문구(같은 옵션 배정 상한 때문에 그 수량을 배정할 수 없다). */
-export const PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE = '같은 옵션 배정 수량이 정해진 랜덤 굿즈가 있어 지금은 그 수량을 주문할 수 없어요. 장바구니에서 수량을 줄여 다시 시도해주세요.';
+export const PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE = '같은 옵션 배정 수량이 정해진 랜덤 상품이 있어 지금은 그 수량을 주문할 수 없어요. 장바구니에서 수량을 줄여 다시 시도해주세요.';
 
 /**
  * 랜덤 판매 상품 상세 안내(확정 카피, 2026-11-11). 예약판매면 '예약 물량에서', 같은 옵션 배정 상한이 있으면 그 문장을 더한다.

@@ -39,8 +39,8 @@ export function MyStoreCredits({ history }: { history: StoreCreditHistory | null
       {!history.enabled ? <p role="status">적립금 지급과 주문 사용을 준비 중입니다. 기존 잔액과 이력은 계속 확인할 수 있습니다.</p> : null}
       <StoreCreditHistoryList history={history} pagePath="/my/store-credits" />
       <div className="wc-coin-guide"><p>적립금 안내</p><ul>
-        <li>적립금은 굿즈 주문 할인에 사용하며 무료 코인·카드팩과 별도로 관리됩니다.</li>
-        <li>쿠폰을 적용한 뒤 남은 굿즈 금액에 사용합니다. 배송비에는 사용할 수 없습니다.</li>
+        <li>적립금은 상품 주문 할인에 사용하며 무료 코인과 별도로 관리됩니다.</li>
+        <li>쿠폰을 적용한 뒤 남은 상품 금액에 사용합니다. 배송비에는 사용할 수 없습니다.</li>
         <li>결제 결과를 확인하는 동안 사용 대기 금액은 다른 주문에 사용할 수 없습니다.</li>
         <li>주문 취소가 확정되면 주문 당시 기준으로 사용분을 복원합니다. 실제 환불 송금과는 처리 시점이 다를 수 있습니다.</li>
         <li>환불 주문에서 받은 적립금은 회수합니다. 이미 사용한 금액은 이후 적립·복원 금액에서 상계하며 현금으로 청구하지 않습니다.</li>

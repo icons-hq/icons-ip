@@ -132,7 +132,7 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('coupon_expired')).toBe('coupon_rejected');
   });
 
-  it('랜덤 판매 굿즈를 주문할 수 없게 된 경우를 재고 변경과 나눈다', () => {
+  it('랜덤 판매 상품을 주문할 수 없게 된 경우를 재고 변경과 나눈다', () => {
     expect(mapPlaceOrderError('random_option_unavailable: good-id')).toBe('random_option_unavailable');
     expect(mapPlaceOrderError('random_option_checkout_unsupported: good-id')).toBe('random_option_unavailable');
     expect(mapPlaceOrderError('random_option_limit_exceeded: good-id')).toBe('random_option_limit_exceeded');
@@ -523,7 +523,7 @@ describe('바로구매 주문(ADR-0030)', () => {
     directGoodId: 'g2',
   };
 
-  it('결제 없이 끝난 바로구매는 장바구니에 다시 담지 않고 그 굿즈 상세에서 다시 구매하게 한다', () => {
+  it('결제 없이 끝난 바로구매는 장바구니에 다시 담지 않고 그 상품 상세에서 다시 구매하게 한다', () => {
     expect(checkoutReorderMode(direct, 'payment_closed', now)).toBe('retry_direct');
     expect(checkoutReorderMode({ ...direct, status: 'canceled', paymentAttempt: null }, 'closed', now)).toBe('retry_direct');
     expect(checkoutReorderMode({ ...direct, hasActiveCancellationRequest: true }, 'payment_closed', now)).toBeNull();
@@ -564,7 +564,7 @@ describe('바로구매 주문(ADR-0030)', () => {
 describe('bankTransferMethodNote', () => {
   it('두 주문서가 같은 무통장 비활성 사유를 쓴다(S26)', () => {
     expect(bankTransferMethodNote({ accountConfigured: false, goodsAllow: true })).toBe('지금은 무통장 입금을 받지 않습니다.');
-    expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: false })).toBe('이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.');
+    expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: false })).toBe('이 주문에는 무통장을 쓸 수 없는 상품이 있어요.');
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: null })).toContain('확인한 뒤');
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: true })).toContain('24시간 안에 입금');
   });

@@ -93,7 +93,7 @@ describe('shipment workbook exchange', () => {
     // 상품주문번호·배송건번호·잘린 번호는 주문번호가 아니다. 같은 주문의 다른 줄도 함께 막는다.
     const wrong = native<WarehouseTrackingParseResult>(await replyBook(GIMPO_EXPORT_HEADERS, ['2026102720000001', '2026102730000001', '202610271000000', '2026102710000009']), 'gimpo');
     expect(wrong.rows.map(row => row.reference)).toEqual(['2026102710000009']);
-    expect(wrong.issues.map(issue => issue.reason)).toEqual(Array(3).fill('주문번호(쇼핑몰)에 ICONS 출고 파일의 전체 주문번호를 그대로 유지해주세요.'));
+    expect(wrong.issues.map(issue => issue.reason)).toEqual(Array(3).fill('주문번호(쇼핑몰)에 엑스스퀘어 출고 파일의 전체 주문번호를 그대로 유지해주세요.'));
     // 숫자 칸으로 바뀐 16자리 번호는 자릿수를 잃었을 수 있어 거절한다.
     const workbook = new ExcelJS.Workbook(), sheet = workbook.addWorksheet('김포');
     sheet.addRow([...GIMPO_EXPORT_HEADERS]);
@@ -133,7 +133,7 @@ describe('shipment workbook exchange', () => {
       { ...line, recipient: '합성 수취인', goodName: '합성 키링', optionName: '빨강', barcode: '0880123456789', erpName: '합성 키링 빨강(ERP)' },
       { ...line, recipient: '합성 수취인', goodName: '합성 엽서', optionName: '', qty: 1 },
     ] }] }, 'xlsx', 'warehouse', NOW);
-    expect(file.name).toBe('icons-출고지시-남양주-20261012-0900.xlsx');
+    expect(file.name).toBe('xsquare-출고지시-남양주-20261012-0900.xlsx');
     const workbook = await loadXlsx(file.bytes);
     expect(workbook.worksheets.map(sheet => sheet.name)).toEqual(['송장양식']);
     const sheet = workbook.worksheets[0];
@@ -272,7 +272,7 @@ describe('shipment workbook exchange', () => {
     const nativeShipment = { ...shipment, orderNumber: '2026102710000001', lines: [{ ...line, recipient: '합성 수취인', goodName: '=합성,상품', optionName: '파랑', deliveryNote: '문 앞', barcode: '0880123456789' }] };
     // 서원 송장양식은 XLSX 양식이고 회신도 XLSX로만 받으므로 CSV를 골라도 XLSX로 만든다.
     const seowon = await buildShipmentExport({ shipments: [{ ...nativeShipment, template: 'seowon_xlsx' }] }, 'csv', 'warehouse', NOW);
-    expect([seowon.extension, seowon.name]).toEqual(['xlsx', 'icons-출고지시-김포-20261012-0900.xlsx']);
+    expect([seowon.extension, seowon.name]).toEqual(['xlsx', 'xsquare-출고지시-김포-20261012-0900.xlsx']);
     expect((await loadXlsx(seowon.bytes)).worksheets[0].getCell('G2').value).toBe('=합성,상품_파랑');
     const gimpo = await buildShipmentExport({ shipments: [{ ...nativeShipment, template: 'wms_csv' }] }, 'csv');
     expect(gimpo.bytes.toString('utf8')).toBe('\uFEFF"상품명(확정)+옵션(수집)+수량(조합용)","상품명(확정)+옵션(확정)+수량(조합용)","수취인주소(1)","수취인명+쇼핑몰명(1)","수취인전화번호1","수취인전화번호2","배송메세지","주문번호(사방넷)","주문번호(쇼핑몰)","옵션별칭","상품명(확정)","옵션(수집)","옵션(확정)","공급단가","주문금액/수량","수량","EA(상품)","수취인우편번호(1)","수취인명","배송비(수집)","운송장번호","바코드","ERP 품명"\r\n'
@@ -334,11 +334,11 @@ describe('shipment workbook exchange', () => {
   it('downloads several warehouses as one ZIP of per-warehouse files so 서원 never receives 김포 rows', async () => {
     const second = { ...shipment, id: 'second', originId: 'namyangju', originName: '남양주', template: 'seowon_xlsx', lines: [{ ...line, recipient: '남양주 수취인' }] };
     const file = await buildShipmentExport({ shipments: [shipment, second] }, 'xlsx', 'warehouse', NOW);
-    expect([file.extension, file.mime, file.name]).toEqual(['zip', 'application/zip', 'icons-출고지시-출고지별-20261012-0900.zip']);
+    expect([file.extension, file.mime, file.name]).toEqual(['zip', 'application/zip', 'xsquare-출고지시-출고지별-20261012-0900.zip']);
     const zip = await JSZip.loadAsync(file.bytes);
-    expect(Object.keys(zip.files).sort()).toEqual(['icons-출고지시-김포-20261012-0900.xlsx', 'icons-출고지시-남양주-20261012-0900.xlsx']);
-    const gimpo = await loadXlsx(await zip.file('icons-출고지시-김포-20261012-0900.xlsx')!.async('nodebuffer'));
-    const seowon = await loadXlsx(await zip.file('icons-출고지시-남양주-20261012-0900.xlsx')!.async('nodebuffer'));
+    expect(Object.keys(zip.files).sort()).toEqual(['xsquare-출고지시-김포-20261012-0900.xlsx', 'xsquare-출고지시-남양주-20261012-0900.xlsx']);
+    const gimpo = await loadXlsx(await zip.file('xsquare-출고지시-김포-20261012-0900.xlsx')!.async('nodebuffer'));
+    const seowon = await loadXlsx(await zip.file('xsquare-출고지시-남양주-20261012-0900.xlsx')!.async('nodebuffer'));
     expect(gimpo.worksheets.map(sheet => sheet.name)).toEqual(['1-김포']);
     expect(gimpo.worksheets[0].getCell('A2').value).toBe(line.shipmentId);
     expect(seowon.worksheets.map(sheet => sheet.name)).toEqual(['송장양식']);
@@ -346,7 +346,7 @@ describe('shipment workbook exchange', () => {
     expect(seowon.worksheets[0].rowCount).toBe(2);
     expect(seowon.worksheets[0].getCell('H2').value).toBe('남양주 수취인');
     const csv = await JSZip.loadAsync((await buildShipmentExport({ shipments: [shipment, { ...shipment, originId: 'second', originName: '김포' }] }, 'csv', 'warehouse', NOW)).bytes);
-    expect(Object.keys(csv.files).sort()).toEqual(['icons-출고지시-김포-20261012-0900-2.csv', 'icons-출고지시-김포-20261012-0900.csv']);
+    expect(Object.keys(csv.files).sort()).toEqual(['xsquare-출고지시-김포-20261012-0900-2.csv', 'xsquare-출고지시-김포-20261012-0900.csv']);
   });
   it('rejects invalid export data before producing a file', async () => {
     await expect(buildShipmentExport({ shipments: [{ ...shipment, lines: [] }] }, 'xlsx')).rejects.toThrow('상품 정보');
@@ -382,9 +382,9 @@ it('keeps native columns and separate gift/COD instructions through XLSX and ZIP
   const csv = await buildShipmentExport({ shipments: [gift] }, 'csv', 'warehouse', NOW);
   expect(csv.extension).toBe('zip'); expect(csv.mime).toBe('application/zip');
   const zip = await JSZip.loadAsync(csv.bytes);
-  expect(Object.keys(zip.files)).toEqual(['icons-출고지시-20261012-0900.csv', 'icons-배송운영안내-20261012-0900.csv']);
-  expect(await zip.file('icons-배송운영안내-20261012-0900.csv')!.async('text')).toContain("\"'=안내문\"");
-  expect(await zip.file('icons-출고지시-20261012-0900.csv')!.async('text')).toContain('선물 수령인');
+  expect(Object.keys(zip.files)).toEqual(['xsquare-출고지시-20261012-0900.csv', 'xsquare-배송운영안내-20261012-0900.csv']);
+  expect(await zip.file('xsquare-배송운영안내-20261012-0900.csv')!.async('text')).toContain("\"'=안내문\"");
+  expect(await zip.file('xsquare-출고지시-20261012-0900.csv')!.async('text')).toContain('선물 수령인');
 });
 
 it('fails before export when a gift address or COD collector contract is incomplete', async () => {

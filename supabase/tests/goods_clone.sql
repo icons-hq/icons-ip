@@ -123,6 +123,7 @@ select 1 / case when exists(
       and clone.ip_id = 'goods-clone-0479'
       and clone.price = 1000
       and clone.compare_at_price = 1500
+      and clone.badge = 'NEW' and clone.badges = array['NEW']
       and clone.image_path = 'public-media/goods-clone-0479/main.webp'
       and clone.description = '원본 설명'
       and clone.detail_image_path = 'public-media/goods-clone-0479/detail.webp'

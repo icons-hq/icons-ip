@@ -45,7 +45,7 @@ describe('ListingHeader', () => {
   });
 
   it('탭이 비었으면 탭 줄을 그리지 않고, 부제는 › 로 시작하는 작은 줄이다', () => {
-    const none = renderToStaticMarkup(<ListingHeader tabs={[]} title="전체 굿즈" />);
+    const none = renderToStaticMarkup(<ListingHeader tabs={[]} title="전체 상품" />);
     expect(none).not.toContain('wc-listing-tabs');
     expect(none).not.toContain('wc-listing-head__sub');
 

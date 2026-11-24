@@ -51,8 +51,8 @@ import {
 export const CLAIM_FAILURE_MESSAGE = '요청을 접수하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.';
 export const CLAIM_DEADLINE_MESSAGE = '신청 기한이 지난 주문입니다. 하자나 오배송이라면 1:1 문의로 알려주세요.';
 export const CLAIM_NOT_AVAILABLE_MESSAGE = '지금은 신청할 수 없는 주문입니다. 최신 상태를 확인해주세요.';
-export const PARTIAL_RETURN_BLOCKED_MESSAGE = '고른 굿즈 가운데 지금 반품할 수 없는 굿즈가 있습니다. 최신 상태를 확인한 뒤 다시 골라주세요.';
-export const PARTIAL_RETURN_SELECTION_REQUIRED = '반품할 굿즈와 수량을 1개 이상 골라주세요.';
+export const PARTIAL_RETURN_BLOCKED_MESSAGE = '고른 상품 가운데 지금 반품할 수 없는 상품이 있습니다. 최신 상태를 확인한 뒤 다시 골라주세요.';
+export const PARTIAL_RETURN_SELECTION_REQUIRED = '반품할 상품과 수량을 1개 이상 골라주세요.';
 /* 가상계좌 환불은 결제대행사에 은행 코드와 숫자 6~20자리 계좌번호를 보낸다(DB 판정 private.virtual_account_refund_account_usable과 같다). */
 export const VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE = '은행은 목록에서 고르고, 계좌번호는 숫자 6~20자리(하이픈 제외)로 입력해주세요.';
 const VIRTUAL_ACCOUNT_REFUND_NUMBER = /^[0-9]{6,20}$/;
@@ -139,16 +139,16 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
       return `${typeLabel} 요청을 검토하고 있습니다.`;
     case 'collecting':
       /* 선물 보낸 분은 받는 분의 주소·회수 송장을 볼 수 없다(개인정보). 회수 정보 확인·반송을 안내하지 않고, 보낸 분이 할 수 있는 일만 말한다(QA2b 기록 1). */
-      if (giftSender) return `요청이 승인됐습니다. 굿즈는 받는 분이 받은 곳에서 회수해요. 받는 분의 주소와 회수 송장은 개인정보라 여기에서는 보여드리지 않아요. 진행 상황은 이 화면과 알림으로 알려드리고, 궁금한 점은 1:1 문의로 알려주세요.`
-        + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.' : '');
+      if (giftSender) return `요청이 승인됐습니다. 상품은 받는 분이 받은 곳에서 회수해요. 받는 분의 주소와 회수 송장은 개인정보라 여기에서는 보여드리지 않아요. 진행 상황은 이 화면과 알림으로 알려드리고, 궁금한 점은 1:1 문의로 알려주세요.`
+        + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 상품은 반송하지 않아도 됩니다.' : '');
       /* 회수 주소는 승인 때 굿즈마다 고정한 반품지다(S36-040). 배송 묶음별 주소는 아래 회수 정보에서 확인한다(QNA-031). */
       return (returnPickupCollectingNotice(returnPickup)
-        ?? '요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.')
-        + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.' : '');
+        ?? '요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 상품을 반송해주세요.')
+        + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 상품은 반송하지 않아도 됩니다.' : '');
     case 'collected':
       return claim.claimType === 'exchange'
-        ? '반송하신 굿즈가 입고됐습니다. 교환 굿즈 재출고를 준비하고 있습니다.'
-        : '반송하신 굿즈가 모두 입고됐습니다. 반환받은 날부터 영업일 기준 3일 이내에 환급합니다. 담당자의 확인이 늦어져도 기한은 연장되지 않습니다.';
+        ? '반송하신 상품이 입고됐습니다. 교환 상품 재출고를 준비하고 있습니다.'
+        : '반송하신 상품이 모두 입고됐습니다. 반환받은 날부터 영업일 기준 3일 이내에 환급합니다. 담당자의 확인이 늦어져도 기한은 연장되지 않습니다.';
     case 'on_hold':
       /* 보류 사유는 hold_reason이고 그 칸은 구매자에게 grant하지 않는다(운영 메모).
          decisionNote는 승인 시 비워지므로 여기서 읽으면 언제나 fallback만 나갔다.
@@ -156,18 +156,18 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
       return '처리가 보류됐습니다. 보류 사유는 알림으로 안내해드렸습니다. 추가로 궁금한 점은 1:1 문의로 알려주세요.';
     case 'processing':
       return partialReturn
-        ? '반품하신 굿즈의 환급 절차를 진행하고 있습니다. 결제사 부분 취소 또는 계좌 송금으로 환불하며, 결제수단에 따라 반영 시점이 다를 수 있습니다.'
+        ? '반품하신 상품의 환급 절차를 진행하고 있습니다. 결제사 부분 취소 또는 계좌 송금으로 환불하며, 결제수단에 따라 반영 시점이 다를 수 있습니다.'
         : '환급 절차를 진행하고 있습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.';
     case 'needs_review':
       /* 부분 반품은 결제사가 부분 취소를 받지 않으면 여기 머문다 — 결제 담당이 계좌 송금으로 환불한다(전액 취소로 돌리지 않는다). */
       return partialReturn
-        ? '반품하신 굿즈의 환불 방법을 담당자가 확인하고 있습니다. 결제 수단이 일부 금액 취소를 받지 않으면 담당자가 연락드려 계좌로 송금해 드리며, 반환받은 날부터 영업일 기준 3일 이내 환급 기한은 그대로입니다.'
+        ? '반품하신 상품의 환불 방법을 담당자가 확인하고 있습니다. 결제 수단이 일부 금액 취소를 받지 않으면 담당자가 연락드려 계좌로 송금해 드리며, 반환받은 날부터 영업일 기준 3일 이내 환급 기한은 그대로입니다.'
         : '결제 취소 결과를 안전하게 확인하고 있습니다. 중복 처리는 진행하지 않습니다.';
     case 'completed':
       return claim.claimType === 'exchange'
         ? claim.reshipDeliveredAt
           ? '교환품의 배송완료가 확인됐습니다. 추가 반품·교환은 신청 가능 여부와 기한을 확인해주세요.'
-          : '교환 굿즈를 재출고했습니다. 모든 교환품의 배송완료 확인 뒤에 다시 반품·교환을 신청할 수 있습니다.'
+          : '교환 상품을 재출고했습니다. 모든 교환품의 배송완료 확인 뒤에 다시 반품·교환을 신청할 수 있습니다.'
         : '환급 처리가 완료됐습니다.';
     case 'rejected':
       return `요청이 거절됐습니다. ${claim.decisionNote ?? '자세한 내용은 1:1 문의로 확인해주세요.'}`;
@@ -337,7 +337,7 @@ export function OrderClaimRequest({
           ) : null}
           {selectedClaimItems.length ? (
             <div>
-              <dt>반품 굿즈</dt>
+              <dt>반품 상품</dt>
               <dd>{partialReturnItemsLabel(selectedClaimItems)}</dd>
             </div>
           ) : null}
@@ -372,7 +372,7 @@ export function OrderClaimRequest({
 
             {claimType === 'return' && partialReturn.enabled ? (
               <fieldset className="order-cancellation-reason" data-partial-return-scope={returnScope}>
-                <legend>반품할 굿즈</legend>
+                <legend>반품할 상품</legend>
                 <label>
                   <input checked={!partialScope} name="order-claim-return-scope" onChange={() => setReturnScope('whole')} type="radio" value="whole" />
                   주문 전체
@@ -386,7 +386,7 @@ export function OrderClaimRequest({
                     type="radio"
                     value="partial"
                   />
-                  일부 굿즈만 고르기
+                  일부 상품만 고르기
                 </label>
                 {partialReturn.blocker ? <p className="money-caption">{partialReturnOrderBlockerLabel(partialReturn.blocker)}</p> : null}
                 {partialScope ? (
@@ -416,7 +416,7 @@ export function OrderClaimRequest({
                             />
                           )}
                           {item.returnRestricted ? (
-                            <p className="money-caption">반품 제한 굿즈입니다{item.restrictionReason ? `(${item.restrictionReason})` : ''}. 단순 변심 반품은 담당자 확인 뒤 거절될 수 있고, 하자·오배송은 제한 없이 받습니다.</p>
+                            <p className="money-caption">반품 제한 상품입니다{item.restrictionReason ? `(${item.restrictionReason})` : ''}. 단순 변심 반품은 담당자 확인 뒤 거절될 수 있고, 하자·오배송은 제한 없이 받습니다.</p>
                           ) : null}
                         </li>
                       );

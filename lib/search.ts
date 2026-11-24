@@ -6,8 +6,11 @@ import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/me
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { resolveCatalogSource } from './catalog-source';
+import { goodBadgeList } from './goods-taxonomy';
 
-export type SearchResultKind = 'ip' | 'good' | 'card' | 'post' | 'tag';
+/* 공개 검색 RPC(search_public_content)는 카드 행도 돌려준다. 카드 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠으므로(ADR-0052)
+   'card' 는 결과 종류가 아니다 — 아래 isSearchResultKind 가 카드 행을 버린다. */
+export type SearchResultKind = 'ip' | 'good' | 'post' | 'tag';
 
 export interface SearchResult {
   kind: SearchResultKind;
@@ -40,12 +43,11 @@ const MAX_QUERY_LENGTH = 80;
 const DEFAULT_PER_GROUP_LIMIT = 6;
 const GROUP_LABELS: Record<SearchResultKind, string> = {
   ip: 'IP',
-  good: '굿즈',
-  card: '카드',
+  good: '상품',
   post: '포스트',
   tag: '태그',
 };
-const GROUP_ORDER: SearchResultKind[] = ['ip', 'good', 'card', 'post', 'tag'];
+const GROUP_ORDER: SearchResultKind[] = ['ip', 'good', 'post', 'tag'];
 
 interface SearchRpcRow {
   kind: string | null;
@@ -66,7 +68,7 @@ export function normalizeSearchQuery(rawQuery: string | string[] | null | undefi
 }
 
 function isSearchResultKind(value: string | null): value is SearchResultKind {
-  return value === 'ip' || value === 'good' || value === 'card' || value === 'post' || value === 'tag';
+  return value === 'ip' || value === 'good' || value === 'post' || value === 'tag';
 }
 
 function toSearchResult(row: SearchRpcRow, imageUrlForPath?: (path: string) => string): SearchResult | null {
@@ -94,18 +96,9 @@ const HIDDEN_SEARCH_KINDS: ReadonlySet<SearchResultKind> = new Set(
   COMMUNITY_ENABLED ? [] : (['post', 'tag'] as SearchResultKind[]),
 );
 
-/* 카드 결과는 카드 바인더(도감)로만 이어진다 — 바인더가 숨김(DB 공개 스위치, lib/collectible-features.ts)이면 카드 결과도 걷어낸다.
-   남기면 눌렀을 때 404 로 떨어진다. displayedTotal 도 이 뒤에서 센다. */
-function visibleSearchResults(results: SearchResult[], options: SearchVisibilityOptions): SearchResult[] {
-  return results.filter((result) => !HIDDEN_SEARCH_KINDS.has(result.kind) && (options.binderEnabled || result.kind !== 'card'));
+function visibleSearchResults(results: SearchResult[]): SearchResult[] {
+  return results.filter((result) => !HIDDEN_SEARCH_KINDS.has(result.kind));
 }
-
-export interface SearchVisibilityOptions {
-  /** 카드 바인더 공개 여부. 호출부가 넘기지 않으면 꺼짐(카드 결과 숨김)으로 본다. */
-  binderEnabled: boolean;
-}
-
-const SEARCH_VISIBILITY_OFF: SearchVisibilityOptions = { binderEnabled: false };
 
 function groupSearchResults(results: SearchResult[]) {
   return GROUP_ORDER.map((kind) => ({
@@ -136,7 +129,7 @@ function mockScore(query: string, primary: string) {
   return primary.toLowerCase().includes(query.toLowerCase()) ? 1 : 0.5;
 }
 
-function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions): SearchSnapshot {
+function getMockSearchSnapshot(query: string): SearchSnapshot {
   const ipsByTitle = new Map(DATA.IPS.map((ip) => [ip.title, ip]));
   const ipsById = new Map(DATA.IPS.map((ip) => [ip.id, ip]));
 
@@ -156,7 +149,7 @@ function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions):
       score: mockScore(query, ip.title),
     })),
     ...DATA.GOODS.filter((good) =>
-      matchesQuery(query, [good.name, good.badge, ipsById.get(good.ip)?.title]),
+      matchesQuery(query, [good.name, ...goodBadgeList(good), ipsById.get(good.ip)?.title]),
     ).map((good) => {
       const ip = ipsById.get(good.ip);
       return {
@@ -170,23 +163,6 @@ function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions):
         bg: good.img,
         accent: ip?.v.color ?? null,
         score: mockScore(query, good.name),
-      };
-    }),
-    ...DATA.CARDS.filter((card) =>
-      matchesQuery(query, [card.name, card.no, card.rarity, ipsById.get(card.ip)?.title]),
-    ).map((card) => {
-      const ip = ipsById.get(card.ip);
-      return {
-        kind: 'card' as const,
-        id: card.id,
-        label: card.name,
-        subtitle: [ip?.title, card.rarity, card.no].filter(Boolean).join(' · '),
-        ipId: card.ip,
-        ipTitle: ip?.title ?? null,
-        imagePath: null,
-        bg: card.bg,
-        accent: ip?.v.color ?? null,
-        score: mockScore(query, card.name),
       };
     }),
     ...DATA.POSTS.filter((post) =>
@@ -222,7 +198,7 @@ function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions):
       })),
   ].sort((left, right) => right.score - left.score);
 
-  const visible = visibleSearchResults(results, options);
+  const visible = visibleSearchResults(results);
 
   return {
     source: 'mock',
@@ -232,12 +208,12 @@ function getMockSearchSnapshot(query: string, options: SearchVisibilityOptions):
   };
 }
 
-export async function getSearchSnapshot(rawQuery: string | string[] | null | undefined, options: SearchVisibilityOptions = SEARCH_VISIBILITY_OFF): Promise<SearchSnapshot> {
+export async function getSearchSnapshot(rawQuery: string | string[] | null | undefined): Promise<SearchSnapshot> {
   const query = normalizeSearchQuery(rawQuery);
   const source = resolveCatalogSource({ isSupabaseConfigured: getSupabaseConfig().isConfigured });
 
   if (!query) return emptySnapshot(source, query);
-  if (source === 'mock') return getMockSearchSnapshot(query, options);
+  if (source === 'mock') return getMockSearchSnapshot(query);
 
   const supabase = await createClient();
   const imageUrlForPath = (path: string) => {
@@ -259,7 +235,7 @@ export async function getSearchSnapshot(rawQuery: string | string[] | null | und
     .map((row) => toSearchResult(row, imageUrlForPath))
     .filter((result): result is SearchResult => result !== null);
 
-  const visible = visibleSearchResults(results, options);
+  const visible = visibleSearchResults(results);
   const ipIds = [...new Set(visible.flatMap(result => result.ipId ? [result.ipId] : result.kind === 'ip' ? [result.id] : []))];
   if (ipIds.length > 0) {
     const identities = await supabase.from('ips').select('id,public_slug')

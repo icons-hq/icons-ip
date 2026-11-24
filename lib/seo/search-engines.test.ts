@@ -32,7 +32,7 @@ describe('robots.txt (1014-029)', () => {
     }
   });
 
-  it('사이트맵에 싣는 공개 화면·IP관·굿즈 상세를 닫지 않는다', () => {
+  it('사이트맵에 싣는 공개 화면·IP관·상품 상세를 닫지 않는다', () => {
     for (const path of [...SITEMAP_STATIC_PATHS, '/shop/g4', '/ip/maplestory', '/login', '/search']) {
       expect(blocked(path), path).toBe(false);
     }
@@ -48,7 +48,7 @@ describe('robots.txt (1014-029)', () => {
 });
 
 describe('sitemap.xml (1014-029)', () => {
-  it('공개 목록 화면·공개 IP관·공개 굿즈 상세를 절대 주소로 싣는다', () => {
+  it('공개 목록 화면·공개 IP관·공개 상품 상세를 절대 주소로 싣는다', () => {
     const sitemap = buildSitemap(ORIGIN, {
       ips: [
         { id: 'ip-maple', publicSlug: 'maplestory', updatedAt: '2026-11-01T00:00:00Z' },
@@ -57,6 +57,7 @@ describe('sitemap.xml (1014-029)', () => {
       goods: [
         { id: 'g4', updatedAt: '2026-11-10T09:30:00Z' },
         { id: 'g-new', updatedAt: 'not-a-date' },
+        { id: 'hongsilkweseuteu-akeuril-hyudaepon-kiring', code: 'HSQ-0059', updatedAt: null },
       ],
     });
     const urls = sitemap.map((entry) => entry.url);
@@ -68,6 +69,9 @@ describe('sitemap.xml (1014-029)', () => {
     expect(sitemap).toContainEqual({ url: 'https://iconsip.com/ip/ip-no-slug' });
     expect(sitemap).toContainEqual({ url: 'https://iconsip.com/shop/g4', lastModified: new Date('2026-11-10T09:30:00Z') });
     expect(sitemap).toContainEqual({ url: 'https://iconsip.com/shop/g-new' });
+    /* 상품 자동코드가 있으면 공개 상세의 정식 주소(ADR-0050)를 싣고, 옛 주소(내부 id)는 싣지 않는다. */
+    expect(sitemap).toContainEqual({ url: 'https://iconsip.com/shop/hsq-0059' });
+    expect(urls).not.toContain('https://iconsip.com/shop/hongsilkweseuteu-akeuril-hyudaepon-kiring');
     /* 비공개·noindex·스위치 화면은 싣지 않는다. */
     for (const path of ['/packs', '/community', '/ip/aouad', '/search', '/cart', '/my']) {
       expect(urls, path).not.toContain(`${ORIGIN}${path}`);

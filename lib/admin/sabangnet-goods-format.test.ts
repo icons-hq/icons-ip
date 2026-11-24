@@ -125,7 +125,7 @@ describe('사방넷 CSV 읽기', () => {
   });
 });
 
-describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
+describe('사방넷 행 → 엑스스퀘어 일괄 등록 행 변환', () => {
   it('옵션 없는 상품은 기본 옵션 한 행이며 TAG가가 판매가보다 클 때만 판매가(할인 전)·즉시할인이 된다', () => {
     const { rows, warnings, ignoredColumns, products } = convert([
       sheetRow(5, { 상품명: '메이플 머그', 자체상품코드: 'mp-mug-01', 판매가: '15,000원', TAG가: '18000', 원가: '7000', 모델명: 'MUG-1' }),
@@ -169,7 +169,7 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     expect(warnings.get(8)).toEqual(expect.arrayContaining([expect.stringContaining("'옵션'")]));
   });
 
-  it('HTML 상세·이미지 주소·인증 정보·빈 칸을 ICONS 칸 규칙에 맞춘다', () => {
+  it('HTML 상세·이미지 주소·인증 정보·빈 칸을 엑스스퀘어 칸 규칙에 맞춘다', () => {
     const { rows, warnings } = convert([
       sheetRow(9, {
         상품명: '포스터', 판매가: '5000', 사이트검색어: '포스터, 메이플,포스터',
@@ -196,7 +196,7 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     expect(warnings.get(10) ?? []).not.toEqual(expect.arrayContaining([expect.stringContaining('이미지 주소를 읽지 못해')]));
   });
 
-  it('추가 이미지는 ICONS 추가 이미지 칸 수(9장)까지만 가져온다', () => {
+  it('추가 이미지는 엑스스퀘어 추가 이미지 칸 수(9장)까지만 가져온다', () => {
     const numbers = Array.from({ length: 11 }, (_, index) => index + 1);
     const headers = ['상품명', ...numbers.map((n) => `부가이미지${n + 1}`)];
     const result = convertSabangnetRows({
@@ -241,7 +241,7 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     expect(() => convert(rows)).toThrow('510행');
   });
 
-  it('변환한 행은 기존 ICONS 검증을 그대로 통과해 신규 초안이 된다', () => {
+  it('변환한 행은 기존 엑스스퀘어 검증을 그대로 통과해 신규 초안이 된다', () => {
     const { rows } = convert([
       sheetRow(5, { 상품명: '메이플 머그', 자체상품코드: 'MP-MUG-01', 판매가: '15000', TAG가: '18000', '옵션제목(1)': '색상', '옵션상세명칭(1)': '화이트,블랙(+500)', 상품상세설명: '<p>도자기 머그</p>', 대표이미지: 'https://img.example.com/mug.jpg' }),
       sheetRow(6, { 상품명: '스티커', 판매가: '3000' }),

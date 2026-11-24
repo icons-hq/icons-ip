@@ -14,7 +14,7 @@ describe('shipping quote contract', () => {
     /* 고객 화면은 출고지 이름을 말하지 않는다(10/14 회의 S7). */
     expect(shippingPolicyDescription(policy)).not.toContain('김포');
     expect(shippingPolicyDescription({...policy,feeType:'free'})).toBe('무료배송');
-    expect(shippingPolicyDescription({...policy,feeType:'individual',individualFee:2700})).toContain('굿즈당 1회');
+    expect(shippingPolicyDescription({...policy,feeType:'individual',individualFee:2700})).toContain('상품당 1회');
   });
 });
 
@@ -126,9 +126,9 @@ describe('good shipping region fee summary', () => {
     expect(shippingRegionFeeDescription({ ...listed, waivedAtFreeThreshold: true }))
       .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회, 무료배송 조건을 채우면 면제).');
     expect(shippingRegionFeeDescription({ ...listed, feeUnit: 'per_good' }))
-      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(굿즈당 1회).');
+      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(상품당 1회).');
     expect(shippingRegionFeeDescription({ ...listed, feeUnit: 'per_good', waivedAtFreeThreshold: true }))
-      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(굿즈당 1회, 무료배송 조건을 채우면 면제).');
+      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(상품당 1회, 무료배송 조건을 채우면 면제).');
     expect(shippingRegionFeeDescription({ ...listed, feeUnit: null })).toBeNull();
     for (const state of ['none', 'unresolved'] as const) expect(shippingRegionFeeDescription({ ...none, state })).toBeNull();
     expect(shippingRegionFeeDescription(null)).toBeNull();

@@ -92,6 +92,6 @@ export function loyaltyProgressNote(current: LoyaltyGrade, spend: number, count:
   const amountRemaining = next.amount === null ? null : Math.max(0, next.amount - spend);
   const countRemaining = next.itemCount === null ? null : Math.max(0, next.itemCount - count);
   if (amountRemaining === 0 || countRemaining === 0) return `${next.grade.toUpperCase()} 조건 충족 · 다음 재산정 시 반영`;
-  const conditions = [amountRemaining === null ? null : `${amountRemaining.toLocaleString('ko-KR')}원`, countRemaining === null ? null : `굿즈 주문 항목 ${countRemaining.toLocaleString('ko-KR')}건`].filter(Boolean);
+  const conditions = [amountRemaining === null ? null : `${amountRemaining.toLocaleString('ko-KR')}원`, countRemaining === null ? null : `상품 주문 항목 ${countRemaining.toLocaleString('ko-KR')}건`].filter(Boolean);
   return `${next.grade.toUpperCase()}까지 ${conditions.join(' 또는 ')}`;
 }

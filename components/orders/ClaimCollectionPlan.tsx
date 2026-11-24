@@ -22,12 +22,12 @@ type Request = { shipmentId: string; revision: number; claimRevision: number; va
  */
 export function ClaimReturnBundles({ row, operator }: { row: ClaimCollectionRow; operator: boolean }) {
   /* 배송 분실(택배사 확인, 원장 #15)로 회수를 생략한 배송 건은 "다시 보내드려요"라고 말하지 않는다(반품이면 회수 없이 환불). */
-  if (row.carrierLoss && !operator) return <p data-claim-collection-waived="" data-claim-carrier-loss="">배송 중 분실이 확인된 배송 묶음이에요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.</p>;
-  if (row.collectionWaived && !operator) return <p data-claim-collection-waived="">회수 없이 다시 보내드려요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.</p>;
+  if (row.carrierLoss && !operator) return <p data-claim-collection-waived="" data-claim-carrier-loss="">배송 중 분실이 확인된 배송 묶음이에요. 이 배송 묶음의 상품은 반송하지 않아도 됩니다.</p>;
+  if (row.collectionWaived && !operator) return <p data-claim-collection-waived="">회수 없이 다시 보내드려요. 이 배송 묶음의 상품은 반송하지 않아도 됩니다.</p>;
   const bundles = row.returnBundles ?? [];
   return <>
     {row.collectionWaived ? <p data-claim-collection-waived="">{row.carrierLoss ? '배송 분실로 기록한 배송 건입니다.' : '회수 생략으로 결정한 배송 건입니다.'}</p> : null}
-    {bundles.length > 1 ? <p>굿즈마다 보내는 곳이 달라 {bundles.length}곳으로 나눠 보내주세요.</p> : null}
+    {bundles.length > 1 ? <p>상품마다 보내는 곳이 달라 {bundles.length}곳으로 나눠 보내주세요.</p> : null}
     {bundles.length ? <ul className="claim-collection-plan__bundles" aria-label="회수 주소">{bundles.map((bundle, index) => <li key={bundle.bundleId} data-claim-return-bundle="">
       <small>{bundles.length > 1 ? `회수 주소 ${index + 1}/${bundles.length}` : '회수 주소'}{bundle.collectedAt ? ` · 입고 확인 ${formatOrderDateTime(bundle.collectedAt)}` : ''}</small>
       <span>{bundle.returnName ? `${bundle.returnName} · ` : ''}{bundle.returnAddress || '판매자가 회수 주소를 따로 안내합니다.'}{bundle.returnPhone ? ` · ${bundle.returnPhone}` : ''}</span>

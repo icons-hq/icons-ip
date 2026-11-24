@@ -13,11 +13,11 @@ const filled: GoodsNoticeInfo = {
   material: '아크릴',
   size: '80 x 60 x 20mm · 90g',
   madeOn: '2026-07',
-  asManager: '아이콘스 고객센터',
+  asManager: '엑스스퀘어 고객센터',
   asContact: '02-000-0000',
 };
 
-describe('굿즈 고시정보', () => {
+describe('상품 고시정보', () => {
   it('폼 이름과 라벨을 한 곳에서 정의한다', () => {
     expect(GOODS_NOTICE_FIELDS.map((field) => field.key)).toEqual([
       'maker',

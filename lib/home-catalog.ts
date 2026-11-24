@@ -1,5 +1,5 @@
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
-import type { Card, FandomEvent, Good, Ip } from './data';
+import type { FandomEvent, Good, Ip } from './data';
 import type { GoodsReviewSummary } from './goods-review-summary';
 import type { HomeBlockKey } from './home-layout';
 import type { HomeMosaicBand } from './home-mosaic';
@@ -7,9 +7,9 @@ import type { HomeProductCollectionBand } from './home-product-collection';
 import type { HomeReviewBestBand, HomeSalesBestBand } from './home-ranking';
 import type { PublicShoppingStorySummary } from './shopping-stories';
 import type { HomeHeroImageDim, HomeHeroTextColor } from './home-hero';
-import { COLLECTIBLE_FEATURE_IDS, type CollectibleFeatures } from './collectible-features';
 import { publicIpHref } from './ip-identity';
 import { productCardChips, productCardUnavailableLabel, type ProductCardChip } from './product-card-chips';
+import { goodDetailHref } from '@/lib/goods-display';
 
 export const MAX_HOME_PICKER_IPS = 5;
 
@@ -87,68 +87,41 @@ export interface NoticeStrip {
   href: string;
 }
 
-/* 카드 리워드 게이트가 꺼진 배포에서 카드팩·게임으로 가는 공개 CTA 를 숨기는
-   판정 — GNB(packs 필터)·구 홈이 쓰던 규칙과 같은 목적지 집합이다. 파싱이
-   불가능한 href 는 안전하게 게이트 대상으로 취급한다. */
-export function isCardRewardDestination(href: string): boolean {
-  try {
-    const pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
-    return pathname === '/packs'
-      || pathname.startsWith('/packs/')
-      || pathname === '/games'
-      || pathname.startsWith('/games/');
-  } catch {
-    return true;
-  }
-}
+/* 2026-11-24 일반 쇼핑몰 전환으로 지운 화면(카드팩·게임·바인더·마켓·트레이드, ADR-0052)으로 가는 공개 링크를 숨기는 판정.
+   어드민 타깃 목록에는 없지만 예전에 걸어 둔 큐레이션·공지의 사이트 안 주소가 남아 있으면 404 로 떨어지는 링크가 된다.
+   `/games/hyosan-memories`(지우학 캠페인)도 예전 카드 리워드 게이트처럼 큐레이션·공지에서는 걸러 둔다 — 캠페인 화면 안에서만 연다.
+   파싱이 불가능한 href 는 안전하게 숨김 대상으로 취급한다. */
+const RETIRED_DESTINATION_ROOTS = ['/packs', '/games', '/binder', '/market', '/exchange', '/gacha'] as const;
 
-/**
- * 게이트가 꺼진 화면이 카드 리워드 목적지 큐레이션을 걸러낼 때 쓴다.
- * 혜택 타일도 다른 큐레이션처럼 목적지 기준이다 — 카드팩·게임으로 가는 타일만 빠지고 쿠폰·이벤트 같은
- * 혜택 타일은 게이트와 무관하게 남는다(12 LD-15, 11 DT-11). 예전에는 밴드를 통째로 비웠다.
- */
-export function withoutCardRewardCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
-  return {
-    ...curation,
-    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isCardRewardDestination(slide.href)),
-    editorPicks: curation.editorPicks.filter((pick) => !isCardRewardDestination(pick.href)),
-    goodsBands: curation.goodsBands.filter((band) => !isCardRewardDestination(band.href)),
-    benefitTiles: curation.benefitTiles.filter((tile) => !isCardRewardDestination(tile.href)),
-    ...(curation.stripBanner === undefined ? {} : {
-      stripBanner: curation.stripBanner && !isCardRewardDestination(curation.stripBanner.href) ? curation.stripBanner : null,
-    }),
-  };
-}
-
-/* 운영하지 않는 수집·거래 기능(카드 바인더·굿즈 마켓·카드 트레이드)으로 가는 큐레이션·공지를 DB 공개 스위치가 꺼진 동안 걸러낸다
-   (lib/collectible-features.ts). 어드민 타깃 목록에는 없지만 직접 입력한 사이트 안 주소가 남아 있으면 404 로 떨어지는 링크가 된다.
-   파싱 불가 href 는 카드 리워드 판정과 같은 이유로 안전하게 숨김 대상으로 본다. */
-export function isHiddenCollectibleDestination(href: string, features: CollectibleFeatures): boolean {
+export function isRetiredDestination(href: string): boolean {
   let pathname: string;
   try {
     pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
   } catch {
     return true;
   }
-  return COLLECTIBLE_FEATURE_IDS.some((id) => !features[id] && (pathname === `/${id}` || pathname.startsWith(`/${id}/`)));
+  return RETIRED_DESTINATION_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
-export function withoutHiddenCollectibleCurations(curation: HomeCurationSnapshot, features: CollectibleFeatures): HomeCurationSnapshot {
-  const hidden = (href: string) => isHiddenCollectibleDestination(href, features);
+/**
+ * 지운 화면으로 가는 큐레이션을 걸러낸다. 혜택 타일도 다른 큐레이션처럼 목적지 기준이다 — 지운 화면으로 가는 타일만 빠지고
+ * 쿠폰·이벤트 같은 혜택 타일은 남는다(12 LD-15, 11 DT-11).
+ */
+export function withoutRetiredCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
     ...curation,
-    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !hidden(slide.href)),
-    editorPicks: curation.editorPicks.filter((pick) => !hidden(pick.href)),
-    goodsBands: curation.goodsBands.filter((band) => !hidden(band.href)),
-    benefitTiles: curation.benefitTiles.filter((tile) => !hidden(tile.href)),
+    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isRetiredDestination(slide.href)),
+    editorPicks: curation.editorPicks.filter((pick) => !isRetiredDestination(pick.href)),
+    goodsBands: curation.goodsBands.filter((band) => !isRetiredDestination(band.href)),
+    benefitTiles: curation.benefitTiles.filter((tile) => !isRetiredDestination(tile.href)),
     ...(curation.stripBanner === undefined ? {} : {
-      stripBanner: curation.stripBanner && !hidden(curation.stripBanner.href) ? curation.stripBanner : null,
+      stripBanner: curation.stripBanner && !isRetiredDestination(curation.stripBanner.href) ? curation.stripBanner : null,
     }),
   };
 }
 
 /** 혜택 타일 아이콘(`components/ui/Icon` 이름). 레퍼런스 아이콘 대신 ICONS 아이콘 세트에서 목적지로 고른다(11 HM-07). */
-export type HomeBenefitIcon = 'card' | 'spark' | 'event' | 'shop' | 'ip' | 'star';
+export type HomeBenefitIcon = 'event' | 'shop' | 'ip' | 'star';
 
 export function benefitTileIcon(href: string): HomeBenefitIcon {
   let pathname: string;
@@ -158,8 +131,6 @@ export function benefitTileIcon(href: string): HomeBenefitIcon {
     return 'star';
   }
   const under = (root: string) => pathname === root || pathname.startsWith(`${root}/`);
-  if (under('/packs')) return 'card';
-  if (under('/games')) return 'spark';
   if (under('/events') || under('/review-events') || under('/offline-popups')) return 'event';
   if (under('/shop')) return 'shop';
   if (under('/ip')) return 'ip';
@@ -168,7 +139,7 @@ export function benefitTileIcon(href: string): HomeBenefitIcon {
 
 /* 커뮤니티가 임시 비공개인 동안 커뮤니티로 가는 큐레이션 배너를 걸러낸다. 어드민 타깃 목록에서
    이미 걸어 둔 히어로·공지·노티스가 살아 있으면 공개 지면에 404로 떨어지는 링크가 남는다.
-   파싱 불가 href 는 카드 리워드 판정과 같은 이유로 안전하게 게이트 대상으로 본다. */
+   파싱 불가 href 는 지운 화면 판정과 같은 이유로 안전하게 게이트 대상으로 본다. */
 export function isCommunityDestination(href: string): boolean {
   try {
     const pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
@@ -180,8 +151,7 @@ export function isCommunityDestination(href: string): boolean {
 
 /**
  * 커뮤니티가 닫힌 화면이 커뮤니티 목적지 큐레이션을 통째로 걸러낼 때 쓴다.
- * 혜택 타일도 같다 — 카드 리워드 게이트가 혜택 밴드를 통째로 비우던 동안에는 게이트 OFF 화면에서 이 구멍이
- * 가려졌지만, 목적지 기준 게이트(12 LD-15)로 바뀐 뒤에는 커뮤니티로 가는 혜택 타일이 남아 404 로 떨어진다.
+ * 혜택 타일도 같다 — 목적지 기준 게이트(12 LD-15)라 커뮤니티로 가는 혜택 타일만 빠진다.
  */
 export function withoutCommunityCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
@@ -229,7 +199,10 @@ export interface HomeGoodsCard {
   /** 취소선 정가(`Good.compareAtPrice`)와 할인율 표시 여부 — 카드 가격 줄의 할인율을 목록 화면과 같은 규칙(`PriceBlock`)으로 그린다. 옛 투영은 없다. */
   compareAtPrice?: number | null;
   showDiscountRate?: boolean;
+  /** 상품 표시문구 첫 값(`Good.badge`). */
   badge: string | null;
+  /** 상품 표시문구 전부(고른 순서). 칩이 없는 카드(`chips` 없음)가 운영 배지 칩으로 그린다. 옛 투영은 없고 `badge` 하나로 읽는다. */
+  badges?: string[];
   imageBg: string;
   href: string;
   soldOut: boolean;
@@ -377,7 +350,7 @@ export function resolveHomeGoodsCards(
       showDiscountRate: good.showDiscountRate,
       badge: good.badge ?? null,
       imageBg: good.img,
-      href: `/shop/${good.id}`,
+      href: goodDetailHref(good),
       soldOut,
       ...(unavailableLabel ? { unavailableLabel } : {}),
       chips: productCardChips(good),
@@ -414,7 +387,6 @@ export interface HomeIpWorld {
   selectableIps: Ip[];
   selectedIp: Ip | null;
   representativeGood: Good | null;
-  representativeCard: Card | null;
   representativeEvent: FandomEvent | null;
   representativePost: CatalogPostPreview | null;
 }
@@ -456,7 +428,7 @@ export function getHomeSelectableIps(
 }
 
 export function buildHomeIpWorld(
-  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'cards' | 'events'>,
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'events'>,
   selectedIpId?: string | null,
   postPreviewByIpId: HomePostPreviewByIpId = {},
 ): HomeIpWorld {
@@ -468,7 +440,6 @@ export function buildHomeIpWorld(
       selectableIps,
       selectedIp: null,
       representativeGood: null,
-      representativeCard: null,
       representativeEvent: null,
       representativePost: null,
     };
@@ -478,7 +449,6 @@ export function buildHomeIpWorld(
     selectableIps,
     selectedIp,
     representativeGood: catalog.goods.find((good) => good.ip === selectedIp.id) ?? null,
-    representativeCard: catalog.cards.find((card) => card.ip === selectedIp.id) ?? null,
     representativeEvent: catalog.events.find((event) => event.ip === selectedIp.id) ?? null,
     representativePost: postPreviewByIpId[selectedIp.id] ?? null,
   };

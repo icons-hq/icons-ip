@@ -35,7 +35,7 @@ export async function prepareGoodsSubscriptionAction(input: Context & { selectio
     const { data, error } = await client.rpc('prepare_my_goods_subscription', { p_expected_actor_id: input.expectedActorId, p_operation_id: input.operationId,
       p_selection: selection, p_address: address, p_schedule: schedule, p_delivery_choices: input.deliveryChoices, p_user_coupon_id: input.userCouponId, p_store_credit_amount: input.storeCreditAmount });
     if (error) return rpcFailure(error);
-    if (record(data) && data.state === 'blocked') return { ok: false, error: '굿즈·수량·배송 방법 또는 할인 조건을 확인할 수 없습니다. 굿즈와 입력을 다시 확인해주세요.' };
+    if (record(data) && data.state === 'blocked') return { ok: false, error: '상품·수량·배송 방법 또는 할인 조건을 확인할 수 없습니다. 상품과 입력을 다시 확인해주세요.' };
     const plan = record(data) ? parseGoodsSubscription(data.subscription) : null;
     if (!plan || plan.firstCycleId !== input.operationId || !await sameActor(client, input.expectedActorId)) return uncertain();
     return { ok: true, value: plan };
@@ -93,7 +93,7 @@ export async function prepareGoodsSubscriptionChangeAction(input: Context & { pl
     const { data, error } = await client.rpc('prepare_my_goods_subscription_change', { p_expected_actor_id: input.expectedActorId, p_plan_id: input.planId,
       p_expected_revision: input.expectedRevision, p_operation_id: input.operationId, p_command: input.command, p_payload: input.payload });
     if (error) return rpcFailure(error);
-    if (record(data) && data.state === 'blocked') return { ok: false, error: '굿즈 또는 배송 조건을 확인할 수 없습니다. 입력을 다시 확인해주세요.' };
+    if (record(data) && data.state === 'blocked') return { ok: false, error: '상품 또는 배송 조건을 확인할 수 없습니다. 입력을 다시 확인해주세요.' };
     const proposal = parseSubscriptionProposal(data);
     if (!proposal || proposal.id !== input.operationId || proposal.planId !== input.planId || !await sameActor(client, input.expectedActorId)) return uncertain();
     return { ok: true, value: proposal };

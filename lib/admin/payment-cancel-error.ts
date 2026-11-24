@@ -12,7 +12,7 @@ const COPY: Record<string, PaymentCancelErrorCopy> = {
   provider_cancel_ambiguous: RETRY,
   provider_cancel_rejected: { label: '결제사가 취소를 거절했습니다', next: '결제 담당자가 원인을 해소한 뒤 [환불 완료 확정]을 눌러주세요.' },
   provider_cancel_failed: { label: '결제사 취소에 실패했습니다', next: '결제 담당자에게 원인 확인을 요청한 뒤 [환불 완료 확정]으로 다시 시도해주세요.' },
-  provider_merchant_mismatch: { label: 'ICONS 상점의 결제가 아닙니다', next: HAND_OVER },
+  provider_merchant_mismatch: { label: '엑스스퀘어 상점의 결제가 아닙니다', next: HAND_OVER },
   provider_payment_not_found: { label: '결제사에서 이 결제를 찾지 못했습니다', next: HAND_OVER },
   provider_identity_mismatch: { label: '결제 정보가 일치하지 않습니다', next: HAND_OVER },
   provider_configuration_error: { label: '결제 연결 설정에 문제가 있습니다', next: HAND_OVER },
@@ -31,6 +31,11 @@ const COPY: Record<string, PaymentCancelErrorCopy> = {
   provider_refund_failed: {
     label: '결제는 취소됐지만 고객 계좌로 환불 송금이 실패했습니다',
     next: '토스페이먼츠 상점관리자에서 환불 실패 사유를 확인하고, 고객에게 맞는 환불 계좌를 받아 다시 환불한 뒤 [환불 완료 확정]을 다시 눌러주세요. 환불이 끝난 뒤 송금이 실패한 건은 주문 처리 화면의 \'환불 송금\' 줄과 시스템 상태에 따로 보입니다.',
+  },
+  /* 입금 오류 되돌림(ADR-0049 결정 4): 은행이 입금을 취소해 돈이 없다 — 환불하지 않고 계좌 반납이 먼저다. */
+  provider_deposit_reversed: {
+    label: '은행이 가상계좌 입금을 취소해 입금된 돈이 없습니다',
+    next: '시스템이 가상계좌를 반납한 뒤 이 요청을 결제 없이 마저 닫습니다(환불 없음, 자동 재확인 주기 10~30분). 주문 상세의 출고 보류 안내가 \'입금 오류 되돌림\'을 보이면 기다리면 됩니다. 30분이 지나도 그대로면 [환불 완료 확정]을 다시 누르세요 — 반납부터 다시 시도합니다. 출고 보류 안내가 \'확인 필요\'면 그 안내를 따릅니다.',
   },
   provider_virtual_account_released: {
     label: '입금 전에 가상계좌를 반납했습니다',

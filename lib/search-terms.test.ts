@@ -14,7 +14,7 @@ import { normalizeSearchQuery } from './search';
 
 describe('추천 검색어 운영 목록 (11 CH-10)', () => {
   it('DB 가 저장한 정규화 목록을 그대로 읽는다', () => {
-    expect(parseSuggestedSearchTerms(['리락쿠마', '키링 세트', '100%_굿즈', 'BT21'])).toEqual(['리락쿠마', '키링 세트', '100%_굿즈', 'BT21']);
+    expect(parseSuggestedSearchTerms(['리락쿠마', '키링 세트', '100%_상품', 'BT21'])).toEqual(['리락쿠마', '키링 세트', '100%_상품', 'BT21']);
     expect(parseSuggestedSearchTerms(Array.from({ length: SEARCH_TERM_LIMIT }, (_, index) => `검색어${index}`))).toHaveLength(SEARCH_TERM_LIMIT);
   });
 
@@ -53,8 +53,8 @@ describe('추천 검색어 운영 목록 (11 CH-10)', () => {
   });
 
   it('칩 링크는 입력값을 그대로 인코딩해 검색 결과로 보낸다', () => {
-    expect(suggestedSearchHref('100%_굿즈 & 키링')).toBe(`/search?q=${encodeURIComponent('100%_굿즈 & 키링')}`);
-    expect(new URL(suggestedSearchHref('100%_굿즈'), 'https://icons.test').searchParams.get('q')).toBe('100%_굿즈');
+    expect(suggestedSearchHref('100%_상품 & 키링')).toBe(`/search?q=${encodeURIComponent('100%_상품 & 키링')}`);
+    expect(new URL(suggestedSearchHref('100%_상품'), 'https://icons.test').searchParams.get('q')).toBe('100%_상품');
   });
 
   /* l8b-qa-3 — 거절된 목록에서 고칠 칸만 짚는다. */

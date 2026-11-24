@@ -479,7 +479,7 @@ export async function startAdminOrderCancellationAction(
       message: `전액 취소를 시작했지만 결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 잠시 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}](결제확인필요면 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}])으로 결과를 확인해주세요.`,
     };
   }
-  return { message: '토스 전액 취소를 확인하고 주문 취소를 마쳤습니다. 재고·쿠폰·적립금 복원과 카드팩 회수가 함께 확정됐고 구매자에게 알렸습니다.' };
+  return { message: '토스 전액 취소를 확인하고 주문 취소를 마쳤습니다. 재고·쿠폰·적립금 복원이 함께 확정됐고 구매자에게 알렸습니다.' };
 }
 
 export async function recoverAdminGoodsPaymentAction(
@@ -654,7 +654,7 @@ export async function previewAdminOrderTrackingImportAction(formData: FormData):
   if ('error' in read) return { error: read.error };
   const parsed = read.parsed;
   const kind = 'kind' in parsed ? parsed.kind : 'generic';
-  const format = kind === 'gimpo' ? '김포 WMS 21열' : kind === 'seowon' ? '남양주(서원) 송장양식' : kind === 'smartstore' ? 'ICONS 표준 양식' : '배송건번호 · 택배사코드 · 운송장번호';
+  const format = kind === 'gimpo' ? '김포 WMS 21열' : kind === 'seowon' ? '남양주(서원) 송장양식' : kind === 'smartstore' ? '엑스스퀘어 표준 양식' : '배송건번호 · 택배사코드 · 운송장번호';
   const rows: { line: number; reference: string; trackingNumber: string }[] = isSeowonReply(parsed)
     ? parsed.rows.filter(row => !row.error).map(row => ({ line: row.line, reference: row.shipmentNumber ?? row.items, trackingNumber: row.trackingNumber }))
     : parsed.rows.map(row => ({ line: row.line, reference: row.reference, trackingNumber: row.trackingNumber }));

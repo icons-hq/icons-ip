@@ -39,12 +39,12 @@ function mediaFor(selectorPattern: RegExp): Array<string | null> {
 const MOBILE = '(max-width: 989px)';
 const DESKTOP = '(min-width: 990px)';
 
-describe('헤더 하단 선 (CH-03)', () => {
-  /* GNB·축약 헤더 아래 1px. 헤더 상자에 걸어야 축약(GNB가 로고 행 뒤로 들어감)·모바일 고정 상태에도 남는다.
-     그림자는 쓰지 않는다(DESIGN §5 — 헤더 그림자 금지). */
-  it('헤더 상자 아래에 1px 헤어라인을 두고 그림자는 쓰지 않는다', () => {
+describe('헤더 하단 선 (CH-03 → MD-0045)', () => {
+  /* MD-0045(2026-11-23): 상단 메뉴 아래 줄을 지운다. 1px 자리는 투명 선으로 남겨 헤더 높이(109/69/52)와 그 값을 따라 하는
+     스크롤 여백·고정 오프셋이 그대로다. 그림자는 쓰지 않는다(DESIGN §5 — 헤더 그림자 금지). */
+  it('헤더 상자 아래 1px 자리는 투명 선이고 그림자는 쓰지 않는다', () => {
     const header = declsFor('.wc-header');
-    expect(header['border-bottom']).toBe('1px solid var(--wc-hairline-soft)');
+    expect(header['border-bottom']).toBe('1px solid transparent');
     expect(header['box-shadow']).toBeUndefined();
   });
 });

@@ -14,7 +14,7 @@ describe('주문서 초안(ADR-0030)', () => {
     expect(parseCheckoutDraft({ ...valid, lines: [{ ...valid.lines[0], customInputs }] })?.lines[0].customInputs).toEqual(customInputs);
   });
 
-  it('바로구매는 상품 상세 굿즈가 있어야 하고, 선택 주문은 없어야 한다', () => {
+  it('바로구매는 상품 상세 상품이 있어야 하고, 선택 주문은 없어야 한다', () => {
     expect(parseCheckoutDraft({ ...valid, source: 'direct', baseGoodId: 'g2' })?.baseGoodId).toBe('g2');
     expect(parseCheckoutDraft({ ...valid, source: 'direct' })).toBeNull();
     expect(parseCheckoutDraft({ ...valid, baseGoodId: 'g2' })).toBeNull();

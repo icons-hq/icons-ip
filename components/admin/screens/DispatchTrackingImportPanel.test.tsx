@@ -19,7 +19,7 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('김포');expect(html).toContain('21열');expect(html).toContain('주문번호(쇼핑몰)');
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
     expect(html).toContain('상품주문번호 · 택배사 · 운송장번호');
-    expect(html).not.toContain('암호를 해제');expect(html).toContain('시트 이름과 열 순서는 바꿔도');expect(html).toContain('이전에 내려받은 파일도');expect(html).toContain('내려받은 CSV');expect(html).toContain('ICONS 표준 양식 CSV는 1MB');
+    expect(html).not.toContain('암호를 해제');expect(html).toContain('시트 이름과 열 순서는 바꿔도');expect(html).toContain('이전에 내려받은 파일도');expect(html).toContain('내려받은 CSV');expect(html).toContain('엑스스퀘어 표준 양식 CSV는 1MB');
     expect(html).not.toMatch(/발송처리<|안내 행|스마트스토어/);
   });
 

@@ -122,7 +122,7 @@ const detail: GoodDetailContent = {
     material: '아크릴',
     size: '80 x 60 x 20mm · 90g',
     madeOn: '2026-07',
-    asManager: '아이콘스 고객센터',
+    asManager: '엑스스퀘어 고객센터',
     asContact: '02-000-0000',
   },
 };
@@ -167,7 +167,7 @@ describe('GoodDetail', () => {
     expect(html.indexOf('bottom-announcement-marker')).toBeGreaterThan(tabs);
     expect(html.indexOf('상세설명-본문-표식')).toBeLessThan(html.indexOf('bottom-announcement-marker'));
     expect(html.indexOf('detail.jpg')).toBeLessThan(html.indexOf('bottom-announcement-marker'));
-    expect(html.indexOf('bottom-announcement-marker')).toBeLessThan(html.indexOf('pdp-inquiry-heading'));
+    expect(html.indexOf('bottom-announcement-marker')).toBeLessThan(html.indexOf('pdp-detail-notice-heading'));
     expect(html.match(/bottom-announcement-marker/g)).toHaveLength(1);
   });
 
@@ -216,7 +216,7 @@ describe('GoodDetail', () => {
     expect(html).not.toContain('<strong>문자</strong>');
   });
 
-  it('White Catalog PDP 골격으로 굿즈 정체성과 가격을 그린다', () => {
+  it('White Catalog PDP 골격으로 상품 정체성과 가격을 그린다', () => {
     const html = render();
 
     expect(html).toContain('wc-root wc-pdp');
@@ -345,7 +345,7 @@ describe('GoodDetail', () => {
   });
 
   /* R-04 §4 — 품절이면 CTA 자리만 재입고 알림으로 바뀌고 수량·합계는 남는다. */
-  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('shows the sale period and prevents a misleading restock CTA for %s', (state, label) => {
+  it.each([['scheduled', '판매 예정'], ['ended', '판매 종료']] as const)('shows the sale period and prevents a misleading restock CTA for %s', (state, label) => {
     const html = render({ good: { ...good, stock: 'soldout', stockQty: 0, salePeriod: { state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null } } });
     expect(html).toContain(`>${label}</button>`); expect(html).toContain(`>${label}</p>`); expect(html).not.toContain('재입고 알림 받기'); expect(html).not.toContain('>품절<'); expect(html).not.toContain('>구매하기<');
     expect(html).toContain('>판매 상태</span>'); expect(html).not.toContain('옵션 선택 후 표시');
@@ -735,7 +735,7 @@ describe('GoodDetail', () => {
     const section = html.slice(html.indexOf('pdp-shipping-heading'), html.indexOf('pdp-return-heading'));
     expect(section).toContain('2026년 10월 10일 발송 예정');
     // R26: 고객 화면은 출고지 대신 배송 묶음·택배사로 말한다(GoodAdditionalInfo 예약 안내).
-    expect(section).toContain('같은 배송 묶음의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다.');
+    expect(section).toContain('같은 배송 묶음의 일반 상품과 예약 상품을 함께 주문하면 가장 늦은 예정일에 함께 발송합니다.');
     expect(section).not.toContain('출고지');
     expect(section).not.toContain(SHIPPING_PERIOD_NOTICE);
   });
@@ -748,12 +748,14 @@ describe('GoodDetail', () => {
     expect(html).toContain('배송·반품 정책 전문 보기');
   });
 
-  it('IP 카드에서 온라인 팝업 화면으로 간다', () => {
+  /* MD-0052 — 카드는 IP관(그 IP의 굿즈 전체)으로 가므로 '상품 전체보기'라 부른다. */
+  it('IP 카드에서 IP관(상품 전체보기)으로 간다', () => {
     const html = render();
 
     expect(html).toContain('홍실 퀘스트');
     expect(html).toContain('href="/ip/hong-sil-quest"');
-    expect(html).toContain('온라인 팝업 보러가기');
+    expect(html).toContain('상품 전체보기');
+    expect(html).not.toContain('온라인 팝업 보러가기');
   });
 
   /* PD-09 — 텍스트 한 줄이던 칩이 446×82 카드가 됐다. 키아트가 이미지일 때만 150×80 칸을 둔다. */
@@ -761,7 +763,7 @@ describe('GoodDetail', () => {
     const text = render();
     const card = text.match(/<a class="wc-pdp-ipcard is-text" href="\/ip\/hong-sil-quest">.*?<\/a>/)?.[0] ?? '';
     expect(card).toContain('<strong class="wc-pdp-ipcard__name">홍실 퀘스트</strong>');
-    expect(card).toContain('온라인 팝업 보러가기 <span aria-hidden="true">›</span>');
+    expect(card).toContain('상품 전체보기 <span aria-hidden="true">›</span>');
     expect(card).not.toContain('wc-pdp-ipcard__art');
 
     const art = 'url("https://cdn.example/hong-sil-key.webp") center / cover no-repeat';
@@ -780,48 +782,71 @@ describe('GoodDetail', () => {
     expect(render({ detailImageUrls: [] })).not.toContain('wc-pdp-panel__detail-images');
   });
 
-  /* PD-19 — 상세 이미지 다음에 IP 소개, 패널 끝에 같은 IP 카드. 데이터는 IP 에 있는 값만 쓴다. */
-  it('상세 설명 패널에 상세 이미지 다음 IP 소개를, 패널 끝에 IP 카드를 둔다', () => {
-    const html = render();
+  /* MD-0054·0055 — 상세 설명 패널 끝의 IP 소개·제품 안전정보·굿즈 문의·IP 카드를 지우고 추가정보 아코디언을 둔다.
+     추가정보 탭은 그대로이고, 두 벌의 펼침 제목 id 는 겹치지 않는다. 제품 안전정보(KC)는 고시정보 칸 안으로 옮겼다. */
+  it('상세 설명 패널 끝은 IP 소개·상품 문의·IP 카드 없이 추가정보 아코디언이다', () => {
+    const html = render({ detailImageUrls: ['https://cdn.example/detail.png'] });
     const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
+    const info = html.slice(html.indexOf('id="pdp-panel-info"'));
 
-    expect(panel).toContain('id="pdp-ip-story-heading">IP 소개</h2>');
-    expect(panel).toContain('<h3 class="wc-pdp-ip-story__name">홍실 퀘스트</h3>');
-    expect(panel).toContain('붉은 실을 따라 시작되는 특별한 퀘스트');
-    expect(panel).toContain('홍실 퀘스트 컬렉션');
-    expect(panel.indexOf('wc-pdp-panel__image')).toBeLessThan(panel.indexOf('pdp-ip-story-heading'));
-    expect(panel).toContain('<a class="wc-pdp-ipcard is-text wc-pdp-ipcard--panel" href="/ip/hong-sil-quest">');
-    /* 소개 문장도 키아트도 없는 IP 는 이름만 남은 빈 블록을 그리지 않는다. */
-    expect(render({ ip: { ...ip, tagline: '', synopsis: ' ' } })).not.toContain('pdp-ip-story-heading');
+    expect(panel).not.toContain('pdp-ip-story-heading');
+    expect(panel).not.toContain('IP 소개');
+    expect(panel).not.toContain('wc-pdp-ipcard');
+    expect(panel).not.toContain('pdp-inquiry-heading');
+    expect(panel).not.toContain('/my/inquiries/new');
+    expect(panel).toContain('<div class="wc-pdp-detail-info"><div class="wc-pdp-info">');
+    expect(panel.match(/<details class="wc-pdp-info__item">/g)).toHaveLength(4);
+    expect(panel).toMatch(/id="pdp-detail-notice-heading"[^>]*>고시정보</);
+    expect(panel.indexOf('detail.png')).toBeLessThan(panel.indexOf('pdp-detail-notice-heading'));
+    expect(panel.indexOf('pdp-detail-notice-heading')).toBeLessThan(panel.indexOf('pdp-detail-shipping-heading'));
+    expect(panel.indexOf('pdp-detail-return-heading')).toBeLessThan(panel.indexOf('pdp-detail-seller-heading'));
+    expect(info).toMatch(/id="pdp-notice-heading"[^>]*>고시정보</);
+    expect(info).not.toContain('pdp-detail-notice-heading');
+    /* 정보 칼럼의 IP 카드(구매 패널 아래)는 남는다. */
+    expect(html.slice(0, html.indexOf('class="wc-pdp-tabs"'))).toContain('class="wc-pdp-ipcard is-text"');
+  });
+
+  it('제품 안전정보(KC)는 두 아코디언의 고시정보 칸 안에서 고시 표 뒤에 보인다', () => {
+    const html = render({ kcDisclosures: [{ family: 'living', scheme: 'not_applicable', productCategory: '', modelName: '', businessRole: '',
+      businessName: '', identifier: '', publicNote: '', variants: [] }] });
+    const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
+    const info = html.slice(html.indexOf('id="pdp-panel-info"'));
+    for (const section of [panel, info]) {
+      const notice = section.slice(section.indexOf('notice-heading'), section.indexOf('shipping-heading'));
+      expect(notice).toContain('전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.');
+      expect(notice).toContain('제품 안전정보');
+      expect(notice.indexOf('상품정보제공고시')).toBeLessThan(notice.indexOf('제품 안전정보'));
+    }
   });
 
   /* PD-16b(LD-6) — 추천 블록은 탭 위가 아니라 상세 설명 패널 맨 끝이다. 다른 구성·띠배너는 제자리다. */
-  it('연관 굿즈와 자동 추천을 상세 설명 패널 맨 끝에 둔다', () => {
-    const relatedGoods = { nextChangeAt: null, groups: [{ id: 'group-a', kind: 'similar' as const, title: '유사한 굿즈',
-      goods: [{ id: 'good-b', name: '연관 굿즈', ip: 'hong-sil-quest', type: '문구', price: 3000, badge: null, img: '', stock: 'ok' as const, stockQty: 5 }] }] };
+  it('연관 상품과 자동 추천을 상세 설명 패널 맨 끝에 둔다', () => {
+    const relatedGoods = { nextChangeAt: null, groups: [{ id: 'group-a', kind: 'similar' as const, title: '유사한 상품',
+      goods: [{ id: 'good-b', name: '연관 상품', ip: 'hong-sil-quest', type: '문구', price: 3000, badge: null, img: '', stock: 'ok' as const, stockQty: 5 }] }] };
     const html = renderToStaticMarkup(
       <GoodDetail automaticRecommendations={<p>auto-recommendation-marker</p>} detail={{ ...detail, relatedGoods }} otherCompositions={<p>other-composition-marker</p>} />,
     );
     const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
 
-    expect(html.indexOf('유사한 굿즈')).toBeGreaterThan(html.indexOf('role="tablist"'));
-    expect(panel).toContain('유사한 굿즈');
+    expect(html.indexOf('유사한 상품')).toBeGreaterThan(html.indexOf('role="tablist"'));
+    expect(panel).toContain('유사한 상품');
     expect(panel).toContain('auto-recommendation-marker');
-    expect(panel.indexOf('wc-pdp-ipcard--panel')).toBeLessThan(panel.indexOf('유사한 굿즈'));
-    expect(panel.indexOf('유사한 굿즈')).toBeLessThan(panel.indexOf('auto-recommendation-marker'));
+    expect(panel.indexOf('wc-pdp-detail-info')).toBeGreaterThan(-1);
+    expect(panel.indexOf('wc-pdp-detail-info')).toBeLessThan(panel.indexOf('유사한 상품'));
+    expect(panel.indexOf('유사한 상품')).toBeLessThan(panel.indexOf('auto-recommendation-marker'));
     expect(html.indexOf('other-composition-marker')).toBeLessThan(html.indexOf('role="tablist"'));
   });
 
   /* L4b · CL-01·CL-02 — 상세가 받은 위시 상태·별점을 연관 굿즈 카드로 넘긴다. 이 굿즈 자신의 하트(engagement)와는 별개다. */
-  it('선반 카드의 목록 하트와 별점을 연관 굿즈에 넘기고 어드민 미리보기에는 선반을 그리지 않는다', () => {
-    const relatedGoods = { nextChangeAt: null, groups: [{ id: 'group-a', kind: 'similar' as const, title: '유사한 굿즈',
-      goods: [{ id: 'good-b', name: '연관 굿즈', ip: 'hong-sil-quest', type: '문구', price: 3000, badge: null, img: '', stock: 'ok' as const, stockQty: 5 }] }] };
+  it('선반 카드의 목록 하트와 별점을 연관 상품에 넘기고 어드민 미리보기에는 선반을 그리지 않는다', () => {
+    const relatedGoods = { nextChangeAt: null, groups: [{ id: 'group-a', kind: 'similar' as const, title: '유사한 상품',
+      goods: [{ id: 'good-b', name: '연관 상품', ip: 'hong-sil-quest', type: '문구', price: 3000, badge: null, img: '', stock: 'ok' as const, stockQty: 5 }] }] };
     const html = renderToStaticMarkup(
       <GoodDetail detail={{ ...detail, relatedGoods }} listingReviewSummaries={{ 'good-b': { count: 4, average: 4.25 } }} listingWishlist={{ viewerId: 'viewer-1', goodIds: ['good-b'] }} />,
     );
     const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
 
-    expect(panel).toContain('aria-label="연관 굿즈 위시리스트에서 빼기"');
+    expect(panel).toContain('aria-label="연관 상품 위시리스트에서 빼기"');
     expect(panel).toContain('평점 5점 만점에 4.3점, 리뷰 4개');
     expect(renderToStaticMarkup(<GoodDetail detail={{ ...detail, relatedGoods }} />)).not.toContain('wc-list-heart');
     expect(renderToStaticMarkup(<GoodDetailView embedded detail={{ ...detail, relatedGoods }} listingWishlist={{ viewerId: 'viewer-1', goodIds: [] }} />)).not.toContain('wc-list-heart');
@@ -833,8 +858,11 @@ describe('GoodDetail', () => {
     expect(html).not.toContain('href="/ip/hong-sil-quest"');
   });
 
-  it('상품 문의 진입점을 유지한다', () => {
-    expect(render()).toContain('href="/my/inquiries/new?category=good&amp;goodId=g13"');
+  /* MD-0054 — 상세 하단의 굿즈 문의 블록은 지웠다. 상품 질문은 Q&A 탭이 받는다. */
+  it('상세 하단 상품 문의 블록 없이 Q&A 탭이 남는다', () => {
+    const html = render();
+    expect(html).not.toContain('href="/my/inquiries/new?category=good&amp;goodId=g13"');
+    expect(html).toContain('id="pdp-tab-qna"');
   });
 
   it('고시정보가 비면 빈 표 대신 이유를 적는다', () => {
@@ -896,7 +924,7 @@ describe('출고지 배송 정책 표시', () => {
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />)).toContain('4,700');
     /* 배송 안내에 출고지 이름을 내지 않는다(10/14 회의 S7). */
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />)).not.toContain('김포');
-    expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'individual'}} />)).toContain('굿즈당 1회');
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'individual'}} />)).toContain('상품당 1회');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'free'}} />)).toContain('무료배송');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} />)).toContain('배송 정책을 확인하지 못했습니다');
   });
@@ -916,13 +944,13 @@ describe('상품 상세 금액·배송 문구', () => {
     },
   };
 
-  it('상세가 받은 배송 정책으로 택배 굿즈의 배송국가·배송비를 보이고 합계 행과 제공 방식 줄은 없다', () => {
+  it('상세가 받은 배송 정책으로 택배 상품의 배송국가·배송비를 보이고 합계 행과 제공 방식 줄은 없다', () => {
     const html = renderToStaticMarkup(<GoodDetailView detail={offered} shippingPolicy={policy} />);
     expect(html).toContain('<dt>배송국가</dt><dd>대한민국</dd>');
     expect(html).toContain('<dt>배송비</dt><dd>₩3,000 (₩40,000 이상 무료)</dd>');
     expect(html).toContain('도서산간 지역은 추가 비용이 발생할 수 있습니다.');
     expect(html).not.toContain('제공 방식: 택배');
-    expect(html).not.toContain('예상 굿즈 금액');
+    expect(html).not.toContain('예상 상품 금액');
     expect(html).not.toContain('wc-pdp-railbox__total');
     expect(html).toContain('class="wc-pdp-railbox wc-pdp-railbox--no-total"');
   });
@@ -939,7 +967,7 @@ describe('상품 상세 금액·배송 문구', () => {
     expect(html).toContain('제공 방식: 택배');
   });
 
-  it('거래 조건이 없는 굿즈는 총 금액 행이 그대로다', () => {
+  it('거래 조건이 없는 상품은 총 금액 행이 그대로다', () => {
     const html = renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />);
     expect(html).toContain('wc-buy-panel__total');
     expect(html).toContain('wc-pdp-railbox__total');

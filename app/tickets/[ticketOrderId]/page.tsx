@@ -7,7 +7,7 @@ import { normalizeTicketReference } from '@/lib/ticketing';
 import { loadTicketOrderDetail } from '@/lib/ticketing.server';
 
 export const metadata: Metadata = {
-  title: '티켓 상세 — ICONS',
+  title: '티켓 상세 — 엑스스퀘어',
   description: '팝업 일정, 전자티켓 QR, 사용 및 취소·환불 상태를 확인하세요.',
   robots: { index: false, follow: false },
 };

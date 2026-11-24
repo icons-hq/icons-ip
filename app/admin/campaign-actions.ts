@@ -1,18 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import {
-  normalizeAdminCampaignForm,
-  normalizeAdminCoinExchangeOfferForm,
-} from '@/lib/admin/campaigns';
+import { normalizeAdminCampaignForm } from '@/lib/admin/campaigns';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import type { AdminCapability } from '@/lib/admin/access';
 
-/* 캠페인·카드팩 교환처 저장 액션 (S8 #330).
+/* 캠페인 저장 액션 (S8 #330). 카드팩 교환처 저장은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052).
  *
- * 검증·감사·슬러그 계약은 admin_upsert_campaign / admin_upsert_coin_exchange_offer
- * (security definer)가 진실원이고, 여기서는 폼 정규화와 에러 번역만 한다.
+ * 검증·감사·슬러그 계약은 admin_upsert_campaign(security definer)이 진실원이고, 여기서는 폼 정규화와 에러 번역만 한다.
  * 권한 판정도 RPC 안에 한 번 더 있다 — 여기서만 막으면 액션을 새로 만드는 사람이
  * 게이트를 빠뜨린다. */
 
@@ -23,7 +19,6 @@ export interface AdminCampaignActionState {
 
 const CAMPAIGNS_PATH = '/admin/display/campaigns';
 const CAMPAIGN_SAVE_FAILED = '캠페인을 저장하지 못했습니다. 다시 시도해주세요.';
-const OFFER_SAVE_FAILED = '교환처를 저장하지 못했습니다. 다시 시도해주세요.';
 
 async function requireStaffAction(capability: AdminCapability): Promise<AdminCampaignActionState | null> {
   if (!await requireAdminActionAccess(CAMPAIGNS_PATH, { capability })) return { errors: { form: '관리자 권한이 필요합니다.' } };
@@ -132,59 +127,4 @@ export async function upsertAdminCampaignAction(
 
   revalidateCampaignSurfaces();
   return { message: `${result.value.title} 캠페인을 저장했습니다.` };
-}
-
-function offerWriteFailure(message: string): AdminCampaignActionState | null {
-  if (message.includes('pool_not_found')) {
-    return { errors: { poolId: '카드풀을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 선택해주세요.' } };
-  }
-  if (message.includes('catalog_record_missing')) {
-    return { errors: { form: '수정할 교환처를 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' } };
-  }
-  if (message.includes('invalid_offer_label')) {
-    return { errors: { label: '이름은 1~80자로 입력해주세요.' } };
-  }
-  if (message.includes('invalid_offer_coin_cost')) {
-    return { errors: { coinCost: '코인 비용은 1~100,000 사이의 정수여야 합니다.' } };
-  }
-  if (message.includes('invalid_offer_ticket_count')) {
-    return { errors: { ticketCount: '카드팩 수량은 1~10장이어야 합니다.' } };
-  }
-  if (message.includes('invalid_offer_status')) {
-    return { errors: { status: '노출 상태를 선택해주세요.' } };
-  }
-  if (message.includes('forbidden') || message.includes('auth_required')) {
-    return { errors: { form: '관리자 권한이 필요합니다.' } };
-  }
-  return null;
-}
-
-export async function upsertAdminCoinExchangeOfferAction(
-  _state: AdminCampaignActionState,
-  formData: FormData,
-): Promise<AdminCampaignActionState> {
-  const denied = await requireStaffAction('platform.manage');
-  if (denied) return denied;
-
-  const result = normalizeAdminCoinExchangeOfferForm(formData);
-  if (!result.ok) return { errors: result.errors };
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_coin_exchange_offer', {
-    target_coin_cost: result.value.coinCost,
-    target_id: result.value.id,
-    target_label: result.value.label,
-    target_pool_id: result.value.poolId,
-    target_status: result.value.status,
-    target_ticket_count: result.value.ticketCount,
-  });
-
-  if (error) {
-    return offerWriteFailure(error.message) ?? { errors: { form: OFFER_SAVE_FAILED } };
-  }
-
-  /* 교환처는 캠페인 상세의 exchange 블록이 읽는다 — 코인 비용을 고쳤는데 상세가
-     옛 값을 보여 주면 운영자는 저장이 안 된 줄 안다. */
-  revalidateCampaignSurfaces();
-  return { message: `${result.value.label} 교환처를 저장했습니다.` };
 }

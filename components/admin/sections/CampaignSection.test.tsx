@@ -103,14 +103,17 @@ describe('CampaignSection', () => {
   });
 
   /* 블록 JSON 직접 편집이 v1 계약이라 계약서가 화면 안에 있어야 한다. */
-  it('랜딩 구성 JSON 스키마를 9종 전부 안내한다', () => {
+  /* 카드팩 교환처(exchange) 블록은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). */
+  it('랜딩 구성 JSON 스키마를 8종 전부 안내하고 지운 교환 블록은 안내하지 않는다', () => {
     const markup = render(campaign());
 
-    for (const type of ['intro', 'image', 'text', 'attendance', 'exchange', 'coupon', 'goods', 'notice', 'cta']) {
+    for (const type of ['intro', 'image', 'text', 'attendance', 'coupon', 'goods', 'notice', 'cta']) {
       expect(markup).toContain(`<code>${type}</code>`);
     }
-    expect(markup).toContain('블록 9종');
-    expect(markup).toContain('offer_id');
+    expect(markup).toContain('블록 8종');
+    expect(markup).not.toContain('<code>exchange</code>');
+    expect(markup).not.toContain('offer_id');
+    expect(markup).not.toContain('카드팩');
   });
 
   /* LD-18 — 이동 버튼은 ICONS 내부 경로만 받는다. 저장 전에 운영자가 그 규칙을 화면에서 읽어야 한다. */
@@ -118,7 +121,7 @@ describe('CampaignSection', () => {
     const markup = render(campaign());
 
     expect(markup).toContain('<code>cta</code> — 이동 버튼');
-    expect(markup).toContain('ICONS 내부 경로');
+    expect(markup).toContain('엑스스퀘어 내부 경로');
     expect(markup).toContain('외부 주소');
     expect(markup).toContain('&quot;type&quot;: &quot;cta&quot;');
   });

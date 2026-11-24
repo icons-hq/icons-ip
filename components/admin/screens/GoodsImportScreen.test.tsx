@@ -113,15 +113,15 @@ describe('상품 일괄등록 순서와 주의', () => {
 });
 
 describe('사방넷 상품 양식 화면', () => {
-  it('양식 선택은 ICONS 자체 양식이 기본이고 사방넷 상품 양식을 고를 수 있다', () => {
+  it('양식 선택은 엑스스퀘어 자체 양식이 기본이고 사방넷 상품 양식을 고를 수 있다', () => {
     const html = renderToStaticMarkup(<GoodsImportScreen />);
-    expect(html).toContain('ICONS 자체 양식');
+    expect(html).toContain('엑스스퀘어 자체 양식');
     expect(html).toContain('사방넷 상품 양식');
     expect(html).toContain('상품 XLSX');
     expect(html).not.toContain('열 확인');
   });
 
-  it('사방넷 미리보기는 초안 만들기와 ICONS 양식 실패 행 안내를 보여 준다', () => {
+  it('사방넷 미리보기는 초안 만들기와 엑스스퀘어 양식 실패 행 안내를 보여 준다', () => {
     const html = renderToStaticMarkup(
       <GoodsImportScreen initialView={{ ...view, format: 'sabangnet', groups: [{ ...group, kind: 'new', warnings: [] }] }} />,
     );
@@ -129,7 +129,7 @@ describe('사방넷 상품 양식 화면', () => {
     expect(html).toContain('검증한 1개 상품 초안 만들기');
     expect(html).toContain('사방넷 상품 파일');
     expect(html).toContain('열 확인');
-    expect(html).toContain('실패 행은 ICONS 양식으로 내려받으며');
+    expect(html).toContain('실패 행은 엑스스퀘어 양식으로 내려받으며');
     expect(html).toContain('이미 등록된 상품 자동코드 행은 넣지 않습니다');
     expect(html).not.toContain('상품 XLSX');
   });
@@ -162,7 +162,7 @@ describe('사방넷 상품 양식 화면', () => {
     expect(mixed).toContain('실패 행 내려받기');
   });
 
-  it('열 연결 단계는 인식 상태·ICONS 항목 선택·필수 IP·브랜드별 IP 제안을 보여 준다', () => {
+  it('열 연결 단계는 인식 상태·엑스스퀘어 항목 선택·필수 IP·브랜드별 IP 제안을 보여 준다', () => {
     const headers = ['상품명', '브랜드명', '소비자가', '사방넷 메모'];
     const { targets, status } = suggestSabangnetTargets(headers);
     const html = renderToStaticMarkup(
@@ -195,7 +195,7 @@ describe('사방넷 상품 양식 화면', () => {
     expect(html).toContain('자동 인식');
     expect(html).toContain('추정 · 확인 필요');
     expect(html).toContain('인식 못 함 · 직접 선택');
-    expect(html).toContain('사방넷 메모 열을 연결할 ICONS 항목');
+    expect(html).toContain('사방넷 메모 열을 연결할 엑스스퀘어 항목');
     expect(html).toContain('고시정보 · 제조사 / 수입사');
     expect(html).toContain('메이플스토리 브랜드 상품을 연결할 IP');
     expect(html).toContain('미리보기 만들기');

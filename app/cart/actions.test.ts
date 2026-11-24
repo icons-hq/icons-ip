@@ -275,7 +275,7 @@ describe('cart Server Actions', () => {
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.archived_at', null);
   });
 
-  it('19금 굿즈의 기본 옵션은 인증 성인에게만 찾는다(ADR-0024)', async () => {
+  it('19금 상품의 기본 옵션은 인증 성인에게만 찾는다(ADR-0024)', async () => {
     mocks.adultGoods = 'full';
     await syncCartAction([{ goodId: 'g1', qty: 2 }]);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', ['none', 'adult']);
@@ -291,11 +291,11 @@ describe('cart Server Actions', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'adult_verification_required' } });
     await expect(setCartItemQuantityAction('g1', 1, VARIANT_ID)).resolves.toMatchObject({
       ok: false,
-      error: '19금 굿즈는 성인 인증을 마친 회원만 담을 수 있어요. 마이 > 성인 인증에서 인증해주세요.',
+      error: '19금 상품은 성인 인증을 마친 회원만 담을 수 있어요. 마이 > 성인 인증에서 인증해주세요.',
     });
   });
 
-  it('옛 장바구니의 랜덤 판매 굿즈는 숨겨진 옵션 행 대신 공개 랜덤 한 줄의 키로 옮긴다', async () => {
+  it('옛 장바구니의 랜덤 판매 상품은 숨겨진 옵션 행 대신 공개 랜덤 한 줄의 키로 옮긴다', async () => {
     // T6 restrictive 정책으로 랜덤 굿즈의 goods_variants 행(기본 옵션 포함)은 고객·익명에게 보이지 않는다.
     const randomKey = '00000000-0000-4000-8000-000000000077';
     mocks.variantRows = { data: [{ id: VARIANT_ID, good_id: 'g1' }], error: null };
@@ -481,7 +481,7 @@ describe('release unpaid orders', () => {
   });
 
   it('확인창에 보일 결제 대기 주문을 로그인 사용자 것만 읽는다', async () => {
-    const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 2, goodIds: ['g1', 'g2'],
+    const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '상품 A', itemCount: 2, goodIds: ['g1', 'g2'],
       variantIds: ['00000000-0000-4000-8000-0000000000aa'], userCouponIds: [], releasable: true };
     mocks.serviceRpc.mockResolvedValue({ data: [row], error: null });
     await expect(loadUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: true, orders: [{ ...row, id: ORDER }] });

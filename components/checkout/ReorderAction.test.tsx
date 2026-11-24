@@ -70,7 +70,7 @@ describe('runReorder', () => {
     await expect(runReorder(orderId, 'cancel_then_reorder', throwing)).resolves.toEqual({ kind: 'cancel_failed' });
   });
 
-  it('품절·판매 중지로 일부만 담기면 담지 못한 굿즈를 돌려준다', async () => {
+  it('품절·판매 중지로 일부만 담기면 담지 못한 상품을 돌려준다', async () => {
     const skipped = [{ name: '홍실 키링 (파랑)', reason: 'out_of_stock' as const }];
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 1, skipped, coupon: 'restored', storeCreditUsed: 0 }),
@@ -209,7 +209,7 @@ describe('ReorderOutcomeNotice', () => {
       }} />,
     );
     expect(html).toContain('키링 / 각인 문구: ALPHA(직접입력형 옵션 확인 필요)');
-    expect(html).toContain('해당 굿즈에서 내용을 확인하고 다시 담아주세요');
+    expect(html).toContain('해당 상품에서 내용을 확인하고 다시 담아주세요');
     expect(html).toContain('href="/shop"');
   });
 
@@ -222,7 +222,7 @@ describe('ReorderOutcomeNotice', () => {
       />,
     );
 
-    expect(html).toContain('주문은 취소됐어요. 굿즈를 장바구니에 다시 담았어요.');
+    expect(html).toContain('주문은 취소됐어요. 상품을 장바구니에 다시 담았어요.');
     expect(html).toContain('장바구니에서 쿠폰을 다시 골라주세요');
     expect(html).toContain('적립금 2,500원은 주문서에서 다시 입력해주세요');
     expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf(`href="${DRAFT}"`));
@@ -257,8 +257,8 @@ describe('ReorderOutcomeNotice', () => {
       />,
     );
 
-    expect(html).toContain('담지 못한 굿즈: 홍실 키링 (파랑)(품절)');
-    expect(html).toContain('지금 담긴 굿즈로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요');
+    expect(html).toContain('담지 못한 상품: 홍실 키링 (파랑)(품절)');
+    expect(html).toContain('지금 담긴 상품으로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요');
     expect(html).toContain('장바구니에서 쿠폰 확인하기');
     expect(html).not.toContain('다시 골라주세요');
     expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf(`href="${DRAFT}"`));
@@ -275,13 +275,13 @@ describe('ReorderOutcomeNotice', () => {
     const canceled = renderToStaticMarkup(
       <ReorderOutcomeNotice mode="cancel_then_reorder" orderId={orderId} outcome={outcome} />,
     );
-    expect(canceled).toContain('주문은 취소됐어요. 일부 굿즈만 장바구니에 다시 담았어요. 담지 못한 굿즈: 리바이 아크릴 스탠드(지금 담을 수 없음)');
+    expect(canceled).toContain('주문은 취소됐어요. 일부 상품만 장바구니에 다시 담았어요. 담지 못한 상품: 리바이 아크릴 스탠드(지금 담을 수 없음)');
 
     const reorderOnly = renderToStaticMarkup(
       <ReorderOutcomeNotice mode="reorder" orderId={orderId} outcome={outcome} />,
     );
     expect(reorderOnly).not.toContain('주문은 취소됐어요');
-    expect(reorderOnly).toContain('일부 굿즈만 장바구니에 다시 담았어요');
+    expect(reorderOnly).toContain('일부 상품만 장바구니에 다시 담았어요');
   });
 
   it('다시 고를 수 없는 쿠폰은 장바구니에서 고르라고 하지 않고 주문서를 먼저 권한다', () => {
@@ -313,7 +313,7 @@ describe('ReorderOutcomeNotice', () => {
     expect(html).toContain(`href="/orders/${orderId}"`);
   });
 
-  it('담지 못한 굿즈 사유를 사실 범위대로 적는다', () => {
+  it('담지 못한 상품 사유를 사실 범위대로 적는다', () => {
     const html = renderToStaticMarkup(
       <ReorderOutcomeNotice
         mode="cancel_then_reorder"
@@ -339,7 +339,7 @@ describe('ReorderAction', () => {
     expect(renderToStaticMarkup(<ReorderAction mode="cancel_then_reorder" orderId={orderId} />))
       .toContain('이 주문 취소하고 다시 주문하기');
     expect(renderToStaticMarkup(<ReorderAction mode="reorder" orderId={orderId} />))
-      .toContain('같은 굿즈 다시 담기');
+      .toContain('같은 상품 다시 담기');
   });
 
   /* 장바구니가 남은 주문은 그 주문의 줄로 주문서 초안을 만들어 다시 결제한다 — 장바구니 전체 주문서(/checkout)로 보내지 않는다. */

@@ -56,7 +56,7 @@ const rankingKeys: HomeRankingBlockKey[] = [
 ];
 const preview: CurationPublicPreview = {
   curation,
-  noticeStrip: null, goods, latestGoods: [...goods].reverse().slice(0, 10), productRankings, cardRewardsEnabled: true,
+  noticeStrip: null, goods, latestGoods: [...goods].reverse().slice(0, 10), productRankings,
 };
 
 export function StoreEditorFixture() {

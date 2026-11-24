@@ -23,7 +23,7 @@ const RESOLVE_BASE = 'https://listing-return.invalid';
  * 목록 화면별로 URL 이 담는 목록 상태 — 각 화면의 서버 파서가 읽는 키와 같다.
  * 굿즈샵·NEW·BEST 필터·정렬 = parseShopSearchParams(lib/shop-catalog), 전시 카테고리 = parseCategoryDisplayRequest
  * (lib/category-display, 굿즈샵만), 검색 = 검색어·페이지(app/search/page.tsx) + 같은 필터, IP관 = COLLECTION_PARAMS
- * (app/ip/[id]/page.tsx — 스코프가 이미 IP 하나라 ip 가 없다). 목록 상태 키가 새로 생기면 여기에도 더한다
+ * (app/ip/[id]/page.tsx — 카테고리 화면 틀이라 정렬뿐이다). 목록 상태 키가 새로 생기면 여기에도 더한다
  * (lib/listing-return.test.ts 가 컨트롤이 만드는 주소의 키와 대조한다). 빠뜨려도 목록으로는 돌아간다 — 그 상태만 잃는다.
  */
 const SHOP_FILTER_KEYS = ['category', 'ip', 'type', 'min', 'max', 'sort'] as const;
@@ -32,7 +32,7 @@ const LISTING_STATE_KEYS = {
   /* BEST 의 기간 탭(실시간·일간·주간·월간)도 목록 상태다 — parseListingSearchParams(lib/shop-catalog)가 읽는 `period`. */
   collection: [...SHOP_FILTER_KEYS, 'period'],
   search: ['q', ...SHOP_FILTER_KEYS, 'page'],
-  ip: ['category', 'type', 'min', 'max', 'sort'],
+  ip: ['sort'],
 } as const satisfies Record<string, readonly string[]>;
 
 export interface ListingReturnStorage {
@@ -87,15 +87,16 @@ export function listingReturnHref(stored: string | null | undefined): string {
 }
 
 /**
- * 둘러보기 버튼 문구 — 목적지 표면을 그대로 말한다('{표면} 둘러보기', WCAG 2.4.4 링크 목적). 표면 이름은 CONTEXT.md 를 따른다:
- * 굿즈샵·NEW·BEST = 굿즈샵, IP관 = 온라인 팝업(UI 표기), 검색 결과 = 검색 결과. 주소와 같은 값(listingReturnHref 결과)에서
- * 나오므로 서버 렌더(굿즈샵)든 하이드레이션 뒤(직전 목록)든 문구와 목적지가 어긋나지 않는다.
+ * 둘러보기 버튼 문구 — 목적지를 그대로 말한다('{목적지} 둘러보기', WCAG 2.4.4 링크 목적). 상품 목록(/shop·NEW·BEST) = 상품,
+ * IP관 = 온라인 팝업(UI 표기), 검색 결과 = 검색 결과(2026-11-24부터 고객 화면도 '상품' — 메뉴 이름 '쇼핑'은 '쇼핑 둘러보기'가 어색해
+ * 목적지인 상품으로 말한다). 주소와 같은 값(listingReturnHref 결과)에서 나오므로 서버 렌더(/shop)든 하이드레이션 뒤(직전 목록)든
+ * 문구와 목적지가 어긋나지 않는다.
  */
 export function listingReturnLabel(href: string): string {
   const pathname = href.split(/[?#]/, 1)[0];
   if (pathname === '/search') return '검색 결과 둘러보기';
   if (pathname.startsWith('/ip/')) return '온라인 팝업 둘러보기';
-  return '굿즈샵 둘러보기';
+  return '상품 둘러보기';
 }
 
 /**

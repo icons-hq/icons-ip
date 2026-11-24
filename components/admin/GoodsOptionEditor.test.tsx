@@ -86,7 +86,7 @@ describe('상품 옵션 ERP 식별자 입력', () => {
 
     expect(html).toContain('data-option-mode="single"');
     expect(html).toMatch(/<label class="[^"]*" for="goods-single-stock">재고수량 \(필수\)<\/label>/);
-    expect(html).toContain('ICONS에서 판매할 수량이며 주문하면 차감됩니다. 비워 두면 저장되지 않으니 재고가 없으면 0을 입력합니다. 안전재고는 부족 알림 기준입니다.');
+    expect(html).toContain('엑스스퀘어에서 판매할 수량이며 주문하면 차감됩니다. 비워 두면 저장되지 않으니 재고가 없으면 0을 입력합니다. 안전재고는 부족 알림 기준입니다.');
     const stock = html.match(/<input[^>]*id="goods-single-stock"[^>]*>/)?.[0] ?? '';
     expect(stock).toContain('value="8"'); expect(stock).toContain('required=""');
     expect(html).toMatch(/<input type="radio" name="optionUsage" checked="" value="off"\/>설정안함/);

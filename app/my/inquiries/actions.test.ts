@@ -210,7 +210,7 @@ describe('정지·온보딩 미완료 회원의 계정 문의', () => {
     const withImage = createForm({ category: 'account' });
     withImage.append('images', new File([new Uint8Array(64)], 'a.png', { type: 'image/png' }));
     expect((await createInquiryAction({}, withImage)).errors?.images).toContain('이미지를 첨부할 수 없습니다');
-    expect((await createInquiryAction({}, createForm({ category: 'account', orderId: ORDER_ID }))).errors?.form).toContain('이미지·주문·굿즈를 함께 보낼 수 없습니다');
+    expect((await createInquiryAction({}, createForm({ category: 'account', orderId: ORDER_ID }))).errors?.form).toContain('이미지·주문·상품을 함께 보낼 수 없습니다');
     expect(mocks.upload).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -218,7 +218,7 @@ describe('정지·온보딩 미완료 회원의 계정 문의', () => {
   it('DB가 정지 회원의 첨부·연결을 거절하면 같은 안내로 옮긴다', async () => {
     mocks.suspended = true;
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'account_suspended_inquiry_limited' } });
-    expect((await createInquiryAction({}, createForm({ category: 'account' }))).errors?.form).toContain('이미지·주문·굿즈를 함께 보낼 수 없습니다');
+    expect((await createInquiryAction({}, createForm({ category: 'account' }))).errors?.form).toContain('이미지·주문·상품을 함께 보낼 수 없습니다');
   });
 
   it('정지 회원은 자기 계정 문의에만 이어 쓰고 다른 문의는 정지 화면으로 간다', async () => {

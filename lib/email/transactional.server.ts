@@ -11,6 +11,7 @@ import { loadOrderShipments } from '../orders/shipments.server';
 import { loadShippingCarrierRegistry } from '../orders/shipment.server';
 import { mergeRandomOrderItemRows } from '../orders/customer-items.server';
 import { maskCustomerOrderItem } from '../goods-option-sale-mode';
+import { goodDetailHref } from '../goods-display';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import {
   inquiryEmailDedupeKey,
@@ -18,6 +19,7 @@ import {
   shipmentEmailDedupeKey,
   restockAlertEmailDedupeKey,
   virtualAccountEmailDedupeKey,
+  depositReversalEmailDedupeKey,
   type EmailTemplateName,
   type OrderEmailTemplateName,
   type OrderEmailAudience,
@@ -30,6 +32,8 @@ import {
   renderGiftRecipientEmail,
   renderRestockAlertEmail,
   renderVirtualAccountIssuedEmail,
+  renderDepositReversalEmail,
+  renderDepositReversalCanceledEmail,
   type OrderEmailItem,
   type RenderedEmail,
 } from './templates';
@@ -369,6 +373,8 @@ interface VirtualAccountSnapshot {
   amount: number;
   useEscrow: boolean;
   state: string;
+  /** 입금 오류 되돌림(ADR-0049 결정 4) — 되돌림 번호·처리 결과. 되돌림이 없던 결제는 null. */
+  reversal: { sequence: number; resolution: string | null } | null;
 }
 
 function parseVirtualAccountSnapshot(value: unknown): VirtualAccountSnapshot | null {
@@ -377,9 +383,13 @@ function parseVirtualAccountSnapshot(value: unknown): VirtualAccountSnapshot | n
   if (typeof row.bankCode !== 'string' || typeof row.accountNumber !== 'string'
     || typeof row.dueAt !== 'string' || typeof row.amount !== 'number'
     || typeof row.state !== 'string') return null;
+  const reversal = row.reversal && typeof row.reversal === 'object' ? row.reversal as Record<string, unknown> : null;
   return {
     bankCode: row.bankCode, accountNumber: row.accountNumber, dueAt: row.dueAt,
     amount: row.amount, useEscrow: row.useEscrow === true, state: row.state,
+    reversal: reversal && Number.isSafeInteger(reversal.sequence) && (reversal.sequence as number) > 0
+      ? { sequence: reversal.sequence as number, resolution: typeof reversal.resolution === 'string' ? reversal.resolution : null }
+      : null,
   };
 }
 
@@ -422,6 +432,90 @@ export function sendVirtualAccountIssuedEmail(orderId: string): Promise<Transact
         orderId: order.id, orderNumber: order.order_number ?? null,
         bankCode: account.bankCode, accountNumber: account.accountNumber, amount: account.amount,
         dueAt: account.dueAt, useEscrow: account.useEscrow, orderUrl: `${siteUrl()}/orders/${order.id}/complete`,
+      }),
+    });
+  });
+}
+
+async function loadOrderRecipient(service: ServiceClient, userId: string): Promise<string | null> {
+  const { data: profile, error } = await service.from('profiles').select('email').eq('id', userId).maybeSingle();
+  if (error) throw new Error('deposit_reversal_email_recipient_load_failed');
+  const email = (profile as { email?: unknown } | null)?.email;
+  return typeof email === 'string' && email.includes('@') ? email : null;
+}
+
+/**
+ * 토스 가상계좌 입금 오류 되돌림 — 재입금 안내 메일(ADR-0049 결정 4). 은행이 입금을 취소해 결제가 입금 전으로 돌아간 것을 결제사 조회로
+ * 확인한 뒤 불린다. 계좌가 지금도 재입금을 기다릴 때(state=reversed)만 보낸다 — 이미 다시 입금됐거나 주문이 닫혔다면 거짓 고지다.
+ * 되돌림마다 한 통(dedupe_key에 되돌림 번호). 절대 throw하지 않는다.
+ */
+export function sendDepositReversalEmail(orderId: string): Promise<TransactionalEmailResult> {
+  return safely('deposit reversal', `order:${orderId}`, async () => {
+    const blocked = guardedEnvironment();
+    if (blocked) return blocked;
+    const service = createServiceClient();
+    const { data: orderData, error: orderError } = await service
+      .from('orders').select('id,order_number,user_id,status').eq('id', orderId).maybeSingle();
+    if (orderError) throw new Error('deposit_reversal_email_order_load_failed');
+    const order = orderData as { id: string; order_number?: string | null; user_id: string; status: string } | null;
+    if (!order) return { status: 'skipped', reason: 'order_missing' };
+    if (order.status === 'canceled') return { status: 'skipped', reason: 'order_status_mismatch:canceled' };
+
+    const { data: vaData, error: vaError } = await service.rpc('service_order_virtual_account', { p_order_id: orderId });
+    if (vaError) throw new Error('deposit_reversal_email_account_load_failed');
+    const account = parseVirtualAccountSnapshot(vaData);
+    if (!account || !account.reversal) return { status: 'skipped', reason: 'deposit_reversal_missing' };
+    if (account.state !== 'reversed') return { status: 'skipped', reason: `virtual_account_state_mismatch:${account.state}` };
+    // 기한이 이미 지났으면 다시 입금할 수 없다(기한이 지난 입금은 실패한다) — 재입금을 안내하지 않는다. 앱 알림이 사정을 말하고, 자동
+    // 취소되면 취소 안내 메일이 간다.
+    if (!(Date.parse(account.dueAt) > Date.now())) return { status: 'skipped', reason: 'deposit_reversal_due_passed' };
+
+    const email = await loadOrderRecipient(service, order.user_id);
+    if (!email) return { status: 'skipped', reason: 'recipient_missing' };
+    return deliver(service, {
+      dedupeKey: depositReversalEmailDedupeKey(orderId, { sequence: account.reversal.sequence }),
+      template: 'order_deposit_reversal',
+      recipient: email,
+      rendered: renderDepositReversalEmail({
+        orderId: order.id, orderNumber: order.order_number ?? null,
+        bankCode: account.bankCode, accountNumber: account.accountNumber, amount: account.amount,
+        dueAt: account.dueAt, orderUrl: `${siteUrl()}/orders/${order.id}`,
+        autoCancel: order.status === 'paid' || order.status === 'confirmed',
+      }),
+    });
+  });
+}
+
+/**
+ * 입금 오류 되돌림 뒤 입금 기한까지 재입금이 없어 시스템이 주문을 취소했다는 안내 메일(ADR-0049 결정 4). 주문이 취소됐고 되돌림이 반납으로
+ * 닫혔을 때만 보낸다. 주문당 한 통. 절대 throw하지 않는다.
+ */
+export function sendDepositReversalCanceledEmail(orderId: string): Promise<TransactionalEmailResult> {
+  return safely('deposit reversal canceled', `order:${orderId}`, async () => {
+    const blocked = guardedEnvironment();
+    if (blocked) return blocked;
+    const service = createServiceClient();
+    const { data: orderData, error: orderError } = await service
+      .from('orders').select('id,order_number,user_id,status').eq('id', orderId).maybeSingle();
+    if (orderError) throw new Error('deposit_reversal_email_order_load_failed');
+    const order = orderData as { id: string; order_number?: string | null; user_id: string; status: string } | null;
+    if (!order) return { status: 'skipped', reason: 'order_missing' };
+    if (order.status !== 'canceled') return { status: 'skipped', reason: `order_status_mismatch:${order.status}` };
+
+    const { data: vaData, error: vaError } = await service.rpc('service_order_virtual_account', { p_order_id: orderId });
+    if (vaError) throw new Error('deposit_reversal_email_account_load_failed');
+    const account = parseVirtualAccountSnapshot(vaData);
+    if (!account || account.reversal?.resolution !== 'released') return { status: 'skipped', reason: 'deposit_reversal_not_released' };
+
+    const email = await loadOrderRecipient(service, order.user_id);
+    if (!email) return { status: 'skipped', reason: 'recipient_missing' };
+    return deliver(service, {
+      dedupeKey: depositReversalEmailDedupeKey(orderId, 'canceled'),
+      template: 'order_deposit_reversal',
+      recipient: email,
+      rendered: renderDepositReversalCanceledEmail({
+        orderId: order.id, orderNumber: order.order_number ?? null, amount: account.amount,
+        orderUrl: `${siteUrl()}/orders/${order.id}`,
       }),
     });
   });
@@ -564,7 +658,7 @@ export async function sendRestockAlertEmails(
 
     const { data: goodData, error: goodError } = await service
       .from('goods')
-      .select('name,published_at,archived_at,sale_restriction,option_sale_mode,ips:ip_id(published_at,archived_at)')
+      .select('name,code,published_at,archived_at,sale_restriction,option_sale_mode,ips:ip_id(published_at,archived_at)')
       .eq('id', goodId)
       .maybeSingle();
     if (goodError) throw new Error('restock_email_good_load_failed');
@@ -574,6 +668,7 @@ export async function sendRestockAlertEmails(
     }
     // A notification may have been queued before the operator hid this good.
     const current = goodData as unknown as {
+      code?: string | null;
       published_at: string | null; archived_at: string | null; sale_restriction: string; option_sale_mode?: string | null;
       ips: { published_at: string | null; archived_at: string | null } | null;
     };
@@ -602,7 +697,8 @@ export async function sendRestockAlertEmails(
       const rendered = renderRestockAlertEmail({
         goodName,
         optionName: variantId ? optionName : null,
-        goodPath: `${siteUrl()}/shop/${goodId}${variantId ? `?variant=${encodeURIComponent(variantId)}` : ''}`,
+        /* 공개 상세의 정식 주소(상품 자동코드, ADR-0050). 코드를 못 읽으면 내부 id 주소 — 상세가 코드 주소로 옮긴다. */
+        goodPath: `${siteUrl()}${goodDetailHref({ id: goodId, code: current.code })}${variantId ? `?variant=${encodeURIComponent(variantId)}` : ''}`,
       });
       renderedByOption.set(cacheKey, rendered);
       return rendered;

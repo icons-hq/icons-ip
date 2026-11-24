@@ -757,7 +757,7 @@ describe('updateMarketingConsentAction', () => {
     formData.set('privacy', 'off');
 
     const result = await updateMarketingConsentAction({}, formData);
-    expect(result.message).toMatch(/^ICONS 마케팅 정보 수신 설정을 저장했어요 · 이메일 수신 동의 · SMS 수신 거부 · \d{4}\. \d{1,2}\. \d{1,2}\. 처리$/);
+    expect(result.message).toMatch(/^엑스스퀘어 마케팅 정보 수신 설정을 저장했어요 · 이메일 수신 동의 · SMS 수신 거부 · \d{4}\. \d{1,2}\. \d{1,2}\. 처리$/);
     expect(mocks.rpc).toHaveBeenCalledWith('set_my_marketing_consents', {
       p_email: true, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'settings',
     });
@@ -898,7 +898,7 @@ describe('checkKakaoChannelRewardAction', () => {
 
   it.each([
     ['already_granted', { message: '이미 친구 추가 쿠폰을 받았어요. 쿠폰함에서 확인해주세요.' }],
-    ['not_friend', { errors: { form: '아직 ICONS 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } }],
+    ['not_friend', { errors: { form: '아직 엑스스퀘어 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } }],
     ['no_kakao_identity', { errors: { form: '카카오 계정을 먼저 연결해주세요.' } }],
     ['relation_unknown', { errors: { form: '지금은 쿠폰을 확인할 수 없어요. 잠시 후 다시 시도해주세요.' } }],
   ])('explains the %s outcome', async (outcome, expected) => {

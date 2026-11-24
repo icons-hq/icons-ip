@@ -1,4 +1,4 @@
-import { HOME_CURATION_IMAGE_PATTERN, isCardRewardDestination, isSafeInternalLink } from './home-catalog';
+import { HOME_CURATION_IMAGE_PATTERN, isSafeInternalLink } from './home-catalog';
 import { isHomeHeroImageDim, isHomeHeroTextColor, type HomeHeroImageDim, type HomeHeroTextColor } from './home-hero';
 import { shellNoticeDestinationAllowed, type ShellNoticeGates } from './shell-notices';
 
@@ -15,7 +15,7 @@ import { shellNoticeDestinationAllowed, type ShellNoticeGates } from './shell-no
  * 없이 그림만 보이고, 그림 속 문구를 읽히는 대체텍스트가 필수이며 문구 아래 줄인 부제는 둘 수 없다.
  *
  * 로더(lib/collection-banners.server.ts)는 쿠키 없는 캐시 읽기로 지금 노출 중인 행을 내려 주고, 요청마다 종료 시각과
- * 목적지 게이트(카드 리워드·커뮤니티)를 서버에서 다시 거른 뒤 페이지 몫(굿즈샵 전체 10장, BEST·NEW 운영 순서 첫 장)만 넘긴다.
+ * 목적지 게이트(지운 화면·커뮤니티)를 서버에서 다시 거른 뒤 페이지 몫(굿즈샵 전체 10장, BEST·NEW 운영 순서 첫 장)만 넘긴다.
  * 그래서 화면(Shop)이 받은 목록이 곧 그릴 배너다 — 배너 유무로 정하는 머리말·여백이 실제 배너와 어긋나지 않는다.
  * DB 규칙(20261027170000 home_curations_collection_check)과 같은 한도로 한 번 더 검증한다 — 어긋난 행은 그리지 않는다.
  * 한 컬렉션에서 노출 기간이 겹치는 배너는 DB 트리거가 10장까지만 받는다(20261027170200) — 노출 중인데 화면에서 빠지는 배너가 없다.
@@ -36,7 +36,7 @@ export function collectionBannerDisplayLimit(slot: CollectionBannerSlot): number
 }
 
 export const COLLECTION_BANNER_SLOT_LABELS: Record<CollectionBannerSlot, string> = {
-  all: '굿즈샵 전체(슬라이드)',
+  all: '전체 상품(슬라이드)',
   best: 'BEST',
   new: 'NEW',
 };
@@ -130,19 +130,7 @@ function isLiveInSlot(banner: CollectionBanner, slot: CollectionBannerSlot, now:
 }
 
 /**
- * 이 슬롯의 노출 중 배너 중 카드팩·게임으로 가는 것이 있는가 — 있을 때만 로더가 카드 리워드 게이트를 읽는다
- * (게이트 읽기는 요청마다 DB 왕복이라 대부분의 요청에서는 건너뛴다).
- */
-export function collectionBannersNeedCardRewardGate(
-  banners: readonly CollectionBanner[],
-  slot: CollectionBannerSlot,
-  now: number,
-): boolean {
-  return banners.some((banner) => isLiveInSlot(banner, slot, now) && banner.href !== null && isCardRewardDestination(banner.href));
-}
-
-/**
- * 페이지에 그릴 배너 — 요청 시각에 끝난 행과 꺼진 목적지(카드 리워드·커뮤니티)로 가는 행을 거른 **뒤에** 페이지 몫까지 자른다.
+ * 페이지에 그릴 배너 — 요청 시각에 끝난 행과 지운 화면·꺼진 커뮤니티로 가는 행을 거른 **뒤에** 페이지 몫까지 자른다.
  * 게이트로 빠진 자리는 다음 순서 배너가 채운다. 순서는 로더의 운영 순서 그대로다.
  */
 export function liveCollectionBanners(

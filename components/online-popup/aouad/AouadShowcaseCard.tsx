@@ -15,7 +15,7 @@ export function AouadShowcaseCard({ localPreview = false }: { localPreview?: boo
       <Link className={styles.card} href={AOUAD_POPUP_PATH} prefetch={false}>
         <div className={styles.art} aria-hidden="true" />
         <div className={styles.content}>
-          <p className={styles.eyebrow}>ICONS ORIGINAL EXPERIENCE <span>프레젠테이션</span></p>
+          <p className={styles.eyebrow}>X SQUARE ORIGINAL EXPERIENCE <span>프레젠테이션</span></p>
           <h2 id="aouad-showcase-title">지금 우리 학교는</h2>
           <p className={styles.description}>문이 닫힌 뒤에도,<br />우리의 이야기는 계속된다.</p>
           <span className={styles.cta}>효산고 들어가기 <span aria-hidden="true">↗</span></span>

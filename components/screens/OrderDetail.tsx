@@ -53,6 +53,8 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import type { CheckoutPaymentReading, OrderRetrySource } from '@/lib/checkout';
 import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
+import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
+import { VIRTUAL_ACCOUNT_COPY, type OrderVirtualAccount } from '@/lib/payments/virtual-account';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { customerShipmentGroupLabels } from '@/lib/fulfillment';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
@@ -218,7 +220,7 @@ function WithdrawalDeadlineNotice({
         </>
       ) : (
         <span>
-          단순 변심 {procedure} 기한이 지났습니다. {digitalOnly ? '파일 하자·오제공은' : '굿즈 하자·오배송은'}
+          단순 변심 {procedure} 기한이 지났습니다. {digitalOnly ? '파일 하자·오제공은' : '상품 하자·오배송은'}
           {' '}{ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 이내에 요청할 수 있습니다.
         </span>
       )}
@@ -273,7 +275,6 @@ function displayedOrderLine(item: RemainingOrderItem, linesByKey: ReadonlyMap<st
 export function OrderDetail({
   viewerId,
   cardPayment = null,
-  cardRewardsEnabled = false,
   now,
   order,
   reviewTargets = [],
@@ -291,6 +292,7 @@ export function OrderDetail({
   orderer = null,
   paymentDisplay = null,
   receiptNotice = false,
+  virtualAccount = null,
 }: {
   viewerId?: string;
   /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 null. */
@@ -300,7 +302,6 @@ export function OrderDetail({
    * 없으면(읽지 못함) 결제 상태를 단정하지 않는다.
    */
   cardPayment?: CheckoutPaymentReading | null;
-  cardRewardsEnabled?: boolean;
   /** 기한 계산 기준 시각. 테스트 주입용 — 비우면 렌더 시각을 쓴다. */
   now?: Date;
   order: OrderDetailData;
@@ -327,6 +328,8 @@ export function OrderDetail({
   paymentDisplay?: OrderPaymentDisplay | null;
   /** `?receipt=unavailable`로 돌아온 경우 — 결제 영수증을 불러오지 못했다는 안내를 결제 정보에 띄운다. */
   receiptNotice?: boolean;
+  /** 토스 가상계좌 입금 정보(본인 전용 RPC). 입금 오류 되돌림(state 'reversed')이면 재입금 안내를 띄운다. 가상계좌 결제가 아니면 null. */
+  virtualAccount?: OrderVirtualAccount | null;
 }) {
   const at = now ?? new Date();
   /* 부분 취소(재고 부족) 뒤에는 주문 품목 수량이 원 수량 그대로다 — 고객에게는 남은 수량을 말하고 취소된 몫을 따로 적는다. */
@@ -418,6 +421,29 @@ export function OrderDetail({
         </div>
       )}
 
+      {/* 토스 가상계좌 입금 오류 되돌림(ADR-0049 결정 4) — 은행이 입금을 취소해 재입금을 기다리는 동안. 주문 상태는 결제완료로 남지만
+          (원장은 되돌리지 않는다) 출고는 보류돼 있고, 고객에게는 같은 계좌·금액·기한을 다시 보인다. */}
+      {virtualAccount?.state === 'reversed' && order.status !== 'canceled' && (
+        <div className="wrap">
+          <div className="order-detail-deposit card" role="status" data-order-deposit-reversed="">
+            <div>
+              <strong>{VIRTUAL_ACCOUNT_COPY.reversedTitle}</strong>
+              {Date.parse(virtualAccount.dueAt) > at.getTime() ? <>
+                <p>{VIRTUAL_ACCOUNT_COPY.reversedBody}</p>
+                <dl className="checkout-totals">
+                  <div><dt>입금 은행</dt><dd>{tossBankLabel(virtualAccount.bankCode)}</dd></div>
+                  <div><dt>계좌번호</dt><dd>{virtualAccount.accountNumber}</dd></div>
+                  <div><dt>입금 금액</dt><dd>{krw(virtualAccount.amount)}</dd></div>
+                  <div><dt>입금 기한</dt><dd>{formatOrderDateTime(virtualAccount.dueAt)}</dd></div>
+                </dl>
+                {/* 자동 취소는 아직 나가지 않은 주문만이다(발송된 주문은 시스템이 취소하지 않는다). */}
+                {order.status === 'paid' || order.status === 'confirmed' ? <p>{VIRTUAL_ACCOUNT_COPY.reversedDeadlineNote}</p> : null}
+              </> : <p>{VIRTUAL_ACCOUNT_COPY.reversedOverdueBody}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 결제가 끝나지 않아 결제 없이 취소된 장바구니·바로구매 주문(QA1 S-D2-15) — 결제 화면을 닫았어도 여기서 다시 결제한다. */}
       {order.status === 'canceled' && retry && !retry.awaitingPayment && (
         <div className="wrap">
@@ -426,10 +452,10 @@ export function OrderDetail({
               <strong>결제가 끝나지 않아 결제 없이 취소된 주문이에요</strong>
               <p>
                 {retry.source === 'cart'
-                  ? '청구된 금액은 없어요. 이 주문의 굿즈 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.'
+                  ? '청구된 금액은 없어요. 이 주문의 상품 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.'
                   : retry.retryOrderId
                     ? '청구된 금액은 없어요. 같은 구성으로 이미 다시 주문했어요. 다시 주문한 주문에서 결제·입금 상태를 확인해주세요.'
-                    : '청구된 금액은 없어요. 같은 굿즈·옵션·수량으로 주문서를 다시 열 수 있어요. 장바구니는 바뀌지 않아요.'}
+                    : '청구된 금액은 없어요. 같은 상품·옵션·수량으로 주문서를 다시 열 수 있어요. 장바구니는 바뀌지 않아요.'}
               </p>
             </div>
             <OrderRetryActions layout="detail" orderId={order.id} retry={retry} />
@@ -491,7 +517,7 @@ export function OrderDetail({
         <section className="order-detail-main card" aria-labelledby="ordered-goods-heading">
           <div className="checkout-section-heading checkout-section-heading--compact">
             <span className="checkout-step mono">ITEMS</span>
-            <h2 id="ordered-goods-heading">주문한 굿즈</h2>
+            <h2 id="ordered-goods-heading">주문한 상품</h2>
           </div>
 
           <div className="order-detail-items">
@@ -620,7 +646,7 @@ export function OrderDetail({
             </dl>
             {order.transaction ? <GoodsTransactionSummary display={order.transaction} labels="order" names={transactionReceiptNames(order.transaction, order.items)} canceledGoodIds={canceledGoodIds} /> : <dl className="checkout-totals">
               {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
-              <div><dt>총 굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
+              <div><dt>총 상품 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
               {order.discountTotal > 0 && (
                 <div><dt>쿠폰 할인 금액</dt><dd>−{krw(order.discountTotal)}</dd></div>
               )}
@@ -657,16 +683,6 @@ export function OrderDetail({
             ) : null}
           </section>
 
-          {cardRewardsEnabled && order.cardPacks.issuedCount > 0 && (
-            <section className="order-card-pack-callout" aria-labelledby="card-pack-heading">
-              <span className="order-card-pack-icon" aria-hidden><Icon name="card" size={22} /></span>
-              <div>
-                <h3 id="card-pack-heading">카드팩 {order.cardPacks.issuedCount}개가 발급됐어요</h3>
-                <p>지금 개봉할 수 있는 카드팩은 {order.cardPacks.availableCount}개입니다.</p>
-              </div>
-              <Link className="btn btn-ghost" href="/packs">카드팩 확인</Link>
-            </section>
-          )}
         </aside>
       </div>
     </div></MypageShell>

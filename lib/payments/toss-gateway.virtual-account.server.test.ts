@@ -307,7 +307,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
         ...overrides,
       };
@@ -320,6 +320,17 @@ describe('토스 가상계좌(ADR-0049)', () => {
       cancels: [{ cancelAmount: ATTEMPT.amount, canceledAt: '2026-11-23T13:00:00+09:00', transactionKey: 'CANCELTX', cancelStatus: 'DONE' }],
     }, { refundStatus });
 
+
+    it('원장 승인 뒤 결제사가 입금 전(되돌림)이면 환불하지 않고 provider_deposit_reversed로 멈춘다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse(200, vaPayment()));
+      const tossGateway = gateway(fetchImpl);
+
+      const outcome = await tossGateway.refund(refundRequest({ refundReceiveAccount: ACCOUNT }));
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_deposit_reversed');
+    });
     it('환불 계좌를 실어 전액 취소하고 fresh 조회로 확인한다 — 멱등키는 계좌별로 갈린다', async () => {
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(200, deposited()))
@@ -332,7 +343,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
       const [url, init] = fetchImpl.mock.calls[1]!;
       expect(url).toBe(`${API}/v1/payments/${PAYMENT_KEY}/cancel`);
       expect(JSON.parse(init.body)).toEqual({
-        cancelReason: 'ICONS 주문 취소',
+        cancelReason: '엑스스퀘어 주문 취소',
         refundReceiveAccount: { bank: '88', accountNumber: '110123456789', holderName: '김토스' },
       });
       expect(init.headers['idempotency-key']).toMatch(new RegExp(`^refund:${ATTEMPT.id}:va-[0-9a-f]{16}$`));
@@ -381,7 +392,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
       const [url, init] = fetchImpl.mock.calls[2]!;
       expect(url).toBe(`${API}/v2/escrows/${ESCROW_KEY}/cancel`);
       expect(init.headers['idempotency-key']).toBe(`refund:${ATTEMPT.id}:escrow`);
-      expect(JSON.parse(init.body)).toEqual({ reason: 'ICONS 주문 취소' });
+      expect(JSON.parse(init.body)).toEqual({ reason: '엑스스퀘어 주문 취소' });
       expect(outcome.outcome).toBe('approved');
       // 결제 조회·전후 조회는 결제 키(gsk), 거래 조회·취소 수락은 에스크로 키(sk)다.
       expect(fetchImpl.mock.calls.map(([, call]) => call.headers.authorization)).toEqual([
@@ -469,8 +480,13 @@ describe('토스 가상계좌(ADR-0049)', () => {
         lastCancel: null,
         virtualAccount: true,
         lastTransactionKey: 'VATX0000000000000000000000000001',
+        // 입금 오류 되돌림 처리의 진실원(ADR-0049 결정 4) — 지금 입금 기한·만료·환불 송금 상태.
+        virtualAccountDueAt: '2026-11-24T03:00:00.000Z',
+        virtualAccountExpired: false,
+        virtualAccountRefundStatus: 'NONE',
       });
     });
+
   });
 
   describe('계좌이체(같은 운영 스위치, 2026-11-23 보강)', () => {
@@ -492,7 +508,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
       ...overrides,
     });
 
-    it('굿즈 주문의 계좌이체 DONE은 취소하지 않고 결제수단을 증거로 approved다', async () => {
+    it('상품 주문의 계좌이체 DONE은 취소하지 않고 결제수단을 증거로 approved다', async () => {
       const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse(200, transferPayment()));
       const tossGateway = gateway(fetchImpl);
 
@@ -547,7 +563,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
       });
 
@@ -571,7 +587,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
       });
 
@@ -591,7 +607,7 @@ describe('토스 가상계좌(ADR-0049)', () => {
         attempt: ATTEMPT,
         idempotencyKey: `refund:${ATTEMPT.id}`,
         amount: ATTEMPT.amount,
-        reason: 'ICONS 주문 취소',
+        reason: '엑스스퀘어 주문 취소',
         providerPaymentKey: PAYMENT_KEY,
       });
 

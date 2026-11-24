@@ -29,7 +29,7 @@ export interface SmsNotificationConfig {
   advertisingOptOut: string | null;
 }
 
-export const SMS_SENDER_NAME = 'ICONS';
+export const SMS_SENDER_NAME = '엑스스퀘어';
 const MAX_BODY_LENGTH = 1000;
 
 export function smsNotificationConfig(env: RuntimeEnvironment = process.env, now: Date = new Date()): SmsNotificationConfig | null {

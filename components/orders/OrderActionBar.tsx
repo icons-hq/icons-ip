@@ -79,7 +79,7 @@ function reviewAction(status: OrderDetailStatus, targets: readonly MyReviewTarge
     /* 대상 0개: 배송완료 전이면 아직 때가 아니라서, 배송완료·구매확정인데도 0개면 쓸 수 있는 굿즈가 없어서다(조회 실패일 수도 있어
        '배송이 완료되면'이라고 거짓을 말하지 않는다). */
     const delivered = status === 'delivered' || status === 'done';
-    return { key: 'review', label: '리뷰작성', target: null, hint: delivered ? '리뷰작성: 지금은 리뷰를 쓸 수 있는 굿즈가 없어요.' : '리뷰작성: 배송이 완료되면 쓸 수 있어요.' };
+    return { key: 'review', label: '리뷰작성', target: null, hint: delivered ? '리뷰작성: 지금은 리뷰를 쓸 수 있는 상품이 없어요.' : '리뷰작성: 배송이 완료되면 쓸 수 있어요.' };
   }
   /* 쓸 수 있는 대상이 없다 — 모두 작성했으면 내 리뷰로, 아니면 아직 못 쓰는 첫 대상의 사유를 말한다. */
   const blocked = targets.find((target) => !target.review);

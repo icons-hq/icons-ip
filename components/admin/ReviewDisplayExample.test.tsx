@@ -42,7 +42,7 @@ describe('ReviewDisplayExampleContent', () => {
     expect(html).toContain('리뷰 (4)');
     expect(html).toMatch(/<div aria-labelledby="pdp-tab-reviews" class="wc-tabs__panel" id="pdp-panel-reviews" role="tabpanel"/);
     expect(html).toMatch(/id="pdp-panel-detail"[^>]*hidden=""|hidden=""[^>]*id="pdp-panel-detail"/);
-    for (const part of ['wc-review-summary__score', 'wc-review-summary__dist', 'wc-review-list', 'wc-review-item__reply', 'ICONS 운영자', '한달사용 리뷰', '재구매', '수정됨', '‘예시 포토리뷰 이벤트’ 선정']) {
+    for (const part of ['wc-review-summary__score', 'wc-review-summary__dist', 'wc-review-list', 'wc-review-item__reply', '엑스스퀘어 운영자', '한달사용 리뷰', '재구매', '수정됨', '‘예시 포토리뷰 이벤트’ 선정']) {
       expect(html, part).toContain(part);
     }
     expect(html).toContain('4.3');
@@ -81,8 +81,9 @@ describe('example markup stays in step with the product detail page', () => {
 
   it('renders the same review blocks the product detail route renders', () => {
     const page = repoFile('app/shop/[goodId]/page.tsx');
-    expect(page).toContain('reviews={<GoodReviews goodId={goodId} section={reviewSection} />}');
-    expect(page).toContain('reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}');
-    expect(page).toContain('selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}');
+    /* 리뷰 링크는 상품 자동코드 주소에 머물도록 코드도 넘긴다(ADR-0050). */
+    expect(page).toContain('reviews={<GoodReviews goodId={goodId} goodCode={detail.good.code} section={reviewSection} />}');
+    expect(page).toContain('reviewHighlights={<ProductDetailReviewSummary goodId={goodId} goodCode={detail.good.code} data={presentation} />}');
+    expect(page).toContain('selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} goodCode={detail.good.code} cards={selectedReviews} /> : undefined}');
   });
 });

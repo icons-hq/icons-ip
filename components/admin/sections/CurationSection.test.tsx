@@ -197,7 +197,7 @@ describe('CurationSection', () => {
       draftActiveFrom="2026-07-15T03:04:05.000Z" draftId="22222222-2222-4222-8222-222222222222"
       eventOptions={[]} goodOptions={options} ipOptions={[]} onSelect={mocks.onSelect} operationId="33333333-3333-4333-8333-333333333333"
       preview={{ curation: { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] } as never,
-        noticeStrip: null, goods: [{ id: 'g13', name: '홍실 아크릴 블록', brand: null, price: 12000, badge: null, imageBg: '#eee', href: '/shop/g13', soldOut: false }], cardRewardsEnabled: false }}
+        noticeStrip: null, goods: [{ id: 'g13', name: '홍실 아크릴 블록', brand: null, price: 12000, badge: null, imageBg: '#eee', href: '/shop/g13', soldOut: false }] }}
       records={[]} selected={{ ...record, kind: 'best_tab', slot: 'popular', payload: { good_ids: ['g13', 'draft-good', 'ip-good', 'archived-good', 'gone'] } }}
     />);
     const row = (goodId: string) => html.match(new RegExp(`<li[^>]*>(?:(?!</li>).)*<small[^>]*>${goodId}</small>(?:(?!</li>).)*</li>`))?.[0] ?? '';
@@ -255,7 +255,7 @@ describe('CurationSection', () => {
     expect(checkboxTag(html, 'collection')).toContain('type="checkbox"');
     expect(checkboxTag(html, 'collection')).not.toContain('checked');
     expect(checkboxTag(html, 'product')).toContain('checked=""');
-    expect(html).toContain('상품 목록(굿즈샵·NEW·BEST·IP관)');
+    expect(html).toContain('상품 목록(쇼핑·NEW·BEST·IP관)');
     expect(html).not.toContain('data-artwork-kind="curation"');
     expect(html).toContain('type="hidden" name="imagePath" value=""');
     /* 띠배너를 공지 바로 바꿔도 이전 이미지 경로를 싣지 않는다 — 이미지 칸이 없어 오류를 보여 줄 자리도 없다. */
@@ -280,7 +280,7 @@ describe('CurationSection', () => {
     expect(getCurationFormKey(null, 'draft')).not.toBe(getCurationFormKey(null, 'new-explicit-draft'));
   });
 
-  /* LD-15(12 §4) — 카드 리워드가 중지되면 카드팩·게임으로 가는 혜택 타일만 숨고 다른 혜택 타일은 노출된다.
+  /* LD-15(12 §4) — 지운 카드팩·게임 화면(ADR-0052)으로 가는 혜택 타일만 숨고 다른 혜택 타일은 노출된다.
      안내와 미리보기 알림이 "혜택 타일 전체가 숨는다"고 말하면 운영자가 쿠폰·이벤트 타일까지 내려 버린다. */
   it('혜택 타일 안내는 목적지 기준 게이트를 설명하고 카드팩·게임 목적지일 때만 숨김 알림을 띄운다', () => {
     const benefit = (linkPath: string): AdminCurationRecord => ({ ...record, kind: 'benefit', title: '첫 구매 혜택', imagePath: null, imageUrl: null,
@@ -288,13 +288,11 @@ describe('CurationSection', () => {
     const packs = renderSection(benefit('/packs'));
     const events = renderSection(benefit('/events'));
 
-    expect(packs).toContain('쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.');
+    expect(packs).toContain('쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 운영을 끝낸 카드팩·게임 화면으로 가는 타일은 보이지 않습니다.');
     expect(packs).not.toContain('카드팩·게임 혜택을');
-    /* 기본 미리보기는 카드 리워드 중지 상태다(DEFAULT_PREVIEW). */
-    expect(packs).toContain('<strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong>');
+    expect(packs).toContain('<strong>운영을 끝낸 카드팩·게임 화면으로 가는 혜택 타일은 노출되지 않습니다. 다른 화면을 이동할 화면으로 골라주세요.</strong>');
     expect(events).not.toContain('혜택 타일은 노출되지 않습니다');
-    expect(events).not.toContain('카드 리워드가 비활성 상태여서');
-    expect(renderSection(benefit('/games/runner'))).toContain('카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다');
+    expect(renderSection(benefit('/games/runner'))).toContain('카드팩·게임 화면으로 가는 혜택 타일은 노출되지 않습니다');
   });
 
   /* L8b(#574) — 컬렉션 배너(CL-09): 슬롯·한 줄 문구·부제·PC/MO 이미지·딤/글자색·대체텍스트, 링크는 선택. */
@@ -305,7 +303,7 @@ describe('CurationSection', () => {
     expect(html).toContain('컬렉션 배너 관리');
     expect(html).toContain('배너를 보일 컬렉션');
     expect(html).toContain('<option value="best" selected="">BEST</option>');
-    expect(html).toContain('<option value="all">굿즈샵 전체(슬라이드)</option>');
+    expect(html).toContain('<option value="all">전체 상품(슬라이드)</option>');
     expect(html).toContain('배너 문구');
     expect(html).toContain('8 / 40자');
     expect(html).toContain('name="subtitle"');
@@ -378,10 +376,10 @@ describe('CurationSection', () => {
     expect(html).not.toContain('고객에게는 보이지 않는 이름입니다');
   });
 
-  /* l8b-ui-2 — 카드 리워드가 멈춘 배포에서 카드팩으로 가는 컬렉션 배너는 공개 화면에 없다. 혜택 타일처럼 알린다. */
-  it('카드 리워드가 중지되면 카드팩으로 가는 컬렉션 배너에 노출되지 않음을 알리고, 다른 목적지는 알리지 않는다', () => {
+  /* l8b-ui-2 — 지운 카드팩 화면으로 가는 컬렉션 배너는 공개 화면에 없다. 혜택 타일처럼 알린다. */
+  it('지운 카드팩 화면으로 가는 컬렉션 배너에 노출되지 않음을 알리고, 다른 목적지는 알리지 않는다', () => {
     const banner: AdminCurationRecord = { ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: '/packs', payload: null };
-    expect(renderSection(banner)).toContain('카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다');
+    expect(renderSection(banner)).toContain('카드팩·게임 화면으로 가는 컬렉션 배너는 노출되지 않습니다');
     expect(renderSection({ ...banner, linkPath: '/shop/best' })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
     expect(renderSection({ ...banner, linkPath: null })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
   });
@@ -404,15 +402,15 @@ describe('CurationSection', () => {
 
   /* ── X SQUARE 홈(ADR-0043) 어드민 — 라벨·도움말·그리드형·홈 스트립 배너 ── */
 
-  it('추천 콘텐츠는 IP 바로가기 줄로, 기획전 배너는 ICONS PICK 카드로 보이는 방식을 안내한다', () => {
+  it('추천 콘텐츠는 IP 바로가기 줄로, 기획전 배너는 X SQUARE PICK 카드로 보이는 방식을 안내한다', () => {
     const pick = renderSection({ ...record, kind: 'editor_pick', title: '언니! 아직 안데려간 마루', linkPath: '/ip/maru', payload: { badge: '마루는강쥐' } });
     expect(pick).toContain('IP 바로가기(추천 콘텐츠) 관리');
     expect(pick).toContain('홈 배너 아래 IP 바로가기 줄입니다. 배지 문구 = 작은 회색 줄(IP 이름), 제목 = 아래 줄 문구. 설명은 지금 화면에 보이지 않습니다.');
     expect(pick).toContain('IP 바로가기 이미지는 필수입니다. 권장 530×360px');
 
     const band = renderSection({ ...record, kind: 'band_banner', title: '팝업 인기 굿즈', linkPath: '/events/popup', payload: { good_ids: ['g13'] } });
-    expect(band).toContain('홈 &#x27;ICONS PICK&#x27; 카드로 보입니다. 배너 이미지와 제목, 고른 상품 앞 2개가 카드에 나옵니다. 홈 영역 순서에서 연달아 놓은 기획전은 한 줄(3장)로 묶입니다.');
-    expect(band).toContain('ICONS PICK 카드 이미지는 필수입니다. 권장 816×520px');
+    expect(band).toContain('홈 &#x27;X SQUARE PICK&#x27; 카드로 보입니다. 배너 이미지와 제목, 고른 상품 앞 2개가 카드에 나옵니다. 홈 영역 순서에서 연달아 놓은 기획전은 한 줄(3장)로 묶입니다.');
+    expect(band).toContain('X SQUARE PICK 카드 이미지는 필수입니다. 권장 816×520px');
   });
 
   it('텍스트 공지 바 안내는 무작위 노출과 빨간 띠 흐름을 알린다', () => {

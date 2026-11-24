@@ -92,7 +92,7 @@ describe('requestPhoneVerificationCode', () => {
     });
     expect(JSON.stringify(args)).not.toContain('482913');
     expect(JSON.stringify(args)).not.toContain('203.0.113.7');
-    expect(fake.sent).toEqual([{ to: '+821012345678', text: '[ICONS] 인증번호 [482913]를 5분 안에 입력해주세요.', purpose: 'phone_verification', code: '482913' }]);
+    expect(fake.sent).toEqual([{ to: '+821012345678', text: '[엑스스퀘어] 인증번호 [482913]를 5분 안에 입력해주세요.', purpose: 'phone_verification', code: '482913' }]);
   });
 
   it('does not touch the database for an invalid number or a country that is not open', async () => {
@@ -134,7 +134,7 @@ describe('requestPhoneVerificationCode', () => {
     );
 
     expect(result).toEqual({ ok: false, field: 'form', error: '인증번호 문자를 보내지 못했어요. 번호를 확인하고 잠시 후 다시 시도해주세요.' });
-    expect(fake.sent[0]?.text).toBe('[ICONS] Your verification code is 000111. It expires in 5 minutes.');
+    expect(fake.sent[0]?.text).toBe('[X SQUARE] Your verification code is 000111. It expires in 5 minutes.');
     expect(db.rpc).toHaveBeenLastCalledWith('service_fail_member_phone_verification', { p_challenge_id: CHALLENGE_ID, p_user_id: USER_ID });
   });
 });
@@ -231,6 +231,6 @@ describe('codes', () => {
 
   it('does not mark the verification message as advertising', () => {
     expect(phoneCodeMessage('123456', '+821012345678')).not.toContain('(광고)');
-    expect(phoneCodeMessage('123456', '+351912345678')).toBe('[ICONS] Your verification code is 123456. It expires in 5 minutes.');
+    expect(phoneCodeMessage('123456', '+351912345678')).toBe('[X SQUARE] Your verification code is 123456. It expires in 5 minutes.');
   });
 });

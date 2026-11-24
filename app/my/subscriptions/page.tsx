@@ -5,7 +5,7 @@ import { loadMyBillingCards, loadMyGoodsSubscriptions } from '@/lib/subscription
 import { subscriptionAvailability } from '@/lib/subscriptions/runtime.server';
 import { SubscriptionList } from '@/components/screens/subscriptions/SubscriptionList';
 import { isUuid } from '@/lib/uuid';
-export const metadata: Metadata = { title: '정기구매 — ICONS', robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: '정기구매 — 엑스스퀘어', robots: { index: false, follow: false } };
 export const maxDuration = 90;
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const auth = await getCurrentAuthState(); if (!auth.user) redirect('/login?next=%2Fmy%2Fsubscriptions');

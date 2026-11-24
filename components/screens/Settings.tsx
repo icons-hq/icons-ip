@@ -187,7 +187,7 @@ function KakaoChannelSection({ isConfigured, view }: { isConfigured: boolean; vi
               <a className="wc-settings__link-row" href={kakaoChannelAddUrl(view.channelPublicId)} rel="noopener noreferrer" target="_blank">
                 <span>
                   <strong>채널 추가하기</strong>
-                  <span className="wc-settings__link-hint">카카오 계정이 연결돼 있어요. ICONS 카카오톡 채널을 친구로 추가해요.</span>
+                  <span className="wc-settings__link-hint">카카오 계정이 연결돼 있어요. 엑스스퀘어 카카오톡 채널을 친구로 추가해요.</span>
                 </span>
                 <span className="wc-settings__link-action">채널 열기</span>
               </a>
@@ -243,7 +243,7 @@ function KakaoChannelSection({ isConfigured, view }: { isConfigured: boolean; vi
                 <span>
                   <strong>카카오 계정 연결</strong>
                   <span className="wc-settings__link-hint">
-                    카카오 계정을 연결하면서 같은 동의 화면에서 ICONS 카카오톡 채널을 추가할 수 있어요.
+                    카카오 계정을 연결하면서 같은 동의 화면에서 엑스스퀘어 카카오톡 채널을 추가할 수 있어요.
                     {view.couponOffered ? ' 채널을 추가하면 친구 추가 쿠폰을 한 번 드려요.' : ''}
                   </span>
                 </span>

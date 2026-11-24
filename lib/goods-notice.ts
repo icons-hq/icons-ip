@@ -65,7 +65,7 @@ export const GOODS_NOTICE_FIELDS: readonly GoodsNoticeField[] = [
     key: 'asManager',
     label: 'A/S 책임자',
     formName: 'noticeAsManager',
-    placeholder: '아이콘스 고객센터',
+    placeholder: '엑스스퀘어 고객센터',
   },
   {
     key: 'asContact',

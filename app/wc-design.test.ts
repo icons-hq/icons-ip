@@ -430,34 +430,6 @@ describe('White Catalog discovery wiring', () => {
     expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
   });
 
-  it('supplies White Catalog tokens to the chromeless game route', () => {
-    /* 게임 라우트는 Nav가 null이라 `.wc-root` 토큰 공급 지점이 없다 — 게임 풀스크린 래퍼가
-     * "wc-root wc-game"을 함께 얹지 않으면 --wc-* 토큰이 전부 빈 값으로 풀린다. */
-    const css = read('./styles/wc-discovery.css');
-    const game = readFileSync(
-      new URL('../components/games/MarbleRoulette.tsx', import.meta.url),
-      'utf8',
-    );
-
-    expect(css).toMatch(/\.wc-game\s*\{[^}]*background:\s*var\(--wc-surface\)/s);
-    expect(game).toContain('"wc-root wc-game"');
-  });
-
-  it('keeps the marble game reveal rarity foil while the chrome drops HM tokens', () => {
-    /* 카드 reveal의 foil·rarity 물성(var(--holo)·RARITY_META 색·링)은 카드 식별 국소 요소로
-     * 남기고, 크롬(eyebrow·btn-holo·HM mint/pink 토큰)은 White Catalog으로 재도색됐어야 한다. */
-    const game = readFileSync(
-      new URL('../components/games/MarbleRoulette.tsx', import.meta.url),
-      'utf8',
-    );
-
-    expect(game).toContain('CARD_FOIL_BACKGROUND');
-    expect(game).toContain('RARITY_META');
-    expect(game).not.toContain('btn-holo');
-    expect(game).not.toContain('var(--mint)');
-    expect(game).not.toContain('var(--pink)');
-    expect(game).not.toContain("className=\"eyebrow\"");
-  });
 });
 
 describe('White Catalog account-commerce wiring', () => {

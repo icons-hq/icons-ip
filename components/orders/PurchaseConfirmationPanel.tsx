@@ -67,7 +67,7 @@ export function PurchaseConfirmationPanel({ orderId, actorId, admin = false, cla
           <button type="button" disabled={disabled || !value.held} onClick={() => void act('resume')}>보류 해제</button></div>
         {value.held && value.autoDueAt ? <p>예정 시각이 지난 보류를 해제하면 다음 자동 처리에서 확정될 수 있습니다.</p> : null}
       </> : !admin && value.status === 'delivered' ? <>
-        <label className="purchase-confirmation__ack"><input type="checkbox" checked={ack} disabled={disabled} onChange={e => setAck(e.target.checked)} />받은 굿즈와 구매확정·기간 연장 내용을 확인했습니다.</label>
+        <label className="purchase-confirmation__ack"><input type="checkbox" checked={ack} disabled={disabled} onChange={e => setAck(e.target.checked)} />받은 상품과 구매확정·기간 연장 내용을 확인했습니다.</label>
         <div className="purchase-confirmation__actions"><button type="button" disabled={disabled || !ack || !value.canConfirm} onClick={() => void act('confirm')}>구매확정</button>
           {value.canExtend ? <button type="button" disabled={disabled || !ack} onClick={() => void act('extend')}>구매확정 {value.extensionDays}일 연장 (1회)</button> : null}</div>
         {value.extensionUsed ? <p>이 주문의 구매확정 기간을 한 번 연장했습니다.</p> : null}

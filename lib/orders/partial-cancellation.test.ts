@@ -15,7 +15,7 @@ const record = {
   id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed', provider: 'toss', refundAmount: 12_500, goodsRefundAmount: 9_500,
   shippingRefundAmount: 3_000, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z',
   completedAt: '2026-11-12T05:00:05Z', transferredAt: null, closedShipmentCount: 1,
-  items: [{ orderItemId: ITEM, goodName: '품절 굿즈 A', variantName: '블루', qty: 1, goodsRefundAmount: 9_500 }],
+  items: [{ orderItemId: ITEM, goodName: '품절 상품 A', variantName: '블루', qty: 1, goodsRefundAmount: 9_500 }],
 };
 
 describe('부분 취소 응답 좁히기', () => {
@@ -81,14 +81,14 @@ describe('품목·수량 선택', () => {
 describe('구매자 주문 상세 한 줄', () => {
   it("'A 1개 취소 · 환불 N원'에 함께 환불한 배송비를 덧붙인다", () => {
     expect(orderPartialCancellationSummary({ items: record.items, refundAmount: 12_500, shippingRefundAmount: 3_000, storeCreditRestoreAmount: 0 }))
-      .toBe('품절 굿즈 A (블루) 1개 취소 · 환불 12,500원 (배송비 3,000원 포함)');
+      .toBe('품절 상품 A (블루) 1개 취소 · 환불 12,500원 (배송비 3,000원 포함)');
     expect(orderPartialCancellationSummary({ items: [{ ...record.items[0], variantName: null }], refundAmount: 9_500, shippingRefundAmount: 0, storeCreditRestoreAmount: 0 }))
-      .toBe('품절 굿즈 A 1개 취소 · 환불 9,500원');
+      .toBe('품절 상품 A 1개 취소 · 환불 9,500원');
   });
   it('적립금 몫을 되돌렸으면 알림과 같은 사실을 덧붙인다(환불 0원이어도)', () => {
     expect(orderPartialCancellationSummary({ items: record.items, refundAmount: 8_500, shippingRefundAmount: 0, storeCreditRestoreAmount: 1_000 }))
-      .toBe('품절 굿즈 A (블루) 1개 취소 · 환불 8,500원 · 적립금 1,000원 되돌림');
+      .toBe('품절 상품 A (블루) 1개 취소 · 환불 8,500원 · 적립금 1,000원 되돌림');
     expect(orderPartialCancellationSummary({ items: record.items, refundAmount: 0, shippingRefundAmount: 0, storeCreditRestoreAmount: 2_000 }))
-      .toBe('품절 굿즈 A (블루) 1개 취소 · 환불 0원 · 적립금 2,000원 되돌림');
+      .toBe('품절 상품 A (블루) 1개 취소 · 환불 0원 · 적립금 2,000원 되돌림');
   });
 });

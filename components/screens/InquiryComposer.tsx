@@ -143,7 +143,7 @@ export function InquiryComposer({
                   type="checkbox"
                 />
                 <span>
-                  굿즈 <strong>{link.goodName ?? link.goodId}</strong> 정보를 함께 전달
+                  상품 <strong>{link.goodName ?? link.goodId}</strong> 정보를 함께 전달
                 </span>
               </label>
             ) : null}

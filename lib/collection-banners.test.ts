@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   COLLECTION_BANNER_SLIDE_LIMIT,
   collectionBannerDisplayLimit,
-  collectionBannersNeedCardRewardGate,
   liveCollectionBanners,
   parseCollectionBannerRow,
   wrapCollectionBannerIndex,
@@ -17,7 +16,7 @@ const url = (path: string) => `https://cdn.test/${path}`;
 function row(overrides: Partial<CollectionBannerRow> = {}): CollectionBannerRow {
   return {
     id: '97420000-0000-4000-8000-000000000001',
-    title: '가을 신상 굿즈',
+    title: '가을 신상 상품',
     image_path: PC,
     link_path: null,
     slot: 'all',
@@ -32,7 +31,7 @@ describe('parseCollectionBannerRow', () => {
     expect(parseCollectionBannerRow(row(), url)).toEqual({
       id: '97420000-0000-4000-8000-000000000001',
       slot: 'all',
-      title: '가을 신상 굿즈',
+      title: '가을 신상 상품',
       subtitle: null,
       imageUrl: `https://cdn.test/${PC}`,
       mobileImageUrl: null,
@@ -49,11 +48,11 @@ describe('parseCollectionBannerRow', () => {
       slot: 'best',
       link_path: '/shop/best',
       active_to: '2026-11-01T00:00:00.000Z',
-      payload: { subtitle: '지금 많이 찾는 굿즈', mobile_image_path: MO, image_alt: '리락쿠마 키링 세 종', image_dim: 'black', text_color: 'white' },
+      payload: { subtitle: '지금 많이 찾는 상품', mobile_image_path: MO, image_alt: '리락쿠마 키링 세 종', image_dim: 'black', text_color: 'white' },
     }), url);
 
     expect(banner).toMatchObject({
-      slot: 'best', href: '/shop/best', subtitle: '지금 많이 찾는 굿즈', mobileImageUrl: `https://cdn.test/${MO}`,
+      slot: 'best', href: '/shop/best', subtitle: '지금 많이 찾는 상품', mobileImageUrl: `https://cdn.test/${MO}`,
       imageAlt: '리락쿠마 키링 세 종', imageDim: 'black', textColor: 'white', endsAt: Date.parse('2026-11-01T00:00:00.000Z'),
     });
   });
@@ -92,8 +91,8 @@ describe('liveCollectionBanners', () => {
   const banner = (id: string, slot: CollectionBanner['slot'], endsAt: number | null = null, href: string | null = null): CollectionBanner => ({
     id, slot, title: id, subtitle: null, imageUrl: id, mobileImageUrl: null, href, imageAlt: '', imageDim: 'none', textColor: 'black', endsAt,
   });
-  const OPEN = { cardRewardsEnabled: true, communityEnabled: true, collectibleFeatures: { binder: true, market: true, exchange: true } };
-  const CLOSED = { cardRewardsEnabled: false, communityEnabled: false, collectibleFeatures: { binder: false, market: false, exchange: false } };
+  const OPEN = { communityEnabled: true };
+  const CLOSED = { communityEnabled: false };
 
   it('요청 시각에 끝난 배너와 다른 슬롯을 거르고 운영 순서를 지킨다', () => {
     const now = Date.parse('2026-10-27T00:00:00Z');
@@ -104,7 +103,7 @@ describe('liveCollectionBanners', () => {
     expect(liveCollectionBanners(banners, 'new', now, OPEN)).toEqual([]);
   });
 
-  it(`굿즈샵 전체는 ${COLLECTION_BANNER_SLIDE_LIMIT}장, BEST·NEW는 운영 순서 첫 장 하나만 그린다(l8b-data-1)`, () => {
+  it(`쇼핑 전체는 ${COLLECTION_BANNER_SLIDE_LIMIT}장, BEST·NEW는 운영 순서 첫 장 하나만 그린다(l8b-data-1)`, () => {
     const all = Array.from({ length: 12 }, (_, index) => banner(`s${index}`, 'all'));
     const best = [banner('b1', 'best'), banner('b2', 'best')];
 
@@ -115,26 +114,18 @@ describe('liveCollectionBanners', () => {
     expect(collectionBannerDisplayLimit('new')).toBe(1);
   });
 
-  it('꺼진 목적지(카드팩·게임·커뮤니티)를 걸러낸 뒤에 자르므로 빠진 자리는 다음 장이 채운다(l8b-data-4)', () => {
+  it('지운 화면(카드팩·게임·바인더·마켓·트레이드)과 꺼진 커뮤니티 목적지를 걸러낸 뒤에 자르므로 빠진 자리는 다음 장이 채운다(l8b-data-4)', () => {
     const best = [banner('packs', 'best', null, '/packs'), banner('next', 'best', null, '/shop/best')];
     const all = [banner('games', 'all', null, '/games'), banner('community', 'all', null, '/community'),
       banner('binder', 'all', null, '/binder'), banner('market', 'all', null, '/market?tab=new'), banner('exchange', 'all', null, '/exchange'),
       ...Array.from({ length: 10 }, (_, index) => banner(`s${index}`, 'all'))];
 
     expect(liveCollectionBanners(best, 'best', 0, CLOSED).map((item) => item.id)).toEqual(['next']);
-    expect(liveCollectionBanners(best, 'best', 0, OPEN).map((item) => item.id)).toEqual(['packs']);
+    /* 지운 화면은 커뮤니티를 열어도 돌아오지 않는다. */
+    expect(liveCollectionBanners(best, 'best', 0, OPEN).map((item) => item.id)).toEqual(['next']);
     const slides = liveCollectionBanners(all, 'all', 0, CLOSED);
     expect(slides).toHaveLength(10);
     expect(slides.map((item) => item.id)).toEqual(Array.from({ length: 10 }, (_, index) => `s${index}`));
-  });
-
-  it('카드 리워드 게이트는 이 슬롯의 노출 중 배너가 카드팩·게임으로 갈 때만 읽는다', () => {
-    const now = 100;
-    const banners = [banner('shop', 'best', null, '/shop/best'), banner('packs', 'all', null, '/packs'), banner('ended', 'new', now, '/games')];
-
-    expect(collectionBannersNeedCardRewardGate(banners, 'best', now)).toBe(false);
-    expect(collectionBannersNeedCardRewardGate(banners, 'all', now)).toBe(true);
-    expect(collectionBannersNeedCardRewardGate(banners, 'new', now)).toBe(false);
   });
 });
 

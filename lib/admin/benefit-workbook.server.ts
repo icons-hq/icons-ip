@@ -15,7 +15,7 @@ export async function buildBenefitWorkbook(data: BenefitReport, comparison: Bene
   if (includeIssuances && issuances && (issuances.totalCount > 10000 || issuances.rows.length > 10000)) throw new BenefitIssuanceError('benefit_issuance_export_limit');
   if (includeIssuances && issuances && issuances.rows.length !== issuances.totalCount) throw new BenefitIssuanceError('benefit_issuance_read_failed');
   const book = new ExcelJS.Workbook();
-  book.creator = 'ICONS'; book.created = now;
+  book.creator = '엑스스퀘어'; book.created = now;
   const dateColumn = column('기준일', 'date', 14);
   addWorkbookTable(book, '요약', [column('기간', 'text', 16), ...METRIC_COLUMNS], [['조회기간', ...metrics(data.summary)], ...(comparison ? [['직전 동일 기간', ...metrics(comparison.summary)]] : [])]);
   addWorkbookTable(book, '혜택별 지급현황', [column('쿠폰 코드', 'code', 24), column('혜택이름', 'text', 36), ...METRIC_COLUMNS], data.coupons.map(row => [row.code, row.name, ...metrics(row)]));

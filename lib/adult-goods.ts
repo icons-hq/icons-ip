@@ -12,6 +12,9 @@
 
 export type AdultGoodsAccess = 'hidden' | 'masked' | 'full';
 
+/** 성인(19금) 상품 공개 설정이 있는 어드민 화면(판매자 정보 → 기능 공개 관리, 관리자 전용). */
+export const ADULT_GOODS_VISIBILITY_PATH = '/admin/settings/features';
+
 export interface AdultGoodsVisibility {
   enabled: boolean;
   revision: number;
@@ -25,7 +28,7 @@ export function parseAdultGoodsVisibility(value: unknown): AdultGoodsVisibility 
 }
 
 /** 가림 카드와 인증 안내에 쓰는 고객 표기(CONTEXT.md "성인 상품"). */
-export const ADULT_GOOD_LABEL = '19금 굿즈';
+export const ADULT_GOOD_LABEL = '19금 상품';
 
 /** 이 모드에서 카탈로그가 읽을 판매 제한 유형. */
 export function adultGoodsRestrictions(access: AdultGoodsAccess): ('none' | 'adult')[] {

@@ -7,17 +7,14 @@ import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '
 import {
   FOOTER_BULK_PURCHASE_LABEL,
   FOOTER_COMMUNITY_STAFF_ITEMS,
-  FOOTER_DEMO_ITEMS,
   UTIL_HELP_ITEM,
   bulkPurchaseMailto,
   hidesSiteFooter,
   hrefFor,
   isStandaloneShellPath,
-  withoutHiddenCollectibleItems,
 } from '@/lib/routes';
-import { useCollectibleFeatures } from './CollectibleFeatures';
 import { SITE_FOOTER_ID } from './site-footer-jump';
-import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
+import { useCommunityStaffPreviewVisible } from './StaffPreviewAvailability';
 import { DEFAULT_STOREFRONT_BRANDING, STORE_SOCIAL_LABELS, type StorefrontBranding } from '@/lib/store-branding';
 import { AdminConsoleLink, useAdminConsoleVisible } from './AdminConsoleLink';
 import { virtualAccountTermsRevisionInEffect } from '@/lib/legal/virtual-account-terms-revision';
@@ -29,7 +26,7 @@ import { virtualAccountTermsRevisionInEffect } from '@/lib/legal/virtual-account
    쓰는 `footer.wc-footer#site-footer` 그대로다. */
 
 /* 법정 고지 링크 이름 — 첫 항목은 Figma 표기('아이콘스 이용약관')를 쓰고 나머지는 문서 이름 그대로다. */
-const FOOTER_LEGAL_LABELS = { ...LEGAL_DOCUMENT_LABELS, terms: `아이콘스 ${LEGAL_DOCUMENT_LABELS.terms}` };
+const FOOTER_LEGAL_LABELS = { ...LEGAL_DOCUMENT_LABELS, terms: `엑스스퀘어 ${LEGAL_DOCUMENT_LABELS.terms}` };
 
 /* 사업자 정보 두 줄 — 1줄: 상호·주소·대표자·사업자등록번호·통신판매업 신고번호, 2줄: 전화·이메일·호스팅. 비어 있는 항목은 행이 사라진다. */
 const BUSINESS_LINES: ReadonlyArray<{ label: string; keys: ReadonlyArray<BusinessInfoRow['key']> }> = [
@@ -130,9 +127,6 @@ export function SiteFooter({
   escrowNoticeVisible?: boolean;
 }) {
   const pathname = usePathname();
-  /* 마켓·트레이드 시연은 그 기능의 DB 공개 스위치가 켜져 있을 때만 남는다 — 둘 다 꺼지면 블록 자체가 없다(lib/collectible-features.ts). */
-  const demoItems = withoutHiddenCollectibleItems(FOOTER_DEMO_ITEMS, useCollectibleFeatures());
-  const demoVisible = useSecondaryMarketDemoVisible() && demoItems.length > 0;
   const communityPreviewVisible = useCommunityStaffPreviewVisible();
   const adminConsoleVisible = useAdminConsoleVisible();
   // 숨김 범위는 Nav보다 좁다 — 초대·비밀번호 변경·정지 안내(집중형 셸)와 어드민(자체 작업대)만 비운다. 캠페인·게임은
@@ -177,22 +171,7 @@ export function SiteFooter({
           </nav>
         ) : null}
 
-        {/* 세컨더리 마켓 시연 진입점 — 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 마크업에
-            존재한다. 공개 푸터·SSR 결과에는 없고, 실제 권한 판정은 라우트 서버 게이트가 한다. */}
-        {demoVisible ? (
-          <nav aria-label="스태프 시연 메뉴" className="wc-footer__demo">
-            <h2 className="wc-footer__demo-heading">세컨더리 마켓 시연 · 스태프 전용</h2>
-            <ul>
-              {demoItems.map((item) => (
-                <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
-              ))}
-            </ul>
-            <p className="wc-footer__demo-note">로그인한 스태프·관리자에게만 보이는 mock 시연 진입점입니다. 실제 결제·체결은 일어나지 않습니다.</p>
-          </nav>
-        ) : null}
-
-        {/* 커뮤니티 스태프 프리뷰 진입점 — 임시 비공개 커뮤니티로 가는 유일한 링크다. 위 시연 블록과
-            분리하는 이유는 이쪽이 mock 이 아니라 실제 DB 를 읽는 표면이라서다(lib/routes.ts 주석). */}
+        {/* 커뮤니티 스태프 프리뷰 진입점 — 임시 비공개 커뮤니티로 가는 유일한 링크다(lib/routes.ts 주석). */}
         {communityPreviewVisible ? (
           <nav aria-label="스태프 전용 커뮤니티 메뉴" className="wc-footer__demo">
             <h2 className="wc-footer__demo-heading">커뮤니티 · 스태프 전용</h2>
@@ -205,7 +184,7 @@ export function SiteFooter({
           </nav>
         ) : null}
 
-        <p className="wc-x-footer__copy">© {copyrightYear} ICONS</p>
+        <p className="wc-x-footer__copy">© {copyrightYear} X SQUARE</p>
       </div>
     </footer>
   );

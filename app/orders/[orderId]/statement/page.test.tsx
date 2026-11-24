@@ -53,7 +53,6 @@ function order(overrides: Partial<OrderDetail> = {}): OrderDetail {
     cancellationRequest: null,
     claimEligibility: { cancel: false, return: false, exchange: false },
     shipments: [],
-    cardPacks: { issuedCount: 0, availableCount: 0 },
     ...overrides,
   };
 }
@@ -75,7 +74,7 @@ beforeEach(() => {
 
 describe('/orders/[orderId]/statement', () => {
   it('색인하지 않는 거래명세서 메타데이터다', () => {
-    expect(metadata.title).toBe('거래명세서 — ICONS');
+    expect(metadata.title).toBe('거래명세서 — 엑스스퀘어');
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 

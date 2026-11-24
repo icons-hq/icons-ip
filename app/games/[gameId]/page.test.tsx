@@ -4,8 +4,6 @@ import type { ProfileForOnboarding } from '@/lib/auth/onboarding';
 import GamePage, { generateMetadata } from './page';
 
 const mocks = vi.hoisted(() => ({
-  enabled: false,
-  getGameCatalogEntry: vi.fn(),
   auth: {
     isConfigured: false,
     user: null as { id: string; email: string | null } | null,
@@ -14,12 +12,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/lib/card-rewards/gate.server', () => ({
-  readCardRewardsEnabled: () => mocks.enabled,
-}));
-vi.mock('@/lib/games/catalog', () => ({ getGameCatalogEntry: mocks.getGameCatalogEntry }));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
-vi.mock('@/components/games/GameScreen', () => ({ GameScreen: () => null }));
 vi.mock('@/components/games/hyosan-memories/HyosanMemoriesEntry.client', () => ({
   HyosanMemoriesEntry: () => <main data-hyosan-entry="true" />,
 }));
@@ -34,35 +27,21 @@ vi.mock('next/navigation', () => ({
 
 describe('public game route gate', () => {
   beforeEach(() => {
-    mocks.enabled = false;
-    mocks.getGameCatalogEntry.mockReset();
     mocks.auth.isConfigured = false;
     mocks.auth.user = null;
     mocks.auth.profile = null;
   });
 
-  it('returns 404 without reading the game catalog while rewards are disabled', async () => {
+  /* 카드 리워드 참여형 게임은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 효산의 기억 말고는 404 다. */
+  it('returns 404 for any game other than Hyosan', async () => {
     await expect(GamePage({ params: Promise.resolve({ gameId: 'game-1' }) })).rejects.toThrow('NEXT_NOT_FOUND');
-    expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
+    await expect(GamePage({ params: Promise.resolve({ gameId: 'marble-roulette' }) })).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
-  it('does not leak a disabled game title through metadata', async () => {
+  it('does not publish a title for any game other than Hyosan', async () => {
     await expect(generateMetadata({ params: Promise.resolve({ gameId: 'game-1' }) })).resolves.toEqual({
-      title: 'ICONS',
+      title: '엑스스퀘어',
     });
-    expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
-  });
-
-  it('renders the existing game only after the database capability is enabled', async () => {
-    mocks.enabled = true;
-    mocks.getGameCatalogEntry.mockResolvedValue({
-      source: 'supabase',
-      game: { id: 'game-1' },
-      cards: [],
-    });
-
-    const page = await GamePage({ params: Promise.resolve({ gameId: 'game-1' }) });
-    expect(page.props.game).toEqual({ id: 'game-1' });
   });
 
   it('fails closed at the Hyosan login gate when Supabase is not configured', async () => {
@@ -72,7 +51,6 @@ describe('public game route gate', () => {
     expect(html).toContain('data-hyosan-access="login-required"');
     expect(html).toContain('href="/login?next=%2Fgames%2Fhyosan-memories"');
     expect(html).not.toContain('data-hyosan-entry="true"');
-    expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
   });
 
   it('requires login before mounting the Hyosan graybox when Supabase is configured', async () => {
@@ -86,7 +64,6 @@ describe('public game route gate', () => {
     expect(html).toContain('보호된 참여 기능입니다');
     expect(html).not.toContain('data-hyosan-entry="true"');
     expect(html).not.toContain('플레이 기록');
-    expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
   });
 
   it('requires onboarding when an authenticated visitor has no trustworthy profile', async () => {
@@ -129,10 +106,9 @@ describe('public game route gate', () => {
     ).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
   });
 
-  it('publishes the Hyosan title without consulting the gated card game catalog', async () => {
+  it('publishes the Hyosan title', async () => {
     await expect(
       generateMetadata({ params: Promise.resolve({ gameId: 'hyosan-memories' }) }),
-    ).resolves.toEqual({ title: '효산의 기억 — ICONS' });
-    expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
+    ).resolves.toEqual({ title: '효산의 기억 — 엑스스퀘어' });
   });
 });

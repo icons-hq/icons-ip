@@ -25,7 +25,7 @@ const nodes: StorefrontCategoryNode[] = [
   { id: nodeId(3), parentId: nodeId(1), name: '키링', depth: 2, imageUrl: null, navigable: true },
 ];
 const shortcuts: NavItem[] = [
-  { id: 'new', label: 'NEW' }, { id: 'best', label: 'BEST' }, { id: 'shop', label: '전체 굿즈' }, { id: 'events', label: '이벤트' }, { id: 'stories', label: '쇼핑스토리' },
+  { id: 'new', label: 'NEW' }, { id: 'best', label: 'BEST' }, { id: 'shop', label: '전체 상품' }, { id: 'events', label: '이벤트' }, { id: 'stories', label: '쇼핑스토리' },
 ];
 const campaigns: StorefrontMenuCampaign[] = Array.from({ length: 6 }, (_, index) => ({
   id: `c${index + 1}`, title: `기획전 ${index + 1}`, imageUrl: index === 0 ? 'https://cdn.example/card.webp' : null, href: `/events/c${index + 1}`,
@@ -74,12 +74,12 @@ describe('모바일 카테고리 시트 (MC-05)', () => {
     expect(tabsFirst).toContain('<div class="wc-sheet__inner"><section class="wc-sheet__section wc-catsheet__section wc-catsheet__section--untitled">');
   });
 
-  it('바로가기는 운영 메뉴 설정 순서의 스토어 목적지와 ICONS 아이콘 칸이다', () => {
+  it('바로가기는 운영 메뉴 설정 순서의 스토어 목적지와 엑스스퀘어 아이콘 칸이다', () => {
     const html = render();
     const links = [...html.matchAll(/class="wc-catsheet__shortcut" href="([^"]+)"><span aria-hidden="true" class="wc-catsheet__icon"><span data-icon="([^"]+)"><\/span><\/span><span class="wc-catsheet__label">([^<]+)</g)]
       .map((match) => [match[1], match[2], match[3]]);
     expect(links).toEqual([
-      ['/shop/new', 'spark', 'NEW'], ['/shop/best', 'star', 'BEST'], ['/shop', 'shop', '전체 굿즈'], ['/events', 'event', '이벤트'], ['/stories', 'image', '쇼핑스토리'],
+      ['/shop/new', 'spark', 'NEW'], ['/shop/best', 'star', 'BEST'], ['/shop', 'shop', '전체 상품'], ['/events', 'event', '이벤트'], ['/stories', 'image', '쇼핑스토리'],
     ]);
   });
 

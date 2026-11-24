@@ -9,8 +9,8 @@ import { ticketCheckoutPaymentsEnabled } from '@/lib/payments/ticket-checkout-av
 import { loadPublicTicketTypes } from '@/lib/ticketing.server';
 
 export const metadata: Metadata = {
-  title: '오프라인 팝업 상세 — ICONS',
-  description: 'ICONS 오프라인 팝업 일정과 예매 가능한 회차를 확인하세요.',
+  title: '오프라인 팝업 상세 — 엑스스퀘어',
+  description: '엑스스퀘어 오프라인 팝업 일정과 예매 가능한 회차를 확인하세요.',
 };
 
 function firstParam(value: string | string[] | undefined) {
