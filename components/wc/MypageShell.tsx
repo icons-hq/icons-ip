@@ -2,8 +2,6 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
-import { useCollectibleFeatures } from '@/components/shell/CollectibleFeatures';
 import { useSubscriptionMenuAvailable } from '@/components/subscriptions/SubscriptionMenuAvailability';
 import { useGiftMenuAvailable } from '@/components/gifts/GiftMenuAvailability';
 import { useAdultVerificationMenuAvailable } from '@/components/identity/AdultVerificationMenuAvailability';
@@ -23,9 +21,8 @@ export interface MypageMenuItem {
   label: string;
   /** 목적지 한 줄 설명 — 구 /my 메뉴 허브의 문구다. 대시보드 전환(L6) 뒤로 셸은 그리지 않는다. */
   description: string;
-  /** 카드 리워드 게이트(DB 소유)가 닫혀 있으면 숨긴다 — 현 /packs 노출 규칙과 동일.
-      성인 인증은 시작할 수 있거나 이미 인증 기록이 있는 회원에게만 보인다. */
-  gated?: 'card-rewards' | 'gifts' | 'subscriptions' | 'adult-verification' | 'binder';
+  /** 운영 스위치가 닫힌 메뉴는 숨긴다. 성인 인증은 시작할 수 있거나 이미 인증 기록이 있는 회원에게만 보인다. */
+  gated?: 'gifts' | 'subscriptions' | 'adult-verification';
 }
 
 export interface MypageMenuGroup {
@@ -44,9 +41,6 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
       { href: '/gifts', label: '선물함', description: '보낸 선물과 받은 선물을 확인하세요.', gated: 'gifts' },
       { href: '/tickets', label: '내 티켓', description: '예매 상태와 현장 입장용 티켓을 확인하세요.' },
       { href: '/my/wishlist', label: '위시리스트', description: '하트로 담아둔 굿즈를 다시 확인하세요.' },
-      /* 카드 바인더는 DB 공개 스위치가 켜진 동안에만 보인다(lib/collectible-features.ts, 기본 숨김). */
-      { href: '/binder', label: '바인더', description: '내가 모은 디지털 카드 컬렉션을 펼쳐보세요.', gated: 'binder' },
-      { href: '/packs', label: '카드팩', description: '보유한 카드팩을 확인하고 새 카드를 만나보세요.', gated: 'card-rewards' },
       { href: '/my/reviews', label: '내 리뷰', description: '배송이 완료된 굿즈에 별점과 후기를 남기고 관리하세요.' },
     ],
   },
@@ -59,11 +53,11 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
       { href: '/my/grade-benefits', label: '회원 등급 혜택', description: '회원 등급별 기준과 혜택을 확인하세요.' },
       { href: '/my/coupons', label: '쿠폰함', description: '보유한 쿠폰과 사용·만료 내역을 확인하세요.' },
       /* 코인은 쿠폰 옆에 서지만 돈에 개입하지 않는다 — 설명에서 '할인'을 말하지 않아야
-         두 재화가 여기서부터 갈라진다(CONTEXT.md 코인 vs 쿠폰 vs 뽑기권). */
+         두 재화가 여기서부터 갈라진다(CONTEXT.md 코인 vs 쿠폰). */
       { href: '/my/store-credits', label: '적립금', description: '주문 할인용 적립금 잔액과 사용·복원 이력을 확인하세요.' },
       { href: '/my/coins', label: '코인', description: '출석·이벤트 참여로 모은 코인을 확인하세요.' },
       { href: '/my/adult-verification', label: '성인 인증', description: '19금 굿즈 구매를 위한 휴대폰 본인확인 상태를 확인하세요.', gated: 'adult-verification' },
-      { href: '/notifications', label: '알림함', description: '주문, 카드팩, 팔로우한 IP의 새 소식을 확인하세요.' },
+      { href: '/notifications', label: '알림함', description: '주문과 팔로우한 IP의 새 소식을 확인하세요.' },
       { href: '/settings', label: '설정', description: '프로필과 정보 수신 동의를 관리하세요.' },
     ],
   },
@@ -79,14 +73,12 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
 ];
 
 export function useMypageMenuGroups(): MypageMenuGroup[] {
-  const cardRewardsEnabled = useCardRewardsEnabled();
   const giftsEnabled = useGiftMenuAvailable();
   const subscriptionsEnabled = useSubscriptionMenuAvailable();
   const adultVerificationVisible = useAdultVerificationMenuAvailable();
-  const binderEnabled = useCollectibleFeatures().binder;
   return MYPAGE_MENU_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => (!item.gated || item.gated === 'card-rewards' && cardRewardsEnabled || item.gated === 'gifts' && giftsEnabled || item.gated === 'subscriptions' && subscriptionsEnabled || item.gated === 'adult-verification' && adultVerificationVisible || item.gated === 'binder' && binderEnabled)),
+    items: group.items.filter((item) => (!item.gated || item.gated === 'gifts' && giftsEnabled || item.gated === 'subscriptions' && subscriptionsEnabled || item.gated === 'adult-verification' && adultVerificationVisible)),
   }));
 }
 

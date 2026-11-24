@@ -2,19 +2,13 @@ const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/adm
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   adjustAdminStockAction,
-  endAdminGameAction,
   hideCommunityCommentAction,
   hideCommunityPostAction,
-  setAdminPoolOddsAction,
   setAdminUserRoleAction,
   updateCommunityReportStatusAction,
-  upsertAdminCardAction,
-  upsertAdminCardPoolAction,
   upsertAdminEventAction,
   upsertAdminGoodAction,
-  upsertAdminGameAction,
   upsertAdminIpAction,
-  upsertAdminRewardPolicyAction,
   upsertAdminTicketTypeAction,
 } from './actions';
 import { collectFormValues } from '@/lib/admin/form-state';
@@ -110,7 +104,6 @@ const catalog: CatalogSnapshot = {
     stockQty: 12,
     img: '',
   }],
-  cards: [],
   events: [{
     id: 'e100',
     title: '화산강림 팝업',
@@ -124,24 +117,9 @@ const catalog: CatalogSnapshot = {
   }],
 };
 
-const gamePoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const adminRecords = {
   ips: [{ id: 'hwasan', archivedAt: null, publishedAt: '2026-06-01T00:00:00.000Z' }],
   goods: [{ id: 'g100', ipId: 'hwasan', archivedAt: null }],
-  cards: [],
-  cardPools: [{
-    id: gamePoolId,
-    ipId: 'hwasan',
-    name: '화산 무상 리워드 풀',
-    activeFrom: '2020-01-01T00:00:00.000Z',
-    activeTo: '2099-01-01T00:00:00.000Z',
-    updatedAt: '2026-07-15T00:00:00.000Z',
-    status: 'active',
-    oddsConfigured: true,
-    rewardReady: true,
-    odds: { N: 0, R: 0.7, SR: 0, SSR: 0.2, HOLO: 0.1 },
-  }],
-  rewardPolicies: [],
   events: [{
     id: 'e100',
     ipId: 'hwasan',
@@ -168,7 +146,6 @@ const adminRecords = {
     bg: null,
     imagePath: null,
   }],
-  games: [],
   ticketTypes: [],
 };
 
@@ -273,76 +250,6 @@ function ticketTypeForm() {
   return formData;
 }
 
-function cardForm() {
-  const formData = new FormData();
-  formData.set('id', 'c100');
-  formData.set('ipId', 'hwasan');
-  formData.set('name', '청명 홀로 카드');
-  formData.set('rarity', 'HOLO');
-  formData.set('poolId', '22222222-2222-4222-8222-222222222222');
-  return formData;
-}
-
-function cardPoolForm() {
-  const formData = new FormData();
-  formData.set('operationId', '11111111-1111-4111-8111-111111111111');
-  formData.set('id', '22222222-2222-4222-8222-222222222222');
-  formData.set('ipId', 'hwasan');
-  formData.set('name', '화산강림 무상 리워드 풀');
-  formData.set('activeFrom', '2026-07-15T10:00');
-  formData.set('activeTo', '2026-08-01T00:00');
-  return formData;
-}
-
-function poolOddsForm() {
-  const formData = new FormData();
-  formData.set('operationId', '33333333-3333-4333-8333-333333333333');
-  formData.set('poolId', '22222222-2222-4222-8222-222222222222');
-  formData.set('oddsN', '0');
-  formData.set('oddsR', '70');
-  formData.set('oddsSr', '0');
-  formData.set('oddsSsr', '20');
-  formData.set('oddsHolo', '10');
-  return formData;
-}
-
-function rewardPolicyForm() {
-  const formData = new FormData();
-  formData.set('operationId', '44444444-4444-4444-8444-444444444444');
-  formData.set('id', '55555555-5555-4555-8555-555555555555');
-  formData.set('poolId', '22222222-2222-4222-8222-222222222222');
-  formData.set('trigger', 'order_paid');
-  formData.set('targetIpId', 'hwasan');
-  formData.set('targetGoodId', 'g100');
-  formData.set('minAmount', '30000');
-  formData.set('ticketsPerGrant', '2');
-  formData.set('active', 'on');
-  formData.set('activeFrom', '2026-07-15T10:00');
-  formData.set('activeTo', '2026-08-01T00:00');
-  return formData;
-}
-
-function gameForm() {
-  const formData = new FormData();
-  formData.set('operationId', '77777777-7777-4777-8777-777777777777');
-  formData.set('previousGameId', 'old-marble');
-  formData.set('id', 'new-marble');
-  formData.set('title', '화산 마블 룰렛');
-  formData.set('rewardPoolId', gamePoolId);
-  formData.set('eventId', 'online-hwasan');
-  formData.set('perUserDailyLimit', '2');
-  formData.set('activeFrom', '2026-07-15T10:00');
-  formData.set('activeTo', '2026-08-01T00:00');
-  return formData;
-}
-
-function gameEndForm() {
-  const formData = new FormData();
-  formData.set('operationId', '88888888-8888-4888-8888-888888888888');
-  formData.set('gameId', 'marble-maple');
-  return formData;
-}
-
 const reportId = '44444444-4444-4444-8444-444444444444';
 const postId = '55555555-5555-4555-8555-555555555555';
 const commentId = '66666666-6666-4666-8666-666666666666';
@@ -379,22 +286,7 @@ describe('admin catalog actions', () => {
     await expect(upsertAdminTicketTypeAction({}, ticketTypeForm())).resolves.toEqual({
       errors: { eventId: '등록된 이벤트를 선택해주세요.' },
     });
-    await expect(upsertAdminRewardPolicyAction({}, rewardPolicyForm())).resolves.toMatchObject({
-      errors: { targetGoodId: '등록된 굿즈를 선택해주세요.' },
-    });
     expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('creates a reward policy for a draft IP good missing from the public catalog', async () => {
-    mocks.getAdminCatalogRecords.mockResolvedValue({
-      ...adminRecords,
-      ips: [...adminRecords.ips, { id: 'draft-ip', archivedAt: null, publishedAt: null }],
-      goods: [{ id: 'draft-good', ipId: 'draft-ip', archivedAt: null }],
-    });
-    const form = rewardPolicyForm();
-    form.set('targetIpId', 'draft-ip');
-    form.set('targetGoodId', 'draft-good');
-    await expect(upsertAdminRewardPolicyAction({}, form)).resolves.toEqual({ message: '발급 정책을 저장했습니다.' });
   });
 
   it('creates a ticket type under a draft IP event missing from the public catalog', async () => {
@@ -410,8 +302,6 @@ describe('admin catalog actions', () => {
 
   it.each([
     ['상품', upsertAdminGoodAction, goodForm, '상품을 저장했습니다.'],
-    ['카드', upsertAdminCardAction, cardForm, '카드를 저장했습니다.'],
-    ['카드풀', upsertAdminCardPoolAction, cardPoolForm, '카드풀을 저장했습니다.'],
     ['이벤트', upsertAdminEventAction, eventForm, '이벤트를 저장했습니다.'],
   ] as const)('allows a new %s to belong to a draft IP absent from the public catalog', async (
     _label, action, makeForm, message,
@@ -844,49 +734,6 @@ describe('admin catalog actions', () => {
       expected: '상품을 저장했습니다.',
     },
     {
-      label: '카드',
-      action: upsertAdminCardAction,
-      makeForm: () => {
-        const form = cardForm();
-        form.set('ipId', 'archived-ip');
-        return form;
-      },
-      records: { cards: [{ id: 'c100', ipId: 'archived-ip' }] },
-      expected: '카드를 저장했습니다.',
-    },
-    {
-      label: '카드풀',
-      action: upsertAdminCardPoolAction,
-      makeForm: () => {
-        const form = cardPoolForm();
-        form.set('ipId', 'archived-ip');
-        return form;
-      },
-      records: {
-        cardPools: [{ id: '22222222-2222-4222-8222-222222222222', ipId: 'archived-ip' }],
-      },
-      expected: '카드풀을 저장했습니다.',
-    },
-    {
-      label: '발급 정책',
-      action: upsertAdminRewardPolicyAction,
-      makeForm: () => {
-        const form = rewardPolicyForm();
-        form.set('targetIpId', 'archived-ip');
-        form.set('targetGoodId', 'archived-good');
-        return form;
-      },
-      records: {
-        goods: [{ id: 'archived-good', ipId: 'archived-ip' }],
-        rewardPolicies: [{
-          id: '55555555-5555-4555-8555-555555555555',
-          targetIpId: 'archived-ip',
-          targetGoodId: 'archived-good',
-        }],
-      },
-      expected: '발급 정책을 저장했습니다.',
-    },
-    {
       label: '이벤트',
       action: upsertAdminEventAction,
       makeForm: () => {
@@ -1007,7 +854,7 @@ describe('admin catalog actions', () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_event_contract_locked' } });
 
     await expect(upsertAdminEventAction({}, eventForm())).resolves.toEqual({
-      errors: { form: '연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.' },
+      errors: { form: '예전 게임 기록이 연결돼 이벤트 IP·운영 방식을 변경할 수 없습니다. 개발팀에 게임 기록 정리를 요청해주세요.' },
       ...preservedCatalogValues('이벤트', eventForm()),
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -1016,7 +863,6 @@ describe('admin catalog actions', () => {
   /* #181 — RPC가 막은 덮어쓰기를 운영자가 이해할 수 있는 문구로 옮긴다. */
   it.each([
     ['굿즈', upsertAdminGoodAction, goodForm],
-    ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
   ])('refuses to overwrite an existing %s record from the new-record form', async (label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
@@ -1031,7 +877,6 @@ describe('admin catalog actions', () => {
   it.each([
     ['IP', upsertAdminIpAction, ipEditForm],
     ['굿즈', upsertAdminGoodAction, goodForm],
-    ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
   ])('explains a vanished %s edit target', async (label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_record_missing' } });
@@ -1048,9 +893,7 @@ describe('admin catalog actions', () => {
    * 성공 응답은 바뀌지 않는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
    */
   describe.each([
-    ['카드', upsertAdminCardAction, cardForm, 'name'],
     ['이벤트', upsertAdminEventAction, eventForm, 'title'],
-    ['카드풀', upsertAdminCardPoolAction, cardPoolForm, 'name'],
   ] as const)('%s form state preservation', (_label, action, makeForm, requiredField) => {
     it('returns submitted values and the next attempt after validation fails', async () => {
       const form = makeForm();
@@ -1299,7 +1142,6 @@ describe('admin catalog actions', () => {
 
   it.each([
     ['굿즈', upsertAdminGoodAction, goodForm],
-    ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
   ])('maps an archived-parent race while saving %s', async (_label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'parent_archived private detail' } });
@@ -1395,312 +1237,6 @@ describe('admin catalog actions', () => {
       },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('saves a card with an explicit pool binding through the audited RPC', async () => {
-    await expect(upsertAdminCardAction({}, cardForm())).resolves.toEqual({
-      message: '카드를 저장했습니다.',
-    });
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_card', {
-      target_id: 'c100',
-      target_ip_id: 'hwasan',
-      target_name: '청명 홀로 카드',
-      target_no: null,
-      target_rarity: 'HOLO',
-      target_bg: null,
-      target_image_path: null,
-      target_pool_id: '22222222-2222-4222-8222-222222222222',
-      target_pool_binding_provided: true,
-      target_previous_id: null,
-    });
-  });
-
-  it('saves a card pool through the retry-safe audited RPC', async () => {
-    await expect(upsertAdminCardPoolAction({}, cardPoolForm())).resolves.toEqual({
-      message: '카드풀을 저장했습니다.',
-    });
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_card_pool', {
-      target_operation_id: '11111111-1111-4111-8111-111111111111',
-      target_pool_id: '22222222-2222-4222-8222-222222222222',
-      target_ip_id: 'hwasan',
-      target_name: '화산강림 무상 리워드 풀',
-      target_active_from: '2026-07-15T01:00:00.000Z',
-      target_active_to: '2026-07-31T15:00:00.000Z',
-    });
-    for (const path of ['/admin', '/packs', '/binder']) {
-      expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
-    }
-  });
-
-  it('sets all five pool odds through one audited RPC call', async () => {
-    await expect(setAdminPoolOddsAction({}, poolOddsForm())).resolves.toEqual({
-      message: '등급별 확률을 저장했습니다.',
-    });
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_set_pool_odds', {
-      target_operation_id: '33333333-3333-4333-8333-333333333333',
-      target_pool_id: '22222222-2222-4222-8222-222222222222',
-      target_n: 0,
-      target_r: 0.7,
-      target_sr: 0,
-      target_ssr: 0.2,
-      target_holo: 0.1,
-    });
-  });
-
-  it('saves a reward policy with stable IDs and the exact audited RPC payload', async () => {
-    const formData = rewardPolicyForm();
-
-    await expect(upsertAdminRewardPolicyAction({}, formData)).resolves.toEqual({
-      message: '발급 정책을 저장했습니다.',
-    });
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_reward_policy', {
-      target_operation_id: '44444444-4444-4444-8444-444444444444',
-      target_policy_id: '55555555-5555-4555-8555-555555555555',
-      target_pool_id: '22222222-2222-4222-8222-222222222222',
-      target_trigger: 'order_paid',
-      target_ip_id: 'hwasan',
-      target_good_id: 'g100',
-      target_min_amount: 30000,
-      target_tickets_per_grant: 2,
-      target_active: true,
-      target_active_from: '2026-07-15T01:00:00.000Z',
-      target_active_to: '2026-07-31T15:00:00.000Z',
-    });
-    expect(formData.get('operationId')).toBe('44444444-4444-4444-8444-444444444444');
-    expect(formData.get('id')).toBe('55555555-5555-4555-8555-555555555555');
-    expect(mocks.revalidatePath.mock.calls).toEqual([
-      ['/admin'],
-      ['/packs'],
-      ['/binder'],
-    ]);
-  });
-
-  it('saves a card game with the exact audited RPC payload and refreshes both slugs', async () => {
-    await expect(upsertAdminGameAction({}, gameForm())).resolves.toEqual({
-      message: '게임을 저장했습니다.',
-    });
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_game', {
-      target_operation_id: '77777777-7777-4777-8777-777777777777',
-      target_previous_game_id: 'old-marble',
-      target_game_id: 'new-marble',
-      target_title: '화산 마블 룰렛',
-      target_reward_pool_id: gamePoolId,
-      target_event_id: 'online-hwasan',
-      target_per_user_daily_limit: 2,
-      target_active_from: '2026-07-15T01:00:00.000Z',
-      target_active_to: '2026-07-31T15:00:00.000Z',
-      target_end_now: false,
-    });
-    expect(mocks.revalidatePath.mock.calls).toEqual([
-      ['/admin'],
-      ['/games/old-marble'],
-      ['/games/new-marble'],
-      ['/events'],
-      ['/offline-popups'],
-    ]);
-  });
-
-  it('ends an active game at database execution time without trusting browser fields', async () => {
-    await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
-      message: '게임 운영을 종료했습니다.',
-    });
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_game', {
-      target_operation_id: '88888888-8888-4888-8888-888888888888',
-      target_previous_game_id: 'marble-maple',
-      target_game_id: 'marble-maple',
-      target_title: null,
-      target_reward_pool_id: null,
-      target_event_id: null,
-      target_per_user_daily_limit: null,
-      target_active_from: null,
-      target_active_to: null,
-      target_end_now: true,
-    });
-    expect(mocks.revalidatePath.mock.calls).toEqual([
-      ['/admin'],
-      ['/games/marble-maple'],
-      ['/events'],
-      ['/offline-popups'],
-    ]);
-  });
-
-  it('rejects invalid game input before RPC access or revalidation', async () => {
-    const formData = gameForm();
-    formData.set('activeFrom', '');
-    formData.set('perUserDailyLimit', '0');
-
-    await expect(upsertAdminGameAction({}, formData)).resolves.toEqual({
-      errors: {
-        perUserDailyLimit: '일일 플레이 한도는 1~100 사이의 정수여야 합니다.',
-        activeFrom: '운영 시작 일시를 명시적으로 선택해주세요.',
-      },
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['card_rewards_disabled', '카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.'],
-    ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
-    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['game_pool_window_not_covered', '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.'],
-    ['game_event_ip_mismatch', '같은 IP의 온라인 이벤트만 선택할 수 있습니다.'],
-    ['game_catalog_locked', '플레이 이력이 있어 게임 주소 이름·카드풀·이벤트·설정을 바꿀 수 없습니다.'],
-    ['game_variant_read_only', '이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.'],
-    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
-  ])('maps %s game RPC errors and preserves the failure boundary', async (rpcMessage, expected) => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
-
-    await expect(upsertAdminGameAction({}, gameForm())).resolves.toEqual({
-      errors: { form: expected },
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it('maps a scheduled/already-ended end request without revalidation', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_not_active' } });
-
-    await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
-      errors: { form: '운영 중인 게임만 지금 종료할 수 있습니다.' },
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it('keeps legacy goods games read-only without handing operations to a retired issue', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_variant_read_only' } });
-
-    await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
-      errors: { form: '이전 굿즈 보상형 게임은 보기만 할 수 있고, 지금은 운영하지 않아 고칠 수 없습니다.' },
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it('validates reward-policy target truth before the RPC without revalidation', async () => {
-    const formData = rewardPolicyForm();
-    formData.set('targetIpId', 'missing');
-    formData.set('minAmount', '-1');
-
-    await expect(upsertAdminRewardPolicyAction({}, formData)).resolves.toEqual({
-      errors: {
-        targetIpId: '등록된 IP를 선택해주세요.',
-        targetGoodId: '선택한 IP의 굿즈만 지정할 수 있습니다.',
-        minAmount: '최소 결제 금액은 0 이상의 정수여야 합니다.',
-      },
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it('blocks non-staff reward-policy writes before catalog loading or RPC access', async () => {
-    mocks.adminState = {
-      isConfigured: true,
-      user: { id: 'user-1', email: 'fan@icons.gg' },
-      role: 'user',
-      isStaff: false,
-    };
-
-    await expect(upsertAdminRewardPolicyAction({}, rewardPolicyForm())).resolves.toEqual({
-      errors: { form: '관리자 권한이 필요합니다.' },
-    });
-    expect(mocks.getCatalogSnapshot).not.toHaveBeenCalled();
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['auth_required', '로그인이 필요합니다.'],
-    ['forbidden', '관리자 권한이 필요합니다.'],
-    ['invalid_operation_id', '저장 요청 정보가 맞지 않습니다. 화면을 새로고침한 뒤 다시 저장해주세요.'],
-    ['invalid_reward_policy_id', '발급 정책 정보를 확인해주세요.'],
-    ['invalid_reward_trigger', '지원하지 않는 발급 조건입니다.'],
-    ['invalid_min_amount', '최소 결제 금액을 확인해주세요.'],
-    ['invalid_tickets_per_grant', '발급 수량은 1~100 사이여야 합니다.'],
-    ['invalid_reward_policy_active', '정책 활성화 값을 확인할 수 없습니다. 화면을 새로고침한 뒤 정책 활성화를 다시 골라 저장해주세요.'],
-    ['invalid_reward_policy_active_from', '운영 시작 일시를 확인해주세요.'],
-    ['invalid_reward_policy_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
-    ['ip_not_found', '연결할 IP를 찾을 수 없습니다.'],
-    ['good_not_found', '연결할 굿즈를 찾을 수 없습니다.'],
-    ['reward_policy_good_ip_mismatch', '선택한 IP의 굿즈만 지정할 수 있습니다.'],
-    ['pool_not_found', '카드풀을 찾을 수 없습니다.'],
-    ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
-    ['reward_policy_pool_window_disjoint', '정책과 카드풀 운영 기간이 겹쳐야 합니다.'],
-    ['reward_policy_pool_locked', '이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.'],
-    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
-    ['card_rewards_disabled', '카드 리워드가 중지되어 있어 지금은 저장할 수 없습니다. 카드 리워드를 다시 켜는 일은 개발팀이 합니다.'],
-  ])('maps %s reward-policy RPC errors without leaking SQL', async (rpcMessage, expected) => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
-    const formData = rewardPolicyForm();
-
-    await expect(upsertAdminRewardPolicyAction({}, formData)).resolves.toEqual({
-      errors: { form: expected },
-    });
-    expect(formData.get('operationId')).toBe('44444444-4444-4444-8444-444444444444');
-    expect(formData.get('id')).toBe('55555555-5555-4555-8555-555555555555');
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it('rejects an invalid pool odds total before calling the RPC', async () => {
-    const formData = poolOddsForm();
-    formData.set('oddsR', '69');
-
-    await expect(setAdminPoolOddsAction({}, formData)).resolves.toEqual({
-      errors: { oddsTotal: '확률 합계는 100%여야 합니다.' },
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['pool_ip_locked', '연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.'],
-    ['invalid_pool_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
-    ['active_reward_policy_window_conflict', '사용 중인 발급 정책의 운영 기간이 바꾼 카드풀 운영 기간과 겹치지 않게 됩니다. 그 발급 정책의 정책 활성화를 먼저 끈 뒤 기간을 바꿔주세요.'],
-    ['game_pool_window_conflict', '카드풀 운영 기간은 연결된 게임 운영 기간 전체를 포함해야 합니다.'],
-    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
-  ])('maps %s card-pool RPC errors without exposing internals', async (rpcMessage, expected) => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
-
-    await expect(upsertAdminCardPoolAction({}, cardPoolForm())).resolves.toEqual({
-      errors: { form: expected },
-      ...preservedCatalogValues('카드풀', cardPoolForm()),
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['pool_rarity_uncovered', '확률이 0%보다 큰 등급에는 카드가 1장 이상 연결되어 있어야 합니다.'],
-    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['invalid_pool_probability', '각 확률과 합계가 올바른지 확인해주세요.'],
-    ['invalid_probability_precision', '각 확률과 합계가 올바른지 확인해주세요.'],
-    ['pool_odds_must_sum_to_one', '각 확률과 합계가 올바른지 확인해주세요.'],
-    ['operation_conflict', '이 저장 요청은 이미 다른 내용으로 처리됐습니다. 화면을 새로고침해 저장된 내용을 확인한 뒤, 바꿀 것이 남았으면 다시 저장해주세요.'],
-  ])('maps %s pool-odds RPC errors without exposing internals', async (rpcMessage, expected) => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
-
-    await expect(setAdminPoolOddsAction({}, poolOddsForm())).resolves.toEqual({
-      errors: { form: expected },
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['card_pool_ip_mismatch', '카드와 같은 IP의 카드풀만 연결할 수 있습니다.'],
-    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['pool_rarity_uncovered', '이 카드는 카드풀에서 확률이 0%보다 큰 등급의 마지막 카드라 다른 카드풀로 옮기거나 연결을 풀 수 없습니다. 같은 등급에 다른 카드를 먼저 연결해주세요.'],
-    ['pooled_card_catalog_contract_locked', '풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경해주세요.'],
-  ])('maps %s card binding errors without exposing internals', async (rpcMessage, expected) => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
-
-    await expect(upsertAdminCardAction({}, cardForm())).resolves.toEqual({
-      errors: { form: expected },
-      ...preservedCatalogValues('카드', cardForm()),
-    });
   });
 
   it('saves a ticket session through the audited RPC and refreshes ticket surfaces', async () => {

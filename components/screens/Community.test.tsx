@@ -1,12 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CommunityFeedPost, CommunitySnapshot, CommunityViewerState } from '@/lib/community';
 import { Community } from './Community';
-
-const cardRewardGate = vi.hoisted(() => ({ enabled: true }));
-vi.mock('@/components/shell/CardRewardAvailability', () => ({
-  useCardRewardsEnabled: () => cardRewardGate.enabled,
-}));
 
 vi.mock('@/app/community/actions', () => ({
   blockCommunityUserAction: vi.fn(),
@@ -27,10 +22,6 @@ const snapshot: CommunitySnapshot = {
   posts: [],
   trending: [],
 };
-
-afterEach(() => {
-  cardRewardGate.enabled = true;
-});
 
 function render(trending: string[], posts: CommunityFeedPost[] = []) {
   return renderToStaticMarkup(
@@ -62,8 +53,8 @@ function renderFandom({
 }
 
 describe('Community composer', () => {
-  it('hides the card-pack rail while card rewards are disabled', () => {
-    cardRewardGate.enabled = false;
+  /* 카드팩 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052) — 커뮤니티 레일에도 카드팩 안내가 없다. */
+  it('does not render the removed card-pack rail', () => {
     const html = render([]);
 
     expect(html).not.toContain('href="/packs"');

@@ -1,6 +1,6 @@
 # ICONS 온라인 팝업 — 개발 기획서
 
-> 작성일 2026-06-30 · 문서 4/4 · 짝 문서: [02-prd.md](./02-prd.md) · 기존 [docs/ARCHITECTURE.md](../ARCHITECTURE.md) · 게임 미니앱: [05-game-miniapp-spec.md](./05-game-miniapp-spec.md)
+> 작성일 2026-06-30 · 문서 4/4 · 짝 문서: [02-prd.md](./02-prd.md) · 기존 [docs/ARCHITECTURE.md](../ARCHITECTURE.md) · 게임 미니앱: 05-game-miniapp-spec.md([2026-11-24 삭제](../adr/0052-general-shopping-mall-pivot.md))
 > 전제: 무료 리워드 모델. 기존 ICONS 아키텍처 원칙(공개 브라우징·DB에서 돈/재고 보호·웹훅 확정·RLS·점진 이전)을 그대로 따른다.
 > 주문 연동 무작위 카드팩과 참여형 게임 보상은 게임물·간접 유상성·확률 표시의무 확인 전 공개하지 않는다. 표시가 필요하면 `pool_odds`를 공개 진실원으로 사용한다.
 > **상태·범위:** 2026-08-12 #115와 #66을 current product scope에서 제거해 이 개발안은 historical candidate다. 아래 P0~P3·M·MVP/V1과 Expo 설계는 active AC·backlog가 아니며, 실제 pilot이 생기면 현행 코드·법무·운영 사실을 기준으로 새 RFC를 작성한다.

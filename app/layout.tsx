@@ -64,10 +64,7 @@ import { getStorefrontNavigation } from '@/lib/store-navigation.server';
 import { getStorefrontMegaMenus } from '@/lib/storefront-mega-menu.server';
 import { getStorefrontPresentation } from '@/lib/store-presentation.server';
 import { StorePresentationProvider } from '@/components/shell/StorePresentationProvider';
-import { CardRewardAvailabilityProvider } from '@/components/shell/CardRewardAvailability';
 import { StaffPreviewAvailabilityProvider } from '@/components/shell/StaffPreviewAvailability';
-import { CollectibleFeaturesProvider } from '@/components/shell/CollectibleFeatures';
-import { getCollectibleFeatures } from '@/lib/collectible-features.server';
 import { getShellNotices } from '@/lib/notice-strip.server';
 import { getOperatorSearchTerms } from '@/lib/search-terms.server';
 import { metadataBaseUrl, siteVerificationMetadata } from '@/lib/seo/search-engines';
@@ -88,7 +85,7 @@ export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
   title: '엑스스퀘어',
   description:
-    '공식 라이선스 굿즈 · 팝업 & 티케팅 · 팬 커뮤니티 · 수집형 카드까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
+    '공식 라이선스 굿즈 · 팝업 & 티케팅 · 팬 커뮤니티까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
   /* 네이버 서치어드바이저 소유확인(1014-029) — env 값이 있을 때만 <meta name="naver-site-verification">. 빌드 때 읽으므로
      값을 넣거나 바꾸면 다시 배포한다. */
   ...siteVerificationMetadata(process.env.NAVER_SITE_VERIFICATION),
@@ -100,18 +97,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
      셸이 클라이언트에서 정한다(components/shell/ShellNotices.tsx). */
   /* 메가메뉴·카테고리 시트(공개 전시 트리·진행 중 기획전·피처드 IP)도 같은 쿠키 없는 캐시 읽기다(lib/storefront-mega-menu.server.ts). */
   /* 검색 오버레이의 운영 추천 검색어도 같은 쿠키 없는 캐시 읽기다(lib/search-terms.server.ts). */
-  /* 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치도 같은 쿠키 없는 캐시 읽기다(lib/collectible-features.server.ts) — 셸과 화면 안 링크의 노출만 정하고,
-     라우트·서버 동작은 매 요청 DB 값을 따로 확인한다. */
-  const [notices,businessInfo,branding,navigation,presentation,megaMenus,searchTerms,collectibleFeatures] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation(),getStorefrontMegaMenus(),getOperatorSearchTerms(),getCollectibleFeatures()]);
+  const [notices,businessInfo,branding,navigation,presentation,megaMenus,searchTerms] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation(),getStorefrontMegaMenus(),getOperatorSearchTerms()]);
 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
       <body>
         <CartProvider>
-          <CollectibleFeaturesProvider value={collectibleFeatures}>
-          <CardRewardAvailabilityProvider>
             <AuthPresenceProvider>
-              {/* 스태프 전용 진입점(세컨더리 마켓 시연·커뮤니티 프리뷰)은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
+              {/* 스태프 전용 진입점(커뮤니티 프리뷰·관리자 페이지 바로가기)은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
               <StaffPreviewAvailabilityProvider>
                 <StorePresentationProvider value={presentation}>
                 <Nav notices={notices} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />
@@ -127,8 +120,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </StorePresentationProvider>
               </StaffPreviewAvailabilityProvider>
             </AuthPresenceProvider>
-          </CardRewardAvailabilityProvider>
-          </CollectibleFeaturesProvider>
         </CartProvider>
       </body>
     </html>

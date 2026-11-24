@@ -1,9 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { GradeBenefitCoupon, LoyaltyGradeBenefits, MyLoyaltyStanding } from '@/lib/loyalty-benefits';
 import { MyGradeBenefits } from './MyGradeBenefits';
 
-vi.mock('@/components/shell/CardRewardAvailability', () => ({ useCardRewardsEnabled: () => false }));
 
 const NOW = new Date('2026-10-23T00:00:00.000Z');
 

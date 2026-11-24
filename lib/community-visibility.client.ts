@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/client';
 import { COMMUNITY_ENABLED, COMMUNITY_STAFF_PREVIEW_ENABLED } from './community-visibility';
 
-/* 푸터 스태프 전용 진입점용 브라우저 readback. `lib/secondary-market-demo.client.ts` 와 같은
- * 계약 — 시작값과 실패값은 모두 OFF 이고, 권한 경계는 서버의 canViewCommunity 다.
+/* 푸터 스태프 전용 진입점용 브라우저 readback.
+ * 시작값과 실패값은 모두 OFF 이고, 권한 경계는 서버의 canViewCommunity 다.
  * `has_operator_capability()`는 호출자 자신의 현재 ICONS 운영 권한만 확인한다.
  *
  * 서버 게이트와 달리 공개 스위치가 켜진 배포에서는 false 다 — 그때는 푸터 발견 열에 공개

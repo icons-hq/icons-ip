@@ -28,7 +28,7 @@ import {
 import { adminCurationTargetGroupsFor, type AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import { NOTICE_BAR_CTA_LIMIT, NOTICE_BAR_MESSAGE_LIMIT, type AdminCurationActionState, type AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
-import { isCardRewardDestination } from '@/lib/home-catalog';
+import { isRetiredDestination } from '@/lib/home-catalog';
 import { eligibleHomeReviewGoodIds, HOME_REVIEW_MANUAL_LIMIT, HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_LIMIT, HOME_HERO_TITLE_LIMIT, type HomeHeroImageDim, type HomeHeroTextColor } from '@/lib/home-hero';
 import { HOME_FREE_PRODUCT_LIMIT, HOME_GRID_ITEM_COUNTS, HOME_PRODUCT_CANDIDATE_LIMIT, HOME_PRODUCT_TITLE_LIMIT, homeProductCountRange,
@@ -60,7 +60,7 @@ const KIND_HELP: Record<AdminCurationKind, string> = {
   product_mosaic: '8개 상품과 대표이미지를 지정한 위치에 콜라주로 보여줍니다.',
   product_collection: "직접 고른 상품을 리스트나 큰 이미지로 보여줍니다. 모자이크와 합계 5개까지 구성할 수 있습니다. '그리드형(5열)'은 5개 또는 10개를 한 줄 5개로 보여주고, 고른 상품이 모두 한 IP면 '전체보기'가 그 IP관으로 연결됩니다.",
   review_best: '공개 리뷰 평점이 높은 상품을 자동 또는 직접 선정합니다. 4개 이상일 때 전시합니다.',
-  benefit: '쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.',
+  benefit: '쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 운영을 끝낸 카드팩·게임 화면으로 가는 타일은 보이지 않습니다.',
   collection_banner: '굿즈샵 전체(여러 장이면 넘겨 보는 슬라이드)·BEST·NEW 목록 맨 위에 보이는 배너입니다. 배너 문구를 적으면 이미지 위에 글자로 얹고, 문구가 이미지 안에 들어 있으면 배너 문구를 비워 이미지만 보여줍니다.',
   search_terms: '검색창을 열면 보이는 추천 검색어 칩입니다. 최대 10개이며, 칩을 누르면 그 검색어의 검색 결과로 이동합니다.',
   featured_ip: '기존 특집 IP 설정입니다. 현재 홈 본문에는 특집 IP 영역이 없습니다.',
@@ -83,7 +83,7 @@ const ARTWORK_HELP: Record<AdminCurationKind, string> = {
   collection_banner: '배너 이미지는 필수입니다. 굿즈샵 전체·BEST·NEW 모두 PC 2544×680px(화면 1272×340), 모바일은 750×350px을 권장합니다. 새로 만드는 이미지는 문구를 넣지 말고 배너 문구 칸에 입력하세요. 디자인 시안처럼 문구가 이미 들어 있는 이미지를 올릴 때는 배너 문구를 비우고 이미지 대체텍스트에 그 문구를 적습니다.',
   search_terms: '추천 검색어는 이미지를 쓰지 않습니다.',
 };
-const DEFAULT_PREVIEW: CurationPublicPreview = { curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false };
+const DEFAULT_PREVIEW: CurationPublicPreview = { curation: emptyCurationPreview(), noticeStrip: null, goods: [] };
 
 /*
  * 스토어 전시 편집기(템플릿 룩, ADR-0028). 구성 목록 · 속성 · 미리보기 3단 작업 영역과 저장 흐름은 그대로이고,
@@ -574,13 +574,13 @@ function CurationForm({
     </form>
     <aside className={`flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:sticky xl:top-14 xl:h-[calc(100dvh-4.5rem)] xl:self-start print:hidden${fullPreview ? ' border-t-0' : ' md:col-span-2 xl:col-span-1 xl:border-t-0'}`} aria-label="스토어 미리보기">
       <header className="flex items-center gap-3 border-b bg-background px-4 py-3"><h3 className="text-sm font-medium whitespace-nowrap">미리보기</h3><NativeSelect aria-label="미리보기 범위" className="min-w-0 max-w-[180px] flex-1" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} size="sm" value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></NativeSelect><span className="ml-auto text-xs text-muted-foreground tabular-nums">{device === 'mobile' ? '390px' : '1212px'}</span></header>
-      {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-warning"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong data-display-hidden-goods="">{hiddenDisplayGoodsNotice(draft.missingGoodIds.map((goodId) => ({ name: names.get(goodId) ?? goodId, visibility: visibilityOf(goodId) })))} 미리보기에도 보이지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
-        {kind === 'collection_banner' && !preview.cardRewardsEnabled && values.linkPath && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다. 배너가 없으면 컬렉션은 지금처럼 시작합니다.</strong> : null}
+      {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-warning"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong data-display-hidden-goods="">{hiddenDisplayGoodsNotice(draft.missingGoodIds.map((goodId) => ({ name: names.get(goodId) ?? goodId, visibility: visibilityOf(goodId) })))} 미리보기에도 보이지 않습니다.</strong> : null}{kind === 'benefit' && isRetiredDestination(values.linkPath) ? <strong>운영을 끝낸 카드팩·게임 화면으로 가는 혜택 타일은 노출되지 않습니다. 다른 화면을 이동할 화면으로 골라주세요.</strong> : null}
+        {kind === 'collection_banner' && values.linkPath && isRetiredDestination(values.linkPath) ? <strong>운영을 끝낸 카드팩·게임 화면으로 가는 컬렉션 배너는 노출되지 않습니다. 다른 화면을 이동할 화면으로 골라주세요.</strong> : null}
         {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}
         {kind === 'review_best' ? !preview.productRankings?.reviewsAvailable ? <strong>리뷰 평점을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : draft.reviewEligibleCount < 4 ? <strong>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개 · 4개 이상이어야 영역이 표시됩니다.</strong> : <span>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개</span> : null}
       </div> : null}
-      {previewScope === 'draft' && legacyKind ? <p className={EMPTY_NOTE}>{KIND_HELP[kind]}</p> : <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} collectionBanner={previewScope === 'draft' ? draft.collectionBanner : null} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeBar={previewScope === 'public' ? preview.noticeBar ?? null : draft.noticeBar} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} searchTerms={previewScope === 'draft' ? draft.searchTerms : null} />}
+      {previewScope === 'draft' && legacyKind ? <p className={EMPTY_NOTE}>{KIND_HELP[kind]}</p> : <CurationPreview collectionBanner={previewScope === 'draft' ? draft.collectionBanner : null} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeBar={previewScope === 'public' ? preview.noticeBar ?? null : draft.noticeBar} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} searchTerms={previewScope === 'draft' ? draft.searchTerms : null} />}
     </aside>
     {picker ? <CurationProductPicker goods={preview.goods} limit={productLimit} onApply={(ids) => { update('goodIds', ids); setPicker(false); }} onClose={() => setPicker(false)} options={kind === 'review_best' ? goodOptions.filter((good) => eligibleReviewIds.has(good.id)) : goodOptions} reviewStatistics={kind === 'review_best' ? reviewStatistics : undefined} selectedIds={values.goodIds} /> : null}
   </>;

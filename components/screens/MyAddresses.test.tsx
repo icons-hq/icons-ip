@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AddressBookEntry } from '@/lib/address-book';
 import { MyAddresses, MyAddressesNotOpen, addressBookReturnFocusIds } from './MyAddresses';
 
-vi.mock('@/components/shell/CardRewardAvailability', () => ({ useCardRewardsEnabled: () => false }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/my/addresses', useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }) }));
 vi.mock('@/app/my/addresses/actions', () => ({
   saveAddressBookEntryAction: vi.fn(), setDefaultAddressBookEntryAction: vi.fn(), deleteAddressBookEntryAction: vi.fn(),

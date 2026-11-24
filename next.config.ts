@@ -16,10 +16,7 @@ const nextConfig: NextConfig = {
     '/ip-popups/aouad/\\[...asset\\]': ['./private/ip-popups/aouad-hyosan/**/*'],
     '/ip-popups/aouad/hyosan/\\[...asset\\]': ['./private/ip-popups/aouad/**/*'],
   },
-  async redirects() {
-    // 유료 뽑기 화면(/gacha)을 카드팩 개봉 화면으로 재목적화(#71) — 구 링크 보존
-    return [{ source: '/gacha', destination: '/packs', permanent: true }];
-  },
+  // 옛 /gacha → /packs 영구 이동은 2026-11-24 카드팩 화면 삭제(ADR-0052)와 함께 지웠다 — 두 주소 모두 404 다.
   // 이 UA에는 메타데이터(OG 포함)를 본문으로 스트리밍하지 않고 첫 응답의 <head>에 넣는다. JS를 실행하지 않는
   // 수집기는 본문으로 늦게 오는 메타를 못 읽을 수 있다. 지정하면 Next 기본 목록을 대체하므로 기본 정규식 뒤에 덧붙인다.
   // kakaotalk-scrap: 카카오톡 링크 미리보기 스크랩 서버의 공식 식별자(https://devtalk.kakao.com/t/scrap/33984).

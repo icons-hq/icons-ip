@@ -6,7 +6,6 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { FandomEvent, Ip } from '@/lib/data';
-import type { EventGameLink } from '@/lib/games/catalog';
 import { ALL_IPS, ALL_MODES, ALL_STATUSES, eventModeOptions, eventStatusOptions, selectFandomEvents } from '@/lib/events-catalog';
 import { imageUrlFromBg } from '@/lib/media';
 
@@ -18,7 +17,7 @@ import { imageUrlFromBg } from '@/lib/media';
  * 레퍼런스는 진행·종료를 리스트 순서로만 구분했다). 머리는 레퍼런스 목록 페이지
  * (R-06 §5)처럼 왼쪽 정렬 h1 이다.
  *
- * 필터·정렬(selectFandomEvents)·딥링크(initialIpId)·참여형 게임 진입은 그대로다 —
+ * 필터·정렬(selectFandomEvents)·딥링크(initialIpId)는 그대로다 —
  * 이 화면이 바꾸는 것은 마크업과 스타일뿐이고, 회차·잔여·예매는 상세가 맡는다. */
 
 const eventHref = (id: string) => `/offline-popups/${encodeURIComponent(id)}`;
@@ -54,12 +53,11 @@ export function OfflinePopupStateBadge({ status }: { status: string }) {
   );
 }
 
-function OfflinePopupCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games: EventGameLink[] }) {
+function OfflinePopupCard({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
   const posterUrl = imageUrlFromBg(e.img);
   return (
     <li className="wc-offline-card">
-      {/* 카드 본체는 상세로 가는 링크 하나다(R-06 §1.4). 참여형 게임 진입은 다른 목적지라
-          링크 안에 넣지 않고 카드 아래 따로 둔다 — 링크 안의 링크는 만들 수 없다. */}
+      {/* 카드 본체는 상세로 가는 링크 하나다(R-06 §1.4). */}
       <Link className="wc-offline-card__link" href={eventHref(e.id)}>
         {/* 썸네일 아트는 장식이지만 유형 뱃지 텍스트는 정보다 — 미디어 통째로 aria-hidden 하지 않는다. */}
         <div
@@ -78,15 +76,6 @@ function OfflinePopupCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; gam
           </p>
         </div>
       </Link>
-      {games.length > 0 ? (
-        <ul aria-label={`${e.title} 참여형 게임`} className="wc-offline-card__games">
-          {games.map((game) => (
-            <li key={game.gameId}>
-              <Link className="wc-offline-card__game" href={`/games/${game.gameId}`}>{game.title} 플레이</Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </li>
   );
 }
@@ -127,11 +116,9 @@ function FilterGroup({
 export function Events({
   catalog,
   initialIpId,
-  gameLinks = [],
 }: {
   catalog: Pick<CatalogSnapshot, 'ips' | 'events'>;
   initialIpId?: string;
-  gameLinks?: EventGameLink[];
 }) {
   const [ipF, setIpF] = useState(initialIpId ?? ALL_IPS);
   const [modeF, setModeF] = useState(ALL_MODES);
@@ -147,13 +134,6 @@ export function Events({
   });
 
   const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
-  /* 스키마는 이벤트당 게임 수를 제약하지 않으므로 전부 모아 진입 링크로 노출한다 */
-  const gamesByEventId = new Map<string, EventGameLink[]>();
-  for (const link of gameLinks) {
-    const list = gamesByEventId.get(link.eventId);
-    if (list) list.push(link);
-    else gamesByEventId.set(link.eventId, [link]);
-  }
   const ipsWithEvents = catalog.ips.filter((ip) => catalog.events.some((e) => e.ip === ip.id));
   const modes = eventModeOptions(catalog.events);
   const statuses = eventStatusOptions(catalog.events);
@@ -223,7 +203,6 @@ export function Events({
             {list.map((e) => (
               <OfflinePopupCard
                 e={e}
-                games={gamesByEventId.get(e.id) ?? []}
                 ip={e.ip ? ipsById.get(e.ip) ?? null : null}
                 key={e.id}
               />

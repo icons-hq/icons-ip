@@ -81,11 +81,6 @@ export async function loadAdminIpWorkspace(id: string, tab: IpWorkspaceTab): Pro
     if (result.error) throw new Error('연결된 상품을 불러오지 못했습니다.');
     data.related = (result.data ?? []).map((good) => ({ id: good.id, title: good.name, detail: `${good.price.toLocaleString('ko-KR')}원${good.archived_at ? ' · 보관' : ''}` }));
     data.relatedTotal = result.count ?? 0;
-  } else if (tab === 'pools') {
-    const result = await supabase.from('card_pools').select('id,name,active_from', { count: 'exact' }).eq('ip_id', id).order('active_from', { ascending: false }).order('id').limit(100);
-    if (result.error) throw new Error('연결된 카드풀을 불러오지 못했습니다.');
-    data.related = (result.data ?? []).map((pool) => ({ id: pool.id, title: pool.name, detail: `시작 ${pool.active_from.slice(0, 10)}` }));
-    data.relatedTotal = result.count ?? 0;
   } else if (tab === 'events') {
     const result = await supabase.from('events').select('id,title,starts_at,archived_at', { count: 'exact' }).eq('ip_id', id).order('starts_at', { ascending: false }).order('id').limit(100);
     if (result.error) throw new Error('연결된 이벤트를 불러오지 못했습니다.');

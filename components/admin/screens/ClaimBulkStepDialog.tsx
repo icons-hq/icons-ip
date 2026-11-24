@@ -303,7 +303,7 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
   return <div className="flex min-w-0 flex-col gap-4" data-claim-bulk-refund="">
     <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
       토스·나이스페이 결제는 한 건씩 순서대로 결제사에 전액 취소를 요청하고 결제사 조회로 확인합니다. 확인되면 주문 취소·재고
-      복원·카드팩 회수와 환불 완료 기록이 함께 끝납니다. 입고완료 건은 환불 접수를 먼저 기록합니다. 일부가 실패해도 이미 취소된
+      복원과 환불 완료 기록이 함께 끝납니다. 입고완료 건은 환불 접수를 먼저 기록합니다. 일부가 실패해도 이미 취소된
       건은 되돌리지 않고 건별 결과로 보여 줍니다.
       {deducted ? ' 단순 변심 반품은 반품배송비를 뺀 환불 금액만 부분 취소합니다. 결제사가 그 결제의 부분 취소를 받지 않으면 전액 환불하고 반품배송비는 배송비 청구로 따로 받습니다.' : null}
     </AdminNotice>

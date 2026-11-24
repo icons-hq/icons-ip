@@ -2,7 +2,7 @@
    ICONS — White Catalog: 캠페인 지면 (S8)
    ==================================================================
    소유 범위: 이벤트 허브(campaign-hub), 캠페인 상세 랜딩(campaign-landing),
-   출석·카드팩 교환 참여 패널.
+   출석 참여 패널(카드팩 교환 패널은 2026-11-24 삭제, ADR-0052).
    수치 정본: docs/research/linefriends-square/06-event-campaign-static.md §1·§2,
    DESIGN.md §6 패턴 표(campaign-hub·campaign-landing)·§9 상태·§12 Do/Don't.
 
@@ -685,7 +685,7 @@
   overflow-wrap: anywhere;
 }
 
-/* 3.4 참여 패널 — 출석·교환·종료 안내가 같은 상자를 쓴다 */
+/* 3.4 참여 패널 — 출석·종료 안내가 같은 상자를 쓴다 */
 
 .wc-campaign-panel {
   display: flex;
@@ -762,28 +762,6 @@
   color: var(--wc-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-.wc-campaign-exchange__label {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.5;
-  color: var(--wc-ink);
-}
-
-.wc-campaign-exchange__cost {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--wc-ink-sub);
-}
-
-.wc-campaign-exchange__cost strong {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--wc-ink);
 }
 
 /* ------------------------------------------------------------------

@@ -12,6 +12,9 @@
 
 export type AdultGoodsAccess = 'hidden' | 'masked' | 'full';
 
+/** 성인(19금) 상품 공개 설정이 있는 어드민 화면(판매자 정보 → 기능 공개 관리, 관리자 전용). */
+export const ADULT_GOODS_VISIBILITY_PATH = '/admin/settings/features';
+
 export interface AdultGoodsVisibility {
   enabled: boolean;
   revision: number;

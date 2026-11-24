@@ -109,7 +109,7 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
         </div>
       ) : (
         <p className="account-deletion-description">
-          신청 즉시 새 구매·예매·작성·카드팩 개봉·게임·마케팅 변경이 중단됩니다.
+          신청 즉시 새 구매·예매·작성·게임·마케팅 변경이 중단됩니다.
           진행 중인 거래가 있으면 삭제는 보류됩니다. 법정 거래 기록은 분리 보존되며,
           현재 신청 단계에서는 계정이 삭제되지 않습니다. 실제 Storage·DB·Auth hard delete와
           복원 방지 원장 기록이 시작되면 되돌릴 수 없습니다. 해당 단계 직전에 대상과

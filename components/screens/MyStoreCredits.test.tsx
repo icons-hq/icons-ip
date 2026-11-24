@@ -1,8 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { StoreCreditHistory } from '@/lib/store-credits';
 import { MyStoreCredits, StoreCreditHistoryList } from './MyStoreCredits';
-vi.mock('@/components/shell/CardRewardAvailability', () => ({ useCardRewardsEnabled: () => false }));
 const history: StoreCreditHistory = {
   userId: 'buyer', enabled: false, available: 5000, reserved: 1000, debt: 200,
   total: 61, page: 2, pageSize: 30, items: [{

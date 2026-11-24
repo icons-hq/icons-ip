@@ -53,7 +53,7 @@ interface AdminCurationRow {
    * 특집 IP가 가리키는 IP의 아트워크. 큐레이션이 자기 이미지를 갖지 않았을 때만 쓴다.
    * `home_curations.ip_id → ips.id`는 many-to-one이라 PostgREST가 배열이 아니라
    * 객체 하나를 돌려준다(로컬 REST로 실측). 타입 없는 client는 embed 카디널리티를
-   * 추론하지 못해 배열로 보므로 `lib/draw-tickets.ts`와 같은 방식으로 단정한다.
+   * 추론하지 못해 배열로 보므로 객체 하나로 단정한다.
    */
   ips: { bg: string | null; image_path: string | null } | null;
 }

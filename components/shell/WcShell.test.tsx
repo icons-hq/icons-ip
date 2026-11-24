@@ -14,13 +14,10 @@ import { SiteFooter } from './SiteFooter';
  * renderToStaticMarkup이라 effect는 돌지 않는다 — 알림 수·스크롤 축약은 항상 초기 상태로 관찰된다. */
 
 const mocks = vi.hoisted(() => ({
-  cardRewardsEnabled: true,
   count: 4,
   pathname: '/shop',
   presence: 'signed-in' as 'unknown' | 'signed-in' | 'signed-out',
   search: '',
-  /* 카드 바인더·굿즈 마켓·카드 트레이드 공개 스위치 — 운영 기본값(전부 숨김)에서 시작한다. */
-  collectibleFeatures: { binder: false, market: false, exchange: false },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -31,8 +28,6 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/components/ui/Icon', () => ({ Icon: ({ name }: { name: string }) => <span data-icon={name} /> }));
 vi.mock('./CartProvider', () => ({ useCart: () => ({ count: mocks.count, resetForSignOut: vi.fn() }) }));
 vi.mock('./AuthPresenceProvider', () => ({ useAuthPresence: () => mocks.presence }));
-vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => mocks.cardRewardsEnabled }));
-vi.mock('./CollectibleFeatures', () => ({ useCollectibleFeatures: () => mocks.collectibleFeatures }));
 vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/auth/onboarding', () => ({ nextPathWithSearch: () => '/' }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ from: vi.fn() }) }));
@@ -66,15 +61,11 @@ const LIVE_MENUS: StorefrontMegaMenus = {
 };
 
 beforeEach(() => {
-  mocks.cardRewardsEnabled = true;
   mocks.count = 4;
   mocks.pathname = '/shop';
   mocks.presence = 'signed-in';
   mocks.search = '';
-  mocks.collectibleFeatures = { binder: false, market: false, exchange: false };
 });
-
-const ALL_COLLECTIBLES_ON = { binder: true, market: true, exchange: true };
 
 describe('White Catalog 전역 셸', () => {
   /* 초대·비밀번호 변경·정지 안내는 집중형 셸, 게임·캠페인은 자기완결 번들, 어드민은 자체 작업대다.
@@ -149,8 +140,7 @@ describe('White Catalog 전역 셸', () => {
 
     expect(renderToStaticMarkup(<Nav />)).not.toContain('wc-notice');
 
-    /* 게이트가 꺼진 배포에서 /packs 스트립은 packs GNB 항목과 같은 규칙으로 숨는다. */
-    mocks.cardRewardsEnabled = false;
+    /* 지운 카드팩 화면(/packs, ADR-0052)으로 가는 스트립은 숨는다. */
     expect(
       renderToStaticMarkup(
         <Nav
@@ -168,7 +158,6 @@ describe('White Catalog 전역 셸', () => {
     ).not.toContain('class="wc-notice"');
 
     /* 커뮤니티 임시 비공개도 같은 규칙이다 — 배너만 살아 404 로 떨어지지 않게 한다. */
-    mocks.cardRewardsEnabled = true;
     expect(
       renderToStaticMarkup(
         <Nav
@@ -203,7 +192,7 @@ describe('White Catalog 전역 셸', () => {
     /* 새 기본 GNB는 NEW·BEST·카테고리·POP-UP·EVENT뿐이다 — 쇼핑스토리(MD-0035)·온라인 팝업·카드팩·커뮤니티는 기본 숨김. */
     for (const hidden of ['/stories', '/ip', '/packs', '/community']) expect(html, hidden).not.toContain(`href="${hidden}"`);
     expect(html).toContain('id="wc-mega-category"');
-    /* 카드 바인더·굿즈 마켓·카드 트레이드는 운영하지 않는다 — 공개 스위치 기본값(숨김)에서는 메가메뉴 어디에도 없다. */
+    /* 카드 바인더·굿즈 마켓·카드 트레이드 화면은 지웠다(ADR-0052) — 메가메뉴 어디에도 없다. */
     for (const hidden of ['/binder', '/market', '/exchange']) expect(html, hidden).not.toContain(`href="${hidden}"`);
     expect(html).toContain('wc-tabbar');
     expect(html).toContain('href="/my/wishlist"');
@@ -221,14 +210,13 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('aria-label="장바구니"');
   });
 
-  /* 운영자가 카드팩을 다시 켜도 기능 게이트가 우선이다 — 게이트가 닫히면 GNB와 메가메뉴 양쪽에서 지운다. */
-  it('카드 리워드 게이트가 닫히면 GNB와 메가메뉴 양쪽에서 카드팩을 지운다', () => {
+  /* 카드팩은 2026-11-24 지운 퇴역 메뉴 칸이다(ADR-0052) — 저장된 메뉴 설정에 켜져 있어도 GNB·메가메뉴 어디에도 그리지 않는다. */
+  it('저장된 메뉴 설정이 카드팩을 켜 두었어도 GNB와 메가메뉴에 그리지 않는다', () => {
     const withPacks: StorefrontNavigation = [...DEFAULT_STOREFRONT_NAVIGATION, { id: 'packs', label: '카드팩' }];
-    expect(renderToStaticMarkup(<Nav navigation={withPacks} />)).toContain('href="/packs"');
+    const html = renderToStaticMarkup(<Nav navigation={withPacks} />);
 
-    mocks.cardRewardsEnabled = false;
-
-    expect(renderToStaticMarkup(<Nav navigation={withPacks} />)).not.toContain('href="/packs"');
+    expect(html).not.toContain('href="/packs"');
+    expect(html).not.toContain('카드팩');
   });
 
   /* X SQUARE GNB(ADR-0043): 오프라인 팝업 예매 도메인은 POP-UP 아래에 있어 그 경로에서 POP-UP이 켜지고, 이벤트 허브는 EVENT가 켜진다. */
@@ -355,46 +343,29 @@ describe('White Catalog 전역 셸', () => {
     expect(html.indexOf('class="wc-utilbar"')).toBeLessThan(html.indexOf('<header'));
   });
 
-  it('수집·거래 기능 공개 스위치를 켜면 폴백 메가메뉴·메뉴 시트에 그 기능 링크만 돌아온다', () => {
-    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
-    const html = renderToStaticMarkup(<Nav />);
-    for (const shown of ['/binder', '/market', '/exchange']) expect(html, shown).toContain(`href="${shown}"`);
-
-    mocks.collectibleFeatures = { binder: true, market: false, exchange: false };
-    const binderOnly = renderToStaticMarkup(<Nav />);
-    expect(binderOnly).toContain('href="/binder"');
-    expect(binderOnly).not.toContain('href="/market"');
-    expect(binderOnly).not.toContain('href="/exchange"');
-    const sheet = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
-    expect(sheet).toContain('href="/binder"');
-    /* 항목이 모두 빠진 '거래' 그룹은 제목도 남기지 않는다. */
-    expect(sheet).not.toContain('>거래<');
-  });
-
-  it('전체 메뉴 시트는 수집·거래 기능이 숨김이면(기본) 바인더와 거래 그룹을 싣지 않는다', () => {
-    const html = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
+  it('전체 메뉴 시트는 지운 바인더·거래 그룹을 싣지 않는다', () => {
+    const html = renderToStaticMarkup(<MenuSheet onClose={vi.fn()} open />);
     expect(html).toContain('내 활동');
     for (const hidden of ['/binder', '/market', '/exchange']) expect(html, hidden).not.toContain(`href="${hidden}"`);
     expect(html).not.toContain('>거래<');
   });
 
-  it('전체 메뉴 시트가 스토어·내 활동·거래 그룹과 인증 액션을 담는다', () => {
-    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
-    const html = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
+  it('전체 메뉴 시트가 스토어·내 활동 그룹과 인증 액션을 담는다', () => {
+    const html = renderToStaticMarkup(<MenuSheet onClose={vi.fn()} open />);
 
     expect(html).toContain('aria-label="전체 메뉴"');
     expect(html).toContain('스토어');
     expect(html).toContain('내 활동');
-    expect(html).toContain('거래');
+    expect(html).not.toContain('>거래<');
     expect(html).toContain('href="/orders"');
     expect(html).toContain('href="/my"');
     expect(html).toContain('로그아웃');
 
     mocks.presence = 'signed-out';
-    expect(renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />)).toContain('로그인');
+    expect(renderToStaticMarkup(<MenuSheet onClose={vi.fn()} open />)).toContain('로그인');
 
     expect(
-      renderToStaticMarkup(<MenuSheet cardRewardsEnabled={false} onClose={vi.fn()} open />),
+      renderToStaticMarkup(<MenuSheet onClose={vi.fn()} open />),
     ).not.toContain('href="/packs"');
   });
 
@@ -403,7 +374,6 @@ describe('White Catalog 전역 셸', () => {
       { id: 'events', label: '합성 행사' }, { id: 'best', label: '합성 인기' },
       { id: 'shop', label: '합성 분류' }, { id: 'packs', label: '숨길 카드' }, { id: 'community', label: '숨길 커뮤니티' },
     ];
-    mocks.cardRewardsEnabled = false;
     const html = renderToStaticMarkup(<Nav navigation={navigation} />);
     for (const label of ['주요 메뉴', '주요 메뉴 탭']) {
       const section = html.slice(html.indexOf(`aria-label="${label}"`));
@@ -413,7 +383,7 @@ describe('White Catalog 전역 셸', () => {
     expect(html).not.toContain('href="/shop/new"');
     expect(html).not.toContain('숨길 카드');
     expect(html.includes('숨길 커뮤니티')).toBe(COMMUNITY_ENABLED);
-    const sheet = renderToStaticMarkup(<MenuSheet navigation={navigation} cardRewardsEnabled={false} onClose={vi.fn()} open />);
+    const sheet = renderToStaticMarkup(<MenuSheet navigation={navigation} onClose={vi.fn()} open />);
     expect(sheet.indexOf('합성 행사')).toBeLessThan(sheet.indexOf('합성 인기'));
     expect(sheet.indexOf('합성 인기')).toBeLessThan(sheet.indexOf('합성 분류'));
     expect(sheet).not.toContain('href="/shop/new"');
@@ -440,19 +410,15 @@ describe('White Catalog 전역 셸', () => {
 
   /* CH-11: 커뮤니티가 닫힌 배포에서 입력 안내가 '포스트'를 약속하면 결과에 없는 종류를 광고하는 셈이다.
    * /search 화면과 같은 규칙(searchPlaceholder)을 쓴다. */
-  it('검색 안내는 커뮤니티·카드 바인더 공개 스위치를 따른다', () => {
+  it('검색 안내는 커뮤니티 공개 스위치를 따르고 카드를 약속하지 않는다', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
     expect(html).toContain(`placeholder="${searchPlaceholder()}"`);
     expect(html.includes('포스트')).toBe(COMMUNITY_ENABLED);
-    /* 카드 결과는 카드 바인더로만 이어져 바인더가 숨김(기본)이면 '카드'를 약속하지 않는다. */
+    /* 카드 화면은 2026-11-24 지웠다(ADR-0052) — 검색은 카드 결과를 싣지 않는다. */
     expect(html).not.toContain('카드');
-    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
-    expect(renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />)).toContain(`placeholder="${searchPlaceholder(COMMUNITY_ENABLED, true)}"`);
-    expect(searchPlaceholder(true, true)).toBe('IP · 굿즈 · 카드 · 포스트 통합 검색');
-    expect(searchPlaceholder(false, true)).toBe('IP · 굿즈 · 카드 통합 검색');
     expect(searchPlaceholder(false)).toBe('IP · 굿즈 통합 검색');
-    expect(searchPlaceholder(true, false)).toBe('IP · 굿즈 · 포스트 통합 검색');
+    expect(searchPlaceholder(true)).toBe('IP · 굿즈 · 포스트 통합 검색');
   });
 
   /* CH-09: 데스크톱은 회색 칸 하나(돋보기는 칸 안 장식)로 보이지만, 뒤로·제출 버튼은 접근 이름을 가진 채
@@ -542,7 +508,7 @@ describe('White Catalog 전역 셸', () => {
       mocks.presence = presence;
       const surfaces = [
         renderToStaticMarkup(<Nav />),
-        renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />),
+        renderToStaticMarkup(<MenuSheet onClose={vi.fn()} open />),
         renderToStaticMarkup(<SiteFooter />),
       ];
       for (const html of surfaces) {
@@ -651,7 +617,7 @@ describe('카테고리 내비게이션 (L5)', () => {
     expect(mega).toContain('<span class="wc-mega__label">라이프</span>');
     expect(mega).toContain(`class="wc-mega__link wc-mega__link--nested" href="/shop?displayCategory=${nodeId(4)}">머그</a>`);
     expect(mega).toContain(`class="wc-mega__heading wc-mega__heading-link" href="/shop?displayCategory=${nodeId(5)}">시즌</a>`);
-    /* 실제 분류가 생기면 비(非)분류 그룹(수집·거래)은 메가메뉴에서 빠진다 — 진입점은 GNB·메뉴 시트·푸터에 남는다. */
+    /* 실제 분류가 생기면 비(非)분류 그룹은 메가메뉴에서 빠진다(지운 수집·거래 그룹은 어디에도 없다). */
     expect(mega).not.toContain('>수집<');
     expect(mega).not.toContain('>거래<');
     expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
@@ -730,7 +696,7 @@ describe('카테고리 내비게이션 (L5)', () => {
     expect(mega).toContain(`class="wc-mega__link" href="/shop?displayCategory=${nodeId(2)}">피규어</a>`);
   });
 
-  it('진행 중 기획전이 없으면 기획전 칸을 접고, 전시 트리가 비면 기존 3그룹 메뉴로 돌아간다', () => {
+  it('진행 중 기획전이 없으면 기획전 칸을 접고, 전시 트리가 비면 기존 굿즈샵 메뉴로 돌아간다', () => {
     const compact = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, campaigns: [] }} />));
     expect(compact).toContain('wc-mega__list--catalog wc-mega__list--compact');
     expect(compact).not.toContain('>기획전<');
@@ -738,13 +704,10 @@ describe('카테고리 내비게이션 (L5)', () => {
     /* 공개 스위치 OFF·전시 없음 — 운영 화면이 머지만으로 바뀌지 않는다. */
     const fallback = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, categories: [] }} />));
     expect(fallback).not.toContain('wc-mega__list--catalog');
-    /* 수집·거래 그룹은 카드 바인더·굿즈 마켓·카드 트레이드가 숨김(기본)이면 제목째 빠진다 — 카드팩은 운영 메뉴 설정에서 숨김이다. */
+    /* 수집·거래 그룹(카드팩·바인더·마켓·트레이드)은 2026-11-24 지웠다(ADR-0052). */
     expect(fallback).toContain('<p class="wc-mega__heading">굿즈샵</p>');
     for (const heading of ['수집', '거래']) expect(fallback).not.toContain(`<p class="wc-mega__heading">${heading}</p>`);
     expect(fallback).not.toContain('가을 기획전');
-    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
-    const opened = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, categories: [] }} />));
-    for (const heading of ['굿즈샵', '수집', '거래']) expect(opened).toContain(`<p class="wc-mega__heading">${heading}</p>`);
   });
 
   it('온라인 팝업 메가메뉴는 피처드 IP 목록 + 전체보기 + 상위 2개 이미지 타일이고, 피처드가 없으면 링크로 남는다', () => {

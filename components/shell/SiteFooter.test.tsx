@@ -5,39 +5,28 @@ import postcss, { type AtRule } from 'postcss';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUSINESS_INFO, businessInfoRows } from '@/lib/legal/business-info';
-import { COLLECTIBLE_FEATURES_OFF, type CollectibleFeatures } from '@/lib/collectible-features';
-import { CollectibleFeaturesProvider } from './CollectibleFeatures';
 import { SiteFooter } from './SiteFooter';
 
 const mocks = vi.hoisted(() => ({
   adminConsoleVisible: false,
-  demoVisible: false,
   communityPreviewVisible: false,
   pathname: '/shop',
-  collectibleFeatures: { binder: false, market: false, exchange: false } as CollectibleFeatures,
 }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 vi.mock('./StaffPreviewAvailability', () => ({
   useAdminConsoleVisible: () => mocks.adminConsoleVisible,
-  useSecondaryMarketDemoVisible: () => mocks.demoVisible,
   useCommunityStaffPreviewVisible: () => mocks.communityPreviewVisible,
 }));
 
 function render() {
-  return renderToStaticMarkup(
-    <CollectibleFeaturesProvider value={mocks.collectibleFeatures}><SiteFooter copyrightYear={2026} /></CollectibleFeaturesProvider>,
-  );
+  return renderToStaticMarkup(<SiteFooter copyrightYear={2026} />);
 }
-
-const ALL_COLLECTIBLES_ON: CollectibleFeatures = { binder: true, market: true, exchange: true };
 
 beforeEach(() => {
   mocks.adminConsoleVisible = false;
-  mocks.demoVisible = false;
   mocks.communityPreviewVisible = false;
   mocks.pathname = '/shop';
-  mocks.collectibleFeatures = COLLECTIBLE_FEATURES_OFF;
 });
 
 describe('SiteFooter 법정 고지 링크', () => {
@@ -224,46 +213,17 @@ describe('SiteFooter Figma 진입점', () => {
   });
 });
 
-describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
-  /* 시연은 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 존재한다. 공개 푸터·SSR 결과에
-   * 진입점이 남으면 PG 계약 문제로 내린 C2C 표면이 다시 공개로 새는 셈이다. */
-  it('기본(비로그인·일반 회원·readback 전)에는 시연 블록이 마크업에 없다', () => {
+/* 세컨더리 마켓(굿즈 마켓·카드 트레이드) 스태프 시연은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). */
+describe('SiteFooter 지운 세컨더리 마켓 시연 진입점', () => {
+  it('스태프에게도 시연 블록이나 마켓·트레이드 링크가 없다', () => {
+    mocks.adminConsoleVisible = true;
+    mocks.communityPreviewVisible = true;
     const html = render();
 
-    expect(html).not.toContain('wc-footer__demo');
+    expect(html).not.toContain('aria-label="스태프 시연 메뉴"');
     expect(html).not.toContain('시연');
-  });
-
-  it('스태프에게는 굿즈 마켓·카드 트레이드 시연 링크를 스태프 전용 표기와 함께 연다', () => {
-    mocks.demoVisible = true;
-    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
-    const html = render();
-
-    expect(html).toContain('aria-label="스태프 시연 메뉴"');
-    expect(html).toContain('세컨더리 마켓 시연 · 스태프 전용');
-    expect(html).toContain('굿즈 마켓 시연');
-    expect(html).toContain('카드 트레이드 시연');
-    expect(html).toContain('href="/market"');
-    expect(html).toContain('href="/exchange"');
-    expect(html).toContain('실제 결제·체결은 일어나지 않습니다');
-    /* 스태프 블록은 사업자 정보 아래, 저작권 줄 위에 지금 모양 그대로 선다. */
-    expect(html.indexOf('aria-label="연락처·호스팅"')).toBeLessThan(html.indexOf('aria-label="스태프 시연 메뉴"'));
-    expect(html.indexOf('aria-label="스태프 시연 메뉴"')).toBeLessThan(html.indexOf('wc-x-footer__copy'));
-  });
-
-  /* 마켓·트레이드를 운영하지 않는 동안(DB 공개 스위치 기본값) 스태프에게도 시연 진입점이 없다 — 라우트도 404다. */
-  it('굿즈 마켓·카드 트레이드가 숨김이면 스태프에게도 시연 블록이 없고, 켜진 기능의 시연 링크만 남는다', () => {
-    mocks.demoVisible = true;
-    const hidden = render();
-    expect(hidden).not.toContain('wc-footer__demo');
-    expect(hidden).not.toContain('href="/market"');
-    expect(hidden).not.toContain('href="/exchange"');
-
-    mocks.collectibleFeatures = { binder: false, market: true, exchange: false };
-    const marketOnly = render();
-    expect(marketOnly).toContain('aria-label="스태프 시연 메뉴"');
-    expect(marketOnly).toContain('href="/market"');
-    expect(marketOnly).not.toContain('href="/exchange"');
+    expect(html).not.toContain('href="/market"');
+    expect(html).not.toContain('href="/exchange"');
   });
 });
 
@@ -287,24 +247,12 @@ describe('SiteFooter 커뮤니티 스태프 프리뷰 진입점', () => {
     expect(html).toContain('임시 비공개 상태의 커뮤니티입니다');
   });
 
-  /* 두 스태프 블록은 성격이 달라 문구를 공유하면 거짓말이 된다 — 커뮤니티는 mock 이 아니다. */
-  it('커뮤니티 블록에 세컨더리 마켓 시연 문구를 붙이지 않는다', () => {
+  it('커뮤니티 블록에 mock 시연 문구를 붙이지 않는다', () => {
     mocks.communityPreviewVisible = true;
     const html = render();
 
     expect(html).not.toContain('실제 결제·체결은 일어나지 않습니다');
     expect(html).not.toContain('mock 시연 진입점');
-  });
-
-  /* 두 readback 은 서로 독립이다 — 한쪽 스위치를 내려도 다른 블록이 함께 사라지지 않는다. */
-  it('세컨더리 마켓 시연과 커뮤니티 프리뷰가 함께 열려도 각자 블록으로 선다', () => {
-    mocks.demoVisible = true;
-    mocks.communityPreviewVisible = true;
-    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
-    const html = render();
-
-    expect(html).toContain('aria-label="스태프 시연 메뉴"');
-    expect(html).toContain('aria-label="스태프 전용 커뮤니티 메뉴"');
   });
 });
 
@@ -316,19 +264,15 @@ describe('SiteFooter 관리자 페이지 바로가기', () => {
     expect(html).not.toContain('관리자');
   });
 
-  /* 관리자 바로가기는 스태프 블록 맨 앞이다 — 시연·커뮤니티 블록과 같은 스킨이지만 별개 블록이라 그쪽 안내를 붙이지 않는다. */
+  /* 관리자 바로가기는 스태프 블록 맨 앞이다 — 커뮤니티 블록과 같은 스킨이지만 별개 블록이라 그쪽 안내를 붙이지 않는다. */
   it('어드민 콘솔 운영자에게는 사업자 정보 아래 스태프 블록 맨 앞에 선다', () => {
     mocks.adminConsoleVisible = true;
-    mocks.demoVisible = true;
     mocks.communityPreviewVisible = true;
-    /* 시연 블록은 마켓·트레이드 공개 스위치가 켜진 동안에만 선다 — 세 블록의 순서를 보려고 켠다. */
-    mocks.collectibleFeatures = ALL_COLLECTIBLES_ON;
     const html = render();
 
     expect(html).toContain('<nav aria-label="관리자 바로가기" class="wc-footer__demo"><h2 class="wc-footer__demo-heading">관리자 · 스태프 전용</h2><ul><li><a href="/admin">관리자 페이지</a></li></ul></nav>');
     expect(html.indexOf('aria-label="연락처·호스팅"')).toBeLessThan(html.indexOf('aria-label="관리자 바로가기"'));
-    expect(html.indexOf('aria-label="관리자 바로가기"')).toBeLessThan(html.indexOf('aria-label="스태프 시연 메뉴"'));
-    expect(html.indexOf('aria-label="스태프 시연 메뉴"')).toBeLessThan(html.indexOf('aria-label="스태프 전용 커뮤니티 메뉴"'));
+    expect(html.indexOf('aria-label="관리자 바로가기"')).toBeLessThan(html.indexOf('aria-label="스태프 전용 커뮤니티 메뉴"'));
   });
 });
 

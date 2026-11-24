@@ -275,7 +275,6 @@ function displayedOrderLine(item: RemainingOrderItem, linesByKey: ReadonlyMap<st
 export function OrderDetail({
   viewerId,
   cardPayment = null,
-  cardRewardsEnabled = false,
   now,
   order,
   reviewTargets = [],
@@ -303,7 +302,6 @@ export function OrderDetail({
    * 없으면(읽지 못함) 결제 상태를 단정하지 않는다.
    */
   cardPayment?: CheckoutPaymentReading | null;
-  cardRewardsEnabled?: boolean;
   /** 기한 계산 기준 시각. 테스트 주입용 — 비우면 렌더 시각을 쓴다. */
   now?: Date;
   order: OrderDetailData;
@@ -685,16 +683,6 @@ export function OrderDetail({
             ) : null}
           </section>
 
-          {cardRewardsEnabled && order.cardPacks.issuedCount > 0 && (
-            <section className="order-card-pack-callout" aria-labelledby="card-pack-heading">
-              <span className="order-card-pack-icon" aria-hidden><Icon name="card" size={22} /></span>
-              <div>
-                <h3 id="card-pack-heading">카드팩 {order.cardPacks.issuedCount}개가 발급됐어요</h3>
-                <p>지금 개봉할 수 있는 카드팩은 {order.cardPacks.availableCount}개입니다.</p>
-              </div>
-              <Link className="btn btn-ghost" href="/packs">카드팩 확인</Link>
-            </section>
-          )}
         </aside>
       </div>
     </div></MypageShell>

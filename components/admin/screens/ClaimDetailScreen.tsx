@@ -53,10 +53,8 @@ import { adminClaimExchangeStockTargets, adminClaimPendingReshipments, adminClai
 /* 어드민 클레임 상세(#252) — 템플릿 룩 kit Card(ADR-0028).
  *
  * 왼쪽이 주문 맥락, 오른쪽이 처리다(처리 박스가 오른쪽 맨 위). 운영자가 승인 버튼을 누르기 전에 확인해야 하는
- * 것 — 품목·금액·결제사·뽑기권 발급/사용 여부·환불계좌 — 이 전부 이 화면에 있어야
- * 한다. 뽑기권을 보여주는 이유는 취소·반품 완료가 미개봉 카드팩을 회수하기
- * 때문이다(약관 제17조): 이미 개봉된 카드팩은 회수되지 않으므로, 개봉 이력이 있는
- * 주문의 취소는 사람이 한 번 더 봐야 한다.
+ * 것 — 품목·금액·결제사·환불계좌 — 이 전부 이 화면에 있어야 한다.
+ * (카드팩 발급·개봉 줄은 2026-11-24 일반 쇼핑몰 전환으로 카드 기능과 함께 지웠다, ADR-0052.)
  *
  * 타임라인은 감사 로그를 그대로 읽는다. 별도 이력 테이블을 만들면 감사와 화면이
  * 갈라지고, 갈라지면 어느 쪽이 사실인지 알 수 없다.
@@ -258,7 +256,7 @@ export function ClaimDetailScreen({
   /** 부분 반품 스위치. 켜져 있으면 주문 상품 아래 안내가 반품의 일부 처리를 말한다. */
   partialReturnEnabled?: boolean;
 }) {
-  const { cardPacks, claim, order, payment, refund, refundAccount, timeline } = detail;
+  const { claim, order, payment, refund, refundAccount, timeline } = detail;
   /* 반품배송비 차감(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 아래 화면은 지금 그대로다. */
   const refundDeduction = detail.refundDeduction ?? null;
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
@@ -304,27 +302,8 @@ export function ClaimDetailScreen({
     </ul> : null}
   </section> : null;
   const refundSummaryBody = <>
-      <div>
-        <Row
-          label="카드팩 발급"
-          value={cardPacks.issued === 0
-            ? '없음'
-            : `${cardPacks.issued}개 (개봉 ${cardPacks.consumed} · 회수 ${cardPacks.revoked})`}
-        />
-        {claim.claimType === 'exchange' ? (
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            교환은 카드팩을 회수하지 않습니다.
-          </p>
-        ) : cardPacks.consumed > 0 ? (
-          <AdminNotice className="mt-1.5" tone="warning">
-            이미 개봉된 카드팩 {cardPacks.consumed}개는 회수되지 않습니다(약관 제17조).
-            승인 전에 확인해주세요.
-          </AdminNotice>
-        ) : null}
-      </div>
-
       {refund ? (
-        <div className="border-t pt-1">
+        <div>
           <Row label="환불 기록" value={<span className={ROW_INLINE}><AdminStatusBadge tone={statusTone('refund', refund.status)}>{refundStatusLabel(refund.status)}</AdminStatusBadge><span className="tabular-nums">{krw(refund.amount)}</span></span>} />
           <Row
             label="환불 수단"
@@ -345,7 +324,7 @@ export function ClaimDetailScreen({
           {refund.handlerName ? <Row label="처리자" value={`@${refund.handlerName}`} /> : null}
         </div>
       ) : (
-        <p className="border-t pt-3 text-muted-foreground">
+        <p className="text-muted-foreground">
           {claim.claimType === 'exchange'
             ? '교환에는 환불 기록이 없습니다.'
             : '아직 환불 기록이 열리지 않았습니다.'}
@@ -365,8 +344,8 @@ export function ClaimDetailScreen({
       ) : null}
   </>;
   const refundSummary = claim.claimType === 'return'
-    ? <section aria-label="카드팩 · 환불" className="flex min-w-0 scroll-mt-16 flex-col gap-3 border-t pt-4 outline-none" id="claim-refund" tabIndex={-1}><h4 className="font-medium">카드팩 · 환불</h4>{refundSummaryBody}</section>
-    : <Card id="claim-refund" tabIndex={-1} className="scroll-mt-16 outline-none"><CardHeading>카드팩 · 환불</CardHeading><CardContent className="flex flex-col gap-3">{refundSummaryBody}</CardContent></Card>;
+    ? <section aria-label="환불" className="flex min-w-0 scroll-mt-16 flex-col gap-3 border-t pt-4 outline-none" id="claim-refund" tabIndex={-1}><h4 className="font-medium">환불</h4>{refundSummaryBody}</section>
+    : <Card id="claim-refund" tabIndex={-1} className="scroll-mt-16 outline-none"><CardHeading>환불</CardHeading><CardContent className="flex flex-col gap-3">{refundSummaryBody}</CardContent></Card>;
 
   return (
     <section className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claim-detail">

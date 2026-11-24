@@ -1,5 +1,5 @@
 import { isUuid } from '@/lib/uuid';
-/** 주문 할인용 적립금. 무료 코인·카드팩 원장과 값을 공유하지 않는다. */
+/** 주문 할인용 적립금. 무료 코인 원장과 값을 공유하지 않는다. */
 export interface StoreCreditPolicy {
   enabled: boolean;
   earnKind: 'rate_bps' | 'fixed' | null;

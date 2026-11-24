@@ -8,13 +8,11 @@ import Page from './page';
    따로 검증한다. 여기서는 온라인 이벤트가 이 표면에 닿지 않는지만 본다. */
 const mocks = vi.hoisted(() => ({
   catalog: null as CatalogSnapshot | null,
-  gameLinks: [] as { eventId: string; gameId: string; title: string }[],
   screen: vi.fn<(props: Record<string, unknown>) => null>(() => null),
 }));
 
 vi.mock('@/components/screens/Events', () => ({ Events: mocks.screen }));
 vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
-vi.mock('@/lib/games/catalog', () => ({ listEventGameLinks: async () => mocks.gameLinks }));
 
 function event(id: string, overrides: Partial<FandomEvent> = {}): FandomEvent {
   return {
@@ -32,7 +30,7 @@ function event(id: string, overrides: Partial<FandomEvent> = {}): FandomEvent {
 }
 
 function snapshot(events: FandomEvent[]): CatalogSnapshot {
-  return { source: 'mock', verticals: [], ips: [], goods: [], cards: [], events };
+  return { source: 'mock', verticals: [], ips: [], goods: [], events };
 }
 
 function pageProps(searchParams: Record<string, string | string[] | undefined> = {}) {
@@ -49,7 +47,6 @@ function passedEventIds() {
 
 beforeEach(() => {
   mocks.catalog = snapshot([]);
-  mocks.gameLinks = [];
   mocks.screen.mockClear();
 });
 
@@ -69,15 +66,14 @@ describe('/offline-popups 목록', () => {
   });
 
   /* 거르는 것은 events 뿐이다 — 스냅샷을 새로 짜지 않고 그 필드만 갈아 끼운다. */
-  it('이벤트 말고 나머지 카탈로그와 게임 링크는 그대로 넘긴다', async () => {
+  it('이벤트 말고 나머지 카탈로그는 그대로 넘기고 게임 링크는 넘기지 않는다', async () => {
     mocks.catalog = snapshot([event('e1')]);
-    mocks.gameLinks = [{ eventId: 'e1', gameId: 'g1', title: '미니 게임' }];
 
     renderToStaticMarkup(await Page(pageProps()));
 
     const props = passedProps();
     expect((props.catalog as CatalogSnapshot).source).toBe('mock');
-    expect(props.gameLinks).toEqual(mocks.gameLinks);
+    expect(props).not.toHaveProperty('gameLinks');
   });
 
   it('오프라인 이벤트가 있는 IP 로 열면 그 IP 를 선택한 채 연다', async () => {

@@ -29,12 +29,13 @@ export interface AdminScreen {
 }
 
 /*
- * 콘솔(D9, A14 → 1014-074·075로 쇼핑·카드·게임 세 칸): 상단에서 전환하고, 칸마다 자기 사이드바 메뉴를 가진다.
- * 쇼핑 밖 칸(카드·게임)은 새 창으로 열어 쇼핑 업무 창을 그대로 둔다.
+ * 콘솔(D9, A14 → 1014-074·075): 상단에서 전환하고, 칸마다 자기 사이드바 메뉴를 가진다.
+ * 2026-11-24 일반 쇼핑몰 전환(ADR-0052)으로 카드·게임 칸의 화면(카드·카드풀·뽑기권 발급 정책·카드팩 수동 발급·게임)을 지웠다.
+ * 남은 쇼핑 밖 칸은 커뮤니티(`card` — 칸 ID는 새 창 이름·기존 북마크 때문에 그대로 둔다) 하나이고, 새 창으로 열어 쇼핑 업무 창을 그대로 둔다.
  * 칸은 경로가 정한다(`adminConsoleForPath`) — 메뉴 그룹의 `consoles`가 진실원이고, route group(`(shell)`·`(content)`)은 레이아웃 묶음일 뿐이다.
- * 가까운 칸 규칙: IP·이벤트·티켓 회차·티켓 검표는 판매·결제가 따라붙는 쇼핑, 커뮤니티는 카드 전시가 있는 카드, 게임은 게임이다.
+ * 가까운 칸 규칙: IP·이벤트·티켓 회차·티켓 검표는 판매·결제가 따라붙는 쇼핑, 커뮤니티 관리는 커뮤니티 칸이다.
  */
-export type AdminConsoleId = 'shopping' | 'card' | 'game';
+export type AdminConsoleId = 'shopping' | 'card';
 export interface AdminConsole {
   id: AdminConsoleId;
   /** 상단 전환의 이름. */
@@ -46,8 +47,7 @@ export interface AdminConsole {
 }
 export const ADMIN_CONSOLES: readonly AdminConsole[] = [
   { id: 'shopping', label: '쇼핑', title: '판매자센터', newWindow: false },
-  { id: 'card', label: '카드', title: '카드 운영', newWindow: true },
-  { id: 'game', label: '게임', title: '게임 운영', newWindow: true },
+  { id: 'card', label: '커뮤니티', title: '커뮤니티 운영', newWindow: true },
 ];
 export const ADMIN_ALL_CONSOLES: AdminConsoleId[] = ADMIN_CONSOLES.map((item) => item.id);
 
@@ -266,25 +266,13 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       /* 개인정보 접속기록 점검(CUS-084·OPS-014): 운영자 IP·열람 대상을 모아 보는 화면이라 매니저 관리 권한만 연다. */
       { id: 'pii-access-log', label: '개인정보 접속기록', href: '/admin/settings/access-log', status: 'ready', adminOnly: true },
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
-      /* 운영하지 않는 카드 바인더·굿즈 마켓·카드 트레이드의 공개 스위치(기본 숨김). 켜고 끄기는 관리자만 한다. */
-      { id: 'collectible-features', label: '기능 공개 관리', href: '/admin/settings/features', status: 'ready', adminOnly: true },
+      /* 성인(19금) 상품 공개 설정. 켜고 끄기는 관리자만 한다(카드 바인더·마켓·트레이드 스위치는 2026-11-24 삭제, ADR-0052). */
+      { id: 'feature-visibility', label: '기능 공개 관리', href: '/admin/settings/features', status: 'ready', adminOnly: true },
       /* 지연 안내 메일·반품배송비 차감·부분 취소 스위치. 사이드바 상한(8)을 지키려고 숨기고 운영 준비 허브·지연 안내 화면에서 연다. */
       { id: 'operations-switches', label: '운영 스위치', href: '/admin/settings/switches', status: 'ready', adminOnly: true, navHidden: true },
     ],
   },
-  /* 카드 칸: 카드·카드풀·뽑기권·카드팩 발급과 카드 전시가 있는 팬 활동(커뮤니티). */
-  {
-    id: 'cards',
-    label: '카드 운영',
-    icon: 'card',
-    consoles: ['card'],
-    screens: [
-      { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
-      { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
-      { id: 'policies', label: '뽑기권 발급 정책', href: '/admin/catalog/policies', status: 'ready' },
-      { id: 'grants', label: '카드팩 수동 발급', href: '/admin/catalog/grants', status: 'ready' },
-    ],
-  },
+  /* 커뮤니티 칸(칸 ID 'card'). */
   {
     id: 'community',
     label: '커뮤니티',
@@ -292,16 +280,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     consoles: ['card'],
     screens: [
       { id: 'moderation', label: '커뮤니티 관리', href: '/admin/community/moderation', status: 'ready' },
-    ],
-  },
-  /* 게임 칸. */
-  {
-    id: 'games',
-    label: '게임 운영',
-    icon: 'spark',
-    consoles: ['game'],
-    screens: [
-      { id: 'games', label: '게임', href: '/admin/catalog/games', status: 'ready' },
     ],
   },
   {
@@ -391,11 +369,6 @@ const LEGACY_SECTION_HREFS: Record<string, string> = {
   orders: '/admin/sales/orders',
   ip: '/admin/catalog/ips',
   good: '/admin/catalog/goods',
-  card: '/admin/catalog/cards',
-  pool: '/admin/catalog/pools',
-  policy: '/admin/catalog/policies',
-  grants: '/admin/catalog/grants',
-  game: '/admin/catalog/games',
   event: '/admin/catalog/events',
   ticket: '/admin/catalog/ticket-types',
   curations: '/admin/display/curations',

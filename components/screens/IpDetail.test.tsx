@@ -9,7 +9,6 @@ import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-ba
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { listingQueryString, parseListingSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
 import { IpDetail, type IpGoodsCollection } from './IpDetail';
-import { CollectibleFeaturesProvider } from '@/components/shell/CollectibleFeatures';
 
 /* IP관 행동 단언 — 팔로우·알림 폼의 hidden 필드 계약(app/ip/actions.ts), 해시태그 실데이터 파생,
  * 굿즈샵 카테고리 화면과 같은 목록 틀(필터 없음·정렬 7종·4열 카드), 연결 링크 경로. */
@@ -51,10 +50,6 @@ const detail: CatalogIpDetail = {
     { id: 'g1', name: '단풍 키링', ip: ip.id, price: 12000, badge: 'NEW', stock: 'ok', stockQty: 10, img: 'linear-gradient(#333, #444)' },
     { id: 'g2', name: '슬라임 인형', ip: ip.id, price: 29000, badge: null, stock: 'soldout', stockQty: 0, img: 'linear-gradient(#333, #444)' },
     { id: 'g3', name: '버섯 키링', ip: ip.id, price: 9000, badge: null, stock: 'ok', stockQty: 4, img: 'linear-gradient(#333, #444)' },
-  ],
-  cards: [
-    { id: 'c1', ip: ip.id, name: '단풍잎 용사', no: '001', rarity: 'SSR', owned: false, bg: 'linear-gradient(#111, #222)' },
-    { id: 'c2', ip: ip.id, name: '슬라임', no: '002', rarity: 'N', owned: true, bg: 'linear-gradient(#111, #222)' },
   ],
   events: [],
   posts: [],
@@ -385,27 +380,15 @@ describe('IpDetail follow row', () => {
 describe('IpDetail link band', () => {
   const popup = { id: 'e1', title: '메이플 팝업', ip: 'maplestory', mode: '오프라인', status: '진행중', date: '11.1', loc: '서울', accent: '#fff', img: 'none' };
 
-  it('links the card binder with the lineup size, offline pop-ups, and the fandom channel', () => {
-    const html = renderToStaticMarkup(
-      <CollectibleFeaturesProvider value={{ binder: true, market: false, exchange: false }}>
-        <IpDetail detail={{ ...detail, events: [popup] }} followError={false} followState={notFollowed} notificationError={false} notificationSaved={false} />
-      </CollectibleFeaturesProvider>,
-    );
-
-    expect(html).toContain('카드 도감 2종');
-    expect(html).toContain('href="/binder"');
-    expect(html).toContain('href="/offline-popups?ip=maplestory"');
-    /* 팬덤 채널은 커뮤니티 임시 비공개 스위치를 따른다. */
-    expect(html.includes('href="/community?ip=maplestory"')).toBe(COMMUNITY_ENABLED);
-  });
-
-  /* 카드 바인더는 운영하지 않는다 — 공개 스위치가 꺼져 있으면(기본) 카드 도감 링크가 없고 다른 공간 링크는 그대로다. */
-  it('drops the card codex link while the card binder is hidden', () => {
+  /* 카드 바인더는 2026-11-24 지웠다(ADR-0052) — 카드 도감 링크 없이 오프라인 팝업·팬덤 채널 링크만 남는다. */
+  it('links offline pop-ups and the fandom channel without a card codex', () => {
     const html = render({ detail: { ...detail, events: [popup] } });
 
     expect(html).not.toContain('href="/binder"');
     expect(html).not.toContain('카드 도감');
     expect(html).toContain('href="/offline-popups?ip=maplestory"');
+    /* 팬덤 채널은 커뮤니티 임시 비공개 스위치를 따른다. */
+    expect(html.includes('href="/community?ip=maplestory"')).toBe(COMMUNITY_ENABLED);
   });
 
   /* 진행·예매·예정 중인 오프라인 팝업이 없으면 링크 칸을 그리지 않는다(온라인 팝업·끝난 팝업은 세지 않는다). */

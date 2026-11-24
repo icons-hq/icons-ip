@@ -15,7 +15,6 @@ import {
   hrefFor,
   isActive,
   isStandaloneShellPath,
-  withoutHiddenCollectibleGroups,
   type NavGroup,
   type NavItem,
 } from '@/lib/routes';
@@ -36,8 +35,6 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { BottomTabBar } from './BottomTabBar';
-import { useCardRewardsEnabled } from './CardRewardAvailability';
-import { useCollectibleFeatures } from './CollectibleFeatures';
 import { useCart } from './CartProvider';
 import { CategorySheet } from './CategorySheet';
 import { ListingReturnRecorder } from './ListingReturn';
@@ -124,14 +121,12 @@ export function Nav({
   searchTerms?: readonly string[] | null;
 }) {
   const pathname = usePathname();
-  const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다(로그인은 크롬 안).
   if (isStandaloneShellPath(pathname)) return null;
-  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />;
+  return <WcChrome notices={notices} pathname={pathname} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />;
 }
 
 function WcChrome({
-  cardRewardsEnabled,
   notices,
   pathname,
   branding,
@@ -139,7 +134,6 @@ function WcChrome({
   megaMenus,
   searchTerms,
 }: {
-  cardRewardsEnabled: boolean;
   notices: ShellNoticeData;
   pathname: string;
   branding: StorefrontBranding;
@@ -169,15 +163,13 @@ function WcChrome({
     if (isActivationTarget(event.target)) closeSearch();
   };
 
-  const navItems = resolveStorefrontNavigation(navigation, cardRewardsEnabled);
+  const navItems = resolveStorefrontNavigation(navigation);
   /* 활성 항목은 반드시 여기 한 곳에서만 고른다. 항목별로 isActive를 부르면
      '/shop/new'에서 카테고리(/shop)와 NEW가 동시에 활성으로 보인다. */
   const activeId = activeNavId(pathname, navItems);
-  /* 운영하지 않는 수집·거래 기능(카드 바인더·굿즈 마켓·카드 트레이드)은 DB 공개 스위치가 꺼진 동안 폴백 메가메뉴의 '수집'·'거래' 그룹에서 빠진다. */
-  const collectibleFeatures = useCollectibleFeatures();
-  const megaGroups = configuredNavigationGroups(withoutHiddenCollectibleGroups(CATEGORY_MEGA_GROUPS, collectibleFeatures), navItems);
+  const megaGroups = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, navItems);
   /* 공개 전시 트리가 있으면(고객 카테고리 공개 스위치 ON + 공개 전시 1개 이상) 카테고리 메가메뉴는 실제 분류·기획전을 싣고
-     모바일 '카테고리' 탭은 카테고리 시트를 연다. 없으면 지금 메뉴(굿즈샵·수집·거래)와 전체 메뉴 시트로 돌아간다(L5 폴백). */
+     모바일 '카테고리' 탭은 카테고리 시트를 연다. 없으면 지금 메뉴(굿즈샵)와 전체 메뉴 시트로 돌아간다(L5 폴백). */
   const categoryLive = isCategoryMenuLive(megaMenus);
   const shortcutGroup = configuredNavigationGroups([CATEGORY_MEGA_GROUPS[0]], navItems)[0] ?? null;
   const sheetShortcuts = configuredNavigationGroups([CATEGORY_SHEET_SHORTCUTS], navItems)[0]?.items ?? [];
@@ -193,9 +185,9 @@ function WcChrome({
       <Suspense fallback={null}><ListingReturnRecorder /></Suspense>
 
       {/* 텍스트 공지 바 + 이미지 스트립. 유틸바 위에 두면 축약 기준이 실제 공지 높이만큼 자동 보정된다(noticeOffsetAbove) —
-          공지가 아직 보이는 동안에는 GNB가 접히지 않는다. 카드 리워드·커뮤니티 목적지 공지는 게이트가 꺼진 배포에서
-          GNB 항목과 같은 규칙으로 숨긴다(ShellNotices). */}
-      <ShellNotices cardRewardsEnabled={cardRewardsEnabled} notices={notices} onActivate={closeSearch} pathname={pathname} />
+          공지가 아직 보이는 동안에는 GNB가 접히지 않는다. 커뮤니티 목적지 공지는 게이트가 꺼진 배포에서, 지운 카드·게임 화면
+          목적지 공지는 언제나 GNB 항목과 같은 규칙으로 숨긴다(ShellNotices). */}
+      <ShellNotices notices={notices} onActivate={closeSearch} pathname={pathname} />
 
       {/* 유틸 메뉴(데스크톱만, Figma 48): 회원은 위시리스트·주문조회·알림함·로그아웃, 비회원은 로그인 / 회원가입. 고객센터는 맨 오른쪽에
           고정이라 로그인 상태가 확정되며 앞쪽 항목이 늘어도 자리가 움직이지 않는다. 공지사항은 게시판이 없어 그리지 않는다(스펙 §6).
@@ -361,7 +353,7 @@ function WcChrome({
         <SearchOverlay open={searchOpen} onClose={closeOverlay} terms={searchTerms} />
       </header>
 
-      <MenuSheet open={sheetOpen} onClose={closeOverlay} cardRewardsEnabled={cardRewardsEnabled} navigation={navigation} />
+      <MenuSheet open={sheetOpen} onClose={closeOverlay} navigation={navigation} />
       {/* 카테고리 시트는 body 직계 포털로 연다(호출부 포털 — 계약 §2-8). 열린 동안에만 마운트한다. */}
       {categoryOpen ? (
         <OverlayPortal>
@@ -525,7 +517,7 @@ function MegaRouteLinks({ items, onNavigate, pathname }: { items: NavItem[]; onN
   );
 }
 
-/* 공개 전시 트리가 없을 때의 카테고리 메가메뉴 — 실존 라우트 그룹(굿즈샵·수집·거래). */
+/* 공개 전시 트리가 없을 때의 카테고리 메가메뉴 — 실존 라우트 그룹(굿즈샵). */
 function CategoryMegaFallback({ groups, onNavigate, pathname }: { groups: NavGroup[]; onNavigate: () => void; pathname: string | null }) {
   const currentId = pathname === null ? null : activeNavId(pathname, groups.flatMap((group) => group.items));
   return (

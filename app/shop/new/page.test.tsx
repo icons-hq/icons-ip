@@ -44,7 +44,6 @@ vi.mock('@/lib/catalog', () => ({
       synopsis: '',
     }],
     goods: mocks.goods,
-    cards: [],
     events: [],
   }),
 }));

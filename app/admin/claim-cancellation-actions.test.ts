@@ -216,7 +216,7 @@ describe('recordOrderClaimRefundAction — 환불 수단은 결제가 정한다'
 
     const state = await recordOrderClaimRefundAction({}, refundForm('completed', 'pg_cancel'));
 
-    expect(state.error).toMatch(/^토스 전액 취소와 주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다/);
+    expect(state.error).toMatch(/^토스 전액 취소와 주문 취소·재고 복원은 이미 완료됐습니다/);
     expect(state.error).toContain('다시 환불하지 마세요');
   });
 

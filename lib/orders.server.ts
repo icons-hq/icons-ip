@@ -86,11 +86,6 @@ interface PaymentRow {
   provider?: string | null;
 }
 
-interface DrawTicketRow {
-  consumed_at: string | null;
-  revoked_at: string | null;
-}
-
 interface RefundRow {
   status: string;
   created_at: string;
@@ -310,7 +305,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const reshipmentParcelsPromise = loadOrderReshipmentParcels(supabase, orderId);
   /* 아래 묶음 조회와 함께 진행한다. 실패는 그 뒤 await에서 그대로 던진다(먼저 실패해도 처리되지 않은 거절로 남기지 않는다). */
   reshipmentParcelsPromise.catch(() => undefined);
-  const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult, reshipmentResult] = await Promise.all([
+  const [itemsResult, paymentResult, cancellationRequestResult, eligibilityResult, reshipmentResult] = await Promise.all([
     /* 랜덤 판매 굿즈(D5②)는 옵션명 '랜덤'·장바구니 키 옵션으로만 보인다. 배정 옵션은 고객에게 내려오지 않는다. */
     readMyOrderItems<OrderDetailItemRow>(supabase, [orderId],
       'id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
@@ -322,12 +317,6 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .eq('ref_id', orderId)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
-    supabase
-      .from('draw_tickets')
-      .select('consumed_at,revoked_at')
-      .eq('user_id', userId)
-      .eq('source', 'order_paid')
-      .eq('source_id', orderId),
     supabase
       .from('order_cancellation_requests')
       .select(
@@ -352,14 +341,10 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   if (paymentResult.error) {
     throw new Error(`Failed to load order payment: ${paymentResult.error.message}`);
   }
-  if (ticketsResult.error) {
-    throw new Error(`Failed to load order card packs: ${ticketsResult.error.message}`);
-  }
   if (cancellationRequestResult.error) {
     throw new Error(`Failed to load order cancellation request: ${cancellationRequestResult.error.message}`);
   }
 
-  const ticketRows = (ticketsResult.data ?? []) as DrawTicketRow[];
   const paymentRows = (paymentResult.data ?? []) as PaymentRow[];
   const payment = paymentRows[0] ?? null;
   const eligibility = eligibilityResult.error ? null : eligibilityResult.data;
@@ -482,11 +467,5 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       : null,
     /* 고객은 배송 건 품목의 랜덤 배정 행을 읽지 못한다 — 합친 줄을 my_order_items 의 배송 건에 붙인다. */
     shipments: attachRandomItemsToShipments(await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()), itemsResult.data ?? []),
-    cardPacks: {
-      issuedCount: ticketRows.length,
-      availableCount: ticketRows.filter((ticket) => (
-        ticket.consumed_at === null && ticket.revoked_at === null
-      )).length,
-    },
   };
 }

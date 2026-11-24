@@ -70,7 +70,7 @@ const ip = {
 };
 
 function snapshot(source: CatalogSnapshot['source']): CatalogSnapshot {
-  return { source, verticals: [], ips: [], goods: [], cards: [], events: [event] };
+  return { source, verticals: [], ips: [], goods: [], events: [event] };
 }
 
 describe('/offline-popups/[eventId]', () => {

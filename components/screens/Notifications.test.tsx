@@ -46,7 +46,7 @@ describe('Notifications', () => {
     const html = render([]);
 
     expect(html).toContain('아직 받은 알림이 없어요');
-    expect(html).toContain('주문, 카드팩, 팔로우한 IP의 새 소식');
+    expect(html).toContain('주문과 팔로우한 IP의 새 소식');
     expect(html).not.toContain('wc-notif__row');
   });
 

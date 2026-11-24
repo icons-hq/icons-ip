@@ -29,15 +29,14 @@ describe('운영 콘솔 어휘', () => {
       .toBe('굿즈샵과 굿즈 마켓에서 상품을 확인합니다.');
     expect(adminGoodsCopy('카드·카드팩·티켓을 등록합니다.')).toBe('카드·카드팩·티켓을 등록합니다.');
   });
-  it('카드·카드팩·티켓 화면을 상품이라고 부르지 않는다', () => {
-    for (const screen of ADMIN_SCREENS.filter((entry) => ['cards','pools','grants','policies','ticket-types','check-in'].includes(entry.id))) {
+  /* 카드·카드팩 화면은 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). 티켓 화면만 남는다. */
+  it('티켓 화면을 상품이라고 부르지 않는다', () => {
+    for (const screen of ADMIN_SCREENS.filter((entry) => ['ticket-types','check-in'].includes(entry.id))) {
       expect(screen.label).not.toContain(ADMIN_VOCABULARY.goods);
     }
     for (const file of [
-      'components/admin/sections/CardSection.tsx', 'components/admin/sections/CardPoolSection.tsx',
-      'components/admin/sections/RewardPolicySection.tsx',
       'components/admin/screens/TicketTypeScreen.tsx',
-      'lib/admin/guide/topics/cards-games.ts', 'lib/admin/guide/topics/events-tickets.ts',
+      'lib/admin/guide/topics/events-tickets.ts',
     ]) {
       const source = readFileSync(file, 'utf8');
       expect(source, file).not.toMatch(/상품|adminGoodsCopy|ADMIN_VOCABULARY\.goods/);

@@ -11,7 +11,8 @@ const data: AdminIpWorkspaceData = {
 describe('IP workspace screen', () => {
   it('exposes five tabs and starts a new goods form with the workspace IP', () => {
     const html = renderToStaticMarkup(<IpWorkspaceScreen data={data} />);
-    for (const label of ['기본정보', '상품', '카드풀', '이벤트', '노출']) expect(html).toContain(label);
+    for (const label of ['기본정보', '상품', '이벤트', '노출']) expect(html).toContain(label);
+    expect(html).not.toContain('카드풀');
     expect(html).toContain('href="/admin/catalog/goods?ipId=hwasan&amp;create=1"');
     expect(html).toContain('상품 등록');
     expect(html).toContain('연결 상품');

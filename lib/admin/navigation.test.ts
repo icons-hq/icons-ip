@@ -16,50 +16,47 @@ import {
 import { ERP_ITEMS_PATH } from './erp-items';
 
 describe('어드민 IA 정의', () => {
-  /* 1014-074·075: 상단 전환은 쇼핑 | 카드 | 게임이고 카드·게임은 새 창이다. 칸은 route group이 아니라 메뉴 그룹의 `consoles`가 정한다. */
-  it('쇼핑·카드·게임 세 칸이 있고 쇼핑 밖 칸만 새 창으로 열린다', () => {
-    expect(ADMIN_CONSOLES.map((item) => [item.id, item.label, item.newWindow])).toEqual([['shopping', '쇼핑', false], ['card', '카드', true], ['game', '게임', true]]);
+  /* 1014-074·075의 쇼핑 | 카드 | 게임 세 칸에서 2026-11-24 일반 쇼핑몰 전환(ADR-0052)으로 카드·게임 화면을 지웠다.
+     남은 쇼핑 밖 칸은 커뮤니티 하나(칸 ID 'card' — 새 창 이름·북마크를 지키려고 그대로 둔다)이고 새 창으로 열린다. */
+  it('쇼핑·커뮤니티 두 칸이 있고 쇼핑 밖 칸만 새 창으로 열린다', () => {
+    expect(ADMIN_CONSOLES.map((item) => [item.id, item.label, item.newWindow])).toEqual([['shopping', '쇼핑', false], ['card', '커뮤니티', true]]);
     expect(adminConsoleWindowName('card')).toBe('icons-admin-card');
-    expect(adminConsoleWindowName('game')).not.toBe(adminConsoleWindowName('card'));
   });
 
-  it('카드·게임은 자기 칸이고, IP·이벤트·티켓 회차·검표는 쇼핑이며, 도움말은 세 칸이 공유한다', () => {
-    for (const path of ['/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/policies', '/admin/catalog/grants', '/admin/community/moderation']) expect(adminConsoleForPath(path)).toBe('card');
-    expect(adminConsoleForPath('/admin/catalog/games')).toBe('game');
+  it('커뮤니티 관리는 커뮤니티 칸이고, IP·이벤트·티켓 회차·검표는 쇼핑이며, 도움말은 두 칸이 공유한다', () => {
+    expect(adminConsoleForPath('/admin/community/moderation')).toBe('card');
+    /* 지운 카드·게임 화면 주소는 어드민 안 404 처럼 쇼핑 셸이 감싼다. */
+    for (const path of ['/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/policies', '/admin/catalog/grants', '/admin/catalog/games']) expect(adminConsoleForPath(path)).toBe('shopping');
     for (const path of ['/admin/catalog/ips/maple', '/admin/catalog/events', '/admin/catalog/ticket-types', '/admin/check-in', '/admin/catalog/goods?create=1', '/admin/settings/shipping-templates']) expect(adminConsoleForPath(path)).toBe('shopping');
     expect(adminConsoleForPath('/admin/guide/getting-started')).toBe('shopping');
     /* 어드민 안의 없는 주소(404)도 쇼핑 셸이 감싼다. */
     expect(adminConsoleForPath('/admin/no-such-screen')).toBe('shopping');
-    expect(adminGroupConsoles(ADMIN_NAV_GROUPS.find((group) => group.id === 'help')!)).toEqual(['shopping', 'card', 'game']);
+    expect(adminGroupConsoles(ADMIN_NAV_GROUPS.find((group) => group.id === 'help')!)).toEqual(['shopping', 'card']);
   });
 
   it('칸별 사이드바는 자기 칸 메뉴 그룹과 도움말만 보여 준다', () => {
     expect(visibleAdminNavGroups('admin', undefined, 'card').map((group) => [group.id, group.screens.map((screen) => screen.id)])).toEqual([
-      ['cards', ['cards', 'pools', 'policies', 'grants']], ['community', ['moderation']], ['help', ['guide']],
-    ]);
-    expect(visibleAdminNavGroups('admin', undefined, 'game').map((group) => [group.id, group.screens.map((screen) => screen.id)])).toEqual([
-      ['games', ['games']], ['help', ['guide']],
+      ['community', ['moderation']], ['help', ['guide']],
     ]);
     const shopping = visibleAdminNavGroups('admin', undefined, 'shopping');
     expect(shopping.map((group) => group.id)).toContain('content');
     expect(shopping.map((group) => group.id)).not.toEqual(expect.arrayContaining(['cards']));
+    expect(ADMIN_NAV_GROUPS.map((group) => group.id)).not.toEqual(expect.arrayContaining(['cards', 'games']));
     expect(shopping.find((group) => group.id === 'content')?.screens.map((screen) => screen.id)).toEqual(['ips', 'events', 'ticket-types', 'check-in']);
-    /* 메뉴 그룹 상한(8)은 세 칸 모두에서 지킨다. */
-    for (const consoleId of ['shopping', 'card', 'game'] as const) for (const group of visibleAdminNavGroups('admin', undefined, consoleId)) expect(group.screens.length).toBeLessThanOrEqual(8);
+    /* 메뉴 그룹 상한(8)은 모든 칸에서 지킨다. */
+    for (const consoleId of ['shopping', 'card'] as const) for (const group of visibleAdminNavGroups('admin', undefined, consoleId)) expect(group.screens.length).toBeLessThanOrEqual(8);
   });
 
   it('화면은 정확히 한 칸 전용 그룹 또는 공유 그룹에 속하고, 어떤 화면도 칸 밖으로 사라지지 않는다', () => {
-    const seen = new Set(['shopping', 'card', 'game'].flatMap((id) => visibleAdminNavGroups('admin', undefined, id as 'shopping').flatMap((group) => group.screens.map((screen) => screen.id))));
+    const seen = new Set(['shopping', 'card'].flatMap((id) => visibleAdminNavGroups('admin', undefined, id as 'shopping').flatMap((group) => group.screens.map((screen) => screen.id))));
     for (const screen of ADMIN_SCREENS.filter((item) => !item.navHidden)) expect(seen.has(screen.id)).toBe(true);
   });
 
-  it('전환 링크 목적지: 쇼핑은 홈, 카드·게임은 그 칸에서 볼 수 있는 첫 화면이며 볼 화면이 없으면 숨긴다', () => {
+  it('전환 링크 목적지: 쇼핑은 홈, 커뮤니티는 그 칸에서 볼 수 있는 첫 화면이며 볼 화면이 없으면 숨긴다', () => {
     expect(adminConsoleHomeHref('shopping', 'staff')).toBe('/admin');
-    expect(adminConsoleHomeHref('card', 'staff')).toBe('/admin/catalog/cards');
-    expect(adminConsoleHomeHref('game', 'staff')).toBe('/admin/catalog/games');
+    expect(adminConsoleHomeHref('card', 'staff')).toBe('/admin/community/moderation');
     const deputy = { mode: 'configured' as const, managerRole: 'deputy' as const, capabilities: ['home', 'cs.manage'] as ('home' | 'cs.manage')[], revision: 1, setupRequired: false };
     expect(adminConsoleHomeHref('card', 'staff', deputy)).toBeNull();
-    expect(adminConsoleHomeHref('game', 'staff', deputy)).toBeNull();
   });
 
   it('화면 id와 경로가 서로 겹치지 않는다', () => {
@@ -115,7 +112,7 @@ describe('어드민 IA 정의', () => {
     expect(ids('shipping')).toEqual(['fulfillment-origins', 'return-addresses', 'stock-reconcile', 'defective-stock', 'shipping-regions', 'shipping-carriers', 'shipping-settings-templates', 'shipping-notice-templates']);
     expect(ids('templates')).toEqual(['notice-presets', 'goods-event-templates', 'category-templates', 'goods-after-sales-templates', 'size-templates',
       'goods-attributes']);
-    expect(ids('seller')).toEqual(['operations-settings', 'system-health', 'store-settings', 'roles', 'operator-mfa', 'my-security', 'pii-access-log', 'store-credits', 'collectible-features', 'operations-switches']);
+    expect(ids('seller')).toEqual(['operations-settings', 'system-health', 'store-settings', 'roles', 'operator-mfa', 'my-security', 'pii-access-log', 'store-credits', 'feature-visibility', 'operations-switches']);
     expect(ADMIN_NAV_GROUPS.some((group) => group.id === 'promotion')).toBe(false);
     for (const group of commerce.filter((item) => item.id !== 'help')) expect(group.consoles).toBeUndefined();
     expect(ids('content')).toEqual(['ips', 'events', 'ticket-types', 'check-in']);
@@ -141,7 +138,7 @@ describe('어드민 IA 정의', () => {
     for (const [id, href] of before) expect(ADMIN_SCREENS.find((screen) => screen.id === id)?.href).toBe(href);
     expect(ADMIN_SCREENS.find((screen) => screen.id === 'purchase-restrictions')?.label).toBe('판매방해 고객관리');
     expect(ADMIN_SCREENS.filter((screen) => screen.adminOnly).map((screen) => screen.id).sort()).toEqual([
-      'collectible-features', 'customer-grades', 'goods-attributes', 'operations-switches', 'operator-mfa', 'pg-settlements', 'pii-access-log', 'refund-transfers', 'roles', 'store-credit-console', 'store-credits',
+      'customer-grades', 'feature-visibility', 'goods-attributes', 'operations-switches', 'operator-mfa', 'pg-settlements', 'pii-access-log', 'refund-transfers', 'roles', 'store-credit-console', 'store-credits',
     ]);
   });
 
@@ -173,15 +170,15 @@ describe('어드민 IA 정의', () => {
     expect(adminScreenForPath('/admin/cs/inquiries/case-a')?.id).toBe('inquiries');
   });
 
-  /* 기존 17개 섹션이 하나도 빠지지 않고 새 IA에 자리를 잡아야 한다.
-   * 하나라도 빠지면 그 화면은 메뉴에서 사라진 채 라우트만 남는다. */
-  it('기존 섹션 17개가 전부 ready 화면으로 재배치돼 있다', () => {
+  /* 기존 섹션이 하나도 빠지지 않고 새 IA에 자리를 잡아야 한다.
+   * 하나라도 빠지면 그 화면은 메뉴에서 사라진 채 라우트만 남는다. 카드·카드풀·발급 정책·카드팩 수동 발급·게임 섹션은
+   * 2026-11-24 일반 쇼핑몰 전환으로 화면째 지웠다(ADR-0052) — 옛 딥링크는 개요로 떨어진다. */
+  it('남은 기존 섹션이 전부 ready 화면으로 재배치돼 있고, 지운 카드·게임 섹션은 리다이렉트하지 않는다', () => {
     const readyHrefs = new Set(
       ADMIN_SCREENS.filter((screen) => screen.status === 'ready').map((screen) => screen.href),
     );
     const legacySections = [
-      'overview', 'orders', 'ip', 'good', 'card', 'pool', 'policy', 'grants',
-      'game', 'event', 'ticket', 'curations', 'notifications', 'emails',
+      'overview', 'orders', 'ip', 'good', 'event', 'ticket', 'curations', 'notifications', 'emails',
       'moderation', 'members', 'roles',
     ];
 
@@ -189,6 +186,7 @@ describe('어드민 IA 정의', () => {
       const href = legacyAdminSectionHref(section) ?? '/admin';
       expect(readyHrefs.has(href)).toBe(true);
     }
+    for (const section of ['card', 'pool', 'policy', 'grants', 'game']) expect(legacyAdminSectionHref(section)).toBeNull();
   });
 
   /* MD 회의(2026-10-07) ⑦ — ERP 품목 반입은 고객 카테고리 바로 뒤, 상품 관리 대분류에 둔다. */
@@ -233,7 +231,7 @@ describe('adminScreenForPath', () => {
   });
 
   it('끝 슬래시를 붙여도 같은 화면을 고른다', () => {
-    expect(adminScreenForPath('/admin/catalog/cards/')?.id).toBe('cards');
+    expect(adminScreenForPath('/admin/catalog/events/')?.id).toBe('events');
   });
 
   it('어드민 밖 경로는 화면이 없다', () => {
@@ -241,7 +239,7 @@ describe('adminScreenForPath', () => {
   });
 
   it('화면이 속한 대분류를 찾는다', () => {
-    expect(adminGroupForPath('/admin/catalog/pools')?.label).toBe('카드 운영');
+    expect(adminGroupForPath('/admin/community/moderation')?.label).toBe('커뮤니티');
     expect(adminGroupForPath('/admin/catalog/ticket-types')?.label).toBe('IP·이벤트·티켓');
     expect(adminGroupForPath('/admin/community/roles')?.label).toBe('판매자 정보');
   });

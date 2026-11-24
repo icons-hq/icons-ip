@@ -25,8 +25,7 @@ import { createClient } from '@/lib/supabase/server';
 /* 캠페인 허브·상세 로더 (S8 #330).
  *
  * 읽기는 RLS select 로 한다 — campaigns_public_read 가 draft 를 비운영자에게서
- * 가리고, coin_exchange_offers_public_read 가 내린 교환 상품을 감춘다. 이 파일은
- * 그 위에 아무 권한 판정도 얹지 않는다.
+ * 가린다. 이 파일은 그 위에 아무 권한 판정도 얹지 않는다.
  *
  * 절대 던지지 않는다. 이벤트 허브는 공개 브라우징 표면이라, 못 읽었다고 500 이 되면
  * 로그인도 하지 않은 방문자에게 사이트가 고장 난 것으로 보인다 — 빈 허브·null 상세로
@@ -48,13 +47,6 @@ interface CampaignRow {
 
 interface CampaignDetailRow extends CampaignRow {
   sections: unknown;
-}
-
-interface ExchangeOfferRow {
-  id: string;
-  label: string;
-  coin_cost: number;
-  ticket_count: number;
 }
 
 interface GoodVariantPriceRow {
@@ -100,13 +92,6 @@ export interface CampaignHubSnapshot {
   campaigns: CampaignSummary[];
 }
 
-export interface ExchangeOfferView {
-  id: string;
-  label: string;
-  coinCost: number;
-  ticketCount: number;
-}
-
 export interface GoodCardView {
   salePeriod?: import('./goods-sale-period').GoodsSalePeriod;
   priceMax?: number;
@@ -127,12 +112,11 @@ export interface GoodCardView {
   reviewSummary?: GoodsReviewSummary;
 }
 
-/* 참조를 해석한 본문. exchange 는 offer 를, goods 는 상품 카드를, image 는 공개
+/* 참조를 해석한 본문. goods 는 상품 카드를, image 는 공개
    URL 을 함께 들고 온다. 화면이 로더를 한 번 더 부르지 않게 하는 것이 목적이다 —
    블록마다 클라이언트에서 조회하면 상세 한 장에 요청이 블록 수만큼 늘어난다. */
 export type ResolvedCampaignSection =
-  | Exclude<CampaignSection, { type: 'exchange' } | { type: 'goods' } | { type: 'image' }>
-  | (Extract<CampaignSection, { type: 'exchange' }> & { offer: ExchangeOfferView | null })
+  | Exclude<CampaignSection, { type: 'goods' } | { type: 'image' }>
   | (Extract<CampaignSection, { type: 'goods' }> & { goods: GoodCardView[] })
   | (Extract<CampaignSection, { type: 'image' }> & { imageUrl: string | null });
 
@@ -252,27 +236,6 @@ export async function loadCampaignHub(): Promise<CampaignHubSnapshot> {
   return { banners, campaigns: orderCampaignsForHub(summaries) };
 }
 
-async function loadExchangeOffers(
-  supabase: CampaignSupabaseClient,
-  offerIds: string[],
-): Promise<Map<string, ExchangeOfferView>> {
-  if (!offerIds.length) return new Map();
-
-  const { data, error } = await supabase
-    .from('coin_exchange_offers')
-    .select('id,label,coin_cost,ticket_count')
-    .in('id', offerIds);
-
-  if (error) return new Map();
-
-  return new Map(((data ?? []) as ExchangeOfferRow[]).map((row) => [row.id, {
-    id: row.id,
-    label: row.label,
-    coinCost: row.coin_cost,
-    ticketCount: row.ticket_count,
-  }]));
-}
-
 /** 공개 계산 열 `goods_random_option`의 가격 부분. 모양이 틀리면 null(옵션 행으로 계산한다). */
 function randomOptionPriceRow(value: unknown): GoodVariantPriceRow | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -357,24 +320,16 @@ async function resolveCampaignDetail(id: string): Promise<CampaignLandingSnapsho
   if (!summary) return null;
 
   const sections = parseCampaignSections(data.sections);
-  const offerIds = sections.flatMap((section) => (section.type === 'exchange' ? [section.offer_id] : []));
   const goodIds = sections.flatMap((section) => (section.type === 'goods' ? section.good_ids : []));
 
   const sectionGoodIds = [...new Set(goodIds)];
-  const [offers, goods, reviewSummaries] = await Promise.all([
-    loadExchangeOffers(supabase, [...new Set(offerIds)]),
+  const [goods, reviewSummaries] = await Promise.all([
     loadSectionGoods(supabase, sectionGoodIds),
     /* 굿즈 진열 카드 별점(CL-02) — 진열 굿즈 전체를 한 번의 묶음으로 묻는다. 못 읽으면 별점만 숨는다(던지지 않는다). */
     readListingReviewSummaries(supabase, sectionGoodIds),
   ]);
 
   const resolvedSections: ResolvedCampaignSection[] = sections.map((section) => {
-    /* 상품을 못 찾았다고 블록을 지우지 않는다. 블록이 통째로 사라지면 앵커 내브의
-       목차 항목도 같이 사라져 페이지가 "원래 그런 구성"처럼 보인다 — 자리는 남기고
-       화면이 "지금은 교환할 수 없어요"를 그리게 offer: null 로 표시한다. */
-    if (section.type === 'exchange') {
-      return { ...section, offer: offers.get(section.offer_id) ?? null };
-    }
     /* 본문 이미지도 히어로·카드·배너와 같은 Storage 경로다. 여기서 해석하지 않으면
        이 블록만 원문 경로가 화면까지 흘러 배경이 비고, 같은 캠페인 안에서 히어로는
        뜨는데 중간 이미지만 깨진다. */

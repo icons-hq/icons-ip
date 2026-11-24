@@ -16,7 +16,6 @@ vi.mock('react', async () => ({
   useEffect: () => undefined,
 }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
-vi.mock('./CollectibleFeatures', () => ({ useCollectibleFeatures: () => ({ binder: false, market: false, exchange: false }) }));
 
 import { ShellNotices } from './ShellNotices';
 
@@ -29,7 +28,7 @@ const bar = (id: string, href: string): ShellNoticeBar => ({
 });
 
 /* 훅 대역 저장소를 유지한 채 렌더한다 — 렌더 중 상태 보정(setState)은 다음 렌더에 반영되므로 한 번 더 그려 안정시킨다. */
-function render(props: { notices: ShellNoticeData; pathname?: string; cardRewardsEnabled: boolean; onActivate?: () => void }) {
+function render(props: { notices: ShellNoticeData; pathname?: string; onActivate?: () => void }) {
   let tree: Element[] = [];
   for (let pass = 0; pass < 2; pass += 1) {
     hooks.index = 0;
@@ -46,26 +45,27 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe('롤링 띠배너 — 카드 리워드 게이트가 늦게 확정돼도 보이던 공지를 유지한다 (review-b m4)', () => {
-  /* a: 일반 목적지, b: 카드 리워드 목적지(/packs — 게이트가 꺼진 동안은 후보에서 빠진다). */
-  const notices: ShellNoticeData = { bars: [bar('a', '/legal/terms'), bar('b', '/packs')], strips: [] };
+describe('롤링 띠배너 — 후보가 늘어도 보이던 공지를 유지한다 (review-b m4)', () => {
+  /* a·b 둘 다 일반 목적지다. 후보 목록을 렌더 사이에 바꿔 "처음 고른 공지 고정"만 본다. */
+  const one: ShellNoticeData = { bars: [bar('a', '/legal/terms')], strips: [] };
+  const both: ShellNoticeData = { bars: [bar('a', '/legal/terms'), bar('b', '/events')], strips: [] };
 
-  it('서버·하이드레이션(게이트 꺼짐)에서 고른 공지는 게이트가 켜져 후보가 늘어도 바뀌지 않는다', () => {
-    expect(visibleBars(render({ notices, cardRewardsEnabled: false }))).toEqual(['a']);
+  it('처음 고른 공지는 후보가 늘어도 바뀌지 않는다', () => {
+    expect(visibleBars(render({ notices: one }))).toEqual(['a']);
     /* 고정이 없었다면 시드 0.7 은 후보 [a, b] 의 두 번째(b)를 골라 문구가 바뀌고 노출이 한 번 더 집계된다. */
-    expect(visibleBars(render({ notices, cardRewardsEnabled: true }))).toEqual(['a']);
+    expect(visibleBars(render({ notices: both }))).toEqual(['a']);
   });
 
-  it('고른 공지가 게이트에 막힐 때만 다시 고르고, 그 뒤에는 새로 고른 공지를 유지한다', () => {
-    expect(visibleBars(render({ notices, cardRewardsEnabled: true }))).toEqual(['b']);
-    expect(visibleBars(render({ notices, cardRewardsEnabled: false }))).toEqual(['a']);
-    expect(visibleBars(render({ notices, cardRewardsEnabled: true }))).toEqual(['a']);
+  it('고른 공지가 후보에서 빠질 때만 다시 고르고, 그 뒤에는 새로 고른 공지를 유지한다', () => {
+    expect(visibleBars(render({ notices: both }))).toEqual(['b']);
+    expect(visibleBars(render({ notices: one }))).toEqual(['a']);
+    expect(visibleBars(render({ notices: both }))).toEqual(['a']);
   });
 
   it('고정은 화면 유형별이다 — 다른 유형의 첫 화면은 그때의 후보로 새로 고른다', () => {
-    expect(visibleBars(render({ notices, cardRewardsEnabled: false }))).toEqual(['a']);
-    expect(visibleBars(render({ notices, cardRewardsEnabled: true, pathname: '/cart' }))).toEqual(['b']);
-    expect(visibleBars(render({ notices, cardRewardsEnabled: true, pathname: '/' }))).toEqual(['a']);
+    expect(visibleBars(render({ notices: one }))).toEqual(['a']);
+    expect(visibleBars(render({ notices: both, pathname: '/cart' }))).toEqual(['b']);
+    expect(visibleBars(render({ notices: both, pathname: '/' }))).toEqual(['a']);
   });
 });
 
@@ -78,7 +78,7 @@ describe('공지 띠 안의 링크·버튼 클릭 신호', () => {
 
   it('링크·버튼에서 일어난 클릭만 onActivate 로 알린다', () => {
     const onActivate = vi.fn();
-    const tree = render({ notices, cardRewardsEnabled: true, onActivate });
+    const tree = render({ notices, onActivate });
     const onClick = root(tree).props.onClick as (event: { target: unknown }) => void;
 
     onClick({ target: blankTarget });
@@ -88,6 +88,6 @@ describe('공지 띠 안의 링크·버튼 클릭 신호', () => {
   });
 
   it('신호를 받지 않는 호출부(미리보기 등)에는 클릭 처리기를 달지 않는다', () => {
-    expect(root(render({ notices, cardRewardsEnabled: true })).props.onClick).toBeUndefined();
+    expect(root(render({ notices })).props.onClick).toBeUndefined();
   });
 });

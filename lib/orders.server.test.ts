@@ -509,7 +509,8 @@ describe('loadOrderDetail', () => {
     expect((await loadOrderDetail(userId, orderId))?.claimEligibility).toEqual(expected);
   });
 
-  it('loads a safe receipt and counts legacy, revoked, and opened card packs', async () => {
+  /* 카드팩(draw_tickets)은 2026-11-24 일반 쇼핑몰 전환으로 주문 상세에서 읽지 않는다(ADR-0052). */
+  it('loads a safe receipt without reading card packs', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({
       records,
@@ -626,7 +627,6 @@ describe('loadOrderDetail', () => {
         decidedAt: '2026-07-14T07:25:00.000Z',
         decisionNote: null,
       },
-      cardPacks: { issuedCount: 3, availableCount: 1 },
       shipments: [{
         carrier: 'hanjin',
         carrierLabel: '한진택배',
@@ -649,10 +649,8 @@ describe('loadOrderDetail', () => {
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
       maybeSingle: false,
     });
-    expect(records.find((record) => record.table === 'draw_tickets')).toMatchObject({
-      select: 'consumed_at,revoked_at',
-      eq: [['user_id', userId], ['source', 'order_paid'], ['source_id', orderId]],
-    });
+    expect(records.find((record) => record.table === 'draw_tickets')).toBeUndefined();
+    expect(result).not.toHaveProperty('cardPacks');
     expect(records.find((record) => record.table === 'refunds')).toMatchObject({
       select: 'status,created_at',
       in: [['payment_id', ['payment-2', 'payment-1']]],

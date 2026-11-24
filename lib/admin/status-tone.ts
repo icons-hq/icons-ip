@@ -145,12 +145,6 @@ const STATUS_TONES = {
   /** 매니저 초대 메일 — invitationEmailLabel이 돌려주는 상태 이름 */
   operatorInvitationEmail: { '전달 완료': 'success', '발송 접수': 'info', '발송 처리 중': 'info', '발송 대기': 'neutral', '전달 지연': 'warning', '재초대 필요': 'warning', '결과 확인 필요': 'warning', '발송 설정 확인 필요': 'warning', '발송 실패': 'danger' },
   // [catalog]
-  /** 카드풀 운영 기간 */
-  cardPool: { scheduled: 'info', active: 'success', ended: 'neutral' },
-  /** 참여형 게임 */
-  game: { scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
-  /** 카드팩 발급 정책 */
-  rewardPolicy: { inactive: 'neutral', scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
   /** 이벤트 — 화면 이름 그대로 저장된 값이다. 아직 안 연 것(예정)은 파랑, 지금 팔거나 열려 있는 것(예매중·진행중)은 초록이다 */
   event: { 예정: 'info', 예매중: 'success', 진행중: 'success', 종료: 'neutral' },
   /** 티켓 회차 정원 */
@@ -161,8 +155,6 @@ const STATUS_TONES = {
   goodsRelation: { scheduled: 'info', active: 'success', stopped: 'neutral', ended: 'neutral' },
   /** 그룹상품 연결 */
   goodsGroup: { active: 'success', archived: 'neutral' },
-  /** 카드팩 교환처 노출 */
-  coinOffer: { active: 'success', disabled: 'neutral' },
   /** 상품 엑셀 검증 분류 */
   goodsImport: { new: 'success', update: 'info', unchanged: 'neutral', error: 'danger' },
   /** 사방넷 열 인식 */

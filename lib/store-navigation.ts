@@ -1,5 +1,7 @@
 import { COMMUNITY_ENABLED } from './community-visibility';
-import { MENU_SHEET_GROUPS, STOREFRONT_MENU_ITEMS, type NavGroup, type NavItem } from './routes';
+import { MENU_SHEET_GROUPS, RETIRED_STORE_MENU_IDS, STOREFRONT_MENU_ITEMS, type NavGroup, type NavItem } from './routes';
+
+export { RETIRED_STORE_MENU_IDS };
 
 export const STORE_MENU_LABEL_LIMIT = 20;
 export type StoreMenuId = typeof STOREFRONT_MENU_ITEMS[number]['id'];
@@ -57,8 +59,8 @@ export function parseStorefrontNavigation(value: unknown): StorefrontNavigation 
 }
 
 /** Deployment/domain gates always take precedence over an operator's visibility choice. */
-export function resolveStorefrontNavigation(navigation: StorefrontNavigation, cardRewardsEnabled: boolean, communityEnabled = COMMUNITY_ENABLED): NavItem[] {
-  return navigation.filter(item => (cardRewardsEnabled || item.id !== 'packs') && (communityEnabled || item.id !== 'community'));
+export function resolveStorefrontNavigation(navigation: StorefrontNavigation, communityEnabled = COMMUNITY_ENABLED): NavItem[] {
+  return navigation.filter(item => !RETIRED_STORE_MENU_IDS.has(item.id) && (communityEnabled || item.id !== 'community'));
 }
 
 /* 카테고리 메가메뉴를 여는 GNB 항목. 이 항목의 GNB 이름('카테고리' 또는 운영 이름)은 메뉴의 이름이지
