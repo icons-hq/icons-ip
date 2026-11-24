@@ -74,7 +74,7 @@ AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint�
 2. **결제창**: 어댑터가 `SignData = hex(sha256(EdiDate + MID + Amt + MerchantKey))`를
    계산한다. `EdiDate`는 attempt 만료 10분 전(KST)이라 같은 attempt를 다시 준비해도 값이
    같다. 브라우저는 `pg-web.nicepay.co.kr/v3/common/js/nicepay-pgweb.js`를 싣고
-   `accept-charset="euc-kr"` 결제 폼을 `goPay()`에 넘긴다. 상품명은 `엑스스퀘어 굿즈 주문`,
+   `accept-charset="euc-kr"` 결제 폼을 `goPay()`에 넘긴다. 상품명은 `엑스스퀘어 상품 주문`,
    주문번호(`Moid`)는 attempt의 provider 주문번호, 가맹점 여분 필드(`ReqReserved`)는 단회용
    callback nonce다. MerchantKey는 브라우저로 나가지 않는다.
 3. **인증 응답**: PC는 `nicepaySubmit()`이 폼을, 모바일은 나이스페이가 인증 결과를

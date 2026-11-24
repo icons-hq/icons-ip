@@ -7,7 +7,7 @@
 - 두 주문서(기본 `Checkout`, 거래 런타임 `GoodsTransactionCheckout`)가 결제 버튼(무통장은 "주문하고 입금 안내 받기") 바로 위에 필수 체크박스를 둔다. 체크 전에는 버튼이 잠긴다. 장바구니 전체·선택 주문·바로구매·카드·무통장 모두 같다.
 - 서버 액션(`placeOrderAction`·`placeCartTransactionAction`)은 동의 값이 정확히 `true`가 아니면 주문을 만들기 전에 `acknowledgement_required`로 거절한다. 거래 런타임의 복구(`resumeCartTransactionAction`)는 동의를 받은 표식(`purchaseAcknowledged`)만 새 주문을 만들 수 있고(`p_allow_new`), 표식이 없으면 같은 키의 기존 주문만 돌려받는다.
 - 주문이 거절되면 바뀐 내용을 다시 확인하도록 체크를 푼다. 체크는 저장하지 않으므로 결제 화면에서 "다시 시도"로 돌아와도 다시 받는다.
-- 청약철회·교환이 제한된 굿즈(`goods.claim_return_allowed`·`claim_exchange_allowed`가 false, 사유는 `claim_restriction_reason`)이 주문서에 있으면 품목 줄에 "청약철회·교환 제한 — {사유}"가 보이고 동의 문구에 "청약철회가 제한되는 굿즈가 포함되어 있음을 확인"이 더해진다. 제한 굿즈 목록은 `/checkout` 페이지가 서버에서 한 번에 읽어 두 주문서에 넘긴다(읽기에 실패하면 고지만 빠지고 주문은 막지 않는다).
+- 청약철회·교환이 제한된 굿즈(`goods.claim_return_allowed`·`claim_exchange_allowed`가 false, 사유는 `claim_restriction_reason`)이 주문서에 있으면 품목 줄에 "청약철회·교환 제한 — {사유}"가 보이고 동의 문구에 "청약철회 또는 교환이 제한되는 상품이 포함되어 있음을 확인"이 더해진다. 제한 굿즈 목록은 `/checkout` 페이지가 서버에서 한 번에 읽어 두 주문서에 넘긴다(읽기에 실패하면 고지만 빠지고 주문은 막지 않는다).
 
 ## 제한 고지 대조(fail-closed)와 선물·정기구매
 
@@ -21,7 +21,7 @@
 - 주문 RPC는 바꾸지 않는다. 주문 생성 직후 서버가 service_role RPC `record_order_purchase_acknowledgement`로 `private.order_purchase_acknowledgements`(주문당 1행)에 동의 시각, 고지 문구 버전(`CHECKOUT_ACKNOWLEDGEMENT_VERSION`), 그 주문 품목 중 제한 굿즈 스냅샷(DB가 주문 품목과 굿즈 행에서 직접 읽는다)을 남긴다. 같은 주문의 재호출은 첫 기록을 유지한다(멱등).
 - 기록이 실패해도 이미 만든 주문과 결제 흐름은 그대로다. 서버가 한 번 다시 시도하고, 그래도 실패하면 `[checkout/acknowledgement] record failed` 오류 로그만 남긴다. 기록이 없는 주문(이 기능 이전 주문 포함)은 운영자 주문 상세의 "결제 전 확인 동의" 칸에 "동의 기록이 없습니다"로 보이며, 기록이 없다는 것이 주문·결제의 이상을 뜻하지는 않는다.
 - 운영자는 주문 상세(팝업 포함)에서 `admin_order_purchase_acknowledgement`(sales.read)로 읽는다. 보존 기간은 주문(거래기록)과 같고 주문이 삭제되면 함께 지워진다. 별도 파기 작업은 없다.
-- 고지 문구를 바꿔 고객이 읽는 내용이 달라지면 `lib/checkout-acknowledgement.ts`의 `CHECKOUT_ACKNOWLEDGEMENT_VERSION`을 올린다.
+- 고지 문구를 바꿔 고객이 읽는 내용이 달라지면 `lib/checkout-acknowledgement.ts`의 `CHECKOUT_ACKNOWLEDGEMENT_VERSION`을 올린다. 2026-11-24에 고객 화면 표기 전환으로 문구의 "굿즈"를 "상품"으로 바꾸며 `2026-11-19` → `2026-11-24`로 올렸다(뜻은 같다).
 
 ## 사업자정보 확인 링크
 
